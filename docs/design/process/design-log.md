@@ -84,7 +84,7 @@
 | S2a~S2d | `sources/conversation-extracts-1~4.md` | 101~136KB | 항목 225 / 161 / 206 / 396개. 사용자 결정·답 없는 제안·검증된 사실·열린 질문 목록 |
 | S3a | `sources/pi-api-facts-1.md` | 124KB | ai·agent·coding-agent·codemode·mcp·durable. 기존 주장 불일치 4건(내장 provider 42개, stopReason 무관 도구 실행 등). beforeToolCall 인자 변경이 transcript에 남지 않는 문제, coding-agent 도구의 경로 무제한 |
 | S3b | `sources/pi-api-facts-2.md` | 86KB | tui·protocol·server·client·chord·env 등. pi-lab 6개 모두 1.1.0에서 동작 [실험]. pi server/client는 재접속 재전송 없음, pi-env SSH stdio 프레이밍, cdaf6c2 소스와 npm 1.1.0 API 차이 |
-| S4 | `sources/pi-cases-notes.md` | 작성 중 | 사례 8개. 보조 에이전트 4개(OpenClaw 프로토콜, 지속성·복구, 인증·페어링·Tailscale, 스케줄러·알림·클라이언트)를 띄움 |
+| S4 | `sources/pi-cases-notes.md` | 완료 23:06 | 사례 8개. 보조 에이전트로 OpenClaw 4건(프로토콜, 지속성·복구, 인증·페어링·Tailscale, 스케줄러·알림·클라이언트)과 happy-agent·paseo·pi-web·pi-fabric를 조사. **기존 조사 정정**: 8곳 모두 클라이언트 seq를 메모리에만 두며 재시작을 넘는 lastSeq 재전송 사례가 없음("Happy Agent 커서 방식 참고" 전제 철회, Helm이 SQLite seq로 직접 설계). happy-agent는 pi 런타임에 의존한 적 없음, paseo는 ACP → SDK 임베드 → RPC 순 |
 
 - 확인: 하위 에이전트에도 Agent 도구가 있다(전원 "예"). 1단계 설계 에이전트는 보조 에이전트(Opus)를 직접 띄울 수 있다.
 - 부수 사항: S3b가 `experiments/pi-lab`에서 `npm install`을 할 때 루트 `package.json`의 workspaces 때문에 루트에 `node_modules`가 생겨 지우고 `--no-workspaces`로 다시 설치함. 이후 지시문에 이 방법을 적음.
@@ -93,6 +93,7 @@
 
 - 시작: 22:47(P1·P2·P5·P6·P8·P9·P10·P14), 22:52(P3·P4·P7·P11·P12·P13). pi API·사례 자료가 필요 없는 8개를 먼저 띄우고, S3a 완료 직후 나머지 6개를 띄움. S4는 아직 작성 중이라 6개에게는 사례별 노트(`.helm-design-work/S4/`)를 먼저 읽고 `pi-cases-notes.md`가 나오면 반영하라고 지시함.
 - 공통 지시문 원문: `.helm-design-work/coordinator/stage1-common.md`를 바탕으로 에이전트별로 필독 원천과 다룰 내용을 채움. 원천 파일이 커서(합계 약 1.8MB) 담당별로 "끝까지 읽을 것"과 "해당 절만 읽을 것"을 나눔. 모든 원천 파일의 체크리스트 절은 전원 필독.
+- 23:06 S4 완료 후 P3·P4·P7·P11·P12·P13에 사례 정리 완료와 핵심 정정 사항을 메시지로 알림.
 - 공통 규칙 추가: 24-adr.md는 P3만 쓰고 다른 에이전트는 자기 문서 끝 "ADR 후보" 절에 적음. 유즈케이스 초기 ID UC-01~UC-09를 전원에게 줌(P1이 확정). 이벤트·명령·메서드·화면 이름의 소유 문서를 명시.
 
 | 에이전트 | 모델 | 담당 문서 | 추가 입력 |
