@@ -1,7 +1,7 @@
 # 21. 데스크톱 UI 시스템
 
-- 작성: 2026-10-11, P14 UI. 2a단계 개정 2026-10-12
-- 상태: 2a단계 개정판. 사용자 결정 41~43(브리프 §2.4b: React 19, 부품 직접 제작, 글래스모피즘, 휴대폰 응답, Caustic 토큰 복사와 neutral 축소)과 조정자 판정(`docs/design/process/rulings-stage2a.md`, 특히 J-19)을 반영했다. 03(화면 ID·셸 영역·상태 라벨), 04(뷰 모델), 05(키보드·문구·자극 반응 흐름), 13(보장 수준), 15(지지 등급·라운드 마침), 16(평가 화면), 19(메서드·오류 코드), 20(앱 구조)의 2026-10-12 판에 맞췄다. 1단계 판은 `.helm-design-work/P14/21-stage1-backup.md`에 있다.
+- 작성: 2026-10-11, P14 UI. 2a단계 개정·4단계 보완 2026-10-12
+- 상태: 4단계 보완판(2026-10-12). 기준 결정 1~51(브리프 §2), 조정자 판정 J-1~J-152(`docs/design/process/rulings-stage2a.md`)를 반영했다. 사용자 결정 41~43(React 19, 부품 직접 제작, 글래스모피즘, 휴대폰 응답, Caustic 토큰 복사와 neutral 축소)과 47~50(모바일 PWA, 휴대폰 알림 강도, iOS 26, shadcn 소스 복사)이 이 문서의 주된 근거다. 03(화면 ID·셸 영역·상태 라벨), 04(뷰 모델), 05(키보드·문구·자극 반응 흐름), 08(레코드 종류), 13(보장 수준), 15(지지 등급·라운드 마침), 16(평가 화면), 19(메서드·오류 코드), 20(앱 구조·연결 상태)에 맞췄다. 1단계 판은 `.helm-design-work/P14/21-stage1-backup.md`에 있다.
 - 소유: 디자인 토큰, 타이포·레이아웃 규칙, 컴포넌트 목록과 계약(props, 상태, 키보드, 접근성), 시각화 컴포넌트, 화면 → 컴포넌트 매핑, UI 라이브러리 선택, 컴포넌트 단위 시각 테스트.
 - 소유하지 않음: 화면 ID·이름과 정보 구조·상태 라벨(03), 화면별 레이아웃·뷰 모델 타입(04), 문구·키 배정(05), 프로토콜 메서드(19), 앱 구조·상태 동기화·라우팅·알림·트레이(20), 도메인 레코드 정의(08), 질문 레코드(11), 루프·다이얼·주의 예산(14), 자극·반응·선호 모델의 생성 규칙(15).
 
@@ -9,7 +9,7 @@
 
 ### 1.1 목적
 
-Helm 데스크톱 앱(브리프 결정 19·32·41)의 렌더러 계층을 구현자가 이 문서만 보고 만들 수 있게 한다. 이 계층은 데몬이 보낸 투영(projection)을 화면에 그리고, 사람의 조작을 "의도(intent)"로 만들어 앱 상태 계층(20)에 넘긴다. Helm 로직은 두지 않는다(결정 32).
+Helm 데스크톱 앱(브리프 결정 19·41, 조정자 기본값 32)의 렌더러 계층을 구현자가 이 문서만 보고 만들 수 있게 한다. 이 계층은 데몬이 보낸 투영(projection)을 화면에 그리고, 사람의 조작을 "의도(intent)"로 만들어 앱 상태 계층(20)에 넘긴다. Helm 로직은 두지 않는다(결정 32).
 
 Helm 클라이언트는 대화 중심 UI와 다른 상태 중심 UI다(결정 10). 이 문서는 그 차이를 컴포넌트 계약으로 옮긴다. 기준은 다음 셋이다.
 
@@ -44,12 +44,12 @@ Helm 클라이언트는 대화 중심 UI와 다른 상태 중심 UI다(결정 10
 - 앱 프로세스 구조, Tauri 설정, 클라이언트 저장소, 재접속, 라우팅, 알림 채널, 트레이, 키체인: 20.
 - 화면 목록의 ID와 이름, 셸 영역, 내비게이션 구조, 상태 라벨: 03. 이 문서는 03 §3.6의 화면 ID를 쓴다.
 - 화면별 레이아웃 상세와 모든 문구의 최종 문장: 04·05. 이 문서에 나오는 한국어 문구는 컴포넌트 계약을 설명하기 위한 자리 표시이며, 문구 키(§3.6.7)로 05의 정본 문구에 연결한다.
-- TUI(결정 33·39). 다만 모든 복합 컴포넌트가 선형 텍스트 표현을 갖게 해(§3.6.6) TUI와 같은 정보를 보이는지 비교할 수 있게 한다.
+- TUI(결정 39, 조정자 기본값 33). 다만 모든 복합 컴포넌트가 선형 텍스트 표현을 갖게 해(§3.6.6) TUI와 같은 정보를 보이는지 비교할 수 있게 한다.
 - 도메인 판정(가역성, 위험, 승격, 질문 전달 시점). 화면은 판정 결과를 보여 주기만 한다(결정 2·14).
 
 ### 1.4 표시 규칙
 
-브리프 §5.2를 따른다. `[결정 n]`은 브리프 §2의 결정 번호, `[제안]`은 이 문서가 정한 것, `[가정]`은 확인되지 않은 전제다. 외부 사실은 `[원문]`(파일·문서 직접 확인), `[실험]`(이 작업 중 코드 실행으로 확인), `[검색]`(웹 확인), `[지식]`(재확인 안 함)을 붙인다.
+브리프 §5.2를 따른다. `[결정 n]`은 브리프 §2의 사용자 결정 번호에만 쓴다(판정 J-144). 조정자 기본값(브리프 결정 26~37)은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`(브리프 결정 44~46) 또는 `[판정 J-nn]`(`rulings-stage2a.md`)으로 적는다. `[제안]`은 이 문서가 정한 것, `[가정]`은 확인되지 않은 전제다. 외부 사실은 `[원문]`(파일·문서 직접 확인), `[실험]`(이 작업 중 코드 실행으로 확인), `[검색]`(웹 확인), `[지식]`(재확인 안 함)을 붙인다.
 
 ## 2. 전제와 결정
 
@@ -63,17 +63,21 @@ Helm 클라이언트는 대화 중심 UI와 다른 상태 중심 UI다(결정 10
 | 10 | 홈에는 대화 대신 상태(Goal, Concern, 질문, 진행 작업)를 둔다. 대화는 객체에 딸린 보조 수단 |
 | 11 | Goal 이력 시각화가 필요하다. Goal 변경은 사람이 확인한다 |
 | 12 | 질문 카드는 게이트(권리·정보), 전달 방식, 임시 가정, 가정 만료점을 보여 준다 |
-| 14, 32, 41 | 화면은 상태를 직접 바꾸지 않는다. 조작은 의도로 올라가고, 받아들여진 결과만 스트림으로 돌아온다. 낙관적 도메인 갱신 금지(§3.6.4) |
+| 14, 41, 기본값 32 | 화면은 상태를 직접 바꾸지 않는다. 조작은 의도로 올라가고, 받아들여진 결과만 스트림으로 돌아온다. 낙관적 도메인 갱신 금지(§3.6.4) |
 | 17(불변조건 1~7) | 관찰·추측·판단·선택 구분, 완료 주장·결과 확인·전체 반영 구분, 모름·이견·낡음을 숨기지 않음을 시각 문법으로 강제(§3.5) |
-| 19, 32, 41 | Tauri v2 + React 19 + TypeScript + Vite. 결정 41이 결정 32의 "React 18"을 대체한다. UI 부품은 Helm이 직접 만들고(Caustic React 부품을 가져오지 않음), 시각 언어는 최근 에이전트 클라이언트를 참고한 글래스모피즘이다. 반투명 표면은 시각 표현이며 문장 규칙인 "의인화 금지"와 무관하다 |
+| 19, 41, 기본값 32 | Tauri v2 + React 19 + TypeScript + Vite. 결정 41이 기본값 32의 "React 18"을 대체한다. UI 부품은 Helm이 직접 만들고(Caustic React 부품을 가져오지 않음), 시각 언어는 최근 에이전트 클라이언트를 참고한 글래스모피즘이다. 반투명 표면은 시각 표현이며 문장 규칙인 "의인화 금지"와 무관하다 |
 | 42 | 휴대폰에서도 질문에 답할 수 있어야 한다(모바일 클라이언트는 데스크톱 MVP 다음 단계, 26). 토큰과 표현 부품은 모바일과 나눠 쓸 수 있게 경계를 둔다(§3.13) |
 | 43 | Caustic 토큰은 복사해서 가져오고(npm·git 의존 없음), neutral 단계를 Helm에 맞게 줄여 다시 정한다(§3.2.2) |
-| 44 | Node 24 LTS, TypeScript 6.0(빌드 도구 기준) |
-| 21, 22, 38 | 원격 접속(Tailscale WSS 또는 SSH)과 끊김이 일상이다. 연결 상태와 투영 신선도를 항상 보인다 |
+| 판정 44 | Node 24 LTS, TypeScript 6.0(빌드 도구 기준) |
+| 47, 49 | 모바일 클라이언트는 데몬이 서빙하는 PWA이고 최소 판은 iOS 26이다 [결정 47, 49]. `@helm/ui`·`@helm/ui-tokens`는 브라우저 표준만 쓰고 Tauri에 기대지 않는다(§3.13). iOS 26 Safari는 `backdrop-filter`를 접두사 없이 지원하므로 [지식] 유리 재질과 대비 관문 값은 데스크톱과 같다. 시각 테스트의 WebKit 판(§6.3)이 모바일 렌더의 근사다 |
+| 48 | 휴대폰 알림은 `interrupt`·`notice` 질문까지 간다. 알림에서 열린 화면은 같은 `QuestionCard`를 `touch` 밀도로 쓴다 [결정 48] |
+| 50 | shadcn/ui 소스를 복사해 Helm 코드로 고쳐 쓰는 것은 결정 41의 "부품 직접 제작"에 들어간다(§2.5.2) [결정 50] |
+| 51 | 구현 에이전트 3단계 구성. UI 부품 구현은 §6.2 단위(U1~U9)로 나눠 실작업자에게 줄 수 있게 부품마다 계약·이야기·완료 기준을 이 문서에 둔다 [결정 51] |
+| 21, 22, 38, 기본값 26 | 원격 접속(Tailscale WSS 또는 SSH)과 끊김이 일상이다. 연결 상태와 투영 신선도를 항상 보인다 |
 | 24 | macOS와 Windows. 두 웹뷰(WKWebView, WebView2)에서 같게 보여야 한다 |
 | 25 | 문서와 화면에서 제품 사용 사례는 "유즈케이스" |
-| 31 | 이벤트에 단조 증가 seq가 있다. 화면은 "어느 seq 기준으로 본 것인지"를 표시할 수 있다 |
-| 37 | UI 문구는 한국어. 한국어 타이포 규칙이 기본값 |
+| 기본값 31 | 이벤트에 단조 증가 seq가 있다. 화면은 기준 시점을 감사 깊이에서 seq로, 그 밖의 깊이에서는 시각으로 표시한다 |
+| 기본값 37 | UI 문구는 한국어. 한국어 타이포 규칙이 기본값 |
 
 ### 2.2 이 문서의 주요 선택 요약
 
@@ -81,15 +85,15 @@ Helm 클라이언트는 대화 중심 UI와 다른 상태 중심 UI다(결정 10
 
 | ID | 선택 | 표시 | 절 |
 |---|---|---|---|
-| UI-D01 | 컴포넌트는 표현 전용이다. 입력은 04의 뷰 모델, 출력은 19 메서드 이름을 쓴 `UiIntent`. 도메인 판정과 프로토콜 호출을 하지 않는다 | [제안], 결정 14·32에서 도출 | §3.6 |
+| UI-D01 | 컴포넌트는 표현 전용이다. 입력은 04의 뷰 모델, 출력은 19 메서드 이름을 쓴 `UiIntent`. 도메인 판정과 프로토콜 호출을 하지 않는다 | [제안], 결정 14와 기본값 32에서 도출 | §3.6 |
 | UI-D02 | 사람의 결정 의도에는 화면이 본 뷰의 seq(`basisSeq`)를 붙인다. 낡은 카드에서 내린 결정은 데몬이 `3004 command.revisionConflict`로 거부한다 | [제안] | §3.6.3 |
 | UI-D03 | 낙관적 도메인 갱신을 하지 않는다. React 19의 `useOptimistic`과 폼 action으로 도메인 의도를 보내지 않는다 | [제안] | §3.6.4 |
 | UI-D04 | 색만으로 의미를 나타내지 않는다. N/E/M, 레코드 종류, 품질 상태는 라벨 + 아이콘 + 모양(테두리)으로 나타낸다 | [제안], 원천 §6.9 | §3.5 |
-| UI-D05 | 숫자 confidence는 저장도 표시도 하지 않는다(J-19). 15의 지지 등급과 14의 질적 확신 등급을 글자로 보이고, 직접성·반대 근거 탐색·확인 못한 범위·다음 확인을 함께 둔다 | [조정자 판정 J-19 / 제안: 표시] | §3.5.6 |
+| UI-D05 | 숫자 confidence는 저장도 표시도 하지 않는다(J-19). 15의 지지 등급과 14의 질적 확신 등급을 글자로 보이고, 직접성·반대 근거 탐색·확인 못한 범위·다음 확인을 함께 둔다 | [판정 J-19 / 제안: 표시] | §3.5.6 |
 | UI-D06 | 세 깊이(한눈에 / 검토 / 감사)를 모든 복합 컴포넌트의 공통 prop으로 둔다 | [제안] | §3.5.7 |
 | UI-D07 | 원함 탐구 부품에는 "고르기" 행동이 없다. 질문 카드의 대안 표시는 순서만 바꾸고 개수를 줄이지 않는다 | [제안], 결정 18 | §3.9 |
 | UI-D08 | 모든 복합 컴포넌트는 선형 텍스트 표현(`toLinearText`)을 갖는다 | [제안] | §3.6.6 |
-| UI-D09 | React 19. 헤드리스는 Radix Primitives(`radix-ui` 1.8), 시작 소스는 shadcn/ui(radix 바탕)를 복사해 Helm 토큰으로 다시 입힌다. 스타일은 Tailwind CSS v4 + CSS 변수 토큰 + cva, 아이콘은 lucide-react | [결정 41: React 19·직접 제작 / 제안: 라이브러리] | §2.5 |
+| UI-D09 | React 19. 헤드리스는 Radix Primitives(`radix-ui` 1.8), 시작 소스는 shadcn/ui(radix 바탕)를 복사해 Helm 토큰으로 다시 입힌다. 스타일은 Tailwind CSS v4 + CSS 변수 토큰 + cva, 아이콘은 lucide-react | [결정 41: React 19·직접 제작, 결정 50: shadcn 소스 복사 / 제안: 라이브러리] | §2.5 |
 | UI-D10 | 그래프·차트 라이브러리는 1차에 넣지 않는다 | [제안] | §2.5, §3.8 |
 | UI-D11 | assistant-ui는 대화 스레드에만 쓴다. Interactables, 생성형 UI, AssistantTransport, Assistant Cloud, 도구 승인 콜백은 쓰지 않는다 | [제안] | §3.10 |
 | UI-D12 | 글꼴은 Geist(라틴) → SUIT(한글) → Pretendard 순서. Geist·Geist Mono·SUIT를 앱에 넣어 배포한다. 한글이 들어가는 글자는 12px 미만으로 내리지 않는다 | [제안] | §3.2.3 |
@@ -107,15 +111,15 @@ Helm 클라이언트는 대화 중심 UI와 다른 상태 중심 UI다(결정 10
 
 | 출처 | 항목 | 처리 | 위치 |
 |---|---|---|---|
-| helm-canon §21 | 권장 컴포넌트 이름(`GoalSummary`, `FocusRoom`, `PossibilityComparison`, `EvidenceView`, `ChoiceRecord`, `ActiveWorkCard`, `SinceLastVisit`, `ReviewGroup`) | 반영. `FocusRoom`은 `ConcernRoom`으로 바꾼다(브리프 §6 용어집이 Concern을 도메인 이름으로 쓴다. 화면 라벨은 05가 정한다). `EvidenceView`는 역할이 더 분명한 이름 `EvidenceInspector`로 쓴다. `ReviewGroup`(팀 검토)은 1인 앱이라 만들지 않는다(결정 24) | §3.7 |
-| helm-canon §21 | 시각화: Inquiry Map(근거 체인), Integration Map, Decision Queue, Common Operating Picture, P07 가능성 비교 표 | 반영. Inquiry Map → `EvidenceChainTree`와 `InquiryBoard`, Decision Queue → `QuestionInbox`, Common Operating Picture → 홈의 `ConcernTree` + `SinceLastVisit`, 가능성 비교 표 → `PossibilityComparison`. Integration Map은 그래프로 그리지 않고 `WholeUpdatePanel`의 영향 목록으로 만든다(영향 대상이 대개 수십 개 이하이고 목록이 키보드·스크린 리더에 낫다) | §3.8 |
+| helm-canon §21 | 권장 컴포넌트 이름(`GoalSummary`, `FocusRoom`, `PossibilityComparison`, `EvidenceView`, `ChoiceRecord`, `ActiveWorkCard`, `SinceLastVisit`, `ReviewGroup`) | 8 중 5 반영: `GoalSummary`, `PossibilityComparison`, `ActiveWorkCard`, `SinceLastVisit`, `EvidenceView`(역할이 더 분명한 `EvidenceInspector`로). 셋은 부품으로 만들지 않음: `FocusRoom`은 Concern 화면(`SCR-CONCERN-*`, 03·04)이고 화면 컨테이너는 20이 만든다. 21은 그 안의 부품 구성만 정한다(§3.11). `ChoiceRecord`는 선택 레코드 한 장을 `KindLabel`(선택) + `AuthorshipMark` + `QualityBadge` + `ChoiceImpactEcho`로 그리며 따로 이름 붙인 부품을 두지 않는다. `ReviewGroup`(팀 검토)은 1인 앱이라 만들지 않는다(결정 24) | §3.7, §3.11 |
+| helm-canon §21 | 시각화: Inquiry Map(근거 체인), Integration Map, Decision Queue, Common Operating Picture, P07 가능성 비교 표 | 반영. Inquiry Map → `EvidenceChainTree`와 `InquiryBoard`, Decision Queue → `QuestionInbox`, Common Operating Picture → 홈의 `ConcernTree` + `SinceLastVisit`, 가능성 비교 표 → `PossibilityComparison`. Integration Map은 그래프로 그리지 않고 `ResultReviewPanel` 2단계의 반영 항목 목록(점검 여섯 칸별)과 `WholeUpdateBadge`로 만든다(영향 대상이 대개 수십 개 이하이고 목록이 키보드·스크린 리더에 낫다) | §3.7.3 (11), §3.8 |
 | helm-canon §21 | 사실과 해석의 시각 구분, 불확실성 원인 우선, confidence 숫자 금지, 소수 반대 근거 유지 | 반영 | §3.5.2, §3.5.6, §3.8.1 |
 | helm-canon §21 | 위험 버튼에 대상과 효과 표시. 상태 라벨 집합 | 반영. `ActionButton`의 `consequence` prop 필수 조건, 라벨 문구는 `@helm/ui-language`의 키로(J-103) | §3.6.3, §3.5.4 |
 | helm-canon §21 | Agent 표현: 이름보다 역할과 맡긴 일, 의인화 금지 | 반영. `ActorLabel`은 아바타·이름·감정 표현을 받지 않는다 | §3.7.2 |
 | helm-canon-2 §11 | 라벨 7종(Helm, Observed, Possible, Choice, Working, Review, Source)과 색 독립 표기 | 반영. 한국어 레코드 종류 라벨로 옮기고 아이콘·글자를 항상 함께 쓴다 | §3.5.2 |
-| helm-canon-2 §11 | Gate 카드, Work Agreement echo, Completion 기준 행(✓/△), "전체 반영 N개 남음" 배지 | 반영. `QuestionCard`, `WorkAgreementEcho`, `ResultCriterionRow`, `WholeUpdateBadge` | §3.7.3 |
+| helm-canon-2 §11 | Gate 카드, Work Agreement echo, Completion 기준 행(✓/△), "전체 반영 N개 남음" 배지 | 반영. `QuestionCard`, `WorkAgreementEcho`, `ResultCriterionRow`, `WholeUpdateBadge`(화면 라벨은 03 §3.3.2 "결과 확인됨 · 반영 n개 남음") | §3.7.3 |
 | helm-canon-2 §11 | 근거 drill-down의 source trace 필드 6개(시각, 명령·도구, 입력 범위, 출력 참조, 종료·오류, 출처 WorkUnit) | 반영. `SourceTrace` | §3.7.2 |
-| helm-canon-2 §11 | material group 카드(최대 5 + 기타) | 반영. `MaterialChangeGroups`. 묶음 기준은 경로가 아니라 데몬 투영이 주는 묶음(Concern·WorkUnit·선택 영향)을 그대로 쓴다(dogfood 001 권고, helm-canon-2 §8.7) | §3.7.3 |
+| helm-canon-2 §11 | material group 카드(최대 5 + 기타) | 반영. `MaterialChangeGroups`. 묶음 기준은 데몬 투영이 주는 묶음(Concern·WorkUnit·선택 영향)을 그대로 쓰고 경로로 다시 묶지 않는다(dogfood 001 권고, helm-canon-2 §8.7) | §3.7.3 |
 | helm-canon-2 §11 | helm-web 토큰(light-dark 쌍)은 참고 | 반영하지 않음. Caustic 토큰을 쓰기로 했고(§2.4), 테마 전환도 Caustic 방식(`data-theme` 속성 + `prefers-color-scheme`)을 따른다. CSS `light-dark()` 함수는 쓰지 않는다 | §3.2.9 |
 | helm-canon-2 §11(20 항목) | 상태 기계 4개(루프, WorkUnit, 연결, 투영 신선도)를 하나의 status로 합치지 않음. Gate의 cursor binding을 UI에 반영(stale 카드 표시) | 표시 쪽만 반영. 연결 상태와 투영 신선도를 서로 다른 지표로 그린다. 결정 의도에 `basisSeq`를 붙이고, 데몬이 낡았다고 거부하면 카드에 "바뀐 내용 보기"를 띄운다 | §3.8.5, §3.6.3 |
 | helm-canon-3 §8 | N/E/M 시각 문법: N은 선택·합의 카드(solid boundary), E는 판단·근거 관계(qualified state), M은 산출물·diff·실행(observed timestamp). 색만으로 구분하지 않음. 세 영역을 다른 탭으로 완전히 나누지 않음 | 반영 | §3.5.1 |
@@ -128,13 +132,13 @@ Helm 클라이언트는 대화 중심 UI와 다른 상태 중심 UI다(결정 10
 | helm-canon-3 §7.2 G14 | 세 깊이, N/E/M 문법, 의미 상태 언어 | 반영(문구는 05) | §3.5 |
 | helm-canon-3 §7.2 G15 | raw chain-of-thought는 근거가 아니다. 의도·불확실성·다음 행동을 보인다 | 반영. 모델의 사고 텍스트를 표시하는 컴포넌트를 만들지 않는다. 대화 스레드에서도 reasoning 파트는 렌더링하지 않는다 | §3.10.3 |
 | helm-canon-3 §7.1 C1 | 가역성을 Helm이 계산하지 않음. Gate 카드에 "되돌릴 수 있음"을 표시하려면 출처가 권한 레이어임을 함께 표시 | 반영. `ReversibilityNote`는 `source: 'permission-layer'`가 있을 때만 그린다 | §3.7.2 |
-| helm-canon-3 §7.1 C2·C3 | 대안 제시는 선택 요청에만, 2~3개로 줄이지 않음. 기본 표시 개수는 다이얼, 권리 게이트 질문은 개수 상한으로 숨기지 않음 | 반영 | §3.9 |
+| helm-canon-3 §7.1 C2·C3 | 대안 제시는 선택 요청에만, 2~3개로 줄이지 않음. 기본 표시 개수는 설정(`maxVisibleDecisions`, 14·11), 권리 게이트 질문은 개수 상한으로 숨기지 않음 | 반영 | §3.9 |
 | conversation-extracts-4 d25 | assistant-ui를 Tauri에서 쓸 때의 제약, Background runs가 assistant-ui "run" 개념에 묶이는지, 요소 단위 반응 UI를 그 위에 만들 수 있는지, 생성형 UI 컴포넌트를 Helm 카드로 정의할 수 있는지 | 답함. Background runs·생성형 UI·Interactables는 쓰지 않고, 자극 보드는 직접 만든다 | §3.10 |
 | conversation-extracts-4 20-8 | 원함 탐구 자극판: 요소 단위 반응, 이유 없는 반응 | 반영 | §3.8.3 |
 | conversation-extracts-4 20-9·20-10 | 사람의 결정은 모델 도구 경로를 거치지 않는다. 모델의 앱 상태 수정은 커널 제안으로 보내고 받아들여진 것만 화면에 반영 | 반영(UI-D01, UI-D03, §3.10.2) | §3.6, §3.10 |
 | conversation-extracts-4 20-11~20-13 | ExternalStoreRuntime + 자체 스트림, AssistantTransport 미사용, 독립 모드 요소(MIT, 소스 복사), Interactables 미사용, 생성형 UI 시험만, Assistant Cloud 불필요, OpenCode 런타임은 참고 구현 | 반영. 생성형 UI는 시험도 1차 범위에서 뺀다(이유 §3.10.4) | §3.10 |
 | conversation-extracts-2 d-6 | 대비 압축 출력(프레임 2~3개 + 질문 하나)을 "고르기"가 아닌 "반응 받기"로 표현 | 화면 규칙 반영(접힌 항목도 반응 가능, 고르기 버튼 없음). 생성 규칙은 15 | §3.9 |
-| conversation-extracts-1·2·3 끝 목록 | 문서 21에 배정된 항목 없음. 대화에서 사용자가 React 기반 설명을 원한 것(E1-144)과 시각화 요청(X3-10-07)은 결정 32와 이 문서의 시각화 원칙으로 이어진다 | 해당 없음 | — |
+| conversation-extracts-1·2·3 끝 목록 | 문서 21에 배정된 항목 없음. 대화에서 사용자가 React 기반 설명을 원한 것(E1-144)과 시각화 요청(X3-10-07)은 기본값 32와 이 문서의 시각화 원칙으로 이어진다 | 해당 없음 | — |
 | 브리프 §3.5 | "모델이 초안, 사람은 반응" 원칙(담당 P1·P2·P9) | 컴포넌트 수준 규칙을 더함: 초안 표시(`DraftMark`), 빈 양식 먼저 금지 | §3.9.5 |
 
 ### 2.4 Axiom·Caustic 검토와 사용 방식 [결정 41·43 / 제안: 방식]
@@ -186,7 +190,7 @@ Helm 클라이언트는 대화 중심 UI와 다른 상태 중심 UI다(결정 10
 5. 부품을 Helm이 직접 소유한다(결정 41). 패키지에 숨은 스타일·동작이 적어야 한다.
 6. 1인 개발이 유지할 수 있는 크기다.
 
-#### 2.5.2 헤드리스 컴포넌트: Radix Primitives + shadcn/ui 소스 복사 [제안]
+#### 2.5.2 헤드리스 컴포넌트: Radix Primitives + shadcn/ui 소스 복사 [결정 50 / 제안: Radix 바탕 선택]
 
 React 19에서는 ref가 일반 prop이라 1단계에서 문제였던 "shadcn 부품의 `forwardRef` 없음"이 사라졌다. 세 후보를 다시 비교했다.
 
@@ -196,7 +200,7 @@ React 19에서는 ref가 일반 prop이라 1단계에서 문제였던 "shadcn �
 | Base UI(`@base-ui/react` 1.9.0) | 1.0 안정판 2025-12, peer `react ^17 \|\| ^18 \|\| ^19` [검색: npm]. shadcn이 2026-07-02부터 기본 바탕으로 쓴다("Radix is not being deprecated") [검색: ui.shadcn.com changelog 2026-07] | 기각. 품질은 좋으나 assistant-ui의 Radix와 두 라이브러리가 공존한다. Radix 유지 중단 신호가 없다 |
 | React Aria Components 1.22.1 | peer React 19 포함, Apache-2.0, `ko-KR` 문자열 표, IME 조합 처리 [검색: npm, 패키지 소스] | 기각. 국제화가 가장 깊으나 Helm이 쓸 날짜·숫자 부품이 적고, 스타일 연결 방식이 Radix와 달라 assistant-ui 부품과 섞기 어렵다. 한국어 IME 문제는 Enter·단축키 판정(§3.6.5)으로 좁혀 직접 다룬다 |
 
-shadcn/ui 재검토 [제안]: shadcn CLI 4.21(Tailwind v4, React 19, `React.ComponentProps` 방식) [검색: npm, ui.shadcn.com/docs/tailwind-v4]의 radix 바탕 부품을 **시작 소스로 복사**한다(`npx shadcn add`로 생성 후 저장소에 들임). 복사 뒤에는 Helm 소유 코드다: Helm 토큰 클래스로 다시 입히고, Helm 정적 규칙(§6.4)을 통과하게 고치고, 상태 이야기(§6.3)를 붙인다. shadcn 레지스트리를 런타임 의존으로 두지 않는다. 결정 41의 "UI 부품은 Helm이 직접 만든다"는 Caustic React 부품을 가져오지 않는다는 뜻이며, 공개 시작 소스를 복사해 Helm 코드로 소유하는 것과 충돌하지 않는다고 본다 [가정: 사용자 확인 필요, U-21].
+shadcn/ui 소스 복사 [결정 50]: shadcn CLI 4.21(Tailwind v4, React 19, `React.ComponentProps` 방식) [검색: npm, ui.shadcn.com/docs/tailwind-v4]의 radix 바탕 부품을 **시작 소스로 복사**한다(`npx shadcn add`로 생성 후 저장소에 들임). 복사 뒤에는 Helm 소유 코드다: Helm 토큰 클래스로 다시 입히고, Helm 정적 규칙(§6.4)을 통과하게 고치고, 상태 이야기(§6.3)를 붙인다. shadcn 레지스트리를 런타임 의존으로 두지 않는다. shadcn 소스를 복사해 Helm 코드로 고쳐 쓰는 것은 결정 41의 "부품 직접 제작"에 들어간다 [결정 50]. 바탕을 Base UI가 아닌 Radix로 고른 것은 이 문서의 선택이다 [제안].
 
 #### 2.5.3 스타일 방식: Tailwind CSS v4 + CSS 변수 토큰 + cva [제안]
 
@@ -329,7 +333,8 @@ sRGB 값은 OKLCH → sRGB 변환으로 계산했다 [실험: `.helm-design-work
 | `material-rim` / `-edge` / `-specular` / `-sheen` | 흰색 / 0.62, neutral-9 / 0.11, 흰색 / 0.95, 흰색 / 0.5 | 흰색 / 0.09, 검정 / 0.55, 흰색 / 0.17, 흰색 / 0.1 | 유리 테두리·반사광(Caustic 처방) |
 | `text-primary` | neutral-9 | neutral-0 | 본문 |
 | `text-secondary` | neutral-6 | neutral-2 | 보조 설명 |
-| `text-tertiary` | neutral-5 | neutral-3 | 메타 정보(시각, ID). 다크 유리 위에서는 `text-tertiary-on-glass`(neutral-2) |
+| `text-tertiary` | neutral-5 | neutral-3 | 메타 정보(시각, ID). 유리 위에서는 쓰지 않는다 |
+| `text-tertiary-on-glass` | neutral-6 | neutral-2 | 유리 위 메타 정보(아래 유리 표) |
 | `text-placeholder` | neutral-5 | neutral-3 | 입력 안내 |
 | `text-disabled` | neutral-3 | neutral-4 | 비활성 |
 | `text-link`, `accent-text` | accent 465·118 | accent 815·105 | 링크, 근거 참조 |
@@ -347,7 +352,7 @@ sRGB 값은 OKLCH → sRGB 변환으로 계산했다 [실험: `.helm-design-work
 
 강조 색상(hue)은 Caustic 기본 205(Lagoon)다. Caustic이 24개 색상에서 강조 대비를 검사하므로 바꿔도 대비는 유지된다 [원문: `contrast.json` `hueSweep`]. Helm은 205를 쓴다.
 
-**대비 결과** [실험: `.helm-design-work/P14/neutral_contrast.py`, WCAG 2 상대 휘도]
+**대비 결과** [실험: `.helm-design-work/P14/neutral_contrast.py`·`glass_table.py`, WCAG 2 상대 휘도]
 
 불투명 표면:
 
@@ -364,16 +369,19 @@ sRGB 값은 OKLCH → sRGB 변환으로 계산했다 [실험: `.helm-design-work
 
 유리 표면(최악 배경 위 합성): 배경 후보는 두 테마의 창 배경·표면(n0, n1, n8, n9)과 채도 높은 색 15개(색상 25·72·158·205·295 × 명도 0.35·0.525·0.815), 그리고 순수 검정·흰색(창 효과로 바탕화면이 비칠 때의 최악)이다.
 
-| 재질 | 본문 | 보조 | 3차 | 순수 검정·흰색 위 본문 |
+각 칸은 "창 배경·채도 높은 색 중 최악 / 순수 검정·흰색 중 최악"이다. 관문은 두 값 중 작은 쪽으로 판정한다.
+
+| 재질 | 본문 | 보조 | 3차(`text-tertiary`) | 유리 위 3차(`text-tertiary-on-glass`) |
 |---|---|---|---|---|
-| 라이트 크롬 n0 / 0.84 | 13.14 | 6.17 | 4.57 | 12.79 |
-| 라이트 오버레이 n0 / 0.90 | 15.03 | 7.06 | 5.22 | 14.79 |
-| 다크 크롬 n8 / 0.86 | 11.00 | 6.95 | **3.45** | 10.96 |
-| 다크 오버레이 n8 / 0.90 | 12.60 | 7.95 | **3.95** | 12.57 |
+| 라이트 크롬 n0 / 0.84 | 13.14 / 12.79 | 6.17 / 6.00 | 4.57 / **4.44** | n6: 6.17 / 6.00 |
+| 라이트 오버레이 n0 / 0.90 | 15.03 / 14.79 | 7.06 / 6.94 | 5.22 / 5.14 | n6: 7.06 / 6.94 |
+| 다크 크롬 n8 / 0.86 | 11.00 / 10.96 | 6.95 / 6.92 | **3.45 / 3.44** | n2: 6.95 / 6.92 |
+| 다크 오버레이 n8 / 0.90 | 12.60 / 12.57 | 7.95 / 7.93 | **3.95 / 3.94** | n2: 7.95 / 7.93 |
 | (참고) Caustic regular 라이트 0.66 / 다크 0.62 | 8.39 / 4.78 | 3.94 / 3.02 | 2.92 / 1.50 | — |
 
 - 크롬 재질 알파를 Caustic thick(0.84)으로 잡은 이유: 그 아래 재질(regular 이하)은 보조 글자가 4.5:1에 못 미친다. 크롬에는 보조 글자(위치 경로, 연결 상태)가 늘 있다.
-- 다크 유리 위 3차 글자는 4.5:1에 못 미친다. 규칙: **다크 테마 유리 위에서 3차 글자는 `text-tertiary-on-glass`(neutral-2, 보조와 같은 값)를 쓴다.** 라이트는 그대로 쓴다.
+- 3차 글자는 라이트 크롬에서 검정 바탕일 때 4.44, 다크 유리에서 3.44~3.95로 4.5:1에 못 미친다. 규칙: **두 테마 모두 유리 위의 3차 글자는 `text-tertiary-on-glass`를 쓴다.** 값은 라이트 neutral-6, 다크 neutral-2로 보조 글자와 같다. 유리 위에서는 3차와 보조를 글자 크기와 굵기로만 구분한다. 빌드 관문(§3.2.8 `contrastRules`)은 유리 위 3차 쌍을 이 토큰으로 검사한다.
+- 상태 색 글자를 유리 위에 둘 때: 경고·위험·정보 글자(`warning-text` 등)는 라이트 크롬 최악 배경에서 4.84~5.04로 통과한다. 성공 글자(`success-text`, mint 700)는 4.42로 못 미치므로 유리 위에서는 점·아이콘(비글자 3:1)으로만 쓰고 글자는 `text-primary`로 쓴다 [실험: `.helm-design-work/P14/status_glass.py`].
 - 비활성 글자와 컨트롤 경계는 유리 위에 두지 않는다. 유리 안의 컨트롤은 불투명 `control-raised` 바탕 위에 그린다.
 - 창 효과(§3.14.3)로 바탕화면이 비쳐도 위 표의 마지막 열이 하한이다. 크롬 재질이 창 효과 위에 다시 덮이기 때문이다.
 
@@ -463,7 +471,7 @@ Caustic의 `display`, `voice`, `voice-sm`, `thought`는 1차에 쓰지 않는다
 ```
 
 - 문서 루트에 `lang="ko"`를 둔다. 영어 고유 이름(Concern, Goal)이 섞여도 `lang`을 바꾸지 않는다. 사용자가 쓴 영어 문단(자극, 원문 인용)은 데몬이 주는 언어 정보가 있을 때만 `lang`을 붙인다.
-- 한 줄 제목·라벨이 넘치면 말줄임(`text-overflow: ellipsis`)을 쓰되, 전체 문장은 `title` 속성이 아니라 툴팁 컴포넌트와 접근 가능한 이름으로 제공한다.
+- 한 줄 제목·라벨이 넘치면 말줄임(`text-overflow: ellipsis`)을 쓰되, 전체 문장은 툴팁 컴포넌트와 접근 가능한 이름으로 제공한다(`title` 속성은 쓰지 않는다).
 - 말줄임은 한 줄 라벨에만 쓴다. 질문 문장, 반대 근거, 판단 문장은 줄여서 자르지 않는다(UP-6).
 - 숫자와 단위는 붙여 쓴다(`3건`, `12분 전`). 상대 시간과 정확한 시각을 함께 둔다(`TimeStamp`, §3.7.2).
 
@@ -545,15 +553,14 @@ Caustic의 대각선 광택 마스크(`::before`)는 크롬에는 쓰지 않고 
 - 클릭 대상 최소 24×24px(`--hm-hit-min`). 목록 행은 행 전체가 클릭 대상이다.
 - z-index: `--hm-z-*`(Caustic 값, chrome 20, sticky 30, popover 40, dialog 60, toast 80, tooltip 90, palette 100) [원문].
 - 밀도: `:root[data-density="regular" | "compact" | "touch"]`. 데스크톱 기본 `regular`, 사용자 설정(20 저장). `touch`는 모바일 클라이언트(26)용이며 컨트롤 최소 높이 44px, 목록 행 48px, 클릭 대상 44×44px로 올린다 [제안, 26과 맞춤].
-- 글자 크기 배율: 사용자 설정 `100% | 112.5% | 125%`를 `:root { font-size }`가 아니라 웹뷰 확대(Tauri 창의 zoom)로 처리한다 [제안]. Caustic 토큰이 px 값이라 rem 배율이 적용되지 않기 때문이다. 확대 200%에서도 가로 스크롤 없이 쓸 수 있어야 한다(§3.3.4).
+- 글자 크기 배율: 사용자 설정 `100% | 112.5% | 125%`를 웹뷰 확대(Tauri 창의 zoom)로 처리하고 `:root { font-size }`는 바꾸지 않는다 [제안]. Caustic 토큰이 px 값이라 rem 배율이 적용되지 않기 때문이다. 확대 200%에서도 가로 스크롤 없이 쓸 수 있어야 한다(§3.3.4).
 
 #### 3.2.8 토큰 원본과 생성 [결정 43 / 제안: 구성]
 
 ```text
 packages/ui-tokens/                 @helm/ui-tokens — React·Tauri를 모름. 데스크톱·모바일이 같이 쓴다(§3.13)
   NOTICE.md                         Caustic 출처(Axiom vendor/caustic, 커밋 8c43d45…, 복사한 날짜), 바꾼 점, 소유자 확인
-  src/tokens.ts                     원본: 원시(neutral 11, 색상 램프 5 × 쓰는 단계), 의미(라이트·다크), 간격·반경·크기·그림자·모션·z, 재질
-  src/contrast-rules.ts             대비 규칙 목록(Caustic contrastRules를 옮기고 유리 규칙을 더함)
+  src/tokens.ts                     원본: 원시(neutral 11, 색상 램프 5 × 쓰는 단계, 스펙트럼), 의미(라이트·다크), 간격·반경·크기·그림자·모션·z, 재질, 대비 규칙(아래 전체)
   src/helm.css                      Helm 의미 토큰(--helm-*)
   src/base.css                      유리·에이전트 테두리 유틸리티, 한국어 규칙, 타입 역할, 포커스 규칙
   scripts/build.ts                  대비 검사 → dist 생성. 규칙 하나라도 실패하면 종료 코드 1
@@ -565,25 +572,220 @@ packages/ui-tokens/                 @helm/ui-tokens — React·Tauri를 모름. 
 apps/desktop/src/styles/app.css     @import 순서: tailwindcss → @helm/ui-tokens/dist/tokens.css(layer base) → theme.css → helm.css → base.css → fonts.css
 ```
 
+`src/tokens.ts`는 아래 전체가 원본이다. 값은 Caustic `tokens.mjs`(커밋 `8c43d45…`)를 그대로 옮겼고, Helm이 바꾼 곳은 주석 `// Helm`으로 표시했다. Caustic에서 가져오지 않은 것: Studio 전용 의미 토큰(`bg.canvas`, `canvas.*`, `media.*`, `identity.*`, `chart.*`, `surface.translucent*`, `material.ultrathin|thin|regular`), Studio 배치 수치(`studio`), 부품 기하 중 Helm 부품이 쓰지 않는 것, 타입 역할 중 `display`·`voice*`·`thought`·Studio 전용 역할(§3.2.3), 모션 중 `spin`·`orb`·`shimmer`·`slide`·`scan`·`indeterminate`(§3.14.4).
+
 ```ts
-// packages/ui-tokens/src/tokens.ts (발췌)
-export const neutral = {
-  0: [0.995, 0.001], 1: [0.97, 0.003], 2: [0.845, 0.008], 3: [0.65, 0.011], 4: [0.54, 0.012], 5: [0.48, 0.012],
-  6: [0.41, 0.012], 7: [0.265, 0.010], 8: [0.225, 0.009], 9: [0.18, 0.008], 10: [0.14, 0.007],
-} as const satisfies Record<number, readonly [L: number, C: number]>;   // 색상 260
-export const NEUTRAL_HUE = 260;
-export const semantic = {
-  light: { 'bg.app': 'neutral.1', 'surface.base': 'neutral.0', 'material.chrome': 'neutral.0/0.84', 'material.overlay': 'neutral.0/0.90',
-           'text.primary': 'neutral.9', 'text.secondary': 'neutral.6', 'text.tertiary': 'neutral.5', 'text.tertiary-on-glass': 'neutral.5', /* … */ },
-  dark:  { 'bg.app': 'neutral.9', 'surface.base': 'neutral.8', 'surface.raised': 'neutral.7', 'material.chrome': 'neutral.8/0.86', 'material.overlay': 'neutral.8/0.90',
-           'text.primary': 'neutral.0', 'text.secondary': 'neutral.2', 'text.tertiary': 'neutral.3', 'text.tertiary-on-glass': 'neutral.2', /* … */ },
+// packages/ui-tokens/src/tokens.ts — 원본. dist/는 scripts/build.ts가 이 파일에서만 만든다.
+export const meta = { name: 'Helm UI tokens', prefix: 'hm', source: 'Caustic 1.0.0 (axiom vendor/caustic @ 8c43d45)' } as const;
+
+/* 색상 램프: 모든 색상이 같은 명도·채도 단면을 쓴다. Helm은 300~700만 쓴다(§3.2.2 의미 표) */
+export const hueProfile = {
+  L: { 300: 0.815, 400: 0.735, 500: 0.635, 600: 0.525, 700: 0.465 },
+  C: { 300: 0.105, 400: 0.13, 500: 0.142, 600: 0.135, 700: 0.118 },
 } as const;
+export const hues = {
+  accent: { hue: 205, live: true },   // Lagoon. 빌드가 24개 색상으로 돌려 대비를 검사한다
+  mint: { hue: 158 }, amber: { hue: 72 }, coral: { hue: 25 }, iris: { hue: 295 },
+} as const;
+
+/* Graphite neutral. Helm: 16단계 → 11단계(§3.2.2). 주석은 Caustic 원래 단계 */
+export const NEUTRAL_HUE = 260;
+export const neutral = {
+  0: [0.995, 0.001] /* 0 */,  1: [0.97, 0.003] /* 50 */,  2: [0.845, 0.008] /* 300 */, 3: [0.65, 0.011] /* 400 */,
+  4: [0.54, 0.012] /* 500 */, 5: [0.48, 0.012] /* 600 */, 6: [0.41, 0.012] /* 700 */,  7: [0.265, 0.010] /* 850 */,
+  8: [0.225, 0.009] /* 900 */, 9: [0.18, 0.008] /* 950 */, 10: [0.14, 0.007] /* 1000 */,
+} as const satisfies Record<number, readonly [L: number, C: number]>;
+
+/* 에이전트 스펙트럼: 장식 빛. 글자에 쓰지 않는다(UP-15) */
+export const spectrum = [
+  { L: 0.80, C: 0.13, hue: 'accent' },   // --hm-agent-spectrum-1
+  { L: 0.86, C: 0.15, hue: 158 },        // --hm-agent-spectrum-2
+  { L: 0.87, C: 0.14, hue: 80 },         // --hm-agent-spectrum-3
+] as const;
+
+/* 의미 색. 값 문법: "<램프>.<단계>" | "<램프>.<단계>/<알파>" | "white/<a>" | "black/<a>" */
+export const semantic = {
+  light: {
+    'bg.app': 'neutral.1', 'bg.inset': 'neutral.9/0.04', 'bg.scrim': 'neutral.9/0.24',
+    'surface.base': 'neutral.0', 'surface.raised': 'neutral.0',                      // Helm: 25 → 0, 높이는 elevation-1로
+    'material.chrome': 'neutral.0/0.84', 'material.overlay': 'neutral.0/0.90',       // Helm: thick(0.84)과 0.90 두 개만
+    'material.rim': 'white/0.62', 'material.edge': 'neutral.9/0.11', 'material.specular': 'white/0.95', 'material.sheen': 'white/0.5',
+    'text.primary': 'neutral.9', 'text.secondary': 'neutral.6', 'text.tertiary': 'neutral.5', 'text.tertiary-on-glass': 'neutral.6',
+    'text.placeholder': 'neutral.5', 'text.disabled': 'neutral.3', 'text.inverse': 'neutral.0', 'text.link': 'accent.700',
+    'border.subtle': 'neutral.9/0.07', 'border.default': 'neutral.9/0.12', 'border.strong': 'neutral.9/0.2', 'border.control': 'neutral.3',
+    'fill.hover': 'neutral.9/0.045', 'fill.pressed': 'neutral.9/0.075', 'fill.selected': 'neutral.9/0.11',
+    'control.off': 'neutral.3', 'control.thumb': 'neutral.0', 'control.raised': 'neutral.0/0.8', 'control.raised-hover': 'neutral.0/0.94', 'control.edge': 'neutral.9/0.1',
+    'ink.solid': 'neutral.8/0.9', 'ink.hover': 'neutral.7/0.9', 'ink.on': 'neutral.0', 'ink.on-muted': 'neutral.0/0.75', 'ink.kbd': 'white/0.09',  // Helm: 800 → 7, 25 → 0
+    'accent.solid': 'accent.600', 'accent.hover': 'accent.700', 'accent.on': 'neutral.0', 'accent.text': 'accent.700',
+    'accent.soft': 'accent.400/0.14', 'accent.border': 'accent.400/0.5',
+    'success.solid': 'mint.600', 'success.on': 'neutral.0', 'success.text': 'mint.700', 'success.soft': 'mint.300/0.22',
+    'warning.solid': 'amber.500', 'warning.on': 'neutral.10', 'warning.text': 'amber.700', 'warning.soft': 'amber.300/0.3',
+    'danger.solid': 'coral.600', 'danger.on': 'neutral.0', 'danger.text': 'coral.700', 'danger.soft': 'coral.300/0.2',
+    'info.solid': 'iris.600', 'info.on': 'neutral.0', 'info.text': 'iris.700', 'info.soft': 'iris.300/0.2',
+    'diff.add': 'mint.400/0.18', 'diff.remove': 'coral.400/0.16', 'focus.ring': 'accent.600', 'agent.glow': 'accent.300/0.45',
+  },
+  dark: {
+    'bg.app': 'neutral.9', 'bg.inset': 'black/0.22', 'bg.scrim': 'black/0.5',
+    'surface.base': 'neutral.8', 'surface.raised': 'neutral.7',
+    'material.chrome': 'neutral.8/0.86', 'material.overlay': 'neutral.8/0.90',       // Helm: Caustic thick 0.84 → 0.86
+    'material.rim': 'white/0.09', 'material.edge': 'black/0.55', 'material.specular': 'white/0.17', 'material.sheen': 'white/0.1',
+    'text.primary': 'neutral.0', 'text.secondary': 'neutral.2', 'text.tertiary': 'neutral.3', 'text.tertiary-on-glass': 'neutral.2',
+    'text.placeholder': 'neutral.3', 'text.disabled': 'neutral.4', 'text.inverse': 'neutral.9', 'text.link': 'accent.300',
+    'border.subtle': 'white/0.06', 'border.default': 'white/0.1', 'border.strong': 'white/0.17', 'border.control': 'neutral.4',
+    'fill.hover': 'white/0.05', 'fill.pressed': 'white/0.08', 'fill.selected': 'white/0.12',
+    'control.off': 'neutral.4', 'control.thumb': 'neutral.0', 'control.raised': 'neutral.7/0.76', 'control.raised-hover': 'neutral.7/0.82', 'control.edge': 'white/0.08',  // Helm: 800 → 7
+    'ink.solid': 'neutral.6/0.86', 'ink.hover': 'neutral.5/0.86', 'ink.on': 'neutral.0', 'ink.on-muted': 'neutral.0/0.75', 'ink.kbd': 'white/0.09',
+    'accent.solid': 'accent.400', 'accent.hover': 'accent.300', 'accent.on': 'neutral.10', 'accent.text': 'accent.300',
+    'accent.soft': 'accent.400/0.17', 'accent.border': 'accent.400/0.45',
+    'success.solid': 'mint.400', 'success.on': 'neutral.10', 'success.text': 'mint.300', 'success.soft': 'mint.500/0.2',
+    'warning.solid': 'amber.400', 'warning.on': 'neutral.10', 'warning.text': 'amber.300', 'warning.soft': 'amber.500/0.2',
+    'danger.solid': 'coral.400', 'danger.on': 'neutral.10', 'danger.text': 'coral.300', 'danger.soft': 'coral.500/0.2',
+    'info.solid': 'iris.400', 'info.on': 'neutral.10', 'info.text': 'iris.300', 'info.soft': 'iris.500/0.2',
+    'diff.add': 'mint.500/0.18', 'diff.remove': 'coral.500/0.18', 'focus.ring': 'accent.400', 'agent.glow': 'accent.400/0.35',
+  },
+} as const;
+
+/* 크기 */
+export const space = { 0: 0, 0.25: 1, 0.5: 2, 0.75: 3, 1: 4, 1.25: 5, 1.5: 6, 1.75: 7, 2: 8, 2.25: 9, 2.5: 10, 3: 12, 3.5: 14, 4: 16, 4.5: 18, 5: 20, 6: 24, 6.5: 26, 7: 28, 8: 32, 10: 40, 12: 48, 16: 64, 18: 72 } as const;
+export const radius = { none: 0, '2xs': 2, xs: 4, sm: 6, md: 8, lg: 10, xl: 12, '2xl': 16, '3xl': 22, full: 999 } as const;
+export const size = {
+  control: { '2xs': 20, xs: 24, sm: 28, md: 32, lg: 40, xl: 48 },
+  'control-compact': { '2xs': 18, xs: 22, sm: 24, md: 28, lg: 36, xl: 44 },
+  'control-touch': { md: 44, row: 48 },                                              // Helm: 모바일 밀도(§3.2.7)
+  field: { sm: 36, md: 40, lg: 44 }, 'field-compact': { sm: 32, md: 36, lg: 40 },
+  icon: { xs: 12, sm: 14, md: 16, lg: 20, xl: 24 },
+  component: {                                                                       // Helm 부품이 쓰는 것만
+    check: 18, 'radio-dot': 7, 'kbd-h': 18, 'progress-h': 6, 'chip-h': 26, 'tab-h': 34, 'menu-item': 30, 'menu-min': 220,
+    'switch-md-w': 46, 'switch-md-h': 28, 'switch-md-thumb': 24, 'switch-md-travel': 18,
+    'popover-sm': 240, 'popover-md': 280, 'dialog-sm': 320, 'dialog-md': 480, 'dialog-lg': 640, 'sheet-md': 380,
+    'toast-w': 360, 'textarea-min': 92, 'reading-max': 720, 'activity-dot': 12, 'selected-bar': 3,   // 마지막 셋은 Helm
+  },
+  'hit-min': 24, 'hit-min-touch': 44, 'field-font-touch': 16,                       // Helm: iOS 입력 확대 방지(§3.13)
+} as const;
+export const font = {
+  ui: '"Geist", "SUIT", "Pretendard Variable", "Pretendard", "Noto Sans KR", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
+  mono: '"Geist Mono", "SUIT", ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace',   // Helm: SUIT 더함
+} as const;
+// [글꼴, 크기, 줄 높이, 무게, 자간(em)]. 한국어 자간 보정은 base.css(§3.2.3)
+export const type = {
+  'title-1': ['ui', 26, 32, 600, -0.022], 'title-2': ['ui', 20, 26, 600, -0.016], 'title-3': ['ui', 15, 20, 600, -0.01],
+  'title-4': ['ui', 13.5, 20, 600, -0.01], 'helm-reading': ['ui', 15, 24, 400, 0],   // Helm 추가
+  body: ['ui', 14, 21, 400, -0.003], ui: ['ui', 13, 18, 400, -0.003], 'ui-strong': ['ui', 13, 18, 500, -0.003],
+  'ui-sm': ['ui', 12, 18, 500, 0], footnote: ['ui', 12, 16, 400, 0], label: ['ui', 11.5, 14, 500, 0], caption: ['ui', 11, 14, 500, 0],
+  mono: ['mono', 12, 18, 400, 0], 'mono-sm': ['mono', 11, 16, 500, 0],
+} as const;
+export const elevation = {
+  light: {
+    1: '0 1px 2px oklch(0.2 0.02 260 / 0.06)',
+    2: '0 1px 2px oklch(0.2 0.02 260 / 0.05), 0 4px 12px -2px oklch(0.2 0.02 260 / 0.08)',
+    3: '0 2px 4px oklch(0.2 0.02 260 / 0.04), 0 12px 28px -6px oklch(0.2 0.02 260 / 0.12)',
+    4: '0 4px 8px oklch(0.2 0.02 260 / 0.05), 0 24px 48px -12px oklch(0.2 0.02 260 / 0.18)',
+    5: '0 8px 16px oklch(0.2 0.02 260 / 0.06), 0 40px 80px -16px oklch(0.2 0.02 260 / 0.28)',
+    agent: '0 8px 30px -12px var(--hm-color-agent-glow)',
+  },
+  dark: {
+    1: '0 1px 2px oklch(0 0 0 / 0.3)',
+    2: '0 1px 2px oklch(0 0 0 / 0.3), 0 4px 12px -2px oklch(0 0 0 / 0.35)',
+    3: '0 2px 4px oklch(0 0 0 / 0.25), 0 12px 28px -6px oklch(0 0 0 / 0.45)',
+    4: '0 4px 8px oklch(0 0 0 / 0.25), 0 24px 48px -12px oklch(0 0 0 / 0.55)',
+    5: '0 8px 16px oklch(0 0 0 / 0.3), 0 40px 80px -16px oklch(0 0 0 / 0.65)',
+    agent: '0 8px 30px -12px var(--hm-color-agent-glow)',
+  },
+} as const;
+export const blur = { chrome: 24, overlay: 36 } as const;                         // Helm: 두 재질만(§3.2.5)
+export const saturate = 1.8;
+export const motion = {
+  duration: { instant: 0, quick: 120, base: 200, gentle: 320, agent: 4800 },
+  easing: {
+    standard: 'cubic-bezier(0.2, 0, 0, 1)', out: 'cubic-bezier(0.2, 0.8, 0.2, 1)', in: 'cubic-bezier(0.4, 0, 1, 1)', linear: 'linear',
+    spring: 'linear(0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017, 1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%, 1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%, 0.997 69.8%, 1.003 76.9%, 1)',
+  },
+} as const;
+export const opacity = { disabled: 0.42, muted: 0.64 } as const;
+export const z = { chrome: 20, sticky: 30, popover: 40, dialog: 60, toast: 80, tooltip: 90, palette: 100 } as const;
+
+/* 대비 규칙. 빌드는 모든 테마 × 강조 색상 24개로 돈다. 하나라도 실패하면 종료 코드 1 */
 export type ContrastRule =
-  | { fg: string; bg: string; min: number; note: string }
-  | { fg: string; glass: 'material.chrome' | 'material.overlay'; over: 'worst'; min: number; note: string };  // 최악 배경 합성(§3.2.2)
+  | { id: string; fg: string; bg: string; min: number; note: string }            // bg는 "<알파 토큰>@<바탕 토큰>" 합성 가능
+  | { id: string; fg: string; glass: 'material.chrome' | 'material.overlay'; over: 'worst'; min: number; note: string };
+const opaque = ['surface.base', 'surface.raised', 'bg.app'] as const;
+export const contrastRules: ContrastRule[] = [
+  ...opaque.map((bg) => ({ id: `body@${bg}`, fg: 'text.primary', bg, min: 7, note: '본문' })),
+  ...opaque.map((bg) => ({ id: `secondary@${bg}`, fg: 'text.secondary', bg, min: 4.5, note: '보조' })),
+  ...opaque.map((bg) => ({ id: `tertiary@${bg}`, fg: 'text.tertiary', bg, min: 4.5, note: '3차' })),
+  { id: 'placeholder', fg: 'text.placeholder', bg: 'surface.base', min: 4.5, note: '입력 안내' },
+  { id: 'disabled', fg: 'text.disabled', bg: 'surface.base', min: 3, note: '비활성. bg.app 위에는 두지 않는다(§3.2.2)' },
+  { id: 'control-border', fg: 'border.control', bg: 'surface.base', min: 3, note: '입력칸·체크 경계(WCAG 1.4.11)' },
+  { id: 'control-off', fg: 'control.off', bg: 'surface.base', min: 3, note: '꺼진 스위치' },
+  { id: 'focus', fg: 'focus.ring', bg: 'surface.base', min: 3, note: '포커스(2.4.11)' },
+  { id: 'link', fg: 'text.link', bg: 'surface.base', min: 4.5, note: '링크·근거 참조' },
+  { id: 'selected-row', fg: 'text.primary', bg: 'fill.selected@surface.base', min: 7, note: '선택된 행' },
+  { id: 'ink', fg: 'ink.on', bg: 'ink.solid', min: 7, note: '주 버튼' },
+  { id: 'ink-hover', fg: 'ink.on', bg: 'ink.hover', min: 4.5, note: '주 버튼 호버' },
+  { id: 'raised', fg: 'text.primary', bg: 'control.raised', min: 7, note: '보조 버튼' },
+  { id: 'accent', fg: 'accent.on', bg: 'accent.solid', min: 4.5, note: '확인 행동 버튼' },
+  { id: 'accent-text', fg: 'accent.text', bg: 'surface.base', min: 4.5, note: '강조 글자' },
+  ...(['success', 'warning', 'danger', 'info'] as const).map((s) => ({ id: `${s}-badge`, fg: `${s}.text`, bg: `${s}.soft@surface.base`, min: 4.5, note: '상태 배지' })),
+  ...(['success', 'warning', 'danger', 'info'] as const).map((s) => ({ id: `${s}-text`, fg: `${s}.text`, bg: 'surface.base', min: 4.5, note: '상태 글자(낡음·신선도·연결)' })),
+  { id: 'danger-button', fg: 'danger.on', bg: 'danger.solid', min: 4.5, note: '위험 행동 버튼' },
+  { id: 'diff-add', fg: 'text.primary', bg: 'diff.add@surface.base', min: 7, note: 'Goal·초안 차이' },
+  { id: 'diff-remove', fg: 'text.primary', bg: 'diff.remove@surface.base', min: 7, note: 'Goal·초안 차이' },
+  ...(['material.chrome', 'material.overlay'] as const).flatMap((glass) => [
+    { id: `glass-body@${glass}`, fg: 'text.primary', glass, over: 'worst' as const, min: 7, note: '유리 위 본문' },
+    { id: `glass-secondary@${glass}`, fg: 'text.secondary', glass, over: 'worst' as const, min: 4.5, note: '유리 위 보조' },
+    { id: `glass-tertiary@${glass}`, fg: 'text.tertiary-on-glass', glass, over: 'worst' as const, min: 4.5, note: '유리 위 3차' },
+    ...(['warning', 'danger', 'info'] as const).map((t) => ({ id: `glass-${t}@${glass}`, fg: `${t}.text`, glass, over: 'worst' as const, min: 4.5, note: '크롬의 연결·신선도 글자' })),
+    { id: `glass-success-dot@${glass}`, fg: 'success.text', glass, over: 'worst' as const, min: 3, note: '성공 색은 유리 위에서 점(비글자)만' },
+  ]),
+];
+/* 유리 최악 배경 후보: neutral 0·1·8·9, 색상 25·72·158·205·295 × (L 0.35 C 0.12, L 0.525 C 0.135, L 0.815 C 0.105), 순수 검정·흰색 */
+export const glassBackdrops = { neutral: [0, 1, 8, 9], hues: [25, 72, 158, 205, 295], lc: [[0.35, 0.12], [0.525, 0.135], [0.815, 0.105]], pure: ['black', 'white'] } as const;
 ```
 
-- 빌드는 Node 24 + TypeScript 6(결정 44)로 돈다. 생성물(`dist/`)은 저장소에 넣고(모바일·문서 도구가 빌드 없이 읽게) 손으로 고치지 않는다. `just ui-check`가 원본과 생성물이 맞는지 검사한다.
+`agent-rim` 유틸리티(`base.css`):
+
+```css
+/* 정적 스펙트럼 테두리. 1.5px 테두리 자리에 그라데이션을 그리고 안쪽은 원래 표면을 둔다 */
+@utility agent-rim {
+  border: 1.5px solid transparent;
+  background: linear-gradient(var(--hm-color-surface-base), var(--hm-color-surface-base)) padding-box,
+              var(--helm-draft-rim) border-box;
+}
+@media (forced-colors: active) { .agent-rim { border-color: CanvasText; background: Canvas; } }
+:root[data-transparency="reduced"] .agent-rim { background: var(--hm-color-surface-base); border-color: var(--hm-color-border-strong); }
+```
+
+**상태 → 토큰 대응** [제안]. 부품은 아래 표의 토큰만 쓴다. 색은 언제나 글자·아이콘·모양과 함께 쓴다(UP-4).
+
+| 상태(값의 출처) | 글자 | 바탕·테두리 | 모양·아이콘 |
+|---|---|---|---|
+| 품질 `contested`(04 `QualityBadge`) | `--helm-contested-fg` | `--helm-contested-bg` | `CircleMinus` + "이의 걸림" |
+| 품질 `stale` | `--helm-stale-fg` | 없음 | `History` + "낡음" + 이유 |
+| 품질 `superseded` | `--helm-superseded-fg` | 없음 | "대체됨" + 새 레코드 링크 |
+| 품질 `insufficient` | `text-secondary` | `border-default` 점선 | `CircleDashed` + "근거 부족" |
+| 신선도 `current`·`refreshing` | `--helm-fresh-ok`(점만) | 없음 | 점 + 시각 |
+| 신선도 `stale` | `--helm-fresh-stale` | 없음 | 점 + "기준 시점" 글자 |
+| 신선도 `rebuilding` | `--helm-fresh-rebuilding` | 없음 | `RefreshCw`(회전 금지) + "다시 만드는 중" |
+| 신선도 `failed` | `--helm-fresh-failed` | 없음 | `CircleX` + [다시 불러오기] |
+| 연결 `connected` | `text-tertiary`(크롬에서는 `text-tertiary-on-glass`) | 없음 | `Wifi` |
+| 연결 `slow`·`reconnecting`·`resyncing` | `warning-text` | 없음 | 점 + 글자 |
+| 연결 `disconnected`·`daemon_unresponsive`·`auth_failed`·`version_mismatch` | `danger-text` | `DegradedBanner`: `danger-soft` | `WifiOff` + 사유 문장 + 행동 버튼 |
+| 연결 `read_only`·`safe_mode` | `warning-text` | `DegradedBanner`: `warning-soft` | "읽기 전용"·"안전 모드" 글자 |
+| 질문 권리 게이트 | `text-primary` | 왼쪽 막대 `--helm-rights-gate-bar` | 글자 "권리 확인" |
+| 질문 만료 임박 | `--helm-expiry-near-fg` | 없음 | `Timer` + 남은 시간 |
+| 행동 `sending` | `ink-on` | `ink-solid` | 글자 "보내는 중", 버튼 잠금 |
+| 행동 거부(`stale_rejected` 등) | `danger-text` | `danger-soft` | 카드 안 문장 + 다음 행동 |
+| 선택된 행 | `text-primary` | `fill-selected` + `--helm-selected-bar` | 왼쪽 막대 3px |
+| 새로 바뀜 | — | — | `--helm-unseen-dot` 점(움직이지 않음) |
+| 에이전트 초안 | `text-primary` | `agent-rim` | "초안" 라벨 + 역할 |
+| 진행 중 에이전트 | `text-secondary` | `elevation.agent`(`agent-glow`) | `AgentActivityIndicator` 12px + 글자 |
+| 반응 좋음·싫음·이유 없음 | `text-primary` | `--helm-react-*-bg` | 밑줄 실선·물결·점선 |
+| 상태 라벨 `blocked` | `warning-text` | 없음 | `TriangleAlert` |
+| 위험 행동 버튼 | `danger-on` | `danger-solid` | 대상과 효과를 쓴 버튼 글자 |
+
+위 표의 글자·바탕 쌍은 모두 `contrastRules`에 있다(표에 줄을 더하면 규칙도 더한다). 빌드 관문은 `contrastRules`의 `id`로 결과를 보고하고(`dist/contrast.json`), §6.3의 TK-09가 이 보고를 읽는다.
+
+- 빌드는 Node 24 + TypeScript 6(판정 44)로 돈다. 생성물(`dist/`)은 저장소에 넣고(모바일·문서 도구가 빌드 없이 읽게) 손으로 고치지 않는다. `just ui-check`가 원본과 생성물이 맞는지 검사한다.
 - Caustic의 생성기(`build.mjs`)는 복사하지 않고 같은 일을 하는 Helm 스크립트를 새로 쓴다. Caustic 생성기는 Studio 전용 출력(studio·canvas 토큰)과 묶여 있다 [원문].
 
 #### 3.2.9 테마, 투명도, 고대비
@@ -602,13 +804,13 @@ export type ContrastRule =
 | 영역(03 §3.4.1) | 내용 | 부품 |
 |---|---|---|
 | `RGN-TOPBAR` | 앱 이름, 위치 경로, 명령 팔레트 입력, 연결 상태, 기준 시점 | `WindowHeader`, `ConnectionIndicator`, `FreshnessIndicator`, `PendingQuestionsIndicator` |
-| `RGN-RAIL` | 최상위 내비게이션 일곱 항목(03 §3.5.2)과 사람 행동이 필요한 개수, 조건부 "복구" | `NavRail` |
+| `RGN-RAIL` | 최상위 내비게이션(MVP 여섯 항목, 2단계 일곱, 03 §3.5.2)과 사람 행동이 필요한 개수, "에이전트가 정한 것"은 새 항목이 있을 때 점(숫자 없음), 조건부 "복구" | `NavRail` |
 | `RGN-BANNER` | 즉시 전달 질문, 연결 끊김, 복구 필요, 버전 불일치. 한 번에 하나, 나머지는 개수로 접음 | `Banner`, `DegradedBanner` |
 | `RGN-STATUSLINE` | Concern 범위에서 Goal · Concern · 모드 · 지금 하는 일 · 맡긴 범위 · 다음 멈춤(helm-canon-2 §3.5 상태 표시줄) | `ScopeBar` |
 | `RGN-MAIN` | 현재 화면 | 화면별(§3.11) |
 | `RGN-INSPECTOR` | 선택한 객체의 출처, 근거, 작성자, 기준 시점, 관련 선택, 이의 기록. 기본으로 닫혀 있고 객체를 고르면 열린다 | `Inspector`, `EvidenceInspector` |
 | `RGN-COMPOSER` | 현재 범위에 묶인 자연어 입력과 의미 미리보기. 범위를 입력창 앞에 항상 표시 | `ScopedComposer`, `SemanticPreview` |
-| `RGN-RUNS` | 진행 중 서랍: WorkUnit마다 지금 하는 일, 다음 확인 시점, 마지막 의미 있는 변화, 예외. 토큰 스트림 없음 | `ActiveRunDrawer` |
+| `RGN-RUNS` | 진행 중 서랍: 진행 중인 WorkUnit을 Goal ▸ Concern 트리로 묶고(03 §3.4.1), WorkUnit마다 지금 하는 일, 다음 확인 시점, 마지막 의미 있는 변화, 예외. run 평면 목록과 토큰 스트림 없음 | `ActiveRunDrawer` |
 
 부품과 데이터 연결(저장소 → VM)은 20의 `apps/desktop/src/shell/`이 하고, 이 문서의 셸 부품은 표현만 한다(20 §3.9.1). 크롬 영역(`RGN-TOPBAR`, `RGN-RAIL`, `RGN-STATUSLINE`, `RGN-RUNS`, `RGN-COMPOSER`의 띠)은 `glass-chrome`, `RGN-MAIN`의 본문과 `RGN-INSPECTOR`의 내용은 불투명 표면이다(UP-14). 인스펙터를 서랍으로 띄울 때는 서랍 틀이 `glass-overlay`, 안의 내용 판은 불투명이다.
 
@@ -635,7 +837,7 @@ export type ContrastRule =
 #### 3.3.4 확대와 작은 창
 
 - 웹뷰 확대 200%에서 1280px 창은 CSS 너비 640px가 되어 760px 하한보다 좁다. 이때도 깨지지 않도록 760px 미만 CSS 너비에서는 레일 아이콘, 인스펙터 전체 너비 시트, 가운데 1열로 바꾸고 가로 스크롤은 표 안에서만 허용한다(WCAG 1.4.10 리플로우 [지식]). 창 최소 크기는 물리 크기 기준이라 확대와 별개다
-- 그래서 §3.3.2의 기준은 창의 물리 너비가 아니라 CSS 너비(`window.innerWidth`)로 판정한다. 컨테이너 쿼리(`@container`)를 쓰면 패널 안 배치를 패널 너비로 바꿀 수 있다. 지원 범위는 §2.5.7의 웹뷰 기준에 따른다.
+- 그래서 §3.3.2의 기준은 CSS 너비(`window.innerWidth`)로 판정한다. 창의 물리 너비는 쓰지 않는다. 컨테이너 쿼리(`@container`)를 쓰면 패널 안 배치를 패널 너비로 바꿀 수 있다. 지원 범위는 §2.5.7의 웹뷰 기준에 따른다.
 
 ### 3.4 아이콘 [제안]
 
@@ -651,7 +853,7 @@ Helm 의미 아이콘 표(이름은 lucide 아이콘 이름. 표의 모든 아�
 | 선택 | `Signpost` | 질문 | `CircleHelp` |
 | 전제(가정) | `Pin` | 아직 모르는 점 | `CircleDashed` |
 | 작업 합의 | `Handshake` | 결과 제출 | `PackageCheck` |
-| 결과 확인 | `BadgeCheck` | 전체 반영 | `Layers` |
+| 결과 확인 | `BadgeCheck` | 반영 항목 | `Layers` |
 | 근거(지지) | `CirclePlus` | 반대 근거 | `CircleMinus` |
 | 한정 | `Brackets` | 무효화 | `Ban` |
 | 자극 | `Shapes` | 이유 없는 반응 | `Asterisk` |
@@ -664,7 +866,7 @@ Helm 의미 아이콘 표(이름은 lucide 아이콘 이름. 표의 모든 아�
 | 권고만(강제 안 됨) | `ShieldAlert` | 격리 없음(S0) | `ShieldOff` |
 | 런타임·커널 | `Cog` | 스케줄러·만료점 | `Timer` |
 
-루프(O, I, C, A, S)는 아이콘 대신 글자 칩(`LoopChip`)으로 쓴다. 아이콘으로는 다섯 루프와 변형(I.want, C.probe 등)을 구분하기 어렵다.
+루프는 아이콘 대신 이름 칩(`LoopChip`, 03 §3.3.7 라벨)으로 쓴다. 아이콘으로는 다섯 루프와 변형(원함 탐구, 탐침 등)을 구분하기 어렵다.
 
 ### 3.5 Helm 시각 문법
 
@@ -677,39 +879,46 @@ Helm 의미 아이콘 표(이름은 lucide 아이콘 이름. 표의 모든 아�
 | M 실제 변화 | 실제로 무엇이 바뀌었나 | 안쪽 면(`--helm-m-surface`), 첫 줄에 관찰 시각과 출처(파일@해시, 실행 id) | `FileDiff`, `Terminal`, `Globe` | "실제 변화" |
 
 - 세 세계를 다른 탭으로 완전히 나누지 않는다. Concern 화면은 한 목록 안에서 세 세계의 레코드를 관계로 잇는다(helm-canon §17.2 "하나의 초점 안에서 연결").
-- "방향/이해/실제 변화" 라벨은 개발자용 표시가 아니라 사용자 라벨이다(helm-canon §17.2). N/E/M 기호는 감사 깊이에서만 보조로 쓴다.
+- "방향/이해/실제 변화" 라벨은 사용자에게 보이는 라벨이다(helm-canon §17.2). N/E/M 기호는 감사 깊이에서만 보조로 쓴다.
 
 #### 3.5.2 레코드 종류 표시 [제안]
 
-`KindLabel`이 그린다. 라벨은 글자 + 아이콘. 대화 영역 라벨 7종(helm-canon-2 §3.5)은 다음으로 옮긴다.
+`KindLabel`이 그린다. 라벨은 글자 + 아이콘. `kind` 값과 평면은 08 §3.20.1 레코드 종류 표가 정본이고, 화면 라벨은 03 §3.2.3·05 §3.10.8이 정한다(아래 라벨 열은 그 표를 옮긴 것이며 05 문구 키로 그린다). 대화 영역 라벨 7종(helm-canon-2 §3.5)과의 대응도 적는다.
 
-| 레코드 종류(08 이름 가정) | 화면 라벨(자리 표시) | 세계 | 원천 대화 라벨 |
+| `kind`(08) | 화면 라벨 | 평면(08) | 원천 대화 라벨 |
 |---|---|---|---|
 | `observation` | 관찰 | E | Observed |
 | `interpretation` | 해석(추측) | E | Possible |
 | `possibility` | 가능성(추측) | E | Possible |
+| `check` | 구분 확인 | E | — |
 | `finding` | 판단 | E | — |
 | `assumption` | 전제 | E | — |
 | `open_question` | 아직 모르는 점 | E | — |
 | `question` | 질문 | N/E | Choice |
 | `choice` | 선택 | N | Choice |
+| `objection` | 이의 | E | — |
 | `agreement` | 작업 합의 | N | Working(합의 반향) |
-| `criterion` | 완료 기준 | N | — |
-| `outcome_submission` | 결과 제출 | N | Review |
+| `result` | 결과 제출 | E | Review |
+| `attestation` | 검증 기록 | E | Review |
 | `acceptance` | 결과 확인 | N | Review |
-| `integration_obligation` | 전체 반영 항목 | N | Review |
+| `integration` | 전체 반영 | N | Review |
+| `obligation` | 반영 항목 | N | Review |
+| `goal`, `concern`, `structure_change`, `boundary_item` | Goal, Concern, 구조 변경, 경계 항목 | N | — |
 | `preference_model` | 선호 모델 | N | — |
 | `prediction` | 예측 | E | — |
 | `expectation` | 기대(응답 기다림) | N | — |
-| `loop_transition` | 루프 전환 | E | Working |
-| `situation_assessment` | 상황 판정 | E | — |
-| `probe` | 탐침 | N | Working |
-| `stimulus` | 자극 | M | — |
-| `tool_call`·`run` | 실행 기록 | M | Source |
+| `loop_plan`, `loop_transition`, `situation_assessment`, `mode_assignment` | 루프 계획, 루프 전환, 상황 판정, 모드 지정 | N, E, E, N | Working |
+| `probe`, `watch` | 탐침, 지켜보기 | N | Working |
+| `inquiry`, `lens` | 탐구, 렌즈 | E | — |
+| `stimulus` | 자극 | E | — |
+| `workunit`, `run`, `toolcall`, `thread` | 진행 작업, 실행, 실행 기록, 대화 | M(실행) | Source |
+| `grant`, `policy_proposal`, `procedure`, `device` 등 P·A 평면 | 맡겨 둔 권한(J-116), 관찰 제안, 절차, 기기 | P, A | — |
 | 에이전트 설명 문장 | 설명 | — | Helm |
 
+- 완료 기준은 작업 합의의 필드이고(08) 레코드 종류 목록에 없다. 그리는 부품은 `ResultCriterionRow`다.
+- 평면 열은 테두리 모양(§3.5.1)을 고르는 데 쓴다. P·A 평면 레코드는 세 세계 테두리를 쓰지 않고 설정 화면 모양으로 그린다.
 - "판단"은 Finding만 가리킨다(브리프 §6). 승격 전 해석·가능성은 "추측"으로 묶어 부르되 라벨은 둘을 구분한다(불변조건 2).
-- 대화 스레드 안의 에이전트 문장은 "설명"으로 표시하고 레코드가 아니다. 문장 안에서 레코드를 언급하면 레코드 칩으로 링크한다.
+- 대화 스레드 안의 에이전트 문장은 "설명"으로 표시하고 레코드로 다루지 않는다. 문장 안에서 레코드를 언급하면 레코드 칩으로 링크한다.
 
 #### 3.5.3 품질 배지 [03 §3.3.6 값 / 제안: 표시 방식]
 
@@ -720,12 +929,12 @@ Helm 의미 아이콘 표(이름은 lucide 아이콘 이름. 표의 모든 아�
 | `insufficient` | 근거 부족 | 추측 단계에만 붙는다. 회색 배지 + 한 줄 문장 |
 | (`qualified`, `accepted`) | 배지 없음 | 판단으로 보인다 |
 | `contested` | 이의 걸림 | 모든 깊이에서 보인다. 배지 + 한 줄("이의: …"). 접지 않는다 |
-| `stale` | 낡음 | 모든 깊이에서 보인다. 배지 + 이유(`staleBecause`, 예 "근거 파일이 바뀜 · 해시 a1b2→c3d4") |
+| `stale` | 낡음 | 모든 깊이에서 보인다. 배지 + 이유(`staleBecause`, 예 "근거 파일이 바뀜"(해시는 감사 깊이에서)) |
 | `superseded` | 대체됨 | 대체한 레코드 링크. 본문은 흐리게 하지 않고 라벨로만 표시 |
 
 - 배지만 있고 이유가 없는 `contested`·`stale`은 그리지 않는다. 이유가 비어 오면 "이유 없음(데이터 이상)"으로 쓰고 감사 깊이 링크를 둔다.
-- 원천의 배지 중 `inferred`(추론됨), `policy-approved`(규칙으로 허용됨), `agent-generated`·`human-authored`·`policy-derived`(helm-canon-3 §6.9.1)는 품질 배지가 아니라 작성자 표시(§3.5.5)로 그린다. `inferred`는 "에이전트 추론"으로, `policy-approved`는 "규칙에 따라"로 옮긴다.
-- 같은 모델·같은 컨텍스트 계열 근거(`StatementView.sameSourceFamily`, 04 §3.0.2)에는 "같은 출처 계열" 표시를 붙인다(03 §3.3.6, canon §8.9 원칙 7).
+- 원천의 배지 중 `inferred`(추론됨), `policy-approved`(규칙으로 허용됨), `agent-generated`·`human-authored`·`policy-derived`(helm-canon-3 §6.9.1)는 작성자 표시(§3.5.5)로 그린다. `inferred`는 "에이전트 추론"으로, `policy-approved`는 "규칙에 따라"로 옮긴다.
+- 같은 모델·같은 컨텍스트 계열 근거(`StatementView.correlatedWith`, 04 §3.0.2)에는 "같은 출처 계열" 표시를 붙인다(03 §3.3.6, canon §8.9 원칙 7).
 
 #### 3.5.4 상태 라벨 집합 [03 §3.3 값]
 
@@ -752,13 +961,13 @@ Helm 의미 아이콘 표(이름은 lucide 아이콘 이름. 표의 모든 아�
 - 행위자 표시에 아바타, 사람 이름, 성격 표현을 쓰지 않는다(UP-9). `ActorLabel`은 `role`과 `assignment`(맡긴 일)만 받는다.
 - 스펙트럼 테두리는 글자 라벨의 보조다. 강제 색·투명도 줄이기에서 테두리가 사라져도 라벨로 구분된다(UP-4, UP-15).
 
-#### 3.5.6 확실성 표현 [조정자 판정 J-19 / 제안: 표시]
+#### 3.5.6 확실성 표현 [판정 J-19 / 제안: 표시]
 
 숫자 confidence는 저장도 표시도 하지 않는다(J-19). 확실성은 글자 등급과 네 칸으로 그린다.
 
 | 표시 | 값과 화면 라벨(05가 문구 확정) | 출처 |
 |---|---|---|
-| 지지 등급(`SupportGradeLabel`) | `untested` 확인 전 / `weak` 약함 / `consistent` 일관됨 / `confirmed` 확인됨 / `contested` 반대 근거 있음 | 15 `SupportGrade`(가능성·기준 후보·판단 후보) |
+| 지지 등급(`SupportGradeLabel`) | `untested` 아직 확인 안 됨 / `weak` 약함 / `consistent` 일관됨 / `confirmed` 확인됨 / `contested` 이의 있음(03 §3.3.6) | 15 `SupportGrade`(가능성·기준 후보·판단 후보) |
 | 확신 등급(`ConfidenceGradeLabel`) | `low` 낮음 / `medium` 보통 / `high` 높음 | 14 U-10(상황 판정 등) |
 | 직접성 | `direct` 직접 관찰 / `indirect` 다른 관찰에서 추론 / `none` 근거 없음 | 04 `EvidenceChainView.nodes[].quality.direct` |
 | 반대 근거 확인 | `searched_none` 찾아봤는데 없음 / `found` 남은 반대 근거 있음 / `not_searched` 찾아보지 않음 / `searching` 찾는 중 | 04 `counterSearch` |
@@ -798,10 +1007,10 @@ export interface ProjectionMeta {
   /** 사람이 "확인함"을 누른 seq. 복귀 요약의 기준 (helm-canon-2 §3.10) */
   acknowledgedSeq?: number;
 }
-/** 결정 버튼을 켤 수 있는가. 20(`@helm/client-react`)이 계산하고 부품은 결과만 받는다(20 §3.8.9).
- *  참: 연결 connected·slow·safe_mode + 뷰 freshness current + 클라이언트 신선도 current 또는 refreshing
- *  (04 §3.0.4 규칙 3, J-59: refreshing 중에는 막지 않는다, J-60: 안전 모드는 결정 가능) */
-export interface DecisionAvailability { allowed: boolean; blockedReasonKey?: string }
+/** 결정 버튼을 켤 수 있는가. 계산은 `@helm/client-react`의 `decisionsAllowed(conn, { serverFreshness })`(boolean, 20 §3.8.9) 한 곳이다.
+ *  참: 사용자용 연결 상태 connected·slow·safe_mode + 서버 freshness current. 앱 신선도 refreshing·낡음 표시로는 막지 않는다
+ *  (04 §3.0.4 규칙 3, J-59, J-60). 컨테이너가 이 boolean과 막힘 사유 문구 키를 묶어 부품에 넘긴다. 26의 모바일 판도 같은 모양이다 */
+export interface DecisionAvailability { allowed: boolean; reasonKey?: CopyKey }
 ```
 
 | 경우 | 화면 표시(문구는 04 §3.0.4·05) | 결정 행동 |
@@ -809,9 +1018,10 @@ export interface DecisionAvailability { allowed: boolean; blockedReasonKey?: str
 | 모두 `current` | 창 머리에 작은 `CircleCheck` + "방금 갱신". 개발자 보기(`devView`, 20 §3.9.11)에서만 seq 숫자 | 가능 |
 | `refreshing` | 이전 데이터 그대로, 1초 넘으면 작은 진행 표시 | 가능(J-59). 보낸 의도의 `basisSeq`가 낡았으면 데몬이 `revisionConflict`로 거부한다 |
 | `rebuilding`(데몬) | 띠 "다시 맞추는 중" | 막음(짧음) |
-| `stale`(어느 쪽이든) | 화면 머리 띠 "이 화면은 14:02 기준입니다 · 이유". "지금 하는 일" 같은 현재 시제 문구를 "14:02에 하던 일"로 바꾼다(04 §3.0.4 규칙 2) | 막음. 이유와 "쓰던 답은 저장해 두었습니다"를 버튼에 붙임 |
+| `stale`(서버 freshness) | 화면 머리 띠 "이 화면은 14:02 기준입니다 · 이유". "지금 하는 일" 같은 현재 시제 문구를 "14:02에 하던 일"로 바꾼다(04 §3.0.4 규칙 2) | 막음. 이유와 "쓰던 답은 저장해 두었습니다"를 버튼에 붙임 |
+| `stale`(앱 신선도만, 다시 받기 세 번 실패) | 같은 띠 | 막지 않음. 결정 막기는 서버 freshness와 연결로만 판정한다(20 §3.8.9, 04 §3.0.4 규칙 3). 띠 문구로 사람이 판단한다 |
 | `missing` | 빈 상태 "연결되면 볼 수 있습니다" | 없음 |
-| `failed` | 오류 상태 + "다시 시도" | 막음 |
+| `failed` | 오류 상태 + [다시 불러오기](05 §3.10.5) | 막음 |
 | `omitted`가 있음 | 목록 끝에 "보이지 않은 항목: 실행 기록 14건(정상 반복)" 줄. 펼치면 감사 깊이 | — |
 
 낡은 화면을 흐리게(투명도) 만들지 않는다. 글자 대비가 떨어지고 "읽을 수 없음"으로 오해된다. 띠와 문장으로 알린다 [제안].
@@ -856,6 +1066,8 @@ export type {
   RecordRef, RecordKind, Author, ViewMeta, Freshness, QualityBadge, StatementView,
   Gate, Delivery, QuestionScreenKind, ExpiryPoint, QuestionSummary, CommandIntentBase,
 } from '@helm/protocol';                    // 04 §3.0.2
+import type { CopyKey } from '@helm/ui-language';   // 05 §3.10.8 문구 키(J-103)
+import type { BlobRef } from '@helm/protocol';     // 19 BlobRef
 // 화면별 뷰 모델(HomeView, BriefView, InboxView, QuestionView, AutonomousView, ConcernNode, ConcernView, ActiveWorkCard,
 // InquiryView, PreferenceModelView, StimulusRoundView, ReactionView, AgreementView, ReviewView, LoopTimelineView,
 // EvidenceChainView, GoalView, DialsView, ObserverProposalsView, RecoveryView)도 같은 곳에서 가져온다 (04 각 화면 절)
@@ -874,7 +1086,7 @@ export type World = 'N' | 'E' | 'M';
  *  키체인 거부·SSH 실패·다른 서버 같은 막힘 사유는 상태를 늘리지 않고 배너 문구 키로 구분한다(J-60) */
 export type ConnectionUiState =
   | 'connected' | 'slow' | 'reconnecting' | 'disconnected' | 'daemon_unresponsive'
-  | 'auth_failed' | 'version_mismatch' | 'recovery_mode' | 'safe_mode' | 'resyncing';
+  | 'auth_failed' | 'version_mismatch' | 'read_only' | 'safe_mode' | 'resyncing';   // read_only = 19 daemonMode readOnly, 화면 이름 "읽기 전용"(J-115)
 
 /** 레코드 칩에 붙일 수 있는 화면 표시 정보. 모두 선택 항목이라 04 RecordRef를 그대로 넘겨도 된다 */
 export interface RecordChipExtras {
@@ -884,9 +1096,23 @@ export interface RecordChipExtras {
   unseen?: boolean;            // 사람이 아직 보지 않은 변화 (04에 요구, §5.2)
   at?: string;
 }
+
+/** 근거·실행 기록의 출처 한 줄(helm-canon-2 §3.11의 6필드). 04 EvidenceChainView.nodes[].source와
+ *  실행 기록 뷰의 toolcall 요약을 컨테이너가 이 모양으로 합쳐 넘긴다. 없는 필드는 그리지 않는다 */
+export interface SourceTrace {
+  kind: 'tool' | 'human' | 'external' | 'file';   // 04 source.kind
+  ref: string;                                    // 04 source.ref (tc_… , 파일 경로, 외부 이름)
+  hashOrCommit?: string;                          // 04 source.hashOrCommit. 바뀌면 낡음
+  at?: IsoTime;                                   // 실행 시각
+  tool?: string;                                  // 명령·도구 이름
+  inputScope?: string;                            // 입력 범위(파일, 경로, 질의)
+  output?: { blob?: BlobRef; summary?: string };   // 출력 참조
+  exit?: { code?: number; errorKey?: CopyKey };   // 종료·오류
+  workUnit?: RecordRef;                           // 출처 WorkUnit
+}
 ```
 
-이 문서의 다른 절에 있는 TS 블록에서 `ActorRef`는 04의 `Author`, `RecordRef`는 04의 `RecordRef`(+ `RecordChipExtras`)를 뜻한다. 부품 props 초안(§3.7.3, §3.8)에 있는 뷰 모델 모양의 타입은 04 타입이 정해지기 전에 쓴 것이며, 아래 대응표대로 04 타입으로 바꾼다. 두 쪽이 다르면 04가 우선이고, 부품이 더 필요로 하는 필드는 §5.2에서 04에 요구한다.
+이 문서의 TS 블록에서 행위자는 04의 `Author`(객체, `kind`로 구분)를 쓴다. 08의 `ActorRef`(문자열, 예 `agent:work`)는 저장 형식이며 부품이 직접 받지 않는다. `RecordRef`는 `@helm/protocol`의 한 정의(04 §3.0.2 모양, `kind`는 08 §3.20.1 리터럴에서 파생)만 쓴다(+ `RecordChipExtras`). 부품 props 초안(§3.7.3, §3.8)에 있는 뷰 모델 모양의 타입은 04 타입이 정해지기 전에 쓴 것이며, 아래 대응표대로 04 타입으로 바꾼다. 두 쪽이 다르면 04가 우선이고, 부품이 더 필요로 하는 필드는 §5.2에서 04에 요구한다.
 
 | 부품 | 받는 04 뷰 모델 |
 |---|---|
@@ -918,14 +1144,15 @@ export interface RecordChipExtras {
 
 ```ts
 // packages/ui/src/model/intent.ts
-import type { CommandMethod, CommandParams } from '@helm/protocol';   // 19
+import type { CommandMethodName, MethodMap } from '@helm/protocol';   // 19 §3.14
 export interface IntentBase {
   /** 19의 idempotencyKey(ik_<ULID>). 20이 만든다. 같은 조작의 재전송은 같은 값 */
   idempotencyKey: string;
   /** 사람이 보고 결정한 뷰의 sourceSeq (04 CommandIntentBase, UI-D02) */
   basisSeq: number;
 }
-export type UiIntent<M extends CommandMethod = CommandMethod> = IntentBase & { method: M; params: CommandParams<M> };
+export type UiIntent<M extends CommandMethodName = CommandMethodName> =
+  IntentBase & { method: M; params: Omit<MethodMap[M]['params'], 'idempotencyKey' | 'basisSeq'> };
 ```
 
 부품별로 내는 의도(메서드 이름은 19 §3.7.5):
@@ -933,12 +1160,12 @@ export type UiIntent<M extends CommandMethod = CommandMethod> = IntentBase & { m
 | 부품 | 메서드 |
 |---|---|
 | `QuestionCard`, `QuestionInbox` | `question.answer`, `question.proceedWithAssumption`, `question.requestReframe`, `question.requestInquiry`, `question.delegate`, `question.defer` |
-| `ContestButton`(`OVL-CONTEST`) | `contest.file` |
-| `AutonomousChoiceList` | `autonomous.markSeen`, `contest.file` |
+| `ContestButton`(`OVL-CONTEST`) | `objection.file`(판정 J-111) |
+| `AutonomousChoiceList` | `autonomous.markSeen`, `decision.confirm`(이대로 둔다), `objection.file` |
 | `StimulusBoard` | `reaction.record`, `reaction.amend`, `reaction.withdraw`, `stimulusRound.close` |
 | `PreferenceModelPanel` | 기준 확인은 질문(`question.answer`)으로 |
 | `WorkAgreementDraft` | `agreement.confirm`, `agreement.revise`, `agreement.narrow`, `agreement.decline`, `agreement.correctUnderstanding` |
-| `ResultReviewPanel` | `result.accept`, `result.acceptWithConditions`, `result.requestRevision`, `result.reopen`, `obligation.confirmDone`, `obligation.defer`, `obligation.transfer` |
+| `ResultReviewPanel` | `result.accept`(결과 확인, 결과 거절·기준 틀림은 decision `rejected`·`criteria_wrong`과 `reopenTo`), `result.acceptWithConditions`, `result.requestRevision`, `obligation.confirmDone`, `obligation.defer`, `obligation.transfer`. 확인 뒤 되돌리기는 `objection.file`(판정 J-123: `result.reopen`은 쓰지 않는다) |
 | `GoalHistory` | `goal.revise`, `goal.confirmRevision`, `goal.rejectRevision`, `goal.confirmAchieved` |
 | Concern 머리 | `concern.revise`, `concern.hold`, `concern.resume`, `concern.close`, `loop.requestTransition`, `structure.request` |
 | `HypothesisBoard` 등 탐구 보드 | `inquiry.requestFrame`, `inquiry.proposeCandidate`, `inquiry.markAssumption`, `inquiry.pinCheck`, `inquiry.requestDecision`, `inquiry.stop` |
@@ -949,12 +1176,12 @@ export type UiIntent<M extends CommandMethod = CommandMethod> = IntentBase & { m
 | `RecoveryList` | `recovery.resolve` |
 | `ObserverProposalCard` | `observerProposal.adopt`, `observerProposal.decline`, `observerProposal.snooze` |
 
-탐색·표시 상태(펼침, 인스펙터 열기, 화면 이동)는 `UiIntent`가 아니라 `onNavigate`, `onExpandedChange` 같은 콜백으로 올린다. 화면 열람 기록(감사 깊이 열람은 `presence.report`의 `depth`, J-84, 16 §3.24)은 부품이 아니라 화면 컨테이너(20)가 보낸다.
+탐색·표시 상태(펼침, 인스펙터 열기, 화면 이동)는 `onNavigate`, `onExpandedChange` 같은 콜백으로 올리고 `UiIntent`로 만들지 않는다. 화면 열람 기록(감사 깊이 열람은 `presence.report`의 `depth`, J-84, 16 §3.24)은 화면 컨테이너(20)가 보낸다. 부품은 보내지 않는다.
 
 결정 버튼 규칙:
 
 - 결정 의도를 보내는 버튼은 `ActionButton`만 쓴다. `ActionButton`은 `consequence` prop이 있으면 버튼 문구 아래나 옆에 대상과 효과를 쓴다(예: "1·2절만 김OO에게 보내기", 04 §3.4 `OptionView.actionLabel`). `tone="danger"` 또는 권리 게이트 버튼은 `consequence`가 없으면 개발 모드에서 오류를 던진다(UP-11).
-- 한 카드 안에 "예/아니오" 두 버튼만 있는 배치를 만들지 않는다. 대안 행동(기준 고치기, 질문 다시 쓰기, 먼저 탐구, 미루기, 이의)을 같은 카드의 "그 밖에" 줄로 항상 보인다(§3.9 R2, 04 §3.4).
+- 한 카드 안에 "예/아니오" 두 버튼만 있는 배치를 만들지 않는다. 대안 행동(기준 고치기, 질문 다시 쓰기, 먼저 알아보기, 미루기, 이의 걸기)을 같은 카드의 "그 밖에" 줄로 항상 보인다(§3.9 R2, 04 §3.4).
 
 #### 3.6.4 행동 수명주기와 낙관적 갱신 금지
 
@@ -976,7 +1203,7 @@ export type UiIntent<M extends CommandMethod = CommandMethod> = IntentBase & { m
 
 - 화면은 사람이 누른 결과를 미리 그리지 않는다. 예: "결과 확인"을 눌러도 상태 라벨은 뷰가 `accepted`를 보낼 때 바뀐다.
 - 연결이 없을 때 새 결정을 받아 쌓아 두지 않는다(04 ADR A4, 20 §3.9.7). 입력하던 글은 초안으로 보존한다(보존 위치는 20). 이미 보낸 뒤 끊긴 조작의 재전송만 20이 한다.
-- 예외: 자극 반응은 사람의 결정이 아니라 관찰이므로, 연결이 끊겨도 입력을 받아 "보내지 않음"으로 기기에 두고 다시 연결되면 사람이 "보내기"를 누른다(04 §3.9). `StimulusBoard`가 이 상태를 그린다.
+- 예외: 자극 반응은 관찰 기록이므로, 연결이 끊겨도 입력을 받아 "보내지 않음"으로 기기에 두고 다시 연결되면 사람이 "보내기"를 누른다(04 §3.9). `StimulusBoard`가 이 상태를 그린다.
 
 #### 3.6.5 키보드, 포커스, IME
 
@@ -1011,13 +1238,13 @@ export function matchSingleKey(e: KeyboardEvent, code: string): boolean;
 - 예(`QuestionCard`, 한눈에 깊이):
 
 ```text
-[선택 필요 · 권리 게이트] 초안을 외부 리뷰어에게 보내도 될까요?
-왜 지금: 리뷰 마감이 내일 10시입니다
+[선택 필요] 1·2절 초안을 외부 리뷰어에게 보낼지 정해야 합니다. 지금 정하지 않으면 리뷰 마감(내일 10:00)을 넘깁니다.
+왜 지금인가: 리뷰 마감이 내일 10:00입니다
 추천: 1절만 먼저 보내기 (에이전트 추천)
-가장 강한 다른 선택: 전체를 보내기
-임시 가정: 보내지 않고 대기 · 만료점: 내일 09:00 (14시간 뒤)
-행동: 추천대로 진행 | 다른 선택 | 범위 줄이기 | 조건까지 미루기 | 질문에 이의
-기준: seq 1234 (3분 전)
+다른 선택: 1·2절을 함께 보내기
+답이 없으면: 보내지 않은 채 이 작업이 멈춰 있습니다
+행동: 1절을 외부 리뷰어에게 보내기 | 1·2절을 외부 리뷰어에게 보내기 | 보내지 않기 | 범위 줄여 진행 | 내일 아침까지 미루기 | 이의 걸기
+기준 시점: 3분 전
 ```
 
 #### 3.6.7 문구 키 [J-103]
@@ -1084,7 +1311,7 @@ Radix가 키보드·포커스·ARIA를 제공하는 부품은 Radix 동작을 �
 | `TextField` | `input` | 한 줄 입력. IME 규칙(§3.6.5) | Enter 제출(조합 중 제외) | `label` 필수, 오류는 `aria-describedby` |
 | `TextArea` | `react-textarea-autosize` | 여러 줄. 최소 3줄, 최대 12줄 뒤 스크롤 | ⌘/Ctrl+Enter 제출, Enter 줄바꿈 | 같음 |
 | `Select` | Radix Select | 짧은 고정 목록에서 하나 고르기(설정용). 원함 탐구·질문 카드에서 쓰지 않는다(§3.9) | Radix | Radix |
-| `Checkbox`, `Switch` | Radix | 설정, 전체 반영 항목 체크 | Space | Radix |
+| `Checkbox`, `Switch` | Radix | 설정, 반영 항목 체크 | Space | Radix |
 | `RadioGroup` | Radix | 설정용만 | 화살표 | Radix |
 | `SegmentedControl` | Radix ToggleGroup(single) | 다이얼 값(적게/보통/많이), 깊이 전환 | 화살표, Space | `aria-label` 필수 |
 | `Tabs` | Radix Tabs | Concern 화면의 영역(상황, 탐구, 작업, 결과, 이력) | 화살표, Home/End | Radix |
@@ -1093,12 +1320,13 @@ Radix가 키보드·포커스·ARIA를 제공하는 부품은 Radix 동작을 �
 | `HoverPreview` | Radix HoverCard | 레코드 칩 위에서 요약 미리보기(마우스 전용 보조) | 키보드 사용자는 Shift+Enter 인스펙터로 같은 정보 | 보조 수단 |
 | `Dialog` | Radix Dialog | 이의 사유, 기준 수정처럼 짧은 입력. "계속할까요" 확인 대화상자를 만들지 않는다 | Esc, 포커스 가둠 | Radix |
 | `Sheet` | Radix Dialog(측면) | 좁은 창의 인스펙터, 설정. 틀은 `glass-overlay`, 내용 판은 불투명 | 같음 | 같음 |
-| `Menu` | Radix DropdownMenu | 보조 행동 묶음(복사, 감사 보기)과 질문 카드의 "그 밖에" 메뉴(05 §3.8.4 `M`). "그 밖에" 메뉴의 항목(기준 고치기, 질문 다시 쓰기, 먼저 탐구, 맡기기, 미루기, 이의)은 펼친 질문 카드에서는 보이는 줄로도 둔다(§3.9 R2). 주 결정 버튼을 메뉴 안에 숨기지 않는다. 메뉴 판은 `glass-overlay`(메뉴 글자는 오버레이 재질에서 4.5:1 이상, §3.2.2) | Radix | Radix |
+| `BottomSheet` | Radix Dialog(아래에서 올라옴) | 모바일(26)의 "그 밖에" 메뉴, 이의 사유, 미루기 선택. 손잡이(grabber)와 아래로 끌어 닫기, 높이 두 단계(절반·전체). 데스크톱에서는 쓰지 않는다. `touch` 밀도 전용 | Esc, 포커스 가둠, 닫기 버튼(끌기만으로 닫는 경로를 두지 않음) | `aria-modal`, 제목 필수 |
+| `Menu` | Radix DropdownMenu | 보조 행동 묶음(복사, 감사 보기)과 질문 카드의 "그 밖에" 메뉴(05 §3.8.4 `M`). "그 밖에" 메뉴의 항목(기준 고치기, 질문 다시 쓰기, 먼저 알아보기, 에이전트가 정하게 두기, 미루기, 이의 걸기)은 펼친 질문 카드에서는 보이는 줄로도 둔다(§3.9 R2). 주 결정 버튼을 메뉴 안에 숨기지 않는다. 메뉴 판은 `glass-overlay`(메뉴 글자는 오버레이 재질에서 4.5:1 이상, §3.2.2) | Radix | Radix |
 | `Toast` | Radix Toast | 사람이 방금 한 조작의 결과·오류. 진행 이벤트 금지(UP-13). 5초, 오류는 닫을 때까지. 판은 `glass-overlay` | F8로 토스트 영역 이동 | `aria-live="polite"` |
 | `Disclosure` | Radix Collapsible | 접힘 영역("에이전트가 정한 것 4") | Enter, Space | `aria-expanded` |
 | `ScrollArea` | 기본 스크롤 + CSS | Radix ScrollArea는 쓰지 않는다(기본 스크롤이 접근성·성능에 낫다 [지식]) | — | — |
 | `Markdown` | `react-markdown` | 데몬이 보낸 마크다운 문장의 유일한 렌더러. 원시 HTML 끔, 링크 스킴 `https`·`helm`만, 그림은 `BlobImage`로만(E21, 20 §5.2) | 링크 Enter | 링크에 실제 주소를 `aria-describedby`로 |
-| `BlobImage` | `img` | 데몬 blob(19 `BlobRef`, 표시 판 `variants`)을 그린다. 주소는 컨테이너가 `helm-blob` 경로로 준다. 503(연결 없음)이면 "연결되면 보입니다" 자리 표시, 그 밖의 실패는 대체 글 + "다시"(20 §5.2) | — | `alt` 필수 |
+| `BlobImage` | `img` | 데몬 blob(19 `BlobRef`, 표시 판 `variants`)을 그린다. 주소는 컨테이너가 `helm-blob` 경로로 준다. 503(연결 없음)이면 "연결되면 보입니다" 자리 표시, 그 밖의 실패는 대체 글 + [다시 불러오기](20 §5.2) | — | `alt` 필수 |
 | `Banner` | `div` | 화면 머리 아래 띠(낡음, 저하, 오류) | 닫기 버튼(닫을 수 있는 띠만) | `role="status"` 또는 `alert` |
 | `EmptyState`, `ErrorState` | `div` | 무엇이 비었나/무엇이 실패했나 + 다음 행동 | — | 제목은 제목 요소 |
 | `Skeleton` | `div` | 정적 뼈대 | — | `aria-hidden` |
@@ -1139,10 +1367,10 @@ export type CommandOutcomeView =
 ```ts
 // packages/ui/src/helm/props.ts — L1 부품 props 모음
 export interface KindLabelProps { kind: RecordKind; /** 라벨 숨기고 아이콘만(좁은 칸). 이때도 aria-label은 남는다 */ compact?: boolean }
-export interface QualityBadgeProps { quality?: QualityState; flags?: QualityFlag[]; depth: Depth }
-export interface AuthorshipMarkProps { author: ActorRef; autonomous?: boolean; depth: Depth }
-export interface DraftMarkProps { author: Extract<ActorRef, { type: 'agent' }>; children: React.ReactNode; /** 사람이 이미 고친 초안 */ editedByHuman?: boolean }
-export interface ActorLabelProps { actor: ActorRef }   // 아바타·이름 prop 없음 (UP-9)
+export interface QualityBadgeProps { badges: QualityBadge[]; staleBecause?: string; contestReason?: string; depth: Depth }   // 04 StatementView
+export interface AuthorshipMarkProps { author: Author; autonomous?: boolean; depth: Depth }
+export interface DraftMarkProps { author: Extract<Author, { kind: 'agent' }>; children: React.ReactNode; /** 사람이 이미 고친 초안 */ editedByHuman?: boolean }
+export interface ActorLabelProps { actor: Author; /** 맡긴 일 한 줄(예 "본문 1절 초안"). 04 ActiveWorkCard.assignment */ assignment?: string }   // 아바타·이름 prop 없음 (UP-9)
 export type StatusSet = 'work' | 'choice' | 'concern' | 'question';
 export interface StatusLabelProps { set: StatusSet; value: string }
 export interface LoopChipProps { loop: LoopId; /** 현재 위치 */ current?: boolean; planned?: boolean }
@@ -1151,7 +1379,7 @@ export type LoopId =
   | 'C.commit' | 'C.probe' | 'C.emergency'
   | 'A.confirm' | 'A.watch' | 'A.reflect'
   | 'S.split' | 'S.merge' | 'S.detach' | 'S.relocate' | 'S.recombine' | 'S.hold' | 'S.close';  // v0.3 03 §2.1, 최종은 14
-export interface SituationChipProps { type: 'clear' | 'complicated' | 'complex' | 'chaotic' | 'disorder' | null; assessedBy?: ActorRef; autonomous?: boolean; contested?: boolean }   // 04 ConcernNode.situation, null = 판정 전
+export interface SituationChipProps { type: 'clear' | 'complicated' | 'complex' | 'chaotic' | 'disorder' | null; assessedBy?: Author; autonomous?: boolean; contested?: boolean }   // 04 ConcernNode.situation, null = 판정 전
 export interface ModeChipProps { modeId: string; label: string; /** 라우터가 고른 것(혼자 정한 결정) */ routed?: boolean }
 export interface GateBadgeProps { gate: 'rights' | 'information' }
 export interface DeliveryBadgeProps { delivery: 'immediate' | 'negotiated' | 'mediated' | 'scheduled' }
@@ -1210,7 +1438,7 @@ export interface ConfidenceGradeLabelProps { grade: 'low' | 'medium' | 'high' } 
 | `DraftMark` | 모델 초안 감싸기. 파선 테두리 + "초안 · 작업 에이전트" | 초안, 사람이 고친 초안("초안 · 내가 고침") | — | 영역 이름 "에이전트 초안" |
 | `ActorLabel` | 역할과 맡긴 일 | — | — | 글자만 |
 | `StatusLabel` | 상태 라벨(§3.5.4) | 집합별 값 | — | 글자 |
-| `LoopChip` | 루프 글자 칩(`I.want` → "I 원함") | 기본, 현재(굵게 + 밑줄), 계획만(파선 테두리) | — | 이름 "원함 탐구 루프, 현재" |
+| `LoopChip` | 루프 이름 칩. 03 §3.3.7 라벨(`I.want` → "원함 탐구")을 쓰고 식별자(`I.want`)는 감사 깊이에서만 덧붙인다 | 기본, 현재(굵게 + 밑줄), 계획만(파선 테두리) | — | 이름 "원함 탐구 루프, 현재" |
 | `SituationChip` | 상황 유형 + 판정 주체 | 사람 판정 / 에이전트 판정(이의 가능) | — | 글자 |
 | `ModeChip` | 모드. 라우팅된 것이면 "자동 선택" 표시와 이의 연결 | 기본, 라우팅됨 | — | 글자 |
 | `GateBadge` | 권리 게이트 "선택 필요" / 정보 게이트 "확인하면 좋은 것" | — | — | 글자 |
@@ -1225,7 +1453,7 @@ export interface ConfidenceGradeLabelProps { grade: 'low' | 'medium' | 'high' } 
 | `DepthToggle` | 세 깊이 전환 | — | 화살표 | `SegmentedControl` |
 | `FreshnessIndicator` | 기준 seq·신선도(§3.5.8) | 네 신선도 | 눌러서 상세 팝오버 | `role="status"` |
 | `UnseenDot` | 사람이 보지 않은 변화 | — | — | "새 변화" 숨긴 글자 |
-| `ContestButton` | 이의 걸기. 누르면 `OVL-CONTEST` 대화상자로 사유 입력(선택 사항, 비워도 됨) 후 `contest.file` | 기본, 이미 이의 걸림, 보내는 중 | Enter | 대화상자 제목 "이의 걸기: <대상>" |
+| `ContestButton` | 이의 걸기. 누르면 `OVL-CONTEST` 대화상자로 사유 입력(선택 사항, 비워도 됨)과 바라는 효과(`desiredEffect`: 다시 열기 `reopen` / 다음부터 묻기 `ask_next_time` / 기록만 `note_only`, 08·11)를 고른 뒤 `objection.file`. "다음부터 묻기"는 같은 이의 한 번의 조작으로 끝나며 다이얼 화면으로 따로 보내지 않는다(11 §3.9.4: 종류별 예외 다이얼이 같은 트랜잭션에서 기록됨) | 기본, 이미 이의 걸림, 보내는 중 | Enter | 대화상자 제목 "이의 걸기: <대상>" |
 | `WholeUpdateBadge` | "결과 확인됨 · 전체 반영 2개 남음". `remaining=0`일 때만 "완료" | — | — | 글자 |
 | `EnforcementBadge` | run의 보장 수준(13 §3.11.5). 한눈에: 가장 낮은 수준이 `advisory`·`unavailable`이면 "권고만"(경고 색 + `ShieldAlert`). 검토: 성질(G1 파일 쓰기 범위, G2 실행 쓰기 범위, G3 실행 의도 선기록, G4 관찰 출처, G5 컨텍스트, G6 크래시 복구, G7 사람 결정 경로, G8 독립 검증)별 수준 표. 강제되지 않는 범위를 강제된 것처럼 보이지 않는다(13 §3.11, 01 PR-12) | 네 수준 | — | 표는 `table`, 수준은 글자 |
 | `SandboxBadge` | 실행 격리 수준. `S1` "격리됨(마운트)", `S1b` "격리됨(systemd)", `S0` "격리 없음" 경고(위험 색 글자 + 아이콘, 항상 보임)(13 §3.6) | 세 수준 | — | 글자 |
@@ -1257,7 +1485,7 @@ export type NavTarget =
 ##### (1) `SinceLastVisit` 복귀 요약
 
 - 목적: 사람이 돌아온 뒤 원본 기록을 읽지 않고 다음 행동을 고르게 한다(UC-06, `SCR-BRIEF`). 절 구성은 04 §3.2(ADR A3, 아홉 절)가 정한다.
-- 입력: `BriefView`(04 §3.2). 절마다 렌더러가 따로 있다: Goal과 바뀐 기준, 바뀐 것(N/E/M 각 `ChangeGroup` 최대 5 + 접힘), 평가, 선택 필요(`QuestionCard` 접힘), 확인하면 좋은 것, 진행 중 작업(`ActiveWorkCard` 한눈에), 예측과 가장 싼 방향 바꾸기 지점, 에이전트가 정한 것(종류별 개수, 접힘), 지금 읽지 않아도 되는 것(접힘), 복구 n.
+- 입력: `BriefView`(04 §3.2). 절마다 렌더러가 따로 있다(가정대로 정해진 질문은 "에이전트가 정한 것"과 별도 줄로 펼쳐 두고 각 줄에 [이의 걸기], 판정 J-120): Goal과 바뀐 기준, 바뀐 것(N/E/M 각 `ChangeGroup` 최대 5 + 접힘), 평가, 선택 필요(`QuestionCard` 접힘), 확인하면 좋은 것, 진행 중 작업(`ActiveWorkCard` 한눈에), 예측과 가장 싼 방향 바꾸기 지점, 에이전트가 정한 것(종류별 개수, 접힘), 지금 읽지 않아도 되는 것(접힘), 복구 n.
 
 ```ts
 export interface SinceLastVisitProps extends L2Common {
@@ -1267,8 +1495,12 @@ export interface SinceLastVisitProps extends L2Common {
   onAcknowledge: () => void;
   /** 항목 정정 → brief.correct */
   onCorrect: (item: RecordRef, note: string) => void;
+  /** compact = 휴대폰(26)의 줄인 보기. 확인 의도에 compact: true를 싣는다(판정 J-137) */
+  variant?: 'full' | 'compact';
 }
 ```
+
+- 휴대폰에서 줄여 본 반대 근거·이견 항목은 다음 데스크톱 복귀 요약에 "휴대폰에서 줄여 본 항목" 절로 다시 나온다. 절 내용은 뷰가 준다(판정 J-137, 04).
 
 | 상태 | 표현 |
 |---|---|
@@ -1320,8 +1552,10 @@ export type QuestionCardProps = L2Common & (
 | 반대 근거 | 접힌 상태에서도 개수와 가장 강한 것 한 줄(04 §3.4) |
 | 되돌릴 수 있나 | `reversibility.source === 'permission_layer'`일 때만 `ReversibilityNote`로. 없으면 "판정 없음" |
 | 주 버튼 | 최대 3개. 버튼 문구는 `OptionView.actionLabel`(대상·효과). 권리 게이트 버튼은 `rightsGate` |
-| "그 밖에" | 기준 고치기, 질문 다시 쓰기(`question.requestReframe`), 먼저 탐구(`question.requestInquiry`), 맡기기(`question.delegate`), 미루기(`question.defer`, `L`), 이의(`OVL-CONTEST`, `!`). 펼친 카드에서는 보이는 링크 줄, 접힌 카드에서는 "그 밖에" 메뉴(`M`, 05 §3.8.4). 어느 쪽이든 빠지지 않는다(R2) |
+| "그 밖에" | 기준 고치기, 질문 다시 쓰기(`question.requestReframe`), 먼저 알아보기(`question.requestInquiry`), 에이전트가 정하게 두기(`question.delegate`, 정보 질문만), 미루기(`question.defer`, `L`), 이의 걸기(`OVL-CONTEST`, `!`). 펼친 카드에서는 보이는 링크 줄, 접힌 카드에서는 "그 밖에" 메뉴(`M`, 05 §3.8.4). 어느 쪽이든 빠지지 않는다(R2) |
 | 가정대로 진행 | 정보 게이트에서만(`question.proceedWithAssumption`). 권리 게이트에는 없다(helm-canon-3 §7.1 C10) |
+| 권리 질문의 실제 효과 | 권리 게이트 질문은 커널이 정한 구조 값(행동 종류, 대상, 범위, 도구 이름, 인자)을 "실제로 하는 일" 칸에 `ArgsView`로 그리고, 모델이 쓴 설명은 "에이전트 설명" 라벨 아래 다른 칸에 둔다. 두 칸을 한 문단으로 합치지 않는다. 버튼 문구(`actionLabel`)와 구조 값이 다르면 구조 값이 화면에 남는다(11 §3.2에 규칙 요구) |
+| 범위 확대 질문(`scope_change`) | `ScopeDiff`로 현재 범위와 요청 범위를 08 `Scope` 칸별(행동 종류 `primitives`, 자원 `resources`, 보낼 곳 `sendTargets`, 예산 `budget`, 기한 `validUntil`, 대상 미리 모름 허용 `allowUnknownTargets`)로 나란히 놓고, 더해지는 값은 `ins`, 빠지는 값은 `del`로 표시한다. 값은 커널이 뷰에 넣은 구조 값만 쓴다. 모델 문장에서 범위를 읽어 내지 않는다(04에 VM 필드 `currentScope`·`requestedScope` 요구). 선택지에 구조화 `scope`가 있으면(판정 J-133) 그 선택지를 펼칠 때도 현재 범위 대비 `ScopeDiff`를 보인다 |
 | 답한 뒤 | 명령 결과의 `impact`를 `ChoiceImpactEcho`로. 앱이 영향을 추측하지 않는다(04 §3.4) |
 
 | 상태 | 표현 |
@@ -1333,13 +1567,29 @@ export type QuestionCardProps = L2Common & (
 | 이미 처리됨, 철회, 찾을 수 없음, 낡은 기준 거부 | 04 §3.0.5 문장. 쓰던 답 유지 |
 | 묶음 모드 | 질문을 차례로 쌓고 맨 아래 "고른 대로 보내기". 질문마다 의도를 따로 보낸다 |
 
+`ArgsView`와 `ScopeDiff`는 승인·권리 질문, 작업 합의(`WorkAgreementDraft/Echo`), 실행 출처(`SourceTrace`)가 같이 쓰는 L1 부품이다.
+
+```ts
+import type { BlobRef, AgreementScope } from '@helm/protocol';   // 19 BlobRef, 08 Scope
+export interface ArgsViewProps {
+  args: unknown;                         // 13 argsPreview(가림을 거친 값). 원문 전체 또는 잘린 값
+  truncated?: { totalBytes: number; full: BlobRef };   // 잘렸으면 필수. 없으면 전체로 본다
+  depth: Depth;
+}
+export interface ScopeDiffProps { current: AgreementScope; requested: AgreementScope }   // 19 인증 Scope와 이름이 겹쳐 protocol이 AgreementScope로 내보내기를 요구(§5.2)
+```
+
+- 인자는 잘린 채 보이지 않는다. 잘렸으면 머리에 "잘림 · 전체 n바이트"와 [전체 인자 보기]가 있고, 전체 보기는 `BlobRef`를 받아 같은 규칙으로 그린다.
+- 보이지 않는 문자는 코드 포인트로 바꿔 보인다: 제어 문자(U+0000~U+001F 중 탭·줄바꿈 제외, U+007F~U+009F), 양방향 제어(U+061C, U+200E, U+200F, U+202A~U+202E, U+2066~U+2069), 영폭 문자(U+200B~U+200D, U+2060, U+FEFF). 각각 `U+202E` 같은 고정폭 칩으로 그리고, 하나라도 있으면 머리에 "보이지 않는 문자 n개"를 경고 색으로 둔다. 같은 규칙을 경로와 URL에도 쓴다.
+- 비밀 가림은 13·18의 마스킹기가 한다. 부품은 가린 자리를 "가림" 칩으로 그리고 값을 추측하지 않는다.
+
 키보드: 카드 포커스에서 Space 펼침, Tab으로 버튼, 답 입력은 ⌘/Ctrl+Enter 제출. 결정에는 한 글자 단축키를 두지 않는다(§3.6.5). 접근성: 카드는 `article`, 제목은 질문 문장, 화면 종류 라벨이 제목 앞에 읽힌다("선택 필요, 질문 15: …").
 
 ##### (4) `QuestionInbox` 질문함
 
 입력: `InboxView`(04 §3.3). 전달된 질문(데몬 정렬, 앱은 순서를 바꾸지 않음), 묶음, 곧 전달될 것, 최근 답한 것. 목록은 `VirtualList`. 행을 고르면 오른쪽에 펼친 `QuestionCard`(04: 행 선택 = 오른쪽에 `SCR-QUESTION`).
 
-- 권리 게이트 질문은 개수와 상관없이 모두 보인다(helm-canon-3 §7.1 C3). 홈 주의 카드의 기본 펼침 개수(04 ADR A5, 기본 3)는 정보 질문에만 적용한다.
+- 권리 게이트 질문은 개수와 상관없이 모두 보인다(helm-canon-3 §7.1 C3). 홈 주의 카드의 기본 펼침 개수는 다이얼이 아닌 설정 `maxVisibleDecisions`(14 §3.10, 11 "화면 표시 수", 기본 3)이며 정보 질문에만 적용한다. 부품은 이 값을 prop `initiallyVisible`로 받는다.
 - 키보드: J/K 행 이동, Enter 오른쪽 카드로 포커스(04 §3.3). 묶음 행 Enter = 묶음 모드.
 - "다른 기기에서 답함" 행은 2초 뒤 최근 답한 것으로 옮긴다(04 §3.3). 옮길 때 포커스가 그 행에 있으면 다음 행으로 옮긴다.
 
@@ -1362,7 +1612,8 @@ export interface ChoiceImpactEchoProps extends L2Common {
 입력: `AutonomousView`(04 §3.5). 종류별 묶음(루프, 상황 판정, 구조, 가정 확정, 라우팅, 진입, 선택)과 처리 중인 이의(`openContests`).
 
 - 항목 한 줄: 무엇을 정했나, 묻지 않은 이유(`whyNotAsked`, 필수). 펼치면 대안·이유·다시 볼 조건·관련 질문·의존 수(`dependents`).
-- 행동: 이의(`!`, `OVL-CONTEST` → `contest.file`), 봤음(`S`, `autonomous.markSeen`), 모두 봤음. "봤음"은 승인이 아니며 이의를 걸 권리가 남는다는 문장을 버튼 툴팁에 둔다(04 §3.5). "봤음"을 누르라고 재촉하는 표시(빨간 개수 등)를 쓰지 않는다.
+- 행동: 이의(`!`, `OVL-CONTEST` → `objection.file`), 봤음(`S`, `autonomous.markSeen`), 모두 봤음, 이대로 둔다(`decision.confirm`, 항목 또는 고른 항목 묶음). "봤음"은 열람 표시이고 "이대로 둔다"는 사람이 그 결정을 확인한 기록이다. 둘 다 이의를 걸 권리를 남긴다는 문장을 버튼 툴팁에 둔다(04 §3.5). 항목 단위 "봤음"은 19 `autonomous.markSeen` params에 항목 목록(`targets`)이 필요하다(§5.3). "봤음"을 누르라고 재촉하는 표시(빨간 개수 등)를 쓰지 않는다.
+- 변형 `variant: 'full' | 'summary'`: `summary`는 휴대폰(26)과 복귀 요약 안에서 쓰며 종류별 개수와 항목 한 줄만 보이고 항목별 [봤음]을 두지 않는다. 이의와 "전체 보기"(데스크톱 `SCR-AUTO`로 이동)만 둔다.
 - 처리 중인 이의는 맨 위 고정 구역에 둔다. 화면에서 사라진 이의 수가 0이어야 한다(v0.3 09 §5 Contestability 지표).
 - `!`, `S`는 대화상자를 열거나 관찰(봤음)을 남기는 키라 §3.6.5의 "결정에는 한 글자 단축키 없음" 규칙에 걸리지 않는다. 이의 자체는 대화상자에서 버튼으로 보낸다.
 
@@ -1375,14 +1626,15 @@ export interface ChoiceImpactEchoProps extends L2Common {
 - 에이전트의 이해 재진술(`restatement`, check-back, helm-canon-3 G1)을 맨 위에 두고 "이해가 다름" 행동(`agreement.correctUnderstanding`)을 붙인다.
 - 집행 수준(`enforcement: 'advisory'`)이면 머리에 "이 런타임에서는 맡긴 범위가 권고이며 강제되지 않습니다"를 항상 보인다(helm-canon-2 §3.13).
 - 맡긴 범위 상세(`rangeDetail`, P04 §1 여덟 항목)는 검토 깊이에서. 권한 레이어 출처 항목은 `ShieldCheck`.
-- 합의 카드는 모델이 쓴 요약이 아니라 커널이 가진 구조화된 값(경로, 명령, 네트워크 허용 여부)을 주 내용으로 보인다. 모델 요약은 보조 줄이다(18 §3.x 요구, 04). 보장 수준(`EnforcementBadge`)과 실행 격리 수준(`SandboxBadge`)을 범위 칸 옆에 둔다(13).
-- 행동: 이 합의로 맡기기(`agreement.confirm`, `consequence`에 범위 요약), 범위 좁히기(`agreement.narrow`), 칸 고치기(`agreement.revise`), 맡기지 않기(`agreement.decline`).
+- 합의 카드의 주 내용은 커널이 가진 구조화된 값(경로, 명령, 네트워크 허용 여부)이고, 모델이 쓴 요약은 보조 줄이다(18 §3.x 요구, 04). 보장 수준(`EnforcementBadge`)과 실행 격리 수준(`SandboxBadge`)을 범위 칸 옆에 둔다(13).
+- 행동: 이 합의로 맡기기(`agreement.confirm`, `consequence`에 범위 요약), 범위 줄여 진행(`agreement.narrow`), 칸 고치기(`agreement.revise`), 맡기지 않기(`agreement.decline`).
+- "범위 줄여 진행"은 범위 칸의 구조 값 편집으로 받고 자연어로 받지 않는다: 허용 대상(경로·자원) 목록에서 빼기, 금지 행동 더하기, 멈출 조건 더하기. 편집 결과를 좁힌 `Scope`로 보낸다. 자연어 메모는 보조다. 19의 `agreement.narrow` params에 구조화 `Scope`가 필요하다(§5.3). 메서드 → 커널 명령 대응(상태 `proposed`면 확정+고침, `active`면 재협상)은 19 §3.7.1이 정본이다
 
 ##### (8) `ActiveWorkCard` 진행 작업 카드
 
 입력: 04 §3.1의 `ActiveWorkCard` 타입(같은 이름). 줄 구성은 04 §3.0.7(지금 하는 일, 이 일을 하는 이유, 다음 단계, 맡긴 범위 + 집행 수준, 도움이 필요한 조건, 마지막 중요한 변화, 활동 요약, 예산).
 
-- 항상 가능한 행동: 방향 바꾸기(`work.steer`), 기준 바꾸기(`SCR-AGREE`로 이동), 범위 좁히기(`agreement.narrow`), 안전하게 멈추기(`work.pause`), 요약 요청(`work.requestBrief`), 근거 열기, 중단(`work.stop`, 위험 버튼, `consequence`에 "진행 중인 실행을 취소하고 이미 생긴 변화를 보고"). 즉시 중지(`work.abort`)는 감사 깊이 메뉴에만 두고 결과 문장("작업 공간이 복구 필요 상태가 될 수 있습니다")을 버튼에 쓴다. 멈춤·중단·즉시 중지의 차이를 숨기지 않는다(helm-canon-2 §3.11).
+- 항상 가능한 행동: 방향 바꾸기(`work.steer`), 기준 바꾸기(`SCR-AGREE`로 이동), 범위 줄여 진행(`agreement.narrow`), 안전하게 멈추기(`work.pause`), 요약 요청(`work.requestBrief`), 근거 보기, 작업 중단(`work.stop`, 위험 버튼. 확인 창의 버튼은 대상을 쓴 "WorkUnit 31 중단하기", `consequence`에 "진행 중인 실행을 멈추고 이미 생긴 변화를 보고"). 즉시 중지(`work.abort`)는 감사 깊이 메뉴에만 두고 결과 문장("작업 공간이 복구 필요 상태가 될 수 있습니다")을 버튼에 쓴다. 멈춤·중단·즉시 중지의 차이를 숨기지 않는다(helm-canon-2 §3.11).
 - `enforcement: 'advisory'`면 맡긴 범위 줄에 "권고만"을 항상 보인다. run의 성질별 보장 수준은 `EnforcementBadge`, 실행 격리는 `SandboxBadge`로 보이고 `S0`이면 "격리 없음"을 항상 보인다(13 §3.11.5, §3.6).
 - 에이전트 루프 상태(생각 중, 도구 실행 중)를 "생각 중" 문구나 애니메이션으로 그리지 않는다. `doingNow` 문장(의미 상태 언어, 05)을 그대로 쓴다(UP-9).
 - 예산은 SVG 막대 + 글자("하위 호출 12/30 · 40분/2시간"). 단위는 14·12.
@@ -1409,8 +1661,11 @@ export interface ToolActivityVM {
 
 - 기준 행(`ResultCriterionRow`): 판정 기호(✓ 확인됨 / △ 일부 / ✗ 충족 못함 / ? 확인 못함)를 글자 라벨과 함께 쓰고, 근거 `StatementView` 칩, 낮춰진 이유(`downgradedReason`), 취향형이면(`tasteMode`) 사람의 판정 칸(`humanJudged`: 맞음 / 아님 / 모르겠음).
 - 고정 표현 여섯 칸(확인된 것, 확인하지 못한 것, 남은 제한, 반대 근거, 전체 영향, 다시 확인할 조건)은 `sections`를 그대로 그린다.
-- 독립 검증(`verification`)이 있으면 검증자 역할과 "다른 모델" 여부를 보인다.
-- 1단계 행동: 결과 확인(`result.accept`), 조건부 확인(`result.acceptWithConditions`, 조건 입력 필수), 수정 요청(`result.requestRevision`), 다시 조사(`result.reopen`). 반대 근거가 남아 있으면 확인 버튼 옆에 "남은 반대 근거 1건"을 둔다(막지는 않는다. 판정은 사람 권리). 확인 못한 기준이 있으면 `consequence`에 "확인하지 못한 기준 1개를 남긴 채 확인".
+- 독립 검증(`verification`)이 있으면 "검증 에이전트" 역할과 "다른 모델" 여부를 보인다.
+- 1단계 행동: [결과 확인](`result.accept`, decision `accepted`), [조건 붙여 확인](`result.acceptWithConditions`, 조건 입력 필수. 조건 항목은 같은 트랜잭션에서 미룬 반영 항목이 된다, 판정 J-125), [수정 요청](`result.requestRevision`), [결과 거절](`result.accept`, decision `rejected` 또는 `criteria_wrong`, `reopenTo` 기본 직전 I, 판정 J-123). 버튼 이름은 05 §3.10.5·§3.10.8 문구 키를 쓴다. 반대 근거가 남아 있으면 확인 버튼 옆에 "남은 반대 근거 1건"을 둔다(막지는 않는다. 판정은 사람 권리). 확인 못한 기준이 있으면 `consequence`에 "확인하지 못한 기준 1개를 남긴 채 확인".
+- 반영 범위 합의(`integrationAgreement`, 판정 J-126): 에이전트가 결과 제출 때 만든 초안을 결과 확인 패널에 구조 값(대상, 허용 행동, 멈출 조건)으로 접지 않고 보인다. 결과 확인(accepted·conditional)과 함께 확정된다.
+- 휴대폰(26)에서 같은 부품을 쓸 때: 산출물(본문·그림·변경 요약)을 연 뒤에만 [결과 확인]이 눌린다. 큰 산출물과 취향형 결과(`tasteMode`)는 휴대폰에서 확인 버튼 대신 미루기만 보인다(판정 J-139). 부품은 `surface: 'phone'`과 `outputOpened`를 prop으로 받고, 판단은 뷰 값(`phoneAcceptAllowed`)을 따른다.
+- 가벼운 작업 결과를 묶어 확인할 때(판정 J-132)도 같은 네 버튼을 쓴다. 간단판이라도 [결과 확인]·[수정 요청]과 "그 밖에"를 둔다(§3.9 R2).
 - 2단계: 점검 여섯 칸(`obligations[].checkpoint`)별 반영 항목 체크 목록. 행동: 처리됨(`obligation.confirmDone`), 미루기(`obligation.defer`), 다른 Concern으로 넘기기(`obligation.transfer`). `completeAllowed`가 참일 때만 `WholeUpdateBadge`가 "완료"를 그린다(UP-5). 원천의 Integration Map은 그래프로 그리지 않고 이 목록으로 대신한다(§2.3).
 
 ##### (12) `EvidenceInspector` 근거 인스펙터
@@ -1438,17 +1693,17 @@ export interface SemanticPreviewProps extends L2Common {
 입력: `DialsView`(04 §3.17). 현재 모드(누가 골랐는지, 이유, 중심 루프, 능력 켜짐/꺼짐, 이의), 다이얼 목록(값, 선택지, 어느 설정 층에서 온 값인지 `sourceLayer` 1~6, 바꿀 수 있는 범위, 루프별 값).
 
 - 이산 값은 `SegmentedControl`, 숫자 범위 값은 숫자 입력(단위 표시)으로 그린다. 슬라이더를 쓰지 않는다(정확한 값과 키보드 조작이 낫다).
-- 값마다 층 표시("이 Concern에서 바꿈", "모드 기본값", "시스템 기본값", v0.3 07 §6)와 "다음 턴 경계에 반영" 안내. 변경은 `dial.set`, 되돌리기는 `dial.unset`(위 층 값으로), 모드 변경은 `mode.set`.
+- 값마다 층 표시("이 Concern에서 바꿈", "모드 기본값", "시스템 기본값", v0.3 07 §6)와 "에이전트가 지금 하던 단계를 마친 뒤 반영" 안내(05 §3.10.8 화면 표기). 변경은 `dial.set`, 되돌리기는 `dial.unset`(위 층 값으로), 모드 변경은 `mode.set`.
 - 접힌 안내 "다이얼이 바꾸지 못하는 것"(불변조건 1~7, v0.3 07 §7).
 - 모드를 라우터가 골랐으면 "자동 선택 · 이의" 표시.
 
 ##### (15) `RecoveryList` 복구
 
-입력: `RecoveryView`(04 §3.20). 재시작으로 중단된 WorkUnit과 결과를 모르는 외부 행동(helm-canon-3 G11, 결정 30). 항목: 마지막 확인 지점, 중단된 도구와 요약, 다시 실행해도 안전한지(`rerunSafe`와 판정 출처: 도구 선언 / 권한 레이어), 외부 효과 여부(없음 / 있을 수 있음 / 일어남 / 모름), 가능한 행동. 행동은 `recovery.resolve`로 보내며 버튼 문구는 결과를 말한다: "마지막 확인 지점부터 다시 실행", "그대로 두기", "다시 계획", "확인 작업 만들기", "일어났다고 기록", "일어나지 않았다고 기록", "되돌리기"(helm-canon §17.6 §4). `rerunSafe: 'unsafe' | 'unknown'`이면 "다시 실행" 버튼에 `consequence`로 이유를 쓴다. 데몬이 읽기 전용 복구 모드면 모든 버튼을 막고 이유를 보인다.
+입력: `RecoveryView`(04 §3.20). 재시작으로 중단된 WorkUnit과 결과를 모르는 외부 행동(helm-canon-3 G11, 조정자 기본값 30). 항목: 마지막 확인 지점, 중단된 도구와 요약, 다시 실행해도 안전한지(`rerunSafe`와 판정 출처: 도구 선언 / 권한 레이어), 외부 효과 여부(없음 / 있을 수 있음 / 일어남 / 모름), 가능한 행동. 행동은 `recovery.resolve`로 보내며 버튼 문구는 결과를 말한다: "마지막 확인 지점부터 다시 실행", "그대로 두기", "다시 계획", "확인 작업 만들기", "일어났다고 기록", "일어나지 않았다고 기록", "되돌리기"(helm-canon §17.6 §4). `rerunSafe: 'unsafe' | 'unknown'`이면 "다시 실행" 버튼에 `consequence`로 이유를 쓴다. 데몬이 읽기 전용(19 `readOnly`)이면 모든 버튼을 막고 이유를 보인다.
 
 ##### (16) `ObserverProposalCard` 관찰 에이전트 제안, `MetricTile` 평가 지표
 
-`ObserverProposalCard` 입력: `ObserverProposalsView.proposals[]`(04 §3.18). 관찰 에이전트(결정 35, 16)는 쓰기 권한이 없으므로 카드는 "제안"이다. 카드: 찾은 반복 패턴, 근거(세션 출처: Helm·pi·Claude Code·Codex, 기간, 횟수, 추정 절감과 계산식), 바뀌는 것(컨텍스트·합의·정책), 초안(마크다운 또는 diff, 원시 HTML 끔), 주의 사항(주입 의심 경고 포함, 16 §3.24), 채택 뒤 효과(전·후 값). 행동: 채택(`observerProposal.adopt`), 고쳐서 채택, 기각(`observerProposal.decline`, 사유 하나 고르기: 16의 `not_useful | wrong_pattern | already_handled | too_costly | other`), 나중에(`observerProposal.snooze`). 기각 사유 고르기는 결정 질문이 아니라 분류 입력이라 §3.9 R4의 단일 선택 부품 제한에 걸리지 않는다(`composites/rules/` 폴더).
+`ObserverProposalCard` 입력: `ObserverProposalsView.proposals[]`(04 §3.18). 관찰 에이전트(조정자 기본값 35, 16)는 쓰기 권한이 없으므로 카드는 "제안"이다. 카드: 찾은 반복 패턴, 근거(세션 출처: Helm·pi·Claude Code·Codex, 기간, 횟수, 추정 절감과 계산식), 바뀌는 것(컨텍스트·합의·정책), 초안(마크다운 또는 변경 비교, 원시 HTML 끔), 주의 사항(주입 의심 경고 포함, 16 §3.24), 채택 뒤 효과(전·후 값). 행동: 채택(`observerProposal.adopt`), 고쳐서 채택, 기각(`observerProposal.decline { reason, scope }`, 사유 하나 고르기는 04 §3.18 선택지(이미 해결함 / 우연 / 원하지 않음 / 직접 하겠음 / 비용이 큼 / 기타)와 "이 종류는 다시 보지 않기"(`scope: "this" | "family_forever"`). 값 이름은 04·16이 정한다), 나중에(`observerProposal.snooze`). 기각 사유 고르기는 분류 입력이라 §3.9 R4의 단일 선택 부품 제한에 걸리지 않는다(`composites/rules/` 폴더).
 
 `MetricTile` [제안, 16 §3.24 요구]: 평가 화면(`SCR-METRICS`, 03 §3.6)의 지표 하나. 값, 분자/분모/표본 수, 창(예: 14일), 정의 버전, 검토 신호(초기 가설값임을 표시), 14일 추세(일일 스냅샷 SVG 선, 점마다 접근 가능한 값), 근거 이벤트로 내려가기. 값의 좋고 나쁨을 색만으로 표시하지 않고 "검토 신호: 기준 0.2 초과" 같은 문장으로 쓴다. 점수·순위·연속 기록 표시는 쓰지 않는다.
 
@@ -1458,7 +1713,7 @@ export interface SemanticPreviewProps extends L2Common {
 
 | 종류 | 띠 내용 | 화면 동작 |
 |---|---|---|
-| 커널·데몬 응답 없음, 복구 모드 | Helm 기록에 쓸 수 없어 결정이 막힘, 대화 초안은 보존 | 결정 버튼 비활성 |
+| 서버 응답 없음, 읽기 전용 | Helm 기록에 쓸 수 없어 결정이 막힘, 대화 초안은 보존. 읽기 전용은 사유별 문장(디스크 부족, 체인 검사 실패, 투영 갱신 반복 실패 `projection_fault`(판정 J-129) 등, 17·19 `readOnly` 사유) | 결정 버튼 비활성. 사람이 할 일이 있으면 [복구 선택 열기](`SCR-RECOVERY`) |
 | 어댑터 능력 없음(맡긴 범위 권고 수준) | 맡긴 범위가 강제되지 않음 | `ActiveWorkCard`·`WorkAgreementDraft`에도 표시 |
 | 뷰 낡음 | §3.5.8 | 읽기 가능, 그 화면 결정 막음 |
 | 외부 결과 불확실 | 시간 초과를 실패로 단정하지 않음, 확인 작업 생성됨 | 해당 작업 카드 연결 |
@@ -1471,11 +1726,11 @@ export interface SemanticPreviewProps extends L2Common {
 | 부품 | 목적 | 핵심 props | 키보드 | 접근성 |
 |---|---|---|---|---|
 | `WindowHeader` | 창 머리. 명령 팔레트 진입, 지표 셋 | `pending: PendingQuestionsVM`, `connection: ConnectionVM`(§3.8.5), `meta: ProjectionMeta`, `path: RecordRef[]`(위치 경로), `onOpenPalette` | ⌘/Ctrl+K | `banner` 영역 |
-| `NavRail` | 최상위 이동 | `items: Array<{ screen: ScreenId; label; icon; count?: { value: number; kind: 'rights' \| 'info' \| 'neutral' } }>`(03 §3.5.2 순서), `current`, `collapsed` | ⌘/Ctrl+1~7, ↑/↓ | `nav`, `aria-current="page"` |
+| `NavRail` | 최상위 이동 | `items: Array<{ screen: ScreenId; label; icon; count?: { value: number; kind: 'rights' \| 'info' \| 'neutral' }; dot?: boolean }>`(03 §3.5.2 순서. `dot`은 "에이전트가 정한 것"의 새 항목 표시로 숫자를 그리지 않는다), `current`, `collapsed` | ⌘/Ctrl+1~7, ↑/↓ | `nav`, `aria-current="page"` |
 | `ScopeBar` | `RGN-STATUSLINE`: Goal · Concern · 모드 · 지금 하는 일 · 맡긴 범위 · 다음 멈춤(helm-canon-2 §3.5) | `goal?: RecordRef`, `concern: RecordRef`, `statusLine: ConcernView['statusLine']`, `loop?: string`(03 §3.3.7 식별자) | 칩마다 Enter 이동 | `nav aria-label="현재 범위"` |
 | `Inspector` | 오른쪽 상세. 탭: 근거, 출처, 권한, 관련, 원본 | `subject?: RecordRef`, `tab`, `pinned`, `width` | ⌘/Ctrl+I 열고 닫기, Esc 닫기(시트일 때) | `complementary` |
 | `ScopedComposer` | 현재 범위에 묶인 자연어 입력 + `SemanticPreview` | `scope: { kind: 'global' \| 'goal' \| 'concern' \| 'workUnit' \| 'question'; ref?: RecordRef }`(03 §3.4.1), `placeholderKey`, `draft`, `onDraftChange`, `preview?: SemanticPreviewResult` | ⌘/Ctrl+Enter 보내기, `/` 포커스(입력 밖에서), IME 규칙 | 입력의 라벨에 범위 이름 포함("Concern ‘블로그 방향’에 말하기") |
-| `ActiveRunDrawer` | 진행 중 실행 요약 서랍. 에이전트별 토큰 스트림 없음 | `works: ActiveWorkCard[]`(04 §3.1), `exceptions: RecordRef[]`, `open` | ⌘/Ctrl+J | `region`, 갱신은 §3.6.8 규칙 |
+| `ActiveRunDrawer` | 진행 중 실행 요약 서랍. Goal ▸ Concern 트리로 묶어 보이고(03 §3.4.1, `role="tree"`, `ConcernTree`와 같은 키보드), 에이전트별 토큰 스트림 없음 | `works: ActiveWorkCard[]`(04 §3.1), `exceptions: RecordRef[]`, `open` | ⌘/Ctrl+J | `region`, 갱신은 §3.6.8 규칙 |
 | `CommandPalette` | 이동, 레코드 찾기, 표시 조작 | `commands: Command[]`, `search(query): Promise<RecordRef[]>` | ⌘/Ctrl+K, ↑/↓, Enter | `combobox` + `listbox` |
 
 ```ts
@@ -1487,7 +1742,7 @@ export interface Command {
 }
 ```
 
-- 셸 부품은 데스크톱 전용이며 `apps/desktop/src/ui/shell/`에 둔다(§3.13). 재질: `WindowHeader`·`NavRail`·`ScopeBar`·`ActiveRunDrawer`·`ScopedComposer`의 띠는 `glass-chrome`, `CommandPalette`는 `glass-overlay`. 크롬 안의 글자는 본문·보조만 쓰고, 다크 3차 글자는 `text-tertiary-on-glass`(§3.2.2).
+- 셸 부품은 데스크톱 전용이며 `apps/desktop/src/ui/shell/`에 둔다(§3.13). 재질: `WindowHeader`·`NavRail`·`ScopeBar`·`ActiveRunDrawer`·`ScopedComposer`의 띠는 `glass-chrome`, `CommandPalette`는 `glass-overlay`. 크롬 안의 글자는 본문·보조·`text-tertiary-on-glass`만 쓴다(§3.2.2).
 - `ActiveRunDrawer` 머리의 진행 중 표시(`AgentActivityIndicator`, §3.14.4)는 진행 중인 run이 하나 이상일 때만 움직이고, "진행 중 2"처럼 글자가 항상 함께 있다.
 
 명령 팔레트는 이동과 표시만 한다 [제안]. 결정을 팔레트에서 바로 보내면 근거와 반대 근거를 보지 않고 결정하게 된다(A15).
@@ -1515,7 +1770,7 @@ export interface ThreadMessageVM {
     | { type: 'record'; record: RecordRef }                 // 레코드 칩
     | { type: 'tool'; toolCallId: Id; activity: ToolActivityVM }
   >;
-  at: IsoTime; author: ActorRef;
+  at: IsoTime; author: Author;
 }
 ```
 
@@ -1592,8 +1847,8 @@ export interface LoopTimelineProps extends L2Common {
 ```
 
 ```text
-계획  O ✓ → I.want ✓ → C.probe ✓ → A.watch (건너뜀) → C.commit ● → A.confirm      (에이전트가 정함 · 이의)
-실제  O → I.want → C.probe → S.split → I.want → C.commit                          계획에 없던 전환 1
+계획  상황 파악 ✓ → 원함 탐구 ✓ → 탐침 ✓ → 지속 관찰 (건너뜀) → 약속 실행 ● → 확인·반영   (에이전트가 정함 · 이의)
+실제  상황 파악 → 원함 탐구 → 탐침 → 구조: 나누기 → 원함 탐구 → 약속 실행             계획에 없던 전환 1
 
 10/11 09:02  상황 파악     상황 판정: 복합 (에이전트 판정 · 이의)          산출: 상황 판정 1
 10/11 09:10  원함 탐구     자극 6개 · 반응 14 · 기준 후보 3                  주요: 기준 후보 2
@@ -1638,7 +1893,8 @@ export interface ReactionRecordParams {
   kind: 'strength' | 'no_reason' | 'rewrite' | 'near' | 'triad_odd' | 'comment';
   strength?: -2 | -1 | 0 | 1 | 2;
   reason?: string; rewrite?: string;
-  triad?: { triadId: string; odd: string; sameReason?: string; cannotSay?: boolean };
+  /** 세 개 비교: 사람은 비슷한 둘을 고르고 남은 하나가 different가 된다(08 triad, 15 §3.6) */
+  triad?: { triadId: string; similar: [string, string]; why?: string; cannotSay?: boolean };
 }
 ```
 
@@ -1648,25 +1904,25 @@ export interface ReactionRecordParams {
 |---|---|
 | 순서와 라벨 | 뷰가 준 순서와 섞은 글자 라벨(A, B, …)을 그대로 쓴다. 정렬·필터 조작을 두지 않는다. 극단 자극 표시는 하지 않는다. 출처 종류(초안·레퍼런스·사례·비유)와 "다른 분야" 이름은 보인다(05 §3.2.1) |
 | 카드 재질 | 자극 카드는 불투명 표면이다(UP-14). 자극 자체의 색·글꼴을 유리 효과가 바꾸지 않게 하려는 것이다. 보드 머리와 반응 막대만 `glass-chrome` |
-| 요소 표시 | 부분 고르기 모드(`E`)에서 글의 요소마다 `[a1]` 표시, ↑↓로 요소 이동. 데몬이 요소별 평문 조각을 함께 주면 조각 단위로 감싼다(E9). 마우스로 요소 밖 임의 구간도 끌어 고를 수 있다(`textRange`). 고른 요소는 색만이 아니라 테두리와 요소 라벨로 표시한다(05 §3.2.3) |
+| 요소 표시 | 부분 고르기 모드(`E`)에서 글의 요소마다 `[a1]` 표시, ↑↓로 요소 이동. 데몬이 요소별 평문 조각을 함께 주면 조각 단위로 감싼다(E9). 마우스로 요소 밖 임의 구간도 끌어 고를 수 있다(`textRange`). 고른 요소는 색과 함께 테두리와 요소 라벨로 표시한다(05 §3.2.3) |
 | 그림 영역 | 마우스는 끌기, 키보드는 3×3 격자 칸을 화살표로 고르고 Space로 묶기 |
 | 반응 막대 | 강도 다섯 단계(`1`~`5`, 글자 "아주 싫음 / 싫음 / 상관없음 / 좋음 / 아주 좋음" + 기호 −−/−/0/+/++), 이유 없이 아님(`N`), 가깝다 표시(`M`), 고쳐 말하기(`R`), 부분 고르기(`E`), 세 개 비교 띠로(`T`), 이유 칸(`Tab`, 비워도 됨), 마지막 반응 철회(Mod+Z). 키 배정은 05 §3.8.4 |
 | 반응 표시 | 하이라이트 배경 + 밑줄 모양(좋음 실선, 싫음 물결, 이유 없음 점선, `--helm-react-*`). 그림은 사각형 테두리 모양 + 번호 |
-| 세 개 비교 | 뷰에 `triad`가 있으면 격자 위 띠로. "다른 하나"를 고르고 이유 또는 "말로 못 하겠음". 가장 좋은 것을 묻지 않는다(05 §3.2.4) |
+| 세 개 비교 | 뷰에 `triad`가 있으면 격자 위 띠로. 사람은 "비슷한 둘"을 고르고(두 자극을 차례로 표시), 남은 하나가 "다른 하나"로 표시된 뒤 무엇이 다른지 이유 칸 또는 "말로 못 하겠음"이 열린다(08 `triad.similar`, 15 §3.6). 자극 하나만 누르는 입력은 두지 않는다. 좋은 것을 고르는 동작과 헷갈리기 때문이다. 가장 좋은 것을 묻지 않는다 |
 | 비교 반응 | 15가 요구한 "A가 B보다 낫다"(`comparison`)는 두 자극을 끌어 놓는 입력으로 받는다(05 §3.2.2) |
 | 기준 후보 | 라운드를 마치기 전에는 보이지 않는다(`revealAfterClose`, 05 §3.2.1 원칙 5) |
 | 말한 것과 반응의 차이 | `statedVsRevealed`를 오른쪽 패널에 항상 보인다(v0.3 04 §3.4) |
 | 반응 철회 | 지우지 않고 철회 기록(`reaction.withdraw`). 철회된 반응은 취소선 + "철회" |
 | 라운드 마치기 | 05 §3.2.5의 상태 기계를 구현한다. 정보성 반응이 있으면 `stimulusRound.close`. 반응이 고르기에 가까운 것(`pickLike`: 가깝다 표시, 이유 없이 "아주 좋음"만)뿐이면 같은 라운드 안에서 선택 단계 하나("가깝다고 한 D에서 어느 부분이 가장 가깝나요?")를 제안하고, 사람이 "그대로 닫기"를 누르면 닫는다. 이때 15 규칙대로 다음 라운드에 세 개 비교가 들어간다고 알린다. 반응이 없을 때도 같은 방식으로 확인 후 닫는다. 입력을 강제하지 않는다(J-34) |
-| 연결 끊김 | 반응을 "보내지 않음"으로 받아 두고, 다시 연결되면 "보내지 않은 반응 3개 보내기"를 사람이 누른다(04 §3.9, §3.6.4 예외). 반응은 결정이 아니라서 `basisSeq`가 낡아도 거부되지 않는다(라운드가 닫혔을 때만, 05 §3.2.2) |
+| 연결 끊김 | 반응을 "보내지 않음"으로 받아 두고, 다시 연결되면 "보내지 않은 반응 3개 보내기"를 사람이 누른다(04 §3.9, §3.6.4 예외). 반응은 관찰 기록이라 `basisSeq`가 낡아도 거부되지 않는다(라운드가 닫혔을 때만, 05 §3.2.2) |
 
 반응은 하나씩 바로 기록된다(`reaction.record`). 반응은 관찰이므로 한 글자 단축키를 쓴다(§3.6.5 예외). 단축키는 반응 막대가 대상(자극·요소)을 가질 때만 동작한다. 자극 보드에는 `G`를 쓰지 않는다(05 §3.8.4, 두 키 이동과 겹침).
 
-상태: 기본, 반응 있음, 보내지 않음(오프라인), 마침 확인(화면 안 선택 단계), 라운드 마침(읽기 전용, 기준 후보 공개), 다음 라운드 준비 중, 자극 불러오기 실패(그 카드만 "다시"), 멈춤 조건 충족 안내(04 §3.9).
+상태: 기본, 반응 있음, 보내지 않음(오프라인), 마침 확인(화면 안 선택 단계), 라운드 마침(읽기 전용, 기준 후보 공개), 다음 라운드 준비 중, 자극 불러오기 실패(그 카드만 [다시 불러오기]), 멈출 조건 충족 안내(04 §3.9).
 
 접근성: 자극 카드는 `article`, 이름 = 라벨 + 출처 종류. 글 요소는 `mark`로 감싸고 반응 상태를 `aria-describedby`로 읽는다. 반응을 더하면 `aria-live`로 "D, 요소 a1에 좋음". 그림 영역 반응은 "G, 위 왼쪽 영역에 좋음". 이미지 자극은 대체 설명(15가 만듦)을 가진다.
 
-`PreferenceModelPanel` 선호 모델: 입력 `PreferenceModelView`(04 §3.8). 기준(이름, 무게 글자 "중요함/보통/덜 중요함", 지지 등급 `SupportGradeLabel`, 근거 반응·반대 반응 칩, 확인 여부), 좋았던 예·싫었던 예(자극 칩), 말한 것과 반응의 차이(항상 펼침), 다시 볼 조건. 숫자 무게·확신도는 그리지 않는다(J-19). 근거 반응 수로 강도를 표시하지 않는다(05 §3.2.6). 기준 후보 확인은 질문(`QuestionCard`, 기준 확인: "넣기 / 고쳐서 넣기 / 넣지 않기")으로 하며, 패널에서 후보 문장을 바로 고쳐 쓸 수 있다(빈 칸에서 새로 쓰게 하지 않음).
+`PreferenceModelPanel` 선호 모델: 입력 `PreferenceModelView`(04 §3.8). 기준(이름, 무게 글자 "높음·중간·낮음"(05 문구 키), 지지 등급 `SupportGradeLabel`, 근거 반응·반대 반응 칩, 확인 여부), 좋았던 예·싫었던 예(자극 칩), 말한 것과 반응의 차이(항상 펼침), 다시 볼 조건. 숫자 무게·확신도는 그리지 않는다(J-19). 근거 반응 수로 강도를 표시하지 않는다(05 §3.2.6). 기준 후보 확인은 질문(`QuestionCard`, 기준 확인: "넣기 / 고쳐서 넣기 / 넣지 않기")으로 하며, 패널에서 후보 문장을 바로 고쳐 쓸 수 있다(빈 칸에서 새로 쓰게 하지 않음).
 
 #### 3.8.4 Goal 이력 `GoalHistory`
 
@@ -1699,12 +1955,12 @@ export interface GoalHistoryProps extends L2Common {
 ```ts
 export interface ConnectionVM {
   state: ConnectionUiState;             // §3.6.2, 04 §3.0.4 + J-60 safe_mode
-  route: { kind: 'tailscale_wss' | 'ssh'; name: string };   // 결정 26·38, 20 §3.8.1 연결 프로필
+  route: { kind: 'tailscale_wss' | 'ssh'; name: string };   // 기본값 26, 결정 38, 20 §3.8.1 연결 프로필
   lastReceivedAt?: IsoTime;
   retry?: { attempt: number; nextAt: IsoTime };
   versions?: { app: string; daemon: string };
-  /** 막힘 사유별 문구와 할 일 (20 §3.8.9). 키체인 거부·SSH 실패·다른 서버는 상태가 아니라 이 문구 키로 구분 (J-60) */
-  blockedReasonKey?: string;
+  /** 막힘 사유별 문구와 할 일 (20 §3.8.9). 키체인 거부·SSH 실패·다른 서버는 이 문구 키로 구분하고 상태 값은 늘리지 않는다 (J-60) */
+  reasonKey?: CopyKey;
   action?: { labelKey: string; target: ScreenId };
 }
 ```
@@ -1713,9 +1969,9 @@ export interface ConnectionVM {
 |---|---|---|
 | 연결됨 | 점 + "연결됨 · <경로 이름>" | 경로, 마지막 수신 시각, 개발자 보기에서 seq |
 | 느림 | 점(경고) + "연결 느림" | 원인 문장 |
-| 다시 연결하는 중 | 점 + "다시 연결하는 중 · 12초 전 끊김" | 다음 시도 시각, "지금 다시 시도" |
+| 다시 연결하는 중 | 점 + "다시 연결하는 중 · 12초 전 끊김" | 다음 시도 시각, [지금 다시 연결] |
 | 다시 맞추는 중 | 점 + "맞추는 중" | — |
-| 연결 안 됨 / 데몬 응답 없음 / 인증 실패 / 버전 불일치 / 복구 모드 / 안전 모드 | 점(위험) + 상태 이름 | 사유 문구(`blockedReasonKey`)와 할 일(`SCR-CONNECT`, `SCR-RECOVERY`). 안전 모드는 17·19의 `daemon.exitSafeMode` 안내 |
+| 연결 안 됨 / 데몬 응답 없음 / 인증 실패 / 버전 불일치 / 읽기 전용 / 안전 모드 | 점(위험) + 상태 이름 | 사유 문구(`reasonKey`)와 할 일(`SCR-CONNECT`, `SCR-RECOVERY`). 안전 모드는 17·19의 `daemon.exitSafeMode` 안내 |
 
 점은 장식이고 상태는 항상 글자로 쓴다. 회전 아이콘을 쓰지 않는다(UP-12).
 
@@ -1729,7 +1985,7 @@ export interface PendingQuestionsVM {
 }
 ```
 
-창 머리와 레일의 질문함 배지에 "선택 필요 2"(강조 막대, 0이면 숨김)와 "확인 3"(보조 글자)을 따로 보인다. 만료 임박이 있으면 "곧 만료 1"을 경고 색 글자로 더한다. 누르면 `SCR-INBOX`. 같은 값을 트레이·메뉴 막대(20, `SCR-TRAY`)가 쓴다. 숫자가 늘어도 깜박이거나 소리를 내지 않는다. 알림은 전달 방식에 따라 11·20이 정한다.
+창 머리와 레일의 질문함 배지에 "선택 필요 2"(강조 막대, 0이면 숨김)와 "확인하면 좋은 것 3"(보조 글자, 좁은 너비에서는 숫자만 보이고 접근 가능한 이름에 전체 라벨)을 따로 보인다. 만료 임박이 있으면 "곧 만료 1"을 경고 색 글자로 더한다. 누르면 `SCR-INBOX`. 같은 값을 트레이·메뉴 막대(20, `SCR-TRAY`)가 쓴다. 숫자가 늘어도 깜박이거나 소리를 내지 않는다. 알림은 전달 방식에 따라 11·20이 정한다.
 
 **`AttentionBudgetMeter` 주의 예산** — 주의 예산의 단위와 배분은 14가 정한다(브리프 §3.5). 04 `HomeView.attentionBudget`은 다이얼 값(숫자 하나)이다. 부품은 단위를 모르는 채로 그린다.
 
@@ -1760,7 +2016,7 @@ SVG 막대 하나(사용 / 예약 / 남음 세 칸, 칸마다 글자 라벨과 �
 - 발산 표 칸: `filled` ●, `empty` ○, `na` · 기호와 글자 라벨을 함께 쓴다. 해당 없음은 이유(`naReason`)를 칸 안에 쓴다. 칸을 누르면 그 칸의 가능성. 표는 `table`, 칸 이름 = "관점 2 × 도구: 채워짐, 가능성 1개".
 - 가능성 비교는 P07 표 형식(가능성 / 지지 근거 / 반대 근거 / 다음 확인, helm-canon §17.8)이다. 행마다 고르기 버튼을 두지 않는다. 행 행동은 "이 가능성에 말하기"(범위 입력창), "근거 보기", "후보 제안"(`inquiry.proposeCandidate`), "이의". 가능성 사이의 선택이 필요하면 런타임이 질문 레코드를 만들고 `QuestionCard`로 나타난다(`inquiry.requestDecision`로 사람이 요청할 수도 있다).
 - 사실 탐구의 다음 확인 고정(`inquiry.pinCheck`), 관점 요청(`inquiry.requestFrame`), 전제 표시(`inquiry.markAssumption`), 탐구 멈춤(`inquiry.stop`)은 각 항목의 행동으로 둔다.
-- 대비 압축 카드(`ContrastCard`, 05 §3.2.7): 대비마다 "얻는 것 · 잃는 것" 한 줄과 반응 버튼 넷 — "이걸 잃어도 괜찮음" / "이건 잃으면 안 됨" / "모르겠음" / "고쳐 말하기". 대비 중 하나를 고르는 버튼을 두지 않는다. 앞에 보이는 대비 수(`initiallyVisible`)의 기본값은 3이고 나머지는 접히되 펼쳐 반응할 수 있다(14 `frontSize`는 다이얼이 아니라 표시 설정이라 05·21이 정함, 14 §U 표). 반응은 `reaction.record`(관찰)로 간다. 정보 가치가 가장 큰 질문 하나는 질문 레코드로 질문함에 들어온다.
+- 대비 압축 카드(`ContrastCard`, 05 §3.2.7): 대비마다 "얻는 것 · 잃는 것" 한 줄과 반응 버튼 넷 — "이걸 잃어도 괜찮음" / "이건 잃으면 안 됨" / "모르겠음" / "고쳐 말하기". 대비 중 하나를 고르는 버튼을 두지 않는다. 앞에 보이는 대비 수(`initiallyVisible`)의 기본값은 3이고 나머지는 접히되 펼쳐 반응할 수 있다(14 `frontSize`는 표시 설정이며 05·21이 정함, 14 §U 표). 반응은 `reaction.record`(관찰)로 간다. 정보 가치가 가장 큰 질문 하나는 질문 레코드로 질문함에 들어온다.
 - 가능성 행에는 지지 등급(`SupportGradeLabel`)을 보이고, 한 모델 계열로만 발산했으면 탐구 머리에 "같은 모델 계열에서만 나옴"을 보인다(15 `diversity: "single_family"`, 03 §3.3.6).
 - 예측 목록: 확인 날짜가 지난 예측은 결과와 함께 위로 올린다(정렬은 뷰).
 - 탐구 진행 중이면 갱신은 라운드 경계 단위로 보이고 중간 결과에 "진행 중"을 붙인다(04 §3.8).
@@ -1771,15 +2027,15 @@ SVG 막대 하나(사용 / 예약 / 남음 세 칸, 칸마다 글자 라벨과 �
 
 | 규칙 | 내용 | 강제 방법 |
 |---|---|---|
-| R1 원함 탐구에는 선택지가 없다 | 원함 탐구에서 온 질문(`origin.inquiry === 'want'`)에서 `QuestionCard`는 추천·다른 선택·`pickOne` 답 형태를 그리지 않는다(04 §3.4). 자극 보드와 대비 카드에는 "가장 좋은 것 고르기" 행동이 없다. 고르기에 가까운 반응(`pickLike`)뿐인 라운드는 사람이 명시적으로 "그대로 닫기"를 눌러야 닫히고, 15 규칙대로 다음 라운드에 세 개 비교가 들어간다(J-34). 1단계의 "가깝다 표시만으로 마칠 수 없음" 가드는 철회했다 | 부품 내부 규칙(뷰에 값이 와도 그리지 않고 개발 모드 경고), 05 §3.2.5 상태 기계. 테스트: §6.3 금지 패턴 테스트 |
-| R2 결정 카드의 행동 묶음 | 질문 카드는 주 버튼(최대 3개) 밖에 "그 밖에"(기준 고치기, 질문 다시 쓰기, 먼저 탐구, 맡기기, 미루기, 이의)를 항상 둔다. 펼친 카드는 보이는 줄, 접힌 카드는 "그 밖에" 메뉴(`M`)(04 §3.4, 05 §3.8.4). `[승인] [거절]`, `[확인] [계속]`만 있는 버튼 줄을 만들지 않는다. 권리 게이트의 허락 버튼은 대상과 효과를 문구에 쓴다(`OptionView.actionLabel`) | `QuestionCard`가 "그 밖에"를 내부에서 만든다(화면이 뺄 수 없음). 테스트: 결정 의도 버튼만 있고 "그 밖에"가 없는 카드 이야기가 있으면 실패 |
+| R1 원함 탐구에는 선택지가 없다 | 원함 탐구에서 온 질문(`origin.inquiry === 'want'`)에서 `QuestionCard`는 추천·다른 선택·`pickOne` 답 형태를 그리지 않는다(04 §3.4). 자극 보드와 대비 카드에는 "가장 좋은 것 고르기" 행동이 없다. 고르기에 가까운 반응(`pickLike`)뿐인 라운드는 사람이 명시적으로 "그대로 닫기"를 눌러야 닫히고, 15 규칙대로 다음 라운드에 세 개 비교가 들어간다(J-34). 1단계의 "가깝다 표시만으로 마칠 수 없음" 가드는 철회했다. 답이 자극·가능성 id를 가리키는 질문(예: `topAfter`에 자극 id를 단 사실 질문)은 커널이 V-Q-03에서 거부하므로 화면에 오지 않는다. 그래도 그런 질문이 오면 `QuestionCard`는 답 칸에 자극 목록을 그리지 않고 개발 모드 경고를 낸다(판정 J-141) | 부품 내부 규칙(뷰에 값이 와도 그리지 않고 개발 모드 경고), 커널 V-Q-03(10·15), 05 §3.2.5 상태 기계. 테스트: §6.3 금지 패턴 테스트 |
+| R2 결정 카드의 행동 묶음 | 질문 카드는 주 버튼(최대 3개) 밖에 "그 밖에"(기준 고치기, 질문 다시 쓰기, 먼저 알아보기, 에이전트가 정하게 두기(정보 질문만), 미루기, 이의 걸기)를 항상 둔다. 펼친 카드는 보이는 줄, 접힌 카드는 "그 밖에" 메뉴(`M`)(04 §3.4, 05 §3.8.4). `[승인] [거절]`, `[확인] [계속]`만 있는 버튼 줄을 만들지 않는다. 권리 게이트의 허락 버튼은 대상과 효과를 문구에 쓴다(`OptionView.actionLabel`) | `QuestionCard`가 "그 밖에"를 내부에서 만든다(화면이 뺄 수 없음). 테스트: 결정 의도 버튼만 있고 "그 밖에"가 없는 카드 이야기가 있으면 실패 |
 | R3 대안 표시는 순서만 바꾼다 | 대비 압축은 보여 주는 순서만 정한다. 어떤 부품도 `maxOptions` 같은 자르기 prop을 갖지 않는다. `initiallyVisible`은 처음 보이는 개수이고, 나머지는 같은 자리에서 펼쳐 반응할 수 있다. "2개 중 고르세요" 같은 개수 문구를 쓰지 않는다 | 타입(자르기 prop 없음), 문구 테스트 |
 | R4 고르기 부품의 사용 위치 제한 | `RadioGroup`, `Select`, 단일 선택 `SegmentedControl`은 설정·다이얼·필터·분류 입력(관찰 제안 기각 사유)에서만 쓴다. 사실 질문의 `pickOne` 답 형태(04 §3.4)는 `QuestionCard` 안의 전용 부품(`AnswerChoices`)으로만 그리고, 이 부품은 `origin.inquiry !== 'want'`일 때만 렌더된다. `ui/viz/inquiry/`, `ui/viz/StimulusBoard/`에서 단일 선택 부품을 가져오면 정적 검사가 실패한다 | `no-restricted-imports` 폴더 규칙(§6.4) |
 | R5 초안 먼저 | 사람이 내용을 채워야 하는 부품(작업 합의, Goal 수정, 기준 수정)은 초안이 있는 상태로 열린다. 초안이 아직 없으면 빈 양식 대신 "초안을 만드는 중"과 직접 쓰기 선택을 보인다. 초안은 `DraftMark`로 표시하고 사람이 고친 칸은 "내가 고침"으로 바뀐다 | 부품 계약(`fields`가 비면 빈 상태 렌더러), 이야기 |
-| R6 반응을 결정으로 취급하지 않음 | "가깝다 표시"(`near`), 세 개 비교의 "다른 하나"(`triad_odd`), 강한 좋음(`strength: 2`)은 반응 관찰로만 올라간다. 화면이 이를 선택(Choice)·완료로 표시하지 않는다 | `StimulusBoard`는 반응을 "기록됨"으로만 표시 |
-| R7 금지 문구 | "A와 B 중 무엇을 원하시나요?", "어느 쪽이 좋으세요?", "계속할까요?", `[승인] [거절]` | 문구 테스트(05·22가 목록 확정) |
+| R6 반응을 결정으로 취급하지 않음 | "가깝다 표시"(`near`), 세 개 비교의 답(`triad_odd`: 비슷한 둘과 다른 하나), 강한 좋음(`strength: 2`)은 반응 관찰로만 올라간다. 화면이 이를 선택(Choice)·완료로 표시하지 않는다 | `StimulusBoard`는 반응을 "기록됨"으로만 표시 |
+| R7 금지 문구 | "A와 B 중 무엇을 원하시나요?", "어느 쪽이 좋으세요?", "어느 쪽입니까?", "둘 중 하나를 골라 주세요", "계속할까요?", `[승인] [거절]`. 원함 탐구 질문 문장에 "어느 쪽", "둘 중", "고르"가 들어가면 실패(판정 J-141) | 문구 테스트(05·22가 목록 확정) |
 
-허용되는 것: 사실·가능성·결과 탐구 뒤의 결정 질문에서 추천과 가장 강한 다른 선택을 보이는 것(helm-canon-3 §7.1 C2). 셋 비교(레퍼토리 그리드)에서 "다른 하나"를 고르는 것(차이의 이유를 묻는 장치이며 고르기로 라운드를 끝내지 않는다, conversation-extracts-4 6-8 발췌자 메모). 다이얼 값 고르기(설정).
+허용되는 것: 사실·가능성·결과 탐구 뒤의 결정 질문에서 추천과 가장 강한 다른 선택을 보이는 것(helm-canon-3 §7.1 C2). 셋 비교(레퍼토리 그리드)에서 비슷한 둘을 고르는 것(차이의 이유를 묻는 장치이며 고르기로 라운드를 끝내지 않는다, conversation-extracts-4 6-8 발췌자 메모). 다이얼 값 고르기(설정).
 
 ### 3.10 assistant-ui 활용 범위 [제안]
 
@@ -1826,13 +2082,13 @@ SVG 막대 하나(사용 / 예약 / 남음 세 칸, 칸마다 글자 라벨과 �
 |---|---|
 | Tauri 데스크톱 앱에서 쓸 때의 제약 | primitives와 ExternalStoreRuntime은 Next.js가 필요 없고 Vite SPA에서 쓸 수 있다 [검색: CLI 템플릿, 런타임 문서]. 공식 Tauri 안내는 없고 작은 공개 사례만 있다 [검색: GitHub]. WKWebView의 `overflow-anchor` 미지원은 Viewport의 JS 스크롤로 해결된다. `assistant-cloud` 의존성이 `ai`, `@opentelemetry/*`를 peer로 선언해 설치 경고가 날 수 있다 [검색: npm]. pnpm `peerDependencyRules`로 정리한다(06·20) |
 | Background runs가 assistant-ui "run" 개념에 묶이는가 | 독립 모드가 있어 묶이지 않는다 [검색: elements/background-inbox]. 그러나 Helm은 `ActiveRunDrawer`와 `ActiveWorkCard`를 직접 만든다(이유는 위 Elements 행) |
-| 요소 단위 반응 UI를 그 위에 만들 수 있는가 | 만들 수 있으나 만들지 않는다. 자극 보드는 대화 스레드가 아니라 상태 화면이고, Interactables를 쓰지 않으므로 얻는 것이 없다. `StimulusBoard`를 직접 만든다 |
+| 요소 단위 반응 UI를 그 위에 만들 수 있는가 | 만들 수 있으나 만들지 않는다. 자극 보드는 상태 화면이고, Interactables를 쓰지 않으므로 얻는 것이 없다. `StimulusBoard`를 직접 만든다 |
 | 생성형 UI 컴포넌트를 Helm 카드로 정의할 수 있는가 | 정의할 수는 있으나(어휘 목록, 동작 핸들러) 쓰지 않는다(위 표) |
 
 #### 3.10.4 고정과 교체 가능성
 
 - `@assistant-ui/react`는 정확한 버전으로 고정한다(0.x이고 스타일 부품은 Beta). primitives만 쓰므로 영향 범위가 작다.
-- assistant-ui 의존은 `ui/conversation/` 폴더 안에만 둔다. 다른 폴더가 `@assistant-ui/*`를 가져오면 정적 검사가 실패한다(§6.4). 맞지 않게 되면 이 폴더만 직접 구현으로 바꾼다. 대화 스레드는 Helm의 주 화면이 아니라 교체 비용이 작다(v0.3 13 §2.4).
+- assistant-ui 의존은 `ui/conversation/` 폴더 안에만 둔다. 다른 폴더가 `@assistant-ui/*`를 가져오면 정적 검사가 실패한다(§6.4). 맞지 않게 되면 이 폴더만 직접 구현으로 바꾼다. 대화 스레드는 Helm의 보조 화면이라 교체 비용이 작다(v0.3 13 §2.4).
 
 ### 3.11 화면 → 컴포넌트 매핑 [제안, 화면 ID는 03 §3.6]
 
@@ -1896,7 +2152,7 @@ SVG 막대 하나(사용 / 예약 / 남음 세 칸, 칸마다 글자 라벨과 �
 | `AutonomousChoiceList` | `S` 봤음, Shift+S 모두 봤음, `!` 이의 |
 | Concern 화면 | `[` / `]` 탭(개요, 탐구, 작업, 이력, 대화), `!` 초점 항목 이의 |
 | `StimulusBoard` | 화살표, `1`~`5`, `N`, `M`, `R`, `E`, `T`, Tab, Mod+Z |
-| `ActiveWorkCard` | `P` 안전하게 멈추기/다시 시작, `D` 방향 바꾸기, `X` 중단(확인 창) |
+| `ActiveWorkCard` | `P` 안전하게 멈추기/다시 시작, `D` 방향 바꾸기, `X` 작업 중단(확인 창 버튼 "WorkUnit 31 중단하기") |
 | `ResultReviewPanel` | `E` 근거 펼치기 |
 | `SinceLastVisit` | `J`/`K` 또는 `[`/`]` 절 이동 |
 | `EvidenceChainTree` | →/← 노드 펼침, `O` 원본 보기 |
@@ -1915,7 +2171,7 @@ SVG 막대 하나(사용 / 예약 / 남음 세 칸, 칸마다 글자 라벨과 �
 | 표현 부품 | `@helm/ui`(`packages/ui`) | L0 기본 부품, L1 의미 부품, L2 복합 부품과 시각화 중 셸이 아닌 것, `model`(문구는 `@helm/ui-language` 키만 받음, J-103) | 씀 | 씀. 우선 범위: `QuestionCard`, `QuestionInbox`, 답 입력, `ContestButton`, `StimulusBoard`의 반응 막대, `FreshnessIndicator`, `ConnectionIndicator` |
 | 데스크톱 전용 | `apps/desktop/src/ui` | 셸(`WindowHeader`, `NavRail`, `Inspector`, `Splitter`, `CommandPalette`, `ActiveRunDrawer`), 창 효과 연결, 단축키 구현 | 씀 | 모바일이 자기 셸을 둔다 |
 
-[제안] `@helm/ui-tokens`와 `@helm/ui`는 데스크톱 MVP 때부터 별도 패키지로 만든다. 20 §3.14는 "지금은 `apps/desktop/src/ui`, 26이 정하면 옮김"으로 적었으나, 처음부터 나누면 옮기는 비용이 없고 플랫폼 API 금지 규칙을 패키지 경계로 강제할 수 있다. 06의 패키지 목록에 더하기를 요구한다(§5.2).
+[제안] `@helm/ui-tokens`와 `@helm/ui`는 데스크톱 MVP 때부터 별도 패키지로 만든다(판정 J-85). 처음부터 나누면 옮기는 비용이 없고 플랫폼 API 금지 규칙을 패키지 경계로 강제할 수 있다. 06 §3.4.17과 경계가 같다.
 
 `@helm/ui`의 규칙:
 
@@ -1924,7 +2180,9 @@ SVG 막대 하나(사용 / 예약 / 남음 세 칸, 칸마다 글자 라벨과 �
 3. 크기는 밀도로 바꾼다. 모바일은 `data-density="touch"`(컨트롤 44px, 클릭 대상 44×44px, §3.2.7). 부품은 px을 직접 쓰지 않고 크기 토큰을 쓴다.
 4. 단축키는 부품에 하드코딩하지 않고 키 지도로 받는다(§3.12). 모바일에는 키 지도가 비어 있다.
 5. 요소 단위 반응(자극 보드)은 터치에서 길게 눌러 요소 고르기, 두 손가락이 아닌 한 손가락 끌기로 그림 영역 고르기를 지원한다 [제안, 26과 맞춤].
-6. 유리 재질은 모바일 GPU 비용이 크다. 모바일에서는 기본값을 `data-transparency="reduced"`로 둘지 26이 정한다(U-22).
+6. 유리 재질은 모바일 GPU 비용이 크다. 모바일 기본값은 `data-transparency="reduced"`다(26의 답, U-22). 사용자가 설정에서 `full`로 바꿀 수 있다.
+7. `touch` 밀도에서 글자 입력 칸의 글자 크기는 16px 이상이다(iOS Safari가 16px 미만 입력 칸에 초점이 가면 화면을 확대한다 [지식]). `size['field-font-touch']`(`--hm-size-field-font-touch`, §3.2.8) 토큰으로 둔다.
+8. 부품이 `style` 속성으로 값을 넣는 곳(26의 CSP `style-src-attr` 검토용): `VirtualList`(행 위치 `transform`, 전체 높이), `Splitter`(패널 너비), Radix 떠 있는 층(`Popover`·`Menu`·`Tooltip`·`HoverPreview`의 위치 변수), `TextArea`(react-textarea-autosize 높이), `StimulusBoard` 그림 영역 표시(정규화 사각형 → 백분율 위치), `AttentionBudgetMeter`·`MetricTile`의 막대 길이(SVG 속성으로 그리므로 style 아님), `AgentActivityIndicator`(없음, 클래스만). 모두 React가 렌더 뒤 DOM `style` 속성 객체로 넣는 값이며 서버 렌더 HTML 문자열의 `style="…"`는 만들지 않는다. CSP가 이 방식을 막는지는 26이 실제 iOS 26 Safari에서 확인한다 [가정].
 
 ### 3.14 글래스모피즘 시각 언어 [결정 41 / 제안: 규칙]
 
@@ -1935,13 +2193,13 @@ SVG 막대 하나(사용 / 예약 / 남음 세 칸, 칸마다 글자 라벨과 �
 | 출처 | 확인한 것 | Helm이 가져온 것 | 가져오지 않은 것 |
 |---|---|---|---|
 | Codex·Claude Code 데스크톱(Caustic의 정리) [원문: Caustic FOUNDATION] | 차분한 중립 크롬, 13px 인터페이스 글자, ink 주 버튼 | neutral 크롬, `ui` 역할 13/18, ink 주 버튼(UP-16) | — |
-| Claude Code 데스크톱 [검색: code.claude.com/docs/en/desktop] | 여러 세션 사이드바, 세션 도구막대의 diff 통계 표시를 누르면 왼쪽 파일 목록·오른쪽 줄 단위 변경 보기, 줄마다 의견, PR·CI 상태 막대 | 진행 중 작업을 레일·서랍에 모아 보이기(`ActiveRunDrawer`), 결과 확인에서 기준·근거 목록(왼쪽)과 상세(오른쪽) 배치 | 세션(대화) 중심 사이드바. Helm 레일은 상태 화면 중심(결정 10) |
-| Codex 앱 [검색: every.to Codex vibe check 2026-02, gradually.ai changelog] | 오른쪽 사이드바에 diff와 커밋 안 된 변경, PR 리뷰를 사이드바에서 | 인스펙터를 오른쪽에 두고 근거·출처·변경을 보이는 배치 | 대화 상자가 중심인 배치 |
-| Apple Liquid Glass(WWDC 2025, macOS 26) [검색: developer.apple.com/videos/play/wwdc2025/310] | 빛을 반사·굴절하는 반투명 재질, 창 구조 영역을 유리로 감쌈, 동심 반경 | 떠 있는 층만 유리(UP-14), 위쪽 반사광·안쪽 테두리, 동심 반경 | 굴절 렌즈 효과(웹뷰에서 재현 비용이 크고 글자 대비를 떨어뜨림) |
-| Tauri v2 창 효과 [검색: v2.tauri.app/reference/config] | `windowEffects`의 `sidebar`·`underWindowBackground`·`hudWindow` 등(macOS), `liquidGlassRegular`·`liquidGlassClear`(macOS 26+), `mica`(Windows 11), `acrylic`·`blur`(끌기·크기 조절 성능 문제 명시) | §3.14.3 | `acrylic`, `blur` |
+| Claude Code 데스크톱 [검색: https://code.claude.com/docs/en/desktop] | 여러 세션 사이드바, 세션 도구막대의 diff 통계 표시를 누르면 왼쪽 파일 목록·오른쪽 줄 단위 변경 보기, 줄마다 의견, PR·CI 상태 막대 | 진행 중 작업을 레일·서랍에 모아 보이기(`ActiveRunDrawer`), 결과 확인에서 기준·근거 목록(왼쪽)과 상세(오른쪽) 배치 | 세션(대화) 중심 사이드바. Helm 레일은 상태 화면 중심(결정 10) |
+| Codex 앱 [검색: https://every.to/p/codex-vibe-check (2026-02), https://www.gradually.ai/en/changelogs/codex-app/] | 오른쪽 사이드바에 diff와 커밋 안 된 변경, PR 리뷰를 사이드바에서 | 인스펙터를 오른쪽에 두고 근거·출처·변경을 보이는 배치 | 대화 상자가 중심인 배치 |
+| Apple Liquid Glass(WWDC 2025, macOS 26) [검색: https://developer.apple.com/videos/play/wwdc2025/310/] | 빛을 반사·굴절하는 반투명 재질, 창 구조 영역을 유리로 감쌈, 동심 반경 | 떠 있는 층만 유리(UP-14), 위쪽 반사광·안쪽 테두리, 동심 반경 | 굴절 렌즈 효과(웹뷰에서 재현 비용이 크고 글자 대비를 떨어뜨림) |
+| Tauri v2 창 효과 [검색: https://v2.tauri.app/reference/config/ `windowEffects`·`WindowEffect`] | `windowEffects`의 `sidebar`·`underWindowBackground`·`hudWindow` 등(macOS), `liquidGlassRegular`·`liquidGlassClear`(macOS 26+), `mica`(Windows 11), `acrylic`·`blur`(끌기·크기 조절 성능 문제 명시) | §3.14.3 | `acrylic`, `blur` |
 | Caustic 정책 | 유리는 떠 있는 것에만, 빛은 에이전트, ink 먼저, 동심 반경, 대비 관문, 입력칸 포커스 | UP-14~16, §3.2.5, §3.6.5 | 에이전트 serif(1차 제외, U-20), 회전하는 스펙트럼 테두리(정적으로 바꿈) |
 
-Codex 앱의 구체 재질(반투명 사이드바 여부 등)은 공개 자료로 확인하지 못했다 [검색: 해당 내용 없음]. 위 표의 Codex 행은 배치 관찰만 담는다.
+Codex 앱의 구체 재질(반투명 사이드바 여부 등)은 위 두 자료에서 찾지 못했다 [검색: 위 두 URL, 2026-10-12]. 위 표의 Codex 행은 배치 관찰만 담는다.
 
 #### 3.14.2 표면 층위
 
@@ -1963,9 +2221,9 @@ Codex 앱의 구체 재질(반투명 사이드바 여부 등)은 공개 자료�
 | macOS 14~15 | `windowEffects.effects: ["sidebar"]`, `state: "followsWindowActiveState"`, 창 `transparent: true` | 레일 영역이 OS 재질을 받는다. 그 위에 `glass-chrome` 채움(84~86%)이 덮여 글자 대비 하한을 지킨다(§3.2.2 유리 표) |
 | macOS 26+ | 설정에서 `liquidGlassRegular` 선택 가능, 기본은 `sidebar` | 같음 |
 | Windows 11 | `mica`(테마를 따름) | `acrylic`·`blur`는 쓰지 않는다. Tauri 문서가 Windows 10 v1903+·Windows 11 22000/22621에서 끌기·크기 조절 성능 문제를 적고 있다 [검색: v2.tauri.app/reference/config] |
-| Windows 10 | 효과 없음, `bg-app` 불투명 | Mica는 Windows 11 전용 [검색] |
+| Windows 10 | 효과 없음, `bg-app` 불투명 | Mica는 Windows 11 전용 [검색: https://v2.tauri.app/reference/config/ `WindowEffect` 설명] |
 
-- 창 효과는 `transparent: true`가 필요하다 [검색]. 웹뷰 `body` 배경은 투명, `bg-app`은 창 효과가 꺼졌을 때만 칠한다(`:root[data-window-effect="on"]`).
+- 창 효과는 `transparent: true`가 필요하다 [검색: https://v2.tauri.app/reference/config/ `transparent`]. 웹뷰 `body` 배경은 투명, `bg-app`은 창 효과가 꺼졌을 때만 칠한다(`:root[data-window-effect="on"]`).
 - Tauri 2.12.1부터 `macOSPrivateApi` 설정은 아무 일도 하지 않는다(API가 늘 켜짐) [검색: v2.tauri.app/reference/config]. 1인 앱이라 App Store 제약은 없다(결정 24).
 - 설정 "창 투명 효과"(`system | on | off`, 기본 `system` = 투명도 줄이기 설정을 따름). 끄면 창 불투명, 유리는 웹뷰 안 흐림만 남는다.
 - 창 효과는 20이 창을 만들 때 적용하고, 웹뷰에 `data-window-effect`를 넘긴다(§5.2).
@@ -1977,7 +2235,7 @@ Codex 앱의 구체 재질(반투명 사이드바 여부 등)은 공개 자료�
 | 정적 스펙트럼 테두리(`agent-rim`, 회전 없음) | 에이전트 초안(`DraftMark`), 진행 중 작업 카드 | 작성자 구분의 보조(UP-15). 움직이지 않아 읽기를 방해하지 않는다 |
 | 회전 스펙트럼(`AgentActivityIndicator`) | 진행 중 서랍 머리와 진행 중 작업 카드 머리의 작은 점 하나(12px). 진행 중인 run(루프 상태 `thinking`·`tool_running`)이 있을 때만 4.8초에 한 바퀴 | "에이전트가 지금 일하는 중"을 한눈에 알리는 유일한 반복 모션. "진행 중 2", "다음 행동을 고르는 중" 같은 글자가 항상 함께 있다(UP-12) |
 | `agent-glow` 그림자 | 진행 중 작업 카드 | 정적 |
-| orb(구멍 뚫린 원 회전), shimmer(글자 반짝임), 스캔 띠 | 쓰지 않는다 | 반짝이는 한국어 글자는 읽기 어렵고, 큰 회전체는 주의를 끈다. 한 화면에 반복 모션이 여럿이면 상태가 아니라 장식이 된다 |
+| orb(구멍 뚫린 원 회전), shimmer(글자 반짝임), 스캔 띠 | 쓰지 않는다 | 반짝이는 한국어 글자는 읽기 어렵고, 큰 회전체는 주의를 끈다. 한 화면에 반복 모션이 여럿이면 상태 표시로 읽히지 않고 장식으로 보인다 |
 
 - 감소 모션(`prefers-reduced-motion`, 앱 설정)에서는 회전을 멈추고 정적 테두리로 바꾼다.
 - 스펙트럼은 결정 버튼, 질문 카드, 사람이 쓴 내용에 쓰지 않는다.
@@ -1991,15 +2249,15 @@ Codex 앱의 구체 재질(반투명 사이드바 여부 등)은 공개 자료�
 | E3 | 연결 끊김(오프라인) | 결정 버튼 비활성 + 이유. 읽기는 마지막 뷰(캐시)로. 초안 보존. 새 결정을 쌓아 두었다 보내지 않는다. 자극 반응만 "보내지 않음"으로 받아 둔다 | §3.6.4, 04 §3.0.4, 20 §3.9.7 |
 | E4 | 보냈는데 응답 없음, 보내는 중 끊김 | 10초 뒤 안내 문장, 끊기면 `waiting_reconnect`. 20이 재접속 뒤 같은 멱등 키로 다시 보내고 데몬은 처음 결과를 돌려준다(19·20) | §3.6.4 |
 | E5 | 데몬이 다시 시작함, 재접속 뒤 다시 맞춤 | 연결 상태 "다시 맞추는 중", 뷰는 마지막 캐시를 유지하고 새 뷰가 오면 한 번에 바꾼다. 바뀐 항목에 "다시 연결된 뒤 바뀜" 표시 1분(04 §3.0.4 규칙 4). 표시할 항목은 20의 `uiStore.changedSinceReconnect`를 컨테이너가 넘긴다. 포커스와 펼침 상태는 레코드 id로 다시 맞춘다 | §3.5.8, 19·20 |
-| E6 | 투영 생성 실패 | 신선도 `failed`, 이유 띠, 결정 막음, "다시 시도" | §3.5.8 |
+| E6 | 투영 생성 실패 | 신선도 `failed`, 이유 띠, 결정 막음, [다시 불러오기] | §3.5.8 |
 | E7 | 공백 없는 긴 문자열(URL, 경로, 해시, 붙여 쓴 한국어) | `overflow-wrap: anywhere`로 끊는다. 한 줄 라벨은 말줄임 + 툴팁. 질문·근거 문장은 자르지 않는다 | §3.2.3 |
 | E8 | 한국어 IME 조합 중 Enter·Esc | Enter는 제출하지 않고 조합 확정만. Esc도 조합 중이면 대화상자를 닫지 않는다(조합 취소가 먼저) | §3.6.5 |
 | E9 | 글 자극의 요소 구간이 렌더링된 글과 맞지 않음(마크다운 원문 구간, 결합 문자·이모지 경계) | 기본값: 데몬이 요소별 평문 조각을 함께 보내고 부품은 조각 단위로 감싼다(§3.8.3). 구간만 오면 렌더 뒤 평문에서 찾아 감싸고, 찾지 못한 요소는 "표시 위치를 찾지 못함"으로 목록에만 보인다. 경계 보정에는 `Intl.Segmenter`(grapheme)를 쓴다 [지식] | §3.8.3, 04·15 |
 | E10 | 반응을 단 뒤 자극 본문이 바뀜 | 자극은 바뀌지 않는 레코드여야 한다(08에 요구). 바뀌면 새 자극으로 다루고 이전 반응은 이전 자극에 남는다. 화면은 "이 자극은 고쳐진 판이 있습니다"를 보인다 | §3.8.3, 08 |
 | E11 | 그림 자극 불러오기 실패, 아주 큰 그림 | 대체 글 + "다시 받기". 그림은 데몬 HTTP에서 표시 크기에 맞춘 판을 받는다(19에 요구). 원본 크기는 감사 깊이에서 | 19 |
 | E12 | 근거 트리에 순환, 공유 노드, 볼 수 없는 노드, 수천 노드 | `repeatOf` 참조, 고아 노드(`orphan`) "볼 수 없는 레코드" 표시, 지연 로딩(04에 요구), 500개 넘으면 가상화 | §3.8.1 |
-| E13 | 질문이 한꺼번에 많이 생김 | 권리 게이트 질문은 모두 보인다. 정보 질문은 홈 주의 카드 기본 개수(04 ADR A5) 뒤 접음. 질문함은 가상 스크롤. 같은 질문 id는 한 번만 그린다(`alsoAskedBy`로 합쳐진 것은 "다른 Concern에서도 같은 질문" 표시). 알림 반복 금지는 11·20 | §3.7.3 (3)(4) |
-| E14 | 답을 쓰는 동안 만료점이 지나 가정대로 확정됨 | 카드가 `assumed`로 바뀌어도 입력한 글을 버리지 않는다. "답이 없어 임시 가정대로 정해졌습니다. 이 글을 이의로 보내면 다시 열립니다" + "이의로 보내기"(`contest.file`) | §3.7.3 (3), 04 §3.0.5, 11 |
+| E13 | 질문이 한꺼번에 많이 생김 | 권리 게이트 질문은 모두 보인다. 정보 질문은 설정 `maxVisibleDecisions`개 뒤 접음. 질문함은 가상 스크롤. 같은 질문 id는 한 번만 그린다(`alsoAskedBy`로 합쳐진 것은 "다른 Concern에서도 같은 질문" 표시). 알림 반복 금지는 11·20 | §3.7.3 (3)(4) |
+| E14 | 답을 쓰는 동안 만료점이 지나 가정대로 확정됨 | 카드가 `assumed`로 바뀌어도 입력한 글을 버리지 않는다. "답이 없어 임시 가정대로 정해졌습니다. 이 글을 이의로 보내면 다시 열립니다" + [이의로 보내기](`objection.file`). 늦게 보낸 답은 데몬이 3008로 거부하고 확정된 값과 "이의로 보내기"를 돌려준다. 화면은 쓰던 답을 이의 초안으로 넘긴다(판정 J-120) | §3.7.3 (3), 04 §3.0.5, 19 |
 | E15 | 걸어 둔 이의가 오래 처리되지 않음 | `AutonomousChoiceList` 맨 위 "처리 기다림" 묶음에 남는다. 사라지지 않는다 | v0.3 09 §5 |
 | E16 | 기기 시계와 데몬 시계가 다름 | 상대 시간("3분 전")은 데몬 시각 기준 오프셋으로 계산한다(19의 handshake에 서버 시각 요구). 정확한 시각은 로컬 시간대로 | 19 |
 | E17 | 시간대 변경, 여름 시간 | 저장·전송은 UTC, 표시만 로컬(브리프 §3.3). `Intl.DateTimeFormat`이 처리 | — |
@@ -2018,7 +2276,7 @@ Codex 앱의 구체 재질(반투명 사이드바 여부 등)은 공개 자료�
 | E30 | 화면 ID, 레코드 종류, 상태 값을 모르는 값(새 데몬 버전) | `KindLabel`·`StatusLabel`은 "알 수 없는 값(<값>)"으로 그리고 감사 깊이 링크를 둔다. 오류로 화면을 멈추지 않는다 | §3.7.2 |
 | E31 | 유리 아래 스크롤로 프레임이 떨어짐(큰 흐림, 저사양 GPU) | 동시 흐림 영역 셋 이하, `contain: paint`. 그래도 느리면 설정 "투명 효과 끄기"로 불투명. 성능 기준은 §6.3 | §3.14.2 |
 | E32 | 웹뷰가 `backdrop-filter`를 지원하지 않음 | 시작 시 기능 검사 → 유리를 불투명으로(§2.5.7) | §3.2.5 |
-| E33 | 창 효과로 밝거나 어두운 바탕화면이 비침 | 크롬 채움 84~86%가 덮여 순수 검정·흰색 위에서도 본문 10.96:1 이상(§3.2.2). 다크 3차 글자는 `text-tertiary-on-glass` | §3.2.2, §3.14.3 |
+| E33 | 창 효과로 밝거나 어두운 바탕화면이 비침 | 크롬 채움 84~86%가 덮여 순수 검정·흰색 위에서도 본문 10.96:1 이상(§3.2.2). 유리 위 3차 글자는 `text-tertiary-on-glass` | §3.2.2, §3.14.3 |
 | E34 | macOS에서 "투명도 줄이기"를 켬 | WKWebView는 미디어 쿼리를 모르므로 Rust가 OS 설정을 읽어 `data-transparency="reduced"`를 넘긴다(20). 그 전까지는 앱 설정으로 끌 수 있다 | §3.2.9 |
 | E35 | 그림 blob 요청이 503(연결 없음) | `BlobImage`가 "연결되면 보입니다" 자리 표시, 다시 연결되면 자동으로 다시 받음(20 §5.2) | §3.7.1 |
 | E36 | 창 효과를 켠 채 테마 전환 | 창 효과 밝기와 웹뷰 테마를 함께 바꾼다(20). 바뀌는 동안 깜박임을 줄이려 웹뷰 `bg-app`을 잠깐 칠하지 않는다 [가정] | §3.14.3 |
@@ -2057,27 +2315,38 @@ Codex 앱의 구체 재질(반투명 사이드바 여부 등)은 공개 자료�
 | 18 | 승인 화면은 커널의 구조화된 값을 보이고 모델 요약은 보조 | 반영: `WorkAgreementDraft`(§3.7.3 (7)) |
 | 19 §5.2 | 메서드 대응은 19 §3.7.1, 낡은 기준은 `3004 command.revisionConflict`, `intentId`는 `idempotencyKey`, 의미 미리보기는 `composer.preview` 결과, 그림 표시 판은 `BlobRef.variants` | 반영: §3.6.3, §3.6.4, §3.7.3 (13), `BlobImage` |
 | 20 §5.2 | (1) 신선도 다섯 값, (2) "다시 연결된 뒤 바뀜"은 `uiStore.changedSinceReconnect`, (3) blob 503 자리 표시, (4) 마크다운 원시 HTML 끔·스킴 제한, (5) 부품은 `@helm/client`·`platform`을 가져오지 않음, (6) `safe_mode`, (7) `refreshing` 중 결정 막지 않음, (8) `decisionsAllowed`는 앱이 계산 | 반영: §3.5.8, E5, `BlobImage`·E35, `Markdown`·E21, §3.13·§6.4, J-60, J-59, `DecisionAvailability` |
-| 15 | 지지 등급 표시, 세 개 비교, `roundClosable`·`pickOnly` | 반영: `SupportGradeLabel`, §3.8.3, J-34 |
+| 15 | 지지 등급 표시, 세 개 비교, `roundClosable`·`pickOnly` | 반영: `SupportGradeLabel`(라벨은 03 §3.3.6), §3.8.3, J-34·J-100 |
+| 13 §3.10, 18 §3.11.6 | 승인 화면의 인자 미리보기: 전체 또는 잘림 표시와 전체 보기, 보이지 않는 문자의 코드 포인트 표시 | 반영: `ArgsView`(§3.7.3 (3)), TK-11 |
+| 11 §3.2, 10 | 권리 질문에서 커널 구조 값과 모델 문장을 나눠 보이기, `scope_change` 질문의 현재 범위 대 요청 범위 | 반영: `QuestionCard` 규칙 표, `ScopeDiff` |
+| 10·15 (판정 J-141) | 원함 탐구에서 답이 자극·가능성 id를 가리키는 질문 금지 | 반영: §3.9 R1·R7 |
+| 22 §3.19 | 21 시험 ID(TK-nn) | 반영: §6.3 ID 열(TK-01~11) |
+| 22 §5.2 | 기준 이미지 보관(Git 밖 + 잠금 파일), `ui-visual`은 verify 밖, 접근성 기준, 배경·글꼴 바이너리, 성능은 `just perf`, 토큰 전체·상태 대응표 | 반영: §6.3, §6.4, §6.1 고정 데이터, §3.2.8 |
+| 23 §5.2 | 실제 웹뷰 성능 측정(SP-09), `ui-visual`을 UI 작업 완료 조건에, 부품 9개 단위 배정, ID 열 | 반영: §6.3, §6.4, §6.2 |
+| 26 §5.2 | `BottomSheet`, `SinceLastVisit`·`AutonomousChoiceList` 변형, 모바일 투명도 `reduced`, 입력 글자 16px, `style` 속성 목록 | 반영: §3.7.1, §3.7.3 (1)(6), §3.13 |
+| 15 §5 | 무게 문구 키, R7 "어느 쪽입니까", 세 개 비교는 비슷한 둘 고르기, 평문 조각, J-34 버튼 | 반영: §3.8.3, §3.9 R1·R7, §6.6 U7 |
+| 06 §5 | `@helm/ui` 외부 의존과 `peerDependencyRules`, 패키지 경계 | 반영: §6.5(규칙 두지 않음), §3.13 |
+| 03 §5.2 | 진행 중 서랍을 트리로, "에이전트가 정한 것" 배지는 점 | 반영: §3.3 `RGN-RUNS`·`RGN-RAIL`, `ActiveRunDrawer`, `NavRail` |
 | 12 | (21에 요구 없음) | — |
 
 ### 5.3 다른 문서에 요구하는 것
 
+2a 판에서 요구한 것 중 06(패키지), 20(창 효과·투명도·키 지도·최소 판·`UserConnState`), 23(U1 토큰), 26(공유 패키지·`touch` 밀도), 15(평문 조각)는 해당 문서에 들어갔다. 남은 것과 4단계에서 생긴 것만 적는다.
+
 | 문서 | 요구 |
 |---|---|
-| 03 | (1) 원천 배지 `inferred`·`policy-approved`를 품질 배지가 아니라 작성자 표시로 옮긴 것(§3.5.3)을 §3.3.6에 반영. (2) 창 너비 구간을 셸의 유리 층위(§3.14.2)와 함께 적을지 확인 |
-| 04 | (1) `RecordRef`나 목록 항목에 `unseen`. (2) 글 자극 요소에 평문 조각(E9). (3) `GoalView` 버전 본문 조회(§3.8.4 [가정]). (4) `EvidenceChainView.nodes`의 깊이 지연 로딩. (5) 진행 중 작업 카드 뷰에 run 보장 수준(`enforcement` 성질별)과 `sandboxLevel`을 넣기(13) |
-| 05 | (1) `@helm/ui-language`에 부품이 쓰는 문구 키(고정 표현 머리말, 상태·등급 라벨)를 넣기. (2) 금지 문구 목록(§3.9 R7). (3) 유리·창 효과·투명도 설정의 화면 문구. (4) 지지 등급·확신 등급의 화면 라벨 확정(§3.5.6) |
-| 06 | 패키지 `@helm/ui-tokens`(I/O 없음, React 없음), `@helm/ui`(React, 플랫폼 API 없음)를 목록과 의존 규칙에 더하기. `@helm/ui → @helm/protocol(타입만), @helm/ui-tokens, @helm/ui-language` |
-| 08 | 자극 레코드를 바뀌지 않는 레코드로 둘 것(E10) |
-| 12·15 | 모델 문장에 숫자 확률을 쓰지 않게 하는 프롬프트 규칙(E22). 사용자 투영에서 사고 텍스트 제외 |
+| 03 | (1) 원천 배지 `inferred`·`policy-approved`를 작성자 표시로 옮긴 것(§3.5.3)을 §3.3.6에 반영. (2) 지지 등급 화면 라벨(아직 확인 안 됨 / 약함 / 일관됨 / 확인됨 / 이의 있음)을 §3.3에 표로 둘 것(§3.5.6이 인용) |
+| 04 | (1) 목록 항목의 `unseen`. (2) 글 자극 요소의 평문 조각(E9). (3) `GoalView` 버전 본문 조회. (4) `EvidenceChainView.nodes`의 깊이 지연 로딩. (5) 진행 작업 카드 뷰에 성질별 보장 수준과 `sandboxLevel`. (6) `scope_change` 질문 뷰에 `currentScope`·`requestedScope`(08 `Scope` 구조 값), 권리 질문 뷰에 커널 구조 값(행동 종류·대상·인자)과 모델 설명을 다른 필드로. (7) 인자 뷰에 `truncated { totalBytes, full: BlobRef }`. (8) 가벼운 작업 결과 확인, 승격 질문, Goal 수정 카드, 홈 선택 요청 카드가 `QuestionCard`의 "그 밖에"를 쓰게 하고, 간단판 버튼을 [결과 확인]·[수정 요청]으로(§3.9 R2). (9) 휴대폰 결과 확인 가능 여부 `phoneAcceptAllowed`(판정 J-139). (10) 홈 표시 개수를 다이얼이 아닌 설정 `maxVisibleDecisions`로 적기 |
+| 05 | (1) `@helm/ui-language` 키 생성 규칙과 키 표: 상태 라벨 `status.<집합>.<값>`(03 §3.3 전부), 연결 사유 `status.connection.<ConnectionUiState>`, 등급 라벨, 고정 표현 머리말, 버튼어(§3.10.5). 보간 문법(`{이름}`)과 인자 타입을 키별로. `CopyKey`는 키 문자열 타입 하나의 뜻으로만 쓴다. (2) 금지 문구 목록에 R7 문구("어느 쪽입니까", "둘 중 하나") 더하기. (3) 응답 이름 하나씩: 먼저 알아보기, 범위 줄여 진행, 에이전트가 정하게 두기, 미루기, 이의 걸기, 안전하게 멈추기(25 §응답 선택지 행과 같게). (4) 선호 기준 무게 라벨 "높음·중간·낮음" 키. (5) 질문 문장 예시를 §3.10.6 형("…정해야 합니다. 지금 정하지 않으면 …")으로. (6) 세 개 비교 입력을 08 `triad.similar`·15 §3.6대로 "비슷한 둘 고르기"로(05 §3.2.4의 "다른 하나 고르기"와 다름, 21은 08·15를 따랐다) |
+| 10·15 | V-Q-03에 "I.want에서 답이 자극·가능성 id를 가리키는 질문 거부"(판정 J-141). 21은 이 질문이 화면에 오지 않는다고 본다 |
+| 11 | §3.2에 "권리 질문 화면은 커널 구조 값을 보이고 모델 문장은 보조" 규칙. 21 `QuestionCard`가 이를 구현한다 |
+| 13·18 | `argsPreview`가 전체 인자 또는 잘림 정보(`truncated`, 전체 blob)를 반드시 담을 것. 마스킹 자리 표시 형식 |
+| 19 | (1) 이의 메서드 이름 `objection.file`(판정 J-111), `result.reopen` 삭제(판정 J-123). (2) `autonomous.markSeen`·`decision.confirm` params에 항목 단위 `targets`. (3) `agreement.narrow` params에 구조화 `Scope`. (4) 08 `Scope`를 `AgreementScope` 이름으로도 내보내기(19 인증 `Scope`와 겹침). 2a 요구(`impact`, 오류 kind, `variants`, 서버 시각)는 19가 반영했다 |
+| 20 | `ConnectionUiState` 열 값(`read_only` 포함)과 §3.8.9 대응표를 21 §3.6.2와 맞추고, `decisionsAllowed` 반환형 `boolean` 하나와 `reasonKey` 출처를 한 곳에 |
 | 14 | 주의 예산의 단위·창·예약 몫(`AttentionBudgetVM`, §3.8.5) |
-| 15 | 글 자극 요소의 평문 조각(E9) |
-| 17·18 | 연결 진단 문장(경로별), 안전 모드 안내 문장 |
-| 19 | (1) `CommandResult`에 선택 영향(`impact`). (2) 거부 오류에 `rebase`(대상 현재 요약) 유지. (3) handshake 서버 시각(E16) |
-| 20 | (1) 창 효과 적용: macOS `sidebar`(26+ `liquidGlassRegular` 선택), Windows 11 `mica`, `transparent: true`, 웹뷰에 `data-window-effect` 전달(§3.14.3). (2) macOS "투명도 줄이기" OS 설정을 Rust에서 읽어 `data-transparency`로(E34). (3) 설정 키 `transparency`(`system\|full\|reduced`), `windowEffect`(`system\|on\|off`), `macGlass`(`sidebar\|liquidGlassRegular`). (4) 키 지도(`keymap`)를 부품에 넘기기(§3.12). (5) `minimumSystemVersion` 14.0, 웹뷰 기준 Safari 18(§2.5.7). (6) 20 §3.14 표의 "UI 부품: 지금은 `apps/desktop/src/ui`"를 `@helm/ui`·`@helm/ui-tokens` 패키지로 바꾸기(§3.13) |
-| 22 | 유리 대비 검사(최악 배경 합성)와 고정 배경 시각 테스트(§6.3)를 테스트 계층에 넣기 |
-| 23 | U1에 토큰 복사·빌드·대비 관문을 첫 단위로 |
-| 26 | `@helm/ui`·`@helm/ui-tokens` 공유 범위, `touch` 밀도, 모바일 유리 기본값(U-22), 터치 반응 입력 |
+| 12·15 | 모델 문장에 숫자 확률을 쓰지 않게 하는 프롬프트 규칙(E22). 사용자 투영에서 사고 텍스트 제외 |
+| 17·18 | 연결 진단 문장(경로별), 안전 모드·읽기 전용 사유 문장 키 |
+| 22 | 색인의 21 TK-nn을 §6.3 ID 열로 맞추고 TK-11(인자 표시) 더하기. TK-02 통과 조건은 22 문장(영향도와 관계없이 위반 0)으로 맞췄다 |
+| 23 | 21 부품을 WBS에 배정: §6.2의 U1~U9 단위와 부품 목록(§6.2에 23 M13a-04·05·08 배정대로 9개를 넣었다. 4단계에 생긴 `ArgsView`·`ScopeDiff`는 U4(M13a-04)에 더할 것) |
 | 24 | 이 문서 끝 ADR 후보 |
 
 ## 6. 구현 단위와 완료 기준
@@ -2109,7 +2378,7 @@ packages/ui/                   @helm/ui
                                PreferenceModelPanel, GoalHistory, ConnectionIndicator, PendingQuestionsIndicator, AttentionBudgetMeter,
                                inquiry/{InquiryBoard, HypothesisBoard, DivergenceTable, PossibilityComparison, ContrastCard, PredictionList, PremortemList}
     conversation/              ConversationThread, adapter.ts(ThreadMessageVM ↔ assistant-ui), toolkit.tsx
-    fixtures/                  VM 고정 데이터(한국어, 긴 문장, 혼합 문자, 빈 값, 극단 값)와 유리 시험용 고정 배경 이미지 2장
+    fixtures/                  VM 고정 데이터(한국어, 긴 문장, 혼합 문자, 빈 값, 극단 값)와 유리 시험용 고정 배경 2종(실행 때 SVG·CSS 그라디언트로 그림, 바이너리 없음)
     index.ts
   tests/visual/                Playwright 시각 테스트(§6.3)
 apps/desktop/src/ui/           데스크톱 전용 — shell/(WindowHeader, NavRail, ScopeBar, Inspector, Splitter, ScopedComposer, ActiveRunDrawer,
@@ -2124,12 +2393,12 @@ apps/desktop/src/styles/app.css
 | U1 | `@helm/ui-tokens`: Caustic 값 복사, neutral 11단계, 빌드 스크립트, 대비 관문(유리 최악 배경 포함), NOTICE. `app.css`, 글꼴, Storybook 설정, 정적 검사 | 모든 부품의 바탕. 대비가 빌드 관문 |
 | U2 | L0 부품(`Surface`·유리 포함) + `ActionButton` 상태 기계 + 키·IME 도우미 | L1·L2가 쓴다 |
 | U3 | L1 Helm 의미 부품 + `model` 공통 타입 | 시각 문법 고정 |
-| U4 | C/A 부품: `QuestionCard`, `QuestionInbox`, `WorkAgreementDraft/Echo`, `ResultReviewPanel`, `AutonomousChoiceList`, `ContestButton` | 원천의 C/A 우선. 모바일(26)의 질문 답하기와 같은 부품 |
-| U5 | 복귀·셸: `SinceLastVisit`, `ActiveWorkCard`, `ConcernTree`, 셸 부품(유리 크롬), 창 효과 연결, `FreshnessIndicator`, `ConnectionIndicator`, `PendingQuestionsIndicator` | UC-03·04·06 |
+| U4 | C/A 부품: `QuestionCard`, `QuestionInbox`, `ChoiceImpactEcho`, `SemanticPreview`, `ArgsView`, `ScopeDiff`, `WorkAgreementDraft/Echo`, `ResultReviewPanel`, `AutonomousChoiceList`, `ContestButton` | 원천의 C/A 우선. 모바일(26)의 질문 답하기와 같은 부품 |
+| U5 | 복귀·셸: `SinceLastVisit`, `MaterialChangeGroups`, `GoalSummary`, `ActiveWorkCard`, `ToolActivityLine`, `ConcernTree`, 셸 부품(유리 크롬, `ScopedComposer`), `AgentActivityIndicator`, 창 효과 연결, `FreshnessIndicator`, `ConnectionIndicator`, `PendingQuestionsIndicator`, `DegradedBanner` | UC-03·04·06 |
 | U6 | 근거: `EvidenceChainTree`, `EvidenceInspector`, `CertaintyDescriptor`, `SourceTrace` | UC-02·05 |
 | U7 | 원함 탐구: `StimulusBoard`, `PreferenceModelPanel`, `ContrastCard`, `GoalHistory` | UC-01·09 |
-| U8 | 탐구 보드 나머지, `LoopTimeline`, `DialPanel`, `RecoveryList`, `ObserverProposalCard`, `MetricTile`, `AttentionBudgetMeter` | 14·15·16 의존 |
-| U9 | `ConversationThread`(assistant-ui) | 주 화면이 아니라 뒤로 미룬다 |
+| U8 | 탐구 보드(`InquiryBoard`와 하위 시각화), `LoopTimeline`, `LoopPlanStrip`, `LoopPathMini`, `DialPanel`, `RecoveryList`, `ObserverProposalCard`, `MetricTile`, `AttentionBudgetMeter` | 14·15·16 의존 |
+| U9 | `ConversationThread`(assistant-ui) | 보조 화면이라 뒤로 미룬다 |
 
 ### 6.3 스토리북과 테스트 [제안]
 
@@ -2142,21 +2411,26 @@ apps/desktop/src/styles/app.css
 
 **테스트 종류**
 
-| 종류 | 도구 | 대상 | 통과 조건 |
-|---|---|---|---|
-| 동작 | Storybook play 함수 + `@storybook/addon-vitest`(Vitest 브라우저 모드, Chromium) | 모든 L0~L2 | 이야기별 상호작용 시나리오 통과 |
-| 접근성 | axe-core(`@storybook/addon-a11y`의 검사를 테스트에서 실행) | 모든 이야기 | serious·critical 위반 0 |
-| 키보드 | play 함수 | 트리, 목록, 보드, 대화상자, 셸 | §3.12와 각 부품 키보드 표대로 이동·조작, 포커스가 `body`로 빠지지 않음 |
-| IME | play 함수에서 `compositionstart/update/end`와 `keydown(isComposing=true)`, `keydown(keyCode=229)` 합성 | 모든 텍스트 입력 부품 | 조합 중 Enter·Esc가 제출·닫기를 일으키지 않음 |
-| 선형 텍스트 골든 | Vitest(노드) | 모든 `toLinearText` | 고정 데이터 × 깊이별 출력이 골든 파일과 같음. 색·아이콘에만 있는 정보가 없는지 검토 |
-| 금지 패턴 | Vitest + 렌더 검사 | §3.9 | (1) 원함 탐구 이야기에 결정 의도 버튼이 없음, (2) `StimulusBoard`·`ContrastCard`에 "가장 좋은 것 고르기" 행동이 없고, `pickLike`뿐인 라운드는 "그대로 닫기" 확인을 거쳐서만 닫힘(J-34), (3) 결정 의도 버튼만 있고 "그 밖에"가 없는 질문 카드가 없음, (4) 원함 탐구 출처 질문에 `options`·`pickOne`이 와도 렌더되지 않음, (5) R7 금지 문구가 렌더 결과에 없음, (6) 확률 숫자(`%`가 붙은 확신도)가 Helm 부품이 만든 글자에 없음, (7) 유리 재질 위에 입력칸·비활성 글자가 없음 |
-| 행동 수명주기 | Vitest + 가짜 `onIntent` | `ActionButton`과 그것을 쓰는 부품 | §3.6.4 표의 모든 행(접수, 낡은 기준 거부, 그 밖 거부, 시간 초과, 연결 끊김, 투영 반영) |
-| 시각 | `@playwright/test` `toHaveScreenshot`, 정적 Storybook 빌드를 대상으로 | 모든 이야기 × {chromium, webkit} × {light, dark} × 밀도 기본(촘촘은 L2만) | 픽셀 차이 2% 이하(`maxDiffPixelRatio: 0.02`, Caustic G4와 같은 값 [원문]), 크기 변화 0 |
-| 대비 | `@helm/ui-tokens` 빌드의 대비 관문 | 모든 의미 토큰 조합(불투명 표면), 유리 재질 × 최악 배경(n0·n1·n8·n9, 채도 높은 색 15개, 순수 검정·흰색) 합성, 강조 색상 24개 돌림 | 본문 7:1, 보조·3차 4.5:1, 비활성 3:1, 컨트롤 경계·포커스 3:1. 하나라도 실패하면 빌드 실패. 렌더된 이야기에서도 axe 대비 검사(고정 배경 위) |
-| 성능 | Vitest 브라우저 모드 + Playwright 추적 | `EvidenceChainTree`(노드 2,000), `VirtualList`(행 10,000), `ConcernTree`(노드 500), 유리 크롬 아래 긴 목록 스크롤 | 펼침·접힘 한 번의 렌더 50ms 이하. 크롬 아래 스크롤에서 프레임 시간 중앙값 16.7ms 이하(Chromium·WebKit, 서버 기준) [제안] |
+ID는 22 §3.19의 색인이 인용한다(TK-nn). 행을 더할 때는 번호를 뒤에 붙이고 이미 쓴 번호를 바꾸지 않는다.
 
-- 시각 테스트 기준 이미지는 WSL 서버에서 고정 버전 Playwright 브라우저로 만든다. 글꼴을 앱에 넣었으므로 시스템 글꼴 차이는 없다. 두 엔진의 결과를 따로 저장한다.
+| ID | 종류 | 도구 | 대상 | 통과 조건 |
+|---|---|---|---|---|
+| TK-01 | 동작 | Storybook play 함수 + `@storybook/addon-vitest`(Vitest 브라우저 모드, Chromium) | 모든 L0~L2 | 이야기별 상호작용 시나리오 통과 |
+| TK-02 | 접근성 | axe-core(`@storybook/addon-a11y`의 검사를 테스트에서 실행) | 모든 이야기 | WCAG 2.1 A·AA 규칙 위반 0(영향도와 관계없이). best-practice 규칙은 보고만 |
+| TK-03 | 키보드 | play 함수 | 트리, 목록, 보드, 대화상자, 셸 | §3.12와 각 부품 키보드 표대로 이동·조작, 포커스가 `body`로 빠지지 않음 |
+| TK-04 | IME | play 함수에서 `compositionstart/update/end`와 `keydown(isComposing=true)`, `keydown(keyCode=229)` 합성 | 모든 텍스트 입력 부품 | 조합 중 Enter·Esc가 제출·닫기를 일으키지 않음 |
+| TK-05 | 선형 텍스트 골든 | Vitest(노드) | 모든 `toLinearText` | 고정 데이터 × 깊이별 출력이 골든 파일과 같음. 색·아이콘에만 있는 정보가 없는지 검토 |
+| TK-06 | 금지 패턴 | Vitest + 렌더 검사 | §3.9 | (1) 원함 탐구 이야기에 결정 의도 버튼이 없음, (2) `StimulusBoard`·`ContrastCard`에 "가장 좋은 것 고르기" 행동이 없고, `pickLike`뿐인 라운드는 "그대로 닫기" 확인을 거쳐서만 닫힘(J-34), (3) 결정 의도 버튼만 있고 "그 밖에"가 없는 질문 카드가 없음, (4) 원함 탐구 출처 질문에 `options`·`pickOne`이 와도 렌더되지 않음, (5) R7 금지 문구가 렌더 결과에 없음, (6) 확률 숫자(`%`가 붙은 확신도)가 Helm 부품이 만든 글자에 없음, (7) 유리 재질 위에 입력칸·비활성 글자가 없음 |
+| TK-07 | 행동 수명주기 | Vitest + 가짜 `onIntent` | `ActionButton`과 그것을 쓰는 부품 | §3.6.4 표의 모든 행(접수, 낡은 기준 거부, 그 밖 거부, 시간 초과, 연결 끊김, 투영 반영) |
+| TK-08 | 시각 | `@playwright/test` `toHaveScreenshot`, 정적 Storybook 빌드를 대상으로 | 모든 이야기 × {chromium, webkit} × {light, dark} × 밀도 기본(촘촘은 L2만) | 픽셀 차이 2% 이하(`maxDiffPixelRatio: 0.02`, Caustic G4와 같은 값 [원문]), 크기 변화 0 |
+| TK-09 | 대비 | `@helm/ui-tokens` 빌드의 대비 관문 | 모든 의미 토큰 조합(불투명 표면), 유리 재질 × 최악 배경(n0·n1·n8·n9, 채도 높은 색 15개, 순수 검정·흰색) 합성, 강조 색상 24개 돌림 | 본문 7:1, 보조·3차 4.5:1, 비활성 3:1, 컨트롤 경계·포커스 3:1. 하나라도 실패하면 빌드 실패. 렌더된 이야기에서도 axe 대비 검사(고정 배경 위) |
+| TK-10 | 성능(22 PF-14, `just perf`) | Vitest 브라우저 모드 + Playwright 추적 | `EvidenceChainTree`(노드 2,000), `VirtualList`(행 10,000), `ConcernTree`(노드 500), 유리 크롬 아래 긴 목록 스크롤 | 펼침·접힘 한 번의 렌더 50ms 이하. 크롬 아래 스크롤에서 프레임 시간 중앙값 16.7ms 이하(Chromium·WebKit, 서버 기준) [제안] |
+| TK-11 | 인자·특수 문자 표시 | Vitest + 렌더 검사 | `ArgsView`, `ScopeDiff`와 이를 쓰는 `QuestionCard`(권리 게이트·`scope_change`), `WorkAgreementDraft/Echo`, `SourceTrace` | (1) 도구 인자가 잘렸으면 "잘림" 표시와 [전체 인자 보기]가 있고 전체 보기에서 원문 전체가 보임, (2) 제어 문자·양방향 제어 문자(U+202A~202E, U+2066~2069)·영폭 문자(U+200B~200D, U+FEFF)가 `U+XXXX` 표시로 바뀌어 보임, (3) `scope_change` 카드가 현재 범위와 요청 범위의 차이를 칸 단위로 보임(§3.7.3 (3)) |
+
+- 시각 테스트 기준 이미지의 환경·보관은 22 §3.12.2를 따른다: Git 밖 `~/projects/helm/design/visual-baselines/`에 두고 Git에는 잠금 파일(`packages/ui/tests/visual/baselines.lock.json`)만 넣는다. 글꼴 woff2는 저장소에 넣지 않고 빌드 때 npm 패키지(`geist`, `@sun-typeface/suit`)에서 복사한다. 유리 시험 배경은 SVG·CSS 그라디언트로 그려 바이너리를 두지 않는다.
+- 기준 이미지는 WSL 서버에서 고정 버전 Playwright 브라우저로 만든다. 글꼴을 앱에 넣었으므로 시스템 글꼴 차이는 없다. 두 엔진의 결과를 따로 저장한다.
 - WebKit(Playwright, Linux) 결과는 macOS WKWebView의 근사다. 실제 macOS 화면은 `just shot`의 Mac 판으로 사람이 비교한다(§6.4).
+- 유리 크롬 아래 스크롤 성능은 서버 Playwright 값만으로 판정하지 않는다. 같은 장면(유리 크롬 아래 행 10,000 목록 스크롤)을 실제 웹뷰에서 잰다: macOS WKWebView는 Safari 웹 검사기의 타임라인, Windows WebView2는 DevTools 성능 패널. 기준은 TK-10과 같은 프레임 시간 중앙값 16.7ms 이하이고, 결과는 23 SP-09 기록에 남긴다. 기준을 못 넘으면 크롬 흐림을 24px에서 줄이거나 `glass-chrome`을 불투명으로 바꾸는 설정 기본값을 다시 정한다.
 - 시각 테스트와 접근성 검사는 외부 서비스에 올리지 않는다(§2.5.8).
 - impeccable(§2.5.9)을 사용자가 설치하면 `/critique`·`/audit` 결과를 보조 검토로 쓴다. 테스트 통과 조건에는 넣지 않는다.
 
@@ -2188,7 +2462,7 @@ apps/desktop/src/styles/app.css
 | `just shot` | 가짜 투영 고정 데이터로 앱 화면(03 화면 ID별)을 띄워 chromium·webkit으로 찍고 `docs/design` 쪽 디자인 기준(04가 정하면)과 나란히 놓는다 |
 | `just shot-mac` | `run-on mac`으로 Mac에서 앱을 고정 데이터 모드로 띄우고 창을 찍는다 [가정: Tauri의 WebDriver 자동화가 macOS를 지원하지 않아 [지식] 화면 캡처 명령으로 찍는다] |
 
-`just verify`는 `ui-check`와 `ui-test`를 포함한다. `ui-visual`은 시간이 걸리므로 `verify`에 넣을지는 22·23이 정한다(기본값: UI 파일이 바뀐 변경에서만).
+`just verify`는 `ui-check`와 `ui-test`를 포함한다. `ui-visual`은 `verify`에 넣지 않는다(22 D22-11). 화면이나 부품을 바꾼 작업의 완료 조건은 `just verify` + `just ui-visual` + `just shot` 비교다(22 §3.12.2, 23 §3.10). 성능 시험(TK-10)은 `just perf`가 돈다.
 
 ### 6.5 의존성 목록 [제안]
 
@@ -2208,7 +2482,9 @@ apps/desktop/src/styles/app.css
 | `geist`, `@sun-typeface/suit` | 1.7.x, 2.0.5 | 글꼴 파일(빌드 때 woff2 복사) |
 | 개발: `storybook`, `@storybook/react-vite`, `@storybook/addon-vitest`, `@storybook/addon-a11y` | 10.6.x | 카탈로그·테스트 |
 | 개발: `vitest`, `@vitest/browser`, `playwright`, `@playwright/test`, `axe-core` | 고정 | 테스트 |
-| `@helm/ui-tokens` 빌드: TypeScript 6, Node 24(결정 44), OKLCH 변환·대비 계산은 자체 코드(`culori` 등 외부 색 라이브러리를 쓸지는 구현자 선택) | — | 토큰 생성 |
+| `@helm/ui-tokens` 빌드: TypeScript 6, Node 24(판정 44), OKLCH 변환·대비 계산은 자체 코드(`culori` 등 외부 색 라이브러리를 쓸지는 구현자 선택) | — | 토큰 생성 |
+
+`@helm/ui`의 런타임 외부 의존은 위 표의 `react`·`react-dom`(peer), `radix-ui`, `class-variance-authority`, `tailwind-merge`, `lucide-react`, `@tanstack/react-virtual`, `react-textarea-autosize`, `react-markdown`, `remark-gfm`, `diff`, `@assistant-ui/react`(`conversation/`만)다. 모두 React 19를 peer 범위에 넣고 있어 [검색: npm, 위 표] pnpm `peerDependencyRules`는 두지 않는다. 판을 올린 뒤 peer 경고가 나면 규칙으로 덮지 않고 판을 맞춘다(06 §3.4.17 요구에 대한 답).
 
 들이지 않는 것: Caustic React 부품, shadcn 레지스트리 런타임 의존, Base UI, React Aria, assistant-ui Elements·스타일 부품, `@assistant-ui/generative-ui`, 차트·그래프 라이브러리(1차), elkjs, CSS-in-JS 런타임, 굴절(렌즈) 효과 라이브러리.
 
@@ -2222,14 +2498,14 @@ apps/desktop/src/styles/app.css
 | U4 C/A 부품 | 질문 카드: 화면 종류 7종(03 §3.2.4)·깊이 3단계·상태 6종·만료 임박·즉시 승격·묶음 모드·낡은 기준 거부 이야기. "그 밖에" 줄 R2 테스트 통과. 원함 탐구 출처 질문에 추천·다른 선택·`pickOne` 렌더 없음. 결과 확인: 2단계, 네 판정, 확인하지 못한 기준이 있을 때 `consequence` 문구. 반영 항목이 남으면 "완료"가 렌더되지 않음 |
 | U5 복귀·셸 | 복귀 요약 9절 모두 렌더, 변화 없음·100건 이상 이야기. 반대 근거·권리 게이트 질문이 접히지 않음. 셸 크롬이 유리, 본문이 불투명. 창 너비 3구간 시각 기준(03 §3.4.2). 확대 200%에서 가로 스크롤 없음(표 제외). 유리 아래 스크롤 성능 기준 |
 | U6 근거 | `buildEvidenceTree` 단위 테스트(평탄 목록 → 트리, 공유·순환·고아 노드). 관계 고정 순서, 반대·무효화 비접힘, `repeatOf`, 고아 노드 "볼 수 없는 레코드", `not_searched` 경고, 낡음 표시 이야기. tree 키보드 테스트. 2,000노드 성능 기준 |
-| U7 원함 탐구 | 글·그림·링크 자극 이야기. 요소 단위 반응을 마우스와 키보드(부분 고르기 모드, 그림 3×3 격자) 두 경로로 만드는 테스트. `near`만 있을 때 라운드 마치기 비활성(R1). 세 개 비교가 "다른 하나"를 묻는지. 요소 조각 감싸기와 위치를 못 찾은 요소 처리(E9). 오프라인 "보내지 않음" 반응과 다시 보내기. 기준 후보가 라운드 마친 뒤에만 보임. `statedVsRevealed` 항상 펼침. Goal 수정 제안 차이가 `ins`/`del`로 렌더 |
+| U7 원함 탐구 | 글·그림·링크 자극 이야기. 요소 단위 반응을 마우스와 키보드(부분 고르기 모드, 그림 3×3 격자) 두 경로로 만드는 테스트. "라운드 마치기" 버튼은 언제나 눌린다. 정보성 반응이 있으면 바로 `stimulusRound.close`, `pickLike`뿐이거나 반응이 없으면 05 §3.2.5의 확인 단계(선택 단계 제안 → "그대로 닫기")를 거쳐서만 닫히고 다음 라운드 세 개 비교 안내가 보임(판정 J-34·J-100). 세 개 비교가 비슷한 둘을 고르게 하고 남은 하나의 다른 점을 묻는지. 요소 조각 감싸기와 위치를 못 찾은 요소 처리(E9). 오프라인 "보내지 않음" 반응과 다시 보내기. 기준 후보가 라운드 마친 뒤에만 보임. `statedVsRevealed` 항상 펼침. Goal 수정 제안 차이가 `ins`/`del`로 렌더 |
 | U8 나머지 시각화 | 루프 타임라인: 계획 대비 실제(건너뜀 포함), 필터, 혼자 정한 전환의 이의. 발산 표: 세 칸 상태(`filled`·`empty`·`na`)와 해당 없음 이유. `MetricTile`: 값·표본·창·정의 버전·검토 신호·추세 SVG. 다이얼: 층 표시와 잠금. 주의 예산: 한도 있음·없음 |
 | U9 대화 | ExternalStoreRuntime 연결 테스트(가짜 저장소): 보낸 글이 스트림 반영 전에는 스레드에 들어가지 않음, 사고 파트 미렌더, 승인 파트 미생성, `@assistant-ui/*` 가져오기가 폴더 밖에 없음 |
 | 전체 | `just ui-check`, `just ui-test`, `just ui-visual` 통과. 원천 체크리스트 대응표(§2.3)의 "반영" 항목마다 해당 이야기 또는 테스트가 있음 |
 
 ## 7. 미결 사항
 
-해결된 항목(1단계 번호 유지): U-01 화면 ID(03), U-02 화면 이름 "Concern"·"Goal"(03 A1, J-21), U-03 숫자 confidence(J-19: 저장·표시 안 함), U-06 React 19(결정 41), U-08 정보 질문 기본 개수(04 A5), U-09 기준 후보 공개 시점(04 §3.9), U-11 오프라인 결정 대기열 없음(J-02), U-12 감사 깊이 열람 수집(`presence.report.depth`, J-84), U-13 글꼴(Caustic 순서), U-16 이의 사유 선택(J-20).
+해결된 항목(1단계 번호 유지): U-01 화면 ID(03), U-02 화면 이름 "Concern"·"Goal"(03 A1, J-21), U-03 숫자 confidence(J-19: 저장·표시 안 함), U-06 React 19(결정 41), U-08 정보 질문 기본 개수(04 A5), U-09 기준 후보 공개 시점(04 §3.9), U-11 오프라인 결정 대기열 없음(J-02), U-12 감사 깊이 열람 수집(`presence.report.depth`, J-84), U-13 글꼴(Caustic 순서), U-16 이의 사유 선택(J-20), U-21 shadcn 소스 복사(결정 50), U-22 모바일 유리 기본값(26: `reduced`).
 
 | ID | 질문 | 선택지 | 추천 기본값 |
 |---|---|---|---|
@@ -2243,8 +2519,6 @@ apps/desktop/src/styles/app.css
 | U-18 | `just shot-mac`의 캡처 방식 | 화면 캡처 명령 / 앱 내부 캡처 | `run-on mac` + 화면 캡처 명령 |
 | U-19 | (해결) 문구 사전 | — | `@helm/ui-language`가 소유, 부품은 키만 받음(J-103, §3.6.7) |
 | U-20 | 에이전트 문장을 serif로(Caustic 정책 4) | 1차 제외 / 적용(Noto Serif KR 번들) | 1차 제외. 2주 사용 뒤 작성자 구분이 부족하면 다시 본다 |
-| U-21 | shadcn 소스 복사가 "부품 직접 제작"(결정 41)에 맞는지 | 복사 후 Helm 소유 / Radix 위에 처음부터 작성 | 복사 후 Helm 소유. 사용자 확인 필요 |
-| U-22 | 모바일의 유리 기본값 | 유리 / 불투명 | 26이 정함. 추천: 크롬만 유리, 오버레이는 불투명(GPU·배터리) |
 | U-23 | 창 효과 기본값 | 켬 / 끔 | macOS `sidebar` 켬, Windows 11 `mica` 켬, Windows 10 끔. 투명도 줄이기를 따름 |
 | U-24 | macOS 26의 Liquid Glass 창 효과 | `sidebar` 유지 / `liquidGlassRegular` 기본 | `sidebar` 기본, 설정에서 선택. Liquid Glass 위에서도 크롬 채움을 덮으므로 대비는 §3.2.2 하한 이상 |
 | U-25 | impeccable 사용 | 쓰지 않음 / 구현 단계 보조 검토 | 사용자가 설치하면 구현 단계 보조 검토(§2.5.9) |
@@ -2304,7 +2578,7 @@ Axiom 저장소(읽기 전용, 2026-10-11) [원문]:
 
 [지식](재확인 안 함): WCAG 2.2 대비·리플로우 기준, WAI-ARIA tree 패턴, W3C Web Annotation Data Model(TextQuoteSelector, TextPositionSelector), Safari의 IME Enter `keyCode 229` 동작, `Intl.Segmenter` 지원, Geist·Geist Mono 라이선스(OFL), Tauri WebDriver의 macOS 미지원.
 
-작업 중 실험 [실험]: `.helm-design-work/P14/contrast.py`(1단계, 버린 Helm 고유 팔레트의 대비 계산), `.helm-design-work/P14/neutral_contrast.py`(2a, neutral 11단계 sRGB 변환, 불투명·유리 최악 배경 대비).
+작업 중 실험 [실험]: `.helm-design-work/P14/contrast.py`(1단계, 버린 Helm 고유 팔레트의 대비 계산), `.helm-design-work/P14/neutral_contrast.py`(2a, neutral 11단계 sRGB 변환, 불투명·유리 최악 배경 대비), `.helm-design-work/P14/glass_table.py`(4단계, 유리 표의 검정·흰색 칸과 `text-tertiary-on-glass`), `.helm-design-work/P14/status_glass.py`(4단계, 유리 위 상태 색 글자).
 
 ## ADR 후보
 
@@ -2333,7 +2607,7 @@ Axiom 저장소(읽기 전용, 2026-10-11) [원문]:
 - 상태: 제안
 - 맥락: 결정 41(React 19, 부품 직접 제작). React 19에서는 shadcn 부품의 `forwardRef` 문제가 없다. shadcn 기본 바탕은 2026-07부터 Base UI지만 Radix도 유지된다.
 - 결정: `radix-ui` 1.8, shadcn radix 바탕 부품을 시작 소스로 복사해 Helm 소유 코드로 다시 입힌다. Tailwind v4 + cva, lucide-react 1.x.
-- 근거: assistant-ui가 Radix에 의존해 헤드리스 라이브러리가 하나로 유지된다. 복사한 소스는 Helm 코드라 결정 41과 맞는다고 본다(U-21).
+- 근거: assistant-ui가 Radix에 의존해 헤드리스 라이브러리가 하나로 유지된다. 복사한 소스를 Helm 코드로 고쳐 쓰는 것은 결정 41에 들어간다(결정 50).
 - 기각한 대안: Base UI(두 라이브러리 공존), React Aria(스타일 연결 방식 차이), 처음부터 작성(비용), Caustic React 부품(결정 41).
 - 결과: 부품 품질의 출발점이 높고, 이후 변경은 Helm이 책임진다.
 

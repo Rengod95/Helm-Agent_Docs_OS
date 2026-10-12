@@ -1,7 +1,7 @@
 # 03. UX 정보 구조
 
 - 작성: 2026-10-11, P2 UX
-- 상태: 2a단계 통합판(2026-10-12). 조정자 판정(`process/rulings-stage2a.md`)과 브리프 결정 41~46을 따른다. 이벤트 09, 레코드·질문 종류 08, 명령 10, 메서드 19 이름을 정본으로 썼다. 1단계에서는 브리프 §3 공통 계약으로 쓴 뒤, 작성 막바지에 01·02, 08·10·12·14·15·16·17, 19, 20, 21의 1단계 초안과 대조해 상태 이름, 유즈케이스, 화면 키 대응을 맞췄다. 남은 차이는 §5.2에 적었다.
+- 상태: 4단계 보완판(2026-10-12). 기준 결정 범위는 브리프 결정 1~51이고, 조정자 판정(`process/rulings-stage2a.md` §1~§7, J-150까지)을 따른다. 이벤트 09, 레코드·질문 종류·접두사 08, 명령 10, 메서드·오류 19, 유즈케이스 02 이름을 정본으로 썼다. 화면 ID는 이 문서가 정본이다. 남은 차이는 §5.2에 적었다.
 - 소유: 화면 ID와 화면 이름, 사용자 시점 객체 모델과 화면 라벨, 정보 구조(셸 영역, 내비게이션, 딥 링크 대상), 상태 중심 UI 원칙, 화면 → TUI 뷰 대응.
 - 함께 읽을 문서: 04(화면별 상세), 05(상호작용과 문구). 셋은 같은 작성자가 소유하며 중복을 피하려고 나눠 적었다.
 
@@ -37,7 +37,7 @@
 
 ### 1.3 표시 규칙
 
-브리프 §5.2를 따른다. `[결정 n]`은 브리프 §2의 결정 번호를 근거로 한 것, `[제안]`은 이 문서가 정한 것, `[가정]`은 확인되지 않은 전제다. 외부 사실은 `[원문]`, `[실험]`, `[검색]`, `[지식]`을 붙인다. 원천 자료 인용은 "canon §17.6"(= `docs/design/process/sources/helm-canon.md` §17.6), "canon-2 §3.4", "canon-3 §6.5", "발췌4 4-39"(= `conversation-extracts-4.md` 항목 4-39), "대화 L3720"(= `docs/handoff/conversation-transcript-until-158.md` 3720행)처럼 적는다.
+브리프 §5.2를 따른다. `[결정 n]`은 사용자가 정한 브리프 결정 번호에만 쓴다. 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`(결정 44~46) 또는 `[판정 J-nn]`(rulings-stage2a.md)으로 적는다(판정 J-144). `[제안]`은 이 문서가 정한 것, `[가정]`은 확인되지 않은 전제다. 외부 사실은 `[원문]`, `[실험]`, `[검색]`, `[지식]`을 붙인다. 원천 자료 인용은 "canon §17.6"(= `docs/design/process/sources/helm-canon.md` §17.6), "canon-2 §3.4", "canon-3 §6.5", "발췌4 4-39"(= `conversation-extracts-4.md` 항목 4-39), "대화 L3720"(= `docs/handoff/conversation-transcript-until-158.md` 3720행)처럼 적는다.
 
 ## 2. 전제와 결정
 
@@ -59,6 +59,8 @@
 | 24 | 혼자 쓰는 앱이다. 팀, 담당자 배정, 공유 작업 공간은 정보 구조에 넣지 않는다 |
 | 25 | 제품 사용 사례는 "유즈케이스" |
 | 37 | UI 문구는 한국어 |
+| 42, 47, 48, 49 | 휴대폰에서도 질문에 답한다. 휴대폰 클라이언트는 데몬이 서빙하는 홈 화면 웹 앱(PWA)이고 알림은 Web Push다. 휴대폰 알림은 알림 강도 `interrupt`·`notice` 질문까지 보낸다. 최소 판은 iOS 26이다. 화면 범위는 §3.12, 구현은 26 |
+| 44 | [판정 44] pi 기준 판은 태그 `v1.1.0`(커밋 `abe508e1`). §3.11의 pi-tui 인용은 이 판으로 읽는다 |
 
 ### 2.2 이 문서의 주요 선택
 
@@ -67,7 +69,7 @@
 | IA-01 | 홈을 "지금 주의가 필요한 것" 중심 상태 화면으로 두고, 대화는 객체(Concern, 질문 등)에 딸린 보조 수단으로만 둔다 | [결정 10]에서 도출, 배치는 [제안] | §3.1, §3.5 |
 | IA-02 | 사람에게 행동을 요청하는 모든 것(선택 요청, 정보 질문, 작업 합의 확정, 결과 확인, Goal 수정 확인, 선호 기준 확정)을 **질문함** 하나에 모은다. 종류는 게이트와 질문 종류 라벨로 구분한다 | [제안] | §3.2.4, §3.6 |
 | IA-03 | 화면 라벨에서 Goal과 Concern은 영어 이름을 그대로 쓴다. friendly 문서의 "목표"·"초점"을 쓰지 않는다 | [제안], ADR 후보 A1 | §3.2.2 |
-| IA-04 | 최상위 내비게이션은 일곱 항목(홈, 질문함, 에이전트가 정한 것, Concern, Goal, 관찰 제안, 설정)으로 둔다. 근거, 변화 기록, 루프 이력, 에이전트 목록은 최상위에 두지 않고 객체에서 들어가는 drill-down으로 둔다 | [제안] | §3.5.2 |
+| IA-04 | 최상위 내비게이션은 MVP에서 여섯 항목(홈, 질문함, 에이전트가 정한 것, Concern, Goal, 설정)이고, 2단계에서 관찰 제안을 더해 일곱이 된다. 근거, 변화 기록, 루프 이력, 평가, 에이전트 목록은 최상위에 두지 않고 객체·명령 팔레트·검사 패널에서 들어가는 drill-down으로 둔다 | [제안] | §3.5.2 |
 | IA-05 | 셸은 다섯 영역(왼쪽 내비게이션, 가운데 주 화면, 오른쪽 검사 패널, 아래 입력창, 진행 중 서랍)과 위쪽 상태 막대로 구성한다 | [제안], canon-3 §6.5.1 참고 | §3.4 |
 | IA-06 | 모든 객체 표시는 세 깊이(한눈에 / 검토 / 감사)를 가진다. 감사 깊이(원본 이벤트, ID, 이벤트 종류)는 개발자 보기에서만 기본으로 펼친다 | [제안], canon-3 §6.9.3 | §3.10 |
 | IA-07 | 레코드의 표시 번호(예: "질문 14")는 투영이 레코드 종류별 생성 순서로 매긴다. 정본에 표시용 필드를 두지 않는다 | [제안] | §3.2.6 |
@@ -87,7 +89,7 @@ v0.3 09 §2의 표를 기준으로, 이 설계에서 지키는 규칙으로 바�
 | 앱을 열었을 때 | 마지막 대화 | 홈(`SCR-HOME`). 마지막 확인 이후 변화가 기준치를 넘으면 복귀 요약(`SCR-BRIEF`)을 먼저 연다 |
 | 기본 단위 | 스레드, 세션 | Goal ⊃ Concern ⊃ WorkUnit. 스레드와 실행(run)은 Concern 안의 투영이다(canon-3 §6.2) |
 | 사람이 하는 일 | 대화를 따라 읽음 | 상태를 보고, 필요한 곳에만 들어감. 사람 행동이 필요한 것은 질문함에 모인다 |
-| 시간 범위 | 세션 하나 | 여러 Goal, 며칠~몇 주. 홈은 모든 Goal(프로젝트)의 상태를 한곳에 모은다(감사 보고 §2 "A 작업에 몰입한 동안 B, C 상태를 한 곳에서") |
+| 시간 범위 | 세션 하나 | 여러 Goal, 며칠~몇 주. 홈은 모든 Goal(프로젝트)의 상태를 한곳에 모은다(사용자 요구: 대화 L298 "각 세션 작업을 통합해서 보고". "A 작업에 몰입한 동안 B, C 상태를 한 곳에서"는 L312의 Claude 정리 문장이다) |
 | 에이전트가 정한 것 | 대화 속에 흩어짐 | `SCR-AUTO`에 종류별로 모이고 항목마다 이의를 걸 수 있다 |
 | 질문 | 대화 흐름을 멈추고 끼어듦 | 질문함에 기록되고 전달 방식(즉시·협상·중재·예약)에 따라 알린다 |
 | 근거 | 위로 스크롤해서 찾음 | 판단·선택·결과 확인마다 근거 체인(`SCR-EVIDENCE`)을 바로 연다 |
@@ -102,9 +104,9 @@ v0.3 09 §2의 표를 기준으로, 이 설계에서 지키는 규칙으로 바�
 3. **화면은 정본을 쓰지 않는다.** 화면의 모든 숫자와 라벨은 데몬이 만든 투영에서 온다. 앱은 우선순위, 품질 상태, 가역성, 질문 전달 시점을 계산하지 않는다(결정 2·14·32). 사람의 조작은 명령 의도로 데몬에 보내고, 받아들여진 결과가 스트림으로 돌아온 뒤에만 화면이 바뀐다(21 UI-D03과 같은 규칙).
 4. **기준 시점이 보인다.** 모든 투영은 생성에 쓴 이벤트 순번(seq)과 생성 시각을 가진다. 연결이 끊기거나 투영이 낡으면 그 사실을 화면에 표시하고, 낡은 화면을 최신처럼 보이지 않는다(canon §13.5, canon-2 §3.13).
 5. **구분이 보인다.** 관찰·해석·가능성·판단·선택, 결과 제출·결과 확인·전체 반영, 사람 작성·에이전트 작성·정책 적용을 라벨로 구분한다. 색만으로 구분하지 않는다(불변조건 2·5, canon §8.9).
-6. **모름과 이견이 보인다.** 아직 모르는 점, 반대 근거, 이의 걸림, 낡음은 요약할 때도 접지 않는다. 모름은 실패가 아니라 다음 확인 방법이 있는 정상 상태로 표시한다(불변조건 6, canon §8.9 원칙 6, canon §17.6 §6).
+6. **모름과 이견이 보인다.** 아직 모르는 점, 반대 근거, 이의 걸림, 낡음은 요약할 때도 접지 않는다. 모름은 다음 확인 방법과 함께 정상 상태로 표시한다(불변조건 6, canon §8.9 원칙 6, canon §17.6 §6).
 7. **사람 행동은 결과를 바꾸는 곳에만 요청한다.** 진행 보고는 사람 행동을 요청하지 않는다. 사람 행동 요청은 질문함 하나로만 들어온다(IA-02).
-8. **모델 문장은 상태처럼 보이지 않는다.** 모델이 쓴 설명은 "에이전트 설명"으로 따로 표시하고, "관찰", "선택", "작업 합의", "결과 제출", "결과 확인", "전체 반영" 라벨은 커널 레코드에서만 붙인다(canon-2 §4.5: provider가 붙일 수 없는 라벨).
+8. **모델 문장은 상태처럼 보이지 않는다.** 모델이 쓴 설명은 "에이전트 설명"으로 따로 표시하고, "관찰", "선택", "작업 합의", "결과 제출", "결과 확인", "전체 반영" 라벨은 커널 레코드에서만 붙인다(canon-2 §4.5: 모델 제공자 출력이 붙일 수 없는 라벨).
 
 #### 3.1.3 OPD+C 장기 관찰·제어 공간의 구성 [결정 10, 배치는 제안]
 
@@ -117,30 +119,30 @@ v0.3 09 §2의 표를 기준으로, 이 설계에서 지키는 규칙으로 바�
 | Directability | 방향을 낮은 비용으로 바꿀 수 있는가 | Goal·완료 기준·맡긴 범위의 제자리 편집, 다이얼·모드(`SCR-DIALS`), 질문함, 진행 작업의 멈춤·방향 바꾸기 | 명령부터 행동 변화까지 턴 수(목표: 다음 턴 경계), 기준 하나를 바꾸는 조작 수 |
 | Contestability | 이의를 걸고 다시 열 수 있는가 | 이의 걸기(`OVL-CONTEST`): 선택, 판단, 상황 판정, 분해·병합, 루프 전환, 모드 라우팅, 가정 확정, 기준 후보, 근거 관계, 결과 제출의 기준별 판정 | 처리되지 않고 사라진 이의 수 = 0 |
 
-**14 OPD+C 의무 id와 화면 요소** (14 §3.5.5·§3.6 각 루프 표의 요구 (1))
+**14 OPD+C 의무 id와 화면 요소** (14 §3.5.5·§3.6 각 루프 표의 요구 (1)). 14 의무 ID 형식은 `opdc:<o|p|d|c>.<이름>`이다([판정 J-112], [판정 J-149]). 16 지표 ID(`opdc.o.*` 등, 점 구분)와는 다른 레지스트리다
 
 | 의무 id(14) | 화면 요소 |
 |---|---|
-| `obs.intent_and_reason` | 진행 작업 카드 "지금 하는 일", "이 일을 하는 이유"(04 §3.0.7) |
-| `obs.current_loop_mode_dials` | 상태 줄(`RGN-STATUSLINE`) 모드, Concern 개요 루프 계획, `SCR-DIALS` |
-| `obs.autonomous_decisions` | `SCR-AUTO`, 복귀 요약 8절 |
-| `obs.agreement`, `obs.obligations` | `SCR-AGREE`, `SCR-REVIEW` 전체 반영 단계 |
-| `obs.counter_evidence`, `obs.hypotheses_and_counter` | `SCR-INQUIRY`(사실) 후보 표, `SCR-EVIDENCE` 반대 근거 검토 |
-| `obs.criteria_candidates`, `obs.said_vs_reacted`, `obs.criteria_coverage` | `SCR-STIM` 오른쪽 패널, `SCR-INQUIRY`(원함), `SCR-REVIEW` 기준 표 |
-| `obs.divergence_table` | `SCR-INQUIRY`(가능성) 발산 표 |
-| `obs.failure_paths`, `pred.predictions_with_dates` | `SCR-INQUIRY`(결과) 예측 목록, 홈 다가오는 것 |
-| `obs.probes`, `obs.watch_signals`, `pred.watch_period_and_criteria`, `pred.stabilization_criteria` | `SCR-WORK` 탐침·지속 관찰 카드 |
-| `obs.tree_and_boundary` | Concern 개요 하위 Concern·경계 항목 |
-| `obs.assessment_answers` | Concern 개요 상황 유형(판정 근거) |
-| `obs.emergency_scope_and_actions` | `SCR-WORK`의 비상 합의 표시(3단계) |
-| `obs.reflection_and_proposals` | `SCR-OBSERVER`, 결과 확인 뒤 돌아보기 한 줄 |
-| `pred.loop_plan`, `pred.next_step_and_stop`, `pred.stop_conditions`, `pred.assumptions_in_use` | Concern 개요 루프 계획·다음 예정·멈출 조건·사용 중인 가정, 진행 작업 카드 |
-| `dir.edit_goal_criteria_dials`, `dir.edit_agreement` | `SCR-GOAL` 제자리 편집, `SCR-AGREE` 고치기, `SCR-DIALS` |
-| `dir.directive_loop` | Concern 개요 루프 계획 칩 "이 루프로 옮기기", 입력창 |
-| `dir.element_reaction` | `SCR-STIM` 요소 단위 반응 |
-| `dir.stop_probe` | `SCR-WORK` 탐침 카드 "접기" |
-| `con.contest_autonomous`, `con.contest_assessment`, `con.contest_structure`, `con.contest_finding`, `con.contest_possibility`, `con.contest_criterion` | `OVL-CONTEST`(대상별 진입점은 05 §3.3.1) |
-| `con.reopen`, `con.scope_challenge` | 결과 확인 "기준이 틀림", 질문 "범위 줄여 진행", Concern "다시 열기" |
+| `opdc:o.intent_and_reason` | 진행 작업 카드 "지금 하는 일", "이 일을 하는 이유"(04 §3.0.7) |
+| `opdc:o.current_loop_mode_dials` | 상태 줄(`RGN-STATUSLINE`) 모드, Concern 개요 루프 계획, `SCR-DIALS` |
+| `opdc:o.autonomous_decisions` | `SCR-AUTO`, 복귀 요약 8절 |
+| `opdc:o.agreement`, `opdc:o.obligations` | `SCR-AGREE`, `SCR-REVIEW` 전체 반영 단계 |
+| `opdc:o.counter_evidence`, `opdc:o.hypotheses_and_counter` | `SCR-INQUIRY`(사실) 후보 표, `SCR-EVIDENCE` 반대 근거 검토 |
+| `opdc:o.criteria_candidates`, `opdc:o.said_vs_reacted`, `opdc:o.criteria_coverage` | `SCR-STIM` 오른쪽 패널, `SCR-INQUIRY`(원함), `SCR-REVIEW` 기준 표 |
+| `opdc:o.divergence_table` | `SCR-INQUIRY`(가능성) 발산 표 |
+| `opdc:o.failure_paths`, `opdc:p.predictions_with_dates` | `SCR-INQUIRY`(결과) 예측 목록, 홈 다가오는 것 |
+| `opdc:o.probes`, `opdc:o.watch_signals`, `opdc:p.watch_period_and_criteria`, `opdc:p.stabilization_criteria` | `SCR-WORK` 탐침·지속 관찰 카드 |
+| `opdc:o.tree_and_boundary` | Concern 개요 하위 Concern·경계 항목 |
+| `opdc:o.assessment_answers` | Concern 개요 상황 유형(판정 근거) |
+| `opdc:o.emergency_scope_and_actions` | `SCR-WORK`의 비상 합의 표시(3단계) |
+| `opdc:o.reflection_and_proposals` | `SCR-OBSERVER`, 결과 확인 뒤 돌아보기 한 줄 |
+| `opdc:p.loop_plan`, `opdc:p.next_step_and_stop`, `opdc:p.stop_conditions`, `opdc:p.assumptions_in_use` | Concern 개요 루프 계획·다음 예정·멈출 조건·사용 중인 가정, 진행 작업 카드 |
+| `opdc:d.edit_goal_criteria_dials`, `opdc:d.edit_agreement` | `SCR-GOAL` 제자리 편집, `SCR-AGREE` 고치기, `SCR-DIALS` |
+| `opdc:d.directive_loop` | Concern 개요 루프 계획 칩 "이 루프로 옮기기", 입력창 |
+| `opdc:d.element_reaction` | `SCR-STIM` 요소 단위 반응 |
+| `opdc:d.stop_probe` | `SCR-WORK` 탐침 카드 "접기" |
+| `opdc:c.contest_autonomous`, `opdc:c.contest_assessment`, `opdc:c.contest_structure`, `opdc:c.contest_finding`, `opdc:c.contest_possibility`, `opdc:c.contest_criterion` | `OVL-CONTEST`(대상별 진입점은 05 §3.3.1) |
+| `opdc:c.reopen`, `opdc:c.scope_challenge` | 결과 확인 "기준이 틀림", 질문 "범위 줄여 진행", Concern "다시 열기" |
 
 **01 §3.7 다섯 질문으로 점검** (01 요구)
 
@@ -174,7 +176,7 @@ A를 기본으로 한다. 근거: 사용자가 1인이고(결정 24) 정의를 �
 
 #### 3.2.3 객체 목록
 
-"레코드" 열의 타입 이름과 ID 접두사는 브리프 §3.2와 v0.3 02 §8의 초기값이며 08이 확정한다. "주로 보이는 곳"의 화면 ID는 §3.6 목록을 따른다.
+"레코드" 열의 타입 이름과 ID 접두사는 08 §3.2.2가 정본이다. "주로 보이는 곳"의 화면 ID는 §3.6 목록을 따른다.
 
 | 화면 이름 | 한 줄 정의(화면 도움말 문구) | 레코드(접두사) | 사용자가 할 수 있는 것 | 주로 보이는 곳 |
 |---|---|---|---|---|
@@ -182,15 +184,15 @@ A를 기본으로 한다. 근거: 사용자가 1인이고(결정 24) 정의를 �
 | Goal 버전 | Goal의 특정 시점 내용 | GoalVersion(08 `p_goal_versions`) | 버전 비교, 변경 계기 보기 | `SCR-GOAL` |
 | Concern | Helm 과정을 돌릴 대상이 되는 상황(문제, 기회, 위험, 불확실성, 취향 결정, 반복 마찰, 외부 요청) | Concern(`cn`) | 열기, 서술 고치기, 나누기·합치기 제안, 보류·닫기, 상황 판정에 이의 | `SCR-CONCERNS`, `SCR-CONCERN` |
 | 하위 Concern, 경계 항목 | 구조 루프(S)가 나눈 부분과 부분 사이에 걸친 것 | Concern 관계, 경계 항목(`bd`), 구조 결정(`sc`) | 분해에 이의, 재조합 확인 | `SCR-CONCERN-OVERVIEW` |
-| 상황 유형 | 명확, 복잡, 복합, 혼돈, 혼란 중 하나. 바뀔 수 있다 | 상황 판정(`sa`) | 판정 근거 보기, 이의 | Concern 행, 개요 |
+| 상황 유형 | 정해진 방법이 있는 일, 분석이 필요한 일, 해 봐야 아는 일, 먼저 막아야 하는 일, 아직 유형을 모르는 일 가운데 하나. 바뀔 수 있다 | 상황 판정(`sa`) | 판정 근거 보기, 이의 | Concern 행, 개요 |
 | 루프 계획 | 이 Concern에서 쓸 루프 조합 | 루프 계획(`lp`) | 보기, 이의, 루프 직접 지정 | 개요, `SCR-LOOPS` |
 | 루프 전환 | 한 루프에서 다른 루프로 옮긴 기록 | 루프 전환(`lt`) | 이유·계기 보기, 이의 | `SCR-LOOPS`, `SCR-AUTO` |
 | 모드 | 루프 계획 기본값 + 능력 부분집합 + 다이얼 값의 묶음 | ModeAssignment(`md`, 14) | 보기, 바꾸기, 라우팅에 이의 | 상태 줄, `SCR-DIALS` |
 | 다이얼 | 질문·탐구·자율의 정도를 조절하는 값(정본 목록 v0.3 07 §3) | 설정(14) | 값 보기·바꾸기, 어느 층의 값인지 보기 | `SCR-DIALS` |
-| 질문 | 사람에게 물을 것. 기록과 전달이 나뉜다 | 질문(`qs`) | 답하기, 가정대로 진행, 나중에, 질문 다시 쓰기 요청, 맡기기, 이의 | `SCR-INBOX`, `SCR-QUESTION`, 홈 |
+| 질문 | 사람에게 물을 것. 기록과 전달이 나뉜다 | 질문(`qs`) | 답하기, 가정대로 진행, 미루기, 질문 다시 쓰기 요청, 에이전트가 정하게 두기, 이의 | `SCR-INBOX`, `SCR-QUESTION`, 홈 |
 | 임시 가정 | 답을 받기 전까지 에이전트가 따르는 기본값 | 질문의 `assumption`(전제 레코드 `as`도 함께 생김) | 보기, 바로 확정, 바꾸기 | 질문 카드, 개요 "사용 중인 가정" |
 | 가정 만료점 | 넘기면 답이 바뀌었을 때 되돌리는 비용이 커지는 지점 | 질문의 필드 | 보기 | 질문 카드, 다가오는 것 |
-| 에이전트가 정한 것 | 사람에게 묻지 않고 에이전트가 정한 것. 묻지 않은 이유가 함께 기록된다 | `autonomous: true`인 선택(`ch`)과 루프 계획·전환, 상황 판정, 분해·병합, 가정 확정, 모드 라우팅 | 봤음 표시, 이의 | `SCR-AUTO`, 복귀 요약 |
+| 에이전트가 정한 것 | 사람에게 묻지 않고 에이전트가 정한 것. 묻지 않은 이유가 함께 기록된다 | `autonomous: true`인 선택(`ch`)과 루프 계획·전환, 상황 판정, 분해·병합, 가정 확정, 모드 라우팅, 진입 판정(`ea`) | 열람(목록을 열면 봤음으로 기록), 이대로 둔다, 이의 | `SCR-AUTO`, 복귀 요약 |
 | 선택 | 앞으로 무엇을 하기로 정한 것. 추천은 선택이 아니다 | 선택(`ch`) | 이의, 다시 볼 조건 보기, 근거 체인 열기 | 개요, `SCR-EVIDENCE` |
 | 추천 | 에이전트가 권하는 것. 사람이 고르거나 맡긴 범위의 정책이 적용되어야 선택이 된다 | 질문의 필드, 제안 | 그대로 정하기, 고쳐서 정하기, 이의 | 질문 카드 |
 | 관찰 | 직접 보거나 도구로 확인한 것. 외부의 말은 "그렇게 말했다"가 관찰이다 | 관찰(`ob`) | 원본 보기, 근거 관계에 이의 | 근거 체인, 탐구 |
@@ -211,38 +213,44 @@ A를 기본으로 한다. 근거: 사용자가 1인이고(결정 24) 정의를 �
 | 작업 합의 | 목적, 완료 기준, 범위, 금지 행동, 제출할 근거, 멈출 조건 | 작업 합의(`ag`) | 확정, 범위 좁히기, 기준 고치기, 취소 | `SCR-AGREE` |
 | 완료 기준 | 결과를 받아들일 수 있는 상태 | 완료 기준(`cr`) | 고치기 | `SCR-AGREE`, `SCR-REVIEW` |
 | 맡긴 범위 | 무엇을 스스로 해도 되고 언제 멈춰야 하는가(합의의 범위·금지 행동·멈출 조건을 묶어 부르는 이름) | 작업 합의의 필드 | 좁히기, 넓히기 요청 | 상태 줄, `SCR-AGREE` |
+| 맡겨 둔 권한 | 사람이 미리 맡겨 둔 범위. 그 안에 드는 작업 합의는 확정 질문 없이 활성된다(01 R-OP-2(a)) | Grant(`gr`) | 보기, 거두기 | `SCR-AGREE`, `SCR-DIALS` |
+| 비상 합의 | 혼돈 상황에 쓰도록 미리 확정해 둔 맡겨 둔 권한(3단계) | Grant(`gr`, 비상) | 미리 확정, 사후 검토 | `SCR-DIALS`, `SCR-WORK` |
 | 결과 제출 | 일을 맡은 쪽이 완료 기준을 만족했다고 알림 | 결과 제출(`rs`) | 기준별 근거 보기 | `SCR-REVIEW` |
-| 결과 확인 | 사람이 근거와 남은 제한을 보고 받아들임 | 결과 확인(`ac`) | 결과 확인, 조건부 확인, 수정 요청, 다시 조사 | `SCR-REVIEW` |
+| 결과 확인 | 사람이 근거와 남은 제한을 보고 받아들임 | 결과 확인(`ac`) | 결과 확인, 조건 붙여 확인, 수정 요청, 거절, 기준이 틀림(05 §3.4.1의 다섯 행동) | `SCR-REVIEW` |
 | 반영 항목 | 결과 확인 뒤 다른 작업·문서·결정과 맞추어야 할 것 | 반영 항목(`io`) | 처리됨 확인, 미루기, 다른 Concern으로 넘기기 | `SCR-REVIEW` |
 | 전체 반영 | 반영 항목을 모두 처리한 상태 | Integration(`ig`) | 보기 | `SCR-REVIEW`, 상태 라벨 |
-| 관찰 제안 | 관찰 에이전트가 기록에서 찾은 반복 패턴과 개선 초안 | PolicyProposal(`pp`, 16) | 채택, 고쳐서 채택, 기각, 나중에 | `SCR-OBSERVER` |
+| 관찰 제안 | 관찰 에이전트가 기록에서 찾은 반복 패턴과 개선 초안 | PolicyProposal(`pp`, 16) | 채택, 고쳐서 채택, 기각, 미루기 | `SCR-OBSERVER` |
 | 복귀 요약 | 마지막으로 확인한 지점 이후 달라진 점과 지금 할 일 | 투영 | 여기까지 봤음 표시, 항목 정정 | `SCR-BRIEF`, 홈 |
 | 이의 | 사람이 선택·판단·판정 등에 반대한 기록 | 이의 Objection(`ct`). 대상에는 품질 플래그 `contestedBy`로 나타남 | 걸기, 처리 결과 보기 | `OVL-CONTEST`, `SCR-AUTO` |
-| 에이전트 | 일을 맡은 행위자. 이름보다 역할로 보인다(작업 에이전트, 검증 에이전트, 중재자, 관찰 에이전트, 라우터) | 행위자 `agent:<role>`(브리프 §3.3) | 맡은 일 보기 | 진행 작업 카드, 검사 패널 |
-| 기기 | 데몬에 붙는 클라이언트(이 앱이 깔린 Mac·Windows, TUI) | 클라이언트 기기(`dv`) | 페어링, 폐기 | `SCR-CONNECT` |
+| 에이전트 | 일을 맡은 행위자. 이름보다 역할로 보인다(작업 에이전트, 검증 에이전트, 중재자, 관찰 에이전트). 08 `AgentRole`의 `router`와 `branch`는 화면에서 "에이전트"로 쓴다(25) | 행위자 `agent:<role>`(08 `AgentRole`) | 맡은 일 보기 | 진행 작업 카드, 검사 패널 |
+| 기기 | 데몬에 붙는 클라이언트(이 앱이 깔린 Mac·Windows, 휴대폰 웹 앱, TUI) | 클라이언트 기기(`dv`) | 페어링, 폐기 | `SCR-CONNECT` |
 | 데몬 | WSL 서버에 상주하며 작업을 계속하는 Helm 본체 | 데몬 상태(17) | 상태 보기, 연결 바꾸기 | 상태 막대, `SCR-CONNECT` |
-| 복구 항목 | 데몬 재시작 뒤 "중단됨"으로 정리된 작업과 결과를 모르는 외부 행동 | 복구 투영(12·17) | 마지막 확인 지점부터 다시 실행, 그대로 두기, 확인 작업 만들기 | `SCR-RECOVERY` |
+| 복구 항목 | 데몬 재시작 뒤 자동 재개가 끝내 실패한 작업과 결과를 모르는 외부 행동 | 복구 투영(12·17) | 마지막 확인 지점부터 다시 실행, 그대로 두기, 확인 작업 만들기, 결과 기록(적용됨·적용 안 됨) | `SCR-RECOVERY` |
 
 #### 3.2.4 사람 행동 요청의 종류 [제안]
 
-IA-02에 따라 사람 행동 요청은 모두 질문함에 들어온다. 질문 레코드의 `kind`(08 `QuestionKind`, 11)와 14의 사람 접점 종류(14 §3.5.3)를 화면에서 다음 종류로 묶는다. `kind` 값과 게이트의 정본은 08·11이 정하고, 이 표는 화면 묶음과 라벨만 정한다.
+IA-02에 따라 사람 행동 요청은 모두 질문함에 들어온다. 질문 레코드의 `kind`(08 `QuestionKind`)를 화면에서 다음 종류로 묶는다. `kind` 값의 정본은 08, 게이트와 전달 규칙의 정본은 11이고, 이 표는 화면 묶음과 라벨만 정한다. 14의 사람 접점 이름은 쓰지 않는다(08 `QuestionKind`로 맞춤).
 
-| 화면 종류 | 화면 라벨 | 게이트 | 여는 화면 | 묶는 kind·접점(08·14, 1단계 이름) | 예 |
+| 화면 종류 | 화면 라벨 | 게이트 | 여는 화면 | 묶는 kind(08) | 예 |
 |---|---|---|---|---|---|
-| 선택 요청 | 선택 필요 | 권리 | `SCR-QUESTION` | `choice`(방향 결정, 원함 탐구에서는 금지), `send_approval`, `scope_change`(넓어짐), `scope_violation`, `semantic_conflict`, `emergency_authorization` | "변경을 원격 저장소에 push해도 될까요"(MVP send는 git push, 01 OQ-07) |
-| 정보 질문 | 확인하면 좋은 것 | 정보 | `SCR-QUESTION` | `fact`, `reference_scope`, `situation_confirm`, `stop_condition`, `entry_suggestion`(Concern으로 열까요), `progress_stall`, `structure_limit`, `watch_verdict`, `reframe_confirm`, `prediction_check`, `kernel_error`, `other` | "참고 자료를 블로그 글로 한정해도 될까요" |
+| 선택 요청 | 선택 필요 | 권리 | `SCR-QUESTION` | `choice`(방향 결정, 원함 탐구에서는 금지), `send_approval`, `scope_change`(넓어짐), `scope_violation`, `semantic_conflict`, `emergency_authorization` | "변경 3개를 원격 저장소에 올릴지 정해야 합니다. 정하지 않으면 리뷰 요청이 내일로 밀립니다."(MVP send는 git push, 01 OQ-07) |
+| 정보 질문 | 확인하면 좋은 것 | 정보 | `SCR-QUESTION` | `fact`, `reference_scope`, `situation_confirm`, `stop_condition`, `entry_suggestion`(Concern으로 열기 제안), `progress_stall`, `structure_limit`, `watch_verdict`, `reframe_confirm`, `prediction_check`, `kernel_error`, `other` | "참고 자료를 블로그 글로 한정할지 확인하면 좋습니다" |
 | 기준 후보 확정·반응 요청 | 기준 확인 / 반응 요청 | 정보 | `SCR-STIM` 기준 패널 또는 `SCR-QUESTION` | `criterion_confirm`(여러 기준을 한 질문에 묶음), `triad`, `stimulus_round` | "도입부는 구체적인 장면으로 시작"을 선호 모델에 넣기 |
-| 판단 확인 | 판단 확인 | 정보 | `SCR-EVIDENCE` | `finding_confirm` | 결정에 쓰일 판단을 사람이 확인 |
-| 작업 합의 확정 | 합의 확인 | 권리(write·send 전 C, 결정 15) | `SCR-AGREE` | `agreement_confirm` | 맡긴 범위가 이전 합의보다 넓어질 때 |
-| 결과 확인 | 결과 확인 | 권리(결과 확인은 사람만) | `SCR-REVIEW` | `result_review`, `submission_missing` | 결과 제출이 들어왔을 때 |
-| Goal 수정 확인 | Goal 확인 | 권리(의존 규칙 5 [제안]) | `SCR-GOAL` | `goal_revision` | 원함 탐구 결과로 Goal 성공 조건 수정 제안 |
+| 판단 확인 | 판단 확인 | 정보 | `SCR-EVIDENCE` 머리의 판단 확인 구역(04 §3.15) | `finding_confirm` | 결정에 쓰일 판단을 사람이 확인. 선택이 그 판단을 근거로 하면 선택 요청에 묶여 같은 조작으로 확인된다(11·14) |
+| 작업 합의 확정 | 합의 확인 | 권리(write·send 전 C, 결정 15) | `SCR-AGREE` | `agreement_confirm` | 01 R-OP-2의 두 경우가 아닌 합의 |
+| 결과 확인 | 결과 확인 | 권리(결과 확인은 사람만, 막지 않음) | `SCR-REVIEW` | `result_review`, `submission_missing` | 결과 제출이 들어왔을 때 |
+| Goal 수정 확인 | Goal 확인 | 권리(막지 않음) | `SCR-GOAL` | `goal_revision`, `goal_achievement` | 원함 탐구 결과로 Goal 성공 조건 수정 제안, Goal이 이뤄졌다는 주장 |
 | 예산 | 예산 확인 | 정보(막힘) | `SCR-QUESTION` | `budget_extension` | 약속 실행(C.commit)이 예산을 다 씀 |
-| 복구 판단 | 복구 판단 | 외부 효과가 있을 수 있는 호출(send, 네트워크 쓰기)이면 권리, 그 밖은 정보(조정자 판정 J-05) | `SCR-RECOVERY` | `recovery` | 결과를 모르는 외부 행동을 다시 실행할지 |
+| 복구 선택 | 복구 선택 | 권리 | `SCR-RECOVERY` | `recovery` | 결과를 모르는 외부 행동이 실제로 일어났는지 정하기 |
 | 관찰 제안 채택 | 관찰 제안 | 권리 | `SCR-OBSERVER` | `policy_change` | 관찰 에이전트의 정책 수정 제안. 화면에서 채택하면 그 조작이 답이다(16, 별도 질문을 다시 만들지 않음) |
 
-맡긴 범위를 넓히지 않는 작업 합의는 질문으로 만들지 않고 진행 작업 카드에 짧은 합의 내용만 보인다(canon-2 §3.12, L10 "비확장 Agreement는 재질문 없이", 01 R-OP-2). 이 규칙의 판정은 10·11이 소유한다.
+사실 탐구·가능성 탐구 뒤의 방향 결정(`choice`)은 권리 게이트다. 사람이 "에이전트가 정하게 두기"를 명시적으로 고르면 에이전트가 정하게 둘 수 있다([판정 J-131]). 원함 탐구(I.want)에서는 `choice`도, 답이 자극·가능성 id를 가리키는 질문도 만들지 않는다([판정 J-141], 11 V-Q-03).
 
-복구 판단 질문은 조정자 판정 J-05를 따른다. 결과 불명 도구 호출 중 외부 효과가 있을 수 있는 것만 질문을 만들고(12), 그 질문은 권리 게이트다(만료되어도 가정 확정으로 가지 않음, 05 IX-03). 외부 효과가 없는 결과 불명 호출은 데몬이 자동으로 처리하고(12 자동 재개), 질문을 만들어야 하는 경우에는 정보 게이트다.
+막지 않는 권리 게이트(결과 확인, Goal 확인)는 기록은 즉시 하고 전달은 다음 작업 경계나 검토 창에 한다. 가정 확정은 하지 않는다. 홈에서는 접고 개수를 보인다. 가벼운 작업의 결과 확인은 묶어서 확인한다. 막는 권리 게이트(작업이 멈춘 선택 요청, 합의 확인, 복구 선택)는 즉시 전달한다([판정 J-132], 11 §3.5).
+
+합의 확정 질문을 만들지 않는 경우는 01 R-OP-2의 두 경우뿐이다. (a) 사람이 확정한 구조화된 범위(선택 요청에서 사람이 직접 고른 선택지의 `scope`, 또는 맡겨 둔 권한) 안에 새 합의가 들어 있음을 커널이 증명할 때, (b) 명확한 직접 지시를 보내기 전에 합의 echo 미리보기를 보이고 사람이 그 지시를 보낸 때(04 §3.6.1). "넓어짐"은 사람이 확정한 이전 합의 범위나 직접 고른 선택 범위와 비교한다. 이 두 경우의 합의는 진행 작업 카드에 짧은 echo로만 보이고 언제든 고칠 수 있다(canon-2 §3.12, L10). 판정은 10·11이 소유한다.
+
+복구 선택 질문은 [판정 J-05]와 [판정 J-44]를 따른다. 결과 불명 도구 호출 중 외부 효과가 있을 수 있는 것(send, 네트워크 쓰기)만 `recovery` 질문을 만들고, 그 질문은 권리 게이트다(만료되어도 가정 확정으로 가지 않음, 05 IX-03). 외부 효과가 없는 로컬 쓰기의 결과 불명은 질문 없이 `toolcall.interrupted`로 닫히고 모델이 상태를 읽어 확인한다(12). "복구"라는 말은 `SCR-RECOVERY`와 그 질문 라벨("복구 선택")에만 쓰고, 데몬의 읽기 전용 상태는 "읽기 전용"으로 쓴다([판정 J-115]).
 
 #### 3.2.5 객체 관계(사용자 시점)
 
@@ -274,8 +282,8 @@ ULID 기반 ID(브리프 §3.2)는 사람이 읽고 말하기 어렵다. 화면�
 - 번호는 투영이 레코드 종류별로 생성 이벤트 순서(seq)에 따라 1부터 매긴다. 같은 이벤트 로그에서 항상 같은 번호가 나오므로 결정적이다. 레코드는 지우지 않고(의미적 폐기) 번호도 재사용하지 않는다.
 - 접두사는 브리프 §3.2의 ID 접두사를 쓴다(`qs`는 짧게 `q`로 쓴다. 다른 접두사는 그대로).
 - 감사 깊이에서는 전체 ID를 함께 보이고 복사할 수 있다.
-- 번호의 범위는 Helm 인스턴스 전체(모든 Goal·Concern)에서 레코드 종류별이다. Concern 안에서 매기면 "질문 14"와 TUI 인자 `q14`가 여러 개가 되어 모호하다. 12는 1단계 초안에서 "Concern 안에서 종류별"로 적었으므로 범위를 바꿔 달라고 요구한다(§5.2).
-- 12(투영)에 "종류별 표시 번호"를 투영 필드로 요구한다(§5.2). 08 §3.2.1의 보조 표시(`<접두사>_<마지막 6자>`)는 감사 깊이에서 쓴다.
+- 번호의 범위는 Helm 인스턴스 전체(모든 Goal·Concern)에서 레코드 종류별이다. Concern 안에서 매기면 "질문 14"와 TUI 인자 `q14`가 여러 개가 되어 모호하다. 12 §3.5.8이 이 규칙으로 번호를 매긴다(`p_display_no`).
+- 08 §3.2.1의 보조 표시(`<접두사>_<마지막 6자>`)는 감사 깊이에서 쓴다.
 
 ### 3.3 상태 라벨
 
@@ -283,11 +291,11 @@ ULID 기반 ID(브리프 §3.2)는 사람이 읽고 말하기 어렵다. 화면�
 
 - 상태 라벨은 레코드의 정본 상태(08)를 화면 이름으로 옮긴 것이다. 앱은 상태를 추론하지 않는다.
 - product-language.yaml의 work 14·choice 7 라벨(canon §18.3·§18.4)을 출발점으로 하고, v0.3에서 생긴 상태(질문, 루프, 상황 유형)를 더한다.
-- 같은 라벨을 두 상태 집합에 쓰지 않는다. canon §18.7의 충돌("결과 확인됨"이 work `accepted`와 choice `result_checked`에 함께 쓰임)은 product-language의 choice 상태 집합 7개(질문 정리 중 … 전체 반영됨)를 화면에서 쓰지 않는 방식으로 푼다. v0.3에서 선택 이전 단계(질문 정리, 선택지 검토, 선택 필요)는 질문 상태(§3.3.5)가 맡고, 선택 이후 적용·확인·반영은 WorkUnit 상태(§3.3.2)가 맡는다. 선택 자체에는 누가 어떻게 정했는지와 품질 상태만 붙인다(§3.3.4).
+- 같은 화면에 함께 나오는 상태 집합끼리는 같은 라벨을 쓰지 않는다(예: 질문 카드의 질문 상태와 그 질문이 만든 선택의 라벨, 진행 작업 카드의 WorkUnit 상태와 합의 상태). 서로 다른 화면에만 나오는 집합 사이의 같은 라벨(예: 질문 "기록됨"과 이의 "기록됨(대상 그대로)")은 허용하고, 허용 목록을 문구 패키지 시험에 둔다(05 §3.10.8). canon §18.7의 충돌("결과 확인됨"이 work `accepted`와 choice `result_checked`에 함께 쓰임)은 product-language의 choice 상태 집합 7개(질문 정리 중 … 전체 반영됨)를 화면에서 쓰지 않는 방식으로 푼다. v0.3에서 선택 이전 단계(질문 정리, 선택지 검토, 선택 필요)는 질문 상태(§3.3.5)가 맡고, 선택 이후 적용·확인·반영은 WorkUnit 상태(§3.3.2)가 맡는다. 선택 자체에는 누가 어떻게 정했는지와 품질 상태만 붙인다(§3.3.4).
 
 #### 3.3.2 진행 작업(WorkUnit)과 작업 합의 라벨
 
-정본은 08 `WorkUnitStatus`와 Agreement 상태다(08 §3.22). 10 §3.12의 합의 상태 기계와 08이 1단계에서 서로 다르므로(합의에 상태 기계를 두는지, 이벤트 이름), 화면은 08 이름을 따르고 충돌은 2단계 통합에 올린다.
+정본은 08 `WorkUnitStatus`와 `AgreementStatus`다(08 §3.22).
 
 | 정본 상태(08) | 화면 라벨 | 상태 문장 예(05 §3.10) |
 |---|---|---|
@@ -301,7 +309,7 @@ ULID 기반 ID(브리프 §3.2)는 사람이 읽고 말하기 어렵다. 화면�
 | `accepted` | 결과 확인됨 · 반영 n개 남음 | 반영 항목이 남아 있습니다. 미룬 항목만 남으면 "결과 확인됨 · 반영 미룸 n개" |
 | `integrated` | 완료 | 모든 반영 항목을 처리했습니다. |
 | `rejected` | 결과 거절됨 (판정이 `criteria_wrong`이면 "기준이 틀림") | |
-| `concluded` | 탐구 끝남 | 합의 없는 탐구 WorkUnit이 멈춤 조건을 채웠습니다. |
+| `concluded` | 탐구 끝남 | 합의 없는 탐구 WorkUnit이 멈출 조건을 채웠습니다. |
 | `cancelled` | 중단됨(사람) | 사람이 작업을 중단했습니다. 이미 일어난 변경: … |
 | `superseded` | 다른 작업으로 대체됨 | |
 
@@ -313,16 +321,16 @@ ULID 기반 ID(브리프 §3.2)는 사람이 읽고 말하기 어렵다. 화면�
 | `blocking_question` | 막힘(질문 n) | 질문 15의 답을 기다리느라 멈췄습니다. |
 | `stop_condition` | 멈출 조건 | 멈출 조건 "외부 자료 인용 필요"에 걸려 멈췄습니다. |
 | `violation` | 범위 위반 감지 | 사후 검사에서 맡긴 범위 밖 변경이 발견되어 멈췄습니다. |
-| `grant_revoked` | 맡긴 권한 철회 | 이 작업을 맡긴 권한이 철회되어 멈췄습니다. |
+| `grant_revoked` | 맡겨 둔 권한 거둠 | 이 작업의 근거였던 맡겨 둔 권한을 거두어 멈췄습니다. |
 | `agreement_expired` | 합의 만료 | 합의의 유효 기간이 지나 멈췄습니다. |
 | `budget` | 예산 다 씀 | 예산을 다 써서 멈췄습니다. |
 
-**재시작 중단 표시**: "중단됨(재시작)"은 WorkUnit 상태가 아니라 최신 run(`rn`)의 상태다(12 RunStatus). 최신 run이 `interrupted`, `awaiting_recovery`, `recovery_exhausted`이면 진행 중 WorkUnit 라벨 옆에 "중단됨(재시작) · 자동 재개 중" 또는 "복구 판단 필요"를 겹쳐 보인다. 12는 중단된 run을 자동으로 재개하므로(최대 3회, 안전한 도구만) 사람에게는 자동 재개가 실패했거나 결과를 모르는 외부 행동이 있을 때만 복구 판단이 온다(04 §3.20). 사람이 중단한 것과 섞지 않는다(canon-2 L12).
+**재시작 중단 표시**: "중단됨(재시작)"은 WorkUnit 상태가 아니라 최신 run(`rn`)의 상태다(08 `RunStatus`, 12). 최신 run이 `interrupted`이면 진행 중 WorkUnit 라벨 옆에 "중단됨(재시작) · 자동 재개 중"을, `awaiting_recovery`이거나 `ended`(end.reason `recovery_exhausted`)이면 "복구 선택 필요"를 겹쳐 보인다. 12는 중단된 run을 자동으로 재개하므로(최대 3회, 안전한 도구만) 사람에게는 자동 재개가 실패했거나 외부 효과가 있을 수 있는 결과 불명 호출이 있을 때만 복구 선택이 온다(04 §3.20). 사람이 중단한 것과 섞지 않는다(canon-2 L12).
 
 **작업 합의 라벨(08 Agreement)**: `proposed` 합의 초안 / `active` 맡김 중 / `fulfilled` 합의 채움 / `released` 합의 풀림 / `declined` 합의 취소됨 / `expired` 합의 만료됨 / `superseded` 새 합의로 바뀜.
 
 - "완료"(IA-08): `integrated`이고 반영 항목이 모두 처리되었거나 다른 Concern으로 넘겨진 경우에만 단독으로 쓴다. Concern에는 "완료"를 쓰지 않고 "반영 완료"(`completed`)나 "닫힘"을 쓴다.
-- canon §20.2 #18의 "라벨 없는 상태"(Closed, Refused, Deferred): `closed`는 Concern 쪽 "닫힘"으로만 쓴다. Refused는 합의 `declined`("합의 취소됨")로 쓴다. Deferred는 질문 쪽 "나중에"와 반영 쪽 "미룸"으로 나눠 쓴다.
+- canon §20.2 #18의 "라벨 없는 상태"(Closed, Refused, Deferred): `closed`는 Concern 쪽 "닫힘"으로만 쓴다. Refused는 합의 `declined`("합의 취소됨")로 쓴다. Deferred는 질문 쪽 "미룸"(동작 이름 "미루기")과 반영 쪽 "미룸"으로 쓴다. 둘은 같은 화면에 함께 나오지 않는다.
 
 #### 3.3.3 Concern 라벨
 
@@ -341,7 +349,7 @@ ULID 기반 ID(브리프 §3.2)는 사람이 읽고 말하기 어렵다. 화면�
 | `closed` | 닫힘 |
 | `merged` | 다른 Concern에 합쳐짐 |
 
-Goal 라벨(08 Goal 상태): `proposed` Goal 초안 / `active` 진행 중 / `paused` 잠시 멈춤 / `achievement_claimed` 이뤄졌다는 주장 / `achieved` 이뤄짐 / `superseded` 다른 Goal로 대체됨 / `retired` 그만둠.
+Goal 라벨(08 `GoalStatus`): `proposed` Goal 초안 / `active` 진행 중 / `paused` 잠시 멈춤 / `achievement_claimed` 이뤄졌다는 주장 / `achieved` 이뤄짐 / `superseded` 다른 Goal로 대체됨 / `retired` 그만둠. 08 `placeholder: true`인 Goal은 이름 자리에 "이름 없는 Goal"을 쓴다(01 FX-13).
 
 #### 3.3.4 선택 라벨
 
@@ -354,7 +362,7 @@ Goal 라벨(08 Goal 상태): `proposed` Goal 초안 / `active` 진행 중 / `pau
 | `auto_verifiable` 또는 그 밖의 `autonomous` | 에이전트가 정함 |
 | `assumption_expired`(choiceKind `assumption_confirmed`) | 가정대로 정해짐 |
 | `emergency` | 비상 합의로 정해짐 |
-| `delegated_by_human`(05 "에이전트가 정하게 두기") | 맡겨서 정해짐 |
+| `delegated_by_human`(질문에서 "에이전트가 정하게 두기"를 고름) | 맡겨서 정해짐 |
 | `rule`(데이터로 둔 규칙, 14) | 규칙에 따라 정해짐 |
 | 이의 걸림(품질 플래그 `contestedBy`) | 이의 걸림 |
 | 낡음, 이유 `review_trigger_fired` | 다시 볼 조건 충족 |
@@ -364,14 +372,15 @@ Goal 라벨(08 Goal 상태): `proposed` Goal 초안 / `active` 진행 중 / `pau
 
 #### 3.3.5 질문 라벨
 
-v0.3 06 §3.5의 상태. 정본은 11.
+정본은 08 `QuestionStatus`(v0.3 06 §3.5에서 옴).
 
 | 상태 | 화면 라벨 | 설명 |
 |---|---|---|
 | `pending` | 기록됨 | 아직 전달하지 않았다. 질문함에서는 볼 수 있다(04 §3.3 질문함의 "곧 전달될 것") |
 | `delivered` | 전달됨 | 사람에게 알렸다 |
 | `answered` | 답함 | |
-| `assumed` | 가정대로 정해짐 | 만료점까지 답이 없어 임시 가정을 확정했다. 에이전트가 정한 것에 들어간다 |
+| `assumed` | 가정대로 정해짐 | 만료점까지 답이 없어 임시 가정을 확정했다. 에이전트가 정한 것에 들어간다. 그 뒤 도착한 답은 거부되고 이의로 보낸다([판정 J-120]) |
+| `delegated` | 에이전트에게 맡김 | 사람이 "에이전트가 정하게 두기"를 골랐다. 이어지는 결정은 `whyNotAsked = delegated_by_human`([판정 J-114]) |
 | `withdrawn` | 철회됨 | 진행 중 필요 없어졌다 |
 | `expired` | 의미 없어짐 | Concern 종료 등으로 질문이 의미를 잃었다 |
 
@@ -392,6 +401,16 @@ v0.3 06 §3.5의 상태. 정본은 11.
 
 작성자 표시(21 §3.5.3): 사람 작성, 에이전트 작성(역할), 정책 적용, 외부 행위자(`external:<name>`). 원천의 `inferred`(에이전트가 추론함)와 `policy-approved`(정책이 승인함)는 품질 배지가 아니라 이 작성자 표시로 보인다(21 요구). 에이전트 간 합의는 독립 근거로 표시하지 않는다(canon §8.9 원칙 7). 15의 표현을 따른다: 탐구 실행이 한 모델 계열로만 발산했으면(`diversity: "single_family"`) 탐구 머리에 "같은 모델 계열로 발산함"을, 병합 기록에는 "독립 출처 n" 또는 "상관됨"을 보인다(15 §3.4.6, §3.4.8). 선호 기준의 강도는 숫자 대신 15 `SupportGrade`(아직 확인 안 됨 / 약함 / 일관됨 / 확인됨 / 이의 있음)와 지지·반대 반응 수, 독립 자극 수로 보인다.
 
+지지 등급 라벨(15 `SupportGrade`, 판단과 선호 기준에 붙임. 근거 개수 대신 보인다):
+
+| 값(15) | 화면 라벨 | 뜻 |
+|---|---|---|
+| `untested` | 아직 확인 안 됨 | 지지 근거가 아직 없거나 시험하지 않음 |
+| `weak` | 약함 | 지지 근거가 하나뿐이거나 같은 출처 계열 |
+| `consistent` | 일관됨 | 독립 근거 여럿이 같은 쪽을 가리킴 |
+| `confirmed` | 확인됨 | 사람이 확인했거나 구분 확인을 통과 |
+| `contested` | 이의 있음 | 이의가 걸렸거나 반대 근거가 남음 |
+
 #### 3.3.7 루프와 상황 유형 라벨
 
 | 식별자(v0.3 03 §2.1) | 화면 라벨 |
@@ -411,11 +430,13 @@ v0.3 06 §3.5의 상태. 정본은 11.
 
 | 상황 유형 | 화면 라벨 | 한 줄 도움말 |
 |---|---|---|
-| clear | 명확 | 누구나 보면 아는 일. 정해진 방법으로 처리 |
-| complicated | 복잡 | 원인이 있지만 분석이 필요한 일 |
-| complex | 복합 | 해 보고 나서야 알 수 있는 일. 작게 여러 번 시도 |
-| chaotic | 혼돈 | 우선 안정시켜야 하는 일 |
-| disorder | 혼란 | 어떤 유형인지 아직 모르는 상태 |
+| clear | 정해진 방법이 있는 일 | 누구나 보면 아는 일. 정해진 방법으로 처리(원론 "명확") |
+| complicated | 분석이 필요한 일 | 원인이 있지만 분석이 필요한 일(원론 "복잡") |
+| complex | 해 봐야 아는 일 | 해 보고 나서야 알 수 있는 일. 작게 여러 번 시도(원론 "복합") |
+| chaotic | 먼저 막아야 하는 일 | 우선 안정시켜야 하는 일(원론 "혼돈") |
+| disorder | 아직 유형을 모르는 일 | 어떤 유형인지 아직 모르는 상태(원론 "혼란") |
+
+"복잡"과 "복합"이 한 글자 차이라 헷갈린다는 지적(V5-047)과 25 M-13 (b)에 따라 풀어 쓴 이름을 화면 라벨로 쓴다. 원론 이름은 도움말과 개발자 보기에서 괄호로 보인다 [제안].
 
 C.commit을 "실행"으로, A.confirm을 "결과 확인"으로 쓰면 모드 "실행"과 사람 접점 "결과 확인"과 겹치므로 "약속 실행", "확인·반영"으로 쓴다. 14 계약의 `nameKo`("약속형 C", "확인형 A")는 개발자 보기에서 쓴다.
 
@@ -433,10 +454,10 @@ C.commit을 "실행"으로, A.confirm을 "결과 확인"으로 쓰면 모드 "�
 │          ├──────────────────────────────────────────────────┤                  │
 │ 홈       │ RGN-STATUSLINE (Concern 화면에서만)               │ 선택한 객체의    │
 │ 질문함 2 │  Goal · Concern · 모드 · 지금 하는 일 · 맡긴 범위 │  출처, 근거,      │
-│ 정한 것 4│  · 다음 멈춤                                      │  작성자, 기준 시점│
+│ 정한 것 •│  · 다음 멈춤                                      │  작성자, 기준 시점│
 │ Concern  ├──────────────────────────────────────────────────┤  관련 선택,       │
 │ Goal     │ RGN-MAIN                                         │  이의 기록        │
-│ 관찰 제안│  현재 화면                                        │                  │
+│ (관찰 제안)│ 현재 화면                                       │                  │
 │          │                                                  │                  │
 │ ──────── │                                                  │                  │
 │ 복구 1   │                                                  │                  │
@@ -449,13 +470,13 @@ C.commit을 "실행"으로, A.confirm을 "결과 확인"으로 쓰면 모드 "�
 | 영역 | 내용 | 규칙 |
 |---|---|---|
 | `RGN-TOPBAR` | 앱 이름, 위치 경로(Goal ▸ Concern ▸ 화면), 명령 팔레트 입력, 연결 상태 표시, 기준 seq | 연결 상태는 항상 보인다(04 §3.0.4). seq는 개발자 보기에서만 숫자로, 기본은 "방금 갱신" 같은 상대 시간 |
-| `RGN-RAIL` | 최상위 내비게이션 일곱 항목과 개수 배지, 아래쪽에 복구 항목(있을 때만)과 설정 | 배지는 사람 행동이 필요한 개수만 센다. 진행 보고 개수는 세지 않는다 |
-| `RGN-BANNER` | 즉시 전달된 질문, 연결 끊김·데몬 꺼짐, 복구 필요, 프로토콜 버전 불일치 | 화면을 가리는 모달로 띄우지 않는다. 한 번에 하나만 보이고 나머지는 개수로 접는다 |
+| `RGN-RAIL` | 최상위 내비게이션(MVP 여섯 항목, 2단계 일곱)과 배지, 아래쪽에 복구 항목(있을 때만)과 설정 | 숫자 배지는 사람 행동이 필요한 개수만 센다. "에이전트가 정한 것"은 새 항목이 있으면 점만 보인다(숫자 없음, 승인 노동이 되지 않게). 진행 보고 개수는 세지 않는다 |
+| `RGN-BANNER` | 즉시 전달된 질문, 연결 끊김·데몬 꺼짐, 복구 선택 필요, 안전 모드, 읽기 전용, 프로토콜 버전 불일치 | 화면을 가리는 모달로 띄우지 않는다. 한 번에 하나만 보이고 나머지는 개수로 접는다 |
 | `RGN-STATUSLINE` | Concern 범위 화면에서 Goal, Concern, 모드, 지금 하는 일, 맡긴 범위 요약, 다음 멈춤 | canon-2 §3.5의 상태 표시줄. Predictability 요소 |
 | `RGN-MAIN` | 현재 화면 | |
 | `RGN-INSPECTOR` | 선택한 객체의 출처, 근거, 작성자, 기준 시점, 관련 선택, 이의 기록 | 너비가 좁으면 서랍으로 바뀐다. 기본으로 닫혀 있고 객체를 고르면 열린다 |
-| `RGN-COMPOSER` | 현재 범위(전역, Goal, Concern, WorkUnit, 질문)에 귀속되는 자연어 입력 | 범위를 입력창 앞에 항상 표시한다(canon-3 §6.8). 전역 대화가 아니다. 의미 미리보기(05 §3.5) |
-| `RGN-RUNS` | 진행 중 서랍: 진행 중인 WorkUnit마다 지금 하는 일, 다음 확인 시점, 마지막 의미 있는 변화, 예외 | 토큰 스트림을 보이지 않는다(canon-3 §6.5.1) |
+| `RGN-COMPOSER` | 현재 범위(새 일, Concern, WorkUnit, 질문 네 가지, 05 §3.5.1)에 귀속되는 자연어 입력 | 범위를 입력창 앞에 항상 표시한다(canon-3 §6.8). 전역 대화가 아니다. 의미 미리보기(05 §3.5) |
+| `RGN-RUNS` | 진행 중 서랍: 진행 중인 WorkUnit을 Goal ▸ Concern 트리로 묶고, WorkUnit마다 지금 하는 일, 다음 확인 시점, 마지막 의미 있는 변화, 예외 | run을 평면 목록으로 보이지 않는다(14 L1003 요구). run은 WorkUnit 아래 한 줄로만 보이고 펼치면 감사 깊이다. 토큰 스트림을 보이지 않는다(canon-3 §6.5.1) |
 
 #### 3.4.2 창 크기 [제안]
 
@@ -466,7 +487,7 @@ C.commit을 "실행"으로, A.confirm을 "결과 확인"으로 쓰면 모드 "�
 | 760~1023px | 내비게이션을 아이콘만 보이는 좁은 막대로, 검사 패널은 서랍 |
 | 760px 미만 | 지원하지 않는다. 최소 창 크기를 760×560으로 둔다(20이 창 설정 소유) |
 
-휴대폰 화면은 범위 밖이다. 외부 접속은 노트북 데스크톱 앱이나 SSH TUI로 한다(결정 21·38).
+휴대폰은 이 배치를 쓰지 않는다. 휴대폰은 데몬이 서빙하는 웹 앱이고 화면 범위는 §3.12, 구현은 26이 정한다(결정 42·47).
 
 ### 3.5 내비게이션
 
@@ -484,12 +505,12 @@ C.commit을 "실행"으로, A.confirm을 "결과 확인"으로 쓰면 모드 "�
 |---|---|---|---|---|
 | 1 | 홈 | `SCR-HOME` | 없음 | 지금 무엇이 중요하고 무엇을 해야 하나 |
 | 2 | 질문함 | `SCR-INBOX` | 전달된 질문 수(권리 게이트 수는 따로 강조) | 내가 정하거나 답해야 할 것은 무엇인가 |
-| 3 | 에이전트가 정한 것 | `SCR-AUTO` | 마지막 확인 이후 새로 생긴 수 | 내가 없는 동안 무엇을 정했나 |
+| 3 | 에이전트가 정한 것 | `SCR-AUTO` | 마지막으로 연 뒤 새로 생긴 것이 있으면 점(숫자 없음) | 내가 없는 동안 무엇을 정했나 |
 | 4 | Concern | `SCR-CONCERNS` | 없음 | 무엇을 다루고 있고 각각 어디까지 왔나 |
 | 5 | Goal | `SCR-GOALS` | Goal 확인 요청 수 | 무엇을 이루려 하고 그것이 어떻게 바뀌어 왔나 |
-| 6 | 관찰 제안 | `SCR-OBSERVER` | 새 제안 수 | 반복되는 마찰을 어떻게 줄일 수 있나 |
+| 6 | 관찰 제안(2단계. MVP에는 없다) | `SCR-OBSERVER` | 새 제안 수 | 반복되는 마찰을 어떻게 줄일 수 있나 |
 | 7 | 설정 | `SCR-SETTINGS` | 없음 | |
-| (조건부) | 복구 | `SCR-RECOVERY` | 복구 판단이 필요한 수 | 중단된 것을 어떻게 이어 갈까. 복구 항목이 있을 때만 보인다 |
+| (조건부) | 복구 | `SCR-RECOVERY` | 복구 선택이 필요한 수 | 중단된 것을 어떻게 이어 갈까. 복구 항목이 있거나 안전 모드일 때만 보인다 |
 
 canon §18.2의 navigation 6(오늘 / 초점 / 진행 작업 / 선택 / 근거 / 자동화 규칙)과의 대응:
 
@@ -505,7 +526,7 @@ canon §18.2의 navigation 6(오늘 / 초점 / 진행 작업 / 선택 / 근거 /
 #### 3.5.3 화면 사이 이동 지도
 
 ```text
-SCR-HOME ─┬─ 주의 카드 ─────────────▶ SCR-QUESTION / SCR-AGREE / SCR-REVIEW / SCR-GOAL / SCR-RECOVERY
+SCR-HOME ─┬─ 주의 카드 ─────────────▶ SCR-QUESTION / SCR-AGREE / SCR-REVIEW / SCR-GOAL / SCR-EVIDENCE(판단 확인) / SCR-RECOVERY
           ├─ "마지막 확인 이후" 띠 ─▶ SCR-BRIEF
           ├─ 진행 작업 카드 ───────▶ SCR-WORK (해당 Concern)
           ├─ Concern 트리 행 ──────▶ SCR-CONCERN-OVERVIEW
@@ -519,9 +540,10 @@ SCR-INBOX ─▶ SCR-QUESTION ─┬─ 근거 ▶ SCR-EVIDENCE
                            └─ 종류별 화면 (SCR-AGREE, SCR-REVIEW, SCR-GOAL, SCR-STIM, SCR-RECOVERY)
 SCR-AUTO ─▶ 항목 ─┬─ 이의 ▶ OVL-CONTEST
                   └─ 근거·계기 ▶ SCR-EVIDENCE / SCR-LOOPS
-SCR-CONCERN (탭) ─ OVERVIEW │ INQUIRY ─▶ SCR-STIM │ WORK ─▶ SCR-AGREE, SCR-REVIEW │ LOOPS │ THREAD
+SCR-CONCERN (탭 묶음) ─ OVERVIEW │ INQUIRY ─▶ SCR-STIM │ WORK ─▶ SCR-AGREE, SCR-REVIEW │ LOOPS │ THREAD
 SCR-EVIDENCE ─▶ 관찰 원본 ▶ SCR-RECORD (감사 깊이)
-SCR-GOALS ─▶ SCR-GOAL ─▶ 변경 계기 Concern, 다시 확인 대상 작업 합의
+SCR-GOALS ─┬─ SCR-GOAL ─▶ 변경 계기 Concern, 다시 확인 대상 작업 합의
+            └─ 새 Goal ─▶ 프로젝트 고르기 ─▶ SCR-GOAL 초안 카드
 SCR-OBSERVER ─▶ 제안 ─┬─ 근거(세션·빈도) ▶ 검사 패널
                        └─ 채택 ▶ 새 Concern 또는 정책 수정 확인
 RGN-TOPBAR 연결 표시 ─▶ SCR-CONNECT
@@ -540,14 +562,14 @@ RGN-RAIL 복구 ─▶ SCR-RECOVERY
 | 결과 확인 | `helm://review/<rsId>` | `SCR-REVIEW` |
 | 레코드 근거 | `helm://evidence/<recordId>` | `SCR-EVIDENCE` |
 | Goal | `helm://goal/<glId>` | `SCR-GOAL` |
-| 자극 라운드 | `helm://stimuli/<cnId>/<roundNo>` | `SCR-STIM` |
+| 자극 라운드 | `helm://stimuli/<iqId>/<roundNo>` (원함 탐구 실행 `iq`와 라운드 번호. 첫 자극 라운드는 1) | `SCR-STIM` |
 | 복귀 요약 | `helm://brief` | `SCR-BRIEF` |
 | 복구 | `helm://recovery` | `SCR-RECOVERY` |
 | 관찰 제안 | `helm://observer/<proposalId>` | `SCR-OBSERVER` |
-
 | 페어링 | `helm://pair?v=1&url=…&code=…&sid=…` (20 §3.10.6) | `SCR-CONNECT` (`?pair=`). 자동으로 연결하지 않고 사람이 [연결]을 누른다 |
 
-- `helm://question/<qsId>`는 질문함(`/inbox/<qsId>`)을 열고, 질문 종류가 합의 확인·결과 확인·Goal 확인·복구 판단이면 화면 쪽에서 해당 화면으로 넘긴다(04 §3.4).
+- `helm://question/<qsId>`는 질문함(`/inbox/<qsId>`)을 열고, 질문 종류가 합의 확인·결과 확인·Goal 확인·판단 확인·복구 선택이면 화면 쪽에서 해당 화면으로 넘긴다(04 §3.4).
+- 휴대폰 웹 앱은 `helm://` 스킴을 받지 못한다. 푸시와 휴대폰 안 링크는 `/m/…` 경로를 쓰고, 두 형식의 대응은 26 §3.5.2 표 하나에 둔다.
 - `helm://agreement/…`, `helm://review/…`처럼 Concern·WorkUnit id를 데몬에 물어야 여는 링크를 연결이 없을 때 받으면 "연결되면 엽니다"를 보이고 마지막 링크 하나를 기억했다가 연결 뒤 연다(20 §3.10.6).
 
 딥 링크로 연 대상이 이미 처리되었거나 낡았으면 그 화면에서 상태를 알리고(04 §3.0.5 "이미 처리됨") 관련 객체로 이동할 수 있게 한다.
@@ -563,7 +585,7 @@ RGN-RAIL 복구 ─▶ SCR-RECOVERY
 | `SCR-CONCERNS` | `/concerns` |
 | `SCR-CONCERN-OVERVIEW` | `/concerns/:cnId/overview` |
 | `SCR-INQUIRY` | `/concerns/:cnId/inquiry/:kind?` (`kind` = `fact` \| `want` \| `possibility` \| `outcome`) |
-| `SCR-STIM` | `/concerns/:cnId/inquiry/want/rounds/:roundNo` |
+| `SCR-STIM` | `/concerns/:cnId/inquiry/want/:iqId/rounds/:roundNo` |
 | `SCR-WORK` | `/concerns/:cnId/work` |
 | `SCR-AGREE` | `/concerns/:cnId/work/:wuId/agreement` |
 | `SCR-REVIEW` | `/concerns/:cnId/work/:wuId/review` |
@@ -571,7 +593,7 @@ RGN-RAIL 복구 ─▶ SCR-RECOVERY
 | `SCR-THREAD` | `/concerns/:cnId/thread` |
 | `SCR-EVIDENCE` | `/evidence/:recordId` |
 | `SCR-GOALS`, `SCR-GOAL` | `/goals`, `/goals/:glId` |
-| `SCR-DIALS` | `/dials?scope=global\|goal:<id>\|concern:<id>` |
+| `SCR-DIALS` | `/dials?scope=user\|concern:<id>` (Goal 범위 다이얼은 두지 않는다, [판정 J-136]) |
 | `SCR-OBSERVER` | `/observer`, `/observer/:proposalId` |
 | `SCR-CONNECT` | `/connect` |
 | `SCR-RECOVERY` | `/recovery` |
@@ -579,15 +601,17 @@ RGN-RAIL 복구 ─▶ SCR-RECOVERY
 | `SCR-ONBOARD` | `/onboard` |
 | `SCR-RECORD` | `/records?subject=<id>` |
 | `SCR-METRICS` | `/metrics` |
+| `SCR-M-*` | `/m/…` (26 §3.5.2) |
 
 ### 3.6 화면 목록과 화면 ID
 
-화면 ID는 `SCR-<이름>`, 겹쳐 뜨는 화면은 `OVL-<이름>`, 셸 영역은 `RGN-<이름>` 형식이다. 다른 문서는 이 ID로 화면을 가리킨다. 상세는 04의 같은 이름 절에 있다.
+화면 ID는 `SCR-<이름>`, 휴대폰 화면은 `SCR-M-<이름>`(§3.12), 겹쳐 뜨는 화면은 `OVL-<이름>`, 셸 영역은 `RGN-<이름>` 형식이다. 다른 문서는 이 ID로 화면을 가리킨다. 이 표와 §3.12 표에 없는 화면 ID는 쓰지 않는다. 상세는 04의 같은 이름 절에 있다.
 
 단계(01 §3.8.2, §3.12를 따름) [제안: 01이 정하지 않은 화면]:
 - MVP: `SCR-HOME`, `SCR-BRIEF`, `SCR-INBOX`, `SCR-QUESTION`, `SCR-AUTO`, `SCR-CONCERNS`, `SCR-CONCERN-OVERVIEW`, `SCR-INQUIRY`(사실·원함 종류만), `SCR-STIM`, `SCR-WORK`(탐침·기대 카드 제외), `SCR-AGREE`, `SCR-REVIEW`(독립 검증 표시 제외), `SCR-EVIDENCE`, `SCR-GOALS`, `SCR-GOAL`, `SCR-DIALS`(최소판: 기본 전달 방식, 질문 빈도, 예산, 자극 수, 탐구 깊이), `SCR-CONNECT`, `SCR-RECOVERY`, `SCR-ONBOARD`, 그리고 01이 정하지 않아 이 문서가 MVP로 정한 `SCR-SETTINGS`(최소), `SCR-TRAY`, `SCR-LOOPS`(의미 있는 것만 보기), `SCR-THREAD`, `SCR-RECORD`(개발자 보기 전용), `SCR-METRICS`(결정적 지표), `OVL-*` 전부.
-- 2단계: `SCR-OBSERVER`(모델 판정·제안, 조정자 판정 J-07), `SCR-METRICS`의 관찰 에이전트 절, `SCR-INQUIRY`의 가능성·결과 종류, `SCR-WORK`의 기대 카드, 중재 전달 표시, 검증 에이전트 표시, 다이얼 전체.
-- 2단계(결정 42): 모바일 화면 `SCR-M-*`(§3.12).
+- 2단계: `SCR-OBSERVER`(모델 판정·제안, [판정 J-07]), `SCR-METRICS`의 관찰 에이전트 절, `SCR-INQUIRY`의 가능성·결과 종류, `SCR-WORK`의 기대 카드, 중재 전달 표시, 검증 에이전트 표시, 다이얼 전체.
+- 2단계(결정 42·47): 휴대폰 화면 `SCR-M-*`(§3.12).
+- `SCR-LOOPS`, `SCR-RECORD`, `SCR-METRICS`는 레일에 두지 않는다. Concern 탭, 명령 팔레트, 검사 패널의 링크로만 연다.
 - 3단계: 하위 Concern의 나누기·합치기 조작(표시는 MVP부터), 비상 합의, TUI(§3.11).
 - 2단계 이후 기능은 그 기능이 꺼져 있으면 화면 요소를 그리지 않는다(빈 자리나 "준비 중"을 보이지 않는다).
 
@@ -598,7 +622,8 @@ RGN-RAIL 복구 ─▶ SCR-RECOVERY
 | `SCR-INBOX` | 질문함 | 사람 행동이 필요한 모든 요청을 한곳에서 처리한다 | 전역 | §3.3 |
 | `SCR-QUESTION` | 질문 | 질문 하나를 읽고 답한다 | 질문 | §3.4 |
 | `SCR-AUTO` | 에이전트가 정한 것 | 묻지 않고 정한 것을 확인하고 이의를 건다 | 전역(Concern으로 거르기 가능) | §3.5 |
-| `SCR-CONCERNS` | Concern | Concern 트리를 보고 고른다. 입력창의 새 일·가벼운 작업 표시(§3.6.1) | 전역 | §3.6 |
+| `SCR-CONCERNS` | Concern | Concern 트리를 보고 고른다. 입력창의 새 일·가벼운 작업 표시(04 §3.6.1) | 전역 | §3.6 |
+| `SCR-CONCERN` | Concern 화면 | Concern 하나의 탭 묶음(개요, 탐구, 작업, 이력, 대화). 화면 자체는 탭 머리와 상태 줄이고 본문은 아래 다섯 화면이다 | Concern | §3.7~§3.14 |
 | `SCR-CONCERN-OVERVIEW` | Concern 개요 | Concern 하나의 현재 상태, 다음 예정, 사용 중인 가정, 하위 Concern을 본다 | Concern | §3.7 |
 | `SCR-INQUIRY` | 탐구 | 사실·원함·가능성·결과 탐구의 현재 상태를 본다 | Concern | §3.8 |
 | `SCR-STIM` | 자극 보드 | 원함 탐구의 자극에 요소 단위로 반응한다 | Concern의 원함 탐구 라운드 | §3.9 |
@@ -610,14 +635,14 @@ RGN-RAIL 복구 ─▶ SCR-RECOVERY
 | `SCR-EVIDENCE` | 근거 체인 | 판단·선택·결과 확인의 근거를 원본까지 따라간다 | 레코드 | §3.15 |
 | `SCR-GOALS` | Goal | Goal 목록과 각 Goal의 현재 버전을 본다 | 전역 | §3.16 |
 | `SCR-GOAL` | Goal 상세 | Goal의 현재 내용, 버전 이력, 수정 제안, 선호 모델을 본다 | Goal | §3.16 |
-| `SCR-DIALS` | 다이얼·모드 | 현재 모드와 다이얼 값, 값이 어느 층에서 왔는지 보고 바꾼다 | 전역, Goal, Concern | §3.17 |
+| `SCR-DIALS` | 다이얼·모드 | 현재 모드와 다이얼 값, 값이 어느 층에서 왔는지 보고 바꾼다 | 사용자 전체, Concern(Goal 범위 없음, [판정 J-136]) | §3.17 |
 | `SCR-OBSERVER` | 관찰 제안 | 관찰 에이전트의 제안을 근거와 함께 보고 채택·기각한다 | 전역 | §3.18 |
-| `SCR-CONNECT` | 연결·기기 | 데몬 연결 방식(Tailscale, SSH), 페어링, 기기 목록, 데몬 상태를 다룬다 | 앱 | §3.19 |
-| `SCR-RECOVERY` | 복구 | 재시작으로 중단된 작업과 결과를 모르는 외부 행동을 처리한다 | 전역 | §3.20 |
+| `SCR-CONNECT` | 연결·기기 | 데몬 연결 방식(Tailscale, SSH), 페어링(휴대폰 설치 QR 포함), 기기 목록, 서버 상태(안전 모드 풀기 포함)를 다룬다 | 앱 | §3.19 |
+| `SCR-RECOVERY` | 복구 | 재시작으로 중단되어 자동 재개가 실패한 작업, 결과를 모르는 외부 행동, 안전 모드, 복원 뒤 상태를 처리한다 | 전역 | §3.20 |
 | `SCR-SETTINGS` | 설정 | 알림, 주의 예산, 표시, 키보드, 개발자 보기를 정한다 | 앱·사용자 | §3.21 |
 | `SCR-ONBOARD` | 처음 연결 | 첫 실행에서 데몬에 연결하고 Helm이 하는 일과 멈추는 때를 안내한다 | 앱 | §3.22 |
 | `SCR-RECORD` | 변화 기록 | 원본 이벤트를 감사 깊이로 본다 | 레코드·Concern | §3.23 |
-| `SCR-METRICS` | 평가 | OPD+C, C/A 2주 지표, 질문 부담, A12 지표를 숫자와 표본 수로 본다(16 요구). 결정적 지표는 MVP, 관찰 에이전트 효과 판정은 2단계(조정자 판정 J-07) | 전역 | §3.27 |
+| `SCR-METRICS` | 평가 | OPD+C, C/A 2주 지표, 질문 부담, A12 지표를 숫자와 표본 수로 본다(16 요구). 결정적 지표는 MVP, 관찰 에이전트 효과 판정은 2단계([판정 J-07]) | 전역 | §3.27 |
 | `SCR-TRAY` | 메뉴 막대·트레이 메뉴 | 앱 창 없이 선택 필요 수와 진행 중 요약을 본다 | 앱 | §3.24 |
 | `OVL-PALETTE` | 명령 팔레트 | 모든 화면과 동작을 이름으로 찾는다 | 전역 | §3.25 |
 | `OVL-CONTEST` | 이의 걸기 | 객체 하나에 이의를 건다 | 레코드 | §3.26 (흐름은 05 §3.3) |
@@ -625,53 +650,31 @@ RGN-RAIL 복구 ─▶ SCR-RECOVERY
 
 ### 3.7 유즈케이스와 화면
 
-유즈케이스 ID와 단계(MVP, 2단계, 3단계)는 02 §3.1이 정본이다. 사람 조작 수는 01·02의 셈법을 따른다: D(결정, 명령 의도를 보내는 조작), I(입력, 자연어로 쓰는 것), 보기(읽기·이동·읽음 표시). 초안을 고쳐 확정해도 D는 1이다(02 UQ-11, 01 §3.5.2). 상한을 넘는 정상 경로가 3회 이상이면 설계 위반으로 본다(01 CA-6).
+유즈케이스 ID와 단계(MVP, 2단계, 3단계)는 02 §3.1이 정본이다. 사람 조작 수는 01 §3.5.2 용어 표의 셈법을 따른다: D(결정, 명령 의도를 보내는 조작), I(입력, 자연어로 쓰는 것), 보기(읽기·이동·읽음 표시). 초안을 고쳐 확정해도 D는 1이다. 질문 하나에 담긴 여러 기준은 D 1이고([판정 J-23], 02 UQ-11), 질문 여러 개를 한 화면에서 묶어 답하면 질문 수만큼 센다(01 §3.5.2 "묶어 답하기"). 결과 확인 때 고르는 반영 처리 방침은 결과 확인 1회에 포함되고, 반영 항목 하나를 따로 바꾸는 것은 선택 조작이라 세지 않는다(01 R-OP-3). C/A 정상 경로 결정 조작이 3회 이상이면 설계 위반으로 본다(01 CA-6).
 
 | 유즈케이스(02) | 단계 | 주 화면 경로 | 정상 경로 D |
 |---|---|---|---|
-| UC-01 취향형 작업의 원함 탐구 | MVP | `RGN-COMPOSER`(새 일) → `SCR-CONCERN-OVERVIEW` → `SCR-INQUIRY`(원함) → `SCR-STIM` → 기준 확인(`SCR-QUESTION`) → `SCR-AGREE`(echo) → `SCR-REVIEW` | 반응은 관찰이라 세지 않음. 기준 확인 질문 하나에 D 1(기준 여러 개를 함께 담아도 항목별 고르기는 세지 않고 보내기 1회, 조정자 판정 J-23, 02 UQ-11). 결과 확인 1 |
-| UC-02 원인 조사 | MVP | `RGN-COMPOSER` → `SCR-CONCERN-OVERVIEW` → `SCR-INQUIRY`(사실) → `SCR-EVIDENCE` → 선택 요청(`SCR-QUESTION`) → `SCR-AGREE`(echo) → `SCR-REVIEW` | 선택 1, 결과 확인 1 |
-| UC-03 여러 날 걸리는 작업 | MVP | `SCR-AGREE` → (클라이언트 없음) → 알림 → `SCR-QUESTION` → `SCR-BRIEF` → `SCR-AUTO` → `SCR-REVIEW` | 02의 정상 경로 수를 따름(정상 경로 2 + 권리 게이트 질문 1) |
-| UC-04 외부에서 접속해 질문에 답하기 | MVP | `SCR-CONNECT`(처음 한 번) → 알림·딥 링크 → `SCR-QUESTION`, 또는 SSH TUI `/inbox` | 1 |
-| UC-05 혼자 정한 결정 확인과 이의 | MVP | `SCR-BRIEF` 8절 → `SCR-AUTO` → `OVL-CONTEST` | 이의 1 |
+| UC-01 취향형 작업의 원함 탐구 | MVP | `RGN-COMPOSER`(새 일) → `SCR-CONCERN-OVERVIEW` → `SCR-INQUIRY`(원함) → `SCR-STIM` → 기준 확인(`SCR-QUESTION`) → `SCR-AGREE`(합의 확인) → `SCR-REVIEW` | 반응은 관찰이라 세지 않음. 기준 확인 질문 하나에 D 1(기준 여러 개를 함께 담아도 1). 합의 확정 1(01 R-OP-2의 두 경우면 0). 결과 확인 1 |
+| UC-02 원인 조사 | MVP | `RGN-COMPOSER` → `SCR-CONCERN-OVERVIEW` → `SCR-INQUIRY`(사실) → `SCR-EVIDENCE` → 선택 요청(`SCR-QUESTION`) → `SCR-AGREE`(사람이 고른 선택 범위 안이면 echo, 01 R-OP-2(a)) → `SCR-REVIEW` | 선택 1(판단 확인이 묶이면 같은 조작), 결과 확인 1 |
+| UC-03 여러 날 걸리는 작업 | MVP | `SCR-AGREE` → (클라이언트 없이 진행) → 알림 → `SCR-QUESTION` → `SCR-BRIEF` → `SCR-AUTO` → `SCR-REVIEW` | 02의 정상 경로 수를 따름(정상 경로 2 + 권리 게이트 질문 1) |
+| UC-04 외부에서 접속해 질문에 답하기 | MVP(데스크톱), 2단계(휴대폰) | `SCR-CONNECT`(처음 한 번, Tailscale 또는 SSH 경로로 데스크톱 앱 연결) → 알림·딥 링크 → `SCR-QUESTION`. 2단계는 휴대폰 푸시 → `SCR-M-QUESTION` | 1 |
+| UC-05 혼자 정한 결정 확인과 이의 | MVP | `SCR-BRIEF` 8절 → `SCR-AUTO` → `OVL-CONTEST` | 이의 1(이유를 쓰면 I 1 추가) |
 | UC-06 복귀 요약 | MVP | `SCR-HOME` 띠 → `SCR-BRIEF` → (`SCR-EVIDENCE`) → 여기까지 봤음 | 0(읽음 표시는 보기) |
-| UC-07 되돌리기 비싼 선택(C와 A) | MVP | `SCR-AGREE`(확정) → 진행 → `SCR-REVIEW`(결과 확인과 반영 처리 방침을 한 번에) | WorkUnit당 2(합의 확정 1, 결과 확인 1). 맡긴 범위를 넓히지 않으면 합의 확정 0 (발췌3 X3-2-19, 01 R-OP-2·R-OP-3) |
-| UC-08 반복 마찰을 관찰 에이전트가 찾아 제안 | 2단계 | `SCR-OBSERVER` → 채택 → 새 Concern(작업 합의 echo) → `SCR-REVIEW` | 채택 1 + 결과 확인 1 |
+| UC-07 되돌리기 비싼 선택(C와 A) | MVP | `SCR-AGREE`(확정) → 진행 → `SCR-REVIEW`(결과 확인과 반영 처리 방침, 반영 범위 합의를 한 번에) | WorkUnit당 2(합의 확정 1, 결과 확인 1). 01 R-OP-2의 두 경우면 합의 확정 0 (발췌3 X3-2-19, 01 R-OP-2·R-OP-3, [판정 J-126]) |
+| UC-08 반복 마찰을 관찰 에이전트가 찾아 제안 | 2단계 | `SCR-OBSERVER` → 채택 → 새 Concern(작업 합의) → `SCR-REVIEW` | 채택 1 + 결과 확인 1 |
 | UC-09 Goal 정제 | MVP | `SCR-QUESTION`(Goal 확인) → `SCR-GOAL` | 1 |
-| UC-10 데몬 재시작·연결 끊김 중 작업 | MVP | `RGN-TOPBAR`·`RGN-BANNER`(04 §3.0.4) → `SCR-RECOVERY` → `SCR-BRIEF` | 복구 항목당 1. 안전한 도구의 자동 재실행은 0 |
-| UC-11 처음 설치·기기 페어링 | MVP | `SCR-ONBOARD` → `SCR-CONNECT` → `SCR-SETTINGS`(권한·연결: 허용 폴더) → 홈 첫 Goal | 연결 1 + 첫 Goal 확정 1 |
-| UC-12 실행 중 방향·기준 바꾸기 | MVP | `SCR-WORK` "방향 바꾸기" 또는 `RGN-COMPOSER`(범위: WorkUnit) → 의미 미리보기(05 §3.5) → (범위가 넓어지면 `SCR-AGREE`) → `SCR-DIALS` | I 1. 범위가 넓어질 때만 D 1 |
-| UC-13 새 근거로 판단·선택 다시 열기 | MVP | `SCR-BRIEF`("낡음") → `SCR-EVIDENCE` → `OVL-CONTEST` 또는 선택 요청(`SCR-QUESTION`) | 1 |
-| UC-14 Method Transfer로 가능성 넓히기 | 2단계 | `SCR-INQUIRY`(가능성: 렌즈 행) → 가능성 반응 | 반응은 세지 않음 |
-| UC-15 가벼운 작업과 Concern 승격·강등 | MVP | `RGN-COMPOSER`(새 일) → 가벼운 작업 표시(04 §3.6.1) → 승격 제안 질문(`SCR-QUESTION`) 또는 승격·강등 기록(`SCR-AUTO`) | 가벼운 작업 0~1(간단한 결과 확인). 승격 제안 답 1 |
-| UC-16 외부 응답 기다리기 | 2단계 | `SCR-WORK`(기대 카드) → `SCR-HOME` 다가오는 것 → "응답 없음" 관찰 → `SCR-BRIEF` | 0 |
-| UC-17 다른 기기·클라이언트·런타임에서 이어 하기 | MVP(기기), 3단계(TUI) | 다른 기기의 `SCR-HOME`·`SCR-BRIEF`, TUI 뷰(§3.11) | 0 |
+| UC-10 데몬 재시작·연결 끊김 중 작업 | MVP | `RGN-TOPBAR`·`RGN-BANNER`(04 §3.0.4) → `SCR-RECOVERY` → `SCR-BRIEF` | 복구 항목당 1. 안전한 도구의 자동 재실행과 외부 효과 없는 결과 불명 호출은 0 |
+| UC-11 처음 설치·기기 페어링 | MVP | `SCR-ONBOARD`(연결 → 페어링 → 프로젝트 폴더 추가) → `SCR-GOAL` 첫 Goal 초안 카드 | 연결 1 + 폴더 추가 1 + 첫 Goal 확정 1 |
+| UC-12 실행 중 방향·기준 바꾸기 | MVP | `SCR-WORK` "방향 바꾸기" 또는 `RGN-COMPOSER`(범위: WorkUnit) → 의미 미리보기(05 §3.5) → [그렇게 기록] → (범위가 넓어지면 `SCR-AGREE`) | I 1 + 기록 D 1. 범위가 넓어지면 합의 확정 D 1 추가 |
+| UC-13 새 근거로 판단·선택 다시 열기 | MVP | `SCR-BRIEF`("다시 볼 조건 충족", "낡음") → `SCR-EVIDENCE` → `OVL-CONTEST` 또는 재결정 질문(`SCR-QUESTION`) | 1 |
+| UC-14 Method Transfer로 가능성 넓히기 | 2단계 | `SCR-INQUIRY`(가능성: 렌즈 행) → 가능성 반응 → 탐침 → 키울 것 선택 요청(`SCR-QUESTION`) | 반응은 세지 않음. 키울 것 선택 1 |
+| UC-15 가벼운 작업과 Concern 승격·강등 | MVP | `RGN-COMPOSER`(새 일, 보내기 전 echo 미리보기) → 가벼운 작업 카드(04 §3.6.1) → 결과 확인(카드 안, 묶어 확인 가능) / 승격 제안 질문(`SCR-QUESTION`) 또는 승격·강등 기록(`SCR-AUTO`) | 지시는 I 1(합의 확정 겸함). 결과 확인 1([판정 J-89]). 승격 제안 답 1 |
+| UC-16 외부 응답 기다리기 | 2단계 | `SCR-WORK`(기대 카드) → `SCR-HOME` 다가오는 것 → "응답 없음" 관찰 → `SCR-BRIEF` 2·7절 | 0(응답을 직접 기록하면 1) |
+| UC-17 다른 기기·클라이언트·런타임에서 이어 하기 | MVP(기기), 2단계(휴대폰), 3단계(TUI) | 다른 기기의 `SCR-HOME`·`SCR-BRIEF`, 휴대폰 `SCR-M-BRIEF`, TUI 뷰(§3.11) | 0 |
 | UC-18 비상 대응 | 3단계 | `SCR-DIALS`(비상 합의 미리 확정) → `SCR-WORK`(비상 합의 표시) → `SCR-BRIEF` → 사후 검토 | 사후 검토 1 |
 | UC-19 Concern 나누기와 합치기 | 3단계 | `SCR-CONCERN-OVERVIEW`(하위 Concern, 경계 항목) → `SCR-AUTO`(분해 기록) → 재조합 확인 | 재조합 확인 1 |
 
-**02 임시 화면 키와의 대응** (02 §2.4의 "03 이름" 칸)
-
-| 02 키 | 03 ID |
-|---|---|
-| `scr.home` | `SCR-HOME` 홈 |
-| `scr.brief` | `SCR-BRIEF` 복귀 요약 |
-| `scr.composer` | `RGN-COMPOSER` 입력창(범위 "새 일"). 화면이 아니라 영역이다. 진입 판정 결과 표시는 04 §3.6.1 |
-| `scr.concern` | `SCR-CONCERN-OVERVIEW` Concern 개요와 그 탭(`SCR-INQUIRY`, `SCR-WORK`, `SCR-LOOPS`, `SCR-THREAD`) |
-| `scr.agreement` | `SCR-AGREE` 작업 합의(echo 상태와 확정 상태를 함께 다룸) |
-| `scr.stimulus` | `SCR-STIM` 자극 보드 |
-| `scr.inquiry.fact`, `scr.inquiry.possibility` | `SCR-INQUIRY`(종류 `fact`, `possibility`) |
-| `scr.review` | `SCR-REVIEW` 결과 확인 |
-| `scr.questions` | `SCR-INBOX` 질문함 + `SCR-QUESTION` 질문 |
-| `scr.autonomous` | `SCR-AUTO` 에이전트가 정한 것 |
-| `scr.evidence` | `SCR-EVIDENCE` 근거 체인 |
-| `scr.goal` | `SCR-GOAL` Goal 상세(이력 포함), 목록은 `SCR-GOALS` |
-| `scr.dials` | `SCR-DIALS` 다이얼·모드 |
-| `scr.trust` | `SCR-CONNECT` 연결·기기 + `SCR-SETTINGS` "권한·연결" 절(허용 폴더, 모델 공급자, 데이터가 나가는 곳) |
-| `scr.recovery` | `SCR-RECOVERY` 복구 |
-| `scr.pairing` | `SCR-ONBOARD`(처음) + `SCR-CONNECT`(다시 페어링, 새 기기) |
-| `scr.observer` | `SCR-OBSERVER` 관찰 제안 |
-| `scr.statusbar` | `RGN-TOPBAR`(연결 상태, 기준 시각) + `RGN-RUNS`(진행 중 수) + 보내지 않은 답 표시. `RGN-STATUSLINE`은 Concern 화면 전용 상태 줄로 이것과 다르다 |
-| `os.notify` | OS 알림(05 §3.7), `SCR-TRAY` |
+02 1단계의 임시 화면 키(`scr.*`)는 02가 더 쓰지 않으므로 대응표를 지웠다. 02는 이 절의 화면 ID를 쓴다.
 
 ### 3.8 원전 화면 개념과의 대응
 
@@ -719,7 +722,7 @@ canon §17.2: "세 묶음을 서로 다른 database처럼 분리해 보이게 �
 | 3 | 감사 | 원본 이벤트, 레코드 ID, 이벤트 종류, 도구 입력·출력, 작성자 신원, seq | 개발자 보기에서만 기본으로 보이고, 그 밖에는 "원본 기록" 링크로 연다 |
 
 - 반대 근거, 이의, 낡음, 아직 모르는 점은 깊이 1에서도 접지 않는다(A9, 불변조건 6).
-- 감사 깊이에만 보이는 것(canon-2 §11 03 항목 "개발자/assurance view에만"): Grant ID, 정책 ID와 사유 코드, 이벤트 종류(`question.delivered` 같은 이름), 투영 생성 메타데이터(seq 범위, 누락 범주), 모델·공급자 이름과 토큰 사용량.
+- 감사 깊이에만 보이는 것(canon-2 §11 03 항목 "개발자/assurance view에만"): Grant ID, 정책 ID와 사유 코드, 이벤트 종류(`question.delivered` 같은 이름), 투영 생성 메타데이터(seq 범위, 누락 범주), 모델·제공자 이름과 토큰 사용량([판정 J-150]).
 
 ### 3.11 TUI로 옮길 때의 대응
 
@@ -735,7 +738,7 @@ canon §17.2: "세 묶음을 서로 다른 database처럼 분리해 보이게 �
 
 #### 3.11.2 화면 → TUI 뷰
 
-pi-tui 컴포넌트 이름은 `@earendil-works/pi-tui` 1.1.0(pi-src 커밋 `cdaf6c2`, `tui/src/index.ts`) 기준이다 [원문 pi-api-facts-2 §2.5]. TUI 설계는 이후 단계이며 아래는 대응 원칙이다.
+pi-tui 컴포넌트 이름은 `@earendil-works/pi-tui` 1.1.0(태그 `v1.1.0`, 커밋 `abe508e1`, [판정 44]) 기준이다. 인용한 pi-api-facts-2와 `tui/src/*.ts` 행 번호는 참고 판 `cdaf6c2` 기준이다. 두 판에서 tui 파일 일부가 다르므로 TUI 설계 단계에서 `v1.1.0` 행으로 다시 확인한다(07 §3.1.4) [원문 pi-api-facts-2 §2.5]. TUI 설계는 이후 단계이며 아래는 대응 원칙이다.
 
 | 화면 ID | TUI 뷰 | 명령(후보) | 주 컴포넌트 |
 |---|---|---|---|
@@ -743,14 +746,14 @@ pi-tui 컴포넌트 이름은 `@earendil-works/pi-tui` 1.1.0(pi-src 커밋 `cdaf
 | `SCR-BRIEF` | 복귀 요약 문서 뷰(대체 화면 스크롤) | `/brief`, `/ack` | `ScrollView`, `Markdown` |
 | `SCR-INBOX` | 질문 목록 | `/inbox` | `SelectList` |
 | `SCR-QUESTION` | 질문 상세 + 행동 목록 | `/q <번호>`, `/answer q14 …`, `/assume q14`, `/later q14`, `/reframe q14 …` | `Markdown`, `SelectList`, `Editor` |
-| `SCR-AUTO` | 종류별 목록 | `/auto`, `/contest <ref> [이유]`, `/seen` | `SelectList` |
+| `SCR-AUTO` | 종류별 목록 | `/auto`, `/contest <ref> [이유]`, `/keep <ref>`(이대로 둔다) | `SelectList` |
 | `SCR-CONCERNS` | 들여쓰기 트리 | `/concerns`, `/open <설명>`(새 Concern) | `SelectList`(들여쓰기) |
 | `SCR-CONCERN-OVERVIEW` | 개요 문서 뷰 + 상태 줄(바닥) | `/cn <번호>` | `Markdown`, 바닥 `Text` |
 | `SCR-INQUIRY` | 탐구 종류별 문서 뷰 | `/inquiry [fact\|want\|possibility\|outcome]` | `Markdown` |
 | `SCR-STIM` | 자극 하나씩 본문 + 요소 표시 | `/react a3 +2`, `/react a3 noreason`, `/rewrite s4 "더 짧게"`, `/triad`, `/round done` | `Markdown`, `Image`, `Editor` |
 | `SCR-WORK` | 진행 작업 카드 목록 | `/work`, `/pause <wu>`, `/stop <wu>`, `/steer <wu> …` | `VStack`, `Text` |
 | `SCR-AGREE` | 합의 문서 뷰 + 행동 | `/agree <wu>`, `/narrow <wu> …` | `Markdown`, `SelectList` |
-| `SCR-REVIEW` | 기준별 표 + 행동 | `/accept <wu>`, `/accept <wu> --if "…"`, `/revise <wu> …`, `/reopen <wu>` | `Markdown`, `SelectList` |
+| `SCR-REVIEW` | 기준별 표 + 행동 | `/accept <wu>`, `/accept <wu> --if "…"`, `/revise <wu> …`, `/reject <wu> [--to fact\|want\|commit]`, `/criteria-wrong <wu>` | `Markdown`, `SelectList` |
 | `SCR-LOOPS` | 시간순 목록 | `/history` | `ScrollView` |
 | `SCR-THREAD` | 대화 뷰 | (입력창) | pi coding-agent 채팅 부품은 export된 것만 쓴다(`coding-agent/src/index.ts:435-479`) |
 | `SCR-EVIDENCE` | 들여쓰기 트리 | `/why <ref>` | `Markdown` |
@@ -758,7 +761,7 @@ pi-tui 컴포넌트 이름은 `@earendil-works/pi-tui` 1.1.0(pi-src 커밋 `cdaf
 | `SCR-DIALS` | 설정 목록 | `/dials`, `/dial <이름> <값>`, `/mode <이름>` | `SettingsList` |
 | `SCR-OBSERVER` | 제안 목록 | `/proposals`, `/adopt <번호>`, `/decline <번호> [이유]` | `SelectList`, `Markdown` |
 | `SCR-CONNECT` | 연결 상태 문서 뷰 | `/status` | `Markdown` |
-| `SCR-RECOVERY` | 복구 목록 | `/recovery`, `/resume <wu>`, `/leave <wu>`, `/check <wu>` | `SelectList` |
+| `SCR-RECOVERY` | 복구 목록 | `/recovery`, `/resume <wu>`, `/leave <wu>`, `/check <wu>`, `/applied <tc>`, `/not-applied <tc>` | `SelectList` |
 | `SCR-SETTINGS` | 설정 목록 | `/settings` | `SettingsList` |
 | `SCR-ONBOARD` | 해당 없음 | TUI는 서버 안에서 실행되므로 페어링 대신 로컬 연결(17·19) | — |
 | `SCR-RECORD` | 원본 목록 | `/records <ref>` | `ScrollView` |
@@ -768,55 +771,59 @@ pi-tui 컴포넌트 이름은 `@earendil-works/pi-tui` 1.1.0(pi-src 커밋 `cdaf
 
 명령 이름은 대화의 사람 명령 초안(`/focus`, `/brief`, `/agree`, `/accept`, `/reopen`, 발췌3 Q7. `/focus`는 "초점"에서 온 이름이라 IA-03에 따라 `/open`으로 바꿨다)과 CLI 경험 v0.2의 slash command(canon-2 §3.5)를 합쳐 정했다. 최종 이름은 TUI 설계 단계에서 확정하고, 명령 의도 이름은 10·19를 따른다.
 
-### 3.12 모바일 화면 범위 (결정 42, 2단계) [결정 42: 범위에 넣음 / 제안: 화면 부분집합]
+### 3.12 휴대폰 화면 범위 (2단계) [결정 42·47·48·49: 범위·방식·알림·최소 판 / 제안: 화면 부분집합]
 
-사용자 결정 42에 따라 휴대폰에서도 질문에 답할 수 있게 한다. 데스크톱 MVP 다음 단계(2단계)다. 구현 방식(Tauri v2 모바일, PWA 등), 앱이 꺼져 있을 때의 알림 경로, 기기 인증은 26(P15)이 정한다. 이 절은 화면 범위와 화면 ID만 정하며, 26이 나오면 맞춘다.
+휴대폰에서도 질문에 답할 수 있게 한다(결정 42). 데스크톱 MVP 다음 단계(2단계)다. 휴대폰 클라이언트는 데몬이 서빙하는 홈 화면 웹 앱(PWA)이고 알림은 Web Push다(결정 47). 휴대폰 알림은 알림 강도 `interrupt`와 `notice` 질문까지 보낸다(결정 48). 지원 기준은 iOS 26이다(결정 49). 경로(`/m/…`), 페어링, 인증, 푸시 계획(`planPush`)은 26이 정하고, 이 절은 화면 범위와 화면 ID를 정한다.
 
 **원칙** [제안]
 
-1. **답하기 중심의 부분집합.** 휴대폰은 "질문에 답하고, 지금 상황을 짧게 보고, 에이전트가 정한 것에 이의를 거는 곳"이다. 탐구 화면, 자극 보드, 다이얼, 관찰 제안, 변화 기록, 근거 체인의 전체 트리는 두지 않는다.
-2. **같은 행동, 같은 이름.** 휴대폰에서 하는 사람 행동은 데스크톱과 같은 19 메서드와 10 명령을 쓰고 같은 이벤트를 남긴다(02 AC-04-09). 화면 이름과 문구는 같은 문구 목록(`@helm/ui-language`)을 쓴다. 클라이언트 코어는 `@helm/client`(조정자 판정 §2).
-3. **답할 수 없는 질문은 미루기만.** 휴대폰에서 판단하기 어려운 질문 형식은 카드에 "데스크톱에서 답하기"를 보이고 미루기(`question.defer`, 기본 "다음 데스크톱 접속까지")만 둔다. 권리 게이트의 "멈춰 있음"은 그대로 보인다.
-4. **연결이 없으면 결정을 막는다.** 데스크톱과 같은 규칙(04 A4, 조정자 판정 J-02).
-5. **알림 내용은 기본 숨김**(05 A8, 조정자 판정 J-03). 푸시 경로는 26.
+1. **답하기 중심의 부분집합.** 휴대폰은 "질문에 답하고, 지금 상황을 짧게 보고, 에이전트가 정한 것에 이의를 거는 곳"이다. 탐구 화면, 자극 보드, 다이얼, 관찰 제안, 변화 기록, 근거 체인의 전체 트리, 새 일 입력은 두지 않는다.
+2. **같은 행동, 같은 이름.** 휴대폰에서 하는 사람 행동은 데스크톱과 같은 19 메서드와 10 명령을 쓰고 같은 이벤트를 남긴다(02 AC-04-09). 화면 이름과 문구는 같은 문구 목록(`@helm/ui-language`)을 쓴다. 클라이언트 코어는 `@helm/client`([판정 §2]).
+3. **답할 수 없는 질문은 미루기만.** 휴대폰에서 판단하기 어려운 질문 형식은 카드에 "데스크톱에서 답하기"를 보이고 미루기(`question.defer`)만 둔다. 미루기 기본값은 "다음 작업 경계까지"(11 `until.boundary = next_work_boundary`)다. "다음 데스크톱 접속까지"는 11의 Trigger로 표현할 수 없어 두지 않는다. 권리 게이트의 "멈춰 있음"은 그대로 보인다.
+4. **연결이 없으면 결정을 막는다.** 데스크톱과 같은 규칙(04 A4, [판정 J-02]).
+5. **알림 내용은 기본 숨김**(05 A8, [판정 J-03]). 문구 키는 05 `notif.hidden.*`. 푸시 경로와 기기별 내용 수준은 26.
+6. **아이콘 배지는 "선택 필요" 수만 센다.** 데스크톱 트레이·Dock 배지(04 §3.24)와 같은 뜻이다. "확인하면 좋은 것"은 질문함 탭 안에서만 센다.
 
 **화면 ID와 내용**
 
 | 화면 ID | 화면 이름 | 내용 | 데스크톱 대응 |
 |---|---|---|---|
-| `SCR-M-INBOX` | 질문함 | 권리 게이트와 막는 질문을 먼저, 그 밖의 질문은 접어서. 묶음 답하기 | `SCR-INBOX` |
-| `SCR-M-QUESTION` | 질문 | 질문 카드 펼침(04 §3.4의 "가볍게 확인"·"일반" 깊이 필드). "깊은 검토" 깊이 질문은 요약과 "데스크톱에서 보기 권장" 표시를 붙이되 답할 수는 있다 | `SCR-QUESTION` |
-| `SCR-M-BRIEF` | 요약 | 복귀 요약 요약판: 1절(Goal과 바뀐 기준), 4절(지금 선택이 필요함), 5절(확인하면 좋은 것), 6절(진행 중 작업 한 줄씩), 7절(그대로 두면) 한 줄. 2·3절은 Concern별 한 줄 요약. "여기까지 봤음" | `SCR-BRIEF` |
-| `SCR-M-AUTO` | 에이전트가 정한 것 | 종류별 개수와 목록, 항목마다 이의(이유는 선택, 기본 처리 "다시 열기") | `SCR-AUTO`, `OVL-CONTEST` |
-| `SCR-M-WORK` | 진행 중 | 진행 작업 카드 한눈에 깊이(지금 하는 일, 다음, 맡긴 범위). 안전하게 멈추기 | `RGN-RUNS`, 진행 작업 카드 |
-| `SCR-M-CONNECT` | 연결 | 연결 상태, 페어링, 이 기기 폐기 | `SCR-CONNECT` 일부 |
-| `SCR-M-SETTINGS` | 설정 | 알림(내용 보이기, 방해 금지), 표시 | `SCR-SETTINGS` 일부 |
+| `SCR-M-INBOX` | 질문함 | 권리 게이트와 막는 질문을 먼저, 그 밖의 질문은 접어서. 묶음 답하기(질문 수만큼 D) | `SCR-INBOX` |
+| `SCR-M-QUESTION` | 질문 | 질문 카드 펼침(04 §3.4의 "가볍게 확인"·"일반" 깊이 필드). "깊은 검토" 깊이 질문은 요약과 "데스크톱에서 보기 권장" 표시를 붙이되 답할 수는 있다. 합의 확인·결과 확인·복구 선택도 이 화면에서 처리한다 | `SCR-QUESTION` |
+| `SCR-M-BRIEF` | 복귀 요약 | 요약판: 1절(Goal과 바뀐 기준), 4절(지금 선택이 필요함), 5절(확인하면 좋은 것), 6절(진행 중 작업 한 줄씩), 7절(그대로 두면) 한 줄. 2·3절(반대 근거·깨진 가정·이견 포함)은 Concern별 한 줄로 줄인다. "여기까지 봤음"은 `brief.acknowledge`에 `compact: true`를 싣고, 줄여 본 반대 근거·깨진 가정·이견 항목은 다음 데스크톱 복귀 요약에 "휴대폰에서 줄여 본 항목"으로 남는다([판정 J-137], 04 §3.2) | `SCR-BRIEF` |
+| `SCR-M-AUTO` | 에이전트가 정한 것 | 종류별 개수와 목록, 항목마다 이의(이유는 선택, 기본 처리 "다시 열기"). 목록을 열면 봤음으로 기록된다 | `SCR-AUTO`, `OVL-CONTEST` |
+| `SCR-M-WORK` | 진행 중 | 진행 작업 카드 한눈에 깊이(지금 하는 일, 다음 단계, 맡긴 범위). 안전하게 멈추기 | `RGN-RUNS`, 진행 작업 카드 |
+| `SCR-M-CONNECT` | 연결 | 연결 상태와 진단("서버 PC에 연결할 수 없음" / "Helm 서버 응답 없음"), 서버 상태(안전 모드 사유와 [안전 모드 풀고 작업 다시 시작하기], 읽기 전용 사유), 이 기기 권한 없애기, 다른 기기 권한 없애기. 새 기기 페어링 코드는 만들지 않는다(26 §3.5.8, 18 §3.18.2) | `SCR-CONNECT` 일부 |
+| `SCR-M-SETTINGS` | 설정 | 알림(내용 보이기, 방해 금지, 조용한 시간), 표시 | `SCR-SETTINGS` 일부 |
+| `SCR-M-ONBOARD` | 처음 연결 | 설치 안내(브라우저 탭으로 열렸을 때만), 페어링 코드 입력, 알림 켜기(조용한 시간 제안값 23:00~08:00과 함께, 05 §3.7.4) | `SCR-ONBOARD` |
 
-내비게이션은 아래 탭 네 개(질문함 / 요약 / 정한 것 / 진행 중)와 머리의 연결 표시, 설정 링크다. 딥 링크는 데스크톱과 같은 형식(§3.5.4)이며 모바일에 없는 화면을 가리키면 "데스크톱에서 열 수 있습니다"와 관련 질문·요약으로 보낸다.
+내비게이션은 아래 탭 네 개와 머리의 연결 표시, 설정 링크다. 탭은 좁은 자리에 맞춘 줄임형 키 `label.mobile.tab.*`(질문함 / 요약 / 정한 것 / 진행 중, 05 §3.10.8)를 쓰고, 화면 머리는 고정 표현 전체 이름(질문함 / 복귀 요약 / 에이전트가 정한 것 / 진행 중)을 쓴다. "정한 것" 탭 배지는 숫자 대신 점이다. 딥 링크는 26 §3.5.2의 `/m/…` 경로이며 휴대폰에 없는 화면을 가리키면 "데스크톱에서 열 수 있습니다"와 관련 질문·요약으로 보낸다.
 
-**휴대폰에서 답하는 질문 형식** (11 §3.2.3 `QuestionForm` 기준) [제안]
+**휴대폰에서 답하는 질문 형식** (11 §3.2.3 `QuestionForm` 기준) [제안, 26 §3.5.4와 같음]
 
 | 형식 | 휴대폰 | 이유 |
 |---|---|---|
 | `answer`, `confirm_candidate` | 답함 | 카드 한 장으로 판단할 수 있다 |
-| `approve_action`(권리 게이트) | 허락·하지 않기·미루기. 인자 고쳐 허락(`approve_edited`)은 인자 미리보기는 보이되 고치기는 데스크톱 | 밖으로 나가는 행동을 작은 화면에서 고쳐 쓰는 실수를 줄인다 |
-| `result_review` | 결과 확인과 수정 요청, 미루기. 기준 표와 확인하지 못한 것, 반대 근거는 보인다. 조건 붙여 확인·거절·기준이 틀림은 데스크톱 | C/A 사람 조작이 외출 때문에 멈추지 않게 하되, 길게 쓰는 판단은 데스크톱에서 |
-| 작업 합의 확인(`confirm_candidate` 중 `agreement_confirm`) | 이 범위로 맡기기, 넓어진 부분 빼고 맡기기, 맡기지 않기 | 같은 이유 |
-| `reaction`(자극 반응 요청), `choose_one` | 데스크톱에서 답하기 + 미루기 | 요소 단위 반응은 넓은 화면이 필요하다. 26이 다르게 정하면 바꾼다 |
-| 복구 판단(`recovery`) | 답함 | 외출 중에도 멈춘 작업을 풀 수 있게 |
+| `approve_action`(권리 게이트) | 허락·하지 않기·범위 줄여 진행·미루기. 인자 고쳐 허락(`approve_edited`)은 인자 미리보기는 보이되 고치기는 데스크톱 | 밖으로 나가는 행동을 작은 화면에서 고쳐 쓰는 실수를 줄인다 |
+| `result_review` | 결과 확인과 수정 요청, 미루기. 결과 확인은 산출물(본문, 이미지, 변경 요약)을 연 뒤에만 누를 수 있다(`notice.mobile.openOutputFirst`). 큰 산출물과 취향형 결과(선호 모델 기준별 판정이 필요한 것)는 `mobileReviewable: false`로 오고 휴대폰에서는 미루기만 둔다(`notice.mobile.reviewOnDesktop`). 조건 붙여 확인·거절·기준이 틀림은 데스크톱 | [판정 J-139]. 산출물을 보지 않고 받아들이는 경로를 만들지 않는다 |
+| 작업 합의 확인(`confirm_candidate` 중 `agreement_confirm`) | 이 범위로 맡기기, 넓어진 부분 빼고 맡기기, 맡기지 않기 | 범위와 넓어진 항목은 카드 한 장에 보인다 |
+| `choose_one` | 답함(추천 먼저, 나머지 "+n" 펼침) | 선택지를 세로로 읽고 하나를 누르는 일은 작은 화면에서도 정확히 할 수 있다(26 MOB-D08). 원함 탐구에서는 이 형식 자체가 금지다 |
+| `reaction`(자극 반응 요청) | 데스크톱에서 답하기 + 미루기 | 요소 단위 반응은 넓은 화면이 필요하다 |
+| 복구 선택(`recovery`) | 답함 | 외출 중에도 멈춘 작업을 풀 수 있게 |
 
-화면 크기는 너비 360~430px 한 열, 누르는 영역 44×44pt 이상(05 §3.9). 키보드 단축키는 두지 않는다.
+화면 크기는 너비 360~430px 한 열, 누르는 영역 44×44pt 이상(05 §3.9). 키보드 단축키는 두지 않는다. 결과 확인 가능 여부는 데몬이 결과 뷰에 싣는 `mobileReviewable`과 이유 키로 정하고(04 §3.12, 26 §3.5.4), 앱이 산출물 크기를 세지 않는다.
 
 ## 4. 실패·예외·경계 사례
 
 | 사례 | 처리 [제안] |
 |---|---|
-| Goal이 없는 상태에서 앱을 처음 연다 | 홈 빈 상태(04 §3.1)에서 첫 Goal 초안 만들기를 안내한다. 에이전트가 사용자 발화로 Goal 초안을 만들고 사람이 고쳐 확정한다. 빈 양식을 먼저 내밀지 않는다(결정 18) |
-| Concern이 어느 Goal에도 연결되지 않았다 | 홈 트리의 "Goal 없음" 묶음에 둔다. A1에 따라 이 Concern에서는 write·send가 막힐 수 있으므로(10이 정함) 행에 "Goal 연결 필요"를 표시한다 |
+| Goal이 없는 상태에서 앱을 처음 연다 | 기본 경로는 "프로젝트 폴더 추가 → 에이전트가 폴더를 읽어 Goal 초안 → `SCR-GOAL` 초안 카드 [이 Goal로 시작] [고쳐서 시작] [나중에]"다(04 §3.1·§3.16·§3.22). 사용자가 먼저 말해도 같은 초안 카드로 모인다. 빈 양식을 먼저 내밀지 않는다(결정 18). [나중에]면 프로젝트는 자리표시 Goal("이름 없는 Goal", 08 `placeholder`)로 진행한다(01 FX-13) |
+| Concern이 실제 Goal에 연결되지 않았다(자리표시 Goal 아래) | 홈 트리의 "이름 없는 Goal" 묶음에 둔다. Goal 초안 카드로 가는 링크를 행에 보인다(01 FX-13). Goal이 `retired`이면 그 아래 합의는 거부되므로(`policy.goal_not_active`, [판정 J-130]) 접힌 Goal 아래 합의를 주의 항목으로 보인다(04 §3.16) |
 | Concern 트리가 깊고 넓다(과분해) | 홈 트리는 사람 행동이 필요한 경로만 펼친다. 하위 수가 상한(14의 다이얼)을 넘으면 "구조 정리 필요" 질문이 질문함에 들어온다. 화면 쪽 상한은 두지 않고 가상 스크롤로 그린다(21) |
-| 질문이 아주 많다 | 질문함은 우선순위(데몬 계산, 11 §3.5.4) 순서로 보인다. 목록은 가상 스크롤로 그린다(21: `ConcernTree`, `QuestionInbox`, `SCR-RECORD`). 홈에는 주의 예산 다이얼 값(기본 3)만큼 보이고 나머지는 접는다. 권리 게이트 질문은 개수와 관계없이 접지 않는다(canon-3 C3) |
+| 질문이 아주 많다 | 질문함은 우선순위(데몬 계산, 11 §3.5.4) 순서로 보인다. 목록은 가상 스크롤로 그린다(21: `ConcernTree`, `QuestionInbox`, `SCR-RECORD`). 홈에는 설정 `attention.maxVisibleDecisions`(기본 3, 14 `OrchestrationSettings`. 다이얼이 아니다) 개수만큼 펼치고 나머지는 접는다. 막는 권리 게이트가 먼저 놓이고, 접힌 질문 가운데 권리 게이트는 개수와 존재를 한 줄로 항상 보인다(01 §3.7, canon-3 C3, [판정 J-132]) |
 | 같은 객체가 여러 Concern에 걸친다(WorkUnit 하나가 여러 Concern에 영향) | 주 Concern 하나에 속해 보이고, 다른 Concern에는 "관련 작업"으로 링크만 보인다. 주 Concern은 08의 관계 정의를 따른다 |
 | 표시 번호가 다른 기기에서 다르게 보일 위험 | 번호는 데몬 투영이 매기므로 기기와 무관하게 같다(IA-07) |
+| 진행 중인 run이 많다 | 진행 중 서랍과 홈은 run을 평면 목록으로 보이지 않는다. Goal ▸ Concern ▸ WorkUnit으로 묶고 run은 WorkUnit 아래 한 줄이다(§3.4.1 `RGN-RUNS`) |
 | 사용자가 감사 깊이를 기본으로 보고 싶다 | 설정의 개발자 보기를 켜면 모든 카드에 ID와 이벤트 종류가 보인다. 기본은 꺼짐 |
 | 데몬이 꺼져 있다, 연결이 없다 | 셸은 마지막으로 받은 투영을 읽기 전용으로 보이고 배너와 상단 막대에 상태를 표시한다(04 §3.0.4). 사람 결정 동작은 막는다(05 §3.1.8) |
 | 화면 ID가 가리키는 기능이 TUI에 없다(`SCR-ONBOARD`, `SCR-TRAY`) | 표 §3.11.2에 "해당 없음"과 대체를 적었다. 사람 결정 행동은 아니므로 parity 원칙에 어긋나지 않는다 |
@@ -828,7 +835,7 @@ pi-tui 컴포넌트 이름은 `@earendil-works/pi-tui` 1.1.0(pi-src 커밋 `cdaf
 
 | 제공 | 받는 문서 |
 |---|---|
-| 화면 ID·이름 목록(§3.6), 영역 ID(§3.4), 오버레이 ID | 04, 05, 20, 21, 22, 23 |
+| 화면 ID·이름 목록(§3.6), 휴대폰 화면 ID(§3.12), 영역 ID(§3.4), 오버레이 ID | 04, 05, 20, 21, 22, 23, 26 |
 | 사용자 시점 객체 이름과 정의(§3.2.3) | 05(문구), 21(컴포넌트 이름), 25(용어집의 한국어 UI 열) |
 | 상태 라벨(§3.3) | 05, 21, 25, 08(정본 상태와의 대응 확인) |
 | 사람 행동 요청 종류(§3.2.4) | 11(질문 `kind`와 화면 묶음 대응), 19 |
@@ -838,38 +845,36 @@ pi-tui 컴포넌트 이름은 `@earendil-works/pi-tui` 1.1.0(pi-src 커밋 `cdaf
 
 ### 5.2 다른 문서에 요구하는 것
 
+2a단계 요구 가운데 각 문서가 반영한 것(09 이벤트 이름, 06 `@helm/ui-language`, 20 §2 휴대폰 문장, 12 표시 번호 범위)은 지웠다. 남은 요구와 4단계 판정에서 생긴 요구만 적는다.
+
 | 문서 | 요구 |
 |---|---|
-| 08 | (1) 반응 정정·철회의 레코드 방식(15 `reaction.amend`·`withdraw`가 만드는 레코드). (2) §3.3의 화면 라벨 대응 확인(`ConcernDisplayStatus`, pauseKind) |
-| 09 | 이 문서들이 쓰는 이벤트는 09 이름으로 바꿨다(`brief.acknowledged`, `brief.corrected`, `autonomous.seen`, `decision.confirmed`, `objection.filed`·`objection.resolved`, `question.delivered`·`question.seen`, `surprise.reported`, `view.opened`, `resumption_check.*`, `goal.revision_proposed`). 남은 요구 없음 |
-| 11 | 질문 `kind` 정본 목록과 §3.2.4 화면 종류 대응, "비확장 합의는 질문을 만들지 않는다"의 판정 규칙 |
-| 12 | (0) 표시 번호 범위를 Concern 안이 아니라 인스턴스 전체 종류별로(§3.2.6). 뷰에 품질 단계와 플래그 원본(§3.3.6). (1) 모든 투영에 기준 seq(19 `ViewResult.asOfSeq`), `generatedAt`, 신선도, 누락 범주. (2) 레코드 종류별 표시 번호(IA-07). (3) 화면별 뷰 모델(04 §3 각 절의 "표시 데이터") 생성 |
-| 14 | (1) 루프 라벨 "약속 실행"(C.commit), "확인·반영"(A.confirm)을 화면 이름으로 쓰는 것 확인(§3.3.7). (2) 사람 접점 종류와 질문 화면 종류의 대응(§3.2.4). (3) OPD+C 의무 id(14 §3.5.5)마다 화면 요소 대응은 2단계에서 이 문서 §3.1.3에 표로 더한다. (4) `maxVisibleDecisions` 3을 홈 주의 카드 수로 쓴다 |
-| 19 | 화면별 뷰(`view.get` 카탈로그, 19 §3.7.4)와 명령 의도의 메서드 이름(04 각 절과 05 §3의 "명령 의도"), 딥 링크 대상 ID를 그대로 쓸 수 있는 조회 메서드 |
-| 20 | §3.5.4 딥 링크 스킴 등록, §3.5.5 경로, §3.4.2 최소 창 크기, 검사 패널·서랍 전환 |
-| 21 | §3.6 화면 ID로 화면 → 컴포넌트 매핑(21 §3.11)의 임시 키를 바꾸기, §3.3 라벨을 배지 컴포넌트의 값으로 쓰기 |
-| 06 | 데스크톱과 TUI가 함께 쓰는 문구·라벨 목록 패키지(ADR 후보 A9). 브리프 §3.1 패키지 표에 없다 |
-| 25 | §3.2.3의 화면 이름을 용어집의 "한국어 UI" 열로 |
-| 01·02 | (1) 화면 키를 이 문서 ID로 바꿈(§3.7 대응표). (2) 자리표시 Goal 이름 "목표 미정"을 "이름 없는 Goal"로(IA-03). (3) Concern에 "완료"를 쓰지 않고 "반영 완료" 또는 "닫힘". (4) 멈춤 계열 문구를 05 §3.6.1(안전하게 멈추기 / 작업 중단 / 즉시 끊기)로. (5) 오프라인 "보내기 대기" 자동 전송(01 NFR-O-2, NFR-D-4)은 이 설계와 20이 막기로 정했다(04 A4). 2단계에서 01을 고칠지 정한다 |
-| 26 | §3.12 모바일 화면 범위(답하기 중심 부분집합, `SCR-M-*`)와 휴대폰에서 답하는 질문 형식 표를 26의 구현 방식·알림 경로와 맞춤. 다르게 정하면 이 절을 고친다 |
-| 20 | (1) §2 "휴대폰은 03 IA-Q5에 따라 범위 밖" 문장을 결정 42와 §3.12로 고침. (2) 딥 링크가 모바일에 없는 화면을 가리킬 때의 처리 공유 |
-| 21 | (1) 화면 키를 §3.6의 `SCR-*`(모바일은 `SCR-M-*`)로. (2) 반투명 표면의 대비 규칙(05 §3.9)을 토큰과 부품에 반영 |
+| 08 | §3.3 라벨 대응 확인(`ConcernDisplayStatus`, `pauseKind`, `QuestionStatus.delegated`, `EntryAssessment`). 진입 판정 레코드는 08 2판에 반영되었다 |
+| 11 | (1) 막지 않는 권리 게이트의 전달 규칙([판정 J-132])과 사실 탐구 뒤 `choice`의 권리 게이트·맡기기 허용([판정 J-131])을 §3.2.2 표와 §3.5에 적기. §3.2.4 표가 그 결과를 따른다. (2) 휴대폰 미루기 기본값은 `next_work_boundary`(§3.12 원칙 3) |
+| 12 | (1) 모든 투영에 기준 seq(19 `ViewResult.asOfSeq`), `generatedAt`, 신선도, 누락 범주. (2) 뷰에 품질 단계와 플래그 원본(§3.3.6). (3) 진행 중 서랍용 Goal ▸ Concern ▸ WorkUnit 묶음 데이터(§3.4.1) |
+| 14 | 14 2판에 반영되었다(루프 이름, `opdc:` 의무 ID, 08 `QuestionKind`, `maxVisibleDecisions` 설정과 막지 않는 권리 게이트 접기, `DialPrecedence`). 남은 요구 없음 |
+| 19 | 19 2판에 반영되었다(다이얼 범위 전역·Concern, `record.locate`, 자극 라운드 키 `inquiryId + roundNo`). 남은 요구 없음 |
+| 20 | §3.5.4 딥 링크 스킴 등록과 `helm://stimuli/<iqId>/<roundNo>`, §3.5.5 경로(`/dials?scope=user\|concern:<id>`), §3.4.2 최소 창 크기, 검사 패널·서랍 전환, 레일 MVP 여섯 항목 |
+| 21 | 21 2판에 반영되었다(화면 키, 진행 중 서랍 트리, 정한 것 배지 점, 지지 등급·작성자 표시). 남은 요구 없음 |
+| 25 | (1) §3.2.3의 화면 이름을 용어집의 "한국어 UI" 열로. (2) 상황 유형 화면 라벨을 25 M-13 (b)의 풀어 쓴 이름으로 바꿨다(§3.3.7). 용어집의 한국어 UI 열을 같게 |
+| 26 | §3.12를 26 2판(§3.5, §5.2 03 요구)에 맞췄다(`SCR-M-ONBOARD`, `choose_one` 답함, [판정 J-137] `compact`, [판정 J-139] `mobileReviewable`, 탭 줄임형, 정한 것 배지 점, 미루기 기본값). 남은 요구 없음 |
 | 16 | `SCR-METRICS`(§3.6, 04 §3.27) 데이터, `view.opened` 송신 다섯 화면(복귀 요약, 에이전트가 정한 것, 감사 깊이, 결과 확인, 질문 상세) |
 
 ## 6. 구현 단위와 완료 기준
 
-구현 위치는 20이 정하는 앱 구조를 따른다. 아래 파일 경로는 [제안]이다.
+구현 위치는 20이 정하는 앱 구조를 따른다. 아래 파일 경로는 [제안]이다. ID는 22 추적 색인의 `03/UT-nn`과 같다(행 순서, 새 행은 끝에 붙인다).
 
-| 단위 | 위치(후보) | 완료 기준(테스트로 확인할 조건) |
-|---|---|---|
-| 화면 ID·경로 표 | `apps/desktop/src/navigation/screens.ts` | 모든 `SCR-*` ID가 경로 하나에 대응한다. 경로 표에 없는 화면 ID를 참조하면 타입 오류가 난다 |
-| 최상위 내비게이션 | `apps/desktop/src/shell/Rail.tsx` | 일곱 항목이 §3.5.2 순서로 보인다. 복구 항목은 복구 투영의 항목 수가 0이면 보이지 않는다. 배지 수는 투영 값과 같다(앱이 세지 않는다) |
-| 셸 영역 | `apps/desktop/src/shell/` | 너비 1280, 1100, 900px에서 §3.4.2 배치가 된다(스크린샷 테스트). 760px 미만으로 줄어들지 않는다 |
-| 딥 링크 처리 | `apps/desktop/src/navigation/deeplink.ts` | §3.5.4의 모든 형식이 해당 화면을 연다. 없는 ID는 "찾을 수 없음" 상태를 보인다(04 §3.0.5) |
-| 상태 라벨 목록 | 공유 문구 패키지(ADR 후보 A9) | §3.3의 모든 정본 상태에 라벨이 있다. 같은 라벨이 두 상태 집합에 중복되지 않는다(테스트로 검사). "완료"는 `integrated`에만 쓰인다 |
-| 표시 번호 | 투영(12) + 화면 | 같은 이벤트 로그로 두 번 투영을 만들면 표시 번호가 같다(12의 테스트). 화면은 번호를 계산하지 않는다 |
-| TUI parity 표 | `packages/ui-language` 또는 TUI 저장소(이후) | 데스크톱의 모든 명령 의도가 TUI 명령 표에 하나 이상 대응한다(표를 데이터로 두고 검사) |
-| 세 깊이 | 21의 공통 prop | 반대 근거·이의·낡음 배지는 깊이 1에서도 렌더된다(컴포넌트 테스트) |
+| ID | 단위 | 위치(후보) | 완료 기준(테스트로 확인할 조건) |
+|---|---|---|---|
+| UT-01 | 화면 ID·경로 표 | `apps/desktop/src/navigation/screens.ts` | 모든 `SCR-*` ID가 경로 하나에 대응한다. 경로 표에 없는 화면 ID를 참조하면 타입 오류가 난다 |
+| UT-02 | 최상위 내비게이션 | `apps/desktop/src/shell/Rail.tsx` | MVP 여섯 항목(관찰 제안 기능이 켜지면 일곱)이 §3.5.2 순서로 보인다. 복구 항목은 복구 투영의 항목 수가 0이면 보이지 않는다. 배지 수는 투영 값과 같다(앱이 세지 않는다) |
+| UT-03 | 셸 영역 | `apps/desktop/src/shell/` | 너비 1280, 1100, 900px에서 §3.4.2 배치가 된다(스크린샷 테스트). 760px 미만으로 줄어들지 않는다 |
+| UT-04 | 딥 링크 처리 | `apps/desktop/src/navigation/deeplink.ts` | §3.5.4의 모든 형식이 해당 화면을 연다. 없는 ID는 "찾을 수 없음" 상태를 보인다(04 §3.0.5) |
+| UT-05 | 상태 라벨 목록 | 공유 문구 패키지(ADR 후보 A9) | §3.3의 모든 정본 상태에 라벨이 있다. 같은 화면에 함께 나오는 상태 집합끼리 같은 라벨이 없다(집합 묶음과 허용 목록을 데이터로 두고 검사, §3.3.1). "완료"는 `integrated`에만 쓰인다 |
+| UT-06 | 표시 번호 | 투영(12) + 화면 | 같은 이벤트 로그로 두 번 투영을 만들면 표시 번호가 같다(12의 테스트). 화면은 번호를 계산하지 않는다 |
+| UT-07 | TUI parity 표 | `packages/ui-language` 또는 TUI 저장소(이후) | 데스크톱의 모든 명령 의도가 TUI 명령 표에 하나 이상 대응한다(표를 데이터로 두고 검사) |
+| UT-08 | 세 깊이 | 21의 공통 prop | 반대 근거·이의·낡음 배지는 깊이 1에서도 렌더된다(컴포넌트 테스트) |
+| UT-09 | 휴대폰 화면 ID | 26 `apps/mobile` 경로 표 | §3.12의 모든 `SCR-M-*`가 26 §3.5.2 경로 하나에 대응한다. 휴대폰에서 `result_review`의 결과 확인 버튼은 산출물을 열기 전에는 비활성이다 |
 
 ## 7. 미결 사항
 
@@ -879,17 +884,17 @@ pi-tui 컴포넌트 이름은 `@earendil-works/pi-tui` 1.1.0(pi-src 커밋 `cdaf
 | IA-Q2 | "근거"를 최상위 내비게이션에 둘지 | 두지 않음(drill-down만) / 판단 목록 화면을 둠 | 두지 않음. 명령 팔레트 "판단 찾기"로 대신한다. 사용 중 판단을 찾느라 세 번 이상 이동하는 일이 반복되면(16의 관찰) 추가한다 |
 | IA-Q3 | 여러 Goal의 홈 표시 | 모든 Goal을 합친 홈 / Goal마다 홈 | 합친 홈 + Goal 거르기. 감사 보고 §2 요구를 따른다 |
 | IA-Q4 | `SCR-THREAD`(대화 탭)에 assistant-ui를 쓸지 | 쓴다(21 UI-D11) / 직접 만든다 | 21의 결정을 따른다. 정보 구조는 어느 쪽이든 같다 |
-| IA-Q5 | 휴대폰에서 할 수 있는 일의 범위 | 답하기 중심 부분집합 / 데스크톱과 같은 전체 | (결정 42로 해소) 답하기 중심 부분집합(§3.12). 구현 방식과 알림 경로는 26. 26이 나오면 §3.12의 질문 형식 표를 맞춘다 |
+| IA-Q5 | 휴대폰에서 할 수 있는 일의 범위 | 답하기 중심 부분집합 / 데스크톱과 같은 전체 | (결정 42·47로 해소) 답하기 중심 부분집합(§3.12). 26 §3.5.4와 같은 질문 형식 표 |
 | IA-Q6 | 진행 작업을 최상위 항목으로 둘지 | 두지 않음 / 둠 | 두지 않음. 진행 중 서랍과 홈 구역으로 충분하다. 동시 진행 작업이 늘 5개를 넘으면 다시 본다 |
 
 ## 8. 출처
 
-- 브리프: `docs/design/process/00-design-brief.md` 결정 1, 2, 5, 7, 8, 10~15, 17~19, 21, 22, 24~26, 32, 33, 37~39, §3.2, §3.3, §6.
+- 브리프: `docs/design/process/00-design-brief.md` 결정 1, 2, 5, 7, 8, 10~15, 17~19, 21, 22, 24~26, 32, 33, 37~39, 42, 44, 47~49, §3.2, §3.3, §5.2, §6. 조정자 판정: `process/rulings-stage2a.md` J-02~J-05, J-07, J-23, J-44, J-112~J-116, J-120, J-130~J-132, J-136, J-137, J-139, J-141, J-144, J-149.
 - v0.3: `docs/v0.3/09-client-opdc.md` 전체, `06-asking-and-interruption.md` §3·§4, `07-modes-and-capabilities.md` §3·§4·§6, `02-core-concepts.md` §2·§4·§8·§9, `03-loops-and-transitions.md` §2.1, `04-inquiry-types.md` §3.
 - 감사: `docs/v0.3/audit/audit-report.md` §1.1(TUI 메모), §2(여러 워크스페이스 홈), §5.4·§5.5(용어).
 - 원천: canon §4.3(F10 UX 4 질문), §8.9, §11.11, §12, §13.5, §17.2, §17.7, §18; canon-2 §3.4·§3.5·§3.10·§3.13·§3.15·§3.16, §4.5, §5.2, §8.6; canon-3 §6.2·§6.4·§6.5·§6.6·§6.9·§6.11·§6.18, §7.1 C3·C13, §7.2 G11·G12; 발췌4 4-37~4-39, 20-1~20-5; 발췌3 X3-2-19, Q7.
-- 대화 원문 L3546·L3548(Goal·Concern 재정의), L3552(OPD+C 공간), L3718–3725(화면 요소).
-- pi-tui: `docs/design/process/sources/pi-api-facts-2.md` §2.3~§2.6 [원문·실험], pi-src 커밋 `cdaf6c2` `tui/src/index.ts`, `tui/src/terminal.ts`, `tui/src/components/image.ts`.
+- 대화 원문 L298(세션 작업 통합 보고, 사용자), L312(Claude 정리), L3546·L3548(Goal·Concern 재정의), L3552(OPD+C 공간), L3718–3725(화면 요소).
+- pi-tui: `docs/design/process/sources/pi-api-facts-2.md` §2.3~§2.6 [원문·실험], pi 태그 `v1.1.0`([판정 44]). 행 번호는 참고 판 `cdaf6c2`의 `tui/src/index.ts`, `tui/src/terminal.ts`, `tui/src/components/image.ts`.
 
 ### 8.1 원천 체크리스트 반영표 (03 해당 항목)
 
@@ -902,7 +907,7 @@ pi-tui 컴포넌트 이름은 `@earendil-works/pi-tui` 1.1.0(pi-src 커밋 `cdaf
 | canon §21-03 객체 모델 = crosswalk + 엔티티 총목록 | §3.2.3. 팀·CollectiveActor·Reviewer 그룹은 결정 24로 넣지 않음 |
 | canon §21-03 B#10 상태 중심, F07 Experience Layer | §3.1 |
 | canon-2 §11-03 다섯 surface | §3.8 대응표 |
-| canon-2 §11-03 라벨 7종과 provider 금지 라벨 | §3.1.2 규칙 8, 05 §3.10.6 |
+| canon-2 §11-03 라벨 7종과 제공자 출력 금지 라벨 | §3.1.2 규칙 8, 05 §3.10.6 |
 | canon-2 §11-03 Brief 순서 6, 템플릿 필드 | 04 §3.2(`SCR-BRIEF`) |
 | canon-2 §11-03 상태 표시줄 | §3.4.1 `RGN-STATUSLINE` |
 | canon-2 §11-03 core 용어 → 제품 표시 | §3.2.3, §3.3 |
@@ -932,7 +937,7 @@ pi-tui 컴포넌트 이름은 `@earendil-works/pi-tui` 1.1.0(pi-src 커밋 `cdaf
 
 - 상태: 제안
 - 맥락: 원전에는 Decision Queue, Attention Queue, Delegation Board, Assurance View가 따로 있다. v0.3은 질문을 기록과 전달로 나누고 권리 게이트에 결과 확인과 Goal 변경을 넣었다.
-- 결정: 선택 요청, 정보 질문, 기준 후보 확정, 작업 합의 확정, 결과 확인, Goal 수정 확인, 복구 판단을 모두 질문 레코드로 기록하고 질문함에 모은다. 각 종류는 전용 화면(`SCR-AGREE`, `SCR-REVIEW` 등)을 연다.
+- 결정: 선택 요청, 정보 질문, 기준 후보 확정, 판단 확인, 작업 합의 확정, 결과 확인, Goal 수정 확인, 복구 선택을 모두 질문 레코드로 기록하고 질문함에 모은다. 각 종류는 전용 화면(`SCR-AGREE`, `SCR-REVIEW` 등)을 연다.
 - 근거: 주의 예산과 전달 방식(결정 12)을 한 곳에서 적용할 수 있다. 사람이 "어디를 봐야 하나"를 한 곳으로 줄인다.
 - 기각한 대안: 결과 확인 대기 목록과 질문함을 따로 둠(전달 규칙이 두 군데로 나뉨).
 - 결과: 11이 결과 확인과 합의 확정 요청을 질문 레코드로 다뤄야 한다. 질문 레코드 `kind`가 늘어난다.

@@ -1,7 +1,7 @@
 # 20. 데스크톱 앱 아키텍처
 
 - 작성: P13(데스크톱 앱), 2026-10-11. 1단계 초안
-- 상태: 2a단계 통합판(2026-10-12). 1단계 초안을 판정 `rulings-stage2a.md`와 결정 41~46(React 19, 모바일, Node 24 등)에 맞추고, 03·04·05·06·07·16·17·18·19·21의 2a 이전 판에서 20에 온 요구를 처리했다. 26(P15)은 아직 없어 §3.14는 26과 맞출 대상이다.
+- 상태: 4단계 보완판(2026-10-12). 기준 결정은 브리프 결정 1~51과 판정 `rulings-stage2a.md`(J-01~J-148)다. 03·04·05·06·07·09·11·16·17·18·19·21·26의 같은 시기 판과 맞췄다.
 - 소유: Tauri 구조(Rust 쪽과 웹뷰 쪽 책임, IPC, 권한), 연결 관리(프로필, SSH, 상태 기계), React 앱 구조(폴더, 라우팅, 상태 관리), 클라이언트 저장소와 동기화, 오프라인 표시, OS 통합(알림, 메뉴 막대·트레이, 배지, 단축키, 로그인 시 시작, 딥 링크, 키체인), UI 번들 방식, 빌드·배포, 앱 테스트.
 - 소유하지 않음: 화면 ID·경로 후보·딥 링크 형식(03), 화면 상세·문구(04·05), 컴포넌트·토큰·시각화(21), 프로토콜 메서드·이벤트·오류 코드(19), 위협 모델·토큰 발급·페어링 규칙(18), 데몬 수명주기·tailscale serve 설정(17), 투영 생성(12), 이벤트 카탈로그(09).
 
@@ -32,8 +32,8 @@
 
 ### 1.3 다루지 않는 것
 
-- 웹 클라이언트. 결정 19는 웹 클라이언트를 두지 않는다. 데몬이 같은 SPA를 브라우저에 서빙하는 방식도 두지 않는다(§3.11).
-- 모바일 클라이언트 자체. 결정 42로 범위에 들어왔으나 26(P15)이 정한다. 이 문서는 나눠 쓸 코드 경계만 정한다(§3.14).
+- 데스크톱용 웹 클라이언트. [결정 19]는 데스크톱에서 웹 클라이언트를 두지 않는다. 데몬은 데스크톱 SPA를 서빙하지 않는다(§3.11). 모바일 PWA(`/m/`)는 예외다([결정 47], 26).
+- 모바일 클라이언트 자체. [결정 42]로 범위에 들어왔고, 데몬이 서빙하는 PWA와 Web Push로 정해졌다([결정 47·48·49]). 설계는 26(P15)이 한다. 이 문서는 나눠 쓸 코드 경계만 정한다(§3.14).
 - TUI. 결정 33·39에 따라 `@helm/tui`가 따로 만든다. 다만 이 문서의 동기화 알고리즘(§3.9.6)은 전송과 화면에서 떨어진 순수 모듈로 두어 TUI가 재사용할 수 있게 한다.
 - 로컬 데몬. 앱은 데몬을 띄우거나 소유하지 않는다. Paseo(데스크톱이 데몬을 하위 프로세스로 띄움, S4 paseo.md §1)나 OpenClaw의 Local 모드(launchd로 Gateway 상주, S4 openclaw-gateway.md §3.2)와 다르다. 데몬은 WSL에만 있다(결정 20).
 - Helm 도메인 로직. 투영 계산, 상태 전이, 질문 전달 시점 판단, 알림 여부 판단은 앱에 두지 않는다(결정 32).
@@ -51,13 +51,13 @@
 | 뷰 | 데몬이 정본을 읽어 만든 화면 투영(19 §1.4). `view.get`으로 받는다 |
 | 뷰 키 | 뷰 응답의 `key`(예: `inbox`, `concern:cn_…`). 데몬이 정규화한 값이고 무효화 판정에 쓴다 |
 | 위치(position) | 이벤트 구독이 빠짐없이 받았다고 보장하는 `{storeId, seq}`(19 §1.4). 브리프 결정 31의 `lastSeq`가 이것이다 |
-| `storeId` | 데몬 이벤트 저장소의 정체. 저장소를 복원하거나 새로 만들면 바뀐다. 클라이언트는 이 값으로 seq가 되돌아갔을 수 있는 경우를 알아챈다 |
+| `storeId` | 데몬 이벤트 저장소의 정체. 저장소를 복원하거나 새로 만들면 바뀐다. 이 값이 바뀌면 seq가 되돌아갔을 수 있다. 클라이언트는 저장한 값과 비교한다 |
 | `asOfSeq` | 뷰 응답이 어느 seq까지 반영한 것인지 |
 | `basisSeq` | 사람이 결정할 때 화면이 보고 있던 뷰의 `asOfSeq`(21 UI-D02, 19 §3.7.2와 같은 이름) |
 | 멱등 키 | 명령 하나를 가리키는 클라이언트 생성 ID. 재전송해도 데몬이 한 번만 처리한다 |
 | 진행 중 명령함(in-flight outbox) | 보냈지만 응답을 받지 못한 명령의 목록. IndexedDB에 둔다 |
 
-표시 규칙은 브리프 §5.2를 따른다. `[결정 n]`은 브리프 §2의 결정 번호를 근거로 한 것, `[제안]`은 이 문서가 정한 것, `[가정]`은 확인되지 않은 전제다. 외부 사실에는 `[원문]`, `[실험]`, `[검색]`, `[지식]`을 붙인다. 원천 인용은 03·21과 같은 약칭을 쓴다: "canon §12.10"(`docs/design/process/sources/helm-canon.md`), "canon-2 §3.16", "canon-3 §6.10", "발췌4 20-11"(`conversation-extracts-4.md`), "facts-2 §6.1"(`pi-api-facts-2.md`), "S4 paseo §3"(`.helm-design-work/S4/paseo.md`).
+표시 규칙은 브리프 §5.2와 판정 J-144를 따른다. `[결정 n]`은 사용자가 정한 브리프 결정 번호에만 쓴다. 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`(브리프 결정 44~46) 또는 `[판정 J-nn]`으로 적는다. `[제안]`은 이 문서가 정한 것, `[가정]`은 확인되지 않은 전제다. 외부 사실에는 `[원문]`, `[실험]`, `[검색]`, `[지식]`을 붙인다. 원천 인용은 03·21과 같은 약칭을 쓴다: "canon §12.10"(`docs/design/process/sources/helm-canon.md`), "canon-2 §3.16", "canon-3 §6.10", "발췌4 20-11"(`conversation-extracts-4.md`), "facts-2 §6.1"(`pi-api-facts-2.md`), "S4 paseo §3"(`.helm-design-work/S4/paseo.md`).
 
 ## 2. 전제와 결정
 
@@ -68,14 +68,15 @@
 | 10 | 앱의 첫 화면은 상태다. 대화는 객체에 딸린 보조 수단이다(03 §3.1, 21 UP-1). 앱 구조도 투영(뷰) 여러 개를 캐시하고 갱신하는 형태로 짠다(§3.9). 대화 하나를 스트리밍하는 앱의 구조와 다르다 |
 | 12 | 질문을 언제 사람에게 알릴지는 데몬이 전달 방식(즉시·협상·중재·예약)으로 정한다. 앱은 데몬이 "전달한다"고 보낸 것만 OS 알림으로 띄운다(§3.10.1) |
 | 14 | 모델은 제안하고 커널이 상태를 바꾼다. 사람의 결정도 커널 명령으로 간다. 앱은 낙관적 도메인 갱신을 하지 않는다(§3.9.7, 21 UI-D03) |
-| 19 | 클라이언트는 데스크톱 앱이 먼저다. 웹 클라이언트는 만들지 않는다 |
+| 19 | 클라이언트는 데스크톱 앱이 먼저다. 데스크톱용 웹 클라이언트는 만들지 않는다. 휴대폰 PWA는 결정 47의 예외다 |
 | 20, 22 | 데몬은 제품 소유자의 WSL2 서버에 상주하고 앱이 없어도 작업이 계속된다. 앱은 데몬을 띄우지 않는다 |
 | 21, 26 | 외부에서 접속한다. 기본 경로는 Windows 호스트의 `tailscale serve`가 노출한 HTTPS/WSS다. 데몬은 WSL 안 `127.0.0.1`에만 바인딩한다. 인증은 Tailscale 신원 헤더와 기기별 bearer 토큰이다 |
 | 24 | macOS와 Windows를 지원한다. Apple 공증·서명 배포는 범위 밖이다 |
 | 31 | JSON-RPC 2.0 over WebSocket. 이벤트에는 단조 증가 seq가 붙고 재접속 때 `lastSeq`부터 다시 받는다. 큰 데이터는 HTTP로 받는다 |
 | 32, 41 | Tauri v2 + React + TypeScript + Vite. 앱에는 Helm 로직이 없다. React는 결정 41로 19를 쓴다(결정 32의 18을 대체). CSR만 쓴다(서버 컴포넌트·SSR 없음). UI 부품은 Helm이 직접 만든다(21) |
-| 42 | 휴대폰에서도 질문에 답한다. 모바일 클라이언트는 26(P15)이 정하고, 이 문서는 데스크톱과 나눠 쓸 코드 경계를 정한다(§3.14) |
-| 44 | Node 24 LTS, TypeScript 6.0(결정 36 대체) |
+| 42, 47~49 | 휴대폰에서도 질문에 답한다. 모바일은 데몬이 서빙하는 PWA(`/m/`)이고 알림은 Web Push(VAPID), 휴대폰 알림은 `interrupt`·`notice`까지, 최소 판은 iOS 26이다. 설계는 26(P15)이 하고, 이 문서는 데스크톱과 나눠 쓸 코드 경계를 정한다(§3.14) |
+| 50 | shadcn/ui 소스를 복사해 고쳐 쓰는 것은 부품 직접 제작에 포함된다. 부품은 21(`@helm/ui`)이 정한다 |
+| 판정 44 | Node 24 LTS, TypeScript 6.0(결정 36 대체, 조정자 판정) |
 | 36 | TypeScript strict, ESM, pnpm workspace, Vitest, TypeBox. Node는 06이 24 LTS로 바꿨다(06 §3.12, ADR-06-07). 앱의 개발 도구(Vitest 5, jsdom 30, MSW 3)도 Node 24에서 돈다 |
 | 37 | UI 문구는 한국어다. 앱이 직접 만드는 문구(연결 오류, OS 알림 제목, 트레이 메뉴)도 한국어로 쓰고 05의 지침을 따른다 |
 | 38 | 데스크톱 앱도 SSH로 데몬에 붙을 수 있어야 한다. 두 경로에서 프로토콜 메시지와 재전송 의미가 같아야 한다. 구체 방식과 인증은 P11·P12·P13이 정하고 ADR로 남긴다 → 이 문서의 선택은 §3.8.2, ADR 후보 ADR-20-02·03 |
@@ -104,7 +105,7 @@
 | APP-D03 | SSH 경로는 시스템 OpenSSH 클라이언트를 `ssh -W 127.0.0.1:<데몬 포트>`로 실행하고, 그 표준 입출력 위에서 WebSocket 핸드셰이크를 한다. Rust SSH 라이브러리를 쓰지 않는다 | [제안], 결정 38. 19 P-02와 같은 선택 | §3.8.2 |
 | APP-D04 | SSH 경로에서도 기기 토큰을 보낸다. SSH 키는 전송 인증이고 Helm 기기 인증을 대신하지 않는다 | [제안], 18과 맞출 것 | §3.8.7 |
 | APP-D05 | 연결 프로필은 서버 하나에 경로 여러 개를 둔다. 경로는 순서대로 시도하고 네트워크 계열 실패에만 다음 경로로 넘어간다. 연결된 동안에는 경로를 바꾸지 않는다 | [제안] | §3.8.10 |
-| APP-D06 | UI는 앱에 묶어 배포한다. 데몬이 UI를 서빙하지 않는다 | [제안] | §3.11 |
+| APP-D06 | 데스크톱 UI는 앱에 묶어 배포한다. 데몬은 데스크톱 SPA를 서빙하지 않는다. 모바일 PWA `/m/`은 예외다([결정 47]) | [제안] | §3.11 |
 | APP-D07 | 서버 상태는 TanStack Query, UI 상태는 Zustand. 연결 상태 기계와 백오프는 19 코어(`@helm/client`)가 갖고, 앱은 경로 선택기와 사용자용 상태 계산(순수 함수)만 둔다 | [제안], 2a단계 수정 | §3.8.8, §3.9.3 |
 | APP-D16 | 플랫폼과 무관한 React 연결 코드(`useView`, `useCommand`, 저장소, 사용자용 상태, 알림 규칙)는 `@helm/client-react`에 두어 모바일 클라이언트와 나눠 쓴다 | [제안], 결정 42 | §3.14 |
 | APP-D08 | 재접속은 저장한 위치(`{storeId, seq}`)부터 재개하고, 데몬이 범위 밖이라고 하면(`2001 replay.outOfRange`: 저장소가 바뀜, 보존 범위 밖, 밀린 이벤트가 너무 많음) 뷰를 낡음으로 표시하거나 버리고 `head`부터 구독한 뒤 다시 받는다. 위치와 낡음 표시는 한 IndexedDB 트랜잭션에 기록한다 | [제안], 결정 31, 19 §3.5.5 | §3.9.6 |
@@ -204,8 +205,8 @@ export type AppErrorCode =
   | 'credential_missing'   // 키체인에 기기 토큰 없음
   | 'keychain_unavailable' // 키체인 접근 실패(잠김, 서비스 없음)
   | 'keychain_denied'      // 사용자가 키체인 접근을 거부
-  | 'pairing_rejected'     // 코드 틀림·폐기
-  | 'pairing_expired'
+  | 'pairing_failed'       // 코드가 틀렸거나 만료·사용·소진됨. 사유를 나누지 않는다(판정 J-81, 19 1009, 18 §3.7.4)
+  | 'user_cancelled'       // 네이티브 확인 창에서 사용자가 취소(§3.6.3)
   | 'ssh_missing'          // ssh 실행 파일 없음
   | 'ssh_failed'           // ssh 실행 실패(세부는 detail)
   | 'network'
@@ -232,7 +233,7 @@ export interface SshRoute {
   daemonPort: number;         // 서버 쪽 `loopback` 리스너 포트(17 D17-09 기본 7841, 19 HELM_LOOPBACK_PORT)
   hostKeyPolicy: 'strict' | 'openssh'; // §3.8.3
   sshPath?: string;           // 없으면 자동 탐색
-  helmCliPath?: string;       // SSH 페어링 때 실행할 helm CLI 경로. 기본 'helm'
+  helmCliPath?: string;       // SSH 페어링 때 실행할 helm CLI 경로. 기본 '~/.local/bin/helm'(17 §3.15). ^~?/[A-Za-z0-9/._-]+$ 또는 'helm'
   enabled: boolean;
 }
 
@@ -281,7 +282,8 @@ export type TransportEvent =
   | { type: 'text'; data: string }                       // JSON-RPC 메시지 하나
   | { type: 'closed'; reason: TransportCloseReason; detail?: string; httpStatus?: number; wsCode?: number };
 
-export interface BlobRef { blobId: string; sha256?: string; size: number; mime: string; url: string } // url = helm-blob URL. 필드는 19 §3.11 BlobRef에 맞춘다
+// 19 §3.11 BlobRef(@helm/protocol)를 그대로 쓰고 앱은 url만 더한다
+export type AppBlobRef = BlobRef & { url: string };   // url = helm-blob URL(§3.8.6)
 
 export interface TraySummary {
   connection: 'live' | 'connecting' | 'offline' | 'blocked';
@@ -292,6 +294,10 @@ export interface TraySummary {
   running: Array<{ label: string; route: string }>;  // 최대 5. label 예: "Concern 12 · 본문 1절 초안 쓰는 중"(04 §3.24). 19 `tray` 뷰 값 그대로
   runningMore: number;        // "외 n개"
 }
+
+export interface TransportOpened { transportId: string }
+export interface DiagBundle { path: string }
+export interface DeviceSignature { signature: string }   // base64url
 
 export interface AppInfo {
   appVersion: string; buildId: string; platform: 'macos' | 'windows'; arch: string;
@@ -306,18 +312,18 @@ export interface AppInfo {
 | 명령 | TypeScript | Rust 시그니처 | 비고 |
 |---|---|---|---|
 | `profiles_list` | `profilesList(): Promise<ServerProfile[]>` | `async fn profiles_list(state: State<'_, AppState>) -> Result<Vec<ServerProfile>, AppError>` | |
-| `profile_upsert` | `profileUpsert(input: ServerProfileInput): Promise<ServerProfile>` | `async fn profile_upsert(state: State<'_, AppState>, input: ServerProfileInput) -> Result<ServerProfile, AppError>` | §3.8.1 검증. 경로를 지우면 그 경로의 열린 전송을 닫는다 |
-| `profile_delete` | `profileDelete(profileId: string): Promise<void>` | `async fn profile_delete(state, profile_id: String) -> Result<(), AppError>` | 키체인 토큰과 blob 캐시도 지운다. IndexedDB 정리는 TS가 한다 |
+| `profile_upsert` | `profileUpsert(input: ServerProfileInput): Promise<ServerProfile>` | `async fn profile_upsert(state: State<'_, AppState>, input: ServerProfileInput) -> Result<ServerProfile, AppError>` | §3.8.1 검증. 경로를 더하거나 주소(`baseUrl`, `target`, `port`, `daemonPort`)를 바꾸면 Rust 네이티브 확인 창을 띄운다(§3.6.3). 취소면 `user_cancelled`. 경로를 지우면 그 경로의 열린 전송을 닫는다 |
+| `profile_delete` | `profileDelete(profileId: string): Promise<void>` | `async fn profile_delete(state, profile_id: String) -> Result<(), AppError>` | Rust 네이티브 확인 창. 키체인 토큰과 blob 캐시도 지운다. IndexedDB 정리는 TS가 한다 |
 | `credential_status` | `credentialStatus(profileId: string): Promise<CredentialStatus>` | `async fn credential_status(state, profile_id: String) -> Result<CredentialStatus, AppError>` | 토큰 값은 돌려주지 않는다 |
-| `credential_forget` | `credentialForget(profileId: string): Promise<void>` | `async fn credential_forget(state, profile_id: String) -> Result<(), AppError>` | 이 기기에서만 지운다. 데몬 쪽 폐기는 19 메서드 |
-| `pairing_with_code` | `pairingWithCode(a: { profileId: string; routeId: string; code: string; deviceName: string }): Promise<PairingResult>` | `async fn pairing_with_code(state, profile_id: String, route_id: String, code: String, device_name: String) -> Result<PairingResult, AppError>` | WSS 경로 전용. §3.8.7 |
-| `pairing_via_ssh` | `pairingViaSsh(a: { profileId: string; routeId: string; deviceName: string }): Promise<PairingResult>` | `async fn pairing_via_ssh(state, profile_id: String, route_id: String, device_name: String) -> Result<PairingResult, AppError>` | SSH 경로 전용. §3.8.7 |
-| `route_check` | `routeCheck(a: { profileId: string; route: Route }): Promise<RouteCheckResult>` | `async fn route_check(state, profile_id: String, route: Route) -> Result<RouteCheckResult, AppError>` | `SCR-CONNECT` 연결 점검 1~3단계(04 §3.19): ① 이름 찾기(WSS: DNS, SSH: `ssh -G <target>`로 실제 호스트·포트·사용자), ② 서버 경로(WSS: TCP+TLS, SSH: `-W` 연결), ③ `GET /healthz`(19 §3.2.5, 응답의 `protocols`). 4단계(인증)와 5단계(버전)는 TS가 임시 세션으로 `hello`까지 해 본다. 저장하지 않은 경로도 점검할 수 있다. `RouteCheckResult = { steps: Array<{ step: 'resolve' \| 'path' \| 'health'; ok: boolean; reason?: TransportCloseReason; detail?: string; ms: number }>; resolved?: { hostname: string; port: number; user?: string }; protocols?: number[]; sshVersion?: string }` |
-| `transport_open` | `transportOpen(a: { profileId: string; routeId: string; routeOverride?: Route; onEvent: Channel<TransportEvent> }): Promise<{ transportId: string }>` | `async fn transport_open(app: AppHandle, state, profile_id: String, route_id: String, route_override: Option<Route>, on_event: Channel<TransportEvent>) -> Result<TransportOpened, AppError>` | 바로 돌아오고 결과는 채널로 온다. 한 프로필에 열린 연결용 전송은 하나만 둔다(새로 열면 이전 것을 `local_close`로 닫는다). 연결 점검용으로 `routeOverride?: Route`를 넘기면 저장하지 않은 경로로 별도 전송을 연다(점검이 끝나면 닫는다) |
+| `credential_forget` | `credentialForget(profileId: string): Promise<void>` | `async fn credential_forget(state, profile_id: String) -> Result<(), AppError>` | Rust 네이티브 확인 창. 이 기기에서만 지운다. 데몬 쪽 폐기는 19 메서드 |
+| `pairing_with_code` | `pairingWithCode(a: { profileId: string; routeId: string; code: string; deviceName: string }): Promise<PairingResult>` | `async fn pairing_with_code(state, profile_id: String, route_id: String, code: String, device_name: String) -> Result<PairingResult, AppError>` | WSS 경로 전용. 저장된 경로에만. 보내기 전에 Rust 네이티브 확인 창(§3.6.3). §3.8.7 |
+| `pairing_via_ssh` | `pairingViaSsh(a: { profileId: string; routeId: string; deviceName: string }): Promise<PairingResult>` | `async fn pairing_via_ssh(state, profile_id: String, route_id: String, device_name: String) -> Result<PairingResult, AppError>` | SSH 경로 전용. 저장된 경로에만. Rust 네이티브 확인 창. §3.8.7 |
+| `route_check` | `routeCheck(a: { profileId: string; route: Route }): Promise<RouteCheckResult>` | `async fn route_check(state, profile_id: String, route: Route) -> Result<RouteCheckResult, AppError>` | `SCR-CONNECT` 연결 점검 1~3단계(04 §3.19): ① 이름 찾기(WSS: DNS, SSH: `ssh -G <target>`로 실제 호스트·포트·사용자), ② 서버 경로(WSS: TCP+TLS, SSH: `-W` 연결), ③ `GET /healthz`(19 §3.2.5, 응답의 `protocols`). 4단계(인증)와 5단계(버전)는 저장된 경로에서만 한다: TS가 그 경로로 연결용 전송을 열어 `hello`까지 해 본다. 저장하지 않은 경로는 ③ `/healthz`까지만 점검하고 기기 토큰을 보내지 않는다. `RouteCheckResult = { steps: Array<{ step: 'resolve' \| 'path' \| 'health'; ok: boolean; reason?: TransportCloseReason; detail?: string; ms: number }>; resolved?: { hostname: string; port: number; user?: string }; protocols?: number[]; sshVersion?: string }` |
+| `transport_open` | `transportOpen(a: { profileId: string; routeId: string; onEvent: Channel<TransportEvent> }): Promise<TransportOpened>` | `async fn transport_open(app: AppHandle, state, profile_id: String, route_id: String, on_event: Channel<TransportEvent>) -> Result<TransportOpened, AppError>` | 바로 돌아오고 결과는 채널로 온다. 한 프로필에 열린 연결용 전송은 하나만 둔다(새로 열면 이전 것을 `local_close`로 닫는다). 주소는 Rust가 `profiles.json`에 저장된 경로에서 읽는다. 웹뷰가 주소를 넘기는 인자는 없다(§3.6.3) |
 | `transport_send` | `transportSend(a: { transportId: string; text: string }): Promise<void>` | `async fn transport_send(state, transport_id: String, text: String) -> Result<(), AppError>` | 열려 있지 않으면 `not_found`. 송신 대기가 4 MiB를 넘으면 전송을 닫는다(`protocol_violation`) |
 | `transport_close` | `transportClose(a: { transportId: string; code?: 1000 \| 4000 }): Promise<void>` | `async fn transport_close(state, transport_id: String, code: Option<u16>) -> Result<(), AppError>` | 기본 1000. tick 감시 시간 초과는 4000(19 §3.2.6). 이미 닫혔으면 아무것도 하지 않는다 |
-| `blob_upload` | `blobUpload(a: { profileId: string; mime: string; fileName?: string; limits: UploadLimits }, body: ArrayBuffer): Promise<BlobRef>` | `async fn blob_upload(state, request: tauri::ipc::Request<'_>) -> Result<BlobRef, AppError>` | 본문은 원시 바이트로 넘긴다. 머리 정보는 요청 헤더 `x-helm-profile`, `x-helm-mime`, `x-helm-filename`, `x-helm-limits`(JSON). `UploadLimits = { singleUploadMaxBytes; uploadChunkBytes; maxBlobBytes }`(hello 응답의 `policy.files`, 19 §3.4.4) |
-| `blob_upload_path` | `blobUploadPath(a: { profileId: string; path: string; limits: UploadLimits }): Promise<BlobRef>` | `async fn blob_upload_path(state, profile_id: String, path: String, limits: UploadLimits) -> Result<BlobRef, AppError>` | 대화 상자 플러그인이 돌려준 경로만 받는다(§3.6.3) |
+| `blob_upload` | `blobUpload(a: { profileId: string; mime: string; fileName?: string; limits: UploadLimits }, body: ArrayBuffer): Promise<AppBlobRef>` | `async fn blob_upload(state, request: tauri::ipc::Request<'_>) -> Result<AppBlobRef, AppError>` | 본문은 원시 바이트로 넘긴다. 머리 정보는 요청 헤더 `x-helm-profile`, `x-helm-mime`, `x-helm-filename`, `x-helm-limits`(JSON). `UploadLimits = { singleUploadMaxBytes; uploadChunkBytes; maxBlobBytes }`(hello 응답의 `policy.files`, 19 §3.4.4) |
+| `blob_upload_path` | `blobUploadPath(a: { profileId: string; path: string; limits: UploadLimits }): Promise<AppBlobRef>` | `async fn blob_upload_path(state, profile_id: String, path: String, limits: UploadLimits) -> Result<AppBlobRef, AppError>` | 대화 상자 플러그인이 돌려준 경로만 받는다(§3.6.3) |
 | `blob_cache_clear` | `blobCacheClear(profileId?: string): Promise<void>` | `async fn blob_cache_clear(state, profile_id: Option<String>) -> Result<(), AppError>` | |
 | `tray_update` | `trayUpdate(s: TraySummary): Promise<void>` | `async fn tray_update(app: AppHandle, summary: TraySummary) -> Result<(), AppError>` | 메뉴와 아이콘 상태만 바꾼다 |
 | `badge_set` | `badgeSet(count: number \| null): Promise<void>` | `async fn badge_set(app: AppHandle, count: Option<u32>) -> Result<(), AppError>` | §3.10.3 |
@@ -325,14 +331,14 @@ export interface AppInfo {
 | `appearance_get` | `appearanceGet(): Promise<Appearance>` | `async fn appearance_get(app: AppHandle) -> Result<Appearance, AppError>` | `Appearance = { reduceTransparency: boolean \| null; windowEffect: 'on' \| 'off'; effect: 'sidebar' \| 'liquidGlassRegular' \| 'mica' \| 'none'; osVersion: string }`. `reduceTransparency`는 macOS만 값이 있고 Windows는 `null`(웹뷰 미디어 쿼리를 쓴다, §3.10.8) |
 | `window_effect_set` | `windowEffectSet(a: { mode: 'system' \| 'on' \| 'off'; macGlass: 'sidebar' \| 'liquidGlassRegular' }): Promise<Appearance>` | `async fn window_effect_set(app: AppHandle, mode: String, mac_glass: String) -> Result<Appearance, AppError>` | 설정이 바뀌거나 투명도 줄이기가 바뀔 때 창 효과를 다시 적용한다 |
 | `app_info` | `appInfo(): Promise<AppInfo>` | `async fn app_info(state) -> Result<AppInfo, AppError>` | |
-| `diag_bundle` | `diagBundle(): Promise<{ path: string }>` | `async fn diag_bundle(app: AppHandle) -> Result<DiagBundle, AppError>` | 로그와 앱 정보를 zip으로 묶어 다운로드 폴더에 둔다. 토큰과 IndexedDB 내용은 넣지 않는다 |
+| `diag_bundle` | `diagBundle(): Promise<DiagBundle>` | `async fn diag_bundle(app: AppHandle) -> Result<DiagBundle, AppError>` | 로그와 앱 정보를 zip으로 묶어 다운로드 폴더에 둔다. 토큰과 IndexedDB 내용은 넣지 않는다 |
 | `credential_rotate` (조건부) | `credentialRotate(profileId: string): Promise<void>` | `async fn credential_rotate(state, profile_id: String) -> Result<(), AppError>` | 18·19가 HTTP 교체 경로를 두면 넣는다(§3.8.7). 1차에는 등록하지 않는다 |
 | `device_sign_challenge` (조건부) | `deviceSignChallenge(a: { profileId: string; serverId: string; nonce: string; signedAt: string }): Promise<{ signature: string }>` | `async fn device_sign_challenge(state, profile_id: String, server_id: String, nonce: String, signed_at: String) -> Result<DeviceSignature, AppError>` | 19 `hello.challenge.proofRequired`를 18이 켜면 넣는다. 서명 대상 문자열은 19 §3.4.3 |
 
 Rust 쪽 공통 규칙:
 
 - 모든 명령은 `async`이고 `Result<T, AppError>`를 돌려준다. `AppError`는 `#[derive(Serialize)] #[serde(rename_all = "camelCase")] struct AppError { code: AppErrorCode, message: String, detail: Option<String> }`이다. `message`는 한국어 문구가 아니라 개발자용 영어 한 줄이고, 화면 문구는 TS가 `code`로 고른다(결정 37, 05).
-- 인자 구조체는 `#[serde(rename_all = "camelCase", deny_unknown_fields)]`로 받는다.
+- 인자 구조체는 `#[serde(rename_all = "camelCase", deny_unknown_fields)]`로 받는다. 반환 구조체(`TransportOpened`, `DiagBundle`, `DeviceSignature`, `PairingResult`, `CredentialStatus`, `AppBlobRef` 등)는 `#[derive(Serialize)] #[serde(rename_all = "camelCase")]`로 §3.4.1의 TS 타입과 같은 이름을 낸다. `AppBlobRef`는 19 `BlobRef`의 필드(`blobId`, `hash`, `bytes`, `mediaType`, `preview`, `name`, `image`)에 `url`을 더한 것이다.
 - `detail`에는 ssh stderr 마지막 4 KiB까지 넣을 수 있다. 토큰, 페어링 코드는 넣지 않는다.
 
 ### 3.5 Rust → 웹뷰 이벤트 [제안]
@@ -400,17 +406,18 @@ fn main() {
     "global-shortcut:allow-register", "global-shortcut:allow-unregister", "global-shortcut:allow-is-registered",
     "autostart:allow-enable", "autostart:allow-disable", "autostart:allow-is-enabled",
     "deep-link:allow-get-current",
-    "store:default",
+    "store:allow-get-store", "store:allow-get", "store:allow-set", "store:allow-entries", "store:allow-save",
     "window-state:allow-save-window-state", "window-state:allow-restore-state",
     "core:webview:allow-set-webview-zoom",
     "dialog:allow-open",
     "clipboard-manager:allow-write-text",
     { "identifier": "opener:allow-open-url", "allow": [{ "url": "https://*" }] },
-    "log:default"
+    "log:allow-log"
   ]
 }
 ```
 
+- 저장소 플러그인은 `store:default`(모든 명령)를 주지 않는다. `allow-load`가 있으면 웹뷰가 임의 경로의 저장 파일을 열 수 있다. 플러그인은 경로를 `app.path().resolve(path, BaseDirectory::AppData)`로 풀고, 절대 경로를 막지 않는다 [원문: plugins-workspace v2 `plugins/store/src/store.rs` 40~45행 `resolve_store_path`, `plugins/store/permissions/default.toml`]. 그래서 Rust가 시작할 때 `settings.json` 하나만 열어 두고, 웹뷰는 이미 열린 저장소를 `getStore`로 받아 읽고 쓰기만 한다. 로그 플러그인은 `log:allow-log`만 준다(플러그인의 `default`와 같다 [원문: `plugins/log/permissions/default.toml`]).
 - 넣지 않는 권한: `shell`(프로세스 실행은 Rust 내부만), `fs`(파일 읽기는 `blob_upload_path`가 대화 상자 결과만 받는다), `http`(데몬 통신은 Rust 전송), `websocket` 플러그인, `process`, `updater`(APP-D14).
 - `core:window:allow-set-badge-count`, `allow-set-overlay-icon`은 `core:window:default`에 없어 따로 적는다 [원문: tauri 2.12.3 `packages/api/src/window.ts`와 권한 목록, 보조 에이전트 확인].
 - 권한 이름은 `pnpm tauri build`가 만드는 `gen/schemas/desktop-schema.json`으로 검사한다. 목록에 없는 이름이 있으면 빌드가 실패한다 [지식].
@@ -446,15 +453,17 @@ fn main() {
 - `withGlobalTauri: false`. `@tauri-apps/api`는 ES 모듈로 가져온다.
 - Vite `envPrefix`는 `['VITE_', 'TAURI_ENV_']`만 쓴다. `TAURI_`를 통째로 넣으면 서명 키 같은 빌드 환경 변수가 번들에 들어갈 수 있다 [검색: CVE-2023-46115 설명].
 - Tauri 버전 하한은 2.11.6이다. 2.11.1(원격 페이지의 로컬 IPC 호출, CVE-2026-42184)과 2.11.6(fetch 명령 접근 제어)의 보안 수정이 들어간 판이다 [검색: github.com/tauri-apps/tauri/security/advisories].
-- isolation 패턴은 1차에 쓰지 않는다. 원격 콘텐츠와 서드파티 스크립트가 없고 IPC 명령이 19개로 작아서, 모든 IPC를 iframe에서 다시 검사하는 비용(Windows에서 ES 모듈 제약)에 비해 얻는 것이 적다 [검색: v2.tauri.app/concept/inter-process-communication/isolation]. 데몬이 보낸 텍스트(모델 출력, 도구 출력)는 신뢰하지 않는 입력이므로 21에 "마크다운 렌더러는 원시 HTML을 끄고 링크 스킴을 `https`, `helm`으로 제한한다"를 요구한다(§5.2).
+- isolation 패턴은 1차에 쓰지 않는다. 원격 콘텐츠는 없지만, 번들에 들어가는 npm UI 의존(React, Radix, assistant-ui 등)은 서드파티 스크립트이고 앱 IPC 명령은 21개다. isolation은 모든 IPC를 iframe에서 다시 검사하는데, Windows에서 ES 모듈 제약이 있고 검사 규칙을 따로 짜야 한다 [검색: v2.tauri.app/concept/inter-process-communication/isolation]. 그 대신 웹뷰가 오염됐을 때 피해가 큰 명령(경로 추가·주소 변경, `pairing_*`, `credential_forget`, `profile_delete`)은 Rust가 띄우는 네이티브 확인 창을 거치게 한다(§3.6.3). 웹뷰 코드는 이 창을 건너뛸 수 없다. 의존 오염은 §3.12.2의 공급망 규칙으로 줄인다. 데몬이 보낸 텍스트(모델 출력, 도구 출력)는 신뢰하지 않는 입력이다. 마크다운 렌더러는 원시 HTML을 끄고 링크 스킴을 `https`, `helm`으로 제한한다(21 E21).
 
 #### 3.6.3 그 밖의 보안 규칙
 
 | 규칙 | 이유 |
 |---|---|
-| 기기 토큰은 Rust의 `secrets.rs`만 읽는다. IPC 응답, 로그, `detail`, 진단 묶음에 넣지 않는다 | 웹뷰 XSS가 있어도 토큰을 빼낼 수 없게 한다 |
+| 기기 토큰은 Rust의 `secrets.rs`만 읽는다. IPC 응답, 로그, `detail`, 진단 묶음에 넣지 않는다 | 웹뷰 XSS가 있어도 토큰 값을 읽을 수 없게 한다 |
+| 토큰은 그 프로필의 `profiles.json`에 저장된 경로의 호스트·포트로만 보낸다. Rust가 보낼 주소를 저장된 경로에서 읽고, 웹뷰 인자로 받은 주소에는 토큰을 붙이지 않는다. 저장하지 않은 경로의 점검은 `/healthz`까지다 | 웹뷰가 임의 주소를 주어 토큰을 다른 서버로 보내게 하는 길을 막는다. `serverId` 확인은 토큰을 보낸 뒤라 이 막음을 대신하지 못한다 |
+| 경로 추가·주소 변경(`profile_upsert`), `pairing_with_code`, `pairing_via_ssh`, `credential_forget`, `profile_delete`는 Rust가 `tauri-plugin-dialog`의 Rust API로 네이티브 확인 창을 띄운 뒤에만 실행한다. 창에는 실제 주소(호스트·포트, SSH 대상)를 보인다. 주소가 `*.ts.net`, `127.0.0.1`, `localhost`가 아니면 "Tailscale 밖 주소입니다. 이 주소의 서버에 기기 토큰을 보냅니다"를 더한다 | isolation 패턴을 대신하는 사람 확인(§3.6.2). 피싱 딥 링크로 들어온 주소도 이 창을 거친다 |
 | `blob_upload_path`는 직전 `dialog.open` 결과로 받은 경로만 받는다. Rust가 최근 대화 상자 결과 경로를 1분 동안 기억하고 대조한다 | 웹뷰가 임의 파일을 읽어 올리는 길을 막는다 |
-| SSH 인자에 들어가는 값(`target`, `identityFile`, `sshPath`, `helmCliPath`)은 Rust가 검증한다: 공백·제어 문자 금지, `-`로 시작 금지, `identityFile`·`sshPath`는 절대 경로 | 인자 주입(`-oProxyCommand=…`)을 막는다(S4 paseo: `packages/protocol/src/ssh-transport.ts:17-24`와 같은 검사) |
+| SSH 인자에 들어가는 값(`target`, `identityFile`, `sshPath`, `helmCliPath`)은 Rust가 검증한다: 공백·제어 문자 금지, `-`로 시작 금지, `identityFile`·`sshPath`는 절대 경로, `helmCliPath`는 §3.8.1의 정규식. SSH 발급의 원격 명령 인자는 Rust가 하나씩 POSIX 작은따옴표로 감싸고(`'` → `'\''`), 기기 이름·플랫폼은 원격 명령줄에 넣지 않고 표준 입력 JSON으로 보낸다(§3.8.7) | 인자 주입(`-oProxyCommand=…`)을 막는다(S4 paseo: `packages/protocol/src/ssh-transport.ts:17-24`와 같은 검사) |
 | 외부 링크는 `opener`로 `https`만 연다. 열기 전에 주소를 보이고 확인을 받는다(05) | 데몬 텍스트에 섞인 링크 |
 | 딥 링크 인자는 §3.10.6의 형식 검사를 통과한 것만 라우팅한다 | 다른 앱이 임의 URL로 앱을 열 수 있다 [검색: v2.tauri.app/plugin/deep-linking "보안"] |
 
@@ -479,7 +488,7 @@ fn main() {
 | `tauri-plugin-dialog` | 2.8.2 | 파일 고르기(업로드), 확인 대화 상자 | |
 | `tauri-plugin-opener` | 2.7.1 | 외부 링크를 기본 브라우저로 | `https`만 |
 | `tauri-plugin-clipboard-manager` | 2.4.2 | ID·진단 정보 복사 | 쓰기만 |
-| `tauri-plugin-log` | 2.10.1 | Rust·JS 로그 파일 | 토큰·코드 마스킹 |
+| `tauri-plugin-log` | 2.10.1 | Rust·JS 로그 파일 | 마스킹: 로그 한 줄을 파일에 쓰기 전에 Rust 포매터가 정규식으로 가린다. 기기 토큰 `helm_dt_[A-Za-z0-9_-]{20,}`(18 §3.8.1), 런타임 토큰 `helm_rt_[A-Za-z0-9_-]{20,}`, `Authorization:\s*Bearer\s+\S+`, 쿠키 `__Host-helm_dt=[^;\s]+`, 페어링 코드 `\b[0-9A-HJKMNP-TV-Z]{4}-?[0-9A-HJKMNP-TV-Z]{4}-?[0-9A-HJKMNP-TV-Z]{4}\b`(18 §3.7.2 12자 형식), URL 쿼리의 `code=[^&\s]+`. 단위 시험에 각 정규식의 표본을 둔다 |
 | `tauri-plugin-os` | 2.4.0 | 플랫폼 정보 | `app_info`로 대신할 수 있으면 빼도 된다 |
 | 쓰지 않음 | | `stronghold`(2026-07 중단 공지, v3에서 빠짐), `shell`, `fs`, `http`, `websocket`, `updater`(APP-D14), `process` | |
 
@@ -488,7 +497,7 @@ fn main() {
 | 크레이트 | 버전 | 용도 |
 |---|---|---|
 | `tokio` | 1.x 최신 | 비동기, 자식 프로세스 |
-| `tokio-tungstenite` | 0.30 계열(`tauri-plugin-websocket` 2.5.0이 쓰는 판 [검색]) | WebSocket 클라이언트(`client_async_with_config`로 임의 스트림 위 업그레이드) |
+| `tokio-tungstenite` | 0.30 계열(`tauri-plugin-websocket` 2.5.0이 쓰는 판 [검색: plugins-workspace `plugins/websocket/Cargo.toml`]) | WebSocket 클라이언트(`client_async_with_config`로 임의 스트림 위 업그레이드) |
 | `rustls` + `tokio-rustls` | 0.23 계열 | TLS. 암호 백엔드는 `ring`(교차 빌드 부담이 작다. `aws-lc-rs`는 Windows MSVC에서 NASM 등이 필요하다 [검색: aws.github.io/aws-lc-rs/requirements/windows.html]) |
 | `rustls-platform-verifier` | 최신 | OS 신뢰 저장소로 인증서 검사. `tailscale serve` 인증서는 공개 CA(Let's Encrypt)라 OS 저장소로 충분하다 [지식] |
 | `hyper` 1.x + `hyper-util` + `http-body-util` | 최신 | blob HTTP/1.1(`client::conn::http1::handshake`를 임의 스트림 위에서) |
@@ -534,7 +543,8 @@ fn main() {
   - `target`은 1~255자, 공백·제어 문자 없음, `-`로 시작하지 않음, `user:pass@` 형식 금지(S4 paseo `ssh-transport.ts:17-35`의 규칙과 같다).
   - `port`, `daemonPort`는 1~65535 정수.
   - `identityFile`, `sshPath`는 절대 경로이고 파일이 있어야 한다.
-  - `helmCliPath`는 공백이 없는 절대 경로 또는 `helm`.
+  - `helmCliPath`는 정규식 `^~?/[A-Za-z0-9/._-]+$`에 맞는 경로 또는 `helm`. 기본값은 `~/.local/bin/helm`(17 §3.15)이다. 비대화 SSH는 로그인 셸의 `PATH`를 읽지 않을 수 있어 `helm`만으로는 찾지 못한다.
+  - 기기 이름(`deviceName`)은 1~40자, 제어 문자 없음. 원격 명령줄에 넣지 않고 표준 입력으로 보낸다(§3.8.7).
   - 경로 ID는 프로필 안에서 유일하고, 활성 경로가 하나 이상 있어야 한다.
 
 #### 3.8.2 SSH 구현 방식 비교와 선택 [제안, ADR 후보 ADR-20-02]
@@ -643,13 +653,15 @@ SSH 경로에서도 같은 HTTP 업그레이드를 `ssh -W 127.0.0.1:<HELM_LOOPB
 - 읽기 URL: `helm-blob://localhost/<profileId>/<blobId>`(macOS), `http://helm-blob.localhost/<profileId>/<blobId>`(Windows). TS는 `blobUrl(profileId, blobId)` 함수 하나로 만든다. 뷰 데이터에는 `BlobRef`만 들어 있다(19 §3.7.4 `stimulusRound`).
 - Rust 처리(`register_asynchronous_uri_scheme_protocol("helm-blob", …)`):
   1. 경로 검증(프로필 존재, `blobId` 형식은 19의 패턴).
-  2. 디스크 캐시(`<app_cache_dir>/blobs/<profileId>/<blobId 앞 2자>/<blobId>`)에 있으면 바로 돌려준다. blob은 한 번 정해지면 내용이 바뀌지 않는다고 본다(19에 요구, §5.2).
+  2. 디스크 캐시(`<app_cache_dir>/blobs/<profileId>/<blobId 앞 2자>/<blobId>`)에 있으면 바로 돌려준다. blob은 한 번 정해지면 내용이 바뀌지 않는다(19 §3.11, `blobId`·`ETag` 불변).
   3. 없으면 현재 활성 경로로 `GET /files/b/<blobId>`를 보낸다. WSS 경로는 같은 호스트·포트의 HTTPS, SSH 경로는 `ssh -W 127.0.0.1:<HELM_LOOPBACK_PORT>` 스트림 위의 HTTP/1.1(`hyper::client::conn::http1`). SSH 쪽 keep-alive 연결은 최대 2개, 60초 동안 재사용한다. 19 §3.2.3의 "요청마다 `ssh -W` 하나"보다 연결을 아낀다.
-  4. 응답에 내용 해시(19가 정하는 `ETag` 또는 digest)가 있으면 받은 바이트와 맞을 때만 캐시에 쓴다.
+  4. 캐시에는 내용 해시를 확인한 것만 쓴다. 기대 해시는 뷰 데이터의 `BlobRef.hash`(`sha256:…`), 없으면 응답의 `ETag`다. 둘 다 없거나 받은 바이트와 맞지 않으면 화면에는 돌려주되 캐시에 쓰지 않는다.
+  4-1. 웹뷰로 돌려주는 응답 머리: `Content-Type`은 허용 목록(`image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/avif`, `text/plain`, `application/pdf`, `audio/*`, `video/mp4`, `video/webm`) 안이면 그 값, 밖이면 `application/octet-stream`이다. `image/svg+xml`과 `text/html`은 허용 목록에 넣지 않는다(스크립트가 들 수 있다). 모든 응답에 `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'`, `Cache-Control: no-store`(웹뷰 HTTP 캐시 대신 앱 캐시를 쓴다)를 붙인다.
   5. 연결이 없으면 503을 돌려주고, 화면(21의 이미지 컴포넌트)은 "연결되면 보입니다" 자리 표시를 그린다.
 - 캐시 상한 1 GiB, 넘으면 마지막 접근이 오래된 것부터 지운다. 한 blob은 데몬 정책 `policy.files.maxBlobBytes`(기본 64 MiB)를 넘지 않는다. 화면에 필요한 경우가 생길 때까지 `Range` 요청은 쓰지 않는다.
 - 업로드: `blob_upload`(바이트)와 `blob_upload_path`(대화 상자 경로). 크기가 `policy.files.singleUploadMaxBytes`(기본 8 MiB) 이하면 `POST /files/u` 한 번, 넘으면 19 §3.11.3의 청크 이어 올리기(`POST`로 시작 → `PATCH` 반복, 끊기면 `HEAD`로 받은 바이트 수를 보고 이어 감). 정책 값은 TS가 hello 응답에서 읽어 명령 인자(`limits`)로 넘긴다. 응답의 `blobId`를 담은 `BlobRef`를 돌려주고 같은 내용을 캐시에도 넣는다.
 - 웹뷰 JSON-RPC로 base64를 보내지 않는다(openclaw의 25 MiB 프레임 문제, pi-cases-notes §11.1).
+- 폐기(`revoked`) 때는 그 프로필의 blob 캐시를 지운다(§3.9.5).
 
 #### 3.8.7 인증과 페어링 [제안, 18과 맞출 것]
 
@@ -658,9 +670,10 @@ SSH 경로에서도 같은 HTTP 업그레이드를 `ssh -W 127.0.0.1:<HELM_LOOPB
 | 기기 토큰 | 페어링 때 데몬이 발급한 bearer 토큰 하나. Rust가 OS 키체인에 저장하고 업그레이드 헤더·HTTP 요청에만 쓴다. 웹뷰는 값을 모른다. 웹뷰는 `deviceId`만 안다(`hello.auth.deviceId`에 넣는다, 19 §3.4.3) |
 | 두 경로의 인증 | 둘 다 기기 토큰을 보낸다(APP-D04, 19 P-03). WSS 경로는 여기에 Tailscale 신원 조건이 더해진다(`tailnet` 리스너). SSH 경로는 SSH 키가 전송을 인증하고, 데몬의 `loopback` 리스너는 토큰으로 기기를 안다. "loopback에서 왔다"는 사실을 신뢰 근거로 쓰지 않는다(pi-cases-notes §12.2-8, 19 §3.2.1) |
 | 페어링 1: 코드 | 이미 연결된 기기의 `SCR-CONNECT`가 `device.createPairingCode`(19 §3.7.7)로, 또는 서버에서 관리 CLI가 1회용 코드와 링크 `helm://pair?v=1&url=<baseUrl>&code=<코드>&sid=<serverId>`를 만든다. 사용자가 링크를 열거나 코드를 붙여 넣으면 Rust가 `POST <baseUrl>/pair`에 코드와 기기 정보를 보내고 `{ serverId, deviceId, deviceToken }`을 받아 바로 키체인에 넣는다(본문 형식은 19 §3.7.7·18). 웹뷰에는 `PairingResult{serverId, deviceId}`만 돌려준다 |
-| 페어링 2: SSH 발급 | SSH 경로가 있는 프로필에서 쓴다. Rust가 `ssh <§3.8.3 공통 옵션, -W 없이> -- <target> <helmCliPath> device issue --json --name <deviceName> --platform <platform> --client desktop`을 실행한다(명령은 17 §3.15). CLI는 WSL 안에서 `local` 리스너에 `localAdmin`으로 붙어 `admin.issueDevice`(19 §3.7.8)를 부르고, 셸 시작 잡음과 섞이지 않게 `HELM-DEVICE/1 ` 접두어가 붙은 한 줄 JSON `{serverId, deviceId, deviceToken}`을 stdout에 쓴다. Rust는 그 줄만 읽는다(pi-env의 `PI-ENV <token>` 동기화 줄 기법, facts-2 §8, 19 §3.2.3 예비 경로의 `HELM-BRIDGE/1`과 같은 꼴). SSH 키로 서버 계정에 들어올 수 있으면 기기 발급 권한이 있다고 본다(18이 확정) |
+| 페어링 2: SSH 발급 | SSH 경로가 있는 프로필에서 쓴다. Rust가 `ssh <§3.8.3 공통 옵션, -W 없이> -- <target> '<helmCliPath>' 'device' 'issue' '--json' '--stdin'`을 실행하고, 표준 입력에 한 줄 JSON `{"name": <deviceName>, "platform": "macos"\|"windows", "client": "desktop"}`을 쓴다. 원격 명령줄은 서버의 로그인 셸이 해석하므로 인자마다 POSIX 작은따옴표로 감싸고, 사용자가 정한 값(기기 이름)은 명령줄에 넣지 않는다(17 §3.15에 `--stdin` 요구, §5.2). `helmCliPath`의 `~`는 따옴표 밖에 두어 원격 셸이 펼치게 한다(`~/'.local/bin/helm'` 꼴). CLI는 WSL 안에서 `local` 리스너에 `localAdmin`으로 붙어 `admin.issueDevice`(19 §3.7.8)를 부르고, 셸 시작 잡음과 섞이지 않게 `HELM-DEVICE/1 ` 접두어가 붙은 한 줄 JSON `{serverId, deviceId, deviceToken}`을 stdout에 쓴다. Rust는 그 줄만 읽는다(pi-env의 `PI-ENV <token>` 동기화 줄 기법, facts-2 §8, 19 §3.2.3 예비 경로의 `HELM-BRIDGE/1`과 같은 꼴). SSH 키로 서버 계정에 들어올 수 있으면 기기 발급 권한이 있다고 본다(18 §3.7 흐름 B) |
+| 앱 전용 SSH 키 [제안] | 데스크톱 앱이 서버 전체 셸 권한을 가진 일반 키를 쓰면 앱 침해가 곧 서버 셸이 된다. 권장 구성은 키 둘이다. (1) 연결용 앱 전용 키를 서버 `authorized_keys`에 `restrict,port-forwarding,permitopen="127.0.0.1:7841"`로 등록한다. 이 키로는 `-W 127.0.0.1:7841`만 된다. (2) SSH 발급은 한 번만 하므로 일반 키로 하거나, `command="~/.local/bin/helm device issue --json --stdin",restrict`를 붙인 별도 키로 한다. 또는 SSH 발급 대신 페어링 코드(흐름 A)를 쓴다. `SCR-CONNECT`의 SSH 경로 도움말과 INSTALL에 이 구성을 적는다(18·17에 같은 권장을 요구, §5.2) |
 | `serverId` 고정 | 첫 페어링에서 받은 `serverId`를 프로필에 고정한다. 연결할 때마다 `hello.challenge.serverId`를 비교하고 다르면 `hello`를 보내지 않고 코어 `needsUser` + 앱 사유 `wrong_server`로 멈춘다(19 §3.4.2). 개발용 데몬과 실제 데몬을 헷갈려 캐시가 섞이는 것을 막는다 |
-| 토큰 폐기 | 폐기는 `device.revoke`(19)로 하고, 이 기기의 토큰은 `credential_forget`으로 지운다. 업그레이드 401·403 또는 `hello` 오류 1004·1005·1006이면 코어 `needsUser` + 앱 사유 `needs_pairing`이 되고 다시 페어링한다 |
+| 토큰 폐기 | 폐기는 `device.revoke`(19)로 하고, 이 기기의 토큰은 `credential_forget`으로 지운다. 업그레이드 401·403 또는 `hello` 오류 1004·1005·1006이면 코어 `needsUser`가 되고, 앱 사유는 §3.8.8의 `needsUser` 원인 표를 따른다(`needs_pairing`·`auth_rejected`·`revoked`·`expired`). 폐기와 만료의 로컬 데이터 처리는 §3.9.5다 |
 | 토큰 교체 | 19의 `device.rotateToken`이 새 토큰을 JSON-RPC 결과로 돌려주면 토큰이 웹뷰를 지난다. 데스크톱은 이 메서드를 TS에서 부르지 않는다. 교체가 필요하면 18·19가 HTTP 경로(예: `POST /devices/self/rotate`, 현재 토큰으로 인증)를 두고 Rust 명령 `credential_rotate`가 부른다(§5.2 요구). 1차는 교체하지 않는다(happy-agent도 토큰을 회전하지 않는다, pi-cases-notes §12.1-7) |
 | 기기 키 서명 | 19 `hello.challenge.proofRequired`가 참이면 `hello.auth.proof`가 필요하다(19 §3.4.3, 1차 기본 false). 18이 채택하면 Rust가 Ed25519 개인 키를 키체인에 두고 명령 `device_sign_challenge({ profileId, nonce, serverId, signedAt }) → { signature }`가 서명만 돌려준다. 개인 키는 웹뷰로 나가지 않는다(§7 Q-04) |
 
@@ -672,7 +685,7 @@ canon-2 §3.16의 네 상태 기계(에이전트 루프, WorkUnit, 연결, 투�
 
 1. **경로 선택기**(`connection/routes.ts`): 19의 `transportFactory`에 넘기는 `MultiRouteTransport`. 경로 순서와 넘어가기 규칙(§3.8.10)을 한 번의 `open()` 안에서 처리한다.
 2. **앱 쪽 실패 분류**: SSH·키체인·`serverId` 같은 앱만 아는 실패를 19의 `TransportFailure`로 바꾼다.
-3. **사용자용 상태 계산**(`connection/ui-state.ts`): 코어 상태 + 앱 정보 → 04 §3.0.4의 사용자용 상태와 21의 `ConnectionUiState`, `decisionsAllowed`(§3.8.9).
+3. **사용자용 상태 계산**(`@helm/client-react`의 `connection/`): 코어 상태 + 앱 정보 → 04 §3.0.4의 사용자용 상태(`UserConnState`)와 21의 `ConnectionUiState`, `decisionsAllowed`(§3.8.9).
 
 `MultiRouteTransport.open()`(19 `Transport`를 구현):
 
@@ -695,12 +708,12 @@ open(handlers):
 | 라운드 결과(앞 경로부터 본 첫 사유) | 19 `TransportFailure` | 코어 동작(19 §3.10.2) |
 |---|---|---|
 | `http_unauthorized` | `{ kind: "httpStatus", status: 401 \| 403 }` | `needsUser`(자동 재접속 멈춤) |
-| `credential_missing`, `keychain_denied` | `{ kind: "blocked", reason }` (19에 요구, §5.2) | `needsUser` |
+| `credential_missing`, `keychain_denied` | `{ kind: "blocked", reason }` (19 §3.14) | `needsUser` |
 | SSH 차단 계열(`ssh_auth_failed`, `ssh_host_key_unknown`, `ssh_host_key_changed`, `ssh_missing`)이 하나라도 있고 나머지는 네트워크 계열 | `{ kind: "blocked", reason }` | `needsUser` |
 | `daemon_unreachable`만 | `{ kind: "daemonUnreachable" }` | `backoff` |
 | 그 밖 네트워크 계열 | `{ kind: "network" }` 또는 `{ kind: "httpStatus", status: 5xx }` | `backoff` |
 
-- 19의 현재 `TransportFailure`에는 `blocked`가 없고 `{ kind: "ssh" }`를 `backoff`로 다룬다. 사람이 고쳐야 풀리는 SSH 실패에서 30초마다 다시 시도하면 호스트 키 경고가 반복되므로 `blocked` 종류를 더해 달라고 19에 요구한다. 받아들여지기 전에는 앱이 `blocked` 사유를 받으면 `client.stop()`을 부르고 앱 쪽 `blocked` 상태를 보인다.
+- `{ kind: "blocked" }`는 19 §3.14 `TransportFailure`에 있고 코어가 `needsUser`로 간다(판정 J-62, 19 CT-31). 앱은 이 실패에서 따로 `client.stop()`을 부르지 않는다.
 - `serverId` 불일치는 코어가 `hello.challenge`에서 판정한다(19 §3.10.2 `server.mismatch`). 앱은 그 결과를 `wrong_server`로 보인다.
 - 연결 중에는 경로를 바꾸지 않는다. 다음 `open()`은 다시 첫 경로부터 시작한다(APP-D05).
 
@@ -708,20 +721,23 @@ open(handlers):
 
 | 신호 | 판정 | 코어에 하는 일 |
 |---|---|---|
-| 네트워크 복구 | 웹뷰 `online` 이벤트 | `backoff`이면 기다림을 끝내고 바로 시도(`client.retryNow()`, 19에 요구) |
+| 네트워크 복구 | 웹뷰 `online` 이벤트 | `backoff`이면 기다림을 끝내고 바로 시도(`client.retryNow()`, 19 §3.14) |
 | 네트워크 없음 | `offline` 이벤트 | 화면에 "연결 안 됨"(사유: 기기 네트워크 없음). 코어는 그대로 두고 시도는 실패로 끝난다 |
 | 잠자기에서 깨어남 | 5초 타이머가 벽시계 기준 20초 넘게 밀림(Tauri에 데스크톱 전원 이벤트가 없어 타이머 간격으로 판단 [가정]) | `ready`면 `ping`(3초 시간 제한), 실패하면 전송을 4000으로 닫는다. `backoff`면 `retryNow()` |
 | 창 포커스 | `app://window` `focused`, 마지막 수신 뒤 10초 넘음 | 위와 같음(Paseo의 포그라운드 3초 프로브, S4 paseo §7). 주기적으로는 보내지 않는다(19 §3.7.2) |
-| 사용자 "다시 시도", 재페어링·호스트 키 확인·경로 수정 | `SCR-CONNECT` | `needsUser`면 `client.start()`(시도 횟수 0, 19 §3.10.2) |
+| 사용자 [다시 연결], 재페어링·호스트 키 확인·경로 수정 | `SCR-CONNECT` | `needsUser`면 `client.start()`(시도 횟수 0, 19 §3.10.2) |
 | 데몬 종료 예고 | `server.shutdown` | 코어가 `restartExpectedMs`를 백오프 하한으로 쓴다(19 §3.10.3). 앱은 그동안 "서버 종료 중"을 보인다(17 §5.2의 20 요구) |
 
-앱 쪽 연결 모델(`connection/model.ts`, 순수 함수와 zustand 스토어):
+앱 쪽 연결 모델. 타입과 순수 함수는 `@helm/client-react`의 `connection/` 한 곳에 두고(§3.14), 데스크톱은 `apps/desktop/src/connection/`에서 zustand 스토어로 값을 채우기만 한다. 모바일(26)도 같은 함수를 쓴다.
 
 ```ts
+// packages/client-react/src/connection/model.ts
 export type AppBlockedReason =
-  | 'needs_pairing' | 'auth_rejected' | 'keychain_denied'
+  | 'needs_pairing' | 'auth_rejected' | 'revoked' | 'expired' | 'policy_closed' | 'keychain_denied'
   | 'ssh_auth_failed' | 'ssh_host_key_unknown' | 'ssh_host_key_changed' | 'ssh_missing'
   | 'incompatible_version' | 'wrong_server' | 'protocol_error' | 'no_routes';
+
+export type ReadOnlyReason = 'disk_critical' | 'integrity_suspect' | 'operator';   // 17 §3.4.1, 19 server.modeChanged.reason
 
 export interface AppConnModel {
   core: HelmClient['state'];                 // 19 상태 그대로
@@ -732,55 +748,96 @@ export interface AppConnModel {
   disconnectedAt?: number;                   // 마지막 ready에서 끊긴 시각
   attempts: number;
   deviceOnline: boolean;                     // navigator.onLine
-  lastMessageAt?: number;                    // 마지막 수신(tick 포함). 19에 getter 요구
+  lastMessageAt?: number;                    // 19 HelmClient.lastMessageAt
   tickIntervalMs: number;                    // hello policy
-  daemonMode: 'normal' | 'readOnly' | 'safeMode' | 'draining';
+  daemonMode: 'normal' | 'readOnly' | 'safeMode' | 'draining';   // 19 DaemonMode
+  readOnlyReasons: ReadOnlyReason[];         // server.modeChanged.reason, hello의 모드 정보
   bootChangedAt?: number;                    // bootEpoch가 바뀐 것을 본 시각(1분 표시)
 }
-export function toUserState(m: AppConnModel, now: number): UserConnState;     // §3.8.9
-export function toConnectionUiState(s: UserConnState): ConnectionUiState;      // 21 타입
+
+/** 04 §3.0.4 사용자용 상태. §3.8.9 표의 행과 하나씩 대응한다 */
+export type UserConnKind =
+  | 'keychain_denied' | 'auth_failed' | 'ssh_failed' | 'wrong_server' | 'version_mismatch' | 'protocol_error'
+  | 'draining' | 'daemon_unresponsive' | 'disconnected' | 'reconnecting' | 'resyncing'
+  | 'read_only' | 'safe_mode' | 'slow' | 'connected';
+
+export interface UserConnState {
+  kind: UserConnKind;
+  ui: ConnectionUiState;                     // 21 §3.5 타입. §3.8.9 표의 21 열
+  reasonKey: CopyKey;                        // 배너 문구 키(05 §3.11). 사유별로 다르다
+  blockedReason?: AppBlockedReason;
+  readOnlyReasons?: ReadOnlyReason[];
+}
+
+export function toUserState(m: AppConnModel, now: number): UserConnState;     // §3.8.9 표
+export function decisionsAllowed(conn: ConnectionUiState, view: { serverFreshness: ServerFreshness }): boolean;   // §3.8.9
 ```
 
 - `toUserState`는 순수 함수다. 시간과 IPC 없이 표 형식으로 시험한다(§6.1).
-- hello 오류 kind와 닫는 코드의 처리, 백오프 간격(0.5초부터 30초, 반 지터, `ready` 30초 유지 뒤 0으로)은 19 §3.10.3이 정본이다. 이 문서 1판의 재시도 표는 지운다.
+- hello 오류 kind와 닫는 코드의 처리, 백오프 간격(0.5초부터 30초, 반 지터, `ready` 30초 유지 뒤 0으로)은 19 §3.10.3이 정본이다.
+
+코어가 `needsUser`로 간 원인 → `blocked.reason`(19 §3.10.2 표의 `needsUser` 행 전부):
+
+| 19 원인 | `AppBlockedReason` | 사용자용 상태(§3.8.9) |
+|---|---|---|
+| HTTP 401·403, 키체인에 토큰 없음(`credential_missing`) | `needs_pairing` | 인증 실패 |
+| `1004 auth.failed`, `1006 auth.unknownDevice` | `auth_rejected` | 인증 실패 |
+| `1005 auth.revoked` `reason: revoked`, 닫힘 4009 | `revoked` | 인증 실패(문구: 이 기기 연결이 해제됨) |
+| `1005 auth.revoked` `reason: expired_absolute`·`expired_idle` | `expired` | 인증 실패(문구: 오래 쓰지 않아 다시 연결 필요) |
+| `1008 auth.methodNotAllowed`(hello 오류) | `auth_rejected`(`detail`에 19의 `reason`) | 인증 실패 |
+| 닫힘 1008, 직전 `connection.closing`의 kind 있음 | 그 kind를 위 행으로 | 위 행 |
+| 닫힘 1008, 직전 kind 없음 | `policy_closed` | 인증 실패(문구: 서버가 연결을 거절함, 다시 페어링 안내) |
+| `1003 protocol.unsupported` | `incompatible_version` | 버전 불일치 |
+| `server.mismatch`(클라이언트 내부) | `wrong_server` | 다른 서버 |
+| 닫힘 1002·1003 | `protocol_error` | 프로토콜 오류 |
+| 전송 `blocked`(`keychain_denied`) | `keychain_denied` | 키체인 거부 |
+| 전송 `blocked`(`ssh_*`) | 그 `ssh_*` | SSH 실패 |
+| 활성 경로 없음 | `no_routes` | 연결 안 됨 |
 
 #### 3.8.9 사용자용 연결 상태와 결정 가능 여부 [제안, 상태와 문구는 04 §3.0.4, 타입은 21]
 
 04 §3.0.4의 사용자용 상태를 `AppConnModel`로 판정한다(04 §5.2·21 §5.2의 20 요구). 위에서부터 처음 맞는 행을 고른다. 문구는 04 §3.0.4와 05 §3.11 키를 쓴다.
 
-| 순서 | 04 사용자용 상태 | 판정 | 21 `ConnectionUiState` | 결정 동작 |
-|---|---|---|---|---|
-| 1 | 키체인 거부 | `blocked.reason == keychain_denied` | `auth_failed` | 막음 |
-| 2 | 인증 실패 | `blocked.reason ∈ {needs_pairing, auth_rejected}` | `auth_failed` | 막음 |
-| 3 | SSH 실패 | `blocked.reason ∈ {ssh_*}` | `disconnected` | 막음 |
-| 4 | 다른 서버 | `blocked.reason == wrong_server` | `disconnected` | 막음 |
-| 5 | 버전 불일치 | `blocked.reason == incompatible_version` | `version_mismatch` | 막음. 캐시 읽기는 된다 |
-| 6 | (프로토콜 오류) | `blocked.reason == protocol_error` | `disconnected` | 막음. 05 문구 없음 → 요구 |
-| 7 | 서버 종료 중 | `daemonMode == draining`, 또는 `server.shutdown` 뒤 `restartExpectedMs` 안 | `reconnecting` | 막음 |
-| 8 | 데몬 응답 없음 | `core == backoff`이고 `lastFailure.reason == daemon_unreachable` | `daemon_unresponsive` | 막음 |
-| 9 | 연결 안 됨 | `core == backoff`이고 끊긴 지 2분 넘음 또는 `attempts > 6`, 또는 `deviceOnline == false` | `disconnected` | 막음 |
-| 10 | 다시 연결하는 중 | `core ∈ {connecting, handshaking, backoff}` | `reconnecting` | 막음, 초안 보존 |
-| 11 | 다시 맞추는 중 | `core == syncing` | `resyncing` | 막음(짧음) |
-| 12 | 복구 모드 | `core == ready`, `daemonMode == readOnly` | `recovery_mode` | 막음(읽기만) |
-| 13 | 안전 모드 | `core == ready`, `daemonMode == safeMode` | `safe_mode`(21에 요구) | **가능**(사람 명령은 받는다, 04 §3.0.4) |
-| 14 | 느림 | `core == ready`, `now − lastMessageAt > tickIntervalMs × 1.5` | `slow` | 가능 |
-| 15 | 연결됨 | `core == ready` | `connected` | 가능 |
-| - | 서버 다시 시작됨(띠) | `bootChangedAt`부터 1분 | 상태와 별개의 띠 | 상태 행을 따른다 |
+| 순서 | 04 사용자용 상태 | `UserConnKind` | 판정 | 21 `ConnectionUiState` | 결정 동작 |
+|---|---|---|---|---|---|
+| 1 | 키체인 거부 | `keychain_denied` | `blocked.reason == keychain_denied` | `auth_failed` | 막음 |
+| 2 | 인증 실패 | `auth_failed` | `blocked.reason ∈ {needs_pairing, auth_rejected, revoked, expired, policy_closed}` | `auth_failed` | 막음 |
+| 3 | SSH 실패 | `ssh_failed` | `blocked.reason ∈ {ssh_*}` | `disconnected` | 막음 |
+| 4 | 다른 서버 | `wrong_server` | `blocked.reason == wrong_server` | `disconnected` | 막음 |
+| 5 | 버전 불일치 | `version_mismatch` | `blocked.reason == incompatible_version` | `version_mismatch` | 막음. 캐시 읽기는 된다 |
+| 6 | 프로토콜 오류 | `protocol_error` | `blocked.reason == protocol_error` | `disconnected` | 막음. 05 문구 요구 |
+| 7 | 서버 종료 중 | `draining` | `daemonMode == draining`, 또는 `server.shutdown` 뒤 `restartExpectedMs` 안 | `reconnecting` | 막음 |
+| 8 | 데몬 응답 없음 | `daemon_unresponsive` | `core == backoff`이고 `lastFailure.reason == daemon_unreachable` | `daemon_unresponsive` | 막음 |
+| 9 | 연결 안 됨 | `disconnected` | `core == backoff`이고 끊긴 지 2분 넘음 또는 `attempts > 6`, 또는 `deviceOnline == false`, 또는 `blocked.reason == no_routes` | `disconnected` | 막음 |
+| 10 | 다시 연결하는 중 | `reconnecting` | `core ∈ {connecting, handshaking, backoff}` | `reconnecting` | 막음, 초안 보존 |
+| 11 | 다시 맞추는 중 | `resyncing` | `core == syncing` | `resyncing` | 막음(짧음) |
+| 12 | 읽기 전용 | `read_only` | `core == ready`, `daemonMode == readOnly` | `read_only` | 막음(읽기만) |
+| 13 | 안전 모드 | `safe_mode` | `core == ready`, `daemonMode == safeMode` | `safe_mode` | **가능**(사람 명령은 받는다, 04 §3.0.4) |
+| 14 | 느림 | `slow` | `core == ready`, `now − lastMessageAt > tickIntervalMs × 1.5` | `slow` | 가능 |
+| 15 | 연결됨 | `connected` | `core == ready` | `connected` | 가능 |
+| - | 서버 다시 시작됨(띠) | - | `bootChangedAt`부터 1분 | 상태와 별개의 띠 | 상태 행을 따른다 |
 
-- 21의 `ConnectionUiState` 아홉 값에는 안전 모드가 없다. `safe_mode`를 더하거나, 안전 모드를 `connected` + 띠로 그리게 해 달라고 21에 요구한다(§5.2). 키체인·SSH·다른 서버는 위 표처럼 기존 값에 묶고, 배너 문구로 사유를 나눈다.
+- 21의 `ConnectionUiState`는 `read_only`·`safe_mode`를 갖는다(판정 J-60·J-115). 키체인·SSH·다른 서버는 위 표처럼 기존 값에 묶고, 배너 문구(`reasonKey`)로 사유를 나눈다.
+- 읽기 전용은 사유별로 배너를 나눈다(판정 J-115, 17 §3.4.1). 화면 이름은 "읽기 전용"이고, "복구"는 `SCR-RECOVERY`에만 쓴다. 사유가 여럿이면 아래 표의 위쪽 것을 보인다.
 
-결정 가능 여부(21 `decisionsAllowed`, 04 §3.0.4 규칙 3):
+| 읽기 전용 사유(17·19) | 배너 문구 키(05) | 사용자가 할 일 |
+|---|---|---|
+| `integrity_suspect` | `err.daemon.readOnly`(기록 점검 문장) | 서버에서 점검·복원(`SCR-RECOVERY`로 이동) |
+| `disk_critical` | `err.daemon.diskFull` | 서버 디스크 공간 확보. 풀리면 자동으로 돌아온다 |
+| `operator` | `err.daemon.readOnly`(운영자 전환 문장) | 서버에서 `helm ops read-only off` |
+| 사유 없음(옛 데몬) | `err.daemon.readOnly` | - |
+
+결정 가능 여부(21 `decisionsAllowed`, 04 §3.0.4 규칙 3). 계산은 `@helm/client-react` 한 곳이고 반환형은 `boolean` 하나다. 막힘 사유 문구는 `UserConnState.reasonKey`에서 따로 얻어 21 `DecisionAvailability { allowed, reasonKey }`로 묶는다:
 
 ```ts
-// apps/desktop/src/connection/decisions.ts
-export function decisionsAllowed(conn: UserConnState, view: { serverFreshness: 'current' | 'stale' | 'rebuilding' | 'failed' }): boolean {
+// packages/client-react/src/connection/decisions.ts
+export function decisionsAllowed(conn: ConnectionUiState, view: { serverFreshness: ServerFreshness }): boolean {
   const connOk = conn === 'connected' || conn === 'slow' || conn === 'safe_mode';
   return connOk && view.serverFreshness === 'current';
 }
 ```
 
 - 앱 신선도의 `refreshing`과 낡음 표시(`staleSince`, 무효화 뒤 다시 받기까지 보통 150ms)로는 막지 않는다(04 §3.0.4 규칙 3). 그 사이의 경합은 데몬이 `3004 command.revisionConflict`로 거부하고, 화면은 04 §3.0.5로 처리한다. 버튼이 깜박이지 않게 하기 위해서다.
-- 21 §3.5.8의 표는 `refreshing`에서 결정을 막는다고 적었다. 04 규칙 3이 UX 정본이므로 이 문서는 04를 따르고 21에 고쳐 달라고 요구한다(§5.2).
 - 다시 받기가 세 번 실패해 `staleSince`가 남으면 앱 신선도가 `stale`이 되고 화면 머리에 띠를 보인다. 이때도 결정 막기는 서버 신선도와 연결로만 판정하고, 띠 문구로 사용자가 판단하게 한다.
 
 #### 3.8.10 여러 경로의 선택 [제안, ADR 후보 ADR-20-03]
@@ -809,7 +866,7 @@ apps/desktop/
     screens/common/            # 04 §3.0의 공통 상태(불러오는 중, 캐시 표시, 빈 상태, 오류, 연결 상태 열 가지) 배치(04 §6)
     intents/                   # CommandIntentBase(멱등 키·basisSeq), UiIntent → useCommand 연결(04 §6 "명령 의도 공통")
     (UI 부품과 토큰은 앱 안에 두지 않는다. `packages/ui`(`@helm/ui`)와 `packages/ui-tokens`(`@helm/ui-tokens`)를 가져온다. 21 §3.13, 판정 J-85)
-    connection/                # routes.ts(MultiRouteTransport), tauri-transport.ts, model.ts(앱 연결 모델), ui-state.ts(사용자용 상태), decisions.ts, probe.ts(깨어남·포커스)
+    connection/                # routes.ts(MultiRouteTransport), tauri-transport.ts, probe.ts(깨어남·포커스), store.ts(connStore에 AppConnModel 채우기)
     sync/                      # client.ts(HelmClient 생성), session.ts(§3.9.6), stores.ts(ClientStateStorage IndexedDB), views.ts(useView),
                                # liveText.ts(휘발 스트림 반영), commands.ts(useCommand)
     db/                        # idb.ts(스키마·이행), quota.ts
@@ -817,7 +874,7 @@ apps/desktop/
       tauri/                   # transport.ts, notifications.ts, tray.ts, badge.ts, shortcuts.ts, autostart.ts, deeplink.ts, settings.ts
       browser/                 # 개발·테스트용 대체 구현(§3.13.3). 배포 빌드에서는 빠진다
     state/                     # zustand: connStore.ts, uiStore.ts, liveTextStore.ts
-    copy/                      # 앱이 직접 만드는 문구(연결·OS 알림·트레이). 05와 공유 문구 패키지(03 ADR A9)를 따른다
+    (문구는 앱 안에 두지 않는다. 연결·OS 알림·트레이 문구도 `@helm/ui-language`의 05 키로 만든다. 판정 J-103)
     errors/                    # 오류 경계, 오류 → 문구 대응
     test/                      # renderWithProviders, 고정 투영 표본, 가짜 데몬 연결 도우미
   src-tauri/
@@ -830,9 +887,9 @@ apps/desktop/
     shell/                     # WebdriverIO + @wdio/tauri-service: 실제 Tauri 셸 스모크
 ```
 
-- 위 트리에서 플랫폼과 무관한 부분(`sync/views.ts`, `sync/commands.ts`, `sync/stores.ts`, `connection/ui-state.ts`, `connection/decisions.ts`, 알림 규칙의 순수 함수, 딥 링크 해석)은 실제로는 `packages/client-react`(`@helm/client-react`)에 두고 앱은 가져와 쓴다. 모바일 클라이언트와 나눠 쓰기 위해서다(§3.14).
+- 위 트리에서 플랫폼과 무관한 부분(`sync/views.ts`, `sync/commands.ts`, `sync/stores.ts`, 연결 모델·사용자용 상태·`decisionsAllowed`(§3.8.8·§3.8.9), 알림 규칙의 순수 함수, 딥 링크 해석)은 `packages/client-react`(`@helm/client-react`)에 두고 앱은 가져와 쓴다. 모바일 클라이언트와 나눠 쓰기 위해서다(§3.14).
 - 의존 방향: `screens → @helm/ui, sync, navigation` / `sync → @helm/client(코어), @helm/protocol(타입), db, connection(상태 읽기)` / `connection → platform` / `platform/tauri → @tauri-apps/*`. `@helm/ui`는 `sync`, `platform`, `@helm/client`를 가져오지 않는다(21 UI-D01: 컴포넌트는 표현 전용). ESLint `import/no-restricted-paths`로 검사한다.
-- 세션·구독·재전송·뷰 무효화 판정은 코어(`@helm/client`, §3.9.4)가 하고 TUI도 같은 코어를 쓴다(§3.9.4). 앱의 `connection/model.ts`·`ui-state.ts`(경로 선택·차단 사유·사용자용 상태)와 `sync/stores.ts`(IndexedDB)는 React와 Tauri를 모르는 순수 TS로 쓴다. TUI가 경로 선택을 필요로 하지 않으므로 이 둘은 앱에 둔다.
+- 세션·구독·재전송·뷰 무효화 판정은 코어(`@helm/client`, §3.9.4)가 하고 TUI도 같은 코어를 쓴다(§3.9.4). `@helm/client-react`의 연결 모델과 IndexedDB 저장소는 Tauri를 모르는 순수 TS다. TUI는 경로 선택과 IndexedDB가 필요 없어 이 패키지를 쓰지 않는다. 경로 선택기(`MultiRouteTransport`)는 Tauri IPC를 쓰므로 앱에 둔다.
 - `@helm/protocol`(19)에서 메서드 이름, 파라미터·결과 타입, 뷰 이름·데이터 타입, TypeBox 스키마를 가져온다. 앱은 프로토콜 타입을 다시 정의하지 않는다.
 
 #### 3.9.2 라우팅 [제안]
@@ -861,7 +918,7 @@ export const SCREENS = {
   'SCR-EVIDENCE':         { path: '/evidence/:recordId' },
   'SCR-GOALS':            { path: '/goals' },
   'SCR-GOAL':             { path: '/goals/:glId' },
-  'SCR-DIALS':            { path: '/dials' },             // ?scope=global|goal:<id>|concern:<id>
+  'SCR-DIALS':            { path: '/dials' },             // ?scope=global|concern:<id>. Goal 범위 다이얼은 없다(판정 J-136)
   'SCR-OBSERVER':         { path: '/observer/:proposalId?' },
   'SCR-CONNECT':          { path: '/connect' },           // ?pair=<인코딩된 페어링 링크>
   'SCR-RECOVERY':         { path: '/recovery' },
@@ -884,7 +941,7 @@ export function pathFor<S extends ScreenId>(id: S, params: PathParams<S>): strin
 | 상태 | 둘 곳 | 이유 |
 |---|---|---|
 | 데몬 뷰(화면 데이터) | TanStack Query 5 캐시 + IndexedDB 영속(§3.9.5) | 요청 중복 제거, 마운트될 때 다시 읽기, 무효화 API, 가비지 수집을 직접 만들지 않는다 |
-| 연결 상태 | 코어 상태 + 앱 연결 모델(`connection/model.ts`)을 zustand `connStore`에 | 상태 기계는 코어(19), 사용자용 상태 계산은 순수 함수(§3.8.8·§3.8.9). 화면은 스토어를 구독한다 |
+| 연결 상태 | 코어 상태 + 앱 연결 모델(`@helm/client-react`의 `AppConnModel`)을 zustand `connStore`에 | 상태 기계는 코어(19), 사용자용 상태 계산은 순수 함수(§3.8.8·§3.8.9). 화면은 스토어를 구독한다 |
 | 세션 메타(`serverId`, 위치, 정책, 기능 목록) | 19 코어의 세션 객체 + `connStore` 요약 | |
 | 휘발 스트림(에이전트 출력 글자) | zustand `liveTextStore` | 정본 로그에 없는 값(pi-cases-notes §12.1-6, 19 §3.5.2). 재접속 때 비우고 `active`로 다시 채운다 |
 | 진행 중 명령함 | IndexedDB `pending`(코어의 `ClientStateStorage`) + `useCommand` 훅의 지역 상태 | 재시작해도 남아야 한다 |
@@ -951,7 +1008,7 @@ export function createDesktopClient(p: ServerProfile, stores: IdbClientStateStor
 }
 ```
 
-- 코어 사본을 앱에서 고치지 않는다. 필요한 기능은 19에 요구해 코어에 더한다. 지금 요구하는 것(§5.2): `TransportFailure`의 `blocked` 종류, `retryNow()`, `lastMessageAt`, 재전송한 명령의 결과 알림(`on('pendingResolved', …)`), 위치 저장 전에 그 구간의 `invalidate`를 먼저 내보내는 순서 보장.
+- 코어 사본을 앱에서 고치지 않는다. 필요한 기능은 19에 요구해 코어에 더한다. 2a단계 요구(`blocked`, `retryNow()`, `lastMessageAt`, `pendingResolved`, 무효화 순서)는 19 §3.14에 반영됐다. 남은 요구는 재전송 전 `storeId` 확인과 `listPending`의 현재 값 인자, `command.lookup`이다(§5.2).
 - 앱 쪽 연결 모델(§3.8.8)은 `client.on('state', …)`, `client.hello`, `serverRestarted`, `server.shutdown`을 받아 만든다.
 
 #### 3.9.5 클라이언트 저장소 [제안]
@@ -998,7 +1055,12 @@ interface PendingRow {             // store 'pending', key: [serverId, idempoten
   method: string;
   params: unknown;                 // CommandParamsBase 포함. 토큰·비밀 없음
   createdAt: number;
-  appState?: 'expired' | 'storeReset';   // 자동 재전송 대상이 아님을 앱이 표시(§3.9.7)
+  storeId: string;                 // 보낼 때의 hello.log.storeId. 다르면 자동 재전송하지 않는다(복원 감지, F-17)
+  deviceId: string;                // 보낼 때의 기기 ID. 재페어링으로 바뀌면 자동 재전송하지 않는다(멱등 범위가 기기별, F-06)
+  protocol: number;                // 보낼 때의 프로토콜 판. 다르면 자동 재전송하지 않는다
+  schemaHash: string;              // 보낼 때의 hello features.schemaHash. 다르면 자동 재전송하지 않는다(F-38)
+  appState?: 'expired' | 'storeReset' | 'deviceChanged' | 'schemaChanged' | 'permanentError';
+                                   // 자동 재전송 대상이 아님을 앱이 표시(§3.9.7). 모두 "보내지 못한 조작"으로 보인다
   screen?: string; objectId?: string;    // "보내지 못한 조작" 목록에서 열 화면(04 §3.19)
 }
 interface DraftRow {               // store 'drafts', key: [serverId, kind, targetId] — 04 §5.2 "초안 저장 확장"
@@ -1007,16 +1069,21 @@ interface DraftRow {               // store 'drafts', key: [serverId, kind, targ
   targetId: string;                // 질문·자극 라운드·작업 합의·결과 제출·레코드·Concern ID
   payload: unknown;                // 구조화한 내용(예: 답 종류 + 본문, 반응 목록). 타입은 kind별(04 각 화면 절)
   basisSeq: number | null;         // 초안을 쓸 때 본 뷰의 asOfSeq
+  storeId: string | null;          // 초안을 쓸 때의 저장소 ID. 다르면 basisSeq를 버리고 대상 존재를 다시 확인한다
+  origin?: 'typed' | 'restored';   // restored = 거부·충돌·읽기 전용으로 돌아온 답(§3.9.7)
   updatedAt: number;
 }
 ```
 
 - `ClientStateStorage` 대응: `loadPosition`·`savePosition` → `positions`, `listPending`·`putPending`·`removePending` → `pending`, `clearServer(serverId, "positions")` → `positions` 삭제와 모든 `views` 행 낡음 표시, `clearServer(serverId, "all")` → `positions`·`views` 삭제와 `pending` 행에 `appState: 'storeReset'` 표시(F-17). `listPending`은 `appState`가 있는 행을 빼고 돌려준다(코어가 자동으로 다시 보내지 않게).
+- 재전송 전 확인(F-06, F-17, F-38): 코어는 `hello` 직후 진행 중 명령을 다시 보내므로, `events.subscribe`가 `2001`을 받은 뒤에 붙는 `storeReset` 표시로는 늦다. 그래서 (1) 코어가 `hello.log.storeId`를 저장 위치의 `storeId`와 비교해 다르면 재전송 전에 `clearServer(serverId, "all")`을 부르고, (2) `listPending`이 현재 `storeId`·`deviceId`·`protocol`·`schemaHash`를 받아 행의 값과 다르면 그 행에 `appState`(`storeReset`·`deviceChanged`·`schemaChanged`)를 붙이고 돌려주지 않는다. 두 가지 모두 19 §3.14의 코어와 `ClientStateStorage` 계약에 요구한다(§5.2). 받아들여지기 전에는 앱의 `listPending`이 마지막 `hello` 값(`meta`)과 비교한다.
+- 초안과 복원: `drafts`의 `storeId`가 현재 저장소와 다르면 `basisSeq`를 `null`로 바꾸고, 대상 ID를 `record.locate`(19 §3.7.6)로 확인한다. 대상이 있으면 "서버 기록이 복원되어 이 초안의 기준을 알 수 없습니다. 내용을 확인하고 보내세요."와 함께 보이고, 없으면 `SCR-CONNECT`의 "보내지 못한 조작" 옆 보관 목록으로 옮긴다(05 문구 키 요구).
 - 상한: 서버당 뷰 64 MiB. 넘으면 `lastAccessAt`이 오래된 것부터 지운다. 고정 뷰(`home`, `brief`, `inbox`, `autonomous`, `concernTree`, `goals`, `recovery`, `tray`)는 지우지 않는다. 오프라인으로 시작했을 때 이것들은 보여야 한다.
 - 저장 위치는 웹뷰가 정한다. Windows는 `%LOCALAPPDATA%\<identifier>\EBWebView` 아래, macOS는 `~/Library/WebKit/<bundle id>/WebsiteData` 아래다 [검색: Windows는 tauri `manager/webview.rs`, macOS는 지식]. origin이 바뀌면(예: Windows `useHttpsScheme` 변경) 다른 데이터베이스가 된다 [검색: tauri `config.rs` 주석]. 그래서 `useHttpsScheme`은 처음 값(`false`)에서 바꾸지 않는다.
 - WebKit은 브라우저가 아닌 앱에도 origin별 용량 한도와 자동 삭제 정책을 둔다 [검색: webkit.org/blog/14403]. 자동으로 지워지면 위치가 없으므로 코어가 `from: "head"`로 구독하고 열린 뷰를 다시 받는다. IndexedDB는 캐시이고 정본은 데몬이다. 초안이 지워질 수 있다는 점은 받아들인다.
-- 뷰 데이터는 암호화하지 않는다. 기기 디스크 암호화(FileVault, BitLocker)에 맡긴다. 설정 `offlineCopy`를 끄면 `views`에 쓰지 않는다.
+- 뷰 데이터, 초안, blob 디스크 캐시(§3.8.6)는 암호화하지 않는다. 기기 디스크 암호화(FileVault, BitLocker)에 맡긴다(18 §3.19의 오프라인 사본 규칙). 첫 실행 안내(`SCR-ONBOARD`)의 끝에서 디스크 암호화가 꺼져 있으면 켜라고 안내한다. macOS는 `fdesetup status`, Windows는 `manage-bde -status`를 Rust가 읽어 판정하고, 판정하지 못하면 안내 문장만 보인다 [제안]. 설정 `offlineCopy`를 끄면 `views`에 쓰지 않는다.
 - `profile_delete`이면 그 `serverId`의 모든 store 행을 지운다. `pending`은 사람이 확인하기 전까지 남긴다.
+- 폐기와 만료는 나눠 처리한다(19 `1005 auth.revoked`의 `reason`, 닫힘 4009). 폐기(`revoked`)는 기기를 잃었거나 다른 사람이 쓸 수 있다는 뜻이므로 그 `serverId`의 `views`, `pending`, blob 디스크 캐시를 지우고 `drafts`만 남긴다. 키체인 항목도 지운다. 만료(`expired_absolute`·`expired_idle`)는 정상 사용자가 오래 쓰지 않은 경우라 모두 남기고 재페어링을 안내한다. 남은 `pending`은 재페어링 뒤 `deviceId`가 바뀌므로 자동 재전송에서 빠지고 "보내지 못한 조작"으로 보인다(F-06). 18·19·26과 같은 규칙으로 맞춰 달라고 요구한다(§5.2).
 - IndexedDB 버전을 올릴 때 `views`는 버리고 다시 만든다(캐시이므로 옮기지 않는다). `positions`, `pending`, `drafts`만 옮긴다.
 
 #### 3.9.6 동기화 알고리즘 [제안, 프로토콜 규칙은 19 §3.5·§3.6·§3.14]
@@ -1039,7 +1106,8 @@ interface DraftRow {               // store 'drafts', key: [serverId, kind, targ
       client.start()
 
 1. 코어: 전송 열기(MultiRouteTransport) → hello.challenge → serverId 비교 → hello → syncing
-   코어가 syncing에 들어가며 진행 중 명령을 같은 키로 다시 보내고, 'main' 구독을 저장 위치에서 복원한다
+   코어가 hello.log.storeId를 저장 위치의 storeId와 비교하고, 다르면 먼저 clearServer(serverId, 'all')을 부른다(§3.9.5, 19에 요구)
+   코어가 syncing에 들어가며 남은 진행 중 명령을 같은 키로 다시 보내고, 'main' 구독을 저장 위치에서 복원한다
 
 2. hello를 받은 뒤(client.hello):
    - features.schemaHash가 meta와 다르면 views의 해당 행을 버리고 meta 갱신
@@ -1062,7 +1130,7 @@ interface DraftRow {               // store 'drafts', key: [serverId, kind, targ
      positions[serverId, 'main'] = pos
      staleBuffer에서 seq ≤ pos.seq 인 항목을 꺼내 각 뷰 행 staleSince = max(staleSince, seq)
    → 위치만 앞서 기록되고 낡음 표시가 빠지는 일이 없다. 앱이 죽어도 다음 시작 때 낡은 캐시를 안다
-   전제: 코어는 위치 pos까지의 이벤트에 대한 invalidate를 savePosition(pos)보다 먼저 내보낸다(19에 요구)
+   전제: 코어는 위치 pos까지의 이벤트에 대한 invalidate를 savePosition(pos)보다 먼저 내보낸다(19 §3.14)
 
 6. 범위 밖(2001)일 때 코어가 storage.clearServer를 부르고 19 §3.5.5 절차를 한다:
    storeMismatch | aheadOfHead → clearServer(serverId, 'all') → views·positions 삭제, pending에 'storeReset' 표시
@@ -1130,7 +1198,11 @@ export type CommandOutcome =
   | { kind: 'applied' | 'accepted'; result: CommandResult }       // 19 CommandResult.status
   | { kind: 'gated'; result: CommandResult }                      // 질문이 생겼다 → questionId로 이동 제안
   | { kind: 'conflict'; details: { subject: string; expected: unknown; current: number; rebase?: unknown } }   // 3004
+  | { kind: 'alreadyResolved'; target: RecordRef; resolvedAt: string; resolvedBy: string; resolvedVia?: string;
+      outcome: 'answered' | 'assumed' | 'withdrawn' | 'expired' | string; assumedValue?: unknown }          // 3008(판정 J-120)
+  | { kind: 'superseded'; target: RecordRef; supersededBy: RecordRef }                                     // 3009
   | { kind: 'rejected'; code: 3001 | 3002 | 3005; reason: string; nextActions?: NextAction[] }               // 커널 거부(10)
+  | { kind: 'readOnly'; reasons: ReadOnlyReason[] }                // 5003. 적용되지 않음이 확정이다
   | { kind: 'unknown' }                                           // 끊김·시간 초과. 코어가 재접속 뒤 같은 키로 확인
   | { kind: 'expired' };                                          // 정책 나이를 넘어 자동으로 보내지 않음
 ```
@@ -1142,25 +1214,41 @@ send(params, { basisSeq, screen, objectId }):
   require decisionsAllowed(...)                  // §3.8.9. 막혀 있으면 버튼이 꺼져 있다. 여기 오면 프로그래밍 오류
   r = client.command(method, { ...params, basisSeq, clientTime: now })
        // 코어가 ik_<ULID>를 만들고 putPending을 끝낸 뒤 보낸다(19 §3.14). 앱 저장소는 screen·objectId를 함께 적는다
-    성공             → applied | accepted | gated
-    3004             → conflict → "화면을 연 뒤 상황이 바뀌어…"(04 §3.0.5), 쓰던 답 유지
-    3001·3002·3005   → rejected → 거부 사유와 nextActions(05 §3.11)
-    3006(keyReused)  → 진단 로그, 일반 오류 문구(버그 신호)
+    성공             → applied | accepted | gated. removePending
+    3004             → conflict → "화면을 연 뒤 상황이 바뀌어…"(04 §3.0.5), 쓰던 답 유지. removePending
+    3008             → alreadyResolved → 04 §3.0.5 "이미 답했습니다(다른 기기 · 시각)". removePending.
+                       outcome이 assumed면 확정된 값(assumedValue)을 보이고 쓰던 답을 이의 초안으로 넘긴다(판정 J-120)
+    3009             → superseded → "새 판으로 바뀌었습니다", [새 판 보기]로 supersededBy를 연다. removePending, 쓰던 답 유지
+    3001·3002·3005   → rejected → 거부 사유와 nextActions(05 §3.11). removePending
+    5003             → readOnly → removePending, 쓰던 입력을 drafts(origin 'restored')로 돌린다.
+                       5003은 적용되지 않음이 확정된 응답이다. 모드가 풀려도 자동으로 보내지 않는다(판정 J-02, 04 ADR A4).
+                       풀리면 그 화면에 "보내지 않은 답이 있습니다"를 보이고 사람이 보낸다
+    3006(keyReused)  → 진단 로그, 일반 오류 문구(버그 신호). removePending
     3007(inProgress) → 코어가 retryAfterMs 뒤 같은 키로 다시
+    retryable false인 그 밖의 오류(-32600·-32601·-32602·5007 등)
+                     → removePending 대신 appState 'permanentError'로 표시하고 "보내지 못한 조작"에 보인다
     끊김·시간 초과    → unknown. status 'waiting_reconnect'. 행은 pending에 남는다
 
 코어의 재전송(syncing 진입 때):
+  재전송 전 확인(§3.9.5): storeId·deviceId·protocol·schemaHash가 다른 행은 보내지 않는다
   나이가 pendingCommandMaxAgeMs 안인 행을 같은 키로 다시 보낸다
   데몬은 같은 키면 처음 결과를 duplicate: true로 돌려준다(보존 idempotencyWindowMs 7일, 19 §3.9.2)
-  결과는 코어의 'pendingResolved' 알림(19에 요구)으로 받는다:
-    화면이 아직 기다리면 그 화면에 넘기고, 아니면 토스트 "연결이 끊긴 동안 보낸 조작이 처리됐습니다"(05 키)
-  나이 초과 행과 'storeReset' 행은 SCR-CONNECT "보내지 못한 조작"(04 §3.19):
-    내용과 원래 화면(screen·objectId)을 보이고, 다시 보내려면 그 화면을 열어 바뀐 상황을 본 뒤 새 키와 현재 basisSeq로 보낸다
-```
+  결과는 코어의 'pendingResolved' 알림(19 §3.14)으로 받는다. 화면이 아직 기다리면 그 화면에 넘기고, 아니면 결과별 토스트(05 키):
+    성공             → "연결이 끊긴 동안 보낸 조작이 처리됐습니다"
+    3004·3009        → "연결이 끊긴 동안 상황이 바뀌어 조작이 적용되지 않았습니다", 쓰던 내용을 drafts(origin 'restored')로 되살린다
+    3008             → "다른 곳에서 먼저 처리했습니다", 위 3008 규칙대로
+    3001·3002·3005   → "조작이 거부되었습니다 · 이유", 쓰던 내용을 drafts로 되살린다
+    5003             → 위 5003 규칙대로
+  나이 초과 행과 appState가 붙은 행은 SCR-CONNECT "보내지 못한 조작"(04 §3.19):
+    먼저 command.lookup({ idempotencyKey })(19에 요구, 읽기 메서드)로 원래 키의 결과를 묻는다.
+      결과가 있으면 그 결과를 보이고 행을 지운다(두 번 적용되지 않게)
+      결과가 없거나 조회할 수 없으면(키 보존 기간 7일 경과, 다른 storeId) 내용과 원래 화면(screen·objectId)을 보이고,
+      다시 보내려면 그 화면을 열어 바뀐 상황을 본 뒤 새 키와 현재 basisSeq로 보낸다
+    command.lookup은 원래 기기의 deviceId 범위에서만 찾으므로 deviceChanged 행은 조회 없이 "결과를 알 수 없음"으로 보인다
 
 - `basisSeq`는 19에서 필수다. 사람이 결정한 카드가 속한 뷰의 `asOfSeq`를 넣는다(21 UI-D02). 화면 밖 동작(트레이의 방해 금지 등)은 그때의 구독 위치를 넣는다(19 §3.7.2). `expect`(레코드 revision)는 뷰 데이터의 `RecordRef.revision`을 아는 화면만 넣는다(19 §3.7.4).
 - 연결이 없을 때 새 결정을 받아 쌓아 두는 오프라인 큐는 두지 않는다(판정 J-02, 04 SC-03). 쓰던 내용은 초안(`drafts`)으로 남긴다. OpenClaw iOS의 오프라인 송신 outbox(50개, 48시간, pi-cases-notes §12 그 밖)와 다른 선택이다. 질문의 전제가 그 사이 바뀔 수 있어 낡은 화면에서의 결정을 늦게 보내지 않는다.
-- 진행 중 명령함은 "보냈는데 결과를 모르는 것"만 다룬다. 재전송은 결과 확인용이다.
+- 진행 중 명령함은 "보냈는데 결과를 모르는 것"만 다룬다. 재전송은 결과 확인용이다. 결과가 정해진 응답(성공, 3001~3009, 5003, retryable false 오류)을 받으면 행을 지우거나 "보내지 못한 조작"으로 옮기고, 같은 행을 다시 보내지 않는다.
 
 #### 3.9.8 오프라인과 낡은 데이터 표시 [제안, 화면 규칙은 04 §3.0.3·§3.0.4]
 
@@ -1183,14 +1271,14 @@ send(params, { basisSeq, screen, objectId }):
 
 | 층 | 위치 | 잡는 것 | 보이는 것 |
 |---|---|---|---|
-| L0 앱 | `main.tsx`의 `AppCrashBoundary` | 셸까지 무너진 렌더 오류 | 전체 화면 "앱에 문제가 생겼습니다" + [다시 불러오기] + [진단 묶음 만들기](`diag_bundle`). 연결은 Rust에 있으므로 다시 불러와도 데몬 쪽 작업과 무관하다 |
+| L0 앱 | `main.tsx`의 `AppCrashBoundary` | 셸까지 무너진 렌더 오류 | 전체 화면 "화면을 그리다 처리하지 못한 오류가 생겼습니다. 다시 불러오세요. (코드 …)"(05 키) + [다시 불러오기] + [진단 묶음 만들기](`diag_bundle`). 연결은 Rust에 있으므로 다시 불러와도 데몬 쪽 작업과 무관하다 |
 | L1 화면 | 루트 레이아웃의 `<Outlet>`을 감싼 `ScreenBoundary`(경로가 바뀌면 초기화) | 화면 하나의 렌더 오류 | 셸은 남기고 본문에 오류 카드 + [이 화면 다시 열기] |
 | L2 패널 | 검사 패널, 대화 스레드(assistant-ui), 이미지, 시각화 | 부분 오류 | 그 패널만 대체 표시 |
 
 - `react-error-boundary` 6을 쓴다(React 19도 오류 경계는 클래스 컴포넌트로만 만들 수 있다 [지식]).
 - `createRoot(el, { onUncaughtError, onCaughtError, onRecoverableError })`(React 19의 루트 오류 콜백 [지식])로 모든 렌더 오류를 `tauri-plugin-log`에 남긴다. 화면 표시는 위 경계가 하고 콜백은 기록만 한다.
 - 비동기 오류(투영 읽기 실패, 명령 실패)는 오류 경계로 던지지 않고 화면 상태(§3.9.8, `CommandOutcome`)로 다룬다. 예외: `ProtocolDataError`가 고정 키에서 나면 L1로 던진다.
-- 오류 문구는 `errors/messages.ts`가 `AppErrorCode`, `TransportCloseReason`, `RpcError.code`, `KernelRejectReason`을 05의 문구로 바꾼다. 모르는 코드는 "알 수 없는 오류 (코드)"로 보이고 로그에 남긴다.
+- 오류 문구는 `errors/messages.ts`가 `AppErrorCode`, `TransportCloseReason`, `RpcError.code`, `KernelRejectReason`을 05의 문구로 바꾼다. 모르는 코드는 "처리하지 못한 오류가 생겼습니다. 다시 불러오세요. (코드 …)"(05 §3.11 규칙: 원인과 할 일 한 문장)로 보이고 로그에 남긴다. 화면 문구에는 내부 용어(데몬, seq, diff, health 등)를 쓰지 않고 05 §3.10.8의 화면 표기(서버, 기록 번호 등)를 쓴다. 버튼 문구는 05 §3.10.5 표를 따른다([다시 불러오기], [다시 연결], [닫기] 등).
 - React 19 `StrictMode`도 개발에서 effect를 두 번 실행한다 [지식]. `HelmClient`와 경로 선택기는 React 밖 모듈 단일 객체로 만들고, React는 구독만 한다. 두 번 마운트돼도 연결이 둘 생기지 않는다.
 
 #### 3.9.10 assistant-ui 연결 [제안, 범위는 21 UI-D11]
@@ -1225,7 +1313,8 @@ const runtime = useExternalStoreRuntime({
 | `shortcuts.quickCapture` | 없음(사용자가 정함, 05 §3.8) | §3.10.4 |
 | `shortcuts.singleKey` | `true` | 한 글자 단축키 켜기·끄기(04 §5.2, 05 §3.8) |
 | `shortcuts.overrides` | `{}` | 앱 안 단축키 바꾸기. 값은 `KeyboardEvent.code` 조합(예: `Mod+KeyK`) |
-| `notifications.hourlyCap` | `3` | 즉시 전달을 뺀 시간당 OS 알림 상한(05 §3.7.3, IX-Q3) |
+| `notifications.hourlyCap` | `3` | `interrupt`를 뺀 시간당 OS 알림 상한(05 §3.7.3, IX-Q3). 이 기기에서만 센다 |
+| `notifications.negotiated` | `false` | 협상 전달(`deliveryMode: negotiated`) 질문도 OS 알림으로 띄울지(05 §3.7.3 "협상 전달" 행·IX-Q2, AC-04-01, §3.10.1 규칙 5) |
 | `notifications.observer` | `false` | 관찰 제안 알림(04 §5.2) |
 | `notifications.dndException` | `none` | 방해 금지 중 예외: `none` / `expiringOnly`(05 §3.7.4). 방해 금지 자체는 데몬 설정 |
 | `transparency` | `system` | `system \| full \| reduced`(21 §3.2.9). `system`이면 OS의 투명도 줄이기를 따른다 |
@@ -1233,7 +1322,7 @@ const runtime = useExternalStoreRuntime({
 | `macGlass` | `sidebar` | `sidebar \| liquidGlassRegular`. 뒤의 것은 macOS 26 이상에서만 고를 수 있다 |
 | `fontScale` | `1.0` | 글자 크기 `1.0 \| 1.125 \| 1.25`. 웹뷰 확대(§3.10.5)로 적용(21 §3.2) |
 | `inspector.pinned`, `inspector.width` | `false`, 360 | 검사 패널 고정과 너비(21 §5.2) |
-| `notifications.showContent` | `false` | OS 알림에 데몬 문구를 그대로 보일지(05 ADR, §3.10.1) |
+| `notifications.showContent` | `false` | OS 알림에 전달의 `copy` 문구를 보일지. 끄면 `notif.hidden.*`(05 ADR A8, 판정 J-03, §3.10.1) |
 | `closeBehavior` | `hide` | 창 닫기 = 숨기기. `quit`이면 앱 종료 |
 | `macActivation` | `regular` | `accessory`면 Dock 아이콘 없이 메뉴 막대만(배지 없음) |
 | `offlineCopy` | `true` | 뷰 오프라인 사본(§3.9.5) |
@@ -1243,7 +1332,7 @@ const runtime = useExternalStoreRuntime({
 
 알림 종류별 켜고 끄기, 조용한 시간, 주의 예산은 데몬 설정이다(11·14). 앱은 같은 값을 다시 두지 않고 `SCR-SETTINGS`에서 데몬 명령으로 바꾼다.
 
-문구: UI 문구는 한국어 하나뿐이라 i18n 라이브러리를 쓰지 않는다. 앱이 직접 만드는 문구는 `src/copy/`의 상수에 두고 05의 지침을 따른다. 데몬 투영에 들어 있는 문구(질문 문장 등)는 그대로 그린다.
+문구: UI 문구는 한국어 하나뿐이라 i18n 라이브러리를 쓰지 않는다. 앱이 보이는 문구(연결 상태, OS 알림, 트레이, 오류)는 모두 `@helm/ui-language`의 05 키로 만든다(판정 J-103). 앱 안에 문구 상수 폴더를 두지 않는다. 05에 없는 문구가 필요하면 05에 키를 요구한다(§5.2). 데몬 투영에 들어 있는 문구(질문 문장 등)는 그대로 그린다.
 
 #### 3.9.12 presence 보고 [제안, 형식은 19 §3.7.8, 쓰임은 11 §3.8.1]
 
@@ -1254,7 +1343,8 @@ const runtime = useExternalStoreRuntime({
 | `active` | 창이 보이고 포커스가 있고, 마지막 키보드·마우스 입력이 5분 안 |
 | `idle` | 창이 보이지만 입력이 5분 넘게 없음 |
 | `hidden` | 창이 숨겨짐 또는 최소화(`app://window`) |
-| `locked` | 보내지 않는다. Tauri에 화면 잠금 신호가 없어 판정할 수 없다 [지식]. 잠금 동안은 보통 `idle`이나 `hidden`으로 보인다 |
+
+- 값은 09의 저장 값 `active`·`idle`·`hidden`·`offline` 중 앞의 셋이다(판정 J-119). `offline`은 데몬이 연결 끊김으로 정한다. `locked` 값은 없다. 부재(`away`)는 데몬이 14 §3.13.8의 파생 함수로 계산하고, 데스크톱의 문턱은 5분이다(휴대폰 2분). 앱은 `away`를 보내지 않는다.
 
 - `screen`은 현재 경로의 화면 ID(03 §3.6), `objectId`는 경로 인자의 레코드 ID다(예: `SCR-QUESTION`, `qs_…`).
 - 바뀔 때만 보내고 최소 간격은 2초, 같은 값은 다시 보내지 않는다(19 §3.7.8). 연결이 `ready`일 때만 보내고, 다시 연결되면 현재 값을 한 번 보낸다.
@@ -1266,37 +1356,39 @@ const runtime = useExternalStoreRuntime({
 
 #### 3.10.1 알림 [제안]
 
-원칙: 질문을 언제 사람에게 알릴지는 데몬이 전달 방식(즉시·협상·중재·예약)으로 정한다(결정 12, 11). 앱은 데몬의 전달 결정이 기록된 영속 이벤트(19 §3.8.3, 이벤트 이름은 09·11)를 실시간으로 받았을 때만 OS 알림을 띄운다(APP-D11). 진행 이벤트마다 알리지 않는다(canon §12.12 #2, 21 UP-13). 원전 체크리스트의 "할 일과 마감 효과가 있는 것만, 낮은 우선순위는 복귀 요약에 묶음"(canon §17.6, §12.10 `batch_low_urgency_until`, `preferred_review_windows`)은 데몬의 전달 정책이 지키고, 앱은 그 결과만 보인다. 별도 푸시 채널은 없다(19 §2.4).
+원칙: 질문을 언제 사람에게 알릴지는 데몬이 전달 방식(즉시·협상·중재·예약)으로 정한다(결정 12, 11). 앱은 데몬의 전달 결정이 기록된 영속 이벤트(19 §3.8.3, 이벤트 이름은 09·11)를 실시간으로 받았을 때만 OS 알림을 띄운다(APP-D11). 진행 이벤트마다 알리지 않는다(canon §12.12 #2, 21 UP-13). 원전 체크리스트의 "할 일과 마감 효과가 있는 것만, 낮은 우선순위는 복귀 요약에 묶음"(canon §17.6, §12.10 `batch_low_urgency_until`, `preferred_review_windows`)은 데몬의 전달 정책이 지키고, 앱은 그 결과만 보인다. 휴대폰 푸시는 2단계 기준으로 26의 Web Push다. 데몬이 `channel: push` 전달을 만들어 휴대폰에 보내고, 데스크톱 앱은 그 전달을 띄우지 않는다([결정 47·48], 26 §3.4). 데스크톱 앱이 꺼져 있으면 데스크톱 OS 알림은 없다. 그때 휴대폰으로 보낼지는 11의 전달 강도와 26의 `pushReachable`이 정한다.
 
-앱이 전달 이벤트 payload에서 읽는 필드(09·11이 이름을 정한다. 앱이 기대하는 최소):
+앱이 `question.delivered` payload에서 읽는 필드. 정본은 09 §3.4의 스키마이고 아래는 앱이 쓰는 부분이다(판정 J-31·J-52):
 
 ```ts
+// 09 question.delivered 그대로. deliveryMode만 09·11에 더해 달라고 요구한다(§5.2)
 interface DeliveryPayloadForApp {
   deliveryId: string;
-  surface: Array<'os' | 'badge' | 'banner'>;   // 데몬이 정한 표시 방법. 'os'가 없으면 OS 알림을 띄우지 않는다
-  targetDevices?: string[];                     // 없으면 모든 기기
+  batchKey: string | null;                      // 같은 값이면 알림 하나로 묶는다
+  channel: 'app' | 'push' | 'tui' | 'brief';    // 데스크톱은 'app'만 띄운다
+  surface: Array<'os' | 'badge' | 'banner'>;    // 'os'가 없으면 OS 알림을 띄우지 않는다
   category: 'question' | 'rights_gate' | 'review' | 'goal' | 'recovery' | 'observer' | 'system';
-  urgency: 'interrupt' | 'notice' | 'digest';   // 11 §2.2-1의 알림 강도(delivery.urgency)
-  channel?: string;                             // 09의 전달 경로(판정 J-52). 앱은 표시에 쓰지 않는다
-  titleKey: string; titleArgs?: Record<string, string>;   // 문구 키(판정 J-31). 앱이 @helm/ui-language로 문장을 만든다
-  bodyKey: string;  bodyArgs?: Record<string, string>;    // 질문 본문·비밀은 인자로도 넣지 않는다(04 §3.24, 18)
+  urgency: 'interrupt' | 'notice' | 'digest';   // 11 Urgency(판정 J-52)
+  deliveryMode?: 'immediate' | 'negotiated' | 'mediated' | 'scheduled';   // 09·11에 요구. 협상 전달 알림 설정에 쓴다
+  copy: { titleKey: string; bodyKey: string; args: Record<string, string> };   // 05 문구 키. 질문 본문·비밀은 인자로도 넣지 않는다
   target: string;                               // 딥 링크(03 §3.5.4). 예: helm://question/qs_…
-  expiresAt?: string;
+  expiresAt: number | null;                     // ms
+  targetDevices: 'all' | string[];              // DeviceId 목록
 }
 ```
 
 처리(`platform/tauri/notifications.ts`, 05 §3.7):
 
-1. **재전송 중 받은 전달은 하나씩 띄우지 않는다.** 이벤트 구독이 `caughtUp` 전이면 개수만 센다. `ready`가 되면 남아 있는 것(이미 답했거나 만료된 것 제외, `inbox` 뷰로 확인)이 하나 이상일 때 묶음 알림 하나 "접속하지 않은 동안 전달된 질문 n개"(05 키)를 띄운다(19 §3.8.3).
-2. `surface`에 `os`가 없거나, `targetDevices`에 이 기기가 없거나, `expiresAt`이 지났으면 띄우지 않는다. `category`가 `observer`면 기본으로 띄우지 않는다(설정으로 켬, 04 §5.2). 연결 차단(§3.8.9의 `blocked`)은 OS 알림이 아니라 앱 안 배너로만 보인다.
+1. **재전송 중 받은 전달은 하나씩 띄우지 않는다.** 이벤트 구독이 `caughtUp` 전이면 개수만 센다. `ready`가 되면 남아 있는 것(이미 답했거나 만료된 것 제외, `inbox` 뷰로 확인)이 하나 이상일 때 묶음 알림 하나 "접속하지 않은 동안 전달된 질문 n개"(05 키)를 띄운다(19 §3.8.3). 실시간으로 받은 전달도 `batchKey`가 같으면 알림 하나로 묶는다.
+2. `channel`이 `app`이 아니거나, `surface`에 `os`가 없거나, `targetDevices`가 `'all'`이 아니면서 이 기기의 `deviceId`를 담지 않았거나, `expiresAt`이 지났으면 띄우지 않는다. `category`가 `observer`면 기본으로 띄우지 않는다(설정으로 켬, 04 §5.2). 연결 차단(§3.8.9의 `blocked`)은 OS 알림이 아니라 앱 안 배너로만 보인다.
 3. 같은 `deliveryId`는 한 번만 띄운다(`meta.recentDeliveryIds`, 최근 500개). 같은 질문의 알림은 전달 1번과 승격 1번까지다(05 §6 알림 행).
-4. 방해 금지 중이면 띄우지 않는다. 방해 금지는 데몬 설정이고 기기마다 따로 두지 않는다(05 §3.7.4). 앱은 `tray` 뷰의 `dndUntil`로 상태를 알고, 끝나면 그동안 쌓인 것이 있을 때 묶음 알림 하나 "Helm · 확인할 일 n건"을 띄운다. 예외 설정 "만료 임박만"이면 승격된 전달만 띄운다.
-5. 강도별 표시(11 §5.2의 20 요구): `interrupt`(즉시 전달: 권리 게이트, 막힘, 만료 임박 승격) → 전달 이벤트를 받은 뒤 5초 안에 OS 알림(01 NFR-P-6), 창이 열려 있으면 앱 안 배너도. `notice` → OS 알림(창이 앞에 있고 대상 화면이 열려 있으면 배너만). `digest` → OS 알림 없음(질문함·배지·복귀 요약으로만).
-6. 시간당 상한(앱 쪽 주의 예산, 05 §3.7.3): 즉시 전달을 뺀 OS 알림은 한 시간에 `notifications.hourlyCap`(기본 3)개까지 띄우고, 넷째부터는 그 시간이 끝날 때 묶음 알림 하나 "확인할 일이 n개 더 있습니다"로 바꾼다. 앱 안 배너와 배지는 그대로 바뀐다. 데몬 쪽 예산(14 `interruptsPerHour`)과는 다른 층이다.
-7. 띄울 때는 `sendNotification({ title, body, extra: { target, deliveryId } })`. 설정 `notifications.showContent`가 꺼져 있으면(기본, 05 ADR A8, 판정 J-03) 전달의 문구 키 대신 제목 "Helm", 본문 "확인할 일이 n건 있습니다."(n은 `tray` 뷰의 선택 필요 + 확인하면 좋은 것)로 띄운다. 앱은 잠금 상태를 감지하지 않는다(05 §3.7.6). `notifications.enabled`가 꺼져 있으면 띄우지 않는다.
+4. 방해 금지 중이면 띄우지 않는다. 방해 금지는 데몬 설정이고 기기마다 따로 두지 않는다(05 §3.7.4). 앱은 `tray` 뷰의 `dndUntil`로 상태를 알고, 끝나면 그동안 쌓인 것이 있을 때 묶음 알림 하나(05 `notif.hidden.*`, 개수 있음)를 띄운다. 예외 설정 "만료 임박만"이면 승격된 전달만 띄운다.
+5. 강도별 표시(11 §5.2의 20 요구): `interrupt`(즉시 전달: 권리 게이트, 막힘, 만료 임박 승격) → 전달 이벤트를 받은 뒤 5초 안에 OS 알림(01 NFR-P-6), 창이 열려 있으면 앱 안 배너도. `notice` → OS 알림(창이 앞에 있고 대상 화면이 열려 있으면 배너만). 다만 `deliveryMode`가 `negotiated`이면 설정 `notifications.negotiated`(기본 끔, 05 §3.7.3 "협상 전달" 행, AC-04-01)가 켜졌을 때만 OS 알림을 띄우고, 꺼져 있으면 배지만 바뀐다. `digest` → OS 알림 없음(질문함·배지·복귀 요약으로만).
+6. 시간당 상한(앱 쪽 주의 예산, 05 §3.7.3, IX-Q3): `interrupt`를 뺀 OS 알림은 한 시간에 `notifications.hourlyCap`(기본 3)개까지 띄우고, 넷째부터는 그 시간이 끝날 때 묶음 알림 하나 "확인할 일이 n개 더 있습니다"로 바꾼다. 앱 안 배너와 배지는 그대로 바뀐다. 이 값은 이 기기에서만 센다 [제안]. 데몬 쪽 예산(14 `interruptsPerHour`)과는 다른 층이다. 휴대폰 푸시 상한(26 `push.hourlyCap`, 기본 6)과 설정 하나로 모을지, 기기 사이에서 합산할지는 05·14·26이 정한다(§5.2). 데스크톱 알림을 눌러 질문을 열면 presence의 `screen`·`objectId`로 데몬이 열람을 알고, 26의 60초 지연 푸시가 나가지 않는다(26 §3.4.3).
+7. 띄울 때는 `sendNotification({ title, body, extra: { target, deliveryId } })`. 설정 `notifications.showContent`가 꺼져 있으면(기본, 05 ADR A8, 판정 J-03) 전달의 `copy` 대신 05의 숨김 키 `notif.hidden.title`("Helm")·`notif.hidden.body`(개수가 있으면 "확인할 일이 {n}건 있습니다.", 없으면 "확인할 일이 있습니다.")로 띄운다. n은 `tray` 뷰의 선택 필요 + 확인하면 좋은 것이다. 내용을 보일지는 기기가 정한다. 데몬은 05 §3.7.2의 인자만 싣고 숨김 처리를 하지 않는다(26 `contentLevel`과 같은 규칙). 앱은 잠금 상태를 감지하지 않는다(05 §3.7.6). `notifications.enabled`가 꺼져 있으면 띄우지 않는다.
 8. 창이 포커스를 갖고 있고 `target` 화면이 지금 열려 있으면 OS 알림 대신 앱 안 배너(`RGN-BANNER`)로 보인다. 표시 방법의 선택이고 전달 여부 판단이 아니다.
 
-클릭 처리: `tauri-plugin-notification` 2.6.0부터 데스크톱에서 알림 클릭이 `onAction`으로 온다 [원문: plugins-workspace `plugins/notification/CHANGELOG.md` 2.6.0, 보조 에이전트 확인]. 클릭하면 `extra.target`을 §3.10.6 규칙으로 연다. 묶음 알림은 `SCR-INBOX`를 연다. 2.6.0은 2026-10-10 배포라 쓰인 기록이 적다 [가정: 두 플랫폼에서 동작, §6.2 수동 확인 항목]. 동작하지 않는 환경에서는 대체 규칙을 쓴다: 알림을 띄운 뒤 30초 안에 앱이 활성화되면 가장 최근 알림의 `target`을 배너의 [열기] 단추로 보인다(자동 이동은 하지 않는다). 알림 안의 동작 단추(예: "가정대로 진행")는 두지 않는다. 결정은 질문 내용을 본 화면에서만 한다(04 §3.25의 팔레트 규칙과 같은 이유).
+클릭 처리: `tauri-plugin-notification` 2.6.0부터 데스크톱에서 알림 클릭이 `onAction`으로 온다 [원문: plugins-workspace `plugins/notification/CHANGELOG.md` 2.6.0, 보조 에이전트 확인]. 클릭하면 `extra.target`을 §3.10.6 규칙으로 연다. 묶음 알림은 `SCR-INBOX`를 연다. 2.6.0은 2026-10-10 배포라 쓰인 기록이 적다 [가정: 두 플랫폼에서 동작, §6.2 수동 확인 항목]. 동작하지 않는 환경에서는 대체 규칙을 쓴다: 알림을 띄운 뒤 30초 안에 앱이 활성화되면 가장 최근 알림의 `target`을 배너의 [질문 열기] 단추로 보인다(자동 이동은 하지 않는다). 알림 안의 동작 단추(예: "가정대로 진행")는 두지 않는다. 결정은 질문 내용을 본 화면에서만 한다(04 §3.25의 팔레트 규칙과 같은 이유).
 
 플랫폼별 사실 [원문: 플러그인 소스, 보조 에이전트 확인]:
 
@@ -1327,7 +1419,7 @@ interface DeliveryPayloadForApp {
 #### 3.10.4 전역 단축키와 빠른 입력 [제안]
 
 - `tauri-plugin-global-shortcut`으로 하나만 등록한다: 빠른 입력. 기본 조합은 두지 않고 사용자가 `SCR-SETTINGS`에서 정한다(05 §3.8: `Cmd+Shift+H`는 macOS Finder의 "홈 폴더 열기"와 겹친다). 누르면 창을 보이고 앞으로 가져와 전역 범위의 입력창(`RGN-COMPOSER`, 03 §3.4)에 포커스를 준다. 원전의 "global quick capture / command palette"(canon-3 §6.10.2)에 해당한다. 입력 내용은 의미 미리보기(05 §3.5)를 거친다.
-- 등록 실패(다른 앱이 이미 씀)는 플러그인이 오류로 알려 준다. `isRegistered`로는 다른 앱의 등록을 알 수 없다 [원문: 플러그인 JS 문서 주석]. 실패하면 `SCR-SETTINGS`에 "단축키를 등록하지 못했습니다"를 보이고 바꾸게 한다.
+- 등록 실패(다른 앱이 이미 씀)는 플러그인이 오류로 알려 준다. `isRegistered`로는 다른 앱의 등록을 알 수 없다 [원문: plugins-workspace v2 `plugins/global-shortcut/guest-js/index.ts` 109~124행 `isRegistered` 문서 주석, 2026-10-12 확인]. 실패하면 `SCR-SETTINGS`에 "단축키를 등록하지 못했습니다"를 보이고 바꾸게 한다.
 - 앱 안 단축키(명령 팔레트 `Mod+K` 등)는 05 §3.8이 정하고 웹뷰 안에서 처리한다. 판정은 `KeyboardEvent.code`로 한다(한글 입력 상태에서도 같은 키, 05 IX-09). `isComposing`이 참이거나 `keyCode`가 229인 이벤트는 무시하고, 텍스트 입력에 초점이 있으면 한 글자 단축키를 쓰지 않는다(05 §3.8 규칙 3·4). 도움말에 보이는 글자는 `code`를 현재 자판 배열의 글자로 바꿔 보인다. WebView2는 `navigator.keyboard.getLayoutMap()`으로 바꾸고, 이 API가 없는 WKWebView는 US 배열 이름으로 보인다 [지식](05 A7의 20 요구).
 - 전역 단축키 문자열도 물리 키 이름(`CommandOrControl+Shift+KeyH` 꼴)으로 저장한다 [지식: global-hotkey의 코드 이름].
 - 부품에 넘기는 키 지도: 앱은 05의 기본 단축키에 `shortcuts.overrides`를 덮어 만든 `keymap`(동작 이름 → `code` 조합)을 `@helm/ui`의 키 지도 공급자로 넘긴다(21 §3.12, 21 §5.2의 20 요구 (4)). 부품은 판정만 하고 설정을 읽지 않는다.
@@ -1350,16 +1442,17 @@ interface DeliveryPayloadForApp {
 
 | 링크 | 처리 |
 |---|---|
-| `helm://question/<qsId>` | `/inbox/<qsId>`로 열고, `question` 뷰의 질문 종류가 작업 합의·결과 확인·Goal 확인·복구 판단이면 그 화면(`SCR-AGREE`·`SCR-REVIEW`·`SCR-GOAL`·`SCR-RECOVERY`)으로 바꿔 연다(`replace` 이동, 뒤로 가기에 남기지 않음. 03 §3.5.4, 04 §5.2). 경로 인자(`cnId`, `wuId`, `glId`)는 뷰 데이터의 대상 참조에서 읽는다 |
+| `helm://question/<qsId>` | `/inbox/<qsId>`로 열고, `question` 뷰의 질문 종류가 작업 합의·결과 확인·Goal 확인·복구 선택이면 그 화면(`SCR-AGREE`·`SCR-REVIEW`·`SCR-GOAL`·`SCR-RECOVERY`)으로 바꿔 연다(`replace` 이동, 뒤로 가기에 남기지 않음. 03 §3.5.4, 04 §5.2). 경로 인자(`cnId`, `wuId`, `glId`)는 뷰 데이터의 대상 참조에서 읽는다 |
 | `helm://concern/<cnId>[/<tab>]` | `tab ∈ {overview, inquiry, work, history, thread}`, 없으면 `overview` |
 | `helm://agreement/<agId>`, `helm://review/<rsId>` | 경로에 `cnId`, `wuId`가 필요하다. 데몬의 참조 해석 메서드(19, 03 §5.2 "딥 링크 대상 ID를 그대로 쓸 수 있는 조회")로 경로 인자를 받은 뒤 이동한다 |
 | `helm://evidence/<recordId>` | `/evidence/<recordId>` |
 | `helm://goal/<glId>` | `/goals/<glId>` |
 | `helm://stimuli/<cnId>/<roundNo>` | `/concerns/<cnId>/inquiry/want/rounds/<roundNo>` |
 | `helm://brief`, `helm://recovery`, `helm://observer/<proposalId>` | 해당 경로 |
-| `helm://pair?v=1&url=…&code=…&sid=…` | `/connect?pair=…`. 페어링을 자동으로 실행하지 않는다. 서버 주소와 `serverId`를 보이고 사용자가 [연결]을 눌러야 `pairing_with_code`를 부른다(링크는 연결 의도만 담는다. OpenClaw `openclaw://gateway/add`와 같은 원칙, `docs/platforms/mac/remote.md:107-111`). 코드는 로그에서 가린다 |
+| `helm://pair?v=1&url=…&code=…&sid=…` | `/connect?pair=…`. 페어링을 자동으로 실행하지 않는다. 서버 주소와 `serverId`를 보이고 사용자가 [이 서버와 페어링]을 눌러야 `pairing_with_code`를 부른다(링크는 연결 의도만 담는다. OpenClaw `openclaw://gateway/add`와 같은 원칙, `docs/platforms/mac/remote.md:107-111`). 코드는 로그에서 가린다 |
 
-- 링크에 `sid=<serverId>`가 있고 활성 프로필과 다르면 프로필을 바꿀지 묻는다. 없으면 활성 프로필에 적용한다.
+- 페어링 링크(`helm://pair`)의 적용 규칙: `sid`가 있고 어떤 프로필의 `serverId`와 같으면 그 프로필에 경로를 더할지 묻는다(기존 경로의 주소는 링크로 바꾸지 않는다). `sid`가 없거나 어느 프로필과도 맞지 않으면 새 프로필로 만든다. 활성 프로필에 링크의 주소를 덮어쓰지 않는다. 어느 경우든 경로 추가는 Rust 네이티브 확인 창을 거친다(§3.6.3).
+- 그 밖의 링크에 `sid=<serverId>`가 있고 활성 프로필과 다르면 프로필을 바꿀지 묻는다.
 - 연결이 없을 때 데몬 조회가 필요한 링크는 "연결되면 엽니다"를 보이고 대기 링크 하나를 기억했다가 `ready`가 되면 연다.
 - 대상이 이미 처리됐거나 없으면 그 화면이 상태를 보인다(03 §3.5.4, 04 §3.0.5).
 
@@ -1372,10 +1465,10 @@ interface DeliveryPayloadForApp {
 | 값 | 토큰 문자열 그대로. Windows 자격 증명 크기 한도 2,560바이트 [검색: Microsoft `CREDENTIALW` 문서] 안에 든다 |
 | Windows 보존 범위 | 로밍(Enterprise)이 기본값이라고 한다 [검색: windows-native-keyring-store 문서]. 이 기기 전용(Local Machine)으로 바꾼다. 이 API가 크레이트에 없으면 기본값을 쓰고 §7 Q-07에 남긴다 |
 | macOS 키체인 확인 창 | 레거시 키체인의 항목 접근 권한은 앱의 코드 서명 정체에 묶인다. ad-hoc 서명 앱은 빌드할 때마다 정체가 바뀌어 다시 빌드한 뒤 처음 읽을 때 "키체인 접근 허용" 창이 뜬다 [검색: keyring-rs 이슈 #272 유지 관리자 답변] |
-| 대응 | Mac에서 한 번 만든 자체 서명 코드 서명 인증서(키체인 접근 > 인증서 지원 > 인증서 생성, 종류 "코드 서명")로 매번 서명한다(`bundle.macOS.signingIdentity = "Helm Local Code Signing"`). 같은 인증서로 서명하면 지정 요구 사항(designated requirement)이 같아 다시 묻지 않을 것으로 본다 [가정, 시험 항목 §6]. 이것은 개인 Mac에서의 로컬 서명이라 Apple 공증·서명 배포(결정 24)와 다르다. 인증서를 만들지 않으면 `"-"`(ad-hoc)로 빌드하고 갱신마다 한 번 "항상 허용"을 누른다 |
+| 대응 | Mac에서 한 번 만든 자체 서명 코드 서명 인증서(키체인 접근 > 인증서 지원 > 인증서 생성, 종류 "코드 서명")로 매번 서명한다(`bundle.macOS.signingIdentity = "Helm Local Code Signing"`). 같은 인증서로 서명하면 지정 요구 사항(designated requirement)이 같아 다시 묻지 않을 것으로 본다 [가정, 시험 항목 §6]. 이것은 개인 Mac에서의 로컬 서명이라 Apple 공증·서명 배포(결정 24)와 다르다. 인증서를 만들지 않으면 `"-"`(ad-hoc)로 빌드하고 갱신마다 한 번 "항상 허용"을 누른다. 유효 기간: 인증서 지원의 기본값은 1년이다 [지식]. 만들 때 "기본값 덮어쓰기"를 골라 유효 기간을 3650일로 둔다. 인증서가 바뀌면 지정 요구 사항이 달라져 확인 창이 다시 뜨기 때문이다. `app-build-local`은 `security find-certificate -c "$HELM_APP_SIGNING_IDENTITY" -p | openssl x509 -enddate -noout`으로 만료일을 읽어 90일 안이면 경고를 출력한다. 만료되면 같은 이름으로 새로 만들고 첫 실행에서 한 번 "항상 허용"을 누른다(INSTALL.md) |
 | Data Protection 키체인 | 쓰지 않는다. 팀 ID와 프로비저닝이 필요해 서명 없는 앱에서 쓰기 어렵다 [검색: apple-native-keyring-store 문서] |
 | Stronghold | 쓰지 않는다. 2026-07 중단 공지, Tauri v3에서 빠진다 [검색: plugins-workspace 이슈 #3494] |
-| 실패 | 잠김·서비스 없음 → `keychain_unavailable`, 사용자 거부 → `keychain_denied`. 연결 상태는 코어 `needsUser` + 앱 사유 `keychain_denied`이고 [다시 시도]로 다시 묻는다. 키체인 대신 파일에 토큰을 두는 대체 경로는 만들지 않는다 |
+| 실패 | 잠김·서비스 없음 → `keychain_unavailable`, 사용자 거부 → `keychain_denied`. 연결 상태는 코어 `needsUser` + 앱 사유 `keychain_denied`이고 [다시 연결]을 누르면 키체인을 다시 연다. 키체인 대신 파일에 토큰을 두는 대체 경로는 만들지 않는다 |
 
 #### 3.10.8 창 효과와 투명도 [제안, 시각 규칙은 21 §3.2.9·§3.14.3]
 
@@ -1395,10 +1488,10 @@ interface DeliveryPayloadForApp {
   - `data-transparency`: 설정 `transparency`가 `full`·`reduced`면 그 값. `system`이면 macOS는 Rust 값, Windows는 미디어 쿼리 결과.
   - `data-window-effect`: 실제로 효과를 적용했으면 `on`, 아니면 `off`. 21의 CSS는 `off`일 때만 `bg-app`을 칠한다.
 - `windowEffect = system`이면 투명도 줄이기가 켜졌을 때 효과를 끈다(21 U-23).
-- Tauri 2.12.1부터 `macOSPrivateApi` 설정은 아무 일도 하지 않는다(21 §3.14.3 [검색]). 따로 켜지 않는다.
+- Tauri 2.12.1부터 `macOSPrivateApi` 설정은 아무 일도 하지 않는다(21 §3.14.3의 [검색] 근거). 따로 켜지 않는다.
 - 시험: §6.2 수동 확인에 "macOS 투명도 줄이기를 켜고 끄면 앱이 다시 시작하지 않고 바뀐다", "Windows 10에서 효과 없이 불투명"을 더한다.
 
-### 3.11 UI를 앱에 묶을지, 데몬이 서빙할지 [제안, ADR 후보 ADR-20-04]
+### 3.11 데스크톱 UI를 앱에 묶을지, 데몬이 서빙할지 [제안, ADR 후보 ADR-20-04]
 
 | 기준 | A. 앱에 묶음 (채택) | B. 데몬이 서빙(앱은 원격 URL을 여는 껍데기) |
 |---|---|---|
@@ -1409,7 +1502,7 @@ interface DeliveryPayloadForApp {
 | 결정 19 | 맞다 | 사실상 웹 클라이언트를 셸로 감싼 것이 된다 |
 | 배포 | 앱을 갱신해야 UI가 바뀐다 | 데몬 갱신만으로 UI가 바뀐다 |
 
-A를 고른다. 버전 문제는 §3.12.7의 호환 범위와 갱신 안내로 다룬다. 원전의 "Web GUI로 검증한 뒤 셸을 붙인다"(canon-3 §6.10.2)와 백엔드 조사의 "데몬이 같은 SPA를 웹으로도 서빙"(backend-oss-research §4)은 결정 19에 따라 따르지 않는다(canon-3 §7.1 C6). 다만 같은 SPA를 브라우저에서 띄우는 대체 실행은 테스트에만 쓴다(§3.13.3).
+A를 고른다. 버전 문제는 §3.12.7의 호환 범위와 갱신 안내로 다룬다. 이 판단은 데스크톱 앱에 대한 것이다. 휴대폰은 [결정 47]로 데몬이 서빙하는 PWA(`/m/`)이고, 그 묶음은 26이 정한다. 원전의 "Web GUI로 검증한 뒤 셸을 붙인다"(canon-3 §6.10.2)와 백엔드 조사의 "데몬이 같은 SPA를 웹으로도 서빙"(backend-oss-research §4)은 결정 19에 따라 따르지 않는다(canon-3 §7.1 C6). 다만 같은 SPA를 브라우저에서 띄우는 대체 실행은 테스트에만 쓴다(§3.13.3).
 
 ### 3.12 빌드·배포
 
@@ -1432,20 +1525,22 @@ A를 고른다. 버전 문제는 §3.12.7의 호환 범위와 갱신 안내로 �
 
 | 레시피 | 실행 위치 | 하는 일 | 종료 코드 2(환경 문제) |
 |---|---|---|---|
-| `app-setup` | 서버 | `rustup target add x86_64-pc-windows-msvc`, `cargo install --locked cargo-xwin`, 필요한 apt 패키지(`nsis lld llvm`)가 없으면 설치 명령을 출력(설치는 사람이 sudo로) | apt 패키지·rustup 없음 |
-| `app-check` | 서버 | `cargo fmt --check`, `cargo clippy -p helm-desktop-core`, `cargo test -p helm-desktop-core`, capability·CSP 정적 검사(§6). TS 검사·Vitest는 저장소 `lint`·`test`가 한다 | cargo 없음 |
+| `app-setup` | 서버 | `rustup target add x86_64-pc-windows-msvc`, `cargo install --locked cargo-xwin --version <고정 판>`(판은 `.mise.toml` 또는 레시피 변수 한 곳), `cargo install --locked cargo-audit cargo-deny`, 필요한 apt 패키지(`nsis lld llvm`)가 없으면 설치 명령을 출력(설치는 사람이 sudo로) | apt 패키지·rustup 없음 |
+| `app-check` | 서버 | `cargo fmt --check`, `cargo clippy --locked -p helm-desktop-core`, `cargo test --locked -p helm-desktop-core`, `cargo deny check`(라이선스·출처·중복), `cargo audit`(RustSec 공지), capability·CSP 정적 검사(§6). TS 검사·Vitest는 저장소 `lint`·`test`가 한다 | cargo 없음 |
 | `app-test-ssh` | 서버 | WSL 자신의 sshd(127.0.0.1:22)로 SSH 경로 통합 시험(가짜 데몬 포트로 `-W`) | sshd 없음, 시험 키 없음 |
-| `app-e2e` | 서버 | 가짜 데몬 + Vite 미리보기 + Playwright(Chromium, WebKit), IT-01~16 | 브라우저 미설치 |
-| `app-dev` | 서버 | Vite 개발 서버 + 브라우저 대체 실행으로 dev 데몬에 붙음(06 정의, 개발 전용). 브라우저는 헤더를 붙일 수 없으므로 Vite 개발 서버의 WebSocket 프록시(`/rpc` → `ws://127.0.0.1:7841/rpc`)가 `.env`의 `HELM_DEV_DEVICE_TOKEN`으로 `Authorization` 헤더를 붙인다. 토큰은 Node 프로세스에만 있고 브라우저 번들에 들어가지 않는다(`envPrefix` 규칙, §3.6.2) | `.env` 없음(`just dotenv`) |
+| `app-e2e` | 서버 | 가짜 데몬 + Vite 미리보기 + Playwright(Chromium, WebKit), IT-01~20 | 브라우저 미설치 |
+| `app-dev` | 서버 | Vite 개발 서버 + 브라우저 대체 실행으로 개발 데몬에 붙음(06 정의, 개발 전용). 브라우저는 헤더를 붙일 수 없으므로 Vite 개발 서버의 WebSocket 프록시(`/rpc` → `ws://127.0.0.1:<HELM_LISTEN_SSH_PORT>/rpc`)가 `.env`의 `HELM_DEV_DEVICE_TOKEN`으로 `Authorization` 헤더를 붙인다. 대상 포트는 `.env`의 `HELM_LISTEN_SSH_PORT`(개발 데몬 7851, 17 §3.15)에서 읽고, 값이 정식 데몬 포트 7841이면 시작하지 않는다. Vite 서버는 `127.0.0.1`에만 바인딩하고, 업그레이드 요청의 `Origin`이 Vite 개발 서버 주소(`http://127.0.0.1:1420`)와 정확히 같을 때만 토큰을 붙인다. 서버 PC 브라우저의 다른 페이지가 인증된 연결을 열지 못하게 하기 위해서다. 토큰은 Node 프로세스에만 있고 브라우저 번들에 들어가지 않는다(`envPrefix` 규칙, §3.6.2). 앱이 비밀 환경 변수를 읽는 예외는 이 레시피 하나다(06 §3.17) | `.env` 없음(`just dotenv`), 포트가 7841 | `.env` 없음(`just dotenv`) |
 | `app-dev-mac` | 서버 → Mac | `run-on mac 'cd ~/projects/helm/code/helm && just app-dev-local'` → Mac에서 `pnpm tauri dev` | Mac에 연결 못 함 |
 | `app-build-mac` | 서버 → Mac | `run-on mac`으로 `app-build-local` 실행(06 정의) | Mac에 연결 못 함 |
-| `app-build-local` | Mac | `pnpm tauri build --target universal-apple-darwin --bundles app` | Xcode 명령줄 도구 없음 |
+| `app-build-local` | Mac | `pnpm tauri build --target universal-apple-darwin --bundles app -- --locked`, 끝나면 산출물 폴더에 `SHA256SUMS`(`shasum -a 256`)를 쓴다 | Xcode 명령줄 도구 없음 |
 | `app-install-mac` | 서버 → Mac | 빌드 결과를 `/Applications/Helm.app`에 바꿔 넣고, 실행 중이면 끝낸 뒤 다시 띄움 | 같음 |
 | `app-verify-mac` | 서버 → Mac | `cargo clippy`(Tauri 크레이트 포함), WebdriverIO 셸 스모크(§3.13.4) | 같음 |
-| `app-build-win` | 서버 | `pnpm tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis`, 산출물을 아티팩트 폴더로(§3.12.4) | NSIS·lld·llvm·cargo-xwin 없음 |
+| `app-build-win` | 서버 | `pnpm tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis -- --locked`, 산출물을 아티팩트 폴더로 옮기고 `SHA256SUMS`(`sha256sum`)를 쓴다(§3.12.4) | NSIS·lld·llvm·cargo-xwin 없음 |
 | `app-build-win-ci` | 서버 | `gh workflow run desktop-windows.yml` 후 `gh run download`. 브랜치 push가 필요하므로 사람 확인 뒤에만 | `gh` 인증 없음 |
 | `shot` | 서버 | 가짜 데몬 고정 데이터로 화면별 스크린샷과 기준 비교(§3.13.5, 06 정의) | 브라우저 미설치 |
 
+- 공급망 규칙 [제안, 18 §3.15에 같은 행을 요구]: (1) `Cargo.lock`을 저장소에 넣고 모든 cargo 명령에 `--locked`를 붙인다. §3.7.2의 "최신"은 처음 고를 때의 뜻이고, 고른 판은 `Cargo.lock`이 고정한다. (2) `cargo deny`의 `sources`는 crates.io만 허용하고, `cargo audit` 경고는 `app-check`를 실패시킨다. (3) npm 쪽은 06의 `pnpm-lock.yaml`·`--frozen-lockfile` 규칙을 따른다. (4) GitHub Actions의 서드파티 액션(`tauri-apps/tauri-action`, `actions/checkout` 등)은 움직이는 태그(`@v1`) 대신 커밋 SHA로 고정하고, 판 이름은 주석으로 적는다. (5) `cargo-xwin`, NSIS, `llvm` 같은 빌드 도구의 판을 레시피 출력과 `SHA256SUMS` 옆의 `BUILDINFO`에 남긴다.
+- 설치 파일 확인: `INSTALL.md`에 받은 파일의 해시를 `SHA256SUMS`와 대조하는 절차를 적는다(macOS `shasum -a 256 -c`, Windows `Get-FileHash`). CI 산출물(B 경로)도 같은 파일을 만든다.
 - `just verify`에는 `app-check`만 넣는다. Mac이 필요한 레시피와 Windows 교차 빌드는 넣지 않는다(06 §3.16의 원칙). 앱을 바꾼 작업의 완료 기준에는 `app-e2e`와 화면이면 `shot`을 더한다(사용자 규칙).
 
 #### 3.12.3 macOS 빌드 [제안]
@@ -1459,7 +1554,7 @@ A를 고른다. 버전 문제는 §3.12.7의 호환 범위와 갱신 안내로 �
 
 #### 3.12.4 Windows 빌드 경로 비교와 선택 [제안, ADR 후보 ADR-20-06]
 
-| 기준 | A. WSL에서 교차 빌드(cargo-xwin, NSIS) — 기본 | B. GitHub Actions `windows-latest` + `tauri-apps/tauri-action@v1` — 대체 | C. Windows 호스트에서 수동 빌드 | D. Windows VM·Sandbox |
+| 기준 | A. WSL에서 교차 빌드(cargo-xwin, NSIS) — 기본 | B. GitHub Actions `windows-latest` + `tauri-apps/tauri-action`(커밋 SHA 고정) — 대체 | C. Windows 호스트에서 수동 빌드 | D. Windows VM·Sandbox |
 |---|---|---|---|---|
 | 브리프 §2.5 | 맞다(서버 WSL 도구만) | 맞다(외부 러너) | 어긋난다(호스트에 Node 등 없음, 도구 설치 금지 방향) | 호스트 변경 필요 |
 | 공식 지원 | "주의를 붙여 가능, 덜 시험됨, 마지막 수단" [검색: v2.tauri.app/distribute/windows-installer] | 공식 예시 경로 [검색] | 공식 | |
@@ -1494,7 +1589,7 @@ A를 기본으로 한다. 개인 앱이라 MSI가 필요 없고, NSIS 사용자 
 - 앱 버전: `apps/desktop/package.json`의 semver(`0.y.z`). `tauri.conf.json`의 `version`은 `"../package.json"`을 가리켜 한곳에서 관리한다 [지식: Tauri 설정은 package.json 경로를 받는다]. 빌드 ID는 `<git 짧은 해시>-<UTC 날짜>`를 빌드 환경 변수로 넣는다. `SCR-SETTINGS`의 정보와 진단 묶음에 보인다.
 - 프로토콜: `@helm/protocol`이 `PROTOCOL_VERSION`(정수)을 내보낸다. 앱은 `{min: PROTOCOL_VERSION - 1, max: PROTOCOL_VERSION}`을 hello에 보낸다(`PROTOCOL_VERSION`이 1이면 `min`도 1). 데몬은 겹치는 가장 큰 값을 고르거나 `1003 protocol.unsupported`(`serverMin`, `serverMax`)로 거부한다(19 §3.4.3, P-14). 앱은 `serverMax < 앱 min`이면 "데몬이 오래됨", `serverMin > 앱 max`이면 "앱이 오래됨"으로 판정한다. 추가 변경은 버전을 올리지 않고 `features`로 알리므로(19 P-14), 앱은 화면 동작을 켜기 전에 `features.methods`·`views`에 있는지 확인하고 없으면 그 동작을 숨긴다. 앱과 데몬을 같은 커밋에서 만들면 항상 맞는다. 한쪽만 갱신한 경우를 위해 한 판 차이까지 허용한다.
 - 스키마: hello의 `features.schemaHash`(19 §3.4.4)가 캐시 행의 값과 다르면 그 행을 버리고 다시 받는다(§3.9.5).
-- 불일치 문구: 앱이 오래됨 → "앱을 갱신해야 합니다(앱 n, 데몬 m)", 데몬이 오래됨 → "데몬을 갱신해야 합니다". 갱신 명령 안내는 17의 레시피 이름을 쓴다.
+- 불일치 문구: 05 `err.protocol.version`("앱(v{app})과 서버(v{server})의 버전이 맞지 않습니다. {which}을 업데이트하세요.")을 쓴다. `{which}`는 앱이 오래됐으면 "앱", 서버가 오래됐으면 "서버의 Helm"이다. 화면 문구에 "데몬"을 쓰지 않는다. 업데이트 명령 안내는 17의 레시피 이름을 쓴다. 05의 `notice.app.updateRequired`가 "갱신"을 쓰는 것은 05에 "업데이트"로 맞춰 달라고 요구한다(§5.2).
 
 #### 3.12.8 서드파티 고지 [제안, 규칙은 07 §3.17]
 
@@ -1508,34 +1603,34 @@ A를 기본으로 한다. 개인 앱이라 MSI가 필요 없고, NSIS 사용자 
 
 | 대상 | 도구 | 검사 |
 |---|---|---|
-| 사용자용 상태 `connection/ui-state.ts`, 경로 선택기 `routes.ts` | Vitest(node) | §3.8.9 표의 모든 행(우선순위 포함)이 시험 한 줄씩. 경로 넘어가기 규칙(§3.8.8 표)과 30분 미루기. 차단 사유가 `blocked`로 바뀜. 상태 기계·백오프 자체는 19 코어의 시험. 표에 없는 경우는 상태를 바꾸지 않고 효과가 없다 |
+| 사용자용 상태(`@helm/client-react` `connection/`), 경로 선택기 `routes.ts` | Vitest(node) | §3.8.9 표의 모든 행(우선순위 포함)이 시험 한 줄씩. 경로 넘어가기 규칙(§3.8.8 표)과 30분 미루기. 차단 사유가 `blocked`로 바뀜. 상태 기계·백오프 자체는 19 코어의 시험. 표에 없는 경우는 상태를 바꾸지 않고 효과가 없다 |
 | 재시도 간격 | Vitest + 가짜 타이머 | 0.5→30초 상한, 흔들림 ±20% 범위, 인증 오류에서 재시도 없음 |
 | 저장소·동기화 연결 `sync/stores.ts`, `sync/session.ts` | Vitest + `fake-indexeddb` + 19 코어의 시험용 가짜 | 위치 저장과 낡음 표시가 한 트랜잭션(중간에 트랜잭션을 중단시키면 둘 다 그대로), `outOfRange` 네 사유별 처리(§3.9.6-5), 재전송 중 낡음은 다시 받기를 미루고 `caughtUp` 뒤 한 번에, 늦은 응답이 새 값을 덮지 않음, `schemaHash`가 다르면 캐시 행을 버림, 재전송 중 전달 이벤트로 OS 알림을 띄우지 않음 |
 | 휘발 스트림 반영 `sync/liveText.ts` | Vitest | 영속 이벤트가 오면 지움, `finalSeq` 전에는 지우지 않음, 재접속 때 비우고 `active`로 채움(`n`·`offset` 검사는 19 코어의 시험) |
-| 진행 중 명령함 `sync/commands.ts`, `IdbClientStateStorage` | Vitest + `fake-indexeddb` + 19 코어 | 끊김 뒤 같은 멱등 키로 재전송, 정책 나이를 넘으면 `expired` 표시, 커널 거부(3001·3002·3004)는 `removePending`, `storeReset` 행은 `listPending`에 나오지 않음, `decisionsAllowed`가 거짓이면 `send`가 막힘 |
+| 진행 중 명령함 `sync/commands.ts`, `IdbClientStateStorage` | Vitest + `fake-indexeddb` + 19 코어 | 끊김 뒤 같은 멱등 키로 재전송, 정책 나이를 넘으면 `expired` 표시, 결과가 정해진 응답(3001~3009, 5003)은 `removePending`, 5003은 초안으로 돌아옴, retryable false 오류는 `permanentError`, `storeId`·`deviceId`·`protocol`·`schemaHash`가 다른 행은 `listPending`에 나오지 않음, `decisionsAllowed`가 거짓이면 `send`가 막힘 |
 | 딥 링크 `navigation/deeplink.ts` | Vitest | §3.10.6 표의 모든 형식, 잘못된 ID·알 수 없는 호스트 무시, `pair` 링크는 자동 실행하지 않음 |
 | 프로필 검증 | Vitest + Rust | TS와 Rust가 같은 표본 파일(`fixtures/profile-validation.json`)로 같은 결과 |
-| SSH 인자·실패 분류 | `cargo test`(core) | 인자 순서 고정(스냅샷), 주입 시도(`-oProxyCommand=…`, 공백) 거부, 실제 stderr 표본(macOS·Windows·Ubuntu)의 분류 |
+| SSH 인자·실패 분류 | `cargo test`(core) | 인자 순서 고정(스냅샷), 주입 시도(`-oProxyCommand=…`, 공백) 거부, 실제 stderr 표본(macOS·Windows·Ubuntu)의 분류. SSH 발급의 원격 인자 인용: 셸 메타 문자(`;`, `$(…)`, 역따옴표, `&&`, `|`, `'`, 줄바꿈)를 담은 기기 이름이 명령줄에 나타나지 않고 표준 입력 JSON으로만 간다. `helmCliPath` 정규식이 메타 문자를 거부한다 |
 | WebSocket-over-stream | `cargo test`(core) | `tokio::io::duplex` 위 tungstenite 서버와 업그레이드(`Sec-WebSocket-Protocol: helm-jsonrpc`, `Authorization`, SSH 경로의 `Host`), 서버 ping에 pong, 바이너리 메시지 → 1003, 4 MiB 송신 대기 초과 |
 | blob 캐시 | `cargo test`(core) | 해시가 맞지 않으면 캐시에 쓰지 않음, 상한 넘으면 오래된 것부터 지움 |
 
 #### 3.13.2 컴포넌트 [제안]
 
-- `@testing-library/react` 16 + jsdom 30으로 훅(`useView`, `useCommand`)과 화면 조립(`screens/*/useScreenModel.ts`)을 시험한다. 데이터는 `test/fixtures/views/*.json`(19·12의 뷰 표본)이다.
+- `@testing-library/react` 16 + jsdom 30으로 훅(`useView`, `useCommand`)과 화면 조립(`screens/*/useScreenModel.ts`)을 시험한다. 데이터는 `test/fixtures/views/*.json`이다. 데몬의 뷰가 생기기 전에는 손으로 만든 고정 데이터이고, 뷰가 생긴 뒤에는 `just test-fixtures-views`(22의 `protocol` 모드 대본)가 만든 표본으로 바꾼다(22 §3.15.3·§5.2).
 - Tauri API는 `@tauri-apps/api/mocks`의 `mockIPC`, `mockWindows`, `clearMocks`로 대신한다 [검색: v2.tauri.app/develop/tests/mocking].
 - 컴포넌트 자체의 시각 시험(Storybook, 스크린샷)은 21 UI-D14가 정한다.
 
 #### 3.13.3 가짜 데몬과 통합 시험 [제안]
 
-- 19의 가짜 서버(같은 프로토콜을 말하는 시험용 데몬, 19 §6.3의 적합성 도구)를 쓴다. 필요한 조작(19에 요구, §5.2): 이벤트 주입, 위치 건너뛰기, `storeId`·`bootId` 바꾸기, `view.get` 지연과 `2006`, 연결 끊기, tick 멈추기, 401·1003·1005·5001 응답, 명령에 3004 거부, 같은 멱등 키에 처음 결과 돌려주기, close 1001·4008·4009 보내기, `server.mode` 바꾸기.
-- 브라우저 대체 실행: `platform/browser/transport.ts`는 브라우저 `WebSocket`으로 가짜 데몬에 바로 붙는다. 토큰은 시험용 쿼리 매개변수로 넘긴다(가짜 데몬 전용. 실제 데몬은 받지 않는다). 이 구현은 `import.meta.env.MODE !== 'production'`일 때만 묶인다.
+- 19의 가짜 서버(같은 프로토콜을 말하는 시험용 데몬, 19 §6.3의 적합성 도구)를 쓴다. 쓰는 조작은 19 §6.3 목록에 있다: 이벤트 주입, 위치 건너뛰기, `storeId`·`bootEpoch` 바꾸기, `view.get` 지연과 `2006`, 연결 끊기, tick 멈추기, HTTP 401·403, `hello` 오류 1003·1004·1005·1008, `5001`·`5003` 응답, 명령에 `3004`·`3008`·`3009` 거부, 같은 멱등 키에 처음 결과 돌려주기, close 1001·4008·4009 보내기, `server.modeChanged` 보내기.
+- 브라우저 대체 실행: `platform/browser/transport.ts`는 브라우저 `WebSocket`으로 가짜 데몬에 바로 붙는다. 토큰은 시험용 `helm-bearer.` 하위 프로토콜로 넘긴다(19 §6.3, 판정 J-82: 시험 전송 전용). 이 구현은 `import.meta.env.MODE !== 'production'`일 때만 묶인다.
 - 시나리오(각각 Playwright 시험 하나):
 
 | ID | 시나리오 | 확인 |
 |---|---|---|
 | IT-01 | 처음 연결(위치 없음) | `from: "head"` 구독, 고정 뷰 받기, 홈 표시 |
 | IT-02 | 연결 중 끊고 이벤트 5개 뒤 재연결 | 위치부터 재전송, 무효화된 열린 뷰만 `caughtUp` 뒤 다시 받음 |
-| IT-03 | 데몬 재시작(같은 `storeId`, `bootId`만 바뀜) | 위치 재개로 빠짐없이 받음(사례 8곳에 없던 경로), "데몬이 다시 시작됨" 띠 한 번 |
+| IT-03 | 데몬 재시작(같은 `storeId`, `bootEpoch`만 바뀜) | 위치 재개로 빠짐없이 받음(사례 8곳에 없던 경로), "서버가 다시 시작되었습니다" 띠 한 번 |
 | IT-04 | 데몬 저장소 교체(`storeId` 바뀜) | `2001 storeMismatch` → 캐시 버림, `head` 구독, 열린 뷰 다시 받음 |
 | IT-05 | 보존 범위 밖(`beforeOldest`) | 캐시는 낡음으로 남고 다시 받음, 이력 화면에 "생략됨" 표시 |
 | IT-06 | 결정 응답 전에 끊김 | 재연결 뒤 같은 멱등 키 재전송, 데몬 처리 1회, `duplicate: true` 결과가 화면에 전달 |
@@ -1548,7 +1643,11 @@ A를 기본으로 한다. 개인 앱이라 MSI가 필요 없고, NSIS 사용자 
 | IT-13 | tick 끊김(가짜 데몬이 tick을 멈춤) | `clientTimeoutMs` 뒤 close 4000, 바로 재연결 |
 | IT-14 | 느린 소비자(close 4008) | 첫 대기 0으로 재접속, 위치부터 재전송 |
 | IT-15 | 재접속 뒤 바뀐 항목 | `revisionSeq` 기준으로 "다시 연결된 뒤 바뀜" 표시가 1분 붙음 |
-| IT-16 | 복구 모드(`server.mode: readOnly`) | 상단 "복구 모드 · 읽기 전용", 결정 버튼 막힘 |
+| IT-16 | 읽기 전용(`server.modeChanged { mode: readOnly, reason }`), 사유 `integrity_suspect`·`disk_critical`·`operator` 각각 | 상단 "읽기 전용"과 사유별 배너(§3.8.9), 결정 버튼 막힘. 5003 받은 명령은 명령함에서 지워지고 초안으로 돌아온다 |
+| IT-17 | 데몬 저장소 복원 뒤 재접속, 진행 중 명령 있음 | `hello.log.storeId`가 달라 재전송 전에 `clearServer`. 진행 중 명령이 한 건도 나가지 않고 "보내지 못한 조작"으로 보임(F-17) |
+| IT-18 | 재접속 뒤 다시 보낸 명령이 `3008`·`3009`·`3004`로 거부 | 결과별 토스트, 쓰던 내용이 초안(`origin: restored`)으로 돌아옴. `3008 assumed`면 이의 초안(판정 J-120) |
+| IT-19 | 재페어링 뒤 이전 `deviceId`의 진행 중 명령 | 자동 재전송 없음, "보내지 못한 조작"에 보임(F-06) |
+| IT-20 | 폐기(`1005 revoked`)와 만료(`1005 expired_idle`) | 폐기: 뷰·진행 중 명령 삭제, 초안만 남음. 만료: 모두 남고 재페어링 안내 |
 
 - SSH 경로 통합(`app-test-ssh`): WSL 자신의 sshd와 가짜 데몬으로 Rust 전송을 실제로 연다. 확인: 열림, `daemon_unreachable`(가짜 데몬 포트 닫힘), `ssh_auth_failed`(없는 키), `ssh_host_key_unknown`(빈 known_hosts를 `-o UserKnownHostsFile`로 지정한 시험 모드).
 
@@ -1556,8 +1655,8 @@ A를 기본으로 한다. 개인 앱이라 MSI가 필요 없고, NSIS 사용자 
 
 | 층 | 도구 | 플랫폼 | 범위 |
 |---|---|---|---|
-| 웹 E2E (주 경로) | Playwright 1.64, Chromium + WebKit | 서버(Linux) | IT-01~16, 화면 흐름(유즈케이스 UC-01~09의 화면 경로, 03 §3.7). WebKit은 macOS WKWebView와 같은 엔진 계열로 렌더 차이를 미리 잡는다 [가정: 같은 판이 아니므로 완전히 같지는 않다] |
-| 셸 E2E (스모크) | WebdriverIO + `@wdio/tauri-service` 1.5.0, 앱에 `tauri-plugin-wdio-webdriver`(시험 빌드의 cargo feature `e2e`에서만) | macOS(Mac), Windows(CI) | 앱 실행, 가짜 데몬에 WSS(개발 빌드 http 허용)로 연결, 홈 표시, 창 닫기 = 숨기기, `window_reveal`. `tauri-driver`는 Windows·Linux만 지원하고 macOS에는 WKWebView 드라이버가 없다. `@wdio/tauri-service`는 앱 안에 WebDriver 서버를 넣는 방식으로 macOS를 지원한다 [검색: v2.tauri.app/develop/tests/webdriver] |
+| 웹 E2E (주 경로) | Playwright 1.64, Chromium + WebKit | 서버(Linux) | IT-01~20, 화면 흐름(유즈케이스 UC-01~09의 화면 경로, 03 §3.7). WebKit은 macOS WKWebView와 같은 엔진 계열로 렌더 차이를 미리 잡는다 [가정: 같은 판이 아니므로 완전히 같지는 않다] |
+| 셸 E2E (스모크) | WebdriverIO + `@wdio/tauri-service` 1.5.0, 앱에 `tauri-plugin-wdio-webdriver`(시험 빌드의 cargo feature `e2e`에서만) | macOS(Mac), Windows(`app-build-win-ci` 수동 워크플로 안, 사람 확인 뒤) | 앱 실행, 가짜 데몬에 WSS(개발 빌드 http 허용)로 연결, 홈 표시, 창 닫기 = 숨기기, `window_reveal`. `tauri-driver`는 Windows·Linux만 지원하고 macOS에는 WKWebView 드라이버가 없다. `@wdio/tauri-service`는 앱 안에 WebDriver 서버를 넣는 방식으로 macOS를 지원한다 [검색: v2.tauri.app/develop/tests/webdriver] |
 | 수동 확인 | 체크리스트(§6.2) | 둘 다 | 알림 클릭, 트레이 메뉴, Dock 배지·작업 표시줄 덧그림, 로그인 시 시작, 딥 링크(설치한 앱), 키체인 확인 창, SSH 경로 실제 서버 |
 
 OS 알림 표시, 트레이 메뉴 클릭, 딥 링크 등록은 자동화 도구가 OS UI를 다루지 못해 수동 확인으로 둔다.
@@ -1567,16 +1666,16 @@ OS 알림 표시, 트레이 메뉴 클릭, 딥 링크 등록은 자동화 도구
 - `just shot`(06 §3.16): 가짜 데몬 고정 데이터 + 브라우저 대체 실행 + Playwright `toHaveScreenshot`으로 화면 ID별 캡처를 만든다. 기준 이미지와 허용 차이는 21(UI-D14)이 정한다. 창 너비 1280, 1100, 900px(03 §6).
 - 실제 셸 캡처가 필요하면 `run-on mac`으로 앱을 띄우고 `screencapture -l <창 ID>`로 찍는다. 기준 비교는 하지 않고 사람이 본다.
 
-### 3.14 모바일 클라이언트와 나눠 쓸 코드 경계 [제안, 결정 42, 26과 맞출 것]
+### 3.14 모바일 클라이언트와 나눠 쓸 코드 경계 [제안, 결정 42·47, 26 §3.1과 맞춤]
 
-결정 42로 휴대폰에서 질문에 답하는 모바일 클라이언트가 범위에 들어왔다. 구현 방식(Tauri v2 모바일, PWA 등)과 알림 경로는 26(P15)이 정한다. 이 절은 데스크톱이 지금 만드는 코드 중 무엇을 모바일과 나눠 쓰고 무엇을 데스크톱에만 두는지를 정한다. 26은 이 문서를 쓰는 동안 아직 없었으므로 2단계에서 맞춘다.
+[결정 42]로 휴대폰에서 질문에 답하는 모바일 클라이언트가 범위에 들어왔다. 모바일은 데몬이 서빙하는 PWA이고 알림은 Web Push다([결정 47·48]). 세부는 26(P15)이 정한다. 이 절은 데스크톱이 지금 만드는 코드 중 무엇을 모바일과 나눠 쓰고 무엇을 데스크톱에만 두는지를 정한다. 26 §5.2의 20 요구(PlatformAdapter 선택 필드, 사용자용 연결 상태, 딥 링크 표, IndexedDB 이름, 폐기·만료 규칙)를 이 판에 반영했다.
 
 | 층 | 패키지 | 내용 | 데스크톱 | 모바일 | TUI |
 |---|---|---|---|---|---|
 | 프로토콜 타입 | `@helm/protocol` | 메서드·이벤트·뷰 타입, TypeBox 스키마, 등록 표(19) | 씀 | 씀 | 씀 |
 | 클라이언트 코어 | `@helm/client` | `HelmClient`, `Transport`·`ClientStateStorage` 인터페이스(19 §3.14, 판정 §2) | 씀 | 씀 | 씀 |
-| 문구 | `@helm/ui-language` | 05 문구 키, 상태 라벨, 조사(판정 §2) | 씀 | 씀 | 씀 |
-| React 연결 | `@helm/client-react` (새 패키지, 제안) | `useView`, `useCommand`, TanStack Query 연결, `IdbClientStateStorage`와 뷰 캐시·초안 store(§3.9.5), 사용자용 연결 상태 계산과 `decisionsAllowed`(§3.8.9), 딥 링크 해석(§3.10.6의 표를 경로 의도로), 알림 규칙(중복 제거, 시간당 상한, 재전송 묶음, 강도별 표시, §3.10.1)의 순수 함수, presence 판정(§3.9.12) | 씀 | React면 씀 | 쓰지 않음 |
+| 문구 | `@helm/ui-language` | 05 문구 키, 상태 라벨, 조사(판정 §2, J-103). 앱이 보이는 모든 문구 | 씀 | 씀 | 씀 |
+| React 연결 | `@helm/client-react` (새 패키지, 제안) | `useView`, `useCommand`, TanStack Query 연결, `IdbClientStateStorage`와 뷰 캐시·초안 store(§3.9.5. 데이터베이스 이름은 앱이 넘긴다: 데스크톱 `helm-desktop`, 모바일 `helm-mobile`), 연결 모델·`UserConnState`·`needsUser` 원인 표·`decisionsAllowed`(§3.8.8·§3.8.9), 딥 링크 해석(§3.10.6의 표를 경로 의도로), 알림 규칙(중복 제거, 시간당 상한, 재전송 묶음, 강도별 표시, §3.10.1)의 순수 함수, presence 판정(§3.9.12) | 씀 | React면 씀 | 쓰지 않음 |
 | UI 토큰·부품 | `@helm/ui-tokens`, `@helm/ui`(21 §3.13, 판정 J-85) | 토큰(CSS 변수·Tailwind 테마)과 부품. 처음부터 플랫폼 중립 패키지다: `@tauri-apps/*`, 앱 저장소, 프로토콜 호출을 가져오지 않는다 | 씀 | React면 씀(26이 정함) | 쓰지 않음 |
 | 셸과 플랫폼 | `apps/desktop`(`src/shell`, `src/screens`, `src/platform`, `src-tauri`) | 셸 배치, 화면 컨테이너, Rust 전송(WSS·SSH), 키체인, 트레이, 배지, 전역 단축키, 로그인 시 시작, `helm-blob` 스킴, 창 관리·창 효과 | 데스크톱만 | 모바일이 자기 셸·플랫폼 구현을 둔다 | - |
 
@@ -1594,14 +1693,26 @@ export interface PlatformAdapter {
   settings: { get<T>(k: string): Promise<T | undefined>; set<T>(k: string, v: T): Promise<void> };
   blobUrl(serverId: string, blobId: string): string;
   visibility: { onChange(cb: (s: 'active' | 'idle' | 'hidden') => void): () => void };
+  storage: { dbName: 'helm-desktop' | 'helm-mobile' };               // §3.9.5
+  /** 모바일만(26 §3.4). 데스크톱은 두지 않는다. 휴대폰 알림은 Web Push(VAPID)다 [결정 47·48] */
+  push?: {
+    permission(): Promise<'granted' | 'denied' | 'default'>;
+    subscribe(vapidPublicKey: string): Promise<{ endpoint: string; keys: { p256dh: string; auth: string } }>;
+    current(): Promise<{ endpoint: string } | null>;
+    unsubscribe(): Promise<void>;
+  };
+  /** 모바일만(26 §3.5). 백그라운드로 가면 연결을 닫고 위치만 저장, 앞으로 오면 retryNow(19 §3.16) */
+  lifecycle?: { onHidden(cb: () => void): () => void; onVisible(cb: () => void): () => void };
 }
 ```
 
 규칙:
 
 - `@helm/client-react`는 `@tauri-apps/*`, Node 모듈, DOM 밖의 플랫폼 API를 가져오지 않는다. 06 의존 규칙 표에 더한다(§5.2).
-- 데스크톱의 결정 하나는 모바일에 그대로 옮겨지지 않는다: **기기 토큰을 JS에 두지 않는다**(APP-D02). 모바일이 PWA라면 브라우저 WebSocket이 `Authorization` 헤더를 붙일 수 없어 토큰을 JS가 다뤄야 한다. 이때의 인증 방식(예: hello 인자, 서브프로토콜, 1회용 티켓)은 18·19·26이 정한다. `@helm/client-react`는 토큰 값을 다루는 코드를 갖지 않고 `createTransport`에 맡긴다.
-- SSH 경로(결정 38)는 데스크톱 전용이다. 모바일 경로는 26이 정한다.
+- **기기 토큰을 JS에 두지 않는다**(APP-D02)는 모바일에서도 지켜진다. 모바일 PWA는 브라우저 WebSocket이 `Authorization` 헤더를 붙일 수 없으므로 `HttpOnly` 쿠키 `__Host-helm_dt`로 토큰을 보낸다(판정 J-118, 18 §3.4.3 쿠키 갈래, 26 §3.3.3). `@helm/client-react`는 토큰 값을 다루는 코드를 갖지 않고 `createTransport`에 맡긴다.
+- SSH 경로(결정 38)는 데스크톱 전용이다. 모바일은 `tailnet` 리스너의 `/m/` 경로만 쓴다(26 §3.2).
+- 딥 링크 해석 표는 `@helm/client-react`에 하나만 둔다. 같은 의도(`question`, `brief` 등)를 데스크톱은 §3.9.2의 경로로, 모바일은 26 §3.5.2의 경로(`/m/q/:qsId`, `/m/brief` 등)로 바꾼다. 모바일에 없는 화면을 가리키는 링크는 "데스크톱에서 열 수 있습니다"로 처리한다(26 §3.5.2).
+- 폐기·만료 처리(§3.9.5)와 진행 중 명령의 재전송 전 확인(§3.9.5)은 이 패키지의 저장소가 하므로 두 앱이 같다(26 §5.2의 20 요구 (6)).
 - 모바일은 "질문에 답하기"가 주 용도이므로(결정 42) 화면 범위가 데스크톱보다 좁다. 그래도 같은 뷰(`inbox`, `question`), 같은 명령, 같은 `decisionsAllowed`, 같은 초안 규칙을 쓰므로 두 기기의 동작이 어긋나지 않는다(04 SC-03).
 - 시점: `@helm/client-react`도 `@helm/ui`와 같이 데스크톱 MVP 때부터 별도 패키지로 만든다. 처음부터 플랫폼 경계를 두면 나중에 옮기는 비용이 작다. 대신 1차에는 데스크톱만 이 패키지를 쓰고, 공개 API는 26이 정해질 때 다시 본다(§7 Q-18).
 
@@ -1614,8 +1725,8 @@ export interface PlatformAdapter {
 | F-03 | 클라이언트 Mac이 잠자기에서 깨어남 | 5초 타이머가 20초 넘게 밀림(`wake`) | `ping`(3초) 확인. 실패하면 바로 다시 연결. 잠자는 동안 ssh 자식은 대개 죽어 있어 `TRANSPORT_CLOSED`가 먼저 올 수도 있다 |
 | F-04 | 이 기기의 Tailscale이 꺼짐 | MagicDNS 이름을 못 찾음(두 경로 모두. SSH 별칭 `server`도 tailnet 이름) | "연결 안 됨" + 점검 1단계 문구 "이 기기에서 Tailscale이 켜져 있는지 확인하세요"(04 §3.19) |
 | F-05 | `tailscale serve`에 Helm 줄이 빠짐 | 8448 연결 거부 → `network_unreachable`(WSS만) | 경로 순서대로 SSH로 넘어간다. 같은 실패가 3라운드 이어지면 WSS 경로를 30분 뒤로 미룬다(§3.8.10). `SCR-CONNECT`에 표시 |
-| F-06 | 다른 기기에서 이 기기를 폐기 | close 4009(`auth.revoked`) 또는 다음 업그레이드 401 | 코어 `needsUser` + 앱 사유 `needs_pairing`. 초안과 캐시는 남긴다. 다시 페어링하면 이어 간다 |
-| F-07 | 키체인이 잠겨 있거나 사용자가 접근을 거부 | `keychain_unavailable`·`keychain_denied` | 코어 `needsUser` + 앱 사유 `keychain_denied`, [다시 시도]. 토큰을 파일로 옮기지 않는다 |
+| F-06 | 다른 기기에서 이 기기를 폐기, 또는 토큰 만료 | close 4009, `hello` 1005(`reason`), 다음 업그레이드 401 | 코어 `needsUser`. 폐기(`revoked`)면 그 서버의 뷰 캐시·진행 중 명령·blob 캐시·키체인 항목을 지우고 초안만 남긴다. 만료(`expired_*`)면 모두 남기고 재페어링을 안내한다(§3.9.5). 재페어링하면 `deviceId`가 바뀌어 멱등 범위가 달라지므로 남은 진행 중 명령은 자동으로 다시 보내지 않고 "보내지 못한 조작"으로 보인다(첫 명령이 이미 커밋됐다면 두 번 적용되므로) |
+| F-07 | 키체인이 잠겨 있거나 사용자가 접근을 거부 | `keychain_unavailable`·`keychain_denied` | 코어 `needsUser` + 앱 사유 `keychain_denied`, [다시 연결]. 토큰을 파일로 옮기지 않는다 |
 | F-08 | macOS에서 앱을 다시 빌드한 뒤 키체인 확인 창 | OS 대화 상자 | 자체 서명 인증서로 서명하면 생기지 않을 것으로 본다(§3.10.7, 시험 항목). ad-hoc이면 "항상 허용"을 한 번 누른다 |
 | F-09 | SSH 호스트 키가 바뀜(WSL 재설치 등) | `ssh_host_key_changed` | 자동 해결 없음. 경고와 함께 서버의 지문 출력(17 `helm doctor`)과 대조한 뒤 사용자가 `ssh-keygen -R`으로 지우라고 안내한다. 앱은 known_hosts를 고치지 않는다 |
 | F-10 | 호스트 키를 처음 봄 | `ssh_host_key_unknown` | 터미널에서 `ssh server`로 한 번 접속하고 지문을 `helm doctor` 출력과 대조하라고 안내 |
@@ -1625,31 +1736,33 @@ export interface PlatformAdapter {
 | F-14 | macOS 26의 OpenSSH가 stderr에 PQ KEX 경고를 냄 | 종료 코드 0, 경고 줄 | 실패로 보지 않는다(§3.8.3) |
 | F-15 | 프로토콜 버전이 맞지 않음 | `hello` 1003 | 코어 `needsUser` + 앱 사유 `incompatible_version`, 오래된 쪽 갱신 안내(§3.12.7). 캐시 읽기는 된다 |
 | F-16 | 스키마 해시가 바뀜(같은 프로토콜 버전의 additive 변경) | hello `features.schemaHash` | 해당 캐시 행을 버리고 다시 받는다 |
-| F-17 | 데몬 저장소를 백업에서 복원(`storeId` 바뀜) | `2001 storeMismatch` | 코어가 `clearServer(serverId, "all")`을 부른다. 앱은 뷰·위치를 지우고, `pending` 행은 지우지 않고 `appState: 'storeReset'`을 붙인다. `listPending`은 `appState`가 있는 행을 돌려주지 않으므로 코어가 자동으로 다시 보내지 않는다(복원된 DB에는 그 멱등 키가 없어 다시 적용될 수 있다). `SCR-CONNECT` "보내지 못한 조작"에서 사람이 본다 |
+| F-17 | 데몬 저장소를 백업에서 복원(`storeId` 바뀜) | `hello.log.storeId` ≠ 저장 위치의 `storeId`(재전송 전), 또는 `2001 storeMismatch` | 재전송 전에 코어가 `clearServer(serverId, "all")`을 부른다(§3.9.5, 19에 요구). `pending` 행의 `storeId`가 다르면 자동 재전송에서 빠진다. 초안은 `storeId`로 복원을 알고 대상을 다시 확인한다. 앱은 뷰·위치를 지우고, `pending` 행은 지우지 않고 `appState: 'storeReset'`을 붙인다. `listPending`은 `appState`가 있는 행을 돌려주지 않으므로 코어가 자동으로 다시 보내지 않는다(복원된 DB에는 그 멱등 키가 없어 다시 적용될 수 있다). `SCR-CONNECT` "보내지 못한 조작"에서 사람이 본다 |
 | F-18 | 오래 접속하지 않아 밀린 이벤트가 정책 상한을 넘음 | `2001 tooFar` | 뷰를 낡음으로 두고 `head`부터 구독, 열린 뷰 다시 받기, 이력 화면에 "생략됨" |
 | F-19 | 데몬 재시작 예고 | `server.shutdown`, 뒤이어 close 1001 | `restartExpectedMs` 동안 "서버 종료 중"(04 §3.0.4)으로 보이고 오류로 보이지 않는다(17 요구). 그 뒤 재시도 |
-| F-20 | 같은 질문에 두 기기에서 답함 | 늦은 쪽이 3004 또는 이미 처리됨 | "이미 답했습니다(다른 기기)"(04 §3.0.5). 쓰던 답은 초안으로 남긴다 |
-| F-21 | 결정을 보내는 중 앱이 죽음 | 다음 시작 때 `pending`에 행이 남음 | 코어가 `syncing`에 들어가며 같은 멱등 키로 다시 보내 결과를 받는다(19 §3.9.1). 나이가 정책을 넘었으면 `expired`로 사람에게 보인다 |
+| F-20 | 같은 질문에 두 기기에서 답함 | 늦은 쪽이 `3008 command.alreadyResolved` 또는 `3004`(대상 revision이 바뀐 경우, 19 F-15) | "이미 답했습니다(다른 기기 · 시각)"(04 §3.0.5). `resolvedBy`·`resolvedVia`를 보인다. 쓰던 답은 초안으로 남긴다. 가정이 먼저 확정됐으면(`outcome: assumed`) 확정 값을 보이고 쓰던 답을 이의 초안으로 넘긴다(판정 J-120) |
+| F-21 | 결정을 보내는 중 앱이 죽음 | 다음 시작 때 `pending`에 행이 남음 | 코어가 `syncing`에 들어가며 같은 멱등 키로 다시 보내 결과를 받는다(19 §3.9.1). 나이가 정책을 넘었으면 `expired`로 보이고, "보내지 못한 조작" 화면이 먼저 `command.lookup`으로 원래 키의 결과를 묻는다(§3.9.7) |
 | F-22 | IndexedDB가 자동으로 지워지거나 손상 | 열기 실패, 행 없음 | 데이터베이스를 지우고 다시 만든다. 위치가 없으니 `head`부터. 오프라인이면 `missing` 화면 |
 | F-23 | IndexedDB 용량 초과 | `QuotaExceededError` | 오래된 비고정 뷰부터 지우고 다시 시도. 그래도 실패하면 이번 실행 동안 뷰 사본 저장을 멈추고 로그를 남긴다 |
 | F-24 | tick이 오지 않음(반쯤 끊긴 연결) | `clientTimeoutMs`(35초) 초과 | 코어가 close 4000으로 닫고 다시 연결(19 §3.10.1) |
 | F-25 | 창을 숨긴 동안 웹뷰 타이머가 느려짐 | tick 감시가 늦게 돎 | 다음 메시지를 받을 때 벽시계로 다시 계산한다(타이머 횟수로 세지 않는다). 숨김 동안 알림이 늦으면 Q-06 |
 | F-26 | 휘발 스트림 조각 유실 | 19 코어의 `n` 건너뜀 | 코어가 `run.partial`로 맞춘다. 앱은 결과만 그린다 |
 | F-27 | 느린 연결에서 대량 재전송 | 데몬 송신 큐 | 데몬이 재생 속도를 맞춘다(19 §3.5.8). 그래도 4008이면 바로 다시 연결해 위치부터 |
-| F-28 | 업로드 중 끊김 | `blob_upload` 실패 | 청크 업로드면 다시 연결 뒤 `HEAD`로 받은 바이트 수를 보고 이어 감. 한 번 업로드면 처음부터. 화면은 "올리는 중 끊김, 다시 시도" |
-| F-29 | blob을 찾을 수 없음 | `GET /files/b` 404(`4002`) | 이미지 자리에 "파일을 찾을 수 없습니다" |
+| F-28 | 업로드 중 끊김 | `blob_upload` 실패 | 청크 업로드면 다시 연결 뒤 `HEAD`로 받은 바이트 수를 보고 이어 감. 한 번 업로드면 처음부터. 화면은 "올리는 중 연결이 끊겼습니다. 연결되면 이어서 올립니다."(한 번 업로드면 "연결되면 처음부터 다시 올립니다.") |
+| F-29 | blob을 찾을 수 없음 | `GET /files/b` 404(`4002`) | 이미지 자리에 "서버에 이 파일이 없습니다. 지워졌거나 백업 복원으로 빠졌을 수 있습니다."(05 키 요구) |
 | F-30 | 앱이 비정상 종료해 ssh 자식이 남음 | - | `-W` 자식은 표준 입력이 닫히면 끝나므로 부모가 죽으면 같이 끝날 것으로 본다 [가정, §6 시험]. OpenClaw처럼 로컬 포트 터널을 쓰지 않아 고아 정리 장부가 필요 없다 |
 | F-31 | 다른 데몬(개발용)에 붙음 | `hello.challenge.serverId` ≠ 프로필 | 코어 `needsUser` + 앱 사유 `wrong_server`. 개발용 데몬은 별도 프로필로 만든다 |
-| F-32 | 딥 링크 형식이 틀림, 다른 서버의 링크 | 형식 검사, `sid` 비교 | 무시하고 로그. `sid`가 다르면 프로필 전환을 묻는다 |
+| F-32 | 딥 링크 형식이 틀림, 다른 서버의 링크, 피싱 페어링 링크 | 형식 검사, `sid` 비교 | 무시하고 로그. `sid`가 다르면 프로필 전환을 묻는다. 페어링 링크는 기존 프로필의 주소를 바꾸지 않는다(§3.10.6) |
 | F-33 | 앱이 꺼진 상태에서 딥 링크 실행 | macOS: 실행 인자, Windows: 실행 인자 | 시작할 때 `getCurrent()`로 받아 첫 경로로 쓴다(§3.9.2) |
 | F-34 | 두 번째 실행(Windows) | 단일 인스턴스 플러그인 | 기존 창을 보이고 인자를 넘긴다 |
 | F-35 | OS 알림이 꺼져 있음 | 데스크톱 플러그인은 권한을 늘 허용으로 돌려준다(§3.10.1) | 알 수 없다. `SCR-SETTINGS`에 "시스템 설정에서 Helm 알림이 켜져 있는지 확인하세요"를 늘 보인다. 질문함·배지는 그대로 동작 |
 | F-36 | 전역 단축키를 다른 앱이 씀 | 등록 오류 | `SCR-SETTINGS`에서 다른 조합을 고르게 한다 |
 | F-37 | 시스템 시계가 틀림 | `hello.challenge.serverTime`과 2분 넘게 차이 | `SCR-CONNECT`에 경고. 기기 서명을 켜면 1007이 날 수 있다 |
-| F-38 | 앱을 갱신하는 동안 진행 중 명령이 있음 | `pending` 행 | IndexedDB에 남아 새 판이 이어서 다시 보낸다. 프로토콜이 맞지 않으면 `expired`로 보인다 |
+| F-38 | 앱을 갱신하는 동안 진행 중 명령이 있음, 또는 영구 오류 | `pending` 행의 `protocol`·`schemaHash`, 응답 `retryable: false`(-32600·-32601·-32602·5007 등) | 같은 `protocol`·`schemaHash`면 새 판이 이어서 다시 보낸다. 다르면 `schemaChanged`, 영구 오류면 `permanentError`로 표시하고 "보내지 못한 조작"으로 보인다. 재접속마다 같은 params를 다시 보내지 않는다 |
 | F-39 | WebView2가 없는 Windows(제거된 경우) | 설치 파일이 부트스트래퍼로 내려받음 | 오프라인이면 설치 실패. INSTALL.md에 안내 |
 | F-40 | 프로필이 없고 네트워크도 없음(첫 실행) | - | `SCR-ONBOARD`에서 연결 방식만 저장하고 "연결되면 페어링" 안내 |
 | F-41 | 서버 PC의 Windows 앱이 자기 tailnet 이름으로 접속하지 못함 | AS-5 실패 | Q-05의 직접 경로를 켠다 |
+| F-42 | 읽기 전용 중 보낸 명령 | `5003 daemon.readOnly` | 적용되지 않음이 확정이다. 진행 중 명령함에서 지우고 입력을 초안(`origin: restored`)으로 돌린다. 모드가 풀리면 그 화면에 "보내지 않은 답이 있습니다"를 보이고 사람이 보낸다. 자동으로 보내지 않는다(판정 J-02, 04 ADR A4) |
+| F-43 | 웹뷰가 오염되어 임의 주소로 경로를 바꾸려 함 | `profile_upsert`의 주소 변경 | Rust 네이티브 확인 창에 실제 주소가 보인다. 취소면 `user_cancelled`. 토큰은 저장된 경로로만 간다(§3.6.3) |
 
 ## 5. 다른 문서와의 인터페이스
 
@@ -1666,78 +1779,90 @@ export interface PlatformAdapter {
 | OS 알림·트레이·배지·단축키·로그인 시 시작의 동작(§3.10), 알림 강도별 표시(§3.10.1) | 04 §3.24, 05, 11 |
 | presence 보고 규칙(§3.9.12) | 11, 14, 16 |
 | 빌드·배포 레시피 내용(`app-*`, `shot`, §3.12.2)과 Windows 빌드 경로 | 06, 23 |
-| 앱 테스트 층과 시나리오 IT-01~16(§3.13) | 22, 19(적합성 도구의 가짜 서버 조작 목록) |
+| 앱 테스트 층과 시나리오 IT-01~20(§3.13), 모듈 완료 기준 ID `DM-nn`(§6.1), 수동 확인 `MC-nn`(§6.2) | 22, 19(적합성 도구의 가짜 서버 조작 목록) |
 | 모바일과 나눠 쓸 코드 경계(`@helm/client-react`, `PlatformAdapter`, §3.14) | 26, 06, 21 |
 | 서드파티 고지의 앱 표시(§3.12.8) | 07 |
 
-### 5.2 다른 문서에 요구하는 것 (2a단계 갱신)
+### 5.2 다른 문서에 요구하는 것 (4단계 갱신)
 
-1판 요구 중 받아들여진 것(19 P-02·P-03·P-07, `POST /pair`, 무효화 태그, `@helm/client` 판정, 포트 7840·7841, 17의 `helm device issue` 출력 형식, 18의 키체인 이름·회전 경로, 05의 알림 숨김 기본)은 지웠다. 남은 것과 새로 생긴 것만 적는다.
+2a단계 요구 중 반영된 것(19의 `TransportFailure.blocked`·`retryNow()`·`lastMessageAt`·`pendingResolved`·무효화 순서·`listPending` 계약·가짜 서버 조작, 21의 `safe_mode`·`read_only`·`refreshing` 규칙·`decisionsAllowed`, 06의 패키지 의존과 React 19·Node 24.15, 17의 `restartExpectedMs`, 12·19의 `tray` 뷰, 18의 모바일 쿠키 전달(판정 J-118))은 지웠다. 남은 것과 4단계에서 새로 생긴 것만 적는다.
 
 | 문서 | 요구 |
 |---|---|
-| 19 | (1) `TransportFailure`에 `{ kind: "blocked"; reason }`를 더해 코어가 `needsUser`로 가게 한다(SSH 호스트 키·인증, 키체인, §3.8.8). (2) `HelmClient.retryNow()`(네트워크 복구·깨어남에서 백오프 대기를 끝냄)와 `lastMessageAt` getter. (3) 재접속 뒤 다시 보낸 명령의 결과 알림 `on('pendingResolved', (ik, result \| error))`. (4) 위치 `pos`까지의 이벤트에 대한 `invalidate`를 `savePosition(pos)`보다 먼저 내보내는 순서 보장(§3.9.6-5). (5) `ClientStateStorage.listPending`은 앱이 표시한 행(`expired`, `storeReset`)을 돌려주지 않아도 되는 계약임을 적는다. |
-| 21 | (0) §3.14 표는 판정 J-85대로, 창 효과·투명도·설정 키·Safari 18 기준은 §3.10.8·§3.9.11·§3.12.3에 반영했다. 남은 것: (1) `ConnectionUiState`에 안전 모드(`safe_mode`, 결정 가능)를 더하거나 `connected` + 띠로 그린다(§3.8.9). (2) §3.5.8 표의 "`refreshing`이면 결정 불가"를 04 §3.0.4 규칙 3(서버 신선도와 연결로만 막음)에 맞춘다. (3) `decisionsAllowed` 시그니처는 §3.8.9를 따른다(앱이 계산, 부품은 받기만). (4) "다시 연결된 뒤 바뀜"은 `uiStore.changedSinceReconnect`를, 이미지는 `helm-blob` URL을 받는다. |
-| 04·05 | (1) 앱 쪽 사유 문구 키: `protocol_error`(§3.8.9 표 6행), 알림 클릭이 동작하지 않을 때의 대체 배너, 재전송 묶음 알림 "접속하지 않은 동안 전달된 질문 n개", Windows에서 처음 창을 숨길 때의 안내, "초안을 쓴 뒤 바뀜". (2) `SCR-CONNECT`의 "자동 전환" 기본값을 켬으로(APP-D05, Q-16). (3) `SCR-SETTINGS`에 §3.9.11의 새 설정(글자 크기, 시간당 알림 상한, 관찰 제안 알림, 방해 금지 예외, 한 글자 단축키, 단축키 바꾸기, OS 알림 확인 안내 F-35)과 "정보" 절(서드파티 고지, §3.12.8) |
-| 06 | (1) 판정 §2에 따라 `@helm/protocol/client`를 `@helm/client`로 고친다. 데스크톱 의존 목록에 `@helm/client`, `@helm/ui-language`, `@helm/client-react`(§3.14). (2) `@helm/client-react`의 금지 의존(`@tauri-apps/*`, Node 모듈)을 의존 규칙 표에. (3) 스택 표의 React를 19로(결정 41), 앱 레시피 표는 그대로(§3.12.2). (4) Node 24는 24.15 이상(jsdom 30) |
+| 19 | (1) 재전송 전에 `hello.log.storeId`를 저장 위치와 비교하고 다르면 `clearServer(serverId, "all")`을 먼저 부른다. `ClientStateStorage.listPending(serverId, current: { storeId, deviceId, protocol, schemaHash })`로 현재 값을 넘기고, `PendingCommand`에 `storeId`·`deviceId`·`protocol`·`schemaHash`를 더한다(§3.9.5, V3-011·V3-012·V3-040). CT-08에 "재전송이 먼저 나가지 않음". (2) `command.lookup({ idempotencyKey })` 읽기 메서드(같은 기기 범위, 보존 7일)(§3.9.7, V3-041). (3) F-17의 "5003이면 보존했다가 모드가 풀리면 보낸다"를 "명령함에서 지우고 초안으로"로(§3.9.7, F-42). (4) F-06을 폐기·만료 구분과 재페어링 뒤 자동 재전송 제외로(§3.9.5). (5) `server.modeChanged.reason`을 17의 사유 값(`disk_critical`·`integrity_suspect`·`operator`)의 배열로 정하고 `hello`에도 현재 사유를 싣는다(§3.8.9). (6) 3008 `outcome` 열거에 `expired`, J-120의 `assumedValue`(§3.9.7). (7) §2.4의 "별도 푸시 채널 없음"을 결정 47 기준으로, §3.8.3 숨김 알림 문구를 05 `notif.hidden.*`로 |
+| 09·11 | (1) `question.delivered`에 `deliveryMode`(`immediate`·`negotiated`·`mediated`·`scheduled`)를 더하거나, 11이 협상 전달의 `surface`에서 `os`를 뺀다(§3.10.1 규칙 5, Q-25, AC-04-01). (2) 같은 질문의 승격 전달을 구분하는 표시(예: `cause: 'promotion'`). (3) 11·10의 payload 표기(`deviceIds`, 평평한 `titleKey`)를 09 필드(`targetDevices`, `copy{}`, `batchKey`)로. (4) 11 urgencyOf·`pushReachable`·`planPush`(판정 J-119, 26 §3.4.3) |
+| 05 | (1) 숨김 알림 키 `notif.hidden.title`·`notif.hidden.body`(개수 있음·없음, 26과 같은 값). (2) 읽기 전용 키 `err.daemon.readOnly`(사유별 문장: 기록 점검, 운영자 전환)로 `err.daemon.recoveryMode`를 바꾼다(판정 J-115). (3) 페어링 실패 키 하나("코드가 틀렸거나 만료됐습니다", 판정 J-81). (4) 새 키: `protocol_error` 사유, `policy_closed`·`revoked`·`expired` 사유 문장(§3.8.8 표), 재전송 결과별 토스트 넷(§3.9.7), "보내지 않은 답이 있습니다", 복원 뒤 초안 경고(§3.9.5), 디스크 암호화 안내, blob 404 문장(F-29), 네이티브 확인 창의 Tailscale 밖 주소 경고, 알림 클릭 대체 배너, 재전송 묶음 알림, Windows 첫 숨김 안내. (5) `notice.app.updateRequired`의 "갱신"을 `err.protocol.version`의 "업데이트"와 맞춘다. (6) §3.7.7의 "별도 푸시 채널 없음"을 결정 47 기준으로 |
+| 04 | (1) `SCR-CONNECT`의 "보내지 못한 조작"에 `command.lookup` 결과 표시와 원인별(만료, 복원, 기기 바뀜, 형식 바뀜, 영구 오류) 문장. (2) 읽기 전용 배너를 사유별로(§3.8.9). (3) `SCR-SETTINGS`에 `notifications.negotiated`(협상 전달 알림, 기본 끔)와 §3.9.11의 다른 설정 |
+| 17·18 | (1) 17 `helm device issue`에 `--stdin`(이름·플랫폼·종류를 표준 입력 JSON으로)과 기본 경로 `~/.local/bin/helm`(§3.8.7, V4-009). (2) 18·INSTALL에 앱 전용 SSH 키 권장 구성 `restrict,port-forwarding,permitopen="127.0.0.1:7841"`과 발급용 `command=` 키(§3.8.7, V4-023). (3) 18 §3.15에 Cargo 행(`Cargo.lock`, `--locked`, `cargo audit`·`cargo deny`), CI 행(액션 SHA 고정), 빌드 도구 행(§3.12.2, V4-028). (4) 18 §3.19 오프라인 사본 규칙에 blob 디스크 캐시와 초안, 폐기·만료 구분(§3.9.5) |
+| 21 | (1) §3.6.7의 문구 사전 위치를 `@helm/ui-language`로(판정 J-103). (2) 21의 `ConnectionUiState`에서 20 `UserConnState`로 가는 대응은 §3.8.9 표가 정본이다 |
+| 26 | §3.14의 `PlatformAdapter`(`push?`, `lifecycle?`, `storage.dbName`), 딥 링크 해석 표, 폐기·만료 규칙을 이 판으로 맞췄다. 휴대폰 알림 상한(`push.hourlyCap`)과 데스크톱 상한을 모을지(Q-23) |
+| 14·05·26 | 시간당 알림 상한을 설정 하나로 둘지와 기기 사이 합산 여부(Q-23, V5-020) |
+| 06 | 없음(`app-dev` 프록시 조건과 앱의 비밀 환경 변수 예외는 06 §3.17과 이 문서 §3.12.2가 같다) |
 | 07 | Rust 크레이트 고지 생성(`cargo about` 등)을 `just licenses`에 넣을지, 앱 쪽(`app-check`)에 둘지 정한다(§3.12.8) |
-| 09·11 | 전달 이벤트 payload에 §3.10.1 `DeliveryPayloadForApp`의 필드(`deliveryId`, `surface`, `targetDevices`, `category`, `urgency`, `title`, `body`, `target`, `expiresAt`)와, 같은 질문의 승격 전달을 구분하는 표시. presence `locked`는 데스크톱이 보내지 못한다 |
-| 12 | (1) `tray` 뷰에 04 §3.24 항목(선택 필요 수, 확인하면 좋은 것 수, 진행 중 항목과 Concern ID, `dndUntil`). (2) 모든 `RecordRef`의 `revisionSeq`. (3) 진행 중 메시지의 현재 텍스트를 `stream.subscribe`의 `active`로 |
 | 16 | 열람 기록은 `presence.report`의 `screen`·`objectId`·`depth`(판정 J-84)로 만든다. 앱은 별도 `view.opened`를 보내지 않는다(19 §3.7.8) |
-| 17 | (1) `helm doctor`의 호스트 키 지문 출력 유지. (2) `server.shutdown`의 `restartExpectedMs`를 업그레이드 때 30,000으로(17 §3.4.3, 앱은 그동안 "서버 종료 중") |
-| 18 | (1) 모바일이 PWA일 때의 토큰 전달 방식(§3.14). (2) 오프라인 뷰 사본 평문 허용(기본, 끌 수 있음) 확인. (3) 마크다운 원시 HTML 금지와 링크 스킴 제한(21과 함께, 21 E21에 반영됨) |
-| 26 | §3.14의 공유 경계(`@helm/client`, `@helm/client-react`, `PlatformAdapter`, 부품 공유 시점)를 받아들일지, 모바일 플랫폼 구현 |
-| 22·23·24 | 22: §3.13 층과 수동 체크리스트. 23: 앱 구현 순서(코어·가짜 서버 → `@helm/client-react` → 앱 골격·Rust WSS 전송 → 동기화·캐시 → SSH 경로 → OS 통합 → 빌드·배포). 24: ADR-20-01~09(ADR-20-08은 판정 J-15로 확인됨) |
+| 22·23·24 | 22: §6.1 `DM-nn`, §3.13.3 `IT-01~20`, §6.2 `MC-01~14`를 인용한다. 23: 앱 구현 순서(코어·가짜 서버 → `@helm/client-react` → 앱 골격·Rust WSS 전송 → 동기화·캐시 → SSH 경로 → OS 통합 → 빌드·배포). 24: ADR-20-01~09. ADR-20-04의 범위는 "데스크톱 SPA"이고 모바일 PWA는 예외다(결정 47) |
 
 ## 6. 구현 단위와 완료 기준
 
 공통 완료 조건: `just verify` 통과(`app-check` 포함), 앱 화면을 바꿨으면 `just app-e2e`와 `just shot` 비교.
 
+작업 단위: §6.1의 `DM-nn` 행 하나가 3단계 실작업자 한 건의 크기를 넘지 않게 나눴다 [결정 51]. 난이도 등급과 담당 단계·모델은 23이 적는다. 이 문서의 제안은 Rust 전송(`DM-03`~`DM-08`), 토큰 보낼 곳(`DM-09`), 연결 계층(`DM-13`)은 난이도가 높아 하위 조정자의 검토를 거치는 것이다 [제안].
+
 ### 6.1 모듈별 완료 기준
 
-| 단위 | 위치 | 완료 기준(테스트로 확인할 조건) |
-|---|---|---|
-| 프로필 저장·검증 | `src-tauri/src/profiles.rs`, `src-tauri/core/src/profile.rs`, `src/platform/types.ts` | TS와 Rust가 같은 표본(`fixtures/profile-validation.json`, 정상 20개·비정상 30개)에서 같은 판정을 한다. `-oProxyCommand=…`, 공백, 상대 경로 키 파일이 거부된다. 저장 중 앱을 죽여도 파일이 깨지지 않는다(임시 파일 + 이름 바꾸기) |
-| 키체인 | `src-tauri/src/secrets.rs` | Mac·Windows 수동 확인: 저장·조회·삭제. 토큰 값이 IPC 응답·로그·진단 묶음에 없다(로그 grep 시험, 진단 묶음 내용 시험) |
-| SSH 인자·실패 분류 | `src-tauri/core/src/ssh.rs` | 인자 목록이 §3.8.3과 같다(스냅샷). 실제로 모은 stderr 표본(macOS 15·26, Windows 11, Ubuntu 24.04)이 표대로 분류된다. PQ KEX 경고만 있는 경우 실패가 아니다 |
-| WebSocket-over-stream | `src-tauri/core/src/ws.rs` | `tokio::io::duplex` 시험: 업그레이드 헤더 세 가지, 서버 ping에 pong, 바이너리 → 1003, 16 MiB 초과 → 닫힘, 송신 대기 4 MiB 초과 → 닫힘, `closed`가 정확히 한 번 |
-| 전송 관리자 | `src-tauri/src/transport/` | 프로필당 연결용 전송 하나(두 번째 `transport_open`이 첫 번째를 닫음). 앱 종료 때 ssh 자식이 남지 않는다(Mac·Windows에서 프로세스 목록 확인, F-30) |
-| SSH 경로 통합 | `just app-test-ssh` | WSL sshd + 가짜 데몬: 열림, `daemon_unreachable`, `ssh_auth_failed`, `ssh_host_key_unknown`이 각각 나온다 |
-| blob | `src-tauri/src/blob.rs`, `core/src/blob_cache.rs` | 캐시 적중 시 네트워크 요청이 없다. 해시가 맞지 않으면 캐시에 쓰지 않는다. 연결이 없으면 503. 8 MiB 넘는 파일은 청크로 올라간다(가짜 서버) |
-| 페어링 | `src-tauri/src/pairing.rs` | 코드 페어링과 SSH 발급 모두 결과 토큰이 키체인에만 있고 웹뷰 응답에는 `serverId`, `deviceId`만 있다. `HELM-DEVICE/1` 줄 앞의 셸 잡음 10줄을 무시한다 |
-| capability·CSP | `src-tauri/capabilities/main.json`, `tauri.conf.json` | `app-check`의 정적 검사: 앱 명령 목록(`build.rs`)과 capability의 `allow-*`가 일대일, `shell`·`fs`·`http` 권한 없음, CSP `connect-src`가 `ipc: http://ipc.localhost`뿐, `remote.urls` 없음 |
-| 연결 계층 | `src/connection/` | §3.8.9 표의 각 행이 시험 한 줄. `MultiRouteTransport`가 토큰 계열에서 다음 경로로 넘어가지 않고, SSH 차단 계열을 `blocked`로 바꾼다. 인증 계열에서 재시도가 없다 |
-| 깨어남·포커스 확인 | `src/connection/probe.ts` | 벽시계 20초 밀림을 깨어남으로 판정, `ready`면 `ping` 3초, 실패하면 4000으로 닫음, `backoff`면 `retryNow()` |
-| 코어 연결 | `src/sync/session.ts`, `src/sync/stores.ts` | §3.13.1 행. IT-01~05 |
-| 뷰 읽기 | `src/sync/views.ts` | 오프라인에서 캐시 행 반환, 늦은 응답이 새 값을 덮지 않음, `schemaHash` 불일치 행 폐기, 고정 뷰는 용량 정리에서 빠짐 |
-| 명령 | `src/sync/commands.ts`, `src/intents/` | `decisionsAllowed`가 거짓이면 보낼 수 없다. 끊김 뒤 같은 멱등 키 재전송(IT-06), 3004 → conflict(IT-07), `storeMismatch` 뒤 `storeReset` 행은 `listPending`에 나오지 않음(F-17) |
-| 초안 | `src/db/idb.ts` `drafts` | 입력 300ms 뒤 저장, 앱 재시작 뒤 복원, 보내기 성공 뒤 삭제, 자동 전송 없음 |
-| 시작 시간 | `src/app/boot.ts` | 앱 실행부터 IndexedDB 고정 뷰로 홈이 그려지기까지 2초 이하(01 NFR-P-3, Mac·Windows에서 측정). 연결을 기다리지 않는다 |
-| 라우터 | `src/navigation/screens.ts`, `router.tsx` | 03 §3.5.5의 모든 화면 ID에 경로가 있다(타입 검사). 잘못된 ID 인자는 "찾을 수 없음". 시작 경로 우선순위(딥 링크 > 온보딩 > 마지막 경로 > 홈) |
-| 딥 링크 | `src/navigation/deeplink.ts`, 플러그인 설정 | §3.10.6 표의 모든 형식(단위). 설치한 앱에서 수동 확인(§6.2) |
-| 알림 | `src/platform/tauri/notifications.ts` | 재전송 중 전달은 띄우지 않음, `deliveryId` 중복 없음, `surface`·`targetDevices`·`expiresAt` 규칙(IT-12) |
-| 트레이·배지 | `src-tauri/src/os/tray.rs`, `badge.rs`, `src/platform/tauri/tray.ts` | `tray` 뷰 값을 그대로 쓴다(앱이 세지 않음, 단위 시험: 뷰 표본 → `TraySummary`). 배지는 선택 필요 수만 |
-| 오류 경계 | `src/errors/` | 화면 하나의 렌더 오류가 셸을 무너뜨리지 않는다(컴포넌트 시험). 모르는 오류 코드도 문구가 있다 |
-| 빌드 | `app-build-local`, `app-build-win` | Mac: universal `.app`이 서명(자체 서명 또는 ad-hoc)되어 `/Applications`에서 열린다. Windows: NSIS 설치 파일이 Windows 11에서 관리자 권한 없이 설치·실행된다(수동). 태그 때 CI 빌드도 통과 |
-| `@helm/client-react` | `packages/client-react/` | `@tauri-apps/*`·Node 모듈을 가져오지 않는다(의존 규칙 검사). 가짜 `PlatformAdapter`와 가짜 서버로 `useView`·`useCommand`·초안·알림 규칙 시험이 브라우저 없이(jsdom) 돈다 |
-| 설정 | `src/platform/tauri/settings.ts` | §3.9.11의 모든 키에 기본값이 있고, 글자 크기 변경이 웹뷰 확대로 적용된다(Mac·Windows 수동) |
-| 알림 규칙 | `packages/client-react/src/notify.ts` | 재전송 묶음 1개, 시간당 상한 뒤 묶음, 방해 금지 중 없음과 끝난 뒤 묶음, 같은 질문 2회 상한, `observer` 기본 끔, `showContent` 끔이면 고정 문구(가짜 시계 시험) |
-| 서드파티 고지 | `app-check` | `THIRD_PARTY_NOTICES.md`와 Rust 고지 파일이 생성 결과와 같다. "정보" 절에 보인다 |
-| 셸 스모크 | `e2e/shell/` | `@wdio/tauri-service`로 Mac·Windows에서: 앱이 뜨고, 가짜 데몬에 연결해 홈이 보이고, 창 닫기 뒤 프로세스가 살아 있다 |
+22가 인용할 수 있게 행마다 ID(`20/DM-nn`)를 둔다. 통합 시나리오는 `20/IT-nn`(§3.13.3), 수동 확인은 `20/MC-nn`(§6.2)이다.
+
+| ID | 단위 | 위치 | 완료 기준(테스트로 확인할 조건) |
+|---|---|---|---|
+| DM-01 | 프로필 저장·검증 | `src-tauri/src/profiles.rs`, `src-tauri/core/src/profile.rs`, `src/platform/types.ts` | TS와 Rust가 같은 표본(`fixtures/profile-validation.json`, 정상 20개·비정상 30개)에서 같은 판정을 한다. `-oProxyCommand=…`, 공백, 상대 경로 키 파일이 거부된다. 저장 중 앱을 죽여도 파일이 깨지지 않는다(임시 파일 + 이름 바꾸기) |
+| DM-02 | 키체인 | `src-tauri/src/secrets.rs` | Mac·Windows 수동 확인: 저장·조회·삭제. 토큰 값이 IPC 응답·로그·진단 묶음에 없다(로그 grep 시험, 진단 묶음 내용 시험) |
+| DM-03 | SSH 인자·실패 분류 | `src-tauri/core/src/ssh.rs` | 인자 목록이 §3.8.3과 같다(스냅샷). SSH 발급 원격 인자가 인자마다 작은따옴표로 감싸이고, 셸 메타 문자 표본 20개를 담은 기기 이름·경로가 원격 셸에서 명령으로 실행되지 않는다(WSL sshd 통합 시험에서 표시 파일이 생기지 않음). 실제로 모은 stderr 표본(macOS 15·26, Windows 11, Ubuntu 24.04)이 표대로 분류된다. PQ KEX 경고만 있는 경우 실패가 아니다 |
+| DM-04 | WebSocket-over-stream | `src-tauri/core/src/ws.rs` | `tokio::io::duplex` 시험: 업그레이드 헤더 세 가지, 서버 ping에 pong, 바이너리 → 1003, 16 MiB 초과 → 닫힘, 송신 대기 4 MiB 초과 → 닫힘, `closed`가 정확히 한 번 |
+| DM-05 | 전송 관리자 | `src-tauri/src/transport/` | 프로필당 연결용 전송 하나(두 번째 `transport_open`이 첫 번째를 닫음). 앱 종료 때 ssh 자식이 남지 않는다(Mac·Windows에서 프로세스 목록 확인, F-30) |
+| DM-06 | SSH 경로 통합 | `just app-test-ssh` | WSL sshd + 가짜 데몬: 열림, `daemon_unreachable`, `ssh_auth_failed`, `ssh_host_key_unknown`이 각각 나온다 |
+| DM-07 | blob | `src-tauri/src/blob.rs`, `core/src/blob_cache.rs` | 캐시 적중 시 네트워크 요청이 없다. 해시가 맞지 않으면 캐시에 쓰지 않는다. 연결이 없으면 503. 8 MiB 넘는 파일은 청크로 올라간다(가짜 서버) |
+| DM-08 | 페어링 | `src-tauri/src/pairing.rs` | 코드 페어링과 SSH 발급 모두 결과 토큰이 키체인에만 있고 웹뷰 응답에는 `serverId`, `deviceId`만 있다. `HELM-DEVICE/1` 줄 앞의 셸 잡음 10줄을 무시한다. 페어링 실패는 사유와 관계없이 `pairing_failed` 하나다 |
+| DM-09 | 토큰 보낼 곳 | `src-tauri/src/transport/`, `profiles.rs` | 웹뷰 인자로 주소를 넘기는 명령이 없다(명령 표 정적 검사). `route_check`로 저장하지 않은 주소를 점검할 때 가짜 서버가 받은 요청에 `Authorization` 헤더가 없다. 경로 추가·주소 변경·`pairing_*`·`credential_forget`·`profile_delete`가 네이티브 확인 없이 실행되지 않는다(Rust 시험에서 확인 창 함수를 가짜로 바꿔 취소를 돌려주면 `user_cancelled`) |
+| DM-10 | capability·CSP | `src-tauri/capabilities/main.json`, `tauri.conf.json` | `app-check`의 정적 검사: 앱 명령 목록(`build.rs`)과 capability의 `allow-*`가 일대일, `shell`·`fs`·`http` 권한 없음, `store:default`·`store:allow-load`·`log:default` 없음, CSP `connect-src`가 `ipc: http://ipc.localhost`뿐, `remote.urls` 없음 |
+| DM-11 | blob 스킴 응답 | `src-tauri/src/blob.rs` | 허용 목록 밖 MIME(`image/svg+xml`, `text/html`)이 `application/octet-stream`으로 나간다. 모든 응답에 `nosniff`. 해시를 확인하지 못한 응답은 캐시에 남지 않는다 |
+| DM-12 | 공급망 | `app-check` | `cargo deny check`, `cargo audit` 통과. `--locked` 없는 cargo 호출이 레시피에 없다. 워크플로의 `uses:`가 모두 커밋 SHA다 |
+| DM-13 | 연결 계층 | `packages/client-react/src/connection/`, `apps/desktop/src/connection/` | §3.8.9 표의 각 행과 §3.8.8의 `needsUser` 원인 표 각 행이 시험 한 줄. 읽기 전용 사유별 배너 키. `MultiRouteTransport`가 토큰 계열에서 다음 경로로 넘어가지 않고, SSH 차단 계열을 `blocked`로 바꾼다. 인증 계열에서 재시도가 없다 |
+| DM-14 | 깨어남·포커스 확인 | `src/connection/probe.ts` | 벽시계 20초 밀림을 깨어남으로 판정, `ready`면 `ping` 3초, 실패하면 4000으로 닫음, `backoff`면 `retryNow()` |
+| DM-15 | 코어 연결 | `src/sync/session.ts`, `src/sync/stores.ts` | §3.13.1 행. IT-01~05 |
+| DM-16 | 뷰 읽기 | `src/sync/views.ts` | 오프라인에서 캐시 행 반환, 늦은 응답이 새 값을 덮지 않음, `schemaHash` 불일치 행 폐기, 고정 뷰는 용량 정리에서 빠짐 |
+| DM-17 | 명령 | `src/sync/commands.ts`, `src/intents/` | `decisionsAllowed`가 거짓이면 보낼 수 없다. 끊김 뒤 같은 멱등 키 재전송(IT-06), 3004 → conflict(IT-07), `storeMismatch` 뒤 `storeReset` 행은 `listPending`에 나오지 않음(F-17) |
+| DM-18 | 초안 | `src/db/idb.ts` `drafts` | 입력 300ms 뒤 저장, 앱 재시작 뒤 복원, 보내기 성공 뒤 삭제, 자동 전송 없음 |
+| DM-19 | 시작 시간 | `src/app/boot.ts` | 앱 실행부터 IndexedDB 고정 뷰로 홈이 그려지기까지 2초 이하(01 NFR-P-3, Mac·Windows에서 측정). 연결을 기다리지 않는다 |
+| DM-20 | 라우터 | `src/navigation/screens.ts`, `router.tsx` | 03 §3.5.5의 모든 화면 ID에 경로가 있다(타입 검사). 잘못된 ID 인자는 "찾을 수 없음". 시작 경로 우선순위(딥 링크 > 온보딩 > 마지막 경로 > 홈) |
+| DM-21 | 딥 링크 | `src/navigation/deeplink.ts`, 플러그인 설정 | §3.10.6 표의 모든 형식(단위). 설치한 앱에서 수동 확인(§6.2) |
+| DM-22 | 알림 | `src/platform/tauri/notifications.ts` | 재전송 중 전달은 띄우지 않음, `deliveryId` 중복 없음, `channel`이 `app`이 아니면 띄우지 않음, `surface`·`targetDevices`(`'all'`과 목록)·`expiresAt` 규칙, `batchKey` 묶음, 협상 전달은 `notifications.negotiated`가 켜졌을 때만(IT-12) |
+| DM-23 | 트레이·배지 | `src-tauri/src/os/tray.rs`, `badge.rs`, `src/platform/tauri/tray.ts` | `tray` 뷰 값을 그대로 쓴다(앱이 세지 않음, 단위 시험: 뷰 표본 → `TraySummary`). 배지는 선택 필요 수만 |
+| DM-24 | 오류 경계 | `src/errors/` | 화면 하나의 렌더 오류가 셸을 무너뜨리지 않는다(컴포넌트 시험). 모르는 오류 코드도 문구가 있다 |
+| DM-25 | 빌드 | `app-build-local`, `app-build-win` | Mac: universal `.app`이 서명(자체 서명 또는 ad-hoc)되어 `/Applications`에서 열린다. Windows: NSIS 설치 파일이 Windows 11에서 관리자 권한 없이 설치·실행된다(수동). 태그 때 CI 빌드도 통과 |
+| DM-26 | `@helm/client-react` | `packages/client-react/` | `@tauri-apps/*`·Node 모듈을 가져오지 않는다(의존 규칙 검사). 가짜 `PlatformAdapter`와 가짜 서버로 `useView`·`useCommand`·초안·알림 규칙 시험이 브라우저 없이(jsdom) 돈다 |
+| DM-27 | 설정 | `src/platform/tauri/settings.ts` | §3.9.11의 모든 키에 기본값이 있고, 글자 크기 변경이 웹뷰 확대로 적용된다(Mac·Windows 수동) |
+| DM-28 | 알림 규칙 | `packages/client-react/src/notify.ts` | 재전송 묶음 1개, 시간당 상한 뒤 묶음, 방해 금지 중 없음과 끝난 뒤 묶음, 같은 질문 2회 상한, `observer` 기본 끔, `showContent` 끔이면 `notif.hidden.*`(개수 있음·없음)(가짜 시계 시험) |
+| DM-29 | 서드파티 고지 | `app-check` | `THIRD_PARTY_NOTICES.md`와 Rust 고지 파일이 생성 결과와 같다. "정보" 절에 보인다 |
+| DM-30 | 셸 스모크 | `e2e/shell/` | `@wdio/tauri-service`로 Mac·Windows에서: 앱이 뜨고, 가짜 데몬에 연결해 홈이 보이고, 창 닫기 뒤 프로세스가 살아 있다 |
 
 ### 6.2 수동 확인 체크리스트 (출시 전, 플랫폼마다)
 
-1. 알림: 실시간 전달에 OS 알림이 뜨고, 클릭하면 대상 화면이 열린다(2.6.0 `onAction`). 안 되면 대체 배너가 나온다.
-2. 트레이: 메뉴 항목과 숫자가 `tray` 뷰와 같다. Windows 왼쪽 클릭 = 창 보이기.
-3. 배지: macOS Dock 숫자, Windows 작업 표시줄 덧그림이 선택 필요 수와 같다.
-4. 단축키: 사용자가 정한 조합으로, 다른 앱이 앞에 있을 때 빠른 입력이 열린다. 한글 입력 상태에서도 동작한다.
-5. 로그인 시 시작: 켜고 재로그인하면 트레이만 뜬다(`--background`).
-6. 딥 링크: 설치한 앱에서 `helm://question/<id>`, `helm://pair?…`가 동작한다. 앱이 꺼져 있을 때도.
-7. 키체인: macOS에서 다시 빌드·설치한 뒤 확인 창이 다시 뜨는지(자체 서명 인증서와 ad-hoc 각각). 결과를 §7 Q-08에 기록.
-8. SSH 경로: 실제 서버 별칭 `server`로 연결, WSS를 끈 상태에서 자동 전환.
-9. 잠자기: Mac을 5분 재우고 깨우면 10초 안에 `ready`로 돌아온다.
-10. 숨긴 창: 창을 숨기고 30분 뒤 실시간 전달 알림이 제때 뜬다(AS-6, Q-06).
-11. 창 효과: macOS "투명도 줄이기"를 켜고 끄면 다시 시작하지 않고 바뀐다. Windows 11은 Mica, Windows 10은 불투명이다.
+항목 번호는 22의 `20/MC-nn`과 같다.
+
+1. **MC-01** 알림: 실시간 전달에 OS 알림이 뜨고, 클릭하면 대상 화면이 열린다(2.6.0 `onAction`). 안 되면 대체 배너가 나온다.
+2. **MC-02** 트레이: 메뉴 항목과 숫자가 `tray` 뷰와 같다. Windows 왼쪽 클릭 = 창 보이기.
+3. **MC-03** 배지: macOS Dock 숫자, Windows 작업 표시줄 덧그림이 선택 필요 수와 같다.
+4. **MC-04** 단축키: 사용자가 정한 조합으로, 다른 앱이 앞에 있을 때 빠른 입력이 열린다. 한글 입력 상태에서도 동작한다.
+5. **MC-05** 로그인 시 시작: 켜고 재로그인하면 트레이만 뜬다(`--background`).
+6. **MC-06** 딥 링크: 설치한 앱에서 `helm://question/<id>`, `helm://pair?…`가 동작한다. 앱이 꺼져 있을 때도.
+7. **MC-07** 키체인: macOS에서 다시 빌드·설치한 뒤 확인 창이 다시 뜨는지(자체 서명 인증서와 ad-hoc 각각). 결과를 §7 Q-08에 기록.
+8. **MC-08** SSH 경로: 실제 서버 별칭 `server`로 연결, WSS를 끈 상태에서 자동 전환.
+9. **MC-09** 잠자기: Mac을 5분 재우고 깨우면 10초 안에 `ready`로 돌아온다.
+10. **MC-10** 숨긴 창: 창을 숨기고 30분 뒤 실시간 전달 알림이 제때 뜬다(AS-6, Q-06).
+11. **MC-11** 창 효과: macOS "투명도 줄이기"를 켜고 끄면 다시 시작하지 않고 바뀐다. Windows 11은 Mica, Windows 10은 불투명이다.
+12. **MC-12** 네이티브 확인: 경로 추가·주소 변경·페어링·자격 증명 지우기·프로필 삭제에서 Rust 확인 창이 뜨고 실제 주소가 보인다. `*.ts.net`이 아닌 주소에는 경고 문장이 더해진다.
+13. **MC-13** 서명 인증서: 만료 90일 전 경고가 `app-build-local` 출력에 나온다(시험 인증서로 확인).
+14. **MC-14** 디스크 암호화 안내: FileVault·BitLocker가 꺼진 기기에서 첫 실행 안내 끝에 켜라는 문장이 나온다.
 
 ## 7. 미결 사항
 
@@ -1748,28 +1873,32 @@ export interface PlatformAdapter {
 | Q-03 | 연결이 없을 때 결정 대기열 | (해결) | 판정 J-02: 막고 초안으로 보존, 결과를 모르는 명령만 같은 키로 다시 보냄 |
 | Q-04 | 기기 키 서명(챌린지 nonce) | 토큰만 / 토큰 + Ed25519 서명 | 토큰만. 18이 켜면 `device_sign_challenge`를 넣는다 |
 | Q-05 | 서버 PC의 Windows 앱을 위한 직접 경로(`ws://127.0.0.1:7840`) | 두지 않음 / 둠 | 두지 않음(06 §3.6과 같음). AS-5가 틀리면 `tailnet` 리스너 직접 연결 대신 `loopback`(7841) 직접 연결을 프로필 종류 `local`로 더한다(Tailscale 헤더 없이 토큰만 받는 리스너라 맞다) |
-| Q-06 | 창을 숨긴 동안 알림 지연 | 웹뷰 JS가 처리 / Rust가 전달 이벤트를 직접 보고 알림 | 웹뷰 JS. §6.2-10에서 지연이 보이면 Rust가 들어오는 프레임에서 전달 이벤트만 골라 알림을 띄운다(그때는 Rust가 이벤트 형식 하나를 알게 된다) |
+| Q-06 | 창을 숨긴 동안 알림 지연 | 웹뷰 JS가 처리 / Rust가 전달 이벤트를 직접 보고 알림 | 웹뷰 JS. §6.2 MC-10에서 지연이 보이면 Rust가 들어오는 프레임에서 전달 이벤트만 골라 알림을 띄운다(그때는 Rust가 이벤트 형식 하나를 알게 된다) |
 | Q-07 | Windows 자격 증명 보존 범위 | 로컬 / 로밍(크레이트 기본) | 로컬. 크레이트가 지원하지 않으면 로밍(1인, 도메인 계정 아님이라 영향 작음) |
-| Q-08 | macOS 서명 | 자체 서명 인증서 / ad-hoc | 자체 서명 인증서(판정 J-15로 결정 24 범위 안임을 확인). §6.2-7로 키체인 확인 창이 없는지 시험한 뒤 확정 |
+| Q-08 | macOS 서명 | 자체 서명 인증서 / ad-hoc | 자체 서명 인증서(판정 J-15로 결정 24 범위 안임을 확인). §6.2 MC-07로 키체인 확인 창이 없는지 시험한 뒤 확정 |
 | Q-09 | 자동 업데이트 | 없음 / updater 플러그인 + 데몬이 서빙하는 매니페스트 | 1차 없음. Windows 갱신이 한 달에 두 번 넘게 필요해지면 2차 후보를 넣는다 |
 | Q-10 | 서버 상태 라이브러리 | TanStack Query / RTK Query / 직접 | TanStack Query. 사용자가 다른 것을 선호하면 `sync/views.ts` 안에서만 바꾸면 된다 |
 | Q-11 | Windows 빌드 기본 경로 | WSL 교차 빌드 / GitHub Actions | 교차 빌드. 첫 구현에서 교차 빌드가 세 번 넘게 막히면 CI를 기본으로 바꾼다 |
 | Q-12 | macOS 빌드 대상 | universal / arm64만 | universal. 빌드가 5분을 넘게 걸리면 arm64만 |
-| Q-13 | 오프라인 뷰 사본 | 평문 IndexedDB / 끔 / 암호화 | 평문 + 끌 수 있음(18이 정하면 따름) |
+| Q-13 | 오프라인 뷰 사본 | 평문 IndexedDB / 끔 / 암호화 | 평문 + 끌 수 있음 + 디스크 암호화 안내(§3.9.5, 18 §3.19) |
 | Q-14 | 알림의 동작 단추 | 없음 / "가정대로 진행" 등 | 없음. 결정은 질문을 본 화면에서만 |
 | Q-15 | SSH known_hosts | 사용자 파일 / 앱 전용 파일 | 사용자 파일. 별칭 `server`를 이미 쓰고 있다 |
 | Q-16 | 경로 자동 전환 기본값 | 켬(`ordered`) / 끔(`pinned`) | 켬. 04 `SCR-CONNECT`의 확인란을 기본으로 켜 달라고 요구했다 |
 | Q-17 | assistant-ui 사용 여부 | 21 결정 | 21 UI-D11을 따른다. 쓰지 않게 되면 §3.9.10만 빠진다 |
-| Q-18 | `@helm/client-react`를 언제 나눌지 | MVP부터 별도 패키지 / 데스크톱 안에 두고 모바일 때 옮김 | MVP부터 별도 패키지(§3.14). 공개 API는 26이 정해질 때 다시 본다 |
-| Q-19 | `refreshing` 중 결정 허용 | 04 규칙 3(허용) / 21 §3.5.8(막음) | 04를 따른다(UX 정본, 버튼 깜박임 방지, 경합은 3004가 막는다). 21에 고쳐 달라고 요구했다 |
-| Q-20 | 안전 모드의 사용자용 상태 | `ConnectionUiState`에 `safe_mode` 추가 / `connected` + 띠 | `safe_mode` 추가. 04가 결정 가능 상태로 따로 두었다 |
+| Q-18 | `@helm/client-react`를 언제 나눌지 | (해결) | MVP부터 별도 패키지(§3.14, 판정 J-85와 같은 원칙). 26이 같은 패키지를 쓴다(26 §3.1) |
+| Q-19 | `refreshing` 중 결정 허용 | (해결) | 허용(04 규칙 3, 판정 J-59). 21 §3.5.8이 같게 고쳤다 |
+| Q-20 | 안전 모드의 사용자용 상태 | (해결) | `safe_mode`(판정 J-60). 21 `ConnectionUiState`에 있다 |
 | Q-21 | React Compiler | 1차부터 켬 / 끔 | 끔. 렌더 문제가 보이는 화면부터 켠다 |
 | Q-22 | dotfiles `.stignore-dev`에 Cargo `target` 제외를 더할지 | 더함 / `CARGO_TARGET_DIR`만 | 사용자 확인 대기(판정 §5). 그동안 `CARGO_TARGET_DIR`로 우회한다(§3.12.1) |
+| Q-23 | 기기 사이 알림 상한 | 기기마다 따로(데스크톱 3, 휴대폰 6) / 설정 하나로 기기 사이 합산 | 1차는 기기마다 따로 센다(§3.10.1 규칙 6). 휴대폰 푸시는 데스크톱이 열람하면 60초 지연 안에서 취소된다(26). 겹침이 실제로 귀찮으면 05·14·26이 설정 하나로 모은다 |
+| Q-24 | 다른 기기에 남은 초안 알리기 | 알리지 않음 / `presence.report`에 보내지 않은 초안 수를 싣고 다른 기기 질문 카드에 "Mac에 쓰던 답 있음" 표시 | 1차는 알리지 않는다. 초안은 기기 로컬이다(§3.9.5). 다른 기기에서 답하면 이 기기의 초안은 `3008`로 "이미 처리됨"이 되고 쓰던 내용은 남는다(§3.9.7). 사용 중 불편이 보이면 19(`presence.report`에 개수 필드)·04·26과 함께 넣는다. 초안 내용은 보내지 않는다 |
+| Q-25 | 협상 전달 구분 방법 | `question.delivered`에 `deliveryMode`를 싣고 앱이 설정으로 거름 / 11이 협상 전달의 `surface`에서 `os`를 뺌 | 앞의 것. 설정이 기기마다 다르기 때문이다(§3.10.1 규칙 5). 09·11이 받아들이기 전에는 `category`·`urgency`만으로는 구분할 수 없어 `notice`를 모두 띄운다 |
 
 ## 8. 출처
 
 - 브리프: `docs/design/process/00-design-brief.md` 결정 10, 12, 14, 19~26, 29, 31~33, 36~38, §2.5, §3.1~§3.4.
 - 2a단계: `docs/design/process/rulings-stage2a.md`(판정 §2, J-02, J-03, J-15, §5), 브리프 §2.4b 결정 41~46. 2a단계에 다시 읽은 문서: 03, 04 §3.0.4·§5.2, 05 §3.7·§3.8·§5.2·A7·A8, 06 §3.3·§3.4·§3.16, 07 §3.17, 16 §3.24.2·§5.2, 17 §5.2, 18 §3.6.2·§5.2, 19 §3.8.3·§3.9·§3.10·§3.14·§5.2, 21 §2.5.7·§3.5.8·§5.2. React 19 관련 버전은 2026-10-12 npm 레지스트리 조회(`npm view`)와 react-router 8.4.0 tarball로 확인했다 [검색].
+- 4단계: 브리프 결정 47~51, 판정 J-104~J-148(특히 J-115, J-118, J-119, J-120, J-136, J-144), 4단계 보완 묶음(`.helm-design-work/coordinator/stage4/by-owner/P13.md`), 4단계 교차 요구(06 §5.4, 22 §5.2, 26 §5.2, 15 §5). 다시 읽은 문서: 09 §3.4 `question.delivered`, 17 §3.4.1·§3.15, 18 §3.7·§3.8, 19 §3.3.4·§3.10.2·§3.11·§3.14·§6.3, 21 §3.5, 26 §3.4·§3.5.2·§5.2. 플러그인 소스 [원문, 2026-10-12]: plugins-workspace v2 `plugins/store/src/store.rs`, `plugins/store/permissions/default.toml`, `plugins/log/permissions/default.toml`, `plugins/global-shortcut/guest-js/index.ts`.
 - 다른 설계 문서(1단계 초안, 2026-10-11 읽음): `03-ux-information-architecture.md` §3.4~§3.6, §4~§6; `04-ux-screens.md` §3.0, §3.19, §3.24, §3.25, §5, §6, ADR A4; `06-system-architecture.md` §2, §3.4.13~§3.4.15, §3.6, §3.12, §3.16; `17-daemon-and-operations.md` §2.3 D17-09, §3.5, §3.10, §3.14, §3.15, §5.2; `19-client-protocol.md` §1~§3.7; `21-desktop-ui-system.md` §2.2, §2.3, §3.1, §3.2.
 - 원천 정리: `helm-canon.md` §12.10, §12.12, §16.8, §17.6, 체크리스트 20; `helm-canon-2.md` §3.15, §3.16, §8.6, §8.7, L14, 체크리스트 20; `helm-canon-3.md` §6.4, §6.5.1, §6.7, §6.10, §6.11, §6.13, §6.18, §7.1 C6·C7, §7.2 G11·G12, §8 문서 20; `conversation-extracts-4.md` §13.4, §15, §20(20-9~20-11, 20-20), §21(d25); `pi-api-facts-2.md` §0, §5, §6, §8, §13, §14; `pi-cases-notes.md` §1, §3.3, §3.7, §11.1, §11.2, §11.3, §12, §14.
 - 사례 메모와 코드: `.helm-design-work/S4/paseo.md`(§3, §4, §7), `openclaw-gateway.md`(§1.5, §2, §3), `openclaw-runtime.md`(§3.4), `pi-web.md`(§3, §7). 직접 확인한 코드 [원문]: `~/projects/_ref/paseo/packages/protocol/src/ssh-transport.ts:17-82`, `packages/desktop/src/daemon/local-transport.ts:83,196-264`, `.github/workflows/desktop-release.yml:320`(Windows 러너); `~/projects/_ref/openclaw/apps/macos/Sources/OpenClaw/RemotePortTunnel.swift:116-312`, `CommandResolver.swift:322-354,502-523`, `docs/platforms/mac/remote.md:101-130`, `docs/platforms/mac/menu-bar.md:15-80`; `~/projects/_ref/pi-src/packages/env/src/ssh.ts:77-117`, `docs/protocol.md:9,35,55,62`.
@@ -1784,7 +1913,7 @@ export interface PlatformAdapter {
 | canon-3 §8 문서 20-1 | Electron 보안 지침을 Tauri로: 렌더러 권한 최소화, restrictive CSP, IPC 범위 제한, 원격 콘텐츠 분리, OS 키체인 | 반영. 앱 매니페스트로 명령을 막고, CSP `connect-src`에 원격 주소가 없고, 원격 URL capability가 없고, 토큰은 Rust와 키체인에만 | §3.6, §3.10.7 |
 | canon-3 §8 문서 20-2 | deep link 복귀, 전달 정책을 따르는 native 알림, 전역 quick capture·command palette, offline 읽기·검토와 재접속 동기화 | 반영 | §3.10.6, §3.10.1, §3.10.4, §3.9.6·§3.9.8 |
 | canon-3 §8 문서 20-3 | 앱에 Helm 로직 없음. 원전 flow의 UI = 앱, G = 데몬 커널 | 반영(APP-D01, 뷰 무효화도 데몬이 계산) | §3.1, §3.9.6 |
-| canon-3 §8 문서 20-4 | 메뉴바·트레이에 active-run 요약과 선택 필요 개수 | 반영. 값은 `tray` 뷰(12·19에 요구) | §3.10.2 |
+| canon-3 §8 문서 20-4 | 메뉴바·트레이에 active-run 요약과 선택 필요 개수 | 반영. 값은 `tray` 뷰(19 §3.7.4 `TrayView`) | §3.10.2 |
 | canon-3 §6.10.2 | 데스크톱 가치 8개 | background run과 crash recovery는 데몬(17·12), update 보호는 진행 중 명령함이 갱신을 넘어 남는 것(F-38)과 17 업그레이드 절차, credential mediation은 기기 토큰만(§3.8.7), project identity는 데몬 | §3.8.7, §4 F-38 |
 | canon-3 §7.1 C6·C7 | Web GUI 선검증 대신 데스크톱 먼저, local core = 데몬 | 반영. ADR-20-04 | §3.11 |
 | canon-3 §7.2 G11·G12 | Recovery 화면, Trust(권한·연결) 화면 | 화면은 03·04(`SCR-RECOVERY`, `SCR-CONNECT`)가 정했다. 앱은 연결 점검(`route_check`), 기기 목록(`devices` 뷰), 보내지 못한 조작 목록을 준다 | §3.4.2, §3.9.7 |
@@ -1820,7 +1949,7 @@ export interface PlatformAdapter {
 - 상태: 제안
 - 맥락: 결정 32는 앱을 얇은 클라이언트로 둔다. 결정 26은 기기 bearer 토큰을, 결정 38은 SSH 경로를 요구한다. 브라우저 WebSocket은 업그레이드 헤더를 붙일 수 없고 프로세스를 띄울 수 없다.
 - 결정: WSS와 SSH 모두 Rust가 바이트 연결, TLS, WebSocket 업그레이드(`Authorization` 헤더 포함)를 하고, 웹뷰에는 Tauri 채널로 텍스트 프레임만 넘긴다. 프로토콜 처리(19 코어)는 웹뷰 TS가 한다. 토큰은 키체인과 Rust에만 있다.
-- 근거: 웹뷰 XSS가 있어도 토큰을 읽을 수 없다. CSP `connect-src`에 원격 주소가 없다. 두 경로가 같은 코드로 같은 바이트를 보낸다(결정 38). 로컬 포트를 열지 않는다.
+- 근거: 웹뷰 XSS가 있어도 토큰 값을 읽을 수 없고, 토큰은 저장된 경로로만 간다(§3.6.3). CSP `connect-src`에 원격 주소가 없다. 두 경로가 같은 코드로 같은 바이트를 보낸다(결정 38). 로컬 포트를 열지 않는다.
 - 기각한 대안: (1) 웹뷰 WebSocket + 토큰을 hello 인자로 — 토큰이 JS 메모리에 있다. (2) 웹뷰 WebSocket + SSH만 Rust의 로컬 포트 터널 — 같은 기기 다른 프로세스가 포트를 쓸 수 있고 mixed content·Origin 처리가 두 갈래가 된다. (3) `tauri-plugin-websocket` — 같은 Rust 클라이언트이지만 JS에서 헤더를 넘겨야 하므로 토큰이 JS를 지난다.
 - 결과: Rust에 WebSocket-over-stream 코드(약 수백 줄)가 생긴다. 메시지마다 IPC를 한 번 지난다. 19 P-03(헤더 인증)과 맞물린다.
 
@@ -1839,16 +1968,16 @@ export interface PlatformAdapter {
 - 맥락: WSS와 SSH 경로가 같은 데몬으로 간다. 한쪽 경로만 고장 나는 경우(serve 설정 누락, sshd 정지)가 있다.
 - 결정: 프로필은 `serverId` 하나와 경로 배열을 갖는다. 네트워크 계열 실패와 SSH 경로의 SSH 차단 실패에만 다음 경로로 넘어간다. 토큰·버전·`serverId` 문제는 넘어가지 않는다. 연결된 뒤에는 경로를 바꾸지 않고, 계속 실패하는 경로는 30분 뒤로 미룬다.
 - 근거: 경로를 바꿔도 같은 결과인 실패에서 시간을 쓰지 않는다. 동시 시도는 SSH 인증 로그와 서버 부하만 늘린다. 캐시는 `serverId` 단위라 경로가 바뀌어도 그대로다.
-- 기각한 대안: 동시 시도(happy eyeballs), 연결 중 더 나은 경로로 옮기기(재전송 의미는 같지만 이유 없는 재접속이 생긴다), 경로마다 프로필 따로(캐시가 갈라진다).
+- 기각한 대안: 동시 시도(happy eyeballs), 연결 중 더 나은 경로로 옮기기(재전송 의미는 같지만 이유 없는 재접속이 생긴다), 경로마다 프로필 따로(같은 서버의 캐시가 둘로 나뉜다).
 - 결과: 04 `SCR-CONNECT`의 "자동 전환" 확인란 기본값을 켬으로 둔다.
 
-### ADR-20-04. UI는 앱에 묶어 배포한다
+### ADR-20-04. 데스크톱 UI는 앱에 묶어 배포한다(모바일 PWA는 예외)
 
 - 상태: 제안
 - 맥락: 데몬이 SPA를 서빙하면 버전이 늘 맞지만, 원격 origin에 IPC 권한을 줘야 하고 오프라인 시작이 안 된다. 백엔드 조사는 "데몬이 같은 SPA를 웹으로도 서빙"을 제안했다.
-- 결정: SPA를 앱 번들에 넣고 데몬은 정적 파일을 서빙하지 않는다(19 §3.2.5와 맞음).
+- 결정: 데스크톱 SPA를 앱 번들에 넣고 데몬은 데스크톱 SPA를 서빙하지 않는다. 데몬이 서빙하는 모바일 PWA `/m/`은 이 결정의 예외다([결정 47], 26).
 - 근거: 오프라인으로 시작해 캐시를 읽을 수 있다. 원격 콘텐츠와 로컬 권한을 섞지 않는다(canon-3 §6.10.1). 결정 19(웹 아님).
-- 기각한 대안: 데몬 서빙(위 이유), 둘 다(웹 클라이언트를 만드는 셈).
+- 기각한 대안: 데몬 서빙(위 이유), 데스크톱도 PWA로(데스크톱 웹 클라이언트를 만드는 셈, [결정 19]).
 - 결과: 앱·데몬 버전 불일치를 hello의 프로토콜 범위와 기능 목록으로 다룬다(§3.12.7).
 
 ### ADR-20-05. 서버 상태는 뷰 단위 TanStack Query 캐시 + IndexedDB, 앱은 이벤트를 접지 않는다
@@ -1880,7 +2009,7 @@ export interface PlatformAdapter {
 
 ### ADR-20-08. macOS 앱은 Mac에서 만든 자체 서명 코드 서명 인증서로 서명한다
 
-- 상태: 제안. 결정 24 범위 안임은 판정 J-15로 확인됨. 키체인 확인 창은 시험 뒤 확정(§6.2-7)
+- 상태: 제안. 결정 24 범위 안임은 판정 J-15로 확인됨. 키체인 확인 창은 시험 뒤 확정(§6.2 MC-07)
 - 맥락: 결정 24로 Apple 공증·서명 배포는 범위 밖이다. Tauri는 서명 정체가 없으면 번들 서명을 건너뛴다. 키체인 항목 접근은 코드 서명 정체에 묶여 ad-hoc 빌드는 다시 빌드할 때마다 확인 창이 뜬다.
 - 결정: 그 Mac의 로그인 키체인에 자체 서명 "코드 서명" 인증서를 한 번 만들고 `bundle.macOS.signingIdentity`로 쓴다. 없으면 ad-hoc(`"-"`).
 - 근거: 같은 인증서로 서명하면 지정 요구 사항이 같아 확인 창이 다시 뜨지 않을 것으로 본다. 배포 서명이 아니므로 결정 24 범위 안이다.
@@ -1891,7 +2020,7 @@ export interface PlatformAdapter {
 
 - 상태: 제안
 - 맥락: `tauri-driver`는 macOS를 지원하지 않는다. `@wdio/tauri-service`가 앱 안 WebDriver로 macOS를 지원하지만 OS UI(알림, 트레이, 딥 링크 등록)는 자동화할 수 없다.
-- 결정: 시나리오 E2E(IT-01~16, 유즈케이스 화면 경로)는 Playwright(Chromium, WebKit)로 서버에서 돈다. 실제 셸은 `@wdio/tauri-service` 스모크(Mac, Windows)와 수동 체크리스트로 확인한다.
+- 결정: 시나리오 E2E(IT-01~20, 유즈케이스 화면 경로)는 Playwright(Chromium, WebKit)로 서버에서 돈다. 실제 셸은 `@wdio/tauri-service` 스모크(Mac, Windows)와 수동 체크리스트로 확인한다.
 - 근거: 서버에서 매번 돌릴 수 있고 Mac이 잠들어도 막히지 않는다. 앱의 로직은 웹뷰 쪽에 있어 브라우저 대체 실행으로 대부분을 덮는다.
 - 기각한 대안: 모든 E2E를 셸에서(느리고 Mac 의존), E2E 없음.
 - 결과: `platform/browser/` 대체 구현을 유지해야 한다(배포 빌드에서는 빠진다).
