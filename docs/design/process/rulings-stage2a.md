@@ -68,3 +68,108 @@
 - 홈랩: H-1 `serve.table`에 `8448 http://127.0.0.1:7840 helm`, H-2 restic이 `/srv/volumes/helm/backups`를 넣도록, H-3 제외 목록, H-4 `ctx-lint`, H-5 Caddy 관리 API(127.0.0.1:2019)가 인증 없이 Windows 프로세스에도 응답함(보안 정리 필요).
 - 사람: `~/projects/helm/PRODUCT.md`와 `secrets init`, `secrets edit prod`(모델 키, `HELM_LEDGER_HMAC_KEY`), `sudo apt install bubblewrap`.
 - 확인 필요: dotfiles `.stignore-dev`에 Cargo `target` 제외 추가 여부(20은 `CARGO_TARGET_DIR`로 우회).
+
+## 6. 2a 중 추가 판정
+
+| 번호 | 쟁점 | 판정 | 고칠 문서 |
+|---|---|---|---|
+| J-23 | 질문 하나에 담긴 여러 기준의 결정 조작 수 (02 UQ-11 대 03 §3.7 "기준당 1회") | 02 쪽: 질문 하나에 담긴 기준들은 결정 1회 | 03 |
+| J-24 | UC-07 A5에서 I를 건너뛴 Concern의 거절 | 직전 I가 없으면 사용자가 C 또는 I를 고른다 | 14 U-26 |
+| J-25 | 충돌·게이트 결과의 기록 (10: 결과만 저장, 09: `command.rejected`도 남김) | 09: 거부·충돌·게이트 모두 `command.rejected` 이벤트로 남긴다(A14) | 10 |
+| J-26 | 11의 질문 종류·레코드 이름(`wa`, `rw`, ApprovalToken, Contest) | 08 §10.2 대응대로 통일 | 11 |
+| J-27 | 10 EventDraft의 구조화 authorityBasis | 09 envelope의 `<kind>:<ref>` 문자열로 저장 | 10 |
+| J-28 | presence `locked` | 모바일 클라이언트만 보낸다(26이 확인) | 20, 26 |
+| J-29 | 예측 결과 이름 | 08 `indeterminate` | 10 |
+| J-30 | 이의 이벤트 이름 | 09 `objection.filed`(`contest.filed` 쓰지 않음) | 04, 19 |
+| J-31 | 알림 문구 저장 형식 (11 문구 키 대 20 완성 문장) | 문구 키로 저장, 앱이 `@helm/ui-language`로 문장을 만든다 | 20 |
+| J-32 | Run 진행 단계(stage) 위치 | 09 trace 유지(같은 트랜잭션, 도메인 상태는 이벤트만으로 재구성) | 12 |
+| J-33 | 1판 이벤트 이름 잔존 | 09 §5.2·08 §10.3 대응표대로 10·11·12·13·14·19가 일괄 교체 | 10, 11, 12, 13, 14, 19 |
+| J-34 | 고르기만 한 라운드를 닫을 수 있는가 (21 대 15) | 15: 사람이 명시하면 닫히고 다음 라운드에 세 개 비교를 넣는다 | 21 |
+| J-35 | 결과 확인 값 표기 (08 기록 값 대 10 명령 값) | 둘 다 유지, 08 §10에 대응 한 줄 | 08 |
+| J-36 | 이의 대상 형식 (19 `criterionVerdict` 대 08 `itemKey`) | 08 형식(`record` + `itemKey`, `link`) | 19 |
+| J-37 | 휴대폰에서 결과 확인 범위 | 03 §3.12 안(결과 확인·수정 요청만). 26이 다르게 정하면 26을 따르고 03을 맞춘다 | 26 |
+| J-38 | 사람 대기 뒤 이어가기 | 12 방식(`ended(handed_off)` + 같은 thread 새 run). 08은 `run.resumed`·awaiting 재진입 제거 | 08 |
+| J-39 | 부팅 때 `awaiting_*` run | 그대로 둔다(늦은 답 수용). 09 `runsToInterrupt`에서 제외, 08 전이 출발 상태 수정 | 08, 09 |
+| J-40 | 승인된 행동 실행 | 같은 tcId(`toolcall.approved` → started, `approval.consumed`) | 12 |
+| J-41 | replay 시점 | 재개 때 커널 재검사를 통과한 뒤 `toolcall.replay_started` | 09 |
+| J-42 | 판정 결과에 따른 trace | 09 commit이 traces 콜백 허용 | 09 |
+| J-43 | 제안 도구 호출 기록 | primitive=null 도구는 requested·started·completed를 한 트랜잭션에, 관찰 없음. `toolcall.completed.observationId` Nullable | 08, 09, 12, 13 |
+| J-44 | 로컬 쓰기 결과 불명 | 08 §3.22.14 구분(interrupted는 질문 없음, outcome_uncertain은 recovery 질문) | 12 |
+| J-45 | 격리 가림 목록 | `/srv/volumes/helm/data` 명시(S1b는 InaccessiblePaths) | 13 |
+
+12·13 ↔ 08·09 상세 대조표: `.helm-design-work/coordinator/align-12-13-vs-08-09.md` (A: 08·09 반영 21건, B: 12·13 이름 수정 43건).
+| J-46 | presence 기록 | 09: 상태가 바뀔 때만 영속 `presence.changed`. 11 ADR-A7 뒤집음 | 10, 11 |
+| J-47 | 사람의 질문 조작 | 08·09 이벤트(`question.deferred`·`delegated`·`reframe_requested`·`seen`). 11 AnswerValue에서 delegate·reframe 제거 | 11 |
+| J-48 | 승인 토큰 | 08 `Question.approval` + 09 `approval.*`. 11의 24시간은 `approval.expiresAt` | 11 |
+| J-49 | 권리 질문 시간 만료 | 없음(11, 브리프 C10). 08·09의 deadline은 "사람이 정한 경우만" | 08, 09 |
+| J-50 | 질문 병합 | 09 `question.updated` | 11 |
+| J-51 | 묶음 전달 이벤트 | 09: `delivery.planned`와 질문별 이벤트 모두 | 11 |
+| J-52 | `question.delivered` 값 | urgency는 11의 `interrupt`/`notice`/`digest`. 09의 전달 경로 필드는 `channel`, 11의 표시 방식 배열은 `surface`. 문구는 키(J-31) | 09, 11, 20, 26 |
+| J-53 | Objection 바라는 처리 | 08 `desiredEffect: reopen|ask_next_time|note_only`. revert는 reopen + 재작업 | 10, 11 |
+| J-54 | reworkOf | 08 형식(cause `ct|qs|ac`, 가정 무효는 qs) + 선택 필드 `steps` 추가 | 08, 11 |
+| J-55 | 질문 종류 `goal_achievement` | 08에 추가 | 08, 10 |
+
+10·11 ↔ 08·09 상세 대조표: `.helm-design-work/coordinator/align-10-11-vs-08-09.md`.
+| J-56 | `tools`가 `@helm/agent`를 import하는 문제 | `tools`는 `@helm/vendor-pi-tools`의 타입 재export를 쓰고, REPL의 `runToolCall`은 12가 주입. 06 의존 표 유지 | 13 |
+| J-57 | 모델 키 읽기(12 §3.3.4) | 결정 45: `CredentialStore`가 데몬 `SecretStore`를 읽는다. 환경 변수 방식은 일회성 레시피·테스트만 | 12 |
+| J-58 | 실행 전 거부 reason | 09 `toolcall.not_executed.reason`에 `unknown_tool`, `invalid_args`, `truncated_response` 추가(J-40 대조표 A와 같음) | 09 |
+| J-59 | `refreshing` 중 결정 허용 (04 허용 대 21 막음) | 04: 허용. 경합은 3004 거부로 처리 | 21 |
+| J-60 | 21 `ConnectionUiState`와 04 사용자 상태 | 21에 `safe_mode` 추가. 키체인·SSH·다른 서버 사유는 배너 문구로 구분 | 21 |
+| J-61 | 모바일 PWA 인증과 APP-D02 | 데스크톱은 그대로. 모바일 인증은 18·19·26이 정한다 | 18, 19, 26 |
+| J-62 | 19 `TransportFailure`의 SSH 차단 사유 | `blocked` 종류 추가(자동 재시도 중단) | 19 |
+| J-63 | 작업 경계 enum | 일곱 값(round_end, workunit_end, loop_transition, concern_waiting, user_return, review_window, daily_rollover) | 09 |
+| J-64 | presence (14 C14-2 재제기) | J-46 유지: 상태가 바뀔 때만 영속 `presence.changed`(전달 판정 재현 가능). 14·11·19는 J-46에 맞춘다 | 11, 14, 19 |
+| J-65 | 모델의 루프 전환 | 선언 도구 방식(ADR-14-11). 1차 런타임은 M 채널 `loop.transition` 도구를 노출하지 않는다 | 10, 13 |
+| J-66 | 진입 문턱·`dial.set` R 행 | 진입 문턱은 01의 고정 2. 10의 `dial.set` R 행 삭제 | 10 |
+| J-67 | 부팅 무결성 실패 시 모드 | 17의 `read_only`(이벤트 없음). 안전 모드(`safeMode`)는 크래시 루프 전용 | 09 |
+| J-68 | 단위·관리 명령 이름 | `helmd.service`, `helm ops verify`, `helm export` (06 §3.16) | 09 |
+| J-69 | `secrets.required` 기본값 | `HELM_LEDGER_HMAC_KEY` 필수 | 06 |
+| J-70 | 관찰 자식 격리 | 16 fork 방식 기본. 격리를 켤 때만 일회성 서비스 단위 + 표준 입출력 IPC | 16 |
+| J-71 | 푸시 토큰 원문 | 08·09·26이 소유하는 운영 테이블에 원문(도메인 이벤트 밖), Device에는 해시 | 08, 09, 26 |
+| J-72 | sshd `PermitOpen` 축소 | 하지 않는다(사용자 다른 포워딩 영향) | — |
+| J-73 | bubblewrap | 구현 시작 전 사용자에게 설치 요청(사람 작업 목록에 이미 있음) | 23 |
+| J-74 | 정책 제안마다 권리 질문 (10) | 만들지 않는다. 채택 명령 자체가 사람의 결정 | 10 |
+| J-75 | 정책 제안 기각 이름 | 08·09 `policy_proposal.dismissed`, 범위 `family_forever` | 10 |
+| J-76 | 08 `HumanOpMeta.onNormalPath`의 뜻 충돌 | 01의 정상 경로는 이벤트 종류로 계산. 08 필드는 `followedRecommendation` 등 뜻에 맞는 이름으로 바꾼다 | 08, 16 |
+| J-77 | 09 `source_cursors` 위치 | 관찰 캐시(observer.db)에 둔다. 정본 DB에서 제거 | 09, 16 |
+| J-78 | 복귀 점검 메서드 이름 | `resumptionCheck.*` (J-10) | 19 |
+| J-79 | 낡음 검사 위치 | 09: 커널이 decide 안에서 `basisSeq`와 대상 `revisionSeq`를 비교. 10 `CommandEnvelope`에 `basisSeq` 추가 | 10 |
+| J-80 | presence (19 재제기) | J-46·J-64 유지 | — |
+| J-81 | 페어링 실패 사유 표시 | 18: 구분하지 않는다("코드가 틀렸거나 만료됐습니다") | 04, 05 |
+| J-82 | 브라우저 전송의 토큰(`helm-bearer.` 하위 프로토콜) | 18이 수용 여부를 정한다. 데스크톱(Rust 전송)과 네이티브 모바일은 헤더 | 18, 26 |
+| J-83 | 20의 1단계 연결 이름 | 20은 19의 `HelmClient` 사건 이름으로 맞춘다 | 20 |
+| J-84 | 감사 깊이 열람 표시 | `presence.report.depth` 필드("#audit" 접미 쓰지 않음) | 16, 20 |
+| J-85 | UI 부품 패키지 분리 시점 | 21: 처음부터 `@helm/ui-tokens`·`@helm/ui`(플랫폼 중립). 셸만 `apps/desktop` | 06, 20 |
+| J-86 | shadcn 소스 복사 | 결정 41의 "부품 직접 제작"에 포함된다고 본다(복사 후 Helm 소유 코드) [제안, 사용자 보고] | — |
+| J-87 | macOS 웹뷰 기준 Safari 18 | 유지. 실제 Mac 버전은 확인 대기(Mac 잠듦, 사용자 보고) | 20 |
+| J-88 | Caustic 라이선스 표시 | Helm NOTICE에 출처 기록. Caustic 저장소 LICENSE 추가는 사용자 판단 [사용자 보고] | — |
+| J-89 | 가벼운 작업의 결과 확인 (10 V-POL-01 대 J-01) | MVP는 한 화면 확인만. 정책으로 결과 확인을 닫는 것은 2단계 이후 검토(01 OQ-15 (a)) | 01, 10 |
+| J-90 | R-OP-2(a) 사람이 고른 선택 범위 안 echo 활성 | 10에 활성 경로, 09에 이벤트 추가 | 09, 10 |
+| J-91 | 08 `sendTargets`의 권리 게이트 우회 | MVP에서 send는 언제나 권리 게이트(01 NFR-S-7) | 08, 10, 14 |
+| J-92 | 금지 자원 거부 갈래 (P1이 `denied.forbidden_action` 재제기) | §1 유지: 내용 갈래 `policy.forbidden_resource` | 10 |
+| J-93 | 경계 명령 이름 | `runtime.boundary` (10 정본). 12의 `boundary.reach`, 14의 혼용을 고친다 | 12, 14 |
+| J-94 | 설정 변경 기록 | 09에 `setting.changed`(governance 범주) 추가 | 09 |
+| J-95 | 사람의 확인 순서 고정 | 09 `check.pinned`, 08 구분 확인에 `pinned` 필드 | 08, 09 |
+| J-96 | 승인 뒤 실행 run | 승인된 도구 호출은 같은 tcId로 새 run(같은 thread)에서 실행한다(J-38 + J-40). 12 §3.13에 명시 | 12 |
+| J-97 | 탐구 엔진 단계 run 종류 | 08·12 `RunKind`에 `inquiry` 추가(work run 자동 재개·투영 규칙 미적용) | 08, 12 |
+| J-98 | REPL 작업 공간 | 15: 파일 작업 공간(비정본), 전역 이름 `helm.wsGet`/`wsPut`/`wsList`/`wsDel`. pi `store`는 쓰지 않는다 | 13 |
+| J-99 | 라운드가 닫힌 뒤 도착한 반응 | 기록하되 그 라운드 마감 판정에는 쓰지 않는다(08 R-38) | 05 |
+| J-100 | 21 "near만 있으면 마치기 비활성" | J-34와 같음: 버튼은 열고 05 §3.2.5 확인 단계를 거친다 | 21(반영됨 확인) |
+| J-101 | 인스턴스 잠금 함수 위치 | `@helm/store/admin`(SQLite 드라이버 import는 store 하나, R6) | 17 |
+| J-102 | 설정 리스너 키 | `loopback`(`ssh` 아님). 환경 변수 이름은 유지 가능 | 17 |
+| J-103 | 문구 사전 위치 | `@helm/ui-language`(21 앱 안 `copy/` 철회) | 21 |
+| J-104 | 루프가 바로 거부한 호출의 기록 | 10 `toolcall.skip`이 `core`와 함께 받아 `requested`·`not_executed`를 같이 남긴다 | 10 |
+| J-105 | 제안 종류 대응 표 차이(10 §3.11.11(3) 대 14 §3.5.6: situation_summary, watch_sample, perspective, consequence) | 14를 따르고 10 표를 고친다. 13은 10 표로 생성 | 10, 13 |
+| J-106 | write·edit replay 기본값 | 해시 guard가 있을 때만 `safe`(13안) | 07 |
+| J-107 | 사고(thinking) 스트림 | 기본으로 보내지 않는다. 개발 화면 설정으로만 | 19 |
+| J-108 | 초안·검증 작업 트리와 S1b의 `/srv/volumes` 가림 | 초안·검증 실행은 S1(bwrap)에서만. 18에 예외 기록 | 18 |
+| J-109 | 모델 연결 끊김 | 도메인 관찰로 만들지 않는다. trace와 17 상태 확인, run은 `model_unreachable`로 끝나고 회복 뒤 14가 다시 요청 | 01 |
+| J-110 | `presence.update` 발신 | 19·17의 연결 계층. 12는 읽기만 | — |
+| J-111 | 이의 메서드 이름 | `objection.file`(`contest.file` 쓰지 않음) | 19 |
+| J-112 | OPD+C 의무 ID와 관찰 지표 ID 충돌(`obs.*`) | 14 쪽을 `opdc.*`로 | 14 |
+| J-113 | 접두사 `or` | 08에 추가 | 08 |
+| J-114 | 질문 상태 `delegated` 화면 라벨 | "에이전트에게 맡김" | 03, 05 |
+| J-115 | "복구 판단"/"복구 모드" | "복구 선택" / "읽기 전용"("판단"은 Finding 전용) | 02, 03, 04, 05, 20, 21 |
+| J-116 | Grant 화면 이름 | "맡겨 둔 권한", 비상 Grant는 "비상 합의" | 03, 05 |
+| J-117 | 고쳐서 허락(`approve_edited`)한 호출 | 새 toolCallId(원 호출 참조)가 승인을 1회 소진. 그대로 허락은 같은 tcId(J-40) | 11, 12 |
+| J-118 | 모바일 결정 반영(결정 47~49) | 18·19는 26을 따른다(쿠키 토큰, Web Push, `locked` 미전송) | 18, 19, 11 |

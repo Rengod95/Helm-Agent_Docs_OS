@@ -1,7 +1,7 @@
 # 04. UX 화면 상세
 
 - 작성: 2026-10-11, P2 UX
-- 상태: 1단계 초안. 화면 ID와 이름은 03 §3.6이 정본이다. 작성 막바지에 01·02(P1), 08·10·12·14·15·16·17, 19(P12), 20(P13)의 1단계 초안과 대조해 이름을 맞췄다(남은 차이는 §5.2 "1단계 대조에서 나온 맞춤 목록"). 이 문서의 명령 의도 이름은 후보다. 21(P14) 1단계 초안의 UI-D02(결정 의도에 `basisSeq`), UI-D03(낙관적 도메인 갱신 금지), UI-D08(선형 텍스트)에 맞췄다.
+- 상태: 2a단계 통합판(2026-10-12). 조정자 판정과 결정 41~46을 따르고, 08·09·10·11·19 이름에 맞췄다. 화면 ID와 이름은 03 §3.6이 정본이다. 작성 막바지에 01·02(P1), 08·10·12·14·15·16·17, 19(P12), 20(P13)의 1단계 초안과 대조해 이름을 맞췄다(남은 차이는 §5.2 "1단계 대조에서 나온 맞춤 목록"). 이 문서의 명령 의도 이름은 후보다. 21(P14) 1단계 초안의 UI-D02(결정 의도에 `basisSeq`), UI-D03(낙관적 도메인 갱신 금지), UI-D08(선형 텍스트)에 맞췄다.
 - 소유: 화면별 목적, 진입 경로, 레이아웃(영역별 내용), 표시 데이터 요구, 상태별 표시, 인터랙션, 문구 예시, 사람 조작 횟수.
 
 ## 1. 목적과 범위
@@ -100,6 +100,9 @@ interface RecordRef {
   kind: RecordKind;
   displayNo: number;        // 03 §3.2.6 표시 번호. 투영이 매긴다
   title: string;            // 한 줄 요약. 모델 문장일 수 있음 → authoredBy로 구분
+  revision?: number;        // 19 §3.7.4. 레코드 판(고쳐질 때 증가)
+  revisionSeq?: Seq;        // 그 판을 만든 seq
+  unseen?: boolean;         // 사람이 마지막으로 본 뒤 바뀐 레코드(21 UnseenDot). 기준은 사용자 확인 cursor와 question.seen
 }
 
 type Author =
@@ -585,7 +588,7 @@ interface InboxView {
 
 **진입 경로**: 질문함 행, 홈·복귀 요약 카드의 "자세히", 알림, 딥 링크 `helm://question/<id>`, Concern 개요의 열린 질문.
 
-**레이아웃: 선택 요청(권리 게이트)**
+**레이아웃: 선택 요청(권리 게이트)** — 예시의 "외부 리뷰어에게 보내기"는 MVP 밖 send다(MVP의 send는 git push, 01 OQ-07). 화면 구성은 send 종류와 관계없이 같다. 권리 게이트 허락 카드는 실행할 인자(대상, 받는 사람, 파일)를 미리 보이고 "인자 고쳐 허락"(11 `approve_edited`)을 둔다.
 
 ```text
 선택 필요 · 질문 15 · Concern 12 블로그 글 방향 · 즉시 전달 09:10
@@ -655,7 +658,7 @@ interface InboxView {
 | 선택 요청(권리 게이트, 밖으로 보내기·돈 쓰기·대리 발언 같은 실행 허락) | 대상과 효과를 쓴 허락 버튼(추천안), 다른 선택 허락 버튼 하나, "하지 않기" | 범위 줄여 허락, 조건 바꾸기, 기준 고치기, 질문 다시 쓰기, 먼저 탐구, 미루기, 이의 |
 | 선택 요청(방향 결정) | 추천대로 정하기, 가장 강한 다른 선택으로 정하기, 고쳐서 정하기 | 기준 고치기, 질문 다시 쓰기, 먼저 탐구(구분 확인), 맡기기, 조건까지 미루기, 이의 |
 | 정보 질문 | 답(종류에 맞는 형태), 가정대로 진행, 반대 답(예: 넣지 않기) | 고쳐서 답, 질문 다시 쓰기, 나중에, 맡기기, 이의 |
-| 기준 확인 | 선호 모델에 넣기, 가정대로 진행, 넣지 않기 | 기준 고쳐서 넣기, 자극 보드에서 더 보기, 나중에, 이의 |
+| 기준 확인 | 기준이 하나면 선호 모델에 넣기, 가정대로 진행, 넣지 않기. 여러 기준이 묶인 질문이면 항목별로 넣기·고쳐서 넣기·넣지 않기를 고른 뒤 "고른 대로 보내기" 1회(D 1, 조정자 판정 J-23) | 기준 고쳐서 넣기, 자극 보드에서 더 보기, 나중에, 이의 |
 
 `[승인]`, `[거절]`, `[확인]`, `[계속]`만 있는 버튼 줄은 만들지 않는다(canon-2 §3.7, §3.19 금지 5). "그 밖에" 메뉴의 기준 고치기·질문 다시 쓰기·먼저 탐구·미루기는 모든 선택 요청에 항상 있다(감사 보고 §3.4 A15).
 
@@ -957,6 +960,10 @@ interface ConcernView {
 사실 탐구 · 라운드 3 · 멈춤 조건: 1순위가 두 라운드 유지(지금 1라운드) · 예산 하위 호출 12/30
 ```
 
+**앵커링 결과** (15 발산 서브시스템, 탐구를 시작할 때): 요청에서 확실한 것 / 모호한 것 / 가정으로 나눈 초안을 탐구 화면 머리에 보이고, 줄마다 "고쳐 말하기"를 둔다(15 요구). 고친 것은 반응처럼 관찰로 기록된다.
+
+**사람 조작(15 §3.11.2)**: 항목 고정·접기·기각, 자극·레퍼런스 추가, 렌즈 지정·추가, 특정 칸 채우기 요청, 탐구 일시 정지·재개. 하위 호출이 실패해 결과가 줄었으면 머리에 `degraded` 배지("일부 하위 호출이 실패해 결과가 줄었습니다")를 보인다. 예산이 거의 다 되었을 때는 15 §3.13.3의 문장(`notice.inquiry.budgetNear`, 05 §3.11)을 머리 줄에 보인다(질문은 만들지 않는다, 14).
+
 **종류별 본문** [제안]
 
 | 종류 | 본문 구역 | 원천 |
@@ -1083,7 +1090,8 @@ interface StimulusRoundView {
     origin: string;                    // 15 origin(초안, 레퍼런스, 사례 등)
     otherField?: string;               // 다른 분야 이름
     // facets, controlledFor, extreme, direction은 반응 전에는 싣지 않는다(SC-06, 05 §3.2.1). 라운드를 마친 뒤 revealAfterClose로
-    content: { type: "text"; markdown: string; elements: { id: string /* 15 요소 id: p1, p1.s1, 노드 id */; displayLabel: string /* a1 */; range: [number, number] }[] }
+    content: { type: "text"; markdown: string; elements: { id: string /* 15 요소 id: p1, p1.s1, 노드 id */; displayLabel: string /* a1 */; range: [number, number]; plainText: string /* 요소의 평문 조각(21 E9): 선택 범위 고정과 TUI 표시용 */ }[] }
+           | { type: "structure"; outline: { id: string; displayLabel: string; text: string; depth: number }[] }   // 구조 자극은 개요 목록(15)
            | { type: "image"; url: string; width: number; height: number; alt: string }
            | { type: "link"; url: string; summary: string; elements: { id: string; range: [number, number] }[] };
     myReactions: ReactionView[];
@@ -1230,6 +1238,7 @@ interface WorkView {
 | 구역 | 내용 | 원천 |
 |---|---|---|
 | 넓어진 것 | 이전 합의(또는 처음 지시) 대비 넓어진 항목. 이 화면이 열린 이유 | canon §9.5 "이미 한 번 맡겼다로 권한이 이어지지 않음" |
+| 네트워크·보호 경로 경고 | 합의가 네트워크 접근을 허용하거나 보호 경로(데몬 데이터·설정·비밀 파일 근처)를 건드리면 "이 합의는 네트워크에 접근합니다", "보호 경로에 가까운 파일을 씁니다: …"를 맡긴 범위 위에 보인다(18) | 18 §5.2 |
 | 합의 여섯 항목 | 목적, 완료 기준, 범위, 금지 행동, 제출할 근거, 멈출 조건(브리프 §6) + 다음 확인 시점, 맡는 쪽 | canon §12.7 Delegation Interaction 8, canon-2 §3.12 echo |
 | 에이전트가 이해한 것 | 에이전트가 합의를 자기 말로 다시 쓴 것(check-back, SC-08). "이해가 다름"을 누르면 다른 부분을 고르고 한 줄 정정 | canon-3 G1, Mission Command 규칙 2 |
 | 맡긴 범위 자세히 | P04 §1 여덟 항목. "되돌리기"는 권한 레이어 판정 출처를 붙인다 | canon §9.5 |
@@ -1338,7 +1347,7 @@ Goal·이전 선택과 맞는가           맞음 (선택 39, Goal 2 v4)        
 | 수정 요청 | 버튼 → 무엇을(기준 고르기 + 자연어) | `result.requestRevision { criteria, note }` | 합의를 유지한 채 진행 중으로(v0.3 03 §6) |
 | 기준이 틀림 | 메뉴 | `result.accept { verdict: "criteria_wrong", note }` | 완료 기준이나 문제 정의가 틀렸을 때. I로 돌아감(사실 탐구 또는 원함 탐구, 14) |
 
-결과 확인 화면의 다섯 행동과 14 `AcceptanceVerdict`의 대응: 결과 확인 = `accepted`, 조건 붙여 확인 = `conditional`, 수정 요청 = `revision`, 거절(해결 안 됨) = `rejected`, 기준이 틀림 = `criteria_wrong`. 명령 이름은 10의 `result.accept` 하나에 판정 값을 붙이는 방식과 이 표의 개별 의도 이름 중 2단계에서 정한다. 거절 뒤 어디로 가는지는 02(UC-07 A5: 합의를 닫고 C를 다시 엶)와 14(`rejected` → I.fact)가 다르다. 화면은 "합의를 닫고 다시 계획합니다"까지만 쓰고 다음 루프는 데몬이 정한 대로 보인다.
+결과 확인 화면의 다섯 행동과 이름의 대응: 결과 확인 = 10 `accept` / 08 `accepted`, 조건 붙여 확인 = `accept_with_conditions` / `conditional`, 수정 요청 = `request_changes` / `revision_requested`, 거절(해결 안 됨) = `reject` / `rejected`, 기준이 틀림 = `criteria_wrong`. 사람 조작은 10 `result.accept` 하나에 결정 값을 싣고(11 응답 `review`), 19 메서드는 `result.accept`·`result.acceptConditional`·`result.requestRevision`·`result.reopen`이다. 거절 뒤 다음 루프는 조정자 판정 J-04(14 U-26 `reopenTo`, 기본은 직전 I)를 따른다. 화면은 "합의를 닫고 다시 계획합니다"와 데몬이 정한 다음 루프를 보인다.
 | 반영 항목 처리됨 확인 | 사람이 직접 처리한 항목(예: 외부 문서 갱신)의 "처리함" | `obligation.confirmDone { obligationId, note? }` | 항목 상태 `done` |
 | 반영 항목 미루기 | 항목 버튼 → 이유·다시 볼 때 | `obligation.defer { until, reason }` | |
 | 다른 Concern으로 넘기기 | 항목 버튼 → Concern 고르기(초안 제시) | `obligation.transfer { toConcernId }` | |
@@ -1357,7 +1366,7 @@ interface ReviewView {
   tasteMode: boolean;                    // 선호 모델 기준 확인
   sections: { confirmed: string[]; unconfirmed: string[]; limitations: string[]; challenging: StatementView[]; wholeImpact: string[]; recheckIf: string[] };
   invalidIf: string[];
-  acceptance?: { by: Author; at: IsoTime; verdict: "accepted" | "conditional" | "revision" | "rejected" | "criteria_wrong"; conditions?: string[] };   // 14 AcceptanceVerdict
+  acceptance?: { by: Author; at: IsoTime; decision: "accepted" | "conditional" | "revision_requested" | "rejected" | "criteria_wrong"; conditions?: string[] };   // 08 AcceptanceDecision (명령 쪽 값은 10: accept / accept_with_conditions / request_changes / reject / criteria_wrong)
   preferenceModelMissing?: boolean;      // 원함 탐구를 건너뛴 취향형 작업(02 FX-14)
   obligations: { checkpoint: "goal_fit" | "breaks_assumptions" | "artifacts_updated" | "local_vs_whole" | "rollback" | "known_limits";
                  items: { ref: RecordRef; text: string; state: "done" | "in_progress" | "deferred" | "transferred" | "open"; workUnit?: RecordRef; deferredUntil?: string; transferredTo?: RecordRef }[];
@@ -1473,6 +1482,7 @@ interface LoopTimelineView {
 **표시 데이터**: `view:evidenceChain` (파라미터: `recordId`, `depth`)
 
 ```ts
+// 노드가 많으면 depth 파라미터로 두 단계까지 먼저 받고, 펼칠 때 view:evidenceChain { recordId: 노드 id }로 더 받는다(21 요구)
 interface EvidenceChainView {
   meta: ViewMeta;
   root: StatementView & { promotedAt?: IsoTime; counterSearch: "searched_none" | "not_searched" | "found" | "searching" };
@@ -1523,7 +1533,7 @@ Goal 2 블로그 글쓰기 방향 정하기 · v4 · 진행 중
 
 | 구역 | 내용 |
 |---|---|
-| 수정 제안 | 대기 중인 Goal 수정 제안(`goal.revise.proposed`). 바뀌는 항목의 이전/이후, 계기(Concern, 관찰, 반응, 판단), 바꾸면 다시 확인 대상이 될 작업 합의와 컨텍스트 |
+| 수정 제안 | 대기 중인 Goal 수정 제안(이벤트 `goal.revision_proposed`). 바뀌는 항목의 이전/이후, 계기(Concern, 관찰, 반응, 판단), 바꾸면 다시 확인 대상이 될 작업 합의와 컨텍스트 |
 | 현재 내용 | 서술, 성공 조건, 지킬 것(보존 제약), 선호 모델 연결, 상위·하위 Goal(v0.3 02 §3.2) |
 | 버전 이력 | 버전마다 바뀐 항목, 계기, 확인한 사람(또는 "확인 없음"이 있으면 이상으로 표시), 비교 링크 |
 | 선호 모델 | 기준, 무게(높음·중간·낮음), 근거 반응, 반대 반응, 좋았던 예·싫었던 예, 말한 것과 반응의 차이. 기준마다 다시 볼 조건 |
@@ -1539,7 +1549,7 @@ interface GoalView {
   preferenceModel?: PreferenceModelView;
   pendingRevision?: { question: RecordRef; changes: { field: string; before: string; after: string }[];
                       triggers: RecordRef[]; affectedAgreements: RecordRef[] };
-  history: { version: number; at: IsoTime; changedFields: string[]; triggers: RecordRef[]; confirmedBy: Author | null }[];
+  history: { version: number; at: IsoTime; changedFields: string[]; triggers: RecordRef[]; confirmedBy: Author | null }[];   // 버전 본문은 비교를 열 때 view:goal { goalId, version }으로 따로 받는다(21 요구)
 }
 ```
 
@@ -1710,7 +1720,7 @@ interface ObserverProposalsView {
   경로 1 Tailscale (권장)   [시험]
   경로 2 SSH   대상 [server 또는 user@host] 포트 [선택] 키 [선택] 호스트 키 확인 [엄격 ▾]   [시험]
                 (`~/.ssh/config`를 그대로 씁니다. 전달 방식은 19·20)
-  시도 순서: 경로 1 → 경로 2 (순서대로) ▾  · 경로 2는 3번 연속 실패해 30분 미룸 [지금 다시 시도]
+  시도 순서: 경로 1 → 경로 2 (순서대로, 자동 전환 켬이 기본: 20 APP-D05) ▾  · 경로 2는 3번 연속 실패해 30분 미룸 [지금 다시 시도]
   이 프로필의 서버: server-7f3a (다른 서버면 연결하지 않음)
 ──────────────────────────────────────────────────────────────────────────
 서버(데몬) 상태
@@ -1737,7 +1747,7 @@ interface ObserverProposalsView {
 | 연결 방식 | 한 프로필에 경로 여러 개(Tailscale, SSH)를 두고 순서대로 시도하거나 하나로 고정한다(20 §3.8.7). SSH는 대상(별칭 또는 user@host), 포트·키(선택), 호스트 키 확인(기본 엄격). 연속 실패로 미룬 경로를 표시한다. 프로필에 고정한 서버 id. 두 방식에서 화면과 재전송 의미는 같다(결정 38) |
 | 보내지 못한 조작 | 끊긴 동안 결과를 확인하지 못하고 기한이 지난 조작(20 §3.9.7). 내용을 보이고, 다시 보내면 새 멱등 키와 현재 `basisSeq`로 보낸다. 다시 보내기 전에 해당 화면을 열어 바뀐 상황을 보게 한다 |
 | 서버 상태 | 실행 여부, 시작 시각, 진행 중 작업 수, 다음 예약 실행, 기록 저장소 크기, 마지막 백업, 디스크 여유, 복구 모드 여부. 데이터는 데몬 상태 조회(17)에서 |
-| 기기 | 페어링된 기기 목록(이름, 방식, 마지막 사용), 폐기, 새 기기 페어링. 토큰 값은 보이지 않는다 |
+| 기기 | 페어링된 기기 목록(이름, 경로, 마지막 사용, 토큰 만료 예정), 폐기, 이름 바꾸기, 토큰 교체, 새 기기 페어링. 토큰 값은 보이지 않는다(18). 기기를 누르면 그 기기에서 낸 사람 결정 목록(`SCR-RECORD`를 기기로 거름, 18 감사 보기) |
 | 연결 점검 | 단계별 결과와 실패한 단계의 다음 할 일 |
 
 연결 점검 실패 문구(05 §3.11에 정본):
@@ -1803,7 +1813,7 @@ WorkUnit 28 리뷰 요청 보내기 · Concern 12 · 중단됨(재시작)
 | 이미 일어난 외부 행동 | 외부 결과가 확실하지 않으면 "모름". 시간 초과를 실패로 단정하지 않는다 | canon-2 §3.13 Unknown external outcome, L12 |
 | 행동 | 마지막 확인 지점부터 다시 실행 / 그대로 두기 / Concern에서 다시 계획 / 확인 작업 만들기 / 결과를 사람이 기록 / 되돌리기(되돌릴 지점 `rollback_point`가 있을 때만, 11) | canon §17.5 |
 
-복구 판단은 권리 게이트(03 §3.2.4)이므로 답이 없는 동안 해당 작업은 멈춘 상태로 남는다. 데몬은 중단된 run을 자동으로 재개한다(12: 최대 3회, 첫 턴은 안전한 도구만, 안전한 도구는 다시 실행, 결정 30). 이 화면에는 자동 재개가 끝내 실패한 것(`recovery_exhausted`), 결과를 모르는 도구 호출(`awaiting_recovery`), 안전 모드로 자동 재개가 멈춘 것만 온다. 자동 재개된 것은 복귀 요약의 복구 절에 개수로만 보인다. 결과 분류(결과 불명, 실행 안 됨, 재시작 전 적용 확인, 재시작 뒤 다시 실행, 사람 확인 대기)와 해소 값(`confirmed_applied`, `confirmed_not_applied`, `manual_review`)은 12를 따른다. "Concern에서 다시 계획"과 "되돌리기"는 12에 근거가 없어 11·12에 확인을 요구한다.
+복구 판단 질문의 게이트는 조정자 판정 J-05를 따른다(03 §3.2.4). 외부 효과가 있을 수 있는 호출(send, 네트워크 쓰기)은 권리 게이트라 답이 없는 동안 그 작업은 멈춘 상태로 남고 가정 확정이 없다. 그 밖의 호출은 정보 게이트로 보이며 임시 가정("실행 안 된 것으로 보고 다시 실행")과 만료점이 붙는다. 데몬은 중단된 run을 자동으로 재개한다(12: 최대 3회, 첫 턴은 안전한 도구만, 안전한 도구는 다시 실행, 결정 30). 이 화면에는 자동 재개가 끝내 실패한 것(`recovery_exhausted`), 결과를 모르는 도구 호출(`awaiting_recovery`), 안전 모드로 자동 재개가 멈춘 것만 온다. 자동 재개된 것은 복귀 요약의 복구 절에 개수로만 보인다. 결과 분류(결과 불명, 실행 안 됨, 재시작 전 적용 확인, 재시작 뒤 다시 실행, 사람 확인 대기)와 해소 값(`confirmed_applied`, `confirmed_not_applied`, `manual_review`)은 12를 따른다. "Concern에서 다시 계획"과 "되돌리기"는 12에 근거가 없어 11·12에 확인을 요구한다.
 
 **데몬 복구 모드**: 데몬이 기록 손상 등으로 읽기 전용 복구 모드이면 화면 맨 위에 "서버가 기록을 점검하는 중이라 읽기만 할 수 있습니다. 점검 결과: …" 와 서버에서 할 일(17이 정함)을 보인다.
 
@@ -1837,7 +1847,7 @@ interface RecoveryView {
 
 | 절 | 항목 | 저장 위치 |
 |---|---|---|
-| 알림 | OS 알림 켜기, 알릴 것(즉시 전달 질문 / 만료 임박 / 복귀 요약 시각 / 예약 묶음), 방해 금지 시간대, 잠금 화면에 내용 보이기(기본 숨김), 소리 | 05 §3.7. 방해 금지와 알림 시각은 데몬 설정(전달 방식과 묶임), 소리와 OS 알림 켜기는 기기 설정 |
+| 알림 | OS 알림 켜기, OS 알림 권한 상태와 "알림 시험 보내기"(OS 설정에서 꺼져 있으면 안내, 20 F-35), 알릴 것(끼어들기 / 알림 / 복귀 요약 시각 / 예약 묶음), 방해 금지 시간대, 알림에 내용 보이기(기본 끔), 소리 | 05 §3.7. 방해 금지와 알림 시각은 데몬 설정(전달 방식과 묶임), 소리와 OS 알림 켜기는 기기 설정 |
 | 주의 예산 | 홈에 펼칠 카드 수(기본 3), 한 시간 알림 상한(기본 3), 복귀 요약 자동 열기 기준 | 데몬 다이얼(14)과 기기 설정 |
 | 질문 전달 기본값 | `SCR-DIALS`(전역 범위) 링크 | 14 |
 | 표시 | 테마(시스템 / 밝게 / 어둡게), 글자 크기, 밀도(보통 / 촘촘), 움직임 줄이기, 시간 표시(상대+정확 / 정확만) | 기기 |
@@ -1950,7 +1960,7 @@ Helm 열기
 
 **사람 조작 횟수**: 결정 1(이유 없이 기본값으로 보냄), 이유 입력 시 2.
 
-### 3.27 `SCR-METRICS` 평가 (2단계)
+### 3.27 `SCR-METRICS` 평가 (결정적 지표는 MVP, 관찰 에이전트 절은 2단계)
 
 **목적**: 16이 측정하는 지표(OPD+C 네 칸, C/A 2주 지표, 질문 부담, 에이전트가 정한 것, A12, 범주, 관찰 에이전트)를 사람이 본다(16 §5.2). 정의와 측정은 16이 소유하고 이 절은 화면 규칙만 정한다.
 
@@ -2017,27 +2027,32 @@ Helm 열기
 
 **1단계 대조에서 나온 맞춤 목록** (2단계 통합에서 처리)
 
-10 명령 이름과의 대응(10 §3.11, 1단계):
+명령 의도 이름의 대응. 이 문서의 의도 이름은 19 §3.7.1의 메서드 이름과 같다. 아래는 그 메서드가 내는 10 §3.11 커널 명령이다(10 §5.3 표와 11 §3.2.3 기준).
 
-| 이 문서의 의도 | 10 |
+| 19 메서드(= 이 문서의 의도) | 10 명령 |
 |---|---|
-| `contest.file` | `decision.contest`(판단은 `finding.contest`), 해소 `contest.resolve` |
-| `autonomous.markSeen` | `decision.confirm` |
-| `agreement.confirm` / `decline` / `revise` | `agreement.accept` / `cancel` / `revise`(활성 뒤 `renegotiate`) |
-| `work.pause` / `resume` / `stop` | `agreement.suspend` / `resume` / `cancel` |
-| `work.abort`, `work.steer` | 12 `run.cancel`, RunInput `interrupt`·`steer` |
-| `result.accept` 등 다섯 행동 | `result.accept` + 판정 값 |
-| `brief.acknowledge` | `situation.acknowledge` |
-| `obligation.defer` / `transfer` | `integration.obligation.defer` / `.transfer` |
-| `concern.propose` / `revise` | `concern.open` / `concern.reframe` |
-| `structure.request` | `concern.split` / `merge` / `detach` / `relocate` / `recombine` |
-| `goal.confirmRevision` / `rejectRevision` | `goal.revision.accept` / `.reject` |
-| 기준 확인 | `preference.criterion.confirm` / `.reject` |
-| `reaction.record` | `observation.record`(`reactionTo`) |
-| `recovery.resolve` | `toolcall.recover`(12 후보 `toolcall.resolve_unknown`) |
-| `question.defer`, `question.delegate`, `inquiry.stop`, `expectation.revise`, `dial.unset`, 사람의 `mode.set` | 10에 없음. 10·11에 요구 |
-
-19는 1단계에서 이 문서의 의도 이름을 그대로 메서드로 받았다(19 §3.7.1). 10·19 사이의 이름은 2단계에서 정하고, 이 문서는 정해진 이름으로 표를 바꾼다.
+| `question.answer`, `question.proceedWithAssumption`, `question.requestReframe`, `question.requestInquiry`, `question.delegate` | `question.answer`(11 `ResponseOptionId` 값으로 구분) |
+| `question.defer` | `question.defer` |
+| `contest.file` | `decision.contest`(판단은 `finding.contest`) |
+| `autonomous.markSeen` | `decision.confirm`(이벤트 `autonomous.seen`과 `decision.confirmed`, 09) |
+| `agreement.confirm` / `decline` / `revise` / `narrow` | `agreement.confirm` / `decline` / `revise`(활성 뒤 `renegotiate`) / `narrow` |
+| `agreement.correctUnderstanding` | `agreement.revise`(이해 재진술 고침) |
+| `work.pause` / `resume` / `stop` / `abort` / `steer` / `requestBrief` | `workunit.pause`·`run.resume`·`workunit.cancel`·`run.interrupt`, steer는 런타임 입력(12) |
+| `result.accept`, `result.acceptConditional`, `result.requestRevision`, `result.reopen` | `result.accept` + 결정 값 |
+| `obligation.defer` / `transfer` / `confirmDone` | `obligation.defer` / `transfer` / `resolve` |
+| `brief.acknowledge` / `correct` | `brief.acknowledge`(이벤트 `brief.acknowledged`·`brief.corrected`) |
+| `concern.propose` / `revise` / `hold` / `resume` / `close` | `concern.open` / `reframe` / (보류는 10에 확인) / `reopen` / `close` |
+| `loop.requestTransition` | `loop.transition` |
+| `structure.request` | `structure.split` 등 |
+| `goal.confirmRevision` / `rejectRevision` / `revise` / `confirmAchieved` | `goal.revision.confirm` / `goal.revision.reject` / `goal.revise` / `goal.achievement.confirm` |
+| 기준 확인(질문 답) | `preference.criterion.confirm` |
+| `reaction.record` / `amend` / `withdraw` | `observation.record`(`reactionTo`), 고침·철회는 15·10에 확인 |
+| `recovery.resolve` | `toolcall.resolve_unknown` |
+| `dial.set` / `unset`, `mode.set` | `dial.set`(unset 포함), 사람의 모드 지정은 10이 추가(조정자 판정 §1) |
+| `expectation.revise`, `inquiry.stop` 등 탐구 조작 | 10이 추가(조정자 판정 §1) |
+| `observerProposal.adopt` / `decline` / `snooze` | `policy.change.accept` / `policy.change.reject` / (미루기는 16 `policy_proposal.deferred`) |
+| `composer.submit`, `composer.preview` | 런타임 입력(12), 의미 미리보기(19 `SemanticPreviewResult`) |
+| `device.revoke`, `device.createPairingCode`, `settings.update`, `daemon.exitSafeMode` | 데몬 관리 메서드(커널 명령 아님, 17·18·19) |
 
 20에 요구(20 1단계와 대조):
 

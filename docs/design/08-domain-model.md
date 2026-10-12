@@ -80,7 +80,7 @@ Helm이 기록하는 모든 레코드와 엔티티의 타입, ID, 행위자, 관
 | D08-7 | 프로젝트(`pj`)를 둔다. Goal은 프로젝트에 속한다. 데몬 하나가 여러 프로젝트를 한 DB에 담는다 | Goal은 "프로젝트 단위 궁극 목표"(브리프 결정 11). 여러 프로젝트를 한 홈에서 보는 요구(audit-report §2, "A 작업에 몰입한 동안 B, C 상태를 한 곳에서") |
 | D08-8 | 모든 선택(Choice)은 근거 E 레코드를 하나 이상 참조한다. 근거는 판단·가능성뿐 아니라 관찰·해석·전제·선호 기준도 될 수 있다 | 대화 L2716 "Choice는 Finding이나 Possibility를 참조"를 기본으로 하되, 사소한 혼자 정한 결정(변수 이름)과 취향형 선택(선호 기준이 근거)까지 덮기 위해 범위를 넓혔다. 넓힌 사실을 §7 미결에 적는다 |
 | D08-9 | 관계는 링크(`Link`) 하나의 타입으로 표현하고 종류(`rel`)로 구분한다. 관계에는 만든 이벤트(seq), 만든 행위자, 근거가 붙는다 | foundations/01 §5 "관계는 단순 링크가 아니라 종류, 생성자, 시점, 근거를 가져야 한다"(helm-canon §7.8) |
-| D08-10 | 신뢰도를 숫자로 저장하지 않는다. 질적 등급(`low`/`medium`/`high`)과 근거 목록만 둔다 | helm-canon-3 §7.1 C4. 원전 여러 곳이 숫자 확률을 피하라고 했다. v0.3 04 §3.4의 `confidence: 0.8`은 쓰지 않는다 |
+| D08-10 | 신뢰도를 숫자로 저장하지도 표시하지도 않는다(판정 J-19). 질적 등급(`low`/`medium`/`high`, 15의 `SupportGrade`)과 근거 목록만 둔다 | helm-canon-3 §7.1 C4. 원전 여러 곳이 숫자 확률을 피하라고 했다. v0.3 04 §3.4의 `confidence: 0.8`은 쓰지 않는다 |
 | D08-11 | 타입 이름은 브리프 §3.2·§6의 이름(Goal, Concern, WorkUnit, Choice, Agreement 등)을 쓴다. friendly 문서의 Product Domain 이름(Focus, WorkAgreement, ResultSubmission 등)은 §3.25 대응표에만 둔다 | 브리프가 원전보다 우선한다(브리프 머리말). P06의 "public API는 Product Domain 이름 우선" 규칙은 따르지 않으며 이유를 ADR 후보 A08-5에 적는다 |
 | D08-12 | 레코드 버전은 사람에게 의미 있는 변경만 올리는 `revisionSeq`와 모든 변경을 따르는 `lastSeq` 둘이다 | 근거 링크·주석이 붙을 때마다 버전이 오르면 사람이 본 화면으로 낸 답이 이유 없이 충돌로 막힌다(19). 어느 이벤트가 버전을 올리는지는 09 카탈로그의 `bumpsRevision`이 정한다 |
 | D08-13 | 레코드 안의 결정 블록(합의 활성화, 범위 줄이기, 탐침·지속 관찰 판정, 질문 전달 계획)도 `Autonomy`를 가지며 이의 대상이다 | 10·11이 이 다섯 결정을 혼자 정한 결정으로 다룬다. 따로 레코드를 만들지 않고 결정이 일어난 레코드 안에 둔다(D08-4와 같은 이유) |
@@ -184,7 +184,7 @@ ULID   = Crockford base32 26자, 첫 글자 0~7 (48비트 ms 시각 + 80비트 �
 
 #### 3.2.2 접두사 최종 목록
 
-브리프 §3.2의 24개(굵게)와 이 문서가 더한 33개, 모두 57개다. 아래쪽 15개는 정렬(§10)에서 다른 문서의 요구로 더했다. `cx`·`mr`·`cp`·`cs`·`ms`·`up`·`ri`·`tm`·`ap`은 레코드 id가 아닌 식별자(이벤트·trace·질문 안 블록에 나옴)이며 형식만 이 문서가 정한다.
+브리프 §3.2의 24개(굵게)와 이 문서가 더한 34개, 모두 58개다. 아래쪽 16개는 정렬(§10)에서 다른 문서의 요구로 더했다. `cx`·`mr`·`cp`·`cs`·`ms`·`up`·`ri`·`tm`·`ap`·`ik`는 레코드 id가 아닌 식별자(이벤트·trace·질문 안 블록에 나옴)이며 형식만 이 문서가 정한다.
 
 | 접두사 | 대상 | 평면 | 정의 | 접두사 | 대상 | 평면 | 정의 |
 |---|---|---|---|---|---|---|---|
@@ -216,7 +216,7 @@ ULID   = Crockford base32 26자, 첫 글자 0~7 (48비트 ms 시각 + 80비트 �
 | `pd` | Procedure (절차) | P | §3.19.3 | `wt` | Watch (지속 관찰) | N | §3.16.2 |
 | `bl` | blob id | - | §3.4.7 | `up` | 업로드 세션 id | - | 19 |
 | `ri` | 실행 입력 id | - | 12 | `tm` | 런타임 타이머 id | - | 12, 09 §3.7 |
-| `ap` | send 승인 id (질문 안) | - | §3.13, 11 | | | | |
+| `ap` | send 승인 id (질문 안) | - | §3.13, 11 | `ik` | 클라이언트 멱등 키 | - | 19 P-09, 09 §3.9 |
 
 브리프 표에 있는 "판단(Finding) `fd`", "선택 `ch`" 등은 그대로 쓴다. 반응은 `ob`(D08-5), 이의는 `ct`(D08-6)다. blob은 ID 대신 내용 해시 `sha256:<64 hex>`로 가리킨다(§3.4.7).
 
@@ -232,7 +232,7 @@ export const ID_PREFIXES = [
   "pr", "lp", "lt", "sa", "md", "pb", "iq", "st", "pm", "ln", "rn", "tc", "dv",
   "pp", "ev", "cm",
   // 1단계 정렬에서 더한 것 (§10)
-  "pc", "cx", "th", "mr", "cp", "cs", "ms", "rb", "pd", "wt", "bl", "up", "ri", "tm", "ap",
+  "pc", "cx", "th", "mr", "cp", "cs", "ms", "rb", "pd", "wt", "bl", "up", "ri", "tm", "ap", "ik",
 ] as const;
 export type IdPrefix = (typeof ID_PREFIXES)[number];
 
@@ -292,7 +292,7 @@ export const MessageId = Id("ms");      export const RollbackPointId = Id("rb");
 export const ProcedureId = Id("pd");    export const WatchId = Id("wt");
 export const BlobId = Id("bl");         export const UploadId = Id("up");
 export const RunInputId = Id("ri");     export const RuntimeTimerId = Id("tm");
-export const ApprovalId = Id("ap");
+export const ApprovalId = Id("ap");      export const IdempotencyKeyId = Id("ik");
 
 /** 추측과 판단 (Claim 계열) */
 export const ClaimId = IdAny("in", "ps", "fd");
@@ -381,6 +381,8 @@ export const Via = Type.Union([
   Type.Object({ kind: Type.Literal("process"), name: Type.Literal("observer"), pid: Type.Optional(Type.Integer()) }, { additionalProperties: false }),
   Type.Object({
     kind: Type.Literal("run"), runId: RunId, toolCallId: Type.Optional(ToolCallId),
+    /** 실행 시도 번호 (12). 펜싱은 ownerEpoch와 attempt를 함께 비교한다 */
+    attempt: Type.Optional(Type.Integer({ minimum: 1 })),
   }, { additionalProperties: false }),
   Type.Object({ kind: Type.Literal("system") }, { additionalProperties: false }),
 ]);
@@ -507,6 +509,8 @@ export const RecordMeta = Obj({
    * 전달·표시 같은 운영성 이벤트는 올리지 않는다 (09 EVENT_META.bumpsRevision). 낙관적 동시성의 기준
    */
   revisionSeq: Seq,
+  /** revisionSeq가 바뀐 횟수 + 1 (1부터). 화면 표시와 19 RecordRef.revision에 쓴다. 비교는 revisionSeq로 한다 */
+  revision: Type.Integer({ minimum: 1 }),
   /** 이 레코드를 마지막으로 바꾼 이벤트의 seq (모든 변경). 투영 디버깅·증분 조회용 */
   lastSeq: Seq,
   updatedAt: Ms,
@@ -566,10 +570,18 @@ export function qualityDisplay(q: Quality): QualityDisplay;
 ```ts
 // @helm/domain/src/triggers.ts
 /** 커널·스케줄러가 기계적으로 판정할 수 있는 조건. label은 사람에게 보이는 문장 */
+/** 작업 경계 (11 WorkBoundaryKind, 14 확정) */
+export const WorkBoundaryKind = Type.Union(["round_end", "workunit_end", "loop_transition", "concern_waiting", "user_return",
+  "review_window", "daily_rollover"].map((x) => Type.Literal(x)));
 export const Trigger = Type.Union([
   Obj({ kind: Type.Literal("at"), at: Ms, label: ShortText }),
   Obj({ kind: Type.Literal("before_loop"), loop: LoopIdSchema, label: ShortText }),
-  Obj({ kind: Type.Literal("before_primitive"), primitive: PrimitiveSchema, label: ShortText }),
+  /** resources가 있으면 그 자원에 처음 그 동작을 하기 전 (11 §3.6.2). 패턴 문법은 13 ResourcePattern */
+  Obj({ kind: Type.Literal("before_primitive"), primitive: PrimitiveSchema,
+        resources: Type.Optional(Type.Array(Type.String({ minLength: 1, maxLength: 4096 }))), label: ShortText }),
+  /** 작업 경계 n번째 (11 §3.6.2) */
+  Obj({ kind: Type.Literal("boundary"), boundary: WorkBoundaryKind,
+        count: Type.Integer({ minimum: 1 }), concernId: Nullable(ConcernId), label: ShortText }),
   Obj({
     kind: Type.Literal("record_state"), recordId: AnyRecordId,
     state: Type.String({ minLength: 1 }), label: ShortText,
@@ -637,6 +649,19 @@ export type Autonomy = Static<typeof Autonomy>;
 1. `Autonomy`를 가지는 레코드: Choice(`ch`), LoopPlan(`lp`), LoopTransition(`lt`), SituationAssessment(`sa`), StructureChange(`sc`), ModeAssignment(`md`). v0.3 06 §4.2의 "혼자 정한 결정에 포함되는 것" 여섯 종류다. 질문의 가정 확정은 Choice(`whyNotAsked.kind = "assumption_expired"`)로 남는다. 정렬(§10)에서 10·11의 요구로 레코드 안의 결정 블록 다섯 곳을 더했다: Grant로 한 합의 활성화(`Activation.grant.autonomy`), 범위 줄이기(`Agreement.narrowedScope.autonomy`), 탐침 판정(`Probe.outcome.autonomy`), 지속 관찰 판정(`Watch.verdict.autonomy`), 질문 전달 계획(`Question.plannedDelivery.autonomy`). 이것들도 이의 대상이다.
 2. 이 레코드들은 모두 이의 대상이다. `contestable` 필드를 따로 두지 않는다. 이의를 막는 예외가 타입에 없다는 것이 불변조건 7의 타입 수준 표현이다.
 3. 권리 게이트 결정은 autonomous가 될 수 없다(§3.10 Choice 스키마의 두 변형). 권리 게이트의 판별은 권한 레이어(돈, 대리 발언, 외부 영향)와 Helm(Goal 변경, 결과 확인)이 한다(v0.3 06 §3.2).
+
+사람 결정의 조작 메타(01 `HumanDecisionOp`, 16 §5.2. 01의 `onNormalPath`는 이름을 `followedRecommendation`으로 바꿨다, J-76): 별도 레코드를 두지 않는다. 사람 결정 이벤트(`question.answered`, `agreement.confirmed`, `acceptance.recorded`, 사람의 `choice.committed`, `objection.filed`, `policy_proposal.accepted`·`dismissed`)의 payload에 선택 필드로 싣는다.
+
+```ts
+export const HumanOpMeta = Obj({
+  /** 질문·초안의 추천을 그대로 따랐는가 (화면의 추천 버튼). 01의 C/A "정상 경로"는 이벤트 종류로 계산하며 이 값과 다르다 (판정 J-76) */
+  followedRecommendation: Type.Boolean(),
+  /** 사람이 덧붙인 이유 (선택) */
+  extraReason: Nullable(ShortText),
+  /** 사람이 초안을 고쳐서 냈는가. 고친 내용은 이벤트 payload 본문에 있다 */
+  editedDraft: Type.Boolean(),
+});
+```
 
 #### 3.4.6 실제(M) 참조
 
@@ -725,7 +750,8 @@ export const ProjectCore = Obj({
   slug: Type.String({ pattern: "^[a-z0-9][a-z0-9-]{0,62}$" }),
   /** 절대 경로. 도구의 기본 작업 범위 후보. 실제 허용 범위는 작업 합의와 13이 정한다 */
   rootPaths: Type.Array(Type.String({ minLength: 1 }), { minItems: 1 }),
-  /** 이 프로젝트에서 외부 에이전트 세션 로그를 관찰할지 (결정 35). 대상은 cwd가 rootPaths 아래인 세션 (16) */
+  /** 이 프로젝트에서 외부 에이전트 세션 로그를 관찰할지 (결정 35). 대상은 세션 cwd가 rootPaths 아래인 세션이고,
+   *  로그 위치는 런타임별 홈 폴더다 (판정 J-08, 16). Mac에서 연 세션은 서버에 로그가 없으므로 대상 밖이다 (한계) */
   observeExternalSessions: Type.Boolean(),
   /** 런타임별 세션 로그 위치를 기본값과 다르게 둘 때만 */
   sessionLogRootOverride: Nullable(Type.String({ minLength: 1 })),
@@ -1008,7 +1034,16 @@ export const WorkUnit = Obj({
   modeAssignmentId: Nullable(ModeAssignmentId),
   correctionCount: Type.Integer({ minimum: 0 }), // 수정 요청을 받은 횟수
   /** 재작업이면 그 출처 (10 G-K2, 11 §3.10.3). 재작업은 새 레코드 종류 없이 WorkUnit으로 표현한다 */
-  reworkOf: Nullable(Obj({ workUnitId: WorkUnitId, cause: IdAny("ct", "qs", "ac") })),
+  reworkOf: Nullable(Obj({
+    workUnitId: WorkUnitId,
+    cause: IdAny("ct", "qs", "ac"),          // 가정 무효로 인한 재작업은 qs (판정 J-54)
+    /** 재작업 단계 (선택, 11 §3.10.3) */
+    steps: Type.Array(Type.Union([
+      Obj({ kind: Type.Literal("rollback"), rollbackPointId: RollbackPointId }),
+      Obj({ kind: Type.Literal("redo"), description: ShortText }),
+      Obj({ kind: Type.Literal("compensate"), description: ShortText }),
+    ])),
+  })),
 });
 ```
 
@@ -1086,9 +1121,10 @@ export const Annotation = Obj({
     Type.Literal("near_miss"),            // 거의 일어날 뻔한 문제
     Type.Literal("repeated_correction"),  // 같은 정정이 반복됨
     Type.Literal("measurement_doubt"),    // 측정 환경 때문에 믿기 어려움
+    Type.Literal("procedure_failed"),     // 절차를 적용했는데 실패함 (16 §3.17, 사람만 단다)
   ]),
   note: ShortText,
-  expectedRef: Nullable(IdAny("pr", "ex", "dc", "wu", "lp")),
+  expectedRef: Nullable(IdAny("pr", "ex", "dc", "wu", "lp", "pd")),
   valence: Nullable(Type.Union([Type.Literal("good"), Type.Literal("bad"), Type.Literal("neutral")])),
   by: ActorRefSchema,
   seq: Seq,
@@ -1276,6 +1312,9 @@ export const PossibilityCore = Obj({
   origin: PossibilityOrigin,
   /** 15: 해법의 결과("X를 원하면 A를 얻고 B를 잃는다"), 기준 명세, 실현 가능성 */
   consequences: Type.Array(ShortText),
+  /** 기준 키별 결과 표시: 나아짐 1, 같음 0, 나빠짐 -1 (15 §3.4.9). 숫자는 방향 표시이며 확률이 아니다 */
+  consequenceMarks: Nullable(Type.Record(Type.String({ minLength: 1, maxLength: 16 }),
+    Type.Union([Type.Literal(-1), Type.Literal(0), Type.Literal(1)]))),
   criterion: Nullable(Type.Record(Type.String(), Type.Unknown())),   // preference_criterion의 CriterionSpec (15)
   feasibility: Type.Union([Type.Literal("unchecked"), Type.Literal("feasible"), Type.Literal("infeasible")]),
   /** 근거 링크 초기값. 비어 있으면 "근거 없음"으로 표시 (v0.3 04 §4.4) */
@@ -1309,6 +1348,8 @@ export const Possibility = Obj({
 
 /** 투영 계산값 (저장하지 않음). Inquiry Map의 strengthened/weakened (paper-v0 §5.2.1) */
 export type SupportTrend = "none" | "strengthened" | "weakened" | "mixed";
+/** 15 §3.3의 질적 지지 등급. 계산값이며 저장하지 않는다. 숫자 confidence는 저장도 표시도 하지 않는다 (판정 J-19) */
+export type SupportGrade = "untested" | "weak" | "consistent" | "confirmed" | "contested";
 ```
 
 - 인용(`citations`)은 근거 링크가 아니다. 다른 분야 사례 출처는 가능성 탐구의 근거 규칙(v0.3 04 §4.4)에 들어가지만, 승격 조건의 근거(관찰)로는 세지 않는다. 문서를 실제로 읽은 도구 실행이 있으면 그 관찰을 `supports`로 링크한다.
@@ -1363,6 +1404,8 @@ export const DiscriminatingCheck = Obj({
   })),
   /** 커널이 계산: consistent ⇔ outcome ∈ expects */
   verdicts: Type.Array(CheckVerdict),
+  /** 사람이 이 확인을 다음 순서로 고정함 (check.pinned, 10 check.pin, J-95). 코드의 확인 순서 계산보다 앞선다 */
+  pinned: Nullable(Obj({ seq: Seq, via: Via })),
   quality: Quality,
 });
 ```
@@ -1412,7 +1455,7 @@ export const Finding = Obj({
 });
 ```
 
-승격 조건 (커널 집행은 10, 판정 함수는 `@helm/domain/src/rules/promotion.ts`의 순수 함수로 둔다):
+승격 조건 (커널 집행은 10, 판정 함수는 `@helm/domain/src/rules/promotion.ts`의 순수 함수로 둔다). 정본은 10 §3.9 규칙(V-PRO-01~)이며 판정 J-18을 따른다. 아래 함수는 그 규칙 중 레코드만 보고 계산할 수 있는 부분(근거, 구분 확인과 사후 선언 제외, 반대 근거)에 출처 독립성(`evidence.correlated`)을 더한 것이다. 독립성 키는 §3.9.1의 규칙으로 계산한다. 15는 이 함수를 그대로 쓴다:
 
 ```ts
 export interface PromotionView {
@@ -1425,6 +1468,7 @@ export type PromotionMissing =
   | "check.discriminating"    // 구분 확인 없음
   | "counter.search"          // 반대 근거 탐색 기록 없음
   | `counter.unresolved:${string}` // 해소되지 않은 반대 근거 (관찰 id)
+  | "evidence.correlated"     // 출처 독립성 부족 (10 V-PRO-02)
   | "claim.not_current";      // 추측 자체가 낡았거나 대체됨
 
 export function promotionMissing(claim: Interpretation | Possibility, view: PromotionView): PromotionMissing[] {
@@ -1896,7 +1940,7 @@ export const QuestionKind = Type.Union([
   Type.Literal("agreement_confirm"),  // 합의 확인 (사람 조작 1회)
   Type.Literal("result_review"),      // 결과 확인 (사람 조작 1회)
   Type.Literal("scope_change"),       // 범위 초과 → 선택 필요
-  Type.Literal("send_approval"),      // send 권리 게이트
+  Type.Literal("send_approval"),      // 권리 게이트 행동 승인 (send와, 권한 레이어가 권리 범주로 본 execute·write를 함께 다룬다. 11의 action_approval)
   Type.Literal("goal_revision"),      // Goal 수정 확정
   Type.Literal("fact"),               // 사실을 묻는 정보 질문
   Type.Literal("reference_scope"),    // 참고 자료 범위
@@ -1920,6 +1964,7 @@ export const QuestionKind = Type.Union([
   Type.Literal("prediction_check"),   // 예측 확인 시점 (11·15)
   Type.Literal("kernel_error"),       // 커널이 판정하지 못함. 사람이 진행 여부를 정함 (11)
   Type.Literal("policy_change"),      // 관찰 에이전트 제안의 채택 여부 (16)
+  Type.Literal("goal_achievement"),   // Goal 달성 확인 (권리 게이트, result_acceptance 범주, 형식 confirm_candidate. J-55)
   Type.Literal("other"),
 ]);
 /** 왜 사람이 정해야 하는가 (paper-v0 Decision Gate reason에서 irreversible 제외, 결정 2) */
@@ -1928,6 +1973,22 @@ export const QuestionReason = Type.Union([
   Type.Literal("disagreement"), Type.Literal("acceptance"), Type.Literal("integration"),
   Type.Literal("missing_context"),
 ]);
+/** 11 RightsCategory. 앞 다섯은 권한 레이어(18), 뒤 다섯은 커널이 명령 종류로 안다 */
+export const RightsCategory = Type.Union([
+  "spend_money", "speak_for_user", "affect_others", "disclose_data", "irreversible_external",
+  "goal_change", "result_acceptance", "commitment_acceptance", "policy_change", "authority_expansion",
+].map((x) => Type.Literal(x)));
+const Level3 = Grade;
+/** 11 AskEvaluation: 정보 게이트 조건 1~3의 값과 문턱, 결과 */
+export const AskEvaluation = Obj({
+  c1: Obj({ value: Type.Boolean(), covered: Type.Union(["none", "kind_default", "system_policy", "user_policy"].map((x) => Type.Literal(x))),
+            policyId: Nullable(Type.String({ maxLength: 64 })), threshold: Level3 }),
+  c2: Obj({ value: Type.Boolean(), level: Type.Number(), threshold: Level3, unknownTreatedAs: Type.Number() }),
+  c3: Obj({ value: Type.Boolean(), score: Type.Number(), threshold: Level3 }),
+  combinator: Type.Literal("and"),
+  forcedByObjection: Type.Boolean(),
+  result: Type.Union(["policy", "autonomous", "digest", "ask"].map((x) => Type.Literal(x))),
+});
 /** 답이 없을 때 무엇이 멈추는가 (11 §3.2). nothing이면 막지 않는 질문 */
 export const BlockScope = Type.Union([
   Type.Literal("nothing"), Type.Literal("action"), Type.Literal("workunit"), Type.Literal("concern"),
@@ -1960,12 +2021,16 @@ const QuestionCommon = {
   answerSchema: Type.Unsafe<Record<string, unknown>>(Type.Object({}, { additionalProperties: true })),
   delivery: Obj({ mode: DeliveryMode, decidedBy: ActorRefSchema }),
   batchKey: Nullable(Type.String({ minLength: 1, maxLength: 64 })),
+  /** 정보 게이트 판정 기록 (11 AskEvaluation). 사람 접점 질문은 null */
+  askEvaluation: Nullable(AskEvaluation),
+  /** 질문 카드의 깊이 (04·11): 가볍게 / 일반 / 깊은 검토 */
+  depth: Type.Union([Type.Literal("light"), Type.Literal("normal"), Type.Literal("deep")]),
   /** 같은 것을 묻는 질문 병합 키 (11 dedupe). 같은 키의 열린 질문이 있으면 question.updated로 합친다 */
   dedupeKey: Nullable(Type.String({ minLength: 1, maxLength: 200 })),
   /** 이 질문이 정하는 결정점 (AutonomousDecision과 같은 키 체계) */
   decisionKind: Nullable(Type.String({ pattern: "^[a-z][a-z0-9_.]{1,63}$" })),
   decisionPointKey: Nullable(Type.String({ minLength: 1, maxLength: 200 })),
-  /** 권리 질문의 마감. 지나면 expired (가정으로 진행하지 않는다). 09 p_timers rights_deadline */
+  /** 권리 질문의 마감. 사람이 정한 경우에만 있다(판정 J-49). 지나면 expired (가정으로 진행하지 않는다). 09 p_timers rights_deadline */
   deadline: Nullable(Ms),
   /** 가정하고 진행할 때 되돌릴 지점 (RollbackPoint, §3.18.3) */
   rollbackPointIds: Type.Array(RollbackPointId),
@@ -1975,13 +2040,22 @@ const QuestionCommon = {
 export const QuestionCore = Type.Union([
   /** 권리 게이트: 임시 가정으로 진행하지 않는다. 만료되어도 assumed로 가지 않는다 (helm-canon-3 C10) */
   Obj({ ...QuestionCommon, gate: Type.Literal("rights"), blocks: BlockScope,
+        rightsCategories: Type.Array(RightsCategory, { minItems: 1, uniqueItems: true }),
+        whyLocalInsufficient: Type.Null(), assumptionAnswer: Type.Null(),
         assumption: Type.Null(), assumptionExpires: Type.Null() }),
   /** 정보 게이트, 막힘: 답 없이는 이 일이 멈춘다 */
   Obj({ ...QuestionCommon, gate: Type.Literal("information"),
         blocks: Type.Union([Type.Literal("action"), Type.Literal("workunit"), Type.Literal("concern")]),
+        rightsCategories: Type.Array(RightsCategory, { maxItems: 0 }),
+        /** 에이전트가 혼자 정할 수 없는 이유 (Subsidiarity 규칙 2, 11 V-Q-01) */
+        whyLocalInsufficient: ShortText, assumptionAnswer: Type.Null(),
         assumption: Type.Null(), assumptionExpires: Nullable(Trigger) }),
   /** 정보 게이트, 막히지 않음: 임시 가정과 가정 만료점이 필수 */
   Obj({ ...QuestionCommon, gate: Type.Literal("information"), blocks: Type.Literal("nothing"),
+        rightsCategories: Type.Array(RightsCategory, { maxItems: 0 }),
+        whyLocalInsufficient: ShortText,
+        /** 임시 가정을 답 값으로 쓴 것. matchesAssumption 비교에 쓴다 (11 §3.6.4) */
+        assumptionAnswer: Type.Unknown(),
         assumption: Obj({ text: ShortText, assumptionId: AssumptionId }),
         assumptionExpires: Trigger }),
 ]);
@@ -2016,7 +2090,7 @@ export const Question = Type.Intersect([
     })),
     /** 가정 확정 때 만든 선택 */
     resolutionChoiceId: Nullable(ChoiceId),
-    /** send 승인이 소진된 도구 호출 */
+    /** send 승인이 소진된 도구 호출. 사람이 인자를 고쳐 승인하면 subjectRef와 다른 새 도구 호출일 수 있다 (11 §3.14) */
     consumedByToolCallId: Nullable(ToolCallId),
     /** send 승인 (11 §3.14 ApprovalToken). 레코드 종류를 따로 두지 않고 질문 안에 둔다. 한 번 쓰면 consumed */
     approval: Nullable(Obj({
@@ -2423,7 +2497,7 @@ export const Inquiry = Obj({
   status: Type.Union([Type.Literal("open"), Type.Literal("stopped")]),
   rounds: Type.Array(Obj({
     n: Type.Integer({ minimum: 0 }),      // 0 = 사람 입력 전 준비 라운드 (15)
-    /** 라운드 계획의 해시 (15 §3.5). 같은 계획의 중복 실행을 막는다 */
+    /** 계획 지문. 멈춤 판정 입력 (15 §3.4.14). 중복 실행은 단계 멱등 키가 막는다 */
     planHash: Nullable(Sha256),
     startedSeq: Seq,
     closedSeq: Nullable(Seq),
@@ -2534,6 +2608,8 @@ export const Stimulus = Obj({
 });
 ```
 
+자극의 내용(`StimulusCore`)은 만든 뒤 바뀌지 않는다(21 E10). 바꿔야 하면 새 자극을 만들고 이전 것은 `withdrawn`으로 둔다. 반응은 항상 그때 본 자극 하나를 가리키므로, 반응과 자극의 대응이 나중에 흐려지지 않는다. 상태와 `presentation`만 바뀐다.
+
 #### 3.17.4 Reaction (반응 payload)
 
 반응은 `Observation(obsKind = "reaction")`이다(D08-5). 하나를 고르는 형태만 있는 반응 타입은 없다(결정 18).
@@ -2618,7 +2694,7 @@ export const PreferenceModel = Obj({
 ```ts
 // @helm/domain/src/records/run.ts
 /** 12 RunKind */
-export const RunKind = Type.Union(["work", "verifier", "mediator", "branch", "subrun", "observer", "router"].map((k) => Type.Literal(k)));
+export const RunKind = Type.Union(["work", "verifier", "mediator", "branch", "subrun", "observer", "router", "inquiry"].map((k) => Type.Literal(k)));   // inquiry: 탐구 엔진이 구동하는 단계 run (15, J-97)
 export const RunCore = Obj({
   runKind: RunKind,
   role: AgentRoleSchema,
@@ -2639,11 +2715,23 @@ export const RunCore = Obj({
                                     path: Nullable(Type.String({ maxLength: 4096 })) })),
   /** 시작 계기 (12 RunTrigger). 모양은 12 */
   trigger: Type.Record(Type.String(), Type.Unknown()),
-  limits: Obj({
-    maxSteps: Type.Integer({ minimum: 1 }),
-    maxToolCalls: Type.Integer({ minimum: 1 }),
-    maxContextChars: Type.Integer({ minimum: 2048 }),
+  /** 12 RunBudget. softRatio에 이르면 마무리 신호 */
+  budget: Obj({
+    requests: Type.Integer({ minimum: 1 }), toolCalls: Type.Integer({ minimum: 0 }), subcalls: Type.Integer({ minimum: 0 }),
+    inputTokens: Type.Integer({ minimum: 0 }), outputTokens: Type.Integer({ minimum: 0 }),
+    costUsd: Type.Number({ minimum: 0 }), wallMs: Type.Integer({ minimum: 0 }),
+    workUnits: Nullable(Type.Integer({ minimum: 0 })),
+    softRatio: Type.Number({ exclusiveMinimum: 0, maximum: 1 }),
   }),
+  /** 12 ModelRole (work, verifier, mediator, branch, subrun, summarizer, subcall, observer 등). 목록은 12 */
+  modelRole: Type.String({ minLength: 1, maxLength: 32 }),
+  /** 14 루프 단계 id */
+  step: Nullable(Type.String({ minLength: 1, maxLength: 64 })),
+  /** 런타임 보장 수준 (12 G1~G8): 실제로 막음 / 사후 감지 / 권고 / 불가 */
+  guarantees: Type.Record(Type.String({ pattern: "^G[1-8]$" }),
+    Type.Union(["enforced", "detected", "advisory", "unavailable"].map((x) => Type.Literal(x)))),
+  /** 이 실행에 준 도구·능력 목록의 해시 (12·13) */
+  capabilityManifestHash: Sha256,
 });
 /** 12 RunStatus. ended만 종결 */
 export const RunStatus = Type.Union([
@@ -2697,13 +2785,20 @@ export const PermissionVerdict = Obj({
   reversibility: Nullable(Type.Union([Type.Literal("reversible"), Type.Literal("hard"), Type.Literal("unknown")])),
   /** execute가 실제로 쓰기처럼 동작하는가에 대한 권한 레이어의 판정. 모르면 null */
   mutating: Nullable(Type.Boolean()),
+  /** 외부 효과(보내기, 네트워크)가 있을 수 있는가. 결과 불명일 때 권리·정보 게이트 구분에 쓴다 (판정 J-05) */
+  externalEffect: Type.Boolean(),
   info: Nullable(ShortText),
 });
 /** 13 ResourceUri (file:, net:, mcp:, helm_draft:) */
 export const ResourceUri = Type.String({ minLength: 3, maxLength: 4096 });
+/** 13 ResourcePattern (글롭 허용). 문법과 덮임 판정 함수는 13, 타입은 @helm/domain에 둔다 */
+export const ResourcePattern = Type.String({ minLength: 1, maxLength: 4096 });
 export const ToolCallCore = Obj({
   runId: RunId,
   providerCallId: Type.String({ minLength: 1, maxLength: 128 }), // 모델이 붙인 호출 id. 실행 안에서 유일
+  requestId: Nullable(Id("mr")),       // 이 호출을 낸 모델 요청
+  messageId: Nullable(Id("ms")),       // 이 호출이 들어 있는 어시스턴트 메시지
+  index: Type.Integer({ minimum: 0 }), // 한 응답 안의 호출 순서
   toolName: Type.String({ minLength: 1, maxLength: 128 }),
   /** 읽기 전용 제안 도구처럼 기본 동작에 대응하지 않는 호출은 null (12·13) */
   primitive: Nullable(PrimitiveSchema),
@@ -2727,6 +2822,12 @@ export const ToolCallExecution = Obj({
   /** 범위 검사를 언제 했나. post_hoc = 대상 미상 실행의 사후 검사, advisory = 감지 불가 (10 V-INV-04, 13) */
   enforcement: Type.Union([Type.Literal("pre"), Type.Literal("post_hoc"), Type.Literal("advisory")]),
   replayGuard: Nullable(Obj({ kind: Type.Literal("file_hash"), path: Type.String(), before: Type.String(), after: Type.String() })),
+  /** 13 샌드박스 수준 */
+  sandbox: Nullable(Obj({
+    level: Type.Union(["S0", "S1b", "S1", "S2"].map((x) => Type.Literal(x))),
+    writableRoots: Type.Array(Type.String({ minLength: 1, maxLength: 4096 })),
+    network: Type.Union([Type.Literal("none"), Type.Literal("any")]),
+  })),
   snapshotRef: Nullable(BlobRef),
   /** write·send(및 권한 레이어가 mutating으로 본 execute)는 필수 (R-05) */
   agreementRef: Nullable(Obj({ agreementId: AgreementId, revision: Type.Integer({ minimum: 1 }) })),
@@ -2735,6 +2836,9 @@ export const ToolCallExecution = Obj({
   bootEpoch: Type.String({ pattern: "^[0-9A-HJKMNP-TV-Z]{26}$" }),
   intentSeq: Seq,
 });
+/** 실행되지 않은 이유. aborted는 cancel로 적는다 (12) */
+export const NotExecutedReason = Type.Union(["restart", "cancel", "steering", "superseded", "unknown_tool", "invalid_args", "truncated_response"]
+  .map((r) => Type.Literal(r)));
 export const ToolCallStatus = Type.Union([
   Type.Literal("requested"),          // 모델이 호출함, 검사 전
   Type.Literal("blocked"),            // 커널·권한 레이어·합의 범위에서 차단 (실행 안 됨)
@@ -2757,10 +2861,16 @@ export const ToolCall = Obj({
   /** 사람이 승인하며 고친 인자 (toolcall.approved.editedArgs) */
   approvedArgs: Nullable(BlobRef),
   execution: Nullable(ToolCallExecution),
-  notExecuted: Nullable(Obj({ reason: Type.Union(["restart", "cancel", "steering", "superseded"].map((r) => Type.Literal(r))) })),
+  notExecuted: Nullable(Obj({ reason: NotExecutedReason })),
   result: Nullable(Obj({
-    observationId: ObservationId, isError: Type.Boolean(), exitCode: Nullable(Type.Integer()),
+    /** 관찰. primitive = null인 제안 도구는 관찰을 만들지 않으므로 null (판정 J-43) */
+    observationId: Nullable(ObservationId), isError: Type.Boolean(), exitCode: Nullable(Type.Integer()),
     content: Nullable(BlobRef), structuredContent: Nullable(BlobRef), durationMs: DurationMs,
+    /** 모델에 돌려준 내용(잘린 것)과 전체 출력 */
+    modelContent: Nullable(BlobRef), fullOutput: Nullable(BlobRef),
+    truncation: Nullable(Obj({ originalBytes: Type.Integer({ minimum: 0 }), keptBytes: Type.Integer({ minimum: 0 }) })),
+    /** 부팅 복구에서 결과를 정한 방법: replayGuard 해시 확인 / 재실행 */
+    recovered: Nullable(Type.Union([Type.Literal("hash_verified"), Type.Literal("replayed")])),
   })),
   recovery: Nullable(Obj({
     resolution: Type.Union([
@@ -2774,7 +2884,7 @@ export const ToolCall = Obj({
 ```
 
 - 도구 호출 하나의 결과 관찰은 하나다. 관찰의 멱등 키는 `toolCallId`다(09 §3.9.3).
-- 차단된 호출(`blocked`)과 실행되지 않은 호출(`not_executed`)은 관찰을 만들지 않는다. 모델에게는 차단 이유가 도구 결과로 돌아가지만, 그것은 런타임이 대화에 넣는 메시지일 뿐 E 레코드가 아니다(helm-canon-2 L20).
+- 차단된 호출(`blocked`), 실행되지 않은 호출(`not_executed`), 제안 도구(`primitive = null`) 호출은 관찰을 만들지 않는다. 모델에게는 차단 이유가 도구 결과로 돌아가지만, 그것은 런타임이 대화에 넣는 메시지일 뿐 E 레코드가 아니다(helm-canon-2 L20).
 - 읽기 빠른 경로: `primitive = read`이고 대상이 정해진 호출은 `toolcall.requested`·`started`·`completed`를 한 트랜잭션에 함께 남길 수 있다(12 §3.4, 10 K-3). 이때 R-06의 "started 커밋 뒤 실행" 순서는 의도 기록과 결과 기록이 같은 커밋이라는 사실로 대신한다. 쓰기·보내기·실행에는 이 경로를 쓰지 않는다.
 - 메시지 본문(사용자 입력, 모델 출력)은 런타임 이벤트 `run.message_recorded`의 blob에 둔다(09 §3.4.12). 사람의 자연어 입력은 같은 트랜잭션에서 `utterance` 관찰도 만든다.
 
@@ -2787,7 +2897,7 @@ export const Thread = Obj({
   ...Meta, kind: Type.Literal("thread"),
   concernId: ConcernId,
   workUnitId: Nullable(WorkUnitId),
-  purpose: Type.Union([Type.Literal("work"), Type.Literal("branch"), Type.Literal("verifier"), Type.Literal("mediator"), Type.Literal("observer")]),
+  purpose: Type.Union(["work", "branch", "subrun", "verifier", "mediator", "observer"].map((x) => Type.Literal(x))),
   forkedFrom: Nullable(Obj({ threadId: ThreadId, cursor: Type.Integer({ minimum: 0 }) })),
   status: Type.Union([Type.Literal("open"), Type.Literal("closed")]),
   activeRunId: Nullable(RunId),
@@ -2798,6 +2908,8 @@ export const Thread = Obj({
 export const RollbackPointCore = Obj({
   concernId: ConcernId,
   workUnitId: Nullable(WorkUnitId),
+  /** 합의의 되돌릴 지점 (02 AC-07-15). 합의 활성화 때 등록한 것 */
+  agreementId: Nullable(AgreementId),
   mechanism: Type.Union([Type.Literal("git_ref"), Type.Literal("snapshot_blob"), Type.Literal("manual")]),
   /** git 커밋·ref 이름, 또는 작업 공간 스냅숏 blob (09 blobs) */
   ref: Type.Union([Obj({ kind: Type.Literal("git"), repo: Type.String({ minLength: 1 }), ref: Type.String({ minLength: 1 }) }),
@@ -2825,8 +2937,9 @@ export const RollbackPoint = Obj({
 // @helm/domain/src/records/device.ts  (페어링 절차, 토큰 형식, 수명은 18 §3.7~3.8)
 export const DeviceCore = Obj({
   name: Title,
-  platform: Type.Union([Type.Literal("macos"), Type.Literal("windows"), Type.Literal("linux"), Type.Literal("ios"), Type.Literal("tui"), Type.Literal("cli")]),
-  clientKind: Type.String({ minLength: 1, maxLength: 32 }),     // 18·20 (desktop, tui, cli 등)
+  platform: Type.Union(["macos", "windows", "linux", "ios", "android", "web", "tui", "cli"].map((x) => Type.Literal(x))),
+  /** desktop | mobile | tui | cli (18·20·26). 모바일 기기(결정 42)도 같은 레코드다 */
+  clientKind: Type.Union(["desktop", "mobile", "tui", "cli"].map((x) => Type.Literal(x))),
   pairedVia: Type.Union([Type.Literal("code"), Type.Literal("ssh")]),
 });
 export const Device = Obj({
@@ -2842,6 +2955,11 @@ export const Device = Obj({
   expiresAt: Ms,
   revokedAt: Nullable(Ms),
   revokeReason: Nullable(ShortText),
+  /** 기기 공개 키 (18 §3.9 `publicKey?`, 이후 단계의 요청 서명용) */
+  publicKey: Nullable(Type.String({ minLength: 1, maxLength: 1024 })),
+  /** 푸시 알림 등록 (모바일, 26이 형식과 공급자를 정한다). 해시와 끝 몇 자만. 원문은 09 운영 테이블 `push_tokens`(판정 J-71) */
+  push: Nullable(Obj({ provider: Type.String({ minLength: 1, maxLength: 32 }), tokenHash: Sha256,
+                      tokenHint: Type.String({ minLength: 1, maxLength: 8 }), registeredAt: Ms })),
 });
 
 // @helm/domain/src/records/pairing-code.ts
@@ -2886,7 +3004,10 @@ export const PolicyProposalCore = Obj({
   /** 제출 당시 초안 전체 (16 ProposalDraft). 모양은 16 */
   draft: BlobRef,
   /** 설정 변경형 제안의 대상과 값 (16 patch) */
-  patch: Nullable(Obj({ target: Type.String({ minLength: 1, maxLength: 128 }), value: Type.Unknown() })),
+  patch: Nullable(Obj({
+    target: Type.Union(["dial", "policy_rule", "orchestration.routing", "orchestration.agreement_templates"].map((x) => Type.Literal(x))),
+    value: Type.Unknown(),   // target별 모양은 16 PolicyPatch
+  })),
   targetProjectId: Nullable(ProjectId),
 });
 export const PolicyProposal = Obj({
@@ -2930,7 +3051,7 @@ export const ProcedureCore = Obj({
 export const Procedure = Obj({
   ...Meta, kind: Type.Literal("procedure"), ...ProcedureCore.properties,
   trust: Type.Union([Type.Literal("trial"), Type.Literal("trusted"), Type.Literal("demoted")]),
-  uses: Obj({ succeeded: Type.Integer({ minimum: 0 }), failed: Type.Integer({ minimum: 0 }) }),
+  // 사용 횟수·실패 수는 레코드에 두지 않는다. 16의 지표(metric_fact)에서 계산한다
   status: Type.Union([Type.Literal("active"), Type.Literal("retired")]),
 });
 ```
@@ -3040,7 +3161,7 @@ export const Procedure = Obj({
 | R-40 | `policy_proposal.submitted` | 행위자 `agent:observer`. 근거 1개 이상. 같은 서명이 `dismissed`(scope `family_forever` 포함)된 적 있으면 그 뒤 seq의 새 근거가 있어야 함 | audit §3.2 | 자격 / 내용 |
 | R-41 | `grant.issued`, `grant.revoked` | 행위자 `human`. `expiresAt > now` | F10 §6 | 자격 |
 | R-42 | `run.started` | `ownerEpoch` = 현재 부팅 epoch. 재개(`attempt > 1`)면 같은 runId가 `interrupted`·`awaiting_*`. work 역할은 WorkUnit이 `delegated`·`in_progress`이거나, 쓰기 없는 탐구 WorkUnit이 `proposed` | 결정 30 | 경로 / 내용 |
-| R-43 | 실행이 낸 모든 쓰기 (`toolcall.*`, 제안 명령, `declaredBy` 구조 명령) | 실행이 `running`·`stopping`이고 `ownerEpoch` = 현재 epoch. 예외: 부팅 복구(`internal:recovery`)가 쓰는 `run.interrupted`·`toolcall.not_executed`·`toolcall.outcome_uncertain` | 결정 30, 09 §3.8.3 | 경로 |
+| R-43 | 실행이 낸 모든 쓰기 (`toolcall.*`, 제안 명령, `declaredBy` 구조 명령) | 실행이 `running`·`stopping`이고 `ownerEpoch`·`attempt`가 현재 값과 같음. 예외: 부팅 복구(`internal:recovery`)가 쓰는 `run.interrupted`·`run.ended`(superseded·failed·recovery_exhausted)·`toolcall.not_executed`·`toolcall.interrupted`·`toolcall.outcome_uncertain`·`toolcall.completed`(recovered hash_verified) | 결정 30, 09 §3.8.3 | 경로 |
 | R-44 | `mode.assigned` | 대상이 현재 | v0.3 07 §5 | 내용 |
 | R-45 | `pairing.code_created`, `device.paired`, `device.revoked` | 코드 생성·폐기: 행위자 `human`, `via`가 `local_cli` 또는 다른 `active` 기기. 페어링: 행위자 `runtime`이고 같은 트랜잭션에서 `active` 코드가 `consumed`가 되거나, SSH 발급이면 행위자 `human` + `local_cli` (18 §3.7) | 18 | 자격 |
 | R-46 | `record.staled`, `record.revalidated` | 원인 참조(`causeRef`)가 실재 | A13 | 내용 |
@@ -3389,12 +3510,12 @@ Acceptance는 만든 뒤 바뀌지 않는다. 사람이 확인을 되돌리려�
 | ∅ | `run.queued` | queued | 같은 thread에 활성 run 없음 | - |
 | queued, interrupted | `run.started` (attempt) | running | R-42 | `ownerEpoch = 현재`, interrupted에서 오면 `attempt + 1`, `recoveryAttempts + 1` |
 | running | `run.awaiting` (question / recovery) | awaiting_human / awaiting_recovery | 막힘 질문 / 결과 불명 호출 | - |
-| awaiting_human, awaiting_recovery | `run.resumed` | running | 답·복구 기록 | - |
 | running | `run.stopping` | stopping | 취소·마무리 신호 | 진행 중 도구 취소 방식에 따름(13) |
-| queued, running, stopping, awaiting_* | `run.interrupted` (부팅 복구, `internal:recovery`) | interrupted | `ownerEpoch` ≠ 현재 epoch | 시작됐던 도구 호출 정리(§3.22.14) |
+| queued, running, stopping | `run.interrupted` (부팅 복구, `internal:recovery`) | interrupted | `ownerEpoch` ≠ 현재 epoch. `awaiting_*`는 부팅 때 그대로 둔다(판정 J-39, 늦은 답을 받기 위해) | 시작됐던 도구 호출 정리(§3.22.14) |
+| awaiting_human, awaiting_recovery | `run.ended` (handed_off) | ended | 답·복구 기록이 옴 | 같은 thread에 새 run이 이어받는다(판정 J-38). 대기 상태에서 running으로 돌아가지 않는다 |
 | queued, running, stopping, awaiting_*, interrupted | `run.ended` (reason) | ended | 12 RunEndReason | `end`, `endedAt` |
 
-12 §3.2.3의 stage(inference, tools, compaction, settlement, idle)는 레코드에 두지 않는다. 같은 트랜잭션의 trace `run.stage`(09 §3.7)에 남고 부팅 복구가 그것을 읽는다. 도메인 상태(State)는 이벤트만으로 다시 만들어지고, stage는 실행 재개에만 쓰이는 운영 정보이기 때문이다.
+재개(interrupted → running)는 같은 runId의 새 attempt이며, 디스패치 키는 `recover:<runId>:<attempt>`다(12). 12 §3.2.3의 stage(inference, tools, compaction, settlement, idle)는 레코드에 두지 않는다. 같은 트랜잭션의 trace `run.stage`(09 §3.7)에 남고 부팅 복구가 그것을 읽는다. 도메인 상태(State)는 이벤트만으로 다시 만들어지고, stage는 실행 재개에만 쓰이는 운영 정보이기 때문이다.
 
 종료: ended 하나. 이유는 `end.reason`(yielded, handed_off, cancelled, budget_exhausted, step_limit, failed, recovery_exhausted, superseded, context_overflow)이다. 재개는 같은 runId의 새 attempt다(12 §3.7.5).
 
@@ -3410,15 +3531,17 @@ Acceptance는 만든 뒤 바뀌지 않는다. 사람이 확인을 되돌리려�
 | awaiting_approval | `toolcall.approved` (`editedArgs` 선택) | requested | 질문 answered(허락) | `approvedArgs`, `approval.issued` |
 | awaiting_approval | `toolcall.denied` | denied | 질문 answered(거절) 또는 만료 | - |
 | requested | `toolcall.started` | started | R-05, R-43. **실행 전에 커밋** (write-ahead) | `execution` 채움. send면 `approval.consumed` |
-| requested | `toolcall.not_executed` (restart·cancel·steering·superseded) | not_executed | 시작 기록 없이 끝남. 실행되지 않았음이 확실 | - |
+| requested | `toolcall.not_executed` (NotExecutedReason) | not_executed | 시작 기록 없이 끝남. 실행되지 않았음이 확실 | - |
+| started, replaying | `toolcall.not_executed` (cancel·superseded) | not_executed | 실행 직전 취소되어 프로세스를 띄우지 않았음이 확실 (12) | - |
 | started | `toolcall.completed` (outcome completed) | completed | - | `observation.recorded(tool_result)`. 사후 검사(`enforcement = post_hoc`)에서 범위 밖 변경이면 `scope_violation` 질문 |
 | started | `toolcall.interrupted` | interrupted | 협조형 취소·조종, 또는 부팅 복구에서 replay가 never | `observation.recorded(tool_interrupted)` |
 | started | `toolcall.outcome_uncertain` | outcome_uncertain | 도구가 외부 결과 불확실을 보고, 또는 부팅 복구에서 외부 효과가 있는 호출 | `observation.recorded(tool_interrupted, outcome_uncertain)`, `run.awaiting(recovery)`, `recovery` 질문(외부 효과가 있을 때) |
-| started | `toolcall.replay_started` | replaying | 부팅 복구, 저장된 replay와 현재 도구 정책이 모두 safe, `replayGuard` 일치 | - |
+| started | `toolcall.replay_started` | replaying | 실행 재개 때 커널 재검사(합의·권한)를 통과한 뒤(판정 J-41). 저장된 replay와 현재 도구 정책이 모두 safe | - |
+| started | `toolcall.completed` (recovered hash_verified) | completed | 부팅 복구에서 `replayGuard.after` 해시가 실제 파일과 같음 | 관찰 |
 | replaying | `toolcall.completed` | completed | - | 관찰 |
 | interrupted, outcome_uncertain | `toolcall.recovered` | recovered | 사람 또는 검증 관찰 | 해결 기록 |
 
-종료: blocked, denied, not_executed, completed, recovered. interrupted는 복구 기록이 없어도 종료로 본다(재실행하지 않음). 읽기 빠른 경로는 requested → started → completed를 한 트랜잭션에 남긴다(§3.18.2).
+종료: blocked, denied, not_executed, completed, recovered. interrupted는 복구 기록이 없어도 종료로 본다(재실행하지 않음). 읽기 빠른 경로는 requested → started → completed를 한 트랜잭션에 남긴다(§3.18.2). `primitive = null`인 제안 도구(Helm 제안 도구)도 세 이벤트를 한 트랜잭션에 남기고 관찰을 만들지 않는다(판정 J-43). 사람이 승인한 행동은 같은 tcId로 `toolcall.approved` → `started`가 되고 `approval.consumed`가 같은 트랜잭션에 남는다(판정 J-40).
 
 #### 3.22.15 Grant, Device, PairingCode, PolicyProposal, Procedure, Stimulus, Inquiry, PreferenceModel, Thread, RollbackPoint
 
@@ -3628,16 +3751,16 @@ F10 profile 불변 6: "Authority는 scope와 effect class를 가진다"는 v0.3 
 |---|---|
 | 01·02 | 1판 이벤트 이름(`choice.decided`, `submission.gated`, `decision.contested` 등)을 09 카탈로그 이름으로 바꾼다. 대응은 §10.3 |
 | 09 | §3.20.1의 생성 이벤트와 §3.22의 이벤트 이름을 카탈로그에 그대로 둔다. 투영기는 §3.20.3 링크 생성 규칙을 따른다 (같은 P5가 작성) |
-| 10 | (1) R-01~R-55를 명령 검증에 구현한다. (2) `ProposalKind`와 명령 이름 대응표. (3) 버전 검사(V-VER-01)를 커널에서 하고 저장소는 하지 않는다는 09 §3.8.4 결정을 따른다. (4) `concern.reframe` 명령은 같은 트랜잭션에 `choice.committed`(다시 세운 문제의 선택)를 만든다(§3.22.2). autonomy를 이벤트에 따로 붙이지 않는다. (5) `KernelContext.presence`는 영속 이벤트 `presence.changed`에서 만든 투영으로 읽는다(재현 가능) |
-| 11 | (1) 질문 종류를 §3.13 `QuestionKind`로 옮긴다(대응은 §10.2). (2) 임시 가정은 `as`(origin question)를 쓰고 `wa` 레코드를 두지 않는다. (3) 이의는 `ct` Objection(대상: 레코드 또는 링크, `desiredEffect`)으로, 재작업은 WorkUnit `reworkOf`로, 승인 토큰은 `Question.approval`로 옮긴다. (4) assumed 뒤 늦은 답은 받아서 기록하고, 가정과 다르면 이의와 같은 효과를 낸다(§3.22.7). 거부하지 않는다. (5) 가정 확정 Choice는 만료 때 만든다(R-25). (6) `WhyNotAsked` 이름 대응: information_gate_false→`info_gate`, policy→`within_grant` 또는 `rule`, auto_verified→`auto_verifiable`, structural_default→`rule` |
+| 10 | (0) 예측 확인 결과 `undeterminable`을 08 이름 `indeterminate`로 바꾼다. (1) R-01~R-55를 명령 검증에 구현한다. (2) `ProposalKind`와 명령 이름 대응표. (3) 버전 검사(V-VER-01)를 커널에서 하고 저장소는 하지 않는다는 09 §3.8.4 결정을 따른다. (4) `concern.reframe` 명령은 같은 트랜잭션에 `choice.committed`(다시 세운 문제의 선택)를 만든다(§3.22.2). autonomy를 이벤트에 따로 붙이지 않는다. (5) `KernelContext.presence`는 영속 이벤트 `presence.changed`에서 만든 투영으로 읽는다(재현 가능) |
+| 11 | (0) `WhyNotAsked`의 `delegated`·`rule_default`를 `delegated_by_human`·`rule`로, Objection `desired`를 `desiredEffect`로 바꾼다. (1) 질문 종류를 §3.13 `QuestionKind`로 옮긴다(대응은 §10.2). (2) 임시 가정은 `as`(origin question)를 쓰고 `wa` 레코드를 두지 않는다. (3) 이의는 `ct` Objection(대상: 레코드 또는 링크, `desiredEffect`)으로, 재작업은 WorkUnit `reworkOf`로, 승인 토큰은 `Question.approval`로 옮긴다. (4) assumed 뒤 늦은 답은 받아서 기록하고, 가정과 다르면 이의와 같은 효과를 낸다(§3.22.7). 거부하지 않는다. (5) 가정 확정 Choice는 만료 때 만든다(R-25). (6) `WhyNotAsked` 이름 대응: information_gate_false→`info_gate`, policy→`within_grant` 또는 `rule`, auto_verified→`auto_verifiable`, structural_default→`rule` |
 | 12 | (1) 부팅 복구에서 Run·ToolCall 상태 기계(§3.22.13~14)를 따른다. (2) 커널 이벤트 이름은 `toolcall.started`(의도), `toolcall.outcome_uncertain`, `toolcall.not_executed`를 쓴다. (3) 컨텍스트 투영 id 접두사를 `cx`에서 `cp`로 바꾼다(`cx`는 18·19의 연결 id). (4) 사람 메시지를 `utterance` 관찰로 같은 트랜잭션에 기록한다. (5) 도구 출력을 관찰로 남기기 전에 비밀을 가린다 |
 | 13 | (1) 도구마다 `primitive`(없으면 null), `replay`(safe·never), `cancellation` 선언. (2) 권한 레이어 판정을 `PermissionVerdict`(rightsCategories, reversibility 포함)로 넘김. (3) `ToolCallExecution`의 `targets`, `targetsKnown`, `enforcement`, `replayGuard`, `snapshotRef`를 채운다. (4) `ResourceScope` 덮임 판정 함수(net·mcp·helm_draft 포함) |
 | 14 | (1) `DialKey`별 값 스키마와 기본값, 구조 상한 기본값(이 문서 [제안] 7·3). (2) `TransitionTrigger`와 규칙 id(T01~T32, EXIT, OPEN, REDIRECT)의 대응표. (3) 오케스트레이터의 규칙 결정은 `kernel` 행위자(`declaredBy` 없음) 또는 `runtime` + `declaredBy`로 보낸다. (4) Concern 종료 상태로 `completed`·`merged`·`closed`를 모두 다룬다. (5) Goal 개정 시 진행 중 WorkUnit을 멈출지(U-16) |
-| 15 | (1) 구분 확인 결과 라벨을 누가 분류하는가(U-14). (2) `Perspective.transfer`, `Lens.field`, `structureTags`의 값 목록을 데이터 파일로 둔다. (3) 가능성 반응을 `subjectRef = ps_`로 보낸다 |
+| 15 | (0) 승격 판정은 08 `promotionMissing`(J-18)을 그대로 쓴다. (1) 구분 확인 결과 라벨을 누가 분류하는가(U-14). (2) `Perspective.transfer`, `Lens.field`, `structureTags`의 값 목록을 데이터 파일로 둔다. (3) 가능성 반응을 `subjectRef = ps_`로 보낸다 |
 | 16 | (1) PolicyProposal 서명(`signature`) 계산 규칙과 `draft` blob 모양. (2) 절차 레코드 사용 기록(`procedure_failed` 주석) |
 | 17 | 없음 (09에서 요구) |
 | 18 | (1) `local_cli` 사람 인정 조건(유닉스 소켓 권한과 uid). (2) Device·PairingCode 필드는 §3.19.1이 18 §3.7~3.8을 옮긴 것이다. 바뀌면 08을 함께 고친다 |
-| 19 | (1) 레코드 스키마를 프로토콜 타입으로 다시 정의하지 않고 `@helm/domain`에서 가져다 쓴다. (2) 거부 갈래 이름 `qualification`을 `authority`로 바꾼다 |
+| 19 | (1) 레코드 스키마를 프로토콜 타입으로 다시 정의하지 않고 `@helm/domain`에서 가져다 쓴다. (2) 거부 갈래 이름 `qualification`을 `authority`로 바꾼다. (3) `contest.filed`는 `objection.filed`다. (4) presence 값은 09 `PresenceState` |
 | 21 | 거부 갈래 이름 `eligibility`를 `authority`로 바꾼다 |
 | 25 | §3.25를 용어집에 옮기고 한국어 UI 이름을 확정한다 (Concern의 UI 이름 포함) |
 
@@ -3684,7 +3807,7 @@ F10 profile 불변 6: "Authority는 scope와 effect class를 가진다"는 v0.3 
 | U-11 | 신뢰도 숫자 | (a) 질적 등급만 (b) 내부 정렬용 숫자 허용 | (a). 정렬이 필요하면 15가 계산값으로 쓰고 저장하지 않음 |
 | U-12 | 하위 Concern 상한 | 하위 7개·깊이 3 / 다른 값 | 7·3을 다이얼 기본값으로 (14 확정) |
 | U-13 | 판단 진술이 원 주장보다 범위를 넓혔는지 검사 | (a) 검사하지 않음(scope 필드만) (b) 검증 에이전트 확인 | (a). 의미 검사는 커널이 할 수 없다. 확인 질문에서 사람이 본다 |
-| U-14 | 구분 확인 결과 라벨 분류자 | (a) 작업 에이전트 (b) 검증 에이전트 (c) 다이얼 | (c), 기본 (a). 독립 검증 다이얼이 켜지면 (b). 15 확정 |
+| U-14 | 구분 확인 결과 라벨 분류자 | (a) 작업 에이전트 (b) 검증 에이전트 (c) 다이얼 | 15 확정: 다이얼 `assurance.independent_verification`. off = 작업 쪽, auto = 1위 후보의 구분 확인만 검증 에이전트, always = 전부 |
 | U-15 | Quick/Guided/Assured 이름 유지 | v0.3 07 §1 | 이 문서는 다루지 않는다. 다이얼 `assurance.proof_burden`으로만 둔다. 14 확정 |
 | U-16 | Goal 개정 시 진행 중 WorkUnit 처리 | (a) 표시만 (b) 자동 일시 정지 | (a). 14 확정 |
 | U-17 | 범위 밖 호출의 거부 갈래 | (a) 자격 `gate.scope_expansion_required` (10) (b) 내용 `policy.scope_exceeded` (1판) | (a). 금지 자원만 내용 갈래 |
@@ -3814,6 +3937,25 @@ F10 profile 불변 6: "Authority는 scope와 effect class를 가진다"는 v0.3 
 | `integration.obligation_transferred`, `integration.obligation_added` | `obligation.transferred`, `obligation.added` |
 | `run.completed`, `run.failed`, `run.cancelled`, `run.recovered` | `run.ended`(reason), 재개는 `run.started`(attempt) |
 | `boundary.recorded` (경계 항목) | `boundary_item.recorded` (`boundary.reached`는 런타임 경계 도달) |
+
+### 10.4 2a단계 통합 (조정자 판정 rulings-stage2a 반영)
+
+| 출처 | 반영 |
+|---|---|
+| J-08 | `Project.observeExternalSessions`: 세션 cwd가 rootPaths 아래인 세션, 로그는 런타임별 홈 폴더, Mac에서 연 세션은 대상 밖 |
+| J-18 | `promotionMissing`에 `evidence.correlated`(출처 독립성). 승격 규칙 정본은 10 §3.9 |
+| J-19 | 숫자 confidence 없음. 15 `SupportGrade`는 계산값으로만 둔다 |
+| 19 | 접두사 `ik`(58개), `RecordMeta.revision` |
+| 18·결정 42 | Device `platform`에 ios·android·web, `clientKind` mobile, `publicKey`, `push`(형식은 26) |
+| 04·11 | Question `depth` |
+| 02 | RollbackPoint `agreementId`. 관찰 종류 대응: human_utterance → `utterance`, resumption_probe → 측정 `resumption_check.*`(09), brief_feedback → `brief.corrected`(09) |
+| 01·16 | `HumanOpMeta`(사람 결정 이벤트 payload의 선택 필드), `followedRecommendation`(J-76), 주석 `procedure_failed`, `Procedure.uses` 제거(지표에서 계산), `patch.target` 4종 |
+| 21 | 자극 내용은 바뀌지 않는다(§3.17.3) |
+| 10 (J-35) | 결과 확인 값 대응: 명령 값(10) accept → 기록 값 `accepted`, accept_with_conditions → `conditional`, request_changes → `revision_requested`, reject → `rejected`, criteria_wrong → `criteria_wrong` |
+| 10 (J-95) | DiscriminatingCheck `pinned` |
+| 15 | `RunKind` inquiry(J-97), `Possibility.consequenceMarks`, `planHash` 뜻(멈춤 판정 입력), U-14 확정 |
+| 11 | Question `askEvaluation`(구조)·`whyLocalInsufficient`(정보 게이트 필수)·`rightsCategories`(권리 게이트 1개 이상, 10개 값)·`assumptionAnswer`(정보·비막힘), `WorkBoundaryKind` 7개, `goal_achievement`(J-55), `reworkOf.steps`(J-54), 권리 마감은 사람이 정한 경우만(J-49), Trigger `boundary` 변형과 `before_primitive.resources`, `send_approval`은 11의 action_approval을 포함, 고친 인자의 새 도구 호출이 승인을 소진할 수 있음. 11의 `delegated`·`rule_default`는 08 이름 `delegated_by_human`·`rule`, Objection `desired`는 `desiredEffect`를 쓴다(11이 고친다) |
+| 13 | `ResourcePattern` 타입 |
 
 ## 부록 A. 원천 체크리스트 반영표
 

@@ -1,9 +1,10 @@
 # 15. 탐구 엔진
 
-- 문서 번호: 15. 소유: P9(탐구). 작성: 2026-10-11. 상태: 1단계 설계 초안
+- 문서 번호: 15. 소유: P9(탐구). 작성: 2026-10-11. 상태: 2a단계 통합판(2026-10-12). 조정자 판정(`process/rulings-stage2a.md`)과 브리프 결정 41~46에 맞춰 이름·필드·명령을 다시 맞췄다
 - 구현 위치: `@helm/runtime`의 `packages/runtime/src/inquiry/`
 - 이 문서만 보고 탐구 엔진(I 루프 네 종류, 발산 서브시스템, Method Transfer, 선호 모델 갱신, REPL 방식 탐구)을 구현할 수 있게 쓴다. 다른 문서가 소유한 것(레코드 최종 스키마, 이벤트 카탈로그, 명령·검증, 질문 전달, 모델 계층, 도구 등록, 루프 계약)은 파일 이름과 절 번호로 참조하고, 이 엔진이 그 문서에 요구하는 것을 §5에 모은다.
 - 표시 규칙은 브리프 §5.2를 따른다. 이 문서의 설계 선택은 따로 적지 않으면 [제안]이다.
+- 이름의 정본: 이벤트는 09 §3.4, 레코드·필드·질문 종류는 08, 명령은 10 §3.11(탐구 명령은 10이 이 문서에 맡겼다. §3.2.6), 프로토콜 메서드는 19, 화면 ID는 03, 유즈케이스 ID는 02다. 거부 갈래는 `content`·`authority`·`path`다(조정자 판정 §1).
 
 ## 1. 목적과 범위
 
@@ -119,16 +120,16 @@ ID는 02 §3.1 유즈케이스 목록을 따른다.
 
 ### 2.3 교정된 기술 전제 (REPL·codemode)
 
-감사 보고 §4가 지적한 전제 오류를 pi 소스로 다시 확인했다. 브리프 §4의 커밋 `cdaf6c2`와, 07이 고정 의존으로 정한 npm `1.1.0`(태그 `v1.1.0`, 07 D07-5) 둘 다 확인했다. 동작은 같고 행 번호와 타입 이름만 다르다. 아래 표는 `cdaf6c2` 행 번호를 먼저, `v1.1.0` 행 번호를 괄호에 적는다.
+감사 보고 §4가 지적한 전제 오류를 pi 소스로 다시 확인했다. pi 기준은 태그 `v1.1.0`(커밋 `abe508e1`, npm 1.1.0과 같음)이고 행 번호는 그 태그의 것이다(브리프 결정 44, 07 D07-5). 확인 방법은 `git -C ~/projects/_ref/pi-src show v1.1.0:<경로>`다. 참고 판 `cdaf6c2`(브리프 §4)에서도 동작이 같음을 확인했다. 그 판은 행 번호와 일부 타입 이름(`CodemodeSandboxBaseOptions`)만 다르다.
 
 | 전제 | 확인 결과 | 출처 |
 |---|---|---|
-| codemode 변수는 여러 턴에 걸쳐 남는다(v0.3 04 §9의 가정) | 틀림. `CodemodeSandbox`는 `execute()`마다 새 worker 스레드와 새 QuickJS VM을 만든다. JS 변수와 `globalThis` 값은 한 번의 실행에서만 산다 | [원문] `packages/codemode/src/runtime/host.ts:12-18`(`v1.1.0`: `host.ts:337-340`), [실험] pi-api-facts-1 §5.4(실험 A2), 대화 L1366–1380 |
-| 실행 사이 상태는 `store()`로 남긴다 | 샌드박스는 저장하지 않는다. 호출자가 `options.store`로 넘기고, 성공한 실행만 `result.storeWrites {set, delete}`를 돌려준다. 값 하나 256Ki자, 전체 1Mi자 | [원문] `packages/codemode/src/types.ts:83-98, 140-149`(`v1.1.0`: `store`는 `:137`), `src/runtime/prelude-source.ts:32-33`(두 판 같음) |
-| 스크립트에서 채팅 모델을 하위 호출할 수 있다(`llm_query` 전제) | coding-agent의 `codemode` 도구가 넣는 `models.*`는 목록 조회, `classify`, `generateImages`뿐이다. 채팅 모델은 목록에는 나오지만 실행할 수 없다 | [원문] `packages/coding-agent/src/extensions/codemode/execute.ts:623-733`(두 판 같음), `packages/coding-agent/docs/codemode.md:60`(`v1.1.0`: `:62`) |
-| 하위 호출 수단 | pi-codemode 패키지 자체는 모델 개념이 없고, 호출자가 `globals`로 호스트 함수를 넣으면 스크립트가 그 함수를 부른다(JSON 왕복, `result.calls`에 기록 안 됨) | [원문] `packages/codemode/src/types.ts:102-109`(`CodemodeSandboxBaseOptions.globals`. `v1.1.0`에서는 `CodemodeSandboxOptions.globals`, `types.ts:102`, 07 §3.1.4), `packages/codemode/README.md` |
-| 스크립트 안 도구 호출의 훅 적용 | coding-agent 통합에서는 `ctx.executeTool()`을 거쳐 인자 검증·훅이 적용된다. Helm에서는 07 §3.12의 브리지(`AgentLoop.runNestedToolCall`)가 같은 경로를 만든다([실험] 07 C20) | [원문] `packages/coding-agent/src/extensions/codemode/execute.ts:462` |
-| 실패한 스크립트의 부수효과 | 출력은 실패 지점까지 남고, 이미 실행된 도구 호출은 되돌려지지 않으며, store 쓰기는 버려진다 | [원문] `packages/codemode/src/types.ts:88-98`, [실험] 대화 L873–889(발췌 1 E1-189) |
+| codemode 변수는 여러 턴에 걸쳐 남는다(v0.3 04 §9의 가정) | 틀림. `CodemodeSandbox`는 `execute()`마다 새 worker 스레드와 새 QuickJS VM을 만든다. JS 변수와 `globalThis` 값은 한 번의 실행에서만 산다 | [원문] `packages/codemode/src/runtime/host.ts:120-124`(`Execution` 주석: 실행마다 worker와 QuickJS VM), `:194`(worker 생성), `:340`(`CodemodeSandbox`), [실험] pi-api-facts-1 §5.4(실험 A2), 대화 L1366–1380 |
+| 실행 사이 상태는 `store()`로 남긴다 | 샌드박스는 저장하지 않는다. 호출자가 `options.store`로 넘기고, 성공한 실행만 `result.storeWrites {set, delete}`를 돌려준다. 값 하나 256Ki자, 전체 1Mi자 | [원문] `packages/codemode/src/types.ts:76-92`(`CodemodeStoreWrites`, `CodemodeResult`), `:135-137`(`store` 옵션), `src/runtime/prelude-source.ts:32-33`(`MAX_STORE_VALUE_CHARS`, `MAX_STORE_TOTAL_CHARS`) |
+| 스크립트에서 채팅 모델을 하위 호출할 수 있다(`llm_query` 전제) | coding-agent의 `codemode` 도구가 넣는 `models.*`는 목록 조회, `classify`, `generateImages`뿐이다. 채팅 모델은 목록에는 나오지만 실행할 수 없다 | [원문] `packages/coding-agent/src/extensions/codemode/execute.ts:623-733`, `packages/coding-agent/docs/codemode.md:62` |
+| 하위 호출 수단 | pi-codemode 패키지 자체는 모델 개념이 없고, 호출자가 `globals`로 호스트 함수를 넣으면 스크립트가 그 함수를 부른다(JSON 왕복, `result.calls`에 기록 안 됨) | [원문] `packages/codemode/src/types.ts:94-102`(`CodemodeSandboxOptions.globals`, 07 §3.1.4), `:15-20`(globals 이름은 식별자 또는 `<namespace>.<member>`), `packages/codemode/README.md` |
+| 스크립트 안 도구 호출의 훅 적용 | coding-agent 통합에서는 `ctx.executeTool()`을 거쳐 인자 검증·훅이 적용된다. Helm에서는 07 §3.12의 브리지(`runNestedToolCall`, 12 런타임이 만들어 `createReplSandbox`에 주입)가 같은 경로를 만든다([실험] 07 C20) | [원문] `packages/coding-agent/src/extensions/codemode/execute.ts:462` |
+| 실패한 스크립트의 부수효과 | 출력은 실패 지점까지 남고, 이미 실행된 도구 호출은 되돌려지지 않으며, store 쓰기는 버려진다 | [원문] `packages/codemode/src/types.ts:76`(성공한 실행만 `storeWrites`), `:84`(실패한 실행도 `output`은 실패 지점까지 남김), [실험] 대화 L873–889(발췌 1 E1-189) |
 | 동시 모델 호출 제한 | coding-agent는 스크립트당 `models.classify()`·`generateImages()`를 최대 4개 동시 실행 | [원문] `packages/coding-agent/src/extensions/codemode/execute.ts:50` |
 | "RLM 방식"이라는 이름 | RLM은 분해 방식을 모델이 정한다. 발산 표는 분해를 코드가 고정하므로 RLM이 아니다 | 감사 보고 §4, 대화 L2438, L1058(발표의 경고 "분해를 사람이 고정한 map-reduce는 RLM이 아니다") |
 | RLM 계열의 효과 근거 | 효과가 확인된 곳은 긴 입력 전체를 훑어 집계·연결하는 과제와 약하거나 저렴한 모델이다. 일상 코딩 작업의 엄밀한 개인 사례는 없다 | [검색] 대화 L1060–1067(발췌 1 E1-222) |
@@ -138,7 +139,7 @@ ID는 02 §3.1 유즈케이스 목록을 따른다.
 
 | 번호 | 가정 | 틀렸을 때 |
 |---|---|---|
-| A15-1 | 데몬은 서로 다른 모델 계열을 둘 이상 쓸 수 있다(예: Anthropic 계열 하나, OpenAI 계열 하나). 키는 SOPS 비밀로 주입된다(브리프 §2.5) | 가지별 다른 모델이 불가능하다. 엔진은 "같은 모델" 표시로 보장 수준을 낮춰 동작한다(§3.4.6) |
+| A15-1 | 데몬은 서로 다른 모델 계열을 둘 이상 쓸 수 있다(예: Anthropic 계열 하나, OpenAI 계열 하나). 키는 데몬 시작 때 `secrets run`으로 받아 SecretStore 메모리에만 둔다(브리프 결정 45) | 가지별 다른 모델이 불가능하다. 엔진은 "같은 모델" 표시로 보장 수준을 낮춰 동작한다(§3.4.6) |
 | A15-2 | 이미지 생성 모델은 선택 사항이다 | 이미지 자극은 웹 레퍼런스 이미지(출처 있는 것)와 구조 자극으로 대신한다(§3.6.3) |
 | A15-3 | 사용자는 하루에 한두 번 탐구 반응을 줄 수 있다 | 자율 정도 다이얼 범위까지만 가정하고 진행하고 멈춘다(§3.4.11) |
 | A15-4 | 반응 해석에 쓸 수 있는 vision 지원 채팅 모델이 하나 이상 있다(`Model.input`에 `image` 포함) | 이미지 자극에 대한 반응은 사용자가 단 요소 라벨과 텍스트로만 해석한다 |
@@ -156,16 +157,17 @@ ID는 02 §3.1 유즈케이스 목록을 따른다.
   on loop.transitioned(to: I.*) | inquiry.stage_completed | question.answered | reaction 기록 …
     reqs = inquiryEngine.planRound(view, resolvedDials)      ← 15 진입점 1 (순수 함수)
     requestWork(clampToContract(r)) for r in reqs             단계 WorkUnit 요청
-  on inquiry.round_ended → boundary round_end (11의 예약 전달)
+  on inquiry.round_ended → boundary.reached(round_end) (11의 예약 전달)
   on inquiry.stop_rule_met → T21 → 루프 계획의 다음 단계
 
 12 런타임
-  단계 WorkUnit 실행 = 엔진 구동 run (RunKind "inquiry", 12에 요구)
+  단계 WorkUnit 실행 = 엔진 구동 run (RunKind "inquiry", 08·12에 요구. §7 O-19)
     inquiryEngine.runStage(stage, ports)                     ← 15 진입점 2
       loop: actions = decideStage(projection, config)        순수 함수
             Executor가 실행: ModelPort / SubRunPort / ReplPort / KernelPort (12 §3.15가 구현)
       가지·검토·확인 하위 실행은 이 run의 자식 run (RunKind "branch" | "subrun" | "verifier", 12 §3.14)
-    단계 끝: inquiry.stage_completed (라운드 끝이면 boundary.reach(round_end) 명령도)
+    단계 끝: inquiry.stage.complete → inquiry.stage_completed
+             라운드 끝이면 inquiry.round.close → inquiry.round_ended, 같은 발화로 runtime.boundary(round_end) → boundary.reached
 ```
 
 - `planRound`와 `decideStage`는 투영과 설정만 받는 순수 함수다. 모델·도구·저장소를 직접 부르지 않는다.
@@ -228,12 +230,12 @@ export interface InquiryPorts {
   kernel: KernelPort;
   model: ModelPort;
   subrun: SubRunPort;
-  repl?: ReplPort;                 // REPL 방식 탐구를 켰을 때만(07 §3.2 "REPL" 단계)
+  repl?: ReplPort;                 // 13 §3.8.3. REPL 방식 탐구를 켰을 때만(07 §3.2 "REPL" 단계)
   clock: Clock;
 }
 
 export interface KernelPort {
-  dispatch(cmd: KernelCommand): Promise<DispatchResult>;          // 명령 이름·형식은 10 소유
+  dispatch(cmd: KernelCommand): Promise<DispatchResult>;          // 명령 이름·형식은 10 §3.11. 탐구 명령은 §3.2.6
   readInquiry(id: InquiryId): Promise<InquiryProjection>;
   readConcernContext(concernId: ConcernId, opts?: { cursor?: Seq }): Promise<ConcernContextProjection>;
   readLensLibrary(): Promise<LensLibraryProjection>;
@@ -243,8 +245,8 @@ export interface KernelPort {
 
 export type DispatchResult =
   | { ok: true; recordIds: RecordId[]; seq: Seq }
-  | { ok: false; rejection: { class: "content" | "qualification" | "path"; code: string; message: string } };
-  // 거부 세 갈래(내용·자격·경로)는 10이 정의한다. 엔진은 class를 보고 재시도 여부를 정한다(§4).
+  | { ok: false; rejection: { class: "content" | "authority" | "path"; code: string; message: string } };
+  // 10 RejectionClass(10 §3.4). 엔진은 class를 보고 재시도 여부를 정한다(§4).
 
 export interface ModelPort {
   call<T>(req: RoleCallRequest<T>): Promise<RoleCallResult<T>>;
@@ -306,7 +308,7 @@ export interface SubRunResult<T> {
 export type EvidenceToolset = "read_target" | "read_docs" | "read_web";
 ```
 
-`UsageRecord`, `ModelRef`, `ModelRole`, `RoleRequirements`는 12 §3.3.2의 타입이다. 비용은 pi-ai `calculateCost`로 계산된 `costUsd`다.
+`UsageRecord`, `ModelRef`, `ModelRole`, `RoleRequirements`는 12 §3.3.2의 타입이다. 비용은 pi-ai `calculateCost`(`pi@v1.1.0:packages/ai/src/models.ts:1200`)로 계산된 `costUsd`다. `ReplPort`·`ReplRequest`·`ReplResult`는 13 §3.8.3의 타입을 그대로 쓴다(§3.12). `SubRunPort.run`이 크래시로 끊기면 12는 재개하지 않고 실패를 돌려준다(12 §3.14.5). 엔진의 재실행 규칙은 §3.1.7이다.
 
 #### 3.1.3 탐구 투영
 
@@ -363,7 +365,7 @@ export interface InquiryProjection {
 | `human_decided` | `human` | `stop_rule_met` |
 | `reframe_needed` | `transition` | `reframe_needed` |
 | `superseded` | `superseded` | — |
-| `concern_closed` | (08에 값 추가 요구) | — |
+| `concern_closed` | `concern_closed` | — |
 
 자율 정도 소진은 멈춤으로 다루지 않는다. 14가 `autonomy_exhausted`로 받아 사람의 답을 기다린다(14 §3.6).
 
@@ -405,7 +407,7 @@ runStage(stage, ports, signal):
 
 | 상태 | 이벤트 | 가드 | 다음 상태 | 부수 효과 |
 |---|---|---|---|---|
-| (없음) | `loop.transitioned(to: I.*)` 후 첫 `planRound` | Concern이 열려 있음, 같은 Concern·같은 루프의 열린 탐구가 없음 | `running` | `inquiry.open` 명령(10에 요구): `Inquiry` 레코드, 다이얼 스냅숏, 발산 강도와 신호 |
+| (없음) | `loop.transitioned(to: I.*)` 후 첫 `planRound` | Concern이 열려 있음, 같은 Concern·같은 루프의 열린 탐구가 없음 | `running` | `inquiry.open` 명령(§3.2.6) → `inquiry.opened`: `Inquiry` 레코드, 다이얼 스냅숏. 발산 강도와 신호는 앵커링 뒤 `inquiry.anchored`에 남긴다(§3.4.2) |
 | `running` | 단계 완료 | 다음 단계가 있음 | `running` | 다음 `planRound` |
 | `running` | 단계 결과 `awaiting_human` | 자극이 제시되었거나 막히는 질문이 기록됨 | `awaiting_human` | 질문 기록(전달은 11) |
 | `awaiting_human` | 반응·답 기록 | 라운드 마감 조건(§3.6.4) 충족 또는 질문 답함 | `running` | 다음 `planRound` |
@@ -414,12 +416,12 @@ runStage(stage, ports, signal):
 | `awaiting_human` | 14가 `autonomy_exhausted` | — | `awaiting_human` | 14가 Concern을 대기로 둠 |
 | `running` | 예산 소진 | — | `stopping` | 진행 중 라운드를 부분 결과로 닫고 열린 질문을 넘김(v0.3 04 §1) |
 | `running`·`awaiting_human` | 멈춤 조건·계획 안정·재정의 필요 | — | `stopping` | 넘김 레코드(§3.14), 전환 제안(§3.4.14) |
-| 비종료 상태 | 사람의 "이대로 진행"(19 `inquiry.stop`) | — | `stopping` | `stopReason = human_decided` |
+| 비종료 상태 | 사람의 "이대로 진행"·"여기서 멈추고 넘기기"·"지금 정하기"(19 `inquiry.stop`·`inquiry.requestDecision` → 10 `inquiry.stop`, "지금 정하기"는 `decide_now`) | — | `stopping` | `stopReason = human_decided`. `decide_now`면 선택 요청 초안(§3.11.1)을 `choice` 질문으로 낸다 |
 | `stopping` | 넘김 dispatch 완료 | — | `closed` | `inquiry.stopped`(레코드 `stopped`), `inquiry.stop_rule_met` 등 14가 받는 이벤트 |
 | 비종료 상태 | Concern 서술 버전 변경(재정의 확정) | — | `running` | 기존 항목에 `frameVersion` 차이 표시, 새 앵커링 단계(§4 E-12) |
 | 비종료 상태 | Concern 닫힘·중단 | — | `closed` | 열린 자식 run 취소(12) |
-| 비종료 상태 | 사람의 일시 정지(19 `work.pause`) | — | `paused` | — |
-| `paused` | 사람의 재개 또는 예산 증액 | — | `running` | — |
+| 비종료 상태 | 사람의 일시 정지, "오늘은 여기까지"(19 `work.pause` → 10 `workunit.pause`, 01 FX-05) | — | `paused` | 열린 기준 후보·자극·질문을 그대로 둔다. 진행 중인 자식 run은 다음 턴 경계에서 멈춘다. 예약 질문의 전달 시점은 다음 `user_return`(11). Concern 개요에 "원함 탐구 멈춤"이 보인다(04) |
+| `paused` | 사람의 재개(19 `work.resume`) 또는 예산 증액 | — | `running` | 멈춘 라운드가 반응을 기다리던 중이면 그 라운드를 이어 간다. 새 라운드를 만들지 않는다 |
 | `running` | 단계 실패(재시도 소진) | — | `paused` | 실패 관찰, 사용자 알림(전달은 11) |
 | 모든 상태 | 데몬 재시작 | — | 같은 상태 | §3.1.7 |
 
@@ -432,13 +434,13 @@ runStage(stage, ports, signal):
 
 #### 3.1.7 크래시 복구
 
-- 단계 항목마다 실행 의도(`inquiry.step_started`, 행동 해시) → 실행 → 결과(`inquiry.step_completed` 또는 `inquiry.step_failed`)를 12의 실행 기록에 남긴다(결정 30).
+- 단계 항목마다 실행 의도 → 실행 → 결과를 12의 실행 기록(12 §3.4.10 `TraceRecord`, 정본 이벤트가 아님)에 `inquiry.step { key, actionHash, state: "started" | "completed" | "failed", reason? }`으로 남긴다(결정 30, 12에 요구). 도메인 이벤트로 남는 것은 그 결과로 dispatch된 명령의 이벤트뿐이다.
 - 재시작 때 12가 끊긴 단계 run을 `interrupted`로 정리하고, 14가 읽기 전용 WorkUnit을 다시 요청한다(14 §3.16.5 규칙 3). 탐구 단계 WorkUnit은 write·send가 없으므로 다시 요청 대상이다. 다시 시작한 `runStage`는 투영을 읽어 끝나지 않은 항목부터 이어 간다.
 
 | 행동 | 재시작 처리 |
 |---|---|
 | `role_call`, `image_gen` | 다시 실행한다. 부수효과가 없다. `memoKey`로 저장된 응답이 있으면 재사용한다 |
-| `sub_run` | 읽기 도구만 쓰므로 다시 실행해도 안전하다. 이미 끝난 자식 run의 결과(실행 기록)가 있으면 재사용한다 |
+| `sub_run` | 이미 끝난 자식 run의 결과(실행 기록)가 있으면 재사용한다. 크래시로 끊긴 자식 run은 12가 실패로 돌려주고(12 §3.14.5), 엔진은 같은 메모 키로 한 번 다시 실행한다. 읽기 도구만 쓰므로 안전하다. 다시 실패하면 그 항목은 `failed`(§4 E-1) |
 | `repl` | §3.12.8 |
 | `dispatch`, `record_question` | 같은 멱등 키로 다시 보낸다. 이미 적용된 명령은 커널이 무시한다(10에 요구) |
 
@@ -462,7 +464,7 @@ ID 접두사는 08 §3.2.2의 최종 목록을 따른다.
 | 탐구 Inquiry | `iq`(08) | E | 커널 | §3.1.3. 관점 행(`perspectives[]`)과 발산 표 칸(`cells[]`)을 담는다 |
 | 렌즈 Lens | `ln`(08) | E(08) | seed 적재, 사람, 관찰 에이전트 제안 → 사람 확인 | §3.9. 렌즈 적용 기록은 레코드가 아니라 관점 행의 `transfer` 필드와 투영이다(§3.9.5) |
 | 구분 확인 DiscriminatingCheck | `dc`(08) | E | 모델 선언, 커널 판정 | 사실 탐구의 확인(§3.5.3), 원함 탐구의 통제 쌍(§3.6.6) |
-| 전제 Assumption | `as`(08) | E | 모델·사람 | 앵커링의 암묵 가정, 근거 없는 해석의 강등, 질문의 임시 가정 |
+| 전제 Assumption | `as`(08) | E | 모델·사람. 질문의 임시 가정은 커널(11 §3.6) | 앵커링의 암묵 가정, 근거 없는 해석의 강등(커널), 질문의 임시 가정(커널이 질문과 함께 만든다. 엔진은 따로 기록하지 않는다) |
 | 열린 질문 OpenQuestion | `oq`(08) | E | 모델·사람 | 앵커링의 모호한 점, 예산 소진 시 넘기는 질문 |
 
 용어집의 "선호 모델: 원함 탐구에서 쌓이는 기준 후보와 반응 기록"을 레코드로 나누면, 기준 후보는 `Possibility(kind="preference_criterion")`, 반응은 `Observation(obsKind="reaction")`, 사람이 확인한 기준만 `PreferenceModel`의 기준이다(D15-6).
@@ -479,9 +481,9 @@ export type EvidenceRef =
 // 엔진이 관찰의 출처를 구분하는 방법. 저장 형식은 08 §3.8.1 Observation(obsKind, source)
 export type ObservationSource =
   | { kind: "tool_result"; toolCallId: ToolCallId; runId: RunId }      // 08 obsKind "tool_result", ToolSource. M 해시는 materialRefs(R8)
-  | { kind: "derived"; scriptToolCallId: ToolCallId; inputToolCallIds: ToolCallId[] }  // §3.12.6. 08에 obsKind "derived" 추가 요구
+  | { kind: "derived"; scriptToolCallId: ToolCallId; inputToolCallIds: ToolCallId[] }  // §3.12.6. 08 obsKind "derived"
   | { kind: "human_utterance"; commandId: CommandId }                  // 08 obsKind "utterance", HumanSource
-  | { kind: "human_reaction"; commandId: CommandId; stimulusId: StimulusId }   // 08 obsKind "reaction"
+  | { kind: "human_reaction"; commandId: CommandId; subjectRef: StimulusId | PossibilityId }   // 08 obsKind "reaction", ReactionPayload.subjectRef
   | { kind: "external"; actor: `external:${string}`; channel: string }  // 08 obsKind "external_response"
   | { kind: "timer"; expectationId: ExpectationId };                   // 08 obsKind "no_response"
 
@@ -521,11 +523,11 @@ export interface PossibilityProposal {
   falsifier?: string;                     // 08 falsifier. 무엇이 관찰되면 틀린 것인가 (perspective·cause 필수)
   foregrounds?: string;                   // perspective: 이 관점이 드러내는 것
   hides?: string;                         // perspective: 이 관점이 가리는 것 (Inquiry Map 템플릿)
-  consequences?: ConsequenceDecl;         // §3.4.9
+  consequences?: ConsequenceDecl;         // §3.4.9. 08 consequences(문장)와 consequenceMarks(08에 요구, §5.2)
   evidence: EvidenceRef[];
   counterEvidence: EvidenceRef[];
   producedBy: ProducedBy;
-  criterion?: CriterionSpec;              // kind = "preference_criterion"
+  criterion?: CriterionSpec;              // kind = "preference_criterion". 08 Possibility.criterion
   transfer?: TransferSteps;               // origin.kind = "lens" (§3.9.1)
 }
 
@@ -543,7 +545,7 @@ export interface CriterionSpec {
 
 #### 3.2.4 지지 등급: 신뢰도 숫자 없이 표시하기 (C4 해결)
 
-원전은 신뢰도 백분율을 피한다(helm-canon §8.6, §8.9 원칙 2, helm-canon-3 §7.1 C4). v0.3 04 §3.4의 선호 모델 예시는 `confidence: 0.8`을 썼다. 이 문서는 다음으로 정한다.
+원전은 신뢰도 백분율을 피한다(helm-canon §8.6, §8.9 원칙 2, helm-canon-3 §7.1 C4). v0.3 04 §3.4의 선호 모델 예시는 `confidence: 0.8`을 썼다. 조정자 판정 J-19는 숫자 confidence를 저장도 표시도 하지 않고, 이 절의 질적 지지 등급과 14의 질적 확신 등급을 쓰기로 정했다. 08 U-11(정렬이 필요하면 계산값으로 쓰고 저장하지 않음)과 같은 뜻이다. 이 문서는 다음으로 정한다.
 
 - 레코드에는 숫자 신뢰도를 저장하지 않는다. 저장하는 것은 근거 id, 반대 근거 id, 독립성 메타데이터, 사람 확인 기록이다.
 - 화면과 모델 입력에 보이는 것은 코드가 계산한 질적 등급과 그 이유다.
@@ -584,31 +586,57 @@ gradeSupport(item, evidence, counter, confirmations):
 
 #### 3.2.5 모델 출력 → 커널 명령 → 레코드
 
-엔진의 출력 타입(§3.13.6)은 모델이 내는 모양이다. 기록은 10의 명령을 거쳐 08의 레코드가 된다. 명령 이름은 10 §3.11.4를 따르고, 10에 없는 것은 §5.2에서 요구한다.
+엔진의 출력 타입(§3.13.6)은 모델이 내는 모양이다. 기록은 10의 명령을 거쳐 08의 레코드가 된다. 명령 이름은 10 §3.11.4와 §3.11.11(2a단계에 더한 탐구 명령), 이벤트 이름은 09 §3.4다. 10에 아직 없는 명령 넷은 §3.2.6에 적고 10에 요구한다.
 
-| 엔진 출력 | 10 명령 | 08 레코드·필드 | 비고 |
-|---|---|---|---|
-| 앵커링의 확실한 것 | `interpretation.propose`(`observationRefs` = 발화 관찰) | `Interpretation` | |
-| 앵커링의 암묵 가정 | `assumption.record` | `Assumption`(`origin.kind = "declared"`, `failureImpact`, `howToTest`) | |
-| 앵커링의 모호한 것, 넘기는 질문 | `open_question.record`(10에 요구) | `OpenQuestion`(`inquiryId`) | |
-| 관점 행 | `possibility.propose`(`inquiry`, `branchId`, `lens`) + `inquiry.perspective.add`(10에 요구) | `Possibility(possibilityKind="perspective")`, `Inquiry.perspectives[]` | `ifTrue`=`prediction`, `falsifier`, `nextCheck` |
-| 원인 후보, 해법, 기준 후보, 실패 경로 | `possibility.propose` | `Possibility`(`cause`·`solution`·`preference_criterion`·`failure_path`), `origin.cellKey`·`lensId`·`branchRunId`, `citations` | `nextDiscriminatingCheck`(10 필수) = 엔진의 다음 구분 확인 서술 |
-| 칸 상태 | `inquiry.cell.update`(10에 요구) | `Inquiry.cells[]` | |
-| 근거 연결, 검토의 반대 근거 | `claim.link_evidence`(`kind: support | counter`) | `EvidenceLink` | 검증 에이전트는 `counter`만 |
-| 반대 근거 탐색 | 탐색 도구 호출(`purpose: "counter_search"`) 후 `claim.record_counter_search` | `CounterSearch` | 10 §8의 요구 (3) |
-| 구분 확인 선언·관찰 | `claim.declare_discrimination` → 확인 실행 → `claim.bind_discrimination` | `DiscriminatingCheck`(`dc`) | 선언은 확인 실행 전(10 §8 요구 (2)). 08과 10의 필드 차이는 §5.2 |
-| 승격 제안 | `finding.promote`(`usage`) | `Finding` | |
-| 자극 | `stimulus.create`(10에 요구) → `stimulus.present` | `Stimulus` | 10에는 `present`만 있다 |
-| 반응 | 사람 채널 `reaction.record`(19) → `observation.record`(`reactionTo`) | `Observation(obsKind="reaction")` | |
-| 반응 구조화(자유 발화) | `interpretation.propose` | `Interpretation`(근거: 발화 관찰) | |
-| 기준 확인 | `preference.criterion.propose` → 사람 `preference.criterion.confirm`·`reject` | `PreferenceModel.criteria[]` | |
-| 예측 | `prediction.propose` | `Prediction` | |
-| 질문 | 11의 질문 기록 명령 | `Question` | 종류 대응은 §3.4.10 |
-| Concern 재정의 | `concern.reframe`(근거 refs, 에이전트면 autonomy) | `Concern` 서술 버전 | §3.4.12 |
-| Goal 수정 제안 | `goal.revision.propose`(10) | `Goal` 수정 제안 | 확정은 사람 |
-| 가능성 기각·병합·고정 | `possibility.dismiss`·`merge`·`pin`(10에 요구) | `Possibility.status`, 링크 `merged_into` | 사람 채널과 엔진 모두 |
-| 라운드 끝 | `boundary.reach(round_end)` | — | 10 §8 요구 (5) |
-| 탐구 열기·라운드·멈춤 | `inquiry.open`·`inquiry.round.close`·`inquiry.stop`(10에 요구) | `Inquiry.rounds[]`, `stop` | |
+| 엔진 출력 | 명령 | 이벤트(09) | 08 레코드·필드 | 비고 |
+|---|---|---|---|---|
+| 앵커링의 확실한 것 | `interpretation.propose`(근거 = 발화 관찰) | `interpretation.proposed` | `Interpretation` | |
+| 앵커링의 암묵 가정 | `assumption.record` | `assumption.recorded` | `Assumption`(`origin.kind = "declared"`, `failureImpact`, `howToTest`) | |
+| 앵커링의 모호한 것, 넘기는 질문 | `open_question.record` | `open_question.recorded` | `OpenQuestion`(`inquiryId`) | |
+| 앵커링의 나머지(완료 기준 초안, 신호, 분야 용어, 문제 분야, 확정한 발산 강도, 계열 다양성) | `inquiry.anchor` | `inquiry.anchored`(본문은 blob) | — | §3.4.2, §3.4.4 |
+| 관점 행 | `possibility.propose`(`possibilityKind: "perspective"`, `origin.kind: "direction" \| "lens"`, `perspectiveKey`, `branchRunId`) + `inquiry.perspective.add` | `possibility.proposed`, `inquiry.perspective_added` | `Possibility`, `Inquiry.perspectives[]`(`possibilityId`, `direction`, `transfer`) | `ifTrue` = `prediction`, `falsifier`, `nextCheck` |
+| 원인 후보, 해법, 기준 후보, 실패 경로 | `possibility.propose` | `possibility.proposed` | `Possibility`(`cause`·`solution`·`preference_criterion`·`failure_path`), `origin.cellKey`·`lensId`·`branchRunId`, `citations`, `consequences`, `criterion`, `feasibility` | `nextCheck` = 엔진의 다음 구분 확인 서술 |
+| 칸 닫기 | `inquiry.cell.update` | `inquiry.cell_closed` | `Inquiry.cells[]` | `filled` 또는 `not_applicable`과 이유. 실행 중 표시는 실행 기록 |
+| 근거 연결, 검토의 반대 근거 | `claim.link_evidence`(`relation: supports \| challenges \| qualifies \| invalidates`) | `claim.evidence_linked` | `EvidenceLink` | 검증 에이전트(검토자)는 `challenges`·`invalidates`만(10 §3.11.4) |
+| 반대 근거 탐색 | 탐색 도구 호출(`purpose: "counter_search"`) 뒤 `claim.record_counter_search` | `claim.counter_searched` | `CounterSearch` | |
+| 구분 확인 선언·관찰 | `claim.declare_discrimination`(`core: DiscriminatingCheckCore`) → 확인 실행 → `claim.bind_discrimination` | `check.declared` → `check.observed` | `DiscriminatingCheck`(`dc`) | 선언은 확인 실행 전 |
+| 승격 제안 | `finding.promote`(`usage`) | `finding.promoted`(행위자 kernel) | `Finding` | 규칙은 10 §3.9(판정 J-18) |
+| 자극 | `stimulus.create` → `stimulus.present` | `stimulus.created` → `stimulus.presented`(`order`, `shuffleSeed`) | `Stimulus` | |
+| 통제 쌍 제시 | `inquiry.present_contrast`(10에 요구, §3.2.6) | `contrast.presented` | — | §3.6.6. 두 자극은 같은 라운드에 이미 `presented` |
+| 반응 | 사람 채널 19 `reaction.record` → 10 `observation.record`(`obsKind: "reaction"`, `ReactionPayload`) | `observation.recorded` | `Observation`, `ReactionPayload`(08 §3.17.4) | 대응은 §3.6.4 |
+| 반응에 이유 덧붙이기 | `reaction.amend`(사람) | `observation.annotated` | 관찰 주석 | |
+| 반응 철회 | `reaction.withdraw`(사람) | `observation.retracted` | `Observation.retracted` | 근거 계산에서 빠지고, 그 근거로 선 기준은 `stale`(08 §3.17.4) |
+| 반응 구조화(자유 발화) | `interpretation.propose` | `interpretation.proposed` | `Interpretation`(근거: 발화 관찰) | |
+| 기준 후보 | `preference.criterion.propose` | `possibility.proposed`(+ `question.recorded` 종류 `criterion_confirm`) | `Possibility(preference_criterion)` | 질문을 붙이는 조건은 §3.6.7 |
+| 기준 확인 | 사람이 `criterion_confirm` 질문에 답함 → `preference.criterion.confirm`·`reject` | `preference.criterion_confirmed`·`possibility.rejected`, 커널 파생 `preference_model.versioned` | `PreferenceModel.criteria[]` | §3.6.7 |
+| 기준 무게·이름 수정, 폐기 | `preference.criterion.revise`·`retire`(사람) | `preference.criterion_revised`·`criterion_retired` | `PreferenceModel.criteria[]` | |
+| 좋은 예·싫은 예 | `preference.mark_example`(10에 요구) | `preference.example_marked` | `likedStimuli`·`dislikedStimuli` | U6 |
+| 말한 기준과 반응의 차이 | `preference.note_divergence`(10에 요구) / 화면에 실린 뒤 런타임이 `preference.show_divergence`(10에 요구) | `preference.divergence_noted` / `preference.divergence_shown` | `statedVsRevealed[]`(`shownToUserSeq`) | U5. 16 지표 `want.stated_vs_revealed`의 입력 |
+| 예측 | `prediction.propose` | `prediction.recorded` | `Prediction` | |
+| 질문 | 11 `question.raise`(런타임 채널, 엔진이 낸다) | `question.recorded` | `Question` | 종류 대응은 §3.4.10. 비막힘 질문의 전제는 커널이 만든다 |
+| Concern 재정의 | `concern.reframe`(근거 refs, 에이전트면 autonomy) | 10 §3.11.3 | `Concern` 서술 버전 | §3.4.12 |
+| Goal 수정 제안 | `goal.revision.propose` | 10 §3.11.2 | `Goal` 수정 제안 | 확정은 사람 |
+| 가능성 기각·병합·고정 | `possibility.dismiss`·`merge`·`pin`·`unpin` | `possibility.dismissed`·`merged`·`pinned`·`unpinned` | `Possibility.status`, `mergedInto`, `pinned` | 사람 채널과 엔진(병합만) |
+| 단계 완료 | `inquiry.stage.complete` | `inquiry.stage_completed` | — | |
+| 라운드 시작·끝 | `inquiry.round.start` / `inquiry.round.close` | `inquiry.round_started`(`planHash`) / `inquiry.round_ended`(`leaderRef`) | `Inquiry.rounds[]` | §3.4.14. 사람의 "라운드 마치기"(19 `stimulusRound.close`)도 `inquiry.round.close`다 |
+| 라운드 끝 경계 | `runtime.boundary`(`boundary: "round_end"`). `inquiry.round.close`와 같은 발화(10 §3.11.11) | `boundary.reached` | — | 11의 예약 전달 시점 |
+| 탐구 멈춤 | `inquiry.stop`(이유, 사람이면 `decide_now` 가능) | 규칙 충족이면 `inquiry.stop_rule_met`, 그리고 `inquiry.stopped` | `Inquiry.stop`, `status = stopped` | 넘김 기록은 §3.14. `stop_rule_met`은 14 T21 입력 |
+| 사람의 다음 확인 고정 | `check.pin` | 09에 `check.pinned` 요구(10 §3.11.11) | — | |
+
+#### 3.2.6 탐구 명령: 10에 더 요구하는 것
+
+10 §3.11.11이 탐구 명령(`inquiry.open`·`anchor`·`perspective.add`·`cell.update`·`round.start`·`round.close`·`stage.complete`·`stop`, `possibility.dismiss`·`merge`·`pin`·`unpin`, `lens.*`, `preference_model.create`, `preference.criterion.revise`·`retire`, `reaction.amend`·`withdraw`, `check.pin`)을 정본으로 더했다. 엔진은 그 이름을 쓴다. 엔진 실행기가 내는 명령은 채널 `R` + `declaredBy`(14와 같은 방식)이고, 멱등 키는 `stage.stageKey + ":" + 항목 키 + ":" + 순번`이다(§3.1.4).
+
+09 이벤트는 있지만 10에 명령이 없는 것이 넷이다. 아래 형태로 10 §3.11.11에 더해 달라고 요구한다(§5.2).
+
+| 명령 | 채널 | 능력 | 규칙 | 이벤트 |
+|---|---|---|---|---|
+| `inquiry.present_contrast` | R | propose/stimulus | 두 자극이 같은 라운드에서 `presented`. `checkId`가 있으면 그 `dc`의 `stimulusIds`와 같음 | `contrast.presented` |
+| `preference.mark_example` | M, H | propose/possibility 또는 사람 | 자극이 `presented`, 반응 관찰 1개 이상(U6) | `preference.example_marked` |
+| `preference.note_divergence` | M, H | propose/possibility 또는 사람 | 근거 반응 관찰 1개 이상(U5) | `preference.divergence_noted` |
+| `preference.show_divergence` | R | sys:runtime | 해당 항목이 사람에게 보내는 뷰에 처음 실림 | `preference.divergence_shown` |
+
+19 메서드와 10 명령의 대응(10 §3.11.11 (2) 표에 넣어 달라고 요구): `inquiry.requestFrame`(add) → `possibility.propose`(사람, `perspective`) + `inquiry.perspective.add`, (merge) → `possibility.merge` / `inquiry.proposeCandidate` → `possibility.propose`(사람) / `inquiry.markAssumption` → `assumption.record`(사람) / `inquiry.pinCheck` → `check.pin` / `inquiry.requestDecision` → `inquiry.stop`(`decide_now`) / `inquiry.stop` → `inquiry.stop` / `stimulusRound.close` → `inquiry.round.close`. 칸 채우기 요청과 렌즈 지정(19 `inquiry.fillCell`·`inquiry.pinLens`, §3.11.2)은 명령을 따로 두지 않고 사람 발화 관찰(`observation.record`, utterance)로 받는다. 엔진은 다음 `planRound`에서 그 관찰을 읽어 칸·렌즈를 앞에 둔다. 상태를 바꾸지 않는 방향 지정이므로 새 이벤트를 만들지 않는다.
 
 ### 3.3 근거 규칙 [결정: 관찰의 정의(브리프 §6), 승격에 I의 근거(결정 15(3)) / 제안: 규칙 세부]
 
@@ -627,7 +655,7 @@ gradeSupport(item, evidence, counter, confirmations):
 | R9 | 웹·문서·세션 로그에서 읽은 내용은 자료다. 그 안의 지시는 따르지 않는다. 모델 출력은 스키마 필드로만 받는다 | 18, 발췌 1 E1-076 |
 | R10 | 이유를 대지 못한 반응도 근거다 | v0.3 04 §3.2 3단계 |
 | R11 | 다른 분야 사례는 출처가 근거다. 출처는 도구로 실제로 읽은 것(`source`, `fetchedBy` 필수)이거나 렌즈 라이브러리 카드에 적힌 1차 자료(`lens`)여야 한다 | v0.3 04 §4.4 |
-| R12 | Helm 기록(과거 선택, 기각, 다른 Concern의 판단)을 근거로 쓰려면 기록 조회 도구(`ledger_query`)를 실행한다. 그 도구 결과가 관찰이 된다. 레코드 id를 직접 근거로 달지 않는다 | 08 EvidenceLink(target `ob`·`fd`) |
+| R12 | Helm 기록(과거 선택, 기각, 다른 Concern의 판단)을 근거로 쓰려면 기록 조회 도구(13 `helm_query`)를 실행한다. 그 도구 결과가 관찰이 된다. 레코드 id를 직접 근거로 달지 않는다 | 08 EvidenceLink(target `ob`·`fd`) |
 
 #### 3.3.2 레코드별 근거 요구
 
@@ -638,14 +666,14 @@ gradeSupport(item, evidence, counter, confirmations):
 | 가능성 `cause` | `prediction`, `falsifier` 필수. 근거 ≥ 1이면 `grounded` | 근거 없음 묶음 | 엔진 |
 | 가능성 `solution` | 근거 ≥ 1(관찰 또는 출처 인용)이면 `grounded` | 근거 없음 묶음 | 엔진 |
 | 가능성 `preference_criterion` | 반응 관찰 ≥ 1, 또는 `origin.method = "stated"`이면 표현된 요구 관찰 ≥ 1 | 거부 | 10 |
-| 예측 | 근거 ≥ 1, `checkAt`, `checkMethod` 필수 | 거부(v0.3 04 §5.6) | 10 |
+| 예측 | 근거 ≥ 1, 확인 트리거와 방법(08 `check: { trigger, method }`) 필수 | 거부(v0.3 04 §5.6) | 10 |
 | 판단 승격 | §3.5.6 | 승격 제안을 만들지 않음 | 엔진 준비, 10 집행 |
 | 자극 `reference` | 출처를 도구로 읽은 기록 | 거부 | 엔진 |
 | 선호 모델 기준 확정 | 기준 확인 질문에 대한 사람의 답 | 거부(자격) | 10 |
 
 #### 3.3.3 근거 범위와 도구 묶음
 
-근거 범위 다이얼(`evidenceScope`, 14 §3.11.1) 값에 따라 하위 실행에 주는 도구 묶음이 정해진다. 도구 이름과 구현은 13이 소유한다.
+근거 범위 다이얼(08 키 `inquiry.evidence_range`, 14 §3.11.2 타입의 `evidenceScope`) 값에 따라 하위 실행에 주는 도구 묶음이 정해진다. 도구 이름과 구현은 13 §3.2.3이 소유한다.
 
 | 다이얼 값 | `EvidenceToolset` | 도구(원시 행동) |
 |---|---|---|
@@ -653,7 +681,7 @@ gradeSupport(item, evidence, counter, confirmations):
 | `docs`(문서까지, 기본값) | `read_docs` | 위 + 로컬 문서 폴더 읽기(사용자가 허용한 경로) |
 | `web`(웹까지) | `read_web` | 위 + 웹 검색, 웹 페이지 가져오기 |
 
-Helm 기록 조회(`ledger_query`)는 어느 값에서도 들어간다. "내 ledger"를 근거로 쓰는 경로다(대화 L1645). 조회 결과는 도구 결과 관찰이다(R12).
+Helm 기록 조회(`helm_query`)는 어느 값에서도 들어간다(13 §3.2.3). `read_web`은 1차 범위 밖이므로 요청하면 13이 `read_docs`로 낮추고 결과에 표시한다(E-6). "내 ledger"를 근거로 쓰는 경로다(대화 L1645). 조회 결과는 도구 결과 관찰이다(R12).
 
 #### 3.3.4 사전 근거 검사
 
@@ -719,13 +747,13 @@ I 루프에 들어갈지, 어느 탐구를 쓸지는 14가 루프 계획으로 �
 |---|---|---|
 | S1 목표가 흐림 | 앵커링에서 완료 기준을 한 문장으로 쓰지 못함(`successConditionDraft = null`) | 진입 조건(v0.3 01 §3.3) |
 | S2 "뭘 원하는지 모르겠다" | 사용자 발화 관찰을 앵커링 역할이 분류하고 발화 관찰 id를 인용 | 진입 계기 2(대화 L1634) |
-| S3 잦은 정정 | 관찰 에이전트가 같은 Goal이나 같은 종류의 Concern에서 "아니, 그게 아니라" 같은 정정이 반복됨을 기록한 신호 레코드(16) | 진입 계기 3(대화 L1577, L1634) |
+| S3 잦은 정정 | 16 §3.9.5가 정한 두 원천을 읽는다. (1) Helm 기록: 같은 범위(프로젝트·Goal·Concern 종류)에서 14일 동안 정정 3회 이상이면 마지막 발화 관찰에 붙는 주석 `annKind: repeated_correction`. 도메인 기록이므로 근거로 인용할 수 있다. (2) 외부 세션: 관찰 보고 `correction_signal`의 투영 `observer_signal`(16 §3.24.1). 근거로 인용하지 않고 발산 강도 입력으로만 쓴다 | 진입 계기 3(대화 L1577, L1634) |
 | S4 취향에 달림 | 앵커링이 판정. 상황 판정(14)의 "복합"과 함께 쓰면 확실하다 | 결정 1, v0.3 05 |
 | S5 관점·해법이 나뉨 | 원인·해법 후보가 둘 이상인데 아직 구분하지 못함 | 진입 조건 |
 | S6 이유 없는 부정 반응 | 사용자가 결과에 "뭔가 아니다"라고 반응(관찰) | v0.3 01 §3.7 |
 
 ```text
-divergenceMode(kind, signals, breadth):          # breadth = 14 다이얼 7 (narrow | normal | wide)
+divergenceMode(kind, signals, breadth):          # breadth = 14 다이얼 7 `inquiry.breadth` (narrow | normal | wide)
   base =
     kind in {I.want, I.possibility}: (S2 or S3 or S4 or S6 or (S1 and S5)) ? "wide" : "narrow"
     kind == I.fact:                  (S1 or S3 or S5) ? "narrow" : "off"
@@ -735,7 +763,7 @@ divergenceMode(kind, signals, breadth):          # breadth = 14 다이얼 7 (nar
   return base
 ```
 
-발산 강도와 신호는 탐구를 여는 `inquiry.open` 명령의 이벤트에 함께 기록한다. 사용자는 관점 폭 다이얼(`breadth`)을 바꿔 다음 라운드부터 강도를 바꿀 수 있다(Directability). 14는 `breadth`의 해석을 15에 맡겼다(14 §3.11.1).
+발산 강도는 두 번 계산한다. 탐구를 열 때는 앵커링 전에 아는 신호(S3, S6, 탐구 종류, `breadth`)로 첫 값을 정해 `inquiry.opened`에 남긴다(10 §3.11.11). 앵커링 뒤에는 S1·S2·S4·S5를 더해 다시 계산하고 확정값을 `inquiry.anchored`에 남긴다. 사용자는 관점 폭 다이얼(`breadth`)을 바꿔 다음 라운드부터 강도를 바꿀 수 있다(Directability). 14는 `breadth`의 해석을 15에 맡겼다(14 §3.11.1).
 
 방향별 관점 행 수:
 
@@ -870,7 +898,7 @@ assignModel(direction, index, rootModel) → RoleRequirements      # 12 §3.3.2.
 
 예산이 남으면 근거 없는 가능성 중 결과 선언이 가장 이질적인 것부터(§3.4.9의 거리 기준) 최대 3개까지 근거 찾기 하위 실행(`ground_retry`)을 한 번 돌린다. "이 가능성을 확인하거나 반박할 관찰을 찾아라." 찾으면 근거를 붙이고, 반박 근거를 찾으면 반대 근거로 붙인다.
 
-**적대적 검토.** 대화의 "수렴: 적대적 검증으로 약한 가지를 쳐 낸다"(대화 L1574)를 새 컨텍스트의 반대 검토로 구현한다. 검토자는 검증 에이전트와 같은 능력을 가진다: 반대 근거 제안(`propose:counterEvidence`)과 읽기만 한다(발췌 4 1-9, v0.3 07 §4 "검증").
+**적대적 검토.** 대화의 "수렴: 적대적 검증으로 약한 가지를 쳐 낸다"(대화 L1574)를 새 컨텍스트의 반대 검토로 구현한다. 검토자는 검증 에이전트와 같은 능력을 가진다: 반대 근거 제안(10 `propose/counter_evidence`)과 읽기만 한다(발췌 4 1-9, v0.3 07 §4 "검증").
 
 | 항목 | 내용 |
 |---|---|
@@ -933,6 +961,7 @@ dedupe(items):
 
 - K = Goal 성공 조건 + Goal 보존 제약 + 선호 모델 기준(확정된 것과 `consistent` 이상 후보) + 앵커링의 모호한 점 중 기준 성격을 가진 것. K가 비어 있으면 앵커링의 모호한 점으로 임시 K를 만든다.
 - 선언은 해석이다. 화면에 "에이전트의 결과 추정"으로 표시한다.
+- 기록: 08 `Possibility.consequences`(문장 배열)에는 `[gainsText, lossesText]`를 넣고, 기준별 표시(`marks`)는 08에 `consequenceMarks: Record<기준 키, -1 | 0 | 1>` 필드를 요구한다(§5.2). 08이 필드를 더하기 전에는 결과 선언을 해석(`interpretation.propose`, 근거 = 대상 가능성의 근거 관찰, 본문에 `marks`)으로 기록하고, 투영이 그 해석에서 `marks`를 읽는다.
 
 ```ts
 export interface ConsequenceDecl {
@@ -960,11 +989,12 @@ contrastOrder(items, frontSize, pinned):
   return { order, front, folded, noDivergence: false }
 ```
 
-- `frontSize`는 표시 설정이다. 기본 3이며(원전 C3의 처리안과 같음), 14가 다이얼로 노출할지 정한다(§5.2).
+- `frontSize`는 표시 설정이다. 기본 3이며(원전 C3의 처리안과 같음), 다이얼이 아니다(14 §3.20.4). 화면(05·21)과 데몬 설정 `[inquiry]`이 같은 값을 쓴다.
 - 반대 근거와 이견은 접지 않는다. 앞줄 항목에 붙은 반대 근거는 펼친 상태로 보인다(A9, v0.3 09 §4.5).
 - 앞줄 문장은 코드가 템플릿으로 만든다: "{요약}: {얻는 것}을 얻고 {잃는 것}을 잃는다." 잃는 것이 `null`이면 "잃는 것은 아직 확인되지 않았다"로 쓰고 불확실성으로 표시한다. 모델이 쓴 홍보 문장을 앞줄 문장으로 쓰지 않는다.
 - 출력은 트리 대신 대비 형식으로 보인다. 사람은 "무엇을 원하세요?"보다 "이쪽은 이것을 잃는데 괜찮은가?"에 바로 반응한다(대화 L1659).
-- 정렬 자체는 투영에서 계산한다. 사용자에게 보인 순서는 `contrast.presented` 이벤트로 남긴다(첫 항목 끌림 분석과 반응의 맥락 기록용).
+- 정렬 자체는 투영에서 계산한다. 같은 cursor에서는 같은 순서가 나오므로(결정적), 보인 순서를 따로 이벤트로 남기지 않는다. 반응의 맥락은 반응 관찰의 cursor와 라운드 번호로 다시 계산한다. 09의 `contrast.presented`는 원함 탐구의 통제 쌍 제시(§3.6.6)에만 쓴다.
+- 접힘 사유(`foldedReason`, 04 `InquiryView`, 21 요구): `order`(앞줄 밖), `no_evidence`(근거 없음), `previously_rejected`(같은 Goal에서 기각됨, 시각·이유), `frame_changed`(이전 Concern 서술 기준, E-12). 이 넷 외의 이유로 접지 않는다.
 - `noDivergence = true`는 "결과가 서로 다르지 않음" 신호다. 질문 가치 계산과 정지 규칙의 입력이 된다.
 
 #### 3.4.10 질문 하나 고르기
@@ -972,14 +1002,16 @@ contrastOrder(items, frontSize, pinned):
 대비 압축과 함께 묻는 질문은 하나다(대화 L1648 "가장 정보 가치가 큰 질문 1개", L2440 "답에 따라 1순위 해법이 바뀌는가"). 후보는 모델이 내고, 고르는 것은 코드다(v0.3 04 §8).
 
 ```ts
-// 08 QuestionKind(§3.13)의 부분집합 + 08에 추가 요구하는 두 값
+// 08 QuestionKind(§3.13)의 부분집합
 export type QuestionKindI =
   | "fact"               // 사실을 묻는 정보 질문 (08)
   | "reference_scope"    // 참고 자료 범위 (08)
   | "criterion_confirm"  // 기준 후보를 선호 모델에 올려도 되는가 (08)
   | "goal_revision"      // Goal 수정 확정 (08)
-  | "triad"              // 세 개 비교: 둘은 비슷하고 하나는 다른데 무엇 때문인가 (08에 추가 요구)
-  | "reframe_confirm"    // 재정의된 문제 서술로 진행해도 되는가 (08에 추가 요구)
+  | "triad"              // 세 개 비교: 둘은 비슷하고 하나는 다른데 무엇 때문인가 (08, 11 형식 reaction)
+  | "reframe_confirm"    // 재정의된 문제 서술로 진행해도 되는가 (08, 11 형식 confirm_candidate)
+  | "stimulus_round"     // 다음 자극 묶음 반응 요청 (08, 11 형식 reaction). 점수 경쟁 없이 라운드마다 하나
+  | "stop_condition"     // 멈출 조건 충족 뒤 진행 여부 (08). 반응 감소 때 "지금 선호 모델로 초안 먼저" 제안(§3.6.8)
   | "choice";            // 선택 요청 (08). 원함 탐구에서는 버림(08 R-23, 10 V-Q-03)
 
 export interface QuestionCandidate {
@@ -1003,8 +1035,8 @@ chooseQuestion(cands, currentTop, kind):
   return q*
 ```
 
-- 고른 질문은 11의 질문 레코드(08 §3.13)로 기록한다. 기본값: 정보 게이트, `blocking = false`, 임시 가정 = 현재 1순위(또는 현재 기준 후보를 적용한 상태), 가정 만료점 = `{ kind: "before_loop", loop: "C.commit" }` 트리거(08 §3.4.4, "다음 C.commit 작업 합의 전"). 08은 막히지 않는 정보 게이트 질문에 전제 레코드를 요구하므로 엔진은 임시 가정을 먼저 `assumption.record`(`origin.kind = "question"`)로 남긴다. `reasons`는 `high_uncertainty`(정보 질문), `value_conflict`(기준 확인·세 개 비교), `missing_context`(참고 범위) 중에서 고른다. 전달 방식과 시점은 11이 정한다(I 루프 기본은 라운드 경계 예약, v0.3 06 §5, 14 §3.11.1).
-- 원함 탐구 밖의 `choice` 질문(선택 요청)은 10 V-Q-02에 따라 응답 선택지에 기준 수정·질문 재구성·먼저 실험·연기·범위 줄이기가 붙는다. 이 선택지는 11·10이 붙이고, 엔진은 질문 본문과 대안(대비 순서)만 만든다.
+- 고른 질문은 11 `question.raise`(런타임 채널, 11 §3.18)로 기록한다. 기본값: 정보 게이트, 막힘 없음(`blocks = nothing`), 임시 가정 = 현재 1순위(또는 현재 기준 후보를 적용한 상태), 가정 만료점 = `{ kind: "before_loop", loop: "C.commit" }` 트리거(08 §3.4.4, "다음 C.commit 작업 합의 전"). 임시 가정은 질문 페이로드에만 넣는다. 전제 레코드(`origin.kind = "question"`)는 커널이 질문과 같은 트랜잭션에서 만들고 엔진은 따로 기록하지 않는다(11 §3.6, 08 R-23). `reasons`는 `high_uncertainty`(정보 질문), `value_conflict`(기준 확인·세 개 비교), `missing_context`(참고 범위) 중에서 고른다. 전달 방식과 시점은 11이 정한다(I 루프 기본은 라운드 경계 예약, v0.3 06 §5, 14 §3.11.1).
+- 응답 선택지는 질문마다 저장하지 않고 질문 종류의 형식이 정한다(11 §3.2.3). 원함 탐구 밖의 `choice` 질문(선택 요청)에는 기준 수정·질문 재구성·먼저 실험·연기·범위 줄이기가 붙는다. 엔진은 질문 본문과 대안(대비 순서)만 만든다.
 - 고르지 않은 후보는 탐구 투영에 남는다. 사용자가 열어 볼 수 있지만 전달하지 않는다.
 - 권리 게이트에 해당하는 내용(예: 외부 리뷰어에게 보내기)은 이 계산을 거치지 않는다. 11의 권리 게이트 규칙을 따른다.
 
@@ -1012,8 +1044,9 @@ chooseQuestion(cands, currentTop, kind):
 
 반응 형식과 라운드 마감 조건은 §3.6.4에 정의한다. 이 절은 발산 결과에 대한 반응의 처리만 정한다.
 
-- 사용자는 앞줄이든 접힌 항목이든 어느 항목에나 반응할 수 있다. 반응 대상은 항목 전체, 항목의 요소(문장·구간), 결과 선언의 특정 기준일 수 있다. 가능성에 대한 반응도 자극에 대한 반응과 같은 형식(`reaction.record`)으로 받는다. 이를 위해 08 `ReactionPayload.stimulusId`를 `subjectRef: StimulusId | PossibilityId`로 넓히고, 10의 반응 기록이 I.possibility·I.fact에서도 열리도록 요구한다(§5.2). 그 전에는 가능성 반응을 사람 발화 관찰과 해석으로 받는다.
-- 반응이 없으면 자율 정도 다이얼(`autonomy`, 사람 답 없이 진행할 라운드 수, 기본 2, 14 §3.11.1)까지 임시 가정으로 다음 라운드를 진행한다. 그 뒤에는 14가 `autonomy_exhausted`로 기다린다. 원함 탐구는 반응이 근거이므로, 반응 없이 진행한 라운드는 새 자극을 만들지 않고 이미 있는 반응으로 기준 추론만 다시 한다.
+- 사용자는 앞줄이든 접힌 항목이든 어느 항목에나 반응할 수 있다. 반응 대상은 항목 전체, 항목의 요소(문장·구간), 결과 선언의 특정 기준일 수 있다. 가능성에 대한 반응도 자극에 대한 반응과 같은 형식으로 받는다. 08 `ReactionPayload.subjectRef`가 `st_`와 `ps_`를 모두 받으므로(08 §3.17.4), 가능성 반응은 `subjectRef = ps_`로 보낸다(08 §5.2 요구 (3)에 대한 답). 19 `ReactionRecordParams`는 아직 `stimulusId`만 있으므로 `subjectRef`로 넓히도록 19에 요구한다(§5.2).
+- 대비 반응(05 §3.2.7 "이걸 잃어도 괜찮음 / 이건 잃으면 안 됨 / 모르겠음")은 가능성 반응이다. `subjectRef = ps_`, `target = { kind: "element", elementId: "loss:<기준 키>" }`로 잃는 쪽 기준을 가리킨다. "잃어도 괜찮음"은 `intensity: +1`, "잃으면 안 됨"은 `intensity: -2`, "모르겠음"은 `intensity: null`, `reason: "unsure"`다. 엔진에서의 뜻: 괜찮음은 그 기준의 무게가 낮다는 근거, 안 됨은 높다는 근거, 모르겠음은 무게 근거가 아니며 그 기준을 묻는 질문의 가치를 올린다(§3.4.10). 하나를 고르는 버튼은 두지 않는다.
+- 반응이 없으면 자율 정도 다이얼(08 키 `inquiry.autonomy_rounds`, 사람 답 없이 진행할 라운드 수, 기본 2, 14 §3.11.1)까지 임시 가정으로 다음 라운드를 진행한다. 그 뒤에는 14가 `autonomy_exhausted`로 기다린다. 원함 탐구는 반응이 근거이므로, 반응 없이 진행한 라운드는 새 자극을 만들지 않고 이미 있는 반응으로 기준 추론만 다시 한다.
 - 대화창의 자유 발화도 반응으로 받는다. 발화는 관찰(사람 발화)이고, 역할 `reaction_structure`가 이를 반응 구조(대상, 형태, 강도)로 해석한 결과는 해석으로 기록한다. 사용자는 이 해석을 고쳐 말할 수 있다.
 
 #### 3.4.12 ⑥ 반응 → N 전이
@@ -1030,7 +1063,7 @@ chooseQuestion(cands, currentTop, kind):
 | 반응이 서로 따로 움직이는 두 묶음을 보임(예: 주제와 형식) | S.split 전환 제안 | 14 | v0.3 03 §9.1 |
 | 사용자가 명시적으로 "이걸로 하자" | 엔진은 만들지 않는다. 사람 채널의 선택 명령(10)이 Choice를 만든다 | 사람 | A6, 결정 18 |
 | 확정 기준과 반대되는 반응 | 해당 기준에 반대 근거 연결 → 기준 `contested`, 다시 볼 조건 확인 | 커널 | A13 |
-| 말한 기준과 실제 반응이 다름 | `stated_vs_revealed` 항목 추가 제안, 사용자에게 보임 | 커널 기록, 사람 확인 | v0.3 04 §3.4 |
+| 말한 기준과 실제 반응이 다름 | `preference.note_divergence` → `preference.divergence_noted`. 화면에 실리면 `preference.divergence_shown` | 커널 기록, 사람이 봄 | v0.3 04 §3.4, U5 |
 
 #### 3.4.13 개인 이력 반영
 
@@ -1059,7 +1092,7 @@ export interface PlanFingerprint {
   goalVersion: number;
   pendingNProposals: number;              // 미결 Goal 수정 제안·재정의 확인 질문 수
   bestQuestionScore: number;              // §3.4.10의 score(q*)
-  hash: string;                           // 위 필드(round, hadHumanInput, bestQuestionScore 제외)의 sha256. 08 Inquiry.rounds[].planHash로 저장 요구
+  hash: string;                           // 위 필드(round, hadHumanInput, bestQuestionScore 제외)의 sha256
 }
 ```
 
@@ -1073,6 +1106,7 @@ planStable(fps):
   return false
 ```
 
+- 지문은 라운드 n을 시작할 때 그 시점의 상태로 계산하고 `hash`를 `inquiry.round_started`의 `planHash`(09 §3.4.15, 08 `Inquiry.rounds[].planHash`)로 남긴다. 라운드 n의 지문은 "라운드 n−1까지의 입력을 반영한 계획"이다. `hadHumanInput`은 직전 라운드에 정보성 입력이 있었는지다. 08 주석 "같은 계획의 중복 실행을 막는다"는 이 뜻과 다르다. 중복 실행은 단계 멱등 키(`stageKey`)가 막으므로 08 주석을 "멈춤 판정 입력(15 §3.4.14)"으로 고쳐 달라고 요구한다(§5.2).
 - 계획이 안정되면 `stopReason = plan_stable`로 멈추고, 루프 계획의 다음 단계(보통 C.probe 또는 C.commit)로 전환 제안을 낸다. 제안에는 결과 계획 요약, 남은 열린 질문, 선호 모델 id, 앞줄 항목을 넣는다. 전환은 14의 규칙으로 처리된다.
 - 탐구 종류별 멈춤 조건(§3.5.7, §3.6.8, §3.8.4, §3.10.5)과 정지 규칙은 OR로 묶는다. 예산 소진과 사람의 "이대로 진행"도 멈춤이다.
 
@@ -1084,7 +1118,7 @@ planStable(fps):
 | E18-2 | 원함 탐구의 질문 후보에서 `choice` 종류를 버린다 | §3.4.10 |
 | E18-3 | 대비 압축은 순서만 정한다. 접힌 항목에도 반응할 수 있고, 반대 근거는 접지 않는다 | §3.4.9 |
 | E18-4 | 반응에서 Choice를 추론하지 않는다. Choice는 사람 채널 명령으로만 생긴다 | §3.4.12 |
-| E18-5 | 자극 수를 고정하지 않는다. 첫 라운드는 넓게(6~12), 기준이 좁혀질수록 적게 | §3.6.3 |
+| E18-5 | 자극 수를 고정하지 않는다. 첫 라운드는 넓게(기본 8, 최소 4, 판정 J-06), 기준이 좁혀질수록 적게 | §3.6.3 |
 | E18-6 | 사람이 채우는 구조 칸이 없다. 기준, 관점, 완료 기준 초안, 작업 합의 초안은 모델이 쓰고 사람은 반응·확인·고쳐 말하기만 한다 | §3.6.4, §3.7.4 |
 | E18-7 | 비교 화면의 주 동작에 "하나 고르기"만 두지 않도록 04·05에 요구한다 | §5.2 |
 
@@ -1167,7 +1201,15 @@ export interface CheckOutcomeDecl {                // 역할 fact_update의 출�
 }
 ```
 
-- 라벨 분류(관찰 → 결과 라벨)는 확인을 실행한 하위 실행이 제안한다. 08 §3.9.4가 15에 맡긴 "분류를 검증 에이전트가 하는가"는 다음으로 정한다 [제안]: 그 확인이 지지 튜플 1위 후보의 승격에 쓰일 수 있으면(1위 후보와 다른 후보를 구분하는 확인이면), 새 컨텍스트·다른 계열 모델의 검증 에이전트가 같은 관찰로 다시 분류한다. 두 분류가 같으면 `claim.bind_discrimination`, 다르면 묶지 않고 열린 질문으로 남기며 다음 라운드에 다른 확인을 고른다. 그 밖의 확인은 실행한 하위 실행의 분류를 그대로 쓴다.
+- 라벨 분류(관찰 → 결과 라벨)의 주체(08 U-14, 08이 "(c) 다이얼, 기본 (a)"를 추천하고 15에 확정을 맡김)를 다음으로 확정한다 [제안]. 분류자는 다이얼 `assurance.independent_verification`(14 다이얼 14)으로 정한다.
+
+  | 다이얼 값 | 분류자 |
+  |---|---|
+  | `off` | 확인을 실행한 하위 실행(작업 에이전트 쪽)의 분류를 그대로 쓴다 |
+  | `auto`(기본) | 그 확인이 지지 튜플 1위 후보와 다른 후보를 구분하는 확인이면(승격에 쓰일 수 있으면) 새 컨텍스트·다른 계열 모델의 검증 에이전트가 같은 관찰로 다시 분류한다(역할 `label_reclassify`). 그 밖의 확인은 실행한 하위 실행의 분류를 쓴다 |
+  | `always` | 모든 확인을 검증 에이전트가 다시 분류한다 |
+
+  두 분류가 같으면 `claim.bind_discrimination`, 다르면 묶지 않고 열린 질문으로 남기며 다음 라운드에 다른 확인을 고른다. 다이얼이 `off`라도 사람이 이의를 걸면(19 `contest.file`) 그 확인은 검증 에이전트가 다시 분류한다.
 - 결과 라벨을 묶으면 커널이 후보별 일치·불일치를 계산한다(08 `verdicts`). 엔진은 일치한 후보에 `supports`, 불일치한 후보에 `challenges` 근거 연결을 제안한다. 어느 예측에도 없는 라벨이 나오면 관찰에 `surprise` 주석이 붙고(08), 엔진은 다음 라운드에 새 후보 생성을 요청한다(라운드 보고의 `newHypothesisNeeded`).
 - `inconclusive`이면 묶지 않고 열린 질문을 기록한다.
 
@@ -1178,7 +1220,7 @@ export interface CheckOutcomeDecl {                // 역할 fact_update의 출�
 - 대상: 지지 튜플(§3.2.4) 1위 후보.
 - 하위 실행(역할 `counter_search`, 새 컨텍스트, 가능하면 다른 계열 모델): "이 설명이 틀렸다면 무엇이 관찰되어야 하는가를 먼저 쓰고, 그것을 찾아라."
 - 결과를 `CounterSearchRecord`로 남긴다. 찾지 못했으면 `found = []`인 기록이 남는다. "찾아보지 않아서 없는 것"과 "찾아봤는데 없는 것"을 구분하기 위해서다(v0.3 02 §2.1-3, 발췌 4 0-3).
-- 탐색은 가장 최근 지지 근거보다 뒤에 있어야 승격 조건으로 인정한다. 새 근거가 들어오면 다시 해야 한다.
+- 승격 조건은 10 §3.9가 정본이다(판정 J-18). 엔진은 마지막 탐색 뒤에 새 지지 근거가 붙었으면 승격 제안 전에 탐색을 한 번 더 돌린다. 이것은 엔진의 진행 순서이고 승격 조건을 더하는 것이 아니다.
 
 ```ts
 // 08 CounterSearch(description, observations ≥ 1, found)로 기록된다. 아래는 엔진이 만드는 값
@@ -1196,25 +1238,28 @@ export interface CounterSearchRecord {
 #### 3.5.6 승격 제안 준비
 
 ```ts
+// 엔진이 사전 검사에 쓰는 모양. dispatch는 10 FindingPromotePayload(§3.9.3)로 바꿔 보낸다
 export interface PromotionProposal {
-  possibilityId: PossibilityId;            // kind = "cause"
+  possibilityId: PossibilityId;            // kind = "cause". 10 claimId
   supporting: ObservationId[];             // 도구 결과 등 실제 관찰만. 출처 인용은 승격 근거로 세지 않음(08 §3.9.3)
   checks: CheckId[];                       // 이 후보에 consistent, 경쟁 후보에 inconsistent인 dc ≥ 1 (08 promotionMissing)
   counterSearch: CounterSearchRecord;      // counterChecked = true에 해당
   unresolvedCounter: ObservationId[];      // 비어 있어야 함
-  scope: string;                           // 이 판단이 유효한 범위
-  invalidationTriggers: string[];          // 다시 열 조건(helm-canon §8.8)
-  usedForDecision: boolean;                // 결정에 쓰이면 사람 확인 필요(v0.3 02 §2.1-5)
+  scope: string;                           // 이 판단이 유효한 범위. statement보다 넓히지 않음(08 §3.9.5)
+  invalidationTriggers: Trigger[];         // 다시 열 조건(helm-canon §8.8, 08 §3.4.4 Trigger)
+  usage: "inquiry" | "decision";           // 10 FindingPromotePayload.usage. decision이면 커널이 finding_confirm 질문(v0.3 02 §2.1-5)
 }
 ```
 
-엔진은 다음을 모두 만족할 때만 승격 제안(`finding.promote`)을 만든다. 커널은 08 §3.9.5의 `promotionMissing`과 10의 V-PRO 규칙으로 다시 검사한다. 엔진의 사전 검사는 그 함수를 그대로 부르고, 3번(탐색이 최신 지지 근거 뒤)을 더 본다.
+승격 규칙의 정본은 10 §3.9다(판정 J-18): 08 `promotionMissing`(V-PRO-01) + 출처 독립성(V-PRO-02) + 사후 선언 구분 확인 제외. 엔진의 사전 검사는 같은 코드(`@helm/domain`의 `promotionMissing`과 10의 V-PRO-02 함수)를 그대로 부르고 조건을 더하지 않는다. 결과가 빈 배열일 때만 승격 제안(`finding.promote`)을 만든다. 조건을 사람 말로 옮기면 다음과 같다.
 
-1. 지지 근거가 실제 관찰이다(v0.3 02 §2.1-1).
-2. 지지 근거 중 하나 이상이 구분 확인이다(§2.1-2).
-3. 반대 근거 탐색 기록이 최신 지지 근거보다 뒤에 있다(§2.1-3).
-4. 해소되지 않은 반대 근거가 없다(§2.1-4).
-5. `usedForDecision = true`이면 사람 확인 질문을 함께 기록한다(§2.1-5, 전달은 11).
+1. 지지 근거 관찰이 1개 이상이고, 그중 `qualified` 이상이며 낡지 않은 것이 있다(v0.3 02 §2.1-1).
+2. 이 후보와 일치하고 다른 후보와 불일치한, 사후가 아닌 구분 확인이 1개 이상이다(§2.1-2).
+3. 반대 근거 탐색 기록이 1개 이상이다(§2.1-3).
+4. 해소되지 않은 반대 근거가 없고, 후보 자체가 낡거나 대체되지 않았다(§2.1-4).
+5. 지지 근거의 독립성 키(도구 `tool:<toolName>:<argsHash>`, 사람 `human`, 외부 `external:<actor>`, 모델 실행 산출 `run:<rootRunId>`)가 둘 이상이거나, 하나뿐이면 그 관찰이 구분 확인의 관찰이다(V-PRO-02). 같은 루트 실행에서 나온 추측끼리의 일치는 세지 않는다(R6).
+
+`usedForDecision = true`이면 커널이 `finding_confirm` 질문을 함께 만든다(10 §3.9.3, 전달은 11). 엔진은 질문을 따로 기록하지 않는다.
 
 #### 3.5.7 멈춤
 
@@ -1293,14 +1338,24 @@ export interface StructureNode { id: string; label: string; children?: Structure
 export interface BlobRef { sha256: string; mediaType: string; bytes: number }
 ```
 
-08 `Stimulus`(§3.17.3)로의 기록: `content`는 text(텍스트·비유·구조), blob(이미지·긴 초안), link(레퍼런스, `snapshot` 포함). 구조 자극은 노드를 목록으로 펼친 Markdown 텍스트로 저장하고 노드 id를 요소 키로 쓴다(04의 자극 카드가 text로 그대로 보인다). `source`는 generated(자식 run id) · external(url, `retrievedBy` 도구 호출) · human. 08의 `direction`(자극 역할)은 생성 방향에서 정한다: 옆으로·위로·아래로 → `same_domain`(다른 분야 레퍼런스면 `cross_domain`), 렌즈 → `cross_domain`, 뒤집기 → `extreme`, 통제 쌍 → `contrast_pair`(`pairWith`, `checkId`), 다시 보여 주기 → `refinement`. 08에 없는 `facets`, `altText`, `controlledFor`는 08에 필드 추가를 요구한다(§5.2).
+08 `Stimulus`(§3.17.3)로의 기록: `content`는 text(텍스트·비유·구조), blob(이미지·긴 초안), link(레퍼런스, `snapshot` 포함). 구조 자극은 노드를 목록으로 펼친 Markdown 텍스트로 저장하고 노드 id를 요소 키로 쓴다(04의 자극 카드가 text로 그대로 보인다). `source`는 generated(자식 run id) · external(url, `retrievedBy` 도구 호출) · human. 08의 `direction`(자극 역할)은 생성 방향에서 정한다: 옆으로·위로·아래로 → `same_domain`(다른 분야 레퍼런스면 `cross_domain`), 렌즈 → `cross_domain`, 뒤집기 → `extreme`, 통제 쌍 → `contrast_pair`(`pairWith`, `checkId`), 다시 보여 주기 → `refinement`. `facets`, `altText`, `controlledFor`는 08 §3.17.3에 있다. 엔진의 `extreme`(특징 키)은 08 `direction = "extreme"`과 `facets`로 기록한다.
 
-**요소 분할(코드).** 텍스트는 빈 줄로 문단(`p1`, `p2`…), 문장 끝 기호(`.?!。` 뒤 공백, 한국어 종결 `다.`·`요.` 포함)로 문장(`p1.s1`…)을 나눈다. 구조는 노드 id를 그대로 쓴다. 이미지는 반응할 때 사용자가 그린 영역이 요소가 된다. 요소 id는 자극 기록 시점에 고정되고 바뀌지 않는다.
+**요소 분할(코드).** 텍스트는 먼저 Markdown을 평문으로 바꾼다(`plainText()`, 서식 기호를 지우고 줄바꿈은 남김). 그 평문을 빈 줄로 문단(`p1`, `p2`…), 문장 끝 기호(`.?!。` 뒤 공백, 한국어 종결 `다.`·`요.` 포함)로 문장(`p1.s1`…)으로 나눈다. 구간 경계는 `Intl.Segmenter`의 grapheme 경계에 맞춘다(결합 문자·이모지를 자르지 않음). 08 `elements[]`는 `{ key, label, selector: { kind: "text_range", start, end } }`이고 구간은 이 평문 기준이다. 구조는 노드 id를 그대로 쓴다. 이미지는 반응할 때 사용자가 그린 영역이 요소가 된다. 요소 키는 자극 기록 시점에 고정되고 바뀌지 않는다(08: 자극 내용은 바뀌지 않음).
+
+**제시 데이터(코드).** 화면(04 `StimulusRoundView`, 05 §3.2, 21 §3.8.3)에 보내는 값과 숨기는 값을 엔진이 정한다.
+
+| 항목 | 반응 전 | 라운드를 마친 뒤 |
+|---|---|---|
+| 순서 | `seededShuffle(set, rng("order"))`(§3.6.6). `presentation.order`·`shuffleSeed`로 기록 | 같음 |
+| 라벨 | 글자 `A`…`L`을 `rng("label")`로 섞어 순서대로 붙인다. 생성 순서·방향이 라벨에서 드러나지 않는다. seed에서 다시 계산하므로 저장하지 않는다 | 같음 |
+| 글 요소 | 요소마다 `key`, 표시 라벨(`a1`…), 평문 구간, 평문 조각(`text`). 조각은 저장하지 않고 투영이 구간으로 잘라 싣는다(21 E9). 사람은 요소 밖 임의 구간도 고를 수 있고 `text_range`로 받는다. 엔진은 그 구간과 겹치는 요소들의 반응으로 집계한다 | 같음 |
+| 형태·출처 종류 | `form`, 초안·레퍼런스·사례·비유, 레퍼런스의 다른 분야 이름(출처를 밝히기 위해), `altText` | 같음 |
+| `facets`, `controlledFor`, 08 `direction`(극단·통제 쌍·다시 보여 주기), `pairWith`, `checkId`, 이번 라운드가 확인하려는 기준 | 싣지 않는다(반응을 끌지 않게, 04 SC-06, 05 §3.2.1) | `revealAfterClose`로 싣는다: 확인하려던 기준, 기준 후보, 자극별 특징과 역할 |
 
 **범위 규칙(코드 검사).**
 
 - 한 라운드 묶음에 다른 분야 레퍼런스(`otherField`)가 하나 이상, 극단 자극(`extreme`)이 하나 이상 있어야 한다. 극단에 대한 반응을 보면 기준의 경계를 알 수 있다(v0.3 04 §3.2-2).
-- 개수는 고정하지 않는다. 첫 라운드는 `max(stimuliPerRound, 6)`(모드 "취향 탐색"은 `stimuliPerRound` 8을 쓴다, 02 UC-01), 이후 라운드는 `max(3, ceil(stimuliPerRound / 2))`, 모두 12 이하다. `stimuliPerRound`는 14 다이얼 12(기본 6, 범위 2~12)다. v0.3 04 §3.2의 "처음에는 넓게(예: 6~12개), 기준이 좁혀질수록 적게"를 따른다.
+- 개수는 고정하지 않는다. `stimuliPerRound`는 14 다이얼 12(08 키 `inquiry.stimulus_count`, 기본 8, 범위 4~12)다. 첫 라운드는 `stimuliPerRound`개(기본 8), 이후 라운드는 `max(4, ceil(stimuliPerRound / 2))`개다. 어느 라운드도 4개보다 적게 내지 않는다(판정 J-06 "8, 최소 4", 02 UQ-10·AC-01-03의 답). v0.3 04 §3.2의 "처음에는 넓게(예: 6~12개), 기준이 좁혀질수록 적게"를 따른다. 생성 실패로 4개를 못 채우면 §4 E-14a.
 - 다섯 방향을 자극의 원천으로 쓴다: 위로(다른 목적을 겨냥한 자극), 아래로(한 요소만 바꾼 변형), 옆으로(다른 접근·다른 문체, 다른 모델), 뒤집기(일부러 극단·반대 예), 렌즈(다른 분야 레퍼런스, §3.9).
 - 다양성 검사: 활성 특징 키마다 묶음 안에 서로 다른 값이 둘 이상 있어야 한다. 특징이 모두 같은 두 자극이 있으면 하나를 한 번 다시 만든다.
 - 자극 생성 호출은 가지다. 같은 cursor에서 시작하고 서로의 결과를 보지 않으며, 모델은 다양성 풀에서 돌아가며 배정한다(§3.4.6, v0.3 08 §9).
@@ -1308,25 +1363,28 @@ export interface BlobRef { sha256: string; mediaType: string; bytes: number }
 
 #### 3.6.4 반응 받기
 
-하나를 고르게 하지 않는다. 다음 형태를 모두 받는다(v0.3 04 §3.2-3, v0.3 09 §4.6, 결정 18). 입력 명령은 19의 `reaction.record`(19의 `ReactionRecordParams`)이고, 기록은 08의 `Observation(obsKind="reaction")`과 `ReactionPayload`(08 §3.17.4)다. 엔진이 정하는 것은 각 형태의 의미와 처리다.
+하나를 고르게 하지 않는다. 다음 형태를 모두 받는다(v0.3 04 §3.2-3, v0.3 09 §4.6, 결정 18). 입력은 19 `reaction.record`(`ReactionRecordParams`)이고, 커널 명령은 `observation.record`, 기록은 08의 `Observation(obsKind="reaction")`과 `ReactionPayload`(08 §3.17.4)다. 엔진이 정하는 것은 각 형태의 의미와 처리다(19 §5.2의 15 요구 "종류·강도 값과 관찰 레코드 대응"에 대한 답).
 
-| 19 `kind` | 화면 조작(04 §3.9) | 08 `ReactionPayload` | 엔진에서의 뜻 | 정보성 |
+공통 대응: 19 `stimulusId` → 08 `subjectRef`(가능성 반응이면 `ps_`, 19에 요구), 19 `target` 없음 → `{ kind: "whole" }`, `target.element` → `{ kind: "element", key }`, 05 `target.textRange` → `{ kind: "text_range", start, end }`(평문 기준), `target.region` → `{ kind: "region", x, y, w, h }`(0~1), `reason` → `reason`. `inquiryId`는 데몬이 라운드에서 채운다.
+
+| 19 `kind` | 화면 조작(04 §3.9, 05 §3.2.2) | 08 `ReactionPayload` | 엔진에서의 뜻 | 정보성 |
 |---|---|---|---|---|
-| `strength` | 강도 5단계(요소 단위 가능) | `intensity` −2~2, `target` | 좋음·싫음의 세기. 0은 "상관없음"으로 그 특징이 기준이 아니라는 근거 | 있음 |
-| `no_reason` | "이유 없이 아님" | `intensity` −1, `reason` null | 이유를 말로 못 하는 반응. 근거로 쓴다(R10) | 있음 |
+| `strength` | 강도 5단계(요소 단위 가능) | `intensity` −2~2 | 좋음·싫음의 세기. 0은 "상관없음"으로 그 특징이 기준이 아니라는 근거 | 있음 |
+| `no_reason` | "이유는 모르겠지만 아님" | `intensity: -1`, `reason: null` | 이유를 말로 못 하는 반응. 근거로 쓴다(R10) | 있음 |
 | `rewrite` | 고쳐 말하기 | `rephrase` | 비평 기반 기준 추출의 입력 | 있음 |
-| `triad_odd` | 세 개 비교 답 | `triad` | 레퍼토리 그리드 입력. `cannotSay`면 `why` null | 있음 |
-| `near` | "가깝다" 표시 | `intensity` +1, `reason` "near" 표식 | 방향만 알려 줌 | 없음(고르기와 같게 셈) |
-| (없음) | — | `comparison` | 두 자극의 비교. 19에 종류 추가 요구(§5.2) | 있음 |
-| `comment` | 자유 의견 | `reason`만 | 이유 서술 | 있음 |
-| (대화창 자유 발화) | 대화 입력 | 사람 발화 관찰 | 역할 `reaction_structure`가 반응 구조로 해석(해석 레코드). 화면은 그 해석을 보이고 사용자가 고칠 수 있다 | 해석 후 판정 |
+| `triad_odd` | 세 개 비교 답 | `triad { similar: [두 자극], different, why, cannotSay }` | 레퍼토리 그리드 입력. `cannotSay`면 `why` null | 있음 |
+| `near` | "원하는 것에 가깝다" | `near: true`, `intensity: null` | 방향만 알려 줌 | 없음(고르기와 같게 셈, O-12) |
+| `comparison`(19에 요구) | 두 자극을 끌어 놓기(05 §3.2.2) | `comparison { better, worse }` | 두 자극의 비교. 무게 변경 근거(U3) | 있음 |
+| `contrast`(19에 요구) | 대비의 "잃어도 괜찮음 / 잃으면 안 됨 / 모르겠음"(05 §3.2.7) | §3.4.11의 대응(`subjectRef = ps_`, `target.element = loss:<기준 키>`) | 잃는 기준의 무게 근거 | 있음 |
+| `comment` | 이유 칸만 씀 | `reason`만 | 이유 서술 | 있음 |
+| (대화창 자유 발화) | 대화 입력 | 사람 발화 관찰 | 역할 `reaction_structure`가 반응 구조로 해석(해석 레코드). 화면은 그 해석을 의미 미리보기처럼 보이고 사용자가 고칠 수 있다(05 §3.2.2) | 해석 후 판정 |
 
 "이거다"라는 결정적 반응은 `strength +2`와 이유(`reason`)로 들어온다. 이유가 있으면 기준 추론의 입력이 된다(§3.6.8).
 
 라운드 마감 조건(04의 `stimulusRound.close` 버튼과 05의 마감 조건이 이 규칙을 따르도록 요구한다):
 
 ```text
-informative(r) = r.kind ∈ {strength(값 ≠ +2 이거나 target ≠ whole), no_reason, rewrite, triad_odd, comparison, comment}
+informative(r) = r.kind ∈ {strength(값 ≠ +2 이거나 target ≠ whole), no_reason, rewrite, triad_odd, comparison, contrast, comment}
                  or (r.kind == strength and r.value == +2 and r.reason 있음)
 pickLike(r)    = r.kind == near or (r.kind == strength and r.value == +2 and r.target == whole and r.reason 없음)
 
@@ -1339,8 +1397,9 @@ roundClosable(round):
   return false
 ```
 
-- 고르기와 같은 반응(`pickLike`)만 있는 라운드는 사용자가 명시적으로 끝낼 때만 닫히고, 그 경우 다음 라운드에 세 개 비교 질문이 들어간다.
-- 반응은 지우지 않는다. 철회(`reaction.withdraw`)는 철회 기록으로 남고 근거 계산에서 빠진다. 고치기(`reaction.amend`)는 이유를 덧붙인다.
+- 고르기와 같은 반응(`pickLike`)만 있는 라운드는 사용자가 명시적으로 끝낼 때만 닫히고, 그 경우 다음 라운드에 세 개 비교 질문이 들어간다. 라운드 마치기 명령은 10 `inquiry.round.close`(19 `stimulusRound.close`)이고 커널은 `roundClosable`을 그대로 검사한다(19 §5.2의 15 요구 "`stimulusRound.close`의 조건"에 대한 답). 화면은 05 §3.2.5처럼 그 전에 부분 고르기를 한 번 더 권할 수 있다. 21의 "`near`만 있으면 라운드 마치기 비활성"(21 U7 R1)은 이 규칙과 다르다. 비활성으로 두면 사람이 라운드를 끝낼 방법이 없으므로, 버튼은 열어 두고 05 §3.2.5의 확인 단계를 거치게 해 달라고 21에 요구한다(§5.2).
+- 반응은 지우지 않는다. 철회(`reaction.withdraw` → `observation.retracted`)는 철회 기록으로 남고 근거 계산에서 빠지며, 그 반응에 기댄 기준은 `stale`이 된다(08 §3.17.4). 고치기(`reaction.amend` → `observation.annotated`)는 이유를 덧붙인다.
+- 라운드가 닫힌 뒤 도착한 반응(연결이 끊겼다가 보낸 반응 등)은 관찰로 기록되지만 그 라운드의 마감 판정에는 쓰지 않는다. 다음 라운드의 기준 추론 입력이 된다(E-27, 04 §3.9 "보내지 않음").
 - 라운드당 자극 수 상한과 질문 묶음 전달로 피로를 줄인다(v0.3 04 §3.6, 06).
 
 #### 3.6.5 숨은 기준 찾기
@@ -1374,27 +1433,31 @@ nextStimuli(state, perRound):
   exploreRatio = round == 0 ? 1.0 : round == 1 ? 0.5 : 0.25
   explore = generate(max(1, floor(perRound × exploreRatio)), 직전 라운드에 쓰지 않은 방향, otherField ≥ 1)
   reuse   = round % 2 == 0 ? [좋았던 자극 하나를 다른 묶음 맥락에서 다시] : []      # v0.3 04 §3.6
-  set     = controlled ++ explore ++ reuse,  |set| ≤ perRound
+  set     = controlled ++ explore ++ reuse,  4 ≤ |set| ≤ perRound    # 모자라면 explore를 더 만든다(§3.6.3 개수 규칙)
   order   = seededShuffle(set, rng("order"))
   if order[0].direction == 직전 라운드 order[0].direction: 첫 항목을 다른 방향 항목과 바꿈
   return order
 ```
 
-- 통제 쌍은 구분 확인 레코드(`dc`, 08 §3.9.4 `stimulusIds`)로 선언한다. 결과 라벨은 "A 쪽이 낫다", "B 쪽이 낫다", "차이 없음"이고, 기준 후보마다 예상 라벨을 둔다. 반응이 오면 엔진이 라벨을 분류해 묶는다. 이렇게 선언된 통제 쌍에서 온 반응만 기준의 `discriminating` 근거로 센다(§3.2.4).
+- 통제 쌍은 구분 확인 레코드(`dc`, 08 §3.9.4 `stimulusIds`)로 제시 전에 선언한다(`claim.declare_discrimination`). 결과 라벨은 "A 쪽이 낫다", "B 쪽이 낫다", "차이 없음"이고, 기준 후보마다 예상 라벨을 둔다. 두 자극을 `stimulus.present`한 뒤 `inquiry.present_contrast`(§3.2.6)로 `contrast.presented { pair, controlledFor, checkId }`를 남긴다. 반응이 오면 엔진이 라벨을 분류해 묶는다(분류자는 §3.5.4의 다이얼 규칙). 이렇게 선언된 통제 쌍에서 온 반응만 기준의 `discriminating` 근거로 센다(§3.2.4).
 - 세 개 비교 질문 구성(코드): 강도 반응이 섞인 자극이 셋 이상이고 `untested`·`weak` 기준이 있으면, 반응이 비슷한 두 자극과 다른 한 자극을 골라 `triad` 질문 후보를 만든다. 질문 고르기(§3.4.10)와 경쟁한다. 직전 라운드가 `pickOnly`이면 경쟁 없이 넣는다.
+- 세 개 비교 빈도(05 §3.2.4, 21 요구): 라운드당 많아야 하나다. 직전 세 개 비교의 답이 `cannotSay`였으면 다음 한 라운드는 세 개 비교를 내지 않는다(직전 라운드가 `pickOnly`면 예외). 세 개 비교 데이터는 `{ questionId, stimuli: [st, st, st], prompt }`이고, 세 자극의 순서는 `rng("triad")`로 섞는다. 묻는 것은 "다른 하나와 그 이유"이며 "가장 좋은 것"을 묻지 않는다.
 
 #### 3.6.7 선호 모델로 올리기
 
-- 기준 후보가 `consistent`가 되면 기준 확인 질문(`criterion_confirm`) 후보가 된다. 같은 라운드에 여러 개면 하나의 질문에 항목 목록으로 묶는다(항목마다 예·아니오·고쳐 말하기, 비용 등급 2). 질문 예: "다음 기준을 선호 모델에 넣어도 될까요? 근거는 도입부 자극 세 개에 대한 반응입니다."(v0.3 06 §3.4)
+- 기준 후보가 `consistent`가 되면 기준 확인 질문(`criterion_confirm`) 후보가 된다. 같은 라운드에 여러 개면 하나의 질문에 항목 목록으로 묶는다(항목마다 넣기·고쳐서 넣기·넣지 않기, 비용 등급 2). 11 §3.2.2의 형식 `confirm_candidate`에서 `answerSchema`는 후보별 `{ possibilityId, decision: "confirm" | "reject", edits?, weight? }` 배열이다(11 §5.2 15 요구 (2)). 묶인 기준들의 결정은 사람 조작 1회로 센다(판정 J-23). 질문 예: "다음 기준을 선호 모델에 넣어도 될까요? 근거는 도입부 자극 세 개에 대한 반응입니다."(v0.3 06 §3.4)
 - 질문에는 모델이 제안한 무게(높음·보통·낮음)를 함께 보인다. 사용자는 무게를 고칠 수 있다.
 - 답을 기다리는 동안 임시 가정은 "이 기준을 임시로 적용해 다음 자극과 초안을 만든다"이다(v0.3 06 §3.4). 정보 게이트이며 전달은 11이 정한다.
-- 답은 사람 채널의 `preference.criterion.confirm`·`reject`(10)로 들어오고, 커널이 선호 모델 버전을 올린다(§3.7.4). 엔진은 답에 고쳐 말한 내용이 있으면 그 문장으로 기준 이름 초안을 미리 만들어 둔다.
+- 사람의 답(`question.answer`)이 오면 커널이 항목별로 `preference.criterion.confirm`·`reject`를 같은 트랜잭션에서 적용하고 `preference_model.versioned`로 버전을 올린다(10·11에 요구, §5.2). 화면의 패널에서 직접 넣기를 누르는 경로도 같은 명령이다(05 §3.2.6). 엔진은 답에 고쳐 말한 내용이 있으면 그 문장으로 기준 이름 초안을 미리 만들어 둔다.
+- 질문이 가정 확정(`assumed`)으로 끝나도 기준은 확정되지 않는다(11 §3.6.3, 08 R-36). 임시 적용이 혼자 정한 결정으로 남을 뿐이다(§3.7.3).
 
 #### 3.6.8 멈춤
 
 - 선호 모델의 기준과 무게가 두 라운드 동안 바뀌지 않거나(계획 지문의 `criteria` 부분),
 - 사용자가 "이거다"(강도 +2와 이유)라고 하고 그 이유가 기준으로 확인되었을 때(이유를 `criterion_infer`가 기준으로 바꾸고 확인 질문을 거침),
 - 또는 정지 규칙(§3.4.14), 예산 소진(v0.3 04 §3.3).
+- 반응 감소(피로, 05 §3.2.8): 연속 세 라운드에서 라운드당 정보성 반응 수가 매번 직전 라운드의 절반 이하로 줄면, 엔진은 `stop_condition` 정보 질문을 낸다. 문장은 "지금까지의 선호 모델(기준 n개)로 초안을 먼저 써 볼 수 있습니다"로 쓰고, 탐구를 멈출지 묻는 문장은 쓰지 않는다(05 §3.2.8). 임시 가정은 "다음 라운드는 자극 수를 최소(4개)로 줄여 진행"이다. 답이 초안 쪽이면 `stopReason = human_decided`로 멈추고 C.probe 전환을 제안한다.
+- 사람의 "오늘은 여기까지"(01 FX-05)는 일시 정지로 처리한다(§3.1.5). 열린 기준 후보와 반응 대기 중인 라운드를 그대로 둔다.
 
 #### 3.6.9 결과가 쓰이는 곳
 
@@ -1406,31 +1469,24 @@ nextStimuli(state, perRound):
 
 #### 3.7.1 스키마
 
-레코드는 08 §3.17.5의 `PreferenceModel`이다. 엔진은 그 필드를 다음 뜻으로 쓰고, 두 층 설계(§3.7.2)를 위해 필드 몇 개를 08에 요구한다.
+레코드는 08 §3.17.5의 `PreferenceModel`이다. 두 층 설계(§3.7.2)에 필요한 필드(`scope`, `inheritedFrom`, `shownToUserSeq`)는 08에 반영되었다. 엔진은 필드를 다음 뜻으로 쓴다.
 
 | 08 필드 | 엔진에서의 뜻 |
 |---|---|
-| `goalId`, `originConcernId` | Goal 층 선호 모델의 소속 |
+| `scope` | `goal` 또는 `user`(§3.7.2) |
+| `goalId`, `originConcernId` | Goal 층 선호 모델의 소속. `scope = user`이면 null |
+| `criteria[].inheritedFrom` | 사용자 층에서 가져와 이 Goal에서 다시 확인한 기준이면 그 사용자 층 모델 |
 | `modelVersion` | 기준 집합이나 무게가 바뀔 때 1 증가. 계획 지문(§3.4.14)과 멈춤 판정 입력 |
 | `criteria[].key`, `name` | 기준 키(`c{n}`)와 이름 |
 | `criteria[].weight` | `Grade`(low·medium·high). 서열이며 확률이 아니다 |
-| `criteria[].status` | `confirmed`·`retired`. 이의(`contested`)는 `quality`로 표시 |
+| `criteria[].status`, `criteria[].quality` | `confirmed`·`retired`. 이의(`contested`)와 낡음(`stale`)은 기준별 `quality`로 표시 |
 | `criteria[].fromPossibilityId` | 출발한 기준 후보. 차원·방향·특징 키(`CriterionSpec`, §3.2.3)는 그 가능성에 있다 |
 | `criteria[].support`, `counter` | 반응 관찰 |
 | `criteria[].reviewTrigger` | 다시 볼 조건(U9) |
 | `likedStimuli`, `dislikedStimuli` | 좋은 예·싫은 예(U6) |
-| `statedVsRevealed[]` | 말한 기준과 드러난 기준의 차이(U5) |
+| `statedVsRevealed[]`, `shownToUserSeq` | 말한 기준과 드러난 기준의 차이(U5)와 사람에게 처음 보인 시점(`preference.divergence_shown`) |
 
-08에 요구하는 추가 필드(§5.2):
-
-```ts
-// 08 PreferenceModel에 더할 필드 [제안]
-scope: { kind: "goal"; goalId: GoalId } | { kind: "user" };   // 사용자 층(§3.7.2). user이면 goalId·originConcernId는 null
-criteria[].inheritedFrom: Nullable(PreferenceModelId);          // 사용자 층에서 가져와 이 Goal에서 다시 확인한 기준
-statedVsRevealed[].shownToUserSeq: Nullable(Seq);               // 사용자에게 보인 시점(숨기지 않음의 기록)
-```
-
-`Possibility(kind="preference_criterion")`에는 `CriterionSpec`(차원, 선호 방향, 피할 방향, 특징 키, 범위 한정)을 담을 필드가 필요하다(08에 요구). 자극 선택(§3.6.6)이 특징 키로 기준과 자극을 잇기 때문이다.
+`Possibility(kind="preference_criterion")`의 `criterion` 필드(08 §3.9.3)에 `CriterionSpec`(차원, 선호 방향, 피할 방향, 특징 키, 범위 한정)을 넣는다. 자극 선택(§3.6.6)이 특징 키로 기준과 자극을 잇기 때문이다.
 
 v0.3 04 §3.4 예시와의 차이: `confidence` 숫자를 없애고(D15-3, 08 D08-10), 기준 후보와 확정 기준을 나눴다(D15-6). 화면에는 지지 등급(§3.2.4), 독립 자극 수, 반대 반응 수, 좋은 예·싫은 예를 보인다.
 
@@ -1453,13 +1509,13 @@ v0.3 04 §3.4 예시와의 차이: `confidence` 숫자를 없애고(D15-3, 08 D0
 |---|---|---|---|---|
 | 후보 `proposed` | 반응 근거 추가 | — | 후보(등급 재계산) | — |
 | 후보 | 등급이 `consistent`가 됨 | — | 후보(확인 대기) | 기준 확인 질문 후보 생성 |
-| 후보 | 확인 질문에 "예"(또는 고쳐 말한 확인) | 답한 행위자가 `human` | 확정 `confirmed` | `preference.criterion.confirm`(사람 채널), 무게는 답에 포함된 값. `modelVersion` + 1 |
+| 후보 | 확인 질문에 "예"(또는 고쳐 말한 확인) | 답한 행위자가 `human` | 확정 `confirmed` | `preference.criterion_confirmed`, 무게는 답에 포함된 값. `preference_model.versioned`(`modelVersion` + 1) |
 | 후보 | 확인 질문에 "아니오" | `human` | 기각 `rejected` | 기각 이력(§3.4.13) |
 | 후보 | 질문이 가정 확정(`assumed`)으로 끝남 | 정보 게이트 | 후보 유지 | 임시 적용을 혼자 정한 결정으로 기록(11). 확정 기준으로 올리지 않음 |
 | 확정 | 반대 반응 추가 | — | 이의(기준 `quality` contested) | 다시 볼 조건 검사. 원함 탐구 재진입 제안(14 전환 "선호 모델 변경") |
 | 이의 | 사람이 유지 확인 | `human` | 확정 | 반대 반응에 해석 연결 |
-| 이의 | 사람이 수정(고쳐 말하기) | `human` | 확정(새 내용) | 모델 버전 증가 |
-| 이의·확정 | 사람이 폐기 | `human` | 폐기 `retired` | — |
+| 이의 | 사람이 수정(고쳐 말하기) | `human` | 확정(새 내용) | `preference.criterion_revised`, 모델 버전 증가 |
+| 이의·확정 | 사람이 폐기 | `human` | 폐기 `retired` | `preference.criterion_retired` |
 | 확정 | 무게 변경 제안(비교 근거 있음) | 비교 근거 ≥ 1 | 확정(무게 변경 대기) | 정보 게이트 질문(임시 가정: 새 무게 적용) |
 
 #### 3.7.4 갱신 규칙
@@ -1482,10 +1538,11 @@ v0.3 04 §3.4 예시와의 차이: `confidence` 숫자를 없애고(D15-3, 08 D0
 | 소비자 | 쓰는 것 |
 |---|---|
 | 작업 합의 초안(C.commit) | 확정 기준 → 완료 기준 초안 |
+| 반영 항목(02 UC-01 15단계) | "선호 모델을 Goal에 연결"은 `scope = goal` 모델의 `goalId`가 이미 그 Goal이면 할 일이 없음을 보이고, 사용자 층 승격 제안이면 §3.7.2 경로 |
 | 취향형 결과 확인(A.confirm) | 확정 기준과 결과의 일치 판정(사람) |
 | 다음 Concern의 앵커링과 대비 압축 | 기준 집합 K(§3.4.9) |
 | 원함 탐구의 다음 자극 | 확정 기준을 고정한 통제 쌍 |
-| 관찰 에이전트(16) | 기준 변경 빈도, `stated_vs_revealed` 발생 수(Helm 출발 가정의 실제 사례 수) |
+| 관찰 에이전트(16) | 기준 변경 빈도, `preference.divergence_noted` 수(Helm 출발 가정의 실제 사례 수. 16 지표 `want.stated_vs_revealed`의 입력) |
 
 ### 3.8 가능성 탐구 (`I.possibility`) [결정: 도입(결정 7) / 제안: 절차]
 
@@ -1515,12 +1572,12 @@ export interface FeasibilityDecl {               // 역할 cell_fill 또는 cons
   readOnlyCheck?: string;                        // 읽기만으로 확인할 수 있는 방법(문서 확인, 측정 등)
   probe?: { hypothesis: string; growIf: string; foldIf: string; budget: string };  // 바꿔 봐야 알 수 있으면
 }
-export type Feasibility = "unknown" | "checking" | "feasible" | "infeasible";
+export type FeasibilityView = "unchecked" | "checking" | "feasible" | "infeasible";   // 08 feasibility + 투영 전용 checking
 ```
 
 - 앞줄 항목 중 지지 등급이 `weak` 이상인 것에 대해, `readOnlyCheck`가 있으면 엔진이 확인 하위 실행을 돌리고 결과를 관찰로 받는다. 해석(실현 가능·불가능·모름)은 관찰을 근거로 기록한다.
 - `probe`만 있으면 엔진은 탐침 제안을 14에 낸다(탐침 레코드: 가설, 키울 조건, 접을 조건, 예산, v0.3 03 §3.3). 탐침 결과는 관찰로 돌아오고, 실현 가능 판정의 근거가 된다.
-- `feasible`은 관찰 근거가 있을 때만 붙는다.
+- `feasible`·`infeasible`은 관찰 근거가 있을 때만 붙는다. 레코드 값은 08 `Possibility.feasibility`(`unchecked`·`feasible`·`infeasible`)이고, `checking`(확인 하위 실행 진행 중)은 투영에만 있다.
 
 #### 3.8.4 멈춤
 
@@ -1576,7 +1633,7 @@ export interface TransferSteps {
 
 #### 3.9.2 렌즈 레코드
 
-원전 README §4의 YAML 형식과 카드의 13절 형식을 합쳤다(helm-canon-3 §2.4, §7.3 I2). 렌즈 레코드는 08 §3.17.2의 `Lens`(`ln`: `name`, `origin`(builtin `mapRef` | user), `sourceDomain`, `principle`, `doNotCopy`, `status`)다. 선택에 필요한 필드(`field`, `structureStatement`, `structureTags`, `transferRisk`, `sourceGrade`, `evidenceStatus`)는 08 레코드에 추가를 요구하고(§5.2), 카드 상세(`LensCard`)는 레코드에 넣지 않고 seed 파일에서 `mapRef`로 찾는다. 아래 타입은 레코드와 seed를 합친 엔진의 읽기 모양이다.
+원전 README §4의 YAML 형식과 카드의 13절 형식을 합쳤다(helm-canon-3 §2.4, §7.3 I2). 렌즈 레코드는 08 §3.17.2의 `Lens`(`ln`)다. 선택에 필요한 필드(`field`, `structureStatement`, `structureTags`, `transferRisk`, `sourceGrade`, `evidenceStatus`, `userModified`)와 `origin`(seed `{mapRef, seedVersion}` · user · observer_proposal `{proposalId}` · model_open `{inquiryId}`)은 08에 반영되었다. 08은 `field`·`structureTags`를 문자열로 두고 값 목록은 이 문서가 데이터 파일로 둔다(08 §5.2 요구 (2), §3.9.3). 카드 상세(`LensCard`)는 레코드에 넣지 않고 seed 파일에서 `mapRef`로 찾는다. 아래 타입은 레코드와 seed를 합친 엔진의 읽기 모양이다.
 
 ```ts
 export type ResearchField =
@@ -1601,8 +1658,11 @@ export interface Lens {
   card?: LensCard;                         // 카드가 있는 렌즈만
   sourceGrade: "A" | "B" | "C" | "D";      // 원 분야 근거 등급(원전 README §5)
   evidenceStatus: "exploratory" | "supported" | "rejected" | "superseded";   // Helm 전이 근거
-  origin: "seed" | "user" | "observer_proposal" | "model_open";
-  seedVersion?: string;
+  origin:                                  // 08 LensOrigin
+    | { kind: "seed"; mapRef: string; seedVersion: string }
+    | { kind: "user"; note: string | null }
+    | { kind: "observer_proposal"; proposalId: PolicyProposalId }   // 16 제안(`lens`)을 사람이 채택
+    | { kind: "model_open"; inquiryId: InquiryId };        // 그 탐구 실행에만 쓰는 임시 렌즈
   userModified: boolean;
   addedAt: number;
 }
@@ -1628,9 +1688,10 @@ export interface LensCard {
 **데이터 흐름.**
 
 - seed: `packages/runtime/src/inquiry/lens/seed/lens-seed.v1.json`을 저장소에 넣는다. 생성 스크립트 `scripts/build-lens-seed.ts`가 `docs/research/method-transfer-map.md`(35행)와 `docs/research/method-cards/*.md`(20개)를 읽고, 사람이 쓴 덧붙임 파일 `lens/seed/overlay.ts`(분야, 구조 서술, 태그, 등급)를 합친다. `docs/research/`는 이전 저장소에서 가져온 미추적 파일이므로(브리프 §4) 생성된 JSON이 저장소 안의 기준이다. 다시 생성은 `just lens-seed`로 사람이 한다.
-- 라이브러리 투영 = seed(버전) ∪ `lens.added` ∪ `lens.updated` − `lens.retired`. 데몬은 시작할 때 seed 버전 해시를 `lens_seed.loaded` 이벤트로 남긴다. 새 seed 버전은 사용자가 고치지 않은(`userModified = false`) 렌즈만 갱신한다.
+- 라이브러리 투영 = seed(버전) ∪ `lens.added` ∪ `lens.updated` − `lens.retired`. 데몬은 시작할 때 seed 버전 해시를 `lens_seed.loaded { seedVersion, seedHash, added, … }`(09, 행위자 kernel)로 남기고, 새 렌즈는 `lens.added`(origin seed), 바뀐 렌즈는 `lens.updated`(행위자 kernel)로 적재한다. 새 seed 버전은 사용자가 고치지 않은(`userModified = false`) 렌즈만 갱신한다.
+- 값 목록 데이터 파일: `packages/runtime/src/inquiry/lens/vocab.v1.json`에 `ResearchField`(10개), `ProblemField`(추가 6개), `StructureTag`(아래 20개), `TransferSteps`의 키와 `holdsHere` 값을 둔다(08 §5.2 요구 (2)에 대한 답). 엔진은 모델 출력과 사람 입력의 태그·분야를 이 파일로 검사하고, 목록 밖 값은 사전 검사에서 지우고 한 번 다시 묻는다(§3.3.4와 같은 방식). 08 스키마는 문자열을 그대로 받는다. 어휘를 바꾸려면 파일 버전을 올리고(`vocab.v2.json`), 이전 버전 값은 읽을 수 있게 둔다.
 - 사용자 추가: 사용자가 한 줄 설명을 주면 역할 `lens_draft`가 렌즈 초안(구조 서술, 원리, 복사 금지, 태그)을 쓰고, 사용자가 확인하면 `lens.added`가 기록된다(모델 초안 + 사람 확인).
-- 관찰 에이전트는 렌즈 추가·수정안을 제안할 수 있고, 사람이 확인해야 반영된다(16).
+- 관찰 에이전트는 렌즈 추가·수정·내리기를 제안(16 제안 종류 `lens`, D13)할 수 있고, 사람이 채택하면 `lens.added`·`lens.updated`·`lens.retired`가 `origin: { kind: "observer_proposal", proposalId }`로 기록된다(16 §5.2 요구 (3)에 대한 답).
 - 열린 렌즈(`model_open`): 넓은 발산에서 모델이 라이브러리 밖 분야를 낸 것. 그 탐구 실행에만 쓰는 임시 렌즈이며 등급 D다. 라이브러리에는 사람이 추가할 때만 들어간다.
 
 **구조 태그 어휘(20개).**
@@ -1689,7 +1750,7 @@ selectLenses(problem, library, stats, n, openSlot, pinned):
 
 #### 3.9.5 결과 기록과 렌즈 통계
 
-렌즈 적용은 별도 레코드를 두지 않는다. 7단계 결과(`TransferSteps`)는 렌즈 관점 행(`Inquiry.perspectives[]`, `lensId` 있음)에 `transfer` 필드로 저장하고(08에 필드 요구), 번역 결과 가능성은 `origin.lensId`를 가진다(08 §3.9.3). 1단계 검사에 실패한 적용은 관점 행을 만들지 않고 `inquiry.step_failed`(사유 `lens_step1_domain_terms`)로 남긴다. 엔진은 다음 투영으로 읽는다.
+렌즈 적용은 별도 레코드를 두지 않는다. 7단계 결과(`TransferSteps`)는 렌즈 관점 행(`Inquiry.perspectives[]`, `lensId` 있음)에 `transfer` 필드로 저장하고(08에 필드 요구), 번역 결과 가능성은 `origin.lensId`를 가진다(08 §3.9.3). 1단계 검사에 실패한 적용은 관점 행을 만들지 않고 실행 기록 `inquiry.step`(`state: "failed"`, 사유 `lens_step1_domain_terms`)으로 남긴다. 엔진은 다음 투영으로 읽는다.
 
 ```ts
 export interface LensApplicationView {     // 투영. 저장하지 않음
@@ -1711,7 +1772,7 @@ export interface LensApplicationView {     // 투영. 저장하지 않음
 | `ignored` | 탐구 실행이 닫혔는데 이 적용의 가능성에 반응이 없음 |
 | `pending` | 그 밖 |
 
-렌즈 통계(투영, 08 §3.17.2 "렌즈별 채택·거절 기록은 가능성 상태에서 계산"과 같은 방식): 렌즈별 적용 수, 채택·기각·무시 수, 마지막 적용 시각. 채택률 = 채택 / 적용. 반증 가설 H6("Method Transfer가 쓸모 있는 가능성을 만든다", 반증: 렌즈 가능성 채택률이 0에 가까움)의 측정값이다(v0.3 10 §3, 16).
+렌즈 통계(투영, 08 §3.17.2 "렌즈별 채택·거절 기록은 가능성 상태에서 계산"과 같은 방식): 렌즈별 적용 수, 채택·기각·무시 수, 마지막 적용 시각. 채택률 = 채택 / 적용. 반증 가설 V6("Method Transfer가 쓸모 있는 가능성을 만든다", 반증: 렌즈 가능성 채택률이 0에 가까움, 01 §3, 판정 J-09)의 측정값이다. 채택은 별도 이벤트를 두지 않는다. 16은 같은 이벤트(`choice.committed`·`agreement.*`·`probe.concluded`의 참조, 반응 관찰, `possibility.pinned`·`rejected`·`dismissed`)에서 이 표의 규칙으로 지표 사실 `inquiry/lens_adopted`를 만든다(16 §5.2 요구 (1)에 대한 답).
 
 #### 3.9.6 렌즈 seed 35개
 
@@ -1790,7 +1851,7 @@ couplingCandidates(target):           # 5단계의 코드 부분
 
 #### 3.10.3 예측 레코드
 
-v0.3 04 §5.3을 엔진의 출력 타입으로 옮겼다. 기록은 10 `prediction.propose` → 08 §3.14.2 `Prediction`(`basis`, `failurePaths`, `check: { trigger, method }`)이다. `checkAt`은 08 `Trigger`로 바꾼다: 날짜는 `{ kind: "at" }`, 조건은 기계 판정 가능한 트리거(`record_state`, `record_changed`, `before_loop`)로 쓰고 `latestAt`을 함께 `at` 트리거로 건다. 기계 판정이 안 되는 조건(`manual`)만 있는 예측은 08이 거부한다.
+v0.3 04 §5.3을 엔진의 출력 타입으로 옮겼다. 기록은 10 `prediction.propose` → `prediction.recorded` → 08 §3.14.2 `Prediction`(`basis`, `failurePaths[].impact`, `check: { trigger, method }`)이다. `checkAt`은 08 `Trigger`로 바꾼다: 날짜는 `{ kind: "at" }`, 조건은 기계 판정 가능한 트리거(`record_state`, `record_changed`, `before_loop`)로 쓰고 `latestAt`을 함께 `at` 트리거로 건다. 기계 판정이 안 되는 조건(`manual`)만 있는 예측은 08이 거부한다.
 
 ```ts
 export interface PredictionProposal {
@@ -1807,14 +1868,14 @@ export interface PredictionProposal {
 
 export interface FailurePath {
   path: string;                            // "오래된 가격이 보여 새로운 불만이 생김"
-  impact: "high" | "medium" | "low";       // 서열. 확률이 아님. 08 failurePaths에 필드 추가 요구
+  impact: "high" | "medium" | "low";       // 서열. 확률이 아님. 08 §3.14.2 failurePaths[].impact
   mitigation?: string;                     // "가격 영역만 즉시 갱신"
   watchSignal?: string;                    // "가격 관련 피드백 수"
   fromPremortem: boolean;
 }
 
 export interface PredictionResult {        // A 루프가 채운다(14). 08 Prediction.result
-  verdict: "held" | "partial" | "failed" | "indeterminate";   // 08 이름. 10 prediction.resolve는 matched·missed… (§5.2에서 통일 요구)
+  verdict: "held" | "partial" | "failed" | "indeterminate";   // 08 이름. 10 PredictionCheckPayload의 `undeterminable`은 08에 맞춰 달라고 요구(§5.2)
   observationIds: ObservationId[];
   note: string;
   checkedAt: number;
@@ -1823,7 +1884,7 @@ export interface PredictionResult {        // A 루프가 채운다(14). 08 Pred
 ```
 
 - 조건형 확인(`kind: "condition"`)에도 `latestAt`을 둔다. 조건이 오지 않아도 그 시각에 확인을 연다.
-- 확인 시각이 오면 스케줄러(12)가 깨우고, A 루프(14)가 예측과 실제를 비교해 `PredictionResult`를 채운다. 엔진은 확인에 쓸 하위 실행 명세(`checkPlan`: 도구 묶음, 과제 문장)를 예측과 함께 남겨 A 루프가 그대로 쓸 수 있게 한다.
+- 확인 시각이 오면 스케줄러(12)가 깨우고, A 루프(14 T18)가 예측과 실제를 비교해 `prediction.check`로 `PredictionResult`를 채운다. 14가 말하는 `checkPlan`은 08 `check.method`(확인 과제 문장, `checkMethod`)다. 도구 묶음은 따로 저장하지 않고 확인 시점의 근거 범위 다이얼로 정한다. 14 §3.20.4의 "T18 점검은 `checkPlan`을 그대로 쓴다"는 이 뜻이다(14 §5.2 요구 (2)에 대한 답).
 - 예측 적중 기록은 모델 품질 평가 자료다(v0.3 04 §5.5, §3.15).
 
 #### 3.10.4 실패 경로 정렬과 병합
@@ -1861,24 +1922,26 @@ export interface PredictionResult {        // A 루프가 채운다(14). 08 Pred
 
 #### 3.11.2 사람이 탐구 중에 할 수 있는 조작
 
-원전 Inquiry Interaction 일곱 가지(helm-canon §12.6)에 이 문서의 조작을 더했다. 명령 이름은 10, 프로토콜 메서드는 19가 정한다.
+원전 Inquiry Interaction 일곱 가지(helm-canon §12.6)에 이 문서의 조작을 더했다. 명령 이름은 10, 프로토콜 메서드는 19가 정한다. 대응은 §3.2.6 끝에 모았다.
 
-| 조작 | 엔진 처리 |
-|---|---|
-| 관점 추가·나누기·합치기 | 사람 기원 `perspective` 기록 → 발산 표 행. 합치기는 병합 명령 |
-| 새 가설·가능성 제안 | 사람 기원 가능성. 칸 지정 가능 |
-| 근거 관계에 이의 | 근거 연결에 이의 표시 → 지지 등급 재계산 |
-| 숨은 가정을 질문으로 올리기 | 전제 → 정보 게이트 질문 |
-| 다음 확인 직접 고르기 | 다음 라운드의 확인 순서를 사람 선택으로 덮어씀(기록) |
-| 불확실해도 행동하기로 정하기 | `stopReason = human_decided`, 전환 제안 |
-| 탐구 중단 비용과 남은 정보 가치 비교 | 엔진이 보여 줌: 점수 > 0인 남은 질문·확인 수, 남은 예산, 계획이 바뀌지 않은 라운드 수 |
-| 항목 앞줄 고정·접기·기각 | 고정은 대비 압축 `pinned`, 기각은 이유 선택 사항(이유 없음 허용) |
-| 자극·레퍼런스 추가 | 사람 기원 자극 |
-| 렌즈 지정·추가 | `pinned` 렌즈, `lens.added` |
-| 특정 칸 채우기 요청 | 다음 라운드에 그 칸을 우선 |
-| 다이얼 변경 | 다음 라운드 경계에서 적용(v0.3 09 §4.9) |
-| 라운드 마침 | §3.6.4 |
-| 일시 정지·재개·중단 | §3.1.5 |
+| 조작 | 19 메서드(04 의도) | 10 명령 | 엔진 처리 |
+|---|---|---|---|
+| 관점 추가·합치기 | `inquiry.requestFrame { op }` | `possibility.propose` + `inquiry.perspective.add` / `possibility.merge` | 사람 기원 `perspective` → 발산 표 행 |
+| 새 가설·가능성 제안 | `inquiry.proposeCandidate` | `possibility.propose`(사람) | 칸 지정 가능 |
+| 근거 관계에 이의 | `contest.file { target: evidenceLink }` | `decision.contest` | 지지 등급 재계산 |
+| 숨은 가정을 질문으로 올리기 | `inquiry.markAssumption` | `assumption.record`(사람) | 그 전제를 확인할 정보 게이트 질문 후보(§3.4.10) |
+| 다음 확인 직접 고르기 | `inquiry.pinCheck` | `check.pin` | 다음 라운드의 확인 순서를 사람 선택으로 덮어씀(기록) |
+| 불확실해도 행동하기로 정하기 | `inquiry.requestDecision` | `inquiry.stop`(`decide_now`) | `stopReason = human_decided`, 선택 요청 초안 |
+| 여기서 멈추고 넘기기 | `inquiry.stop { handOff }` | `inquiry.stop` | 열린 질문을 그대로 넘김(v0.3 04 §1) |
+| 탐구 중단 비용과 남은 정보 가치 비교 | (뷰) | — | 엔진이 보여 줌: 점수 > 0인 남은 질문·확인 수, 남은 예산, 계획이 바뀌지 않은 라운드 수 |
+| 항목 앞줄 고정·기각 | `possibility.pin`·`dismiss` | `possibility.pin`·`unpin`·`dismiss` | 고정은 대비 압축 `pinned`, 기각은 이유 선택 사항(이유 없음 허용) |
+| 자극·레퍼런스 추가 | (19에 요구) | `stimulus.create`(사람) | 사람 기원 자극 |
+| 렌즈 지정 | `inquiry.pinLens` | 사람 발화 관찰(§3.2.6) | 다음 `selectLenses`의 `pinned` |
+| 렌즈 추가 | (19에 요구) | `lens.add` | 라이브러리에 추가 |
+| 특정 칸 채우기 요청 | `inquiry.fillCell` | 사람 발화 관찰(§3.2.6) | 다음 라운드에 그 칸을 우선 |
+| 다이얼 변경 | `dial.set` | `dial.set` | 다음 라운드 경계에서 적용(v0.3 09 §4.9) |
+| 반응·라운드 마침 | `reaction.*`, `stimulusRound.close` | `observation.record`, `reaction.*`, `inquiry.round.close` | §3.6.4 |
+| 일시 정지·재개·"오늘은 여기까지" | `work.pause`·`resume` | `workunit.pause`·`resume` | §3.1.5 |
 
 ### 3.12 REPL 방식 탐구 [제안]
 
@@ -1906,9 +1969,9 @@ useRepl(check):
 | 교정된 전제(§2.3) | 설계 반영 |
 |---|---|
 | codemode 변수는 실행 한 번만 산다 | 실행 사이 값은 작업 공간(`helm.wsGet`·`helm.wsPut`)에 둔다(§3.12.4). VM을 오래 살리는 포크는 하지 않는다 |
-| 기본 codemode에는 채팅 모델 하위 호출이 없다 | Helm이 globals로 `helm.subcall`을 넣는다(§3.12.5). pi-codemode는 globals를 허용한다 |
+| 기본 codemode에는 채팅 모델 하위 호출이 없다 | Helm이 globals로 `helm.subcall`을 넣는다(§3.12.5). pi-codemode는 globals를 허용한다(`types.ts:94-102`) |
 | store는 1Mi자 상한이고, coding-agent는 세션 엔트리에 기록한다 | `store`/`load`를 쓰지 않는다. 빈 store를 넘기고 `storeWrites`는 버린다. 정본 경로는 `helm.emit`뿐이다(§3.12.6) |
-| 스크립트 안 도구 호출은 훅을 거쳐야 한다 | `tools.*`는 07 §3.12의 브리지(`runNestedToolCall`)로 13의 도구 실행 경로(인자 검증, 범위 검사, 실행 의도 → 결과 기록)를 그대로 거친다. coding-agent의 `ctx.executeTool`과 같은 위치다 |
+| 스크립트 안 도구 호출은 훅을 거쳐야 한다 | `tools.*`는 07 §3.12의 브리지(`runNestedToolCall`)로 13의 도구 실행 경로(인자 검증, 범위 검사, 실행 의도 → 결과 기록)를 그대로 거친다(13 §3.8.3 표의 `tools.<name>` 행). coding-agent의 `ctx.executeTool`(`execute.ts:462`)과 같은 위치다 |
 | 실패한 스크립트의 부수효과는 되돌려지지 않는다 | REPL에는 읽기 도구만 준다. 제안은 성공한 실행만 dispatch한다 |
 | RLM 계열 효과는 큰 입력 집계와 약한 모델에서 확인됐다 | 큰 입력 조건에서만 쓴다. 반증 가설 H-R1(§3.15.5) |
 
@@ -1917,24 +1980,26 @@ useRepl(check):
 ```text
 엔진 repl 행동
   └─ REPL 루트 루프 (역할 repl_root, 최대 6회 반복)
-       각 반복: 루트 모델이 스크립트를 씀 → helm_repl 실행 → 잘린 출력과 작업 공간 목록을 루트에 돌려줌
+       각 반복: 루트 모델이 스크립트를 씀 → ReplPort.run → 잘린 출력과 작업 공간 목록을 루트에 돌려줌
        종료: 루트가 스크립트에서 return { done: true, summary } 를 돌려주거나 반복 상한
 
-helm_repl 실행기 (13이 도구로 등록, 15가 의미를 정함)
+ReplPort.run (13 §3.8.3이 등록·격리, 15가 의미를 정함. 1차에서는 엔진 실행기만 부르고,
+              모델용 도구 helm_code는 뒤 단계, 13 O-13-06)
   sandbox  pi-codemode CodemodeSandbox: 실행마다 새 worker와 QuickJS VM
-           [원문] packages/codemode/src/runtime/host.ts:12-18
-  tools.*  근거 범위 도구 묶음 중 읽기 도구만: read, grep, find, ls, ledger_query, (read_web이면) web_fetch
-           bash·write·edit·send 계열은 넣지 않는다
-  globals  helm.subcall(spec)            채팅 모델 하위 호출 (§3.12.5)
-           helm.wsGet/wsPut/wsList/wsDel  작업 공간, 비정본 (§3.12.4)
-           helm.emit(proposal)            제안 버퍼, 성공 시에만 dispatch (§3.12.6)
-           text(), console.*              출력 (pi-codemode 기본)
-  options  timeoutMs 기본 120000(최대 300000), memoryLimitBytes 256 MiB
+           [원문] pi@v1.1.0 packages/codemode/src/runtime/host.ts:120-124, :340
+  tools.*  근거 범위 도구 묶음 중 읽기 도구만: read, grep, find, ls, helm_query (13 ReplRequest.tools 기본값)
+           bash·write·edit·send 계열은 넣지 않는다. web_fetch는 read_web이 열리는 뒤 단계에서
+  globals  helm.subcall(prompt, opts?)      채팅 모델 하위 호출 (§3.12.5)
+           helm.wsGet/wsPut/wsList/wsDel    작업 공간, 비정본 (§3.12.4)
+           helm.emit(kind, payload)         제안 버퍼, 성공 시에만 dispatch (§3.12.6)
+           text(), console.*                출력 (pi-codemode 기본)
+  options  timeoutMs 기본 120000(최대 600000, 13), memoryLimitBytes 256 MiB (execute.ts:56과 같음)
 ```
 
-- pi-codemode는 pi 의존이 없고 외부 의존은 `quickjs-wasi` 하나다([원문] pi-api-facts-1 §5.1, `packages/codemode/package.json`). 07은 `1.1.0` 정확한 버전 고정 의존으로 정했다(07 §3.2). 샌드박스 생성 코드는 `packages/tools/src/repl/sandbox.ts`의 `createReplSandbox()`이고, 도구 브리지는 `AgentLoop.runNestedToolCall({ name, args, parentToolCallId })`로 포크한 `runToolCall()`을 지나 훅·커널 검사·관찰 기록이 똑같이 적용된다(07 §3.12, [실험] 07 C20). coding-agent의 `codemode` 확장은 coding-agent 세션에 묶여 있으므로 쓰지 않는다.
-- 스크립트 첫 줄 `// @options:`는 `parseCodemodeSource()`로 읽는다([원문] `packages/codemode/src/source.ts`). `timeout_ms`는 설정 최대값을 넘지 못한다.
-- 루트 프롬프트의 도구 선언은 `renderDeclarations()`로 만든다([원문] `packages/codemode/src/declarations.ts`).
+- 스크립트 실행 한 번은 단계 run의 도구 호출 하나(`helm_repl`, 원시 행동 spawn, `replay: "never"`)로 기록한다. 그 `tc_`를 `ReplRequest.owner.toolCallId`로 넘기고, 스크립트 안 도구 호출은 이것을 `parentToolCallId`로 가진다. 파생 관찰(08 obsKind `derived`)의 `source.toolCallId`가 이 값이다. 13은 `owner.toolCallId`를 선택으로 두었으므로 엔진 경로에서는 필수로 해 달라고 요구한다(§5.2).
+- pi-codemode는 pi 의존이 없고 외부 의존은 `quickjs-wasi` 하나다([원문] pi-api-facts-1 §5.1, `packages/codemode/package.json:58`의 `quickjs-wasi 3.6.2`). 07은 `1.1.0` 정확한 버전 고정 의존으로 정했다(07 §3.2). 샌드박스 생성 코드는 `packages/tools/src/repl/sandbox.ts`의 `createReplSandbox()`이고, 도구 브리지는 12의 런타임(`packages/runtime/src/ports/repl.ts`)이 만들어 주입하는 `runNestedToolCall({ name, args, parentToolCallId, signal })`이다. 이 함수가 `@helm/agent`의 `runToolCall()`을 그 run의 훅과 함께 불러 훅·커널 검사·관찰 기록이 똑같이 적용된다(07 §3.12, [실험] 07 C20). 중첩 호출의 `toolCall.id`는 `<부모 호출 id>/<n>`이다(07 §3.12). coding-agent의 `codemode` 확장은 coding-agent 세션에 묶여 있으므로 쓰지 않는다.
+- 스크립트 첫 줄 `// @options:`는 `parseCodemodeSource()`로 읽는다([원문] `packages/codemode/src/source.ts:100`). `timeout_ms`는 설정 최대값을 넘지 못한다.
+- 루트 프롬프트의 도구 선언은 `renderDeclarations()`로 만든다([원문] `packages/codemode/src/declarations.ts:105`).
 - 루트 모델 컨텍스트에 들어가는 것: 과제, 자신이 쓴 스크립트, 잘린 출력(기본 2000토큰), 작업 공간 목록(키, 타입, 바이트 수, 갱신 시각), 남은 하위 호출 수, 버퍼된 제안 수. RLM이 "REPL 변수: [이름 목록]"만 보여 주는 방식과 같다(대화 L1426).
 
 #### 3.12.4 변수 수명과 작업 공간
@@ -1946,7 +2011,8 @@ helm_repl 실행기 (13이 도구로 등록, 15가 의미를 정함)
 | 제안(`helm.emit` → 커널) | 영구 | 정본 | 커널 규칙 |
 
 - 위치: `/srv/volumes/helm/scratch/inquiry/<iq>/ws/<key>.json`(17이 확정). 파일이므로 데몬 재시작 뒤에도 남는다.
-- 이름: pi-codemode globals는 `<namespace>.<member>` 한 단계만 묶을 수 있다([원문] `packages/codemode/src/types.ts` `CodemodeTool.name` 주석). 그래서 `helm.ws.get` 대신 `helm.wsGet`처럼 쓴다.
+- 이름: pi-codemode globals는 식별자 또는 `<namespace>.<member>` 한 단계만 묶을 수 있다([원문] `pi@v1.1.0:packages/codemode/src/types.ts:15-20` `CodemodeTool.name` 주석). 그래서 13 §3.8.3의 `helm.ws.get/set/delete` 대신 `helm.wsGet`·`wsPut`·`wsList`·`wsDel`로 쓴다(13에 요구, §5.2).
+- 13 §3.8.3은 작업 공간을 pi-codemode `store`/`storeWrites`로 구현하고 성공한 실행의 쓰기만 `repl.workspace_written` 실행 기록으로 남기는 안을 적었다. 이 문서는 파일 작업 공간을 쓴다. 이유는 둘이다. (1) `store`는 값 하나 256Ki자, 전체 1Mi자 상한이라(`prelude-source.ts:32-33`) 큰 입력 집계의 중간 결과를 담기 어렵다. (2) 실패한 실행에서도 중간 결과가 남아야 루트가 다음 반복에서 이어 갈 수 있다. 정본이 아니므로 실패한 실행의 쓰기를 남겨도 기록 규칙을 어기지 않는다. 13에 맞춰 달라고 요구하고 §7 O-20에 둔다.
 - `wsGet`은 복사본을 돌려준다. `wsPut`은 즉시 파일에 쓴다(노트북처럼 중간 결과를 남기기 위해서). 실패한 실행의 `wsPut`도 남는다. 정본이 아니므로 허용한다.
 - 키 이름은 `[a-z0-9_]{1,64}`. 값은 JSON 직렬화 가능해야 한다.
 - 규칙: REPL 변수와 작업 공간은 작업 메모이고 정본이 아니다. REPL 안에서 만든 가능성·기준·판단은 커널의 dispatch를 거쳐야만 기록이 된다(v0.3 04 §9, 발췌 4 2-18).
@@ -1954,43 +2020,44 @@ helm_repl 실행기 (13이 도구로 등록, 15가 의미를 정함)
 #### 3.12.5 하위 호출 `helm.subcall`
 
 ```ts
-// 스크립트에서 보이는 선언 (renderDeclarations로 루트 프롬프트에 실림)
+// 스크립트에서 보이는 선언 (renderDeclarations로 루트 프롬프트에 실림). 13 §3.8.3의 helm.subcall(prompt, opts)와 같은 모양
 declare namespace helm {
-  function subcall(spec: {
-    prompt: string;                       // 24k자 이내. 자료는 <data> 블록으로 감싼다
-    schema?: object;                      // JSON Schema. 없으면 { answer: string }
-    tier?: "fast" | "strong";             // 기본 fast
-    key?: string;                         // 같은 호출을 재사용하기 위한 보조 키
-  }): Promise<{ ok: true; value: unknown } | { ok: false; error: string }>;
+  function subcall(
+    prompt: string,                       // 2만 자 이내(13 helm_subcall과 같음). 자료는 <data> 블록으로 감싼다
+    opts?: {
+      schema?: object;                    // JSON Schema. 없으면 { answer: string }
+      tier?: "fast" | "strong";           // 기본 fast
+      key?: string;                       // 같은 호출을 재사용하기 위한 보조 키
+    },
+  ): Promise<{ ok: true; value: unknown } | { ok: false; error: string }>;
 }
 ```
 
 | 항목 | 값 |
 |---|---|
 | 구현 | 호스트 함수 → `ModelPort.call`(역할 `repl_sub`). 도구 없음, REPL 없음(깊이 1) |
-| 메모 키 | `sha256(inquiryId, stageKey, prompt, schema, tier, key)`. 재시작·재실행 시 같은 호출을 재사용 |
-| 상한 | 실행 한 번에 16회, 동시 4개(coding-agent의 모델 호출 동시 상한과 같음, [원문] `execute.ts:50`), 호출당 60초, 탐구 실행 전체 예산(§3.13.3)에서 차감 |
+| 메모 키 | `repl:<inquiryId>:<stepKey>:<sha256(prompt, opts)>`. 13 §3.8.3의 `repl:<owner>:<sha256(prompt+opts)>`에서 `owner`를 `ReplRequest.owner`의 `inquiryId`와 `stepId`(= 엔진의 `InquiryStepKey`)로 채운 것이다. 재시작·재실행 시 같은 호출을 재사용한다(12 §3.14.6). 13이 이 규칙을 "15 §3.12.9"로 인용했는데 이 절(§3.12.5)이다 |
+| 상한 | 실행 한 번에 16회, 동시 4개(13 §3.8.3, coding-agent의 모델 호출 동시 상한과 같음, [원문] `pi@v1.1.0:packages/coding-agent/src/extensions/codemode/execute.ts:50`), 호출당 60초, 탐구 실행 전체 예산(§3.13.3, 12 `BudgetLease`)에서 차감 |
 | 깊이 2 | 하위 호출이 다시 도구·REPL을 쓰는 재귀(ypi 방식, 발췌 1 E1-219)는 기본으로 끈다. 설정 `inquiry.repl.allowRecursive = false` [제안] |
 | 바깥 이름 | REPL 밖에서 같은 기능을 도구로 쓸 때의 이름은 `helm_subcall`(감사 보고 §4). 등록은 13 |
 
 #### 3.12.6 기록 경로 `helm.emit`
 
 ```ts
+// 13 §3.8.3 helm.emit(command, payload)와 같은 두 인자 모양. kind는 아래 넷만 받는다
 declare namespace helm {
-  function emit(p:
-    | { type: "interpretation"; statement: string; evidence: string[] }                 // 관찰 id
-    | { type: "possibility"; proposal: object }                                          // PossibilityProposal 형식
-    | { type: "open_question"; text: string; uncertaintyKind?: string }
-    | { type: "observation_derived"; statement: string; value: unknown; inputToolCallIds: string[] }
-  ): void;
+  function emit(kind: "interpretation", payload: { statement: string; evidence: string[] }): void;     // 관찰 id
+  function emit(kind: "possibility", payload: object): void;                                           // PossibilityProposal 형식
+  function emit(kind: "open_question", payload: { text: string; uncertaintyKind?: string }): void;
+  function emit(kind: "observation_derived", payload: { statement: string; value: unknown; inputToolCallIds: string[] }): void;
 }
 ```
 
-- `emit`은 버퍼에만 쌓는다. 실행이 성공(`result.ok`)했을 때만 호스트가 사전 검사(§3.3.4)를 거쳐 dispatch한다. 실패한 실행의 제안은 버린다. pi-codemode의 `storeWrites`와 같은 원자성이다.
+- `emit`은 버퍼에만 쌓는다. 호스트는 각 항목을 10 명령 초안(`KernelCommandDraft`: `interpretation.propose`, `possibility.propose`, `open_question.record`, 런타임 채널 `observation.record`(obsKind `derived`))으로 바꿔 13 `ReplResult.emitted`에 담는다. 실행이 성공(`result.ok`)했을 때만 엔진이 사전 검사(§3.3.4)를 거쳐 dispatch한다. 실패한 실행의 제안은 버린다. pi-codemode의 `storeWrites`와 같은 원자성이다. 목록 밖 `kind`는 스크립트 안에서 오류를 던진다.
 - `observation_derived`(코드로 계산한 집계값)는 다음을 모두 만족할 때만 관찰로 기록된다(R5).
   1. 그 실행에서 `helm.subcall`을 한 번도 부르지 않았다(실행 단위 오염 표시).
   2. `inputToolCallIds`가 이 탐구 실행의 REPL 안에서 실제로 실행된 도구 호출이다.
-  3. 출처는 `{ kind: "derived", scriptToolCallId, inputToolCallIds }`. 스크립트 원문은 도구 호출 인자로 로그에 남으므로 다시 계산할 수 있다.
+  3. 출처는 08 obsKind `derived`의 `source: { kind: "tool", runId, toolCallId: 스크립트 도구 호출 }`, `inputs: 입력 도구 호출들`이다(R-06의 `inputs` 실재 검사). 스크립트 원문은 실행 기록에 남으므로 다시 계산할 수 있다.
 - 하위 호출을 쓴 실행의 제안은 모두 모델 출력이다. 해석·가능성·열린 질문으로만 기록된다.
 - 스크립트 안 도구 호출은 부모가 REPL 도구 호출인 도구 호출로 기록되고, 런타임이 그 결과로 관찰을 만든다(12·13에 요구).
 
@@ -2081,10 +2148,10 @@ export type InquiryRole =
 | 이미지 생성 | `image`(12에 추가 요구) | — | — |
 
 ```ts
-// 데몬 설정의 inquiry 절(설정 파일 위치와 형식은 06 §3.10). 모델 목록은 12 AiConfig에 있다
+// 데몬 설정 helmd.toml의 [inquiry] 절(TOML, 06 ADR-06-11, 판정 §2). 모델 목록은 12 AiConfig에 있다
 export interface InquiryConfig {
   reasoning?: Partial<Record<InquiryRole, "off" | "low" | "medium" | "high">>;  // 12 thinking을 역할별로 덮어씀
-  frontSize: number;                 // 대비 압축 앞줄 크기. 기본 3 (§3.4.9)
+  frontSize: number;                 // 대비 압축 앞줄 크기. 기본 3 (§3.4.9). 다이얼 아님(14 §3.20.4)
   reviewTopK: number;                // 적대적 검토 대상 수. 기본 8 (§3.4.7)
   repl: { enabled: boolean; allowRecursive: boolean; maxIterations: number; outputTokens: number;
           workspace: { maxValueBytes: number; maxTotalBytes: number; retentionDays: number } };
@@ -2095,7 +2162,7 @@ export interface InquiryConfig {
 - 12가 대체 모델(fallback)을 썼으면 단계 항목 기록에 `degraded`를 남긴다.
 - vision 모델이 없으면 이미지 자극의 반응은 `altText`와 사용자가 단 라벨로만 해석한다(A15-4). 이미지 생성 모델이 없으면 이미지 자극을 만들지 않는다(A15-2).
 - 기본 추론 수준 [제안]: `review`·`criterion_infer` high, `anchor`·`consequence`·`fact_update` medium, `dedupe_judge`·`reaction_structure`·`repl_sub` off, 나머지 low. pi-ai `clampThinkingLevel`로 모델이 지원하는 수준에 맞춰진다(12 §3.3.3).
-- 모델 API 키는 SOPS 비밀로 데몬에 주입된다(브리프 §2.5, 12 §3.3.4). 엔진은 키를 보지 않는다.
+- 모델 API 키는 데몬이 시작 때 `secrets run`으로 받아 SecretStore 메모리에만 둔다(브리프 결정 45, 12 §3.3.4). 엔진은 키를 보지 않는다.
 
 #### 3.13.3 예산
 
@@ -2109,7 +2176,7 @@ export interface InquiryConfig {
 | 비용(USD) | 12 `UsageRecord.costUsd` 합 | 다이얼 `budget.costUsd`(선택) |
 | 시간 | 사람 대기를 뺀 실행 시간 | 14 `LoopBudget.wallMinutes`, 다이얼 `budget.wallMinutes` |
 
-14의 기본값(14 §3.6): I.fact 라운드 3·WorkUnit 12·하위 호출 24·60분, I.want 라운드 4·WorkUnit 8·하위 호출 24·60분, I.possibility 라운드 2·WorkUnit 10·하위 호출 30·60분. I.outcome은 14 §3.6.5 값을 따른다.
+14의 기본값(14 §3.6.2~§3.6.5): I.fact 라운드 3·WorkUnit 12·하위 호출 24·60분, I.want 라운드 4·WorkUnit 8·하위 호출 24·60분, I.possibility 라운드 2·WorkUnit 10·하위 호출 30·60분, I.outcome 라운드 2·WorkUnit 6·하위 호출 16·45분. 14 계약의 WorkUnit 목록과 이 문서의 단계(§3.1.1)가 다른 곳(I.want의 `deliberate`)은 14 §3.20.4가 15를 따르기로 했다.
 
 라운드 안의 배분 [제안]:
 
@@ -2127,9 +2194,9 @@ export interface InquiryConfig {
 
 #### 3.13.4 구조화 출력
 
-- 역할 호출마다 모델에게 `submit` 도구 하나를 준다. 매개변수 스키마가 역할의 출력 스키마다. 제공자가 지원하면 `constrainedSampling: { type: "json_schema", strict: "prefer" }`를 쓴다([원문] `packages/ai/src/types.ts:739-758`).
-- pi-ai의 `toolChoice`는 `"auto" | "none"`만 있다(pi-api-facts-1 §2.5). 모델이 `submit` 없이 텍스트로 끝내면 "submit 도구로만 답하라"를 붙여 한 번 다시 묻는다.
-- 인자는 `validateToolArguments`로 검증한다([원문] `packages/ai/src/utils/validation.ts:317`). 실패하면 검증 오류를 붙여 최대 2회 다시 묻고, 그래도 실패하면 `RoleCallError.kind = "schema"`.
+- 역할 호출마다 모델에게 `submit` 도구 하나를 준다. 매개변수 스키마가 역할의 출력 스키마다. 제공자가 지원하면 `constrainedSampling: { type: "json_schema", strict: "prefer" }`를 쓴다([원문] `pi@v1.1.0:packages/ai/src/types.ts:726-740`).
+- pi-ai의 `ToolChoice`는 `"auto" | "none"`만 있다([원문] `pi@v1.1.0:packages/ai/src/types.ts:88`, pi-api-facts-1 §2.5). 모델이 `submit` 없이 텍스트로 끝내면 "submit 도구로만 답하라"를 붙여 한 번 다시 묻는다.
+- 인자는 `validateToolArguments`로 검증한다([원문] `pi@v1.1.0:packages/ai/src/utils/validation.ts:317`). 이 검증과 재요청은 12 §3.14.6의 역할 호출이 한다. 실패하면 검증 오류를 붙여 최대 2회 다시 묻고, 그래도 실패하면 `RoleCallError.kind = "schema"`.
 - 하위 실행은 읽기 도구와 `submit`을 함께 받는다. `submit` 호출이 하위 실행을 끝낸다. `maxTurns`(기본 8) 안에 제출이 없으면 실패다.
 - 문자열 필드에는 스키마에 `maxLength`를 둔다(요약 120자, 상세 1500자, 자극 본문 20000자).
 
@@ -2151,6 +2218,8 @@ export interface InquiryConfig {
 5. 답은 submit 도구 한 번으로만 낸다. 스키마에 없는 필드를 쓰지 않는다.
 6. 사용자에게 몇 개 중 하나를 고르게 하는 형식으로 쓰지 않는다.
 7. 한국어로 쓴다. 요약은 한 문장, 120자 이내.
+8. 사람에게 보일 문장은 05 §3.10.7·§3.10.9를 따른다: 1인칭("제가")과 사과를 쓰지 않는다. "생각합니다·느낍니다·믿습니다·원합니다·이해했습니다"를 쓰지 않는다.
+   "판단했습니다"는 쓰지 않는다(판단은 승격된 것만). 모르면 "아직 모른다. 다음 확인: …"으로 쓴다.
 {역할별 규칙}
 
 # 맥락 (투영 cursor: {seq}, 생략: {omissions})
@@ -2309,7 +2378,7 @@ v0.3 08 §6 "커널이 보장하는 것과 모델 성능에 달린 것을 섞지
 | 질문 | Helm 원전이 스스로 정한 증거 질문 "사용자가 ProblemFrame이나 Criterion을 의미 있게 바꾸는가"(대화 L1664) |
 | 과제 | 제품 소유자의 최근 실제 흐린 작업 다섯 개. 취향형 둘 이상(결정 1: 글의 톤, 기획 방향, 디자인), 원인 불명 하나, 방향 선택 하나, 흐린 목표 하나(발췌 3 6.5의 유형) |
 | 대상 단계 | 앵커링 → 발산 → 검토 → 대비 압축 + 질문 하나(①~④). 취향형은 원함 탐구 두 라운드 |
-| 비교 조건 | 취향형 과제는 "단일 모델에게 대안 2~3개를 받아 고르기" 조건도 돈다(H1 비교). 과제 절반은 비교 조건을 먼저, 절반은 Helm을 먼저 |
+| 비교 조건 | 취향형 과제는 "단일 모델에게 대안 2~3개를 받아 고르기" 조건도 돈다(V1 비교, 01 OQ-09). 과제 절반은 비교 조건을 먼저, 절반은 Helm을 먼저 |
 | 하네스 | `just eval-inquiry task=<경로>`. 과제 파일(YAML)과 결과는 평가 데이터 디렉터리에 둔다 |
 
 절차(과제마다):
@@ -2361,7 +2430,7 @@ baseline: { ran: true, order: second, satisfaction: 3, criteria_count: 1 }
 | 근거 있음 비율, 근거 있음·없음별 채택률 | 가능성 기준 | H-I3 |
 | 검토 반대 근거 비율 | 검토한 항목 중 반대 근거가 붙은 비율 | 0이면 검토가 형식적 |
 | 단일 계열 발산 비율 | `single_family` 탐구 실행 / 전체 | 보장 수준이 낮아진 비율 |
-| 렌즈 채택률 | §3.9.5 | H6 |
+| 렌즈 채택률 | §3.9.5 | V6 |
 | 예측 적중률 | `held` / 확인된 예측 | 모델 품질 |
 | 예산 소진 비율, 결정 없이 탐구한 시간 | 탐구 실행 기준 | "Inquiry without commitment"(helm-canon-3 §8 체크리스트 15) |
 
@@ -2376,7 +2445,7 @@ baseline: { ran: true, order: second, satisfaction: 3, criteria_count: 1 }
 
 #### 3.15.5 반증 가설
 
-v0.3 10 §3의 H1(원함 탐구 > 고르기), H6(Method Transfer 채택률)에 다음을 더한다. ID는 16이 전체 가설 목록에서 다시 붙일 수 있다.
+가설 번호는 판정 J-09를 따른다: v0.3 10 §3의 가설은 V1~V7(01 §3.10.2, 새 가설 V8·V9), 원전 foundations는 H1~H10. 이 문서의 가설은 V1(원함 탐구 > 고르기), V6(Method Transfer 채택률)에 다음을 더한다. 16이 전체 목록에서 다시 번호를 붙일 수 있다.
 
 | 가설 | 반증 관찰 | 측정 |
 |---|---|---|
@@ -2393,7 +2462,7 @@ v0.3 10 §3의 H1(원함 탐구 > 고르기), H6(Method Transfer 채택률)에 �
 | E-1 | 역할 출력이 스키마와 맞지 않음 | 12가 검증 오류를 붙여 최대 2회 다시 묻는다. 그래도 실패하면 단계 항목 `failed`. 같은 역할이 한 단계에서 3회 실패하면 단계 결과 `paused(step_failed)`, 사용자 알림(전달 11) |
 | E-2 | 출력의 근거 id가 없거나 존재하지 않음 | 사전 검사가 지우고 한 번 다시 묻는다(§3.3.4). 두 번째도 실패하면 남은 근거로 기록, 0개면 근거 없음 묶음 |
 | E-3 | 커널이 내용(content)으로 거부 | 그 제안만 버리고 거부 사유를 단계 기록에 남긴다. 같은 항목을 같은 내용으로 다시 보내지 않는다 |
-| E-4 | 커널이 자격(qualification)·경로(path)로 거부 | 엔진 설정 오류다(예: 모델 경로로 기준 확정을 보냄). 단계를 `paused(step_failed)`로 멈추고 운영 로그에 남긴다. 재시도하지 않는다 |
+| E-4 | 커널이 자격(`authority`)·경로(`path`)로 거부 | 엔진 설정 오류다(예: 모델 경로로 기준 확정을 보냄). 단계를 `paused(step_failed)`로 멈추고 운영 로그에 남긴다. 재시도하지 않는다 |
 | E-5 | 다양성 풀에 모델 계열이 하나뿐 | `same_model` 독립성 표시, 탐구에 "같은 모델 계열로 발산함" 표시. 동작은 계속(§3.4.6) |
 | E-6 | 웹 도구 실패, 네트워크 없음 | 그 탐구의 남은 단계는 `read_docs`로 내려 진행하고 `degraded`를 기록. 카드가 없는 렌즈의 가능성은 근거 없음으로 남는다 |
 | E-7 | 단계 중간에 예산 소진 | 이미 시작한 자식 run은 끝까지 받고 새 자식 run은 시작하지 않는다. 라운드를 부분 결과로 닫고 `budget_exhausted`, 열린 질문을 넘긴다 |
@@ -2410,7 +2479,7 @@ v0.3 10 §3의 H1(원함 탐구 > 고르기), H6(Method Transfer 채택률)에 �
 | E-17 | 렌즈 1단계 구조 서술에 분야 용어가 남음 | 한 번 다시 요청, 그래도 남으면 그 라운드의 렌즈 행을 만들지 않음(§3.9.1) |
 | E-18 | 맞는 렌즈가 없음(태그 겹침 0) | "맞는 렌즈 없음"을 기록하고 렌즈 행 최소 조건을 해당 없음과 이유로 닫는다(§3.9.4) |
 | E-19 | 발산 표 칸이 상한보다 많음 | 우선순위대로 고르고 나머지는 다음 라운드(§3.4.5 B) |
-| E-20 | 중복 병합이 잘못됨(실제로 예측이 다른 것을 합침) | 사람이 병합에 이의를 걸면(19 `contest.file`) 두 가능성을 다시 연다. 링크는 지우지 않고 `contests` 링크가 남는다(08 §3.4.8). 10에 병합 이의의 처리 요구 |
+| E-20 | 중복 병합이 잘못됨(실제로 예측이 다른 것을 합침) | 사람이 병합에 이의를 걸면(19 `contest.file` → 10 `decision.contest`) 두 가능성을 다시 연다. 링크는 지우지 않고 `contests` 링크가 남는다(08 §3.4.8). 병합된 쪽에 열린 이의가 있으면 생존 쪽으로 옮겨 다시 연다(10 §3.11.11 `possibility.merge`) |
 | E-21 | 예측 확인 시각에 데몬이 꺼져 있었음 | 12가 시작 시 지난 타이머를 발화하고 14가 같은 종류 타이머는 하나만 처리한다(14 §3.16.5) |
 | E-22 | 단계 run 도중 크래시 | §3.1.7. 읽기 전용 단계라 다시 요청되고, 끝난 항목과 저장된 모델 응답은 재사용한다 |
 | E-23 | REPL 스크립트가 끝나지 않음 | 기한(기본 120초) 초과로 실패. 루트 반복 하나가 소모된다. 반복 상한(6)이면 확인 결과 `inconclusive` |
@@ -2429,6 +2498,9 @@ v0.3 10 §3의 H1(원함 탐구 > 고르기), H6(Method Transfer 채택률)에 �
 | E-36 | 기준을 임시 적용했던 질문이 가정 확정 뒤 이의를 받음 | 기준 후보를 다시 후보 상태로 두고, 그 기준으로 만든 자극·초안에 "이의된 가정 위에서 만듦"을 표시한다 |
 | E-37 | 사실 탐구에서 반대 근거 탐색 대상이 없음 | 승격 제안을 만들지 않고 열린 질문으로 남긴다(§3.5.5) |
 | E-38 | 확인 라벨 분류가 두 모델 사이에 엇갈림 | 묶지 않고 열린 질문, 다음 라운드에 다른 확인(§3.5.4) |
+| E-39 | 연결이 끊긴 동안 한 반응이 라운드가 닫힌 뒤 도착 | 관찰로 기록하고 그 라운드의 마감 판정에는 쓰지 않는다. 다음 라운드의 기준 추론 입력이 된다(§3.6.4). 05 §3.2.2의 "라운드가 닫혔으면 거부"와 다르다(§7 O-21) |
+| E-40 | 사람이 "오늘은 여기까지"를 누름 | WorkUnit 일시 정지(§3.1.5). 열린 기준 후보·자극·질문은 그대로, 예약 질문은 다음 복귀 요약으로(01 FX-05, 02 UC-01 A5) |
+| E-41 | 반응 수가 연속 세 라운드 절반 이하로 줄어듦 | `stop_condition` 질문으로 "지금 선호 모델로 초안 먼저"를 제안(§3.6.8). 탐구를 멈추자고 묻지 않는다 |
 
 ## 5. 다른 문서와의 인터페이스
 
@@ -2438,34 +2510,45 @@ v0.3 10 §3의 H1(원함 탐구 > 고르기), H6(Method Transfer 채택률)에 �
 |---|---|
 | `InquiryEngine.planRound(view, dials)`, `runStage(stage, ports, signal)` (§3.1.1) | 14, 12 |
 | 단계 WorkUnit 구성(목적·반복·자식 run) (§3.1.1) | 14 |
-| 순수 함수: `divergenceMode`, `assignModel`, `gradeSupport`, `contrastOrder`, `chooseQuestion`, `orderChecks`, `costWeight`, `roundClosable`, `nextStimuli`, `planStable`, `selectLenses`, `checkStructure`, `couplingCandidates` | 14(멈춤 술어 `inquiry.stopRuleMet`), 16(지표 재계산), 22(속성 테스트) |
-| 이벤트(이름은 09가 확정): `inquiry.opened`, `inquiry.anchored`, `inquiry.stage_completed`, `inquiry.step_started`·`step_completed`·`step_failed`(실행 기록), `inquiry.round_ended`, `inquiry.stop_rule_met`, `inquiry.stopped`, `contrast.presented`, `preference_model.versioned`, `lens_seed.loaded` | 09, 14, 16 |
+| 순수 함수: `divergenceMode`, `assignModel`, `gradeSupport`, `contrastOrder`, `chooseQuestion`, `orderChecks`, `costWeight`, `roundClosable`, `nextStimuli`, `planStable`, `selectLenses`, `checkStructure`, `couplingCandidates`, `presentStimuli`(순서·라벨·숨김 필드·평문 조각, §3.6.3), `distinctPredictionCount`(서로 다른 결과 선언 벡터 수, §3.4.9) | 10(`roundClosable`을 `inquiry.round.close` 검사에), 14(멈춤 술어 `inquiry.stopRuleMet`), 16(지표 재계산, `inq.possibility_diversity`의 `distinctPrediction`), 19·21(뷰), 22(속성 테스트) |
+| 모델 출력 → 명령 → 이벤트 → 레코드 대응(§3.2.5)과 10에 없는 명령 넷(§3.2.6) | 10, 08, 09 |
+| 엔진이 내는 이벤트(이름은 09 §3.4): `inquiry.opened`·`anchored`·`perspective_added`·`cell_closed`·`round_started`(`planHash` = 계획 지문)·`round_ended`·`stage_completed`·`stop_rule_met`·`stopped`, `contrast.presented`, `preference.example_marked`·`divergence_noted`·`divergence_shown`, `lens.*`, `lens_seed.loaded` | 09, 14, 16 |
+| 실행 기록 항목 `inquiry.step { key, actionHash, state, reason? }`(§3.1.7). 도메인 이벤트가 아니다 | 12 |
+| 반응 대응표: 19 `reaction.record`의 종류·값 → 08 `ReactionPayload`(§3.6.4, 대비 반응 §3.4.11), 라운드 마감 규칙 `roundClosable` | 19, 05, 10 |
+| 자극 제시 데이터: 섞은 순서와 라벨, 요소 평문 조각, 반응 전 숨기는 필드와 라운드 뒤 공개(§3.6.3), 세 개 비교 데이터와 빈도(§3.6.6), 대비 접힘 사유(§3.4.9). 이미지 자극은 08 `content.blob`의 `BlobRef`이고 표시 판(`variants`)은 데몬 blob 서비스가 만든다(19 §3.11, 12 요구 (6)) | 04, 05, 19, 21 |
+| 08 U-14 확정: 구분 확인 라벨 분류자는 다이얼 `assurance.independent_verification`으로 정한다(§3.5.4) | 08, 10, 14 |
+| 렌즈 seed(`lens-seed.v1.json`)와 값 목록 파일(`lens/vocab.v1.json`: 분야, 구조 태그, 전이 단계 키, §3.9.3) | 08, 16(렌즈 제안), 21(렌즈 표시) |
+| 자극 수: 첫 라운드 8(다이얼 기본), 모든 라운드 최소 4(§3.6.3, 판정 J-06) | 01, 02 UQ-10, 14 |
+| "오늘은 여기까지" 처리: 일시 정지, 열린 기준 후보 유지(§3.1.5, §3.6.8) | 01 FX-05, 02 UC-01 A5, 04 |
 | 투영 타입: `InquiryProjection`, `DivergenceTable`, `SupportView`, `LensApplicationView`, `PlanFingerprint`, `InquiryHandover` | 04·19·21, 16 |
-| 렌즈 seed(`lens-seed.v1.json`)와 구조 태그 어휘(§3.9.3, §3.9.6) | 16(렌즈 제안), 21(렌즈 표시) |
-| 역할별 프롬프트와 출력 스키마(§3.13.5, §3.13.6) | 12(구조화 출력), 22(가짜 모델 대본) |
+| 역할별 프롬프트와 출력 스키마(§3.13.5, §3.13.6), 사람에게 보일 문장의 문체 규칙(05 §3.10.7·§3.10.9를 프롬프트 규칙 8로) | 12(구조화 출력), 22(가짜 모델 대본), 05 |
 | 평가 하네스와 기록 형식(§3.15.2) | 16, 23 |
-| 모델 출력 → 명령 → 레코드 대응(§3.2.5) | 10, 08 |
 
 ### 5.2 다른 문서에 요구하는 것
 
+1단계에서 낸 요구 중 반영된 것(08의 Inquiry·Possibility·Stimulus·Reaction·PreferenceModel·Lens·Prediction 필드, 09의 탐구 이벤트, 10의 탐구 명령, 11의 질문 종류와 전제 생성, 14의 템플릿과 `frontSize`, 16의 S3 원천과 렌즈 제안)은 지웠다. 남은 것만 적는다.
+
 | 문서 | 요구 |
 |---|---|
-| 02 (P1) | UC-01에 자극 라운드와 반응 형태(요소 단위, 이유 없음, 고쳐 말하기, 세 개 비교), 기준 확인, `stated_vs_revealed`를 단계별 시나리오로 넣는다. Method Transfer 유즈케이스 하나(§3.9.1의 주문표 레일 예). E0(§3.15.2)를 UC-01·UC-02의 수용 기준 관찰 항목으로 쓴다 |
-| 03·04·05 (P2) | 자극판: §3.6.4의 반응 형태 전부(19에 `comparison` 추가 포함), 라운드 마감 규칙, 세 개 비교 띠. 대비 화면: 앞줄 문장 "얻는 것 / 잃는 것"(잃는 것이 없으면 "확인되지 않음"), 접힌 묶음(근거 없음, 이전에 기각됨, 이전 서술 기준), 고정, 반대 근거 펼침. 발산 표: 방향 라벨과 렌즈 행 표시. 앵커링 결과(확실한 것·모호한 것·가정)의 고쳐 말하기. 비교 화면의 주 동작에 "하나 고르기"만 두지 않음(E18-7). "같은 모델 계열로 발산함", `degraded` 배지. 예산이 거의 소진됐을 때 문구(§3.13.3). 구조 자극은 개요 목록으로 보임 |
-| 06 (P3) | 데몬 설정의 `inquiry` 절(`InquiryConfig`, §3.13.2). `just` 레시피 `lens-seed`, `eval-inquiry`. `scripts/build-lens-seed.ts` 위치 |
-| 07 (P4) | pi-codemode `1.1.0`의 `createReplSandbox()`가 `globals`로 `helm.subcall`·`helm.wsGet`·`helm.wsPut`·`helm.wsList`·`helm.wsDel`·`helm.emit`을 넣고(pi-codemode globals는 `<namespace>.<member>` 한 단계만 허용), `store`를 쓰지 않음. pi-ai `generateImages`를 `@helm/ai`에서 노출 |
-| 08 (P5) | `Inquiry.perspectives[]`에 `possibilityId`, `direction`, `transfer`(TransferSteps). `Inquiry.stop.reason`에 `concern_closed`. `Inquiry.rounds[]`에 `planHash`. `Possibility`에 `consequences`(ConsequenceDecl), `criterion`(CriterionSpec), `feasibility`. `Stimulus`에 `facets`, `altText`, `controlledFor`. `PreferenceModel`에 `scope`(user 층), `criteria[].inheritedFrom`, `statedVsRevealed[].shownToUserSeq`. `Prediction.failurePaths[]`에 `impact`. `Lens`에 `field`, `structureStatement`, `structureTags`, `transferRisk`, `sourceGrade`, `evidenceStatus`, `userModified`. `QuestionKind`에 `triad`, `reframe_confirm`. `Observation`에 `obsKind: "derived"`(REPL 파생 집계, 출처 = 스크립트 도구 호출과 입력 도구 호출들, §3.12.6). `ReactionPayload.stimulusId`를 `subjectRef: StimulusId | PossibilityId`로(§3.4.11). 예측 확인 결과 이름을 10과 통일 |
-| 09 (P5) | §5.1의 이벤트, 08 추가 필드의 이벤트. 자극 blob 저장(이미지, 긴 초안). 실행 기록에 단계 항목 의도·결과 |
-| 10 (P6) | 명령: `inquiry.open`, `inquiry.perspective.add`, `inquiry.cell.update`, `inquiry.round.close`, `inquiry.stop`, `open_question.record`, `stimulus.create`, `possibility.dismiss`·`merge`·`pin`, `lens.add`·`update`·`retire`(사람), 병합 이의의 재개방. `claim.declare_discrimination` 페이로드를 08 `DiscriminatingCheck`(결과 라벨 여러 개, 후보별 예상 라벨 집합, 비용)에 맞춤. `prediction.resolve`의 결과 이름을 08과 통일. 모든 엔진 명령에 멱등 키. 승격 검사에 "반대 근거 탐색이 최신 지지 근거 뒤" 조건을 넣을지 검토(엔진은 사전 검사로 이미 봄). 반응 기록(`observation.record` + `reactionTo`)과 `stimulus.present`를 I.want 밖(I.possibility, I.fact의 대비 화면)에서도 허용 |
-| 11 (P6) | 질문 종류 `triad`, `reframe_confirm`. 막히지 않는 정보 질문의 임시 가정 전제를 엔진이 먼저 기록. I 계열 기본 전달은 라운드 경계 예약. 기준 확인 여러 개를 한 질문으로 묶는 형식. 가정 확정(`assumed`)은 기준을 확정하지 않음(§3.7.3). 원함 탐구 밖 `choice` 질문의 A15 선택지 부착 |
-| 12 (P7) | `RunKind "inquiry"`(엔진이 구동하는 run, `runStage` 호출). `ModelRole` `inquiry`·`image`. 포트 구현(§3.1.2). `memoKey` 재사용. 단계 단위 예산 예약. 자식 run의 `forkCursor`·`excludeThreads`. 컨텍스트 섹션: 앵커링 결과, 발산 표 요약, 대비 정렬, 기각 이력, 선호 모델(§3.4.3). 예측 확인 타이머(`latestAt` 포함). 중첩 도구 호출을 부모 도구 호출과 함께 기록. 도구 호출 `purpose`(`counter_search`, `stimulus`) 전달 |
-| 13 (P7) | 근거 범위 도구 묶음 `read_target`·`read_docs`·`read_web`(§3.3.3). 기록 조회 도구 `ledger_query`(결과는 관찰). `web_fetch`의 내용 해시. 도구 결과의 `targetHash`(R8). `helm_repl`·`helm_subcall` 도구 등록과 격리. 읽기 도구의 재실행 안전 표시 |
-| 14 (P8) | `diverge` 템플릿을 "per_round, 가지는 자식 run"으로(§3.1.1). `planRound`·`runStage` 계약. 종료 결과 대응(§3.1.3). `breadth`·`stimuliPerRound`·`autonomy` 해석(§3.4.2, §3.6.3, §3.4.11). 실현 가능성 확인과 `probe` 확인에서 나온 탐침 제안 처리. 선호 모델 변경 → I.want 재진입 전환. 루프 계약의 제안 종류에 `stimulus`, `perspective`, `consequence` 추가 |
-| 16 (P10) | §3.15.3 지표, 가설 H-I1~H-I4·H-R1(16의 V6이 H6). 진입 계기 S3용 정정 신호 레코드(같은 Goal 또는 같은 Concern 종류에서의 반복 정정). 발산 표 열 범주와 렌즈 추가·내리기 제안(16 D13과 같음). E0 결과 수집 |
+| 01 (P1) | 없음. FX-05는 §3.1.5·§3.6.8에 반영했다 |
+| 02 (P1) | (1) UC-01 A5의 `work_unit.paused`를 09 이름 `workunit.paused`로. (2) UQ-10은 "첫 라운드 8, 모든 라운드 최소 4"로 확정(§3.6.3) |
+| 04 (P2) | (1) `StimulusRoundView` 글 요소에 평문 조각 `text`(21 E9), 반응 대상에 `textRange`. (2) `revealAfterClose`에 자극별 특징(`facets`)과 역할(극단·통제 쌍·다시 보여 주기)을 더한다(§3.6.3 표). (3) `ReactionView.kind`에 `comparison`, `contrast`. `near`는 강도 없이 표식만. (4) `InquiryView.possibility.foldedReason`에 `frame_changed`(이전 서술 기준, E-12). (5) `outcome.predictions[].checkAt`을 08 `check { trigger, method }`로. (6) Concern 개요에 "원함 탐구 멈춤(오늘은 여기까지)" 상태(01 FX-05). (7) 04 §3.8 "사람이 할 수 있는 것" 표의 명령 의도를 §3.11.2의 10 명령으로 맞춘다 |
+| 05 (P2) | (1) §3.2.2 `ReactionIntent`의 `near`는 08 `near: true`(강도 없음)로, 대비 반응(§3.2.7)은 §3.4.11의 대응으로. (2) 라운드가 닫힌 뒤 도착한 반응을 거부하지 않고 기록한다(§3.6.4, E-39, §7 O-21). (3) 세 개 비교 빈도와 반응 감소 때의 질문 문장은 §3.6.6·§3.6.8을 따른다 |
+| 06 (P3) | `helmd.toml`의 `[inquiry]` 절(`InquiryConfig`, §3.13.2). `just` 레시피 `lens-seed`, `eval-inquiry`. `scripts/build-lens-seed.ts`, `packages/runtime/src/inquiry/lens/{seed,vocab}` 위치 |
+| 07 (P4) | 없음. §2.3·§3.12의 `v1.1.0` 행 번호와 `runNestedToolCall` 이름은 07 §5.2 요구대로 고쳤다 |
+| 08 (P5) | (1) `Possibility.consequenceMarks: Nullable(Record<기준 키, -1 \| 0 \| 1>)`(§3.4.9). 그 전에는 결과 선언을 해석으로 기록한다. (2) `Inquiry.rounds[].planHash` 주석을 "계획 지문, 멈춤 판정 입력(15 §3.4.14)"으로. 중복 실행은 단계 멱등 키가 막는다. (3) `RunKind`에 `inquiry`(엔진이 구동하는 단계 run, §7 O-19). (4) U-14를 "15 확정: 다이얼 `assurance.independent_verification`, off = 작업 쪽, auto = 1위 후보 구분 확인만 검증 에이전트, always = 전부"로 |
+| 09 (P5) | (1) `inquiry.opened` payload에 `divergence: { mode, signals }`(10 §3.11.11이 이미 "발산 강도·신호 포함"으로 적음). (2) `inquiry.stopped` payload에 넘김 기록 `handover: BlobRef`(§3.14 `InquiryHandover`). (3) `check.pinned`(10 §3.11.11 요구와 같음) |
+| 10 (P6) | (1) §3.2.6의 명령 넷(`inquiry.present_contrast`, `preference.mark_example`, `preference.note_divergence`, `preference.show_divergence`)을 §3.11.11에 더한다. (2) §3.11.11 (2) 대응표에 §3.2.6 끝의 19 메서드 대응(`inquiry.requestFrame`·`proposeCandidate`·`markAssumption`·`pinCheck`·`requestDecision`·`stop`, `stimulusRound.close`)을 넣는다. (3) `criterion_confirm` 질문의 답(`question.answer`)이 오면 항목별 `preference.criterion.confirm`·`reject`를 같은 트랜잭션에서 적용한다(11과 함께). (4) `PredictionCheckPayload.result`의 `undeterminable`을 08 `indeterminate`로. (5) §3.11.11의 15 인용 절 번호: `inquiry.open`은 15 §3.1.5, `inquiry.anchor`는 §3.4.4, 렌즈 필드는 §3.9.2. (6) `inquiry.round.close`는 15 `roundClosable`을 그대로 검사한다(§3.6.4) |
+| 11 (P6) | (1) `criterion_confirm`의 `answerSchema`는 후보별 `{ possibilityId, decision, edits?, weight? }` 배열이고 답의 적용은 10 (3). (2) `stop_condition`의 만드는 곳에 15(원함 탐구의 반응 감소, §3.6.8)를 더한다 |
+| 12 (P7) | (1) `RunKind`에 `inquiry`(단계 WorkUnit의 run, `runStage` 호출)를 더한다. 받지 않으면 `work` run에 "엔진 구동" 표시를 두는 대안(§7 O-19). (2) `ModelRole`에 `inquiry`·`image`. (3) `TraceRecord`에 `inquiry.step`(§3.1.7). (4) §3.12·§3.16의 `boundary.reach`를 10 이름 `runtime.boundary`로(10 §3.11.1 대응표, 판정 §1). (5) §3.14.4의 "14 WorkUnit 템플릿 `repeat: 'per_branch'`"를 "단계 run의 자식 run, 템플릿은 `per_round`"(14 §3.20.4)로 |
+| 13 (P7) | (1) §3.8.3의 `helm.ws.get/set/delete`를 `helm.wsGet`·`wsPut`·`wsList`·`wsDel`로(pi-codemode globals 이름 규칙, `types.ts:15-20`). (2) 작업 공간을 `store` 대신 파일(`/srv/volumes/helm/scratch/inquiry/<iq>/ws/`)로, 실패한 실행의 쓰기도 남김(§3.12.4, §7 O-20). (3) 엔진 경로의 `ReplRequest.owner.toolCallId`를 필수로(스크립트 실행 = 도구 호출 `helm_repl`, 파생 관찰의 출처). (4) 메모 키 인용 "15 §3.12.9"를 §3.12.5로 |
+| 14 (P8) | (1) §3.6.3 I.want의 WorkUnit 행에 `deliberate`(once)를, §3.6.2·§3.6.4의 `diverge (per_branch, fork)`를 `per_round`(가지는 자식 run)로 표 자체를 고친다(§3.20.4가 이미 15를 따르기로 함). (2) §3.20.4 표의 `boundary.reach(round_end)`를 `inquiry.round.close` + `runtime.boundary`로 |
+| 16 (P10) | (1) 지표 사실 `inquiry/lens_adopted`는 §3.9.5 채택 판정 표를 그대로 쓴다(별도 이벤트 없음). (2) `distinctPrediction` = `distinctPredictionCount`(§5.1). (3) 가설 H-I1~H-I4·H-R1을 전체 목록에 넣는다(V1·V6과 함께, 판정 J-09). (4) E0 결과 수집 |
 | 17 (P11) | 경로: `/srv/volumes/helm/scratch/inquiry/`(작업 공간, 백업 제외), `/srv/volumes/helm/eval/`(평가). 보존 기간 정리 작업 |
-| 18 (P11) | 가져온 문서·웹·세션 로그를 신뢰하지 않는 자료로 다루는 규칙, `web_fetch` 정책, 자극과 작업 공간의 비밀 가림 |
-| 19 (P12) | `reaction.record`의 `kind`에 `comparison` 추가, 대상에 가능성 id 허용(§3.4.11). 탐구 뷰에 앵커링 결과, 대비 정렬(얻음·잃음 문장, 접힌 묶음), 지지 등급 단어, 렌즈 행, 같은 계열 표시. 명령 `possibility.pin`·`dismiss`, `inquiry.fillCell`, `inquiry.pinLens` |
-| 20·21 (P13·P14) | 컴포넌트: 대비 목록, 지지 등급 배지(숫자 없음), 자극판 요소 선택, 발산 표, 앵커 패널, 렌즈 행 배지, 같은 계열 배지 |
+| 18 (P11) | 가져온 문서·웹·세션 로그를 신뢰하지 않는 자료로 다루는 규칙, 자극과 작업 공간의 비밀 가림 |
+| 19 (P12) | (1) `ReactionRecordParams.stimulusId`를 `subjectRef`(`st_`·`ps_`)로. (2) `kind`에 `comparison { better, worse }`, `contrast { verdict: "acceptable" \| "unacceptable" \| "unsure", criterionKey }`. (3) `target`에 `textRange`(평문 기준). (4) `near`는 `strength` 없이. (5) 사람의 자극·렌즈 추가 메서드(10 `stimulus.create`, `lens.add`). (6) `inquiry.fillCell { cellKey }`, `inquiry.pinLens { lensId }`는 사람 발화 관찰(`observation.record`, utterance)로 운반(§3.2.6) |
+| 20·21 (P13·P14) | (1) 21 U7 R1 "`near`만 있으면 라운드 마치기 비활성"을 "열어 두고 05 §3.2.5 확인 단계"로(§3.6.4). (2) 글 요소는 데몬이 보낸 평문 조각 단위로 감싼다(21 E9와 같음). (3) 대비 목록의 접힘 사유 넷(§3.4.9). (4) 컴포넌트: 대비 목록, 지지 등급 배지(숫자 없음), 자극판 요소 선택, 발산 표, 앵커 패널, 렌즈 행 배지, 같은 계열 배지 |
+| 26 (P15) | 휴대폰에서도 `criterion_confirm`·`reframe_confirm`·`stop_condition` 질문에 답할 수 있게 한다(결정 42). 자극판(요소 단위 반응)은 데스크톱 범위로 두어도 된다 |
 | 22 | 커널 테스트와 모델 평가의 분리(§3.15.1), 역할별 가짜 모델 대본, 속성 테스트 대상 함수(§5.1) |
 | 23 | E0 관문(§3.15.2)을 탐구의 E/N 정식 연결 전에 둔다. REPL 방식 탐구는 뒤 단계(07 "REPL") |
 
@@ -2482,10 +2565,11 @@ packages/runtime/src/inquiry/
   contrast/{consequence,order,question,render}.ts
   evidence/{precheck,grade}.ts
   fact/{checks,apply,counter,promotion,stop}.ts
-  want/{stimulus,elements,reactions,criteria,select,stop}.ts
+  want/{stimulus,elements,present,reactions,criteria,select,stop}.ts
   preference/{lifecycle,inherit}.ts
   lens/{library,select,transfer,stats}.ts
   lens/seed/{lens-seed.v1.json,overlay.ts}
+  lens/vocab.v1.json                              (분야·구조 태그·전이 단계 값 목록, §3.9.3)
   outcome/{premortem,predictions,coupling,stop}.ts
   stop/fingerprint.ts
   repl/{driver,globals,workspace}.ts             (샌드박스는 @helm/tools의 repl/sandbox.ts, 07 §3.12)
@@ -2507,10 +2591,10 @@ scripts/build-lens-seed.ts
 | T-07 | `contrastOrder` | farthest-first 결정성, 고정 항목 앞줄, 근거 없음·이전 기각은 앞줄에 없음, 반대 근거는 접히지 않음, 모두 거리 0이면 `noDivergence` |
 | T-08 | `chooseQuestion` | I.want에서 `choice` 제거, 점수 계산, 점수 0이면 질문 없음, 동점 규칙 |
 | T-09 | `orderChecks` | 모든 후보가 같은 라벨을 예상하면 버림, `costWeight` 환산, 동점 규칙 |
-| T-10 | 라벨 재분류 | 1위 후보 구분 확인에서 두 분류가 다르면 묶지 않고 열린 질문 |
-| T-11 | 승격 사전 검사 | 08 `promotionMissing`과 같은 결과 + 탐색이 최신 지지 근거보다 앞이면 제안하지 않음 |
+| T-10 | 라벨 재분류 | 다이얼 `off`·`auto`·`always`별 분류자(§3.5.4). 두 분류가 다르면 묶지 않고 열린 질문 |
+| T-11 | 승격 사전 검사 | 10 §3.9(V-PRO-01·02)와 같은 입력에서 같은 결과(같은 함수 호출). 엔진이 조건을 더하지 않음. 마지막 탐색 뒤 새 지지 근거가 있으면 탐색을 먼저 다시 돌림 |
 | T-12 | `roundClosable` | 고르기와 같은 반응만 있으면 명시 마침 없이는 닫히지 않음. 닫히면 다음 라운드에 세 개 비교 질문 |
-| T-13 | `nextStimuli` | 통제 쌍 특징 검사, 탐색 비율, 다른 분야·극단 각 1개 이상, seed 섞기 안정성, 첫 항목 방향 회전 |
+| T-13 | `nextStimuli` | 통제 쌍 특징 검사, 탐색 비율, 다른 분야·극단 각 1개 이상, seed 섞기 안정성, 첫 항목 방향 회전, 개수(첫 라운드 = 다이얼 값, 모든 라운드 ≥ 4) |
 | T-14 | 기준 수명 | 사람 답 없이는 확정되지 않음, `assumed`는 확정하지 않음, 반대 반응 → contested, `expectedVersion` 충돌 시 재계산 |
 | T-15 | `planStable` | 사람 입력이 있는 라운드만 셈, 두 라운드 연속 같음 또는 같음 + 질문 점수 0 |
 | T-16 | `selectLenses` | 결정성, 분야 중복 없음, 탐색 자리, 태그 겹침 0이면 없음, 고정 렌즈 우선 |
@@ -2524,14 +2608,17 @@ scripts/build-lens-seed.ts
 | T-24 | 결정 18 집행 | E18-1~E18-6 각각을 깨려는 대본이 실패함(예: 고르기 질문 후보만 내는 가짜 모델 → 질문 없음) |
 | T-25 | 렌즈 seed | 35개, 카드 20개가 21행에 대응(#25·#26 같은 카드), 태그가 어휘 안, 필수 필드 비어 있지 않음 |
 | T-26 | 평가 하네스 | 메모리 커널과 가짜 모델로 E0 과제 파일 하나를 끝까지 돌려 결과 YAML을 쓴다(실제 모델 실행은 `just eval-inquiry`에서만) |
+| T-27 | `presentStimuli` | 반응 전 뷰에 `facets`·`controlledFor`·역할·확인하려는 기준이 없음, 라운드를 닫은 뒤에만 있음. 라벨이 생성 순서와 무관. 요소 구간이 grapheme 경계이고 평문 조각과 일치(이모지·결합 문자 포함 고정 과제) |
+| T-28 | 반응 대응 | 19 `reaction.record`의 종류마다 08 `ReactionPayload`(골든 파일), 대비 반응 세 값, `near`는 정보성 아님, 닫힌 라운드 뒤 반응은 기록되지만 마감 판정에 안 쓰임 |
+| T-29 | 명령 이름 | 엔진이 dispatch하는 모든 명령 이름이 10 §3.11 목록(또는 §3.2.6의 요구 넷)에 있고, 기대 이벤트 이름이 09 §3.4 카탈로그에 있다(이름 목록 스냅숏 대조) |
 
 ## 7. 미결 사항
 
 | 번호 | 질문 | 선택지 | 추천 기본값 |
 |---|---|---|---|
 | O-1 | 가지를 단계 run의 자식 run으로 둘지, WorkUnit으로 둘지 | 자식 run / WorkUnit(14 현재 템플릿) | 자식 run(§3.1.1). 14가 받아들이지 않으면 엔진은 `planRound`가 가지마다 WorkUnit 초안을 내는 방식으로도 동작하게 한다 |
-| O-2 | 선호 모델 층 | Goal 층만(08 현재) / 사용자 층 + Goal 층 | 두 층(§3.7.2). 08이 받아들이기 전에는 Goal 층만 구현하고 사용자 층 상속 코드는 꺼 둔다 |
-| O-3 | 앞줄 크기를 다이얼로 노출할지 | 표시 설정 / 14 다이얼 | 표시 설정, 기본 3(14가 다이얼 수를 늘리지 않으므로) |
+| O-2 | 선호 모델 층 | Goal 층만 / 사용자 층 + Goal 층 | 두 층(§3.7.2). 08 §3.17.5에 반영됨 |
+| O-3 | 앞줄 크기를 다이얼로 노출할지 | 표시 설정 / 14 다이얼 | 표시 설정, 기본 3. 14 §3.20.4에서 확정 |
 | O-4 | 적대적 검토 범위 | 전부 / 상위 K | 앞줄 전부 + 상위 8 |
 | O-5 | 칸 상한과 단계 배분 | §3.4.2, §3.13.3 | 표의 값. E0 결과로 조정 |
 | O-6 | 렌즈 seed의 분야·태그·등급 값 | 표 그대로 / 사람 검토 후 수정 | 표 그대로 시작, 렌즈 채택 통계로 조정 |
@@ -2544,9 +2631,12 @@ scripts/build-lens-seed.ts
 | O-13 | 추론으로 얻은 재정의를 묻고 적용할지, 혼자 정하고 이의 받을지 | 질문 먼저 / 자율 + 이의 | 질문 먼저(정보 게이트, 임시 가정으로 진행). 사용자 발화가 직접 재정의를 말하면 그 관찰을 근거로 바로 `concern.reframe` |
 | O-14 | E0 판정 숫자 | §3.15.2 | 1 이하 재설계, 2 추가 시험, 3 이상 연결 |
 | O-15 | 비용 상한 기본값 | 없음 / 탐구당 USD | 14 다이얼 `budget.costUsd` 비움(상한 없음), 하위 호출 수 상한만 |
-| O-16 | 구분 확인 선언 형식 | 08 `DiscriminatingCheck` / 10 `declare_discrimination`(쌍 단위) | 08 형식. 10이 맞추도록 요구 |
+| O-16 | 구분 확인 선언 형식 | 08 `DiscriminatingCheck` / 10 `declare_discrimination`(쌍 단위) | 08 형식. 10 §3.11.4가 `core: DiscriminatingCheckCore`로 맞춤 |
 | O-17 | 렌즈 카드 출처만으로 근거 있음으로 볼지 | 예 / 실제로 읽어야 함 | 예(인용으로 기록). 판단 승격에는 세지 않음 |
 | O-18 | TUI에서 이미지·요소 단위 반응 | 링크와 요소 키 명령 / 지원 안 함 | 링크와 요소 키 명령(E-34) |
+| O-19 | 엔진이 구동하는 단계 run의 종류 | (a) 08·12 `RunKind`에 `inquiry` 추가 (b) `work` run에 "엔진 구동" 표시 | (a). `work`는 에이전트 루프(모델 대화)를 뜻하므로 섞으면 12의 재개 규칙(work run 자동 재개 3회)과 컨텍스트 투영이 잘못 적용된다. 08·12 확정 대기 |
+| O-20 | REPL 작업 공간 구현 | (a) 파일 작업 공간, 실패한 실행의 쓰기도 남김(15) (b) pi-codemode `store`/`storeWrites` 재생, 성공한 실행만(13 §3.8.3) | (a). `store` 상한(값 256Ki자, 전체 1Mi자)이 큰 입력 집계에 작고, 실패 뒤 이어 가기에 중간 결과가 필요하다. 둘 다 비정본이므로 기록 규칙에는 차이가 없다. 13과 조정 필요 |
+| O-21 | 라운드가 닫힌 뒤 도착한 반응 | (a) 관찰로 기록, 마감 판정에는 안 씀(15) (b) 거부(05 §3.2.2) | (a). 반응은 관찰이고 연결이 끊긴 동안 한 반응을 버리면 근거를 잃는다. 08 R-38도 자극이 `presented`면 받는다 |
 
 ## 8. 출처
 
@@ -2568,8 +2658,9 @@ scripts/build-lens-seed.ts
 | `helm-canon-2.md` §5.2.1, §5.4.1, §6, §10, §11 | §3.4.15, §3.14 |
 | `helm-canon-3.md` §1.3, §2, §3 전체, §4 카드 20개, §5.1, §7, §8 | §3.9, §3.14 |
 | `docs/research/method-transfer-map.md`, `docs/research/method-cards/*.md` | §3.9.3 seed |
-| pi 소스 `~/projects/_ref/pi-src` 커밋 `cdaf6c2`와 태그 `v1.1.0`: `packages/codemode/src/runtime/host.ts`, `src/types.ts`, `src/runtime/prelude-source.ts`, `README.md`, `packages/coding-agent/src/extensions/codemode/execute.ts`, `packages/coding-agent/docs/codemode.md`, `packages/ai/src/images.ts`, `packages/ai/src/compat.ts` | §2.3, §3.12 |
+| pi 소스 `~/projects/_ref/pi-src` 태그 `v1.1.0`(기준, 결정 44)과 커밋 `cdaf6c2`(참고): `packages/codemode/src/runtime/host.ts`, `src/types.ts`, `src/runtime/prelude-source.ts`, `README.md`, `packages/coding-agent/src/extensions/codemode/execute.ts`, `packages/coding-agent/docs/codemode.md`, `packages/ai/src/images.ts`, `packages/ai/src/compat.ts` | §2.3, §3.12 |
 | 동시에 쓰인 설계 문서 08, 10, 12, 14, 07, 16, 19, 04 (2026-10-11 시점 판) | §3.1, §3.2.5, §3.5, §3.6, §3.13 |
+| 2a단계: `process/rulings-stage2a.md`(판정 §1, J-06, J-09, J-18, J-19, J-23), 브리프 결정 41~46, 2026-10-12 시점의 01 §3.10·FX-05, 02 UC-01·UQ-10, 04 §3.8·§3.9·§5.2, 05 §3.2·§3.10.7·§3.10.9·§5.2, 07 §3.12·§5.2, 08 §3.8·§3.9.3·§3.14.2·§3.17·§5.2·U-11·U-14, 09 §3.4.4·§3.4.5·§3.4.9~§3.4.12·§3.4.15, 10 §3.4·§3.9·§3.11.4·§3.11.11, 11 §3.2.2·§3.2.3·§3.6·§3.18·§5.2, 12 §3.3.2·§3.4.10·§3.14·§3.15, 13 §3.2.3·§3.8, 14 §3.6.2~§3.6.5·§3.11·§3.16·§3.20.4·§5.2, 16 §3.9.5·§3.23·§3.24·§5.2, 19 §3.7.1·§5.2, 21 §3.8.3·E9·U7·§5.2 | §2.3, §3.1~§3.13, §4, §5 |
 
 대화 원문 행 번호는 각 절에 적었다(대화 L1532~L1671의 발산 설계, L1366~L1448의 변수 수명, L3741~L3855의 원함 탐구, L3924~L3962의 탐구 네 종류, L2436~L2443의 탐구 네 결정).
 
@@ -2654,8 +2745,8 @@ scripts/build-lens-seed.ts
 
 - 상태: 제안
 - 맥락: codemode 변수는 실행 한 번만 살고, 기본 codemode에는 채팅 모델 하위 호출이 없다(§2.3).
-- 결정: `CodemodeSandbox`를 그대로 쓰고 `helm.subcall`·`helm.ws*`·`helm.emit`을 globals로 넣는다. `store`는 쓰지 않는다. 제안은 성공한 실행만 dispatch한다. 깊이 1.
-- 근거: pi-codemode는 모델 개념이 없고 globals를 허용한다([원문] types.ts). 07 C20 실험으로 중첩 도구 호출이 훅을 지난다.
+- 결정: `CodemodeSandbox`를 그대로 쓰고 `helm.subcall`·`helm.wsGet`·`wsPut`·`wsList`·`wsDel`·`helm.emit`을 globals로 넣는다. `store`는 쓰지 않는다. 제안은 성공한 실행만 dispatch한다. 깊이 1.
+- 근거: pi-codemode는 모델 개념이 없고 globals를 허용한다([원문] `pi@v1.1.0:packages/codemode/src/types.ts:94-102`). 07 C20 실험으로 중첩 도구 호출이 훅을 지난다.
 - 기각한 대안: (a) VM을 오래 살리는 포크 — 샌드박스 격리·종료 단순성을 잃는다(host.ts 주석). (b) 자식 pi 프로세스(ypi 방식) — 프로세스 관리와 예산 추적이 따로 생긴다. (c) Node `vm` REPL — 샌드박스가 아니다.
 - 결과: 노트북식 탐색은 작업 공간으로 한다. 효과는 큰 입력 과제에서만 기대하고 H-R1로 검증한다.
 
@@ -2670,12 +2761,12 @@ scripts/build-lens-seed.ts
 
 ### ADR-15-6 선호 모델을 사용자 층과 Goal 층 두 층으로 둔다
 
-- 상태: 제안 (08 변경 필요)
+- 상태: 제안 (08 §3.17.5에 반영됨)
 - 맥락: v0.3 10 §4.1-2 열린 질문. 개인 이력으로 발산을 개인화한다(대화 L1629).
 - 결정: Goal 층이 기본이고, 두 Goal 이상에서 확정된 기준만 사람 확인으로 사용자 층에 올린다. 새 Goal에서 사용자 층 기준은 임시 가정으로 적용하고 다시 확인한다.
 - 근거: 결정 14(선호 기준 확정은 사람), 취향은 프로젝트마다 다를 수 있다.
 - 기각한 대안: Goal 층만 — 매번 처음부터 기준을 묻게 된다(대화 L1629). 사용자 층만 — 프로젝트별 차이를 덮는다.
-- 결과: 08 `PreferenceModel.scope` 추가.
+- 결과: 08 `PreferenceModel.scope`, `criteria[].inheritedFrom`이 들어갔다.
 
 ### ADR-15-7 "흐린 작업 다섯 개" 평가를 탐구의 E/N 정식 연결 전 관문으로 둔다
 

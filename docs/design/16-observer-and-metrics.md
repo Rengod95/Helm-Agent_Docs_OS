@@ -2,7 +2,7 @@
 
 - 작성: 2026-10-11, 설계 에이전트 P10(관찰)
 - 소유: 이 문서는 관찰 에이전트(`@helm/observer`)의 설계, 지표 정의와 계산, 반증 가설의 측정 방법을 소유한다.
-- 상태: 1단계 초안. 이벤트 이름, 명령 이름, 프로토콜 메서드 이름은 각각 09, 10, 19가 최종 확정한다. 이 문서가 새로 쓰는 이름은 §5.2에 요구로 적었다.
+- 상태: 2a단계 통합판(2026-10-12). 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 프로토콜 메서드는 19, 레코드·접두사는 08을 따른다(조정자 판정 `process/rulings-stage2a.md` §1). 판정 J-07~J-10을 반영했다. 이 문서가 새로 필요로 하는 이름은 §5.2에 요구로 적었다.
 
 ## 1. 목적과 범위
 
@@ -89,8 +89,13 @@ ID는 02(P1)가 확정한다. 초기 목록 기준.
 | 24 혼자 쓰는 앱 | 실험 프로토콜은 1인 N-of-1 설계다. 외부 참여자 연구는 범위 밖 |
 | 29 기준 원본 | 관찰 에이전트가 정본에 남기는 것은 커널을 거친 제안·보고뿐이다(제안 수명은 도메인 원장, 통합·평가 보고는 실험 측정 흐름). 관찰 캐시는 언제 지워도 되는 파생 데이터다 |
 | 34 벤더 중립 | 외부 런타임 세션도 같은 트레이스 스키마로 정규화한다. 이후 런타임 어댑터가 생기면 그 세션은 Helm 실행으로 연결해 이중 집계를 막는다(§4) |
-| 35 관찰 입력 1단계 | Helm 기록 전체 + 사용자가 허용한 프로젝트 폴더의 외부 에이전트 세션 로그(pi, Claude Code, Codex) |
-| 36 언어·도구 | TypeScript strict, ESM, Node 22, TypeBox, better-sqlite3, Vitest |
+| 35 관찰 입력 1단계 | Helm 기록 전체 + 사용자가 허용한 프로젝트 폴더의 외부 에이전트 세션 로그(pi, Claude Code, Codex). 범위 해석은 판정 J-08: 세션 cwd가 허용 폴더(프로젝트 `rootPaths`) 아래인 세션. Mac에서 연 세션은 대상 밖 |
+| 판정 J-07 | 결정적 수집·탐지·지표는 MVP, 모델 판정·제안 제출은 2단계 |
+| 판정 J-09, J-10 | 가설 번호는 H1~H10, V1~V9. 원전의 SA probe·resumption probe는 "복귀 점검" |
+| 36, 44 언어·도구 | TypeScript 6.0 strict, ESM, Node 24 LTS(결정 44가 결정 36의 판을 바꿈), TypeBox, Vitest. SQLite는 `@helm/store`를 거쳐서만 연다(06 R6) |
+| 44 pi 기준 판 | pi 소스 확인은 태그 `v1.1.0`(커밋 `abe508e1`) 기준이다. 이 문서의 pi 형식 확인은 참고 판 `cdaf6c2`에서 했고, 쓴 부분(세션 형식 문서, `session-manager.ts`의 잎 판정, `ai/src/types.ts`의 `ToolResultMessage`·`NestedToolCalls`)이 `v1.1.0`과 같음을 2026-10-12에 확인했다 |
+| 45 비밀 주입 | 데몬의 SecretStore가 비밀 값을 메모리에만 둔다. 2차 마스킹(§3.8.1)은 SecretStore에 등록된 값으로 한다 |
+| 46 루프백은 격리 경계가 아님 | 관찰 프로세스는 소켓·토큰을 쓰지 않고 데몬이 띄운 부모-자식 채널(IPC)로만 제출한다 |
 | §2.5 운영 환경 | 런타임 데이터는 `~/projects` 밖 `/srv/volumes/helm/`. 비밀은 SOPS 체계를 따르고 별도 비밀 저장소를 만들지 않는다. 서버 메모리 상한 10 GB |
 
 ### 2.2 이 문서의 주요 설계 결정 [제안]
@@ -118,7 +123,7 @@ ID는 02(P1)가 확정한다. 초기 목록 기준.
 | AS-2 [가정] | Codex 세션 로그는 `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`이고 줄마다 `{timestamp, type, payload}` 구조다 | [지식]. 이 서버의 `~/.codex`에는 `sessions`가 없어 확인하지 못했다. 실제 파일로 고정 픽스처를 만든 뒤에 어댑터를 켠다(§3.6.5) |
 | AS-3 [가정] | 사용자가 Mac에서 쓰는 에이전트 세션 로그는 서버에서 읽을 수 없다. `~/projects`만 동기화되고 `~/.claude` 등은 동기화되지 않는다 | 브리프 §2.5. 이후 단계에서 다룬다(§3.5.2) |
 | AS-4 [가정] | 하루 이벤트 수는 수천 건 수준이다. 2주 창의 지표를 매일 다시 계산해도 수 초 안에 끝난다 | 1인 사용. 첫 달 실측으로 확인 |
-| AS-5 [가정] | 클라이언트(데스크톱 앱, TUI)는 활동 상태와 일부 화면 열람을 이벤트로 보낼 수 있다(§3.23.1) | 19·20이 정한다 |
+| AS-5 | 클라이언트는 `presence.report`(19 §3.7.8)로 활동 상태와 보고 있는 화면을 보낸다. 데몬이 상태 변화를 `presence.changed`(09)로, 정해진 화면 열람을 `view.opened`(09 measurement)로 남긴다(§3.23.1) | 19·09에서 확인됨 |
 
 ## 3. 명세 본문
 
@@ -128,11 +133,11 @@ ID는 02(P1)가 확정한다. 초기 목록 기준.
 
 ```text
 ┌─ 데몬 (@helm/daemon, 상주) ──────────────────────────────────────────────┐
-│  스케줄러(12) ── 트리거 판정 ──▶ 관찰 실행 감독기 (observer supervisor)  │
-│                                     │ fork + IPC (하나씩)                │
+│  스케줄러(12, observer.cycle 등) ──▶ 관찰 실행 감독기(06 H8)             │
+│                                     │ fork+Node IPC 또는 systemd-run+stdio│
 │  커널(10) ◀── engine.submit ────────┤ (제안·보고 명령, §3.4.2)           │
 │  모델 계층(12) ◀── llm.complete ────┤ (예산 계정 observer, 2차 마스킹)   │
-│  투영기(12) ── 지표 사실 추출 ── @helm/observer/metrics (순수 함수)      │
+│  커밋 뒤 소비자 metrics(09 §3.11.1-6) ── @helm/observer/metrics(순수)    │
 └──────────────────────────────────────┼───────────────────────────────────┘
                                        ▼
 ┌─ 관찰 실행 (@helm/observer, 일회성 자식 프로세스) ───────────────────────┐
@@ -147,7 +152,7 @@ ID는 02(P1)가 확정한다. 초기 목록 기준.
 │  관찰 캐시: /srv/volumes/helm/observer/observer.db (파생, 삭제 가능)      │
 └──────────────────────────────────────────────────────────────────────────┘
          읽기 ▲                                   읽기 ▲
-  /srv/volumes/helm/ 아래 정본 DB(파일 이름은 09·17)    ~/.pi, ~/.claude, ~/.codex (허용 폴더 세션만)
+  /srv/volumes/helm/data/helm.sqlite (정본, 09)    ~/.pi, ~/.claude, ~/.codex (허용 폴더 세션만)
 ```
 
 #### 3.1.2 OICA, NEMAP, OPD+C 안에서의 위치
@@ -174,12 +179,12 @@ ID는 02(P1)가 확정한다. 초기 목록 기준.
 
 #### 3.2.1 프로세스 형태 [제안]
 
-- 데몬 안의 **관찰 실행 감독기**가 트리거를 받으면 `child_process.fork()`로 `@helm/observer`의 진입점(`dist/main.js`)을 띄운다. IPC 채널은 Node 내장 `process.send`/`message`를 쓴다.
+- 데몬 안의 **관찰 실행 감독기**(06 §3.6.2 H8, `daemon/src/observer-supervisor.ts`)가 트리거를 받으면 `@helm/observer`의 진입점(`dist/main.js`)을 띄운다. 기본은 `child_process.fork()`와 Node 내장 IPC다. 17의 격리 실행을 켜면 `systemd-run --user --unit=helm-observer-<runKey> … --pipe --wait`로 띄우고 같은 메시지를 표준 입출력의 JSON 줄로 주고받는다(17 §3.1.3). 메시지 형식은 두 전송에서 같다(§3.2.3).
 - 동시에 하나만 돈다. 실행 중에 트리거가 오면 대기열에 넣고, 같은 작업 종류의 대기 항목은 하나로 합친다.
-- 자식 프로세스 옵션: `execArgv: ["--max-old-space-size=768"]`, 환경 변수는 허용 목록만 넘긴다(`HELM_OBSERVER_*`, `TZ`, `HOME`, `PATH`, `NODE_ENV`). 모델 API 키 등 비밀 환경 변수는 넘기지 않는다(OB-3).
+- 자식 프로세스 옵션: `execArgv: ["--max-old-space-size=768"]`, 환경 변수는 허용 목록만 넘긴다(`HOME`, `PATH`, `TZ`, `LANG`, `NODE_ENV`). `HELM_*` 변수와 모델 API 키 등 비밀은 넘기지 않는다(OB-3, 18 R-2). 설정과 데이터 경로는 `job.start` 메시지로 받는다.
 - 우선순위: 데몬이 `os.setPriority(child.pid, 10)`으로 낮춘다.
 - 실행 제한 시간: 작업 종류별 벽시계 상한(§3.19.1). 넘기면 감독기가 `SIGTERM`, 10초 뒤 `SIGKILL`.
-- 격리 강화(선택): 데몬이 systemd 사용자 서비스로 돌 때 `systemd-run --user --scope -p ProtectHome=read-only -p ReadWritePaths=/srv/volumes/helm/observer`로 감싸 띄울 수 있다. 채택 여부는 17·18이 정한다.
+- 격리 실행 [판정 J-70, 17 §3.1.3, Q17-02]: 기본은 fork다. 격리를 켤 때만 일회성 서비스 단위(`systemd-run --user --unit=helm-observer-<runKey> --slice=helm-tools.slice --property=PartOf=helmd.service --pipe --wait`)로 띄우고 IPC를 표준 입출력 JSON 줄로 바꾼다. `systemd-run --scope`는 쓰지 않는다(scope 단위에는 아래 샌드박스 속성을 걸 수 없다). 단위 속성: `MemoryMax=1G`, `Nice=10`, `PrivateNetwork=yes`(모델 호출은 데몬을 거친다), `ProtectSystem=strict`, `ProtectHome=read-only`, `ReadWritePaths=/srv/volumes/helm/observer`, `InaccessiblePaths=/run/WSL %t/helm`. 격리를 켰는데 `systemd-run`이 실패하면 `fork`로 돌아가지 않고 그 관찰 실행을 실패로 기록한다(격리를 조용히 낮추지 않는다, 17 §5.2).
 
 #### 3.2.2 다른 배치와 비교
 
@@ -193,7 +198,21 @@ v0.3 12 §2 원칙 2("같은 프로세스 안의 task")와 다르다. 감사 보
 
 #### 3.2.3 IPC 프로토콜 [제안]
 
-메시지는 JSON 한 개씩이며 요청·응답은 `id`로 짝짓는다. 이 IPC는 데몬 내부 경계이며 클라이언트 프로토콜(19)과 별개다.
+메시지는 JSON 한 개씩이며 요청·응답은 `id`로 짝짓는다. 이 IPC는 데몬 내부 경계이며 클라이언트 프로토콜(19)과 별개다. 관찰 프로세스는 `@helm/client`·`@helm/protocol`을 쓰지 않는다(판정 §2).
+
+전송 계층은 메시지와 분리한다(17 §5.2 요구).
+
+```ts
+// packages/observer/src/ipc/transport.ts
+export interface ObserverTransport {
+  send(msg: ObserverToHost | HostToObserver): void;
+  onMessage(handler: (msg: unknown) => void): void;   // 받은 값은 TypeBox로 검사한 뒤 쓴다
+  close(): void;
+}
+// 구현 둘: nodeIpcTransport(process) — process.send / 'message'
+//          stdioJsonLinesTransport(stdin, stdout) — 줄마다 JSON 하나, 1 MiB 넘는 줄은 오류
+// 관찰 프로세스는 환경이 아니라 실행 인자 `--transport=ipc|stdio`로 고른다.
+```
 
 ```ts
 // packages/observer/src/ipc/types.ts
@@ -245,9 +264,9 @@ export type PipelineStage =
 
 | 층 | 방법 |
 |---|---|
-| 정본 DB | `@helm/store`의 읽기 전용 리더로 연다: `new Database(path, { readonly: true, fileMustExist: true })`, 연결 직후 `PRAGMA query_only = ON`. 리더 API는 SELECT만 노출한다(09에 요구). WAL 모드에서 읽기 연결은 스냅샷 일관성을 가진다 [지식] |
+| 정본 DB | `@helm/store/read`의 `openReader(dataDir)`(09 §3.16, 06 §3.4)로 연다. 내부는 `readonly: true`, `fileMustExist: true`, `PRAGMA query_only = ON`, `busy_timeout = 5000`(09 §3.6.3). 리더는 SELECT만 노출한다. WAL에서 읽기 트랜잭션은 시작 시점의 스냅샷을 본다 [지식] |
 | 외부 로그 | `fs.open(path, "r")`만 쓴다. 파일 이동·삭제·잠금을 하지 않는다 |
-| 쓰기 가능 경로 | `/srv/volumes/helm/observer/` 하나. 관찰 캐시와 소금 값(§3.8.4)만 둔다 |
+| 쓰기 가능 경로 | `/srv/volumes/helm/observer/` 하나(17 `paths.observerDir`). 관찰 캐시와 소금 값(§3.8.4)만 둔다. 관찰 캐시도 `@helm/store`의 보조 DB 함수로 연다(06 R6: `better-sqlite3`는 `store`만 import) |
 | 커널 | 행위자 `agent:observer`의 능력은 `propose`(제안 종류 제한)와 `observe`(보고)뿐이다. 다른 명령은 자격 거부(10) |
 | 모델 | 관찰 실행에서 모델은 도구를 갖지 않는다. 출력은 고정 스키마 JSON 하나다(§3.12.3) |
 
@@ -259,10 +278,10 @@ export type PipelineStage =
 
 | 트리거 | 조건 | 띄우는 작업 | 비고 |
 |---|---|---|---|
-| T1 Helm 실행 정착 | `run.completed` 후 같은 Concern에 새 실행이 10분 동안 없음 | `scan` | 디바운스 10분. 여러 Concern이면 한 번으로 합침 |
+| T1 Helm 실행 정착(12의 유휴 계기) | `run.ended` 후 같은 Concern에 새 실행이 10분 동안 없음 | `scan` | 디바운스 10분. 여러 Concern이면 한 번으로 합침 |
 | T2 외부 세션 확인 | 외부 소스가 하나라도 켜져 있으면 15분마다 | `scan` | 바뀐 파일이 없으면 `stat`만 하고 끝난다(§3.6.1 증분 읽기). 쓰이는 중인 마지막 줄은 다음 실행으로 미룬다. inotify에 의존하지 않음 |
-| T3 일일 분석 | 매일 18:00(사용자 시간대) | `scan` → `analyze` → `digest` | 대화 L310 예시("매일 저녁 6시") |
-| T4 지표 스냅샷 | 매일 04:00 | 데몬 투영기의 일일 스냅샷(§3.22.4). 관찰 실행 아님 | 관찰 실행과 겹치지 않게 다른 시각 |
+| T3 일일 분석 | 12 `runtime_timers`의 `observer.cycle`(기본 cron `0 18 * * *`, 사용자 시간대, single-flight) | `scan` → `analyze` → `digest` | 대화 L310 예시("매일 저녁 6시"), 12 §3.14.7 |
+| T4 지표 스냅샷 | 매일 04:00 | 데몬의 지표 소비자가 일일 스냅샷을 만든다(§3.22.4). 관찰 실행 아님 | 관찰 실행과 겹치지 않게 다른 시각 |
 | T5 효과 측정 | 적용된 제안의 측정 예정 시각(적용 후 7·14·28일) 도래 | `effect` | §3.17 |
 | T6 2주 평가 | 첫 사용일부터 14일마다 09:00 | `evaluate` | §3.27.6 |
 | T7 누락 대비 | 데몬 시작 시, 그리고 마지막 `scan` 성공 후 6시간 경과 | `scan` | 이벤트 트리거 누락 대비 주기 스캔(대화 L387, E1-100) |
@@ -272,15 +291,16 @@ export type PipelineStage =
 
 1. `analyze`는 T3, T8에서만 돈다. 같은 날 `analyze`는 최대 2회(T3 1회 + 수동 1회) [제안]. 모델 비용을 예측 가능하게 둔다.
 2. `scan`은 결정적이고 모델을 쓰지 않으므로 자주 돌아도 된다. 다만 직전 `scan` 종료 후 5분 안에는 다시 띄우지 않는다.
-3. 사용자가 활동 중일 때(§3.23.1의 `active`) T1·T2·T7 `scan`은 그대로 돈다. 결과를 사용자에게 알리지 않으므로 끼어들지 않는다. 제안은 일일 분석 뒤 제안함과 복귀 요약으로만 보인다(§3.18).
+3. 사용자가 활동 중일 때(presence `active`, §3.23.1) T1·T2·T7 `scan`은 그대로 돈다. 결과를 사용자에게 알리지 않으므로 끼어들지 않는다. 제안은 일일 분석 뒤 제안함과 복귀 요약으로만 보인다(§3.18).
 4. 데몬이 꺼져 있던 동안 지난 T3·T5·T6은 데몬 시작 후 한 번씩만 따라잡는다(여러 번 밀렸어도 한 번).
-5. 일별 집계(`outside_changes`, `baseline`)는 T3 실행에서 마감된 날짜(어제까지, 사용자 시간대)만 제출한다. 밀린 날짜는 따라잡는 실행에서 날짜별로 제출하며, 멱등 키는 `form + localDate`다.
+5. 데몬이 안전 모드(17 `daemon.safe_mode_entered`)이면 관찰 실행을 띄우지 않는다(12의 안전 모드 규칙). 읽기 전용 모드에서는 `scan`만 돌고 제출은 하지 않는다.
+6. 일별 집계(`outside_changes`, `baseline`)는 T3 실행에서 마감된 날짜(어제까지, 사용자 시간대)만 제출한다. 밀린 날짜는 따라잡는 실행에서 날짜별로 제출하며, 멱등 키는 `form + localDate`다.
 
 #### 3.3.2 트리거 레코드
 
 ```ts
 export type ObserverTrigger =
-  | { kind: "helm_run_settled"; concernIds: string[]; lastEventSeq: number }
+  | { kind: "helm_run_settled"; concernIds: string[]; lastEventSeq: number }   // runKey는 감독기가 `or_<ULID>`로 만든다
   | { kind: "external_periodic" }
   | { kind: "daily_analyze"; localDate: string }      // "2026-10-11"
   | { kind: "effect_due"; proposalIds: string[] }
@@ -289,7 +309,7 @@ export type ObserverTrigger =
   | { kind: "manual"; requestedBy: "human"; command: string };
 ```
 
-데몬은 관찰 실행마다 `observer_run.started`, `observer_run.completed`, `observer_run.failed`를 **운영 기록**으로 남긴다(§3.19.3). 도메인 원장에 넣지 않는다. 도메인 원장, 운영 기록, 실험 측정, 원시 런타임 trace의 네 흐름을 섞지 않는다는 원칙(canon-2 §1.22, 06 §2.2)을 따른다.
+관찰 실행마다 `observer_run.started`, `observer_run.completed`, `observer_run.failed`(09 §3.4.13, 범주 governance, 행위자 `agent:observer`)가 남는다. 감독기가 관찰 프로세스를 대신해 `observer.report.submit`으로 제출한다(시작은 fork 직후, 끝은 `job.finished`를 받았을 때, 실패는 프로세스가 비정상 종료했을 때). 단계별 시간·건수 같은 자세한 보고(§3.19.3)는 blob으로 두고 `observer_run.completed.report`가 가리킨다. 실험 측정·운영 기록과 섞지 않는다는 원칙(canon-2 §1.22, 06 §2.2)에 따라 실행 보고의 수치는 지표 원천(`obs.*`)으로만 쓴다.
 
 ### 3.4 권한과 쓰기 경로
 
@@ -300,7 +320,7 @@ export type ObserverTrigger =
 | read | O (기록만) | 정본 이벤트·투영, 허용 폴더 세션 파일. 작업 대상 파일(소스 코드 등)은 읽지 않는다 [제안] |
 | spawn | O | 데몬을 거친 하위 모델 호출만. 도구를 가진 하위 에이전트는 띄우지 않는다 |
 | observe | O | 관찰 실행 보고, 효과 보고, 통합 보고를 제출한다. 이 보고는 E 레코드(관찰)가 아니다. 도구 실행 결과를 출처로 갖지 않기 때문이다 |
-| propose | P 수정안, 절차 후보 | §3.12 분류 체계의 종류만 |
+| propose | P 수정안, 절차 후보, 관찰 주석 | §3.12 분류 체계의 종류와 `annotation`(08 §3.3.4 `proposeKinds`: `policy_proposal`, `procedure_candidate`, `annotation`). 주석은 `repeated_correction`, `near_miss`만 |
 | write, execute, send, ask, attest, accept, integrate | X | 커널이 자격 거부 |
 
 관찰 에이전트의 보고를 E의 관찰(Observation)로 기록하지 않는 이유: 브리프 용어집의 관찰은 "실제 실행 기록(도구 결과, 외부 응답)을 출처로 갖는 E 레코드"다. 관찰 에이전트의 집계는 기록을 다시 읽어 만든 파생 값이므로 투영 성격이다. 작업 에이전트가 이 값을 근거로 판단을 승격하지 못하게 별도 종류(`observer_report`)로 둔다.
@@ -308,19 +328,27 @@ export type ObserverTrigger =
 #### 3.4.2 제출 경로
 
 ```text
-관찰 프로세스 ──IPC rpc.call kernel.submit──▶ 데몬
-  데몬: actor = agent:observer 고정, 2차 마스킹(§3.8.5), 크기 상한 검사
-  ──▶ engine.submit, 채널 aux_agent (10 §3.2~§3.3)
-        명령 policy.change.propose      : P를 바꾸는 제안(§3.12.1의 changes = policy | agreement)
-        명령 procedure.candidate.propose: 절차·스킬·스크립트·도구·컨텍스트 규칙 제안(changes = procedure | tooling | context)
-        명령 observer.report.submit     : 근거 갱신, 효과 보고, 철회, 통합 보고, 평가 보고, Helm 밖 변경 집계, 기준선 집계 [제안, 10에 요구]
-        검증: 스키마, 종류 허용 목록, 근거 참조 존재, 서명 중복, 능력(10 §3.6.2의 agent:observer 행)
-        성공 ─▶ 도메인 이벤트 policy_proposal.submitted / policy_proposal.evidence_updated / policy_proposal.effect_measured / policy_proposal.withdrawn
-                또는 실험 측정 흐름의 observer_report.recorded(통합 보고, 평가 보고, Helm 밖 변경 집계, 기준선 집계)
-        실패 ─▶ submission.rejected(10 §3.4.5), IPC 오류 응답
+관찰 프로세스 ──IPC rpc.call kernel.submit──▶ 데몬(감독기)
+  데몬: actor = agent:observer, channel = aux_agent 고정(10 §3.3.2), 2차 마스킹(§3.8.1), 크기 상한,
+        초안·보고 본문을 blob으로 저장(09 §3.12)한 뒤 BlobRef를 페이로드에 넣는다(관찰 프로세스는 blob을 쓰지 않는다)
+  ──▶ engine.submit(10 §3.2) — form에 따라 아래 명령 하나
 ```
 
-명령 이름은 10이 소유한다. 10 §3.6.2 능력표는 `agent:observer`의 propose 범위를 `policy.change.propose`, `procedure.candidate.propose`로 둔다. 보고 명령은 propose 대신 observe 능력으로 검사하도록 10에 요구한다(§5.2).
+| `ObserverSubmission.form` | 10 명령 | 능력(10 §3.6.2) | 09 이벤트 |
+|---|---|---|---|
+| `proposal`(`changes` = `policy` 또는 `agreement`) | `policy.change.propose` | propose/policy_proposal | `policy_proposal.submitted` |
+| `proposal`(`changes` = `procedure`, `tooling`, `context`) | `procedure.candidate.propose` | propose/procedure_candidate | `policy_proposal.submitted` |
+| `annotation`(D5의 Helm 정정, D12) | `observation.annotate`(10 §3.11.4의 주석 명령) | propose/annotation(08 §3.3.4) | `observation.annotated`(`annKind`: `repeated_correction`, `near_miss`) |
+| `evidence_update` | `observer.report.submit` | observe | `policy_proposal.evidence_updated` |
+| `effect_report` | `observer.report.submit` | observe | `policy_proposal.effect_measured` |
+| `withdraw` | `observer.report.submit` | observe | `policy_proposal.withdrawn` |
+| `run_started` / `run_finished` / `run_failed`(감독기가 대신 냄) | `observer.report.submit` | observe | `observer_run.started` / `.completed` / `.failed` |
+| `digest`, `evaluation`, `outside_changes`, `baseline`, `correction_signal` | `observer.report.submit` | observe | `observer_report.recorded`(범주 measurement, 본문은 blob) |
+
+- 검증: 스키마, 종류 허용 목록, 근거 참조 존재, 서명 중복(08 R-40), 금지 패치(10 V-POL-01, §3.12.4), 능력.
+- 실패하면 `command.rejected`(10 §3.4.5, 09)가 남고 IPC로 오류가 돌아온다. 거부 갈래는 `content`/`authority`/`path`(판정 §1).
+- 명령 이름은 10이 소유한다. `observer.report.submit` 하나가 여러 이벤트를 내는 것은 10 §3.11.10의 현재 표(`observer_run.completed`만 적힘)와 다르다. 위 표대로 넓히도록 10에 요구한다(§5.2).
+- `policy.change.propose`가 제안마다 권리 질문(`question.recorded`, 권리 policy_change)을 함께 만드는 10 §3.11.10의 현재 규칙은 이 문서와 04 §3.18의 흐름(채택 자체가 사람의 결정, 조작 1회)과 겹친다. 제안은 `SCR-OBSERVER`와 복귀 요약의 "관찰 에이전트" 절로만 전달하고 질문을 만들지 않기를 요구한다(§5.2, 남은 충돌 C-2).
 
 관찰 프로세스는 거부 응답을 받으면 같은 실행 안에서 같은 서명을 다시 제출하지 않는다. 거부 사유는 실행 보고에 남는다.
 
@@ -335,9 +363,9 @@ export type ObserverTrigger =
 | Claude Code 세션 로그 | `~/.claude/projects/<인코딩된 cwd>/*.jsonl`과 `<세션 id>/subagents/agent-*.jsonl` 중 항목의 `cwd`가 허용 폴더 아래인 세션 | 같음 |
 | Codex 세션 로그 | `~/.codex/sessions/**/rollout-*.jsonl` 중 `session_meta.payload.cwd`가 허용 폴더 아래인 파일 | 같음. 픽스처 확인 전에는 꺼 둔다(AS-2) |
 
-"허용한 프로젝트 폴더의 외부 에이전트 세션 로그"의 해석 [제안]: 세 런타임 모두 세션 로그를 프로젝트 폴더 안이 아니라 홈 디렉터리 아래에 둔다. 그래서 "세션의 작업 디렉터리(cwd)가 허용 폴더와 같거나 그 아래인 세션"을 허용 대상으로 본다. 경로 비교는 양쪽 모두 `realpath`를 거친 뒤 접두사와 경로 구분자로 판정한다(`/a/b`는 `/a/bc`의 상위가 아니다).
+"허용한 프로젝트 폴더의 외부 에이전트 세션 로그"의 해석 [판정 J-08]: 세 런타임 모두 세션 로그를 프로젝트 폴더 안이 아니라 홈 디렉터리 아래에 둔다. 그래서 "세션의 작업 디렉터리(cwd)가 허용 폴더와 같거나 그 아래인 세션"을 허용 대상으로 본다. 경로 비교는 양쪽 모두 `realpath`를 거친 뒤 접두사와 경로 구분자로 판정한다(`/a/b`는 `/a/bc`의 상위가 아니다).
 
-기본값: 허용 폴더 목록은 비어 있다. Helm 기록만 읽는다. 사람이 설정에서 폴더를 추가해야 외부 세션을 읽는다. 추가·삭제는 설정 변경 이벤트(`setting.changed`)로 정본에 남는다.
+허용 폴더는 08 §3.5.1 Project 레코드에서 온다: `observeExternalSessions = true`인 프로젝트의 `rootPaths`. 로그 위치를 런타임 기본값과 다르게 둘 때만 `sessionLogRootOverride`를 쓴다. 기본은 꺼짐(Helm 기록만 읽는다)이며, 사람이 프로젝트 설정에서 켠다. 변경은 `project.updated`(09 §3.4.1)로 정본에 남는다. Mac에서 연 세션은 서버에서 보이지 않으므로 대상 밖이다(판정 J-08, 한계는 평가 보고에 항상 적는다).
 
 #### 3.5.2 이후 확장 단계 [제안]
 
@@ -353,7 +381,7 @@ export type ObserverTrigger =
 
 #### 3.5.3 관찰 설정
 
-설정은 정본의 설정 이벤트에서 투영되어 `ObserverJob.config`로 넘어간다. 바꾸는 주체는 사람뿐이다.
+설정은 두 곳에서 온다. (1) 운영 설정: `helmd.toml`의 `[observer]` 절(06 §3.10, 이 타입을 import한다). 변경은 다음 회차부터 반영(06 §3.10 핫 리로드 표). (2) 허용 폴더: Project 레코드(위). 감독기가 둘을 합쳐 `ObserverJob.config`로 넘긴다. 바꾸는 주체는 사람뿐이다. 설정 키를 사람이 바꾸면 `setting.changed`(09)가 남는다.
 
 ```ts
 // packages/observer/src/config.ts
@@ -365,7 +393,7 @@ export interface ObserverConfig {
     claudeCode: SourceToggle;
     codex: SourceToggle;                       // 기본 enabled=false (AS-2)
   };
-  allowedRoots: string[];                      // realpath. 기본 []
+  allowedRoots: Array<{ projectId: string; root: string }>;   // Project.rootPaths 중 observeExternalSessions인 것(realpath). 감독기가 채움
   excludedGlobs: string[];                     // 허용 폴더 안에서도 뺄 경로. 기본 ["**/.helm/private/**", "**/secrets/**"]
                                                // cwd가 걸리는 세션은 읽지 않고, 이 경로를 대상으로 한 도구 결과는 본문 없이 바이트 수만 남긴다
   llm: {
@@ -376,7 +404,7 @@ export interface ObserverConfig {
   budget: ObserverBudgetConfig;                // §3.19.1
   schedule: { dailyAnalyzeAt: string; evaluateEveryDays: number }; // "18:00", 14
 }
-export interface SourceToggle { enabled: boolean; rootDirOverride?: string }
+export interface SourceToggle { enabled: boolean; rootDirOverride?: string }   // rootDirOverride는 Project.sessionLogRootOverride에서
 ```
 
 ### 3.6 입력 어댑터
@@ -450,23 +478,24 @@ for ref in discover():
 
 #### 3.6.2 Helm 어댑터
 
-- 입력: 정본 이벤트(09의 envelope). `seq` 커서로 읽는다. 한 번에 5,000건씩.
+- 입력: 정본 이벤트(09 §3.2 envelope)와 실행 기록(09 trace, 12 §3.4.10 `TraceRecord`). `openReader`의 `events.readAfter(seq, limit)`로 5,000건씩 읽고, 커서는 관찰 캐시에 둔다(§3.20).
 - 세션 대응: Helm의 에이전트 실행(`rn`)을 트레이스 세션 하나로, Concern을 세션 묶음으로 본다.
-- 이벤트 대응(이벤트 이름은 09 확정 전 가정 이름, §5.2):
+- 이벤트 대응(09 §3.4 이름):
 
-| Helm 이벤트 | 트레이스 `kind` |
+| Helm 기록 | 트레이스 `kind` |
 |---|---|
-| 사람의 메시지·명령(`message.posted` 행위자 human 등) | `user_msg` |
-| 모델 응답 완료(`model_call.completed`) | `assistant_msg` + `usage` |
-| `tool_call.requested` / `tool_call.completed` / `tool_call.blocked` / `tool_call.interrupted` | `tool_call` / `tool_result` |
-| `result.revision_requested`, `choice.contested`, `finding.contested`, `criterion.changed`, `goal.revised` | `correction`(Helm 고유 정정) |
-| 그 밖의 도메인 이벤트 | `helm_event`(이름과 대상 id만) |
+| 사람 메시지(`run.message_recorded` role user, 같은 트랜잭션의 `observation.recorded` utterance), 조종(`run.steered`) | `user_msg` |
+| 모델 응답(trace `model.responded`의 `usage`, `message.committed` role assistant) | `assistant_msg` + `usage` |
+| `toolcall.requested` / `toolcall.completed`·`toolcall.interrupted`·`toolcall.outcome_uncertain` / `toolcall.blocked`·`toolcall.denied`, trace `toolcall.denied_by_path_policy` | `tool_call` / `tool_result`(차단은 `isError` 대신 `blocked` 표시) |
+| `acceptance.recorded`(revision_requested·rejected), `objection.filed`, `concern.reframed`, `agreement.renegotiated`, `goal.revised`, `brief.corrected` | `correction`(Helm 고유 정정) |
+| `run.context_projected`(투영 메타, `cacheBreak`) | `other`(D6·H7 입력) |
+| 그 밖의 이벤트 | `helm_event`(이름과 대상 id만) |
 
-- 제외: 행위자 `agent:observer`의 이벤트, `policy_proposal.*`, `observer_report.*`, `observer_run.*`는 패턴 탐지에서 뺀다. 지표 계산(§3.22)에는 포함한다.
+- 제외: 행위자 `agent:observer`의 이벤트, `policy_proposal.*`, `observer_run.*`, 범주 `measurement` 이벤트는 패턴 탐지에서 뺀다. 지표 계산(§3.22)에는 포함한다.
 
 #### 3.6.3 pi 어댑터 [원문]
 
-출처: `~/projects/_ref/pi-src/packages/coding-agent/docs/session-format.md`, `packages/coding-agent/src/core/session-manager.ts`, `packages/ai/src/types.ts` (커밋 `cdaf6c2`).
+출처: `~/projects/_ref/pi-src/packages/coding-agent/docs/session-format.md`, `packages/coding-agent/src/core/session-manager.ts`, `packages/ai/src/types.ts`. 참고 판 `cdaf6c2`에서 읽었고 기준 판 `v1.1.0`(결정 44)에서 같은 내용임을 확인했다(`git diff v1.1.0 cdaf6c2`로 세션 형식 문서·`session-manager.ts` 변화 없음, `ai/src/types.ts`의 해당 타입 동일).
 
 - 위치: `~/.pi/agent/sessions/--<path>--/<timestamp>_<session-id>.jsonl`. `<path>`는 앞 구분자를 빼고 `/`, `\`, `:`를 `-`로 바꾼 것이다. 이 인코딩은 되돌릴 수 없으므로 허용 판정은 첫 줄 헤더의 `cwd`로 한다.
 - 헤더: 첫 줄 `{"type":"session","version":3,"id","timestamp","cwd","parentSession"?}`. 버전 1·2 파일도 있을 수 있다(pi가 읽을 때 이전한다). 어댑터는 v1(선형, `id`/`parentId` 없음)이면 줄 순서로 부모를 만들고, v2는 `hookMessage` 역할을 `custom`으로 읽는다. 버전이 3보다 크면 `format_version_unknown` 이상으로 기록하고 해당 파일을 건너뛴다.
@@ -513,7 +542,7 @@ for ref in discover():
 
 #### 3.6.6 Helm 실행과 외부 세션의 중복
 
-이후 단계에서 Helm이 런타임 어댑터(결정 34)로 Claude Code나 Codex를 구동하면 같은 작업이 Helm 이벤트와 외부 세션 로그 양쪽에 남는다. Helm의 `run.started` 이벤트에 `adapterSessionRef { source, nativeSessionId }`를 남기도록 요구하고(12·13), 관찰 에이전트는 이 참조가 있는 외부 세션을 `drivenByHelm: true`로 표시해 (1) 패턴 탐지에서 Helm 쪽 기록만 쓰고 (2) "Helm 밖 변경"(D9, C/A 우회) 집계에서 뺀다.
+이후 단계에서 Helm이 런타임 어댑터(결정 34)로 Claude Code나 Codex를 구동하면 같은 작업이 Helm 이벤트와 외부 세션 로그 양쪽에 남는다. 13 §3.11.2의 `AdapterRun.sessionRef`(`AdapterSessionRef { runtime, nativeSessionId, path? }`)가 `run.started`의 `adapterSessionRef`로 남는다(13 §5.1). 관찰 에이전트는 이 참조가 있는 외부 세션을 `drivenByHelm: true`로 표시해 (1) 패턴 탐지에서 Helm 쪽 기록만 쓰고 (2) "Helm 밖 변경"(D9, C/A 우회) 집계에서 뺀다.
 
 ### 3.7 정규화 스키마
 
@@ -597,20 +626,20 @@ export interface NormalizedPath {
 
 #### 3.7.1 도구 이름 정규화
 
-소스마다 도구 이름이 다르므로 공통 이름표를 둔다. 표에 없는 이름은 `other:<원래 이름>`.
+소스마다 도구 이름이 다르므로 공통 이름표를 둔다. Helm 열은 13 §3.3의 도구 이름(pi coding-agent 도구 기반)이다. Helm 제안 도구(`helm_*`)는 `other:<이름>`으로 두고 패턴 탐지에서 뺀다. 표에 없는 이름은 `other:<원래 이름>`.
 
 | 공통 이름 | Helm | pi | Claude Code | Codex [지식] | `effectHint` |
 |---|---|---|---|---|---|
-| `read` | 13의 read | `read` | `Read` | - | read |
-| `search` | 13의 grep/find | `grep`, `find`, `ls` | `Grep`, `Glob` | - | read |
-| `edit` | 13의 edit | `edit` | `Edit` | `apply_patch` | write |
-| `write` | 13의 write | `write` | `Write` | - | write |
-| `shell` | 13의 bash | `bash` | `Bash` | `shell`, `local_shell_call` | execute(명령 분류로 세분, §3.7.2) |
+| `read` | `read` | `read` | `Read` | - | read |
+| `search` | `grep`, `find`, `ls` | `grep`, `find`, `ls` | `Grep`, `Glob` | - | read |
+| `edit` | `edit` | `edit` | `Edit` | `apply_patch` | write |
+| `write` | `write` | `write` | `Write` | - | write |
+| `shell` | `bash` | `bash` | `Bash` | `shell`, `local_shell_call` | execute(명령 분류로 세분, §3.7.2) |
 | `web` | - | - | `WebFetch`, `WebSearch` | - | network |
-| `subagent` | spawn | - | `Agent`, `Task` | - | unknown |
+| `subagent` | `helm_subcall`, 하위 실행(13 §3.7) | - | `Agent`, `Task` | - | unknown |
 | `codemode` | - | `codemode` | - | - | unknown(중첩 호출은 `nestedCalls`로 펼침) |
 
-pi `toolResult.nestedCalls`(codemode 안 호출 기록, `packages/ai/src/types.ts` `NestedToolCallRecord` [원문])가 있으면 중첩 호출을 별도 `tool_call`로 펼치고 `parent` 호출 id를 `argsTemplate`에 붙인다.
+pi `toolResult.nestedCalls`(`NestedToolCalls { calls: NestedToolCallRecord[] }`, codemode 안 호출 기록, `packages/ai/src/types.ts` [원문])가 있으면 중첩 호출을 별도 `tool_call`로 펼치고 `parent` 호출 id를 `argsTemplate`에 붙인다.
 
 #### 3.7.2 명령·인자 정규화
 
@@ -634,11 +663,13 @@ pi `toolResult.nestedCalls`(codemode 안 호출 기록, `packages/ai/src/types.t
 | 단계 | 위치 | 방법 |
 |---|---|---|
 | 1차 | 관찰 프로세스, 정규화 직후 | 규칙 기반(§3.8.2) + 엔트로피 검사(§3.8.3) |
-| 2차 | 데몬, `llm.complete`와 `kernel.submit` 요청을 받을 때 | 데몬이 가진 실제 비밀 값(실행 시 주입된 환경 변수 중 `.env.example`에 값 없이 적힌 키)과 문자열 일치 검사. 일치하면 가리고 실행 보고에 `secondary_mask_hits`를 올린다. 0보다 크면 1차 규칙의 누락이므로 실행을 실패로 보지는 않되 경고 이벤트를 남긴다 |
+| 2차 | 데몬, `llm.complete`와 `kernel.submit` 요청을 받을 때 | 18 §3.10.4의 `Redactor.redactDeep`. SecretStore(결정 45)에 등록된 값(`registerKnown`)과 그 base64·URL 인코딩 형태의 완전 일치, 그리고 같은 규칙 표. 적중하면 가리고 실행 보고에 `secondaryMaskHits`를 올린다. 0보다 크면 1차 규칙의 누락이므로 실행을 실패로 보지는 않되 운영 로그에 경고를 남기고 그 후보는 이번에 제출하지 않는다(§4.3) |
 
 관찰 프로세스는 비밀 값을 받지 않으므로 2차는 데몬만 할 수 있다(OB-3).
 
-#### 3.8.2 규칙 목록 [제안]
+#### 3.8.2 규칙 목록 [제안, 18 §3.10.4와 공유]
+
+규칙 표는 하나다. 18의 마스킹기(도구 출력·모델 출력·로그)와 이 문서의 관찰 입력 마스킹이 같은 표를 쓴다. 표와 순수 적용 함수는 I/O 없는 공용 모듈에 두고(위치는 06이 정한다. 추천: `@helm/domain/src/redaction/`), 관찰 프로세스와 데몬이 같이 import한다. 18만의 규칙(`helm_dt_` 기기 토큰, `AGE-SECRET-KEY-1`)도 이 표에 함께 둔다. 엔트로피 검사(MK-13)와 파일 문맥 규칙(MK-10, MK-11)은 관찰 입력에만 쓴다(18 §3.10.4 규칙 4).
 
 | ID | 대상 | 패턴(요지) |
 |---|---|---|
@@ -651,12 +682,12 @@ pi `toolResult.nestedCalls`(codemode 안 호출 기록, `packages/ai/src/types.t
 | MK-07 | Bearer·Basic 인증 헤더 | `(?i)authorization:\s*(bearer|basic)\s+\S+`, `(?i)\bbearer\s+[A-Za-z0-9._~+/-]{16,}=*` |
 | MK-08 | URL 안 자격 | `[a-z][a-z0-9+.-]*://[^/\s:@]+:[^/\s@]+@` 의 비밀번호 부분 |
 | MK-09 | 키=값 형식 | 키가 `(?i)(secret|token|passwd|password|pass|api[_-]?key|private[_-]?key|credential|auth)`를 포함하는 `KEY=VALUE`, `"key": "value"`, `key: value`의 값(8자 이상) |
-| MK-10 | SOPS 복호화 출력 | `sops -d`, `secrets run`, `secrets dotenv` 명령의 **결과 텍스트 전체**를 `«secret:sops_output»`으로 바꾼다. 명령 템플릿은 남긴다 |
+| MK-10 | SOPS 복호화 출력 | `sops -d`, `secrets run`, `secrets dotenv` 명령의 **결과 텍스트 전체**를 `[REDACTED:sops_output]`으로 바꾼다. 명령 템플릿은 남긴다 |
 | MK-11 | `.env` 파일 읽기 결과 | 경로가 `.env`, `.env.*`(단 `.env.example` 제외), `*.pem`, `*.key`, `id_*`(`.pub` 제외)인 읽기 도구의 결과 전체 |
-| MK-12 | Tailscale·기기 토큰 | `\btskey-[A-Za-z0-9-]{20,}`, 19가 정할 기기 토큰 접두사 |
+| MK-12 | Tailscale·기기 토큰·age 키 | `\btskey-[A-Za-z0-9-]{20,}`, `helm_dt_[A-Za-z0-9_-]{43}`(18 §3.8), `AGE-SECRET-KEY-1[0-9A-Z]{58}` |
 | MK-13 | 고엔트로피 문자열 | §3.8.3 |
 
-규칙 표는 `packages/observer/src/mask/rules.ts`의 데이터다. 새 규칙 추가는 코드 변경이며 테스트 픽스처를 함께 더한다.
+새 규칙 추가는 공용 모듈의 코드 변경이며 16·18의 테스트 픽스처(OB-T10, 18 §3.17)를 함께 더한다.
 
 #### 3.8.3 엔트로피 검사
 
@@ -667,10 +698,11 @@ pi `toolResult.nestedCalls`(codemode 안 호출 기록, `packages/ai/src/types.t
 #### 3.8.4 마스킹 토큰
 
 ```text
-«secret:<규칙 ID>:<hmac8>»
+[REDACTED:<kind>:<h8>]          # 18 §3.10.4와 같은 형식. kind는 규칙 이름(예 github_token, high_entropy)
 ```
 
-- `hmac8` = `HMAC-SHA256(salt, 원래 값)`의 앞 8자 16진. 같은 값은 같은 토큰이 되므로 "같은 키를 반복해 붙여 넣는다" 같은 패턴은 찾을 수 있고 값은 알 수 없다.
+- 관찰 입력에서 `h8` = `HMAC-SHA256(salt, 원래 값)`의 앞 8자 16진이다. 18의 데몬 쪽은 `sha256` 앞 8자를 쓴다. 관찰 입력은 대량의 외부 텍스트라 알려진 값과 대조해 보는 공격을 줄이려고 소금을 넣는다. 같은 값은 같은 토큰이 되므로 "같은 키를 반복해 붙여 넣는다" 같은 패턴은 찾을 수 있고 값은 알 수 없다.
+- MK-10, MK-11처럼 결과 전체를 바꾸는 규칙은 `[REDACTED:sops_output]`, `[REDACTED:secret_file]`.
 - `salt`는 `/srv/volumes/helm/observer/salt`(권한 600, 32바이트 무작위)에 처음 실행 때 만든다. 지우면 캐시도 함께 재구성한다.
 
 #### 3.8.5 마스킹 범위
@@ -758,13 +790,18 @@ pi `toolResult.nestedCalls`(codemode 안 호출 기록, `packages/ai/src/types.t
 | D8 | 같은 방식으로 풀린 Concern | Helm `concern.closed`, `loop.transitioned`, 루프 계획 | 같은 상황 유형 + 같은 루프 조합 + 결과 확인 후 이의 없음인 Concern이 3개 이상(v0.3 05 §5의 기준) | `procedure` |
 | D9 | Helm 밖 변경 | 외부 세션의 `write`/`edit`/쓰기성 `shell` 중 관리 대상 폴더 안 경로 | 그 시각에 같은 루트를 범위로 가진 활성 작업 합의가 없으면 "합의 없는 변경"으로 센다 | `outside_changes` 보고로 제출해 지표 `ca.agreement_bypass_rate`, `opdc.o.unlinked_m_changes`(§3.23)에 쓴다. 제안은 `entry_criteria`만 |
 | D10 | 묻기 정책 신호 | Helm 질문·혼자 정한 결정 이벤트 | v0.3 06 §4.4 표: (a) 종류별 이의율 높음 (b) 답 = 임시 가정 비율 높음 (c) 가정 확정 후 이의율 높음. 각 비율은 §3.23.4·§3.23.5 정의 | `policy`(다이얼) |
-| D11 | 합의·확인 마찰 | `tool_call.blocked`(범위 초과), 근거 없는 기준, 수정 요청, 열린 반영 항목 | 같은 경로 부류에서 범위 초과 차단 3회 이상 → 합의 템플릿의 기본 범위 후보. 같은 기준 문구가 "확인 못함"으로 3회 이상 → 기준 템플릿 후보 | `agreement_template` |
+| D11 | 합의·확인 마찰 | `toolcall.blocked`, `command.rejected`(코드 `gate.scope_expansion_required`, `policy.forbidden_resource`, 판정 §1), 근거 없는 기준, 수정 요청, 열린 반영 항목 | 같은 경로 부류에서 범위 초과 차단 3회 이상 → 합의 템플릿의 기본 범위 후보. 같은 기준 문구가 "확인 못함"으로 3회 이상 → 기준 템플릿 후보 | `agreement_template` |
 | D12 | 학습 신호(G6) | near miss(차단된 호출, 수정 요청 후 고쳐진 결과, 이의 후 뒤집힌 결정), 설명되지 않은 관찰(해석이 7일 동안 연결되지 않은 `surprise` 표시 관찰), 성공한 지역 적응(계획과 다르게 진행했는데 수정 없이 결과 확인), 돌아보기 한 줄 | 종류별로 모아 근거 목록으로 둔다. 같은 부류가 3회 이상이면 후보 | `policy`, `agreement_template`, `procedure` |
 | D13 | 렌즈 사용 | 15의 가능성·렌즈 이벤트 | 렌즈별 가능성 수와 채택 수(가능성 20개 이상에서 채택 0이면 내리기 후보), 렌즈 밖 관점(`origin: model_open`, 15 §3.9)이 같은 분야로 3회 이상 채택되면 추가 후보 | `lens` |
 
 정정 어휘(D5) [제안]: 한국어 `아니`, `그게 아니라`, `말고`, `다시`, `틀렸`, `잘못`, `그만`, `하지 마`, `원래대로`, `되돌려`; 영어 `no,`, `not that`, `instead`, `wrong`, `stop`, `revert`, `undo`, `that's not`. 메시지 앞 40자 안에 있을 때만 센다. 이 목록은 사람이 고치는 설정 데이터다. 관찰 에이전트는 이 목록이나 탐지 문턱을 바꾸자는 제안을 하지 않는다(§3.12.4, OQ-16-08).
 
-D5는 문제 정의가 틀린 신호로도 쓴다(대화 L1577, 발췌2 X2-3-15). 어떤 유형의 요청에서 정정이 잦은지를 진입 조건 수정안(`entry_criteria`)의 근거로 쓴다. 또 14일 동안 같은 범위(프로젝트·Goal·Concern 종류)에서 정정이 3회 이상이면 일일 분석 때 `correction_signal` 보고를 제출한다. 15 §3.4.2의 진입 계기 S3(잦은 정정)이 이 보고의 투영을 읽는다. 이 신호는 발산 강도 판단의 입력일 뿐 커널 상태가 아니다.
+D5는 문제 정의가 틀린 신호로도 쓴다(대화 L1577, 발췌2 X2-3-15). 어떤 유형의 요청에서 정정이 잦은지를 진입 조건 수정안(`entry_criteria`)의 근거로 쓴다. 또 14일 동안 같은 범위(프로젝트·Goal·Concern 종류)에서 정정이 3회 이상이면 일일 분석 때 `correction_signal` 보고를 제출한다. 15 §3.4.2의 진입 계기 S3(잦은 정정)은 두 원천을 읽는다(15 §5.2의 16 요구 "정정 신호 레코드"에 대한 답).
+
+1. Helm 기록의 정정: 같은 범위의 정정이 3회 이상이면 마지막 정정의 발화 관찰(`observation.recorded` utterance)에 `observation.annotate`로 주석 `annKind: repeated_correction`(08 §3.8.1)을 단다. `note`에 범위와 횟수, 근거 이벤트 seq를 적는다. 도메인 기록이므로 15가 근거로 인용할 수 있다.
+2. 외부 세션의 정정: 주석을 달 관찰이 없으므로 `observer_report.recorded { form: "correction_signal" }`로 남기고, 지표 소비자가 `observer_signal` 테이블에 범위별 최신 값을 둔다. 근거로 인용하지 않고 발산 강도 판단의 입력으로만 쓴다.
+
+어느 쪽도 커널 상태를 바꾸지 않는다.
 
 #### 3.10.2 후보 문턱 [제안]
 
@@ -795,8 +832,13 @@ export interface CandidateFeatures {
   scope: { roots: string[]; sources: SourceKind[] }; // roots는 정렬
 }
 
-// signature = "sg_" + sha256(canonicalJson({detector, kind, core})).slice(0, 24)
+// 서명 계산 규칙 (08 §3.19.2 `signature: Sha256`의 정본, 08 §5.2의 16 요구 (1)에 대한 답)
+// signature = "sha256:" + hex(sha256(utf8(canonicalJson({ v: 1, detector, kind, core }))))
+//   canonicalJson: 09 §3.2.1의 정규화 JSON(키 정렬, 공백 없음, NFC). core는 정렬된 문자열 배열이며
+//   값은 §3.7.2로 치환·마스킹된 템플릿이라 경로·숫자·비밀이 서명에 들어가지 않는다.
+//   v는 서명 규칙 버전. 규칙이 바뀌면 v를 올리고, 기각 기억은 같은 v끼리만 비교한다.
 // scope는 서명에 넣지 않는다. 같은 패턴이 다른 폴더에서 나와도 같은 서명이다.
+// family = 그 패밀리에서 처음 본 signature 문자열 (08 `family`, 최대 128자)
 ```
 
 #### 3.11.2 패밀리(비슷한 서명)
@@ -1054,7 +1096,7 @@ export interface ProposalDraft {
   evidence: ProposalEvidence;
   estimate: { savings: number; unit: "tokens_per_28d" | "human_ops_per_28d"; formula: string };
   draft?: { format: DraftFormat; body: string };
-  patch?: PolicyPatch | AgreementTemplatePatch;   // policy, agreement_template, routing, entry_criteria만
+  patch?: PolicyPatch;                      // policy, guard, agreement_template, routing만
   rationale: string;                        // 모델 또는 템플릿 문장
   risks: string[];
   confidence: "low" | "medium" | "high";
@@ -1099,16 +1141,21 @@ export type EvidenceRef =
       contentHash: string;                  // 마스킹 전 원문 줄의 sha256. 원문이 지워져도 근거 위치를 확인할 수 있게
       excerpt?: string };                   // 마스킹된 200자 이하
 
-export interface PolicyPatch {
-  target: "dial" | "routing_rule" | "entry_rule" | "policy_rule";
-  key: string;                              // 예 "question.threshold.condition2"
-  scope: { level: "global" | "concern_kind" | "loop" | "decision_kind"; value?: string };
-  from: unknown; to: unknown;               // 현재 값은 코드가 정본 투영에서 채움
-}
+/** 08 PolicyProposalCore.patch = { target, value }. target 문자열과 value 모양을 여기서 정한다 */
+export type PolicyPatch =
+  | { target: "dial"; value: { key: DialKey;                        // 08 DIAL_KEYS, 11 §3.16(예 "question.threshold.c3")
+                               scope: DialScope;                     // 14 정본(전역·모드·루프·Concern·결정 종류)
+                               from: unknown; to: unknown } }        // from은 코드가 현재 투영에서 채움
+  | { target: "policy_rule"; value: { op: "add" | "replace" | "retire"; rule: PolicyRule;   // 10 §3.6.4, source = "observer_proposal"
+                                      fromVersion?: number } }
+  | { target: "orchestration.routing"; value: { ruleId: string; from: unknown; to: unknown } }           // 14 §3.20.5
+  | { target: "orchestration.agreement_templates"; value: AgreementTemplatePatch };                     // 14 §3.20.5
 export interface AgreementTemplatePatch {
   templateId: string; field: "scope" | "criteria" | "forbidden" | "evidence" | "stop_conditions";
-  op: "add" | "remove" | "replace"; value: unknown;
+  op: "add" | "remove" | "replace"; value: unknown; fromRevision: number;
 }
+// 진입 규칙(entry_criteria)은 01이 문턱을 고정했으므로(14 §3.20.5) 패치를 두지 않는다. 그 제안은 설명과 근거만 담고,
+// 채택하면 설계 변경 Concern이 열린다.
 ```
 
 커널 검증 요구(10에 요구):
@@ -1120,7 +1167,19 @@ export interface AgreementTemplatePatch {
 5. 같은 `idempotencyKey`는 한 번만 기록(두 번째는 기존 결과 반환).
 6. 본문 크기 상한(제안 전체 32 KiB).
 
-#### 3.15.2 정본 제안 레코드 (투영 `observer_proposal`이 만드는 형태)
+#### 3.15.2 정본 제안 레코드
+
+레코드는 08 §3.19.2 `PolicyProposal`이다. `policy_proposal.submitted`의 payload는 `PolicyProposalCore`이고(09), 감독기가 `ProposalDraft`를 다음과 같이 옮긴다.
+
+| `PolicyProposalCore` 필드 | `ProposalDraft`에서 |
+|---|---|
+| `proposalKind`, `changes`, `family`, `detector`, `signature`, `title`, `rationale` | 같은 이름(`rationale`은 `summary` + `rationale`) |
+| `evidence[]` | `evidence.refs`를 `{ kind: "event" \| "record" \| "session_log", ref, note }`로. 외부 근거의 `ref`는 `<파일 경로>#L<줄>@<contentHash>` |
+| `draft: BlobRef` | `ProposalDraft` 전체를 마스킹한 JSON. `mediaType: "application/vnd.helm.proposal-draft+json"`, 스키마 버전 필드 `v: 1`. `preview`는 `title` (08 §5.2의 16 요구 (1)에 대한 답) |
+| `patch` | `ProposalDraft.patch` |
+| `targetProjectId` | `scope.projectIds`가 하나면 그것, 아니면 null |
+
+아래 타입은 관찰 프로세스와 화면이 쓰는 읽기 모양이다(08 레코드 + 초안 blob을 펼친 것).
 
 ```ts
 export type ProposalStatus =
@@ -1137,7 +1196,7 @@ export interface ObserverProposalRecord {
     by: "human";
     at: number;
     kind: "accepted" | "dismissed" | "deferred";
-    reason?: "already_handled" | "coincidence" | "not_wanted" | "will_do_myself" | "too_costly" | "other";   // 04 §3.18의 선택지와 맞춤
+    reason?: "already_handled" | "coincidence" | "not_wanted" | "will_do_myself" | "too_costly" | "other";   // 04 §3.18의 선택지. 08은 문자열 32자
     note?: string;
     scope?: "this" | "family_forever";
     deferUntil?: number;
@@ -1154,21 +1213,21 @@ export interface ObserverProposalRecord {
 |---|---|---|---|---|
 | (없음) | `policy_proposal.submitted` (observer, 커널 검증 후) | `open` | §3.15.1 검증 | 제안함·복귀 요약 카운트 +1 |
 | `open` | `policy_proposal.evidence_updated` (observer) | `open` | - | 근거 수 갱신, 알림 없음 |
-| `open` | `policy_proposal.accepted` (human) | `accepted` | 사람만 | `changes`에 따라 §3.16 |
-| `open` | `policy_proposal.dismissed` (human) | `dismissed` | 사람만, 사유 필수(선택지 하나 고르기) | 기각 기억 |
-| `open` | `policy_proposal.deferred` (human) | `deferred` | `until` > now | - |
+| `open`, `deferred` | `policy_proposal.accepted` (human, 명령 `policy.change.accept`) | `accepted` | 사람만, 채널 `human_client`(18 §5.2), V-POL-01, `patch.from` = 현재 값 | `changes`에 따라 §3.16 |
+| `open`, `deferred` | `policy_proposal.dismissed` (human, 명령 `policy.change.reject`) | `dismissed` | 사람만, 사유 하나 고르기, 범위 `this` 또는 `family_forever` | 기각 기억 |
+| `open` | `policy_proposal.deferred` (human, 명령 `policy.change.defer`) | `deferred` | `until` > now | 12 타이머 등록 |
 | `deferred` | 시각 도래 (scheduler) `policy_proposal.reopened` | `open` | - | - |
-| `open`, `deferred` | `policy_proposal.withdrawn` (observer) | `withdrawn` | 근거가 사라짐·더 나은 제안으로 대체·대상이 없어짐 | - |
+| `open`, `deferred` | `policy_proposal.withdrawn` (observer 또는 human) | `withdrawn` | 근거가 사라짐·더 나은 제안으로 대체·대상이 없어짐 | - |
 | `open` | 60일 동안 결정 없음 (scheduler) `policy_proposal.expired` | `expired` | - | 같은 서명 재제출 허용(근거 갱신 시) |
 | `accepted` | 설정 적용 (kernel) `policy_proposal.applied` | `applied` | `patch`가 있는 종류 | 효과 측정 일정 등록 |
-| `accepted` | 적용 Concern 생성 (kernel) `policy_proposal.application_opened` | `applying` | 파일을 바꾸는 종류 | Concern에 초안 첨부 |
+| `accepted` | 적용 Concern 생성 (kernel) `policy_proposal.application_opened { concernId }` | `applying` | 파일을 바꾸는 종류 | 같은 트랜잭션에 `concern.opened`(entryPath `observer`, 14 §3.14.4), 초안 blob 참조 |
 | `applying` | 적용 Concern의 결과 확인 + 반영 완료 (kernel) `policy_proposal.applied` | `applied` | 결정 15(2) | 효과 측정 일정 등록 |
 | `applying` | 적용 Concern 취소 (human) `policy_proposal.application_abandoned` | `dismissed` | - | 사유 `too_costly` |
 | `applied` | `policy_proposal.effect_measured` (observer 보고, 커널 기록) | `applied` | 체크포인트마다 | 마지막 체크포인트에서 판정 |
-| `applied` | 최종 판정 `ineffective`/`harmful` | `applied` | - | `demotion` 제안 자동 생성(observer 다음 실행) |
-| `applied` | `policy_proposal.reverted` (human 또는 demotion 채택) | `reverted` | - | 대상 되돌림은 §3.16 경로 |
+| `applied` | 최종 판정 `ineffective`/`harmful` | `applied` | - | `demotion` 제안 자동 생성(observer 다음 실행). 절차면 채택된 demotion이 `procedure.trust_changed(demoted)` |
+| `applied` | `policy_proposal.reverted` (human) | `reverted` | demotion 제안을 사람이 채택했거나 사람이 직접 되돌림 | 대상 되돌림은 §3.16 경로 |
 
-`dismissed`, `withdrawn`, `expired`, `reverted`는 끝 상태다. 사람의 결정은 모두 사람 입력 채널에서만 온다(결정 14, v0.3 07 §2.4).
+`dismissed`, `withdrawn`, `expired`, `reverted`는 끝 상태다. 사람의 결정은 모두 사람 입력 채널에서만 온다(결정 14, v0.3 07 §2.4). 이벤트 이름은 09 §3.4.13이다. 10 §3.11.10은 `policy.change.reject`의 결과를 `policy_proposal.rejected`로, 기각 범위를 `'this' | 'signature'`로 적었다. 09·08의 `policy_proposal.dismissed`, `'this' | 'family_forever'`로 맞추기를 10에 요구한다(남은 충돌 C-3).
 
 ### 3.16 채택 후 적용 경로
 
@@ -1176,7 +1235,8 @@ export interface ObserverProposalRecord {
 |---|---|---|---|
 | `policy`(다이얼, 라우팅·진입·정책 규칙) | 채택하면(사람이 `patch.to` 값을 고쳐 채택할 수 있음) 같은 트랜잭션에서 커널이 `patch`를 설정 변경 이벤트(`setting.changed { cause: proposalId }`)로 적용한다. 다음 턴 경계부터 반영(v0.3 09 §4.9) | 사람(채택), 커널(적용) | 커널이 `from` 값과 현재 값이 같은지 확인. 다르면 "제안 이후 설정이 바뀜"으로 거부하고 제안을 갱신하라고 알림 |
 | `agreement` | 합의 템플릿 데이터 변경. 정책과 같은 경로 | 같음 | 같음 |
-| `procedure`(절차) | 절차 등록 명령(14·08 소유). 초기 신뢰도 `trial` | 사람 | 14 |
+| `procedure`(절차) | 채택과 같은 트랜잭션에서 `procedure.adopted`(09, 행위자 human, `sourceProposalId`, 초기 `trust: trial`) | 사람 | 14 §3.7 |
+| `procedure`(렌즈, 발산 범주) | 채택하면 `lens.added`·`lens.updated`·`lens.retired`(`origin: "observer_proposal"`, 15 §3.9) 또는 15의 범주 데이터 변경 | 사람 | 15 |
 | `procedure`(스킬), `tooling`, `context`(투영 규칙·지침 문서) | 커널이 적용 Concern을 연다: 프로젝트는 `scope.projectIds`의 첫 프로젝트(없으면 Helm 자체 개선용 프로젝트 "Helm 운영" [제안]), Goal은 사람이 채택할 때 고르며 기본값은 그 프로젝트에서 가장 최근 활성 Goal이다. 초안이 첨부되고, 작업 에이전트가 작업 합의(C)를 거쳐 파일을 바꾸고, 사람이 결과 확인(A) | 작업 에이전트 + 사람 | 결정 15 의존 규칙. 관찰 에이전트는 관여하지 않음 |
 
 관찰 에이전트는 어느 경로에서도 파일을 쓰지 않는다. 채택된 스킬·스크립트가 다른 런타임(Claude Code, pi)에도 배포되는지는 이 문서 범위 밖이다. 저장 위치와 형식은 적용 Concern의 작업 합의에서 정한다.
@@ -1232,7 +1292,14 @@ export interface EffectReport {
 }
 ```
 
-절차(`procedure`)의 신뢰도: `trial` → (효과 판정 `effective`) → `trusted`. `trusted` 절차를 쓴 작업에서 예상 밖 결과(이의, 수정 요청, 재개방)가 28일 안에 2회 이상이면 `demotion` 제안을 만든다(v0.3 05 §5, v0.3 10 §4.2 질문 8의 답).
+절차(`procedure`)의 신뢰도: `trial` → (효과 판정 `effective`, 사람이 확인) → `trusted`. 변경은 `procedure.trust_changed`(09)다. `trusted` 절차를 쓴 작업에서 예상 밖 결과가 28일 안에 2회 이상이면 `demotion` 제안을 만든다(v0.3 05 §5, v0.3 10 §4.2 질문 8의 답).
+
+절차 사용 기록(08 §5.2의 16 요구 (2)에 대한 답) [제안]: 사용과 실패는 별도 이벤트 없이 파생한다.
+
+- 사용: `loop_plan.adopted`의 계획이 절차를 참조하면(14 계획 템플릿, `procedureId`) 그 Concern이 절차를 쓴 것이다.
+- 실패: 그 Concern에서 `acceptance.recorded`(revision_requested·rejected·criteria_wrong), 그 Concern의 결정에 대한 `objection.filed`, 완료 뒤 28일 안 `concern.reopened` 중 하나가 있으면 실패 1건.
+- 계산은 지표 소비자가 한다(`proc.uses`, `proc.failures`). 08 `Procedure.uses`는 이 값의 투영으로 두거나 레코드에서 뺀다(08이 정한다).
+- `procedure_failed` 주석: 사람이 놀람 표시와 같은 경로로 직접 남길 때만 쓴다. 08 `Annotation.annKind`에 값을 더하고 `expectedRef`에 `pd`를 허용하도록 요구한다. 관찰 에이전트는 이 주석을 만들지 않는다(근거로 인용할 관찰이 따로 없기 때문).
 
 ### 3.18 통합 보고(다이제스트)와 전달
 
@@ -1339,7 +1406,7 @@ export interface ObserverRunReport {
 }
 ```
 
-데몬은 이 보고를 `observer_run.completed`(또는 `.failed`)의 페이로드로 운영 기록에 남긴다. 모델 사용량(토큰, 비용)은 12의 사용량 기록에 예산 계정 `observer`로 귀속된다. 둘 다 도메인 원장이 아니며, 지표 `obs.*`(§3.23.9)의 원천이다.
+감독기는 이 보고를 blob으로 저장하고 `observer_run.completed { runKey, proposals, report }`(09)의 `report`로 가리킨다. 실패면 `observer_run.failed { runKey, code }`. 모델 사용량(토큰, 비용)은 12의 사용량 기록(`budget.charged`, 계정 `observer`)에 귀속된다. 지표 `obs.*`(§3.23.9)의 원천이다.
 
 ### 3.20 관찰 캐시
 
@@ -1413,18 +1480,20 @@ CREATE TABLE run_log (run_id TEXT PRIMARY KEY, kind TEXT, report_json TEXT, at I
 #### 3.22.1 흐름
 
 ```text
-도메인 원장 이벤트 ─┐
-실험 측정 이벤트 ───┼─▶ [투영기(12), 커밋 직후] extractFacts(event, lookup) ─▶ metric_fact (투영 테이블)
-관찰 보고 이벤트 ───┘                                                          │
-                                                                               ▼
-              조회 시: aggregate(metricDef, window) ─▶ 화면(19 `metrics` 뷰) — 5분 캐시
-              매일 04:00: snapshot(전체 지표, 1d·14d·28d 창) ─▶ metric_snapshot
-              14일마다: evaluate(가설 상태) ─▶ observer_report.recorded(평가 보고)
+정본 이벤트(범주 domain·governance·runtime·kernel·measurement) ─┐
+실행 기록(09 trace, 12 TraceRecord: model.responded 등) ────────┼─▶ [데몬의 커밋 뒤 소비자 "metrics"
+                                                               │     (09 §3.11.1-6, consumer_cursors)]
+                                                               │   extractFacts(event, lookup) ─▶ metric_fact
+                                                               ▼
+              조회 시: aggregate(metricDef, window) ─▶ 19 `metrics` 뷰 — 5분 캐시
+              매일 04:00(T4): snapshot(전체 지표, 1d·7d·14d·28d 창) ─▶ metric_snapshot
+              14일마다(T6): 관찰 실행 evaluate ─▶ observer_report.recorded(평가 보고)
 ```
 
-- `extractFacts`는 `@helm/observer/metrics`에서 내보내는 순수 함수다. I/O가 없고 `lookup`(읽기 전용 투영 조회)만 받는다. 투영기는 데몬 안에서 이 함수를 부른다. 관찰 프로세스가 지표를 쓰는 일은 없다(관찰 프로세스는 쓰기 권한이 없으므로).
-- 투영 재구성(`helm projections rebuild`, 09·12) 때 `metric_fact`도 처음부터 다시 만든다.
-- 패키지 의존: `daemon`(또는 `runtime`) → `observer/metrics` → `domain`. `observer/metrics` 하위 경로는 `store`, `ai`, `agent`를 import하지 않는다(06의 의존 규칙에 요구).
+- 지표 투영 테이블은 정본과 같은 DB(`/srv/volumes/helm/data/helm.sqlite`)에 둔다. 다만 `core` 투영기(쓰기 트랜잭션 안)가 아니라 커밋 뒤 소비자 `metrics`가 비동기로 채운다(09 §3.11.1 6번). 쓰기 트랜잭션을 늦추지 않기 위해서다. 소비자는 `consumer_cursors`의 `metrics` 행으로 위치를 남기고, 데몬 재시작 뒤 그 위치부터 다시 읽는다. 같은 이벤트를 두 번 처리해도 사실 id가 같아 중복이 없다.
+- `extractFacts`는 `@helm/observer/metrics`에서 내보내는 순수 함수다(06 R4). I/O가 없고 `lookup`(읽기 전용 조회)만 받는다. 데몬이 이 함수를 부른다. 관찰 프로세스는 지표 테이블을 쓰지 않는다(쓰기 권한 없음). 관찰 프로세스는 외부 세션에서만 얻을 수 있는 값(D9, 기준선)을 `observer_report.recorded`로 제출하고, 소비자가 그것을 사실로 바꾼다.
+- 투영 재구성(09 §3.11.2) 때 지표 테이블도 비우고 `consumer_cursors.metrics`를 0으로 돌려 처음부터 다시 만든다.
+- 패키지 의존: `daemon` → `@helm/observer/metrics` → `domain`(06 §3.4.11).
 
 #### 3.22.2 타입
 
@@ -1435,7 +1504,7 @@ export type FactKind =
   | "unlinked_change" | "question" | "autonomous_choice" | "contest" | "directive" | "plan_deviation"
   | "prediction" | "surprise" | "presence" | "view" | "brief_ack" | "concern" | "inquiry" | "staleness"
   | "model_call" | "situation" | "structure" | "want_round" | "resumption_check" | "self_report" | "proposal"
-  | "reflection" | "outside_change" | "baseline";
+  | "reflection" | "outside_change" | "baseline" | "brief" | "runtime_health";
 
 export interface MetricFact {
   id: string;                    // `${sourceEventId}:${kind}:${n}` 멱등
@@ -1446,11 +1515,11 @@ export interface MetricFact {
   value: number;                 // 기본 1. 기간 사실이면 ms, 토큰이면 토큰 수
   dims: Record<string, string | number | boolean | null>;
   sourceEventSeq: number;        // 근거로 내려갈 수 있게
-  stream: "domain" | "measurement" | "observer";
+  stream: "domain" | "governance" | "runtime" | "kernel" | "measurement" | "trace";   // 09 범주 + trace
 }
 
 export interface FactLookup {
-  /** 읽기 전용 투영 조회. 순수 함수가 상태를 들고 다니지 않게 한다 */
+  /** 읽기 전용 조회(데몬이 p_* 투영과 지표 테이블로 구현). 순수 함수가 상태를 들고 다니지 않게 한다 */
   record(id: string): Readonly<Record<string, unknown>> | undefined;
   activeAgreementsCovering(root: string, at: number): readonly string[];
   returnEpisodeAt(at: number): ReturnEpisode | undefined;   // §3.23.1
@@ -1469,7 +1538,7 @@ export interface MetricDef {
   title: string;                 // 화면 이름(한국어)
   unit: "count" | "ratio" | "ms" | "turns" | "tokens" | "usd" | "score" | "per_hour";
   direction: "lower_better" | "higher_better" | "target_zero" | "informational";
-  window: "14d" | "28d" | "per_return" | "cumulative" | "1d";
+  window: "1d" | "7d" | "14d" | "28d" | "per_return" | "cumulative";
   minSample: number;
   reviewSignal?: { op: ">" | "<" | ">=" | "<="; value: number; note: string };   // [제안] 초기 가설값
   pairedWith: string[];          // §3.21-4
@@ -1488,42 +1557,46 @@ export interface MetricValue {
 
 #### 3.22.3 사실 추출 표
 
-이벤트 이름은 09·10·11 확정 전의 가정 이름이다(§5.2에 요구로 적음). 이미 다른 문서에 있는 이름은 그대로 썼다.
+이벤트 이름은 09 §3.4 카탈로그 이름이다. 실행 기록(trace)은 09가 테이블로 둔 12 §3.4.10 `TraceRecord`다. 사람 결정 이벤트의 payload에는 선택 필드 `humanOp: HumanOpMeta`(08 §3.4.5, 09 §3.4.15)가 있다.
 
-| 사실 `kind`/`sub` | 원천 이벤트 | 주요 `dims` | 흐름 |
+| 사실 `kind`/`sub` | 원천 | 주요 `dims` | 흐름 |
 |---|---|---|---|
-| `human_op`/`decision` | 채널 `human_client`로 받아들여진 확정·답·이의 명령(10 §3.3.2) | `commandType`, `target`(01 §3.5.2 `HumanDecisionOp.target`), `onNormalPath`, `extraReason`, `editedDraft`, `trivialInput`, `authoring` | domain |
-| `human_op`/`input` | 사람이 먼저 시작한 입력(새 요청, 실행 중 지시, 다이얼 변경), 원함 탐구 반응 | `inputType`, `authoring` | domain |
-| `agreement`/`proposed`·`confirmed`·`cancelled`·`revised_after_start`·`ended` | 작업 합의 이벤트(08·10) | `agreementId`, `byWhom`, `kind`(normal/emergency/probe_batch), `carryForward`(R-OP-2 echo로 확정) | domain |
-| `scope_block` | `submission.rejected` 또는 `submission.gated` 중 코드 `out_of_scope`, `forbidden_action`, `no_active_agreement` | `code`, `pathClass`, `agreementId` | domain |
-| `submission` | 결과 제출 이벤트 | 기준 수, `met`/`unmet`/`unverified_no_evidence` 수(01 CA-3) | domain |
-| `result_decision` | 결과 확인·조건부 확인·수정 요청·거절·다시 조사 | `decision`, `latencyMs`(제출부터), `viewLatencyMs`(처음 열람부터, §3.23.1), `obligationsCreated` | domain |
-| `integration_item`/`created`·`resolved`·`deferred`·`transferred` | 반영 항목 이벤트 | `ageMs`, `hasOwner` | domain |
-| `unlinked_change` | 런타임의 작업 공간 변경 관찰 중 WorkUnit에 연결되지 않은 것(13의 실행 전후 diff, `workspace.unlinked_change_observed` [가정 이름]) | `root`, `files` | domain |
-| `outside_change` | `observer_report.recorded { form: "outside_changes" }` (D9) | `root`, `sessions`, `writeCalls`, `externalActiveMs` | observer |
-| `baseline` | `observer_report.recorded { form: "baseline" }` | 소스별 값(§3.23.10) | observer |
-| `question`/`recorded`·`delivered`·`answered`·`assumed`·`expired`·`withdrawn` | 질문 이벤트(11) | `gate`, `kind`, `mode`, `duringFocusOn`(전달 순간 마지막 `view.opened`의 Concern이 질문의 Concern과 다른가), `answerEqualsAssumption`, `answerEqualsRecommendation`, `criteriaModified`, `answerLatencyMs`, `duplicateOf` | domain |
-| `question`/`course_changed` | 답 뒤 1시간 안에 그 답을 인과(`causation`)로 가진 기준 수정·합의 생성·수정·작업 취소·루프 전환 이벤트. 그 이벤트가 커밋될 때 추출기가 만든다(답 이벤트 시점에는 미래를 알 수 없으므로 따로 둔다) | `questionId`, `via` | domain |
-| `autonomous_choice`/`recorded` | `choice.decided`의 `autonomous: true`(10 §3.6.4, 11) | `decisionKind`, `decidedBy`(policy id 또는 agent), `fromQuestion` | domain |
-| `contest`/`opened`·`resolved`·`orphaned` | 이의 이벤트(08·10), 대상 종료 시 미해결 이의(커널 파생 또는 투영 판정) | `targetKind`, `outcome`(upheld/reversed/modified), `latencyMs` | domain |
-| `directive`/`issued`·`applied` | 사람의 방향 바꾸기 명령(Goal, 기준, 범위, 우선순위, 다이얼, 멈춤) / 런타임이 다음 턴 경계에서 바뀐 투영으로 실행했다는 기록(`directive.applied` [가정 이름], 12) | `directiveType`, `turns`, `ms`, `opsCount` | domain |
-| `plan_deviation` | 예정했던 다음 행동과 실제 행동의 차이 관찰(`plan.deviated` [가정 이름], 14·12) | `severity` | domain |
-| `prediction`/`resolved` | 결과 탐구의 예측 확인(15) | `hit` | domain |
-| `surprise` | 사람이 "예상 못 했다"고 표시(`surprise.reported`, 실험 측정) | `subjectKind` | measurement |
-| `presence` | 활동 상태 변화(11 §3.8, 10 §3.3.2 runtime 채널) | `device`, `state` | domain |
-| `view` | 화면 열람(`view.opened`, 실험 측정) | `surface`, `depth`(glance/review/audit, 21 §3.5.7), `subjectRef` | measurement |
-| `brief_ack` | 복귀 요약 확인함(`brief.acknowledged`, 03 §3.1.3 후보) | `cursorSeq` | domain |
-| `concern`/`opened`·`closed`·`goal_changed`·`criteria_changed`·`frame_changed`·`reopened`·`promoted` | Concern·Goal·합의 기준 이벤트 | `entryPath`(시작/작업 중 승격/직접 지정), `closeReason`, `kindTag` | domain |
-| `inquiry`/`possibility`·`counter_check`·`promotion`·`lens_adopted`·`discriminating_check` | 탐구 이벤트(15) | `lensId`, `distinctPrediction`, `counterChecked` | domain |
-| `staleness`/`evidence_staled`·`stale_reuse`·`reopened_after_invalidation` | 근거 낡음, 낡은 선택을 근거로 한 새 제출의 거부·경고, 무효화 뒤 재개방 | `latencyMs` | domain |
-| `model_call` | 모델 호출 사용량(12의 사용량 기록) | `role`, `inputTokens`, `outputTokens`, `costUsd`, `projectionId`, `staleItems` | operational(읽기만) |
-| `situation`/`assessed`·`reassessed`·`first_transition` | 상황 판정, 재판정, 첫 루프 전환(14) | `type`, `msSinceOpen` | domain |
-| `structure`/`recombine_skipped`·`boundary_issue` | S 루프(14) | | domain |
-| `want_round` | 원함 탐구 라운드(15) | `stimuli`, `reactions`, `reasonless`, `criteriaConfirmed` | domain |
-| `resumption_check`/`opened`·`answered`·`scored` | 복귀 점검(§3.27.3) | `level`, `item`, `score`, `riskWeight`, `confidence` | measurement |
-| `self_report` | 자기보고(§3.27.4) | `instrument`, `item`, `score` | measurement |
-| `proposal` | 관찰 제안 수명 이벤트 | `kind`, `status`, `verdict` | domain |
-| `reflection` | 돌아보기 기록(14 `reflection.complete`) | `hasChangeProposal`, `appliedWithin30d` | domain |
+| `human_op`/`decision` | 사람 결정 이벤트: `question.answered`, `agreement.confirmed`, `acceptance.recorded`, 사람의 `choice.committed`, `objection.filed`, `policy_proposal.accepted`·`dismissed`, `goal.revised`, `preference.criterion_confirmed`, `decision.confirmed` | `eventType`, `target`(01 §3.5.2 `HumanDecisionOp.target`으로 사상), `workUnitId`, `normalPath`(아래 규칙으로 계산), `extraReason`(01 R-OP-4 사유, 이벤트 종류에서 계산), `editedDraft`(`humanOp.editedDraft`), `trivialInput`, `authoring` | domain·governance |
+| `human_op`/`input` | `run.steered`, 사람의 `run.message_recorded`, `dial.set`·`dial.unset`, 사람의 `concern.opened`, 반응 관찰(`observation.recorded` reaction) | `inputType`, `authoring` | domain·runtime |
+| `agreement`/`proposed`·`confirmed`·`activated`·`declined`·`discarded`·`renegotiated`·`narrowed`·`fulfilled`·`released`·`expired` | `agreement.*` | `agreementId`, `byHuman`, `activation`(`confirmed` / `by_grant` / `by_rule`), `emergency` | domain |
+| `scope_block` | `toolcall.blocked`, `command.rejected` 중 코드 `gate.scope_expansion_required`(범위 밖 쓰기, 10 ADR-K8), `policy.forbidden_resource`(금지 자원), 합의 없음 코드, `workunit.scope_exceeded`, `agreement.violation_detected`, trace `toolcall.denied_by_path_policy`(13 §3.4) | `code`, `pathClass`, `agreementId` | domain·kernel·runtime·trace |
+| `submission` | `result.submitted` | 기준 수, `met`/`unmet`/`unverified_no_evidence` 수(01 CA-3) | domain |
+| `result_decision` | `acceptance.recorded` | `decision`(accepted·conditional·revision_requested·rejected·criteria_wrong), `latencyMs`(제출부터), `viewLatencyMs`(그 결과를 처음 연 `view.opened`부터), `obligationsCreated` | domain |
+| `integration_item`/`added`·`resolved`·`deferred`·`reopened`·`transferred`·`waived` | `obligation.*`, `integration.opened`·`completed` | `obligationKind`(`concern_conflict`, `broken_premise`, `recombine` 등 10 R-1), `ageMs`, `hasOwner` | domain |
+| `unlinked_change` | `workspace.unlinked_change_observed`(13 변경 감지 중 WorkUnit에 연결되지 않은 것), 출처가 감시자인 `observation.recorded`(obsKind `material_change`) 중 관리 대상 폴더 안 | `root`, `fileCount` | runtime·domain |
+| `outside_change` | `observer_report.recorded { form: "outside_changes" }`(D9) | `root`, `sessions`, `writeCalls`, `externalActiveMs` | measurement |
+| `baseline` | `observer_report.recorded { form: "baseline" }` | 소스별 값(§3.23.10) | measurement |
+| `question`/`recorded`·`delivery_planned`·`delivered`·`seen`·`deferred`·`delegated`·`escalated`·`answered`·`assumed`·`expired`·`withdrawn` | `question.*`, `delivery.planned` | `gate`, `questionKind`(08 §3.13), `mode`, `duringFocusOn`(전달 순간 그 기기의 presence 화면 대상이 질문의 Concern과 다른가), `matchesAssumption`, `matchesRecommendation`(11 §3.6.4), `criteriaModified`, `answerLatencyMs`, `mergedInto`(`question.updated` dedupe) | domain |
+| `question`/`course_changed` | 답 뒤 1시간 안에 그 답을 인과(`causationId`)로 가진 `agreement.*`·`workunit.cancelled`·`loop.transitioned`·`preference.criterion_*`·`concern.reframed` 이벤트. 그 이벤트가 처리될 때 추출기가 만든다 | `questionId`, `via` | domain |
+| `autonomous_choice`/`recorded` | `Autonomy` 블록이 있는 결정(08 §3.4.4 규칙 1): 혼자 정한 `choice.committed`, `loop_plan.adopted`, `loop.transitioned`, `situation.assessed`, `structure.changed`, `mode.assigned`, `agreement.activated_by_grant`, `agreement.narrowed`, `probe.concluded`, `watch.judged`, `question.delivery_planned` | `decisionKind`, `whyNotAsked.kind`, `fromQuestion` | domain |
+| `autonomous_choice`/`seen` | `autonomous.seen` | `uptoSeq` | domain |
+| `contest`/`opened`·`resolved`·`orphaned` | `objection.filed`, `objection.resolved`(upheld·withdrawn·dismissed), 소비자 판정(§3.23.2) | `targetKind`, `outcome`, `desiredEffect`, `reason`(선택 입력, 판정 J-20), `latencyMs` | domain |
+| `directive`/`applied` | `directive.applied` | `directiveType`, `turns`, `ms`, `opsCount` | runtime |
+| `plan_deviation` | `plan.deviated`(14 §3.20.5: 도착 루프가 계획의 다음 단계와 다르고 사람의 직접 지시가 아닐 때) | `severity`(low·medium·high) | runtime |
+| `prediction`/`checked`·`voided` | `prediction.checked` | `held`(적중) | domain |
+| `surprise` | `surprise.reported`(measurement), 관찰 주석 `annKind: surprise`(`observation.annotated`) | `refs`, `source`(person / annotation) | measurement·domain |
+| `presence` | `presence.changed`(09, 상태 active·idle·hidden·locked·offline) | `deviceId`, `state`, `previous` | governance |
+| `view` | `view.opened`(measurement, §3.23.1의 생성 규칙) | `view`(화면 ID), `dwellBucket`, `deviceId`, `refs` | measurement |
+| `brief`/`acknowledged`·`corrected` | `brief.acknowledged`, `brief.corrected` | `upToSeq`, `item` | governance |
+| `concern`/`opened`·`reframed`·`completed`·`closed`·`reopened`·`merged`·`held`, `goal`/`revised` | `concern.*`, `goal.revised` | `entryPath`(14 `start`·`promotion`·`direct`·`observer`·`split`·`reopen`), `concernKind`, `closeReason` | domain |
+| `inquiry`/`possibility`·`counter_search`·`check_observed`·`promotion`·`lens_adopted`·`round_ended`·`stop_rule_met`·`stopped` | `possibility.proposed`(`origin`, `lensId`), `claim.counter_searched`, `check.observed`, `finding.promoted`, `inquiry.*`, `contrast.presented`, 렌즈 채택(가능성이 Choice·합의·탐침에서 참조됨) | `lensId`, `distinctPrediction`, `grounded`, `frontRow`, `family` | domain |
+| `staleness`/`staled`·`revalidated`·`superseded` | `record.staled`(사유 포함), `record.revalidated`, `record.superseded` | `reason`(`goal_revised`, `review_trigger_fired`, `material_change` 등), `latencyMs` | kernel |
+| `model_call` | trace `model.responded`(`usage`), `budget.charged`, `run.context_projected`(ProjectionManifest: `tokenEstimate`, `includedRefs`, `omitted`, `cacheBreak`) | `role`, `inputTokens`, `outputTokens`, `costUsd`, `projectionId`(`cp_`), `staleItems`, `cacheBreak` | trace·runtime |
+| `runtime_health` | trace `model.attempted`(재시도), `model.request_abandoned`, `run.interrupted`, `toolcall.outcome_uncertain`, `toolcall.recovered` | `kind` | trace·runtime |
+| `situation`/`assessed`·`reassessed`, `loop`/`transitioned` | `situation.assessed`, `loop.transitioned`, `mode.assigned` | `type`, `msSinceOpen`, `planDeviation` | domain |
+| `structure`/`changed`·`recombine_skipped`·`boundary_issue` | `structure.changed`, `boundary_item.*`, 14의 재조합 생략 판정 | | domain |
+| `want_round` | `inquiry.round_ended`(원함 탐구), `stimulus.presented`, 반응 관찰, `preference.*` | `stimuli`, `reactions`, `reasonless`, `pickOnly`, `criteriaConfirmed` | domain |
+| `resumption_check`/`opened`·`answered`·`scored` | `resumption_check.*`(measurement, 본문은 blob) | `level`, `item`, `phase`, `score`, `riskWeight`, `confidence` | measurement |
+| `self_report` | `self_report.recorded`(`instrument`: `burden6`, `explore5`, `outcome_fit`, `e0_task`) | `instrument`, `item`, `score` | measurement |
+| `proposal` | `policy_proposal.*`, `procedure.*` | `kind`, `status`, `verdict`, `trust` | governance |
+| `reflection` | `reflection.recorded`(14 `nextAgreementChange`) | `hasChangeProposal`, `appliedWithin30d` | domain |
+
+`normalPath`와 `extraReason` 계산 [제안]: 01 §3.5.2 R-OP-1~R-OP-6을 이벤트 종류로 판정한다. 08 `HumanOpMeta.onNormalPath`는 "추천 버튼을 그대로 눌렀는가"라는 다른 뜻이라 이 계산에 쓰지 않는다(남은 충돌 C-5). 변경 WorkUnit마다: `agreement.confirmed` 첫 1건과 `acceptance.recorded` 첫 1건만 정상 경로다. 나머지는 사유로 나눈다. 범위 질문(`question.answered`, 종류 scope_change) → `scope_expansion`, 권리 게이트 질문(send·action approval) → `rights_gate`, 수정 요청 뒤 다시 낸 결과의 `acceptance.recorded` → `correction_cycle`, 다시 조사 뒤 새 합의 → `reinquiry`, `goal.revised` → `goal_change`, `objection.filed` → `contest`. Grant로 활성화된 합의(`agreement.activated_by_grant`, R-OP-2)는 조작 0건이다.
 
 `trivialInput` 판정 [제안]: 사람이 직접 친 자유 문장 필드가 공백 제외 2자 이하이거나, 한글 자모만으로 되어 있거나(`/^[ㄱ-ㅎㅏ-ㅣ\s]+$/`), 같은 문자 반복(`/^(.)\1*$/`)인 경우. dogfood 기록의 `ㅇ`, `ㅁㄴㅇ` 확정이 기준 사례다(canon-2 §6.3). V9의 측정이다.
 
@@ -1531,13 +1604,15 @@ export interface MetricValue {
 
 #### 3.22.4 계산 주기와 저장
 
-| 산출물 | 주기 | 저장(09에 요구) | 비고 |
+| 산출물 | 주기 | 저장(09) | 비고 |
 |---|---|---|---|
-| `metric_fact` | 이벤트 커밋 직후(투영 갱신 단계, 10 §3.2 상자 10) | 투영 테이블 `metric_fact` | 재구성 가능 |
-| 실시간 지표 값 | 화면 요청 시 계산, 5분 캐시 | 메모리 | 14일 창 기본 |
-| 일일 스냅샷 | 매일 04:00(T4) | 투영 테이블 `metric_snapshot` | 1d·14d·28d 창. 추세선 원천 |
-| 복귀 에피소드 | presence 사실이 들어올 때 갱신 | 투영 테이블 `return_episode` | §3.23.1 |
-| 2주 평가 보고 | 14일마다(T6) | 실험 측정 흐름 `observer_report.recorded { form: "evaluation" }` | 그 시점 값으로 동결. 정의가 바뀌어도 과거 보고는 그대로 |
+| `metric_fact` | 커밋 뒤 소비자, 보통 수 초 안 | 지표 투영 테이블 `metric_fact` | 재구성 가능 |
+| 실시간 지표 값 | 화면 요청 시 계산, 5분 캐시 | 메모리 | 14일 창 기본. 19 `metrics` 뷰의 `asOfSeq`는 캐시를 만든 시점의 소비자 위치 |
+| 일일 스냅샷 | 매일 04:00(T4) | `metric_snapshot` | 1d·7d·14d·28d 창. 추세선 원천 |
+| 복귀 에피소드 | `presence.changed`·사람 명령 사실이 들어올 때 갱신 | `return_episode` | §3.23.1 |
+| 관찰 제안 색인 | `policy_proposal.*` 사실이 들어올 때 | `observer_proposal` | 서명·패밀리 조회용. 레코드 본체는 `p_records`(09 core 투영기) |
+| 관찰 신호 | `observer_report.recorded`(correction_signal) | `observer_signal` | 15 S3이 읽는다 |
+| 2주 평가 보고 | 14일마다(T6) | `observer_report.recorded { form: "evaluation" }`(measurement) | 그 시점 값으로 동결. 정의가 바뀌어도 과거 보고는 그대로 |
 
 ### 3.23 지표 카탈로그
 
@@ -1547,19 +1622,27 @@ export interface MetricValue {
 
 | 정의 | 계산 [제안] |
 |---|---|
-| 활동 구간 | 어느 기기든 presence가 `active`인 구간의 합집합. presence가 없는 클라이언트(관리 CLI)의 사람 명령은 명령 시각 전후 2분을 활동으로 본다 |
+| 활동 구간 | 어느 기기든 `presence.changed`의 상태가 `active`인 구간의 합집합(09, 19의 상태 이름). `idle`·`hidden`·`locked`·`offline`은 활동이 아니다. presence를 보내지 않는 클라이언트(관리 CLI)의 사람 명령은 명령 시각 전후 2분을 활동으로 본다 |
 | 부재 | 활동 구간 사이의 빈틈이 4시간 이상 |
 | 복귀 에피소드 | 부재 뒤 첫 활동 시작 `returnAt`. 부재 길이 `awayMs` |
 | 장기 복귀 | `awayMs` ≥ 24시간. H1 측정 대상(foundations/08 H1 "24시간 이상") |
 | 첫 유효 행동 | `returnAt` 뒤 처음 받아들여진 `human_op`(decision 또는 authoring input). 보기는 제외 |
-| 원본 기록 내려가기 | `returnAt` 뒤 첫 유효 행동 전(첫 유효 행동이 30분 안에 없으면 30분까지)에 `view.depth = "audit"` 열람 또는 원본 이벤트·도구 출력 전문 열람이 있었는가. 21 §3.5.7이 물은 "감사 깊이 연 횟수"를 이 정의로 수집한다 |
-| 복귀 요약 사용 | 같은 구간에 `brief_ack` 또는 `view.surface = "brief"`가 있었는가 |
+| 원본 기록 내려가기 | `returnAt` 뒤 첫 유효 행동 전(첫 유효 행동이 30분 안에 없으면 30분까지)에 감사 깊이 열람(`view.opened`, `view = "SCR-RECORD"` 또는 `#audit` 접미)이 있었는가. 21 §3.5.7이 물은 "감사 깊이 연 횟수"를 이 정의로 수집한다 |
+| 복귀 요약 사용 | 같은 구간에 `brief.acknowledged` 또는 `view = "SCR-BRIEF"` 열람이 있었는가 |
+| 복귀 요약 정정 | 같은 복귀에서 `brief.corrected` 수(04 §5.2 16 요구) |
+
+**`presence.changed`와 `view.opened` 만드는 규칙** [제안, 19 §5.2의 16 요구에 대한 답]. 프로토콜의 `presence.report`(19 §3.7.8)는 휘발 입력이고, 데몬이 다음 규칙으로 정본에 남긴다.
+
+1. 상태(`state`)가 바뀔 때만 `presence.changed { state, previous }`를 남긴다(09). 같은 상태가 이어지면 남기지 않는다. 기기별로 판정한다. 연결이 끊기면 `offline`.
+2. `screen`이 다음 다섯 화면 중 하나로 바뀌면 `view.opened`(measurement)를 남긴다: `SCR-BRIEF`(복귀 요약), `SCR-AUTO`(에이전트가 정한 것), `SCR-REVIEW`(결과 확인), `SCR-QUESTION`(질문 상세), 감사 깊이(`SCR-RECORD` 또는 인스펙터 원본 탭: 클라이언트가 `screen`에 `<화면 ID>#audit`를 보낸다, 20에 요구). envelope `refs`에 `objectId`를 둔다.
+3. 이벤트는 그 화면을 떠날 때(다른 `screen`, `active`가 아닌 상태, 연결 끊김) 한 번 남긴다. `occurredAt`은 연 시각이고 `dwellBucket`은 머문 시간 범주(`<10s`, `10-60s`, `1-5m`, `>5m`, 연결 끊김이면 `unknown`)다. 같은 (기기, 화면, 대상)을 60초 안에 다시 열면 앞의 것과 합친다.
+4. 그 밖의 화면 이동은 남기지 않는다(OQ-16-11).
 
 ```ts
 export interface ReturnEpisode {
   id: string; returnAt: number; awayMs: number;
   firstValidActionAt?: number;
-  briefUsed: boolean; auditViews: number; auditMs: number;
+  briefUsed: boolean; briefCorrections: number; auditViews: number; auditMs: number;
   checkId?: string;               // §3.27.3
 }
 ```
@@ -1576,16 +1659,16 @@ export interface ReturnEpisode {
 | `opdc.d.redirect_turns` | 방향 바꾸기부터 반영까지 턴 수 | `median(directive.applied.turns)` | `directive` | 14d | 목표 1(다음 턴 경계). 1 초과면 검토 신호 | D 칸 |
 | `opdc.d.redirect_ms` | 같은 지연(시간) | `median(directive.applied.ms)` | `directive` | 14d | 정보 | D 칸 |
 | `opdc.d.ops_per_redirect` | 기준 하나 바꾸는 데 든 조작 수 | `median(directive.issued.opsCount)`(같은 상관 id로 묶인 사람 명령 수) | `directive`, `human_op` | 14d | 2 초과면 검토 신호 | D 칸 |
-| `opdc.c.orphaned_contests` | 처리되지 않고 사라진 이의 | `count(contest.orphaned)` | `contest` | 누적 | 목표 0 | C 칸, 0이 아니면 홈 경고 |
+| `opdc.c.orphaned_contests` | 처리되지 않고 사라진 이의 | `count(contest/orphaned 사실)` | `contest` | 누적 | 목표 0 | C 칸, 0이 아니면 홈 경고 |
 | `opdc.c.contest_effect_rate` | 이의 후 바뀐 비율(contested-and-improved) | `count(contest.resolved ∧ outcome ∈ {reversed, modified}) / count(contest.resolved)` | `contest` | 28d | 정보. 0에 가까우면 이의가 형식만 남았는지 검토 | C 칸 |
 
-`orphaned` 판정: 이의가 열린 상태에서 대상 레코드의 Concern이 닫히거나, 대상이 대체(superseded)되었는데 이의 처리 이벤트가 없으면 투영이 `contest.orphaned` 사실을 만든다. 커널이 이런 종료를 막는 규칙(10)이 있으면 이 값은 0이어야 하므로 무결성 확인 용도다.
+`orphaned` 판정: 이의가 열린 상태에서 대상 레코드의 Concern이 닫히거나, 대상이 대체(superseded)되었는데 이의 처리 이벤트(`objection.resolved`)가 없으면 지표 소비자가 `contest/orphaned` 사실을 만든다. 10은 G-K4~G-K6으로 이런 종료를 막거나 `objection.resolved(withdrawn, note: concern_closed)`를 파생하므로 이 값은 0이어야 한다. 무결성 확인 용도다. `withdrawn`이면서 `note: concern_closed`인 해소는 따로 세어 평가 보고에 보인다.
 
 #### 3.23.3 C/A와 2주 우회율 (01 §3.5.2~§3.5.3, 대화 L2160–2168)
 
 | ID(별칭) | 이름 | 계산식 | 원천 | 창 | 검토 신호(01) | 표시 |
 |---|---|---|---|---|---|---|
-| `ca.agreement_bypass_rate` (CA-1) | 합의 우회·취소율 | `(cancelled_by_human + unlinked_work) / (proposed + unlinked_work)`. `cancelled_by_human` = `agreement.cancelled`(사람, 확정 전), `unlinked_work` = 서로 다른 (루트, 날짜) 쌍 중 `unlinked_change` 또는 `outside_change`가 있는 것의 수 | `agreement`, `unlinked_change`, `outside_change` | 14d | > 30% | C/A 칸 맨 위. 구성 요소 셋을 따로 보임 |
+| `ca.agreement_bypass_rate` (CA-1) | 합의 우회·취소율 | `(cancelled_by_human + unlinked_work) / (proposed + unlinked_work)`. `cancelled_by_human` = 사람이 확정 전에 거절·폐기한 합의(`agreement.declined`, 행위자 human인 `agreement.discarded`), `unlinked_work` = 서로 다른 (루트, 날짜) 쌍 중 `unlinked_change` 또는 `outside_change`가 있는 것의 수 | `agreement`, `unlinked_change`, `outside_change` | 14d | > 30% | C/A 칸 맨 위. 구성 요소 셋을 따로 보임 |
 | `ca.scope_blocks_per_wu` (CA-2) | 범위 초과 차단 수 | WorkUnit별 `scope_block` 수의 중앙값, 경로 부류별 내역 | `scope_block` | 14d | 중앙값 > 1 | C/A 칸 |
 | `ca.unverified_criteria_per_submission` (CA-3) | 근거 없이 제출된 기준 | `Σ unverified_no_evidence / count(submission)` | `submission` | 14d | 평균 > 1 | C/A 칸 |
 | `ca.time_to_acceptance` (CA-4) | 결과 확인까지 걸린 시간 | `median, p90(result_decision.latencyMs)`; 활동 시간만 센 값(`activeLatencyMs`)도 함께 | `result_decision` | 14d | 중앙값 > 24h | C/A 칸 |
@@ -1627,7 +1710,7 @@ export interface ReturnEpisode {
 
 | ID | 이름 | 계산식 | 창 | 검토 신호 |
 |---|---|---|---|---|
-| `ad.contest_rate_by_kind` | 종류별 이의율 | 결정 종류별 `count(contest.opened on autonomous) / count(autonomous_choice.recorded)`. 열람 보정값도 함께: 분모를 "SCR-AUTO에서 펼쳐 본 항목"으로 한 값 | 28d | 종류별 > 0.2이고 표본 ≥ 5면 D10이 그 종류를 묻기로 올리는 제안 |
+| `ad.contest_rate_by_kind` | 종류별 이의율 | 결정 종류별 `count(contest.opened on autonomous) / count(autonomous_choice.recorded)`. 열람 보정값도 함께: 분모를 `autonomous.seen`의 `uptoSeq`까지 사람이 본 결정으로 한 값(05 요구 (1)) | 28d | 종류별 > 0.2이고 표본 ≥ 5면 D10이 그 종류를 묻기로 올리는 제안 |
 | `ad.list_view_rate` | 에이전트가 정한 것 목록 열람 | 복귀 에피소드 중 `view.surface = "auto"`가 있는 비율 | 28d | < 0.2이고 `opdc.p.surprise_count` > 0이면 V5 반증 신호 |
 | `ad.reversal_rate` | 이의 후 뒤집힘 | `count(contest.resolved ∧ reversed on autonomous) / count(contest.resolved on autonomous)` | 28d | 정보 |
 | `ad.time_to_contest` | 이의까지 시간 | 결정부터 이의까지 중앙값 | 28d | 정보 |
@@ -1647,7 +1730,7 @@ export interface ReturnEpisode {
 |---|---|---|---|
 | `inq.possibility_diversity` | Concern별 서로 다른 예측을 가진 가능성 수의 중앙값(`distinctPrediction`) | `inquiry` | H3 |
 | `inq.discriminating_checks` | Concern별 구분 확인 수 | `inquiry` | H3 |
-| `inq.counter_checked_rate` | 승격된 판단 중 `counterChecked` 비율(커널이 요구하므로 1이어야 함) + 반대 근거가 있었던 승격 시도 비율 | `inquiry`, `submission.rejected` | H3 |
+| `inq.counter_checked_rate` | 승격된 판단 중 `counterChecked` 비율(커널이 요구하므로 1이어야 함) + 반대 근거가 있었던 승격 시도 비율 | `inquiry`, `command.rejected` | H3 |
 | `inq.counter_changed_choice` | 반대 근거가 추천이나 선택을 바꾼 수 | `inquiry`, `choice` 인과 | H3, 다음 Evidence 3 |
 | `inq.lens_adoption_rate` | 렌즈별 `lens_adopted / possibilities_from_lens` | `inquiry` | V6 |
 | `out.claim_rejection_rate` | `revision_requested ∨ rejected` / 결과 확인 결정 | `result_decision` | H2 |
@@ -1656,12 +1739,12 @@ export interface ReturnEpisode {
 | `out.defects_between_claim_and_accept` | 수정 요청 사유 수 + "확인 못함" 기준 수 | `result_decision`, `submission` | SC-3 |
 | `int.time_accept_to_integrated` | 결과 확인부터 반영 완료까지 중앙값 | `integration_item` | H10 |
 | `int.unowned_obligations` | 주인 없는 반영 항목 수 | `integration_item` | H10 |
-| `int.post_accept_integration_failures` | 결과 확인 뒤 다른 작업과 충돌로 열린 Concern·이의 수(`conflict.detected`, 10 §3.6.3 P-11) | `concern`, `contest` | H6, H10 |
+| `int.post_accept_integration_failures` | 결과 확인 뒤 다른 작업과 충돌로 생긴 의미 충돌 질문(`question.recorded`, 종류 semantic_conflict, 10 §3.13 R-6)과 반영 항목 `concern_conflict`·`broken_premise`(10 R-1), 그로 열린 Concern·이의 수 | `concern`, `contest` | H6, H10 |
 | `stale.stale_choice_reuse` | 낡은 근거에 기대어 받아들여진 선택·결과 확인 수(경고와 함께 받아들여진 것) | `staleness` | H9 |
 | `stale.time_to_reopen` | 무효화 사건부터 관련 선택·Concern 재개방까지 중앙값 | `staleness` | H9 |
 | `stale.reviews_without_change` | 재검토 조건이 발화해 열린 재검토 중 선택이 바뀌지 않은 비율 | `staleness`, `choice` | H9 반증 |
 | `ctx.input_tokens_per_turn` | 작업 에이전트 턴당 입력 토큰 중앙값, p90 | `model_call` | H7 |
-| `ctx.stale_context_failures` | 낡은 항목이 들어간 투영으로 실행했다가 거부·수정 요청된 수 | `model_call`, `submission.rejected` | H7 |
+| `ctx.stale_context_failures` | 낡은 항목이 들어간 투영으로 실행했다가 거부·수정 요청된 수 | `model_call`, `command.rejected` | H7 |
 | `ctx.missing_constraint_contests` | 이의 사유가 "제약 누락", "반대 근거 누락"인 수 | `contest` | H7 반증 |
 | `sit.first_transition_ms` | Concern 열림부터 첫 루프 전환까지 중앙값 | `situation` | V3 |
 | `sit.reassessment_rate` | 시작 1시간 안 재판정·전환이 있는 Concern 비율 | `situation` | V3 |
@@ -1684,7 +1767,7 @@ export interface ReturnEpisode {
 | `want.reactions_per_round` | 라운드당 반응 수 | V1, 피로 |
 | `want.reasonless_ratio` | 이유 없는 반응 비율 | V1 |
 | `want.criteria_confirm_rate` | 기준 후보 확정률 | V1, SC-4 |
-| `want.stated_vs_revealed` | 처음 요청에 없던 기준이 완료 기준으로 쓰인 Concern 수 | SC-4 |
+| `want.stated_vs_revealed` | `preference.divergence_noted`(말한 기준과 실제 반응의 차이)가 있고 그 기준이 완료 기준으로 쓰인 Concern 수(15 §3.15.3의 `stated_vs_revealed` 발생 수) | SC-4 |
 | `exp.tlx` | 자기보고 6문항 평균과 문항별 값(§3.27.4) | H8 |
 | `exp.explore5` | 탐색 질문 5개 점수(01 §3.10.3) | H8, SC-5 |
 | `exp.outcome_fit` | 결과 확인 때 선택적으로 남긴 적합도(1~5) | H8 |
@@ -1699,6 +1782,7 @@ export interface ReturnEpisode {
 | `obs.dismiss_coincidence_rate` | 기각 사유 `coincidence` 비율 | 탐지기 품질 |
 | `obs.effective_rate` | 효과 판정 `effective` / 판정 끝난 제안 | 01 G2 "채택 후 패턴 감소" |
 | `obs.harmful_count` | `harmful` 판정 수 | 목표 0 |
+| `proc.uses`, `proc.failures` | 절차별 사용·실패 수(§3.17 끝의 파생 규칙) | 절차 신뢰도, demotion 근거 |
 | `obs.reflection_applied_rate` | 돌아보기의 변경 제안 중 30일 안에 실제 Context·합의·정책 변경으로 이어진 비율 | 법칙 12(canon §15.15) |
 | `obs.cost_tokens`, `obs.cost_usd` | 관찰 실행의 모델 사용량 | §3.19 |
 | `obs.secondary_mask_hits` | 2차 마스킹 적중 수 | 목표 0. 0이 아니면 1차 규칙 보강 |
@@ -1707,7 +1791,7 @@ export interface ReturnEpisode {
 
 #### 3.23.10 채팅 기준선(외부 세션)
 
-외부 세션 지표는 관찰 캐시의 트레이스로만 계산할 수 있다. 관찰 에이전트가 일일 분석(T3) 때 마감된 날짜의 값을 계산해 `observer.report.submit { form: "baseline" }`으로 제출하고, 투영기는 이를 `outside_change`와 같은 방식으로 사실로 만든다.
+외부 세션 지표는 관찰 캐시의 트레이스로만 계산할 수 있다. 관찰 에이전트가 일일 분석(T3) 때 마감된 날짜의 값을 계산해 `observer.report.submit { form: "baseline" }`으로 제출하고, 지표 소비자는 이를 `outside_change`와 같은 방식으로 사실로 만든다.
 
 | ID | 계산식 | 가설 |
 |---|---|---|
@@ -1730,12 +1814,43 @@ export interface BaselineTally {
 }
 ```
 
+#### 3.23.11 탐구 엔진 지표 (15 §3.15.3)
+
+15가 정의하고 16이 수집·보고한다. 원천은 15가 남기는 탐구 이벤트(§3.22.3 `inquiry`, `want_round`)다.
+
+| ID | 정의(15 §3.15.3) | 가설 |
+|---|---|---|
+| `inq.goal_criteria_change_rate` | 원함·가능성 탐구를 거친 Concern 중 `goal.revised`·`preference.criterion_confirmed`·`concern.reframed`가 확정된 비율 | H-I1, H3 |
+| `inq.stated_vs_revealed_per_concern` | Concern당 `preference.divergence_noted` 수 | SC-4 |
+| `inq.rounds_to_stable` | 원함 탐구가 `kind_condition_met`·`plan_stable`(`inquiry.stop_rule_met`)로 닫힐 때의 라운드 수 | V1 |
+| `inq.pick_only_round_ratio` | `pickOnly` 라운드 / 전체 라운드 | V1(고르기로 유도되는지) |
+| `inq.reactions_per_round`, `inq.round_minutes`, `inq.skipped_rounds` | 피로 대리 | V1, v0.3 10 §4.2-11 |
+| `inq.front_vs_folded_adoption` | 앞줄 채택률과 접힌 항목 채택률(채택 = Choice·합의·탐침에서 참조) | H-I4 |
+| `inq.grounded_ratio`, `inq.adoption_by_grounding` | 근거 있음 비율, 근거 있음·없음별 채택률 | H-I3 |
+| `inq.review_counter_ratio` | 검토한 항목 중 반대 근거가 붙은 비율 | H3 |
+| `inq.single_family_ratio` | `single_family` 탐구 실행 / 전체 | H-I2 보장 수준 |
+| `inq.lens_adoption_rate` | §3.23.7 | V6 |
+| `inq.prediction_hit_rate` | `held` / 확인된 예측 | 모델 품질 |
+| `inq.budget_exhausted_ratio`, `inq.minutes_without_decision` | 탐구 실행 기준 | "Inquiry without commitment" |
+
+E0(15 §3.15.2)의 결과는 평가 하네스(`just eval-inquiry`)가 과제마다 `self_report.recorded { instrument: "e0_task" }`(사람 판정 값: `change`, `changed`, `fatigue`, `minutes`, `week_later`, `baseline`)로 남기고, 자동 값은 같은 보고의 `auto` 필드에 둔다. 16은 이것으로 H-I1·V1을 판정한다(§3.26.3).
+
+#### 3.23.12 런타임 건강 (12 §5.2 16 요구)
+
+| ID | 계산식 | 원천 |
+|---|---|---|
+| `rt.cache_break_per_run` | 실행당 `cacheBreak`가 있는 `run.context_projected` 수, 종류별(compaction·loadout·model_switch·snapshot_refresh) | `model_call` |
+| `rt.model_retries_per_run` | 실행당 trace `model.attempted`(오류 있음) 수 | `runtime_health` |
+| `rt.recoveries` | `run.interrupted`, `toolcall.outcome_uncertain`, `toolcall.recovered`, `model.request_abandoned` 수 | `runtime_health` |
+| `rt.path_denials` | trace `toolcall.denied_by_path_policy` 수(D11·D12 입력) | `scope_block` |
+
 ### 3.24 저장 위치와 화면 표시 요구
 
-#### 3.24.1 투영 테이블 요구(09)
+#### 3.24.1 지표 투영 테이블 (09 §3.11.1 6번이 받아들임)
+
+정본과 같은 DB(`helm.sqlite`)에 두고 커밋 뒤 소비자 `metrics`가 채운다. `core` 투영 재구성 때 함께 비운다. 09가 이 DDL을 §3.7에 옮긴다.
 
 ```sql
--- 09가 최종 DDL을 정한다. 아래는 필요한 열의 요구다.
 CREATE TABLE metric_fact (
   id TEXT PRIMARY KEY, kind TEXT NOT NULL, sub TEXT NOT NULL, at INTEGER NOT NULL,
   goal_id TEXT, concern_id TEXT, work_unit_id TEXT,
@@ -1752,10 +1867,10 @@ CREATE TABLE metric_snapshot (
 
 CREATE TABLE return_episode (
   id TEXT PRIMARY KEY, return_at INTEGER NOT NULL, away_ms INTEGER NOT NULL,
-  first_valid_action_at INTEGER, brief_used INTEGER NOT NULL, audit_views INTEGER NOT NULL,
-  audit_ms INTEGER NOT NULL, check_id TEXT);
+  first_valid_action_at INTEGER, brief_used INTEGER NOT NULL, brief_corrections INTEGER NOT NULL DEFAULT 0,
+  audit_views INTEGER NOT NULL, audit_ms INTEGER NOT NULL, check_id TEXT);
 
-CREATE TABLE observer_proposal (               -- §3.15.2의 투영
+CREATE TABLE observer_proposal (               -- 서명·패밀리 조회 색인. 레코드 본체는 p_records의 policy_proposal(08 §3.19.2)
   id TEXT PRIMARY KEY, kind TEXT NOT NULL, changes TEXT NOT NULL, signature TEXT NOT NULL, family TEXT NOT NULL,
   status TEXT NOT NULL, submitted_at INTEGER NOT NULL, decided_at INTEGER, decision TEXT,  -- JSON
   applied_at INTEGER, effect_verdict TEXT, record TEXT NOT NULL);                          -- JSON 전체
@@ -1767,7 +1882,9 @@ CREATE TABLE observer_signal (              -- correction_signal 등 관찰 보�
   PRIMARY KEY (kind, scope_key));
 ```
 
-실험 측정 흐름(`view.opened`, `surprise.reported`, `resumption_check.*`, `self_report.recorded`, `observer_report.recorded`)은 도메인 원장과 다른 범주로 같은 SQLite 파일에 append-only로 두도록 09에 요구한다. 도메인 투영과 커널 상태(`evolve`)는 이 범주를 읽지 않는다. 내보내기(`helm export`)에는 포함한다.
+실험 측정 이벤트(`view.opened`, `surprise.reported`, `resumption_check.*`, `self_report.recorded`, `experiment.condition_set`, `observer_report.recorded`)는 09의 범주 `measurement`다(09 §3.4.14). 도메인 상태를 바꾸지 않고, 커널은 이 범주를 읽지 않는다. 내보내기에는 포함한다.
+
+외부 세션 로그의 읽기 위치(커서)는 관찰 캐시(§3.20)에 둔다. 09 §3.7의 `source_cursors` 테이블은 관찰 프로세스가 정본 DB에 쓸 수 없으므로 쓰지 않는다(남은 충돌 C-6).
 
 복귀 점검의 기대 답(정답 키)은 이벤트에 넣지 않는다. `/srv/volumes/helm/private/resumption-checks/<checkId>.json`(권한 600)에 두고 이벤트에는 `sha256` 해시만 둔다(canon-2 §2.1.6, §6.2의 결함과 수정, 교훈 L9). 경로와 권한은 18·17이 확정한다.
 
@@ -1775,7 +1892,7 @@ CREATE TABLE observer_signal (              -- correction_signal 등 관찰 보�
 
 | 요구 | 내용 |
 |---|---|
-| 평가 화면(새 화면, 이름 예 `SCR-METRICS`) | 묶음별 패널: OPD+C 네 칸, C/A 2주, 질문 부담, 에이전트가 정한 것, A12, 범주, 관찰 에이전트. 각 값에 창(14일 등), 분자/분모/표본 수, 정의 버전, 14일 창 추세(일일 스냅샷), 검토 신호(초기 가설값임을 표시), 근거 이벤트로 내려가기 |
+| 평가 화면(`SCR-METRICS`, 03 §3.6, 04 §3.27) | 묶음별 패널: OPD+C 네 칸, C/A 2주, 질문 부담, 에이전트가 정한 것, A12, 범주, 관찰 에이전트. 각 값에 창(14일 등), 분자/분모/표본 수, 정의 버전, 14일 창 추세(일일 스냅샷), 검토 신호(초기 가설값임을 표시), 근거 이벤트로 내려가기 |
 | 표본 부족 | 값 대신 "표본 부족(n/필요 수)" |
 | 판정 색 | 좋음/나쁨 색을 쓰지 않는다. 검토 신호를 넘은 값만 표시 기호와 문장으로 보인다. 점수·배지·연속 기록 같은 게임 요소를 쓰지 않는다(canon §10.5, 01 원칙) |
 | 홈 경고 띠 | `opdc.o.unlinked_m_changes` > 0, `opdc.c.orphaned_contests` > 0, `ca.normal_path_ops` 위반, `obs.harmful_count` > 0일 때만 |
@@ -1784,8 +1901,55 @@ CREATE TABLE observer_signal (              -- correction_signal 등 관찰 보�
 | 복귀 점검 | 장기 복귀 첫 화면에서 복귀 요약을 열기 전에 "기억으로 네 질문 답하기(건너뛰기 가능)"를 한 번 제안(§3.27.3). 작업 화면 중간에는 띄우지 않는다 |
 | 자기보고 | 2주 평가 카드 안에서만. 1~2분 분량. 건너뛰기 가능 |
 | 놀람 표시 | 결과 확인 화면, 에이전트가 정한 것 항목, 진행 작업 카드에 "예상 못 했다" 표시 동작(한 번 누르기, 메모 선택). `surprise.reported` |
-| 관찰 제안 화면(`SCR-OBSERVER`, 03 §3.5) | 제안 목록(종류, 제목, 추정 절감과 계산식, 근거 수, 최근 근거 시각, 주입 의심 경고), 상세(근거 목록과 원본 위치, 마스킹된 발췌, 초안, 위험, 이전 기각 이력), 동작(채택, 고쳐서 채택, 기각(사유 하나 고르기), 나중에(기한), 다시 보지 않기) |
-| 화면 열람 기록 | 04·20은 `view.opened`를 보낸다: 복귀 요약, 에이전트가 정한 것, 감사 깊이(원본) 열람, 결과 확인 화면 열람, 질문 상세 열람. 그 밖의 화면 이동은 기록하지 않는다 |
+| 관찰 제안 화면(`SCR-OBSERVER`, 04 §3.18) | 제안 목록(종류, 제목, 추정 절감과 계산식, 근거 수, 최근 근거 시각, 주입 의심 경고), 상세(근거 목록과 원본 위치, 마스킹된 발췌, 초안, 위험, 이전 기각 이력), 동작(채택 = `policy.change.accept`, 고쳐서 채택, 기각 = `policy.change.reject`(사유: 이미 해결함·우연·원하지 않음·직접 하겠음·비용이 큼·기타, 선택 "다시 보지 않기"), 나중에 = `policy.change.defer`). 19 메서드는 `observerProposal.adopt`·`decline`·`snooze`(19 §3.7.5)이며 10 명령과 위처럼 대응한다 |
+| 화면 열람 기록 | 클라이언트는 `presence.report`의 `screen`·`objectId`만 보내고, 데몬이 §3.23.1 규칙으로 `view.opened`를 만든다. 감사 깊이를 열면 `screen`에 `#audit`를 붙인다(20) |
+
+#### 3.24.3 뷰 데이터와 측정 명령의 정본 타입 [제안, 19 §5.2의 16 요구에 대한 답]
+
+19의 `metrics`·`evaluation` 뷰(19 §3.7 뷰 카탈로그)와 측정 명령은 아래 타입을 쓴다. 타입은 `@helm/observer/metrics`(순수)에 두고 `@helm/protocol`이 다시 내보낸다.
+
+```ts
+// packages/observer/src/metrics/view.ts
+export interface MetricTileData {            // 21 MetricTile 입력
+  metricId: string; aliases: string[]; title: string; group: MetricDef["group"];
+  unit: MetricDef["unit"]; direction: MetricDef["direction"];
+  window: "7d" | "14d" | "28d"; windowEnd: number;
+  value: number | null;                      // null = 표본 부족
+  numerator?: number; denominator?: number; n: number; minSample: number;
+  defVersion: number;
+  reviewSignal?: { crossed: boolean; text: string };   // "검토 신호: 기준 0.2 초과(초기 가설값)"
+  trend: Array<{ windowEnd: number; value: number | null; defVersion: number }>;   // 일일 스냅샷, 정의 버전이 바뀌면 끊어 그림
+  breakdown?: Record<string, number>;
+  evidenceSeqs: number[];                    // 근거 이벤트로 내려가기
+}
+export interface MetricsViewData {
+  asOfSeq: number;                           // 지표 소비자 위치
+  window: "7d" | "14d" | "28d";
+  groups: Array<{ group: MetricDef["group"]; tiles: MetricTileData[] }>;
+  homeWarnings: Array<{ metricId: string; text: string }>;   // §3.24.2 홈 경고 띠
+  limits: string[];                          // 예 "Mac에서 연 세션은 관찰되지 않음"(판정 J-08)
+}
+export interface EvaluationViewData {
+  reportId: string; periodIndex: number; window: { start: number; end: number };
+  report: EvaluationReport;                  // §3.15.1
+  judgement?: { choice: "advance" | "revise" | "reframe_or_stop"; at: number; concernId: string };   // §3.27.6
+  selfReportPending: boolean;
+}
+
+// 측정 명령 payload (19 메서드 → 10 명령 → 09 measurement 이벤트)
+export interface SurpriseReportParams { refs: string[]; note?: string }                       // surprise.report → surprise.reported
+export interface ResumptionCheckAnswerParams { checkId: string; phase: "memory" | "after_brief";
+  answers: Array<{ itemId: string; text: string; confidence: "low" | "mid" | "high"; ms: number }> }   // → resumption_check.answered(본문 blob)
+export interface ResumptionCheckScoreParams { checkId: string;
+  scores: Array<{ itemId: string; phase: "memory" | "after_brief"; score: 1 | 0.5 | 0; note?: string }> } // → resumption_check.scored
+export interface SelfReportSubmitParams { instrument: "burden6" | "explore5" | "outcome_fit" | "e0_task" | "inquiry_eval";
+  values: Record<string, number | string>; refs?: string[] }                                  // → self_report.recorded
+export interface ExperimentSetConditionParams { experimentId: "EX-1" | "EX-2" | "EX-3"; condition: string; until: number }   // → experiment.condition_set
+```
+
+- 19의 메서드 이름 `probe.answer`·`probe.score`는 C.probe(탐침)와 겹친다(판정 J-10). `resumptionCheck.answer`·`resumptionCheck.score`로 바꾸기를 19에 요구한다. `resumption_check.opened`는 사람 명령이 아니라 데몬이 장기 복귀 첫 화면에서 점검을 제안할 때 남긴다(행위자 runtime, 문항과 키 해시를 담은 blob).
+- 이 명령들은 검증할 도메인 상태가 없으므로 10에는 "measurement 명령"으로 스키마 검사와 사람 채널 검사만 하게 요구한다.
+- 19 `metrics` 뷰의 창 `30d`는 `28d`로 맞추기를 요구한다(효과 측정과 같은 4주 창).
 
 ### 3.25 반증 가설 H1~H10
 
@@ -1858,14 +2022,14 @@ CREATE TABLE observer_signal (              -- correction_signal 등 관찰 보�
 | 항목 | 내용 |
 |---|---|
 | 원문 지표 → 이 문서 | `normative/material drift incidents` → `opdc.o.unlinked_m_changes` + 결과 확인 뒤 Goal·결정 문서가 갱신되지 않은 채 닫힌 경우(반영 항목 없이 닫힌 쓰기 WorkUnit) / `stale decision detection time` → `stale.time_to_reopen` / `semantic conflict detection rate` → `conflict.detected` 중 파일 충돌·병합 전에 잡힌 비율 / `escaped integration defect rate` → `int.post_accept_integration_failures` |
-| 반증 조건 | 8주 동안 반영 문제 중 반영 항목이나 `conflict.detected`로 미리 잡힌 것보다 Concern이 닫힌 뒤 발견된 것이 더 많고, 동시에 N/E 기록을 유지하는 사람 조작(기준·Goal·근거 관련 decision op)이 Concern당 5건을 넘음(원문: "유지 비용이 높지만 탐지력이 개선되지 않는다") |
+| 반증 조건 | 8주 동안 반영 문제 중 반영 항목이나 의미 충돌 질문(10 R-6)으로 미리 잡힌 것보다 Concern이 닫힌 뒤 발견된 것이 더 많고, 동시에 N/E 기록을 유지하는 사람 조작(기준·Goal·근거 관련 decision op)이 Concern당 5건을 넘음(원문: "유지 비용이 높지만 탐지력이 개선되지 않는다") |
 | MVP 측정 | 일부(반영 항목, 낡음). 의미 충돌 탐지는 10 P-11 구현 범위에 따름 |
 
 #### H7. 컨텍스트 투영은 전체 기록 읽기보다 효율적이고 안전하다
 
 | 항목 | 내용 |
 |---|---|
-| 원문 지표 → 이 문서 | `context token cost` → `ctx.input_tokens_per_turn`과 "전체 기록 주입 시 토큰"(같은 Concern의 모든 이벤트를 12의 렌더러로 그렸을 때 토큰 추정, 투영기가 주 1회 표본 10턴에 대해 계산) 비율 / `relevant-context precision/recall` → 정밀도 대리: 투영 항목 중 이후 제안이 참조한 항목 비율, 재현율 대리: `ctx.missing_constraint_contests` / `stale-context failure rate` → `ctx.stale_context_failures` / `task reorientation time` → 작업 에이전트가 복귀(새 실행) 후 첫 제안까지 턴 수 |
+| 원문 지표 → 이 문서 | `context token cost` → `ctx.input_tokens_per_turn`과 "전체 기록 주입 시 토큰"(같은 Concern의 모든 이벤트를 12의 렌더러로 그렸을 때 토큰 추정, 지표 소비자가 주 1회 표본 10턴에 대해 계산) 비율 / `relevant-context precision/recall` → 정밀도 대리: 투영 항목 중 이후 제안이 참조한 항목 비율, 재현율 대리: `ctx.missing_constraint_contests` / `stale-context failure rate` → `ctx.stale_context_failures` / `task reorientation time` → 작업 에이전트가 복귀(새 실행) 후 첫 제안까지 턴 수 |
 | 반증 조건 | 28일에 `ctx.missing_constraint_contests` ≥ 2가 두 창 연속(원문: "압축 과정에서 중요한 반대 증거가 반복적으로 누락"), 또는 사람이 Concern 설정에서 "전체 기록 포함" 같은 우회 설정을 켜는 일이 반복(원문: "사용자가 안전을 위해 항상 전체 문서 읽기를 강제") |
 | 필요한 데이터 | 12의 사용량 기록과 투영 메타데이터(`projectionId`, 포함 항목 id, 생략 목록, 낡은 항목 표시), 이의 사유 |
 | MVP 측정 | 예(런타임 측정) |
@@ -1902,7 +2066,7 @@ CREATE TABLE observer_signal (              -- correction_signal 등 관찰 보�
 
 | ID | 측정(이 문서 지표) | 반증 조건(측정 가능한 형태) [제안] | 비고 |
 |---|---|---|---|
-| V1 원함 탐구 > 고르기 | `want.*`, `exp.outcome_fit`, 결과 확인 후 수정 횟수. 비교군은 Helm이 아닌 방식(외부 채팅 세션에서 같은 종류 취향형 작업을 한 경우, 관찰 에이전트가 루트·주제로 연결) | 취향형 작업 3쌍 이상에서 만족도(자기보고)와 이후 수정 횟수가 차이 없음 | 결정 18로 Helm 안에 "고르기" 방식을 만들지 않으므로 비교군은 Helm 밖에서만 생긴다 |
+| V1 원함 탐구 > 고르기 | `want.*`, `inq.rounds_to_stable`, `inq.pick_only_round_ratio`, `exp.outcome_fit`, 결과 확인 후 수정 횟수. 비교군: (1) 15 §3.15.2 E0의 비교 조건(평가 하네스에서 "대안 2~3개 고르기"를 돌림, 결과는 `self_report.recorded { instrument: "e0_task" }`의 `baseline`) (2) 외부 채팅 세션에서 같은 종류 취향형 작업을 한 경우(관찰 에이전트가 루트·주제로 연결) | 취향형 과제 3쌍 이상에서 만족도와 이후 수정 횟수가 차이 없음 | 결정 18로 제품 화면에는 "고르기" 방식을 만들지 않는다. 비교군은 평가 하네스와 Helm 밖에서만 생긴다 |
 | V2 질문 기록·전달 분리 | `q.contest_after_assumed`, `out.post_accept_rework_ms` | 두 창 연속 `q.contest_after_assumed` > 0.2이고 재작업 증가 | v0.3 06 §7 |
 | V3 상황 유형별 기본 조합 | `sit.reassessment_rate`, `sit.first_transition_ms` | 28일에 Concern의 50% 이상이 시작 1시간 안 재판정·전환 | |
 | V4 구조 루프 | `s.recombine_skipped`, `s.boundary_issues` | 하위 Concern을 나눈 Concern의 30% 이상에서 재조합 생략이나 경계 문제 | 3단계 |
@@ -1930,7 +2094,22 @@ canon-3 §8의 16 체크리스트는 카드 가설 60개, 종합 가설 11개(AB
 | H10 | `delegated-action-and-integration:CD-H5·CD-H6`, `systems-engineering-integration:SE-H2`, `resilience-engineering:RE-H1~H2`, `structured-handoff-sbar:HO-H3`, `incident-command-common-operating-picture:ICS-H2`, `commercial-desktop-agent-ux:Acceptance/Integration` | §3.25 H10, RE-H2("성공한 적응을 Reflection에 포함")는 D12 입력과 `obs.reflection_applied_rate` | - |
 | (제외) | `incident-command-common-operating-picture:ICS-H1·H3`, `requisite-variety:RV-H3`, `situation-recovery-and-deliberative-inquiry:AB-H4` | - | 여러 사람·여러 작업 흐름 운영 전제. 혼자 쓰는 앱에서는 Concern 트리(03)로 대신한다. RV-H1·H2는 H4·H1로 연결 |
 
-UX 조사(canon-3 §6.14)의 임계 사건 여섯 개는 기능 사용률보다 먼저 본다. 2주 평가 보고에 사건 목록으로 둔다: (1) Frame 또는 기준을 실제로 바꿈(`concern.frame_changed`, `criteria_changed`) (2) 반대 근거가 추천을 바꿈(`inq.counter_changed_choice`) (3) 질문이 실행을 멈추는 대신 더 나은 실험·위임을 만듦(답의 인과가 탐침·새 합의) (4) 완료 주장과 결과 확인 사이에서 새 결함 발견(수정 요청) (5) 결과 확인 뒤 반영에서 공유 전제 충돌 발견(`conflict.detected`) (6) 사람의 개입이 다음 Context·합의·정책을 실제로 바꿈(`obs.reflection_applied_rate`, 채택된 정책 제안).
+UX 조사(canon-3 §6.14)의 임계 사건 여섯 개는 기능 사용률보다 먼저 본다. 2주 평가 보고에 사건 목록으로 둔다: (1) Frame 또는 기준을 실제로 바꿈(`concern.reframed`, `agreement.renegotiated`, `preference.criterion_confirmed`·`revised`) (2) 반대 근거가 추천을 바꿈(`inq.counter_changed_choice`) (3) 질문이 실행을 멈추는 대신 더 나은 실험·위임을 만듦(답의 인과가 탐침·새 합의) (4) 완료 주장과 결과 확인 사이에서 새 결함 발견(수정 요청) (5) 결과 확인 뒤 반영에서 공유 전제 충돌 발견(`conflict.detected`) (6) 사람의 개입이 다음 Context·합의·정책을 실제로 바꿈(`obs.reflection_applied_rate`, 채택된 정책 제안).
+
+
+#### 3.26.3 탐구 엔진 가설 (15 §3.15.5)
+
+15가 정한 가설을 그대로 받고 ID는 15의 것을 쓴다(H·V와 겹치지 않는다). 15가 "16의 V6이 H6"이라고 적은 것은 v0.3 10 §3의 H6(Method Transfer)이며 이 문서의 V6이다.
+
+| ID | 가설 | 측정(이 문서 지표) | 반증 조건(15) | 언제 |
+|---|---|---|---|---|
+| H-I1 | 발산 서브시스템이 사람의 목표·기준을 의미 있게 바꾼다 | E0 결과(`e0_task.change`), `inq.goal_criteria_change_rate` | E0에서 "의미 있음" 1개 이하, 또는 운영 4주간 변경률이 0에 가까움(< 0.05 [제안]) | E0는 커널 연결 전, 지표는 운영 중 |
+| H-I2 | 가지별 다른 모델이 다양성을 높인다 | 15 E4(서로 다른 결과 벡터 수, 평가 하네스) | 단일 계열과 다계열의 차이가 없음 | 다양성 풀 변경 시 |
+| H-I3 | 근거 필수가 품질을 높인다 | `inq.adoption_by_grounding` | 근거 있는 앞줄 항목과 근거 없음 항목의 채택률 차이가 없음(표본 각 20 이상) | 운영 중 |
+| H-I4 | 대비 압축 순서가 의미 있다 | `inq.front_vs_folded_adoption` | 접힌 항목 채택률 ≥ 앞줄 채택률(표본 각 20 이상) | 운영 중 |
+| H-R1 | 큰 입력의 사실 확인에서 REPL 방식이 일반 하위 실행보다 낫다 | 15 E3(평가 하네스) | 정확도 차이가 없거나, 정확도 향상 없이 비용이 두 배를 넘음 | REPL 구현 후 |
+
+H-I2와 H-R1은 운영 지표가 아니라 평가 하네스 결과다. 하네스가 결과를 `self_report.recorded`(`instrument: "inquiry_eval"`, 자동 값만)로 남기면 2주 평가 보고가 함께 보인다.
 
 ### 3.27 실험 프로토콜
 
@@ -1972,7 +2151,7 @@ dogfood 002의 지연 재개 장치(canon-2 §2.1.6)와 상황 인식 측정 세
    - Level 1 지각: 지금 진행 중인 WorkUnit, 새로 생긴 근거나 실패, 열린 질문
    - Level 2 이해: 가장 중요한 변화가 왜 중요한가, 영향받은 가정·결정
    - Level 3 예측: 개입하지 않으면 에이전트가 다음에 할 일, 방향을 바꾸는 비용이 크게 늘어나는 시점
-3. **정답 키**: 점검을 여는 순간의 투영(마지막 확인 cursor ~ 현재 cursor)에서 코드가 만든다. Goal 현재 버전, 최근 결과 확인된 선택, 열린 질문·불확실성 목록, 루프 계획상 다음 단계와 그 Concern의 가정 만료점. 위험 가중치는 권리 게이트·되돌리기 비싼 선택 관련 항목 3, 나머지 1. 키는 비공개 파일에, 해시는 `resumption_check.opened` 이벤트에 둔다.
+3. **정답 키**: 점검을 여는 순간의 투영(마지막 확인 cursor ~ 현재 cursor)에서 코드가 만든다. Goal 현재 버전, 최근 결과 확인된 선택, 열린 질문·불확실성 목록, 루프 계획상 다음 단계와 그 Concern의 가정 만료점. 위험 가중치는 권리 게이트·되돌리기 비싼 선택 관련 항목 3, 나머지 1. 키는 비공개 파일에 두고, 해시는 `resumption_check.opened`의 문항 blob(`questions`)에 넣는다.
 4. **답**: 사람은 자유 문장으로 답하고 문항마다 확신(낮음/보통/높음)을 고른다. 이어 복귀 요약을 보고 같은 문항을 고쳐 답할 수 있다.
 5. **채점**: 자동 정답 판정을 하지 않는다(canon-2 §6.2). 사람이 나중에(같은 날 또는 2주 평가 때) 키와 답을 나란히 보고 문항마다 맞음/부분/틀림을 고른다. 결과는 `resumption_check.scored`.
 6. **점수**: 위험 가중 정확도 = Σ(가중치 × 점수(1, 0.5, 0)) / Σ 가중치. 확신과 정확도의 차이로 보정 오차를 본다.
@@ -2012,7 +2191,7 @@ export interface ResumptionCheckScored {
 | 원문 순간 | 자동 후보 |
 |---|---|
 | 하루 이상 지난 뒤 작업으로 돌아오는 순간 | 장기 복귀 에피소드 |
-| 에이전트 결과가 서로 충돌하는 순간 | `conflict.detected`, 검증 에이전트 반대 근거 |
+| 에이전트 결과가 서로 충돌하는 순간 | 의미 충돌 질문(10 R-6), 검증 에이전트의 반대 근거(`claim.evidence_linked` challenges) |
 | 사용자가 에이전트 권고를 거부하는 순간 | 답 ≠ 추천, 결과 거절 |
 | 완료 주장을 신뢰하거나 의심하는 순간 | 수정 요청, 짧은 확인(`ca.quick_accept_rate`의 사례) |
 | 문제를 재정의하는 순간 | `frame_changed`, `goal_changed` |
@@ -2094,7 +2273,7 @@ export interface ResumptionCheckScored {
 
 | 사례 | 처리 |
 |---|---|
-| 관찰 프로세스가 `job.finished` 없이 죽음(메모리 초과, 예외) | 감독기가 `observer_run.failed { reason: "crashed", exitCode }`를 운영 기록에 남긴다. 다음 트리거까지 기다린다. 같은 종류가 연속 3회 실패하면 6시간 동안 그 종류를 띄우지 않고 상태 화면(17)에 경고 |
+| 관찰 프로세스가 `job.finished` 없이 죽음(메모리 초과, 예외) | 감독기가 `observer_run.failed { runKey, code: "crashed" }`(09)를 제출하고 종료 코드는 운영 로그에 남긴다. 다음 트리거까지 기다린다. 같은 종류가 연속 3회 실패하면 6시간 동안 그 종류를 띄우지 않고 상태 화면(17)에 경고 |
 | 벽시계 상한 초과 | `SIGTERM` → 10초 뒤 `SIGKILL`. 캐시는 단계별 트랜잭션이므로 마지막으로 커밋된 단계까지만 반영된다. 커서는 정규화 결과와 같은 트랜잭션에서 커밋되므로 반쯤 읽힌 파일은 다음 실행에 처음 오프셋부터 다시 읽는다 |
 | 데몬 종료 중 실행 | `job.cancel { reason: "shutdown" }` → 관찰 프로세스는 진행 중 단계를 롤백하고 `job.finished { outcome: "cancelled" }`. 제출 중이던 제안은 멱등 키로 다음 실행에서 다시 보내도 중복되지 않는다 |
 | 정본 DB 스키마 버전이 관찰 패키지가 아는 버전과 다름 | 실행 거부(`store_schema_mismatch`). 업그레이드 절차(17)가 관찰 패키지도 함께 올린다 |
@@ -2128,7 +2307,7 @@ export interface ResumptionCheckScored {
 
 | 사례 | 처리 |
 |---|---|
-| 1차 마스킹 누락을 2차가 잡음 | 데몬이 가리고 `secondary_mask_hits` 증가, 경고. 관찰 실행은 그 후보를 제출하지 않고 다음 실행으로 미룬다(1차 규칙 보강 전 같은 누락 반복 방지) |
+| 1차 마스킹 누락을 2차가 잡음 | 데몬이 가리고 `secondaryMaskHits` 증가, 경고. 관찰 실행은 그 후보를 제출하지 않고 다음 실행으로 미룬다(1차 규칙 보강 전 같은 누락 반복 방지) |
 | 비밀이 여러 줄에 걸침(PEM) | MK-01이 블록 단위로 가린다. 블록 끝이 다음 증분 읽기에 있으면 시작 줄부터 끝까지 가린 상태로 다시 처리 |
 | 비밀이 서명 계산에 영향을 줌 | 서명은 마스킹 후 값으로 만든다. 같은 비밀은 같은 `hmac8`이라 같은 서명 |
 | 엔트로피 오탐(긴 해시 경로 등) | 오탐도 가린다. 서명이 `<secret>`로 묶여 패턴 탐지에 영향이 작다 |
@@ -2169,40 +2348,77 @@ export interface ResumptionCheckScored {
 
 | 제공 | 받는 문서 | 형태 |
 |---|---|---|
-| `@helm/observer` 패키지: 관찰 실행 진입점, IPC 타입(§3.2.3) | 06, 17(데몬 감독기) | 코드 |
-| `@helm/observer/metrics`: `extractFacts`, `MetricDef` 레지스트리, `aggregate`, `snapshot` 순수 함수 | 12(투영기), 19(`metrics` 뷰) | 코드 |
-| 제안 제출 형식(`ObserverSubmission`, `ProposalDraft`, `PolicyPatch`) | 10 | 타입(§3.15.1) |
-| 제안 상태 기계 | 08, 09, 10, 03·04 | 표(§3.15.3) |
-| 지표 카탈로그와 정의 | 01, 03, 04, 22 | §3.23 |
-| 반증 가설 측정 방법, 2주 평가, G2 관문 세부 | 01, 23 | §3.25~§3.28 |
-| 비밀 마스킹 규칙 표 | 18(위협 모델 대응), 12(로그 마스킹에 재사용 가능) | §3.8 |
-| 외부 세션 로그 형식 정리(pi, Claude Code, Codex) | 07(pi 세션 특성), 13(이후 런타임 어댑터) | §3.6 |
+| `@helm/observer` 패키지: 관찰 실행 진입점, IPC 타입과 전송 계층(§3.2.3) | 06, 17(감독기) | 코드 |
+| `@helm/observer/metrics`: `extractFacts`, `MetricDef` 레지스트리, `aggregate`, `snapshot`, 뷰 데이터 타입(§3.24.3) | 06, 09(지표 소비자), 19(`metrics`·`evaluation` 뷰), 21(`MetricTile`) | 코드 |
+| 제안 제출 형식(`ObserverSubmission`, `ProposalDraft`, `PolicyPatch`)과 명령·이벤트 대응표(§3.4.2) | 10, 09 | 타입 |
+| PolicyProposal 서명 계산 규칙, `draft` blob 모양(§3.11.1, §3.15.2) | 08 | 규칙 |
+| 제안 상태 기계(§3.15.3) | 08, 09, 10, 04 | 표 |
+| 절차 사용·실패의 파생 규칙(§3.17) | 08, 14 | 규칙 |
+| 정정 신호 두 원천(§3.10.1 D5 아래) | 15 | 규칙 |
+| `presence.changed`·`view.opened` 생성 규칙(§3.23.1) | 19, 20, 09 | 규칙 |
+| 측정 명령 payload(§3.24.3) | 19, 10 | 타입 |
+| 지표 카탈로그와 정의(§3.23), 지표 투영 DDL(§3.24.1) | 01, 03, 04, 09, 22 | 표·DDL |
+| 반증 가설 측정 방법(H1~H10, V1~V9, H-I1~H-I4, H-R1), 2주 평가, G2 관문 세부 | 01, 15, 23 | §3.25~§3.28 |
+| 마스킹 규칙 표(18과 공유) | 18, 13, 12 | §3.8 |
+| 외부 세션 로그 형식 정리(pi, Claude Code, Codex) | 07, 13 | §3.6 |
 
-### 5.2 다른 문서에 요구하는 것
+### 5.2 다른 문서에 요구하는 것 (2a단계 기준, 남은 것만)
 
 | 문서 | 요구 |
 |---|---|
-| 01 | (1) 관찰 에이전트를 두 부분으로 나눠 단계에 배치하기를 요구한다: 결정적 수집·탐지·외부 세션 지표(채팅 기준선, D9)는 MVP에서 켤 수 있게 하고, 모델 판정과 제안 제출은 2단계로 둔다. 기준선이 G1 판단에 필요하기 때문이다. (2) §3.10.5의 지표 이름을 이 문서 §3.23의 ID와 맞춘다(CA-1~CA-7, CT-1~CT-3는 별칭으로 유지) |
-| 02 | (이벤트 이름은 02 §2의 `observer_proposal.recorded`·`.decided` 대신 08 §3.19·09의 `policy_proposal.*`로 맞춘다) UC-08 기본 흐름: 일일 분석 → 복귀 요약의 "관찰 에이전트" 절 → `SCR-OBSERVER` → 채택(1회) → 정책 즉시 적용 또는 적용 Concern 열림 → 7·14·28일 효과 보고. 수용 기준: 관찰 에이전트가 정본에 직접 쓰는 경로가 없음, 같은 서명 재제출이 기각 규칙을 따름 |
-| 03·04·05 | §3.24.2 전부. 특히 평가 화면 신설, 복귀 점검 진입(장기 복귀 첫 화면, 건너뛰기), 2주 평가 카드, "예상 못 했다" 동작, `view.opened`를 보내는 화면 목록, 관찰 제안 화면(04 §3.18)의 기각 사유는 04의 넷(이미 해결함, 우연, 원하지 않음, 직접 쓰기)에 "비용이 큼", "기타"를 더하고, "다시 보지 않기"(패밀리 영구 억제)를 기각의 선택 옵션으로 둔다. 정책·다이얼 제안의 채택은 그 자체가 사람 입력 채널의 결정이므로 별도 권리 게이트 질문을 다시 만들지 않는다(04 §3.18 인터랙션 표의 "정책 수정 질문"을 고쳐 달라는 요구. 사람 조작을 1회로 유지) |
-| 06 | (1) `observer` 패키지의 의존: `domain`, `store`(읽기 전용 리더만), `protocol` 아님. `ai`·`agent`·`runtime`·`kernel` import 금지(모델 호출은 IPC로). (2) 하위 경로 `@helm/observer/metrics`는 `domain`만 import하며 `daemon`·`runtime`이 import할 수 있다. (3) 프로세스 배치에 "데몬이 띄우는 일회성 자식 프로세스"를 추가(ADR 후보 OBS-ADR-1) |
-| 07 | pi 세션 형식의 버전(v1~v3)·`context_edit`·트리 처리를 07의 pi 세션 특성 절에 적는다면 이 문서 §3.6.3과 맞춘다. pi 버전을 올릴 때 관찰 어댑터의 픽스처를 다시 확인하는 항목을 업스트림 추적 절차에 넣는다 |
-| 08 | (1) §3.19 `PolicyProposal`을 이 문서 §3.15의 형태와 맞춘다: `proposalKind`를 §3.12.1의 열세 종류로(08의 `cli`→`script`, `hook`→`guard`, `policy_change`·`dial_change`→`policy`(`patch.target`으로 구분), `lens_category`→`divergence_category`와 15의 렌즈 추가 `lens`), 상태에 `deferred`, `applying`, `expired`를 더하고 사람 기각은 `rejected` 대신 `dismissed`로(커널 거부와 구분), `changes`, `family`, `detector`, `patch`, 효과 판정 `harmful`을 더한다. 관찰 실행(`or`)은 운영 기록이라 레코드 접두사가 꼭 필요하지는 않다. (1-1) §3.5.1 `Project.sessionLogPaths`는 이 문서의 해석(세션 cwd가 허용 폴더 아래인 세션, §3.5.1)과 맞추어 `observeExternalSessions: boolean`(허용 폴더 = 그 프로젝트의 `rootPaths`)으로 바꾸거나, 로그 위치를 바꿔 쓸 때의 `rootDirOverride`로만 쓰기를 제안한다. (2) 절차 레코드의 신뢰도 상태(`trial`, `trusted`, `demoted`). (3) 관리 대상 폴더는 08 §3.5.1 `Project.rootPaths`를 쓴다. (4) 01 §3.5.2의 `HumanDecisionOp`를 별도 레코드로 두지 말고 사람 명령 이벤트에서 파생하는 것을 제안한다(필요한 필드: `target`, `onNormalPath`, `extraReason`, `editedDraft`를 명령 페이로드나 커널 파생 메타에 둔다) |
-| 09 | (1) 투영 테이블 `metric_fact`, `metric_snapshot`, `return_episode`, `observer_proposal`, `observer_signal`(§3.24.1). (2) 실험 측정 흐름 범주(도메인 원장과 분리, 같은 파일, append-only, 내보내기 포함). (3) 이벤트 이름 확정: `policy_proposal.submitted`, `policy_proposal.evidence_updated`, `policy_proposal.accepted`, `policy_proposal.dismissed`, `policy_proposal.deferred`, `policy_proposal.reopened`, `policy_proposal.withdrawn`, `policy_proposal.expired`, `policy_proposal.application_opened`, `policy_proposal.application_abandoned`, `policy_proposal.applied`, `policy_proposal.effect_measured`, `policy_proposal.reverted`, `observer_report.recorded`, `view.opened`, `surprise.reported`, `resumption_check.opened`, `resumption_check.answered`, `resumption_check.scored`, `self_report.recorded`, `experiment.condition_set`, `brief.acknowledged`, `directive.applied`, `plan.deviated`, `workspace.unlinked_change_observed`. (4) `@helm/store`의 읽기 전용 리더(SELECT만, `query_only`) 공개. (5) 운영 기록에 `observer_run.*` |
-| 10 | (1) 명령 `policy.change.propose`, `procedure.candidate.propose`의 페이로드를 §3.15.1 `ProposalDraft`로. (2) 보고 명령 `observer.report.submit`(observe 능력, 채널 `aux_agent`)을 추가. (3) 사람 결정 명령: 제안 채택(값을 고친 채택 포함)·기각(사유, 범위)·나중에. 정책 제안 채택은 기존 `policy.change.accept`와 합쳐도 된다. (4) §3.12.4 금지 패치 검사(V-POL 계열). (5) 채택 시 `patch.from`과 현재 값 비교. (6) 파일을 바꾸는 제안 채택 시 적용 Concern 생성 파생 이벤트. (7) 열린 이의가 있는 대상이 닫힐 때의 처리 규칙(고아 이의를 막거나 파생 이벤트로 남기기) |
-| 11 | (1) 질문 레코드에 `recommendation`, `assumption` 구조화 필드, 답 이벤트에 `matchesRecommendation`, `matchesAssumption`. (2) presence 이벤트 형식(기기, 상태, 시각). (3) 다이얼 조정 제안(D10)이 다룰 다이얼 키 목록과 범위(종류별·루프별) |
-| 12 | (1) 투영기에서 `extractFacts` 호출(커밋 직후, 같은 트랜잭션이 아니어도 됨). (2) 모델 역할 `observer`(저비용 모델)와 예산 계정 `observer`, `llm.complete` IPC 처리, 2차 마스킹. (3) 사용량 기록에 `projectionId`, 포함 항목 id, 생략 목록, 낡은 항목 표시(H7). (4) `directive.applied`를 턴 경계에서 남김. (5) 복귀 요약에 "관찰 에이전트" 절과 2주 평가 카드. (6) 작업 에이전트 투영에서 지표 값 제외(OB-8). (7) 스케줄러 트리거 T1~T8 |
-| 13 | (1) 실행 전후 작업 공간 diff에서 WorkUnit에 연결되지 않은 변경을 `workspace.unlinked_change_observed`로 남김(CA-1 MVP 원천). (2) 이후 런타임 어댑터의 `run.started`에 `adapterSessionRef`(§3.6.6). (3) 도구 이름표(§3.7.1)의 Helm 열 확정 |
-| 14 | (1) 절차 등록·신뢰도·강등과 그 사용 기록. (2) `plan.deviated` 관찰을 언제 만드는지(예정 다음 단계와 실제 행동 비교). (3) 합의 템플릿, 라우팅 규칙, 진입 규칙을 데이터로 두고 `PolicyPatch.target`으로 바꿀 수 있게. (4) `reflection` 레코드의 "다음 합의에서 바꿀 것" 문장을 관찰 입력(D12)으로 읽을 수 있게 구조화 |
-| 15 | (1) 가능성의 `lensId`, 예측 차이(`distinctPrediction`) 표시, 구분 확인 기록, 렌즈 채택 이벤트(V6, H3). (2) 진입 계기 S3은 도메인 레코드가 아니라 관찰 보고 `correction_signal`의 투영(`observer_signal`, 09에 요구)을 읽는다. (3) 렌즈 추가·수정·내리기 제안(`lens`)을 받으면 `lens.added`·`lens.updated`·`lens.retired`를 `origin: "observer_proposal"`로 기록. (4) 15 §3.7의 `stated_vs_revealed` 발생을 이벤트로 남긴다(`want.stated_vs_revealed`) |
-| 17 | (1) 관찰 실행 감독기(데몬 안), 자식 프로세스 우선순위·메모리 상한·격리 강화(선택). (2) `/srv/volumes/helm/observer/`(캐시, 소금)와 `/srv/volumes/helm/private/resumption-checks/` 경로·권한. (3) 관찰 캐시의 백업 제외 여부. (4) 업그레이드 때 관찰 캐시 버전 처리 |
-| 18 | (1) 외부 세션 로그 읽기의 위협 모델(제3자 내용, 비밀, 주입). (2) 마스킹 규칙 표 검토. (3) 모델 API로 보내는 외부 발췌의 범위(`sendExternalExcerpts`). (4) 점검 키 파일 보호. (5) 관찰 프로세스에 비밀을 넘기지 않는 환경 변수 허용 목록 |
-| 19 | (1) `metrics` 뷰(지표 값·스냅샷·근거 seq), `observer` 뷰(제안 목록·상세), `evaluation` 뷰. (2) 사람 명령: 제안 결정, `surprise.report`, `view.record`(열람 기록, 응답 불필요), 점검 답·채점, 자기보고. (3) 관찰 IPC는 클라이언트 프로토콜이 아니다(19 §1.3에 이미 반영됨) |
-| 20 | `view.opened` 송신(§3.24.2 목록), presence 송신(포커스·유휴 판정 기준: 입력 없음 5분 → `idle`) |
-| 21 | 평가 화면 컴포넌트(지표 타일: 값, 표본, 창, 정의 버전, 검토 신호, 추세 SVG). 21 §3.5.7의 감사 깊이 열람은 `view.opened { depth: "audit" }`로 수집한다고 답한다 |
-| 22 | §6의 테스트를 테스트 계층에 넣는다. 특히 가짜 세션 픽스처(pi v1·v3, Claude Code 하위 에이전트 포함, Codex), 주입 픽스처, 비밀 픽스처, 지표 골든 테스트 |
-| 23 | (1) 관찰 에이전트 구현 순서: 어댑터·정규화·마스킹 → 지표 사실·스냅샷 → 탐지기 → 모델 판정·제출 → 효과 측정. (2) 단계 기능의 기본값을 관문 기록(G1, G2)에 묶는 규칙(§3.27.6) |
-| 24 | ADR 후보 OBS-ADR-1~4(이 문서 끝) |
+| 02 | UC-08의 이벤트 이름을 `policy_proposal.*`(09)로 바꾼다(02 §2의 `observer_proposal.recorded`·`.decided`). 효과 측정 시점은 7·14·28일(§3.17) |
+| 06 | (1) 마스킹 규칙 표와 순수 적용 함수의 위치를 정한다. 추천: `@helm/domain/src/redaction/`(관찰 프로세스와 데몬이 함께 import, §3.8.2). (2) 관찰 캐시(`observer.db`)를 `better-sqlite3` 없이 열 수 있게 `@helm/store`에 보조 DB 함수(예 `@helm/store/aux`의 `openAuxDb(path, migrations)`)를 둔다(06 R6). (3) §3.6.3의 감독기를 `fork`와 `systemd-run` 두 전송으로(§3.2.3, 17). (4) `helmd.toml`의 `[observer]` 절은 16 `ObserverConfig` 중 운영 설정 부분만이고, 허용 폴더는 Project 레코드에서 온다(§3.5.3) |
+| 07 | pi 버전을 올릴 때 관찰 어댑터 픽스처(§6.1)를 다시 확인하는 항목을 업스트림 추적 절차에 넣는다 |
+| 08 | (1) `Annotation.annKind`에 `procedure_failed`를 더하고 `expectedRef`에 `pd`를 허용한다(§3.17). (2) `Procedure.uses`는 지표에서 파생하므로 레코드에서 빼거나 투영 값으로 표시한다. (3) `HumanOpMeta.onNormalPath`의 뜻이 01 R-OP-1의 "정상 경로"와 다르다. 이름을 `usedRecommended` 같은 다른 이름으로 바꾸기를 요구한다(16은 정상 경로를 이벤트 종류로 계산, §3.22.3). (4) `PolicyProposalCore.patch.target`의 값 목록은 16 §3.15.1 `PolicyPatch`(`dial`, `policy_rule`, `orchestration.routing`, `orchestration.agreement_templates`) |
+| 09 | (1) §3.24.1의 지표 투영 DDL을 §3.7에 옮긴다(`return_episode.brief_corrections` 추가). (2) `source_cursors`는 관찰 프로세스가 쓸 수 없으므로 빼고 커서는 관찰 캐시에 둔다(C-6). (3) §5.2의 "제안은 데몬 소켓으로 보낸다"를 "감독기 IPC로 보낸다"로(판정 §2, 06 §3.7). (4) `view.opened` payload에 화면 대상은 envelope `refs`로 둔다는 것을 적는다. (5) `observer_report.recorded` payload의 `matchesRecommendation`은 관찰 보고와 관계없으므로 빼고, `form`(보고 종류) 필드를 둔다. (6) 측정 범주 이벤트 `resumption_check.opened`의 행위자는 runtime. (7) 메트릭 소비자 재구성 절차(§3.22.1) |
+| 10 | (1) `observer.report.submit` 하나가 §3.4.2 표의 이벤트들을 `form`에 따라 내도록 넓힌다(지금 표는 `observer_run.completed`만). (2) `policy.change.reject`의 결과 이벤트를 `policy_proposal.dismissed`로, 범위 값을 `'this' \| 'family_forever'`로(09·08과 맞춤, C-3). (3) `policy.change.propose`가 제안마다 권리 질문을 만드는 규칙을 뺀다(C-2). (4) measurement 명령(`surprise.report`, `resumptionCheck.answer`·`score`, `selfReport.submit`, `experiment.setCondition`)을 카탈로그에 넣는다. 스키마 검사와 사람 채널 검사만 한다. (5) `policy.change.accept`의 파일 변경 제안 파생은 WorkUnit 제안이 아니라 `concern.opened`(entryPath `observer`) + `policy_proposal.application_opened { concernId }`(09 payload와 맞춤) |
+| 11 | (1) presence는 09가 영속 `presence.changed`로 받아들였다. 11 §3.8.1의 "presence는 이벤트가 아니다"를 고친다(C-4). 활동 시간 지표(A12, H1)는 재현 가능한 기록이 있어야 한다. (2) §3.19 지표는 16 §3.23.4·§3.23.5가 받았다 |
+| 12 | (1) 지표 소비자 `metrics`(09 §3.11.1 6번)를 데몬의 커밋 뒤 소비자로 띄우고 `@helm/observer/metrics`를 부른다. (2) `observer.cycle` 타이머와 유휴 계기(§3.3.1 T1·T3). (3) 안전 모드·읽기 전용 모드에서 관찰 실행 규칙(§3.3.1 규칙 5) |
+| 14 | `reflection.recorded`의 `nextAgreementChange`가 관찰 입력(D12)이다. 14 §3.20.5의 답(`plan.deviated`, `PolicyPatch.target`)은 이 문서에 반영했다 |
+| 15 | (1) 진입 계기 S3은 §3.10.1(D5 아래)의 두 원천을 읽는다. (2) 탐구 이벤트에 `lensId`, `distinctPrediction`, `grounded`, `frontRow`, `pickOnly`를 담는다(§3.23.11). (3) 평가 하네스가 E0·E3·E4 결과를 `self_report.recorded`(`e0_task`, `inquiry_eval`)로 남긴다 |
+| 17 | (1) 관찰 자식 격리 실행(§3.2.1)과 실패 시 fork로 돌아가지 않는 규칙을 받아들였다. (2) `observer.db`, 소금 파일, `private/resumption-checks/` 경로와 권한, 백업 제외(관찰 캐시만 제외, 점검 키는 백업 포함) |
+| 18 | (1) 마스킹 규칙 표를 공용 모듈로 공유(§3.8.2). 관찰 입력은 소금 HMAC, 데몬 쪽은 sha256 앞 8자. (2) 관찰 프로세스의 환경 변수 허용 목록(`HOME`, `PATH`, `TZ`, `LANG`, `NODE_ENV`)을 R-2 허용 목록에 적는다. (3) 외부 세션 발췌를 모델 API로 보내는 범위(`sendExternalExcerpts`, §3.9.2)를 위협 모델에 넣는다 |
+| 19 | (1) `probe.answer`·`probe.score`를 `resumptionCheck.answer`·`resumptionCheck.score`로(판정 J-10). 이벤트 이름은 `resumption_check.*`(09). (2) `metrics` 뷰 창을 `7d`·`14d`·`28d`로. (3) 측정 명령 payload는 §3.24.3. (4) `presence.report`의 `screen`에 감사 깊이를 `#audit`로 붙이는 규칙(§3.23.1). (5) `metrics` 뷰가 03의 `SCR-METRICS` 화면에 대응함을 적는다(지금은 `SCR-OBSERVER`·설정) |
+| 20 | 인스펙터 원본 탭·`SCR-RECORD`를 열 때 `presence.report.screen`에 `#audit` 접미를 보낸다. `presence.report`의 `idle` 판정은 입력 없음 5분(11 §3.8.1과 같음) |
+| 21 | (1) `ObserverProposalCard`의 기각 사유를 04 §3.18의 선택지(이미 해결함·우연·원하지 않음·직접 하겠음·비용이 큼·기타)와 "다시 보지 않기"로 바꾼다. 행동 이름은 10 명령(`policy.change.accept`·`reject`·`defer`)에 대응하는 19 메서드. (2) `MetricTile` 입력은 §3.24.3 `MetricTileData`로 충분하다 |
+| 22 | §6의 OB-T01~OB-T31과 합성 픽스처 |
+| 23 | 관찰 에이전트 구현 순서(어댑터·정규화·마스킹 → 지표 소비자 → 탐지기 → 모델 판정·제안 → 효과 측정)와 판정 J-11(2단계 기능은 G1 기록 전까지 기본 꺼짐) |
+| 24 | OBS-ADR-1~4 |
+
+### 5.3 2a단계에서 처리한 요구
+
+| 요구한 문서 | 요구 | 처리 |
+|---|---|---|
+| 08 §5.2 | PolicyProposal 서명 계산 규칙, `draft` blob 모양 | §3.11.1, §3.15.2 |
+| 08 §5.2 | 절차 사용 기록(`procedure_failed`) | §3.17 끝(파생 규칙). 주석은 사람만, 08에 annKind 추가 요구 |
+| 08 §5.1 | PolicyProposal 종류 13·상태 9·`family`·`detector`·`patch`·`draft`, Procedure 신뢰 | 08이 받아들임. 이 문서의 이름을 그대로 씀 |
+| 09 §5.2 | 측정 투영은 비동기 | 09 §3.11.1 6번의 커밋 뒤 소비자로 받아들임(§3.22.1) |
+| 10 §5.2 | 1판 이름(`submission.rejected`, `choice.decided`)을 2판으로 | `command.rejected`, `choice.committed`(§3.22.3) |
+| 11 §5.2 | §3.19 지표, `autonomyStats`, `matchesAssumption`·`matchesRecommendation` | §3.23.4·§3.23.5, §3.22.3. `autonomyStats`는 D10이 같은 값을 지표 사실로 계산하므로 쓰지 않는다 |
+| 12 §5.2 | 캐시 효율·재시도·복구 지표를 실행 기록에서 읽는 방법 | §3.23.12 |
+| 13 §5.1 | `adapterSessionRef`, 경로 정책 거부·변경 감지·마스킹 기록 | §3.6.6, §3.22.3(`scope_block`, `unlinked_change`), §3.8 |
+| 14 §5.2 | `plan.deviated` 생성 시점과 정도, `PolicyPatch.target`, C/A 지표 원천, 관찰 제안에서 온 진입 | §3.22.3, §3.15.1, §3.22.3 끝, §3.15.3(entryPath `observer`) |
+| 15 §5.2 | 지속 지표, H-I1~H-I4·H-R1, 정정 신호, 렌즈·범주 제안, E0 결과 수집 | §3.23.11, §3.26.3, §3.10.1, §3.12.1(`lens`, `divergence_category`), §3.23.11 |
+| 17 §5.2 | IPC 전송 독립, 격리 실패 시 fork로 돌아가지 않음 | §3.2.1, §3.2.3 |
+| 18 §5.2 | 마스킹 규칙 표 공유, 관찰 자식 격리 IPC | §3.8.2, §3.8.4, §3.2.1 |
+| 19 §5.2 | `metrics`·`evaluation` 뷰 타입, 측정 명령 payload, `presence.report`에서 `view.opened` 만드는 규칙 | §3.24.3, §3.23.1 |
+| 21 §5.2 | `MetricTile` 입력 형식, 감사 깊이 수집 | §3.24.3, §3.23.1 |
+| 04 §5.2 | 관찰 제안 데이터, 효과 측정 값, 복귀 요약 정정과 결과 확인 행동 집계 | §3.15, §3.17, §3.23.1(`briefCorrections`), §3.23.3(`ca.quick_accept_rate`) |
+| 05 §5.2 | `autonomous.seen`을 이의율 분모로, 우회 측정 단위를 C/A 주기로 | §3.22.3(`autonomous_choice/seen`), §3.23.5 열람 보정값, CA-6 단위는 변경 WorkUnit(= C/A 주기 하나) |
+| 03 §5.2 | `SCR-METRICS` 데이터, `view.opened` 다섯 화면 | §3.24.2, §3.24.3, §3.23.1 |
+| 01·02 | 지표 계산·G1 기록·V1 비교·관찰 단계 | §3.23, §3.27.6, §3.26.1, 판정 J-07 |
+
+### 5.4 남은 충돌과 추천 판정
+
+| ID | 쟁점 | 추천 판정 |
+|---|---|---|
+| C-1 | 16 1판의 "지표는 투영기에서" 대 09 1판의 "observer.db에 비동기" | 해소됨: 09 §3.11.1 6번(같은 DB, 커밋 뒤 소비자) |
+| C-2 | 10 `policy.change.propose`가 제안마다 권리 질문을 만듦 대 04·16(채택 자체가 사람의 결정, 조작 1회) | 질문을 만들지 않는다. 제안은 `SCR-OBSERVER`와 복귀 요약 절로만 전달하고, 채택 명령이 사람 채널(`human_client`)에서 오므로 권리 게이트를 이미 만족한다 |
+| C-3 | 10 `policy_proposal.rejected`, 범위 `'signature'` 대 09·08·16 `policy_proposal.dismissed`, `'family_forever'` | 09·08 이름(이벤트 정본 09) |
+| C-4 | 11·10 "presence는 이벤트가 아님" 대 09 영속 `presence.changed` | 09. 활동 시간 지표와 복귀 에피소드가 재현 가능해야 하고(결정 29), 상태가 바뀔 때만 남기므로 양이 적다 |
+| C-5 | 08 `HumanOpMeta.onNormalPath`("추천 버튼 그대로") 대 01 R-OP-1("C/A 정상 경로") | 01의 뜻은 이벤트 종류로 계산하고(§3.22.3), 08 필드는 이름을 바꾼다 |
+| C-6 | 09 `source_cursors`(정본 DB) 대 16 관찰 캐시의 커서 | 관찰 캐시. 관찰 프로세스는 정본 DB에 쓸 수 없다 |
+| C-7 | 19 `probe.*` 메서드 대 판정 J-10 | `resumptionCheck.*` |
 
 ## 6. 구현 단위와 완료 기준
 
@@ -2214,14 +2430,14 @@ packages/observer/
   src/
     main.ts               # 자식 프로세스 진입점: job.start 대기 → run → job.finished → exit
     config.ts             # ObserverConfig, 기본값
-    ipc/types.ts, ipc/client.ts        # §3.2.3, rpc.call 대기·시간 초과
+    ipc/types.ts, ipc/client.ts, ipc/transport.ts   # §3.2.3, rpc.call 대기·시간 초과, 전송 두 가지
     run/job.ts            # 작업 종류별 파이프라인 조립
     cache/schema.sql, cache/db.ts      # §3.20, 버전·재구성
     sources/types.ts, sources/registry.ts
     sources/helm.ts, sources/pi.ts, sources/claude-code.ts, sources/codex.ts
     sources/incremental.ts             # 공통 증분 읽기(§3.6.1)
     normalize/schema.ts, normalize/tools.ts (§3.7.1), normalize/command.ts (§3.7.2), normalize/path.ts, normalize/tree.ts
-    mask/rules.ts, mask/entropy.ts, mask/masker.ts, mask/injection.ts      # §3.8, §3.9.3
+    mask/entropy.ts, mask/masker.ts, mask/injection.ts      # §3.8, §3.9.3. 규칙 표는 공용 모듈(§3.8.2)에서 import
     detect/d01-sequences.ts … detect/d13-lens-usage.ts                   # §3.10
     cluster/signature.ts, cluster/family.ts, cluster/thresholds.ts        # §3.10.2, §3.11
     classify/prompt.ts, classify/input.ts, classify/output.ts, classify/allowed.ts   # §3.9.4, §3.12
@@ -2239,7 +2455,7 @@ packages/observer/
     fixtures/helm-events/*.jsonl                          # 지표 골든용 이벤트 열
 ```
 
-데몬 쪽(17·12 소유이지만 이 문서가 요구하는 모듈): `packages/daemon/src/observer-supervisor.ts`(fork, 대기열, 시간 초과, IPC 처리, 2차 마스킹, 예산), `packages/runtime/src/projector/metrics.ts`(`extractFacts` 호출, 스냅샷 작업).
+데몬 쪽(17·12 소유이지만 이 문서가 요구하는 모듈): `packages/daemon/src/observer-supervisor.ts`(fork, 대기열, 시간 초과, IPC 처리, 2차 마스킹, 예산), `packages/daemon/src/consumers/metrics.ts`(커밋 뒤 소비자, `extractFacts` 호출, 스냅샷 작업, 09 §3.11.1 6번). 공용 마스킹 모듈은 06이 정한 위치(추천 `packages/domain/src/redaction/`).
 
 ### 6.2 완료 기준(테스트로 확인할 조건)
 
@@ -2247,15 +2463,15 @@ packages/observer/
 |---|---|---|
 | OB-T01 | ipc | `job.start` 전 파일을 열지 않는다(fs 감시 목). `job.finished` 후 0.5초 안 종료 |
 | OB-T02 | 감독기 | 관찰 프로세스 환경 변수에 허용 목록 밖 키가 없다. 비밀 키 이름을 넣어 띄워도 자식에서 보이지 않는다 |
-| OB-T03 | 읽기 전용 | 리더 연결로 INSERT/UPDATE/DELETE/CREATE를 시도하면 실패한다(`query_only`). 관찰 프로세스 전체 테스트 뒤 정본 DB 파일의 바이트 해시가 같다 |
-| OB-T04 | 제출 | `agent:observer`로 `policy.change.propose`, `procedure.candidate.propose`, `observer.report.submit` 외 명령을 내면 자격 거부. 제출 `actor` 위조가 무시된다 |
+| OB-T03 | 읽기 전용 | `openReader` 연결로 INSERT/UPDATE/DELETE/CREATE를 시도하면 실패한다(`query_only`). 관찰 프로세스 전체 테스트 뒤 정본 DB 파일의 바이트 해시가 같다 |
+| OB-T04 | 제출 | `agent:observer`(채널 `aux_agent`)로 `policy.change.propose`, `procedure.candidate.propose`, `observation.annotate`, `observer.report.submit` 외 명령을 내면 `authority` 갈래로 거부. 제출 `actor` 위조가 무시된다. §3.4.2 표의 `form`마다 기대한 09 이벤트가 남는다 |
 | OB-T05 | 금지 패치 | §3.12.4 목록의 패치(입력 범위, 불변조건, 권리 게이트, 능력표)는 커널이 거부한다 |
 | OB-T06 | 증분 읽기 | 줄 단위로 나눠 덧붙인 파일을 여러 번 읽은 결과와 한 번에 읽은 결과가 같다(속성 기반 테스트). 개행 없는 마지막 줄은 다음 실행에 읽힌다. 앞부분이 바뀐 파일은 처음부터 다시 읽고 중복이 없다 |
 | OB-T07 | pi 어댑터 | v1 선형 파일과 v3 트리 파일이 같은 활성 경로를 만든다. 마지막 항목이 잎이다. 버린 분기 항목은 `onActivePath = false`. `context_edit` 대상에 표시가 붙고 원본 도구 호출은 그대로 센다. `nestedCalls`가 펼쳐진다 |
 | OB-T08 | Claude Code 어댑터 | 문자열·블록 `user` 메시지, `tool_use`/`tool_result` 짝, 같은 `requestId` 사용량 한 번만, 하위 에이전트가 `parentSessionId`로 이어짐, 모르는 `type`은 이상 개수만 늘림 |
 | OB-T09 | 허용 폴더 | `/a/b` 허용 시 `/a/bc`의 세션을 읽지 않는다. 심볼릭 링크 경로가 같은 대상이면 읽는다. 루트 제거 후 그 트레이스가 지워진다 |
 | OB-T10 | 마스킹 | 픽스처의 MK-01~MK-13 예시가 모두 가려진다. 캐시 DB 전체 덤프에 픽스처 비밀 문자열이 없다. 같은 비밀은 같은 토큰 |
-| OB-T11 | 2차 마스킹 | 1차 규칙을 일부러 끈 상태에서 데몬이 알려진 비밀 값을 가리고 `secondary_mask_hits`를 올린다 |
+| OB-T11 | 2차 마스킹 | 1차 규칙을 일부러 끈 상태에서 데몬의 `Redactor`가 SecretStore 값을 가리고 `secondaryMaskHits`를 올린다 |
 | OB-T12 | 주입 | 주입 픽스처의 문장이 `suspiciousInstruction`으로 표시되고 모델 입력 JSON에 없다. 도구 출력 등급 텍스트가 모델 입력에 없다 |
 | OB-T13 | lint | 위험 명령, 후보에 없는 URL 호스트, 루트 밖 경로, 길이 초과 초안이 모두 거부된다 |
 | OB-T14 | 탐지 결정성 | 같은 캐시에서 탐지·서명·문턱·추정이 두 번 실행해 같은 결과(정렬 포함) |
@@ -2272,28 +2488,33 @@ packages/observer/
 | OB-T25 | 작업 에이전트 투영 | 12의 투영 결과에 `metric_*` 값이 없다(OB-8) |
 | OB-T26 | 재구성 | `metric_fact`를 지우고 재구성하면 같은 행이 나온다. 관찰 캐시를 지우고 `scan`하면 남아 있는 로그 범위의 트레이스가 같다 |
 | OB-T27 | 적합성 | 각 외부 어댑터는 픽스처 묶음 적합성 테스트를 통과해야 설정에서 켤 수 있다(Codex는 픽스처가 생길 때까지 꺼짐 상태 테스트만) |
+| OB-T28 | 전송 | 같은 메시지 열을 `nodeIpcTransport`와 `stdioJsonLinesTransport`로 주고받아 같은 결과가 나온다. 격리 실행이 켜졌는데 `systemd-run`이 실패하면 fork로 띄우지 않고 `observer_run.failed`가 남는다 |
+| OB-T29 | 열람 기록 | `presence.report` 열(화면 이동, 60초 안 재열기, 연결 끊김, `#audit`)에서 §3.23.1 규칙대로 `view.opened`와 `presence.changed`가 만들어진다. 다섯 화면 밖 이동은 기록되지 않는다 |
+| OB-T30 | 서명 | 경로·숫자·비밀만 다른 두 명령 템플릿의 서명이 같다. 서명이 `^sha256:[0-9a-f]{64}$`(08 `Sha256`)에 맞는다. 규칙 버전 `v`가 다르면 기각 기억이 적용되지 않는다 |
+| OB-T31 | 지표 소비자 | 소비자를 이벤트 중간에서 멈췄다가 다시 띄우면 `consumer_cursors.metrics`부터 이어 같은 `metric_fact`가 나온다. 쓰기 트랜잭션 시간이 소비자 유무와 관계없다(09 성능 시험) |
 
-`just verify`(06 §3.16)에 OB-T01~OB-T27을 포함한다. 실제 홈 디렉터리의 세션 로그를 테스트에 쓰지 않는다. 픽스처는 합성 문장으로만 만든다.
+`just verify`(06 §3.16)에 OB-T01~OB-T31을 포함한다. 실제 홈 디렉터리의 세션 로그를 테스트에 쓰지 않는다. 픽스처는 합성 문장으로만 만든다.
 
 ## 7. 미결 사항
 
 | ID | 질문 | 선택지 | 추천 기본값 |
 |---|---|---|---|
-| OQ-16-01 | 관찰 프로세스 형태 | (a) 데몬이 띄우는 일회성 자식 (b) 데몬 안 task (c) 별도 systemd 서비스 | (a). 17이 운영상 다른 판단을 하면 ADR로 바꾼다 |
-| OQ-16-02 | 관찰 에이전트의 단계 배치 | (a) 전체를 2단계 (b) 결정적 부분은 MVP, 모델 판정·제안은 2단계 | (b). 채팅 기준선과 CA-1 외부 원천이 G1 판단에 필요 |
+| OQ-16-01 | 관찰 프로세스 형태 | (a) 데몬이 띄우는 일회성 자식 (b) 데몬 안 task (c) 별도 systemd 서비스 | 해소: (a). 06 ADR-06-02, 17 D17-15가 받아들임. 격리 실행(일회성 서비스 단위, `--scope` 아님, 판정 J-70)을 처음부터 켤지는 17 Q17-02(기본: fork로 시작) |
+| OQ-16-02 | 관찰 에이전트의 단계 배치 | - | 해소: 판정 J-07(결정적 부분 MVP, 모델 판정·제안 2단계). Helm 정정에 주석 다는 일(§3.10.1)은 결정적이므로 MVP에 포함 |
 | OQ-16-03 | 외부 세션 발췌를 모델 API로 보내는가 | (a) 보내지 않음(특징만) (b) 사용자·어시스턴트 문장 400자까지(도구 출력 제외) | (b), 설정으로 끌 수 있음. 18이 위협 모델에서 다시 본다 |
 | OQ-16-04 | 탐지 문턱 | 세션 3·날짜 2·절감 2만 토큰 또는 사람 조작 3 | 이 값으로 시작, 첫 4주 뒤 `obs.dismiss_coincidence_rate`와 채택률로 사람이 조정 |
 | OQ-16-05 | 부재·복귀 기준 | 부재 4시간, 장기 복귀 24시간 | 그대로. 2주 평가에서 사람이 조정 |
-| OQ-16-06 | 관찰 에이전트 월 예산 | USD 5, 하루 15만 입력 토큰 | 그대로. 01 OQ-06(월 모델 비용 상한)이 정해지면 그 5% 이내로 맞춤 |
+| OQ-16-06 | 관찰 에이전트 월 예산 | USD 5, 하루 15만 입력 토큰 | 그대로. 전체 월 상한은 판정 J-22(설치 때 묻고 기본 USD 50)이므로 그 10%다 |
 | OQ-16-07 | 효과 판정 규칙 | 28일 상대 변화 −20%, 품질 지표 +10% 이내 | 그대로. 표본이 작아 `inconclusive`가 많을 수 있음을 받아들인다 |
 | OQ-16-08 | 정정 어휘 목록의 관리 | (a) 코드 상수 (b) 사람이 고치는 데이터 | (b) 설정 데이터. 관찰 에이전트는 이 목록 수정을 제안하지 않음 |
 | OQ-16-09 | Codex 어댑터 | (a) 형식 지식으로 지금 구현 (b) 실제 파일 확인 뒤 구현 | (b). 인터페이스와 이름표만 지금 둔다 |
 | OQ-16-10 | 자기보고 부담 척도의 라이선스 | NASA-TLX 차원 이름만 쓰기 / 자체 문항 | 차원 이름과 한 줄 설명만 쓰는 자체 문항. 18 또는 사용자가 라이선스 확인 |
 | OQ-16-11 | `view.opened` 수집 범위 | 최소(복귀 요약, 에이전트가 정한 것, 감사 깊이, 결과 확인, 질문 상세) / 전체 화면 이동 | 최소. 화면 이동 전체는 수집하지 않는다(지표에 필요한 것만) |
-| OQ-16-12 | 고아 이의 처리 | (a) 커널이 열린 이의가 있는 대상의 종료를 막음 (b) 종료는 허용하고 파생 이벤트로 남김 | (a)가 불변조건 6에 맞다. 10이 정한다. (b)면 지표가 그 수를 보인다 |
+| OQ-16-12 | 고아 이의 처리 | - | 해소: 10 G-K4~G-K6(종료를 막거나 `objection.resolved(withdrawn)` 파생) |
 | OQ-16-13 | 다른 기기 세션(입력 단계 I3) | Mac 수집기 / 동기화 폴더 / 하지 않음 | 하지 않음(I1 실사용 뒤 판단). 원문 로그를 서버로 옮기는 방식은 쓰지 않는다 |
 | OQ-16-14 | 2주 평가 주기와 시각 | 14일, 09:00 | 그대로. 01 G1과 같은 주기 |
 | OQ-16-15 | 반증 조건 숫자 | §3.25의 [제안] 값 | 첫 14일 기준선 뒤 2주 평가에서 사람이 확정. 창 시작 뒤에는 바꾸지 않음 |
+| OQ-16-17 | 지표 소비자의 지연 상한 | 즉시 처리 / 일정 간격 묶음 | 커밋 알림마다 처리하되 한 번에 500건까지, 밀리면 다음 틱. 화면의 `asOfSeq`로 늦음을 보인다 |
 | OQ-16-16 | 스킬·스크립트를 다른 런타임(Claude Code, pi)에도 배포할지 | 적용 Concern에서 정함 / Helm이 배포 기능을 가짐 | 적용 Concern에서 정함. 배포 기능은 범위 밖(벤더 중립 배포는 이후 런타임 어댑터 단계) |
 
 ## 8. 출처
@@ -2314,13 +2535,14 @@ packages/observer/
 | canon-3 §4 방법 카드 가설, §5 종합 가설, §6.14 UX 가설, §7 I3, §8 16 체크리스트, G6, M10 | §3.10 D12, §3.12.1, §3.26 |
 | v0.3 01 §3.8, 03 §3.4, 05 §5, 06 §4·§7, 07 §2.4·§3, 08 §5·§6, 09 §5·§6, 10 §2~§5 | 전반 |
 | 감사 보고 `docs/v0.3/audit/audit-report.md` §3.2, §6-5 | §3 전반 |
-| 설계 문서 01(§3.5, §3.6.7, §3.8.4~§3.8.5, §3.10), 03(§3.1.3, §3.5), 06(§2.2~§2.3), 10(§3.2, §3.3, §3.4.5, §3.6.2, §3.6.4), 14(§3.5), 19, 21(§3.5.7) | 이름·경계 맞춤 |
+| 설계 문서 2a 판(2026-10-12): 01 §3.5·§3.8.4·§3.10, 03 §3.6, 04 §3.18·§3.27, 05 §5.2, 06 §3.4.11·§3.6.2·§3.10, 08 §3.4.5·§3.5.1·§3.8.1·§3.19, 09 §3.4·§3.7·§3.11.1, 10 §3.2·§3.3·§3.6.2·§3.11.10·§3.12, 11 §3.6.4·§3.8.1·§3.16·§3.19, 12 §3.4.10·§3.14.7·§3.15, 13 §3.5.4·§3.11.2, 14 §3.14.4·§3.20.5, 15 §3.15, 17 §3.1.3, 18 §3.10.4, 19 §3.7, 21 §3.7.3, 조정자 판정 `process/rulings-stage2a.md`, 브리프 §2.4b | 이름·경계 맞춤 |
 
 ### 8.2 외부 사실 확인
 
 | 사실 | 확인 수준 | 위치 |
 |---|---|---|
 | pi 세션 형식(헤더, 항목 종류, 트리, `context_edit`, 컴팩션, 버전 1~3) | [원문] | `~/projects/_ref/pi-src/packages/coding-agent/docs/session-format.md` (커밋 `cdaf6c2`) |
+| pi 기준 판 `v1.1.0`과 참고 판 `cdaf6c2`의 해당 파일 동일 | [원문] | 2026-10-12 `git diff v1.1.0 cdaf6c2 -- packages/coding-agent/docs/session-format.md packages/coding-agent/src/core/session-manager.ts`(변화 없음), `ai/src/types.ts`의 `ToolResultMessage`·`NestedToolCalls`를 `git show v1.1.0:`로 확인 |
 | pi 로드 시 잎 = 마지막 항목 | [원문] | `packages/coding-agent/src/core/session-manager.ts` `_buildIndex` |
 | pi `ToolCall`, `Usage`, `AssistantMessage.durationMs`, `ToolResultMessage.nestedCalls`·`durationMs`, `StopReason` | [원문] | `packages/ai/src/types.ts` |
 | Claude Code 로그 위치·파일 구성·줄별 최상위 키·`type` 값·블록 종류 | [원문, 구조만] | 2026-10-11 이 서버 `~/.claude/projects/` 파일 목록과 `jq 'keys'`, `jq '.type'` 결과. 메시지 본문은 읽지 않았다 |
@@ -2378,7 +2600,7 @@ packages/observer/
 | 발췌3 X3-2-19~20(사람 조작 2회 상한, 2주 지표) | §3.23.3 |
 | 발췌3 X3-6-23(2~4주 범주 지표) | §3.23.6 |
 | 발췌3 X3-8-19~20(관찰 에이전트가 거시 층에서 P 수정안 제안, OPD+C 의무와 지표) | §3.1.2, §3.23.2 |
-| 발췌3 (d) Q4 2주 지표의 수집 위치와 문턱 | §3.22(투영기, 커널 아님), §3.23.3 |
+| 발췌3 (d) Q4 2주 지표의 수집 위치와 문턱 | §3.22(데몬의 지표 소비자, 커널 아님), §3.23.3 |
 | 발췌3 (d) Q21 사람이 없을 때 관찰 실행 주체 | §3.2, §3.3(데몬 스케줄러) |
 | 발췌4 d8(이의가 잦은 종류의 정책 수정 주체) | D10 → `policy` 제안 → 사람 채택(§3.16) |
 | 발췌4 9-16(돌아보기가 복잡을 명확으로) | D8 → `procedure` |
@@ -2390,9 +2612,9 @@ packages/observer/
 
 ### OBS-ADR-1 관찰 에이전트는 데몬이 띄우는 일회성 자식 프로세스로 실행한다
 
-- 상태: 제안
+- 상태: 제안(06 ADR-06-02, 17 D17-15가 같은 내용을 받아들임)
 - 맥락: 대화(L257, L301–321)는 관찰 에이전트를 메인 작업과 분리된 런타임 바깥 실행으로 정했다. v0.3 12 §2는 같은 프로세스 안 task였다(감사 §3.2가 충돌 지적). 브리프 결정 22는 데몬 상주, §2.5는 WSL 메모리 10 GB 상한이다.
-- 결정: 데몬의 감독기가 트리거마다 `@helm/observer`를 `fork`로 띄우고, 작업 하나를 끝내면 내린다. 동시에 하나만 돈다. 비밀 환경 변수를 넘기지 않는다.
+- 결정: 데몬의 감독기가 트리거마다 `@helm/observer`를 `fork`(Node IPC)로, 격리 실행을 켤 때만 일회성 서비스 단위 `systemd-run --user --unit=… --pipe --wait`(표준 입출력 JSON 줄, `--scope` 아님, 판정 J-70)로 띄우고, 작업 하나를 끝내면 내린다. 동시에 하나만 돈다. 비밀 환경 변수를 넘기지 않는다.
 - 근거: 실행 시점을 코드(스케줄러)가 정한다. 신뢰할 수 없는 큰 로그를 다루는 코드가 데몬 메모리와 비밀을 공유하지 않는다. 상주 메모리를 쓰지 않는다.
 - 기각한 대안: 데몬 안 task(장애·메모리 격리 없음, 비밀 공유), 별도 systemd 서비스(수명주기 이중화, 제출은 결국 데몬 경유).
 - 결과: IPC 프로토콜(§3.2.3)이 필요하다. 실행마다 fork 비용(수백 ms)이 든다. 17이 감독기를 구현한다.
@@ -2410,10 +2632,10 @@ packages/observer/
 
 - 상태: 제안
 - 맥락: OPD+C와 2주 지표는 평가 수단이다(대화 L2543–2549). 지표를 커널·런타임에 직접 되먹이면 지표 고착과 Goodhart 효과가 생기고 결정 14(커널이 상태를 바꾼다)의 경로가 늘어난다.
-- 결정: 지표는 `@helm/observer/metrics`의 순수 함수로 투영기에서 계산한다. 지표 값은 커널 판정·다이얼·런타임에 입력되지 않고 작업 에이전트 투영에도 들어가지 않는다. 지표가 동작을 바꾸는 길은 관찰 에이전트 제안과 사람 채택뿐이다.
+- 결정: 지표는 `@helm/observer/metrics`의 순수 함수로 계산하고, 데몬의 커밋 뒤 소비자 `metrics`가 정본과 같은 DB의 지표 테이블을 채운다(09 §3.11.1 6번). 지표 값은 커널 판정·다이얼·런타임에 입력되지 않고 작업 에이전트 투영에도 들어가지 않는다. 지표가 동작을 바꾸는 길은 관찰 에이전트 제안과 사람 채택뿐이다.
 - 근거: 결정성, 재구성 가능성(결정 29), 변경 경로 단일화(결정 14), Goodhart 완화.
 - 기각한 대안: 다이얼 자동 조정(v0.3 10 §4.2 질문 7의 "일부 자동 적용")—사람 확인 없이 정책이 바뀌므로 기각. 관찰 프로세스가 지표를 계산해 저장—쓰기 권한이 필요해 기각.
-- 결과: 투영기가 `observer/metrics`를 import한다(06). 다이얼 조정은 항상 제안을 거친다.
+- 결과: 데몬이 `observer/metrics`를 import한다(06 §3.4.11). 쓰기 트랜잭션은 지표 계산으로 늦어지지 않는다. 다이얼 조정은 항상 제안을 거친다.
 
 ### OBS-ADR-4 반증 측정은 1인 N-of-1 설계이며 채팅 기준선은 외부 세션 로그로 대신한다
 

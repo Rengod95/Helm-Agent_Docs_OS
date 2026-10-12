@@ -1,7 +1,7 @@
 # 18. 보안
 
 - 작성: 2026-10-11, P11(데몬)
-- 상태: 1단계 초안. 06(P3)·12(P7)·16(P10)·19(P12)·20(P13)의 1단계 초안을 읽고 맞췄다. 09(P5), 11(P6), 13(P7)은 이 문서를 쓰는 동안 아직 없었다. 그 문서가 소유하는 이름은 임시로 쓰고 §5.2에 요구로 적었다.
+- 상태: 2a단계 통합판(2026-10-12). 브리프 결정 42·44~46과 조정자 판정(J-17 등)을 반영하고 01~16·19~21의 요구를 처리했다. 모바일 문서 26은 아직 없어 §3.18을 요구로 남겼다. 1단계 초안 머리말: 06(P3)·12(P7)·16(P10)·19(P12)·20(P13)의 1단계 초안을 읽고 맞췄다. 09(P5), 11(P6), 13(P7)은 이 문서를 쓰는 동안 아직 없었다. 그 문서가 소유하는 이름은 임시로 쓰고 §5.2에 요구로 적었다.
 - 소유: 위협 모델, 리스너별 연결 정책, 주체(principal)와 권한, 인증(Tailscale 신원 + whois + 기기 토큰, SSH 경로, 로컬), 기기 페어링 규칙, 토큰 형식·수명·회전·폐기·저장, 비밀 저장·주입 정책과 마스킹, 도구 실행 격리의 보안 요구(13과 맞춤), 보호 경로, 감사 기록, 속도·크기 한도의 보안 상한, 공급망, 백업·복구의 보안 조건, 보안 테스트 목록.
 - 소유하지 않음: 핸드셰이크 메시지 형식·오류 코드·메서드 이름(19), 리스너 주소·소켓 경로·데몬 수명주기·비밀 로딩 절차(17), 격리 수단의 구현과 도구 목록·범위 검사 알고리즘(13), 키체인 사용과 SSH 실행(20), 이벤트 이름 카탈로그와 해시 체인 형식(09), 권리 게이트의 묻기 흐름(11).
 - 출처 표기는 17과 같다. "[실험 N]"은 `17-daemon-and-operations.md` §2.2 표의 N번 행이다.
@@ -56,6 +56,10 @@
 | 35 | 관찰 에이전트가 외부 에이전트 세션 로그를 읽는다. 신뢰할 수 없는 입력이다 |
 | 38 | 데스크톱 앱은 SSH로도 붙는다. SSH 경로의 인증을 이 문서가 정한다 |
 | §2.5 | 비밀은 SOPS 원본 하나와 `secrets` 진입점. 서버에 별도 비밀 저장소를 두지 않는다. 클라이언트 기기는 OS 키체인 |
+| 42 | 휴대폰에서도 질문에 답한다. 모바일 기기의 페어링·토큰·분실·푸시 요구는 §3.18(구체 방식은 26) |
+| 44 | pi 기준 태그 `v1.1.0`(커밋 `abe508e1`), Node 24, TS 6.0 |
+| 45 | 데몬 비밀은 시작 단계의 `secrets run` 자식 로더로 받아 메모리에만(ADR-17-3) |
+| 46 | 루프백 바인딩은 격리 경계가 아니다(D18-04, §3.4) |
 
 ### 2.2 확인한 사실
 
@@ -150,8 +154,9 @@
 | T-H2 | 같은 호스트의 WSL 프로세스, 같은 uid(다른 에이전트 세션, 사용자 스크립트) | 전부 | 막지 않는다(D18-04, A18-4). 감사로 흔적을 남기고(로컬 관리자 명령도 기록), 체인 기준점(§3.13.3)으로 사후 변조를 감지 | 같은 uid는 DB·코드를 바꿀 수 있다 |
 | T-H3 | 같은 uid가 데몬 프로세스를 조작(SIGUSR1 inspector, ptrace) | AS-KEY | `--disable-sigusr1`(17 §3.1.2), `ptrace_scope=1`(부모만 ptrace) [실험], `NODE_OPTIONS` 비움 | `/proc/<pid>/mem` 등 같은 uid 공격은 남는다(T-H2와 같음) |
 | T-H4 | 다른 uid·root | 전부 | 범위 밖 | - |
-| T-L1 | 도난·분실 노트북(앱이 설치된 Mac·Windows) | AS-TOK, AS-DEC | 토큰은 OS 키체인(잠금 시 보호), 노드 묶기(그 노트북의 Tailscale을 함께 써야 함), 다른 기기나 서버에서 즉시 폐기(`helm devices revoke`), SSH 키는 사용자가 별도 폐기 | 잠기지 않은 상태로 도난되면 폐기 전까지 조작 가능 |
+| T-L1 | 도난·분실 노트북(앱이 설치된 Mac·Windows) | AS-TOK, AS-DEC | 토큰은 OS 키체인(잠금 시 보호), 노드 묶기(그 노트북의 Tailscale을 함께 써야 함), 다른 기기나 서버에서 즉시 폐기(`helm device revoke`), SSH 키는 사용자가 별도 폐기 | 잠기지 않은 상태로 도난되면 폐기 전까지 조작 가능 |
 | T-P1 | 프롬프트 주입: 웹·도구 출력·이슈 본문·외부 세션 로그의 문장 | AS-DEC, AS-WS, AS-KEY | 모델은 결정 권한이 없다(결정 14). 쓰기·보내기는 합의 필요(결정 15). 도구는 격리. 관찰 제안은 사람 채택만(§3.12) | 모델이 합의 범위 안에서 잘못된 쓰기를 하는 것은 작업 품질 문제로 남는다(A 루프·검증) |
+| T-P2 | 외부 에이전트 세션 로그(관찰 입력, 결정 35): 제3자가 쓴 내용(이슈·웹 발췌), 사용자 다른 작업의 비밀, 주입 문장 | AS-EXT, AS-KEY, 관찰 제안의 오염 | 관찰 자식은 비밀이 없고(16 OB-3) 쓰기 권한이 없다(16 OB-2). 정규화 단계 마스킹(16 §3.8, 공통 규칙 §3.10.4)과 엔트로피 검사, 지시문 의심 표시(16 §3.9.3). 모델로 보내는 외부 발췌는 `sendExternalExcerpts`(기본 true)일 때 사람·에이전트 문장만, 도구 출력 제외(16 §3.5.3). 제안 적용은 사람 채택 + 일반 작업 경로. 허용 폴더 밖 세션은 읽지 않는다(J-08) | 마스킹이 놓친 비밀이 모델 공급자로 갈 수 있다 → 프로젝트별로 `sendExternalExcerpts=false`를 고를 수 있게 한다(16 설정) |
 | T-M1 | 모델이 실행하는 도구(bash 등) | AS-OTHER, AS-KEY, AS-DB, AS-DEC | 샌드박스: 보호 경로 숨김, 소켓 숨김, 비밀 없는 환경, PID 분리, interop 차단, 네트워크 기본 차단(§3.11) | 네트워크를 허용한 실행은 같은 호스트의 루프백 서비스에 접근할 수 있다(T-M5). PID 네임스페이스가 없는 1차 구성에서는 같은 uid 프로세스(데몬 포함)에 신호를 보낼 수 있다(서비스 거부. 재시작·복구가 받는다) |
 | T-M2 | 도구가 Windows 실행 파일을 실행(WSL interop)해 샌드박스 밖으로 나감 | 전부(Windows 사용자 권한) | `/run/WSL` 숨김 → interop 실패 [실험 22], `WSL_INTEROP` 환경 제거, `/mnt/c` 등 바인딩 안 함 | - |
 | T-M3 | 도구가 `helm` CLI나 소켓으로 사람 결정을 위조 | AS-DEC | 소켓 디렉터리 숨김, 토큰은 서버에 없음(로컬 TUI·CLI는 토큰 없이 소켓 권한으로 인정) | 격리를 끈 설정에서는 막지 못한다 → 격리 없으면 실행 도구를 끈다(D18-05) |
@@ -220,7 +225,7 @@ preflight(req, listener):
      host ∈ { cfg.listeners.tailnet.publicHost }              # "server.tail7ad0b4.ts.net:8448"
   if listener == loopback:
      host ∈ { "127.0.0.1:7841", "localhost:7841" }
-  else → 421 Misdirected Request (DNS rebinding 방어, S4 paseo §4)
+  else → 403 (DNS rebinding 방어, S4 paseo §4. 19 §3.2: Host·Origin 불일치는 403)
   if req.headers.origin 있음:                                  # 브라우저에서 온 요청
      origin ∈ cfg.auth.allowedOrigins                          # 기본 [] : 데스크톱 앱은 Origin을 보내지 않는다(20 §3.8.5)
      아니면 403
@@ -232,6 +237,17 @@ preflight(req, listener):
 
 - 토큰 판정을 `hello`에서 하는 것은 19 P-03의 순서다. 업그레이드 단계에서 토큰 헤더가 **있는지**만 보고, 형식이 틀리면(접두사·길이) 401로 바로 끊는다. 해시 조회와 폐기 확인은 `hello`에서 한다.
 - `localAdmin`은 `local` 리스너의 `hello`에서만 인정한다. 다른 리스너에서 `localAdmin`을 주장하면 19 `1008 auth.methodNotAllowed`, 감사 기록 `auth.denied { reason: "method_not_allowed" }`.
+
+#### 3.4.4 19 `SecurityForProtocol` 구현 [제안]
+
+19 §3.15가 요구한 인터페이스를 이 절의 규칙으로 채운다.
+
+| 함수 | 구현 | 비고 |
+|---|---|---|
+| `checkTransport(req, listener)` | §3.4.3 `preflight` + `tailnet`이면 §3.6.1 `tailscaleIngress`. 실패: Host·Origin 403, 신원·헤더 없음 401, 한도 429 | 반환에 `tailnetNodeId`를 더해 달라고 19에 요구(노드 묶기, D18-02) |
+| `verifyDevice(a)` | §3.6.1 `helloDeviceAuth`. 토큰 없음·형식 틀림·해시 불일치 1004, 모르는 기기 1006, 폐기·만료 1005(`details.reason`: `revoked` \| `expired_absolute` \| `expired_idle`), 기기 ID·노드·방식 불일치 1008(`details.reason`: `device_mismatch` \| `node_mismatch` \| `method_not_allowed`), 서명 nonce·시각 불일치 1007 | scope는 §3.5 표 |
+| `redactEvent(e, conn)` | 09 `EVENT_META.sensitiveFields`(`tokenHash`, `newTokenHash`, `codeHash` 등)를 모든 연결의 사본에서 지우고 이름을 envelope `redactions`에 적는다(09 §3.2 규칙 10). 기기 주체도 예외 없음 | 원본 해시 계산은 저장본으로 |
+| `proofRequired(listener)` | 1차 `false`. 기기별 `proofRequired`가 켜진 기기면 `true`(§3.8.5) | 모바일(§3.18) |
 
 ### 3.5 주체와 권한
 
@@ -255,6 +271,8 @@ export type Principal =
 1. 사람 결정 명령은 `device`나 `localAdmin` 연결에서 온 것만 행위자 `human`이 된다. 행위자는 서버가 연결에서 채운다. 클라이언트가 보낸 행위자 값은 받지 않는다(19 §3.7.5와 같다).
 2. 모델 도구 경로(런타임)에는 사람 결정 명령이 없다(결정 14, 19 §2.1).
 3. 모든 사람 결정 이벤트는 출처 `{ principalKind, deviceId?, listener, connectionId }`를 담는다(감사, §3.13).
+4. 08 `Via`의 `local_cli`(10의 `human_client` 채널) 인정 조건: (a) 연결이 `local` 리스너(`rpc.sock`)로 들어왔고, (b) 소켓 디렉터리 0700·소켓 0600·소유자 = 데몬 uid가 시작 때 확인되었고(아니면 데몬이 뜨지 않는다), (c) `hello.auth.method = "localAdmin"`이다. `uid`에는 데몬 자신의 uid를 적는다(Node가 피어 uid를 주지 않으므로 파일 권한이 근거다, 08 §3.3.2). 도구 샌드박스가 이 소켓을 가리는 것이 전제다(R-3). 격리가 없는 S0 운영에서는 이 전제가 깨지므로 상태 `sandbox` critical과 화면 경고로 알린다(06 §3.7.4 4번에 대한 답).
+5. `pairing.code_created`, `device.revoked`의 사람 행위자는 `local_cli` 또는 `active` 기기, `device.paired`는 같은 트랜잭션의 코드 소비(행위자 `runtime`) 또는 SSH 발급(`local_cli`)이다(08 R-45와 같다).
 
 ### 3.6 인증
 
@@ -399,15 +417,15 @@ export interface PairingCodeRecord {
 
 - 1차: 자동 회전을 하지 않는다(20 §3.8.7: 데스크톱 1차는 회전하지 않음. happy-agent도 같다, 사례 §12.1-7). 대신 절대 수명 365일과 유휴 만료로 묶는다.
 - 2차(20이 `credential_rotate`를 구현하면): HTTP `POST /devices/self/rotate`(현재 토큰 헤더로 인증, `tailnet`·`loopback` 리스너). 서버는 새 토큰을 발급하고 이전 해시를 `prevTokenHash`로 옮겨 **5분 또는 새 토큰의 첫 사용 중 먼저 오는 때까지** 함께 받는다(키체인 쓰기 전에 앱이 죽는 경우 대비). 응답은 `no-store`. 기록 `device.token_rotated { deviceId, oldTokenId, newTokenId }`. 19 `device.rotateToken`(JSON-RPC 결과로 토큰을 돌려줌)은 데스크톱에서 쓰지 않는다(웹뷰를 거치므로, 20). TUI·CLI는 토큰을 쓰지 않으므로 이 메서드가 필요 없다. 19에 `device.rotateToken`을 HTTP 경로로 바꾸도록 요구한다(§5.2).
-- 강제 회전: `helm devices expire-tokens <dv_id>`는 그 기기의 `expiresAt`을 지금으로 바꾼다. 1차에서는 다시 페어링하게 된다.
+- 강제 회전: `helm device expire-tokens <dv_id>`는 그 기기의 `expiresAt`을 지금으로 바꾼다. 1차에서는 다시 페어링하게 된다.
 
 #### 3.8.4 폐기
 
-- 누가: 로컬 관리자(`helm devices revoke`), 다른 기기 또는 자기 자신(`device.revoke`, scope `devices`).
+- 누가: 로컬 관리자(`helm device revoke`), 다른 기기 또는 자기 자신(`device.revoke`, scope `devices`).
 - 즉시 효과: 같은 트랜잭션에서 `revokedAt` 기록 → 데몬이 그 기기의 열린 연결을 모두 닫는다(19 §3.4.7: `connection.closing{kind:"auth.revoked"}` 후 4009) → 그 기기에 발급된 다운로드 티켓 무효 → 그 기기가 만든 유효 페어링 코드 무효.
 - 기록: `device.revoked { deviceId, by: principal, reason }`.
 - 폐기 목록은 DB에 있고, 복구 때 병합한다(§3.16).
-- 도난 대응 절차(runbook): (1) 다른 기기 또는 서버 셸에서 `helm devices revoke <dv_id> --reason stolen` (2) Tailscale 관리 콘솔에서 그 기기 제거(홈랩) (3) 그 기기의 SSH 키를 서버 `~/.ssh/authorized_keys`에서 지움 (4) `helm audit --device <dv_id> --since <마지막 정상 사용>`으로 그 사이 결정 확인 (5) 의심되는 사람 결정에 이의를 건다(결정 8, 11).
+- 도난 대응 절차(runbook): (1) 다른 기기 또는 서버 셸에서 `helm device revoke <dv_id> --reason stolen` (2) Tailscale 관리 콘솔에서 그 기기 제거(홈랩) (3) 그 기기의 SSH 키를 서버 `~/.ssh/authorized_keys`에서 지움 (4) `helm audit --device <dv_id> --since <마지막 정상 사용>`으로 그 사이 결정 확인 (5) 의심되는 사람 결정에 이의를 건다(결정 8, 11).
 
 #### 3.8.5 기기 키 서명(1차 꺼짐) [제안]
 
@@ -438,7 +456,8 @@ export interface PairingCodeRecord {
 | 페어링 코드 | (생성) | 화면·QR·클립보드(짧게) | 사람 |
 | 홈랩 비밀(restic 등) | 홈랩 SOPS | Helm은 쓰지 않는다 | 홈랩 |
 
-- 서버에 Helm 전용 비밀 저장소를 만들지 않는다(브리프 §2.5). 데몬은 SOPS 원본에서 `secrets run`으로 받아 메모리에만 둔다(17 §3.8, ADR-17-3).
+- 서버에 Helm 전용 비밀 저장소를 만들지 않는다(브리프 §2.5). 데몬은 SOPS 원본에서 `secrets run`으로 받아 메모리에만 둔다(브리프 결정 45, 17 §3.8, ADR-17-3).
+- Anthropic OAuth 토큰(`ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_OAUTH_TOKEN`, 값에 `sk-ant-oat` 포함)은 데몬 비밀로 쓰지 않는다. `.env.example`에 두지 않고, 비밀 로더가 이 이름이나 이 형식의 값을 받으면 버리고 경고한다. pi-ai는 OAuth 토큰을 키로 쓰면 요청 앞에 다른 제품의 신원 문구를 붙인다(07 E24). 마스킹 패턴에 `sk-ant-oat`를 포함한다. 데몬은 SOPS 원본에서 `secrets run`으로 받아 메모리에만 둔다(17 §3.8, ADR-17-3).
 - `SecretStore` 규칙: 값은 `Map<string, string>`에 두고 접근은 이름으로만. `toJSON`·`inspect`·로그 직렬화를 막는다(`[Symbol.for("nodejs.util.inspect.custom")]`이 `"[SecretStore n keys]"`를 돌려줌). 모든 값을 마스킹기에 등록한다.
 
 #### 3.10.2 도구 프로세스에 비밀을 주지 않는다
@@ -477,7 +496,7 @@ export interface Redactor {
 3. 키-값 문맥: `(api[_-]?key|secret|token|password|passwd|authorization)\s*[:=]\s*['"]?([^\s'"]{12,})` → 값 부분만 지움.
 4. 엔트로피 검사는 16 §3.8.3(관찰 입력)에만 쓰고 도구 출력에는 쓰지 않는다(코드 해시·UUID를 지나치게 지운다).
 
-- 지운 결과는 이벤트 payload에 `redactions: RedactionHit[]`로 남긴다(무엇이 지워졌는지 사람이 알 수 있게, 값은 없음).
+- 지운 결과는 도구 결과의 `details.redactions`(13 §3.6.4)와 해당 이벤트 payload의 `maskedSecrets: RedactionHit[]`로 남긴다(무엇이 지워졌는지 사람이 알 수 있게, 값은 없음). envelope의 `redactions`(09 §3.2 규칙 10: 재전송 사본에서 지운 민감 필드 이름)와는 다른 것이다.
 - 원문은 보관하지 않는다. 정본에는 지운 텍스트만 있다. 사람이 원문이 필요하면 원래 파일·명령을 다시 본다.
 
 #### 3.10.5 정본 HMAC 키 [제안]
@@ -504,7 +523,7 @@ export interface Redactor {
 | ID | 요구 |
 |---|---|
 | R-1 | 모든 `execute` 원시 행동(bash, 테스트 실행 등)과 MCP stdio 서버, codemode가 부르는 실행 도구는 샌드박스 안에서 돈다 |
-| R-2 | 환경 변수는 허용 목록만: `PATH`(mise shims, 도구 체인), `HOME`, `USER`, `LANG`, `LC_*`, `TERM=dumb`, `TZ`, `TMPDIR`, 그리고 합의가 명시한 변수. `WSL_INTEROP`, `WSL_DISTRO_NAME`, `SSH_AUTH_SOCK`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `NODE_OPTIONS`, `HELM_*`, `SOPS_*`는 넘기지 않는다 |
+| R-2 | 환경 변수는 허용 목록만(조정자 판정 J-17: 목록은 18이 정한다. 07 `buildShellEnv`, 13 §3.6.4가 이 목록을 쓴다): `PATH`(도구 체인 경로만), `HOME`(샌드박스 홈, 13 §3.6.2), `USER`, `LANG=C.UTF-8`, `LC_ALL`, `TZ`, `TERM=dumb`, `NO_COLOR=1`, `CI=1`, `TMPDIR`, `HELM_RUN_ID`, `HELM_TOOL_CALL_ID`(비밀 아닌 상관 ID. `HELM_*` 중 이 둘만 허용), 합의가 명시한 이름. 합의로도 줄 수 없는 이름: 패턴 `*_TOKEN`, `*_KEY`, `*_SECRET`, `*_PASSWORD`, `*_API_KEY`, `SOPS_*`, `AWS_*`, `HELM_*`(위 둘 제외), `ANTHROPIC_*`, `OPENAI_*`, `GEMINI_*`, `OPENROUTER_*`, `SSH_AUTH_SOCK`, `WSL_INTEROP`, `WSL_DISTRO_NAME`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `NODE_OPTIONS`. 관찰 자식(16 §3.2.1)의 허용 목록은 `PATH`, `HOME`, `TZ`, `NODE_ENV`, `HELM_OBSERVER_*`(비밀 아닌 실행 설정만) |
 | R-3 | 숨기는 경로(접근 거부): §3.11.5의 보호 경로 전부, `/run/user/<uid>`(데몬 소켓과 사용자 버스), `/run/WSL`(interop), `/mnt`(Windows 드라이브) |
 | R-4 | 쓰기 허용 경로: 합의 범위의 작업 공간과 실행별 임시 디렉터리만. 그 밖은 읽기 전용(`ProtectSystem=strict`, `ProtectHome=read-only` + `ReadWritePaths=<범위>`) |
 | R-5 | 프로세스 분리: 도구는 데몬의 메모리·환경을 읽을 수 없어야 한다(필수). 일회성 단위의 `PrivateUsers=yes`로 다른 프로세스의 `/proc/<pid>/environ` 읽기가 거부된다 [실험, 아래]. 데몬에 신호를 보낼 수 없게 하는 것(PID 네임스페이스)은 권장이다. `PrivateUsers`만으로는 같은 uid 프로세스에 신호를 보낼 수 있고 `ProtectProc=invisible`도 같은 uid 프로세스를 숨기지 않는다 [실험]. 남는 위험은 도구가 `helmd`를 죽이는 것(서비스 거부)이고, 재시작·복구·크래시 루프 차단이 받는다 |
@@ -582,21 +601,42 @@ systemd-run --user --quiet --pipe --wait --collect \
 
 #### 3.11.6 권한 레이어의 고정 기준선 [제안]
 
-effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔다. 판정 결과 형식은 v0.3 12 §10의 `PermissionLayer.classify → { verdict: "allow" | "needs-human" | "deny", reason, rightsGate? }`(13이 확정).
+effect class를 쓰지 않는다(결정 2). 권한 레이어(13 §3.10 `PermissionLayer.classify`)는 아래 고정 규칙을 먼저 적용하고, 남은 행동에 13의 범위 검사와 합의를 적용한다. 결과 형식은 08 §3.18 `PermissionVerdict`(`decision: allow | deny | ask`, `rightsGate`, `rightsCategories`, `reversibility`, `mutating`, `reasonCode`)다. 권리 범주 이름은 11 `RightsCategory`를 쓴다. 이 표가 13 §3.10의 "1차 기본 규칙" 표를 대체한다(13 §5.2 요구).
 
-| 규칙 | 판정 | 근거 |
-|---|---|---|
-| 보호 경로 쓰기 | `deny` | 경계 C 유지 |
-| 보호 경로 읽기(모델 컨텍스트로 가져옴) | `needs-human`, `rightsGate: true` | 정보가 모델 공급자로 나간다(D18-09, d3) |
-| `send` 원시 행동(메일, 메시지, 원격 push, 외부 API 쓰기) | 합의 없으면 `deny`(결정 15), 합의 있어도 `needs-human`(1차) | 정보가 밖으로 나가고 되돌릴 수 없다(d3, b1) |
-| 네트워크 사용 실행 | 합의에 `network`가 있을 때만 `allow`, 아니면 `needs-human` | T-M5 |
-| `sudo`, `su`, `pkexec`, `systemctl --user`(다른 단위 조작), `crontab`, `loginctl` | `deny` | 경계 밖 지속 효과 |
-| `secrets run`·`sops -d`·`secrets edit` | `needs-human` | 비밀 노출 |
-| Windows 실행 파일 경로(`*.exe`) | `deny` | T-M2 |
-| 그 밖 | 13의 범위 검사와 합의 | - |
+| 행동 | decision | rightsGate / rightsCategories | reasonCode | 근거 |
+|---|---|---|---|---|
+| 보호 경로(§3.11.5) 쓰기 | `deny` | - | `protected_path.write` | 경계 C |
+| 보호 경로 읽기(모델 컨텍스트로 가져옴) | `ask` | true / `disclose_data` | `protected_path.read` | 정보가 모델 공급자로 나간다(D18-09, 발췌4 d3) |
+| `send` 원시 행동(메일, 메시지, 원격 push, 외부 API 쓰기, 패키지 배포) | 합의 없으면 `deny`(결정 15, 커널이 막음), 합의 있으면 `ask`(1차) | true / `speak_for_user`, 대상이 다른 사람이면 `affect_others`, 돈이 들면 `spend_money` | `send.requires_human` | 01 NFR-S-7, 발췌4 b1 |
+| 네트워크가 있는 실행(13 `network: 'any'`) | 합의에 `net:` 부여가 있으면 `allow`, 없으면 `ask` | 부여가 없을 때 true / `disclose_data`. 명령에 `git push`, `npm publish`, `curl -X POST\|PUT\|DELETE`, `scp`, `rsync … :`, `ssh` 형태가 보이면 `speak_for_user`를 더한다(질문을 늘리는 쪽으로만 쓴다, 13 §3.10) | `network.ungranted` | T-M5. 작업 공간 내용이 밖으로 나갈 수 있다 |
+| `sudo`, `su`, `pkexec`, `doas`, `systemctl`, `loginctl`, `crontab`, `at` | `deny` | - | `privilege_or_persistence` | 경계 밖 지속 효과 |
+| `secrets run`, `sops -d`, `secrets edit`, `secrets dotenv` | `ask` | true / `disclose_data` | `secrets.access` | 비밀 노출 |
+| Windows 실행 파일(`*.exe`, `/mnt/**`, `cmd.exe`, `powershell.exe`, `wsl.exe`) | `deny` | - | `windows_interop` | T-M2 |
+| 결과가 불명한 외부 효과 호출의 해소(12 §3.7.4) | - | true / `irreversible_external` | - | 조정자 판정 J-05: 외부 효과가 있을 수 있으면 권리 게이트 |
+| 그 밖 | 13 범위 검사와 합의 | - | - | - |
 
-- `needs-human`이면 권한 레이어는 질문을 만들지 않고 판정만 돌려준다. 묻기는 11이 한다(d1에 대한 답, §2.4).
-- 이 규칙은 모드·다이얼로 끌 수 없다(불변조건과 같은 층). 사람이 합의에서 경로·명령을 명시하면 그 합의 범위에서만 `allow`로 바뀐다.
+- `disclose_data`는 고정 권리 범주다(10 §5.2, 11 §5.2 요구에 대한 답). 정보가 Helm·작업 공간 밖으로 나가는 행동(보호 경로를 모델에 넣기, 허가 없는 네트워크, 비밀 접근)은 다이얼과 무관하게 권리 게이트다.
+- 권한 레이어는 질문을 만들지 않고 판정만 돌려준다. 묻기는 11이 한다(발췌4 d1에 대한 답, 11 §5.2 요구 행).
+- 이 규칙은 모드·다이얼로 끌 수 없다(불변조건과 같은 층). 사람이 합의에서 경로·명령·네트워크를 명시하면 그 합의 범위에서만 `allow`로 바뀐다(보호 경로 쓰기, 권한 상승, Windows 실행은 합의로도 바뀌지 않는다).
+- `argsPreview`(13 §3.10, 11 §3.2): 사람에게 보이는 인자 미리보기는 마스킹기(§3.10.4)를 거친다. 보호 경로의 내용은 미리보기에 넣지 않고 경로만 보인다.
+
+#### 3.11.7 허용 폴더(프로젝트 루트) 등록 [제안]
+
+02 UC-11 8단계의 "허용 폴더 지정"은 도구 쓰기 범위의 바깥 경계를 넓히는 일이다(08 프로젝트 `rootPaths`, 06 설정 `projects.roots`).
+
+1. 등록·변경은 사람 결정 명령으로만 한다(`human_client`, via `device`·`local_cli`). 모델 도구에는 이 명령이 없다(결정 14, 10 `authority_expansion` 권리 범주).
+2. 경로는 `realpath`로 고정한 뒤 검사한다: 설정 `projects.roots`(기본 `~/projects`) 아래여야 하고, `/`, `~`, `~/projects` 자체, 보호 경로(§3.11.5)를 포함하거나 그 아래이면 거부한다. 심볼릭 링크로 바깥을 가리키면 거부한다.
+3. 등록 이벤트에 등록한 기기와 경로를 남긴다(감사, §3.13).
+4. 외부 세션 로그 관찰(16, 결정 35)도 이 허용 폴더를 cwd로 하는 세션만 읽는다(조정자 판정 J-08).
+
+#### 3.11.8 데몬이 직접 하는 네트워크 요청(`web_fetch` 등) [제안]
+
+`web_fetch`(15 §5.2 요구)처럼 샌드박스 밖 데몬 프로세스가 직접 하는 HTTP 요청은 루프백 서비스에 접근할 수 있다(홈랩 Caddy 관리 API 2019가 무인증 [실험], 17 H-5). 그래서 다음을 지킨다.
+
+1. 주소 차단(SSRF 방지): 이름 해석 뒤의 IP가 `127.0.0.0/8`, `::1`, `0.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`(tailnet), `fd7a:115c:a1e0::/48`(tailnet), `fc00::/7`, `fe80::/10`이면 거부한다. 리디렉션마다 다시 검사한다. 이름 해석과 연결 사이에 주소가 바뀌지 않게 해석한 IP로 직접 연결한다.
+2. 방법은 `GET`·`HEAD`만, 쿠키·인증 헤더를 보내지 않는다. 크기 상한 10 MiB, 시간 상한 30초.
+3. 가져온 내용은 신뢰하지 않는 자료다(§3.12). 출처 URL과 함께 관찰로 기록하고 경계 표식으로 감싼다.
+4. URL에 작업 공간 내용이 실려 나가는 것은 막을 수 없다. 모델이 만든 URL의 질의 문자열이 2 KiB를 넘거나 비밀 패턴(§3.10.4)과 맞으면 `ask`(`disclose_data`)로 바꾼다.
 
 ### 3.12 프롬프트 주입 대응 [제안]
 
@@ -615,11 +655,18 @@ effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔�
 2. 투영에 들어가는 신뢰하지 않는 내용은 경계 표식으로 감싸고, 그 안의 "이전 지시를 무시하라" 류 문장을 16 §3.9.3과 같은 규칙으로 표시한다. 표시는 차단이 아니라 모델과 사람에게 보이는 표지다.
 3. 사람에게 보이는 승인 화면(합의 카드 등)은 모델이 쓴 요약이 아니라 커널이 가진 구조화된 값(경로, 명령, 네트워크 여부)을 보인다. 요약은 보조로만(04·21에 요구).
 
+추가 규칙(16 §5.2 요구):
+
+4. 관찰 입력의 신뢰 등급과 마스킹은 16 §3.8·§3.9가 집행하고, 규칙 표는 §3.10.4와 한 곳을 쓴다(06이 위치를 정한다. 제안: `@helm/domain`의 I/O 없는 `security/masking-rules.ts`). 16의 규칙 목록(MK)과 18의 패턴이 다르면 합집합을 쓴다.
+5. 복귀 점검의 기대 답(`/srv/volumes/helm/private/resumption-checks/`, 16 §3.24)은 0700/0600이고, 도구 샌드박스와 관찰 자식에게 보이지 않으며(R-3, 17 §3.1.3), 이벤트·뷰 응답·운영 로그·진단 묶음에 나오지 않는다(이벤트에는 해시만). 백업에는 들어간다(17 §3.2.2).
+6. 관찰 캐시의 소금 파일(`observer/salt`, 16 §3.8.4)은 0600이다. 비밀이 아니라 마스킹 토큰의 일관성을 위한 값이므로 SOPS에 두지 않는다. 백업하지 않는다(지워지면 캐시를 다시 만든다).
+7. 데몬이 클라이언트에 보내는 텍스트(모델 출력, 도구 출력, 외부 내용)는 클라이언트에서 신뢰하지 않는 자료로 그린다: 원시 HTML 금지, 링크 스킴은 `https:`와 `helm:`만, `file:`·`javascript:`·`data:` 금지, 이미지는 `helm-blob` 경로로만, 외부 링크는 전체 URL을 보이고 시스템 브라우저로 연다(20 §5.2 (7), 21에 요구).
+
 ### 3.13 감사 기록
 
 #### 3.13.1 무엇을 남기나 [제안]
 
-정본 이벤트로 남긴다(별도 감사 파일 없음, D18-10). 이름은 09가 확정한다.
+정본 이벤트로 남긴다(별도 감사 파일 없음, D18-10). 아래 이름은 09 §3.4 카탈로그와 같다.
 
 | 이벤트 | 내용(값 없는 필드만) |
 |---|---|
@@ -629,7 +676,9 @@ effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔�
 | `device.revoked` | `deviceId`, `by`, `reason` |
 | `device.expired` | `deviceId`, `kind: "absolute" \| "idle"` |
 | `device.connected` / `device.disconnected` | `deviceId`, `listener`, `connectionId`, 마스킹한 출처 IP. 같은 기기의 1분 안 재접속은 묶음 |
-| `pairing.code_created` / `pairing.code_consumed` / `pairing.code_failed` | §3.7.2 |
+| `pairing.code_created` / `pairing.code_consumed` / `pairing.code_failed` / `pairing.code_expired` / `pairing.code_cancelled` | §3.7.2 |
+| `device.renamed` | `deviceId`, 이전·새 이름 |
+| `integrity.verified` / `integrity.recovered` / `ledger.hmac_key_rotated` | 09 §3.10 |
 | `auth.denied` | 출처별 5분 묶음: `{ listener, source, reasons: Record<reason, count>, firstAt, lastAt }` |
 | `auth.policy_relaxed` | whois 실패 허용, 격리 끔 등 보안 설정 완화 |
 | `tools.sandbox_disabled` / `tools.sandbox_enabled` | 사유 |
@@ -647,7 +696,7 @@ effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔�
 #### 3.13.3 체인 재작성 감지
 
 같은 uid는 DB를 고치고 해시 체인을 다시 계산할 수 있다(T-H2). 외부 기준점으로 감지한다.
-- 백업 매니페스트(17 §3.9.2)마다 `(lastSeq, lastEventHash)`가 있다. restic이 이 매니페스트의 이력을 오프사이트에 보관한다.
+- 백업 매니페스트(09 §3.14.1, 17 §3.9.2)마다 `(upToSeq, headHash)`와 HMAC 헤드 체크포인트가 있다. restic이 이 매니페스트의 이력을 오프사이트에 보관한다.
 - `helm ops verify --anchors`(17 §3.9.5)와 매월 훈련이 현재 체인의 같은 seq 해시와 로컬 매니페스트 값을 비교한다. 다르면 `integrity_suspect`(읽기 전용 모드, 17 §3.4.1).
 - 오프사이트 매니페스트와의 비교는 사람이 분기 훈련 때 한다(17 Q17-05).
 
@@ -676,7 +725,7 @@ effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔�
 
 | 대상 | 규칙 |
 |---|---|
-| pi 포크(`vendor/`) | 기준 커밋 `cdaf6c2`(07). 가져온 파일마다 원 경로·커밋 기록, LICENSE 고지(facts-2 §1.2). 갱신은 사람이 diff를 검토한 커밋으로만. 포크 재동기화 후 export 표면 무결성 테스트(사례 §12.1-10, pi-web `piSdkIntegrity.test.ts`) |
+| pi 포크(`vendor/`) | 기준 태그 `v1.1.0`(커밋 `abe508e1`, npm 1.1.0과 같음, 브리프 결정 44, 07 §3.1). 가져온 파일마다 원 경로·커밋 기록, LICENSE 고지(facts-2 §1.2). 갱신은 07 §3.18.4 업그레이드 체크리스트로만 하고, 사람이 diff를 검토한 커밋으로만 들어온다. 포크 재동기화 후 export 표면 무결성 테스트(07 §3.19.1 I1, 사례 §12.1-10) |
 | npm 의존 | 정확한 버전(`^` 없음), `pnpm-lock.yaml` 커밋, `pnpm install --frozen-lockfile`. pi 패키지끼리의 `^1.1.0` 범위는 `overrides`로 한 버전에 묶는다(facts-2 §13 공통) |
 | 설치 스크립트 | pnpm의 빌드 스크립트 허용 목록(`onlyBuiltDependencies`)에 `better-sqlite3`(과 07이 정한 최소 목록)만. 서버 pnpm 11.21 [실험 7] |
 | 실행 중 내려받기 | 금지. coding-agent `tools-manager`의 rg/fd 자동 내려받기를 제거하거나 `PI_OFFLINE=1`(facts-1 §0-7, 07). 데몬은 실행 중 npm·바이너리를 받지 않는다 |
@@ -696,6 +745,46 @@ effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔�
   4. `store.restored`에 위 처리 결과(`devicesMerged`, `devicesInvalidated`)를 남긴다.
 - 진단 묶음(17 §3.11.6)과 경보 상태 파일에는 토큰 해시도 넣지 않는다.
 
+### 3.18 모바일 클라이언트 [결정 42 / 세부 제안, 26과 맞출 것]
+
+브리프 결정 42는 휴대폰에서 질문에 답할 수 있게 한다. 구현 방식과 알림 경로는 26(P15)이 정하고, 이 문서를 쓰는 시점에 26은 아직 없다. 아래는 26이 지켜야 할 보안 요구다.
+
+#### 3.18.1 위협 추가
+
+| ID | 공격자 / 경로 | 노리는 자산 | 대응 요구 |
+|---|---|---|---|
+| T-L2 | 휴대폰 분실·도난(노트북보다 잦다) | AS-TOK, AS-DEC | OS 보안 저장소의 토큰(아래), 앱 잠금, 원격 폐기, 노드 묶기 |
+| T-L3 | 잠금 화면 알림, 어깨 너머 보기 | 질문 내용(AS-DB 일부) | 알림 본문 기본 숨김(조정자 판정 J-03), 앱 전환 화면 가림 |
+| T-N3 | 푸시 공급자(APNs·FCM·ntfy 서버)가 보는 메타데이터 | 사용 시각, 질문 수 | 푸시 본문에 내용을 넣지 않는다. 공급자는 "언제 알림이 갔는가"만 안다 |
+| T-W1 | 모바일을 PWA로 만들 때 웹 저장소의 토큰을 스크립트가 읽음 | AS-TOK | 아래 3.18.2 4번 |
+
+#### 3.18.2 요구
+
+1. **경로**: 휴대폰은 `tailnet` 리스너(WSS)로만 붙는다. 휴대폰에 Tailscale이 켜져 있어야 한다. SSH 경로(`loopback`)는 모바일에 두지 않는다. `tailnet` 리스너의 모든 조건(신원 헤더, whois, 기기 토큰, 노드 묶기)이 그대로 적용된다.
+2. **페어링**: 흐름 A(코드)만 쓴다. 데스크톱 앱이나 서버의 `helm pair --qr`이 `helm://pair?v=1&url=…&code=…&sid=…` 링크를 QR로 보이고, 휴대폰 앱이 읽어 `POST /pair`를 부른다(§3.7.2 규칙 그대로: 10분, 1회, 5회 시도, tailnet 신원 확인). `ClientInfo.platform`에 `ios`·`android`를 더한다(19에 요구).
+3. **토큰 저장**: iOS는 Keychain(`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, iCloud 키체인 동기화 금지), Android는 Keystore 기반 암호화 저장. 백업(iCloud·Google 백업)에 포함되지 않게 한다.
+4. **PWA를 택하는 경우**: 웹 저장소(IndexedDB·localStorage)에 bearer 토큰을 두면 같은 출처의 스크립트가 읽는다. 26이 PWA를 고르면 토큰을 `HttpOnly; Secure; SameSite=Strict` 쿠키로 바꾸는 서버 쪽 변경과 CSRF 대책이 필요하다. 18의 권장은 네이티브 저장소를 쓸 수 있는 방식(Tauri v2 모바일 등)이다.
+5. **scope**: 모바일 기기는 `read`, `decide`를 받고 `devices`는 "자기 자신 폐기"와 "다른 기기 폐기"만 허용한다. 휴대폰에서 새 기기의 페어링 코드를 만들지 않는다(`device.createPairingCode` 거부). 휴대폰을 잃었을 때 그 휴대폰으로 새 기기를 들여오는 경로를 막기 위해서다. 19의 기기별 scope로 표현한다.
+6. **앱 잠금**: 앱을 열 때와 사람 결정 명령(`decide`)을 보내기 전에 OS 생체 인증 또는 기기 암호를 요구하는 설정을 둔다(기본 켬, 26). 앱 전환 화면에는 내용을 가린다.
+7. **기기 키 서명**: 휴대폰은 하드웨어 보호 키(Secure Enclave, StrongBox)를 쓸 수 있어 개인 키를 꺼낼 수 없다. 그래서 모바일 기기는 `proofRequired`를 켜는 것을 권한다(§3.8.5, Q18-02의 조건 충족). Secure Enclave는 P-256만 지원하므로 19 `DeviceProof.alg`에 `es256`을 더해야 한다(19에 요구) [지식].
+8. **분실 대응**: §3.8.4 절차에 "Tailscale 관리 콘솔에서 휴대폰 노드 제거"를 첫 단계로 둔다. 노드가 없어지면 토큰이 있어도 `tailnet` 리스너를 통과하지 못한다(노드 묶기).
+9. **푸시 알림**:
+   - 보내는 시점은 11의 전달 결정이 기록된 때뿐이다(19 §3.8.3). 푸시는 알림일 뿐이고 내용은 앱이 인증된 연결로 받는다.
+   - 본문에는 질문 내용·Goal 이름을 넣지 않는다. 기본 문구는 "Helm에 확인할 것이 있습니다"와 불투명 ID 하나다(J-03). 설정으로 제목 노출을 켤 수 있다.
+   - 푸시 경로 후보: (a) 홈랩 ntfy(홈랩 `NTFY_URL` 경보가 이미 쓰는 방식 [원문 homelab storage.md]) (b) APNs·FCM 직접(개발자 계정과 서명 키 필요) (c) 푸시 없음(앱이 열려 있을 때만). 어느 쪽이든 공급자 자격(ntfy 토큰, APNs 키)은 SOPS 제품 비밀로 두고 `SecretStore`로 받는다.
+   - 기기 푸시 토큰은 보내기 위해 원문이 필요하다. 08 Device의 `push.tokenHash`만으로는 보낼 수 없으므로 원문은 이벤트가 아닌 운영 테이블(09 `device_presence`와 같은 종류)에 0600 DB 안에 두고, 이벤트에는 해시와 끝 4자만 둔다(08·09·26에 요구). 로그·진단에 넣지 않는다. 기기를 폐기하면 원문을 지운다.
+   - 데몬의 바깥 연결은 모델 공급자와 푸시 공급자뿐이다. 둘 다 설정에 이름을 적은 호스트로만 나간다.
+10. **오프라인 사본**: 휴대폰의 뷰 캐시는 OS 저장소 암호화에 맡기고(§3.19), 폐기(1005·4009)를 받으면 지운다.
+
+### 3.19 클라이언트 기기의 데이터 [제안]
+
+20 §5.2 (5)에 대한 답.
+
+- 데스크톱·모바일 앱의 오프라인 뷰 사본(IndexedDB, 20 APP-D10)에는 도메인 내용이 들어 있고 토큰은 없다. 앱 차원 암호화는 1차에 하지 않고 OS 디스크 암호화(FileVault, BitLocker, 휴대폰 기본 암호화)에 맡긴다. `helm doctor`가 확인할 수 없으므로 앱 첫 실행 안내에 "디스크 암호화를 켜 두세요"를 넣는다(05·20).
+- 설정으로 오프라인 사본을 끌 수 있다. 끄면 앱을 닫을 때 지운다.
+- 폐기(1005, 연결 종료 4009)를 받으면 앱은 그 서버의 사본과 진행 중 명령함을 지운다.
+- 진단 묶음(20 `diag_bundle`)에는 사본 내용을 넣지 않는다.
+
 ### 3.17 보안 테스트 목록
 
 | ID | 조건 | 종류 |
@@ -705,8 +794,8 @@ effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔�
 | T18-03 | whois 실패 → 401(fail closed). 설정 `token-only`면 통과하고 `auth.policy_relaxed` 기록 | 통합 |
 | T18-04 | 노드 묶기: 기기 A 토큰을 다른 `StableID`의 whois 결과로 → 1008(node_mismatch). 묶이지 않은 기기는 첫 WSS 접속에서 묶임 | 통합 |
 | T18-05 | (수동) 실제 serve 경유: 클라이언트가 위조 `Tailscale-User-Login`을 보내도 serve가 덮어쓰는지(A18-1), 태그 노드(서버 자신)에서 serve URL로 접속하면 헤더가 없는지 | 수동 |
-| T18-06 | `loopback`: Tailscale 헤더를 붙여도 무시, 토큰 필수, `localAdmin` 주장 → 1008. Host가 `127.0.0.1:7841`이 아니면 421 | 통합 |
-| T18-07 | Origin이 있는 업그레이드(브라우저 흉내) → 403. Host가 `evil.example` → 421 (DNS rebinding) | 통합 |
+| T18-06 | `loopback`: Tailscale 헤더를 붙여도 무시, 토큰 필수, `localAdmin` 주장 → 1008. Host가 `127.0.0.1:7841`·`localhost:7841`이 아니면 403 | 통합 |
+| T18-07 | Origin이 있는 업그레이드(브라우저 흉내) → 403. Host가 `evil.example` → 403 (DNS rebinding). Origin 없는 네이티브 요청은 토큰으로 판정 | 통합 |
 | T18-08 | 샌드박스: §3.11.4의 여섯 시험 + `env`가 허용 목록뿐(user manager 환경이 섞이지 않음) + `/proc/<helmd pid>/environ`·`/proc/<helmd pid>/mem` 읽기 거부(R-5). PID 네임스페이스를 쓰는 구성이면 `helmd` PID가 보이지 않음 | 시스템 |
 | T18-09 | 샌드박스 안에서 `curl http://127.0.0.1:7840/healthz` → 실패(`PrivateNetwork`). 네트워크 허용 실행에서는 성공하지만 토큰 없이 `hello` 불가 | 시스템 |
 | T18-10 | 샌드박스 안에서 `~/.config/sops/age/keys.txt`, `~/.ssh/id_*`, 작업 공간 밖 `.env` 읽기 → 실패. 데몬 파일 도구로 같은 경로 → `deny`/`needs-human`, 심볼릭 링크로 우회 → 거부 | 시스템 + 통합 |
@@ -726,6 +815,13 @@ effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔�
 | T18-24 | SIGUSR1을 `helmd`에 보내도 inspector 포트(9229)가 열리지 않음 | 시스템 |
 | T18-25 | 공급망: `pnpm install --frozen-lockfile`이 허용 목록 밖 빌드 스크립트를 실행하지 않음, 실행 중 rg/fd 내려받기 시도 없음(네트워크 차단 상태에서 grep 도구 동작) | 통합 |
 | T18-26 | 권한 기준선: §3.11.6 표의 각 행이 해당 판정을 돌려줌, 모드·다이얼로 바뀌지 않음 | 단위 |
+| T18-27 | `web_fetch`: `127.0.0.1:2019`, `100.64.x.x`, 리디렉션으로 사설 주소 → 거부. 해석 뒤 IP 고정 | 통합 |
+| T18-28 | 허용 폴더 등록: 모델 도구 경로에서 불가, `~`·`/`·보호 경로·심볼릭 링크 탈출 거부 | 통합 |
+| T18-29 | 도구 환경: R-2 목록 밖 이름(합의로 `ANTHROPIC_API_KEY` 부여 시도 포함)이 샌드박스 `env`에 없음, `HELM_RUN_ID`·`HELM_TOOL_CALL_ID`만 있음 | 시스템 |
+| T18-30 | 비밀 로더가 `ANTHROPIC_OAUTH_TOKEN`·`sk-ant-oat` 값을 받으면 버리고 경고 | 단위 |
+| T18-31 | 모바일 기기 scope: `device.createPairingCode` 거부, 다른 기기 폐기 허용. 푸시 본문에 질문 내용 없음, 푸시 토큰 원문이 이벤트·로그에 없음 | 통합(26 이후) |
+| T18-32 | 클라이언트 렌더링: 모델 출력의 `<script>`, `javascript:` 링크, `file:` 링크가 그려지지 않음(21 시험과 함께) | 통합(앱) |
+| T18-33 | 복귀 점검 기대 답 파일이 샌드박스·관찰 자식에서 보이지 않고 이벤트·뷰·로그·진단 묶음에 없음 | 시스템 |
 
 ## 4. 실패·예외·경계 사례
 
@@ -733,7 +829,7 @@ effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔�
 |---|---|---|
 | S-01 | 시계가 크게 틀어져 토큰 만료 판정이 흔들림 | 만료는 서버 시계 기준. NTP 미동기(17 `clock`)면 만료 판정을 하루 늦춘다(일찍 만료해 소유자를 막지 않음). 서명(꺼짐)은 ±120초 |
 | S-02 | Tailscale 로그인 이름이 바뀜(계정 이전) | `allowedLogins` 불일치로 WSS 막힘. SSH 경로로 들어가 설정을 고친다 |
-| S-03 | 기기의 Tailscale 노드가 다시 등록되어 `StableID`가 바뀜 | node_mismatch로 막힘. `helm devices rebind <dv_id>`(로컬 관리자)로 다음 접속 때 다시 묶거나, 다시 페어링 |
+| S-03 | 기기의 Tailscale 노드가 다시 등록되어 `StableID`가 바뀜 | node_mismatch로 막힘. `helm device rebind <dv_id>`(로컬 관리자)로 다음 접속 때 다시 묶거나, 다시 페어링 |
 | S-04 | 앱이 키체인 쓰기 전에 죽어 새 토큰을 잃음(2차 회전) | 이전 토큰이 5분 동안 유효. 지나면 다시 페어링 |
 | S-05 | 같은 기기 이름으로 두 번 페어링 | 다른 `deviceId`. 목록에 둘 다 보이고 오래된 것을 폐기하라고 안내 |
 | S-06 | 모든 기기를 폐기해 원격 접속 수단이 없음 | 서버 셸(SSH 키)에서 흐름 B 또는 `helm pair`로 다시 |
@@ -741,7 +837,7 @@ effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔�
 | S-08 | whois가 느림(1초 이상) | 캐시 60초. 첫 업그레이드만 느리다. 5초 넘으면 실패(fail closed) |
 | S-09 | 격리 단위 생성 실패(user manager 과부하) | 그 도구 호출은 오류, 다른 수단으로 몰래 낮춰 실행하지 않는다 |
 | S-10 | 합의가 네트워크를 허용한 실행이 루프백 서비스에 접근 | 막지 않는다(R-6). 합의 화면 경고, 감사의 합의 기록 |
-| S-11 | 마스킹이 정상 내용을 지움(오탐) | `redactions`로 표시되므로 사람이 원래 파일을 본다. 규칙 표는 16과 공유해 고친다 |
+| S-11 | 마스킹이 정상 내용을 지움(오탐) | `maskedSecrets`로 표시되므로 사람이 원래 파일을 본다. 규칙 표는 16과 공유해 고친다 |
 | S-12 | 관찰 입력에서 새 형식의 비밀이 지워지지 않음 | 관찰 자식이 비밀을 모델에 보낼 수 있다. 16의 엔트로피 검사가 보완. 발견하면 규칙 추가 |
 | S-13 | 사용자가 `tools.sandbox="off"`로 바꿈 | 허용하되 시작마다 경고, 감사 기록, 상태 critical 유지 |
 | S-14 | 페어링 코드가 채팅·스크린샷으로 샘 | tailnet 신원 조건이 있어 소유자 tailnet 밖에서는 쓸 수 없고 10분 만료. 의심되면 `helm pair --cancel-all` |
@@ -752,33 +848,40 @@ effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔�
 
 | 받는 문서 | 제공 |
 |---|---|
-| 19 | 리스너별 연결 정책(§3.4), 주체·scope 대응(§3.5), `hello` 판정 함수 `helloDeviceAuth`(§3.6.1), 페어링 규칙(§3.7), 토큰 형식·수명(§3.8), 한도 상한(§3.14) |
-| 20 | 키체인 저장 요구, SSH 클라이언트 옵션 요구(§3.6.2), 토큰 회전 HTTP 경로(§3.8.3), 서명 보류(§3.8.5) |
-| 13 | 격리 요구 R-1~R-12, 권장 명령(§3.11.2), 보호 경로(§3.11.5), 권한 기준선(§3.11.6), 마스킹기(§3.10.4) |
-| 12 | 비밀 접근 방식(`SecretStore`), 모델 출력·오류 마스킹 지점, 투영의 신뢰 등급 표시(§3.12) |
-| 16 | 공통 마스킹 규칙, 관찰 자식 격리, 프롬프트 주입 원칙 |
-| 17 | 비밀 정책(§3.10), 진단·경보에서 뺄 것, 복구 보안 조건(§3.16) |
-| 09 | 감사 이벤트 목록(§3.13.1), 재전송 제외 필드 표시 |
-| 11 | `needs-human` + `rightsGate` 판정을 받아 묻는다(§3.11.6) |
-| 04·21 | 기기 목록·폐기 화면, 합의 화면의 네트워크·보호 경로 경고, 감사 보기 |
+| 01 | NFR-S-1(기기별 출처 기록, §3.5 규칙 3), S-2(리스너, §3.4), S-3(페어링·즉시 폐기, §3.7·§3.8.4), S-4(비밀, §3.10), S-5(격리와 보장 수준, §3.11), S-6(신뢰하지 않는 자료, §3.12), S-7(`send` 권리 게이트, §3.11.6), S-8(사람 채널, §3.5), S-9(앱 최소 API는 19·20) |
+| 02 | UC-04 두 경로의 인증(§3.6), UC-11 페어링·폐기·허용 폴더(§3.7, §3.8.4, §3.11.7), UC-08 로그 신뢰·마스킹(T-P2, §3.10.4) |
+| 04, 05, 21 | 기기 화면 데이터: 이름, 플랫폼, 클라이언트 종류, 페어링 경로(`code`·`ssh`), 페어링 시각, 마지막 사용 시각·경로, 절대 만료 예정(30일 전 "곧 만료"), 상태(`active`·`expired`·`revoked`), 폐기 버튼(사유 선택 입력). 연결 진단 문장의 원인 코드(19 1004~1008의 `details.reason`), 합의 카드의 네트워크·보호 경로 경고(§3.11.6), 감사 보기(기기별 사람 결정, §3.13), 렌더링 규칙(§3.12 7번) |
+| 06 | 06 §3.7.4 4번의 답(격리가 없으면 `execute`를 끔, S0은 운영자만, §3.11.1 R-10), 기기 토큰 해시 저장(§3.9), 비밀처럼 보이는 설정 키 거부 목록(`token`, `secret`, `password`, `apiKey`, `privateKey`, 17 §3.3.1) |
+| 07 | 셸 환경 허용 목록 R-2(07 `buildShellEnv`), OAuth 토큰 배제(§3.10.1), 공급망 규칙(§3.15) |
+| 08 | Device·PairingCode 필드(§3.9), `local_cli` 인정 조건(§3.5 규칙 4) |
+| 09 | HMAC 키 정책(§3.10.5), 데이터 디렉터리 권한 감사(17 §3.2.2·§3.11.2 `permissions`), 감사 이벤트 목록(§3.13.1), 민감 필드 |
+| 10, 11 | 권리 범주 판정 규칙과 `disclose_data` 고정(§3.11.6), 인자 미리보기 가림, 사람 채널 조건(§3.5) |
+| 12 | `SecretStore`, 모델 출력·오류 마스킹 지점(§3.10.3), 투영의 신뢰 등급 표시(§3.12) |
+| 13 | 격리 요구 R-1~R-12, 격리 순서(§3.11.2), 보호 경로(§3.11.5), 권한 기준선(§3.11.6, 13 §3.10 표 대체), 마스킹기(§3.10.4) |
+| 15 | 가져온 문서·웹·세션 로그의 신뢰 규칙(§3.12), `web_fetch` 정책(§3.11.8), 자극·작업 공간의 비밀 가림(§3.10.3, 보호 경로) |
+| 16 | 외부 세션 로그 위협 모델(T-P2), 마스킹 규칙 공유, `sendExternalExcerpts` 판단, 점검 키 파일 보호(§3.12 5번), 관찰 자식 환경 허용 목록(R-2) |
+| 19 | `SecurityForProtocol` 구현(§3.4.4), 리스너별 Host·Origin(§3.4.3), 페어링 정책(§3.7), 토큰 수명(§3.8), 한도 상한(§3.14), 모바일 scope(§3.18.2 5번) |
+| 20 | 키체인 저장 요구, SSH 클라이언트 옵션(§3.6.2), SSH 발급 권한 규칙(§3.7.3: SSH로 서버 계정에 들어올 수 있으면 기기를 발급할 수 있다), Origin 없는 네이티브 요청은 토큰으로 판정하고 브라우저 Origin은 거부(§3.4.3), 서명 보류(§3.8.5), 오프라인 사본(§3.19) |
+| 26 | 모바일 보안 요구(§3.18) |
 | 22 | §3.17 보안 테스트 |
 
 ### 5.2 다른 문서에 요구하는 것
 
 | 문서 | 요구 |
 |---|---|
-| 08 | ID 접두사: `pc`(페어링 코드), 19의 `cx`(연결). 기기 레코드 필드(§3.9 표) |
-| 09 | (0) HMAC 체크포인트에 `keyId`를 적고 여러 키로 검증할 수 있게 한다(§3.10.5). (1) 감사 이벤트 이름 등록(§3.13.1). (2) 이벤트 스키마에 "재전송·투영 제외 필드" 표시(`tokenHash`, `newTokenHash`)를 둔다. (3) 사람 결정 이벤트의 출처 필드. (4) 기기·페어링 코드 투영 테이블(조회용, `tokenHash` 색인) |
-| 10 | 사람 결정 명령은 `channel: "human_client"` + 주체 `device`·`localAdmin`일 때만 받는다. 런타임·관찰 경로에서 오면 자격 거부(T18-19) |
-| 11 | 권한 레이어가 `needs-human`/`rightsGate`를 돌려주면 권리 게이트 질문을 만든다. 권한 레이어는 질문을 만들지 않는다 |
-| 12 | (1) 키를 `SecretStore`에서 읽는다(17 §5.2와 같음). (2) 모델 출력·공급자 오류를 마스킹기로 지운 뒤 정본·로그에 쓴다. (3) 투영에서 신뢰하지 않는 내용을 경계 표식으로 감싼다 |
-| 13 | (1) R-1~R-12. (2) 격리 순서 §3.11.2: S1(bwrap) → `systemd-run --user` 단위(13에 S1s 같은 수준으로 추가) → `execute` 끔. S0은 운영자 설정으로만, 합의 `allowUnscopedExecute`로는 열지 않는다. (3) 보호 경로(§3.11.5)를 13 §3.4.3 가림 목록에 합친다: `~/.config/helm/**`, `~/.config/systemd/user/**`, 셸 시작 파일·`.gitconfig`·`.git/hooks` 쓰기 금지, `/mnt/**`, `/run/WSL`. (4) §3.11.6 고정 기준선을 권한 레이어 기본 규칙으로. (5) 도구 결과를 정본에 쓰기 전 마스킹(공통 마스킹기). (6) 13 §3.6.2의 데몬 포트 `127.0.0.1:7801`을 17 D17-09의 7840·7841로 고친다. (7) `--share-net` 실행이 루프백 서비스(Caddy 관리 API 등)에 접근할 수 있다는 경고를 합의 화면 데이터로 낸다(T-M5) |
-| 16 | 마스킹 규칙 표를 18 §3.10.4와 한 곳에서 공유한다(패키지 위치는 06). 관찰 자식 격리 실행 IPC(17 §5.2) |
-| 19 | (1) 페어링 코드 형식을 12자(60비트, `XXXX-XXXX-XXXX`)로(§3.7.2). (2) `device.rotateToken`을 HTTP `POST /devices/self/rotate`로 옮기거나 데스크톱에 노출하지 않는다고 적는다(§3.8.3). (3) `hello` 오류에 node_mismatch·expired 사유를 `details.reason`으로. (4) 인증 실패 속도 한도에 10분 20회 차단을 더한다(§3.14). (5) 기기당 동시 연결 8, 전체 64. (6) `loopback` 리스너의 Host 허용 목록. (7) 업그레이드 단계에서 토큰 헤더 형식이 틀리면 401 |
-| 20 | (1) `ForwardAgent=no`, `StrictHostKeyChecking=yes` 기본, 첫 접속 지문 대조 안내. (2) 2차에서 `credential_rotate`를 `POST /devices/self/rotate`로. (3) Origin 헤더를 보내지 않는다(이미 §3.8.5). (4) 키체인 항목 이름에 `serverId`를 넣어 다른 데몬의 토큰과 섞이지 않게 |
-| 04, 21 | 기기 목록(마지막 사용, 경로, 만료 예정, 폐기 버튼), 합의 카드의 네트워크·보호 경로 표시, 감사 보기(기기별 사람 결정) |
-| 07 | 실행 중 내려받기 제거, `vendor/` 고지, 빌드 스크립트 허용 목록 |
-| 홈랩 | 17 §3.7.4 H-5(Caddy 관리 API) |
+| 08 | (1) 모바일 푸시 토큰 원문은 레코드·이벤트가 아니라 운영 테이블에 둔다(Device의 `push`는 해시·끝 4자만 유지, §3.18.2 9번). (2) 허용 폴더 등록 명령의 권리 범주 `authority_expansion` |
+| 09 | (1) 푸시 토큰 원문용 운영 테이블(기기 폐기 때 삭제). (2) `maskedSecrets`(payload의 마스킹 기록)와 envelope `redactions`(재전송 사본에서 지운 필드 이름)를 구분해 카탈로그에 적는다 |
+| 10 | 허용 폴더 등록·변경을 사람 전용 명령으로(§3.11.7) |
+| 12 | 키를 `SecretStore`에서 읽는다(브리프 결정 45). 모델 출력·공급자 오류를 마스킹기로 지운 뒤 정본·로그에 쓴다. OAuth 토큰을 자격으로 쓰지 않는다 |
+| 13 | (1) §3.6.2의 데몬 포트 7801을 7840·7841로. (2) §3.10 1차 규칙 표를 18 §3.11.6으로 대체한다고 적는다. (3) 환경 허용 목록은 18 R-2를 참조(J-17). (4) `web_fetch`가 13의 도구이면 §3.11.8을 따른다 |
+| 15 | `web_fetch` 정책(§3.11.8). 자극·문서를 모델에 넣을 때 마스킹기 적용 |
+| 16 | 마스킹 규칙 표를 18 §3.10.4와 한 곳에서(합집합). 프로젝트별 `sendExternalExcerpts` 끄기 |
+| 19 | (1) `checkTransport` 반환에 `tailnetNodeId`(§3.4.4). (2) `DeviceProof.alg`에 `es256`(모바일 Secure Enclave, §3.18.2 7번). (3) 모바일 기기 scope: `devices` 중 `device.createPairingCode` 제외(§3.18.2 5번). (4) 1004~1008의 `details.reason` 값(§3.4.4). (5) `device.expireTokens`, `device.rebind` |
+| 20 | (1) `ForwardAgent=no`, `StrictHostKeyChecking=yes` 기본, 첫 접속 지문 대조 안내. (2) 키체인 항목 이름에 `serverId`. (3) 폐기(1005·4009)를 받으면 그 서버의 오프라인 사본과 진행 중 명령함 삭제(§3.19). (4) 첫 실행 안내에 디스크 암호화 권장 |
+| 21 | 렌더링 규칙(§3.12 7번), "격리 없음"(S0)·S1b 경고 배지 |
+| 26 | §3.18 전체. 특히 토큰 저장소, 앱 잠금, 푸시 본문 숨김과 경로 선택, PWA를 택할 경우의 쿠키 전환 |
+| 07 | 실행 중 내려받기 제거, `vendor/` 고지, 빌드 스크립트 허용 목록, OAuth 변수 미사용 |
+| 홈랩 | 17 §3.7.4 H-5(Caddy 관리 API 정리) |
 
 ## 6. 구현 단위와 완료 기준
 
@@ -803,6 +906,9 @@ effect class를 쓰지 않는다(결정 2). 대신 다음 고정 규칙만 둔�
 | Q18-06 | `send` 원시 행동을 합의가 있어도 매번 사람에게 물을지 | 매번 / 합의에 대상·내용 범위가 있으면 허용 | 1차 매번(사용 후 11·14와 조정) |
 | Q18-07 | `localAdmin` 명령의 사람 결정을 `human`으로 인정할지(서버 셸의 다른 에이전트가 CLI를 부를 수 있음) | 인정 / 사람 결정은 기기만 / 로컬 확인 프롬프트(TTY 있을 때만) | 인정(D18-04). TUI가 사람 경로이기 때문. CLI의 결정 명령은 TTY가 없으면 거부하는 선택지를 23에서 검토 |
 | Q18-08 | 페어링 코드를 이미 페어링된 기기가 만들 수 있게 할지(19 `device.createPairingCode`) | 허용 / 로컬 관리자만 | 허용(19 원안). 감사 기록 |
+| Q18-09 | 모바일 푸시 경로 | 홈랩 ntfy / APNs·FCM 직접 / 푸시 없음 | 26이 정한다. 18의 권장은 홈랩 ntfy(이미 홈랩 경보에 쓰는 방식, 새 계정·키 불필요). 본문 숨김은 어느 경우든 기본 |
+| Q18-10 | 모바일 클라이언트 형태가 PWA일 때 토큰 저장 | HttpOnly 쿠키 전환 / 네이티브(Tauri 모바일)만 허용 | 네이티브. PWA면 쿠키 전환과 CSRF 설계를 26·19가 함께 |
+| Q18-11 | 오프라인 뷰 사본 암호화 | OS 디스크 암호화에 맡김 / 앱 키로 암호화 | OS에 맡김(§3.19) |
 
 ## 8. 출처
 

@@ -161,6 +161,9 @@ export const EventEnvelope = Obj({
 });
 export type EventEnvelope = Static<typeof EventEnvelope>;
 
+/** 사람 접속 상태 (19 §3.7.8, 20 §3.9.12). locked는 모바일만 보낸다. offline은 연결이 없을 때 데몬이 정한다 */
+export const PresenceState = Type.Union(["active", "idle", "hidden", "locked", "offline"].map((x) => Type.Literal(x)));
+
 /** 저장된 이벤트 = envelope + 해시 필드 */
 export const StoredEvent = Obj({
   ...EventEnvelope.properties,
@@ -168,6 +171,8 @@ export const StoredEvent = Obj({
   hash: Type.String({ pattern: "^[0-9a-f]{64}$" }),
 });
 export type StoredEvent = Static<typeof StoredEvent>;
+/** 클라이언트로 나가는 형태 (19). 해시 대신 무효화 태그를 붙이고 민감 필드는 지운다 */
+export type DeliveredEvent = EventEnvelope & { invalidates: string[] };
 ```
 
 필드 규칙:
@@ -318,6 +323,7 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 | `check.declared` | domain·E | agent:work, agent:verifier, human | dc | declared |
 | `check.observed` | domain·E | agent:work, agent:verifier, human | dc | observed, verdicts |
 | `check.voided` | domain·E | agent:work, human, kernel | dc | void |
+| `check.pinned`, `check.unpinned` | domain·E | human | dc | 사람의 확인 순서 고정·해제 (J-95) |
 | `finding.promoted` | domain·E | kernel (명령 행위자는 causation으로) | fd | 판단 생성, 원 주장 promoted |
 | `finding.confirmed` | domain·E | human | fd | confirmed (accepted) |
 | `finding.withdrawn` | domain·E | human | fd | withdrawn |
@@ -467,7 +473,6 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 | `run.message_recorded` | runtime·M | runtime | rn | 대화 기록 한 항목 (본문은 blob) |
 | `run.steered` | runtime·M | human | rn | 실행 중 조종 입력 |
 | `run.awaiting` | runtime·M | runtime | rn | awaiting_human / awaiting_recovery |
-| `run.resumed` | runtime·M | runtime | rn | running |
 | `run.stopping` | runtime·M | runtime, human, kernel | rn | stopping |
 | `run.interrupted` | runtime·M | runtime (`internal:recovery`) | rn | interrupted (부팅 복구) |
 | `run.ended` | runtime·M | runtime, human | rn | ended (reason) |
@@ -488,9 +493,14 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 | `rollback_point.registered` | runtime·M | runtime, kernel | rb | available |
 | `rollback_point.used` | runtime·M | runtime, human | rb | used |
 | `rollback_point.expired` | runtime·M | scheduler, kernel | rb | expired |
-| `boundary.reached` | runtime·M | runtime, scheduler | 해당 Concern·WorkUnit 또는 null | 런타임 경계 도달 (라운드 끝, 루프 전환, WorkUnit 끝, Concern 전환, 하루 묶음). 질문 전달 시점 판정 입력 (11·12·14) |
+| `directive.applied` | runtime·M | runtime | rn | 사람의 방향 바꾸기(Goal·기준·범위·다이얼·멈춤 명령)를 런타임이 다음 턴 경계에서 반영함 (12·16 D 칸 지표) |
+| `plan.deviated` | runtime·M | runtime, kernel | lp | 계획 이탈 관찰 (14: 사람 직접 지시가 아닌 이탈만, severity low·medium·high) |
+| `workspace.unlinked_change_observed` | runtime·M | runtime | pj | 실행 전후 작업 공간 diff 중 WorkUnit에 연결되지 않은 변경 (13·16 CA-1) |
+| `boundary.reached` | runtime·M | runtime, scheduler | 해당 Concern·WorkUnit 또는 null | 런타임 경계 도달 (08 `WorkBoundaryKind` 7개). 질문 전달 시점 판정 입력 (11·12·14) |
 
 `run.message_recorded`는 결정 29의 "모든 상태는 로그에서 재구성"을 위해 대화 기록을 정본에 둔다. pi 세션은 메모리에서만 돌리고 재시작 때 이 이벤트들로 복원하는 방식(v0.3 14 §3.2 (b))을 쓸 수 있다. 사람의 메시지는 같은 트랜잭션에서 `observation.recorded`(utterance)도 만든다(08 §3.18). 복원 절차는 12. 모델 요청, 재시도, 컨텍스트 압축, 입력 큐, 실행 단계(stage)는 이벤트가 아니라 trace(§3.7.6)다.
+
+도구 호출의 종결 기록은 하나다(first-writer-wins, 12). 결과 기록의 멱등 키 `tc:<tcId>:result`(§3.9.3)와 커널의 상태 검사(이미 종결이면 `conflict.invalid_transition`)가 함께 지킨다.
 
 읽기 빠른 경로: `primitive = read`인 도구 호출은 `toolcall.requested`·`started`·`completed`와 결과 관찰을 한 트랜잭션에 남길 수 있다(08 §3.18.2, 10 K-3). 이벤트 수는 줄지 않지만 커밋 수가 셋에서 하나로 준다.
 
@@ -509,12 +519,12 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 | `device.expired` | governance·A | scheduler | dv | expired |
 | `device.revoked` | governance·A | human | dv | revoked |
 | `device.connected`, `device.disconnected` | governance·A | runtime | dv | 접속 기록 (감사) |
-| `presence.changed` | governance·A | runtime | dv | 사람 접속 상태 변화 (online·idle·away). 질문 전달 판정 입력 (11). 같은 상태가 이어지면 남기지 않는다 |
+| `presence.changed` | governance·A | runtime | dv | 사람 접속 상태 변화 (active·idle·hidden·locked·offline, 19·20). 질문 전달 판정 입력 (11). 같은 상태가 이어지면 남기지 않는다 |
 | `auth.denied` | governance·A | runtime | dv 또는 null | 인증 거부 (묶어서 기록) |
 | `auth.policy_relaxed` | governance·A | human | null | 인증 정책 완화 (18) |
 | `tools.sandbox_disabled`, `tools.sandbox_enabled` | governance·P | human | null | 샌드박스 끔·켬 (13·18) |
 | `permission.overridden` | governance·P | human | tc 또는 null | 권한 레이어 판정을 사람이 덮음 (18) |
-| `setting.changed` | governance·P | human | null | 설정 키 변경 (16). 값이 비밀이면 키 이름만 |
+| `setting.changed` | governance·P | human | null | 설정 키 변경 (16, 10 `setting.change`, J-94). 값이 비밀이면 키 이름만 |
 | `policy_proposal.submitted` | governance·P | agent:observer | pp | open |
 | `policy_proposal.evidence_updated` | governance·P | agent:observer | pp | 근거 갱신 |
 | `policy_proposal.accepted`, `policy_proposal.dismissed`, `policy_proposal.deferred` | governance·P | human | pp | accepted / dismissed / deferred |
@@ -539,7 +549,7 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 | `daemon.booted` | system | runtime | null | 부팅 epoch 시작 |
 | `daemon.stopped` | system | runtime | null | 정상 종료 기록 (가능할 때만) |
 | `daemon.mode_changed` | system | runtime | null | normal·read_only·safe 전이 (17) |
-| `daemon.safe_mode_entered`, `daemon.safe_mode_exited` | system | runtime, human | null | 안전 모드 (17) |
+| `daemon.safe_mode_entered`, `daemon.safe_mode_exited` | system | runtime, human | null | 안전 모드 (17, 크래시 루프 전용. J-67) |
 | `config.reloaded` | system | runtime | null | 바뀐 키 이름 (값 없음) |
 | `secrets.reloaded` | system | runtime | null | 다시 읽은 비밀 키 이름 (값 없음) |
 | `clock.skew_detected` | system | runtime | null | 시계가 뒤로 감 (§3.2 규칙 9) |
@@ -562,9 +572,9 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 
 | 이벤트 | 행위자 | 내용 |
 |---|---|---|
-| `view.opened` | human | 화면 열람 (화면 id, 머문 시간 범주) |
+| `view.opened` | human | 화면 열람 (화면 id, 머문 시간 범주). 대상 레코드는 refs |
 | `surprise.reported` | human | 사람이 놀람을 보고 |
-| `resumption_check.opened`, `resumption_check.answered`, `resumption_check.scored` | runtime, human, kernel | 복귀 이해도 점검 |
+| `resumption_check.opened`, `resumption_check.answered`, `resumption_check.scored` | opened: runtime, answered: human, scored: runtime·kernel | 복귀 이해도 점검. 기대 답은 이벤트에 넣지 않고 해시만 둔다(16 §3.24.1) |
 | `self_report.recorded` | human | 자기 보고 |
 | `experiment.condition_set` | human | 실험 조건 설정 |
 | `observer_report.recorded` | agent:observer | 관찰 보고서 (blob) |
@@ -574,6 +584,18 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 ```ts
 // @helm/domain/src/events/payloads.ts
 const P = Obj;
+/** 13 ChangeSet: 실행 전후 작업 공간 변경 */
+const ChangeSet = P({
+  measured: Type.Boolean(),
+  method: Type.String({ minLength: 1, maxLength: 32 }),
+  roots: Type.Array(Type.String({ maxLength: 4096 })),
+  changes: Type.Array(P({ path: Type.String({ maxLength: 4096 }),
+                          kind: Type.Union(["created", "modified", "deleted", "renamed", "mode"].map((k) => Type.Literal(k))),
+                          beforeSha256: Nullable(Type.String()), afterSha256: Nullable(Type.String()) }), { maxItems: 1000 }),
+  truncated: Type.Boolean(),
+  ignoredNotMeasured: Type.Array(Type.String({ maxLength: 4096 })),
+  concurrentWritersPossible: Type.Boolean(),
+});
 const Reason = Obj({ reason: ShortText });
 
 export const EventPayloads = {
@@ -655,6 +677,7 @@ export const EventPayloads = {
   "check.observed": P({ observationIds: Type.Array(ObservationId, { minItems: 1 }), outcome: OutcomeLabel,
                         posthoc: Type.Boolean(), verdicts: Type.Array(CheckVerdict) }),
   "check.voided": Reason,
+  "check.pinned": P({}), "check.unpinned": P({}),
   "finding.promoted": P({ finding: FindingCore }),
   "finding.confirmed": P({ via: Type.Union([Type.Literal("direct"), Type.Literal("choice_commit")]) }),
   "finding.withdrawn": Reason,
@@ -676,7 +699,7 @@ export const EventPayloads = {
   "agreement.declined": Reason,
   "agreement.discarded": Reason,
   "agreement.narrowed": P({ narrowed: Scope, reason: ShortText, linkedQuestionId: Nullable(QuestionId), autonomy: Autonomy }),
-  "agreement.restored": Reason,
+  "agreement.restored": P({ reason: ShortText, restoredTo: Nullable(Scope) }),   // null이면 현재 개정판 범위로
   "agreement.scope_change_requested": P({ requested: Scope, reason: ShortText, questionId: QuestionId }),
   "agreement.renegotiated": P({ fromRevision: Type.Integer({ minimum: 1 }), revision: Type.Integer({ minimum: 2 }),
                                 content: AgreementContent, reason: ShortText }),
@@ -712,22 +735,30 @@ export const EventPayloads = {
                                    bundleId: Nullable(Type.String({ minLength: 1, maxLength: 64 })), autonomy: Autonomy }),
   "delivery.planned": P({ bundleId: Type.String({ minLength: 1, maxLength: 64 }), questionIds: Type.Array(QuestionId, { minItems: 1 }),
                           plan: BlobRef, autonomy: Autonomy }),   // 계획 본문 모양은 11 DeliveryPlanPayload
+  // 11 QuestionDeliveredExtra + 20 DeliveryPayloadForApp. 문구는 05 키로 저장하고 앱이 @helm/ui-language로 만든다.
+  // 질문 본문과 비밀을 넣지 않는다. 기본 문구는 내용 숨김 (판정 J-03)
   "question.delivered": P({
     deliveryId: Type.String({ minLength: 1, maxLength: 64 }),
-    surface: Type.Union([Type.Literal("app"), Type.Literal("push"), Type.Literal("tui"), Type.Literal("brief")]),
-    category: Type.String({ minLength: 1, maxLength: 32 }),
-    urgency: Type.Union([Type.Literal("immediate"), Type.Literal("normal"), Type.Literal("low")]),
-    titleKey: Type.String({ minLength: 1, maxLength: 128 }), bodyKey: Type.String({ minLength: 1, maxLength: 128 }),
-    target: Type.String({ minLength: 1, maxLength: 512 }),     // 딥 링크 (19)
+    batchKey: Nullable(Type.String({ minLength: 1, maxLength: 64 })),
+    channel: Type.Union([Type.Literal("app"), Type.Literal("push"), Type.Literal("tui"), Type.Literal("brief")]),
+    surface: Type.Array(Type.Union([Type.Literal("os"), Type.Literal("badge"), Type.Literal("banner")])),
+    category: Type.Union(["question", "rights_gate", "review", "goal", "recovery", "observer", "system"].map((c) => Type.Literal(c))),
+    urgency: Type.Union([Type.Literal("interrupt"), Type.Literal("notice"), Type.Literal("digest")]),   // 11 Urgency (J-52)
+    copy: P({ titleKey: Type.String({ minLength: 1, maxLength: 128 }), bodyKey: Type.String({ minLength: 1, maxLength: 128 }),
+              args: Type.Record(Type.String(), Type.String({ maxLength: 200 })) }),
+    target: Type.String({ minLength: 1, maxLength: 512 }),     // 딥 링크 helm://question/<qs_id>
     expiresAt: Nullable(Ms),
-    deviceIds: Type.Array(DeviceId),
+    targetDevices: Type.Union([Type.Literal("all"), Type.Array(DeviceId)]),
   }),
   "question.seen": P({ deviceId: Nullable(DeviceId) }),
-  "question.deferred": P({ until: Nullable(Trigger) }),
+  "question.deferred": P({ until: Nullable(Trigger),
+                           /** 권리 질문에 사람이 미루며 준 마감 (11 V-Q-10, J-49). 있으면 Question.deadline이 된다 */
+                           deadline: Nullable(Ms) }),
   "question.delegated": P({ note: Nullable(ShortText) }),
   "question.reframe_requested": P({ note: Nullable(ShortText) }),
   "question.escalated": P({ cause: Type.Union([Type.Literal("expiry_near"), Type.Literal("human"), Type.Literal("policy")]) }),
-  "question.answered": P({ value: Type.Unknown(), basisSeq: Seq, matchesAssumption: Nullable(Type.Boolean()) }),
+  "question.answered": P({ value: Type.Unknown(), basisSeq: Seq, matchesAssumption: Nullable(Type.Boolean()),
+                           matchesRecommendation: Nullable(Type.Boolean()) }),   // 16 지표
   "question.assumed": P({ choiceId: ChoiceId }),
   "question.withdrawn": Reason, "question.expired": Reason,
   "approval.issued": P({ approvalId: ApprovalId, fingerprint: Sha256, expiresAt: Ms, toolCallId: ToolCallId }),
@@ -762,7 +793,10 @@ export const EventPayloads = {
   "watch.cancelled": Reason,
 
   // ── 탐구·자극·선호·렌즈 ──
-  "inquiry.opened": P({ inquiry: InquiryCore }),
+  "inquiry.opened": P({ inquiry: InquiryCore,
+                        /** 첫 발산 강도와 그 신호 (15 §3.4.2). 확정값은 inquiry.anchored */
+                        divergence: P({ mode: Type.Union([Type.Literal("off"), Type.Literal("narrow"), Type.Literal("wide")]),
+                                        signals: Type.Array(Type.String({ minLength: 1, maxLength: 32 })) }) }),
   "inquiry.perspective_added": P({ perspective: Perspective }),
   "inquiry.anchored": P({ anchor: BlobRef, refs: Type.Array(AnyRecordId) }),
   "inquiry.round_started": P({ n: Type.Integer({ minimum: 0 }), planHash: Nullable(Sha256) }),
@@ -774,7 +808,8 @@ export const EventPayloads = {
   "inquiry.cell_closed": P({ cellKey: Type.String({ minLength: 1 }), state: Type.Union([Type.Literal("filled"), Type.Literal("not_applicable")]),
                              reason: Nullable(ShortText), possibilityIds: Type.Array(PossibilityId), branchRunId: Nullable(RunId) }),
   "inquiry.stopped": P({ reason: Inquiry.properties.stop.anyOf[0].properties.reason, note: Nullable(ShortText),
-                         openQuestionIds: Type.Array(OpenQuestionId) }),
+                         openQuestionIds: Type.Array(OpenQuestionId),
+                         handover: Nullable(BlobRef) }),   // 15 §3.14 InquiryHandover
   "lens.added": P({ lens: LensCore }),
   "lens.updated": P({ changes: Type.Partial(LensCore), userModified: Type.Boolean() }),
   "lens.retired": Reason,
@@ -810,11 +845,21 @@ export const EventPayloads = {
     omitted: Type.Array(P({ category: Type.String({ minLength: 1 }), count: Type.Integer({ minimum: 1 }), reason: Type.String({ minLength: 1 }) })),
     invalidationTriggers: Type.Array(Type.String({ minLength: 1 })),
     budget: P({ maxChars: Type.Integer({ minimum: 0 }), usedChars: Type.Integer({ minimum: 0 }), approximateTokens: Type.Integer({ minimum: 0 }) }),
+    requestId: Id("mr"),
+    model: P({ provider: Type.String(), id: Type.String() }),
+    requiredRefs: Type.Array(AnyRecordId, { maxItems: 500 }),   // 반드시 넣어야 했던 레코드 (10 A9 mustIncludeRefs)
+    cacheBreak: Nullable(Type.String({ maxLength: 64 })),         // 공급자 캐시가 끊긴 이유
+    bytesHash: Sha256, tokenEstimate: Type.Integer({ minimum: 0 }),
+    images: Type.Array(BlobRef),
+    // projection blob에는 12 투영 manifest 전문(포함·생략·순서)을 함께 둔다
   }),
   "run.message_recorded": P({
     messageId: Id("ms"),
     messageNo: Type.Integer({ minimum: 1 }),
-    origin: Type.String({ minLength: 1, maxLength: 32 }),   // 12: user_input, model, injection, tool_result 등
+    origin: Type.Union(["user_input", "model", "injection", "tool_result", "summary", "system"].map((x) => Type.Literal(x))), // 12
+    requestId: Nullable(Id("mr")),
+    injection: Nullable(P({ injectionId: Type.String({ minLength: 1, maxLength: 64 }), kind: Type.String({ maxLength: 32 }),
+                            digest: Sha256 })),
     formatVersion: Type.Integer({ minimum: 1 }),
     role: Type.Union([Type.Literal("user"), Type.Literal("assistant"), Type.Literal("system_section"), Type.Literal("tool_result")]),
     body: BlobRef,
@@ -827,11 +872,14 @@ export const EventPayloads = {
   }),
   "run.steered": P({ text: ShortText, appliedAtStep: Type.Integer({ minimum: 0 }) }),
   "run.awaiting": P({ kind: Type.Union([Type.Literal("question"), Type.Literal("recovery")]), ref: IdAny("qs", "tc") }),
-  "run.resumed": P({ cause: AnyRecordId }),
   "run.stopping": P({ cause: Type.Union([Type.Literal("cancel"), Type.Literal("wrap_up"), Type.Literal("budget"), Type.Literal("shutdown")]) }),
   "run.interrupted": P({ previousEpoch: Type.String({ minLength: 26, maxLength: 26 }), statusBefore: RunStatus }),
   "run.ended": P({ reason: RunEndReason, code: Nullable(Type.String({ maxLength: 64 })), note: Nullable(ShortText), usage: Usage }),
-  "budget.charged": P({ scope: IdAny("rn", "wu", "iq"), usage: Usage, wallMs: Type.Integer({ minimum: 0 }) }),
+  /** 한 번의 사용을 여러 계정에 함께 적는다 (12 §3.11) */
+  "budget.charged": P({ scopes: Type.Array(Type.String({ pattern: "^(rn|wu|iq|ag)_[0-9A-HJKMNP-TV-Z]{26}$|^(act|day):[A-Za-z0-9_:-]{1,64}$|^observer$" }), { minItems: 1 }),
+                        usage: Usage, wallMs: Type.Integer({ minimum: 0 }),
+                        toolCalls: Type.Integer({ minimum: 0 }), subcalls: Type.Integer({ minimum: 0 }),
+                        reservedLeaseId: Nullable(Type.String({ maxLength: 64 })) }),
   "budget.exhausted": P({ scope: IdAny("rn", "wu", "iq"), limit: Type.String({ minLength: 1, maxLength: 32 }) }),
   "toolcall.requested": P({ toolCall: ToolCallCore }),
   "toolcall.blocked": P({ rejectionClass: RejectionClassSchema, code: Type.String({ minLength: 1 }), reason: ShortText,
@@ -840,20 +888,36 @@ export const EventPayloads = {
   "toolcall.approved": P({ questionId: QuestionId, editedArgs: Nullable(BlobRef) }),
   "toolcall.denied": P({ questionId: QuestionId, reason: Nullable(ShortText) }),
   "toolcall.started": P({ execution: ToolCallExecution, permission: Nullable(PermissionVerdict) }),
-  "toolcall.not_executed": P({ reason: Type.Union(["restart", "cancel", "steering", "superseded"].map((r) => Type.Literal(r))) }),
-  "toolcall.completed": P({ outcome: Type.Literal("completed"), observationId: ObservationId, isError: Type.Boolean(),
-                            exitCode: Nullable(Type.Integer()), content: Nullable(BlobRef), structuredContent: Nullable(BlobRef),
+  "toolcall.not_executed": P({ reason: NotExecutedReason }),
+  "toolcall.completed": P({ outcome: Type.Literal("completed"),
+                            observationId: Nullable(ObservationId),          // primitive = null 제안 도구는 null (J-43)
+                            isError: Type.Boolean(), exitCode: Nullable(Type.Integer()),
+                            content: Nullable(BlobRef), structuredContent: Nullable(BlobRef),
+                            modelContent: Nullable(BlobRef), fullOutput: Nullable(BlobRef),
+                            truncation: Nullable(P({ originalBytes: Type.Integer({ minimum: 0 }), keptBytes: Type.Integer({ minimum: 0 }) })),
+                            recovered: Nullable(Type.Union([Type.Literal("hash_verified"), Type.Literal("replayed")])),
                             enforcement: ToolCallExecution.properties.enforcement, durationMs: DurationMs,
-                            observedChanges: Type.Array(P({ target: Type.String(), beforeHash: Nullable(Type.String()), afterHash: Nullable(Type.String()) })) }),
-  "toolcall.interrupted": P({ observationId: ObservationId, cause: Type.Union([Type.Literal("restart"), Type.Literal("cancel"), Type.Literal("steering")]) }),
-  "toolcall.outcome_uncertain": P({ observationId: ObservationId, recoveryCheck: ShortText, externalRef: Nullable(Type.String({ maxLength: 512 })) }),
-  "toolcall.replay_started": P({}),
+                            observedChanges: Nullable(ChangeSet) }),
+  "toolcall.interrupted": P({ observationId: ObservationId, cause: Type.Union([Type.Literal("restart"), Type.Literal("cancel"), Type.Literal("steering")]),
+                              detectedChanges: Nullable(ChangeSet) }),
+  "toolcall.outcome_uncertain": P({ observationId: ObservationId, cause: Type.String({ minLength: 1, maxLength: 32 }),
+                                    recoveryCheck: ShortText, externalRef: Nullable(Type.String({ maxLength: 512 })),
+                                    detectedChanges: Nullable(ChangeSet) }),
+  "toolcall.replay_started": P({ attempt: Type.Integer({ minimum: 1 }), agreementRef: ToolCallExecution.properties.agreementRef,
+                                 permission: Nullable(PermissionVerdict) }),
   "toolcall.recovered": P({ resolution: ToolCall.properties.recovery.anyOf[0].properties.resolution,
                             evidence: Type.Array(ObservationId) }),
   "rollback_point.registered": P({ rollbackPoint: RollbackPointCore }),
   "rollback_point.used": P({ forObjectionId: Nullable(ObjectionId), note: Nullable(ShortText) }),
   "rollback_point.expired": Reason,
-  "boundary.reached": P({ boundary: Type.Union(["round_end", "loop_transition", "workunit_end", "concern_switch", "daily_digest"].map((b) => Type.Literal(b))),
+  "directive.applied": P({ directiveSeq: Seq, directiveType: Type.String({ minLength: 1, maxLength: 32 }),
+                           turns: Type.Integer({ minimum: 0 }), ms: Type.Integer({ minimum: 0 }), opsCount: Type.Integer({ minimum: 0 }) }),
+  "plan.deviated": P({ transitionId: LoopTransitionId, severity: Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")]),
+                       expectedStepKey: Nullable(Type.String({ maxLength: 16 })), actualLoop: LoopIdSchema }),
+  "workspace.unlinked_change_observed": P({ root: Type.String({ minLength: 1, maxLength: 4096 }),
+                                            files: Type.Array(Type.String({ maxLength: 4096 }), { maxItems: 200 }),
+                                            fileCount: Type.Integer({ minimum: 1 }), toolCallId: Nullable(ToolCallId) }),
+  "boundary.reached": P({ boundary: WorkBoundaryKind,   // 08: round_end, workunit_end, loop_transition, concern_waiting, user_return, review_window, daily_rollover
                           concernId: Nullable(ConcernId), workUnitId: Nullable(WorkUnitId), ref: Nullable(AnyRecordId) }),
 
   // ── 통치·커널·시스템 ──
@@ -872,8 +936,9 @@ export const EventPayloads = {
   "device.revoked": Reason,
   "device.connected": P({ connectionId: ConnectionId, listener: Type.String({ minLength: 1, maxLength: 16 }) }),
   "device.disconnected": P({ connectionId: ConnectionId, cause: Type.String({ minLength: 1, maxLength: 32 }) }),
-  "presence.changed": P({ state: Type.Union([Type.Literal("online"), Type.Literal("idle"), Type.Literal("away")]),
-                          previous: Type.Union([Type.Literal("online"), Type.Literal("idle"), Type.Literal("away")]) }),
+  // 값은 19 §3.7.8·20 §3.9.12: active | idle | hidden | locked(모바일만) | offline(연결 없음)
+  "presence.changed": P({ state: PresenceState, previous: PresenceState,
+                          screen: Nullable(Type.String({ maxLength: 64 })) }),
   "auth.denied": P({ reason: Type.String({ minLength: 1, maxLength: 32 }), listener: Type.String({ maxLength: 16 }),
                      sourceIp: Nullable(Type.String({ maxLength: 64 })), count: Type.Integer({ minimum: 1 }) }),
   "auth.policy_relaxed": P({ key: Type.String({ minLength: 1, maxLength: 64 }), reason: ShortText }),
@@ -922,7 +987,7 @@ export const EventPayloads = {
   "record.staled": P({ recordId: AnyRecordId, reason: StaleReason, causeRef: Type.String({ minLength: 1 }) }),
   "record.revalidated": P({ recordId: AnyRecordId, evidence: Type.Array(EvidenceRecordId), note: Nullable(ShortText) }),
   "record.superseded": P({ recordId: AnyRecordId, supersededBy: AnyRecordId }),
-  "daemon.booted": P({ bootEpoch: Type.String({ minLength: 26, maxLength: 26 }), releaseId: Type.String(), userVersion: Type.Integer(),
+  "daemon.booted": P({ bootEpoch: Type.String({ minLength: 26, maxLength: 26 }), previousEpoch: Nullable(Type.String({ minLength: 26, maxLength: 26 })), releaseId: Type.String(), userVersion: Type.Integer(),
                        projectorVersion: Type.Integer(), pid: Type.Integer(), host: Type.String(), storeId: Type.String({ minLength: 26, maxLength: 26 }),
                        previousCleanShutdown: Type.Boolean(), mode: Type.Union([Type.Literal("normal"), Type.Literal("read_only"), Type.Literal("safe")]),
                        recovered: P({ runs: Type.Integer({ minimum: 0 }), toolCalls: Type.Integer({ minimum: 0 }) }) }),
@@ -956,6 +1021,7 @@ export const EventPayloads = {
   "import.completed": P({ sourcePath: Type.String(), sourceHash: Sha256, report: BlobRef }),
 
   // ── 측정 (16). 필드 의미는 16 §3.6~3.9 ──
+  // 화면이 보여 준 대상 레코드는 envelope refs에 둔다
   "view.opened": P({ view: Type.String({ minLength: 1, maxLength: 64 }), dwellBucket: Type.String({ maxLength: 16 }), deviceId: Nullable(DeviceId) }),
   "surprise.reported": P({ note: Nullable(ShortText), refs: Type.Array(AnyRecordId) }),
   "resumption_check.opened": P({ checkId: Type.String({ minLength: 1, maxLength: 64 }), questions: BlobRef }),
@@ -963,7 +1029,7 @@ export const EventPayloads = {
   "resumption_check.scored": P({ checkId: Type.String({ minLength: 1, maxLength: 64 }), score: Type.Number() }),
   "self_report.recorded": P({ instrument: Type.String({ minLength: 1, maxLength: 64 }), values: Type.Record(Type.String(), Type.Unknown()) }),
   "experiment.condition_set": P({ condition: Type.String({ minLength: 1, maxLength: 64 }), until: Nullable(Ms) }),
-  "observer_report.recorded": P({ report: BlobRef, matchesRecommendation: Nullable(Type.Boolean()) }),
+  "observer_report.recorded": P({ form: Type.String({ minLength: 1, maxLength: 32 }), report: BlobRef }),   // form = 보고 종류 (16)
 } as const;
 
 export type EventType = keyof typeof EventPayloads;
@@ -987,9 +1053,11 @@ export interface EventMeta {
 export const EVENT_META: Readonly<Record<EventType, EventMeta>>;
 ```
 
+사람 결정 이벤트(`question.answered`, `agreement.confirmed`, `acceptance.recorded`, 사람의 `choice.committed`, `objection.filed`, `policy_proposal.accepted`·`dismissed`)의 payload에는 선택 필드 `humanOp: HumanOpMeta`(08 §3.4.5)를 둘 수 있다. 확정 이벤트(`acceptance.recorded`, `choice.committed`, `finding.confirmed`, `agreement.confirmed`)에는 선택 필드 `acknowledgedFlags: { recordId, flag: "contested" | "stale" }[]`를 둔다. 사람이 이의·낡음 표시를 보고도 확정했다는 기록이며, 10 V-INV-06은 이것이 있을 때만 플래그가 켜진 근거를 허용한다. 위 표기에서는 둘 다 생략했다.
+
 `Type.Omit`, `anyOf[0]` 같은 참조는 08 스키마에서 하위 스키마를 꺼내는 표기다. 구현에서는 08 쪽에서 해당 하위 스키마를 이름 있는 상수로 내보내고 여기서 가져다 쓴다.
 
-카탈로그 크기: 271개(2026-10-12, §10 정렬 뒤). 모든 타입의 `typeVersion`은 1에서 시작한다.
+카탈로그 크기: 275개(2026-10-12, 2a단계 통합 뒤. `run.resumed`를 판정 J-38로 빼고 `check.pinned`·`unpinned`를 J-95로 더했다). 모든 타입의 `typeVersion`은 1에서 시작한다.
 
 ### 3.5 휘발 이벤트
 
@@ -1058,7 +1126,7 @@ ${HELM_ROOT}/state/exports/                  JSONL 내보내기
 
 ```sql
 PRAGMA journal_mode = WAL;          -- 결정 29
-PRAGMA synchronous = FULL;          -- 커밋마다 WAL fsync. 정전에도 커밋된 이벤트를 잃지 않는다 [제안, D09 미결 U-02]
+PRAGMA synchronous = FULL;          -- 커밋마다 WAL fsync. 정전에도 커밋된 이벤트를 잃지 않는다 (17 요구로 확정, U-02)
 PRAGMA foreign_keys = ON;
 PRAGMA busy_timeout = 5000;         -- 읽기 전용 연결의 체크포인트와 겹칠 때
 PRAGMA temp_store = MEMORY;
@@ -1070,7 +1138,7 @@ PRAGMA trusted_schema = OFF;
 PRAGMA application_id = 1212501069; -- 0x48454C4D 'HELM'. 새 파일에서만 설정, 이후 대조
 ```
 
-읽기 연결(관리 CLI, 백업 검증, 재구성 비교): `new Database(path, { readonly: true, fileMustExist: true })` + `PRAGMA query_only = ON`, `busy_timeout = 5000`. WAL이라 쓰기와 동시에 읽을 수 있다 [지식].
+읽기 연결(관리 CLI, 백업 검증, 재구성 비교, 관찰 에이전트, 데몬의 읽기 워커): `new Database(path, { readonly: true, fileMustExist: true })` + `PRAGMA query_only = ON`, `busy_timeout = 5000`. WAL이라 쓰기와 동시에 읽을 수 있다 [지식]. 읽기 트랜잭션 하나는 30초를 넘지 않는다(17 F-06). 넘으면 그 워커를 끝내고 체크포인트를 다시 시도한다. 긴 읽기(내보내기, 재전송)는 5,000건 단위로 트랜잭션을 나눈다.
 
 드라이버: `better-sqlite3`(결정 36). 동기 API라 데몬의 쓰기는 한 JS 스레드에서 순서대로 실행된다. helm-kernel-v02는 `node:sqlite`의 `DatabaseSync`로 같은 구조를 실험했다 [실험]. FTS5는 better-sqlite3 기본 빌드에 들어 있다 [지식, 구현 시 `SELECT sqlite_compileoption_used('ENABLE_FTS5')`로 확인].
 
@@ -1144,6 +1212,12 @@ CREATE TRIGGER events_append_only_u BEFORE UPDATE ON events
   BEGIN SELECT RAISE(ABORT, 'events are append-only'); END;
 CREATE TRIGGER events_append_only_d BEFORE DELETE ON events
   BEGIN SELECT RAISE(ABORT, 'events are append-only'); END;
+
+-- 무효화 태그 (19 §3.6.3). 투영기가 같은 트랜잭션에서 계산한다. 파생값이므로 해시 체인 밖이고 재구성 때 다시 만든다
+CREATE TABLE event_invalidations (
+  seq  INTEGER PRIMARY KEY REFERENCES events(seq),
+  tags TEXT    NOT NULL                              -- JSON 배열: 레코드 id와 집계 이름(@inbox 등)
+) STRICT;
 
 -- envelope.refs의 역색인: "이 레코드에 영향을 준 이벤트"
 CREATE TABLE event_refs (
@@ -1291,12 +1365,14 @@ CREATE INDEX p_attention_project ON p_attention(project_id, severity DESC, since
 
 -- 예산 사용량 (budget.charged 누적, 12·14)
 CREATE TABLE p_budget (
-  scope_id      TEXT    PRIMARY KEY,                -- rn_ | wu_ | iq_
+  scope_id      TEXT    PRIMARY KEY,                -- rn_ | wu_ | iq_ | ag_ | act:<..> | day:<YYYY-MM-DD> | observer
   input_tokens  INTEGER NOT NULL DEFAULT 0,
   output_tokens INTEGER NOT NULL DEFAULT 0,
   cost_micros   INTEGER NOT NULL DEFAULT 0,         -- USD × 1e6
   wall_ms       INTEGER NOT NULL DEFAULT 0,
   requests      INTEGER NOT NULL DEFAULT 0,
+  tool_calls    INTEGER NOT NULL DEFAULT 0,
+  subcalls      INTEGER NOT NULL DEFAULT 0,
   last_seq      INTEGER NOT NULL
 ) STRICT;
 
@@ -1308,6 +1384,48 @@ CREATE TABLE kernel_snapshots (
   data           BLOB    NOT NULL,                  -- gzip JSON
   created_at     INTEGER NOT NULL
 ) STRICT;
+
+-- ── 지표 투영 (16 §3.22·§3.24, 소유 16). 커밋 뒤 소비자 `metrics`가 채운다. core 재구성 때 함께 비우고 다시 만든다 ──
+CREATE TABLE metric_fact (
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, sub TEXT NOT NULL, at INTEGER NOT NULL,
+  goal_id TEXT, concern_id TEXT, work_unit_id TEXT,
+  value REAL NOT NULL, dims TEXT NOT NULL,                        -- JSON
+  source_event_seq INTEGER NOT NULL, stream TEXT NOT NULL, extractor_version INTEGER NOT NULL
+) STRICT;
+CREATE INDEX metric_fact_kind_at ON metric_fact(kind, sub, at);
+CREATE INDEX metric_fact_concern ON metric_fact(concern_id, at);
+CREATE TABLE metric_snapshot (
+  metric_id TEXT NOT NULL, window_kind TEXT NOT NULL, window_end INTEGER NOT NULL,
+  value REAL, numerator REAL, denominator REAL, n INTEGER NOT NULL,
+  breakdown TEXT, def_version INTEGER NOT NULL, computed_at INTEGER NOT NULL,
+  PRIMARY KEY (metric_id, window_kind, window_end)
+) STRICT;
+CREATE TABLE return_episode (
+  id TEXT PRIMARY KEY, return_at INTEGER NOT NULL, away_ms INTEGER NOT NULL,
+  first_valid_action_at INTEGER, brief_used INTEGER NOT NULL, brief_corrections INTEGER NOT NULL DEFAULT 0,
+  audit_views INTEGER NOT NULL, audit_ms INTEGER NOT NULL, check_id TEXT
+) STRICT;
+CREATE TABLE observer_proposal (                    -- 서명·패밀리 조회 색인. 본체는 p_records의 policy_proposal
+  id TEXT PRIMARY KEY, kind TEXT NOT NULL, changes TEXT NOT NULL, signature TEXT NOT NULL, family TEXT NOT NULL,
+  status TEXT NOT NULL, submitted_at INTEGER NOT NULL, decided_at INTEGER, decision TEXT,
+  applied_at INTEGER, effect_verdict TEXT, record TEXT NOT NULL
+) STRICT;
+CREATE INDEX observer_proposal_sig ON observer_proposal(signature);
+CREATE INDEX observer_proposal_family ON observer_proposal(family);
+CREATE TABLE observer_signal (                      -- 관찰 보고의 최신 값 (correction_signal 등)
+  kind TEXT NOT NULL, scope_key TEXT NOT NULL, local_date TEXT NOT NULL, payload TEXT NOT NULL,
+  PRIMARY KEY (kind, scope_key)
+) STRICT;
+-- 메트릭 소비자 재구성: metric_* 다섯 테이블을 비우고 consumer_cursors.metrics = 0에서 다시 읽는다 (16 §3.22.1)
+
+-- 기기 토큰 조회 (18 §3.9). 인증 때 tokenHash로 찾는다. prev는 회전 유예 동안만
+CREATE TABLE p_device_tokens (
+  token_hash  TEXT    PRIMARY KEY,
+  device_id   TEXT    NOT NULL,
+  kind        TEXT    NOT NULL CHECK (kind IN ('current','prev')),
+  valid_until INTEGER
+) STRICT;
+CREATE INDEX p_device_tokens_device ON p_device_tokens(device_id);
 
 CREATE TABLE p_dials (
   layer    TEXT    NOT NULL,                        -- user | concern | instruction
@@ -1329,21 +1447,27 @@ CREATE TABLE consumer_cursors (                     -- 내부 소비자(알림�
   last_seq   INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 ) STRICT;
-CREATE TABLE source_cursors (                       -- 관찰 에이전트의 외부 세션 로그 증분 읽기 위치
-  source     TEXT    PRIMARY KEY,                   -- 파일 경로
-  file_id    TEXT    NOT NULL,                      -- dev:inode (회전 감지)
-  offset     INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
-) STRICT;
+-- 외부 세션 로그 읽기 위치는 정본 DB에 두지 않는다. 관찰 프로세스는 정본에 쓸 수 없으므로 16의 observer.db에 둔다 (판정 J-77)
 CREATE TABLE device_presence (                      -- 마지막 인증 시각 같은 잦은 값. 판정에는 presence.changed 투영을 쓴다
   device_id      TEXT    PRIMARY KEY,
   last_seen_at   INTEGER NOT NULL,
   last_transport TEXT
 ) STRICT;
+-- 푸시 토큰 원문 (판정 J-71, 26). 공급자에 보낼 때 원문이 필요하므로 운영 테이블에 둔다.
+-- 도메인 이벤트와 Device 레코드에는 해시와 끝 몇 자만 둔다. 이벤트로 재구성하지 않으며, 기기 폐기 때 지운다. 백업에 포함된다(파일 0600)
+CREATE TABLE push_tokens (
+  device_id   TEXT    PRIMARY KEY,
+  provider    TEXT    NOT NULL,                      -- 26: apns | fcm | webpush 등
+  token       TEXT    NOT NULL,                      -- 원문. 로그·진단·이벤트에 쓰지 않는다
+  token_hash  TEXT    NOT NULL,                      -- Device.push.tokenHash와 같은 값
+  updated_at  INTEGER NOT NULL
+) STRICT;
+
 -- 런타임 내부 타이머 (12 RuntimeTimer, tm_). 도메인 상태가 아니다. 재시작 때 12가 다시 건다
 CREATE TABLE runtime_timers (
   id         TEXT    PRIMARY KEY,                    -- tm_<ULID>
-  purpose    TEXT    NOT NULL,                       -- mediator_timeout | daily_digest | run_wall_watchdog 등 (12)
+  purpose    TEXT    NOT NULL,                       -- 12: observer_cycle | mediator_cycle | mediator_timeout | daily_digest |
+                                                     -- budget_window_reset | run_recovery_resume | run_wall_watchdog | maintenance_<작업>
   due_at     INTEGER NOT NULL,
   ref        TEXT,
   owner_epoch TEXT   NOT NULL,
@@ -1355,8 +1479,7 @@ CREATE INDEX runtime_timers_due ON runtime_timers(due_at);
 CREATE TABLE trace (
   id          INTEGER PRIMARY KEY,                   -- 단조 증가 (seq와 별개)
   after_seq   INTEGER NOT NULL,                      -- 같은 트랜잭션에서 쓴 마지막 이벤트 seq (없으면 head)
-  kind        TEXT    NOT NULL,                      -- model.requested, model.responded, context.compacted, input.queued, run.stage,
-                                                     -- inquiry.step_started, work.requested, attention.*, guard.tripped, repl.workspace_written, memo 등
+  kind        TEXT    NOT NULL,                      -- 아래 TraceKind 표
   run_id      TEXT,
   thread_id   TEXT,
   concern_id  TEXT,
@@ -1368,6 +1491,12 @@ CREATE TABLE trace (
 ) STRICT;
 CREATE INDEX trace_run  ON trace(run_id, id)  WHERE run_id IS NOT NULL;
 CREATE INDEX trace_kind ON trace(kind, id);
+-- TraceKind (D09-11). 12: model.requested, model.attempted, model.responded, model.request_abandoned, model.switched,
+--   context.injected, context.compacted, run.stage, input.queued, input.delivered, input.dropped, settle.unresolved,
+--   recovery.decided, repl.workspace_written, steering.deferred.
+-- 14: work.requested, work.admitted, work.deferred, attention.state_changed, attention.budget_spent,
+--   orchestration.guard_tripped, promotion.signaled.  15: inquiry.step_started, inquiry.step_completed, inquiry.step_failed.
+-- 목록에 없는 kind는 쓰지 않는다(쓰기 경로가 검사). 새 kind는 이 목록에 더한다
 CREATE TABLE volatile_scratch (                     -- 진행 중 도구 출력 꼬리 (§3.5)
   tool_call_id TEXT    PRIMARY KEY,
   run_id       TEXT    NOT NULL,
@@ -1417,7 +1546,7 @@ Concern 표시 상태(08 `ConcernDisplayStatus`)는 `@helm/store/src/views/conce
 
 | 겹 | 방법 | 막는 것 |
 |---|---|---|
-| 1 | systemd 사용자 단위 하나(`helm-daemon.service`, 17). 데몬은 쓰기 연결을 하나만 연다 | 같은 기계에서 데몬을 두 번 띄움 |
+| 1 | systemd 사용자 단위 하나(`helmd.service`, 17). 데몬은 쓰기 연결을 하나만 연다 | 같은 기계에서 데몬을 두 번 띄움 |
 | 2 | 시작 시 `data/helmd.lock`(잠금 전용 SQLite 파일)에 `BEGIN EXCLUSIVE`를 프로세스 수명 동안 잡는다(17 §3.1.4). 못 잡으면 종료 코드 3 | systemd 밖에서 수동 실행, 오프라인 CLI와의 충돌 |
 | 3 | 부팅 epoch fencing: 모든 쓰기 트랜잭션은 `BEGIN IMMEDIATE` 직후 `meta.current_boot_epoch`가 자기 epoch와 같은지 확인. 다르면 롤백하고 프로세스를 끝낸다(`path.fenced`) | 1·2가 실패해 두 프로세스가 같은 DB를 쓰는 경우. 늦게 깨어난 옛 프로세스 |
 
@@ -1434,7 +1563,7 @@ openStore(dataDir):
   3. HMAC 키 확인: SecretStore에서 HELM_LEDGER_HMAC_KEY(현재 keyId)를 받지 못하면 시작하지 않는다 (§3.10.3)
   4. DB 열기, application_id 확인 (0이면 새 파일 → 초기화하고 store_id 생성, HELM이 아니면 거부)
   5. user_version 확인: 앱보다 높으면 다운그레이드로 보고 거부 (§3.13.1)
-  6. 무결성 검사 tail 모드 (§3.10.4). 실패하면 읽기 전용 복구 모드(17 safe 모드)로 시작
+  6. 무결성 검사 tail 모드 (§3.10.4). 실패하면 17의 `read_only` 모드로 시작(§3.10.5, J-67)
   7. 마이그레이션 (§3.13): 필요하면 pre-migrate 백업 후 적용
   8. 이벤트 버전 확인: events에 이 앱이 모르는 type 또는 type_version이 있으면 시작하지 않는다
      (더 새 앱이 쓴 DB를 옛 앱이 열었음. store.unknown_event_type)
@@ -1445,11 +1574,13 @@ openStore(dataDir):
        append daemon.booted (+ 마이그레이션이 있었으면 store.migrated)
      COMMIT
  11. 런타임 복구 (12 §3.7): 정리할 실행·도구 호출 조회. 투영 재구성 뒤에 한다
-     - runsToInterrupt    = kind='run' AND status IN ('queued','running','stopping','awaiting_human','awaiting_recovery')
-                            AND ownerEpoch ≠ epoch
+     - runsToInterrupt    = kind='run' AND status IN ('queued','running','stopping') AND ownerEpoch ≠ epoch
+                            (awaiting_human·awaiting_recovery는 그대로 둔다. 답이 오면 새 run이 이어받는다. 판정 J-38·J-39)
      - toolCallsStarted   = kind='toolcall' AND status IN ('started','replaying')
      - toolCallsRequested = kind='toolcall' AND status='requested'
-     12가 internal:recovery 출처로 run.interrupted, toolcall.interrupted/outcome_uncertain/replay_started/not_executed를 낸다
+     12가 internal:recovery 출처로 run.interrupted, toolcall.interrupted/outcome_uncertain/not_executed, 해시가 맞으면
+     toolcall.completed(recovered hash_verified)를 낸다. replay_started는 실행 재개 때 커널 재검사를 통과한 뒤에 낸다(J-41).
+     재개 디스패치 멱등 키는 recover:<runId>:<attempt>
  12. 타이머 따라잡기: p_timers에서 due_at ≤ now인 항목을 스케줄러가 처리 (occurredAt = due_at)
  13. 쓰기 받기 시작
 ```
@@ -1628,16 +1759,16 @@ verify(db, mode):                          // mode: 'tail' | 'full'
 
 | 때 | 모드 | 실패하면 |
 |---|---|---|
-| 부팅 | tail (마지막 1만 건 또는 마지막 전체 검사 이후) | 읽기 전용 복구 모드 |
+| 부팅 | tail (마지막 1만 건 또는 마지막 전체 검사 이후) | 17 `read_only` 모드 |
 | 매주 (17의 타이머, `just` 레시피) | full | 주의 항목 + 운영 로그. 데몬은 계속 쓰되 백업 회전을 멈춘다(손상된 상태를 좋은 백업 위에 덮지 않게) |
 | 백업 직후 백업 사본 | full | 그 백업을 실패로 표시 |
-| 관리 명령 `helm store verify [--full]` | 선택 | 보고서 |
+| 관리 명령 `helm ops verify [--full]` | 선택 | 보고서 |
 
 검사가 끝나면 `integrity.verified` 이벤트를 남긴다(정상일 때만. 실패는 쓰기가 막힐 수 있으므로 운영 로그와 복구 기록 `integrity.recovered`로 남긴다).
 
-#### 3.10.5 읽기 전용 복구 모드
+#### 3.10.5 읽기 전용 복구 (17 `read_only` 모드)
 
-- 무결성 검사 실패, 마이그레이션 체크섬 불일치에서 들어간다(17의 safe 모드, `daemon.safe_mode_entered`). 디스크 부족은 17의 `read_only` 모드로 따로 다룬다.
+- 무결성 검사 실패, 마이그레이션 체크섬 불일치에서 들어간다. 이것은 17의 `read_only` 모드다(판정 J-67). 쓰기가 막힌 상태이므로 이벤트를 남기지 않고 운영 로그와 상태 조회(17)로 알린다. 디스크 부족도 같은 `read_only` 모드다. 17의 안전 모드(`daemon.safe_mode_*`)는 크래시 루프 전용이며 이 절과 무관하다.
 - 데몬은 투영 테이블로 읽기 요청에 답하고 모든 쓰기를 `path.store_read_only`로 거부한다. 진행 중이던 실행은 시작하지 않는다.
 - 손상된 꼬리를 자동으로 무시하거나 잘라 내지 않는다(helm-canon-2 §1.21). 복구는 사람이 관리 명령으로 한다: 백업에서 복원(§3.14.2), 또는 손상 지점 이후 이벤트를 JSONL로 내보내 확인한 뒤 복원. 조치는 `integrity.recovered`로 남긴다.
 
@@ -1660,7 +1791,9 @@ export interface Projector {
 2. 레코드 생성 이벤트: 08의 `*Core`로 레코드를 만들고 메타(`createdSeq`, `revisionSeq = lastSeq = seq` 등), 초기 상태, 초기 품질(08 §3.21.2)을 채워 `p_records`에 INSERT. 링크 생성 규칙(08 §3.20.3)대로 `p_links`.
 3. 전이 이벤트: 대상 레코드를 읽어 08 상태 기계 데이터(`machines/*.ts`)로 다음 상태를 정하고, `last_seq = seq`, 카탈로그 `bumpsRevision`이면 `revision_seq = seq`, `updated_at = recordedAt`. 표에 없는 전이를 만나면 투영기 예외(커널이 이미 막았어야 하므로 버그).
 4. 파생 테이블: `p_goal_versions`, `p_agreement_revisions`, `p_timers`(트리거를 가진 레코드가 생기거나 바뀔 때 다시 계산), `p_attention`(§3.11.4), `p_dials`, `p_budget`, `p_search`(title·statement·summary 텍스트).
-5. 16의 측정 투영(지표)은 이 투영기가 아니라 16이 비동기로 만든다(관찰 에이전트의 `observer.db`). 쓰기 트랜잭션을 늦추지 않기 위해서다.
+5. 무효화 태그: 이벤트 하나를 반영할 때 바뀔 수 있는 레코드 id와 집계 이름(`@inbox`, `@home`, `@brief` 등, 목록은 19 §3.6.3)을 모아 `event_invalidations`에 쓴다. 19의 정확성 규칙(뷰가 바뀌면 태그가 겹친다)을 투영기 테스트에 넣는다.
+6. 16의 지표 투영 테이블(`metric_fact`, `metric_snapshot`, `return_episode`, `observer_proposal`, `observer_signal`, DDL은 16 §3.24.1)은 같은 DB에 두되 이 투영기가 아니라 커밋 뒤 소비자(`consumer_cursors`의 `metrics`)가 채운다. 쓰기 트랜잭션을 늦추지 않기 위해서다. 재구성(§3.11.2) 때 함께 다시 만든다. 외부 세션 로그에서 만든 관찰 캐시는 16의 `observer.db`에 둔다.
+7. 오케스트레이터(14)는 `consumer_cursors`의 `orchestrator` 행으로 처리 위치를 남긴다. ConcernView는 저장하지 않고 투영에서 다시 만든다.
 
 `p_records.title`은 종류별 대표 필드다: Goal `content.statement`, Concern `title`, WorkUnit `title`, Observation `summary`, 추측·판단 `statement`, Choice `decision`, Question `text`, Agreement `content.purpose`, 그 밖은 08 레코드의 첫 텍스트 필드. 200자로 자른다.
 
@@ -1679,7 +1812,7 @@ rebuild():                                   // 부팅 9단계, 또는 관리 �
 ```
 
 - 재구성 중에는 쓰기를 받지 않는다. 예상 시간은 §3.15.
-- 결정성 검사: 시험 환경에서 새 DB에 같은 이벤트를 재구성한 결과와 운영 DB의 `p_*` 행을 정렬해 해시로 비교한다(`helm store verify --projections`). 다르면 투영기 버그다(F07 §5 "projection 간 데이터 불일치는 projection bug").
+- 결정성 검사: 시험 환경에서 새 DB에 같은 이벤트를 재구성한 결과와 운영 DB의 `p_*` 행을 정렬해 해시로 비교한다(`helm ops verify --projections`). 다르면 투영기 버그다(F07 §5 "projection 간 데이터 불일치는 projection bug").
 - 투영 테이블 하나만 망가졌을 때도 전체를 다시 만든다. 부분 재구성은 두지 않는다(단순함 우선).
 
 #### 3.11.3 타이머와 트리거
@@ -1695,7 +1828,7 @@ kind 이름은 12·10과 같다. 10 1판 이름의 대응: agreement_valid_until
 | `question_delivery` | Question.plannedDelivery | 전달기가 `question.delivered` |
 | `question_escalation` | Question.assumptionExpires − 다이얼 `question.expiry_margin` | `question.escalated` |
 | `question_expiry` | Question.assumptionExpires (비막힘 정보 질문) | `question.assumed` |
-| `rights_deadline` | Question.deadline (권리 질문) | `question.expired` |
+| `rights_deadline` | Question.deadline (권리 질문, 사람이 마감을 정한 경우만, J-49) | `question.expired` |
 | `approval_expiry` | Question.approval.expiresAt | `approval.expired` |
 | `expectation_deadline` | Expectation.dueAt | `expectation.timed_out` + `observation.recorded`(no_response) |
 | `prediction_check` | Prediction.check.trigger | 확인 요청(루프 전환 제안, 14) |
@@ -1797,7 +1930,7 @@ export const LATEST_SCHEMA_VERSION = MIGRATIONS.length;
 migrate(db, { backupDir }):
   uv = PRAGMA user_version
   if uv > LATEST: 거부 "DB 스키마 v{uv}가 이 Helm(최대 v{LATEST})보다 새롭다. Helm을 올리거나 백업을 복원하라" (다운그레이드 거부)
-  for m in applied(schema_migrations): if checksum(m) != 저장된 checksum: 거부 (적용된 마이그레이션이 바뀜) → 읽기 전용 복구 모드
+  for m in applied(schema_migrations): if checksum(m) != 저장된 checksum: 거부 (적용된 마이그레이션이 바뀜) → 17 `read_only` 모드
   if uv == LATEST: return
   backup(kind = "pre-migrate")                                      // §3.14.1과 같은 방법
   for m in MIGRATIONS where m.version > uv (오름차순):
@@ -1863,7 +1996,9 @@ backup(kind):                                   // kind: daily | pre-migrate | p
        upToSeq = 사본의 head_seq, headHash = 사본의 head_hash
   5. manifest.json 작성:
        { backupId, kind, createdAt, storeId, upToSeq, headHash, hmacHead: { seq, keyId, hmac }, userVersion,
-         projectorVersion, releaseId, dbSha256, dbBytes, blobCount }
+         projectorVersion, releaseId, dbSha256, dbBytes, blobCount,
+         verify: { integrityCheck: "ok", chain: "full" | "tail", projectionDigest, verifiedAt },   // 17
+         producer: { component: "helmd" | "helm-cli", releaseId, host, pid } }                     // 17
   6. .tmp/<backupId>를 backups/<kind>/<backupId>로 rename (원자적)
   7. backup.created 이벤트 (manifest 요약). 실패하면 backup.failed
   8. 회전 (17이 정한 개수). 지운 것은 backup.pruned
@@ -1892,7 +2027,7 @@ restore(backupId):                              // 데몬이 꺼져 있어야 �
 
 #### 3.14.3 내보내기
 
-- `helm store export --jsonl [--from seq] [--to seq]`: `state/exports/`에 한 줄에 한 이벤트. 정규화 envelope + `prevHash` + `hash`. 내보낸 파일만으로 체인을 다시 검사할 수 있다(F07 §3 SHOULD "사람이 읽을 수 있는 export"). blob 내용은 포함하지 않고 `--with-blobs`면 옆 디렉터리에 해시 이름으로 복사한다.
+- `helm export --jsonl [--from seq] [--to seq]`: `state/exports/`에 한 줄에 한 이벤트. 정규화 envelope + `prevHash` + `hash`. 내보낸 파일만으로 체인을 다시 검사할 수 있다(F07 §3 SHOULD "사람이 읽을 수 있는 export"). blob 내용은 포함하지 않고 `--with-blobs`면 옆 디렉터리에 해시 이름으로 복사한다.
 - 내보내기 형식으로 다른 Helm DB에 가져오는 import는 두지 않는다. 복원은 백업으로 한다.
 - 내보내기는 읽기 연결로 하므로 데몬이 실행 중이어도 된다.
 
@@ -1943,7 +2078,7 @@ restore(backupId):                              // 데몬이 꺼져 있어야 �
 | 메시지 본문 blob | 영구 (압축) | 대화 기록은 원천 근거 |
 | 자극 blob | 영구 | 선호 모델 근거 |
 | `volatile_scratch` | 도구 호출이 끝나면 즉시, 부팅 복구 뒤 전부 | 임시 |
-| `device_presence`, `consumer_cursors`, `source_cursors` | 갱신만 | 운영 상태 |
+| `device_presence`, `consumer_cursors` | 갱신만 | 운영 상태 |
 | 백업 | 17 §3.7이 정한 개수 | 17 |
 | quarantine | 사람이 지울 때까지 | 복구 판단 자료 |
 
@@ -1994,7 +2129,7 @@ export interface KernelView {         // 커널이 decide() 안에서 읽는 것
   records(q: RecordQuery): unknown[];
   links(id: string, opts?: { rel?: string; direction?: "in" | "out" }): Link[];
   dial(layer: string, scopeId: string | null, key: string): unknown;
-  presence(): { state: "online" | "idle" | "away"; sinceSeq: number };  // presence.changed 투영 (재현 가능)
+  presence(): { state: "active" | "idle" | "hidden" | "locked" | "offline"; deviceId: string | null; sinceSeq: number };  // presence.changed 투영 (재현 가능)
   headSeq: number;
   bootEpoch: string;
 }
@@ -2011,6 +2146,8 @@ export interface KernelContext {
 export interface CommitInput {
   command: CommandKeyFields;
   decide: (view: KernelView, ctx: KernelContext) => KernelDecision;
+  /** 판정 결과에 따라 같은 트랜잭션에 남길 trace (판정 J-42). decide 뒤, 커밋 전에 부른다 */
+  traces?: (decision: KernelDecision) => TraceDraft[];
 }
 export interface TraceDraft { kind: string; runId?: string; threadId?: string; concernId?: string; ref?: string;
                               data: unknown; expiresAt?: number }
@@ -2058,9 +2195,23 @@ export interface HelmStore {
   close(): void;
 }
 
-export function openStore(opts: StoreOptions): HelmStore;   // §3.8.2 순서 실행
+/** 17 운영 도구가 쓰는 함수 (17 §3.4·§3.9). 데몬과 오프라인 CLI가 함께 쓴다 */
+export interface StoreAdmin {
+  readonly schemaVersion: number;                       // user_version
+  readonly codeSchemaRange: { min: number; max: number }; // 이 코드가 열 수 있는 범위 (max = LATEST)
+  quickCheck(): { ok: boolean; detail: string };        // PRAGMA quick_check
+  verifyChain(opts: { lastN: number } | "all"): VerifyReport;   // = verify("tail" | "full")
+  projectionDigest(): string;                           // p_* 행을 정렬해 만든 sha256 (재구성 비교, 훈련)
+  backupTo(path: string, opts?: { onProgress?: (done: number, total: number) => void }): Promise<BackupManifest>;
+  recordRevision(id: string): { revision: number; revisionSeq: number } | null;   // 19
+}
+
+export function openStore(opts: StoreOptions): HelmStore & StoreAdmin;   // §3.8.2 순서 실행. 쓰기 트랜잭션 한 번으로 잠금 확인
+export function openReader(dataDir: string): ReadonlyStore;   // query_only 읽기 연결 (16, 관리 CLI)
 export function restore(dataDir: string, backupId: string): RestoreReport; // 데몬 정지 상태 전용
 ```
+
+하위 경로(06 §3.3): `@helm/store/read` = `openReader`, `readEvents`, `getRecord`, `queryRecords`, `links`, `search`, `attention`, `timersDue`, `getBlob`, `recordRevision`. `@helm/store/write` = `commit`, `commitBatch`, `appendTrace`, `onCommitted`, `putBlob`, `stageUpload`, 소비자 커서, 커널 스냅숏. `@helm/store/admin` = `openStore`, `StoreAdmin`, `verify`, `rebuildProjections`, `backup`, `restore`, `exportJsonl`. 쓰기 연결은 `engine`(데몬)만 연다(06). 19의 `readRange`·`readPage`는 `readEvents`의 `afterSeq`·`beforeSeq` 페이지다.
 
 커널 상태(10): 10은 판정 입력을 메모리의 `KernelState`로 둘 수 있다. 이것은 `KernelView`의 한 구현이며, 커밋이 끝난 뒤에만 그 커밋의 이벤트로 갱신하고 롤백되면 버린다. 시작할 때는 `loadKernelSnapshot()` + 그 뒤 이벤트로 만든다. 스냅숏의 `rules_version`이 현재 규칙과 다르거나 `state_hash`가 맞지 않으면 버리고 처음부터 접는다. 스냅숏은 캐시이며 정본은 이벤트다.
 
@@ -2075,10 +2226,10 @@ export function restore(dataDir: string, backupId: string): RestoreReport; // �
 | F-03 | 커밋 직후, 구독자 알림 전에 종료 | 구독자(프로토콜, 스케줄러, 알림기)는 커서 이후를 `readEvents`로 읽어 따라잡는다 | §3.8.4 |
 | F-04 | blob 파일을 쓴 뒤 DB 커밋 전에 실패 | 파일만 남음. 고아 GC가 1시간 뒤 지움 | §3.12 |
 | F-05 | 투영기 예외 (버그) | 명령 전체 롤백, 저장 안 함. 데몬 상태 "degraded"를 운영 로그와 상태 확인(17)에 보임. 같은 이벤트 타입이 반복 실패하면 수정 배포 전까지 그 명령 종류가 계속 실패한다. 이벤트를 쓰고 투영만 건너뛰는 방식은 택하지 않는다(D09-5: 커널의 판단 입력이 틀어진다) | §3.11 |
-| F-06 | 부팅 무결성 검사 실패 | 읽기 전용 복구 모드. 자동 잘라 내기 없음 | §3.10.5 |
+| F-06 | 부팅 무결성 검사 실패 | 17 `read_only` 모드(이벤트 없음, J-67). 자동 잘라 내기 없음 | §3.10.5 |
 | F-07 | 데몬 두 개 | 두 번째는 `helmd.lock`에서 종료(코드 3). 잠금을 지나도 epoch fencing으로 옛 프로세스의 쓰기가 실패하고 그 프로세스는 끝난다 | §3.8.1 |
 | F-08 | DB가 바이너리보다 새 스키마 | 시작 거부 (다운그레이드 금지) | §3.13.1 |
-| F-09 | 적용된 마이그레이션 소스가 바뀜 (체크섬 불일치) | 읽기 전용 복구 모드 | §3.13.1 |
+| F-09 | 적용된 마이그레이션 소스가 바뀜 (체크섬 불일치) | 17 `read_only` 모드 | §3.13.1 |
 | F-10 | 시계가 뒤로 감 | `recordedAt`은 직전 값을 넘지 않게 고정하고 `clock.skew_detected`를 남긴다(§3.2 규칙 9). 순서는 seq로만 판단. ID 팩토리는 `max(마지막 시각, now)`로 단조 유지. 타이머는 늦게 발동할 수 있다. 시계 앞으로 점프는 타이머가 일찍 발동할 수 있다(운영 로그에 경고) | 08 §3.2 |
 | F-11 | 오래 걸리는 읽기 트랜잭션이 WAL 체크포인트를 막음 | 내보내기와 재전송 조회는 5,000건 단위로 읽기 트랜잭션을 나눈다. 백업은 온라인 백업 API가 단계별로 복사한다 [지식]. `journal_size_limit`로 WAL 파일 크기를 줄인다 | §3.6.3 |
 | F-12 | 같은 멱등 키에 다른 내용 | `conflict.idempotency_key_reuse` 반환, 저장 안 함 | §3.9.2 |
@@ -2128,13 +2279,13 @@ export function restore(dataDir: string, backupId: string): RestoreReport; // �
 | 06 | `@helm/store`는 `@helm/domain`만 의존하고 `@helm/kernel`을 import하지 않는다(커널은 `decide` 함수로 주입). `better-sqlite3` 버전 고정. 데몬 프로세스 하나만 `mode: "writer"`로 연다. 06의 outbox·`expectedSeq` 표현을 이 문서의 커서 방식·`basisSeq`로 맞춘다 |
 | 10 | (1) `decide`는 순수 함수이며 `KernelView`·`KernelContext`만 읽는다. 메모리 `KernelState`는 `KernelView`의 구현으로 둔다(§3.16). (2) 거부·충돌·게이트도 `command.rejected` 초안을 만든다. conflict도 이벤트를 남긴다(§3.9.2). (3) 버전 검사(V-VER-01)는 decide 안에서 한다. 저장소는 하지 않는다. (4) 멱등 범위는 `channel|actor|viaKey|key`(§3.9.1). (5) 구조화 `authorityBasis`는 `<kind>:<ref>` 문자열로 저장한다(kind에 `question` 추가). (6) `command.rejected`의 plane은 대상 평면 또는 null이며 `system`이 아니다. (7) V-INV-08의 subject·authority 필수 규칙에서 §3.2 규칙 3·4의 예외를 둔다. (8) 거부 코드 목록에 `path.fenced`, `path.store_read_only`, `invalid.event_too_large`, `conflict.external_observation_changed`를 넣는다. (9) TimerPurpose 이름을 §3.11.3 kind로 바꾸고 `mediator_timeout`·`daily_digest`는 12의 `runtime_timers`로 둔다. (10) `kernel`·`scheduler` 행위자 이벤트에 `causationId` 필수 |
 | 11 | (1) 질문 전달 결정을 `question.delivery_planned`(질문별)와 `delivery.planned`(묶음)로 기록한다. (2) presence는 영속 `presence.changed`(상태가 바뀔 때만)로 받아들였다. (3) `notify` outbox 대신 `onCommitted` 구독을 쓴다. (4) 이의 대상은 레코드 id다(08 U-20) |
-| 12 | (1) 부팅 복구가 §3.8.2의 11단계 조회 결과로 명령을 내고 내부 멱등 키(§3.9.3)를 쓴다. (2) 모델 요청마다 `run.context_projected`(`projectionId` = `cp_`)를 남긴다. (3) 모델 메시지를 `run.message_recorded`로 남기고 재시작 때 이것으로 대화를 복원한다. (4) 커널 이벤트 이름은 `toolcall.started`, `toolcall.outcome_uncertain`, `toolcall.not_executed`다. (5) 모델 요청·응답·압축·입력 큐·stage는 trace로 쓴다. (6) 비밀을 가린 뒤 blob에 넣는다 |
-| 13 | 도구 하위 프로세스 환경에서 `HELM_LEDGER_HMAC_KEY*`와 데이터 디렉터리(`/srv/volumes/helm`) 접근을 막는다. 도구의 기본 작업 범위에서 이 경로를 제외한다 (bash로 기록을 고치는 문제, 대화 L2343). 10의 Scope는 08 §3.11.1을 그대로 쓴다 |
-| 14 | 규칙 결정은 행위자 `kernel`, 모델 선언 반영은 `runtime` + `declaredBy`로 보낸다. 기록이 필요한 단계 진행은 trace(`inquiry.step_*`, `work.requested` 등)다 |
-| 16 | 관찰 에이전트는 읽기 전용 연결만 쓰고, 제안은 데몬 소켓으로 보낸다. 측정 투영은 `observer.db`에 비동기로 만든다 |
-| 17 | (1) 무결성 검사 → 마이그레이션 → 투영 재구성 → 복구 순서를 데몬 시작 순서에 넣는다. (2) 주간 full 검사, 하루 한 번 가지치기·GC 타이머. (3) just 레시피 이름(예: `store-verify`, `store-backup`, `store-restore`, `store-export`). (4) SecretStore가 이전 HMAC 키(`HELM_LEDGER_HMAC_KEY_<keyId>`)도 넘긴다 |
+| 12 | (0) 본문의 1판 이름 `run.completed`·`failed`·`cancelled`·`recovered`, `toolcall.intended`·`dropped`·`resolved`, `submission.*`를 09 이름으로 바꾼다(판정 J-25~J-30). `model.*`, `context.*`, `input.*`, `message.committed`, `recovery.decided`, `settle.unresolved`, `steering.deferred`는 trace 종류로 둔다. (1) 부팅 복구가 §3.8.2의 11단계 조회 결과로 명령을 내고 내부 멱등 키(§3.9.3)를 쓴다. (2) 모델 요청마다 `run.context_projected`(`projectionId` = `cp_`)를 남긴다. (3) 모델 메시지를 `run.message_recorded`로 남기고 재시작 때 이것으로 대화를 복원한다. (4) 커널 이벤트 이름은 `toolcall.started`, `toolcall.outcome_uncertain`, `toolcall.not_executed`다. (5) 모델 요청·응답·압축·입력 큐·stage는 trace로 쓴다. (6) 비밀을 가린 뒤 blob에 넣는다 |
+| 13 | (0) `scope.violation_detected`는 `agreement.violation_detected`(+ `scope_violation` 질문), `question.raised`는 `question.recorded`, `submission.rejected`는 `command.rejected`다. 어댑터 쪽 이름(`tool.*`, `turn.*`, `session.started`, `usage.reported`)은 어댑터 내부 이름이며 이벤트가 아니다. 도구 환경에서 `HELM_LEDGER_HMAC_KEY*`와 데이터 디렉터리(`/srv/volumes/helm`) 접근을 막는다. 도구의 기본 작업 범위에서 이 경로를 제외한다 (bash로 기록을 고치는 문제, 대화 L2343). 10의 Scope는 08 §3.11.1을 그대로 쓴다 |
+| 14 | §3.18의 받는 이벤트 이름을 09 이름으로 바꾼다(`loop_plan.recorded`→`loop_plan.adopted`, `agreement.ended`→`fulfilled`·`released`·`expired`, `obligation.closed`→`resolved`·`waived`·`transferred`, `*.contested`→`objection.filed`, `workunit.ended`→`workunit.concluded`·`cancelled`, `budget.used`→`budget.charged`, `scope.exceeded`→`workunit.scope_exceeded`, `tool.blocked`→`toolcall.blocked`, `observer.proposal_recorded`→`policy_proposal.submitted`). 규칙 결정은 행위자 `kernel`, 모델 선언 반영은 `runtime` + `declaredBy`로 보낸다. 기록이 필요한 단계 진행은 trace(`inquiry.step_*`, `work.requested` 등)다 |
+| 16 | 관찰 에이전트는 읽기 전용 연결만 쓰고, 제안은 감독기 IPC로 보낸다(판정 §2, 06 §3.7). 측정 투영은 `observer.db`에 비동기로 만든다 |
+| 17 | (1) 무결성 검사 → 마이그레이션 → 투영 재구성 → 복구 순서를 데몬 시작 순서에 넣는다. (2) 주간 full 검사, 하루 한 번 가지치기·GC 타이머. (3) just 레시피 이름(관리 명령은 `helm ops verify`, `helm export`, 단위는 `helmd.service`, J-68). (4) SecretStore가 이전 HMAC 키(`HELM_LEDGER_HMAC_KEY_<keyId>`)도 넘긴다 |
 | 18 | HMAC 키 생성·보관·교체 절차(SOPS), 데이터 디렉터리 권한 감사 |
-| 19 | (1) 프로토콜 이벤트의 seq는 이 문서의 seq를 그대로 쓴다(결정 31). (2) 필터 구독에서 `headSeq`·`nextAfterSeq` 사용. (3) 휘발 이벤트를 seq 없이 보낸다. (4) 클라이언트로 보내는 이벤트는 `redact: true` 사본이다. (5) 거부 갈래 이름 `qualification`을 `authority`로 |
+| 19 | (0) 이벤트 이름 `contest.filed`는 `objection.filed`, presence 값은 `PresenceState`. (1) 프로토콜 이벤트의 seq는 이 문서의 seq를 그대로 쓴다(결정 31). (2) 필터 구독에서 `headSeq`·`nextAfterSeq` 사용. (3) 휘발 이벤트를 seq 없이 보낸다. (4) 클라이언트로 보내는 이벤트는 `redact: true` 사본이다. (5) 거부 갈래 이름 `qualification`을 `authority`로 |
 | 21 | 거부 갈래 이름 `eligibility`를 `authority`로 |
 | 22 | §6의 저장소 시험(고장 주입, 결정성, 성능)을 테스트 계층에 넣는다 |
 | 24 | 평면 접두사 금지(D09-9)와 DB 경로(`/srv/volumes/helm/data/helm.sqlite`)를 ADR 문구에 맞춘다 |
@@ -2178,7 +2329,7 @@ export function restore(dataDir: string, backupId: string): RestoreReport; // �
 | ID | 질문 | 선택지 | 추천 기본값 |
 |---|---|---|---|
 | U-01 | 프로젝트마다 DB를 나눌지 | (a) DB 하나 (b) 프로젝트별 | (a) D09-1 |
-| U-02 | `synchronous` | (a) FULL (b) NORMAL (정전 시 마지막 트랜잭션 몇 개를 잃을 수 있으나 손상은 없음 [지식]) | (a). 성능 시험에서 p99가 목표를 넘으면 (b) 검토 |
+| U-02 | `synchronous` | (a) FULL (b) NORMAL | (a)로 확정(17). 성능 시험에서 p99가 목표를 넘어도 사람 결정 이벤트를 잃지 않는 쪽을 택한다 |
 | U-03 | HMAC 키가 없을 때 | (a) 경고하고 계속 (b) 시작 거부 | (b). 18의 요구. 설치 레시피(17)가 키를 만든다 |
 | U-04 | 모델의 사고(thinking) 내용을 저장할지 | (a) 메시지 blob에 함께 (b) 저장 안 함 | (a). 공급자가 암호화한 사고는 받은 그대로. 12 확정 |
 | U-05 | 컨텍스트 투영 blob 보존 기간 | 30 / 90 / 영구 | 90일 |
@@ -2319,6 +2470,27 @@ export function restore(dataDir: string, backupId: string): RestoreReport; // �
 | 11 | presence를 모든 접속 변화마다 영속 | 상태가 바뀔 때만 영속, 생존 신호는 휘발 | 양을 줄인다(§3.15.3) |
 | 12 | 커널 이벤트 `toolcall.intended`, `toolcall.outcome_unknown`, `toolcall.dropped` | `toolcall.started`, `toolcall.outcome_uncertain`, `toolcall.not_executed` | 10이 이미 started를 쓴다. 12는 이름을 09에 맡겼다 |
 | 12 | `run.stage`를 이벤트로 | trace | 도메인 상태가 아니다 |
+
+### 10.3 2a단계 통합
+
+| 출처 | 반영 |
+|---|---|
+| 17 | `StoreAdmin`(`quickCheck`, `verifyChain`, `projectionDigest`, `backupTo`, `schemaVersion`, `codeSchemaRange`), 읽기 트랜잭션 30초 상한, `synchronous = FULL` 확정, 잠금은 `helmd.lock`(판정 §2) |
+| 18 | `p_device_tokens`(tokenHash 조회), 감사 이벤트 전부 카탈로그에 있음 |
+| 19 | `event_invalidations`(무효화 태그, 체인 밖), `DeliveredEvent`, `recordRevision`, `readRange`·`readPage` = `readEvents` 페이지, 명령 결과 보존 365일(요구 7일 이상) |
+| 11·20 | `question.delivered`: 11 `QuestionDeliveredExtra`(문구 키 `copy`, `surface` 배열, `category`, `targetDevices`)를 정본으로 하고 앱이 키로 제목·본문을 만든다. `question.answered.matchesRecommendation`. `PresenceState`(active·idle·hidden·locked·offline) |
+| 06 | 하위 경로 `read`·`write`·`admin`, `openReader`(`query_only`) |
+| 14 | 오케스트레이터 커서는 `consumer_cursors`. `work.*`, `attention.*`, `orchestration.guard_tripped`, `promotion.signaled`는 trace |
+| 16 | `directive.applied`, `plan.deviated`, `workspace.unlinked_change_observed` 추가(274개). 지표 투영 테이블은 같은 DB, 커밋 뒤 소비자가 채움 |
+| 01·16 | 사람 결정 payload의 `humanOp` 선택 필드 |
+| 12 | 도구 호출 종결 기록 하나(first-writer-wins)를 멱등 키와 커널 상태 검사로 지킨다 |
+| 12·13 | Run `budget`·`modelRole`·`step`·`guarantees`·`capabilityManifestHash`, ToolCall `requestId`·`messageId`·`index`·`sandbox`·`externalEffect`, NotExecutedReason 확장, `toolcall.completed`(관찰 Nullable J-43, `recovered`, `modelContent`, `fullOutput`, `truncation`, ChangeSet), outcome_uncertain·interrupted의 `detectedChanges`, `replay_started` payload, `run.context_projected`·`run.message_recorded` 필드, `budget.charged` scopes, `p_budget` 열, `daemon.booted.previousEpoch`, TraceKind 표, `runtime_timers.purpose` 목록, commit `traces` 콜백(J-42). `run.resumed` 제거와 부팅 때 awaiting_* 유지(J-38·J-39), replay는 재개 때 재검사 뒤(J-41) |
+| 10·11 | `boundary.reached` 7개 경계, `question.delivered.urgency` interrupt·notice·digest(J-52), `acknowledgedFlags`, `agreement.restored.restoredTo`, 권리 마감은 사람이 정한 경우만(J-49) |
+| 15 | `inquiry.opened.divergence`, `inquiry.stopped.handover` |
+| 10 | J-94 `setting.changed`(governance, 이미 있음), J-95 `check.pinned`·`unpinned`, `question.deferred.deadline` |
+| 16 | 지표 DDL을 §3.7로 옮김(`brief_corrections` 포함), `source_cursors` 제거(J-77), 제안 경로는 감독기 IPC, `observer_report.recorded.form`, `view.opened` 대상은 refs, `resumption_check.opened` 행위자 runtime |
+| 17·26 | J-67(무결성 실패는 `read_only`, 안전 모드는 크래시 루프 전용), J-68(`helmd.service`, `helm ops verify`, `helm export`), J-71(`push_tokens` 운영 테이블), 백업 manifest `verify`·`producer` |
+| 조정자 | J-25(conflict도 `command.rejected`), J-26(11 이름을 08 대응으로), J-27(authority 문자열 저장), J-28(presence `locked`는 모바일만), J-29(`indeterminate`), J-30(`objection.filed`) 채택을 반영했다 |
 
 ## 부록 A. 이전 어휘와의 대응
 

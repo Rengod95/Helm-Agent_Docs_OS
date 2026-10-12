@@ -1,7 +1,7 @@
 # 17. 데몬과 운영
 
 - 작성: 2026-10-11, P11(데몬)
-- 상태: 1단계 초안. 06(P3)·16(P10)·19(P12)·20(P13)의 1단계 초안을 읽고 맞췄다. 08·09(P5), 10·11(P6), 12·13(P7)은 이 문서를 쓰는 동안 아직 없었다. 그 문서들이 소유하는 이름(이벤트 이름, 테이블, 복구 알고리즘 세부)은 브리프 §3 공통 계약과 `<대상>.<과거형 동사>` 점 표기로 임시로 쓰고 §5.2에 요구로 적었다.
+- 상태: 2a단계 통합판(2026-10-12). 브리프 결정 41~46과 조정자 판정(`process/rulings-stage2a.md`)을 반영하고 01~16·19~21의 요구를 처리했다. 1단계 초안 머리말: 06(P3)·16(P10)·19(P12)·20(P13)의 1단계 초안을 읽고 맞췄다. 08·09(P5), 10·11(P6), 12·13(P7)은 이 문서를 쓰는 동안 아직 없었다. 그 문서들이 소유하는 이름(이벤트 이름, 테이블, 복구 알고리즘 세부)은 브리프 §3 공통 계약과 `<대상>.<과거형 동사>` 점 표기로 임시로 쓰고 §5.2에 요구로 적었다.
 - 소유: `helmd` 프로세스 모델, 수명주기(시작·종료 순서, 신호, 단일 인스턴스), WSL 운영(systemd 단위, 재시작 정책, Windows 쪽 사건별 동작), 저장 위치, 백업·복구·복구 훈련의 운영 절차, 업그레이드와 되돌리기, 상태 확인·진단, 운영 로그, 리소스 한도, 데몬 관련 `justfile` 레시피, 관리 CLI(`@helm/cli`) 명령 목록, 리스너 주소·소켓 경로.
 - 소유하지 않음: 보안 정책 전부(인증, 페어링, 토큰, 비밀 마스킹, 도구 격리 요구)는 짝 문서 18이 소유한다. 이벤트 envelope·DDL·마이그레이션 내용·백업 파일의 DB 수준 형식은 09, 크래시 복구 알고리즘과 스케줄러는 12, 도구 실행·프로세스 생성은 13, 프로토콜 메시지·메서드 이름·핸드셰이크 형식은 19, 앱 쪽 SSH 실행·키체인은 20이 소유한다.
 - 출처 표기: "facts-2 §8"은 `docs/design/process/sources/pi-api-facts-2.md` 8절, "사례 §12.1-3"은 `sources/pi-cases-notes.md` 12.1절 3번, "S4 openclaw-runtime §2.4"는 `.helm-design-work/S4/openclaw-runtime.md` 2.4절, "발췌1 E1-094"는 `sources/conversation-extracts-1.md` 항목, "oss §5"는 `docs/v0.3/audit/backend-oss-research.md` 5절, "homelab storage.md"는 `~/projects/homelab/context/storage.md`, "[실험 N]"은 §2.2 표의 N번 행이다.
@@ -78,7 +78,9 @@ Helm 데몬 `helmd`를 제품 소유자의 WSL2 서버에서 상주시키고(결
 | 30 | 크래시 복구는 "실행 의도 → 실행 → 결과" 기록에 기대고, 재시작 시 중단된 도구 호출을 "중단됨"으로 정리한다. 복구는 DB의 성질이고 종료 훅의 성질이 아니다. 그래서 종료 순서는 "최선을 다하는 기록"이고, 정확성은 시작 때의 복구가 책임진다 |
 | 31 | 클라이언트는 재접속 때 `lastSeq`부터 다시 받는다. 데몬이 재시작해도 seq는 이어진다(SQLite에 있음). 복구로 seq가 되돌아가면 `storeId`가 바뀐다 |
 | 33, 38, 39 | 데스크톱 앱은 tailscale serve WSS와 SSH 두 경로로, TUI는 SSH로 WSL에 들어가 로컬 리스너로 붙는다. 리스너 배치는 이 셋을 받는다(§3.5) |
-| 36 | Node 22 LTS(pi 패키지 기준 22.19 이상, facts-2 §0-6), pnpm, `better-sqlite3`(동기, WAL) |
+| 36, 44 | Node 24 LTS, TypeScript 6.0(결정 44가 결정 36의 Node 22·TS 5.x를 대체), pnpm, `better-sqlite3`(동기, WAL). pi 기준은 태그 `v1.1.0`(커밋 `abe508e1`, npm 1.1.0과 같음) |
+| 45 | 데몬은 시작 단계에서 `secrets run`을 자식 로더로 써서 비밀을 받아 메모리에만 둔다(ADR-17-3을 브리프가 채택) |
+| 46 | 루프백 바인딩은 격리 경계가 아니다. 모든 리스너는 자격 증명을 요구하고 도구는 격리한다(18 D18-04) |
 | §2.5 | 런타임 데이터는 `~/projects` 밖(`/srv/volumes/helm/`), restic 백업, just + systemd, SOPS + `secrets`, Windows 호스트 변경은 사람이 `.ps1`로, `just verify` 통과 = 완료 |
 
 ### 2.2 이 서버에서 확인한 사실 [실험]
@@ -153,7 +155,7 @@ Helm 데몬 `helmd`를 제품 소유자의 WSL2 서버에서 상주시키고(결
 |---|---|---|
 | 발췌4 (d) d22: 외부 런타임 어댑터에서 데몬이 꺼졌을 때 변경 도구를 막을지, 기록을 쌓아 나중에 보낼지 (담당 13, 17) | 17 쪽 사실을 제공한다: 데몬이 꺼져 있는 동안 어댑터가 판정을 받을 길이 없다. 데몬 쪽 기본 요구는 "판정 불가 = 변경 도구 차단(fail closed)"이다. 어댑터의 기록 보관 방식은 13이 정한다 | §5.2(13), §4 F-27 |
 | 발췌4 20-20: 클라이언트 쪽 기기가 잠자기·오프라인이면 쓰기가 실패하던 사례 → 데몬 상주 배경 | 반영. 데몬은 클라이언트 상태와 무관하게 상주한다 | §3.6 |
-| 발췌1 E1-094·E1-100: queue·inbox 파일 + 별도 관찰자 데몬 + 이벤트/주기 스캔 이중 트리거, 스케줄러는 pi 밖 | queue·inbox 파일은 쓰지 않는다(결정 29). 이중 트리거는 16 §3.3이 반영했고, 17은 그 실행 주체가 `helmd` 스케줄러(12)라는 것과 데몬이 꺼진 동안의 따라잡기를 시작 순서에 넣는다 | §3.4.2 9단계 |
+| 발췌1 E1-094·E1-100: queue·inbox 파일 + 별도 관찰자 데몬 + 이벤트/주기 스캔 이중 트리거, 스케줄러는 pi 밖 | queue·inbox 파일은 쓰지 않는다(결정 29). 이중 트리거는 16 §3.3이 반영했고, 17은 그 실행 주체가 `helmd` 스케줄러(12)라는 것과 데몬이 꺼진 동안의 따라잡기를 시작 순서에 넣는다 | §3.4.2 14단계 |
 | 발췌1 E1-096: 분석 로직을 pi 확장 안에 넣지 않고 관찰자는 독립 프로세스 | 16 OB-1의 자식 프로세스 + 17의 격리 실행 | §3.1.3 |
 | facts-1 §0-9, §7.4: pi-durable은 `node:sqlite`, WAL, `synchronous=NORMAL`, 저장소당 프로세스 하나·프로세스 간 락 없음 | Helm은 `better-sqlite3`(결정 36). 프로세스 간 배타는 D17-02의 잠금 파일로 보장한다. `synchronous` 최종값은 09 | §3.1.4, §5.2(09) |
 | facts-2 §0-6, §1.1: 모든 pi 패키지 `engines.node >=22.19.0` | 릴리스 매니페스트에 Node 경로·버전·ABI를 적고 시작 때 확인한다 | §3.10.1 |
@@ -169,7 +171,7 @@ Helm 데몬 `helmd`를 제품 소유자의 WSL2 서버에서 상주시키고(결
 | 사례 §12.2-6: 대기 중 권한·질문을 메모리에만 두지 않기 | 17 쪽: 종료 때 대기 상태를 메모리에서 버리지 않고 정본에 둔 채 끝낸다. 재시작 뒤 유지·취소는 11·12 | §3.4.3 |
 | S4 openclaw-runtime §2.3: 시작 시 고아 표시, 5초 뒤 재디스패치, 크래시 루프 5분 3회 | 차단기 수치를 10분 3회로 잡았다(1인 서버, 재시작 지연이 지수 증가하므로 5분 창은 짧다). 재디스패치 지연은 12 | §3.4.6 |
 | S4 pi-web §1: 데이터 디렉터리 소유 마커, 종료 순서표 | 마커 대신 D17-02 잠금을 쓰고, 진단용으로 `helmd.owner.json`만 둔다. 종료 순서표 반영 | §3.1.4, §3.4.3 |
-| S4 paseo §5: 관리 프로세스 원장(PID + 프로세스 신원), 스케줄 실행 중 재시작 → failed | 원장 레코드는 13, 시작 때 원장 대조와 고아 종료의 위치는 17 | §3.4.2 8단계 |
+| S4 paseo §5: 관리 프로세스 원장(PID + 프로세스 신원), 스케줄 실행 중 재시작 → failed | 원장 레코드는 13, 시작 때 원장 대조와 고아 종료의 위치는 17 | §3.4.2 11단계 |
 | mastra-review §9: 크래시에도 지켜지는 절대 시각 `sleepUntil` | 12 소유. 17은 시간 동기화 사실만 제공 | §3.6.8 |
 | v0.3 12 §15-2: 워크스페이스당 SQLite 파일 하나 vs 전체 하나 | 17은 데이터 디렉터리 하나에 정본 DB 하나를 전제로 운영 절차를 쓴다. 최종은 09 | §3.2.2, §7 Q17-08 |
 
@@ -179,7 +181,7 @@ Helm 데몬 `helmd`를 제품 소유자의 WSL2 서버에서 상주시키고(결
 |---|---|---|
 | A17-1 [가정] | Windows가 재부팅하거나 `wsl --shutdown`이 실행되면 WSL VM 안의 systemd가 정상 종료 순서를 다 밟지 못할 수 있다. 설계는 항상 "비정상 종료"를 전제한다 | 구현 단계에서 `wsl --shutdown` 뒤 `journalctl --user -u helmd -b -1`로 종료 기록이 남는지 본다(§6 T17-30) |
 | A17-2 [가정] | `tailscale serve`의 HTTP 프록시는 WebSocket 업그레이드를 넘기고, `Tailscale-User-Login`과 `X-Forwarded-For`를 붙인다 | [지식] + openclaw가 이 헤더를 전제로 검증한다(S4 openclaw-gateway §2.5). `just daemon-probe`로 확인(§3.14) |
-| A17-3 [가정] | Node 22의 `--disable-sigusr1`은 22.14 이후에 있다 | [지식]. 24.19에는 있다 [실험 8]. 릴리스 빌드 때 `node --help`로 확인하고, 없으면 빌드를 거부한다 |
+| A17-3 | Node 24에는 `--disable-sigusr1`이 있다 | 24.19에서 확인 [실험 8]. 릴리스 빌드 때 `node --help`로 다시 확인하고, 없으면 빌드를 거부한다 |
 | A17-4 [가정] | `better-sqlite3`의 `backup()`은 같은 연결로 들어오는 쓰기와 함께 진행되어 일관된 스냅샷을 만든다 | [지식: SQLite 온라인 백업 API는 같은 연결의 변경을 반영하며 진행한다]. 09가 확정하고 §6 T17-16으로 검증 |
 | A17-5 [가정] | 하루 이벤트 수천 건, DB 크기 첫 해 1 GB 이하 | 16 AS-4와 같다. 첫 달 실측 |
 
@@ -231,22 +233,23 @@ systemd --user (linger, WSL 부팅 시 시작)
 2. **워커는 읽기 전용**: 워커 스레드는 `readonly: true` 연결만 연다. WAL 모드에서 읽기 연결은 쓰기를 막지 않는다 [지식].
 3. **긴 동기 작업 금지 구간**: 리스너가 열린 뒤에는 전체 `integrity_check`, 전체 해시 체인 검증, `VACUUM`을 주 스레드에서 돌리지 않는다. 시작 단계(리스너 열기 전)의 마이그레이션·투영 재구성은 주 스레드에서 돌려도 된다.
 4. **모델 스트림·HTTP**: 모두 비동기 I/O라 주 스레드에서 돈다. 모델 응답 조각은 정본에 쓰지 않는다(19 P-08, 사례 §12.1-6).
-5. **Node 실행 옵션**: `--disable-sigusr1`(같은 사용자의 다른 프로세스가 SIGUSR1로 inspector를 여는 것을 막음, 18 §3.2 T-H3), `--max-old-space-size=1024`, `--enable-source-maps`. 단위 환경에서 `NODE_OPTIONS`를 비워 외부 주입을 막는다.
+5. **Node 실행 옵션**: `--disable-sigusr1`(같은 사용자의 다른 프로세스가 SIGUSR1로 inspector를 여는 것을 막음, 18 §3.2 T-H3), `--max-old-space-size=768`, `--enable-source-maps`. 단위 환경에서 `NODE_OPTIONS`를 비워 외부 주입을 막는다.
 
 #### 3.1.3 자식 프로세스 [제안]
 
 | 자식 | 띄우는 방법 | 수명 | 자원·격리 | 데몬이 죽으면 |
 |---|---|---|---|---|
 | 비밀 로더 | `child_process.spawn("secrets", ["run", scope, "--", releaseDir+"/bin/helm-secret-export", ...keys])`, stdin 닫음, stdout 파이프 | 시작 단계와 `helm ops reload-secrets` 때 한 번, 10초 제한 | 출력은 JSON 한 개. 데몬이 읽고 즉시 버퍼를 비운다 | 같이 끝난다(짧은 수명) |
-| 도구 실행(bash 등) | 13이 정한다. 18 §3.11.2 순서: bubblewrap S1(13 §3.6.2, 자원 한도는 `systemd-run --user --scope --slice=helm-tools.slice`), 없으면 `systemd-run --user --unit=helm-tool-<tc_id> --slice=helm-tools.slice --property=PartOf=helmd.service --pipe --wait …` | 도구 호출 하나 | 단위별 `MemoryMax`, `RuntimeMaxSec`, 슬라이스 합계 한도(§3.13). 격리 속성은 18 §3.11 | bubblewrap은 `--die-with-parent`, 일회성 단위는 `PartOf=helmd.service`로 데몬과 함께 끝난다. 크래시 뒤에는 시작 단계의 원장 대조(§3.4.2 8단계)가 남은 것을 정리한다 |
-| 관찰 에이전트 | 16 OB-1(`child_process.fork`, Node IPC). 격리 실행이 켜져 있으면 `systemd-run --user --unit=helm-observer-<or_id> --slice=helm-tools.slice --property=PartOf=helmd.service --pipe --wait`로 띄우고 IPC는 표준 입출력의 JSON 줄로 바꾼다(16에 요구, §5.2) | 관찰 실행 하나 | `MemoryMax=1G`, `Nice=10`, `PrivateNetwork=yes`(모델 호출은 데몬을 거친다, 16 OB-3), `ProtectSystem=strict`, `ProtectHome=read-only`, `ReadWritePaths=/srv/volumes/helm/observer`, `InaccessiblePaths=/run/WSL %t/helm` | 같은 규칙 |
+| 도구 실행(bash 등) | 13이 정한다. 18 §3.11.2 순서: bubblewrap S1(13 §3.6.2, 자원 한도는 `systemd-run --user --scope --slice=helm-tools.slice`), 없으면 `systemd-run --user --unit=helm-tool-<tc_id> --slice=helm-tools.slice --property=PartOf=helmd.service --pipe --wait …` | 도구 호출 하나 | 단위별 `MemoryMax`, `RuntimeMaxSec`, 슬라이스 합계 한도(§3.13). 격리 속성은 18 §3.11 | bubblewrap은 `--die-with-parent`, 일회성 단위는 `PartOf=helmd.service`로 데몬과 함께 끝난다. 크래시 뒤에는 시작 단계의 원장 대조(§3.4.2 11단계)가 남은 것을 정리한다 |
+| 관찰 에이전트 | 16 OB-1(`child_process.fork`, Node IPC). 격리 실행이 켜져 있으면 `systemd-run --user --unit=helm-observer-<or_id> --slice=helm-tools.slice --property=PartOf=helmd.service --pipe --wait`로 띄우고 IPC는 표준 입출력의 JSON 줄로 바꾼다(16에 요구, §5.2) | 관찰 실행 하나 | `MemoryMax=1G`, `Nice=10`, `PrivateNetwork=yes`(모델 호출은 데몬을 거친다, 16 OB-3), `ProtectSystem=strict`, `ProtectHome=read-only`, `ReadWritePaths=/srv/volumes/helm/observer`, `InaccessiblePaths=/run/WSL %t/helm /srv/volumes/helm/private`(복귀 점검 기대 답을 관찰이 보지 않게, 16 §3.24) | 같은 규칙 |
 
-자식 프로세스 원장: 도구·관찰 실행을 띄우기 직전에 원장 레코드(단위 이름 또는 PID, 프로세스 시작 시각 `/proc/<pid>/stat` 22번째 필드, `bootEpoch`, 도구 호출 ID)를 이벤트로 남긴다. 레코드 형식과 이벤트 이름은 13이 정한다. 17은 시작 단계에서 이전 `bootEpoch`의 원장 항목을 대조해 살아 있는 것을 끝낸다(§3.4.2 8단계).
+자식 프로세스 원장: 도구·관찰 실행을 띄우기 직전에 원장 레코드(단위 이름 또는 PID, 프로세스 시작 시각 `/proc/<pid>/stat` 22번째 필드, `bootEpoch`, 도구 호출 ID)를 이벤트로 남긴다. 레코드 형식과 이벤트 이름은 13이 정한다. 17은 시작 단계에서 이전 `bootEpoch`의 원장 항목을 대조해 살아 있는 것을 끝낸다(§3.4.2 11단계).
 
 #### 3.1.4 단일 인스턴스 보장 [제안]
 
 ```ts
-// packages/daemon/src/lifecycle/instance-lock.ts
+// packages/store/src/admin/instance-lock.ts — `@helm/store/admin`에서 내보낸다(조정자 판정 J-101).
+// SQLite 드라이버(better-sqlite3)를 import하는 패키지는 store 하나다(06 R6). daemon과 cli는 이 함수만 부른다.
 import Database from "better-sqlite3";
 
 export interface InstanceLock { release(): void; readonly path: string }
@@ -267,13 +270,15 @@ export function acquireInstanceLock(dataDir: string): InstanceLock {
   }
   return { path, release: () => { try { db.exec("ROLLBACK"); } finally { db.close(); } } };
 }
+
+// packages/daemon/src/lifecycle/boot.ts 3단계: import { acquireInstanceLock } from "@helm/store/admin";
 ```
 
 규칙:
 
 1. 잠금 파일은 데이터 디렉터리마다 하나다. 정식 데몬(`/srv/volumes/helm/data`)과 개발 데몬(`/srv/volumes/helm/dev/data`)은 서로 다른 잠금을 쓴다.
 2. 잠금 연결 외에 같은 프로세스에서 `helmd.lock`을 다시 열지 않는다(POSIX 잠금은 프로세스 안의 어느 디스크립터든 닫히면 풀린다 [지식]).
-3. 진단용 정보는 `helmd.owner.json`에 쓴다: `{ pid, procStartTime, bootEpoch, releaseId, startedAt, state: "running" | "stopped" }`. tmp에 쓰고 rename한다. 이 파일은 판정에 쓰지 않는다. 이전 프로세스가 `state: "running"`을 남겼으면 비정상 종료의 보조 증거다(정본 판정은 §3.4.2 4단계의 이벤트).
+3. 진단용 정보는 `helmd.owner.json`에 쓴다: `{ pid, procStartTime, bootEpoch, releaseId, startedAt, state: "running" | "stopped" }`. tmp에 쓰고 rename한다. 이 파일은 판정에 쓰지 않는다. 이전 프로세스가 `state: "running"`을 남겼으면 비정상 종료의 보조 증거다(정본 판정은 §3.4.2 10단계의 `boots` 기록).
 4. CLI의 오프라인 작업(`helm ops restore`, 데몬이 꺼져 있을 때의 `helm ops backup`)도 같은 잠금을 잡은 뒤에만 DB를 연다. 잠금을 못 잡으면 "데몬이 실행 중"으로 보고 멈춘다(종료 코드 3).
 5. 관찰 에이전트의 읽기 전용 연결(16 OB-2)은 이 잠금을 잡지 않는다.
 
@@ -294,9 +299,11 @@ export function acquireInstanceLock(dataDir: string): InstanceLock {
 
 #### 3.2.2 디렉터리 배치
 
+데이터 디렉터리 안쪽의 DB·blob 배치는 09 §3.6.1이 소유한다. 아래는 09·13·15·16·19와 맞춘 전체 배치다.
+
 ```text
-/srv/volumes/helm/                      0700 user:user
-  app/                                  릴리스(§3.10). 백업 제외
+/srv/volumes/helm/                      0700 user:user   (HELM_ROOT)
+  app/                                  릴리스(§3.10)
     releases/<릴리스 ID>/                불변. 예: 0.1.0+bad4d2d
       bin/helmd  bin/helm  bin/helm-secret-export   실행 래퍼(sh, exec node …)
       daemon/  cli/                     pnpm deploy 결과(dist/, node_modules/)
@@ -304,35 +311,59 @@ export function acquireInstanceLock(dataDir: string): InstanceLock {
     current -> releases/<ID>            원자적으로 바꾼다
     previous -> releases/<ID>
     bin/helm-alert                      릴리스와 무관한 고정 스크립트(§3.6.4)
-  data/                                 정본. restic에 직접 넣지 않는다(blobs 제외)
-    helm.sqlite  helm.sqlite-wal  helm.sqlite-shm   정본 DB(파일 이름은 09가 바꿀 수 있다)
-    helmd.lock                          단일 인스턴스 잠금(§3.1.4)
+  data/                                 정본(09 §3.6.1)
+    helm.sqlite  -wal  -shm             정본 DB
+    helmd.lock                          단일 인스턴스 잠금(§3.1.4, 09 D09-7)
     helmd.owner.json                    진단용 소유 정보
-    blobs/sha256/<2자>/<2자>/<해시>       큰 바이너리(자극 이미지 등). 내용 주소, 쓰기 후 불변. restic 포함
-    quarantine/<UTC 시각>/               복구로 밀려난 이전 DB(§3.9.4). 사람이 지운다
-  backups/                              검증된 스냅샷. restic 포함
-    daily/  pre-migrate/  pre-upgrade/  manual/  pre-restore/
-    .tmp/                               작성 중 파일. restic 제외
-  observer/                             관찰 캐시(16 §3.20). restic 제외(재구성 가능)
-  sandbox/<workspaceId>/home/          도구 샌드박스의 작업 공간별 홈(13 §3.6.2, npm·pnpm 캐시). restic 제외
+    blobs/sha256/<2자>/<2자>/<해시>       256 KiB 넘는 blob. 내용 주소, 쓰기 후 불변
+    blobs/staged/<uploadId>             업로드 중 파일(19). 24시간 뒤 정리(§3.9.7)
+    blobs/.tmp/                         blob 쓰기 임시
+    quarantine/<UTC 시각>/               복원으로 밀려난 이전 DB. 사람이 지운다
+  backups/<kind>/<backupId>/            검증된 스냅샷(09 §3.14.1). kind = daily | pre-migrate | pre-upgrade | manual | pre-restore
+    helm.sqlite  manifest.json
+  private/                              0700. 모델·도구·관찰 프로세스가 보면 안 되는 값(비밀 원본은 아님)
+    resumption-checks/<checkId>.json    0600. 복귀 점검의 기대 답(16 §3.24, 이벤트에는 해시만)
+  observer/                             관찰 캐시와 소금 파일 `salt`(16 §3.8.4, §3.20)
+  sandbox/<workspaceId>/home/          도구 샌드박스의 작업 공간별 홈(13 §3.6.2, npm·pnpm 캐시)
   sandbox/empty                         가림용 빈 파일(13 §3.6.2)
-  state/                                운영 상태. restic 포함(작음)
-    server-id                           설치마다 한 번 만드는 고정 ID(UUIDv4 소문자). 19 `hello.challenge.serverId`. 복구해도 바뀌지 않는다
-    alerts/<unit>.json  drills/<시각>.json  diag/helm-diag-<시각>.tar.gz(0600, restic 제외)
-  cache/                                재생성 가능. restic 제외(홈랩 기존 제외 패턴 `/srv/volumes/*/cache`)
-  tmp/                                  복구 훈련·업그레이드 작업 공간. restic 제외
-  dev/                                  `just daemon-dev`의 데이터 디렉터리(같은 하위 구조). restic 제외
+  drafts/<concernId>/                   `draft_only` 범위의 초안 영역(13 §3.7.9)
+  worktrees/<runId>/<n>/                검증 실행용 격리 작업 트리(13 §3.7.9). 실행 끝에 지운다
+  tool-output/                          잘린 도구 출력의 전체 파일(07 T5). 13이 blob으로 옮긴 뒤 지운다
+  scratch/inquiry/                      탐구 작업 공간(15 §5.2)
+  eval/                                 탐구 평가 산출물(15 §5.2)
+  state/                                운영 상태(작음)
+    server-id                           설치마다 한 번 만드는 고정 ID(UUIDv4 소문자). 19 `hello.challenge.serverId`. 복원해도 바뀌지 않는다
+    exports/                            JSONL 내보내기(09 §3.14.3)
+    alerts/<unit>.json  drills/<시각>.json  maintenance/<날짜>.json
+    diag/helm-diag-<시각>.tar.gz          0600
+  cache/                                재생성 가능(홈랩 제외 패턴 `/srv/volumes/*/cache`)
+  tmp/                                  복구 훈련·업그레이드 작업 공간
+  dev/                                  `just daemon-dev`의 루트(같은 하위 구조)
 
-~/.config/helm/                         0700
-  helmd.json                            선택. 기본값을 덮는 설정만(§3.3)
+~/.config/helm/                         0700. dotfiles가 관리(06 §3.10.1)
+  helmd.toml                            선택. dotfiles에서 추적
+  helmd.local.toml                      선택. 이 기계만의 덮어쓰기, 추적 안 함
 ~/.config/systemd/user/                 단위 파일(§3.6.4). `just daemon-install`이 생성
 /run/user/1000/helm/                    0700. systemd RuntimeDirectory
-  rpc.sock                              0600. 로컬 관리자·TUI(이름은 19 §3.2.1 후보와 같다)
+  rpc.sock                              0600. 로컬 관리자·TUI(19 §3.2.1)
 ~/.local/bin/helm -> /srv/volumes/helm/app/current/bin/helm
 ```
 
-- 권한: `helmd`는 `UMask=0077`로 돈다. 모든 파일은 0600, 디렉터리는 0700이다. 시작 때 `data/`, `backups/`, `state/`가 0700이 아니면 고치고 경고를 남긴다.
+- 권한: `helmd`는 `UMask=0077`로 돈다. 모든 파일은 0600, 디렉터리는 0700이다. 시작 때와 `helm doctor`가 `data/`, `backups/`, `private/`, `state/`, `observer/`의 소유자·권한을 검사하고(18 §3.9, 09 §3.6.2), 다르면 고치고 경고를 남긴다(`data/helm.sqlite`가 다른 uid 소유면 고치지 않고 종료 코드 2).
 - 프로젝트 작업 공간(`~/projects/<제품>/code/...`)은 데몬 데이터가 아니다. Helm 상태를 프로젝트 폴더에 쓰지 않는다(06 §2.4 비목표 9).
+
+백업 포함 여부(홈랩 H-2·H-3의 근거, 18 §3.16):
+
+| 경로 | restic | 이유 |
+|---|---|---|
+| `backups/` | 포함 | 검증된 정본 스냅샷 |
+| `data/blobs/sha256/` | 포함 | 내용 주소 파일, 스냅샷이 참조 |
+| `private/` | 포함 | 복귀 점검 기대 답. 잃으면 점검을 채점할 수 없다 |
+| `drafts/` | 포함 | 사람이 볼 초안(작업 산출물) |
+| `state/`(`diag/`, `exports/` 제외) | 포함 | `server-id`, 훈련·경보 기록 |
+| `eval/` | 포함 | 평가 결과(작음) |
+| `data/helm.sqlite*`, `data/blobs/staged`, `data/blobs/.tmp`, `data/quarantine` | 제외 | 살아 있는 DB는 스냅샷으로만. 임시 |
+| `app/`, `tmp/`, `dev/`, `cache/`, `observer/`, `sandbox/`, `worktrees/`, `tool-output/`, `scratch/`, `state/diag/`, `state/exports/` | 제외 | 재생성 가능하거나 임시. 관찰 캐시는 지워지면 다시 만든다(16 §3.20) |
 
 #### 3.2.3 파일 시스템 검사 [제안]
 
@@ -348,62 +379,100 @@ export function acquireInstanceLock(dataDir: string): InstanceLock {
 
 ### 3.3 설정
 
-#### 3.3.1 원천과 우선순위 [제안]
+설정 형식과 최상위 구조, 핫 리로드 분류는 06 §3.10(ADR-06-11)이 소유한다. 17은 운영 절(`paths`, `listeners`, `secrets`, `shutdown`, `crashLoop`, `watchdog`, `backup`, `health`, `log`, `tools`, `maintenance`)의 필드와 기본값을 정한다.
 
-낮은 것부터: 코드 기본값 → `~/.config/helm/helmd.json`(`HELM_CONFIG`로 경로 변경) → 환경 변수 `HELM_*`(아래 표에 적은 것만) → 명령행 인자. 형식(JSON, TypeBox 검증)은 06의 설정 규칙을 따른다. 비밀은 설정 파일에 넣지 않는다(설정 검증기가 키 이름에 `token`, `secret`, `password`, `apiKey`가 있으면 거부한다).
+#### 3.3.1 원천과 우선순위
 
-#### 3.3.2 데몬 설정 타입
+낮은 것부터 높은 것 순서로 덮어쓴다(06 §3.10.2).
+
+| 순위 | 원천 | 위치 |
+|---|---|---|
+| 1 | 코드 기본값 | `packages/daemon/src/config/defaults.ts`. `HELM_ROOT`로 정식·개발·테스트 루트가 나뉜다 |
+| 2 | 설정 파일 | `$HELM_CONFIG` 또는 `~/.config/helm/helmd.toml`(dotfiles가 관리) |
+| 3 | 로컬 덮어쓰기 | 같은 디렉터리의 `helmd.local.toml`(추적하지 않음) |
+| 4 | 환경 변수 | 아래 목록만 |
+| 5 | 명령행 인자 | `--config`, `--log-level` |
+
+- 형식은 TOML(파서 `smol-toml`), 키는 `camelCase`, 합친 결과를 TypeBox로 검증한다. 모르는 키와 비밀처럼 보이는 키 이름(`token`, `secret`, `password`, `apiKey`, `privateKey`)은 오류이고, 검증 실패는 종료 코드 2다(§3.4.5).
+- 설정 파일이 없어도 기본값으로 동작한다. 데몬은 설정 파일을 읽기만 한다. 다이얼·모드·정책 같은 의미 설정은 설정 파일이 아니라 정본 이벤트다(06 §3.10.1).
+- 환경 변수(06 §3.10.2 순위 4와 같은 목록): `HELM_CONFIG`, `HELM_ROOT`(→ `paths.root`와 그 하위 기본값), `HELM_LOG_LEVEL`, `HELM_SECRETS_SCOPE`, `HELM_SECRETS_FROM_ENV`, `HELM_LISTEN_TAILNET_PORT`, `HELM_LISTEN_SSH_PORT`(`loopback` 리스너 포트. 이름은 06·`.env.example`과 맞춰 그대로 둔다), `HELM_ALLOW_TMPFS`. 그 밖의 `HELM_*`는 무시하고 경고한다.
+
+예(정식 데몬은 이 파일 없이도 같은 값으로 돈다):
+
+```toml
+# ~/.config/helm/helmd.toml (dotfiles)
+[listeners.tailnet]
+publicOrigin = "https://server.tail7ad0b4.ts.net:8448"
+
+[auth.tailscale]
+allowedLogins = ["<소유자 Tailscale 로그인>"]   # helm doctor가 whois로 찾아 안내한다(18 §3.6.1)
+
+[user]
+timeZone = "Asia/Seoul"                           # 12의 cron·일일 예산 기준(06에 최상위 절 추가 요구)
+
+[log]
+level = "info"
+```
+
+#### 3.3.2 운영 절 스키마
 
 ```ts
-// packages/daemon/src/config/schema.ts (TypeBox로 같은 모양을 정의하고 Static으로 타입을 뽑는다)
-export interface DaemonConfig {
-  paths: {
-    root: string;            // "/srv/volumes/helm"
-    dataDir: string;         // "<root>/data"
-    backupDir: string;       // "<root>/backups"
-    stateDir: string;        // "<root>/state"
-    cacheDir: string;        // "<root>/cache"
-    tmpDir: string;          // "<root>/tmp"
-    observerDir: string;     // "<root>/observer"
-    runtimeDir: string;      // "$XDG_RUNTIME_DIR/helm". 없으면 시작 거부(종료 코드 2)
-  };
-  listeners: {
-    tailnet: { enabled: boolean; host: "127.0.0.1"; port: number /* 7840 */; publicOrigin: string /* "https://server.tail7ad0b4.ts.net:8448" */ };
-    ssh:     { enabled: boolean; host: "127.0.0.1"; port: number /* 7841 */ };
-    local:   { enabled: true;    socketName: string /* "rpc.sock" */ };
-  };
-  secrets: {
-    scope: string;           // "product:helm/prod". 개발: "product:helm/dev"
-    command: string;         // "secrets"
-    keys: string[];          // 데몬이 읽는 비밀 키 이름. 저장소 .env.example의 `KEY=` 항목과 같아야 한다. 접두사 패턴 `HELM_LEDGER_HMAC_KEY_*` 허용
-    required: string[];      // 없으면 시작 거부(종료 코드 2)할 키. 기본 ["HELM_LEDGER_HMAC_KEY"](18 §3.10.5). 모델 키는 없어도 데몬은 뜨고 해당 기능만 저하
-    fromEnv: boolean;        // true면 로더 대신 process.env에서 읽는다(just daemon-dev 전용)
-  };
-  shutdown: { drainTimeoutMs: number /* 20000 */; toolKillGraceMs: number /* 5000 */ };
-  crashLoop: { windowMs: number /* 600000 */; maxUncleanStarts: number /* 3 */ };
-  watchdog: { enabled: boolean /* true */; warnLagMs: number /* 200 */; fatalLagMs: number /* 120000 */ };
-  backup: {
-    keep: { daily: number /* 3 */; preMigrate: number /* 3 */; preUpgrade: number /* 3 */; manual: number /* 5 */; preRestore: number /* 3 */ };
-    verify: "quick" | "full";      // 일일은 "full"(integrity_check), 마이그레이션 직전은 "quick"
-  };
-  health: {
-    diskWarnBytes: number;         // 5 GiB
-    diskCriticalBytes: number;     // 1 GiB
-    backupMaxAgeMs: number;        // 26시간
-    walWarnBytes: number;          // 512 MiB
-    memoryWarnFraction: number;    // 0.8 (cgroup MemoryHigh 대비)
-  };
-  log: { level: "debug" | "info" | "warn" | "error" };
-  tools: { slice: string /* "helm-tools.slice" */; sandbox: "systemd-run" | "bwrap" | "off" };  // 의미는 18 §3.11, 구현은 13
-  // 인증·한도는 18 §3.4~§3.14의 AuthConfig, LimitsConfig를 그대로 포함한다
+// packages/daemon/src/config/ops-schema.ts — 06 §3.10.3 DaemonConfig의 운영 절. TypeBox로 같은 모양을 정의한다
+export interface PathsConfig {
+  root: string;            // "/srv/volumes/helm" (HELM_ROOT)
+  dataDir: string;         // "<root>/data"
+  backupDir: string;       // "<root>/backups"
+  stateDir: string;        // "<root>/state"
+  privateDir: string;      // "<root>/private"
+  cacheDir: string;        // "<root>/cache"
+  tmpDir: string;          // "<root>/tmp"
+  observerDir: string;     // "<root>/observer"
+  sandboxDir: string;      // "<root>/sandbox"   (13)
+  draftsDir: string;       // "<root>/drafts"    (13)
+  worktreesDir: string;    // "<root>/worktrees" (13)
+  toolOutputDir: string;   // "<root>/tool-output" (07 T5)
+  scratchDir: string;      // "<root>/scratch"   (15)
+  evalDir: string;         // "<root>/eval"      (15)
+  runtimeDir: string;      // "$XDG_RUNTIME_DIR/helm". 없으면 시작 거부(종료 코드 2)
+}
+export interface ListenersConfig {
+  tailnet: { enabled: boolean; host: "127.0.0.1"; port: number /* 7840 */; publicOrigin: string /* "https://server.tail7ad0b4.ts.net:8448" */ };
+  loopback: { enabled: boolean; host: "127.0.0.1"; port: number /* 7841. 환경 변수 HELM_LISTEN_SSH_PORT로 덮을 수 있다 */ };   // 키 이름은 리스너 이름과 같다(J-102)
+  local:   { enabled: true;    socketName: string /* "rpc.sock" */ };
+}
+export interface SecretsConfig {
+  scope: string;           // "product:helm/prod". 개발: "product:helm/dev"
+  command: string;         // "secrets"
+  keys: string[];          // 데몬이 읽는 비밀 키 이름. `.env.example`의 `KEY=` 항목과 같아야 한다. 접두사 패턴 `HELM_LEDGER_HMAC_KEY_*` 허용(이전 키, 18 §3.10.5)
+  required: string[];      // 없으면 시작 거부(종료 코드 2). 기본 ["HELM_LEDGER_HMAC_KEY"](09 §3.8.2 3단계). 모델 키는 넣지 않는다(없어도 데몬은 뜨고 공급자만 사용 불가, 02 UC-11 E3)
+  fromEnv: boolean;        // true면 로더 대신 process.env에서 읽는다(just daemon-dev 전용)
+}
+export interface ShutdownConfig { drainTimeoutMs: number /* 20000 */; toolKillGraceMs: number /* 5000 */ }
+export interface CrashLoopConfig { windowMs: number /* 600000 */; maxUncleanStarts: number /* 3 */ }   // 판정 규칙은 12 §3.7.6
+export interface WatchdogConfig { enabled: boolean /* true */; warnLagMs: number /* 200 */; fatalLagMs: number /* 120000 */ }
+export interface BackupConfig {
+  keep: { daily: number /* 3 */; preMigrate: number /* 3 */; preUpgrade: number /* 3 */; manual: number /* 5 */; preRestore: number /* 3 */ };
+}
+export interface HealthConfig {
+  diskWarnBytes: number;         // 5 GiB
+  diskCriticalBytes: number;     // 1 GiB (09 §3.6.2 시작 거부 기준과 같다)
+  backupMaxAgeMs: number;        // 26시간
+  walWarnBytes: number;          // 512 MiB
+  memoryWarnFraction: number;    // 0.8 (cgroup MemoryHigh 대비)
+}
+export interface LogConfig { level: "trace" | "debug" | "info" | "warn" | "error" }
+export interface ToolsExecConfig { slice: string /* "helm-tools.slice" */; sandbox: "auto" | "off" }   // auto = S1 → S1b → execute 끔(13 §3.6.1, 18 §3.11.2). off = S0(운영자만)
+export interface MaintenanceConfig {          // §3.9.7
+  sandboxHomeIdleDays: number;   // 30
+  scratchRetentionDays: number;  // 14
+  toolOutputRetentionHours: number; // 24 (blob으로 옮긴 뒤 남은 파일)
+  worktreeOrphanHours: number;   // 6
 }
 ```
 
-환경 변수로 덮을 수 있는 것: `HELM_CONFIG`, `HELM_ROOT`(→ `paths.root`와 그 하위 기본값), `HELM_LOG_LEVEL`, `HELM_SECRETS_SCOPE`, `HELM_SECRETS_FROM_ENV`, `HELM_LISTEN_TAILNET_PORT`, `HELM_LISTEN_SSH_PORT`, `HELM_ALLOW_TMPFS`. 그 밖의 `HELM_*`는 무시하고 경고한다.
-
 #### 3.3.3 다시 읽기
 
-SIGHUP 또는 `helm ops reload`로 다시 읽는 항목: `log.level`, `health.*`, `backup.keep`, 18의 속도 한도. 그 밖의 항목이 바뀌었으면 "재시작 필요" 경고를 상태에 띄우고 적용하지 않는다. 다시 읽기마다 `config.reloaded` 이벤트(바뀐 키 이름만, 값은 넣지 않음)를 남긴다.
+SIGHUP 또는 `helm ops reload`로 다시 읽는다. 절별로 즉시·다음 실행부터·재시작 필요가 나뉜다(06 §3.10.5 표). 운영 절 중 즉시 적용은 `log`, `health`, `backup.keep`, `maintenance`이고, `paths`, `listeners`, `secrets`, `shutdown`, `crashLoop`, `watchdog`, `tools`는 재시작이 필요하다. 다시 읽은 설정은 먼저 전체를 검증하고 실패하면 이전 설정을 유지한다. 재시작이 필요한 항목이 바뀌었으면 적용하지 않고 상태에 "재시작 필요"(`config_pending_restart`)를 띄운다. 다시 읽기마다 `config.reloaded`(바뀐 키 이름만, 값은 넣지 않음)를 남긴다.
 
 ### 3.4 수명주기
 
@@ -422,37 +491,42 @@ SIGHUP 또는 `helm ops reload`로 다시 읽는 항목: `log.level`, `health.*`
 
 읽기 전용 조건(하나라도 있으면 `read_only`, 사유 목록으로 관리):
 - `disk_critical`: `data/` 여유 < `diskCriticalBytes`(1 GiB). 여유가 2 GiB 이상으로 돌아오면 사유 해제.
-- `integrity_suspect`: 일일 백업 검증 실패 또는 런타임 중 `SQLITE_CORRUPT`. `helm ops verify --full` 통과로만 해제.
+- `integrity_suspect`: 시작 단계 7의 무결성 검사 실패(읽기 전용 복구 시작) 또는 실행 중 `SQLITE_CORRUPT`. 이 사유가 있으면 이벤트를 쓰지 않는다(02 AC-10-09). 복원(§3.9.4) 또는 `helm ops verify --full` 통과 후 재시작으로만 풀린다. 주간 전체 검사나 백업 사본 검사가 실패한 경우는 이 사유를 세우지 않는다. 그때는 헬스 `db_integrity` critical, 백업 회전 정지, 경보만 한다(09 §3.10.4 표).
 - `operator`: `admin.setMode { mode: "readOnly" }`(19). `admin.setMode { mode: "normal" }`로 해제.
 
 부수 효과:
 - `starting`·`recovering`은 리스너를 열기 전 단계라 연결을 받지 않는다(§3.4.2). 그래도 프로토콜 처리기는 모드가 `ready`·`safe_mode`가 아닐 때 들어온 상태 변경 명령을 거절한다(방어 규칙. `read_only`면 19의 `5003 daemon.readOnly`, `draining`이면 `5001`).
 - `safe_mode`: 리스너를 연다(사람이 상태를 보고 판단해야 하므로). 실행을 자동으로 재개하지 않고, 에이전트 실행을 시작하는 타이머 발화를 보류하며(알림 계열 타이머는 발화), 관찰 실행을 띄우지 않는다(12 §3.7.6). 사람의 명령(질문 답, 결과 확인 등)은 받는다. 상태 화면에 안전 모드 사유와 최근 비정상 종료 목록을 보인다.
-- `read_only`: 스케줄러를 멈추고 진행 중 실행은 다음 턴 경계에서 멈춘다(12의 `pause`). 상태를 바꾸는 명령은 거절하고 조회·구독은 받는다. 데몬 자신의 운영 이벤트(`daemon.*`, `backup.*`)는 디스크가 허락하면 쓴다. 전이마다 `daemon.mode_changed { from, to, reasons }`를 남기고 19의 `server.modeChanged`를 보낸다.
+- `read_only`: 스케줄러를 멈추고 진행 중 실행은 다음 턴 경계에서 멈춘다(12의 `pause`). 상태를 바꾸는 명령은 거절하고 조회·구독은 받는다. 사유가 `disk_critical`·`operator`뿐이면 데몬 자신의 운영 이벤트(`daemon.*`, `backup.*`)는 디스크가 허락하면 쓴다. `integrity_suspect`면 아무것도 쓰지 않는다. 전이마다 `daemon.mode_changed { from, to, reasons }`를 남기고 19의 `server.modeChanged`를 보낸다.
 - `bootEpoch`는 19 `HelloResult.server.bootId`와 같은 값이다.
 
 #### 3.4.2 시작 순서 [제안]
 
-각 단계가 실패하면 표의 종료 코드로 끝낸다. 리스너를 열기 전이라 클라이언트는 연결 실패만 본다.
+저장소 쪽 단계는 09 §3.8.2 `openStore`, 런타임 쪽 단계는 12 §3.7.3 `boot()`, 오케스트레이터는 14가 소유한다. 아래 표는 그것들을 데몬 시작 순서 하나로 엮은 것이다(09 §5.2 요구 (1): 무결성 → 마이그레이션 → 투영 → 복구, 14 §5.2: 저장소 → 복구 → 오케스트레이터 → 스케줄러). 각 단계가 실패하면 표의 종료 코드로 끝낸다. 리스너를 열기 전이라 클라이언트는 연결 실패만 본다.
 
-| 단계 | 하는 일 | 실패 시 |
-|---|---|---|
-| 0 | 프로세스 제목 `helmd`. 신호 처리기 설치(이 단계부터 SIGTERM은 "시작 중단 후 정리"). 처리되지 않은 예외·거부 처리기 설치(로그 후 종료 코드 1) | - |
-| 1 | 설정 읽기와 검증(§3.3). 릴리스 매니페스트 읽기, `process.versions.modules`(ABI)와 매니페스트의 ABI 비교(§3.10.1) | 2 |
-| 2 | 경로 준비: 디렉터리 생성·권한, 파일 시스템 검사(§3.2.3), `runtimeDir` 존재 확인, 디스크 여유가 `diskCriticalBytes` 미만이면 거부 | 2 |
-| 3 | 단일 인스턴스 잠금(§3.1.4) | 3 |
-| 4 | 비밀 로딩(§3.8). `required` 키가 없으면 실패 | 2 |
-| 5 | DB 열기(09): `better-sqlite3`, PRAGMA(09의 값), 쓰기 트랜잭션을 한 번 열고 닫아 이전 크래시의 WAL 복구를 끝낸다(사례 §12.1 그 밖, happy-agent `openAgentSQLiteDatabase.ts:40-63`). 이전 종료가 비정상이었으면(7단계 판정에 앞서 `helmd.owner.json`의 `state: running`으로 미리 추정) `PRAGMA quick_check`를 돌린다. 해시 체인 끝 1,000건을 검증한다(09 API). 검사가 실패하면 **읽기 전용 복구 시작**으로 간다: 6·8·9·10단계(마이그레이션, 고아 정리, 복구, 투영)를 건너뛰고 모드 `read_only`(사유 `integrity_suspect`), 스케줄러 없이 12단계 리스너만 연다. 사람이 원격에서도 상태를 보고 §3.9.4 복구를 결정할 수 있게 한다(12 §3.7.3 0단계, 19 `5003`). 파일을 아예 열 수 없으면(헤더 손상, `SQLITE_NOTADB`) 종료 코드 5 | 열기 불가 5, 그 밖 1 |
-| 6 | 스키마 버전 확인과 마이그레이션(§3.10.3). DB 버전 > 코드 최대 버전이면 거부. DB 버전 < 코드 버전이면 `pre-migrate` 백업을 만들고 검증한 뒤 마이그레이션 | 다운그레이드 4, 백업·마이그레이션 실패 1 |
-| 7 | `bootEpoch = ulid()` 발급(12 §3.7.3 1단계의 `epoch`와 같은 값). 이전 세대 판정: 정본의 마지막 `daemon.booted`에 짝이 되는 `daemon.stopped { clean: true }`가 있으면 깨끗한 종료, 없으면 비정상 종료. `daemon.booted { epoch, pid, procStartTime, version, releaseId, gitSha, node, prevEpoch, prevClean, prevLastEventAt }`를 append(이름·필드는 12 §3.7.3과 같다). 크래시 루프 판정(12 §3.7.6, §3.4.6). `helmd.owner.json` 갱신 | 1 |
-| 8 | 고아 정리: 13의 자식 프로세스 원장에서 이전 `bootEpoch`의 항목을 대조한다. systemd 단위면 `systemctl --user stop helm-tool-*`(PartOf로 이미 멈췄으면 아무 일 없음), PID면 `/proc/<pid>/stat`의 시작 시각이 같을 때만 프로세스 그룹에 SIGTERM, 5초 뒤 SIGKILL. 처리 결과를 13의 이벤트로 남긴다 | 경고만(계속) |
-| 9 | 복구(12): `runtime.recover({ bootEpoch, previousBootEpoch, safeMode })`. 이전 세대의 실행 중 행·의도만 있는 도구 호출을 `interrupted`로 정리하고, 재시도 예산 안에서 재개 대기열을 만든다. 안전 모드면 정리만 하고 재개는 하지 않는다 | 1 |
-| 10 | 투영 따라잡기(09/12): 투영 버전이 다르거나 투영 위치 < 로그 끝이면 재구성 | 1 |
-| 11 | 스케줄러 재구성·시작(12 `scheduler.rebuild(boot=true)`). 안전 모드면 에이전트 실행 타이머를 보류한 채 시작한다. 놓친 타이머의 따라잡기 규칙은 12 §3.10.4 | 1 |
-| 12 | 리스너 열기: `local` → `loopback` → `tailnet` 순. 포트가 사용 중이면 실패. `local` 소켓은 임시 경로에 bind 후 rename(같은 경로에 죽은 소켓이 있으면 먼저 지움, facts-2 §4.3 pi-server 방식) | 2 |
-| 13 | 모드 `ready`(또는 `safe_mode`). 재개 대기열의 실행을 12의 지연 규칙대로 시작. 이벤트 루프 감시자 시작. 로그 `helmd ready` | - |
+| 단계 | 하는 일 | 소유 | 실패 시 |
+|---|---|---|---|
+| 0 | 프로세스 제목 `helmd`. 신호 처리기 설치(이 단계부터 SIGTERM은 "시작 중단 후 정리"). 처리되지 않은 예외·거부 처리기(로그 후 종료 코드 1) | 17 | - |
+| 1 | 설정 읽기와 검증(§3.3). 릴리스 매니페스트 읽기, `process.versions.modules`(ABI)와 매니페스트의 ABI 비교(§3.10.1) | 17, 06 | 2 |
+| 2 | 경로 준비: 디렉터리 생성·권한(§3.2.2), 위치 검사(09 §3.6.2: 동기화 폴더 아님, `/mnt/` 아님, 파일 시스템 종류, 여유 ≥ 1 GiB), `runtimeDir` 존재 | 17, 09 | 2 |
+| 3 | 단일 인스턴스 잠금(§3.1.4, 09 §3.8.1 겹 2) | 17 | 3 |
+| 4 | 비밀 로딩(§3.8). `required`(기본 `HELM_LEDGER_HMAC_KEY`)가 없으면 실패 | 17, 18 | 2 |
+| 5 | DB 열기(09 §3.8.2 4단계): PRAGMA(09 §3.6.3), 쓰기 트랜잭션을 한 번 열고 닫아 이전 크래시의 WAL 복구를 끝낸다(happy-agent `openAgentSQLiteDatabase.ts:40-63`), `application_id` 확인. 파일을 열 수 없으면(`SQLITE_NOTADB` 등) 종료 코드 5 | 09 | 5 |
+| 6 | `user_version`이 코드보다 높으면 다운그레이드 거부(09 §3.13.1) | 09 | 4 |
+| 7 | 무결성 검사 tail(09 §3.10.4). 이전 종료가 비정상이었으면(`helmd.owner.json`의 `state: running`으로 미리 추정) `PRAGMA quick_check`도 한다. 실패하면 **읽기 전용 복구 시작**(아래) | 09 | (읽기 전용 복구) |
+| 8 | 마이그레이션(09 §3.13): 필요하면 `pre-migrate` 백업(§3.9) 후 적용 | 09, 17 | 백업·마이그레이션 실패 1(같은 실패 두 번째부터 2, §3.10.3) |
+| 9 | 이벤트 버전 확인(모르는 type·typeVersion이 있으면 거부, 09 §3.8.2 8단계)과 투영 따라잡기(09 §3.8.2 9단계) | 09 | 모르는 버전 4, 그 밖 1 |
+| 10 | `bootEpoch = ULID` 발급과 `daemon.booted { epoch, pid, procStartTime, version, releaseId, gitSha, node, prevEpoch, prevClean }`(09 §3.8.2 10단계, 12 §3.7.3 1단계). 이전 세대 판정은 `boots` 테이블의 `clean` 값. 마이그레이션이 있었으면 `store.migrated`, 복원 직후면 `store.restored`(§3.9.4). 크래시 루프 판정(12 §3.7.6, §3.4.6). `helmd.owner.json` 갱신 | 09, 12, 17 | 1 |
+| 11 | 고아 정리: 13의 자식 프로세스 원장에서 이전 epoch의 항목을 대조한다. systemd 단위면 `systemctl --user stop helm-tool-*`(이미 멈췄으면 아무 일 없음), PID면 `/proc/<pid>/stat`의 시작 시각이 같을 때만 프로세스 그룹에 SIGTERM, 5초 뒤 SIGKILL. 남은 `worktrees/` 정리는 §3.9.7 | 13, 17 | 경고만(계속) |
+| 12 | 런타임 복구(12 §3.7.3 3~5단계: `runtime.recover({ epoch, prevEpoch, safeMode })`). 이전 epoch의 실행·도구 호출 정리, 효과 outbox 재계산 | 12 | 1 |
+| 13 | 오케스트레이터 루프 시작(14). 안전 모드면 새 실행을 시작하지 않는 상태로 시작 | 14 | 1 |
+| 14 | 스케줄러 재구성·시작(12 `scheduler.rebuild(boot=true)`, 09 §3.8.2 12단계). 안전 모드면 에이전트 실행 타이머를 보류(알림 타이머는 발화) | 12 | 1 |
+| 15 | 리스너 열기: `local` → `loopback` → `tailnet` 순. 포트가 사용 중이면 실패. `local` 소켓은 임시 경로에 bind 후 rename(죽은 소켓이 있으면 먼저 지움, facts-2 §4.3) | 17 | 2 |
+| 16 | 모드 `ready`(또는 `safe_mode`). 재개 예약(12 §3.7.5, 5초 뒤부터 하나씩), 이벤트 루프 감시자 시작, 로그 `helmd ready` | 12, 17 | - |
 
-`ExecStartPost=helm ops wait-ready`가 13단계를 확인하면 systemd가 단위를 `active`로 본다(§3.6.4). 시작 제한 시간은 180초(`TimeoutStartSec`). 대규모 마이그레이션이 이보다 길 것 같으면 업그레이드 절차가 미리 `helm ops migrate`를 오프라인으로 돌린다(§3.10.2).
+**읽기 전용 복구 시작**(7단계 실패, 02 UC-10 B5): 8·9·10·11·12·13·14단계를 건너뛰고 15단계 리스너만 연다. 모드 `read_only`(사유 `integrity_suspect`). 이 경우 데몬은 **이벤트를 하나도 쓰지 않는다**(02 AC-10-09, 09 §3.10.5: 모든 쓰기를 `path.store_read_only`로 거부). `daemon.booted`도 쓰지 않고 부팅 사실은 `helmd.owner.json`과 운영 로그에만 남긴다. 사람이 원격에서도 상태를 보고 §3.9.4 복원을 결정할 수 있게 하는 것이 목적이다.
+
+`ExecStartPost=helm ops wait-ready`가 16단계를 확인하면 systemd가 단위를 `active`로 본다(§3.6.4). 시작 제한 시간은 180초(`TimeoutStartSec`). 재시작부터 복구 완료까지 목표는 30초다(01 NFR-A-1, 02 AC-10-07). 대규모 마이그레이션이 이보다 길 것 같으면 업그레이드 절차가 미리 `helm ops migrate`를 오프라인으로 돌린다(§3.10.2).
 
 #### 3.4.3 종료 순서 [제안]
 
@@ -490,7 +564,7 @@ SIGHUP 또는 `helm ops reload`로 다시 읽는 항목: `log.level`, `health.*`
 | 2 | 환경 문제(설정 오류, 경로·파일 시스템, 비밀 누락, 포트 사용 중, `runtimeDir` 없음) | 하지 않음 | `helm doctor`. CLAUDE.md의 "종료 코드 2 = 환경 문제" 관례와 같다 |
 | 3 | 다른 `helmd`가 잠금을 쥐고 있음 | 하지 않음 | `helm status`로 실행 중인 쪽 확인 |
 | 4 | DB 스키마가 코드보다 새로움(다운그레이드 거부) | 하지 않음 | `just daemon-upgrade` 또는 `just daemon-rollback`(§3.10.4) |
-| 5 | DB를 열 수 없음(`SQLITE_NOTADB`, `SQLITE_CORRUPT`로 열기 실패). 열리지만 검사가 실패한 경우는 종료하지 않고 읽기 전용 복구 시작(§3.4.2 5단계) | 하지 않음 | §3.9.4 복구 절차 |
+| 5 | DB를 열 수 없음(`SQLITE_NOTADB`, `SQLITE_CORRUPT`로 열기 실패). 열리지만 검사가 실패한 경우는 종료하지 않고 읽기 전용 복구 시작(§3.4.2 7단계) | 하지 않음 | §3.9.4 복구 절차 |
 | 134/137/143 | abort/SIGKILL/SIGTERM 신호 종료(코드가 아닌 신호) | 신호 종료는 `on-failure` 대상(SIGTERM으로 인한 정상 정지는 제외) | - |
 
 #### 3.4.6 크래시 루프 차단 [제안]
@@ -586,10 +660,10 @@ WorkingDirectory=@HELM_ROOT@/app/current
 Environment=PATH=%h/.local/share/mise/shims:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
 Environment=NODE_ENV=production
 Environment=NODE_OPTIONS=
-Environment=HELM_CONFIG=%h/.config/helm/helmd.json
+Environment=HELM_CONFIG=%h/.config/helm/helmd.toml
 Environment=HELM_ROOT=@HELM_ROOT@
 ExecStart=@HELM_ROOT@/app/current/bin/helmd
-# 복구가 끝나고 리스너가 열릴 때까지 기다린 뒤에 active로 본다(§3.4.2 13단계)
+# 복구가 끝나고 리스너가 열릴 때까지 기다린 뒤에 active로 본다(§3.4.2 16단계)
 ExecStartPost=@HELM_ROOT@/app/current/bin/helm ops wait-ready --timeout 170
 TimeoutStartSec=180s
 Restart=on-failure
@@ -609,8 +683,8 @@ RuntimeDirectoryMode=0700
 UMask=0077
 NoNewPrivileges=yes
 LimitNOFILE=16384
-MemoryHigh=1536M
-MemoryMax=2G
+MemoryHigh=1G
+MemoryMax=1536M
 TasksMax=512
 CPUWeight=100
 SyslogIdentifier=helmd
@@ -696,6 +770,66 @@ Persistent=true
 WantedBy=timers.target
 ```
 
+`helm-verify.service`·`.timer`, `helm-maintenance.service`·`.timer`(§3.9.7):
+
+```ini
+# helm-verify.service
+[Unit]
+Description=Helm weekly full ledger verification
+OnFailure=helm-alert@%n.service
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/share/mise/shims:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HELM_ROOT=@HELM_ROOT@
+ExecStart=@HELM_ROOT@/app/current/bin/helm ops verify --full --if-running
+TimeoutStartSec=2h
+Nice=15
+IOSchedulingClass=idle
+```
+
+```ini
+# helm-verify.timer
+[Unit]
+Description=Weekly Helm ledger verification (Sunday 04:30)
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```ini
+# helm-maintenance.service
+[Unit]
+Description=Helm daily maintenance (retention pruning, blob GC, temp cleanup)
+OnFailure=helm-alert@%n.service
+
+[Service]
+Type=oneshot
+Environment=PATH=%h/.local/share/mise/shims:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HELM_ROOT=@HELM_ROOT@
+ExecStart=@HELM_ROOT@/app/current/bin/helm ops maintain --if-running
+TimeoutStartSec=1h
+Nice=15
+IOSchedulingClass=idle
+```
+
+```ini
+# helm-maintenance.timer
+[Unit]
+Description=Daily Helm maintenance at 04:45
+
+[Timer]
+OnCalendar=*-*-* 04:45:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
 `helm-alert@.service`(실패 경보. 릴리스가 망가져도 돌도록 릴리스 밖의 고정 스크립트를 부른다):
 
 ```ini
@@ -713,7 +847,7 @@ TimeoutStartSec=2min
 
 `helm-alert`가 하는 일: (1) `state/alerts/<unit>.json`에 `{ at, unit, result, lastLogLines }`(마지막 50줄, 18 §3.10 마스킹 적용)를 쓴다. (2) `$HOMELAB_ROOT/scripts/alert`가 실행 가능하면 `scripts/alert <unit>`을 부른다(홈랩이 ntfy 전송과 6시간 1회 제한을 한다 [원문 homelab storage.md 백업 절]). (3) 둘 다 실패해도 0으로 끝낸다(경보 단위가 경보를 부르지 않게).
 
-설치 뒤 활성화: `systemctl --user enable --now helmd.service helm-backup.timer helm-restore-drill.timer`. `helm-tools.slice`와 `helm-alert@.service`는 enable하지 않는다(필요할 때 쓰인다).
+설치 뒤 활성화: `systemctl --user enable --now helmd.service helm-backup.timer helm-restore-drill.timer helm-verify.timer helm-maintenance.timer`. `helm-tools.slice`와 `helm-alert@.service`는 enable하지 않는다(필요할 때 쓰인다).
 
 #### 3.6.5 재시작 정책 해설
 
@@ -771,6 +905,8 @@ TimeoutStartSec=2min
 
 `just daemon-serve-line`이 위 줄을 출력한다(포트를 바꿨을 때 설정에서 다시 만든다).
 
+Windows 호스트에서 관리자 권한으로 실행할 Helm 전용 스크립트는 없다. 02 UC-11 3단계의 "Windows 호스트 쪽 설정"은 (1) 홈랩 `serve.table` 한 줄과 `just serve-apply`(WSL에서 실행, 관리자 권한 불필요), (2) 이미 적용된 dotfiles `bootstrap.ps1`의 keepalive 작업·전원 설정 확인(`ops/windows/check-helm-host.ps1`, 읽기 전용)뿐이다(02에 반영 요구).
+
 #### 3.7.2 방화벽
 
 변경하지 않는다. 이유:
@@ -824,8 +960,8 @@ if ($warn -gt 0) { exit 1 } else { exit 0 }
 | 요청 | 내용 | 이유 |
 |---|---|---|
 | H-1 `serve.table` | §3.7.1의 한 줄 | 원격 접속 |
-| H-2 restic 대상 | `scripts/backup`의 `collect_paths`가 docker가 아닌 서비스의 경로도 넣게 한다. 제안: `/srv/volumes/<svc>/.backup-paths`(한 줄에 상대 경로 하나) 표식 파일을 읽는다. Helm은 `backups`, `data/blobs`, `state`를 적는다 | [실험 20]. 살아 있는 DB(`data/helm.sqlite*`)는 넣지 않고 검증된 스냅샷만 넣는다(CouchDB `_staging`과 같은 생각) |
-| H-3 제외 목록 | `scripts/backup.exclude`에 `/srv/volumes/helm/data/helm.sqlite*`, `/srv/volumes/helm/app`, `/srv/volumes/helm/tmp`, `/srv/volumes/helm/dev`, `/srv/volumes/helm/backups/.tmp`, `/srv/volumes/helm/state/diag`, `/srv/volumes/helm/observer`, `/srv/volumes/helm/sandbox` | H-2가 디렉터리 단위로 넣을 때를 대비 |
+| H-2 restic 대상 | `scripts/backup`의 `collect_paths`가 docker가 아닌 서비스의 경로도 넣게 한다. 제안: `/srv/volumes/<svc>/.backup-paths`(한 줄에 상대 경로 하나) 표식 파일을 읽는다. Helm은 §3.2.2 백업 표의 "포함" 행(`backups`, `data/blobs/sha256`, `private`, `drafts`, `state`, `eval`)을 적는다 | [실험 20]. 살아 있는 DB(`data/helm.sqlite*`)는 넣지 않고 검증된 스냅샷만 넣는다(CouchDB `_staging`과 같은 생각) |
+| H-3 제외 목록 | `scripts/backup.exclude`에 §3.2.2 백업 표의 "제외" 행 경로(`/srv/volumes/helm/data/helm.sqlite*`, `…/data/blobs/staged`, `…/data/blobs/.tmp`, `…/data/quarantine`, `…/app`, `…/tmp`, `…/dev`, `…/observer`, `…/sandbox`, `…/worktrees`, `…/tool-output`, `…/scratch`, `…/state/diag`, `…/state/exports`) | H-2가 디렉터리 단위로 넣을 때를 대비 |
 | H-4 `ctx-lint` | docker 스택이 없는 `serve.table` 줄을 허용하거나, systemd 서비스용 메타데이터(`context/services.md` 손으로 쓰는 행)를 둔다 | `ctx-gen`은 compose 라벨에서 문서를 만든다 |
 | H-5 Caddy 관리 API | 홈랩 범위의 발견: `127.0.0.1:2019`(Caddy 관리 API)가 인증 없이 열리고 Windows 프로세스에서도 응답한다 [실험: `curl.exe http://127.0.0.1:2019/config/` → 200]. Helm 도구 격리(18 §3.11)는 기본으로 네트워크를 끊지만, 네트워크를 허용한 도구 실행은 이 포트에 접근할 수 있다. 홈랩이 `admin` 소켓을 Unix 소켓으로 바꾸거나 `admin off`를 검토할 것 | 18 §3.2 T-M5 |
 
@@ -846,110 +982,72 @@ if ($warn -gt 0) { exit 1 } else { exit 0 }
 
 #### 3.9.1 백업 종류와 보관 [제안]
 
-| 종류 | 언제 | 검증 | 로컬 보관(`backup.keep`) | restic |
-|---|---|---|---|---|
-| `daily` | `helm-backup.timer` 매일 03:40 | full(`integrity_check` + 해시 체인 전체) | 최근 3개 | 포함(홈랩 04:00, 보존 일 7·주 4·월 6) |
-| `pre-migrate` | 시작 단계 6에서 마이그레이션 직전 | quick(`quick_check` + 체인 끝 1,000건) | 최근 3개 | 포함 |
-| `pre-upgrade` | `just daemon-upgrade` 2단계 | quick | 최근 3개 | 포함 |
-| `pre-restore` | 복구 직전(현재 DB가 열리면) | 없음(현재 상태 보존 목적) | 최근 3개 | 포함 |
-| `manual` | `just daemon-backup`, `helm ops backup` | full | 최근 5개 | 포함 |
+스냅샷 하나를 만드는 절차와 매니페스트 형식은 09 §3.14.1이 소유한다(헤드 HMAC 체크포인트 → `db.backup()` → 사본 `integrity_check`와 체인 전체 검사 → `manifest.json` → 원자 rename → `backup.created`). 17은 언제 만들고 얼마나 남기고 어디로 내보내는지를 정한다.
 
-- 정리 규칙: 종류별로 오래된 것부터 지운다. 가장 최근의 검증 통과 스냅샷은 종류와 무관하게 지우지 않는다. 디스크 여유가 `diskWarnBytes` 미만이면 `daily` 보관을 1개로 줄이고 경고한다.
-- 블롭(`data/blobs/`)은 내용 주소이고 쓰기 후 바뀌지 않으므로 스냅샷을 만들지 않고 restic이 디렉터리를 직접 가져간다(H-2). 블롭 삭제는 "현재 DB가 참조하지 않고 35일(restic 일 7 + 주 4 = 최장 약 35일 보존 창) 넘게 지난 것"만 한다(09·19에 요구). 그래야 복구한 스냅샷이 참조하는 블롭이 restic 안에 남는다.
+| 종류 | 언제 | 로컬 보관(`backup.keep`) | restic |
+|---|---|---|---|
+| `daily` | `helm-backup.timer` 매일 03:40 | 최근 3개 | 포함(홈랩 04:00, 보존 일 7·주 4·월 6) |
+| `pre-migrate` | 시작 단계 8에서 마이그레이션 직전 | 최근 3개 | 포함 |
+| `pre-upgrade` | `just daemon-upgrade` 4단계 | 최근 3개 | 포함 |
+| `pre-restore` | 복원 직전(현재 DB가 열리면) | 최근 3개 | 포함 |
+| `manual` | `just daemon-backup`, `helm ops backup` | 최근 5개 | 포함 |
 
-#### 3.9.2 백업 알고리즘 [제안]
+- 위치: `backups/<kind>/<backupId>/{helm.sqlite, manifest.json}`, `backupId = <UTC YYYYMMDDTHHMMSSZ>-seq<N>`(09 §3.14.1).
+- 정리 규칙: 종류별로 오래된 것부터 지우고 `backup.pruned`를 남긴다. 가장 최근의 검증 통과 스냅샷은 종류와 무관하게 지우지 않는다. 디스크 여유가 `diskWarnBytes` 미만이면 `daily` 보관을 1개로 줄이고 경고한다. 주간 전체 검사나 백업 사본 검사가 실패한 동안에는 정리를 멈춘다(09 §3.10.4).
+- 백업 전 디스크 확인: 여유 < DB 크기 × 2 + `diskCriticalBytes`이면 만들지 않고 `backup.failed { reason: "disk" }`.
+- blob은 스냅샷에 복사하지 않는다. `data/blobs/sha256/`을 restic이 직접 가져간다(H-2). 참조 없는 blob 행의 GC 유예는 35일(restic 일 7 + 주 4의 최장 보존 창)이다(09 §3.12).
+- 실행 위치: 데몬 안(`helm-backup.service`가 `helm ops backup --kind daily --wait`로 요청). 데몬이 꺼져 있으면 CLI가 잠금을 잡고 같은 코드를 오프라인으로 실행한다.
 
-`ops.backup.create(kind)` — 데몬 안에서 실행한다(데몬이 꺼져 있으면 CLI가 잠금을 잡고 같은 코드를 오프라인으로 실행한다).
+#### 3.9.2 매니페스트에 17이 더하는 것
 
-```text
-1. name = `helm-${kind}-${UTC yyyyMMdd'T'HHmmss'Z'}-s${lastSeq}.sqlite`
-   tmp  = backups/.tmp/${name}.partial ; final = backups/${kind}/${name}
-2. 디스크 확인: 여유 < DB 크기 × 2 + diskCriticalBytes 이면 실패(backup.failed { reason: "disk" })
-3. store.backupTo(tmp)        // better-sqlite3 db.backup(tmp, { progress: () => 200 }) — 200페이지씩, 주 스레드 비동기 (09 API)
-4. fsync(tmp)
-5. 워커에서 검증(읽기 전용 연결로 tmp를 연다):
-   a. PRAGMA integrity_check (full) 또는 quick_check (quick)  → "ok" 아니면 실패
-   b. 스키마 버전 = 현재 코드의 버전
-   c. 마지막 이벤트 seq, 해시, storeId 읽기
-   d. 09.verifyChain(tmp, full ? "all" : { lastN: 1000 })
-   e. 09.projectionDigest(tmp) — 투영 테이블의 요약 해시(훈련 때 재구성 결과와 비교)
-6. sha256(tmp) 스트림 계산
-7. manifest = BackupManifest(아래) 를 `${final}.json.partial`에 쓰고 fsync
-8. rename(tmp → final), rename(manifest.partial → final.json), fsync(backups/${kind})
-9. backup.created { kind, file: name, lastSeq, sha256, sizeBytes, durationMs, verify } append
-10. 보관 규칙대로 오래된 것 정리 (backup.pruned { files } append)
-실패하면: tmp·partial 삭제, backup.failed { kind, stage, reason } append, 종료 코드 1(타이머 단위면 OnFailure 경보)
-```
-
-```ts
-// packages/daemon/src/ops/backup-manifest.ts
-export interface BackupManifest {
-  format: 1;
-  kind: "daily" | "pre-migrate" | "pre-upgrade" | "pre-restore" | "manual";
-  file: string;                    // 파일 이름(디렉터리 제외)
-  createdAt: string;               // ISO 8601 UTC
-  sizeBytes: number;
-  sha256: string;                  // 파일 전체
-  schemaVersion: number;           // 09
-  storeId: string;                // 19 §1.4, 저장 위치는 09
-  lastSeq: number;
-  lastEventHash: string;           // 09 해시 체인의 마지막 값. 외부 기준점(18 §3.13.3)
-  projectionDigest: string;        // 09
-  verify: { level: "quick" | "full"; integrity: "ok"; chain: "ok"; checkedEvents: number; durationMs: number };
-  producer: { releaseId: string; gitSha: string; bootEpoch: string; host: string };
-}
-```
+09의 매니페스트(`backupId, kind, createdAt, storeId, upToSeq, headHash, hmacHead, userVersion, projectorVersion, releaseId, dbSha256, dbBytes, blobCount`)에 운영 필드 두 개를 더해 달라고 09에 요구한다: `verify: { integrity: "ok", chain: "ok", checkedEvents, durationMs }`(상태 화면과 15분 경고에 씀), `producer: { gitSha, bootEpoch, host }`. `headHash`·`hmacHead`는 체인 재작성 감지의 외부 기준점이다(18 §3.13.3).
 
 #### 3.9.3 restic 연계
 
-- Helm은 restic을 직접 부르지 않는다. 홈랩 `scripts/backup`이 04:00에 `backups/`, `data/blobs/`, `state/`를 가져간다(H-2 반영 뒤). 03:40 백업이 04:00 전에 끝나야 한다. DB 1 GB 기준 백업 API와 full 검증은 수 분 안에 끝난다 [가정 A17-5. 실측을 상태에 기록하고 15분을 넘으면 경고].
-- 홈랩 백업 성공 여부는 `~/.local/state/homelab/backup.status`(마지막 성공 시각) [원문 homelab storage.md]를 읽어 헬스 `backup_offsite`에 반영한다. 이 파일이 26시간보다 오래되었거나 H-2가 반영되지 않았으면(`.backup-paths` 표식이 홈랩 백업 스크립트에 인식되는지 `grep -q backup-paths ~/projects/homelab/scripts/backup`으로 확인) `degraded`.
+- Helm은 restic을 직접 부르지 않는다. 홈랩 `scripts/backup`이 04:00에 §3.2.2 백업 표의 "포함" 경로를 가져간다(H-2 반영 뒤). 03:40 백업이 04:00 전에 끝나야 한다. DB 1 GB 기준 백업 API와 전체 검사는 수 분 안에 끝난다 [가정 A17-5. 실측을 상태에 기록하고 15분을 넘으면 경고].
+- 홈랩 백업 성공 여부는 `~/.local/state/homelab/backup.status`(마지막 성공 시각) [원문 homelab storage.md]를 읽어 헬스 `backup_offsite`에 반영한다. 이 파일이 26시간보다 오래되었거나 H-2가 반영되지 않았으면(`grep -q backup-paths ~/projects/homelab/scripts/backup`으로 확인) `degraded`.
 - restic 저장소 자체가 암호화된다(홈랩). 스냅샷에는 기기 토큰 해시와 이벤트 로그 전체가 들어 있다(18 §3.16).
 
-#### 3.9.4 복구 절차 (runbook) [제안]
+#### 3.9.4 복원 절차 (runbook) [제안]
 
-`just daemon-restore <파일>`이 아래를 순서대로 한다(`ops/bin/daemon-restore` → `helm ops restore`). 파일을 주지 않으면 로컬 스냅샷 목록을 보여 주고 고르게 한다.
+DB 수준 절차는 09 §3.14.2 `restore(backupId)`다. `just daemon-restore <backupId 또는 경로>`가 아래 운영 단계로 그것을 감싼다(`ops/bin/daemon-restore` → `helm ops restore`). 인자를 주지 않으면 로컬 스냅샷 목록을 보여 주고 고르게 한다.
 
 ```text
 0. 어디서 가져오나
-   - 로컬: /srv/volumes/helm/backups/<kind>/<file>.sqlite (+ .json)
+   - 로컬: /srv/volumes/helm/backups/<kind>/<backupId>/
    - restic: cd ~/projects/homelab && sops exec-env secrets/restic.sops.yaml 'bash' 안에서
        restic restore latest --host homelab --target /srv/volumes/helm/tmp/restic-<시각> \
-         --include /srv/volumes/helm/backups --include /srv/volumes/helm/data/blobs
-     (homelab runbooks/restore.md의 "파일/폴더 하나" 방식). 블롭이 사라졌으면 data/blobs도 함께 되살린다
-1. systemctl --user stop helmd.service          (관찰·도구 단위는 PartOf로 함께 멈춘다)
+         --include /srv/volumes/helm/backups --include /srv/volumes/helm/data/blobs/sha256
+     (homelab runbooks/restore.md의 "파일/폴더 하나" 방식). blob이 사라졌으면 함께 되살린다
+1. systemctl --user stop helmd.service          (도구·관찰 실행은 함께 멈춘다)
 2. 잠금 획득(§3.1.4). 실패하면 중단(종료 코드 3)
-3. 후보 검증: manifest sha256 일치, integrity_check(full), 09.verifyChain(all), 스키마 버전 ≤ 현재 코드
-   - 스키마 버전 > 현재 코드면 중단: "이 스냅샷은 더 새 릴리스가 만든 것" (릴리스를 먼저 맞춘다)
-4. 현재 DB가 열리면 pre-restore 스냅샷을 만든다(검증 없이). 현재 DB의 기기 폐기 목록을 읽어 둔다(18 §3.16)
-5. 현재 data/helm.sqlite* 를 data/quarantine/<시각>/ 로 옮긴다(지우지 않는다)
-6. 후보를 data/helm.sqlite.restoring 로 복사 → fsync → rename data/helm.sqlite. -wal/-shm 은 없어야 한다
-7. 복구 표식: 복원된 DB의 메타(09)에 restore 정보를 쓴다
-   - 새 storeId 발급(seq 연속성이 끊겼으므로. 클라이언트는 다음 접속에서 스냅샷 경로로 간다, 19)
-   - 4단계에서 읽은 폐기 목록을 병합. 현재 DB를 열 수 없었으면 모든 기기 토큰을 무효화(18 §3.16)
-   - store.restored { fromFile, fromLastSeq, fromLogEpoch, newLogEpoch, quarantinePath, devicesInvalidated } 를
-     다음 시작 때 append 하도록 표식 파일 data/restore-pending.json 작성
-8. 잠금 해제, systemctl --user start helmd.service
-9. 시작 단계에서 restore-pending.json을 읽어 store.restored를 기록하고 지운다.
-   복구(12)는 스냅샷 시점에 진행 중이던 실행을 이전 세대의 중단 실행으로 정리한다
-10. 검증(§3.9.5) 결과를 출력
+3. 09 restore 1~5단계: 백업 검증(dbSha256, integrity_check, verify(full), headHash, hmacHead),
+   가능하면 pre-restore 스냅샷, 현재 DB를 data/quarantine/<시각>/로 이동, 백업 DB 복사, 새 storeId와 meta.restored_from
+   - user_version > 현재 코드면 중단: "이 스냅샷은 더 새 릴리스가 만든 것"(릴리스를 먼저 맞춘다)
+4. 기기 보안 처리(18 §3.16): 현재(격리된) DB를 열 수 있으면 그 DB의 폐기·만료 기기와 무효 페어링 코드를
+   복원본에 병합한다. 열 수 없으면 복원본의 모든 기기 토큰을 무효로 표시한다. 결과는 9단계의 store.restored에 싣는다
+5. 잠금 해제, systemctl --user start helmd.service
+6. 시작 단계 10에서 daemon.booted 다음에 store.restored { previousStoreId, storeId, backupId, upToSeq,
+   devicesMerged, devicesInvalidated }(09 §3.14.2 6단계). 손상 복구였으면 integrity.recovered도 남긴다
+7. 런타임 복구(12)가 스냅샷 시점에 진행 중이던 실행을 이전 세대의 중단 실행으로 정리한다
+8. 검증(§3.9.5) 결과와 "없는 blob 목록"(restic에서 되살릴 것)을 출력
 ```
 
-- 블롭만 잃은 경우: DB는 그대로 두고 restic에서 `data/blobs`만 되살린 뒤 `helm ops verify --blobs`.
-- 서버 전체를 다시 세울 때: 홈랩 `runbooks/restore.md` "서버 전체 재구축"의 2단계 폴더별 복원에 `/srv/volumes/helm/backups`, `/srv/volumes/helm/data/blobs`를 더하고, 이 저장소를 받아 `just daemon-install` 뒤 위 절차로 최신 `daily`를 복구한다.
+- blob만 잃은 경우: DB는 그대로 두고 restic에서 `data/blobs/sha256`만 되살린 뒤 `helm ops verify --blobs`.
+- 서버 전체를 다시 세울 때: 홈랩 `runbooks/restore.md` "서버 전체 재구축"의 2단계 폴더별 복원에 §3.2.2 "포함" 경로를 더하고, 이 저장소를 받아 `just daemon-install` 뒤 위 절차로 최신 `daily`를 복원한다. `state/server-id`도 되살려야 클라이언트가 같은 서버로 인식한다(없으면 새로 만들고 모든 앱이 `wrong_server`로 멈춘다. 그때는 다시 페어링).
 
 #### 3.9.5 복구 검증
 
-`helm ops verify [--full] [--blobs] [--anchors]`:
+`helm ops verify [--full] [--blobs] [--anchors]`(검사 알고리즘은 09 §3.10.4 `verify(db, mode)`):
 
 | 검사 | 기본 | `--full` |
 |---|---|---|
 | `PRAGMA quick_check` | O | `integrity_check` |
-| 해시 체인 | 끝 1,000건 | 전체 |
+| 해시 체인과 HMAC 체크포인트 | tail(마지막 1만 건 또는 마지막 전체 검사 이후) | 전체. 성공하면 `integrity.verified` |
 | 투영 일관성 | - | 투영을 임시 DB에 재구성해 `projectionDigest` 비교(09) |
 | 스키마·메타 | O | O |
 | 블롭 참조 | `--blobs`: 참조된 블롭 파일 존재와 해시 | 같음 |
-| 외부 기준점 | `--anchors`: 로컬 백업 매니페스트들의 `(lastSeq, lastEventHash)`가 현재 체인의 같은 seq 해시와 같은지(18 §3.13.3) | 같음 |
+| 외부 기준점 | `--anchors`: 로컬 백업 매니페스트들의 `(upToSeq, headHash)`가 현재 체인의 같은 seq 해시와 같은지(18 §3.13.3) | 같음 |
 
 결과는 표 형태로 출력하고 실패가 있으면 종료 코드 1.
 
@@ -961,7 +1059,7 @@ export interface BackupManifest {
 1. 최신 daily 스냅샷과 매니페스트를 고른다(없으면 실패)
 2. sha256 확인 → tmp/drill-<시각>/helm.sqlite 로 복사
 3. 데몬 코드의 store를 그 경로에 "훈련 모드"(읽기 전용 + 투영은 임시 DB)로 연다. 데몬 잠금과 무관
-4. integrity_check, verifyChain(all), 투영 재구성 → projectionDigest 가 매니페스트 값과 같은지
+4. integrity_check, 09 verify(full)(HMAC 포함), 투영을 임시 DB에 재구성해 09 `projectionDigest()`가 스냅샷 안 투영 테이블의 값과 같은지
 5. 참조 블롭 중 최대 200개 표본이 data/blobs 에 있는지
 6. 각 단계 소요 시간 측정. state/drills/<시각>.json 에 결과 기록, drill.completed { ok, snapshot, durations } append
    (데몬이 꺼져 있으면 이벤트 대신 상태 파일만)
@@ -971,6 +1069,18 @@ export interface BackupManifest {
 
 - 분기마다 한 번은 restic에서 꺼낸 스냅샷으로 사람이 `just daemon-drill --file <restic에서 꺼낸 파일>`을 돌린다(홈랩 `restore-test offsite`와 같은 주기). 미결 Q17-05.
 - 훈련은 데몬을 멈추지 않는다. 정본 DB에 쓰지 않는다(이벤트 append 하나 제외).
+
+#### 3.9.7 정기 유지 작업 [제안]
+
+09·13·15·19가 요구한 정리 작업을 systemd 타이머 둘로 묶는다(09 §5.2 요구 (2)). 둘 다 실행 중인 데몬에 요청하고, 데몬이 꺼져 있으면 아무것도 하지 않고 0으로 끝낸다(정리는 급하지 않다).
+
+| 타이머 | 시각 | 명령 | 하는 일 |
+|---|---|---|---|
+| `helm-verify.timer` | 매주 일요일 04:30(restic 04:00 뒤, 홈랩 docker-prune 05:00 전) | `helm ops verify --full` | 09 §3.10.4 전체 검사. 실패하면 헬스 `db_integrity` critical, 백업 정리 정지, 경보(§4 F-22) |
+| `helm-maintenance.timer` | 매일 04:45 | `helm ops maintain` | (1) 09 §3.15.3 보존 정책의 가지치기(명령 inbox, 요청 blob, 컨텍스트 투영 blob, trace, 큰 도구 출력 blob). (2) blob GC: 행 없는 파일 1시간, 참조 없는 행 35일(09 §3.12). (3) 업로드 대기 파일 24시간(19 staged). (4) `tool-output/`에서 blob으로 옮긴 뒤 24시간 넘은 파일(07 T5). (5) `worktrees/`의 고아(실행이 끝났거나 이전 epoch, 6시간 넘음). (6) `sandbox/<ws>/home`의 30일 넘게 안 쓴 홈(13). (7) `scratch/inquiry/`의 14일 넘은 항목(15). (8) `tmp/`의 1일 넘은 항목. 결과를 `state/maintenance/<날짜>.json`에 쓴다 |
+
+- 가지치기는 정본 이벤트를 지우지 않는다(이벤트는 영구, 09 §3.15.3). 내용만 지운 blob은 행과 해시가 남는다.
+- 사용자 시간대(`user.timeZone`) 기준이 아니라 서버 시각(KST) 기준이다. 서버와 사용자 시간대가 같다 [실험 16].
 
 ### 3.10 업그레이드
 
@@ -988,7 +1098,8 @@ export interface ReleaseManifest {
   node: { path: string; version: string; abi: string };   // `mise which node`, process.version, process.versions.modules
   schema: { min: number; max: number };   // 이 코드가 열 수 있는 DB 스키마 범위(09). min은 마이그레이션 시작 가능 최솟값
   protocol: { current: number; accepts: number[] };        // 19 P-14
-  pi: { vendorCommit: string; npm: Record<string, string> }; // 07의 고정 버전 기록
+  pi: { vendorCommit: string; npm: Record<string, string> }; // 07의 고정 버전 기록. 지금 값: vendorCommit "abe508e1b89912adde45528136c3221eb69acdd7"(태그 v1.1.0), npm 고정 의존 4개 모두 "1.1.0"
+  tools: { rg: string; fd: string; git: string; bwrap?: string };  // 빌드 때 `--version`으로 기록(07 T3, 13). 다르면 helm doctor가 경고
   files: { sha256: string };  // daemon/ cli/ bin/ 전체 파일 목록 해시(정렬된 경로+해시의 해시). helm doctor가 변조를 확인
 }
 ```
@@ -999,8 +1110,8 @@ export interface ReleaseManifest {
 #!/bin/sh
 # 생성됨: releases/0.1.0+bad4d2d — Node 경로는 빌드 때 `mise which node`로 고정한다(아래 경로는 예시)
 DIR="$(dirname "$(readlink -f "$0")")/.."
-exec "/home/user/.local/share/mise/installs/node/22.19.0/bin/node" \
-  --disable-sigusr1 --max-old-space-size=1024 --enable-source-maps \
+exec "/home/user/.local/share/mise/installs/node/24.19.0/bin/node" \
+  --disable-sigusr1 --max-old-space-size=768 --enable-source-maps \
   "$DIR/daemon/dist/main.js" "$@"
 ```
 
@@ -1026,7 +1137,7 @@ exec "/home/user/.local/share/mise/installs/node/22.19.0/bin/node" \
    - 모듈 로드, better-sqlite3 네이티브 바인딩, 설정 검증
    - 현재 DB의 복사본(backup API로 tmp에)을 대상으로 마이그레이션 시험(helm ops migrate --dry-run --db <복사본>)
    실패하면 staging 삭제 후 중단. 운영 데몬은 그대로
-4. pre-upgrade 백업(실행 중 데몬에 요청, §3.9.2). 실패하면 중단
+4. pre-upgrade 백업(실행 중 데몬에 요청, §3.9.1). 실패하면 중단
 5. 전환: rename releases/<id>.staging → releases/<id>
          previous ← current 의 대상, current ← releases/<id> (ln -sfn 임시 링크 후 mv -T 로 원자 교체)
 6. systemctl --user restart helmd.service   (ExecStartPost 가 준비 완료까지 기다린다)
@@ -1038,6 +1149,8 @@ exec "/home/user/.local/share/mise/installs/node/22.19.0/bin/node" \
 
 - 큰 마이그레이션: 3단계 시험에서 마이그레이션이 60초를 넘으면, 6단계 전에 데몬을 멈추고 `helm ops migrate --db data/helm.sqlite`를 오프라인으로 돌린 뒤 시작한다(시작 제한 시간 180초 회피).
 - pi 포크(`vendor/`) 갱신도 같은 절차를 탄다(07).
+- 관찰 캐시(`observer/`)와 샌드박스 홈(`sandbox/`)은 마이그레이션하지 않는다. 새 릴리스의 관찰 캐시 버전(16 §3.20 `meta.cache_version`)이 다르면 관찰 자식이 캐시를 지우고 다시 만든다(16). 업그레이드 절차는 이 디렉터리를 건드리지 않는다.
+- 업그레이드 대상 판단에 `just verify`(06 §3.16)와 07의 `vendor-verify`가 포함된다.
 
 #### 3.10.3 마이그레이션 실행
 
@@ -1087,7 +1200,8 @@ export type HealthCheckId =
   | "backup_local" | "backup_offsite" | "drill"
   | "secrets" | "whois" | "sandbox" | "clock" | "release_integrity"
   | "listener_tailnet" | "listener_loopback" | "listener_local"
-  | "safe_mode" | "scheduler" | "config_pending_restart";
+  | "safe_mode" | "scheduler" | "config_pending_restart"
+  | "tool_binaries" | "models" | "permissions";
 
 export interface HealthCheckResult {
   id: HealthCheckId;
@@ -1100,6 +1214,7 @@ export interface HealthCheckResult {
 export interface OpsStatus {
   mode: OpsMode;
   readOnlyReasons: Array<"disk_critical" | "integrity_suspect" | "operator">;
+  safeMode?: { since: string; reason: "crash_loop" | "operator"; recentUncleanBoots: Array<{ epoch: string; startedAt: string; lastEventAt?: string }> };  // 05 요구
   health: HealthLevel;           // checks 중 가장 나쁜 수준
   checks: HealthCheckResult[];
   release: { releaseId: string; gitSha: string; node: string; protocol: number };
@@ -1113,6 +1228,8 @@ export interface OpsStatus {
     lastDrill?: { at: string; ok: boolean };
   };
   runs: { active: number; waitingHuman: number; nextScheduledAt?: string };   // 수치는 12가 제공
+  models: Array<{ provider: string; status: "ok" | "missing_key" | "unavailable" }>;   // 12 gateway.health()
+  tools: { sandboxLevel: "S1" | "S1b" | "S0" | "none"; rg?: string; fd?: string; git?: string; bwrap?: string };   // 13 §3.6.1
   connections: { total: number; devices: Array<{ deviceId: string; name: string; transport: "tailnet" | "loopback" | "local" }>; localAdmin: number };
   listeners: Array<{ name: "tailnet" | "loopback" | "local"; address: string; state: "listening" | "disabled" | "error"; publicOrigin?: string }>;
   resources: { rssBytes: number; heapUsedBytes: number; cgroupMemoryBytes?: number; toolsSliceMemoryBytes?: number; eventLoopLagP99Ms: number; diskFreeBytes: number };
@@ -1134,17 +1251,20 @@ export interface OpsStatus {
 | `drill` | 마지막 훈련이 40일보다 오래됨 | 마지막 훈련 실패 | 1시간 |
 | `secrets` | `keys` 중 값이 없는 것이 있음(해당 기능 저하) | `required` 키 없음(시작 거부라 오프라인 표시) | 재적재 때 |
 | `whois` | 최근 10분 whois 실패 ≥ 3(18 §3.6) | 최근 10분 모두 실패 | 연속 |
-| `sandbox` | - | 격리 수단을 쓸 수 없어 실행 도구가 꺼짐(18 §3.11.4) | 시작, 1시간 |
+| `sandbox` | S1b로 동작 중(bubblewrap 없음, 신호 격리 없음) | 격리 수단을 쓸 수 없어 실행 도구가 꺼짐, 또는 운영자가 S0을 켬(18 §3.11.4) | 시작, 1시간 |
 | `clock` | NTP 미동기 또는 1시간 안에 60초 넘는 시계 점프 | - | 1시간 |
 | `release_integrity` | `manifest.files.sha256` 불일치(릴리스 파일 변조 또는 손상) | - | 시작, 하루 |
 | `listener_*` | - | 리스너가 `error` | 연속 |
 | `safe_mode` | - | 안전 모드 | 연속 |
 | `scheduler` | 타이머가 예정보다 5분 넘게 늦게 발화 | - | 연속 |
 | `config_pending_restart` | 다시 읽은 설정 중 재시작이 필요한 항목이 바뀜 | - | 다시 읽기 때 |
+| `tool_binaries` | `rg`·`fd`·`git` 중 없는 것(해당 도구만 오류, 07 T3) 또는 매니페스트 기록 버전과 다름 | - | 시작, 하루 |
+| `models` | 설정에서 켠 공급자 중 키가 없거나 시험 호출 실패(12 `gateway.health()`) | 켠 공급자가 모두 사용 불가 | 시작, 1시간 |
+| `permissions` | `data/`·`backups/`·`private/`·`state/` 권한이 0700/0600이 아님(고친 뒤 경고) | 소유자가 다른 uid | 시작, 하루 |
 
 #### 3.11.3 헬스 엔드포인트
 
-- `GET /healthz`: 세 리스너 모두. 인증 없이 응답한다. 본문은 `{"status":"ok"|"degraded"|"critical"|"starting"|"draining"}` 하나뿐이다(버전·경로·점검 상세를 넣지 않는다). HTTP 코드: `ok`·`degraded` 200, 나머지 503. `tailnet` 리스너에서도 18 §3.4의 Host·Origin 검사는 똑같이 적용한다.
+- `GET /healthz`: 세 리스너 모두. 인증 없이 응답한다. 본문은 `{"status":"ok"|"degraded"|"critical"|"starting"|"draining"}` 한 필드뿐이다(버전, 프로토콜 범위, 기기·경로·점검 상세를 넣지 않는다). 프로토콜 범위는 인증 직후 `hello.challenge.protocols`(19 §3.4.2)로 알 수 있으므로 넣지 않는다. 이 형식이 정본이고 19 §3.2(262행 표)와 20 §3.8의 연결 진단이 따른다(조정자 판정 §2). HTTP 코드: `ok`·`degraded` 200, 나머지 503. `tailnet` 리스너에서도 18 §3.4의 Host·Origin 검사를 똑같이 적용한다. 읽기 전용 모드는 `degraded`로 보인다(상세는 인증 뒤 `daemon.status`).
 - `GET /healthz?probe=ingress`: `tailnet` 리스너에서만. 들어온 요청에 Tailscale 신원 헤더와 `X-Forwarded-*`가 있었는지를 **참·거짓으로만** 돌려준다(값은 넣지 않는다). `just daemon-probe`가 가정 A17-2를 확인하는 데 쓴다.
 - 상세 상태는 인증된 연결의 상태 조회 메서드(이름은 19, 제안 `daemon.status`)와 로컬 CLI `helm status`로만 본다.
 
@@ -1178,7 +1298,8 @@ helmd      준비됨 · 저하 1                릴리스 0.1.0+bad4d2d   pid 41
 |---|---|
 | systemd | §3.6.1 표 전체, 단위 파일 설치·`enabled` 여부, 단위 파일이 저장소 원본에서 생성된 그대로인지(해시) |
 | 릴리스 | `current` 링크, 매니페스트, `node.path` 존재, ABI 일치, `--disable-sigusr1` 지원, 파일 해시 |
-| 경로 | 디렉터리 권한 0700, 파일 시스템 종류, 디스크 여유 |
+| 도구 실행 파일 | `rg`, `fd`, `git`이 PATH(데몬과 샌드박스의 PATH)에 있는지와 버전(매니페스트 `tools`와 비교, 07 T3·13 §3.3.6) |
+| 경로 | §3.2.2의 디렉터리 소유자·권한(0700/0600, 18 §3.9), 파일 시스템 종류, 디스크 여유, `~/projects` 아래가 아닌지 |
 | 비밀 | `~/projects/helm/secrets/prod.sops.yaml` 존재, `secrets ls`로 `keys`의 키 이름이 원본에 있는지(값은 보지 않는다), `.env.example`과 `keys` 일치 |
 | 원격 | 홈랩 `serve.table`에 Helm 줄, `scripts/lib/ts serve status --json`에서 8448 → `http://127.0.0.1:7840`, Funnel 꺼짐, `ts whois`가 응답하는지(소유자 기기 IP 하나로), `/mnt/c/Users/*/.wslconfig` 값, `schtasks.exe /query /tn WSL-Autostart` |
 | SSH | sshd가 22에서 듣는지, `AllowTcpForwarding`이 `no`가 아닌지(`sshd -T`는 root가 필요하므로 설정 파일 grep), 호스트 키 지문 출력(`ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`, 공개 키만 읽는다). 앱이 처음 접속할 때 사람이 이 지문과 대조한다(20 §3.8.3 요구) |
@@ -1218,10 +1339,10 @@ WSL 상한 10 GB + swap 8 GB [실험 11]. 홈랩 상시 서비스 1.5 GB 안쪽,
 
 | 대상 | 한도 | 근거 |
 |---|---|---|
-| `helmd` 단위(데몬 + 비밀 로더 + fork형 관찰 자식) | `MemoryHigh=1536M`, `MemoryMax=2G`, `TasksMax=512`, Node 힙 1 GiB | 데몬 RSS 평시 300 MB 안팎 예상 [가정]. 관찰 자식 768 MB(16 §3.2.1) |
+| `helmd` 단위(데몬 + 비밀 로더 + fork형 관찰 자식) | `MemoryHigh=1G`, `MemoryMax=1536M`, `TasksMax=512`, Node 힙 768 MiB(`--max-old-space-size=768`). 01 NFR-C-4(상주 1 GB 이하, 도구 자식 제외)에 맞춘다. fork형 관찰 자식(힙 768 MiB, 16 §3.2.1)은 같은 cgroup이라 실행 중에는 `MemoryHigh`에 걸려 늦춰질 수 있다. 그래서 관찰 자식을 `helm-tools.slice`의 일회성 단위로 옮기는 Q17-02를 권한다 | 데몬 RSS 평시 300 MB 안팎 예상 [가정]. 관찰 자식 768 MB(16 §3.2.1) |
 | `helm-tools.slice`(도구 실행 합계) | `MemoryHigh=2560M`, `MemoryMax=3G`, `TasksMax=1024`, `CPUWeight=50` | 빌드·테스트 도구가 1~2 GB를 쓸 수 있다 |
 | 도구 실행 단위 하나 | `MemoryMax=2G`, `RuntimeMaxSec`(13의 도구별 제한 + 30초), `TasksMax=256`, `Nice=5`, OOM 점수 +500(`OOMScoreAdjust=500`) | 커널 OOM이 데몬보다 도구를 먼저 고르게 |
-| Helm 전체 최악 | 약 5 GB | WSL 10 GB의 절반. 평시 1 GB 미만 |
+| Helm 전체 최악 | 약 4.5 GB(데몬 1.5 GB + 도구 슬라이스 3 GB) | WSL 10 GB의 절반. 평시 1 GB 미만 |
 | 디스크 | 정본 DB + 백업 9개 + 블롭. DB 1 GB면 백업 포함 약 10 GB | 여유 939 GB [실험: `df -h /`] |
 | 파일 디스크립터 | `LimitNOFILE=16384` | 연결·SQLite·자식 파이프 |
 
@@ -1296,13 +1417,24 @@ daemon-serve-line:
 daemon-uninstall:
     ops/bin/daemon-uninstall
 
-# 개발 데몬: 전경 실행, 데이터는 {{helm_root}}/dev, tailnet 리스너 끔, 비밀은 dev 원본에서 환경 주입
+# 개발 데몬: 전경 실행, 데이터는 {{helm_root}}/dev, tailnet 리스너 끔, 비밀은 dev 원본에서 환경 주입.
+# node --watch를 쓰지 않는다(pi-codemode worker가 깨진다, 07 E14). 파일 감시가 필요하면 ops/bin/dev-restart가 프로세스를 다시 띄운다
 daemon-dev:
     @"{{ just_executable() }}" --justfile "{{ justfile() }}" _with-secrets dev \
-      "HELM_ROOT={{helm_root}}/dev HELM_SECRETS_FROM_ENV=1 pnpm --filter @helm/daemon dev"
+      "HELM_ROOT={{helm_root}}/dev HELM_SECRETS_FROM_ENV=1 ops/bin/dev-restart pnpm --filter @helm/daemon start"
+
+# JSONL 내보내기(09 §3.14.3). 예: just daemon-export --from 1
+daemon-export *ARGS:
+    {{helm_root}}/app/current/bin/helm export --out {{helm_root}}/state/exports {{ARGS}}
+
+# 시스템 테스트(§6.2 시스템 종류). 이 서버에서만, 일회성 user unit을 쓴다. CI에서는 건너뛴다
+daemon-systest:
+    ops/test/run-systest
 ```
 
-- `ops/bin/daemon-install`: (1) `helm-doctor`(FAIL이면 2로 끝) (2) `ops/bin/build-release HEAD` (3) `@HELM_ROOT@` 치환으로 `~/.config/systemd/user/`에 단위 생성 (4) `app/bin/helm-alert` 복사 (5) `~/.local/bin/helm` 링크 (6) `systemctl --user daemon-reload && enable --now helmd.service helm-backup.timer helm-restore-drill.timer` (7) `helm status`. 이미 설치되어 있으면 단위 파일만 다시 쓰고 `daemon-upgrade`를 쓰라고 안내한다.
+- `rg`·`fd`(07 T3)는 저장소 `.mise.toml`의 `[tools]`에 `ripgrep = "15.2.0"`, `fd = "10.5.0"`로 고정하고 템플릿 `just setup`의 `mise install`이 설치한다. sudo가 필요 없다. 이 서버에는 dotfiles mise로 같은 버전이 이미 있다 [실험: `rg 15.2.0`, `fd 10.5.0`]. `git`은 시스템 패키지(2.43.0 [실험]). `bubblewrap`은 apt 패키지라 사람이 `sudo apt install bubblewrap`을 한다(`helm doctor`가 안내, 13 §3.6.1).
+- 06 §3.16이 정한 대로 별도 `store-*` 레시피는 두지 않는다. 09 §5.2가 예로 든 이름은 `store-verify` → `daemon-verify --full`, `store-backup` → `daemon-backup`, `store-restore` → `daemon-restore`, `store-export` → `daemon-export`로 대응한다.
+- `ops/bin/daemon-install`: (1) `helm-doctor`(FAIL이면 2로 끝) (2) `ops/bin/build-release HEAD` (3) `@HELM_ROOT@` 치환으로 `~/.config/systemd/user/`에 단위 생성 (4) `app/bin/helm-alert` 복사 (5) `~/.local/bin/helm` 링크 (6) `systemctl --user daemon-reload && enable --now helmd.service helm-backup.timer helm-restore-drill.timer helm-verify.timer helm-maintenance.timer` (7) `helm status`. 이미 설치되어 있으면 단위 파일만 다시 쓰고 `daemon-upgrade`를 쓰라고 안내한다.
 - 종료 코드 2를 받은 레시피는 코드를 고치지 않고 그대로 보고한다(사용자 CLAUDE.md 규칙).
 - `daemon-dev`는 `_with-secrets`(저장소 템플릿 레시피, SECRETS.md "자주 하는 일")를 쓴다. 정식 데몬과 데이터 디렉터리·잠금·소켓 디렉터리(`$XDG_RUNTIME_DIR/helm-dev`)가 다르므로 함께 돌 수 있다. 개발 데몬의 `loopback` 포트는 7851, `tailnet`은 끈다.
 
@@ -1317,23 +1449,27 @@ daemon-dev:
 | `helm version` | CLI·릴리스·프로토콜 버전 | 아니요 | - |
 | `helm daemon start\|stop\|restart` | `systemctl --user` 래퍼 | 아니요 | - |
 | `helm daemon logs [-f] [--since …]` | `journalctl` 래퍼 | 아니요 | - |
-| `helm pair [--name <이름>] [--ttl <초>] [--qr]` | 페어링 코드 발급(18 §3.7 흐름 A). 코드·만료 시각·접속 주소 출력, `--qr`이면 터미널 QR | 예 | `device.createPairingCode` |
-| `helm device issue --name <이름> --platform <p> --client <k>` | SSH 경로 페어링(18 §3.7 흐름 B). 토큰을 표준 출력에 한 번 쓴다. 앱이 `ssh server helm device issue …`로 부른다(20 `pairing_via_ssh`) | 예 | `admin.issueDevice` |
-| `helm devices [list]` | 기기 목록(이름, 경로, 마지막 사용, 토큰 나이) | 예 | 기기 목록 |
-| `helm devices rename <dv_id> <이름>` | 이름 변경 | 예 | 기기 이름 변경 |
-| `helm devices revoke <dv_id> [--reason …]` | 즉시 폐기, 해당 연결 끊기 | 예 | 기기 폐기 |
-| `helm devices expire-tokens <dv_id>` | 다음 접속에서 회전 강제 | 예 | 토큰 만료 |
+| `helm pair [--name <이름>] [--ttl <초>] [--qr]` | 페어링 코드 발급(18 §3.7 흐름 A). 코드, 만료 시각, 접속 주소와 링크 `helm://pair?v=1&url=<https://server.tail7ad0b4.ts.net:8448>&code=<코드>&sid=<serverId>`(20 §3.8.7)를 출력. `--qr`이면 같은 링크를 터미널 QR로(모바일 페어링, 26) | 예 | `device.createPairingCode` |
+| `helm pair --cancel-all` | 유효한 페어링 코드를 모두 무효로 | 예 | 같음(19) |
+| `helm device issue --json --name <이름> --platform <p> --client <k>` | SSH 경로 페어링(18 §3.7 흐름 B). 표준 출력에 `HELM-DEVICE/1 {"serverId":…,"deviceId":…,"deviceToken":…}` 한 줄만 쓰고 다른 출력은 표준 오류로 보낸다(20 §3.8.7). 토큰은 이 출력에만 한 번 나온다. 앱은 비대화 SSH에서 절대 경로 `~/.local/bin/helm`(로그인 셸이 `~`를 편다)으로 부른다 | 예 | `admin.issueDevice` |
+| `helm device [list]` | 기기 목록(이름, 플랫폼, 클라이언트 종류, 페어링 경로, 마지막 사용 시각·경로, 만료 예정, 상태) | 예 | `device.list` |
+| `helm device rename <dv_id> <이름>` | 이름 변경 | 예 | `device.rename` |
+| `helm device revoke <dv_id> [--reason …]` | 즉시 폐기, 해당 연결 끊기(02 UC-11 A2의 이름) | 예 | `device.revoke` |
+| `helm device expire-tokens <dv_id>` | 토큰 만료를 지금으로(다시 페어링 필요) | 예 | 19에 요구 |
+| `helm device rebind <dv_id>` | tailnet 노드 묶기를 풀어 다음 WSS 접속에서 다시 묶음(18 §4 S-03) | 예 | 19에 요구 |
 | `helm audit [--since …] [--device …] [--kind auth\|device\|ops]` | 보안 감사 기록 보기(18 §3.13) | 예 | 이벤트 조회(필터) |
-| `helm ops backup [--kind manual] [--wait]` | 백업(§3.9.2) | 아니요(꺼져 있으면 오프라인) | 백업 생성 |
+| `helm ops backup [--kind manual] [--wait]` | 백업(§3.9.1) | 아니요(꺼져 있으면 오프라인) | `admin.backupNow` |
 | `helm ops backups` | 로컬 스냅샷 목록과 매니페스트 요약 | 아니요 | - |
-| `helm ops restore --from <파일> [--yes]` | 복구(§3.9.4). 데몬이 돌고 있으면 거부 | 아니요(꺼져 있어야 함) | - |
-| `helm ops verify [--full] [--blobs] [--anchors]` | 검증(§3.9.5). 데몬이 돌면 워커로, 꺼져 있으면 오프라인 | 아니요 | 검증 실행 |
+| `helm ops restore --from <backupId 또는 경로> [--yes]` | 복원(§3.9.4). 데몬이 돌고 있으면 거부 | 아니요(꺼져 있어야 함) | - |
+| `helm ops verify [--full] [--blobs] [--anchors] [--if-running]` | 검증(§3.9.5). 데몬이 돌면 워커로, 꺼져 있으면 오프라인. 09 §3.10.4의 `helm store verify`는 이 명령으로 통일한다 | 아니요 | `admin.verify` |
+| `helm ops maintain [--if-running]` | 정기 유지 작업(§3.9.7) | 예 | 19에 요구(`admin.maintain`) |
+| `helm export --out <dir> [--from <seq>] [--to <seq>] [--with-blobs] [--db <path>]` | JSONL 내보내기(06 §3.11.4, 09 §3.14.3. 09의 `helm store export`와 같은 명령) | 아니요 | - |
 | `helm ops drill [--file <스냅샷>]` | 복구 훈련(§3.9.6) | 아니요 | - |
 | `helm ops migrate --status\|--dry-run [--db <경로>]\|--apply` | 마이그레이션 상태·시험·오프라인 적용 | 아니요(`--apply`는 꺼져 있어야 함) | - |
 | `helm ops wait-ready [--timeout <초>]` | 준비 완료까지 대기(단위 `ExecStartPost`) | 예 | 상태 조회 반복 |
 | `helm ops reload` | 설정 다시 읽기(§3.3.3) | 예 | 설정 재적재 |
 | `helm ops reload-secrets` | 비밀 다시 읽기(§3.8) | 예 | 비밀 재적재 |
-| `helm ops safe-mode on\|off` | 안전 모드 진입·해제(§3.4.6) | 예 | 안전 모드 전환(19에 요구) |
+| `helm ops safe-mode on\|off` | 안전 모드 진입·해제(§3.4.6). 해제는 10 `runtime.exit_safe_mode` 명령(19 의도 `daemon.exitSafeMode`)과 같다 | 예 | 19 `admin.safeMode` |
 | `helm ops read-only on\|off [--reason …]` | 읽기 전용 전환(§3.4.1 사유 `operator`) | 예 | `admin.setMode` |
 | `helm daemon drain [--reason …]` | 종료 예고 후 정지(업그레이드 스크립트가 씀) | 예 | `admin.drain` |
 | `helm ops alert <unit>` | 내부용(경보 단위). 사람이 쓰지 않는다 | 아니요 | - |
@@ -1360,7 +1496,7 @@ daemon-dev:
 | F-11 | 마이그레이션 중 크래시 | 트랜잭션이 되돌려진다. 다음 시작이 다시 시도. 같은 마이그레이션이 두 번 실패하면 종료 코드 2로 멈추고 경보(§3.10.3) | T17-15 |
 | F-12 | `pre-migrate` 백업 실패(디스크 부족 등) | 마이그레이션하지 않고 종료 코드 1. 두 번째부터 2 | T17-15 |
 | F-13 | DB 스키마가 코드보다 새로움 | 종료 코드 4, 재시작 안 함 | T17-14 |
-| F-14 | quick_check 실패 또는 해시 체인 끝 불일치 | 읽기 전용 복구 시작(§3.4.2 5단계). 헬스 `db_integrity` critical. 사람이 §3.9.4로 복구. 파일을 아예 열 수 없으면 종료 코드 5 | T17-16 |
+| F-14 | quick_check 실패 또는 해시 체인 끝 불일치 | 읽기 전용 복구 시작(§3.4.2 7단계). 헬스 `db_integrity` critical. 사람이 §3.9.4로 복구. 파일을 아예 열 수 없으면 종료 코드 5 | T17-16 |
 | F-15 | 10분에 3번 비정상 시작 | 안전 모드. 경보는 systemd 한도에서도 따로 간다 | T17-09 |
 | F-16 | 안전 모드에서 사람이 해제했는데 다시 크래시 | 해제 뒤의 비정상 시작만 센다(해제 이벤트 이후 창). 다시 3번이면 다시 안전 모드 | T17-09 |
 | F-17 | 종료 유예 중 도구가 SIGTERM을 무시 | 5초 뒤 SIGKILL(단위면 `systemctl --user kill --signal=SIGKILL`). 45초 안에 끝나지 않으면 systemd가 cgroup 전체 SIGKILL | T17-07 |
@@ -1368,7 +1504,7 @@ daemon-dev:
 | F-19 | 이벤트 루프가 120초 정지 | 감시 워커가 SIGABRT, systemd 재시작, 비정상 종료로 기록 | T17-18 |
 | F-20 | 백업 중 데몬 종료 요청 | 백업은 `.tmp`에서 진행되므로 중단하고 지운다. 종료를 미루지 않는다 | T17-17 |
 | F-21 | 03:40 백업이 04:00 restic 시작까지 끝나지 않음 | restic은 이전 날 스냅샷을 가져간다(`.tmp`는 제외). 15분 넘으면 경고 | 수동 확인 |
-| F-22 | 백업 검증 실패(원본 DB 손상 의심) | `backup.failed { stage: "verify" }`, 경보. 원본에서 다시 `quick_check`를 돌려 실패하면 모드 `read_only`(사유 `integrity_suspect`), 통과하면 백업 파일 쪽 문제로 보고 다음 주기를 기다린다. 어느 쪽이든 `helm ops verify --full`을 권한다 | T17-16 |
+| F-22 | 백업 사본 검사 또는 주간 전체 검사 실패(원본 DB 손상 의심) | `backup.failed { stage: "verify" }` 또는 운영 로그, 경보. 헬스 `db_integrity` critical, 백업 회전(오래된 스냅샷 삭제)을 멈춘다(좋은 백업을 지우지 않게, 09 §3.10.4). 데몬은 계속 쓴다. 사람에게 `helm ops verify --full`과 §3.9.4 복원 판단을 권한다 | T17-16 |
 | F-23 | 복구할 스냅샷이 더 새 릴리스에서 만든 것 | 복구 중단(§3.9.4 3단계) | T17-20 |
 | F-24 | 복구 후 클라이언트가 예전 `lastSeq`로 재접속 | 새 `storeId`라 19의 스냅샷 경로로 간다 | T17-21 + 19 적합성 |
 | F-25 | 업그레이드 자체 시험 실패 | 운영 데몬은 그대로, staging 삭제, 종료 코드 1 | T17-22 |
@@ -1379,7 +1515,7 @@ daemon-dev:
 | F-30 | 사람이 저장소 작업 트리에서 코드를 바꾸고 Mac에서 동기화된 변경이 섞임 | 실행 중 릴리스와 무관(D17-11). 업그레이드는 커밋만 빌드 | T17-22 |
 | F-31 | 시계가 크게 뒤로 감 | §3.6.8. 헬스 `clock` | T17-19 |
 | F-32 | `helm-alert`가 홈랩 `scripts/alert`를 못 찾음 | 상태 파일만 남기고 0 | T17-25 |
-| F-33 | `~/.config/helm/helmd.json`에 비밀처럼 보이는 키 | 설정 검증 실패, 종료 코드 2 | T17-02 |
+| F-33 | `~/.config/helm/helmd.toml`에 비밀처럼 보이는 키 | 설정 검증 실패, 종료 코드 2 | T17-02 |
 | F-34 | 관찰 자식이 메모리 한도 초과 | 그 실행만 실패(16 §3.19.3). 데몬 무관 | 16 |
 | F-35 | 개발 데몬과 정식 데몬 동시 실행 | 데이터·잠금·소켓·포트가 다르므로 함께 돈다. 개발 데몬은 `tailnet` 리스너를 열지 않는다 | T17-26 |
 
@@ -1389,29 +1525,39 @@ daemon-dev:
 
 | 받는 문서 | 제공 |
 |---|---|
-| 06 | 프로세스 배치(`helmd` 하나 + 도구 일회성 단위 + 관찰 자식), 저장 위치 표(§3.2), 데몬 설정 타입(§3.3.2), 데몬 쪽 `justfile` 레시피(§3.14), 운영 로그 요구(§3.12) |
-| 09 | 시작 순서에서 store API를 부르는 위치(§3.4.2 5·6·10단계), 백업 실행기의 요구(§3.9.2), 복구 절차(§3.9.4), 훈련(§3.9.6) |
-| 12 | 복구 호출 시점과 인자(`bootEpoch`, `previousBootEpoch`, `safeMode`), 스케줄러 시작·정지 시점, 종료 유예 규칙(§3.4.3), 크래시 루프 차단기(§3.4.6), 시계 점프 처리(§3.6.8) |
-| 13 | 도구 실행 단위의 슬라이스·한도·`PartOf` 규칙(§3.1.3, §3.13), 시작 단계 고아 정리 위치(§3.4.2 8단계), 종료 때 도구 정리 순서 |
-| 16 | 관찰 자식의 자원 한도와 격리 실행 방식(§3.1.3), 경로 `/srv/volumes/helm/observer` |
-| 18 | 리스너 배치(§3.5), 데몬 모드, 비밀 로딩 절차(§3.8), 백업·복구 절차(18 §3.16이 보안 조건을 덧붙임), 진단 묶음 제외 규칙 |
-| 19 | 리스너 이름·주소·소켓 경로(§3.5), 데몬 모드 값(§3.4.1), 종료 예고 사유(§3.4.3), 운영 상태 타입 `OpsStatus`(§3.11.1, 19 `DaemonStatus`로 줄이는 규칙 포함), `/healthz`(§3.11.3), 복구 시 `storeId` 교체(§3.9.4) |
-| 20 | 접속 주소: WSS `https://server.tail7ad0b4.ts.net:8448`, SSH `ssh -W 127.0.0.1:7841 server`. 업그레이드 순서(§3.10.6) |
+| 01 | NFR-A-1(재시작 5초 시작·최대 60초 지연, 복구 30초 목표, §3.6.5·§3.4.2), NFR-A-2(keepalive 확인 방법, §3.6.7), NFR-A-3(로그온 뒤 시작, §3.6.6), NFR-A-6(상태 항목, §3.11), NFR-D-3(매일 03:40 백업, 최대 손실 24시간, §3.9), NFR-D-6(§3.2), NFR-O-4(데몬 없이 `helm status`·`helm doctor`·복원, §3.15) |
+| 02 | UC-10 B1(비정상 종료 → systemd 재시작 + 복구), B2(재부팅 → 로그온 뒤 시작, §3.6.6), B5(읽기 전용 복구 시작, 이벤트 없음, §3.4.2), UC-11 설치(`just daemon-install`, 멱등, §3.14)와 Windows 쪽 작업(관리자 스크립트 없음, §3.7) |
+| 04, 05, 21 | 상태 항목(`OpsStatus`, §3.11.1: 시작 시각, 진행 중 실행 수, 다음 예약, 저장소 크기, 마지막 백업, 디스크 여유, 모드와 사유, 안전 모드의 최근 비정상 부팅 목록), 점검 id 목록(§3.11.2, 문구 키는 05), 페어링 코드 명령 `helm pair`, 읽기 전용·안전 모드에서 사람이 할 일(§3.4.1, §3.9.4) |
+| 06 | 프로세스 배치, 저장 위치 표(§3.2), 운영 절 설정 스키마(§3.3.2), 데몬 레시피(§3.14), 운영 로그 요구(§3.12) |
+| 07 | 릴리스 매니페스트의 `pi`·`tools` 기록(§3.10.1), `rg`·`fd` 설치(`.mise.toml`)와 `helm doctor` 확인(§3.11.5), `tool-output/` 위치와 24시간 정리(§3.9.7), `node --watch` 금지(§3.14) |
+| 09 | 시작 순서 안의 저장소 단계 위치(§3.4.2 2~10단계), 백업 일정·보관·정리 정지 규칙(§3.9.1), 복원 운영 단계(§3.9.4), 주간 전체 검사와 일일 유지 타이머(§3.9.7), 데이터 디렉터리 배치와 권한(§3.2.2) |
+| 12 | 복구·오케스트레이터·스케줄러 시작 시점(§3.4.2 12~14단계), 종료 유예(§3.4.3), 크래시 루프·안전 모드 데몬 쪽 처리(§3.4.6), 사용자 시간대 설정(`user.timeZone`, §3.3.1), 시계 점프(§3.6.8) |
+| 13 | 도구 실행 단위의 슬라이스·한도·`PartOf` 규칙(§3.1.3, §3.13), 고아 정리 위치(§3.4.2 11단계), 경로 `sandbox/`·`drafts/`·`worktrees/`와 정리 정책(§3.2.2, §3.9.7), `bwrap`·`systemd-run` 확인(§3.11.5) |
+| 14 | 오케스트레이터 시작 위치(§3.4.2 13단계) |
+| 15 | `scratch/inquiry/`(14일 정리, 백업 제외), `eval/`(백업 포함) |
+| 16 | 관찰 자식의 자원 한도와 격리 실행(§3.1.3), `observer/`(백업 제외), `private/resumption-checks/`(0700/0600, 백업 포함, 관찰 자식에게 숨김), 업그레이드 때 캐시 처리(§3.10.2) |
+| 18 | 리스너 배치(§3.5), 데몬 모드, 비밀 로딩 절차(§3.8), 복원 절차(18 §3.16이 보안 조건을 덧붙임), 진단 묶음 제외 규칙 |
+| 19 | 리스너 주소·소켓 경로(§3.5), 데몬 모드 대응(§3.4.1), 종료 예고 사유(§3.4.3), `OpsStatus`와 줄이는 규칙(§3.11.1), `/healthz` 정본 형식(§3.11.3), 복원 때 `storeId` 교체(§3.9.4), `serverId` 위치(`state/server-id`), 업로드 대기 파일 24시간 정리(§3.9.7), `admin.*` 의미(§3.15) |
+| 20 | 접속 주소: WSS `https://server.tail7ad0b4.ts.net:8448`, SSH `ssh -W 127.0.0.1:7841 server`. `helm device issue --json` 출력 계약, `helm pair` 링크(§3.15), 업그레이드 순서(§3.10.6), sshd 포워딩 유지(아래 결정), `helm doctor`의 호스트 키 지문(§3.11.5) |
 | 22, 23 | §6의 테스트 목록과 구현 단위 |
+
+20 §5.2 요구 (3)에 대한 답: sshd의 TCP 포워딩은 OpenSSH 기본값(허용)을 그대로 둔다 [실험 18]. 좁히려면 dotfiles `sshd_config.d/10-dotfiles.conf`에 `PermitOpen 127.0.0.1:7841`을 더할 수 있으나, 사용자의 다른 포워딩(홈랩 Sunshine 웹 UI 등)도 함께 막히므로 1차에는 하지 않는다(사람 결정, 미결 Q17-11).
 
 ### 5.2 다른 문서에 요구하는 것
 
 | 문서 | 요구 |
 |---|---|
-| 06 | (1) 설정 형식을 JSON + TypeBox로 하고 `DaemonConfig`(§3.3.2)를 데몬 설정 절로 넣는다. (2) 로거가 표준 출력 JSON 줄과 마스킹 훅(18)을 지원한다. (3) 저장소 루트에 `ops/` 디렉터리(systemd 원본, bin 스크립트, windows 확인 스크립트)를 둔다. (4) 패키지 `@helm/daemon`에 `bin/helm-secret-export` 진입점을 둔다 |
-| 09 | (1) `store.open()`이 "열고 쓰기 트랜잭션 한 번" 복구 대기, `quickCheck()`, `verifyChain({ lastN } \| "all")`, `projectionDigest()`, `backupTo(path, { onProgress })`, `schemaVersion`, `codeSchemaRange` API를 제공한다. (2) `storeId`와 복구 표식을 DB 메타에 둔다(§3.9.4 7단계). (3) 이벤트 이름 등록: `daemon.booted`, `daemon.stopped`, `daemon.safe_mode_entered`, `daemon.safe_mode_exited`, `store.migrated`, `store.restored`, `backup.created`, `backup.failed`, `backup.pruned`, `drill.completed`, `config.reloaded`, `secrets.reloaded`(행위자 `runtime`). (4) 워커 읽기 트랜잭션 30초 상한. (5) `synchronous` 값 결정(17은 `FULL`을 권한다: 쓰기 빈도가 낮고 사람 결정 이벤트를 잃지 않는 편이 낫다. happy-agent도 `FULL`, 사례 §11.4). (6) 블롭 삭제는 35일 보존 창 이후(§3.9.1). (7) 09 D09-7의 단일 쓰기 세 겹 중 "로컬 유닉스 소켓 bind 잠금"을 17 D17-02의 잠금 전용 SQLite 파일로 바꾼다(소켓은 `/run/user` tmpfs에 있어 데이터 디렉터리와 수명이 다르고, 죽은 소켓 판정이 연결 시도라 경합이 있다. 사례 §12.1-4). 부팅 epoch 대조(fencing)는 그대로 둔다. (8) 데이터 디렉터리는 `/srv/volumes/helm/data`(09 §2.1의 `/srv/volumes/helm`은 17 배치의 루트) |
-| 10 | 데몬 모드가 `ready`·`safe_mode`가 아닐 때 상태 변경 명령은 프로토콜 계층(19 `5001`·`5003`)에서 커널에 들어오기 전에 거절된다. 커널 쪽 거부 분류(경로)에 같은 사유를 둘지는 10이 정한다 |
-| 12 | (1) 12 §3.7.3 `boot()`의 3~7단계(상태 재구성, `reconcileRun`, 효과 outbox, `scheduler.rebuild`, 재개 예약)를 17 시작 순서 9~11단계에서 부를 수 있게 `runtime.recover({ epoch, prevEpoch, safeMode })`와 `scheduler.start()`로 나눠 노출한다. 0~2단계(잠금, DB, `daemon.booted`, 크래시 루프 판정)는 17이 먼저 한다. (2) §3.3.4 키 주입: 키를 `process.env`에서 읽지 말고 17 §3.8의 `SecretStore`(메모리)에서 읽는다. 데몬은 `secrets run`으로 띄우지 않는다(ADR-17-3, [실험 19]). `.env.example` 키 이름 목록은 그대로 쓴다. (3) `runtime.drain(timeoutMs)`, `runtime.abortAll(reason)`, `runtime.pause()`(읽기 전용 모드). (4) 상태용 수치(`active`, `waitingHuman`, `nextScheduledAt`) |
-| 13 | (1) 자식 프로세스 원장 레코드와 이벤트(단위 이름 또는 PID + 시작 시각 + `bootEpoch` + 도구 호출 ID). (2) 시작 단계 8의 대조 함수 `reapOrphans(previousBootEpochs)`. (3) 도구 실행을 `helm-tools.slice` 안의 일회성 단위로 띄우고 `PartOf=helmd.service`를 건다(18 §3.11 권장 수단을 채택할 때). (4) 외부 어댑터가 데몬을 볼 수 없을 때 변경 도구 차단(F-27) |
-| 16 | 격리 실행을 켤 때 IPC를 Node IPC 대신 표준 입출력 JSON 줄로 바꿀 수 있게 IPC 계층을 전송 독립으로 둔다(§3.1.3). `systemd-run` 실행이 실패하면 `fork`로 돌아가지 않고 관찰 실행을 실패로 기록한다(격리를 조용히 낮추지 않음) |
-| 19 | (1) 리스너 셋(`tailnet`, `loopback`, `local`)의 주소·소켓 경로를 §3.5 값으로 적는다(`<HELM_LOOPBACK_PORT>`=7841, `<HELM_SOCKET>`=`/run/user/<uid>/helm/rpc.sock`). (2) `DaemonMode`에 `safeMode`를 더한다(§3.4.1). (3) `server.shutdown.reason`에 17의 사유(`restart`, `upgrade`, `stop`)를 그대로 쓰고 `restartExpectedMs`는 업그레이드 30,000. (4) `daemon.status`는 17 `OpsStatus`에서 줄여 만든다. `warnings` 키에 17 점검 id(§3.11.2)를 쓴다. (5) 로컬 관리자 전용 메서드에 `admin.safeMode { on }`, `admin.reloadConfig`, `admin.reloadSecrets`, `admin.verify { full, blobs, anchors }`를 더한다. (6) `serverId`는 17이 `state/server-id`에 둔다 |
-| 20 | (1) SSH 경로 대상 `127.0.0.1:7841`. (2) `ServerAliveInterval=15`, `ServerAliveCountMax=3`. (3) 종료 예고(`server.shutdown`)를 받으면 `restartExpectedMs` 동안 "데몬 재시작 중"으로 표시하고 오류로 보이지 않는다 |
-| 23 | 구현 순서: 잠금·시작 순서·종료 순서(M1과 함께) → 백업·복구(첫 실제 사용 전 필수) → 업그레이드 → 훈련 |
+| 02 | UC-11 3단계의 "Windows 호스트 쪽 설정을 사람이 관리자 권한으로 실행"을 "홈랩 `serve.table` 한 줄 + `just serve-apply`(관리자 권한 불필요), 읽기 전용 확인 스크립트"로 고친다(§3.7). 1단계 이벤트 이름 `daemon.started`를 09의 `daemon.booted`로 |
+| 05 | §3.11.2 점검 id(`tool_binaries`, `models`, `permissions` 추가)마다 문구 키 |
+| 06 | (1) §3.10.3 최상위 구조에 `maintenance`(17)와 `user { timeZone }`(12의 사용자 시간대) 절을 더한다. (2) §3.9.3 4번의 "`secrets.required` 기본 `[]`"를 `["HELM_LEDGER_HMAC_KEY"]`로 고친다(09 §3.8.2 3단계와 맞춤. 모델 키는 여전히 필수 아님). (3) §3.7.4 4번의 "격리 없을 때 로컬 관리자 명령을 막을지"는 18 R-10(격리 없으면 `execute` 자체를 끔)으로 답했다 |
+| 09 | (1) §3.8.1 겹 1의 단위 이름 `helm-daemon.service`를 `helmd.service`로. (2) §3.10.5의 "읽기 전용 복구 모드(17의 safe 모드, `daemon.safe_mode_entered`)"를 "17의 `read_only` 모드(사유 `integrity_suspect`), 이벤트 없음"으로 고친다. 안전 모드는 크래시 루프 전용이다. (3) 매니페스트에 `verify`, `producer` 필드(§3.9.2). (4) `helm store verify`·`helm store export`를 17의 `helm ops verify`·`helm export`로 맞춘다. (5) `synchronous=FULL` 유지 |
+| 10 | 데몬 모드가 `ready`·`safe_mode`가 아닐 때 상태 변경 명령은 프로토콜 계층(19 `5001`·`5003`)에서 거절된다. 커널 쪽 거부 분류에 같은 사유를 둘지는 10이 정한다(10 E-23) |
+| 12 | (1) §3.3.4 키 주입을 브리프 결정 45대로 고친다: `EnvCredentialStore` 대신 17 §3.8의 `SecretStore`(메모리)에서 읽는 자격 저장소. 데몬은 `secrets run`으로 띄우지 않는다. §2.1 표 §2.5 행도 같이. (2) `boot()` 3~7단계를 `runtime.recover({ epoch, prevEpoch, safeMode })`와 `scheduler.start()`로 나눠 노출한다. (3) `runtime.drain(timeoutMs)`, `runtime.abortAll(reason)`, `runtime.pause()`. (4) 상태용 수치와 `gateway.health()` 결과 |
+| 13 | (1) 자식 프로세스 원장 레코드와 이벤트, 대조 함수 `reapOrphans(prevEpochs)`. (2) §3.6.2의 데몬 포트 `127.0.0.1:7801`을 7840·7841로 고친다(조정자 판정 §2). (3) 샌드박스 홈 정리는 17 §3.9.7(30일)을 쓴다 |
+| 16 | (1) 격리 실행 IPC를 전송과 분리(§3.1.3). `systemd-run` 실패 때 `fork`로 몰래 낮추지 않는다. (2) 관찰 자식 격리를 켤 때 `private/`를 숨긴다 |
+| 19 | (1) `/healthz` 본문을 17 §3.11.3 형식 하나로 확정(20 §5.2 (3)이 지적한 `{"ok":true,"protocols":[1]}` 흔적 제거). (2) `admin.maintain`, `admin.verify { full, blobs, anchors }`, `device.expireTokens`, `device.rebind` 메서드. (3) `DaemonMode` 값과 17 내부 모드 대응(§3.4.1)을 한 표로 |
+| 20 | (1) SSH 경로 대상 `127.0.0.1:7841`, `ServerAliveInterval=15`, `ServerAliveCountMax=3`. (2) 종료 예고(`server.shutdown`)를 받으면 `restartExpectedMs` 동안 "데몬 재시작 중"으로 표시. (3) `helmCliPath` 기본값을 `~/.local/bin/helm`으로 |
+| 23 | 구현 순서: 잠금·시작 순서·종료 순서(M1과 함께) → 백업·복원(첫 실제 사용 전 필수) → 업그레이드 → 훈련·유지 타이머. 구현 시작 전 사람 작업: `~/projects/helm` 뼈대와 `secrets init`, `secrets edit prod`(모델 키, `HELM_LEDGER_HMAC_KEY`), `sudo apt install bubblewrap` |
 | 홈랩 | §3.7.4 H-1~H-5 |
 
 ## 6. 구현 단위와 완료 기준
@@ -1422,14 +1568,14 @@ daemon-dev:
 |---|---|
 | `packages/daemon/src/main.ts` | 진입점, 시작 순서 실행기 |
 | `packages/daemon/src/config/{schema,load}.ts` | §3.3 |
-| `packages/daemon/src/lifecycle/{instance-lock,boot,shutdown,signals,modes,crash-loop,watchdog,owner-file}.ts` | §3.1.4, §3.4 |
+| `packages/daemon/src/lifecycle/{boot,shutdown,signals,modes,crash-loop,watchdog,owner-file}.ts`, `packages/store/src/admin/instance-lock.ts`(`@helm/store/admin`) | §3.1.4, §3.4 |
 | `packages/daemon/src/listeners/{index,tailnet,ssh,local,healthz}.ts` | §3.5, §3.11.3 (인증 검사는 18의 `auth/` 모듈 호출) |
 | `packages/daemon/src/secrets/{loader,export-main}.ts` | §3.8 |
-| `packages/daemon/src/ops/{status,health-checks,backup,backup-manifest,restore,verify,drill,diag,reload}.ts` | §3.9, §3.11 |
+| `packages/daemon/src/ops/{status,health-checks,backup,restore,verify,drill,maintain,diag,reload}.ts` | §3.9, §3.11 |
 | `packages/daemon/src/process/{systemd-run,orphans}.ts` | §3.1.3 (13과 공유) |
 | `apps/cli/src/commands/{status,doctor,daemon,pair,devices,audit,ops/*,diag,attach,observer}.ts` | §3.15 |
-| `ops/systemd/{helmd.service,helm-tools.slice,helm-backup.service,helm-backup.timer,helm-restore-drill.service,helm-restore-drill.timer,helm-alert@.service}.in` | §3.6.4 |
-| `ops/bin/{helm-doctor,daemon-install,daemon-upgrade,daemon-rollback,daemon-restore,daemon-uninstall,daemon-probe,build-release,helm-alert}` | §3.10, §3.14 |
+| `ops/systemd/{helmd.service,helm-tools.slice,helm-backup.service,helm-backup.timer,helm-restore-drill.service,helm-restore-drill.timer,helm-verify.service,helm-verify.timer,helm-maintenance.service,helm-maintenance.timer,helm-alert@.service}.in` | §3.6.4 |
+| `ops/bin/{helm-doctor,daemon-install,daemon-upgrade,daemon-rollback,daemon-restore,daemon-uninstall,daemon-probe,build-release,helm-alert,dev-restart}`, `ops/test/run-systest` | §3.10, §3.14 |
 | `ops/windows/check-helm-host.ps1` | §3.7.3 |
 
 ### 6.2 테스트 목록
@@ -1471,6 +1617,12 @@ daemon-dev:
 | T17-31 | (수동) `just daemon-probe`: tailscale serve 경유 `/healthz` 200, `?probe=ingress`에서 신원 헤더 존재 true(A17-2) | 수동 |
 | T17-32 | `helm diag bundle`: 알려진 비밀 값과 토큰 패턴을 심은 로그에서 묶음이 그것을 포함하지 않음 | 통합 |
 | T17-33 | `helm status` 꺼짐 화면: 데몬이 없을 때 owner 파일·마지막 백업·journald 마지막 오류로 출력, 종료 코드 1 | 통합 |
+| T17-34 | 읽기 전용 복구 시작(무결성 tail 실패 주입): 리스너는 열리고 `daemon.booted`를 포함해 이벤트가 하나도 추가되지 않음(02 AC-10-09), 모든 쓰기 명령 `5003` | 통합 |
+| T17-35 | `helm ops maintain`: 24시간 넘은 staged 업로드, 35일 넘은 참조 없는 blob 행, 30일 안 쓴 샌드박스 홈, 고아 worktree가 지워지고 정본 이벤트 수는 그대로 | 통합 |
+| T17-36 | 주간 전체 검사 실패 주입 → 헬스 `db_integrity` critical, 백업 정리 정지(오래된 스냅샷이 남음), 데몬은 계속 쓰기 | 통합 |
+| T17-37 | `helm doctor`: `rg`·`fd`·`git` 하나를 PATH에서 빼면 WARN과 해당 도구 이름, `bwrap` 없으면 S1b 안내 | 단위(bash) |
+| T17-38 | 설정: `helmd.toml` < `helmd.local.toml` < 허용된 환경 변수 순서, TOML 문법 오류·모르는 키·`apiKey` 키 → 종료 코드 2 | 단위 |
+| T17-39 | `helm device issue --json`: 표준 출력이 `HELM-DEVICE/1 ` 한 줄뿐이고 셸 시작 잡음은 표준 오류로 | 통합 |
 
 완료 기준: 위 테스트(수동 제외)가 `just verify`(단위·통합)와 `just daemon-systest`(시스템)에서 통과하고, `just daemon-install` → `just daemon-status`가 이 서버에서 `ok`를 보이며, T17-30·31을 한 번 수행해 결과를 이 문서 §7에 반영한다.
 
@@ -1488,6 +1640,7 @@ daemon-dev:
 | Q17-08 | 정본 DB를 하나로 둘지 워크스페이스별로 둘지(v0.3 12 §15-2) | 하나 / 여럿 | 하나(09). 운영 절차는 하나를 전제로 썼다 |
 | Q17-09 | 홈랩 H-2의 구현 모양 | `.backup-paths` 표식 / 홈랩 스크립트에 정적 목록 / Helm이 `_staging`에 복사 | 홈랩 소유자가 정한다. Helm 쪽은 어느 것이든 `backups/`, `data/blobs/`, `state/`만 내보낸다 |
 | Q17-10 | 정식 데몬에 healthchecks.io 같은 외부 생존 신호를 둘지 | 홈랩 `heartbeat`에 맡김 / Helm 백업 성공 때 핑 | 홈랩 heartbeat에 맡긴다(서버 생존). Helm은 경보 단위로 실패만 알린다 |
+| Q17-11 | sshd 포워딩을 `PermitOpen 127.0.0.1:7841`로 좁힐지 | 그대로(기본 허용) / 좁힘(다른 포워딩도 막힘) | 그대로. dotfiles 소유라 사람이 정한다 |
 
 ## 8. 출처
 
