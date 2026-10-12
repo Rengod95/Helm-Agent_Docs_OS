@@ -216,3 +216,43 @@
 | J-152 | — (V3-003, Q22-12) | 복원 뒤 부팅과 "복원 지점 이후 기록 없음" 표시 | 17이 복원을 마칠 때 복원 표지 이벤트를 남긴다(이름은 09가 정한다). 그 표지 뒤 첫 부팅은 안전 모드다(12: run 자동 재개·에이전트 타이머·관찰 실행 없음, 소진되지 않은 승인은 만료). 표시는 04가 소유하고 표지 이벤트를 읽는다 | 09, 17, 12, 04, 22 |
 | J-153 | — (P5·P11 이름 차이) | 안전 모드 해제 CLI | `helm ops safe-mode off`(17이 CLI 정본). `helm ops resume`은 run 재개와 뜻이 겹쳐 쓰지 않는다 | 09, 17, 22, 26 |
 | J-154 | — (06·17·26 설정 키) | 공개 주소와 허용 Origin | `publicOrigin`은 데몬의 공개 주소 하나다. `auth.allowedOrigins`는 받는 Origin 목록이고 기본값은 `[publicOrigin]`이다. `mobile.origin`은 쓰지 않는다 | 06, 17, 18, 26 |
+
+## 8. 4b 교차 요구 충돌 판정 (2026-10-12)
+
+4단계에서 담당들이 서로 다른 시점에 끝나 문서 사이 요구가 엇갈렸다. 서로 반대인 요구를 정본 소유 규칙에 따라 판정한다. 근거는 `.helm-design-work/coordinator/stage4b/leftover-*.md`의 "서로 반대인 요구" 절이다.
+
+| 번호 | 쟁점 | 판정 | 고칠 문서 |
+|---|---|---|---|
+| J-155 | 지표 소비자 위치 | `packages/runtime/src/consumers/metrics.ts`(06 정본) | 23 |
+| J-156 | 24 ADR 번호 | ADR-18-05 = 쿠키 인증(합침 → ADR-26-03), ADR-18-06 = J-134 네트워크 격리, ADR-18-07 = J-147 후보. ADR-13-06은 "합침 → ADR-18-06". ADR-08-07 행은 "합침 → ADR-10-09"(J-145) | 24, 18, 13, 08 |
+| J-157 | 탐구 멈춤 | `inquiry.stop`의 `then: 'proceed' \| 'handoff' \| 'decide_now'`(10 정본). 08·09에 같은 필드를 두고 14는 이 값으로 계산한다. `decideNow` 불리언은 쓰지 않는다 | 08, 09, 14 |
+| J-158 | 재작업과 합의 | 재작업 WorkUnit은 기존 합의 범위 안이면 그 합의를 다시 쓰고, 범위 밖이면 `gate.scope_expansion_required`다(11·02 방식). 08 "이어받지 않는다"를 고치고 10에 규칙을 둔다 | 08, 10 |
+| J-159 | 페어링 출처 필드 | `pairedFrom`(08 정본). 09 최상위 `pairedVia` 객체와 18 `pairedBy`를 고친다. 09 `device_presence`에 `last_auth_at` 열을 더한다 | 09, 18 |
+| J-160 | `toolcall.interrupted.cause` | `crash`(`run.interrupted.code`와 같음) | 09, 12 |
+| J-161 | 기기 만료 타이머 | 절대 만료는 `p_timers`의 `device_expiry`. 하루 한 번 도는 유휴 만료 점검은 `runtime_timers`의 별도 목적 | 17, 18 |
+| J-162 | 푸시 타이머 목적 | 26의 셋을 따른다 | 23 |
+| J-163 | `plan.deviated` | 이벤트로 기록하지 않는다. 16이 `loop.transitioned`에서 계산한다. 09 카탈로그에서 지운다 | 09, 16 |
+| J-164 | 안전 모드 사유 | 09의 `crash_loop`·`restored`만 쓴다. 백업으로 되돌린 경우도 `restored`다. `rollback` 사유를 두지 않는다 | 12, 14 |
+| J-165 | 안전 모드 해제 | 주체는 19(`decideMobile` 기기, 대화형 `localAdmin`). 해제 이벤트는 09 `daemon.safe_mode_exited`. CLI는 J-153. 19의 수동 진입 `admin.safeMode`는 지운다 | 12, 14, 19 |
+| J-166 | 방해 금지 | 의미 설정이다(`settings.update`의 `attention.snoozeUntil`, 14·19). 데몬 설정에 두지 않는다 | 11, 17 |
+| J-167 | MCP 설정 이름 | 13(도구 설정 스키마 소유)의 `tools.mcp[].env`, `headersFromSecrets`, `sandbox.netHosts` | 17, 18 |
+| J-168 | 쿠키 판정 함수 | `cookieAuth`(19 정본) | 26 |
+| J-169 | 가짜 모델 api 값 | `faux:helm`(22) | 07 |
+| J-170 | 결과 거절 버튼 | "거절(해결 안 됨)"(05가 문구 소유) | 21, 25 |
+| J-171 | 시간당 알림 상한 | 사람 기준 하나, `attention.interruptsPerHour`(14 기본값), 모든 기기 합. 기기별 상한(26 `push.hourlyCap`, 20 `notifications.hourlyCap`)은 두지 않는다 | 11, 17, 20, 26 |
+| J-172 | notice 푸시 조건 | 데스크톱 기기가 모두 부재(14 `isAway`, J-119)이고 휴대폰이 active가 아닐 때. "연결 기기 없음" 조건은 쓰지 않는다 | 11, 26 |
+| J-173 | 휴대폰 active와 복귀 | 휴대폰이 active가 되는 것은 `user_return`이 아니다(11·14) | 26 |
+| J-174 | 휴대폰 결과 확인 필드 | `mobileReviewable`(04 뷰 정본) | 21 |
+| J-175 | 문구 키 타입 | `CopyKey` | 04, 05 |
+| J-176 | 연결 상태 문구 키 | 접두어 `label.connection.`(05), 값 집합은 04 §3.0.4 | 21 |
+| J-177 | `question.delegate` 문구 | "에이전트가 정하게 두기" | 26 |
+| J-178 | 읽기 전용 사유 `recovery_failed` | 17 정본 값이다. 19 `ModeReason`, 04, 20에 더한다 | 04, 19, 20 |
+| J-179 | 복원 표시 블록 | `restored{backupId, upToSeq}`(09·17·04). 12의 `restore{…}` 형식을 고친다 | 12 |
+| J-180 | 수정 요청과 재작업 | 결과 확인의 수정 요청은 같은 WorkUnit을 `in_progress`로 되돌린다(08 전이). 이의로 인한 재작업은 새 WorkUnit(`reworkOf`)이다. 둘을 구분해 적는다 | 11, 16, 08 |
+| J-181 | `FeatureKey` 정본 | 23 §3.5.4 표. `asking.rollbackPoints`는 뺀다 | 06, 01, 23 |
+| J-182 | 파생 ID 입력 | 멱등 키에서 파생한다(10 현행) | 06 |
+| J-183 | 라운드 끝 경계 제출자 | 14 오케스트레이터가 `inquiry.round_ended`에서 제출한다(작업 경계는 14만 제출) | 15, 12 |
+| J-184 | 반응 "둘 다 아님" | 08 형식 `comparison{kind:'neither', pair}`(2단계 기능) | 15, 19 |
+| J-185 | presence 타입 이름 | `PresenceSnapshot`(11) | 26 |
+| J-186 | 정상 경로 밖 사유 코드 | 01 R-OP-4의 `correction_cycle` | 10 |
+| J-187 | 23의 새 용어 | "난이도 등급", "메인 오케스트레이터", "하위 조정자", "실작업자"를 25에 등록하고, 런타임 "오케스트레이터"와의 구분을 혼동 주의 칸에 적는다 | 25 |
