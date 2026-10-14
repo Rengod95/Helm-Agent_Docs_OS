@@ -3,7 +3,7 @@
 - 소유: P5 (도메인)
 - 작성: 2026-10-11, 1단계 초안
 - 패키지: `@helm/store` (SQLite 이벤트 로그, 투영 테이블, 마이그레이션, 백업), 이벤트 타입 정의는 `@helm/domain/src/events/`
-- 기준 결정: 브리프 결정 1~57(사용자 결정 1~25·38~43·47~57, 조정자 기본값 26~37, 조정자 판정 44~46), 판정 J-01~J-189
+- 기준 결정: 브리프 결정 1~57(사용자 결정 1~25·38~43·47~57, 조정자 기본값 26~37, 조정자 판정 44~46), 판정 J-01~J-240
 - 함께 읽을 문서: [08-domain-model.md](08-domain-model.md) (레코드 타입, 상태 기계, 쓰기 시점 제약), `10-kernel.md` (명령과 검증), `12-runtime-engine.md` (크래시 복구, 스케줄러), `17-daemon-and-operations.md` (데몬 수명주기, 백업 일정), `19-client-protocol.md` (재전송)
 
 ## 1. 목적과 범위
@@ -488,7 +488,7 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 | `toolcall.approved` | runtime·M | kernel | tc | requested (다시 검사). `editedArgs` |
 | `toolcall.denied` | runtime·M | kernel | tc | denied |
 | `toolcall.started` | runtime·M | runtime | tc | started. **실행 전에 커밋** (`execution`) |
-| `toolcall.not_executed` | runtime·M | runtime | tc | not_executed. `reason`은 08 `NotExecutedReason`(restart·cancel·steering·superseded·unknown_tool·invalid_args·truncated_response·approval_expired). A2의 `rejection.kind`는 `unknown_tool`·`invalid_args`·`truncated_response`이면 같은 이름의 reason, `aborted_before_execute`이면 `cancel`로 옮긴다. `blocked`는 `toolcall.blocked`, `hook_error`는 run 실패다 (07 A2·E5, [판정 J-58]) |
+| `toolcall.not_executed` | runtime·M | runtime | tc | not_executed. `reason`은 08 `NotExecutedReason`(restart·cancel·steering·superseded·unknown_tool·invalid_args·truncated_response·approval_expired·batch_stopped, [판정 J-214]). A2의 `rejection.kind`는 `unknown_tool`·`invalid_args`·`truncated_response`이면 같은 이름의 reason, `aborted_before_execute`이면 `cancel`로 옮긴다. `blocked`는 `toolcall.blocked`, `hook_error`는 run 실패다 (07 A2·E5, [판정 J-58]) |
 | `toolcall.completed` | runtime·M | runtime | tc | completed (+ `observation.recorded` tool_result) |
 | `toolcall.interrupted` | runtime·M | runtime | tc | interrupted (+ 관찰 tool_interrupted) |
 | `toolcall.outcome_uncertain` | runtime·M | runtime | tc | outcome_uncertain (+ 관찰) |
@@ -506,6 +506,8 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 도구 호출의 종결 기록은 하나다(first-writer-wins, 12). 결과 기록의 멱등 키 `tc:<tcId>:result`(§3.9.3)와 커널의 상태 검사(이미 종결이면 `conflict.invalid_transition`)가 함께 지킨다.
 
 읽기 빠른 경로: `primitive = read`인 도구 호출은 `toolcall.requested`·`started`·`completed`와 결과 관찰을 한 트랜잭션에 남길 수 있다(08 §3.18.2, 10 K-3). 이벤트 수는 줄지 않지만 커밋 수가 셋에서 하나로 준다.
+
+오염 상태 `taint.web`([판정 J-190 (3)], [결정 55])은 run 단위 상태이고 별도 이벤트가 없다. 웹·브라우저 도구(`web_fetch`·`web_search`·`browser_*`)의 `toolcall.completed` 가운데 본문이 모델에게 들어간 것(`modelContent`가 있는 것, 실패한 호출 포함)이 run의 `taint.web`을 세운다. 부팅 복구는 thread의 이 기록과 `toolcall.requested`의 도구 이름으로 다시 세운다. 같은 thread로 넘긴 새 run과 하위 run은 이 값을 물려받고, 하위 run이 세운 값은 부모 run에도 올린다([판정 J-215], 12 §3.2.5).
 
 #### 3.4.13 통치·커널·시스템
 
@@ -571,7 +573,7 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 | `blob.redacted` | system | human | null | blob 내용 삭제 (해시는 남음). 명령 `blob.redact`(10, 사람 전용)가 낸다. 가림 절차는 §3.12 |
 | `import.completed` | system | migration | null | 가져오기 보고서 (선택 기능) |
 
-`command.rejected`의 `actor`는 명령을 보낸 행위자다. 거부된 시도를 누가 했는지가 이 기록의 의미이기 때문이다. `authority`는 빈 배열이다.
+`command.rejected`의 `actor`는 명령을 보낸 행위자다. 거부된 시도를 누가 했는지가 이 기록의 의미이기 때문이다. `scope.concernId`는 명령이 대상으로 한 Concern이고, 대상 Concern이 없으면 null이다. 계획 초안 검사에서 거부된 것은 `ruleId`에 V-PLAN 번호(V-PLAN-01~07, 10 §3.8.1)를 싣는다. `authority`는 빈 배열이다.
 
 #### 3.4.14 측정 (16)
 
@@ -833,7 +835,7 @@ export const EventPayloads = {
   "inquiry.stopped": P({ reason: Inquiry.properties.stop.anyOf[0].properties.reason, note: Nullable(ShortText),
                          openQuestionIds: Type.Array(OpenQuestionId),
                          handover: Nullable(BlobRef),   // 15 §3.14 InquiryHandover
-                         /** 이어서 할 일 ([판정 J-157]). 14는 then === "decide_now"로 "지금 정하기"를 계산한다 */
+                         /** 이어서 할 일 ([판정 J-157]). 14는 then === "decide_now"로 "지금 정하기"를 계산한다. 피로 멈춤의 then은 decide_now다. 초안 쪽 답으로 멈추면 사람의 결정으로 넘어간다([판정 J-235]) */
                          then: Enum(["proceed", "handoff", "decide_now"]) }),
   "lens.added": P({ lens: LensCore }),
   "lens.updated": P({ changes: Type.Partial(LensCore), userModified: Type.Boolean() }),
@@ -895,6 +897,10 @@ export const EventPayloads = {
     stopReason: Nullable(Type.String()),
     toolCallIds: Type.Array(ToolCallId),
     utteranceObservationId: Nullable(ObservationId), // 사람 메시지면 같은 트랜잭션의 관찰
+    /** 입력이 의미 미리보기를 거쳤으면 그 미리보기 ID와 두 해석 종류를 싣는다 (19 SemanticPreviewResult, 16 §3.23.8) */
+    previewId: Type.Optional(Type.String({ maxLength: 64 })),
+    previewAs: Type.Optional(Enum(["question", "constraint_change", "choice", "request", "criterion_change", "objection", "chat"])),   // 미리보기가 낸 해석 종류
+    chosenAs: Type.Optional(Enum(["question", "constraint_change", "choice", "request", "criterion_change", "objection", "chat"])),   // 사람이 고른 종류. "그냥 메시지로"는 chat
   }),
   "run.steered": P({ text: ShortText, appliedAtStep: Type.Integer({ minimum: 0 }) }),
   "run.awaiting": P({ kind: Type.Union([Type.Literal("question"), Type.Literal("recovery")]), ref: IdAny("qs", "tc") }),
@@ -907,6 +913,9 @@ export const EventPayloads = {
   "budget.charged": P({ scopes: Type.Array(BudgetScope, { minItems: 1 }),
                         usage: Usage, wallMs: Type.Integer({ minimum: 0 }),
                         toolCalls: Type.Integer({ minimum: 0 }), subcalls: Type.Integer({ minimum: 0 }),
+                        /** 외부 도구 사용량. 모델 usage와 섞지 않는다 (12 §3.3.7) */
+                        toolUsage: Nullable(P({ webSearches: Type.Integer({ minimum: 0 }), searchCostUsd: Type.Number({ minimum: 0 }),
+                                                browserMinutes: Type.Number({ minimum: 0 }) })),
                         reservedLeaseId: Nullable(Type.String({ maxLength: 64 })) }),
   "budget.exhausted": P({ scope: BudgetScope, limit: Type.String({ minLength: 1, maxLength: 32 }) }),
   /** 고쳐서 허락한 새 호출이면 원 호출의 id다. 원 호출은 같은 트랜잭션에서 toolcall.denied(edited_by_human)로 닫힌다 ([판정 J-121]) */
@@ -915,9 +924,9 @@ export const EventPayloads = {
                           permission: Nullable(PermissionVerdict) }),
   "toolcall.approval_requested": P({ questionId: QuestionId, permission: Nullable(PermissionVerdict) }),
   "toolcall.approved": P({ questionId: QuestionId }),   // 그대로 허락. 같은 tcId로 실행 (J-40)
-  /** edited_by_human이면 같은 트랜잭션에 새 호출의 toolcall.requested(editedFrom)와 approval.issued ([판정 J-121]) */
+  /** edited_by_human이면 같은 트랜잭션에 새 호출의 toolcall.requested(editedFrom)와 approval.issued ([판정 J-121]). 승인 대기 만료는 `toolcall.not_executed`(approval_expired)로 쓴다(08 §3.22.14). 합의 취소는 `toolcall.not_executed`(cancel)로 쓰고, `denied`에는 cancel이 없다([판정 J-224]) */
   "toolcall.denied": P({ questionId: Nullable(QuestionId),
-                         reason: Type.Union([Type.Literal("human"), Type.Literal("expired"), Type.Literal("edited_by_human"), Type.Literal("cancel")]),
+                         reason: Type.Union([Type.Literal("human"), Type.Literal("edited_by_human")]),
                          note: Nullable(ShortText), editedToolCallId: Nullable(ToolCallId), editedArgs: Nullable(BlobRef) }),
   "toolcall.started": P({ execution: ToolCallExecution, permission: Nullable(PermissionVerdict) }),
   "toolcall.not_executed": P({ reason: NotExecutedReason }),
@@ -977,7 +986,7 @@ export const EventPayloads = {
   "auth.denied": P({ reason: Type.String({ minLength: 1, maxLength: 32 }), listener: ListenerKind,
                      sourceIp: Nullable(Type.String({ maxLength: 64 })), count: Type.Integer({ minimum: 1 }) }),
   "auth.policy_relaxed": P({ key: Type.String({ minLength: 1, maxLength: 64 }), reason: ShortText }),
-  "tools.sandbox_disabled": P({ scope: Type.String({ minLength: 1, maxLength: 64 }), reason: ShortText, until: Nullable(Ms) }),
+  "tools.sandbox_disabled": P({ scope: Type.String({ minLength: 1, maxLength: 64 }), reason: ShortText, until: Nullable(Ms) }),   // reason 값 browser_no_sandbox: 브라우저 내부 샌드박스를 끈 경우 (18 §3.11.11)
   "tools.sandbox_enabled": P({ scope: Type.String({ minLength: 1, maxLength: 64 }) }),
   "tools.git_config_suspicious": P({ root: Type.String({ minLength: 1, maxLength: 4096 }),
                                      reason: Enum(["exec_keys_present", "config_hash_changed", "git_dir_created"]),
@@ -1017,7 +1026,7 @@ export const EventPayloads = {
     status: Type.Union([Type.Literal("rejected"), Type.Literal("conflict"), Type.Literal("needs_gate")]),
     rejectionClass: RejectionClassSchema,
     code: Type.String({ pattern: REJECTION_CODE_PATTERN }),
-    ruleId: Nullable(Type.String({ minLength: 1, maxLength: 32 })),     // 10 규칙 id (V-DEP-1 등)
+    ruleId: Nullable(Type.String({ minLength: 1, maxLength: 32 })),     // 10 규칙 id (V-DEP-1 등. 계획 초안 검사는 V-PLAN-01~07, 10 §3.8.1)
     reasons: Type.Array(ShortText),
     missing: Type.Array(Type.String({ minLength: 1, maxLength: 200 })),
     gateQuestionId: Nullable(QuestionId),                                // needs_gate면 같은 트랜잭션의 question.recorded

@@ -1,7 +1,7 @@
 # 04. UX 화면 상세
 
 - 작성: 2026-10-11, P2 UX
-- 상태: 4c 보완판(2026-10-14). 기준 결정 범위는 브리프 결정 1~57이고 조정자 판정(`process/rulings-stage2a.md` §1~§9, J-189까지)을 따른다. 화면 ID와 이름은 03 §3.6·§3.12가 정본이다. 명령 의도 이름은 19 메서드 이름과 같고, 메서드 → 10 명령 대응의 정본은 10 §3.11.11 (2)다. 레코드·상태 값은 08, 이벤트는 09, 오류 코드는 19를 따른다. 21의 UI-D02(결정 의도에 `basisSeq`), UI-D03(낙관적 도메인 갱신 금지), UI-D08(선형 텍스트)에 맞췄다.
+- 상태: 4c 보완판(2026-10-14). 기준 결정 범위는 브리프 결정 1~57이고 조정자 판정(`process/rulings-stage2a.md` §1~§11, J-01~J-240)을 따른다. 화면 ID와 이름은 03 §3.6·§3.12가 정본이다. 명령 의도 이름은 19 메서드 이름과 같고, 메서드 → 10 명령 대응의 정본은 10 §3.11.11 (2)다. 레코드·상태 값은 08, 이벤트는 09, 오류 코드는 19를 따른다. 21의 UI-D02(결정 의도에 `basisSeq`), UI-D03(낙관적 도메인 갱신 금지), UI-D08(선형 텍스트)에 맞췄다.
 - 소유: 화면별 목적, 진입 경로, 레이아웃(영역별 내용), 표시 데이터 요구, 상태별 표시, 인터랙션, 문구 예시, 사람 조작 횟수.
 
 ## 1. 목적과 범위
@@ -203,14 +203,14 @@ interface CommandIntentBase {
 |---|---|---|---|---|
 | 연결됨 | WebSocket 열림, 인증됨, 이벤트 스트림 `caughtUp` | "연결됨 · 서버" (점 + 글자) | 없음 | 가능 |
 | 느림 | 연결됨, 응답 지연이 기준(20) 초과 | "연결 느림" | 없음 | 가능. 보내는 중 표시가 길어진다 |
-| 다시 연결하는 중 | 끊긴 뒤 재시도 중 | "다시 연결하는 중 · 12초 전 끊김" | `err.connection.reconnecting`: "서버와 연결이 끊겨 다시 연결하는 중입니다. 지금 보이는 화면은 14:02 기준입니다." | 막음. 초안 보존 |
+| 다시 연결하는 중 | 끊긴 뒤 재시도 중. 프로토콜 오류(닫힘 1002·1003)는 연속 3회 전까지 이 상태다(규칙 7) | "다시 연결하는 중 · 12초 전 끊김" | `err.connection.reconnecting`: "서버와 연결이 끊겨 다시 연결하는 중입니다. 지금 보이는 화면은 14:02 기준입니다." | 막음. 초안 보존 |
 | 서버 PC에 연결할 수 없음 | 끊긴 지 2분이 넘었거나 재시도 6회가 넘었고, `GET /healthz`가 네트워크 오류(이름 찾기·연결 실패)이거나 기기 네트워크가 없음(20 §3.8.9, 26 §3.5.11). 앱은 계속 다시 시도한다(19 §3.10.3) | "연결 안 됨" | `err.connection.serverPcUnreachable`: "서버 PC에 연결할 수 없습니다. 이 기기의 Tailscale이 켜져 있는지, 서버 PC가 켜져 있는지 확인하세요." + [연결 화면 열기]. 서버 PC가 꺼졌을 수 있으므로 작업이 계속되고 있다고 말하지 않는다 | 막음 |
 | Helm 서버 응답 없음 | 서버 PC까지는 연결되지만 `GET /healthz`가 502·503·504(Tailscale serve는 응답, Helm 서버 없음) | "Helm 서버 응답 없음" | `err.connection.daemonUnreachable`: "서버 PC까지는 연결되지만 Helm 서버가 응답하지 않습니다. WSL이나 Helm 서버 프로그램이 꺼졌을 수 있습니다." + [연결 화면에서 점검] | 막음 |
 | 인증 실패 | 토큰 거부, 폐기된 기기 | "인증 필요" | `err.auth.revoked`: "이 기기의 연결 권한이 없거나 폐기되었습니다. 다시 페어링하세요." | 막음 |
 | 키체인 거부 | 20 `blocked(keychain_denied)` | "키체인 접근 필요" | `err.keychain.unavailable` | 막음 |
 | SSH 실패 | 20 `blocked(ssh_*)` 네 사유 | "SSH 연결 실패" | 사유별 문구(05 §3.11 `err.ssh.*`) + 연결 화면 점검 2단계 | 막음 |
 | 다른 서버 | 20 `blocked(wrong_server)`: 프로필에 고정한 서버 id와 다름 | "다른 서버" | `err.connection.wrongServer` | 막음 |
-| 버전 불일치 | 프로토콜 버전이 맞지 않음 | "버전 맞지 않음" | `err.protocol.version` | 막음. 기기에 저장된 마지막 화면은 읽을 수 있다(20) |
+| 버전 불일치 | 프로토콜 버전이 맞지 않음. 같은 프로토콜 오류(닫힘 1002·1003)가 연속 3회 나옴(규칙 7) | "버전 맞지 않음" | `err.protocol.version` | 막음. 기기에 저장된 마지막 화면은 읽을 수 있다(20) |
 | 읽기 전용 | 19 `DaemonMode = readOnly`(17 `read_only`). 사유는 `DaemonStatus.readOnlyReasons`와 `server.modeChanged.reason`: `disk_critical`, `integrity_suspect`, `operator`, `projection_fault`([판정 J-129]), `recovery_failed`([판정 J-178], 시작 복구 실패) | "읽기 전용 · (사유 한 줄)" | 사유별 `err.daemon.readOnly.<사유>`(05 §3.11). 예: 디스크 부족 "서버 디스크 공간이 부족해 새 기록을 쓸 수 없습니다. 서버 PC에서 공간을 비우면 자동으로 풀립니다." 기록 점검 "서버 기록에 손상 의심이 있어 읽기만 할 수 있습니다. 서버에서 `helm ops verify --full` 또는 백업 복원이 필요합니다." + [복구 화면] | 막음 |
 | 다시 맞추는 중 | 재접속 직후 저장 위치부터 받는 중(19 `syncing`) 또는 뷰 재생성 중(`rebuilding`) | "맞추는 중" | 없음 | 막음(짧음). 끝나면 자동 해제 |
 | 뷰 낡음 | 서버 `freshness`가 `stale`·`rebuilding`·`failed` | 해당 화면 머리에 "이 화면은 14:02 기준입니다 · 이유" | 화면 안 띠 | 그 화면의 결정 동작은 막음 |
@@ -218,7 +218,7 @@ interface CommandIntentBase {
 | 서버 종료 중 | 19 `draining`(`server.shutdown` 알림) | "서버가 곧 다시 시작됩니다" | "서버가 다시 시작하는 중입니다. 보내는 중인 답은 다시 연결된 뒤 확인하세요." | 막음 |
 | 안전 모드 | 19 `DaemonMode = safeMode`(런타임 멈춤, 사람 명령은 받음). 사유는 09 `daemon.safe_mode_entered.reason`: `crash_loop` 또는 `restored`(백업 복원 뒤 첫 부팅, [판정 J-152]) | "안전 모드 · 작업 멈춤" | `crash_loop`: "서버가 짧은 시간에 여러 번 비정상 종료되어 안전 모드로 시작했습니다. 에이전트 작업과 예약 실행이 멈춰 있습니다. 질문에 답하고 기록을 볼 수는 있습니다." `restored`: "백업에서 복원한 뒤 처음 시작해 안전 모드입니다. 복원 지점 이후 기록은 없습니다. 멈춰 있던 작업은 자동으로 다시 시작하지 않습니다." 둘 다 + [안전 모드 풀고 작업 다시 시작하기](연결 화면·복구 화면, §3.19·§3.20) | 가능 |
 
-상태 값(상단 막대 문구 키 `label.connection.<상태>`의 `<상태>`이며, 21 `ConnectionUiState`도 이 집합을 쓴다[판정 J-176]): 위 표 순서대로 `connected`, `slow`, `reconnecting`, `serverPcUnreachable`, `daemonUnreachable`, `authFailed`, `keychainDenied`, `sshFailed`, `wrongServer`, `versionMismatch`, `readOnly`, `syncing`, `viewStale`, `restarted`, `draining`, `safeMode`.
+상태 값(상단 막대 문구 키 `label.connection.<상태>`의 `<상태>`이며, 20 `UserConnKind`와 21 `ConnectionUiState`도 이 집합을 쓴다[판정 J-176], [판정 J-228]): 위 표 순서대로 `connected`, `slow`, `reconnecting`, `serverPcUnreachable`, `daemonUnreachable`, `authFailed`, `keychainDenied`, `sshFailed`, `wrongServer`, `versionMismatch`, `readOnly`, `syncing`, `viewStale`, `restarted`, `draining`, `safeMode`.
 
 규칙:
 
@@ -228,6 +228,7 @@ interface CommandIntentBase {
 4. 결정 동작이 막힌 버튼에는 이유를 붙인다: "연결되면 보낼 수 있습니다. 쓰던 답은 저장해 두었습니다."
 5. 재접속 후 화면 사이 차이가 있으면 바뀐 항목에 "다시 연결된 뒤 바뀜" 표시를 1분 동안 붙인다.
 6. 다시 연결되었을 때 초안이 있으면 그 화면에 "보내지 않은 답 1개가 있습니다. 바뀐 상황을 확인하고 보내세요."를 보인다. 자동으로 보내지 않는다(SC-03).
+7. 20의 `protocolError`(닫힘 1002·1003)는 내부 원인이라 사용자용 상태가 아니다. 사용자에게는 "다시 연결하는 중"으로 보이고, 같은 오류가 연속 3회면 "버전 불일치"로 바꾼다([판정 J-228]).
 
 #### 3.0.5 처리됨·찾을 수 없음·낡은 결정 [제안]
 
@@ -264,7 +265,7 @@ interface CommandIntentBase {
 | 지금 하는 일 | 의미 있는 현재 행동 한 문장 | "Agent is working…" 같은 문장 금지(canon §17.6 §5) |
 | 이 일을 하는 이유 | 연결된 선택·Goal 한 줄과 링크 | |
 | 다음 단계 | 예상 다음 행동, 다음 확인 시점, 다음 사람 접점("1절 제출 뒤 결과 확인"), 예상 끝 시각(데몬이 근거 있게 낼 수 있을 때만) | Predictability. 탐구는 시각 예상을 하지 않는다(15 §3.1.3) |
-| 맡긴 범위 | 범위 요약 한 줄 + 집행 수준 표시("실제로 막음" / "권고만") | canon-2 L16 |
+| 맡긴 범위 | 범위 요약 한 줄 + 집행 수준 표시("실제로 막음" / "권고만"). 격리 수준이 S1b면 격리 표지를 붙이고, `flag`가 `pre_read_exposed`이면 "쓰기는 막지만 홈 읽기 범위가 넓습니다"를 함께 보인다(13 §3.6.1, 21 SandboxBadge) | canon-2 L16 |
 | 도움이 필요한 조건 | 멈출 조건 1~3개 | |
 | 위험·가정 | 쓰고 있는 임시 가정과 알려진 위험 한 줄(15 `assumptionsInUse`, 질문의 임시 가정) | canon-3 §8-04 진행 카드 |
 | 마지막 중요한 변화 | 시각 + 한 줄 | |
@@ -403,7 +404,8 @@ interface ActiveWorkCard {
   assumptionsInUse?: RecordRef[];       // 위험·가정 줄
   rangeSummary: string; enforcement: "enforced" | "advisory";   // 한 줄 요약("실제로 막음" / "권고만")
   guarantees: { id: "G1" | "G2" | "G3" | "G4" | "G5" | "G6" | "G7" | "G8"; level: "enforced" | "detected" | "advisory" | "unavailable" }[];   // 성질별 보장 수준(13 §3.11.5, RunCore.guarantees). 검토 깊이에서 성질별 표로 보인다(21 EnforcementBadge)
-  sandboxLevel?: string /* 13 격리 수준(S0·S1b·S1, 13 §3.6.1), 감사 깊이 */;
+  sandboxLevel?: "S0" | "S1b" | "S1" /* 13 격리 수준(13 §3.6.1), 감사 깊이 */;
+  flag?: "pre_read_exposed";   // S1b이고 허용 목록 실험 전이면(13 §3.6.1). 쓰기는 막지만 홈 읽기 범위가 넓다
   helpConditions: string[]; lastChange: { text: string; at: IsoTime };
   activity?: { reads: number; searches: number; executions: number; materialChanges: number };
   budget?: { label: string; used: number; limit: number; unit: string }[];
@@ -709,7 +711,7 @@ interface InboxView {
 - 선택지가 구조화된 범위(`scope: Scope`, 08)를 가지면 그 범위를 커널 값 그대로 보인다(대상 경로, 허용 행동, send 대상). 사람이 이 선택지를 직접 고르면 뒤따르는 합의가 이 범위 안일 때 합의 확인 질문이 생기지 않는다(01 R-OP-2(a), [판정 J-133]). 화면은 버튼 아래에 "이 범위 안의 작업은 다시 묻지 않습니다"를 쓴다.
 - 선택이 판단을 근거로 하면 "정하면 생기는 일"에 "판단 17도 확인됩니다"를 쓴다. 그 판단 확인 질문은 이 선택 요청에 묶여 같은 조작으로 닫힌다(11·14).
 
-**범위 변경·권리 행동 카드**(`scope_change`, `send_approval`): 커널 구조 값과 모델 문장을 나눠 보인다. 머리 아래에 "현재 맡긴 범위 → 요청 범위" 표를 두고 바뀌는 항목(경로, 행동, 네트워크 대상, send 대상)만 강조한다. 값은 커널이 계산한 것이며(11 §3.2), 에이전트의 설명은 "에이전트 설명" 칸에 따로 둔다. 허락 버튼은 실행할 인자의 지문에만 유효하다(11 §3.14). 인자가 길어 잘렸으면 "전체 보기"를 열기 전에는 허락 버튼이 꺼져 있고, 제어 문자·양방향 문자·폭 없는 문자는 코드 포인트 칩으로 보인다(18 §3.11.6, 21 `ArgsView`). 허락에 붙이는 자유 문장 조건은 두지 않는다. 실행 인자를 바꾸려면 "인자 고쳐 허락"이나 "범위 줄여 허락"을 쓴다(실행에 효과가 없는 조건을 사람이 조건부 허락으로 믿지 않게).
+**범위 변경·권리 행동 카드**(`scope_change`, `send_approval`): 커널 구조 값과 모델 문장을 나눠 보인다. 머리 아래에 "현재 맡긴 범위 → 요청 범위" 표를 두고 바뀌는 항목(경로, 행동, 네트워크 대상, send 대상)만 강조한다. 값은 커널이 계산한 것이며(11 §3.2), 에이전트의 설명은 "에이전트 설명" 칸에 따로 둔다. 허락 버튼은 실행할 인자의 지문에만 유효하다(11 §3.14). 인자가 길어 잘렸으면 "전체 보기"를 열기 전에는 허락 버튼이 꺼져 있고, 제어 문자·양방향 문자·폭 없는 문자는 코드 포인트 칩으로 보인다(18 §3.11.6, 21 `ArgsView`). 허락에 붙이는 자유 문장 조건은 두지 않는다. 실행 인자를 바꾸려면 "인자 고쳐 허락"이나 "범위 줄여 허락"을 쓴다(실행에 효과가 없는 조건을 사람이 조건부 허락으로 믿지 않게). `send_approval` 카드는 같은 run이 웹 내용을 본 뒤(`taint.web`)에 만든 요청이면 머리에 "웹 내용을 본 뒤의 요청" 표시를 붙인다. 이 요청은 미리 정한 정책이 있어도 사람에게 묻는다(01 NFR-S-7, [판정 J-190] (3)). 브라우저의 비-GET 요청, 파일 업로드, 합의 밖 호스트 이동도 같은 카드로 올라오며, 호스트는 "네트워크 대상" 줄에 쓴다.
 
 **행동 버튼** [제안, 규칙은 05 §3.1]
 
@@ -791,8 +793,8 @@ type AnswerShape =
 | 가정대로 진행 | `question.proceedWithAssumption` | (`accept_assumption`. 권리 게이트면 3001 `policy.answer_option_not_allowed`) |
 | 질문 다시 쓰기 | `question.requestReframe` | `note` |
 | 먼저 알아보기 | `question.requestInquiry` | `note?` (`experiment_first`) |
-| 에이전트가 정하게 두기 | `question.delegate` | 결과는 질문 상태 `delegated`와 에이전트가 정한 것(`whyNotAsked.kind = "delegated_by_human"`) |
-| 미루기 | `question.defer` | `until`: 11 §3.18 Trigger(다음 작업 경계 `next_work_boundary` / 돌아왔을 때 `user_return` / 시각 / 조건 문장). 권리 게이트는 "답이 있을 때까지 멈춤"이 유지됨을 알린다 |
+| 에이전트가 정하게 두기 | `question.delegate` | 결과는 질문 상태 `delegated`와 에이전트가 정한 것(`whyNotAsked.kind = "delegated_by_human"`). 정보 게이트와 방향 선택 권리 게이트([판정 J-131])에서 사람이 명시적으로 고를 때만 보인다. send·범위 확장·결과 확인 권리 게이트에는 두지 않는다([판정 J-201]) |
+| 미루기 | `question.defer` | `until`: 11 §3.18 Trigger(다음 작업 경계 `next_work_boundary` / 돌아왔을 때 `user_return` / 시각 / 조건 문장). 권리 게이트는 "답이 있을 때까지 멈춤"이 유지됨을 알린다. 미루기 선택지마다 만료 경고 여부를 정한다. 시각으로 미루면 미룬 시각보다 만료점이 먼저 오는 막지 않는 질문(정보 게이트)에 "만료점이 먼저 와서 임시 가정 '…'으로 계속합니다"를 미루기 화면에 경고로 보인다. 다음 작업 경계·돌아왔을 때·조건으로 미루면 만료점과 비교하지 않으므로 질문의 만료점 문구를 함께 보인다(11 Q-E19) |
 | 이의 | `objection.file`([판정 J-111]) | `OVL-CONTEST`(05 §3.3) |
 
 합의 확인과 결과 확인은 `question.answer`로 보내지 않고 전용 메서드(`agreement.confirm`, `result.accept` 등)로 보낸다([판정 J-124]. 그 두 질문 종류에 `question.answer`를 보내면 3001 `policy.answer_option_not_allowed`).
@@ -846,7 +848,7 @@ type AnswerShape =
 | 영향 | 이 결정에 기대는 작업·선택 수 |
 | 작성자 | 에이전트 역할(작업 에이전트, 중재자 등. router·branch는 "에이전트") 또는 정책 |
 
-종류(v0.3 06 §4.2): 루프 계획·루프 전환(계획의 `authoredBy`가 `model`이면 "모델이 설계한 계획"으로 표시한다[판정 J-188]), 상황 판정, 분해·병합(구조 루프), 가정 확정, 모드 라우팅, 진입 판정(Concern으로 열기, 가벼운 작업으로 두기, 승격·강등, v0.3 01 §3.7, 09 `entry.evaluated`), 탐구 사용 승격(11 §3.9.1의 kernel 승격), 일반 선택. 진입 판정은 08 `EntryAssessment`(`ea`, `Autonomy` 보유) 레코드이고 이의 대상이다(`objection.file { target: { kind: "record", id: <ea id>, itemKey: null } }`). Concern 개요의 "Concern으로 열었습니다 [이의]"와 가벼운 작업 카드의 [Concern으로 열기]도 이 레코드를 대상으로 한다.
+종류(v0.3 06 §4.2): 루프 계획·루프 전환(계획의 `authoredBy`가 `model`이면 "에이전트가 설계한 계획"으로 표시한다[판정 J-188, J-204]), 상황 판정, 분해·병합(구조 루프), 가정 확정, 모드 라우팅, 진입 판정(Concern으로 열기, 가벼운 작업으로 두기, 승격·강등, v0.3 01 §3.7, 09 `entry.evaluated`), 탐구 사용 승격(11 §3.9.1의 kernel 승격), 일반 선택. 진입 판정은 08 `EntryAssessment`(`ea`, `Autonomy` 보유) 레코드이고 이의 대상이다(`objection.file { target: { kind: "record", id: <ea id>, itemKey: null } }`). Concern 개요의 "Concern으로 열었습니다 [이의]"와 가벼운 작업 카드의 [Concern으로 열기]도 이 레코드를 대상으로 한다.
 
 **표시 데이터**: `view:autonomous` (파라미터: `since`(확인 cursor | 전체), `concernId?`, `contestedOnly`)
 
@@ -958,7 +960,7 @@ Goal 2 블로그 글쓰기 방향 정하기 ▸
 
 상황 유형   해 봐야 아는 일 · 판정: 어제 22:10 · 에이전트가 판정 · 근거 ▸          [이의]
 루프 계획   상황 파악 ✓ → 원함 탐구 ✓ → 탐침 ✓ → [구조: 나누기] → 원함 탐구 → 약속 실행 → 확인·반영
-            계획: 에이전트가 정함 · 모델이 설계함 · 바뀐 횟수 2            [이의] [루프 이력]
+            계획: 에이전트가 정함 · 에이전트가 설계한 계획 · 바뀐 횟수 2            [이의] [루프 이력]
 
 지금 하는 일   WorkUnit 31 본문 1절 초안 (진행 중)
 다음 예정      1절 초안 제출 → 결과 확인 대기
@@ -993,7 +995,7 @@ Goal 2 블로그 글쓰기 방향 정하기 ▸
 | 상태 줄 | Goal, Concern, 모드, 지금 하는 일, 맡긴 범위, 다음 멈춤(canon-2 §3.5) | P |
 | 머리 | 서술, Goal 링크, Concern 상태 | O |
 | 상황 유형 | 라벨, 판정 시각, 판정 주체, 근거, 이의 버튼 | O, C |
-| 루프 계획 | 계획 칩 줄. 지난 루프 ✓, 현재 루프 강조, 남은 계획. 건너뛴 루프는 칩 줄 아래에 이유와 함께 보인다(`skipped`, 14 `LoopPlanRecord`). 누가 정했는지(`decidedBy`)와 누가 설계했는지(`authoredBy`: 코드 계산 / 모델 설계 / 사람 설계)를 함께 보인다. 모델이 설계했으면 "모델이 설계함"을 표시하고 근거(`outOfPattern`, 14 `Flag.evidence`)를 펼친다. 모델 초안이 검사에 두 번 걸려 코드가 계획을 썼으면 그 사실과 마지막 거부 사유를 보인다. 이의 버튼은 어느 경우에나 같다([결정 53], [판정 J-188]) | O, P, C |
+| 루프 계획 | 계획 칩 줄. 지난 루프 ✓, 현재 루프 강조, 남은 계획. 건너뛴 루프는 칩 줄 아래에 이유와 함께 보인다(`skipped`, 14 `LoopPlanRecord`). 누가 정했는지(`decidedBy`)와 누가 설계했는지(`authoredBy`)를 함께 보인다. 모델이 설계했으면 "에이전트가 설계한 계획"을 표시하고 근거(`outOfPattern`, 14 `Flag.evidence`)를 펼친다. 사람이 고쳤으면 "직접 고친 계획"을 표시한다. 코드가 계산한 계획에는 표시를 붙이지 않는다([판정 J-204]). 모델 초안이 검사에 두 번 걸려 코드가 계획을 썼으면(`modelDraftRejects` 두 개, 09 `loop_plan.adopted`) 그 사실과 마지막 거부 규칙을 보인다. 이의 버튼은 어느 경우에나 같다([결정 53], [판정 J-188]) | O, P, C |
 | 지금 하는 일 / 다음 예정 / 멈출 조건 | 현재 WorkUnit 요약(진행 작업 카드에서) | P |
 | 사용 중인 가정 | 임시 가정과 만료점(v0.3 09 §4.2) | P |
 | 열린 질문 | 이 Concern의 질문 | D |
@@ -1014,7 +1016,7 @@ interface ConcernView {
               skipped: { loop: string; reason: string }[];   // 건너뛴 루프와 이유(14 LoopPlanRecord.skipped)
               decidedBy: Author; authoredBy: "code" | "model" | "human";   // 누가 설계했나([판정 J-188] (5)). decidedBy는 그대로
               outOfPattern?: { evidence: string[] };   // authoredBy가 model일 때 PlanFlags.outOfPattern의 근거(근거 필수, [판정 J-188] (2))
-              fallbackReason?: CopyRef;   // 모델 초안 두 번 위반으로 코드 계획을 쓴 사실과 마지막 거부 사유(10 거부 코드)
+              modelDraftRejects?: string[];   // 09 loop_plan.adopted. 모델 초안이 거부된 규칙 id를 시도 순서대로 최대 2개 담는다. 화면은 마지막 항목을 쓴다
               changes: number } | null;
   current?: ActiveWorkCard;
   assumptions: { question: RecordRef; assumption: string; expires?: ExpiryPoint }[];
@@ -1344,7 +1346,7 @@ interface WorkView {
 |---|---|---|
 | 넓어진 것 | 사람이 확정한 이전 합의 범위나 직접 고른 선택 범위 대비 넓어진 항목. 이 화면이 열린 이유 | canon §9.5 "이미 한 번 맡겼다로 권한이 이어지지 않음", 01 R-OP-2 |
 | 확정되지 않은 기준 | 완료 기준 가운데 원함 탐구에서 확정되지 않고 임시로 넣은 기준 수와 "추측" 표시(15 §3.6.9) | 15 |
-| 네트워크·보호 경로 경고 | 합의가 네트워크 접근을 허용하거나 보호 경로(데몬 데이터·설정·비밀 파일 근처)를 건드리면 "이 합의는 네트워크에 접근합니다", "보호 경로에 가까운 파일을 씁니다: …"를 맡긴 범위 위에 보인다(18) | 18 §5.2 |
+| 네트워크·보호 경로 경고 | 합의가 네트워크 접근을 허용하거나 보호 경로(데몬 데이터·설정·비밀 파일 근처)를 건드리면 "이 합의는 네트워크에 접근합니다", "보호 경로에 가까운 파일을 씁니다: …"를 맡긴 범위 위에 보인다(18). 경고는 합의 뷰의 `warnings`(13 §3.5.3 경고 키)를 문구 키로 그린다 | 18 §5.2 |
 | 모델 제공자 | 이번 작업이 쓰는 모델 제공자 목록(작업·검증 에이전트별, 18 §3.11.6, [판정 J-150]) | 18 |
 | 지침 파일 | 작업 공간 지침 파일(`AGENTS.md` 등)이 등록 때 확인본과 다르면 합의 확인 전에 "지침 파일이 바뀌었습니다. 바뀐 내용을 확인하세요"와 [바뀐 지침 보기] [이 지침을 쓰기]를 보인다. 확인 전에는 이전 확인본을 쓴다(18 §3.12 9번) | 18 |
 | 합의 여섯 항목 | 목적, 완료 기준, 범위, 금지 행동, 제출할 근거, 멈출 조건(브리프 §6) + 다음 확인 시점, 맡는 쪽 | canon §12.7 Delegation Interaction 8, canon-2 §3.12 echo |
@@ -1382,6 +1384,8 @@ interface AgreementView {
   enforcement: "enforced" | "advisory";
   previousRevision?: RecordRef;
   unconfirmedCriteria?: { criterionId: string; text: string }[];   // 15 §3.6.9 확정되지 않은 기준
+  warnings: CopyRef[];                           // 13 §3.5.3 경고 키. 문구 키로 그린다
+  providers: { role: AgentRole; name: string }[];   // 작업·검증 에이전트별 모델 제공자(18 §3.11.6, [판정 J-150])
 }
 ```
 
@@ -1419,6 +1423,8 @@ interface AgreementView {
 
 확인하지 못한 기준이 있으면 위처럼 주 버튼(첫째, 초점 기본)이 [조건 붙여 확인]이 되고 조건 초안은 "기준 3(인용 자료 출처)은 리뷰 뒤 다시 확인"으로 채워진다. 모든 기준이 확인되었으면 주 버튼은 [결과 확인]이다.
 
+결과 확인 알림은 화면 아래 한 줄로 보인다. 알리지 않음이면 "결과 확인 알림: 알리지 않음 · 설정 바꾸기 ▸", 하루 한 번 묶음이면 "결과 확인 알림: 하루 한 번 묶음 · 19:00"처럼 쓴다. 값과 묶음 시각은 `view:settings`의 `notifications`에서 받고, 바꾸기는 `SCR-SETTINGS`(§3.21)로 연다(11 §3.5.7, [결정 56], [판정 J-189]).
+
 | 구역 | 내용 | 원천 |
 |---|---|---|
 | 머리 줄 | 기준 수와 판정 요약, 독립 검증 여부(다이얼, v0.3 07 §3)와 검증 에이전트의 독립성(생성 에이전트와 같은 모델인지) | canon-3 §8 08 "생성자와 확인자의 독립성" |
@@ -1426,7 +1432,7 @@ interface AgreementView {
 | 고정 표현 | 확인된 것 / 확인하지 못한 것 / 남은 제한 / 남은 전제 / 반대 근거 / 전체 영향 / 결과가 무효가 되는 조건 | canon §17.6 §3, §18.5, 인식적 완료 조건(canon §8.10) |
 | 결과 확인 트리 | 완료 기준 → 확인된 기준과 근거 / 확인하지 못한 범위 / 남은 전제와 모르는 점 / 반대 근거와 알려진 제한 / 결과가 무효가 되는 조건(`invalidIf`) | canon §17.5 P04 §4 |
 | 반영 범위 | 결과 제출 때 에이전트가 낸 반영 범위 초안(`integrationAgreementDraft.content`, 08 `AgreementContent`)을 구조 값으로 보인다. 범위(`scope`), 금지 자원(`forbiddenResources`), 금지 행동(`forbidden`), 범위 밖(`nonGoals`), 멈출 조건(`stopConditions`)을 각각 한 줄로 쓴다. 접지 않는다. 결과 확인·조건 붙여 확인이면 같은 트랜잭션에서 이 합의가 확정된다(`integrationAgreementId`, [판정 J-126]). [고치기]는 합의 초안을 고치는 `agreement.revise`이고, 고친 뒤 결과 확인 버튼 하나로 함께 확정된다 | 14 §3.6.8, 10 `result.accept` |
-| 주의 항목 | 변경 목록에 `.gitattributes`·`.gitmodules`·`.git*` 파일이나 새 `.git` 디렉터리가 있으면 "git 설정 파일이 바뀌었습니다: (파일). 다음 git 실행에 영향을 줄 수 있습니다"를 접지 않고 보인다(18 §3.11.10). 승인됐지만 실행하지 않은 행동(소진되지 않은 승인)이 있으면 "승인됐지만 실행하지 않은 행동 1개: (대상)"을 보인다(14 §3.12.3, F32). 결과 확인과 함께 그 승인은 만료된다 | 18, 14 |
+| 주의 항목 | 변경 목록에 `.gitattributes`·`.gitmodules`·`.git*` 파일이나 새 `.git` 디렉터리가 있으면 "git 설정 파일이 바뀌었습니다: (파일). 다음 git 실행에 영향을 줄 수 있습니다"를 접지 않고 보인다(18 §3.11.10). 승인됐지만 실행하지 않은 행동(소진되지 않은 승인)이 있으면 행동마다 한 줄로 "승인됐지만 실행하지 않은 행동: (대상) · (이유)"를 보인다. 이유는 08 `NotExecutedReason`(예: `approval_expired`)을 사람이 읽는 말로 바꿔 보인다(14 §3.12.3, F32). 결과 확인과 함께 그 승인은 만료된다 | 18, 14 |
 | 반영 처리 방침 | 두 값(모두 진행 / 남는 제한은 미룸). 조건 붙여 확인의 조건은 같은 트랜잭션에서 미룬 반영 항목(다시 볼 조건 = 조건 문장)이 된다([판정 J-125]) | 01 R-OP-3 |
 
 선호 모델 없음: 원함 탐구를 건너뛴 취향형 작업이면 머리 줄에 "선호 모델 없음 · 원함 탐구를 하지 않아 취향 기준으로 확인할 근거가 없습니다 [원함 탐구 열기]"를 보인다(01 FX-14).
@@ -1469,6 +1475,7 @@ Goal·이전 선택과 맞는가           맞음 (선택 39, Goal 2 v4)        
 | 반영 항목 미루기 | 항목 버튼 → 다시 볼 때(초안 제시)·이유 | `obligation.defer { obligationId, revisitTrigger: Trigger, reason }`(08 `Obligation.deferral`, 이유 필수) | 항목 상태 `deferred` |
 | 다른 Concern으로 넘기기 | 항목 버튼 → 대상 고르기(초안 제시)·이유 | `obligation.transfer { obligationId, to: { concernId } \| { workUnitId }, reason }` | 항목 상태 `transferred` |
 | 이의(기준별 판정에) | 판정 칸 메뉴 | `objection.file { target: { kind: "record", id: <rs id>, itemKey: "criterion:<cr id>" }, desiredEffect }`(08 `ObjectionTarget`, [판정 J-36]) | 그 기준이 "확인 못함"으로 바뀌고 수정 요청 초안이 생긴다 |
+| 근거 보기 | 기준 행의 근거 링크, 또는 "그 밖에" → 근거 보기 | 없음(화면 이동) | `SCR-EVIDENCE`(§3.15)를 연다. 결과 확인 화면의 판정은 바뀌지 않는다 |
 
 결과 확인 화면의 다섯 행동 이름(05 §3.4.1)과 값: 결과 확인 = 10 `accept` / 08 `accepted`, 조건 붙여 확인 = `accept_with_conditions` / `conditional`, 수정 요청 = `request_changes` / `revision_requested`, 거절(해결 안 됨) = `reject` / `rejected`, 기준이 틀림 = `criteria_wrong`([판정 J-35]). 1판의 `result.acceptWithConditions`·`result.requestRevision`·`result.reopen`은 쓰지 않는다([판정 J-123], 19 §3.7.1). 결과 확인 질문은 `question.answer`로 보내지 않는다([판정 J-124]).
 
@@ -1480,6 +1487,7 @@ interface ReviewView {
   result: RecordRef /* rs */; workUnit: RecordRef; concern: RecordRef; agreementRevision: number;
   question?: RecordRef;
   verification?: { by: Author; independentModel: boolean; attestations: RecordRef[] };
+  notExecuted: { ref: RecordRef; target: string; reason: NotExecutedReason }[];   // 승인됐지만 실행하지 않은 행동 목록(14 §3.12.3 F32, 08 NotExecutedReason)
   criteria: { id: string; text: string; verdict: "met" | "unmet" | "unverified";   // 08 ResultSubmission 기준 판정
               evidence: StatementView[]; downgradedReason?: string;
               tastePreference?: boolean;          // 선호 모델 기준이면 사람 판정 칸을 그림
@@ -1493,7 +1501,7 @@ interface ReviewView {
   defaultReopenTo?: "C.commit" | "I.fact" | "I.want";   // 직전 I. 없으면 거절 행에서 고른다(J-24)
   acceptance?: { by: Author; at: IsoTime; decision: "accepted" | "conditional" | "revision_requested" | "rejected" | "criteria_wrong"; conditions?: string[] };   // 08 AcceptanceDecision
   preferenceModelMissing?: boolean;      // 원함 탐구를 건너뛴 취향형 작업(01 FX-14)
-  mobileReviewable?: boolean; mobileReason?: CopyRef;   // 휴대폰에서 확인할 수 있는지(26 §3.5.4, J-139). 데몬이 정한다
+  mobileReviewable?: boolean; mobileReason?: CopyRef;   // 휴대폰에서 확인할 수 있는지(26 §3.5.4, J-139). 결과 제출 시점에 런타임이 정해 ResultSubmissionCore.mobileReviewable에 실은 값을 그대로 보인다. 재작업으로 새 제출이 생기면 그 제출에서 다시 정한다([판정 J-225])
   obligations: { checkpoint: "goal_fit" | "breaks_assumptions" | "assumptions_checked" | "artifacts_updated" | "local_vs_whole" | "rollback" | "known_limits";
                  items: { ref: RecordRef; text: string; state: "open" | "resolved" | "deferred" | "transferred" | "waived"; workUnit?: RecordRef; deferredUntil?: string; transferredTo?: RecordRef }[];   // 08 ObligationStatus
                  naReason?: string }[];
@@ -1519,7 +1527,7 @@ interface ReviewView {
 
 **진입 경로**: Concern 탭 "이력", 개요의 루프 계획 "루프 이력", 에이전트가 정한 것의 루프 전환 항목.
 
-**레이아웃**: 세로 시간선. 루프 구간(시작–끝, 걸린 시간, 그 구간의 주요 산출물 수)과 구간 사이 전환 표시. 계획 기록은 시간선에 "계획 v2 · 모델이 설계함 · 건너뜀: 탐침(이유)" 줄로 끼운다.
+**레이아웃**: 세로 시간선. 루프 구간(시작–끝, 걸린 시간, 그 구간의 주요 산출물 수)과 구간 사이 전환 표시. 계획 기록은 시간선에 "계획 v2 · 에이전트가 설계한 계획 · 건너뜀: 탐침(이유)" 줄로 끼운다.
 
 ```text
 어제 21:00  상황 파악                          (12분) 상황 판정: 해 봐야 아는 일 ▸
@@ -1543,7 +1551,7 @@ interface LoopTimelineView {
   situationChanges: { ref: RecordRef; from: string | null; to: string; at: IsoTime; by: Author }[];
   modeChanges: { from: string | null; to: string; at: IsoTime; by: Author }[];
   plans: { ref: RecordRef /* lp */; version: number; at: IsoTime; decidedBy: Author; authoredBy: "code" | "model" | "human";
-           skipped: { loop: string; reason: string }[]; outOfPattern?: { evidence: string[] }; fallbackReason?: CopyRef }[];   // 계획 기록(09 loop_plan.adopted, authoredBy는 [판정 J-188] (5))
+           skipped: { loop: string; reason: string }[]; outOfPattern?: { evidence: string[] }; modelDraftRejects?: string[] }[];   // 계획 기록(09 loop_plan.adopted, authoredBy는 [판정 J-188] (5). modelDraftRejects는 시도 순서대로 최대 2개이고 화면은 마지막 항목을 쓴다)
 }
 ```
 
@@ -1623,7 +1631,7 @@ interface ThreadView {
 | 반대 근거 검토 | "찾아봄: 없음" / "찾아보지 않음" / "찾음: …". 찾아보지 않은 것과 없는 것을 구분 | v0.3 02 §2.1 규칙 3 |
 | 같은 출처 계열 | 같은 모델·컨텍스트에서 나온 근거끼리 묶어 표시. 독립 근거로 세지 않는다 | canon §8.9 원칙 7 |
 | 다시 열릴 것 | 이 근거가 낡거나 무효가 되면 다시 열릴 선택·합의·투영 | canon-3 §6.6.6 |
-| 원본 | 관찰 노드의 "원본 보기": 도구 입력 범위, 출력(제어 문자 제거), 파일 해시·커밋, 외부 행위자 메시지("그렇게 말했다") | canon §8.9 원칙 5 |
+| 원본 | 관찰 노드의 "원본 보기": 도구 입력 범위, 출력(제어 문자 제거), 파일 해시·커밋, 외부 행위자 메시지("그렇게 말했다"). 웹·브라우저 도구의 출력은 "신뢰 안 함 자료" 틀(테두리와 표지)로 그리고, 그 안의 지시문을 지시로 다루지 않는다는 문구를 틀 위에 붙인다([판정 J-190] (4), 18 §5.2 (7)) | canon §8.9 원칙 5 |
 
 근거 개수나 확신 숫자로 강도를 표시하지 않는다(canon §17.6 §6, 21 UI-D05).
 
@@ -1775,7 +1783,7 @@ interface GoalView {
 
 | 구역 | 내용 |
 |---|---|
-| 범위 | 사용자 전체(08 `DialLayer` `user`)와 이 Concern(`concern`). Goal 범위는 없다([판정 J-136]). MVP는 다섯 다이얼(기본 전달 방식, 질문 빈도, 예산, 자극 수, 탐구 깊이, 01 §3.8.2)만 보이고 나머지는 2단계에 연다. 다만 `planAuthoring`(루프 계획 방식)은 결정 53이 사람에게 고르게 한 값이므로 MVP에서도 보인다([제안]) |
+| 범위 | 사용자 전체(08 `DialLayer` `user`), 이 Concern(`concern`), 진행 작업 하나(`instruction`, 그 지시로 시작한 WorkUnit 하나. 14 §3.11.2). Goal 범위는 없다([판정 J-136]). MVP는 여섯 다이얼만 보이고 나머지는 2단계에 연다. 여섯 가운데 다섯은 01 §3.8.2의 기본 전달 방식, 질문 빈도, 예산, 자극 수, 탐구 깊이이고, 나머지 하나는 `planAuthoring`(루프 계획 방식)이다. `planAuthoring`은 [결정 53]이 사람에게 고르게 한 값이므로 MVP에서도 보인다. 설정 화면(§3.21)에서도 고를 수 있다([판정 J-192]) |
 | 모드 | 현재 모드, 고른 주체(에이전트 / 사람 / 상황 유형 기본값), 이유, 중심 루프, 능력 부분집합(원시 행동과 기록 능력을 사람이 읽는 말로), 바꾸기, 라우팅 이의 |
 | 다이얼 표 | 14 다이얼 정의의 다이얼과 현재 값, 값을 정한 해석 순서(14 `DialPrecedence`: 1 시스템 기본값 / 2 상황 유형별 기본값 / 3 고른 모드 / 4 사용자의 저장된 설정 / 5 현재 Concern에서 바꾼 값 / 6 지금 이 지시). 4~6은 08 `DialLayer`(`user`, `concern`, `instruction`)로 저장되고, 화면에서 사람이 바꾸는 것은 4와 5다([판정 J-136]). `planAuthoring`(값 `computed`: 코드 계산만 / `hybrid`: 혼합(기본) / `model`: 모델 설계)은 층 4·5만 가진다([판정 J-188], [결정 53]). 6(지시)은 그 WorkUnit이 끝나면 사라진다 |
 | 루프별 설정 | 질문 다이얼을 루프별로 다르게 둔 값(펼침) |
@@ -1788,7 +1796,7 @@ interface GoalView {
 ```ts
 interface DialsView {
   meta: ViewMeta;
-  scope: { kind: "user" | "concern"; ref?: RecordRef };   // 08 DialLayer 중 사람이 화면에서 바꾸는 둘. Goal 범위 없음(J-136)
+  scope: { kind: "user" | "concern" | "instruction"; ref?: RecordRef };   // 08 DialLayer 중 사람이 화면에서 바꾸는 셋. instruction의 ref는 WorkUnit(14 §3.11.2). Goal 범위 없음(J-136)
   attentionBudget: AttentionBudgetVM;   // 주의 예산 막대(§3.1)
   mode: { id: "orient" | "investigate" | "deliberate" | "taste" | "execute" | "verify" | "restructure" | "emergency"; name: string; decidedBy: "rule" | "human"; assignment: RecordRef /* md, 이의 대상 */; precedence: 3 | 5 | 6; reason?: string; at?: IsoTime; centralLoops: string[];
           capabilities: { label: string; on: boolean }[]; contested: boolean; choices: { name: string; description: string }[] };
@@ -1801,7 +1809,7 @@ interface DialsView {
 }
 ```
 
-**인터랙션**: 값 바꾸기 → `dial.set { layer, scopeId, key, value }`. 기본값으로 되돌리기 → `dial.unset { layer, scopeId, key }`. 모드 바꾸기 → `mode.set { concernId, mode }`(에이전트의 지정은 `mode.route`). 모드 이의 → `objection.file { target: { kind: "record", id: <md id>, itemKey: null } }`. 반영 문구는 다이얼의 `appliesAt`에 따라 "바로 반영됩니다" / "다음 라운드 경계에 반영됩니다" / "다음 루프 시작에 반영됩니다" → 반영 이벤트가 오면 "반영됨". params 정본은 19 §3.7.5.
+**인터랙션**: 값 바꾸기 → `dial.set { layer, scopeId, key, value }`(지시 층이면 `scopeId`는 WorkUnit id). 기본값으로 되돌리기 → `dial.unset { layer, scopeId, key }`. 모드 바꾸기 → `mode.set { concernId, mode }`(에이전트의 지정은 `mode.route`). 모드 이의 → `objection.file { target: { kind: "record", id: <md id>, itemKey: null } }`. 반영 문구는 다이얼의 `appliesAt`에 따라 "바로 반영됩니다" / "다음 라운드 경계에 반영됩니다" / "다음 루프 시작에 반영됩니다" → 반영 이벤트가 오면 "반영됨". params 정본은 19 §3.7.5.
 
 **사람 조작 횟수**: 값 하나 바꾸기 2(열기 + 고르기).
 
@@ -1961,7 +1969,7 @@ interface DevicesView {
   thisDevice: string;
   devices: { ref: RecordRef /* dv */; name: string; kind: "desktop" | "mobile" | "tui"; route: "tailscale" | "ssh" | "local";
              lastSeenAt: IsoTime; tokenExpiresAt?: IsoTime; revoked: boolean;
-             push?: { state: "on" | "failing" | "needs_reregister" | "off"; contentLevel: "hidden" | "summary" } }[];
+             push?: { state: "on" | "failing" | "needs_reregister" | "off"; showContent: boolean /* 기기 설정 notifications.showContent, 기본 꺼짐([판정 J-03], [판정 J-237]) */ } }[];
   pendingPairing?: { expiresAt: IsoTime; forMobile: boolean };   // 코드 값은 만든 화면에만, 뷰에는 싣지 않는다
 }
 ```
@@ -2057,10 +2065,11 @@ interface RecoveryView {
 | 알림 | OS 알림 켜기, OS 알림 권한 상태와 "알림 시험 보내기"(OS 설정에서 꺼져 있으면 안내, 20 F-35), 알릴 것(끼어들기 / 알림 / 복귀 요약 시각 / 예약 묶음 / 협상 전달 `notifications.negotiated` 기본 끔, 관찰 제안 `notifications.observer` 기본 끔), **결과 확인 알림**(`notifications.resultReview`: 알리지 않음 / 하루 한 번 묶음 푸시 / 즉시 푸시[결정 56]. 기본은 알리지 않음[판정 J-189]. 묶음 시각 `notifications.resultReviewDigestAt`, 기본 "19:00", 서버 시간대. 묶음은 확인 대기 결과가 있을 때만 보내고, 두 경우 모두 방해 금지와 시간당 상한을 따르며 휴대폰 확인 범위는 J-139 그대로다), 방해 금지·조용한 시간(05 §3.7.4), 알림에 내용 보이기(기본 끔), 소리. "휴대폰 알림은 휴대폰의 설정 화면에서 정합니다." 한 줄(26). 조용한 시간은 기본이 없고, 휴대폰 알림을 처음 켤 때 23:00~08:00을 제안값으로 보인다([제안], 14 §3.13.8) | 05 §3.7. 결과 확인 알림과 묶음 시각은 데몬 의미 설정(`settings.update`, 기록은 09 `setting.changed`, [판정 J-189]). 방해 금지(`attention.snoozeUntil`)·조용한 시간·시간당 알림 상한(`attention.interruptsPerHour`)은 데몬 설정(14 `OrchestrationSettings`, 모든 기기 합산, 기기별 상한은 두지 않는다[판정 J-171]). 소리·OS 알림 켜기·내용 보이기·방해 금지 예외(`notifications.dndException`)는 기기 설정(20 §3.9.11) |
 | 주의 예산 | 홈에 펼칠 카드 수(`attention.maxVisibleDecisions`, 기본 3), 일일 예산(`attention.dailyBudget`, 주의 예산 막대의 한도), 시간당 알림 상한(`attention.interruptsPerHour`, 기본 2, 모든 기기 합산, 05 §3.7.3), 일시 방해 금지(`attention.snoozeUntil`, "지금부터 1시간", [판정 J-166]), 복귀 요약 자동 열기 기준 | 데몬 설정(14 `OrchestrationSettings`, 다이얼 아님)과 기기 설정 |
 | 질문 전달 기본값 | `SCR-DIALS`(전역 범위) 링크 | 14 |
+| 계획 작성 방식 | 전역 기본값을 여기서 고른다: 코드 계산만 / 혼합(기본) / 모델 설계(`planAuthoring`, 층 `user`). Concern별 값은 `SCR-DIALS`에서 바꾼다([결정 53], [판정 J-192]) | 14 |
 | 표시 | 테마(시스템 / 밝게 / 어둡게), 글자 크기(`fontScale`), 밀도(보통 / 촘촘), 투명도(`transparency`: 시스템 / 전체 / 줄임), 창 효과(`windowEffect`), macOS 유리 질감(`macGlass`, macOS 26 이상), 움직임 줄이기, 시간 표시(상대+정확 / 정확만) | 기기(20 §3.9.11) |
 | 창 | 창 닫기(`closeBehavior`: 숨기기 / 종료), Dock 아이콘(`macActivation`: 기본 / 메뉴 막대만, 배지 없음) | 기기(20 §3.9.11) |
 | 키보드 | 단축키 목록과 바꾸기, 한 글자 단축키 켜기·끄기 | 기기(05 §3.8) |
-| 권한·연결 | 연결 화면 링크, 허용 폴더(Helm이 읽고 쓸 프로젝트 폴더는 `project.create`로 추가, 관찰 에이전트가 읽을 외부 세션 로그 폴더는 `settings.update`, 결정 35, 02 UC-11 단계 8), 이 기기의 권한(읽기 전용 기기 여부), 연결된 모델 제공자와 도구 목록(데몬이 보냄, 읽기 전용, [판정 J-150]). 도구마다 단계(MVP / 이후)와 집행 수준을 보이고, 웹 페이지 읽기·웹 검색은 MVP다([결정 55]). 네트워크 차단은 내부망 요청(루프백·사설·CGNAT·tailnet)만 막고 외부 인터넷 탐색은 막지 않는다는 한 줄을 붙인다([판정 J-134]), 데이터가 나가는 곳(모델 API로 보내는 것) 요약 | canon-3 §6.11 Trust Center를 1인용으로 줄인 판. 데이터는 18·17 |
+| 권한·연결 | 연결 화면 링크, 허용 폴더(Helm이 읽고 쓸 프로젝트 폴더는 `project.create`로 추가, 관찰 에이전트가 읽을 외부 세션 로그 폴더는 `settings.update`, 결정 35, 02 UC-11 단계 8), 이 기기의 권한(읽기 전용 기기 여부), 연결된 모델 제공자와 도구 목록(데몬이 보냄, 읽기 전용, [판정 J-150]). 도구마다 단계(MVP / 이후)와 집행 수준을 보이고, 웹 페이지 읽기·웹 검색은 MVP다([결정 55]). 웹 검색 제공자 순서(`tools.webSearch.providers`, 기본 Brave → Tavily)와 월 상한(`monthlyCap`), 제공자별 키 등록 여부를 보인다. 키 값은 보이지 않는다([판정 J-190] (1)(6)). 네트워크 차단은 내부망 요청(루프백·사설·CGNAT·tailnet)만 막고 외부 인터넷 탐색은 막지 않는다는 한 줄을 붙인다([판정 J-134]), 데이터가 나가는 곳(모델 API로 보내는 것) 요약 | canon-3 §6.11 Trust Center를 1인용으로 줄인 판. 데이터는 18·17 |
 | 개발자 보기 | 켜면 모든 카드에 레코드 ID, 이벤트 종류, seq, 정책 사유 코드가 보인다(03 §3.10) | 기기 |
 | 데이터 | 기록 내보내기 요청(사람이 읽을 수 있는 형식, 17), 이 기기의 캐시 지우기, 오프라인 사본(`offlineCopy`, 기본 켬, §3.9.5) | 데몬 / 기기 |
 | 정보 | 앱 버전, 서버 버전, 프로토콜 버전, 열린 소스 고지 | |
@@ -2070,10 +2079,12 @@ interface RecoveryView {
 ```ts
 interface SettingsView {
   meta: ViewMeta;
-  notifications: { quietHours: { start: string; end: string } | null; resultReview: "none" | "daily_digest" | "immediate"; resultReviewDigestAt: string /* "HH:MM", 서버 시간대, 기본 "19:00" */; briefAt?: string };   // 시간당 상한은 attention 하나다([판정 J-171]). [판정 J-189]
-  attention: { maxVisibleDecisions: number; interruptsPerHour: number; dailyBudget: number; snoozeUntil?: IsoTime; reviewWindows: { start: string; end: string }[] };   // 14 OrchestrationSettings.attention([판정 J-166])
+  notifications: { resultReview: "none" | "daily_digest" | "immediate"; resultReviewDigestAt: string /* "HH:MM", 서버 시간대, 기본 "19:00" */; briefAt?: string };   // 알림 경로 설정만([판정 J-195]). 시간당 상한은 attention 하나다([판정 J-171]). [판정 J-189]
+  attention: { quietHours: { start: string; end: string } | null; maxVisibleDecisions: number; interruptsPerHour: number; dailyBudget: number; snoozeUntil?: IsoTime; reviewWindows: { start: string; end: string }[] };   // 14 OrchestrationSettings.attention([판정 J-166]). 조용한 시간은 [판정 J-195]
   folders: { projects: { id: string; name: string; rootPath: string }[]; observerSources: string[] };
   providers: { name: string; models: string[]; state: CopyRef }[];   // 모델 제공자(J-150), 읽기 전용
+  planAuthoring: "computed" | "hybrid" | "model";   // 사용자 층의 루프 계획 작성 방식([결정 53], [판정 J-192])
+  webSearch: { providers: ("brave" | "tavily")[]; monthlyCap: number; keyRegistered: { brave: boolean; tavily: boolean } };   // tools.webSearch(13), 앞에서부터 시도([판정 J-190] (1)). 키 값은 보내지 않는다
   tools: { name: string; stage: "mvp" | "later"; enforcement: "enforced" | "advisory" }[];   // 도구 단계([결정 55])
   dataEgress: CopyRef[];                                             // 데이터가 나가는 곳 요약(18)
   versions: { server: string; protocol: number };
@@ -2255,20 +2266,20 @@ Helm 열기
 
 | 문서 | 요구 |
 |---|---|
-| 08 | 남은 요구 없음. 진입 판정 `EntryAssessment`(`ea`), 질문 `criteria`·`consequences`·`commitmentPreview`, `Stimulus.form`, `reasonKind`는 08 2판에 반영되어 이 문서가 읽는다 |
+| 08 | 남은 요구 없음. 진입 판정 `EntryAssessment`(`ea`), 질문 `criteria`·`consequences`·`commitmentPreview`, `Stimulus.form`, `reasonKind`, `ResultSubmissionCore.mobileReviewable`([판정 J-225])은 08 2판에 반영되어 이 문서가 읽는다 |
 | 09 | 복원 표지 `store.restored`와 `daemon.safe_mode_entered{reason: restored}`를 04 §3.2·§3.20이 읽는다([판정 J-152]). `brief.acknowledged`에 `note`·`compact`. `loop_plan.adopted`의 `authoredBy`([판정 J-188]). `setting.changed`(설정 기록, [판정 J-189]) |
 | 10 | (1) `goal.activate`의 `edits`(고쳐서 시작). (2) 결과 확인과 같은 트랜잭션의 반영 범위 합의 확정([판정 J-126]) |
 | 11 | (1) 권리 허락의 `approve.conditions`(자유 문장)는 실행에 효과가 없어 화면에 입력을 두지 않았다(§3.4). 없애거나 "기록용"으로 표시. (2) 막지 않는 권리 게이트 전달([판정 J-132]) |
 | 12 | (1) 이 문서 각 절의 뷰 모델 생성(새로 더한 `ConcernTreeView`, `ThreadView`, `GoalsView`, `DevicesView`, `RecordsView`, `SettingsView` 포함, 26행 원천 표). (2) 복귀 요약 머리 줄, `restart`(boots·`last_recorded_at`), `restored`, `assumedWhileAway`, `compactSeen`([판정 J-137]), `deferredObligations`. (3) 결과 확인 반영 단계 일곱 줄의 항목과 "해당 없음(이유)", `primaryAction`, `defaultReopenTo`, `mobileReviewable`. (4) `ActiveWorkCard`의 `stages`·`nextHumanTouchpoint`·`expectedDoneAt`(작업은 12, 탐구는 15 `InquiryProgressView`). (5) Goal `recheck` 상태와 지우는 조건 |
-| 14 | 다이얼 정의(이름, 값 목록, 설명, 편집 가능 범위, `DialPrecedence`)를 데이터로 제공([판정 J-136]). `maxVisibleDecisions`는 설정이며 막지 않는 권리 게이트는 접고 개수 표시([판정 J-132]). 다이얼 `planAuthoring`(값 `computed`·`hybrid`·`model`, 기본 `hybrid`, 층 user·concern)을 `DIAL_DEFS`에 더한다([판정 J-188]). `loopPlan`의 `skipped`와 `authoredBy`를 뷰에 싣는다. `planAuthoring`의 MVP 노출은 [제안](§3.17)대로 정한다 |
+| 14 | 다이얼 정의(이름, 값 목록, 설명, 편집 가능 범위, `DialPrecedence`)를 데이터로 제공([판정 J-136]). `maxVisibleDecisions`는 설정이며 막지 않는 권리 게이트는 접고 개수 표시([판정 J-132]). 다이얼 `planAuthoring`(값 `computed`·`hybrid`·`model`, 기본 `hybrid`, 층 user·concern)을 `DIAL_DEFS`에 더한다([판정 J-188]). `loopPlan`의 `skipped`와 `authoredBy`를 뷰에 싣는다. `planAuthoring`의 MVP 노출은 [판정 J-192](§3.17)대로 정한다 |
 | 15 | `InquiryProgressView`, 라운드 닫는 계기 셋, `revealAfterClose.otherField`는 15 2판에 반영되었다. 남은 요구 없음 |
 | 16 | 결과 확인 전용 우회 지표(확인까지 시간, 근거 펼침, 확인 못함 포함 확인 비율). 관찰 제안 데이터 형식(§3.18). 복귀 점검 G1 기간 켜기(§3.27). 계획 이의 비율을 `authoredBy`별로 잰다([판정 J-188]) |
 | 17 | 안전 모드 사유·최근 비정상 종료 목록과 읽기 전용 사유(`recovery_failed` 포함, [판정 J-178])를 `DaemonStatus`에(§3.19·§3.20). 복원 표지 기록([판정 J-152]) |
 | 19 | (1) `objection.file` params에 `reasonKind?`(08). (2) `view:review`에 `mobileReviewable`과 이유 키. `command.lookup`, `decision.confirm.targets`, `goal.activate`, `project.create`, `result.accept.decision`, 라운드 키 `inquiryId + roundNo`는 19 2판에 반영되었다. (3) `view:settings`에 `notifications.resultReview`·`resultReviewDigestAt`·`attention.snoozeUntil`·`attention.interruptsPerHour`를 싣고, 바꾸기는 `settings.update`로 한다([판정 J-189], [판정 J-166]). (4) 홈·질문함·다이얼 뷰에 `attentionBudget`(14 §3.13.8)을 싣는다 |
-| 20 | 사용자용 연결 상태(§3.0.4)의 판정, 특히 `GET /healthz`로 "서버 PC에 연결할 수 없음"과 "Helm 서버 응답 없음"을 나누기. 결정 막기 기준(서버 `freshness`만). 딥 링크 `helm://question`을 종류에 따라 `SCR-AGREE`·`SCR-REVIEW`·`SCR-GOAL`·`SCR-EVIDENCE`·`SCR-RECOVERY`로. 설정 `notifications.hourlyCap`은 지운다([판정 J-171]). 방해 금지는 의미 설정 `attention.snoozeUntil`로 두고 §3.9.11의 "데몬 설정" 문장을 맞춘다([판정 J-166]) |
-| 21 | 질문 카드(접힘·펼침, 깊이별 필드, 줄인 카드의 "그 밖에"), 진행 작업 카드(단계, 위험·가정 줄), 자극 카드와 반응 막대, 근거 트리와 판단 확인 구역, 기준 판정 표, 반영 범위 구역, 다이얼 표의 컴포넌트. `sameSourceFamily`·평면 N·M 대신 이 문서 이름(`correlatedWith`, 방향·이해·실제). 주의 예산 부품의 입력은 `AttentionBudgetVM`(라벨은 `CopyRef`)이다. 연결 상태 값은 §3.0.4 열여섯을 쓴다([판정 J-176]). 성질별 보장 수준은 §3.0.7 `guarantees`를 쓴다. 문구 키 타입은 `CopyKey`다([판정 J-175]) |
+| 20 | 사용자용 연결 상태(§3.0.4)의 판정, 특히 `GET /healthz`로 "서버 PC에 연결할 수 없음"과 "Helm 서버 응답 없음"을 나누기. 결정 막기 기준(서버 `freshness`만). 딥 링크 `helm://question`을 종류에 따라 `SCR-AGREE`·`SCR-REVIEW`·`SCR-GOAL`·`SCR-EVIDENCE`·`SCR-RECOVERY`로. 설정 `notifications.hourlyCap`은 지운다([판정 J-171]). 방해 금지는 의미 설정 `attention.snoozeUntil`로 두고 §3.9.11의 "데몬 설정" 문장을 맞춘다([판정 J-166]). `protocolError`(닫힘 1002·1003)는 사용자용 상태로 두지 않는다(§3.0.4 규칙 7). `UserConnKind`는 §3.0.4 값 열여섯을 쓰고, `viewStale`·`restarted`는 이 값으로 대응시킨다([판정 J-228]) |
+| 21 | 질문 카드(접힘·펼침, 깊이별 필드, 줄인 카드의 "그 밖에"), 진행 작업 카드(단계, 위험·가정 줄), 자극 카드와 반응 막대, 근거 트리와 판단 확인 구역, 기준 판정 표, 반영 범위 구역, 다이얼 표의 컴포넌트. `sameSourceFamily`·평면 N·M 대신 이 문서 이름(`correlatedWith`, 방향·이해·실제). 주의 예산 부품의 입력은 `AttentionBudgetVM`(라벨은 `CopyRef`)이다. 연결 상태 값은 §3.0.4 열여섯을 쓴다([판정 J-176], [판정 J-228]). 성질별 보장 수준은 §3.0.7 `guarantees`를 쓴다. 문구 키 타입은 `CopyKey`다([판정 J-175]) |
 | 26 | 이 문서의 뷰 타입을 휴대폰도 쓴다. 남은 요구 없음(26 §5.2 04 요구 반영) |
-| 03 | `SCR-DIALS`의 MVP 최소판 목록에 `planAuthoring`을 더한다([제안], §3.17). `SCR-SETTINGS` 알림 절에 결과 확인 알림 항목을 둔다([결정 56], §3.21) |
+| 03 | `SCR-DIALS`의 MVP 최소판 목록에 `planAuthoring`을 더한다([판정 J-192], §3.17). `SCR-SETTINGS` 알림 절에 결과 확인 알림 항목을 둔다([결정 56], §3.21) |
 | 05 | (1) 문구 키 타입은 `CopyKey`다([판정 J-175]). §3.10.8의 "CopyKey라는 이름은 쓰지 않는다" 문장을 지운다. (2) 결과 확인 알림 선택지와 묶음 시각의 키(`label.settings.resultReview.*`, `label.settings.resultReviewDigestAt`, [판정 J-189]). (3) 다이얼 `planAuthoring` 값의 키, 계획 작성자 키(`label.loopPlan.authoredBy.*`), 건너뛴 루프·모델 설계·코드 계획 문장([판정 J-188]). (4) 주의 예산 라벨과 §3.12 "승인됐지만 실행하지 않은 행동" 문장. (5) §3.0.4 상태 값 열여섯의 `label.connection.<상태>`([판정 J-176]) |
 | 13 | 웹 페이지 읽기(`web_fetch`)와 웹 검색(`web_search`)을 MVP에 넣는다([결정 55]). O-13-05의 "1차 제외"를 고친다. 도구 목록 항목에 단계 값(`stage`)을 준다 |
 
@@ -2351,6 +2362,7 @@ ID는 22 추적 색인의 `04/UT-nn`과 같다(행 순서, 새 행은 끝에 붙
 | 브리프 결정 55(MVP 도구와 네트워크 차단) | §3.21 도구 단계와 내부망 차단 문장 |
 | 브리프 결정 56(결과 확인 알림, [판정 J-189]) | §3.21 알림 절 |
 | 판정 J-166·J-171·J-175·J-176·J-178 | §3.0.2 `CopyKey`, §3.0.4 상태 값과 `recovery_failed`, §3.21 `attention.snoozeUntil`·`attention.interruptsPerHour`(기기별 상한 삭제) |
+| 판정 J-192·J-225·J-228 | §3.17 MVP 다이얼 여섯 개(`planAuthoring` 포함), §3.12 `mobileReviewable`(결과 제출 시점에 런타임이 정한 값을 그대로 보임), §3.0.4 프로토콜 오류의 사용자용 상태(규칙 7)와 값 열여섯 |
 
 ## ADR 후보
 

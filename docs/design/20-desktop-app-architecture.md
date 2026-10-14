@@ -1,7 +1,7 @@
 # 20. 데스크톱 앱 아키텍처
 
 - 작성: P13(데스크톱 앱), 2026-10-11. 1단계 초안
-- 상태: 4c 보완판(2026-10-14). 기준 결정은 브리프 결정 1~57과 판정 `rulings-stage2a.md`(J-01~J-190)다. 03·04·05·06·07·09·11·16·17·18·19·21·26의 같은 시기 판과 맞췄다.
+- 상태: 4c 보완판(2026-10-14). 기준 결정은 브리프 결정 1~57과 판정 `rulings-stage2a.md`(§1~§11, J-01~J-240)다. 03·04·05·06·07·09·11·16·17·18·19·21·26의 같은 시기 판과 맞췄다.
 - 소유: Tauri 구조(Rust 쪽과 웹뷰 쪽 책임, IPC, 권한), 연결 관리(프로필, SSH, 상태 기계), React 앱 구조(폴더, 라우팅, 상태 관리), 클라이언트 저장소와 동기화, 오프라인 표시, OS 통합(알림, 메뉴 막대·트레이, 배지, 단축키, 로그인 시 시작, 딥 링크, 키체인), UI 번들 방식, 빌드·배포, 앱 테스트.
 - 소유하지 않음: 화면 ID·경로 후보·딥 링크 형식(03), 화면 상세·문구(04·05), 컴포넌트·토큰·시각화(21), 프로토콜 메서드·이벤트·오류 코드(19), 위협 모델·토큰 발급·페어링 규칙(18), 데몬 수명주기·tailscale serve 설정(17), 투영 생성(12), 이벤트 카탈로그(09).
 
@@ -287,11 +287,11 @@ export type TransportEvent =
 export type AppBlobRef = BlobRef & { url: string };   // url = helm-blob URL(§3.8.6)
 
 export interface TraySummary {
-  connection: 'live' | 'connecting' | 'offline' | 'blocked';
+  connection: ConnectionUiState;   // 04 §3.0.4 값(판정 J-196). 상단 막대와 같은 label.connection.<상태>
   asOfSeq: number | null;     // 오프라인 기준 표시용
   choiceNeeded: number;       // 선택 필요(권리 게이트) 수. 배지 값. 19 `tray` 뷰 그대로
   goodToCheck: number;        // 확인하면 좋은 것 수
-  dndUntil?: string;          // 방해 금지 끝 시각
+  dnd: { on: boolean; until: string | null };   // 19 TrayView.dnd와 같은 형식([판정 J-199]). until은 끝 시각
   running: Array<{ label: string; route: string }>;  // 최대 5. label 예: "Concern 12 · 본문 1절 초안 쓰는 중"(04 §3.24). 19 `tray` 뷰 값 그대로
   runningMore: number;        // "외 n개"
 }
@@ -349,7 +349,7 @@ Rust 쪽 공통 규칙:
 | 이벤트 | 페이로드 | 보내는 때 |
 |---|---|---|
 | `app://navigate` | `{ route: string; source: 'tray' \| 'notification' \| 'shortcut' \| 'reveal' }` | 트레이 메뉴 항목, `window_reveal(route)` |
-| `app://tray-action` | `{ action: 'quick-capture' \| 'reconnect' \| 'open-connect' \| 'dnd-toggle' }` | 트레이 메뉴의 동작 항목. `dnd-toggle`은 웹뷰가 데몬 설정 명령으로 보낸다(§3.10.2) |
+| `app://tray-action` | `{ action: 'quick-capture' \| 'reconnect' \| 'open-connect' \| 'dnd-toggle' }` | 트레이 메뉴의 동작 항목. `dnd-toggle`은 웹뷰가 `settings.update`(`attention.snoozeUntil`) 명령으로 보낸다(§3.10.2, [판정 J-166]) |
 | `app://appearance` | `Appearance` | macOS의 "투명도 줄이기"가 바뀔 때(§3.10.8) |
 | `app://window` | `{ state: 'shown' \| 'hidden' \| 'focused' \| 'blurred' }` | 창 상태가 바뀔 때. 연결 확인(§3.8.8의 포커스 `ping`)과 배지 처리에 쓴다 |
 
@@ -746,6 +746,7 @@ export interface AppConnModel {
   blocked?: { reason: AppBlockedReason; routeId?: string; detail?: string };
   route?: { routeId: string; kind: RouteKind };   // 지금 연결된 경로
   lastFailure?: { reason: TransportCloseReason; at: number; routeId: string };
+  protocolStreak?: { code: 1002 | 1003; count: number };   // 닫힘 1002·1003이 같은 코드로 연속 나온 횟수. ready가 되면 지운다. hello의 1003(protocol.unsupported)은 셈에 넣지 않는다 [판정 J-228]
   healthz?: 'network' | 'http5xx';           // 마지막 GET /healthz 결과(§3.8.9)
   disconnectedAt?: number;                   // 마지막 ready에서 끊긴 시각
   attempts: number;
@@ -757,11 +758,11 @@ export interface AppConnModel {
   bootChangedAt?: number;                    // bootEpoch가 바뀐 것을 본 시각(1분 표시)
 }
 
-/** 04 §3.0.4 사용자용 상태 값(판정 J-176). §3.8.9 표의 행과 하나씩 대응한다. protocolError는 04 표에 행이 없다(§5.2) */
+/** 04 §3.0.4 사용자용 상태 값 열여섯 [판정 J-176·J-196·J-228]. §3.8.9 표의 행과 하나씩 대응한다. viewStale은 화면마다 정한다(표의 마지막 행) */
 export type UserConnKind =
-  | 'keychainDenied' | 'authFailed' | 'sshFailed' | 'wrongServer' | 'versionMismatch' | 'protocolError'
+  | 'keychainDenied' | 'authFailed' | 'sshFailed' | 'wrongServer' | 'versionMismatch'
   | 'draining' | 'daemonUnreachable' | 'serverPcUnreachable' | 'reconnecting' | 'syncing'
-  | 'readOnly' | 'safeMode' | 'slow' | 'connected';
+  | 'readOnly' | 'safeMode' | 'restarted' | 'slow' | 'connected' | 'viewStale';
 
 export interface UserConnState {
   kind: UserConnKind;
@@ -791,7 +792,7 @@ export function decisionsAllowed(conn: ConnectionUiState, view: { serverFreshnes
 | 닫힘 1008, 직전 kind 없음 | `policy_closed` | 인증 실패(문구: 서버가 연결을 거절함, 다시 페어링 안내) |
 | `1003 protocol.unsupported` | `incompatible_version` | 버전 불일치 |
 | `server.mismatch`(클라이언트 내부) | `wrong_server` | 다른 서버 |
-| 닫힘 1002·1003 | `protocol_error` | 프로토콜 오류 |
+| 닫힘 1002·1003 | `protocol_error` | 연속 3회 전에는 앱이 `client.start()`로 자동 다시 시작하고, 사용자 상태는 '다시 연결하는 중'(§3.8.9 행 6)이다. 같은 코드가 연속 3회면 `incompatible_version`으로 바꾸고 자동 재시작을 멈춘다. '버전 불일치'로 보인다(행 5). [판정 J-228] |
 | 전송 `blocked`(`keychain_denied`) | `keychain_denied` | 키체인 거부 |
 | 전송 `blocked`(`ssh_*`) | 그 `ssh_*` | SSH 실패 |
 | 활성 경로 없음 | `no_routes` | 서버 PC에 연결할 수 없음 |
@@ -806,8 +807,8 @@ export function decisionsAllowed(conn: ConnectionUiState, view: { serverFreshnes
 | 2 | 인증 실패 | `authFailed` | `blocked.reason ∈ {needs_pairing, auth_rejected, revoked, expired, policy_closed}` | `authFailed` | 막음 |
 | 3 | SSH 실패 | `sshFailed` | `blocked.reason ∈ {ssh_*}` | `sshFailed` | 막음 |
 | 4 | 다른 서버 | `wrongServer` | `blocked.reason == wrong_server` | `wrongServer` | 막음 |
-| 5 | 버전 불일치 | `versionMismatch` | `blocked.reason == incompatible_version` | `versionMismatch` | 막음. 캐시 읽기는 된다 |
-| 6 | 프로토콜 오류 | `protocolError` | `blocked.reason == protocol_error` | `protocolError` | 막음. 05 문구 요구. 04 표에 행이 없다(§5.2) |
+| 5 | 버전 불일치 | `versionMismatch` | `blocked.reason == incompatible_version`, 또는 `blocked.reason == protocol_error`이고 `protocolStreak.count >= 3` | `versionMismatch` | 막음. 캐시 읽기는 된다 |
+| 6 | 다시 연결하는 중(프로토콜 오류) | `reconnecting` | `blocked.reason == protocol_error`이고 `protocolStreak.count < 3` | `reconnecting` | 막음, 초안 보존. 내부 원인 `protocol_error`는 사용자에게 보이지 않는다 [판정 J-228] |
 | 7 | 서버 종료 중 | `draining` | `daemonMode == draining`, 또는 `server.shutdown` 뒤 `restartExpectedMs` 안 | `draining` | 막음 |
 | 8 | Helm 서버 응답 없음 | `daemonUnreachable` | `core == backoff`이고 (`healthz == http5xx` 또는 `lastFailure.reason == daemon_unreachable`) | `daemonUnreachable` | 막음 |
 | 9 | 서버 PC에 연결할 수 없음 | `serverPcUnreachable` | `core == backoff`이고 (끊긴 지 2분 넘음 또는 `attempts > 6`)이고 (`healthz == network` 또는 `deviceOnline == false`), 또는 `blocked.reason == no_routes` | `serverPcUnreachable` | 막음 |
@@ -815,11 +816,12 @@ export function decisionsAllowed(conn: ConnectionUiState, view: { serverFreshnes
 | 11 | 다시 맞추는 중 | `syncing` | `core == syncing` | `syncing` | 막음(짧음) |
 | 12 | 읽기 전용 | `readOnly` | `core == ready`, `daemonMode == readOnly` | `readOnly` | 막음(읽기만) |
 | 13 | 안전 모드 | `safeMode` | `core == ready`, `daemonMode == safeMode` | `safeMode` | **가능**(사람 명령은 받는다, 04 §3.0.4) |
-| 14 | 느림 | `slow` | `core == ready`, `now − lastMessageAt > tickIntervalMs × 1.5` | `slow` | 가능 |
-| 15 | 연결됨 | `connected` | `core == ready` | `connected` | 가능 |
-| - | 서버 다시 시작됨(띠) | - | `bootChangedAt`부터 1분 | 상태와 별개의 띠 | 상태 행을 따른다 |
+| 14 | 서버 다시 시작됨 | `restarted` | `core == ready`, `now − bootChangedAt < 1분` | `restarted` | 가능. 다시 맞추는 중(행 11)을 거친 뒤에만 이 행에 온다. 1분이 지나면 다음 행으로 내려간다 |
+| 15 | 느림 | `slow` | `core == ready`, `now − lastMessageAt > tickIntervalMs × 1.5` | `slow` | 가능 |
+| 16 | 연결됨 | `connected` | `core == ready` | `connected` | 가능 |
+| - | 뷰 낡음(화면별) | `viewStale` | 보는 화면의 `serverFreshness`가 `stale`·`rebuilding`·`failed`. `toUserState`는 만들지 않는다 | `viewStale` | 그 화면의 결정만 막는다(`decisionsAllowed`의 `view`) |
 
-- 21의 `ConnectionUiState`는 04 §3.0.4의 상태 값 집합을 쓰고(판정 J-176), 그 안에 `readOnly`·`safeMode`가 있다(판정 J-60·J-115). 키체인 거부·SSH 실패·다른 서버는 위 표처럼 각자의 상태 값에 묶고, 배너 문구(`reasonKey`)로 사유를 나눈다.
+- `UserConnKind`와 21의 `ConnectionUiState`는 04 §3.0.4의 상태 값 열여섯을 쓰고 [판정 J-176·J-196·J-228], 그 안에 `readOnly`·`safeMode`가 있다(판정 J-60·J-115). 키체인 거부·SSH 실패·다른 서버는 위 표처럼 각자의 상태 값에 묶고, 배너 문구(`reasonKey`)로 사유를 나눈다. `viewStale`은 연결 상태가 아니라 화면의 `serverFreshness`로 정하므로 `toUserState`가 만들지 않는다. `restarted`는 행 14의 1분 상태다.
 - 읽기 전용은 사유별로 배너를 나눈다(판정 J-115, 17 §3.4.1). 화면 이름은 "읽기 전용"이고, "복구"는 `SCR-RECOVERY`에만 쓴다. 사유가 여럿이면 아래 표의 위쪽 것을 보인다.
 - `healthz`는 `backoff`에 들어간 뒤 처음 실패했을 때와, 끊긴 지 2분이 지나거나 재시도가 6회를 넘었을 때 `GET /healthz`(인증 없음, 17 §3.11.3)를 한 번씩 보내 채운다. 이름 찾기나 연결이 실패하면 `network`, 502·503·504면 `http5xx`다. `serverPcUnreachable`과 `daemonUnreachable`은 이 값으로 나눈다(04 §3.0.4). 배너 문구 키는 `err.connection.serverPcUnreachable`과 `err.connection.daemonUnreachable`이다(05 §3.11). 아직 채우지 못했으면 `reconnecting`에 머문다.
 
@@ -837,7 +839,7 @@ export function decisionsAllowed(conn: ConnectionUiState, view: { serverFreshnes
 ```ts
 // packages/client-react/src/connection/decisions.ts
 export function decisionsAllowed(conn: ConnectionUiState, view: { serverFreshness: ServerFreshness }): boolean {
-  const connOk = conn === 'connected' || conn === 'slow' || conn === 'safeMode';
+  const connOk = conn === 'connected' || conn === 'slow' || conn === 'restarted' || conn === 'safeMode';
   return connOk && view.serverFreshness === 'current';
 }
 ```
@@ -1070,9 +1072,9 @@ interface PendingRow {             // store 'pending', key: [serverId, idempoten
 }
 interface DraftRow {               // store 'drafts', key: [serverId, kind, targetId] — 04 §5.2 "초안 저장 확장"
   serverId: string;
-  kind: 'answer' | 'reaction' | 'agreementEdit' | 'reviewNote' | 'contestReason' | 'composer';
+  kind: 'answer' | 'reaction' | 'agreementEdit' | 'reviewNote' | 'objection' | 'composer';
   targetId: string;                // 질문·자극 라운드·작업 합의·결과 제출·레코드·Concern ID
-  payload: unknown;                // 구조화한 내용(예: 답 종류 + 본문, 반응 목록). 타입은 kind별(04 각 화면 절)
+  payload: unknown;                // 구조화한 내용(예: 답 종류 + 본문, 반응 목록). 타입은 kind별(04 각 화면 절). `objection`은 `{ reasonKind, reason }`이다. 두 값은 19 `objection.file`의 인자와 같고, `reasonKind`는 08 `ObjectionCore.reasonKind`의 값을 쓴다(`reason`이 없으면 `null`)
   basisSeq: number | null;         // 초안을 쓸 때 본 뷰의 asOfSeq
   storeId: string | null;          // 초안을 쓸 때의 저장소 ID. 다르면 basisSeq를 버리고 대상 존재를 다시 확인한다
   origin?: 'typed' | 'restored';   // restored = 거부·충돌·읽기 전용으로 돌아온 답(§3.9.7)
@@ -1251,6 +1253,8 @@ send(params, { basisSeq, screen, objectId }):
       다시 보내려면 그 화면을 열어 바뀐 상황을 본 뒤 새 키와 현재 basisSeq로 보낸다
     command.lookup은 원래 기기의 deviceId 범위에서만 찾으므로 deviceChanged 행은 조회 없이 "결과를 알 수 없음"으로 보인다
 
+```
+
 - `basisSeq`는 19에서 필수다. 사람이 결정한 카드가 속한 뷰의 `asOfSeq`를 넣는다(21 UI-D02). 화면 밖 동작(트레이의 방해 금지 등)은 그때의 구독 위치를 넣는다(19 §3.7.2). `expect`(레코드 revision)는 뷰 데이터의 `RecordRef.revision`을 아는 화면만 넣는다(19 §3.7.4).
 - 연결이 없을 때 새 결정을 받아 쌓아 두는 오프라인 큐는 두지 않는다(판정 J-02, 04 SC-03). 쓰던 내용은 초안(`drafts`)으로 남긴다. OpenClaw iOS의 오프라인 송신 outbox(50개, 48시간, pi-cases-notes §12 그 밖)와 다른 선택이다. 질문의 전제가 그 사이 바뀔 수 있어 낡은 화면에서의 결정을 늦게 보내지 않는다.
 - 진행 중 명령함은 "보냈는데 결과를 모르는 것"만 다룬다. 재전송은 결과 확인용이다. 결과가 정해진 응답(성공, 3001~3009, 5003, retryable false 오류)을 받으면 행을 지우거나 "보내지 못한 조작"으로 옮기고, 같은 행을 다시 보내지 않는다.
@@ -1320,7 +1324,7 @@ const runtime = useExternalStoreRuntime({
 | `shortcuts.overrides` | `{}` | 앱 안 단축키 바꾸기. 값은 `KeyboardEvent.code` 조합(예: `Mod+KeyK`) |
 | `notifications.negotiated` | `false` | 협상 전달(`deliveryMode: negotiated`) 질문도 OS 알림으로 띄울지(05 §3.7.3 "협상 전달" 행·IX-Q2, AC-04-01, §3.10.1 규칙 5) |
 | `notifications.observer` | `false` | 관찰 제안 알림(04 §5.2) |
-| `notifications.dndException` | `none` | 방해 금지 중 예외: `none` / `expiringOnly`(05 §3.7.4). 방해 금지 자체는 데몬 설정 |
+| `notifications.dndException` | `none` | 방해 금지 중 예외: `none` / `expiringOnly`(05 §3.7.4). 방해 금지 자체는 의미 설정 `attention.snoozeUntil`이다([판정 J-166]) |
 | `transparency` | `system` | `system \| full \| reduced`(21 §3.2.9). `system`이면 OS의 투명도 줄이기를 따른다 |
 | `windowEffect` | `system` | `system \| on \| off`(21 §3.14.3). `system`이면 투명도 줄이기가 켜졌을 때 끈다 |
 | `macGlass` | `sidebar` | `sidebar \| liquidGlassRegular`. 뒤의 것은 macOS 26 이상에서만 고를 수 있다 |
@@ -1334,7 +1338,7 @@ const runtime = useExternalStoreRuntime({
 | `lastRoute` | `/home` | |
 | `home.projectFilter` | 없음(모든 프로젝트) | 홈의 프로젝트 거르기(02 A4, 01 "여러 프로젝트 홈"). 거르기 값은 `home` 뷰 params로 넘긴다(19 §3.7.4. 프로젝트 단위 params가 없으면 19에 요구) |
 
-알림 종류별 켜고 끄기, 조용한 시간, 주의 예산은 데몬 설정이다(11·14). 앱은 같은 값을 다시 두지 않고 `SCR-SETTINGS`에서 데몬 명령으로 바꾼다.
+알림 종류별 켜고 끄기, 조용한 시간(`attention.quietHours`), 주의 예산은 의미 설정이다(11·14, [판정 J-166·J-195]). 앱은 같은 값을 다시 두지 않고 `SCR-SETTINGS`에서 데몬 명령으로 바꾼다.
 
 문구: UI 문구는 한국어 하나뿐이라 i18n 라이브러리를 쓰지 않는다. 앱이 보이는 문구(연결 상태, OS 알림, 트레이, 오류)는 모두 `@helm/ui-language`의 05 키로 만든다(판정 J-103). 앱 안에 문구 상수 폴더를 두지 않는다. 05에 없는 문구가 필요하면 05에 키를 요구한다(§5.2). 데몬 투영에 들어 있는 문구(질문 문장 등)는 그대로 그린다.
 
@@ -1354,7 +1358,7 @@ const runtime = useExternalStoreRuntime({
 - 바뀔 때만 보내고 최소 간격은 2초, 같은 값은 다시 보내지 않는다(19 §3.7.8). 연결이 `ready`일 때만 보내고, 다시 연결되면 현재 값을 한 번 보낸다.
 - 입력 내용이나 화면 내용은 보내지 않는다(11 §3.8 "키 입력 내용이나 화면 내용은 받지 않는다").
 - 열람 기록(16 §3.24.2): 데몬은 `presence.report`의 `screen`·`objectId` 변화로 `view.opened`를 만든다(19 §3.7.8). 16이 기록하라는 화면은 복귀 요약(`SCR-BRIEF`), 에이전트가 정한 것(`SCR-AUTO`), 결과 확인(`SCR-REVIEW`), 질문 상세(`SCR-QUESTION`), 결과 확인 화면에서 연 근거 체인(`SCR-EVIDENCE`), 감사 깊이 열람이다. 앞의 다섯은 화면 ID로 충분하다. 감사 깊이 열람은 검사 패널의 원본 탭과 `SCR-RECORD`를 열 때 `presence.report.depth`를 `'audit'`로 보낸다(판정 J-84, 화면 ID에 접미어를 붙이지 않는다). `depth`의 값은 `'glance' | 'review' | 'audit'`이다. 그 밖의 화면 이동도 presence로는 보내되 열람 기록으로 남길지는 데몬(16)이 정한다.
-- 방해 금지는 presence가 아니라 데몬 설정(`settings.update`)이다. 트레이의 "방해 금지"가 이 명령을 보낸다(§3.10.2, 05 §5.2의 20 요구 "방해 금지 상태 동기화").
+- 방해 금지는 presence가 아니라 의미 설정 `attention.snoozeUntil`이다(`settings.update`로 바꾼다, [판정 J-166]). 트레이의 "방해 금지"가 이 명령을 보낸다(§3.10.2, 05 §5.2의 20 요구 "방해 금지 상태 동기화").
 
 ### 3.10 OS 통합
 
@@ -1386,10 +1390,10 @@ interface DeliveryPayloadForApp {
 1. **재전송 중 받은 전달은 하나씩 띄우지 않는다.** 이벤트 구독이 `caughtUp` 전이면 개수만 센다. `ready`가 되면 남아 있는 것(이미 답했거나 만료된 것 제외, `inbox` 뷰로 확인)이 하나 이상일 때 묶음 알림 하나 "접속하지 않은 동안 전달된 질문 n개"(05 키)를 띄운다(19 §3.8.3). 실시간으로 받은 전달도 `batchKey`가 같으면 알림 하나로 묶는다.
 2. `channel`이 `app`이 아니거나, `surface`에 `os`가 없거나, `targetDevices`가 `'all'`이 아니면서 이 기기의 `deviceId`를 담지 않았거나, `expiresAt`이 지났으면 띄우지 않는다. `category`가 `observer`면 기본으로 띄우지 않는다(설정으로 켬, 04 §5.2). 연결 차단(§3.8.9의 `blocked`)은 OS 알림이 아니라 앱 안 배너로만 보인다.
 3. 같은 `deliveryId`는 한 번만 띄운다(`meta.recentDeliveryIds`, 최근 500개). 같은 질문의 알림은 전달 1번과 승격 1번까지다(05 §6 알림 행).
-4. 방해 금지 중이면 띄우지 않는다. 방해 금지는 데몬 설정이고 기기마다 따로 두지 않는다(05 §3.7.4). 앱은 `tray` 뷰의 `dndUntil`로 상태를 알고, 끝나면 그동안 쌓인 것이 있을 때 묶음 알림 하나(05 `notif.hidden.*`, 개수 있음)를 띄운다. 예외 설정 "만료 임박만"이면 승격된 전달만 띄운다.
+4. 방해 금지나 조용한 시간(`attention.quietHours`, [판정 J-195]) 중이면 띄우지 않는다. 방해 금지는 의미 설정 `attention.snoozeUntil`이고([판정 J-166]) 기기마다 따로 두지 않는다(05 §3.7.4). 앱은 `tray` 뷰의 `dnd`(`on`, `until`)로 상태를 알고, 방해 금지가 끝나면 그동안 쌓인 것이 있을 때 묶음 알림 하나(05 `notif.bundle.afterQuiet`)를 띄운다. 예외 설정 "만료 임박만"이면 승격된 전달만 띄운다.
 5. 강도별 표시(11 §5.2의 20 요구): `interrupt`(즉시 전달: 권리 게이트, 막힘, 만료 임박 승격) → 전달 이벤트를 받은 뒤 5초 안에 OS 알림(01 NFR-P-6), 창이 열려 있으면 앱 안 배너도. `notice` → OS 알림(창이 앞에 있고 대상 화면이 열려 있으면 배너만). 다만 `deliveryMode`가 `negotiated`이면 설정 `notifications.negotiated`(기본 끔, 05 §3.7.3 "협상 전달" 행, AC-04-01)가 켜졌을 때만 OS 알림을 띄우고, 꺼져 있으면 배지만 바뀐다. `digest` → OS 알림 없음(질문함·배지·복귀 요약으로만).
-6. 시간당 상한은 데몬이 센다. 의미 설정 `attention.interruptsPerHour`(14 기본값, 모든 기기 합, 사람 기준 하나, 판정 J-171)가 데스크톱 OS 알림과 휴대폰 푸시를 합쳐 세고, 권리 게이트의 즉시 전달과 만료 임박 승격은 세지 않는다(05 §3.7.3). 앱은 자체 상한을 두지 않는다. 상한을 넘은 즉시 질문은 데몬이 협상으로 낮추고(14 §3.13.5 규칙 3), 넘은 알림을 한 개로 묶는 전달도 데몬이 낸다 [제안]. 앱은 받은 전달을 규칙 5대로 띄운다. 데스크톱 알림을 눌러 질문을 열면 presence의 `screen`·`objectId`로 데몬이 열람을 알고, 26의 60초 지연 푸시가 나가지 않는다(26 §3.4.3).
-7. 띄울 때는 `sendNotification({ title, body, extra: { target, deliveryId } })`. 설정 `notifications.showContent`가 꺼져 있으면(기본, 05 ADR A8, 판정 J-03) 전달의 `copy` 대신 05의 숨김 키 `notif.hidden.title`("Helm")·`notif.hidden.body`(개수가 있으면 "확인할 일이 {n}건 있습니다.", 없으면 "확인할 일이 있습니다.")로 띄운다. n은 `tray` 뷰의 선택 필요 + 확인하면 좋은 것이다. 내용을 보일지는 기기가 정한다. 데몬은 05 §3.7.2의 인자만 싣고 숨김 처리를 하지 않는다(26 `contentLevel`과 같은 규칙). 앱은 잠금 상태를 감지하지 않는다(05 §3.7.6). `notifications.enabled`가 꺼져 있으면 띄우지 않는다.
+6. 시간당 상한은 데몬이 센다. 의미 설정 `attention.interruptsPerHour`(14 기본값, 모든 기기 합, 사람 기준 하나, 판정 J-171)가 데스크톱 OS 알림과 휴대폰 푸시를 합쳐 세고, 권리 게이트의 즉시 전달과 만료 임박 승격은 세지 않는다(05 §3.7.3). 앱은 자체 상한을 두지 않는다. 상한을 넘은 즉시 질문은 데몬이 협상으로 낮추고(14 §3.13.5 규칙 3), 넘은 알림은 데몬이 한 개로 묶어 보내고 앱은 받은 묶음을 그대로 보인다([판정 J-198]). 그 밖의 받은 전달은 규칙 5대로 띄운다. 데스크톱 알림을 눌러 질문을 열면 presence의 `screen`·`objectId`로 데몬이 열람을 알고, 26의 60초 지연 푸시가 나가지 않는다(26 §3.4.3).
+7. 띄울 때는 `sendNotification({ title, body, extra: { target, deliveryId } })`. 설정 `notifications.showContent`가 꺼져 있으면(기본, 05 ADR A8, 판정 J-03) 전달의 `copy` 대신 05의 숨김 키 `notif.hidden.title`("Helm")·`notif.hidden.body`(개수가 있으면 "확인할 일이 {n}건 있습니다.", 없으면 "확인할 일이 있습니다.")로 띄운다. n은 `tray` 뷰의 선택 필요 + 확인하면 좋은 것이다. 내용을 보일지는 기기가 정한다. 데몬은 05 §3.7.2의 인자만 싣고 숨김 처리를 하지 않는다(26의 `notifications.showContent`와 같은 규칙). 앱은 잠금 상태를 감지하지 않는다(05 §3.7.6). `notifications.enabled`가 꺼져 있으면 띄우지 않는다.
 8. 창이 포커스를 갖고 있고 `target` 화면이 지금 열려 있으면 OS 알림 대신 앱 안 배너(`RGN-BANNER`)로 보인다. 표시 방법의 선택이고 전달 여부 판단이 아니다.
 
 클릭 처리: `tauri-plugin-notification` 2.6.0부터 데스크톱에서 알림 클릭이 `onAction`으로 온다 [원문: plugins-workspace `plugins/notification/CHANGELOG.md` 2.6.0, 보조 에이전트 확인]. 클릭하면 `extra.target`을 §3.10.6 규칙으로 연다. 묶음 알림은 `SCR-INBOX`를 연다. 2.6.0은 2026-10-10 배포라 쓰인 기록이 적다 [가정: 두 플랫폼에서 동작, §6.2 수동 확인 항목]. 동작하지 않는 환경에서는 대체 규칙을 쓴다: 알림을 띄운 뒤 30초 안에 앱이 활성화되면 가장 최근 알림의 `target`을 배너의 [질문 열기] 단추로 보인다(자동 이동은 하지 않는다). 알림 안의 동작 단추(예: "가정대로 진행")는 두지 않는다. 결정은 질문 내용을 본 화면에서만 한다(04 §3.25의 팔레트 규칙과 같은 이유).
@@ -1407,7 +1411,7 @@ interface DeliveryPayloadForApp {
 - Rust `TrayIconBuilder`(feature `tray-icon`)로 만든다 [검색: v2.tauri.app/learn/system-tray]. 아이콘은 macOS 템플릿 이미지(단색), Windows 16/32px ICO. 상태별 아이콘: 기본, 선택 필요 있음(점), 연결 없음(빗금).
 - 왼쪽 클릭: macOS는 메뉴를 연다(기본 동작). Windows는 `show_menu_on_left_click(false)`로 두고 왼쪽 클릭 = 창 보이기, 오른쪽 클릭 = 메뉴(Windows 관례).
 - 내용은 19의 `tray` 뷰(19 §3.7.4)를 TS가 받아 `tray_update(TraySummary)`로 넘긴다. 숫자와 문장은 앱이 세거나 만들지 않고 뷰 값을 그대로 쓴다(03 §6 "배지 수는 투영 값과 같다"). 원전 체크리스트의 active-run 요약(다음 예정, 마지막 의미 있는 변화, 다음 checkpoint, 예외)과 선택 필요 개수(canon-3 §8 문서 20)는 `tray` 뷰가 담는다(12·04에 요구).
-- 메뉴 모양은 04 §3.24를 따른다: "Helm · <연결 상태>", 선택 필요 n(→ `/inbox`), 확인하면 좋은 것 n, 진행 중 n과 항목(Concern 표시 번호 · 지금 하는 일, 최대 5개, → 그 Concern의 작업 화면), 방해 금지(데몬 설정 명령, 04 §3.24), Helm 열기, 빠른 입력…(§3.10.4), 종료. 질문 내용은 보이지 않는다.
+- 메뉴 모양은 04 §3.24를 따른다: "Helm · <연결 상태>", 선택 필요 n(→ `/inbox`), 확인하면 좋은 것 n, 진행 중 n과 항목(Concern 표시 번호 · 지금 하는 일, 최대 5개, → 그 Concern의 작업 화면), 방해 금지(`settings.update` 명령, 04 §3.24), Helm 열기, 빠른 입력…(§3.10.4), 종료. 질문 내용은 보이지 않는다.
 - 연결이 없으면 첫 줄이 "Helm · 연결 안 됨"이고 [연결 화면 열기]가 생긴다. 숫자는 마지막으로 받은 값에 "(오프라인 기준)"을 붙인다.
 - 메뉴 클릭은 Rust가 `app://navigate` 또는 `app://tray-action`으로 웹뷰에 넘긴다. "방해 금지"처럼 명령이 필요한 항목은 웹뷰가 `useCommand`로 보낸다(창을 열지 않고 보낸다. `basisSeq`는 `tray` 뷰의 `asOfSeq`).
 
@@ -1597,8 +1601,8 @@ A를 기본으로 한다. 개인 앱이라 MSI가 필요 없고, NSIS 사용자 
 
 #### 3.12.8 서드파티 고지 [제안, 규칙은 07 §3.17]
 
-- 저장소 루트 `THIRD_PARTY_NOTICES.md`(07 §3.17.2, `just licenses`가 npm 의존에서 생성)를 앱 빌드 때 Vite의 `?raw` 가져오기로 묶고, `SCR-SETTINGS`의 "정보" 절에서 그대로 보인다(07 §5.2의 20 요구). 문서를 원격에서 읽지 않는다.
-- 앱 번들에는 Rust 크레이트도 들어간다. npm 목록만으로는 빠지므로 `app-check`가 `cargo about generate`(또는 같은 일을 하는 도구) 결과를 `apps/desktop/THIRD_PARTY_NOTICES-rust.md`로 만들고, "정보" 절에 함께 보인다. 생성 결과가 커밋된 파일과 다르면 `app-check`가 실패한다. 도구 선택과 생성 형식은 07과 맞춘다(§5.2).
+- 저장소 루트 `THIRD_PARTY_NOTICES.md`(07 §3.17.2, `just licenses`가 npm 의존과 Rust 크레이트에서 생성)를 앱 빌드 때 Vite의 `?raw` 가져오기로 묶고, `SCR-SETTINGS`의 "정보" 절에서 그대로 보인다(07 §5.2의 20 요구). 문서를 원격에서 읽지 않는다.
+- 앱 번들에는 Rust 크레이트도 들어간다. npm 목록만으로는 빠지므로 `just licenses`가 `cargo about generate`(또는 같은 일을 하는 도구) 결과를 루트 `THIRD_PARTY_NOTICES.md`의 Rust 항목으로 함께 넣는다([판정 J-218], 07 §3.17.2). 고지 파일이 하나이므로 "정보" 절은 그 파일만 보인다. 생성 결과가 커밋된 파일과 다르면 `just verify`가 실패한다(07 §3.17.2). 도구 선택과 생성 형식은 07과 맞춘다(§5.2).
 - 앱에 넣는 글꼴(21 UI-D12)의 라이선스 원문도 같은 절에 둔다.
 
 ### 3.13 테스트
@@ -1801,7 +1805,7 @@ export interface PlatformAdapter {
 | 21 | (1) §3.6.7의 문구 사전 위치를 `@helm/ui-language`로(판정 J-103). (2) 21의 `ConnectionUiState`에서 20 `UserConnState`로 가는 대응은 §3.8.9 표가 정본이다 |
 | 26 | §3.14의 `PlatformAdapter`(`push?`, `lifecycle?`, `storage.dbName`), 딥 링크 해석 표, 폐기·만료 규칙을 이 판으로 맞췄다. |
 | 06 | 없음(`app-dev` 프록시 조건과 앱의 비밀 환경 변수 예외는 06 §3.17과 이 문서 §3.12.2가 같다) |
-| 07 | Rust 크레이트 고지 생성(`cargo about` 등)을 `just licenses`에 넣을지, 앱 쪽(`app-check`)에 둘지 정한다(§3.12.8) |
+| 07 | (해결, [판정 J-218]) Rust 크레이트 고지 생성은 `just licenses`에 넣는다. 고지 파일은 루트 `THIRD_PARTY_NOTICES.md` 하나다(§3.12.8) |
 | 16 | 열람 기록은 `presence.report`의 `screen`·`objectId`·`depth`(판정 J-84)로 만든다. 앱은 별도 `view.opened`를 보내지 않는다(19 §3.7.8) |
 | 22·23·24 | 22: §6.1 `DM-nn`, §3.13.3 `IT-01~20`, §6.2 `MC-01~14`를 인용한다. 23: 앱 구현 순서(코어·가짜 서버 → `@helm/client-react` → 앱 골격·Rust WSS 전송 → 동기화·캐시 → SSH 경로 → OS 통합 → 빌드·배포). 24: ADR-20-01~09. ADR-20-04의 범위는 "데스크톱 SPA"이고 모바일 PWA는 예외다(결정 47) |
 
@@ -1845,7 +1849,7 @@ export interface PlatformAdapter {
 | DM-26 | `@helm/client-react` | `packages/client-react/` | `@tauri-apps/*`·Node 모듈을 가져오지 않는다(의존 규칙 검사). 가짜 `PlatformAdapter`와 가짜 서버로 `useView`·`useCommand`·초안·알림 규칙 시험이 브라우저 없이(jsdom) 돈다 |
 | DM-27 | 설정 | `src/platform/tauri/settings.ts` | §3.9.11의 모든 키에 기본값이 있고, 글자 크기 변경이 웹뷰 확대로 적용된다(Mac·Windows 수동) |
 | DM-28 | 알림 규칙 | `packages/client-react/src/notify.ts` | 재전송 묶음 1개, `digest` 전달은 OS 알림 없음, 방해 금지 중 없음과 끝난 뒤 묶음, 같은 질문 2회 상한, `observer` 기본 끔, `showContent` 끔이면 `notif.hidden.*`(개수 있음·없음)(가짜 시계 시험) |
-| DM-29 | 서드파티 고지 | `app-check` | `THIRD_PARTY_NOTICES.md`와 Rust 고지 파일이 생성 결과와 같다. "정보" 절에 보인다 |
+| DM-29 | 서드파티 고지 | `just licenses` | `THIRD_PARTY_NOTICES.md`(npm·Rust 항목)가 `just licenses` 생성 결과와 같다. "정보" 절에 보인다 |
 | DM-30 | 셸 스모크 | `e2e/shell/` | `@wdio/tauri-service`로 Mac·Windows에서: 앱이 뜨고, 가짜 데몬에 연결해 홈이 보이고, 창 닫기 뒤 프로세스가 살아 있다 |
 
 ### 6.2 수동 확인 체크리스트 (출시 전, 플랫폼마다)

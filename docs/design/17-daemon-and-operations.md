@@ -1,7 +1,7 @@
 # 17. 데몬과 운영
 
 - 작성: 2026-10-11, P11(데몬)
-- 상태: 4단계 보완판(2026-10-12). 기준 결정은 브리프 결정 1~57과 조정자 판정(`process/rulings-stage2a.md` J-01~J-190)이다. 이벤트 이름과 payload는 09, 명령은 10, 메서드·오류 코드는 19, 레코드 형식은 08이 정본이고 이 문서는 그 이름을 쓴다.
+- 상태: 4단계 보완판(2026-10-14). 기준 결정은 브리프 결정 1~57과 조정자 판정(`process/rulings-stage2a.md` J-01~J-240)이다. 이벤트 이름과 payload는 09, 명령은 10, 메서드·오류 코드는 19, 레코드 형식은 08이 정본이고 이 문서는 그 이름을 쓴다.
 - 소유: `helmd` 프로세스 모델, 수명주기(시작·종료 순서, 신호, 단일 인스턴스), WSL 운영(systemd 단위, 재시작 정책, Windows 쪽 사건별 동작), 저장 위치, 백업·복구·복구 훈련의 운영 절차, 업그레이드와 되돌리기, 상태 확인·진단, 운영 로그, 리소스 한도, 데몬 관련 `justfile` 레시피, 관리 CLI(`@helm/cli`) 명령 목록과 종료 코드, 리스너 주소·소켓 경로, 모바일 정적 파일(`/m/`) 서빙 배치와 릴리스 포함.
 - 소유하지 않음: 보안 정책 전부(인증, 페어링, 토큰, 비밀 마스킹, 도구 격리 요구)는 짝 문서 18이 소유한다. 이벤트 envelope·DDL·마이그레이션 내용·백업 파일의 DB 수준 형식은 09, 크래시 복구 알고리즘과 스케줄러는 12, 도구 실행·프로세스 생성은 13, 프로토콜 메시지·메서드 이름·핸드셰이크 형식은 19, 앱 쪽 SSH 실행·키체인은 20이 소유한다.
 - 출처 표기: "facts-2 §8"은 `docs/design/process/sources/pi-api-facts-2.md` 8절, "사례 §12.1-3"은 `sources/pi-cases-notes.md` 12.1절 3번, "S4 openclaw-runtime §2.4"는 `.helm-design-work/S4/openclaw-runtime.md` 2.4절, "발췌1 E1-094"는 `sources/conversation-extracts-1.md` 항목, "oss §5"는 `docs/v0.3/audit/backend-oss-research.md` 5절, "homelab storage.md"는 `~/projects/homelab/context/storage.md`, "[실험 N]"은 §2.2 표의 N번 행이다. 이 문서의 ID(D17-, A17-, F-, T17-, Q17-, H-)를 다른 문서에서 인용할 때는 "17 F-05"처럼 문서 번호를 붙인다(25 §4.1).
@@ -232,6 +232,7 @@ systemd --user (linger, WSL 부팅 시 시작)
 | `engine`/`kernel` | 주 | 명령 검증과 상태 전이, 이벤트 append | 10 |
 | `store` | 주(쓰기), 워커(읽기 전용) | SQLite 연결, 마이그레이션, 투영 테이블, 백업 API | 09 |
 | `runtime` | 주 | 에이전트 루프, 모델 호출, 도구 실행 요청, 스케줄러, 복구 | 12, 13 |
+| `helm-egress-proxy` | 주 | 실행마다 Unix 소켓 하나에 HTTP CONNECT와 평문 HTTP 프록시를 열고, 호스트 허용 목록(`netHosts`)과 주소 판정을 집행한다. 샌드박스 쪽 중계기 `helm-netshim`(§3.2.2)과 짝을 이룬다 [판정 J-210] | 13(§3.6.3), 18(§3.11.9) |
 | `ops` | 주 + 워커 | 상태 보고, 헬스 점검, 백업·복구·훈련 실행, 진단 묶음 | 17 |
 | `secrets` | 주 | 비밀 로더 실행과 메모리 보관, 마스킹 등록 | 17(로딩), 18(정책) |
 
@@ -250,7 +251,7 @@ systemd --user (linger, WSL 부팅 시 시작)
 | 비밀 로더 | `child_process.spawn("secrets", ["run", scope, "--", releaseDir+"/bin/helm-secret-export", ...keys])`, stdin 닫음, stdout 파이프 | 시작 단계와 `helm ops reload-secrets` 때 한 번, 10초 제한 | 출력은 JSON 한 개(64 KiB 상한, §3.8) | 같이 끝난다(짧은 수명) |
 | 도구 실행(bash 등) | 13이 정한다. 18 §3.11.2 순서: bubblewrap S1(13 §3.6.2, 자원 한도는 `systemd-run --user --scope --unit=helm-tool-<tc_id> --slice=helm-tools.slice --property=PartOf=helmd.service`), 없으면 `systemd-run --user --unit=helm-tool-<tc_id> --slice=helm-tools.slice --property=PartOf=helmd.service --pipe --wait …` | 도구 호출 하나 | 단위별 `MemoryMax`, `RuntimeMaxSec`, 슬라이스 합계 한도(§3.13). 격리 속성은 18 §3.11 | bubblewrap은 `--die-with-parent`, 일회성 단위는 `PartOf=helmd.service`로 데몬과 함께 끝난다. 크래시 뒤에는 시작 단계의 원장 대조(§3.4.2 11단계)가 남은 것을 정리한다 |
 | 관찰 에이전트 | 16 OB-1(`child_process.fork`, Node IPC). 격리 실행이 켜져 있으면 `systemd-run --user --unit=helm-observer-<or_id> --slice=helm-tools.slice --property=PartOf=helmd.service --pipe --wait`로 띄우고 IPC는 표준 입출력의 JSON 줄로 바꾼다(16에 요구, §5.2) | 관찰 실행 하나 | `MemoryMax=1G`, `Nice=10`, `PrivateNetwork=yes`(모델 호출은 데몬을 거친다, 16 OB-3), `ProtectSystem=strict`, `ProtectHome=read-only`, `ReadWritePaths=/srv/volumes/helm/observer`, `InaccessiblePaths=/run/WSL %t/helm /srv/volumes/helm/private`(복귀 점검 기대 답을 관찰이 보지 않게, 16 §3.24) | 격리 실행은 같은 규칙. fork 자식은 IPC 끊김(`disconnect`)을 받으면 스스로 끝나고(16에 요구), 남았으면 시작 11단계가 원장으로 정리한다 |
-| 브라우저 실행기 `helm-browserd`(판정 J-190, MVP 후반) | `systemd-run --user --unit=helm-browser-<세션 ID> --slice=helm-tools.slice --property=PartOf=helmd.service --pipe --wait`로 띄우고 S1(bubblewrap)과 프록시 네임스페이스 안에서 실행한다. CDP는 표준 입출력 파이프로 받는다(13이 정한다). Node와 playwright-core를 쓴다 | 브라우저 세션 하나(수명은 13이 정한다) | 단위별 `MemoryMax`, `RuntimeMaxSec`, 슬라이스 합계 한도(§3.13). 비밀을 받지 않는다 | 데몬과 함께 끝난다(`PartOf`). 남은 것은 시작 11단계 원장 대조가 정리한다 |
+| 브라우저 실행기 `helm-browserd`(판정 J-190, MVP 후반) | `systemd-run --user --unit=helm-browser-<세션 ID> --slice=helm-tools.slice --property=PartOf=helmd.service --pipe --wait`로 띄우고 S1(bubblewrap)과 프록시 네임스페이스 안에서 실행한다. 데몬과 browserd는 표준 입출력의 JSON 줄로 주고받고, browserd와 Chrome은 `--remote-debugging-pipe`로 CDP를 주고받는다(06 §3.6.3·§3.7.1, 13 §3.2.5). Node와 playwright-core를 쓴다 | 브라우저 세션 하나(수명은 13이 정한다) | 단위별 `MemoryMax`, `RuntimeMaxSec`, 슬라이스 합계 한도(§3.13). 비밀을 받지 않는다 | 데몬과 함께 끝난다(`PartOf`). 남은 것은 시작 11단계 원장 대조가 정리한다 |
 | 웹 본문 변환 작업자(`web_fetch`, 판정 J-190) | 방식은 13이 정한다. 네트워크 권한이 없는 작업자가 받은 HTML을 마크다운으로 바꿔 돌려준다(linkedom, readability, turndown) | 도구 호출 하나 | 단위별 메모리·시간 한도(§3.13). 네트워크 없음 | 도구 호출과 함께 끝난다. 남은 것은 시작 11단계 원장 대조가 정리한다 |
 
 자식 프로세스 원장: 도구·관찰·브라우저 실행을 띄우기 직전에 원장 레코드(단위 이름 또는 PID, 프로세스 시작 시각 `/proc/<pid>/stat` 22번째 필드, `bootEpoch`, 도구 호출 ID 또는 관찰 실행 ID `or_…`)를 남긴다. fork형 관찰 자식도 PID와 시작 시각을 남긴다. 레코드 형식과 이벤트 이름은 13이 정한다. 17은 시작 단계에서 이전 `bootEpoch`의 원장 항목을 대조해 살아 있는 것을 끝낸다(§3.4.2 11단계).
@@ -484,7 +485,7 @@ export interface HealthConfig {
   memoryWarnFraction: number;    // 0.8 (cgroup MemoryHigh 대비)
 }
 export interface LogConfig { level: "trace" | "debug" | "info" | "warn" | "error" }
-export interface ToolsExecConfig { slice: string /* "helm-tools.slice" */; sandbox: "auto" | "off"; webSearch: { provider: "brave" | "tavily" /* 기본 "brave". 예비 제공자 "tavily"(판정 J-190) */ } }   // auto = S1 → S1b → execute 끔(13 §3.6.1, 18 §3.11.2). off = S0(운영자만)
+export interface ToolsExecConfig { slice: string /* "helm-tools.slice" */; sandbox: "auto" | "off"; webSearch: { providers: ("brave" | "tavily")[] /* 앞에서부터 시도. 기본 ["brave", "tavily"] [판정 J-190] */; monthlyCap: number /* USD 환산 월 상한. 형식은 13 §3.2.4 */ }; mcp: McpServerConfig[] /* config.json의 tools.mcp[]. 항목 스키마의 정본은 13 §3.9.1 [판정 J-232] */ }   // auto = S1 → S1b → execute 끔(13 §3.6.1, 18 §3.11.2). off = S0(운영자만)
 export interface AuthConfig {                 // 의미는 18 §3.4·§3.6
   tailscale: { allowedLogins: string[]; whoisFailure: "deny" | "token-only" /* deny */; bindTailnetNode: boolean /* true */ };
   allowedOrigins: string[];      // 쿠키 갈래(모바일 PWA)와 /m/*에서만 쓰는 출처. 기본 [listeners.tailnet.publicOrigin]. 헤더 갈래는 Origin이 있으면 언제나 403(18 §3.4.3)
@@ -493,7 +494,7 @@ export interface AuthConfig {                 // 의미는 18 §3.4·§3.6
 }
 export interface PushConfig {                 // 의미는 26 §3.4. 상위 스위치는 기능 플래그 clients.mobile(23, 기본 꺼짐)
   enabled: boolean;              // true. 끄면 등록은 받되 보내지 않는다
-  webpush: { subject: string /* "https://<publicHost>/m/" */; allowedEndpointSuffixes: string[] /* ["push.apple.com"]. 점 경계 접미사 일치 */ };
+  webpush: { subject: string /* "https://<publicHost>/m/" */; allowedEndpointSuffixes: string[] /* ["push.apple.com"]. 점 경계 접미사 일치 */; testEndpoints?: string[] /* "host:port". 시험 하네스가 만든 설정에만 두고 기본값은 없다(26 §3.4.6, T26-17) */ };
   followupDelayMs: number;       // 60000
   // 시간당 알림 상한은 두지 않는다. 의미 설정 `attention.interruptsPerHour`(14 기본값, 모든 기기 합, 판정 J-171)
 }
@@ -1311,7 +1312,7 @@ export type HealthLevel = "ok" | "degraded" | "critical";
 export type HealthCheckId =
   | "disk" | "memory" | "event_loop" | "wal_size" | "db_integrity"
   | "backup_local" | "backup_offsite" | "drill"
-  | "secrets" | "whois" | "sandbox" | "clock" | "release_integrity"
+  | "secrets" | "whois" | "sandbox" | "browser_inner_sandbox" | "clock" | "release_integrity"
   | "listener_tailnet" | "listener_loopback" | "listener_local"
   | "safe_mode" | "scheduler" | "config_pending_restart"
   | "tool_binaries" | "models" | "permissions"
@@ -1370,6 +1371,7 @@ export interface OpsStatus {
 | `secrets` | `keys` 중 값이 없는 것이 있음(해당 기능 저하) | `required` 키 없음(시작 거부라 오프라인 표시) | 재적재 때 |
 | `whois` | 최근 10분 whois 실패 ≥ 3(18 §3.6) | 최근 10분 모두 실패 | 연속 |
 | `sandbox` | S1b로 동작 중(bubblewrap 없음, 신호 격리 없음) | 격리 수단을 쓸 수 없어 실행 도구가 꺼짐, 또는 운영자가 S0을 켬(18 §3.11.4) | 시작, 1시간 |
+| `browser_inner_sandbox` | Chrome 내부 샌드박스가 꺼진 채 브라우저 실행기가 떠 있다(`--no-sandbox`는 S1·S1b에서만 허용, 18 §3.11.11 BR-7). 상태에 `browser_inner_sandbox: false`가 남는다 | - | 브라우저 실행기 기동 때 |
 | `clock` | NTP 미동기 또는 1시간 안에 60초 넘는 시계 점프 | - | 1시간 |
 | `release_integrity` | `manifest.files.sha256` 불일치(릴리스 파일 변조 또는 손상) | - | 시작, 하루 |
 | `listener_*` | - | 리스너가 `error` | 연속 |
@@ -1619,7 +1621,7 @@ daemon-backup-copy:
 | # | 할 일 | 어디서 | 관리자 권한 | 확인 |
 |---|---|---|---|---|
 | 1 | `sudo apt install bubblewrap`(판정 J-73) | WSL 셸 | sudo(사람) | `helm doctor` 격리 OK |
-| 2 | `cd ~/projects/helm && secrets init`, `secrets edit prod`: 모델 키, `HELM_LEDGER_HMAC_KEY`(`openssl rand -base64 32`), 모바일을 쓰면 `HELM_VAPID_PRIVATE_KEY`(`just mobile-vapid-keygen` 출력), 웹 검색을 쓰면 `BRAVE_SEARCH_API_KEY`(예비 `TAVILY_API_KEY`, 판정 J-190) | WSL 셸 | 아니요 | `helm doctor` 비밀 OK |
+| 2 | `cd ~/projects/helm && secrets init`, `secrets edit prod`: 모델 키, `HELM_LEDGER_HMAC_KEY`(`openssl rand -base64 32`), 모바일을 쓰면 `HELM_VAPID_PRIVATE_KEY`(`just mobile-vapid-keygen` 출력), 웹 검색을 쓰면 `BRAVE_SEARCH_API_KEY`(필수), 예비 제공자를 쓰면 `TAVILY_API_KEY`(선택, [판정 J-190]) | WSL 셸 | 아니요 | `helm doctor` 비밀 OK |
 | 3 | 홈랩 H-1: `serve.table`에 `8448  http://127.0.0.1:7840   helm`, `just serve-apply`(WSL에서, Windows 관리자 권한 불필요) | 홈랩 저장소 | 아니요 | `just daemon-probe` |
 | 4 | 홈랩 H-2(오프사이트 백업)·H-5(Caddy 관리 API). 반영 전에는 임시 D: 복사(§3.9.3) | 홈랩 저장소 | 아니요 | `helm doctor` 백업·홈랩 노출 |
 | 5 | Windows 확인 스크립트 `ops/windows/check-helm-host.ps1`(읽기 전용) | Windows PowerShell(일반 사용자) | 아니요 | 종료 코드 0 |
@@ -1630,6 +1632,7 @@ daemon-backup-copy:
 | 10 | Helm이 쓰는 작업 폴더의 `.worktrees/`를 Syncthing 무시 목록에(23 §7 T-1) | Syncthing | 아니요 | - |
 | 11 | `sudo apt install fonts-noto-cjk`(권고, 한글 웹 본문 변환 품질, 판정 J-190) | WSL 셸 | sudo(사람) | - |
 | 12 | 컴퓨터 사용 도구를 켜기 전(판정 J-190): `sudo apt install xdotool openbox x11-utils scrot` | WSL 셸 | sudo(사람) | 해당 도구를 켤 때 확인 |
+| 13 | `just setup`이 `.mise.toml`에 고정된 `rg`·`fd`를 설치한다(§3.14). `git`·`bash`가 PATH에 있는지 본다. `git`은 시스템 패키지라 없으면 사람이 설치한다. #6 `just daemon-install`의 doctor 단계 전에 끝낸다(13 §3.3.6) | WSL 셸 | 없을 때만 sudo(사람) | `helm doctor` 도구 실행 파일 OK |
 
 ## 4. 실패·예외·경계 사례
 

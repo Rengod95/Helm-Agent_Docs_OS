@@ -1,7 +1,7 @@
 # 19. 클라이언트 프로토콜
 
 - 작성: 2026-10-11, P12(프로토콜)
-- 상태: 4단계 보완판(2026-10-12). 기준 결정은 브리프 결정 1~57과 조정자 판정(`docs/design/process/rulings-stage2a.md` J-1~J-189)이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID 접두사는 08을 정본으로 따른다. 모바일은 26(결정 47~49)을 따른다.
+- 상태: 4단계 보완판(2026-10-12). 기준 결정은 브리프 결정 1~57과 조정자 판정(`docs/design/process/rulings-stage2a.md` J-01~J-240)이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID 접두사는 08을 정본으로 따른다. 모바일은 26(결정 47~49)을 따른다.
 - 소유: 프로토콜 메서드 이름(정본), 메서드 params·result 스키마, 메시지 형식(envelope), 알림 이름, 오류 코드(정본)와 10 거부 코드의 대응, 핸드셰이크, 구독·재전송 의미, 파일 전송 HTTP 규약, `@helm/protocol` 패키지 구조.
 - 소유하지 않음: 이벤트 이름과 payload(09), 명령의 의미와 거부 규칙(10·11), 화면과 화면별 표시 데이터의 정의(03·04), 인증 자료의 암호 방식·페어링 정책·토큰 보관(18), 리스너 주소·소켓 경로·데몬 수명주기(17), 앱의 상태 저장소·라우팅·SSH 프로세스 관리(20), 런타임 어댑터 프로토콜(13).
 - 출처 표기: "pi-api-facts-2 §3.2"는 `docs/design/process/sources/pi-api-facts-2.md` 3.2절, "S4 openclaw-gateway §1.5"는 `.helm-design-work/S4/openclaw-gateway.md` 1.5절, "발췌4 20-9"는 `docs/design/process/sources/conversation-extracts-4.md`의 항목 번호, "canon-2 §9.8"은 `sources/helm-canon-2.md` 9.8절, "v0.3 12 §9"는 `docs/v0.3/12-implementation-architecture.md` 9절이다.
@@ -391,6 +391,7 @@ export type HelmErrorData = Static<typeof HelmErrorData>;
 ```
 
 - envelope 검사는 `additionalProperties: false`로 엄격하게 한다(pi-protocol과 같은 방식, pi-api-facts-2 §3.3). `params` 안의 검사는 메서드 등록 표의 스키마가 한다(§3.13).
+- 사람 연결(채널 `human_client`)의 명령이면 접수 단계가 명령 봉투의 `clientKind`(08 `ClientKind`)를 채운다. 값은 인증된 연결의 기기 레코드 `clientKind`와 같다(§3.9.4). 휴대폰 결과 확인 검사([판정 J-203])가 이 값을 쓴다.
 
 #### 3.3.2 서버 → 클라이언트 알림 형식
 
@@ -493,9 +494,11 @@ JSON-RPC 표준 코드는 표준 뜻 그대로 쓰고, Helm 코드는 1000~5999 
 | `conflict` + `conflict.external_observation_changed` | 3001(어댑터 채널에서만 생긴다. 클라이언트 명령에서 오면 버그) |
 | `key_reused` | 3006 |
 | `error`(`kernel.*`, `store.*`), `invalid.event_too_large` | -32603(커널·저장소 버그로 운영 로그에 남긴다). SQLite 바쁨 시간 초과·디스크 가득 참 같은 일시 실패는 5002 |
-| 14 오케스트레이터 검증 실패 `ORCH_DIAL_INVALID`, `ORCH_SETTINGS_INVALID`, `ORCH_LOOP_UNKNOWN`, `ORCH_LOOP_DISABLED`, `ORCH_ENTRY_UNMET`, `ORCH_CONCERN_CLOSED` | 3001, `reason`은 소문자 이름(`orch.dial_invalid` 등). `ORCH_STRUCTURE_LIMIT`은 `policy.structure_cap_exceeded`와 같이 `gated`. `ORCH_CONTRACT_INVALID`는 데몬 시작 실패라 프로토콜에 오지 않는다. 14가 이 값들을 10 거부 코드로 내도록 요구한다(§5.2) |
+| 14 §4.3 사례: 다이얼·설정 값 검증 실패, 없는 루프 식별자, 기능 플래그로 꺼진 루프 지정, 진입 조건이 거짓인 지정(돌릴 곳 없음), 닫힌 Concern에 지시 | 3001. 다이얼·설정 값과 루프 식별자 오류는 `reason`이 `invalid.schema`, 꺼진 루프는 `policy.plan_maturity_gate`(`missing`에 `maturity:<loop>`), 진입 조건 거짓은 `policy.loop_entry_condition`([판정 J-191]), 닫힌 Concern은 `conflict.invalid_transition`이다. 10 코드만 쓰고 임시 대응 이름은 쓰지 않는다(14 §4.3). 구조 상한은 `policy.structure_cap_exceeded`와 같이 `gated`다. 계약 데이터 적재 실패는 데몬 시작 실패라 프로토콜에 오지 않는다. |
+| `policy.mobile_review_not_allowed`(10, `content`, 휴대폰에서 결과 확인 불가, [판정 J-203]) | 3001(`reason`에 이 코드). 프로토콜은 같은 사실을 먼저 검사해 F-54·CT-49처럼 1010을 내므로, 이 3001은 커널까지 간 경우에만 나온다 |
 | 10 표에 없는 코드(예: 11·12가 쓴 `denied.recovery_turn`) | 접두사 규칙(`denied.*` → 3002 등)으로 대응하고 10에 표 추가를 요구한다 |
 
+- 계획 작성 거부와 알림(10 §3.4.4, §3.8.1): `denied.plan_authoring_mode`는 `basis` P로 3002다. `policy.plan_draft_not_needed`·`policy.plan_dependency_violation`·`policy.plan_maturity_gate`는 3001이고, `reason`에 10 코드를, `missing`에 `dependency_rule:<n>`·`maturity:<loop>`를 싣는다. 알림 `notice.plan_draft_fallback`은 거부가 아니라 오류 번호가 없다. 두 번째 위반의 대체 적용은 `accepted`이므로 응답은 `applied`이고, 이 알림은 10 §3.4.5에 따라 `command.rejected`·`loop_plan.adopted`와 함께 남는다.
 - 10 §3.4.5에 따라 거부는 `command.rejected` 이벤트로 남으므로 `details.rejectionEventSeq`에 그 seq를 넣는다. 10의 `Rejection.next`(`{command, hint}`)는 `details.nextActions`의 `{action: command, label: hint}`로, `Rejection.ruleId`는 `details.ruleId`로, `Rejection.missing`은 `details.missing`으로 옮긴다. 10의 `Rejection.message`(한국어, 모델용 문장)는 `details.kernelMessage`에 넣고 JSON-RPC `message`에는 넣지 않는다.
 - 가정 확정 뒤 도착한 답(판정 J-120): 커널은 `conflict.already_resolved`로 거부한다. 프로토콜은 3008에 `outcome: "assumed"`, `assumedValue`(확정된 답 값, 11 `AnswerValue`), `nextActions: [{ action: "objection.file", params: { target: { kind: "record", id: <질문 qs>, itemKey: null } } }]`를 싣는다. 화면은 쓰던 답을 이의 초안으로 넘긴다(04·26).
 - 합의 확정·결과 확인 질문(`agreement_confirm`, `result_review`)에 `question.answer`가 오면 커널이 `policy.answer_option_not_allowed`(3001)로 거부한다. 이 두 종류는 전용 메서드 `agreement.confirm`, `result.accept`로만 확정한다(판정 J-124).
@@ -1166,7 +1169,7 @@ on 영속 이벤트(메시지 완성, 도구 결과, run 종료):
 | `question.proceedWithAssumption` | `question.answer`(`{option: "accept_assumption"}`) | D, M | 권리 게이트면 `policy.answer_option_not_allowed` |
 | `question.requestReframe` | `question.request_reframe` | D, M | 판정 J-47: 답 값과 별도인 명령 |
 | `question.requestInquiry` | `question.answer`(`{option: "experiment_first"}`) | D, M | |
-| `question.delegate` | `question.delegate` | D, M | 정보 게이트만 |
+| `question.delegate` | `question.delegate` | D, M | 정보 게이트에서 쓴다. 방향 선택(`direction.after_fact`) 권리 질문은 사람이 맡기기를 명시해 고를 때만 맡긴다([판정 J-131], [판정 J-201]). send·범위 확장·결과 확인 권리 게이트는 맡길 수 없고, 맡기면 `policy.answer_option_not_allowed`(3001)다 |
 | `question.defer` | `question.defer` | D, M | `until`은 11 이름(§3.7.5) |
 | `question.escalate` | `question.escalate` | D | "지금 보기" |
 | `objection.file` | `decision.contest` | D, M | 대상은 08 `ObjectionTarget`(판정 J-36). 결과 이벤트 09 `objection.filed`(판정 J-30). 판정 J-111 |
@@ -1186,8 +1189,8 @@ on 영속 이벤트(메시지 완성, 도구 결과, run 종료):
 | `inquiry.pinCheck` | `check.pin` | D | |
 | `inquiry.requestDecision` | `inquiry.stop`(`then: "decide_now"`) | D | 이어서 런타임이 `choice` 질문을 낸다 |
 | `inquiry.stop` | `inquiry.stop`(`then: "proceed"` 또는 `"hand_off"`) | D | 멈춤 이유는 08 `human_decided` |
-| `inquiry.pinLens` | `lens.update`(`pinned`) | D | 10 대응표에 행 추가를 요구 |
-| `inquiry.fillCell` | (10 표에 없음. 15 탐구 엔진의 칸 채우기 요청) | D | 10·15에 대응 명령을 요구. 정해지기 전에는 `feature.disabled`(5007) |
+| `inquiry.pinLens` | `lens.update`(`pinned`) | D | 명령 이름은 10 §3.11.11(2)를 따른다([판정 J-200]) |
+| `inquiry.fillCell` | `observation.record`(`obsKind: "utterance"`, 사람 발화 관찰, 채널 H) | D | 칸 채우기는 명령을 따로 두지 않는다(15 §3.2.6) |
 | `expectation.revise` | `expectation.revise` | D | |
 | `agreement.confirm` | `agreement.confirm` | D, M(`edits`는 범위에서 빼기만) | `edits`(10 `Partial<AgreementContent>`), `exclude`. 판정 J-124 |
 | `agreement.revise` | 상태 `proposed`면 `agreement.correct_understanding`(에이전트가 초안을 다시 쓴다), `active`면 `agreement.renegotiate` | D | 04 뜻: 초안을 다시 만들고 확정은 따로 `agreement.confirm`. 구조로 고쳐서 바로 확정하려면 `agreement.confirm(edits)` |
@@ -1215,7 +1218,7 @@ on 영속 이벤트(메시지 완성, 도구 결과, run 종료):
 | `structure.request` | `structure.request` | D | 사람의 나누기·합치기·보류 요청 |
 | `mode.set` | `mode.set` | D | 라우터의 지정은 `mode.route` |
 | `dial.set` / `dial.unset` | `dial.set` / `dial.unset` | D | 범위는 08 `DialLayer`(user·concern·instruction), Goal 범위 없음(판정 J-136). `planAuthoring`(판정 J-188, 결정 53)은 user·concern 층만 받는다 |
-| `settings.update` | `setting.change` | D, M(`notifications` 섹션만) | 이벤트 09 `setting.changed`. `notifications.resultReview`·`notifications.resultReviewDigestAt`(판정 J-189, 결정 56)을 이 섹션으로 바꾼다 |
+| `settings.update` | `setting.change` | D, M(`notifications` 섹션과 `attention.quietHours`만) | 이벤트 09 `setting.changed`. 키와 값은 14 `DIAL_DEFS`의 `kind: "setting"` 항목으로 검사한다. `notifications.resultReview`·`notifications.resultReviewDigestAt`([판정 J-189], [결정 56])은 `notifications` 섹션이다. `attention.snoozeUntil`·`attention.interruptsPerHour`·`attention.quietHours`([판정 J-166], [판정 J-171], [판정 J-195])는 `attention` 섹션이다. 휴대폰은 `attention` 섹션에서 `attention.quietHours`만 바꾼다([판정 J-227]). |
 | `observerProposal.adopt` / `decline` / `snooze` | `policy.change.accept` / `policy.change.reject` / `policy.change.defer` | D | |
 | `work.steer` | `run.steer` | D | |
 | `work.pause` / `work.resume` | `workunit.pause` / `workunit.resume` | D | |
@@ -1414,7 +1417,7 @@ export const CommandLookupResult = Type.Union([
 | `recovery` | `SCR-RECOVERY` | `{}` | `recovery` | `@recovery` | 04 §3.20 |
 | `records` | `SCR-RECORD` | `{ subjectId: AnyRecordId }` + `page` | `records:<id>` | - | 04 §3.23. 비밀은 데몬이 가린다(18) |
 | `tray` | `SCR-TRAY` | `{}` | `tray` | `@tray` | `TrayView`(아래), 04 §3.24 |
-| `settings` | `SCR-SETTINGS` | `{ section?: "notifications" \| "attention" \| "display" \| "delivery" }` | `settings[:section]` | `@settings` | 04 §3.21. 데몬 쪽 설정만. 결과 확인 알림 설정(`notifications.resultReview`·`notifications.resultReviewDigestAt`, 판정 J-189)을 보인다 |
+| `settings` | `SCR-SETTINGS` | `{ section?: "notifications" \| "attention" \| "display" \| "delivery" }` | `settings[:section]` | `@settings` | 04 §3.21. 데몬 쪽 설정만. 결과 확인 알림 설정(`notifications.resultReview`·`notifications.resultReviewDigestAt`, 판정 J-189)과 방해·알림 상한·조용한 시간(`attention.snoozeUntil`·`attention.interruptsPerHour`·`attention.quietHours`, 판정 J-166·J-171·J-195)을 보인다. 계획 작성 방식(`planAuthoring`, 사용자 층, 바꾸기는 `dial.set`, [판정 J-192])과 검색 제공자 순서·월 상한·키 등록 여부(`webSearch`, 키 값은 싣지 않는다, [판정 J-190])도 보인다 |
 | `metrics` | `SCR-METRICS` | `{ metricIds?: string[]; window?: "7d" \| "14d" \| "28d" }`(판정 J-78) | `metrics[?…]` | `@metrics` | 16 §3.24 |
 | `evaluation` | 2주 평가 보고 | `{ reportId?: string }` | `evaluation[:id]` | `@metrics` | 16(평가 보고) |
 
@@ -1448,6 +1451,7 @@ export const TrayView = Obj({
 - 뷰 키는 `view.get` 응답의 `key`가 정본이다. 클라이언트가 직접 만들지 않는다(파라미터 정규화 규칙을 서버 한 곳에 둔다).
 - 모든 뷰의 `data` 안 레코드 참조는 §3.7.2의 `RecordRef` 하나를 쓴다. `kind`는 08 레코드 kind 리터럴에서 파생하므로 04·12·21이 다른 이름(예: `boundary`, `outcome_submission`)을 쓰지 않는다. 화면용 묶음이 필요하면 다른 이름의 계산 필드로 둔다(04에 요구).
 - 레코드 필드의 타입은 `@helm/domain`(08)에서 가져다 쓴다. 프로토콜이 레코드 스키마를 다시 정의하지 않는다(08 §5.2). 뷰 모델은 레코드를 화면용으로 줄인 것이므로 04가 정의하되, 레코드 필드를 그대로 싣는 곳은 08 값(상태 이름, 결과 확인 기록 값 `accepted`·`conditional`·`revision_requested`·`rejected`·`criteria_wrong` 등)을 쓴다. 시각은 ISO로 바꾼다.
+- 홈(`home`)·질문함(`inbox`)·다이얼(`dials`) 뷰의 `data`는 주의 예산 막대 `attentionBudget`을 싣는다(04 §3.1·§3.3·§3.17, 14 §3.13.8). 형식은 04가 정한다.
 - `freshness: "failed"`는 정상 응답의 한 값이다. 데몬이 그 뷰를 만들지 못한 이유를 `staleReason`에 넣는다(04 §3.0.3의 오류 상태). 뷰 이름이 틀리면 `2004`, 대상이 없으면 `2005`다.
 
 #### 3.7.5 명령 메서드 [제안]
@@ -1637,6 +1641,7 @@ export const ModeSetParams = Cmd({ concernId: ConcernId, mode: ModeId, reason: T
 export const SettingsUpdateParams = Cmd({ section: Enum(["notifications", "attention", "delivery", "display"]),
   patch: Type.Record(Type.String(), Type.Unknown()) });   // 키와 값 스키마는 14 DIAL_DEFS의 kind "setting"(@helm/domain)
 // notifications 섹션의 키(판정 J-189, 결정 56): resultReview = "none"(기본) | "daily_digest" | "immediate", resultReviewDigestAt = "HH:MM"(기본 "19:00", 서버 시간대). 변경은 setting.changed(09)로 남는다
+// attention 섹션의 키(판정 J-166·J-171·J-195): snoozeUntil(방해 금지), interruptsPerHour(시간당 알림 상한), quietHours(조용한 시간). 값 스키마는 14 DIAL_DEFS다
 
 // ── 관찰 제안 (16) ──────────────────────────────────────────────
 export const ObserverProposalAdoptParams = Cmd({ proposalId: PolicyProposalId, edits: Type.Optional(Type.Unknown()) });
@@ -1838,7 +1843,7 @@ export const DaemonStatus = Obj({
   uptimeSec: Type.Integer({ minimum: 0 }),
   health: Enum(["ok", "degraded", "critical"]),
   readOnlyReasons: Type.Array(ModeReason),         // 화면은 사유별 배너를 보인다(05 err.daemon.diskFull 등). "읽기 전용"(판정 J-115)
-  safeMode: Nullable(Obj({ since: IsoTime, reason: Enum(["crash_loop", "restored"]), uncleanBoots: Type.Integer({ minimum: 0 }) })),   // 09 daemon.safe_mode_entered의 reason과 같다(판정 J-164). 수동 진입 사유는 없다(판정 J-165)
+  safeMode: Nullable(Obj({ since: IsoTime, reason: Enum(["crash_loop", "restored"]), recentUncleanBoots: Type.Array(Obj({ epoch: Type.String({ minLength: 26, maxLength: 26 }), startedAt: IsoTime, lastEventAt: Type.Optional(IsoTime) })) })),   // 09 daemon.safe_mode_entered의 reason과 같다(판정 J-164). 수동 진입 사유는 없다(판정 J-165). recentUncleanBoots는 17 OpsStatus.safeMode의 목록을 그대로 싣는다. 개수는 화면이 센다(판정 J-202)
   log: Obj({ storeId: StoreId, headSeq: Pos, sizeBytes: Type.Integer({ minimum: 0 }), lastBackupAt: Nullable(IsoTime), lastBackupVerified: Type.Boolean() }),
   disk: Obj({ freeBytes: Type.Integer({ minimum: 0 }), warnBytes: Type.Integer(), criticalBytes: Type.Integer() }),   // 17 resources.diskFreeBytes, 5 GiB, 1 GiB
   runtime: Obj({ activeRuns: Type.Integer({ minimum: 0 }), waitingHuman: Type.Integer({ minimum: 0 }), nextScheduledAt: Nullable(IsoTime) }),
@@ -1880,7 +1885,7 @@ export const AdminJobResult = Obj({ jobId: Type.String({ maxLength: 64 }), statu
 - 보고 문턱: 클라이언트는 마지막 입력이 문턱 안이면 `active`, 넘으면 `idle`로 보고한다. 문턱은 데스크톱 5분, 휴대폰 2분이고 14 §3.13.8 파생 함수의 입력 값과 같다(판정 J-119). 숨겨지면 `hidden`이다.
 - 영속 기록(판정 J-46·J-110·J-119): 데몬의 연결 계층(`presence.ts`)이 기기별로 연결들의 마지막 보고를 모은다. 기기의 값은 연결 중 가장 활동적인 값(`active` > `idle` > `hidden`)이고, 기기의 마지막 연결이 닫히면 `offline`이다. 이 기기 값이 바뀔 때만 10 `presence.update { deviceId, state }`(09 `PresenceState` 값)를 런타임 채널로 제출해 `presence.changed`를 남긴다. 같은 값이면 제출하지 않는다. 12는 이 기록을 읽기만 한다.
 - 질문 열람(26 §5.2 19 (10), 11 `question.seen`): 보고의 `objectId`가 질문(`qs_`)이고 그 질문이 `delivered` 상태이며 `state`가 `active`이면 데몬이 그 기기를 `via`로 10 `question.mark_seen`을 제출한다(채널 `human_client`, 행위자 `human`, 멱등 키는 `seen:<qsId>:<deviceId>`). 26의 지연 푸시 취소(§3.17)와 11 전달 판정이 이 기록을 쓴다. 별도 메서드는 두지 않는다.
-- 열람 기록(16 `view.opened`)도 이 알림의 `screen`·`objectId` 변화로 데몬이 만든다(10 `view.record`, 16 §5.2의 19 요구 (2)). 보고의 `depth`는 `view.opened.depth`로 옮긴다(16). `SCR-M-*`은 데스크톱 대응 화면과 같은 종류로 센다(16).
+- 열람 기록(16 `view.opened`)도 이 알림의 `screen`·`objectId` 변화로 데몬이 만든다(10 `view.record`, 16 §5.2의 19 요구 (2)). 보고의 `depth`는 `view.opened.depth`로 옮긴다(16). `SCR-M-*`은 데스크톱 대응 화면과 같은 종류로 센다(16). 결과 확인 화면에서 근거 체인을 열면 `screen`에 `SCR-EVIDENCE`를 보낸다(16 §3.23.1).
 - `daemon.status`는 `read` scope로 누구나 부를 수 있다. 자세한 운영 진단은 `admin.status`(`OpsStatus` 전체, `local` 리스너)로 본다. `HelmClient`는 `admin()` 묶음으로 관리 메서드를 부른다(§3.14).
 - `admin.*`의 의미(종료 예산, 읽기 전용 전이, 백업 절차)는 17이 소유한다. 이 문서는 메서드 이름, params, scope만 정한다.
 - 안전 모드 해제 주체는 하나로 정한다: `daemon.exitSafeMode`(10 `runtime.exit_safe_mode`)를 데스크톱·TUI 기기(`devices`), 휴대폰(`decideMobile`), 대화형 `localAdmin`이 부를 수 있다. 해제하면 09 `daemon.safe_mode_exited`를 남기고, 관리 CLI는 `helm ops safe-mode off`다(17, 판정 J-153). 수동 진입 메서드 `admin.safeMode`는 두지 않는다(판정 J-165).
@@ -2681,7 +2686,7 @@ export const DevicePushConfigResult = Obj({
 | 11 | 반영: `AnswerValue`를 `question.answer` params로 그대로(§3.7.5), `defer.until` 이름(`next_work_boundary`·`user_return`), 3008 `assumedValue`(판정 J-120), presence 값(판정 J-119). 요구: (1) `AnswerValue`를 TypeBox로 `@helm/domain`에. (2) `narrow_scope.instruction`(자연어)을 구조화 범위로 바꾸는 주체(11 또는 런타임)를 정하기. (3) 휴대폰 미루기 기본값("다음 데스크톱 접속까지")을 `user_return` + 기기 조건으로 표현할지, 아니면 03·26 기본값을 `next_work_boundary`로 |
 | 12 | 반영: `RunPhase` 대응은 12 §3.2.2 표를 참조, `RunEndReason`(§3.6.4), 집계 태그 정본은 12 §3.5.8, 복구 선택지 집합은 12 §3.12.4, 모델 상태 값(§3.7.8). 요구: (1) 집계 태그 표에 19 뷰 카탈로그가 쓰는 이름(`@autonomous`, `@goals`, `@settings`, `@tray`)을 넣거나 19와 이름을 맞추기. (2) 뷰 원천 표를 26행 전부로. (3) `ProjectionsForProtocol.aggregateTags`는 프로토콜이 부르지 않는다(태그는 09 저장값). (4) `brief` 뷰의 `compact`·`workUnitId` 파라미터와 "휴대폰에서 줄여 본 항목"(판정 J-137) |
 | 13 | 요구: (1) 도구 격리의 가림 목록에 `%t/helm`(소켓 디렉터리). (2) 외부 런타임 MCP 설정에는 `runtimeAdapter` 토큰만 넣고 기기 토큰을 넣지 않는다(13 §3.11.6, 18 §3.5 규칙 8) |
-| 14 | 반영: 14 §5의 19 요구 (1)~(4)(`dial.set`의 `key` = 08 `DialKey`, 범위 user·concern·instruction, 값은 `DIAL_DEFS[key].valueSchema`, `settings.update`는 `DIAL_DEFS`의 setting, `mode.set`은 08 `MODE_IDS`, `ORCH_*` 대응 §3.3.5). 요구: (1) `ORCH_*`를 10 거부 코드(`policy.*`)로 내기. (2) presence 부재 파생 함수의 입력에 기기 종류별 문턱(데스크톱 5분, 휴대폰 2분, 판정 J-119). (3) 다이얼 `planAuthoring`(층 user·concern, 기본 `hybrid`)과 설정 `notifications.resultReview`·`notifications.resultReviewDigestAt`을 `DIAL_DEFS`에 더한다(판정 J-188 (1), J-189). 19의 `dial.set`·`settings.update`는 그 정의로 값을 검사한다 |
+| 14 | 반영: 14 §5의 19 요구 (1)~(4)(`dial.set`의 `key` = 08 `DialKey`, 범위 user·concern·instruction, 값은 `DIAL_DEFS[key].valueSchema`, `settings.update`는 `DIAL_DEFS`의 setting, `mode.set`은 08 `MODE_IDS`, `ORCH_*` 대응 §3.3.5). 요구: (1) `ORCH_*`를 10 거부 코드(`policy.*`)로 내기. (2) presence 부재 파생 함수의 입력에 기기 종류별 문턱(데스크톱 5분, 휴대폰 2분, 판정 J-119). (3) 다이얼 `planAuthoring`(층 user·concern, 기본 `hybrid`)과 설정 `notifications.resultReview`·`notifications.resultReviewDigestAt`을 `DIAL_DEFS`에 더한다(판정 J-188 (1), J-189). (4) 다이얼 `assumptionDeferOnDowntime`을 `DIAL_DEFS`에 더한다([판정 J-197], 키 이름은 [판정 J-221]). 19의 `dial.set`·`settings.update`는 그 정의로 값을 검사한다 |
 | 15 | 반영: 15 §5의 19 요구 (1)~(6) 전부(§3.7.5: `objection.file`, `InquiryStopParams.then`, `ReactionRecordParams`, `triad.similar`·`questionId`, `inquiryId + roundNo`, `criterion_confirm` 항목 배열). 요구: (1) `inquiry.fillCell`의 처리 명령(10과 함께). (2) "둘 다 아님"은 `comparison`의 `kind: "neither"` 하나로 보낸다(판정 J-184). 두 자극에 strength -1 반응을 나눠 보내지 않는다 |
 | 16 | 반영: `metrics`·`evaluation` 뷰, 측정 명령, 열람 기록은 `presence.report`에서(§3.7.8), `depth`(판정 J-84). 남은 요구 없음 |
 | 17 | 반영: `admin.status`(`OpsStatus`), `admin.backupNow.kind`, 관리 params에 `basisSeq` 없음, `ModeReason`, 1012 닫는 코드. 요구: (1) `OpsStatus`를 TypeBox로 두고 `models[].status`를 12 값(`ok`·`missing_key`·`auth_failed`·`unreachable`·`rate_limited`)으로, `recovery` 필드(12 RecoveryReport). (2) `server.shutdown.reason`과 09 `daemon.stopped.reason` 대응을 §3.4.3에. (3) 읽기 전용 시작에서도 메모리에 `bootEpoch`를 만든다. (4) 안전 모드 해제 주체를 19 §3.7.8 규칙으로. (5) 복원 때 `storeId` 교체와 `store.restored`(09 §3.14.2) |
@@ -2780,8 +2785,8 @@ export const DevicePushConfigResult = Obj({
 | CT-44 | `presence.report` 같은 값 반복, 기기의 두 연결이 다른 값, 마지막 연결 닫힘 | `presence.update` 제출은 값이 바뀔 때만, 기기 값은 가장 활동적인 값, 닫히면 `offline` |
 | CT-45 | 데몬이 1012로 닫음, 모르는 닫는 코드 | 백오프 재접속 |
 | CT-46 | `reaction.record`의 `comparison`이 `kind: "neither"`(두 자극) | 반응 하나가 `applied`로 기록되고 `comparison`이 `neither`로 남는다. 두 자극에 strength -1 반응을 나눠 보내지 않는다(판정 J-184) |
-| CT-47 | `dial.set` `planAuthoring`: 값 `"auto"`, 또는 층 `instruction` | 3001 `orch.dial_invalid`. 층 user·concern의 `computed`·`hybrid`·`model`은 `applied`(판정 J-188) |
-| CT-48 | `settings.update` `notifications.resultReview: "weekly"`, `resultReviewDigestAt: "7pm"` | 3001 `orch.settings_invalid`. 유효한 값은 `applied`이고 `setting.changed`가 한 번 남는다(판정 J-189) |
+| CT-47 | `dial.set` `planAuthoring`: 값 `"auto"`, 또는 층 `instruction` | 3001 `invalid.schema`. 층 user·concern의 `computed`·`hybrid`·`model`은 `applied`(판정 J-188) |
+| CT-48 | `settings.update` `notifications.resultReview: "weekly"`, `resultReviewDigestAt: "7pm"` | 3001 `invalid.schema`. 유효한 값은 `applied`이고 `setting.changed`가 한 번 남는다(판정 J-189) |
 | CT-49 | 휴대폰 `result.accept{accept}`, 결과의 `mobileReviewable: false` | `1010`(`required: "decide"`, `field: "decision"`). 데스크톱은 같은 명령을 받는다(판정 J-139·J-174) |
 | CT-50 | 합의가 기대는 Goal이 `retired`인 상태에서 쓰기 명령 | 3001 `policy.goal_not_active`(판정 J-130, 22 AX-01(b)) |
 

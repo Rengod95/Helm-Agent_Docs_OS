@@ -301,3 +301,30 @@
 | J-218 | 모델 메시지 내용 타입 | `TextContent`·`ImageContent`는 `@helm/domain/model`(08)에서 받는다. Rust 크레이트 고지는 `just licenses` | 07, 13, 20 |
 | J-219 | 새 이름 | 4c 보고의 "새 이름 요구"는 기존 이름과 겹치지 않으면 받아들인다. 오류 코드는 10·19, 이벤트·타이머 목적은 09, 레코드 필드는 08에 정본으로 등록하고 25에 올린다 | 08, 09, 10, 19, 25 |
 | J-220 | 22 SG 시험과 13 safeGit | 22 SG 시험은 13 §3.5.7이 실제로 부르는 git 명령으로 판정한다(13이 쓰지 않는 `status`·`add -A`는 시험 대상에서 뺀다) | 22 |
+
+## 11. 4d~W5 하위 조정자 판정 (2026-10-14)
+
+근거는 `.helm-design-work/coordinator/stage4d/done/*.md`의 "판정 필요"다. 이름·참조·정본 소유로 정해지는 것만 판정했고, 제품 동작을 바꾸는 것은 `stage4d/user-questions.md`에 모았다.
+
+| 번호 | 쟁점 | 판정 | 고칠 문서 |
+|---|---|---|---|
+| J-221 | 다이얼 키 형식과 개수 | `planAuthoring`(J-188)과 `assumptionDeferOnDowntime`(J-197)은 이름을 그대로 쓰고 점 표기 예외로 25에 적는다. 08 `DIAL_KEYS`가 정본이며 `assumptionDeferOnDowntime`을 더해 20개다. 14·25·11의 다이얼 개수 문구("열다섯" 등)를 08에 맞춘다 | 08, 11, 14, 25 |
+| J-222 | 규칙 번호 R-16 충돌 | 08 R-16(`objection.filed`)을 유지한다. 10의 "결과 제출 뒤 관찰" 규칙은 10 안에서 쓰지 않은 다음 번호로 바꾸고, 이를 인용한 문서도 맞춘다 | 10, 08 |
+| J-223 | `ManualClock` 정본 | 22 §3.5.2(06 §3.4.14 testkit 공개 API)를 정본으로 한다. 12 §6은 자체 정의를 두지 않고 22를 인용하며, `Clock` 인터페이스는 12가 유지한다 | 12, 22 |
+| J-224 | `toolcall.denied`의 `cancel` | 08 §3.22.14를 따른다. 합의 취소는 `toolcall.not_executed(cancel)`이고 `toolcall.denied`에서 `cancel`을 뺀다 | 09 |
+| J-225 | `mobileReviewable`의 원천 | 결과 제출 시점에 런타임이 26 §3.5.4 기준으로 정해 `ResultSubmissionCore.mobileReviewable`에 싣는다. 04 §3.12의 뷰는 이 값을 그대로 보인다. 재작업으로 새 제출이 생기면 그 제출에서 다시 정한다. 08에 필드를 등록한다 | 08, 10, 04, 12, 25 |
+| J-226 | 계획 레코드 이름 | 08의 `LoopPlanCore`(필드 `authoredBy`)가 정본이다. J-188의 `LoopPlanRecord.authoredBy`는 이를 가리킨다. 문서의 표기를 `LoopPlanCore.authoredBy`로 맞춘다(09 페이로드 `loop_plan.adopted.authoredBy`는 그대로) | 14, 16, 24, 25 |
+| J-227 | 휴대폰의 `attention.quietHours` | 14 §3.13.8과 26이 설계한 대로 휴대폰도 `settings.update`로 `attention.quietHours`를 바꿀 수 있다. 19 §3.7.1의 M 열을 이에 맞춘다 | 19, 26 |
+| J-228 | 연결 상태의 프로토콜 오류와 값 집합 | 20의 `protocolError`(닫힘 1002·1003)는 내부 원인이고 사용자용 상태가 아니다. 사용자용 상태는 "다시 연결하는 중"으로 보이며, 같은 오류가 연속 3회면 "버전 불일치"(04 §3.0.4)로 바꾼다. 20 `UserConnKind`와 21 `ConnectionUiState`는 04 §3.0.4의 값 열여섯을 쓰고, `viewStale`·`restarted`는 20이 이 값으로 대응시킨다 | 20, 21, 04 |
+| J-229 | 브라우저 비-GET·업로드·합의 밖 이동의 처리 | 조작 단계에서 요청 가로채기로 잡아 send(권리 게이트)로 올린다(J-190 (3), J-208). 읽기 단계는 거부한다. 18 §3.11.6 행과 Q18-14는 이에 맞춘다. 13 §3.10.1과 같은 범위(오염 여부와 무관하게 이 세 가지)로 쓴다 | 18, 13 |
+| J-230 | `helm-browserd` 명령·응답 타입 | 타입은 `packages/browserd`가 정의하고 `packages/tools`가 type-only로 가져온다. browserd는 tools를 가져오지 않는다. 06 §3.4.1 의존 표에 browserd 행을 둔다. 06 본문의 `src/browser/` 표기는 J-216에 맞춘다 | 06, 13, 23 |
+| J-231 | `gen-push-fallback` 레시피의 행 | 23 M17-02에 둔다(푸시 대체 문구와 같은 행). `_verify-steps`의 `--check` 단계도 M17-02에서 만든다 | 23 |
+| J-232 | `tools.mcp[]` 설정 위치 | `config.json`의 `tools.mcp[]`로 둔다. 항목 스키마의 정본은 13 §3.9.1이고, 17 §3.3.2 스키마에는 이 키와 13 인용을 등록한다 | 17, 13 |
+| J-233 | 렌즈 고정 `pinned` | 08 `LensCore`에 `pinned: boolean`(기본 false)을 더한다. 09 `lens.updated`는 `Partial(LensCore)`로 자동 포함한다. 15 §3.9.2에 필드를 적는다 | 08, 09, 15 |
+| J-234 | `triad` 질문의 답 선택지 | 두 대안 각각과 "둘 다 아님"(`neither`)의 세 값이다. `pointsToAlternative`는 앞 두 값에만 참이다 | 15 |
+| J-235 | 피로 멈춤의 `then` | `decide_now`로 한다(초안 쪽 답으로 멈추면 사람의 결정으로 넘어간다) | 15, 09 |
+| J-236 | ArgsView·ScopeDiff 단위 | 21 §6.2의 U4에서 U3(L1)으로 옮긴다 | 21, 23 |
+| J-237 | `notifications.*` 범위 | `dndException`과 `showContent`는 알림 경로 설정이므로 `notifications.*`에 둔다(J-195 해석) | 변경 없음 |
+| J-238 | 결과 확인 즉시 푸시의 cause 값 | `result_review_immediate`, 묶음은 `result_review_digest`(J-189 타이머 목적과 같은 이름). 11 §3.5.3 notify 지시에 `cause` 필드를 더하고 25에 등록한다 | 11, 26, 25 |
+| J-239 | 판정 범위 머리말 | 각 문서 머리말의 판정 범위는 "J-01~J-240"로 맞춘다(J-190 이후 반영분 포함) | 모든 문서 |
+| J-240 | 수용 | 13 §3.3.6과 17 §3.16 이중 참조, 24의 J-207 반영, 03의 상태 라벨 "거절됨(해결 안 됨)", 05의 파생 문구 키는 그대로 둔다 | 변경 없음 |

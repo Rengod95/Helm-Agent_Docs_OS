@@ -1,7 +1,7 @@
 # 11. 묻기와 자율성
 
 - 소유: P6 커널
-- 상태: 4c 보완판 (2026-10-14). 기준 브리프 결정 1~57, 조정자 판정 J-1~J-190. 표기는 브리프 §5.2(판정 J-144)를 따른다: `[결정 n]`은 사용자 결정만, 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`·`[판정 J-nn]`. 이전: 4단계 보완판(2026-10-12, 2a단계 통합판 기반). 조정자 판정(`process/rulings-stage2a.md` J-05, J-20, J-26, J-46~J-55, J-63, J-64)과 08·09 정렬을 반영했다. 08·09는 1판의 제안 상당수(질문 병합, 전달 계획 기록, 승인 블록, 사람의 미루기·맡기기·다시 세우기 이벤트, presence 이벤트)를 받아들였고, 2a판은 그 형식을 따른다. 이전 이름과의 대응은 §2.4.
+- 상태: 4c 보완판 (2026-10-14). 기준 브리프 결정 1~57, 조정자 판정 J-01~J-240. 표기는 브리프 §5.2(판정 J-144)를 따른다: `[결정 n]`은 사용자 결정만, 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`·`[판정 J-nn]`. 이전: 4단계 보완판(2026-10-12, 2a단계 통합판 기반). 조정자 판정(`process/rulings-stage2a.md` J-05, J-20, J-26, J-46~J-55, J-63, J-64)과 08·09 정렬을 반영했다. 08·09는 1판의 제안 상당수(질문 병합, 전달 계획 기록, 승인 블록, 사람의 미루기·맡기기·다시 세우기 이벤트, presence 이벤트)를 받아들였고, 2a판은 그 형식을 따른다. 이전 이름과의 대응은 §2.4.
 - 구현 위치: `@helm/kernel`의 `src/asking/`, `src/commands/question.ts`. 규칙 집행은 커널, 전달 실행은 런타임·데몬(12, 17), 전달 표시는 앱(20)
 - 함께 읽을 문서: [10 커널](10-kernel.md), [08 도메인 모델](08-domain-model.md) §3.4.4(Trigger)·§3.4.5(Autonomy)·§3.10(Choice, Objection)·§3.13(Question)·§3.22.7(질문 상태 기계), [09 이벤트 저장소](09-event-store.md) §3.4·§3.11.3(타이머), [12 런타임](12-runtime-engine.md) §3.13(질문 대기와 재개), [13 도구](13-tools-and-execution.md) §3.7.8~§3.7.9, [14 루프·모드](14-loops-modes-orchestration.md) §3.5.3·§3.13.5~§3.13.8, [19 프로토콜](19-client-protocol.md) §3.7.5·§3.8.3
 
@@ -318,7 +318,7 @@ export type AcceptanceDecisionInput = 'accept' | 'accept_with_conditions' | 'req
 | 허락 / 고쳐서 허락 / 범위 줄여 허락 / 하지 않기 | `question.answer`(`approve`·`approve_edited`·`deny`) | §3.14 |
 | 기준 고치기, 먼저 알아보기, 범위 줄여 진행 | `question.answer`(`modify_criteria`·`experiment_first`·`narrow_scope`) | 질문은 answered. 선택은 만들지 않는다. 재개 지시에 답을 실어 보낸다. 임시 가정은 유지되고(전제 active), 에이전트가 고친 질문·탐구 WorkUnit·줄인 범위를 새로 낸다(같은 `decisionPointKey`) |
 | 질문 다시 쓰기 | `question.request_reframe` → `question.reframe_requested` | 질문은 그대로 열려 있다. 에이전트가 새 질문을 기록하면 이 질문은 `withdrawn`(08 §3.22.7). 전제는 새 질문이 이어받지 않고 retired |
-| 맡기기 | `question.delegate` → `question.delegated` | 정보 게이트만. 상태 `delegated`. 에이전트가 정하고 `whyNotAsked = { kind: 'delegated_by_human', questionId }`로 기록한다. 이 선택도 이의 대상이다 |
+| 맡기기 | `question.delegate` → `question.delegated` | 정보 게이트, 그리고 `direction.after_fact` 권리 질문(사람이 명시해 고른 때만). send·범위 확장·결과 확인 권리 게이트는 맡길 수 없다 [판정 J-131·J-201]. 상태 `delegated`. 에이전트가 정하고 `whyNotAsked = { kind: 'delegated_by_human', questionId }`로 기록한다. 이 선택도 이의 대상이다 |
 | 미루기 | `question.defer` → `question.deferred` | `deferrals`에 추가, 상태 `pending`, 다시 놓일 발화 조건(`until`). 가정·만료점은 그대로 |
 | 결과 확인 | `result.accept`(10) | `acceptance.recorded`와 묶인 질문의 답(`bundledAnswers`)을 한 번에 (§3.15) |
 | 합의 확인 | `agreement.confirm`(10, 고치면 `edits`) | `agreement.confirmed` |
@@ -333,7 +333,7 @@ export type AcceptanceDecisionInput = 'accept' | 'accept_with_conditions' | 'req
 | V-Q-04 | 권리 게이트 질문은 `assumption`·`assumptionExpires`가 없다 (08 스키마) | `invalid.assumption_on_rights_gate` |
 | V-Q-05 | 같은 `dedupeKey`의 열린 질문이 있으면 새로 만들지 않고 `question.updated`로 합친다 (§3.5.5) | accepted + `notice.question_merged` |
 | V-Q-06 | 정보 게이트·비막힘 질문은 임시 가정과 만료점을 가진다. 모델이 만료점을 선언하지 않으면 기본값 "다음 작업 경계"(`{ kind: 'boundary', boundary: 'workunit_end', count: 1 }`, 01 요구)를 넣는다. 시각형 만료점은 기록 시각 + max(만료 여유, 30분) 이후여야 한다. 더 이르면 기본값으로 바꾼다(V4-037) | 기본값 적용 + notice |
-| V-Q-07 | 답 선택지가 형식의 선택지 안이고, `answer`의 값이 `answerSchema`를 만족한다. `approve*`·`deny`는 권리 게이트에서만, `accept_assumption`·맡기기는 정보 게이트에서만 | `invalid.schema`, `policy.answer_option_not_allowed` |
+| V-Q-07 | 답 선택지가 형식의 선택지 안이고, `answer`의 값이 `answerSchema`를 만족한다. `approve*`·`deny`는 권리 게이트에서만, `accept_assumption`은 정보 게이트에서만, 맡기기는 정보 게이트 또는 `direction.after_fact` 권리 질문(사람이 명시해 고른 때)에서만 | `invalid.schema`, `policy.answer_option_not_allowed` |
 | V-Q-08 | 에이전트의 `question.raise`(정보 게이트)는 `DecisionPoint`를 가지며, 판정 결과가 "정책대로"·"혼자 정하기"이면 질문을 만들지 않는다. 사람 접점 종류(14 §3.5.3)로 오케스트레이터·15가 낸 질문은 종류의 기본 게이트를 쓰고 이 검사를 건너뛴다 | `policy.question_not_needed` (다음 행동: `choice.decide`) |
 | V-Q-09 | `question.withdraw`는 질문을 낸 역할, 커널, 사람만 | `denied.capability` |
 | V-Q-10 | `deadline`은 권리 게이트이고 사람이 정했을 때만(사람 채널 명령이 만든 질문, 또는 사람이 `question.defer`와 함께 마감을 줌) | `invalid.question_shape` |
@@ -657,7 +657,7 @@ planDelivery(q, state, ctx, dials, now):
   if plan.mode == 'mediated':
      return { events: [], directives: [agent.request(mediator), runtimeTimer(mediator_timeout)] }   # 12 runtime_timers
   if plan.trigger.kind == 'now':
-     return { events: [], directives: [notify([q], urgencyOf(q, ...))] }       # 기록은 런타임의 question.mark_delivered
+     return { events: [], directives: [notify([q], urgencyOf(q, ...), cause)] }       # 기록은 런타임의 question.mark_delivered
   return { events: [question.delivery_planned(plan, autonomy = { decidedBy: 'kernel', whyNotAsked: { kind: 'rule', ruleId: rule.id } })], directives: [] }  # 시각은 09 p_timers question_delivery
 ```
 
@@ -665,7 +665,7 @@ planDelivery(q, state, ctx, dials, now):
 
 #### 3.5.3 발화와 전달 기록
 
-예약된 질문은 다음 사건이 커밋될 때 발화한다. 커널은 사건을 커밋하는 결정에서 발화한 질문의 전달 지시(`notify`)를 낸다(10 R-7). 지시는 이벤트가 아니므로, 데몬이 지시를 처리하기 전에 꺼지면 09의 내부 소비자 커서 이후 이벤트에서 `directivesFor`로 다시 만든다(10 §3.1.4).
+예약된 질문은 다음 사건이 커밋될 때 발화한다. 커널은 사건을 커밋하는 결정에서 발화한 질문의 전달 지시(`notify`)를 낸다(10 R-7). 지시는 이벤트가 아니므로, 데몬이 지시를 처리하기 전에 꺼지면 09의 내부 소비자 커서 이후 이벤트에서 `directivesFor`로 다시 만든다(10 §3.1.4). `notify` 지시는 질문, 강도(`urgency`), 원인(`cause`)을 싣는다. `cause`는 푸시의 원인이며 값이 있을 때만 싣는다. 값은 셋이다. `expiry_near`는 만료 여유 안의 승격(§3.6.3)이고, `result_review_immediate`는 결과 확인 즉시 푸시, `result_review_digest`는 결과 확인 묶음 푸시(타이머 목적과 같은 이름, §3.5.7)다. 26 §3.4.3 `planPush`가 이 값을 `delivery.cause`로 읽는다([판정 J-238]).
 
 | 발화 조건 | 발화 사건 |
 |---|---|
@@ -747,7 +747,7 @@ export interface QuestionDeliveredPayload {    // 09 question.delivered (J-52)
 
 #### 3.5.7 결과 확인 대기의 알림 [결정 56: 방식 세 가지 / 판정 J-189: 기본과 묶음 시각]
 
-설정은 두 항목이다. 변경은 `settings.update`(19)로 하고, 기록은 `setting.changed`(09)로 남긴다.
+결과 확인 알림의 규칙 정본은 14 §3.13.5 규칙 7이다([판정 J-189]). 설정은 두 항목이다. 변경은 `settings.update`(19)로 하고, 기록은 `setting.changed`(09)로 남긴다.
 
 | 설정 | 값 | 기본 | 뜻 |
 |---|---|---|---|
@@ -755,9 +755,9 @@ export interface QuestionDeliveredPayload {    // 09 question.delivered (J-52)
 | `notifications.resultReviewDigestAt` | `"HH:MM"`(서버 시간대) | `"19:00"` | `daily_digest`의 묶음 시각 |
 
 - `none`: 푸시를 보내지 않는다. 결과 확인은 질문함과 복귀 요약에서 한다. §3.5.2 D-1b 그대로다(J-132와 같은 동작).
-- `daily_digest`: 타이머 목적 `result_review_digest`(09 `runtime_timers`)가 `resultReviewDigestAt`에 발화한다. 그 시각에 확인 대기 결과(`result_review` 질문이 열려 있고 답을 받지 않은 것)가 하나 이상이면 묶음 푸시 1개를 강도 `notice`로 보낸다. 없으면 보내지 않는다. 발화한 뒤 다음 날 같은 시각으로 다시 건다. 발송은 `push.sent`로 남고, 질문 상태는 바뀌지 않는다.
-- `immediate`: 결과 확인 질문이 생기면(`question.recorded`) D-1b의 예약 대신 `now`로 놓는다(§3.5.2 D-1b 예외). 강도 `notice`로 푸시 1개를 보낸다. 같은 질문에는 한 번만 보낸다.
-- 두 값 모두 방해 금지(`attention.snoozeUntil`, [판정 J-166])와 시간당 상한([판정 J-171])을 따른다. 방해 금지 중이거나 상한에 걸리면 보내지 않는다. 묶음 푸시는 그날 건너뛰고, 질문함·배지에는 그대로 남는다. 두 값 모두 `notice` 푸시의 부재 조건([판정 J-172])을 따른다.
+- `daily_digest`: 타이머 목적 `result_review_digest`(09 `runtime_timers`)가 `resultReviewDigestAt`에 발화한다. 그 시각에 확인 대기 결과(`result_review` 질문이 열려 있고 답을 받지 않은 것)가 하나 이상이면 묶음 푸시 1개를 강도 `notice`로 보낸다. 없으면 보내지 않는다. 발화한 뒤 다음 날 같은 시각으로 다시 건다. 발송은 `push.sent`로 남고, 질문 상태는 바뀌지 않는다. 묶음 푸시의 `cause`는 `result_review_digest`다([판정 J-238]).
+- `immediate`: 결과 확인 질문이 생기면(`question.recorded`) D-1b의 예약 대신 `now`로 놓는다(§3.5.2 D-1b 예외). 강도 `notice`로 푸시 1개를 보낸다. 같은 질문에는 한 번만 보낸다. 이 지시의 `cause`는 `result_review_immediate`다([판정 J-238]).
+- 두 값 모두 방해 금지(`attention.snoozeUntil`, [판정 J-166])와 시간당 상한([판정 J-171])을 따른다. 방해 금지 중이거나 상한에 걸리면 보내지 않는다. 묶음 푸시는 그날 건너뛰고, 질문함·배지에는 그대로 남는다. 미뤄진 사유(방해 금지인지 시간당 상한인지)는 결과 확인 질문의 전달 계획(`delivery.planned`, §3.7 `DeliveryPlanPayload`의 묶음 `reason`)에 싣는다. 16 §3.23.14 `notif.review_deferred`가 이 사유별로 센다([판정 J-166·J-171]). 두 값 모두 `notice` 푸시의 부재 조건([판정 J-172])을 따른다.
 - 휴대폰 확인 범위는 [판정 J-139] 그대로다. 휴대폰은 산출물(본문·이미지·변경 요약)을 연 뒤에만 `result.accept`를 받는다. 큰 산출물과 취향형 결과는 데스크톱 전용이고, 휴대폰에서는 미루기만 받는다.
 - 푸시 본문은 문구 키로 낸다([판정 J-31], §3.5.6). 질문 본문은 넣지 않는다.
 
@@ -832,7 +832,7 @@ export interface QuestionDeliveredPayload {    // 09 question.delivered (J-52)
 - 정보 게이트, 막는 질문(가정 없음) → 만료점이 없다. 답을 기다린다.
 - 권리 게이트 → 만료점이 없다(§3.3.1 규칙 4).
 
-데몬이 꺼져 있던 동안 만료 시각이 지난 경우 [판정 J-142]: 정지 시간이 만료 여유보다 길면 막지 않는 질문의 만료를 "복귀 + 30분"으로 미룬다(복귀는 `user_return`, 없으면 데몬 재시작 시각). 그동안 사람은 알림을 받지 못했기 때문이다. 미룬 뒤에는 승격(D-3)이 다시 한 번 일어난다. 기본은 켬이고 설정 "정지 중 만료 미룸"으로 끌 수 있다. 끄면 이전 규칙대로 승격 없이 바로 만료한다. 만료 판정 조건은 08·10·11 모두 `now ≥ assumptionExpires`(시각형) 또는 해당 사건 커밋(경계·행동형)이다. 어느 경우든 복귀 요약에 "답이 없어 가정대로 정해진 질문 n건"과 항목별 [이의]를 보인다(원인과 관계없이, 04 BriefView에 요구).
+데몬이 꺼져 있던 동안 만료 시각이 지난 경우 [판정 J-142]: 정지 시간이 만료 여유보다 길면 막지 않는 질문의 만료를 "복귀 + 30분"으로 미룬다(복귀는 `user_return`, 없으면 데몬 재시작 시각). 그동안 사람은 알림을 받지 못했기 때문이다. 미룬 뒤에는 승격(D-3)이 다시 한 번 일어난다. 기본은 켬(`on`)이고 다이얼 `assumptionDeferOnDowntime`(14 `resolveDials`)으로 끌 수 있다([판정 J-197]). 끄면 이전 규칙대로 승격 없이 바로 만료한다. 만료 판정 조건은 08·10·11 모두 `now ≥ assumptionExpires`(시각형) 또는 해당 사건 커밋(경계·행동형)이다. 어느 경우든 복귀 요약에 "답이 없어 가정대로 정해진 질문 n건"과 항목별 [이의]를 보인다(원인과 관계없이, 04 BriefView에 요구).
 
 벽시계가 앞으로 크게 뛰면(설정, 기본 10분을 넘게) 그 결정에서 시각으로 생기는 확정(가정 만료, 승인 만료)을 보류하고 사람 확인 질문(종류 `other`)을 남긴다(10 R-PURE-3, V3-023). 보류하는 동안 가정과 승인은 그대로 둔다. 판정은 커널의 `ctx.now`로 하고, 제출의 `issuedAt`은 기록과 파생 ID에만 쓴다.
 
@@ -1176,6 +1176,7 @@ Mastra 검토 §4의 "승인 때 도구 이름과 인자의 지문을 저장하�
 | `deny` | `question.answered` + `toolcall.denied`. 재개 지시에 거절 이유 |
 | 대조 실패 (지문 다름, 이미 소진, Concern 다름) | `gate.approval_mismatch`. 새 인자로 다시 묻는다 (10 E-12) |
 | 승인 유효 기간 경과 | 09 `p_timers` `approval_expiry` → `approval.expired`. 그 뒤 실행 시도는 대조 실패와 같다. 승인된 호출을 이어받을 run이 예산 한도로 `queued`에 머무는 동안은 만료 시각을 세지 않는다(예산 대기 시간만큼 `expiresAt`을 미루는 `approval.issued` 갱신은 두지 않고, 12가 승인 실행만 하는 단계를 예산 검사에서 빼는 쪽을 권한다, V3-031) |
+| 브라우저 행동이 송신 승인을 기다림 | 브라우저 세션 유휴 타이머를 멈춘다(12·13). 대기는 최대 30분이다. 넘으면 그 승인 요청은 `approval_expired`로 닫힌다. 질문은 `question.expired`로, 막힌 도구 호출은 `toolcall.not_executed(approval_expired)`로 끝난다. 아무것도 보내지 않았으므로 행동은 다시 요청해야 한다 [판정 J-213] |
 | 합의 취소·Concern 닫힘·run 취소 | 도구 호출 `toolcall.not_executed`(cancel), 승인이 남아 있으면 `approval.expired`(`revoked: true`), 질문이 열려 있으면 `question.expired` |
 | 복원 표지 뒤 첫 부팅(안전 모드) | 소진되지 않은 승인은 `approval.expired`(사유 `restored`)로 닫는다. 소진된 승인과 실행된 호출은 그대로 둔다. 승인 실행 run은 자동으로 재개하지 않는다([판정 J-152], 09 복원 표지) |
 
@@ -1234,6 +1235,7 @@ C와 A가 가장 많이 건너뛰어지므로 다음은 어떤 모드·다이얼
 | `question.expiry_margin` | 경계 수(0~3) 또는 분 | 경계 1개 전, 시간형은 max(15분, 20%) | §3.6.3 |
 | `question.kind_exceptions` | 결정 종류 → 항상 묻기 / 절대 묻지 않기 / 방식 지정 | 없음 | D-4. 항상 묻기·묻지 않기는 정책 규칙으로도 저장(10 §3.6.4) |
 | `question.per_loop` | 루프 → 위 값들 | §3.5.2 표 | D-10 |
+| `assumptionDeferOnDowntime` | `on` / `off` | `on` | 데몬 정지 중 지난 가정 만료를 "복귀 + 30분"으로 미룬다. `off`면 미루지 않고 바로 만료한다. 막지 않는 질문만 대상이다(§3.6.3, [판정 J-142·J-197]) |
 
 다이얼이 아닌 질문 설정(사람이 바꾸지만 모드·루프로 층을 두지 않는 값). 14의 설정(`OrchestrationSettings`)에 두고 명령은 `setting.change`(10 §3.11.11, 19 `settings.update`)다. 변경 기록은 `setting.changed`(09)다([판정 J-94]).
 
@@ -1251,7 +1253,7 @@ C와 A가 가장 많이 건너뛰어지므로 다음은 어떤 모드·다이얼
 | `notifications.resultReview` | `none` | 결과 확인 대기 알림 방식. `none`(알리지 않음), `daily_digest`(묶음 푸시 1개), `immediate`(질문마다 푸시 1개). [결정 56, 판정 J-189], §3.5.7 |
 | `notifications.resultReviewDigestAt` | `"19:00"` | `daily_digest`의 묶음 시각(서버 시간대). 타이머 목적 `result_review_digest`([판정 J-189]) |
 
-다이얼은 어느 값에서도 §3.3.1 권리 게이트 처리 규칙 2(가정 없음), V-Q-02(응답 선택지), 혼자 정한 결정 기록을 바꾸지 못한다(브리프 결정 17). 16의 다이얼 조정 제안(D10)이 다룰 수 있는 키는 위 다이얼 여덟 개와 설정 중 묶음 크기·비슷한 시점 창·화면 표시 수다(16 요구 (3)).
+다이얼은 어느 값에서도 §3.3.1 권리 게이트 처리 규칙 2(가정 없음), V-Q-02(응답 선택지), 혼자 정한 결정 기록을 바꾸지 못한다(브리프 결정 17). 16의 다이얼 조정 제안(D10)이 다룰 수 있는 키는 위 다이얼 가운데 `assumptionDeferOnDowntime`을 뺀 여덟 개와 설정 중 묶음 크기·비슷한 시점 창·화면 표시 수다(16 요구 (3)).
 
 ### 3.17 상태 기계
 
@@ -1269,13 +1271,13 @@ C와 A가 가장 많이 건너뛰어지므로 다음은 어떤 모드·다이얼
 | delivered | `question.seen` | delivered | 사람 기기 | `seenAt` (revisionSeq 그대로) |
 | pending, delivered | `question.deferred` (사람) | pending | 행위자 human | `deferrals`에 추가, `until` 발화 때 다시 전달 |
 | pending, delivered | `question.reframe_requested` (사람) | (그대로) | 행위자 human | 에이전트가 새 질문을 기록하면 이 질문 `withdrawn` |
-| pending, delivered | `question.delegated` (사람) | delegated | 정보 게이트만 | 재개 지시. 이어지는 결정은 `whyNotAsked = delegated_by_human` |
+| pending, delivered | `question.delegated` (사람) | delegated | 정보 게이트, 또는 `direction.after_fact` 권리 질문(사람이 명시해 고른 때) [판정 J-201] | 재개 지시. 이어지는 결정은 `whyNotAsked = delegated_by_human` |
 | pending, delivered | `question.escalated` (만료 임박·사람·정책) | (그대로) | 전달 방식이 이미 immediate가 아님(08 §3.22.7) | 전달 지시(강도는 `urgencyOf`) |
 | pending, delivered | `question.answered` | answered | R-24, V-Q-07, `basisSeq` | §3.6.4 비교, 종류별 효과, 막힘 해제·재개 지시, 승인(§3.14), 사람 조작 셈 |
 | pending, delivered | `question.assumed` (커널·스케줄러) | assumed | 정보 게이트·`blocks: nothing`, 만료점 도달 (R-25) | 가정 확정 선택, 전제 confirmed. 재개 없음(가정대로 이미 진행 중) |
 | assumed | `question.answer` (늦은 답) | assumed (그대로) | - | 거부 `conflict.already_resolved` + `assumedValue` + 다음 행동 `objection.file` [판정 J-120] |
 | pending, delivered | `question.withdrawn` | withdrawn | V-Q-09 | 전제 retired, 막힘 해제 |
-| pending, delivered | `question.expired` (커널·스케줄러) | expired | Concern 닫힘·병합, WorkUnit 취소, 대상 레코드 종료, 막힌 도구 호출 not_executed, 사람이 정한 `deadline` 지남(J-49) | 전제 retired. 권리 질문이면 대상 행동은 실행되지 않은 채 끝남 |
+| pending, delivered | `question.expired` (커널·스케줄러) | expired | Concern 닫힘·병합, WorkUnit 취소, 대상 레코드 종료, 막힌 도구 호출 not_executed, 사람이 정한 `deadline` 지남(J-49), 브라우저 송신 승인 대기 30분 초과(J-213) | 전제 retired. 권리 질문이면 대상 행동은 실행되지 않은 채 끝남 |
 | answered (`send_approval`) | `approval.issued` / `approval.consumed` / `approval.expired` | answered | 허락 답 / 같은 도구 호출의 `toolcall.started` / 만료 시각·철회 | `approval.status` 갱신 (§3.14) |
 
 종료: answered, withdrawn, expired, delegated, assumed. 가정 확정 뒤에 결정을 바꾸려면 이의를 건다(J-120).
@@ -1327,6 +1329,7 @@ C와 A가 가장 많이 건너뛰어지므로 다음은 어떤 모드·다이얼
 | requested → started | approval consumed, `consumedByToolCallId` | `toolcall.intend`(같은 tcId, `approvalQuestionId`) | `toolcall.started`, `approval.consumed` |
 | awaiting_approval → denied | → answered | `question.answer`(deny 또는 approve_edited) | `question.answered`, `toolcall.denied`. approve_edited면 같은 트랜잭션에 새 호출(`editedFrom`)의 `requested`·`approved`·`approval.issued` (J-121) |
 | requested (승인됨, 실행 전) | approval expired | 만료 시각 / 합의 취소 | `approval.expired`(revoked 여부), 호출은 `not_executed` 또는 다시 묻기 |
+| awaiting_approval → not_executed | pending → expired | 승인 대기 30분 초과(브라우저 세션 유휴 타이머의 상한, [판정 J-213]) | `question.expired`, `toolcall.not_executed`(`approval_expired`) |
 
 #### 3.17.6 범위 줄이기 (합의의 `narrowedScope`)
 
@@ -1382,7 +1385,7 @@ interface PresenceUpdatePayload { deviceId: DeviceId; state: PresenceState }
 | `question.raise` | M, X(verifier), R(오케스트레이터·15) | propose/question | V-Q-01~08, §3.4 판정 | 판정 갈래별(§3.4 표), 같은 키면 `question.updated` | `policy.question_not_needed`, `invalid.question_shape`, `policy.question_without_choice`, `policy.want_inquiry_pick_question` |
 | `question.answer` | H | accept, 사람 전용 | R-24, V-Q-07, 상태 열림 | `question.answered` + §3.6.4 파생 (+ `toolcall.approved`·`denied`, `approval.issued`) | `conflict.version_mismatch`, `conflict.already_resolved`, `policy.answer_option_not_allowed` |
 | `question.defer` | H | accept, 사람 전용 | 상태 pending·delivered. 비막힘 질문의 만료점보다 늦은 시각을 고르면 경고(가정 확정이 먼저 일어남). `deadline`은 권리 질문만 | `question.deferred` | `conflict.already_resolved` |
-| `question.delegate` | H | accept, 사람 전용 | 정보 게이트, 상태 열림 | `question.delegated` | `policy.answer_option_not_allowed`(권리 게이트) |
+| `question.delegate` | H | accept, 사람 전용 | 정보 게이트 또는 `direction.after_fact` 권리 질문(사람이 명시), 상태 열림 | `question.delegated` | `policy.answer_option_not_allowed`(그 밖의 권리 게이트) |
 | `question.request_reframe` | H | accept, 사람 전용 | 상태 열림 | `question.reframe_requested` | |
 | `question.escalate` | H | accept, 사람 전용 | 상태 pending | `question.escalated(cause human)` + 전달 지시 | |
 | `question.mark_seen` | H | observe | 상태 delivered | `question.seen` | |
@@ -1548,7 +1551,7 @@ ID `AQ-nn`은 22 시험 추적표가 가리키는 번호다.
 |---|---|---|
 | AQ-01 | 게이트 판정 | §3.3.4 판정 연습 a~d가 표의 결과와 같다(다이얼 보통). 각 다이얼 값 3 × 조건 3의 경계값 표 테스트 |
 | AQ-02 | 권리 게이트 | 권리 질문은 어떤 다이얼·presence 조합에서도 `assumed`·시간 만료가 되지 않는다(10 PT-09). 방해 금지·부재에서도 행동은 막혀 있다 |
-| AQ-03 | 질문 형식 | 레지스트리의 모든 종류가 형식의 필수 선택지를 가진다. 권리 게이트에 `accept_assumption`·`delegate` 답은 거부. I.want의 `choose_one` 거부 |
+| AQ-03 | 질문 형식 | 레지스트리의 모든 종류가 형식의 필수 선택지를 가진다. 권리 게이트에 `accept_assumption` 답은 거부. `delegate` 답은 `direction.after_fact` 밖의 권리 게이트에서 거부. I.want의 `choose_one` 거부 |
 | AQ-04 | 전달 | D-1~D-10과 D-1b 각 규칙이 첫 일치로 적용되는 사례. 묶음 규칙(창 안 두 질문 뒤 셋째는 예약). 발화 사건별 전달 지시. `question.mark_delivered` 중복 기록 없음 |
 | AQ-05 | 강도 | `urgencyOf` 표: 모든 기기 away·방해 금지·조용한 시간 → digest, 승격 → interrupt, 즉시·막힘 → interrupt, 즉시·`blocks: nothing` → notice. 같은 presence 이벤트 열로 다시 판정하면 같은 결과 |
 | AQ-06 | 만료 | 다섯 종류 만료점의 승격·도달. 늦은 타이머에서 승격 생략 |
@@ -1565,7 +1568,7 @@ ID `AQ-nn`은 22 시험 추적표가 가리키는 번호다.
 | AQ-17 | 승인 극장 방지 | 진행 확인 종류·I.want의 choose_one 거부, 필수 선택지 없는 종류 적재 거부 |
 | AQ-18 | 푸시 | 모든 기기 부재 + 푸시 등록 기기 있음 → 막는 권리 질문 `interrupt`, 막지 않는 정보 질문 승격 `notice`, 전달 channel `push`. 데스크톱 기기가 모두 부재이고 휴대폰이 `active`가 아니고 푸시 등록 기기가 있으면 `notice` 푸시를 보낸다(데스크톱 기기가 하나라도 있으면 보내지 않음, [판정 J-172]). 푸시 등록 없음 → `digest`, channel `brief`. 방해 금지 → `digest` [결정 48] |
 | AQ-19 | 늦은 답 | `assumed` 질문에 온 답 → `conflict.already_resolved` + `assumedValue` + 다음 행동 `objection.file`, 질문 상태 그대로 (J-120) |
-| AQ-20 | 정지 중 만료 | 정지 시간이 만료 여유보다 길면 만료를 복귀 + 30분으로 미룸, 설정을 끄면 바로 만료 (J-142) |
+| AQ-20 | 정지 중 만료 | 정지 시간이 만료 여유보다 길면 만료를 복귀 + 30분으로 미룸, 다이얼 `assumptionDeferOnDowntime`을 끄면 바로 만료 (J-142, J-197) |
 | AQ-21 | 고쳐서 허락 | 원 호출 denied(edited_by_human) + 결정적 새 tcId(`editedFrom`) 한 트랜잭션, 같은 지시를 두 번 처리해도 새 호출 하나 (J-121) |
 | AQ-22 | 막지 않는 권리 질문 | 결과 확인은 다음 작업 경계·검토 창에 놓이고 가정 확정 없음. 가벼운 작업 결과 확인은 한 묶음 (J-132) |
 | AQ-23 | 휴대폰 복귀 | 휴대폰이 active가 되어도 `user_return` 묶음이 발화하지 않는다 |

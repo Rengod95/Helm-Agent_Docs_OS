@@ -1,7 +1,7 @@
 # 18. 보안
 
 - 작성: 2026-10-11, P11(데몬)
-- 상태: 보완판(2026-10-14). 기준 결정은 브리프 결정 1~57과 조정자 판정(`process/rulings-stage2a.md` J-01~J-190)이다. 모바일은 결정 47~49와 판정 J-118대로 26(데몬이 서빙하는 PWA, HttpOnly 쿠키 토큰, Web Push)을 따른다.
+- 상태: 보완판(2026-10-14). 기준 결정은 브리프 결정 1~57과 조정자 판정(`process/rulings-stage2a.md` J-01~J-240)이다. 모바일은 결정 47~49와 판정 J-118대로 26(데몬이 서빙하는 PWA, HttpOnly 쿠키 토큰, Web Push)을 따른다.
 - 소유: 위협 모델, 리스너별 연결 정책(모바일 쿠키 갈래 포함), 주체(principal)와 권한, 인증(Tailscale 신원 + whois + 기기 토큰, SSH 경로, 로컬), 기기 페어링 규칙, 토큰 형식·수명·회전·폐기·저장, 비밀 저장·주입 정책과 마스킹, 도구 실행 격리의 보안 요구(13과 맞춤), 보호 경로, 감사 기록, 속도·크기 한도의 보안 상한, 공급망, 백업·복구의 보안 조건, 보안 테스트 목록.
 - 소유하지 않음: 핸드셰이크 메시지 형식·오류 코드·메서드 이름(19), 리스너 주소·소켓 경로·데몬 수명주기·비밀 로딩 절차·정적 파일 서빙 배치(17), 격리 수단의 구현과 도구 목록·범위 검사 알고리즘(13), 키체인 사용과 SSH 실행(20), 모바일 앱 구현·푸시 송신·푸시 등록 형식(26), 이벤트 이름 카탈로그와 해시 체인 형식(09), 레코드·`Via`·`ActorRef` 형식(08), 권리 게이트의 묻기 흐름(11).
 - 출처 표기는 17과 같다. "[실험 N]"은 `17-daemon-and-operations.md` §2.2 표의 N번 행이다. 이 문서의 ID(D18-, A18-, AS-, T-, R-, S-, T18-)를 다른 문서에서 인용할 때는 "18 R-6"처럼 문서 번호를 붙인다(25 §4.1).
@@ -178,7 +178,7 @@
 | T-M4 | 도구 출력에 비밀이 섞여 정본·제공자·클라이언트로 퍼짐 | AS-KEY, AS-OTHER | 출력 마스킹(§3.10.4), 보호 경로 읽기 거부(D18-09) | 알려지지 않은 형식의 비밀 |
 | T-M5 | 네트워크를 허용한 도구가 루프백·LAN·tailnet의 다른 서비스(Caddy 관리 API 2019 무인증 [실험], Syncthing GUI, Dockhand, Windows 루프백 서비스, 다른 tailnet 기기)를 조작 | 홈랩 전체 | 별도 netns + 데몬 프록시의 주소 차단(R-6, §3.11.9, 판정 J-134). 홈랩에 2019 정리 요청(17 H-5) | 프록시 스파이크가 실패하면 실행마다 사람 승인과 H-5 선행으로 대신한다 |
 | T-BR1 | 페이지 안 지시문(본문, 접근성 트리, 대화상자 문구, 탭 제목)이 합의 범위 밖 행동을 유도 | AS-DEC, AS-WS, AS-KEY | BR-1(투영 표식), BR-2(오염 뒤 `send`는 `ask`), 권한을 바꾸는 도구는 사람 메서드뿐(§3.12 규칙 1) | 표식은 문장을 막지 않는다. 합의 안에서 잘못 고르는 것은 작업 품질 문제로 남는다 |
-| T-BR2 | 긴 URL 질의 문자열로 비공개 자료 유출 | AS-WS | BR-6 요청 가로채기. 오염 뒤 256자 초과 질의와 합의 밖 호스트 이동은 `ask`(§3.11.11) | 256자 이하의 짧은 질의로 나가는 소량 정보는 막지 못한다(Q18-15) |
+| T-BR2 | 긴 URL 질의 문자열로 비공개 자료 유출 | AS-WS | BR-6 요청 가로채기. 웹 내용을 본 뒤의 2 KiB 초과 질의는 `ask`, 합의 밖 호스트 이동은 오염과 무관하게 `ask`(§3.11.11, 판정 J-229) | 2 KiB 이하의 짧은 질의로 나가는 소량 정보는 막지 못한다([판정 J-209]) |
 | T-BR3 | 로그인 세션 위의 CSRF(페이지가 사용자 신원으로 변경 요청) | AS-DEC | BR-3(프로필은 실행마다 새로, 로그인 없음이 기본). 지속 신원은 MVP 밖 | 지속 신원을 도입하면 다시 평가한다 |
 | T-BR4 | 악성 다운로드(실행 파일, 문서 매크로) | AS-WS | BR-5(다운로드 기본 거부, 열지 않음, 실행 권한 없음, 상한) | 허용한 다운로드 내용의 악성 여부는 사람이 본다 |
 | T-BR5 | `file:`·사설 주소 접근(SSRF), DNS 리바인딩 | AS-OTHER, 홈랩 서비스 | BR-5 스킴 목록, BR-6(프록시가 해석 뒤 IP를 검사하고 고정, 호스트 해석은 프록시에 맡김) | 프록시를 우회하는 프로그램은 netns 밖으로 나가지 못한다(fail closed) |
@@ -414,7 +414,7 @@ helloDeviceAuth(conn, auth):                              # hello 판정(19 §3.
   principal = device(rec.clientKind, conn.listener, conn.carrier)
 ```
 
-- 만료 사건의 기록: 절대 만료는 `device.expired { kind: "absolute" }`를 커널 타이머가 낸다. 시각은 09 `p_timers`의 목적 `device_expiry`(Device.expiresAt)가 정한다(판정 J-161). 유휴 만료는 09 `runtime_timers`의 별도 목적인 하루 한 번 점검이 `device_presence.last_auth_at + 90일 ≤ now`인 기기에 `device.expired { kind: "idle" }`를 낸다. hello 판정은 이벤트를 기다리지 않고 위 식으로 거부한다. 목적 이름은 09가 정한다(§5.2).
+- 만료 사건의 기록: 절대 만료는 `device.expired { kind: "absolute" }`를 커널 타이머가 낸다. 시각은 09 `p_timers`의 목적 `device_expiry`(Device.expiresAt)가 정한다(판정 J-161). 유휴 만료는 09 `runtime_timers`의 별도 목적 `device_idle_check`(하루 한 번 유휴 만료 점검)가 `device_presence.last_auth_at + 90일 ≤ now`인 기기에 `device.expired { kind: "idle" }`를 낸다([판정 J-161]). hello 판정은 이벤트를 기다리지 않고 위 식으로 거부한다. 목적 이름 `device_idle_check`는 09 정본이다(§5.2).
 
 - whois 호출: 17이 쓰는 홈랩 래퍼와 같은 방식으로 `/mnt/c/Program Files/Tailscale/tailscale.exe whois --json <ip>`를 자식 프로세스로 부른다(`TAILSCALE_EXE`로 경로 변경). 5초 제한. 동시에 같은 IP로 여러 번 부르지 않는다(진행 중 호출 공유). 결과 중 `UserProfile.LoginName`, `Node.StableID`, `Node.Name`, `Node.Tags`만 쓴다 [실험 15].
 - `allowedLogins` 기본값: 설치 때 `helm doctor`가 소유자 기기 IP 하나로 whois를 불러 로그인 이름을 설정 파일에 적도록 안내한다. 로그인 이름은 비밀이 아니지만 로그에는 마스킹해 쓴다(17 §3.12).
@@ -651,7 +651,7 @@ export interface Redactor {
 
 | 위치 | 지울 수 있나 | 절차 |
 |---|---|---|
-| blob 본문(도구 출력 전체, 첨부, 큰 결과) | 예 | 사람 전용 명령 `blob.redact`(10 소유, 사람 채널만)가 `blob.redacted { blobId, reason }`(09)를 남기고 파일을 지운다. 관리 CLI `helm ops redact-blob <blobId> --reason …`(17 §3.15)이 같은 명령을 부르고 이어서 (1) `PRAGMA secure_delete`를 켠 연결로 blob 행의 내용 열을 비우고 체크포인트(빈 페이지 덮어쓰기), (2) 그 blob을 담은 로컬 백업 스냅샷을 다시 만들거나 지움(17 §3.9.1), (3) 오프사이트 restic 사본에 대해 사람에게 `restic rewrite --exclude <경로>` 실행을 안내(홈랩 소유), (4) 클라이언트에 무효화 이벤트를 보내 캐시를 버리게 함(19) |
+| blob 본문(도구 출력 전체, 첨부, 큰 결과) | 예 | 사람 전용 명령 `blob.redact`(10 소유, 사람 채널만)가 `blob.redacted { hash, reason }`(09)를 남기고 파일을 지운다. 관리 CLI `helm ops redact-blob <blobId> --reason …`(17 §3.15)이 같은 명령을 부르고 이어서 (1) `PRAGMA secure_delete`를 켠 연결로 blob 행의 내용 열을 비우고 체크포인트(빈 페이지 덮어쓰기), (2) 그 blob을 담은 로컬 백업 스냅샷을 다시 만들거나 지움(17 §3.9.1), (3) 오프사이트 restic 사본에 대해 사람에게 `restic rewrite --exclude <경로>` 실행을 안내(홈랩 소유), (4) 클라이언트에 무효화 이벤트를 보내 캐시를 버리게 함(19) |
 | 이벤트 payload의 인라인 필드(질문 답 값, blob 미리보기, 메모) | 아니요 | 해시 체인 안에 있어 지우면 체인이 깨진다. 입력 단계 마스킹(§3.10.3)이 1차 대응이다. 새어 나간 비밀은 그 비밀을 바꾸는 것(교체)이 근본 대응이고, 그 사실을 사람이 이의·메모로 남긴다. 민감 필드를 체인 밖에 두는 구조는 24에 ADR 후보로 남긴다(J-147) |
 | 로컬 백업 스냅샷 | 다시 만들면 예 | 위 blob 절차의 (2). 인라인 필드는 스냅샷에도 남는다 |
 | restic 사본(최장 6개월 보존) | 사람이 `restic rewrite`를 하면 예 | Helm은 실행하지 않고 안내만 한다. 그 전까지 남는다 |
@@ -673,7 +673,7 @@ export interface Redactor {
 | R-3 | 숨기는 경로(접근 거부): §3.11.5의 보호 경로 전부, `/srv/volumes`(Helm 데이터와 홈랩 서비스 데이터. 초안·검증 작업 트리 예외는 R-14), `/run/user/<uid>`(데몬 소켓과 사용자 버스), `/run/WSL`(interop), `/mnt`(Windows 드라이브) |
 | R-4 | 읽기는 허용 목록 방식이다. 홈 디렉터리는 빈 tmpfs로 덮고(`ProtectHome=tmpfs`, bwrap `--tmpfs $HOME`), 도구 체인(`~/.local/share/mise`, `~/.local/bin`의 허용 도구)과 합의 범위의 작업 공간만 다시 붙인다. 쓰기는 합의 범위의 작업 공간과 실행별 임시 디렉터리만. 그 밖은 읽기 전용(`ProtectSystem=strict`). 거부 목록(`InaccessiblePaths`)은 글롭을 받지 않고 실행 뒤 생긴 파일을 빠뜨리므로 홈 아래 비밀 보호의 주 수단으로 쓰지 않는다 [실험 24] |
 | R-5 | 프로세스 분리: 도구는 데몬의 메모리·환경을 읽을 수 없어야 한다(필수). 일회성 단위의 `PrivateUsers=yes`로 다른 프로세스의 `/proc/<pid>/environ` 읽기가 거부된다 [실험 23]. 데몬에 신호를 보낼 수 없게 하는 것(PID 네임스페이스)은 권장이다. `PrivateUsers`만으로는 같은 uid 프로세스에 신호를 보낼 수 있고 `ProtectProc=invisible`도 같은 uid 프로세스를 숨기지 않는다 [실험 23]. 남는 위험은 도구가 `helmd`를 죽이는 것(서비스 거부)이고, 재시작·복구·크래시 루프 차단이 받는다 |
-| R-6 | 네트워크(판정 J-134): 모든 실행은 별도 네트워크 네임스페이스에서 돈다(`PrivateNetwork=yes`, bwrap `--unshare-net`). 합의가 `net:` 부여를 둔 실행도 호스트 네트워크를 쓰지 않는다. 대신 데몬 쪽 CONNECT 프록시(§3.11.9)로만 바깥에 나간다. 프록시는 루프백·사설·CGNAT·tailnet·링크 로컬 주소를 막는다. 프록시를 쓰지 않는 도구는 연결이 실패한다(fail closed). 외부 공개 인터넷은 `net:public` 부여로 연다(결정 55, §3.11.9) |
+| R-6 | 네트워크(판정 J-134): 모든 실행은 별도 네트워크 네임스페이스에서 돈다(`PrivateNetwork=yes`, bwrap `--unshare-net`). 합의가 `net:` 부여를 둔 실행도 호스트 네트워크를 쓰지 않는다. 대신 데몬 쪽 CONNECT 프록시(§3.11.9)로만 바깥에 나간다. 프록시는 루프백·사설·CGNAT·tailnet·링크 로컬 주소를 막는다. 프록시를 쓰지 않는 도구는 연결이 실패한다(fail closed). 샌드박스 안 실행(`execute`와 네트워크를 쓰는 MCP 서버)이 외부 공개 인터넷에 가려면 `net:public` 부여가 있어야 한다(결정 55, §3.11.9). 웹 읽기 도구(`web_fetch`, `web_search`, 브라우저의 GET·HEAD)는 이 부여 없이 공개 주소를 기본으로 읽는다([판정 J-205], §3.11.6 행) |
 | R-7 | 자원: 17 §3.13의 단위별 한도, 시간 제한, 출력 상한(13) |
 | R-8 | 권한 상승 금지: `NoNewPrivileges=yes`. `sudo`는 실행되지 않는다(no_new_privs로 setuid 무효 [지식]) |
 | R-9 | codemode·하위 호출 안에서 부른 도구도 같은 검사(13의 `runToolCall` 경로)와 같은 격리를 탄다(발췌1 E1-187) |
@@ -769,8 +769,10 @@ effect class를 쓰지 않는다(결정 2). 권한 레이어(13 §3.10 `Permissi
 | 보호 경로(§3.11.5) 쓰기 | `deny` | - | `protected_path.write` | 경계 C |
 | 보호 경로 읽기(모델 컨텍스트로 가져옴) | `ask` | true / `disclose_data` | `protected_path.read` | 정보가 제공자로 나간다(D18-09, 발췌4 d3) |
 | `send` 원시 행동(메일, 메시지, 원격 push, 외부 API 쓰기, 패키지 배포) | 합의 없으면 `deny`(결정 15, 커널이 막음), 합의 있으면 `ask`(1차) | true / `speak_for_user`, 대상이 다른 사람이면 `affect_others`, 돈이 들면 `spend_money` | `send.requires_human` | 01 NFR-S-7, 발췌4 b1 |
-| 브라우저의 비-GET 요청, 업로드, 합의 밖 호스트 이동(요청 가로채기에서 잡힘) | `ask`(보류 후 게이트) | true / `speak_for_user`(폼 제출·변경 요청), `disclose_data`(업로드나 본문에 작업 공간·비공개 내용) | `send.requires_human` | §3.11.11 BR-6, 조사 §6.5 |
+| `externalEffect: 'uncertain'`인 도구 호출(컴퓨터 사용 등, 외부 효과가 있을지 모르는 호출) | `send`와 같다(합의 없으면 `deny`, 있으면 `ask`) | true / `send`와 같음 | `send.requires_human` | [판정 J-206], §3.11.11 BR-8 |
+| 브라우저의 비-GET 요청, 업로드, 합의 밖 호스트 이동(조작 단계의 요청 가로채기에서 잡힘, 오염 여부와 무관) | `ask`(보류 후 게이트) | true / `speak_for_user`(폼 제출·변경 요청), `disclose_data`(업로드나 본문에 작업 공간·비공개 내용) | `send.requires_human` | §3.11.11 BR-6, [판정 J-190 (3), J-208, J-229]. 조사 §6.5 |
 | 웹 내용을 본 run(`taint.web`)의 모든 `send` | 합의가 허용해도 `ask` | 위 `send`와 같음 | `send.requires_human`. 승인 화면에 "웹 내용을 본 뒤의 요청" 표시 | §3.12 11번, BR-2, 판정 J-190 (3) |
+| 공개 주소(`net:public`)로 가는 웹 읽기: `web_fetch`, `web_search`(질의 전송 포함), 브라우저의 GET·HEAD | `allow`. 합의 부여 없이 기본 허용이다. 합의의 웹 부여는 `net:<호스트>`를 더 열 때만 필요하다. 웹 내용을 본 run의 긴 질의와, 오염과 무관한 합의 밖 이동은 위 행들과 §3.11.11 요청 판정이 먼저다 | - | - | [결정 55], [판정 J-205, J-207]. 내부 주소는 §3.11.8 1번이 거부 |
 | 네트워크가 있는 실행(13 `network: 'proxy'`, 프록시 경유만, R-6) | 합의에 `net:` 부여(`net:public` 포함, 차단 대역은 언제나 거부)가 있으면 `allow`, 없으면 `ask`. 프록시 스파이크가 실패한 구성(§3.11.9 끝)에서는 부여가 있어도 실행마다 `ask` | 부여가 없을 때 true / `disclose_data`. 명령에 `git push`, `npm publish`, `curl -X POST\|PUT\|DELETE`, `scp`, `rsync … :`, `ssh` 형태가 보이면 `speak_for_user`를 더한다(질문을 늘리는 쪽으로만 쓴다, 13 §3.10) | `network.ungranted` | T-M5. 작업 공간 내용이 밖으로 나갈 수 있다 |
 | `sudo`, `su`, `pkexec`, `doas`, `systemctl`, `loginctl`, `crontab`, `at` | `deny` | - | `privilege_or_persistence` | 경계 밖 지속 효과 |
 | `secrets run`, `sops -d`, `secrets edit`, `secrets dotenv` | `ask` | true / `disclose_data` | `secrets.access` | 비밀 노출 |
@@ -778,6 +780,7 @@ effect class를 쓰지 않는다(결정 2). 권한 레이어(13 §3.10 `Permissi
 | 결과가 불명한 외부 효과 호출의 해소(12 §3.7.4) | - | true / `irreversible_external` | - | 조정자 판정 J-05: 외부 효과가 있을 수 있으면 권리 게이트 |
 | 그 밖 | 13 범위 검사와 합의 | - | - | - |
 
+- 브라우저의 읽기 단계(읽기 전용: 탐색·읽기·스크린샷·스크롤)에서는 위 브라우저 행의 세 가지(비-GET 요청, 업로드, 합의 밖 이동)를 보류하지 않고 거부한다. 거부 코드는 `policy.forbidden_resource`다([판정 J-208]). 요청 가로채기는 클릭·입력이 켜지는 조작 단계와 함께 켜고, 잡힌 요청을 `send`로 올린다([판정 J-229]).
 - `disclose_data`는 고정 권리 범주다(10 §5.2, 11 §5.2 요구에 대한 답). 정보가 Helm·작업 공간 밖으로 나가는 행동(보호 경로를 모델에 넣기, 허가 없는 네트워크, 비밀 접근)은 다이얼과 무관하게 권리 게이트다.
 - 권한 레이어는 질문을 만들지 않고 판정만 돌려준다. 묻기는 11이 한다(발췌4 d1에 대한 답, 11 §5.2 요구 행).
 - 이 규칙은 모드·다이얼로 끌 수 없다(불변조건과 같은 층). 사람이 합의에서 경로·명령·네트워크를 명시하면 그 합의 범위에서만 `allow`로 바뀐다(보호 경로 쓰기, 권한 상승, Windows 실행은 합의로도 바뀌지 않는다).
@@ -795,9 +798,9 @@ effect class를 쓰지 않는다(결정 2). 권한 레이어(13 §3.10 `Permissi
 
 #### 3.11.8 데몬이 직접 하는 네트워크 요청(`web_fetch` 등) [제안]
 
-`web_fetch`(MVP, 결정 55)처럼 샌드박스 밖 데몬 프로세스가 직접 하는 HTTP 요청은 루프백 서비스에 접근할 수 있다(홈랩 Caddy 관리 API 2019가 무인증 [실험], 17 H-5). 그래서 다음을 지킨다. MVP의 `web_fetch`는 데몬이 직접 가져온다. Anthropic 서버 측 `web_fetch`는 쓰지 않는다(판정 J-190 (5)). 대상 호스트는 합의의 `net:` 부여를 따른다(`net:public`이면 공개 주소 전체). 변환(linkedom·readability·turndown)은 네트워크 없는 작업자 프로세스에서 메모리·시간 상한을 두고 돈다(판정 J-190 (1)).
+`web_fetch`(MVP, 결정 55)처럼 샌드박스 밖 데몬 프로세스가 직접 하는 HTTP 요청은 루프백 서비스에 접근할 수 있다(홈랩 Caddy 관리 API 2019가 무인증 [실험], 17 H-5). 그래서 다음을 지킨다. MVP의 `web_fetch`는 데몬이 직접 가져온다. Anthropic 서버 측 `web_search`·`web_fetch`는 MVP에서 쓰지 않는다(판정 J-190 (5)). 외부 대상은 `net:<호스트>` 또는 `net:public`(공개 주소 전체)으로 판정한다. 공개 주소 읽기는 합의 부여 없이 기본 허용이고, 합의의 웹 부여는 `net:<호스트>` 대상을 더 열 때만 필요하다([판정 J-205]). 변환(linkedom·readability·turndown)은 네트워크 없는 작업자 프로세스에서 메모리·시간 상한을 두고 돈다(판정 J-190 (1)).
 
-1. 주소 차단(SSRF 방지): 이름 해석 뒤의 IP가 `127.0.0.0/8`, `::1`, `0.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`(tailnet), `fd7a:115c:a1e0::/48`(tailnet), `fc00::/7`, `fe80::/10`이면 거부한다. 리디렉션마다 다시 검사한다. 이름 해석과 연결 사이에 주소가 바뀌지 않게 해석한 IP로 직접 연결한다. 이 대역 목록은 `net:public`의 차단 대역과 같다(§3.11.9).
+1. 주소 차단(SSRF 방지): 이름 해석 뒤의 IP가 `127.0.0.0/8`, `::1`, `0.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`(tailnet), `fd7a:115c:a1e0::/48`(tailnet), `fc00::/7`, `fe80::/10`이면 거부한다. 리디렉션마다 다시 검사한다. 이름 해석과 연결 사이에 주소가 바뀌지 않게 해석한 IP로 직접 연결한다. 이 대역 목록은 `net:public`의 차단 대역과 같다(§3.11.9). 01 NFR-S-10의 루프백·사설·CGNAT·tailnet 대역에 `0.0.0.0/8`과 링크 로컬(`169.254.0.0/16`, `fe80::/10`)을 더한 것이다.
 2. 방법은 `GET`·`HEAD`만, 쿠키·인증 헤더를 보내지 않는다. 크기 상한 10 MiB, 시간 상한 30초.
 3. 가져온 내용은 신뢰하지 않는 자료다(§3.12). 출처 URL과 함께 관찰로 기록하고 경계 표식으로 감싼다.
 4. URL에 작업 공간 내용이 실려 나가는 것은 막을 수 없다. 모델이 만든 URL의 질의 문자열이 2 KiB를 넘거나 비밀 패턴(§3.10.4)과 맞으면 `ask`(`disclose_data`)로 바꾼다.
@@ -811,7 +814,7 @@ effect class를 쓰지 않는다(결정 2). 권한 레이어(13 §3.10 `Permissi
    CONNECT host:port / 절대 형식 HTTP                                     도구: HTTP(S)_PROXY=http://127.0.0.1:3128
 ```
 
-1. 샌드박스는 언제나 별도 네트워크 네임스페이스다(R-6). 네트워크를 허용한 실행에만 데몬이 실행별 Unix 소켓을 열어 샌드박스 안에 바인드하고, 샌드박스 안의 작은 다리 프로세스(`helm-netshim`, 13 정본 이름. 릴리스에 포함한 정적 실행 파일)가 `127.0.0.1:3128`에서 받아 그 소켓으로 넘긴다. bind로 넣은 Unix 소켓에 별도 netns 안에서 연결할 수 있음을 S1b 구성에서 확인했다 [실험 25]. 같은 방식을 Anthropic `sandbox-runtime`이 bubblewrap에서 쓴다 [지식].
+1. 샌드박스는 언제나 별도 네트워크 네임스페이스다(R-6). 실행의 `network` 값은 13의 `'none'`·`'proxy'`뿐이고 `'any'`는 쓰지 않는다([판정 J-211]). 네트워크를 허용한 실행에만 데몬이 실행별 Unix 소켓을 열어 샌드박스 안에 바인드하고, 샌드박스 안의 작은 다리 프로세스(`helm-netshim`, 13 정본 이름. 릴리스에 포함한 정적 실행 파일)가 `127.0.0.1:3128`에서 받아 그 소켓으로 넘긴다. bind로 넣은 Unix 소켓에 별도 netns 안에서 연결할 수 있음을 S1b 구성에서 확인했다 [실험 25]. 같은 방식을 Anthropic `sandbox-runtime`이 bubblewrap에서 쓴다 [지식].
 2. 프록시는 `CONNECT host:port`와 절대 형식 HTTP 요청만 받는다. 이름을 해석한 뒤 IP가 §3.11.8 1번의 차단 대역(루프백, 사설, CGNAT·tailnet `100.64.0.0/10`, 링크 로컬, ULA, `fd7a:115c:a1e0::/48`)이면 거부하고, 해석한 IP로 직접 연결한다(DNS rebinding 방지). 포트는 기본 80·443만, 합의의 `net:<origin>` 부여가 포트를 명시하면 그 포트도 연다.
 3. 합의의 `net:` 부여가 호스트를 적었으면(`net:https://registry.npmjs.org` 등) 그 호스트만 통과시킨다. `net:public`은 차단 대역 밖 공개 인터넷 전체다(결정 55: 외부 탐색은 막지 않는다). 차단 대역은 어떤 부여로도 열리지 않는다.
 4. 요청마다 trace(`tool.net_request { host, port, decision }`, 이름은 09)를 남긴다. 본문은 기록하지 않는다.
@@ -834,7 +837,7 @@ env -i PATH="${SAFE_PATH}" HOME="${HELM_ROOT}/tmp/git-home" LANG=C.UTF-8   GIT_C
 
 #### 3.11.11 웹 검색·브라우저·컴퓨터 사용의 격리와 권리 게이트 [결정 55, 판정 J-190 / 제안: 세부]
 
-결정 55에 따라 웹 검색과 브라우저, 컴퓨터 사용이 도구 범위에 든다. 단계는 웹 검색이 MVP, 브라우저가 MVP 후반, 컴퓨터 사용이 이후 1차다(판정 J-190 (1)). 브라우저는 읽기 전용(탐색·읽기·스크린샷·스크롤)을 먼저 넣고, 클릭·입력과 요청 가로채기를 이어서 넣는다. 도구 이름과 입력은 13이 정하며 구현 전에 확인한다(판정 J-190 (5)). 이 절은 그 도구들이 지킬 보안 요구다(BR-1~BR-8). 위협은 §3.2의 T-BR1~T-BR8이다. 조사 문서의 위협 T-B1~T-B8은 백업 위협 T-B1(판정 J-146)과 겹쳐서 이름을 T-BR로 바꿨다. `web_fetch`는 §3.11.8이 다룬다. Windows 호스트 데스크톱 조작은 하지 않는다. Stagehand는 자체 LLM 호출 층 때문에 모델 키 경계(BR-4)를 깨므로 쓰지 않는다(판정 J-190).
+결정 55에 따라 웹 검색과 브라우저, 컴퓨터 사용이 도구 범위에 든다. 단계는 웹 검색이 MVP, 브라우저가 MVP 후반, 컴퓨터 사용이 이후 1차다(판정 J-190 (1)). 브라우저는 읽기 전용(탐색·읽기·스크린샷·스크롤)을 먼저 넣고, 클릭·입력과 요청 가로채기를 이어서 넣는다. 도구 이름과 입력은 13이 정하며 구현 전에 확인한다(판정 J-190 (5)). 이 절은 그 도구들이 지킬 보안 요구다(BR-1~BR-8). 위협은 §3.2의 T-BR1~T-BR8이다. 조사 문서의 위협 T-B1~T-B8은 백업 위협 T-B1(판정 J-146)과 겹쳐서 이름을 T-BR로 바꿨다. `web_fetch`는 §3.11.8이 다룬다. Windows 호스트 데스크톱 조작은 하지 않는다. Stagehand와 oh-my-pi는 의존성으로 쓰지 않는다. Stagehand는 자체 LLM 호출 층이 모델 키 경계(BR-4)를 깨므로, Helm 모델 어댑터를 거칠 수 있을 때만 선택 확장으로 둔다([판정 J-190]).
 
 ```text
 helmd (모델 키, 정본, ledger) ── 실행마다 프록시 소켓 ──┐
@@ -851,25 +854,26 @@ helmd (모델 키, 정본, ledger) ── 실행마다 프록시 소켓 ──�
 | BR-3 | 프로필은 실행마다 새로 만든다. 작업 공간 밖 tmpfs에 두고 실행이 끝나면 지운다. 호스트 Chrome 프로필과 쿠키를 가져오지 않는다. 로그인이 필요한 지속 프로필(브라우저 신원)은 MVP 밖이다. 도입하면 합의가 명시한 이름 붙은 신원만 쓴다. | T-BR3 |
 | BR-4 | CDP는 `--remote-debugging-pipe`로만 연결한다. 디버그 포트를 열지 않는다. 모델 키와 `SecretStore` 값은 browserd 환경에 두지 않는다. 모델 호출은 데몬만 한다(R-2). | 모델 키 유출(AS-KEY) |
 | BR-5 | 최상위 이동 스킴은 `http`·`https`만 허용한다. 다운로드는 기본 거부한다. 합의가 허용하면 `drafts/<concernId>/downloads/` 한 곳에만 받는다(파일당 50 MiB, 실행당 200 MiB, 실행 권한 없음, 열지 않음). 업로드는 `send`이고 항상 `ask`다. 위치·카메라·알림·클립보드 권한 요청은 거부한다. 파일 선택 창은 취소한다. 대화상자는 기록하고 닫는다. 확장은 끈다. `javascript_exec`는 기본으로 끄고, 켜면 `execute`와 `send`로 판정한다. | T-BR4, T-BR5 |
-| BR-6 | 네트워크 허용은 프록시에서 호스트 단위로 강제한다. 브라우저 안의 출처 제한에 기대지 않는다(리디렉션 우회 때문). 브라우저의 비-GET 요청, 업로드, 합의 밖 호스트 이동은 browserd의 요청 가로채기(CDP Fetch)에서 잡아 `send`로 올린다. 프록시는 HTTPS에서 메서드를 보지 못하므로 이 판정은 browserd가 맡는다. | T-BR2, T-BR5, T-BR6 |
+| BR-6 | 네트워크 허용은 프록시에서 호스트 단위로 강제한다. 브라우저 안의 출처 제한에 기대지 않는다(리디렉션 우회 때문). 브라우저의 비-GET 요청, 업로드, 합의 밖 호스트 이동은 browserd의 요청 가로채기(CDP Fetch)에서 잡아 `send`로 올린다. 오염 여부와 무관하다([판정 J-229], 13 §3.10.1과 같은 범위). 가로채기는 조작 단계(클릭·입력)와 함께 켜고, 읽기 단계는 이 셋을 `policy.forbidden_resource`로 거부한다([판정 J-208]). 프록시는 HTTPS에서 메서드를 보지 못하므로 이 판정은 browserd가 맡는다. | T-BR2, T-BR5, T-BR6 |
 | BR-7 | Chrome 내부 샌드박스를 켜고 쓴다(아래 "Chrome 샌드박스와 bwrap 중첩"). 끄고 쓰면 상태 점검에 기록한다(`browser_inner_sandbox: false`). | 격리 약화 |
-| BR-8 | 컴퓨터 사용은 실행마다 새 X 서버를 샌드박스 안에서 띄운다. 공용 X 서버는 두지 않는다. `-nolisten tcp`를 쓴다. 세션 시작 때 한 번 승인받는다. `/mnt`와 호스트 홈은 보이지 않는다. 모든 입력(`Enter` 포함)과 화면 기록을 ledger에 남긴다. 계정, 결제, 메시지 전송은 이 도구로 하지 않는다. | 화면·입력 노출 |
+| BR-8 | 컴퓨터 사용은 실행마다 새 X 서버를 샌드박스 안에서 띄운다. 공용 X 서버는 두지 않는다. `-nolisten tcp`를 쓴다. 세션 시작 때 한 번 승인받는다. 도구의 외부 효과는 `externalEffect: uncertain`으로 선언한다(13, [판정 J-190 (1), J-206]). `/mnt`와 호스트 홈은 보이지 않는다. 모든 입력(`Enter` 포함)과 화면 기록을 ledger에 남긴다. 계정, 결제, 메시지 전송은 이 도구로 하지 않는다. | 화면·입력 노출 |
 
 요청 판정(BR-6, 조사 §6.5):
 
 | 요청 | 판정 |
 |---|---|
-| 최상위 이동 GET·HEAD. 호스트가 합의의 `net:` 범위 안(`net:public` 포함)이고 질의 문자열이 256자 이하 | `read`(자동) |
+| 최상위 이동 GET·HEAD. 호스트가 `net:public`(합의 부여 없이 기본 허용)이거나 합의의 웹 부여 안에 있고, 질의 문자열이 2 KiB 이하 | `read`(자동) |
 | 하위 자원 GET(이미지, 스크립트, XHR GET). 호스트가 범위 밖이면 프록시가 거부 | `read`(자동) |
 | POST·PUT·PATCH·DELETE(폼 제출, `fetch`·XHR 변경 요청, `navigator.sendBeacon`) | `send`. 요청을 보류하고 `ask`로 묻는다. 승인 지문은 호스트·메서드·본문 해시다. 본문 앞 200자는 마스킹(§3.10.4)을 거쳐 보인다 |
-| 오염 뒤 만든 256자 초과 질의나 경로, 합의 밖 호스트로의 이동 | `send`(`ask`) |
-| 업로드, 평문 HTTP로의 비-GET | 항상 `ask` |
+| 웹 내용을 본 뒤 만든 2 KiB 초과 질의나 경로가 있는 GET([판정 J-209]) | `send`(`ask`) |
+| 합의 밖 호스트로의 이동(오염 여부와 무관, [판정 J-229]) | `send`(`ask`) |
+| 업로드, 평문 HTTP로의 비-GET | `send`, 항상 `ask` |
 | `file:`, `chrome:` 등 금지 스킴, 차단 대역 | 거부(프록시와 browserd 둘 다) |
 
 - 키 입력 `Enter`나 버튼 클릭이 위 요청을 만들 때만 `send`가 된다. 라벨(예: "결제")을 추측해 판정하지 않는다. 라벨 휴리스틱은 승인 화면의 보조 경고("제출 버튼으로 보임")에만 쓴다.
-- 합의에 `net:public`이 있으면 공개 주소의 최상위 GET·HEAD 이동은 자동이다. 없으면 호스트마다 `ask`다(§3.11.6). 외부 탐색을 막지 않는다는 결정 55의 뜻이다.
+- 공개 주소(`net:public`)의 최상위 GET·HEAD 이동은 합의 부여 없이 자동이다([판정 J-205]). 합의의 웹 부여는 `net:<호스트>` 대상을 더 열 때만 필요하다. 외부 탐색을 막지 않는다는 [결정 55]의 뜻이다.
 - 로그인, 결제, 계정 생성, 약관 동의, 쿠키 동의는 합의가 그 호스트의 `send`를 미리 허용하지 않는 한 `ask`다(조사 §6.5, Anthropic 권고).
-- 요청 가로채기는 `navigator.sendBeacon`, `fetch`의 keepalive, 서비스 워커 요청을 놓칠 수 있다(T18-52). 놓치는 종류가 있으면 그 구성에서 상호작용 도구(클릭·입력·폼 제출)를 켜지 않는다. 읽기 전용 구성에서 가로채기를 켤 시점은 Q18-14에서 정한다.
+- 요청 가로채기는 `navigator.sendBeacon`, `fetch`의 keepalive, 서비스 워커 요청을 놓칠 수 있다(T18-52). 놓치는 종류가 있으면 그 구성에서 상호작용 도구(클릭·입력·폼 제출)를 켜지 않는다. 가로채기는 조작 단계와 함께 켠다. 읽기 단계는 비-GET·업로드·합의 밖 이동을 가로채지 않고 거부한다([판정 J-208, J-229]).
 - 모든 브라우저 요청은 `tool.net_request`(09)로 남긴다(호스트, 메서드, 판정. 본문은 남기지 않는다).
 
 Chrome 샌드박스와 bwrap 중첩 [제안]:
@@ -879,7 +883,7 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 - `/dev/shm`이 없으면 `--disable-dev-shm-usage`를 쓴다. 쓰기 가능한 곳은 프로필, 다운로드, `/tmp`(tmpfs)뿐이다.
 
 웹 검색 [제안]:
-- `web_search`는 제공자 API를 부른다. 질의어는 호출 전에 `mask()`(§3.10.4)를 지난다(T-BR8). 제공자 API 호스트만 `net:` 부여로 연다. 제공자 순서(기본 Brave, 예비 Tavily)와 월 상한은 설정 `tools.webSearch`에 둔다(13). 결과 본문은 신뢰 안 함 입력이다(§3.12 10번).
+- `web_search`는 제공자 API를 부른다(Anthropic 서버 측 `web_search`는 쓰지 않는다, 판정 J-190 (5)). 질의 문자열은 호출 전에 `mask()`(§3.10.4)를 거친 `queryMasked` 값으로만 보낸다(T-BR8). 질의 전송은 `send`가 아니라 읽기이므로 `taint.web`과 무관하게 허용한다([판정 J-207]). 제공자 API 호스트는 공개 주소라 합의 부여 없이 열린다([판정 J-205]). 제공자 순서(기본 Brave, 예비 Tavily)와 월 상한은 설정 `tools.webSearch`에 둔다(13). 결과 본문은 신뢰 안 함 입력이다(§3.12 10번).
 
 사람 작업 [제안]:
 - apt(root 필요): `bubblewrap`(필수), `fonts-noto-cjk`(권고, 한글 페이지), 컴퓨터 사용 단계의 `xdotool`·`openbox`·`x11-utils`·`scrot`.
@@ -930,7 +934,7 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 | `pairing.code_created` / `pairing.code_consumed` / `pairing.code_failed` / `pairing.code_expired` / `pairing.code_cancelled` | §3.7.2 |
 | `device.renamed` | `deviceId`, 이전·새 이름 |
 | `device.push_registered` / `device.push_unregistered` | 26 §3.4.6(구독 원문 없음, `tokenHash`·`tokenHint`만) |
-| `blob.redacted` | `blobId`, 사유(§3.10.6) |
+| `blob.redacted` | `hash`(blob 내용의 해시), 사유(§3.10.6) |
 | `tools.git_config_suspicious` | 작업 공간, 발견한 설정 키 이름(§3.11.10) |
 | `integrity.verified` / `integrity.recovered` / `ledger.hmac_key_rotated` | 09 §3.10 |
 | `auth.denied` | 출처별 5분 묶음: `{ listener, source, reasons: Record<reason, count>, firstAt, lastAt }` |
@@ -1019,7 +1023,7 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 
 | ID | 조건 | 종류 |
 |---|---|---|
-| T18-01 | `tailnet`: 토큰 없음 → 401. 형식 틀린 토큰 → 401. 해시 없음 → 1004(1006 아님). 폐기 → 1005(`revoked`). 다른 기기 ID → 1008. 절대·유휴 만료 → 1005(`expired_absolute`·`expired_idle`, 유휴는 `lastAuthAt + 90일`) | 통합 |
+| T18-01 | `tailnet`: 토큰 없음 → 401. 형식 틀린 토큰 → 401. 해시 없음 → 1004(1006 아님). 폐기 → 1005(`revoked`). 다른 기기 ID → 1008. 절대·유휴 만료 → 1005(`expired_absolute`·`expired_idle`, 유휴는 `device_presence.last_auth_at + 90일`) | 통합 |
 | T18-02 | `tailnet`: 신원 헤더 없음·`X-Forwarded-For` 없음·허용 밖 로그인·whois 불일치·태그 노드·Funnel 표식 → 401, 각 사유로 `auth.denied` 묶음 1건 | 통합(가짜 whois) |
 | T18-03 | whois 실패 → 401(fail closed). 설정 `token-only`면 통과하고 `auth.policy_relaxed` 기록 | 통합 |
 | T18-04 | 노드 묶기: 기기 A 토큰을 다른 `StableID`의 whois 결과로 → 1008(node_mismatch). 묶이지 않은 기기는 첫 WSS 접속에서 묶임 | 통합 |
@@ -1070,9 +1074,9 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 | T18-47 | BR-6: 허용 목록 밖 호스트로의 리디렉션(302)은 프록시가 거부한다(브라우저의 출처 제한에 기대지 않는다). `127.0.0.1:2019`·`100.64.x.x` 직접 요청은 실패한다 | 시스템(T18-34와 함께) |
 | T18-48 | BR-7: `--no-sandbox` 구성이면 상태 `browser_inner_sandbox: false`와 `tools.sandbox_disabled`(`browser_no_sandbox`)가 남는다. S0에서는 브라우저 도구가 목록에 없다. S1에서 Chrome 내부 샌드박스가 bwrap 아래 기동하고 bwrap이 `--disable-userns`를 쓰지 않는다 | 시스템 |
 | T18-49 | BR-8: 컴퓨터 사용 실행 두 개의 화면과 입력이 서로 보이지 않는다(실행마다 새 X 서버, `-nolisten tcp`). `/mnt`와 호스트 홈이 보이지 않는다. 세션 승인 없이 시작하면 거부한다 | 시스템 |
-| T18-50 | `net:public`: 공인 주소 대상 요청은 허용한다. §3.11.8 1번의 차단 대역은 전부 거부한다. 합의에 호스트를 적으면 그 호스트만 통과한다 | 통합 |
+| T18-50 | `net:public`: 공인 주소 대상 요청은 허용한다. §3.11.8 1번의 차단 대역은 전부 거부한다. 프록시 실행에서 합의에 호스트를 적으면 그 호스트만 통과한다(§3.11.9 3번) | 통합 |
 | T18-51 | T-BR8: 비밀 패턴이 든 `web_search` 질의가 제공자 요청 전에 `mask()`로 가려진다 | 통합 |
-| T18-52 | BR-6 요청 가로채기: `navigator.sendBeacon`, `fetch` keepalive, 서비스 워커 요청이 가로채기에 잡히는지 확인한다. 놓치는 종류가 있으면 그 구성에서 상호작용 도구가 꺼진다(Q18-14) | 시스템(23 스파이크와 함께) |
+| T18-52 | BR-6 요청 가로채기: `navigator.sendBeacon`, `fetch` keepalive, 서비스 워커 요청이 가로채기에 잡히는지 확인한다. 놓치는 종류가 있으면 그 구성에서 상호작용 도구가 꺼진다(판정 J-229) | 시스템(23 스파이크와 함께) |
 
 ### 3.18 모바일 클라이언트 [결정 42·47·48·49 / 세부 제안]
 
@@ -1146,7 +1150,7 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 | S-13 | 사용자가 `tools.sandbox="off"`로 바꿈 | 허용하되 시작마다 경고, 감사 기록, 상태 critical 유지 |
 | S-14 | 페어링 코드가 채팅·스크린샷으로 샘 | tailnet 신원 조건이 있어 소유자 tailnet 밖에서는 쓸 수 없고 10분 만료. 의심되면 `helm pair --cancel-all` |
 | S-18 | 브라우저 Chrome 내부 샌드박스가 bwrap 아래 기동하지 않음 | S1을 유지하고 `--no-sandbox`는 S1·S1b에서만 노란색 표시로 허용한다(§3.11.11). 그것도 안 되면 브라우저 도구를 끈다(S0 금지) |
-| S-19 | 요청 가로채기가 일부 요청(`sendBeacon`, keepalive, 서비스 워커)을 놓침 | 23 스파이크(T18-52)에서 확인한다. 놓치는 구성에서는 상호작용 도구(클릭·입력·폼 제출)를 켜지 않는다. 읽기 전용 구성의 처리는 Q18-14 |
+| S-19 | 요청 가로채기가 일부 요청(`sendBeacon`, keepalive, 서비스 워커)을 놓침 | 23 스파이크(T18-52)에서 확인한다. 놓치는 구성에서는 상호작용 도구(클릭·입력·폼 제출)를 켜지 않는다. 읽기 단계는 비-GET·업로드·합의 밖 이동을 가로채지 않고 거부한다(판정 J-208, J-229) |
 | S-20 | 검색 제공자 키가 없음 | `web_search`를 도구 목록에서 뺀다. 다른 제공자의 키로 대신 부르지 않는다. 제공자 순서는 설정 `tools.webSearch`만 따른다 |
 
 ## 5. 다른 문서와의 인터페이스
@@ -1185,13 +1189,13 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 | 10 | (1) 사람 전용 명령 `blob.redact`(§3.10.6). (2) 사람 명령 payload를 커널 입력 전에 마스킹기로 지운다(§3.10.3). (3) 비대화 `localAdmin`·`runtimeAdapter` 출처의 사람 결정 명령은 `denied.channel`(§3.5) |
 | 11 | 복원 때 미소진 승인 만료 `approval.expired { reason: "restored" }` 처리(§3.16 3번) |
 | 12 | (1) 키를 `SecretStore`에서 읽는다(결정 45). 모델 출력·제공자 오류를 마스킹기로 지운 뒤 정본·로그에 쓴다. OAuth 토큰을 자격으로 쓰지 않는다. (2) PJ-7 경계 표식에 무작위 id와 닫힘 위조 치환(§3.12 8번), T-PJ-10 사례 추가. (3) 지침 파일 해시 확인(§3.12 9번). (4) run 단위 `taint.web` 상태와 그 판정 읽기(BR-2, §3.12 11번). PJ-7 표식에 `source="browser"`, `tabId`, `snapshotGen`을 싣는다(§3.12 10번) |
-| 13 | (1) S1b를 허용 목록 방식(`ProtectHome=tmpfs` + `BindReadOnlyPaths`·`BindPaths`)으로, `SandboxSpec`을 S1·S1b·S0 판별 합집합으로, 보장 수준 판정 표(§3.11.2). (2) 모든 실행 별도 netns + 프록시 다리(§3.11.9, R-6). §3.6.2 "`--share-net`이면 루프백에 도달한다" 문장을 바꾼다. (3) 데몬 git 고정 환경과 실행 지점 설정 검사, 쓰기 루트의 `.git/config`·`info/attributes`·`hooks` 읽기 전용 덧씌움(§3.11.10). (4) 초안·검증 작업 트리는 S1에서만(R-14, 판정 J-108). (5) 브라우저·웹·컴퓨터 사용 도구의 격리와 권리 게이트(BR-1~BR-8, §3.11.11). `browser_*`는 S1과 프록시 네임스페이스, CDP 파이프, Chrome 내부 샌드박스 켬(bwrap이 `--disable-userns`를 쓰지 않음), 프로필 실행마다 새로, 다운로드·업로드·권한 요청 기본 거부, 요청 가로채기에서 비-GET을 `send`로 올림. 컴퓨터 사용은 실행마다 새 X 서버와 세션 단위 승인. (6) §3.11.6 외부 런타임 어댑터에 `runtimeAdapter` 주체와 같은 uid 한계(§3.5 규칙 8). (7) `argsPreview`의 `truncated`와 같은 직렬화(§3.11.6) |
+| 13 | (1) S1b를 허용 목록 방식(`ProtectHome=tmpfs` + `BindReadOnlyPaths`·`BindPaths`)으로, `SandboxSpec`을 S1·S1b·S0 판별 합집합으로, 보장 수준 판정 표(§3.11.2). (2) 모든 실행 별도 netns + 프록시 다리(§3.11.9, R-6). §3.6.2 "`--share-net`이면 루프백에 도달한다" 문장을 바꾼다. (3) 데몬 git 고정 환경과 실행 지점 설정 검사, 쓰기 루트의 `.git/config`·`info/attributes`·`hooks` 읽기 전용 덧씌움(§3.11.10). (4) 초안·검증 작업 트리는 S1에서만(R-14, 판정 J-108). (5) 브라우저·웹·컴퓨터 사용 도구의 격리와 권리 게이트(BR-1~BR-8, §3.11.11). `browser_*`는 S1과 프록시 네임스페이스, CDP 파이프, Chrome 내부 샌드박스 켬(bwrap이 `--disable-userns`를 쓰지 않음), 프로필 실행마다 새로, 다운로드·권한 요청 기본 거부, 업로드는 `send`로 항상 `ask`, 요청 가로채기는 조작 단계와 함께 켜서 비-GET·업로드·합의 밖 이동을 `send`로 올리고 읽기 단계는 거부한다(판정 J-208, J-229). 컴퓨터 사용은 실행마다 새 X 서버와 세션 단위 승인. (6) §3.11.6 외부 런타임 어댑터에 `runtimeAdapter` 주체와 같은 uid 한계(§3.5 규칙 8). (7) `argsPreview`의 `truncated`와 같은 직렬화(§3.11.6) |
 | 15 | `web_fetch`·`web_search` 정책(§3.11.8, §3.11.11). `<data>` 표식을 12 렌더러로(§3.12 8번). 자극·문서·작업 공간을 모델에 넣거나 저장할 때 마스킹기 적용(§3.10.3) |
 | 16 | (1) 마스킹 규칙 표를 18 §3.10.4와 한 곳에서(합집합). (2) 관찰 자식 가림 목록에 `/srv/volumes/helm/private`(17 §3.1.3과 같게), fork 자식의 `private/` 비접근 규칙(§3.11.3) |
 | 19 | (1) `helm-bearer.` 하위 프로토콜은 정식 데몬이 받지 않는다(§3.4.4). P-03·§3.2.2·§3.17·CT-33·Q-16을 "헤더(데스크톱) 또는 쿠키(모바일 PWA), 하위 프로토콜은 가짜 데몬 시험 전송만"으로. (2) HTTP 경로 표에 `/m/*`, `/m/pair`, `/m/whoami`, `/m/logout`, `/m/cmd`와 hello 전 처리 예외. (3) `checkTransport` 반환에 `carrier`. (4) `1004` 고정(해시 조회 실패), `1006`은 토큰 경로에서 쓰지 않음, `1008` 사유에 `carrier_mismatch`, Host 불일치는 403 하나(§3.4.5). (5) 브라우저 전송의 업그레이드 실패 판정(`/m/whoami` 401 사유, §3.4.3 규칙 5)을 §3.14에. (6) scope `decideMobile`(26 §3.3.3 표), 비대화 `localAdmin`의 scope(`decide` 없음), `runtimeAdapter`의 scope `modelTool`, `tty_cli` 확인 요청 메서드와 명령 필드(§3.5 규칙 6). (7) `device.revoke`의 `cascade`. (8) 다운로드 티켓은 19 §3.11.2가 정본(18 §3.8.2를 맞췄다). (9) `policy.files`에 기기당 대기 업로드 총량·동시 세션 상한(§3.14). (10) 1005·4009 사유별 클라이언트 데이터 처리(§3.19)를 F-06에 |
 | 20 | (1) `ForwardAgent=no`, `StrictHostKeyChecking=yes` 기본, 첫 접속 지문 대조 안내, 앱 전용 제한 키 권장 구성(§3.6.2). (2) 키체인 항목 이름에 `serverId`. (3) SSH 발급은 `--stdin` JSON, 원격 인자 POSIX 인용, `helmCliPath` 형식 검사와 기본값 `~/.local/bin/helm`, §6에 셸 메타 문자 시험(§3.7.3). (4) 사유별 클라이언트 데이터 처리(§3.19). (5) 첫 실행 안내에 디스크 암호화 권장. (6) app-dev Vite 프록시: 127.0.0.1 바인딩, 대상 포트는 `HELM_LISTEN_SSH_PORT`, Origin이 Vite 주소일 때만 토큰(§3.4.5). (7) Cargo·CI 공급망 규칙(§3.15) |
 | 22 | §3.17의 새 시험(T18-07b·07c, T18-34~T18-52)을 시험 계층에 |
-| 23 | (1) 프록시 스파이크(§3.11.9 6번)와 실패 시 대체 구성. (2) 사람 작업: `sudo apt install bubblewrap`(필수), `fonts-noto-cjk`(권고, 한글 페이지), 컴퓨터 사용 단계의 `xdotool`·`openbox`·`x11-utils`·`scrot`. 비밀 `BRAVE_SEARCH_API_KEY`(필수)·`TAVILY_API_KEY`(선택)를 `secrets edit prod`로 넣는다(§3.10.1). 같은 uid 다른 에이전트에 `helm` CLI 사용 금지 지침(§3.5 규칙 7), Helm 작업 폴더의 git 설정 확인 안내(§3.11.10). (3) M0-03 pnpm `allowBuilds` 확인(07 실험으로 닫힘). (4) 브라우저 스파이크(판정 J-190 (7)): S1 안 Chrome 기동과 프록시 경유, `helm-netshim` 중계 비용, 요청 가로채기 누락(`sendBeacon`·keepalive·서비스 워커, T18-52), Brave 약관의 결과 저장 조항과 ledger 보존의 충돌 |
+| 23 | (1) 프록시 스파이크(§3.11.9 6번)와 실패 시 대체 구성. (2) 사람 작업: `sudo apt install bubblewrap`(필수), `fonts-noto-cjk`(권고, 한글 페이지), 컴퓨터 사용 단계의 `xdotool`·`openbox`·`x11-utils`·`scrot`. 비밀 `BRAVE_SEARCH_API_KEY`(필수)·`TAVILY_API_KEY`(선택)를 `secrets edit prod`로 넣는다(§3.10.1). 같은 uid 다른 에이전트에 `helm` CLI 사용 금지 지침(§3.5 규칙 7), Helm 작업 폴더의 git 설정 확인 안내(§3.11.10). (3) M0-03 pnpm `allowBuilds` 확인(07 실험으로 닫힘). (4) 브라우저 스파이크(판정 J-190 (7)): S1 안 Chrome 기동과 프록시 경유, `helm-netshim` 중계 비용, 요청 가로채기 누락(`sendBeacon`·keepalive·서비스 워커, T18-52), Brave 약관의 결과 저장 조항과 ledger 보존의 충돌, Chrome 실제 메모리 사용량, 한글 페이지의 변환 품질(§3.11.8 5번) |
 | 24 | ADR 번호(판정 J-156): ADR-18-01~04, ADR-18-06(J-134 네트워크 격리), ADR-18-07(J-147 후보, 민감 필드를 체인 밖에 둔다, §3.10.6). ADR-18-05(쿠키 인증)는 ADR-26-03에 합쳤다. 24의 ADR-18-05·06 항목은 이 번호로 고친다 |
 | 26 | 경로 B로 바꿀 때 §3.18.2 3번 네이티브 규칙. 실기기 확인에 A18-5(`Sec-Fetch-Site`). 쿠키 규칙(§3.4.3, §3.18.2 3·4번)은 ADR-26-03이 담는다(판정 J-156. 26 문서의 `ADR-26-3` 표기를 `ADR-26-03`으로) |
 | 07 | 실행 중 내려받기 제거, `vendor/` 고지, `allowBuilds`, OAuth 변수 미사용 |
@@ -1204,7 +1208,7 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 | `packages/daemon/src/auth/{principal,preflight,mobile-cookie,tailscale-ingress,whois,device-auth,local-confirm,runtime-adapter,pairing,tokens,rate-limit}.ts` | §3.4~§3.8, §3.14 |
 | `packages/daemon/src/http/{static-mobile,files-headers}.ts` | §3.4.6 |
 | `packages/daemon/src/net/egress-proxy.ts`(18), `packages/tools/src/sandbox/proxy.ts`·`bin/helm-netshim`(13 정본 이름) | §3.11.9 |
-| `helm-browserd`(판정 J-190, 패키지 위치는 13·23이 정한다) | §3.11.11 |
+| `packages/browserd`(`helm-browserd`, [판정 J-216], 06 §3.4.9a) | §3.11.11 |
 | `packages/tools/src/git/safe-git.ts`(13 소유, 18 요구) | §3.11.10 |
 | `packages/daemon/src/security/{redactor,secret-store,protected-paths,permission-baseline,audit-batcher,anchors,redact-blob,restore-carry}.ts` | §3.10, §3.11.5~6, §3.13, §3.16 |
 | `packages/tools/src/sandbox/systemd-run.ts`(13 소유, 18 요구 반영) | §3.11.2 |
@@ -1225,15 +1229,13 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 | Q18-11 | 오프라인 뷰 사본 암호화 | OS 디스크 암호화에 맡김 / 앱 키로 암호화 | OS에 맡김(§3.19) |
 | Q18-12 | 네트워크 프록시 스파이크가 실패했을 때 | 실행마다 사람 승인 + H-5 선행(판정 J-134) / pasta 설치(사람) | 판정대로. pasta는 사람이 설치할 수 있게 되면 다시 본다 |
 | Q18-13 | 같은 호스트 다른 포트 서비스와 쿠키를 나누는 문제(T-W4) | 받아들임 / Helm 전용 serve 호스트 이름(26 MQ-15) | 1차 받아들임. 홈랩에 serve 호스트 이름을 더할 수 있으면 옮긴다 |
-| Q18-14 | 브라우저 요청 가로채기를 언제 켜나(판정 J-190 (1)의 단계 순서와 맞지 않는다) | 읽기 전용 단계부터 / J-190 (1)대로 상호작용 단계와 함께 | 읽기 전용 단계부터. 페이지 스크립트는 클릭 없이도 비-GET 요청을 보낼 수 있다. 판정 필요 |
-| Q18-15 | 긴 질의 문자열 기준 | web_fetch 2 KiB(§3.11.8 4번) / 브라우저 오염 뒤 256자(§3.11.11) | 두 값을 그대로 둔다. 하나로 맞출지는 판정 필요 |
 
-닫은 것: Q18-04(네트워크 허용 실행의 루프백 차단)는 판정 J-134로 §3.11.9가 되었다. Q18-07(`localAdmin` 사람 결정)은 판정 J-135로 §3.5 규칙 6이 되었다. Q18-09(모바일 푸시 경로)는 결정 47로 Web Push가 되었다. Q18-10(PWA 토큰 저장)은 결정 47과 판정 J-118로 HttpOnly 쿠키가 되었다.
+닫은 것: Q18-04(네트워크 허용 실행의 루프백 차단)는 판정 J-134로 §3.11.9가 되었다. Q18-07(`localAdmin` 사람 결정)은 판정 J-135로 §3.5 규칙 6이 되었다. Q18-09(모바일 푸시 경로)는 결정 47로 Web Push가 되었다. Q18-10(PWA 토큰 저장)은 결정 47과 판정 J-118로 HttpOnly 쿠키가 되었다. Q18-14(브라우저 요청 가로채기 시점)는 [판정 J-229]로 조작 단계와 함께 켜는 것이 되었다(읽기 단계는 거부, J-208). Q18-15(긴 질의 문자열 기준)는 [판정 J-209]로 2 KiB가 되었다.
 
 ## 8. 출처
 
 - 브리프: `docs/design/process/00-design-brief.md` 결정 2, 14, 15, 21, 22, 24, 26, 27, 29, 35, 38, 42, 44~49, 54~57, §2.5, §5.2.
-- 조정자 판정: `docs/design/process/rulings-stage2a.md` J-03, J-17, J-61, J-67, J-70, J-71, J-73, J-82, J-91, J-108, J-118, J-122, J-129, J-134, J-135, J-144, J-146, J-147, J-150, J-152, J-154, J-156, J-159, J-161, J-165, J-167, J-190.
+- 조정자 판정: `docs/design/process/rulings-stage2a.md` J-03, J-17, J-61, J-67, J-70, J-71, J-73, J-82, J-91, J-108, J-118, J-122, J-129, J-134, J-135, J-144, J-146, J-147, J-150, J-152, J-154, J-156, J-159, J-161, J-165, J-167, J-190, J-205, J-207, J-209, J-210, J-211, J-212, J-216.
 - 4c 조사: `.helm-design-work/coordinator/stage4c/research-browser.md` §6·§8.3(격리와 권리 게이트, 요구 B-1~B-8과 위협 T-B1~T-B8은 BR-1~BR-8, T-BR1~T-BR8로 옮겼다), `research-ohmypi.md` §6(도구 단계 판단과 의존 배제).
 - 4단계: `.helm-design-work/coordinator/stage4/by-owner/P11.md`, 검증 1차 `process/verification/round-1/V1~V7`, 26 2판(`26-mobile-client.md` §3.3·§3.4·§5.2).
 - 0단계 원천: `sources/pi-cases-notes.md` §1-5, §3.4, §6.4, §11.3, §12.1-7, §12.2-7~9; `sources/pi-api-facts-1.md` §0-5, §0-7; `sources/pi-api-facts-2.md` §1.2, §3.1, §4.1~4.3, §13; `sources/conversation-extracts-1.md` E1-060, E1-063, E1-076, E1-077, E1-187, (d) Q7; `sources/conversation-extracts-4.md` (b) b1, (d) d1, d3.

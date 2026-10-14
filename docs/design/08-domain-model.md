@@ -3,7 +3,7 @@
 - 소유: P5 (도메인)
 - 작성: 2026-10-11, 1단계 초안
 - 패키지: `@helm/domain` (브리프 §3.1)
-- 기준 결정: 브리프 결정 1~57(사용자 결정 1~25·38~43·47~57, 조정자 기본값 26~37, 조정자 판정 44~46), 판정 J-01~J-189
+- 기준 결정: 브리프 결정 1~57(사용자 결정 1~25·38~43·47~57, 조정자 기본값 26~37, 조정자 판정 44~46), 판정 J-01~J-240
 - 함께 읽을 문서: [09-event-store.md](09-event-store.md) (이벤트 envelope, 카탈로그, 저장), `10-kernel.md` (명령, 검증 규칙 집행), `11-asking-and-autonomy.md` (질문 전달, 혼자 정한 결정의 흐름), `14-loops-modes-orchestration.md` (루프·모드·다이얼), `15-inquiry-engine.md` (탐구 실행)
 
 ## 1. 목적과 범위
@@ -61,7 +61,7 @@ Helm이 기록하는 모든 레코드와 엔티티의 타입, ID, 행위자, 관
 | [결정] 14 모델은 제안하고 커널이 상태를 바꾼다 | 모든 레코드는 이벤트로만 생긴다. 레코드 타입은 투영 결과의 모양이다 (§3.1.4) |
 | [결정] 15(1)~(3) 의존 규칙 | 쓰기 시점 참조 제약 R-05, R-17, R-13 (§3.20) |
 | [제안] 15(4)(5) | 제약 R-34, R-35. [제안]으로 표시한다 |
-| [결정] 53 루프 계획 혼합 | 계획 작성 방식 다이얼 `planAuthoring`(§3.11), `PlanFlags.outOfPattern`과 `LoopPlanCore.authoredBy`(§3.15), 제안 종류 `loop_plan_draft`(§3.3.4). 계획 검사 규칙은 R-29와 10이 집행한다 |
+| [결정] 53 루프 계획 혼합 | 계획 작성 방식 다이얼 `planAuthoring`(14 §3.11.1), `PlanFlags.outOfPattern`과 `LoopPlanCore.authoredBy`(§3.15), 제안 종류 `loop_plan_draft`(§3.3.4). 계획 검사 규칙은 R-29와 10이 집행한다 |
 | [결정] 17 불변조건 1~7 | §3.24에서 타입 수준 대응을 적는다 |
 | [결정] 18 대안 2~3개 고르기 거부, 반응 기록 | 원함 탐구에는 고르기형 질문 타입이 없다. 반응(Reaction) 타입이 요소 단위 반응과 이유 없는 반응을 받는다 (§3.17) |
 | [결정] 24 혼자 쓰는 앱 | 사람 행위자는 `human` 하나다. 팀·CollectiveActor·다중 사용자 권한은 두지 않는다 |
@@ -1701,7 +1701,7 @@ export const ResourceScope = Type.Union([
   Obj({ kind: Type.Literal("path"), projectId: ProjectId, pattern: Type.String({ minLength: 1, maxLength: 512 }) }),
   Obj({ kind: Type.Literal("service"), name: Type.String({ pattern: "^[a-z0-9][a-z0-9._-]{0,62}$" }) }),
   Obj({ kind: Type.Literal("url_prefix"), prefix: Type.String({ minLength: 1, maxLength: 2048 }) }),
-  /** 13 ResourceUri의 net:<host> | net:* */
+  /** 13 ResourceUri의 net:<host> | net:* | net:public. host가 "public"이면 공개 인터넷 전체(루프백·사설·CGNAT·tailnet 제외)다. 이 종류의 읽기(web_search·web_fetch·브라우저 읽기)는 합의 부여 없이 기본 허용이다. 외부 효과(send)는 권리 게이트를 그대로 거친다 ([결정 55], [판정 J-190] (2), [판정 J-205]) */
   Obj({ kind: Type.Literal("net"), host: Type.String({ minLength: 1, maxLength: 253 }) }),
   /** 13 ResourceUri의 mcp:<server>/<tool> (tool은 * 허용) */
   Obj({ kind: Type.Literal("mcp"), server: Type.String({ minLength: 1 }), tool: Type.String({ minLength: 1 }) }),
@@ -1888,6 +1888,10 @@ export const ResultSubmissionCore = Obj({
   integrationCandidates: Type.Array(Obj({ kind: ObligationKind, description: ShortText, targetRefs: Type.Array(AnyRecordId) })),
   /** 반영 WorkUnit의 합의 초안 (14 §3.6.8, [판정 J-126]). 결과 확인 화면에 구조 값으로 보인다 */
   integrationAgreementDraft: Nullable(Obj({ agreementId: AgreementId, content: AgreementContent })),
+  /** 제출 시점에 승인을 기다리던 호출. 없으면 키를 뺀다 (10 §3.11.8). 뒤에 온 승인은 이 호출을 실행하지 않고 not_executed(approval_expired)로 닫는다 (10 §3.11.9) */
+  awaitingApprovalCalls: Type.Optional(Type.Array(ToolCallId)),
+  /** 휴대폰에서 이 결과를 확인할 수 있는지. 제출 시점에 런타임이 26 §3.5.4 기준으로 정해 싣는다. 재작업으로 새 제출이 생기면 그 제출에서 다시 정한다. 04 §3.12의 뷰는 이 값을 그대로 보인다 ([판정 J-203], [판정 J-225]) */
+  mobileReviewable: Type.Boolean(),
 });
 export const ResultStatus = Type.Union([
   Type.Literal("submitted"),               // 결과 확인 필요
@@ -1904,6 +1908,8 @@ export const ResultSubmission = Obj({
   status: ResultStatus,
   /** 이 결과를 만든 실행들 (독립성 P 판정 입력, 대화 21(d) d20) */
   producerRunIds: Type.Array(RunId),
+  /** 제출 뒤 관찰 (10 §3.13.1, 02 UC-03 단계 11). 제출 뒤 같은 WorkUnit의 호출에서 나온 관찰을 결과 확인 화면에 붙여 보이려고 기록에 쌓는다. 제출 payload에는 없다 */
+  postSubmitObservations: Type.Array(ObservationId),
   attestationIds: Type.Array(AttestationId),
   acceptanceId: Nullable(AcceptanceId),
   quality: Quality,
@@ -2480,7 +2486,7 @@ export const ModeAssignment = Obj({
 });
 
 // @helm/domain/src/records/dial.ts
-/** 다이얼 정본 목록 (v0.3 07 §3, 14개) + 구조 상한 2 + 계획 작성 방식 1. 키 이름과 값의 의미는 14가 확정한다. 의미 설정(다이얼이 아닌 설정, 예: 주의 예산)은 이 목록에 들지 않는다 */
+/** 다이얼 정본 목록 20개: v0.3 07 §3의 14개 + assurance 2 + 구조 상한 2 + 계획 작성 방식 1 + 가정 보류 다이얼 1 ([판정 J-197], [판정 J-221]). 키 이름과 값의 의미는 14가 확정한다. 의미 설정(다이얼이 아닌 설정, 예: 주의 예산)은 이 목록에 들지 않는다 */
 export const DIAL_KEYS = [
   "question.threshold.c1", "question.threshold.c2", "question.threshold.c3",
   "question.default_delivery", "question.immediate_threshold", "question.expiry_margin",
@@ -2490,6 +2496,7 @@ export const DIAL_KEYS = [
   "assurance.proof_burden", "assurance.independent_verification",
   "structure.max_children", "structure.max_depth",
   "planAuthoring",   // 루프 계획 작성 방식 ([결정 53], [판정 J-188])
+  "assumptionDeferOnDowntime", // 데몬 정지 중 가정 만료 미루기를 끄는 장치. 점 표기 예외 ([판정 J-197], [판정 J-221])
 ] as const;
 export const DialKey = Enum(DIAL_KEYS);
 /** 저장되는 층만 (v0.3 07 §6의 4~6층). 1~3층(시스템, 상황 유형, 모드)은 코드·데이터.
@@ -2512,7 +2519,7 @@ export const DialSetting = Obj({
 - Concern의 `currentLoop`은 마지막 `LoopTransition.to`다. 루프 전환은 혼자 정한 결정이며 이의 대상이다(v0.3 03 §1 원칙 3).
 - 의존 규칙 검사(write·send에는 C, 완료에는 A, 승격에는 I 근거)는 전환 뒤의 행동에서 집행한다(10). 전환 자체는 검사하지 않는다. 루프 전환 레코드는 어떤 루프로든 옮길 수 있다(결정 5).
 - 상황 판정이 바뀌면 이전 판정은 `superseded`가 되고, 루프 계획 재제안이 따른다(14).
-- 계획 작성 방식(`planAuthoring`, [결정 53], [판정 J-188])은 다이얼이다(§3.11). `computed`는 코드가 계획을 계산하고 모델 초안을 받지 않는다. `hybrid`(기본)는 `PlanFlags.outOfPattern`이 참이거나 `buildPlan`에 맞는 규칙이 없을 때만 모델이 계획 전체 초안(제안 종류 `loop_plan_draft`, payload `steps`)을 낸다. `model`은 언제나 모델이 초안을 낸다.
+- 계획 작성 방식(`planAuthoring`, [결정 53], [판정 J-188])은 다이얼이다(14 §3.11.1). `computed`는 코드가 계획을 계산하고 모델 초안을 받지 않는다. `hybrid`(기본)는 `PlanFlags.outOfPattern`이 참이거나 `buildPlan`에 맞는 규칙이 없을 때만 모델이 계획 전체 초안(제안 종류 `loop_plan_draft`, payload `steps`)을 낸다. `model`은 언제나 모델이 초안을 낸다.
 - 모델 초안은 10의 계획 검사(활성 합의 전 쓰기 금지, 결과 뒤 결과 확인, 성숙도 관문 등 의존 규칙)를 통과해야 `loop_plan.adopted`가 된다. 위반이면 사유와 함께 모델에 한 번 돌려준다. 두 번째도 위반이면 코드 계산 계획을 쓰고(`authoredBy = code`) 그 사실을 거부 기록으로 남긴다(10, 09).
 - `authoredBy`는 계획 내용을 누가 썼는가이고, `autonomy.decidedBy`는 누가 채택했는가다. 기록과 이의(결정 8)는 두 값 모두에 그대로 적용된다. 계획 이의 비율(16)은 `authoredBy`별로 센다.
 - `PlanFlags`의 모든 플래그는 근거 id를 하나 이상 가진다(14 §3.8). `outOfPattern`이 참이면 근거에 여섯 표시로 이 상황을 나타낼 수 없는 이유를 적는다([판정 J-188]).
@@ -2688,6 +2695,7 @@ export const LensCore = Obj({
   transferRisk: ShortText,
   sourceGrade: Enum(["A", "B", "C", "D"]), // 원 분야 근거 등급
   evidenceStatus: Enum(["exploratory", "supported", "rejected", "superseded"]), // Helm 전이 근거
+  pinned: Type.Boolean(),           // 사람이 지정한 렌즈. 다음 selectLenses에서 먼저 고른다. 기본 false (15 §3.9.2, [판정 J-233])
 });
 export const Lens = Obj({
   ...Meta, kind: Type.Literal("lens"), ...LensCore.properties,
@@ -2885,6 +2893,9 @@ export const RunCore = Obj({
     Enum(["enforced", "detected", "advisory", "unavailable"])),
   /** 이 실행에 준 도구·능력 목록의 해시 (12·13) */
   capabilityManifestHash: Sha256,
+  /** run 단위 오염 상태 (12 §3.2.5). 처음에는 거짓이고, 웹·브라우저 결과가 모델에게 들어가면 참이 된다.
+   *  같은 thread로 넘긴 새 run과 하위 run이 물려받으며, 하위 run이 세운 값은 부모 run에도 올린다. 참인 run의 send는 합의가 허용해도 사람에게 묻는다 ([결정 55], [판정 J-190] (3), [판정 J-215]) */
+  taint: Obj({ web: Type.Boolean() }),
 });
 /** 12 RunStatus. ended만 종결 */
 export const RunStatus = Type.Union([
@@ -2956,8 +2967,9 @@ export const PermissionVerdict = Obj({
   reversibility: Nullable(Type.Union([Type.Literal("reversible"), Type.Literal("hard"), Type.Literal("unknown")])),
   /** execute가 실제로 쓰기처럼 동작하는가에 대한 권한 레이어의 판정. 모르면 null */
   mutating: Nullable(Type.Boolean()),
-  /** 외부 효과(보내기, 네트워크)가 있을 수 있는가. 결과 불명일 때 권리·정보 게이트 구분에 쓴다 (판정 J-05) */
-  externalEffect: Type.Boolean(),
+  /** 외부 효과(보내기, 네트워크)가 있을 수 있는가. 결과 불명일 때 권리·정보 게이트 구분에 쓴다 (판정 J-05).
+   *  `'uncertain'`은 효과를 알 수 없는 호출(컴퓨터 사용 도구)에 쓰며, send와 같이 권리 게이트를 거친다 ([판정 J-206]) */
+  externalEffect: Type.Union([Type.Boolean(), Type.Literal("uncertain")]),
   info: Nullable(ShortText),
 });
 /** 13 ResourceUri (file:, net:, mcp:, helm_draft:) */
@@ -3010,8 +3022,8 @@ export const ToolCallExecution = Obj({
   bootEpoch: Type.String({ pattern: "^[0-9A-HJKMNP-TV-Z]{26}$" }),
   intentSeq: Seq,
 });
-/** 실행되지 않은 이유. aborted는 cancel로 적는다 (12) */
-export const NotExecutedReason = Enum(["restart", "cancel", "steering", "superseded", "unknown_tool", "invalid_args", "truncated_response", "approval_expired"]);
+/** 실행되지 않은 이유. aborted는 cancel로 적는다 (12). batch_stopped는 턴의 도구 배치에서 앞 호출이 실패해 뒤 호출을 실행하지 않은 경우다 (12 §3.4.3, RT-11, [판정 J-214]) */
+export const NotExecutedReason = Enum(["restart", "cancel", "steering", "superseded", "unknown_tool", "invalid_args", "truncated_response", "approval_expired", "batch_stopped"]);
 export const ToolCallStatus = Type.Union([
   Type.Literal("requested"),          // 모델이 호출함, 검사 전
   Type.Literal("blocked"),            // 커널·권한 레이어·합의 범위에서 차단 (실행 안 됨)
@@ -3770,7 +3782,7 @@ Acceptance는 만든 뒤 바뀌지 않는다. 사람이 확인을 되돌리려�
 |---|---|---|---|---|
 | ∅ | `toolcall.requested` | requested | R-43 | `modelArgs` |
 | requested | `toolcall.blocked` | blocked | 커널·권한 레이어·합의 범위·경로 정책 판정 | 범위 밖이면 `scope_change` 질문 (R-05) |
-| requested | `toolcall.approval_requested` | awaiting_approval | 권리 게이트 (권한 레이어 `rightsGate = true` 또는 send) | 질문 `send_approval`(즉시) |
+| requested | `toolcall.approval_requested` | awaiting_approval | 권리 게이트 (권한 레이어 `rightsGate = true`, send, 또는 `externalEffect = 'uncertain'` [판정 J-206]) | 질문 `send_approval`(즉시) |
 | awaiting_approval | `toolcall.approved` | requested | 질문 answered(그대로 허락) | `approval.issued`. 같은 tcId로 실행한다(J-40) |
 | awaiting_approval | `toolcall.denied` (edited_by_human) | denied | 질문 answered(고쳐서 허락, [판정 J-121]) | 같은 트랜잭션에 새 호출의 `toolcall.requested`(`editedFrom`)와 그 호출을 위한 `approval.issued`. 새 호출은 런타임이 13 prepare와 권한 판정을 다시 한 뒤 `toolcall.started`를 내고, 커널은 지문을 승인과 대조한다 |
 | awaiting_approval | `toolcall.denied` (human) | denied | 질문 answered(거절) | - |
@@ -3834,6 +3846,7 @@ export declare function rejectionClassOf(code: string): (typeof RejectionClass)[
 - 범위 밖 호출은 자격 갈래(`gate.scope_expansion_required`)다(10 ADR-K8을 따른다). 같은 호출이 사람의 범위 확장 답이 있으면 통과하므로 "누가 허락했는가"의 문제로 본다. 거부 기록과 함께 선택 요청(`scope_change` 질문)을 연다. 금지 자원(`forbiddenResources`)은 확장으로도 통과하지 않으므로 내용 갈래(`policy.forbidden_resource`)다. 1판의 `policy.scope_exceeded`는 쓰지 않는다.
 - 강등(`downgraded.*`)은 거부가 아니다. 결과 상태 `accepted`에 강등 코드를 붙여 돌려준다(R-07, R-17).
 - 거부된 시도도 기록에 남는다(A14). 기록 방식은 09 §3.9(`command.rejected` 이벤트, 게이트면 `gateQuestionId` 포함).
+- 계획 검사(10 §3.8.1)로 거부된 기록의 `ruleId`는 V-PLAN-01~07 가운데 하나다([판정 J-188]).
 - 다른 문서의 1판 코드(`content.*`, `qualification.*`, `eligibility.*`)는 위 접두사로 옮긴다. 대응은 10 §3.4.6이 정본이다.
 
 ### 3.24 불변조건과 타입 수준 대응
@@ -4015,7 +4028,7 @@ F10 profile 불변 6: "Authority는 scope와 effect class를 가진다"는 v0.3 
 | 03·04·05 | 질문 상태 `delegated` 라벨 "에이전트에게 맡김"(J-114), Grant "맡겨 둔 권한"·"비상 합의"(J-116). 이의 화면에 `reasonKind` 선택 칩. 04 `StimulusRoundView.form`은 `Stimulus.form`에서 읽는다. 04 질문 카드의 criteria·consequences·commitmentPreview는 Question 필드에서 읽는다. 03·04·05는 모델이 설계한 계획에 `authoredBy`로 그 사실을 표시한다([판정 J-188] (6)) |
 | 10 | `toolcall.skip`의 core 동반과 started·replaying → not_executed 가드(J-104), 결과 확인 명령 값 대응(J-35), `concernId` 도출 규칙(§3.10.2), 반영 범위 합의(J-126)·`obligationPolicy`, `agreement.activated_by_choice`(R-56), Goal retired 뒤 `policy.goal_not_active`(J-130), V-PRO-02 독립성 키에 파생 관찰 규칙, 탐침·관찰 판정 값은 08 값, F05 I6 재검토 조건은 "선택 항목, 없으면 structural"(08 §3.10.1)로, observedChanges는 ChangeSet, R-43·R-05의 검사 run은 `via.runId`(E-17), WorkUnit 종결 → 대기 run abort(react), 재작업 WorkUnit의 합의 승계 규칙(§3.7, [판정 J-158]). 모델 계획 초안의 검사 규칙과 거부 코드, 두 번째 위반의 처리(§3.15, [판정 J-188] (4)). 승인 대기 만료는 `toolcall.not_executed`(approval_expired)로 쓴다(§3.22.14) |
 | 11·12 | approve_edited 새 tcId 규칙과 `editedFrom`(J-121), 부팅 복구 J-122, run.ended handoff(`RunHandoff`), RunKind 6값(observer·router 제외, inquiry 포함), 되돌릴 지점 만료 규칙(§3.18.3) |
-| 14 | ExitOutcome 값 22개를 08과 같게 유지, `ProposalKind`는 14에서 다른 이름으로(08 ProposalKind와 겹침), DialPrecedence(J-136), RunHandoff·EntryAssessmentDraft는 08 정의를 쓴다. `PlanFlags`(outOfPattern 포함)와 `loop_plan_draft`의 `steps`는 §3.15의 `PlanStep`·`PlanFlags`를 쓴다. 다이얼 `planAuthoring`은 §3.11 정의를 쓴다 |
+| 14 | ExitOutcome 값 22개를 08과 같게 유지, `ProposalKind`는 14에서 다른 이름으로(08 ProposalKind와 겹침), DialPrecedence(J-136), RunHandoff·EntryAssessmentDraft는 08 정의를 쓴다. `PlanFlags`(outOfPattern 포함)와 `loop_plan_draft`의 `steps`는 §3.15의 `PlanStep`·`PlanFlags`를 쓴다. 다이얼 `planAuthoring`은 14 §3.11.1 정의를 쓴다 |
 | 15 | 탐구 멈춤 이유를 08 값으로 옮기는 대응표, `Stimulus.form`, 첫 자극 라운드 1, 라운드 키 inquiryId + round, 탐구 단계 trace 이름 `inquiry.step_started`·`completed`·`failed` |
 | 16 | `objection.resolved`의 결과 분류(reversed·modified)는 desiredEffect와 뒤따른 이벤트(record.superseded, workunit 재작업)로 계산한다. 지표 DDL은 09 §3.7을 정본으로 참조 |
 | 19 | 반응 comparison `neither`, triad 질문 `questionId`, 이의 noReason은 `reason = null`로, 반영 항목 params는 08 Trigger·reason 필수 |

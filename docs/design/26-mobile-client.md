@@ -1,7 +1,7 @@
 # 26. 모바일 클라이언트
 
 - 작성: 2026-10-12, P15 모바일 (2a단계에 추가된 문서)
-- 상태: 2판. 브리프 결정 1~57(§2.4b·§2.4c)과 조정자 판정(`process/rulings-stage2a.md` J-01~J-189)을 따른다. 1판 뒤에 나온 사용자 결정 47(PWA·Web Push), 48(휴대폰 알림 강도), 49(iOS 26, Android 제외), 56(결과 확인 대기 알림 설정), 57(Apple 개발자 프로그램)과 판정 J-111·J-115·J-118~J-120·J-124·J-132·J-137·J-139·J-144·J-154·J-166·J-168·J-171~J-173·J-177·J-185·J-189를 반영했다. 이름의 정본은 이벤트 09, 레코드·필드 08, 명령 10, 메서드 19, 화면 ID 03, 설정 키 17이다. 이 문서가 새로 제안하는 이름은 §5.2에 해당 문서 요구로 적었다.
+- 상태: 2판. 브리프 결정 1~57(§2.4b·§2.4c)과 조정자 판정(`process/rulings-stage2a.md` J-01~J-240)을 따른다. 1판 뒤에 나온 사용자 결정 47(PWA·Web Push), 48(휴대폰 알림 강도), 49(iOS 26, Android 제외), 56(결과 확인 대기 알림 설정), 57(Apple 개발자 프로그램)과 판정 J-111·J-115·J-118~J-120·J-124·J-132·J-137·J-139·J-144·J-154·J-166·J-168·J-171~J-173·J-177·J-185·J-189·J-195·J-227·J-238을 반영했다. 이름의 정본은 이벤트 09, 레코드·필드 08, 명령 10, 메서드 19, 화면 ID 03, 설정 키 17이다. 이 문서가 새로 제안하는 이름은 §5.2에 해당 문서 요구로 적었다.
 - 소유: 휴대폰에서 하는 일의 범위(03 §3.12의 화면 ID를 받아 레이아웃과 상태를 정함), 모바일 연결·인증 적용 방식, 앱이 꺼져 있을 때의 알림 규칙과 푸시 등록 형식(08 Device `push`, 판정 J-71), 모바일 빌드·배포.
 - 표시: 브리프 §5.2와 판정 J-144. `[결정 n]`은 사용자 결정, `[제안: 결정 n 기본값]`은 조정자 기본값, `[판정 n]`·`[판정 J-nn]`은 조정자 판정, `[제안]`은 이 문서가 정한 것, `[가정]`은 확인하지 않은 전제. 외부 사실은 `[원문]`(문서·소스를 직접 읽음), `[실험]`(명령을 실행해 확인), `[검색]`(검색 결과 요약으로 확인), `[지식]`(다시 확인하지 않음).
 - 출처 줄임말: `homelab/`은 `~/projects/homelab`, `_ref/`는 `~/projects/_ref`, `cases`는 `docs/design/process/sources/pi-cases-notes.md`. 웹 출처의 주소는 §8에 모았다.
@@ -103,7 +103,7 @@
 | [판정 J-139] | 휴대폰 결과 확인은 산출물을 연 뒤에만 받는다. 큰 산출물과 취향형은 데스크톱 전용, 휴대폰은 미루기 |
 | [판정 J-82] | 브라우저 전송의 bearer 하위 프로토콜 수용 여부는 18이 정한다. 26의 1차 경로는 쿠키이고, 하위 프로토콜은 MQ-04의 대체 방식이다 |
 | [판정 J-154] | `publicOrigin`은 데몬의 공개 주소 하나다(17). `auth.allowedOrigins`는 받는 Origin 목록이고 기본값은 `[publicOrigin]`이다. `mobile.origin`은 쓰지 않는다 |
-| [판정 J-166] | 방해 금지는 의미 설정 `attention.snoozeUntil`이다(`settings.update`). 휴대폰은 `settings.update`의 `notifications` 섹션만 바꾼다(19) |
+| [판정 J-166], [판정 J-227] | 방해 금지는 의미 설정 `attention.snoozeUntil`이다(`settings.update`). 휴대폰은 `settings.update`로 `notifications` 섹션과 `attention.quietHours`만 바꾼다(19) |
 | [판정 J-168] | 쿠키 판정 함수는 19 정본 `cookieAuth`다 |
 | [판정 J-171] | 시간당 알림 상한은 사람 기준 하나, `attention.interruptsPerHour`(14 기본 2, 모든 기기 합)다. 기기별 상한(`push.hourlyCap`, `notifications.hourlyCap`)은 두지 않는다 |
 | [판정 J-172] | `notice` 푸시는 모든 데스크톱 기기가 부재(14 `isDeviceAway`)이고 휴대폰이 `active`가 아닐 때만 보낸다. "연결 기기 없음" 조건은 쓰지 않는다 |
@@ -383,7 +383,7 @@ helloDeviceAuth 추가 검사: conn.carrier == "cookie"이면 rec.credentialCarr
 | `brief.acknowledge` | `SCR-M-BRIEF` | `compact: true`만 받는다([판정 J-137]) |
 | `work.stop` | `SCR-M-WORK` | `work.abort`는 거부 |
 | `daemon.exitSafeMode` | `SCR-M-CONNECT` | |
-| `settings.update` | `SCR-M-SETTINGS` | 섹션 `notifications`만(결과 확인 알림 `notifications.resultReview`·`notifications.resultReviewDigestAt` 포함). 방해 금지(`attention.snoozeUntil`)는 데스크톱·TUI에서만 바꾼다(판정 J-166) |
+| `settings.update` | `SCR-M-SETTINGS` | 섹션 `notifications`(결과 확인 알림 `notifications.resultReview`·`notifications.resultReviewDigestAt` 포함)와 `attention.quietHours`만([판정 J-227]). 방해 금지(`attention.snoozeUntil`)는 데스크톱·TUI에서만 바꾼다(판정 J-166) |
 | `device.registerPush`, `device.unregisterPush`, `device.testPush` | 설정 | 자기 기기만(`devicesLimited`) |
 
 그 밖의 명령(`grant.*`, `dial.set`, `mode.set`, `composer.submit`, `agreement.renegotiate` 등)은 `1010 scope.forbidden`이다. 분실·XSS 때 피해 범위를 화면이 하는 일로 줄인다.
@@ -399,7 +399,7 @@ helloDeviceAuth 추가 검사: conn.carrier == "cookie"이면 rec.credentialCarr
 | 3 | 홈 화면에 추가하고 "Helm" 아이콘으로 연다 | `SCR-M-ONBOARD` 연결 단계: 코드 입력 칸(12자, `XXXX-XXXX-XXXX`로 자동 끊어 보임), 기기 이름(기본 "iPhone" 또는 "iPad") | - |
 | 4 | 코드를 입력하고 [이 휴대폰 연결하기] | "연결하는 중" | `POST /m/pair` → 18 §3.7.2 규칙(10분, 1회, 5회 시도, tailnet 신원) → 기기 생성(서버가 정한 `clientKind`·`platform`·`credentialCarrier`), 노드 묶기, `Set-Cookie`. 본문 `{ serverId, deviceId, tokenExpiresAt }` |
 | 5 | - | `hello` 성공 → "연결됨 · 기기 9 iPhone" | `device.paired`, `device.connected` |
-| 6 | [알림 켜기] (건너뛸 수 있음) | iOS 권한 창 → 허용 → "밤에는 알림을 보내지 않을까요? 조용한 시간 23:00~08:00" [이 시간으로 정하기] / [나중에] | §3.4.6 등록 → `device.push_registered`. 조용한 시간을 고르면 `settings.update`(14 `quietHours`, 05 §3.7.4) |
+| 6 | [알림 켜기] (건너뛸 수 있음) | iOS 권한 창 → 허용 → "밤에는 알림을 보내지 않을까요? 조용한 시간 23:00~08:00" [이 시간으로 정하기] / [나중에] | §3.4.6 등록 → `device.push_registered`. 조용한 시간을 고르면 `settings.update`(14 `attention.quietHours`, 05 §3.7.4) |
 | 7 | [시험 알림 보내기] | 잠금 화면·알림 센터에 05 `notif.push.test.*` 문구 | `device.testPush` → `push.sent` |
 
 ```http
@@ -549,7 +549,7 @@ planPush(delivery, presence, devices, settings, now):
 - `delayMs > 0`이면 런타임 타이머(09 `runtime_timers`, 목적 `push_followup`)를 건다. 타이머가 울릴 때 그 질문이 `delivered` 상태이고 `question.seen`·답이 없으면 보낸다. 아니면 버린다.
 - 시간당 상한(판정 J-171): 상한은 사람 기준 하나다. `attention.interruptsPerHour`(14 §3.13.2, 기본 2)를 데스크톱 OS 알림과 휴대폰 푸시를 합쳐 센다. 권리 게이트의 즉시 전달과 만료 임박 승격은 세지 않는다(05 §3.7.3). 넘으면 그 시간이 끝날 때 묶음 1개다. 기기별 상한(`push.hourlyCap`, `notifications.hourlyCap`)은 두지 않는다.
 - `notice`의 부재 조건(판정 J-172)은 "연결된 기기가 없음"이 아니다. 데스크톱 기기가 모두 부재(14 `isDeviceAway`)이고 휴대폰이 `active`가 아닐 때다. 연결된 휴대폰이 `idle`이면 `notice`는 바로 간다. `interrupt`는 연결된 기기가 있으면 60초 뒤에 보낸다.
-- 결과 확인 알림(결정 56, 판정 J-189): `notifications.resultReview`가 `none`(기본)이면 알리지 않고 복귀 요약에서 확인한다. `daily_digest`이면 설정 시각(`notifications.resultReviewDigestAt`, 기본 "19:00", 서버 시간대)에 타이머 `result_review_digest`(09 `runtime_timers`)가 울리고, 그때 확인 대기 결과가 하나 이상이면 묶음 푸시 1개를 강도 `notice`로 보낸다. 결과가 없으면 버린다. `immediate`이면 결과 확인 질문이 생길 때마다 강도 `notice`로 이 계획을 거친다. 두 경우 모두 방해 금지, 시간당 상한, 부재 조건을 따른다. 그래서 데스크톱이 부재가 아니면 보내지 않는다. 휴대폰 확인 범위는 판정 J-139 그대로다.
+- 결과 확인 알림(결정 56, 판정 J-189): `notifications.resultReview`가 `none`(기본)이면 알리지 않고 복귀 요약에서 확인한다. `daily_digest`이면 설정 시각(`notifications.resultReviewDigestAt`, 기본 "19:00", 서버 시간대)에 타이머 `result_review_digest`(09 `runtime_timers`)가 울린다. 그때 확인 대기 결과가 하나 이상이면 묶음 푸시 1개를 강도 `notice`로 `planPush`에 넘기고, 결과가 없으면 버린다. `immediate`이면 결과 확인 질문이 생길 때마다 강도 `notice`로 `planPush`를 거친다. 송신 지시의 `cause`는 묶음이면 `result_review_digest`, 즉시면 `result_review_immediate`다(16 §5.2 26행). 묶음은 개수만 싣고 문구는 05 `notif.push.bundle.*`를 쓴다. 숨김 즉시 푸시의 문구는 05 `notif.hidden.*`다(05 §3.7.8). 두 경우 모두 방해 금지, 시간당 상한, 부재 조건을 따른다. 그래서 데스크톱이 부재가 아니면 보내지 않는다. 휴대폰 확인 범위는 판정 J-139 그대로다.
 - `question.delivered.channel`: 연결된 기기에 보냈으면 `app`. 연결된 기기가 없으면 전달기가 첫 푸시 시도의 결과를 최대 5초 기다리고, 하나라도 받아들여졌으면(`201`) `push`, 모두 실패했거나 보낼 기기가 없으면 `brief`로 기록한다(11 §3.5.3 1번을 이렇게 넓힌다). 지연 푸시(`push_followup`)는 이미 `app`으로 기록된 전달에 덧붙는 것이므로 channel을 바꾸지 않는다. `targetDevices`에는 실제로 받아들여진 기기를 넣는다.
 - 재전송·재접속에서 생긴 전달 이벤트로는 푸시를 보내지 않는다. 푸시는 전달 지시를 처리할 때 한 번만 계획한다.
 - 데몬 상태 푸시(§3.4.2)는 질문 전달이 아니므로 `planPush`를 거치지 않고, "어떤 기기든 `active`면 보내지 않음"과 방해 금지 규칙만 같게 쓴다.
@@ -591,7 +591,7 @@ export const PUSH_FALLBACK = { titleKey: "notif.hidden.title", bodyKey: "notif.h
 - `copy.args`는 05 §3.7.2의 제목·본문 인자(할 일, 마감 효과, Concern 이름, 질문 번호)다. 데몬은 기기 설정과 관계없이 이 인자를 싣는다. 질문 문장 전체, Goal 서술, 근거 내용, 비밀은 어느 경우에도 싣지 않는다(05 §3.7.5, 18 §3.18.2 9번). payload는 기기 공개 키로 암호화되므로 푸시 서비스는 인자를 읽지 못한다. 내용을 알림에 보일지는 기기가 정한다(§3.4.5).
 - 크기: 직렬화 3 KiB 이하(암호화 전). 넘으면 `args`를 버리고 보낸다.
 - HTTP 헤더(RFC 8030): `TTL`은 즉시 전달 12시간, 승격은 만료점까지 남은 시간(최소 5분), 묶음·시스템 6시간. `Urgency: high`(interrupt) / `normal`(notice). `Topic`은 질문 ID의 SHA-256 앞 16바이트를 base64url로 쓴 22자(RFC 8030의 32자 상한 안)로 두어 아직 배달 전인 같은 질문의 푸시를 바꾼다. 묶음·시스템은 `Topic`을 두지 않는다.
-- 데몬은 `notification.title`·`body`에 넣을 중립 문자열을 시작 때 문구 표에서 읽지 않고 빌드 때 `@helm/ui-language`에서 생성한 상수 파일(`packages/protocol/src/push-fallback.generated.ts`)로 받는다. 06의 "데몬은 ui-language를 import하지 않는다"를 지키면서 문구는 05 한 곳에서 바뀐다.
+- 데몬은 `notification.title`·`body`에 넣을 중립 문자열을 시작 때 문구 표에서 읽지 않고 상수 파일(`packages/protocol/src/push-fallback.generated.ts`)로 받는다. 이 파일은 `scripts/gen-push-fallback.ts`가 `@helm/ui-language`의 값으로 만들어 저장소에 커밋한다. `just gen-push-fallback --check`가 현재 값과 같은지 본다(06 §3.16). 05 문구를 바꾸면 `just gen-push-fallback`으로 다시 만들어 커밋한다. 06의 "데몬은 ui-language를 import하지 않는다"를 지키면서 문구는 05 한 곳에서 바뀐다.
 
 #### 3.4.5 서비스 워커 처리 [제안]
 
@@ -878,7 +878,7 @@ ensurePush(client, settings):                       # 연결이 ready가 될 때
 | `answer` | 답(값·글), 추천대로 정하기, 가정대로 진행(정보·비막힘), 기준 고치기, 질문 다시 쓰기, 먼저 알아보기, 에이전트가 정하게 두기(정보 게이트), 범위 줄여 진행, 미루기 | 없음 | 같음 |
 | `confirm_candidate` | 확정(고쳐서 확정 포함, 글 입력), 넣지 않기, 가정대로 진행, 기준 고치기, 질문 다시 쓰기, 미루기. 작업 합의 확인은 "이 범위로 맡기기 / 넓어진 부분 빼고 맡기기 / 맡기지 않기" | 없음 | 같음 |
 | `approve_action` | 허락, 하지 않기, 범위 줄여 진행(글로 지시), 미루기 | 고쳐서 허락(`approve_edited`) | 같음 |
-| `result_review` | 산출물을 연 뒤 결과 확인(반영 방침 고르기 포함), 수정 요청(기준 고르기 + 글), 미루기 | 조건 붙여 확인, 결과 거절, 기준이 틀림. 큰 산출물·취향형 결과는 결과 확인도 비활성(아래) | 산출물 보기 조건 추가([판정 J-139]) |
+| `result_review` | 산출물을 연 뒤 결과 확인(반영 방침 고르기 포함), 수정 요청(기준 고르기 + 글), 미루기 | 조건 붙여 확인, 거절(해결 안 됨), 기준이 틀림. 큰 산출물·취향형 결과는 결과 확인도 비활성(아래) | 산출물 보기 조건 추가([판정 J-139]) |
 | `choose_one` | 고르기(추천 먼저, 나머지 "+n" 펼침), 고쳐서 정하기(글), 기준 고치기, 질문 다시 쓰기, 먼저 알아보기, 에이전트가 정하게 두기, 범위 줄여 진행, 미루기 | 없음 | **다름.** 03은 데스크톱 전용으로 두었다. 선택지 목록을 세로로 읽고 하나를 누르는 일은 작은 화면에서도 정확히 할 수 있다. 원함 탐구에서는 이 형식 자체가 금지(11 V-Q-03, [판정 J-141])라 요소 반응과 섞일 일이 없다 |
 | `reaction` | 미루기 | 반응 전체 | 같음 |
 | 복구 선택(`recovery`) | 04 §3.20의 행동(마지막 확인 지점부터 다시 실행, 그대로 두기, 확인 작업 만들기, 결과 기록) | "Concern에서 다시 계획"(데스크톱 화면이 필요) | 같음 |
@@ -984,7 +984,7 @@ Goal과 바뀐 기준
 | 알림에 내용 보이기 | 끔(기본) / 켬 (`notifications.showContent`) | 기기(서비스 워커가 IndexedDB에서 읽음) |
 | 알릴 것 | "멈춰 있는 질문과 알림 강도 질문"(기본, `minUrgency: notice`, [결정 48]) / "멈춰 있는 질문만"(`interrupt`) | 데몬 등록 |
 | 알림 시험 보내기 | [시험 알림 보내기] → `device.testPush` | - |
-| 조용한 시간·방해 금지 | 데몬 설정(05 §3.7.4, 14 `quietHours`, 기기 공통). 같은 값을 보이고 바꾼다(`settings.update`). 방해 금지 중 예외 "만료 임박만" | 데몬 |
+| 조용한 시간·방해 금지 | 데몬 설정(05 §3.7.4, 14 `attention.quietHours`·`attention.snoozeUntil`, 기기 공통). 조용한 시간은 같은 값을 보이고 바꾼다(`settings.update`, [판정 J-227]). 방해 금지는 같은 값을 보기만 하고, 바꾸기는 데스크톱·TUI에서 한다(판정 J-166). 방해 금지 중 예외 "만료 임박만" | 데몬 |
 | 결과 확인 알림 | 알리지 않음(기본) / 하루 한 번 묶음(시각 `notifications.resultReviewDigestAt`, 기본 19:00) / 결과마다 즉시. 휴대폰에서 결과는 산출물을 본 뒤에만 확인한다(§3.5.4) [결정 56, 판정 J-189] | 데몬(`settings.update`, 기록 `setting.changed`) |
 | 표시 | 테마(시스템/밝게/어둡게), 글자 크기, 투명 효과(기본 줄임, §3.5.12) | 기기 |
 | 이 기기의 사본 지우기 | 뷰 캐시·초안 지우기 | 기기 |
@@ -1200,18 +1200,18 @@ export function mobileDecisionAllowed(i: {
 | 08 | (1) Device `push`를 `PushRegistration`(§3.4.6)으로. `provider`는 `webpush`·`apns`. 표시는 `tokenHint`(해시 앞 8자) 하나. (2) Device에 `credentialCarrier`. (3) `Via.listener`를 19 `ListenerKind`(`tailnet`/`loopback`/`local`)로. (4) [판정 J-120]의 늦은 답 전이 삭제 |
 | 09 | (1) `push_tokens`(판정 J-71)의 `token` 내용 규칙과 열 `vapid_key_id`, `last_ok_at`, `fail_count`, `last_error`(§3.4.6). (2) 이벤트 `device.push_registered`, `device.push_unregistered`, `push.sent`. (3) 타이머 목적 `push_followup`, `push_dnd_digest`, `push_hour_bundle`, `result_review_digest`(판정 J-189). (4) `question.delivered.channel`의 `push`·`brief` 규칙(§3.4.3). (5) `PresenceState`에서 `locked` 삭제([판정 J-119]). (6) `device.connected.listener`·`auth.denied.listener`를 `ListenerKind` 열거로. (7) `question.assumed`의 bumpsRevision([판정 J-120]) |
 | 10 | 통치 명령 `device.register_push`, `device.unregister_push`, `device.test_push`. 검증 규칙은 §3.4.6. 거부 코드 `push.endpoint_not_allowed`, `push.vapid_key_mismatch`(내용 갈래). `decideMobile` scope 판정은 19·18 |
-| 11 | (1) `PresenceSnapshot.pushReachable`과 `urgencyOf` 수정(§3.4.3, 부재는 14 함수, [판정 J-119], 타입 이름 [판정 J-185]). (2) 승격 강도: 막는 질문·권리 게이트 `interrupt`, 막지 않는 정보 질문 `notice`. (3) §3.5.3 전달 기록 1번의 channel 규칙과 전달기가 `planPush`를 부르는 지점. (4) §3.8.2 "알림" 행, A-4, Q-E20의 "휴대폰 푸시는 범위 밖"·`locked` 문장을 26으로. (5) 전달 기록 1번의 "`notice`는 연결된 기기가 없을 때만·시간당 3개" 요지를 판정 J-171·J-172 기준(데스크톱 부재, 사람 기준 상한)으로 고친다. `question.defer.until`의 "다음 데스크톱 접속"은 `user_return`이 이미 뜻하므로 따로 두지 않는다(MQ-11 해소) |
+| 11 | (1) `PresenceSnapshot.pushReachable`과 `urgencyOf` 수정(§3.4.3, 부재는 14 함수, [판정 J-119], 타입 이름 [판정 J-185]). (2) 승격 강도: 막는 질문·권리 게이트 `interrupt`, 막지 않는 정보 질문 `notice`. (3) §3.5.3 전달 기록 1번의 channel 규칙과 전달기가 `planPush`를 부르는 지점. (4) §3.8.2 "알림" 행, A-4, Q-E20의 "휴대폰 푸시는 범위 밖"·`locked` 문장을 26으로. (5) 전달 기록 1번의 "`notice`는 연결된 기기가 없을 때만·시간당 3개" 요지를 판정 J-171·J-172 기준(데스크톱 부재, 사람 기준 상한)으로 고친다. `question.defer.until`의 "다음 데스크톱 접속"은 `user_return`이 이미 뜻하므로 따로 두지 않는다(MQ-11 해소). (6) 확인만: 11 §3.5.3 notify 지시의 `cause` 필드와 값 `result_review_immediate`·`result_review_digest`는 이미 이 판으로 있다([판정 J-238]) |
 | 14 | §3.13.8 부재 함수에 기기 종류별 문턱 입력(`clientKind: mobile` 2분, 데스크톱 5분)과 `locked` 삭제. 11 타입 이름은 `PresenceSnapshot`이다([판정 J-185]) |
 | 16 | (1) 푸시 지표: `push.sent` → 열람·답까지 시간, 실패율(§3.1.5 1번), 재페어링 횟수(2번). (2) `SCR-M-*` 열람을 데스크톱 대응 화면과 같은 종류로 센다. (3) 결과 확인 알림(판정 J-189)의 묶음·즉시 종류별 열람과 처리 시간을 센다 |
 | 17 | (1) 릴리스에 `web/mobile/`. (2) `helm pair --mobile [--qr]`, `helm push test --device`. (3) 점검 ID `push_no_vapid_key`, `push_failing`. (4) 설정 키(`listeners.tailnet.publicOrigin` 하나에서 호스트를 계산): `push.enabled`(true), `push.webpush.subject`, `push.webpush.allowedEndpointSuffixes`(`["push.apple.com"]`), `push.followupDelayMs`(60000), `auth.allowedOrigins`(기본 `[publicOrigin]`, 판정 J-154), `notifications.resultReview`(`none`)와 `notifications.resultReviewDigestAt`(`"19:00"`, 판정 J-189). `push.hourlyCap`은 두지 않는다. 시간당 상한은 14의 `attention.interruptsPerHour` 하나로 읽는다(판정 J-171). 시험 설정에만 두는 `push.webpush.testEndpoints`(기본 없음, §3.4.6)를 새로 요구한다 | (5) 설치 점검표 §3.16을 정본으로 두고 26 §3.6.3은 참조만 한다(17이 이미 합쳤다). (6) 안전 모드 해제 주체에 휴대폰 기기(`decideMobile`)를 포함 |
 | 18 | (1) §3.18.2 4번을 26 §3.3.3 쿠키 방식으로 확정: `__Host-helm_dt`, Origin 정확 일치, GET의 `Sec-Fetch-Site` 규칙, `credentialCarrier`, 쿠키 판정 `cookieAuth`(19 정본, 판정 J-168), 헤더 경로는 Origin이 있으면 403. (2) §3.5에 모바일 행과 `decideMobile`·`devicesLimited` 허용 메서드 목록(§3.3.3 표). (3) §3.18.2 3번(키체인)은 경로 B에만 해당. (4) §3.18.2 6번(앱 잠금 기본 켬)과 7번(서명 증명 권장)에 26의 1차 끔 판단(MQ-03·MQ-05)을 받아들일지 적는다. (5) Q18-09를 결정 47로 닫는다. (6) 바깥 연결 허용 목록에 `push.apple.com` 접미사, 엔드포인트 등록·송신 검사(§3.4.6)를 위협 표에. (7) 같은 호스트 다른 포트 쿠키 위협(X-16, MF-31). (8) §3.19 폐기·만료 처리를 사유별로(§3.3.5): revoked → 뷰·명령함·blob 캐시 삭제, 초안 유지 / expired → 유지, 재전송 제외. (9) 표시 규칙(`tokenHint` 8자). (10) 보안 시험: T26-05~T26-11, T26-28~T26-30 |
-| 19 | (1) §3.17을 26으로 확정([판정 J-118]): 토큰은 쿠키, `@helm/client/browser`에 쿠키 방식, 푸시 형식은 26 §3.4.4, 철회 푸시 없음, channel 값 `webpush`(`apns` 예약), ntfy 삭제. (2) `device.registerPush` params(§3.4.6), `device.pushConfig`(read), `device.testPush`(cmd), `DeviceInfo.push`. (3) HTTP 경로 표에 `/m/*`, `/m/pair`, `/m/whoami`, `/m/logout`, `/m/cmd`와 정적 서빙·인증 전 제한의 예외. (4) `/files/*` 응답 격리 헤더와 인라인 허용 목록(§3.3.2). (5) `PresenceState`에서 `locked` 삭제. (6) 연결 상태 기계에 `closed → connecting`(`start()` 재호출), 브라우저 전송의 인증 실패 판정(`/m/whoami`) 규칙, `carrier_mismatch`·`origin_mismatch` 사유. (7) scope `decideMobile`과 허용 메서드(§3.3.3). (8) `question.answer` params를 11 `AnswerValue`로(범위 줄여 진행 `instruction` 포함). (9) `brief.acknowledge`에 `compact`([판정 J-137]). (10) `presence.report.objectId`가 delivered 질문이면 데몬이 `question.seen`을 남기는 규칙. (11) `contest.file` → `objection.file`([판정 J-111]). (12) 확인만: `settings.update` 행(휴대폰은 `notifications` 섹션만, 결과 확인 알림 키 포함)과 `result.accept` 행(휴대폰은 `accept`·`request_changes`만)은 이미 이 판으로 맞춰져 있다([판정 J-166], [판정 J-189]) |
+| 19 | (1) §3.17을 26으로 확정([판정 J-118]): 토큰은 쿠키, `@helm/client/browser`에 쿠키 방식, 푸시 형식은 26 §3.4.4, 철회 푸시 없음, channel 값 `webpush`(`apns` 예약), ntfy 삭제. (2) `device.registerPush` params(§3.4.6), `device.pushConfig`(read), `device.testPush`(cmd), `DeviceInfo.push`. (3) HTTP 경로 표에 `/m/*`, `/m/pair`, `/m/whoami`, `/m/logout`, `/m/cmd`와 정적 서빙·인증 전 제한의 예외. (4) `/files/*` 응답 격리 헤더와 인라인 허용 목록(§3.3.2). (5) `PresenceState`에서 `locked` 삭제. (6) 연결 상태 기계에 `closed → connecting`(`start()` 재호출), 브라우저 전송의 인증 실패 판정(`/m/whoami`) 규칙, `carrier_mismatch`·`origin_mismatch` 사유. (7) scope `decideMobile`과 허용 메서드(§3.3.3). (8) `question.answer` params를 11 `AnswerValue`로(범위 줄여 진행 `instruction` 포함). (9) `brief.acknowledge`에 `compact`([판정 J-137]). (10) `presence.report.objectId`가 delivered 질문이면 데몬이 `question.seen`을 남기는 규칙. (11) `contest.file` → `objection.file`([판정 J-111]). (12) 확인만: `settings.update` 행(휴대폰은 `notifications` 섹션과 `attention.quietHours`만, 결과 확인 알림 키 포함)과 `result.accept` 행(휴대폰은 `accept`·`request_changes`만)은 이미 이 판으로 맞춰져 있다([판정 J-166], [판정 J-189], [판정 J-227]) |
 | 20 | (1) §3.14 `PlatformAdapter`에 선택 필드 `push?`(`permission`, `subscribe`, `current`, `unsubscribe`)와 `lifecycle?`(`onHidden`, `onVisible`). (2) `UserConnState` 값 목록과 needsUser 원인 → 사유 표를 정하고 `decisionsAllowed`를 `@helm/client-react`에 둔다(26 §3.5.11이 가져다 쓴다). (3) 딥 링크 해석 표에 모바일 경로. (4) §3.10.1 "별도 푸시 채널은 없다"를 결정 47 기준으로. (5) `client-react`의 IndexedDB 이름을 앱별로. (6) 폐기·만료 처리 규칙을 18 요구 (8)과 같게. (7) `notifications.hourlyCap`을 빼고, 시간당 상한은 14 `attention.interruptsPerHour` 하나로 읽는다([판정 J-171]). 결과 확인 알림 설정은 데몬 설정이라 데스크톱 기기 설정에 두지 않는다([판정 J-189]) |
 | 21 | (1) `BottomSheet`(L0)를 `@helm/ui`에. (2) `SinceLastVisit`에 `variant="compact"`, `AutonomousChoiceList`에 항목별 [봤음] 없는 변형. (3) U-22 답: 모바일 기본 `data-transparency="reduced"`. (4) 입력 칸 글자 16px 이상(touch 밀도). (5) 부품이 `style` 속성을 쓰는 곳 목록(CSP `style-src-attr`) |
 | 22 | 서비스 워커 문구 생성 단위 시험, 쿠키·Origin·`/files/*` 격리 통합 시험, Playwright WebKit 휴대폰 시나리오, 가짜 푸시 서비스(RFC 8030 요청을 받아 복호화해 검사), 종단 시험 "데스크톱 기기가 모두 부재이고 휴대폰이 active가 아님 + 푸시 등록 → interrupt·notice 질문 푸시"([판정 J-172]), 시험 설정 `push.webpush.testEndpoints`로 루프백 가짜 서비스를 허용(T26-17), 실기기 체크리스트(§6.2) |
 | 23 | 모바일 마일스톤(M17): 데몬 쪽(정적 서빙, 쿠키 인증, 푸시 송신·등록), `apps/mobile` 화면, 실기기 확인(§6.2). 테이블 이름은 `push_tokens`. HT-21 등 사람 작업에서 결정 47~49로 답이 난 질문을 지우고 U-1(Apple 개발자 계정, 경로 B에만 필요)만 남긴다. M17 완료 기준(23 §3.4.18)에 T26-28~T26-35와 M-13·M-14를 더한다(현재 T26-01~27, M-01~12만 옮겨져 있다) |
-| 24 | ADR 후보 ADR-26-1~6을 §8로 옮긴다. ADR-00-19·ADR-20-04에 결정 47로 범위가 줄었다는 표시 |
-| 25 | 용어: "홈 화면 웹 앱", "푸시", "푸시 등록", "VAPID", "내용 숨김", "경로 B", 모델 API를 내는 쪽은 [판정 J-150]대로 본문 "제공자", 화면 "모델 제공자", 코드 `provider`(26은 이미 따른다) |
+| 24 | ADR 후보 ADR-26-01~06을 §8로 옮긴다. ADR-00-19·ADR-20-04에 결정 47로 범위가 줄었다는 표시 |
+| 25 | 용어: "홈 화면 웹 앱", "푸시", "푸시 등록", "VAPID", "내용 숨김", "경로 B", 모델 API를 내는 쪽은 [판정 J-150]대로 본문 "제공자", 화면 "모델 제공자", 코드 `provider`(26은 이미 따른다). (확인만) 결과 확인 푸시 `cause` 두 값(`result_review_immediate`·`result_review_digest`)은 25에 이미 있다([판정 J-238]) |
 
 ## 6. 구현 단위와 완료 기준
 
@@ -1315,7 +1315,7 @@ export function mobileDecisionAllowed(i: {
 
 ## ADR 후보
 
-### ADR-26-1. 모바일은 데몬이 서빙하는 PWA로 만든다
+### ADR-26-01. 모바일은 데몬이 서빙하는 PWA로 만든다
 
 - 상태: 결정 47로 확정(구현 형태는 제안)
 - 맥락: 결정 42로 휴대폰 클라이언트가 범위에 들어왔다. 무료 계정으로 서명한 iOS 앱은 7일마다 다시 설치해야 하고 푸시를 쓸 수 없다(X-1, X-2). 홈 화면 웹 앱은 계정 없이 Web Push를 받는다(X-4).
@@ -1324,7 +1324,7 @@ export function mobileDecisionAllowed(i: {
 - 기각한 대안: Tauri v2 iOS(유료 계정이 있으면 경로 B로 남김), React Native(화면 부품 두 벌), 네이티브 Swift(코드 두 벌).
 - 결과: 데몬이 웹 출처가 되므로 CSP·Origin 검사·쿠키 규칙·`/files/*` 격리·`decideMobile` scope가 필요하다. 19의 "정적 파일을 서빙하지 않는다"와 인증 전 제한에 `/m/` 예외가 생긴다. 결정 19의 적용 범위는 데스크톱으로 좁혀졌다(ADR-00-19, ADR-20-04에 표시).
 
-### ADR-26-2. 앱이 꺼져 있을 때의 알림은 데몬이 직접 보내는 Web Push다
+### ADR-26-02. 앱이 꺼져 있을 때의 알림은 데몬이 직접 보내는 Web Push다
 
 - 상태: 결정 47로 확정(송신 규칙은 제안)
 - 맥락: 사람이 자리에 없을 때 권리 게이트가 멈춘 채로 남는다(11 §3.8.2). 후보는 APNs 직접, Web Push, ntfy, 텔레그램 봇이었다.
@@ -1332,16 +1332,16 @@ export function mobileDecisionAllowed(i: {
 - 근거: PWA와 같은 앱이 열려 쿠키와 캐시를 그대로 쓴다. 계정이 필요 없다. payload가 종단 암호화된다. ntfy는 iOS에서 공개 중계를 거치고 누르면 Safari가 열린다. 텔레그램 안에서 답하면 사람 명령 경로(결정 14)를 벗어난다.
 - 결과: VAPID 개인 키가 제품 비밀에 들어간다. 데몬의 바깥 연결에 `push.apple.com`이 더해진다. 11의 `urgencyOf`가 "자리에 없지만 푸시로 알릴 수 있음"을 알아야 한다.
 
-### ADR-26-3. 모바일 기기 토큰은 HttpOnly `__Host-` 쿠키로 나르고, 모바일 기기는 줄인 scope를 받는다
+### ADR-26-03. 모바일 기기 토큰은 HttpOnly `__Host-` 쿠키로 나르고, 모바일 기기는 줄인 scope를 받는다
 
 - 상태: 제안([판정 J-118]이 18·19에 따르게 함)
 - 맥락: 브라우저 WebSocket은 `Authorization` 헤더를 붙일 수 없다. 하위 프로토콜로 보내면 토큰이 스크립트 저장소에 있어야 한다. 18 §3.18.2 4번은 PWA라면 HttpOnly 쿠키와 CSRF 대책을 요구했다. 휴대폰은 하는 일이 적다(§1.3).
-- 결정: `/m/pair`가 `__Host-helm_dt` 쿠키를 설정하고, `tailnet` 리스너는 Origin이 모바일 출처와 정확히 같을 때만(GET은 `Sec-Fetch-Site: same-origin`도) 쿠키를 받는다. 쿠키는 `credentialCarrier: "cookie"`로 발급된 모바일 기기에만 쓸 수 있다. 모바일 기기는 `decide` 대신 `decideMobile` scope를 받는다.
+- 결정: `/m/pair`가 `__Host-helm_dt` 쿠키를 설정하고, `tailnet` 리스너는 Origin이 모바일 출처와 정확히 같을 때만(GET은 `Sec-Fetch-Site: same-origin`도) 쿠키를 받는다. 쿠키는 `SameSite=Strict`로 주고, `credentialCarrier: "cookie"`로 발급된 모바일 기기에만 쓸 수 있다. 헤더 경로(`Authorization`)와 `POST /pair`·`POST /devices/self/rotate`는 Origin이 있으면 403이다(CSRF 대책). `POST /m/logout`은 쿠키만 지우고 기기를 폐기하지 않는다. 토큰은 페이지 스크립트·서비스 워커·IndexedDB·로그에 두지 않고, 하위 프로토콜로도 받지 않는다. 업그레이드 판정 함수는 18 `preflight`의 쿠키 갈래 `cookieAuth`(19 정본, 판정 J-168)다(18 §3.4.3, §3.18.2 3·4번). 모바일 기기는 `decide` 대신 `decideMobile` scope를 받는다.
 - 근거: 스크립트가 토큰을 꺼낼 수 없다. 분실·XSS 때 피해가 화면이 하는 일로 줄어든다.
 - 기각한 대안: 하위 프로토콜 + IndexedDB(대체로만 남김), 연결마다 1회용 티켓(티켓 발급에도 자격이 필요).
 - 결과: 18 `preflight`에 쿠키 갈래, 08 Device에 `credentialCarrier`, 19에 `decideMobile`. 같은 호스트의 다른 포트 서비스로 쿠키가 실리는 위험이 남는다(MQ-15).
 
-### ADR-26-4. 휴대폰은 숨겨지면 연결을 닫고 보이면 바로 다시 붙는다
+### ADR-26-04. 휴대폰은 숨겨지면 연결을 닫고 보이면 바로 다시 붙는다
 
 - 상태: 제안
 - 맥락: iOS는 백그라운드 앱을 곧 멈추고 그 연결도 끊는다(X-8). 끊긴 연결을 데몬이 무수신 감시(45초)로 발견하는 동안 접속 상태가 틀리고 푸시 판단이 늦는다.
@@ -1349,7 +1349,7 @@ export function mobileDecisionAllowed(i: {
 - 근거: 데몬이 사람의 부재를 바로 반영해 푸시를 고를 수 있다. 다시 붙는 비용(1~3초)은 위치부터 재전송과 진행 중 명령함으로 메운다.
 - 기각한 대안: 백그라운드 작업으로 연결 유지(시간이 짧고 보장이 없다), 닫지 않고 두기(반쯤 열린 연결이 45초 남는다).
 
-### ADR-26-5. 휴대폰 푸시는 interrupt와 notice 질문에, 사람이 다른 기기 앞에 있으면 보내지 않는다
+### ADR-26-05. 휴대폰 푸시는 interrupt와 notice 질문에, 사람이 다른 기기 앞에 있으면 보내지 않는다
 
 - 상태: 강도 범위는 결정 48로 확정, 기기 조건은 판정 J-171·J-172로 정함
 - 맥락: 05는 알림을 전달된 질문에만, 같은 질문은 두 번까지로 정했다. 휴대폰 푸시가 데스크톱 알림과 겹치면 같은 일을 두 번 알린다.
@@ -1358,7 +1358,7 @@ export function mobileDecisionAllowed(i: {
 - 기각한 대안: 모든 전달을 푸시(05 주의 예산과 충돌), 데스크톱과 휴대폰에 동시 알림(같은 일을 두 번).
 - 결과: 11에 `pushReachable`, 런타임 타이머 `push_followup`·`push_dnd_digest`·`push_hour_bundle`·`result_review_digest`(판정 J-189).
 
-### ADR-26-6. 푸시 등록 원문은 운영 테이블에 두고 이벤트에는 해시만 둔다
+### ADR-26-06. 푸시 등록 원문은 운영 테이블에 두고 이벤트에는 해시만 둔다
 
 - 상태: [판정 J-71]로 확정(열 구성은 제안)
 - 맥락: 푸시를 보내려면 엔드포인트 URL과 암호 키 원문이 필요하다. 결정 29는 모든 상태를 로그에서 재구성하라고 한다. 18 §3.18.2 9번은 원문을 이벤트에 넣지 말라고 요구했다.

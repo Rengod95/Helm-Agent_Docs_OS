@@ -1,7 +1,7 @@
 # 21. 데스크톱 UI 시스템
 
 - 작성: 2026-10-11, P14 UI. 2a단계 개정·4단계 보완 2026-10-12
-- 상태: 4단계 보완판(2026-10-12). 기준 결정 1~57(브리프 §2), 조정자 판정 J-1~J-189(`docs/design/process/rulings-stage2a.md`)를 반영했다. 사용자 결정 41~43(React 19, 부품 직접 제작, 글래스모피즘, 휴대폰 응답, Caustic 토큰 복사와 neutral 축소)과 47~50(모바일 PWA, 휴대폰 알림 강도, iOS 26, shadcn 소스 복사)이 이 문서의 주된 근거다. 03(화면 ID·셸 영역·상태 라벨), 04(뷰 모델), 05(키보드·문구·자극 반응 흐름), 08(레코드 종류), 13(보장 수준), 15(지지 등급·라운드 마침), 16(평가 화면), 19(메서드·오류 코드), 20(앱 구조·연결 상태)에 맞췄다. 1단계 판은 `.helm-design-work/P14/21-stage1-backup.md`에 있다.
+- 상태: 4단계 보완판(2026-10-12). 기준 결정 1~57(브리프 §2), 조정자 판정 J-01~J-240(`docs/design/process/rulings-stage2a.md`)를 반영했다. 사용자 결정 41~43(React 19, 부품 직접 제작, 글래스모피즘, 휴대폰 응답, Caustic 토큰 복사와 neutral 축소)과 47~50(모바일 PWA, 휴대폰 알림 강도, iOS 26, shadcn 소스 복사)이 이 문서의 주된 근거다. 03(화면 ID·셸 영역·상태 라벨), 04(뷰 모델), 05(키보드·문구·자극 반응 흐름), 08(레코드 종류), 13(보장 수준), 15(지지 등급·라운드 마침), 16(평가 화면), 19(메서드·오류 코드), 20(앱 구조·연결 상태)에 맞췄다. 1단계 판은 `.helm-design-work/P14/21-stage1-backup.md`에 있다.
 - 소유: 디자인 토큰, 타이포·레이아웃 규칙, 컴포넌트 목록과 계약(props, 상태, 키보드, 접근성), 시각화 컴포넌트, 화면 → 컴포넌트 매핑, UI 라이브러리 선택, 컴포넌트 단위 시각 테스트.
 - 소유하지 않음: 화면 ID·이름과 정보 구조·상태 라벨(03), 화면별 레이아웃·뷰 모델 타입(04), 문구·키 배정(05), 프로토콜 메서드(19), 앱 구조·상태 동기화·라우팅·알림·트레이(20), 도메인 레코드 정의(08), 질문 레코드(11), 루프·다이얼·주의 예산(14), 자극·반응·선호 모델의 생성 규칙(15).
 
@@ -73,7 +73,7 @@ Helm 클라이언트는 대화 중심 UI와 다른 상태 중심 UI다(결정 10
 | 48 | 휴대폰 알림은 `interrupt`·`notice` 질문까지 간다. 알림에서 열린 화면은 같은 `QuestionCard`를 `touch` 밀도로 쓴다 [결정 48] |
 | 50 | shadcn/ui 소스를 복사해 Helm 코드로 고쳐 쓰는 것은 결정 41의 "부품 직접 제작"에 들어간다(§2.5.2) [결정 50] |
 | 51, 52 | 구현 작업은 메인 오케스트레이터, 하위 조정자, 실작업자 3단계로 나눈다. 모델 구성은 결정 52가 정한다(메인 Opus 5.5 high, 하위 조정자 Sonnet 5.5 medium, 실작업자 Haiku 5.5 max). UI 부품 구현은 §6.2 단위(U1~U9)로 나눠 실작업자에게 줄 수 있게 부품마다 계약·이야기·완료 기준을 이 문서에 둔다 [결정 51, 52] |
-| 53 | 루프 계획은 혼합 방식이다. 기본은 모델이 계획 표시를 고르고 코드가 계획을 계산한다. 범위 밖이면 모델이 계획 전체를 설계하며, 그 계획에는 작성자 표시를 붙이고 이의를 받는다(§3.8.2). 방식 다이얼 `planAuthoring`은 다이얼 패널에 있고 노출 범위는 14 §3.11.1을 따른다(§3.7.3 (14)) [결정 53] |
+| 53 | 루프 계획은 혼합 방식이다. 기본은 모델이 계획 표시를 고르고 코드가 계획을 계산한다. 범위 밖이면 모델이 계획 전체를 설계하며, 그 계획에는 작성자 표시를 붙이고 이의를 받는다(§3.8.2). 방식 다이얼 `planAuthoring`은 다이얼 패널에 있고 MVP 노출 여섯 개에 든다. 전역 기본값은 MVP 설정 화면에서 고른다(§3.7.3 (14), [판정 J-192]) [결정 53] |
 | 55 | MVP 도구에 웹 읽기(`web_fetch`)와 웹 검색(`web_search`)이 들어간다. 활동 줄에서 외부 조회로 표시하고, 가져온 내용은 신뢰하지 않는 외부 내용으로 그린다(§3.7.3 (9), E21) [결정 55] |
 | 56 | 결과 확인 대기의 휴대폰 알림은 설정 값(알리지 않음, 하루 한 번 묶음, 즉시)이다. 결과 확인 패널은 알림 방식과 관계없이 같은 화면이다(§3.7.3 (11)) [결정 56] |
 | 57 | Apple 개발자 프로그램이 없다고 보아 네이티브 iOS 경로는 이후에 검토한다. 이 문서의 휴대폰 열은 PWA 기준이다(§3.13) [결정 57] |
@@ -772,9 +772,10 @@ export const glassBackdrops = { neutral: [0, 1, 8, 9], hues: [25, 72, 158, 205, 
 | 신선도 `rebuilding` | `--helm-fresh-rebuilding` | 없음 | `RefreshCw`(회전 금지) + "다시 만드는 중" |
 | 신선도 `failed` | `--helm-fresh-failed` | 없음 | `CircleX` + [다시 불러오기] |
 | 연결 `connected` | `text-tertiary`(크롬에서는 `text-tertiary-on-glass`) | 없음 | `Wifi` |
-| 연결 `slow`·`reconnecting`·`resyncing` | `warning-text` | 없음 | 점 + 글자 |
-| 연결 `disconnected`·`daemon_unresponsive`·`auth_failed`·`version_mismatch` | `danger-text` | `DegradedBanner`: `danger-soft` | `WifiOff` + 사유 문장 + 행동 버튼 |
-| 연결 `read_only`·`safe_mode` | `warning-text` | `DegradedBanner`: `warning-soft` | "읽기 전용"·"안전 모드" 글자 |
+| 연결 `slow`·`reconnecting`·`syncing`·`restarted`·`draining` | `warning-text` | 없음 | 점 + 글자 |
+| 연결 `serverPcUnreachable`·`daemonUnreachable`·`authFailed`·`keychainDenied`·`sshFailed`·`wrongServer`·`versionMismatch` | `danger-text` | `DegradedBanner`: `danger-soft` | `WifiOff` + 사유 문장 + 행동 버튼 |
+| 연결 `readOnly`·`safeMode` | `warning-text` | `DegradedBanner`: `warning-soft` | "읽기 전용"·"안전 모드" 글자 |
+| 연결 `viewStale` | `--helm-fresh-stale` | 없음 | 점 + "기준 시점" 글자 |
 | 질문 권리 게이트 | `text-primary` | 왼쪽 막대 `--helm-rights-gate-bar` | 글자 "권리 확인" |
 | 질문 만료 임박 | `--helm-expiry-near-fg` | 없음 | `Timer` + 남은 시간 |
 | 행동 `sending` | `ink-on` | `ink-solid` | 글자 "보내는 중", 버튼 잠금 |
@@ -1012,7 +1013,7 @@ export interface ProjectionMeta {
   acknowledgedSeq?: number;
 }
 /** 결정 버튼을 켤 수 있는가. 계산은 `@helm/client-react`의 `decisionsAllowed(conn, { serverFreshness })`(boolean, 20 §3.8.9) 한 곳이다.
- *  참: 사용자용 연결 상태 connected·slow·safe_mode + 서버 freshness current. 앱 신선도 refreshing·낡음 표시로는 막지 않는다
+ *  참: 사용자용 연결 상태 connected·slow·safeMode + 서버 freshness current. 앱 신선도 refreshing·낡음 표시로는 막지 않는다
  *  (04 §3.0.4 규칙 3, J-59, J-60). 컨테이너가 이 boolean과 막힘 사유 문구 키를 묶어 부품에 넘긴다. 26의 모바일 판도 같은 모양이다 */
 export interface DecisionAvailability { allowed: boolean; reasonKey?: CopyKey }
 ```
@@ -1086,11 +1087,12 @@ export type Depth = 'glance' | 'review' | 'audit';
 /** 세 세계 (§3.5.1). 뷰 모델에 없으면 RecordKind에서 표로 정한다(ui/model/world.ts) */
 export type World = 'N' | 'E' | 'M';
 
-/** 사용자용 연결 상태 (04 §3.0.4의 상태 + J-60 safe_mode). 20의 ConnState에서 20이 만든다.
- *  키체인 거부·SSH 실패·다른 서버 같은 막힘 사유는 상태를 늘리지 않고 배너 문구 키로 구분한다(J-60) */
+/** 사용자용 연결 상태. 값과 표기는 04 §3.0.4 표의 열여섯 상태다(camelCase, J-176·J-196·J-228). 20 §3.8.9가 `UserConnKind`를 이 값으로 대응시킨다.
+ *  키체인 거부·SSH 실패·다른 서버도 04 표의 상태 값이다(J-176). 사유별 문장은 `ConnectionVM.reasonKey`(CopyKey)로 따로 받는다 */
 export type ConnectionUiState =
-  | 'connected' | 'slow' | 'reconnecting' | 'disconnected' | 'daemon_unresponsive'
-  | 'auth_failed' | 'version_mismatch' | 'read_only' | 'safe_mode' | 'resyncing';   // read_only = 19 daemonMode readOnly, 화면 이름 "읽기 전용"(J-115)
+  | 'connected' | 'slow' | 'reconnecting' | 'serverPcUnreachable' | 'daemonUnreachable'
+  | 'authFailed' | 'keychainDenied' | 'sshFailed' | 'wrongServer' | 'versionMismatch'
+  | 'readOnly' | 'syncing' | 'viewStale' | 'restarted' | 'draining' | 'safeMode';   // readOnly = 19 daemonMode readOnly, 화면 이름 "읽기 전용"(J-115)
 
 /** 레코드 칩에 붙일 수 있는 화면 표시 정보. 모두 선택 항목이라 04 RecordRef를 그대로 넘겨도 된다 */
 export interface RecordChipExtras {
@@ -1362,7 +1364,7 @@ export interface ActionButtonProps {
 /** 20 CommandOutcome을 화면용으로 줄인 것 */
 export type CommandOutcomeView =
   | { kind: 'ok' }
-  | { kind: 'rejected'; reason: 'revision_conflict' | 'content' | 'authority' | 'path'; errorCode: number; messageKey: string; args?: Record<string, string>; rebase?: unknown }   // 19 §3.3.4, 10 갈래
+  | { kind: 'rejected'; reason: 'revision_conflict' | 'content' | 'authority' | 'path'; errorCode: number; messageKey: CopyKey; args?: Record<string, string>; rebase?: unknown }   // 19 §3.3.4, 10 갈래
   | { kind: 'expired' };
 ```
 
@@ -1436,6 +1438,14 @@ export interface SandboxBadgeProps {
   /** S1b이고 허용 목록 실험 전이면 'pre_read_exposed'(13 §3.6.1). 쓰기는 막지만 홈 읽기 범위가 넓다 */
   flag?: 'pre_read_exposed';
 }   // 13 §3.6.1. S0 = 격리 없음
+export interface ArgsViewProps {
+  args: unknown;                         // 13 argsPreview(가림을 거친 값). 원문 전체 또는 잘린 값
+  truncated?: { totalBytes: number; full: BlobRef };   // 19 BlobRef. 잘렸으면 필수. 없으면 전체로 본다
+  depth: Depth;
+  /** 고쳐서 허락용 편집 칸. 권리 게이트 질문 카드에서만, 데스크톱에서만 준다. 고친 값과 지문을 넘기고, 전송은 컨테이너(20)가 한다 */
+  editable?: { onEdited: (edit: { args: unknown; editedFingerprint: string }) => void };
+}
+export interface ScopeDiffProps { current: AgreementScope; requested: AgreementScope }   // 08 Scope(AgreementScope로 내보냄, 19 인증 Scope와 이름이 겹쳐 protocol이 요구, §5.2)
 export interface SupportGradeLabelProps { grade: 'untested' | 'weak' | 'consistent' | 'confirmed' | 'contested' }   // 15
 export interface ConfidenceGradeLabelProps { grade: 'low' | 'medium' | 'high' }   // 14 U-10
 ```
@@ -1568,6 +1578,7 @@ export type QuestionCardProps = L2Common & (
 | 범위 확대 질문(`scope_change`) | `ScopeDiff`로 현재 범위와 요청 범위를 08 `Scope` 칸별(행동 종류 `primitives`, 자원 `resources`, 보낼 곳 `sendTargets`, 예산 `budget`, 기한 `validUntil`, 대상 미리 모름 허용 `allowUnknownTargets`)로 나란히 놓고, 더해지는 값은 `ins`, 빠지는 값은 `del`로 표시한다. 값은 커널이 뷰에 넣은 구조 값만 쓴다. 모델 문장에서 범위를 읽어 내지 않는다(04에 VM 필드 `currentScope`·`requestedScope` 요구). 선택지에 구조화 `scope`가 있으면(판정 J-133) 그 선택지를 펼칠 때도 현재 범위 대비 `ScopeDiff`를 보인다 |
 | 답한 뒤 | 명령 결과의 `impact`를 `ChoiceImpactEcho`로. 앱이 영향을 추측하지 않는다(04 §3.4) |
 | 허락 행동(권리 게이트) | 허락(`question.answer`, `approve`), 범위 줄여 허락(`narrow_scope`), 하지 않기(`deny`)를 주 버튼에 둔다. 고쳐서 허락(`approve_edited`)은 `ArgsView`의 편집 칸(`editable`)에서 인자를 고쳐 `editedArgs`(blob)와 `editedFingerprint`를 `question.answer`로 보낸다. 원 호출을 닫고 새 호출을 만드는 일은 서버가 한 트랜잭션에서 한다(판정 J-117·J-121). 휴대폰에서는 인자 미리보기만 보이고 고치기는 데스크톱에서 한다(03 §3.12) |
+| 웹 내용을 본 뒤의 `send` | 웹 내용을 본 run(`taint.web`)의 `send`는 합의가 허용해도 사람에게 묻는다. 승인 카드에 글자 "웹 내용을 본 뒤의 요청"을 보인다(18 §3.12 11번, [판정 J-190]). 색만으로 표시하지 않는다(UP-4) |
 | 미루기 시각 경고 | 미루기 시각 선택지가 질문의 만료점보다 늦으면 고르기 전에 "만료점이 미룬 시각보다 먼저 옵니다. 그때 임시 가정이 확정됩니다."를 보인다(11 Q-E19, 05 §3.1.5). 권리 게이트면 "그동안 이 작업은 멈춰 있습니다"를 함께 보인다. 경고 여부는 VM이 준다(§5.3 04). 부품은 시각을 비교해 판정하지 않는다 |
 | 정하면 생기는 일 | 답하면 함께 확인되는 판단(`bundledFinding`)이 있으면 "판단 n도 확인됨"을 같은 자리에 보인다. 이 판단 확인은 선택이 확정되는 같은 조작으로 닫힌다(14 §3.13.7) |
 
@@ -1580,19 +1591,7 @@ export type QuestionCardProps = L2Common & (
 | 이미 처리됨, 철회, 찾을 수 없음, 낡은 기준 거부 | 04 §3.0.5 문장. 쓰던 답 유지 |
 | 묶음 모드 | 질문을 차례로 쌓고 맨 아래 "고른 대로 보내기". 질문마다 의도를 따로 보낸다 |
 
-`ArgsView`와 `ScopeDiff`는 승인·권리 질문, 작업 합의(`WorkAgreementDraft/Echo`), 실행 출처(`SourceTrace`)가 같이 쓰는 L1 부품이다.
-
-```ts
-import type { BlobRef, AgreementScope } from '@helm/protocol';   // 19 BlobRef, 08 Scope
-export interface ArgsViewProps {
-  args: unknown;                         // 13 argsPreview(가림을 거친 값). 원문 전체 또는 잘린 값
-  truncated?: { totalBytes: number; full: BlobRef };   // 잘렸으면 필수. 없으면 전체로 본다
-  depth: Depth;
-  /** 고쳐서 허락용 편집 칸. 권리 게이트 질문 카드에서만, 데스크톱에서만 준다. 고친 값과 지문을 넘기고, 전송은 컨테이너(20)가 한다 */
-  editable?: { onEdited: (edit: { args: unknown; editedFingerprint: string }) => void };
-}
-export interface ScopeDiffProps { current: AgreementScope; requested: AgreementScope }   // 19 인증 Scope와 이름이 겹쳐 protocol이 AgreementScope로 내보내기를 요구(§5.2)
-```
+`ArgsView`와 `ScopeDiff`는 승인·권리 질문, 작업 합의(`WorkAgreementDraft/Echo`), 실행 출처(`SourceTrace`)가 같이 쓰는 L1 부품이다. props는 §3.7.2 `helm/props.ts`에 둔다. 이 절에는 동작 규칙만 적는다.
 
 - 인자는 잘린 채 보이지 않는다. 잘렸으면 머리에 "잘림 · 전체 n바이트"와 [전체 인자 보기]가 있고, 전체 보기는 `BlobRef`를 받아 같은 규칙으로 그린다. 잘린 인자의 허락 버튼(`approve`·`approve_edited`)은 전체 보기를 연 뒤에만 켜진다(04 질문 뷰의 `truncated` 규칙, 18 T18-38).
 - 보이지 않는 문자는 코드 포인트로 바꿔 보인다: 제어 문자(U+0000~U+001F 중 탭·줄바꿈 제외, U+007F~U+009F), 양방향 제어(U+061C, U+200E, U+200F, U+202A~U+202E, U+2066~U+2069), 영폭 문자(U+200B~U+200D, U+2060, U+FEFF). 각각 `U+202E` 같은 고정폭 칩으로 그리고, 하나라도 있으면 머리에 "보이지 않는 문자 n개"를 경고 색으로 둔다. 같은 규칙을 경로와 URL에도 쓴다.
@@ -1660,7 +1659,7 @@ export interface ChoiceImpactEchoProps extends L2Common {
 
 ##### (9) `ToolActivityLine`
 
-도구 실행을 한 줄로 압축한다. 예: "작업 · 원인 후보 비교 / 파일 4개 읽음 · 검색 2회 · 실제 변화 없음"(helm-canon-2 §3.11). 항상 따로 한 줄로 보이는 7종: 실제 변경 시작·완료, 외부·공유 효과, 권한 거부, 판단을 바꾸는 테스트 근거, 추천을 바꾸는 반대 근거, 지켜야 할 조건 충돌, 비용·시간·위험 임계 초과. 외부 조회(`web_fetch`·`web_search`, [결정 55])는 `reads`·`searches`에 세고 줄 글자에 "외부"를 붙인다(예: "외부 검색 2회"). 가져온 내용은 신뢰하지 않는 외부 내용으로 그린다(E21).
+도구 실행을 한 줄로 압축한다. 예: "작업 · 원인 후보 비교 / 파일 4개 읽음 · 검색 2회 · 실제 변화 없음"(helm-canon-2 §3.11). 항상 따로 한 줄로 보이는 7종: 실제 변경 시작·완료, 외부·공유 효과, 권한 거부, 판단을 바꾸는 테스트 근거, 추천을 바꾸는 반대 근거, 지켜야 할 조건 충돌, 비용·시간·위험 임계 초과. 외부 조회(`web_fetch`·`web_search`, [결정 55])는 `reads`·`searches`에 세고 줄 글자에 "외부"를 붙인다(예: "외부 검색 2회"). 가져온 내용(웹 결과 본문, 브라우저 출력)은 신뢰하지 않는 외부 내용으로 그린다(E21, 18 §3.12 7번).
 
 ```ts
 export interface ToolActivityVM {
@@ -1713,7 +1712,7 @@ export interface SemanticPreviewProps extends L2Common {
 
 입력: `DialsView`(04 §3.17). 현재 모드(누가 골랐는지, 이유, 중심 루프, 능력 켜짐/꺼짐, 이의), 다이얼 목록(값, 선택지, 어느 설정 층에서 온 값인지 `sourceLayer` 1~6, 바꿀 수 있는 범위, 루프별 값).
 
-범위와 노출: 다이얼 값은 `DIAL_DEFS`(14 §3.11.2, 데이터는 `@helm/domain`)를 읽어 그린다. 바꿀 수 있는 범위는 user·Concern·지시 셋이며 Goal 범위는 없다(판정 J-136). MVP는 노출 다섯 개(기본 전달 방식, 질문 빈도, 예산, 자극 수, 탐구 깊이)만 그리고, 나머지는 시스템 기본값과 층 2·3 값으로 동작하며 화면에서 바꾸지 않는다. 2단계에서 14개를 모두 노출한다(14 §3.11.1). 루프 계획 방식 `planAuthoring`(결정 53, 판정 J-188)도 `DIAL_DEFS` 항목이므로 같은 노출 규칙을 따른다.
+범위와 노출: 다이얼 값은 `DIAL_DEFS`(14 §3.11.2, 데이터는 `@helm/domain`)를 읽어 그린다. 바꿀 수 있는 범위는 user·Concern·지시 셋이며 Goal 범위는 없다(판정 J-136). MVP는 노출 여섯 개(기본 전달 방식, 질문 빈도, 예산, 자극 수, 탐구 깊이, 계획 작성 방식)만 그리고, 나머지는 시스템 기본값과 층 2·3 값으로 동작하며 화면에서 바꾸지 않는다. 2단계에서 열여섯 개를 모두 노출한다(14 §3.11.1). 루프 계획 방식 `planAuthoring`(결정 53, 판정 J-188)은 MVP 노출 여섯째 다이얼이다. 전역 기본값은 MVP 설정 화면(`SCR-SETTINGS`)에서 고르고, Concern별 값은 이 패널에서 바꾼다([결정 53], [판정 J-192]).
 
 - 이산 값은 `SegmentedControl`, 숫자 범위 값은 숫자 입력(단위 표시)으로 그린다. 슬라이더를 쓰지 않는다(정확한 값과 키보드 조작이 낫다).
 - 값마다 층 표시("이 Concern에서 바꿈", "모드 기본값", "시스템 기본값", v0.3 07 §6)와 "에이전트가 지금 하던 단계를 마친 뒤 반영" 안내(05 §3.10.8 화면 표기). 변경은 `dial.set`, 되돌리기는 `dial.unset`(위 층 값으로), 모드 변경은 `mode.set`.
@@ -1977,14 +1976,14 @@ export interface GoalHistoryProps extends L2Common {
 
 ```ts
 export interface ConnectionVM {
-  state: ConnectionUiState;             // §3.6.2, 04 §3.0.4 + J-60 safe_mode
+  state: ConnectionUiState;             // §3.6.2, 04 §3.0.4 열여섯 상태(J-196)
   route: { kind: 'tailscale_wss' | 'ssh'; name: string };   // 기본값 26, 결정 38, 20 §3.8.1 연결 프로필
   lastReceivedAt?: IsoTime;
   retry?: { attempt: number; nextAt: IsoTime };
   versions?: { app: string; daemon: string };
-  /** 막힘 사유별 문구와 할 일 (20 §3.8.9). 키체인 거부·SSH 실패·다른 서버는 이 문구 키로 구분하고 상태 값은 늘리지 않는다 (J-60) */
+  /** 막힘 사유별 문구와 할 일 (20 §3.8.9). 키체인 거부·SSH 실패·다른 서버도 상태 값이다(J-176). 사유마다 이 문구 키를 받는다 */
   reasonKey?: CopyKey;
-  action?: { labelKey: string; target: ScreenId };
+  action?: { labelKey: CopyKey; target: ScreenId };
 }
 ```
 
@@ -1994,7 +1993,8 @@ export interface ConnectionVM {
 | 느림 | 점(경고) + "연결 느림" | 원인 문장 |
 | 다시 연결하는 중 | 점 + "다시 연결하는 중 · 12초 전 끊김" | 다음 시도 시각, [지금 다시 연결] |
 | 다시 맞추는 중 | 점 + "맞추는 중" | — |
-| 연결 안 됨 / 데몬 응답 없음 / 인증 실패 / 버전 불일치 / 읽기 전용 / 안전 모드 | 점(위험) + 상태 이름 | 사유 문구(`reasonKey`)와 할 일(`SCR-CONNECT`, `SCR-RECOVERY`). 안전 모드는 17·19의 `daemon.exitSafeMode` 안내 |
+| 연결 안 됨 / 데몬 응답 없음 / 인증 실패 / 키체인 접근 필요 / SSH 연결 실패 / 다른 서버 / 버전 불일치 / 읽기 전용 / 안전 모드 | 점(위험) + 상태 이름 | 사유 문구(`reasonKey`)와 할 일(`SCR-CONNECT`, `SCR-RECOVERY`). 안전 모드는 17·19의 `daemon.exitSafeMode` 안내 |
+| 뷰 낡음 / 서버 다시 시작됨 / 서버 종료 중 | 점(경고) + 상태 이름 | 뷰 낡음은 §3.5.8의 기준 시점 띠를 쓴다. 나머지는 사유 문구(`reasonKey`)를 보인다 |
 
 점은 장식이고 상태는 항상 글자로 쓴다. 회전 아이콘을 쓰지 않는다(UP-12).
 
@@ -2014,12 +2014,12 @@ export interface PendingQuestionsVM {
 
 ```ts
 export interface AttentionBudgetVM {
-  unitLabel: string;                    // 화면 이름 "질문"(14 §3.13.8, 단위 "주의 비용")
-  windowLabel: string;                  // "오늘"
+  unitLabel: CopyRef;                   // 화면 이름 "질문"(14 §3.13.8, 단위 "주의 비용")
+  windowLabel: CopyRef;                 // "오늘"
   used: number;                         // 오늘 전달된 접점 비용 합
   scheduled?: number;                   // 다음 경계에 예약된 질문 비용 합
   limit?: number;                       // dailyBudget(데몬 설정). 없으면 막대 없이 숫자만
-  nextBoundaryLabel?: string;           // "다음 묶음: 라운드 끝"(가장 가까운 예약 경계)
+  nextBoundaryLabel?: CopyRef;          // "다음 묶음: 라운드 끝"(가장 가까운 예약 경계)
 }
 ```
 
@@ -2139,7 +2139,7 @@ SVG 막대 하나(사용 / 예약 / 남음 세 칸, 칸마다 글자 라벨과 �
 | `SCR-OBSERVER` | 관찰 제안 | `ObserverProposalCard` | UC-08 |
 | `SCR-CONNECT` | 연결·기기 | `ConnectionIndicator`(펼친 판), 연결 경로 목록, 기기 목록·폐기, 보내지 못한 조작 목록(20) | UC-04 |
 | `SCR-RECOVERY` | 복구 | `RecoveryList`, `DegradedBanner` | UC-03 |
-| `SCR-SETTINGS` | 설정 | `SegmentedControl`(테마, 밀도), 글자 크기, 인스펙터 고정, 개발자 보기, 단축키 보기 | — |
+| `SCR-SETTINGS` | 설정 | `SegmentedControl`(테마, 밀도, 계획 작성 방식 전역 기본값 `planAuthoring`[결정 53, 판정 J-192]), 글자 크기, 인스펙터 고정, 모델 제공자 목록(읽기 전용, 04 `SettingsView.providers`[판정 J-150]), 개발자 보기, 단축키 보기 | — |
 | `SCR-ONBOARD` | 처음 연결 | `ConnectionIndicator`, 안내 카드(04 §3.22) | UC-04 |
 | `SCR-RECORD` | 변화 기록 | `VirtualList` + `DataTable`, `SourceTrace`, `KindLabel` | 감사 |
 | `SCR-TRAY` | 메뉴 막대·트레이 | 웹뷰 밖 OS 메뉴(20). 같은 `PendingQuestionsVM` 값을 쓴다 | UC-04 |
@@ -2334,11 +2334,11 @@ Codex 앱의 구체 재질(반투명 사이드바 여부 등)은 위 두 자료�
 | 08·09 §5.2 | 거부 갈래 이름 `eligibility` → `authority` | 반영: `CommandOutcomeView`(§3.7.1) |
 | 11 §5.2 | 이의 사유 선택, 가정 확정 뒤 답을 이의로, 이의 영향 미리보기, 권리 게이트 카드의 인자 미리보기와 고쳐 허락, 미루기 만료 경고 | 반영: `ContestButton`(영향 미리보기), E14, `QuestionCard`(허락 행동, 미루기 시각 경고), `ArgsView`(편집 칸) |
 | 13 §5.2 | 성질별 보장 수준, 샌드박스 수준, "격리 없음"·"신호 격리 없음" 경고, `pre_read_exposed` 표지, 합의 경고 키 `network.proxy_fallback_ask` | 반영: `EnforcementBadge`, `SandboxBadge`(§3.7.2), `WorkAgreementDraft`(§3.7.3 (7)), 작업 카드 |
-| 14 §5.2 (03·04·05·21) | (1) OPD+C 의무 id와 화면 요소 대응, (2) `DIAL_DEFS`와 범위 셋, MVP 노출 다섯 개, (3) 건너뛴 루프의 이유와 전환 이력, (4) 주의 예산 값, (5) 시간당 알림 상한과 휴대폰 조용한 시간 제안, (6) 보관 Concern 숨김, (7) 승인됐지만 실행하지 않은 행동과 반영 범위 초안, (8) 판단 확인 묶음, (9) 막지 않는 권리 게이트 접기, (10) run 목록의 Concern 트리 묶음 | (1) 03의 대응 표와 §3.11 매핑으로 반영. (2) §3.7.3 (14). (3) §3.8.2. (4) §3.8.5. (5) 이 문서에 알림 설정 부품이 없어 해당 없음(20·26·05 소관). (6) 화면 목록 필터는 03·04 소관이고 `ConcernTree`는 필터 값을 받는다. (7) §3.7.3 (11). (8) §3.7.3 (3)·(5). (9) §3.7.3 (1)(4), §4 E13. (10) §3.3 `RGN-RUNS` |
+| 14 §5.2 (03·04·05·21) | (1) OPD+C 의무 id와 화면 요소 대응, (2) `DIAL_DEFS`와 범위 셋, MVP 노출 다섯 개, (3) 건너뛴 루프의 이유와 전환 이력, (4) 주의 예산 값, (5) 시간당 알림 상한과 휴대폰 조용한 시간 제안, (6) 보관 Concern 숨김, (7) 승인됐지만 실행하지 않은 행동과 반영 범위 초안, (8) 판단 확인 묶음, (9) 막지 않는 권리 게이트 접기, (10) run 목록의 Concern 트리 묶음 | (1) 03의 대응 표와 §3.11 매핑으로 반영. (2) §3.7.3 (14), MVP 여섯 개(판정 J-192). (3) §3.8.2. (4) §3.8.5. (5) 이 문서에 알림 설정 부품이 없어 해당 없음(20·26·05 소관). (6) 화면 목록 필터는 03·04 소관이고 `ConcernTree`는 필터 값을 받는다. (7) §3.7.3 (11). (8) §3.7.3 (3)·(5). (9) §3.7.3 (1)(4), §4 E13. (10) §3.3 `RGN-RUNS` |
 | 16 §5.2 | 평가 화면 지표 타일, 감사 깊이 열람 수집 | 반영: `MetricTile`(§3.7.3 (16)). 감사 깊이 열람은 `presence.report`의 `depth`로 컨테이너(20)가 보냄(J-84) |
-| 18 | 승인 화면은 커널의 구조화된 값을 보이고 모델 요약은 보조. 모델 제공자 목록, 결과 확인의 git 설정 파일 주의 항목, 잘린 인자의 허락 버튼 조건(T18-38) | 반영: `WorkAgreementDraft`(§3.7.3 (7)), `MaterialChangeGroups`(§3.7.3 (10)), `ArgsView`(§3.7.3 (3)), TK-11 |
+| 18 | 승인 화면은 커널의 구조화된 값을 보이고 모델 요약은 보조. 모델 제공자 목록, 결과 확인의 git 설정 파일 주의 항목, 잘린 인자의 허락 버튼 조건(T18-38) | 반영: `WorkAgreementDraft`(§3.7.3 (7)), `SCR-SETTINGS` 행(§3.11, 모델 제공자 목록), `MaterialChangeGroups`(§3.7.3 (10)), `ArgsView`(§3.7.3 (3)), TK-11. 웹 승인 표지(§3.7.3 (3)), 웹 결과 본문 자료 표시(§3.7.3 (9)) |
 | 19 §5.2 | 메서드 대응은 19 §3.7.1, 낡은 기준은 `3004 command.revisionConflict`, `intentId`는 `idempotencyKey`, 의미 미리보기는 `composer.preview` 결과, 그림 표시 판은 `BlobRef.variants` | 반영: §3.6.3, §3.6.4, §3.7.3 (13), `BlobImage` |
-| 20 §5.2 | (1) 신선도 다섯 값, (2) "다시 연결된 뒤 바뀜"은 `uiStore.changedSinceReconnect`, (3) blob 503 자리 표시, (4) 마크다운 원시 HTML 끔·스킴 제한, (5) 부품은 `@helm/client`·`platform`을 가져오지 않음, (6) `safe_mode`, (7) `refreshing` 중 결정 막지 않음, (8) `decisionsAllowed`는 앱이 계산 | 반영: §3.5.8, E5, `BlobImage`·E35, `Markdown`·E21, §3.13·§6.4, J-60, J-59, `DecisionAvailability` |
+| 20 §5.2 | (1) 신선도 다섯 값, (2) "다시 연결된 뒤 바뀜"은 `uiStore.changedSinceReconnect`, (3) blob 503 자리 표시, (4) 마크다운 원시 HTML 끔·스킴 제한, (5) 부품은 `@helm/client`·`platform`을 가져오지 않음, (6) `safeMode`, (7) `refreshing` 중 결정 막지 않음, (8) `decisionsAllowed`는 앱이 계산 | 반영: §3.5.8, E5, `BlobImage`·E35, `Markdown`·E21, §3.13·§6.4, J-60, J-59, `DecisionAvailability`, `ConnectionUiState` 값은 J-196에 따라 camelCase(§3.6.2) |
 | 15 | 지지 등급 표시, 세 개 비교, `roundClosable`·`pickOnly` | 반영: `SupportGradeLabel`(라벨은 03 §3.3.6), §3.8.3, J-34·J-100 |
 | 13 §3.10, 18 §3.11.6 | 승인 화면의 인자 미리보기: 전체 또는 잘림 표시와 전체 보기, 보이지 않는 문자의 코드 포인트 표시 | 반영: `ArgsView`(§3.7.3 (3)), TK-11 |
 | 11 §3.2, 10 | 권리 질문에서 커널 구조 값과 모델 문장을 나눠 보이기, `scope_change` 질문의 현재 범위 대 요청 범위 | 반영: `QuestionCard` 규칙 표, `ScopeDiff` |
@@ -2359,18 +2359,18 @@ Codex 앱의 구체 재질(반투명 사이드바 여부 등)은 위 두 자료�
 | 문서 | 요구 |
 |---|---|
 | 03 | (1) 원천 배지 `inferred`·`policy-approved`를 작성자 표시로 옮긴 것(§3.5.3)을 §3.3.6에 반영. (2) 지지 등급 화면 라벨(아직 확인 안 됨 / 약함 / 일관됨 / 확인됨 / 이의 있음)을 §3.3에 표로 둘 것(§3.5.6이 인용) |
-| 04 | (1) 목록 항목의 `unseen`. (2) 글 자극 요소의 평문 조각(E9). (3) `GoalView` 버전 본문 조회. (4) `EvidenceChainView.nodes`의 깊이 지연 로딩. (5) 진행 작업 카드 뷰에 성질별 보장 수준과 `sandboxLevel`(S1b의 `pre_read_exposed` 표지 포함). (6) `scope_change` 질문 뷰에 `currentScope`·`requestedScope`(08 `Scope` 구조 값), 권리 질문 뷰에 커널 구조 값(행동 종류·대상·인자)과 모델 설명을 다른 필드로. (7) 인자 뷰에 `truncated { totalBytes, full: BlobRef }`. (8) 가벼운 작업 결과 확인, 승격 질문, Goal 수정 카드, 홈 선택 요청 카드가 `QuestionCard`의 "그 밖에"를 쓰게 하고, 간단판 버튼을 [결과 확인]·[수정 요청]으로(§3.9 R2). (9) 휴대폰 결과 확인 가능 여부 `mobileReviewable`(판정 J-139, J-174). (10) 홈 표시 개수를 다이얼이 아닌 설정 `maxVisibleDecisions`로 적기. (11) 합의 뷰에 경고 키 `warnings`(13 §3.5.3)와 모델 제공자 목록(작업·검증 에이전트별, 판정 J-150). (12) 질문 뷰에 고른 바라는 효과별 영향 미리보기 문구(이의 걸기 흐름)와 재결정 질문 참조. (13) 질문 뷰의 미루기 선택지별 만료 경고 여부(11 Q-E19). (14) 결과 확인 뷰에 승인됐지만 실행하지 않은 행동 목록(14 §3.12.3 F32). (15) 루프 계획 뷰의 건너뛴 단계 이유(`reason`)와 작성자(`authoredBy`, 결정 53, 판정 J-188). (16) 홈 주의 예산은 `AttentionBudgetVM`(14 §3.13.8 값)으로 준다. 04 `HomeView.attentionBudget`(다이얼 값)은 이 막대의 입력이 아니다. |
-| 05 | (1) `@helm/ui-language` 키 생성 규칙과 키 표: 상태 라벨 `status.<집합>.<값>`(03 §3.3 전부), 연결 상태 문구 키 `label.connection.<상태>`(접두어 05 정본, 상태 값은 04 §3.0.4와 §3.6.2 `ConnectionUiState`, 판정 J-176), 등급 라벨, 고정 표현 머리말, 버튼어(§3.10.5). 보간 문법(`{이름}`)과 인자 타입을 키별로. `CopyKey`는 키 문자열 타입 하나의 뜻으로만 쓴다. (2) 금지 문구 목록에 R7 문구("어느 쪽입니까", "둘 중 하나") 더하기. (3) 응답 이름 하나씩: 먼저 알아보기, 범위 줄여 진행, 에이전트가 정하게 두기, 미루기, 이의 걸기, 안전하게 멈추기(25 §응답 선택지 행과 같게). (4) 선호 기준 무게 라벨 "높음·중간·낮음" 키. (5) 질문 문장 예시를 §3.10.6 형("…정해야 합니다. 지금 정하지 않으면 …")으로. (6) 세 개 비교 입력을 08 `triad.similar`·15 §3.6대로 "비슷한 둘 고르기"로(05 §3.2.4의 "다른 하나 고르기"와 다름, 21은 08·15를 따랐다) |
+| 04 | (1) 목록 항목의 `unseen`. (2) 글 자극 요소의 평문 조각(E9). (3) `GoalView` 버전 본문 조회. (4) `EvidenceChainView.nodes`의 깊이 지연 로딩. (5) 진행 작업 카드 뷰에 성질별 보장 수준과 `sandboxLevel`, 그 표지 `flag`(S1b의 `pre_read_exposed`, §3.7.2 `SandboxBadgeProps.flag`). (6) `scope_change` 질문 뷰에 `currentScope`·`requestedScope`(08 `Scope` 구조 값), 권리 질문 뷰에 커널 구조 값(행동 종류·대상·인자)과 모델 설명을 다른 필드로. (7) 인자 뷰에 `truncated { totalBytes, full: BlobRef }`. (8) 가벼운 작업 결과 확인, 승격 질문, Goal 수정 카드, 홈 선택 요청 카드가 `QuestionCard`의 "그 밖에"를 쓰게 하고, 간단판 버튼을 [결과 확인]·[수정 요청]으로(§3.9 R2). (9) 휴대폰 결과 확인 가능 여부 `mobileReviewable`(판정 J-139, J-174). (10) 홈 표시 개수를 다이얼이 아닌 설정 `maxVisibleDecisions`로 적기. (11) 합의 뷰에 경고 키 `warnings`(13 §3.5.3)와 모델 제공자 목록(작업·검증 에이전트별, 판정 J-150). (12) 질문 뷰에 고른 바라는 효과별 영향 미리보기 문구(이의 걸기 흐름)와 재결정 질문 참조. (13) 질문 뷰의 미루기 선택지별 만료 경고 여부(11 Q-E19). (14) 결과 확인 뷰에 승인됐지만 실행하지 않은 행동 목록(14 §3.12.3 F32). (15) 루프 계획 뷰의 건너뛴 단계 이유(`reason`)와 작성자(`authoredBy`, 결정 53, 판정 J-188). (16) 홈 주의 예산은 `AttentionBudgetVM`(14 §3.13.8 값)으로 준다. 04 `HomeView.attentionBudget`(다이얼 값)은 이 막대의 입력이 아니다. |
+| 05 | (1) `@helm/ui-language` 키 생성 규칙과 키 표: 상태 라벨 `status.<집합>.<값>`(03 §3.3 전부), 연결 상태 문구 키 `label.connection.<상태>`(접두어 05 정본, 상태 값은 04 §3.0.4의 열여섯 값을 camelCase로 쓰며 §3.6.2 `ConnectionUiState`와 같다, 판정 J-176·J-196), 등급 라벨, 고정 표현 머리말, 버튼어(§3.10.5). 보간 문법(`{이름}`)과 인자 타입을 키별로. `CopyKey`는 키 문자열 타입 하나의 뜻으로만 쓴다. (2) 금지 문구 목록에 R7 문구("어느 쪽입니까", "둘 중 하나") 더하기. (3) 응답 이름 하나씩: 먼저 알아보기, 범위 줄여 진행, 에이전트가 정하게 두기, 미루기, 이의 걸기, 안전하게 멈추기(25 §응답 선택지 행과 같게). (4) 선호 기준 무게 라벨 "높음·중간·낮음" 키. (5) 질문 문장 예시를 §3.10.6 형("…정해야 합니다. 지금 정하지 않으면 …")으로. (6) 세 개 비교 입력을 08 `triad.similar`·15 §3.6대로 "비슷한 둘 고르기"로(05 §3.2.4의 "다른 하나 고르기"와 다름, 21은 08·15를 따랐다) |
 | 10·15 | V-Q-03에 "I.want에서 답이 자극·가능성 id를 가리키는 질문 거부"(판정 J-141). 21은 이 질문이 화면에 오지 않는다고 본다 |
 | 11 | §3.2에 "권리 질문 화면은 커널 구조 값을 보이고 모델 문장은 보조" 규칙. 21 `QuestionCard`가 이를 구현한다 |
 | 13·18 | `argsPreview`가 전체 인자 또는 잘림 정보(`truncated`, 전체 blob)를 반드시 담을 것. 마스킹 자리 표시 형식 |
 | 19 | (1) 이의 메서드 이름 `objection.file`(판정 J-111), `result.reopen` 삭제(판정 J-123). (2) `autonomous.markSeen`·`decision.confirm` params에 항목 단위 `targets`. (3) `agreement.narrow` params에 구조화 `Scope`. (4) 08 `Scope`를 `AgreementScope` 이름으로도 내보내기(19 인증 `Scope`와 겹침). 2a 요구(`impact`, 오류 kind, `variants`, 서버 시각)는 19가 반영했다 |
-| 20 | `ConnectionUiState` 열 값(`read_only` 포함)과 §3.8.9 대응표를 21 §3.6.2와 맞추고, `decisionsAllowed` 반환형 `boolean` 하나와 `reasonKey` 출처를 한 곳에 |
+| 20 | `ConnectionUiState` 값(04 §3.0.4의 열여섯 개, camelCase, `readOnly` 포함, 판정 J-196)과 §3.8.9 대응표를 21 §3.6.2와 맞추고, `decisionsAllowed` 반환형 `boolean` 하나와 `reasonKey` 출처를 한 곳에 |
 | 14 | 없음. 주의 예산의 단위·창·예약 몫은 14 §3.13.8이 정했고 §3.8.5가 따른다. 값을 주는 쪽은 04(§5.3 04 (16)) |
 | 12·15 | 모델 문장에 숫자 확률을 쓰지 않게 하는 프롬프트 규칙(E22). 사용자 투영에서 사고 텍스트 제외 |
 | 17·18 | 연결 진단 문장(경로별), 안전 모드·읽기 전용 사유 문장 키 |
 | 22 | 색인의 21 TK-nn을 §6.3 ID 열로 맞추고 TK-11(인자 표시) 더하기. TK-02 통과 조건은 22 문장(영향도와 관계없이 위반 0)으로 맞췄다 |
-| 23 | 21 부품을 WBS에 배정: §6.2의 U1~U9 단위와 부품 목록(§6.2에 23 M13a-04·05·08 배정대로 9개를 넣었다. 4단계에 생긴 `ArgsView`·`ScopeDiff`는 U4(M13a-04)에 더할 것) |
+| 23 | 21 부품을 WBS에 배정: §6.2의 U1~U9 단위와 부품 목록(§6.2에 23 M13a-04·05·08 배정대로 9개를 넣었다. 4단계에 생긴 `ArgsView`·`ScopeDiff`는 U3(L1, M13a-03)에 더할 것[판정 J-236]) |
 | 24 | 이 문서 끝 ADR 후보 |
 
 ## 6. 구현 단위와 완료 기준
@@ -2394,7 +2394,7 @@ packages/ui/                   @helm/ui
     helm/                      L1 (§3.7.2) — KindLabel, QualityBadge, AuthorshipMark, DraftMark, ActorLabel, StatusLabel, LoopChip,
                                SituationChip, ModeChip, GateBadge, DeliveryBadge, AssumptionExpiry, TimeStamp, RecordChip, SourceTrace,
                                CertaintyDescriptor, SupportGradeLabel, ConfidenceGradeLabel, ReversibilityNote, ReviewTriggerLine,
-                               DepthToggle, FreshnessIndicator, UnseenDot, ContestButton, WholeUpdateBadge, EnforcementBadge, SandboxBadge,
+                               DepthToggle, FreshnessIndicator, UnseenDot, ContestButton, WholeUpdateBadge, EnforcementBadge, SandboxBadge, ArgsView, ScopeDiff,
                                AgentActivityIndicator, icons.ts
     composites/                L2 (§3.7.3) — brief/, concern/, question/, autonomous/, agreement/, work/, review/, evidence/, input/,
                                rules/(DialPanel, ObserverProposalCard, MetricTile), status/(DegradedBanner)
@@ -2416,8 +2416,8 @@ apps/desktop/src/styles/app.css
 |---|---|---|
 | U1 | `@helm/ui-tokens`: Caustic 값 복사, neutral 11단계, 빌드 스크립트, 대비 관문(유리 최악 배경 포함), NOTICE. `app.css`, 글꼴, Storybook 설정, 정적 검사 | 모든 부품의 바탕. 대비가 빌드 관문 |
 | U2 | L0 부품(`Surface`·유리 포함) + `ActionButton` 상태 기계 + 키·IME 도우미 | L1·L2가 쓴다 |
-| U3 | L1 Helm 의미 부품 + `model` 공통 타입 | 시각 문법 고정 |
-| U4 | C/A 부품: `QuestionCard`, `QuestionInbox`, `ChoiceImpactEcho`, `SemanticPreview`, `ArgsView`, `ScopeDiff`, `WorkAgreementDraft/Echo`, `ResultReviewPanel`, `AutonomousChoiceList`, `ContestButton` | 원천의 C/A 우선. 모바일(26)의 질문 답하기와 같은 부품 |
+| U3 | L1 Helm 의미 부품(`ArgsView`·`ScopeDiff` 포함) + `model` 공통 타입 | 시각 문법 고정. `ArgsView`·`ScopeDiff`는 U4 질문 카드가 쓰므로 먼저 만든다([판정 J-236]) |
+| U4 | C/A 부품: `QuestionCard`, `QuestionInbox`, `ChoiceImpactEcho`, `SemanticPreview`, `WorkAgreementDraft/Echo`, `ResultReviewPanel`, `AutonomousChoiceList`, `ContestButton` | 원천의 C/A 우선. 모바일(26)의 질문 답하기와 같은 부품 |
 | U5 | 복귀·셸: `SinceLastVisit`, `MaterialChangeGroups`, `GoalSummary`, `ActiveWorkCard`, `ToolActivityLine`, `ConcernTree`, 셸 부품(유리 크롬, `ScopedComposer`), `AgentActivityIndicator`, 창 효과 연결, `FreshnessIndicator`, `ConnectionIndicator`, `PendingQuestionsIndicator`, `DegradedBanner` | UC-03·04·06 |
 | U6 | 근거: `EvidenceChainTree`, `EvidenceInspector`, `CertaintyDescriptor`, `SourceTrace` | UC-02·05 |
 | U7 | 원함 탐구: `StimulusBoard`, `PreferenceModelPanel`, `ContrastCard`, `GoalHistory` | UC-01·09 |

@@ -681,7 +681,7 @@ MIT 고지 규칙은 다음과 같다.
 
 - 설계만 참고한 부분에는 고지 항목을 두지 않는다.
 - 코드나 문구를 옮기면 옮긴 블록 위에 `// Adapted from can1357/oh-my-pi@b91db66e <원본 경로>:<행> (MIT, see THIRD_PARTY_NOTICES.md)`를 단다(§3.17.3 형식).
-- 저장소 루트 `THIRD_PARTY_NOTICES.md`에 oh-my-pi 항목을 두고, `LICENSE` 원문을 저작권 표기 전체와 함께 그대로 넣는다. 이 항목은 사람이 쓰며 `just licenses`가 만드는 npm 목록과 섞지 않는다. 옮긴 곳과 항목이 짝이 맞는지는 V8이 확인한다(§6).
+- 저장소 루트 `THIRD_PARTY_NOTICES.md`에 oh-my-pi 항목을 두고, `LICENSE` 원문을 저작권 표기 전체와 함께 그대로 넣는다. 이 항목은 사람이 쓰며 `just licenses`가 만드는 생성 목록과 섞지 않는다. 옮긴 곳과 항목이 짝이 맞는지는 V8이 확인한다(§6).
 
 ### 3.7 도구 수정 사항
 
@@ -815,6 +815,8 @@ pi 코드를 Helm 패키지 경계에 맞추는 코드다. 공개 API의 모양�
 이렇게 하면 06 §3.4.1 표의 `tools` 행을 바꾸지 않아도 된다. 대안은 `tools → agent`(타입만)를 허용하는 것이다. 이 문서는 대안보다 위 방식을 권한다. `agent`가 `ai`에 의존하므로 `tools → agent`를 열면 `tools`가 간접적으로 모델 계층 타입까지 보게 된다.
 
 #### 3.9.2 `@helm/domain/model`과 `@helm/ai/pi`
+
+`TextContent`와 `ImageContent`는 08의 `@helm/domain/model`에서 받는다. 아래 블록은 pi-ai와 모양이 같은 이 절의 타입 기준이고, 두 타입의 정본은 08이다 [판정 J-218].
 
 ```ts
 // packages/domain/src/model.ts — Helm 소유. 모양은 pi-ai 1.1.0과 같다
@@ -1068,7 +1070,7 @@ pi-ai 1.1.0은 `typebox` 1.3.27을 정확한 버전으로 요구한다 [원문 `
 
 #### 3.11.9 Anthropic 서버 측 도구 [판정 J-190 (5)]
 
-MVP에서 Anthropic 서버 측 도구(`web_search`, `web_fetch`)는 쓰지 않는다. 웹 탐색은 Helm 소유 함수 도구(13)로 한다. pi-ai 호출에 서버 측 도구 선언을 넣지 않는다. 서버 측 도구의 이름과 판은 구현 전에 확인한다([검색]).
+MVP에서 Anthropic 서버 측 도구(`web_search`, `web_fetch`)는 쓰지 않는다. 웹 탐색은 Helm 소유 함수 도구(13)로 한다. pi-ai 호출에 서버 측 도구 선언을 넣지 않는다. 서버 측 도구의 이름과 판(`web_search`·`web_fetch`, 툴셋 판 이름 `browser_toolset_*`·`computer_toolset_*`)은 구현 전에 확인한다([검색]).
 
 ### 3.12 pi-codemode 사용: REPL 브리지 [제안]
 
@@ -1190,10 +1192,10 @@ MVP에서 Anthropic 서버 측 도구(`web_search`, `web_fetch`)는 쓰지 않�
    - 라이선스: MIT (원문은 vendor/LICENSES/pi-mono-MIT.txt)
    - "Portions of Helm were adapted from pi (https://github.com/earendil-works/pi)."
    ## <패키지 이름> <버전> — <라이선스>
-   (pnpm 의존 트리에서 생성. Apache-2.0 패키지에 NOTICE 파일이 있으면 그 내용을 붙인다)
+   (`just licenses`에서 생성. npm 의존 트리와 Rust 크레이트. Apache-2.0 패키지에 NOTICE 파일이 있으면 그 내용을 붙인다)
    ```
 
-   두 번째 부분은 `just licenses` 레시피(`pnpm licenses list --json --prod`를 읽어 생성)로 만든다. `just verify`는 생성 결과와 커밋된 파일이 같은지 검사한다(23). 혼자 쓰는 앱이고 배포하지 않으므로(결정 24) 고지는 저장소와 데스크톱 앱 "정보" 화면(20) 두 곳이면 된다 [제안].
+   두 번째 부분은 `just licenses` 레시피로 만든다. npm 의존은 `pnpm licenses list --json --prod`를 읽고, Rust 크레이트 고지도 같은 레시피가 만든다 [판정 J-218]. `just verify`는 생성 결과와 커밋된 파일이 같은지 검사한다(23). 혼자 쓰는 앱이고 배포하지 않으므로(결정 24) 고지는 저장소와 데스크톱 앱 "정보" 화면(20) 두 곳이면 된다 [제안].
 4. **pi-tui 내부 차용 고지**는 npm 설치본 소스에 이미 들어 있다(파일 머리 주석). Helm이 pi-tui를 vendor하게 되면 그 주석을 지우지 않는다.
 
 #### 3.17.3 출처 헤더 형식
@@ -1378,7 +1380,7 @@ I1이 확인할 export(1차):
 | 문서 | 요구 |
 |---|---|
 | 06 | 대부분 반영됨(vendor 3개, §3.4.1 pi 대응, `@helm/ai/pi`, `@helm/domain/model`). 남은 것: (1) §3.4.2·§3.4.7의 "vendor pi-ai"를 "고정 의존 pi-ai 1.1.0"으로, §3.4.9의 "vendor coding-agent 도구"를 "`@helm/vendor-pi-tools`"로 고친다. (2) §3.4.8 `@helm/agent` 공개 API 개요의 `createAgentLoop(options)`, `HookSet`은 12 RT-1과 07 §3.9.4(`runAgentLoop`·`runAgentLoopContinue`·`runToolCall` 재export, `assertToolDeclarations`)로 바꾼다. (3) §5.1 "07" 행의 "vendor 패키지 2개"를 3개(`@helm/vendor-pi-image` 포함)로 고친다. (4) §3.4.1 표의 `tools` 행은 그대로 둔다(`domain`만). 도구 결과 타입은 `@helm/vendor-pi-tools`의 타입 재export로 받는다(§3.9.1). (5) §3.12.3의 빌드 스크립트 설정: pnpm 11.21.0에서는 `onlyBuiltDependencies`·`ignoredBuiltDependencies`로는 정하지 않은 빌드 스크립트 때문에 설치가 실패하고 `allowBuilds`(이름별 `true`/`false`)만 통한다(§3.3.2 [실험]). `pnpm-workspace.yaml`에 `allowBuilds`를 두고 pi 쪽 두 패키지는 `false`로 적는다. (6) vendor 패키지 `exports`에 `source` 조건을 넣었다(§3.3.2). §3.12.4의 실행 형태와 같다 |
-| 08 | `@helm/domain/model`(§3.9.2)을 08의 타입 목록에 넣고 최종 이름을 정한다. 08의 다른 "메시지" 개념과 이름이 겹치면 하위 경로로 나눈다. (1) `@helm/domain/model`의 절을 08에 둔다(§3.9.2 타입: `readonly` 배열 `JsonValue`, `grammar` 변형이 있는 `ConstrainedSampling`, 저장용 `StopReason`과 제공자 판 `ProviderStopReason`·`ProviderAssistantMessage`·`ProviderMessage`). (2) 제공자 이어가기 값(`textSignature`, `thinkingSignature`, `redacted`, `thoughtSignature`, `namespace`)은 pi와 같은 자리에 두되 도메인 스키마에서 "불투명, 읽지 않음"으로 표시하는 방법을 정한다(§3.9.2 주) |
+| 08 | `@helm/domain/model`(§3.9.2)을 08의 타입 목록에 넣고 최종 이름을 정한다. 08의 다른 "메시지" 개념과 이름이 겹치면 하위 경로로 나눈다. (1) `@helm/domain/model`의 절을 08에 둔다(§3.9.2 타입: `readonly` 배열 `JsonValue`, `grammar` 변형이 있는 `ConstrainedSampling`, 저장용 `StopReason`과 제공자 판 `ProviderStopReason`·`ProviderAssistantMessage`·`ProviderMessage`). `TextContent`·`ImageContent`도 이 절에 둔다(판정 J-218). (2) 제공자 이어가기 값(`textSignature`, `thinkingSignature`, `redacted`, `thoughtSignature`, `namespace`)은 pi와 같은 자리에 두되 도메인 스키마에서 "불투명, 읽지 않음"으로 표시하는 방법을 정한다(§3.9.2 주) |
 | 09 | (1) 모델 메시지 저장 형식은 `@helm/domain/model`이고 형식 버전을 둔다. (2) `toolcall.not_executed.reason`(`restart`·`cancel`·`steering`·`superseded`)과 A2의 `rejection.kind`(`unknown_tool`·`invalid_args`·`truncated_response`·`aborted_before_execute`·`blocked`·`hook_error`)의 대응을 적는다. 실행 전 거부 3종(`unknown_tool`·`invalid_args`·`truncated_response`)은 12 §3.4.7이 trace `toolcall.not_executed { reason }`으로 쓰므로 `reason`에 그 값이 들어갈 자리가 필요하다. `blocked`는 `toolcall.blocked`, `aborted_before_execute`는 `cancel`, `hook_error`는 run 실패(E5와 같은 처리)다. (3) 실행된 인자(`executedArgs`)를 `toolcall.requested`의 `modelArgs`와 별도로 남길 위치를 정한다(A2·A4) |
 | 10 | 남은 요구 없음. 10 §5는 커널이 인자를 바꾸지 않고 13의 권한 레이어가 바꾼다고 정했다. 그 교체는 12의 `beforeToolCall`이 A4의 `{ args }`로 루프에 넘긴다(12 §3.4.5) |
 | 12 | A1~A7과 A5(별도 이벤트 `tool_execution_executing`)는 12 §3.4.1·§3.4.4 표에 반영됨(M1 해결). 남은 것: (1) §3.1 배치도의 `packages/agent/src/loop.ts`(F-1~F-7 적용)는 07 §3.3의 배치로 고친다: 포크 코드는 `vendor/pi-agent-core/src/{agent-loop,types}.ts`, `packages/agent/src/index.ts`는 재export와 `assertToolDeclarations`. (2) §3.5.2의 [가정](pi-ai가 연속 user 블록을 합친다)을 사실로 고친다: pi-ai는 별도 `user` 항목으로 보내고 Anthropic API가 한 턴으로 합친다(§3.11.6, C23). T-PJ-07은 변환 스냅숏으로 남긴다. (3) §3.6의 "07이 해당 파일을 포크할지 참고만 할지 정한다"를 07의 결정으로 바꾼다: 포크하지 않고 12가 Helm 코드로 다시 쓰며, 문구를 옮기면 출처 표시(§3.17.3)를 단다. (4) §3.3의 `images.ts`가 쓰는 모듈 이름을 `@helm/vendor-pi-image`의 `processImage`로 적는다(§3.6.4). (5) `prepareRequest`(§3.4.8)에서 `assertToolDeclarations`(§3.9.4, C8)를 부른다. (6) `ports/repl.ts`가 `runNestedToolCall`을 만들어 `createReplSandbox`에 넘긴다(§3.12). (7) pi 행 번호 인용(`pi-src/...`)을 `v1.1.0` 기준으로 고친다(판정 44, §3.1.4 표). (8) §3.3.4의 `EnvCredentialStore`(환경에서 읽고 지움)를 판정 45에 맞춰 `SecretStore`를 읽는 구현으로 바꾼다(§3.11.2). (9) 제공자 요청 abort 뒤 이어 가기는 pi 루프가 하지 않는다(`stopReason: aborted`면 steering을 묻지 않고 끝남, C18). §3.12.2 interrupt에 "새 `AbortController`로 `runAgentLoopContinue`" 경로를 적고, §3.4.7·§3.12.2의 `toolcall.skip{steering}` 행은 지운다(v1.1.0에 그런 건너뛰기가 없다, `types.ts:285-287`). (10) `runNestedToolCall`(§3.12 "중첩 호출의 기록"): 중첩 호출 id를 트랜잭션 A에서 발급하고, `unknown_tool`·`invalid_args`이면 `toolcall.skip`을 직접 제출한다(C25, 판정 J-104). (11) `utils/retry.ts:116-262` 인용을 `116-257`로. (12) `postprocess` 인자 수와 `classify` 입력을 13의 서명에 맞춘다(V6-059, 07은 경로 정책만 맞췄다) |

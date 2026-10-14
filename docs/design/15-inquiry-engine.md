@@ -418,7 +418,7 @@ export interface InquiryProgressView {          // 투영. 저장하지 않음
 | `kind_condition_met` | `stop_condition` | `stop_rule_met` |
 | `plan_stable` | `stop_condition`(note `plan_stable`) | `stop_rule_met` |
 | `budget_exhausted` | `budget` | `budget_exhausted` |
-| `human_decided` | `human`(note에 `then` 값) | `stop_rule_met` |
+| `human_decided` | `human`(`then` 필드에 사람 선택 값, [판정 J-157]) | `stop_rule_met` |
 | `reframe_needed` | `transition` | `reframe_needed` |
 | `superseded` | `superseded` | — |
 | `concern_closed` | `concern_closed` | — |
@@ -472,7 +472,7 @@ runStage(stage, ports, signal):
 | `awaiting_human` | 14가 `autonomy_exhausted` | — | `awaiting_human` | 14가 Concern을 대기로 둠 |
 | `running` | 예산 소진 | — | `stopping` | 진행 중 라운드를 부분 결과로 닫고 열린 질문을 넘김(v0.3 04 §1) |
 | `running`·`awaiting_human` | 멈춤 조건·계획 안정·재정의 필요 | — | `stopping` | 넘김 레코드(§3.14), 전환 제안(§3.4.14) |
-| 비종료 상태 | 사람의 "이대로 진행"·"여기서 멈추고 넘기기"·"지금 정하기"(19 `inquiry.stop`·`inquiry.requestDecision` → 10 `inquiry.stop { then: "proceed" \| "handoff" \| "decide_now" }`) | — | `stopping` | `stopReason = human_decided`. `decide_now`면 선택 요청 초안(§3.11.1)을 넘김 기록에 넣는다. 질문은 탐구가 멈춘 뒤에 낸다: `inquiry.stopped` → 14가 `loop.transitioned`(I.* → 루프 계획의 다음 C 루프, 계획이 없으면 `C.commit`) → 14가 그 초안으로 `question.raise`(`choice`). 08 R-23은 질문을 기록하는 시점의 현재 루프로 판정하므로 I.want 안에서 `choice`가 생기지 않는다 |
+| 비종료 상태 | 사람의 "이대로 진행"·"여기서 멈추고 넘기기"·"지금 정하기"(19 `inquiry.stop`·`inquiry.requestDecision` → 10 `inquiry.stop { then: "proceed" \| "handoff" \| "decide_now" }`) | — | `stopping` | 엔진 값 `human_decided`는 `stop.note`에 남기고, 기록은 `reason = human`과 `then`(09 `inquiry.stopped`의 필드, [판정 J-157])으로 쓴다. `then`이 `decide_now`면 선택 요청 초안(§3.11.1)을 넘김 기록에 넣는다. 질문은 탐구가 멈춘 뒤에 낸다: `inquiry.stopped` → 14가 `loop.transitioned`(I.* → 루프 계획의 다음 C 루프, 계획이 없으면 `C.commit`) → 14가 그 초안으로 `question.raise`(`choice`). 08 R-23은 질문을 기록하는 시점의 현재 루프로 판정하므로 I.want 안에서 `choice`가 생기지 않는다 |
 | `stopping` | 넘김 dispatch 완료 | — | `closed` | `inquiry.stopped`(레코드 `stopped`), `inquiry.stop_rule_met` 등 14가 받는 이벤트 |
 | 비종료 상태 | Concern 서술 버전 변경(재정의 확정) | — | `running` | 기존 항목에 `frameVersion` 차이 표시, 새 앵커링 단계(§4 E-12) |
 | 비종료 상태 | Concern 닫힘·중단 | — | `closed` | 열린 자식 run 취소(12) |
@@ -692,7 +692,7 @@ gradeSupport(item, evidence, counter, confirmations):
 | `preference.note_divergence` | M, H | propose/possibility 또는 사람 | 근거 반응 관찰 1개 이상(U5) | `preference.divergence_noted` |
 | `preference.show_divergence` | R | sys:runtime | 해당 항목이 사람에게 보내는 뷰에 처음 실림 | `preference.divergence_shown` |
 
-19 메서드와 10 명령의 대응(10 §3.11.11 (2) 표에 넣어 달라고 요구): `inquiry.requestFrame`(add) → `possibility.propose`(사람, `perspective`) + `inquiry.perspective.add`, (merge) → `possibility.merge` / `inquiry.proposeCandidate` → `possibility.propose`(사람) / `inquiry.markAssumption` → `assumption.record`(사람) / `inquiry.pinCheck` → `check.pin` / `inquiry.requestDecision` → `inquiry.stop`(`then: "decide_now"`) / `inquiry.stop` → `inquiry.stop`(`then: "proceed"` 또는 `"handoff"`. 19 `InquiryStopParams`가 셋을 구분하도록 요구) / `stimulusRound.close` → `inquiry.round.close`. 칸 채우기 요청(19 `inquiry.fillCell`, §3.11.2)의 처리 명령은 `observation.record`(`obsKind: "utterance"`, 사람 채널 H)다. 렌즈 지정(19 `inquiry.pinLens`, §3.11.2)도 같은 관찰로 받는다. 두 조작 모두 명령을 따로 두지 않는다. 엔진은 다음 `planRound`에서 그 관찰을 읽어 칸·렌즈를 앞에 둔다. 상태를 바꾸지 않는 방향 지정이므로 새 이벤트 이름을 만들지 않는다. 남는 기록은 `observation.recorded`뿐이다.
+19 메서드와 10 명령의 대응(10 §3.11.11 (2) 표에 넣어 달라고 요구): `inquiry.requestFrame`(add) → `possibility.propose`(사람, `perspective`) + `inquiry.perspective.add`, (merge) → `possibility.merge` / `inquiry.proposeCandidate` → `possibility.propose`(사람) / `inquiry.markAssumption` → `assumption.record`(사람) / `inquiry.pinCheck` → `check.pin` / `inquiry.requestDecision` → `inquiry.stop`(`then: "decide_now"`) / `inquiry.stop` → `inquiry.stop`(`then: "proceed"` 또는 `"handoff"`. 19 `InquiryStopParams`가 셋을 구분하도록 요구) / `stimulusRound.close` → `inquiry.round.close`. 칸 채우기 요청(19 `inquiry.fillCell`, §3.7.1)의 처리 명령은 `observation.record`(`obsKind: "utterance"`, 사람 채널 H)다. 렌즈 지정은 19 `inquiry.pinLens`(`{ lensId, pinned }`)를 사람 채널 H의 `lens.update`(`pinned`)로 받는다(10 §3.11.11(2), [판정 J-200]). `pinned`는 08 `LensCore`의 필드이고, 09 `lens.updated`의 `changes`(`Partial(LensCore)`)에 그대로 실린다([판정 J-233], §3.9.2). 칸 채우기는 명령을 따로 두지 않는다. 엔진은 다음 `planRound`에서 칸 채우기 관찰과 렌즈의 `pinned`를 읽어 칸·렌즈를 앞에 둔다. 칸 채우기는 상태를 바꾸지 않는 방향 지정이므로 새 이벤트 이름을 만들지 않고, 남는 기록은 `observation.recorded`뿐이다. 렌즈 지정의 기록은 10 §3.11.11(2)의 대응을 따른다.
 
 ### 3.3 근거 규칙 [결정: 승격에 I의 근거(결정 15(3)) / 제안: 관찰의 정의는 브리프 §6 용어집을 따름, 규칙 세부]
 
@@ -1082,7 +1082,7 @@ export interface QuestionCandidate {
     planChanges: boolean;
     weightChanges: string[];  // 이 답이면 무게가 바뀌는 기준 키(I.want 가치 계산용)
     affects: string[];
-  }[];                        // 2~4개
+  }[];                        // 2~4개. triad 질문은 셋이다: 두 대안(`names`에 각 대안의 id)과 `neither`(둘 다 아님, `names`는 빈 목록) [판정 J-234]
   costClass: 1 | 2 | 3;     // 1: 예·아니오나 짧은 선택, 2: 짧은 서술, 3: 비교·읽기 필요
   refs: RecordId[];         // 질문이 참조하는 항목
 }
@@ -1091,6 +1091,7 @@ export interface QuestionCandidate {
 ```text
 pointsToAlternative(q) = q.answers.some(a => a.names.some(id => prefix(id) ∈ {"st", "ps"}))
                        or q.answers.some(a => a.label이 이 라운드 자극 라벨(A~L)이나 가능성 요약과 같음)
+                       # `neither`는 names가 비고 label도 자극 라벨이 아니므로 참이 되지 않는다. 참은 두 대안 값에만 있다([판정 J-234])
 
 chooseQuestion(cands, currentTop, kind):
   if kind == I.want:                                                     # 결정 18, v0.3 06 §3.4, 판정 J-141
@@ -1482,11 +1483,11 @@ pickOnly(round) = not any(informative(r) for r in reactions(round))   # 닫힐 �
 # 닫는 계기. 반응 기록 자체는 라운드를 닫지 않는다
 closeTriggers(round, now):
   human:        사람의 "라운드 마치기"(19 stimulusRound.close → 10 inquiry.round.close, H 채널)
-  all_informative:  제시된 자극 모두에 정보성 반응이 1개 이상 → 엔진이 R 채널 inquiry.round.close
-  timeout: 마지막 반응 뒤 24시간 새 반응이 없고 탐구가 일시 정지가 아님 → 엔진이 R 채널 inquiry.round.close [제안]
+  all_reacted:  제시된 자극 모두에 정보성 반응이 1개 이상 → 엔진이 R 채널 inquiry.round.close
+  wait_timeout: 마지막 반응 뒤 24시간 새 반응이 없고 탐구가 일시 정지가 아님 → 엔진이 R 채널 inquiry.round.close [제안]
 ```
 
-- 고르기와 같은 반응(`pickLike`)만 있는 라운드는 사용자가 명시적으로 끝낼 때만 닫히고, 그 경우 다음 라운드에 세 개 비교 질문이 들어간다. 라운드 마치기 명령은 10 `inquiry.round.close`(사람은 19 `stimulusRound.close`, 엔진은 R 채널)이고 커널은 `roundClosable(round, trigger)`을 그대로 검사한다(19 §5.2의 15 요구 "`stimulusRound.close`의 조건"에 대한 답). 명령 payload에 `trigger: "human" | "all_informative" | "timeout"`이 필요하다(10의 `InquiryRoundPayload` 값과 같다). 화면은 05 §3.2.5처럼 그 전에 부분 고르기를 한 번 더 권할 수 있다. 21의 "`near`만 있으면 라운드 마치기 비활성"(21 U7 R1)은 판정 J-34에 따라 21이 고친다. 버튼은 열어 두고 05 §3.2.5의 확인 단계를 거친다.
+- 고르기와 같은 반응(`pickLike`)만 있는 라운드는 사용자가 명시적으로 끝낼 때만 닫히고, 그 경우 다음 라운드에 세 개 비교 질문이 들어간다. 라운드 마치기 명령은 10 `inquiry.round.close`(사람은 19 `stimulusRound.close`, 엔진은 R 채널)이고 커널은 `roundClosable(round, trigger)`을 그대로 검사한다(19 §5.2의 15 요구 "`stimulusRound.close`의 조건"에 대한 답). 명령 payload에 `trigger: "human" | "all_reacted" | "wait_timeout"`이 필요하다(10의 `InquiryRoundPayload` 값과 같다). 화면은 05 §3.2.5처럼 그 전에 부분 고르기를 한 번 더 권할 수 있다. 21의 "`near`만 있으면 라운드 마치기 비활성"(21 U7 R1)은 판정 J-34에 따라 21이 고친다. 버튼은 열어 두고 05 §3.2.5의 확인 단계를 거친다.
 - 반응은 지우지 않는다. 철회(`reaction.withdraw` → `observation.retracted`)는 철회 기록으로 남고 근거 계산에서 빠지며, 그 반응에 기댄 기준은 `stale`이 된다(08 §3.17.4). 고치기(`reaction.amend` → `observation.annotated`)는 이유를 덧붙인다.
 - 라운드가 닫힌 뒤 도착한 반응(연결이 끊겼다가 보낸 반응 등)은 관찰로 기록되지만 그 라운드의 마감 판정에는 쓰지 않는다. 다음 라운드의 기준 추론 입력이 된다(E-27, 04 §3.9 "보내지 않음").
 - 라운드당 자극 수 상한과 질문 묶음 전달로 피로를 줄인다(v0.3 04 §3.6, 06).
@@ -1547,7 +1548,7 @@ nextStimuli(state, perRound):
 - 선호 모델의 기준과 무게가 두 라운드 동안 바뀌지 않거나(계획 지문의 `criteria` 부분),
 - 사용자가 "이거다"(강도 +2와 이유)라고 하고 그 이유가 기준으로 확인되었을 때(이유를 `criterion_infer`가 기준으로 바꾸고 확인 질문을 거침),
 - 또는 정지 규칙(§3.4.14), 예산 소진(v0.3 04 §3.3).
-- 반응 감소(피로, 05 §3.2.8): 연속 세 라운드에서 라운드당 정보성 반응 수가 매번 직전 라운드의 절반 이하로 줄면, 엔진은 `stop_condition` 정보 질문을 낸다. 문장은 "지금까지의 선호 모델(기준 n개)로 초안을 먼저 써 볼 수 있습니다"로 쓰고, 탐구를 멈출지 묻는 문장은 쓰지 않는다(05 §3.2.8). 임시 가정은 "다음 라운드는 자극 수를 최소(4개)로 줄여 진행"이다. 답이 초안 쪽이면 `stopReason = human_decided`로 멈추고 C.probe 전환을 제안한다.
+- 반응 감소(피로, 05 §3.2.8): 연속 세 라운드에서 라운드당 정보성 반응 수가 매번 직전 라운드의 절반 이하로 줄면, 엔진은 `stop_condition` 정보 질문을 낸다. 문장은 "지금까지의 선호 모델(기준 n개)로 초안을 먼저 써 볼 수 있습니다"로 쓰고, 탐구를 멈출지 묻는 문장은 쓰지 않는다(05 §3.2.8). 임시 가정은 "다음 라운드는 자극 수를 최소(4개)로 줄여 진행"이다. 답이 초안 쪽이면 엔진 값 `human_decided`로 멈추고(기록 `reason = human`, `then = decide_now`) 사람의 결정으로 넘어간다. C.probe 전환을 제안한다([판정 J-235]).
 - 사람의 "오늘은 여기까지"(01 FX-05)는 일시 정지로 처리한다(§3.1.5). 열린 기준 후보와 반응 대기 중인 라운드를 그대로 둔다.
 
 #### 3.6.9 결과가 쓰이는 곳
@@ -1724,7 +1725,7 @@ export interface TransferSteps {
 
 #### 3.9.2 렌즈 레코드
 
-원전 README §4의 YAML 형식과 카드의 13절 형식을 합쳤다(helm-canon-3 §2.4, §7.3 I2). 렌즈 레코드는 08 §3.17.2의 `Lens`(`ln`)다. 선택에 필요한 필드(`field`, `structureStatement`, `structureTags`, `transferRisk`, `sourceGrade`, `evidenceStatus`, `userModified`)와 `origin`(seed `{mapRef, seedVersion}` · user · observer_proposal `{proposalId}` · model_open `{inquiryId}`)은 08에 반영되었다. 08은 `field`·`structureTags`를 문자열로 두고 값 목록은 이 문서가 데이터 파일로 둔다(08 §5.2 요구 (2), §3.9.3). 카드 상세(`LensCard`)는 레코드에 넣지 않고 seed 파일에서 `mapRef`로 찾는다. 아래 타입은 레코드와 seed를 합친 엔진의 읽기 모양이다.
+원전 README §4의 YAML 형식과 카드의 13절 형식을 합쳤다(helm-canon-3 §2.4, §7.3 I2). 렌즈 레코드는 08 §3.17.2의 `Lens`(`ln`)다. 선택에 필요한 필드(`field`, `structureStatement`, `structureTags`, `transferRisk`, `sourceGrade`, `evidenceStatus`, `userModified`, `pinned`)와 `origin`(seed `{mapRef, seedVersion}` · user · observer_proposal `{proposalId}` · model_open `{inquiryId}`)은 08에 반영되었다. 08은 `field`·`structureTags`를 문자열로 두고 값 목록은 이 문서가 데이터 파일로 둔다(08 §5.2 요구 (2), §3.9.3). 카드 상세(`LensCard`)는 레코드에 넣지 않고 seed 파일에서 `mapRef`로 찾는다. 아래 타입은 레코드와 seed를 합친 엔진의 읽기 모양이다.
 
 ```ts
 export type ResearchField =
@@ -1756,6 +1757,7 @@ export interface Lens {
     | { kind: "observer_proposal"; proposalId: PolicyProposalId }   // 16 제안(`lens`)을 사람이 채택
     | { kind: "model_open"; inquiryId: InquiryId };        // 그 탐구 실행에만 쓰는 임시 렌즈
   userModified: boolean;
+  pinned: boolean;                         // 사람이 지정한 렌즈. 기본 false. 다음 selectLenses가 먼저 고른다([판정 J-233])
   addedAt: number;
 }
 
@@ -1817,7 +1819,7 @@ export interface LensCard {
 #### 3.9.4 렌즈 선택 알고리즘
 
 ```text
-selectLenses(problem, library, stats, n, openSlot, pinned):
+selectLenses(problem, library, stats, n, openSlot):
   # problem = { field, structureTags, structureStatement }  (1단계 출력)
   cands = library.filter(l => l.evidenceStatus != "rejected" and l.field != problem.field)
   for l in cands:
@@ -1830,7 +1832,7 @@ selectLenses(problem, library, stats, n, openSlot, pinned):
     textSim(l) = jaccard(normTokens(l.structureStatement), normTokens(problem.structureStatement))   # §3.4.8 normTokens
   cands = cands.filter(l => overlap(l) > 0 or textSim(l) >= 0.2)
   sort by score desc; 동점: textSim 높은 것 → lastAppliedAt 오래된 것 → key 사전순
-  picked = pinned                                       # 사용자가 지정한 렌즈는 먼저
+  picked = library.filter(l => l.pinned)                                       # 사용자가 지정한 렌즈는 먼저
   for l in cands while |picked| < max(1, n − 1):
     if l.field ∉ fields(picked): picked += l           # 분야가 겹치지 않게
   if n >= 2:                                            # 탐색 자리: 이 사용자에게 아직 쓰지 않은 렌즈
@@ -2028,12 +2030,12 @@ export interface PredictionResult {        // A 루프가 채운다(14). 08 Pred
 | 근거 관계에 이의 | `objection.file { target: { kind: "link", from, to, rel } }`([판정 J-111], 08 `ObjectionTarget`) | `decision.contest` | 지지 등급 재계산 |
 | 숨은 가정을 질문으로 올리기 | `inquiry.markAssumption` | `assumption.record`(사람) | 그 전제를 확인할 정보 게이트 질문 후보(§3.4.10) |
 | 다음 확인 직접 고르기 | `inquiry.pinCheck` | `check.pin` | 다음 라운드의 확인 순서를 사람 선택으로 덮어씀(기록) |
-| 불확실해도 행동하기로 정하기 | `inquiry.requestDecision` | `inquiry.stop`(`then: "decide_now"`) | `stopReason = human_decided`, 선택 요청 초안(질문 순서는 §3.1.5) |
+| 불확실해도 행동하기로 정하기 | `inquiry.requestDecision` | `inquiry.stop`(`then: "decide_now"`) | 엔진 값 `human_decided`(기록 `reason = human`, `then = decide_now`), 선택 요청 초안(질문 순서는 §3.1.5) |
 | 여기서 멈추고 넘기기 | `inquiry.stop { handOff }` | `inquiry.stop` | 열린 질문을 그대로 넘김(v0.3 04 §1) |
 | 탐구 중단 비용과 남은 정보 가치 비교 | (뷰) | — | 엔진이 보여 줌: 점수 > 0인 남은 질문·확인 수, 남은 예산, 계획이 바뀌지 않은 라운드 수 |
 | 항목 앞줄 고정·기각 | `possibility.pin`·`dismiss` | `possibility.pin`·`unpin`·`dismiss` | 고정은 대비 압축 `pinned`, 기각은 이유 선택 사항(이유 없음 허용) |
 | 자극·레퍼런스 추가 | (19에 요구) | `stimulus.create`(사람) | 사람 기원 자극 |
-| 렌즈 지정 | `inquiry.pinLens` | 사람 발화 관찰(§3.2.6) | 다음 `selectLenses`의 `pinned` |
+| 렌즈 지정 | `inquiry.pinLens` | `lens.update`(`pinned`) | 다음 `selectLenses`가 `pinned` 렌즈를 먼저 고른다 |
 | 렌즈 추가 | (19에 요구) | `lens.add` | 라이브러리에 추가 |
 | 특정 칸 채우기 요청 | `inquiry.fillCell` | 사람 발화 관찰(§3.2.6) | 다음 라운드에 그 칸을 우선 |
 | 다이얼 변경 | `dial.set` | `dial.set` | 다음 라운드 경계에서 적용(v0.3 09 §4.9) |
@@ -2248,7 +2250,7 @@ export type InquiryRole =
 | 이미지 생성 | `image`(12에 추가 요구) | — | — |
 
 ```ts
-// packages/kernel/src/orchestration/inquiry/config.ts (TypeBox. 06 §3.10.3 `inquiry` 절이 import한다, [판정 J-128])
+// packages/kernel/src/orchestration/inquiry/config.ts (TypeBox. packages/runtime/src/config.ts가 다시 내보내고, 06 §3.10.3 `inquiry` 절은 그쪽에서 import한다, [판정 J-128])
 // 데몬 설정 helmd.toml의 [inquiry] 절(06 ADR-06-11). 모델 목록은 12 AiConfig에 있다
 import { Type, type Static } from "typebox";
 
@@ -2375,7 +2377,7 @@ submit 도구 스키마를 따른다. 필드 설명:
 | `outcome_predictions` | 확인 날짜와 방법이 없는 예측은 쓰지 않는다 |
 | `repl_root` | 데이터를 출력하지 말고 작업 공간에 둔다. 거를 수 있는 것은 코드로 거른다. 끝나면 `return { done: true, summary }` |
 
-모델 입력에 들어가는 본문(관찰 요약, 자극 본문, 문서·웹 발췌)은 넣기 전에 18 §3.10.4 공통 마스킹기를 거친다(18 §3.10.3의 입력 단계 마스킹). 지운 사실은 18 §3.10.4와 같은 방식으로 남기고 값은 남기지 않는다. 마스킹한 본문도 `<untrusted>` 표식으로 감싼다(§3.12.7 O8, 12 PJ-7).
+모델 입력에 들어가는 본문(관찰 요약, 자극 본문, 문서·웹 발췌, 작업 공간 내용)은 넣기 전에 18 §3.10.4 공통 마스킹기를 거친다(18 §3.10.3의 입력 단계 마스킹). 자극 본문, 붙여 넣은 문서, 작업 공간 내용은 정본(기록)에 쓰기 전에도 같은 마스킹을 거친다(18 §3.10.3 '자극·탐구 작업 공간' 행). 지운 사실은 18 §3.10.4와 같은 방식으로 남기고 값은 남기지 않는다. 마스킹한 본문도 `<untrusted>` 표식으로 감싼다(§3.12.7 O8, 12 PJ-7).
 
 #### 3.13.6 역할별 출력 스키마
 
@@ -2703,7 +2705,7 @@ baseline: { ran: true, order: second, satisfaction: 3, criteria_count: 1 }
 | 06 (P3) | (1) `@helm/kernel/orchestration/inquiry`(순수부)와 `@helm/runtime/inquiry`(효과)의 배치([판정 J-128]). (2) `RuntimeStorePort`가 `reduceInquiry` 입력 스냅숏(탐구 id로 모은 레코드와 trace)을 줄 수 있어야 한다([판정 J-127]). (3) `[inquiry]` 절, 레시피 `lens-seed`·`eval-inquiry` |
 | 08 (P5) | (1) `Possibility.consequenceMarks`. (2) `Inquiry.rounds[].planHash` 주석을 "계획 지문, 멈춤 판정 입력"으로. (3) U-14 확정 문장(MVP `off`, §3.5.4). (4) §3.22.7에 `triad` 반응 → `question.answered`, 라운드 닫힘 → `stimulus_round` 질문 `question.withdrawn(round_closed)` 파생. (5) R-23은 질문을 기록하는 시점의 현재 루프로 판정한다고 적는다. (6) `Stimulus.form`(그 전에는 `facets._form`). (7) 한 명령의 기준 변경은 `modelVersion`을 한 번만 올린다. (8) 파생 관찰의 독립성 키 = 입력 도구 호출 키 집합(08 §3.9.1) |
 | 09 (P5) | (1) `inquiry.opened` payload에 `divergence`. (2) `inquiry.stopped`에 `handover: BlobRef`, `stop.note`에 엔진 `StopReason`. (3) `check.pinned`. (4) `preference_model.created` 행위자에 `runtime`(10의 R 채널과 맞춤) |
-| 10 (P6) | (1) §3.2.6의 명령 넷을 §3.11.11에(13 제안 도구 표에도). (2) `inquiry.round.close` payload에 `trigger: human \| all_informative \| timeout`, 검사는 `roundClosable(round, trigger)`. 같은 트랜잭션에서 `runtime.boundary`를 파생하지 않는다(경계는 14 오케스트레이터가 `inquiry.round_ended`에서 제출, 14 §3.13.6). (3) `inquiry.stop`에 `then: proceed \| handoff \| decide_now`. (4) V-Q-03: I.want에서 답이 자극·가능성 id를 가리키는 질문 거부([판정 J-141]). (5) `criterion_confirm` 답의 항목별 적용(`confirm`·`reject`·`keep`). (6) `undeterminable` → `indeterminate`. (7) 15 인용 절 번호(§3.1.5, §3.4.4, §3.9.2). (8) 19 메서드 대응표의 `inquiry.fillCell`은 `observation.record`(utterance)로 대응하도록 §3.11.11 (2) 표에 넣는다(§3.2.6) |
+| 10 (P6) | (1) §3.2.6의 명령 넷을 §3.11.11에(13 제안 도구 표에도). (2) `inquiry.round.close` payload에 `trigger: human \| all_reacted \| wait_timeout`, 검사는 `roundClosable(round, trigger)`. 같은 트랜잭션에서 `runtime.boundary`를 파생하지 않는다(경계는 14 오케스트레이터가 `inquiry.round_ended`에서 제출, 14 §3.13.6). (3) `inquiry.stop`에 `then: proceed \| handoff \| decide_now`. (4) V-Q-03: I.want에서 답이 자극·가능성 id를 가리키는 질문 거부([판정 J-141]). (5) `criterion_confirm` 답의 항목별 적용(`confirm`·`reject`·`keep`). (6) `undeterminable` → `indeterminate`. (7) 15 인용 절 번호(§3.1.5, §3.4.4, §3.9.2). (8) 19 메서드 대응표의 `inquiry.fillCell`은 `observation.record`(utterance)로 대응하도록 §3.11.11 (2) 표에 넣는다(§3.2.6) |
 | 11 (P6) | (1) `criterion_confirm` `answerSchema` 항목 `decision`에 `keep`. (2) `stop_condition`을 만드는 곳에 15(반응 감소). (3) V-Q-03 판정 J-141 조건(10과 함께) |
 | 12 (P7) | (1) 투영 렌더러 PJ-7: 바깥 글의 `<`·`>`를 문자 참조로 바꾸고 주입마다 무작위 id를 붙인 여닫는 표식을 쓴다. `helm_context`도 같게. T-PJ-10에 닫는 표식 흉내 사례. 15는 이 렌더러를 쓴다(R9). (2) §3.14: 자식 run의 유효 원시 행동 ⊆ 부모 run의 유효 원시 행동. (3) `RunKind`·`ModelRole`의 `inquiry`, `ModelRole`의 `image`([판정 J-97]). (4) `boundary.reach` 잔여 표기를 `runtime.boundary`로. (5) `KernelPort` 읽기 다섯 개를 `RuntimeStorePort` 위에 구현(§3.1.2) |
 | 13 (P7) | (1) 작업 공간 이름·방식은 판정 J-98대로. (2) 엔진 경로의 `ReplRequest.owner.toolCallId` 필수. (3) 메모 키 인용을 15 §3.12.5로. (4) 10 §3.11.11에 들어갈 명령 넷의 제안 도구 대응 |
@@ -2727,7 +2729,7 @@ baseline: { ran: true, order: second, satisfaction: 3, criteria_count: 1 }
 packages/kernel/src/orchestration/inquiry/      (@helm/kernel/orchestration, 순수)
   plan.ts                   planRound, decideStage
   projection.ts             reduceInquiry, reduceLensLibrary, reduceHistory, InquiryProgressView
-  config.ts                 InquiryConfig(TypeBox 스키마, 06 §3.10.3이 import, §3.13.2)
+  config.ts                 InquiryConfig(TypeBox 스키마, §3.13.2; packages/runtime/src/config.ts가 다시 내보내고 06 §3.10.3은 그쪽에서 import)
   types.ts  rng.ts
   plan/{fact,want,possibility,outcome}.ts        탐구별 decideStage
   divergence/{signals,rows,table,assign,dedupe}.ts
@@ -2784,7 +2786,7 @@ scripts/build-lens-seed.ts                       (생성 결과는 kernel 쪽 le
 | T-28 | 반응 대응 | 19 `reaction.record`의 종류마다 08 `ReactionPayload`(골든 파일), 대비 반응 세 값, `near`는 정보성 아님, 닫힌 라운드 뒤 반응은 기록되지만 마감 판정에 안 쓰임 |
 | T-29 | 명령 이름 | 엔진이 dispatch하는 모든 명령 이름이 10 §3.11 목록(또는 §3.2.6의 요구 넷)에 있고, 기대 이벤트 이름이 09 §3.4 카탈로그에 있다(이름 목록 스냅숏 대조) |
 | T-30 | E18-2 | I.want에서 답이 자극·가능성을 가리키는 후보(`names`에 `st_`·`ps_`, 또는 답 라벨이 자극 라벨)를 버림. 자극 1위만 바뀌는 질문의 점수가 0 |
-| T-31 | 라운드 닫기 | 반응 기록만으로는 닫히지 않음. `all_informative`·`timeout` 계기는 정보성 반응이 없으면 닫지 않음. 사람 계기는 언제나 닫고 `pickOnly`를 계산. 이유 없는 비교는 고르기로 셈 |
+| T-31 | 라운드 닫기 | 반응 기록만으로는 닫히지 않음. `all_reacted`·`wait_timeout` 계기는 정보성 반응이 없으면 닫지 않음. 사람 계기는 언제나 닫고 `pickOnly`를 계산. 이유 없는 비교는 고르기로 셈 |
 | T-32 | 파생 관찰 | 관찰 문장이 템플릿에서만 나옴, 독립성 키가 입력 키 집합과 같음, 다시 계산 값이 다르면 승격 근거에서 빠짐 |
 | T-33 | 순수부 위치 | `packages/kernel/src/orchestration/inquiry/`가 `@helm/runtime`·`@helm/store`·`node:` 모듈을 import하지 않음(06 check-arch) |
 
