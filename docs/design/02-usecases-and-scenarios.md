@@ -3,7 +3,7 @@
 - 작성: P1 기획, 2026-10-11 (1단계 초안)
 - 상태: 설계 초안. 유즈케이스 ID는 이 문서가 확정한다. 화면 이름은 03, 이벤트 이름은 09, 명령 이름은 10, 프로토콜 메서드는 19가 최종 소유한다.
 - 함께 읽을 문서: [01 제품 브리프](01-product-brief.md)(원칙 PR, 사람 조작 셈법 R-OP, 진입 규칙 EC, MVP 범위, 비기능 요구 NFR)
-- 기준 결정 범위: 브리프 결정 1~51.
+- 기준 결정 범위: 브리프 결정 1~57.
 - 표시 규칙: 브리프 §5.2(판정 J-144). 제품 사용 사례는 "유즈케이스", 그 단계별 진행은 "유즈케이스 단계 흐름"(줄여 "단계 흐름")이라 쓴다. "시나리오"는 결과 탐구의 시나리오(v0.3 04 §5.2)와 테스트 시나리오(22)에만 쓴다.
 
 ## 1. 목적과 범위
@@ -28,7 +28,9 @@
 
 ### 2.1 기대는 결정
 
-결정 1(원함 발견), 2(가역성 범위 밖), 5(루프 조합), 8(혼자 정한 결정), 12(묻기 재설계), 14(커널 원칙), 15(의존 규칙), 17(불변조건), 18(고르기 거부), 19~24(데스크톱 앱, WSL 서버, 외부 접속, 클라이언트 없이 계속, 자체 런타임, 혼자 쓰는 앱), 25(유즈케이스), 33·39(TUI는 이후), 35(관찰 입력), 38(데스크톱 앱 SSH 접속), 41(React 19), 42(휴대폰에서 답하기), 47~49(모바일 PWA와 Web Push, 휴대폰 알림 강도, iOS 26). 조정자 기본값 26(Tailscale), 29(이벤트 로그가 기준 원본), 30(크래시 복구), 31(JSON-RPC over WebSocket, 재전송), 34(어댑터는 이후)는 `[제안: 결정 n 기본값]`으로 인용한다. 01의 원칙과 셈법을 그대로 따른다.
+결정 1(원함 발견), 2(가역성 범위 밖), 5(루프 조합), 8(혼자 정한 결정), 12(묻기 재설계), 14(커널 원칙), 15(의존 규칙), 17(불변조건), 18(고르기 거부), 19~24(데스크톱 앱, WSL 서버, 외부 접속, 클라이언트 없이 계속, 자체 런타임, 혼자 쓰는 앱), 25(유즈케이스), 33·39(TUI는 이후), 35(관찰 입력), 38(데스크톱 앱 SSH 접속), 41(React 19), 42(휴대폰에서 답하기), 47~49(모바일 PWA와 Web Push, 휴대폰 알림 강도, iOS 26), 53(루프 계획 혼합 방식), 54(하네스 자산 동기화는 범위 밖), 55(MVP 외부 웹 탐색과 고급 도구), 56(결과 확인 대기의 휴대폰 알림 설정). 조정자 기본값 26(Tailscale), 29(이벤트 로그가 기준 원본), 30(크래시 복구), 31(JSON-RPC over WebSocket, 재전송), 34(어댑터는 이후)는 `[제안: 결정 n 기본값]`으로 인용한다. 01의 원칙과 셈법을 그대로 따른다.
+
+루프 계획은 [결정 53]의 혼합 방식으로 만든다. 기본은 모델이 계획 표시(`PlanFlags`)를 선언하고 코드가 계획을 계산한다. 표시로 나타낼 수 없는 상황이면 모델이 계획 초안을 내고 코드가 의존 규칙을 검사한다. 어느 쪽이든 계획은 기록되며 이의를 받는다. 방식은 다이얼 `planAuthoring`(`computed`·`hybrid`·`model`, 기본 `hybrid`)으로 고른다. 각 유즈케이스 표의 "루프 계획" 행은 이 방식으로 만든 계획을 적는다.
 
 ### 2.2 행위자
 
@@ -107,7 +109,7 @@
 | 원함 탐구 | `inquiry.opened`, `inquiry.anchored`, `inquiry.round_started`, `inquiry.round_ended`, `inquiry.stop_rule_met`, `inquiry.stopped`, `stimulus.created`, `stimulus.presented`, `contrast.presented`, `preference_model.created`, `preference_model.versioned`, `preference.criterion_confirmed`, `preference.divergence_noted`, `preference.divergence_shown` |
 | 질문 | `question.recorded`, `question.delivered`, `question.seen`, `question.deferred`, `question.escalated`, `question.answered`, `question.assumed`, `question.withdrawn`, `question.expired`, `approval.issued`, `approval.consumed` |
 | 선택·이의 | `choice.committed`(혼자 정한 것은 `autonomy` 포함), `objection.filed`, `objection.resolved`, `decision.confirmed`, `autonomous.seen` |
-| 합의 | `agreement.proposed`, `agreement.revised`, `agreement.confirmed`(활성 방식 `human`·`direct_instruction`), `agreement.activated_by_grant`(Grant, 화면 이름 "맡겨 둔 권한", 판정 J-116), R-OP-2(a)의 선택 범위 활성(08 `choice_scope`, 09·10에 이벤트·경로 추가 요구), `agreement.activated_by_rule`, `agreement.declined`, `agreement.renegotiated`, `agreement.stop_condition_met`, `agreement.violation_detected`, `agreement.fulfilled` |
+| 합의 | `agreement.proposed`, `agreement.revised`, `agreement.confirmed`(활성 방식 `human`·`direct_instruction`), `agreement.activated_by_grant`(Grant, 화면 이름 "맡겨 둔 권한", 판정 J-116), `agreement.activated_by_choice`(R-OP-2(a)의 선택 범위 활성, 활성 방식 `choice_scope`, 08 R-56, 판정 J-133), `agreement.activated_by_rule`, `agreement.declined`, `agreement.renegotiated`, `agreement.stop_condition_met`, `agreement.violation_detected`, `agreement.fulfilled` |
 | WorkUnit·실행 | `workunit.started`, `workunit.paused`, `workunit.resumed`, `workunit.scope_exceeded`, `run.started`(`attempt`), `run.steered`(사람의 실행 중 지시), `directive.applied`(런타임이 턴 경계에서 반영), `run.interrupted`, `run.ended`, `budget.exhausted` |
 | 도구 | `toolcall.requested`, `toolcall.blocked`, `toolcall.approval_requested`, `toolcall.started`, `toolcall.completed`, `toolcall.interrupted`, `toolcall.not_executed`, `toolcall.outcome_uncertain`, `toolcall.recovered`, `workspace.unlinked_change_observed`, `rollback_point.registered` |
 | 거부 | `command.rejected`(status rejected·needs_gate·conflict, 사유 코드는 10 §3.4.4) |
@@ -235,7 +237,7 @@
 | 1 | 새 일에 "Helm 개발기 첫 글을 블로그에 쓰고 싶어. 짧고 담백하게." 입력 | `RGN-COMPOSER` | 요청을 사람 발화 관찰로 기록. 라우터가 진입 신호 EC-1(다룰 범위가 정해지지 않아 완료 기준을 한 문장으로 쓸 수 없음), EC-3(톤·방향이 취향)을 근거(요청 관찰 id)와 함께 선언. 커널이 진입 규칙(01 §3.6.3) 적용 | `observation.recorded`(obsKind `utterance`), `entry.evaluated`(decision `enter`, 판정 근거와 autonomy 포함), `concern.opened`(origin `human_start`) | I1 |
 | 2 | — | `SCR-CONCERN-OVERVIEW` | O: 상황 판정 질문에 근거와 함께 답("정답이 취향에 달려 있는가: 예", "분석하면 정답에 가까운 답이 나오는가: 아니오") → 복합. 루프 계획 제안, 모드 "취향 탐색" 선택 | `situation.assessed`, `loop_plan.adopted`, `mode.assigned`(각각 혼자 정한 결정의 `autonomy` 포함) | — |
 | 3 | — | — | I.want 1단계: 표현된 요구("짧고 담백하게")를 기록. 앵커링: 확실한 것(블로그, 첫 글, 주제 Helm), 모호한 것("짧다", "담백하다"의 뜻, 독자), 암묵 가정(독자는 개발자)을 나눠 기록. 이 Goal에 선호 모델이 없으므로 탐구 엔진이 빈 Goal 층 선호 모델을 만든다(15 §3.6.2, §3.7.2) | `inquiry.opened`, `preference_model.created`(scope Goal `blog`), `inquiry.anchored`(확실한 것·모호한 것), `assumption.recorded`(암묵 가정) | — |
-| 4 | — | — | 2단계: 서로 결과를 보지 않는 하위 호출로 도입부 자극 8개 생성. 방향이 다른 것(장면 묘사, 문제 제기, 회고 일지, 기술 요약), 다른 분야 형식(요리 칼럼, 등산기), 극단(한 줄 도입, 긴 서사)을 포함. 참고 글 몇 개를 웹에서 읽어 근거로 둠. 순서를 섞음 | `inquiry.round_started`, `stimulus.created` × 8(출처 참조), `stimulus.presented`, `observation.recorded`(도구 결과, 웹 읽기) | — |
+| 4 | — | — | 2단계: 서로 결과를 보지 않는 하위 호출로 도입부 자극 8개 생성. 방향이 다른 것(장면 묘사, 문제 제기, 회고 일지, 기술 요약), 다른 분야 형식(요리 칼럼, 등산기), 극단(한 줄 도입, 긴 서사)을 포함. 참고 글 몇 개를 웹 읽기(`web_fetch`, MVP 도구 [결정 55])로 읽어 근거로 둠. 순서를 섞음 | `inquiry.round_started`, `stimulus.created` × 8(출처 참조), `stimulus.presented`, `observation.recorded`(도구 결과, 웹 읽기) | — |
 | 5 | 자극판을 열고 반응: 문장 구간을 골라 "이 톤 좋음", 강도 선택, "이유는 모르겠는데 이건 아님", "이거랑 비슷한데 더 짧게". 다 본 뒤 "라운드 마치기" | `SCR-STIM` | 반응마다 관찰로 기록(자극 id, 구간, 강도, 이유 유무, 고쳐 말하기 문장). 라운드는 사람이 "라운드 마치기"를 눌러 닫는다(05 §3.2.5, 판정 J-34). 닫는 계기의 전체 목록은 15가 정한다 | `observation.recorded`(kind `reaction`) × 9, `inquiry.round_ended` | I9 |
 | 6 | — | `SCR-STIM`(기준 후보 영역) | 4단계: 모델이 기준 후보를 낸다. C1 "도입부는 구체적인 장면으로 시작"(근거: 반응 3건), C2 "기술 설명보다 경험담"(근거 2건, 반대 근거 1건), C3 "길이보다 톤이 중요"(근거 1건). 말한 기준 "짧게"와 반응(긴 서사 도입을 두 번 좋아함)의 차이를 `stated_vs_revealed`로 남김 | `possibility.proposed`(기준 후보) × 3, `preference.divergence_noted` | — |
 | 7 | — | — | 5단계: 가장 불확실한 기준(C3)을 확인할 다음 자극을 코드가 고른다. 모델은 자극 후보마다 "C3가 맞다면 / 아니라면 예상 반응"을 선언하고, 커널 정책이 두 예상 반응의 차이가 큰 것을 고름. 같은 톤·다른 길이, 같은 길이·다른 톤 쌍과 세 개 비교("둘은 비슷하고 하나는 다른데 무엇 때문인가") 1건 | `inquiry.round_started`, `contrast.presented`, `stimulus.presented`(2라운드) | — |
@@ -283,7 +285,7 @@
 - AC-01-07 `possibility.proposed`(기준 후보)가 반응 관찰 id를 하나도 참조하지 않으면 거부된다.
 - AC-01-08 작업 에이전트가 기준 확정을 시도하면 자격 거부로 거절된다. 기준 확정은 사람 명령으로만 생긴다.
 - AC-01-09 같은 선언(예상 반응)과 같은 기준 상태에서 다음 자극 선택 결과가 같다(결정성).
-- AC-01-10 기준과 무게가 두 라운드 연속 바뀌지 않으면 `loop.transitioned(I.want → C.commit, autonomous=true)`가 이유와 함께 기록된다. 예산을 다 쓰면 정지 규칙 충족으로 보지 않고 `loop.transitioned`가 이유 `budget_exhausted`와 함께 기록되며 열린 후보가 넘겨진다. 예산 질문은 만들지 않는다.
+- AC-01-10 정지 규칙(15 §3.4.14 `planStable`)이 참이면 `loop.transitioned(I.want → C.commit, autonomous=true)`가 이유와 함께 기록된다. `planStable`은 사람 입력이 있었던 라운드만 세어, 지문이 두 번 연이어 같거나(라운드 셋의 지문이 같음) 한 번 같고 가장 좋은 남은 질문의 점수가 0이면 참이다. 예산을 다 쓰면 정지 규칙 충족으로 보지 않고 `loop.transitioned`가 이유 `budget_exhausted`와 함께 기록되며 열린 후보가 넘겨진다. 예산 질문은 만들지 않는다.
 - AC-01-11 말한 기준과 반응이 다르면 선호 모델의 `stated_vs_revealed`에 기록되고 합의 초안에 두 값이 함께 보인다.
 - AC-01-12 확정된 합의가 없는 상태에서 `drafts/` 쓰기 도구 호출은 `toolcall.blocked`(code `denied.agreement_required`)로 막힌다.
 - AC-01-13 단계 12~16에서 16 `human_op` 계산의 `normalPath=true`인 결정 조작은 정확히 2건이다(01 §3.5.2 셈법).
@@ -323,9 +325,9 @@
 | 9 | 근거 체인을 펼쳐 O-8을 봄 | `SCR-EVIDENCE` | — | — | — |
 | 10 | — | — | 1순위 가능성이 두 라운드 연속 유지 → 정지 규칙(v0.3 04 §2.3). 선택 요청 기록(권리 게이트, 판정 J-131): 지금 정할 것(수정 방향), 왜 지금, 추천(요청 병렬화. 선택지는 구조화된 범위 `src/pages/home/**`, `src/api/**` 쓰기를 가지며 화면은 그 범위를 커널 값 그대로 보인다), 가장 강한 다른 선택(서버 렌더링 도입: 범위가 큼), 아직 모르는 점(모바일 실기기 측정 없음), 미뤘을 때의 영향, 다시 볼 조건(병렬화 뒤 LCP가 2.5초를 넘으면). 행동: 추천대로 정하기 / 가장 강한 다른 선택으로 정하기 / 고쳐서 정하기, 그 밖에 기준 고치기 · 질문 다시 쓰기 · 먼저 탐구 · 맡기기(사람이 명시적으로 고를 때만, 판정 J-131. 질문 상태 `delegated`, 화면 라벨 "에이전트에게 맡김", 판정 J-114) · 조건까지 미루기 · 이의(04 §3.4, 05 IX-02). 권리 게이트이므로 임시 가정과 만료점이 없다 | `inquiry.stop_rule_met`, `inquiry.stopped`(then `decide_now`), `loop.transitioned`(I.fact → C.commit, 14), `question.recorded`(kind `choice_request`, gate `rights`). 순서는 탐구 멈춤 → 루프 전환 → 선택 질문(08 R-23, 15 §3.1.5) | — |
 | 11 | "추천대로 정하기" | `SCR-QUESTION` 또는 `SCR-CONCERN-OVERVIEW` | 사람 선택 기록(선택지의 구조화된 범위 포함). 다시 볼 조건 포함. O-8 판단을 근거로 골랐으므로 판단 확인 질문도 함께 답한 것으로 닫힌다 | `question.answered`, `choice.committed`(decided_by human), `finding.confirmed`(via choice_commit) | D1 |
-| 12 | — | `SCR-AGREE` | 커널이 합의 범위 ⊆ 11에서 사람이 직접 고른 선택지의 범위를 검사해 통과(R-OP-2 (a), 판정 J-133) → 확정 질문 없이 활성. echo만 보임: 결과(API 요청 병렬화), 범위(`src/pages/home/**`, `src/api/**` 읽기·쓰기), 금지(push, 의존성 추가), 근거(측정 재실행, 테스트), 멈출 조건(API 응답 형식 변경이 필요할 때) | `agreement.proposed`, 선택 범위 활성 이벤트(활성 방식 `choice_scope`, authority basis: 11의 choice id. 이벤트 이름은 J-90에 따라 09가 더함, 이 문서는 `agreement.activated_by_choice`로 적는다 [제안]) | — (정상 경로 0) |
+| 12 | — | `SCR-AGREE` | 커널이 합의 범위 ⊆ 11에서 사람이 직접 고른 선택지의 범위를 검사해 통과(R-OP-2 (a), 판정 J-133) → 확정 질문 없이 활성. echo만 보임: 결과(API 요청 병렬화), 범위(`src/pages/home/**`, `src/api/**` 읽기·쓰기), 금지(push, 의존성 추가), 근거(측정 재실행, 테스트), 멈출 조건(API 응답 형식 변경이 필요할 때) | `agreement.proposed`, `agreement.activated_by_choice`(활성 방식 `choice_scope`, 근거: 11의 선택 id) | — (정상 경로 0) |
 | 13 | — | `SCR-CONCERN-OVERVIEW` | 변경 WorkUnit 실행, 측정 재실행, 테스트. 결과 제출(기준별 근거: LCP 2.6초 → "미충족", 테스트 통과 → 충족) | `workunit.started`, `toolcall.*`, `observation.recorded`, `result.submitted` | — |
-| 14 | 결과 확인 화면에서 "LCP 2.6초, 기준 2.5초 미충족"을 보고 조건부 확인을 고르고, 반영 항목(남은 0.1초를 다시 볼 조건으로 등록, README 성능 메모)을 지금 처리로 둠 | `SCR-REVIEW` | 결과 확인 기록, 반영 항목 처리. 선택 CH의 다시 볼 조건이 활성 상태로 남음. 나중에 조건이 발화해 사람이 정한 선택이 낡으면 재결정 질문이 생긴다(판정 J-138, UC-13) | `acceptance.recorded`(conditional), `obligation.added/resolved` | D1 (정상 경로 1) |
+| 14 | 결과 확인 화면에서 "LCP 2.6초, 기준 2.5초 미충족"을 보고 조건부 확인을 고르고, 반영 항목(남은 0.1초를 다시 볼 조건으로 등록, README 성능 메모)을 지금 처리로 둠 | `SCR-REVIEW` | 결과 확인 기록, 반영 항목 처리. 선택 CH의 다시 볼 조건이 활성 상태로 남음. 나중에 사람이 다시 볼 조건의 충족을 표시하면 사람이 정한 선택이 낡아 재결정 질문이 생긴다(MVP. 측정으로 하는 자동 판정은 2단계, 판정 J-138, UC-13) | `acceptance.recorded`(conditional), `obligation.added/resolved` | D1 (정상 경로 1) |
 
 합계: D3(기준 질문 1, 선택 1, 결과 확인 1), I1. C/A 구간 정상 경로 결정 조작 1.
 
@@ -386,9 +388,9 @@
 | 7 | 23:40 | — | — | S4 진행 중, 에이전트가 CI 빌드로도 확인하려고 작업 브랜치 push를 원함. push는 합의의 send 대상이지만 send는 언제나 권리 게이트(J-91) → 질문 Q-B "작업 브랜치 `vite-migration`을 원격에 push할지 정해야 합니다. 허락하면 CI 빌드로도 확인합니다. 정하지 않으면 push 없이 진행하고 결과에 'CI 미확인'이 남습니다."(05 §3.10.6 형식). 그 호출만 승인 대기(`toolcall.approval_requested`)로 두고 run은 계속한다(12 §3.13.1에 요구). 즉시 전달 대상이지만 연결된 기기가 없어 다음 복귀 요약으로 예약된다(05 §3.1.2). 다음 연결 때 "지금 선택이 필요함" 맨 위에 보인다. push에 기대는 일만 멈추고 나머지는 계속 | `question.recorded`(Q-B, gate `rights`), `toolcall.approval_requested` | — |
 | 8 | 2일 01:25 | — | — | S3·S4가 끝나 A.confirm으로 넘어가기 직전 Q-A 만료점 도달 → 즉시로 승격. 연결된 기기 없음. 만료점을 넘기면 되돌리는 비용이 커지므로 임시 가정을 확정하고 에이전트가 정한 것으로 남김 | `question.escalated`, `question.assumed`, `choice.committed`(autonomous, from_question Q-A) | — |
 | 9 | 01:30 | — | — | S3·S4 완료(테스트 통과, 번들 +4%). 결과 제출: 기준별 근거. "CI 빌드 확인"은 Q-B 대기로 "확인 못함" | `result.submitted`(scope `agreement`) | — |
-| 10 | 2일 08:40 | Mac 앱을 엶 | `SCR-BRIEF` | 재접속(저장한 위치 `{storeId, seq}` 다음부터 재전송, 19 §3.5). 복귀 요약: 지금 선택이 필요함 1(Q-B, 권리 게이트), 결과 확인 필요 1(마이그레이션), 에이전트가 정한 것 6(접힘, 가정 확정 1 포함), 진행 중 작업 없음, 다음 예정 "Q-B 허락 시 push와 CI 확인" | `brief.acknowledged`(사용자가 읽음 표시) | — |
+| 10 | 2일 08:40 | Mac 앱을 엶 | `SCR-BRIEF` | 재접속(저장한 위치 `{storeId, seq}` 다음부터 재전송, 19 §3.5). 복귀 요약: 지금 선택이 필요함 1(Q-B, 권리 게이트), 결과 확인 필요 1(마이그레이션), 에이전트가 정한 것 6(접힘). 그중 가정 확정 1건은 "답이 없어 가정대로 정해진 질문 1건" 줄에 항목마다 [이의]를 달아 따로 보인다(Q-A "Jest 유지"), 진행 중 작업 없음, 다음 예정 "Q-B 허락 시 push와 CI 확인" | `brief.acknowledged`(사용자가 읽음 표시) | — |
 | 11 | 08:42 | Q-B 허락 | `SCR-QUESTION` | 권리 게이트 답 기록. 대기 중인 run이 없으므로 14가 같은 thread의 새 run을 요청하고, 승인된 호출을 같은 tcId로 실행한다(판정 J-96, J-40). CI 결과를 읽어 관찰로 기록. WorkUnit은 이미 제출 상태이므로 이 관찰은 제출 뒤 관찰로 결과 확인 화면의 "CI 빌드 확인" 기준 옆에 붙는다(규칙은 10·08에 요구) | `question.answered`, `toolcall.approved`, `approval.consumed`, `toolcall.started`·`completed`(send), `observation.recorded` | D1 (정상 경로 밖, `rights_gate`) |
-| 12 | 08:50 | 결과 확인 화면에서 "결과 확인". 반영 처리 방침은 기본값 "에이전트가 모두 진행"(반영 항목: README 실행 방법 갱신, 열린 Concern "번들 크기 측정"의 전제("CRA 빌드") 무효화, 배포 설정 변경) | `SCR-REVIEW` | 결과 확인 기록. 반영 WorkUnit 실행 | `acceptance.recorded`(accepted), `obligation.added/resolved` | D1 (정상 경로 2) |
+| 12 | 08:50 | 결과 확인 화면에서 "결과 확인". 반영 처리 방침은 기본값 "에이전트가 모두 진행"(반영 항목: README 실행 방법 갱신, 열린 Concern "번들 크기 측정"의 전제("CRA 빌드") 무효화, 배포 설정 변경) | `SCR-REVIEW` | 결과 확인 기록. 반영 WorkUnit 실행(반영 범위 합의 아래) | `acceptance.recorded`(accepted), `agreement.confirmed`(via 결과 확인, 반영 범위 합의, 판정 J-126), `obligation.added/resolved` | D1 (정상 경로 2) |
 | 12a | 08:51 | 펼쳐진 전체 반영 단계에서 배포 설정 변경을 [미루기] | `SCR-REVIEW` | 미룬 항목은 다음 복귀 요약 맨 위에 남음 | `obligation.deferred` | — (선택 조작, 정상 경로 수에 넣지 않음) |
 | 13 | 08:52 | 에이전트가 정한 것을 펼쳐 "Jest 유지(가정 확정)"를 확인. 이의 없음 | `SCR-AUTO` | — | — | — |
 
@@ -399,7 +401,7 @@
 - A1 밤에 Q-A에 답함: 사용자가 깨어 있어 Mac에서 "Vitest로 바꿔"라고 답하면, 테스트 러너 교체는 합의의 멈출 조건에 해당하므로 범위 확대 질문(권리 게이트, `gate.scope_expansion_required`)이 생긴다. 사용자가 허락하면 합의가 새 개정판으로 바뀐다(`agreement.renegotiated`). 범위 확대는 R-OP-2의 포함 증명 대상이 아니므로 확정이 따로 필요하다(Q-A 답 D1 + 범위 허락 D1, 둘 다 `scope_expansion`, 01 §3.8.5).
 - A2 push 거절: Q-B를 거절하면 CI 확인은 하지 않고 결과 제출의 한계에 "CI 미확인"이 남는다. 결과 확인 화면에서 이 한계가 보인다.
 - A3 예산 다 씀: 밤중에 합의 예산(없으면 C.commit 기본 예산)이 다 되면 현재 단계를 마치고 멈추고 예산 질문(`budget_extension`, 정보 게이트, 막힘)을 남긴다(05 §3.6.4). 복귀 요약에 "예산을 다 써서 S3에서 멈췄습니다"와 [예산 늘리기] [여기까지 결과로 제출받기] [범위 줄여 계속]이 보인다(01 FX-09). 세 버튼과 질문 선택지 값의 대응, 진행 요약 형식은 14가 정본이고 문구 키는 05가 정한다.
-- A4 밤중 데몬 재시작: Windows Update로 호스트가 재부팅되면 UC-10의 B2 흐름을 따른다. 재시작 동안 지난 만료점은 재시작 직후 처리되고, 처리 시각이 늦었다는 사실이 기록된다.
+- A4 밤중 데몬 재시작: Windows Update로 호스트가 재부팅되면 UC-10의 B2 흐름을 따른다. 재시작 동안 지난 만료점은 정지 시간이 만료 여유보다 길면 막지 않는 질문에 한해 "복귀 + 30분"으로 미뤄지고(판정 J-142), 그렇지 않으면 재시작 직후 처리된다. 어느 쪽이든 처리 시각이 늦었다는 사실이 기록된다.
 - A5 다른 기기로 아침에 봄: 같은 아침 집의 Windows 호스트에서 앱을 열면 같은 복귀 요약이 보인다(UC-17).
 
 #### 예외 흐름
@@ -461,7 +463,7 @@
   1. 잠금 화면의 "Helm · 확인할 일이 1건 있습니다."(기본 내용 숨김, 판정 J-03)를 누른다(보기).
   2. 웹 앱이 `/m/q/<질문 id>`로 열리고 캐시된 질문 카드를 읽기 전용으로 먼저 보인다. 머리에 "연결하는 중"(`SCR-M-QUESTION`, 03 §3.12).
   3. 연결이 준비되면 결정 버튼이 활성된다. 주 버튼을 누른다(D1). 이후 커널 쪽 흐름(단계 5~7)은 같다.
-  - 웹 앱이 백그라운드로 가면 연결을 닫고, 다시 앞으로 오면 저장한 위치부터 재전송받는다(19 §3.17, 26 §3.3.5).
+  - 웹 앱이 백그라운드로 가기 직전(숨김 직전) 진행 중 명령이 있으면 같은 멱등 키로 `POST /m/cmd`(keepalive)를 함께 보내고, 최대 2초 뒤 연결을 닫는다. 다시 앞으로 오면 저장한 위치부터 재전송받는다(19 §3.2.5·§3.9.4·§3.17, 26 §3.3.2·§3.3.5).
   - 조작은 보기 1 + D1로 데스크톱(단계 3·5)과 같다. 휴대폰에서 다루기 어려운 질문 형식과 큰 산출물·취향형 결과 확인은 데스크톱 전용이고 휴대폰에서는 미루기만 둔다(판정 J-37, J-139). 휴대폰 결과 확인은 산출물을 연 뒤에만 받는다(판정 J-139).
 
 #### 예외 흐름
@@ -550,7 +552,7 @@
 | 2 | 돌아온 뒤 달라진 점: 방향(N), 이해(E), 실제(M) 변화를 의미 묶음으로. Concern마다 묶음 5개 이하 | 사용자 확인 cursor 이후, dogfood 002 |
 | 3 | 왜 중요한가: 깨진 가정, 약한 신호, 이견, 반대 근거 | SA Level 2 |
 | 4 | 지금 선택이 필요함: 권리 게이트 우선, 결과 확인 대기 포함 | v0.3 09 §4.1 |
-| 5 | 확인하면 좋은 것: 임시 가정으로 진행 중인 질문과 만료점 | v0.3 06 §6 |
+| 5 | 확인하면 좋은 것: 임시 가정으로 진행 중인 질문과 만료점. 아래에 "답이 없어 가정대로 정해진 질문 n건" 줄을 두고 항목마다 [이의]를 단다. 원인이 부재든 데몬 정지든 같다 | v0.3 06 §6, 11 §3.6.3 |
 | 6 | 진행 중 작업: 지금 하는 일, 다음 예정, 멈출 조건 | 상용 UX 조사 Active work |
 | 7 | 그대로 두면: 다음에 일어날 일과 가까운 만료점 | SA Level 3, friendly 02 |
 | 8 | 에이전트가 정한 것(접힘, 종류별 개수) | 결정 8 |
@@ -591,6 +593,7 @@
 - AC-06-07 형식은 맞지만 품질 상태가 qualified가 아닌 선택(예: 요지 `ㅇ`)은 현재 기준선으로 보이지 않고 주의 항목으로 보인다. 그런 항목이 있으면 요약은 "확인할 것 없음"을 보이지 않는다(v0.2 CLI-G01, F1).
 - AC-06-08 복귀 점검을 켜면 점검 답, 걸린 시간, 원본 로그 열람 횟수가 기록되고, 정답은 이벤트 로그에 들어가지 않는다.
 - AC-06-09 다시 만드는 중인 요약은 기준 cursor와 함께 낡음 표시가 붙는다.
+- AC-06-10 가정 확정된 질문이 있으면 "답이 없어 가정대로 정해진 질문 n건" 줄과 항목별 [이의]가 원인(부재, 데몬 정지)과 관계없이 보인다(11 §3.6.3).
 
 ### 3.10 UC-07 되돌리기 비싼 선택: 작업 합의(C)와 결과 확인(A)
 
@@ -620,8 +623,8 @@
 | 5 | 합의 카드에서 c4를 "3KB 이하"로 고쳐 확정 | `SCR-AGREE` | 앱이 구조화된 고침과 함께 `agreement.confirm`(`edits`, 10 `Partial<AgreementContent>`)을 한 번 보낸다(판정 J-124, 01 §3.5.2 셈법 "고쳐서 확정"). 합의 확정, run과 WorkUnit 시작 | `agreement.confirmed`(revision에 고침 반영), `question.answered`, `run.started`, `workunit.started` | D1 (정상 경로 1) |
 | 6 | (자리를 비움) | `SCR-CONCERN-OVERVIEW`(지금 하는 일, 다음 예정, 맡긴 범위) | 합의가 활성된 뒤 첫 쓰기 전에 13이 되돌릴 지점(현재 커밋 해시)을 만들고 런타임이 등록한다(13 §3.7.8에 요구). 편집(write/edit), 테스트(execute). 모델이 `src/api/client.ts` 편집을 시도 → 합의의 금지 행동이라 거부됨 → 모델이 API 레이어를 고치지 않는 방법으로 바꿈. bash 실행 뒤 작업 공간 비교로 범위 밖 쓰기가 없는지 확인 | `rollback_point.registered`(`agreementId`, git 커밋 참조), `toolcall.requested`, `toolcall.started`, `toolcall.completed`, `toolcall.blocked`(`policy.forbidden_resource`, 판정 J-92), `observation.recorded` | — |
 | 7 | — | — | 모델이 제출 없이 끝내려 함 → 마무리 직전 검사: 합의 아래 파일이 바뀌었는데 제출이 없음 → "결과 제출이 없습니다. 기준별 근거와 함께 제출하세요"로 한 번 더 진행 요청(대화 L2136) | 운영 기록(진행 요청) | — |
-| 8 | — | `SCR-HOME` 주의 카드(검토 창에 전달) | 결과 제출: c1 충족(테스트 실행 관찰 id), c3 충족(검색 결과 id), c4 충족 +2.1KB(번들 분석 id), c2는 모델이 "동작 동일 확인함"이라는 문장만 근거로 냄 → 실제 관찰이 아니므로 커널이 "확인 못함"으로 강등. 알려진 한계: E2E 테스트 없음. 반영 항목 후보: (i) README의 상태 관리 절, (ii) 열린 Concern "장바구니 동기화"의 전제("Context 사용") 무효화, (iii) 아키텍처 그림. 결과 확인은 사람의 권리 게이트지만 작업을 막지 않으므로 기록은 즉시, 전달은 다음 작업 경계 또는 검토 창에 한다(판정 J-132) | `result.submitted`(c2 강등 표시), `question.recorded`(result_review), `loop.transitioned`(C.commit → A.confirm) | — |
-| 9 | 앱 밖에서 화면 3개를 직접 눌러 봄. 결과 확인 화면에서 기준별 표(✓ / △), 확인 못한 범위, 한계, 반영 항목을 보고 "조건부 확인: c2는 주요 화면 3개만 직접 확인, 장바구니 화면은 다음에". 반영 처리 방침은 기본값 "에이전트가 모두 진행" | `SCR-REVIEW` | 결과 확인 기록(조건 포함). 반영 항목 (i)~(iii)과 조건 항목 (iv)(`acceptance_condition`)을 만든다. (iv)는 같은 트랜잭션에서 미룬 상태가 되고 다시 볼 조건은 조건 문장이다(판정 J-125) | `acceptance.recorded`(conditional, 조건 문장), `question.answered`, `integration.opened`, `obligation.added` × 4, `obligation.deferred`(iv) | D1 (정상 경로 2) |
+| 8 | — | `SCR-HOME` 주의 카드(검토 창에 전달) | 결과 제출: c1 충족(테스트 실행 관찰 id), c3 충족(검색 결과 id), c4 충족 +2.1KB(번들 분석 id), c2는 모델이 "동작 동일 확인함"이라는 문장만 근거로 냄 → 실제 관찰이 아니므로 커널이 "확인 못함"으로 강등. 알려진 한계: E2E 테스트 없음. 반영 항목 후보: (i) README의 상태 관리 절, (ii) 열린 Concern "장바구니 동기화"의 전제("Context 사용") 무효화, (iii) 아키텍처 그림. 결과 확인은 사람의 권리 게이트지만 작업을 막지 않으므로 기록은 즉시, 전달은 다음 작업 경계 또는 검토 창에 한다(판정 J-132). 휴대폰 알림은 설정 `notifications.resultReview`로 고른다. 기본 `none`은 알리지 않고 복귀 요약에서 확인한다. `daily_digest`는 설정 시각(`notifications.resultReviewDigestAt`)에 확인 대기 결과가 있으면 묶음 푸시 1건(강도 `notice`)을 보내고, `immediate`는 질문마다 같은 강도로 보낸다. 두 경우 모두 방해 금지와 시간당 상한을 따른다([결정 56], 판정 J-189) | `result.submitted`(c2 강등 표시), `question.recorded`(result_review), `loop.transitioned`(C.commit → A.confirm) | — |
+| 9 | 앱 밖에서 화면 3개를 직접 눌러 봄. 결과 확인 화면에서 기준별 표(✓ / △), 확인 못한 범위, 한계, 반영 항목을 보고 "조건부 확인: c2는 주요 화면 3개만 직접 확인, 장바구니 화면은 다음에". 반영 처리 방침은 기본값 "에이전트가 모두 진행" | `SCR-REVIEW` | 결과 확인 기록(조건 포함). 반영 항목 (i)~(iii)과 조건 항목 (iv)(`acceptance_condition`)을 만든다. (iv)는 같은 트랜잭션에서 미룬 상태가 되고 다시 볼 조건은 조건 문장이다(판정 J-125) | `acceptance.recorded`(conditional, 조건 문장), `agreement.confirmed`(via 결과 확인, 반영 범위 합의, 판정 J-126), `question.answered`, `integration.opened`, `obligation.added` × 4, `obligation.deferred`(iv) | D1 (정상 경로 2) |
 | 9a | 펼쳐진 전체 반영 단계에서 (iii)을 [미루기] | `SCR-REVIEW` | (iii) 미룸 | `obligation.deferred`(iii) | — (선택 조작, 정상 경로 수에 넣지 않음) |
 | 10 | — | `SCR-CONCERN-OVERVIEW` | 반영 WorkUnit: README 갱신, "장바구니 동기화" Concern(열려 있음)의 해당 판단을 낡음으로 표시하고 (ii)를 그 Concern으로 넘긴다. 넘겨받는 Concern이 이미 닫혀 있을 때만 다시 연다(10에 요구). README 항목(`docs_tests`)은 근거 관찰로 커널이 닫는다(10 R-21). 전제 무효화(`broken_premise`)는 사람만 닫는 종류이므로 넘겨받은 Concern에서 사람이 닫는다 | `obligation.resolved`, `obligation.transferred`, `record.staled` | — |
 | 11 | — | `SCR-HOME` | 남은 반영 항목이 모두 닫히거나 넘겨지거나 명시적으로 미뤄짐 → 이 Concern을 반영 완료로 닫음(화면 라벨 "반영 완료", 03). 미룬 항목은 다음 복귀 요약 맨 위로 넘김. 돌아보기는 선택(R-OP-5)이므로 닫힘이 돌아보기를 기다리지 않는다. `concern.completed`는 런타임이 낸다(09 B.1·14에 요구) | `integration.completed`, `concern.completed` | — |
@@ -675,7 +678,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 목표 | 사용자가 한 작업에 몰두한 동안, 별도 관찰 에이전트가 Helm 기록과 허용된 외부 세션 로그에서 반복 패턴을 찾아 스크립트·스킬·정책 수정안을 제안한다. 사람이 채택한 것만 반영된다 |
+| 목표 | 사용자가 한 작업에 몰두한 동안, 별도 관찰 에이전트가 Helm 기록과 허용된 외부 세션 로그에서 반복 패턴을 찾아 스크립트·스킬·정책 수정안을 제안한다. 스킬·AGENTS.md·훅 정책 수정안은 제안까지만 Helm이 만들고, 런타임 사이의 하네스 자산 동기화는 Helm 범위 밖이다([결정 54]). 사람이 채택한 것만 반영된다 |
 | 단계 | 2단계(모델 판정과 제안). 결정적 수집·탐지·외부 세션 지표는 MVP에서 켠다(01 §3.8.2) |
 | 출처 | 사용자 아이디어(대화 L246), 사용자 동의(L298), 결정 35 |
 | 루프 | A.reflect의 일부. 채택된 제안은 새 Concern(UC-07 흐름) 또는 정책 변경이 된다 |
@@ -796,7 +799,7 @@
 
 #### 변형 B2: 서버(Windows 호스트) 재부팅
 
-Windows Update로 03:00에 재부팅되고, 로그온 뒤 WSL keepalive와 systemd로 데몬이 다시 뜬다(브리프 §2.5, backend-oss §5.2). B1의 복구를 한 뒤, 중단 동안 지난 가정 만료점·기한을 처리한다. 처리 이벤트에는 원래 시각과 실제 처리 시각이 함께 남는다. 복귀 요약에 "서버가 07:10에 다시 시작되었습니다."(`notice.daemon.restarted`)와 중단 기간 03:00~07:10이 보인다(화면 문구는 "데몬" 대신 "서버", 04 §3.0.4). 로그인 전 자동 시작은 보장하지 않는다(01 NFR-A-3).
+Windows Update로 03:00에 재부팅되고, 로그온 뒤 WSL keepalive와 systemd로 데몬이 다시 뜬다(브리프 §2.5, backend-oss §5.2). B1의 복구를 한 뒤, 중단 동안 지난 가정 만료점·기한을 처리한다. 막지 않는 질문의 가정 만료는 정지 시간이 만료 여유보다 길면 "복귀 + 30분"으로 미룬다(복귀는 `user_return`, 없으면 데몬 재시작 시각. 기본은 켜짐, 설정 "정지 중 만료 미룸"으로 끈다. 판정 J-142). 처리 이벤트에는 원래 시각과 실제 처리 시각이 함께 남는다. 복귀 요약에 "서버가 07:10에 다시 시작되었습니다."(`notice.daemon.restarted`)와 중단 기간 03:00~07:10이 보인다(화면 문구는 "데몬" 대신 "서버", 04 §3.0.4). 로그인 전 자동 시작은 보장하지 않는다(01 NFR-A-3).
 
 #### 변형 B3: 결과가 불확실한 외부 행동
 
@@ -805,11 +808,11 @@ Windows Update로 03:00에 재부팅되고, 로그온 뒤 WSL keepalive와 syste
 | 1 | — | — | 사람이 허락한 push(UC-03 Q-B) 실행 중 데몬이 죽음 | `toolcall.started`(send) | — |
 | 2 | — | — | 재시작 뒤 이 호출은 재실행 안전이 아니므로 다시 실행하지 않는다. 결과 불확실로 정리하고, 외부 효과가 있는 호출이므로 복구 질문(권리 게이트, 판정 J-05·J-44)을 바로 만든다. 이어서 12의 확인 조회 절차(13이 도구에 선언한 확인 조회를 읽기 전용 하위 실행으로 돌림)가 원격 브랜치 상태를 읽는다(12 §3.7.4에 요구) | `toolcall.outcome_uncertain`(recoveryCheck, externalRef), `question.recorded`(recovery, rights), 확인 조회의 `toolcall.*`(read) | — |
 | 3a | — | `SCR-BRIEF`(복구 절) | 원격에 커밋이 있음 → 확인 조회 결과를 근거로 "보냄"으로 정리하고, 질문은 철회한다 | `observation.recorded`, `toolcall.recovered`(근거 관찰), `question.withdrawn` | — |
-| 3b | 확인 조회로 판단할 수 없으면 질문이 남는다. 복구 화면에서 [push됐는지 확인하는 작업 만들기] / [push된 것으로 기록] / [push되지 않은 것으로 기록] / [그대로 두기] 중 고름. 선택지 집합의 정본은 12이고 04·19·이 문서가 따른다 | `SCR-RECOVERY` | 사람의 답을 근거 관찰(발화)로 남기고 대상 호출(`toolCallId`)을 정리(19 `recovery.resolve` → 10 `toolcall.recover`) | `question.answered`, `observation.recorded`(utterance), `toolcall.recovered` | D1 (`rights_gate`) |
+| 3b | 확인 조회로 판단할 수 없으면 질문이 남는다. 복구 화면에서 [push된 것으로 기록](`confirmed_applied`) / [push되지 않은 것으로 기록](`confirmed_not_applied`) / [push됐는지 확인하는 작업 만들기](`manual_review`) 중 고른다. 선택지 집합의 정본은 12 §3.7.4이고 04·19·이 문서가 따른다. [그대로 두기]는 run 수준 복구 항목의 선택지라 이 호출 행에 두지 않는다 | `SCR-RECOVERY` | 사람의 답을 근거 관찰(발화)로 남기고 대상 호출(`toolCallId`)을 정리(19 `recovery.resolve` → 10 `toolcall.recover`) | `question.answered`, `observation.recorded`(utterance), `toolcall.recovered` | D1 (`rights_gate`) |
 
-#### 변형 B4: 모델 공급자 장애
+#### 변형 B4: 모델 제공자 장애
 
-모델 호출이 실패하면 12가 정한 재시도를 하고, 계속 실패하면 run은 `failed`(`model_unreachable`)로 끝난다. 도메인 관찰은 만들지 않고 trace와 17의 상태 확인에 남으며, 앱은 그 상태를 연결·상태 화면에서 보인다. 질문은 만들지 않는다. 사람 명령(질문 답, 결과 확인, 이의)은 계속 받는다. 공급자가 회복되면 14가 같은 일을 다시 요청한다(판정 J-109, 01 NFR-O-3. 회복 신호 입력은 12·14에 요구).
+모델 호출이 실패하면 12가 정한 재시도를 하고, 계속 실패하면 run은 `failed`(`model_unreachable`)로 끝난다. 도메인 관찰은 만들지 않고 trace와 17의 상태 확인에 남으며, 앱은 그 상태를 연결·상태 화면에서 보인다. 질문은 만들지 않는다. 사람 명령(질문 답, 결과 확인, 이의)은 계속 받는다. 제공자가 회복되면 14가 같은 일을 다시 요청한다(판정 J-109, 01 NFR-O-3. 회복 신호 입력은 12·14에 요구).
 
 #### 변형 B5: 기록 검사 실패
 
@@ -821,10 +824,10 @@ Windows Update로 03:00에 재부팅되고, 로그온 뒤 WSL keepalive와 syste
 - AC-10-02 재시작 뒤 의도만 있고 결과가 없는 도구 호출은 모두 `toolcall.interrupted` 또는 `toolcall.outcome_uncertain`으로 정리된다. 정리되지 않고 남는 호출이 없다.
 - AC-10-03 재실행 안전으로 선언된 도구만 자동으로 다시 실행된다.
 - AC-10-04 결과가 불확실한 외부 행동은 다시 실행되지 않는다. 확인 조회나 사람의 답으로 "보냄 / 보내지 않음"이 기록된 뒤에만 그 흐름이 진행된다.
-- AC-10-05 중단 동안 지난 타이머는 재시작 뒤 처리되고, 원래 예정 시각과 실제 처리 시각이 함께 기록된다.
+- AC-10-05 중단 동안 지난 타이머는 재시작 뒤 처리되고, 원래 예정 시각과 실제 처리 시각이 함께 기록된다. 막지 않는 질문의 가정 만료는 정지 시간이 만료 여유보다 길면 "복귀 + 30분"으로 미뤄지며, 기본은 켜짐이다(판정 J-142).
 - AC-10-06 재연결 뒤 앱은 빠진 이벤트를 순서대로 한 번씩 받는다. 오프라인 초안은 자동으로 보내지지 않고, 응답 전에 끊긴 명령만 같은 멱등 키로 다시 보내져 한 번만 적용된다(J-02).
 - AC-10-07 재시작부터 복구 완료까지 30초 이내이고(01 NFR-A-1), 복구 요약은 복귀 요약 복구 절에 보이고, 사람 판단이 필요한 항목만 복구 화면에 나온다.
-- AC-10-08 모델 공급자가 응답하지 않는 동안에도 사람 명령은 01 NFR-P-1 안에서 처리된다. run은 `model_unreachable`로 끝나고 "모델 연결 끊김" 같은 도메인 관찰이나 질문은 생기지 않는다(판정 J-109).
+- AC-10-08 제공자가 응답하지 않는 동안에도 사람 명령은 01 NFR-P-1 안에서 처리된다. run은 `model_unreachable`로 끝나고 "모델 연결 끊김" 같은 도메인 관찰이나 질문은 생기지 않는다(판정 J-109).
 - AC-10-09 기록 검사가 실패하면 새 이벤트가 하나도 추가되지 않는다.
 
 ### 3.14 UC-11 처음 설치·기기 페어링
@@ -848,9 +851,9 @@ Windows Update로 03:00에 재부팅되고, 로그온 뒤 WSL keepalive와 syste
 | 5 | 접속 방식(Tailscale 또는 SSH)과 서버 주소를 입력 | `SCR-ONBOARD` | — | — | I1 |
 | 6 | 서버에서 페어링 코드 발급 명령 실행(예: `helm pair --name MacBook`), 코드를 앱에 입력 | 터미널, `SCR-ONBOARD` | 1회용 코드(유효 10분) 확인, Tailscale 신원 확인, 기기 토큰 발급. 앱은 토큰을 OS 키체인에 저장(세부 절차는 18·19) | `pairing.code_created`, `pairing.code_consumed`, `device.paired`(dv_mac) | I2 |
 | 7 | — | `SCR-CONNECT` | 연결 성공. 연결 경로, 데몬 상태, 기기 목록 표시 | — | — |
-| 8 | 처음 연결의 폴더 추가 단계에서 서버의 `~/projects/shop/code/shop`을 허용 폴더로 지정(이후 추가는 `SCR-SETTINGS` 권한·연결 절). 연결된 모델 공급자 상태(시험 호출 결과)도 본다 | `SCR-ONBOARD`(폴더 추가 단계) | 허용 폴더 등록(쓰기 범위의 바깥 경계)과 프로젝트 생성. 등록 절차의 보안 요구는 18 | `setting.changed`(판정 J-94), 프로젝트 생성 이벤트(09) | I1 |
+| 8 | 처음 연결의 폴더 추가 단계에서 서버의 `~/projects/shop/code/shop`을 허용 폴더로 지정(이후 추가는 `SCR-SETTINGS` 권한·연결 절). 연결된 모델 제공자 상태(시험 호출 결과)도 본다 | `SCR-ONBOARD`(폴더 추가 단계) | 허용 폴더 등록(쓰기 범위의 바깥 경계)과 프로젝트 생성(`project.create`, 19). 등록 절차의 보안 요구는 18 | `setting.changed`(판정 J-94), `project.created`(09) | I1 |
 | 9 | — | `SCR-GOAL`(Goal 초안 카드) | 에이전트가 `PRODUCT.md`, README, 저장소 상태를 읽어 Goal 초안을 만든다(빈 칸 폼 없음, PR-01). Goal은 `proposed` 상태로 보이고 카드에 [이 Goal로 시작] [고쳐서 시작] [나중에]가 있다 | `observation.recorded`, `goal.proposed` | — |
-| 10 | [고쳐서 시작]으로 초안을 고쳐 확정 | `SCR-GOAL` | Goal v1 활성 | `goal.activated` | D1 |
+| 10 | [고쳐서 시작]으로 초안을 고쳐 확정 | `SCR-GOAL` | Goal v1 활성(`goal.activate`, 고친 판을 `edits`로 함께 보냄) | `goal.activated` | D1 |
 | 11 | Windows 호스트 앱도 같은 방식으로 페어링 | `SCR-ONBOARD` | `device.paired`(dv_win) | `device.paired` | I3 |
 
 #### 대안 흐름
@@ -895,7 +898,7 @@ Windows Update로 03:00에 재부팅되고, 로그온 뒤 WSL keepalive와 syste
 | 1 | Concern 개요에서 지금 하는 일을 봄 | `SCR-CONCERN-OVERVIEW` | — | — | — |
 | 2 | 진행 작업 카드의 [기준 바꾸기]로 c4를 "1KB 이하"로 바꾸고 c2에 "장바구니 화면도 확인"을 더함(또는 입력창에 말하고 의미 미리보기에서 [그렇게 기록]. [그렇게 기록]은 사람 채널 명령 `agreement.renegotiate`를 보낸다. 12의 "초안 화면으로 안내만" 문장은 이 경우에 맞게 고치기를 요구) | `SCR-WORK`(또는 `RGN-COMPOSER`) | 사람이 먼저 시작한 재협상이므로 확정 질문 없이 합의 revision 2로 기록. 옛 기준으로 확인한 결과(번들 +2.1KB 확인)는 낡음으로 표시. 옛 합의로 만든 컨텍스트를 무효화 | `run.steered`, `agreement.renegotiated`(rev 2, 사람), `record.staled`(agreement_renegotiated) | I1 |
 | 3 | — | `SCR-CONCERN-OVERVIEW` | 원자적 도구 실행 중이면 끝난 뒤, 아니면 다음 턴 경계에서 새 합의로 컨텍스트를 다시 만든다. 에이전트가 echo: "c4가 1KB 이하로 바뀌었습니다. 지금 +2.1KB라 줄이는 작업을 더합니다." 범위가 넓어지지 않으므로 질문하지 않음 | `directive.applied` | — |
-| 4 | 다이얼 패널에서 질문 빈도를 "적게"로 바꿈 | `SCR-DIALS` | 현재 Concern 층의 값으로 기록(v0.3 07 §6의 5층). 다음 턴 경계부터 적용 | `dial.set` | I1 |
+| 4 | 다이얼 패널에서 질문 빈도를 "적게"로 바꿈 | `SCR-DIALS` | 현재 Concern 층(08 `DialLayer`의 `concern`)의 값으로 기록. 다음 턴 경계부터 적용 | `dial.set` | I1 |
 
 #### 대안 흐름
 
@@ -908,7 +911,7 @@ Windows Update로 03:00에 재부팅되고, 로그온 뒤 WSL keepalive와 syste
 #### 수용 기준
 
 - AC-12-01 (v0.2 F5) 합의 뒤 완료 기준을 바꾸면 그 기준에 기대던 결과와 컨텍스트가 낡음으로 표시되고, 런타임은 옛 기준으로 계속하지 않으며, 새 합의 echo가 보이고, 관련 없는 질문이 생기지 않는다.
-- AC-12-02 사람이 시작한 기준·범위 축소 변경은 확정 질문을 만들지 않는다(입력 I로 센다).
+- AC-12-02 사람이 시작한 기준·범위를 줄이는 변경은 확정 질문을 만들지 않는다(입력 I로 센다).
 - AC-12-03 변경은 다음 턴 경계에서 반영된다. 원자적 도구 실행 중이면 그 실행이 끝난 직후 반영되고, "반쯤 취소됨"을 표시하지 않는다(canon-2 §10 L12).
 - AC-12-04 다이얼 변경은 어느 층의 값인지와 함께 기록되고 다음 턴 경계부터 적용된다.
 - AC-12-05 안전하게 멈추기, 작업 중단, 즉시 끊기는 서로 다른 이벤트와 화면 상태를 가진다.
@@ -969,7 +972,7 @@ Windows Update로 03:00에 재부팅되고, 로그온 뒤 WSL keepalive와 syste
 | 4 | 가능성 비교 화면에서 결과를 바꾸는 차이가 있는 것이 앞에 놓인 목록을 봄. 접힌 것도 펼쳐 봄. 가능성마다 요소 단위 반응 | `SCR-INQUIRY` | 대비 압축은 순서만 정하고 개수를 줄이지 않음. 근거 없는 가능성은 따로 표시 | `observation.recorded`(reaction) | I5 |
 | 5 | — | — | 반응이 좋은 가능성 2개를 탐침형 C로 작게 시도(키울 조건, 접을 조건) | `probe.planned` × 2 | — |
 | 6 | 탐침 결과가 담긴 선택 요청(권리 게이트, 판정 J-131)에서 "추천대로 정하기" | `SCR-QUESTION` | 키울 조건을 충족한 가능성을 추천으로, 가장 강한 다른 선택과 현상 유지를 함께 보이는 선택 요청. 선택지마다 구조화된 범위를 가진다 | `question.recorded`(choice_request), `question.answered`, `choice.committed`(decided_by human) | D1 |
-| 6a | — | `SCR-AGREE` | 고른 선택지의 범위 안인 약속형 C 합의를 echo로 활성(R-OP-2 (a), 판정 J-133) | `loop.transitioned`(C.probe → C.commit), `agreement.proposed`, 선택 범위 활성 이벤트(`choice_scope`) | — |
+| 6a | — | `SCR-AGREE` | 고른 선택지의 범위 안인 약속형 C 합의를 echo로 활성(R-OP-2 (a), 판정 J-133) | `loop.transitioned`(C.probe → C.commit), `agreement.proposed`, `agreement.activated_by_choice`(활성 방식 `choice_scope`) | — |
 | 7 | — | — | 렌즈별 채택·거절 기록(V6) | 운영 집계 | — |
 
 #### 수용 기준
@@ -1169,7 +1172,7 @@ interface Expectation {
 }
 ```
 
-- 거부 사유 코드는 10 §3.4.4를 쓴다. 이 문서의 수용 기준이 기대하는 코드: `denied.agreement_required`(AC-01-12, AC-07-01), `denied.forbidden_action`·`gate.scope_expansion_required`(AC-07-02), `denied.capability` 또는 `denied.channel`(사람만 하는 결정을 모델이 시도, AC-01-08, AC-07-05), `policy.promotion_requirements`(`missing`에 08 `PromotionMissing` 값)(AC-02-03, AC-13-04), `invalid.why_not_asked`(AC-05-01), `invalid.agreement_content`(AC-07-14), `conflict.already_resolved`(이미 답한 질문, AC-04-06), `path.adapter_cannot_append_event`·`path.projection_is_derived`(AC-07-12), `invalid.question_shape`(AC-02-05). 강등 알림: `downgraded.criterion_unverified`(AC-07-04), `downgraded.interpretation_to_assumption`(AC-02-01).
+- 거부 사유 코드는 10 §3.4.4를 쓴다. 이 문서의 수용 기준이 기대하는 코드: `denied.agreement_required`(AC-01-12, AC-07-01), `policy.forbidden_resource`·`gate.scope_expansion_required`(AC-07-02), `denied.capability` 또는 `denied.channel`(사람만 하는 결정을 모델이 시도, AC-01-08, AC-07-05), `policy.promotion_requirements`(`missing`에 08 `PromotionMissing` 값)(AC-02-03, AC-13-04), `invalid.why_not_asked`(AC-05-01), `invalid.agreement_content`(AC-07-14), `conflict.already_resolved`(이미 답한 질문, AC-04-06), `path.adapter_cannot_append_event`·`path.projection_is_derived`(AC-07-12), `invalid.question_shape`(AC-02-05). 강등 알림: `downgraded.criterion_unverified`(AC-07-04), `downgraded.interpretation_to_assumption`(AC-02-01).
 - 대본의 출발점: UC-07 기본 흐름은 대화 L2304–2316의 한 턴 흐름, UC-02 AC-02-03은 `experiments/helm-toy/helm.mjs`의 21단계 대본(거부 8건).
 
 ## 4. 실패·예외·경계 사례 (유즈케이스 공통)
