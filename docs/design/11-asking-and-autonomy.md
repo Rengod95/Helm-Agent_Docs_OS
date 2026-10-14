@@ -1,7 +1,7 @@
 # 11. 묻기와 자율성
 
 - 소유: P6 커널
-- 상태: 4단계 보완판 (2026-10-12). 기준 브리프 결정 1~51, 조정자 판정 J-1~J-148. 표기는 브리프 §5.2(판정 J-144)를 따른다: `[결정 n]`은 사용자 결정만, 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`·`[판정 J-nn]`. 이전: 2a단계 통합판. 조정자 판정(`process/rulings-stage2a.md` J-05, J-20, J-26, J-46~J-55, J-63, J-64)과 08·09 정렬을 반영했다. 08·09는 1판의 제안 상당수(질문 병합, 전달 계획 기록, 승인 블록, 사람의 미루기·맡기기·다시 세우기 이벤트, presence 이벤트)를 받아들였고, 2a판은 그 형식을 따른다. 이전 이름과의 대응은 §2.4.
+- 상태: 4c 보완판 (2026-10-14). 기준 브리프 결정 1~57, 조정자 판정 J-1~J-190. 표기는 브리프 §5.2(판정 J-144)를 따른다: `[결정 n]`은 사용자 결정만, 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`·`[판정 J-nn]`. 이전: 4단계 보완판(2026-10-12, 2a단계 통합판 기반). 조정자 판정(`process/rulings-stage2a.md` J-05, J-20, J-26, J-46~J-55, J-63, J-64)과 08·09 정렬을 반영했다. 08·09는 1판의 제안 상당수(질문 병합, 전달 계획 기록, 승인 블록, 사람의 미루기·맡기기·다시 세우기 이벤트, presence 이벤트)를 받아들였고, 2a판은 그 형식을 따른다. 이전 이름과의 대응은 §2.4.
 - 구현 위치: `@helm/kernel`의 `src/asking/`, `src/commands/question.ts`. 규칙 집행은 커널, 전달 실행은 런타임·데몬(12, 17), 전달 표시는 앱(20)
 - 함께 읽을 문서: [10 커널](10-kernel.md), [08 도메인 모델](08-domain-model.md) §3.4.4(Trigger)·§3.4.5(Autonomy)·§3.10(Choice, Objection)·§3.13(Question)·§3.22.7(질문 상태 기계), [09 이벤트 저장소](09-event-store.md) §3.4·§3.11.3(타이머), [12 런타임](12-runtime-engine.md) §3.13(질문 대기와 재개), [13 도구](13-tools-and-execution.md) §3.7.8~§3.7.9, [14 루프·모드](14-loops-modes-orchestration.md) §3.5.3·§3.13.5~§3.13.8, [19 프로토콜](19-client-protocol.md) §3.7.5·§3.8.3
 
@@ -74,6 +74,9 @@
 | 18 대안 2~3개 고르기 거부 | 원함 탐구(I.want)에서 "하나 고르기" 질문을 만들지 않는다 (V-Q-03, 08 R-23) [결정] |
 | 22 클라이언트 없이 작업 계속 | 사람이 없을 때도 결정과 진행을 미루지 않는다 (§3.8) [결정] |
 | 37 UI 문구 언어 한국어 [제안: 결정 37 기본값] | 질문 사유·알림 문구는 05의 문구 키로 낸다(§3.5.6, 05 §3.10.8, 판정 J-31) [제안] |
+| 53 루프 계획은 혼합 방식으로 만든다 | 모델이 정한 계획도 혼자 정한 결정으로 기록되고 이의를 받는다(§3.9.1). 작성 주체(`authoredBy`: code·model·human)는 기록에 남고, 결정 주체(`decidedBy`)와 이의 절차는 그대로다 [결정 53, 판정 J-188] |
+| 55 MVP 도구에 외부 웹 탐색을 넣는다 | 외부 탐색(`web_fetch`·`web_search`)은 게이트 대상이 아니다. 외부로 쓰는 호출(비-GET 요청·업로드·합의 밖 호스트 이동)만 send로 묻는다(§3.2.2 `recovery`, 판정 J-190) [결정 55] |
+| 56 결과 확인 대기의 휴대폰 알림은 설정으로 고른다 | 설정 `notifications.resultReview`의 세 값(알리지 않음, 하루 한 번 묶음, 즉시)과 묶음 시각(기본 19:00)을 둔다(§3.5.7, §3.16). 기본은 알리지 않음이다 [결정 56, 판정 J-189] |
 
 ### 2.2 이 문서의 주요 [제안]
 
@@ -83,6 +86,7 @@
 4. **권리 게이트 승인은 인자 지문 1회다.** 사람이 허락한 그 인자로 한 번만 실행된다. 사람이 인자를 고쳐서 허락할 수 있다(§3.14). 승인은 08 `Question.approval` 블록과 09 `approval.issued`·`consumed`·`expired`로 기록한다(2a 판정 J-48). 별도 레코드 종류는 두지 않는다.
 5. **사람 조작 2회 상한은 Helm이 먼저 묻는 정상 경로 질문에 거는 설계 목표다.** 사람이 스스로 하는 조작과 정상 경로 밖 조작(01 R-OP-4)은 막지 않고 사유와 함께 센다. C/A 단계의 정보 게이트 질문은 결과 확인 때 함께 답하도록 묶는다(§3.15).
 6. **사람의 접속 상태(presence)는 상태가 바뀔 때만 영속 이벤트 `presence.changed`로 남긴다(2a 판정 J-46·J-64).** 전달 판정이 presence에 따라 달라지므로 같은 입력으로 다시 판정할 수 있게 한다. 생존 신호는 휘발이다(19 `presence.report`). 2판의 "presence는 이벤트가 아니다"를 뒤집었다.
+7. **결과 확인 알림은 설정 세 값으로 고른다** [결정 56, 판정 J-189]. 기본 `none`은 알리지 않고 복귀 요약에서 확인한다(J-132와 같은 동작). `daily_digest`는 설정 시각에 묶음 푸시 1개를, `immediate`는 결과 확인 질문마다 푸시 1개를 강도 `notice`로 보낸다. 규칙은 §3.5.7이다.
 
 ### 2.3 원천 대비 바뀐 점
 
@@ -237,7 +241,7 @@ export type RightsCategory =
 | `progress_stall`, `watch_verdict`, `budget_extension`, `submission_missing` | information | answer | 종류별(14) | 오케스트레이터 (14) |
 | `stimulus_round`, `triad` | information | reaction (§3.2.3) | nothing | 원함 탐구 (15) |
 | `reframe_confirm` | information | confirm_candidate | nothing | 문제 다시 세우기 (15 §3.7) |
-| `recovery` | **J-05**: 외부 효과가 있을 수 있는 호출(send, 네트워크)이면 rights(`irreversible_external`), 그 밖은 질문을 만들지 않는다 | answer (적용됨 / 적용 안 됨 / 직접 확인 작업 만들기) | workunit | 결과 불확실 도구 호출 (10 `toolcall.report_unknown`, 12 §3.7.4) |
+| `recovery` | **J-05**: 외부 효과가 있을 수 있는 호출(send, 외부로 쓰는 네트워크 호출)이면 rights(`irreversible_external`), 그 밖은 질문을 만들지 않는다. 외부 탐색(`web_fetch`·`web_search`)은 게이트 대상이 아니다([결정 55, 판정 J-190]) | answer (적용됨 / 적용 안 됨 / 직접 확인 작업 만들기) | workunit | 결과 불확실 도구 호출 (10 `toolcall.report_unknown`, 12 §3.7.4) |
 | `semantic_conflict` | information | answer | action (겹치는 쓰기) | 의미 충돌 (10 R-6) |
 | `scope_violation` | information | answer | workunit | 사후 범위 위반 (10 E-11) |
 | `prediction_check` | information | answer | nothing | 예측 확인 시점 (10 `timer.fire`) |
@@ -272,7 +276,7 @@ export type AnswerValue =
   | { readonly option: 'deny'; readonly reason?: string }                          // 하지 않기
   | { readonly option: 'modify_criteria'; readonly changes: string }               // 기준 고치기
   | { readonly option: 'experiment_first'; readonly experiment?: string }          // 먼저 알아보기 (19 question.requestInquiry)
-  | { readonly option: 'narrow_scope'; readonly instruction: string }              // 범위 줄여 진행. 권리 승인 질문에서는 "범위 줄여 허락": 에이전트가 줄인 인자로 새 승인 질문을 낸다
+  | { readonly option: 'narrow_scope'; readonly instruction: string }              // 범위 줄여 진행. instruction은 사람의 말이다. 구조화 범위는 에이전트가 줄인 범위로 제출하고, 커널이 줄인 범위 ⊆ 원 범위를 검사한다(§3.17.6). 권리 승인 질문에서는 "범위 줄여 허락": 에이전트가 줄인 인자로 새 승인 질문을 낸다
 // 결과 확인(result_review)과 합의 확인(agreement_confirm)은 question.answer로 받지 않는다. 10 result.accept·agreement.confirm만 받는다 [판정 J-124].
 // result.accept의 reopenTo는 'C.commit' | 'I.fact' | 'I.want'(08 정본), 묶어 답한 질문은 bundledAnswers: { questionId, answer: AnswerValue }[]
 
@@ -280,6 +284,8 @@ export type AnswerValue =
 export type AcceptanceDecisionInput = 'accept' | 'accept_with_conditions' | 'request_changes' | 'reject' | 'criteria_wrong';
 // → 08 기록 값: accepted | conditional | revision_requested | rejected | criteria_wrong
 ```
+
+`AnswerValue`와 `AcceptanceDecisionInput`의 정본은 TypeBox 스키마(`Type.Union`, 08 `QuestionKind`와 같은 방식)로 `@helm/domain`에 둔다. 위 TS 형태는 뜻을 보이는 표기다([19 요구]).
 
 `AnswerValue`는 09 `question.answered`의 `value`에 들어간다. 19 `QuestionAnswerParams`(optionId, answer, edits, narrowing)는 이 값으로 바뀐다: optionId가 선택지 키면 `answer`, `edits`만 있으면 `answer.edits`, optionId `narrowed`는 `narrow_scope`(자연어 `narrowing`을 `instruction`으로). `approve_edited`는 클라이언트가 고친 인자 blob과 지문을 보낼 때만이다(19 §3.7.5에 변환 표를 요구).
 
@@ -606,7 +612,7 @@ urgencyOf(q, state, ctx):                                     # 26 §3.4.3, 판�
   return 'digest'                                             # 예약·중재로 묶여 놓임
 ```
 
-- 자리에 없음(`allAway`)은 저장 값이 아니라 14 §3.13.8 `isAway`로 계산한다. 자리에 없어도 푸시를 받을 휴대폰이 있으면 강도를 낮추지 않는다. 휴대폰에는 `interrupt`와 `notice` 질문까지 푸시가 간다 [결정 48]. 푸시를 실제로 보낼 기기는 전달기가 26 §3.4.3 `planPush`로 고른다(§3.5.3).
+- 자리에 없음(`allAway`)은 저장 값이 아니라 14 §3.13.8 `isAway`로 계산한다. 자리에 없어도 푸시를 받을 휴대폰이 있으면 강도를 낮추지 않는다. 휴대폰에는 `interrupt`와 `notice` 질문까지 푸시가 간다 [결정 48]. 다만 `notice` 푸시는 데스크톱 기기가 모두 부재이고 휴대폰이 `active`가 아닐 때만 보낸다([판정 J-172], §3.5.3 규칙 1). 푸시를 실제로 보낼 기기는 전달기가 26 §3.4.3 `planPush`로 고른다(§3.5.3).
 - 방해 금지·조용한 시간에는 질문 기록과 전달 기록은 그대로 하고 강도만 `digest`(OS 알림·푸시 없음, 질문함·배지·복귀 요약)로 낮춘다. 권리 게이트 질문도 같다. 막힌 상태는 화면에 계속 보인다(14 §3.13.5 규칙 4, 05 §3.7.4).
 - 데스크톱 OS 알림의 표시 방식(`surface`)은 강도와 전달 방식으로 정한다(§3.5.6). 협상 전달(`negotiated`)의 `notice`는 기본으로 OS 알림을 띄우지 않는다(02 AC-04-01, 05 설정 "협상 전달 알림", 기본 끔).
 
@@ -615,14 +621,14 @@ urgencyOf(q, state, ctx):                                     # 26 §3.4.3, 판�
 | ID | 조건 | 방식 | 발화 조건 |
 |---|---|---|---|
 | D-1 | 권리 게이트, 막음(`blocks ≠ nothing`) | immediate | now |
-| D-1b | 권리 게이트, 막지 않음(결과 확인, Goal 수정 확인, 미리 묻는 승인) [판정 J-132] | scheduled | 그 Concern의 다음 작업 경계 또는 다음 `review_window` 중 이른 것. 기록은 즉시 하고 가정 확정은 하지 않는다. 가벼운 작업(보관 Concern)의 결과 확인은 하나의 묶음 ID로 모아 한 번에 확인한다 |
+| D-1b | 권리 게이트, 막지 않음(결과 확인, Goal 수정 확인, 미리 묻는 승인) [판정 J-132] | scheduled(결과 확인이고 설정 `notifications.resultReview`가 `immediate`면 immediate, §3.5.7 [판정 J-189]) | 그 Concern의 다음 작업 경계 또는 다음 `review_window` 중 이른 것(`immediate`면 now). 기록은 즉시 하고 가정 확정은 하지 않는다. 가벼운 작업(보관 Concern)의 결과 확인은 하나의 묶음 ID로 모아 한 번에 확인한다 |
 | D-2 | 막힘 있음 그리고 `delayCost` ≥ 즉시 승격 문턱(다이얼 `question.immediate_threshold`) | immediate | now |
 | D-3 | 만료 여유 안(§3.6.3) | immediate (승격) | now |
 | D-4 | 종류별 예외 다이얼(`question.kind_exceptions`)이 이 결정 종류에 방식을 지정 | 지정값 | 방식 기본 |
 | D-5 | 판정 갈래 digest | scheduled | 부재면 `user_return`, 아니면 그 Concern의 다음 `workunit_end`·`round_end`나 `review_window` 중 이른 것 |
 | D-6 | 정보 게이트, C·A 루프, WorkUnit의 정상 경로 사람 조작 예산이 남지 않음(§3.15) | scheduled | `with_result_review` |
 | D-7 | 정보 게이트, `blocks: nothing`, 주의 예산 초과(`ctx.attention.budget == 'over_budget'`, 14 §3.13.5 규칙 2) | scheduled | 다음 `review_window`, 없으면 `user_return` |
-| D-8 | VoI 점수 ≥ 즉시 VoI 문턱(즉시 승격 다이얼: high 9 / normal 9 / low 6) 그리고 시간당 즉시 전달 수 < 상한(14 `interruptsPerHour`, 규칙 3) | immediate | now |
+| D-8 | VoI 점수 ≥ 즉시 VoI 문턱(즉시 승격 다이얼: high 9 / normal 9 / low 6) 그리고 시간당 즉시 전달 수 < 상한(`attention.interruptsPerHour`, 사람 기준 하나, [판정 J-171], 규칙 3) | immediate | now |
 | D-9 | 사람 부재(`allAway`, 또는 방해 금지·조용한 시간), 정보 게이트 | scheduled | `user_return` |
 | D-10 | 그 밖 | 14 `resolveDials`가 낸 `question.default_delivery` 유효값 하나(층 순서로 루프별·사용자 값을 이미 반영) [판정 J-143] | 방식 기본 |
 
@@ -638,7 +644,7 @@ urgencyOf(q, state, ctx):                                     # 26 §3.4.3, 판�
 
 D-10 뒤에 묶음 규칙을 적용한다: 결과 방식이 negotiated이고, 같은 Concern에서 최근 창(설정 "비슷한 시점 창", 기본 10분) 안에 전달된 정보 게이트 질문이 이미 둘 이상이면 scheduled(다음 경계)로 바꾼다(v0.3 06 §3.3 "여러 질문이 비슷한 시점에 생김 → 다음 작업 경계에 예약").
 
-시간당 알림 상한(05 요구 (7))은 D-8의 조건과 묶음 규칙으로 받는다. 권리 게이트(D-1)와 만료 임박 승격(D-3)은 상한에 걸리지 않는다(14 §3.13.5 규칙 3). 시간당 즉시 전달 수는 상태에서 센다(`question.delivered` 중 강도 interrupt, 권리 게이트 제외).
+시간당 알림 상한(05 요구 (7))은 D-8의 조건과 묶음 규칙으로 받는다. 상한은 사람 기준 하나, `attention.interruptsPerHour`(14 기본값)이고 모든 기기의 합이다. 기기별 상한(26 `push.hourlyCap`, 20 `notifications.hourlyCap`)은 두지 않는다([판정 J-171]). 권리 게이트(D-1)와 만료 임박 승격(D-3)은 상한에 걸리지 않는다(14 §3.13.5 규칙 3). 시간당 즉시 전달 수는 상태에서 센다(`question.delivered` 중 방식 `immediate`이고 권리 게이트가 아닌 것, 강도 interrupt·notice). 결과 확인 알림의 푸시(§3.5.7)도 같은 상한을 따르며, 묶음 푸시 하나는 한 번으로 센다.
 
 중재 방식(사용자 기본이나 루프 기본이 `mediated`)이면 질문을 `pending`(`plannedDelivery = null`)으로 두고 지시 `agent.request(mediator)`를 낸다. 중재자 계획을 받으면 적용하고, 대기 시간(설정, 기본 2분, 12 `runtime_timers`의 `mediator_timeout`) 안에 계획이 없으면 런타임이 `delivery.plan`(R, 협상)을 내 negotiated로 놓는다(§3.7).
 
@@ -671,12 +677,12 @@ planDelivery(q, state, ctx, dials, now):
 
 전달 기록:
 
-1. 런타임(데몬의 전달기)이 `notify` 지시를 받아 연결된 클라이언트에 보낸다. 같은 자리에서 26 §3.4.3 `planPush(delivery, presence, devices, settings, now)`를 불러 푸시를 보낼 휴대폰을 고른다. 26 2판의 규칙 요지 [결정 48]: 휴대폰의 기본 `minUrgency`는 `notice`다. `notice` 푸시는 연결된 기기가 하나도 없을 때만, 기기당 시간당 3개까지 보낸다. `interrupt`는 다른 기기가 연결만 되어 있고 그 앞에 사람이 없으면 60초 뒤에 보낸다(런타임 타이머 `push_followup`, 그 사이 열람·답이 있으면 버림). 세부와 수치의 정본은 26이다.
+1. 런타임(데몬의 전달기)이 `notify` 지시를 받아 연결된 클라이언트에 보낸다. 같은 자리에서 26 §3.4.3 `planPush(delivery, presence, devices, settings, now)`를 불러 푸시를 보낼 휴대폰을 고른다. 26 2판의 규칙 요지 [결정 48]: 휴대폰의 기본 `minUrgency`는 `notice`다. `notice` 푸시는 데스크톱 기기가 모두 부재(`isAway`)이고 휴대폰이 `active`가 아닐 때만 보낸다([판정 J-172]). 연결된 기기가 있는지는 조건이 아니다. 시간당 상한은 사람 기준 하나로 모든 기기를 합해 센다(`attention.interruptsPerHour`, [판정 J-171]). 기기별 상한은 두지 않는다. `interrupt`는 다른 기기가 연결만 되어 있고 그 앞에 사람이 없으면 60초 뒤에 보낸다(런타임 타이머 `push_followup`, 그 사이 열람·답이 있으면 버림). 세부와 수치의 정본은 26이다.
 2. 보낸 뒤 `question.mark_delivered`(런타임 채널)를 제출하고 커널이 `question.delivered`를 기록한다(09: 전달 기록 행위자는 runtime). `channel`은 연결된 기기에 보냈으면 `app`, 연결된 기기가 없고 푸시가 하나 이상 받아들여졌으면(`push.sent.outcome = accepted`) `push`, 둘 다 아니면 `brief`다. 푸시가 모두 실패하면 `brief`로 남기고 승격 기회를 쓰지 않는다(V3-043). 26의 `sentCount`는 받아들여진 푸시만 센다. 앱은 이 이벤트를 받았을 때만 OS 알림을 띄운다(19 §3.8.3, 20 APP-D11).
-3. 같은 질문에 알림을 반복하지 않는다. 다른 기기 재전송·재접속 재생은 이벤트를 만들지 않는다(08 §3.22.7).
+3. 같은 질문에 알림을 반복하지 않는다. 다른 기기 재전송·재접속 재생은 이벤트를 만들지 않는다(08 §3.22.7). 결과 확인 묶음 푸시(`daily_digest`, §3.5.7)는 예외다. 질문 상태를 바꾸지 않고 발송 기록(`push.sent`)만 남긴다.
 4. 사람이 질문을 열면 `question.seen`(`seenAt`)이 남는다(J-47). 경로는 하나로 둔다: 19 `presence.report`의 `objectId`가 `qs_`이고 그 질문이 delivered면 연결 계층이 그 기기의 사람 명령으로 `question.mark_seen`을 낸다. 26의 `push_followup` 판정도 이 기록을 쓴다(19에 같은 규칙 요구). 이 이벤트는 레코드의 `revisionSeq`를 올리지 않는다.
 
-같은 사건으로 발화하는 질문들은 하나의 묶음 ID(`plannedDelivery.bundleId`)로 묶여 한 번의 알림(강도 digest)이 된다. 묶음 안의 순서는 §3.5.4의 우선순위다. 묶음 크기 상한은 설정(기본 3)이며 넘는 것은 같은 묶음의 접힌 부분으로 보인다.
+같은 사건으로 발화하는 질문들은 하나의 묶음 ID(`plannedDelivery.bundleId`)로 묶여 한 번의 묶음 전달이 된다(강도 digest: 질문함·배지에 보이고 푸시는 보내지 않는다, §3.5.6). 묶음 안의 순서는 §3.5.4의 우선순위다. 묶음 크기 상한은 설정(기본 3)이며 넘는 것은 같은 묶음의 접힌 부분으로 보인다.
 
 #### 3.5.4 우선순위 (정렬 키)
 
@@ -734,9 +740,26 @@ export interface QuestionDeliveredPayload {    // 09 question.delivered (J-52)
 | notice | negotiated | badge (05 설정 "협상 전달 알림"을 켜면 os) | 보낸다 |
 | digest | 무엇이든 | badge | 보내지 않는다 |
 
+- 결과 확인(`result_review`) 질문의 휴대폰 푸시는 설정 `notifications.resultReview`를 따른다. 이 표는 그 밖의 질문에 적용한다. `none`이면 강도가 `notice`여도 보내지 않는다([판정 J-189], §3.5.7).
 - 대상 기기: 기본은 모든 기기(`'all'`). presence가 `active`인 기기가 있으면 그 기기만 OS 알림, 나머지는 배지(19 §3.8.3 "활동 중인 기기 우선").
 - 문구는 키로 저장하고 앱이 `@helm/ui-language`로 문장을 만든다(J-31). 질문 본문은 넣지 않는다(20 요구, 18 비밀 규칙).
 - 재전송으로 받은 전달 이벤트는 앱이 묶어서 보인다(19 §3.8.3, 20).
+
+#### 3.5.7 결과 확인 대기의 알림 [결정 56: 방식 세 가지 / 판정 J-189: 기본과 묶음 시각]
+
+설정은 두 항목이다. 변경은 `settings.update`(19)로 하고, 기록은 `setting.changed`(09)로 남긴다.
+
+| 설정 | 값 | 기본 | 뜻 |
+|---|---|---|---|
+| `notifications.resultReview` | `none` · `daily_digest` · `immediate` | `none` | 결과 확인 대기 알림의 방식 |
+| `notifications.resultReviewDigestAt` | `"HH:MM"`(서버 시간대) | `"19:00"` | `daily_digest`의 묶음 시각 |
+
+- `none`: 푸시를 보내지 않는다. 결과 확인은 질문함과 복귀 요약에서 한다. §3.5.2 D-1b 그대로다(J-132와 같은 동작).
+- `daily_digest`: 타이머 목적 `result_review_digest`(09 `runtime_timers`)가 `resultReviewDigestAt`에 발화한다. 그 시각에 확인 대기 결과(`result_review` 질문이 열려 있고 답을 받지 않은 것)가 하나 이상이면 묶음 푸시 1개를 강도 `notice`로 보낸다. 없으면 보내지 않는다. 발화한 뒤 다음 날 같은 시각으로 다시 건다. 발송은 `push.sent`로 남고, 질문 상태는 바뀌지 않는다.
+- `immediate`: 결과 확인 질문이 생기면(`question.recorded`) D-1b의 예약 대신 `now`로 놓는다(§3.5.2 D-1b 예외). 강도 `notice`로 푸시 1개를 보낸다. 같은 질문에는 한 번만 보낸다.
+- 두 값 모두 방해 금지(`attention.snoozeUntil`, [판정 J-166])와 시간당 상한([판정 J-171])을 따른다. 방해 금지 중이거나 상한에 걸리면 보내지 않는다. 묶음 푸시는 그날 건너뛰고, 질문함·배지에는 그대로 남는다. 두 값 모두 `notice` 푸시의 부재 조건([판정 J-172])을 따른다.
+- 휴대폰 확인 범위는 [판정 J-139] 그대로다. 휴대폰은 산출물(본문·이미지·변경 요약)을 연 뒤에만 `result.accept`를 받는다. 큰 산출물과 취향형 결과는 데스크톱 전용이고, 휴대폰에서는 미루기만 받는다.
+- 푸시 본문은 문구 키로 낸다([판정 J-31], §3.5.6). 질문 본문은 넣지 않는다.
 
 ### 3.6 임시 가정과 가정 만료점 [결정 12: 임시 가정과 만료점 / 제안: 형식과 판정]
 
@@ -810,6 +833,8 @@ export interface QuestionDeliveredPayload {    // 09 question.delivered (J-52)
 - 권리 게이트 → 만료점이 없다(§3.3.1 규칙 4).
 
 데몬이 꺼져 있던 동안 만료 시각이 지난 경우 [판정 J-142]: 정지 시간이 만료 여유보다 길면 막지 않는 질문의 만료를 "복귀 + 30분"으로 미룬다(복귀는 `user_return`, 없으면 데몬 재시작 시각). 그동안 사람은 알림을 받지 못했기 때문이다. 미룬 뒤에는 승격(D-3)이 다시 한 번 일어난다. 기본은 켬이고 설정 "정지 중 만료 미룸"으로 끌 수 있다. 끄면 이전 규칙대로 승격 없이 바로 만료한다. 만료 판정 조건은 08·10·11 모두 `now ≥ assumptionExpires`(시각형) 또는 해당 사건 커밋(경계·행동형)이다. 어느 경우든 복귀 요약에 "답이 없어 가정대로 정해진 질문 n건"과 항목별 [이의]를 보인다(원인과 관계없이, 04 BriefView에 요구).
+
+벽시계가 앞으로 크게 뛰면(설정, 기본 10분을 넘게) 그 결정에서 시각으로 생기는 확정(가정 만료, 승인 만료)을 보류하고 사람 확인 질문(종류 `other`)을 남긴다(10 R-PURE-3, V3-023). 보류하는 동안 가정과 승인은 그대로 둔다. 판정은 커널의 `ctx.now`로 하고, 제출의 `issuedAt`은 기록과 파생 ID에만 쓴다.
 
 #### 3.6.4 답과 가정의 비교
 
@@ -904,9 +929,11 @@ import type { PresenceState } from "@helm/domain";               // 09: 'active'
 export interface PresenceSnapshot {                              // 14 §3.13.8, 26 §3.4.3이 가리키는 이름
   readonly byDevice: ReadonlyMap<DeviceId, { readonly state: PresenceState; readonly sinceMs: Ms; readonly clientKind: ClientKind }>;
   readonly allAway: boolean;                                     // 모든 기기가 14 isAway (아래)
+  readonly desktopAllAway: boolean;                              // 데스크톱·TUI 기기가 모두 isAway (notice 푸시 조건, [판정 J-172])
+  readonly phoneActive: boolean;                                 // 휴대폰 기기 가운데 active인 것이 있음 ([판정 J-172·J-173])
   readonly activeDevices: readonly DeviceId[];
   readonly pushReachable: readonly DeviceId[];                   // 푸시 등록이 정상이고 폐기·만료되지 않은 기기 (26 §3.4.6 device_push)
-  readonly dnd: boolean;                                         // ctx.attention.dnd (05 §3.7.4, 데몬 설정)
+  readonly dnd: boolean;                                         // 의미 설정 attention.snoozeUntil이 지금 시각 뒤임 (05 §3.7.4, [판정 J-166]. 데몬 설정이 아니다)
   readonly attention: 'normal' | 'over_budget' | 'quiet_hours';  // ctx.attention.budget (14 §3.13.5)
   readonly focus: { readonly screen?: string; readonly objectId?: string } | null;
 }
@@ -916,7 +943,7 @@ export interface PresenceSnapshot {                              // 14 §3.13.8,
 
 - 19·17의 연결 계층이 연결 상태와 19 `presence.report`(active·idle·hidden)를 모아 기기마다 09 값으로 상태를 정하고, 바뀔 때만 `presence.update`를 제출한다(J-110). 커널은 `presence.changed`(state, previous)를 남긴다. 생존 신호와 화면 이동은 휘발이다(09 §3.15.3). 부재(away)는 저장하지 않고 `isAway`로 계산한다.
 - 영속으로 두는 이유: 전달 판정(D-9, `urgencyOf`)이 presence에 따라 달라지므로 같은 로그로 판정을 다시 해 볼 수 있어야 한다. 2판의 "presence는 이벤트가 아니다"(구 ADR-A7)를 뒤집었다.
-- 방해 금지와 주의 예산 상태는 데몬 설정·실행 기록이라 `ctx.attention`으로 받는다(10 §3.1.3). 그 영향은 전달 이벤트(`question.delivered.urgency`)에 남는다.
+- 방해 금지(의미 설정 `attention.snoozeUntil`, `settings.update`로 바꾼다, [판정 J-166])와 주의 예산 상태는 `ctx.attention`으로 받는다(10 §3.1.3). 방해 금지는 데몬 설정이 아니다. 그 영향은 전달 이벤트(`question.delivered.urgency`)에 남는다.
 - 복귀(`user_return`)는 부재였던 사람의 데스크톱·TUI 기기가 `active`가 되는 것이다. 14의 스케줄러가 `runtime.boundary(user_return)`를 낸다. 휴대폰이 `active`가 되는 것은 복귀로 보지 않는다: 밤에 권리 질문 하나를 답하려고 휴대폰을 열었을 때 아침용 묶음이 휴대폰으로 쏟아지지 않게 하려는 것이다(V5-031). 휴대폰에서 연 질문은 그 질문만 답한다.
 
 #### 3.8.2 규칙
@@ -1058,7 +1085,7 @@ Choice가 아닌 결정 레코드(lp, lt, sa, sc, md)는 질문의 답으로 사
 
 ```text
 reworkNeeded(state) = { (source, wu, imp) :
-   source ∈ 열린 이의(desiredEffect reopen, 쓰기 영향 있음) ∪ invalidated 질문 전제(쓰기 영향 있음) ∪ 수정 요청·거절된 결과 확인(`ac`),
+   source ∈ 열린 이의(desiredEffect reopen, 쓰기 영향 있음) ∪ invalidated 질문 전제(쓰기 영향 있음) ∪ 거절된 결과 확인(`ac`, 수정 요청 `request_changes`는 뺀다 [판정 J-180]),
    imp = impactOf(state, source.target), wu ∈ imp.calls의 WorkUnit,
    wu를 reworkOf로 가리키는 WorkUnit이 없음 }
 ```
@@ -1071,10 +1098,10 @@ reworkNeeded(state) = { (source, wu, imp) :
 |---|---|
 | 제안 | 에이전트가 `workunit.propose`에 `reworkOf: { workUnitId, cause: ObjectionId | QuestionId | AcceptanceId, steps? }`(08 §3.7 형식 + 선택 필드 `steps`, 2a 판정 J-54)를 넣는다. 가정이 뒤집힌 경우 cause는 그 질문(`qs`)이다. `steps`는 `rollback(rollbackPointId)` / `redo(description)` / `compensate(description)`의 목록 |
 | 범위 | 쓰기 대상이 기존 합의 범위 안이면 그 합의 아래에서 사람 조작 없이 시작한다(Grant 포함 검사와 같은 원리, 10 §3.6.7). 기록은 재작업 WorkUnit의 `workunit.started`가 기존 합의(`agreementRef`)를 가리키는 것으로 남는다. 범위 밖이면 `gate.scope_expansion_required` |
-| 원래 WorkUnit | 재작업 WorkUnit이 시작되면 원래 WorkUnit은 `submitted`·`accepted`에서 `superseded`가 된다(08 §3.22.3에 이 출발 상태를 요구). 같은 WorkUnit을 다시 제출하는 경로(02 UC-05 단계 4~5)는 쓰지 않는다. 재작업 WorkUnit의 결과 확인은 정상 경로 밖 조작(사유 rework)으로 센다 |
-| 되돌리기 | `purpose: 'rollback'`인 도구 호출(13 §3.7.8)로, 일반 쓰기와 같은 검사를 받는다. 지점 등록 뒤 `coversTargets`에 쓴 호출 중 재작업 대상이 아닌 WorkUnit·합의의 쓰기가 있으면 되돌리기를 막는다(`policy.rollback_point_required` 대신 재작업 계획을 redo로 바꾸거나 사람에게 묻는다, V3-027). 완료되면 지점 `rollback_point.used` |
+| 원래 WorkUnit | 재작업 WorkUnit이 시작되면 원래 WorkUnit은 `submitted`·`accepted`에서 `superseded`가 된다(08 §3.22.3에 이 출발 상태를 요구). 이의·가정 무효로 생긴 재작업은 같은 WorkUnit을 다시 제출하지 않는다(02 UC-05 단계 4~5 경로는 쓰지 않는다). 결과 확인의 수정 요청(`request_changes`)만 같은 WorkUnit을 `in_progress`로 되돌린다([판정 J-180], 08 전이). 재작업 WorkUnit의 결과 확인은 정상 경로 밖 조작(사유 `correction_cycle`, [판정 J-186])으로 센다 |
+| 되돌리기 | `purpose: 'rollback'`인 도구 호출(13 §3.7.8)로, 일반 쓰기와 같은 검사를 받는다. 지점 등록 뒤 `coversTargets`에 쓴 호출 중 재작업 대상이 아닌 WorkUnit·합의의 쓰기가 있으면 되돌리기를 막는다(`policy.rollback_point_required` 대신 재작업 계획을 redo로 바꾸거나 사람에게 묻는다(§3.12 되돌리기 충돌, V3-027). 완료되면 지점 `rollback_point.used` |
 | 보상 | 되돌릴 수 없는 것(발송 등)은 `compensate` 단계로, 새 발송이면 권리 게이트를 다시 거친다 |
-| 끝 | 보통의 `result.submit` → 결과 확인. 결과 확인 질문은 정상 경로 밖 조작(01 R-OP-4 사유 `rework`)으로 센다 |
+| 끝 | 보통의 `result.submit` → 결과 확인. 결과 확인 질문은 정상 경로 밖 조작(01 R-OP-4 사유 `correction_cycle`, [판정 J-186])으로 센다 |
 | 되돌릴 지점 없음 | 계획에 `rollback`이 없을 수 있다(redo만). 결과 확인 때 반영 항목 "가정 아래 변경 재검토"(other)가 생긴다 |
 
 이미 결과 확인을 받은 합의의 일이 재작업 대상이면 결과 확인을 다시 받는다(재작업이 결과를 바꾸므로). 이의가 사람에게서 시작된 것이므로 상한 예외로 센다(§3.15).
@@ -1118,6 +1145,7 @@ Horvitz의 mixed-initiative 원칙 "불확실할수록 서비스 범위를 좁�
 - 사용: 되돌리기 도구 호출(`purpose: 'rollback'`, `rollbackPointId`)이 완료되면 `rollback_point.used`(이의에서 왔으면 `forObjectionId`).
 - 만료: `forAssumptions`가 모두 confirmed가 되고, 가정 확정으로 confirmed된 전제는 이의 가능 기간(설정, 기본 7일)도 지났을 때 `rollback_point.expired`(커널 파생). 가정 확정 뒤에도 이의로 다시 무효가 될 수 있기 때문이다(V3-025). 데몬은 만료된 ref를 정리해도 된다(17).
 - 지점이 덮지 못하는 변경은 `limitations`에 적고 화면에 보인다. 커널은 덮는 범위를 넘어 보장하지 않는다.
+- 되돌리기 충돌: 되돌리기 대상 파일을 지점 이후 무관한 WorkUnit·합의의 호출이 바꿨으면 되돌리지 않는다. 사람에게 정보 게이트 질문(종류 `choice`, `blocks: action`)을 낸다. 선택지는 셋이다: 그 파일을 뺀 되돌리기 / redo(다시 만들기) / 그대로 두기. 13 §3.7.8(T-E39)이 이 질문을 요청한다(12·13 요구). 답에 따라 재작업 계획의 `steps`(§3.10.3)를 고친다. 선택지의 값 이름은 19·05가 정한다(새 이름 요구).
 
 ### 3.13 자동 검증 가능한 선택 [제안]
 
@@ -1149,6 +1177,7 @@ Mastra 검토 §4의 "승인 때 도구 이름과 인자의 지문을 저장하�
 | 대조 실패 (지문 다름, 이미 소진, Concern 다름) | `gate.approval_mismatch`. 새 인자로 다시 묻는다 (10 E-12) |
 | 승인 유효 기간 경과 | 09 `p_timers` `approval_expiry` → `approval.expired`. 그 뒤 실행 시도는 대조 실패와 같다. 승인된 호출을 이어받을 run이 예산 한도로 `queued`에 머무는 동안은 만료 시각을 세지 않는다(예산 대기 시간만큼 `expiresAt`을 미루는 `approval.issued` 갱신은 두지 않고, 12가 승인 실행만 하는 단계를 예산 검사에서 빼는 쪽을 권한다, V3-031) |
 | 합의 취소·Concern 닫힘·run 취소 | 도구 호출 `toolcall.not_executed`(cancel), 승인이 남아 있으면 `approval.expired`(`revoked: true`), 질문이 열려 있으면 `question.expired` |
+| 복원 표지 뒤 첫 부팅(안전 모드) | 소진되지 않은 승인은 `approval.expired`(사유 `restored`)로 닫는다. 소진된 승인과 실행된 호출은 그대로 둔다. 승인 실행 run은 자동으로 재개하지 않는다([판정 J-152], 09 복원 표지) |
 
 한 번 허락으로 같은 행동을 여러 번 하려면(예: 메일 열 통) 질문 단계에서 묶음 행동으로 묻고 지문을 묶음 지문(인자 목록의 정규화 해시)으로 둔다. 실행은 항목마다 도구 호출 하나로 하고 각 호출이 묶음 승인의 항목 지문과 대조한다. 중간에 끊기면 끝난 항목은 완료로, 끊긴 항목 하나만 결과 불명으로 남아 `recovery` 질문의 선택지가 그 항목에만 걸린다(V3-028). 같은 지문을 여러 번 쓰는 승인은 만들지 않는다.
 
@@ -1173,7 +1202,7 @@ Mastra 검토 §4의 "승인 때 도구 이름과 인자의 지문을 저장하�
 | 권한 이어 쓰기 | 커널 10 §3.6.7 | 처음 지시에서 만든 Grant(조작 1) 안의 합의는 사람 확인 없이 활성화. 그러면 결과 확인(조작 2)까지 두 번 |
 | 합의 확정 생략 | 커널 10 §3.6.7, 01 R-OP-2 | (a) 사람이 확정한 구조화 범위 안임을 커널이 증명할 때(Grant 포함 검사), (b) 직접 지시의 echo를 사람 채널 `agreement.propose`+`confirmNow`로 받을 때 |
 | 결과 확인 묶음 | 이 문서 D-6 | C·A 루프의 정보 게이트 질문은 WorkUnit 예산이 남지 않았으면 결과 확인과 함께 묶는다(`with_result_review`). 사람은 결과 확인 한 번에 함께 답한다(`result.accept.bundledAnswers`) |
-| 판단 확인 묶음 | 14 §3.13.7 | `finding_confirm`은 다음 C의 `agreement_confirm`과 같은 묶음 ID(`bundleId`)로 놓는다 |
+| 판단 확인 묶음 | 14 §3.13.7 | `finding_confirm`은 그 판단을 근거로 한 선택 요청이 있으면 그 선택 질문에 묶고(선택하면 판단도 확인된다), 없으면 다음 C의 `agreement_confirm`과 같은 묶음 ID(`bundleId`)로 놓는다(§3.2.2 `finding_confirm` 행과 같다) |
 | 반영 항목 방침 묶음 | 14 §3.13.7, 01 R-OP-3 | 반영 항목의 지금 처리·미루기는 결과 확인 한 번 안에서 함께 고른다 |
 | 예산 계산 | 커널 순수 함수 | `remaining(WU) = 2 - normalOps(WU) - (결과 확인 전이면 1)`. 0이면 D-6 적용 |
 | 권리 게이트 예외 | D-1 | 권리 게이트는 묶지 않는다(제때 묻지 않으면 행동이 막힌다). 정상 경로 밖으로 센다 |
@@ -1206,7 +1235,7 @@ C와 A가 가장 많이 건너뛰어지므로 다음은 어떤 모드·다이얼
 | `question.kind_exceptions` | 결정 종류 → 항상 묻기 / 절대 묻지 않기 / 방식 지정 | 없음 | D-4. 항상 묻기·묻지 않기는 정책 규칙으로도 저장(10 §3.6.4) |
 | `question.per_loop` | 루프 → 위 값들 | §3.5.2 표 | D-10 |
 
-다이얼이 아닌 질문 설정(사람이 바꾸지만 모드·루프로 층을 두지 않는 값). 14의 설정(`OrchestrationSettings`)에 두고 명령은 `setting.change`(10 §3.11.11, 19 `settings.update`)다.
+다이얼이 아닌 질문 설정(사람이 바꾸지만 모드·루프로 층을 두지 않는 값). 14의 설정(`OrchestrationSettings`)에 두고 명령은 `setting.change`(10 §3.11.11, 19 `settings.update`)다. 변경 기록은 `setting.changed`(09)다([판정 J-94]).
 
 | 설정 | 기본 | 의미 |
 |---|---|---|
@@ -1217,7 +1246,10 @@ C와 A가 가장 많이 건너뛰어지므로 다음은 어떤 모드·다이얼
 | 중재자 대기 | 2분 | §3.7 |
 | 승인 유효 기간 | 24시간 | §3.14 |
 | 검토 시간대 | 09:00 하나 | 경계 `review_window`, 중재자 입력 |
-| 방해 금지 | 꺼짐 | 05 §3.7.4. 켜져 있으면 away로 본다 |
+| 방해 금지 `attention.snoozeUntil` | 없음 | 05 §3.7.4. 그 시각까지 알리지 않는다. 켜져 있으면 away로 본다(14 `isAway`의 입력). 의미 설정이며 데몬 설정이 아니다([판정 J-166]) |
+| 시간당 알림 상한 `attention.interruptsPerHour` | 14 기본값 | 사람 기준 하나, 모든 기기의 합. 기기별 상한은 두지 않는다([판정 J-171]) |
+| `notifications.resultReview` | `none` | 결과 확인 대기 알림 방식. `none`(알리지 않음), `daily_digest`(묶음 푸시 1개), `immediate`(질문마다 푸시 1개). [결정 56, 판정 J-189], §3.5.7 |
+| `notifications.resultReviewDigestAt` | `"19:00"` | `daily_digest`의 묶음 시각(서버 시간대). 타이머 목적 `result_review_digest`([판정 J-189]) |
 
 다이얼은 어느 값에서도 §3.3.1 권리 게이트 처리 규칙 2(가정 없음), V-Q-02(응답 선택지), 혼자 정한 결정 기록을 바꾸지 못한다(브리프 결정 17). 16의 다이얼 조정 제안(D10)이 다룰 수 있는 키는 위 다이얼 여덟 개와 설정 중 묶음 크기·비슷한 시점 창·화면 표시 수다(16 요구 (3)).
 
@@ -1283,7 +1315,8 @@ C와 A가 가장 많이 건너뛰어지므로 다음은 어떤 모드·다이얼
 | open | 재결정 답이 원래와 같음, 또는 `objection.dismiss` | dismissed | 사람. 에이전트는 이의를 혼자 기각하지 않는다 |
 | open | `objection.withdraw` | withdrawn | 사람. 또는 이의 검토 전에 대상이 이미 대체·철회되어 커널이 닫음(10 G-K6) |
 | open | 대상 대체·철회 (새 선택 `supersedes`, `choice.revoke`) | upheld | 커널 |
-| (재작업) | 재작업 필요(계산) → `reworkOf` WorkUnit 제안 → 결과 확인 | | G-K2가 원래 WorkUnit의 새 쓰기를 막음 |
+| (재작업: 이의·가정 무효·거절) | 재작업 필요(계산) → `reworkOf` WorkUnit 제안 → 결과 확인 | | G-K2가 원래 WorkUnit의 새 쓰기를 막음 |
+| 결과 확인 질문 | `result.accept`(`request_changes`, 수정 요청) | 같은 WorkUnit `in_progress`. 재작업 WorkUnit을 만들지 않는다 | 08 전이, [판정 J-180] |
 
 #### 3.17.5 권리 승인 (도구 호출, 질문, 승인 블록)
 
@@ -1320,7 +1353,7 @@ interface QuestionRaisePayload {
 interface QuestionAnswerPayload { questionId: QuestionId; answer: AnswerValue; note?: string }   // + envelope basisSeq
 interface QuestionDeferPayload {                // 19 QuestionDeferParams에서 만든다
   questionId: QuestionId;
-  until: { kind: 'boundary'; boundary: 'next_work_boundary' | 'user_return' }   // 19 nextWorkBoundary / nextBrief. user_return은 데스크톱·TUI 복귀만이므로 "다음 데스크톱 접속까지"(03·26 휴대폰 기본값)와 같다
+  until: { kind: 'boundary'; boundary: 'next_work_boundary' | 'user_return' }   // 19 nextWorkBoundary / nextBrief. 휴대폰 미루기의 기본은 next_work_boundary다(03·26 기본, 그 Concern의 다음 작업 경계). user_return은 데스크톱·TUI 복귀만이므로 "다음 데스크톱 접속까지"와 같다([판정 J-173])
        | { kind: 'at'; at: Ms }
        | { kind: 'condition'; label: string };  // 기계 판정 불가. 다음 user_return에 다시 놓고 조건 문장을 보인다
   deadline?: Ms;                                // 권리 질문에 사람이 마감을 정할 때 (J-49)
@@ -1429,6 +1462,7 @@ interface PresenceUpdatePayload { deviceId: DeviceId; state: PresenceState }
 | 04·05·21 | 질문 화면 필드, 응답과 처리, 강도별 표시, "에이전트가 정한 것" 항목, 복귀 요약 순서, 우선순위와 `priorityReason` |
 | 19 | 질문 명령과 메서드 대응, `question.defer`의 `until` 형식, 전달 payload |
 | 20 | 전달 payload(§3.5.6), 강도별 표시 |
+| 19·26·04·05 | 결과 확인 알림 규칙(§3.5.7): 설정 두 항목, `result_review_digest` 타이머, 강도 `notice`, 방해 금지·상한·부재 조건 |
 
 ### 5.2 다른 문서에 요구하는 것
 
@@ -1446,9 +1480,10 @@ interface PresenceUpdatePayload { deviceId: DeviceId; state: PresenceState }
 | 19 (P12) | (1) 메서드 → 커널 명령 대응은 10 §3.11.11 (2)·§3.18 끝으로. (2) `QuestionDeferParams.until`을 §3.18 `QuestionDeferPayload`로 변환. (3) "지금 보기" 메서드(`question.escalate`)와 질문 열람 신호(`question.mark_seen`). (4) 질문 뷰에 형식별 응답과 `priorityReason`. (5) `brief.acknowledge`의 `note` |
 | 20 (P13) | 전달 payload를 §3.5.6으로 읽는다(`channel`과 `surface` 구분, urgency 세 값). 문구는 키(J-31) |
 | 05·04·21 (P2, P14) | 질문 카드: 질문 문장 구성과 응답, 강도별 표시, 접힘 규칙(권리·막는 질문은 접지 않음), "에이전트가 정한 것" 피드와 이의 버튼(사유는 선택 입력, J-20, `desiredEffect` 세 가지), 이의 영향 미리보기, 권리 게이트 카드의 인자 미리보기·수정, 미루기의 만료 경고, 문구 키 `question.reason.*`·`question.priority.*` |
-| 17·20 (P11, P13) | 방해 금지 설정을 데몬 설정으로 두고 `KernelContext.attention`에 넣는다. 클라이언트가 없을 때의 외부 알림 경로는 1단계 범위 밖(26이 모바일 경로를 정한다) |
+| 17·20 (P11, P13) | 방해 금지는 데몬 설정이 아니라 의미 설정 `attention.snoozeUntil`이다([판정 J-166], 14·19). 커널은 그 값을 `KernelContext.attention`으로 받는다. 시간당 알림 상한은 `attention.interruptsPerHour` 하나(모든 기기의 합)로 두고, 기기별 상한(20 `notifications.hourlyCap`, 26 `push.hourlyCap`)은 두지 않는다([판정 J-171]). 클라이언트가 없을 때의 외부 알림 경로는 1단계 범위 밖(26이 모바일 경로를 정한다) |
 | 08·09 (P5, 4단계) | (1) J-120: assumed 뒤 늦은 답 전이 삭제, `question.assumed`가 revisionSeq를 올림. (2) `triad` 반응 → `question.answered` 파생, 라운드 닫힘 → `stimulus_round` 질문 `withdrawn(round_closed)`. (3) `ToolCall.editedFrom`, `toolcall.denied(edited_by_human)`(J-121). (4) `workunit.scope_exceeded.requested`를 구조화 `ResourceScope[]`로. (5) 재작업 원 WorkUnit의 `superseded` 출발 상태 |
-| 26 (P15, 4단계) | `planPush`의 규칙(minUrgency notice, notice는 연결 기기 없을 때만·시간당 3, interrupt 60초 지연)과 `sentCount`는 받아들여진 푸시만 셈. 이 문서 §3.5.1·§3.5.3·§3.5.6과 맞춘다 |
+| 26 (P15, 4단계) | `planPush`의 규칙(minUrgency notice, notice는 데스크톱 기기가 모두 부재이고 휴대폰이 active가 아닐 때만, 상한은 사람 기준 하나이고 기기별 `push.hourlyCap`은 두지 않음, interrupt 60초 지연)과 `sentCount`는 받아들여진 푸시만 셈([판정 J-171·J-172]). 휴대폰 active는 `user_return`이 아니다([판정 J-173]). 결과 확인 알림은 §3.5.7을 따른다. 이 문서 §3.5.1·§3.5.3·§3.5.6과 맞춘다 |
+| 19·09·04·05·26 (결정 56, 판정 J-189) | `notifications.resultReview`·`notifications.resultReviewDigestAt`을 19 `settings.update`의 `notifications` 섹션으로 바꾸고, 기록은 09 `setting.changed`다. 타이머 목적 `result_review_digest`를 09 `runtime_timers`에 둔다. 설정 항목과 문구 키는 04·05가 정한다 |
 | 02·03·04 (P1, P2, 4단계) | 늦은 답 화면은 3008 + 이의 초안(J-120). 복귀 요약에 "답이 없어 가정대로 정해진 질문 n" 줄과 항목별 [이의]. "에이전트가 정한 것" 배지는 점, 항목별 [봤음] 없음. 권리 질문 카드에 커널 구조 값과 모델 문장 구분, scope_change 카드의 범위 차이 |
 | 18 (P11) | 권리 범주 판정 규칙, `disclose_data`를 고정 범주로 둘지(대화 b1), 인자 미리보기의 비밀 가림 |
 | 23 | C/A 명령과 질문 핵심(권리 게이트, 결과 확인, 가정·만료)을 첫 마일스톤에 |
@@ -1473,6 +1508,14 @@ interface PresenceUpdatePayload { deviceId: DeviceId; state: PresenceState }
 | 19 | (1) 전달 payload (2) 메서드와 종류·전이 대응, `defer`의 `until`, 권리 게이트의 `proceedWithAssumption` 거부 (3) `presence.report` 사용 규칙 (4) `BriefAcknowledgePayload.note` | (1) §3.5.6 (2) §3.18 끝, V-Q-07 (3) §3.8.1 (4) §3.18 |
 | 20 | 전달 payload 필드, `locked`는 데스크톱이 보내지 못함 | §3.5.6, Q-E20(`locked`는 쓰지 않는다, J-119) |
 | 21 | 이의 사유 선택, 가정 확정 뒤 답을 이의로 | §3.10.1(사유 선택, J-20), §3.6.4 늦은 답(J-120: 거부하고 이의 초안으로) |
+| 17·20·26 (J-166·J-171·J-172) | 방해 금지의 위치(의미 설정), 시간당 상한의 기기별 제거, `notice` 푸시 조건(데스크톱 부재 + 휴대폰 active 아님) | §3.5.2 D-8, §3.5.3 규칙 1, §3.8.1, §3.16 |
+| 19·09·26 (결정 56, J-189) | 결과 확인 알림 설정 두 항목과 묶음 푸시, 타이머 목적 `result_review_digest`, 설정 변경 `settings.update`·`setting.changed` | §3.5.7, §3.16 |
+| 02 (4b 요구) | 재작업 사유 `rework`를 `correction_cycle`로 | §3.10.3 |
+| 03·26 (4b 요구) | 휴대폰 미루기의 기본은 `next_work_boundary`, "다음 데스크톱 접속" 조건 | §3.18 `QuestionDeferPayload` |
+| 12·13 (4b 요구) | 되돌리기 충돌 질문의 종류와 선택지(그 파일 빼기 / redo / 그대로) | §3.12 |
+| 17·18 (4b 요구) | 복원 뒤 소진되지 않은 승인의 만료, 시계 앞쪽 점프 때 가정 만료 보류 | §3.14, §3.6.3 |
+| 19 (4b 요구) | `AnswerValue`의 TypeBox 정의, `narrow_scope`의 구조화 범위 주체 | §3.2.3 |
+| 14 (4b 요구) | `finding_confirm` 묶기 | §3.15.2 |
 
 ## 6. 구현 단위와 완료 기준
 
@@ -1520,12 +1563,13 @@ ID `AQ-nn`은 22 시험 추적표가 가리키는 번호다.
 | AQ-15 | 승인 | 지문 일치 1회 소진(`approval.consumed`), 다른 인자 거부, `approve_edited`는 원 호출 denied(edited_by_human) + 결정적 새 tcId(`editedFrom`)로 실행, 유효 기간 경과 `approval.expired`, 재시작 뒤 승인된 호출 재개 |
 | AQ-16 | 사람 조작 | Grant + 결과 확인 = 정상 경로 2회로 끝나는 C/A 대본. C 단계 정보 질문이 결과 확인 묶음으로 가는지. 권리 게이트는 정상 경로 밖으로 셈 |
 | AQ-17 | 승인 극장 방지 | 진행 확인 종류·I.want의 choose_one 거부, 필수 선택지 없는 종류 적재 거부 |
-| AQ-18 | 푸시 | 모든 기기 부재 + 푸시 등록 기기 있음 → 막는 권리 질문 `interrupt`, 막지 않는 정보 질문 승격 `notice`, 전달 channel `push`. 푸시 등록 없음 → `digest`, channel `brief`. 방해 금지 → `digest` [결정 48] |
+| AQ-18 | 푸시 | 모든 기기 부재 + 푸시 등록 기기 있음 → 막는 권리 질문 `interrupt`, 막지 않는 정보 질문 승격 `notice`, 전달 channel `push`. 데스크톱 기기가 모두 부재이고 휴대폰이 `active`가 아니고 푸시 등록 기기가 있으면 `notice` 푸시를 보낸다(데스크톱 기기가 하나라도 있으면 보내지 않음, [판정 J-172]). 푸시 등록 없음 → `digest`, channel `brief`. 방해 금지 → `digest` [결정 48] |
 | AQ-19 | 늦은 답 | `assumed` 질문에 온 답 → `conflict.already_resolved` + `assumedValue` + 다음 행동 `objection.file`, 질문 상태 그대로 (J-120) |
 | AQ-20 | 정지 중 만료 | 정지 시간이 만료 여유보다 길면 만료를 복귀 + 30분으로 미룸, 설정을 끄면 바로 만료 (J-142) |
 | AQ-21 | 고쳐서 허락 | 원 호출 denied(edited_by_human) + 결정적 새 tcId(`editedFrom`) 한 트랜잭션, 같은 지시를 두 번 처리해도 새 호출 하나 (J-121) |
 | AQ-22 | 막지 않는 권리 질문 | 결과 확인은 다음 작업 경계·검토 창에 놓이고 가정 확정 없음. 가벼운 작업 결과 확인은 한 묶음 (J-132) |
 | AQ-23 | 휴대폰 복귀 | 휴대폰이 active가 되어도 `user_return` 묶음이 발화하지 않는다 |
+| AQ-24 | 결과 확인 알림 | `none`(기본)이면 결과 확인 푸시가 없다. `daily_digest`는 `resultReviewDigestAt`에 확인 대기 결과가 하나 이상이면 묶음 푸시 1개(강도 notice), 없으면 0개다. `immediate`는 결과 확인 질문마다 notice 푸시 1개다. 두 값 모두 방해 금지·시간당 상한·부재 조건에서 막히면 보내지 않는다. 휴대폰은 산출물을 연 뒤에만 accept를 받는다(J-139). [결정 56, 판정 J-189] |
 
 ## 7. 미결 사항
 
@@ -1534,7 +1578,7 @@ ID `AQ-nn`은 22 시험 추적표가 가리키는 번호다.
 | A-1 | 질문 조건 AND/OR 사용자 선택 | (a) AND만 (b) OR 옵션 추가 | (a). 2~4주 사용 뒤 Concern당 질문 수와 이의 비율로 결정(브리프 결정 16) |
 | A-2 | 문턱 수치 (c2: major/material/minor, c3: 6/4/2, VoI 즉시 9/9/6) | 수치 | 그대로 시작, 16 지표로 조정 |
 | A-3 | 권리 게이트 시간 만료 | 2a 판정 J-49로 정리됨: 시스템이 정하지 않고, 사람이 정한 마감(`deadline`)만 | - |
-| A-4 | 사람 부재 시 외부 알림 | [결정 47·48]로 정리됨: 휴대폰 Web Push, `interrupt`·`notice`까지. 경로·기기 고르기는 26 §3.4.3 | - |
+| A-4 | 사람 부재 시 외부 알림 | [결정 47·48]로 정리됨: 휴대폰 Web Push, `interrupt`·`notice`까지. 경로·기기 고르기는 26 §3.4.3. 결과 확인 알림 방식은 [결정 56, 판정 J-189]로 정리됨(§3.5.7) | - |
 | A-5 | presence를 기준 원본에 둘까 | 2a 판정 J-46·J-64로 정리됨: 상태가 바뀔 때만 영속 `presence.changed` | - |
 | A-6 | 가정 확정 뒤 질문을 닫을까 | 판정 J-120으로 정리됨: assumed로 닫고 늦은 답은 거부, 이의로 보낸다 | - |
 | A-7 | `decision.confirm`을 사람 조작으로 셀까 | (a) 별도 셈(상한 제외) (b) 포함 | (a). 사람이 시작한 조작 |

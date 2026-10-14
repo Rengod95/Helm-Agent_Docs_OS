@@ -3,7 +3,7 @@
 - 소유: P5 (도메인)
 - 작성: 2026-10-11, 1단계 초안
 - 패키지: `@helm/domain` (브리프 §3.1)
-- 기준 결정: 브리프 결정 1~51(사용자 결정 1~25·38~43·47~51, 조정자 기본값 26~37, 조정자 판정 44~46), 판정 J-01~J-152
+- 기준 결정: 브리프 결정 1~57(사용자 결정 1~25·38~43·47~57, 조정자 기본값 26~37, 조정자 판정 44~46), 판정 J-01~J-189
 - 함께 읽을 문서: [09-event-store.md](09-event-store.md) (이벤트 envelope, 카탈로그, 저장), `10-kernel.md` (명령, 검증 규칙 집행), `11-asking-and-autonomy.md` (질문 전달, 혼자 정한 결정의 흐름), `14-loops-modes-orchestration.md` (루프·모드·다이얼), `15-inquiry-engine.md` (탐구 실행)
 
 ## 1. 목적과 범위
@@ -61,6 +61,7 @@ Helm이 기록하는 모든 레코드와 엔티티의 타입, ID, 행위자, 관
 | [결정] 14 모델은 제안하고 커널이 상태를 바꾼다 | 모든 레코드는 이벤트로만 생긴다. 레코드 타입은 투영 결과의 모양이다 (§3.1.4) |
 | [결정] 15(1)~(3) 의존 규칙 | 쓰기 시점 참조 제약 R-05, R-17, R-13 (§3.20) |
 | [제안] 15(4)(5) | 제약 R-34, R-35. [제안]으로 표시한다 |
+| [결정] 53 루프 계획 혼합 | 계획 작성 방식 다이얼 `planAuthoring`(§3.11), `PlanFlags.outOfPattern`과 `LoopPlanCore.authoredBy`(§3.15), 제안 종류 `loop_plan_draft`(§3.3.4). 계획 검사 규칙은 R-29와 10이 집행한다 |
 | [결정] 17 불변조건 1~7 | §3.24에서 타입 수준 대응을 적는다 |
 | [결정] 18 대안 2~3개 고르기 거부, 반응 기록 | 원함 탐구에는 고르기형 질문 타입이 없다. 반응(Reaction) 타입이 요소 단위 반응과 이유 없는 반응을 받는다 (§3.17) |
 | [결정] 24 혼자 쓰는 앱 | 사람 행위자는 `human` 하나다. 팀·CollectiveActor·다중 사용자 권한은 두지 않는다 |
@@ -385,7 +386,8 @@ export const Via = Type.Union([
     listener: Type.Optional(Enum(["tailnet", "loopback", "local"])),   // 19 ListenerKind (판정 §2)
     connectionId: Type.Optional(Id("cx")),                                                                         // 18·19
   }, { additionalProperties: false }),
-  Type.Object({ kind: Type.Literal("local_cli"), uid: Type.Integer({ minimum: 0 }) }, { additionalProperties: false }),
+  /** interactive: 대화형 연결의 종류([판정 J-135], 18 §3.5 규칙 6). null은 비대화 localAdmin(스크립트, 타이머, SSH 발급)이다 */
+  Type.Object({ kind: Type.Literal("local_cli"), uid: Type.Integer({ minimum: 0 }), interactive: Nullable(Enum(["tui", "tty_cli"])) }, { additionalProperties: false }),
   /** 실행(rn)이 아닌 보조 프로세스. 1차는 관찰 에이전트 프로세스 (16) */
   Type.Object({ kind: Type.Literal("process"), name: Type.Literal("observer"), pid: Type.Optional(Type.Integer()) }, { additionalProperties: false }),
   Type.Object({
@@ -398,7 +400,7 @@ export const Via = Type.Union([
 export type Via = Static<typeof Via>;
 ```
 
-`local_cli`는 서버에서 관리 CLI(`@helm/cli`)를 실행한 경우다. Node에는 소켓 피어 uid를 읽는 기본 API가 없으므로(18 §3) 근거는 소켓 파일 권한(소유자만 접근)이다. `uid`는 데몬 자신의 uid를 적는다. 인정 조건은 18이 정한다.
+`local_cli`는 서버에서 관리 CLI(`@helm/cli`)를 실행한 경우다. Node에는 소켓 피어 uid를 읽는 기본 API가 없으므로(18 §3) 근거는 소켓 파일 권한(소유자만 접근)이다. `uid`는 데몬 자신의 uid를 적는다. 인정 조건은 18이 정한다. `interactive`는 대화형 연결이면 `tui` 또는 `tty_cli`이고, 비대화형이면 `null`이다. 사람 결정은 대화형 연결에서만 받는다([판정 J-135]).
 
 #### 3.3.3 능력 두 층 [결정 4]
 
@@ -422,7 +424,7 @@ v0.3 07 §2.4 표를 데이터로 옮긴다. 이 표는 상황과 무관한 A다
 export type ProposalKind =
   | "interpretation" | "possibility" | "assumption" | "open_question" | "check"
   | "promotion" | "choice" | "agreement" | "agreement_scope_change" | "result"
-  | "question" | "expectation" | "prediction" | "loop_plan" | "loop_transition"
+  | "question" | "expectation" | "prediction" | "loop_plan" | "loop_plan_draft" | "loop_transition"
   | "situation" | "structure_change" | "mode" | "probe" | "stimulus"
   | "preference_criterion" | "reflection" | "obligation" | "counter_evidence"
   | "goal" | "goal_revision" | "delivery_plan" | "policy_proposal" | "procedure_candidate"
@@ -461,7 +463,7 @@ export const CAPABILITY_TABLE: Readonly<Record<
 };
 ```
 
-`runtime` 행위자가 `declaredBy`(모델 선언을 반영한 run id. envelope에는 `via = { kind: "run", runId }`로 남는다)와 함께 낸 구조 명령은 그 run 역할의 행으로 검사하고, 만들어진 레코드의 `Autonomy.decidedBy`는 그 역할이다(10 K-13). `declaredBy` 없이 코드 규칙으로 정한 것은 `kernel` 행으로 검사한다. `agent:work`는 `delivery_plan`, `policy_proposal`, `procedure_candidate`, `mode`를 뺀 모든 종류를 제안할 수 있다. `goal`, `goal_revision`, `agreement`, `result`, `choice`(혼자 정한 결정)는 제안할 수 있지만 확정은 사람(accept)이나 정책이 한다. `ProposalKind`의 이름과 명령의 대응은 10이 정한다.
+`runtime` 행위자가 `declaredBy`(모델 선언을 반영한 run id. envelope에는 `via = { kind: "run", runId }`로 남는다)와 함께 낸 구조 명령은 그 run 역할의 행으로 검사하고, 만들어진 레코드의 `Autonomy.decidedBy`는 그 역할이다(10 K-13). `declaredBy` 없이 코드 규칙으로 정한 것은 `kernel` 행으로 검사한다. `agent:work`는 `delivery_plan`, `policy_proposal`, `procedure_candidate`, `mode`를 뺀 모든 종류를 제안할 수 있다. `goal`, `goal_revision`, `agreement`, `result`, `choice`(혼자 정한 결정)는 제안할 수 있지만 확정은 사람(accept)이나 정책이 한다. `ProposalKind`의 이름과 명령의 대응은 10이 정한다. `loop_plan_draft`(계획 플래그와 모델 계획 초안)는 작업 에이전트가 낸다. 모델이 계획 전체를 쓰는 것은 다이얼 `planAuthoring`이 허용할 때뿐이다([판정 J-188]).
 
 표의 근거와 해석:
 
@@ -1126,7 +1128,7 @@ export const WorkUnit = Obj({
 
 - `workKind`가 `inquiry`이고 `plannedPrimitives`에 write·send가 없으면 합의 없이 시작할 수 있다(의존 규칙 1의 반대 방향, 대화 L2129 "읽기만 하는 작업은 합의 없이 진행").
 - 원함 탐구의 초안·시안 같은 Helm 저장 공간 산출물은 제안(propose)으로 기록한다(write로 보지 않는다)(14 D10, 15). 프로젝트 파일을 쓰는 탐구 WorkUnit은 압축된 합의(Grant, 사람이 고른 선택의 범위, 직접 지시)를 가진다(v0.3 03 §5 "C는 짧게 압축될 수 있음").
-- 재작업 경로(11 방식): 결과 제출 뒤 이의·가정 무효·결과 확인 거절로 재작업이 필요하면, 커널이 `reworkOf`를 가진 새 WorkUnit을 만들고 원 WorkUnit은 같은 트랜잭션에서 `superseded`가 된다(§3.22.3). 새 WorkUnit은 원 WorkUnit의 활성 합의를 이어받지 않는다. 합의 승계 여부와 방법은 10 §3.6이 정한다. 결과 확인 횟수 계산에서 재작업 WorkUnit은 정상 경로가 아니라 재작업으로 센다(16).
+- 재작업 경로(11 방식): 결과 제출 뒤 이의·가정 무효·결과 확인 거절로 재작업이 필요하면, 커널이 `reworkOf`를 가진 새 WorkUnit을 만들고 원 WorkUnit은 같은 트랜잭션에서 `superseded`가 된다(§3.22.3). 재작업 범위가 원 WorkUnit의 활성 합의 범위 안이면 그 합의 아래에서 사람 조작 없이 시작한다. 새 합의는 만들지 않고, 새 WorkUnit의 `agreementId`가 기존 합의를 가리킨다(R-05). 이때 합의는 `released`되지 않는다. 범위 밖이면 제안이 `gate.scope_expansion_required`로 거부된다. 이 승계 규칙의 명령 쪽 검사는 10 §3.6이 정한다([판정 J-158]). 결과 확인의 수정 요청(`revision_requested`)은 같은 WorkUnit을 `in_progress`로 되돌린다. 재작업 WorkUnit과 다른 경로다([판정 J-180]). 결과 확인 횟수 계산에서 재작업 WorkUnit은 정상 경로로 세지 않고 재작업으로 센다(16).
 - 상태 기계: §3.22.3.
 
 ### 3.8 E 레코드 1: Observation, Assumption, OpenQuestion
@@ -1617,10 +1619,11 @@ const ChoiceCommon = {
     Type.Literal("auto_verified"),        // 자동 검증 결과로 정함
   ]),
 };
+/** 사람이 정한 선택의 core. 권리 게이트 결정은 이 변형만 가능. 19 ChoiceCommitParams.core와 10 ChoiceCommitPayload.core가 이 이름을 쓴다 */
+export const ChoiceHumanCore = Obj({ ...ChoiceCommon, gate: Type.Union([Type.Literal("rights"), Type.Literal("information")]),
+        autonomy: HumanDecision });
 export const ChoiceCore = Type.Union([
-  /** 사람이 정함. 권리 게이트 결정은 이 변형만 가능 */
-  Obj({ ...ChoiceCommon, gate: Type.Union([Type.Literal("rights"), Type.Literal("information")]),
-        autonomy: HumanDecision }),
+  ChoiceHumanCore,
   /** 혼자 정한 결정. 정보 게이트만 */
   Obj({ ...ChoiceCommon, gate: Type.Literal("information"),
         autonomy: AutonomousDecision /* whyNotAsked 필수 */ }),
@@ -1636,6 +1639,7 @@ export const Choice = MergeEach(
 ```
 
 - `reviewTrigger`가 `null`이어도 기록은 되지만 품질은 `structural`에 머문다. 단, 혼자 정한 결정이고 `whyNotAsked`가 `info_gate`이며 거짓 조건에 2(결과가 실질적으로 바뀌지 않음)가 있으면 다시 볼 조건 없이 `qualified`가 될 수 있다(변수 이름 같은 사소한 결정, v0.3 06 §4.2 예시 CH-22).
+- 사람이 정한 선택의 `reviewTrigger`가 충족되면(`record.staled`의 원인 `review_trigger_fired`, §3.4.3) 같은 결정점의 재결정 질문을 낸다. 이 규칙은 MVP에 넣는다. 측정 지표 조건(`observation_metric`)의 자동 판정은 2단계로 둔다([판정 J-138]).
 - 원전 Decision 보존 항목 13(F03 §8)과의 대응: decision question = `question`, why now = `whyNow`, decision owner = `autonomy.decidedBy`, alternatives = `alternatives`, evaluation criteria = `evaluationCriteria`, supporting and counterevidence = `basis` + 근거 레코드의 링크, assumptions and uncertainty = `basis` 안의 전제·열린 질문 참조, reversibility and blast radius = 두지 않음(결정 2), selected option = `decision`, consequences = `consequences`, dissent = 이 선택을 대상으로 한 이의(`ct`), implementation commitments = `implementedBy`, review and reopen triggers = `reviewTrigger`.
 - 근거가 해석·전제뿐인 선택(판단·가능성·관찰·선호 기준이 근거에 없음)은 기록하되 품질을 `structural`로 둔다([판정 J-145], ADR A08-7).
 - 품질이 `qualified` 미만인 선택은 활성 기준선으로 투영되지 않는다. 투영은 이를 주의 항목으로 보인다(helm-canon-2 §1.10의 `ㅇ` 사례).
@@ -1814,6 +1818,7 @@ export const AgreementRevision = Obj({
 ```
 
 - 완료 기준은 개정판을 넘어 같은 `cr` id를 유지한다. 개정에서 바뀐 기준은 새 id를 받는다.
+- 재작업 WorkUnit이 기존 합의 아래에서 시작하면 합의의 `workUnitId`는 처음 맡긴 WorkUnit을 그대로 가리킨다. 현재 연결은 `WorkUnit.agreementId`가 정한다([판정 J-158]).
 - 사람이 합의를 바꾸면(조종, steering) 새 개정판이 생기고 이전 개정판 기준으로 낸 결과 제출은 낡는다(helm-kernel-v02 F5 [실험]).
 - 원전 Delegation Contract 필드(F01 §4, F03 §3)와의 대응: requester = 사람(고정), performer = `performer`, purpose = `purpose`와 `goal`, conditions_of_satisfaction = `criteria`, authority_envelope = `scope`·`forbidden*`, evidence_obligations = `criteria[].evidenceExpected`, escalation_triggers = `stopConditions`, acceptor = 사람(고정, A6), integration_target = Concern과 Integration 레코드, review_at = `scope.validUntil`.
 - 상태 기계: §3.22.4.
@@ -2136,7 +2141,7 @@ const QuestionCommon = {
   /** 이 질문이 정하는 결정점 (AutonomousDecision과 같은 키 체계) */
   decisionKind: Nullable(Type.String({ pattern: "^[a-z][a-z0-9_.]{1,63}$" })),
   decisionPointKey: Nullable(Type.String({ minLength: 1, maxLength: 200 })),
-  /** 권리 질문의 마감. 사람이 정한 경우에만 있다(판정 J-49). 지나면 expired (가정으로 진행하지 않는다). 09 p_timers rights_deadline */
+  /** 권리 질문의 마감. 사람이 정한 경우에만 있다([판정 J-49], 11 V-Q-10): 사람 채널 명령이 만든 질문이거나 `question.deferred`와 함께 사람이 준 마감이다. 정보 게이트 질문과 시스템이 정한 질문은 null이다. 지나면 expired(가정으로 진행하지 않는다). 09 p_timers rights_deadline */
   deadline: Nullable(Ms),
   /** 가정하고 진행할 때 되돌릴 지점 (RollbackPoint, §3.18.3) */
   rollbackPointIds: Type.Array(RollbackPointId),
@@ -2314,6 +2319,18 @@ export const PlanStep = Obj({
   optional: Type.Boolean(),
   reason: Nullable(ShortText),
 });
+/** 계획 플래그 한 개. 값과 무관하게 근거 id를 하나 이상 가진다 (14 §3.8) */
+export const Flag = Obj({ value: Type.Boolean(), evidence: Type.Array(AnyRecordId, { minItems: 1 }) });
+/** O의 assess WorkUnit이 선언하는 계획 플래그. 여섯 표시는 14 §3.8 정본이다. outOfPattern은 여섯 표시로 이 상황을 나타낼 수 없을 때 참이며, 근거가 필수다 ([판정 J-188]) */
+export const PlanFlags = Obj({
+  wantDependent: Flag,              // 정답이 사용자 취향·가치 판단에 달림
+  needsPossibilities: Flag,         // 알려진 해법이 없거나 부족함
+  consequentialSideEffects: Flag,   // 선택이 부작용·파급을 가짐
+  needsWrite: Flag,                 // 작업 대상을 바꿔야 끝남
+  reviewOnly: Flag,                 // 이미 있는 결과를 확인하는 일
+  artifactIsResult: Flag,           // 산출물(글·보고서·계획)이 곧 결과
+  outOfPattern: Flag,               // 여섯 표시와 계산 규칙의 범위 밖 ([판정 J-188])
+});
 export const LoopPlanCore = Obj({
   concernId: ConcernId,
   situationAssessmentId: Nullable(AssessmentId),
@@ -2322,7 +2339,8 @@ export const LoopPlanCore = Obj({
   planVersion: Type.Integer({ minimum: 1 }),
   planDetail: Obj({
     steps: Type.Array(PlanStep, { minItems: 1 }),
-    flags: Type.Array(Type.String({ minLength: 1, maxLength: 32 })),
+    /** 계획을 만들 때 쓴 선언 (14 LoopPlanRecord.flags). 근거 id를 가진 PlanFlags다. 문자열 목록이 아니다 */
+    flags: PlanFlags,
     completedStepKeys: Type.Array(Type.String({ minLength: 1, maxLength: 16 })),
     skipped: Type.Array(Type.String({ minLength: 1, maxLength: 16 })),
     cause: Enum(["initial", "situation_changed", "deviation", "mode_changed", "directive",
@@ -2331,6 +2349,8 @@ export const LoopPlanCore = Obj({
     modeId: Nullable(ModeId),
     procedureId: Nullable(ProcedureId),
   }),
+  /** 계획 내용을 쓴 주체 ([판정 J-188] (5)). code: buildPlan이 계산. model: 모델 초안이 계획 검사를 통과함. human: 사람이 고침. 채택 주체는 autonomy.decidedBy다 */
+  authoredBy: Enum(["code", "model", "human"]),
   reason: Text,
   autonomy: Autonomy,
   supersedes: Nullable(LoopPlanId),
@@ -2460,7 +2480,7 @@ export const ModeAssignment = Obj({
 });
 
 // @helm/domain/src/records/dial.ts
-/** 다이얼 정본 목록 (v0.3 07 §3, 14개) + 구조 상한. 키 이름과 값의 의미는 14가 확정한다 */
+/** 다이얼 정본 목록 (v0.3 07 §3, 14개) + 구조 상한 2 + 계획 작성 방식 1. 키 이름과 값의 의미는 14가 확정한다. 의미 설정(다이얼이 아닌 설정, 예: 주의 예산)은 이 목록에 들지 않는다 */
 export const DIAL_KEYS = [
   "question.threshold.c1", "question.threshold.c2", "question.threshold.c3",
   "question.default_delivery", "question.immediate_threshold", "question.expiry_margin",
@@ -2469,12 +2489,15 @@ export const DIAL_KEYS = [
   "inquiry.budget", "inquiry.stimulus_count",
   "assurance.proof_burden", "assurance.independent_verification",
   "structure.max_children", "structure.max_depth",
+  "planAuthoring",   // 루프 계획 작성 방식 ([결정 53], [판정 J-188])
 ] as const;
 export const DialKey = Enum(DIAL_KEYS);
 /** 저장되는 층만 (v0.3 07 §6의 4~6층). 1~3층(시스템, 상황 유형, 모드)은 코드·데이터.
  *  14의 해석 순서(1~6)는 DialPrecedence라는 다른 이름이다. 대응: user = 4, concern = 5, instruction = 6.
  *  Goal 범위 다이얼은 두지 않는다([판정 J-136]) */
 export const DialLayer = Type.Union([Type.Literal("user"), Type.Literal("concern"), Type.Literal("instruction")]);
+/** 루프 계획 작성 방식 ([결정 53], [판정 J-188]). 값은 computed | hybrid | model이다. computed: 코드가 계획을 계산하고 모델 초안을 받지 않는다. hybrid: 기본값. outOfPattern이 참이거나 buildPlan에 맞는 규칙이 없을 때만 모델이 계획 전체 초안을 낸다. model: 언제나 모델이 초안을 낸다 */
+// 다이얼 정의 항목 (14 SettingDef 형식, 데이터는 §6 dials.ts): key "planAuthoring", kind "dial", valueSchema Enum(["computed", "hybrid", "model"]), default "hybrid", layers ["user", "concern"]. instruction 층에는 두지 않는다
 export const DialSetting = Obj({
   layer: DialLayer,
   scopeId: Nullable(IdAny("cn", "wu")),  // user 층은 null
@@ -2489,6 +2512,10 @@ export const DialSetting = Obj({
 - Concern의 `currentLoop`은 마지막 `LoopTransition.to`다. 루프 전환은 혼자 정한 결정이며 이의 대상이다(v0.3 03 §1 원칙 3).
 - 의존 규칙 검사(write·send에는 C, 완료에는 A, 승격에는 I 근거)는 전환 뒤의 행동에서 집행한다(10). 전환 자체는 검사하지 않는다. 루프 전환 레코드는 어떤 루프로든 옮길 수 있다(결정 5).
 - 상황 판정이 바뀌면 이전 판정은 `superseded`가 되고, 루프 계획 재제안이 따른다(14).
+- 계획 작성 방식(`planAuthoring`, [결정 53], [판정 J-188])은 다이얼이다(§3.11). `computed`는 코드가 계획을 계산하고 모델 초안을 받지 않는다. `hybrid`(기본)는 `PlanFlags.outOfPattern`이 참이거나 `buildPlan`에 맞는 규칙이 없을 때만 모델이 계획 전체 초안(제안 종류 `loop_plan_draft`, payload `steps`)을 낸다. `model`은 언제나 모델이 초안을 낸다.
+- 모델 초안은 10의 계획 검사(활성 합의 전 쓰기 금지, 결과 뒤 결과 확인, 성숙도 관문 등 의존 규칙)를 통과해야 `loop_plan.adopted`가 된다. 위반이면 사유와 함께 모델에 한 번 돌려준다. 두 번째도 위반이면 코드 계산 계획을 쓰고(`authoredBy = code`) 그 사실을 거부 기록으로 남긴다(10, 09).
+- `authoredBy`는 계획 내용을 누가 썼는가이고, `autonomy.decidedBy`는 누가 채택했는가다. 기록과 이의(결정 8)는 두 값 모두에 그대로 적용된다. 계획 이의 비율(16)은 `authoredBy`별로 센다.
+- `PlanFlags`의 모든 플래그는 근거 id를 하나 이상 가진다(14 §3.8). `outOfPattern`이 참이면 근거에 여섯 표시로 이 상황을 나타낼 수 없는 이유를 적는다([판정 J-188]).
 
 ### 3.16 Probe, Watch [제안: v0.3 03 §3.3]
 
@@ -2621,12 +2648,13 @@ export const Inquiry = Obj({
   used: Obj({ rounds: Type.Integer({ minimum: 0 }), subcalls: Type.Integer({ minimum: 0 }), durationMs: DurationMs }),
   stop: Nullable(Obj({
     /** 정본 값. 15 StopReason과 10 payload는 이 값으로 옮긴다:
-     *  kind_condition_met·plan_stable 등 15의 멈춤 규칙 충족 → stop_condition, 10 human_decided·decide_now → human
-     *  ("지금 정하기"는 10 payload의 then 필드로 이어서 할 일을 적는다) */
+     *  kind_condition_met·plan_stable 등 15의 멈춤 규칙 충족 → stop_condition, 10 human_decided → human */
     reason: Type.Union([
       Type.Literal("stop_condition"), Type.Literal("budget"), Type.Literal("human"),
       Type.Literal("transition"), Type.Literal("superseded"), Type.Literal("concern_closed"),
     ]),
+    /** 멈춘 뒤 할 일. 10 inquiry.stop.then과 같은 값이다(정본은 10). decide_now이면 14가 "지금 정하기" 표시를 계산한다 ([판정 J-157]) */
+    then: Enum(["proceed", "handoff", "decide_now"]),
     note: Nullable(ShortText),
     seq: Seq,
   })),
@@ -2871,14 +2899,19 @@ export const RunEndReason = Enum([
   "yielded", "handed_off", "cancelled", "budget_exhausted", "step_limit", "failed",
   "recovery_exhausted", "superseded", "context_overflow",
 ]);
+/** 모델이 선언할 수 있는 전환 계기 (14 §3.5.6 DeclaredTrigger). TransitionTrigger 가운데 모델이 고르는 값 */
+export const DeclaredTrigger = Enum(["surprise", "goal_conflict", "shared_premise_conflict", "situation_changed", "merge_needed"]);
 /** run.ended(handed_off)에 싣는 모델 선언 (14 §3.5.6). 오케스트레이터가 가드·규칙으로 판단한다 */
 export const RunHandoff = Type.Union([
-  Obj({ kind: Type.Literal("transition_request"), to: LoopIdSchema, signal: Nullable(Type.String({ maxLength: 32 })),
+  Obj({ kind: Type.Literal("transition_request"), to: LoopIdSchema, trigger: DeclaredTrigger, signal: Nullable(Type.String({ maxLength: 32 })),
         reason: ShortText, refs: Type.Array(AnyRecordId) }),
   Obj({ kind: Type.Literal("split_hint"), parts: Type.Array(Obj({ label: ShortText, statement: ShortText }), { minItems: 2 }),
         reason: ShortText, refs: Type.Array(AnyRecordId) }),
   Obj({ kind: Type.Literal("entry_signals"), assessment: EntryAssessmentDraft }),
   Obj({ kind: Type.Literal("stabilized"), refs: Type.Array(AnyRecordId) }),
+  /** O의 assess run이 판정 질문 답을 선언하고 끝난다. 유형은 오케스트레이터가 classify로 계산한다 (14 §3.7.1). answers는 아홉 질문 모두이고 모르면 unknown이다 */
+  Obj({ kind: Type.Literal("situation_answers"), answers: Type.Array(SituationAnswer, { minItems: 9 }),
+        parts: Type.Optional(Type.Array(Obj({ label: ShortText, answers: Type.Array(SituationAnswer, { minItems: 1 }) }), { minItems: 2 })) }),
 ]);
 export const Usage = Obj({
   inputTokens: Type.Integer({ minimum: 0 }), outputTokens: Type.Integer({ minimum: 0 }),
@@ -2963,9 +2996,12 @@ export const ToolCallExecution = Obj({
   /** 13 샌드박스 수준 */
   sandbox: Nullable(Obj({
     level: Enum(["S0", "S1b", "S1", "S2"]),
+    unit: Type.String({ minLength: 1, maxLength: 128 }),   // helm-tool-<tcId>. 실행 전에 정해진다 (13 §3.6.7)
     writableRoots: Type.Array(Type.String({ minLength: 1, maxLength: 4096 })),
-    network: Type.Union([Type.Literal("none"), Type.Literal("any")]),
+    network: Type.Union([Type.Literal("none"), Type.Literal("proxy")]),   // proxy: 네트워크 네임스페이스 분리 + 데몬 CONNECT 프록시 경유 (13 §3.6.3, [판정 J-134])
   })),
+  /** 실행 직전 대조용 작업 공간 파일의 내용 해시 목록 (13 §3.7.7). 승인 대기 중 바뀌면 실행하지 않는다 */
+  targetsDigest: Type.Array(Sha256),
   snapshotRef: Nullable(BlobRef),
   /** write·send(및 권한 레이어가 mutating으로 본 execute)는 필수 (R-05) */
   agreementRef: Nullable(Obj({ agreementId: AgreementId, revision: Type.Integer({ minimum: 1 }) })),
@@ -2998,8 +3034,8 @@ export const ToolCall = Obj({
   /** 고쳐서 허락(approve_edited)으로 생긴 호출이면 원 호출 ([판정 J-117·J-121]). 새 tcId는 원 tcId와 질문 id에서
    *  결정적으로 만든다: tc_ + ULID(sha256("edited:" + 원 tcId + ":" + qsId)의 앞 80비트, 시각부는 원 호출 createdAt) */
   editedFrom: Nullable(Obj({ toolCallId: ToolCallId, questionId: QuestionId })),
-  /** denied의 사유 */
-  denial: Nullable(Obj({ reason: Type.Union([Type.Literal("human"), Type.Literal("expired"), Type.Literal("edited_by_human"), Type.Literal("cancel")]) })),
+  /** denied의 사유. 승인 대기 중의 만료와 취소는 not_executed(approval_expired·cancel)로 닫으며 denied로 쓰지 않는다 (10, 12) */
+  denial: Nullable(Obj({ reason: Type.Union([Type.Literal("human"), Type.Literal("edited_by_human")]) })),
   execution: Nullable(ToolCallExecution),
   notExecuted: Nullable(Obj({ reason: NotExecutedReason })),
   result: Nullable(Obj({
@@ -3037,7 +3073,7 @@ export const Thread = Obj({
   ...Meta, kind: Type.Literal("thread"),
   concernId: ConcernId,
   workUnitId: Nullable(WorkUnitId),
-  purpose: Enum(["work", "branch", "subrun", "verifier", "mediator", "observer"]),
+  purpose: RunKind,   // RunKind와 같은 값 집합. observer는 뺀다([판정 J-97]). inquiry는 더한다 (12 요구 (5))
   forkedFrom: Nullable(Obj({ threadId: ThreadId, cursor: Type.Integer({ minimum: 0 }) })),
   status: Type.Union([Type.Literal("open"), Type.Literal("closed")]),
   activeRunId: Nullable(RunId),
@@ -3096,12 +3132,14 @@ export const Opaque = <T extends TSchema>(t: T) => Type.Optional({ ...t, "x-helm
 
 ```ts
 // @helm/domain/src/records/device.ts  (페어링 절차, 토큰 형식, 수명은 18 §3.7~3.8)
+/** 기기 종류. 18·20·26의 값과 같다 */
+export const ClientKind = Enum(["desktop", "mobile", "tui", "cli"]);
 export const DeviceCore = Obj({
   name: Title,
   /** 모바일 PWA도 ios다([결정 47·49], 26). Android는 지원 대상이 아니지만 값은 남겨 둔다 */
   platform: Enum(["macos", "windows", "linux", "ios", "android", "tui", "cli"]),
   /** desktop | mobile | tui | cli (18·20·26). 모바일 기기([결정 42·47])도 같은 레코드다 */
-  clientKind: Enum(["desktop", "mobile", "tui", "cli"]),
+  clientKind: ClientKind,
   pairedVia: Type.Union([Type.Literal("code"), Type.Literal("ssh")]),
   /** 기기 토큰을 싣는 방식 (26 §3.3.3, 18). 모바일 PWA는 cookie, 그 밖은 header */
   credentialCarrier: Enum(["header", "cookie"]),
@@ -3153,7 +3191,7 @@ export const PairingCode = Obj({
 });
 ```
 
-- 기기의 접속 여부는 `device.connected`·`device.disconnected`와 `presence.changed` 이벤트로 남는다(09 §3.4.13). 마지막 인증 시각 같은 잦은 값은 운영 테이블 `device_presence`에 둔다. 투영과 커널 판정은 이벤트만 쓴다.
+- 기기의 접속 여부는 `device.connected`·`device.disconnected`와 `presence.changed` 이벤트로 남는다(09 §3.4.13). 마지막 인증 시각(`last_auth_at`, 18 §3.6.1의 유휴 만료 계산 입력)과 마지막 접속 시각(`last_seen_at`) 같은 잦은 값은 운영 테이블 `device_presence`에 둔다(09). 투영과 커널 판정은 이벤트만 쓴다.
 - 토큰 해시를 이벤트에 두는 이유는 결정 29(모든 상태는 로그에서 재구성)다. 해시로 토큰을 만들 수 없지만 필요 없는 곳에는 보내지 않는다(18 §3.10).
 
 #### 3.19.2 PolicyProposal (관찰 에이전트 제안)
@@ -3220,7 +3258,7 @@ export const ProcedureCore = Obj({
   appliesTo: Obj({ concernKinds: Type.Array(ConcernKind, { minItems: 1 }), signature: Nullable(Sha256), note: Nullable(ShortText) }),
   /** 계획 템플릿 (14 PlanStep 목록) */
   planTemplate: Type.Array(PlanStep, { minItems: 1 }),
-  /** 상시 합의 (사람이 맡긴 Grant) */
+  /** 맡겨 둔 권한(사람이 미리 맡긴 Grant). 화면 이름은 "맡겨 둔 권한"이다 ([판정 J-116]) */
   standingGrantId: Nullable(GrantId),
   sourceProposalId: Nullable(PolicyProposalId),
   body: Nullable(BlobRef),                     // 절차 본문 (스킬 문서 등)
@@ -3291,6 +3329,20 @@ export const Procedure = Obj({
 
 "품질 O"인 레코드만 `quality` 필드를 가진다. 나머지는 상태(`status`)만으로 충분한 진행 기록이다. "블록"은 레코드 안의 결정 블록만 `Autonomy`를 가진다는 뜻이다(§3.4.5 규칙 1).
 
+```ts
+// @helm/domain/src/records/kinds.ts
+/** 위 표의 kind 열 전부. 레코드 종류의 리터럴 유니온이다 (19 레코드 조회와 09 투영 테이블이 쓴다) */
+export const RecordKind = Enum([
+  "project", "goal", "concern", "structure_change", "boundary_item", "workunit", "observation",
+  "assumption", "open_question", "interpretation", "possibility", "check", "finding", "choice",
+  "objection", "agreement", "grant", "result", "attestation", "acceptance", "integration",
+  "obligation", "reflection", "question", "expectation", "prediction", "loop_plan", "loop_transition",
+  "situation_assessment", "mode_assignment", "probe", "watch", "inquiry", "lens", "stimulus",
+  "preference_model", "run", "toolcall", "thread", "rollback_point", "device", "pairing_code",
+  "policy_proposal", "procedure", "entry_assessment",
+]);
+```
+
 #### 3.20.2 쓰기 시점 참조 제약 표
 
 각 행은 "이 이벤트가 기록되려면 반드시 성립해야 하는 참조와 상태"다. 커널이 형식 검사·권한 검사 단계에서 집행한다(10). 위반의 거부 갈래(§3.23)를 함께 적는다. "현재"는 대체·철회·낡음이 아닌 상태를 뜻한다.
@@ -3301,7 +3353,7 @@ export const Procedure = Obj({
 | R-02 | `workunit.proposed` | Concern이 `open`·`active`. `parentWorkUnitId`는 같은 Concern | F01 불변 1 | 내용 |
 | R-03 | `agreement.proposed`, `agreement.revised` | WorkUnit이 `proposed`·`negotiating`(또는 기존 합의를 대체할 때 `in_progress`·`paused`). `goal`이 Concern Goal의 현재 버전. 기준 1개 이상, 멈출 조건 1개 이상. `scope.resources`의 path 자원이 프로젝트 `rootPaths` 안 (`helm_draft` 자원은 예외) | 브리프 §6 작업 합의, I1 | 내용 |
 | R-04 | `agreement.confirmed`, `agreement.activated_by_grant` | 확인: 행위자 `human` + 인증된 `via`, 합의가 `proposed`이고 사람이 본 버전과 같음. Grant 활성화: Grant가 `active`이고 §3.11.2의 포함 검사 통과 | A6, F10 §6 | 자격 / 내용 |
-| R-05 | `toolcall.started` (primitive가 write·send이거나, 권한 레이어가 `mutating = true`로 본 execute) | `agreementRef`가 이 실행의 WorkUnit의 `active` 합의 현재 개정판이고 그 Concern의 Goal이 `active`(아니면 `policy.goal_not_active`, [판정 J-130]). 호출 대상이 `scope` 안이고 `forbiddenResources` 밖. send는 언제나 지문이 같은 미소진 승인이 있어야 한다(`sendTargets`는 읽지 않는다, [판정 J-91]). 검사 대상 run은 제출 envelope의 `via.runId`다. 승인 뒤 재제출이면 레코드의 runId와 같은 thread의 run이어야 한다(J-96) | **결정 15(1)**, N authorizes M, I9 | 자격 (`gate.scope_expansion_required`: 범위 밖이면 `scope_change` 질문으로 이어짐, 10 ADR-K8) / 내용(합의 없음·개정판 불일치) |
+| R-05 | `toolcall.started` (primitive가 write·send이거나, 권한 레이어가 `mutating = true`로 본 execute) | `agreementRef`가 이 실행의 WorkUnit의 `agreementId`가 가리키는 `active` 합의 현재 개정판이고(재작업 WorkUnit은 원 WorkUnit의 합의를 가리킨다, [판정 J-158]) 그 Concern의 Goal이 `active`(아니면 `policy.goal_not_active`, [판정 J-130]). 호출 대상이 `scope` 안이고 `forbiddenResources` 밖. send는 언제나 지문이 같은 미소진 승인이 있어야 한다(`sendTargets`는 읽지 않는다, [판정 J-91]). 검사 대상 run은 제출 envelope의 `via.runId`다. 승인 뒤 재제출이면 레코드의 runId와 같은 thread의 run이어야 한다(J-96) | **결정 15(1)**, N authorizes M, I9 | 자격 (`gate.scope_expansion_required`: 범위 밖이면 `scope_change` 질문으로 이어짐, 10 ADR-K8) / 내용(합의 없음·개정판 불일치) |
 | R-06 | `observation.recorded` | 행위자가 `runtime`·`kernel`·`scheduler`·`human`(인증된 via) 중 하나. 출처별: tool → 도구 호출이 이 실행의 것이고 `started`·`replaying` 상태이며 아직 결과 관찰이 없음. human → 명령 id. external → 수신 경로 유효, (`channel`, `actor`, `externalId`) 조합이 처음이거나 내용 해시가 같음. timer → 기대가 `open`이고 기한 도래. watcher → 바뀐 참조 1개 이상. derived → `inputs`가 모두 실재. 예외: 읽기 빠른 경로(§3.18.2)는 같은 트랜잭션의 `toolcall.started` 뒤에 둔다 | **M updates E**, F01 불변 4, 대화 L1758 | 자격(모델 행위자) / 내용 |
 | R-07 | `interpretation.proposed` | `basis`의 관찰 1개 이상이 존재하고 품질 `qualified` 이상. 0개면 거부하지 않고 `assumption.recorded`(origin `downgraded_interpretation`)로 바꿔 기록 | 대화 L2231 | 강등 |
 | R-08 | `possibility.proposed` | Concern 현재. `possibilityKind`가 cause·perspective면 `ifTrue`, `falsifier`, `nextCheck` 존재. `origin`의 칸·렌즈·하위 실행이 실재하고 그 탐구에 속함. `initialEvidence` 대상 실재 | 대화 L2216 | 내용 |
@@ -3319,13 +3371,13 @@ export const Procedure = Obj({
 | R-20 | `integration.opened` | 확인 결정이 `accepted`·`conditional` (커널이 같은 트랜잭션에서 만든다) | A10 | - |
 | R-21 | `obligation.resolved`, `obligation.waived` | §3.12 규칙 6의 종류별 행위자. 커널이 닫을 때는 근거 관찰 1개 이상 | A10 | 자격 / 내용 |
 | R-22 | `integration.completed` | `open` 반영 항목 0개 (`deferred`는 허용) | A10, I12 | 내용 |
-| R-23 | `question.recorded` | Concern 현재. 루프 조건은 질문을 낼 때 Concern의 현재 루프로 판정한다(탐구를 멈추고 C로 전환한 뒤 낸 선택 질문은 허용). 게이트·막는 범위(`blocks`)·가정 조합이 §3.13 스키마의 세 변형 중 하나. 같은 `dedupeKey`의 열린 질문이 있으면 새 질문 대신 `question.updated`. `loop = I.want`이고 `questionKind = choice`이고 선택지 2개 이상이면 거부. `send_approval`이면 `subjectRef`의 도구 호출이 `awaiting_approval`이고 지문이 같음. 비막힘 정보 질문이면 같은 트랜잭션에서 전제(`as`) 생성 | **결정 12, 18** | 내용 |
+| R-23 | `question.recorded` | Concern 현재. 루프 조건은 질문을 낼 때 Concern의 현재 루프로 판정한다(탐구를 멈추고 C로 전환한 뒤 낸 선택 질문은 허용). 게이트·막는 범위(`blocks`)·가정 조합이 §3.13 스키마의 세 변형 중 하나. 같은 `dedupeKey`의 열린 질문이 있으면 새 질문 대신 `question.updated`. `loop = I.want`이고 `questionKind = choice`이고 선택지 2개 이상이면 거부. `send_approval`이면 `subjectRef`의 도구 호출이 `awaiting_approval`이고 지문이 같음. 비막힘 정보 질문이면 같은 트랜잭션에서 전제(`as`) 생성. `deadline`은 권리 게이트 질문에만 두고, 사람 채널 명령이 만든 질문이거나 사람이 `question.deferred`와 함께 준 마감일 때만 둔다(11 V-Q-10, [판정 J-49]) | **결정 12, 18** | 내용 |
 | R-24 | `question.answered` | 행위자 `human`. 상태 `pending`·`delivered`(assumed면 `conflict.already_resolved`, [판정 J-120]). `agreement_confirm`·`result_review`가 아님([판정 J-124]). 답이 `answerSchema`를 통과. 사람이 본 질문 버전과 현재 버전이 같음 | 결정 12, L14(cursor-bound gate) | 자격 / 내용 / 충돌 |
 | R-25 | `question.assumed` | 행위자 `kernel`·`scheduler`. 정보 게이트·비막힘. `now ≥ assumptionExpires`(시각 트리거면 커널 `ctx.now` 기준. 데몬 정지 중 지난 만료는 [판정 J-142]대로 미룰 수 있다). 같은 트랜잭션에서 `choice.committed`(assumption_confirmed) | 결정 12, helm-canon-3 C10 | 내용 |
 | R-26 | `expectation.created` | `sentVia`의 도구 호출이 `completed`이고 primitive send, 또는 사람 알림 명령. `dueAt > sentAt` | v0.3 03 §7.2 | 내용 |
 | R-27 | `prediction.recorded` | `basis` 1개 이상. `check.trigger.kind ≠ "manual"` | v0.3 04 §5.6 | 내용 |
 | R-28 | `prediction.checked` | 관찰 1개 이상, 또는 행위자 `human` | v0.3 04 §5.5 | 내용 |
-| R-29 | `loop_plan.adopted` | Concern 현재. 조합 1개 이상. Autonomy 규칙 | 결정 5 | 내용 |
+| R-29 | `loop_plan.adopted` | Concern 현재. 조합 1개 이상. `planDetail.flags`의 `Flag`마다 근거 1개 이상(`outOfPattern` 포함). `authoredBy = model`이면 모델 초안이 10의 계획 검사를 통과한 것이다. Autonomy 규칙 | 결정 5, 결정 14·53([판정 J-188]) | 내용 |
 | R-30 | `loop.transitioned` | Concern 현재. `from`이 Concern의 `currentLoop`과 같음. Autonomy 규칙 | 결정 5 | 충돌 |
 | R-31 | `situation.assessed` | 답들의 근거 합계 1개 이상. `supersedes`가 현재 판정 | v0.3 05 §3.2 규칙 5 | 내용 |
 | R-32 | `structure.changed` (split) | 원 Concern `active`. 하위 개수·깊이가 다이얼 상한 이하(넘으면 사람 질문). 경계 항목 1개 이상 또는 `noBoundaryReason` | v0.3 03 §4.3 규칙 1·4·6 | 내용 |
@@ -3501,7 +3553,7 @@ export type Machine<S extends string, E extends string> = {
 
 | 현재 | 이벤트 | 다음 | 가드 | 부수 효과 |
 |---|---|---|---|---|
-| ∅ | `workunit.proposed` | proposed | R-02 | - |
+| ∅ | `workunit.proposed` | proposed (재작업이고 범위 안이면 delegated) | R-02. 재작업이면 재작업 범위가 원 WorkUnit의 활성 합의 범위 안이어야 한다([판정 J-158]) | 범위 안이면 `agreementId`를 그 합의로 채운다. 범위 밖이면 `gate.scope_expansion_required`로 거부 |
 | proposed | `agreement.proposed` | negotiating | R-03 | 질문 `agreement_confirm` (사람 조작 1회) |
 | negotiating | `agreement.revised` | negotiating | - | 질문 갱신 |
 | negotiating | `agreement.confirmed`, `agreement.activated_by_grant`, `agreement.activated_by_choice`, `agreement.activated_by_rule` | delegated | R-04, R-56 | - |
@@ -3522,7 +3574,7 @@ export type Machine<S extends string, E extends string> = {
 | in_progress | `workunit.concluded` | concluded | `workKind`가 inquiry·probe | 탐구 `inquiry.stopped` 또는 탐침 `probe.concluded`와 함께 |
 | proposed, negotiating, delegated, in_progress, paused, scope_exceeded | `workunit.cancelled` | cancelled | 사람, 또는 Concern 종료·병합 | 합의 released, 실행 취소 요청, 열린 질문 expired |
 | proposed, negotiating, delegated, in_progress, paused | `workunit.superseded` | superseded | 대체 WorkUnit id | 위와 같음 |
-| submitted, accepted | `workunit.superseded` (재작업) | superseded | 같은 트랜잭션의 `workunit.proposed`에 `reworkOf.workUnitId` = 이 WorkUnit (11 §3.10.3) | 열린 결과 확인 질문 withdrawn. 결과 제출은 superseded |
+| submitted, accepted | `workunit.superseded` (재작업) | superseded | 같은 트랜잭션의 `workunit.proposed`에 `reworkOf.workUnitId` = 이 WorkUnit (11 §3.10.3) | 열린 결과 확인 질문 withdrawn. 결과 제출은 superseded. 활성 합의는 released하지 않는다(새 WorkUnit이 이어 쓴다, §3.7) |
 
 종료: integrated, concluded, rejected, cancelled, superseded.
 
@@ -3539,7 +3591,7 @@ export type Machine<S extends string, E extends string> = {
 | proposed | `agreement.activated_by_grant` | active | R-04 (grant) | `activation.mode = grant`, Grant 활성화 횟수 + 1. 복귀 요약의 "에이전트가 정한 것"에 표시 |
 | proposed | `agreement.activated_by_choice` | active | R-56 (사람이 직접 고른 선택의 범위 ⊇ 합의 범위, [판정 J-133]) | `activation.mode = choice_scope` |
 | proposed | `agreement.activated_by_rule` | active | 쓰기 없는 탐구 합의 (14 §3.20.1) | `activation.mode = rule` |
-| proposed | `agreement.confirmed` (via 결과 확인) | active | 반영 범위 합의. 같은 트랜잭션의 `acceptance.recorded`(accepted·conditional)가 `integrationAgreement`로 확정 ([판정 J-126]) | `activation.mode = human`, `via` = 결과 확인 명령 |
+| proposed | `agreement.confirmed` (via 결과 확인) | active | 반영 범위 합의. 같은 트랜잭션의 `acceptance.recorded`(accepted·conditional)가 `integrationAgreement`로 확정 ([판정 J-126]) | `activation.mode = result_acceptance`(`acceptanceId`), `via` = 결과 확인 명령 |
 | proposed | `agreement.declined`, `agreement.discarded` | declined | declined: 행위자 human. discarded: 확정 전 초안 폐기 | - |
 | active | `agreement.narrowed` | active | R-51 | `narrowedScope` 설정 |
 | active | `agreement.restored` | active | `narrowedScope` 있음 | `narrowedScope = null` (또는 `restoredTo`) |
@@ -3595,7 +3647,7 @@ Acceptance는 만든 뒤 바뀌지 않는다. 사람이 확인을 되돌리려�
 | pending, delivered | `question.updated` (커널, dedupe 병합) | (그대로) | 같은 `dedupeKey` | 근거 합집합, `blocks`는 강한 쪽, 만료는 이른 쪽, `mergedCount + 1` |
 | pending | `question.delivery_planned` (중재자·커널) | pending | - | `plannedDelivery`(Autonomy 포함), 전달 타이머 (09 `p_timers`) |
 | delivered | `question.seen` | delivered | 사람 기기 | `seenAt` |
-| pending, delivered | `question.deferred` (사람 "나중에") | pending | - | `deferrals`에 추가, 다시 전달할 타이머 |
+| pending, delivered | `question.deferred` (사람 "나중에") | pending | - | `deferrals`에 추가, 다시 전달할 타이머. 마감(`deadline`)을 함께 주면 권리 질문에만 설정한다([판정 J-49]) |
 | pending, delivered | `question.reframe_requested` (사람) | (그대로) | - | 에이전트가 새 질문을 만들면 이 질문은 `withdrawn` |
 | pending, delivered | `question.delegated` (사람 "맡긴다") | delegated | 정보 게이트만 | 이어지는 결정은 `whyNotAsked = delegated_by_human` |
 | pending | `question.delivered` (전달기) | delivered | - | `deliveredAt`, `deliveredTo` |
@@ -3721,7 +3773,8 @@ Acceptance는 만든 뒤 바뀌지 않는다. 사람이 확인을 되돌리려�
 | requested | `toolcall.approval_requested` | awaiting_approval | 권리 게이트 (권한 레이어 `rightsGate = true` 또는 send) | 질문 `send_approval`(즉시) |
 | awaiting_approval | `toolcall.approved` | requested | 질문 answered(그대로 허락) | `approval.issued`. 같은 tcId로 실행한다(J-40) |
 | awaiting_approval | `toolcall.denied` (edited_by_human) | denied | 질문 answered(고쳐서 허락, [판정 J-121]) | 같은 트랜잭션에 새 호출의 `toolcall.requested`(`editedFrom`)와 그 호출을 위한 `approval.issued`. 새 호출은 런타임이 13 prepare와 권한 판정을 다시 한 뒤 `toolcall.started`를 내고, 커널은 지문을 승인과 대조한다 |
-| awaiting_approval | `toolcall.denied` (human·expired) | denied | 질문 answered(거절) 또는 만료 | - |
+| awaiting_approval | `toolcall.denied` (human) | denied | 질문 answered(거절) | - |
+| awaiting_approval | `toolcall.not_executed` (approval_expired) | not_executed | 승인 질문이 만료됨(§3.22.7 `question.expired`) 또는 승인 만료 시각이 지남 | 같은 트랜잭션에 `approval.expired`. 실행 전에 끝났음이 확실하다 (10, 12) |
 | awaiting_approval | `toolcall.not_executed` (cancel) | not_executed | 합의 취소, Concern 닫힘, run 취소 (11) | 질문 withdrawn |
 | requested (승인됨) | `toolcall.not_executed` (approval_expired) | not_executed | `approval_expiry` 타이머. 같은 트랜잭션에 `approval.expired` | - |
 | requested | `toolcall.started` | started | R-05, R-43. **실행 전에 커밋** (write-ahead) | `execution` 채움. send면 `approval.consumed` |
@@ -3772,7 +3825,7 @@ export declare function rejectionClassOf(code: string): (typeof RejectionClass)[
 |---|---|---|
 | `invalid.*` | 내용 | `invalid.schema`, `invalid.evidence_not_found`, `invalid.check_not_discriminating` |
 | `not_found.*` | 내용 | `not_found.record` |
-| `conflict.*` | 내용 | `conflict.invalid_transition`, `conflict.version_mismatch`, `conflict.already_resolved`. 같은 멱등 키·다른 지문은 거부 코드가 아니라 저장소 결과 `key_reused`다(09 §3.9.2) |
+| `conflict.*` | 내용 | `conflict.invalid_transition`, `conflict.version_mismatch`, `conflict.already_resolved`. 같은 멱등 키·다른 지문은 거부 코드 대신 저장소 결과 `key_reused`다(09 §3.9.2) |
 | `policy.*` | 내용 | `policy.promotion_requirements`, `policy.want_inquiry_pick_question`, `policy.forbidden_resource` |
 | `denied.*`, `gate.*` | 자격 | `denied.capability`, `gate.human_required`, `gate.scope_expansion_required`, `denied.producer_cannot_attest` |
 | `path.*` | 경로 | `path.adapter_cannot_append_event`, `path.projection_is_derived`, `path.stale_epoch`, `path.direct_store_write` |
@@ -3917,6 +3970,7 @@ F10 profile 불변 6: "Authority는 scope와 effect class를 가진다"는 v0.3 
 | E-37 | 서로를 대상으로 하는 병합 (A→B, B→A) | 두 번째 병합의 대상이 merged 상태이므로 `conflict.invalid_transition` | §3.22.2 |
 | E-38 | 순환을 만드는 `depends_on` 링크 | 종류 순서 위반으로 거부 (`invalid.dependency_order`) | §3.21.3 |
 | E-39 | 근거 관찰의 품질이 captured (출처 확인 불가 가져오기) | 링크는 허용, 승격 조건에서는 `evidence.unqualified` | §3.9.5 |
+| E-40 | 모델이 낸 계획 초안이 계획 검사를 두 번 어김 | 첫 위반은 사유와 함께 모델에 한 번 돌려준다. 두 번째 위반이면 코드 계산 계획을 `authoredBy = code`로 채택하고 그 사실을 거부 기록으로 남긴다 | R-29, [판정 J-188] (4) |
 
 ## 5. 다른 문서와의 인터페이스
 
@@ -3928,8 +3982,8 @@ F10 profile 불변 6: "Authority는 scope와 effect class를 가진다"는 v0.3 
 | 10 | 쓰기 시점 제약 R-01~R-56와 가드 id, 상태 기계 데이터, 능력표(A), `promotionMissing()`, `Autonomy`·`WhyNotAsked` 검증 대상, 거부 갈래 타입, 낡음 전파 규칙 |
 | 11 | Question(`blocks`, `dedupeKey`, `approval`, `plannedDelivery`)·Choice·Assumption·Objection·RollbackPoint 스키마, 질문 상태 기계, `Trigger` 타입(가정 만료점), 권리·정보 게이트의 스키마 변형, `decisionKind`·`decisionPointKey` |
 | 12 | Run·ToolCall·Thread 스키마와 상태 기계, `ownerEpoch`, `ToolCallExecution`, 관찰 출처 타입, `BlobRef`, Expectation·Prediction의 타이머 필드, 접두사 `th`·`mr`·`cp`·`cs`·`ms`·`ri`·`tm` |
-| 13 | `Primitive`, `PermissionVerdict`, `Scope`·`ResourceScope`(net·mcp·helm_draft, `allowUnknownTargets`), `ToolCallExecution`(targets, enforcement, replayGuard), `agreement.violation_detected` |
-| 14 | `LoopId`, `SituationType`, `SituationQuestionId`, LoopPlan(`planDetail`)·LoopTransition(`ruleId`, `exitOutcome`)·SituationAssessment·ModeAssignment(`ModeId` 8개)·StructureChange·BoundaryItem 스키마, `TransitionTrigger`, `DialKey`·`DialSetting`, `EntrySignal`, Probe, Watch, Procedure |
+| 13 | `Primitive`, `PermissionVerdict`, `Scope`·`ResourceScope`(net·mcp·helm_draft, `allowUnknownTargets`), `ToolCallExecution`(targets, targetsDigest, enforcement, replayGuard, sandbox.unit), `agreement.violation_detected` |
+| 14 | `LoopId`, `SituationType`, `SituationQuestionId`, LoopPlan(`planDetail`)·LoopTransition(`ruleId`, `exitOutcome`)·SituationAssessment·ModeAssignment(`ModeId` 8개)·StructureChange·BoundaryItem 스키마, `TransitionTrigger`, `DialKey`·`DialSetting`, `planAuthoring` 다이얼 정의, `PlanFlags`·`Flag`, `DeclaredTrigger`, `EntrySignal`, Probe, Watch, Procedure |
 | 15 | Inquiry·DivergenceCell·Perspective·Stimulus·ReactionPayload·PreferenceModel·Lens·DiscriminatingCheck 스키마, Possibility의 `possibilityKind`·`origin` |
 | 16 | PolicyProposal·Procedure 스키마, Observation 주석(반복 정정, 아차 사고), 지표 계산에 쓸 필드(질문의 `matchesAssumption`, Autonomy, 이의 상태) |
 | 18 | Device·PairingCode 스키마(`tokenHash`, `codeHash`), `Via`(`listener`, `connectionId`), 사람 인증 판단에 쓰는 필드 |
@@ -3944,24 +3998,24 @@ F10 profile 불변 6: "Authority는 scope와 effect class를 가진다"는 v0.3 
 | 문서 | 요구 |
 |---|---|
 | 01·02 | 1판 이벤트 이름(`choice.decided`, `submission.gated`, `decision.contested` 등)을 09 카탈로그 이름으로 바꾼다. 대응은 §10.3 |
-| 09 | §3.20.1의 생성 이벤트와 §3.22의 이벤트 이름을 카탈로그에 그대로 둔다. 투영기는 §3.20.3 링크 생성 규칙을 따른다 (같은 P5가 작성) |
+| 09 | §3.20.1의 생성 이벤트와 §3.22의 이벤트 이름을 카탈로그에 그대로 둔다. 투영기는 §3.20.3 링크 생성 규칙을 따른다 (같은 P5가 작성). (1) `inquiry.stopped` payload에 `then`, `loop_plan.adopted` payload에 `authoredBy`를 싣는다([판정 J-157], [판정 J-188]). (2) `toolcall.denied`의 `reason`은 `human`·`edited_by_human`만 쓴다. 승인 대기 만료는 `toolcall.not_executed`(approval_expired)다(§3.22.14). (3) 운영 테이블 `device_presence`에 `last_auth_at` 열을 더한다(§3.19.1, [판정 J-159]) |
 | 10 | (0) 예측 확인 결과 `undeterminable`을 08 이름 `indeterminate`로 바꾼다. (1) R-01~R-56를 명령 검증에 구현한다. (2) `ProposalKind`와 명령 이름 대응표. (3) 버전 검사(V-VER-01)를 커널에서 하고 저장소는 하지 않는다는 09 §3.8.4 결정을 따른다. (4) `concern.reframe` 명령은 같은 트랜잭션에 `choice.committed`(다시 세운 문제의 선택)를 만든다(§3.22.2). autonomy를 이벤트에 따로 붙이지 않는다. (5) `KernelContext.presence`는 영속 이벤트 `presence.changed`에서 만든 투영으로 읽는다(재현 가능) |
 | 11 | (0) `WhyNotAsked`의 `delegated`·`rule_default`를 `delegated_by_human`·`rule`로, Objection `desired`를 `desiredEffect`로 바꾼다. (1) 질문 종류를 §3.13 `QuestionKind`로 옮긴다(대응은 §10.2). (2) 임시 가정은 `as`(origin question)를 쓰고 `wa` 레코드를 두지 않는다. (3) 이의는 `ct` Objection(대상: 레코드 또는 링크, `desiredEffect`)으로, 재작업은 WorkUnit `reworkOf`로, 승인 토큰은 `Question.approval`로 옮긴다. (4) assumed 뒤 늦은 답은 3008로 거부하고 이의로 보낸다([판정 J-120], §3.22.7). 11 §3.6.4의 늦은 답 처리를 지운다. (5) 가정 확정 Choice는 만료 때 만든다(R-25). (6) `WhyNotAsked` 이름 대응: information_gate_false→`info_gate`, policy→`within_grant` 또는 `rule`, auto_verified→`auto_verifiable`, structural_default→`rule` |
 | 12 | (1) 부팅 복구에서 Run·ToolCall 상태 기계(§3.22.13~14)를 따른다. (2) 커널 이벤트 이름은 `toolcall.started`(의도), `toolcall.outcome_uncertain`, `toolcall.not_executed`를 쓴다. (3) 컨텍스트 투영 id 접두사를 `cx`에서 `cp`로 바꾼다(`cx`는 18·19의 연결 id). (4) 사람 메시지를 `utterance` 관찰로 같은 트랜잭션에 기록한다. (5) 도구 출력을 관찰로 남기기 전에 비밀을 가린다 |
 | 13 | (1) 도구마다 `primitive`(없으면 null), `replay`(safe·never), `cancellation` 선언. (2) 권한 레이어 판정을 `PermissionVerdict`(rightsCategories, reversibility 포함)로 넘김. (3) `ToolCallExecution`의 `targets`, `targetsKnown`, `enforcement`, `replayGuard`, `snapshotRef`를 채운다. (4) `ResourceScope` 덮임 판정 함수(net·mcp·helm_draft 포함) |
 | 14 | (1) `DialKey`별 값 스키마와 기본값, 구조 상한 기본값(이 문서 [제안] 7·3). (2) `TransitionTrigger`와 규칙 id(T01~T32, EXIT, OPEN, REDIRECT)의 대응표. (3) 오케스트레이터의 규칙 결정은 `kernel` 행위자(`declaredBy` 없음) 또는 `runtime` + `declaredBy`로 보낸다. (4) Concern 종료 상태로 `completed`·`merged`·`closed`를 모두 다룬다. (5) Goal 개정 시 진행 중 WorkUnit을 멈출지(U-16) |
 | 15 | (0) 승격 판정은 08 `promotionMissing`(J-18)을 그대로 쓴다. (1) 구분 확인 결과 라벨을 누가 분류하는가(U-14). (2) `Perspective.transfer`, `Lens.field`, `structureTags`의 값 목록을 데이터 파일로 둔다. (3) 가능성 반응을 `subjectRef = ps_`로 보낸다 |
-| 16 | (1) PolicyProposal 서명(`signature`) 계산 규칙과 `draft` blob 모양. (2) 절차 레코드 사용 기록(`procedure_failed` 주석) |
+| 16 | (1) PolicyProposal 서명(`signature`) 계산 규칙과 `draft` blob 모양. (2) 절차 레코드 사용 기록(`procedure_failed` 주석). (3) 계획 이의 비율을 `LoopPlanCore.authoredBy`별로 잰다([판정 J-188] (7)) |
 | 17 | 없음 (09에서 요구) |
 | 18 | (1) `local_cli` 사람 인정 조건(유닉스 소켓 권한과 uid). (2) Device·PairingCode 필드는 §3.19.1이 18 §3.7~3.8을 옮긴 것이다. 바뀌면 08을 함께 고친다 |
 | 19 | (1) 레코드 스키마를 프로토콜 타입으로 다시 정의하지 않고 `@helm/domain`에서 가져다 쓴다. (2) 거부 갈래 이름 `qualification`을 `authority`로 바꾼다. (3) `contest.filed`는 `objection.filed`다. (4) presence 값은 09 `PresenceState` |
 | 21 | 거부 갈래 이름 `eligibility`를 `authority`로 바꾼다 |
 | 25 | §3.25를 용어집에 옮기고 한국어 UI 이름을 확정한다 (Concern의 UI 이름 포함) |
 | 01·02·16·22 | `HumanOpMeta.followedRecommendation`(J-76)과 자유 문장 `extraReason`으로 맞추고, 정상 경로는 이벤트 종류로 계산한다. 02 UC-05 E1(대체된 결정에 이의)은 3009 거부로, UC-13 단계 2의 측정 Trigger 자동 판정은 2단계로([판정 J-138]) |
-| 03·04·05 | 질문 상태 `delegated` 라벨 "에이전트에게 맡김"(J-114), Grant "맡겨 둔 권한"·"비상 합의"(J-116). 이의 화면에 `reasonKind` 선택 칩. 04 `StimulusRoundView.form`은 `Stimulus.form`에서 읽는다. 04 질문 카드의 criteria·consequences·commitmentPreview는 Question 필드에서 읽는다 |
-| 10 | `toolcall.skip`의 core 동반과 started·replaying → not_executed 가드(J-104), 결과 확인 명령 값 대응(J-35), `concernId` 도출 규칙(§3.10.2), 반영 범위 합의(J-126)·`obligationPolicy`, `agreement.activated_by_choice`(R-56), Goal retired 뒤 `policy.goal_not_active`(J-130), V-PRO-02 독립성 키에 파생 관찰 규칙, 탐침·관찰 판정 값은 08 값, F05 I6 재검토 조건은 "선택 항목, 없으면 structural"(08 §3.10.1)로, observedChanges는 ChangeSet, R-43·R-05의 검사 run은 `via.runId`(E-17), WorkUnit 종결 → 대기 run abort(react), 재작업 WorkUnit의 합의 승계 규칙 |
+| 03·04·05 | 질문 상태 `delegated` 라벨 "에이전트에게 맡김"(J-114), Grant "맡겨 둔 권한"·"비상 합의"(J-116). 이의 화면에 `reasonKind` 선택 칩. 04 `StimulusRoundView.form`은 `Stimulus.form`에서 읽는다. 04 질문 카드의 criteria·consequences·commitmentPreview는 Question 필드에서 읽는다. 03·04·05는 모델이 설계한 계획에 `authoredBy`로 그 사실을 표시한다([판정 J-188] (6)) |
+| 10 | `toolcall.skip`의 core 동반과 started·replaying → not_executed 가드(J-104), 결과 확인 명령 값 대응(J-35), `concernId` 도출 규칙(§3.10.2), 반영 범위 합의(J-126)·`obligationPolicy`, `agreement.activated_by_choice`(R-56), Goal retired 뒤 `policy.goal_not_active`(J-130), V-PRO-02 독립성 키에 파생 관찰 규칙, 탐침·관찰 판정 값은 08 값, F05 I6 재검토 조건은 "선택 항목, 없으면 structural"(08 §3.10.1)로, observedChanges는 ChangeSet, R-43·R-05의 검사 run은 `via.runId`(E-17), WorkUnit 종결 → 대기 run abort(react), 재작업 WorkUnit의 합의 승계 규칙(§3.7, [판정 J-158]). 모델 계획 초안의 검사 규칙과 거부 코드, 두 번째 위반의 처리(§3.15, [판정 J-188] (4)). 승인 대기 만료는 `toolcall.not_executed`(approval_expired)로 쓴다(§3.22.14) |
 | 11·12 | approve_edited 새 tcId 규칙과 `editedFrom`(J-121), 부팅 복구 J-122, run.ended handoff(`RunHandoff`), RunKind 6값(observer·router 제외, inquiry 포함), 되돌릴 지점 만료 규칙(§3.18.3) |
-| 14 | ExitOutcome 값 22개를 08과 같게 유지, `ProposalKind`는 14에서 다른 이름으로(08 ProposalKind와 겹침), DialPrecedence(J-136), RunHandoff·EntryAssessmentDraft는 08 정의를 쓴다 |
+| 14 | ExitOutcome 값 22개를 08과 같게 유지, `ProposalKind`는 14에서 다른 이름으로(08 ProposalKind와 겹침), DialPrecedence(J-136), RunHandoff·EntryAssessmentDraft는 08 정의를 쓴다. `PlanFlags`(outOfPattern 포함)와 `loop_plan_draft`의 `steps`는 §3.15의 `PlanStep`·`PlanFlags`를 쓴다. 다이얼 `planAuthoring`은 §3.11 정의를 쓴다 |
 | 15 | 탐구 멈춤 이유를 08 값으로 옮기는 대응표, `Stimulus.form`, 첫 자극 라운드 1, 라운드 키 inquiryId + round, 탐구 단계 trace 이름 `inquiry.step_started`·`completed`·`failed` |
 | 16 | `objection.resolved`의 결과 분류(reversed·modified)는 desiredEffect와 뒤따른 이벤트(record.superseded, workunit 재작업)로 계산한다. 지표 DDL은 09 §3.7을 정본으로 참조 |
 | 19 | 반응 comparison `neither`, triad 질문 `questionId`, 이의 noReason은 `reason = null`로, 반영 항목 params는 08 Trigger·reason 필수 |
@@ -3979,6 +4033,7 @@ F10 profile 불변 6: "Authority는 scope와 effect class를 가진다"는 v0.3 
 | `src/records/*.ts` | §3.5~§3.19 레코드 (§3.20.1 표의 모든 종류) | 모든 스키마가 `Compile()`로 컴파일됨. 레코드 종류마다 유효 fixture 1개 이상과 무효 fixture 3개 이상(필수 필드 누락, 잘못된 접두사, 추가 필드). Question 세 변형의 교차 조합(권리+가정 있음, 비막힘+가정 없음) 거부. Choice 권리 게이트 + autonomous 거부 |
 | `src/loop.ts` | LoopId, SituationType | v0.3 03 §2.1 표와 같은 18개 |
 | `src/features.ts` | `FeatureKey`, `FEATURE_TABLE: Readonly<Record<FeatureKey, { stage: 1 \| 2 \| 3; default: boolean; note: string }>>` (값은 23 §3.5.4, 구조는 06 §3.10.3) | 2단계·3단계 키는 모두 기본 `false` |
+| `src/dials.ts` | `SettingDef` 타입과 `DIAL_DEFS` 데이터. 항목은 `kind`가 `dial`·`structure`·`setting`인 것이고, 다이얼 키 하나에 항목 하나다. 값과 뜻은 14 §3.11·§3.13.2가 정하고 19가 읽는다. 의미 설정은 `DIAL_KEYS`에 들지 않는다 | 모든 `DIAL_KEYS`에 항목이 하나씩 있다. `planAuthoring`의 기본값은 `hybrid`이고 층은 `user`·`concern`뿐이다. `dial.set`의 키가 `DIAL_KEYS` 밖이면 거부 |
 | `src/schema.ts`, `src/enums.ts` | 스키마 도우미(`Obj`, `Nullable`, `Enum`, `Merge`, `MergeEach`, `Opaque`)와 여러 파일이 쓰는 열거(ObligationKind, EntrySignal 등). 다른 domain 파일을 import하지 않는다 | 순환 import 검사(madge 등)에서 domain 안 순환 0. ESM 적재 때 TDZ 오류 없음 |
 | `src/rules/promotion.ts` | `promotionMissing()` | helm-toy 시나리오(`experiments/helm-toy/helm.mjs`)를 이 타입으로 옮긴 fixture에서 거부 3·7·10에 해당하는 경우 각각 `evidence.support`, `counter.search`, `counter.unresolved:*`를 내고, C2 경로는 빈 배열. 사후 확인만 있을 때 `check.discriminating` |
 | `src/rules/dependency-order.ts` | `canDependOn(fromKind, toKind)` | §3.21.3의 종류 순서. 역방향 거부 |
@@ -4004,7 +4059,7 @@ F10 profile 불변 6: "Authority는 scope와 effect class를 가진다"는 v0.3 
 | U-04 | Concern을 열 때 Goal이 반드시 있어야 하는가 | (a) 필수 (b) 초안 상태에서 Goal 없이 허용 | (a). 프로젝트를 만들 때 기본 Goal을 함께 만든다(05·02) |
 | U-05 | 반영 항목을 커널이 닫는 범위 | (a) 관찰로 확인되는 항목만 (b) 사람만 | (a) |
 | U-06 | 혼자 정한 결정을 기록 즉시 accepted로 볼지 | (a) 즉시 (b) 이의 없이 일정 시간이 지나면 | (a) |
-| U-07 | send 사전 허락 대상(`sendTargets`) | (a) 허락 목록 허용 (b) send는 항상 호출마다 승인 | (a). 비어 있으면 (b)와 같다. 11·13·18 확인 필요 |
+| U-07 | send 사전 허락 대상(`sendTargets`) | (a) 허락 목록 허용 (b) send는 항상 호출마다 승인 | 닫음: (b). MVP 커널은 `sendTargets`를 읽지 않는다. 사전 허락 목록은 2단계에서 검토한다([판정 J-91]) |
 | U-08 | 기대 기본 기한 | 24h / 72h / 다이얼 | 72h를 다이얼 기본값으로 (11 확정) |
 | U-09 | 의미 충돌(`ConflictDetected`, F05 §13)을 따로 레코드로 둘지 | (a) 반영 항목 `concern_conflict`와 이의로 표현 (b) Conflict 레코드 | (a). 1인 앱에서 동시 다중 에이전트 충돌이 드물다. 다중 WorkUnit 병렬이 늘면 다시 본다 |
 | U-10 | 타입 이름을 Product Domain 이름(Focus, WorkAgreement)으로 할지 | (a) 브리프 이름 (b) P06 이름 | (a). ADR 후보 A08-5 |
@@ -4022,7 +4077,8 @@ F10 profile 불변 6: "Authority는 scope와 effect class를 가진다"는 v0.3 
 
 ## 8. 출처
 
-- 브리프: `docs/design/process/00-design-brief.md` §2 결정 2·4·5·6·7·8·9·11·12·13·14·15·17·18·24·29·30·36, §3.2·§3.3·§3.5·§6
+- 브리프: `docs/design/process/00-design-brief.md` §2 결정 2·4·5·6·7·8·9·11·12·13·14·15·17·18·24·29·30·36·53, §3.2·§3.3·§3.5·§6
+- 판정: `docs/design/process/rulings-stage2a.md` §7~§9 가운데 이 문서를 고칠 문서로 든 항목(J-120·121·122·124·125·126·133·136·138·145, J-156~J-158·J-180, J-188)
 - v0.3: `docs/v0.3/00-README.md` §2.4(불변조건 1~7), `02-core-concepts.md` §1~§9, `03-loops-and-transitions.md` §2.1·§3·§4·§5·§6·§7·§8, `04-inquiry-types.md` §1~§9, `05-situation-types.md` §3·§4·§6, `06-asking-and-interruption.md` §3·§4·§5·§7, `07-modes-and-capabilities.md` §2·§3·§6·§7, `08-runtime-architecture.md` §2·§4·§5·§7·§10, `09-client-opdc.md` §4·§5·§6
 - 원전 정리: `sources/helm-canon.md` §7(존재론), §8(인식론), §9.3·§9.5·§9.8·§9.10, §11(형식 상태 모델), §13, §16, §17.7, §20, §21(08 체크리스트)
 - `sources/helm-canon-2.md` §1.7~§1.14, §1.27, §4.1, §5.2, §9.1~§9.5, §9.14~§9.15, §10, §11(08 체크리스트)
@@ -4090,12 +4146,12 @@ F10 profile 불변 6: "Authority는 scope와 effect class를 가진다"는 v0.3 
 
 ### A08-7. 선택의 근거로 E 레코드 전반을 허용하고 약한 근거는 품질로 표시한다
 
-- 상태: 제안 ([판정 J-145])
+- 상태: 합침 → ADR-10-09 ([판정 J-145], [판정 J-156])
 - 맥락: 감사 §3.5는 "Choice는 Finding이나 Possibility를 참조"를 요구했다. 08·10은 근거를 E 레코드 전반(관찰, 해석, 전제, 선호 기준 포함)으로 넓혔다(D08-8).
 - 결정: 근거 범위는 E 레코드 전반으로 둔다. 근거가 해석·전제뿐이면 기록은 하되 품질을 `structural`로 두어 활성 기준선이 되지 못하게 하고 주의 항목으로 보인다.
 - 근거: 변수 이름 같은 사소한 혼자 정한 결정과 취향형 선택(선호 기준이 근거)이 억지로 가능성 레코드를 만들지 않게 한다. 약한 근거의 선택은 거부하지 않고 품질로 드러낸다.
 - 기각한 대안: (a) 판단·가능성만 허용(감사 원안) — 사소한 결정마다 가능성 레코드가 생긴다. (b) 무엇이든 허용하고 품질 구분 없음 — 해석만 근거인 선택이 기준선이 된다.
-- 결과: 10 R-15 검사에 품질 계산이 들어간다. 24 ADR 목록에 올린다.
+- 결과: 10 R-15 검사에 품질 계산이 들어간다. 24 ADR 목록에서는 ADR-10-09에 합친다.
 
 ## 10. 다른 문서와의 정렬 기록
 
