@@ -256,3 +256,10 @@
 | J-185 | presence 타입 이름 | `PresenceSnapshot`(11) | 26 |
 | J-186 | 정상 경로 밖 사유 코드 | 01 R-OP-4의 `correction_cycle` | 10 |
 | J-187 | 23의 새 용어 | "난이도 등급", "메인 오케스트레이터", "하위 조정자", "실작업자"를 25에 등록하고, 런타임 "오케스트레이터"와의 구분을 혼동 주의 칸에 적는다 | 25 |
+
+## 9. 사용자 결정 53·56의 세부 규격 (2026-10-14)
+
+| 번호 | 대상 | 판정 | 고칠 문서 |
+|---|---|---|---|
+| J-188 | 결정 53 루프 계획 혼합 | (1) 다이얼 `planAuthoring: 'computed' \| 'hybrid' \| 'model'`, 기본 `hybrid`, 층은 user·concern(08 `DialLayer`). (2) `PlanFlags`에 `outOfPattern: Flag`(여섯 표시로 이 상황을 나타낼 수 없음, 근거 필수)를 더한다. (3) `hybrid`에서 `outOfPattern`이 참이거나 `buildPlan`에 맞는 규칙이 없으면, 모델이 계획 전체 초안(제안 종류 `loop_plan_draft`의 `steps` 형식)을 낸다. `model`이면 언제나 모델이 초안을 낸다. `computed`면 모델 초안을 받지 않는다. (4) 코드 `validatePlan`이 의존 규칙(활성 합의 전 쓰기 금지, 결과 뒤 결과 확인, 성숙도 관문 등)을 검사한다. 위반이면 사유와 함께 모델에 한 번 돌려주고, 두 번째도 위반이면 코드 계산 계획을 쓰고 그 사실을 기록한다. (5) `LoopPlanRecord`에 `authoredBy: 'code' \| 'model' \| 'human'`을 더한다. `decidedBy`, 기록과 이의(결정 8)는 그대로다. (6) 화면은 모델이 설계한 계획에 그 사실을 표시한다. (7) 16은 계획 이의 비율을 `authoredBy`별로 잰다. ADR-14-12를 이 혼합안으로 고친다 | 14, 08, 09, 10, 16, 19, 04, 05, 24, 25, 22 |
+| J-189 | 결정 56 결과 확인 알림 | (1) 의미 설정 `notifications.resultReview: 'none' \| 'daily_digest' \| 'immediate'`, 기본 `none`(J-132와 같은 동작). (2) `daily_digest`: 설정 시각(`notifications.resultReviewDigestAt`, 기본 "19:00", 서버 시간대)에 확인 대기 결과가 하나 이상이면 묶음 푸시 1개(강도 notice)를 보낸다. 타이머 목적 `result_review_digest`(`runtime_timers`). (3) `immediate`: 결과 확인 질문이 생길 때마다 notice 강도로 푸시한다. (4) 두 경우 모두 방해 금지(J-166)와 시간당 상한(J-171)을 따르고, 휴대폰 확인 범위는 J-139 그대로다. (5) 설정 변경은 `settings.update`(19), 기록은 `setting.changed`(09) | 11, 14, 19, 26, 04, 05, 09, 17, 16, 22 |
