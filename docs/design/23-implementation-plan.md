@@ -1,7 +1,7 @@
 # 23. 구현 계획
 
 - 작성: 2026-10-12, T2(2b단계).
-- 상태: 4단계 보완판. 브리프 결정 1~57, `process/rulings-stage2a.md`의 판정 J-01~J-148, 01~22·24~26의 2026-10-12 판을 기준으로 했다. 22(테스트 전략)와 26(모바일)의 레시피·추적 ID·하네스 위치·모바일 작업을 이 계획에 맞췄다.
+- 상태: 4단계 보완판. 브리프 결정 1~57, `process/rulings-stage2a.md`의 판정 J-01~J-190, 2026-10-14 시점의 01~22·24~26을 기준으로 했다. 22(테스트 전략)와 26(모바일)의 레시피·추적 ID·하네스 위치·모바일 작업을 이 계획에 맞췄다.
 - 소유: 구현 에이전트 3단계의 운영 규칙과 작업 난이도 등급, 구현 전 사람 작업과 확인 순서, 마일스톤과 그 순서, 작업 분해(WBS), 증거 관문(G0·G1·G2)의 일정과 기능 활성화 단계, 병렬 갈래, 스파이크와 대체 경로, 미결 사항의 처리 시점, 구현 중 설계 변경 절차.
 - 소유하지 않음: 각 단위의 상세 명세와 완료 기준(각 문서 §6), 테스트 계층·도구·테스트 ID 체계(22), 기능 플래그의 구조(06 §3.10.3), 레시피의 내용(06·07·15·17·20·21), 모바일 클라이언트의 방식(26).
 
@@ -46,6 +46,9 @@
 | [결정 19], [결정 39] | 데스크톱 앱 먼저, SSH TUI는 이후 단계 | M13(데스크톱) → M19(TUI) |
 | [결정 42], [결정 47]~[결정 49] | 휴대폰 응답은 데스크톱 MVP 다음 단계. 데몬이 서빙하는 PWA와 Web Push, 알림은 `interrupt`·`notice`, 최소 iOS 26, Android 제외 | M17, 2단계 플래그 `clients.mobile` |
 | [결정 41], [결정 50] | 데스크톱 React 19, 부품 직접 제작(shadcn 소스 복사 포함) | M13a |
+| [결정 53], [판정 J-188] | 루프 계획은 혼합 방식이다. 기본은 모델이 계획 표시를 선언하고 코드가 계획을 계산한다. 표시 범위 밖이면 모델이 계획 초안을 낸다. 코드가 의존 규칙을 검사한다 | M8-02, M8-09 |
+| [결정 55], [판정 J-190] | MVP 도구: 웹 읽기(`web_fetch`)와 검색(`web_search`), `grep` 확장, 해시라인 편집, 브라우저 읽기·상호작용(MVP 후반). 컴퓨터 사용은 이후 1차 | M6-14, M6-17~M6-20, M7-19·M7-20, §3.4.21·§3.4.22 |
+| [결정 56], [판정 J-189] | 결과 확인 알림 설정(`none`·`daily_digest`·`immediate`)과 묶음 푸시 타이머 `result_review_digest` | M17-02 |
 | 결정 51(결정 52로 개정) | 구현 에이전트 3단계(1단계 메인 오케스트레이터 Opus 5.5 high). [결정 52]: 2단계 하위 조정자는 Sonnet 5.5 medium만, 3단계 실작업자는 Haiku 5.5 max만 쓴다. WBS 작업마다 난이도 등급과 담당 단계·모델을 적는다 | §3.1.1·§3.1.2, §3.4 모든 표의 등급·담당·모델 열, §3.9.2 |
 | [판정 44] | Node 24 LTS, TypeScript 6.0, pi 기준 `v1.1.0` | M0 도구 고정, M5 vendor 기준 |
 | [판정 45] | 데몬은 시작 단계에서 비밀을 받아 메모리에만 둔다 | M11-03, 사람 작업 HT-04·HT-12 |
@@ -70,7 +73,7 @@
 | D23-13 | 구현 에이전트는 3단계다. 결정 51(결정 52로 개정)이 정했고, 구성은 [결정 52]를 따른다. 작업마다 난이도 등급 A~D를 매기고 등급에서 담당 단계와 모델을 정한다. 실작업자 한 명이 맡기 큰 행은 하위 조정자가 나눈다 | §3.1.1, §3.1.2 |
 | D23-9 | 테스트 제목 앞에 22의 추적 ID(`<문서 번호>/<ID>`, 예: `12/T-RT-01`, `10/PT-07`, `19/CT-12`)를 쓴다(22 D22-2). 추적 색인은 M0에서 전부 옮기고, 끝난 WBS 행 집합으로 판정한다. 마일스톤을 마칠 때 `just test-all`(22 §3.15.3)을 돌린다 | §3.1.3 |
 | D23-10 | 이벤트·명령·메서드·오류 코드 카탈로그는 코드 등록 표와 설계 표가 어긋나지 않게 검사 스크립트(`scripts/docs/check-catalog.ts`)를 `just verify`에 넣는다 | §3.9.4 |
-| D23-11 | MCP, 외부 런타임 어댑터, 이미지 생성 자극, 자동 업데이트, `send` 확장(메일·메시지)은 이번 일괄 구현 범위 밖이다. 인터페이스와 적합성 틀(M7-14)만 MVP에 둔다 | §3.4.21 |
+| D23-11 | MCP, 외부 런타임 어댑터, 이미지 생성 자극, 자동 업데이트, `send` 확장(메일·메시지), 컴퓨터 사용(M20)은 이번 일괄 구현 범위 밖이다. 인터페이스와 적합성 틀(M7-14)만 MVP에 둔다 | §3.4.21, §3.4.22 |
 | D23-12 | 설계 시제품(`.helm-design-work/P4/fork-proto`, `P7/exp-bwrap*.sh`)은 Git 밖에 있으므로 M0에서 `experiments/design-prototypes/`로 옮겨 추적한다 | §3.4.1 |
 
 ### 2.3 원천의 순서 제안과 이 계획의 대응
@@ -177,7 +180,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | HT-02 | `~/projects/helm/PRODUCT.md` 작성: 제품 한 줄, 레이아웃 A, 저장소 표(`code/helm`, GitHub `Rengod95/Helm-Agent_Docs_OS`) | M0-09 | 파일이 있고 템플릿 자리 표시가 남지 않음 | 판정 §5, 06 §3.17-6, `projects` 스킬 |
 | HT-03 | 제품 폴더에서 `secrets init`(`.sops.yaml`과 `secrets/`) | M0-10(`_secrets-check`) | `secrets files`에 product 층이 보이고 `secrets check` 0 | 판정 §5, 06 §3.17 |
 | HT-04 | `secrets edit dev`: 개발용 모델 키(`ANTHROPIC_API_KEY`, 쓸 경우 `OPENAI_API_KEY`), 개발용 `HELM_LEDGER_HMAC_KEY`(사람이 32바이트 난수로 만든다) | M6-13(`ai-smoke`), M9a-08(`eval-inquiry`), M11(`daemon-dev`) | `secrets env dev`에서 키가 "있음"으로 보임(값은 가림) | 06 §3.17, 09 U-03, 17 §5.2 "23" |
-| HT-05 | `sudo apt install bubblewrap`(Ubuntu 24.04 후보 0.9.0). 판정 J-73에 따라 구현 시작 전에 요청한다 | 착수 전(늦어도 M6-10) | `bwrap --version` 0.9 이상, `bwrap --unshare-user --ro-bind / / true` 0 | 13 §3.6.1, 18 Q18-03, 판정 §5 |
+| HT-05 | `sudo apt install bubblewrap`(Ubuntu 24.04 후보 0.9.0). 필수 패키지다. 판정 J-73에 따라 구현 시작 전에 요청한다 | 착수 전(늦어도 M6-10) | `bwrap --version` 0.9 이상, `bwrap --unshare-user --ro-bind / / true` 0 | 13 §3.6.1, 18 Q18-03, 17 §3.16 #1, 판정 §5 |
 | HT-06 | 서버 Rust 도구(rustup 또는 mise `rust`)와 `sudo apt install nsis lld llvm` | M13b-02, M13d-03 | `just app-setup` 종료 코드 0 | 20 §3.12.1~2 |
 | HT-07 | Mac 준비: Xcode 명령줄 도구, mise(Node·pnpm·Rust), Mac에서 `just setup`, 자체 서명 인증서 "Helm Local Code Signing" 생성, macOS·Safari 판 알림 | M13b-02(Mac 셸 확인), M13d-02 | `run-on mac 'cargo --version && node --version'`, 판 번호 보고 | 20 §3.12.1·§3.12.3, 21 U-14 |
 | HT-08 | Windows 준비: `server` 별칭 SSH 키(Windows OpenSSH 클라이언트), `ops/windows/check-helm-host.ps1` 실행(읽기 전용, 관리자 권한 불필요) | M13b-09, M15-03 | 스크립트 결과에 FAIL 없음, `ssh server true` 0 | 17 §3.7.3, 20 §3.8.3 |
@@ -193,11 +196,16 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | HT-18 | MVP 실사용 기록: 실제 모델로 UC-01·UC-02·UC-07 끝까지, 두 기기에서 두 경로로 질문 답하기(UC-04) | M15 완료 | 이벤트 로그에 해당 Concern의 결과 확인이 있음 | 01 §3.8.3 2·3 |
 | HT-19 | G1: MVP 14일 실사용, 복귀 점검 답, 2주 평가 판단을 "Helm 사용 평가" Concern의 결과 확인으로 기록 | A2 | 관문 기록 Concern의 결과 확인 | 01 §3.8.4, 16 §3.27.6 |
 | HT-20 | G2: 2단계 14일 실사용 뒤 같은 방식 | A3 | 같음 | 01 §3.8.4, 16 §3.27.6 |
-| HT-21 | iPhone 준비: iOS 26 이상으로 올림[결정 49], Tailscale 설치·VPN On Demand. 방식(PWA·Web Push)과 알림 범위는 결정 47·48로 정해져 묻지 않는다. Apple 개발자 프로그램은 경로 B를 검토할 때만 묻는다(26 §3.1.5) | M17-04 | 설정 앱의 iOS 판, Tailscale 연결 | 결정 42·47~49, 26 §3.6.3 |
+| HT-21 | iPhone 준비: iOS 26 이상으로 올림[결정 49], Tailscale 설치·VPN On Demand. 방식(PWA·Web Push)과 알림 범위는 결정 47·48로 정해져 묻지 않는다. Apple 개발자 프로그램은 경로 B를 검토할 때만 묻는다(26 §3.1.5) | M17-04 | 설정 앱의 iOS 판, Tailscale 연결 | 결정 42·47~49, 57, 26 §3.6.3 |
 | HT-22 | 마일스톤 끝의 병합·push 확인, Windows CI 빌드 실행 확인 | 각 마일스톤 끝, M13d-03 | 사용자 답 | 사용자 규칙 |
 | HT-23 | 시험용 SSH 키: WSL sshd(127.0.0.1:22)에 시험 전용 키를 등록(`authorized_keys`)해 `test-conformance-ssh`와 `app-test-ssh`가 쓰게 한다 | M11-06, M13b-05 | `just test-conformance-ssh`가 종료 코드 2가 아님 | 22 §5.2 "23"(5), 20 §3.12.2 |
 | HT-24 | Playwright 브라우저의 시스템 의존 설치(필요하면 `sudo`). 브라우저 내려받기는 `just setup`이 한다 | M13a-02 | `just ui-test`가 종료 코드 2가 아님 | 22 §5.2 "06"(4), "23"(5) |
 | HT-25 | VAPID 키: `just mobile-vapid-keygen` 출력을 `secrets edit prod`의 `HELM_VAPID_PRIVATE_KEY`에 넣는다 | M17-02 | `helm doctor`에 `push_no_vapid_key`가 없음 | 26 §3.4.7, §3.6.3 |
+| HT-26 | `secrets edit prod`에 웹 검색 키를 넣는다. `BRAVE_SEARCH_API_KEY`(필수, 기본 제공자)와 `TAVILY_API_KEY`(선택, 예비). 발급과 등록은 사람이 한다(Brave 발급에는 카드 본인 확인이 필요하다) | M6-17의 실제 호출 확인(수동). 단위 시험은 가짜 키를 쓴다 | `secrets env prod`에서 두 키가 "있음"으로 보임(값은 가림) | 17 §3.16 #2, 18 §3.10.1, 06 §3.12.5, 판정 J-190 (6) |
+| HT-27 | 같은 uid에서 상시 도는 다른 에이전트(Claude Code, Codex 등)의 지침에 "`helm` CLI로 Helm 결정 명령을 내리지 않는다"를 더한다. 지침 파일은 사람이 고친다. Helm은 지침을 동기화하지 않는다(결정 54) | M11-10(관리 CLI의 사람 결정 명령) 전 | 지침 파일에 해당 문장이 있다(수동) | 18 §3.5 규칙 7, 17 §3.16 #9, 결정 54 |
+| HT-28 | Helm 작업 폴더(`~/projects/helm/code/helm`과 `.worktrees/`)의 `.git/config`에 실행 지점 설정이 없는지 확인한다. 18 §3.11.10의 키(`core.fsmonitor`, `core.hooksPath`, `filter.*`, `diff.*.textconv`, `core.sshCommand`, `core.pager`, `include.path`)를 `git config --file .git/config --get-regexp`로 찾아 출력이 없어야 한다. 있으면 사람이 지운다 | M6-11(데몬 git) 전 | 위 명령의 출력이 비어 있다(수동) | 18 §3.11.10, 18 §5.2 "23"(2) |
+| HT-29 | `sudo apt install fonts-noto-cjk`(권고). 한글 페이지의 브라우저 렌더링과 웹 본문 변환 품질에 쓴다 | SP-21(한글 변환 스파이크) 전 | `fc-list :lang=ko`에 한글 글꼴이 나온다 | 17 §3.16 #11, 판정 J-190 (6) |
+| HT-30 | 컴퓨터 사용 단계 패키지: `sudo apt install xdotool openbox x11-utils scrot`. 계기가 생긴 뒤에만 요청한다(§3.4.22) | M20-02 전 | `command -v xdotool openbox xprop scrot`의 네 명령이 모두 출력된다 | 17 §3.16 #12, 판정 J-190 (6), 13 §3.2.6 |
 
 #### 3.2.2 확인할 결정
 
@@ -207,7 +215,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 |---|---|---|---|---|
 | HD-1 | `just verify`를 서버에서만 돌리고 GitHub Actions는 Windows 데스크톱 빌드에만 쓰는가 | 예(D23-7) | M0-01 | 06 O-11 |
 | (해결) HD-2 | 관리 CLI의 사람 결정 명령을 어떤 경우에 받는가 | 판정 J-135: TUI 또는 TTY CLI에서 확인 문자열을 넣은 경우만. 비대화 localAdmin은 읽기와 관리만 | M11-10 | 18 Q18-07, 판정 J-135 |
-| HD-3 | MVP에 웹 페이지 읽기(`web_fetch`, 읽기 전용)를 넣는가. 01은 MVP ◐(읽기만), 13 O-13-05는 1차 제외 | 넣는다. 원함 탐구의 웹 레퍼런스(01 OQ-13, 15 O-9)에 필요하다. `web_search`는 넣지 않는다 | M6-14 전 | 01 §3.8.2, 13 O-13-05, 18 T18-27 |
+| (해결) HD-3 | MVP에 웹 페이지 읽기(`web_fetch`)와 웹 검색(`web_search`)을 넣는가 | 넣는다([결정 55], 판정 J-190 (1)). 원함 탐구의 웹 레퍼런스(01 OQ-13, 15 O-9)에 필요하다. 웹 검색의 기본 제공자는 Brave, 예비는 Tavily | M6-14 전 | 01 §3.8.2, 13 §3.2.4, 18 T18-27, 결정 55 |
 | HD-4 | 관찰 에이전트가 외부 세션 발췌(사용자·어시스턴트 문장 400자까지)를 모델 API로 보내는가 | 2단계 기능이므로 A2 때 묻는다. 그 전에는 보내지 않는다 | A2 | 16 OQ-16-03 |
 | HD-5 | 자기보고 척도 문항(NASA-TLX 차원 이름만 쓰는 자체 문항) | 자체 문항 | M14-07 | 16 OQ-16-10 |
 | HD-6 | 갈래 안의 병합(실작업자 브랜치 → 갈래 브랜치)을 사용자 확인 없이 하위 조정자가 하는가. 통합 브랜치 병합은 중간 병합 지점(§3.6.3)과 마일스톤 끝에 묶어서 확인받는다 | 예 | M0-01 | [결정 51], 사용자 규칙(병합은 확인 뒤), §3.1.1 |
@@ -219,14 +227,15 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 시점 | 사람 작업 | 이 시점에 가능해지는 것 |
 |---|---|---|
 | 착수 전 | HT-01, HT-02, HT-03, HT-05(J-73), HT-14, HD-1, HD-6 | M0 전체. 격리 시험 환경. 갈래 worktree |
-| M5·M6 시작 무렵 | HT-04, HD-3 | 샌드박스(M6-10), 실제 모델 스모크(M6-13), G0 준비 |
+| M5·M6 시작 무렵 | HT-04, HT-26, HT-28, HT-29 | 샌드박스(M6-10), 실제 모델 스모크(M6-13), 데몬 git(M6-11), 한글 변환 스파이크(SP-21), 웹 검색 호출(M6-17), G0 준비 |
 | M9a 끝 | HT-16(G0) | MVP 실사용 시작 조건 하나 |
-| M11 후반 | HT-08, HT-09, HT-12, HT-13, HT-23 | 운영 데몬 설치(M11-12), serve 경로 확인(SP-10), SSH 경로 적합성(M11-06) |
+| M11 후반 | HT-08, HT-09, HT-12, HT-13, HT-23, HT-27 | 운영 데몬 설치(M11-12), serve 경로 확인(SP-10), SSH 경로 적합성(M11-06), 관리 CLI 사람 결정 명령(M11-10) 전 지침 |
 | M13 시작 전 | HT-06, HT-07, HT-15, HT-17, HT-24 | 데스크톱 앱 골격, Mac 빌드, 토큰 복사, `app-dev`, 부품 시험 |
 | M14 무렵 | HD-5 | 자기보고 문항(M14-07) |
 | M15 전 | HT-10, HT-11 | E2E 두 경로, 첫 실사용 |
 | MVP 완료 뒤 | HT-18, HT-19 → A2 → HT-20 → A3, HD-4 | 2단계·3단계 활성화 |
 | M17 전 | HT-21, HT-25 | 모바일(실기기 확인은 A2 때) |
+| M20 전(계기 뒤) | HT-30 | 컴퓨터 사용 도구(M20-02) |
 
 ### 3.3 의존 그래프와 마일스톤 개요
 
@@ -245,6 +254,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 층 7  데스크톱 앱(M13b~d, M10·M12 뒤. M13c-08은 M14-08 뒤, M13b-09는 M11-10 뒤)
 층 8  MVP 통합·출시(M15) → G1 창
 층 9  2단계(M16) → 모바일(M17) → 3단계(M18) → TUI(M19)   (기본 꺼짐, 구현은 G1 창과 겹쳐 진행)
+층 10  컴퓨터 사용(M20, 일괄 구현 밖, 계기 뒤)
 ```
 
 임계 경로: M0 → M1 → M3 → M4 → M7 → M8 → M9b → M12 → M13c → M15. 커널(M3)과 런타임(M7)이 가장 크다. 갈래를 넘는 선행은 중간 병합 지점(§3.6.3)을 거쳐야 하므로 병합 확인이 늦으면 임계 경로가 늘어난다. M2·M5·M6·M10·M13a·M14는 임계 경로 밖에서 병렬로 진행한다(§3.6).
@@ -261,20 +271,21 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | M3 | 커널 | `@helm/kernel`의 판정, 명령 카탈로그, 묻기 판정, 속성 테스트 | M1 | core | XL | 11 |
 | M4 | 엔진 | 단일 변경 경로(접수, 멱등, 판정, 커밋, 지시), 시작 적재, `RuntimeStorePort` 구현 | M2, M3 | core | M | 7 |
 | M5 | pi vendor | vendor 패키지 세 개와 동기화·경계·고지 | M0 | pi | M(+가져온 코드 6천 줄) | 5 |
-| M6 | 모델·루프·도구 | `@helm/ai`, `@helm/agent`, `@helm/tools`(격리·네트워크 프록시 포함) | M1, M5, HT-05 | pi | L | 16 |
-| M7 | 런타임 코어 | run·훅·투영·복구·스케줄러·예산·하위 실행·제안 도구·수명주기, 하네스 `kernel` 모드 | M4, M6 | core | XL | 17 |
+| M6 | 모델·루프·도구 | `@helm/ai`, `@helm/agent`, `@helm/tools`(격리·네트워크 프록시·웹 읽기·검색·grep 확장·브라우저 읽기 포함) | M1, M5, HT-05 | pi | L | 20 |
+| M7 | 런타임 코어 | run·훅·투영·복구·스케줄러·예산·하위 실행·제안 도구·수명주기, `createRuntime` 조립, 해시라인 편집, 브라우저 상호작용과 가로채기, 하네스 `kernel` 모드 | M4, M6 | core | XL | 20 |
 | M8 | 오케스트레이션과 묻기 실행 | 루프 계약·계획·전환·진입·거시 스케줄러, 질문 전달, 복귀 요약 생성, 시나리오 하네스 | M3(순수부), M7(효과부) | core | XL | 12 |
 | M9 | 탐구 엔진 | M9a 순수부(`@helm/kernel/orchestration`)·평가 하네스(→G0), M9b 런타임 연결 | M9a: M1·M3-01·M6, M9b: M7·M8 | inquiry | XL | 8 + 3 |
-| M10 | 프로토콜·클라이언트·문구 | `@helm/protocol`, 가짜 데몬과 적합성 스위트, `@helm/client`, `@helm/ui-language` | M1 | proto | L | 6 |
+| M10 | 프로토콜·클라이언트·문구 | `@helm/protocol`(TypeBox 등록 표 포함), 가짜 데몬과 적합성 스위트, `@helm/client`, `@helm/ui-language` | M1 | proto | L | 7 |
 | M11 | 데몬·보안·운영·CLI | `helmd`, 리스너·인증, 프로토콜 계층, 운영 레시피, 관리 CLI, 서버 설치 | M4, M7, M8, M10, HT-12 | daemon | XL | 13 |
 | M12 | 화면 투영 | 04 화면별 뷰 생성, 무효화 태그, 의미 미리보기, 앱 뷰 표본, 대본 `view` 단계 | M7, M8, M9b, M10, M11(M12-07·M12-09) | daemon | L | 10 |
 | M13 | 데스크톱 앱 | M13a UI 시스템, M13b 앱 기반·전송·동기화, M13c 화면, M13d OS 통합·빌드 | M13a: M0·M10-06, M13b: M10(M13b-09는 M11-10), M13c: M12·M13a·M13b, M14(M13c-08) | ui·app | XL | 9 + 9 + 8 + 4 |
 | M14 | 관찰 에이전트 결정적 부분과 지표 | 외부 세션 수집, 마스킹, 지표, 탐지기, 2주 평가 보고 | M2, M11-08 | observer | L | 8 |
 | M15 | MVP 통합·출시 | 유즈케이스 대본, 장애 주입, E2E, 성능, 운영 리허설, 실사용 시작 | M0~M14, G0 | 공통 | L(테스트) | 9 |
-| M16 | 2단계 기능(기본 꺼짐) | 가능성·결과 탐구, 발산 전체, 탐침·지속 관찰, 검증·중재, 기대 레코드, 관찰 제안, REPL | M15 | 여럿 | XL | 13 |
+| M16 | 2단계 기능(기본 꺼짐) | 가능성·결과 탐구, 발산 전체, 탐침·지속 관찰, 검증·중재, 기대 레코드, 관찰 제안, REPL | M15 | 여럿 | XL | 12 |
 | M17 | 모바일 클라이언트(기본 꺼짐) | 데몬이 서빙하는 PWA와 Web Push로 휴대폰에서 질문 답하기(26) | M15, HT-21, HT-25 | mobile | L | 4 |
 | M18 | 3단계 기능(기본 꺼짐) | S 루프, 비상 합의, 혼돈·혼란 조합 | M16 | core | L | 4 |
 | M19 | TUI | pi-tui 기반 Helm TUI | M15, M10 | tui | M | 4 |
+| M20 | 컴퓨터 사용(이후 1차, 일괄 구현 밖) | `computer_*`: 실행마다 새 Xvfb를 S1 안에 띄우고 세션 단위로 승인한다(13 §3.2.6). 계기 뒤에 시작(§3.4.22) | M6-19, M7-20, HT-30 | tools | M | 2 |
 | A2 | 2단계 활성화 | G1 기록 뒤 2단계 플래그를 켬 | G1, M16 | 운영 | - | - |
 | A3 | 3단계 활성화 | G2 기록 뒤 3단계 플래그를 켬 | G2, M18 | 운영 | - | - |
 
@@ -293,7 +304,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 |---|---|---|---|---|---|---|---|---|
 | M0-01 | 통합 브랜치 `impl/helm-v1` 생성. 이전 구현을 `git mv`로 옮기고 워크스페이스에서 뺀다. npm workspaces `package.json`을 pnpm 설정으로 바꾼다. `.github/workflows/ci.yml`·`publish.yml`을 지운다. `README.ko.md`·`README.zh.md`를 지우고 `README.md`를 새로 쓴다 | `legacy/experimental-v0/{packages/helm-core,helm-cli,helm-sdk,helm-server,apps/helm-web}`, `legacy/agent-docs-init/`, `README.md` | 06 §2.5, ADR-06-14, D23-7 | HT-01 | `git log --follow`로 옮긴 파일의 이력이 보인다. 루트 워크스페이스에 `@helmdocs/*`가 없다(06 S0) | A | 3단계 | `H → S` |
 | M0-02 | 설계 시제품 보존: P4 `fork-proto`(`node_modules` 제외), `apply-*-patches*.py`, P7 `exp-bwrap*.sh`를 옮기고 출처·날짜·용도를 README에 적는다. `secretdir`, `ws*`, 압축 푼 deb는 옮기지 않는다 | `experiments/design-prototypes/{pi-fork-proto,bwrap}/`, `experiments/design-prototypes/README.md` | D23-12, 07 §3.5·§3.18.2, 13 U-TL-4 | M0-01 | gitleaks 통과. 워크스페이스 밖이다(`pnpm-workspace.yaml`에 없음) | A | 3단계 | `H → S` |
-| M0-03 | 루트 도구 설정: `package.json`(private, `type: module`, `packageManager: pnpm@11.21.0`, 스크립트 `lint`·`test`·`build`·`typecheck`), `pnpm-workspace.yaml`(`packages/*`, `apps/*`, `vendor/*`, pi `overrides`, better-sqlite3 빌드 허용), `.npmrc`, `.mise.toml`(node 24, pnpm 11, just, `ripgrep = "15.2.0"`, `fd = "10.5.0"`), `tsconfig.base.json`, `tsconfig.json`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `vitest.config.ts`, `.gitignore`, `lefthook.yml` | 같은 이름 | 06 §3.12, §3.15, 07 §3.3.2(overrides), 17 §3.14(rg·fd) | M0-01 | `just setup`이 깨끗한 클론에서 0. pnpm 11이 허용 목록 밖 빌드 스크립트(`@google/genai`·`protobufjs`)에서 설치를 실패로 하는지 확인하고, 실패로 하면 이름으로 무시 목록에 둔다(07 §3.3.2, 18 T18-25). `pnpm install --frozen-lockfile`이 두 번째 실행에서 변경 없음 | B | 3단계 | `H → S` |
+| M0-03 | 루트 도구 설정: `package.json`(private, `type: module`, `packageManager: pnpm@11.21.0`, 스크립트 `lint`·`test`·`build`·`typecheck`), `pnpm-workspace.yaml`(`packages/*`, `apps/*`, `vendor/*`, pi `overrides`, `allowBuilds`: better-sqlite3 `true`, 나머지 `false`), `.npmrc`, `.mise.toml`(node 24, pnpm 11, just, `ripgrep = "15.2.0"`, `fd = "10.5.0"`), `tsconfig.base.json`, `tsconfig.json`, `eslint.config.js`, `.prettierrc.json`, `.prettierignore`, `vitest.config.ts`, `.gitignore`, `lefthook.yml` | 같은 이름 | 06 §3.12, §3.15, 07 §3.3.2(overrides), 17 §3.14(rg·fd) | M0-01 | `just setup`이 깨끗한 클론에서 0. 빌드 스크립트 설정은 `allowBuilds`로 한다. `@google/genai`·`protobufjs`를 `false`로 올려 설치가 통과하는지 본다. 무시 목록(`ignoredBuiltDependencies`)은 `ERR_PNPM_IGNORED_BUILDS`로 설치를 실패시키므로 쓰지 않는다(07 §3.3.2 실험으로 닫힘, 18 T18-25). `pnpm install --frozen-lockfile`이 두 번째 실행에서 변경 없음 | B | 3단계 | `H → S` |
 | M0-04 | just 골격: `~/.dotfiles/templates/just/{core,node}.just`를 `.just/`로 그대로 복사, `.just/helm.just` 생성(빈 파일), 루트 `justfile`(`set allow-duplicate-recipes`, `typecheck` = `pnpm exec tsc -b`, `_verify-steps` = lint·typecheck·test·secrets·gitleaks. `check-arch`는 M0-07에서 더한다) | `justfile`, `.just/core.just`, `.just/node.just`, `.just/helm.just` | 06 §3.16 | M0-03 | `just`가 core·node·helm 그룹을 보인다. 템플릿 두 파일이 원본과 바이트 단위로 같다 | A | 3단계 | `H → S` |
 | M0-05 | 빈 패키지: `packages/{domain,protocol,kernel,store,engine,ai,agent,tools,runtime,observer,daemon,client,ui-language,testkit,client-react,ui-tokens,ui}`, `apps/cli`. 각 `package.json`(이름, `exports`의 `source`·`default`·`types` 조건, 하위 경로 자리), `tsconfig.json`(references), `README.md`(06 §3.4 해당 행), `src/index.ts`. `apps/desktop`·`apps/tui`·`apps/mobile`은 해당 마일스톤에서 만든다 | `packages/*/`, `apps/cli/` | 06 §3.3.1, §3.15, 20 §3.14(`client-react`), 21 §6.1(`ui-tokens`, `ui`) | M0-04 | 06 S0: 모든 `exports` 진입점이 Node 해석으로 불러와진다(`scripts/test/exports.test.ts`) | A | 3단계 | `H → S` |
 | M0-06 | SP-01 실행 형태 확인: `node --conditions=source`로 워크스페이스 패키지의 `.ts` 진입점 실행, `tsc -b`, Vitest `resolve.conditions: ["source"]` | `packages/daemon/src/bin/helmd.ts`(`--version`만), `scripts/test/run-form.test.ts` | 06 §3.12.4, S1, O-05 | M0-05 | 06 S1. 실패하면 `tsc -b --watch` + 수동 재시작으로 바꾸고 ADR-06-15 갱신 요청(§3.9) | D | 2단계 | `S 직접` |
@@ -362,7 +373,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | M3-04 | 규칙: 의존 규칙 1~5, 승격(V-PRO), 혼자 정한 결정(V-AUT), 상태 기계 해석(V-STA), 가드 G-K1~G-K6, 불변조건 V-INV-01~12 | `src/rules/{dependency,promotion,autonomy,machines,guards}.ts`, `src/invariants.ts` | 10 §3.7~§3.9, §3.12, §3.16 | M3-02 | 10 §6.2 "상태 기계", "의존 규칙", "승격", "사후 검사" | C | 3단계 | `H → S` |
 | M3-05 | C/A 명령 가족(합의·Grant, 결과 제출·확인·반영 항목, run·도구 호출) | `src/commands/{grant-agreement,result-obligation,run-toolcall}.ts` | 10 §3.11, 판정 J-40·J-43·J-44 | M3-03, M3-04 | 10 §6.2 "C/A 흐름" 대본 `c-a-flow.json`(사람 조작 2회, Grant 판본 2회) | C | 3단계 | `H → S` |
 | M3-06 | 질문 핵심: 레지스트리, 게이트 판정, 전달 계획(D-1~D-11), 강도, 만료, 가정 비교, 승인, 사람 조작 셈. 질문 명령. 분할: (a) 레지스트리·게이트 판정, (b) 전달 계획·강도, (c) 만료·가정 비교, (d) 승인·사람 조작 셈·질문 명령 | `src/asking/{registry,gate,delivery,expiry,assumption,approval,humanOps}.ts`, `src/commands/question.ts` | 11 §3, §6, 판정 J-47~J-52 | M3-05 | 11 §6.2 "게이트 판정", "권리 게이트", "질문 형식", "전달", "강도", "만료", "가정 비교", "가정 아래 행동", "승인", "사람 조작". 대본 `absent-user.json`, `late-answer.json` | C | 3단계 | `H → S` |
-| M3-07 | 나머지 명령 가족(프로젝트·Goal, Concern·구조, 루프, WorkUnit, E 레코드, 확인·판단, 선택·이의, 시간·다이얼·정책, 관찰 에이전트)과 중재·자율·재작업 판정. 분할: 명령 가족 파일 하나씩, 그리고 중재·자율·재작업 판정 하나 | `src/commands/{project-goal,concern-structure,loop,workunit,epistemic,check-finding,choice-objection,time-dial-policy,observer}.ts`, `src/asking/{mediator,autonomy,rework}.ts` | 10 §3.11, 11 §3.7~§3.12, 판정 J-53·J-54·J-55 | M3-06 | 10 §6.2 "명령 카탈로그". 11 §6.2 "중재자", "혼자 정한 결정", "이의·재작업", "범위 줄이기", "승인 극장 방지". 대본 `contest-rework.json` | C | 3단계 | `H → S` |
+| M3-07 | 나머지 명령 가족(프로젝트·Goal, Concern·구조, 루프, WorkUnit, E 레코드, 확인·판단, 선택·이의, 시간·다이얼·정책, 관찰 에이전트)과 중재·자율·재작업 판정(재결정 질문 규칙 포함, 판정 J-138). 분할: 명령 가족 파일 하나씩, 그리고 중재·자율·재작업 판정 하나 | `src/commands/{project-goal,concern-structure,loop,workunit,epistemic,check-finding,choice-objection,time-dial-policy,observer}.ts`, `src/asking/{mediator,autonomy,rework}.ts` | 10 §3.11, 11 §3.7~§3.12, 판정 J-53·J-54·J-55·J-138 | M3-06 | 10 §6.2 "명령 카탈로그". 11 §6.2 "중재자", "혼자 정한 결정", "이의·재작업", "범위 줄이기", "승인 극장 방지", 02 AC-07-17·AC-13-02(재결정 질문). 대본 `contest-rework.json` | C | 3단계 | `H → S` |
 | M3-08 | 08 제약 R-01~R-55(파일 하나에 R 하나, 08 가드 id와 같은 이름) | `src/rules/constraints/*.ts` | 08 §3.20, 10 §3.10 | M3-04 | 10 §6.2 "08 제약". M1-06의 "모든 `guard` id가 10 구현에 있음" 교차 테스트 통과 | B | 3단계 | `H → S` |
 | M3-09 | 파생 R-1~R-12, 지시, 조회 함수(`pendingTimers`, `checkSettle`, `allowedCommands`, `mustIncludeRefs`, `impactOf`, `autonomousDecisions`, `humanOps`, `viewAt`, `explain`) | `src/react/*.ts`, `src/directives.ts`, `src/queries/*.ts` | 10 §3.1(지시·조회 함수), §3.13(파생) | M3-07 | 10 §6.2 "파생". 조회 함수마다 단위 테스트 | C | 3단계 | `H → S` |
 | M3-10 | 커널 단독 대본·골든·속성: 커널 대본(helm-toy 21단계, guided-001, c-a-flow, absent-user, late-answer, contest-rework)과 골든 이벤트 열, PT-01~19. 메모리 `KernelState`만 쓴다. 유즈케이스 하네스의 `kernel` 모드는 엔진·저장소·투영 함수·도구→명령 대응이 필요하므로 M7-17에서 만든다 | `packages/kernel/test/{scripts,golden,property,regressions}/*` | 10 §3.17, §6.1, 22 §3.7 | M3-09, M0-12 | 10 §6.2 "재생", "속성"(verify는 고정 시드 20, `just test-deep`은 새 시드 100, 22 D22-7). 커널 분기 커버리지 90% 이상(22 §3.17.2: `just test`의 커널 프로젝트에서 검사, `just coverage`는 보고만) | C | 3단계 | `H → S` |
@@ -397,15 +408,15 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 |---|---|---|---|---|---|---|---|---|
 | M5-01 | vendor 기반: 안내, 라이선스, 업그레이드 보고 자리, `UPSTREAM.json` 스키마, 동기화·CHANGELOG 스크립트, 레시피 `vendor-status`·`vendor-verify`·`vendor-outdated`·`vendor-upgrade` | `vendor/README.md`, `vendor/LICENSES/pi-mono-MIT.txt`, `vendor/UPGRADES/2026-10-11_v1.1.0-baseline.md`, `scripts/vendor/{sync.mjs,changelog-breaking.mjs}` | 07 §3.3, §3.17, §3.18 | M0 | 07 V1 | B | 3단계 | `H → S` |
 | M5-02 | `@helm/vendor-pi-agent-core`: `agent-loop.ts`·`types.ts`에 패치 A1~A7, 업스트림 테스트(A6 describe 삭제, A5 기대값 1건 수정), 계약 시험 | `vendor/pi-agent-core/**` | 07 §3.4, §3.5, §3.10, §3.19.2 | M5-01 | 07 V2 (1)~(4) | B | 3단계 | `H → S` |
-| M5-03 | `@helm/vendor-pi-tools`(도구 7개와 의존 18개 파일, 패치 T1~T14)와 `@helm/vendor-pi-image`(이미지 유틸 8개) | `vendor/pi-tools/**`, `vendor/pi-image/**` | 07 §3.6, §3.7 | M5-01 | 07 V3 (1)~(5). 네트워크를 막은 상태의 grep·find 테스트 포함 | B | 3단계 | `H → S` |
+| M5-03 | `@helm/vendor-pi-tools`(도구 7개와 의존 26개 파일, 패치 T1~T15)와 `@helm/vendor-pi-image`(이미지 유틸 8개) | `vendor/pi-tools/**`, `vendor/pi-image/**` | 07 §3.6, §3.7 | M5-01 | 07 V3 (1)~(5). 네트워크를 막은 상태의 grep·find 테스트 포함 | B | 3단계 | `H → S` |
 | M5-04 | pi import 경계 검사(lockfile 포함)를 `check-arch`에 연결 | `scripts/vendor/check-pi-boundary.mjs` | 07 §3.19.1 I4 | M5-02, M5-03 | 07 V7 | A | 3단계 | `H → S` |
 | M5-05 | 서드파티 고지 생성과 `just licenses`. `_verify-steps`에 `vendor-verify`와 고지 일치 검사를 더한다 | `THIRD_PARTY_NOTICES.md`, `.just/helm.just` | 07 §3.17, 06 §3.16 | M5-04 | 07 V8. `just verify`가 vendor 파일 한 줄 수정(패치 ID 없음)에서 실패한다 | A | 3단계 | `H → S` |
 
 #### 3.4.7 M6 모델·루프·도구(`@helm/ai`, `@helm/agent`, `@helm/tools`)
 
-- 목표: pi 코드를 감싸는 세 패키지. 모델 게이트웨이, 루프 재export, 기본 도구 7개, 경로 정책, 격리, 권한 레이어.
-- 선행: M1, M5. 격리(M6-10)는 HT-05와 SP-04.
-- 완료 기준: 07 V4·V5·V6, 12 U-AI-1~3, 13 U-TL-1~7·U-TL-13·U-TL-14, 18 T18-26.
+- 목표: pi 코드를 감싸는 세 패키지. 모델 게이트웨이, 루프 재export, 기본 도구 7개, 경로 정책, 격리, 권한 레이어, 웹 읽기·검색, grep 확장, 브라우저 읽기 멤버([결정 55]).
+- 선행: M1, M5. 격리(M6-10)는 HT-05와 SP-04. 웹 읽기(M6-14)는 SP-21 뒤, 웹 검색(M6-17)은 SP-20 뒤, 브라우저 읽기(M6-19)는 SP-17 뒤에 시작한다. 중계기(M6-20)의 SP-18은 빌드 뒤에 잰다.
+- 완료 기준: 07 V4·V5·V6, 12 U-AI-1~3, 13 U-TL-1~7·U-TL-13·U-TL-14·U-TL-15~18·U-TL-21, U-TL-19의 T-BR-01·T-BR-07, 18 T18-26·T18-27·T18-35·T18-45.
 - 규모: L.
 
 | 작업 ID | 내용 | 산출 파일 | 근거 | 선행 | 완료 조건 | 등급 | 담당 | 모델 |
@@ -415,23 +426,27 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | M6-03 | 자격 증명: 데몬 `SecretStore`(판정 45)를 읽는 구현. 개발 데몬은 `HELM_SECRETS_FROM_ENV=1`일 때만 환경에서 읽고 지운다 | `packages/ai/src/credentials.ts` | 12 U-AI-2, 17 §3.8, 07 §5.2 "12"(8), 18 §5.2 "12"(1) | M6-02 | T-AI-06~08(`SecretStore`에서 읽고 `process.env`에 없음, 키 교체 뒤 새 키, 판정 J-57). 키 값이 오류 문자열에 없다 | B | 3단계 | `H → S` |
 | M6-04 | 사용량 계산(`calculateCost`, `costKnown`)과 이미지 입력 정규화(`processImage`) | `packages/ai/src/{usage,images}.ts` | 12 U-AI-3, 07 §3.6.4 | M6-02 | T-AI-09, T-AI-10. 1×1 PNG 정규화 | B | 3단계 | `H → S` |
 | M6-05 | `@helm/agent`: 저수준 루프 재export와 `assertToolDeclarations` | `packages/agent/src/index.ts` | 07 §3.9.4, 12 RT-1 | M5-02, M6-01 | 07 V6 (1)~(3): I3, C8, C20. `Agent`·`agentLoop`를 내보내지 않는다 | A | 3단계 | `H → S` |
-| M6-06 | 모델 테이프 재생기(`helm.model-tape.v1`): pi-ai의 가짜 제공자(`fauxProvider`), `api` = `"faux:helm"`, 대기열이 비면 실패, `context-hash` 대조, 녹화 게이트웨이(`recordingGateway`)와 재생(`tapeGateway`). 레시피 `tape-promote` | `packages/ai/src/testing/*`, `.just/helm.just` | 22 §3.5.4, D22-4, U22-2, 07 C17 | M6-02 | U22-2 (1)~(6). 07에 요구된 `FauxResponseFactory` 확인(22 §5.2 07) 결과를 SP-06 기록에 적는다 | B | 3단계 | `H → S` |
+| M6-06 | 모델 테이프 재생기(`helm.model-tape.v1`): pi-ai의 가짜 제공자(`fauxProvider`), `api` = `"faux:helm"`, 대기열이 비면 실패, `context-hash` 대조, 녹화 게이트웨이(`recordingGateway`)와 재생(`tapeGateway`). 레시피 `tape-promote` | `packages/ai/src/testing/*`, `.just/helm.just` | 22 §3.5.4, D22-4, U22-2, 07 C17, 12 시험 지원 API(`ModelTape`, `createFauxModelGateway`) | M6-02 | U22-2 (1)~(6). 07에 요구된 `FauxResponseFactory` 확인(22 §5.2 07) 결과를 SP-06 기록에 적는다 | B | 3단계 | `H → S` |
 | M6-07 | 도구 모델: `HelmToolSpec`(`primitive`, `replay`, `executionMode`, `cancellation`, `prepare`, `postprocess`, `replayGuard`, `safeForRecoveryTurn`), `toAgentTool` | `packages/tools/src/{spec,wrap}.ts`, `packages/tools/src/testing/fake-executor.ts`(`FakeToolExecutor`: 샌드박스 없는 환경과 하네스 `kernel` 모드용) | 13 §3.1~§3.2, U-TL-1, 08 §5.2 "13" | M6-05 | T-TL-01, T-TL-02. `FakeToolExecutor`가 실제 도구와 같은 `HelmToolSpec` 결과 모양을 낸다 | B | 3단계 | `H → S` |
 | M6-08 | 경로 정책과 셸 환경: `canonicalize`(realpath, 링크, 가림 목록), vendor 도구의 `pathPolicy.check`(T7+) 연결, `buildShellEnv`(18 R-2 허용 목록, `HELM_RUN_ID`·`HELM_TOOL_CALL_ID`·`NO_COLOR`·`CI`만) | `packages/tools/src/path/{canonicalize,policy}.ts`, `src/pi/{path-policy,shell-env}.ts` | 13 §3.4, U-TL-2, 07 V5, 판정 J-17·J-45 | M6-07 | T-PA-01~05, C21, C22, 07 V5 (2)(3). 가림 목록에 `/srv/volumes/helm/data`(J-45), `~/.config/helm/**`, `~/.config/systemd/user/**`, `/mnt/**`, `/run/WSL`(18 §5.2 "13"(3)) | C | 3단계 | `H → S` |
-| M6-09 | 기본 도구 7개(read, write, edit, bash, grep, find, ls)를 13 명세로 감싼다. 도구별 기본값 표 | `packages/tools/src/basic/{read,write,edit,bash,grep,find,ls}.ts` | 13 §3.3, U-TL-3, 07 §3.9.5 | M6-08 | T-BT-01~04, 07 V5 (4) | B | 3단계 | `H → S` |
+| M6-09 | 기본 도구 7개(read, write, edit, bash, grep, find, ls)를 13 명세로 감싼다. 도구별 기본값 표. `grep`의 확장은 M6-18이, 해시라인 모드는 M7-19가 더한다 | `packages/tools/src/basic/{read,write,edit,bash,grep,find,ls}.ts` | 13 §3.3, U-TL-3, 07 §3.9.5 | M6-08 | T-BT-01~04, 07 V5 (4) | B | 3단계 | `H → S` |
 | M6-10 | 격리: S1 bwrap → S1b `systemd-run --user` → `execute` 끔(fail closed). 자원 상한 슬라이스, 타임아웃 시 자식 0개 | `packages/tools/src/sandbox/{bwrap,systemd-run,env,level}.ts` | 13 §3.6, U-TL-4, 18 §3.11, 판정 J-45 | M6-08, HT-05, SP-04 | T-SB-01~04. 18 T18-08~11·T18-29의 단위·통합 판본(시스템 판본은 M11-11의 `daemon-systest`). S1b로 낮출 때의 읽기 범위는 13·18이 허용 목록 방식으로 고친 명세를 따른다(§5.2). 명세가 오기 전에는 S1b를 MVP 운영에 쓰지 않는다(§3.7.1 SP-04) | D | 2단계 | `S 직접` |
-| M6-11 | 범위 계산, 변경 감지(git 방식, scan 방식, 스냅숏 blob), 비밀 마스킹(M1-09 규칙 사용) | `packages/tools/src/{scope/effective,changes/detector,secrets/redact}.ts` | 13 U-TL-5~7 | M6-09 | 13의 T-SC-01~03(범위), T-CD-01~03, T-RD-01 | C | 3단계 | `H → S` |
+| M6-11 | 범위 계산, 변경 감지(git 방식, scan 방식, 스냅숏 blob), 비밀 마스킹(M1-09 규칙 사용), 데몬 git 고정 환경(`safeGit`, 18 §3.11.10) | `packages/tools/src/{scope/effective,changes/detector,secrets/redact}.ts`, `packages/tools/src/git/safe-git.ts` | 13 U-TL-5~7·U-TL-15, 18 §3.11.10 | M6-09, HT-28 | 13의 T-SC-01~03(범위), T-CD-01~03, T-RD-01, T-SG-01~06(U-TL-15, 18 T18-35) | C | 3단계 | `H → S` |
 | M6-12 | 권한 레이어: `PermissionVerdict`(rightsCategories, reversibility), 18 고정 기준선 | `packages/tools/src/permission.ts` | 13 §3.10, U-TL-13, 18 §3.11.6 | M6-11 | T-PL-01, T-PL-02, T18-26 | B | 3단계 | `H → S` |
 | M6-13 | 실제 제공자 스모크 레시피 `ai-smoke`(비용 발생, `verify` 밖) | `.just/helm.just`, `packages/ai/scripts/smoke.ts` | 07 §3.18, §5.1 | M6-03, HT-04 | 수동: Anthropic(쓸 경우 OpenAI) 스트림 1회, 사용량·캐시 필드 기록. 결과를 SP-06 기록에 남긴다 | D | 2단계 | `S 직접` |
-| M6-14 | 웹 페이지 읽기 도구 `web_fetch`(읽기 전용, 사설 주소·리디렉션 차단, 해석 뒤 IP 고정, 내용 해시). HD-3이 "넣지 않음"이면 이 행을 M16으로 옮긴다 | `packages/tools/src/web/fetch.ts` | 01 §3.8.2(◐ 읽기만), 15 §5.2 "13", 18 T18-27, HD-3 | M6-12 | T18-27. 13이 `web_fetch` 명세를 더하면 그 §6 조건(§5.2 13 요구) | C | 3단계 | `H → S` |
+| M6-14 | 웹 페이지 읽기 도구 `web_fetch`([결정 55], 읽기 전용). 데몬이 직접 받는다. 사설·루프백·CGNAT·tailnet 주소와 리디렉션을 막고(리디렉션마다 재판정), 해석한 IP에 연결을 고정한다. 내용 해시를 남긴다. 본문 변환은 네트워크 없는 변환 작업자(`convert-worker.ts`, `linkedom`·`@mozilla/readability`·`turndown`)가 맡는다. 모델 문맥에는 `<untrusted>` 표식을 씌운다(M7-03 투영). 외부 탐색은 `net:public`으로 허용한다 | `packages/tools/src/web/{fetch,convert-worker}.ts` | 13 §3.2.4, 13 U-TL-18, 06 S10·§3.6.7, 18 T18-27, 판정 J-190 (1)·(2)·(4), SP-21 | M6-12, SP-21 | T-WF-01~04(13 U-TL-18, 18 T18-27과 공유). 변환 작업자는 네트워크 없이 돈다(T-WF-03). 변환기 선택은 SP-21 결과로 정한다 | C | 3단계 | `H → S` |
 | M6-15 | 격리 운영: 자체 시험(시작 때 S1·S1b 여섯 시험), 이전 epoch 도구 단위 정리(`reapOrphans`), run 사이 외부 변경 감지(`workspace.unlinked_change_observed`) | `packages/tools/src/sandbox/{selftest,reap}.ts`, `src/changes/unlinked.ts` | 13 U-TL-14, 16 §5.2 "13"(1), 판정 J-45 | M6-10, M6-11 | T-IS-01~02, T-OR-01, T-UC-01 | C | 3단계 | `H → S` |
 | M6-16 | 네트워크 허용 실행과 SP-16: 실행마다 네트워크 네임스페이스를 분리하고 데몬 쪽 CONNECT 프록시로만 밖에 나간다. 루프백·사설·CGNAT(100.64/10)·tailnet 주소를 막는다. 프록시는 이 모듈을 데몬이 띄운다(M11-07에서 연결) | `packages/tools/src/sandbox/{netns,connect-proxy}.ts` | 판정 J-134, 13 §3.6.3, 18 T18-09·T18-27 | M6-10, HT-05 | 샌드박스 안에서 `127.0.0.1:7840`·`127.0.0.1:2019`·`100.64.0.0/10`·사설 주소 접속 실패, 허용 호스트 HTTPS 성공. 실패하면 SP-16 대체 경로(§3.7.1) | D | 2단계 | `S 직접` |
+| M6-17 | 웹 검색 도구 `web_search`([결정 55]). Helm 함수 도구다. 제공자 인터페이스 `search(query, opts)` 뒤에 Brave(기본)와 Tavily(예비)를 둔다. 설정 `tools.webSearch`로 고른다. 기본 제공자가 실패하면 예비를 한 번 부른다. 질의어는 호출 전에 마스킹한다. 키는 자격 증명 포트(M6-03)로 읽는다. 월 상한은 예산 포트(M7-08)로 받는다. Anthropic 서버 측 `web_search`는 쓰지 않는다(J-190 (5)) | `packages/tools/src/web/search.ts` | 13 §3.2.4, 13 U-TL-18, 06 S10, 18 §3.11.11, 판정 J-190 (1)·(2)·(5), SP-20 | M6-14, M6-03, SP-20 | T-WS-01(기본 실패 때 예비 한 번, 월 상한과 `web.quota_exceeded`), T-WS-02(Tavily 키가 없으면 예비가 꺼진다). 실제 호출은 HT-26 뒤 수동 확인 | C | 3단계 | `H → S` |
+| M6-18 | `grep` 확장: 페이지 `skip`과 `nextSkip`, 파일당 상한, 파일 사이 라운드로빈(한 파일이 결과를 독점하지 않는다), 일치 중심 줄 자르기(줄 500자, `[col N]`), `paths[]`(항목마다 읽기 루트 검사). 실행은 샌드박스 안 `rg`다. 07 패치 T15(vendor `grep.ts`)를 쓴다 | `packages/tools/src/basic/grep.ts` | 13 §3.3.8, 13 U-TL-21, 06 S12, 07 D07-12·§3.6.5, 판정 J-190 (1) | M6-09, M5-03 | T-GR-01~04(13 U-TL-21) | B | 3단계 | `H → S` |
+| M6-19 | 브라우저 읽기 멤버(MVP 후반 1단계, [결정 55]). `helm-browserd`는 Node 프로세스이고 `playwright-core` 1.64.0을 직접 쓴다(Stagehand는 의존성으로 쓰지 않는다, J-190 (1)). S1 샌드박스와 프록시 네임스페이스 안에서 CDP 파이프로 돈다. 비밀 없는 환경이다. 읽기 멤버(GET 탐색, 읽기, 스크롤, 스크린샷)만 연다. 실행마다 `helm-browser-<세션 ID>` 단위로 띄운다. 다운로드는 허용 경로 안에만 쓴다 | `packages/tools/src/browser/{tool,browserd}.ts` | 13 §3.2.5, 13 U-TL-19, 06 S11·§3.6.7·§3.12.5, 17 §3.1.3, 18 T18-45, 판정 J-190 (1)·(6) | M6-07, M6-10, M6-16, HT-05, SP-17 | T-BR-01(1단계에서 비-GET 거부), T-BR-07(다운로드가 허용 경로 밖에 쓰이지 않는다). 모델 키와 `SecretStore` 값이 없다(T18-45). 샌드박스 밖에서는 기동하지 않는다 | C | 3단계 | `H → S` |
+| M6-20 | `helm-netshim` 정적 실행 파일. 샌드박스 안 `127.0.0.1:3128`에서 받아 실행별 Unix 소켓으로 넘긴다(`connect` 하위 명령은 ssh ProxyCommand가 쓴다). 릴리스에 넣고 `--version`을 매니페스트 `tools.netshim`에 기록한다. 중계 비용은 SP-18로 잰다 | `packages/tools/bin/helm-netshim`, `ops/bin/build-release`(릴리스 포함 확인) | 13 §3.6.3, 13 U-TL-16, 06 §3.4.9·§3.6.7, 17 §3.2.2·§3.11.5, 판정 J-134 | M6-16, HT-05 | T-NP-03(pnpm·npm·git(https·ssh ProxyCommand)·curl이 프록시로 동작), T-NP-04(네트워크 없음이면 소켓 바인드 없음), T17-37(`helm doctor`가 `tools.netshim` 버전 불일치를 WARN) | D | 2단계 | `S 직접` |
 
 #### 3.4.8 M7 런타임 코어(`@helm/runtime`)
 
 - 목표: 에이전트 run을 커널 검사와 함께 돌리고, 실행 의도 → 실행 → 결과를 기록하며, 재시작 뒤 복구하고, 타이머·예산·하위 실행을 다룬다.
 - 선행: M4, M6.
-- 완료 기준: 12 §6 U-RT-1~13, 13 U-TL-8·U-TL-10·U-AD-1, 06 S9, 12 §6 통합 시나리오. U-RT-14는 M8-10·M12-08, U-RT-15는 M9b-01.
+- 완료 기준: 12 §6 U-RT-1~13, 13 U-TL-8·U-TL-10·U-AD-1, 06 S9, 12 §6 통합 시나리오, 13 U-TL-19(상호작용)·U-TL-20, 06 S11·S12(상호작용·해시라인 부분). U-RT-14는 M8-10·M12-08, U-RT-15는 M9b-01.
 - 배치: 12 §3.1을 따르되 루프 포크 코드는 07 §3.3의 배치(`vendor/pi-agent-core`)를 쓴다(07 §5.2 "12"(1)).
 - 규모: XL.
 
@@ -441,19 +456,22 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | M7-02 | run 상태 기계: 시작·재개(`ended(handed_off)` + 같은 thread 새 run, J-38)·중지, run 수준 재시도 | `src/run/{engine,control}.ts` | 12 §3.2, 판정 J-38·J-39 | M7-01 | T-RT-08~13 | C | 3단계 | `H → S` |
 | M7-03 | 모델 컨텍스트 투영: 섹션 렌더러, 필수 범주 포함 검사(A9·A11), `run.context_projected`(`cp_`), 결정적 바이트 해시 | `src/projection/model.ts`, `src/projection/sections/*` | 12 §3.5, 판정 J-16 | M7-01 | T-PJ-01~09 | C | 3단계 | `H → S` |
 | M7-04 | 컴팩션 | `src/projection/compaction.ts` | 12 §3.6 | M7-03 | T-CP-01~04 | C | 3단계 | `H → S` |
-| M7-05 | 부팅 복구와 재개 정책: 11단계 조회(09 §3.8.2), 재실행 판정("의도 시점 safe AND 현재 safe"), 결과 불명 처리(J-44), 크래시 루프 → 안전 모드. 장애 주입용 종료 지점(`run.*`, `tool.*`, `model.*`, `boot.during_recovery`, `scheduler.after_fire`)을 `HELM_TEST_HOOKS=1`이고 운영 경로가 아닐 때만 켠다 | `src/recovery/{boot,policy}.ts`, `src/testing/killpoints.ts` | 12 §3.7, 09 §3.8.2, 22 §3.9.2, 판정 J-39·J-41·J-44 | M7-02 | T-CR-01~08. 훅이 꺼진 상태에서 종료 지점이 동작하지 않는다(U22-6 일부). T-CR-09(무작위 kill 100회)는 M15-02 | C | 3단계 | `H → S` |
+| M7-05 | 부팅 복구와 재개 정책: 11단계 조회(09 §3.8.2), 재실행 판정("의도 시점 safe AND 현재 safe"), 결과 불명 처리(J-44), 크래시 루프 → 안전 모드. 장애 주입용 종료 지점(타입 `CrashPoint`, `run.*`, `tool.*`, `model.*`, `boot.during_recovery`, `scheduler.after_fire`)을 `HELM_TEST_HOOKS=1`이고 운영 경로가 아닐 때만 켠다 | `src/recovery/{boot,policy}.ts`, `src/testing/killpoints.ts` | 12 §3.7, 09 §3.8.2, 22 §3.9.2, 판정 J-39·J-41·J-44 | M7-02 | T-CR-01~08. 훅이 꺼진 상태에서 종료 지점이 동작하지 않는다(U22-6 일부). T-CR-09(무작위 kill 100회)는 M15-02 | C | 3단계 | `H → S` |
 | M7-06 | 소유권(epoch·attempt)과 동시성(작업 공간 배타, 전역·제공자 상한, 대기열) | `src/run/journal.ts`, `src/run/engine.ts` | 12 §3.8~§3.9 | M7-02 | T-OW-01~03, T-CC-01~03 | C | 3단계 | `H → S` |
 | M7-07 | 스케줄러: 단일 타이머, 60초 단위 재확인, 부팅 catch-up 상한, 시계 점프, cron(사용자 시간대) | `src/scheduler/*` | 12 §3.10, 판정 J-13 | M7-02 | 12의 T-SC-01~06 | C | 3단계 | `H → S` |
 | M7-08 | 예산: 원장, 소프트·하드 문턱, lease 예약·정산, 일일 한도 | `src/budget/*` | 12 §3.11, 01 NFR-C | M7-02 | T-BG-01~04 | B | 3단계 | `H → S` |
 | M7-09 | 사용자 입력 inbox: steering, follow-up, interrupt, 같은 `inputId` 한 번 | `src/run/inputs.ts` | 12 §3.12 | M7-02 | T-IN-01~04 | B | 3단계 | `H → S` |
 | M7-10 | 하위 실행과 포트: 검증·중재·가지·하위 실행, 메모 키, 승인 계획 1회 실행 | `src/run/subagents.ts`, `src/ports/*` | 12 §3.14~§3.15 | M7-02 | T-SA-01~05 | C | 3단계 | `H → S` |
 | M7-11 | 화면 투영 공통 규약: 뷰 envelope, `asOfSeq`, 표시 번호(인스턴스 전체 종류별), `degraded` | `src/projection/views.ts` | 12 §3.5.8, 03 §5.2 "12" | M7-03 | T-VW-01~03. 화면별 뷰는 M12 | B | 3단계 | `H → S` |
-| M7-12 | Helm 제안 도구: 10 명령 스펙에서 도구 스키마 생성, 제출과 결과를 한 트랜잭션(J-43). 같은 트랜잭션 안의 뒤 제출은 앞 제출의 결과를 본다(판정 J-148), `helm_query` 범위 | `packages/tools/src/helm/{generate,execute,query}.ts` | 13 §3.7, U-TL-8, 판정 J-148 | M7-01, M3-09 | T-HT-01~05 | C | 3단계 | `H → S` |
+| M7-12 | Helm 제안 도구: 10 명령 스펙에서 도구 스키마 생성, 도구 → 명령 대응 데이터 `proposalToolMap`(13 §3.7.3), 제출과 결과를 한 트랜잭션(J-43). 같은 트랜잭션 안의 뒤 제출은 앞 제출의 결과를 본다(판정 J-148), `helm_query` 범위 | `packages/tools/src/helm/{generate,execute,query}.ts` | 13 §3.7, U-TL-8, 판정 J-148 | M7-01, M3-09 | T-HT-01~05 | C | 3단계 | `H → S` |
 | M7-13 | 되돌릴 지점: git 스냅숏, tar 스냅숏, 복원, `rollback_point.*` 등록 | `packages/tools/src/rollback/*` | 13 §3.7.8, U-TL-10, 11 §3.12 | M7-12 | T-RB-01~03 | B | 3단계 | `H → S` |
 | M7-14 | 런타임 어댑터 계약과 적합성 틀: 계약 타입, `deriveLevel`, 1차 어댑터, 가짜 어댑터 | `packages/runtime/src/adapter/{contract,helm-adapter,fake-adapter,conformance}.ts` | 13 §3.11, U-AD-1, 06 §3.13, S9 | M7-02 | T-AD-01~03(Level D: 13 AC-01~14), 13 §3.11.7의 적합성 대본 전부(`runAdapterConformance`), 22/CF-04(거짓 광고 가짜 어댑터), 06 S9 | B | 3단계 | `H → S` |
 | M7-15 | 통합 시나리오: X3-4-11의 한 turn 흐름(읽기 → 해석 제안 → 합의 없이 쓰기 차단 → 합의 → 확인 → 쓰기 → 결과 제출 → 확인)을 가짜 모델 대본으로 | `packages/runtime/test/integration/one-turn.test.ts` | 12 §6 통합 시나리오, 10 §6.2 "C/A 흐름" | M7-01~M7-13 | 모든 기록과 거부가 12 §3.4.3 순서. durable-spike 스파이크 1의 c1~c7과 같은 결과 | C | 3단계 | `H → S` |
 | M7-16 | 런타임 수명주기: `drain(timeoutMs)`, `abortAll(reason)`, `pause`·`resume`(17의 종료 순서·업그레이드가 쓴다) | `packages/runtime/src/lifecycle.ts` | 12 U-RT-13, 17 §5.2 "12"(3) | M7-05 | T-LC-01~03 | B | 3단계 | `H → S` |
 | M7-17 | 유즈케이스 하네스 `kernel` 모드: 엔진·임시 저장소(`@helm/engine/testing`), 투영 함수, 도구 → 명령 대응(`FakeToolExecutor`)으로 대본을 돌리는 실행기 골격과 `UC-07/basic`·`UC-02/helm-toy`의 `kernel` 모드 대본. 런타임 시험 도우미 `@helm/runtime/testing`의 `whenIdle()` | `tests/harness/{runner,expect,steps,trace}.ts`, `tests/scenarios/{uc-07-agreement-acceptance,uc-02-cause-investigation}.scenario.ts`(`kernel` 모드), `packages/runtime/src/testing/when-idle.ts` | 22 §3.8.1~§3.8.3, 22 §5.2 "12"(2) | M4-05, M7-03, M7-12, M6-07 | 두 대본이 `kernel` 모드로 통과. 같은 대본 두 번 → strict 동일 | C | 3단계 | `H → S` |
+| M7-18 | `createRuntime` 조립과 시험 도우미. `RuntimeDeps`(엔진, 저장소 읽기 포트, 모델 게이트웨이, 설정, 시계, 연결 목록, 비밀 읽기, 로그)를 받아 `Runtime`을 만든다. 도구 묶음은 `config.tools`로 만든다(데몬은 `tools`를 import하지 않는다). 시험 도우미 `@helm/runtime/testing`에 `ManualClock`(`advance`·`set`·`jumpWall`, 22 시험 시계를 바탕으로 한다)과 `whenIdle`·`crashAt`을 모은다 | `packages/runtime/src/index.ts`, `packages/runtime/src/testing/{manual-clock,hooks}.ts` | 12 §3.1.3, 12 시험 지원 API, 22 §3.5.2, 06 §3.4.10 | M7-01~M7-17, M4-07, M6-02 | 12 U-RT-13 수명주기 시험이 조립된 `Runtime`으로 돈다. 조립 자체의 시험은 UT-nn(22 §3.19)을 쓴다. 가짜 시계로 타이머가 움직인다 | C | 3단계 | `H → S` |
+| M7-19 | 해시라인 편집(MVP, 모델별 선택). 태그는 모델용 4자리 별칭이고, 실제 guard는 sha256이다. `[PATH#TAG]` 섹션과 연산 문법은 13 §3.3.7을 따른다. 태그와 (경로, sha256, 본 줄 집합)의 매핑은 run 범위로 데몬 메모리에 둔다. 재시작 뒤 첫 `edit`는 `stale_snapshot`으로 끝난다. 낡은 태그를 자동으로 되살리지 않는다. `RunSpec.editMode`(`replace`·`hashline`)는 run 시작 때 고정한다(RT-13). 기본은 `replace`다 | `packages/tools/src/basic/edit-hashline.ts`, `packages/runtime/src/run/types.ts`(`RunSpec.editMode`) | 13 §3.3.7, 13 U-TL-20, 12 RT-13, 06 S12, 07 D07-12, 판정 J-106·J-190 (1) | M6-09, M7-02, M6-07 | T-HL-01~05(13 U-TL-20). `replace`가 기본이고, guard가 있을 때만 replay `safe`다(J-106). 모델별 기본값은 SP-23 뒤 정한다 | C | 3단계 | `H → S` |
+| M7-20 | 브라우저 상호작용 멤버(MVP 후반 2단계)와 요청 가로채기, run 오염 상태 `taint.web`. browserd에 클릭·입력·폼 제출·업로드를 더하고 낡은 ref를 거부한다. 요청 가로채기로 비-GET 요청, 업로드, 합의 밖 호스트 이동을 `send`(권리 게이트)로 올린다. 웹 결과(`web_fetch`·`web_search`·브라우저)를 받은 run은 `taint.web`을 세우고, 그 뒤의 `send`는 합의가 미리 허용해도 사람에게 묻는다. 스크린샷은 최근 세 장만 남긴다 | `packages/tools/src/browser/{interact,intercept}.ts`, `packages/runtime/src/run/engine.ts`(`taint.web`) | 13 §3.2.5, 13 §3.10.1, 13 U-TL-19, 12 §3.2.5·RT-10, 18 S-19·T18-52, 06 §3.6.7, 판정 J-190 (3)·(4) | M6-19, M7-01, M3-03, SP-19 | T-BR-02~06(13 U-TL-19), T18-52. `taint.web` 뒤 POST는 `ask`(T-BR-03). 가로채기가 놓치는 종류가 있으면 상호작용을 켜지 않는다(SP-19) | C | 3단계 | `H → S` |
 
 #### 3.4.9 M8 오케스트레이션과 묻기 실행
 
@@ -467,14 +485,14 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 작업 ID | 내용 | 산출 파일 | 근거 | 선행 | 완료 조건 | 등급 | 담당 | 모델 |
 |---|---|---|---|---|---|---|---|---|
 | M8-01 | 루프 계약 18개, 조건 레지스트리, 지시문 템플릿. 분할: (a) 타입·레지스트리·조건, (b) O·I 계열 계약, (c) C·A 계열 계약, (d) S 계열 계약(3단계용, 기본 꺼짐) | `packages/kernel/src/orchestration/contracts/{types,registry,guards}.ts`, `catalog/*.ts`, `instructions/*.md` | 14 §3.5~§3.6 | M3-04 | 14 C-1, C-2 | B | 3단계 | `H → S` |
-| M8-02 | 상황 판정과 루프 계획(`buildPlan`, `planPosition`) | `src/orchestration/{situation,plan}/*` | 14 §3.7~§3.8 | M8-01 | 14 C-3, C-4, C-5 | C | 3단계 | `H → S` |
+| M8-02 | 상황 판정과 루프 계획(`buildPlan`, `planPosition`). 계획은 표시(`PlanFlags`)로 계산한다. `PlanFlags`에 `outOfPattern`을 더하고, 혼합 방식의 `validatePlan`(의존 규칙 검사)을 여기서 만든다([결정 53]) | `src/orchestration/{situation,plan}/*` | 14 §3.7~§3.8, [결정 53], 판정 J-188 | M8-01 | 14 C-3, C-4, C-5 | C | 3단계 | `H → S` |
 | M8-03 | 전환 규칙 T01~T32, 가드 G1~G9, 의존 규칙 사전 맞춤 | `src/orchestration/transitions/*` | 14 §3.9 | M8-02 | 14 C-6, C-7, C-8 | C | 3단계 | `H → S` |
 | M8-04 | 모드와 다이얼(`DIAL_DEFS`, 층 해석, 자동 상향) | `src/orchestration/{modes,dials}/*` | 14 §3.10~§3.11, 판정 J-12 | M8-01 | 14 C-9, C-10 | B | 3단계 | `H → S` |
 | M8-05 | 진입 판정(EC-3 예외, 고정 문턱 2), 승격 신호 집계, 강등. 런타임의 승격 신호 감지(PS-1 같은 확인 3회 실패, PS-3 범위 밖 호출) | `src/orchestration/entry/*`, `packages/runtime/src/signals/*` | 14 §3.14, 01 §3.6, §6, 판정 J-01 | M8-02 | 14 C-11. 01 §6 "진입 판정" (1)~(6), "승격 신호" | B | 3단계 | `H → S` |
 | M8-06 | 거시 스케줄러: 우선순위, 허가, 주의 예산, 작업 경계, C/A 상한과 묶기 | `src/orchestration/macro/*` | 14 §3.13, 판정 J-13 | M8-02 | 14 C-12~C-15 | C | 3단계 | `H → S` |
 | M8-07 | ConcernView 리듀서, `decide`, 이의 처리 | `src/orchestration/concern/*` | 14 §3.12, §3.16 | M8-03, M8-06 | 14 C-19, C-24. C-16~C-18은 M8-12에서 | C | 3단계 | `H → S` |
 | M8-08 | 루프 기능 플래그(`features.enabledLoops`·`enabledModes`)와 꺼진 루프 대체 동작 | `src/orchestration/features.ts` | 14 §3.15, 06 §3.10.3 | M8-02, M1-04 | 14 C-22. A.confirm을 끄면 설정 오류 | B | 3단계 | `H → S` |
-| M8-09 | 효과 부분: 설정 읽기 모델, 행동 실행(`engine.submit`, `startRun`, 질문 제출), WorkRequest → RunSpec 변환, 오케스트레이터 루프와 체크포인트 | `packages/runtime/src/orchestration/{settings,executor,to-run-spec,loop,scheduler,index}.ts` | 14 §3.16, §3.20 | M7, M8-07 | 14 C-20, C-21, C-23 | C | 3단계 | `H → S` |
+| M8-09 | 효과 부분: 설정 읽기 모델, 행동 실행(`engine.submit`, `startRun`, 질문 제출), WorkRequest → RunSpec 변환, 오케스트레이터 루프와 체크포인트, 계획 초안 호출(`loop_plan_draft`, 검사 실패 때 한 번 되돌리고 `authoredBy`를 기록, [결정 53]) | `packages/runtime/src/orchestration/{settings,executor,to-run-spec,loop,scheduler,index}.ts` | 14 §3.16, §3.20, 판정 J-188 | M7, M8-07 | 14 C-20, C-21, C-23 | C | 3단계 | `H → S` |
 | M8-10 | 묻기 실행: `notify` 지시 → 전달기 → `question.mark_delivered`(연결 클라이언트가 없으면 channel `brief`), `needs_gate` 정지와 답 뒤 재개(같은 `toolCallId`), `boundary.reached` 제출, presence 집계(J-46) 입력, 중재자 실행 자리(2단계 플래그) | `packages/runtime/src/deliver/notify.ts`, `src/asking/{resume,boundaries,presence}.ts` | 11 §3.5~§3.7, §5.2 "12", 12 §3.13, 판정 J-46·J-51·J-52 | M8-09 | 12 T-DL-01·02. 11 §6.2 "사람 부재" 대본을 런타임까지 포함해 재현 | C | 3단계 | `H → S` |
 | M8-11 | 복귀 요약 생성(O): 9절 구성, 의미 묶음 최대 5, 결정적 부분 먼저(1초), summarizer 역할 실패 시 목록만 | `packages/runtime/src/projection/brief.ts` | 12 §3.5.8, 04 §3.2, 01 NFR-P-5, 12 O-12-09 | M8-09 | T-VW-03. 결정적 부분 생성 1초 이하(벤치 기록) | B | 3단계 | `H → S` |
 | M8-12 | 유즈케이스 하네스의 `runtime` 모드(데몬 인스턴스 조립, 단계 실행, 기대 검사, 명령으로 만든 상태 픽스처, 합성 작업 공간, 장애 뒤 공통 검사, 비밀 카나리아)와 C/A·O·가벼운 작업 대본: UC-03, UC-05, UC-06, UC-07, UC-12, UC-13, UC-15. `view` 단계가 있는 대본은 `requires: ['views']`를 선언하고, M12 행이 `done.ts`에 들어가기 전까지 하네스가 "선행 미도달"로 건너뛴다(22 §3.8.2). M12-10에서 다시 돈다. "증분 투영 = 재구성" 시험을 대본 골든(`tests/scenarios/golden/*.golden.jsonl`)으로 다시 돈다 | `tests/harness/*`, `tests/scenarios/uc-{03,05,06,07,12,13,15}-*.scenario.ts`, `tests/scenarios/scenarios.test.ts` | 02 §3.24·§6, 14 C-16~C-18, 09 §6.2 `projectors` (2), 22 §3.8, U22-4·U22-5·U22-11 | M8-10, M8-11, M7-17 | 14 C-16, C-17, C-18. U22-4 (1)(`runtime`·`kernel` 두 모드), (3)~(5), U22-5, U22-11. U22-4 (2)의 `protocol` 모드는 M11-05. 대본마다 `onNormalPath` 조작 수가 01 R-OP-1을 지킨다. 레시피 `test-scenarios`, `test-golden-update` | C | 3단계 | `H → S` |
@@ -499,7 +517,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | M9a-07 | 역할별 프롬프트와 출력 스키마, 역할별 가짜 모델 대본 | `packages/runtime/src/inquiry/{prompts,schemas}/<role>.ts`, `packages/testkit/fixtures/inquiry/*` | 15 §3.13.5~§3.13.6 | M9a-01, M6-06 | 출력 스키마에 숫자 신뢰도 필드가 없다(T-06의 스키마 검사) | B | 3단계 | `H → S` |
 | M9a-08 | 평가 하네스와 `just eval-inquiry`(실제 모델, `verify` 밖), 결과 YAML 형식, 평가 데이터 디렉터리 | `packages/runtime/src/inquiry/eval/{harness,memory-kernel,report}.ts`, `.just/helm.just` | 15 §3.15.2, 17 §5.1 "15"(`eval/`) | M9a-06, M9a-07 | T-26(가짜 모델로 과제 하나를 끝까지). 실제 실행은 HT-16(G0) | B | 3단계 | `H → S` |
 | M9b-01 | 런타임 연결: `RunKind "inquiry"`, 포트 구현(모델, 하위 실행), 메모 키 재사용, 단계 예산 예약, 자식 run의 `forkCursor`·`excludeThreads`, 도구 호출 `purpose` | `packages/runtime/src/run/inquiry.ts`, `src/ports/*`, `src/inquiry/runtime/*` | 15 §5.2 "12", 12 §3.14~§3.15, 12 U-RT-15, 판정 J-97 | M9a-06, M7-10 | 15 T-21(끊긴 단계 재요청, 메모 키, dispatch 멱등), 12 T-IQ-01~03 | C | 3단계 | `H → S` |
-| M9b-02 | 루프 연결: I.fact·I.want 계약과 `planRound`·`runStage`, 라운드 끝 `runtime.boundary(round_end)`, 자극 blob(이미지·긴 초안), 웹 레퍼런스(M6-14) | `src/inquiry/runtime/loop-binding.ts` | 14 §3.6.2~§3.6.5, 15 §3.1.1, 09 §3.12 | M9b-01, M8-09 | 14 C-22의 MVP 계획(`O → I.want → C.commit → A.confirm`)이 실제로 돈다 | C | 3단계 | `H → S` |
+| M9b-02 | 루프 연결: I.fact·I.want 계약과 `planRound`·`runStage`, 라운드 끝 `runtime.boundary(round_end)`, 자극 blob(이미지·긴 초안), 웹 레퍼런스(M6-14, M6-17) | `src/inquiry/runtime/loop-binding.ts` | 14 §3.6.2~§3.6.5, 15 §3.1.1, 09 §3.12 | M9b-01, M8-09 | 14 C-22의 MVP 계획(`O → I.want → C.commit → A.confirm`)이 실제로 돈다 | C | 3단계 | `H → S` |
 | M9b-03 | 탐구 유즈케이스 대본(`view` 단계는 M12-10에서 켠다): UC-01(원함 탐구, `UC-01/pick-only` 포함), UC-02(원인 조사, `UC-02/helm-toy`·`strict-proof` 포함), UC-09(Goal 정제) | `tests/scenarios/uc-{01,02,09}-*.scenario.ts` | 02 §3.4·§3.5·§3.12, 15 §5.2 "02", 22 §3.8.4 | M9b-02, M8-12 | `runtime` 모드로 통과하고 AC가 추적 색인에 연결된다(`just test-trace`) | B | 3단계 | `H → S` |
 
 #### 3.4.11 M10 프로토콜·클라이언트 코어·문구
@@ -517,6 +535,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | M10-04 | `@helm/protocol/testing`: `FakeDaemon`, 시나리오 DSL, 적합성 스위트 CT-01~35 | `packages/protocol/src/testing/*` | 19 §6.3 | M10-02 | `FakeDaemon`이 CT-01~35을 통과(19 §6.1 "테스트 도구"). 같은 스위트를 M11-05가 실제 데몬에 돌린다 | C | 3단계 | `H → S` |
 | M10-05 | `@helm/client`: 연결 상태 기계, 백오프, 구독 복원·gap, 진행 중 명령함, 뷰 무효화, 휘발 스트림, 하위 경로 `node`(WS·Unix 전송)·`browser`(브라우저 WebSocket, 모바일 PWA용)·`testing`(가짜 전송·가짜 시계). 20의 요구(`blocked` 실패 종류, `retryNow()`, `lastMessageAt`, `pendingResolved`, `savePosition` 전 `invalidate`, presence `depth`) | `packages/client/src/{connection,backoff,subscriptions,outbox,views,stream}.ts`, `src/node/*` | 19 §3.10, §3.14, 20 §5.2 "19" | M10-04 | 19 §6.2 `packages/client` 행 전부(가짜 전송·가짜 시계) | C | 3단계 | `H → S` |
 | M10-06 | `@helm/ui-language`: 문구 키 타입, 한국어 문구, 상태 라벨(03 §3.3), 조사 처리, 금지 표현 검사, 오류 코드 → 문구 키 대응 | `packages/ui-language/src/{ko,keys,labels,josa}.ts`, `test/forbidden.test.ts` | 05 §3.10~§3.11, §6, 03 §3.3, 판정 J-31 | M10-01 | 05 §6 "공유 문구 목록", "금지 표현 검사", "조사 처리", "오류 문구". 03 §6 "상태 라벨 목록" | B | 3단계 | `H → S` |
+| M10-07 | TypeBox 등록 표와 변환 메타데이터. 메서드·알림 등록 표(19 §3.7.1)의 스키마 약 110개를 `@helm/protocol`의 TypeBox 정의로 옮긴다. 메서드 params → 10 명령 payload 변환 메타데이터(19 §3.7.9)를 같은 등록 표에 둔다. TS 타입, JSON Schema, 참조 문서, 디스패처 표가 이 표에서 나온다(19 P-15) | `packages/protocol/src/{registry,convert}.ts` | 19 §3.7.1, §3.7.9, §3.13, 19 §5.2 "23" | M10-02 | 19 §6.1 "등록 표" 행. 등록 표 검사(M10-03)가 약 110개 항목을 모두 본다. 변환 메타데이터의 명령 이름이 M3-07 명령 카탈로그와 같다 | B | 3단계 | `H → S` |
 
 #### 3.4.12 M11 데몬·보안·운영·CLI
 
@@ -579,7 +598,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | M13a-01 | U1 토큰: Caustic 값 복사·Helm 원본, neutral 11단계, 생성 스크립트(CSS 변수, Tailwind `@theme`, DTCG JSON, 대비 보고), 대비 관문, NOTICE. Storybook 설정, 글꼴, 정적 검사(`ui-check`) | `packages/ui-tokens/**`, `packages/ui/.storybook/*`, `packages/ui/src/{assets,styles}/*`, `.just/helm.just`(`ui-tokens`, `ui-check`, `ui-storybook`) | 21 §3.2, §6.4, U1, 결정 43 | M0, HT-15 | 21 §6.6 U1. 생성물이 원본에서 다시 만든 것과 같다 | C | 3단계 | `H → S` |
 | M13a-02 | U2 L0 부품(`Surface` 유리 재질 포함), `ActionButton` 상태 기계, 키·IME 도우미. SP-09(유리 성능) 측정 시작. 루트 `justfile`에서 `setup`을 덮어써 Playwright 브라우저(Chromium, WebKit)도 설치한다(22 §5.2 06 (4)) | `packages/ui/src/{primitives,lib}/*`, `justfile` | 21 §3.7.1, §3.6.4, §3.12 | M13a-01, HT-24 | 21 §6.6 U2. `ui-test`를 `_verify-steps`에 더한다. 브라우저가 없으면 종료 코드 2 | B | 3단계 | `H → S` |
 | M13a-03 | U3 L1 Helm 의미 부품과 `model` 공통 타입(뷰 `data` 타입은 04가 정하고 `@helm/protocol`이 내보낸 것을 다시 내보낸다. UI 전용 타입만 여기서 정한다) | `packages/ui/src/{helm,model}/*` | 21 §3.7.2 | M13a-02 | 21 §6.6 U3. 알 수 없는 값에서 멈추지 않는다 | B | 3단계 | `H → S` |
-| M13a-04 | U4 C/A 부품: `QuestionCard`, `QuestionInbox`, `WorkAgreementDraft/Echo`, `ResultReviewPanel`, `AutonomousChoiceList`, `ContestButton`, `ChoiceImpactEcho`, `SemanticPreview` | `packages/ui/src/composites/{question,agreement,review,autonomous,input}/*` | 21 §3.7.3, §3.9 | M13a-03 | 21 §6.6 U4. 금지 패턴 테스트(21 §6.3) | B | 3단계 | `H → S` |
+| M13a-04 | U4 C/A 부품: `QuestionCard`, `QuestionInbox`, `WorkAgreementDraft/Echo`, `ResultReviewPanel`, `AutonomousChoiceList`, `ContestButton`, `ChoiceImpactEcho`, `SemanticPreview`, `ArgsView`, `ScopeDiff` | `packages/ui/src/composites/{question,agreement,review,autonomous,input}/*` | 21 §3.7.3, §3.9 | M13a-03 | 21 §6.6 U4. 금지 패턴 테스트(21 §6.3) | B | 3단계 | `H → S` |
 | M13a-05 | U5 복귀·셸: `SinceLastVisit`, `ActiveWorkCard`, `ConcernTree`, 셸 부품(유리 크롬), 창 효과 연결, 신선도·연결·대기 질문 표시, `GoalSummary`, `DegradedBanner`, `AgentActivityIndicator`, `ToolActivityLine`, `MaterialChangeGroups` | `packages/ui/src/composites/{brief,concern,work,status}/*`, `packages/ui/src/helm/AgentActivityIndicator/*`, `apps/desktop/src/ui/shell/*` | 21 §3.3, §3.7.3, U5 | M13a-04 | 21 §6.6 U5. SP-09 서버 측정으로 잠정 기본 투명도를 두고, 실제 웹뷰 측정(M13b-02 뒤) 결과로 확정한다 | D | 2단계 | `S 직접` |
 | M13a-06 | U6 근거: `EvidenceChainTree`(`buildTree`), `EvidenceInspector`, `CertaintyDescriptor`, `SourceTrace` | `packages/ui/src/viz/EvidenceChainTree/*`, `src/composites/evidence/*` | 21 §3.8, U6 | M13a-03 | 21 §6.6 U6(2,000노드 성능 포함) | B | 3단계 | `H → S` |
 | M13a-07 | U7 원함 탐구: `StimulusBoard`, `PreferenceModelPanel`, `ContrastCard`, `GoalHistory` | `packages/ui/src/viz/{StimulusBoard,PreferenceModelPanel,GoalHistory}/*`, `src/viz/inquiry/ContrastCard/*` | 21 §3.8, U7, 판정 J-34 | M13a-03 | 21 §6.6 U7 | B | 3단계 | `H → S` |
@@ -642,7 +661,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | M14-02 | 외부 세션 어댑터: 공통 증분 읽기, Helm·pi·Claude Code 어댑터, Codex는 인터페이스와 이름표만(16 OQ-16-09), 허용 폴더 = 프로젝트 `rootPaths`(J-08) | `src/sources/{types,registry,incremental,helm,pi,claude-code,codex}.ts`, `test/fixtures/**`(합성 문장만) | 16 §3.5~§3.6, 판정 J-08 | M14-01 | OB-T06~T09, OB-T27 | B | 3단계 | `H → S` |
 | M14-03 | 정규화(도구·명령·경로·트리)와 마스킹(M1-09 규칙 + 엔트로피), 주입 표시 | `src/normalize/*`, `src/mask/*` | 16 §3.7~§3.9 | M14-02 | OB-T10, OB-T12 | C | 3단계 | `H → S` |
 | M14-04 | 지표(순수 하위 경로 `@helm/observer/metrics`): 사실 추출, `MetricDef` 등록, 집계, 스냅숏, 복귀 에피소드. CA-1~7, CT-1~3, `q.*`, `ad.*`, `opdc.*`, `a12.*` | `src/metrics/*` | 16 §3.23, 01 §3.5.3, §3.6.7 | M1 | OB-T21~T23. 01 §6 "C/A·범주 지표 리포트"(고정 fixture에서 기대값) | B | 3단계 | `H → S` |
-| M14-05 | 투영기 연결: 커밋 뒤 `extractFacts`, `metric_fact`·`metric_snapshot` 투영(09 요구), 작업 에이전트 투영에서 지표 제외 | `packages/daemon/src/consumers/metrics.ts`(커밋 뒤 소비자, `consumer_cursors.metrics`) | 16 §5.2 "12"(1)(6), "09"(1) | M14-04, M7-03 | OB-T25, OB-T26, OB-T31 | B | 3단계 | `H → S` |
+| M14-05 | 투영기 연결: 커밋 뒤 `extractFacts`, `metric_fact`·`metric_snapshot` 투영(09 요구), 작업 에이전트 투영에서 지표 제외 | `packages/runtime/src/consumers/metrics.ts`(커밋 뒤 소비자, `consumer_cursors.metrics`) | 16 §5.2 "12"(1)(6), "09"(1) | M14-04, M7-03 | OB-T25, OB-T26, OB-T31 | B | 3단계 | `H → S` |
 | M14-06 | 탐지기 D1~D13(결정적), 서명·패밀리·문턱, 자기 재귀 제외 | `src/detect/*`, `src/cluster/*` | 16 §3.10~§3.11 | M14-03 | OB-T14, OB-T15, OB-T20, OB-T30(서명) | B | 3단계 | `H → S` |
 | M14-07 | 디지스트와 2주 평가 보고(결정적 부분), 복귀 점검 저장소(`private/resumption-checks/`, 관찰 자식에게 숨김. 빈도는 복귀당 1회, 주 2회까지), 자기보고 문항(HD-5) | `src/digest/build.ts`, `src/evaluate/{report,hypotheses,incidents}.ts` | 16 §3.18, §3.25~§3.27 | M14-04 | OB-T24. 가짜 시계로 T6(14일, 09:00) 실행 시 보고가 만들어진다 | B | 3단계 | `H → S` |
 | M14-08 | `metrics`·`evaluation` 뷰와 측정 명령(`surprise.report`, `resumptionCheck.answer`, `resumptionCheck.score`(판정 J-78), `selfReport.submit`), 데몬 감독기에 실제 관찰 프로세스 연결 | `packages/runtime/src/projection/metrics.ts`, `src/projection/views/evaluation.ts`, 19 등록 표 항목 | 16 §5.2 "19", 19 §3.7.1 | M14-05, M14-07, M11-08 | OB-T29(`presence.report`에서 `view.opened`). 뷰 예시 스키마 통과. 감독기 통합 시험(OB-T02·T04를 실제 관찰 프로세스로 다시) | B | 3단계 | `H → S` |
@@ -668,7 +687,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 
 #### 3.4.17 M16 2단계 기능(기본 꺼짐)
 
-- 목표: 01 §3.8.2의 2단계 기능을 구현하고 기본 꺼짐으로 운영 데몬에 넣는다. 켜는 일은 A2(G1 기록 뒤)다.
+- 목표: 01 §3.8.2의 2단계 기능을 구현하고 기본 꺼짐으로 운영 데몬에 넣는다. 켜는 일은 A2(G1 기록 뒤)다. 범위 줄이기와 되돌릴 지점은 MVP다(01 §3.8.2의 ●, 판정 J-181). 이 마일스톤에 행이 없고 M3-07과 M7-13이 맡는다.
 - 선행: M15. 코드 의존은 대부분 M8·M9·M14다. G1 창과 겹쳐 진행하되 MVP 결함 수정이 이 마일스톤보다 먼저다(§3.5.3).
 - 공통 완료 조건: 기능을 끈 상태에서 MVP 유즈케이스 대본(M15-01)이 그대로 통과한다. 기능을 켠 상태의 테스트가 통과한다. 꺼진 기능은 계획·도구 목록·화면에 나타나지 않는다(06 §3.10.3 규칙 (3), 03 §3.6).
 - 규모: XL.
@@ -684,7 +703,6 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | M16-07 | 기대 레코드와 "응답 없음" 관찰, 기대 카드. 플래그 `expectation.records`. UC-16 | `packages/runtime/src/scheduler/expectation.ts`, 화면 `SCR-WORK` 기대 카드 | 08 §3.14, 11 U-08(72시간), 02 UC-16 | M15 | UC-16 대본 통과 | B | 3단계 | `H → S` |
 | M16-08 | 다이얼 전체 노출(14개). 플래그 `dials.fullExposure` | `packages/kernel/src/orchestration/dials/*`, `SCR-DIALS` | 14 §3.11.1 | M15 | 14 C-10. 뷰에 다이얼이 더해지면 앱 수정 없이 보인다(04 §6 `SCR-DIALS`) | A | 3단계 | `H → S` |
 | M16-09 | 관찰 에이전트 모델 판정·제안·효과 측정: 분류 프롬프트·입출력, 제안 조립·린트·추정·중복 제거·제출, 효과 측정, `observerProposals` 뷰, `SCR-OBSERVER`, UC-08. 이의 패턴으로 묻기 정책 조정 제안(11 §3.9.4)도 이 경로로. 플래그 `observer.modelJudgement` | `packages/observer/src/{classify,propose,effect}/*`, `apps/desktop/src/screens/observer/*` | 16 §3.12~§3.17, 판정 J-07, 02 UC-08 | M15 | OB-T05, OB-T13, OB-T16~T19. UC-08 대본. 외부 발췌 전송은 HD-4가 "보냄"일 때만 | C | 3단계 | `H → S` |
-| M16-10 | 범위를 줄여 진행·되돌릴 지점 전체(01 ◐ → ●). 플래그 `asking.rollbackPoints` | `packages/kernel/src/asking/*`, `packages/tools/src/rollback/*` | 11 §3.11~§3.12, 01 §3.8.2 | M15 | 11 §6.2 "범위 줄이기", "가정 아래 행동"의 전체 판본 | B | 3단계 | `H → S` |
 | M16-11 | REPL 방식 탐구(◐)와 SP-12: pi-codemode 샌드박스, `runNestedToolCall` 브리지, 작업 공간, 하위 호출. 플래그 `inquiry.repl` | `packages/tools/src/repl/sandbox.ts`, `packages/runtime/src/ports/repl.ts`, `src/inquiry/repl/*` | 07 V9, 13 U-TL-11, 15 §3.12, T-20 | M15 | 07 V9. T-RP-01~04. 15 T-20 | D | 2단계 | `S 직접` |
 | M16-12 | 하위 호출 일반화(01 ◐ → ●): 개수·비용 상한 다이얼, 서로 결과를 보지 않는 병렬 호출. 플래그 `runtime.subcallGeneral` | `packages/runtime/src/run/subagents.ts` | 01 §3.8.2, 12 §3.14 | M15 | T-SA-01~05의 일반 호출 판본 | B | 3단계 | `H → S` |
 | M16-13 | 2단계 화면 요소: `SCR-INQUIRY` 가능성·결과 종류, `SCR-WORK` 기대 카드, 중재 전달 표시, 검증 에이전트 표시, `SCR-METRICS` 관찰 에이전트 절. 플래그에 따라 그리지 않음 | `apps/desktop/src/screens/*` | 03 §3.6(2단계), 04 | M16-01~M16-09 | 플래그를 끈 `shot`이 M15 기준과 같다. 켠 `shot` 기준을 새로 만든다 | B | 3단계 | `H → S` |
@@ -701,7 +719,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 작업 ID | 내용 | 산출 파일 | 근거 | 선행 | 완료 조건 | 등급 | 담당 | 모델 |
 |---|---|---|---|---|---|---|---|---|
 | M17-01 | 데몬 쪽 정적 서빙(`/m/`은 `tailnet`에서만, 보안 헤더, 캐시 정책)과 쿠키 인증(`/m/pair`, `/m/whoami`, `/m/logout`, Origin 검사, `credentialCarrier`), 릴리스에 `web/mobile/` 포함 | `packages/daemon/src/http/{mobile-static,mobile-auth}.ts`, `ops/bin/build-release` | 26 §3.3, §3.6.1, 18 §3.18.2, 17 §3.10 | M15 | T26-01~T26-10 | C | 3단계 | `H → S` |
-| M17-02 | 푸시: 등록 저장(09 운영 테이블 `push_tokens`, 원문은 이벤트 밖, 판정 J-71), 이벤트 `device.push_registered`·`device.push_unregistered`·`push.sent`, 타이머 목적 `push_followup`·`push_dnd_digest`, 통치 명령 `device.register_push`·`device.unregister_push`·`device.test_push`, 메서드 `device.registerPush`(params `contentLevel`·`minUrgency`·`vapidKeyId`)·`device.pushConfig`·`device.testPush`, payload(`@helm/protocol/src/push.ts`), 보낼 대상 계산(`planPush`, 기본 `minUrgency = notice`[결정 48]), Web Push 송신(VAPID, 재시도, 410 처리), 11의 `urgencyOf`·전달기 수정. 레시피 `mobile-vapid-keygen`, `mobile-push-test` | `packages/daemon/src/push/{store,planner,webpush}.ts`, `packages/protocol/src/push.ts`, `packages/kernel/src/commands/*`, `packages/runtime/src/deliver/notify.ts` | 26 §3.4, 11 §3.5, 08 Device `push`, 09(이벤트·운영 테이블·타이머), 10(통치 명령), 19(메서드), 판정 J-71·J-118 | M17-01, HT-25 | T26-11~T26-18, 18 T18-31. 가짜 푸시 서비스(22)로 RFC 8291 복호화 | C | 3단계 | `H → S` |
+| M17-02 | 푸시: 등록 저장(09 운영 테이블 `push_tokens`, 원문은 이벤트 밖, 판정 J-71), 이벤트 `device.push_registered`·`device.push_unregistered`·`push.sent`, 타이머 목적 `push_followup`·`push_dnd_digest`·`push_hour_bundle`·`result_review_digest`, 통치 명령 `device.register_push`·`device.unregister_push`·`device.test_push`, 메서드 `device.registerPush`(params `contentLevel`·`minUrgency`·`vapidKeyId`)·`device.pushConfig`·`device.testPush`, payload(`@helm/protocol/src/push.ts`), 보낼 대상 계산(`planPush`, 기본 `minUrgency = notice`[결정 48]), Web Push 송신(VAPID, 재시도, 410 처리), 11의 `urgencyOf`·전달기 수정. 레시피 `mobile-vapid-keygen`, `mobile-push-test` | `packages/daemon/src/push/{store,planner,webpush}.ts`, `packages/protocol/src/push.ts`, `packages/kernel/src/commands/*`, `packages/runtime/src/deliver/notify.ts` | 26 §3.4, 11 §3.5, 08 Device `push`, 09(이벤트·운영 테이블·타이머), 10(통치 명령), 19(메서드), 판정 J-71·J-118·J-162·J-189 | M17-01, HT-25 | T26-11~T26-18, 18 T18-31. 가짜 푸시 서비스(22)로 RFC 8291 복호화 | C | 3단계 | `H → S` |
 | M17-03 | `apps/mobile`(`@helm/mobile`): 서비스 워커(문구 생성, 알림 클릭, 중복 제거), 수명주기(숨김 → 닫기, 보임 → `retryNow`), 결정 가능 판정, `SCR-M-*` 화면, 갱신. 레시피 `mobile-dev`, `mobile-build`, `mobile-check`, `mobile-e2e`, `mobile-shot`(`shot`이 부름). 분할: (a) 서비스 워커, (b) 수명주기·결정 가능 판정, (c) `SCR-M-*` 화면 하나씩, (d) 갱신 | `apps/mobile/**` | 26 §3.2, §3.3.5~§3.3.8, §3.5, §3.6, 03 §3.12, 20 §3.14 | M17-01, M17-02 | T26-19~T26-27. `just mobile-e2e`, `just mobile-shot` | B | 3단계 | `H → S` |
 | M17-04 | 실기기 확인(iPhone, iOS 26[결정 49]): 설치, 쿠키 연결, 푸시, 잠금 화면, 재연결, 8일 뒤 재연결 등. A2 때 운영 데몬에서 | `tests/trace/manual.json`의 기록 | 26 §6.2 | M17-03, A2 | M-01~M-12 수행 기록 | D | 2단계 | `S 직접` |
 
@@ -744,6 +762,22 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | `send` 확장(메일·메시지) | 01 §3.8.2는 2단계 ●이지만 13·18에 도구 명세가 없다 | 13·18이 도구와 권리 범주를 정한 뒤 M16에 행을 더한다 | 01 OQ-07, 18 Q18-06 |
 | 자동 업데이트 | 20 Q-09: 1차 없음 | Windows 갱신이 한 달에 두 번을 넘을 때 | 20 §3.12.6 |
 | Tailscale을 설치할 수 없는 기기용 접속 | 01 "이후" | 그런 기기가 생길 때 | 01 §3.8.1 |
+| 컴퓨터 사용(`computer_*`, 이후 1차) | 01 단계표 "이후", 13 §3.2.6의 "브라우저 안정 뒤". 외부 효과가 `uncertain`이고 세션 승인의 세부가 정해지지 않았다 | 브라우저 도구(M6-19, M7-20)가 안정된 뒤(§7 T-12) | 01 §3.8.2 런타임 행, 13 §3.2.6, 판정 J-190 (1). WBS 행은 §3.4.22 |
+| 구조 검색·편집(`ast_grep`, `ast_edit`)과 LSP | 13 §3.2.6의 "이후 1차"(LSP는 별도 설계). 서버 프로세스 상태와 샌드박스 사양이 필요하다 | 계기가 생기면 별도 설계로 정한다 | 13 §3.2.6, 판정 J-190 (1) |
+| Windows 호스트 조작 | 판정 J-190 (1)이 하지 않기로 정했다. 컴퓨터 사용 도구는 WSL 안의 Xvfb만 다룬다 | 별도 설계 | 판정 J-190 (1), 13 §3.2.6 |
+
+#### 3.4.22 M20 컴퓨터 사용(이후 1차, 일괄 구현 밖)
+
+- 목표: `computer_*`(13 §3.2.6). 실행마다 새 Xvfb를 S1 안에 띄우고, 세션 시작 때 한 번 승인한다. 세션 전체는 `externalEffect: uncertain`으로 다룬다. 입력은 모두 기록하고 스크린샷 열을 남긴다.
+- 선행: M6-19, M7-20(브라우저 도구가 안정된 뒤. 13 §3.2.6의 "브라우저 안정 뒤"), HT-30. 안정의 기준은 §7 T-12가 정한다.
+- 이 절의 행은 일괄 구현(D23-3)에 넣지 않는다. 계기가 생기면 이 절을 구현 순서에 넣고 §3.3.1·§3.3.2를 고친다.
+- 완료 기준: 13 §3.2.6의 컴퓨터 사용 항목(세션 승인, 외부 효과 `uncertain`, 입력·스크린샷 기록). 13에 시험 ID가 없으므로 UT-nn(22 §3.19)을 쓰고, 13에 U-TL 단위를 요구한다(§5.2 13).
+- 규모: M(추정. M20-01 뒤 다시 잰다).
+
+| 작업 ID | 내용 | 산출 파일 | 근거 | 선행 | 완료 조건 | 등급 | 담당 | 모델 |
+|---|---|---|---|---|---|---|---|---|
+| M20-01 | 컴퓨터 사용의 세부 확정. 세션 승인 질문과 합의 필드(승인 대상 앱, net 호스트), 입력·스크린샷 기록 형식, Xvfb를 S1 안에서 띄우는 방식, 화면 상태 확인 방법을 정한다. 결과는 13 §3.2.6에 옮기고 1단계가 판정한다(§3.9) | 13 §3.2.6 갱신(설계 문서) | 13 §3.2.6 "세부는 구현 전에 정한다[제안]", 13 §3.10.1, 01 §3.8.2 | M6-19, M7-20 | 1단계 판정 기록과 13 갱신 커밋. 판정 뒤 M20-02의 완료 조건을 확정한다 | D | 2단계 | `S 직접` |
+| M20-02 | `computer_*` 도구: 실행마다 새 Xvfb를 S1 안에 띄운다. 세션 단위 승인을 연결하고, 세션 전체를 `externalEffect: uncertain`으로 다룬다. 입력과 스크린샷을 기록한다. `xdotool`·`openbox`·`scrot`·`xprop`(x11-utils)은 샌드박스 안에서 호출한다 | `packages/tools/src/computer/{xvfb,session,tool,record}.ts` | 13 §3.2.6, 13 §3.10.1, 판정 J-190 (1), 01 §3.8.2 | M20-01, M7-20, HT-30 | UT-nn(M20-01 판정 뒤 U-TL 번호로 바꾼다). 세션 승인 없이 `computer_*`가 실행되지 않는다. 입력 기록에 빠짐이 없다(수동 확인) | C | 3단계 | `H → S` |
 
 ### 3.5 증거 관문과 기능 플래그
 
@@ -782,7 +816,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 - **G1 창의 운영 데몬 갱신 규칙.** G1 창 동안 측정 조건이 바뀌면 G1 판단을 읽기 어렵다.
   1. 허용: MVP 결함 수정, 기본 꺼짐인 2단계·3단계 코드.
   2. 갱신 전: 기능을 끈 상태에서 MVP 유즈케이스 대본(M15-01)과 `just verify`가 통과해야 한다.
-  3. 갱신마다 릴리스 ID와 바뀐 점을 관문 기록 Concern에 관찰로 남긴다(`just daemon-upgrade`가 끝날 때 안내). 결함 수정이 아닌 갱신은 한 주에 한 번으로 묶는다.
+  3. 갱신마다 릴리스 ID와 바뀐 점을 관문 기록 Concern에 관찰로 남긴다. 릴리스 ID는 새 데몬의 `daemon.booted.releaseId`(09)에서 읽는다(17 §3.10.2 9단계). 결함 수정이 아닌 갱신은 한 주에 한 번으로 묶는다.
   4. 금지: 다이얼 기본값, 질문 문턱(11 A-2), CA 지표 판정 숫자(01 OQ-03) 변경. 이것들은 G1 판단 뒤에 바꾼다.
 - **G1 창에서 켜는 것.** 복귀 점검(02 UQ-05: 기본 꺼짐, G1 기간에만 켬), 관찰 에이전트 결정적 부분, 2주 평가 보고(T6). 이 셋은 측정 장치이며 2단계 기능 플래그에 속하지 않는다.
 
@@ -813,10 +847,10 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | `inquiry.divergenceFull` | 2 | false | 발산은 앵커링·대비 압축 순서·정지 규칙만 | A2 | 01 §3.8.2, 15 §3.4 | 루프: 발산 서브시스템(2단계 ●) |
 | `inquiry.repl` | 2 | false | REPL 방식 탐구 도구를 노출하지 않는다 | A2 | 01 §3.8.2(◐), 07 §3.2 | 런타임: REPL 방식 탐구(2단계 ◐. 3단계 ●도 같은 키) |
 | `runtime.subcallGeneral` | 2 | false | 하위 호출은 자극 생성·가설 확인용만 | A2 | 01 §3.8.2(◐) | 런타임: 하위 호출 |
-| `asking.rollbackPoints` | 2 | false | 범위를 줄인 합의 초안까지만 | A2 | 01 §3.8.2(◐) | 묻기: 범위를 줄여 진행, 되돌릴 지점 |
 | `clients.mobile` | 2 | false | 모바일 기기 페어링, `/m/` 서빙, 푸시 송신을 하지 않는다. 26 `push.enabled`의 상위 스위치 | A2(M17이 끝났을 때) | [결정 42], [결정 47] | 클라이언트: 모바일 클라이언트 |
 
 - 01 §3.8.2 2단계 행 중 루프·모드로 켜는 것(가능성·결과 탐구, 탐침형 C, 지속 관찰형 A)은 `enabledLoops`·`enabledModes`가, 위 표에 없는 것(`send` 확장, 이미지 생성)은 이번 범위 밖(이 문서 §3.4.21)이 맡는다. 이 표가 01·06과 함께 쓰는 `FeatureKey` 목록의 원안이다(§5.2 01·06·08).
+- `asking.rollbackPoints`는 두지 않는다. 범위를 줄여 진행과 되돌릴 지점은 MVP다(01 §3.8.2의 ●, 판정 J-181). 되돌릴 지점은 M7-13, 범위 줄이기 시험은 M3-07이 맡는다.
 - 3단계에는 `flags` 항목이 없다. S 루프와 C.emergency, 그 모드로 충분하다. 의존 규칙 4는 S 루프가 꺼져 있으면 하위 Concern이 생기지 않아 발동하지 않는다.
 - 개발과 테스트: 테스트는 플래그를 켠 판본과 끈 판본을 모두 돈다(§3.4.17 공통 완료 조건). 개발 데몬(`daemon-dev`)은 `helmd.local.toml`로 무엇이든 켤 수 있다. 06 규칙 (2)대로 데몬은 G1 기록 없이 켜진 2단계 키를 경고만 하고 막지 않는다.
 
@@ -876,6 +910,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 병합 지점(이 행까지 끝나면) | 이 병합을 기다리는 다른 갈래의 행 |
 |---|---|
 | M1-08 | M6-01 |
+| M6-09, M6-19 | M7-19, M7-20 |
 | M1-11 | M4-07 |
 | M3-01, M3-04 | M8-01, M9a-01 |
 | M6-02 | M9a-01 |
@@ -904,7 +939,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | SP-02 | typescript-eslint가 TS 6.0에서 타입 정보 린트를 못 돌릴 수 있다 | M0-07 | 타입 정보 규칙이 한 패키지에서 돈다 | peer 범위 `<6.1.0` 확인 [실험, 06 §3.12.2] | 타입 정보 규칙을 끄고 의존 규칙은 `check-arch`로만 | 같은 판의 플러그인이 없으면 대체 | 없음 |
 | SP-03 | better-sqlite3 설치(pnpm 11 빌드 허용)와 `synchronous=FULL` 커밋 지연 | M0-11 | 설치·불러오기 성공, 22/PF-01(커밋 p99 ≤ 25 ms) | 미확인 | `node:sqlite`(`store/src/driver.ts`만 고침, 06 §3.12.3) | 설치가 안 되거나 PF-01을 넘을 때. 넘으면 하위 조정자가 원인을 적어 1단계가 판정한다 | 대체 드라이버로 같은 PF-01·PF-09를 통과하면 영향 없음 |
 | SP-04 | bwrap 격리가 설치판과 WSL 커널에서 기대대로 동작하지 않을 수 있다(사용자 네임스페이스, `systemd-run --scope` 감싸기, 타임아웃 시 자식 정리, `/run/WSL` 가림) | M6-10 | T-SB-01~04, T18-08~11 | 압축 푼 0.9.0으로 9개·8개 확인 [실험, P7], `systemd-run --user` S1b 확인 [실험, 18 §3.11.2] | S1b(`systemd-run --user`). 단 13·18이 S1b를 허용 목록 방식(홈은 tmpfs, 작업 공간·도구 체인만 읽기 바인드)으로 고치고 user unit 동작을 [실험]으로 확인한 경우만 쓴다. 아니면 `execute` 끔(fail closed, 18 D18-05) | T-SB 중 하나라도 실패 | S1(bwrap)이 MVP 기준이다(22 §3.17.3 "S1 묶음"). bwrap이 실패하면 `execute`를 끈 채로는 UC-02·UC-07을 끝낼 수 없으므로 MVP 미완료로 두고 1단계가 사용자에게 보고한다. S1b는 13·18의 허용 목록 명세와 [실험]이 있을 때만 MVP 대체로 인정한다 |
-| SP-05 | pi 포크 패치 A1~A7과 도구 패치 T1~T14의 유지 부담 | M5-02 | 07 V2·V3, `sync.mjs verify` 0 | 시제품 업스트림 테스트 173건 통과, 계약 시험 [실험, 07 §3.19] | 업스트림 Breaking이 루프 계약을 바꾸면 3-way 병합 대신 `@helm/agent`에 Helm 소유 루프를 다시 쓴다(07 §3.2 재검토 조건). 계약 시험 C1~C24는 그대로 둔다 | 07 §3.2의 재검토 조건 | 없음(재설계해도 계약 시험 C1~C24는 같다) |
+| SP-05 | pi 포크 패치 A1~A7과 도구 패치 T1~T15의 유지 부담 | M5-02 | 07 V2·V3, `sync.mjs verify` 0 | 시제품 업스트림 테스트 173건 통과, 계약 시험 [실험, 07 §3.19] | 업스트림 Breaking이 루프 계약을 바꾸면 3-way 병합 대신 `@helm/agent`에 Helm 소유 루프를 다시 쓴다(07 §3.2 재검토 조건). 계약 시험 C1~C24는 그대로 둔다 | 07 §3.2의 재검토 조건 | 없음(재설계해도 계약 시험 C1~C24는 같다) |
 | SP-06 | pi-ai 실제 제공자 스트림·사용량·캐시 필드가 가짜 제공자와 다를 수 있다 | M6-13 | `ai-smoke`로 스트림 1회, 사용량·캐시 필드 기록 | faux 동작은 확인 [실험, pi-lab] | `pnpm patch`(3개·200줄까지) → 넘으면 pi-ai vendor(07 M2) | 07 §3.2 재검토 조건 | 없음 |
 | SP-07 | Tauri 앱의 SSH 전송(Rust가 `ssh -W 127.0.0.1:7841` 자식을 띄우고 그 위에 WebSocket)이 Mac·Windows OpenSSH에서 기대대로 동작하지 않을 수 있다 | M13b-05(크레이트 시험은 M13b-02와 함께 WSL에서 먼저) | 20 §6.1 "SSH 인자·실패 분류", "SSH 경로 통합"과 실제 `server` 연결 | `ssh -W` 사례(paseo) 확인 [원문, P13 메모], sshd 포워딩 기본 허용 [실험, 17] | 19 Q-01의 B2(`ssh -L` 로컬 포트) 또는 B4(`helm bridge` stdio). 메시지와 재전송 의미는 같게 유지(결정 38) | 두 플랫폼 중 하나라도 해결되지 않는 실패 | 대체 경로(B2·B4)로 두 경로 메시지 동등성(19 §6.3)을 통과하면 01 §3.8.3 3을 충족한 것으로 본다 |
 | SP-08 | WSL에서 Windows 교차 빌드(cargo-xwin, NSIS)가 막힐 수 있다(공식 문서는 "마지막 수단") | M13b-02 | 빈 앱의 NSIS 설치 파일이 Windows 11에서 관리자 권한 없이 설치·실행 | 미확인 | GitHub Actions `desktop-windows.yml`(push는 사람 확인) | 교차 빌드가 세 번 넘게 막히면(20 Q-11) | CI 산출물로 Windows 설치·실행 기록이 있으면 충족 |
@@ -915,7 +950,14 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | SP-13 | pi-tui가 실제 TTY(SSH, Kitty 협상, IME, 한국어 줄바꿈)에서 쓸 수 없는 수준일 수 있다 | M19-01 | 07 M5 확인 항목 | 미확인 | 줄바꿈 함수를 Helm 쪽에서 감싼다(07 §3.2) | 감싸도 안 되면 TUI 범위를 질문 답하기로 줄인다 | 없음(3단계) |
 | SP-14 | WSL 재기동·로그온 전 시작·keepalive | M11-12 | T17-30, A17-1 | linger·keepalive 작업 확인 [실험, P11 메모] | 17 Q17-01 (a) 그대로(로그온 뒤 시작) | - | 없음 |
 | SP-15 | `tailscale serve`가 모바일 쿠키·Origin·하위 프로토콜 헤더를 넘기지 않거나(26 AS-M2·M3) iPhone 홈 화면 웹 앱의 Web Push가 동작하지 않을 수 있다 | A2 시작(M17-04 첫 항목) | 26 M-03, M-04, M-05 | 미확인 | 쿠키 대신 `helm-bearer.` 하위 프로토콜 + 서명 증명(26 MQ-04·MQ-05). 푸시가 안 되면 앱 안 알림만 쓰고 경로 B(Tauri iOS + APNs)를 26 §3.1.5 조건으로 검토 | M-03 또는 M-04 실패 | 없음(2단계) |
-| SP-16 | 네트워크를 허용한 도구 실행이 루프백·사설·tailnet 서비스(데몬 리스너, Caddy 관리 API 2019 등)로 가는 연결을 막지 못할 수 있다 | M6-16 | 네트워크 네임스페이스 분리 + 데몬 CONNECT 프록시로 루프백·사설·CGNAT·tailnet 차단, 허용 호스트만 통과(판정 J-134) | 미확인 | 네트워크 허용 실행을 실행마다 사람 승인(권리 게이트)으로 하고 홈랩 H-5를 먼저 처리한다(판정 J-134) | 프록시를 거치지 않는 연결이 하나라도 성공하면 | 네트워크 허용 실행은 MVP 필수 경로가 아니다. 대체 경로로 가면 UC-02의 웹 확인 단계마다 승인 질문이 하나 늘어난다 |
+| SP-16 | 네트워크를 허용한 도구 실행이 루프백·사설·tailnet 서비스(데몬 리스너, Caddy 관리 API 2019 등)로 가는 연결을 막지 못할 수 있다 | M6-16 | 네트워크 네임스페이스 분리 + 데몬 CONNECT 프록시로 루프백·사설·CGNAT·tailnet 차단, 허용 호스트만 통과(판정 J-134). 허용 호스트에서 pnpm·npm·git(https·ssh)·curl이 프록시로 동작(13 §3.6.3) | 미확인 | 네트워크 허용 실행을 실행마다 사람 승인(권리 게이트)으로 하고 홈랩 H-5를 먼저 처리한다(판정 J-134) | 프록시를 거치지 않는 연결이 하나라도 성공하면 | 네트워크 허용 실행은 MVP 필수 경로가 아니다. 대체 경로로 가면 UC-02의 웹 확인 단계마다 승인 질문이 하나 늘어난다 |
+| SP-17 | Chrome이 S1(bwrap) 안에서 내부 샌드박스를 켠 채 뜨지 않거나, `--proxy-server`로 프록시를 거치지 못할 수 있다(userns 중첩, `/dev/shm`, QUIC) | M6-19 | 내부 샌드박스를 켠 채 기동한다. 허용 호스트는 프록시를 거쳐 도달하고, 차단 대역은 실패한다. QUIC은 꺼진다 | 서버에 google-chrome 155 설치[실험, 06 §3.12.5]. 비특권 userns에서 샌드박스 기동 오류 없음[실험]. bwrap 아래는 미확인 | 내부 샌드박스를 끄는 구성(`--no-sandbox`)은 S1 안에서만 허용하고 상태 점검에 표시한다(`research-browser.md` §6.2 정책 제안, 18이 확정). 그것도 안 되면 `browser_*`를 빼고 `web_fetch`·`web_search`만 둔다 | 대체 구성이 보안 판정을 바꾸면 1단계가 판정한다 | 브라우저 읽기 멤버가 빠지면 MVP 후반 항목이 비므로 1단계가 사용자에게 알린다 |
+| SP-18 | `helm-netshim` 중계로 CONNECT 지연이 커지거나 HTTP/2 연결이 불안정할 수 있다 | M6-20 빌드 뒤 | 직접 연결 대비 추가 지연 p95 100 ms 이하, 허용 호스트의 HTTP/2 요청 실패 0[제안] | 미확인 | 대체 경로는 없다. 측정값과 원인을 적어 1단계가 판정한다(§3.1.3-14) | 기준을 넘으면 1단계가 판정한다. 판정에 따라 네트워크 허용 실행을 실행마다 사람 승인으로 하는 SP-16 대체 경로를 쓴다 | SP-16과 같다. 네트워크 허용 실행은 MVP 필수 경로가 아니다 |
+| SP-19 | 요청 가로채기(browserd)가 `navigator.sendBeacon`·`fetch` keepalive·서비스 워커 요청을 놓쳐 `send` 권리 게이트를 우회할 수 있다(T18-52) | M7-20 | 세 종류 모두 가로채기에 잡히고, 비-GET은 `ask`로 올라간다(T18-52, T-BR-02) | 미확인 | 놓치는 종류가 있으면 그 구성에서 상호작용 멤버(클릭·입력·폼 제출)를 켜지 않는다(18 S-19). 읽기 전용 구성에서 가로채기를 켤 시점은 18 Q18-14 | 놓치는 종류가 있으면 상호작용 멤버만 보류한다 | 상호작용 멤버만 빠진다. 읽기 전용 MVP는 그대로 간다 |
+| SP-20 | Brave 검색 결과의 저장을 약관이 제한하는데, 결과 본문을 ledger(보존 정책)에 남기면 충돌할 수 있다 | M6-17 | 약관 조항과 ledger 보존 정책을 나란히 적어 충돌 여부를 사람이 확인하고 기록한다 | 미확인 | 결과 본문은 ledger에 남기지 않고 질의와 URL만 남긴다[제안]. 그래도 충돌하면 기본 제공자를 바꾼다 | 기본 제공자를 바꾸면 결정 55의 변경이므로 사용자에게 묻는다 | 없음. 검색 도구는 그대로 쓰고 남기는 기록만 줄어든다 |
+| SP-21 | readability와 turndown 조합이 한글 페이지에서 본문을 잘못 뽑거나 글자를 깨뜨릴 수 있다(06 O-18) | M6-14의 변환 작업자 구현 전 | 고정 한글 샘플 페이지 10개(뉴스·문서·위키)에서 본문 문단 보존율 90% 이상, 깨진 글자 0[제안] | 미확인 | defuddle 0.19.5(MIT)로 바꾼다. 바뀌는 곳은 변환 작업자 파일 하나(`convert-worker.ts`)다(06 §3.12.5, O-18) | 기준을 넘지 못하면 defuddle로 바꾸고 다시 잰다 | 없음 |
+| SP-22 | 실제 Chrome 한 세션의 메모리(PSS)가 커서 `helm-tools.slice`의 메모리 상한과 동시 실행 수가 맞지 않을 수 있다 | M6-19 뒤(실측) | 세션 한 개의 PSS 실측치를 기록하고, 그 값이 상한 안에 든다[제안] | 미확인 | 브라우저 세션을 동시에 하나로 제한하고 상한을 실측치에 맞춘다(상한은 17 §3.1.3 자식 프로세스 항목이 정한다) | 한 세션도 상한 안에 들지 않으면 1단계가 판정한다 | 없음 |
+| SP-23 | 해시라인 편집이 주 모델 계열에서 `replace`보다 나은지 근거가 없다(근거는 oh-my-pi의 자체 벤치뿐이다) | M7-19 뒤 | 고정 변이 복구 과제 세트에서 `hashline`의 성공률이 `replace`보다 높고 `stale_snapshot` 실패가 늘지 않는다[제안] | 미확인 | 기본 `replace`를 그대로 두고 해시라인을 끈다. 모델 계열별 값은 `ai.editMode`에 둔다(12 O-12-17) | 차이가 없으면 `replace`로 고정한다 | 없음. 모델 선택의 기본값만 정한다 |
 
 #### 3.7.2 그 밖의 위험
 
@@ -956,7 +998,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 판정 J-22, 01 OQ-06 | 월 모델 비용 상한 | USD 50 [가정] | M11-12 | HT-13 |
 | 06 O-11 | CI 범위 | `verify`는 서버만, Actions는 Windows 빌드만 | M0-01 | HD-1 |
 | 18 Q18-07 | CLI 사람 결정 명령의 TTY 요구 | 요구 | M11-10 | HD-2 |
-| 01 §3.8.2 대 13 O-13-05 | MVP 웹 페이지 읽기 | `web_fetch`(읽기 전용) 포함 | M6-14 | HD-3 |
+| (해결) 01 §3.8.2 대 13 O-13-05 | MVP 웹 읽기·검색 | 포함([결정 55]) | M6-14 | HD-3 |
 | 16 OQ-16-03 | 외부 세션 발췌 모델 전송 | 보내지 않음(A2 때 다시 묻는다) | A2 | HD-4 |
 | 16 OQ-16-10 | 자기보고 척도 | 자체 문항 | M14-07 | HD-5 |
 | 21 U-07, 판정 J-88 | Caustic 저장소 LICENSE 추가 | NOTICE에 출처 기록만 | M13a-01(막지 않음) | HT-15 |
@@ -984,6 +1026,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 15 O-14, O-5 | G0 판정 숫자, 칸 상한 | 15 표의 값 | G0(HT-16) |
 | 07 M5 | pi-tui 실제 TTY | - | M19-01(SP-13) |
 | 12 O-12-04 | 크래시 루프 기준 | 10분 3회 | M7-05 |
+| 12 O-12-17 | 해시라인 편집의 모델별 기본값 | `replace` | M7-19(SP-23) |
 
 #### 3.8.3 기본값으로 진행하고 실사용 뒤 조정할 것
 
@@ -1022,7 +1065,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 표기 | 오탈자, 절 번호, 깨진 참조 | 하위 조정자가 해당 문서를 제자리에서 고치고 1단계에 알린다. 커밋 `docs(design): <문서> 표기` |
 | 보완 | 명세에 빠진 세부를 정함, 미결 사항을 추천 기본값으로 확정, 스파이크 결과 기록 | 하위 조정자가 고칠 내용을 올리고 1단계가 판정한다. 승인되면 소유 문서의 해당 절을 고치고 미결 표의 행에 "해결(<WBS ID>, <커밋>)"을 적는다. 다른 문서의 계약은 바뀌지 않아야 한다 |
 | 계약 변경 | 이름·타입·이벤트·명령·메서드·오류 코드·화면 ID·상태 기계·패키지 경계·의존 규칙이 바뀜, 대체 경로 채택 | §3.9.2 절차. 1단계가 판정하고 ADR을 남긴다 |
-| [결정] 변경 | 브리프 §2의 사용자 결정(결정 1~51 중 [결정] 항목)과 어긋남 | 1단계가 구현을 멈추고 사용자에게 묻는다. 답을 받은 뒤 계약 변경 절차 |
+| [결정] 변경 | 브리프 §2의 사용자 결정(결정 1~57 중 [결정] 항목)과 어긋남 | 1단계가 구현을 멈추고 사용자에게 묻는다. 답을 받은 뒤 계약 변경 절차 |
 
 #### 3.9.2 계약 변경 절차(결정 52의 역할 배분)
 
@@ -1131,7 +1174,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 
 | 받는 문서 | 제공 |
 |---|---|
-| 22 | 마일스톤별 완료 조건이 인용하는 테스트 ID(§3.4), 하네스·대본을 만드는 시점(M0-12 골격·색인, M7-17 `kernel` 모드, M8-12 `runtime` 모드, M11-05 `protocol` 모드, M12-09 뷰 표본, M12-10 `view` 단계, M15-01 전체), 하네스 전제 API의 WBS(M2-04 `openStore` 시험 옵션·오류 주입, M1-07 `semanticFields`, M4-05 `@helm/engine/testing`, M6-07 `FakeToolExecutor`, M7-17 `whenIdle`, M7-05·M11-02 종료 지점), 장애 주입·E2E·성능의 위치(M15-02~04), 레시피 도입 시점(§3.10), 마일스톤 관문(§3.1.3-13), 추적 판정 방식(ADR-23-09), 야간 `test-deep` 시점(§3.10) |
+| 22 | 마일스톤별 완료 조건이 인용하는 테스트 ID(§3.4), 하네스·대본을 만드는 시점(M0-12 골격·색인, M7-17 `kernel` 모드, M8-12 `runtime` 모드, M11-05 `protocol` 모드, M12-09 뷰 표본, M12-10 `view` 단계, M15-01 전체), 하네스 전제 API의 WBS(M2-04 `openStore` 시험 옵션·오류 주입, M1-07 `semanticFields`, M4-05 `@helm/engine/testing`, M6-07 `FakeToolExecutor`, M7-17 `whenIdle`, M7-18 `ManualClock`, M7-05·M11-02 종료 지점), 장애 주입·E2E·성능의 위치(M15-02~04), 레시피 도입 시점(§3.10), 마일스톤 관문(§3.1.3-13), 추적 판정 방식(ADR-23-09), 야간 `test-deep` 시점(§3.10) |
 | 06 | 저장소 골격 작업(M0), CI 범위(D23-7), `FeatureKey` 첫 목록과 단계별 기본값(§3.5.4), 레시피 도입 시점(§3.10), 공유 패키지 추가 목록(M0-05) |
 | 01, 16 | 관문 일정과 활성화 단계(§3.5), G1 창 갱신 규칙(§3.5.3), 관문 기록 Concern(§3.5.3) |
 | 15 | G0 위치와 처리(§3.5.2) |
@@ -1147,20 +1190,20 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 
 | 문서 | 요구 |
 |---|---|
-| 01 | (1) §3.8.4 G0의 "원함 탐구를 커널에 정식 연결하기 전"을 한 번에 구현하는 경우 "MVP 실사용 시작 전"으로 읽는다는 문장을 더한다(D23-4, 15와 함께). (2) §3.8.2 "웹 페이지 읽기 ◐"와 13 O-13-05(1차 웹 도구 제외)를 HD-3 답으로 맞춘다. (3) §3.8.2 `send` 2단계 ●(메일 등)은 13·18에 도구 명세가 없으므로 "이후"로 옮기거나 13·18에 명세를 요구한다(§3.4.21). (4) 2단계 기능의 `FeatureKey` 목록과 단계를 이 문서 §3.5.4 표(01 §3.8.2 행 대응 열 포함)와 하나로 맞춘다 |
+| 01 | (1) §3.8.4 G0의 "원함 탐구를 커널에 정식 연결하기 전"을 한 번에 구현하는 경우 "MVP 실사용 시작 전"으로 읽는다는 문장을 더한다(D23-4, 15와 함께). (2) 웹 도구의 MVP 단계는 01 §3.8.2 ●와 [결정 55]를 따른다(HD-3 해결). 확인 요구 없음. (3) §3.8.2 `send` 2단계 ●(메일 등)은 13·18에 도구 명세가 없으므로 "이후"로 옮기거나 13·18에 명세를 요구한다(§3.4.21). (4) 2단계 기능의 `FeatureKey` 목록과 단계를 이 문서 §3.5.4 표(01 §3.8.2 행 대응 열 포함)와 하나로 맞춘다 |
 | 04 | (1) `data` 타입이 없는 뷰 6개(`concernTree`, `thread`, `goals`, `devices`, `records`, `settings`)의 View 타입을 둔다(M12-04·05·07). (2) 복귀 점검을 "MVP, G1 기간에만 켬(02 UQ-05)", 빈도 "복귀당 1회, 주 2회까지"로(M14-07) |
 | 03·05·20 | §6 표에 ID 열을 둔다(22가 인용한 `UT-*`). 20은 22가 행 순서로 매긴 번호를 받을지 정한다 |
 | 06 | (1) §3.16 레시피 색인에 `docs-check`, `daemon-export`, `eval-inquiry`, `lens-seed`, `ui-tokens`, `ui-storybook`, `ui-check`, `ui-test`, `ui-visual`, `ui-visual-update`, `shot-mac`, 22의 `test-*` 묶음, 26의 `mobile-*` 묶음을 더하고 `_verify-steps` 구성을 §3.10과 맞춘다(22 §5.2 "06"(2), 26 §5.2 "06"(4)와 같은 요구). (2) §3.10.3 `FeatureKey` 첫 목록을 §3.5.4로 하고, 관문 기록 확인 방법(§3.5.3)을 규칙 (2)에 적는다(O-15의 답: 경고만 유지). (3) §2.5의 "새 CI 여부는 23에서 정한다"를 D23-7로 갱신. (4) §3.15 트리에 `tests/`(`@helm/tests`, 22), `experiments/design-prototypes/`, `docs/specs/spikes/`, `docs/specs/implementation-status.md`, `.worktrees/`(Git 제외). (5) `@helm/store` 하위 경로 표(§3.3.1 행)에 `aux`를 더한다(§3.4.5에는 있음). (6) 의존 허용 표에 `daemon` → `web-push`(정확한 판 고정, `daemon/push`만)와 `@helm/tests`(시험 전용 층)를 넣는다(22). (7) `RuntimeStorePort`(판정 J-127)의 위치와 `@helm/kernel/orchestration`에 "I/O 없는 함수만"(판정 J-128)을 적는다. (8) 관찰 `llm.complete` 처리 경로와 지표 소비자 위치를 12와 하나로 |
 | 07 | (1) §3.2 "도입 단계는 23이 확정한다"에 이 문서의 결정(1차 = M5·M6, REPL = M16-11 2단계 플래그, MCP·pi RPC 어댑터 = 이후)을 반영. |
 | 08 | (1) `FeatureKey`·`FEATURE_TABLE` 타입을 08의 타입 목록에 넣는다(06 §3.10.3이 `@helm/domain` 데이터 표로 둠). (2) 관문 기록 Concern의 표식(예: Concern의 `evaluationGate: "G1" \| "G2"`)을 정한다(§3.5.3) |
-| 09 | (1) `daemon.booted` payload에 릴리스 ID가 있는지 확인(G1 창 갱신 기록, §3.5.3). (2) 엔진 시작 적재 알고리즘: `KernelState` 스냅숏 직렬화 형식, `state_hash` 대상, 저장 주기, 지시 재계산 커서 `consumer_cursors.directives`를 올리는 시점과 중복 제거를 의사코드로(10과 함께, M4-06). (3) `openStore` 시험 옵션·SQLite 오류 주입·`EVENT_META.semanticFields`를 §3에 적는다(M2-04·M1-07). (4) 무효화 태그는 09 `event_invalidations` 저장 + 12 `aggregateTags`로 정한 이 계획의 처리(M12-01)와 맞춘다. (5) 푸시 운영 테이블 하나, 이벤트 셋, 타이머 목적 둘을 26 §3.4.6 기준으로(M17-02, J-71) |
+| 09 | (1) `daemon.booted` payload의 `releaseId`를 §3.5.3이 읽는다. 요구 없음. (2) 엔진 시작 적재 알고리즘: `KernelState` 스냅숏 직렬화 형식, `state_hash` 대상, 저장 주기, 지시 재계산 커서 `consumer_cursors.directives`를 올리는 시점과 중복 제거를 의사코드로(10과 함께, M4-06). (3) `openStore` 시험 옵션·SQLite 오류 주입·`EVENT_META.semanticFields`를 §3에 적는다(M2-04·M1-07). (4) 무효화 태그는 09 `event_invalidations` 저장 + 12 `aggregateTags`로 정한 이 계획의 처리(M12-01)와 맞춘다. (5) 푸시 운영 테이블 하나, 이벤트 셋, 타이머 목적 둘을 26 §3.4.6 기준으로(M17-02, J-71) |
 | 10 | 엔진 시작 적재와 지시 재계산 커서(09와 함께, M4-06) |
-| 12 | (1) §3.1 배치도의 `packages/agent/src/loop.ts`를 07 §3.3 배치로(07 §5.2와 같음). (2) 무효화 태그 순수 함수 `aggregateTags`와 집계 태그 표를 12 한 곳에 두고 커밋 트랜잭션 안에서 계산해 09에 저장한다(M12-01). (3) `@helm/runtime/testing`의 `whenIdle()`를 §3에 적는다(M7-17). (4) 지표 소비자 위치: 이 계획은 16 §6.1대로 `daemon/src/consumers/metrics.ts`로 둔다(M14-05). 12 §3.5.11의 runtime 배치와 관찰 `llm.complete` 처리 경로를 06과 함께 하나로. (5) 런타임은 `RuntimeStorePort`로만 정본을 읽는다(판정 J-127, M4-07). (6) 월 비용 상한 키를 06의 `budget.monthlyCapUsd`로(§5.2의 `budget.monthlyUsd`) |
-| 13 | (1) HD-3 답에 따라 `web_fetch`(읽기 전용)를 1차 도구 표와 §6에 넣는다(18 T18-27의 규칙과 같이). (2) O-13-12의 답(외부 어댑터 순서: pi RPC → Claude Code → Codex → ACP)을 반영. (3) `FakeToolExecutor`를 §3에 적는다(M6-07). (4) S1b를 허용 목록 방식으로 바꾸고 user unit 동작을 [실험]으로 확인한다. 안 되면 S1b를 별도 보장 수준으로 낮춘다(18과 함께, SP-04). (5) 네트워크 허용 실행의 네트워크 네임스페이스와 CONNECT 프록시 명세(판정 J-134, M6-16, SP-16) |
+| 12 | (1) §3.1 배치도의 `packages/agent/src/loop.ts`를 07 §3.3 배치로(07 §5.2와 같음). (2) 무효화 태그 순수 함수 `aggregateTags`와 집계 태그 표를 12 한 곳에 두고 커밋 트랜잭션 안에서 계산해 09에 저장한다(M12-01). (3) `@helm/runtime/testing`의 `whenIdle()`를 §3에 적는다(M7-17). (4) 지표 소비자 위치: 이 계획은 06 §3.4와 판정 J-155대로 `runtime/src/consumers/metrics.ts`로 둔다(M14-05). 12 §3.5.11의 runtime 배치와 관찰 `llm.complete` 처리 경로를 06과 함께 하나로. (5) 런타임은 `RuntimeStorePort`로만 정본을 읽는다(판정 J-127, M4-07). (6) 월 비용 상한 키를 06의 `budget.monthlyCapUsd`로(§5.2의 `budget.monthlyUsd`) |
+| 13 | (1) 도구 단계는 13 §3.2.6이 정본이다([결정 55], 판정 J-190 (1)). 23의 WBS는 그 표를 따른다. (2) O-13-12의 답(외부 어댑터 순서: pi RPC → Claude Code → Codex → ACP)을 반영. (3) `FakeToolExecutor`를 §3에 적는다(M6-07). (4) S1b를 허용 목록 방식으로 바꾸고 user unit 동작을 [실험]으로 확인한다. 안 되면 S1b를 별도 보장 수준으로 낮춘다(18과 함께, SP-04). (5) 네트워크 허용 실행의 네트워크 네임스페이스와 CONNECT 프록시 명세(판정 J-134, M6-16, SP-16). (6) `computer_*`(이후 1차)의 U-TL 단위와 시험 ID를 더한다(M20, §3.4.22) |
 | 14 | (1) §6.2 머리말의 재생 테스트 "메모리 SQLite"를 임시 디렉터리의 실제 파일로(09 §6.2 공통 기준). 22 §5.2 "14"와 같다. (2) §3.15 단계 표에 `deliberate` 모드가 어느 단계인지 적는다(이 계획은 I.possibility와 함께 2단계, §3.5.4). (3) `features` 단계별 기본값을 §3.5.4와 맞춘다 |
 | 15 | (1) §3.15.2 판정 표의 "커널의 E/N 정식 연결을 미루고"를 한 번에 구현하는 경우 "MVP 실사용 시작을 미루고"로 읽는다는 문장을 더한다(D23-4). (2) E0의 `auto` 지표 계산식과 "의미 있음" 판정 예시. (3) 순수부 파일 위치를 `@helm/kernel/orchestration/inquiry`로(판정 J-128, M9a) |
-| 16 | (1) 관문 기록 Concern("Helm 사용 평가")을 누가 만드는지 정한다: 이 계획은 M15-08에서 사람이 관리 CLI로 만들고 T6 보고가 거기 붙는 것으로 둔다. (2) T6의 기준일("첫 사용일부터 14일마다")을 MVP 완료일(M15-09)로 정한다. (3) §3.27.6 `biasNotes`에 G1 창 갱신 기록(§3.5.3-3)을 넣는다. (4) 지표 소비자 위치(`daemon/src/consumers/metrics.ts`)를 12·06과 하나로. (5) 복귀 점검 빈도 "복귀당 1회, 주 2회까지"를 04와 하나로 |
-| 17 | (1) `daemon-upgrade`가 끝날 때 릴리스 ID를 관문 기록 Concern에 관찰로 남기는 안내 또는 자동 기록(§3.5.3). (2) `.worktrees/`의 Syncthing 제외는 사람에게 요청(§7 T-1). (3) CLI 종료 코드 표(데몬 연결 실패가 1인지 2인지 포함, M11-10). (4) 설정 스키마에 `budget` 절과 키 이름 하나(06의 `budget.monthlyCapUsd`), `daemon-install`의 상한 질문 단계(HT-13). (5) H-2 전 `/mnt/d/backup/helm/` 복사 레시피(판정 J-146, M11-11) |
+| 16 | (1) 관문 기록 Concern("Helm 사용 평가")을 누가 만드는지 정한다: 이 계획은 M15-08에서 사람이 관리 CLI로 만들고 T6 보고가 거기 붙는 것으로 둔다. (2) T6의 기준일("첫 사용일부터 14일마다")을 MVP 완료일(M15-09)로 정한다. (3) §3.27.6 `biasNotes`에 G1 창 갱신 기록(§3.5.3-3)을 넣는다. (4) 지표 소비자 위치(`runtime/src/consumers/metrics.ts`, 판정 J-155)는 12·06과 같다. 요구 없음. (5) 복귀 점검 빈도 "복귀당 1회, 주 2회까지"를 04와 하나로 |
+| 17 | (1) 관문 기록의 릴리스 ID는 `daemon.booted.releaseId`(17 §3.10.2 9단계)로 읽는다(§3.5.3). 17에 요구하는 안내는 없다. (2) `.worktrees/`의 Syncthing 제외는 사람에게 요청(§7 T-1). (3) CLI 종료 코드 표(데몬 연결 실패가 1인지 2인지 포함, M11-10). (4) 설정 스키마에 `budget` 절과 키 이름 하나(06의 `budget.monthlyCapUsd`), `daemon-install`의 상한 질문 단계(HT-13). (5) H-2 전 `/mnt/d/backup/helm/` 복사 레시피(판정 J-146, M11-11) |
 | 18 | (1) S1b 허용 목록 방식과 보호 경로 표에 자격 파일(`~/.config/gh`, `~/.git-credentials`, `~/.npmrc`, `~/.docker`, `~/.netrc`, `~/.aws`, `~/.kube`)과 `~/data`·`~/vault` 추가, T18-10 확장(13과 함께). (2) J-135의 localAdmin 규칙을 §3.5에 반영(M11-10이 따름). (3) J-118대로 Q18-09·Q18-10을 26에 맞춘다 |
 | 19 | (1) Q-16(브라우저 전송 토큰)·Q-18(외부 푸시 제공자)을 26의 결정에 맞춘다(J-118). (2) §3.6.3의 "보낼 때 계산하고 저장하지 않는다"를 09 저장 태그를 보내는 방식으로(M12-01). (3) 푸시 메서드 `device.registerPush`(params `contentLevel`·`minUrgency`·`vapidKeyId`)·`device.pushConfig`·`device.testPush`(M17-02) |
 | 20 | 20 §5.2 "22·23·24"의 앱 구현 순서는 M13b~M13d에 그대로 받았다. 남은 요구 없음(브라우저 설치는 22 §5.2 "06"(4)대로 `just setup`) |
@@ -1215,6 +1258,9 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 06 | S7 | M11-08 |
 | 06 | S8 | M11-10 |
 | 06 | S9 | M7-14 |
+| 06 | S10 웹 읽기 | M6-14, M6-17 |
+| 06 | S11 브라우저 도구 | M6-19, M7-20 |
+| 06 | S12 해시라인과 grep 확장 | M6-18, M7-19 |
 | 07 | V1, V2, V3, V7, V8 | M5-01, M5-02, M5-03, M5-04, M5-05 |
 | 07 | V4, V5, V6 | M6-01, M6-08·M6-09, M6-05 |
 | 07 | V9 | M16-11 |
@@ -1235,6 +1281,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 12 | U-RT-1 ~ U-RT-12 | M7-01, M7-02, M7-03, M7-04, M7-05, M7-06(U-RT-6·7), M7-07, M7-08, M7-09, M7-10, M7-11 |
 | 12 | U-RT-13 수명주기, U-RT-14 전달기·스트림, U-RT-15 탐구 run | M7-16, M8-10·M12-08, M9b-01 |
 | 12 | 통합 시나리오 | M7-15 |
+| 12 | 시험 지원 API(§6), `createRuntime`(§3.1.3), 편집 방식 고정(RT-13), `taint.web`(RT-10, §3.2.5) | M6-06, M7-18, M7-19, M7-20 |
 | 13 | U-TL-1, U-TL-2, U-TL-3, U-TL-4, U-TL-5~7 | M6-07, M6-08, M6-09, M6-10, M6-11 |
 | 13 | U-TL-8, U-TL-10, U-AD-1 | M7-12, M7-13, M7-14 |
 | 13 | U-TL-9 | M1-09 |
@@ -1242,6 +1289,14 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 13 | U-TL-12 | 범위 밖(§3.4.21) |
 | 13 | U-TL-13 | M6-12 |
 | 13 | U-TL-14 격리 운영 | M6-15 |
+| 13 | U-TL-15 데몬 git | M6-11 |
+| 13 | U-TL-16 네트워크 프록시(`bin/helm-netshim` 포함) | M6-16, M6-20 |
+| 13 | U-TL-17 시험 지원(`FakeToolExecutor`) | M6-07 |
+| 13 | U-TL-18 웹 읽기(`fetch`·`search`·변환 작업자) | M6-14, M6-17 |
+| 13 | U-TL-19 브라우저(`helm-browserd`) | M6-19, M7-20 |
+| 13 | U-TL-20 해시라인 편집 | M7-19 |
+| 13 | U-TL-21 grep 확장 | M6-18 |
+| 13 | `computer_*`(§3.2.6, 이후 1차) | M20(§3.4.22, 일괄 구현 밖) |
 | 14 | C-1~C-15, C-19, C-22, C-24 | M8-01~M8-08 |
 | 14 | C-16~C-18 | M8-12 |
 | 14 | C-20, C-21, C-23 | M8-09 |
@@ -1249,10 +1304,10 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 15 | T-16~T-20, T-25 | M16-01, M16-02, M16-11 |
 | 16 | OB-T01~T04, T06~T15, T20~T31 | M14-01~M14-08, M11-08 |
 | 16 | OB-T05, OB-T16~T19 | M16-09 |
-| 16 | 데몬 쪽 감독기, 지표 소비자(`daemon/src/consumers/metrics.ts`) | M11-08, M14-05 |
+| 16 | 데몬 쪽 감독기, 지표 소비자(`runtime/src/consumers/metrics.ts`) | M11-08, M14-05 |
 | 17 | §6.1 모듈, §6.2 T17-01~33 | M11-01~M11-12 |
-| 18 | §6 위치, §3.17 T18-01~33 | M11-03·M11-04·M11-07·M11-10, M6-10·M6-12·M6-14, M11-11(시스템), M17-02(T18-31), M13c(T18-32) |
-| 19 | §6.1 `@helm/protocol` | M10-01~M10-04 |
+| 18 | §6 위치, §3.17 T18-01~52 | M0-03(T18-25), M11-03·M11-04·M11-07·M11-10, M6-10·M6-11(T18-35)·M6-12·M6-14, M6-19(T18-45), M7-20(T18-52), M11-11(시스템), M17-02(T18-31), M13c(T18-32) |
+| 19 | §6.1 `@helm/protocol`, 등록 표·변환 메타데이터(§3.7.1·§3.7.9) | M10-01~M10-04, M10-07 |
 | 19 | §6.2 `@helm/client` | M10-05 |
 | 19 | §6.2 데몬 프로토콜 계층 | M11-05 |
 | 19 | §6.3 적합성 시나리오(CT-01~35) | M10-04(가짜 데몬), M11-05·M11-06(실제 데몬) |
@@ -1265,7 +1320,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | 22 | U22-4 하네스, U22-5 장애 공통 검사, U22-11 비밀 카나리아 | M7-17(`kernel` 모드), M8-12(`runtime` 모드), M11-05(`protocol` 모드), M12-10(`view` 단계) |
 | 22 | U22-6 종료 지점 | M7-05, M11-02, M15-02 |
 | 22 | U22-8 대본 | M7-17, M8-12, M9b-03, M11-05, M15-01 |
-| 22 | 하네스 전제 API(`openStore` 시험 옵션, 오류 주입, `semanticFields`, `@helm/engine/testing`, `FakeToolExecutor`, `whenIdle`), 앱 뷰 표본 | M2-04, M1-07, M4-05, M6-07, M7-17, M12-09 |
+| 22 | 하네스 전제 API(`openStore` 시험 옵션, 오류 주입, `semanticFields`, `@helm/engine/testing`, `FakeToolExecutor`, `whenIdle`, `ManualClock`), 앱 뷰 표본 | M2-04, M1-07, M4-05, M6-07, M7-17, M7-18, M12-09 |
 | 22 | U22-9 적합성 | M7-14(CF-04), M10-04·M11-05(CF-01·03·05), M11-06(CF-02) |
 | 22 | U22-10 장애 시나리오 | M15-02 |
 | 22 | U22-12 시각 기준 관리 | M13a-09 |
@@ -1300,6 +1355,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | T-8 | M17(모바일)을 M16보다 먼저 할지 | (a) M16 뒤 (b) 26이 나오는 대로 M16과 병렬 | (b)를 허용한다. M17은 별도 갈래이고 서버 쪽 변경이 작다 |
 | T-9 | `send` 확장을 이번 범위에 넣을지 | (a) 이후 (b) 13·18 명세를 받아 M16에 | (a). 명세가 생기면 (b) |
 | T-10 | 규모 추정 | 지금 값 / M3 뒤 재어림 | M3 끝에서 다시 어림한다(F23-15) |
+| T-12 | 컴퓨터 사용(M20)의 시작 조건 '브라우저 안정'의 기준 | (a) 1단계가 browserd 행과 실사용 기록을 보고 정한다 (b) 기준 수치를 지금 정한다 | (a). 13 §3.2.6이 기준을 적지 않았다 |
 
 ## 8. 출처
 
@@ -1356,7 +1412,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 ### ADR-23-05 일괄 구현 범위 밖 항목
 - 상태: 제안 · 날짜: 2026-10-12 · 결정자: T2 · 출처: 01 §3.8.1 "이후", 07 §3.2, 13 O-13-12
 - 맥락: 브리프 §1의 "한 번에"에 이후 단계까지 넣으면 범위가 정해지지 않는다.
-- 결정: 외부 런타임 어댑터, MCP, 이미지 생성 자극, `send` 확장, 자동 업데이트는 이번 구현 밖이다. 어댑터 계약과 적합성 틀은 MVP에 둔다. 어댑터 순서는 pi RPC → Claude Code → Codex → ACP.
+- 결정: 외부 런타임 어댑터, MCP, 이미지 생성 자극, `send` 확장, 자동 업데이트, 컴퓨터 사용(M20, §3.4.22)은 이번 구현 밖이다. 어댑터 계약과 적합성 틀은 MVP에 둔다. 어댑터 순서는 pi RPC → Claude Code → Codex → ACP.
 - 근거: 01 단계표의 "이후"이거나 명세가 없다. 계약을 먼저 두면 나중에 붙일 수 있다(결정 34).
 - 기각한 대안: 모두 포함: 명세 없는 항목을 추측해서 만들게 된다.
 - 결과: §3.4.21의 계기가 생기면 마일스톤을 더한다.

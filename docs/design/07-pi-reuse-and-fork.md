@@ -1,7 +1,7 @@
 # 07. pi 활용과 포크 계획
 
 - 작성: P4 pi 전문, 2026-10-11 (1단계 초안), 2026-10-12 (2a단계 통합, 4단계 보완)
-- 기준 결정: 브리프 결정 1~51과 `process/rulings-stage2a.md`의 판정
+- 기준 결정: 브리프 결정 1~57과 `process/rulings-stage2a.md`의 판정
 - 상태: 설계 초안. 남은 문서 간 요구는 §5.2, 미결은 §7.
 - 함께 읽을 문서: `process/00-design-brief.md`(이하 "브리프"), [06 시스템 아키텍처](06-system-architecture.md), [12 런타임 엔진](12-runtime-engine.md), [13 도구와 실행](13-tools-and-execution.md)
 - 표시 규칙: 브리프 §5.2. `[결정 n]`은 사용자가 정한 브리프 결정만 가리킨다. 조정자가 정한 기본값(브리프 §2.3의 결정 26~32·34·36·37)은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`(결정 44~46) 또는 `[판정 J-nn]`으로 적는다. `[제안]`은 이 문서가 정한 것, `[가정]`은 확인되지 않은 전제다. 외부 사실은 `[원문]`(소스·문서 직접 확인), `[실험]`(이번에 코드를 실행해 확인), `[검색]`, `[지식]`(재확인 안 함)으로 표시한다.
@@ -29,6 +29,7 @@
 8. pi 세션·패키지 특성(세션 트리, `context_edit`, 프롬프트 캐시, 버전 고정, MCP `outputSchema`)을 Helm이 어떻게 다루는가(§3.15, 브리프 §3.5).
 9. 이후 pi CLI를 런타임 어댑터(RPC)로 붙일 때 pi 쪽 사실(§3.16).
 10. 라이선스 고지와 출처 헤더(§3.17), 업스트림 추적과 업그레이드 절차(§3.18).
+11. grep 확장과 해시라인 편집의 구현 위치, oh-my-pi와의 관계(의존·vendor 아님, 설계 참고, MIT 고지 규칙, §3.6.5).
 
 ### 1.2 다루지 않는 것
 
@@ -39,6 +40,7 @@
 | 커널 검사 규칙(무엇을 막는가), 거부 분류 | 10(P6) |
 | 에이전트 루프 운영(언제 무엇을 시작·중단하는가), 컨텍스트 투영의 내용, 컴팩션, 크래시 복구 알고리즘, 재시도 정책, 스케줄러 | 12(P7) |
 | 도구 목록과 이름, 범위 검사 규칙(bash 포함), 격리(샌드박스), 하위 실행, 런타임 어댑터 인터페이스 | 13(P7) |
+| grep 확장과 해시라인 편집의 입력·출력 계약, 태그 규칙 | 13. 07은 구현 위치와 포크 패치만 정한다(§3.6.5) |
 | REPL 방식 탐구의 운영 규칙(작업 공간, globals 의미) | 15(P9) |
 | 외부 에이전트 세션 로그(pi JSONL) 입력 어댑터 | 16(P10) §3.6.3 |
 | 비밀 주입, 환경 변수 정리 규칙의 보안 판단, 위협 모델 | 18(P11) |
@@ -54,9 +56,11 @@
 | 고정 의존 | npm 패키지를 정확한 버전(`1.1.0`, `^` 없이)으로 의존하고 잠금 파일·`overrides`로 한 버전에 묶는 방식. 수정이 필요하면 `pnpm patch`만 쓴다 |
 | 참고 | 설계·알고리즘·문구만 읽고 코드는 가져오지 않는 방식 |
 | 기준 태그 | 포크와 고정 의존이 함께 따르는 업스트림 버전. 이 문서에서는 `v1.1.0` |
-| 패치 ID | 포크 수정 한 묶음의 식별자. `A1`~`A7`(pi-agent-core), `T1`~`T14`(coding-agent 도구·이미지 유틸) |
+| 패치 ID | 포크 수정 한 묶음의 식별자. `A1`~`A7`(pi-agent-core), `T1`~`T15`(coding-agent 도구·이미지 유틸) |
 | `HELM-PATCH` 표지 | 포크 파일 안에서 수정한 자리에 다는 주석 `// HELM-PATCH <ID>: <이유>` |
 | 감싸는 패키지 | pi 패키지·vendor 패키지 하나를 import할 수 있는 단 하나의 Helm 패키지(06 §3.4.1, §3.9.1). 그 밖의 Helm 코드는 pi 코드를 import하지 않는다 |
+| 해시라인 편집 | 파일 내용의 짧은 태그와 원본 줄 번호로 편집 위치를 지정하는 편집 방식(`RunSpec.editMode = 'hashline'`). pi 원본 `edit`의 `replace` 방식과 모델별로 고른다(§3.6.5) |
+| oh-my-pi | pi를 포크해 자체 코어로 다시 쓴 코딩 에이전트(`can1357/oh-my-pi`, MIT). 의존하지도 vendor하지도 않고 설계만 참고한다(§3.6.5) |
 
 ## 2. 전제와 결정
 
@@ -94,6 +98,7 @@
 | D07-9 | 업스트림 추적은 파일 단위 3-way 병합(`git merge-file`)이다. 정기 확인은 월 1회, 업그레이드는 필요할 때 체크리스트로 한다 | §3.18 |
 | D07-10 | pi 자체의 재시도·세션 저장·컴팩션은 Helm 런타임 경로에서 쓰지 않는다. 재시도는 `@helm/ai`의 `ModelGateway` 한 곳(12 RT-9), 대화 기록은 Helm 이벤트 로그 하나다 | §3.11, §3.15 |
 | D07-11 | pi 동작 중 Helm이 기대는 것(훅 순서, 차단 시 `afterToolCall` 미호출, 싱크 await, 컨텍스트 배열 비변경 등)은 계약 테스트 C1~C25로 고정한다 | §3.10, §3.19 |
+| D07-12 | [판정 J-190] oh-my-pi는 의존하지도 vendor하지도 않고 설계만 참고한다. grep 확장은 패치 T15로 vendor `grep.ts`에 더하고, 해시라인 편집은 Helm 신규 코드(`packages/tools/src/basic/edit-hashline.ts`)로 쓴다. 기본 편집 방식은 `replace`다 | §3.6.5, §3.7 |
 
 ### 2.3 이 결정이 기대는 pi 사실
 
@@ -210,13 +215,13 @@ pi-facts-1·2는 `cdaf6c2` 기준이다. 아래 파일은 `v1.1.0`에서 행 번
 
 ### 3.2 패키지별 활용 방식 결정 표 [제안]
 
-도입 단계는 23이 확정한다. 여기서는 "1차"(데몬 + 자체 런타임 + 데스크톱 앱 MVP), "REPL"(15의 REPL 방식 탐구를 켤 때), "MCP"(MCP 서버를 쓸 때), "TUI"(결정 33의 SSH TUI), "어댑터"(pi CLI RPC 어댑터, 결정 34의 이후 단계)로 적는다.
+도입 단계는 23이 확정한다(23 §5.1의 07 행). 확정 내용은 1차 = 23의 M5(pi vendor)·M6(모델·루프·도구), REPL = M16-11(2단계, 플래그 `inquiry.repl`), MCP·pi RPC 어댑터 = 이후(23 §3.4.21)다. 여기서는 "1차"(데몬 + 자체 런타임 + 데스크톱 앱 MVP), "REPL"(15의 REPL 방식 탐구를 켤 때), "MCP"(MCP 서버를 쓸 때), "TUI"(결정 33의 SSH TUI), "어댑터"(pi CLI RPC 어댑터, 결정 34의 이후 단계)로 적는다. 이 문서의 M5·M6은 23 마일스톤이고, §7의 M5·M6(미결 번호)과 다르다.
 
 | 패키지 | 방식 | 범위 | 이유 | 위험 | 재검토 조건 | 단계 |
 |---|---|---|---|---|---|---|
 | pi-ai (`@earendil-works/pi-ai`) | 정확한 버전 고정 의존 `1.1.0` | 루트 진입점, `providers/anthropic`, `providers/openai`, 루트의 `fauxProvider` | 제공자 와이어 코드(13,186줄)와 모델 카탈로그는 제공자 API 변경을 따라가야 하는 부분이다. vendor하면 그 추적을 Helm이 직접 해야 한다. Helm이 고칠 필요가 있는 곳이 지금은 없다(faux의 `api` 임의값은 옵션으로 고정, `CredentialStore`는 인터페이스 주입) | patch·minor에서도 Breaking이 있었다(pi-facts-2 §1.3: 1.0.1, 1.0.3, 1.1.0). 업그레이드가 쉽지 않을 수 있다 | `pnpm patch`가 3개를 넘거나 합계 200줄을 넘을 때, 제공자 코드를 구조적으로 바꿔야 할 때 vendor로 바꾼다. 모델 카탈로그 갱신이 필요할 때 버전을 올린다(§3.11.5로 새 모델은 설정에서 먼저 더할 수 있다) | 1차 |
 | pi-agent-core (`@earendil-works/pi-agent-core`) | vendor 포크 | `src/agent-loop.ts`, `src/types.ts`(`Agent` 클래스 제외, 12 RT-1) | 결정 28. 가져오는 두 파일이 1,488줄로 작고 Helm 커널 검사를 연결하는 자리다. 행동을 바꿔야 할 곳이 있다(A1~A5) | 업스트림 수정(버그 수정)을 놓칠 수 있다 | 업스트림 Breaking이 루프 계약(§3.10)을 바꿀 때 3-way 병합 대신 재설계 검토 | 1차 |
-| pi-coding-agent (`@earendil-works/pi-coding-agent`) | 부분 vendor 포크 + 나머지 참고 | 도구 7개와 의존 26개 파일(§3.6). 참고: `core/session-manager.ts`, `core/compaction/*`, `core/system-prompt.ts`, `core/extensions/types.ts`(`ToolExposure`, `executeTool`), `extensions/codemode/*`, `extensions/mcp/*`, `modes/rpc/*`, `modes/interactive/components/*` | 도구의 잘림·이어 읽기 안내·편집 매칭·프로세스 트리 종료는 재사용 가치가 크다. 패키지 루트 import는 33개 패키지를 끌어온다(pi-facts-1 §4.6) | 도구 동작 수정(예: edit 퍼지 매칭)을 직접 병합해야 한다. 업스트림 테스트를 함께 vendor해 회귀를 잡는다(§3.19.3) | 도구 파일의 업스트림 변경이 렌더러·확장 타입과 얽혀 병합 충돌이 잦아지면 Helm 자체 도구로 분리 | 1차(도구), 어댑터(`modes/rpc/rpc-types.ts`, `jsonl.ts` 타입·프레이밍만 vendor, §3.16.7) |
+| pi-coding-agent (`@earendil-works/pi-coding-agent`) | 부분 vendor 포크 + 나머지 참고 | 도구 7개와 의존 26개 파일(§3.6), grep 확장 패치 T15(§3.7). 해시라인 편집은 Helm 신규 코드다(§3.6.5). 참고: `core/session-manager.ts`, `core/compaction/*`, `core/system-prompt.ts`, `core/extensions/types.ts`(`ToolExposure`, `executeTool`), `extensions/codemode/*`, `extensions/mcp/*`, `modes/rpc/*`, `modes/interactive/components/*` | 도구의 잘림·이어 읽기 안내·편집 매칭·프로세스 트리 종료는 재사용 가치가 크다. 패키지 루트 import는 33개 패키지를 끌어온다(pi-facts-1 §4.6) | 도구 동작 수정(예: edit 퍼지 매칭)을 직접 병합해야 한다. 업스트림 테스트를 함께 vendor해 회귀를 잡는다(§3.19.3) | 도구 파일의 업스트림 변경이 렌더러·확장 타입과 얽혀 병합 충돌이 잦아지면 Helm 자체 도구로 분리 | 1차(도구), 어댑터(`modes/rpc/rpc-types.ts`, `jsonl.ts` 타입·프레이밍만 vendor, §3.16.7) |
 | pi-tui (`@earendil-works/pi-tui`) | 정확한 버전 고정 의존 | `apps/tui`에서만 | 런타임 의존이 2개(`get-east-asian-width`, `marked`)이고, OpenClaw도 끝까지 이것만 남겼다(cases §7.2). 터미널 세부(IME, Kitty 프로토콜, SSH ESC 대기)를 다시 만들 이유가 적다 | 네이티브 프리빌드 `.node` 바이너리가 함께 온다(pi-facts-2 §1.2). 키 바인딩이 patch에서 바뀐 적이 있다(1.0.3) | 한국어 줄바꿈 품질(pi-facts-2 §2.6)이 쓸 수 없는 수준이면 `utils.ts`의 줄바꿈 함수만 Helm 쪽에서 감싼다 | TUI |
 | pi-codemode (`@earendil-works/pi-codemode`) | 정확한 버전 고정 의존 | `CodemodeSandbox`, `renderDeclarations`, `parseCodemodeSource` | pi 의존이 없고 외부 의존은 `quickjs-wasi` 하나다. Helm이 넣을 것은 globals와 도구 브리지뿐이라 수정이 필요 없다 [실험 C20] | `node --watch`에서 worker 채널 오류(#10725, `cdaf6c2`에서 수정) | REPL 방식 탐구를 켤 때 그 시점 최신 태그로 올릴지 판단 | REPL |
 | pi-mcp (`@earendil-works/pi-mcp`) | 정확한 버전 고정 의존 | `McpClient`, `StdioTransport`, `StreamableHttpTransport`, `toLlmContent` | pi 의존이 없고 외부 의존은 `cross-spawn` 하나다. tarball에 `LICENSES/`가 들어 있다 | `outputSchema` 검증이 없다(§3.13) | MCP 서버를 쓰기로 할 때 도입 | MCP |
@@ -231,6 +236,8 @@ pi-facts-1·2는 `cdaf6c2` 기준이다. 아래 파일은 `v1.1.0`에서 행 번
 | pi-telemetry | pi-ai의 전이 의존(고정 `1.1.0`) | Helm 코드에서 직접 import하지 않는다 | 런타임 의존 없음. pi-ai `StreamOptions.telemetryContext` 타입 때문에 설치된다. Helm 진단은 06 §3.11 로그 체계를 쓴다 | - | span 단위 진단이 필요해지면 `@helm/ai`에서 `telemetryContext`로 연결 검토 | 1차(설치만) |
 
 coding-agent의 "pi 안의 Helm" 방식(확장으로 커널을 넣는 안, extracts-3 §4, `pi-runtime-options.md` 안 1)은 쓰지 않는다. 데몬 상주(결정 22)와 기준 원본(결정 29)을 만족하지 못한다. 그 대응표(X3-4-08)의 기능은 포크한 루프의 훅으로 옮긴다: 관찰 자동 생성 = `afterToolCall`의 결과 기록(12 §3.4.6), 권한 검사 = `beforeToolCall`(12 §3.4.5), 루프 종료 조건("제출 없이 끝나려 하면 한 번 더") = `finishTurn`의 `continue`와 반복 상한(12 §3.4.9), 컴팩션 가로채기 = Helm 투영이 요약을 직접 넣으므로 필요 없음(12 §3.6), 독립 검증 에이전트 = 새 run(fork 아님, 12 §3.14).
+
+oh-my-pi는 이 표의 pi 패키지가 아니다. 의존하지 않고 vendor하지 않으며 설계만 참고한다(§3.6.5).
 
 ### 3.3 저장소 배치
 
@@ -585,9 +592,9 @@ export interface BeforeToolCallResult {
 | `core/tools/write.ts` | 97 | `tools/write.ts` | T1, T2, T7 | 덮어쓰기, 부모 디렉터리 생성, 파일별 직렬화 |
 | `core/tools/edit.ts` | 220 | `tools/edit.ts` | T1, T2, T7, T11 | `edits[]` 정확 일치 교체, BOM·줄끝 보존, diff·patch 상세 |
 | `core/tools/edit-diff.ts` | 556 | `tools/edit-diff.ts` | T11 | 매칭(유일성, 겹침 금지, 퍼지), diff 생성. 외부 `diff` |
-| `core/tools/bash.ts` | 442 | `tools/bash.ts` | T1, T2, T4, T10, T11 | 셸 실행, 출력 누적·잘림·전체 출력 파일, 타임아웃, 프로세스 트리 종료, `structuredContent` |
-| `core/tools/grep.ts` | 323 | `tools/grep.ts` | T1, T2, T3, T7 | `rg --json` 검색 |
-| `core/tools/find.ts` | 318 | `tools/find.ts` | T1, T2, T3, T7 | `fd --glob` 검색 |
+| `core/tools/bash.ts` | 442 | `tools/bash.ts` | T1, T2, T4, T10, T11, T13 | 셸 실행, 출력 누적·잘림·전체 출력 파일, 타임아웃, 프로세스 트리 종료, `structuredContent` |
+| `core/tools/grep.ts` | 323 | `tools/grep.ts` | T1, T2, T3, T7, T14, T15 | `rg --json` 검색 |
+| `core/tools/find.ts` | 318 | `tools/find.ts` | T1, T2, T3, T7, T14 | `fd --glob` 검색 |
 | `core/tools/ls.ts` | 175 | `tools/ls.ts` | T1, T2, T7 | 목록 |
 | `core/tools/truncate.ts` | 314 | `tools/truncate.ts` | 없음 | 잘림 규칙 |
 | `core/tools/path-utils.ts` | 118 | `tools/path-utils.ts` | T11 | `resolveToCwd`, macOS 스크린숏 이름 변형 |
@@ -611,8 +618,9 @@ export interface BeforeToolCallResult {
 | (신규) | 30 | `utils/tool-binaries.ts` | - | `rg`/`fd` 경로 해석, 내려받지 않음 |
 | (신규) | 18 | `index.ts` | - | 진입점. 도구·옵션·`resolveToCwd` 등과 함께 `AgentTool`·`AgentToolResult`·`AgentToolUpdateCallback` 타입을 `@helm/vendor-pi-agent-core`에서 재export(§3.9.1) |
 | (신규) | 6 | `vendor/pi-image/src/index.ts` | - | `processImage`, `detectSupportedImageMimeTypeFromFile`, `convertImageBytesToPng` 내보내기 |
+| (신규, vendor 밖) | - | `packages/tools/src/basic/edit-hashline.ts` | - | 해시라인 편집 모드(`RunSpec.editMode = 'hashline'`). `edit`의 둘째 구현이다. pi 파일을 옮기지 않고 oh-my-pi 설계만 참고한다(§3.6.5) |
 
-합계: 가져오는 원본 26개 4,685줄(`vendor/pi-tools` 18개, `vendor/pi-image` 8개) [원문 `wc -l`], 그중 수정 14개, 원본 그대로 12개, 신규 4개. [실험] 시제품은 두 패키지를 나누기 전 한 패키지(`vendor/pi-tools`)로 만들어 상태 검사(`scripts/vendor-sync.mjs status`)·컴파일·테스트를 했다. 나누는 것은 import 경로만 바꾸는 일이다(T12).
+합계: 가져오는 원본 26개 4,685줄(`vendor/pi-tools` 18개, `vendor/pi-image` 8개) [원문 `wc -l`], 그중 수정 14개, 원본 그대로 12개, 신규 4개(vendor 안). vendor 밖의 Helm 신규 파일은 해시라인 편집 하나다(§3.6.5). [실험] 시제품은 두 패키지를 나누기 전 한 패키지(`vendor/pi-tools`)로 만들어 상태 검사(`scripts/vendor-sync.mjs status`)·컴파일·테스트를 했다. 나누는 것은 import 경로만 바꾸는 일이다(T12).
 
 #### 3.6.2 가져오지 않는 파일과 이유
 
@@ -655,6 +663,26 @@ export { convertImageBytesToPng } from "./image-convert.ts";
 
 `processImage(bytes, mimeType, { autoResizeImages, resizeOptions })`는 PNG·JPEG·GIF·WebP는 그대로 두고 그 밖은 PNG로 바꾼 뒤, `resizeOptions`(pi-ai 모델의 `inputLimits.images.resize`)에 맞춰 worker 스레드에서 줄인다(`image-process.ts:70-119`, `image-resize.ts:89-100`) [원문]. 실패하면 `{ ok: false, message }`를 돌려주고 throw하지 않는다. 결정적인지(같은 입력 → 같은 바이트)는 photon 구현에 달려 있다 [가정]. 12의 캐시(`sha256` 키)가 결과를 고정하므로 투영 바이트는 같게 유지된다.
 
+#### 3.6.5 grep 확장, 해시라인 편집, oh-my-pi 관계 [결정 55, 판정 J-190]
+
+결정 55는 MVP 도구에 해시라인 편집과 고급 grep을 넣고 oh-my-pi 수준의 도구를 요구한다. 그중 pi 도구와 관련된 것은 두 가지이고, 둘 다 1차 단계다. 입력·출력 이름, 태그 규칙, 실패 결과는 13이 정하고, 이 절은 구현 위치와 포크 방식만 정한다.
+
+1. **grep 확장**: 포크한 `grep.ts`에 패치 T15를 적용한다(§3.7). 입력에 파일 페이지 오프셋 `skip`과 여러 경로 `paths[]`를 더하고, 파일당 상한과 파일 간 라운드로빈 분배를 두며, 긴 줄은 일치 위치를 중심으로 자른다. 실행은 T14의 `spawn`으로 `rg`를 돌리므로 bubblewrap 안에서 돈다. 검색 엔진은 바꾸지 않는다. 확장은 `rg` 출력의 후처리다.
+2. **해시라인 편집**: 포크가 아니다. `packages/tools/src/basic/edit-hashline.ts`(Helm 코드)가 `edit`의 둘째 구현이 된다. `RunSpec.editMode`가 `'hashline'`이면 이 구현을 쓰고, 기본값은 `'replace'`(pi 원본 `edit`)다. 모델 계열마다 고르며, 값은 run 시작에 `RunSpec`으로 고정한다. 짧은 태그는 모델에게 보이는 별칭이다. 실제 guard는 sha256이고, 태그만으로 일치를 판정하지 않는다. 낡은 태그는 자동으로 되살리지 않고 거부한다. 스냅샷 저장소와 줄 태그 붙이기는 데몬 쪽 Helm 코드가 맡는다. 해시라인은 코어 변경이 아니므로 pi 루프(§3.5)는 바뀌지 않는다. 기본 primitive와 replay는 §3.9.5의 `edit` 행과 같다(guard가 있을 때만 `safe`).
+3. **단계**: 두 기능은 1차(MVP)에 든다(판정 J-190 (1)). 해시라인을 모델별로 켤지, 기본값으로 삼을지는 §7 M12에서 본다.
+
+oh-my-pi(`can1357/oh-my-pi`, MIT)는 pi를 포크한 코딩 에이전트지만 pi v1.1.0과 호환되지 않는다. 코어를 자체로 다시 썼고(`@oh-my-pi/*` 범위), 실행 환경은 Bun이며, 편집·grep·bash의 핵심이 Rust 네이티브 애드온이다. 마지막 pi-mono 동기화 표지는 2026-03-22다 [원문 `docs/porting-from-pi-mono.md`, `package.json`, 커밋 `b91db66e`, 2026-10-14 확인]. 그래서 다음을 정한다.
+
+- **의존하지 않는다.** `package.json`에 넣지 않는다. Stagehand도 의존하지 않는다. Helm 모델 어댑터를 거칠 수 있을 때만 선택 확장으로 검토한다(13 소관).
+- **vendor하지 않는다.** 포크 원천도 아니다.
+- **설계만 참고한다.** 참고하는 것은 태그의 구조, 편집 연산의 문법(`PUT`·`CUT`), grep의 파일 간 분배와 상한, 줄 자르기 규칙 같은 아이디어다. 아이디어와 문법은 저작권 대상이 아니다. 코드, 오류 문구, 프롬프트 파일(`hashline.md`)은 옮기지 않는다. 프롬프트가 필요하면 새로 쓴다. 조사(연구 §6.1)의 혼합안(소규모 로직을 MIT 고지와 함께 옮김)은 쓰지 않는다. 판정 J-190이 설계 참고로 정했다.
+
+MIT 고지 규칙은 다음과 같다.
+
+- 설계만 참고한 부분에는 고지 항목을 두지 않는다.
+- 코드나 문구를 옮기면 옮긴 블록 위에 `// Adapted from can1357/oh-my-pi@b91db66e <원본 경로>:<행> (MIT, see THIRD_PARTY_NOTICES.md)`를 단다(§3.17.3 형식).
+- 저장소 루트 `THIRD_PARTY_NOTICES.md`에 oh-my-pi 항목을 두고, `LICENSE` 원문을 저작권 표기 전체와 함께 그대로 넣는다. 이 항목은 사람이 쓰며 `just licenses`가 만드는 npm 목록과 섞지 않는다. 옮긴 곳과 항목이 짝이 맞는지는 V8이 확인한다(§6).
+
 ### 3.7 도구 수정 사항
 
 적용 스크립트 시제품: `.helm-design-work/P4/apply-tools-patches.py`. 결과: `fork-proto/vendor/pi-tools/src/`.
@@ -676,6 +704,7 @@ export { convertImageBytesToPng } from "./image-convert.ts";
 | T12 | read | `processImage`(`../../utils/image-process.ts`), `detectSupportedImageMimeTypeFromFile`(`../../utils/mime.ts`) import를 `@helm/vendor-pi-image`로 | 이미지 유틸을 별도 패키지로 뗌(§3.6.4) | 컴파일, 이미지 읽기 시험 |
 | T13 | bash | 옵션 `defaultTimeoutSeconds?`, `maxTimeoutSeconds?`를 더한다. 적용 위치는 `execute()` 안, `ops.exec` 호출(`bash.ts:364-369`) 직전이다: 모델 인자 `timeout`이 없으면 기본값, 상한을 넘으면 실행 전에 오류를 던지고, 결정한 값을 `ops.exec`의 `timeout`으로 넘긴다. `resolveTimeoutMs`(`bash.ts:27-38`)는 고치지 않는다. 이 함수는 기본 실행기 `createLocalShellOperations().exec`(`bash.ts:100`) 안에서만 불리므로, 13이 `BashOperations.exec`를 주입하면 거치지 않는다. 스키마 설명(`bash.ts:42` "no default timeout")은 "Timeout in seconds (optional)"로, 도구 설명(`bash.ts:255`) 끝에 기본값·상한 문장을 더한다 | 13 §3.3.1의 "bash 기본 300초, 최대 3,600초". 원본은 기본값이 없고 상한은 2,147,483초다. 시간 제한 없는 명령은 13의 실행 상한과 예산 전제를 깨뜨린다 | [실험: 주입한 `BashOperations`가 인자 없음 → 300, `timeout: 10` → 10을 받고, 5,000은 실행 전 "maximum is 3600 seconds"] |
 | T14 | grep, find | 옵션 `spawn?: (command: string, args: string[], options: { cwd?: string }) => ChildProcess`를 더하고 `rg`(`grep.ts:168`)·`fd`(`find.ts:216`) 실행에 쓴다(기본 `child_process.spawn`) | grep: 원본 `GrepOperations`는 `isDirectory`·`readFile`만 바꿀 수 있고 `rg`는 항상 로컬에서 실행된다(pi-facts-1 §0-7). find: `FindOperations.glob`(`find.ts:52-57`)을 주면 `fd` 대신 그 함수를 쓰지만(`find.ts:115-125`), 그러면 `.gitignore`·숨김 파일·`--full-path` 규칙을 담은 `fd` 인자 조립(`find.ts:182-215`)을 Helm이 다시 써야 한다. `spawn` 주입은 원본 인자 조립을 그대로 두고 실행만 바꾼다. 13 §3.3.1의 "샌드박스 안에서 `rg`·`fd` 실행"(bwrap 래핑)을 위해 | 단위 테스트 [제안] |
+| T15 | grep | 입력과 출력을 확장한다. 입력 `skip`(파일 페이지 오프셋), `paths[]`(여러 루트. 루트마다 T7의 `pathPolicy.check`), 파일당 상한과 파일 간 라운드로빈 분배, 긴 줄을 일치 위치 중심으로 자르기. 실행은 T14의 `spawn`으로 `rg`를 돌린다(bubblewrap 래핑은 13). 입력 이름과 출력 필드 이름은 13이 정한다 | 원본은 전체 일치 수 상한 하나뿐이라 한 파일이 결과를 독점하고, 다음 페이지를 요청할 방법이 없으며, 긴 줄은 앞부분만 보인다. oh-my-pi 설계 참고(§3.6.5) | 단위 테스트: 페이지 경계, 파일당 상한, 라운드로빈 순서, 줄 자르기 위치, `paths[]`의 루트마다 검사 호출 [제안] |
 
 ```ts
 // vendor/pi-tools/src/tool-definition.ts  (Helm 신규, 계획판 [제안])
@@ -741,10 +770,11 @@ pi 코드를 Helm 패키지 경계에 맞추는 코드다. 공개 API의 모양�
 | `packages/domain/src/model.ts`(08 소유 파일, 07이 내용 제안) | 저장·전송되는 모델 데이터 타입. Helm 소유, pi-ai 1.1.0과 같은 모양(§3.9.2) | 120 |
 | `packages/ai/src/pi.ts` (`@helm/ai/pi` 하위 경로) | 루프 연결에만 쓰는 pi-ai 기계 타입의 재export(§3.9.2) | 20 |
 | `packages/ai/src/pi/models.ts` | pi `createModels()`, 필요한 제공자만 `setProvider()`, 설정의 추가 모델 등록, `CredentialStore` 구현 주입(키 원천은 `SecretStore`, 판정 45, 12 §3.3.4) | 150 |
-| `packages/ai/src/pi/faux.ts` | 테스트용 faux 제공자 생성(`api` 고정, §3.11.1). 12의 가짜 모델 대본 API가 이것을 쓴다 | 60 |
+| `packages/ai/src/pi/faux.ts` | 테스트용 faux 제공자 생성. `api`는 `"faux:helm"`으로 고정한다(§3.11.1, [판정 J-169]). 12의 가짜 모델 대본 API가 이것을 쓴다. 22 §3.5.4의 테이프 재생기(`packages/ai/src/testing/tape.ts`, `@helm/ai/testing`)는 이 함수만 불러 쓰고 pi를 직접 import하지 않는다(§3.9.1 표) | 60 |
 | `packages/ai/test/model-types.test.ts` | I5: `@helm/domain/model` ↔ pi-ai 타입 상호 대입 | 40 |
 | `packages/agent/src/index.ts` | vendor 루프 재export + `assertToolDeclarations()`(투영에서 모델에게 노출한 도구와 실행 도구 일치 검사, C8) | 60 |
 | `packages/tools/src/basic/*.ts`(13 U-TL-3 소유 파일, 07은 vendor 사용 규칙만) | vendor 도구 정의 7개를 13의 도구 명세로 감쌈. 경로 해석 함수(`resolveToCwd`, `resolveReadPathAsync`)를 13의 `prepare`가 씀 | 150 |
+| `packages/tools/src/basic/edit-hashline.ts`(07 신규, 13 소유 디렉터리 안) | `edit`의 해시라인 편집 모드(§3.6.5). 모드는 `RunSpec.editMode`로 run 시작에 고정한다 | 신규, 줄 수 미정 [가정] |
 | `packages/tools/src/pi/path-policy.ts` | `pathPolicyFrom(canonicalize, ctx)`: 13의 `canonicalize`를 vendor `PathPolicy`로 바꾸는 어댑터(T7·T7+). 판정 규칙은 갖지 않는다 | 30 |
 | `packages/tools/src/pi/shell-env.ts` | `buildShellEnv(allow)`: 허용 목록 방식 셸 환경(T4) | 50 |
 | `packages/tools/src/repl/sandbox.ts`(15·13이 쓰는 경로) | REPL 단계: `createReplSandbox()`. pi-codemode 샌드박스 생성, 주입받은 `runNestedToolCall`로 도구 브리지(§3.12) | 150 |
@@ -979,7 +1009,7 @@ Helm 설계(10·12·13)가 기대는 pi 동작이다. 각 항목은 테스트로
 
 - `@earendil-works/pi-ai/providers/all`(42개 전부와 생성 카탈로그를 import, `providers/all.ts:1-46`)은 쓰지 않는다. `createModels()`(`models.ts:992`)에 필요한 제공자만 `setProvider()`로 등록한다.
 - 1차 제공자: `anthropicProvider()`(`providers/anthropic.ts:74`, API `anthropic-messages`), `openaiProvider()`(`providers/openai.ts:9`, API `openai-responses`). 다른 제공자는 12의 `AiConfig.providers`(12 §3.3.3)에 항목을 더할 때 같은 방식으로 등록한다.
-- 테스트: `fauxProvider({ api: "helm-faux", provider: "faux" })`(`faux.ts:704`). `api`를 고정한다(C17). 같은 제공자·api·model인지로 thinking 보존을 판정하는 handoff 로직(pi-facts-1 §2.11)이 흔들리지 않게 하려는 것이다.
+- 테스트: `fauxProvider({ api: "faux:helm", provider: "faux" })`(`faux.ts:704`). `api`는 `"faux:helm"`으로 고정한다(C17, [판정 J-169], 22 D22-4). 같은 제공자·api·model인지로 thinking 보존을 판정하는 handoff 로직(pi-facts-1 §2.11)이 흔들리지 않게 하려는 것이다.
 
 #### 3.11.2 자격 증명
 
@@ -1035,6 +1065,10 @@ pi-ai 1.1.0은 `typebox` 1.3.27을 정확한 버전으로 요구한다 [원문 `
 | 오류 타입 | `import type { TLocalizedValidationError } from "typebox/error"` | pi-ai와 같음 |
 
 [실험] 1.3.27 설치본의 `exports`는 `.`, `./compile`, `./error`, `./format`, `./guard`, `./schema`, `./system`, `./type`, `./value`다. 위 표의 세 import로 닫힌 객체 스키마를 컴파일해 통과·실패·오류 1건을 확인했다(Node 24). 19는 프로토콜 params·result 검사에 이 표의 `Compile`을 쓴다. 각 Helm 패키지는 `typebox`를 직접 의존으로 두고 `@helm/ai`를 거쳐 재수출받지 않는다(§3.9.1 원칙).
+
+#### 3.11.9 Anthropic 서버 측 도구 [판정 J-190 (5)]
+
+MVP에서 Anthropic 서버 측 도구(`web_search`, `web_fetch`)는 쓰지 않는다. 웹 탐색은 Helm 소유 함수 도구(13)로 한다. pi-ai 호출에 서버 측 도구 선언을 넣지 않는다. 서버 측 도구의 이름과 판은 구현 전에 확인한다([검색]).
 
 ### 3.12 pi-codemode 사용: REPL 브리지 [제안]
 
@@ -1141,6 +1175,7 @@ pi-ai 1.1.0은 `typebox` 1.3.27을 정확한 버전으로 요구한다 [원문 `
 | vendor 도구의 외부 의존 | `diff` 8.0.4 BSD-3-Clause, `cross-spawn` 7.0.6 MIT, `@silvia-odwyer/photon-node` 0.3.4 Apache-2.0, `typebox` 1.3.27 MIT | [실험] 설치본 `package.json`, 각 LICENSE 파일 |
 | pi-ai 의존 | `@anthropic-ai/sdk` MIT, `openai` Apache-2.0, `@google/genai` Apache-2.0, `@aws-sdk/client-bedrock-runtime` Apache-2.0, `partial-json` MIT | [실험] 같음 |
 | pi-codemode 의존 | `quickjs-wasi` 3.6.2 MIT | [실험] |
+| oh-my-pi (`can1357/oh-my-pi`, 설계 참고만) | MIT. LICENSE의 저작권 표기에는 Mario Zechner(2025), Can Bölük, Stencil Labs, Inc. 표기가 있다. Rust 의존물 고지는 저장소 `THIRD-PARTY-NOTICES.txt`에 있다. pi v1.1.0과 호환되지 않는다 | [원문] 커밋 `b91db66e`의 `LICENSE`, `THIRD-PARTY-NOTICES.txt`, `docs/porting-from-pi-mono.md` |
 
 #### 3.17.2 고지 규칙
 
@@ -1328,7 +1363,7 @@ I1이 확인할 export(1차):
 | 08·09 | `@helm/domain/model`에 둘 모델 데이터 타입의 모양(§3.9.2), 도구 호출 결과의 `executed`·`rejection` 6종(A2) |
 | 10·11 | 커널 검사 연결 지점의 pi 쪽 의미: `beforeToolCall`의 `{ block, reason, terminate, args }`(A4), 거부 종류의 구분(A2) |
 | 12 | 12 §3.4.1 F-1~F-7을 받은 패치 A1~A7(§3.5)과 그 차이(F-4를 별도 이벤트로), `@helm/agent` 재export 목록(§3.9.4), `@helm/ai/pi` 기계 타입(§3.9.2), 12가 물은 제공자 변환 사실(§3.11.6), 이미지 모듈 `@helm/vendor-pi-image`(§3.6.4), 계약 C1~C25 |
-| 13 | vendor 도구 표면(`create*ToolDefinition`, 옵션 `operations`·`spawnHook`·`spawn`·`env`·`pathPolicy`·시간 제한, `resolveToCwd`·`resolveReadPathAsync`, `setOutputDirectory`, `configureToolBinaries`, 도구 결과 타입 재export), 도구 기본값 표(§3.9.5), `pathPolicyFrom`·`buildShellEnv`(§3.8), REPL 브리지 `createReplSandbox`(§3.12), MCP 규칙(§3.13), pi CLI 어댑터의 pi 쪽 사실(§3.16) |
+| 13 | vendor 도구 표면(`create*ToolDefinition`, 옵션 `operations`·`spawnHook`·`spawn`·`env`·`pathPolicy`·시간 제한, grep 확장(T15), 해시라인 편집의 구현 위치(§3.6.5), `resolveToCwd`·`resolveReadPathAsync`, `setOutputDirectory`, `configureToolBinaries`, 도구 결과 타입 재export), 도구 기본값 표(§3.9.5), `pathPolicyFrom`·`buildShellEnv`(§3.8), REPL 브리지 `createReplSandbox`(§3.12), MCP 규칙(§3.13), pi CLI 어댑터의 pi 쪽 사실(§3.16) |
 | 15 | pi-codemode 1.1.0 API 이름과 행(§3.1.4, §3.12), 브리지 함수 `runNestedToolCall`의 위치와 모양(§3.12), 브리지가 훅을 지난다는 보장(C20) |
 | 16 | pi 세션 특성 정리(§3.15). 외부 로그 어댑터는 16이 소유 |
 | 18 | `buildShellEnv`가 18의 허용 목록을 그대로 쓴다는 약속(§3.9.5, 판정 J-17), 고정 의존과 vendor의 공급망 표면, 설치 스크립트 사실(§3.3.2: 빌드 허용 목록에 pi 쪽 추가 없음), OAuth 토큰 주의(E24) |
@@ -1347,7 +1382,7 @@ I1이 확인할 export(1차):
 | 09 | (1) 모델 메시지 저장 형식은 `@helm/domain/model`이고 형식 버전을 둔다. (2) `toolcall.not_executed.reason`(`restart`·`cancel`·`steering`·`superseded`)과 A2의 `rejection.kind`(`unknown_tool`·`invalid_args`·`truncated_response`·`aborted_before_execute`·`blocked`·`hook_error`)의 대응을 적는다. 실행 전 거부 3종(`unknown_tool`·`invalid_args`·`truncated_response`)은 12 §3.4.7이 trace `toolcall.not_executed { reason }`으로 쓰므로 `reason`에 그 값이 들어갈 자리가 필요하다. `blocked`는 `toolcall.blocked`, `aborted_before_execute`는 `cancel`, `hook_error`는 run 실패(E5와 같은 처리)다. (3) 실행된 인자(`executedArgs`)를 `toolcall.requested`의 `modelArgs`와 별도로 남길 위치를 정한다(A2·A4) |
 | 10 | 남은 요구 없음. 10 §5는 커널이 인자를 바꾸지 않고 13의 권한 레이어가 바꾼다고 정했다. 그 교체는 12의 `beforeToolCall`이 A4의 `{ args }`로 루프에 넘긴다(12 §3.4.5) |
 | 12 | A1~A7과 A5(별도 이벤트 `tool_execution_executing`)는 12 §3.4.1·§3.4.4 표에 반영됨(M1 해결). 남은 것: (1) §3.1 배치도의 `packages/agent/src/loop.ts`(F-1~F-7 적용)는 07 §3.3의 배치로 고친다: 포크 코드는 `vendor/pi-agent-core/src/{agent-loop,types}.ts`, `packages/agent/src/index.ts`는 재export와 `assertToolDeclarations`. (2) §3.5.2의 [가정](pi-ai가 연속 user 블록을 합친다)을 사실로 고친다: pi-ai는 별도 `user` 항목으로 보내고 Anthropic API가 한 턴으로 합친다(§3.11.6, C23). T-PJ-07은 변환 스냅숏으로 남긴다. (3) §3.6의 "07이 해당 파일을 포크할지 참고만 할지 정한다"를 07의 결정으로 바꾼다: 포크하지 않고 12가 Helm 코드로 다시 쓰며, 문구를 옮기면 출처 표시(§3.17.3)를 단다. (4) §3.3의 `images.ts`가 쓰는 모듈 이름을 `@helm/vendor-pi-image`의 `processImage`로 적는다(§3.6.4). (5) `prepareRequest`(§3.4.8)에서 `assertToolDeclarations`(§3.9.4, C8)를 부른다. (6) `ports/repl.ts`가 `runNestedToolCall`을 만들어 `createReplSandbox`에 넘긴다(§3.12). (7) pi 행 번호 인용(`pi-src/...`)을 `v1.1.0` 기준으로 고친다(판정 44, §3.1.4 표). (8) §3.3.4의 `EnvCredentialStore`(환경에서 읽고 지움)를 판정 45에 맞춰 `SecretStore`를 읽는 구현으로 바꾼다(§3.11.2). (9) 제공자 요청 abort 뒤 이어 가기는 pi 루프가 하지 않는다(`stopReason: aborted`면 steering을 묻지 않고 끝남, C18). §3.12.2 interrupt에 "새 `AbortController`로 `runAgentLoopContinue`" 경로를 적고, §3.4.7·§3.12.2의 `toolcall.skip{steering}` 행은 지운다(v1.1.0에 그런 건너뛰기가 없다, `types.ts:285-287`). (10) `runNestedToolCall`(§3.12 "중첩 호출의 기록"): 중첩 호출 id를 트랜잭션 A에서 발급하고, `unknown_tool`·`invalid_args`이면 `toolcall.skip`을 직접 제출한다(C25, 판정 J-104). (11) `utils/retry.ts:116-262` 인용을 `116-257`로. (12) `postprocess` 인자 수와 `classify` 입력을 13의 서명에 맞춘다(V6-059, 07은 경로 정책만 맞췄다) |
-| 13 | (1) 도구별 `primitive`·`replay`·`executionMode` 최종값(§3.9.5 기본값). (2) `canonicalize`(13 §3.4.2)를 vendor 도구의 `pathPolicy.check`(T7+)로 넣는다. 13 §3.3.1의 "`resolveToCwd`를 `canonicalize`로 바꾼다"는 vendor 파일을 고치지 않고 이 훅으로 한다. (3) §3.1의 import를 고친다: `TSchema`·`Static`은 `typebox`에서(§3.11.8), `AgentTool`·`AgentToolResult`는 `@helm/vendor-pi-tools`에서(§3.9.1). 06 §3.4.1의 `tools` 행(`domain`만)을 지키기 위해서다. (4) §3.3.1 "세션 환경 변수" 행과 §3.6의 허용 목록을 판정 J-17에 맞춘다: `HELM_RUN_ID`, `HELM_TOOL_CALL_ID`는 18 R-2 허용 목록에 이름이 올라야 들어간다. `NO_COLOR=1`, `CI=1`도 18 목록에 올린다. (5) §3.3.1 "정의 타입" 행: vendor 도구는 `ToolDefinition`(§3.7)을 유지하고 `HelmToolSpec`이 그것을 감싼다(§3.9.5). (6) `grep`·`find`의 샌드박스 실행은 원본 `GrepOperations`·`FindOperations`로는 안 되고(`rg`·`fd` 실행은 바꿀 수 없음) T14의 `spawn` 옵션으로 한다. (7) T13 값(기본 300초, 최대 3,600초)과 결과 해시는 13 래퍼가 붙인다(§3.9.5). (8) 노출 등급과 REPL 도구 설명의 불변 규칙(캐시), MCP 결과 이름 규칙, pi CLI 어댑터 능력 목록(§3.16.4). (9) §8의 pi 소스 인용(`cdaf6c2`)을 `v1.1.0`으로 고친다(판정 44). (10) T13은 vendor `execute()` 안 `ops.exec` 직전에 적용한다(§3.7). 13이 `BashOperations.exec`를 주입해도 기본 300초·상한 3,600초가 적용된다. bash 생성 때 `env`가 없으면 오류다(T4). (11) 경로 판정 함수는 `canonicalize` 하나다. vendor `PathPolicy`는 `pathPolicyFrom(canonicalize, ctx)` 어댑터로 넣고, `prepare` 거부는 `blocked`, 실행 중 재검사 거부(그 사이 링크 교체 등)는 실행된 오류 결과로 적는다(§3.9.5). (12) pi CLI 어댑터 능력: 컨텍스트 교체는 주입 확장의 `context_with_system`으로 가능하다(`advisory`, 실패하면 pi 자체 컨텍스트로 진행, §3.16.4). §3.11의 "Level D에 가까움"과 "contextReplace unavailable"을 이 사실로 맞추고, 원전 어댑터 프로토콜(10 동작·책임 6·비책임 4) 대응 열은 13이 둔다. (13) MCP 도구 이름 허용 문자는 원본이 `[A-Za-z0-9_]`다(§3.13). 소문자 규칙을 쓰면 출처 표기를 "Helm 규칙"으로 바꾼다. (14) `codemode/execute.ts:465` 인용을 `462`로 |
+| 13 | (1) 도구별 `primitive`·`replay`·`executionMode` 최종값(§3.9.5 기본값). (2) `canonicalize`(13 §3.4.2)를 vendor 도구의 `pathPolicy.check`(T7+)로 넣는다. 13 §3.3.1의 "`resolveToCwd`를 `canonicalize`로 바꾼다"는 vendor 파일을 고치지 않고 이 훅으로 한다. (3) §3.1의 import를 고친다: `TSchema`·`Static`은 `typebox`에서(§3.11.8), `AgentTool`·`AgentToolResult`는 `@helm/vendor-pi-tools`에서(§3.9.1). 06 §3.4.1의 `tools` 행(`domain`만)을 지키기 위해서다. (4) §3.3.1 "세션 환경 변수" 행과 §3.6의 허용 목록을 판정 J-17에 맞춘다: `HELM_RUN_ID`, `HELM_TOOL_CALL_ID`는 18 R-2 허용 목록에 이름이 올라야 들어간다. `NO_COLOR=1`, `CI=1`도 18 목록에 올린다. (5) §3.3.1 "정의 타입" 행: vendor 도구는 `ToolDefinition`(§3.7)을 유지하고 `HelmToolSpec`이 그것을 감싼다(§3.9.5). (6) `grep`·`find`의 샌드박스 실행은 원본 `GrepOperations`·`FindOperations`로는 안 되고(`rg`·`fd` 실행은 바꿀 수 없음) T14의 `spawn` 옵션으로 한다. (7) T13 값(기본 300초, 최대 3,600초)과 결과 해시는 13 래퍼가 붙인다(§3.9.5). (8) 노출 등급과 REPL 도구 설명의 불변 규칙(캐시), MCP 결과 이름 규칙, pi CLI 어댑터 능력 목록(§3.16.4). (9) §8의 pi 소스 인용(`cdaf6c2`)을 `v1.1.0`으로 고친다(판정 44). (10) T13은 vendor `execute()` 안 `ops.exec` 직전에 적용한다(§3.7). 13이 `BashOperations.exec`를 주입해도 기본 300초·상한 3,600초가 적용된다. bash 생성 때 `env`가 없으면 오류다(T4). (11) 경로 판정 함수는 `canonicalize` 하나다. vendor `PathPolicy`는 `pathPolicyFrom(canonicalize, ctx)` 어댑터로 넣고, `prepare` 거부는 `blocked`, 실행 중 재검사 거부(그 사이 링크 교체 등)는 실행된 오류 결과로 적는다(§3.9.5). (12) pi CLI 어댑터 능력: 컨텍스트 교체는 주입 확장의 `context_with_system`으로 가능하다(`advisory`, 실패하면 pi 자체 컨텍스트로 진행, §3.16.4). §3.11의 "Level D에 가까움"과 "contextReplace unavailable"을 이 사실로 맞추고, 원전 어댑터 프로토콜(10 동작·책임 6·비책임 4) 대응 열은 13이 둔다. (13) MCP 도구 이름 허용 문자는 원본이 `[A-Za-z0-9_]`다(§3.13). 소문자 규칙을 쓰면 출처 표기를 "Helm 규칙"으로 바꾼다. (14) `codemode/execute.ts:465` 인용을 `462`로. (15) grep 확장 T15의 입력·출력 이름(`skip`, `paths[]`, 다음 오프셋과 상한 도달 표지)과 해시라인 편집의 입력 문법, 태그 규칙, 실패 결과를 정한다(판정 J-190 (1)). 07은 구현 위치(§3.6.5)만 정한다 |
 | 15 | (1) §2.3·§3.12의 "07 §3.12의 브리지(`AgentLoop.runNestedToolCall`)"에서 `AgentLoop.`을 뺀다. `runNestedToolCall`은 12의 런타임이 만들어 `createReplSandbox`에 주입하는 함수다(§3.12). (2) 15 §2.3은 `cdaf6c2` 행 번호를 앞에 적었다. 판정 44에 따라 `v1.1.0` 행 번호를 앞에 둔다 |
 | 16 | 반영됨(§3.15 외부 pi 세션 로그 행, §3.18.1 `watch`, §3.18.4 5단계). 16 §3.6.3의 출처 커밋 표기 `cdaf6c2`를 `v1.1.0`으로 바꾸고 행 번호가 같은지 확인한다(판정 44) |
 | 17 | (1) `rg`, `fd` 설치를 `just setup`에 넣고 `helm doctor`가 확인한다(T3, 13 §3.3.6과 같음). (2) 도구 전체 출력 디렉터리(T5) 위치와 보존 기간. (3) 데몬 실행에 `node --watch`를 쓰지 않는다(E14). (4) 17의 버전 기록 `pi: { vendorCommit, npm }`의 값은 `vendorCommit: "abe508e1b89912adde45528136c3221eb69acdd7"`(태그 `v1.1.0`), `npm`은 고정 의존 4개 모두 `"1.1.0"`이다 |
@@ -1355,8 +1390,9 @@ I1이 확인할 export(1차):
 | 19 | (1) TypeBox import 형태와 검사기 API는 §3.11.8 표를 쓴다(`typebox` 1.3.27, `Compile` from `typebox/compile`. 0.x의 `TypeCompiler`는 없다). 19 §3의 [가정: import 형태는 07이 확인]을 [실험]으로 바꾼다. (2) TUI 클라이언트가 `@helm/client`를 쓴다는 전제를 유지한다(판정 §2, §3.9.6) |
 | 20 | "정보" 화면에 `THIRD_PARTY_NOTICES.md` 내용을 보여 준다 |
 | 22 | 테스트 계층에 I1~I5(무결성), C1~C25(계약), vendor 업스트림 테스트를 넣는다. faux 제공자는 `api`를 고정한다(C17) |
-| 23 | §6 구현 단위를 마일스톤에 배치한다. V1~V5는 1차 런타임보다 먼저 한다 |
-| 24 | (1) 결정 27 ADR의 "포크 또는 고정 의존, 07이 정함"을 "고정 의존(ADR-07-2)"으로 고친다. (2) 패키지 ADR의 vendor 목록에 `@helm/vendor-pi-image`를 넣는다. (3) ADR-07-1~07-7을 옮겨 적는다 |
+| 23 | §6 구현 단위를 마일스톤에 배치한다. V1~V5는 1차 런타임보다 먼저 한다. (2) M5-03의 패치 범위를 T1~T15로 고친다. M6-09의 도구 목록에 grep 확장(T15)과 해시라인 편집(`edit-hashline.ts`, §3.6.5)을 더한다(판정 J-190 (1)). (3) 해시라인 대 `replace` A/B 스파이크를 둔다(판정 J-190 (7), §7 M12) |
+| 24 | (1) 결정 27 ADR의 "포크 또는 고정 의존, 07이 정함"을 "고정 의존(ADR-07-2)"으로 고친다. (2) 패키지 ADR의 vendor 목록에 `@helm/vendor-pi-image`를 넣는다. (3) ADR-07-1~07-8을 옮겨 적는다 |
+| 25 | 용어 `해시라인 편집`과 `oh-my-pi`를 등록한다(§1.3). 값 `hashline`·`replace`는 13의 정본을 따른다 |
 
 ## 6. 구현 단위와 완료 기준
 
@@ -1364,12 +1400,12 @@ I1이 확인할 export(1차):
 |---|---|---|---|
 | V1 | vendor 기반 | `vendor/README.md`, `vendor/LICENSES/pi-mono-MIT.txt`, `scripts/vendor/sync.mjs`, `UPSTREAM.json` 스키마 | `sync.mjs status`가 빈 vendor 패키지에서 0, 헤더 없는 파일·선언 없는 수정에서 1. 헤더 줄을 빼고 비교한다. 시제품 동작(§3.18.2)을 Vitest로 고정 |
 | V2 | `@helm/vendor-pi-agent-core` | §3.4 표 | (1) `sync.mjs verify` 0(A1~A7 외 차이 없음). (2) 업스트림 테스트 37건 통과(A5 기대값 1건 수정 후). (3) `contract.test.ts`의 §3.19.2 표 항목 통과. (4) `tsc --noEmit` 오류 0 |
-| V3 | `@helm/vendor-pi-tools`, `@helm/vendor-pi-image` | §3.6 표 | (1) `sync.mjs verify` 0. (2) 업스트림 테스트 6개 파일 통과(§3.19.3). (3) 패키지 소스에 `@earendil-works/pi-tui`, `pi-coding-agent`, `config.ts`, `tools-manager` 문자열이 없다. (4) 네트워크를 막은 상태(`unshare -n` 등)에서 grep·find 테스트가 통과한다(내려받기 없음). (5) 1×1 PNG를 read하면 `["text","image"]`. (6) T13: 주입한 `BashOperations`가 `timeout` 없는 호출에 기본값을 받고, 상한 초과는 실행 전 오류다. (7) T4: `env` 없이 bash를 만들면 오류다 |
-| V4 | `@helm/ai`의 pi 연결부 | §3.8 `packages/ai/src/pi*`, `packages/domain/src/model.ts` | (1) I1, I5. (2) C15, C16, C17, C19, C23, C24. (3) `stopReason` `pending`·`deferred` 변환(§3.9.3 규칙 2). (4) 공개 d.ts에 pi 타입 없음(I4-2, `pi` 하위 경로 제외) |
-| V5 | `@helm/tools`의 pi 연결부 | §3.8 `packages/tools/src/pi/*` | (1) C21, C22. (2) `pathPolicyFrom`: 13 `canonicalize`의 허용·거부를 그대로 옮긴다(허용이면 정규화 경로 문자열, 거부면 throw). `prepare` 뒤 링크를 밖으로 바꾸면 도구 단계에서 거부된다. (3) `buildShellEnv` 결과에 허용 목록 밖 변수가 없다. (4) 도구 7개의 기본값이 §3.9.5 표와 같다(13 확정값으로 바꿈) |
+| V3 | `@helm/vendor-pi-tools`, `@helm/vendor-pi-image` | §3.6 표 | (1) `sync.mjs verify` 0. (2) 업스트림 테스트 6개 파일 통과(§3.19.3). (3) 패키지 소스에 `@earendil-works/pi-tui`, `pi-coding-agent`, `config.ts`, `tools-manager` 문자열이 없다. (4) 네트워크를 막은 상태(`unshare -n` 등)에서 grep·find 테스트가 통과한다(내려받기 없음). (5) 1×1 PNG를 read하면 `["text","image"]`. (6) T13: 주입한 `BashOperations`가 `timeout` 없는 호출에 기본값을 받고, 상한 초과는 실행 전 오류다. (7) T4: `env` 없이 bash를 만들면 오류다. (8) T15: 페이지 경계, 파일당 상한, 라운드로빈 순서, 줄 자르기 위치, `paths[]`의 루트마다 검사 호출 |
+| V4 | `@helm/ai`의 pi 연결부 | §3.8 `packages/ai/src/pi*`, `packages/domain/src/model.ts` | (1) I1, I5. (2) C15, C16, C17, C19, C23, C24. (3) `stopReason` `pending`·`deferred` 변환(§3.9.3 규칙 2). (4) 공개 d.ts에 pi 타입 없음(I4-2, `pi` 하위 경로 제외). (5) 테이프 재생기가 pi-ai 1.1.0의 faux 응답 함수(`FauxResponseFactory`)로 응답을 차례로 꺼내는지 확인한다(22 §3.5.4, 22 §5.2 "07"). 되지 않으면 22에 알린다 |
+| V5 | `@helm/tools`의 pi 연결부 | §3.8 `packages/tools/src/pi/*` | (1) C21, C22. (2) `pathPolicyFrom`: 13 `canonicalize`의 허용·거부를 그대로 옮긴다(허용이면 정규화 경로 문자열, 거부면 throw). `prepare` 뒤 링크를 밖으로 바꾸면 도구 단계에서 거부된다. (3) `buildShellEnv` 결과에 허용 목록 밖 변수가 없다. (4) 도구 7개의 기본값이 §3.9.5 표와 같다(13 확정값으로 바꿈). (5) 해시라인 편집: 모드는 run 시작에 `RunSpec.editMode`로 고정되고, 짧은 태그는 sha256 guard로 옮겨지며, 낡은 태그와 안 본 줄은 자동 복구 없이 거부된다(§3.6.5) |
 | V6 | `@helm/agent` | `packages/agent/src/index.ts` | (1) I3(재export 목록). (2) C8, C20. (3) `agentLoop`·`agentLoopContinue`·`Agent`·`setDefaultStreamFn`을 내보내지 않는다 |
 | V7 | 경계 검사 | `scripts/vendor/check-pi-boundary.mjs` | I4: 허용 표 밖 import를 넣은 시험 파일에서 실패, 지우면 통과. lockfile 검사 포함 |
-| V8 | 고지 | `THIRD_PARTY_NOTICES.md`, `just licenses` | 생성 결과가 커밋본과 같다. pi 항목에 기준 커밋이 있다 |
+| V8 | 고지 | `THIRD_PARTY_NOTICES.md`, `just licenses` | 생성 결과가 커밋본과 같다. pi 항목에 기준 커밋이 있다. oh-my-pi 문구를 옮긴 곳이 있으면 `Adapted from` 줄과 항목이 있다(§3.6.5) |
 | V9 | REPL 브리지(REPL 단계) | `packages/tools/src/repl/sandbox.ts`, `packages/runtime/src/ports/repl.ts`(`runNestedToolCall`) | C20·C25 Vitest 판, `runNestedToolCall`이 C25 두 경우에 `toolcall.skip`을 제출, 스크립트 실패 시 `storeWrites` 없음, 기한 초과 시 `kind: "timeout"`, I1(pi-codemode) |
 | V10 | MCP(MCP 단계) | `packages/tools/src/mcp/*.ts` | `InMemoryTransport`(`@earendil-works/pi-mcp/testing`)로 `outputSchema` 위반 결과 처리, 이름 규칙, I1(pi-mcp), 고지 추가 |
 | V11 | pi CLI 어댑터 pi 쪽(어댑터 단계) | `vendor/pi-rpc/`, `helm-bridge.mjs` | LF 전용 JSONL 리더가 `U+2028` 포함 문자열을 한 줄로 읽는다, `agent_settled` 전에는 턴을 끝내지 않는다, `extension_ui_request` 4종이 질문으로 바뀐다(13의 어댑터 적합성 테스트 안에서) |
@@ -1389,6 +1425,7 @@ I1이 확인할 export(1차):
 | M9 | 업스트림에 A2·A3·A4를 제안(PR)할지 | (a) 안 함, (b) 이슈로 제안 | (b)를 권하나 push·PR은 사용자 확인 사항이다. 받아들여지면 포크 패치가 줄어든다 |
 | M10 | vendor 패키지를 `src` 그대로 실행(Node 타입 제거)할지 `dist`로 빌드할지 | (a) 빌드, (b) 소스 직접 | (a). 06 ADR-06-15(`tsc -b`, `source` 조건)와 맞춘다. 시제품은 (b)로도 돌았다 [실험] |
 | M11 | `assertToolDeclarations`의 재생 규칙을 pi-ai 함수 재export로 할지 Helm 코드로 둘지 | (a) `@helm/ai/pi`에서 `getCurrentTools` 재export, (b) Helm 구현 | (a). 루프가 쓰는 규칙과 같아야 한다 |
+| M12 | 해시라인 편집을 모델별로 켤지, 기본 편집 방식을 `hashline`으로 바꿀지 | (a) `replace` 기본, 모델별 선택, (b) `hashline` 기본 | (a). 23 스파이크(해시라인 대 `replace` A/B)의 결과를 본 뒤 바꾼다. `RunSpec.editMode`는 run 시작에 고정한다(판정 J-190 (1), (7)) |
 
 ## 8. 출처
 
@@ -1412,6 +1449,7 @@ I1이 확인할 export(1차):
 - `experiments/pi-lab/exp1~6-*.mjs`, `.helm-design-work/S3a/exp-a1*`, `exp-a2*`, `.helm-design-work/S3b/*`
 - 함께 맞춘 설계 문서: 06(초안 §1~§2.5), 15 §2.3, 16 §3.6.3, 19 §2
 - 2a단계(2026-10-12): `process/rulings-stage2a.md`(판정 §2, J-08, J-17), 브리프 §2.4b 결정 44~46. 다시 읽은 문서: 06 §3.3~§3.4·§5, 09 §3.4 `toolcall.*`, 12 §3.1·§3.3·§3.4·§3.5.2·§3.6·§5, 13 §3.1·§3.3·§3.6·§5, 15 §2.3·§3.12, 16 §3.6.3·§5.2, 17 §2.4·§3.8, 18 §3.11.2·공급망 표·§5, 19 §3, 24 결정 27·패키지 ADR
+- 2026-10-14 도구 조사: `.helm-design-work/coordinator/stage4c/research-ohmypi.md`(oh-my-pi 커밋 `b91db66e`, [원문] 소스 확인, §6.1·§6.3), `research-browser.md` §1(Stagehand 의존 제외). 판정 J-169, J-190.
 - Anthropic API의 연속 역할 합침: `@anthropic-ai/sdk` 0.129.0(pi-ai 1.1.0 설치본) `resources/messages/messages.d.ts:3507-3514`
 
 ### 8.3 P4 실험 (`.helm-design-work/P4/`)
@@ -1427,10 +1465,10 @@ I1이 확인할 export(1차):
 | `fork-proto/test/upstream-tests.out.txt` | 업스트림 테스트 결과(173 통과, 실패 1 = A5 기대값 수정 대상) |
 | `fork-proto/scripts/vendor-sync.mjs` | status·upgrade 시제품 |
 | `fork-proto/vendor/pi-tools/src/index.ts` 타입 재export | `AgentTool` 등 타입 재export를 더한 뒤 `tsc --noEmit` 오류 0(§3.9.1) |
-| TypeBox 확인 |
+| TypeBox 확인 | `typebox` 1.3.27의 `exports` 목록, `Type`·`Compile`·`Value` import로 검사 통과·실패·오류 수 확인(§3.11.8) |
 | `fork-proto/test/t13.ts`, `vendor/pi-tools/src/tools/bash.ts` | T13·T4: 주입 `BashOperations`가 인자 없음 → 300, `timeout: 10` → 10을 받고 5,000은 실행 전 오류. `env` 없이 만들면 `bash.env_required` |
 | `fork-proto/test/i5/`(`model.ts`, `check.ts`, `tsconfig.i5.json`) | §3.9.2 타입과 pi-ai 1.1.0의 대입: Helm → pi, pi → 제공자 판 통과, 음성 시험 실패 확인(TS 6.0.3 오류 0) |
-| pnpm 빌드 스크립트 시험(scratchpad, 저장소 밖) | pnpm 11.21.0, `@earendil-works/pi-ai@1.1.0`만 의존하는 빈 프로젝트: 설정 없음·`onlyBuiltDependencies`·`ignoredBuiltDependencies`는 `ERR_PNPM_IGNORED_BUILDS`(종료 1), `allowBuilds: { "@google/genai": false, protobufjs: false }`는 통과 | `typebox` 1.3.27의 `exports` 목록, `Type`·`Compile`·`Value` import로 검사 통과·실패·오류 수 확인(§3.11.8) |
+| pnpm 빌드 스크립트 시험(scratchpad, 저장소 밖) | pnpm 11.21.0, `@earendil-works/pi-ai@1.1.0`만 의존하는 빈 프로젝트: 설정 없음·`onlyBuiltDependencies`·`ignoredBuiltDependencies`는 `ERR_PNPM_IGNORED_BUILDS`(종료 1), `allowBuilds: { "@google/genai": false, protobufjs: false }`는 통과 |
 | 환경 | Node v24.19.0, npm 11, TypeScript 5.9.3·6.0.3, Vitest 4.1.11, rg 15.2.0, fd 10.5.0 |
 
 ## ADR 후보
@@ -1466,7 +1504,7 @@ I1이 확인할 export(1차):
 
 - 상태: 제안
 - 맥락: 패키지 루트 import는 앱 전체(33개 패키지)를 끌어오고, 도구 파일은 렌더러·확장 타입·`rg`/`fd` 내려받기에 묶여 있다(F12). 도구는 경로를 제한하지 않는다(F14). bash는 데몬 환경을 그대로 넘긴다(F13).
-- 결정: 도구 7개와 의존 26개 파일을 vendor하고 T1~T14를 적용한다. 렌더러·내려받기 제거, 셸 환경 주입, `PathPolicy` 훅, 출력 디렉터리 설정.
+- 결정: 도구 7개와 의존 26개 파일을 vendor하고 T1~T15를 적용한다. 렌더러·내려받기 제거, 셸 환경 주입, `PathPolicy` 훅, 출력 디렉터리 설정.
 - 근거: 잘림·이어 읽기·편집 매칭·프로세스 트리 종료를 그대로 쓴다. 업스트림 테스트 137건 통과 [실험]. 이미지 유틸은 `@helm/ai`도 쓰므로 `@helm/vendor-pi-image`로 뗀다. 주입 지점(`*Operations`, `spawnHook`)이 남아 격리(13)를 붙일 수 있다(pi-chat 사례).
 - 기각한 대안: (a) 패키지 고정 의존 + 루트 import — 무게와 숨은 동작. (b) Helm 도구를 처음부터 작성 — 검증된 세부를 다시 만든다. (c) pi-durable 도구 — grep/find/ls가 없고 `ExecutionEnv` 기반이다.
 - 결과: 도구 버그 수정은 업그레이드 때 병합한다. 화면 표시는 클라이언트가 결과 JSON으로 그린다.
@@ -1497,3 +1535,12 @@ I1이 확인할 export(1차):
 - 근거: 결정 29·31, 재접속·재전송 부재(pi-facts-2 §0-2), 인증 없음, CHANGELOG 없음(chord).
 - 기각한 대안: pi-server 위 Helm 데몬(안 6), pi-durable 위 Helm(안 4).
 - 결과: pi-durable이 experimental을 떼면 12의 복구와 비교 재검토한다.
+
+### ADR-07-8 oh-my-pi는 의존하지도 vendor하지도 않고 설계만 참고한다
+
+- 상태: 채택(판정 J-190, 2026-10-14, 결정 55)
+- 맥락: 결정 55는 해시라인 편집과 고급 grep을 MVP에 넣고 oh-my-pi 수준의 도구를 요구한다. oh-my-pi(MIT)는 pi를 포크했지만 v18 자체 코어, `@oh-my-pi/*` 범위, Bun, Rust 네이티브 애드온(편집·grep·bash의 핵심)으로 pi v1.1.0과 호환되지 않는다(§3.6.5).
+- 결정: oh-my-pi를 의존하지 않고 vendor하지 않는다. 설계만 참고해 grep 확장은 패치 T15로, 해시라인 편집은 Helm 신규 코드로 쓴다. 옮긴 코드나 문구가 생기면 §3.6.5의 MIT 고지 규칙을 따른다.
+- 근거: 의존하면 Bun과 플랫폼별 네이티브 바이너리가 서버 배포에 들어오고, 파일 접근이 애드온 안에서 일어나 경로 정책과 샌드박스(13)와 맞지 않는다. 일괄 vendor는 Rust 쪽을 빼면 껍데기만 남는다. 설계 참고는 저작권 대상이 아닌 아이디어를 쓴다.
+- 기각한 대안: (a) 의존 — 버전·런타임·샌드박스가 맞지 않는다. (b) 도구만 vendor — TS 쪽은 Rust 네이티브 없이 동작하지 않는다. (c) 혼합안(파서 같은 소규모 로직을 MIT 고지와 함께 옮김) — J-190이 설계 참고로 정했으므로 쓰지 않는다.
+- 결과: 기본 편집 방식은 §7 M12의 A/B 결과로 정한다. 24에 ADR-07-8을 등록한다(§5.2).
