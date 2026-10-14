@@ -264,3 +264,40 @@
 | J-188 | 결정 53 루프 계획 혼합 | (1) 다이얼 `planAuthoring: 'computed' \| 'hybrid' \| 'model'`, 기본 `hybrid`, 층은 user·concern(08 `DialLayer`). (2) `PlanFlags`에 `outOfPattern: Flag`(여섯 표시로 이 상황을 나타낼 수 없음, 근거 필수)를 더한다. (3) `hybrid`에서 `outOfPattern`이 참이거나 `buildPlan`에 맞는 규칙이 없으면, 모델이 계획 전체 초안(제안 종류 `loop_plan_draft`의 `steps` 형식)을 낸다. `model`이면 언제나 모델이 초안을 낸다. `computed`면 모델 초안을 받지 않는다. (4) 코드 `validatePlan`이 의존 규칙(활성 합의 전 쓰기 금지, 결과 뒤 결과 확인, 성숙도 관문 등)을 검사한다. 위반이면 사유와 함께 모델에 한 번 돌려주고, 두 번째도 위반이면 코드 계산 계획을 쓰고 그 사실을 기록한다. (5) `LoopPlanRecord`에 `authoredBy: 'code' \| 'model' \| 'human'`을 더한다. `decidedBy`, 기록과 이의(결정 8)는 그대로다. (6) 화면은 모델이 설계한 계획에 그 사실을 표시한다. (7) 16은 계획 이의 비율을 `authoredBy`별로 잰다. ADR-14-12를 이 혼합안으로 고친다 | 14, 08, 09, 10, 16, 19, 04, 05, 24, 25, 22 |
 | J-189 | 결정 56 결과 확인 알림 | (1) 의미 설정 `notifications.resultReview: 'none' \| 'daily_digest' \| 'immediate'`, 기본 `none`(J-132와 같은 동작). (2) `daily_digest`: 설정 시각(`notifications.resultReviewDigestAt`, 기본 "19:00", 서버 시간대)에 확인 대기 결과가 하나 이상이면 묶음 푸시 1개(강도 notice)를 보낸다. 타이머 목적 `result_review_digest`(`runtime_timers`). (3) `immediate`: 결과 확인 질문이 생길 때마다 notice 강도로 푸시한다. (4) 두 경우 모두 방해 금지(J-166)와 시간당 상한(J-171)을 따르고, 휴대폰 확인 범위는 J-139 그대로다. (5) 설정 변경은 `settings.update`(19), 기록은 `setting.changed`(09) | 11, 14, 19, 26, 04, 05, 09, 17, 16, 22 |
 | J-190 | 결정 55 도구 단계와 계약 | 근거는 `.helm-design-work/coordinator/stage4c/research-ohmypi.md`, `research-browser.md`. (1) 단계: MVP는 `web_fetch`(데몬 직접 구현, 변환은 네트워크 없는 작업자, linkedom + readability + turndown), `web_search`(Helm 함수 도구, 제공자 인터페이스, 기본 Brave·예비 Tavily, 설정 `tools.webSearch`), `grep` 확장(페이지 `skip`, 파일당 상한, 파일 간 라운드로빈, 일치 중심 줄 자르기, `paths[]`, 실행은 샌드박스 안 `rg`), 해시라인 편집(설계만 참고해 직접 구현, `RunSpec.editMode: 'replace' \| 'hashline'` 모델별 선택, 기본 `replace`, 짧은 태그는 모델용 별칭이고 실제 guard는 sha256, 낡은 태그 자동 복구 없음). MVP 후반은 `browser_*`(`helm-browserd`: Node + playwright-core, S1 + 프록시 네임스페이스, CDP 파이프, 비밀 없음; 읽기 전용 먼저, 다음에 클릭·입력과 요청 가로채기). 이후 1차는 `computer_*`(실행마다 새 Xvfb, 세션 단위 승인, `externalEffect: uncertain`), `ast_grep`/`ast_edit`, LSP. 하지 않음: Windows 호스트 조작. Stagehand와 oh-my-pi는 의존성으로 쓰지 않는다(Stagehand는 Helm 모델 어댑터를 거칠 수 있을 때만 선택 확장). (2) 네트워크: 08 `ResourceScope.net`에 `net:public`(공개 인터넷 전체, 루프백·사설·CGNAT·tailnet 제외)을 더한다. 외부 탐색은 막지 않는다(결정 55). (3) 외부 효과: 브라우저의 비-GET 요청·업로드·합의 밖 호스트 이동은 browserd 요청 가로채기에서 잡아 send(권리 게이트)로 올린다. 웹 내용을 본 run은 `taint.web`을 달고, 이후 send는 언제나 사람에게 묻는다(J-91과 같은 방향). (4) 투영: 웹·브라우저 출력은 신뢰 불가 표식으로 감싸고, 스크린샷은 최근 3장만 남긴다. (5) Anthropic 서버 측 web_search·web_fetch 도구와 툴셋 판 이름(`browser_toolset_*`, `computer_toolset_*`)은 [검색] 수준이라 구현 전에 확인한다. 서버 측 도구는 MVP에서 쓰지 않는다. (6) 사람 작업: `bubblewrap`(필수), `fonts-noto-cjk`(권고), 컴퓨터 사용 단계의 `xdotool`·`openbox`·`x11-utils`·`scrot`, 비밀 `BRAVE_SEARCH_API_KEY`(필수)·`TAVILY_API_KEY`(선택). (7) 23에 스파이크: S1 안 Chrome, netshim 경유 성능, 요청 가로채기 누락(sendBeacon·keepalive·서비스 워커), Brave 약관의 결과 저장 조항, 변환 품질(한글), Chrome 실제 메모리, 해시라인 대 replace A/B | 01, 06, 07, 12, 13, 18, 22, 23, 24, 그리고 08·09·10·17·04·05·16·19·25(5차 소규모) |
+
+## 10. 4c 묶음 보고의 판정 (2026-10-14)
+
+근거는 `.helm-design-work/coordinator/stage4c/group-*.md`, `done/*.md`, `pending-rulings.md`다.
+
+| 번호 | 쟁점 | 판정 | 고칠 문서 |
+|---|---|---|---|
+| J-191 | 14 §4.3 진입 조건 거짓의 거부 코드 | `policy.loop_entry_condition`(10에 더한다) | 10, 14 |
+| J-192 | `planAuthoring` 노출 시점 | MVP 설정 화면에서 고른다(결정 53 "설정으로 고를 수 있다"). 01 MVP 다이얼 목록에 더한다 | 01, 03, 04, 14, 21 |
+| J-193 | 승인 대기 호출의 만료 | `awaiting_approval → not_executed(approval_expired)`를 08 전이로 둔다 | 08, 10, 12 |
+| J-194 | `[결정 n]` 표시 범위(J-144 보완) | 사용자 결정은 브리프 결정 가운데 조정자 기본값(26~32·34·36·37)과 조정자 판정(44~46)을 뺀 나머지다. 결정 1~25, 33, 35, 38~43, 47~57의 `[결정 n]`은 그대로 둔다 | 모든 문서 |
+| J-195 | 조용한 시간 키 | `attention.quietHours`(14 의미 설정, J-166의 `attention.snoozeUntil`과 같은 묶음). `notifications.*`는 알림 경로 설정(`resultReview` 등)만 | 04, 14, 19, 20, 26 |
+| J-196 | 연결 상태 값과 문구 키(J-176 보완) | 값 집합과 표기는 04 §3.0.4(camelCase). 21 `ConnectionUiState`도 같은 값. 문구 키 접두어는 `label.connection.` | 05, 20, 21 |
+| J-197 | 데몬 정지 중 가정 만료 미루기(J-142)를 끄는 장치 | 다이얼 `assumptionDeferOnDowntime`(14 resolveDials) | 11, 14, 19 |
+| J-198 | 시간당 상한을 넘은 알림의 묶음 | 데몬이 만든다(14 §3.13.5). 앱은 받은 묶음을 그대로 보인다 | 05, 20 |
+| J-199 | 트레이의 방해 금지 표시 | 19 `TrayView.dnd{on, until}`. 20은 이 형식을 쓴다 | 20 |
+| J-200 | 탐구 렌즈 고정 명령 | 10이 정한 명령 이름을 15·19가 따른다 | 15, 19 |
+| J-201 | `question.delegate`의 대상(J-131 보완) | 정보 게이트, 그리고 사실 탐구 뒤 방향 선택 권리 게이트(J-131)에서 사람이 명시적으로 고를 때만. send·범위 확장·결과 확인 권리 게이트는 맡길 수 없다 | 10, 19, 04, 05 |
+| J-202 | 안전 모드 비정상 종료 정보 | 17 `safeMode.recentUncleanBoots`(목록)가 정본. 19는 이 목록을 싣는다(개수는 화면이 계산) | 19 |
+| J-203 | 휴대폰에서 결과 확인 불가 거부 | 10에 `policy.mobile_review_not_allowed`를 둔다. 19는 이를 결과 코드에 대응시킨다 | 10, 19 |
+| J-204 | `authoredBy: human` 화면 이름 | "직접 고친 계획". 모델 설계는 "에이전트가 설계한 계획", 코드 계산은 표시하지 않는다 | 04, 05 |
+| J-205 | 합의에 웹 부여가 없는 run의 외부 탐색 | `net:public` 읽기(`web_search`, `web_fetch`, 브라우저 읽기)는 합의 부여 없이 기본 허용한다(결정 55). 외부 효과(send)는 권리 게이트 그대로 | 08, 10, 13, 18, 01 |
+| J-206 | `externalEffect` 값 | `boolean \| 'uncertain'`. `uncertain`은 send와 같이 권리 게이트를 거친다(컴퓨터 사용) | 08, 10, 13 |
+| J-207 | 검색 질의 전송 | send로 보지 않는다(읽기). 질의는 비밀 가림(`queryMasked`)을 거치고, `taint.web`과 무관하게 허용한다 | 13, 18 |
+| J-208 | 브라우저 1단계의 비-GET | 읽기 단계는 거부(`policy.forbidden_resource`), 조작 단계는 요청 가로채기에서 send로 올린다 | 13, 01 |
+| J-209 | 합의 밖 이동으로 보는 질의 문자열 길이 | 2 KiB(18 정본) | 13, 18 |
+| J-210 | 네트워크 중계 이름 | 네임스페이스 안 중계 `helm-netshim`, 데몬 쪽 프록시 `helm-egress-proxy`. `helm-netbridge`는 쓰지 않는다 | 12, 13, 17, 18 |
+| J-211 | `ActionDescriptor.network` | `'none' \| 'proxy'`. 네트워크는 언제나 프록시를 거친다. `any`는 쓰지 않는다 | 12, 13, 18 |
+| J-212 | MCP 설정 이름 | J-167 그대로(13 이름). 17·18이 고친다 | 17, 18 |
+| J-213 | 송신 승인 대기와 브라우저 세션 수명 | 브라우저 행동이 승인을 기다리면 세션 유휴 타이머를 멈추되 최대 30분. 넘으면 그 승인 요청은 `approval_expired`로 닫히고 다시 해야 한다 | 11, 12, 13 |
+| J-214 | 배치 중단 사유 | 08 `NotExecutedReason`에 `batch_stopped`를 더한다 | 08, 12 |
+| J-215 | `taint.web` 범위 | run 단위에 더해, 같은 thread로 넘긴 새 run과 하위 run이 물려받는다(12 방식) | 08, 09, 10, 12 |
+| J-216 | `helm-browserd` 위치 | 별도 패키지 `packages/browserd`(별도 프로세스, playwright-core 의존을 도구 패키지에서 떼어 둔다) | 06, 23 |
+| J-217 | 생성물 방식 | 06 방식(커밋 후 `--check`). 26이 맞춘다 | 26 |
+| J-218 | 모델 메시지 내용 타입 | `TextContent`·`ImageContent`는 `@helm/domain/model`(08)에서 받는다. Rust 크레이트 고지는 `just licenses` | 07, 13, 20 |
+| J-219 | 새 이름 | 4c 보고의 "새 이름 요구"는 기존 이름과 겹치지 않으면 받아들인다. 오류 코드는 10·19, 이벤트·타이머 목적은 09, 레코드 필드는 08에 정본으로 등록하고 25에 올린다 | 08, 09, 10, 19, 25 |
+| J-220 | 22 SG 시험과 13 safeGit | 22 SG 시험은 13 §3.5.7이 실제로 부르는 git 명령으로 판정한다(13이 쓰지 않는 `status`·`add -A`는 시험 대상에서 뺀다) | 22 |
