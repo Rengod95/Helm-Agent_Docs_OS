@@ -1,6 +1,6 @@
 # 15. 탐구 엔진
 
-- 문서 번호: 15. 소유: P9(탐구). 작성: 2026-10-11. 상태: 4단계 보완판(2026-10-12). 기준은 브리프 결정 1~51과 조정자 판정(`process/rulings-stage2a.md`)이다
+- 문서 번호: 15. 소유: P9(탐구). 작성: 2026-10-11. 상태: 4단계 보완판(2026-10-12). 기준은 브리프 결정 1~57과 조정자 판정(`process/rulings-stage2a.md`)이다
 - 구현 위치: I/O 없는 순수부(`planRound`, `decideStage`, `roundClosable`, 탐구 투영 리듀서, 계산 함수, 렌즈 seed·값 목록 데이터)는 `@helm/kernel/orchestration`의 `packages/kernel/src/orchestration/inquiry/`, 효과가 있는 부분(`runStage` 실행기, 포트 사용, 프롬프트, 출력 스키마, REPL 구동, 평가 하네스)은 `@helm/runtime`의 `packages/runtime/src/inquiry/`다([판정 J-128]). runtime은 kernel을 import하고, kernel은 runtime을 import하지 않는다
 - 이 문서만 보고 탐구 엔진(I 루프 네 종류, 발산 서브시스템, Method Transfer, 선호 모델 갱신, REPL 방식 탐구)을 구현할 수 있게 쓴다. 다른 문서가 소유한 것(레코드 최종 스키마, 이벤트 카탈로그, 명령·검증, 질문 전달, 모델 계층, 도구 등록, 루프 계약)은 파일 이름과 절 번호로 참조하고, 이 엔진이 그 문서에 요구하는 것을 §5에 모은다.
 - 표시 규칙은 브리프 §5.2를 따른다. 이 문서의 설계 선택은 따로 적지 않으면 [제안]이다.
@@ -104,6 +104,8 @@ ID는 02 §3.1 유즈케이스 목록을 따른다.
 | 29·30(조정자 기본값) | 이벤트 로그가 기준 원본, 실행 의도 → 실행 → 결과 기록([제안: 결정 29·30 기본값]) | 탐구 진행 상태는 이벤트에서 재구성한다. REPL 작업 공간은 비정본이고, 모델 응답 재사용은 12의 실행 기록을 쓴다(§3.1.6, §3.1.7, §3.12.4) |
 | 36(조정자 기본값), 판정 44 | TypeScript strict, TypeBox([제안: 결정 36 기본값]). Node 24·TS 6.0([판정 44]) | 출력 스키마는 TypeBox로 선언한다. 이 문서의 TypeScript 타입은 스키마와 1:1로 대응한다(§3.13.6) |
 | 51 | 구현 에이전트 3단계(1단계 메인 오케스트레이터) | E0 판정이 경계에 걸리면 1단계 오케스트레이터나 사용자가 판정한다(§3.15.2) |
+| 53 | 루프 계획은 혼합 방식이다. 계획 표시는 모델이 선언하고 코드가 계산한다. 범위 밖이면 모델이 계획을 설계하고 코드가 의존 규칙을 검사한다(14 소관) | 탐구 사이 조합과 전환은 14 계획의 결과를 따른다(§3.11.1). 탐구 안의 분해·순서·멈춤은 이 방식과 무관하게 코드가 정한다(D15-1, ADR-15-1) |
+| 55 | MVP 도구에 웹 페이지 읽기(`web_fetch`)와 웹 검색(`web_search`)을 넣는다. 네트워크 차단은 내부망 주소만 막는다 | 근거 범위 `web`(`read_web`)은 MVP에 든다(§3.3.3). `web_fetch` 정책은 18 §3.11.8이다(§3.12.3) |
 
 ### 2.2 이 문서의 주요 설계 선택 [제안]
 
@@ -140,7 +142,7 @@ ID는 02 §3.1 유즈케이스 목록을 따른다.
 
 | 번호 | 가정 | 틀렸을 때 |
 |---|---|---|
-| A15-1 | 데몬은 서로 다른 모델 계열을 둘 이상 쓸 수 있다(예: Anthropic 계열 하나, OpenAI 계열 하나). 키는 데몬 시작 때 `secrets run`으로 받아 SecretStore 메모리에만 둔다([판정 45]). 가지 실행은 작업 공간·문서 내용을 두 번째 공급자에게도 보낸다. 공급자 추가는 사람의 설정 변경으로만 일어나고, 쓰는 공급자 목록과 "가지 실행이 이 공급자들에게 내용을 보낸다"는 사실을 화면에 보인다(18 §3.11.6 `disclose_data`) | 가지별 다른 모델이 불가능하다. 엔진은 "같은 모델" 표시로 보장 수준을 낮춰 동작한다(§3.4.6) |
+| A15-1 | 데몬은 서로 다른 모델 계열을 둘 이상 쓸 수 있다(예: Anthropic 계열 하나, OpenAI 계열 하나). 키는 데몬 시작 때 `secrets run`으로 받아 SecretStore 메모리에만 둔다([판정 45]). 가지 실행은 작업 공간·문서 내용을 두 번째 제공자에게도 보낸다. 제공자 추가는 사람의 설정 변경으로만 일어나고, 쓰는 제공자 목록과 "가지 실행이 이 제공자들에게 내용을 보낸다"는 사실을 화면에 보인다(18 §3.11.6 `disclose_data`) | 가지별 다른 모델이 불가능하다. 엔진은 "같은 모델" 표시로 보장 수준을 낮춰 동작한다(§3.4.6) |
 | A15-2 | 이미지 생성 모델은 선택 사항이다 | 이미지 자극은 웹 레퍼런스 이미지(출처 있는 것)와 구조 자극으로 대신한다(§3.6.3) |
 | A15-3 | 사용자는 하루에 한두 번 탐구 반응을 줄 수 있다 | 자율 정도 다이얼 범위까지만 가정하고 진행하고 멈춘다(§3.4.11) |
 | A15-4 | 반응 해석에 쓸 수 있는 vision 지원 채팅 모델이 하나 이상 있다(`Model.input`에 `image` 포함) | 이미지 자극에 대한 반응은 사용자가 단 요소 라벨과 텍스트로만 해석한다 |
@@ -171,7 +173,7 @@ ID는 02 §3.1 유즈케이스 목록을 따른다.
   on loop.transitioned(to: I.*) | inquiry.stage_completed | question.answered | reaction 기록 …
     reqs = inquiryEngine.planRound(view, resolvedDials)      ← 15 진입점 1 (순수 함수, @helm/kernel/orchestration)
     requestWork(clampToContract(r)) for r in reqs             단계 WorkUnit 요청
-  on inquiry.round_ended → boundary.reached(round_end) (11의 예약 전달)
+  on inquiry.round_ended → runtime.boundary(round_end)(14 제출) → boundary.reached (11의 예약 전달)
   on inquiry.stop_rule_met → T21 → 루프 계획의 다음 단계
 
 12 런타임
@@ -182,7 +184,7 @@ ID는 02 §3.1 유즈케이스 목록을 따른다.
       가지·검토·확인 하위 실행은 이 run의 자식 run (RunKind "branch" | "subrun" | "verifier", 12 §3.14)
     단계 끝: inquiry.stage.complete → inquiry.stage_completed
              라운드 끝이면 inquiry.round.close → inquiry.round_ended
-             inquiry.round_ended를 본 실행기가 runtime.boundary(round_end) → boundary.reached (제출자는 15 실행기 하나, 14 §3.13.6)
+             (라운드 끝 경계 runtime.boundary(round_end)는 14 오케스트레이터가 inquiry.round_ended에서 낸다. 15 실행기는 내지 않는다, 14 §3.13.6)
 ```
 
 - `planRound`와 `decideStage`는 투영과 설정만 받는 순수 함수다. 모델·도구·저장소를 직접 부르지 않는다.
@@ -673,7 +675,7 @@ gradeSupport(item, evidence, counter, confirmations):
 | 가능성 기각·병합·고정 | `possibility.dismiss`·`merge`·`pin`·`unpin` | `possibility.dismissed`·`merged`·`pinned`·`unpinned` | `Possibility.status`, `mergedInto`, `pinned` | 사람 채널과 엔진(병합만) |
 | 단계 완료 | `inquiry.stage.complete` | `inquiry.stage_completed` | — | |
 | 라운드 시작·끝 | `inquiry.round.start` / `inquiry.round.close` | `inquiry.round_started`(`planHash`) / `inquiry.round_ended`(`leaderRef`) | `Inquiry.rounds[]` | §3.4.14. 사람의 "라운드 마치기"(19 `stimulusRound.close`)도 `inquiry.round.close`다 |
-| 라운드 끝 경계 | `runtime.boundary`(`boundary: "round_end"`). 15 실행기만 제출한다. 라운드를 누가 닫았든(사람·엔진) `inquiry.round_ended`를 본 다음 단계에서 한 번 낸다. 멱등 키 `round_end:<inquiryId>:<n>`로 두 번 나지 않는다(14 §3.13.6) | `boundary.reached` | — | 11의 예약 전달 시점. 10이 같은 트랜잭션에서 파생하지 않게 요구(§5.2) |
+| 라운드 끝 경계 | `runtime.boundary`(`boundary: "round_end"`). 14 오케스트레이터가 제출한다(15 실행기는 내지 않는다). 라운드를 누가 닫았든(사람·엔진) `inquiry.round_ended`를 받은 14가 한 번 낸다. 멱등 키 `round_end:<inquiryId>:<n>`로 두 번 나지 않는다(14 §3.13.6) | `boundary.reached` | — | 11의 예약 전달 시점. 10이 같은 트랜잭션에서 파생하지 않게 요구(§5.2) |
 | 탐구 멈춤 | `inquiry.stop`(이유, 사람이면 `then: proceed \| handoff \| decide_now`) | 규칙 충족이면 `inquiry.stop_rule_met`, 그리고 `inquiry.stopped` | `Inquiry.stop`, `status = stopped` | 넘김 기록은 §3.14. `stop_rule_met`은 14 T21 입력 |
 | 사람의 다음 확인 고정 | `check.pin` | 09에 `check.pinned` 요구(10 §3.11.11) | — | |
 
@@ -690,7 +692,7 @@ gradeSupport(item, evidence, counter, confirmations):
 | `preference.note_divergence` | M, H | propose/possibility 또는 사람 | 근거 반응 관찰 1개 이상(U5) | `preference.divergence_noted` |
 | `preference.show_divergence` | R | sys:runtime | 해당 항목이 사람에게 보내는 뷰에 처음 실림 | `preference.divergence_shown` |
 
-19 메서드와 10 명령의 대응(10 §3.11.11 (2) 표에 넣어 달라고 요구): `inquiry.requestFrame`(add) → `possibility.propose`(사람, `perspective`) + `inquiry.perspective.add`, (merge) → `possibility.merge` / `inquiry.proposeCandidate` → `possibility.propose`(사람) / `inquiry.markAssumption` → `assumption.record`(사람) / `inquiry.pinCheck` → `check.pin` / `inquiry.requestDecision` → `inquiry.stop`(`then: "decide_now"`) / `inquiry.stop` → `inquiry.stop`(`then: "proceed"` 또는 `"handoff"`. 19 `InquiryStopParams`가 셋을 구분하도록 요구) / `stimulusRound.close` → `inquiry.round.close`. 칸 채우기 요청과 렌즈 지정(19 `inquiry.fillCell`·`inquiry.pinLens`, §3.11.2)은 명령을 따로 두지 않고 사람 발화 관찰(`observation.record`, utterance)로 받는다. 엔진은 다음 `planRound`에서 그 관찰을 읽어 칸·렌즈를 앞에 둔다. 상태를 바꾸지 않는 방향 지정이므로 새 이벤트를 만들지 않는다.
+19 메서드와 10 명령의 대응(10 §3.11.11 (2) 표에 넣어 달라고 요구): `inquiry.requestFrame`(add) → `possibility.propose`(사람, `perspective`) + `inquiry.perspective.add`, (merge) → `possibility.merge` / `inquiry.proposeCandidate` → `possibility.propose`(사람) / `inquiry.markAssumption` → `assumption.record`(사람) / `inquiry.pinCheck` → `check.pin` / `inquiry.requestDecision` → `inquiry.stop`(`then: "decide_now"`) / `inquiry.stop` → `inquiry.stop`(`then: "proceed"` 또는 `"handoff"`. 19 `InquiryStopParams`가 셋을 구분하도록 요구) / `stimulusRound.close` → `inquiry.round.close`. 칸 채우기 요청(19 `inquiry.fillCell`, §3.11.2)의 처리 명령은 `observation.record`(`obsKind: "utterance"`, 사람 채널 H)다. 렌즈 지정(19 `inquiry.pinLens`, §3.11.2)도 같은 관찰로 받는다. 두 조작 모두 명령을 따로 두지 않는다. 엔진은 다음 `planRound`에서 그 관찰을 읽어 칸·렌즈를 앞에 둔다. 상태를 바꾸지 않는 방향 지정이므로 새 이벤트 이름을 만들지 않는다. 남는 기록은 `observation.recorded`뿐이다.
 
 ### 3.3 근거 규칙 [결정: 승격에 I의 근거(결정 15(3)) / 제안: 관찰의 정의는 브리프 §6 용어집을 따름, 규칙 세부]
 
@@ -735,7 +737,7 @@ gradeSupport(item, evidence, counter, confirmations):
 | `docs`(문서까지, 기본값) | `read_docs` | 위 + 로컬 문서 폴더 읽기(사용자가 허용한 경로) |
 | `web`(웹까지) | `read_web` | 위 + 웹 검색, 웹 페이지 가져오기 |
 
-Helm 기록 조회(`helm_query`)는 어느 값에서도 들어간다(13 §3.2.3). "내 ledger"를 근거로 쓰는 경로다(대화 L1645). 조회 결과는 도구 결과 관찰이다(R12). `read_web`은 1차 범위 밖이므로 요청하면 13이 `read_docs`로 낮추고 결과에 표시한다(E-6).
+Helm 기록 조회(`helm_query`)는 어느 값에서도 들어간다(13 §3.2.3). "내 ledger"를 근거로 쓰는 경로다(대화 L1645). 조회 결과는 도구 결과 관찰이다(R12). `read_web`은 MVP에 든다([결정 55]). 웹 페이지 가져오기(`web_fetch`)의 정책은 18 §3.11.8을 따른다. 웹 도구가 실패하거나 네트워크가 없으면 E-6대로 `read_docs`로 내려가고 `degraded`를 기록한다.
 
 도구 묶음은 부모 단계 run의 유효 능력 안에서만 준다. 자식 run의 원시 행동은 부모 run의 유효 원시 행동(루프 계약 ∩ 모드, 14 `clampToContract`)의 부분집합이다. 부모에 `execute`가 없으면 `read_target`의 읽기 목적 execute(테스트·측정 명령)를 빼고 파일 읽기·검색·기록 조회만 준다. 집행은 12 §3.14가 한다(§5.2).
 
@@ -1255,7 +1257,7 @@ orderChecks(checks, active):              # active = 기각·병합되지 않은
   return top N (N = 1, 깊이 다이얼이 기본값보다 크면 2)
 ```
 
-- `method = "probe"`(무언가를 바꿔 봐야 알 수 있는 확인)는 엔진이 실행하지 않는다. 탐침형 C 제안(키울 조건·접을 조건 포함)을 14에 낸다. write가 필요하므로 작업 합의가 있어야 한다(의존 규칙 1).
+- `method = "probe"`(무언가를 바꿔 봐야 알 수 있는 확인)는 엔진이 실행하지 않는다. 탐침형 C 제안을 14에 `probe_definition` 제안으로 낸다(키울 조건·접을 조건 포함, 14 §3.5.3). 14 T33(§3.9.2)이 받아 `C.probe`로 넘긴다. write가 필요하므로 작업 합의가 있어야 한다(의존 규칙 1).
 - `method = "ask_human"`은 질문 후보로 넘겨 §3.4.10의 점수로 경쟁시킨다.
 - 원전 Inquiry Map의 "구분 실험의 가역성" 칸은 쓰지 않는다(결정 2). 비용과 가정 만료점으로 대신한다.
 - 모델이 선언한 예측과 비용이 틀리면 계산도 틀린다. 선언은 `dc` 레코드에 남아 나중에 어디서 틀렸는지 추적할 수 있다(v0.3 04 §8).
@@ -1452,7 +1454,7 @@ export interface BlobRef { sha256: string; mediaType: string; bytes: number }
 | `rewrite` | 고쳐 말하기 | `rephrase` | 비평 기반 기준 추출의 입력 | 있음 |
 | `triad_odd` | 세 개 비교 답 | `triad { similar: [두 자극], different, why, cannotSay }` | 레퍼토리 그리드 입력. `cannotSay`면 `why` null | 있음 |
 | `near` | "원하는 것에 가깝다" | `near: true`, `intensity: null` | 방향만 알려 줌 | 없음(고르기와 같게 셈, O-12) |
-| `comparison`(2단계. 04 MVP 자극판에 입력이 없다) | 두 자극을 끌어 놓기(05 §3.2.2) | `comparison { better, worse }`. "둘 다 아님"은 비교가 아니므로 두 자극 각각에 `intensity: -1` 반응 두 개로 기록 | 두 자극의 비교. 무게 변경 근거(U3) | 이유가 있을 때만. 이유 없는 비교는 고르기와 같게 센다 |
+| `comparison`(2단계. 04 MVP 자극판에 입력이 없다) | 두 자극을 끌어 놓기(05 §3.2.2) | `comparison{kind: "prefer", better, worse}`. "둘 다 아님"은 `comparison{kind: "neither", pair}`로 받는다(08 §3.17.4 형식, [판정 J-184]). 두 자극 각각에 `intensity: -1`, 이유 없음 반응을 둔 것과 같게 센다 | 두 자극의 비교. 무게 변경 근거(U3)는 `prefer`만 쓴다 | 이유가 있을 때만. 이유 없는 `prefer`는 고르기와 같게 센다. `neither`는 이유와 관계없이 정보성이다 |
 | `contrast`(19에 요구) | 대비의 "잃어도 괜찮음 / 잃으면 안 됨 / 모르겠음"(05 §3.2.7) | §3.4.11의 대응(`subjectRef = ps_`, `target.element = loss:<기준 키>`) | 잃는 기준의 무게 근거 | 있음 |
 | `comment` | 이유 칸만 씀 | `reason`만 | 이유 서술 | 있음 |
 | (대화창 자유 발화) | 대화 입력 | 사람 발화 관찰 | 역할 `reaction_structure`가 반응 구조로 해석(해석 레코드). 화면은 그 해석을 의미 미리보기처럼 보이고 사용자가 고칠 수 있다(05 §3.2.2) | 해석 후 판정 |
@@ -1465,9 +1467,10 @@ export interface BlobRef { sha256: string; mediaType: string; bytes: number }
 informative(r) = r.kind ∈ {strength(값 ≠ +2 이거나 target ≠ whole), no_reason, rewrite, triad_odd, contrast, comment}
                  or (r.kind == strength and r.value == +2 and r.reason 있음)
                  or (r.kind == comparison and r.reason 있음)
+                 or (r.kind == comparison and r.comparison.kind == neither)     # "둘 다 아님"은 두 자극 각각의 no_reason과 같다
 pickLike(r)    = r.kind == near
                  or (r.kind == strength and r.value == +2 and r.target == whole and r.reason 없음)
-                 or (r.kind == comparison and r.reason 없음)
+                 or (r.kind == comparison and r.comparison.kind == prefer and r.reason 없음)
 
 # 닫을 수 있는가. 순수 함수(@helm/kernel/orchestration, 판정 J-128). 10 inquiry.round.close가 같은 함수로 검사한다
 roundClosable(round, trigger):
@@ -1479,11 +1482,11 @@ pickOnly(round) = not any(informative(r) for r in reactions(round))   # 닫힐 �
 # 닫는 계기. 반응 기록 자체는 라운드를 닫지 않는다
 closeTriggers(round, now):
   human:        사람의 "라운드 마치기"(19 stimulusRound.close → 10 inquiry.round.close, H 채널)
-  all_reacted:  제시된 자극 모두에 정보성 반응이 1개 이상 → 엔진이 R 채널 inquiry.round.close
-  wait_timeout: 마지막 반응 뒤 24시간 새 반응이 없고 탐구가 일시 정지가 아님 → 엔진이 R 채널 inquiry.round.close [제안]
+  all_informative:  제시된 자극 모두에 정보성 반응이 1개 이상 → 엔진이 R 채널 inquiry.round.close
+  timeout: 마지막 반응 뒤 24시간 새 반응이 없고 탐구가 일시 정지가 아님 → 엔진이 R 채널 inquiry.round.close [제안]
 ```
 
-- 고르기와 같은 반응(`pickLike`)만 있는 라운드는 사용자가 명시적으로 끝낼 때만 닫히고, 그 경우 다음 라운드에 세 개 비교 질문이 들어간다. 라운드 마치기 명령은 10 `inquiry.round.close`(사람은 19 `stimulusRound.close`, 엔진은 R 채널)이고 커널은 `roundClosable(round, trigger)`을 그대로 검사한다(19 §5.2의 15 요구 "`stimulusRound.close`의 조건"에 대한 답). 명령 payload에 `trigger: "human" | "all_reacted" | "wait_timeout"`이 필요하다(10에 요구). 화면은 05 §3.2.5처럼 그 전에 부분 고르기를 한 번 더 권할 수 있다. 21의 "`near`만 있으면 라운드 마치기 비활성"(21 U7 R1)은 판정 J-34에 따라 21이 고친다. 버튼은 열어 두고 05 §3.2.5의 확인 단계를 거친다.
+- 고르기와 같은 반응(`pickLike`)만 있는 라운드는 사용자가 명시적으로 끝낼 때만 닫히고, 그 경우 다음 라운드에 세 개 비교 질문이 들어간다. 라운드 마치기 명령은 10 `inquiry.round.close`(사람은 19 `stimulusRound.close`, 엔진은 R 채널)이고 커널은 `roundClosable(round, trigger)`을 그대로 검사한다(19 §5.2의 15 요구 "`stimulusRound.close`의 조건"에 대한 답). 명령 payload에 `trigger: "human" | "all_informative" | "timeout"`이 필요하다(10의 `InquiryRoundPayload` 값과 같다). 화면은 05 §3.2.5처럼 그 전에 부분 고르기를 한 번 더 권할 수 있다. 21의 "`near`만 있으면 라운드 마치기 비활성"(21 U7 R1)은 판정 J-34에 따라 21이 고친다. 버튼은 열어 두고 05 §3.2.5의 확인 단계를 거친다.
 - 반응은 지우지 않는다. 철회(`reaction.withdraw` → `observation.retracted`)는 철회 기록으로 남고 근거 계산에서 빠지며, 그 반응에 기댄 기준은 `stale`이 된다(08 §3.17.4). 고치기(`reaction.amend` → `observation.annotated`)는 이유를 덧붙인다.
 - 라운드가 닫힌 뒤 도착한 반응(연결이 끊겼다가 보낸 반응 등)은 관찰로 기록되지만 그 라운드의 마감 판정에는 쓰지 않는다. 다음 라운드의 기준 추론 입력이 된다(E-27, 04 §3.9 "보내지 않음").
 - 라운드당 자극 수 상한과 질문 묶음 전달로 피로를 줄인다(v0.3 04 §3.6, 06).
@@ -1612,7 +1615,7 @@ v0.3 04 §3.4 예시와의 차이: `confidence` 숫자를 없애고(D15-3, 08 D0
 |---|---|
 | U1 | 선호 모델은 커널 명령으로만 바뀐다. 엔진은 제안을 만들고, 기준 추가·수정·폐기의 근거는 사람의 답 이벤트다 |
 | U2 | 기준 추가는 사람의 확인이 있어야 한다(결정 14 "선호 기준 확정은 사람") |
-| U3 | 무게 변경에는 비교 근거(`comparison` 반응, 또는 두 기준이 엇갈린 자극에 대한 반응)가 하나 이상 필요하고, 정보 게이트 질문을 거친다 |
+| U3 | 무게 변경에는 비교 근거(`comparison{kind: "prefer"}` 반응, 또는 두 기준이 엇갈린 자극에 대한 반응)가 하나 이상 필요하고, 정보 게이트 질문을 거친다 |
 | U4 | 확정 기준에 반대 반응이 생기면 커널이 상태를 `contested`로 바꾼다(A13). 사람 확인 없이 폐기하지 않는다 |
 | U5 | `stated` 후보와 같은 차원의 드러난 기준(`consistent` 이상)이 방향이 다르면 `stated_vs_revealed` 항목을 추가하고 사용자에게 보인다. 반응을 우선하되 차이는 숨기지 않는다(v0.3 04 §3.6) |
 | U6 | 좋은 예·싫은 예(08 `likedStimuli`·`dislikedStimuli`)는 강도 +2·−2 반응이 걸린 자극으로 채운다 |
@@ -1664,7 +1667,7 @@ export type FeasibilityView = "unchecked" | "checking" | "feasible" | "infeasibl
 ```
 
 - 앞줄 항목 중 지지 등급이 `weak` 이상인 것에 대해, `readOnlyCheck`가 있으면 엔진이 확인 하위 실행을 돌리고 결과를 관찰로 받는다. 해석(실현 가능·불가능·모름)은 관찰을 근거로 기록한다.
-- `probe`만 있으면 엔진은 탐침 제안을 14에 낸다(탐침 레코드: 가설, 키울 조건, 접을 조건, 예산, v0.3 03 §3.3). 탐침 결과는 관찰로 돌아오고, 실현 가능 판정의 근거가 된다.
+- `probe`만 있으면 엔진은 `probe_definition` 제안을 14에 낸다(14 T33, §3.9.2). 탐침 레코드는 가설, 키울 조건, 접을 조건, 예산을 담는다(v0.3 03 §3.3). 탐침 결과는 관찰로 돌아오고, 실현 가능 판정의 근거가 된다.
 - `feasible`·`infeasible`은 관찰 근거가 있을 때만 붙는다. 레코드 값은 08 `Possibility.feasibility`(`unchecked`·`feasible`·`infeasible`)이고, `checking`(확인 하위 실행 진행 중)은 투영에만 있다.
 
 #### 3.8.4 멈춤
@@ -2081,8 +2084,8 @@ ReplPort.run (13 §3.8.3이 등록·격리, 15가 의미를 정함. 1차에서�
               모델용 도구 helm_code는 뒤 단계, 13 O-13-06)
   sandbox  pi-codemode CodemodeSandbox: 실행마다 새 worker와 QuickJS VM
            [원문] pi@v1.1.0 packages/codemode/src/runtime/host.ts:120-124, :340
-  tools.*  근거 범위 도구 묶음 중 읽기 도구만: read, grep, find, ls, helm_query (13 ReplRequest.tools 기본값)
-           bash·write·edit·send 계열은 넣지 않는다. web_fetch는 read_web이 열리는 뒤 단계에서
+  tools.*  근거 범위 도구 묶음 중 읽기 도구만: read, grep, find, ls, helm_query (13 ReplRequest.tools 기본값). 근거 범위가 `web`이면 `web_fetch`를 더한다([결정 55], 정책은 18 §3.11.8)
+           bash·write·edit·send 계열은 넣지 않는다.
   globals  helm.subcall(prompt, opts?)      채팅 모델 하위 호출 (§3.12.5)
            helm.wsGet/wsPut/wsList/wsDel    작업 공간, 비정본 (§3.12.4)
            helm.emit(kind, payload)         제안 버퍼, 성공 시에만 dispatch (§3.12.6)
@@ -2245,14 +2248,30 @@ export type InquiryRole =
 | 이미지 생성 | `image`(12에 추가 요구) | — | — |
 
 ```ts
-// 데몬 설정 helmd.toml의 [inquiry] 절(TOML, 06 ADR-06-11, 판정 §2). 모델 목록은 12 AiConfig에 있다
-export interface InquiryConfig {
-  reasoning?: Partial<Record<InquiryRole, "off" | "low" | "medium" | "high">>;  // 12 thinking을 역할별로 덮어씀
-  frontSize: number;                 // 대비 압축 앞줄 크기. 기본 3 (§3.4.9). 다이얼 아님(14 §3.20.4)
-  reviewTopK: number;                // 적대적 검토 대상 수. 기본 8 (§3.4.7)
-  repl: { enabled: boolean; allowRecursive: boolean; maxIterations: number; outputTokens: number;
-          workspace: { maxValueBytes: number; maxTotalBytes: number; retentionDays: number } };
-}
+// packages/kernel/src/orchestration/inquiry/config.ts (TypeBox. 06 §3.10.3 `inquiry` 절이 import한다, [판정 J-128])
+// 데몬 설정 helmd.toml의 [inquiry] 절(06 ADR-06-11). 모델 목록은 12 AiConfig에 있다
+import { Type, type Static } from "typebox";
+
+// InquiryRole: §3.13.1 타입의 리터럴 합집합을 Type.Union(Type.Literal ...)으로 옮긴 스키마
+export const InquiryConfig = Type.Object({
+  reasoning: Type.Optional(Type.Partial(Type.Record(InquiryRole, Type.Union([   // 12 thinking을 역할별로 덮어씀
+    Type.Literal("off"), Type.Literal("low"), Type.Literal("medium"), Type.Literal("high"),
+  ])))),
+  frontSize: Type.Integer({ minimum: 1, default: 3 }),      // 대비 압축 앞줄 크기 (§3.4.9). 다이얼 아님(14 §3.20.4)
+  reviewTopK: Type.Integer({ minimum: 1, default: 8 }),     // 적대적 검토 대상 수 (§3.4.7)
+  repl: Type.Object({
+    enabled: Type.Boolean(),
+    allowRecursive: Type.Boolean(),
+    maxIterations: Type.Integer({ minimum: 1, default: 6 }),    // 루트 반복 상한 (§3.12.7 O3)
+    outputTokens: Type.Integer({ minimum: 1, default: 2000 }),  // 잘린 출력 기본 토큰 (§3.12.7 O4)
+    workspace: Type.Object({
+      maxValueBytes: Type.Integer({ minimum: 1 }),
+      maxTotalBytes: Type.Integer({ minimum: 1 }),
+      retentionDays: Type.Integer({ minimum: 0 }),
+    }, { additionalProperties: false }),
+  }, { additionalProperties: false }),
+}, { additionalProperties: false });
+export type InquiryConfig = Static<typeof InquiryConfig>;
 ```
 
 - `branch` 후보에 서로 다른 제공자가 둘 이상 있어야 가지별 다른 모델이 된다(A15-1). 하나뿐이면 12가 `independence: "same_model"`을 돌려주고, 엔진은 §3.4.6처럼 표시한다.
@@ -2355,6 +2374,8 @@ submit 도구 스키마를 따른다. 필드 설명:
 | `outcome_premortem` | 이 선택이 이미 실패했다고 가정하고 쓴다 |
 | `outcome_predictions` | 확인 날짜와 방법이 없는 예측은 쓰지 않는다 |
 | `repl_root` | 데이터를 출력하지 말고 작업 공간에 둔다. 거를 수 있는 것은 코드로 거른다. 끝나면 `return { done: true, summary }` |
+
+모델 입력에 들어가는 본문(관찰 요약, 자극 본문, 문서·웹 발췌)은 넣기 전에 18 §3.10.4 공통 마스킹기를 거친다(18 §3.10.3의 입력 단계 마스킹). 지운 사실은 18 §3.10.4와 같은 방식으로 남기고 값은 남기지 않는다. 마스킹한 본문도 `<untrusted>` 표식으로 감싼다(§3.12.7 O8, 12 PJ-7).
 
 #### 3.13.6 역할별 출력 스키마
 
@@ -2479,10 +2500,10 @@ export interface InquiryHandover {          // 탐구 실행이 닫힐 때 기�
 
 | 대상 | 방법 | 보장하는 것 | 위치 |
 |---|---|---|---|
-| 엔진 컨트롤러·커널 규칙 | 가짜 모델(pi-ai faux provider, 녹화 응답 재생). 같은 입력이면 같은 행동·같은 이벤트 | 잘못된 승격, 근거 없는 관찰, 고르기만으로 닫히는 라운드, 숫자 신뢰도 저장이 일어나지 않음 | `just verify`(22) |
+| 엔진 컨트롤러·커널 규칙 | 가짜 모델(pi-ai faux provider, 녹화 테이프 `helm.model-tape.v1` 재생, 22 §3.5.4). 같은 입력이면 같은 행동·같은 이벤트 | 잘못된 승격, 근거 없는 관찰, 고르기만으로 닫히는 라운드, 숫자 신뢰도 저장이 일어나지 않음 | `just verify`(22) |
 | 모델 품질 | 실제 모델. 사람 평가 포함 | 관점 다양성, 근거율, 기준 안정성, 예측 적중, 사용자 목표 변화 | `just eval-inquiry`, `just verify`에 넣지 않음 |
 
-v0.3 08 §6 "커널이 보장하는 것과 모델 성능에 달린 것을 섞지 않는다"를 따른다. 평가는 운영 데이터를 바꾸지 않는다. 평가용 데이터 디렉터리(`/srv/volumes/helm/eval/<날짜>/`, 17이 확정)에서 따로 돌린다. 개인 과제 내용은 git에 넣지 않고, 저장소에는 평가 하네스와 익명 고정 과제만 둔다.
+v0.3 08 §6 "커널이 보장하는 것과 모델 성능에 달린 것을 섞지 않는다"를 따른다. 평가는 운영 데이터를 바꾸지 않는다. 평가용 데이터 디렉터리(`/srv/volumes/helm/eval/<날짜>/`, 17이 확정)에서 따로 돌린다. 개인 과제 내용은 git에 넣지 않고, 저장소에는 평가 하네스와 익명 고정 과제 정의(`tests/eval-tasks/`)만 둔다. 하네스는 실행 전에 예상 비용 상한을 보이고 `--max-usd`(기본 5)를 넘으면 멈춘다(22 §3.14.2).
 
 #### 3.15.2 E0: 흐린 작업 다섯 개로 먼저 시험
 
@@ -2524,6 +2545,8 @@ auto: { grounded_rate: 0.75, distinct_vectors: 7, merged: 3, lens_adopted: 1, fa
 baseline: { ran: true, order: second, satisfaction: 3, criteria_count: 1 }
 ```
 
+실사용 기록(02 AC-01-17, AC-02-10)에도 이 형식의 항목을 남긴다. 보기 전·본 뒤의 목표와 완료 기준, 변화 정도, 피로를 쓴다. 16이 V1·H-I1 판정에 쓴다.
+
 판정 규칙(대화 L1669를 숫자로 옮김) [제안]:
 
 | 결과 | 다음 행동 |
@@ -2531,6 +2554,8 @@ baseline: { ran: true, order: second, satisfaction: 3, criteria_count: 1 }
 | 다섯 중 "의미 있음" 1개 이하 | 커널의 E/N 정식 연결을 미루고 발산 설계(프롬프트, 방향, 대비 압축)를 다시 본다 |
 | 2개 | 과제 세 개를 더 해서 판정 |
 | 3개 이상 | 커널의 E/N 평면에 정식으로 연결(구현 계획 23의 다음 마일스톤) |
+
+한 번에 구현하는 경우 위 표의 "커널의 E/N 정식 연결을 미루고"는 "MVP 실사용 시작을 미루고"로 읽는다(23 D23-4, M15-08).
 
 "의미 있음"의 판정 기준 [제안]. 사용자가 고르되, 아래 사실 확인과 함께 기록한다.
 
@@ -2579,7 +2604,7 @@ baseline: { ran: true, order: second, satisfaction: 3, criteria_count: 1 }
 
 | 이름 | 내용 | 시점 |
 |---|---|---|
-| E1 재생 결정성 | 녹화한 모델 응답으로 엔진을 다시 돌려 같은 행동·같은 이벤트가 나오는지 | 매 커밋(`just verify`) |
+| E1 재생 결정성 | 녹화 테이프(`helm.model-tape.v1`, 22 §3.5.4)로 엔진을 다시 돌려 같은 행동·같은 이벤트가 나오는지. 응답 차례는 `context-hash`(투영 `bytesHash`)로 맞춘다 | 매 커밋(`just verify`) |
 | E2 프롬프트 회귀 | 익명 고정 과제 10개를 실제 모델로 돌려 스키마 실패율, 근거율, 서로 다른 결과 벡터 수, 병합 비율을 이전 값과 비교 | 프롬프트·모델·설정 변경 시 |
 | E3 REPL 평가 | 큰 로그를 다루는 사실 확인 과제(정답이 있는 합성 과제)에서 REPL과 일반 하위 실행의 정확도·비용 비교 | REPL 구현 후 한 번, 모델 변경 시 |
 | E4 다계열 효과 | E2 과제를 단일 계열과 다계열로 돌려 서로 다른 결과 벡터 수 비교 | 다양성 풀 변경 시 |
@@ -2678,15 +2703,15 @@ baseline: { ran: true, order: second, satisfaction: 3, criteria_count: 1 }
 | 06 (P3) | (1) `@helm/kernel/orchestration/inquiry`(순수부)와 `@helm/runtime/inquiry`(효과)의 배치([판정 J-128]). (2) `RuntimeStorePort`가 `reduceInquiry` 입력 스냅숏(탐구 id로 모은 레코드와 trace)을 줄 수 있어야 한다([판정 J-127]). (3) `[inquiry]` 절, 레시피 `lens-seed`·`eval-inquiry` |
 | 08 (P5) | (1) `Possibility.consequenceMarks`. (2) `Inquiry.rounds[].planHash` 주석을 "계획 지문, 멈춤 판정 입력"으로. (3) U-14 확정 문장(MVP `off`, §3.5.4). (4) §3.22.7에 `triad` 반응 → `question.answered`, 라운드 닫힘 → `stimulus_round` 질문 `question.withdrawn(round_closed)` 파생. (5) R-23은 질문을 기록하는 시점의 현재 루프로 판정한다고 적는다. (6) `Stimulus.form`(그 전에는 `facets._form`). (7) 한 명령의 기준 변경은 `modelVersion`을 한 번만 올린다. (8) 파생 관찰의 독립성 키 = 입력 도구 호출 키 집합(08 §3.9.1) |
 | 09 (P5) | (1) `inquiry.opened` payload에 `divergence`. (2) `inquiry.stopped`에 `handover: BlobRef`, `stop.note`에 엔진 `StopReason`. (3) `check.pinned`. (4) `preference_model.created` 행위자에 `runtime`(10의 R 채널과 맞춤) |
-| 10 (P6) | (1) §3.2.6의 명령 넷을 §3.11.11에(13 제안 도구 표에도). (2) `inquiry.round.close` payload에 `trigger: human \| all_reacted \| wait_timeout`, 검사는 `roundClosable(round, trigger)`. 같은 트랜잭션에서 `runtime.boundary`를 파생하지 않는다(경계는 15 실행기가 제출, 14 §3.13.6). (3) `inquiry.stop`에 `then: proceed \| handoff \| decide_now`. (4) V-Q-03: I.want에서 답이 자극·가능성 id를 가리키는 질문 거부([판정 J-141]). (5) `criterion_confirm` 답의 항목별 적용(`confirm`·`reject`·`keep`). (6) `undeterminable` → `indeterminate`. (7) 15 인용 절 번호(§3.1.5, §3.4.4, §3.9.2) |
+| 10 (P6) | (1) §3.2.6의 명령 넷을 §3.11.11에(13 제안 도구 표에도). (2) `inquiry.round.close` payload에 `trigger: human \| all_informative \| timeout`, 검사는 `roundClosable(round, trigger)`. 같은 트랜잭션에서 `runtime.boundary`를 파생하지 않는다(경계는 14 오케스트레이터가 `inquiry.round_ended`에서 제출, 14 §3.13.6). (3) `inquiry.stop`에 `then: proceed \| handoff \| decide_now`. (4) V-Q-03: I.want에서 답이 자극·가능성 id를 가리키는 질문 거부([판정 J-141]). (5) `criterion_confirm` 답의 항목별 적용(`confirm`·`reject`·`keep`). (6) `undeterminable` → `indeterminate`. (7) 15 인용 절 번호(§3.1.5, §3.4.4, §3.9.2). (8) 19 메서드 대응표의 `inquiry.fillCell`은 `observation.record`(utterance)로 대응하도록 §3.11.11 (2) 표에 넣는다(§3.2.6) |
 | 11 (P6) | (1) `criterion_confirm` `answerSchema` 항목 `decision`에 `keep`. (2) `stop_condition`을 만드는 곳에 15(반응 감소). (3) V-Q-03 판정 J-141 조건(10과 함께) |
 | 12 (P7) | (1) 투영 렌더러 PJ-7: 바깥 글의 `<`·`>`를 문자 참조로 바꾸고 주입마다 무작위 id를 붙인 여닫는 표식을 쓴다. `helm_context`도 같게. T-PJ-10에 닫는 표식 흉내 사례. 15는 이 렌더러를 쓴다(R9). (2) §3.14: 자식 run의 유효 원시 행동 ⊆ 부모 run의 유효 원시 행동. (3) `RunKind`·`ModelRole`의 `inquiry`, `ModelRole`의 `image`([판정 J-97]). (4) `boundary.reach` 잔여 표기를 `runtime.boundary`로. (5) `KernelPort` 읽기 다섯 개를 `RuntimeStorePort` 위에 구현(§3.1.2) |
 | 13 (P7) | (1) 작업 공간 이름·방식은 판정 J-98대로. (2) 엔진 경로의 `ReplRequest.owner.toolCallId` 필수. (3) 메모 키 인용을 15 §3.12.5로. (4) 10 §3.11.11에 들어갈 명령 넷의 제안 도구 대응 |
 | 14 (P8) | (1) "지금 정하기" 뒤 `loop.transitioned`(I.* → 계획의 다음 C 루프, 없으면 `C.commit`)와 그 뒤 `question.raise(choice)`를 14 처리 흐름에 넣는다. (2) §3.6 표의 I.want `deliberate`, `diverge`의 `per_round`. (3) `StageResult` 대응표(§3.1.1)를 대기 처리에 쓴다 |
 | 16 (P10) | (1) `lens_adopted`는 §3.9.5 판정 표. (2) `distinctPrediction` = `distinctPredictionCount`. (3) "결정 없는 탐구" 지표 정의(§3.15.3). (4) E0 결과 수집과 판정 보류 기록 |
 | 17 (P11) | 경로 `/srv/volumes/helm/scratch/inquiry/`(백업 제외), `/srv/volumes/helm/eval/`, 보존 기간 정리 |
-| 18 (P11) | (1) §3.11.6 `disclose_data`에 "가지 실행은 작업 공간 내용을 설정된 모든 공급자에게 보낸다, 공급자 추가는 사람 설정 변경"을 적는다(A15-1). (2) 가져온 문서·웹·세션 로그는 신뢰하지 않는 자료, 자극과 작업 공간의 비밀 가림 |
-| 19 (P12) | (1) 이의 메서드 `objection.file`([판정 J-111]), 대상은 08 `ObjectionTarget`. (2) `InquiryStopParams`가 `then` 셋을 구분. (3) `ReactionRecordParams`: `subjectRef`, `contrast`, `textRange`, `near`는 강도 없이, `comparison`(2단계, "둘 다 아님"은 두 반응). (4) `triad` params에 `questionId`, 입력은 `similar` 둘. (5) 자극 라운드 키 `inquiryId + roundNo`. (6) `QuestionAnswerParams`가 `criterion_confirm` 항목 배열(`keep` 포함)을 실을 수 있게 |
+| 18 (P11) | (1) §3.11.6 `disclose_data`에 "가지 실행은 작업 공간 내용을 설정된 모든 제공자에게 보낸다, 제공자 추가는 사람 설정 변경"을 적는다(A15-1). (2) 가져온 문서·웹·세션 로그는 신뢰하지 않는 자료, 자극과 작업 공간의 비밀 가림 |
+| 19 (P12) | (1) 이의 메서드 `objection.file`([판정 J-111]), 대상은 08 `ObjectionTarget`. (2) `InquiryStopParams`가 `then` 셋을 구분. (3) `ReactionRecordParams`: `subjectRef`, `contrast`, `textRange`, `near`는 강도 없이, `comparison`(2단계)은 08 형식을 쓴다: `comparison{kind: "prefer", better, worse}`와 `comparison{kind: "neither", pair}`("둘 다 아님", [판정 J-184]). "둘 다 아님"을 두 반응으로 보내는 방식은 지운다. (4) `triad` params에 `questionId`, 입력은 `similar` 둘. (5) 자극 라운드 키 `inquiryId + roundNo`. (6) `QuestionAnswerParams`가 `criterion_confirm` 항목 배열(`keep` 포함)을 실을 수 있게 |
 | 20·21 (P13·P14) | (1) 무게 표시는 05 문구 키. (2) R7 문구 시험에 "어느 쪽입니까". (3) 세 개 비교는 "비슷한 둘 고르기" 입력. (4) 글 요소는 평문 조각 단위로 감싼다(E9). (5) J-34대로 라운드 마치기 버튼을 열어 둔다 |
 | 26 (P15) | 휴대폰에서 `criterion_confirm`·`reframe_confirm`·`stop_condition` 질문에 답할 수 있게 한다([결정 42]·[결정 47]). 자극판은 데스크톱 범위 |
 | 22 | 커널 테스트와 모델 평가의 분리(§3.15.1), 역할별 가짜 모델 대본, 속성 테스트 대상 함수(§5.1) |
@@ -2702,6 +2727,7 @@ baseline: { ran: true, order: second, satisfaction: 3, criteria_count: 1 }
 packages/kernel/src/orchestration/inquiry/      (@helm/kernel/orchestration, 순수)
   plan.ts                   planRound, decideStage
   projection.ts             reduceInquiry, reduceLensLibrary, reduceHistory, InquiryProgressView
+  config.ts                 InquiryConfig(TypeBox 스키마, 06 §3.10.3이 import, §3.13.2)
   types.ts  rng.ts
   plan/{fact,want,possibility,outcome}.ts        탐구별 decideStage
   divergence/{signals,rows,table,assign,dedupe}.ts
@@ -2758,7 +2784,7 @@ scripts/build-lens-seed.ts                       (생성 결과는 kernel 쪽 le
 | T-28 | 반응 대응 | 19 `reaction.record`의 종류마다 08 `ReactionPayload`(골든 파일), 대비 반응 세 값, `near`는 정보성 아님, 닫힌 라운드 뒤 반응은 기록되지만 마감 판정에 안 쓰임 |
 | T-29 | 명령 이름 | 엔진이 dispatch하는 모든 명령 이름이 10 §3.11 목록(또는 §3.2.6의 요구 넷)에 있고, 기대 이벤트 이름이 09 §3.4 카탈로그에 있다(이름 목록 스냅숏 대조) |
 | T-30 | E18-2 | I.want에서 답이 자극·가능성을 가리키는 후보(`names`에 `st_`·`ps_`, 또는 답 라벨이 자극 라벨)를 버림. 자극 1위만 바뀌는 질문의 점수가 0 |
-| T-31 | 라운드 닫기 | 반응 기록만으로는 닫히지 않음. `all_reacted`·`wait_timeout` 계기는 정보성 반응이 없으면 닫지 않음. 사람 계기는 언제나 닫고 `pickOnly`를 계산. 이유 없는 비교는 고르기로 셈 |
+| T-31 | 라운드 닫기 | 반응 기록만으로는 닫히지 않음. `all_informative`·`timeout` 계기는 정보성 반응이 없으면 닫지 않음. 사람 계기는 언제나 닫고 `pickOnly`를 계산. 이유 없는 비교는 고르기로 셈 |
 | T-32 | 파생 관찰 | 관찰 문장이 템플릿에서만 나옴, 독립성 키가 입력 키 집합과 같음, 다시 계산 값이 다르면 승격 근거에서 빠짐 |
 | T-33 | 순수부 위치 | `packages/kernel/src/orchestration/inquiry/`가 `@helm/runtime`·`@helm/store`·`node:` 모듈을 import하지 않음(06 check-arch) |
 

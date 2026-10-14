@@ -2,7 +2,7 @@
 
 - 작성: 2026-10-11, 설계 에이전트 P10(관찰)
 - 소유: 이 문서는 관찰 에이전트(`@helm/observer`)의 설계, 지표 정의와 계산, 반증 가설의 측정 방법을 소유한다.
-- 상태: 4단계 보완판(2026-10-12). 기준 결정 범위는 브리프 결정 1~51과 판정 J-01~J-149이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 프로토콜 메서드는 19, 레코드·접두사는 08을 따른다(조정자 판정 `process/rulings-stage2a.md` §1). 표시는 판정 J-144를 따른다: `[결정 n]`은 사용자 결정, `[제안: 결정 n 기본값]`은 조정자 기본값, `[판정 n]`·`[판정 J-nn]`은 조정자 판정이다. 이 문서가 새로 필요로 하는 이름은 §5.2에 요구로 적었다.
+- 상태: 4단계 보완판(2026-10-12). 기준 결정 범위는 브리프 결정 1~57과 판정 J-01~J-190이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 프로토콜 메서드는 19, 레코드·접두사는 08을 따른다(조정자 판정 `process/rulings-stage2a.md` §1). 표시는 판정 J-144를 따른다: `[결정 n]`은 사용자 결정, `[제안: 결정 n 기본값]`은 조정자 기본값, `[판정 n]`·`[판정 J-nn]`은 조정자 판정이다. 이 문서가 새로 필요로 하는 이름은 §5.2에 요구로 적었다.
 
 ## 1. 목적과 범위
 
@@ -38,6 +38,7 @@
 | 루프 계약의 `opdc` 칸(모드별 인터페이스 의무)과 그 테스트 | 14, 22 |
 | 발산 표의 열 범주 정의, Method Transfer 렌즈 | 15 |
 | 데몬 프로세스 관리, systemd, 백업, 저장 경로 확정 | 17 |
+| 런타임 공통 개인 하네스(스킬, AGENTS.md, 훅 정책)의 동기화 | 별도 도구 agent-kit([결정 54]). 이 문서는 그 자산을 바꾸는 수정안만 다룬다(§3.12) |
 | 위협 모델, 비밀 저장, 실행 격리 | 18 |
 | 프로토콜 메서드와 이벤트 전송 | 19 |
 | 화면 레이아웃과 문구 | 04, 05 |
@@ -82,7 +83,7 @@
 | [결정 4] 능력 | 관찰 에이전트의 능력은 v0.3 07 §2.4 표의 "관찰 에이전트" 행을 따른다: read(기록만), spawn, observe, propose(P 수정안, 절차 후보). write, execute, send, ask, attest, accept, integrate는 없다 |
 | [결정 8, 17] 불변조건 7 | 혼자 정한 결정의 이의율은 측정 대상이다. 관찰 에이전트가 정책 수정을 제안해도 기록·이의 경로는 바뀌지 않는다 |
 | [결정 10] OPD+C | OPD+C는 클라이언트의 주요 구현 대상이다. 이 문서는 OPD+C를 재는 지표를 정한다 |
-| [결정 12, 16] 묻기 | 질문 부담 지표는 v0.3 06 §7을 따른다. 다이얼 수치는 [제안]이므로 관찰 에이전트의 다이얼 조정 제안도 [제안] 값으로만 다룬다 |
+| [결정 12], [제안: 결정 16 기본값] 묻기 | 질문 부담 지표는 v0.3 06 §7을 따른다. 다이얼 수치는 [제안]이므로 관찰 에이전트의 다이얼 조정 제안도 [제안] 값으로만 다룬다 |
 | [결정 15] 의존 규칙 | write·send에는 C, 완료에는 A가 필요하다. C/A 우회율은 커널이 막는 경로 밖에서 생기는 우회를 잰다(§3.23.3) |
 | [결정 18] recognition over recall | 제안은 관찰 에이전트가 초안을 쓰고 사람은 반응·수정한다. 빈칸 채우기 양식을 사람에게 요구하지 않는다 |
 | [결정 22] 데몬 상주 | 관찰 실행은 클라이언트 없이도 데몬의 스케줄러가 띄운다 |
@@ -97,6 +98,10 @@
 | [판정 45] 비밀 주입 | 데몬의 SecretStore가 비밀 값을 메모리에만 둔다. 2차 마스킹(§3.8.1)은 SecretStore에 등록된 값으로 한다 |
 | [판정 46] 루프백은 격리 경계가 아님 | 관찰 프로세스는 소켓·토큰을 쓰지 않고 데몬이 띄운 부모-자식 채널(IPC)로만 제출한다 |
 | [결정 47, 48] 모바일 PWA, 알림 강도 | 휴대폰 클라이언트도 `presence.report`를 보낸다. 활동 판정은 판정 J-119의 파생 함수(기기 종류별 문턱)를 쓴다(§3.23.1). 관찰 결과는 알림을 만들지 않으므로 결정 48의 푸시 대상이 아니다 |
+| [결정 53] 루프 계획 혼합 | 기본(`hybrid`)은 모델이 계획 표시(PlanFlags)를 내고 코드가 계획을 계산한다. 표시로 나타낼 수 없는 상황이면 모델이 계획 전체를 설계한다. 계획은 기록되고 이의를 받는다. 이 문서는 계획 이의 비율을 작성 주체(`authoredBy`)별로 재고(§3.23.2), 계획 이탈은 `loop.transitioned`에서 계산한다(§3.22.3) [판정 J-188] |
+| [결정 54] 하네스 동기화 | 스킬, AGENTS.md, 훅 정책의 동기화는 Helm 범위 밖이다. 관찰 에이전트는 그 자산의 수정안을 제안할 뿐이고 동기화는 agent-kit이 맡는다(§1.3, §3.12.1) |
+| [결정 55] 외부 웹 탐색 도구 | MVP의 `web_fetch`·`web_search` 출력은 `tool_output` 등급으로 모델 입력에 넣지 않는다(§3.9.2). 이름 정규화는 두 도구를 `web` 종류로 본다(§3.7.1) [판정 J-190] |
+| [결정 56] 결과 확인 알림 | 결과 확인 알림은 설정(`none`·`daily_digest`·`immediate`, 기본 `none`)으로 고른다. 설정 값별 알림 수, 알림부터 확인까지 시간, 알림 뒤 미열람 비율을 잰다(§3.23.14) [판정 J-189] |
 | §2.5 운영 환경 | 런타임 데이터는 `~/projects` 밖 `/srv/volumes/helm/`. 비밀은 SOPS 체계를 따르고 별도 비밀 저장소를 만들지 않는다. 서버 메모리 상한 10 GB |
 
 ### 2.2 이 문서의 주요 설계 결정 [제안]
@@ -136,7 +141,7 @@ OB-1, OB-4, OB-6의 뼈대(작업 세션 밖 별도 실행, 결정적 마이닝 
 
 ```text
 ┌─ 데몬 (@helm/daemon, 상주) ──────────────────────────────────────────────┐
-│  스케줄러(12, observer.cycle 등) ──▶ 관찰 실행 감독기(06 H8)             │
+│  스케줄러(12, observer.cycle 등) ──▶ 관찰 실행 감독기(06 DR-8)           │
 │                                     │ fork+Node IPC 또는 systemd-run+stdio│
 │  커널(10) ◀── engine.submit ────────┤ (제안·보고 명령, §3.4.2)           │
 │  모델 계층(12) ◀── llm.complete ────┤ (예산 계정 observer, 2차 마스킹)   │
@@ -182,7 +187,7 @@ OB-1, OB-4, OB-6의 뼈대(작업 세션 밖 별도 실행, 결정적 마이닝 
 
 #### 3.2.1 프로세스 형태 [제안]
 
-- 데몬 안의 **관찰 실행 감독기**(06 §3.6.2 H8, `daemon/src/observer-supervisor.ts`)가 트리거를 받으면 `@helm/observer`의 진입점(`dist/main.js`)을 띄운다. 기본은 `child_process.fork()`와 Node 내장 IPC다. 17의 격리 실행을 켜면 `systemd-run --user --unit=helm-observer-<runKey> … --pipe --wait`로 띄우고 같은 메시지를 표준 입출력의 JSON 줄로 주고받는다(17 §3.1.3). 메시지 형식은 두 전송에서 같다(§3.2.3).
+- 데몬 안의 **관찰 실행 감독기**(06 §3.6.2 DR-8, `daemon/src/observer-supervisor.ts`)가 트리거를 받으면 `@helm/observer`의 진입점(`dist/main.js`)을 띄운다. 기본은 `child_process.fork()`와 Node 내장 IPC다. 17의 격리 실행을 켜면 `systemd-run --user --unit=helm-observer-<runKey> … --pipe --wait`로 띄우고 같은 메시지를 표준 입출력의 JSON 줄로 주고받는다(17 §3.1.3). 메시지 형식은 두 전송에서 같다(§3.2.3).
 - 동시에 하나만 돈다. 실행 중에 트리거가 오면 대기열에 넣고, 같은 작업 종류의 대기 항목은 하나로 합친다.
 - 자식 프로세스 옵션: `execArgv: ["--max-old-space-size=768"]`, 환경 변수는 허용 목록만 넘긴다(`HOME`, `PATH`, `TZ`, `LANG`, `NODE_ENV`). `HELM_*` 변수와 모델 API 키 등 비밀은 넘기지 않는다(OB-3, 18 R-2). 설정과 데이터 경로는 `job.start` 메시지로 받는다.
 - 우선순위: 데몬이 `os.setPriority(child.pid, 10)`으로 낮춘다.
@@ -417,8 +422,8 @@ export type ObserverTrigger =
 
 - 검증: 스키마, 종류 허용 목록, 근거 참조 존재, 서명 중복(08 R-40), 금지 패치(10 V-POL-01, §3.12.4), 능력.
 - 실패하면 `command.rejected`(10 §3.4.5, 09)가 남고 IPC로 오류가 돌아온다. 거부 갈래는 `content`/`authority`/`path`(판정 §1).
-- 명령 이름은 10이 소유한다. `observer.report.submit` 하나가 여러 이벤트를 내는 것은 10 §3.11.10의 현재 표(`observer_run.completed`만 적힘)와 다르다. 위 표대로 넓히도록 10에 요구한다(§5.2).
-- `policy.change.propose`가 제안마다 권리 질문(`question.recorded`, 권리 policy_change)을 함께 만드는 10 §3.11.10의 현재 규칙은 이 문서와 04 §3.18의 흐름(채택 자체가 사람의 결정, 조작 1회)과 겹친다. 제안은 `SCR-OBSERVER`와 복귀 요약의 "관찰 에이전트" 절로만 전달하고 질문을 만들지 않기를 요구한다(§5.2, 남은 충돌 C-2).
+- 명령 이름은 10이 소유한다. `observer.report.submit` 하나가 form에 따라 여러 이벤트를 내는 것은 10 §3.11.10의 같은 행이 적는다(§5.2의 10 행).
+- `policy.change.propose`는 제안마다 권리 질문을 만들지 않는다. 채택 명령 자체가 사람의 결정이다(판정 J-74, 10 §3.11.10). 제안은 `SCR-OBSERVER`와 복귀 요약의 "관찰 에이전트" 절로만 전달한다(04 §3.18의 흐름).
 
 관찰 프로세스는 거부 응답을 받으면 같은 실행 안에서 같은 서명을 다시 제출하지 않는다. 거부 사유는 실행 보고에 남는다.
 
@@ -444,7 +449,7 @@ export type ObserverTrigger =
 | 입력 단계 | 추가 입력 | 얻는 것 | 위험·조건 | 담당 확인 |
 |---|---|---|---|---|
 | I1 [결정 35] | Helm 기록 + 허용 폴더의 pi·Claude Code·Codex 세션 로그(서버 WSL 안) | 반복 패턴, C/A 우회(Helm 밖 변경), 채팅 기준선 | 로그에 비밀·제3자 내용이 섞임. 마스킹 필수 | 16, 18 |
-| I2 | 허용 폴더의 Git 상태와 이력(읽기 전용, `git status --porcelain=v1 -z`, `git log`), 저장소 `justfile` 레시피 실행 로그 | 합의와 연결되지 않은 파일 변경을 Git 수준에서 확인, 의미 그룹 압축 실험 | Git 명령도 읽기만. helm-sidecar의 `parsePorcelainV1Z`와 "파일 변경에서 의미를 추론하지 않는다" 규칙을 재사용(canon-2 §7.1, §8.7) | 16, 13 |
+| I2 | 허용 폴더의 Git 상태와 이력(읽기 전용, `git status --porcelain=v1 -z`, `git log`), 저장소 `justfile` 레시피 실행 로그 | 합의와 연결되지 않은 파일 변경을 Git 수준에서 확인, 의미 그룹으로 묶는 실험 | Git 명령도 읽기만. helm-sidecar의 `parsePorcelainV1Z`와 "파일 변경에서 의미를 추론하지 않는다" 규칙을 재사용(canon-2 §7.1, §8.7) | 16, 13 |
 | I3 | 다른 기기(Mac)의 에이전트 세션 로그 | iOS·Xcode 작업 등 서버 밖 작업의 반복 패턴 | Mac에서 수집기가 마스킹한 뒤 전송해야 한다. 원문 로그를 서버로 옮기지 않는다. 클라이언트 앱 경유 전송과 인증은 18·19·20이 검토 | 18, 20 |
 | I4 | 셸 히스토리, 편집기 이벤트 | 에이전트 밖 수작업 반복 | 사적 정보 비중이 큼. 사용자 명시 요청이 있을 때만 | 18 |
 | 범위 밖 | 메신저, 이메일, 브라우저 기록, 다른 사람의 데이터 | - | 혼자 쓰는 개발 도구의 범위를 넘는다 | - |
@@ -708,7 +713,7 @@ export interface NormalizedPath {
 | `edit` | `edit` | `edit` | `Edit` | `apply_patch` | write |
 | `write` | `write` | `write` | `Write` | - | write |
 | `shell` | `bash` | `bash` | `Bash` | `shell`, `local_shell_call` | execute(명령 분류로 세분, §3.7.2) |
-| `web` | - | - | `WebFetch`, `WebSearch` | - | network |
+| `web` | `web_fetch`, `web_search` | - | `WebFetch`, `WebSearch` | - | network |
 | `subagent` | `helm_subcall`, 하위 실행(13 §3.7) | - | `Agent`, `Task` | - | unknown |
 | `codemode` | - | `codemode` | - | - | unknown(중첩 호출은 `nestedCalls`로 펼침) |
 
@@ -747,14 +752,14 @@ pi `toolResult.nestedCalls`(`NestedToolCalls { calls: NestedToolCallRecord[] }`,
 | ID | 대상 | 패턴(요지) |
 |---|---|---|
 | MK-01 | PEM 개인 키 | `-----BEGIN [A-Z ]*PRIVATE KEY-----` ~ `-----END …-----` 블록 전체 |
-| MK-02 | AWS 액세스 키 | `\b(AKIA|ASIA)[0-9A-Z]{16}\b` |
+| MK-02 | AWS 액세스 키 | `\b(AKIA\|ASIA)[0-9A-Z]{16}\b` |
 | MK-03 | GitHub 토큰 | `\bgh[pousr]_[A-Za-z0-9]{36,}\b`, `\bgithub_pat_[A-Za-z0-9_]{60,}\b` |
 | MK-04 | 모델 API 키 | `\bsk-ant-[A-Za-z0-9_-]{20,}`, `\bsk-(proj-)?[A-Za-z0-9_-]{20,}`, `\bAIza[0-9A-Za-z_-]{35}\b` |
 | MK-05 | Slack 토큰 | `\bxox[abprs]-[A-Za-z0-9-]{10,}` |
 | MK-06 | JWT | `\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b` |
-| MK-07 | Bearer·Basic 인증 헤더 | `(?i)authorization:\s*(bearer|basic)\s+\S+`, `(?i)\bbearer\s+[A-Za-z0-9._~+/-]{16,}=*` |
+| MK-07 | Bearer·Basic 인증 헤더 | `(?i)authorization:\s*(bearer\|basic)\s+\S+`, `(?i)\bbearer\s+[A-Za-z0-9._~+/-]{16,}=*` |
 | MK-08 | URL 안 자격 | `[a-z][a-z0-9+.-]*://[^/\s:@]+:[^/\s@]+@` 의 비밀번호 부분 |
-| MK-09 | 키=값 형식 | 키가 `(?i)(secret|token|passwd|password|pass|pwd|dsn|api[_-]?key|private[_-]?key|credential|auth|conn(ection)?[_-]?str(ing)?|database[_-]?url)`를 포함하는 `KEY=VALUE`, `"key": "value"`, `key: value`의 값(8자 이상). 값이 URL이면 MK-08을 먼저 적용한다 |
+| MK-09 | 키=값 형식 | 키가 `(?i)(secret\|token\|passwd\|password\|pass\|pwd\|dsn\|api[_-]?key\|private[_-]?key\|credential\|auth\|conn(ection)?[_-]?str(ing)?\|database[_-]?url)`를 포함하는 `KEY=VALUE`, `"key": "value"`, `key: value`의 값(8자 이상). 값이 URL이면 MK-08을 먼저 적용한다 |
 | MK-10 | SOPS 복호화 출력 | `sops -d`, `secrets run`, `secrets dotenv` 명령의 **결과 텍스트 전체**를 `[REDACTED:sops_output]`으로 바꾼다. 명령 템플릿은 남긴다 |
 | MK-11 | `.env` 파일 읽기 결과 | 경로가 `.env`, `.env.*`(단 `.env.example` 제외), `*.pem`, `*.key`, `id_*`(`.pub` 제외)인 읽기 도구의 결과 전체 |
 | MK-12 | Tailscale·기기 토큰·age 키 | `\btskey-[A-Za-z0-9-]{20,}`, `helm_dt_[A-Za-z0-9_-]{43}`(18 §3.8), `AGE-SECRET-KEY-1[0-9A-Z]{58}` |
@@ -803,7 +808,7 @@ pi `toolResult.nestedCalls`(`NestedToolCalls { calls: NestedToolCallRecord[] }`,
 |---|---|---|
 | `human` | 사용자 메시지(Helm 사람 명령, 외부 세션 `user` 문자열 메시지) | 마스킹 후 발췌 400자까지 |
 | `agent` | 어시스턴트 텍스트 | 마스킹 후 발췌 400자까지 |
-| `tool_output` | 도구 결과, 웹 내용, 파일 내용 | **넣지 않는다.** 오류 서명(§3.7.2)과 바이트 수만 |
+| `tool_output` | 도구 결과, 웹 내용(`web_fetch`·`web_search`와 `browser_*` 출력 포함), 파일 내용 | **넣지 않는다.** 오류 서명(§3.7.2)과 바이트 수만 |
 | `derived` | 코드가 만든 템플릿, 서명, 수치 | 그대로 |
 
 `sendExternalExcerpts = false`이면 외부 소스의 `human`, `agent` 발췌도 넣지 않고 `derived`만 넣는다.
@@ -839,7 +844,7 @@ pi `toolResult.nestedCalls`(`NestedToolCalls { calls: NestedToolCallRecord[] }`,
 |---|---|
 | L1 비밀 | 마스킹 함수를 다시 적용해 가린 것이 있으면 실패 |
 | L2 URL | 초안의 URL 호스트가 후보 특징(`<url:host>`)에 없으면 실패 |
-| L3 명령 | 초안의 코드 블록 안 셸 명령을 §3.7.2로 템플릿화했을 때, 후보의 `commandTemplate` 집합이나 기존 저장소 레시피(`just` 목록)에 없는 프로그램을 부르면 실패. 특히 `curl … | sh`, `rm -rf`, `sudo`, `chmod 777`, `ssh`, 네트워크 업로드 명령은 항상 실패 |
+| L3 명령 | 초안의 코드 블록 안 셸 명령을 §3.7.2로 템플릿화했을 때, 후보의 `commandTemplate` 집합이나 기존 저장소 레시피(`just` 목록)에 없는 프로그램을 부르면 실패. 특히 `curl … \| sh`, `rm -rf`, `sudo`, `chmod 777`, `ssh`, 네트워크 업로드 명령은 항상 실패 |
 | L4 경로 | 초안이 쓰는 파일 경로가 작업 루트 밖이면 실패 |
 | L5 발췌 복사 | 초안에 `tool_output` 등급 원문과 40자 이상 겹치는 문자열이 있으면 실패(발췌는 모델에 보내지 않으므로 보통 생기지 않는다. 캐시의 원문 해시와 n-gram으로 검사) |
 | L6 길이 | 제목 80자, 요약 400자, 초안 본문 4,000자 이하 |
@@ -1556,7 +1561,7 @@ CREATE TABLE run_log (run_id TEXT PRIMARY KEY, kind TEXT, report_json TEXT, at I
 1. **결정적 투영**: 모든 지표는 정본(도메인 원장)과 실험 측정 흐름의 이벤트에서 코드로 계산한다. 같은 이벤트와 같은 정의 버전이면 같은 값이 나온다. 모델은 지표 계산에 쓰지 않는다(OB-7, canon-2 §1.3 P7 "의미 품질을 LLM validator 하나에 맡기지 않는다").
 2. **변경 경로 밖**: 지표 값은 커널 판정, 런타임 루프, 다이얼에 자동으로 들어가지 않는다. 지표가 동작을 바꾸는 길은 관찰 에이전트 제안 → 사람 채택 하나다.
 3. **작업 에이전트에게 숨김**: 작업 에이전트의 컨텍스트 투영(12)에 지표 값을 넣지 않는다(OB-8). 사람 화면과 관찰 에이전트만 본다.
-4. **쌍으로 본다**: 한 방향만 좋아지는 지표는 다른 지표와 함께 본다. 예: 질문 수 감소는 가정 확정 후 이의율과 함께, 결과 확인 시간 단축은 확인 후 재작업률과 함께 본다. 지표 고착(Goodhart)을 줄이기 위한 규칙이다(canon-3 §8 16 체크리스트).
+4. **쌍으로 본다**: 한 방향만 좋아지는 지표는 다른 지표와 함께 본다. 예: 질문 수 감소는 가정 확정 후 이의율과 함께, 결과 확인 시간이 줄면 확인 후 재작업률과 함께 본다. 지표 고착(Goodhart)을 줄이기 위한 규칙이다(canon-3 §8 16 체크리스트).
 5. **표본 표시**: 모든 비율 지표는 분자·분모·표본 수를 함께 둔다. 표본이 `minSample`보다 작으면 값 대신 "표본 부족"을 보인다.
 6. **정의 버전**: 지표 정의를 바꾸면 `defVersion`을 올린다. 다른 버전의 스냅샷은 같은 추세선에 잇지 않는다.
 7. **임계값은 검토 신호**: 01 §3.5.3 등의 판정 기준은 초기 가설값이다. 넘으면 "검토 신호"로 보일 뿐 성공·실패 판정으로 쓰지 않는다. 첫 14일 기준선 뒤 사람이 고친다(OB-12).
@@ -1672,7 +1677,8 @@ export interface MetricDef {
 | `autonomous_choice`/`seen` | `autonomous.seen` | `uptoSeq` | domain |
 | `contest`/`opened`·`resolved`·`orphaned` | `objection.filed`, `objection.resolved`(upheld·withdrawn·dismissed), 소비자 판정(§3.23.2) | `targetKind`, `outcome`(09 값 그대로), `effect`(아래), `desiredEffect`, `reasonKind`(08 값 여섯, 선택 입력이라 null 가능), `latencyMs` | domain |
 | `directive`/`applied` | `directive.applied` | `directiveType`, `turns`, `ms`, `opsCount` | runtime |
-| `plan_deviation` | `plan.deviated`(14 §3.20.5: 도착 루프가 계획의 다음 단계와 다르고 사람의 직접 지시가 아닐 때) | `severity`(low·medium·high) | runtime |
+| `plan_deviation` | `loop.transitioned`의 `planDeviation`·`skipped`(14 §3.20.4. 이 문서가 계산한다, 판정 J-163) | `severity`(low·medium·high) | runtime |
+| `plan`/`adopted` | `loop_plan.adopted`(계획 작성 주체, 판정 J-188 (5)) | `authoredBy`(code·model·human), `outOfPattern`(불리언, PlanFlags), `loopPlanId` | domain |
 | `prediction`/`checked`·`voided` | `prediction.checked` | `held`(적중) | domain |
 | `surprise` | `surprise.reported`(measurement), 관찰 주석 `annKind: surprise`(`observation.annotated`) | `refs`, `source`(person / annotation) | measurement·domain |
 | `presence` | `presence.changed`(09, 상태 active·idle·hidden·offline, 판정 J-119) | `deviceId`, `state`, `previous` | governance |
@@ -1693,9 +1699,11 @@ export interface MetricDef {
 | `push`/`sent` | `push.sent`(26, 09 §3.4) | `deliveryId`, `provider`, `outcome`(accepted·gone·rejected·failed), `questionIds` 수, `attempt` | runtime |
 | `device`/`paired`·`revoked` | `device.paired`, `device.revoked` | 기기 종류(`phone`·`desktop`), `repair`(같은 종류 기기를 30일 안에 다시 페어링했는가) | governance |
 
+`plan_deviation` 계산 [판정 J-163]: `plan.deviated` 이벤트는 만들지 않는다(09 카탈로그에서 지운다). 추출기는 `loop.transitioned` 가운데 `planDeviation`이 참이고 `trigger`가 사람의 직접 지시(`human_directive`)가 아닌 전환을 이탈로 센다. 정도는 계획의 단계 표에서 건너뛴 단계가 선택인지 필수인지, 도착 루프가 계획에 있었는지로 정한다. 선택 단계를 건너뛴 것은 low, 필수 단계를 건너뛴 것은 medium, 계획에 없던 루프는 high다(14 §3.20.4).
+
 `effect` 계산 [제안]: `objection.resolved`가 `upheld`이고 해소 뒤 24시간 안에 그 이의를 인과로 가진 `record.superseded`·`choice.revoked`·새 `choice.committed`(같은 결정점)·`concern.reopened` ·재작업 WorkUnit(`reworkOf`가 대상 WorkUnit) 중 하나가 있으면 `changed`, 아니면 `unchanged`. `withdrawn`·`dismissed`와 `desiredEffect = note_only`로 기록만 된 이의(상태 `noted`)는 `unchanged`이고, `desiredEffect = ask_next_time`은 같은 종류 결정이 이후 질문으로 올라왔는가(`ad.contest_rate_by_kind`의 제안 채택)로 따로 본다. 09의 해소 값에 "뒤집힘·수정" 구분이 없으므로 이 파생 값으로 잰다(08 §5.2의 16 요구와 같은 방법).
 
-`normalPath`와 `opReason` 계산 [제안]: 01 §3.5.2 R-OP-1~R-OP-6을 이벤트 종류로 판정한다. 정상 경로는 이벤트 종류로 계산한다는 판정 J-76을 따른다. 08 `HumanOpMeta`의 "추천을 그대로 따랐는가" 필드(J-76의 새 이름 `followedRecommendation`)와 자유 문장 `extraReason`은 이 계산에 쓰지 않는다. 지표에서 쓰는 이름은 이 사실의 `normalPath`(불리언)와 `opReason`(열거값) 둘뿐이며 01 AC·22 추적표도 이 이름을 검사한다. 변경 WorkUnit마다: `agreement.confirmed` 첫 1건과 `acceptance.recorded` 첫 1건만 정상 경로다. 나머지는 사유로 나눈다. 범위 질문(`question.answered`, 종류 scope_change) → `scope_expansion`, 권리 게이트 질문(send·action approval) → `rights_gate`, 수정 요청 뒤의 재작업(11 §3.10.3의 재작업 WorkUnit, `reworkOf`가 원 WorkUnit을 가리킴)에서 생긴 합의·결과 확인은 원 WorkUnit에 귀속해 `correction_cycle`, 다시 조사 뒤 새 합의 → `reinquiry`, `goal.revised` → `goal_change`, `objection.filed` → `contest`, Concern 열기 제안에 대한 답(`question.answered`, 종류 `entry_suggestion`, 14 §3.14.4) → `promotion`. 사람 확인 없이 활성화된 합의는 조작 0건이다: Grant(`activation.mode = grant`), 01 R-OP-2 (a) 증명 가능한 포함(`choice_scope`, `agreement.activated_by_choice`, 판정 J-133), R-OP-2 (b) 직접 지시 echo(`direct_instruction`. 지시를 보낸 일은 `human_op/input`으로만 센다), 규칙 활성화(`rule`). 결과 확인과 같은 트랜잭션에서 생기는 반영 범위 합의의 `agreement.confirmed`(판정 J-126)와 조건부 확인의 조건 항목 `obligation.deferred`(판정 J-125)는 그 결과 확인 1건에 포함하고 따로 세지 않는다.
+`normalPath`와 `opReason` 계산 [제안]: 01 §3.5.2 R-OP-1~R-OP-6을 이벤트 종류로 판정한다. 정상 경로는 이벤트 종류로 계산한다는 판정 J-76을 따른다. 08 `HumanOpMeta`의 "추천을 그대로 따랐는가" 필드(J-76의 새 이름 `followedRecommendation`)와 자유 문장 `extraReason`은 이 계산에 쓰지 않는다. 지표에서 쓰는 이름은 이 사실의 `normalPath`(불리언)와 `opReason`(열거값) 둘뿐이며 01 AC·22 추적표도 이 이름을 검사한다. 변경 WorkUnit마다: `agreement.confirmed` 첫 1건과 `acceptance.recorded` 첫 1건만 정상 경로다. 나머지는 사유로 나눈다. 범위 질문(`question.answered`, 종류 scope_change) → `scope_expansion`, 권리 게이트 질문(send·action approval) → `rights_gate`, 결과 확인의 수정 요청(`revision_requested`)은 같은 WorkUnit을 `in_progress`로 되돌리므로(판정 J-180) 그 뒤의 합의·결과 확인은 같은 WorkUnit의 다음 항목이고 `correction_cycle`이다. 이의로 생긴 재작업 WorkUnit(11 §3.10.3, `reworkOf`가 원 WorkUnit을 가리킴)에서 생긴 합의·결과 확인은 원 WorkUnit에 귀속해 `correction_cycle`, 다시 조사 뒤 새 합의 → `reinquiry`, `goal.revised` → `goal_change`, `objection.filed` → `contest`, Concern 열기 제안에 대한 답(`question.answered`, 종류 `entry_suggestion`, 14 §3.14.4) → `promotion`. 사람 확인 없이 활성화된 합의는 조작 0건이다: Grant(`activation.mode = grant`), 01 R-OP-2 (a) 증명 가능한 포함(`choice_scope`, `agreement.activated_by_choice`, 판정 J-133), R-OP-2 (b) 직접 지시 echo(`direct_instruction`. 지시를 보낸 일은 `human_op/input`으로만 센다), 규칙 활성화(`rule`). 결과 확인과 같은 트랜잭션에서 생기는 반영 범위 합의의 `agreement.confirmed`(판정 J-126)와 조건부 확인의 조건 항목 `obligation.deferred`(판정 J-125)는 그 결과 확인 1건에 포함하고 따로 세지 않는다.
 
 `trivialInput` 판정 [제안]: 사람이 직접 친 자유 문장 필드가 공백 제외 2자 이하이거나, 한글 자모만으로 되어 있거나(`/^[ㄱ-ㅎㅏ-ㅣ\s]+$/`), 같은 문자 반복(`/^(.)\1*$/`)인 경우. dogfood 기록의 `ㅇ`, `ㅁㄴㅇ` 확정이 기준 사례다(canon-2 §6.3). V9의 측정이다.
 
@@ -1737,7 +1745,7 @@ export interface MetricDef {
 **`presence.changed`와 `view.opened` 만드는 규칙** [제안, 19 §5.2의 16 요구에 대한 답]. 프로토콜의 `presence.report`(19 §3.7.8)는 휘발 입력이고, 데몬이 다음 규칙으로 정본에 남긴다.
 
 1. 상태(`state`)가 바뀔 때만 `presence.changed { state, previous }`를 남긴다(09). 같은 상태가 이어지면 남기지 않는다. 기기별로 판정한다. 연결이 끊기면 `offline`.
-2. `screen`이 다음 네 화면 중 하나로 바뀌거나 `depth`가 `audit`로 바뀌면 `view.opened`(measurement)를 남긴다: `SCR-BRIEF`(복귀 요약), `SCR-AUTO`(에이전트가 정한 것), `SCR-REVIEW`(결과 확인), `SCR-QUESTION`(질문 상세), 그리고 어느 화면이든 감사 깊이(`presence.report.depth = "audit"`, 판정 J-84. 21 §3.5.7의 깊이 단계, 인스펙터 원본 탭·`SCR-RECORD`). payload에 `depth`를 싣고(09에 요구), envelope `refs`에 `objectId`를 둔다.
+2. `screen`이 다음 화면 중 하나로 바뀌거나 `depth`가 `audit`로 바뀌면 `view.opened`(measurement)를 남긴다: `SCR-BRIEF`(복귀 요약), `SCR-AUTO`(에이전트가 정한 것), `SCR-REVIEW`(결과 확인), `SCR-QUESTION`(질문 상세), `SCR-EVIDENCE`(근거 체인, 결과 확인 화면에서 연 경우만. §3.23.3의 근거 열림 지표 원천), 그리고 어느 화면이든 감사 깊이(`presence.report.depth = "audit"`, 판정 J-84. 21 §3.5.7의 깊이 단계, 인스펙터 원본 탭·`SCR-RECORD`). payload에 `depth`를 싣고(09에 요구), envelope `refs`에 `objectId`를 둔다.
 3. 이벤트는 그 화면을 떠날 때(다른 `screen`, `active`가 아닌 상태, 연결 끊김) 한 번 남긴다. `occurredAt`은 연 시각이고 `dwellBucket`은 머문 시간 범주(`<10s`, `10-60s`, `1-5m`, `>5m`, 연결 끊김이면 `unknown`)다. 같은 (기기, 화면, 대상)을 60초 안에 다시 열면 앞의 것과 합친다.
 4. 그 밖의 화면 이동은 남기지 않는다(OQ-16-11).
 5. 휴대폰 화면(26)은 데스크톱 대응 화면과 같은 종류로 센다: `SCR-M-BRIEF` → `SCR-BRIEF`, `SCR-M-AUTO` → `SCR-AUTO`, `SCR-M-QUESTION` → `SCR-QUESTION`. `view.opened.view`에는 대응 화면 ID를 넣고, 원래 ID는 `deviceId`의 기기 종류로 구분한다. 휴대폰에는 결과 확인·감사 화면이 없으므로 그 둘은 대응이 없다.
@@ -1757,7 +1765,8 @@ export interface ReturnEpisode {
 |---|---|---|---|---|---|---|
 | `opdc.o.unlinked_m_changes` | 의도·합의에 연결되지 않은 실제 변경 | `count(unlinked_change) + Σ outside_change.writeCalls`(외부 세션은 별도 막대) | `unlinked_change`, `outside_change` | 14d | 목표 0. 1 이상이면 항목 목록 | 평가 화면 O 칸, 홈 경고 띠(0이 아닐 때) |
 | `opdc.o.brief_before_action` | 복귀 요약을 보고 행동한 복귀 비율 | `count(episode.briefUsed ∧ firstValidAction) / count(episode ∧ firstValidAction)` | `return_episode` | 28d | 높을수록. minSample 5 | O 칸 |
-| `opdc.p.plan_deviation_rate` | 예정과 실제 행동의 차이 | `count(plan.deviated) / count(loop.transitioned 중 사람의 직접 지시가 아닌 것)`. 분모는 계획 이탈을 판정할 수 있었던 전환 수다(14 §3.20.5) | `plan_deviation` | 14d | 정보. 차이 자체는 관찰로 기록되는지만 확인 | P 칸 |
+| `opdc.p.plan_deviation_rate` | 예정과 실제 행동의 차이 | `count(plan_deviation) / count(loop.transitioned 중 `trigger`가 `human_directive`가 아닌 것)`. `plan_deviation`은 `loop.transitioned`의 `planDeviation`이 참인 전환이다(§3.22.3, 판정 J-163). 분모는 계획 이탈을 판정할 수 있었던 전환 수다(14 §3.20.4) | `plan_deviation` | 14d | 정보. 차이 자체는 관찰로 기록되는지만 확인 | P 칸 |
+| `opdc.p.plan_objection_rate` | 계획 이의 비율, 작성 주체별 | `count(contest/opened ∧ targetKind = loop_plan ∧ 대상 계획의 authoredBy = a) / count(plan/adopted ∧ authoredBy = a)`. `a`는 `code`·`model`·`human` 가운데 하나다. 칸마다 `minSample`(5) 미만이면 비운다 | `contest`, `plan` | 28d | 정보. `model` 계획의 비율이 `code` 계획의 두 배 이상이면 hybrid 기본값과 `outOfPattern` 판정 기준을 검토한다[제안](판정 J-188, 결정 53) | P 칸(작성 주체별로 나눔) |
 | `opdc.p.prediction_accuracy` | 예측 적중률 | `hit / resolved` | `prediction` | 28d | 높을수록. 모델 평가용(v0.3 08 §6) | P 칸 |
 | `opdc.p.surprise_count` | 자동화 놀람 수 | `count(surprise)` + 결과 확인 직후 1시간 안 이의 수 | `surprise`, `contest` | 14d | 낮을수록. 활동 시간당 함께 표시 | P 칸 |
 | `opdc.d.redirect_turns` | 방향 바꾸기부터 반영까지 턴 수 | `median(directive.applied.turns)` | `directive` | 14d | 목표 1(다음 턴 경계). 1 초과면 검토 신호 | D 칸 |
@@ -1782,9 +1791,10 @@ export interface ReturnEpisode {
 | `ca.unaccepted_close_rate` | 확인 없이 닫힌 작업 | 쓰기가 있었던 WorkUnit 중 결과 확인 없이 Concern이 닫히거나 7일 넘게 "결과 확인 필요"로 남은 비율 | `concern`, `submission`, `result_decision` | 14d | > 10% [제안] | C/A 칸 |
 | `ca.quick_accept_rate` | 짧은 확인 | 결과 확인 중 `viewLatencyMs` < 15초인 비율(기준 3개 이상 제출만) | `result_decision`, `view` | 14d | 정보. 높으면 확인 화면이 형식이 되었는지 검토 | C/A 칸 |
 | `ca.unchecked_acceptance_rate` | 확인하지 못한 기준이 있는데 그대로 확인 | `acceptance.recorded(accepted)` 중 결과 제출에 `unverified_no_evidence` 기준이 1개 이상 있거나, 취향형 기준 판정 칸이 비어 "모르겠음"으로 남은 것의 비율. 조건부 확인(`conditional`)은 세지 않는다. 추천 버튼이 없는 결과 확인도 이 지표로 잡는다(`q.approval_theater`는 질문만 본다) | `result_decision`, `submission` | 14d | > 0.2면 결과 확인 화면 검토(04 §3.12 주 버튼 규칙) | C/A 칸 |
+| `ca.evidence_unopened_accept_rate` | 근거를 열지 않고 확인한 비율 | `count(acceptance.recorded(accepted) ∧ ¬evidenceOpened) / count(acceptance.recorded(accepted))`. `evidenceOpened`는 그 결과의 제출(`result.submitted`)부터 확인 전까지 `view.opened`(`view = SCR-EVIDENCE`, 결과의 Concern을 `refs`로 가짐)가 한 번이라도 있었는가 | `result_decision`, `view` | 14d | > 0.5면 결과 확인 화면에서 근거 열기 위치를 검토한다[제안] | C/A 칸 |
 | `ca.emergency_share` | 비상 합의 비율 | `agreement.kind = emergency / confirmed` | `agreement` | 28d | 정보 | C/A 칸 |
 
-이 표가 "2주 우회율"이다. 다섯 원지표(CA-1~CA-5)는 대화 L2161–2168의 목록 그대로이며, CA-6·CA-7은 01이 더했고, 나머지 셋은 이 문서가 더했다. 우회는 커널이 막는 경로(합의 없는 쓰기, 사람 없는 결과 확인)에서는 생길 수 없다. 그래서 이 지표는 (1) 합의 초안을 취소하는 것, (2) Helm 밖에서 같은 일을 하는 것(외부 세션, 직접 편집), (3) 결과 확인을 미루거나 형식적으로 하는 것을 잰다.
+이 표가 "2주 우회율"이다. 다섯 원지표(CA-1~CA-5)는 대화 L2161–2168의 목록 그대로이며, CA-6·CA-7은 01이 더했고, 나머지는 이 문서가 더했다. 결과 확인 전용 우회 지표는 확인까지 시간(`ca.time_to_acceptance`), 근거 열지 않음(`ca.evidence_unopened_accept_rate`), 확인 못함 포함 확인(`ca.unchecked_acceptance_rate`) 셋이다(04 §4의 16 요구). 우회는 커널이 막는 경로(합의 없는 쓰기, 사람 없는 결과 확인)에서는 생길 수 없다. 그래서 이 지표는 (1) 합의 초안을 취소하는 것, (2) Helm 밖에서 같은 일을 하는 것(외부 세션, 직접 편집), (3) 결과 확인을 미루거나 형식적으로 하는 것을 잰다.
 
 `unlinked_work`의 두 원천:
 
@@ -1841,8 +1851,8 @@ export interface ReturnEpisode {
 | `inq.counter_changed_choice` | 반대 근거가 추천이나 선택을 바꾼 수 | `inquiry`, `choice` 인과 | H3, 다음 Evidence 3 |
 | `inq.lens_adoption_rate` | 렌즈별 `lens_adopted / 렌즈 적용 수`. `lens_adopted`는 15 §3.9.5 채택 판정 표의 `outcome = adopted`인 적용이다. 16이 따로 판정하지 않는다 | `inquiry` | V6 |
 | `out.claim_rejection_rate` | `revision_requested ∨ rejected` / 결과 확인 결정 | `result_decision` | H2 |
-| `out.accept_without_rework` | 결과 확인 후 14일 안에 같은 대상의 수정 요청·재개방·재작업 WorkUnit이 없는 비율 | `result_decision`, `concern` | H2, H8 |
-| `out.post_accept_rework_ms` | 결과 확인 후 재작업 WorkUnit의 활동 시간 합 | `concern`, `presence` | H2, H8, 대리 지표(대화 L1764) |
+| `out.accept_without_rework` | 결과 확인 후 14일 안에 같은 대상이 이의로 다시 열리지(`concern.reopened`) 않고 이의로 생긴 재작업 WorkUnit(`reworkOf`)도 생기지 않은 비율. 결과 확인 전의 수정 요청(같은 WorkUnit이 `in_progress`로 돌아감)은 `out.claim_rejection_rate`가 잰다(판정 J-180) | `result_decision`, `concern`, `contest` | H2, H8 |
+| `out.post_accept_rework_ms` | 결과 확인 후 이의로 생긴 재작업 WorkUnit(`reworkOf`)의 활동 시간 합. 같은 WorkUnit 안의 수정 요청 뒤 시간은 넣지 않는다(판정 J-180) | `concern`, `presence` | H2, H8, 대리 지표(대화 L1764) |
 | `out.defects_between_claim_and_accept` | 수정 요청 사유 수 + "확인 못함" 기준 수 | `result_decision`, `submission` | 01 SC-3 |
 | `int.time_accept_to_integrated` | 결과 확인부터 반영 완료까지 중앙값 | `integration_item` | H10 |
 | `int.unowned_obligations` | 주인 없는 반영 항목 수 | `integration_item` | H10 |
@@ -1872,6 +1882,7 @@ export interface ReturnEpisode {
 | `draft.from_scratch_inputs` | 초안 없이 빈칸을 처음부터 쓴 입력 수 | V9, 01 G1-4 |
 | `draft.trivial_confirmations` | `trivialInput` 확정 수 | V9 |
 | `draft.unedited_then_contested` | 고치지 않고 확정한 항목 중 28일 안 이의·재작업된 비율 | V9 반증 |
+| `draft.preview_misclassified_rate` | 의미 미리보기 분류 오류. 원천은 `run.message_recorded`의 `previewAs`(미리보기가 낸 해석 종류)와 `chosenAs`(사람이 고른 종류, "그냥 메시지로"는 `chat`)다(§5.2의 09 행). 계산은 `previewId`가 있는 입력 가운데 두 값이 다른 것의 비율이다 | V9 |
 | `want.rounds_per_concern` | 원함 탐구 라운드 수 | V1 |
 | `want.reactions_per_round` | 라운드당 반응 수 | V1, 피로 |
 | `want.reasonless_ratio` | 이유 없는 반응 비율 | V1 |
@@ -1964,6 +1975,21 @@ E0(15 §3.15.2)의 결과는 평가 하네스(`just eval-inquiry`)가 과제마�
 | `push.failure_rate` | `outcome ∈ {gone, rejected, failed}` / 전체 `push.sent` | `push` |
 | `device.phone_repairs_30d` | 30일 창에서 `repair = true`인 휴대폰 `device.paired` 수. 1을 넘으면 26 §3.1.5 2번 조건 | `device` |
 
+#### 3.23.14 결과 확인 알림 ([결정 56], 판정 J-189)
+
+결과 확인 알림은 설정 `notifications.resultReview`(`none`·`daily_digest`·`immediate`, 기본 `none`)로 고른다. 기본 `none`은 알림 없이 복귀 요약에서 확인하는 경우이므로 나머지 값을 재는 비교 기준선이다. 묶음 발송(`daily_digest`)은 설정 시각(`notifications.resultReviewDigestAt`, 기본 19:00, 서버 시간대)에 타이머 목적 `result_review_digest`로 돌며, 확인 대기 결과가 하나 이상이면 묶음 푸시 1개(강도 `notice`)를 보낸다. 즉시 발송(`immediate`)은 결과 확인 질문이 생길 때마다 강도 `notice`로 보낸다. 두 경우 모두 방해 금지(판정 J-166)와 시간당 상한(판정 J-171)을 따르고, 휴대폰 확인 범위는 판정 J-139를 그대로 따른다.
+
+| ID | 계산식 | 원천 |
+|---|---|---|
+| `notif.review_setting` | 설정 값별 활성 일수와 값 변경 횟수 | `setting.changed`(09, 키 `notifications.resultReview`, 판정 J-94) |
+| `notif.review_sent` | 설정 값별 결과 확인 알림 푸시 수. 묶음과 즉시는 송신 지시의 `cause`로 나눈다(§5.2의 26 행) | `push/sent` |
+| `notif.review_digest_size` | 묶음 푸시 하나가 담은 결과 확인 질문 수의 중앙값 | `push/sent` |
+| `notif.review_time_to_accept_ms` | 결과 확인 알림 송신부터 그 질문의 `acceptance.recorded`까지 중앙값, 설정 값별. 휴대폰에서는 산출물을 연 뒤의 확인까지가 잡힌다(판정 J-139). `none`의 값은 `ca.time_to_acceptance`와 나란히 본다 | `push/sent`, `result_decision` |
+| `notif.review_unseen_rate` | 결과 확인 알림 가운데 송신 뒤 24시간 안에 `SCR-REVIEW` 열람(`view.opened`)과 결과 확인 형식 질문(`SCR-QUESTION`) 열람이 모두 없는 비율 | `push/sent`, `view.opened` |
+| `notif.review_deferred` | 방해 금지나 시간당 상한 때문에 다음 경계나 묶음으로 미뤄진 결과 확인 알림 수, 사유별 | `question/delivery_planned`(§5.2의 11 행) |
+
+이 지표는 알림 값을 정하지 않는다. 설정 값을 바꾸라는 제안도 만들지 않는다(OB-7). 설정은 사람이 `settings.update`(19)로 바꾸고, 변경은 `setting.changed`(09)로 남는다. 설정 값의 `notif.review_sent`가 0이면 그 값의 나머지 지표는 표본 부족으로 비운다(`minSample` 3).
+
 ### 3.24 저장 위치와 화면 표시 요구
 
 #### 3.24.1 지표 투영 테이블
@@ -1980,7 +2006,7 @@ DDL의 정본은 09 §3.7(마이그레이션 0001, `STRICT`)이다. 테이블은
 
 실험 측정 이벤트(`view.opened`, `surprise.reported`, `resumption_check.*`, `self_report.recorded`, `experiment.condition_set`, `observer_report.recorded`)는 09의 범주 `measurement`다(09 §3.4.14). 도메인 상태를 바꾸지 않고, 커널은 이 범주를 읽지 않는다. 내보내기에는 포함한다.
 
-외부 세션 로그의 읽기 위치(커서)는 관찰 캐시(§3.20)에 둔다. 09 §3.7의 `source_cursors` 테이블은 관찰 프로세스가 정본 DB에 쓸 수 없으므로 쓰지 않는다(남은 충돌 C-6).
+외부 세션 로그의 읽기 위치(커서)는 관찰 캐시(§3.20)에 둔다. 정본 DB에는 커서 테이블을 두지 않는다(판정 J-77, 09 §3.7에서 `source_cursors`를 뺐다).
 
 복귀 점검의 기대 답(정답 키)은 이벤트에 넣지 않는다. `/srv/volumes/helm/private/resumption-checks/<checkId>.json`(권한 600)에 두고 이벤트에는 `sha256` 해시만 둔다(canon-2 §2.1.6, §6.2의 결함과 수정, 교훈 L9). 경로와 권한은 18·17이 확정한다.
 
@@ -2481,23 +2507,25 @@ export interface ResumptionCheckScored {
 |---|---|
 | 01 | (1) §3.10.2의 가설 문장을 16 §3.25 소제목과 같게 둔다(H3·H4·H5·H7·H9, 특히 H5). (2) §3.5.2·AC의 사람 조작 필드 이름을 16 사실 이름 `normalPath`·`opReason`으로(판정 J-76). `onNormalPath`와 열거형 `extraReason`을 쓰지 않는다. (3) 원전 초기 성공 기준 4번(컨텍스트 투영)을 SC-7로 둘지, H7 지표로 대신한다는 이유를 §3.10.3에 적을지 정한다(16 §3.28에 측정 행이 있다) |
 | 02 | AC-01-13·AC-07-09의 검사 필드를 `normalPath`로. 재작업은 11 §3.10.3의 재작업 WorkUnit 방식이며 그 조작은 `opReason = correction_cycle`로 센다 |
-| 04 | 부록의 자동화 역설 MUST 5 행이 "16의 측정"으로 `a12.hard_moment_load`(§3.23.8)를 가리키게 한다 |
+| 04 | (1) 부록의 자동화 역설 MUST 5 행이 "16의 측정"으로 `a12.hard_moment_load`(§3.23.8)를 가리키게 한다. (2) 결과 확인 화면에서 근거 체인을 열면 `SCR-EVIDENCE`를 화면으로 보고한다(§3.23.1, §3.23.3 `ca.evidence_unopened_accept_rate`). (3) 설정 화면에 `notifications.resultReview`의 세 값과 기본 `none`을 둔다(§3.23.14) |
 | 05 | 부록 안티패턴 "독립성 극대화 → 16 지표"가 `ad.autonomy_widened_unsupported`(§3.23.5)를 가리키게 한다 |
 | 06 | `@helm/domain/src/metrics/view.ts`(뷰 데이터 타입)와 `@helm/observer/ipc`(순수, `typebox`·`domain`만 import, 감독기가 import)를 패키지 표에 둔다 |
-| 08 | (1) 접두사 `or`는 반영됨(J-113). (2) Objection `reasonKind`는 반영됨(08 §3.4 값 여섯). 16은 그 값을 그대로 쓴다(§3.23.7, §3.25 H3·H9). (3) 재작업 경로 전이(결과 제출 뒤 재작업 WorkUnit, 11 방식)와 합의 승계를 완성한다 |
-| 09 | (1) `@helm/store/read`에 `readTrace({ afterId, kinds, limit })`와 소비자 커서 `consumer_cursors.metrics_trace`. (2) `view.opened` payload에 `depth`(`glance`·`review`·`audit`, 판정 J-84) |
+| 08 | (1) 접두사 `or`는 반영됨(J-113). (2) Objection `reasonKind`는 반영됨(08 §3.4 값 여섯). 16은 그 값을 그대로 쓴다(§3.23.7, §3.25 H3·H9). (3) 재작업 경로 전이(결과 제출 뒤 재작업 WorkUnit, 11 방식)와 합의 승계를 완성한다. (4) `LoopPlanCore`에 작성 주체 `authoredBy`(`code`·`model`·`human`, 판정 J-188 (5))를 둔다. 16의 계획 이의 비율(§3.23.2)이 쓴다 |
+| 09 | (1) `@helm/store/read`에 `readTrace({ afterId, kinds, limit })`와 소비자 커서 `consumer_cursors.metrics_trace`. (2) `view.opened` payload에 `depth`(`glance`·`review`·`audit`, 판정 J-84). (3) `run.message_recorded`가 `previewId`, `previewAs`(미리보기가 낸 해석 종류), `chosenAs`(사람이 고른 종류, "그냥 메시지로"는 `chat`)를 싣는다(§3.23.8). `previewAs`와 `chosenAs`는 새 필드 이름이다 |
 | 10 | measurement 명령과 `observer.report.submit`의 `form`별 이벤트(§3.4.2)는 반영됨. 사람 명령 payload 마스킹 지점(J-147)을 10 접수 단계 표에 적는다 |
+| 11 | 결과 확인 질문의 전달 계획(`delivery.planned`)에 방해 금지·시간당 상한으로 미뤄진 사유를 싣는다(§3.23.14 `notif.review_deferred`, 판정 J-166·J-171). 설정 `notifications.resultReview`를 질문 전달 규칙에 넣는다(판정 J-189) |
 | 12 | (1) 관찰 실행 규칙의 정본은 16이다. 모델 출력 스키마 실패 재요청은 1회(12 §3.14의 2회를 맞춤), 실행 중 같은 종류 트리거는 대기열에서 합친다(12 E-38의 "건너뜀"을 맞춤). (2) `recover()`에 "이전 epoch의 짝 없는 `observer_run.started`를 `observer.report.submit { form: run_failed, code: interrupted }`로 닫음"(§4.1). `observer_run.record` 명령 이름은 쓰지 않는다. (3) trace `model.responded.responseModel`을 공급자가 돌려준 모델 ID로 항상 채운다(지표의 `modelId`, §3.22.3) |
 | 13 | (1) 모든 runtime 이벤트의 envelope `provenance.adapterId`를 채운다(지표의 런타임별 분해, §3.22.3). (2) 어댑터 감사 항목 중 어댑터 없는 런타임용 CLI 제출 경로와 git hook·CI 최종 방어를 §3.11.6에 넣거나 넣지 않는 이유를 적는다 |
-| 14 | 지표 ID와 의무 ID 형식(J-149)을 §3.5.5에 맞춘다. 16 지표 ID는 `opdc.<기준>.<이름>`, 14 의무 ID는 `opdc:<기준>.<이름>` |
+| 14 | 지표 ID와 의무 ID 형식(J-149)을 §3.5.5에 맞춘다. 16 지표 ID는 `opdc.<기준>.<이름>`, 14 의무 ID는 `opdc:<기준>.<이름>`. (2) 계획 작성 주체 `authoredBy`와 계획 표시 `outOfPattern`을 `loop_plan.adopted`의 계획에 싣는다(판정 J-188). (3) `plan.deviated`는 만들지 않는다. 이탈은 `loop.transitioned`의 `planDeviation`·`skipped`에서 계산한다(§3.20.4, 판정 J-163) |
 | 17 | (1) 자식 프로세스 원장에 관찰 자식(fork 모드 포함)의 pid·시작 시각을 남기고 시작 단계에서 정리한다. (2) 격리 실행의 `InaccessiblePaths`에 `/srv/volumes/helm/private`를 넣는다(§3.2.1) |
 | 18 | §3.12 규칙 5("복귀 점검 기대 답이 관찰 자식에게 보이지 않는다")에 "fork 모드는 코드 규칙(파일 열기 감싸개)과 시험 OB-T32, 격리 모드는 `InaccessiblePaths`"를 적는다 |
-| 19 | `presence.report.depth`를 데몬이 `view.opened.depth`로 옮기는 규칙(§3.23.1)을 적는다. `metrics` 뷰 데이터 타입은 `@helm/domain`에서 가져온다 |
+| 19 | `presence.report.depth`를 데몬이 `view.opened.depth`로 옮기는 규칙(§3.23.1)을 적는다. `metrics` 뷰 데이터 타입은 `@helm/domain`에서 가져온다. (2) `presence.report.screen`이 `SCR-EVIDENCE`(결과 확인 화면에서 연 근거 체인)를 받는다(§3.23.1, §3.23.3) |
 | 20 | 인스펙터 원본 탭·`SCR-RECORD`를 열 때 `presence.report.depth = "audit"`를 보낸다(J-84) |
 | 21 | `ObserverProposalCard`의 기각 사유를 04 §3.18 선택지로 맞춘다 |
 | 22 | OB-T01~OB-T33과 합성 픽스처. AC 추적표의 사람 조작 필드는 `normalPath` |
 | 23 | 지표 소비자 위치를 06 §3.4대로 `packages/runtime/src/consumers/metrics.ts`로 고친다(M14-05와 §5의 16 행. 16은 06을 따른다). 관문 기록 Concern 생성(M15-08)과 T6 기준일(M15-09)은 16 §3.27.6·§3.3에 반영했다 |
 | 25 | 지표 ID 형식(§3.23 머리, J-149)과 "복귀 점검" 채점 말(일치·부분 일치·불일치)을 용어집에 적는다 |
+| 26 | 결과 확인 알림 지시(송신 지시)의 `cause`로 묶음과 즉시를 구분한다. 묶음 발송은 타이머 목적 `result_review_digest`로 돈다(판정 J-189 (2)). 16이 `push.sent`와 연결해 읽을 수 있어야 한다(§3.23.14). 이 `cause` 값 이름은 26이 정한다 |
 
 ### 5.3 다른 문서의 요구와 처리 위치
 
@@ -2511,15 +2539,15 @@ export interface ResumptionCheckScored {
 | 11 §5.2 | §3.19 지표, `autonomyStats`, `matchesAssumption`·`matchesRecommendation` | §3.23.4·§3.23.5, §3.22.3. `autonomyStats`는 D10이 같은 값을 지표 사실로 계산하므로 쓰지 않는다 |
 | 12 §5.2 | 캐시 효율·재시도·복구 지표를 실행 기록에서 읽는 방법 | §3.23.12 |
 | 13 §5.1 | `adapterSessionRef`, 경로 정책 거부·변경 감지·마스킹 기록 | §3.6.6, §3.22.3(`scope_block`, `unlinked_change`), §3.8 |
-| 14 §5.2 | `plan.deviated` 생성 시점과 정도, `PolicyPatch.target`, C/A 지표 원천, 관찰 제안에서 온 진입 | §3.22.3, §3.15.1, §3.22.3 끝, §3.15.3(entryPath `observer`) |
+| 14 §5.2 | `plan.deviated` 생성 시점과 정도(판정 J-163으로 이벤트를 만들지 않고 `loop.transitioned`에서 계산), `PolicyPatch.target`, C/A 지표 원천, 관찰 제안에서 온 진입 | §3.22.3(`plan_deviation` 계산), §3.15.1, §3.22.3 끝, §3.15.3(entryPath `observer`), §3.23.2 |
 | 15 §5.2 | 지속 지표, H-I1~H-I4·H-R1, 정정 신호, 렌즈·범주 제안, E0 결과 수집 | §3.23.11, §3.26.3, §3.10.1, §3.12.1(`lens`, `divergence_category`), §3.23.11 |
 | 17 §5.2 | IPC 전송 독립, 격리 실패 시 fork로 돌아가지 않음 | §3.2.1, §3.2.3 |
 | 18 §5.2 | 마스킹 규칙 표 공유, 관찰 자식 격리 IPC | §3.8.2, §3.8.4, §3.2.1 |
 | 19 §5.2 | `metrics`·`evaluation` 뷰 타입, 측정 명령 payload, `presence.report`에서 `view.opened` 만드는 규칙 | §3.24.3, §3.23.1 |
 | 21 §5.2 | `MetricTile` 입력 형식, 감사 깊이 수집 | §3.24.3, §3.23.1 |
-| 04 §5.2 | 관찰 제안 데이터, 효과 측정 값, 복귀 요약 정정과 결과 확인 행동 집계 | §3.15, §3.17, §3.23.1(`briefCorrections`), §3.23.3(`ca.quick_accept_rate`) |
-| 05 §5.2 | `autonomous.seen`을 이의율 분모로, 우회 측정 단위를 C/A 주기로 | §3.22.3(`autonomous_choice/seen`), §3.23.5 열람 보정값, CA-6 단위는 변경 WorkUnit(= C/A 주기 하나) |
-| 03 §5.2 | `SCR-METRICS` 데이터, `view.opened` 다섯 화면 | §3.24.2, §3.24.3, §3.23.1 |
+| 04 §5.2 | 관찰 제안 데이터, 효과 측정 값, 복귀 요약 정정과 결과 확인 행동 집계, 결과 확인 중 근거 열기 | §3.15, §3.17, §3.23.1(`briefCorrections`, `SCR-EVIDENCE`), §3.23.3(`ca.quick_accept_rate`, `ca.evidence_unopened_accept_rate`) |
+| 05 §5.2 | `autonomous.seen`을 이의율 분모로, 우회 측정 단위를 C/A 주기로, 의미 미리보기 분류 오류 | §3.22.3(`autonomous_choice/seen`), §3.23.5 열람 보정값, CA-6 단위는 변경 WorkUnit(= C/A 주기 하나), §3.23.8(`draft.preview_misclassified_rate`) |
+| 03 §5.2 | `SCR-METRICS` 데이터, `view.opened` 대상 화면 목록(§3.23.1 2번, 근거 체인 포함) | §3.24.2, §3.24.3, §3.23.1 |
 | 01·02 | 지표 계산·G1 기록·V1 비교·관찰 단계 | §3.23, §3.27.6, §3.26.1, 판정 J-07 |
 
 ### 5.4 남은 충돌과 추천 판정
@@ -2600,11 +2628,15 @@ packages/observer/
 | OB-T26 | 재구성 | `metric_fact`를 지우고 재구성하면 같은 행이 나온다. 관찰 캐시를 지우고 `scan`하면 남아 있는 로그 범위의 트레이스가 같다 |
 | OB-T27 | 적합성 | 각 외부 어댑터는 픽스처 묶음 적합성 테스트를 통과해야 설정에서 켤 수 있다(Codex는 픽스처가 생길 때까지 꺼짐 상태 테스트만) |
 | OB-T28 | 전송 | 같은 메시지 열을 `nodeIpcTransport`와 `stdioJsonLinesTransport`로 주고받아 같은 결과가 나온다. 격리 실행이 켜졌는데 `systemd-run`이 실패하면 fork로 띄우지 않고 `observer_run.failed`가 남는다 |
-| OB-T29 | 열람 기록 | `presence.report` 열(화면 이동, 60초 안 재열기, 연결 끊김, `depth: "audit"`)에서 §3.23.1 규칙대로 `view.opened`와 `presence.changed`가 만들어진다. 다섯 화면 밖 이동은 기록되지 않는다 |
+| OB-T29 | 열람 기록 | `presence.report` 열(화면 이동, 60초 안 재열기, 연결 끊김, `depth: "audit"`)에서 §3.23.1 규칙대로 `view.opened`와 `presence.changed`가 만들어진다. 목록에 없는 화면 이동은 기록되지 않는다 |
 | OB-T30 | 서명 | 경로·숫자·비밀만 다른 두 명령 템플릿의 서명이 같다. 서명이 `^sha256:[0-9a-f]{64}$`(08 `Sha256`)에 맞는다. 규칙 버전 `v`가 다르면 기각 기억이 적용되지 않는다 |
 | OB-T31 | 지표 소비자 | 소비자를 이벤트 중간에서 멈췄다가 다시 띄우면 `consumer_cursors.metrics`부터 이어 같은 `metric_fact`가 나온다. 쓰기 트랜잭션 시간이 소비자 유무와 관계없다(09 성능 시험) |
 | OB-T32 | 비공개 경로 | fork 모드 관찰 프로세스가 `/srv/volumes/helm/private/`·`.helm/private/` 아래 파일을 열려 하면 파일 감싸개가 거부하고 실행 보고에 남는다. 격리 모드에서는 OS가 막는다 |
 | OB-T33 | IPC 스키마 | §3.2.3의 모든 메시지가 스키마 검사를 통과하고, 모양이 틀린 메시지는 `ipc.invalid_message`로 끝난다. 결과·오류 갈래 표의 모든 행에 대해 관찰 프로세스가 표에 적힌 대응을 한다 |
+| OB-T34 | 계획 이탈 계산 | `plan.deviated` 이벤트가 없어도 `loop.transitioned`의 `planDeviation`·`skipped`에서 `plan_deviation`이 같은 정도(low·medium·high)로 나온다. `trigger = human_directive`인 전환은 세지 않는다(판정 J-163) |
+| OB-T35 | 계획 이의 비율 | `loop_plan.adopted`의 `authoredBy`(code·model·human)마다 `opdc.p.plan_objection_rate` 칸이 따로 나오고, 칸의 표본이 5 미만이면 비어 있다(결정 53, 판정 J-188) |
+| OB-T36 | 근거 열림 | 결과 확인 화면에서 `SCR-EVIDENCE`를 연 결과는 `evidenceOpened = true`이고, 열지 않고 받아들인 결과만 `ca.evidence_unopened_accept_rate`에 든다. 결과 확인 화면 밖의 근거 열기는 `view.opened`에 남지 않는다(§3.23.1 규칙 2) |
+| OB-T37 | 결과 확인 알림 | `notifications.resultReview`의 세 값마다 `notif.review_sent`가 따로 나오고, 묶음 발송은 `result_review_digest` 목적 타이머에서만 나온다. 기본 `none`이면 알림 지표가 0이다(결정 56, 판정 J-189) |
 
 `just verify`(06 §3.16)에 OB-T01~OB-T33을 포함한다. 실제 홈 디렉터리의 세션 로그를 테스트에 쓰지 않는다. 픽스처는 합성 문장으로만 만든다.
 
@@ -2622,7 +2654,7 @@ packages/observer/
 | OQ-16-08 | 정정 어휘 목록의 관리 | (a) 코드 상수 (b) 사람이 고치는 데이터 | (b) 설정 데이터. 관찰 에이전트는 이 목록 수정을 제안하지 않음 |
 | OQ-16-09 | Codex 어댑터 | (a) 형식 지식으로 지금 구현 (b) 실제 파일 확인 뒤 구현 | (b). 인터페이스와 이름표만 지금 둔다 |
 | OQ-16-10 | 자기보고 부담 척도의 라이선스 | NASA-TLX 차원 이름만 쓰기 / 자체 문항 | 차원 이름과 한 줄 설명만 쓰는 자체 문항. 18 또는 사용자가 라이선스 확인 |
-| OQ-16-11 | `view.opened` 수집 범위 | 최소(복귀 요약, 에이전트가 정한 것, 감사 깊이, 결과 확인, 질문 상세) / 전체 화면 이동 | 최소. 화면 이동 전체는 수집하지 않는다(지표에 필요한 것만) |
+| OQ-16-11 | `view.opened` 수집 범위 | 최소(복귀 요약, 에이전트가 정한 것, 감사 깊이, 결과 확인, 질문 상세, 결과 확인에서 연 근거) / 전체 화면 이동 | 최소. 화면 이동 전체는 수집하지 않는다(지표에 필요한 것만) |
 | OQ-16-12 | 고아 이의 처리 | - | 해소: 10 G-K4~G-K6(종료를 막거나 `objection.resolved(withdrawn)` 파생) |
 | OQ-16-13 | 다른 기기 세션(입력 단계 I3) | Mac 수집기 / 동기화 폴더 / 하지 않음 | 하지 않음(I1 실사용 뒤 판단). 원문 로그를 서버로 옮기는 방식은 쓰지 않는다 |
 | OQ-16-14 | 2주 평가 주기와 시각 | 14일, 09:00 | 그대로. 01 G1과 같은 주기 |
