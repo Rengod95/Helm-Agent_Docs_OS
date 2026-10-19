@@ -328,3 +328,39 @@
 | J-238 | 결과 확인 즉시 푸시의 cause 값 | `result_review_immediate`, 묶음은 `result_review_digest`(J-189 타이머 목적과 같은 이름). 11 §3.5.3 notify 지시에 `cause` 필드를 더하고 25에 등록한다 | 11, 26, 25 |
 | J-239 | 판정 범위 머리말 | 각 문서 머리말의 판정 범위는 "J-01~J-240"로 맞춘다(J-190 이후 반영분 포함) | 모든 문서 |
 | J-240 | 수용 | 13 §3.3.6과 17 §3.16 이중 참조, 24의 J-207 반영, 03의 상태 라벨 "거절됨(해결 안 됨)", 05의 파생 문구 키는 그대로 둔다 | 변경 없음 |
+| J-241 | 쿠키가 serve를 통과하지 못할 때의 대체 방식(V2-15) | 18 §3.4.4가 정본이다. `helm-bearer.` 하위 프로토콜 대체안은 쓰지 않는다. 26·23은 대체안을 지우고, SP-15 스파이크가 실패하면 사용자 결정으로 올린다고 적는다 | 26, 23, 18 |
+| J-242 | 푸시 원문 테이블 이름(V2-01) | `push_tokens`(09 DDL)가 정본이다. `device_push`는 쓰지 않는다 | 06, 09, 10, 11, 19, 24, 26 |
+| J-243 | 08 §4가 쓰는 미등록 거부 코드(V2-20, ERR-01~ERR-11) | 10 §3.4.4에 그대로 등록한다(J-219). 의미가 겹치는 `runtime.duplicate_tool_call_id`는 `conflict.duplicate_id`로 바꾼다 | 10, 08, 12, 19 |
+| J-244 | 09에 없는 이벤트 이름(V2-19) | 16·06·23은 `objection.filed`, `objection.resolved`, `choice.committed`, `acceptance.recorded`로, 02는 `agreement.released`·`agreement.declined`로, 10의 `downgraded.interpretation_to_assumption`은 `assumption.recorded`(origin 값)로 바꾼다. 08 E-03의 결과 코드는 `downgraded.assumption`을 유지한다 | 16, 06, 23, 02, 10, 08 |
+| J-245 | `HumanTouchpointKind`와 `inquiry.evidence_range`(V2-11, V2-21) | 정본 이름을 쓴다(`HumanTouchpointKind`는 14 §3.5.3, 다이얼 키는 08). 14는 `TouchpointKind`를 `HumanTouchpointKind`로, 11은 `inquiry.source_range`를 `inquiry.evidence_range`로 바꾼다 | 14, 11, 25 |
+| J-246 | 정본 소유(V2-16, V2-18, V2-23) | 승인 만료 복원은 09 §3.14.2, 복구 선택지와 run 수준 "그대로 두기"는 12 §3.7.4, 푸시 대체 문구는 26이 정본이다. 다른 문서는 인용한다. 만료된 승인 대기 호출의 부팅 정리 사유는 `approval_expired`다(J-193) | 09, 12, 17, 19, 04, 02 |
+| J-247 | `helmd.owner.json`의 용도(V2-06) | 소유 판정(누가 서버를 쥐는가)에는 쓰지 않고, 부팅 기록은 크래시 루프 계산에만 쓴다. 09 §3.6.1의 문장을 이렇게 고치고 17은 인용한다 | 09, 17 |
+| J-248 | `notifications.hourlyCap` | J-171에 따라 없앴다. 시간당 상한은 `attention.interruptsPerHour`다. 남은 인용(04, 05, 11, 20, 26)은 이 키로 바꾼다 | 04, 05, 11, 20, 26 |
+| J-249 | `dial.set` 이름 | 이벤트(09)와 명령·메서드(10·19)는 이름 공간이 다르다(09 §3.3.7). 같은 문자열이어도 바꾸지 않고 25에 이 규칙을 적는다 | 25 |
+| J-250 | `runtime.thread_busy` | 10의 접두사 규칙에 맞춰 `conflict.thread_busy`로 한다 | 10, 12 |
+| J-251 | `KernelContext`·`EventDraft`의 정본(V2-04) | 09 §3.16.1이 정본이다. `KernelContext`는 06의 `attention`, 09의 `presence`·`rules.version`, 10 §3.1.3의 별도 필드를 합친 한 정의로 09에 둔다. 06·10은 인용하고 필드를 다시 정의하지 않는다. `EventDraft`도 09 한 벌이다 | 09, 06, 10 |
+| J-252 | 티켓·파일 응답의 캐시 헤더 | 18 §3.4.6이 정본(`no-store`)이다. 19 §3.11.2와 26 §3.3.2는 18을 인용한다 | 19, 26 |
+| J-253 | `HumanTouchpointKind`의 정본(J-245 정정) | 정의는 14 §3.5.3이다(`QuestionKind`의 부분집합). 11·25·14가 이 이름을 쓰며 08에는 정의를 두지 않는다. J-245의 "08 정본"은 이 뜻으로 읽는다 | 없음(이미 일치) |
+| J-254 | 푸시 구독 표시 조각 | 해시 앞 8자(`tokenHint`, 26 §3.4.6)가 정본이다. 26 MOB-D06과 24 ADR-26-06의 "끝자리"는 "앞 8자"로 고친다 | 26, 24 |
+| J-255 | `KernelContext.presence`(J-251 보완) | `presence`는 `KernelContext`의 읽기 전용 스냅숏 필드다(09 §3.16.1). 원본은 커널 상태의 presence 항목이고, ctx 값은 명령 처리 시작 시점의 사본이다. 06 §3.4.4와 10 §3.1.3·부록의 "presence 제외" 문장은 이에 맞춘다 | 06, 10 |
+| J-256 | `ctx.presence`와 커널 상태 `presence`의 형태 | 커널 상태는 기기 ID로 찾는 맵(10 §3.5)이고, `ctx.presence`는 명령 처리 시작 시점에 그 맵에서 만든 `PresenceView` 배열(09 §3.16.1)이다. 두 형태는 달라도 되며 09 §3.16.1이 변환 규칙을 한 문장으로 적는다 | 09, 10 |
+| J-257 | `COMMAND_SPECS`의 위치 | 스키마 상수는 `packages/domain/src/commands/`에 둔다(`CommandType`·`CommandPayload`는 여기서 파생). kernel은 import하고 protocol은 재내보낸다. 10 §3.11.11, 22 §3.8.1, 23 M10-02가 이 위치를 쓴다 | 10, 22, 23, 06 |
+| J-258 | `criterion` 질문의 답 모양 | 11 §3.2.3의 `AnswerValue`(`{option:'confirm_items', items:[{key, decision, edits?, weight?}]}`)가 정본이다. 무게는 `weight?`로 항목에 싣는다. 15 §3.6.7과 19 §3.7.5의 `{option:"answer", value:[…]}`는 이 모양으로 바꾼다 | 11, 15, 19, 10 |
+| J-259 | `criterion_confirm`의 거부 | 항목의 `reject`는 그 항목만 거부한다(사유 선택). 답 전체 거부는 스키마·정책 위반(`invalid.*`, `policy.*`)일 때만이다. 10 §3.11.9의 두 문장은 이 뜻으로 쓴다 | 10 |
+| J-260 | 푸시 표시 값 이름 | 08 `PushRegistration.tokenHint`(해시 앞 8자)가 레코드 필드다. 19 `DeviceInfo.push.fingerprint`는 프로토콜에서 같은 값을 나르는 필드이며 19가 이 대응을 한 줄로 적는다 | 19 |
+| J-261 | M10-02의 분할 | 23 M10-02를 M10-02a(`packages/domain` 명령 스키마)와 M10-02b(`packages/protocol` 메서드 스키마)로 나눈다. 각각 등급 B다 | 23 |
+| J-262 | `weight?`의 적용 범위 | 무게는 `decision`이 confirm인 항목에만 싣는다(10 §3.11.9). 11 §3.2.3, 04 §3.4, 15 §3.6.7, 19 §3.7.5는 이 범위로 쓴다 | 04, 11 |
+| J-263 | 명령 스키마의 작성 시점 | `packages/domain/src/commands/`의 명령별 스키마는 그 명령을 구현하는 마일스톤(M3 커널 등)이 쓴다. M10-02a는 레지스트리 조립과 누락 검사(모든 `CommandType`에 스키마가 있는지)를 맡는다. M3-02의 선행은 바꾸지 않는다. `edits?`도 `weight?`처럼 decision이 confirm인 항목에만 싣는다(10 §3.11.9) | 23, 15, 11, 04, 19 |
+| J-264 | 결정 61과 컴퓨터 사용 스크린샷 | 결정 61의 원본 미보관 규칙을 `computer_*`에도 적용한다. ledger의 스크린샷 열에는 내용 해시와 크기만 남긴다 | 13 |
+| J-265 | `run.context_projected.images` | 사용자가 첨부한 이미지의 `BlobRef`만 싣는다. 브라우저·컴퓨터 사용 스크린샷은 blob이 아니므로 이 필드에 들어가지 않는다(결정 61) | 09 |
+| J-266 | 12 의사 코드 `submit({…})`와 `EngineInput` | 12의 인자 목록은 06 §3.4.6 `EngineInput`에서 상수 `schema`와 제출자 시계 `issuedAt`을 적지 않은 약식이다. 정의의 정본은 06이다 | 12 |
+| J-267 | 방해 금지와 만료 임박 승격 | `urgencyOf`의 방해 금지·조용한 시간 줄이 먼저 적용되어 승격도 강도 `digest`가 된다. 휴대폰 푸시만 `notifications.dndException`이 `expiringOnly`일 때 예외로 나가고 데스크톱 OS 알림은 없다(결정 59·64) | 11 |
+| J-268 | J-132와 결정 64 | 결정 64는 J-132의 전달 시점(다음 작업 경계 또는 검토 창)을 바꾸지 않고 만료 임박 승격만 예외로 더한다. 권리 게이트의 만료는 사람이 정한 마감(`deadline`)이므로 "만료 임박"은 마감 임박이다 | 03, 05, 11, 14, 24 |
+| J-269 | 크래시 루프 계산에서 10단계 전 사망 | 시작 순서 10단계(`daemon.booted`) 전에 죽은 부팅은 `boots` 행이 없어 세지 않는다. 그 반복은 systemd 시작 한도(17 §3.4.6)가 막는다. 읽기 전용 시작은 owner 파일 부팅 기록으로 보태 센다(J-247) | 12 |
+| J-270 | 결정 60의 배지 범위 | 결과 확인 대기는 앱 아이콘·트레이 배지의 "선택 필요" 수와 질문함 탭 배지의 "전달된 질문 수" 모두에 들어간다 | 26, 20 |
+| J-271 | 커널 상태 `presence` 맵의 시각 원천 | `presence.changed`를 적용할 때 `sinceMs`는 그 이벤트의 `recordedAt`, `sinceSeq`는 그 이벤트의 seq로 채운다. `ctx.presence`로 바꿀 때 `sinceMs`는 `sinceAt`이 된다(J-256 보완) | 10, 09 |
+| J-272 | 20 설정 표의 `notifications.resultReview` | 값의 정본은 11 §3.5.7이다. 20 설정 표에는 데스크톱 OS 알림 조건(결정 60)을 담은 행을 둔다 | 20 |
+| J-273 | 결과 확인 대기의 알림 강도 | 11 `urgencyOf`가 정한다. 기본(`none`·`daily_digest`)은 예약 전달이라 `digest`이고, `immediate` 설정이면 `notice`다. 05 §3.1.2와 §3.7.2는 이 값으로 읽는다 | 없음(이미 일치) |
+| J-274 | `helm-netshim` 산출 경로 | 산출 실행 파일 경로 `packages/tools/bin/helm-netshim`은 유지한다. 소스 언어는 Rust 제안안이고 소스·빌드 위치는 SP-18 뒤에 확정한다(결정 63) | 23, 13 |
+| J-275 | 결정 58의 모델 열 표기 | WBS 모델 열의 `H → S`, `S 직접` 표기는 바꾸지 않는다. `H`는 Haiku 5.5 xhigh이고 `S`의 추론 강도는 행의 등급이 정한다(A·B medium, C·D high) | 23 |
+| J-276 | SP-15의 확인 시점 | 쿠키·Origin 헤더가 `tailscale serve`를 통과하는지는 SP-10과 함께 M11-12에서 확인한다(M17-01의 쿠키 인증을 쓰기 전). Web Push는 A2 시작(M17-04)에서 확인한다 | 23 |

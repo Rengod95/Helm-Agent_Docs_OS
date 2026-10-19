@@ -1,7 +1,7 @@
 # 12. 런타임 엔진
 
 - 작성: P7 런타임, 2026-10-11 (1단계 초안), 2026-10-12 2a단계 통합과 4단계 보완
-- 상태: 설계 초안. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID는 08, 프로토콜 메서드는 19를 따른다. 기준은 브리프 결정 1~57과 조정자 판정 `process/rulings-stage2a.md`(J-01~J-240)다.
+- 상태: 설계 초안. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID는 08, 프로토콜 메서드는 19를 따른다. 기준은 브리프 결정 1~64과 조정자 판정 `process/rulings-stage2a.md`(J-01~J-275)다.
 - 함께 읽을 문서: `process/00-design-brief.md`(이하 "브리프"), [13 도구와 실행](13-tools-and-execution.md), [06 시스템 아키텍처](06-system-architecture.md), [10 커널](10-kernel.md), [14 루프·모드·오케스트레이션](14-loops-modes-orchestration.md), [15 탐구 엔진](15-inquiry-engine.md)
 - 표시 규칙: 브리프 §5.2(판정 J-144). `[결정 n]`은 사용자가 정한 브리프 결정에만 쓴다. 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`(결정 44~46) 또는 `[판정 J-nn]`으로 적는다. `[제안]`은 이 문서가 정한 것, `[가정]`은 확인하지 않은 전제다. 모델 API를 내는 쪽은 본문에서 "제공자", 화면 문구에서 "모델 제공자", 코드에서 `provider`라고 쓴다(판정 J-150). 외부 사실은 `[원문]`(소스·문서 직접 확인), `[실험]`(이번에 실행해 확인), `[검색]`, `[지식]`(재확인 안 함)으로 표시한다.
 - 출처 줄임말: `pi-facts-1`·`pi-facts-2`는 `process/sources/pi-api-facts-*.md`, `extracts-N`은 `process/sources/conversation-extracts-N.md`, `canon`·`canon-2`·`canon-3`은 `process/sources/helm-canon*.md`, `cases`는 `process/sources/pi-cases-notes.md`, `S4/<사례>`는 `.helm-design-work/S4/<사례>.md`, `pi-src/`는 `~/projects/_ref/pi-src`이고 행 번호는 태그 `v1.1.0`(커밋 `abe508e1`, 브리프 판정 44) 기준이다. 1단계에서 읽은 `cdaf6c2`와 `packages/agent/src`, `packages/ai/src/{models.ts,utils,api,auth}`, coding-agent 도구 파일은 같고, `packages/ai/src/types.ts`, codemode, durable spec은 행이 다르므로 v1.1.0 행으로 고쳤다, `P7/`은 `.helm-design-work/P7/`(이 문서의 실험), `대화 L<n>`은 `docs/handoff/conversation-transcript-until-158.md`의 행이다.
@@ -67,7 +67,7 @@
 
 ### 2.1 브리프 결정과 이 문서의 귀결
 
-결정 1~25, 33, 35, 38~43, 47~57은 사용자 결정이고, 결정 26~32·34·36·37은 조정자 기본값(`[제안: 결정 n 기본값]`), 44~46은 조정자 판정이다(브리프 §5.2, 판정 J-144).
+결정 1~25, 33, 35, 38~43, 47~64은 사용자 결정이고, 결정 26~32·34·36·37은 조정자 기본값(`[제안: 결정 n 기본값]`), 44~46은 조정자 판정이다(브리프 §5.2, 판정 J-144).
 
 | 결정 | 내용 | 이 문서의 귀결 |
 |---|---|---|
@@ -86,6 +86,7 @@
 | 판정 46 | 루프백 바인딩은 격리 경계가 아니다 | 도구 프로세스는 데몬 소켓·데이터·설정을 볼 수 없게 격리한다(13 §3.6). 런타임은 도구에 Helm 자격 증명을 넘기지 않는다 |
 | 55 | MVP 도구에 웹 읽기·검색과 브라우저, 고급 도구를 넣는다. 외부 탐색은 막지 않는다 | 웹·브라우저 결과는 run의 `taint.web`을 세운다(§3.2.5). 참이면 `send`는 합의와 무관하게 사람에게 묻는다(§3.4.5). 브라우저 호출이 있는 배치는 순차로 돌고 첫 실패 뒤 멈춘다(§3.4.3). 스크린샷은 최근 3장만 싣는다(§3.5.7). 검색·브라우저 사용량은 `toolUsage`로 남긴다(§3.3.7). 해시라인 편집은 `RunSpec.editMode`로 고르고 run 시작 때 고정한다(§3.2.1). [판정 J-190] |
 | 56 | 결과 확인 대기의 휴대폰 알림은 설정으로 고른다 | 설정 `notifications.resultReview`에 따라 §3.14.9의 전달 규칙과 §3.10.6의 타이머 `result_review_digest`를 쓴다. 기본은 `none`이다([판정 J-189]) |
+| 61 | 브라우저 스크린샷 원본은 보관하지 않는다 | 원본을 데몬 blob에 남기지 않는다. 최근 3장만 run의 메모리 링 버퍼에 두고 요청 끝에 붙인다. 기록에는 고정 문구만 남는다(§3.5.7) |
 
 ### 2.2 원천에서 가져온 사실
 
@@ -171,7 +172,7 @@ packages/runtime/src/            @helm/runtime (L4)
   projection/metrics.ts     16 extractFacts 호출 (§3.5.11)
   stream/*.ts       휘발 스트림 묶기·19 RunStreamForProtocol (§3.4.4)
   recovery/boot.ts  부팅 복구 runtime.recover (§3.7.3)
-  lifecycle.ts      drain·abortAll·pause·status (17, §3.7.7)
+  lifecycle.ts      drain·abortAll·pause·status (17이 호출, 명세는 이 문서 §3.7.7)
   recovery/policy.ts replay 판정, 재개 정책 (§3.7.2, §3.7.5)
   scheduler/*.ts    단일 타이머 스케줄러 (§3.10)
   budget/*.ts       예산 원장과 집행 (§3.11)
@@ -200,7 +201,7 @@ packages/runtime/src/            @helm/runtime (L4)
 - `commitBatch(inputs, traces)`는 이 위의 편의 함수다. 제안 도구 경로(13 §3.7.3: `toolcall.intend` → 제안 명령 → `toolcall.complete`)와 승인 실행(§3.13.2)이 이 의미에 기댄다.
 - `SubmitResult.replayed`가 참이면(같은 멱등 키의 저장된 결과) 그 결과는 이번 실행의 허가가 아니다. 런타임은 실행하지 않고 "이미 처리됨"으로 다룬다(§3.4.5, §3.13.2).
 
-의사 코드의 `submit({ type, channel, actor, via, idempotencyKey, correlation, contextRef, payload })`는 10 `CommandEnvelope`에서 `schema`·`commandId`·`issuedAt`을 뺀 모양이고, 06 `EngineInput`을 이 한 타입으로 맞추기를 06에 요구한다. `commandId`는 엔진이 발급한다. 결과는 06 `SubmitResult`(accepted, rejected, needs_gate, conflict, error, `replayed`)다.
+의사 코드의 `submit({ type, channel, actor, via, idempotencyKey, correlation, contextRef, payload })`는 06 §3.4.6 `EngineInput`에서 상수 `schema`와 제출자 시계 `issuedAt`을 적지 않은 약식이다. 제출 입력의 정의는 06 §3.4.6 `EngineInput`이 정본이다 [판정 J-266]. `commandId`는 엔진이 발급한다. 결과는 06 `SubmitResult`(accepted, rejected, needs_gate, conflict, error, `replayed`)다.
 
 실행 기록과 운영 테이블은 도메인 레코드가 아니므로 판단·결과의 근거로 인용할 수 없다(10 V-FORM-05: 근거 참조는 기록된 레코드여야 한다).
 
@@ -361,7 +362,7 @@ export type RunEndReason =
 |---|---|---|---|---|
 | (없음) | `startRun(spec)`: (새 thread면 `thread.open` → `thread.opened`) + `run.queue` → `run.queued` | 같은 thread에 활성 run이 없음 | `queued` | WorkUnit·역할·부모·트리거·`RunCore` 기록. 트리거(`RunCore.trigger`)는 재개 때 다시 쓴다(§3.7.5) |
 | (없음) | `startRun(spec)`, trigger `orchestrator` | 같은 `workRequestKey`의 비종결 run이 있음 | 새 run 없음, 그 run의 핸들을 돌려줌 | 14 실행기의 재시도가 run을 둘 만들지 않는다(14 §3.20.2). `run.queue` 멱등 키도 `workRequestKey`다 |
-| (없음) | `startRun(spec)` | 같은 thread에 활성 run이 있음 | 거부 `runtime.thread_busy` | 호출자는 입력을 inbox에 넣는다(§3.12) |
+| (없음) | `startRun(spec)` | 같은 thread에 활성 run이 있음 | 거부 `conflict.thread_busy`(판정 J-250) | 호출자는 입력을 inbox에 넣는다(§3.12) |
 | `queued` | 슬롯 확보: `run.start` → `run.started{attempt: 1, ownerEpoch}` | 물리 상한 안(§3.9), 예산 남음 | `running` | trace `run.stage{inference}` |
 | `running` | 루프 `agent_end`: `run.end{outcome: ended, reason: yielded}` → `run.ended` | `finishTurn`이 끝을 냄, 열린 사람 대기 없음 | `ended(yielded)` | |
 | `running` | WorkUnit을 막는 질문(`blocks: workunit`. 범위 밖 `scope_change`, 결과 불명 `recovery`, 막는 정보 질문): 턴 경계에서 `run.await{kind: question}` → `run.awaiting` | 커널이 질문이 아직 열려 있음을 확인(이미 답이 있으면 거부 → 이어감, §3.10.5) | `awaiting_human` | 루프를 끝낸다. 매달린 도구 호출 없음 |
@@ -1066,9 +1067,9 @@ extracts-1 E1-054의 컨텍스트 슬롯(항상 로드, 필요할 때 로드, �
 | S2 tools | 머리 시스템 메시지 `toolsAdded` + 도구 지침 절 | run 시작 때의 도구 묶음(13 §3.2). 도구마다 `promptSnippet` 한 줄 | run 안에서는 바뀌지 않는다(14 D5). 새 WorkUnit의 run이 같은 thread를 이어 쓰며(`context.mode = resume`) 묶음이 다르면 첫 요청에 중간 시스템 메시지(`toolsAdded`/`toolsRemoved`) | 1,500 (지침 절) |
 | S3 rules | 머리 시스템 메시지 `sections.rules` | 루프·단계 지시문(14 `RunSpec.instructions`), 다이얼에서 나온 지시 | S2와 같은 때 중간 시스템 메시지의 `sections.rules` 교체 | 1,500 |
 | S4 project_guidance | 머리 시스템 메시지 `sections.project` | 작업 공간의 `AGENTS.md`(없으면 `CLAUDE.md`)와 그 조상 디렉터리 파일 중 작업 공간 루트 안의 것. 13의 읽기 경로 정책을 따른다. 지침 파일은 프롬프트 주입 경로이므로 사람이 확인한 내용 해시만 쓴다: 프로젝트 등록 때 해시를 기록하고, 해시가 바뀌면 사람 확인(정보 게이트 질문, 변경 diff 포함) 전까지 마지막으로 확인한 판을 쓰고 S8에 "지침 파일이 바뀌어 확인 대기 중"을 알린다(18 §3.12에 요구) | thread 시작 때 고정. 파일이 바뀌어도 thread 안에서는 갱신하지 않고 다음 컴팩션 때 갱신 | 4,000 (넘으면 앞부분 + "[truncated: read AGENTS.md]") |
-| S5 snapshot | thread 첫 user 역할 주입 메시지 `<helm_context kind="snapshot">` | `RunSpec.context.include`의 각 ContextSection 렌더링(§3.5.4)과 필수 범주 | thread 시작, 컴팩션 직후, 오래 쉰 thread 재개(§3.5.6 Expired) | 8,000 |
+| S5 snapshot | thread 첫 user 역할 주입 메시지 `<helm_context kind="snapshot" id="6b1f0c93a2e7f5081a9c3e6fb2a8d7e0">` | `RunSpec.context.include`의 각 ContextSection 렌더링(§3.5.4)과 필수 범주 | thread 시작, 컴팩션 직후, 오래 쉰 thread 재개(§3.5.6 Expired) | 8,000 |
 | S6 transcript | 그 뒤 메시지들 | 사람 입력, assistant 메시지, 도구 결과(기록에서 합성), 주입 메시지 | 덧붙이기만 | 나머지 |
-| S7 delta | thread 끝 user 역할 주입 `<helm_context kind="delta">` | 지난 주입 이후 바뀐 섹션의 새 렌더링, 커널 notice, 답이 온 질문, 무효화 알림 | 요청 직전에 상태 요약이 바뀌었을 때만 | 3,000 (넘으면 바뀐 섹션 이름과 ID만, "use helm_query") |
+| S7 delta | thread 끝 user 역할 주입 `<helm_context kind="delta" id="0e5d8a27c93b41f6a2d9e7b058c3f1d4">` | 지난 주입 이후 바뀐 섹션의 새 렌더링, 커널 notice, 답이 온 질문, 무효화 알림 | 요청 직전에 상태 요약이 바뀌었을 때만 | 3,000 (넘으면 바뀐 섹션 이름과 ID만, "use helm_query") |
 | S8 notice | thread 끝 user 역할 `<helm_notice>` | 런타임 알림: 끝내기 전 검사(`checkSettle`), 예산 80%, 재개 안내, 출력 한도 이어쓰기 | 사건이 있을 때 | 600 |
 | 스크린샷 블록 | 요청 끝(주입 메시지 다음) | 최근 3장의 브라우저 스크린샷. 장마다 `<untrusted id=… source="browser" …>` 캡션 텍스트 블록과 이미지 블록을 쌍으로 둔다(§3.5.7) | 요청마다 새로 만든다. 기록에 이미지를 두지 않으므로 캐시 대상이 아니다 | 장당 1,200 추정, 최대 3장 |
 | 필요할 때 로드 | 도구 | 생략된 레코드, 이전 도구 결과 원문, 스킬·절차 문서는 `helm_query`와 `read`로 모델이 가져온다 | - | - |
@@ -1085,7 +1086,7 @@ export interface InjectionMeta {
 }
 ```
 
-- 주입 메시지는 pi-ai `UserMessage`다. 본문은 `<helm_context kind="…" seq="…">…</helm_context>` 태그로 감싼다. 커밋은 `run.record_message{role: 'user', origin: 'injection', injection}`이고 같은 트랜잭션에 trace `context.injected`를 남긴다. S1이 "이 태그 안은 런타임이 준 상태이며 사용자의 말이 아니다"라고 알린다.
+- 주입 메시지는 pi-ai `UserMessage`다. 본문은 `<helm_context kind="…" seq="…" id="…">…</helm_context id="…">` 태그로 감싼다. `id`는 주입마다 새로 만든 무작위 16바이트 hex다(PJ-7). 커밋은 `run.record_message{role: 'user', origin: 'injection', injection}`이고 같은 트랜잭션에 trace `context.injected`를 남긴다. S1이 "이 태그 안은 런타임이 준 상태이며 사용자의 말이 아니다"라고 알린다.
 - 사람 입력은 태그 없이 그대로 넣는다. 사람 입력과 주입 메시지는 `run.message_recorded`의 `origin`(`human` / `injection` / `runtime_notice` / `summary` / `model`)으로 구분한다.
 - 주입이 도구 결과 바로 뒤에 오면 pi-ai는 toolResult 묶음과 user 텍스트를 별도 `role: "user"` 항목 둘로 보내고, Anthropic API가 연속한 같은 역할 항목을 한 턴으로 합친다 [원문 07 §3.11.6, C23]. T-PJ-07은 변환 스냅숏(pi 수준)과 실제 제공자 확인 둘로 한다.
 
@@ -1251,7 +1252,7 @@ ContextProjection 상태(canon §11.9)와의 대응:
 - 오래된 큰 도구 결과의 생략(elision)은 컴팩션 1단계에서만 한다(§3.6). 덧붙이기만 하는 원칙(PJ-5)을 지키기 위해서다. 생략된 결과는 `[elided tool result tc_… (≈N tokens). Reload with helm_query {"toolResult":"tc_…"} or re-run a read.]`로 바뀐다. 원문은 기록에 남는다.
 - 이미지가 모델 한도를 넘으면 오래된 주입 이미지부터 `[image elided: sha256:…]`로 바꾼다. 이것도 컴팩션 시점에 한다. 한도를 넘는 새 이미지 주입은 렌더러가 미리 줄인다.
 - 형제 발산 가지의 기록은 `excludeThreads`로 뺀다(`omitted.reason: 'sibling-branch'`, §3.14.4).
-- 브라우저 스크린샷(판정 J-190 (4), 결정 55)은 대화 기록에 이미지로 남기지 않는다. 기록에는 `[screenshot omitted]` 고정 문구와 blob 참조만 둔다. 고정 문구이므로 앞부분이 바뀌지 않는다(PJ-5). 요청마다 가장 최근 3장을 요청 끝의 스크린샷 블록으로 붙인다. 장마다 PJ-7 표식의 캡션 텍스트 블록을 이미지 블록 바로 앞에 둔다(스크린샷은 이미지 블록이라 감쌀 수 없다). 밀려난 스크린샷은 블록에서만 빠지고 기록은 그대로 남는다. 블록은 캐시 대상이 아니므로 앞부분의 캐시를 깨지 않는다(RT-12). 토큰 추정은 장당 1,200으로 센다(§3.5.5 추정식).
+- 브라우저 스크린샷(판정 J-190 (4), 결정 55)은 대화 기록에 이미지로 남기지 않는다. 기록에는 `[screenshot omitted]` 고정 문구만 둔다. 고정 문구이므로 앞부분이 바뀌지 않는다(PJ-5). 스크린샷 원본은 영속 저장하지 않는다 [결정 61]. 최근 3장만 run의 메모리 링 버퍼에 두고(`recentScreenshots(thr, 3)`가 읽는다), 요청마다 그 3장을 요청 끝의 스크린샷 블록으로 붙인다. 재시작 뒤에는 복구하지 않고 '이전 스크린샷 생략' 문구로 대신한다 [제안]. 장마다 PJ-7 표식의 캡션 텍스트 블록을 이미지 블록 바로 앞에 둔다(스크린샷은 이미지 블록이라 감쌀 수 없다). 밀려난 스크린샷은 블록에서만 빠지고 기록은 그대로 남는다. 블록은 캐시 대상이 아니므로 앞부분의 캐시를 깨지 않는다(RT-12). 토큰 추정은 장당 1,200으로 센다(§3.5.5 추정식).
 
 #### 3.5.8 화면 투영: `ProjectionsForProtocol`과 무효화 태그 [제안]
 
@@ -1431,7 +1432,7 @@ summarize(thread, model):
   missing = required − ids(r.value)
   if missing: r.value.appendix = renderRequired(missing)   # 커널 상태에서 결정적으로 만든 목록을 덧붙임
   tx:
-    submit run.record_message { role: 'user', origin: 'summary', body: <helm_context kind="summary">…</helm_context> }
+    submit run.record_message { role: 'user', origin: 'summary', body: <helm_context kind="summary" id="c4a91e7f03b58d26e1f9a0b7d3c64e28">…</helm_context id="c4a91e7f03b58d26e1f9a0b7d3c64e28"> }
     trace context.compacted { mode: 'summarize', compactionId: newId('cs'), range, firstKeptMessageId: cut 뒤 첫 메시지,
                               tokensBefore, tokensAfterEstimate, requiredIds: required, missingAfterRetry: missing, usage }
     thread.needsSnapshot = true                                # 다음 build가 새 snapshot을 주입 (S4도 다시 읽음)
@@ -1549,7 +1550,8 @@ recover({ epoch, previousEpoch, previousCleanShutdown, startReason }):
       guard(tc, reconcileToolCall(tc, cause))                    # 승인 실행처럼 처음 run이 끝난 호출도 여기서 잡힌다
   for tc in rs.records({ kind: 'toolcall', status: ['requested'] }) where 이전 epoch에 생김:
       if 유효한 승인(toolcall.approved, approval 미소진·미만료)이 있음: 그대로 둔다          # 이어받는 run이 실행한다 (§3.13.2)
-      else: guard(tc, submit toolcall.skip { reason: 'restart' })
+      elif 승인이 만료됨: guard(tc, submit toolcall.skip { reason: 'approval_expired' })   # 같은 트랜잭션에 approval.expired를 남긴다 (09 §3.8.2 11단계, 08 §3.22.14, 판정 J-193)
+      else: guard(tc, submit toolcall.skip { reason: 'restart' })   # 승인 기록이 없음
   for run in 이전 epoch의 비종결 run, tcId in run.message_recorded.toolCallIds where 레코드 없음:
       guard(tcId, submit toolcall.skip { toolCallId: tcId, core, reason: 'restart' })   # → requested + not_executed (판정 J-104)
   # 2. run 정리
@@ -1558,7 +1560,7 @@ recover({ epoch, previousEpoch, previousCleanShutdown, startReason }):
   for run in status 'queued' and ownerEpoch ≠ epoch: guard(run, submit run.end { reason: 'superseded' })   # 14가 다시 요청 (§3.2.2)
   awaiting_human·awaiting_recovery run은 그대로 둔다(판정 J-39). 늦은 답을 받는다
   # 3. 복원·되돌리기로 시작했으면 (§3.7.6)
-  if startReason == 'restored': submit approval.expire                              # 10 명령(판정 J-152). 승인은 approval.expired{reason: 'restored'}로 닫힌다. 백업으로 되돌린 경우도 restored다(판정 J-164)
+  if startReason == 'restored': approval.expire를 호출하지 않고, 09 §3.14.2 7b가 닫은 뒤 미소진 승인이 남아 있지 않은지만 확인한다  # 닫는 이벤트와 사유(approval.expired{reason: 'restored'})의 정본은 09 §3.14.2다(판정 J-246). 백업으로 되돌린 경우도 restored다(판정 J-164)
   # 4. 지시 재계산: 09 내부 소비자 커서(runtime) 이후 이벤트에 10 directivesFor를 돌려 처리하지 못한 지시를 다시 만든다
   #    (notify, run.signal, agent.request, workunit.start, projection.invalidate). 같은 deliveryId·멱등 키로 중복을 막는다
   # 5. 관찰 실행: 이전 epoch의 짝 없는 observer_run.started를 observer.report.submit{form: run_failed, code: interrupted}로 닫는다(10, 16 §4.1)
@@ -1615,7 +1617,7 @@ reconcileRun(run, cause):                                     # 멱등 키 recov
 | 직접 확인 작업 만들기 | `manual_review` | 14에 확인 WorkUnit을 요청하고 이 호출은 미해소로 둔다 |
 
 - 답은 19 `recovery.resolve{ toolCallId, resolution }`(19에 요구: 지금의 `workUnitId`·`action` 형식을 이 표로)로 들어와 10 `toolcall.recover`가 된다. 사람 답이면 커널이 같은 트랜잭션의 utterance 관찰을 증거(`evidence`)로 쓴다(08·10에 요구). 커널이 `toolcall.recovered`와 지시 `run.signal(resume)`을 내면 런타임은 기다리던 run을 `ended(handed_off)`로 닫고 같은 thread의 새 run에 해소 결과를 주입한다(판정 J-38).
-- run 수준 복구 항목(재개 포기한 run, 안전 모드로 멈춘 run)의 선택지는 따로다: "마지막 확인 지점부터 다시 실행"(14에 같은 WorkUnit 재요청), "그대로 두기"(복구 항목 닫음), "확인 작업 만들기". 19 `recovery.resolve`의 run 수준 형식으로 받는다(§3.12.4).
+- run 수준 복구 항목(재개 포기한 run, 안전 모드로 멈춘 run)의 선택지는 따로다. 이 절이 정본이다(판정 J-246): "마지막 확인 지점부터 다시 실행"(`rerunFromCheckpoint`, 14에 같은 WorkUnit을 `context resume`으로 재요청), "그대로 두기"(`leaveAsIs`, run 수준 복구 항목만 닫는다. 호출의 `toolcall.recover`는 내지 않는다), "확인 작업 만들기"(`createCheckTask`, 14에 확인 WorkUnit 요청). 19 `recovery.resolve`의 run 수준 형식으로 받는 방법은 §3.12.4 표에 있다.
 - 자동 확인 조회(02 UC-10 B3): 13 도구 선언에 `recoveryProbe`(읽기 전용 확인 방법, 예: `git push`면 `git ls-remote <remote> <ref>`)가 있으면, 질문은 즉시 만들되 런타임이 모델 없이 그 확인을 실행한다(샌드박스, 읽기 전용, 네트워크는 원래 호출의 대상 호스트만). 결과가 해소를 증명하면 런타임 채널 `toolcall.recover`(증거 = 확인 결과 관찰)를 내고 커널은 질문을 `question.withdrawn`으로 닫는다. 증명하지 못하면 질문이 그대로 남는다. `report_unknown`에 `recoveryCheck`(확인 방법 문장)와 `externalRef`(원격 ref, 메시지 ID 등)를 싣는다(10·09 payload).
 - 외부 효과가 없는 로컬 쓰기의 결과 불명은 질문 없이 `toolcall.interrupted`로 닫고 모델이 상태를 읽어 확인한다(판정 J-44). 맹목적 재실행으로 중복 외부 효과가 생기는 것을 막는다(canon-2 §4.7, L12).
 
@@ -1659,8 +1661,8 @@ resumeRun(run):
 
 #### 3.7.6 안전 모드: 크래시 루프, 복원 뒤 시작, 복구 실패
 
-- **크래시 루프**: 판정 규칙은 이 문서가, 기록과 데몬 모드 전환은 17 §3.4.6이 맡는다. 규칙: `daemon.booted` 중 `previousCleanShutdown = false`인 것이 최근 10분 안에 3회 이상(이번 시작 포함)이면 안전 모드로 시작한다 [제안. OpenClaw는 5분에 3회, S4/openclaw-runtime §2.3]. 시작 단계에서 끝까지 가지 못하고 죽은 부팅도 `boots` 테이블에 비정상 종료로 남아 이 계산에 들어간다(17에 요구). 17이 `daemon.safe_mode_entered{reason: crash_loop}`를 남긴다.
-- **복원 뒤 시작**: 17 §3.9.4 복원 직후의 부팅은, 백업으로 되돌린 경우를 포함해, 안전 모드(`daemon.safe_mode_entered{reason: restored}`, 판정 J-164)로 시작한다. 사유 `rollback`은 두지 않는다. 스냅숏 때 실행 중이던 run을 자동으로 재개하면 백업 뒤 이미 끝난 파일 쓰기·push·발송을 다시 하기 때문이다. `recover({ startReason })`는 보통처럼 도구 호출을 정리하고(스냅숏 때 `started`였던 외부 효과 호출은 `outcome_uncertain` + `recovery` 질문이 된다), 아직 소진되지 않은 승인을 모두 `approval.expired{reason: restored}`로 닫는다(10에 런타임 채널 명령 요구). 그 호출은 승인 전 상태로 돌아가 다시 묻는다. 복귀 요약은 "복원 시점 이후 기록 없음" 구간을 맨 위에 보인다(§3.5.9, 이 표시의 소유는 12).
+- **크래시 루프**: 판정 규칙은 이 문서가, 기록과 데몬 모드 전환은 17 §3.4.6이 맡는다. 규칙: `daemon.booted` 중 `previousCleanShutdown = false`인 것이 최근 10분 안에 3회 이상(이번 시작 포함)이면 안전 모드로 시작한다 [제안. OpenClaw는 5분에 3회, S4/openclaw-runtime §2.3]. 시작 순서의 10단계(`daemon.booted`) 전에 죽은 부팅은 `boots` 행이 없으므로 이 계산에 넣지 않는다. 그런 부팅의 반복은 systemd 쪽 시작 한도(17 §3.4.6)가 막는다 [판정 J-269]. 이벤트를 쓰지 못한 읽기 전용 시작은 `daemon.booted`가 없으므로 17 §3.4.6이 `helmd.owner.json`의 부팅 기록으로 보태 센다([판정 J-247]). 17이 `daemon.safe_mode_entered{reason: crash_loop}`를 남긴다.
+- **복원 뒤 시작**: 17 §3.9.4 복원 직후의 부팅은, 백업으로 되돌린 경우를 포함해, 안전 모드(`daemon.safe_mode_entered{reason: restored}`, 판정 J-164)로 시작한다. 사유 `rollback`은 두지 않는다. 스냅숏 때 실행 중이던 run을 자동으로 재개하면 백업 뒤 이미 끝난 파일 쓰기·push·발송을 다시 하기 때문이다. `recover({ startReason })`는 보통처럼 도구 호출을 정리하고(스냅숏 때 `started`였던 외부 효과 호출은 `outcome_uncertain` + `recovery` 질문이 된다), 아직 소진되지 않은 send 승인은 09 §3.14.2 7b가 모두 닫는다(판정 J-246). `recover`는 그 닫기를 다시 하지 않고 남은 승인이 없는지만 확인한다(§3.7.3 3단계). 닫는 이벤트와 사유(`approval.expired{reason: restored}`)의 정본은 09 §3.14.2다. 그 호출은 승인 전 상태로 돌아가 다시 묻는다. 복귀 요약은 "복원 시점 이후 기록 없음" 구간을 맨 위에 보인다(§3.5.9, 이 표시의 소유는 12).
 - **복구 실패**: `recover()`는 run·호출 하나 단위로 예외를 가두고(§3.7.3 `guard`), 실패한 run을 `ended(failed, recovery_error)`와 복구 항목으로 남긴다. 그것조차 실패하거나 지시 재계산이 실패하면 17이 읽기 전용 모드(사유 `recovery_failed`)로 리스너만 연다. 같은 실패로 재시작을 되풀이하지 않는다(17에 요구).
 - 안전 모드의 런타임 동작: run 자동 재개 안 함, 에이전트 run을 시작하는 타이머 발화 보류(알림 계열만 발화), 관찰 에이전트 실행 안 함, 14의 새 실행 허가 없음(14 §3.16.5 규칙 6). 클라이언트에 `safe_mode`와 이유를 보인다(19 `daemon.status`, 21 판정 J-60).
 - 안전 모드 진입은 run의 재개 횟수를 차감하지 않는다.
@@ -1994,7 +1996,7 @@ export interface RunInput {
 | `work.stop` | `run.stop` → `run.stopping{wrap_up}` + 지시 `run.signal(wrap_up)` | §3.4.9 정리 정지 |
 | `work.abort` | `run.cancel` → `run.stopping{cancel}` + 지시 `run.signal(abort)` | §3.12.3 취소, `run.end{cancelled}` |
 | `work.requestBrief` | (명령 아님) | `brief` 뷰를 그 WorkUnit 범위로 만든다(§3.5.9) |
-| `recovery.resolve` | 호출 수준: `toolcall.recover{toolCallId, resolution}`(§3.7.4 표). run 수준: 명령 없음 | 호출 수준은 §3.7.4. run 수준 `rerun`: 14에 같은 WorkUnit 재요청(`context resume`), `leaveAsIs`: 복구 항목 닫음, `createCheckTask`: 14에 확인 WorkUnit 요청. 19 params를 이 두 형식으로 나누기를 19에 요구 |
+| `recovery.resolve` | 호출 수준: `toolcall.recover{toolCallId, resolution}`(§3.7.4 표). run 수준: 명령 없음 | 호출 수준은 §3.7.4 표. run 수준 선택지(`rerunFromCheckpoint`·`leaveAsIs`·`createCheckTask`)의 정의와 효과는 §3.7.4가 정본이다. 19 params를 이 두 형식으로 나누기를 19에 요구 |
 | `daemon.exitSafeMode` | `runtime.exit_safe_mode` → `daemon.safe_mode_exited` | §3.7.6 |
 
 커널 지시(10 §3.1.4 `Directive`)의 처리:
@@ -2021,7 +2023,7 @@ presence(09 `presence.changed`, 판정 J-46·판정 J-64)는 이 문서가 다�
   - `blocks: action`(권리 게이트 `send_approval` 등 그 행동만 막는 질문): 그 호출만 `awaiting_approval`로 남고 run은 다른 일을 계속한다(02 AC-03-04, 11, 14). 모델에게는 "이 행동은 사람 허락을 기다린다. 다른 일을 하거나 결과를 제출하라"는 차단 사유가 간다.
 - 모델의 질문 제안 도구도 같다. 질문이 막는 질문이면 대기, 아니면 임시 가정으로 계속 진행한다(11).
 - 질문의 전달 시점·방식은 11이 정한다. 런타임은 대기 사실만 커밋하고, 지시 `notify`를 받아 전달한다(§3.14.9).
-- 막는 질문이 끝나면(답·위임·철회·만료) 또는 기다리던 호출이 끝나면(`toolcall.approved`·`denied`, `approval.expired`) 지시 `run.signal(resume)`이 온다. 런타임은 기다리던 run을 `run.end{reason: handed_off}`로 닫고 같은 thread에서 새 run을 `run.queue`·`run.start`로 연다(판정 J-38, 멱등 키 `handoff:<awaitingRunId>`). 새 run의 첫 요청에 결과를 `<helm_context kind="answer">`로 주입한다. 원래 제출은 커널이 자동 재실행하지 않는다(10 §3.4.5). 모델이 다시 내거나, 승인이면 아래처럼 런타임이 실행한다.
+- 막는 질문이 끝나면(답·위임·철회·만료) 또는 기다리던 호출이 끝나면(`toolcall.approved`·`denied`, `approval.expired`) 지시 `run.signal(resume)`이 온다. 런타임은 기다리던 run을 `run.end{reason: handed_off}`로 닫고 같은 thread에서 새 run을 `run.queue`·`run.start`로 연다(판정 J-38, 멱등 키 `handoff:<awaitingRunId>`). 새 run의 첫 요청에 결과를 `<helm_context kind="answer" id="2d8e4b19f0a73c56e9d1b8a20c4f7e63">`로 주입한다. 원래 제출은 커널이 자동 재실행하지 않는다(10 §3.4.5). 모델이 다시 내거나, 승인이면 아래처럼 런타임이 실행한다.
 - 이어받은 run이 한 turn을 끝내기 전에 끊기면(예: `model_unreachable`) 다음에 그 thread를 이어 쓰는 run에도 답이 다시 들어간다. 투영의 필수 범주가 "답했지만 이어받은 run이 아직 한 turn을 끝내지 않은 질문"을 넣기 때문이다(§3.5.4).
 - 막지 않는 질문의 답·가정 확정은 실행 중 run의 다음 요청 delta로 들어간다(§3.4.8). run을 끝내지 않는다.
 
@@ -2041,7 +2043,7 @@ presence(09 `presence.changed`, 판정 J-46·판정 J-64)는 이 문서가 다�
          (send면 outcome_uncertain + recovery 질문), 이 run은 결과를 기다린다
     실행 직전 targetsDigest 재대조: 다르면 실행하지 않고 toolcall.skip{superseded} + 다시 묻는다(사람이 본 행동과 실제 효과가 달라짐)
     저장된 executedArgs로 실행 → toolcall.complete
-    결과를 thread에 주입: <helm_context kind="answer"> approved action tc_… result … </helm_context>, 이어서 루프
+    결과를 thread에 주입: <helm_context kind="answer" id="9f27d3b0e6a1ec85b2d0f7e1a6c93b5d"> approved action tc_… result … </helm_context id="9f27d3b0e6a1ec85b2d0f7e1a6c93b5d">, 이어서 루프
   approve_edited(고쳐서 허락, 11 §3.14, 판정 J-117·판정 J-121):
     새 tcId = deriveId(원 tcId, questionId)   # 결정적. 지시를 다시 처리해도 같은 id
     한 트랜잭션: 원 호출 toolcall.denied(reason 'edited_by_human') + 새 호출 toolcall.intend{ core.editedFrom: { toolCallId: 원 tcId, questionId }, approvalQuestionId }
@@ -2196,7 +2198,6 @@ on Directive notify { deliveryId, questionIds, urgency, batchKey? }:
 | 문서 | 이름 | 이유 |
 |---|---|---|
 | 10 | `thread.open`, `thread.close` (→ `thread.opened`, `thread.closed`) | 09 이벤트는 있으나 명령이 없다 |
-| 10 | `approval.expire`(복원 뒤 미소진 승인 만료, §3.7.3) | 런타임 채널 명령이다. 10 §3.11.7 명령 표에 있다 |
 | 10 | `run.record_message`가 사용량을 받아 같은 결정에 `budget.charged`를 낸다 | 사용량과 메시지를 한 트랜잭션에 남김(§3.3.7) |
 | 10 | `run.record_context`가 `appliedDirectives`를 받아 `directive.applied`를 낸다 | 16 D 칸 지표(§3.4.8) |
 | 10 | `workspace.record_change` (→ `workspace.unlinked_change_observed`) | 16 CA-1, 13 §3.5.4 |
@@ -2252,7 +2253,7 @@ on Directive notify { deliveryId, questionIds, urgency, batchKey? }:
 | E-02 | `toolcall.intend` 커밋 실패 | 차단 + run 실패 예약. 실행하지 않는다 | CR-3 |
 | E-03 | 실행은 끝났는데 `toolcall.complete` 커밋 실패 | 결과를 메모리에 두고 같은 멱등 키로 1회 재시도. 그래도 실패하면 run 실패. 재시작 뒤 이 호출은 `started`만 있는 상태 → §3.7.2 판정 | CR-4 |
 | E-04 | 도구가 abort를 무시하고 run 종료 뒤 결과를 냄 | 펜싱이 기록을 거부. 결과는 버리고 운영 로그에 남김. 그 호출은 정리에서 `toolcall.report_unknown` | §3.8.2 |
-| E-05 | 모델이 같은 제공자 호출 ID를 한 thread에서 두 번 냄 | 두 번째는 `runtime.duplicate_tool_call_id`로 차단(실행 안 함). pi-ai가 다음 요청에서 ID를 정규화하므로 대화는 이어진다 | canon-2 §9.11 |
+| E-05 | 모델이 같은 제공자 호출 ID를 한 thread에서 두 번 냄 | 두 번째는 `conflict.duplicate_id`로 차단(실행 안 함). pi-ai가 다음 요청에서 ID를 정규화하므로 대화는 이어진다 | canon-2 §9.11 |
 | E-06 | `stopReason: stop`인데 도구 호출이 있음 | 정상 실행(pi 동작) | §2.2 |
 | E-07 | `stopReason: length`, 도구 호출 있음 | 모두 실행 안 함, `toolcall.skip{truncated_response}` | §3.4.7 |
 | E-08 | `stopReason: length`, 텍스트만 | 한 번 이어쓰기 알림 후 continue | §3.4.9 |
@@ -2280,7 +2281,7 @@ on Directive notify { deliveryId, questionIds, urgency, batchKey? }:
 | E-28 | 일·월 예산 소진 | 새 run 대기, 현재 turn 뒤 정지, 초기화 타이머 | §3.11.4 |
 | E-29 | 이미지가 필요한데 이미지 모델 없음 | run 시작 안 함, `ai.no_model_for_role` 알림 | §3.3.8 |
 | E-30 | 검증 에이전트가 작업 모델과 같은 모델로 떨어짐 | 실행하되 `independence: same_model` 기록·표시 | §3.3.3 |
-| E-31 | 같은 thread에 run 시작 요청이 겹침 | 두 번째는 `thread_busy`, 입력은 inbox로 | §3.2.2 |
+| E-31 | 같은 thread에 run 시작 요청이 겹침 | 두 번째는 `conflict.thread_busy`, 입력은 inbox로 | §3.2.2 |
 | E-32 | 사람이 `awaiting_human` thread에 새 입력 | 기다리던 run을 `ended(handed_off)`, 새 run 시작, 질문은 열린 채 | §3.12.2 |
 | E-33 | 끝내기 전 검사 항목이 계속 남음 | 같은 항목 키에 2회 알림 뒤 trace `settle.unresolved`를 남기고 `run.end{yielded, code 'settle_unresolved'}`로 끝냄(무한 반복 방지, 02 UC-07 E1). 14가 같은 WorkUnit을 한 번 다시 요청하고, 그래도 같으면 `workunit.pause` + `submission_missing` 질문(14·08 PauseReason에 요구) | §3.4.9, extracts-2 d-2 |
 | E-34 | 모델 출력의 터미널 제어 문자 | 기록은 원문. 클라이언트로 보내는 휘발 조각과 화면 투영에서 C0·C1 제어 문자(줄바꿈·탭 제외)를 지운다(19·20에 요구) | canon-2 §9.11 |
@@ -2372,7 +2373,7 @@ on Directive notify { deliveryId, questionIds, urgency, batchKey? }:
 | 10 | 모든 도구 호출을 `toolcall.intend`로(읽기 포함), `contextRef`, `mustIncludeRefs`, `checkSettle` 2회, `needs_gate` 정지와 답에서 이어받기, 지시 처리, `pendingTimers`, `declaredBy` | §3.4.5(읽기 빠른 경로도 `toolcall.intend`), §3.5.6, §3.5.5, §3.4.9, §3.13, §3.12.4, §3.10.1. `declaredBy`는 14 실행기가 붙이고 런타임은 그 run이 `running`인 동안만 유효함을 펜싱으로 보장 |
 | 11 | `notify` 전달기와 `question.mark_delivered`, 중재자 run과 `delivery.plan`, 정지 전 질문 상태 확인, 같은 `toolCallId`로 재제출, 복귀 요약 순서, 타이머 목적 | §3.14.9, §3.14.3, §3.4.9(`run.await`), §3.13.2, §3.5.9, §3.10.6 |
 | 14 | WorkRequest → RunSpec, `wrap_up`, 탐침 동시 실행, 논리·물리 분담, 승격 신호 출력, `runtime.boundary`, thread 내 교체 안 씀, `user_return` | §3.2.4, §3.4.9, §3.9.1, 판정 J-13 문장(§3.9.1), §3.4.9, §3.10.1, E-36, §3.5.9 |
-| 15 | `RunKind inquiry`, `ModelRole` `inquiry`·`image`, 포트, `memoKey`, 단계 예산 예약, 자식 run `forkCursor`·`excludeThreads`, 컨텍스트 섹션, 예측 확인 타이머(`latestAt`), 중첩 도구 호출, `purpose` | §3.2.1, §3.3.2, §3.15, §3.14.6, §3.14.8, §3.14.4, §3.5.4, §3.10.6, 13 §3.5.6, §3.14.5 |
+| 15 | `RunKind inquiry`, `ModelRole` `inquiry`·`image`, 포트, `memoKey`, 단계 예산 예약, 자식 run `forkCursor`·`excludeThreads`, 컨텍스트 섹션, 예측 확인 타이머(`latestAt`), 중첩 도구 호출, `purpose` | §3.2.1, §3.3.2, §3.15, §3.14.4~§3.14.6, §3.14.8, §3.5.4, §3.10.6(이상 이 문서), 13 §3.5.6 |
 | 16 | `extractFacts`, `observer` 역할·예산·`llm.complete`·2차 마스킹, 사용량과 투영 연결(H7), `directive.applied`, 관찰 절과 평가 카드, 지표 제외(OB-8), T1~T8 | §3.5.11, §3.14.7, §3.3.7, §3.4.8, §3.5.9, PJ-8, §3.10.6 |
 | 17 | `runtime.recover`·`scheduler.start` 분리, `SecretStore`, `drain`·`abortAll`·`pause`, 상태 수치 | §3.7.3, §3.3.4, §3.7.7 |
 | 18 | `SecretStore`, 모델 출력·제공자 오류 마스킹, 신뢰하지 않는 내용 경계 표식 | §3.3.4, §3.3.7, PJ-7 |
@@ -2389,7 +2390,7 @@ on Directive notify { deliveryId, questionIds, urgency, batchKey? }:
 | 06 | 받은 것 확인: `RuntimeStorePort`(`@helm/domain/src/runtime-store.ts`, `Engine.store`, `EngineTx.read`·`ops`), 설정 절 `ai`·`budget.monthlyCapUsd`, 관찰 `llm.complete`와 지표 소비자는 runtime. 더 요구: `@helm/ai/testing` 하위 경로, `RuntimeDeps.connections`(19 연결 목록·푸시)와 `secrets` |
 | 08 | 반영을 확인한 것: `editedFrom`(판정 J-121), `PauseReason.submission_missing`, `NotExecutedReason.approval_expired`, `started·replaying → not_executed`, R-43의 `via.runId` 기준, RunKind 6값. 남은 것: (1) `recovery` 질문 답의 utterance 관찰을 `toolcall.recover` 증거로 쓰는 규칙. (2) 승인 대기 호출의 만료 전이 `awaiting_approval → not_executed(approval_expired)`(지금 표는 cancel만). 실행한 run은 `toolcall.started`의 `via.runId`로 알 수 있으므로 `executedByRunId` 필드는 요구하지 않는다 |
 | 09 | 반영을 확인한 것: 복구 멱등 키 `recover:<runId>:<attempt>`·`recover:<toolCallId>:<epoch>`(§3.8.2), `daemon_shutdown`·`crash`(판정 J-122), `run.ended.handoff`, `event_invalidations`, `month:` 계정, `runtime_timers.purpose`의 `metrics_snapshot`·`boundary_clock`·`model_probe`, trace `memo`. 남은 것: (1) §3.9.3 멱등 키 표의 "부팅 복구 `boot:<epoch>:<runId 또는 tcId>`" 행을 §3.8.2와 같은 `recover:` 형식으로. (2) 투영 테이블 `p_display_no`(§3.5.8 표시 번호). (3) 도메인 타이머 kind `rollback_point_expiry`(§3.10.6). (4) `run.context_projected` payload의 `staleRefs`(§3.5.6, 16 H7). (5) `brief.acknowledged`에 `compact`(판정 J-137, §3.5.9) |
-| 10 | (1) §3.16.2 표. (2) `toolcall.report_unknown.reason`의 `shutdown`을 `daemon_shutdown`으로(판정 J-122). (3) `approval.expire`(복원 뒤 미소진 승인, 런타임 채널). (4) `TimerFirePayload`에 `firedAt`·`lateMs`·`downtimeMs`, 판정 J-142 적용. (5) R-7(대기 run 해제, `blocks` 강화 때 `wrap_up`)과 R-14(WorkUnit 종결 때 `abort`)는 반영된 것을 확인했다. 12 §3.2.2 표가 그 지시를 받는다. (6) `runtime.signal`에 `abort`. (7) `toolcall.recover`의 사람 답 증거. (8) 승인 지문 입력의 `targetsDigest`. (9) `ctx.now = max(벽시계, 마지막 기록 시각)`. (10) `run.end`의 `reason`을 `interrupted`일 때 선택으로 |
+| 10 | (1) §3.16.2 표. (2) `toolcall.report_unknown.reason`의 `shutdown`을 `daemon_shutdown`으로(판정 J-122). (3) `approval.expire` 요구는 뺐다(판정 J-246: §3.7.3은 이 명령을 호출하지 않는다). (4) `TimerFirePayload`에 `firedAt`·`lateMs`·`downtimeMs`, 판정 J-142 적용. (5) R-7(대기 run 해제, `blocks` 강화 때 `wrap_up`)과 R-14(WorkUnit 종결 때 `abort`)는 반영된 것을 확인했다. 12 §3.2.2 표가 그 지시를 받는다. (6) `runtime.signal`에 `abort`. (7) `toolcall.recover`의 사람 답 증거. (8) 승인 지문 입력의 `targetsDigest`. (9) `ctx.now = max(벽시계, 마지막 기록 시각)`. (10) `run.end`의 `reason`을 `interrupted`일 때 선택으로 |
 | 11 | 반영을 확인한 것: 묶음 승인의 항목별 호출과 묶음 지문(§3.14), `targetsDigest` 지문 입력, 판정 J-142 정지 중 만료. 남은 것: 되돌리기 대상 파일에 지점 이후 무관한 쓰기가 겹칠 때 묻는 질문의 종류와 선택지(13 §3.7.8의 되돌리기 전 검사가 그 질문을 요청한다) |
 | 14 | (0) `workRequestKey`는 `RunTrigger.orchestrator.workRequestKey`로 run 레코드(`run.queued`의 trigger)에 남는다(§3.2.1). 같은 키의 비종결 run이 있으면 `startRun`이 새 run을 만들지 않는다. (1) `onModelAvailability` 입력과 `waiting(model)`(판정 J-109). (2) RunEndReason·code 전체 행(`step_limit`, `budget_exhausted{wall_clock}`, `context_overflow`, `handed_off`, `superseded`, `failed{model_unreachable·settle_unresolved·recovery_error}`)의 처리와 "같은 WorkUnit·같은 thread·resume 재요청". (3) 대기 run이 없을 때 승인 → 같은 thread 새 run 요청(판정 J-96). (4) 질문 레코드의 runId 유무로 이어받기 주체를 나눔(있으면 12). (5) `concurrencyClass: 'probe'`, `turnReport`. (6) `ContextSection`에 `choices`. (7) WorkUnit paused면 요청하지 않음 |
 | 15 | (1) `StageResult.awaiting_human`에 질문 id. (2) `<data>` 표식을 PJ-7 표식으로. (3) `KernelPort.dispatch` 결과를 06 `SubmitResult`에서 파생 |
@@ -2479,7 +2480,7 @@ export type CrashPoint =            // 이름은 22 §3.9.2 종료 지점 표와
 
 ## 8. 출처
 
-- 브리프: `docs/design/process/00-design-brief.md` 결정 2, 12, 14, 15, 17, 22, 23, 27~31, 34, 36, 41~46, 47~57, §2.5, §3. 조정자 판정 `process/rulings-stage2a.md`(판정 J-01, 판정 J-05, 판정 J-13, 판정 J-16, 판정 J-22, 판정 J-32, 판정 J-33, 판정 J-38~판정 J-46, 판정 J-49, 판정 J-51, 판정 J-52, 판정 J-56~판정 J-58, 판정 J-63~판정 J-65, 판정 J-93, 판정 J-96~판정 J-98, 판정 J-121·J-122·J-127·J-142·J-148·J-150·J-152·J-160·J-164·J-165·J-179·J-183·J-189·J-190)와 4c 조사(`.helm-design-work/coordinator/stage4c/research-browser.md` §8.4, `research-ohmypi.md` §6.3), 대조표 `.helm-design-work/coordinator/align-12-13-vs-08-09.md`.
+- 브리프: `docs/design/process/00-design-brief.md` 결정 2, 12, 14, 15, 17, 22, 23, 27~31, 34, 36, 41~46, 47~64, §2.5, §3. 조정자 판정 `process/rulings-stage2a.md`(판정 J-01, 판정 J-05, 판정 J-13, 판정 J-16, 판정 J-22, 판정 J-32, 판정 J-33, 판정 J-38~판정 J-46, 판정 J-49, 판정 J-51, 판정 J-52, 판정 J-56~판정 J-58, 판정 J-63~판정 J-65, 판정 J-93, 판정 J-96~판정 J-98, 판정 J-121·J-122·J-127·J-142·J-148·J-150·J-152·J-160·J-164·J-165·J-179·J-183·J-189·J-190)와 4c 조사(`.helm-design-work/coordinator/stage4c/research-browser.md` §8.4, `research-ohmypi.md` §6.3), 대조표 `.helm-design-work/coordinator/align-12-13-vs-08-09.md`.
 - pi 소스(`~/projects/_ref/pi-src`, 태그 `v1.1.0` 커밋 `abe508e1`) [원문]:
   - `packages/agent/src/agent-loop.ts`(`runAgentLoop`, `runAgentLoopContinue`, `runLoop`, `streamAssistantResponse`, `executeToolCalls*`, `prepareToolCall`, `executePreparedToolCall`, `finalizeExecutedToolCall`, `createToolResultMessage`, `failToolCallsFromTruncatedMessage`, `runToolCall`)
   - `packages/agent/src/types.ts`(`StreamFn` 계약 20-37행, `AgentLoopConfig` 193-342행, `AgentToolResult`·`AgentTool` 424-499행, `replay` 489-490행)

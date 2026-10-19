@@ -1,7 +1,7 @@
 # 20. 데스크톱 앱 아키텍처
 
 - 작성: P13(데스크톱 앱), 2026-10-11. 1단계 초안
-- 상태: 4c 보완판(2026-10-14). 기준 결정은 브리프 결정 1~57과 판정 `rulings-stage2a.md`(§1~§11, J-01~J-240)다. 03·04·05·06·07·09·11·16·17·18·19·21·26의 같은 시기 판과 맞췄다.
+- 상태: 4c 보완판(2026-10-14). 기준 결정은 브리프 결정 1~64과 판정 `rulings-stage2a.md`(§1~§11, J-01~J-275)다. 03·04·05·06·07·09·11·16·17·18·19·21·26의 같은 시기 판과 맞췄다.
 - 소유: Tauri 구조(Rust 쪽과 웹뷰 쪽 책임, IPC, 권한), 연결 관리(프로필, SSH, 상태 기계), React 앱 구조(폴더, 라우팅, 상태 관리), 클라이언트 저장소와 동기화, 오프라인 표시, OS 통합(알림, 메뉴 막대·트레이, 배지, 단축키, 로그인 시 시작, 딥 링크, 키체인), UI 번들 방식, 빌드·배포, 앱 테스트.
 - 소유하지 않음: 화면 ID·경로 후보·딥 링크 형식(03), 화면 상세·문구(04·05), 컴포넌트·토큰·시각화(21), 프로토콜 메서드·이벤트·오류 코드(19), 위협 모델·토큰 발급·페어링 규칙(18), 데몬 수명주기·tailscale serve 설정(17), 투영 생성(12), 이벤트 카탈로그(09).
 
@@ -76,7 +76,9 @@
 | 32, 41 | Tauri v2 + React + TypeScript + Vite. 앱에는 Helm 로직이 없다. React는 결정 41로 19를 쓴다(결정 32의 18을 대체). CSR만 쓴다(서버 컴포넌트·SSR 없음). UI 부품은 Helm이 직접 만든다(21) |
 | 42, 47~49 | 휴대폰에서도 질문에 답한다. 모바일은 데몬이 서빙하는 PWA(`/m/`)이고 알림은 Web Push(VAPID), 휴대폰 알림은 `interrupt`·`notice`까지, 최소 판은 iOS 26이다. 설계는 26(P15)이 하고, 이 문서는 데스크톱과 나눠 쓸 코드 경계를 정한다(§3.14) |
 | 50 | shadcn/ui 소스를 복사해 고쳐 쓰는 것은 부품 직접 제작에 포함된다. 부품은 21(`@helm/ui`)이 정한다 |
-| 56 | 결과 확인 대기의 휴대폰 알림 설정(`notifications.resultReview`)은 데몬 의미 설정이고 휴대폰 푸시만 바꾼다. 데스크톱 OS 알림 규칙(§3.10.1)은 그대로다(26) |
+| 56 | 결과 확인 대기의 휴대폰 알림 설정(`notifications.resultReview`)은 데몬 의미 설정이고 휴대폰 푸시를 바꾼다(26). 데스크톱은 배지만, `immediate`일 때만 OS 알림 [결정 60] |
+| 59 | 방해 금지 예외(`notifications.dndException`)는 휴대폰 푸시에만 적용한다. 방해 금지 중에는 데스크톱 OS 알림을 띄우지 않는다(§3.9, §3.10.1 규칙 4) |
+| 60 | 결과 확인 대기는 데스크톱에서 배지로만 알린다. 데스크톱 OS 알림은 `notifications.resultReview`가 `immediate`일 때만 띄운다(§3.10.1 규칙 2) |
 | 판정 44 | Node 24 LTS, TypeScript 6.0(결정 36 대체, 조정자 판정) |
 | 36 | TypeScript strict, ESM, pnpm workspace, Vitest, TypeBox. Node는 06이 24 LTS로 바꿨다(06 §3.12, ADR-06-07). 앱의 개발 도구(Vitest 5, jsdom 30, MSW 3)도 Node 24에서 돈다 |
 | 37 | UI 문구는 한국어다. 앱이 직접 만드는 문구(연결 오류, OS 알림 제목, 트레이 메뉴)도 한국어로 쓰고 05의 지침을 따른다 |
@@ -675,7 +677,7 @@ SSH 경로에서도 같은 HTTP 업그레이드를 `ssh -W 127.0.0.1:<HELM_LOOPB
 | 앱 전용 SSH 키 [제안] | 데스크톱 앱이 서버 전체 셸 권한을 가진 일반 키를 쓰면 앱 침해가 곧 서버 셸이 된다. 권장 구성은 키 둘이다. (1) 연결용 앱 전용 키를 서버 `authorized_keys`에 `restrict,port-forwarding,permitopen="127.0.0.1:7841"`로 등록한다. 이 키로는 `-W 127.0.0.1:7841`만 된다. (2) SSH 발급은 한 번만 하므로 일반 키로 하거나, `command="~/.local/bin/helm device issue --json --stdin",restrict`를 붙인 별도 키로 한다. 또는 SSH 발급 대신 페어링 코드(흐름 A)를 쓴다. `SCR-CONNECT`의 SSH 경로 도움말과 INSTALL에 이 구성을 적는다(18·17에 같은 권장을 요구, §5.2) |
 | `serverId` 고정 | 첫 페어링에서 받은 `serverId`를 프로필에 고정한다. 연결할 때마다 `hello.challenge.serverId`를 비교하고 다르면 `hello`를 보내지 않고 코어 `needsUser` + 앱 사유 `wrong_server`로 멈춘다(19 §3.4.2). 개발용 데몬과 실제 데몬을 헷갈려 캐시가 섞이는 것을 막는다 |
 | 토큰 폐기 | 폐기는 `device.revoke`(19)로 하고, 이 기기의 토큰은 `credential_forget`으로 지운다. 업그레이드 401·403 또는 `hello` 오류 1004·1005·1006이면 코어 `needsUser`가 되고, 앱 사유는 §3.8.8의 `needsUser` 원인 표를 따른다(`needs_pairing`·`auth_rejected`·`revoked`·`expired`). 폐기와 만료의 로컬 데이터 처리는 §3.9.5다 |
-| 토큰 교체 | 19의 `device.rotateToken`이 새 토큰을 JSON-RPC 결과로 돌려주면 토큰이 웹뷰를 지난다. 데스크톱은 이 메서드를 TS에서 부르지 않는다. 교체가 필요하면 18·19가 HTTP 경로(예: `POST /devices/self/rotate`, 현재 토큰으로 인증)를 두고 Rust 명령 `credential_rotate`가 부른다(§5.2 요구). 1차는 교체하지 않는다(happy-agent도 토큰을 회전하지 않는다, pi-cases-notes §12.1-7) |
+| 토큰 교체 | 19는 토큰 교체를 JSON-RPC 메서드로 두지 않는다. 교체는 2차 기능으로 HTTP `POST /devices/self/rotate`(현재 토큰 헤더로 인증, 18 §3.4.3·§3.8.3)만 하고 Rust 명령 `credential_rotate`가 부른다(§5.2 요구). 토큰은 웹뷰를 지나지 않는다. 데스크톱은 교체 호출을 TS에서 하지 않는다. 1차는 교체하지 않는다(happy-agent도 토큰을 회전하지 않는다, pi-cases-notes §12.1-7) |
 | 기기 키 서명 | 19 `hello.challenge.proofRequired`가 참이면 `hello.auth.proof`가 필요하다(19 §3.4.3, 1차 기본 false). 18이 채택하면 Rust가 Ed25519 개인 키를 키체인에 두고 명령 `device_sign_challenge({ profileId, nonce, serverId, signedAt }) → { signature }`가 서명만 돌려준다. 개인 키는 웹뷰로 나가지 않는다(§7 Q-04) |
 
 #### 3.8.8 연결 상태: 19 `HelmClient`와 앱의 경로 선택기 [제안, 2a단계에서 19 §3.10·§3.14에 맞춰 다시 씀]
@@ -1324,7 +1326,8 @@ const runtime = useExternalStoreRuntime({
 | `shortcuts.overrides` | `{}` | 앱 안 단축키 바꾸기. 값은 `KeyboardEvent.code` 조합(예: `Mod+KeyK`) |
 | `notifications.negotiated` | `false` | 협상 전달(`deliveryMode: negotiated`) 질문도 OS 알림으로 띄울지(05 §3.7.3 "협상 전달" 행·IX-Q2, AC-04-01, §3.10.1 규칙 5) |
 | `notifications.observer` | `false` | 관찰 제안 알림(04 §5.2) |
-| `notifications.dndException` | `none` | 방해 금지 중 예외: `none` / `expiringOnly`(05 §3.7.4). 방해 금지 자체는 의미 설정 `attention.snoozeUntil`이다([판정 J-166]) |
+| `notifications.resultReview` | `none` | 결과 확인 대기 알림 방식(`none` / `daily_digest` / `immediate`, 데몬 의미 설정이며 값의 정본은 11 §3.5.7). 데스크톱은 배지로만 알리고, 데스크톱 OS 알림은 `immediate`일 때만 띄운다 [결정 60] [판정 J-272] |
+| `notifications.dndException` | `none` | 방해 금지 중 휴대폰 푸시의 예외: `none` / `expiringOnly`(05 §3.7.4). 데스크톱 OS 알림에는 적용하지 않는다 [결정 59]. 방해 금지 자체는 의미 설정 `attention.snoozeUntil`이다([판정 J-166]) |
 | `transparency` | `system` | `system \| full \| reduced`(21 §3.2.9). `system`이면 OS의 투명도 줄이기를 따른다 |
 | `windowEffect` | `system` | `system \| on \| off`(21 §3.14.3). `system`이면 투명도 줄이기가 켜졌을 때 끈다 |
 | `macGlass` | `sidebar` | `sidebar \| liquidGlassRegular`. 뒤의 것은 macOS 26 이상에서만 고를 수 있다 |
@@ -1364,7 +1367,7 @@ const runtime = useExternalStoreRuntime({
 
 #### 3.10.1 알림 [제안]
 
-원칙: 질문을 언제 사람에게 알릴지는 데몬이 전달 방식(즉시·협상·중재·예약)으로 정한다(결정 12, 11). 앱은 데몬의 전달 결정이 기록된 영속 이벤트(19 §3.8.3, 이벤트 이름은 09·11)를 실시간으로 받았을 때만 OS 알림을 띄운다(APP-D11). 진행 이벤트마다 알리지 않는다(canon §12.12 #2, 21 UP-13). 원전 체크리스트의 "할 일과 마감 효과가 있는 것만, 낮은 우선순위는 복귀 요약에 묶음"(canon §17.6, §12.10 `batch_low_urgency_until`, `preferred_review_windows`)은 데몬의 전달 정책이 지키고, 앱은 그 결과만 보인다. 휴대폰 푸시는 2단계 기준으로 26의 Web Push다. 데몬이 `channel: push` 전달을 만들어 휴대폰에 보내고, 데스크톱 앱은 그 전달을 띄우지 않는다([결정 47·48], 26 §3.4). 데스크톱 앱이 꺼져 있으면 데스크톱 OS 알림은 없다. 그때 휴대폰으로 보낼지는 11의 전달 강도와 26의 `pushReachable`이 정한다. 결과 확인 알림 설정(`notifications.resultReview`, [결정 56])은 휴대폰 푸시만 바꾸고 데스크톱 OS 알림 규칙을 바꾸지 않는다(26).
+원칙: 질문을 언제 사람에게 알릴지는 데몬이 전달 방식(즉시·협상·중재·예약)으로 정한다(결정 12, 11). 앱은 데몬의 전달 결정이 기록된 영속 이벤트(19 §3.8.3, 이벤트 이름은 09·11)를 실시간으로 받았을 때만 OS 알림을 띄운다(APP-D11). 진행 이벤트마다 알리지 않는다(canon §12.12 #2, 21 UP-13). 원전 체크리스트의 "할 일과 마감 효과가 있는 것만, 낮은 우선순위는 복귀 요약에 묶음"(canon §17.6, §12.10 `batch_low_urgency_until`, `preferred_review_windows`)은 데몬의 전달 정책이 지키고, 앱은 그 결과만 보인다. 휴대폰 푸시는 2단계 기준으로 26의 Web Push다. 데몬이 `channel: push` 전달을 만들어 휴대폰에 보내고, 데스크톱 앱은 그 전달을 띄우지 않는다([결정 47·48], 26 §3.4). 데스크톱 앱이 꺼져 있으면 데스크톱 OS 알림은 없다. 그때 휴대폰으로 보낼지는 11의 전달 강도와 26의 `pushReachable`이 정한다. 결과 확인 알림 설정(`notifications.resultReview`, [결정 56])은 휴대폰 푸시를 바꾸고(26), 데스크톱에서는 `immediate`일 때만 OS 알림을 띄운다 [결정 60].
 
 앱이 `question.delivered` payload에서 읽는 필드. 정본은 09 §3.4의 스키마이고 아래는 앱이 쓰는 부분이다(판정 J-31·J-52):
 
@@ -1388,9 +1391,9 @@ interface DeliveryPayloadForApp {
 처리(`platform/tauri/notifications.ts`, 05 §3.7):
 
 1. **재전송 중 받은 전달은 하나씩 띄우지 않는다.** 이벤트 구독이 `caughtUp` 전이면 개수만 센다. `ready`가 되면 남아 있는 것(이미 답했거나 만료된 것 제외, `inbox` 뷰로 확인)이 하나 이상일 때 묶음 알림 하나 "접속하지 않은 동안 전달된 질문 n개"(05 키)를 띄운다(19 §3.8.3). 실시간으로 받은 전달도 `batchKey`가 같으면 알림 하나로 묶는다.
-2. `channel`이 `app`이 아니거나, `surface`에 `os`가 없거나, `targetDevices`가 `'all'`이 아니면서 이 기기의 `deviceId`를 담지 않았거나, `expiresAt`이 지났으면 띄우지 않는다. `category`가 `observer`면 기본으로 띄우지 않는다(설정으로 켬, 04 §5.2). 연결 차단(§3.8.9의 `blocked`)은 OS 알림이 아니라 앱 안 배너로만 보인다.
+2. `channel`이 `app`이 아니거나, `surface`에 `os`가 없거나, `targetDevices`가 `'all'`이 아니면서 이 기기의 `deviceId`를 담지 않았거나, `expiresAt`이 지났으면 띄우지 않는다. `category`가 `observer`면 기본으로 띄우지 않는다(설정으로 켬, 04 §5.2). 연결 차단(§3.8.9의 `blocked`)은 OS 알림이 아니라 앱 안 배너로만 보인다. 결과 확인 대기(`category: 'review'`, 11 §3.5.6)는 배지로만 알리고, `notifications.resultReview`가 `immediate`일 때만 `surface`에 `os`가 오므로 앱은 `surface`를 그대로 따른다 [결정 60].
 3. 같은 `deliveryId`는 한 번만 띄운다(`meta.recentDeliveryIds`, 최근 500개). 같은 질문의 알림은 전달 1번과 승격 1번까지다(05 §6 알림 행).
-4. 방해 금지나 조용한 시간(`attention.quietHours`, [판정 J-195]) 중이면 띄우지 않는다. 방해 금지는 의미 설정 `attention.snoozeUntil`이고([판정 J-166]) 기기마다 따로 두지 않는다(05 §3.7.4). 앱은 `tray` 뷰의 `dnd`(`on`, `until`)로 상태를 알고, 방해 금지가 끝나면 그동안 쌓인 것이 있을 때 묶음 알림 하나(05 `notif.bundle.afterQuiet`)를 띄운다. 예외 설정 "만료 임박만"이면 승격된 전달만 띄운다.
+4. 방해 금지나 조용한 시간(`attention.quietHours`, [판정 J-195]) 중이면 띄우지 않는다. 방해 금지는 의미 설정 `attention.snoozeUntil`이고([판정 J-166]) 기기마다 따로 두지 않는다(05 §3.7.4). 앱은 `tray` 뷰의 `dnd`(`on`, `until`)로 상태를 알고, 방해 금지가 끝나면 그동안 쌓인 것이 있을 때 묶음 알림 하나(05 `notif.bundle.afterQuiet`)를 띄운다. 방해 금지 중에는 예외 설정과 관계없이 데스크톱 OS 알림을 띄우지 않는다 [결정 59].
 5. 강도별 표시(11 §5.2의 20 요구): `interrupt`(즉시 전달: 권리 게이트, 막힘, 만료 임박 승격) → 전달 이벤트를 받은 뒤 5초 안에 OS 알림(01 NFR-P-6), 창이 열려 있으면 앱 안 배너도. `notice` → OS 알림(창이 앞에 있고 대상 화면이 열려 있으면 배너만). 다만 `deliveryMode`가 `negotiated`이면 설정 `notifications.negotiated`(기본 끔, 05 §3.7.3 "협상 전달" 행, AC-04-01)가 켜졌을 때만 OS 알림을 띄우고, 꺼져 있으면 배지만 바뀐다. `digest` → OS 알림 없음(질문함·배지·복귀 요약으로만).
 6. 시간당 상한은 데몬이 센다. 의미 설정 `attention.interruptsPerHour`(14 기본값, 모든 기기 합, 사람 기준 하나, 판정 J-171)가 데스크톱 OS 알림과 휴대폰 푸시를 합쳐 세고, 권리 게이트의 즉시 전달과 만료 임박 승격은 세지 않는다(05 §3.7.3). 앱은 자체 상한을 두지 않는다. 상한을 넘은 즉시 질문은 데몬이 협상으로 낮추고(14 §3.13.5 규칙 3), 넘은 알림은 데몬이 한 개로 묶어 보내고 앱은 받은 묶음을 그대로 보인다([판정 J-198]). 그 밖의 받은 전달은 규칙 5대로 띄운다. 데스크톱 알림을 눌러 질문을 열면 presence의 `screen`·`objectId`로 데몬이 열람을 알고, 26의 60초 지연 푸시가 나가지 않는다(26 §3.4.3).
 7. 띄울 때는 `sendNotification({ title, body, extra: { target, deliveryId } })`. 설정 `notifications.showContent`가 꺼져 있으면(기본, 05 ADR A8, 판정 J-03) 전달의 `copy` 대신 05의 숨김 키 `notif.hidden.title`("Helm")·`notif.hidden.body`(개수가 있으면 "확인할 일이 {n}건 있습니다.", 없으면 "확인할 일이 있습니다.")로 띄운다. n은 `tray` 뷰의 선택 필요 + 확인하면 좋은 것이다. 내용을 보일지는 기기가 정한다. 데몬은 05 §3.7.2의 인자만 싣고 숨김 처리를 하지 않는다(26의 `notifications.showContent`와 같은 규칙). 앱은 잠금 상태를 감지하지 않는다(05 §3.7.6). `notifications.enabled`가 꺼져 있으면 띄우지 않는다.
@@ -1537,7 +1540,7 @@ A를 고른다. 버전 문제는 §3.12.7의 호환 범위와 갱신 안내로 �
 | `app-check` | 서버 | `cargo fmt --check`, `cargo clippy --locked -p helm-desktop-core`, `cargo test --locked -p helm-desktop-core`, `cargo deny check`(라이선스·출처·중복), `cargo audit`(RustSec 공지), capability·CSP 정적 검사(§6). TS 검사·Vitest는 저장소 `lint`·`test`가 한다 | cargo 없음 |
 | `app-test-ssh` | 서버 | WSL 자신의 sshd(127.0.0.1:22)로 SSH 경로 통합 시험(가짜 데몬 포트로 `-W`) | sshd 없음, 시험 키 없음 |
 | `app-e2e` | 서버 | 가짜 데몬 + Vite 미리보기 + Playwright(Chromium, WebKit), IT-01~20 | 브라우저 미설치 |
-| `app-dev` | 서버 | Vite 개발 서버 + 브라우저 대체 실행으로 개발 데몬에 붙음(06 정의, 개발 전용). 브라우저는 헤더를 붙일 수 없으므로 Vite 개발 서버의 WebSocket 프록시(`/rpc` → `ws://127.0.0.1:<HELM_LISTEN_SSH_PORT>/rpc`)가 `.env`의 `HELM_DEV_DEVICE_TOKEN`으로 `Authorization` 헤더를 붙인다. 대상 포트는 `.env`의 `HELM_LISTEN_SSH_PORT`(개발 데몬 7851, 17 §3.15)에서 읽고, 값이 정식 데몬 포트 7841이면 시작하지 않는다. Vite 서버는 `127.0.0.1`에만 바인딩하고, 업그레이드 요청의 `Origin`이 Vite 개발 서버 주소(`http://127.0.0.1:1420`)와 정확히 같을 때만 토큰을 붙인다. 서버 PC 브라우저의 다른 페이지가 인증된 연결을 열지 못하게 하기 위해서다. 토큰은 Node 프로세스에만 있고 브라우저 번들에 들어가지 않는다(`envPrefix` 규칙, §3.6.2). 앱이 비밀 환경 변수를 읽는 예외는 이 레시피 하나다(06 §3.17) | `.env` 없음(`just dotenv`), 포트가 7841 | `.env` 없음(`just dotenv`) |
+| `app-dev` | 서버 | Vite 개발 서버 + 브라우저 대체 실행으로 개발 데몬에 붙음(06 정의, 개발 전용). 브라우저는 헤더를 붙일 수 없으므로 Vite 개발 서버의 WebSocket 프록시(`/rpc` → `ws://127.0.0.1:<HELM_LISTEN_SSH_PORT>/rpc`)가 `.env`의 `HELM_DEV_DEVICE_TOKEN`으로 `Authorization` 헤더를 붙인다. 대상 포트는 `.env`의 `HELM_LISTEN_SSH_PORT`(개발 데몬 7851, 17 §3.15)에서 읽고, 값이 정식 데몬 포트 7841이면 시작하지 않는다. Vite 서버는 `127.0.0.1`에만 바인딩하고, 업그레이드 요청의 `Origin`이 Vite 개발 서버 주소(`http://127.0.0.1:1420`)와 정확히 같을 때만 토큰을 붙인다. 서버 PC 브라우저의 다른 페이지가 인증된 연결을 열지 못하게 하기 위해서다. 토큰은 Node 프로세스에만 있고 브라우저 번들에 들어가지 않는다(`envPrefix` 규칙, §3.6.2). 앱이 비밀 환경 변수를 읽는 예외는 이 레시피 하나다(06 §3.17) | `.env` 없음(`just dotenv`), 포트가 7841 |
 | `app-dev-mac` | 서버 → Mac | `run-on mac 'cd ~/projects/helm/code/helm && just app-dev-local'` → Mac에서 `pnpm tauri dev` | Mac에 연결 못 함 |
 | `app-build-mac` | 서버 → Mac | `run-on mac`으로 `app-build-local` 실행(06 정의) | Mac에 연결 못 함 |
 | `app-build-local` | Mac | `pnpm tauri build --target universal-apple-darwin --bundles app -- --locked`, 끝나면 산출물 폴더에 `SHA256SUMS`(`shasum -a 256`)를 쓴다 | Xcode 명령줄 도구 없음 |
@@ -1807,7 +1810,7 @@ export interface PlatformAdapter {
 | 06 | 없음(`app-dev` 프록시 조건과 앱의 비밀 환경 변수 예외는 06 §3.17과 이 문서 §3.12.2가 같다) |
 | 07 | (해결, [판정 J-218]) Rust 크레이트 고지 생성은 `just licenses`에 넣는다. 고지 파일은 루트 `THIRD_PARTY_NOTICES.md` 하나다(§3.12.8) |
 | 16 | 열람 기록은 `presence.report`의 `screen`·`objectId`·`depth`(판정 J-84)로 만든다. 앱은 별도 `view.opened`를 보내지 않는다(19 §3.7.8) |
-| 22·23·24 | 22: §6.1 `DM-nn`, §3.13.3 `IT-01~20`, §6.2 `MC-01~14`를 인용한다. 23: 앱 구현 순서(코어·가짜 서버 → `@helm/client-react` → 앱 골격·Rust WSS 전송 → 동기화·캐시 → SSH 경로 → OS 통합 → 빌드·배포). 24: ADR-20-01~09. ADR-20-04의 범위는 "데스크톱 SPA"이고 모바일 PWA는 예외다(결정 47) |
+| 22·23·24 | 22: 이 문서의 §6.1 `DM-nn`, §3.13.3 `IT-01~20`, §6.2 `MC-01~14`를 인용한다. 23: 앱 구현 순서(코어·가짜 서버 → `@helm/client-react` → 앱 골격·Rust WSS 전송 → 동기화·캐시 → SSH 경로 → OS 통합 → 빌드·배포). 24: ADR-20-01~09. ADR-20-04의 범위는 "데스크톱 SPA"이고 모바일 PWA는 예외다(결정 47) |
 
 ## 6. 구현 단위와 완료 기준
 
@@ -1934,7 +1937,7 @@ export interface PlatformAdapter {
 | 발췌4 20-9·20-10 | 사람 결정은 서버 결정 명령으로, 모델의 앱 상태 수정은 제안으로만 | 반영. 앱은 낙관적 갱신을 하지 않고, assistant-ui 도구 결과 경로를 쓰지 않는다 | §3.9.7, §3.9.10 |
 | 발췌4 20-11 | ExternalStoreRuntime + 자체 스트림, AssistantTransport 미사용, React 18 | 반영. React는 결정 41로 19가 되었고 assistant-ui 0.15.28은 19를 받는다 | §3.9.10 |
 | 발췌4 20-20 | 클라이언트 기기가 잠자기·오프라인이면 쓰기 실패 → 데몬 상주 배경 | 반영. 앱은 상태를 갖지 않고 잠자기 뒤 `ping` 확인과 재접속으로 이어 간다 | §3.8.8, F-03 |
-| 발췌4 d25 | assistant-ui를 Tauri에서 쓸 때의 제약 | 답함. CSP 안에서 동작, 원격 자원 없는 부품만, 범위는 21 | §3.9.10 |
+| 발췌4 d25 | assistant-ui를 Tauri에서 쓸 때의 제약 | 답함. CSP 안에서 동작, 원격 자원 없는 부품만, 범위는 21 UI-D11 | 이 문서 §3.9.10 |
 | facts-2 §0-2·§6 | pi-client는 재접속·재전송을 하지 않는다. 투영은 스냅샷+delta와 함께 쓸 수 있다 | 반영. 재개는 19 코어가 하고, 뷰는 delta 대신 무효화 + 다시 받기(19 P-07) | §3.9.6 |
 | facts-2 §0-5·§8·§13 | pi-env SSH 부트스트랩(호스트 키 고정, BatchMode, 포워딩 금지, 동기화 줄) | 반영. BatchMode·엄격한 호스트 키·다중화 끄기, 동기화 줄은 SSH 페어링에만. 앱 전용 known_hosts와 HostKeyAlias는 쓰지 않음(사용자 별칭을 쓰기 위해, Q-15) | §3.8.3, §3.8.7 |
 | facts-2 §14 | pi-client를 Tauri 웹뷰에서 WebSocket으로 연결해 본 적 없음 | 해당 없음. pi-client를 쓰지 않고, 웹뷰는 WebSocket을 열지 않는다 | §3.2 |

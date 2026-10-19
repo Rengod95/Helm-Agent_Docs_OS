@@ -1,6 +1,6 @@
 # 15. 탐구 엔진
 
-- 문서 번호: 15. 소유: P9(탐구). 작성: 2026-10-11. 상태: 4단계 보완판(2026-10-12). 기준은 브리프 결정 1~57과 조정자 판정(`process/rulings-stage2a.md`)이다
+- 문서 번호: 15. 소유: P9(탐구). 작성: 2026-10-11. 상태: 4단계 보완판(2026-10-12). 기준은 브리프 결정 1~64과 조정자 판정 J-01~J-275(`process/rulings-stage2a.md`)이다
 - 구현 위치: I/O 없는 순수부(`planRound`, `decideStage`, `roundClosable`, 탐구 투영 리듀서, 계산 함수, 렌즈 seed·값 목록 데이터)는 `@helm/kernel/orchestration`의 `packages/kernel/src/orchestration/inquiry/`, 효과가 있는 부분(`runStage` 실행기, 포트 사용, 프롬프트, 출력 스키마, REPL 구동, 평가 하네스)은 `@helm/runtime`의 `packages/runtime/src/inquiry/`다([판정 J-128]). runtime은 kernel을 import하고, kernel은 runtime을 import하지 않는다
 - 이 문서만 보고 탐구 엔진(I 루프 네 종류, 발산 서브시스템, Method Transfer, 선호 모델 갱신, REPL 방식 탐구)을 구현할 수 있게 쓴다. 다른 문서가 소유한 것(레코드 최종 스키마, 이벤트 카탈로그, 명령·검증, 질문 전달, 모델 계층, 도구 등록, 루프 계약)은 파일 이름과 절 번호로 참조하고, 이 엔진이 그 문서에 요구하는 것을 §5에 모은다.
 - 표시 규칙은 브리프 §5.2를 따른다. 이 문서의 설계 선택은 따로 적지 않으면 [제안]이다.
@@ -401,7 +401,7 @@ export interface InquiryProjection {
 export interface InquiryProgressView {          // 투영. 저장하지 않음
   inquiryId: InquiryId;
   loop: InquiryLoop;
-  round: number; maxRounds: number;             // 다이얼 depth 또는 계약 라운드 상한
+  round: number; maxRounds: number;             // 다이얼 `inquiry.depth` 또는 계약 라운드 상한
   stage: "diverge" | "investigate" | "elicit" | "deliberate" | null;
   stages: { purpose: string; state: "done" | "current" | "planned" }[];   // 화면의 "단계 2/4"
   nextTouchpoint: { kind: QuestionKindI; when: "round_end" | "now" | "after_stop"; questionId?: QuestionId } | null;
@@ -1537,7 +1537,7 @@ nextStimuli(state, perRound):
 
 #### 3.6.7 선호 모델로 올리기
 
-- 기준 후보가 `consistent`가 되면 기준 확인 질문(`criterion_confirm`) 후보가 된다. 같은 라운드에 여러 개면 하나의 질문에 항목 목록으로 묶는다(항목마다 넣기·고쳐서 넣기·넣지 않기, 비용 등급 2). 11 §3.2.2의 형식 `confirm_candidate`에서 `answerSchema`는 후보별 `{ possibilityId, decision: "confirm" | "reject" | "keep", edits?, weight? }` 배열이다(11 §5.2 15 요구 (2)). `keep`은 "아직 정하지 않음"이다. 후보는 후보로 남고 다음 라운드에 다시 확인 질문 후보가 된다(02 UC-01의 "C3 보류"). 묶인 기준들의 결정은 사람 조작 1회로 센다(판정 J-23). 질문 예: "다음 기준을 선호 모델에 넣어도 될까요? 근거는 도입부 자극 세 개에 대한 반응입니다."(v0.3 06 §3.4)
+- 기준 후보가 `consistent`가 되면 기준 확인 질문(`criterion_confirm`) 후보가 된다. 같은 라운드에 여러 개면 하나의 질문에 항목 목록으로 묶는다(항목마다 넣기·고쳐서 넣기·넣지 않기, 비용 등급 2). 11 §3.2.2의 형식 `confirm_candidate`의 답은 11 §3.2.3의 `AnswerValue`다. 항목을 묶은 답은 `{ option: "confirm_items", items: [{ key, decision: "confirm" | "reject" | "keep", edits?, weight? }] }`이고, `key`는 기준 후보의 `possibilityId`, `weight`는 그 항목의 무게다([판정 J-258], 11 §5.2 15 요구 (2)). `weight?`와 `edits?`는 `decision`이 `confirm`인 항목에만 싣는다(10 §3.11.9) [판정 J-262·J-263]. `keep`은 "아직 정하지 않음"이다. 후보는 후보로 남고 다음 라운드에 다시 확인 질문 후보가 된다(02 UC-01의 "C3 보류"). 묶인 기준들의 결정은 사람 조작 1회로 센다(판정 J-23). 질문 예: "다음 기준을 선호 모델에 넣어도 될까요? 근거는 도입부 자극 세 개에 대한 반응입니다."(v0.3 06 §3.4)
 - 질문에는 모델이 제안한 무게를 함께 보인다. 무게 표시 문구는 05의 문구 키(높음·중간·낮음, 05 §3.2.6)를 쓴다. 사용자는 무게를 고칠 수 있다.
 - 답을 기다리는 동안 임시 가정은 "이 기준을 임시로 적용해 다음 자극과 초안을 만든다"이다(v0.3 06 §3.4). 정보 게이트이며 전달은 11이 정한다.
 - 사람의 답(`question.answer`)이 오면 커널이 항목별로 `preference.criterion.confirm`·`reject`를 같은 트랜잭션에서 적용하고 `preference_model.versioned`로 버전을 올린다(10·11에 요구, §5.2). 한 답에 담긴 기준 변경이 여럿이어도 버전은 한 번 오른다(08에 요구). 화면의 패널에서 직접 넣기를 누르는 경로도 같은 명령이다(05 §3.2.6). 엔진은 답에 고쳐 말한 내용이 있으면 그 문장으로 기준 이름 초안을 미리 만들어 둔다.
@@ -2135,7 +2135,7 @@ declare namespace helm {
 | 항목 | 값 |
 |---|---|
 | 구현 | 호스트 함수 → `ModelPort.call`(역할 `repl_sub`). 도구 없음, REPL 없음(깊이 1) |
-| 메모 키 | `repl:<inquiryId>:<stepKey>:<sha256(prompt, opts)>`. 13 §3.8.3의 `repl:<owner>:<sha256(prompt+opts)>`에서 `owner`를 `ReplRequest.owner`의 `inquiryId`와 `stepId`(= 엔진의 `InquiryStepKey`)로 채운 것이다. 재시작·재실행 시 같은 호출을 재사용한다(12 §3.14.6). 13이 이 규칙을 "15 §3.12.9"로 인용했는데 이 절(§3.12.5)이다 |
+| 메모 키 | `repl:<inquiryId>:<stepKey>:<sha256(prompt, opts)>`. 13 §3.8.3의 `repl:<owner>:<sha256(prompt+opts)>`에서 `owner`를 `ReplRequest.owner`의 `inquiryId`와 `stepId`(= 엔진의 `InquiryStepKey`)로 채운 것이다. 재시작·재실행 시 같은 호출을 재사용한다(12 §3.14.6). |
 | 상한 | 실행 한 번에 16회, 동시 4개(13 §3.8.3, coding-agent의 모델 호출 동시 상한과 같음, [원문] `pi@v1.1.0:packages/coding-agent/src/extensions/codemode/execute.ts:50`), 호출당 60초, 탐구 실행 전체 예산(§3.13.3, 12 `BudgetLease`)에서 차감 |
 | 깊이 2 | 하위 호출이 다시 도구·REPL을 쓰는 재귀(ypi 방식, 발췌 1 E1-219)는 기본으로 끈다. 설정 `inquiry.repl.allowRecursive = false` [제안] |
 | 바깥 이름 | REPL 밖에서 같은 기능을 도구로 쓸 때의 이름은 `helm_subcall`(감사 보고 §4). 등록은 13 |
@@ -2284,15 +2284,15 @@ export type InquiryConfig = Static<typeof InquiryConfig>;
 
 #### 3.13.3 예산
 
-예산 상한은 14의 루프 계약(§3.6.2~§3.6.5 "예산" 행)과 다이얼 `depth`·`budget`(14 §3.11.1)이 정하고, 집행은 12의 예산 원장이 한다. 엔진은 받은 상한을 단계에 나눠 쓴다.
+예산 상한은 14의 루프 계약(§3.6.2~§3.6.5 "예산" 행)과 다이얼 `inquiry.depth`·`inquiry.budget`(14 §3.11.1)이 정하고, 집행은 12의 예산 원장이 한다. 엔진은 받은 상한을 단계에 나눠 쓴다.
 
 | 단위 | 뜻 | 출처 |
 |---|---|---|
-| 라운드 | §1.4 | 14 `LoopBudget.rounds`, 다이얼 `depth` |
+| 라운드 | §1.4 | 14 `LoopBudget.rounds`, 다이얼 `inquiry.depth` |
 | WorkUnit 수 | 단계 WorkUnit 수 | 14 `LoopBudget.workUnits` |
-| 하위 호출 수 | 역할 호출 + 자식 run + REPL 하위 호출(자식 run 하나는 1로 셈) | 14 `LoopBudget.subcalls`, 다이얼 `budget.subcalls` |
-| 비용(USD) | 12 `UsageRecord.costUsd` 합 | 다이얼 `budget.costUsd`(선택) |
-| 시간 | 사람 대기를 뺀 실행 시간 | 14 `LoopBudget.wallMinutes`, 다이얼 `budget.wallMinutes` |
+| 하위 호출 수 | 역할 호출 + 자식 run + REPL 하위 호출(자식 run 하나는 1로 셈) | 14 `LoopBudget.subcalls`, 다이얼 `inquiry.budget`의 `subcalls` |
+| 비용(USD) | 12 `UsageRecord.costUsd` 합 | 다이얼 `inquiry.budget`의 `costUsd`(선택) |
+| 시간 | 사람 대기를 뺀 실행 시간 | 14 `LoopBudget.wallMinutes`, 다이얼 `inquiry.budget`의 `wallMinutes` |
 
 14의 기본값(14 §3.6.2~§3.6.5): I.fact 라운드 3·WorkUnit 12·하위 호출 24·60분, I.want 라운드 4·WorkUnit 8·하위 호출 24·60분, I.possibility 라운드 2·WorkUnit 10·하위 호출 30·60분, I.outcome 라운드 2·WorkUnit 6·하위 호출 16·45분. 14 계약의 WorkUnit 목록과 이 문서의 단계(§3.1.1)가 다른 곳(I.want의 `deliberate`)은 14 §3.20.4가 15를 따르기로 했다.
 
@@ -2706,7 +2706,7 @@ baseline: { ran: true, order: second, satisfaction: 3, criteria_count: 1 }
 | 08 (P5) | (1) `Possibility.consequenceMarks`. (2) `Inquiry.rounds[].planHash` 주석을 "계획 지문, 멈춤 판정 입력"으로. (3) U-14 확정 문장(MVP `off`, §3.5.4). (4) §3.22.7에 `triad` 반응 → `question.answered`, 라운드 닫힘 → `stimulus_round` 질문 `question.withdrawn(round_closed)` 파생. (5) R-23은 질문을 기록하는 시점의 현재 루프로 판정한다고 적는다. (6) `Stimulus.form`(그 전에는 `facets._form`). (7) 한 명령의 기준 변경은 `modelVersion`을 한 번만 올린다. (8) 파생 관찰의 독립성 키 = 입력 도구 호출 키 집합(08 §3.9.1) |
 | 09 (P5) | (1) `inquiry.opened` payload에 `divergence`. (2) `inquiry.stopped`에 `handover: BlobRef`, `stop.note`에 엔진 `StopReason`. (3) `check.pinned`. (4) `preference_model.created` 행위자에 `runtime`(10의 R 채널과 맞춤) |
 | 10 (P6) | (1) §3.2.6의 명령 넷을 §3.11.11에(13 제안 도구 표에도). (2) `inquiry.round.close` payload에 `trigger: human \| all_reacted \| wait_timeout`, 검사는 `roundClosable(round, trigger)`. 같은 트랜잭션에서 `runtime.boundary`를 파생하지 않는다(경계는 14 오케스트레이터가 `inquiry.round_ended`에서 제출, 14 §3.13.6). (3) `inquiry.stop`에 `then: proceed \| handoff \| decide_now`. (4) V-Q-03: I.want에서 답이 자극·가능성 id를 가리키는 질문 거부([판정 J-141]). (5) `criterion_confirm` 답의 항목별 적용(`confirm`·`reject`·`keep`). (6) `undeterminable` → `indeterminate`. (7) 15 인용 절 번호(§3.1.5, §3.4.4, §3.9.2). (8) 19 메서드 대응표의 `inquiry.fillCell`은 `observation.record`(utterance)로 대응하도록 §3.11.11 (2) 표에 넣는다(§3.2.6) |
-| 11 (P6) | (1) `criterion_confirm` `answerSchema` 항목 `decision`에 `keep`. (2) `stop_condition`을 만드는 곳에 15(반응 감소). (3) V-Q-03 판정 J-141 조건(10과 함께) |
+| 11 (P6) | (1) `criterion_confirm`의 `AnswerValue`(`confirm_items` 항목) `decision`에 `keep`. (2) `stop_condition`을 만드는 곳에 15(반응 감소). (3) V-Q-03 판정 J-141 조건(10과 함께) |
 | 12 (P7) | (1) 투영 렌더러 PJ-7: 바깥 글의 `<`·`>`를 문자 참조로 바꾸고 주입마다 무작위 id를 붙인 여닫는 표식을 쓴다. `helm_context`도 같게. T-PJ-10에 닫는 표식 흉내 사례. 15는 이 렌더러를 쓴다(R9). (2) §3.14: 자식 run의 유효 원시 행동 ⊆ 부모 run의 유효 원시 행동. (3) `RunKind`·`ModelRole`의 `inquiry`, `ModelRole`의 `image`([판정 J-97]). (4) `boundary.reach` 잔여 표기를 `runtime.boundary`로. (5) `KernelPort` 읽기 다섯 개를 `RuntimeStorePort` 위에 구현(§3.1.2) |
 | 13 (P7) | (1) 작업 공간 이름·방식은 판정 J-98대로. (2) 엔진 경로의 `ReplRequest.owner.toolCallId` 필수. (3) 메모 키 인용을 15 §3.12.5로. (4) 10 §3.11.11에 들어갈 명령 넷의 제안 도구 대응 |
 | 14 (P8) | (1) "지금 정하기" 뒤 `loop.transitioned`(I.* → 계획의 다음 C 루프, 없으면 `C.commit`)와 그 뒤 `question.raise(choice)`를 14 처리 흐름에 넣는다. (2) §3.6 표의 I.want `deliberate`, `diverge`의 `per_round`. (3) `StageResult` 대응표(§3.1.1)를 대기 처리에 쓴다 |
@@ -2808,7 +2808,7 @@ scripts/build-lens-seed.ts                       (생성 결과는 kernel 쪽 le
 | O-12 | "가깝다"(`near`) 반응을 정보성으로 셀지 | 셈 / 세지 않음 | 세지 않음(고르기와 같게) |
 | O-13 | 추론으로 얻은 재정의를 묻고 적용할지, 혼자 정하고 이의 받을지 | 질문 먼저 / 자율 + 이의 | 질문 먼저(정보 게이트, 임시 가정으로 진행). 사용자 발화가 직접 재정의를 말하면 그 관찰을 근거로 바로 `concern.reframe` |
 | O-14 | E0 판정 숫자 | §3.15.2 | 1 이하 재설계, 2 추가 시험, 3 이상 연결 |
-| O-15 | 비용 상한 기본값 | 없음 / 탐구당 USD | 14 다이얼 `budget.costUsd` 비움(상한 없음), 하위 호출 수 상한만 |
+| O-15 | 비용 상한 기본값 | 없음 / 탐구당 USD | 14 다이얼 `inquiry.budget`의 `costUsd` 비움(상한 없음), 하위 호출 수 상한만 |
 | O-16 | 구분 확인 선언 형식 | 08 `DiscriminatingCheck` / 10 `declare_discrimination`(쌍 단위) | 08 형식. 10 §3.11.4가 `core: DiscriminatingCheckCore`로 맞춤 |
 | O-17 | 렌즈 카드 출처만으로 근거 있음으로 볼지 | 예 / 실제로 읽어야 함 | 예(인용으로 기록). 판단 승격에는 세지 않음 |
 | O-18 | TUI에서 이미지·요소 단위 반응 | 링크와 요소 키 명령 / 지원 안 함 | 링크와 요소 키 명령(E-34) |

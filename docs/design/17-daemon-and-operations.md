@@ -1,7 +1,7 @@
 # 17. 데몬과 운영
 
 - 작성: 2026-10-11, P11(데몬)
-- 상태: 4단계 보완판(2026-10-14). 기준 결정은 브리프 결정 1~57과 조정자 판정(`process/rulings-stage2a.md` J-01~J-240)이다. 이벤트 이름과 payload는 09, 명령은 10, 메서드·오류 코드는 19, 레코드 형식은 08이 정본이고 이 문서는 그 이름을 쓴다.
+- 상태: 4단계 보완판(2026-10-14). 기준 결정은 브리프 결정 1~64과 조정자 판정(`process/rulings-stage2a.md` J-01~J-275)이다. 이벤트 이름과 payload는 09, 명령은 10, 메서드·오류 코드는 19, 레코드 형식은 08이 정본이고 이 문서는 그 이름을 쓴다.
 - 소유: `helmd` 프로세스 모델, 수명주기(시작·종료 순서, 신호, 단일 인스턴스), WSL 운영(systemd 단위, 재시작 정책, Windows 쪽 사건별 동작), 저장 위치, 백업·복구·복구 훈련의 운영 절차, 업그레이드와 되돌리기, 상태 확인·진단, 운영 로그, 리소스 한도, 데몬 관련 `justfile` 레시피, 관리 CLI(`@helm/cli`) 명령 목록과 종료 코드, 리스너 주소·소켓 경로, 모바일 정적 파일(`/m/`) 서빙 배치와 릴리스 포함.
 - 소유하지 않음: 보안 정책 전부(인증, 페어링, 토큰, 비밀 마스킹, 도구 격리 요구)는 짝 문서 18이 소유한다. 이벤트 envelope·DDL·마이그레이션 내용·백업 파일의 DB 수준 형식은 09, 크래시 복구 알고리즘과 스케줄러는 12, 도구 실행·프로세스 생성은 13, 프로토콜 메시지·메서드 이름·핸드셰이크 형식은 19, 앱 쪽 SSH 실행·키체인은 20이 소유한다.
 - 출처 표기: "facts-2 §8"은 `docs/design/process/sources/pi-api-facts-2.md` 8절, "사례 §12.1-3"은 `sources/pi-cases-notes.md` 12.1절 3번, "S4 openclaw-runtime §2.4"는 `.helm-design-work/S4/openclaw-runtime.md` 2.4절, "발췌1 E1-094"는 `sources/conversation-extracts-1.md` 항목, "oss §5"는 `docs/v0.3/audit/backend-oss-research.md` 5절, "homelab storage.md"는 `~/projects/homelab/context/storage.md`, "[실험 N]"은 §2.2 표의 N번 행이다. 이 문서의 ID(D17-, A17-, F-, T17-, Q17-, H-)를 다른 문서에서 인용할 때는 "17 F-05"처럼 문서 번호를 붙인다(25 §4.1).
@@ -73,7 +73,7 @@ Helm 데몬 `helmd`를 제품 소유자의 WSL2 서버에서 상주시키고(결
 | 결정 | 이 문서에 미치는 것 |
 |---|---|
 | 20 | `helmd`는 Windows PC 안의 WSL2 Ubuntu에서 돈다 [결정 20] |
-| 21, 26 | 외부 접속은 Windows 호스트의 `tailscale serve`(HTTPS/WSS)로 한다. `helmd`는 127.0.0.1에만 바인딩한다. Funnel은 쓰지 않는다 [결정 21, 제안: 결정 26 기본값] |
+| 21, 26 | 외부 접속은 Windows 호스트의 `tailscale serve`(HTTPS/WSS)로 한다. `helmd`는 127.0.0.1에만 바인딩한다. Funnel은 쓰지 않는다 [결정 21] [제안: 결정 26 기본값] |
 | 22 | 클라이언트가 없어도 작업이 계속된다. 데몬은 상주하고, 꺼졌다 켜져도 이어 간다 [결정 22] |
 | 29 | 기준 원본은 SQLite 이벤트 로그(WAL, WSL ext4)다. 백업 대상의 중심은 이 파일 하나다 |
 | 30 | 크래시 복구는 "실행 의도 → 실행 → 결과" 기록으로 하고, 재시작 시 중단된 도구 호출을 "중단됨"으로 정리한다. 복구는 DB의 성질이고 종료 훅의 성질이 아니다. 그래서 종료 순서는 "최선을 다하는 기록"이고, 정확한 결과는 시작 때의 복구가 만든다 |
@@ -165,7 +165,7 @@ Helm 데몬 `helmd`를 제품 소유자의 WSL2 서버에서 상주시키고(결
 | 발췌4 20-20: 클라이언트 쪽 기기가 잠자기·오프라인이면 쓰기가 실패하던 사례 → 데몬 상주 배경 | 반영. 데몬은 클라이언트 상태와 무관하게 상주한다 | §3.6 |
 | 발췌1 E1-094·E1-100: queue·inbox 파일 + 별도 관찰자 데몬 + 이벤트/주기 스캔 이중 트리거, 스케줄러는 pi 밖 | queue·inbox 파일은 쓰지 않는다(결정 29). 이중 트리거는 16 §3.3이 반영했고, 17은 그 실행 주체가 `helmd` 스케줄러(12)라는 것과 데몬이 꺼진 동안의 따라잡기를 시작 순서에 넣는다 | §3.4.2 14단계 |
 | 발췌1 E1-096: 분석 로직을 pi 확장 안에 넣지 않고 관찰자는 독립 프로세스 | 16 OB-1의 자식 프로세스 + 17의 격리 실행 | §3.1.3 |
-| facts-1 §0-9, §7.4: pi-durable은 `node:sqlite`, WAL, `synchronous=NORMAL`, 저장소당 프로세스 하나·프로세스 간 락 없음 | Helm은 `better-sqlite3`(결정 36). 프로세스 간 배타는 D17-02의 잠금 파일로 보장한다. `synchronous` 최종값은 09 | §3.1.4, §5.2(09) |
+| facts-1 §0-9, §7.4: pi-durable은 `node:sqlite`, WAL, `synchronous=NORMAL`, 저장소당 프로세스 하나·프로세스 간 락 없음 | Helm은 `better-sqlite3`(결정 36). 프로세스 간 배타는 D17-02의 잠금 파일로 보장한다. `synchronous` 최종값은 09 §3.6.3 | 이 문서 §3.1.4, §5.2(09) |
 | facts-2 §0-6, §1.1: 모든 pi 패키지 `engines.node >=22.19.0` | 릴리스 매니페스트에 Node 경로·버전·ABI를 적고 시작 때 확인한다 | §3.10.1 |
 | facts-2 §8, §13: pi-env의 ping 5초·무수신 30초 종료, SSH 부트스트랩 규칙 | 연결 생존 확인은 19가 정한다. 17은 SSH 경로의 서버 쪽 리스너(`loopback`)와 sshd 조건만 정한다 | §3.5, §3.6.7 |
 | oss §5.1: `.wslconfig` timeout 두 개 -1, 로그온 keepalive 작업, 절전 끄기, `helm-daemon.service (Restart=always)` | 이미 적용된 것을 확인했다 [실험 11·13·14]. 단위 이름은 `helmd.service`, 재시작은 `on-failure` + 환경 오류 제외로 바꿨다(이유 §3.6.5) | §3.6 |
@@ -289,7 +289,7 @@ export function acquireInstanceLock(dataDir: string): InstanceLock {
 
 1. 잠금 파일은 데이터 디렉터리마다 하나다. 정식 데몬(`/srv/volumes/helm/data`)과 개발 데몬(`/srv/volumes/helm/dev/data`)은 서로 다른 잠금을 쓴다.
 2. 잠금 연결 외에 같은 프로세스에서 `helmd.lock`을 다시 열지 않는다(POSIX 잠금은 프로세스 안의 어느 디스크립터든 닫히면 풀린다 [지식]).
-3. 진단용 정보는 `helmd.owner.json`에 쓴다: `{ pid, procStartTime, bootEpoch, releaseId, startedAt, state: "running" | "stopped" }`. tmp에 쓰고 rename한다. 이 파일은 판정에 쓰지 않는다. 이전 프로세스가 `state: "running"`을 남겼으면 비정상 종료의 보조 증거다(정본 판정은 §3.4.2 10단계의 `boots` 기록).
+3. 진단용 정보는 `helmd.owner.json`에 쓴다: `{ pid, procStartTime, bootEpoch, releaseId, startedAt, state: "running" | "stopped" }`. tmp에 쓰고 rename한다. 이 파일은 소유 판정(누가 서버를 쥐는가)에 쓰지 않고, 부팅 기록은 크래시 루프 계산(§3.4.6)에만 쓴다([판정 J-247]). 비정상 종료 판정의 정본은 §3.4.2 10단계의 `boots` 기록이다.
 4. CLI의 오프라인 작업(`helm ops restore`, 데몬이 꺼져 있을 때의 `helm ops backup`)도 같은 잠금을 잡은 뒤에만 DB를 연다. 잠금을 못 잡으면 "데몬이 실행 중"으로 보고 멈춘다(종료 코드 3).
 5. 관찰 에이전트의 읽기 전용 연결(16 OB-2)은 이 잠금을 잡지 않는다.
 
@@ -317,7 +317,7 @@ export function acquireInstanceLock(dataDir: string): InstanceLock {
   app/                                  릴리스(§3.10)
     releases/<릴리스 ID>/                불변. 예: 0.1.0+bad4d2d
       bin/helmd  bin/helm  bin/helm-secret-export   실행 래퍼(sh, exec node …)
-      bin/helm-netshim                  정적 실행 파일(판정 J-134의 프록시 다리, 래퍼가 아니다)
+      bin/helm-netshim                  정적 실행 파일(판정 J-134의 프록시 다리, 래퍼가 아니다). Rust 정적 실행 파일은 제안안이며 23 스파이크 뒤에 확정한다 [결정 63]
       daemon/  cli/                     pnpm deploy 결과(dist/, node_modules/)
       web/mobile/                       모바일 PWA 묶음(26 §3.6.1). 데몬이 `/m/`로 서빙한다(§3.5.1)
       manifest.json                     §3.10.1
@@ -560,7 +560,7 @@ SIGHUP 또는 `helm ops reload`로 다시 읽는다. 분류 정본은 06 §3.10.
 | 4 | 비밀 로딩(§3.8). `required`(기본 `HELM_LEDGER_HMAC_KEY`)가 없으면 실패 | 17, 18 | 2 |
 | 5 | DB 열기(09 §3.8.2 4단계): PRAGMA(09 §3.6.3), 쓰기 트랜잭션을 한 번 열고 닫아 이전 크래시의 WAL 복구를 끝낸다(happy-agent `openAgentSQLiteDatabase.ts:40-63`), `application_id` 확인. 파일을 열 수 없으면(`SQLITE_NOTADB` 등) 종료 코드 5 | 09 | 5 |
 | 6 | `user_version`이 코드보다 높으면 다운그레이드 거부(09 §3.13.1) | 09 | 4 |
-| 7 | 무결성 검사 tail(09 §3.10.4, 시작점은 `meta.integrity_broken_seq`가 있으면 그 지점). 이전 종료가 비정상이었으면(`helmd.owner.json`의 `state: running`으로 미리 추정) `PRAGMA quick_check`도 한다 | 09 | 읽기 전용 시작(`integrity_suspect`) |
+| 7 | 무결성 검사 tail(09 §3.10.4, 시작점은 `meta.integrity_broken_seq`가 있으면 그 지점). 이전 종료가 비정상이었으면(직전 `boots` 행의 `clean = 0`, 10단계의 이전 세대 판정과 같은 값을 여기서 미리 읽는다) `PRAGMA quick_check`도 한다 | 09 | 읽기 전용 시작(`integrity_suspect`) |
 | 8 | 마이그레이션(09 §3.13): 필요하면 `pre-migrate` 백업(§3.9) 후 적용. 이미 적용된 마이그레이션의 체크섬이 다르면 적용하지 않고 읽기 전용 시작(`integrity_suspect`) | 09, 17 | 백업·마이그레이션 실패 1(같은 실패 두 번째부터 2, §3.10.3). 체크섬 불일치는 읽기 전용 시작 |
 | 9 | 이벤트 버전 확인(모르는 type·typeVersion이 있으면 거부, 09 §3.8.2 8단계)과 투영 따라잡기·재구성(09 §3.8.2 9단계) | 09 | 모르는 버전 4. 재구성 실패는 읽기 전용 시작(`recovery_failed`) |
 | 10 | `bootEpoch = ULID` 발급과 `daemon.booted { bootEpoch, previousEpoch, previousCleanShutdown, releaseId, userVersion, projectorVersion, pid, host, storeId, mode }`(09 §3.8.2 10단계, payload는 09 정본). 이전 세대 판정은 `boots` 테이블의 `clean` 값. 마이그레이션이 있었으면 `store.migrated`. 크래시 루프 판정(§3.4.6)과 복원 뒤 첫 부팅 판정(`meta.restored_pending`): 해당하면 같은 트랜잭션에 `daemon.safe_mode_entered { reason }`. 복원 뒤 첫 부팅이면 이어서 `store.restored { …, carried }`와 restore-carry 적용, 미소진 승인 만료(§3.9.4 7단계). `helmd.owner.json` 갱신 | 09, 12, 17 | 1 |
@@ -584,7 +584,7 @@ SIGHUP 또는 `helm ops reload`로 다시 읽는다. 분류 정본은 06 §3.10.
 1. 모드 `draining`. 새 연결을 받지 않는다. 기존 연결에 종료 예고 알림(19 `server.shutdown { reason: "restart" | "upgrade" | "stop", restartExpectedMs?, drainDeadline }`)을 보낸다. 이후 상태를 바꾸는 요청은 19의 `5001` 오류로 거절하고 읽기 요청은 받는다.
 2. 스케줄러 정지(새 타이머 발화 없음). 관찰 실행 감독기에 `job.cancel { reason: "shutdown" }`(16 §3.2.3).
 3. 진행 중 실행 유예: 12 `drain(drainTimeoutMs)`(20초) 동안 진행 중 모델 호출·도구 호출이 끝나기를 기다린다. 새 턴은 시작하지 않는다. 사람 대기 중인 실행은 기다리지 않는다(정본에 대기 상태로 남는다). 결과 `DrainReport`를 6단계에 쓴다.
-4. 강제 정리: 12 `abortAll("shutdown")`. 남은 모델 요청은 `AbortController`로 끊는다. 남은 도구 프로세스는 SIGTERM(단위면 `systemctl --user kill --signal=SIGTERM`), `toolKillGraceMs`(5초) 뒤 SIGKILL. 끊긴 도구 호출과 run의 정상 종료 사유 이름은 `daemon_shutdown` 하나다(판정 J-122. 12의 `report_unknown.reason`·`run.end.code`, 09 `toolcall.interrupted.cause`·`run.interrupted`가 이 값을 쓴다, 09·10·12에 요구). 커널이 run을 이미 `awaiting_recovery`로 옮겼으면 `run.end`를 내지 않는다(J-122). 이 기록이 빠져도 다음 시작의 복구가 같은 결과를 만든다(결정 30 기본값).
+4. 강제 정리: 12 `abortAll('daemon_shutdown')`. 남은 모델 요청은 `AbortController`로 끊는다. 남은 도구 프로세스는 SIGTERM(단위면 `systemctl --user kill --signal=SIGTERM`), `toolKillGraceMs`(5초) 뒤 SIGKILL. 끊긴 도구 호출과 run의 정상 종료 사유 이름은 `daemon_shutdown` 하나다(판정 J-122. 12의 `report_unknown.reason`·`run.end.code`, 09 `toolcall.interrupted.cause`·`run.interrupted`가 이 값을 쓴다, 09·10·12에 요구). 커널이 run을 이미 `awaiting_recovery`로 옮겼으면 `run.end`를 내지 않는다(J-122). 이 기록이 빠져도 다음 시작의 복구가 같은 결과를 만든다(결정 30 기본값).
 5. 연결 닫기: WebSocket 닫는 코드는 `server.shutdown.reason`이 `restart`·`upgrade`면 1012(Service Restart), `stop`이면 1001(Going Away). 19 표에 1012를 더하고, 모르는 서버 닫는 코드는 백오프 재접속으로 다루라고 19에 요구한다.
 6. `daemon.stopped { reason, uptimeMs, drainedRuns, interruptedToolCalls }`(09 payload 정본) append. `PRAGMA wal_checkpoint(TRUNCATE)`. DB 닫기.
 7. `helmd.owner.json`에 `state: "stopped"`. 잠금 해제. 종료 코드 0.
@@ -675,7 +675,7 @@ if uncleanStarts >= crashLoop.maxUncleanStarts (3):
 | `local` | Unix `/run/user/1000/helm/rpc.sock`(0600, 디렉터리 0700) | 서버 안의 관리 CLI, TUI(결정 33·39) | 파일 권한(같은 uid). 로컬 관리자 주체 허용, 기기 토큰도 받음 | 같음 |
 
 - 세 리스너 모두 같은 HTTP + WebSocket 스택과 같은 프로토콜 처리기를 쓴다(19 P-01). 다른 것은 연결 수락 직후의 리스너별 사전 검사와 허용 주체뿐이다(18 §3.4).
-- `loopback` 리스너를 `tailnet`과 따로 두는 이유: `tailnet`의 인증은 신원 헤더를 요구하는데 SSH로 들어온 연결에는 헤더가 없다. 한 포트에서 "헤더가 없으면 다른 규칙"을 허용하면 헤더 검사를 건너뛰는 길이 생긴다(18 §3.4.2). 19 P-02와 20 APP-D03은 `ssh -W 127.0.0.1:7841`(B3)로 맞췄고 18 ADR-18-2가 보안 조건을 정리했다. `-L`(Unix 소켓 포워딩)을 택하는 경우의 대상은 `rpc.sock`이 아니라 별도 소켓 `remote.sock`(로컬 관리자 불가, 기기 토큰 필수)이어야 한다.
+- `loopback` 리스너를 `tailnet`과 따로 두는 이유: `tailnet`의 인증은 신원 헤더를 요구하는데 SSH로 들어온 연결에는 헤더가 없다. 한 포트에서 "헤더가 없으면 다른 규칙"을 허용하면 헤더 검사를 건너뛰는 길이 생긴다(18 §3.4.2). 19 P-02와 20 APP-D03은 `ssh -W 127.0.0.1:7841`(B3)로 맞췄고 18 ADR-18-02가 보안 조건을 정리했다. `-L`(Unix 소켓 포워딩)을 택하는 경우의 대상은 `rpc.sock`이 아니라 별도 소켓 `remote.sock`(로컬 관리자 불가, 기기 토큰 필수)이어야 한다.
 - `local` 리스너의 사람 결정(질문 답, 결과 확인, 안전 모드 해제)은 TUI 또는 TTY CLI에서 확인 문자열을 넣은 경우만 받는다. 비대화 `localAdmin`(스크립트)은 읽기와 관리만 한다. 같은 uid의 스크립트가 확인 문자열까지 넣는 의도적 공격은 막지 못하며, 그 한계는 18에 적는다(판정 J-135).
 - 포트 선택 근거: WSL과 Windows 양쪽에서 비어 있다 [실험 4·5]. mirrored 모드라 WSL의 127.0.0.1 포트 공간을 Windows와 함께 쓴다 [실험 6]. 홈랩 관례처럼 serve 포트(8448)와 뒤쪽 포트(7840)를 다르게 둔다.
 - `0.0.0.0`, tailnet 주소, LAN 주소에는 바인딩하지 않는다. 설정 검증기가 `host`가 `127.0.0.1`(또는 `::1`)이 아니면 거부한다.
@@ -683,7 +683,7 @@ if uncleanStarts >= crashLoop.maxUncleanStarts (3):
 
 #### 3.5.1 모바일 PWA 정적 서빙 [제안, 결정 47]
 
-데몬은 `tailnet` 리스너에서만 모바일 PWA 묶음을 서빙한다. 경로 표와 응답 헤더는 26 §3.3.2, 보안 규칙(hello 전 처리, 쿠키, Origin, CSP)은 18 §3.4.3·§3.4.6, HTTP 경로 표는 19 §3.2.5가 정본이다. 17이 정하는 것은 배치다.
+데몬은 `tailnet` 리스너에서만 모바일 PWA 묶음을 서빙한다. 보안 헤더·캐시·쿠키는 18 §3.4.6, 경로 표는 19 §3.2.5가 정본이다. hello 전 처리와 Origin 규칙은 18 §3.4.3이 정본이다. 17이 정하는 것은 배치다.
 
 | 항목 | 값 |
 |---|---|
@@ -1132,8 +1132,8 @@ DB 수준 절차는 09 §3.14.2 `restore(backupId, carry)`가 정본이다. `jus
 6. 잠금 해제, systemctl --user start helmd.service
 7. 데몬의 복원 뒤 첫 부팅(§3.4.2 10단계, 09 restore 7단계): daemon.booted → daemon.safe_mode_entered { reason: "restored" }
    → store.restored { previousStoreId, storeId, backupId, upToSeq, quarantinePath, carried }(복원 표지 이벤트).
-   리스너를 열기 전에: restore-carry를 internal:recovery 명령으로 다시 적용, 미소진 승인을 approval.expired { reason: "restored" }로
-   닫음, "모든 기기 토큰 무효" 표시가 있으면 모든 기기를 device.revoked { reason: "restore_without_revocation_list" }.
+   리스너를 열기 전에: restore-carry를 internal:recovery 명령으로 다시 적용, 미소진 승인은 09 §3.14.2 7b에 따라
+   approval.expired { reason: "restored" }로 닫는다([판정 J-246]). "모든 기기 토큰 무효" 표시가 있으면 모든 기기를 device.revoked { reason: "restore_without_revocation_list" }.
    끝나면 restore-carry.json을 지우고 meta.restored_pending을 비운다. 손상 복구였으면 integrity.recovered도 남긴다
 8. 런타임 복구(12)는 스냅샷 시점에 진행 중이던 run을 이전 세대의 중단 run으로 정리만 하고 재개하지 않는다(안전 모드).
    에이전트 실행 타이머·관찰 실행·14의 새 실행도 멈춘다
@@ -1609,7 +1609,7 @@ daemon-backup-copy:
 | `helm daemon drain [--reason …]` | 종료 예고 후 정지(업그레이드 스크립트가 씀) | 예 | `admin.drain` |
 | `helm ops alert <unit>` | 내부용(경보 단위). 사람이 쓰지 않는다 | 아니요 | - |
 | `helm diag bundle` | 진단 묶음(§3.11.6) | 아니요(있으면 더 많이 담음) | 상태 조회 |
-| `helm attach --stdio` | (예비) SSH exec 경로 브리지. 18 ADR-18-2의 대안 C를 택할 때만 쓴다 | 예 | - |
+| `helm attach --stdio` | (예비) SSH exec 경로 브리지. 18 ADR-18-02의 대안 C를 택할 때만 쓴다 | 예 | - |
 | `helm observer run <kind>` | 관찰 실행 수동 시작(16 §3.3.1 T8) | 예 | 16·19 |
 
 출력 규칙: 사람이 읽는 출력은 한국어, `--json`은 기계용. 오류 메시지는 무엇이 안 되었는지와 다음 명령을 함께 적는다.
@@ -1718,7 +1718,7 @@ daemon-backup-copy:
 | 09 | (1) §3.8.1 겹 1의 단위 이름 `helm-daemon.service`를 `helmd.service`로(남아 있으면). (2) `toolcall.interrupted.cause`와 `run.interrupted`에 정상 종료 이름 `daemon_shutdown`과 `crash`(판정 J-122). (3) 매니페스트에 `verify`, `producer` 필드(§3.9.2). (4) restore-carry 대상에 `device.expired`, `device.push_unregistered`(18 §3.16). (5) 09 §3.14.2 8단계의 `helm ops resume`을 17 이름 `helm ops safe-mode off`(10 `runtime.exit_safe_mode`)로. (6) 기기 만료: 절대 만료는 `p_timers`의 `device_expiry`(이미 정본에 있음), 유휴 점검은 `runtime_timers`의 별도 목적이다(판정 J-161). 두 점검의 목적 이름과 `result_review_digest`(판정 J-189)를 `runtime_timers` 목록에 확정한다. (7) `synchronous=FULL` 유지 |
 | 10 | (1) `run.end`·`toolcall.report_unknown`의 정상 종료 사유 `daemon_shutdown`을 열거에(J-122). (2) `ctx.now = max(벽시계, 마지막 recordedAt)`, `TimerFirePayload`에 `firedAt`·`lateMs`(§3.6.8). (3) 관찰 실행을 실패로 닫는 명령 이름(이전 epoch의 열린 `observer_run.started`, §3.4.2 12단계). (4) 투영 실패 때 degraded 유지 문장 삭제(J-129) |
 | 11 | 시계 앞쪽 점프 때 가정 만료 보류와 사람 확인(§3.6.8). 복원 때 미소진 승인 만료 처리 |
-| 12 | (1) 시작 단계 번호는 17 §3.4.2를 인용(§3.7.3 머리 문단의 "0~11단계"를 0~11로 유지하되 함수가 12·14·16단계에 대응). (2) `RecoveryReport`·`DrainReport` 타입을 내보내고 17 `OpsStatus.recovery`·`lastDrain`이 쓴다. (3) 정상 종료 이름 `daemon_shutdown`(J-122). (4) `recover()`의 run 단위 예외 격리와 `recovery_error`, 복구 단계 전체 실패를 17에 알리는 반환(§3.4.2). (5) 이전 epoch의 열린 `observer_run.started`를 실패로 닫기(§3.10.4의 `observer_run.record`를 10 명령 이름으로). (6) 절전 복귀(`now − lastTickAt > 2분`) 때 부팅 catch-up 규칙, `run_wall_watchdog`은 단조 시계(§3.6.6). (7) 디스크 가득 때 `state/pending-results/<tcId>.json`과 해소 때 먼저 커밋(§4 F-05). (8) 설정 키 `budget.monthlyUsd`를 06 정본 `budget.monthlyCapUsd`로. (9) 모델 상태 바뀜을 즉시 17에 알림. (10) `runtime_timers` 목적 목록(12 §3.10.6)에 `result_review_digest`(판정 J-189)와 유휴 기기 만료 점검 목적(판정 J-161, 이름은 12가 정한다)을 더한다. (11) `recover`의 `startReason`에서 `rollback`을 뺀다(판정 J-164) |
+| 12 | (1) 시작 단계 번호는 17 §3.4.2를 인용(§3.7.3 머리 문단의 "0~11단계"를 0~11로 유지하되 함수가 12·14·16단계에 대응). (2) `RecoveryReport`·`DrainReport` 타입을 내보내고 17 `OpsStatus.recovery`·`lastDrain`이 쓴다. (3) 정상 종료 이름 `daemon_shutdown`(J-122). (4) `recover()`의 run 단위 예외 격리와 `recovery_error`, 복구 단계 전체 실패를 17에 알리는 반환(§3.4.2). (5) 이전 epoch의 열린 `observer_run.started`를 `observer.report.submit { form: "run_failed", code: "interrupted" }`로 닫기(10 §3.11.10). (6) 절전 복귀(`now − lastTickAt > 2분`) 때 부팅 catch-up 규칙, `run_wall_watchdog`은 단조 시계(§3.6.6). (7) 디스크 가득 때 `state/pending-results/<tcId>.json`과 해소 때 먼저 커밋(§4 F-05). (8) 설정 키는 06 정본 `budget.monthlyCapUsd` 하나만 쓴다. (9) 모델 상태 바뀜을 즉시 17에 알림. (10) `runtime_timers` 목적 목록(12 §3.10.6)에 `result_review_digest`(판정 J-189)와 유휴 기기 만료 점검 목적(판정 J-161, 이름은 12가 정한다)을 더한다. (11) `recover`의 `startReason`에서 `rollback`을 뺀다(판정 J-164) |
 | 13 | (1) 자식 프로세스 원장 레코드와 대조 함수 `reapOrphans(prevEpochs)`. (2) §3.6.2의 데몬 포트 `127.0.0.1:7801`을 7840·7841로(남아 있으면). (3) 샌드박스 홈 정리는 17 §3.9.7(30일) |
 | 16 | (1) 격리 실행 IPC를 전송과 분리(§3.1.3). `systemd-run` 실패 때 `fork`로 몰래 낮추지 않는다. (2) 관찰 자식 가림에 `private/`. (3) fork 자식은 IPC 끊김에서 스스로 끝난다(§3.1.3) |
 | 19 | (1) `admin.status`(→ `OpsStatus`)와 `HelmClient.admin()`, `admin.*` params에서 `basisSeq` 필수 해제, `admin.backupNow { kind }` → `{ jobId }`. (2) 닫는 코드 1012(재시작·업그레이드)와 모르는 서버 닫는 코드의 백오프(§3.4.3). (3) `server.shutdown.reason`과 09 `daemon.stopped.reason` 대응 표(§3.4.3)를 참조. (4) `daemon.exitSafeMode`는 19 §3.7.8대로 `devices`(데스크톱·TUI 기기), `decideMobile`(휴대폰), 대화형 `localAdmin`에 허용하고 비대화 `localAdmin`은 거부한다(§3.4.1). (5) 연결 계층이 presence 갱신을 낸다(J-110, §3.4.1). (6) `/m/*` 경로 표. (7) 의미 설정 키 `attention.snoozeUntil`·`attention.interruptsPerHour`·`notifications.resultReview`·`notifications.resultReviewDigestAt`를 `settings.update`의 키로 둔다(§3.3.1, 판정 J-166·J-171·J-189). (8) `admin.safeMode`를 지운다. 안전 모드 진입은 데몬 사유(`crash_loop`·`restored`)뿐이다(판정 J-165) |

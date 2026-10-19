@@ -1,7 +1,7 @@
 # 14. 루프·모드·오케스트레이션
 
 - 작성: 2026-10-11, P8 오케스트레이션
-- 상태: 설계 초안(2026-10-14 갱신). 기준: 브리프 결정 1~57, 판정 `process/rulings-stage2a.md` J-01~J-240. 다른 문서 대조는 §3.20
+- 상태: 설계 초안(2026-10-14 갱신). 기준: 브리프 결정 1~64, 판정 `process/rulings-stage2a.md` J-01~J-275. 다른 문서 대조는 §3.20
 - 소유: P8. 이 문서는 오케스트레이션 모듈(순수 코어 `@helm/kernel/orchestration`, 효과 부분 `@helm/runtime/orchestration`, §3.20.6)을 만드는 데 필요한 내용을 정한다.
 - 기준: `docs/design/process/00-design-brief.md`(이하 "브리프"). 브리프와 다른 자료가 충돌하면 브리프를 따른다.
 - 표시(브리프 §5.2, [판정 J-144]): `[결정 n]`은 사용자가 정한 브리프 결정 번호가 근거인 것, `[제안: 결정 n 기본값]`은 조정자 기본값(결정 26~32·34·36·37), `[판정 n]`(결정 44~46)·`[판정 J-nn]`은 조정자 판정, `[제안]`은 이 문서가 정한 것, `[가정]`은 확인되지 않은 전제다. 외부 사실은 `[원문]` `[실험]` `[검색]` `[지식]`으로 확인 수준을 적는다.
@@ -83,10 +83,13 @@ Helm의 루프(O, I, C, A, S와 그 변형)가 데몬 안에서 실제로 어떻
 | 결정 29, 30 [제안: 결정 29·30 기본값] | 기준 원본은 Helm 이벤트 로그(SQLite). 실행 의도 → 실행 → 결과 순으로 기록하고 재시작 시 중단된 호출을 정리 | 오케스트레이터는 별도 상태 저장소를 두지 않는다. 상태는 로그의 투영이다(§3.16.5) |
 | 결정 36, 44 [제안: 결정 36 기본값], [판정 44] | TypeScript strict, ESM, Vitest, TypeBox. 런타임은 Node 24 LTS, TypeScript 6.0(결정 44가 36을 대체) | 계약 데이터 스키마는 TypeBox |
 | 결정 42, 47, 48 | 휴대폰에서 질문에 답한다. 모바일은 데몬이 서빙하는 PWA이고 알림은 Web Push다. 휴대폰 알림은 `interrupt`와 `notice` 강도까지 보낸다 | 부재 판정(§3.13.8)이 휴대폰 기기를 입력으로 받고, 주의 예산 규칙(§3.13.5)이 푸시 강도를 결정 48대로 둔다 |
-| 결정 51 | 구현 작업의 에이전트는 3단계로 둔다 | §6 구현 단위는 23의 WBS가 등급·담당을 붙인다. 이 문서는 모듈 경계만 정한다 |
+| 결정 51 | 구현 작업의 에이전트는 3단계로 둔다 | §6 구현 단위는 23의 WBS가 등급·담당을 붙인다. 이 문서는 모듈 경계만 정한다. 모델 구성은 결정 58(개정)이 정한다 |
 | 결정 55 | MVP 도구에 웹 읽기·검색(`web_fetch`, `web_search`)을 넣는다([판정 J-190]) | 근거 범위 다이얼 `inquiry.evidence_range`의 `web` 값을 MVP에서 쓸 수 있다(§3.11.1). 도구 노출은 13 |
 | 결정 53 | 루프 계획은 혼합 방식이다. 기본은 모델이 계획 표시(`PlanFlags`)를 선언하고 코드가 계획을 계산한다. 표시로 나타낼 수 없는 상황이면 모델이 계획 초안을 내고 커널이 검사한다(10 §3.8.1). 방식은 다이얼 `planAuthoring`으로 고른다 | §3.8, §3.8.5, §3.11.1, ADR-14-12 |
 | 결정 56 | 결과 확인 대기의 휴대폰 알림은 설정으로 고른다(알리지 않음 / 하루 한 번 묶음 / 즉시). 기본은 알리지 않음이다 | §3.13.5 규칙 7, 설정 `notifications.resultReview`(§3.13.2) |
+| 결정 59 | `notifications.dndException`은 휴대폰 푸시에만 적용한다. 방해 금지 중에는 데스크톱 OS 알림을 띄우지 않는다 | §3.13.2 기기 설정 주석, §3.13.5 규칙 7 |
+| 결정 60 | 결과 확인 대기는 데스크톱에서 배지로만 알린다. 데스크톱 OS 알림은 `notifications.resultReview`가 `immediate`일 때만 띄운다 | §3.13.5 규칙 7 |
+| 결정 64 | 만료 임박 승격만 J-132의 예외다. 막지 않는 권리 게이트도 만료가 임박하면 `interrupt`로 올린다. 그 밖의 막지 않는 권리 질문은 다음 작업 경계에 전달한다 | §3.13.5 규칙 1, §3.13.8, §3.17 |
 
 ### 2.2 이 문서의 주요 설계 선택 [제안]
 
@@ -187,7 +190,7 @@ Helm의 루프(O, I, C, A, S와 그 변형)가 데몬 안에서 실제로 어떻
 | Deliberate | 대안, 기준, 불확실성, 파급 효과를 비교한다 | I.* → C | `deliberate`(판단 승격 요청, 선택 후보, 합의 초안) |
 | Commit | 선택을 책임 있는 결정과 위임으로 바꾼다 | C.commit, C.probe | `draft_agreement` |
 | Execute | 권한 범위 안에서 현실을 변경한다 | C.commit, C.probe, C.emergency | `execute`, `probe`, `stabilize` |
-| Assure | 결과에 대한 주장과 증거가 충분한지 검토한다 | A.confirm, A.watch | `submit`, `verify`, `watch_sample` |
+| Assure | 결과에 대한 주장과 증거가 충분한지 검토한다 | A.confirm, A.watch | `submit`, `verify`, `watch_sample`(제안 종류 아님, §3.5.6) |
 | Integrate | 지역적 결과를 전체 목적과 시스템에 정합시킨다 | A.confirm | `integrate` |
 | Reflect | 경험을 다음 탐구와 통치 규칙에 반영한다 | A.reflect | `reflect` |
 | (Structure) | Concern을 나누고 합치고 옮긴다 | S.* | `structure`, `recombine` |
@@ -200,7 +203,7 @@ X3-3-08의 표를 v0.3·브리프에 맞춰 고쳤다. effect class 검사는 �
 
 | 단계 | 쓸 수 있는 원시 행동 | 모델이 제출하는 것(제안 종류, §3.5.3) | 코드가 검사하는 것 | 검사하는 곳 |
 |---|---|---|---|---|
-| Sense | read | `situation_summary`(문장마다 레코드 id 참조) | 요약 문장이 레코드를 참조하는가(A11) | 12(투영 규칙), 10(형식) |
+| Sense | read | `frame_packet`(요약 문장마다 레코드 id 참조, §3.5.6) | 요약 문장이 레코드를 참조하는가(A11) | 12(투영 규칙), 10(형식) |
 | Frame | read | `frame_packet`, `situation_answers`, `loop_plan_draft`, `split_hint` | Goal 연결(A1), 판정 답의 근거 id 실재 | 10, 14(결정표) |
 | Diverge | read, spawn(fork) | `possibility`(여러 개), `divergence_cell` | 가능성마다 구분할 다음 확인이 있는가, 결과가 같은 가능성 병합(A4) | 15 |
 | Investigate | read, execute, spawn | `interpretation`, `evidence_link`, `counter_check`, `prediction` | 근거가 관찰 id를 참조하는가(A5) | 10 |
@@ -301,7 +304,7 @@ export interface EntrySpec {
   /** 거짓이면 어떻게 하는가. redirect는 다른 루프를 먼저 활성화한 뒤 다시 시도한다. */
   onUnmet:
     | { kind: "redirect"; to: LoopId }
-    | { kind: "touchpoint"; touchpoint: TouchpointKind }
+    | { kind: "touchpoint"; touchpoint: HumanTouchpointKind }
     | { kind: "reject" };
 }
 
@@ -370,7 +373,7 @@ export interface LoopBudget {
 }
 
 export interface TouchpointSpec {
-  kind: TouchpointKind;
+  kind: HumanTouchpointKind;
   gate: "rights" | "information";       // 판정 근거는 11. 여기 값은 기본값이다
   requiredForExit: boolean;              // 답 없이 종료할 수 없는가
   countsTowardCaCap: boolean;            // C/A 사람 조작 2회 상한에 세는가(§3.13.7)
@@ -438,7 +441,7 @@ export type WaitReason =
 ```ts
 export type ContractProposalKind =
   // O
-  | "situation_summary" | "frame_packet" | "situation_answers" | "loop_plan_draft" | "split_hint"
+  | "frame_packet" | "situation_answers" | "loop_plan_draft" | "split_hint"
   // 공통
   | "transition_request" | "question" | "goal_revise" | "autonomous_choice"
   // 루프 밖(진입 판정, 예측 점검)
@@ -452,12 +455,12 @@ export type ContractProposalKind =
   | "result_submission"
   // A.*
   | "counter_evidence" | "attest" | "obligation_resolution" | "obligation_deferral"
-  | "watch_spec" | "watch_sample" | "watch_verdict" | "reflection" | "change_proposal"
+  | "watch_spec" | "watch_verdict" | "reflection" | "change_proposal"
   // S.*
   | "structure_op" | "boundary_item" | "recombine_summary";
 
 /** 이 문서가 다루는 사람 접점. 값은 08 `QuestionKind`의 부분집합이며 이름을 새로 만들지 않는다. */
-export type TouchpointKind = Extract<QuestionKind,
+export type HumanTouchpointKind = Extract<QuestionKind,
   | "agreement_confirm"       // 작업 합의 확정 (C/A 상한 1회째). 탐침 묶음 합의도 이 종류(합의 kind = probe)
   | "result_review"           // 결과 확인. 답은 08 AcceptanceDecision 다섯 값, 화면 문구는 05 키 (C/A 상한 2회째)
   | "scope_change"            // 합의 범위 밖 요청
@@ -605,7 +608,7 @@ export interface OpdcObligations {
 ```ts
 // RunHandoff와 EntryAssessmentDraft는 08 §3.18.1·§3.6.4의 정의를 import한다(레코드 정본 08).
 import { RunHandoff, EntryAssessmentDraft } from "@helm/domain";
-// 08 정의는 transition_request, split_hint, entry_signals, stabilized 네 변형이다. 이 문서는 다음 두 가지를 더해 달라고 요구한다(§5.2).
+// 08 §3.18.1은 transition_request, split_hint, entry_signals, stabilized, situation_answers 다섯 변형을 정의한다. 아래 (1)·(2)는 그 가운데 transition_request의 trigger와 situation_answers 변형을 이 문서가 쓰는 형태로 적은 것이다(§5.2).
 //  (1) transition_request에 trigger: DeclaredTrigger — 08 TransitionTrigger 중 모델이 선언할 수 있는 값.
 //      전환 규칙(§3.9.2)이 T01·T05·T07·T15를 이 값으로 고른다.
 export type DeclaredTrigger = "surprise" | "goal_conflict" | "shared_premise_conflict" | "situation_changed" | "merge_needed";
@@ -645,6 +648,8 @@ export type DeclaredTrigger = "surprise" | "goal_conflict" | "shared_premise_con
 | `watch_spec`, `watch_verdict` | 기록 | `watch.define`, `watch.judge` |
 | `watch_sample` | (없앰) | 표본은 도구 실행 관찰이다 |
 | `reflection`, `change_proposal` | 기록 | `reflection.record`(`changeProposals`, `nextAgreementChange`) |
+
+표의 `(없앰)`은 제안 종류에만 해당한다. 같은 이름의 작업 단위 목적(`watch_sample`, §3.3.1·§3.5.1)은 그대로 남는다.
 
 `perspective`와 `consequence`는 15 §5.2 요구로 더한 종류다(I.fact, I.possibility, I.outcome 계약에 노출). 도구 이름(`helm_<kind>`)과 입력 스키마는 13이 이 표에서 만든다.
 
@@ -971,7 +976,7 @@ export interface StandingAgreementTemplate {
 | 종료 → 다음 | `grow` → `C.commit` / `fold` → 직전 I(`I.possibility`) / `continue`(기간 끝, 판정 조건 미충족, 연장 남음) → 머무름(연장) / 연장을 다 쓰면 `watch_verdict` 접점 |
 | 원시 행동 / 기록 능력 | read, execute(측정) / observe, propose |
 | 필수 원시 행동 | read |
-| 고유 제안 | `watch_spec`, `watch_sample`, `watch_verdict` |
+| 고유 제안 | `watch_spec`, `watch_verdict` |
 | 합의 | 필요 없음 |
 | WorkUnit | (명세 없을 때) `deliberate`(once, `watch_spec`) → `watch_sample`(per_sample, fresh, cheap) |
 | 상태 | 표본 사이에는 실행 중인 WorkUnit이 없다. Concern은 `waiting(watch)`이고 타이머가 다음 표본을 깨운다 |
@@ -1191,7 +1196,7 @@ const P = (name: PredicateName, params?: PredicateRef["params"]): PredicateRef =
 const W = (purpose: WorkUnitPurpose, step: StepId, kind: WorkUnitKind, context: WorkUnitTemplate["context"],
            repeat: WorkUnitTemplate["repeat"], extra: Partial<WorkUnitTemplate> = {}): WorkUnitTemplate =>
   ({ purpose, step, kind, context, repeat, role: "work", modelHint: "default", ...extra });
-const T = (kind: TouchpointKind, gate: "rights" | "information", requiredForExit: boolean, countsTowardCaCap: boolean): TouchpointSpec =>
+const T = (kind: HumanTouchpointKind, gate: "rights" | "information", requiredForExit: boolean, countsTowardCaCap: boolean): TouchpointSpec =>
   ({ kind, gate, requiredForExit, countsTowardCaCap });
 const notDisorder: EntrySpec = { requires: [{ name: "situation.is", params: { types: ["disorder"] }, negate: true }],
                                  onUnmet: { kind: "redirect", to: "S.split" } };
@@ -1745,7 +1750,7 @@ export type RuleTarget =
   | { kind: "reopenTo" }                        // acceptance.recorded.reopenTo (사람이 고른 값, 08 R-19)
   | { kind: "lastI"; fallback: LoopId }
   | { kind: "plan" }                            // 계획 다음 단계(§3.8.4)
-  | { kind: "stay"; then?: "touchpoint" | "workunit"; purpose?: WorkUnitPurpose; touchpoint?: TouchpointKind }
+  | { kind: "stay"; then?: "touchpoint" | "workunit"; purpose?: WorkUnitPurpose; touchpoint?: HumanTouchpointKind }
   | { kind: "objection" }                       // §3.12.4 표
   | { kind: "demote" };                         // §3.14.5
 
@@ -2424,7 +2429,7 @@ export interface ConcernView {
 // 10 명령 값(accept, accept_with_conditions, request_changes, reject, criteria_wrong)은 쓰지 않는다([판정 J-35]).
 
 export type Wait =
-  | { reason: "human"; questionId: string; touchpoint: TouchpointKind; blocks: "nothing" | "action" | "workunit" | "concern"; runId: string | null }   // 08 BlockScope, 질문의 runId
+  | { reason: "human"; questionId: string; touchpoint: HumanTouchpointKind; blocks: "nothing" | "action" | "workunit" | "concern"; runId: string | null }   // 08 BlockScope, 질문의 runId
   | { reason: "model"; sinceMs: number }                   // 제공자 장애(model_unreachable)로 끝난 run의 다음 요청을 미룸(§3.16.2)
   | { reason: "external"; expectationId: string; dueAtMs: number }
   | { reason: "children"; childIds: readonly string[] }
@@ -2475,7 +2480,7 @@ export type Wait =
 | `working` | 같음 | 사람이 멈춤(19 `work.abort`) | `working` | 같은 WorkUnit을 다시 요청하지 않는다. 다음 사람 입력이나 다른 계기까지 기다린다 |
 | `working` | `run.ended(recovery_exhausted)` | – | `waiting` | `progress_stall`(§3.16.5) |
 | `working` | `run.ended(superseded)` | – | 그대로 | 무시 |
-| `working` | `run.interrupted` | – | `working` | 행동 없음. 재개는 12(§3.16.5) |
+| `working` | `run.interrupted` | – | `working` | 행동 없음. 재개는 12(§3.7.5) |
 | `working` | `question.recorded`, `blocks: workunit`·`concern` | 대기 run이 없음 | `waiting` | 대기 등록(`runId` = 질문의 runId) |
 | `working` | `question.recorded`, `blocks: action` | – | `working` | 그 호출만 승인 대기다. run은 계속한다(12 §3.13.1). 오케스트레이터는 같은 행동이 필요한 다른 WorkUnit을 요청하지 않는다(G9) |
 | `working` | `command.rejected`(의존 규칙 거부, 10 §3.4.5. `code`로 구분) | – | `working` 또는 `waiting` | §3.9.4 처리 |
@@ -2592,9 +2597,10 @@ export interface OrchestrationSettings {
     awayAfterMinutes: number;         // 기본 30
     autoOpenBriefAfterAwayMinutes: number;  // 복귀 요약 자동 열기(04 SC-Q1). 기본 120
   };
-  notifications: {                    // 알림 경로 설정(결정 56, [판정 J-189], [판정 J-195]). 의미 설정이다(settings.update, 09 setting.changed)
+  notifications: {                    // 알림 경로 설정(결정 56, [판정 J-189], [판정 J-195]). 아래 두 키가 의미 설정이다(settings.update, 09 setting.changed)
     resultReview: "none" | "daily_digest" | "immediate";   // 기본 none. §3.13.5 규칙 7
     resultReviewDigestAt: string;     // "HH:MM", 서버 시간대. 기본 "19:00". daily_digest일 때만 쓴다
+    // 기기 설정 여섯 키 showContent·negotiated·dndException·sound·enabled·observer는 이 객체에 두지 않는다. `dndException`은 휴대폰 푸시에만 적용한다 [결정 59]. 기기가 저장하며, 값·기본값의 정본은 20 §3.9.11이다(휴대폰 26이 같은 이름을 쓴다). 내용 보이기 규칙은 05 §3.7.6이다([판정 J-237]). 기기별 시간당 상한 hourlyCap은 등재하지 않는다([판정 J-171]).
   };
   execution: {
     maxConcurrentWorkUnits: number;   // 데몬 전체. 기본 2
@@ -2705,7 +2711,7 @@ admit(queue, running, settings, presence, now):
 |---|---|---|
 | `send_approval`, `emergency_authorization` | 2 | 막는 권리 게이트. 예산이 없어도 즉시 전달한다 |
 | `agreement_confirm`(탐침 묶음 포함), `scope_change` | 1 | 권리 게이트. 실행을 막으면 즉시, 아니면 다음 작업 경계 |
-| `result_review`, `goal_revision` | 1 | 막지 않는 권리 게이트. 기록은 즉시, 전달은 다음 작업 경계 또는 검토 창. 가정 확정은 없다([판정 J-132]) |
+| `result_review`, `goal_revision` | 1 | 막지 않는 권리 게이트. 기록은 즉시, 전달은 다음 작업 경계 또는 검토 창. 만료(사람이 정한 마감) 임박 승격만 `interrupt`로 즉시 전달하는 예외다 [결정 64]. 가정 확정은 없다([판정 J-132]) |
 | 가벼운 작업의 `result_review` | 0.5 | 같은 프로젝트의 가벼운 작업 결과 확인은 한 묶음으로 전달하고 한 화면에서 확인한다([판정 J-132], [판정 J-89]) |
 | `stimulus_round` | 3 | 원함 탐구의 반응 라운드 |
 | 그 밖의 정보 게이트 질문 | 1 | |
@@ -2716,13 +2722,13 @@ admit(queue, running, settings, presence, now):
 
 **규칙.**
 
-1. 권리 게이트 질문은 예산과 무관하게 전달된다. 예산은 이 질문들을 숨기지 않는다(canon-3 C3). 막는 권리 게이트는 즉시, 막지 않는 권리 게이트는 다음 작업 경계나 검토 창에 전달한다([판정 J-132]). 휴대폰 푸시는 결정 48대로 `interrupt`·`notice` 강도까지 보낸다 [결정 48].
+1. 권리 게이트 질문은 예산과 무관하게 전달된다. 예산은 이 질문들을 숨기지 않는다(canon-3 C3). 막는 권리 게이트는 즉시, 막지 않는 권리 게이트는 다음 작업 경계나 검토 창에 전달한다([판정 J-132]). 만료(사람이 정한 마감) 임박 승격만 `interrupt`로 즉시 전달하는 예외다 [결정 64]. 휴대폰 푸시는 결정 48대로 `interrupt`·`notice` 강도까지 보낸다 [결정 48].
 2. 하루 사용량이 `dailyBudget`을 넘으면: 정보 게이트 질문 중 막지 않는(`blocks: nothing`) 것은 다음 검토 창(없으면 다음 날 첫 복귀)으로 미루라고 11에 권고한다(주의 상태 `over_budget`을 10 `KernelContext.attention`으로 넘기고, 11은 `PresenceSnapshot.attention`으로 읽는다). 사람 접점을 곧 만들 WorkRequest의 시작을 미룬다(§3.13.4).
 3. 시간당 즉시 전달(권리 게이트 제외)이 `interruptsPerHour`를 넘으면 그다음 즉시 질문은 협상으로 낮추라고 권고한다. 상한을 넘은 알림은 데몬이 한 개로 묶어 보내고, 앱은 받은 묶음을 그대로 보인다([판정 J-198]). 즉시 승격(만료점 임박)은 이 상한에 걸리지 않는다.
 4. 조용한 시간(`attention.quietHours`, §3.13.2)에는 권리 게이트 질문도 OS 알림을 보내지 않고 질문함에만 쌓는다(20). 사람이 없으면 어차피 기다린다(§3.17).
 5. 같은 시점에 여러 질문이 있으면 묶음을 권고한다: 같은 Concern의 질문, 같은 Goal에 대한 `goal_revision`, 같은 종류의 정보 게이트 질문, 같은 프로젝트의 가벼운 작업 결과 확인. 묶음 구성은 11이 최종 결정한다.
 6. "선택 필요" 목록의 순서: 막는 권리 게이트 → C/A 접점(`agreement_confirm`, `result_review`) → 막힌 정보 게이트 → 나머지. 같은 등급은 Concern 우선순위(§3.13.3) 순. 기본 표시는 `maxVisibleDecisions`개다. 막는 권리 게이트는 접지 않는다. 막지 않는 권리 게이트와 나머지는 접고 개수를 보인다(01 §3.7, [판정 J-132]).
-7. **결과 확인 알림**(결정 56, [판정 J-189]). 결과 확인 질문의 기록과 전달은 J-132대로다. 설정 `notifications.resultReview`는 휴대폰 알림만 바꾼다. `none`(기본)은 알리지 않고 복귀 요약에서 확인하게 한다. `daily_digest`는 설정 시각(`notifications.resultReviewDigestAt`, 서버 시간대)에 울리는 타이머 목적 `result_review_digest`(`runtime_timers`)를 쓴다. 스케줄러가 설정 시각마다 다음 발화를 다시 건다. 발화하면 확인 대기 결과를 센다. 하나 이상이면 묶음 푸시 하나를 notice 강도로 낸다. 0이면 아무것도 보내지 않는다. 발화가 늦어도 한 번만 낸다(같은 목적의 중복은 §3.16.5-5로 거른다). `immediate`는 결과 확인 질문이 생길 때마다 notice 강도로 낸다. 두 경우 모두 §3.13.8의 조건(모든 데스크톱 기기 부재), 방해 금지(`attention.snoozeUntil`), 시간당 상한(`interruptsPerHour`)을 따른다. 휴대폰에서 결과를 확인하는 범위는 [판정 J-139]를 따른다.
+7. **결과 확인 알림**(결정 56, [판정 J-189]). 결과 확인 질문의 기록과 전달은 J-132대로다. 결과 확인 대기는 데스크톱에서 배지로만 알린다. 데스크톱 OS 알림은 `notifications.resultReview`가 `immediate`일 때만 띄운다 [결정 60]. 방해 금지 중에는 데스크톱 OS 알림을 띄우지 않는다 [결정 59]. 설정 `notifications.resultReview`는 휴대폰 알림도 고른다. `none`(기본)은 알리지 않고 복귀 요약에서 확인하게 한다. `daily_digest`는 설정 시각(`notifications.resultReviewDigestAt`, 서버 시간대)에 울리는 타이머 목적 `result_review_digest`(`runtime_timers`)를 쓴다. 스케줄러가 설정 시각마다 다음 발화를 다시 건다. 발화하면 확인 대기 결과를 센다. 하나 이상이면 묶음 푸시 하나를 notice 강도로 낸다. 0이면 아무것도 보내지 않는다. 발화가 늦어도 한 번만 낸다(같은 목적의 중복은 §3.16.5-5로 거른다). 휴대폰은 `immediate`일 때 결과 확인 질문이 생길 때마다 notice 강도로 낸다. 두 경우 모두 §3.13.8의 조건(모든 데스크톱 기기 부재), 방해 금지(`attention.snoozeUntil`), 시간당 상한(`interruptsPerHour`)을 따른다. 휴대폰에서 결과를 확인하는 범위는 [판정 J-139]를 따른다.
 
 **지표(16이 집계).** 하루 단위 사용량과 미룬 질문 수는 실행 기록(`attention.*`, 09 §3.11 trace)에 남기고, 16은 `question.delivered`·`question.delivery_planned`(09)에서 다시 계산할 수 있다. 그리고 자동 처리의 오류 쪽 신호로 혼자 정한 결정의 이의 수(놓친 질문, false negative 대리값)와 "답이 임시 가정과 같았던" 질문 수(불필요했던 질문, false positive 대리값)를 남긴다(canon-3 체크리스트 "false negative를 false positive와 함께 측정").
 
@@ -2755,7 +2761,7 @@ export interface RuntimeBoundaryPayload {   // 10 runtime.boundary 페이로드 
 
 #### 3.13.7 C/A 우선과 사람 조작 2회 상한
 
-근거: 사용자는 네 루프 중 C와 A를 가장 많이 건너뛴다고 답했다(대화 L2019, X3-2-02). 건너뛴 이유가 마찰이라면 엔진이 묻는 횟수가 늘수록 다시 우회한다. 그래서 C/A 한 번에 사람이 하는 일은 고르기 두 번(합의 확인 한 번, 결과 확인 한 번)이 상한이고, 나머지는 모델이 초안을 채우고 엔진이 검사한다(대화 L2158–2160, X3-2-18~19). 원전 CLI-G01 시나리오도 Gate 2개로 끝났다(canon-2 체크리스트).
+근거: 사용자는 네 루프 중 C와 A를 가장 많이 건너뛴다고 답했다(대화 L2019, X3-2-02). 건너뛴 이유가 마찰이라면 엔진이 묻는 횟수가 늘수록 다시 우회한다. 그래서 C/A 한 번에 사람이 하는 일은 고르기 두 번(합의 확인 한 번, 결과 확인 한 번)이 상한이고, 나머지는 모델이 초안을 채우고 엔진이 검사한다(대화 L2158–2160, X3-2-18~19). 원전 CLI-G01 유즈케이스도 Gate 2개로 끝났다(canon-2 체크리스트).
 
 "C/A 우선"의 오케스트레이션 측 뜻:
 
@@ -2839,7 +2845,7 @@ export function isAway(p: { devices: ReadonlyMap<string, DevicePresence>; snooze
 
 데스크톱·TUI의 부재 → `active` 전환 때 스케줄러는 `runtime.boundary(user_return)`(10)를 제출하고, 부재 시간이 자동 열기 기준 이상이면 복귀 요약 열기를 클라이언트에 알린다(19 뷰 갱신). 복귀 요약 투영은 12가 만든다. 자동 열기는 데스크톱·TUI 복귀에만 적용한다. 휴대폰은 탭 "복귀 요약"에서 연다([판정 J-173]).
 
-알림 상한은 하나로 둔다. `interruptsPerHour`(기본 2, 권리 게이트의 즉시 전달과 만료 임박 승격 제외)는 데스크톱 OS 알림, 휴대폰 푸시를 모두 합친 사람 단위 상한이다. 05·20·26의 상한은 따로 두지 않고 이 값을 읽는다(§5.2, [판정 J-171]). 같은 질문의 데스크톱 알림과 휴대폰 푸시가 겹치지 않게, `notice` 강도의 휴대폰 푸시는 모든 데스크톱 기기가 부재일 때만 보낸다. `interrupt`는 결정 48대로 보낸다. 조용한 시간(`attention.quietHours`)의 기본값은 null이지만, 사람이 휴대폰 알림을 처음 켤 때 앱이 23:00~08:00을 제안값으로 보여 주고 고르게 한다(05·26에 요구). 만료 임박 승격의 강도는 막는 질문과 권리 게이트면 `interrupt`, 막지 않는 정보 질문이면 `notice`로 둔다(11에 요구).
+알림 상한은 하나로 둔다. `interruptsPerHour`(기본 2, 권리 게이트의 즉시 전달과 만료 임박 승격 제외)는 데스크톱 OS 알림, 휴대폰 푸시를 모두 합친 사람 단위 상한이다. 05·20·26의 상한은 따로 두지 않고 이 값을 읽는다(§5.2, [판정 J-171]). 같은 질문의 데스크톱 알림과 휴대폰 푸시가 겹치지 않게, `notice` 강도의 휴대폰 푸시는 모든 데스크톱 기기가 부재일 때만 보낸다. `interrupt`는 결정 48대로 보낸다. 조용한 시간(`attention.quietHours`)의 기본값은 null이지만, 사람이 휴대폰 알림을 처음 켤 때 앱이 23:00~08:00을 제안값으로 보여 주고 고르게 한다(05·26에 요구). 만료 임박 승격의 강도는 막는 질문과 권리 게이트면 `interrupt`, 막지 않는 정보 질문이면 `notice`로 둔다(11에 요구). 만료(사람이 정한 마감) 임박 승격만 `interrupt`로 즉시 전달하는 예외다 [결정 64].
 
 주의 예산의 데몬 쪽 값(`dailyBudget`, `interruptsPerHour`, `maxVisibleDecisions`, 검토 창, 조용한 시간)은 질문을 언제 놓을지에 영향을 준다. 기기의 알림 켜기·끄기는 기기 설정이라 이 문서의 설정에 두지 않는다.
 
@@ -3032,7 +3038,7 @@ export interface TimerRequest { purpose: "watch_window" | "hold_revisit" | "pred
 
 /** 11 질문 생성 입력에서 이 문서가 채우는 필드. 오케스트레이터는 이것을 10 question.raise(R) payload로 바꾼다 */
 export interface TouchpointDraft {
-  kind: TouchpointKind;
+  kind: HumanTouchpointKind;
   concernId: string;
   workUnitId: string | null;
   blocks: "nothing" | "action" | "workunit" | "concern";   // 08 BlockScope
@@ -3236,7 +3242,7 @@ on reflection.recorded (필수 A.reflect였을 때):
 | 막히지 않는 정보 게이트 질문 | 기록하고 임시 가정으로 진행한다(11). 전달은 예약(다음 복귀 요약). 휴대폰 푸시를 받을 기기가 있으면 `notice` 강도까지 휴대폰으로 보낸다 [결정 48] |
 | 데몬이 멈춰 있던 동안 지난 가정 만료점 | 멈춘 시간이 만료 여유보다 길면 막지 않는 질문의 만료를 "복귀 + 30분"으로 미룬다(다이얼 16 `assumptionDeferOnDowntime`, 기본 `on`, [판정 J-142], [판정 J-197]). 계산은 부팅 때 10·12가 한다 |
 | 막히는 질문(정보 게이트) | 그 질문에 기대는 WorkUnit만 멈춘다. 같은 Concern의 다른 일과 다른 Concern은 계속 |
-| 권리 게이트(합의 확인, 결과 확인, 권리 허락, Goal 수정) | 기다린다. 막는 권리 게이트는 휴대폰 푸시(`interrupt`)로 알린다 [결정 48]. 권리 게이트 질문은 만료되어도 가정 확정(assumed)으로 가지 않는다(canon-3 C10, v0.3 06 §6 Q-15). 관련 작업만 멈추고 나머지는 계속 |
+| 권리 게이트(합의 확인, 결과 확인, 권리 허락, Goal 수정) | 기다린다. 막는 권리 게이트는 휴대폰 푸시(`interrupt`)로 알린다 [결정 48]. 만료(사람이 정한 마감) 임박 승격만 `interrupt`로 즉시 전달하는 예외다 [결정 64]. 권리 게이트 질문은 만료되어도 가정 확정(assumed)으로 가지 않는다(canon-3 C10, v0.3 06 §6 Q-15). 관련 작업만 멈추고 나머지는 계속 |
 | 합의가 필요한 실행 | 합의 확인을 기다리는 동안 그 Concern은 C에서 대기한다. 상시 합의(절차·비상)가 맞으면 진행한다 |
 | 결과 확인 대기 | Concern은 "결과 확인 대기"로 남는다. 다음 계획 단계 중 결과 확인에 기대지 않는 일(예: 같은 Goal의 다른 Concern)은 스케줄러가 진행한다 |
 | 원함 탐구 | 반응 없이 `autonomy` 라운드까지만 진행하고 기다린다(`autonomy_exhausted`). 반응 없이 자극만 쌓지 않는다 |
@@ -3352,7 +3358,7 @@ v0.3 03 §9.1의 흐름을 오케스트레이션 단위로 옮겼다. "사람"�
 | 지속 관찰 | 08 §3.16.2 Watch(`wt`, 판정 `stable|regressed|inconclusive`), 10 `watch.define`·`watch.judge`, 09 `watch.defined`·`watch.window_closed`·`watch.judged` | A.watch 결과 대응: `stable` → `grow`, `regressed` → `fold`, `inconclusive` → `continue` |
 | 절차 | 08 §3.19.3 Procedure(`pd`, `trust: trial|trusted|demoted`, `planTemplate`, `standingGrantId`), 09 `procedure.adopted`·`trust_changed`·`retired` | `q.procedure_exists`: `trusted` → yes, `trial` → unknown(근거 `pd`) |
 | 돌아보기 | 08 Reflection(`nextAgreementChange` 포함), 10 `reflection.record` | §3.6.10 |
-| 질문 종류 | 08 §3.13 `QuestionKind` | §3.5.3 `TouchpointKind`는 `QuestionKind`의 부분집합(`Extract`)이다. 1판 이름 대응: `scope_exceeded` → `scope_change`, `rights_permission` → `send_approval`, `goal_revise`(접점) → `goal_revision`, `probe_agreement` → `agreement_confirm`(합의 종류 probe), `tool_outcome_unknown` → `recovery` |
+| 질문 종류 | 08 §3.13 `QuestionKind` | §3.5.3 `HumanTouchpointKind`는 `QuestionKind`의 부분집합(`Extract`)이다. 1판 이름 대응: `scope_exceeded` → `scope_change`, `rights_permission` → `send_approval`, `goal_revise`(접점) → `goal_revision`, `probe_agreement` → `agreement_confirm`(합의 종류 probe), `tool_outcome_unknown` → `recovery` |
 | 진입 | 08 `ConcernOrigin`(`human_start`, `promoted_from_work`, `human_designated`, `observer`, `structure`), 08 EntryAssessment(`decision`: `enter`, `suggest`, `light_work`, `autonomy`), 09 `entry.evaluated`, 01 §3.6.3 | §3.14.3. 강등은 `structure.changed`(사유 `demotion`) |
 | 가벼운 작업 | 08 `Project.lightWorkConcernId`, Concern 종류 `light_work`, 판정 J-01 | §3.14.2 |
 | 결과·반영 | 09 `result.submitted`(반영 범위 초안), `acceptance.recorded`(08 `AcceptanceDecision`, `reopenTo`, `integrationAgreementId`), `obligation.resolved`·`deferred`, 19 `result.accept`(10 명령 값), 10 `obligation.defer` | §3.6.8. 결과 확인은 `result.accept` 하나([판정 J-123], [판정 J-124]), 반영 범위는 같은 조작([판정 J-126]), 조건부 확인 조건은 미룬 항목([판정 J-125]) |
@@ -3509,7 +3515,7 @@ v0.3 03 §9.1의 흐름을 오케스트레이션 단위로 옮겼다. "사람"�
 
 | 대상 문서 | 제공하는 것 | 위치 |
 |---|---|---|
-| 08 | `ExitOutcome` 값 목록, `RunHandoff` 모양, `TouchpointKind`(`QuestionKind` 부분집합), LoopPlanRecord·LoopTransitionRecord·SituationAssessmentRecord의 필요 필드, ProbeSpec·WatchSpec·Condition, BoundaryItem, StandingAgreementTemplate의 필요 필드 | §3.5.2, §3.5.3, §3.5.6, §3.6.7, §3.6.11, §3.7.1, §3.8.1, §3.9.1 |
+| 08 | `ExitOutcome` 값 목록, `RunHandoff` 모양, `HumanTouchpointKind`(`QuestionKind` 부분집합), LoopPlanRecord·LoopTransitionRecord·SituationAssessmentRecord의 필요 필드, ProbeSpec·WatchSpec·Condition, BoundaryItem, StandingAgreementTemplate의 필요 필드 | §3.5.2, §3.5.3, §3.5.6, §3.6.7, §3.6.11, §3.7.1, §3.8.1, §3.9.1 |
 | 09 | 오케스트레이터가 내는 이벤트 목록, ConcernView를 만드는 데 읽는 이벤트, 런타임 체크포인트 | §3.12.1, §3.16.1, §3.18 |
 | 10 | 오케스트레이터가 보내는 명령 목록, 의존 규칙의 오케스트레이션 측 동작과 거부 처리, 루프별 제약이 커널 불변조건에 들지 않는다는 경계 | §3.1, §3.9.4, §3.18 |
 | 11·26 | 사람 접점 종류와 기본 게이트, C/A 상한과 묶기 규칙, 작업 경계 목록과 `boundary.reached`, 주의 예산 상태, 부재 함수 `isAway`, 루프별 전달 기본값(`resolveDials` 유효값) | §3.5.3, §3.11.1, §3.13.5~§3.13.8 |
@@ -3721,7 +3727,7 @@ packages/runtime/src/orchestration/         # @helm/runtime/orchestration. 효�
 | U-10 | 확신을 숫자로 둘지(canon-3 C4) | (a) 질적 등급(low/medium/high) (b) 0~1 숫자 | (a). 화면에 숫자 확률을 보이지 않는다 |
 | U-11 | 질문 조건 AND/OR 선택 옵션(결정 16) | 사용 후 결정 | 옵션 없음(AND). 결정 16대로 사용 후 판단 |
 | U-12 | 접속 상태 시간(active 보고 유효 데스크톱 5분·휴대폰 2분, 부재 30분) | 수치 | 5분·2분 / 30분([판정 J-119]) |
-| U-13 | 진입 판정에서 "해 보는 비용이 작음"을 이기는 신호 수 | 문턱 + 0 / + 1 / 제외 조건 절대 | 해결: 01 §3.6.3 규칙(EC-3 예외, 그 밖은 제외 조건 우선)을 따른다 |
+| U-13 | 진입 판정에서 "해 보는 비용이 작음"을 넘는 신호 수 | 문턱 + 0 / + 1 / 제외 조건 절대 | 해결: 01 §3.6.3 규칙(EC-3 예외, 그 밖은 제외 조건 우선)을 따른다 |
 | U-14 | 돌아보기의 종료 조건(원전 법칙 12와의 관계) | (a) 변경 제안 필수 (b) 변경 제안 또는 "변경 없음 + 이유" | (b). 채택률을 16이 본다 |
 | U-15 | 결정에 쓰이는 판단의 사람 확인(`finding_confirm`)이 권리 게이트인가 | (a) 정보 게이트, 합의 확인에 묶음 (b) 권리 게이트 | (a). 11이 확정 |
 | U-16 | 반영 항목을 커널이 정책으로 닫을 수 있나(integrate 능력) | (a) 근거 있는 종결은 커널이 닫음, 미루기는 사람 (b) 모두 사람 | 해결: 08 Obligation 규칙 6, 10 ADR-K7 |
@@ -3746,7 +3752,7 @@ packages/runtime/src/orchestration/         # @helm/runtime/orchestration. 효�
 
 | 자료 | 쓴 곳 |
 |---|---|
-| `docs/design/process/00-design-brief.md` 결정 1~57, §2.5, §3, §5, §6 | 전체 |
+| `docs/design/process/00-design-brief.md` 결정 1~64, §2.5, §3, §5, §6 | 전체 |
 | `docs/v0.3/03-loops-and-transitions.md` §1~§9 | §3.6, §3.8, §3.9, §3.19 |
 | `docs/v0.3/05-situation-types.md` §2~§6 | §3.7 |
 | `docs/v0.3/06-asking-and-interruption.md` §3, §5, §7 | §3.11.1, §3.13, §3.17 |
@@ -3968,7 +3974,7 @@ packages/runtime/src/orchestration/         # @helm/runtime/orchestration. 효�
 - 결정: 루프 전환·분해 진입·안정화·진입 신호는 "선언 도구"로 받는다. 선언 도구는 커널에 제출하지 않고, 런타임이 run을 다음 턴 경계에서 `run.ended(handed_off)`로 끝내며 선언을 `handoff`에 싣는다. 오케스트레이터가 가드를 적용해 R 채널(`declaredBy`)로 낸다.
 - 근거: 전환의 규칙은 한곳(오케스트레이터)에만 둔다. 도구 집합이 WorkUnit 경계에서만 바뀌는 원칙(D5)과도 맞다. 전환이 일어나면 어차피 run을 끝내야 한다.
 - 기각한 대안: (b) 전환 요청 레코드 — 레코드 종류가 늘고 같은 정보가 run 종료와 겹친다. (c) 사후 교정 — 잘못된 전환이 로그에 남고 되돌리는 전환이 또 생긴다.
-- 결과: 09 `run.ended`·10 `RunEndPayload`의 `handoff`(스키마는 08, §3.5.6)와 13 선언 도구가 필요하다(§5.2).
+- 결과: 09 `run.ended`·10 `RunEndPayload`의 `handoff`(스키마는 08 §3.18.1, 이 문서 §3.5.6)와 13 선언 도구가 필요하다(§5.2).
 
 ### ADR-14-12 루프 계획은 혼합 방식으로 만든다: 기본은 표시 선언과 코드 계산, 표시 밖 상황은 모델 초안과 코드 검사
 

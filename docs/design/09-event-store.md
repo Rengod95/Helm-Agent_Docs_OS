@@ -3,7 +3,7 @@
 - 소유: P5 (도메인)
 - 작성: 2026-10-11, 1단계 초안
 - 패키지: `@helm/store` (SQLite 이벤트 로그, 투영 테이블, 마이그레이션, 백업), 이벤트 타입 정의는 `@helm/domain/src/events/`
-- 기준 결정: 브리프 결정 1~57(사용자 결정 1~25·38~43·47~57, 조정자 기본값 26~37, 조정자 판정 44~46), 판정 J-01~J-240
+- 기준 결정: 브리프 결정 1~64(사용자 결정 1~25·33·35·38~43·47~64, 조정자 기본값 26~32·34·36·37, 조정자 판정 44~46), 판정 J-01~J-275
 - 함께 읽을 문서: [08-domain-model.md](08-domain-model.md) (레코드 타입, 상태 기계, 쓰기 시점 제약), `10-kernel.md` (명령과 검증), `12-runtime-engine.md` (크래시 복구, 스케줄러), `17-daemon-and-operations.md` (데몬 수명주기, 백업 일정), `19-client-protocol.md` (재전송)
 
 ## 1. 목적과 범위
@@ -878,7 +878,7 @@ export const EventPayloads = {
     requiredRefs: Type.Array(AnyRecordId, { maxItems: 500 }),   // 반드시 넣어야 했던 레코드 (10 A9 mustIncludeRefs)
     cacheBreak: Nullable(Type.String({ maxLength: 64 })),         // 공급자 캐시가 끊긴 이유
     bytesHash: Sha256, tokenEstimate: Type.Integer({ minimum: 0 }),
-    images: Type.Array(BlobRef),
+    images: Type.Array(BlobRef),   // 사용자가 첨부한 이미지만 싣는다. 브라우저·컴퓨터 사용 스크린샷은 blob으로 두지 않으므로 여기에 없다 [결정 61] [판정 J-265]
     // projection blob에는 12 투영 manifest 전문(포함·생략·순서)을 함께 둔다
   }),
   "run.message_recorded": P({
@@ -1171,7 +1171,7 @@ export const VolatileEvent = Obj({
 ${HELM_ROOT}/data/                           0700
   helm.sqlite (+ -wal, -shm)                 0600, 정본 DB
   helmd.lock                                 단일 인스턴스 잠금 (17 §3.1.4, D09-7)
-  helmd.owner.json                           진단용 소유 정보 (판정에 쓰지 않음)
+  helmd.owner.json                           진단용 소유 정보. 소유 판정(누가 서버를 쥐는가)에는 쓰지 않고, 부팅 기록은 크래시 루프 계산에만 쓴다([판정 J-247])
   blobs/sha256/<2자>/<2자>/<64 hex>            0600, 256 KiB를 넘는 blob (내용 주소, 바뀌지 않음)
   blobs/staged/<uploadId>                    업로드 중인 파일 (19 staged upload, 24시간 뒤 정리)
   blobs/.tmp/                                blob 쓰기용 임시 파일 (같은 파일시스템이어야 rename이 원자적)
@@ -1302,7 +1302,7 @@ CREATE TABLE commands (
   scope_key    TEXT    PRIMARY KEY,                 -- <channel>|<actor>|<viaKey>|<idempotencyKey> (§3.9.1)
   command_id   TEXT    NOT NULL UNIQUE,
   type         TEXT    NOT NULL,
-  fingerprint  TEXT    NOT NULL,                    -- sha256(정규화 {type, actor, via, payload}). expect·basisSeq 제외
+  fingerprint  TEXT    NOT NULL,                    -- sha256(정규화 {type, actor, viaKey(via), payload에서 제출자 생성 id 뺀 것}). commandId·expect·basisSeq·연결 id 등은 제외 (§3.9.1)
   status       TEXT    NOT NULL CHECK (status IN ('accepted','rejected','needs_gate','conflict')),
   result       TEXT    NOT NULL,                    -- 처리 결과 JSON (SubmitResult, §3.16.1)
   first_seq    INTEGER,                             -- 이 명령이 만든 이벤트 범위 (거부면 command.rejected 하나)
@@ -1583,7 +1583,7 @@ CREATE INDEX trace_kind ON trace(kind, id);
 -- TraceKind (D09-11). 12: model.requested, model.attempted, model.responded, model.request_abandoned, model.switched,
 --   context.injected, context.compacted, run.stage, input.queued, input.delivered, input.dropped, settle.unresolved,
 --   recovery.decided, repl.workspace_written, steering.deferred.
--- 14: work.requested, work.admitted, work.deferred, attention.state_changed, attention.budget_spent,
+-- 14: work.requested, work.admitted, work.deferred, 14 §3.13.5의 주의 상태와 예산 기록,
 --   orchestration.guard_tripped, promotion.signaled.  15: inquiry.step_started, inquiry.step_completed, inquiry.step_failed.
 --   13: process.spawned, process.exited, tool.net_request(프록시가 연결을 허락·거부한 판정. 이름은 18 제안을 따른다, [결정 55]).
 --   기타: memo (런타임·오케스트레이터의 짧은 진단 메모).
@@ -1673,7 +1673,7 @@ openStore(dataDir):
      - toolCallsStarted   = kind='toolcall' AND status IN ('started','replaying')     -- run과 무관한 전역 조회가 정본.
                             승인된 호출을 새 run이 실행하다 죽은 경우도 여기 걸린다. 실행한 run은 execution 투영의 executedByRunId
      - toolCallsRequested = kind='toolcall' AND status='requested'
-                            유효한 승인(approval.status = issued, 만료 전)이 있으면 그대로 두고, 없으면 not_executed(restart)
+                            유효한 승인(approval.status = issued, 만료 전)이 있으면 그대로 두고, 승인이 만료됐으면 not_executed(approval_expired), 승인 기록이 없으면 not_executed(restart)([판정 J-193])
      12가 internal:recovery 출처로 run.interrupted, toolcall.interrupted/outcome_uncertain/not_executed, 해시가 맞으면
      toolcall.completed(recovered hash_verified)를 낸다. 같은 배치의 REPLAY 대상도 `report_unknown`으로
      함께 닫는다. 외부 효과가 있으면 `toolcall.outcome_uncertain`, 없으면 `toolcall.interrupted`다([판정 J-122]). 결과 불명 외부 호출이 있는 run은 run.awaiting(recovery)로 옮기고 run.ended는 내지 않는다.
@@ -1879,7 +1879,7 @@ verify(db, mode):                          // mode: 'tail' | 'full'
 
 검사가 끝나면 `integrity.verified` 이벤트를 남긴다(정상일 때만. 실패는 쓰기가 막힐 수 있으므로 운영 로그와 복구 기록 `integrity.recovered`로 남긴다).
 
-#### 3.10.5 읽기 전용 복구 (17 `read_only` 모드)
+#### 3.10.5 읽기 전용 상태 (17 `read_only` 모드)
 
 - 무결성 검사 실패, 마이그레이션 체크섬 불일치에서 들어간다. 이것은 17의 `read_only` 모드다(판정 J-67). 쓰기가 막힌 상태이므로 이벤트를 남기지 않고 운영 로그와 상태 조회(17)로 알린다. 디스크 부족도 같은 `read_only` 모드다. 17의 안전 모드(`daemon.safe_mode_*`)는 크래시 루프 전용이며 이 절과 무관하다.
 - 데몬은 투영 테이블로 읽기 요청에 답하고 모든 쓰기를 `path.store_read_only`로 거부한다. 진행 중이던 실행은 시작하지 않는다.
@@ -2156,6 +2156,7 @@ restore(backupId, carry):                       // 데몬이 꺼져 있어야 �
 ```
 
 - 복원 표지 이벤트는 `store.restored`다([판정 J-152]). 17의 복원 CLI는 데몬이 꺼진 채 일하므로 `meta.restored_pending`만 남기고, 데몬이 복원 뒤 첫 부팅에서 이 이벤트를 쓴다. 그 부팅은 안전 모드(reason restored)로 시작한다(12). 04는 `store.restored`를 읽어 "복원 지점 이후 기록 없음"(백업 시각·upToSeq)을 보인다. 백업 이후의 이벤트는 사라지며, 위험 이벤트만 3단계로 다시 적용한다(22 FI '복원 → 재개 없음'의 기대값).
+- 승인 만료 복원(7b, `approval.expired{restored}`)의 정본은 이 절이다. 복구 선택지와 run 수준 '그대로 두기'는 12 §3.7.4가 정본이다([판정 J-246]).
 - storeId를 바꾸는 이유: 복원으로 같은 seq가 다른 이벤트를 가리키게 된다. 클라이언트는 storeId가 바뀐 것을 보고 캐시를 버리고 처음부터 다시 받는다(19).
 - 무결성 기준점 비교(18 `verify --anchors`)는 같은 storeId와 `meta.lineage`의 매니페스트로 한정한다. 이전 계보의 매니페스트는 archived로 표시한다.
 - epoch는 ULID라 복원 전에 쓰인 epoch와 겹치지 않는다(D09-10). 그래서 복원 전 epoch로 시작한 외부 연결의 늦은 쓰기가 통과하지 않는다.
@@ -2259,14 +2260,15 @@ export type SubmitResult =
   | { status: Decision["status"]; result: Record<string, unknown>; eventSeqs: number[]; headSeq: number; replayed: boolean }
   | { status: "key_reused"; headSeq: number; original: string /* 처음 저장된 commandId */ };
 
-/** 10 KernelContext. 엔진이 만든다. 모든 값이 이벤트 로그와 주입된 시계·id에서 오므로 같은 입력이면 같은 결정 */
+/** KernelContext의 정본(06·10은 인용한다, [판정 J-251]). 엔진이 만든다. 모든 값이 이벤트 로그와 주입된 시계·id에서 오므로 같은 입력이면 같은 결정 */
 export interface KernelContext {
   /** max(벽시계, meta.last_recorded_at). 오케스트레이터 재처리에서는 계기 이벤트의 recordedAt으로 고정한다 */
   now: number;
   cursor: number;                    // 같은 트랜잭션에서 지금까지의 head seq
   newId: (prefix: string) => string; // 사람 채널은 주입 IdFactory, R·S·X 채널은 멱등 키에서 결정적으로 (§3.9.1)
   rules: { version: string };        // provenance.rulesVersion
-  presence: PresenceView;            // presence.changed 투영 (재현 가능). 부재 판정은 14 함수가 ctx.now로 한다
+  presence: PresenceView;            // 명령 처리 시작 시점에 커널 상태(10 §3.5, 기기 ID 맵)에서 만든 PresenceView이며, devices 배열은 맵의 기기마다 원소를 하나씩 둔다 [판정 J-256]. 맵 항목 `{ state, sinceMs, sinceSeq, clientKind }`에서 `deviceId`는 맵 키, `state`·`clientKind`는 같은 값, `sinceAt`은 `sinceMs`, `sinceSeq`는 그 상태로 바꾼 `presence.changed` 이벤트의 seq로 대응한다. presence.changed 투영 (재현 가능). 부재 판정은 14 함수가 ctx.now로 한다
+  attention: { dnd: boolean; budget: "normal" | "over_budget" | "quiet_hours" };  // 데몬 운영 상태 중 커널이 읽는 것. 방해 금지(dnd)와 주의 예산(budget) 상태 (14 §3.13.5)
 }
 export interface PresenceView { devices: { deviceId: string; clientKind: string; state: Static<typeof PresenceState>; sinceSeq: number; sinceAt: number }[] }
 ```
@@ -2772,7 +2774,7 @@ loadKernelState(store, rules):
 | `result.accept`, `result.reject` | `acceptance.recorded`(accepted / rejected) |
 | `integration.start`, `integration.verify`, `integration.complete`, `integration.reopen` | `integration.opened`, `obligation.resolved`, `integration.completed`, `obligation.reopened` / `concern.reopened` |
 | 실행 후보에서 새로 생긴 `authority.grant`, `agreement.activate`, `legacy.choice.capture` | `grant.issued`, `agreement.activated_by_grant`, §3.13.4 |
-| 시나리오 후보 `goal.link`, `obligation.transfer` | `concern.opened`의 `goalId` / `structure.changed`(relocate), `obligation.transferred` |
+| 유즈케이스 후보 `goal.link`, `obligation.transfer` | `concern.opened`의 `goalId` / `structure.changed`(relocate), `obligation.transferred` |
 
 ### A.3 experimental.v0 이벤트 10개
 

@@ -1,7 +1,7 @@
 # 11. 묻기와 자율성
 
 - 소유: P6 커널
-- 상태: 4c 보완판 (2026-10-14). 기준 브리프 결정 1~57, 조정자 판정 J-01~J-240. 표기는 브리프 §5.2(판정 J-144)를 따른다: `[결정 n]`은 사용자 결정만, 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`·`[판정 J-nn]`. 이전: 4단계 보완판(2026-10-12, 2a단계 통합판 기반). 조정자 판정(`process/rulings-stage2a.md` J-05, J-20, J-26, J-46~J-55, J-63, J-64)과 08·09 정렬을 반영했다. 08·09는 1판의 제안 상당수(질문 병합, 전달 계획 기록, 승인 블록, 사람의 미루기·맡기기·다시 세우기 이벤트, presence 이벤트)를 받아들였고, 2a판은 그 형식을 따른다. 이전 이름과의 대응은 §2.4.
+- 상태: 4c 보완판 (2026-10-14). 기준 브리프 결정 1~64, 조정자 판정 J-01~J-275. 표기는 브리프 §5.2(판정 J-144)를 따른다: `[결정 n]`은 사용자 결정만, 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`·`[판정 J-nn]`. 이전: 4단계 보완판(2026-10-12, 2a단계 통합판 기반). 조정자 판정(`process/rulings-stage2a.md` J-05, J-20, J-26, J-46~J-55, J-63, J-64)과 08·09 정렬을 반영했다. 08·09는 1판의 제안 상당수(질문 병합, 전달 계획 기록, 승인 블록, 사람의 미루기·맡기기·다시 세우기 이벤트, presence 이벤트)를 받아들였고, 2a판은 그 형식을 따른다. 이전 이름과의 대응은 §2.4.
 - 구현 위치: `@helm/kernel`의 `src/asking/`, `src/commands/question.ts`. 규칙 집행은 커널, 전달 실행은 런타임·데몬(12, 17), 전달 표시는 앱(20)
 - 함께 읽을 문서: [10 커널](10-kernel.md), [08 도메인 모델](08-domain-model.md) §3.4.4(Trigger)·§3.4.5(Autonomy)·§3.10(Choice, Objection)·§3.13(Question)·§3.22.7(질문 상태 기계), [09 이벤트 저장소](09-event-store.md) §3.4·§3.11.3(타이머), [12 런타임](12-runtime-engine.md) §3.13(질문 대기와 재개), [13 도구](13-tools-and-execution.md) §3.7.8~§3.7.9, [14 루프·모드](14-loops-modes-orchestration.md) §3.5.3·§3.13.5~§3.13.8, [19 프로토콜](19-client-protocol.md) §3.7.5·§3.8.3
 
@@ -77,6 +77,9 @@
 | 53 루프 계획은 혼합 방식으로 만든다 | 모델이 정한 계획도 혼자 정한 결정으로 기록되고 이의를 받는다(§3.9.1). 작성 주체(`authoredBy`: code·model·human)는 기록에 남고, 결정 주체(`decidedBy`)와 이의 절차는 그대로다 [결정 53, 판정 J-188] |
 | 55 MVP 도구에 외부 웹 탐색을 넣는다 | 외부 탐색(`web_fetch`·`web_search`)은 게이트 대상이 아니다. 외부로 쓰는 호출(비-GET 요청·업로드·합의 밖 호스트 이동)만 send로 묻는다(§3.2.2 `recovery`, 판정 J-190) [결정 55] |
 | 56 결과 확인 대기의 휴대폰 알림은 설정으로 고른다 | 설정 `notifications.resultReview`의 세 값(알리지 않음, 하루 한 번 묶음, 즉시)과 묶음 시각(기본 19:00)을 둔다(§3.5.7, §3.16). 기본은 알리지 않음이다 [결정 56, 판정 J-189] |
+| 59 방해 금지 예외(`notifications.dndException`)는 휴대폰 푸시에만 적용한다 | 방해 금지 중 데스크톱 OS 알림은 없다(§3.5.1). 휴대폰 푸시 예외 `expiringOnly`는 만료 임박 승격(`expiry_near`)에만 쓴다(§3.5.1, 05 §3.7.4) [결정 59] |
+| 60 결과 확인 대기는 데스크톱에서 배지로만 알린다 | 결과 확인의 데스크톱 표시(`surface`)는 배지만이다. OS 알림은 `notifications.resultReview`가 `immediate`일 때만 띄운다(§3.5.6, §3.5.7) [결정 60] |
+| 64 만료 임박 승격만 J-132의 예외로 둔다 | 막지 않는 권리 게이트도 사람이 정한 마감(`deadline`)이 임박하면 `interrupt`로 올린다(§3.5.2, §3.6.3). 그 밖의 막지 않는 권리 질문은 다음 작업 경계에 전달한다 [판정 J-132] [결정 64] |
 
 ### 2.2 이 문서의 주요 [제안]
 
@@ -269,7 +272,7 @@ export type AnswerValue =
   | { readonly option: 'accept_assumption' }                                       // 가정대로 진행 (19 question.proceedWithAssumption)
   | { readonly option: 'answer'; readonly value?: unknown; readonly edits?: string } // 다른 선택으로, 고쳐서 정하기. value는 answerSchema로 검증
   | { readonly option: 'confirm'; readonly edits?: Readonly<Record<string, unknown>> }
-  | { readonly option: 'confirm_items'; readonly items: readonly { readonly key: string; readonly decision: 'confirm' | 'reject' | 'keep'; readonly edits?: string }[] }  // 여러 후보를 한 질문에 묶은 criterion_confirm (15 §3.6.7). keep은 보류(02 UC-01 "C3 보류")
+  | { readonly option: 'confirm_items'; readonly items: readonly { readonly key: string; readonly decision: 'confirm' | 'reject' | 'keep'; readonly edits?: string; readonly weight?: Grade }[] }  // 여러 후보를 한 질문에 묶은 criterion_confirm (15 §3.6.7). keep은 보류(02 UC-01 "C3 보류")
   | { readonly option: 'reject'; readonly reason?: string }
   | { readonly option: 'approve'; readonly conditions?: readonly string[] }
   | { readonly option: 'approve_edited'; readonly editedArgs: BlobRef; readonly editedFingerprint: Sha256 } // 고쳐서 허락 (새 tcId, J-121)
@@ -286,6 +289,8 @@ export type AcceptanceDecisionInput = 'accept' | 'accept_with_conditions' | 'req
 ```
 
 `AnswerValue`와 `AcceptanceDecisionInput`의 정본은 TypeBox 스키마(`Type.Union`, 08 `QuestionKind`와 같은 방식)로 `@helm/domain`에 둔다. 위 TS 형태는 뜻을 보이는 표기다([19 요구]).
+
+`confirm_items`의 `items[].key`는 가능성 레코드의 `possibilityId`다. 이 모양은 15 §3.6.7과 19 §3.7.5가 인용한다 [판정 J-258]. 무게(`weight`)와 `edits`는 `decision`이 `confirm`인 항목에만 싣는다(10 §3.11.9) [판정 J-262·J-263].
 
 `AnswerValue`는 09 `question.answered`의 `value`에 들어간다. 19 `QuestionAnswerParams`(optionId, answer, edits, narrowing)는 이 값으로 바뀐다: optionId가 선택지 키면 `answer`, `edits`만 있으면 `answer.edits`, optionId `narrowed`는 `narrow_scope`(자연어 `narrowing`을 `instruction`으로). `approve_edited`는 클라이언트가 고친 인자 blob과 지문을 보낼 때만이다(19 §3.7.5에 변환 표를 요구).
 
@@ -439,7 +444,7 @@ export interface DecisionKindSpec {
 | `impl.approach` | 구현 방법 선택 | 아니오 | 아니오 | answer, choose_one | choice |
 | `impl.dependency` | 의존성 추가·교체 | 아니오 | 아니오 | answer, choose_one | choice |
 | `inquiry.scope` | 탐구 범위·깊이 | 예 | 아니오 | answer | choice |
-| `inquiry.source_range` | 근거 범위(작업 대상 / 문서 / 웹) | 아니오 | 아니오 | answer | reference_scope |
+| `inquiry.evidence_range` | 근거 범위(작업 대상 / 문서 / 웹) | 아니오 | 아니오 | answer | reference_scope |
 | `want.criterion` | 선호 기준 후보 | 아니오 | 아니오 | confirm_candidate | criterion_confirm |
 | `want.reference_scope` | 참고 자료 범위 | 아니오 | 아니오 | answer | reference_scope |
 | `plan.loop` | 루프 계획·전환 | 예 | 아니오 | answer | choice |
@@ -604,7 +609,7 @@ urgencyOf(q, state, ctx):                                     # 26 §3.4.3, 판�
   p = presenceSnapshot(state, ctx)                            # §3.8.1
   if p.dnd or p.attention == 'quiet_hours': return 'digest'   # 방해 금지·조용한 시간 (05 §3.7.4). 26 planPush도 같은 줄로 시작한다
   if p.allAway and p.pushReachable 비어 있음: return 'digest'  # 자리에 없고 휴대폰 푸시도 받을 곳이 없음
-  if q.escalations 비어 있지 않음:                            # 만료 임박 승격
+  if q.escalations 비어 있지 않음:                            # 만료 임박 승격 [결정 64]
      return (q.gate == 'rights' or q.blocks != 'nothing') ? 'interrupt' : 'notice'   # 막지 않는 정보 질문은 밤에 끼어들지 않는다(V5-019)
   if q.delivery.mode == 'immediate':
      return (q.blocks != 'nothing' and (q.gate == 'rights' or q.blocks ∈ {workunit, concern})) ? 'interrupt' : 'notice'
@@ -612,8 +617,8 @@ urgencyOf(q, state, ctx):                                     # 26 §3.4.3, 판�
   return 'digest'                                             # 예약·중재로 묶여 놓임
 ```
 
-- 자리에 없음(`allAway`)은 저장 값이 아니라 14 §3.13.8 `isAway`로 계산한다. 자리에 없어도 푸시를 받을 휴대폰이 있으면 강도를 낮추지 않는다. 휴대폰에는 `interrupt`와 `notice` 질문까지 푸시가 간다 [결정 48]. 다만 `notice` 푸시는 데스크톱 기기가 모두 부재이고 휴대폰이 `active`가 아닐 때만 보낸다([판정 J-172], §3.5.3 규칙 1). 푸시를 실제로 보낼 기기는 전달기가 26 §3.4.3 `planPush`로 고른다(§3.5.3).
-- 방해 금지·조용한 시간에는 질문 기록과 전달 기록은 그대로 하고 강도만 `digest`(OS 알림·푸시 없음, 질문함·배지·복귀 요약)로 낮춘다. 권리 게이트 질문도 같다. 막힌 상태는 화면에 계속 보인다(14 §3.13.5 규칙 4, 05 §3.7.4).
+- 자리에 없음(`allAway`)은 저장하지 않고 14 §3.13.8 `isAway`로 계산한다. 모든 기기가 자리에 없고 푸시를 받을 휴대폰도 없으면 강도를 `digest`로 낮춘다. 푸시를 받을 휴대폰이 있으면 자리에 없다는 이유만으로는 강도를 낮추지 않는다. 예약·중재로 묶여 놓이는 질문은 만료 임박 승격이 없으면 자리와 무관하게 `urgencyOf`의 마지막 줄에서 `digest`다. 휴대폰에는 `interrupt`와 `notice` 질문까지 푸시가 간다 [결정 48]. 다만 `notice` 푸시는 데스크톱 기기가 모두 부재이고 휴대폰이 `active`가 아닐 때만 보낸다([판정 J-172], §3.5.3 규칙 1). 푸시를 실제로 보낼 기기는 전달기가 26 §3.4.3 `planPush`로 고른다(§3.5.3).
+- 방해 금지·조용한 시간에는 질문 기록과 전달 기록은 그대로 하고 강도만 `digest`(질문함·배지·복귀 요약)로 낮춘다. 권리 게이트 질문도 같다. 방해 금지 중 데스크톱 OS 알림은 없다. `notifications.dndException`은 휴대폰 푸시에만 적용한다. 값이 `expiringOnly`이면 만료 임박 승격(`expiry_near`)만 휴대폰으로 보내며, 그 판정은 26 `planPush`가 한다(05 §3.7.4) [결정 59]. 막힌 상태는 화면에 계속 보인다(14 §3.13.5 규칙 4, 05 §3.7.4).
 - 데스크톱 OS 알림의 표시 방식(`surface`)은 강도와 전달 방식으로 정한다(§3.5.6). 협상 전달(`negotiated`)의 `notice`는 기본으로 OS 알림을 띄우지 않는다(02 AC-04-01, 05 설정 "협상 전달 알림", 기본 끔).
 
 #### 3.5.2 규칙 (첫 일치가 적용) [제안]
@@ -621,7 +626,7 @@ urgencyOf(q, state, ctx):                                     # 26 §3.4.3, 판�
 | ID | 조건 | 방식 | 발화 조건 |
 |---|---|---|---|
 | D-1 | 권리 게이트, 막음(`blocks ≠ nothing`) | immediate | now |
-| D-1b | 권리 게이트, 막지 않음(결과 확인, Goal 수정 확인, 미리 묻는 승인) [판정 J-132] | scheduled(결과 확인이고 설정 `notifications.resultReview`가 `immediate`면 immediate, §3.5.7 [판정 J-189]) | 그 Concern의 다음 작업 경계 또는 다음 `review_window` 중 이른 것(`immediate`면 now). 기록은 즉시 하고 가정 확정은 하지 않는다. 가벼운 작업(보관 Concern)의 결과 확인은 하나의 묶음 ID로 모아 한 번에 확인한다 |
+| D-1b | 권리 게이트, 막지 않음(결과 확인, Goal 수정 확인, 미리 묻는 승인) [판정 J-132] | scheduled(결과 확인이고 설정 `notifications.resultReview`가 `immediate`면 immediate, §3.5.7 [판정 J-189]) | 그 Concern의 다음 작업 경계 또는 다음 `review_window` 중 이른 것(`immediate`면 now). 기록은 즉시 하고 가정 확정은 하지 않는다. 가벼운 작업(보관 Concern)의 결과 확인은 하나의 묶음 ID로 모아 한 번에 확인한다. 만료 임박 승격만 예외다 [결정 64] |
 | D-2 | 막힘 있음 그리고 `delayCost` ≥ 즉시 승격 문턱(다이얼 `question.immediate_threshold`) | immediate | now |
 | D-3 | 만료 여유 안(§3.6.3) | immediate (승격) | now |
 | D-4 | 종류별 예외 다이얼(`question.kind_exceptions`)이 이 결정 종류에 방식을 지정 | 지정값 | 방식 기본 |
@@ -631,6 +636,8 @@ urgencyOf(q, state, ctx):                                     # 26 §3.4.3, 판�
 | D-8 | VoI 점수 ≥ 즉시 VoI 문턱(즉시 승격 다이얼: high 9 / normal 9 / low 6) 그리고 시간당 즉시 전달 수 < 상한(`attention.interruptsPerHour`, 사람 기준 하나, [판정 J-171], 규칙 3) | immediate | now |
 | D-9 | 사람 부재(`allAway`, 또는 방해 금지·조용한 시간), 정보 게이트 | scheduled | `user_return` |
 | D-10 | 그 밖 | 14 `resolveDials`가 낸 `question.default_delivery` 유효값 하나(층 순서로 루프별·사용자 값을 이미 반영) [판정 J-143] | 방식 기본 |
+
+막지 않는 권리 게이트도 사람이 정한 마감(`deadline`)이 임박하면 `interrupt`로 올린다 [결정 64]. 마감이 지나면 대상 행동을 하지 않은 채 질문이 끝나므로(§3.3.1 규칙 4) 놓치면 사람이 원한 행동이 일어나지 않는다. 승격은 질문당 한 번이고(20 §3.10.1 규칙 3) 시간당 즉시 전달 상한에 세지 않는다(14 §3.13.5 규칙 3). 그 밖의 막지 않는 권리 질문은 다음 작업 경계 또는 검토 창에 전달한다 [판정 J-132]. 방해 금지·조용한 시간에는 `urgencyOf`의 첫 줄이 먼저 적용되어 승격도 강도 `digest`가 된다. 이때 휴대폰 푸시만 `notifications.dndException`이 `expiringOnly`일 때 예외로 나가고 데스크톱 OS 알림은 없다 [결정 59] [판정 J-267].
 
 루프별 기본값은 14 다이얼 층 1(루프 기본)의 값이다. 14 `resolveDials`가 사용자·Concern·지시 층과 합쳐 유효값 하나를 내고 D-10은 그 값만 본다(v0.3 06 §5, Parasuraman 등의 기능별 자동화 수준, 15 요구 "I 계열은 라운드 경계 예약"):
 
@@ -644,7 +651,7 @@ urgencyOf(q, state, ctx):                                     # 26 §3.4.3, 판�
 
 D-10 뒤에 묶음 규칙을 적용한다: 결과 방식이 negotiated이고, 같은 Concern에서 최근 창(설정 "비슷한 시점 창", 기본 10분) 안에 전달된 정보 게이트 질문이 이미 둘 이상이면 scheduled(다음 경계)로 바꾼다(v0.3 06 §3.3 "여러 질문이 비슷한 시점에 생김 → 다음 작업 경계에 예약").
 
-시간당 알림 상한(05 요구 (7))은 D-8의 조건과 묶음 규칙으로 받는다. 상한은 사람 기준 하나, `attention.interruptsPerHour`(14 기본값)이고 모든 기기의 합이다. 기기별 상한(26 `push.hourlyCap`, 20 `notifications.hourlyCap`)은 두지 않는다([판정 J-171]). 권리 게이트(D-1)와 만료 임박 승격(D-3)은 상한에 걸리지 않는다(14 §3.13.5 규칙 3). 시간당 즉시 전달 수는 상태에서 센다(`question.delivered` 중 방식 `immediate`이고 권리 게이트가 아닌 것, 강도 interrupt·notice). 결과 확인 알림의 푸시(§3.5.7)도 같은 상한을 따르며, 묶음 푸시 하나는 한 번으로 센다.
+시간당 알림 상한(05 요구 (7))은 D-8의 조건과 묶음 규칙으로 받는다. 상한은 사람 기준 하나, `attention.interruptsPerHour`(14 기본값)이고 모든 기기의 합이다. 기기별 상한(26 `push.hourlyCap`)은 두지 않는다([판정 J-171]). 권리 게이트(D-1)와 만료 임박 승격(D-3)은 상한에 걸리지 않는다(14 §3.13.5 규칙 3). 시간당 즉시 전달 수는 상태에서 센다(`question.delivered` 중 방식 `immediate`이고 권리 게이트가 아닌 것, 강도 interrupt·notice). 결과 확인 알림의 푸시(§3.5.7)도 같은 상한을 따르며, 묶음 푸시 하나는 한 번으로 센다.
 
 중재 방식(사용자 기본이나 루프 기본이 `mediated`)이면 질문을 `pending`(`plannedDelivery = null`)으로 두고 지시 `agent.request(mediator)`를 낸다. 중재자 계획을 받으면 적용하고, 대기 시간(설정, 기본 2분, 12 `runtime_timers`의 `mediator_timeout`) 안에 계획이 없으면 런타임이 `delivery.plan`(R, 협상)을 내 negotiated로 놓는다(§3.7).
 
@@ -738,9 +745,10 @@ export interface QuestionDeliveredPayload {    // 09 question.delivered (J-52)
 | interrupt | 무엇이든 | os + banner | 보낸다 |
 | notice | immediate | os | 보낸다 |
 | notice | negotiated | badge (05 설정 "협상 전달 알림"을 켜면 os) | 보낸다 |
-| digest | 무엇이든 | badge | 보내지 않는다 |
+| digest | 무엇이든 | badge | 보내지 않는다(방해 금지 중 `expiringOnly`의 만료 임박 승격은 예외, §3.5.1) |
 
 - 결과 확인(`result_review`) 질문의 휴대폰 푸시는 설정 `notifications.resultReview`를 따른다. 이 표는 그 밖의 질문에 적용한다. `none`이면 강도가 `notice`여도 보내지 않는다([판정 J-189], §3.5.7).
+- 결과 확인(`result_review`)의 데스크톱 `surface`는 배지만(`['badge']`)이다. `notifications.resultReview`가 `immediate`일 때만 `os`를 포함한다 [결정 60].
 - 대상 기기: 기본은 모든 기기(`'all'`). presence가 `active`인 기기가 있으면 그 기기만 OS 알림, 나머지는 배지(19 §3.8.3 "활동 중인 기기 우선").
 - 문구는 키로 저장하고 앱이 `@helm/ui-language`로 문장을 만든다(J-31). 질문 본문은 넣지 않는다(20 요구, 18 비밀 규칙).
 - 재전송으로 받은 전달 이벤트는 앱이 묶어서 보인다(19 §3.8.3, 20).
@@ -758,6 +766,7 @@ export interface QuestionDeliveredPayload {    // 09 question.delivered (J-52)
 - `daily_digest`: 타이머 목적 `result_review_digest`(09 `runtime_timers`)가 `resultReviewDigestAt`에 발화한다. 그 시각에 확인 대기 결과(`result_review` 질문이 열려 있고 답을 받지 않은 것)가 하나 이상이면 묶음 푸시 1개를 강도 `notice`로 보낸다. 없으면 보내지 않는다. 발화한 뒤 다음 날 같은 시각으로 다시 건다. 발송은 `push.sent`로 남고, 질문 상태는 바뀌지 않는다. 묶음 푸시의 `cause`는 `result_review_digest`다([판정 J-238]).
 - `immediate`: 결과 확인 질문이 생기면(`question.recorded`) D-1b의 예약 대신 `now`로 놓는다(§3.5.2 D-1b 예외). 강도 `notice`로 푸시 1개를 보낸다. 같은 질문에는 한 번만 보낸다. 이 지시의 `cause`는 `result_review_immediate`다([판정 J-238]).
 - 두 값 모두 방해 금지(`attention.snoozeUntil`, [판정 J-166])와 시간당 상한([판정 J-171])을 따른다. 방해 금지 중이거나 상한에 걸리면 보내지 않는다. 묶음 푸시는 그날 건너뛰고, 질문함·배지에는 그대로 남는다. 미뤄진 사유(방해 금지인지 시간당 상한인지)는 결과 확인 질문의 전달 계획(`delivery.planned`, §3.7 `DeliveryPlanPayload`의 묶음 `reason`)에 싣는다. 16 §3.23.14 `notif.review_deferred`가 이 사유별로 센다([판정 J-166·J-171]). 두 값 모두 `notice` 푸시의 부재 조건([판정 J-172])을 따른다.
+- 결과 확인 대기의 데스크톱 표시는 배지만(`surface: ['badge']`)이다. `notifications.resultReview`가 `immediate`일 때만 `os`를 포함한다 [결정 60].
 - 휴대폰 확인 범위는 [판정 J-139] 그대로다. 휴대폰은 산출물(본문·이미지·변경 요약)을 연 뒤에만 `result.accept`를 받는다. 큰 산출물과 취향형 결과는 데스크톱 전용이고, 휴대폰에서는 미루기만 받는다.
 - 푸시 본문은 문구 키로 낸다([판정 J-31], §3.5.6). 질문 본문은 넣지 않는다.
 
@@ -830,7 +839,7 @@ export interface QuestionDeliveredPayload {    // 09 question.delivered (J-52)
 - 정보 게이트, 임시 가정 있음 → `question.assumed` + `choice.committed`(`choiceKind: 'assumption_confirmed'`, AutonomousDecision, `whyNotAsked = { kind: 'assumption_expired', questionId }`) + `assumption.confirmed`. 같은 트랜잭션이다(08 R-25). 질문은 닫히지만 그 선택이 "에이전트가 정한 것"에 남아 이의를 걸 수 있다(v0.3 06 §3.6).
 - 종류가 `criterion_confirm`이면 가정 확정 선택은 "이 기준을 임시로 계속 적용한다"이며 선호 모델 기준을 확정하지 않는다(`preference.criterion_confirmed`는 사람만, 08 R-36, 15 요구).
 - 정보 게이트, 막는 질문(가정 없음) → 만료점이 없다. 답을 기다린다.
-- 권리 게이트 → 만료점이 없다(§3.3.1 규칙 4).
+- 권리 게이트 → 시스템이 정한 가정 만료점이 없다(§3.3.1 규칙 4). 사람이 정한 마감(`deadline`)이 있으면 그 임박 승격은 D-3을 따른다 [결정 64].
 
 데몬이 꺼져 있던 동안 만료 시각이 지난 경우 [판정 J-142]: 정지 시간이 만료 여유보다 길면 막지 않는 질문의 만료를 "복귀 + 30분"으로 미룬다(복귀는 `user_return`, 없으면 데몬 재시작 시각). 그동안 사람은 알림을 받지 못했기 때문이다. 미룬 뒤에는 승격(D-3)이 다시 한 번 일어난다. 기본은 켬(`on`)이고 다이얼 `assumptionDeferOnDowntime`(14 `resolveDials`)으로 끌 수 있다([판정 J-197]). 끄면 이전 규칙대로 승격 없이 바로 만료한다. 만료 판정 조건은 08·10·11 모두 `now ≥ assumptionExpires`(시각형) 또는 해당 사건 커밋(경계·행동형)이다. 어느 경우든 복귀 요약에 "답이 없어 가정대로 정해진 질문 n건"과 항목별 [이의]를 보인다(원인과 관계없이, 04 BriefView에 요구).
 
@@ -932,7 +941,7 @@ export interface PresenceSnapshot {                              // 14 §3.13.8,
   readonly desktopAllAway: boolean;                              // 데스크톱·TUI 기기가 모두 isAway (notice 푸시 조건, [판정 J-172])
   readonly phoneActive: boolean;                                 // 휴대폰 기기 가운데 active인 것이 있음 ([판정 J-172·J-173])
   readonly activeDevices: readonly DeviceId[];
-  readonly pushReachable: readonly DeviceId[];                   // 푸시 등록이 정상이고 폐기·만료되지 않은 기기 (26 §3.4.6 device_push)
+  readonly pushReachable: readonly DeviceId[];                   // 푸시 등록이 정상이고 폐기·만료되지 않은 기기 (26 §3.4.6 push_tokens)
   readonly dnd: boolean;                                         // 의미 설정 attention.snoozeUntil이 지금 시각 뒤임 (05 §3.7.4, [판정 J-166]. 데몬 설정이 아니다)
   readonly attention: 'normal' | 'over_budget' | 'quiet_hours';  // ctx.attention.budget (14 §3.13.5)
   readonly focus: { readonly screen?: string; readonly objectId?: string } | null;
@@ -952,7 +961,7 @@ export interface PresenceSnapshot {                              // 14 §3.13.8,
 |---|---|
 | 정보 게이트, 가정 가능 | 질문 기록, 임시 가정으로 진행. 전달은 D-9 scheduled(`user_return`). 만료점 도달 시 가정 확정(§3.6.3) |
 | 정보 게이트, 막음 | 그 WorkUnit(또는 의존 부분)만 멈춤. 다른 WorkUnit·Concern은 계속. 가능하면 범위를 줄여 진행(§3.11) |
-| 권리 게이트 | 막는 권리 질문은 즉시 놓인다(D-1). 휴대폰 푸시를 받을 곳이 있으면 `interrupt`로 푸시가 가고 [결정 48], 없으면 강도는 digest. 그 행동만 막고 나머지 계속. 가정 확정 없음, 사람이 정한 마감 말고는 시간 만료 없음 |
+| 권리 게이트 | 막는 권리 질문은 즉시 놓인다(D-1). 휴대폰 푸시를 받을 곳이 있으면 `interrupt`로 푸시가 가고 [결정 48]. 모든 기기가 자리에 없고 휴대폰 푸시를 받을 곳도 없으면 강도는 digest다(`urgencyOf`, §3.5.1). 그 행동만 막고 나머지 계속. 가정 확정 없음, 사람이 정한 마감 말고는 시간 만료 없음 |
 | 결과 확인 질문 | 놓이고 기다린다. 다음 WorkUnit은 이전 결과 확인과 의존이 없으면 계속(Grant 범위 안) |
 | 모든 WorkUnit이 막힘 | Concern 표시 상태 "대기"(14 경계 `concern_waiting`). 런타임은 반복 시도하지 않고 멈춘다. 스케줄러 타이머만 돈다 |
 | 알림 | 전달기는 연결된 클라이언트에 보내면 channel `app`, 연결된 기기가 없고 휴대폰 푸시를 보냈으면 `push`, 둘 다 아니면 `brief`로 기록한다(§3.5.3). 휴대폰 푸시는 26의 Web Push(VAPID)다 [결정 47·48]. 모바일 클라이언트는 데스크톱 앱 MVP 다음 단계다(결정 42) |
@@ -1249,6 +1258,7 @@ C와 A가 가장 많이 건너뛰어지므로 다음은 어떤 모드·다이얼
 | 승인 유효 기간 | 24시간 | §3.14 |
 | 검토 시간대 | 09:00 하나 | 경계 `review_window`, 중재자 입력 |
 | 방해 금지 `attention.snoozeUntil` | 없음 | 05 §3.7.4. 그 시각까지 알리지 않는다. 켜져 있으면 away로 본다(14 `isAway`의 입력). 의미 설정이며 데몬 설정이 아니다([판정 J-166]) |
+| `notifications.dndException` | `none` | 방해 금지 중 휴대폰 푸시 예외. `expiringOnly`면 만료 임박 승격(`expiry_near`)만 보낸다. 데스크톱 OS 알림에는 예외가 없다(05 §3.7.4) [결정 59] |
 | 시간당 알림 상한 `attention.interruptsPerHour` | 14 기본값 | 사람 기준 하나, 모든 기기의 합. 기기별 상한은 두지 않는다([판정 J-171]) |
 | `notifications.resultReview` | `none` | 결과 확인 대기 알림 방식. `none`(알리지 않음), `daily_digest`(묶음 푸시 1개), `immediate`(질문마다 푸시 1개). [결정 56, 판정 J-189], §3.5.7 |
 | `notifications.resultReviewDigestAt` | `"19:00"` | `daily_digest`의 묶음 시각(서버 시간대). 타이머 목적 `result_review_digest`([판정 J-189]) |
@@ -1483,7 +1493,7 @@ interface PresenceUpdatePayload { deviceId: DeviceId; state: PresenceState }
 | 19 (P12) | (1) 메서드 → 커널 명령 대응은 10 §3.11.11 (2)·§3.18 끝으로. (2) `QuestionDeferParams.until`을 §3.18 `QuestionDeferPayload`로 변환. (3) "지금 보기" 메서드(`question.escalate`)와 질문 열람 신호(`question.mark_seen`). (4) 질문 뷰에 형식별 응답과 `priorityReason`. (5) `brief.acknowledge`의 `note` |
 | 20 (P13) | 전달 payload를 §3.5.6으로 읽는다(`channel`과 `surface` 구분, urgency 세 값). 문구는 키(J-31) |
 | 05·04·21 (P2, P14) | 질문 카드: 질문 문장 구성과 응답, 강도별 표시, 접힘 규칙(권리·막는 질문은 접지 않음), "에이전트가 정한 것" 피드와 이의 버튼(사유는 선택 입력, J-20, `desiredEffect` 세 가지), 이의 영향 미리보기, 권리 게이트 카드의 인자 미리보기·수정, 미루기의 만료 경고, 문구 키 `question.reason.*`·`question.priority.*` |
-| 17·20 (P11, P13) | 방해 금지는 데몬 설정이 아니라 의미 설정 `attention.snoozeUntil`이다([판정 J-166], 14·19). 커널은 그 값을 `KernelContext.attention`으로 받는다. 시간당 알림 상한은 `attention.interruptsPerHour` 하나(모든 기기의 합)로 두고, 기기별 상한(20 `notifications.hourlyCap`, 26 `push.hourlyCap`)은 두지 않는다([판정 J-171]). 클라이언트가 없을 때의 외부 알림 경로는 1단계 범위 밖(26이 모바일 경로를 정한다) |
+| 17·20 (P11, P13) | 방해 금지는 데몬 설정이 아니라 의미 설정 `attention.snoozeUntil`이다([판정 J-166], 14·19). 커널은 그 값을 `KernelContext.attention`으로 받는다. 시간당 알림 상한은 `attention.interruptsPerHour` 하나(모든 기기의 합)로 두고, 기기별 상한(26 `push.hourlyCap`)은 두지 않는다([판정 J-171]). 클라이언트가 없을 때의 외부 알림 경로는 1단계 범위 밖(26이 모바일 경로를 정한다) |
 | 08·09 (P5, 4단계) | (1) J-120: assumed 뒤 늦은 답 전이 삭제, `question.assumed`가 revisionSeq를 올림. (2) `triad` 반응 → `question.answered` 파생, 라운드 닫힘 → `stimulus_round` 질문 `withdrawn(round_closed)`. (3) `ToolCall.editedFrom`, `toolcall.denied(edited_by_human)`(J-121). (4) `workunit.scope_exceeded.requested`를 구조화 `ResourceScope[]`로. (5) 재작업 원 WorkUnit의 `superseded` 출발 상태 |
 | 26 (P15, 4단계) | `planPush`의 규칙(minUrgency notice, notice는 데스크톱 기기가 모두 부재이고 휴대폰이 active가 아닐 때만, 상한은 사람 기준 하나이고 기기별 `push.hourlyCap`은 두지 않음, interrupt 60초 지연)과 `sentCount`는 받아들여진 푸시만 셈([판정 J-171·J-172]). 휴대폰 active는 `user_return`이 아니다([판정 J-173]). 결과 확인 알림은 §3.5.7을 따른다. 이 문서 §3.5.1·§3.5.3·§3.5.6과 맞춘다 |
 | 19·09·04·05·26 (결정 56, 판정 J-189) | `notifications.resultReview`·`notifications.resultReviewDigestAt`을 19 `settings.update`의 `notifications` 섹션으로 바꾸고, 기록은 09 `setting.changed`다. 타이머 목적 `result_review_digest`를 09 `runtime_timers`에 둔다. 설정 항목과 문구 키는 04·05가 정한다 |
@@ -1570,7 +1580,7 @@ ID `AQ-nn`은 22 시험 추적표가 가리키는 번호다.
 | AQ-19 | 늦은 답 | `assumed` 질문에 온 답 → `conflict.already_resolved` + `assumedValue` + 다음 행동 `objection.file`, 질문 상태 그대로 (J-120) |
 | AQ-20 | 정지 중 만료 | 정지 시간이 만료 여유보다 길면 만료를 복귀 + 30분으로 미룸, 다이얼 `assumptionDeferOnDowntime`을 끄면 바로 만료 (J-142, J-197) |
 | AQ-21 | 고쳐서 허락 | 원 호출 denied(edited_by_human) + 결정적 새 tcId(`editedFrom`) 한 트랜잭션, 같은 지시를 두 번 처리해도 새 호출 하나 (J-121) |
-| AQ-22 | 막지 않는 권리 질문 | 결과 확인은 다음 작업 경계·검토 창에 놓이고 가정 확정 없음. 가벼운 작업 결과 확인은 한 묶음 (J-132) |
+| AQ-22 | 막지 않는 권리 질문 | 결과 확인은 다음 작업 경계·검토 창에 놓이고 가정 확정 없음. 가벼운 작업 결과 확인은 한 묶음 (J-132). 사람이 정한 마감이 임박한 질문은 `question.escalated(expiry_near)`와 강도 `interrupt`로 한 번 승격된다 [결정 64] |
 | AQ-23 | 휴대폰 복귀 | 휴대폰이 active가 되어도 `user_return` 묶음이 발화하지 않는다 |
 | AQ-24 | 결과 확인 알림 | `none`(기본)이면 결과 확인 푸시가 없다. `daily_digest`는 `resultReviewDigestAt`에 확인 대기 결과가 하나 이상이면 묶음 푸시 1개(강도 notice), 없으면 0개다. `immediate`는 결과 확인 질문마다 notice 푸시 1개다. 두 값 모두 방해 금지·시간당 상한·부재 조건에서 막히면 보내지 않는다. 휴대폰은 산출물을 연 뒤에만 accept를 받는다(J-139). [결정 56, 판정 J-189] |
 

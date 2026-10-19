@@ -3,7 +3,7 @@
 - 소유: P5 (도메인)
 - 작성: 2026-10-11, 1단계 초안
 - 패키지: `@helm/domain` (브리프 §3.1)
-- 기준 결정: 브리프 결정 1~57(사용자 결정 1~25·38~43·47~57, 조정자 기본값 26~37, 조정자 판정 44~46), 판정 J-01~J-240
+- 기준 결정: 브리프 결정 1~64(사용자 결정 1~25·33·35·38~43·47~64, 조정자 기본값 26~32·34·36·37, 조정자 판정 44~46), 판정 J-01~J-275
 - 함께 읽을 문서: [09-event-store.md](09-event-store.md) (이벤트 envelope, 카탈로그, 저장), `10-kernel.md` (명령, 검증 규칙 집행), `11-asking-and-autonomy.md` (질문 전달, 혼자 정한 결정의 흐름), `14-loops-modes-orchestration.md` (루프·모드·다이얼), `15-inquiry-engine.md` (탐구 실행)
 
 ## 1. 목적과 범위
@@ -807,7 +807,7 @@ export const ProjectCore = Obj({
 export const ProjectStatus = Type.Union([Type.Literal("active"), Type.Literal("archived")]);
 export const Project = Obj({
   ...Meta, kind: Type.Literal("project"), ...ProjectCore.properties, status: ProjectStatus,
-  /** 프로젝트를 만들 때 함께 만드는 자리표시 Goal("목표 미정")과 가벼운 작업 보관 Concern (01 §3.6.4, 14) */
+  /** 프로젝트를 만들 때 함께 만드는 자리표시 Goal("이름 없는 Goal")과 가벼운 작업 보관 Concern (01 §3.6.4, 14) */
   placeholderGoalId: GoalId,
   lightWorkConcernId: ConcernId,
 });
@@ -832,7 +832,7 @@ export const GoalCore = Obj({
   projectId: ProjectId,
   parentGoalId: Nullable(GoalId),
   content: GoalContent,
-  /** 프로젝트마다 하나 있는 "목표 미정" Goal. 사람 확인 없이 만들어지며 실제 Goal로 정제되면 superseded */
+  /** 프로젝트마다 하나 있는 자리표시 Goal("이름 없는 Goal"). 사람 확인 없이 만들어지며 실제 Goal로 정제되면 superseded */
   placeholder: Type.Boolean(),
 });
 export const GoalStatus = Type.Union([
@@ -3664,7 +3664,7 @@ Acceptance는 만든 뒤 바뀌지 않는다. 사람이 확인을 되돌리려�
 | pending, delivered | `question.delegated` (사람 "맡긴다") | delegated | 정보 게이트만 | 이어지는 결정은 `whyNotAsked = delegated_by_human` |
 | pending | `question.delivered` (전달기) | delivered | - | `deliveredAt`, `deliveredTo` |
 | pending, delivered | `question.escalated` | (그대로) | 전달 방식이 이미 immediate가 아님 | 즉시 전달 |
-| pending, delivered | `question.answered` | answered | R-24 | `matchesAssumption` 계산. 다르면 전제 `assumption.invalidated`(낡음 전파). 종류별 효과: `choice` → `choice.committed`(human), `criterion_confirm` → `preference.criterion_confirmed`, `scope_change` → `workunit.scope_resolved`, `send_approval` → `toolcall.approved`/`denied`, `goal_revision` → `goal.revised`/`goal.revision_rejected`, `recovery` → `toolcall.recovered`(사람 답의 발화를 같은 트랜잭션의 `utterance` 관찰로 만들어 `evidence`에 넣는다) |
+| pending, delivered | `question.answered` | answered | R-24 | `matchesAssumption` 계산. 다르면 전제 `assumption.invalidated`(낡음 전파). 종류별 효과: `choice` → `choice.committed`(human), `criterion_confirm` → `preference.criterion_confirmed`(항목별 적용은 10 §3.11.9), `scope_change` → `workunit.scope_resolved`, `send_approval` → `toolcall.approved`/`denied`, `goal_revision` → `goal.revised`/`goal.revision_rejected`, `recovery` → `toolcall.recovered`(사람 답의 발화를 같은 트랜잭션의 `utterance` 관찰로 만들어 `evidence`에 넣는다) |
 | pending, delivered | (전용 명령) `agreement.confirmed`·`declined`·`revised`, `acceptance.recorded` | answered | `agreement_confirm`·`result_review` 질문은 19 전용 메서드(`agreement.confirm`, `result.accept`)로만 닫힌다. 이 두 종류에 `question.answer`가 오면 `policy.answer_option_not_allowed` ([판정 J-124]) | 질문 `answer`에 전용 명령 결과 요약 |
 | pending, delivered | `question.assumed` (커널·스케줄러) | assumed | R-25 | `choice.committed`(assumption_confirmed, autonomous), 전제 `assumption.confirmed` |
 | pending, delivered (triad·stimulus_round) | 반응 관찰(`observation.recorded` reaction, `questionId`) | answered | 질문이 가리킨 자극·가능성에 대한 반응 | triad는 첫 반응으로, stimulus_round는 라운드 마감(`inquiry.round_ended`)으로 answered. 반응 없이 라운드가 닫히면 `question.withdrawn`(round_closed) |

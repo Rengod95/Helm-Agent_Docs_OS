@@ -1,7 +1,7 @@
 # 04. UX 화면 상세
 
 - 작성: 2026-10-11, P2 UX
-- 상태: 4c 보완판(2026-10-14). 기준 결정 범위는 브리프 결정 1~57이고 조정자 판정(`process/rulings-stage2a.md` §1~§11, J-01~J-240)을 따른다. 화면 ID와 이름은 03 §3.6·§3.12가 정본이다. 명령 의도 이름은 19 메서드 이름과 같고, 메서드 → 10 명령 대응의 정본은 10 §3.11.11 (2)다. 레코드·상태 값은 08, 이벤트는 09, 오류 코드는 19를 따른다. 21의 UI-D02(결정 의도에 `basisSeq`), UI-D03(낙관적 도메인 갱신 금지), UI-D08(선형 텍스트)에 맞췄다.
+- 상태: 4c 보완판(2026-10-14). 기준 결정 범위는 브리프 결정 1~64이고 조정자 판정(`process/rulings-stage2a.md` §1~§11, J-01~J-275)을 따른다. 화면 ID와 이름은 03 §3.6·§3.12가 정본이다. 명령 의도 이름은 19 메서드 이름과 같고, 메서드 → 10 명령 대응의 정본은 10 §3.11.11 (2)다. 레코드·상태 값은 08, 이벤트는 09, 오류 코드는 19를 따른다. 21의 UI-D02(결정 의도에 `basisSeq`), UI-D03(낙관적 도메인 갱신 금지), UI-D08(선형 텍스트)에 맞췄다.
 - 소유: 화면별 목적, 진입 경로, 레이아웃(영역별 내용), 표시 데이터 요구, 상태별 표시, 인터랙션, 문구 예시, 사람 조작 횟수.
 
 ## 1. 목적과 범위
@@ -789,7 +789,7 @@ type AnswerShape =
 | 다른 선택으로·고쳐서 정하기 | `question.answer` | `{ option: "answer", value?, edits? }` |
 | 범위 줄여 진행, 범위 줄여 허락 | `question.answer` | `{ option: "narrow_scope", instruction }`. 권리 허락 질문에서는 "범위 줄여 허락"이라 부르고, 에이전트가 줄인 인자로 새 허락 질문을 낸다(11 §3.2.3) |
 | 기준 고치기 | `question.answer` | `{ option: "modify_criteria", changes }` |
-| 확정·거절(후보 확인) | `question.answer` | `{ option: "confirm", edits? }` / `{ option: "reject", reason? }`. 여러 기준이 묶인 `criterion_confirm`은 `{ option: "confirm_items", items: [{ key, decision: confirm \| reject \| keep, edits? }] }`(10이 기준별로 펼친다) |
+| 확정·거절(후보 확인) | `question.answer` | `{ option: "confirm", edits? }` / `{ option: "reject", reason? }`. 여러 기준이 묶인 `criterion_confirm`은 `{ option: "confirm_items", items: [{ key, decision: confirm \| reject \| keep, edits?, weight? }] }`(10이 기준별로 펼친다. 고쳐서 넣기(`edits`)와 무게(`weight`)는 `decision`이 `confirm`인 항목에만 싣는다 [판정 J-258·J-262·J-263]) |
 | 가정대로 진행 | `question.proceedWithAssumption` | (`accept_assumption`. 권리 게이트면 3001 `policy.answer_option_not_allowed`) |
 | 질문 다시 쓰기 | `question.requestReframe` | `note` |
 | 먼저 알아보기 | `question.requestInquiry` | `note?` (`experiment_first`) |
@@ -1348,7 +1348,7 @@ interface WorkView {
 | 확정되지 않은 기준 | 완료 기준 가운데 원함 탐구에서 확정되지 않고 임시로 넣은 기준 수와 "추측" 표시(15 §3.6.9) | 15 |
 | 네트워크·보호 경로 경고 | 합의가 네트워크 접근을 허용하거나 보호 경로(데몬 데이터·설정·비밀 파일 근처)를 건드리면 "이 합의는 네트워크에 접근합니다", "보호 경로에 가까운 파일을 씁니다: …"를 맡긴 범위 위에 보인다(18). 경고는 합의 뷰의 `warnings`(13 §3.5.3 경고 키)를 문구 키로 그린다 | 18 §5.2 |
 | 모델 제공자 | 이번 작업이 쓰는 모델 제공자 목록(작업·검증 에이전트별, 18 §3.11.6, [판정 J-150]) | 18 |
-| 지침 파일 | 작업 공간 지침 파일(`AGENTS.md` 등)이 등록 때 확인본과 다르면 합의 확인 전에 "지침 파일이 바뀌었습니다. 바뀐 내용을 확인하세요"와 [바뀐 지침 보기] [이 지침을 쓰기]를 보인다. 확인 전에는 이전 확인본을 쓴다(18 §3.12 9번) | 18 |
+| 지침 파일 | 작업 공간 지침 파일(`AGENTS.md` 등)이 바뀌었다는 질문은 2단계다[결정 62]. MVP 합의 확인에는 이 질문을 두지 않고, 확인 전에는 이전 확인본을 쓴다(18 §3.12 9번) | 18 |
 | 합의 여섯 항목 | 목적, 완료 기준, 범위, 금지 행동, 제출할 근거, 멈출 조건(브리프 §6) + 다음 확인 시점, 맡는 쪽 | canon §12.7 Delegation Interaction 8, canon-2 §3.12 echo |
 | 에이전트가 이해한 것 | 에이전트가 합의를 자기 말로 다시 쓴 것(check-back, SC-08). "이해가 다름"을 누르면 다른 부분을 고르고 한 줄 정정 | canon-3 G1, Mission Command 규칙 2 |
 | 맡긴 범위 펼치기 | P04 §1 여덟 항목. "되돌리기"는 권한 레이어 판정 출처를 붙인다 | canon §9.5 |
@@ -1929,7 +1929,7 @@ interface ObserverProposalsView {
 | 지금 연결 | 사용자용 연결 상태(§3.0.4), 방식, 주소, 지연, 마지막 seq, 프로토콜·서버 버전, 이 기기 |
 | 연결 방식 | 한 프로필에 경로 여러 개(Tailscale, SSH)를 두고 순서대로 시도하거나 하나로 고정한다(20 §3.8.7). SSH는 대상(별칭 또는 user@host), 포트·키(선택), 호스트 키 확인(기본 엄격). 연속 실패로 미룬 경로를 표시한다. 프로필에 고정한 서버 id. 두 방식에서 화면과 재전송 의미는 같다(결정 38) |
 | 보내지 못한 조작 | 끊긴 동안 결과를 확인하지 못하고 기한이 지난 조작(20 §3.9.7). 먼저 `command.lookup { idempotencyKey }`(19)로 원래 결과를 묻고, 결과가 있으면 그 결과를 보이고 행을 지운다(두 번 적용되지 않게). 결과가 없으면 원인별 문장을 보인다: 기한 지남(키 보존 7일 경과), 서버가 백업에서 복원됨(다른 저장소), 이 기기가 바뀜(다시 페어링), 앱·서버 형식이 바뀜, 영구 오류. 다시 보내려면 해당 화면을 열어 바뀐 상황을 본 뒤 새 멱등 키와 현재 `basisSeq`로 보낸다 |
-| 서버 주의 항목 | 서버가 사람의 판단을 기다리는 운영 항목. (1) 주간 전체 검사 실패(17 §3.4.1): "기록 검사에서 문제가 나왔습니다. 읽기 전용으로 바꾸고 점검할 수도, 계속 쓸 수도 있습니다." [읽기 전용으로 바꾸기] [계속 쓰기]. (2) 시계가 앞으로 크게 바뀌어 보류한 만료 처리(17 §3.6.8): "서버 시계가 크게 앞으로 바뀌어 가정 만료 처리를 멈춰 두었습니다. 시계가 맞으면 진행하세요." [만료 처리 진행]. (3) 복원 뒤 권한 변경 미확인(18 §3.16 4번): "복원 지점 이후에 없앤 기기 권한이 되살아났을 수 있습니다. 기기 목록을 확인하세요." [기기 목록 보기]. (4) 새 기기 연결(18 §3.7.2): "새 기기가 연결되었습니다: iPhone(기기 9). 내가 연결한 기기가 아니면 권한을 없애세요." [기기 9 권한 없애기]. (5) 점검 경고(17 §3.11.2, 05 `warn.check.*`) |
+| 서버 주의 항목 | 서버가 사람의 판단을 기다리는 운영 항목. (1) 주간 전체 검사 실패(17 §3.4.1): "기록 검사에서 문제가 나왔습니다. 읽기 전용으로 바꾸고 점검할 수도, 계속 쓸 수도 있습니다." [읽기 전용으로 바꾸기] [계속 쓰기]. (2) 시계가 앞으로 크게 바뀌어 보류한 만료 처리(17 §3.6.8): "서버 시계가 크게 앞으로 바뀌어 가정 만료 처리를 멈춰 두었습니다. 시계가 맞으면 진행하세요." [만료 처리 진행]. (3) 새 기기 연결(18 §3.7.2): "새 기기가 연결되었습니다: iPhone(기기 9). 내가 연결한 기기가 아니면 권한을 없애세요." [기기 9 권한 없애기]. (4) 점검 경고(17 §3.11.2, 05 `warn.check.*`). 복원 뒤 권한 변경 미확인(18 §3.16 4번)은 2단계로 미룬다[결정 62] |
 | 서버 상태 | 실행 여부, 시작 시각, 진행 중 작업 수, 다음 예약 실행, 기록 저장소 크기, 마지막 백업, 디스크 여유, 모델 제공자 연결 상태(12 값, 05 `warn.models.*`), 안전 모드(사유 `crash_loop`·`restored`, 최근 비정상 종료 목록)와 [안전 모드 풀고 작업 다시 시작하기], 읽기 전용 사유(`readOnlyReasons`). 데이터는 19 `daemon.status`(`DaemonStatus`, 17) |
 | 기기 | 페어링된 기기 목록(이름, 경로, 마지막 사용, 토큰 만료 예정, 휴대폰이면 푸시 상태: 켜짐 / 실패 중 / 다시 등록 필요), 권한 없애기, 이름 바꾸기, 새 기기 페어링(데스크톱 / 휴대폰). 토큰 값은 보이지 않는다(18). 토큰 교체는 2차 기능이다(HTTP, 18 §3.8.3). 기기를 누르면 그 기기에서 낸 사람 결정 목록(`SCR-RECORD`를 기기로 거름, 18 감사 보기) |
 | 연결 점검 | 단계별 결과와 실패한 단계의 다음 할 일 |
@@ -1967,7 +1967,7 @@ interface ObserverProposalsView {
 interface DevicesView {
   meta: ViewMeta;
   thisDevice: string;
-  devices: { ref: RecordRef /* dv */; name: string; kind: "desktop" | "mobile" | "tui"; route: "tailscale" | "ssh" | "local";
+  devices: { ref: RecordRef /* dv */; name: string; kind: "desktop" | "mobile" | "tui"; route: "wss" | "ssh";
              lastSeenAt: IsoTime; tokenExpiresAt?: IsoTime; revoked: boolean;
              push?: { state: "on" | "failing" | "needs_reregister" | "off"; showContent: boolean /* 기기 설정 notifications.showContent, 기본 꺼짐([판정 J-03], [판정 J-237]) */ } }[];
   pendingPairing?: { expiresAt: IsoTime; forMobile: boolean };   // 코드 값은 만든 화면에만, 뷰에는 싣지 않는다
@@ -2013,13 +2013,13 @@ WorkUnit 28 리뷰 요청 보내기 · Concern 12 · 복구 선택(질문 22)
 | 중단된 행동 | 실행 의도는 기록됐지만 결과가 없는 도구 호출 | 결정 30, 12 |
 | 다시 실행해도 안전한가 | 도구가 선언한 재실행 안전성(13). Helm이 가역성을 판정하지 않으며, 도구 선언과 권한 레이어 값을 보인다 | 결정 2 |
 | 이미 일어난 외부 행동 | 외부 결과가 확실하지 않으면 "모름". 시간 초과를 실패로 단정하지 않는다 | canon-2 §3.13 Unknown external outcome, L12 |
-| 행동 | 선택지 집합은 12 §3.12.4가 정한다(19 `RecoveryResolveParams`). 결과 불명 도구 호출: 적용된 것으로 기록(`confirmed_applied`) / 적용 안 된 것으로 기록(`confirmed_not_applied`) / 확인 작업 만들기(`manual_review`). 자동 재개가 실패한 WorkUnit: 마지막 확인 지점부터 다시 실행(`rerunFromCheckpoint`) / 그대로 두기(`leaveAsIs`) / 확인 작업 만들기(`createCheckTask`). "Concern에서 다시 계획"은 명령을 보내지 않고 Concern 개요로 가는 링크다 | 12, 19 |
+| 행동 | 선택지 집합은 12 §3.7.4가 정한다(19 `RecoveryResolveParams`). 결과 불명 도구 호출: 적용된 것으로 기록(`confirmed_applied`) / 적용 안 된 것으로 기록(`confirmed_not_applied`) / 확인 작업 만들기(`manual_review`). 자동 재개가 실패한 WorkUnit: 마지막 확인 지점부터 다시 실행(`rerunFromCheckpoint`) / 그대로 두기(`leaveAsIs`) / 확인 작업 만들기(`createCheckTask`). "Concern에서 다시 계획"은 명령을 보내지 않고 Concern 개요로 가는 링크다 | 12, 19 |
 
 복구 선택 질문은 [판정 J-05]와 [판정 J-44]를 따른다. 외부 효과가 있을 수 있는 결과 불명 호출(send, 네트워크 쓰기)만 `recovery` 질문(권리 게이트)을 만든다. 답이 없는 동안 그 작업은 멈춘 상태로 남고 가정 확정이 없다. 외부 효과가 없는 로컬 쓰기의 결과 불명은 질문 없이 `toolcall.interrupted`로 닫히고 모델이 상태를 읽어 확인한다(12). 이 화면에 오지 않는다. 데몬은 중단된 run을 자동으로 재개한다(12: 최대 3회, 첫 턴은 안전한 도구만, 안전한 도구는 다시 실행, 결정 30). 이 화면에는 자동 재개가 끝내 실패한 것(run `ended`, 이유 `recovery_exhausted`), 외부 효과가 있을 수 있는 결과 불명 호출(run `awaiting_recovery`), 안전 모드로 자동 재개가 멈춘 것만 온다. 자동 재개된 것은 복귀 요약의 복구 절에 개수로만 보인다.
 
 **안전 모드**: 머리에 사유(09 `daemon.safe_mode_entered.reason`: `crash_loop` 또는 `restored`), 최근 비정상 종료 목록(`DaemonStatus`, 17), [안전 모드 풀고 작업 다시 시작하기](확인 시트 "멈춰 있던 에이전트 작업과 예약 실행이 다시 시작됩니다." → `daemon.exitSafeMode`). 질문 답하기와 기록 보기는 안전 모드에서도 된다.
 
-**백업 복원 뒤** ([판정 J-152]): 17이 복원을 마칠 때 남긴 복원 표지(09 `store.restored`: 백업 id, 복원 지점 seq)를 읽어 "복원 지점 이후 기록 없음"을 보인다. 그 뒤 첫 부팅은 안전 모드라서 run 자동 재개·에이전트 타이머·관찰 실행이 없고, 소진되지 않은 승인은 만료되어 다시 묻는다(12). 화면은 이 사실을 머리에 쓰고, 복원 지점 이후 사람이 했던 결정이 사라졌을 수 있으니 복귀 요약과 질문함을 다시 보라고 안내한다. 이 표시의 소유는 이 문서다.
+**백업 복원 뒤** ([판정 J-152]): 17이 복원을 마칠 때 남긴 복원 표지(09 `store.restored`: 백업 id, 복원 지점 seq)를 읽어 "복원 지점 이후 기록 없음"을 보인다. 그 뒤 첫 부팅은 안전 모드라서 run 자동 재개·에이전트 타이머·관찰 실행이 없고(12), 소진되지 않은 승인은 만료되어 다시 묻는다(09 §3.14.2). 화면은 이 사실을 머리에 쓰고, 복원 지점 이후 사람이 했던 결정이 사라졌을 수 있으니 복귀 요약과 질문함을 다시 보라고 안내한다. 이 표시의 소유는 이 문서다.
 
 **읽기 전용**: 데몬이 읽기 전용(19 `readOnly`, 17 `read_only`)이면 화면 맨 위에 사유별 문장(05 `err.daemon.readOnly.<사유>`)과 서버에서 할 일을 보인다. 예: `integrity_suspect`면 "서버 기록에 손상 의심이 있어 읽기만 할 수 있습니다. 서버에서 `helm ops verify --full` 또는 백업 복원이 필요합니다." 이 상태에서는 이 화면의 행동 버튼도 막힌다.
 
@@ -2062,7 +2062,7 @@ interface RecoveryView {
 
 | 절 | 항목 | 저장 위치 |
 |---|---|---|
-| 알림 | OS 알림 켜기, OS 알림 권한 상태와 "알림 시험 보내기"(OS 설정에서 꺼져 있으면 안내, 20 F-35), 알릴 것(끼어들기 / 알림 / 복귀 요약 시각 / 예약 묶음 / 협상 전달 `notifications.negotiated` 기본 끔, 관찰 제안 `notifications.observer` 기본 끔), **결과 확인 알림**(`notifications.resultReview`: 알리지 않음 / 하루 한 번 묶음 푸시 / 즉시 푸시[결정 56]. 기본은 알리지 않음[판정 J-189]. 묶음 시각 `notifications.resultReviewDigestAt`, 기본 "19:00", 서버 시간대. 묶음은 확인 대기 결과가 있을 때만 보내고, 두 경우 모두 방해 금지와 시간당 상한을 따르며 휴대폰 확인 범위는 J-139 그대로다), 방해 금지·조용한 시간(05 §3.7.4), 알림에 내용 보이기(기본 끔), 소리. "휴대폰 알림은 휴대폰의 설정 화면에서 정합니다." 한 줄(26). 조용한 시간은 기본이 없고, 휴대폰 알림을 처음 켤 때 23:00~08:00을 제안값으로 보인다([제안], 14 §3.13.8) | 05 §3.7. 결과 확인 알림과 묶음 시각은 데몬 의미 설정(`settings.update`, 기록은 09 `setting.changed`, [판정 J-189]). 방해 금지(`attention.snoozeUntil`)·조용한 시간·시간당 알림 상한(`attention.interruptsPerHour`)은 데몬 설정(14 `OrchestrationSettings`, 모든 기기 합산, 기기별 상한은 두지 않는다[판정 J-171]). 소리·OS 알림 켜기·내용 보이기·방해 금지 예외(`notifications.dndException`)는 기기 설정(20 §3.9.11) |
+| 알림 | OS 알림 켜기, OS 알림 권한 상태와 "알림 시험 보내기"(OS 설정에서 꺼져 있으면 안내, 20 F-35), 알릴 것(끼어들기 / 알림 / 복귀 요약 시각 / 예약 묶음 / 협상 전달 `notifications.negotiated` 기본 끔, 관찰 제안 `notifications.observer` 기본 끔), **결과 확인 알림**(`notifications.resultReview`: 알리지 않음 / 하루 한 번 묶음 푸시 / 즉시 푸시[결정 56]. 이 설정은 휴대폰 푸시를 고르는 것이고, 데스크톱은 배지로만 알리며 `immediate`일 때만 OS 알림도 띄운다[결정 60]. 기본은 알리지 않음[판정 J-189]. 묶음 시각 `notifications.resultReviewDigestAt`, 기본 "19:00", 서버 시간대. 묶음은 확인 대기 결과가 있을 때만 보내고, 묶음과 즉시 푸시는 방해 금지(예외 값 포함)와 시간당 상한을 따르며 휴대폰 확인 범위는 J-139 그대로다), 방해 금지·조용한 시간(05 §3.7.4. 방해 금지 예외(`notifications.dndException`)는 휴대폰 푸시에만 적용하고, 방해 금지 중에는 예외 값과 관계없이 데스크톱 OS 알림을 띄우지 않는다[결정 59]), 알림에 내용 보이기(기본 끔), 소리. "휴대폰 알림은 휴대폰의 설정 화면에서 정합니다." 한 줄(26). 조용한 시간은 기본이 없고, 휴대폰 알림을 처음 켤 때 23:00~08:00을 제안값으로 보인다([제안], 14 §3.13.8) | 05 §3.7. 결과 확인 알림과 묶음 시각은 데몬 의미 설정(`settings.update`, 기록은 09 `setting.changed`, [판정 J-189]). 방해 금지(`attention.snoozeUntil`)·조용한 시간·시간당 알림 상한(`attention.interruptsPerHour`)은 데몬 설정(14 `OrchestrationSettings`, 모든 기기 합산, 기기별 상한은 두지 않는다[판정 J-171]). 소리·OS 알림 켜기·내용 보이기·방해 금지 예외(`notifications.dndException`)는 기기 설정(20 §3.9.11) |
 | 주의 예산 | 홈에 펼칠 카드 수(`attention.maxVisibleDecisions`, 기본 3), 일일 예산(`attention.dailyBudget`, 주의 예산 막대의 한도), 시간당 알림 상한(`attention.interruptsPerHour`, 기본 2, 모든 기기 합산, 05 §3.7.3), 일시 방해 금지(`attention.snoozeUntil`, "지금부터 1시간", [판정 J-166]), 복귀 요약 자동 열기 기준 | 데몬 설정(14 `OrchestrationSettings`, 다이얼 아님)과 기기 설정 |
 | 질문 전달 기본값 | `SCR-DIALS`(전역 범위) 링크 | 14 |
 | 계획 작성 방식 | 전역 기본값을 여기서 고른다: 코드 계산만 / 혼합(기본) / 모델 설계(`planAuthoring`, 층 `user`). Concern별 값은 `SCR-DIALS`에서 바꾼다([결정 53], [판정 J-192]) | 14 |
@@ -2071,7 +2071,7 @@ interface RecoveryView {
 | 키보드 | 단축키 목록과 바꾸기, 한 글자 단축키 켜기·끄기 | 기기(05 §3.8) |
 | 권한·연결 | 연결 화면 링크, 허용 폴더(Helm이 읽고 쓸 프로젝트 폴더는 `project.create`로 추가, 관찰 에이전트가 읽을 외부 세션 로그 폴더는 `settings.update`, 결정 35, 02 UC-11 단계 8), 이 기기의 권한(읽기 전용 기기 여부), 연결된 모델 제공자와 도구 목록(데몬이 보냄, 읽기 전용, [판정 J-150]). 도구마다 단계(MVP / 이후)와 집행 수준을 보이고, 웹 페이지 읽기·웹 검색은 MVP다([결정 55]). 웹 검색 제공자 순서(`tools.webSearch.providers`, 기본 Brave → Tavily)와 월 상한(`monthlyCap`), 제공자별 키 등록 여부를 보인다. 키 값은 보이지 않는다([판정 J-190] (1)(6)). 네트워크 차단은 내부망 요청(루프백·사설·CGNAT·tailnet)만 막고 외부 인터넷 탐색은 막지 않는다는 한 줄을 붙인다([판정 J-134]), 데이터가 나가는 곳(모델 API로 보내는 것) 요약 | canon-3 §6.11 Trust Center를 1인용으로 줄인 판. 데이터는 18·17 |
 | 개발자 보기 | 켜면 모든 카드에 레코드 ID, 이벤트 종류, seq, 정책 사유 코드가 보인다(03 §3.10) | 기기 |
-| 데이터 | 기록 내보내기 요청(사람이 읽을 수 있는 형식, 17), 이 기기의 캐시 지우기, 오프라인 사본(`offlineCopy`, 기본 켬, §3.9.5) | 데몬 / 기기 |
+| 데이터 | 기록 내보내기 요청(사람이 읽을 수 있는 형식, 17), 이 기기의 캐시 지우기, 오프라인 사본(`offlineCopy`, 기본 켬, 20 §3.9.5) | 데몬 / 기기 |
 | 정보 | 앱 버전, 서버 버전, 프로토콜 버전, 열린 소스 고지 | |
 
 **표시 데이터**: `view:settings`(데몬 쪽 값)와 기기 설정(20). 데몬 쪽 값만 뷰로 받는다.
@@ -2276,7 +2276,7 @@ Helm 열기
 | 16 | 결과 확인 전용 우회 지표(확인까지 시간, 근거 펼침, 확인 못함 포함 확인 비율). 관찰 제안 데이터 형식(§3.18). 복귀 점검 G1 기간 켜기(§3.27). 계획 이의 비율을 `authoredBy`별로 잰다([판정 J-188]) |
 | 17 | 안전 모드 사유·최근 비정상 종료 목록과 읽기 전용 사유(`recovery_failed` 포함, [판정 J-178])를 `DaemonStatus`에(§3.19·§3.20). 복원 표지 기록([판정 J-152]) |
 | 19 | (1) `objection.file` params에 `reasonKind?`(08). (2) `view:review`에 `mobileReviewable`과 이유 키. `command.lookup`, `decision.confirm.targets`, `goal.activate`, `project.create`, `result.accept.decision`, 라운드 키 `inquiryId + roundNo`는 19 2판에 반영되었다. (3) `view:settings`에 `notifications.resultReview`·`resultReviewDigestAt`·`attention.snoozeUntil`·`attention.interruptsPerHour`를 싣고, 바꾸기는 `settings.update`로 한다([판정 J-189], [판정 J-166]). (4) 홈·질문함·다이얼 뷰에 `attentionBudget`(14 §3.13.8)을 싣는다 |
-| 20 | 사용자용 연결 상태(§3.0.4)의 판정, 특히 `GET /healthz`로 "서버 PC에 연결할 수 없음"과 "Helm 서버 응답 없음"을 나누기. 결정 막기 기준(서버 `freshness`만). 딥 링크 `helm://question`을 종류에 따라 `SCR-AGREE`·`SCR-REVIEW`·`SCR-GOAL`·`SCR-EVIDENCE`·`SCR-RECOVERY`로. 설정 `notifications.hourlyCap`은 지운다([판정 J-171]). 방해 금지는 의미 설정 `attention.snoozeUntil`로 두고 §3.9.11의 "데몬 설정" 문장을 맞춘다([판정 J-166]). `protocolError`(닫힘 1002·1003)는 사용자용 상태로 두지 않는다(§3.0.4 규칙 7). `UserConnKind`는 §3.0.4 값 열여섯을 쓰고, `viewStale`·`restarted`는 이 값으로 대응시킨다([판정 J-228]) |
+| 20 | 사용자용 연결 상태(§3.0.4)의 판정, 특히 `GET /healthz`로 "서버 PC에 연결할 수 없음"과 "Helm 서버 응답 없음"을 나누기. 결정 막기 기준(서버 `freshness`만). 딥 링크 `helm://question`을 종류에 따라 `SCR-AGREE`·`SCR-REVIEW`·`SCR-GOAL`·`SCR-EVIDENCE`·`SCR-RECOVERY`로. 기기별 시간당 상한은 두지 않는다. 시간당 상한은 `attention.interruptsPerHour` 하나다([판정 J-171], [판정 J-248]). 방해 금지는 의미 설정 `attention.snoozeUntil`로 두고 §3.9.11의 "데몬 설정" 문장을 맞춘다([판정 J-166]). `protocolError`(닫힘 1002·1003)는 사용자용 상태로 두지 않는다(§3.0.4 규칙 7). `UserConnKind`는 §3.0.4 값 열여섯을 쓰고, `viewStale`·`restarted`는 이 값으로 대응시킨다([판정 J-228]) |
 | 21 | 질문 카드(접힘·펼침, 깊이별 필드, 줄인 카드의 "그 밖에"), 진행 작업 카드(단계, 위험·가정 줄), 자극 카드와 반응 막대, 근거 트리와 판단 확인 구역, 기준 판정 표, 반영 범위 구역, 다이얼 표의 컴포넌트. `sameSourceFamily`·평면 N·M 대신 이 문서 이름(`correlatedWith`, 방향·이해·실제). 주의 예산 부품의 입력은 `AttentionBudgetVM`(라벨은 `CopyRef`)이다. 연결 상태 값은 §3.0.4 열여섯을 쓴다([판정 J-176], [판정 J-228]). 성질별 보장 수준은 §3.0.7 `guarantees`를 쓴다. 문구 키 타입은 `CopyKey`다([판정 J-175]) |
 | 26 | 이 문서의 뷰 타입을 휴대폰도 쓴다. 남은 요구 없음(26 §5.2 04 요구 반영) |
 | 03 | `SCR-DIALS`의 MVP 최소판 목록에 `planAuthoring`을 더한다([판정 J-192], §3.17). `SCR-SETTINGS` 알림 절에 결과 확인 알림 항목을 둔다([결정 56], §3.21) |
@@ -2301,7 +2301,7 @@ ID는 22 추적 색인의 `04/UT-nn`과 같다(행 순서, 새 행은 끝에 붙
 | UT-10 | `SCR-EVIDENCE` | `screens/evidence/` | 근거 개수로 강도를 표시하는 요소가 없다. 반대 근거 검토 "찾아보지 않음"과 "찾아봄: 없음"이 다르게 렌더된다 |
 | UT-11 | `SCR-DIALS` | `screens/dials/` | 다이얼 목록을 앱 코드에 두지 않고 뷰에서 받아 그린다(뷰에 새 다이얼을 넣으면 앱 수정 없이 보인다) |
 | UT-12 | `SCR-CONNECT` | `screens/connect/` | 데몬이 꺼져 있어도 화면이 열리고 연결 점검 다섯 단계가 단계별 결과를 보인다. 기기 토큰 값이 화면·로그에 나오지 않는다 |
-| UT-13 | `SCR-RECOVERY` | `screens/recovery/` | 재실행 안전성이 "unsafe"인 항목에 "다시 실행" 버튼이 없다. 외부 효과 "unknown" 항목에 확인 작업 만들기가 있다. 보이는 행동은 12 §3.12.4 선택지 집합뿐이다. 복원 표지가 있으면 "복원 지점 이후 기록 없음"과 안전 모드 문장이 머리에 있다 |
+| UT-13 | `SCR-RECOVERY` | `screens/recovery/` | 재실행 안전성이 "unsafe"인 항목에 "다시 실행" 버튼이 없다. 외부 효과 "unknown" 항목에 확인 작업 만들기가 있다. 보이는 행동은 12 §3.7.4 선택지 집합뿐이다. 복원 표지가 있으면 "복원 지점 이후 기록 없음"과 안전 모드 문장이 머리에 있다 |
 | UT-14 | 화면별 선형 텍스트 | 21 UI-D08 | 각 화면의 선형 텍스트가 골든 파일과 같다. TUI 대조에 쓴다 |
 | UT-15 | 안전 모드·읽기 전용 | `screens/connect/`, `screens/recovery/` | 안전 모드에서 [안전 모드 풀고 작업 다시 시작하기]가 연결 화면과 복구 화면에 있고 확인 시트를 거쳐 `daemon.exitSafeMode`를 보낸다. 읽기 전용 사유 다섯(`recovery_failed` 포함)이 서로 다른 문장으로 보인다 |
 | UT-16 | 새 일 echo 미리보기 | `screens/composer/` | 가벼운 작업 예비 판정이면 보내기 버튼 문구에 echo가 들어간다. 미리보기가 오기 전 보내면 `previewId`가 없다(데몬이 확정 질문으로 돌린다) |

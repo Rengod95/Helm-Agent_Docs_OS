@@ -2,7 +2,7 @@
 
 - 작성: 2026-10-11, 설계 에이전트 P10(관찰)
 - 소유: 이 문서는 관찰 에이전트(`@helm/observer`)의 설계, 지표 정의와 계산, 반증 가설의 측정 방법을 소유한다.
-- 상태: 4단계 보완판(2026-10-12). 기준 결정 범위는 브리프 결정 1~57과 판정 J-01~J-240이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 프로토콜 메서드는 19, 레코드·접두사는 08을 따른다(조정자 판정 `process/rulings-stage2a.md` §1). 표시는 판정 J-144를 따른다: `[결정 n]`은 사용자 결정, `[제안: 결정 n 기본값]`은 조정자 기본값, `[판정 n]`·`[판정 J-nn]`은 조정자 판정이다. 이 문서가 새로 필요로 하는 이름은 §5.2에 요구로 적었다.
+- 상태: 4단계 보완판(2026-10-12). 기준 결정 범위는 브리프 결정 1~64과 판정 J-01~J-275이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 프로토콜 메서드는 19, 레코드·접두사는 08을 따른다(조정자 판정 `process/rulings-stage2a.md` §1). 표시는 판정 J-144를 따른다: `[결정 n]`은 사용자 결정, `[제안: 결정 n 기본값]`은 조정자 기본값, `[판정 n]`·`[판정 J-nn]`은 조정자 판정이다. 이 문서가 새로 필요로 하는 이름은 §5.2에 요구로 적었다.
 
 ## 1. 목적과 범위
 
@@ -102,7 +102,7 @@
 | [결정 54] 하네스 동기화 | 스킬, AGENTS.md, 훅 정책의 동기화는 Helm 범위 밖이다. 관찰 에이전트는 그 자산의 수정안을 제안할 뿐이고 동기화는 agent-kit이 맡는다(§1.3, §3.12.1) |
 | [결정 55] 외부 웹 탐색 도구 | MVP의 `web_fetch`·`web_search` 출력은 `tool_output` 등급으로 모델 입력에 넣지 않는다(§3.9.2). 이름 정규화는 두 도구와 `browser_*`를 `web` 종류로 본다(§3.7.1) [판정 J-190] |
 | [결정 56] 결과 확인 알림 | 결과 확인 알림은 설정(`none`·`daily_digest`·`immediate`, 기본 `none`)으로 고른다. 설정 값별 알림 수, 알림부터 확인까지 시간, 알림 뒤 미열람 비율을 잰다(§3.23.14) [판정 J-189] |
-| §2.5 운영 환경 | 런타임 데이터는 `~/projects` 밖 `/srv/volumes/helm/`. 비밀은 SOPS 체계를 따르고 별도 비밀 저장소를 만들지 않는다. 서버 메모리 상한 10 GB |
+| 브리프 §2.5 운영 환경 | 런타임 데이터는 `~/projects` 밖 `/srv/volumes/helm/`. 비밀은 SOPS 체계를 따르고 별도 비밀 저장소를 만들지 않는다. 서버 메모리 상한 10 GB |
 
 ### 2.2 이 문서의 주요 설계 결정 [제안]
 
@@ -1774,7 +1774,7 @@ export interface ReturnEpisode {
 | `opdc.d.redirect_ms` | 같은 지연(시간) | `median(directive.applied.ms)` | `directive` | 14d | 정보 | D 칸 |
 | `opdc.d.ops_per_redirect` | 기준 하나 바꾸는 데 든 조작 수 | `median(directive.applied.opsCount)`(런타임이 `directive.applied`에 담은, 그 방향 바꾸기에 묶인 사람 명령 수, 09 payload) | `directive` | 14d | 2 초과면 검토 신호 | D 칸 |
 | `opdc.c.orphaned_contests` | 처리되지 않고 사라진 이의 | `count(contest/orphaned 사실)` | `contest` | 누적 | 목표 0 | C 칸, 0이 아니면 홈 경고 |
-| `opdc.c.contest_effect_rate` | 이의 후 바뀐 비율(contested-and-improved) | `count(contest.resolved ∧ effect = changed) / count(contest.resolved)` | `contest` | 28d | 정보. 0에 가까우면 이의가 형식만 남았는지 검토 | C 칸 |
+| `opdc.c.contest_effect_rate` | 이의 후 바뀐 비율(contested-and-improved) | `count(objection.resolved ∧ effect = changed) / count(objection.resolved)` | `contest` | 28d | 정보. 0에 가까우면 이의가 형식만 남았는지 검토 | C 칸 |
 
 `orphaned` 판정: 이의가 열린 상태에서 대상 레코드의 Concern이 닫히거나, 대상이 대체(superseded)되었는데 이의 처리 이벤트(`objection.resolved`)가 없으면 지표 소비자가 `contest/orphaned` 사실을 만든다. 10은 G-K4~G-K6으로 이런 종료를 막거나 `objection.resolved(withdrawn, note: concern_closed)`를 파생하므로 이 값은 0이어야 한다. 무결성 확인 용도다. `withdrawn`이면서 `note: concern_closed`인 해소는 따로 세어 평가 보고에 보인다.
 
@@ -1827,9 +1827,9 @@ export interface ReturnEpisode {
 
 | ID | 이름 | 계산식 | 창 | 검토 신호 |
 |---|---|---|---|---|
-| `ad.contest_rate_by_kind` | 종류별 이의율 | 결정 종류별 `count(contest.opened on autonomous) / count(autonomous_choice.recorded)`. 열람 보정값도 함께: 분모를 `autonomous.seen`의 `uptoSeq`까지 사람이 본 결정으로 한 값(05 요구 (1)) | 28d | 종류별 > 0.2이고 표본 ≥ 5면 D10이 그 종류를 묻기로 올리는 제안 |
+| `ad.contest_rate_by_kind` | 종류별 이의율 | 결정 종류별 `count(objection.filed on autonomous) / count(autonomous_choice/recorded)`. 열람 보정값도 함께: 분모를 `autonomous.seen`의 `uptoSeq`까지 사람이 본 결정으로 한 값(05 요구 (1)) | 28d | 종류별 > 0.2이고 표본 ≥ 5면 D10이 그 종류를 묻기로 올리는 제안 |
 | `ad.list_view_rate` | 에이전트가 정한 것 목록 열람 | 복귀 에피소드 중 `view.surface = "auto"`가 있는 비율 | 28d | < 0.2이고 `opdc.p.surprise_count` > 0이면 V5 반증 신호 |
-| `ad.reversal_rate` | 이의 후 뒤집힘 | `count(contest.resolved ∧ effect = changed on autonomous) / count(contest.resolved on autonomous)` | 28d | 정보 |
+| `ad.reversal_rate` | 이의 후 뒤집힘 | `count(objection.resolved ∧ effect = changed on autonomous) / count(objection.resolved on autonomous)` | 28d | 정보 |
 | `ad.time_to_contest` | 이의까지 시간 | 결정부터 이의까지 중앙값 | 28d | 정보 |
 | `ad.autonomy_widened_unsupported` | 받쳐 주지 않은 자율 확대 | 자율을 넓힌 변경(자율 정도·질문 문턱 다이얼을 올림, "묻지 않기" 정책 제안 채택) 중 14일 안에 같은 범위의 `opdc.p.surprise_count`, `a12.raw_log_fallback_rate`, `ad.contest_rate_by_kind` 가운데 하나라도 나빠진 비율 | 28d | > 0.3이면 2주 평가에 해당 변경 목록을 보인다. canon §10.8 안티패턴 Independence maximization(05 부록이 넘긴 측정) |
 | `ad.why_not_asked_missing` | 묻지 않은 이유 누락 | `count(autonomous ∧ why_not_asked 없음)` | 누적 | 목표 0(커널 규칙 위반 탐지용) |
@@ -2499,7 +2499,7 @@ export interface ResumptionCheckScored {
 | `presence.changed`·`view.opened` 생성 규칙(§3.23.1) | 19, 20, 09 | 규칙 |
 | 측정 명령 payload(§3.24.3) | 19, 10 | 타입 |
 | 지표 카탈로그와 정의(§3.23), 지표 투영 DDL(§3.24.1) | 01, 03, 04, 09, 22 | 표·DDL |
-| 반증 가설 측정 방법(H1~H10, V1~V9, H-I1~H-I4, H-R1), 2주 평가, G2 관문 세부 | 01, 15, 23 | §3.25~§3.28 |
+| 반증 가설 측정 방법(H1~H10, V1~V9, H-I1~H-I4, H-R1), 2주 평가, G2 관문 세부 | 01, 15, 23 | 이 문서 §3.25~§3.28 |
 | 마스킹 규칙 표(18과 공유) | 18, 13, 12 | §3.8 |
 | 외부 세션 로그 형식 정리(pi, Claude Code, Codex) | 07, 13 | §3.6 |
 
@@ -2672,7 +2672,7 @@ packages/observer/
 
 | 출처 | 쓴 곳 |
 |---|---|
-| 브리프 `process/00-design-brief.md` 사용자 결정 2, 4, 8, 10, 12, 14~18, 22, 24, 35, 47, 48, 조정자 기본값 29·34·36, 판정 44~46, §2.5, §3.5, §5.2(J-144 표기), 용어집, 판정 `process/rulings-stage2a.md` | §2.1 전반 |
+| 브리프 `process/00-design-brief.md` 사용자 결정 2, 4, 8, 10, 12, 14~18, 22, 24, 35, 47, 48, 조정자 기본값 29·34·36, 판정 44~46, §2.5, §3.5, §5.2(J-144 표기), 용어집, 판정 `process/rulings-stage2a.md` | 이 문서 §2.1 전반 |
 | 대화 L246–321(관찰 에이전트 C 제안·구조·주의점·트리거·결정성), L330–391(pi 매핑, 주의점), L466–470(`context_edit`, 1.1.0 관찰 데이터), L748–767·L1062–1067(관찰 에이전트와 RLM), L1037(Factorio 교훈) | §3.1~§3.20 (발췌1 §6, §7, §8.5, §10.7, §12) |
 | 대화 L201–243(도구 승격 기준, 결정성과 토큰 효율) | §3.12.1 (발췌1 §4, §5) |
 | 대화 L1577, L1677–1775(정정 신호, 공리 분류 A12·A14 측정, Gate 빈도 조정, 대리 지표) | §3.10 D5, §3.23 (발췌2 §3, §6) |

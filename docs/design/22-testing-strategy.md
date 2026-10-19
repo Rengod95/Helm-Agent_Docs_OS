@@ -1,6 +1,6 @@
 # 22. 테스트 전략
 
-- 작성: 2026-10-12, T1(2b단계 테스트 전략). 기준 결정은 브리프 결정 1~57이다. 01~21, 24, 26과 조정자 판정(`docs/design/process/rulings-stage2a.md`)의 2026-10-12 판을 읽고 썼다. 다른 문서가 2a 통합 중이라 13:00 무렵 판에서 한 번 더 맞췄다(§3.19의 ID 범위).
+- 작성: 2026-10-12, T1(2b단계 테스트 전략). 기준 결정은 브리프 결정 1~64이다. 01~21, 24, 26과 조정자 판정(`docs/design/process/rulings-stage2a.md`)의 2026-10-12 판을 읽고 썼다. 판정 범위는 J-01~J-275다. 다른 문서가 2a 통합 중이라 13:00 무렵 판에서 한 번 더 맞췄다(§3.19의 ID 범위).
 - 상태: 2b단계 초안. T2의 23(구현 계획)과 교차 확인 예정.
 - 소유: 테스트 계층과 패키지별 담당, 테스트 도구와 폴더·이름 규칙, 결정성 장치(시계·ID 주입, 모델 테이프), 픽스처 규칙, 유즈케이스 대본(`ScenarioScript`) 형식과 하네스, 수용 기준 추적표, 장애 주입 방법과 시나리오, 적합성 시험 묶음, 모델 품질 평가와 커널 테스트의 경계, `just verify`의 테스트 범위와 테스트 레시피, 플래키·느린 테스트 규칙, 다른 문서 테스트 ID의 추적 색인.
 - 소유하지 않음: 각 모듈의 개별 완료 조건(그 문서의 §6), 커널 불변조건과 속성 목록(10 §3.17), 장애 대상의 정상 동작(09·12·17), 프로토콜 적합성 시나리오 내용(19 §6.3), 보안 테스트 내용(18 §3.17), 화면 부품 테스트 종류(21 §6.3), 모델 평가 절차와 판정(15 §3.15, 16 §3.27), 레시피 색인 자체(06 §3.16), 마일스톤 순서(23).
@@ -13,11 +13,11 @@
 2. 폴더 구조와 이름 규칙, 테스트 제목에 붙이는 추적 ID(§3.4).
 3. 결정성: 시계·ID·난수·경로·환경의 주입, 모델 테이프(`helm.model-tape.v1`) 형식과 재생 규칙, "같은 입력이면 같은 이벤트 로그"의 비교 방법(§3.5).
 4. 픽스처와 테스트 데이터: 상태 픽스처(02 §2.7), 골든 파일, 합성 외부 로그, 테스트 비밀(§3.6).
-5. 커널 테스트 운용: 속성 테스트 PT-01~19의 실행 방식, 공리 A1~A15 위반 테스트 대응표, 불변조건 1~7, 의존 규칙 1~5와 계획 검사 V-PLAN-01~07, helm-toy 대본과 원전 57개 테스트의 대응(§3.7).
+5. 커널 테스트 운용: 속성 테스트 PT-01~20의 실행 방식, 공리 A1~A15 위반 테스트 대응표, 불변조건 1~7, 의존 규칙 1~5와 계획 검사 V-PLAN-01~07, helm-toy 대본과 원전 57개 테스트의 대응(§3.7).
 6. 유즈케이스 시나리오: `ScenarioScript` v1 정본, 하네스와 실행 모드, MVP 대본 목록, 수용 기준(AC) → 테스트 추적표(§3.8).
 7. 장애 주입: 주입 수단, 종료 지점 목록, 장애 시나리오 FI-01~FI-32, 장애 뒤 공통 검사(§3.9).
 8. 적합성: 세 리스너 동등성, 런타임 어댑터, 외부 로그 어댑터, pi 포크 무결성(§3.10).
-9. 보안·격리·관찰 에이전트 테스트의 배치와 비밀 카나리아, 웹·네트워크·브라우저·해시라인 편집 시험(§3.11, §3.11.5).
+9. 보안·격리·관찰 에이전트 테스트의 배치와 비밀 카나리아, 작업 공간 보호 파일 가림, 웹·네트워크·브라우저·해시라인 편집 시험(§3.11, §3.11.5, §3.11.6).
 10. UI: 부품·화면·시각 회귀(기준 이미지 환경), IME, 접근성(반투명 표면 대비 포함), 결정 18 금지 규칙, 데스크톱 E2E 범위, 모바일(§3.12).
 11. 성능 시험(§3.13), 모델 품질 평가의 분리와 편집 방식 A/B 평가(§3.14).
 12. `just verify`에 넣는 것과 넣지 않는 것, 테스트 레시피, CI 여부(§3.15~§3.16).
@@ -121,7 +121,7 @@
 | 태그 | 계층 | 무엇을 확인하나 | 격리 | 모델 | 결정성 | 주 도구 | 기본 레시피 |
 |---|---|---|---|---|---|---|---|
 | `unit` | 단위 | 함수·모듈 하나의 입력 → 출력, 규칙 하나의 통과·실패 | 같은 프로세스, I/O 없음(또는 임시 디렉터리) | 없음 | D0 | Vitest | `just test` |
-| `prop` | 속성 기반 | 무작위 입력 열에서 항상 참이어야 하는 성질(10 PT-01~19 등) | 같은 프로세스 | 없음 | D0(고정 시드) | Vitest + fast-check | `just test`(고정 시드), `just test-deep`(새 시드) |
+| `prop` | 속성 기반 | 무작위 입력 열에서 항상 참이어야 하는 성질(10 PT-01~20 등) | 같은 프로세스 | 없음 | D0(고정 시드) | Vitest + fast-check | `just test`(고정 시드), `just test-deep`(새 시드) |
 | `contract` | 계약 | 외부 코드(pi 1.1.0, vendor 포크)와 경계 타입·스키마·등록 표의 약속 | 같은 프로세스 | faux | D0 | Vitest, `tsc`(타입 테스트) | `just test`, `just vendor-verify` |
 | `int` | 통합 | 실제 SQLite 파일 + 엔진 + 커널, 런타임 + 테이프, 데몬 처리기 + 리스너(같은 프로세스), 자식 프로세스 몇 개 | 임시 디렉터리, 임시 포트 | 테이프 | D0/D1 | Vitest | `just test`(10초 이하), `just test-slow` |
 | `scenario` | 유즈케이스 시나리오 | 02의 대본을 하네스로 재생해 AC 확인(§3.8) | `tests/` 하네스 안의 데몬 인스턴스 | 테이프 | D0 | Vitest + 하네스 | `just test`(`runtime` 모드), `just test-scenarios`(전 모드) |
@@ -155,7 +155,7 @@
 |---|---|---|---|
 | `@helm/domain` | unit, prop, contract | 08/UT-01~13, 09/UT-01~06, 13/T-FP-01 | 없음(순환 방지, 06 §3.4.14) |
 | `@helm/protocol` | unit, contract | 19/UT-01~08 | `@helm/protocol/testing`: `FakeDaemon`, `FakeClient`, 시나리오 DSL, 적합성 스위트(19 §6.3) |
-| `@helm/kernel` | unit, prop | 10/UT-01~16, 10/PT-01~19, 11/AQ-01~24, 14/C-1~19·C-21~29, 22/AX-*, 22/INV-*, 22/DR-*, 22/PL-01~07 | 없음. 커널 시험용 생성기(`arbitraries.ts`)는 패키지 안 `test/` |
+| `@helm/kernel` | unit, prop | 10/UT-01~16, 10/PT-01~20, 11/AQ-01~24, 14/C-1~19·C-21~29, 22/AX-*, 22/INV-*, 22/DR-*, 22/PL-01~07 | 없음. 커널 시험용 생성기(`arbitraries.ts`)는 패키지 안 `test/` |
 | `@helm/store` | int, fault, perf | 09/UT-07~20 | `@helm/store/testing`: 임시 DB, 고장 주입 지점, SQLite 오류 주입(§3.9.1) |
 | `@helm/engine` | unit, int, fault | 06/S4 | `@helm/engine/testing`: 메모리 커널 상태 + 임시 파일 저장소 엔진 생성기 |
 | `@helm/ai` | unit, contract | 12/T-AI-01~12(T-AI-05b 포함), 07/C15~C17·C19·C23·C24, 07/I1·I5 | `@helm/ai/testing`: 모델 테이프 재생기, 녹화기, 가짜 모델 정의(§3.5.4) |
@@ -275,7 +275,7 @@ tests/
   - 예: `it("02/AC-07-01 22/DR-1 활성 합의 없는 write는 denied.agreement_required")`
 - 추적 ID = `<두 자리 문서 번호>/<그 문서의 ID>`. 그 문서 §6에 ID가 없는 단위는 이 문서가 `UT-nn`을 붙였다(§3.19). 대본은 02의 대본 ID(`UC-07/basic`)를 테스트 이름으로 쓰고 AC는 단계 기대값에 붙인다(§3.8.1 `ac` 필드).
 - 문서 사이 ID 충돌: 12와 13은 둘 다 `T-SC-*`를 쓰고(스케줄러, 범위 계산), 13 `AC-01~14`(어댑터 적합성)는 02 `AC-xx-yy`와 모양이 비슷하며, 07 `C1`과 14 `C-1`이 다르다. 문서 번호를 붙이면 `12/T-SC-01`, `13/T-SC-01`, `13/AC-01`, `07/C1`, `14/C-1`로 모두 구분된다. 다른 문서의 ID를 바꾸라고 요구하지 않는다.
-- 이 문서가 새로 만든 ID는 `22/` 접두사를 쓴다: `AX`(공리), `INV`(불변조건), `DR`(의존 규칙), `FI`(장애 주입), `CF`(적합성), `PF`(성능), `SY`(시스템), `ST`(정적·위생 검사), `SG`(샌드박스 밖 git), `KIT`(testkit), `E2E`(화면 흐름), `RE`(실제 데몬 E2E), `EV`(평가), `PL`(계획 검사 V-PLAN-01~07), `NT`(결과 확인 알림 설정), `NW`(내부망 차단과 외부 허용), `WB`(요청 가로채기와 taint.web), `HL`(해시라인 편집), `V02`(원전 57개 대응, 테스트 이름이 아니라 대응표의 행. 추적 검사는 V02 행의 대응 ID가 색인에 있는지만 본다).
+- 이 문서가 새로 만든 ID는 `22/` 접두사를 쓴다: `AX`(공리), `INV`(불변조건), `DR`(의존 규칙), `FI`(장애 주입), `CF`(적합성), `PF`(성능), `SY`(시스템), `ST`(정적·위생 검사), `SG`(샌드박스 밖 git), `SB`(작업 공간 보호 파일 가림), `KIT`(testkit), `E2E`(화면 흐름), `RE`(실제 데몬 E2E), `EV`(평가), `PL`(계획 검사 V-PLAN-01~07), `NT`(결과 확인 알림 설정), `NW`(내부망 차단과 외부 허용), `WB`(요청 가로채기와 taint.web), `HL`(해시라인 편집), `V02`(원전 57개 대응, 테스트 이름이 아니라 대응표의 행. 추적 검사는 V02 행의 대응 ID가 색인에 있는지만 본다).
 - `just test-trace`(§3.15)는 Vitest의 JSON 보고와 Playwright·bash 시험 목록에서 제목을 모아 §3.19 색인(`tests/trace/index.ts`)과 비교한다. 색인 항목은 `{ id, layer, recipe, stage, wbs }`를 가진다(`wbs`는 그 시험을 만드는 23 WBS 행). (1) `tests/trace/done.ts`(끝난 WBS 행 ID 집합)에 든 행의 색인 ID가 어느 테스트 제목에도 없으면 실패, 끝나지 않은 행의 ID는 경고, (2) 테스트 제목의 ID가 색인에 없으면 실패(오타 방지. 색인은 M0-12에서 전체를 옮겨 두므로 마일스톤 중간에도 이 규칙이 성립한다), (3) `manual` ID는 `tests/trace/manual.json`에 수행 기록이 없으면 경고(실패 아님). 마일스톤 순서를 직선으로 보지 않고 끝난 행 집합으로 판정하므로 병렬 갈래(23)에서도 같은 규칙이 성립한다. 비교 결과를 `파일:행 ID 사유`로 출력한다.
 - 22가 붙인 ID: 08·09·10·19의 `UT-nn`은 소유 문서 §6에 ID 열이 없어 이 문서가 행 순서로 붙였다. 원 문서에는 이 번호가 없다. 03·04·05의 `UT-nn`, 11의 `AQ-nn`, 20의 `DM-nn`·`IT-nn`·`MC-nn`, 21의 `TK-nn`은 소유 문서가 §6에 ID 열을 두어 그 ID를 쓴다(§5.2). 10의 `UT-nn`은 §6.2 행 순서이며, 계획 초안 행(V-PLAN)이 여덟째로 들어와 그 뒤 번호가 한 칸씩 밀렸다.
 
@@ -541,7 +541,7 @@ export const t: { text(s: string): ContentBlock; toolCall(name: string, args: un
 | 실패 시 | 실패 열을 줄인 결과와 시드를 출력하고 실패 | 같음 + 줄인 열을 `test/regressions/<PT>-<시드>.regression.json`으로 저장. 사람이 원인을 고친 뒤 회귀 파일을 커밋한다 |
 | 회귀 파일 | 모두 재생(verify에 포함) | 같음 |
 
-- 대상 속성: 10 PT-01~PT-19. 그 밖의 속성 테스트도 같은 운용을 따른다: 08 UT-01(ID 1만 개 정렬), 09 UT-14(투영 증분 = 재구성), 12 T-PJ-04(필수 범주 포함), 14 C-4·C-8·C-12·C-18, 16 OB-T06, 19 UT-18(이벤트 구독 합집합)·UT-19(VIEW-01).
+- 대상 속성: 10 PT-01~PT-20(PT-20의 값 수준 시험은 22/AX-06 (d)). 그 밖의 속성 테스트도 같은 운용을 따른다: 08 UT-01(ID 1만 개 정렬), 09 UT-14(투영 증분 = 재구성), 12 T-PJ-04(필수 범주 포함), 14 C-4·C-8·C-12·C-18, 16 OB-T06, 19 UT-18(이벤트 구독 합집합)·UT-19(VIEW-01).
 - 생성기 공유: 제출 열 생성기(10 §3.17.2의 1~5)는 `packages/kernel/test/property/arbitraries.ts`에 두고 14의 오케스트레이션 속성 테스트도 같은 파일을 import한다(같은 패키지 안 테스트).
 - 시드 실행 시간 목표: PT 전체가 verify에서 60초 이하. 넘으면 시드 수를 줄이지 않고 생성기 비용을 먼저 줄인다.
 
@@ -551,12 +551,12 @@ export const t: { text(s: string): ContentBlock; toolCall(name: string, args: un
 
 | ID | 공리 | 위반 시도 → 기대 결과 | 보장 | 위치·계층 | 함께 보는 ID |
 |---|---|---|---|---|---|
-| 22/AX-01 | A1 목적이 태스크보다 먼저 | (a) Goal 없는 Concern 생성 → `invalid.goal_link`(10 §3.4.4 코드가 정본. 08 E-02의 `not_found.goal`은 08에 맞춤 요구) (b) Goal이 `retired`·`superseded`인 Concern의 합의로 쓰기 → `policy.goal_not_active`(판정 J-130, V-POL-02의 Goal 상태 조건) (c) Concern 없는 `workunit.propose` → 거부(원전 존재론 1) | G1 | kernel unit | 08 R-01, AC-15-03 |
+| 22/AX-01 | A1 목적이 태스크보다 먼저 | (a) Goal 없는 Concern 생성 → `invalid.goal_link`(10 §3.4.4 코드가 정본) (b) Goal이 `retired`·`superseded`인 Concern의 합의로 쓰기 → `policy.goal_not_active`(판정 J-130, V-POL-02의 Goal 상태 조건) (c) Concern 없는 `workunit.propose` → 거부(원전 존재론 1) | G1 | kernel unit | 08 R-01, AC-15-03 |
 | 22/AX-02 | A2 진척은 정당화된 상태 변화 | (a) 근거 없는 `met` 기준 → `downgraded.criterion_unverified` 알림 (b) 근거 없는 승격 → `policy.promotion_requirements` | G2 | kernel unit | AC-07-04, AC-02-03, helm-toy n3·n17 |
 | 22/AX-03 | A3 문제 정의는 작업 결과의 일부 | (a) `concern.reframe` 뒤 이전 프레임 이벤트가 남아 있음 (b) 처음 요청이 `statement`로만 기록되고 프레임 필드로 자동 복사되지 않음 | G2 | kernel unit | |
 | 22/AX-04 | A4 병렬성은 가설 다양성에 먼저 | 같은 가지의 추측 두 개가 서로를 근거로 승격 → V-PRO-02 거부 | G2 | kernel unit | 15 T-04, 15 T-06 |
 | 22/AX-05 | A5 사실·추론·가설·결정·약속 구분 | (a) 모델이 지어낸 관찰 ID로 근거 연결 → `invalid.evidence_not_found` (b) 모델이 `observation.record` → `denied.capability` (c) 관찰 참조 없는 해석 → 전제로 기록 | G1/G2 | kernel unit | AC-02-01, helm-toy n4·n5 |
-| 22/AX-06 | A6 사람이 최종 약속의 저자 | (a) 작업 에이전트가 `result.accept`·`choice.commit`·`goal.revision.confirm`·`agreement.confirm` → 거부 (b) 모델 채널로 `human` 행위자 제출 → `denied.channel` (c) 모델 도구 목록에 사람 전용 명령 도구가 없음 | G1 | kernel unit + tools unit(13 T-HT-04) | 10 PT-05, AC-07-05, helm-toy n19, T18-19 |
+| 22/AX-06 | A6 사람이 최종 약속의 저자 | (a) 작업 에이전트가 `result.accept`·`choice.commit`·`goal.revision.confirm`·`agreement.confirm` → 거부 (b) 모델 채널로 `human` 행위자 제출 → `denied.channel` (c) 모델 도구 목록에 사람 전용 명령 도구가 없음 (d) 모델 채널의 `agreement.propose`에 `confirmNow: true`를 실으면 `denied.channel`이고 합의 상태와 이벤트 로그가 바뀌지 않는다. 같은 제출에서 필드를 뺀 것은 이 검사로 거부되지 않는다(10 PT-20 값 수준) | G1 | kernel unit, prop(PT-20) + tools unit(13 T-HT-04) | 10 PT-05, PT-20, AC-07-05, helm-toy n19, T18-19 |
 | 22/AX-07 | A7 자율성은 위험 적응적 권한 범위 | (a) 범위 밖 쓰기 → `needs_gate`(`gate.scope_expansion_required`) (b) 권리 게이트 발송을 승인 없이 → needs_gate (b') 합의 `Scope.sendTargets` 안의 send, Grant로 활성된 합의 아래의 send도 승인 없이 → needs_gate. MVP 커널은 `sendTargets`를 읽지 않는다(판정 J-91, 01 NFR-S-7) (c) 확대된 합의를 부여로 활성화 → needs_gate (d) 사전 가로채기가 없는 어댑터의 쓰기는 `advisory`·`post_hoc`로 표시 | G1 / 낮아짐 | kernel unit + runtime adapter conf + scenario(UC-07/send-in-scope) | AC-07-02, AC-03-09, 13 AC-06, 13 T-AD-03, 10 UT-10(권한 fixture 5개) |
 | 22/AX-08 | A8 결정은 낮은 수준에서, 예외만 상향 | (a) `why_not_asked` 없는 혼자 정한 결정 → 거부 (b) 권리 범주 없고 결과 차이 none인 결정을 질문으로 만들면 혼자 정한 결정이 된다 | G2 | kernel unit(asking) | 11 AQ-01, AC-05-01, 10 PT-08 |
 | 22/AX-09 | A9 요약은 결정에 필요한 차이를 보존 | 열린 반대 근거가 있는 Concern의 투영에서 그 ID를 빼면 투영 생성이 실패(fail-closed) | G2 | runtime unit | 12 T-PJ-04·T-PJ-05·T-CP-02, AC-06-05 |
@@ -632,7 +632,7 @@ canon-2 §9.14의 57개를 새 설계의 테스트로 옮긴다. "대응 ID"의 
 | 22/V02-03 | guided-001 | F1 쓰레기 legacy Decision(`ㅇ`)이 보이되 기준선이 되지 않음 | 02/AC-06-07, 02/AC-07-14, 10 §3.17.5(F1 → 품질 `captured`) |
 | 22/V02-04 | guided-001 | F2 `projection.*` 쓰기 → `projection_is_derived` | 10/PT-10, 02/AC-07-12, 19 §6.3 `projection-is-derived` |
 | 22/V02-05 | guided-001 | F3 이벤트 envelope 제출 → `adapter_cannot_append_event` | 10/UT-02, helm-toy n21, 19 §6.3 `adapter-cannot-append-events` |
-| 22/V02-06 | guided-001 | F4 같은 cursor 두 명령 → 둘째 충돌, 마지막 쓰기가 이기지 않음 | 02/AC-07-13, 19/CT-18·CT-19, 09/UT-12(commit) |
+| 22/V02-06 | guided-001 | F4 같은 cursor 두 명령 → 둘째 충돌, 나중 쓰기가 먼저 쓴 값을 조용히 덮어쓰지 않음 | 02/AC-07-13, 19/CT-18·CT-19, 09/UT-12(commit) |
 | 22/V02-07 | guided-001 | 에이전트 commit → 사람 게이트, 사람 commit 뒤 기준선 | 10/PT-05, 02/AC-02-06 |
 | 22/V02-08 | guided-001 | 같은 제출(같은 멱등 키)을 다시 결정 → 같은 결과와 같은 파생 ID, 이벤트 늘지 않음 | 10/PT-11, 09/UT-12(1) |
 | 22/V02-09 | guided-001 | F5 재협상 → 이전 기준 stale, 옛 기준 완료 거부 | 02/AC-12-01 |
@@ -710,7 +710,7 @@ canon-2 §9.14의 57개를 새 설계의 테스트로 옮긴다. "대응 ID"의 
 
 ```ts
 // tests/harness/script.ts
-import type { CommandType } from '@helm/domain';            // 10 §3.11 명령 이름. 10의 COMMAND_SPECS에서 파생한 합집합(10에 요구)
+import type { CommandType } from '@helm/domain';            // 10 §3.11 명령 이름. packages/domain/src/commands/의 COMMAND_SPECS에서 파생한 합집합(10 §3.11.11에 요구, [판정 J-257])
 import type { EventType } from '@helm/domain';              // 09 §3.4 이벤트 이름
 import type { RejectionClass } from '@helm/domain';         // 'content' | 'authority' | 'path' (판정 §1)
 import type { ModelTapeTurn } from '@helm/ai/testing';
@@ -1005,7 +1005,7 @@ runScenario(script, mode):
 | AC-07-10 커널이 닫는 항목과 사람만 닫는 항목 | UC-07/basic, 10/UT-12 | scenario, unit |
 | AC-07-11 테스트 통과 제출 ≠ 자동 결과 확인 | UC-07/basic, 22/V02-10 | scenario |
 | AC-07-12 정본 이벤트 직접 추가·`projection.*` 명령 → 경로 거부 | UC-07/E4, helm-toy n21, 22/V02-04, 22/V02-05 | scenario, unit |
-| AC-07-13 `basisSeq` 뒤 대상 변경 → `conflict.version_mismatch`·`already_resolved`·`superseded`, 마지막 쓰기가 이기지 않음 | UC-07/cx-06, 19/CT-18, 19/CT-19 | scenario, conf |
+| AC-07-13 `basisSeq` 뒤 대상 변경 → `conflict.version_mismatch`·`already_resolved`·`superseded`, 나중 쓰기가 먼저 쓴 값을 조용히 덮어쓰지 않음 | UC-07/cx-06, 19/CT-18, 19/CT-19 | scenario, conf |
 | AC-07-14 빈·무의미 완료 기준 합의는 활성 안 됨 | UC-07/basic(거부 단계), 22/V02-03 | scenario |
 | AC-07-15 합의 활성 시 되돌릴 지점 등록 | UC-07/basic, 13/T-RB-01 | scenario, unit |
 | AC-07-16 Helm이 계산한 "되돌릴 수 있음" 값이 없음 | 22/ST-01 | unit(정적) |
@@ -1159,7 +1159,7 @@ runScenario(script, mode):
 | `approval.after_consume` | 승인 실행 run이 `toolcall.started`·`approval.consumed`를 커밋한 직후 | FI-14, CR-4 |
 | `restore.after_reapply` | 복원 뒤 위험 이벤트 재적용 중 | FI-20, FI-26 |
 
-- 결정적 실패(FI-27)는 종료 지점이 아니라 고장 주입 훅(`HELM_TEST_FAULT=<지점>:always`)으로 만든다. 켜는 조건은 종료 지점과 같다.
+- 결정적 실패(FI-27)는 고장 주입 훅(`HELM_TEST_FAULT=<지점>:always`)으로 만든다. 켜는 조건은 종료 지점과 같다.
 - 12 T-CR-09("kill 시점을 무작위로 바꾼 장애 주입 100회에서 CR-1~CR-4 위반 0")는 `just test-faults`에서 위 지점과 `n`을 고정 시드로 고른 100회로 돈다(D22-7과 같은 방식: 시드 목록 커밋, deep에서는 새 시드).
 
 #### 3.9.3 장애 시나리오
@@ -1191,7 +1191,7 @@ runScenario(script, mode):
 | 22/FI-23 | 모델 제공자 장애 | 테이프 `error`(rate_limited, overloaded, auth) 연속, 모든 후보 연결 오류, `stall` | 재시도·대체(12 T-AI-03·T-AI-04). 모든 후보가 연결 오류면 run은 `ended(failed, model_unreachable)`로 끝나고 상태는 17 상태 확인과 trace에 보인다. 도메인 관찰은 만들지 않는다(판정 J-109). `progress_stall` 질문이 생기지 않고, 회복 신호 뒤 14가 다시 요청한다. 그동안 사람 명령은 처리된다(AC-10-08, NFR-O-3) | fault, `just test` |
 | 22/FI-24 | 느린 소비자·투영 지연 | 클라이언트 읽기 멈춤, 투영 지연 주입 | 4008 뒤 재접속 누락 없음(19 CT-13, 20 IT-14), `2006` 뒤 재시도(19 CT-29) | conf, `just test` |
 | 22/FI-25 | 다른 연결·다른 리스너에서 같은 키 재전송 | (a) `tailnet`으로 보낸 명령이 커밋 뒤 응답 전 끊김 → `loopback`(SSH 경로)으로 같은 키·같은 params 재전송 (b) 같은 경로의 새 연결 (c) run attempt가 바뀐 뒤 같은 내부 멱등 키 재제출 | 셋 모두 `duplicate: true`로 저장 결과 재생, `3006`이 아님. 멱등 지문은 연결·리스너·attempt와 무관하다(09 지문 입력 `{type, actor, viaKey(via), payload}`, 19에 요구). 진행 중 명령이 결과를 모른 채 지워지지 않는다(NFR-D-4, AC-10-06) | conf, `just test` |
-| 22/FI-26 | 복원 뒤 자동 재개 없음 | 스냅숏 시점에 쓰기 중인 running run, 곧 발화할 에이전트 타이머, 미소진 `approval.issued`(push)가 있는 백업을 만든다. 백업 뒤 실제로 push가 나간 다음 그 백업으로 복원한다 | 복원을 마칠 때 17이 복원 표지 `store.restored`를 남긴다(09의 정본 이름, [판정 J-152]). 그 표지 뒤 첫 부팅은 12의 안전 모드다: run 자동 재개 0, 에이전트 타이머·관찰 실행·14의 새 실행 0, 소진되지 않은 승인은 만료로 닫히고 다시 묻는다. 가짜 원격의 push 수신은 1회 그대로다. 복귀 요약의 "복원 지점 이후 기록 없음" 표시는 04가 소유하며 표지 이벤트를 읽어 그린다(04 화면 시험, `view: brief`에서 표지 참조 확인). 표지가 없는 보통 부팅에서는 안전 모드로 들어가지 않는다. 업그레이드 되돌리기(17)도 같은 대본으로([판정 J-152]). 안전 모드를 푸는 시험은 `helm ops safe-mode off`([판정 J-153])와 19 `daemon.exitSafeMode`([판정 J-165])로 한다 | fault, `just test-slow` |
+| 22/FI-26 | 복원 뒤 자동 재개 없음 | 스냅숏 시점에 쓰기 중인 running run, 곧 발화할 에이전트 타이머, 미소진 `approval.issued`(push)가 있는 백업을 만든다. 백업 뒤 실제로 push가 나간 다음 그 백업으로 복원한다 | 복원을 마칠 때 17이 복원 표지 `store.restored`를 남긴다(09의 정본 이름, [판정 J-152]). 그 표지 뒤 첫 부팅은 12의 안전 모드다: run 자동 재개 0, 에이전트 타이머·관찰 실행·14의 새 실행 0, 소진되지 않은 승인 대기 호출은 `not_executed(approval_expired)`로 닫히고 다시 묻는다(09 §3.14.2, [판정 J-193]). 가짜 원격의 push 수신은 1회 그대로다. 복귀 요약의 "복원 지점 이후 기록 없음" 표시는 04가 소유하며 표지 이벤트를 읽어 그린다(04 화면 시험, `view: brief`에서 표지 참조 확인). 표지가 없는 보통 부팅에서는 안전 모드로 들어가지 않는다. 업그레이드 되돌리기(17)도 같은 대본으로([판정 J-152]). 안전 모드를 푸는 시험은 `helm ops safe-mode off`([판정 J-153])와 19 `daemon.exitSafeMode`([판정 J-165])로 한다 | fault, `just test-slow` |
 | 22/FI-27 | 결정적 부팅 복구 실패 | 고장 주입 훅으로 (a) 12단계 `recover()`가 특정 run에서 매번 예외 (b) 9단계 투영 재구성이 매번 실패 | (a) 실패한 run만 `ended(failed, recovery_error)`와 복구 항목으로 남고 다른 run은 정리되며 데몬이 뜬다 (b) 읽기 전용 시작(사유 `recovery_failed`): 리스너가 열려 앱에서 상태를 보고, 쓰기 명령은 `5003`. 비정상 종료 기록이 크래시 루프 계산에 들어가 systemd `failed`까지 가지 않는다. 복구 멱등 키는 12 형식이며 연속 부팅에서 복구 이벤트가 중복되지 않는다 | fault, `just test-faults` |
 | 22/FI-28 | 데몬이 살아 있는 동안 외부 효과 호출의 비정상 종료 | 가짜 원격이 응답하지 않아 push가 bash 타임아웃, 실행 중 cooperative 취소, HTTP MCP 서버 프로세스 kill | 셋 모두 `toolcall.outcome_uncertain` + 사람 확인. 모델에게 일반 오류 결과로 가지 않고 같은 행동의 자동 재시도는 0이다(12 §3.4.6, 13 T-E14·T-E25 기대 수정 요구). 외부 효과 없는 도구(read)의 타임아웃은 일반 오류 결과 | fault, `just test` |
 | 22/FI-29 | 복원 뒤 재접속과 진행 중 명령 | 클라이언트가 응답 전 끊긴 명령을 가진 채 데몬 DB가 복원된다(`storeId` 바뀜). 위치 저장소를 지운 클라이언트 변형 포함 | `hello`의 `storeId`가 저장 위치와 다르면 재전송 전에 캐시를 비운다. 보낼 때의 `storeId`가 다른 진행 중 명령은 자동 재전송하지 않고 "보내지 못한 조작"으로 보인다. 복원된 DB에 같은 명령이 다시 적용되지 않고, 재전송이 `events.subscribe`의 `2001`보다 먼저 나가지 않는다(19 CT-08 확장, 20 PendingRow) | conf, `just test` |
@@ -1267,6 +1267,7 @@ runScenario(script, mode):
 | 실제 serve·Windows 쪽 | 18/T18-05, 18/T18-12 | manual | 결과를 18 §7(A18-1, A18-3)에 반영 |
 | 샌드박스 | 13/T-SB-01~04, 18/T18-08~11·14·29 | sys, `just daemon-systest` | S1(bwrap)과 S1b(`systemd-run --user`) 각각. 설치되지 않은 수준은 건너뛰고 보고서에 적는다. 둘 다 없으면 종료 코드 2 |
 | 경로 정책 | 13/T-PA-01~05, 07/V5(2), 18/T18-10(통합 부분) | unit, `just test` | |
+| 작업 공간 보호 파일 가림 | 13/T-E55, 13 §7 O-13-20, 22/SB-01~05(§3.11.6) | unit, sys(S1·S1b), `test`, `daemon-systest` | 실행 전 탐색 규칙은 13 §3.6.4. S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다 |
 | 비밀·마스킹 | 13/T-RD-01, 18/T18-13·18·30·32, 16/OB-T10·T11, 17/T17-10·T17-32, 12/T-AI-06~08 | sec, `just test` | 비밀 카나리아(§3.11.2) |
 | 사람 결정 위조 | 18/T18-19, 22/AX-06, 16/OB-T04 | sec, unit | |
 | 같은 uid 로컬 관리자의 사람 결정 | TTY 확인 문자열 없는 `localAdmin` 사람 결정 명령 → 거부, TUI·TTY CLI 확인이 있으면 수락, 비대화 `localAdmin`은 읽기·관리만(판정 J-135). 18이 시험 ID를 붙인다 | sec, `just test` | 의도적 공격은 막지 못한다는 한계는 18에 기록 |
@@ -1328,6 +1329,20 @@ runScenario(script, mode):
 | 22/HL-02 편집 연산 검사 | 안 본 줄을 겨냥하거나 연산이 겹침, 여러 파일 중 일부만 쓰이고 실패 | prepare에서 거부하고 실행하지 않는다. 쓰기는 파일별로 원자적이고, 적용된 파일 목록을 결과에 적는다 | unit, int(`test`) | 13/T-HL-02·T-HL-04, 13/T-E50·T-E51 |
 
 편집 방식의 A/B 비교(`replace`와 `hashline`)는 평가이므로 §3.14.2의 22/EV-04에 둔다. 기본값은 `replace`이고, `hashline`은 모델 계열마다 근거를 본 뒤 켠다([판정 J-190 (1)]).
+
+#### 3.11.6 작업 공간 보호 파일 가림 (13 §3.6.4)
+
+샌드박스 호출은 바인드한 루트(작업 공간 루트, 추가 읽기·쓰기 루트)를 통째로 연다. 그 안의 `**/.env`·`**/.env.*`(`.env.example` 제외)와 `secrets/` 디렉터리는 바인드를 빼서 막을 수 없으므로, 호출 직전에 찾아 가린다(13 §3.6.4). 보호 대상 목록의 정본은 18 §3.11.5다. 시험 파일에는 하네스가 만든 가짜 값만 넣는다. 카나리아는 §3.11.2 형식(`HELM-CANARY-<16자>`)으로 `.env`와 `secrets/` 안 파일에 심는다. 실제 `.env`는 읽지 않는다(§3.6.4).
+
+| ID | 확인하는 것 | 기대 | 계층·레시피 | 함께 보는 ID |
+|---|---|---|---|---|
+| 22/SB-01 탐색 목록 | 바인드한 루트를 훑어 보호 파일 목록을 만든다 | 목록이 정확히 맞다. `.env.example`과 보호 대상이 아닌 파일은 목록에 없다 | unit, `test` | 13/T-E55 |
+| 22/SB-02 탐색 상한과 훑기 실패 | 상한(50,000 항목)을 시험용 값으로 낮추어 넘기고, 권한 없는 하위 디렉터리로 훑기를 실패시킨다 | 그 호출을 실행하지 않고 도구 결과 오류로 돌려준다. 빈 목록으로 실행하지 않는다(13 §7 O-13-20) | unit, `test` | 13 §3.6.4 |
+| 22/SB-03 S1 가림 | S1에서 작업 공간의 `.env`와 `secrets/` 파일을 읽는다 | 읽기 결과는 빈 내용이다. 카나리아 값이 도구 결과와 §3.11.2 검사 대상 전부에 없다 | sys(S1), `daemon-systest` | 13/T-E55 |
+| 22/SB-04 S1b 가림 | S1b에서 같은 파일을 읽는다 | 읽기가 실패한다. 바인드 하위 경로에 `InaccessiblePaths`가 걸리는지는 [실험]이다. 확인 전에는 `pre_read_exposed` 표시가 떠야 통과한다(13 §3.6.4 [가정]) | sys(S1b), `daemon-systest` | 13/T-E55 |
+| 22/SB-05 한계 | 같은 호출이 새로 만든 `.env`를 그 호출 안에서 읽는다 | 읽힐 수 있는 것을 한계로 보고서에 적는다. 다음 호출 전 탐색에서 가려지는지 확인한다 | sys(S1·S1b), `daemon-systest` | 13/T-E55(한계) |
+
+S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-03을 "건너뜀(S1 없음)"으로 보고한다.
 
 ### 3.12 UI 테스트
 
@@ -1448,7 +1463,7 @@ runScenario(script, mode):
 | 갱신 | 26 T26-27(새 판 배포 → 다음 실행 때 적용, 초안 유지) | int, `just test` |
 | 같은 사람 명령 | UC-04/M(`dv_phone`, 2단계 대본): 휴대폰 답이 데스크톱 답과 같은 이벤트, 다른 것은 기기 id와 리스너뿐(AC-04-09) | scenario, `just test`(2단계 기능 플래그가 켜졌을 때) |
 | 부재 중 푸시 | UC-04/away-push(2단계 대본, `requires: ['push']`): 모든 기기가 부재(14 파생 함수, 판정 J-119)이고 휴대폰 푸시가 등록된 상태에서 `interrupt`·`notice` 질문이 기록되면 가짜 푸시 서비스가 각각 받고(`channel: push`), `digest`는 푸시로 나가지 않는다([결정 48]). 다른 기기가 활동 중이면 보내지 않고, 연결만 되어 있으면 60초 기다린다(26 MOB-D05). 같은 질문 세 번째 알림은 없다 | scenario, `just test` |
-| 결과 확인 알림 세 값([판정 J-189]) | 22/NT-01~03. NT-01: `notifications.resultReview`가 `none`(기본)이면 결과 확인 대기가 있어도 푸시가 없고 복귀 요약에만 보인다. NT-02: `daily_digest`는 `notifications.resultReviewDigestAt`(기본 "19:00", 서버 시간대)에 대기 결과가 하나 이상일 때만 묶음 푸시 1개(개수만)를 보내고, 0개면 보내지 않는다. 타이머 목적은 `result_review_digest` 하나다. NT-03: `immediate`는 결과 확인 질문마다 notice 1개를 보낸다. NT-02·03은 방해 금지([판정 J-166])와 시간당 상한([판정 J-171])을 따르고, 휴대폰 확인 범위는 [판정 J-139] 그대로다. 설정 변경은 `settings.update`(잘못된 값은 3001), 기록은 `setting.changed` 한 번이다. 시험은 26 T26-15, 19 CT-48, 11 AQ-24, 05 UT-14가 나눠 맡는다 | unit, int, `just test`. 시나리오 `UC-07/review-notice`(2단계, `requires: ['push']`) |
+| 결과 확인 알림 세 값([판정 J-189]) | 22/NT-01~03. NT-01: `notifications.resultReview`가 `none`(기본)이면 결과 확인 대기가 있어도 푸시가 없고 복귀 요약에만 보인다. 데스크톱에는 배지만 보이고 OS 알림은 없다([결정 60]). NT-02: `daily_digest`는 `notifications.resultReviewDigestAt`(기본 "19:00", 서버 시간대)에 대기 결과가 하나 이상일 때만 묶음 푸시 1개(개수만)를 보내고, 0개면 보내지 않는다. 데스크톱에는 배지만 보이고 OS 알림은 없다([결정 60]). 타이머 목적은 `result_review_digest` 하나다. NT-03: `immediate`는 결과 확인 질문마다 notice 1개를 보내고, 데스크톱 OS 알림도 띄운다([결정 60]). 방해 금지 중에는 `notifications.dndException` 값과 관계없이 데스크톱 OS 알림을 띄우지 않는다. 이 예외 설정은 휴대폰 푸시에만 적용한다([결정 59]). NT-02·03은 방해 금지([판정 J-166])와 시간당 상한([판정 J-171])을 따르고, 휴대폰 확인 범위는 [판정 J-139] 그대로다. 설정 변경은 `settings.update`(잘못된 값은 3001), 기록은 `setting.changed` 한 번이다. 시험은 26 T26-15, 19 CT-48, 11 AQ-24, 05 UT-14가 나눠 맡는다 | unit, int, `just test`. 시나리오 `UC-07/review-notice`(2단계, `requires: ['push']`) |
 | 보안 | 18 T18-31(모바일 기기 scope, 푸시 본문에 질문 내용 없음, 푸시 토큰 원문이 이벤트·로그에 없음) | sec, `just test` |
 | 실제 기기 | 26 §6.2 M-01~M-14(iPhone, 출시 전) | manual |
 
@@ -1691,7 +1706,7 @@ runScenario(script, mode):
 | 05/UT-11 | 오류 문구(19 오류 코드 대응표) | unit | `test` |
 | 05/UT-12 | 응답 이름 통일 | unit | `test` |
 | 05/UT-13 | 계획 표시(`authoredBy` 카드, 계획 방식 다이얼 값, 두 번 어긴 계획의 표시) | ui | `ui-test` |
-| 05/UT-14 | 결과 확인 알림 표시(설정 기본 `none`, 묶음 푸시는 개수만, 즉시 푸시) | ui, unit | `ui-test`, `test` |
+| 05/UT-14 | 결과 확인 알림 표시(설정 기본 `none`, 묶음 푸시는 개수만, 즉시 푸시. 데스크톱은 배지만 보이고 OS 알림은 `immediate`일 때만 띄우며 방해 금지 중에는 띄우지 않는다 [결정 59·60]) | ui, unit | `ui-test`, `test` |
 
 #### 3.19.3 06·07 (구조·pi)
 
@@ -1748,11 +1763,11 @@ runScenario(script, mode):
 | 10/UT-10 | 권한 fixture 5개 | unit | `test` |
 | 10/UT-11 | C/A 흐름(한 턴 흐름, 사람 조작 2회) | unit | `test` |
 | 10/UT-12 | 파생 R-1~R-15, R-20 | unit | `test` |
-| 10/UT-13 | 속성(= PT-01~19) | prop | `test`, `test-deep` |
+| 10/UT-13 | 속성(= PT-01~20) | prop | `test`, `test-deep` |
 | 10/UT-14 | 사후 검사 V-INV | unit | `test` |
 | 10/UT-15 | 성능(`decide`, `impactOf`) | perf | `perf`(22/PF-07) |
 | 10/UT-16 | 재생(골든, `reduce(apply)`) | unit | `test` |
-| 10/PT-01~PT-19 | 불변조건 속성 | prop | `test`, `test-deep` |
+| 10/PT-01~PT-20 | 불변조건 속성(PT-20의 값 수준 시험은 22/AX-06 (d)) | prop | `test`, `test-deep` |
 | 11/AQ-01~24 | 게이트 판정, 권리 게이트, 질문 형식, 전달, 강도, 만료, 가정 비교, 병합, 가정 아래 행동, 중재자, 사람 부재, 혼자 정한 결정, 이의·재작업, 범위 줄이기, 승인, 사람 조작, 승인 극장 방지, 푸시, 늦은 답, 정지 중 만료, 고쳐서 허락, 막지 않는 권리 질문, 휴대폰 복귀, 결과 확인 알림 | unit | `test` |
 
 #### 3.19.6 12·13 (런타임·도구)
@@ -1762,7 +1777,7 @@ runScenario(script, mode):
 | 12/T-AI-01~12, T-AI-05b | 게이트웨이, 키, 사용량(T-AI-11 검색 사용량), editMode 해석(T-AI-12) | unit, contract | `test` |
 | 12/T-AG-01~09 | 포크 루프 연결 | contract | `test` |
 | 12/T-RT-01~14(T-RT-07b~07f, T-RT-14 포함) | 훅·기록, run 상태, 사람 제어, 웹 결과의 오염, 배치 중단, editMode 유지 | unit, int | `test` |
-| 12/T-PJ-01~14 | 투영(T-PJ-04 속성, T-PJ-13·14 스크린샷과 바깥 글 표식) | unit, prop | `test` |
+| 12/T-PJ-01~14 | 투영(T-PJ-04 속성, T-PJ-13·14 스크린샷과 바깥 글 표식. 스크린샷 투영에는 blob 원본 참조가 없다 [결정 61]) | unit, prop | `test` |
 | 12/T-CP-01~04 | 컴팩션 | unit | `test` |
 | 12/T-CR-01~08 | 복구 | int, fault | `test`, `test-faults`(프로세스판) |
 | 12/T-CR-09 | 무작위 종료 100회 | fault | `test-faults` |
@@ -1795,10 +1810,10 @@ runScenario(script, mode):
 | 13/T-SG-01~06 | 데몬 git 고정 환경(§3.11.4와 표본 공유) | sec(int), sys | `test`, `daemon-systest` |
 | 13/T-NP-01~04 | 네트워크 프록시(주소 차단, 허용 목록, 도구의 프록시 경유, 네트워크 없는 실행) | sec(int), sys | `test`, `daemon-systest`(T-NP-03) |
 | 13/T-WF-01~04, T-WS-01~02 | 웹 읽기·검색(주소 차단과 리디렉션 재판정, 변환 작업자, 크기 상한, 제공자 대체와 상한) | unit, int | `test` |
-| 13/T-BR-01~07 | 브라우저(비-GET 거부와 보류, `taint.web` 뒤 POST, 낡은 ref, 크래시 뒤 불명, 스크린샷 3장, 다운로드) | int, sec, sys | `test`, `daemon-systest`(실제 Chrome) |
+| 13/T-BR-01~07 | 브라우저(비-GET 거부와 보류, `taint.web` 뒤 POST, 낡은 ref, 크래시 뒤 불명, 스크린샷 3장(모델 문맥에 최근 3장만 두고 데몬 blob에 원본을 남기지 않는다 [결정 61]), 다운로드) | int, sec, sys | `test`, `daemon-systest`(실제 Chrome) |
 | 13/T-HL-01~05 | 해시라인 편집(낡은 태그, 연산 검사, 실행 직전 해시, `editMode` 기본, 재시작 뒤 첫 편집) | unit, int | `test` |
 | 13/T-GR-01~04 | 고급 grep(`skip`과 `nextSkip`, 라운드로빈, `paths` 읽기 루트, 줄 자르기) | unit, int | `test` |
-| 13/T-E01~T-E54 | §4 실패·경계 사례(행 하나가 시험 하나) | unit, int, sec, sys | `test`, `daemon-systest`(샌드박스 항목) |
+| 13/T-E01~T-E55 | §4 실패·경계 사례(행 하나가 시험 하나. T-E55는 22/SB-01~05, §3.11.6) | unit, int, sec, sys | `test`, `daemon-systest`(샌드박스 항목) |
 
 #### 3.19.7 14·15·16 (오케스트레이션·탐구·관찰)
 
@@ -1880,6 +1895,7 @@ runScenario(script, mode):
 | 22/SY-01 | 설치 레시피 두 번 실행해도 데이터 보존(AC-11-01) | sys | `daemon-systest` |
 | 22/SY-02 | 실제 데몬이 127.0.0.1·Unix 소켓에서만 듣는다(`ss -ltnp`, AC-11-02, NFR-S-2) | sys | `daemon-systest` |
 | 22/SG-01~06 | 샌드박스 밖 데몬 git 탈출(§3.11.4, 13/T-SG-01~06과 표본 공유) | sec(int), sys | `test`, `daemon-systest` |
+| 22/SB-01~05 | 작업 공간 보호 파일 가림(§3.11.6, 13/T-E55와 표본 공유) | unit, sys | `test`, `daemon-systest` |
 | 22/NT-01~03 | 결과 확인 알림 세 값(§3.12.7, [판정 J-189]) | unit, int, scenario(2단계) | `test` |
 | 22/NW-01~05 | 내부망 차단과 외부 허용, 서버 측 웹 도구 금지(§3.11.5, [판정 J-190 (2)·(5)]) | unit, int, sys | `test`, `daemon-systest` |
 | 22/WB-01~03 | 요청 가로채기, taint.web, 외부 효과 분류(§3.11.5, [판정 J-190 (3)]) | unit, int, sys | `test`, `daemon-systest` |
@@ -1968,8 +1984,8 @@ runScenario(script, mode):
 | 05 | (1) 접근성 기준을 "axe WCAG 2.1 A·AA 태그 규칙 위반 0(영향도 무관)"으로(§3.12.4). (2) 10 거부 코드 ↔ 19 오류 코드 ↔ 05 문구 키 대응을 한 표로 두고 셋이 같은 표를 가리킨다(10·19·05 공동). 22는 그 표로 05 UT-11(대응표 시험)을 돌린다 |
 | 06 | (1) `tests/`(`@helm/tests`, 비공개)를 작업 공간·`vitest.config.ts` `projects`·`architecture-rules.ts`에 더한다: 모든 `@helm/*`와 `testing` 하위 경로를 devDependencies로 쓸 수 있고 누구도 의존하지 않는 "시험 전용" 층. R3의 "테스트 파일에서만 import" 범위에 `tests/**`를 넣는다. (2) §3.16 레시피 색인에 테스트 묶음(`test-slow`, `test-deep`, `test-scenarios`, `test-faults`, `test-conformance-ssh`, `test-trace`, `test-golden-update`, `test-fixtures-views`, `test-clean`, `test-all`, `coverage`, `bench`, `perf-seed`, `e2e-real`, `eval-*`, `eval-edit`(22/EV-04), `tape-promote`)과 `_verify-steps`에 `test-trace`를 더한다. (3) §3.4.14 testkit 책임에 이 문서 §3.5.2 API를 적고, 12 §6의 "testkit의 faux 대본" 문장과 맞춘다. (4) 패키지 하위 경로 표에 `@helm/ai/testing`(모델 테이프 재생기·녹화기·가짜 모델 표)과 `@helm/engine/testing`을 더한다. (5) `just setup`이 Playwright 브라우저(Chromium, WebKit)를 설치한다. (6) 테스트 위생 ESLint 규칙(22/ST-02)을 §3.5.3 설정에 더한다 |
 | 07 | faux 응답 함수에서 테이프를 읽는 방식(§3.5.4)이 pi-ai 1.1.0 `FauxResponseFactory`로 되는지 V4 단계에서 확인해 달라 |
-| 08 | (1) E-02의 Goal 없는 Concern 거부 코드를 10의 `invalid.goal_link`로 맞춘다(10이 코드 정본). (2) `Scope.sendTargets` 주석·R-05·U-07을 판정 J-91로(MVP 커널은 읽지 않음, send는 언제나 권리 게이트). (3) L2969 등 저장 값 `local_admin`을 `localAdmin`으로. (4) `IdFactory`가 시각 함수와 seed를 받는 구현(`fixedIdFactory`)을 허용하는지 확인. (5) 선택지의 구조화 `scope: Scope`(판정 J-133) |
-| 09 | (1) 멱등 지문 입력을 `{type, actor, viaKey(via), payload}`로 바꾼다. 연결 ID·리스너·attempt가 바뀐 재전송이 같은 지문이 되어야 22/FI-25가 성립한다. (2) `openStore`에 테스트 전용 묶음 `testing: { bootEpoch, storeId, allowTmpfs }`(`faultInjector`도 이 묶음으로). (3) `@helm/store/testing`에 SQLite 오류 주입(`SQLITE_FULL`·`SQLITE_IOERR`·`SQLITE_CORRUPT`, 다음 n번 쓰기). (4) `EVENT_META`에 의미 필드 목록(`semanticFields`). (5) `restore()`에 위험 이벤트 재적용 단계(기기 폐기, Grant 철회, 합의 철회·축소, 다이얼 하향, `blob.redacted`)를 두고 재적용 전에는 리스너를 열지 않는다(FI-20). (6) 판정 J-133의 합의 활성 이벤트(제안 이름 `agreement.activated_by_choice`). (6-1) 복원 표지 이벤트 이름(판정 J-152). (7) §6.2 `src/projectors/core` 완료 기준 (2)의 "유즈케이스 시나리오 이벤트 열"은 `tests/scenarios/golden/*.golden.jsonl`이다 |
+| 08 | (1) E-02의 Goal 없는 Concern 거부 코드를 10의 `invalid.goal_link`로 맞춘다(10이 코드 정본). 08에 반영됨. (2) `Scope.sendTargets` 주석·R-05·U-07을 판정 J-91로(MVP 커널은 읽지 않음, send는 언제나 권리 게이트). (3) L2969 등 저장 값 `local_admin`을 `localAdmin`으로. (4) `IdFactory`가 시각 함수와 seed를 받는 구현(`fixedIdFactory`)을 허용하는지 확인. (5) 선택지의 구조화 `scope: Scope`(판정 J-133) |
+| 09 | (1) 멱등 지문 입력을 `{type, actor, viaKey(via), payload에서 제출자 생성 id를 뺀 것}`로 바꾼다(09 §3.9.1). 연결 ID·리스너·attempt가 바뀐 재전송이 같은 지문이 되어야 22/FI-25가 성립한다. (2) `openStore`에 테스트 전용 묶음 `testing: { bootEpoch, storeId, allowTmpfs }`(`faultInjector`도 이 묶음으로). (3) `@helm/store/testing`에 SQLite 오류 주입(`SQLITE_FULL`·`SQLITE_IOERR`·`SQLITE_CORRUPT`, 다음 n번 쓰기). (4) `EVENT_META`에 의미 필드 목록(`semanticFields`). (5) `restore()`에 위험 이벤트 재적용 단계(기기 폐기, Grant 철회, 합의 철회·축소, 다이얼 하향, `blob.redacted`)를 두고 재적용 전에는 리스너를 열지 않는다(FI-20). (6) 판정 J-133의 합의 활성 이벤트(제안 이름 `agreement.activated_by_choice`). (6-1) 복원 표지 이벤트 이름(판정 J-152). (7) §6.2 `src/projectors/core` 완료 기준 (2)의 "유즈케이스 시나리오 이벤트 열"은 `tests/scenarios/golden/*.golden.jsonl`이다 |
 | 10 | (1) §3.6.6 범위 검사를 `if primitive == 'send': needsApproval = true`로(판정 J-91). Grant 포함 검사도 send의 승인을 없애지 않는다. (2) V-POL-02에 Goal 상태 조건과 `policy.goal_not_active`(판정 J-130). (3) 판정 J-133의 선택 범위 echo 활성 갈래(합의 범위 ⊆ 선택 범위, 근거는 사람이 직접 고른 선택만). (4) 모든 명령에 TypeBox payload 상수를 두고 `COMMAND_SPECS`에서 `CommandType`·`CommandPayload<T>`를 파생한다(22 대본 타입이 이것을 import한다). (5) §3.16.2 원전 불변 표에 시험 ID 열(22 §3.7.8). (6) §6.2 "속성" 행의 "(CI는 시드 20개)"를 "verify는 고정 시드 20개, `test-deep`은 새 시드 100개"로. (7) 거부 코드 ↔ 19 ↔ 05 대응표(05 요구 (2)와 같음). (8) §6.2 행에 `10/UT-01~16` 번호를 붙여 주면 추적이 쉽다(선택). 계획 초안 행이 여덟째다 |
 | 11 | (1) `urgencyOf` 첫 줄과 전달 채널(`app`·`push`·`brief`)을 26 §3.4.3·판정 J-119·[결정 48]대로. 부재는 14 파생 함수로 계산한다. 22 UC-04/away-push가 이 규칙을 시험한다. |
 | 12 | (1) §6 첫 문장의 faux 대본 위치를 `@helm/ai/testing`의 모델 테이프 재생기로. (2) `@helm/runtime/testing`에 `whenIdle()`. (3) 종료 지점(§3.9.2)과 결정적 실패 훅(`HELM_TEST_FAULT`)을 코드에 두고 `HELM_TEST_HOOKS=1`이며 운영 경로가 아닐 때만 켠다. (4) `ModelGateway`를 데몬 조립에서 주입받는다. (5) T-VW-05(1초)는 `just perf`에서. (6) `recover()`에 run과 무관한 단계: 상태 `started`·`replaying`인 모든 호출을 정리, 투영에 `executedByRunId`. intend 결과가 `replayed: true`면 실행하지 않는다(FI-14). (7) `recover()`는 run 단위로 예외를 가두고 실패 run을 `ended(failed, recovery_error)`로(FI-27). 복구 멱등 키는 12 형식으로 09와 맞춘다. (8) §3.4.6에 "외부 효과 가능 호출의 타임아웃·신호 종료·전송 끊김·취소·서버 크래시 → `outcome_uncertain`"(FI-28). (9) 완료 커밋이 디스크 부족으로 실패한 결과의 보관과 해제 뒤 커밋(FI-16(c)). (10) 절전 복귀 catch-up과 단조 시계 감시(FI-31). (11) 복원 표지 이벤트 뒤 첫 부팅을 안전 모드로(자동 재개·에이전트 타이머·관찰 실행 없음, 미소진 승인 만료, 판정 J-152, FI-26) |
@@ -2039,7 +2055,7 @@ runScenario(script, mode):
 | Q22-08 | 비특권 tmpfs로 디스크 가득 시험(FI-16 b) | 네임스페이스 tmpfs / 작은 루프 이미지(sudo) / `SQLITE_FULL` 주입만 | 네임스페이스 tmpfs가 되면 그것, 안 되면 주입만으로 두고 수동 시험 1회 |
 | Q22-09 | 녹화 테이프를 Git에 넣을 범위 | 익명 고정 과제만 / 넣지 않음 | 익명 고정 과제만(`tape-promote` 검사) |
 | Q22-10 | verify 시간 상한 | 5분 / 10분 | 목표 5분, 상한 10분. 넘으면 slow로 옮기기 전에 원인 조사 |
-| Q22-11 | 복원·결정적 복구 실패 시험의 이벤트·사유 이름 | 09가 정할 복원 표지 이벤트 이름(판정 J-152), 12·17이 정할 사유 이름(읽기 전용 `recovery_failed`, 승인 만료 사유), 결과 보관 파일 위치 | 해소: 정본 이름을 쓴다. 복원 표지 `store.restored`(09), 안전 모드 사유 `restored`(09 `daemon.safe_mode_entered`), 읽기 전용 사유 `recovery_failed`(17). FI-26·FI-27의 기대는 이 이름을 쓴다([판정 J-152], [판정 J-164]) |
+| Q22-11 | 복원·결정적 복구 실패 시험의 이벤트·사유 이름 | 09가 정할 복원 표지 이벤트 이름(판정 J-152), 12·17이 정할 사유 이름(읽기 전용 `recovery_failed`, 승인 만료 사유), 결과 보관 파일 위치 | 해소: 정본 이름을 쓴다. 복원 표지 `store.restored`(09), 안전 모드 사유 `restored`(09 `daemon.safe_mode_entered`), 읽기 전용 사유 `recovery_failed`(17), 승인 만료 사유 `approval_expired`(09 §3.14.2, [판정 J-193], [판정 J-246]). FI-26·FI-27의 기대는 이 이름을 쓴다([판정 J-152], [판정 J-164]) |
 
 ## 8. 출처
 

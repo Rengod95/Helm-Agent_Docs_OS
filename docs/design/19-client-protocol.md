@@ -1,7 +1,7 @@
 # 19. 클라이언트 프로토콜
 
 - 작성: 2026-10-11, P12(프로토콜)
-- 상태: 4단계 보완판(2026-10-12). 기준 결정은 브리프 결정 1~57과 조정자 판정(`docs/design/process/rulings-stage2a.md` J-01~J-240)이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID 접두사는 08을 정본으로 따른다. 모바일은 26(결정 47~49)을 따른다.
+- 상태: 4단계 보완판(2026-10-12). 기준 결정은 브리프 결정 1~64과 조정자 판정(`docs/design/process/rulings-stage2a.md` J-01~J-275)이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID 접두사는 08을 정본으로 따른다. 모바일은 26(결정 47~49)을 따른다.
 - 소유: 프로토콜 메서드 이름(정본), 메서드 params·result 스키마, 메시지 형식(envelope), 알림 이름, 오류 코드(정본)와 10 거부 코드의 대응, 핸드셰이크, 구독·재전송 의미, 파일 전송 HTTP 규약, `@helm/protocol` 패키지 구조.
 - 소유하지 않음: 이벤트 이름과 payload(09), 명령의 의미와 거부 규칙(10·11), 화면과 화면별 표시 데이터의 정의(03·04), 인증 자료의 암호 방식·페어링 정책·토큰 보관(18), 리스너 주소·소켓 경로·데몬 수명주기(17), 앱의 상태 저장소·라우팅·SSH 프로세스 관리(20), 런타임 어댑터 프로토콜(13).
 - 출처 표기: "pi-api-facts-2 §3.2"는 `docs/design/process/sources/pi-api-facts-2.md` 3.2절, "S4 openclaw-gateway §1.5"는 `.helm-design-work/S4/openclaw-gateway.md` 1.5절, "발췌4 20-9"는 `docs/design/process/sources/conversation-extracts-4.md`의 항목 번호, "canon-2 §9.8"은 `sources/helm-canon-2.md` 9.8절, "v0.3 12 §9"는 `docs/v0.3/12-implementation-architecture.md` 9절이다.
@@ -210,7 +210,7 @@ Helm 데몬(WSL2 서버에 상주, 결정 20·22)과 클라이언트(데스크�
 - `tailnet`과 `loopback`을 나누는 이유: serve를 거친 연결만 신원 헤더를 믿는 리스너로 들어오게 하기 위해서다. SSH로 온 연결이 serve 포트로 들어오면 헤더 없는 연결을 받아 주는 예외가 생긴다.
 - mirrored 네트워킹에서 두 TCP 포트는 Windows 호스트 프로세스와 WSL의 모든 프로세스(에이전트 도구 프로세스 포함)가 열 수 있다. 그래서 TCP 리스너는 `hello`가 기기 토큰으로 성공하기 전에는 `hello` 외에 아무것도 처리하지 않는다(§3.4.5). 기기 토큰은 서버 디스크에 두지 않는다(18에 대한 요구).
 
-#### 3.2.2 경로 (a): Tailscale serve를 거친 WSS [결정 21, 제안: 결정 26 기본값, 모바일은 결정 47]
+#### 3.2.2 경로 (a): Tailscale serve를 거친 WSS [결정 21, 47] [제안: 결정 26 기본값]
 
 - 주소: `wss://<서버 MagicDNS 이름>:<serve 포트>/rpc`(예: `wss://server.<tailnet>.ts.net:<포트>/rpc`, 20 §2.2). TLS는 `tailscale serve`가 끝내고 데몬은 평문 HTTP/WebSocket을 받는다.
 - 업그레이드 요청 헤더:
@@ -286,7 +286,7 @@ SSH 경로의 클라이언트 절차(구현은 20 §3.8):
 |---|---|---|---|---|---|
 | `GET /rpc` (Upgrade: websocket) | JSON-RPC 연결 | 셋 다 | 전송 조건 + 토큰(헤더·쿠키) + `hello` | - | §3.4 |
 | `GET /healthz` | 연결 진단. 본문과 HTTP 코드는 17 §3.11.3(`{"status": …}` 하나, 버전·기기 정보 없음) | 셋 다 | 전송 조건만 | 예 | §3.10 |
-| `GET /m/`, `GET /m/<경로>`, `GET /m/assets/<해시 이름>`, `GET /m/sw.js`, `GET /m/manifest.webmanifest` | 모바일 PWA 정적 묶음(결정 47). 확장자 없는 경로는 `index.html`. 헤더(CSP 등)는 26 §3.3.2 | `tailnet` | 전송 조건만. 쿠키를 읽지 않는다 | 예 | 26 §3.3.2 |
+| `GET /m/`, `GET /m/<경로>`, `GET /m/assets/<해시 이름>`, `GET /m/sw.js`, `GET /m/manifest.webmanifest` | 모바일 PWA 정적 묶음(결정 47). 확장자 없는 경로는 `index.html`. 헤더·캐시·쿠키 조건은 18 §3.4.6이 정본이다 | `tailnet` | 전송 조건만. 쿠키를 읽지 않는다 | 예 | 18 §3.4.6 |
 | `POST /m/pair` | 모바일 페어링. 기기 속성은 서버가 정한다(`clientKind: "mobile"`, `platform: "ios"`, `credentialCarrier: "cookie"`, 본문의 같은 이름 값은 무시). 성공하면 `Set-Cookie: __Host-helm_dt=…`, 본문 `{serverId, deviceId, tokenExpiresAt}`. 토큰은 본문에 없다 | `tailnet` | 페어링 코드(본문) + 전송 조건 + Origin 정확 일치 | 예 | §3.7.7, 26 §3.3.4 |
 | `GET /m/whoami` | `{serverId, deviceId, deviceName, tokenExpiresAt}` 또는 401(`reason`: `unauthenticated` \| `revoked` \| `expired` \| `node_mismatch` \| `carrier_mismatch`, 18 §3.4.3 `cookieAuth`). 브라우저 전송의 실패 원인 판정에도 쓴다(§3.10.2) | `tailnet` | 쿠키 + (Origin 정확 일치, 또는 Origin 없음 + `Sec-Fetch-Site: same-origin`) | 예 | §3.10.2 |
 | `POST /m/logout` | 쿠키 지우기(`Max-Age=0`)와 `Clear-Site-Data: "cache", "storage"`. 기기 폐기는 하지 않는다 | `tailnet` | Origin 정확 일치 | 예 | 26 §3.3.5 |
@@ -300,7 +300,7 @@ SSH 경로의 클라이언트 절차(구현은 20 §3.8):
 - Origin 정확 일치는 스킴·호스트·포트까지 같아야 한다. 같은 호스트의 다른 포트(8443~8447)에서 온 요청도 403이다(26 §3.3.3 X-16).
 - 기능 플래그 `clients.mobile`(23, 기본 꺼짐)이 꺼져 있으면 `/m/*` 경로는 모두 404이고 휴대폰 페어링도 받지 않는다(26 §3.3.2).
 - 위 표에 없는 경로는 404다. 정적 파일은 `/m/*`만 서빙한다(모바일 PWA, 결정 47). 데스크톱 앱은 자기 번들을 쓰고 데몬은 데스크톱 SPA를 서빙하지 않는다(20 APP-D06). `loopback`에서 `/m/*`·`/pair`는 404다.
-- 모든 HTTP 응답에 `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`를 붙인다. 파일 내용이 아닌 응답은 `Cache-Control: no-store`(experimental.v0 서버의 기본값, canon-2 §8.4·§8.7). 파일 응답 헤더는 §3.11.2.
+- 모든 HTTP 응답에 `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`를 붙인다. 파일 내용이 아닌 응답(`/m/*` 정적 응답은 뺀다)은 `Cache-Control: no-store`(experimental.v0 서버의 기본값, canon-2 §8.4·§8.7)다. `/m/*` 정적 응답의 헤더·캐시 값은 18 §3.4.6이 정본이다(위 표 `/m/` 행). 파일 응답 헤더는 §3.11.2.
 - `/pair`·`/devices/self/rotate`는 응답 본문에 토큰이 실리므로 `Origin`이 있으면 모바일 출처라도 403이다. 브라우저에서 오는 페어링은 `/m/pair`만 받는다(18 §3.4.3 규칙 4).
 - 데스크톱 앱은 데몬과 같은 출처가 아니다. Rust가 요청을 보내므로 CORS 응답 헤더는 두지 않는다(20 §3.1: 웹뷰는 데몬에 직접 연결하지 않는다). 모바일 PWA는 같은 출처라 CORS가 필요 없다.
 - 접근 로그에는 `/files/t/<ticket>`의 티켓 값을 `/files/t/***`로 가리고, `Authorization`·`Cookie` 헤더를 남기지 않는다.
@@ -485,7 +485,7 @@ JSON-RPC 표준 코드는 표준 뜻 그대로 쓰고, Helm 코드는 1000~5999 
 |---|---|
 | `accepted` | 성공 응답 `status: "applied"`(또는 오래 걸리는 접수면 `"accepted"`) |
 | `needs_gate`(코드 `gate.*`, `policy.structure_cap_exceeded`) | 성공 응답 `status: "gated"`, `questionId`. 명령은 적용되지 않았고 질문이 생겼다 |
-| `rejected`, 갈래 `content`(`invalid.*`, `not_found.*`, `policy.*`, `conflict.invalid_transition`·`duplicate_id`·`agreement_revision_stale`) | 3001. 단 명령 대상의 `not_found.record`는 3005 |
+| `rejected`, 갈래 `content`(`invalid.*`, `not_found.*`, `policy.*`, `conflict.invalid_transition`·`duplicate_id`·`id_exists`·`agreement_revision_stale`·`conflict.thread_busy`[판정 J-250]) | 3001. 단 명령 대상의 `not_found.record`는 3005 |
 | `rejected`, 갈래 `authority`(`denied.*`) | 3002(`basis` A·P) |
 | `rejected`, 갈래 `path`(`path.*`) | 3003. 단 `path.fenced` → 5001, `path.store_read_only` → 5003 |
 | `conflict` + `conflict.version_mismatch` | 3004 |
@@ -1045,7 +1045,7 @@ export const StreamSubscribeResult = Obj({
   active: Type.Array(RunPartial),                    // 지금 범위 안에서 실행 중인 run의 현재 조각 상태
 });
 
-/** 19 RunPhase. 12 stage·RunStatus와의 대응은 12 §3.2.2 표가 소유한다(이 문서는 참조만 한다) */
+/** 19 RunPhase 일곱 값. 12 stage 다섯 값(`inference`·`tools`·`compaction`·`settlement`·`idle`)과 RunStatus를 이 일곱 값으로 옮기는 대응은 12 §3.2.2 표가 소유한다 */
 export const RunPhase = Enum(["preparing", "waitingModel", "streaming", "runningTool", "compacting", "waitingHuman", "idle"]);
 const Chunk = Type.String({ maxLength: 16384 });
 export const StreamPart = Type.Union([
@@ -1055,7 +1055,7 @@ export const StreamPart = Type.Union([
   Obj({ kind: Type.Literal("toolOutput"), toolCallId: ToolCallId, stream: Enum(["stdout", "stderr"]), offset: Type.Integer({ minimum: 0 }), text: Chunk }),
   Obj({ kind: Type.Literal("toolPhase"), toolCallId: ToolCallId, tool: Type.String({ maxLength: 64 }), phase: Enum(["requested", "executing", "finished"]) }),   // 12 F-4
   Obj({ kind: Type.Literal("status"), phase: RunPhase, label: Type.Optional(Type.String({ maxLength: 200 })) }),   // label은 짧은 한국어(12)
-  /** run 종료. outcome·reason은 08 Run.end와 같은 값(08 RunEndReason, 12 RunEndPayload) */
+  /** run 종료. reason은 08 Run.end와 같은 값(08 RunEndReason, 12 RunEndPayload) */
   Obj({ kind: Type.Literal("end"), outcome: Enum(["ended", "interrupted"]), reason: Nullable(RunEndReason), finalSeq: Type.Optional(Seq) }),
 ]);
 
@@ -1228,7 +1228,7 @@ on 영속 이벤트(메시지 완성, 도구 결과, run 종료):
 | `composer.submit` | (커널 명령 아님. 12가 받아 런타임 채널로 `run.record_message` + 사람 발화 관찰) | D | |
 | `brief.acknowledge` | `brief.acknowledge` | D, M(`compact: true`만) | 판정 J-137 |
 | `brief.correct` | `brief.correct` | D | |
-| `recovery.resolve` | 대상이 도구 호출이면 `toolcall.recover`, WorkUnit이면 12 실행 수준 동작(§3.7.5) | D, M | 선택지 집합은 12 §3.12.4가 정한다. "Concern에서 다시 계획"은 메서드가 아니라 데스크톱 화면 이동이다 |
+| `recovery.resolve` | 대상이 도구 호출이면 `toolcall.recover`, WorkUnit이면 12 실행 수준 동작(12 §3.7.4) | D, M | 선택지 집합은 12 §3.7.4가 정한다. "Concern에서 다시 계획"은 메서드가 아니라 데스크톱 화면 이동이다 |
 | `daemon.exitSafeMode` | `runtime.exit_safe_mode` | devices, M | 안전 모드 해제 주체는 데스크톱·TUI 기기, 휴대폰, 대화형 `localAdmin`이다(§3.7.8). 이벤트는 `daemon.safe_mode_exited`(09, 판정 J-165) |
 | `surprise.report` | `surprise.report` | D | 측정 범주(16) |
 | `resumptionCheck.answer` / `resumptionCheck.score` | `resumption_check.answer` / `resumption_check.score` | D | 판정 J-10·J-78. 10은 `score`를 R 채널로 적었다. 사람이 채점하면 H 채널을 받게 10에 요구 |
@@ -1246,7 +1246,7 @@ on 영속 이벤트(메시지 완성, 도구 결과, run 종료):
 | `device.createPairingCode` | cmd | devices | `pairing.create_code` | §3.7.7 |
 | `device.registerPush` / `device.unregisterPush` / `device.testPush` | cmd | devices, devicesLimited(자기 기기만) | `device.register_push` / `device.unregister_push` / `device.test_push` | §3.17 |
 | `connection.list` | read | devices, devicesLimited | - | §3.7.7 |
-| `connection.close` | cmd | devices | (커널 명령 없음. 연결을 닫고 감사 기록만, 18) | §3.7.7 |
+| `connection.close` | cmd | devices | (커널 명령 없음. 연결을 닫고 감사 기록만 남긴다) | §3.7.7. 기록 항목은 18 §3.13.1 |
 | `admin.status` | adm | admin | - | §3.7.8 |
 | `admin.issueDevice` / `admin.drain` / `admin.setMode` / `admin.backupNow` / `admin.verify` / `admin.maintain` / `admin.reloadConfig` / `admin.reloadSecrets` | adm | admin | 통치 명령(17·18, 10 §3.11.11 (1) 끝) | §3.7.8 |
 
@@ -1485,7 +1485,8 @@ const Reopen = Enum(["C.commit", "I.fact", "I.want"]);        // 08 AcceptanceCo
 export const QuestionAnswerParams = Cmd({
   questionId: QuestionId,
   /** 11 AnswerValue 그대로. 범위 줄여 진행은 { option: "narrow_scope", instruction }, 고쳐서 허락은 approve_edited.
-   *  기준 확인(criterion_confirm)은 { option: "answer", value: [{ possibilityId, decision: "confirm" | "reject" | "keep", edits?, weight? }] }(15 §3.6.7).
+   *  기준 확인(criterion_confirm)은 { option: "confirm_items", items: [{ key, decision: "confirm" | "reject" | "keep", edits?, weight? }] }(11 §3.2.3, [판정 J-258]).
+   *  무게(weight?)와 edits?는 decision이 confirm인 항목에만 싣는다(10 §3.11.9, [판정 J-262·J-263]).
    *  agreement_confirm·result_review 질문에는 쓰지 않는다(판정 J-124) */
   answer: AnswerValue,
   note: Type.Optional(Note),
@@ -1523,6 +1524,7 @@ export const AutonomousMarkSeenParams = Cmd({
 export const ChoiceCommitParams = Cmd({ choiceId: Type.Optional(ChoiceId), core: ChoiceHumanCore, viaQuestion: Type.Optional(QuestionId) });   // core는 10 ChoiceCommitPayload.core(08)
 export const ChoiceRevokeParams = Cmd({ choiceId: ChoiceId, reason: Note });
 export const FindingDecideParams = Cmd({ findingId: FindingId, reason: Type.Optional(Note) });          // confirm / withdraw
+// 기준 하나의 결정(criterion.confirm·criterion.reject). weight는 confirm에만 싣는다(10 §3.11.9, [판정 J-262]).
 export const CriterionDecideParams = Cmd({ preferenceModelId: PreferenceModelId, possibilityId: PossibilityId,
   criterionKey: Type.String({ pattern: "^c[0-9]{1,3}$" }), weight: Type.Optional(Enum(["low", "medium", "high"])) });
 
@@ -1710,7 +1712,7 @@ export const BriefAcknowledgeParams = Cmd({
   compact: Type.Optional(Type.Boolean()),
 });
 export const BriefCorrectParams = Cmd({ line: Type.String({ maxLength: 64 }), note: Note });
-/** 선택지 집합은 12 §3.12.4가 정한다. 04·02·26 화면은 이 집합을 쓴다 */
+/** 선택지 집합은 12 §3.7.4가 정한다. 04·02·26 화면은 이 집합을 쓴다 */
 export const RecoveryResolveParams = Cmd({
   target: Type.Union([
     Obj({ kind: Type.Literal("toolCall"), toolCallId: ToolCallId, questionId: Type.Optional(QuestionId),
@@ -1808,6 +1810,8 @@ export const ConnectionInfo = Obj({
 export const ConnectionListResult = Obj({ connections: Type.Array(ConnectionInfo) });
 export const ConnectionCloseParams = Cmd({ connectionId: ConnectionId });
 ```
+
+`DeviceInfo.push.fingerprint`는 08 `PushRegistration.tokenHint`와 같은 값(`tokenHash` 16진수 앞 8자)이다 [판정 J-260].
 
 페어링 HTTP(흐름 A). 데스크톱은 `POST /pair`(헤더 운반), 휴대폰은 `POST /m/pair`(쿠키 운반, 26 §3.3.4):
 
@@ -1933,11 +1937,11 @@ export const AdminJobResult = Obj({ jobId: Type.String({ maxLength: 64 }), statu
 | `work.pause` / `resume` | `workunit.pause` / `workunit.resume` | `{ workUnitId, reason }` |
 | `work.stop` / `abort` | `run.stop` / `run.cancel` | 데몬이 WorkUnit의 실행 중 run을 찾는다 |
 | `recovery.resolve`(toolCall) | `toolcall.recover` | `{ toolCallId, resolution, evidence: [] }`. 사람 답이면 커널이 같은 트랜잭션에서 사람 발화 관찰을 만들어 `evidence`에 넣는다(10·08에 요구) |
-| `recovery.resolve`(workUnit) | 12 실행 수준 동작 | `rerunFromCheckpoint` → 12 새 run 요청, `leaveAsIs` → 남은 결과 불명 호출마다 `toolcall.recover{manual_review}`, `createCheckTask` → 14 확인 WorkUnit 요청(`workunit.propose`) |
+| `recovery.resolve`(workUnit) | 12 실행 수준 동작 | `rerunFromCheckpoint` → 12 새 run 요청, `leaveAsIs` → 복구 항목만 닫는다(`toolcall.recover`를 내지 않는다, 12 §3.7.4), `createCheckTask` → 14 확인 WorkUnit 요청(`workunit.propose`) |
 | `brief.acknowledge` | `brief.acknowledge` | `{ upToSeq, projectId, note, compact }`(09에 `note`·`compact` 필드를 요구) |
 | `daemon.exitSafeMode` | `runtime.exit_safe_mode` | `{ reason }`. 이벤트 `daemon.safe_mode_exited`(09) |
 | `resumptionCheck.answer` / `score` | `resumption_check.answer` / `score` | 16 §3.27 payload |
-| `device.registerPush` | `device.register_push` | 26 §3.4.6 검증 뒤 `device_push` 행과 `device.push_registered` |
+| `device.registerPush` | `device.register_push` | 26 §3.4.6 검증 뒤 `push_tokens` 행과 `device.push_registered` |
 
 - 이 표가 바뀌면 `check-registry.ts`(§3.13.2)가 등록 표의 `kernelCommand`와 변환 함수 목록을 대조한다.
 
@@ -2152,8 +2156,8 @@ export const INLINE_MEDIA_TYPES = ["image/png", "image/jpeg", "image/webp", "ima
 - `blob.downloadTicket { blobId, variant? }` → `{ path: "/files/t/<ticket>", expiresAt }`(§3.7.6): 헤더를 붙일 수 없는 곳(웹뷰가 직접 여는 링크, 외부 프로그램으로 열기)용. 티켓은 32바이트 무작위 base64url이다. 이 문서가 티켓 규칙의 정본이다: 수명 5분, 발급한 WebSocket 연결에 묶여 그 연결이 닫히면 무효, 발급 때 지정한 blob 하나만 받는다, 수명 안에서는 Range 요청에 여러 번 쓸 수 있다(18 §3.8.2의 "1회"를 이 규칙으로 맞추게 한다). 기기 토큰을 URL에 넣지 않는다(OpenClaw `artifact-download-grants.ts`와 같은 방식). 접근 로그에는 티켓 값을 가린다(§3.2.5).
 - 휴대폰(쿠키): `GET /files/b/<blobId>`를 쿠키로 받는다(§3.2.5). 이미지 요청은 `Origin`이 없을 수 있어 `Sec-Fetch-Site: same-origin`도 받는다.
 - 응답: `200` 또는 `206`, `Accept-Ranges: bytes`, `Content-Range`, `Content-Length`, `ETag: "sha256:<hex>"`(원래 바이트의 해시. 클라이언트는 받은 바이트로 다시 계산해 맞을 때만 캐시에 쓴다, 20 §3.8.6), `Repr-Digest: sha-256=:<base64>:`(RFC 9530 [지식]). `If-None-Match`·`If-Range`를 지원한다. 범위가 틀리면 `416`, 없으면 `404`, 가지치기·가림으로 내용이 없으면 `410`(본문 `{"error": {..., "data": {"kind": "blob.gone", "details": {"reason": "pruned" | "redacted"}}}}`), 토큰·티켓이 틀리거나 만료면 `401`.
-- 격리 헤더(모든 `/files/*` 응답, 26 §3.3.2): 휴대폰 PWA와 `/files/*`가 같은 출처이므로 파일 내용이 그 출처에서 실행되지 않게 한다. `Content-Security-Policy: sandbox; default-src 'none'`, `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy: same-origin`을 언제나 붙인다. 인라인 표시는 허용 목록(`image/png`, `image/jpeg`, `image/webp`, `image/gif`, `text/plain; charset=utf-8`)만이고, 그 밖의 형식(`text/html`, `image/svg+xml`, `application/xhtml+xml`, XML 등 전부)은 `Content-Type: application/octet-stream`과 `Content-Disposition: attachment`로 보낸다. 원래 형식은 `X-Helm-Media-Type` 헤더와 `BlobRef.mediaType`으로 알린다. 거부 목록 대신 허용 목록을 쓰는 이유는 목록 밖 활성 형식을 빠뜨리지 않기 위해서다. 18 §3.17에 이 헤더의 보안 시험을 요구한다.
-- 캐시: 헤더 토큰·티켓 응답은 `Cache-Control: private, max-age=31536000, immutable`(불변 보장). 쿠키로 인증한 응답은 `Cache-Control: private, no-store`다(폐기 뒤 브라우저 HTTP 캐시에 남지 않게, 26 §3.3.2). 휴대폰 앱의 이미지 캐시는 앱이 IndexedDB·Cache Storage에 두고 폐기·로그아웃 때 지운다(`/m/logout`의 `Clear-Site-Data`).
+- 격리 헤더(모든 `/files/*` 응답, 18 §3.4.6): 휴대폰 PWA와 `/files/*`가 같은 출처이므로 파일 내용이 그 출처에서 실행되지 않게 한다. `Content-Security-Policy: sandbox; default-src 'none'`, `X-Content-Type-Options: nosniff`, `Cross-Origin-Resource-Policy: same-origin`을 언제나 붙인다. 인라인 표시는 허용 목록(`image/png`, `image/jpeg`, `image/webp`, `image/gif`, `text/plain; charset=utf-8`)만이고, 그 밖의 형식(`text/html`, `image/svg+xml`, `application/xhtml+xml`, XML 등 전부)은 `Content-Type: application/octet-stream`과 `Content-Disposition: attachment`로 보낸다. 원래 형식은 `X-Helm-Media-Type` 헤더와 `BlobRef.mediaType`으로 알린다. 거부 목록 대신 허용 목록을 쓰는 이유는 목록 밖 활성 형식을 빠뜨리지 않기 위해서다. 18 §3.17에 이 헤더의 보안 시험을 요구한다.
+- 캐시: 티켓·파일 응답의 `Cache-Control`은 18 §3.4.6이 정본이다 [판정 J-252]. 이 문서는 값을 따로 정하지 않는다. 18 §3.4.6의 `/files/*` 행이 정한 `private, no-store`를 헤더 토큰·티켓·쿠키 인증 응답이 모두 쓴다(폐기 뒤 브라우저 HTTP 캐시에 남지 않게 하려는 값이다). 휴대폰 앱의 이미지 캐시는 앱이 IndexedDB·Cache Storage에 두고 폐기·로그아웃 때 지운다(`/m/logout`의 `Clear-Site-Data`).
 - 이미지 판은 `BlobRef.variants`의 `blobId`로 받거나, 원본 `blobId`에 `?variant=thumb|display`를 붙여 받는다(21 E11 요구 (3)). 판이 아직 없으면 원본을 돌려주고 `X-Helm-Variant: original`을 붙인다.
 - 이미지 판(`variants`)은 데몬이 이미지 업로드를 받거나 런타임이 이미지 자극을 만들 때 한 번 만든다(만드는 위치와 라이브러리는 12·17). 화면은 목록·보드에서 `display`나 `thumb`를 받고 원본은 감사 깊이에서만 받는다(21 E11).
 
@@ -2684,7 +2688,7 @@ export const DevicePushConfigResult = Obj({
 | 09 | 반영: `event_invalidations` 저장값을 그대로 보냄(§3.6.3), 멱등 범위 키와 지문(`viaKey`, 발급 ID 필드 제외), `EventQuery`의 `untilSeq`·`scanLimit`·`excludeTypePrefixes`·`concernIds`·`includeDescendants`·`goalIds`와 `scannedUntilSeq`(§3.5.4), 보관 365일과 줄인 행. 요구: (1) `brief.acknowledged` payload에 `note`, `compact`. (2) `question.assumed`의 `bumpsRevision` 명시(판정 J-120). (3) `PresenceState`에서 `locked` 삭제(판정 J-118·J-119). (4) 줄인 명령 행의 반환 규칙(§3.9.2)을 §3.15.3에. (5) 가린 blob의 표시 해시를 HMAC으로 바꿀지(§3.11.1, 18과 함께). (6) 계획 기록 이벤트(`loop_plan.adopted`)의 payload에 `authoredBy`(판정 J-188 (5)), 타이머 목적 `result_review_digest`(`runtime_timers`, 판정 J-189 (2)). `setting.changed`의 키 `notifications.resultReview`·`notifications.resultReviewDigestAt`은 그대로 쓴다(판정 J-189 (5)) |
 | 10 | 반영: 명령 이름과 10 §3.11.11(2) 대응표(`objection.file`, `result.reopen` 없음, `criterion.*`, `agreement.revise`·`narrow`의 상태별 대응), 거부 코드 대응(§3.3.5), `basisSeq` 비교(판정 J-79). 요구: (1) 대응표에 더할 행: `result.accept` 하나로 합친 것(`acceptWithConditions`·`requestRevision` 행 삭제), `inquiry.pinLens` → `lens.update`, `inquiry.fillCell`의 명령, `agreement.renegotiate` 메서드, `project.create`, `goal.activate`(+`edits`), `daemon.exitSafeMode` 주체(데스크톱·TUI 기기, 휴대폰, 대화형 `localAdmin`), `recovery.resolve`의 WorkUnit 대상(12 실행 수준 동작), `inquiry.stop`의 `then`. (2) `question.answer`가 `agreement_confirm`·`result_review` 질문에 오면 `policy.answer_option_not_allowed`(판정 J-124). (3) `objection.file`의 `concernId` 도출 규칙(record면 그 레코드의 Concern, link면 `from`의 Concern). (4) 충돌 분류 의사코드(대상 여럿 우선순위, 끝난 대상의 3008/3001, rebase 키)를 §3.3.4에. (5) `resumption_check.score`의 H 채널. (6) `device.rebind`를 통치 명령 목록에. (7) `denied.recovery_turn`처럼 다른 문서가 쓰는 코드를 §3.4.4에. (8) 사람의 `toolcall.recover`에 utterance 관찰을 evidence로. (9) `decision.contest` payload에 `reasonKind`(08 `ObjectionCore`)를 싣는다. `loop_plan.record`의 `authoredBy`는 사람 수정이면 `human`이다(판정 J-188 (5)) |
 | 11 | 반영: `AnswerValue`를 `question.answer` params로 그대로(§3.7.5), `defer.until` 이름(`next_work_boundary`·`user_return`), 3008 `assumedValue`(판정 J-120), presence 값(판정 J-119). 요구: (1) `AnswerValue`를 TypeBox로 `@helm/domain`에. (2) `narrow_scope.instruction`(자연어)을 구조화 범위로 바꾸는 주체(11 또는 런타임)를 정하기. (3) 휴대폰 미루기 기본값("다음 데스크톱 접속까지")을 `user_return` + 기기 조건으로 표현할지, 아니면 03·26 기본값을 `next_work_boundary`로 |
-| 12 | 반영: `RunPhase` 대응은 12 §3.2.2 표를 참조, `RunEndReason`(§3.6.4), 집계 태그 정본은 12 §3.5.8, 복구 선택지 집합은 12 §3.12.4, 모델 상태 값(§3.7.8). 요구: (1) 집계 태그 표에 19 뷰 카탈로그가 쓰는 이름(`@autonomous`, `@goals`, `@settings`, `@tray`)을 넣거나 19와 이름을 맞추기. (2) 뷰 원천 표를 26행 전부로. (3) `ProjectionsForProtocol.aggregateTags`는 프로토콜이 부르지 않는다(태그는 09 저장값). (4) `brief` 뷰의 `compact`·`workUnitId` 파라미터와 "휴대폰에서 줄여 본 항목"(판정 J-137) |
+| 12 | 반영: `RunPhase` 대응은 12 §3.2.2 표를 참조, `RunEndReason`(§3.6.4), 집계 태그 정본은 12 §3.5.8, 복구 선택지 집합은 12 §3.7.4, 모델 상태 값(§3.7.8). 요구: (1) 집계 태그 표에 19 뷰 카탈로그가 쓰는 이름(`@autonomous`, `@goals`, `@settings`, `@tray`)을 넣거나 19와 이름을 맞추기. (2) 뷰 원천 표를 26행 전부로. (3) `ProjectionsForProtocol.aggregateTags`는 프로토콜이 부르지 않는다(태그는 09 저장값). (4) `brief` 뷰의 `compact`·`workUnitId` 파라미터와 "휴대폰에서 줄여 본 항목"(판정 J-137) |
 | 13 | 요구: (1) 도구 격리의 가림 목록에 `%t/helm`(소켓 디렉터리). (2) 외부 런타임 MCP 설정에는 `runtimeAdapter` 토큰만 넣고 기기 토큰을 넣지 않는다(13 §3.11.6, 18 §3.5 규칙 8) |
 | 14 | 반영: 14 §5의 19 요구 (1)~(4)(`dial.set`의 `key` = 08 `DialKey`, 범위 user·concern·instruction, 값은 `DIAL_DEFS[key].valueSchema`, `settings.update`는 `DIAL_DEFS`의 setting, `mode.set`은 08 `MODE_IDS`, `ORCH_*` 대응 §3.3.5). 요구: (1) `ORCH_*`를 10 거부 코드(`policy.*`)로 내기. (2) presence 부재 파생 함수의 입력에 기기 종류별 문턱(데스크톱 5분, 휴대폰 2분, 판정 J-119). (3) 다이얼 `planAuthoring`(층 user·concern, 기본 `hybrid`)과 설정 `notifications.resultReview`·`notifications.resultReviewDigestAt`을 `DIAL_DEFS`에 더한다(판정 J-188 (1), J-189). (4) 다이얼 `assumptionDeferOnDowntime`을 `DIAL_DEFS`에 더한다([판정 J-197], 키 이름은 [판정 J-221]). 19의 `dial.set`·`settings.update`는 그 정의로 값을 검사한다 |
 | 15 | 반영: 15 §5의 19 요구 (1)~(6) 전부(§3.7.5: `objection.file`, `InquiryStopParams.then`, `ReactionRecordParams`, `triad.similar`·`questionId`, `inquiryId + roundNo`, `criterion_confirm` 항목 배열). 요구: (1) `inquiry.fillCell`의 처리 명령(10과 함께). (2) "둘 다 아님"은 `comparison`의 `kind: "neither"` 하나로 보낸다(판정 J-184). 두 자극에 strength -1 반응을 나눠 보내지 않는다 |

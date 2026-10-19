@@ -3,7 +3,8 @@
 - 작성: P1 기획, 2026-10-11 (1단계 초안)
 - 상태: 설계 초안. 유즈케이스 ID는 이 문서가 확정한다. 화면 이름은 03, 이벤트 이름은 09, 명령 이름은 10, 프로토콜 메서드는 19가 최종 소유한다.
 - 함께 읽을 문서: [01 제품 브리프](01-product-brief.md)(원칙 PR, 사람 조작 셈법 R-OP, 진입 규칙 EC, MVP 범위, 비기능 요구 NFR)
-- 기준 결정 범위: 브리프 결정 1~57.
+- 기준 결정 범위: 브리프 결정 1~64.
+- 조정자 판정 범위: J-01~J-275.
 - 표시 규칙: 브리프 §5.2(판정 J-144). 제품 사용 사례는 "유즈케이스", 그 단계별 진행은 "유즈케이스 단계 흐름"(줄여 "단계 흐름")이라 쓴다. "시나리오"는 결과 탐구의 시나리오(v0.3 04 §5.2)와 테스트 시나리오(22)에만 쓴다.
 
 ## 1. 목적과 범위
@@ -434,7 +435,7 @@
 | 사후 조건 | 답이 커널에 기록되고, 런타임이 반영했으며(단계 6), 사용자가 영향을 확인했다 |
 | 관련 문서 | 17·18(접속, 인증), 19(재전송, 멱등), 20(알림, 키체인, 오프라인), 11(전달 방식), 05(질문 카드) |
 
-접속 방식은 정해졌다. Tailscale 경로는 `wss://<서버>.<tailnet>.ts.net:8448/rpc` → `tailscale serve` → 데몬 `tailnet` 리스너 127.0.0.1:7840이다. SSH 경로는 앱이 시스템 OpenSSH로 `ssh -W 127.0.0.1:7841 <서버>`를 띄워 `loopback` 리스너에 붙고, 그 위에서 같은 HTTP + WebSocket을 쓴다(19 P-02, §3.2.3). 두 경로 모두 기기 토큰으로 인증한다(19 P-03, 18 ADR-18-2). 이 유즈케이스는 두 경로에서 같은 결과가 나와야 한다는 것을 정한다.
+접속 방식은 정해졌다. Tailscale 경로는 `wss://<서버>.<tailnet>.ts.net:8448/rpc` → `tailscale serve` → 데몬 `tailnet` 리스너 127.0.0.1:7840이다. SSH 경로는 앱이 시스템 OpenSSH로 `ssh -W 127.0.0.1:7841 <서버>`를 띄워 `loopback` 리스너에 붙고, 그 위에서 같은 HTTP + WebSocket을 쓴다(19 P-02, §3.2.3). 두 경로 모두 기기 토큰으로 인증한다(19 P-03, 18 ADR-18-02). 이 유즈케이스는 두 경로에서 같은 결과가 나와야 한다는 것을 정한다.
 
 #### 기본 흐름 (Tailscale 경로)
 
@@ -668,7 +669,7 @@
 - AC-07-10 커널이 닫을 수 있는 반영 항목(`docs_tests`·`boundary_check`·`recombine`)은 근거 관찰이 있을 때만 커널이 닫는다. 사람만 닫는 항목(`broken_premise`·`concern_conflict`·`acceptance_condition`·`goal_revision_check`)은 사람이 닫거나(`obligation.resolved`) 면제하거나(`obligation.waived`) 다른 Concern으로 넘기거나(`obligation.transferred`) 미룬다. 조건부 확인의 조건 항목은 결과 확인과 같은 트랜잭션에서 미뤄진다(판정 J-125). 정상 경로의 결정 조작은 늘지 않는다(10 R-21, R-OP-3. 08 §3.12 규칙 6의 목록을 10 R-21에 맞추기를 요구).
 - AC-07-11 (v0.2 F6) 테스트 통과 결과가 제출돼도 자동으로 결과 확인이 되지 않고, 반영은 별도로 관찰된다.
 - AC-07-12 (v0.2 F2·F3) 모델이나 어댑터가 정본 이벤트를 직접 추가하거나 투영 종류의 명령(`projection.*`)을 내면 경로 거부된다.
-- AC-07-13 (v0.2 F4) 사람 명령은 자신이 본 화면의 `basisSeq`를 싣고, 커널은 대상 레코드의 `revisionSeq`와 비교한다(10 §3.3.4. 전역 cursor 일치는 요구하지 않는다). 대상이 그 사이 바뀌었으면 `conflict.version_mismatch`, 이미 처리됐으면 `conflict.already_resolved`, 대체됐으면 `conflict.superseded`로 거부되고 최신 상태를 받는다. 마지막 쓰기가 조용히 이기지 않는다.
+- AC-07-13 (v0.2 F4) 사람 명령은 자신이 본 화면의 `basisSeq`를 싣고, 커널은 대상 레코드의 `revisionSeq`와 비교한다(10 §3.3.4. 전역 cursor 일치는 요구하지 않는다). 대상이 그 사이 바뀌었으면 `conflict.version_mismatch`, 이미 처리됐으면 `conflict.already_resolved`, 대체됐으면 `conflict.superseded`로 거부되고 최신 상태를 받는다. 같은 레코드에 대해 "마지막 쓰기 우선" 방식을 쓰지 않는다.
 - AC-07-14 (v0.2 F1) 완료 기준이 비었거나 의미 없는 글자(예: `ㅇ`)뿐인 합의는 활성되지 않고 주의 항목으로 보인다.
 - AC-07-15 합의가 활성된 뒤 첫 쓰기 도구 호출보다 먼저, 그 합의를 가리키는 되돌릴 지점(08 `RollbackPoint`, `agreementId`, 실제 git 참조)이 `rollback_point.registered`로 기록된다(13 §3.7.8에 계기 추가 요구).
 - AC-07-16 화면과 이벤트 어디에도 Helm이 계산한 "되돌릴 수 있음" 값이 없다. 위험 표시는 권한 레이어 출처와 함께만 나온다.
@@ -1172,7 +1173,7 @@ interface Expectation {
 }
 ```
 
-- 거부 사유 코드는 10 §3.4.4를 쓴다. 이 문서의 수용 기준이 기대하는 코드: `denied.agreement_required`(AC-01-12, AC-07-01), `policy.forbidden_resource`·`gate.scope_expansion_required`(AC-07-02), `denied.capability` 또는 `denied.channel`(사람만 하는 결정을 모델이 시도, AC-01-08, AC-07-05), `policy.promotion_requirements`(`missing`에 08 `PromotionMissing` 값)(AC-02-03, AC-13-04), `invalid.why_not_asked`(AC-05-01), `invalid.agreement_content`(AC-07-14), `conflict.already_resolved`(이미 답한 질문, AC-04-06), `path.adapter_cannot_append_event`·`path.projection_is_derived`(AC-07-12), `invalid.question_shape`(AC-02-05). 강등 알림: `downgraded.criterion_unverified`(AC-07-04), `downgraded.interpretation_to_assumption`(AC-02-01).
+- 거부 사유 코드는 10 §3.4.4를 쓴다. 이 문서의 수용 기준이 기대하는 코드: `denied.agreement_required`(AC-01-12, AC-07-01), `policy.forbidden_resource`·`gate.scope_expansion_required`(AC-07-02), `denied.capability` 또는 `denied.channel`(사람만 하는 결정을 모델이 시도, AC-01-08, AC-07-05), `policy.promotion_requirements`(`missing`에 08 `PromotionMissing` 값)(AC-02-03, AC-13-04), `invalid.why_not_asked`(AC-05-01), `invalid.agreement_content`(AC-07-14), `conflict.already_resolved`(이미 답한 질문, AC-04-06), `path.adapter_cannot_append_event`·`path.projection_is_derived`(AC-07-12), `invalid.question_shape`(AC-02-05). 강등 알림: `downgraded.criterion_unverified`(AC-07-04), `downgraded.assumption`(AC-02-01, 전제는 `assumption.recorded`(origin `downgraded_interpretation`)).
 - 대본의 출발점: UC-07 기본 흐름은 대화 L2304–2316의 한 턴 흐름, UC-02 AC-02-03은 `experiments/helm-toy/helm.mjs`의 21단계 대본(거부 8건).
 
 ## 4. 실패·예외·경계 사례 (유즈케이스 공통)
@@ -1214,7 +1215,7 @@ interface Expectation {
 | 13 | 탐구용 실행의 임시 작업 공간(UQ-06). 합의가 활성된 뒤 첫 쓰기 전에 되돌릴 지점(13 §3.7.8, AC-07-15). 확인 조회 도구 선언 |
 | 14 | 직전 I가 없을 때 `reopenTo`(J-24). 재결정 run 요청과 이의 뒤 루프 전환(R 채널). 합의 예산 우선과 `wallMinutes` 셈법(UC-03). `budget_extension` 진행 요약 형식의 정본. 제출 없음 처리(UC-07 E1). `concern.completed` 순서. MVP 복합 상황의 기본 조합에서 C.probe·A.watch 생략(UQ-08). §3.13.7의 옛 이름 `agreement.accepted(delegated_grant)` |
 | 15 | E0 기록 형식을 실사용 기록에도 쓰게 함(AC-01-17, AC-02-10). 라운드를 닫는 계기 목록(UC-01 단계 5). 확정 기준 0개일 때 "추측" 표시 초안(UC-01 E4) |
-| 16 | UC-08의 7·14·28일 효과 보고와 기각 서명 규칙(AC-08-04), 복귀 점검(UC-06 A1). `human_op` 사실 `normalPath`·`opReason`이 이 문서의 조작 칸과 맞음(재작업 결과 확인 = `correction_cycle`). `ca.agreement_bypass_rate`의 `agreement.cancelled`는 08·09에 없음 |
+| 16 | UC-08의 7·14·28일 효과 보고와 기각 서명 규칙(AC-08-04), 복귀 점검(UC-06 A1). `human_op` 사실 `normalPath`·`opReason`이 이 문서의 조작 칸과 맞음(재작업 결과 확인 = `correction_cycle`). `ca.agreement_bypass_rate`의 원천 이벤트는 `agreement.released`·`agreement.declined`다 |
 | 17·18·19·20 | UC-04 두 경로의 같은 메시지(AC-04-04), 페어링 이벤트(UC-11). 19 `RecoveryResolveParams`를 10 `toolcall.recover` payload에 맞춤. `AgreementConfirmParams.edits`(J-124, UC-07 단계 5). 기기별 초안 수를 presence에 싣는 안 검토(UC-17 A3) |
 | 26 | `listener` 값 `tailnet`(이 문서 AC-04-08·09) |
 | 22·23 | §3.24 대본 형식 정본은 22 §3.8.1. 수용 기준 추적표는 22 §3.8.5. AC-07-17·AC-13-02(MVP 재결정 질문) 추가분 반영 |
