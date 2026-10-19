@@ -1,6 +1,6 @@
 # 15. 탐구 엔진
 
-- 문서 번호: 15. 소유: P9(탐구). 작성: 2026-10-11. 상태: 4단계 보완판(2026-10-12). 기준은 브리프 결정 1~64과 조정자 판정 J-01~J-275(`process/rulings-stage2a.md`)이다
+- 문서 번호: 15. 소유: P9(탐구). 작성: 2026-10-11. 상태: 4단계 보완판(2026-10-12). 기준은 브리프 결정 1~64과 조정자 판정 J-01~J-276(`process/rulings-stage2a.md`)이다
 - 구현 위치: I/O 없는 순수부(`planRound`, `decideStage`, `roundClosable`, 탐구 투영 리듀서, 계산 함수, 렌즈 seed·값 목록 데이터)는 `@helm/kernel/orchestration`의 `packages/kernel/src/orchestration/inquiry/`, 효과가 있는 부분(`runStage` 실행기, 포트 사용, 프롬프트, 출력 스키마, REPL 구동, 평가 하네스)은 `@helm/runtime`의 `packages/runtime/src/inquiry/`다([판정 J-128]). runtime은 kernel을 import하고, kernel은 runtime을 import하지 않는다
 - 이 문서만 보고 탐구 엔진(I 루프 네 종류, 발산 서브시스템, Method Transfer, 선호 모델 갱신, REPL 방식 탐구)을 구현할 수 있게 쓴다. 다른 문서가 소유한 것(레코드 최종 스키마, 이벤트 카탈로그, 명령·검증, 질문 전달, 모델 계층, 도구 등록, 루프 계약)은 파일 이름과 절 번호로 참조하고, 이 엔진이 그 문서에 요구하는 것을 §5에 모은다.
 - 표시 규칙은 브리프 §5.2를 따른다. 이 문서의 설계 선택은 따로 적지 않으면 [제안]이다.

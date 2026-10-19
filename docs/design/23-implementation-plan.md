@@ -1,7 +1,7 @@
 # 23. 구현 계획
 
 - 작성: 2026-10-12, T2(2b단계).
-- 상태: 4단계 보완판. 브리프 결정 1~64, `process/rulings-stage2a.md`의 판정 J-01~J-275, 2026-10-14 시점의 01~22·24~26을 기준으로 했다. 22(테스트 전략)와 26(모바일)의 레시피·추적 ID·하네스 위치·모바일 작업을 이 계획에 맞췄다.
+- 상태: 4단계 보완판. 브리프 결정 1~64, `process/rulings-stage2a.md`의 판정 J-01~J-276, 2026-10-14 시점의 01~22·24~26을 기준으로 했다. 22(테스트 전략)와 26(모바일)의 레시피·추적 ID·하네스 위치·모바일 작업을 이 계획에 맞췄다.
 - 소유: 구현 에이전트 3단계의 운영 규칙과 작업 난이도 등급, 구현 전 사람 작업과 확인 순서, 마일스톤과 그 순서, 작업 분해(WBS), 증거 관문(G0·G1·G2)의 일정과 기능 활성화 단계, 병렬 갈래, 스파이크와 대체 경로, 미결 사항의 처리 시점, 구현 중 설계 변경 절차.
 - 소유하지 않음: 각 단위의 상세 명세와 완료 기준(각 문서 §6), 테스트 계층·도구·테스트 ID 체계(22), 기능 플래그의 구조(06 §3.10.3), 레시피의 내용(06·07·15·17·20·21), 모바일 클라이언트의 방식(26).
 
@@ -182,7 +182,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 | HT-03 | 제품 폴더에서 `secrets init`(`.sops.yaml`과 `secrets/`) | M0-10(`_secrets-check`) | `secrets files`에 product 층이 보이고 `secrets check` 0 | 판정 §5, 06 §3.17 |
 | HT-04 | `secrets edit dev`: 개발용 모델 키(`ANTHROPIC_API_KEY`, 쓸 경우 `OPENAI_API_KEY`), 개발용 `HELM_LEDGER_HMAC_KEY`(사람이 32바이트 난수로 만든다) | M6-13(`ai-smoke`), M9a-08(`eval-inquiry`), M11(`daemon-dev`) | `secrets env dev`에서 키가 "있음"으로 보임(값은 가림) | 06 §3.17, 09 U-03, 17 §5.2 "23" |
 | HT-05 | `sudo apt install bubblewrap`(Ubuntu 24.04 후보 0.9.0). 필수 패키지다. 판정 J-73에 따라 구현 시작 전에 요청한다 | 착수 전(늦어도 M6-10) | `bwrap --version` 0.9 이상, `bwrap --unshare-user --ro-bind / / true` 0 | 13 §3.6.1, 18 Q18-03, 17 §3.16 #1, 판정 §5 |
-| HT-06 | 서버 Rust 도구(rustup 또는 mise `rust`)와 `sudo apt install nsis lld llvm` | M13b-02, M13d-03 | `just app-setup` 종료 코드 0 | 20 §3.12.1~2 |
+| HT-06 | 서버 Rust 도구(rustup 또는 mise `rust`)와 `sudo apt install nsis lld llvm` | M6-20(`helm-netshim`을 Rust로 빌드할 때, [결정 63]), M13b-02, M13d-03 | `just app-setup` 종료 코드 0 | 20 §3.12.1~2 |
 | HT-07 | Mac 준비: Xcode 명령줄 도구, mise(Node·pnpm·Rust), Mac에서 `just setup`, 자체 서명 인증서 "Helm Local Code Signing" 생성, macOS·Safari 판 알림 | M13b-02(Mac 셸 확인), M13d-02 | `run-on mac 'cargo --version && node --version'`, 판 번호 보고 | 20 §3.12.1·§3.12.3, 21 U-14 |
 | HT-08 | Windows 준비: `server` 별칭 SSH 키(Windows OpenSSH 클라이언트), `ops/windows/check-helm-host.ps1` 실행(읽기 전용, 관리자 권한 불필요) | M13b-09, M15-03 | 스크립트 결과에 FAIL 없음, `ssh server true` 0 | 17 §3.7.3, 20 §3.8.3 |
 | HT-09 | 홈랩 H-1(`serve.table`에 `8448 http://127.0.0.1:7840 helm`, `just serve-apply`)과 H-4(`ctx-lint`가 docker 없는 줄 허용) | M11-12의 SP-10, M15-03 | 이 저장소의 `just daemon-probe` 통과 | 17 §3.7.1·§3.7.4 |
@@ -1368,7 +1368,7 @@ WBS 표의 마지막 세 열이 등급, 담당 단계, 모델이다. 등급은 �
 ## 8. 출처
 
 - 설계 문서: `docs/design/01`~`21`, `24`(2026-10-12 2a 진행 중 판). 특히 01 §3.8, 각 문서 §5·§6·§7.
-- `docs/design/process/00-design-brief.md`(전체), `docs/design/process/rulings-stage2a.md`(J-01~J-275, §5 사람 작업), `docs/design/process/design-log.md`.
+- `docs/design/process/00-design-brief.md`(전체), `docs/design/process/rulings-stage2a.md`(J-01~J-276, §5 사람 작업), `docs/design/process/design-log.md`.
 - 조정자 작업 자료: `.helm-design-work/coordinator/{pending-launch.md, 2a-common.txt, stage2-and-3-templates.md}`.
 - 설계 시제품과 메모: `.helm-design-work/P4/{README.md, fork-proto/}`(vendor 시제품 [실험]), `.helm-design-work/P7/exp-bwrap*.{sh,out.txt}`([실험]), `.helm-design-work/P11/notes.md`(서버 사실 [실험]), `.helm-design-work/P13/notes.md`(앱 의존 판 [실험]).
 - 사용자 관례: `~/.claude/CLAUDE.md`, `~/.claude/skills/projects/SKILL.md`, `~/.dotfiles/templates/{just/core.just, just/node.just, project/node-24/, project/generic/AGENTS.md, product/PRODUCT.md}` [원문].

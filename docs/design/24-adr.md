@@ -1,7 +1,7 @@
 # 24. 아키텍처 결정 기록 (ADR)
 
 - 작성: P3 아키텍트, 2026-10-11 (1단계 초안), 2026-10-12 (2a단계: 결정 41~46, 다른 문서 ADR 후보 옮기기; 4단계: 결정 47~51, 판정 J-119~J-151, 26 후보; 2026-10-14: 결정 52~57, 판정 J-155~J-190). 다른 문서의 에이전트는 자기 문서 끝 "ADR 후보" 절에 적고, 이 파일은 P3만 고친다(§2.4 3번).
-- 상태: 설계 초안 3판. 기준은 브리프 결정 1~64과 판정 J-01~J-275이다.
+- 상태: 설계 초안 3판. 기준은 브리프 결정 1~64과 판정 J-01~J-276이다.
 - 함께 읽을 문서: `process/00-design-brief.md`(이하 "브리프"), [06 시스템 아키텍처](06-system-architecture.md)
 - 표시 규칙: 브리프 §5.2(판정 J-144). ADR 상태 "결정"은 사용자가 정한 것에만 쓴다. 조정자 기본값(브리프 결정 26~37 가운데 사용자가 따로 확인하지 않은 것)은 "제안(결정 n 기본값)", 조정자 판정은 "제안(판정 n)" 또는 "채택(판정 J-nn)"으로 적는다. 외부 사실의 확인 수준과 출처 줄임말은 06 머리말과 같다.
 - 문서 구성: 이 문서는 브리프 §5.3 여덟 절 대신 ADR 문서의 구성을 쓴다(판정 J-151). 대응은 §1.1 표에 있다.
@@ -1304,7 +1304,7 @@ ADR-10-09는 원 번호가 없다. 10의 ADR 후보 절에는 이 결정의 항�
 ## 9. 출처
 
 - `docs/design/process/00-design-brief.md` §2(결정 1~64, §2.4b, §2.4c), §3.4, §5.2, §5.3
-- `docs/design/process/rulings-stage2a.md`(판정 §1~§9, J-01~J-275), `.helm-design-work/coordinator/stage4/rulings-needed.md`(K-09, K-10, K-16, K-26, K-27, K-29)
+- `docs/design/process/rulings-stage2a.md`(판정 §1~§9, J-01~J-276), `.helm-design-work/coordinator/stage4/rulings-needed.md`(K-09, K-10, K-16, K-26, K-27, K-29)
 - `.helm-design-work/coordinator/stage4c/research-browser.md`(§2, §4, §5, §6, §8), `.helm-design-work/coordinator/stage4c/research-ohmypi.md`(§6), `.helm-design-work/coordinator/stage4c/done/07.md`(ADR-07-8)
 - 01~05, 07~23, 26의 "ADR 후보" 절(2026-10-12 판. 21은 2a 개정판)
 - `docs/design/06-system-architecture.md` 전체

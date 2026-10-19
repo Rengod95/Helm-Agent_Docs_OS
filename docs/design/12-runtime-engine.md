@@ -1,7 +1,7 @@
 # 12. 런타임 엔진
 
 - 작성: P7 런타임, 2026-10-11 (1단계 초안), 2026-10-12 2a단계 통합과 4단계 보완
-- 상태: 설계 초안. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID는 08, 프로토콜 메서드는 19를 따른다. 기준은 브리프 결정 1~64과 조정자 판정 `process/rulings-stage2a.md`(J-01~J-275)다.
+- 상태: 설계 초안. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID는 08, 프로토콜 메서드는 19를 따른다. 기준은 브리프 결정 1~64과 조정자 판정 `process/rulings-stage2a.md`(J-01~J-276)다.
 - 함께 읽을 문서: `process/00-design-brief.md`(이하 "브리프"), [13 도구와 실행](13-tools-and-execution.md), [06 시스템 아키텍처](06-system-architecture.md), [10 커널](10-kernel.md), [14 루프·모드·오케스트레이션](14-loops-modes-orchestration.md), [15 탐구 엔진](15-inquiry-engine.md)
 - 표시 규칙: 브리프 §5.2(판정 J-144). `[결정 n]`은 사용자가 정한 브리프 결정에만 쓴다. 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`(결정 44~46) 또는 `[판정 J-nn]`으로 적는다. `[제안]`은 이 문서가 정한 것, `[가정]`은 확인하지 않은 전제다. 모델 API를 내는 쪽은 본문에서 "제공자", 화면 문구에서 "모델 제공자", 코드에서 `provider`라고 쓴다(판정 J-150). 외부 사실은 `[원문]`(소스·문서 직접 확인), `[실험]`(이번에 실행해 확인), `[검색]`, `[지식]`(재확인 안 함)으로 표시한다.
 - 출처 줄임말: `pi-facts-1`·`pi-facts-2`는 `process/sources/pi-api-facts-*.md`, `extracts-N`은 `process/sources/conversation-extracts-N.md`, `canon`·`canon-2`·`canon-3`은 `process/sources/helm-canon*.md`, `cases`는 `process/sources/pi-cases-notes.md`, `S4/<사례>`는 `.helm-design-work/S4/<사례>.md`, `pi-src/`는 `~/projects/_ref/pi-src`이고 행 번호는 태그 `v1.1.0`(커밋 `abe508e1`, 브리프 판정 44) 기준이다. 1단계에서 읽은 `cdaf6c2`와 `packages/agent/src`, `packages/ai/src/{models.ts,utils,api,auth}`, coding-agent 도구 파일은 같고, `packages/ai/src/types.ts`, codemode, durable spec은 행이 다르므로 v1.1.0 행으로 고쳤다, `P7/`은 `.helm-design-work/P7/`(이 문서의 실험), `대화 L<n>`은 `docs/handoff/conversation-transcript-until-158.md`의 행이다.
