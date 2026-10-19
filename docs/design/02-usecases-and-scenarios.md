@@ -4,7 +4,7 @@
 - 상태: 설계 초안. 유즈케이스 ID는 이 문서가 확정한다. 화면 이름은 03, 이벤트 이름은 09, 명령 이름은 10, 프로토콜 메서드는 19가 최종 소유한다.
 - 함께 읽을 문서: [01 제품 브리프](01-product-brief.md)(원칙 PR, 사람 조작 셈법 R-OP, 진입 규칙 EC, MVP 범위, 비기능 요구 NFR)
 - 기준 결정 범위: 브리프 결정 1~64.
-- 조정자 판정 범위: J-01~J-276.
+- 조정자 판정 범위: J-01~J-351.
 - 표시 규칙: 브리프 §5.2(판정 J-144). 제품 사용 사례는 "유즈케이스", 그 단계별 진행은 "유즈케이스 단계 흐름"(줄여 "단계 흐름")이라 쓴다. "시나리오"는 결과 탐구의 시나리오(v0.3 04 §5.2)와 테스트 시나리오(22)에만 쓴다.
 
 ## 1. 목적과 범위
@@ -328,7 +328,7 @@
 | 11 | "추천대로 정하기" | `SCR-QUESTION` 또는 `SCR-CONCERN-OVERVIEW` | 사람 선택 기록(선택지의 구조화된 범위 포함). 다시 볼 조건 포함. O-8 판단을 근거로 골랐으므로 판단 확인 질문도 함께 답한 것으로 닫힌다 | `question.answered`, `choice.committed`(decided_by human), `finding.confirmed`(via choice_commit) | D1 |
 | 12 | — | `SCR-AGREE` | 커널이 합의 범위 ⊆ 11에서 사람이 직접 고른 선택지의 범위를 검사해 통과(R-OP-2 (a), 판정 J-133) → 확정 질문 없이 활성. echo만 보임: 결과(API 요청 병렬화), 범위(`src/pages/home/**`, `src/api/**` 읽기·쓰기), 금지(push, 의존성 추가), 근거(측정 재실행, 테스트), 멈출 조건(API 응답 형식 변경이 필요할 때) | `agreement.proposed`, `agreement.activated_by_choice`(활성 방식 `choice_scope`, 근거: 11의 선택 id) | — (정상 경로 0) |
 | 13 | — | `SCR-CONCERN-OVERVIEW` | 변경 WorkUnit 실행, 측정 재실행, 테스트. 결과 제출(기준별 근거: LCP 2.6초 → "미충족", 테스트 통과 → 충족) | `workunit.started`, `toolcall.*`, `observation.recorded`, `result.submitted` | — |
-| 14 | 결과 확인 화면에서 "LCP 2.6초, 기준 2.5초 미충족"을 보고 조건부 확인을 고르고, 반영 항목(남은 0.1초를 다시 볼 조건으로 등록, README 성능 메모)을 지금 처리로 둠 | `SCR-REVIEW` | 결과 확인 기록, 반영 항목 처리. 선택 CH의 다시 볼 조건이 활성 상태로 남음. 나중에 사람이 다시 볼 조건의 충족을 표시하면 사람이 정한 선택이 낡아 재결정 질문이 생긴다(MVP. 측정으로 하는 자동 판정은 2단계, 판정 J-138, UC-13) | `acceptance.recorded`(conditional), `obligation.added/resolved` | D1 (정상 경로 1) |
+| 14 | 결과 확인 화면에서 "LCP 2.6초, 기준 2.5초 미충족"을 보고 조건 붙여 확인을 고르고, 반영 항목(남은 0.1초를 다시 볼 조건으로 등록, README 성능 메모)을 지금 처리로 둠 | `SCR-REVIEW` | 결과 확인 기록, 반영 항목 처리. 선택 CH의 다시 볼 조건이 활성 상태로 남음. 나중에 사람이 다시 볼 조건의 충족을 표시하면 사람이 정한 선택이 낡아 재결정 질문이 생긴다(MVP. 측정으로 하는 자동 판정은 2단계, 판정 J-138, UC-13) | `acceptance.recorded`(conditional), `obligation.added/resolved` | D1 (정상 경로 1) |
 
 합계: D3(기준 질문 1, 선택 1, 결과 확인 1), I1. C/A 구간 정상 경로 결정 조작 1.
 
@@ -370,7 +370,7 @@
 | 상황 유형 | 복잡 |
 | 루프 계획 | O → I.fact(현재 설정 조사, 짧게) → C.commit(단계 4개) → A.confirm |
 | 모드 | 실행(v0.3 07 §4) |
-| 사전 조건 | `F-base`, `F-shop-goal`. 1일 차 21:00, 사용자는 외부(카페)에서 Mac 앱으로 Tailscale 경로 연결 |
+| 사전 조건 | `F-base`, `F-shop-goal`. 1일 차 21:00, 사용자는 외부(카페)에서 Mac 앱으로 Tailscale 경로 연결. 푸시를 받을 휴대폰이 등록되어 있지 않다 [판정 J-323] |
 | 사후 조건 | 마이그레이션 결과 확인됨. 밤에 생긴 정보 게이트 질문 1건은 가정 확정되어 에이전트가 정한 것으로 남음. 권리 게이트 질문 1건은 다음 날 사람이 허락 |
 | 관련 문서 | 11(전달 방식, 가정 만료), 12(스케줄러, 데몬 상주), 14(작업 합의의 단계, §3.17 클라이언트 없이 진행할 때의 규칙 표), 04(복귀 요약) |
 
@@ -383,17 +383,17 @@
 | 1 | 1일 21:00 | "shop을 CRA에서 Vite로 옮겨 줘. 오늘 밤 돌려 두고 내일 아침에 볼게." 입력 | `RGN-COMPOSER` | 진입 판정 EC-4, EC-5 → enter. 상황 판정 복잡, 루프 계획, 모드 "실행" | `entry.evaluated`(decision `enter`), `concern.opened`, `situation.assessed`, `loop_plan.adopted`, `mode.assigned` | I1 |
 | 2 | 21:01 | — | `SCR-CONCERN-OVERVIEW` | I.fact: `package.json`, 설정 파일, 테스트 설정을 읽어 관찰로 남김. 질문 없이 진행 | `observation.recorded` × n, `interpretation.proposed` | — |
 | 3 | 21:05 | — | `SCR-AGREE` | 작업 합의 초안(단계 4개): S1 Vite 설정과 개발 서버 기동, S2 환경변수 이름 변경(`REACT_APP_` → `VITE_`), S3 테스트 설정 정리(Jest 유지), S4 빌드 결과 비교. 완료 기준: 개발 서버 기동, 빌드 성공, 테스트 전부 통과, 번들 크기 차이 10% 이내. 범위: 프로젝트 쓰기(`.github/**` 제외), 의존성 추가 허용(`vite`, `@vitejs/plugin-react`), 네트워크 `net:<origin>`(패키지 설치와 push), 보낼 곳(send 대상) 작업 브랜치 `vite-migration` → `origin`. send는 범위 안이어도 실행마다 권리 게이트를 거친다(판정 J-91, J-140). 금지: 기본 브랜치 push, 배포. 예산: 시간 5시간, 비용(모델 추정값, 사람이 고칠 수 있음). C.commit에서는 합의의 예산이 루프 기본 예산보다 먼저다(14에 요구). 근거: 단계별 명령 결과. 멈출 조건: 테스트 러너 교체가 필요할 때, 번들 차이 10% 초과. 의존성 추가는 요청에 없던 범위 → 확정 요청 | `agreement.proposed` | — |
-| 4 | 21:07 | 합의 카드를 보고 확정, 앱을 닫음 | `SCR-AGREE` | 합의 확정, WorkUnit 시작. 클라이언트 연결이 끊겨도 데몬은 계속 | `agreement.confirmed`, `workunit.started` | D1 (정상 경로 1) |
+| 4 | 21:07 | 합의 카드를 보고 확정, 앱을 닫음 | `SCR-AGREE` | 합의 확정, WorkUnit 시작. 클라이언트 연결이 끊겨도 데몬은 계속 | `agreement.confirmed`, `workunit.started`, `run.queued`, `run.started`(attempt 1) | D1 (정상 경로 1) |
 | 5 | 21:40 | — | — | S1, S2 완료. 단계마다 명령 결과를 관찰로 남기고 합의의 진행 지점(08 `checkpoint`)과 대조한다. 결과 제출은 하지 않는다. 사람 확인은 합의 단위로 마지막에 한 번 | `observation.recorded` × n | — |
 | 6 | 23:02 | — | — | S3: CRA의 Babel 설정이 없어 Jest가 깨짐. 멈출 조건("테스트 러너 교체가 필요할 때")에 해당하는지 확인: Jest를 유지하고 Babel 설정을 직접 두면 교체 없이 해결 가능. 합의 범위 안의 해법이므로 에이전트가 진행하되, 사용자가 Vitest 전환을 원할 수 있어 질문 Q-A 기록. 정보 게이트, 막힘 아님, 임시 가정 "Jest 유지", 만료점 "A.confirm으로 넘어가기 전"(작업 경계 `loop_transition`), 사용자 부재 → 예약(다음 복귀 요약). 결정은 만료 때 한 번만 기록한다 | `question.recorded`(Q-A), `assumption.recorded`("Jest 유지, Babel 설정 추가") | — |
-| 7 | 23:40 | — | — | S4 진행 중, 에이전트가 CI 빌드로도 확인하려고 작업 브랜치 push를 원함. push는 합의의 send 대상이지만 send는 언제나 권리 게이트(J-91) → 질문 Q-B "작업 브랜치 `vite-migration`을 원격에 push할지 정해야 합니다. 허락하면 CI 빌드로도 확인합니다. 정하지 않으면 push 없이 진행하고 결과에 'CI 미확인'이 남습니다."(05 §3.10.6 형식). 그 호출만 승인 대기(`toolcall.approval_requested`)로 두고 run은 계속한다(12 §3.13.1에 요구). 즉시 전달 대상이지만 연결된 기기가 없어 다음 복귀 요약으로 예약된다(05 §3.1.2). 다음 연결 때 "지금 선택이 필요함" 맨 위에 보인다. push에 기대는 일만 멈추고 나머지는 계속 | `question.recorded`(Q-B, gate `rights`), `toolcall.approval_requested` | — |
-| 8 | 2일 01:25 | — | — | S3·S4가 끝나 A.confirm으로 넘어가기 직전 Q-A 만료점 도달 → 즉시로 승격. 연결된 기기 없음. 만료점을 넘기면 되돌리는 비용이 커지므로 임시 가정을 확정하고 에이전트가 정한 것으로 남김 | `question.escalated`, `question.assumed`, `choice.committed`(autonomous, from_question Q-A) | — |
+| 7 | 23:40 | — | — | S4 진행 중, 에이전트가 CI 빌드로도 확인하려고 작업 브랜치 push를 원함. push는 합의의 send 대상이지만 send는 언제나 권리 게이트(J-91) → 질문 Q-B "작업 브랜치 `vite-migration`을 원격에 push할지 정해야 합니다. 허락하면 CI 빌드로도 확인합니다. 정하지 않으면 push 없이 진행하고 결과에 'CI 미확인'이 남습니다."(05 §3.10.6 형식). 그 호출만 승인 대기(`toolcall.approval_requested`)로 두고 run은 계속한다(12 §3.13.1에 요구). 즉시 전달 대상이지만 푸시를 받을 기기가 없어 다음 복귀 요약으로 예약된다(05 §3.1.2) [판정 J-323]. 다음 연결 때 "지금 선택이 필요함" 맨 위에 보인다. push에 기대는 일만 멈추고 나머지는 계속 | `question.recorded`(Q-B, gate `rights`), `toolcall.approval_requested` | — |
+| 8 | 2일 01:25 | — | — | S3·S4가 끝나 A.confirm으로 넘어가기 직전 Q-A 만료점 도달 → 즉시로 승격. 승격의 강도는 `notice`이고 푸시를 받을 기기가 없어 배지로만 알린다 [판정 J-323]. 만료점을 넘기면 되돌리는 비용이 커지므로 임시 가정을 확정하고 에이전트가 정한 것으로 남김 | `question.escalated`, `question.assumed`, `choice.committed`(autonomous, from_question Q-A) | — |
 | 9 | 01:30 | — | — | S3·S4 완료(테스트 통과, 번들 +4%). 결과 제출: 기준별 근거. "CI 빌드 확인"은 Q-B 대기로 "확인 못함" | `result.submitted`(scope `agreement`) | — |
 | 10 | 2일 08:40 | Mac 앱을 엶 | `SCR-BRIEF` | 재접속(저장한 위치 `{storeId, seq}` 다음부터 재전송, 19 §3.5). 복귀 요약: 지금 선택이 필요함 1(Q-B, 권리 게이트), 결과 확인 필요 1(마이그레이션), 에이전트가 정한 것 6(접힘). 그중 가정 확정 1건은 "답이 없어 가정대로 정해진 질문 1건" 줄에 항목마다 [이의]를 달아 따로 보인다(Q-A "Jest 유지"), 진행 중 작업 없음, 다음 예정 "Q-B 허락 시 push와 CI 확인" | `brief.acknowledged`(사용자가 읽음 표시) | — |
-| 11 | 08:42 | Q-B 허락 | `SCR-QUESTION` | 권리 게이트 답 기록. 대기 중인 run이 없으므로 14가 같은 thread의 새 run을 요청하고, 승인된 호출을 같은 tcId로 실행한다(판정 J-96, J-40). CI 결과를 읽어 관찰로 기록. WorkUnit은 이미 제출 상태이므로 이 관찰은 제출 뒤 관찰로 결과 확인 화면의 "CI 빌드 확인" 기준 옆에 붙는다(규칙은 10·08에 요구) | `question.answered`, `toolcall.approved`, `approval.consumed`, `toolcall.started`·`completed`(send), `observation.recorded` | D1 (정상 경로 밖, `rights_gate`) |
+| 11 | 08:42 | Q-B 허락 | `SCR-QUESTION` | 권리 게이트 답 기록. 대기 중인 run이 없으므로 14가 같은 thread의 새 run을 요청하고, 승인된 호출을 같은 tcId로 실행한다(판정 J-96, J-40). CI 결과를 읽어 관찰로 기록. WorkUnit은 이미 제출 상태이므로 이 관찰은 제출 뒤 관찰로 결과 확인 화면의 "CI 빌드 확인" 기준 옆에 붙는다(규칙은 10·08에 요구) | `question.answered`, `run.queued`, `run.started`, `toolcall.approved`, `approval.consumed`, `toolcall.started`·`completed`(send), `observation.recorded` | D1 (정상 경로 밖, `rights_gate`) |
 | 12 | 08:50 | 결과 확인 화면에서 "결과 확인". 반영 처리 방침은 기본값 "에이전트가 모두 진행"(반영 항목: README 실행 방법 갱신, 열린 Concern "번들 크기 측정"의 전제("CRA 빌드") 무효화, 배포 설정 변경) | `SCR-REVIEW` | 결과 확인 기록. 반영 WorkUnit 실행(반영 범위 합의 아래) | `acceptance.recorded`(accepted), `agreement.confirmed`(via 결과 확인, 반영 범위 합의, 판정 J-126), `obligation.added/resolved` | D1 (정상 경로 2) |
 | 12a | 08:51 | 펼쳐진 전체 반영 단계에서 배포 설정 변경을 [미루기] | `SCR-REVIEW` | 미룬 항목은 다음 복귀 요약 맨 위에 남음 | `obligation.deferred` | — (선택 조작, 정상 경로 수에 넣지 않음) |
-| 13 | 08:52 | 에이전트가 정한 것을 펼쳐 "Jest 유지(가정 확정)"를 확인. 이의 없음 | `SCR-AUTO` | — | — | — |
+| 13 | 08:52 | 에이전트가 정한 것 목록을 펼쳐 "Jest 유지(가정 확정)"를 본다(조작 아님) [판정 J-326] | `SCR-AUTO` | — | `autonomous.seen` | — |
 
 합계: D3(정상 경로 2, `rights_gate` 1), I1.
 
@@ -417,7 +417,7 @@
 - AC-03-02 단계 진행은 관찰로만 남고 사람 확인을 요구하지 않는다. 결과 제출과 Concern의 "결과 확인 대기"는 합의 단위로 한 번(단계 9)이다.
 - AC-03-03 멈출 조건에 해당하는 상황에서 에이전트가 합의 밖 행동을 계속하면 커널이 막는다. 합의 안의 다른 해법을 쓰면 `why_not_asked`가 있는 에이전트가 정한 것이 남는다.
 - AC-03-04 권리 게이트 질문(Q-B)은 사용자가 없으면 만료나 가정 확정으로 넘어가지 않는다. 그 질문에 기대는 행동(push)만 막히고 다른 단계는 진행된다.
-- AC-03-05 정보 게이트 질문(Q-A)은 기록 때 `assumption.recorded`만 남기고 결정은 남기지 않는다. 만료점에서 `question.escalated` → (답 없음) → `question.assumed`와 `choice.committed`(choiceKind `assumption_confirmed`, `whyNotAsked.kind = assumption_expired`, questionId Q-A) 순서로 한 번 기록된다.
+- AC-03-05 정보 게이트 질문(Q-A)은 기록 때 `assumption.recorded`만 남기고 결정은 남기지 않는다. 만료점에서 `question.escalated` → (답 없음) → `question.assumed`와 `choice.committed`(choiceKind `assumption_confirmed`, `whyNotAsked.kind = assumption_expired`, questionId Q-A) 순서로 한 번 기록된다. 이 승격의 강도는 `notice`이고, 이 시나리오에는 푸시를 받을 기기가 없어 배지로만 알린다 [판정 J-323].
 - AC-03-06 만료 처리는 연결된 클라이언트가 없어도 스케줄러가 한다.
 - AC-03-07 같은 질문에 대해 기기별 알림은 한 번만 간다(X-11). 승격은 다시 알릴 수 있는 유일한 경우이며 한 번만 다시 알린다.
 - AC-03-08 다음 날 복귀 요약에서 권리 게이트 질문이 "지금 선택이 필요함"의 첫 항목으로 보이고, 가정 확정 건은 "에이전트가 정한 것"의 개수에 포함된다.
@@ -625,7 +625,7 @@
 | 6 | (자리를 비움) | `SCR-CONCERN-OVERVIEW`(지금 하는 일, 다음 예정, 맡긴 범위) | 합의가 활성된 뒤 첫 쓰기 전에 13이 되돌릴 지점(현재 커밋 해시)을 만들고 런타임이 등록한다(13 §3.7.8에 요구). 편집(write/edit), 테스트(execute). 모델이 `src/api/client.ts` 편집을 시도 → 합의의 금지 행동이라 거부됨 → 모델이 API 레이어를 고치지 않는 방법으로 바꿈. bash 실행 뒤 작업 공간 비교로 범위 밖 쓰기가 없는지 확인 | `rollback_point.registered`(`agreementId`, git 커밋 참조), `toolcall.requested`, `toolcall.started`, `toolcall.completed`, `toolcall.blocked`(`policy.forbidden_resource`, 판정 J-92), `observation.recorded` | — |
 | 7 | — | — | 모델이 제출 없이 끝내려 함 → 마무리 직전 검사: 합의 아래 파일이 바뀌었는데 제출이 없음 → "결과 제출이 없습니다. 기준별 근거와 함께 제출하세요"로 한 번 더 진행 요청(대화 L2136) | 운영 기록(진행 요청) | — |
 | 8 | — | `SCR-HOME` 주의 카드(검토 창에 전달) | 결과 제출: c1 충족(테스트 실행 관찰 id), c3 충족(검색 결과 id), c4 충족 +2.1KB(번들 분석 id), c2는 모델이 "동작 동일 확인함"이라는 문장만 근거로 냄 → 실제 관찰이 아니므로 커널이 "확인 못함"으로 강등. 알려진 한계: E2E 테스트 없음. 반영 항목 후보: (i) README의 상태 관리 절, (ii) 열린 Concern "장바구니 동기화"의 전제("Context 사용") 무효화, (iii) 아키텍처 그림. 결과 확인은 사람의 권리 게이트지만 작업을 막지 않으므로 기록은 즉시, 전달은 다음 작업 경계 또는 검토 창에 한다(판정 J-132). 휴대폰 알림은 설정 `notifications.resultReview`로 고른다. 기본 `none`은 알리지 않고 복귀 요약에서 확인한다. `daily_digest`는 설정 시각(`notifications.resultReviewDigestAt`)에 확인 대기 결과가 있으면 묶음 푸시 1건(강도 `notice`)을 보내고, `immediate`는 질문마다 같은 강도로 보낸다. 두 경우 모두 방해 금지와 시간당 상한을 따른다([결정 56], 판정 J-189) | `result.submitted`(c2 강등 표시), `question.recorded`(result_review), `loop.transitioned`(C.commit → A.confirm) | — |
-| 9 | 앱 밖에서 화면 3개를 직접 눌러 봄. 결과 확인 화면에서 기준별 표(✓ / △), 확인 못한 범위, 한계, 반영 항목을 보고 "조건부 확인: c2는 주요 화면 3개만 직접 확인, 장바구니 화면은 다음에". 반영 처리 방침은 기본값 "에이전트가 모두 진행" | `SCR-REVIEW` | 결과 확인 기록(조건 포함). 반영 항목 (i)~(iii)과 조건 항목 (iv)(`acceptance_condition`)을 만든다. (iv)는 같은 트랜잭션에서 미룬 상태가 되고 다시 볼 조건은 조건 문장이다(판정 J-125) | `acceptance.recorded`(conditional, 조건 문장), `agreement.confirmed`(via 결과 확인, 반영 범위 합의, 판정 J-126), `question.answered`, `integration.opened`, `obligation.added` × 4, `obligation.deferred`(iv) | D1 (정상 경로 2) |
+| 9 | 앱 밖에서 화면 3개를 직접 눌러 봄. 결과 확인 화면에서 기준별 표(✓ / △), 확인 못한 범위, 한계, 반영 항목을 보고 "조건 붙여 확인: c2는 주요 화면 3개만 직접 확인, 장바구니 화면은 다음에". 반영 처리 방침은 기본값 "에이전트가 모두 진행" | `SCR-REVIEW` | 결과 확인 기록(조건 포함). 반영 항목 (i)~(iii)과 조건 항목 (iv)(`acceptance_condition`)을 만든다. (iv)는 같은 트랜잭션에서 미룬 상태가 되고 다시 볼 조건은 조건 문장이다(판정 J-125) | `acceptance.recorded`(conditional, 조건 문장), `agreement.confirmed`(via 결과 확인, 반영 범위 합의, 판정 J-126), `question.answered`, `integration.opened`, `obligation.added` × 4, `obligation.deferred`(iv) | D1 (정상 경로 2) |
 | 9a | 펼쳐진 전체 반영 단계에서 (iii)을 [미루기] | `SCR-REVIEW` | (iii) 미룸 | `obligation.deferred`(iii) | — (선택 조작, 정상 경로 수에 넣지 않음) |
 | 10 | — | `SCR-CONCERN-OVERVIEW` | 반영 WorkUnit: README 갱신, "장바구니 동기화" Concern(열려 있음)의 해당 판단을 낡음으로 표시하고 (ii)를 그 Concern으로 넘긴다. 넘겨받는 Concern이 이미 닫혀 있을 때만 다시 연다(10에 요구). README 항목(`docs_tests`)은 근거 관찰로 커널이 닫는다(10 R-21). 전제 무효화(`broken_premise`)는 사람만 닫는 종류이므로 넘겨받은 Concern에서 사람이 닫는다 | `obligation.resolved`, `obligation.transferred`, `record.staled` | — |
 | 11 | — | `SCR-HOME` | 남은 반영 항목이 모두 닫히거나 넘겨지거나 명시적으로 미뤄짐 → 이 Concern을 반영 완료로 닫음(화면 라벨 "반영 완료", 03). 미룬 항목은 다음 복귀 요약 맨 위로 넘김. 돌아보기는 선택(R-OP-5)이므로 닫힘이 돌아보기를 기다리지 않는다. `concern.completed`는 런타임이 낸다(09 B.1·14에 요구) | `integration.completed`, `concern.completed` | — |
@@ -662,11 +662,11 @@
 - AC-07-03 합의 아래 실제 변경이 있는데 제출 없이 끝내려 하면 진행 요청이 한 번 생기고, 최대 횟수를 넘으면 `workunit.paused`(사유 `submission_missing`)와 질문이 생겨 사람에게 보인다.
 - AC-07-04 결과 제출의 각 기준은 충족 / 미충족 / 확인 못함 중 하나와 근거 참조를 가진다. 실제 관찰이 아닌 근거는 해당 기준을 "확인 못함"으로 강등한다.
 - AC-07-05 결과 확인은 사람 명령 경로로만 생기고 기기 id를 가진다. 에이전트의 시도는 자격 거부로 기록된다.
-- AC-07-06 결과 확인 행동은 결과 확인, 조건부 확인, 수정 요청, 거절(해결 안 됨), 기준이 틀림 다섯 가지다(04 §3.12, 05 §3.4.1. 명령 값과의 대응은 08 §10, 판정 J-35)(08 §3.12 `AcceptanceDecision`의 accepted, conditional, revision_requested, rejected, criteria_wrong에 대응). 조건부 확인은 조건 문장이 없으면 받아들이지 않는다.
+- AC-07-06 결과 확인 행동은 결과 확인, 조건 붙여 확인, 수정 요청, 거절(해결 안 됨), 기준이 틀림 다섯 가지다(04 §3.12, 05 §3.4.1. 명령 값과의 대응은 08 §10, 판정 J-35)(08 §3.12 `AcceptanceDecision`의 accepted, conditional, revision_requested, rejected, criteria_wrong에 대응). 조건 붙여 확인은 조건 문장이 없으면 받아들이지 않는다.
 - AC-07-07 결과 확인 때 반영 항목이 생긴다: 관련 문서·테스트, 깨진 이전 선택이나 전제, 다른 열린 Concern과의 충돌. 항목이 모두 닫히거나 명시적으로 미뤄지기 전에는 Concern 상태는 "결과 확인됨"에 머물고 "반영 완료"가 되지 않는다(공리 A10).
 - AC-07-08 미룬 반영 항목은 다음 복귀 요약의 맨 위에 나온다.
-- AC-07-09 기본 흐름의 16 계산 `normalPath=true` 결정 조작은 2건, 대안 흐름 A1은 1건이다. 조건부 확인의 조건 항목은 결과 확인과 같은 트랜잭션에서 미뤄지므로 조작을 더하지 않는다([판정 J-125]).
-- AC-07-10 커널이 닫을 수 있는 반영 항목(`docs_tests`·`boundary_check`·`recombine`)은 근거 관찰이 있을 때만 커널이 닫는다. 사람만 닫는 항목(`broken_premise`·`concern_conflict`·`acceptance_condition`·`goal_revision_check`)은 사람이 닫거나(`obligation.resolved`) 면제하거나(`obligation.waived`) 다른 Concern으로 넘기거나(`obligation.transferred`) 미룬다. 조건부 확인의 조건 항목은 결과 확인과 같은 트랜잭션에서 미뤄진다(판정 J-125). 정상 경로의 결정 조작은 늘지 않는다(10 R-21, R-OP-3. 08 §3.12 규칙 6의 목록을 10 R-21에 맞추기를 요구).
+- AC-07-09 기본 흐름의 16 계산 `normalPath=true` 결정 조작은 2건, 대안 흐름 A1은 1건이다. 조건 붙여 확인의 조건 항목은 결과 확인과 같은 트랜잭션에서 미뤄지므로 조작을 더하지 않는다([판정 J-125]).
+- AC-07-10 커널이 닫을 수 있는 반영 항목(`docs_tests`·`boundary_check`·`recombine`)은 근거 관찰이 있을 때만 커널이 닫는다. 사람만 닫는 항목(`broken_premise`·`concern_conflict`·`acceptance_condition`·`goal_revision_check`)은 사람이 닫거나(`obligation.resolved`) 면제하거나(`obligation.waived`) 다른 Concern으로 넘기거나(`obligation.transferred`) 미룬다. 조건 붙여 확인의 조건 항목은 결과 확인과 같은 트랜잭션에서 미뤄진다(판정 J-125). 정상 경로의 결정 조작은 늘지 않는다(10 R-21, R-OP-3. 08 §3.12 규칙 6의 목록을 10 R-21에 맞추기를 요구).
 - AC-07-11 (v0.2 F6) 테스트 통과 결과가 제출돼도 자동으로 결과 확인이 되지 않고, 반영은 별도로 관찰된다.
 - AC-07-12 (v0.2 F2·F3) 모델이나 어댑터가 정본 이벤트를 직접 추가하거나 투영 종류의 명령(`projection.*`)을 내면 경로 거부된다.
 - AC-07-13 (v0.2 F4) 사람 명령은 자신이 본 화면의 `basisSeq`를 싣고, 커널은 대상 레코드의 `revisionSeq`와 비교한다(10 §3.3.4. 전역 cursor 일치는 요구하지 않는다). 대상이 그 사이 바뀌었으면 `conflict.version_mismatch`, 이미 처리됐으면 `conflict.already_resolved`, 대체됐으면 `conflict.superseded`로 거부되고 최신 상태를 받는다. 같은 레코드에 대해 "마지막 쓰기 우선" 방식을 쓰지 않는다.
@@ -1183,7 +1183,7 @@ interface Expectation {
 | ID | 상황 | 처리 | 관련 |
 |---|---|---|---|
 | CX-01 | 사용자가 오래된 질문 카드에 답함(질문의 근거가 그 사이 바뀜) | 답 명령은 사람이 본 화면의 `basisSeq`를 싣는다. 질문이 그 뒤에 바뀌었으면 커널이 `conflict.version_mismatch`로 거부하고(이미 답했으면 `conflict.already_resolved`) 앱이 갱신된 질문을 보인다(10 §3.3.4, canon-2 §10 L14) | UC-04, 10, 19 |
-| CX-02 | 빈 답이나 의미 없는 한두 글자(예: `ㅇ`)로 확정 | 결정 자체(확정·거절)는 받는다. 다만 자유 입력 칸에 의미 없는 글자만 있으면 그 칸은 비운 것으로 다루고, 필수 의미(예: 조건부 확인의 조건)가 비면 받지 않는다(EV-5 재발 방지) | UC-07 AC-07-06·14 |
+| CX-02 | 빈 답이나 의미 없는 한두 글자(예: `ㅇ`)로 확정 | 결정 자체(확정·거절)는 받는다. 다만 자유 입력 칸에 의미 없는 글자만 있으면 그 칸은 비운 것으로 다루고, 필수 의미(예: 조건 붙여 확인의 조건)가 비면 받지 않는다(EV-5 재발 방지) | UC-07 AC-07-06·14 |
 | CX-03 | 같은 시각에 Concern 여러 개가 질문을 냄 | 질문함에 묶어 보이고 권리 게이트를 위로 올린다. 펼쳐 보이는 기본 개수는 3(01 §3.7) | UC-03, UC-04 |
 | CX-04 | 몇 주 동안 열린 Concern | 복귀 요약은 확인 cursor 이후만 다룬다. Concern 개요의 루프 이력은 의미 단위로 접는다 | UC-06 |
 | CX-05 | 시간대 | 저장은 epoch ms, 표시는 사용자 기기 시간대(브리프 §3.3). Mac과 Windows의 시간대가 다르면 각 기기 시간대로 보인다 | 전체 |
@@ -1256,7 +1256,7 @@ interface Expectation {
 | ID | 질문 | 선택지 | 추천 기본값 |
 |---|---|---|---|
 | UQ-01 | 작업 합의 하나에 단계를 여러 개 두고 결과 확인을 합의 단위로 한 번 하는가(UC-03) | (a) 합의 단위 한 번 (b) 단계마다 | (a). 단계별 결과는 관찰로만 남기고 결과 제출은 합의 단위로 한 번. 단계마다 확인하면 R-OP-1을 넘는다. 08에 단계 필드를 두지 않고 `checkpoint`를 쓴다 |
-| UQ-02 | 반영 항목을 누가 닫는가(integrate 능력은 사람만, v0.3 07 §2.4) | (해소) 10 R-21, 판정 J-125 | 관찰로 확인되는 종류는 근거가 붙으면 커널이 닫는다. 사람만 닫는 종류는 사람이 닫거나 면제하거나 다른 Concern으로 넘기거나 미룬다. 조건부 확인의 조건 항목은 결과 확인과 같은 트랜잭션에서 미뤄진다. 결과 확인 화면은 전역 방침만 묻고 항목마다 따로 묻지 않는다 |
+| UQ-02 | 반영 항목을 누가 닫는가(integrate 능력은 사람만, v0.3 07 §2.4) | (해소) 10 R-21, 판정 J-125 | 관찰로 확인되는 종류는 근거가 붙으면 커널이 닫는다. 사람만 닫는 종류는 사람이 닫거나 면제하거나 다른 Concern으로 넘기거나 미룬다. 조건 붙여 확인의 조건 항목은 결과 확인과 같은 트랜잭션에서 미뤄진다. 결과 확인 화면은 전역 방침만 묻고 항목마다 따로 묻지 않는다 |
 | UQ-03 | Goal 변경 뒤 범위가 넓어지지 않는 합의 갱신을 echo로 하는가(UC-09 단계 4) | echo / 확정 질문 | echo |
 | UQ-04 | 마무리 직전 검사의 최대 반복 | 1 / 2 / 3 | 2 |
 | UQ-05 | 복귀 점검(UC-06 A1)의 기본값 | 켜짐 / 꺼짐 | 꺼짐. G1 기간에만 켬 |
@@ -1291,7 +1291,7 @@ interface Expectation {
 
 - 상태: 제안(10 R-21, 판정 J-125와 맞춤)
 - 맥락: v0.3 07 §2.4의 능력표에서 integrate는 사람만 가진다. 반영 항목마다 사람이 닫으면 조작이 늘어난다.
-- 결정: 결과 확인 한 번에 반영 처리의 전역 방침(두 값)을 고른다. 관찰로 확인되는 종류(`docs_tests`·`boundary_check`·`recombine`)는 반영 WorkUnit이 낸 근거 관찰이 있을 때 커널이 닫는다. 사람만 닫는 종류(`broken_premise`·`concern_conflict`·`acceptance_condition`·`goal_revision_check`)는 사람이 닫거나 면제하거나 다른 Concern으로 넘기거나 미룬다. 조건부 확인의 조건 항목은 결과 확인과 같은 트랜잭션에서 미룬다(다시 볼 조건 = 조건 문장). 항목 하나를 따로 미루는 것은 선택 조작이다.
+- 결정: 결과 확인 한 번에 반영 처리의 전역 방침(두 값)을 고른다. 관찰로 확인되는 종류(`docs_tests`·`boundary_check`·`recombine`)는 반영 WorkUnit이 낸 근거 관찰이 있을 때 커널이 닫는다. 사람만 닫는 종류(`broken_premise`·`concern_conflict`·`acceptance_condition`·`goal_revision_check`)는 사람이 닫거나 면제하거나 다른 Concern으로 넘기거나 미룬다. 조건 붙여 확인의 조건 항목은 결과 확인과 같은 트랜잭션에서 미룬다(다시 볼 조건 = 조건 문장). 항목 하나를 따로 미루는 것은 선택 조작이다.
 - 근거: 사람의 integrate 능력을 그대로 두면서 조작 상한(R-OP-1·R-OP-3)을 지킨다.
 - 기각한 대안: 에이전트에 integrate 능력 부여(능력표 위반), 항목마다 사람 확인(상한 위반).
 - 결과: 10 R-21, 11 §3.15(반영 항목 방침 묶음), 04 결과 확인 화면이 같은 규칙을 쓴다.

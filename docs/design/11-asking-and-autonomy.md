@@ -1,7 +1,7 @@
 # 11. 묻기와 자율성
 
 - 소유: P6 커널
-- 상태: 4c 보완판 (2026-10-14). 기준 브리프 결정 1~64, 조정자 판정 J-01~J-276. 표기는 브리프 §5.2(판정 J-144)를 따른다: `[결정 n]`은 사용자 결정만, 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`·`[판정 J-nn]`. 이전: 4단계 보완판(2026-10-12, 2a단계 통합판 기반). 조정자 판정(`process/rulings-stage2a.md` J-05, J-20, J-26, J-46~J-55, J-63, J-64)과 08·09 정렬을 반영했다. 08·09는 1판의 제안 상당수(질문 병합, 전달 계획 기록, 승인 블록, 사람의 미루기·맡기기·다시 세우기 이벤트, presence 이벤트)를 받아들였고, 2a판은 그 형식을 따른다. 이전 이름과의 대응은 §2.4.
+- 상태: 4c 보완판 (2026-10-14). 기준 브리프 결정 1~64, 조정자 판정 J-01~J-351. 표기는 브리프 §5.2(판정 J-144)를 따른다: `[결정 n]`은 사용자 결정만, 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`·`[판정 J-nn]`. 이전: 4단계 보완판(2026-10-12, 2a단계 통합판 기반). 조정자 판정(`process/rulings-stage2a.md` J-05, J-20, J-26, J-46~J-55, J-63, J-64)과 08·09 정렬을 반영했다. 08·09는 1판의 제안 상당수(질문 병합, 전달 계획 기록, 승인 블록, 사람의 미루기·맡기기·다시 세우기 이벤트, presence 이벤트)를 받아들였고, 2a판은 그 형식을 따른다. 이전 이름과의 대응은 §2.4.
 - 구현 위치: `@helm/kernel`의 `src/asking/`, `src/commands/question.ts`. 규칙 집행은 커널, 전달 실행은 런타임·데몬(12, 17), 전달 표시는 앱(20)
 - 함께 읽을 문서: [10 커널](10-kernel.md), [08 도메인 모델](08-domain-model.md) §3.4.4(Trigger)·§3.4.5(Autonomy)·§3.10(Choice, Objection)·§3.13(Question)·§3.22.7(질문 상태 기계), [09 이벤트 저장소](09-event-store.md) §3.4·§3.11.3(타이머), [12 런타임](12-runtime-engine.md) §3.13(질문 대기와 재개), [13 도구](13-tools-and-execution.md) §3.7.8~§3.7.9, [14 루프·모드](14-loops-modes-orchestration.md) §3.5.3·§3.13.5~§3.13.8, [19 프로토콜](19-client-protocol.md) §3.7.5·§3.8.3
 
@@ -832,7 +832,7 @@ export interface QuestionDeliveredPayload {    // 09 question.delivered (J-52)
 | boundary | 그 경계가 `count - marginBoundaries`번 발생 (기본 경계 1개 전) | `count`번째 경계 사건(`boundary.reached`) 커밋 |
 | before_primitive, before_loop, record_state | 모델이 `boundariesUntilExpiry`를 선언했으면 질문 이후 경계 수가 `estimate - marginBoundaries`에 이를 때. 없으면 질문 이후 첫 경계 | 이 WorkUnit(없으면 Concern)에서 맞는 제출이 들어올 때. 커널은 그 제출을 받아들이기 전에 같은 결정 안에서 만료 처리를 먼저 한다 |
 
-가까워짐: 질문이 아직 답을 받지 않았으면 `question.escalated(cause 'expiry_near')`를 기록하고 즉시·끼어들기로 전달 지시를 낸다(D-3). 이미 delivered(알림)면 강도만 올린다.
+가까워짐: 질문이 아직 답을 받지 않았으면 `question.escalated(cause 'expiry_near')`를 기록하고 즉시 전달 지시(강도는 `urgencyOf`: 막는 질문·권리 게이트는 `interrupt`, 막지 않는 정보 질문은 `notice`)를 낸다(D-3) [판정 J-324]. 이미 delivered(알림)면 강도만 올린다.
 
 도달:
 
@@ -895,7 +895,7 @@ export interface MediatorInput {                // 12가 상태(presence 포함)
   readonly presence: PresenceSnapshot;          // §3.8.1 (기기별 접속 상태, 부재, 푸시 가능 기기, 방해 금지, 주의 예산 상태)
   readonly recentAnswers: readonly { readonly questionId: QuestionId; readonly deliveredAt: Ms; readonly answeredAt: Ms }[];
   readonly deliveredUnanswered: number;
-  readonly reviewWindows: readonly { readonly from: string; readonly to: string }[]; // 설정 "선호 검토 시간대" (원전 attention_policy)
+  readonly reviewWindows: readonly { readonly days: readonly (0|1|2|3|4|5|6)[]; readonly start: string; readonly end: string }[]; // 설정 "선호 검토 시간대" (원전 attention_policy). 형식은 14 §3.13.2 [판정 J-331]
   readonly bundleMax: number;
 }
 
@@ -1246,7 +1246,7 @@ C와 A가 가장 많이 건너뛰어지므로 다음은 어떤 모드·다이얼
 | `question.per_loop` | 루프 → 위 값들 | §3.5.2 표 | D-10 |
 | `assumptionDeferOnDowntime` | `on` / `off` | `on` | 데몬 정지 중 지난 가정 만료를 "복귀 + 30분"으로 미룬다. `off`면 미루지 않고 바로 만료한다. 막지 않는 질문만 대상이다(§3.6.3, [판정 J-142·J-197]) |
 
-다이얼이 아닌 질문 설정(사람이 바꾸지만 모드·루프로 층을 두지 않는 값). 14의 설정(`OrchestrationSettings`)에 두고 명령은 `setting.change`(10 §3.11.11, 19 `settings.update`)다. 변경 기록은 `setting.changed`(09)다([판정 J-94]).
+다이얼이 아닌 질문 설정(사람이 바꾸지만 모드·루프로 층을 두지 않는 값). 14의 설정(`OrchestrationSettings`)에 두고 명령은 `setting.change`(10 §3.11.11, 19 `settings.update`)다. 변경 기록은 `setting.changed`(09)다([판정 J-94]). 다만 기기 설정 `notifications.dndException`은 이 설정이 아니며, 값·기본값·저장 위치는 20 §3.9.11이 정한다([판정 J-329]).
 
 | 설정 | 기본 | 의미 |
 |---|---|---|
@@ -1256,9 +1256,9 @@ C와 A가 가장 많이 건너뛰어지므로 다음은 어떤 모드·다이얼
 | 화면 표시 수 | 3 | 접히기 전 표시 질문 수(권리·막는 질문 제외). 14 `maxVisibleDecisions`와 같은 값 |
 | 중재자 대기 | 2분 | §3.7 |
 | 승인 유효 기간 | 24시간 | §3.14 |
-| 검토 시간대 | 09:00 하나 | 경계 `review_window`, 중재자 입력 |
-| 방해 금지 `attention.snoozeUntil` | 없음 | 05 §3.7.4. 그 시각까지 알리지 않는다. 켜져 있으면 away로 본다(14 `isAway`의 입력). 의미 설정이며 데몬 설정이 아니다([판정 J-166]) |
-| `notifications.dndException` | `none` | 방해 금지 중 휴대폰 푸시 예외. `expiringOnly`면 만료 임박 승격(`expiry_near`)만 보낸다. 데스크톱 OS 알림에는 예외가 없다(05 §3.7.4) [결정 59] |
+| 검토 시간대 | 매일 09:00~09:30 한 개(14 §3.13.2) | 경계 `review_window`, 중재자 입력. 형식은 `{days, start, end}`([판정 J-331]) |
+| 방해 금지 `attention.snoozeUntil` | 없음 | 05 §3.7.4. 그 시각까지 알리지 않는다. 켜져 있으면 away로 본다(14 `isAway`의 입력). helmd.toml이 아니라 14 `OrchestrationSettings`의 의미 설정(`setting.changed`로 저장)이다([판정 J-166·J-330]) |
+| `notifications.dndException` | 20 §3.9.11 참조 | 기기 설정이다(값·기본값·저장 위치는 20 §3.9.11). 방해 금지 중 휴대폰 푸시 예외. `expiringOnly`면 만료 임박 승격(`expiry_near`)만 보낸다. 데스크톱 OS 알림에는 예외가 없다(05 §3.7.4) [결정 59] [판정 J-329] |
 | 시간당 알림 상한 `attention.interruptsPerHour` | 14 기본값 | 사람 기준 하나, 모든 기기의 합. 기기별 상한은 두지 않는다([판정 J-171]) |
 | `notifications.resultReview` | `none` | 결과 확인 대기 알림 방식. `none`(알리지 않음), `daily_digest`(묶음 푸시 1개), `immediate`(질문마다 푸시 1개). [결정 56, 판정 J-189], §3.5.7 |
 | `notifications.resultReviewDigestAt` | `"19:00"` | `daily_digest`의 묶음 시각(서버 시간대). 타이머 목적 `result_review_digest`([판정 J-189]) |
@@ -1598,7 +1598,7 @@ ID `AQ-nn`은 22 시험 추적표가 가리키는 번호다.
 | A-8 | 기본 전달 방식 | (a) 협상 (b) 중재 | (a). McFarlane 권고, 중재자는 선택 |
 | A-9 | 이의 뒤 재결정을 반드시 질문으로 | (a) 예 (b) 에이전트가 다른 결정이면 자율 허용 | (a). 같은 일이 반복되지 않게 |
 | A-10 | 에이전트의 반영 항목 미루기 | (a) 허용 + 복귀 요약 표시(08) (b) 사람만 | (a). 08 규칙 6과 맞춤. 1판 추천(b)을 바꿨다. 피드에 보이고 사람은 `obligation.reopen` |
-| A-11 | 검토 시간대 기본 | (a) 09:00 하나 (b) 없음 | (a). 사용자가 정함 |
+| A-11 | 검토 시간대 기본 | (a) 매일 09:00~09:30 한 개 (b) 없음 | (a). 사용자가 정함 [판정 J-331] |
 | A-12 | before_* 만료의 승격 시점 | (a) 모델 선언 경계 수 (b) 첫 경계 | (a), 선언 없으면 (b) |
 | A-13 | 질문 갱신 이벤트 | 2a 판정 J-50으로 정리됨: `question.updated` | - |
 | A-14 | 08에 없는 질문 종류 | 2a 정렬로 08이 대부분 더했다. 남은 것은 `goal_achievement`(J-55, 08에 요구) | - |

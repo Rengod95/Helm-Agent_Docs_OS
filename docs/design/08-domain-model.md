@@ -3,7 +3,7 @@
 - 소유: P5 (도메인)
 - 작성: 2026-10-11, 1단계 초안
 - 패키지: `@helm/domain` (브리프 §3.1)
-- 기준 결정: 브리프 결정 1~64(사용자 결정 1~25·33·35·38~43·47~64, 조정자 기본값 26~32·34·36·37, 조정자 판정 44~46), 판정 J-01~J-276
+- 기준 결정: 브리프 결정 1~64(사용자 결정 1~25·33·35·38~43·47~64, 조정자 기본값 26~32·34·36·37, 조정자 판정 44~46), 판정 J-01~J-351
 - 함께 읽을 문서: [09-event-store.md](09-event-store.md) (이벤트 envelope, 카탈로그, 저장), `10-kernel.md` (명령, 검증 규칙 집행), `11-asking-and-autonomy.md` (질문 전달, 혼자 정한 결정의 흐름), `14-loops-modes-orchestration.md` (루프·모드·다이얼), `15-inquiry-engine.md` (탐구 실행)
 
 ## 1. 목적과 범위
@@ -950,7 +950,7 @@ export const Concern = Obj({
 });
 ```
 
-- 저장 상태는 위 여섯이다. v0.3 02 §4.2의 "대기", "결과 확인 대기", "결과 확인됨"은 하위 레코드에서 계산하는 표시 상태다(09 §3.11 `v_concern_display`). 저장 상태로 두면 하위 레코드와 어긋날 수 있기 때문이다.
+- 저장 상태는 위 여섯이다. v0.3 02 §4.2의 "대기", "결과 확인 대기", "결과 확인됨"은 하위 레코드에서 계산하는 표시 상태다(09 §3.7이 정한 `@helm/store/src/views/concern-display.ts`의 함수가 계산). 저장 상태로 두면 하위 레코드와 어긋날 수 있기 때문이다.
 
 ```ts
 /** 투영이 계산하는 표시 상태 (저장하지 않음). 우선순위 위에서 아래 */
@@ -1701,7 +1701,7 @@ export const ResourceScope = Type.Union([
   Obj({ kind: Type.Literal("path"), projectId: ProjectId, pattern: Type.String({ minLength: 1, maxLength: 512 }) }),
   Obj({ kind: Type.Literal("service"), name: Type.String({ pattern: "^[a-z0-9][a-z0-9._-]{0,62}$" }) }),
   Obj({ kind: Type.Literal("url_prefix"), prefix: Type.String({ minLength: 1, maxLength: 2048 }) }),
-  /** 13 ResourceUri의 net:<host> | net:* | net:public. host가 "public"이면 공개 인터넷 전체(루프백·사설·CGNAT·tailnet 제외)다. 이 종류의 읽기(web_search·web_fetch·브라우저 읽기)는 합의 부여 없이 기본 허용이다. 외부 효과(send)는 권리 게이트를 그대로 거친다 ([결정 55], [판정 J-190] (2), [판정 J-205]) */
+  /** 13 ResourceUri의 net:<host> | net:public. host가 "public"이면 공개 인터넷 전체(루프백·사설·CGNAT·tailnet 제외)다. 이 종류의 읽기(web_search·web_fetch·브라우저 읽기)는 합의 부여 없이 기본 허용이다. 외부 효과(send)는 권리 게이트를 그대로 거친다 ([결정 55], [판정 J-190] (2), [판정 J-205]) */
   Obj({ kind: Type.Literal("net"), host: Type.String({ minLength: 1, maxLength: 253 }) }),
   /** 13 ResourceUri의 mcp:<server>/<tool> (tool은 * 허용) */
   Obj({ kind: Type.Literal("mcp"), server: Type.String({ minLength: 1 }), tool: Type.String({ minLength: 1 }) }),
@@ -1761,7 +1761,7 @@ export const AgreementContent = Obj({
 });
 export const AgreementKind = Type.Union([
   Type.Literal("commit"), Type.Literal("probe"), Type.Literal("integration"),
-  Type.Literal("inquiry"),   // 쓰기 없는 탐구를 규칙으로 활성화 (14 §3.20.1). Helm 저장 공간 산출물은 propose다
+  Type.Literal("inquiry"),   // 쓰기 없는 탐구를 규칙으로 활성화 (10 §3.11.6). Helm 저장 공간 산출물은 propose다
   Type.Literal("emergency"), // 비상 합의에서 활성화 (C.emergency)
 ]);
 export const AgreementCore = Obj({
@@ -1929,7 +1929,7 @@ export const Attestation = Obj({ ...Meta, kind: Type.Literal("attestation"), ...
 
 export const AcceptanceDecision = Type.Union([
   Type.Literal("accepted"),            // 확인
-  Type.Literal("conditional"),         // 조건부 확인
+  Type.Literal("conditional"),         // 조건 붙여 확인
   Type.Literal("revision_requested"),  // 수정 요청 (합의 유지, 진행 중으로)
   Type.Literal("rejected"),            // 거절
   Type.Literal("criteria_wrong"),      // 기준이 틀림 (I로)
@@ -1979,7 +1979,7 @@ export const ObligationKind = Type.Union([
   Type.Literal("docs_tests"),           // 바뀐 파일과 관련된 문서·테스트
   Type.Literal("broken_premise"),       // 이 결과가 깨뜨린 이전 선택·전제
   Type.Literal("concern_conflict"),     // 다른 열린 Concern과의 충돌
-  Type.Literal("acceptance_condition"), // 조건부 확인의 조건
+  Type.Literal("acceptance_condition"), // 조건 붙여 확인의 조건
   Type.Literal("boundary_check"),       // S 루프 경계 항목 확인
   Type.Literal("recombine"),            // 하위 Concern 결과의 재조합 확인
   Type.Literal("goal_revision_check"),  // Goal 개정으로 다시 확인할 합의·선택
@@ -2341,14 +2341,15 @@ export const LoopPlanCore = Obj({
   concernId: ConcernId,
   situationAssessmentId: Nullable(AssessmentId),
   combo: Type.Array(LoopIdSchema, { minItems: 1 }),   // planDetail.steps를 펼친 루프 목록. 계획일 뿐 (v0.3 03 §1)
-  /** 14 LoopPlanRecord의 나머지 (D-14 정렬). 이름 `version`은 RecordMeta와 겹쳐 planVersion으로 쓴다 */
+  /** 14 §3.8.1 계획 정의의 나머지 (D-14 정렬). 이름 `version`은 RecordMeta와 겹쳐 planVersion으로 쓴다 */
   planVersion: Type.Integer({ minimum: 1 }),
   planDetail: Obj({
     steps: Type.Array(PlanStep, { minItems: 1 }),
-    /** 계획을 만들 때 쓴 선언 (14 LoopPlanRecord.flags). 근거 id를 가진 PlanFlags다. 문자열 목록이 아니다 */
+    /** 계획을 만들 때 쓴 선언 (14 §3.8.1 flags). 근거 id를 가진 PlanFlags다. 문자열 목록이 아니다 */
     flags: PlanFlags,
     completedStepKeys: Type.Array(Type.String({ minLength: 1, maxLength: 16 })),
-    skipped: Type.Array(Type.String({ minLength: 1, maxLength: 16 })),
+    /** 건너뛴 루프(또는 루프 계열)와 이유. 14 §3.8.1이 이유를 만든다 [판정 J-347] */
+    skipped: Type.Array(Obj({ loop: Type.String({ minLength: 1, maxLength: 16 }), reason: ShortText })),
     cause: Enum(["initial", "situation_changed", "deviation", "mode_changed", "directive",
       "structure", "contested", "reopened", "maturity_gate", "procedure"]),
     proofBurdenRequired: Nullable(Obj({ level: Type.String({ minLength: 1 }), signals: Type.Array(ShortText) })),
@@ -2486,7 +2487,7 @@ export const ModeAssignment = Obj({
 });
 
 // @helm/domain/src/records/dial.ts
-/** 다이얼 정본 목록 20개: v0.3 07 §3의 14개 + assurance 2 + 구조 상한 2 + 계획 작성 방식 1 + 가정 보류 다이얼 1 ([판정 J-197], [판정 J-221]). 키 이름과 값의 의미는 14가 확정한다. 의미 설정(다이얼이 아닌 설정, 예: 주의 예산)은 이 목록에 들지 않는다 */
+/** 다이얼 정본 목록. DIAL_KEYS 키 20개 = 다이얼 키 18개(항목 16) + 구조 설정 키 2개. 다이얼 키 18개는 v0.3 07 §3의 14개 + assurance 2 + 계획 작성 방식 1 + 가정 보류 다이얼 1이다 ([판정 J-197], [판정 J-221], [판정 J-300]). 구조 설정 키 2개는 구조 상한이다. 키 이름과 값의 의미는 14가 확정한다. 의미 설정(다이얼이 아닌 설정, 예: 주의 예산)은 이 목록에 들지 않는다 */
 export const DIAL_KEYS = [
   "question.threshold.c1", "question.threshold.c2", "question.threshold.c3",
   "question.default_delivery", "question.immediate_threshold", "question.expiry_margin",
@@ -2858,7 +2859,7 @@ export const PreferenceModel = Obj({
 export const RunKind = Enum(["work", "verifier", "mediator", "branch", "subrun", "inquiry"]);
 export const RunCore = Obj({
   runKind: RunKind,
-  role: AgentRoleSchema,
+  role: AgentRoleSchema,                  // observer, router 값은 run 레코드에 쓰지 않는다 (RunKind 6값, [판정 J-97])
   threadId: ThreadId,
   parentRunId: Nullable(RunId),           // spawn으로 생긴 하위 실행
   rootRunId: RunId,                       // 최상위 실행 (독립성 판정에 씀). 최상위면 자기 id
@@ -2998,7 +2999,7 @@ export const ToolCallCore = Obj({
 /** 실행 의도 (toolcall.started 때 정해짐, 13 prepare 결과) */
 export const ToolCallExecution = Obj({
   executedArgs: BlobRef,               // 정규화한 인자 (절대 경로 등)
-  fingerprint: Sha256,                 // 13 fingerprintArgs(toolName, executedArgs). send 승인과 대조
+  fingerprint: Sha256,                 // 13 fingerprint(toolName, executedArgs). send 승인과 대조
   toolVersion: Type.String({ minLength: 1, maxLength: 64 }),
   targets: Type.Array(ResourceUri),
   targetsKnown: Type.Boolean(),
@@ -3557,7 +3558,7 @@ export type Machine<S extends string, E extends string> = {
 
 종료: merged. completed와 closed는 다시 열 수 있다.
 
-표시 상태(`ConcernDisplayStatus`)의 계산은 09 §3.11.4의 `v_concern_display`가 한다.
+표시 상태(`ConcernDisplayStatus`)의 계산은 09 §3.7이 정한 `@helm/store/src/views/concern-display.ts`의 함수가 한다.
 
 #### 3.22.3 WorkUnit
 
@@ -3602,7 +3603,7 @@ export type Machine<S extends string, E extends string> = {
 | proposed | `agreement.confirmed` | active | R-04 (human) | `activation.mode = human` |
 | proposed | `agreement.activated_by_grant` | active | R-04 (grant) | `activation.mode = grant`, Grant 활성화 횟수 + 1. 복귀 요약의 "에이전트가 정한 것"에 표시 |
 | proposed | `agreement.activated_by_choice` | active | R-56 (사람이 직접 고른 선택의 범위 ⊇ 합의 범위, [판정 J-133]) | `activation.mode = choice_scope` |
-| proposed | `agreement.activated_by_rule` | active | 쓰기 없는 탐구 합의 (14 §3.20.1) | `activation.mode = rule` |
+| proposed | `agreement.activated_by_rule` | active | 쓰기 없는 탐구 합의 (10 §3.11.6) | `activation.mode = rule` |
 | proposed | `agreement.confirmed` (via 결과 확인) | active | 반영 범위 합의. 같은 트랜잭션의 `acceptance.recorded`(accepted·conditional)가 `integrationAgreement`로 확정 ([판정 J-126]) | `activation.mode = result_acceptance`(`acceptanceId`), `via` = 결과 확인 명령 |
 | proposed | `agreement.declined`, `agreement.discarded` | declined | declined: 행위자 human. discarded: 확정 전 초안 폐기 | - |
 | active | `agreement.narrowed` | active | R-51 | `narrowedScope` 설정 |
@@ -3632,14 +3633,14 @@ export type Machine<S extends string, E extends string> = {
 
 Acceptance는 만든 뒤 바뀌지 않는다. 사람이 확인을 되돌리려면 그 결과 확인(`ac`)이나 결과(`rs`)에 이의를 건다([판정 J-123]).
 
-- 조건부 확인(conditional)의 조건은 같은 트랜잭션에서 `acceptance_condition` 반영 항목이 되고 곧바로 `deferred`(revisitTrigger = 조건 문장의 `manual` 또는 사람이 고른 Trigger)가 된다. 사람 조작은 결과 확인 한 번으로 끝난다(AC-07-09, [판정 J-125]).
+- 조건 붙여 확인(conditional)의 조건은 같은 트랜잭션에서 `acceptance_condition` 반영 항목이 되고 곧바로 `deferred`(revisitTrigger = 조건 문장의 `manual` 또는 사람이 고른 Trigger)가 된다. 사람 조작은 결과 확인 한 번으로 끝난다(AC-07-09, [판정 J-125]).
 - 결과 확인 때 고른 반영 처리 방침 `obligationPolicy`(proceed_all / defer_limits)를 Acceptance에 남기고, 커널 규칙 R-1(10)이 같은 트랜잭션에서 그 방침대로 항목을 만들고 미룬다.
 
 #### 3.22.6 Integration, Obligation
 
 | 대상 | 현재 | 이벤트 | 다음 | 가드 | 부수 효과 |
 |---|---|---|---|---|---|
-| Integration | ∅ | `integration.opened` | open | R-20 | 커널 규칙이 만든 반영 항목들 (`obligation.added`): 바뀐 파일의 관련 문서·테스트, 결과가 깨뜨린 선택·전제, 다른 열린 Concern과의 충돌, 조건부 확인의 조건 (X3-2-14) |
+| Integration | ∅ | `integration.opened` | open | R-20 | 커널 규칙이 만든 반영 항목들 (`obligation.added`): 바뀐 파일의 관련 문서·테스트, 결과가 깨뜨린 선택·전제, 다른 열린 Concern과의 충돌, 조건 붙여 확인의 조건 (X3-2-14) |
 | Integration | open | `integration.completed` (커널) | completed | R-22 | WorkUnit integrated |
 | Obligation | ∅ | `obligation.added` | open | - | - |
 | Obligation | open | `obligation.resolved` | resolved | R-21 | 마지막 open이면 `integration.completed` |

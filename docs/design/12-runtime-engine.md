@@ -1,7 +1,7 @@
 # 12. 런타임 엔진
 
 - 작성: P7 런타임, 2026-10-11 (1단계 초안), 2026-10-12 2a단계 통합과 4단계 보완
-- 상태: 설계 초안. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID는 08, 프로토콜 메서드는 19를 따른다. 기준은 브리프 결정 1~64과 조정자 판정 `process/rulings-stage2a.md`(J-01~J-276)다.
+- 상태: 설계 초안. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID는 08, 프로토콜 메서드는 19를 따른다. 기준은 브리프 결정 1~64과 조정자 판정 `process/rulings-stage2a.md`(J-01~J-351)다.
 - 함께 읽을 문서: `process/00-design-brief.md`(이하 "브리프"), [13 도구와 실행](13-tools-and-execution.md), [06 시스템 아키텍처](06-system-architecture.md), [10 커널](10-kernel.md), [14 루프·모드·오케스트레이션](14-loops-modes-orchestration.md), [15 탐구 엔진](15-inquiry-engine.md)
 - 표시 규칙: 브리프 §5.2(판정 J-144). `[결정 n]`은 사용자가 정한 브리프 결정에만 쓴다. 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`(결정 44~46) 또는 `[판정 J-nn]`으로 적는다. `[제안]`은 이 문서가 정한 것, `[가정]`은 확인하지 않은 전제다. 모델 API를 내는 쪽은 본문에서 "제공자", 화면 문구에서 "모델 제공자", 코드에서 `provider`라고 쓴다(판정 J-150). 외부 사실은 `[원문]`(소스·문서 직접 확인), `[실험]`(이번에 실행해 확인), `[검색]`, `[지식]`(재확인 안 함)으로 표시한다.
 - 출처 줄임말: `pi-facts-1`·`pi-facts-2`는 `process/sources/pi-api-facts-*.md`, `extracts-N`은 `process/sources/conversation-extracts-N.md`, `canon`·`canon-2`·`canon-3`은 `process/sources/helm-canon*.md`, `cases`는 `process/sources/pi-cases-notes.md`, `S4/<사례>`는 `.helm-design-work/S4/<사례>.md`, `pi-src/`는 `~/projects/_ref/pi-src`이고 행 번호는 태그 `v1.1.0`(커밋 `abe508e1`, 브리프 판정 44) 기준이다. 1단계에서 읽은 `cdaf6c2`와 `packages/agent/src`, `packages/ai/src/{models.ts,utils,api,auth}`, coding-agent 도구 파일은 같고, `packages/ai/src/types.ts`, codemode, durable spec은 행이 다르므로 v1.1.0 행으로 고쳤다, `P7/`은 `.helm-design-work/P7/`(이 문서의 실험), `대화 L<n>`은 `docs/handoff/conversation-transcript-until-158.md`의 행이다.
@@ -310,12 +310,12 @@ export interface RunSpec {
   workUnitId?: WorkUnitId;
   goalId?: GoalId;                  // 08 RunCore.goalId는 Nullable
   workspaceRoot: string;            // 절대 경로. 08 RunCore.workspaceRoot
-  role: AgentRole;                  // 08 AgentRole: work | verifier | mediator | observer | router | branch
+  role: AgentRole;                  // 08 AgentRole: work | verifier | mediator | observer | router | branch. observer, router는 run을 만들지 않는다 [판정 J-292]
   modelRole: ModelRole;             // §3.3.2. 14 modelHint에서 변환(§3.2.4)
   editMode: EditMode;               // 기본 'replace'. 14 WorkRequest에 없다. startRun이 1순위 후보의 편집 방식(§3.3.3 ai.editMode)으로 채워 run 레코드에 고정한다. 편집 도구 변형과 read·grep 출력의 줄 표식을 정한다(판정 J-190 (1))
   loopId?: LoopId;                  // 14
   step?: StepId;                    // 14
-  primitives: readonly PrimitiveAction[];    // 14 WorkRequest.primitives(유효 원시 행동)
+  primitives: readonly Primitive[];    // 08 Primitive(§3.3.3). 14 WorkRequest.primitives(유효 원시 행동)
   proposalKinds: readonly ProposalKind[];    // 14 WorkRequest.proposalKinds
   context: {
     mode: 'fresh' | 'fork' | 'resume';       // 14 WorkRequest.context.mode
@@ -2121,7 +2121,7 @@ presence(09 `presence.changed`, 판정 J-46·판정 J-64)는 이 문서가 다�
 - 도구 없는 단일 모델 호출이다. run을 만들지 않고 trace `model.requested`/`model.responded`(`attribution`: 부모 run·도구 호출·Concern)만 남긴다. 사용량은 부모 run 계정의 `budget.charged`다.
 - 입력이 정본 투영에서 만들어지면(15 탐구 투영, 16 관찰 입력) 부모 run 아래 `run.record_context{purpose: 'subcall'}`를 남기고, 그 출력에서 나온 제안 명령에 이 `contextRef`를 붙인다(A11, 10 V-FORM-06).
 - `memoKey`가 있고 같은 키의 성공 호출 기록이 있으면 다시 부르지 않고 그 결과를 돌려준다(`fromMemo: true`). 메모는 trace `memo`(09 trace 종류)에 키와 결과 blob으로 남긴다. 크래시 뒤 15의 행동 재실행이 비용을 다시 쓰지 않게 한다.
-- 출력 스키마가 있으면 JSON 출력을 검증하고 실패 시 2회까지 다시 요청한다(검증 오류를 메시지로 붙임). 그래도 실패면 `schema` 오류.
+- 출력 스키마가 있으면 JSON 출력을 검증하고 실패 시 관찰 에이전트 호출은 1회(16 §3.12.3), 그 밖의 호출은 2회까지 다시 요청한다(검증 오류를 메시지로 붙임) [판정 J-309]. 그래도 실패면 `schema` 오류.
 - 하위 호출 출력은 관찰이 아니다. 기록할 가치가 있으면 호출자가 제안 명령으로 커널에 보낸다.
 
 #### 3.14.7 관찰 에이전트
@@ -2223,7 +2223,7 @@ on Directive notify { deliveryId, questionIds, urgency, batchKey? }:
 | `toolcall.intended`, 상태 `intended` | `toolcall.started`, 상태 `started` |
 | 상태 `gated` | `awaiting_approval`(권리) 또는 `blocked` + `scope_change` 질문(범위 밖) |
 | trace `toolcall.not_executed`, 상태 `not_executed` reason `aborted` | 이벤트 `toolcall.not_executed` (명령 `toolcall.skip`), reason `cancel` |
-| `toolcall.outcome_unknown`, 상태 `interrupted`(재시작 결과 불명) | 명령 `toolcall.report_unknown` → 외부 효과 있음 `toolcall.outcome_uncertain` / 없음 `toolcall.interrupted{cause: crash}` (판정 J-44, J-160) |
+| `toolcall.outcome_unknown`, 상태 `interrupted`(재시작 결과 불명) | 명령 `toolcall.report_unknown` → 외부 효과 있음 `toolcall.outcome_uncertain` / 없음 `toolcall.interrupted{cause: crash}`. 부팅 복구 경로는 `crash`만 쓴다(cause 전체는 09 §3.4.15) (판정 J-44, J-160) [판정 J-290] |
 | `toolcall.recover`·`toolcall.resolve_unknown`, 상태 `resolved` | 명령 `toolcall.recover` → `toolcall.recovered`, 상태 `recovered` |
 | 상태 `replayed` | `toolcall.replay_started` → `toolcall.completed{recovered: replayed}` |
 | trace `toolcall.result` | `toolcall.completed`의 `modelContent`·`fullOutput`·`structuredContent` blob |

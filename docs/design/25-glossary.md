@@ -1,6 +1,6 @@
 # 25. 용어집
 
-- 작성: 2026-10-12, T3(2b단계), 같은 날 4단계 보완. 기준: 브리프 결정 1~64, 조정자 판정 J-01~J-276, 설계 문서 01~26의 4단계 진행 중 판. 2b단계 대조는 12:47 판(`.helm-design-work/T3/snap0`)에서 시작해 13:42 판까지, §4.1의 줄 번호는 3단계 검증 1차 점검(`.helm-design-work/V2/A-n55-status.md`) 기준이다
+- 작성: 2026-10-12, T3(2b단계), 같은 날 4단계 보완. 기준: 브리프 결정 1~64, 조정자 판정 J-01~J-351, 설계 문서 01~26의 4단계 진행 중 판. 2b단계 대조는 12:47 판(`.helm-design-work/T3/snap0`)에서 시작해 13:42 판까지, §4.1의 줄 번호는 3단계 검증 1차 점검(`.helm-design-work/V2/A-n55-status.md`) 기준이다
 - 이 문서는 이후 문체·용어 검증(3단계 V7), 구현, UI 문구(`@helm/ui-language`)의 기준이다.
 
 ## 1. 목적과 범위
@@ -26,7 +26,7 @@
 
 ### 2.1 정본을 정하는 순서
 
-1. 브리프(`process/00-design-brief.md`)의 결정 1~64와 조정자 판정(`process/rulings-stage2a.md`, J-01~J-276).
+1. 브리프(`process/00-design-brief.md`)의 결정 1~64와 조정자 판정(`process/rulings-stage2a.md`, J-01~J-351).
 2. 이름 소유 문서(판정 §1): 이벤트 이름·payload는 09 §3.4, 레코드 종류·필드·질문 종류·ID 접두사는 08(접두사 정본은 08 §3.2.2), 명령 이름은 10 §3.11, 프로토콜 메서드·오류 코드는 19, 화면 ID는 03, 유즈케이스 ID는 02, 패키지 경계는 06, 거부 갈래 이름은 10.
 3. 화면 표시 이름은 03 §3.2·§3.3(객체 이름, 상태 라벨)과 05 §3.10(문구 지침, 용어집 초안 화면 열)을 따른다. 둘이 다르면 §4에 적는다.
 4. 원전(foundations·friendly·product-language.yaml) 이름은 항목의 "혼동 주의" 칸과 부록 A 대응표에 적는다. 화면과 설계 본문은 브리프 §6과 위 정본의 이름을 쓴다(helm-canon-3 §1.3).
@@ -122,7 +122,7 @@
 | C/A 우선 | — | 작업 합의(C)와 결과 확인(A)을 빠뜨리지 않고 먼저 만든다. 사용자가 가장 많이 건너뛰는 부분이라는 진술에서 나왔다 | — | 01 §3.5, 14 §3.13.7, 11 §3.15 | — |
 | 사람 조작 2회 상한 | R-OP-1 | 변경 WorkUnit 하나의 정상 경로에서 사람의 결정 조작은 2회(합의 확정, 결과 확인)를 넘지 않는다. R-OP-2는 합의 확정 질문을 만들지 않는 압축 조건 | — | 01 §3.5.2, 02 §2.6 | 질문 하나에 담긴 여러 기준은 결정 1회다(J-23) |
 | 사람 조작 | D, I, 보기 | D 결정 조작(Helm이 낸 요청에 대한 결정 입력), I 입력(사람이 먼저 시작한 입력과 원함 탐구 반응), 보기(세지 않음) | — | 01 §3.5.2, 02 §2.6, 14 §2.3 | 초안을 고쳐 확정해도 D는 1이다 |
-| 정상 경로 | normal path | 변경 WorkUnit의 사람 조작 중 상한(R-OP-1) 안에 드는 것. 이벤트 종류로 계산한다 | — | 01 §3.5.2, J-76 | 08 `HumanOpMeta.followedRecommendation`(추천을 그대로 따랐는가)과 뜻이 다르다(J-76). 01·16은 아직 `onNormalPath` 필드 이름을 쓴다(§4 N-06) |
+| 정상 경로 | normal path | 변경 WorkUnit의 사람 조작 중 상한(R-OP-1) 안에 드는 것. 이벤트 종류로 계산한다 | — | 01 §3.5.2, J-76 | 08 `HumanOpMeta.followedRecommendation`(추천을 그대로 따랐는가)과 뜻이 다르다(J-76). 23은 아직 `onNormalPath`를 쓴다(§4 N-06) |
 | 증거 관문 | G0, G1, G2 | 제품 단계 사이에 실사용 증거를 얻는 관문. G0 탐구 엔진 평가(15 E0, MVP 실사용 시작 조건), G1 MVP→2단계(G1-1~G1-5), G2 2단계→3단계. 구현은 멈추지 않고 관문은 기능 활성화 단계로 지킨다 | — | 01 §3.8.4, 23 §3.5, J-11 | 재진입 가드 G1~G9(14), 보장 성질 G1~G8(13)과 모양이 같다 |
 | 기능 활성화 단계 | A2, A3 | G1 기록 뒤 2단계 기능을 켜는 단계(A2), G2 기록 뒤 3단계 기능을 켜는 단계(A3). 그 전에는 기본 꺼짐으로 운영 데몬에 들어갈 수 있다 | — | 23 §3.5, D23-3 | 공리 A1~A15, 07 패치 A1~A7과 모양이 같다 |
 | 제품 단계 | MVP, 2단계, 3단계 | 기능을 켜는 순서. 루프 식별자 단위의 기능 플래그(`features.enabledLoops`)로 켠다 | — | 01 §3.8, 14 §3.15 | 설계 작업의 "1단계·2a단계·2b단계"(작업 단계)와 다르다 |
@@ -268,7 +268,7 @@
 | 모드 | mode, `ModeId` | 루프 계획 기본값 + 능력 부분집합 + 다이얼 값의 설정. Concern에 붙고 WorkUnit은 물려받는다 | 모드 | 브리프 결정 3, 14 §3.10 | 쓰지 않음: 페르소나, 역할, 프로필. 에이전트에게 성격 문장을 주지 않는다. 원전 Double Diamond의 발산·수렴 국면(canon-3 I8)은 모드가 아니다. 14·15는 Double Diamond를 방법으로만 쓴다 |
 | 모드 여덟 | `orient`, `investigate`, `deliberate`, `taste`, `execute`, `verify`, `restructure`, `emergency` | 복귀 안내, 원인 조사, 선택 검토, 취향 탐색, 실행, 검증, 구조 정리, 비상 | 같은 한국어 이름 | 14 §3.10.2, 08 §3.15, 03 §3.3.7 | 모드 이름은 탐구 이름과 겹치지 않게 지었다. "실행" 모드와 루프 "약속 실행"을 구분한다 |
 | 모드 라우팅 | `mode.route`, 라우터 `agent:router` | 상황·진입 조건·입력 형태·명시·이력 신호로 모드를 고르는 일 | — | 14 §3.10.3 | 사람이 고르면 `mode.set`(10 §3.11.11) |
-| 다이얼 | dial, `DIAL_KEYS` | 질문·탐구·자율성의 정도를 조절하는 값. 정본 목록(`DIAL_KEYS`)은 키 스무 개다. v0.3 07 §3의 열네 항목(키 열여섯 개, 질문 문턱 세 키 포함), 구조 상한 두 키, `planAuthoring`([결정 53], [판정 J-188]), `assumptionDeferOnDowntime`([판정 J-197])을 합친 것이다 | 다이얼 | 14 §3.11.1, 08 §3.15, [판정 J-221] | 쓰지 않음: 슬라이더, 레벨. `structure.max_children`·`max_depth`는 `DIAL_KEYS`에 들지만 항목 종류가 `structure`다 |
+| 다이얼 | dial, `DIAL_KEYS` | 질문·탐구·자율성의 정도를 조절하는 값. 정본 목록(`DIAL_KEYS`)은 키 20개이며, 다이얼 키 18개(항목 16)와 구조 설정 키 2개(`structure.max_children`·`max_depth`)로 이루어진다. 다이얼 키 18개는 v0.3 07 §3의 열네 항목(키 열여섯 개, 질문 문턱 세 키 포함)에 `planAuthoring`([결정 53], [판정 J-188])과 `assumptionDeferOnDowntime`([판정 J-197])을 더한 것이다 | 다이얼 | 14 §3.11.1, 08 §3.15, [판정 J-221] | 쓰지 않음: 슬라이더, 레벨. `structure.max_children`·`max_depth`는 `DIAL_KEYS`에 들지만 항목 종류가 `structure`다 |
 | 계획 방식 | dial `planAuthoring`(값 `computed`·`hybrid`·`model`, 기본 `hybrid`, 층 `user`·`concern`) | 루프 계획을 누가 설계하는가. `computed`는 코드가 계산하고 모델 초안을 받지 않는다. `hybrid`(기본)는 계획 표시를 모델이 선언하고 코드가 계획을 계산하며, 범위 밖 표시가 참이거나 맞는 계산 규칙이 없으면 모델 초안을 받는다. `model`은 언제나 모델이 계획 전체를 설계한다. 모델 초안은 제안 종류 `loop_plan_draft`(`steps`)로 내고, 검사를 두 번 어기면 코드 계산 계획을 쓰고 그 사실을 기록한다 | 계획 방식: 코드 계산만 / 혼합(기본) / 모델 설계 | 08 §3.15, 14 §3.11.1, 05 §3.6.6, [결정 53], [판정 J-188] | 쓰지 않음: 설계 모드, 플랜 모드. 키 `planAuthoring`은 점 표기가 없어 다이얼 키 형식 `<묶음>.<이름>`의 예외다(08 정의). 층 `instruction`에는 두지 않는다 |
 | 데몬 정지 중 가정 만료 미루기 | dial `assumptionDeferOnDowntime`(값 `on`·`off`, 기본 `on`, 층 `user`·`concern`·`instruction`) | 데몬이 멈춘 동안 지난 가정 만료를 미루는 다이얼이다. 정지 시간이 만료 여유보다 길면 만료를 "복귀 + 30분"으로 미룬다. 막지 않는 질문만 대상이다. MVP 화면에는 노출하지 않는다 | — | 14 §3.11.5, 11 §3.6.3, [판정 J-142], [판정 J-197], [판정 J-221] | 쓰지 않음: 가정 연장, 만료 없음. 정지 중이 아닐 때는 만료를 미루지 않는다. 키는 점 표기 없이 쓴다(J-221) |
 | 질문 조건 문턱 | `question.threshold.c1`~`c3`, `few`·`normal`·`many` | 정보 게이트 조건 1~3의 문턱 | 질문 빈도(프리셋) | 14 §3.11.1 #1, 11 §3.3.4 | "질문 빈도" 프리셋은 다이얼 목록에 들지 않는 입력 편의다 |
@@ -496,7 +496,7 @@
 | 쓰기 트랜잭션 | `store.transaction(fn)`, `commitBatch` | store가 제공하는 동기 대화형 쓰기 트랜잭션. 같은 트랜잭션 안의 명령마다 KernelState를 덧씌운 사본으로 갱신하고, 롤백하면 버린다. `commitBatch`는 그 위의 편의 함수다 | — | J-148, 09 §3.16 | 투영 갱신이 실패하면 롤백한다(J-129, 09 D09-5) |
 | 명령 | command, `CommandEnvelope`, `cm` | 행위자가 상태를 바꾸려는 의도. 아직 일어난 일이 아니다. 결과와 함께 `commands`에 저장한다 | — | 09 §3.1, §3.9, 10 §3.3 | 1판 `Submission`(`sb_`)은 쓰지 않는다 |
 | 명령 채널 | `H` human_client, `M` model_tool, `X` aux_agent, `R` runtime, `S` scheduler, `A` adapter | 명령이 들어오는 경로. 채널과 행위자 조합이 맞아야 한다 | — | 10 §3.3.2, §3.11 | 위반은 `denied.channel` |
-| 멱등 키 | `idempotencyKey`, `ik` | 사용자 의도 하나에 붙이는 키. 다시 보내도 한 번만 적용된다 | — | 09 §3.9, 19 §3.9 | 같은 키에 다른 내용이면 `conflict.idempotency_key_reuse`(19 3006) |
+| 멱등 키 | `idempotencyKey`, `ik` | 사용자 의도 하나에 붙이는 키. 다시 보내도 한 번만 적용된다 | — | 09 §3.9, 19 §3.9 | 같은 키에 다른 내용이면 저장소 결과 `key_reused`(거부 코드 아님, 프로토콜 3006) |
 | 기준 seq / 대상 revisionSeq | `basisSeq` / `revisionSeq` | 사람이 결정을 내릴 때 본 화면의 seq와 대상 레코드의 마지막 의미 있는 변경 seq. 대상이 더 뒤면 낡은 화면에서 내린 결정으로 거부한다 | 화면을 연 뒤 상황이 바뀌어 … | 10 §3.3.4, 19 §3.9.3, J-79 | 거부 `conflict.version_mismatch`(19 3004 `command.revisionConflict`) |
 | 커널 | `@helm/kernel`, `decide`, `react`, `apply` | I/O 없는 순수 함수 묶음. 제출을 검증해 이벤트 초안을 내고, 파생 규칙을 적용하고, 상태를 접는다 | — | 10 §3.1 | 1판 `KernelEffect`·`evolve`는 `Directive`·`apply`(10 §3.4.6) |
 | 결정 결과 | `accepted`, `rejected`, `needs_gate`, `conflict`, `error` | 커널 판정의 다섯 결과 | — | 10 §3.1.4, §3.4.5 | 19 응답 `status: applied`·`gated`와 대응(19 §3.3.4) |
@@ -507,7 +507,7 @@
 | 검증 규칙 | V-PATH, V-CH, V-FORM, V-VER, V-CAP, V-STA, V-AUT-01 … | 커널이 명령마다 적용하는 규칙 ID | — | 10 §3.7 | 11의 V-Q-01 등도 같은 체계다 |
 | 쓰기 시점 참조 제약 | R-01~R-53 | 관계가 가리키는 대상이 존재하고 상태가 맞는지를 쓰기 시점에 검사하는 표 | — | 08 §3.20.2, 10 §3.10 | 01의 R-OP-1·2(사람 조작 규칙)와 다르다 |
 | 커널 사후 검사 | V-INV | 커밋 뒤 불변조건을 다시 확인하는 검사 | — | 10 §3.16.3 | — |
-| 읽기 전용 모드 | `read_only`, `readOnlyReasons` | 부팅 무결성 실패, 디스크 부족, 운영자 지정, 반복되는 투영 갱신 실패(`projection_fault`)로 조회만 되는 데몬 모드. 부팅 무결성 실패로 들어갈 때는 이벤트를 남기지 않는다 | 읽기 전용(사유별 문장) | 09 §3.10.5, 17, J-67, J-115, J-129 | 안전 모드(`safe_mode`, 크래시 루프 전용)와 다르다. 화면 이름은 "읽기 전용"이다. 쓰지 않음: "복구 모드", `recovery_mode`(§4 N-28) |
+| 읽기 전용 모드 | `read_only`, `readOnlyReasons` | 부팅 무결성 실패, 디스크 부족, 운영자 지정, 반복되는 투영 갱신 실패(`projection_fault`)로 조회만 되는 데몬 모드. 부팅 무결성 실패로 들어갈 때는 이벤트를 남기지 않는다 | 읽기 전용(사유별 문장) | 09 §3.10.5, 17, J-67, J-115, J-129 | 안전 모드(`safe_mode`, 크래시 루프 또는 복원 뒤 첫 부팅)와 다르다. 화면 이름은 "읽기 전용"이다. 쓰지 않음: "복구 모드", `recovery_mode`(§4 N-28) |
 | 업캐스터 | upcaster, `typeVersion` | payload 버전이 바뀐 이벤트를 읽을 때 새 모양으로 바꾸는 함수. 이벤트 이름은 바꾸지 않는다 | — | 09 §3.3, §3.13.3 | — |
 | 무효화 태그 | `invalidates`, `dependsOn` | 뷰가 기대는 대상(레코드 ID나 `@inbox` 같은 집계 이름). 이벤트와 겹치면 뷰가 낡은 것이다 | — | 19 §1.4, §3.6.3 | — |
 | 저장소 ID | `storeId` | 이벤트 저장소의 정체. 새로 만들거나 백업에서 복원해 seq 연속성이 끊기면 바뀐다 | — | 19 §1.4, 20 §1.4 | — |
@@ -523,7 +523,7 @@
 | 문구 패키지 | `@helm/ui-language` | 문구 키, 한국어 문구, 상태 라벨, 조사 처리, 오류 코드 → 문구 키, 금지 표현 검사. I/O 없음 | — | 05 §3.10.8, 06 §3.4.16, J-31, J-103 | 앱 안 `copy/`에 문구를 두지 않는다(J-103). 20 §3.9.11에 `src/copy/`가 남아 있다(§4 N-33) |
 | 내부 운영 모드 | `OpsMode`: `starting`, `recovering`, `ready`, `safe_mode`, `read_only`, `draining`(+`stopped`) | 데몬 수명주기 상태 | — | 17 §3.4.1, §3.11.1 | 클라이언트에 보이는 값은 19 `DaemonMode` |
 | 데몬 모드(프로토콜) | `DaemonMode`: `normal`, `safeMode`, `readOnly`, `draining` | 클라이언트에 알리는 데몬 상태 | 연결됨 / 안전 모드 · 작업 멈춤 / 읽기 전용 / 서버가 곧 다시 시작됩니다 | 19 §3.4.4, 17 §3.4.1, J-115 | `readOnly`의 화면 이름은 "읽기 전용"이다. 화면 문서의 "복구 모드"(`recovery_mode`, `err.daemon.recoveryMode`)는 J-115로 바뀐다(§4 N-28) |
-| 안전 모드 | `safe_mode`, `daemon.safe_mode_entered`·`exited`, `runtime.exit_safe_mode` | 크래시 루프(10분 안 비정상 부팅 3회)를 감지하면 자동 재개·에이전트 타이머·관찰 에이전트·새 실행 허가를 멈추고 사람 확인을 기다리는 모드. 질문 답과 조회는 된다 | 안전 모드 | 17 §1.4, §3.4.6, 12 §3.7.6 | 읽기 전용 모드와 다르다(J-67) |
+| 안전 모드 | `safe_mode`, `daemon.safe_mode_entered`·`exited`, `runtime.exit_safe_mode` | 크래시 루프(10분 안 비정상 부팅 3회)를 감지하거나 복원 뒤 첫 부팅이면(사유 `crash_loop`·`restored`, [판정 J-164]) 자동 재개·에이전트 타이머·관찰 에이전트·새 실행 허가를 멈추고 사람 확인을 기다리는 모드. 질문 답과 조회는 된다 | 안전 모드 | 17 §1.4, §3.4.6, 12 §3.7.6 | 읽기 전용 모드와 다르다(J-67) |
 | 읽기 전용 모드(운영) | `read_only`, 사유 `integrity_suspect`, `disk_critical`, `operator`, `projection_fault` | 상태를 바꾸는 명령을 거절하고 조회·구독만 받는 모드 | 읽기 전용(사유별 문장) | 17 §3.4.1, 09 §3.10.5, J-67, J-129 | §3.8 같은 이름 행 참고. 부팅 무결성 실패는 이벤트 없이 이 모드로 시작한다 |
 | 드레이닝 | `draining`, `server.shutdown` | 종료·재시작 준비 중. 새 연결을 받지 않고 진행 중 요청을 마친다 | 서버가 곧 다시 시작됩니다 | 17 §3.4.3, 19 | 오류로 보이지 않는다(05 `notice.daemon.draining`) |
 | 부팅 기록 | `daemon.booted{bootEpoch, previousEpoch, previousCleanShutdown, mode}` | 부팅마다 남기는 시스템 이벤트 | 서버가 {time}에 다시 시작되었습니다 | 09 §3.4.13 | 17·12는 `daemon.booted`의 09 필드 이름(`bootEpoch`·`previousEpoch`·`previousCleanShutdown`)을 쓴다(§4 N-16) |
@@ -532,7 +532,7 @@
 | 데이터 위치 | `/srv/volumes/helm/data/helm.sqlite`, `data/helmd.lock` | 정본 DB와 단일 인스턴스 잠금 | — | 판정 §2, 17 §3.2, 09 §3.6 | `~/projects` 아래에 두지 않는다(브리프 §2.5) |
 | 관리 CLI | `helm`, `helm ops …`, `helm doctor`, `helm pair`, `helm export` | 서버에서 쓰는 관리 명령 | — | 17 §3.15, 06 §3.16, J-68 | `helm ops verify`, `helm export`(J-68) |
 | 상태 확인 | `GET /healthz` → `ok`·`degraded`·`critical`·`starting`·`draining`, `daemon.status` | 인증 없는 생존 확인과 인증된 상세 상태 | 서버 상태 | 17 §3.11, 19 §3.7.8 | `/healthz` 형식은 17 소유(판정 §2) |
-| 리스너 | `ListenerKind`: `tailnet`(127.0.0.1:7840, serve 외부 8448), `loopback`(127.0.0.1:7841, `ssh -W`), `local`(Unix 소켓 `/run/user/1000/helm/rpc.sock`) | 데몬이 연결을 받는 세 입구 | 연결 방식: Tailscale / SSH | 판정 §2, 17 §3.5, 18 §3.4, 19 §3.2.1 | 쓰지 않음: `tailscale`·`ssh`(리스너 값으로), 포트 7801. 08 Via와 26은 `tailscale`·`ssh`를 쓴다(§4 N-01). 루프백은 격리 경계가 아니다(결정 46) |
+| 리스너 | `ListenerKind`: `tailnet`(127.0.0.1:7840, serve 외부 8448), `loopback`(127.0.0.1:7841, `ssh -W`), `local`(Unix 소켓 `/run/user/1000/helm/rpc.sock`) | 데몬이 연결을 받는 세 입구 | 연결 방식: Tailscale / SSH | 판정 §2, 17 §3.5, 18 §3.4, 19 §3.2.1 | 쓰지 않음: `tailscale`·`ssh`(리스너 값으로), 포트 7801. 08 Via와 26은 정본 값을 쓴다(§4 N-01). 루프백은 격리 경계가 아니다(결정 46) |
 | 경로 | route, `wss`·`ssh` | 앱이 한 서버로 연결하는 방법 하나 | — | 20 §1.4, 19 §3.2.2~§3.2.3 | 리스너와 다른 층이다(경로 `ssh` → 리스너 `loopback`) |
 | 주체 | `Principal`: `device`, `localAdmin`, `runtime`, (`observer`) | 연결·제출이 인증된 주체 | — | 18 §3.5 | 행위자(`ActorRef`)와 다른 층이다. 기록 출처는 `via`(`local_cli` 등). `local` 리스너의 사람 결정은 TUI나 TTY CLI에서 확인 문자열을 넣은 경우만 받고, 비대화 localAdmin은 읽기와 관리만 한다(J-135) |
 | 연결 범위 | `scope`: `read`, `decide`, `devices`, `devicesLimited`, `admin` | 연결이 부를 수 있는 메서드 범위 | — | 19 §3.4.6, 18 §3.5 | 맡긴 범위·이벤트 `scope`와 다르다 |
@@ -567,7 +567,7 @@
 | 용어 | 식별자 | 뜻 | 화면 | 정의 문서 | 혼동 주의 |
 |---|---|---|---|---|---|
 | 상태 중심 UI | UP-1 | 첫 영역에 대화 대신 Goal·Concern·질문·진행 작업 같은 상태를 두는 UI | — | 결정 10, 03 §3.1, 21 §3.1 | 대화는 객체에 딸린 보조 수단이다 |
-| 화면 ID | `SCR-*`, `OVL-*`, `RGN-*`, `SCR-M-*` | 화면, 겹쳐 뜨는 화면, 셸 영역, 모바일 화면의 식별자 | — | 03 §3.6, §3.12(정본, 판정 §1) | 21·20은 화면 키를 `SCR-*`로 쓴다. 26의 `SCR-M-ONBOARD`는 03에 없다(§4 N-31) |
+| 화면 ID | `SCR-*`, `OVL-*`, `RGN-*`, `SCR-M-*` | 화면, 겹쳐 뜨는 화면, 셸 영역, 모바일 화면의 식별자 | — | 03 §3.6, §3.12(정본, 판정 §1) | 21·20은 화면 키를 `SCR-*`로 쓴다. |
 | 홈 | `SCR-HOME` | 지금 주의가 필요한 것과 모든 Goal·Concern의 상태를 한곳에서 보는 화면 | 홈 | 03 §3.6 | 원전 CommonOperatingPicture, product-language "오늘·전체 상황" |
 | 복귀 요약 | `SCR-BRIEF`, `brief` 뷰, `brief.acknowledge` | 마지막으로 확인한 지점 이후 달라진 점과 지금 할 일 | 복귀 요약 | 03 §3.6, 12 §3.5.9, 05 §3.10.4 | 쓰지 않음: 브리핑, 요약(단독). 화면을 연 것과 "여기까지 봤음"(acknowledge)을 구분한다 |
 | 복귀 확인 지점 | `brief.acknowledged`, `acknowledgedSeq`(확인 cursor) | 사람이 "여기까지 봤음"을 누른 seq. 사람 단위로 하나이고 기기마다 두지 않는다. 화면을 여는 것만으로는 옮기지 않는다. 다음 복귀 요약의 시작점이다 | 여기까지 봤음 | 02 UC-06 AC-06-01, 21 §3.5.8 | 휴대폰 확인은 `compact: true`를 싣고, 줄여 본 반대 근거·이견은 다음 데스크톱 요약에 남는다(J-137) |
@@ -590,7 +590,7 @@
 | 명령 의도 | `UiIntent` | 부품이 올리는 사람 조작. 19 명령 메서드 이름을 그대로 쓴다 | — | 04 §3.0.6, 21 §3.6.3 | 커널 명령 이름과의 대응은 10 §3.11.11 |
 | 결정 가능 여부 | `decisionsAllowed`, `DecisionAvailability` | 연결과 신선도로 결정 버튼을 켤지 정하는 값. 연결이 없으면 결정을 막고 초안으로 보존한다 | — | 20 §3.8.9, J-02, J-59 | — |
 | 진행 중 명령함 | in-flight outbox, store `pending` | 보냈지만 응답을 받지 못한 명령. 재접속 때 같은 멱등 키로 다시 보낸다 | 보내지 못한 조작 | 20 §1.4, §3.9.5 | 응답 전에 끊긴 명령만 다시 보낸다(J-02) |
-| 화면용 연결 상태 | `ConnectionUiState`: `connected`, `slow`, `reconnecting`, `resyncing`, `disconnected`, `daemon_unresponsive`, `auth_failed`, `version_mismatch`, `recovery_mode`(→ J-115에 따라 읽기 전용), `safe_mode` | 화면이 그리는 연결 상태 | 연결됨 / 연결 느림 / 다시 연결하는 중 / 맞추는 중 / 연결 안 됨 / Helm 서버가 응답하지 않음 / 인증 필요 / 버전 맞지 않음 / 읽기 전용 / 안전 모드 | 21 §3.6.2, 20 §3.8.9, 04 §3.0.4, J-60, J-115 | 값 `recovery_mode`의 이름은 21이 J-115에 맞춰 정한다(§4 N-28) |
+| 화면용 연결 상태 | `ConnectionUiState`: 04 §3.0.4의 열여섯 상태이며 값은 camelCase다. 예: `connected`, `slow`, `reconnecting`, `resyncing`, `disconnected`, `daemonUnreachable`, `authFailed`, `versionMismatch`, `readOnly`(읽기 전용), `safeMode`(안전 모드) | 화면이 그리는 연결 상태 | 연결됨 / 연결 느림 / 다시 연결하는 중 / 맞추는 중 / 연결 안 됨 / Helm 서버 응답 없음 / 인증 필요 / 버전 맞지 않음 / 읽기 전용 / 안전 모드 | 21 §3.6.2, 20 §3.8.9, 04 §3.0.4, J-60, J-115, J-196 | 값 `readOnly`는 21 §3.6.2가 J-115에 맞춰 정했다(§4 N-28) |
 | 연결 프로필 | `ServerProfile` | 서버 하나와 그 서버의 경로 목록, 기기 ID | 연결 | 20 §1.4, §3.4.1 | 쓰지 않음: 접속 프로필 |
 | 클라이언트 저장소 | IndexedDB `helm-desktop`, `IdbClientStateStorage` | 서버별 위치·뷰 캐시·진행 중 명령·초안 저장소 | — | 20 §3.9.5 | 정본이 아니다 |
 | OS 알림 | `question.delivered` + `surface`·`urgency` | 데몬의 전달 기록을 실시간으로 받았을 때만 띄우는 OS 알림. 기본은 내용 숨김 | OS 알림(제목 "Helm") | 20 §3.10.1, 05 §3.7, J-03 | 앱이 전달 여부를 정하지 않는다(05 IX-01) |
@@ -623,7 +623,7 @@
 | 복귀 점검 | resumption check, `resumption_check.*`, `resumptionCheck.*` | 복귀 때 상황 인식을 재려고 건너뛸 수 있게 묻는 짧은 점검. 측정 범주. 채점 말은 일치 · 부분 일치 · 불일치다 | 복귀 점검 | 16 §3.27.3, J-10, J-78 | 쓰지 않음: 탐침, SA probe, resumption probe, `probe.answer`(10 §3.11.11 대응표에 남아 있음, §4 N-39). 채점 말 "맞음·부분·틀림"도 쓰지 않는다(05 §3.10.8) |
 | 자기보고 | self report, `self_report.recorded` | 경험(부담, 탐색 질문 5개 등)을 사람이 직접 남긴 측정 | — | 16 §3.27.4 | — |
 | 놀람 보고 | `surprise.report`, `surprise.reported` | 사람이 "예상 못 했다"고 표시한 측정 | — | 10 §3.11.11, 16 | 관찰 주석 `surprise`와 다르다 |
-| 화면 열람 기록 | `view.opened`, `dwellBucket` | 정해진 다섯 화면(복귀 요약, 에이전트가 정한 것, 결과 확인, 질문, 감사 깊이)을 떠날 때 남기는 측정 이벤트 | — | 16 §3.23.1, 10 `view.record` | 프로토콜 `presence.report`에서 데몬이 만든다 |
+| 화면 열람 기록 | `view.opened`, `dwellBucket` | 정해진 여섯 종류의 열람 장소(복귀 요약, 에이전트가 정한 것, 결과 확인, 질문, 감사 깊이, 결과 확인 중 근거 `SCR-EVIDENCE`)를 떠날 때 남기는 측정 이벤트 | — | 16 §3.23.1, 10 `view.record` | 프로토콜 `presence.report`에서 데몬이 만든다 |
 | ABAB 교대 실험 | — | 1인 N-of-1 실험 설계 | — | 16 §3.27.2, OB-10 | — |
 | 채팅 기준선 | `ext.*`, `BaselineTally` | 외부 에이전트 세션 로그로 대신하는 비교 기준선 | — | 16 §3.23.10, OB-10 | — |
 | 반증 가설 H1~H10 | H1~H10 | foundations/08 §3의 가설 열 개. 번호 그대로 쓴다 | — | 16 §3.25, 01 §3.10.1, J-09 | "H1~H8"이라고 쓰지 않는다(원문은 열 개) |
@@ -637,7 +637,7 @@
 | OPD+C 의무 ID | `opdc:<o\|p\|d\|c>.<이름>`(예: `opdc:o.intent_and_reason`) | 루프 계약이 투영과 화면에 요구하는 OPD+C 의무의 식별자. `obs.*`를 쓰지 않고 `opdc` 계열로 두며, 묶음 뒤를 쌍점으로 잇는다(J-149, J-112 보완). 16 지표 ID(`opdc.o.unlinked_m_changes` 등 점 표기)와 섞이지 않는다 | — | J-112·J-149, 14 §3.5.5, 03 §3.1.3 | 지표 ID와 의무 ID는 다른 레지스트리다(지표 16, 의무 14 루프 계약). 같은 문자열을 두 레지스트리에 두지 않는 검사를 22가 둔다 |
 | 16 설계 결정 | OB-1~OB-12 | 관찰 에이전트·지표의 주요 결정 번호 | — | 16 §2.2 | 관찰(`ob`) 접두사와 다르다 |
 | 16 가정 | AS-1~AS-5 | 외부 로그 위치 등 확인 대기 가정 | — | 16 §2.3 | 전제 레코드 `as`와 다르다 |
-| 관찰 실행 | observer run, `or`(제안) | 관찰 에이전트 프로세스가 한 번 떠서 작업 하나를 끝내는 단위 | — | 16 §1.5 | `or`은 08 §3.2.2 접두사 목록에 없다(§4 N-20) |
+| 관찰 실행 | observer run, `or`(제안) | 관찰 에이전트 프로세스가 한 번 떠서 작업 하나를 끝내는 단위 | — | 16 §1.5 | — |
 | 관찰 에이전트 | observer agent, `agent:observer` | 기록과 허용 폴더의 외부 세션 로그를 읽어 반복 패턴을 찾고 수정안을 제안하는 별도 일회성 프로세스. 쓰기 권한이 없다 | 관찰 에이전트 | 브리프 §6, 16 §3.1 | 결정적 수집·탐지·지표는 MVP, 모델 판정·제안은 2단계(J-07). 쓰지 않음: 옵저버, 관찰자 |
 | 탐지기 | detector, D1~D13 | 반복 패턴을 찾는 결정적 코드 | — | 16 §3.10.1 | 결정 ID(D08-1, D09-2 등)와 다르다 |
 | 서명 / 패밀리 | `signature`, `family` | 후보 패턴의 정규화 특징 해시와 비슷한 서명 묶음. 기각 기억의 단위 | — | 16 §3.11 | — |
@@ -659,7 +659,7 @@
 | `[원문]`, `[실험]`, `[검색]`, `[지식]` | 외부 사실의 확인 수준: 소스·문서 직접 확인, 코드 실행 확인, 검색, 재확인 안 한 지식 | 브리프 §5.2 |
 | `[정리]` | 원전 요약 문서에서 정리자가 붙인 해석 | helm-canon-3 |
 | 결정 n | 브리프 §2의 결정 번호(1~64). §2.3의 26~37은 조정자 기본값(그중 33·35는 사용자가 확인함), 44~46은 조정자 판정이고 나머지는 사용자 결정이다 | 브리프 §2 |
-| J-nn | 조정자 판정(J-01~J-276). §7 판정의 K-nn은 `stage4/rulings-needed.md`의 쟁점 번호다 | rulings-stage2a §3·§6·§7·§8·§9 |
+| J-nn | 조정자 판정(J-01~J-351). §7 판정의 K-nn은 `stage4/rulings-needed.md`의 쟁점 번호다 | rulings-stage2a §3·§6·§7·§8·§9 |
 | [v0.3 §5-n], v0.3 NN §x | v0.3 개념 문서와 그 결정 목록 | 브리프 §2 |
 | canon, canon-2, canon-3 | 원전 요약(`helm-canon.md`, `-2`, `-3`) | 브리프 §4 |
 | 발췌n, 대화 Lnnn | 대화 발췌 문서와 대화 원문 줄 번호 | 브리프 §4 |
@@ -727,7 +727,7 @@
 | `ri` | 실행 입력 id(레코드 아님) | `tm` | 런타임 타이머 id(레코드 아님) | `ap` | send 승인 id(질문 안 블록) |
 | `ik` | 클라이언트 멱등 키(레코드 아님) | | | | |
 
-쓰지 않는 접두사: `wa`(임시 가정 → `as`), `rw`(재작업 → WorkUnit `reworkOf`), `sb`(1판 Submission → `cm`), 컨텍스트 투영의 `cx`(→ `cp`, `cx`는 연결 id). 정본에 없는 접두사 `or`(관찰 실행, 16)는 §4 N-20.
+쓰지 않는 접두사: `wa`(임시 가정 → `as`), `rw`(재작업 → WorkUnit `reworkOf`), `sb`(1판 Submission → `cm`), 컨텍스트 투영의 `cx`(→ `cp`, `cx`는 연결 id).
 
 ### 3.14 이름 규칙
 
@@ -763,7 +763,7 @@
 | 4xxx | 파일·업로드 | 4001 `blob.tooLarge`, 4002 `blob.notFound`, 4003 `upload.notFound`, 4004 `upload.incomplete`, 4005 `upload.hashMismatch`, 4006 `ticket.limit`, 4007 `blob.gone` |
 | 5xxx | 데몬·런타임 | 5001 `daemon.draining`, 5002 `daemon.busy`, 5003 `daemon.readOnly`, 5004 `request.cancelled`, 5005 `request.timeout`, 5006 `runtime.unavailable`, 5007 `feature.disabled` |
 
-**커널 거부 코드(10 §3.4.4).** 접두사로 갈래가 정해진다: `invalid.*`·`not_found.*`·`conflict.*`(일부)·`policy.*` → 내용(3001), `denied.*`·`gate.*` → 자격(3002), `path.*` → 경로(3003). `conflict.version_mismatch` → 3004, `conflict.already_resolved` → 3008, `conflict.superseded` → 3009, `conflict.idempotency_key_reuse` → 3006. 강등 `downgraded.*`와 알림 `notice.*`는 거부가 아니다. 커널 오류 `kernel.*`는 -32603이다. 새로 정한 거부 코드는 `denied.plan_authoring_mode`(자격, 3002)와 `policy.loop_entry_condition`·`policy.mobile_review_not_allowed`·`policy.plan_draft_not_needed`·`policy.plan_dependency_violation`·`policy.plan_maturity_gate`(내용, 3001)다(10 §3.4.4, 19 §3.3.5). 알림 `notice.plan_draft_fallback`은 거부가 아니다.
+**커널 거부 코드(10 §3.4.4).** 접두사로 갈래가 정해진다: `invalid.*`·`not_found.*`·`conflict.*`(일부)·`policy.*` → 내용(3001), `denied.*`·`gate.*` → 자격(3002), `path.*` → 경로(3003). `conflict.version_mismatch` → 3004, `conflict.already_resolved` → 3008, `conflict.superseded` → 3009. 같은 멱등 키에 다른 내용이면 거부 코드가 아니라 저장소 결과 `key_reused`(프로토콜 3006)다. 강등 `downgraded.*`와 알림 `notice.*`는 거부가 아니다. 커널 오류 `kernel.*`는 -32603이다. 새로 정한 거부 코드는 `denied.plan_authoring_mode`(자격, 3002)와 `policy.loop_entry_condition`·`policy.mobile_review_not_allowed`·`policy.plan_draft_not_needed`·`policy.plan_dependency_violation`·`policy.plan_maturity_gate`(내용, 3001)다(10 §3.4.4, 19 §3.3.5). 알림 `notice.plan_draft_fallback`은 거부가 아니다.
 
 **화면 오류 문구 키(05 §3.11).** 19 코드와 문구 키의 대응은 05 §3.11 첫 표가 정한다. 05 표는 3002를 `command.rejected.qualification`으로 적었다(§4 N-18).
 
@@ -884,12 +884,12 @@
 
 | 번호 | 정본 이름 | 다른 이름 | 남은 곳(문서:줄) | 근거·판정 | 심각도 | 처리 담당 문서 | 처리 내용 |
 |---|---|---|---|---|---|---|---|
-| N-01 | 리스너 `tailnet`·`loopback`·`local` | Via `listener: "tailscale" \| "ssh" \| "local"` | 08:376, 26:408·998 | 판정 §2, 19 `ListenerKind` | 높음 | 08, 26 | 08 Via와 26을 정본 값으로. envelope `via.listener`에 기록되는 값이다 |
+| N-01 | 리스너 `tailnet`·`loopback`·`local` | Via `listener`의 옛 값 `"tailscale" \| "ssh"` | 없음 | 판정 §2, 19 `ListenerKind` | 높음 | 08, 26 | 닫힘 [판정 J-281]: 08 §3.3.2 Via와 26이 정본 값을 쓴다. envelope `via.listener`에 기록되는 값이다 |
 | N-02 | 저장 값 `active`·`idle`·`hidden`·`offline`, 부재는 14 §3.13.8 파생 함수 | `'online' \| 'idle' \| 'away'`, `away → online`, `locked` | 11:579·644·877·890, 10:693·1372·1398, 26:451·460, 14:2353·2433·2796, 09 `PresenceState`의 `locked` | J-119, J-118 | 높음 | 09, 14, 10, 11, 19, 26 | 09에서 `locked`를 뺀다. 14가 부재 파생 함수와 기기별 문턱(휴대폰 2분, 데스크톱 5분)을 적고 10·11·26의 판정식이 그 함수를 쓴다. 19 보고 타입은 세 값 |
 | N-03 | 10 §3.11.11 (2) 메서드 → 명령 대응 | 19 "커널 명령" 열의 옛 대응(`question.requestReframe`·`question.delegate` → `question.answer`, `reaction.amend` → `observation.annotate`, `inquiry.round_end`, `agreement.revise` → `agreement.confirm`, `concern.revise` → `concern.reframe`, `mode.set` → `mode.route`, `work.steer`·`stop`·`abort` → 12 RunInput·`workunit.cancel`, `recovery.resolve` → `toolcall.resolve_unknown`)와 "10에 요구" 여덟 줄 | 19:1083~1137 | 판정 §1, J-47, J-123 | 높음 | 19 | 19 "커널 명령" 열을 10 §3.11.11 (2)로 맞춘다. `result.reopen` 행은 지운다(J-123) |
 | N-04 | 결과 확인 명령 값 `accept`·`accept_with_conditions`·`request_changes`·`reject`·`criteria_wrong`, 기록 값 `accepted`·`conditional`·`revision_requested`·`rejected`·`criteria_wrong` | 명령 자리에 기록 값(19), 세 번째 값 묶음 `AcceptanceVerdict`(`"revision"`) | 19:1107~1110, 14:1140·2090 | J-35, J-123 | 높음 | 19, 14 | 19는 명령 값, 14는 08 기록 값. 결과 확인 전 거절·기준 틀림은 `result.accept`(decision `reject`·`criteria_wrong`, `reopenTo`), 확인 뒤 되돌리기는 `objection.file`(J-123) |
 | N-05 | 이의 대상 `{kind: "record", id, itemKey}` / `{kind: "link", from, to, rel}` | `criterionVerdict`, `evidenceLink`, `{kind: "evidenceLink", fromId, toId}` | 04:990·1354·1497, 15:1931 | J-36, 08 §3.10.2 | 높음 | 04, 15 | 08 형식으로 |
-| N-06 | 08 `HumanOpMeta` `followedRecommendation`·`extraReason`(자유 문장)·`editedDraft`. 정상 경로는 이벤트 종류로 계산 | 이벤트 필드 `onNormalPath`(01·02), 사유 코드 열거형 `extraReason`(01), "08 `HumanOpMeta.onNormalPath`"(16) | 01:387·388·395·409·410·1028, 02:285·418·523·655·1148, 11:1132, 16:1599·2419, 22:546·808·1049 | J-76 | 높음 | 01, 02, 16, 11, 22 | 정상 경로와 사유 코드는 16 지표 사실의 계산값으로 적는다. 같은 이름 `extraReason`에 다른 타입을 두지 않는다 |
+| N-06 | 08 `HumanOpMeta` `followedRecommendation`·`extraReason`(자유 문장)·`editedDraft`. 정상 경로는 이벤트 종류로 계산 | 이벤트 필드 `onNormalPath`(01·02), 사유 코드 열거형 `extraReason`(01), "08 `HumanOpMeta.onNormalPath`"(16) | 14:2773, 16:2510, 22:1981·1982, 23:501 | J-76 | 높음 | 14, 16, 22, 23 | 정상 경로와 사유 코드는 16 지표 사실의 계산값으로 적는다. 같은 이름 `extraReason`에 다른 타입을 두지 않는다 |
 | N-07 | 저장 층 `DialLayer`(`user`·`concern`·`instruction`), 해석 순서 `DialPrecedence`, Goal 범위 없음 | `DialScope = "global" \| {goalId} \| {concernId}`, 경로 `?scope=global\|goal\|concern` | 19:1432~1435, 03:574·613, 20:864, 04:1573 | J-136 | 높음 | 08, 14, 19, 03, 20 | 14는 해석 순서를 `DialPrecedence`로 이름 바꾸고 08 `DialLayer`와 대응을 적는다. 19·03·20에서 Goal 범위를 지운다 |
 | N-08 | Goal 상태 `achievement_claimed`(+`proposed`·`retired`) | `achieved_claimed` | 04:1546 | 08 §3.22.1 | 높음 | 04 | 08 값으로 |
 | N-09 | kind `boundary_item`, `result`, `obligation`, `toolcall` | `"boundary"`, `"criterion"`, `outcome_submission`, `integration_obligation`, `tool_call` | 04:96, 21:698·700·708 | 08 §3.20.1 | 높음 | 04, 21 | 08 kind로 |
@@ -903,7 +903,7 @@
 | N-17 | 알림 강도 `interrupt`·`notice`·`digest` | `notify` | 05:73·78 | J-52 | 중간 | 05 | `notice`로 |
 | N-18 | 거부 갈래 `authority`, 19 kind `command.rejected.authority` | `command.rejected.qualification` | 05:870 | 판정 §1 | 중간 | 05 | 대응표를 고친다 |
 | N-19 | 08 상태 값(Agreement, Probe, Expectation, Obligation, BoundaryItem, `ConcernOrigin`) | 14 `draft`·`pending_confirm`·`ended`, `defined`·`grow`·`fold`, `violated`, `entryPath`; 04 `grow_met`·`fold_met`, `waiting`·`answered`, `done`·`in_progress` | 14:1016·2073·2075·2085, 04:1199·1200·1372 | 08 §3.22 | 중간 | 14, 04 | 뷰 타입도 08 상태 값을 쓴다. 묶음 표시는 다른 이름의 계산 필드로 |
-| N-20 | 08 접두사 목록에 `or`(관찰 실행, 레코드 id 아님) | 목록에 없는 `or_` | 16:229·303, 17:244 | J-113 | 중간 | 08 | 08 §3.2.2 "레코드 id가 아닌 식별자"에 더한다 |
+| N-20 | 08 접두사 목록에 `or`(관찰 실행, 레코드 id 아님) | 목록에 없는 `or_` | 없음 | J-113 | 중간 | 08 | 닫힘 [판정 J-113]: 08 §3.2.2 "레코드 id가 아닌 식별자"에 `or`이 있다 |
 | N-21 | 평면: 결과 제출 E, 자극 E | 결과 제출 N, 자극 M | 21:698·707 | 08 §3.2.2 | 중간 | 21 | 08로 |
 | N-22 | `Grade = low \| medium \| high` | `"mid"` | 16:1942·2169 | 08 §3.4.1 | 중간 | 16 | `medium` |
 | N-23 | 08 `RunKind` 여섯(`observer`·`router` 뺌, `inquiry` 포함, J-97) | 12 `RunKind`(08과 같은 여섯, 12 §3.2.1) | — | 08 §3.18.1, J-97 | 중간 | 12, 08 | 두 문서가 같은 여섯 값을 쓴다. 남은 곳 없음 |
@@ -911,10 +911,10 @@
 | N-25 | 결과 확인 행동 라벨 하나: "조건 붙여 확인", "거절(해결 안 됨)" | "조건부 확인", "결과 거절" | 03:215, 05:401·406·408·605, 04:1305·1346, 14:456·923, 21:1413, 02:324·652 | 03 §3.3.1, J-170 | 중간 | 05, 03, 04, 21 | 05 문구 키 하나로. 버튼 "거절(해결 안 됨)"은 J-170이 05 정본으로 정했다. 화면 라벨 정본은 03·05. 03:311 상태 라벨은 "거절됨(해결 안 됨)"이다(J-240). 이 용어집 WorkUnit 행도 같다 |
 | N-26 | 12 stage(trace) 다섯 값 | 19 `RunPhase` 일곱 값 | 19:984·987·997 | J-32 | 중간 | 12, 19 | 19가 `RunPhase` 일곱 값을 정하고, stage·RunStatus와의 대응은 12 §3.2.2 표가 정한다. 19는 그 표를 참조한다 |
 | N-27 | "복구 선택"("판단"은 Finding 전용) | "복구 판단", "복구 판단 필요" | 03:240·245·320·492·550·806·935, 04:267·388·553·587·1787·1816·1923·2016, 05:98·461·531·558, 20:1353, 26:32·134·735·810 | J-115 | 중간 | 03, 05, 04, 20, 26 | "복구 선택"으로 |
-| N-28 | 화면 이름 "읽기 전용"(17 `read_only`, 19 `readOnly`) | "복구 모드", `recovery_mode`, `err.daemon.recoveryMode` | 02:806, 04:204·1729·1749·1818·2022, 05:883·913, 20:764·1551, 21:877·1447·1461·1718, 26:909 | J-115 | 중간 | 05, 21, 02, 04, 20, 26 | 05 문구 키와 21 `ConnectionUiState` 값부터 바꾼다. "복구"는 `SCR-RECOVERY`에만 |
+| N-28 | 화면 이름 "읽기 전용"(17 `read_only`, 19 `readOnly`) | "복구 모드", `recovery_mode`, `err.daemon.recoveryMode` | 없음 | J-115 | 중간 | 05, 21, 02, 04, 20, 26 | 닫힘 [판정 J-282]: 화면 본문에는 옛 이름이 없다. 20 §5.2·26 §5.2의 변경 지시문에만 남는다. "복구"는 `SCR-RECOVERY`에만 |
 | N-29 | Grant 화면 이름 "맡겨 둔 권한", 비상 Grant "비상 합의" | "맡긴 권한", "상시 합의", "미리 맺어 둔 합의" | 14:203·235·497·780·879·1402, 05:392, 08:3046, 02:159·1063, 03:316 | J-116 | 중간 | 03, 05, 14, 02, 08 | 화면 라벨은 03·05. 설계 본문도 "상시 합의"를 쓰지 않는다 |
 | N-30 | `io` 반영 항목, `ig` 전체 반영 | "전체 반영 항목" | 21:700·1087 | 03 §3.2.3 | 중간 | 21 | "반영 항목" |
-| N-31 | 03 §3.12 모바일 화면 ID | `SCR-M-ONBOARD` | 26:34·57·356·357·390·731·895·898 | 판정 §1 | 중간 | 03, 26 | 03에 더하거나 26이 다른 ID를 쓴다 |
+| N-31 | 03 §3.12 모바일 화면 ID | `SCR-M-ONBOARD` | 없음 | 판정 §1 | 중간 | 03, 26 | 닫힘 [판정 J-334]: 03 §3.12 표에 `SCR-M-ONBOARD`가 있다 |
 | N-32 | 가설 ID H1~H10, V1~V9 | 06 데몬 책임 라벨 `H1`~`H8`, 어댑터 원칙 `V1`~`V8` | 06:816~823·1413~1420 | J-09 | 중간 | 06(인용하는 16·24) | 06 라벨에 접두어(예: `DH-1`, `AP-1`) |
 | N-33 | 문구 사전 `@helm/ui-language` | 앱 문구 상수 `src/copy/` | 20:820·1246 | J-103 | 중간 | 20 | `@helm/ui-language`로 |
 | N-34 | 메서드 `objection.file`, 명령 `decision.contest`, 레코드 Objection, 이벤트 `objection.*` | 메서드 `contest.file` | 19:67·1088, 04:797·938·990·1354·1421·1497·1959·2036, 05:137·360, 10:1551, 15:1931, 21:936·937·1228·1365, 26:854 | J-111 | 중간 | 19, 04, 05, 10, 15, 21, 26 | 19 등록 표부터 `objection.file`로. 화면 ID `OVL-CONTEST`, 부품 `ContestButton`, 16 지표 이름의 contest는 그대로 둔다 |
@@ -938,7 +938,7 @@
 | N-52 | 복귀 점검(J-10) | "복귀 probe" | 02:195 | J-10 | 낮음 | 02 | 원천 인용이 아니면 "복귀 점검" |
 | N-53 | 본문 "제공자", 화면 "모델 제공자", 코드 `provider` | 본문의 "provider", "공급자" | 07(42곳), 12(13곳), 22(14곳)의 provider, 06(11곳)·18(11곳)·04 §3.21의 공급자 | 이 문서가 정본(§3.7) | 낮음 | 07, 12, 22, 06, 18, 04, 19, 23, 26 | 코드 표기 밖에서는 "제공자", 화면은 "모델 제공자" |
 | N-54 | 무게 화면 이름 "높음·중간·낮음" | "중요함/보통/덜 중요함" | 21:1669 | 05 §3.2.6 | 낮음 | 21 | 05를 따른다 |
-| N-55 | 인용할 때 문서 번호를 붙인다(22 추적 ID 형식 `<문서>/<ID>`) | 모양이 같은 문서 안 ID(06 S0~S9·R1~R14·H·V, 12 S1~S8, 13 G1~G8·AC-01~14, 14 G1~G9, 16 AS-1~5, 18 AS-*·R-1~12) | 06, 12, 13, 14, 16, 18, 02 | §3.17 | 낮음 | (각 문서) | ID는 그대로 두고 인용 형식만 지킨다. 새 ID는 접두어로 구분한다 |
+| N-55 | 인용할 때 문서 번호를 붙인다(22 추적 ID 형식 `<문서>/<ID>`) | 모양이 같은 문서 안 ID(06 S0~S9·R1~R16·H·V, 12 S1~S8, 13 G1~G8·AC-01~14, 14 G1~G9, 16 AS-1~5, 18 AS-*·R-1~12) | 06, 12, 13, 14, 16, 18, 02 | §3.17 | 낮음 | (각 문서) | ID는 그대로 두고 인용 형식만 지킨다. 새 ID는 접두어로 구분한다 |
 
 ### 4.2 2b단계 작업 중 해소된 것
 
@@ -975,7 +975,7 @@
 ## 6. 출처
 
 - 브리프: `docs/design/process/00-design-brief.md` §2(결정 1~64), §3(공통 계약), §5.1(문체), §5.2(표시, J-144), §5.3(문서 구성), §6(용어집 초안)
-- 조정자 판정: `docs/design/process/rulings-stage2a.md` §1(이름 소유), §3·§6·§7·§8·§9의 J-01~J-276. 이 판에 반영한 주요 판정: J-09, J-10, J-12, J-19, J-21, J-26, J-30, J-35, J-46, J-52, J-63, J-76, J-78, J-111~J-121, J-123, J-124, J-127~J-129, J-135~J-137, J-144, J-148, J-149, J-151, J-170, J-187~J-190
+- 조정자 판정: `docs/design/process/rulings-stage2a.md` §1(이름 소유), §3·§6·§7·§8·§9의 J-01~J-351. 이 판에 반영한 주요 판정: J-09, J-10, J-12, J-19, J-21, J-26, J-30, J-35, J-46, J-52, J-63, J-76, J-78, J-111~J-121, J-123, J-124, J-127~J-129, J-135~J-137, J-144, J-148, J-149, J-151, J-170, J-187~J-190
 - 3단계 검증 1차: `docs/design/process/verification/round-1/` V1(V1-009, V1-023, V1-032, V1-070, V1-078~V1-080), V2(V2-001, V2-047, V2-055), V5(V5-047), V7(V7-018, V7-023, V7-027~V7-029, V7-048), 점검 자료 `.helm-design-work/V2/A-n55-status.md`, `.helm-design-work/V1/E2-canon1b.md` P-10, `F1-canon2.md` P-8, `F2-canon3.md` P8
 - 설계 문서 01~26의 용어·정의 절. 주로 01 §3.3·§3.5·§3.6·§3.10, 02 §2·§3.1, 03 §3.2·§3.3·§3.6·§3.10·§3.12, 05 §3.1·§3.6.6·§3.7.8·§3.10·§3.11, 08 §3.1~§3.25·§10, 09 §3.1~§3.5·§3.7, 10 §3.4·§3.11, 11 §2.4·§3.2~§3.6, 12 §1.3, 13 §1.3·§3.11, 14 §2.3·§3.1~§3.15, 15 §1.4·§3.2·§3.4, 16 §1.5·§2.2·§3.21~§3.26, 17 §1.4, 19 §1.4·§3.3·§3.7, 20 §1.4, 22 §1.3, 23 §2.2·§3.1.1·§3.1.2·§3.6.3·§5.2, 24 §2, 26 §2.4·§3.1.5·§3.4.6
 - 원천: `docs/design/process/sources/helm-canon.md` §2.1(규범 키워드), §17.2(공유 언어), §17.6(UX 문구 지침), §18(product-language.yaml 전체), `helm-canon-2.md` §1.10·§1.14·§3.8·§3.10, `helm-canon-3.md` §1.3(원전 어휘와 v0.3·브리프 어휘 대응, 공리·불변조건 번호), §7.3 I8

@@ -1,6 +1,6 @@
 # 15. 탐구 엔진
 
-- 문서 번호: 15. 소유: P9(탐구). 작성: 2026-10-11. 상태: 4단계 보완판(2026-10-12). 기준은 브리프 결정 1~64과 조정자 판정 J-01~J-276(`process/rulings-stage2a.md`)이다
+- 문서 번호: 15. 소유: P9(탐구). 작성: 2026-10-11. 상태: 4단계 보완판(2026-10-12). 기준은 브리프 결정 1~64과 조정자 판정 J-01~J-351(`process/rulings-stage2a.md`)이다
 - 구현 위치: I/O 없는 순수부(`planRound`, `decideStage`, `roundClosable`, 탐구 투영 리듀서, 계산 함수, 렌즈 seed·값 목록 데이터)는 `@helm/kernel/orchestration`의 `packages/kernel/src/orchestration/inquiry/`, 효과가 있는 부분(`runStage` 실행기, 포트 사용, 프롬프트, 출력 스키마, REPL 구동, 평가 하네스)은 `@helm/runtime`의 `packages/runtime/src/inquiry/`다([판정 J-128]). runtime은 kernel을 import하고, kernel은 runtime을 import하지 않는다
 - 이 문서만 보고 탐구 엔진(I 루프 네 종류, 발산 서브시스템, Method Transfer, 선호 모델 갱신, REPL 방식 탐구)을 구현할 수 있게 쓴다. 다른 문서가 소유한 것(레코드 최종 스키마, 이벤트 카탈로그, 명령·검증, 질문 전달, 모델 계층, 도구 등록, 루프 계약)은 파일 이름과 절 번호로 참조하고, 이 엔진이 그 문서에 요구하는 것을 §5에 모은다.
 - 표시 규칙은 브리프 §5.2를 따른다. 이 문서의 설계 선택은 따로 적지 않으면 [제안]이다.
@@ -233,7 +233,7 @@ export type StageResult =
   | { status: "awaiting_human"; reason: "reactions" | "answer"; questionIds: QuestionId[] }   // 14가 대기(waits)로 처리
   | { status: "paused"; reason: "budget" | "step_failed" };
 
-export interface StopDecision { reason: StopReason; exit: "stop_rule_met" | "budget_exhausted" | "reframe_needed"; handoverRef: RecordId }
+export interface StopDecision { reason: StopReason; exit: "stop_rule_met" | "budget_exhausted" | "reframe_needed"; handover: BlobRef | null }   // 09 inquiry.stopped의 handover와 같은 이름·형식 [판정 J-336]
 ```
 
 단계 결과와 12 run·14 대기의 대응. 단계 run은 사람을 기다리며 살아 있지 않는다. 기다림은 14의 대기와 질문이 맡는다.
@@ -1118,7 +1118,7 @@ chooseQuestion(cands, currentTop, kind):
 반응 형식과 라운드 마감 조건은 §3.6.4에 정의한다. 이 절은 발산 결과에 대한 반응의 처리만 정한다.
 
 - 사용자는 앞줄이든 접힌 항목이든 어느 항목에나 반응할 수 있다. 반응 대상은 항목 전체, 항목의 요소(문장·구간), 결과 선언의 특정 기준일 수 있다. 가능성에 대한 반응도 자극에 대한 반응과 같은 형식으로 받는다. 08 `ReactionPayload.subjectRef`가 `st_`와 `ps_`를 모두 받으므로(08 §3.17.4), 가능성 반응은 `subjectRef = ps_`로 보낸다(08 §5.2 요구 (3)에 대한 답). 19 `ReactionRecordParams`는 아직 `stimulusId`만 있으므로 `subjectRef`로 넓히도록 19에 요구한다(§5.2).
-- 대비 반응(05 §3.2.7 "이걸 잃어도 괜찮음 / 이건 잃으면 안 됨 / 모르겠음")은 가능성 반응이고, 대비 목록이 있는 가능성 탐구에서만 쓴다(04 `SCR-INQUIRY` 가능성 구역, 2단계). MVP 원함 탐구에는 대비 목록이 없으므로 이 반응도 없다. `subjectRef = ps_`, `target = { kind: "element", elementId: "loss:<기준 키>" }`로 잃는 쪽 기준을 가리킨다. "잃어도 괜찮음"은 `intensity: +1`, "잃으면 안 됨"은 `intensity: -2`, "모르겠음"은 `intensity: null`, `reason: "unsure"`다. 엔진에서의 뜻: 괜찮음은 그 기준의 무게가 낮다는 근거, 안 됨은 높다는 근거, 모르겠음은 무게 근거가 아니며 그 기준을 묻는 질문의 가치를 올린다(§3.4.10). 하나를 고르는 버튼은 두지 않는다.
+- 대비 반응(05 §3.2.7 "이걸 잃어도 괜찮음 / 이건 잃으면 안 됨 / 모르겠음")은 가능성 반응이고, 대비 목록이 있는 가능성 탐구에서만 쓴다(04 `SCR-INQUIRY` 가능성 구역, 2단계). MVP 원함 탐구에는 대비 목록이 없으므로 이 반응도 없다. `subjectRef = ps_`, `target = { kind: "element", key: "loss:<기준 키>" }`로 잃는 쪽 기준을 가리킨다. "잃어도 괜찮음"은 `intensity: +1`, "잃으면 안 됨"은 `intensity: -2`, "모르겠음"은 `intensity: null`, `reason: "unsure"`다. 엔진에서의 뜻: 괜찮음은 그 기준의 무게가 낮다는 근거, 안 됨은 높다는 근거, 모르겠음은 무게 근거가 아니며 그 기준을 묻는 질문의 가치를 올린다(§3.4.10). 하나를 고르는 버튼은 두지 않는다.
 - 반응이 없으면 자율 정도 다이얼(08 키 `inquiry.autonomy_rounds`, 사람 답 없이 진행할 라운드 수, 기본 2, 14 §3.11.1)까지 임시 가정으로 다음 라운드를 진행한다. 그 뒤에는 14가 `autonomy_exhausted`로 기다린다. 원함 탐구는 반응이 근거이므로, 반응 없이 진행한 라운드는 새 자극을 만들지 않고 이미 있는 반응으로 기준 추론만 다시 한다.
 - 대화창의 자유 발화도 반응으로 받는다. 발화는 관찰(사람 발화)이고, 역할 `reaction_structure`가 이를 반응 구조(대상, 형태, 강도)로 해석한 결과는 해석으로 기록한다. 사용자는 이 해석을 고쳐 말할 수 있다.
 
@@ -2031,7 +2031,7 @@ export interface PredictionResult {        // A 루프가 채운다(14). 08 Pred
 | 숨은 가정을 질문으로 올리기 | `inquiry.markAssumption` | `assumption.record`(사람) | 그 전제를 확인할 정보 게이트 질문 후보(§3.4.10) |
 | 다음 확인 직접 고르기 | `inquiry.pinCheck` | `check.pin` | 다음 라운드의 확인 순서를 사람 선택으로 덮어씀(기록) |
 | 불확실해도 행동하기로 정하기 | `inquiry.requestDecision` | `inquiry.stop`(`then: "decide_now"`) | 엔진 값 `human_decided`(기록 `reason = human`, `then = decide_now`), 선택 요청 초안(질문 순서는 §3.1.5) |
-| 여기서 멈추고 넘기기 | `inquiry.stop { handOff }` | `inquiry.stop` | 열린 질문을 그대로 넘김(v0.3 04 §1) |
+| 여기서 멈추고 넘기기 | `inquiry.stop { then: "handoff" }` | `inquiry.stop` | 열린 질문을 그대로 넘김(v0.3 04 §1) |
 | 탐구 중단 비용과 남은 정보 가치 비교 | (뷰) | — | 엔진이 보여 줌: 점수 > 0인 남은 질문·확인 수, 남은 예산, 계획이 바뀌지 않은 라운드 수 |
 | 항목 앞줄 고정·기각 | `possibility.pin`·`dismiss` | `possibility.pin`·`unpin`·`dismiss` | 고정은 대비 압축 `pinned`, 기각은 이유 선택 사항(이유 없음 허용) |
 | 자극·레퍼런스 추가 | (19에 요구) | `stimulus.create`(사람) | 사람 기원 자극 |
@@ -2481,7 +2481,7 @@ export type UncertaintyKind = "aleatory" | "epistemic" | "model" | "normative" |
 | Means–ends reciprocity(목적과 수단이 서로를 바꾼다, helm-canon-3 §4.6, Dewey) | 원함 탐구에서 수단(자극·가능성)에 대한 반응이 목적(Goal 서술, 완료 기준)을 바꾸는 경로를 연다: 위로 방향 행과 반응이 Goal과 다른 목적을 가리키면 `goal.revision.propose`(§3.4.12), 기준 확정이 완료 기준 초안을 바꾼다(§3.6.9). 목적이 바뀌면 다음 라운드의 기준 집합 K와 자극 선택이 다시 계산된다(E-13) |
 
 ```ts
-export interface InquiryHandover {          // 탐구 실행이 닫힐 때 기록(인식적 완료 조건)
+export interface InquiryHandover {          // 탐구 실행이 닫힐 때 기록(인식적 완료 조건). 본문은 blob으로 저장한다 [판정 J-336]
   inquiryId: InquiryId;
   stopReason: StopReason;
   results: RecordId[];                      // 판단, 선호 모델 버전, 앞줄 가능성, 예측

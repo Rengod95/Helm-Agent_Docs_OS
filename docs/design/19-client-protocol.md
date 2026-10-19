@@ -1,7 +1,7 @@
 # 19. 클라이언트 프로토콜
 
 - 작성: 2026-10-11, P12(프로토콜)
-- 상태: 4단계 보완판(2026-10-12). 기준 결정은 브리프 결정 1~64과 조정자 판정(`docs/design/process/rulings-stage2a.md` J-01~J-276)이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID 접두사는 08을 정본으로 따른다. 모바일은 26(결정 47~49)을 따른다.
+- 상태: 4단계 보완판(2026-10-12). 기준 결정은 브리프 결정 1~64과 조정자 판정(`docs/design/process/rulings-stage2a.md` J-01~J-351)이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 레코드·ID 접두사는 08을 정본으로 따른다. 모바일은 26(결정 47~49)을 따른다.
 - 소유: 프로토콜 메서드 이름(정본), 메서드 params·result 스키마, 메시지 형식(envelope), 알림 이름, 오류 코드(정본)와 10 거부 코드의 대응, 핸드셰이크, 구독·재전송 의미, 파일 전송 HTTP 규약, `@helm/protocol` 패키지 구조.
 - 소유하지 않음: 이벤트 이름과 payload(09), 명령의 의미와 거부 규칙(10·11), 화면과 화면별 표시 데이터의 정의(03·04), 인증 자료의 암호 방식·페어링 정책·토큰 보관(18), 리스너 주소·소켓 경로·데몬 수명주기(17), 앱의 상태 저장소·라우팅·SSH 프로세스 관리(20), 런타임 어댑터 프로토콜(13).
 - 출처 표기: "pi-api-facts-2 §3.2"는 `docs/design/process/sources/pi-api-facts-2.md` 3.2절, "S4 openclaw-gateway §1.5"는 `.helm-design-work/S4/openclaw-gateway.md` 1.5절, "발췌4 20-9"는 `docs/design/process/sources/conversation-extracts-4.md`의 항목 번호, "canon-2 §9.8"은 `sources/helm-canon-2.md` 9.8절, "v0.3 12 §9"는 `docs/v0.3/12-implementation-architecture.md` 9절이다.
@@ -458,10 +458,12 @@ JSON-RPC 표준 코드는 표준 뜻 그대로 쓰고, Helm 코드는 1000~5999 
 | 3003 | `command.rejected.path` | false | 예 | 커널이 경로 때문에 거부했다(10 `path.*`). 프로토콜 계층이 채널을 고정하므로 정상 클라이언트에서는 나오지 않는다. 버그 보고 대상 | `reason` |
 | 3004 | `command.revisionConflict` | false | 예 | 대상 레코드의 `revisionSeq`가 `basisSeq`(또는 `expect`)보다 뒤다(10 `conflict.version_mismatch`). 화면을 새로 받아 다시 판단해야 한다 | `subject`, `basisSeq`, `currentRevisionSeq`, `rebase`(10의 대상 현재 요약) |
 | 3005 | `command.targetNotFound` | false | 예 | 명령 대상 레코드가 없다(10 `not_found.record` 중 명령 대상) | `targetId` |
-| 3006 | `idempotency.keyReused` | false | 아니요 | 같은 멱등 키로 다른 내용을 보냈다(10·09 `conflict.idempotency_key_reuse`, 06 `key_reused`) | `originalCommandId` |
+| 3006 | `idempotency.keyReused` | false | 아니요 | 같은 멱등 키로 다른 내용을 보냈다(저장소 결과 `key_reused`, 06·09 §3.9.2) | `originalCommandId` |
 | 3007 | `command.inProgress` | true | 아니요 | 같은 멱등 키의 첫 요청이 아직 처리 중이고 응답 대기 시간을 넘었다 | `retryAfterMs` |
 | 3008 | `command.alreadyResolved` | false | 예 | 대상이 이미 끝난 상태다(10 `conflict.already_resolved`: 질문이 이미 답해짐·가정 확정·철회·만료, 결과가 이미 확인됨). 다른 기기나 자동 처리가 먼저 했다. 같은 질문 경합은 먼저 커밋된 쪽의 효과에 따라 3008 또는 3004가 된다 | `target`(`RecordRef`), `resolvedAtSeq`, `resolvedAt`(ISO), `resolvedBy`(행위자 문자열), `resolvedVia`(`deviceId`가 있으면 그 기기), `outcome`: `answered` \| `assumed` \| `withdrawn` \| `expired` \| `accepted`, `assumedValue?`(가정 확정이면 확정된 답 값), `nextActions`(가정 확정이면 `objection.file`) |
 | 3009 | `command.superseded` | false | 예 | 대상이 새 판으로 대체됐다(10 `conflict.superseded`: 합의 개정, 질문 다시 쓰기, 결과 재제출). 새 대상을 보고 다시 판단해야 한다 | `target`(`RecordRef`), `supersededBy`(`RecordRef`), `supersededAtSeq` |
+| 3010 | `browser.staleRef` | false | - | 브라우저 `ref`가 스냅샷 세대보다 낡았다. 실행하지 않고 끝난다(13 `browser.stale_ref`) | - |
+| 3011 | `edit.staleSnapshot` | false | - | 해시라인 태그가 없거나 낡았다(파일이 바뀌었거나 데몬 재시작 전의 태그). 실행하지 않고 끝나며 자동으로 되살리지 않는다(13 `stale_snapshot`) | - |
 | 4001 | `blob.tooLarge` | false | - | 파일 크기가 한도를 넘는다 | `maxBytes` |
 | 4002 | `blob.notFound` | false | - | 없는 파일 ID | `blobId` |
 | 4003 | `upload.notFound` | false | - | 없거나 만료된 업로드 | `uploadId` |
@@ -469,6 +471,9 @@ JSON-RPC 표준 코드는 표준 뜻 그대로 쓰고, Helm 코드는 1000~5999 
 | 4005 | `upload.hashMismatch` | false | - | 받은 내용의 SHA-256이 선언과 다르다 | `expected`, `actual` |
 | 4006 | `ticket.limit` | true | - | 연결당 티켓 수 한도 초과 | `max`, `retryAfterMs` |
 | 4007 | `blob.gone` | false | - | 보존 정책 가지치기나 비밀 가림으로 내용이 지워졌다(HTTP 410 본문) | `reason`: `pruned` \| `redacted` |
+| 4008 | `web.tooLarge` | false | - | 웹 본문이 `maxBytes`를 넘었다. 모델용 내용을 만들지 않는다(13 `web.too_large`) | `maxBytes` |
+| 4009 | `web.unsupportedType` | false | - | 미디어 타입이 허용 형식이 아니다(허용 형식은 13 §3.2.4, 13 `web.unsupported_type`) | - |
+| 4010 | `web.emptyNeedsBrowser` | false | - | 웹 본문이 거의 비어 있다(스크립트로 그리는 페이지). 브라우저 도구를 쓰도록 안내한다(13 `web.empty_needs_browser`) | - |
 | 5001 | `daemon.draining` | true | 아니요 | 데몬이 종료 중이다. 쓰기 소유권을 잃은 경우(`path.fenced`)도 같다 | `retryAfterMs` |
 | 5002 | `daemon.busy` | true | 아니요 | 연결당 동시 요청 한도 초과, 또는 일시 과부하(SQLite 바쁨 시간 초과 등) | `retryAfterMs` |
 | 5003 | `daemon.readOnly` | false | 아니요(적용 안 됨이 확정) | 데몬이 읽기 전용이다. 조회만 된다(17 §3.4.1) | `mode`, `since`, `reasons`(`ModeReason[]`) |
@@ -476,6 +481,7 @@ JSON-RPC 표준 코드는 표준 뜻 그대로 쓰고, Helm 코드는 1000~5999 
 | 5005 | `request.timeout` | true | - | 서버 쪽 처리 시한을 넘었다(조회에만 쓴다. 명령은 §3.9.2) | - |
 | 5006 | `runtime.unavailable` | true | 아니요 | 실행 제어 대상 런타임이 응답하지 않는다 | `retryAfterMs` |
 | 5007 | `feature.disabled` | false | 아니요 | 메서드는 알지만 이 데몬 설정에서 꺼져 있다(예: 푸시 VAPID 키 없음) | `feature` |
+| 5008 | `web.quotaExceeded` | false | - | 검색 제공자의 월 상한을 넘었다. 제공자를 부르지 않는다(13 `web.quota_exceeded`) | - |
 
 #### 3.3.5 10 거부 코드 → 프로토콜 결과 대응 [제안]
 
@@ -502,7 +508,7 @@ JSON-RPC 표준 코드는 표준 뜻 그대로 쓰고, Helm 코드는 1000~5999 
 - 10 §3.4.5에 따라 거부는 `command.rejected` 이벤트로 남으므로 `details.rejectionEventSeq`에 그 seq를 넣는다. 10의 `Rejection.next`(`{command, hint}`)는 `details.nextActions`의 `{action: command, label: hint}`로, `Rejection.ruleId`는 `details.ruleId`로, `Rejection.missing`은 `details.missing`으로 옮긴다. 10의 `Rejection.message`(한국어, 모델용 문장)는 `details.kernelMessage`에 넣고 JSON-RPC `message`에는 넣지 않는다.
 - 가정 확정 뒤 도착한 답(판정 J-120): 커널은 `conflict.already_resolved`로 거부한다. 프로토콜은 3008에 `outcome: "assumed"`, `assumedValue`(확정된 답 값, 11 `AnswerValue`), `nextActions: [{ action: "objection.file", params: { target: { kind: "record", id: <질문 qs>, itemKey: null } } }]`를 싣는다. 화면은 쓰던 답을 이의 초안으로 넘긴다(04·26).
 - 합의 확정·결과 확인 질문(`agreement_confirm`, `result_review`)에 `question.answer`가 오면 커널이 `policy.answer_option_not_allowed`(3001)로 거부한다. 이 두 종류는 전용 메서드 `agreement.confirm`, `result.accept`로만 확정한다(판정 J-124).
-- v0.2 실행 후보 결과 코드와의 대응(canon-2 §9.3): `invalid.protocol_request` → -32600, `invalid.protocol_method` → -32601, `invalid.command_schema` → -32602, `conflict.idempotency_key_reuse` → 3006, `conflict.expected_cursor_mismatch` → 3004(전역 커서 대신 레코드 `revisionSeq`, 09 §3.9.4), `denied.*` → 3002 또는 3003, `gate.human_*` → `gated`, `policy.*`·`invalid.*`·`not_found.*` → 3001, `runtime.not_running` → 5006. `runtime.*`의 나머지와 `provider.*`는 런타임 내부 결과라 이 프로토콜의 오류로 오지 않고 이벤트 payload(09·12)로 온다.
+- v0.2 실행 후보 결과 코드와의 대응(canon-2 §9.3): `invalid.protocol_request` → -32600, `invalid.protocol_method` → -32601, `invalid.command_schema` → -32602, `conflict.idempotency_key_reuse` → 3006(현행 이름은 저장소 결과 `key_reused`), `conflict.expected_cursor_mismatch` → 3004(전역 커서 대신 레코드 `revisionSeq`, 09 §3.9.4), `denied.*` → 3002 또는 3003, `gate.human_*` → `gated`, `policy.*`·`invalid.*`·`not_found.*` → 3001, `runtime.not_running` → 5006. `runtime.*`의 나머지와 `provider.*`는 런타임 내부 결과라 이 프로토콜의 오류로 오지 않고 이벤트 payload(09·12)로 온다.
 
 ### 3.4 핸드셰이크
 
@@ -553,7 +559,7 @@ export type HelloChallengeParams = Static<typeof HelloChallengeParams>;
 
 ```ts
 export const ClientInfo = Obj({
-  kind: Enum(["desktop", "mobile", "tui", "cli", "test"]),
+  kind: Enum(["desktop", "mobile", "tui", "cli", "test"]),       // test는 연결 전용 값이다. 기기 레코드의 clientKind에는 들어가지 않는다(판정 J-321)
   version: Type.String({ minLength: 1, maxLength: 64 }),         // 앱 semver
   build: Type.Optional(Type.String({ maxLength: 64 })),           // 커밋 해시 등
   /** ios: 모바일 PWA(결정 47). 최소 판은 iOS 26이고 Android는 지원·시험 대상이 아니다(결정 49) */
@@ -1188,7 +1194,7 @@ on 영속 이벤트(메시지 완성, 도구 결과, run 종료):
 | `inquiry.markAssumption` | `assumption.record` | D | |
 | `inquiry.pinCheck` | `check.pin` | D | |
 | `inquiry.requestDecision` | `inquiry.stop`(`then: "decide_now"`) | D | 이어서 런타임이 `choice` 질문을 낸다 |
-| `inquiry.stop` | `inquiry.stop`(`then: "proceed"` 또는 `"hand_off"`) | D | 멈춤 이유는 08 `human_decided` |
+| `inquiry.stop` | `inquiry.stop`(`then: "proceed"` 또는 `"handoff"`) | D | 멈춤 이유는 08 `human_decided` |
 | `inquiry.pinLens` | `lens.update`(`pinned`) | D | 명령 이름은 10 §3.11.11(2)를 따른다([판정 J-200]) |
 | `inquiry.fillCell` | `observation.record`(`obsKind: "utterance"`, 사람 발화 관찰, 채널 H) | D | 칸 채우기는 명령을 따로 두지 않는다(15 §3.2.6) |
 | `expectation.revise` | `expectation.revise` | D | |
@@ -1312,7 +1318,7 @@ export const CommandResult = Obj({
   status: Enum(["applied", "accepted", "gated"]),
   commandId: CommandId,                  // 같은 멱등 키의 재시도는 처음 값
   duplicate: Type.Boolean(),             // 이미 처리한 멱등 키라 저장된 결과를 돌려준다(06 SubmitResult.replayed)
-  /** 보관 기간(365일)이 지나 결과를 줄인 행이면 true. status와 commandId만 믿을 수 있다(§3.9.2) */
+  /** 보관 기간(365일)이 지나 결과를 줄인 행이면 true. 09 resultPruned에 대응한다. status와 commandId만 믿을 수 있다(§3.9.2) */
   reduced: Type.Optional(Type.Boolean()),
   headSeq: Pos,
   firstSeq: Nullable(Seq), lastSeq: Nullable(Seq),   // 이 명령이 커밋한 이벤트 seq 범위
@@ -2605,7 +2611,7 @@ export const DevicePushConfigResult = Obj({
 | F-09 | 같은 `storeId`인데 클라이언트 위치가 headSeq보다 큼(복원 때 `storeId`를 바꾸지 않은 운영 실수) | `aheadOfHead` → `storeMismatch`와 같이 처리. 데몬은 운영 로그에 경고를 남긴다 | CT-09 |
 | F-10 | 몇 달 만에 접속해 밀린 이벤트가 `maxReplayEvents`를 넘음 | `tooFar` → 스냅샷 경로. 타임라인에 "접속하지 않은 동안의 기록 일부 생략" 표시. 복귀 요약(`brief` 뷰)은 정본에서 만들므로 내용 손실이 없다 | CT-07 |
 | F-11 | 느린 소비자(Wi-Fi 약함, 앱이 바쁨) | 휘발 조각을 버리고, 계속 넘치면 4008로 닫는다. 재접속해 위치부터 받는다. 영속 이벤트는 잃지 않는다 | CT-13 |
-| F-12 | 이벤트 하나가 송신 상한(4 MiB)을 넘음(09의 256 KiB 제한 위반) | 그 이벤트의 `payload`를 빼고 `redacted: [""]`, `payloadOmitted: "tooLarge"`로 보낸다. 클라이언트는 `records` 뷰로 내용을 본다. 데몬은 운영 로그에 오류를 남긴다(09 버그) | CT-28 |
+| F-12 | 이벤트 하나가 송신 상한(4 MiB)을 넘음(09의 256 KiB 제한 위반) | 그 이벤트의 `payload`를 빼고 `redactions: [""]`, `payloadOmitted: "tooLarge"`로 보낸다. 클라이언트는 `records` 뷰로 내용을 본다. 데몬은 운영 로그에 오류를 남긴다(09 버그) | CT-28 |
 | F-13 | 명령 응답 유실(연결 끊김) | 진행 중 명령함에 남은 명령을 재접속 뒤 같은 키로 다시 보낸다. 같은 결과(`duplicate: true`) | CT-12 |
 | F-14 | 같은 키, 다른 params(클라이언트 버그) | `3006`. 클라이언트는 그 항목을 진행 중 명령함에서 지우고 버그 보고 | CT-11 |
 | F-15 | 두 기기가 같은 질문에 거의 동시에 답함 | 먼저 커밋된 것만 남기고 뒤의 것은 거부한다: `3008 command.alreadyResolved` 또는 `3004`(먼저 커밋된 쪽이 대상 `revisionSeq`를 올렸으면). 클라이언트는 둘을 같은 "이미 처리됨"으로 그린다(04 §3.0.5 "이미 답했습니다(다른 기기)", 20·26) | CT-19 |

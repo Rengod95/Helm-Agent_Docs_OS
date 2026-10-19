@@ -2,7 +2,7 @@
 
 - 작성: 2026-10-11, 설계 에이전트 P10(관찰)
 - 소유: 이 문서는 관찰 에이전트(`@helm/observer`)의 설계, 지표 정의와 계산, 반증 가설의 측정 방법을 소유한다.
-- 상태: 4단계 보완판(2026-10-12). 기준 결정 범위는 브리프 결정 1~64과 판정 J-01~J-276이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 프로토콜 메서드는 19, 레코드·접두사는 08을 따른다(조정자 판정 `process/rulings-stage2a.md` §1). 표시는 판정 J-144를 따른다: `[결정 n]`은 사용자 결정, `[제안: 결정 n 기본값]`은 조정자 기본값, `[판정 n]`·`[판정 J-nn]`은 조정자 판정이다. 이 문서가 새로 필요로 하는 이름은 §5.2에 요구로 적었다.
+- 상태: 4단계 보완판(2026-10-12). 기준 결정 범위는 브리프 결정 1~64과 판정 J-01~J-351이다. 이벤트 이름은 09 §3.4, 명령 이름은 10 §3.11, 프로토콜 메서드는 19, 레코드·접두사는 08을 따른다(조정자 판정 `process/rulings-stage2a.md` §1). 표시는 판정 J-144를 따른다: `[결정 n]`은 사용자 결정, `[제안: 결정 n 기본값]`은 조정자 기본값, `[판정 n]`·`[판정 J-nn]`은 조정자 판정이다. 이 문서가 새로 필요로 하는 이름은 §5.2에 요구로 적었다.
 
 ## 1. 목적과 범위
 
@@ -1703,7 +1703,7 @@ export interface MetricDef {
 
 `effect` 계산 [제안]: `objection.resolved`가 `upheld`이고 해소 뒤 24시간 안에 그 이의를 인과로 가진 `record.superseded`·`choice.revoked`·새 `choice.committed`(같은 결정점)·`concern.reopened` ·재작업 WorkUnit(`reworkOf`가 대상 WorkUnit) 중 하나가 있으면 `changed`, 아니면 `unchanged`. `withdrawn`·`dismissed`와 `desiredEffect = note_only`로 기록만 된 이의(상태 `noted`)는 `unchanged`이고, `desiredEffect = ask_next_time`은 같은 종류 결정이 이후 질문으로 올라왔는가(`ad.contest_rate_by_kind`의 제안 채택)로 따로 본다. 09의 해소 값에 "뒤집힘·수정" 구분이 없으므로 이 파생 값으로 잰다(08 §5.2의 16 요구와 같은 방법).
 
-`normalPath`와 `opReason` 계산 [제안]: 01 §3.5.2 R-OP-1~R-OP-6을 이벤트 종류로 판정한다. 정상 경로는 이벤트 종류로 계산한다는 판정 J-76을 따른다. 08 `HumanOpMeta`의 "추천을 그대로 따랐는가" 필드(J-76의 새 이름 `followedRecommendation`)와 자유 문장 `extraReason`은 이 계산에 쓰지 않는다. 지표에서 쓰는 이름은 이 사실의 `normalPath`(불리언)와 `opReason`(열거값) 둘뿐이며 01 AC·22 추적표도 이 이름을 검사한다. 변경 WorkUnit마다: `agreement.confirmed` 첫 1건과 `acceptance.recorded` 첫 1건만 정상 경로다. 나머지는 사유로 나눈다. 범위 질문(`question.answered`, 종류 scope_change) → `scope_expansion`, 권리 게이트 질문(send·action approval) → `rights_gate`, 결과 확인의 수정 요청(`revision_requested`)은 같은 WorkUnit을 `in_progress`로 되돌리므로(판정 J-180) 그 뒤의 합의·결과 확인은 같은 WorkUnit의 다음 항목이고 `correction_cycle`이다. 이의로 생긴 재작업 WorkUnit(11 §3.10.3, `reworkOf`가 원 WorkUnit을 가리킴)에서 생긴 합의·결과 확인은 원 WorkUnit에 귀속해 `correction_cycle`, 다시 조사 뒤 새 합의 → `reinquiry`, `goal.revised` → `goal_change`, `objection.filed` → `contest`, Concern 열기 제안에 대한 답(`question.answered`, 종류 `entry_suggestion`, 14 §3.14.4) → `promotion`. 사람 확인 없이 활성화된 합의는 조작 0건이다: Grant(`activation.mode = grant`), 01 R-OP-2 (a) 증명 가능한 포함(`choice_scope`, `agreement.activated_by_choice`, 판정 J-133), R-OP-2 (b) 직접 지시 echo(`direct_instruction`. 지시를 보낸 일은 `human_op/input`으로만 센다), 규칙 활성화(`rule`). 결과 확인과 같은 트랜잭션에서 생기는 반영 범위 합의의 `agreement.confirmed`(판정 J-126)와 조건부 확인의 조건 항목 `obligation.deferred`(판정 J-125)는 그 결과 확인 1건에 포함하고 따로 세지 않는다.
+`normalPath`와 `opReason` 계산 [제안]: 01 §3.5.2 R-OP-1~R-OP-6을 이벤트 종류로 판정한다. 정상 경로는 이벤트 종류로 계산한다는 판정 J-76을 따른다. 08 `HumanOpMeta`의 "추천을 그대로 따랐는가" 필드(J-76의 새 이름 `followedRecommendation`)와 자유 문장 `extraReason`은 이 계산에 쓰지 않는다. 지표에서 쓰는 이름은 이 사실의 `normalPath`(불리언)와 `opReason`(열거값) 둘뿐이며 01 AC·22 추적표도 이 이름을 검사한다. 변경 WorkUnit마다: `agreement.confirmed` 첫 1건과 `acceptance.recorded` 첫 1건만 정상 경로다. 나머지는 사유로 나눈다. 범위 질문(`question.answered`, 종류 scope_change) → `scope_expansion`, 권리 게이트 질문(send·action approval) → `rights_gate`, 결과 확인의 수정 요청(`revision_requested`)은 같은 WorkUnit을 `in_progress`로 되돌리므로(판정 J-180) 그 뒤의 합의·결과 확인은 같은 WorkUnit의 다음 항목이고 `correction_cycle`이다. 이의로 생긴 재작업 WorkUnit(11 §3.10.3, `reworkOf`가 원 WorkUnit을 가리킴)에서 생긴 합의·결과 확인은 원 WorkUnit에 귀속해 `correction_cycle`, 다시 조사 뒤 새 합의 → `reinquiry`, `goal.revised` → `goal_change`, `objection.filed` → `contest`, Concern 열기 제안에 대한 답(`question.answered`, 종류 `entry_suggestion`, 14 §3.14.4) → `promotion`. 사람 확인 없이 활성화된 합의는 조작 0건이다: Grant(`activation.mode = grant`), 01 R-OP-2 (a) 증명 가능한 포함(`choice_scope`, `agreement.activated_by_choice`, 판정 J-133), R-OP-2 (b) 직접 지시 echo(`direct_instruction`. 지시를 보낸 일은 `human_op/input`으로만 센다), 규칙 활성화(`rule`). 결과 확인과 같은 트랜잭션에서 생기는 반영 범위 합의의 `agreement.confirmed`(판정 J-126)와 조건 붙여 확인의 조건 항목 `obligation.deferred`(판정 J-125)는 그 결과 확인 1건에 포함하고 따로 세지 않는다.
 
 `trivialInput` 판정 [제안]: 사람이 직접 친 자유 문장 필드가 공백 제외 2자 이하이거나, 한글 자모만으로 되어 있거나(`/^[ㄱ-ㅎㅏ-ㅣ\s]+$/`), 같은 문자 반복(`/^(.)\1*$/`)인 경우. dogfood 기록의 `ㅇ`, `ㅁㄴㅇ` 확정이 기준 사례다(canon-2 §6.3). V9의 측정이다.
 
@@ -1791,7 +1791,7 @@ export interface ReturnEpisode {
 | `ca.extra_ops_by_reason` (CA-7) | 정상 경로 밖 조작 사유 | `opReason`별 건수 | `human_op` | 14d | 없음 | C/A 칸 |
 | `ca.unaccepted_close_rate` | 확인 없이 닫힌 작업 | 쓰기가 있었던 WorkUnit 중 결과 확인 없이 Concern이 닫히거나 7일 넘게 "결과 확인 필요"로 남은 비율 | `concern`, `submission`, `result_decision` | 14d | > 10% [제안] | C/A 칸 |
 | `ca.quick_accept_rate` | 짧은 확인 | 결과 확인 중 `viewLatencyMs` < 15초인 비율(기준 3개 이상 제출만) | `result_decision`, `view` | 14d | 정보. 높으면 확인 화면이 형식이 되었는지 검토 | C/A 칸 |
-| `ca.unchecked_acceptance_rate` | 확인하지 못한 기준이 있는데 그대로 확인 | `acceptance.recorded(accepted)` 중 결과 제출에 `unverified_no_evidence` 기준이 1개 이상 있거나, 취향형 기준 판정 칸이 비어 "모르겠음"으로 남은 것의 비율. 조건부 확인(`conditional`)은 세지 않는다. 추천 버튼이 없는 결과 확인도 이 지표로 잡는다(`q.approval_theater`는 질문만 본다) | `result_decision`, `submission` | 14d | > 0.2면 결과 확인 화면 검토(04 §3.12 주 버튼 규칙) | C/A 칸 |
+| `ca.unchecked_acceptance_rate` | 확인하지 못한 기준이 있는데 그대로 확인 | `acceptance.recorded(accepted)` 중 결과 제출에 `unverified_no_evidence` 기준이 1개 이상 있거나, 취향형 기준 판정 칸이 비어 "모르겠음"으로 남은 것의 비율. 조건 붙여 확인(`conditional`)은 세지 않는다. 추천 버튼이 없는 결과 확인도 이 지표로 잡는다(`q.approval_theater`는 질문만 본다) | `result_decision`, `submission` | 14d | > 0.2면 결과 확인 화면 검토(04 §3.12 주 버튼 규칙) | C/A 칸 |
 | `ca.evidence_unopened_accept_rate` | 근거를 열지 않고 확인한 비율 | `count(acceptance.recorded(accepted) ∧ ¬evidenceOpened) / count(acceptance.recorded(accepted))`. `evidenceOpened`는 그 결과의 제출(`result.submitted`)부터 확인 전까지 `view.opened`(`view = SCR-EVIDENCE`, 결과의 Concern을 `refs`로 가짐)가 한 번이라도 있었는가 | `result_decision`, `view` | 14d | > 0.5면 결과 확인 화면에서 근거 열기 위치를 검토한다[제안] | C/A 칸 |
 | `ca.emergency_share` | 비상 합의 비율 | `agreement.kind = emergency / confirmed` | `agreement` | 28d | 정보 | C/A 칸 |
 
@@ -1828,7 +1828,7 @@ export interface ReturnEpisode {
 | ID | 이름 | 계산식 | 창 | 검토 신호 |
 |---|---|---|---|---|
 | `ad.contest_rate_by_kind` | 종류별 이의율 | 결정 종류별 `count(objection.filed on autonomous) / count(autonomous_choice/recorded)`. 열람 보정값도 함께: 분모를 `autonomous.seen`의 `uptoSeq`까지 사람이 본 결정으로 한 값(05 요구 (1)) | 28d | 종류별 > 0.2이고 표본 ≥ 5면 D10이 그 종류를 묻기로 올리는 제안 |
-| `ad.list_view_rate` | 에이전트가 정한 것 목록 열람 | 복귀 에피소드 중 `view.surface = "auto"`가 있는 비율 | 28d | < 0.2이고 `opdc.p.surprise_count` > 0이면 V5 반증 신호 |
+| `ad.list_view_rate` | 에이전트가 정한 것 목록 열람 | 복귀 에피소드 중 `view = "SCR-AUTO"`가 있는 비율 | 28d | < 0.2이고 `opdc.p.surprise_count` > 0이면 V5 반증 신호 |
 | `ad.reversal_rate` | 이의 후 뒤집힘 | `count(objection.resolved ∧ effect = changed on autonomous) / count(objection.resolved on autonomous)` | 28d | 정보 |
 | `ad.time_to_contest` | 이의까지 시간 | 결정부터 이의까지 중앙값 | 28d | 정보 |
 | `ad.autonomy_widened_unsupported` | 받쳐 주지 않은 자율 확대 | 자율을 넓힌 변경(자율 정도·질문 문턱 다이얼을 올림, "묻지 않기" 정책 제안 채택) 중 14일 안에 같은 범위의 `opdc.p.surprise_count`, `a12.raw_log_fallback_rate`, `ad.contest_rate_by_kind` 가운데 하나라도 나빠진 비율 | 28d | > 0.3이면 2주 평가에 해당 변경 목록을 보인다. canon §10.8 안티패턴 Independence maximization(05 부록이 넘긴 측정) |

@@ -1,7 +1,7 @@
 # 13. 도구와 실행
 
 - 작성: P7 런타임, 2026-10-11 (1단계 초안), 2026-10-12 2a단계 통합과 4단계 보완
-- 상태: 설계 초안. 이벤트 이름은 09, 명령은 10, 레코드는 08, 보안 요구는 18 §3.11을 따른다. 기준은 브리프 결정 1~64과 조정자 판정 `process/rulings-stage2a.md`(J-01~J-276)다.
+- 상태: 설계 초안. 이벤트 이름은 09, 명령은 10, 레코드는 08, 보안 요구는 18 §3.11을 따른다. 기준은 브리프 결정 1~64과 조정자 판정 `process/rulings-stage2a.md`(J-01~J-351)다.
 - 함께 읽을 문서: `process/00-design-brief.md`(이하 "브리프"), [12 런타임 엔진](12-runtime-engine.md), [10 커널](10-kernel.md), [14 루프·모드·오케스트레이션](14-loops-modes-orchestration.md), [15 탐구 엔진](15-inquiry-engine.md), [06 시스템 아키텍처](06-system-architecture.md)
 - 표시 규칙과 출처 줄임말은 12의 머리말과 같다. pi 행 번호는 태그 `v1.1.0` 기준이다(12 머리말). `P7/`은 `.helm-design-work/P7/`(이 문서의 실험)이다.
 
@@ -44,7 +44,7 @@
 
 | 용어 | 뜻 |
 |---|---|
-| 원시 행동 | read, write, execute, send, spawn, ask (결정 4, 10 §3.6.2 `PrimitiveAction`) |
+| 원시 행동 | read, write, execute, send, spawn, ask (결정 4, 08 §3.3.3 `Primitive`) |
 | 도구 묶음(loadout) | 한 run의 한 요청에서 모델에게 선언하는 도구 집합 |
 | 쓰기 가능 루트 | 샌드박스 안에서 bash가 쓸 수 있는 디렉터리. 합의 범위에서 계산한다(§3.5.3) |
 | 샌드박스 수준 | S0(격리 없음, 운영자 설정 때만), S1b(`systemd-run --user` 일회성 단위, 18 2순위), S1(bubblewrap 마운트 격리), S2(오버레이 스테이징, 이후 단계) (§3.6) |
@@ -140,7 +140,7 @@ export interface HelmToolSpec<P extends TSchema = TSchema, D = unknown> {
   parameters: P;                        // 닫힌 객체(additionalProperties: false)
   outputSchema?: TSchema;               // structuredContent 스키마. 있으면 런타임이 검증한다
   constrainedSampling?: false | { type: 'json_schema'; strict: 'prefer' | 'require' };   // pi-ai Tool 필드
-  primitive: PrimitiveAction | null;    // helm 제안 도구는 null(기록 능력 propose)
+  primitive: Primitive | null;    // helm 제안 도구는 null(기록 능력 propose)
   replay: 'never' | 'safe';             // pi-agent-core AgentTool.replay와 같은 값. 기본 'never'
   safeForRecoveryTurn: boolean;         // 재시작 재개 첫 turn에 허용 (12 §3.7.5). replay=safe인 읽기 도구와 helm 도구만 true
   cancellation: Cancellation;
@@ -194,6 +194,11 @@ export interface PostProcessed {
   enforcement: 'pre' | 'post_hoc' | 'advisory';
   uncertain?: { externalRef?: string; reason: string };   // 외부 결과를 모름 → 12 awaiting_recovery
 }
+
+export interface TruncationInfo {                 // 09 toolcall.completed.truncation과 같다
+  originalBytes: number;
+  keptBytes: number;
+}
 ```
 
 루프용 감싸기(`toAgentTool(spec)`, `@helm/runtime`에 둔다. `tools`는 `agent`에 의존하지 않는다, 판정 J-56):
@@ -215,7 +220,8 @@ export interface PostProcessed {
 
 ```text
 toolsFor(runSpec, kernelState):                     # run 시작 때 한 번 (14 D5)
-  basic = { read, grep, find, ls }                  if 'read' ∈ runSpec.primitives
+  basic = { read, ls }                              if 'read' ∈ runSpec.primitives
+        ∪ { grep, find }                            if 'read' ∈ runSpec.primitives and 샌드박스 수준이 (없음)이 아닐 때만(§3.6.1)
         ∪ { write, edit }                           if 'write' ∈ runSpec.primitives
         ∪ { bash }                                  if 'execute' ∈ runSpec.primitives and 이 데몬에서 S1 또는 S1b 가능(§3.6.1)
         ∪ mcpTools(primitive ∈ runSpec.primitives)  # §3.9
@@ -272,7 +278,7 @@ errors web.quota_exceeded | 모든 제공자가 실패하면 오류 결과
 config tools.webSearch { providers: ('brave' | 'tavily')[] /*앞에서부터 시도, 기본 ['brave', 'tavily']*/; monthlyCap: number /*USD 환산 월 상한*/ }
 ```
 
-- `web_fetch` 처리 순서[제안, 18 §3.11.8 준수]: (1) 스킴은 `http`·`https`만 받는다. 다른 스킴은 `policy.forbidden_resource`로 거부한다. (2) 이름을 한 번 해석하고, 해석한 IP가 차단 대역(§3.6.3 목록)이면 거부한다. 연결은 해석한 IP로 직접 한다. (3) 리디렉션마다 (1)과 (2)를 다시 한다. (4) 방법은 GET·HEAD만 쓴다. 쿠키와 인증 헤더를 보내지 않는다. 시간 상한은 30초다. (5) 본문이 `maxBytes`를 넘으면 `web.too_large`로 끝낸다. (6) 미디어 타입이 HTML·텍스트·JSON이 아니면 `web.unsupported_type`으로 끝낸다. (7) 변환 작업자는 사양 `network: 'none'`과 쓰기 루트 없음(§3.6.2)으로 띄운다. 작업자는 linkedom으로 DOM을 만들고 readability와 turndown으로 본문을 바꾼다. 변환 결과가 거의 비면 `web.empty_needs_browser`로 끝내고 브라우저 도구를 쓰도록 안내한다.
+- `web_fetch` 처리 순서[제안, 18 §3.11.8 준수]: (1) 스킴은 `http`·`https`만 받는다. 다른 스킴은 `policy.forbidden_resource`로 거부한다. (2) 호스트 이름이 서버 자기 주소이거나 `*.ts.net`·`*.local`이면 해석하지 않고 거부한다. 그 밖에는 이름을 한 번 해석하고, 해석한 IP가 차단 대역(§3.6.3 목록)이면 거부한다 [판정 J-342]. 연결은 해석한 IP로 직접 한다. (3) 리디렉션마다 (1)과 (2)를 다시 한다. (4) 방법은 GET·HEAD만 쓴다. 쿠키와 인증 헤더를 보내지 않는다. 시간 상한은 30초다. (5) 본문이 `maxBytes`를 넘으면 `web.too_large`로 끝낸다. (6) 미디어 타입이 HTML·텍스트·JSON이 아니면 `web.unsupported_type`으로 끝낸다. (7) 변환 작업자는 사양 `network: 'none'`과 쓰기 루트 없음(§3.6.2)으로 띄운다. 작업자는 linkedom으로 DOM을 만들고, 변환 전에 숨은 텍스트(`display:none`, `aria-hidden`, 크기 0, 주석, `script`·`style`·`template`)를 지운 뒤 readability와 turndown으로 본문을 바꾼다 [판정 J-313]. 변환 결과가 거의 비면 `web.empty_needs_browser`로 끝내고 브라우저 도구를 쓰도록 안내한다.
 - 변환 작업자의 네트워크 없음은 샌드박스로만 강제할 수 있다. S0에서는 `web_fetch`를 묶음에서 뺀다[제안].
 - URL의 질의 문자열이 2 KiB를 넘거나 비밀 패턴(18 §3.10.4)과 맞으면 `ask`(`disclose_data`)로 올린다(18 §3.11.8 4번). 긴 질의 기준은 2 KiB로 통일했다 [판정 J-209, §7 O-13-19].
 - 결과 본문은 `<untrusted source="web" url="…">…</untrusted>`로 감싼다(12 PJ-7, 판정 J-190 (4)). `sha256`은 08 `MaterialRef.url.retrievedHash`로 쓴다(§3.2.3).
@@ -836,8 +842,8 @@ bwrap
 #### 3.6.3 네트워크: 네임스페이스 분리와 데몬 CONNECT 프록시 [판정 J-134 / 제안: 세부]
 
 - 모든 샌드박스 실행은 네트워크 네임스페이스를 분리한다(S1 `--unshare-net`, S1b `PrivateNetwork=yes`). 합의에 네트워크 부여(08 `ResourceScope.net{host}`)가 없으면(`network: 'none'`) 그대로 끝이다. 루프백만 있고 바깥으로 나갈 길이 없다.
-- 부여가 있으면(`network: 'proxy'`) 데몬 쪽 CONNECT 프록시 `helm-egress-proxy` [판정 J-210]가 실행마다 Unix 소켓 하나(HTTP CONNECT와 평문 HTTP 프록시)를 열고 그 소켓을 샌드박스 안 `/run/helm-proxy.sock`에 바인드한다. 샌드박스 안의 작은 중계기 `helm-netshim`(Helm이 배포하는 정적 실행 파일)이 네임스페이스 루프백 `127.0.0.1:3128`에서 받아 그 소켓으로 넘긴다. 환경 변수 `HTTP_PROXY`·`HTTPS_PROXY`·`ALL_PROXY`·`http_proxy`·`https_proxy`를 그 주소로 두고 `NO_PROXY`는 비운다. ssh(git over ssh)는 `GIT_SSH_COMMAND='ssh -o ProxyCommand="helm-netshim connect %h %p"'`로 같은 프록시를 쓴다.
-- 프록시의 판정: 이름은 프록시가 직접 푼다. 다음 주소는 언제나 거부한다: 루프백(127.0.0.0/8, ::1), 사설(10/8, 172.16/12, 192.168/16), 링크 로컬(169.254/16, fe80::/10), CGNAT·tailnet(100.64.0.0/10, fd7a:115c:a1e0::/48), ULA(fc00::/7), 서버 자기 주소, 이름이 `*.ts.net`·`*.local`인 호스트. 호스트는 `netHosts`에 있어야 한다(`public`은 공개 인터넷 전체, 판정 J-190 (2)). 포트는 기본 80·443, 22는 그 호스트에 `net:<host>:22` 부여가 있을 때만. 거부와 허용은 연결마다 trace에 남기고 도구 결과 `details.network`에 요약한다. 데몬이 직접 하는 요청(`web_fetch`)은 같은 차단 목록을 쓰고, 세부 규칙은 18 §3.11.8이 정한다.
+- 부여가 있으면(`network: 'proxy'`) 데몬 쪽 CONNECT 프록시 `helm-egress-proxy` [판정 J-210]가 실행마다 Unix 소켓 하나(HTTP CONNECT와 평문 HTTP 프록시)를 열고 그 소켓을 샌드박스 안 `/run/helm-proxy.sock`에 바인드한다. 샌드박스 안의 작은 중계기 `helm-netshim`(Helm이 배포하는 정적 실행 파일)이 네임스페이스 루프백 `127.0.0.1:3128`에서 받아 그 소켓으로 넘긴다. 환경 변수 `HTTP_PROXY`·`HTTPS_PROXY`·`ALL_PROXY`·`http_proxy`·`https_proxy`를 그 주소로 두고 `NO_PROXY`는 비운다. ssh(git over ssh)는 `GIT_SSH_COMMAND='ssh -o ProxyCommand="helm-netshim connect %h %p"'`로 같은 프록시를 쓴다. 코드 위치는 프록시 본체가 `packages/daemon/src/net/egress-proxy.ts`이고, `packages/tools/src/sandbox/proxy.ts`는 실행마다 데몬이 연 프록시 소켓을 받아 bwrap에 연결하고 `helm-netshim`을 실행하는 쪽이다 [판정 J-278].
+- 프록시의 판정: 이름은 프록시가 직접 푼다. 다음 주소는 언제나 거부한다: 0.0.0.0/8, 루프백(127.0.0.0/8, ::1), 사설(10/8, 172.16/12, 192.168/16), 링크 로컬(169.254/16, fe80::/10), CGNAT·tailnet(100.64.0.0/10, fd7a:115c:a1e0::/48), ULA(fc00::/7), 서버 자기 주소, 이름이 `*.ts.net`·`*.local`인 호스트. 호스트는 `netHosts`에 있어야 한다(`public`은 공개 인터넷 전체, 판정 J-190 (2)). 포트는 기본 80·443, 22는 그 호스트에 `net:<host>:22` 부여가 있을 때만. 거부와 허용은 연결마다 trace에 남기고 도구 결과 `details.network`에 요약한다. 데몬이 직접 하는 요청(`web_fetch`)은 같은 차단 목록을 쓰고, 세부 규칙은 18 §3.11.8이 정한다.
 - 프록시를 쓰지 않는 도구(원시 TCP)는 연결할 수 없다. 이것은 의도한 결과다. 도구 설명에 "네트워크는 HTTP(S) 프록시로만"을 적는다.
 - 1차 구현 전에 23의 스파이크로 확인한다: pnpm·npm·git(https·ssh)·curl이 프록시로 동작하는지, `helm-netshim` 중계 비용 [가정]. 스파이크가 실패하면 네트워크를 쓰는 실행은 실행마다 사람 승인(권리 게이트 `ask`)으로 하고, 홈랩 H-5(Caddy 관리 API 인증)를 설치 선행 조건으로 둔다(`helm doctor` FAIL, 17). 이때 합의 화면에 `network.proxy_fallback_ask` 경고를 낸다. `helm-netshim`의 소스 언어는 Rust 정적 실행 파일을 제안안으로 두고 스파이크(23 SP-18) 뒤에 확정한다 [결정 63].
 - 권한 레이어는 네트워크가 있는 실행을 `externalEffect: true`로 판정한다(결과 불명이면 사람 확인, 판정 J-05). 정보가 밖으로 나가는 행동인지는 18의 규칙이 정한다.
@@ -883,17 +889,21 @@ bwrap 시작은 약 16ms다 [실험]. 변경 감지는 git 저장소에서 `git 
 
 #### 3.6.8 격리 상태 확인 (18 §3.11.4)
 
-데몬 시작 때와 1시간마다, 그리고 `helm doctor`가 현재 수준(S1 또는 S1b)으로 다음을 실행한다. 하나라도 기대와 다르면 `execute` 도구를 끄고 상태 `sandbox` critical(18 R-10).
+데몬 시작 때와 1시간마다, 그리고 `helm doctor`가 현재 수준(S1 또는 S1b)으로 다음을 실행한다. (1)~(8) 하나라도 기대와 다르면 `execute` 도구를 끄고 상태 `sandbox` critical(18 R-10). (9)가 어긋나면 브라우저 도구만 끈다.
 
 | 시험 | 기대 |
 |---|---|
-| `ls /srv/volumes/helm/data` | 거부 또는 없음 |
-| `/run/user/<uid>/helm/rpc.sock`에 연결 | 실패 |
-| `cmd.exe /c ver` | 실패 |
-| `ip link` | `lo`만(네트워크 없음일 때) |
-| `env` | §3.6.4 허용 목록 밖 변수 없음 |
-| 작업 공간 쓰기 가능 루트에 쓰기 / 밖에 쓰기 | 성공 / 실패 |
-| 바인드한 루트 안의 보호 파일: 시험용 작업 공간에 빈 `.env`·`.env.example`·`secrets/x`를 만들고 S1 또는 S1b 호출로 읽기 | `.env`와 `secrets/x`는 실패, `.env.example`은 성공 |
+| (1) `ls /srv/volumes/helm` | 거부 |
+| (2) `/run/user/<uid>/helm/rpc.sock`에 접근 | 거부 |
+| (3) `cmd.exe /c ver` | 실패 |
+| (4) `ip link` | `lo`만(네트워크 없음일 때) |
+| (5) `env` | §3.6.4 허용 목록 밖 변수 없음 |
+| (6) 작업 공간 쓰기 가능 루트에 쓰기 / 밖에 쓰기 | 성공 / 실패 |
+| (7) `~/.ssh`·`~/.config/sops`·`~/.config/gh` 확인 | 없음 |
+| (8) 네트워크 허용 구성에서 프록시로 `127.0.0.1:2019`·`100.64.0.1` 요청 | 프록시 거부 |
+| (9) 브라우저 도구를 켠 구성에서만: Chrome 내부 샌드박스 상태(`browser_inner_sandbox`, §3.11.11) | 기대 상태. 어긋나면 브라우저 도구만 끈다 |
+
+바인드한 루트 안의 보호 파일 시험은 표 밖에서 같은 시점에 돈다. 시험용 작업 공간에 빈 `.env`·`.env.example`·`secrets/x`를 만들고 S1 또는 S1b 호출로 읽는다. `.env`와 `secrets/x`는 실패, `.env.example`은 성공이다.
 
 ### 3.7 Helm 제안 도구
 
@@ -1165,8 +1175,8 @@ export interface McpServerConfig {
   env?: string[];                                 // 서버 프로세스에 넘길 비밀 이름. 값은 데몬 SecretStore에서(판정 45). 17 secrets.keys에 이름을 더한다.
                                                   // 18 R-2의 "*_TOKEN·*_KEY 금지"의 예외는 운영자 설정인 이 필드뿐이다(18에 요구)
   headersFromSecrets?: Record<string, string>;    // HTTP 헤더 이름 → SecretStore 이름
-  defaultPrimitive: PrimitiveAction;              // 기본: stdio = 'execute', http = 'send'
-  tools?: Record<string, { primitive?: PrimitiveAction; replay?: 'never' | 'safe'; externalEffect?: boolean;
+  defaultPrimitive: Primitive;                    // 기본: stdio = 'execute', http = 'send'
+  tools?: Record<string, { primitive?: Primitive; replay?: 'never' | 'safe'; externalEffect?: boolean;
                            rights?: RightsCategory[]; exposure?: 'direct' | 'deferred' | 'hidden' }>;
   sandbox?: { writableRoots?: string[]; netHosts?: string[] };   // stdio 서버의 샌드박스 사양. netHosts가 있으면 §3.6.3 프록시로만 나간다
   exposure: 'direct' | 'deferred';                // 기본 'direct'. 도구가 많으면 'deferred'(§3.9.3)
@@ -1200,7 +1210,7 @@ export interface PermissionLayer {
 // 08 §3.18.2: { decision: allow | deny | ask, source, reasonCode, rightsGate, rightsCategories, reversibility, mutating, info }
 //            + externalEffect (align A, 08에 요구)
 export interface ActionDescriptor {
-  primitive: PrimitiveAction; tool: string; toolKind: ToolKind;
+  primitive: Primitive; tool: string; toolKind: ToolKind;
   executedArgs: unknown; targets: ResourceUri[]; targetsKnown: boolean;
   sandbox: 'S0' | 'S1b' | 'S1' | null; network: 'none' | 'proxy';   // 네트워크는 언제나 프록시를 거친다 [판정 J-211]
   mcp?: { server: string; tool: string; annotations?: Record<string, unknown> };
@@ -1234,7 +1244,7 @@ export interface ActionDescriptor {
 | 브라우저 읽기 멤버 | 탐색 호스트 `net:<호스트>` | reversible | false | false | pre(프록시와 browserd) |
 | 브라우저 상호작용 멤버 | 요청마다 `net:<호스트>` | unknown | true | uncertain | pre(요청 가로채기, §3.10.1) |
 | `computer_*`(이후 1차) | 세션 승인 대상 앱과 호스트 | unknown | true | uncertain | pre(샌드박스 S1) |
-| bash S0(운영자 설정 때만) | [] | unknown | null | true | post_hoc |
+| bash S0(운영자 설정 때만) | [] | unknown | null | true | post_hoc(변경 측정됨) 또는 advisory(측정 못 함) |
 | MCP | `mcp:<server>/<tool>` + 설정 자원 | 설정값, 기본 unknown | 설정값 | 설정값(http 기본 true) | pre(데몬이 호출 전에 막음) |
 | `helm_subcall` | `inputs.files`의 `file:` 경로(모델 제공자에게 나가는 파일, 감사 목록) | reversible | false | false | pre |
 
@@ -1324,7 +1334,7 @@ export interface NeutralToolCall {
   callId: string; idSource: 'runtime' | 'adapter_assigned';
   toolName: string;                                 // 런타임 이름
   helmTool?: string;                                // 어댑터가 Helm 기본 도구 의미로 매핑한 이름(read/write/edit/bash…)
-  primitive: PrimitiveAction | null;
+  primitive: Primitive | null;
   input: unknown; targets?: ResourceUri[]; targetsKnown: boolean;
 }
 export interface NeutralToolResult { callId: string; ok: boolean; content: string; structured?: unknown;
@@ -1684,12 +1694,12 @@ run마다 계산한 수준을 `run.queue`의 `RunCore.guarantees`(G1~G8)와 `cap
 | U-TL-11 하위 호출·REPL | `subcall.ts`, `repl/sandbox.ts` | T-RP-01 중첩 도구 호출마다 의도·결과 기록과 커널 검사, `parentToolCallId = owner.toolCallId`. T-RP-02 실패 시 `emit` 폐기, `wsPut` 값은 남음. T-RP-03 `helm.subcall` 메모 재사용. T-RP-04 변수 수명(두 번째 실행에서 `globalThis` 값 없음). T-RP-05 `owner.toolCallId`가 없으면 거부(판정 J-98). T-RP-06 스크립트에 쓰기·실행 도구가 없음 |
 | U-TL-12 MCP | `mcp/*` | T-MC-01 이름 규칙. T-MC-02 `outputSchema` 검증 실패 처리. T-MC-03 stdio 서버 샌드박스 실행. T-MC-04 env 허용 목록 |
 | U-TL-13 권한 레이어 | `permission.ts` | T-PL-01 §3.10 두 표의 각 행(18 기준선 포함). T-PL-02 기준선은 다이얼·모드로 끌 수 없다 |
-| U-TL-14 격리 운영 | `sandbox/selftest.ts`, `sandbox/reap.ts`, `changes/unlinked.ts` | T-IS-01 §3.6.8 여섯 시험이 S1·S1b 모두 기대대로. T-IS-02 `/srv/volumes/helm/data` 접근 거부(판정 J-45). T-OR-01 이전 epoch 단위가 `reapOrphans`로 멈춤, 현재 단위는 건드리지 않음. T-UC-01 run 사이 외부 변경이 `workspace.unlinked_change_observed`로 남음 |
+| U-TL-14 격리 운영 | `sandbox/selftest.ts`, `sandbox/reap.ts`, `changes/unlinked.ts` | T-IS-01 §3.6.8 여덟 시험(브라우저 조건부 1 별도)이 S1·S1b 모두 기대대로. T-IS-02 `/srv/volumes/helm/data` 접근 거부(판정 J-45). T-OR-01 이전 epoch 단위가 `reapOrphans`로 멈춤, 현재 단위는 건드리지 않음. T-UC-01 run 사이 외부 변경이 `workspace.unlinked_change_observed`로 남음 |
 | U-TL-15 데몬 git | `git/safe-git.ts` | T-SG-01~06(22 SG-01~06과 같은 표본): 악성 `core.fsmonitor`·`core.hooksPath`·`filter.*.clean/smudge`·`diff.*.textconv`·`core.sshCommand`·`core.pager`·`include.path`가 걸린 저장소에서 변경 감지·되돌릴 지점·검증 트리 생성이 표지 파일을 하나도 만들지 않는다. 새 `.git`·`.gitmodules`는 `scan`으로. 설정 해시가 바뀌면 git 호출 0회와 감사 이벤트. `safeGit` 밖의 git 호출이 코드에 없다(정적 검사) |
-| U-TL-16 네트워크 프록시 | `sandbox/proxy.ts`, `bin/helm-netshim` | T-NP-01 루프백·사설·링크 로컬·CGNAT·tailnet·`*.ts.net` 거부. T-NP-02 `netHosts` 밖 거부, 리디렉션 재판정. T-NP-03 pnpm·npm·git(https·ssh ProxyCommand)·curl이 프록시로 동작(23 스파이크와 같은 표본). T-NP-04 네트워크 없음이면 소켓 바인드 없음. `helm-netshim`의 소스 언어는 Rust 정적 실행 파일을 제안안으로 두고 스파이크(23 SP-18) 뒤에 확정한다 [결정 63] |
+| U-TL-16 네트워크 프록시 | `sandbox/proxy.ts`, `bin/helm-netshim`. 데몬 쪽 프록시 본체는 `packages/daemon/src/net/egress-proxy.ts`이고, `sandbox/proxy.ts`는 프록시 소켓을 bwrap에 연결하는 쪽이다 | T-NP-01 루프백·사설·링크 로컬·CGNAT·tailnet·`*.ts.net` 거부. T-NP-02 `netHosts` 밖 거부, 리디렉션 재판정. T-NP-03 pnpm·npm·git(https·ssh ProxyCommand)·curl이 프록시로 동작(23 스파이크와 같은 표본). T-NP-04 네트워크 없음이면 소켓 바인드 없음. `helm-netshim`의 소스 언어는 Rust 정적 실행 파일을 제안안으로 두고 스파이크(23 SP-18) 뒤에 확정한다 [결정 63] |
 | U-TL-17 시험 지원 | `@helm/tools/testing` | `FakeToolExecutor`: 샌드박스·파일 시스템 없이 도구 결과를 대본으로 돌려주되 `prepare`·`postprocess`·마스킹은 실제 코드를 탄다(22 하네스가 쓴다) |
 | U-AD-1 어댑터 계약 | `@helm/domain/src/adapter-contract.ts`(계약 타입), `packages/runtime/src/adapter/`의 `helm-adapter.ts`, `testing/fake-adapter.ts` | T-AD-01 자체 런타임이 AC-01~AC-14 통과(Level D). T-AD-02 능력 목록에서 Level·성질별 수준 계산 표 시험. T-AD-03 가짜 Level B 어댑터가 낮춘 동작(§3.11.6)으로 같은 도메인 결과 |
-| U-TL-18 웹 읽기 | `web/fetch.ts`, `web/convert-worker.ts`, `web/search.ts` | T-WF-01 주소 차단 표(루프백, 사설, CGNAT, tailnet, ULA, 해석 뒤 IP 고정. 18 T18-27과 공유). T-WF-02 리디렉션마다 재판정. T-WF-03 변환 작업자가 네트워크 없이 돈다. T-WF-04 `maxBytes`와 `web.too_large`. T-WS-01 기본 제공자 실패 때 예비 한 번, 월 상한과 `web.quota_exceeded`. T-WS-02 Tavily 키가 없으면 예비가 꺼진다 |
+| U-TL-18 웹 읽기 | `web/fetch.ts`, `web/convert-worker.ts`, `web/search.ts` | T-WF-01 주소 차단 표(루프백, 사설, CGNAT, tailnet, ULA, 해석 뒤 IP 고정. 18 T18-27과 공유). T-WF-02 리디렉션마다 재판정. T-WF-03 변환 작업자가 네트워크 없이 돈다. T-WF-04 `maxBytes`와 `web.too_large`. T-WF-05 변환 전에 숨은 텍스트(`display:none`, `aria-hidden`, 크기 0, 주석, `script`·`style`·`template`)가 지워진다. T-WS-01 기본 제공자 실패 때 예비 한 번, 월 상한과 `web.quota_exceeded`. T-WS-02 Tavily 키가 없으면 예비가 꺼진다 |
 | U-TL-19 브라우저 | `packages/tools/src/browser/`(도구 호출기), `packages/browserd/`(`helm-browserd`, 진입점 `browserd.ts` [판정 J-216]) | T-BR-01 1단계에서 비-GET 거부. T-BR-02 2단계에서 비-GET 보류 후 `ask`. T-BR-03 `taint.web` 뒤 POST는 `ask`. T-BR-04 낡은 ref는 `browser.stale_ref`. T-BR-05 크래시 뒤 상호작용 호출은 `uncertain`. T-BR-06 스크린샷 최근 3장만 모델 문맥에 두고 원본을 blob에 남기지 않는다 [결정 61]. T-BR-07 다운로드가 허용 경로 밖에 쓰이지 않는다 |
 | U-TL-20 해시라인 편집 | `basic/edit-hashline.ts` | T-HL-01 태그 없음과 낡은 태그는 `stale_snapshot`으로 실행 없이 끝난다. T-HL-02 안 본 줄과 겹치는 연산은 prepare에서 거부한다. T-HL-03 실행 직전 해시가 다르면 `file_changed_since_prepare`. T-HL-04 `editMode`별 항목은 하나씩이고 기본은 `replace`다. T-HL-05 재시작 뒤 첫 `edit`는 `stale_snapshot` |
 | U-TL-21 grep 확장 | `basic/grep.ts` | T-GR-01 `skip`과 `nextSkip`. T-GR-02 파일 사이 라운드로빈(한 파일이 결과를 독점하지 않는다). T-GR-03 `paths`의 각 항목 읽기 루트 검사. T-GR-04 줄 500자 자르기와 `[col N]` |

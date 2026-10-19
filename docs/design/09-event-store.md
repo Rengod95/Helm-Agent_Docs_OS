@@ -3,7 +3,7 @@
 - 소유: P5 (도메인)
 - 작성: 2026-10-11, 1단계 초안
 - 패키지: `@helm/store` (SQLite 이벤트 로그, 투영 테이블, 마이그레이션, 백업), 이벤트 타입 정의는 `@helm/domain/src/events/`
-- 기준 결정: 브리프 결정 1~64(사용자 결정 1~25·33·35·38~43·47~64, 조정자 기본값 26~32·34·36·37, 조정자 판정 44~46), 판정 J-01~J-276
+- 기준 결정: 브리프 결정 1~64(사용자 결정 1~25·33·35·38~43·47~64, 조정자 기본값 26~32·34·36·37, 조정자 판정 44~46), 판정 J-01~J-351
 - 함께 읽을 문서: [08-domain-model.md](08-domain-model.md) (레코드 타입, 상태 기계, 쓰기 시점 제약), `10-kernel.md` (명령과 검증), `12-runtime-engine.md` (크래시 복구, 스케줄러), `17-daemon-and-operations.md` (데몬 수명주기, 백업 일정), `19-client-protocol.md` (재전송)
 
 ## 1. 목적과 범위
@@ -485,8 +485,8 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 | `toolcall.requested` | runtime·M | runtime | tc | requested (`modelArgs`. 고쳐서 허락이면 `editedFrom`) |
 | `toolcall.blocked` | runtime·M | kernel | tc | blocked (관찰 없음) |
 | `toolcall.approval_requested` | runtime·M | kernel | tc | awaiting_approval |
-| `toolcall.approved` | runtime·M | kernel | tc | requested (다시 검사). `editedArgs` |
-| `toolcall.denied` | runtime·M | kernel | tc | denied |
+| `toolcall.approved` | runtime·M | kernel | tc | requested (다시 검사) |
+| `toolcall.denied` | runtime·M | kernel | tc | denied. `editedArgs`(edited_by_human) |
 | `toolcall.started` | runtime·M | runtime | tc | started. **실행 전에 커밋** (`execution`) |
 | `toolcall.not_executed` | runtime·M | runtime | tc | not_executed. `reason`은 08 `NotExecutedReason`(restart·cancel·steering·superseded·unknown_tool·invalid_args·truncated_response·approval_expired·batch_stopped, [판정 J-214]). A2의 `rejection.kind`는 `unknown_tool`·`invalid_args`·`truncated_response`이면 같은 이름의 reason, `aborted_before_execute`이면 `cancel`로 옮긴다. `blocked`는 `toolcall.blocked`, `hook_error`는 run 실패다 (07 A2·E5, [판정 J-58]) |
 | `toolcall.completed` | runtime·M | runtime | tc | completed (+ `observation.recorded` tool_result) |
@@ -558,7 +558,7 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 | `push.sent` | system | runtime | dv | 푸시 송신 결과 (감사, 16 지표). 상태 변화 없음 (26) |
 | `daemon.stopped` | system | runtime | null | 정상 종료 기록 (가능할 때만) |
 | `daemon.mode_changed` | system | runtime | null | normal·read_only·safe 전이 (17) |
-| `daemon.safe_mode_entered`, `daemon.safe_mode_exited` | system | runtime, human | null | 안전 모드 (17, 크래시 루프 전용. J-67) |
+| `daemon.safe_mode_entered`, `daemon.safe_mode_exited` | system | runtime, human | null | 안전 모드 (17, 크래시 루프 또는 복원 뒤 첫 부팅 [판정 J-164]. J-67) |
 | `config.reloaded` | system | runtime | null | 바뀐 키 이름 (값 없음) |
 | `secrets.reloaded` | system | runtime | null | 다시 읽은 비밀 키 이름 (값 없음) |
 | `clock.skew_detected` | system | runtime | null | 시계가 뒤로 감 (§3.2 규칙 9) |
@@ -581,7 +581,7 @@ WorkUnit의 negotiating, delegated, submitted, accepted, integrated, rejected는
 
 | 이벤트 | 행위자 | 내용 |
 |---|---|---|
-| `view.opened` | human | 화면 열람 (화면 id, 머문 시간 범주, 감사 깊이 `depth`). 대상 레코드는 refs ([판정 J-84]) |
+| `view.opened` | runtime | 화면 열람 (화면 id, 머문 시간 범주, 감사 깊이 `depth`). 대상 레코드는 refs ([판정 J-84]) |
 | `surprise.reported` | human | 사람이 놀람을 보고 |
 | `resumption_check.opened`, `resumption_check.answered`, `resumption_check.scored` | opened: runtime, answered: human, scored: runtime·kernel | 복귀 이해도 점검. 기대 답은 이벤트에 넣지 않고 해시만 둔다(16 §3.24.1) |
 | `self_report.recorded` | human | 자기 보고 |
@@ -940,7 +940,7 @@ export const EventPayloads = {
                             enforcement: ToolCallExecution.properties.enforcement, durationMs: DurationMs,
                             observedChanges: Nullable(ChangeSet) }),
   "toolcall.interrupted": P({ observationId: ObservationId,
-                              cause: Type.Union([Type.Literal("crash"), Type.Literal("daemon_shutdown"), Type.Literal("cancel"), Type.Literal("steering")]),   // run.interrupted.code와 같은 값 ([판정 J-160], J-122)
+                              cause: Type.Union([Type.Literal("crash"), Type.Literal("daemon_shutdown"), Type.Literal("cancel"), Type.Literal("steering")]),   // run.interrupted.code 값(crash, daemon_shutdown)을 포함하는 상위 집합 ([판정 J-160], J-122)
                               detectedChanges: Nullable(ChangeSet) }),
   "toolcall.outcome_uncertain": P({ observationId: ObservationId, cause: Type.String({ minLength: 1, maxLength: 32 }),
                                     recoveryCheck: ShortText, externalRef: Nullable(Type.String({ maxLength: 512 })),
@@ -1056,9 +1056,9 @@ export const EventPayloads = {
   "ledger.hmac_key_rotated": P({ fromKeyId: Type.String({ maxLength: 32 }), toKeyId: Type.String({ maxLength: 32 }) }),
   "lens_seed.loaded": P({ seedVersion: Type.String({ minLength: 1, maxLength: 64 }), seedHash: Sha256, added: Type.Integer({ minimum: 0 }),
                           updated: Type.Integer({ minimum: 0 }) }),
-  "backup.failed": P({ kind: Type.String({ maxLength: 16 }), code: Type.String({ maxLength: 64 }), note: Nullable(ShortText) }),
+  "backup.failed": P({ kind: Type.String({ maxLength: 16 }), code: Type.String({ maxLength: 64 }), note: Nullable(ShortText) }),   // kind: "disk"(디스크 부족), "verify"(검증 단계 실패), "copy"(복사 실패). code는 진단용 문자열이며 값 목록을 정하지 않는다 [판정 J-351]
   "backup.pruned": P({ removed: Type.Array(Type.String()) }),
-  "drill.completed": P({ ok: Type.Boolean(), backupId: Type.String(), durationMs: DurationMs, report: Nullable(Type.String()) }),
+  "drill.completed": P({ ok: Type.Boolean(), backupId: Type.String(), durationMs: DurationMs, report: Nullable(Type.String()) /* 결과 파일 경로 state/drills/<시각>.json [판정 J-351] */ }),
   "store.migrated": P({ fromVersion: Type.Integer(), toVersion: Type.Integer(), migrations: Type.Array(Type.String()),
                         backupPath: Nullable(Type.String()) }),
   "integrity.verified": P({ mode: Type.Union([Type.Literal("tail"), Type.Literal("full")]), fromSeq: Type.Integer({ minimum: 1 }),
@@ -1171,7 +1171,7 @@ export const VolatileEvent = Obj({
 ${HELM_ROOT}/data/                           0700
   helm.sqlite (+ -wal, -shm)                 0600, 정본 DB
   helmd.lock                                 단일 인스턴스 잠금 (17 §3.1.4, D09-7)
-  helmd.owner.json                           진단용 소유 정보. 소유 판정(누가 서버를 쥐는가)에는 쓰지 않고, 부팅 기록은 크래시 루프 계산에만 쓴다([판정 J-247])
+  helmd.owner.json                           진단용 소유 정보. 소유 판정(누가 서버를 쥐는가)에는 쓰지 않는다. 쓰임은 세 가지다. 진단 정보, 크래시 루프 계산용 부팅 기록([판정 J-247], [판정 J-269]), 마이그레이션 실패 표지("lastFailure": "migration", 두 번째 실패부터 재시작 멈춤, 17 §3.10.3)
   blobs/sha256/<2자>/<2자>/<64 hex>            0600, 256 KiB를 넘는 blob (내용 주소, 바뀌지 않음)
   blobs/staged/<uploadId>                    업로드 중인 파일 (19 staged upload, 24시간 뒤 정리)
   blobs/.tmp/                                blob 쓰기용 임시 파일 (같은 파일시스템이어야 rename이 원자적)
@@ -1710,7 +1710,7 @@ commitBatch(inputs, traces):
   3. for input in inputs:
      a. 멱등: SELECT commands WHERE scope_key
           있으면: fingerprint 같음 → 저장된 result에 replayed: true를 붙여 결과 목록에 넣고 다음 input
-                 fingerprint 다름 → key_reused 결과 { status: "key_reused", original } (이벤트·commands 행 없음, 06 §3.4.2)
+                 fingerprint 다름 → key_reused 결과 { status: "key_reused", original } (이벤트·commands 행 없음, 06 §3.4.6)
      b. decision = input.decide(view, ctx)             // 10의 순수 함수. view는 이 트랜잭션의 읽기
           버전 검사(input.expect, basisSeq)도 decide 안에서 한다 (10 V-VER-01, §3.9.4)
           decision.status = error면 ROLLBACK 전체, 결과 error (저장하지 않음, D09-3)
@@ -1768,7 +1768,7 @@ export const scopeKey = (c: CommandKeyFields) => `${c.channel}|${c.actor}|${viaK
 /**
  * 지문 입력은 {type, actor, viaKey(via), payload에서 제출자 생성 id를 뺀 것}이다.
  * 제출자 생성 id: 명령이 새로 만드는 레코드의 id 필드(예: loopTransitionId, findingId). 명령마다 그 필드 이름은 10의 명령 메타
- * `generatedIdFields`가 정한다. R·S·X 채널 제출자는 이 id를 멱등 키에서 결정적으로 만든다(derivedIdFactory(key), 10 §3.3)
+ * `generatedIdFields`가 정한다. 모든 채널 제출자는 이 id를 멱등 키에서 결정적으로 만든다(derivedIdFactory(key), 10 §3.3)
  */
 export const fingerprint = (c: CommandKeyFields, generatedIdFields: readonly string[]) =>
   sha256Hex(canonicalJson({ type: c.type, actor: c.actor, via: viaKey(c.via), payload: omitTopLevel(c.payload, generatedIdFields) }));
@@ -1881,7 +1881,7 @@ verify(db, mode):                          // mode: 'tail' | 'full'
 
 #### 3.10.5 읽기 전용 상태 (17 `read_only` 모드)
 
-- 무결성 검사 실패, 마이그레이션 체크섬 불일치에서 들어간다. 이것은 17의 `read_only` 모드다(판정 J-67). 쓰기가 막힌 상태이므로 이벤트를 남기지 않고 운영 로그와 상태 조회(17)로 알린다. 디스크 부족도 같은 `read_only` 모드다. 17의 안전 모드(`daemon.safe_mode_*`)는 크래시 루프 전용이며 이 절과 무관하다.
+- 무결성 검사 실패, 마이그레이션 체크섬 불일치에서 들어간다. 이것은 17의 `read_only` 모드다(판정 J-67). 쓰기가 막힌 상태이므로 이벤트를 남기지 않고 운영 로그와 상태 조회(17)로 알린다. 디스크 부족도 같은 `read_only` 모드다. 17의 안전 모드(`daemon.safe_mode_*`)는 크래시 루프나 복원 뒤 첫 부팅에서 들어가며 이 절과 무관하다.
 - 데몬은 투영 테이블로 읽기 요청에 답하고 모든 쓰기를 `path.store_read_only`로 거부한다. 진행 중이던 실행은 시작하지 않는다.
 - 손상된 꼬리를 자동으로 무시하거나 잘라 내지 않는다(helm-canon-2 §1.21). 복구는 사람이 관리 명령으로 한다: 백업에서 복원(§3.14.2), 또는 손상 지점 이후 이벤트를 JSONL로 내보내 확인한 뒤 복원. 조치는 `integrity.recovered`로 남긴다.
 
@@ -2204,7 +2204,7 @@ restore(backupId, carry):                       // 데몬이 꺼져 있어야 �
 | 대상 | 보존 | 근거 |
 |---|---|---|
 | 이벤트 | 영구. 지우지 않는다 | 체인, 기록과 이력 보존(F01 §6 "삭제는 의미적 폐기") |
-| 명령 inbox 행 | 365일 (멱등 창). 지난 행은 `scope_key`, `fingerprint`, `status`, `first_seq`·`last_seq`만 남기고 `result`를 줄인다. 줄인 행에 같은 키가 오면 `{ status, replayed: true, resultPruned: true }`를 돌려준다(19는 이 보관 규칙을 따른다) | 재시도는 보통 분·시간 단위 |
+| 명령 inbox 행 | 365일 (멱등 창). 지난 행은 `scope_key`, `fingerprint`, `status`, `first_seq`·`last_seq`만 남기고 `result`를 줄인다. 줄인 행에 같은 키가 오면 `{ status, replayed: true, resultPruned: true }`를 돌려준다(`resultPruned`는 19 §3.7.2의 와이어 이름 `reduced`에 대응한다. 19는 이 보관 규칙을 따른다) | 재시도는 보통 분·시간 단위 |
 | 명령 원문 blob (`request_blob`) | 30일 | 거부 감사는 `command.rejected`의 `request`가 남는다 |
 | 컨텍스트 투영 blob (`run.context_projected.projection`) | 90일 뒤 가지치기 | A11 사후 확인은 최근 작업에 필요. 메타(sourceSeq, includedRefs, omitted)는 영구 |
 | trace 행 | 180일 (모델 요청 본문 blob은 90일) | 실행 기록은 최근 문제 분석에만 쓴다. State에 들어가지 않는다 (D09-11) |
@@ -2255,17 +2255,18 @@ export interface Decision {
   events: EventDraft[];
   result: Record<string, unknown>;
 }
-/** 저장되고 재생되는 결과 (06 §3.4.2 SubmitResult). key_reused는 저장하지 않는다 */
+/** 저장되고 재생되는 결과 (06 §3.4.6 SubmitResult). 상태는 여섯 값이고 replayed는 상태가 아니라 플래그다. key_reused와 error는 저장하지 않는다 */
 export type SubmitResult =
-  | { status: Decision["status"]; result: Record<string, unknown>; eventSeqs: number[]; headSeq: number; replayed: boolean }
-  | { status: "key_reused"; headSeq: number; original: string /* 처음 저장된 commandId */ };
+  | { status: "accepted" | "rejected" | "needs_gate" | "conflict"; result: Record<string, unknown>; eventSeqs: number[]; headSeq: number; replayed: boolean }
+  | { status: "key_reused"; headSeq: number; original: string /* 처음 저장된 commandId */ }
+  | { status: "error"; error: KernelError };   // 저장하지 않고 롤백 (§3.9.2)
 
 /** KernelContext의 정본(06·10은 인용한다, [판정 J-251]). 엔진이 만든다. 모든 값이 이벤트 로그와 주입된 시계·id에서 오므로 같은 입력이면 같은 결정 */
 export interface KernelContext {
   /** max(벽시계, meta.last_recorded_at). 오케스트레이터 재처리에서는 계기 이벤트의 recordedAt으로 고정한다 */
   now: number;
   cursor: number;                    // 같은 트랜잭션에서 지금까지의 head seq
-  newId: (prefix: string) => string; // 사람 채널은 주입 IdFactory, R·S·X 채널은 멱등 키에서 결정적으로 (§3.9.1)
+  newId: (prefix: string) => string; // 모든 채널에서 멱등 키에서 결정적으로 ([판정 J-182], §3.9.1)
   rules: { version: string };        // provenance.rulesVersion
   presence: PresenceView;            // 명령 처리 시작 시점에 커널 상태(10 §3.5, 기기 ID 맵)에서 만든 PresenceView이며, devices 배열은 맵의 기기마다 원소를 하나씩 둔다 [판정 J-256]. 맵 항목 `{ state, sinceMs, sinceSeq, clientKind }`에서 `deviceId`는 맵 키, `state`·`clientKind`는 같은 값, `sinceAt`은 `sinceMs`, `sinceSeq`는 그 상태로 바꾼 `presence.changed` 이벤트의 seq로 대응한다. presence.changed 투영 (재현 가능). 부재 판정은 14 함수가 ctx.now로 한다
   attention: { dnd: boolean; budget: "normal" | "over_budget" | "quiet_hours" };  // 데몬 운영 상태 중 커널이 읽는 것. 방해 금지(dnd)와 주의 예산(budget) 상태 (14 §3.13.5)
@@ -2446,7 +2447,7 @@ loadKernelState(store, rules):
       for ev in page: state = apply(state, upcast(ev))        // 10 §3.1.4의 순수 apply
   return state
 
-스냅숏 주기: 1만 이벤트마다, 그리고 정상 종료 직전. 형식은 gzip(canonicalJson(state)), state_hash = sha256(직렬화 바이트).
+스냅숏 주기: 1만 이벤트마다, 하루 한 번, 정상 종료 직전 중 먼저 오는 것. 형식은 gzip(canonicalJson(state)), state_hash = sha256(직렬화 바이트).
 메모리 목표(10, 1 GB): KernelState에는 판정에 필요한 열린 레코드와 색인만 두고, 닫힌 레코드 본문은 view.record()가 p_records에서 읽는다.
 지시 재계산 커서: consumer_cursors.directives. 엔진은 시작할 때 이 커서 이후 이벤트로 10의 react 지시를 다시 계산해 처리한다
   (지시마다 멱등 키가 있어 중복 처리해도 결과가 같다). 처리한 seq를 지시 단위로 커서에 적는다.
@@ -2562,7 +2563,7 @@ loadKernelState(store, rules):
 | `src/blobs.ts` | §3.12 | 256 KiB 경계 인라인/파일. gzip 왕복. 해시 불일치 감지. 고아 GC. 가지치기 뒤 행 유지·내용 없음. 가림 이벤트 |
 | `src/backup.ts`, `src/restore.ts`, `src/export.ts` | §3.14 | (1) 쓰기를 계속하는 중에 백업한 사본이 full 검사 통과. (2) 복원 뒤 `storeId`가 바뀌고 `store.restored`가 남음. (3) 내보낸 JSONL만으로 체인 검사 통과. (4) 35일 GC 유예 안의 blob은 백업 복원 뒤에도 있음 |
 | `src/retention.ts` | §3.15.3 | 근거 체인에 든 관찰의 blob은 가지치기에서 빠짐 |
-| `bench/*.ts` | §3.15.2 측정 | 결과를 기록. p99 100 ms를 넘으면 실패(초기 기준) |
+| `bench/*.ts` | §3.15.2 측정 | 결과를 기록. PF-01 기준(p99 25 ms) 초과 시 실패(초기 기준) |
 
 공통: `tsc --strict` 통과, `just verify`의 store 단계가 위 테스트를 실행(레시피 이름 06·23), 테스트는 임시 디렉터리의 실제 SQLite 파일로 한다(메모리 DB는 WAL 동작이 달라 쓰지 않는다 [지식]).
 

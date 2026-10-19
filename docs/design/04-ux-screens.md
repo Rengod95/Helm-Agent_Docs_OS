@@ -1,7 +1,7 @@
 # 04. UX 화면 상세
 
 - 작성: 2026-10-11, P2 UX
-- 상태: 4c 보완판(2026-10-14). 기준 결정 범위는 브리프 결정 1~64이고 조정자 판정(`process/rulings-stage2a.md` §1~§11, J-01~J-276)을 따른다. 화면 ID와 이름은 03 §3.6·§3.12가 정본이다. 명령 의도 이름은 19 메서드 이름과 같고, 메서드 → 10 명령 대응의 정본은 10 §3.11.11 (2)다. 레코드·상태 값은 08, 이벤트는 09, 오류 코드는 19를 따른다. 21의 UI-D02(결정 의도에 `basisSeq`), UI-D03(낙관적 도메인 갱신 금지), UI-D08(선형 텍스트)에 맞췄다.
+- 상태: 4c 보완판(2026-10-14). 기준 결정 범위는 브리프 결정 1~64이고 조정자 판정(`process/rulings-stage2a.md` §1~§11, J-01~J-351)을 따른다. 화면 ID와 이름은 03 §3.6·§3.12가 정본이다. 명령 의도 이름은 19 메서드 이름과 같고, 메서드 → 10 명령 대응의 정본은 10 §3.11.11 (2)다. 레코드·상태 값은 08, 이벤트는 09, 오류 코드는 19를 따른다. 21의 UI-D02(결정 의도에 `basisSeq`), UI-D03(낙관적 도메인 갱신 금지), UI-D08(선형 텍스트)에 맞췄다.
 - 소유: 화면별 목적, 진입 경로, 레이아웃(영역별 내용), 표시 데이터 요구, 상태별 표시, 인터랙션, 문구 예시, 사람 조작 횟수.
 
 ## 1. 목적과 범위
@@ -995,7 +995,7 @@ Goal 2 블로그 글쓰기 방향 정하기 ▸
 | 상태 줄 | Goal, Concern, 모드, 지금 하는 일, 맡긴 범위, 다음 멈춤(canon-2 §3.5) | P |
 | 머리 | 서술, Goal 링크, Concern 상태 | O |
 | 상황 유형 | 라벨, 판정 시각, 판정 주체, 근거, 이의 버튼 | O, C |
-| 루프 계획 | 계획 칩 줄. 지난 루프 ✓, 현재 루프 강조, 남은 계획. 건너뛴 루프는 칩 줄 아래에 이유와 함께 보인다(`skipped`, 14 `LoopPlanRecord`). 누가 정했는지(`decidedBy`)와 누가 설계했는지(`authoredBy`)를 함께 보인다. 모델이 설계했으면 "에이전트가 설계한 계획"을 표시하고 근거(`outOfPattern`, 14 `Flag.evidence`)를 펼친다. 사람이 고쳤으면 "직접 고친 계획"을 표시한다. 코드가 계산한 계획에는 표시를 붙이지 않는다([판정 J-204]). 모델 초안이 검사에 두 번 걸려 코드가 계획을 썼으면(`modelDraftRejects` 두 개, 09 `loop_plan.adopted`) 그 사실과 마지막 거부 규칙을 보인다. 이의 버튼은 어느 경우에나 같다([결정 53], [판정 J-188]) | O, P, C |
+| 루프 계획 | 계획 칩 줄. 지난 루프 ✓, 현재 루프 강조, 남은 계획. 건너뛴 루프는 칩 줄 아래에 이유와 함께 보인다(`skipped`, 08 `LoopPlanCore`). 누가 정했는지(`decidedBy`)와 누가 설계했는지(`authoredBy`)를 함께 보인다. 모델이 설계했으면 "에이전트가 설계한 계획"을 표시하고 근거(`outOfPattern`, 14 `Flag.evidence`)를 펼친다. 사람이 고쳤으면 "직접 고친 계획"을 표시한다. 코드가 계산한 계획에는 표시를 붙이지 않는다([판정 J-204]). 모델 초안이 검사에 두 번 걸려 코드가 계획을 썼으면(`modelDraftRejects` 두 개, 09 `loop_plan.adopted`) 그 사실과 마지막 거부 규칙을 보인다. 이의 버튼은 어느 경우에나 같다([결정 53], [판정 J-188]) | O, P, C |
 | 지금 하는 일 / 다음 예정 / 멈출 조건 | 현재 WorkUnit 요약(진행 작업 카드에서) | P |
 | 사용 중인 가정 | 임시 가정과 만료점(v0.3 09 §4.2) | P |
 | 열린 질문 | 이 Concern의 질문 | D |
@@ -1013,7 +1013,7 @@ interface ConcernView {
   statusLine: { mode: string | null; modeAssignment?: RecordRef /* 이의 대상 md */; doingNow?: string; rangeSummary?: string; nextStop?: string };
   situation: { type: ConcernNode["situation"]; assessedAt?: IsoTime; assessedBy?: Author; evidence: RecordRef[]; contested: boolean } | null;
   loopPlan: { ref: RecordRef /* lp, 이의 대상 */; steps: { loop: string; state: "done" | "current" | "planned" }[];
-              skipped: { loop: string; reason: string }[];   // 건너뛴 루프와 이유(14 LoopPlanRecord.skipped)
+              skipped: { loop: string; reason: string }[];   // 건너뛴 루프와 이유(08 LoopPlanCore.planDetail.skipped)
               decidedBy: Author; authoredBy: "code" | "model" | "human";   // 누가 설계했나([판정 J-188] (5)). decidedBy는 그대로
               outOfPattern?: { evidence: string[] };   // authoredBy가 model일 때 PlanFlags.outOfPattern의 근거(근거 필수, [판정 J-188] (2))
               modelDraftRejects?: string[];   // 09 loop_plan.adopted. 모델 초안이 거부된 규칙 id를 시도 순서대로 최대 2개 담는다. 화면은 마지막 항목을 쓴다
@@ -1090,7 +1090,7 @@ interface ConcernView {
 | 숨은 전제 승격 | 문장 메뉴 "이건 확인 안 된 전제" | `inquiry.markAssumption { refOrText }` |
 | 구분력 높은 다음 실험 선택 | 다음 구분 확인 목록에서 "이것 먼저" | `inquiry.pinCheck { checkId }` (순서 계산은 코드, 사람 고정은 기록) |
 | 불확실성이 남아도 행동 결정 | 머리의 "지금 정하기" | `inquiry.requestDecision` → 선택 요청 질문 생성 |
-| 탐구 중단 비용과 기대 정보 가치 비교 | 머리의 예산·멈출 조건 표시와 "여기서 멈추고 넘기기" | `inquiry.stop { then: "hand_off" }` (열린 질문을 그대로 넘긴다, v0.3 04 §1) |
+| 탐구 중단 비용과 기대 정보 가치 비교 | 머리의 예산·멈출 조건 표시와 "여기서 멈추고 넘기기" | `inquiry.stop { then: "handoff" }` (열린 질문을 그대로 넘긴다, v0.3 04 §1) |
 | (가능성) 가능성에 반응 | 가능성 행의 반응 칩. 대비 반응(잃어도 괜찮음 / 잃으면 안 됨 / 모르겠음)은 가능성 탐구에만 있다(05 §3.2.7, 2단계) | `reaction.record` (05 §3.2) |
 
 **표시 데이터**: `view:inquiry` (파라미터: `concernId`, `kind`)
@@ -1798,7 +1798,7 @@ interface DialsView {
   meta: ViewMeta;
   scope: { kind: "user" | "concern" | "instruction"; ref?: RecordRef };   // 08 DialLayer 중 사람이 화면에서 바꾸는 셋. instruction의 ref는 WorkUnit(14 §3.11.2). Goal 범위 없음(J-136)
   attentionBudget: AttentionBudgetVM;   // 주의 예산 막대(§3.1)
-  mode: { id: "orient" | "investigate" | "deliberate" | "taste" | "execute" | "verify" | "restructure" | "emergency"; name: string; decidedBy: "rule" | "human"; assignment: RecordRef /* md, 이의 대상 */; precedence: 3 | 5 | 6; reason?: string; at?: IsoTime; centralLoops: string[];
+  mode: { id: "orient" | "investigate" | "deliberate" | "taste" | "execute" | "verify" | "restructure" | "emergency"; name: string; decidedBy: "kernel" | "human"; assignment: RecordRef /* md, 이의 대상 */; precedence: 3 | 5 | 6; reason?: string; at?: IsoTime; centralLoops: string[];
           capabilities: { label: string; on: boolean }[]; contested: boolean; choices: { name: string; description: string }[] };
   dials: { key: string; label: string; description: string; value: string; valueLabel: string;
            options: { value: string; label: string }[] | { kind: "number"; min: number; max: number; unit: string };
@@ -2062,8 +2062,8 @@ interface RecoveryView {
 
 | 절 | 항목 | 저장 위치 |
 |---|---|---|
-| 알림 | OS 알림 켜기, OS 알림 권한 상태와 "알림 시험 보내기"(OS 설정에서 꺼져 있으면 안내, 20 F-35), 알릴 것(끼어들기 / 알림 / 복귀 요약 시각 / 예약 묶음 / 협상 전달 `notifications.negotiated` 기본 끔, 관찰 제안 `notifications.observer` 기본 끔), **결과 확인 알림**(`notifications.resultReview`: 알리지 않음 / 하루 한 번 묶음 푸시 / 즉시 푸시[결정 56]. 이 설정은 휴대폰 푸시를 고르는 것이고, 데스크톱은 배지로만 알리며 `immediate`일 때만 OS 알림도 띄운다[결정 60]. 기본은 알리지 않음[판정 J-189]. 묶음 시각 `notifications.resultReviewDigestAt`, 기본 "19:00", 서버 시간대. 묶음은 확인 대기 결과가 있을 때만 보내고, 묶음과 즉시 푸시는 방해 금지(예외 값 포함)와 시간당 상한을 따르며 휴대폰 확인 범위는 J-139 그대로다), 방해 금지·조용한 시간(05 §3.7.4. 방해 금지 예외(`notifications.dndException`)는 휴대폰 푸시에만 적용하고, 방해 금지 중에는 예외 값과 관계없이 데스크톱 OS 알림을 띄우지 않는다[결정 59]), 알림에 내용 보이기(기본 끔), 소리. "휴대폰 알림은 휴대폰의 설정 화면에서 정합니다." 한 줄(26). 조용한 시간은 기본이 없고, 휴대폰 알림을 처음 켤 때 23:00~08:00을 제안값으로 보인다([제안], 14 §3.13.8) | 05 §3.7. 결과 확인 알림과 묶음 시각은 데몬 의미 설정(`settings.update`, 기록은 09 `setting.changed`, [판정 J-189]). 방해 금지(`attention.snoozeUntil`)·조용한 시간·시간당 알림 상한(`attention.interruptsPerHour`)은 데몬 설정(14 `OrchestrationSettings`, 모든 기기 합산, 기기별 상한은 두지 않는다[판정 J-171]). 소리·OS 알림 켜기·내용 보이기·방해 금지 예외(`notifications.dndException`)는 기기 설정(20 §3.9.11) |
-| 주의 예산 | 홈에 펼칠 카드 수(`attention.maxVisibleDecisions`, 기본 3), 일일 예산(`attention.dailyBudget`, 주의 예산 막대의 한도), 시간당 알림 상한(`attention.interruptsPerHour`, 기본 2, 모든 기기 합산, 05 §3.7.3), 일시 방해 금지(`attention.snoozeUntil`, "지금부터 1시간", [판정 J-166]), 복귀 요약 자동 열기 기준 | 데몬 설정(14 `OrchestrationSettings`, 다이얼 아님)과 기기 설정 |
+| 알림 | OS 알림 켜기, OS 알림 권한 상태와 "알림 시험 보내기"(OS 설정에서 꺼져 있으면 안내, 20 F-35), 알릴 것(끼어들기 / 알림 / 복귀 요약 시각 / 예약 묶음 / 협상 전달 `notifications.negotiated` 기본 끔, 관찰 제안 `notifications.observer` 기본 끔), **결과 확인 알림**(`notifications.resultReview`: 알리지 않음 / 하루 한 번 묶음 푸시 / 즉시 푸시[결정 56]. 이 설정은 휴대폰 푸시를 고르는 것이고, 데스크톱은 배지로만 알리며 `immediate`일 때만 OS 알림도 띄운다[결정 60]. 기본은 알리지 않음[판정 J-189]. 묶음 시각 `notifications.resultReviewDigestAt`, 기본 "19:00", 서버 시간대. 묶음은 확인 대기 결과가 있을 때만 보내고, 묶음과 즉시 푸시는 방해 금지(예외 값 포함)와 시간당 상한을 따르며 휴대폰 확인 범위는 J-139 그대로다), 방해 금지·조용한 시간(05 §3.7.4. 방해 금지 예외(`notifications.dndException`)는 휴대폰 푸시에만 적용하고, 방해 금지 중에는 예외 값과 관계없이 데스크톱 OS 알림을 띄우지 않는다[결정 59]), 알림에 내용 보이기(기본 끔), 소리. "휴대폰 알림은 휴대폰의 설정 화면에서 정합니다." 한 줄(26). 조용한 시간은 기본이 없고, 휴대폰 알림을 처음 켤 때 23:00~08:00을 제안값으로 보인다([제안], 14 §3.13.8) | 05 §3.7. 결과 확인 알림과 묶음 시각은 데몬 의미 설정(`settings.update`, 기록은 09 `setting.changed`, [판정 J-189]). 방해 금지(`attention.snoozeUntil`)·조용한 시간·시간당 알림 상한(`attention.interruptsPerHour`)은 의미 설정(14 `OrchestrationSettings`, 모든 기기 합산, 기기별 상한은 두지 않는다[판정 J-171]). 소리·OS 알림 켜기·내용 보이기·방해 금지 예외(`notifications.dndException`)는 기기 설정(20 §3.9.11) |
+| 주의 예산 | 홈에 펼칠 카드 수(`attention.maxVisibleDecisions`, 기본 3), 일일 예산(`attention.dailyBudget`, 주의 예산 막대의 한도), 시간당 알림 상한(`attention.interruptsPerHour`, 기본 2, 모든 기기 합산, 05 §3.7.3), 일시 방해 금지(`attention.snoozeUntil`, "지금부터 1시간", [판정 J-166]), 복귀 요약 자동 열기 기준 | 의미 설정(14 `OrchestrationSettings`, 다이얼 아님)과 기기 설정 |
 | 질문 전달 기본값 | `SCR-DIALS`(전역 범위) 링크 | 14 |
 | 계획 작성 방식 | 전역 기본값을 여기서 고른다: 코드 계산만 / 혼합(기본) / 모델 설계(`planAuthoring`, 층 `user`). Concern별 값은 `SCR-DIALS`에서 바꾼다([결정 53], [판정 J-192]) | 14 |
 | 표시 | 테마(시스템 / 밝게 / 어둡게), 글자 크기(`fontScale`), 밀도(보통 / 촘촘), 투명도(`transparency`: 시스템 / 전체 / 줄임), 창 효과(`windowEffect`), macOS 유리 질감(`macGlass`, macOS 26 이상), 움직임 줄이기, 시간 표시(상대+정확 / 정확만) | 기기(20 §3.9.11) |
@@ -2080,7 +2080,7 @@ interface RecoveryView {
 interface SettingsView {
   meta: ViewMeta;
   notifications: { resultReview: "none" | "daily_digest" | "immediate"; resultReviewDigestAt: string /* "HH:MM", 서버 시간대, 기본 "19:00" */; briefAt?: string };   // 알림 경로 설정만([판정 J-195]). 시간당 상한은 attention 하나다([판정 J-171]). [판정 J-189]
-  attention: { quietHours: { start: string; end: string } | null; maxVisibleDecisions: number; interruptsPerHour: number; dailyBudget: number; snoozeUntil?: IsoTime; reviewWindows: { start: string; end: string }[] };   // 14 OrchestrationSettings.attention([판정 J-166]). 조용한 시간은 [판정 J-195]
+  attention: { quietHours: { start: string; end: string } | null; maxVisibleDecisions: number; interruptsPerHour: number; dailyBudget: number; snoozeUntil?: IsoTime; reviewWindows: { days: (0|1|2|3|4|5|6)[]; start: string; end: string }[] };   // 14 OrchestrationSettings.attention([판정 J-166]). 조용한 시간은 [판정 J-195]. 검토 창 기본은 매일 09:00~09:30 하나([판정 J-331])
   folders: { projects: { id: string; name: string; rootPath: string }[]; observerSources: string[] };
   providers: { name: string; models: string[]; state: CopyRef }[];   // 모델 제공자(J-150), 읽기 전용
   planAuthoring: "computed" | "hybrid" | "model";   // 사용자 층의 루프 계획 작성 방식([결정 53], [판정 J-192])
@@ -2166,7 +2166,7 @@ Helm 열기
 - 표시 데이터: `view:tray`(19 §3.7.4 카탈로그). 선택 필요 수, 확인하면 좋은 것 수, 진행 중 WorkUnit 요약, 연결 상태.
 - 아이콘 배지(트레이, macOS Dock, Windows 작업 표시줄)는 "선택 필요" 수만 숫자로 보인다. "선택 필요"는 이 설계 전체에서 전달된 권리 게이트 질문(선택 요청, 합의 확인, 결과 확인, Goal 확인, 복구 선택) 수를 뜻한다(03 §3.2.4). 정보 게이트 질문은 배지를 바꾸지 않는다(주의 예산). 질문함 내비게이션 배지는 두 수를 따로 보인다(21 §3.7 `PendingQuestionsIndicator`).
 - Concern은 번호와 제목을 함께 보이고 제목은 30자에서 자른다.
-- 방해 금지 켜기·끄기는 데몬 설정을 바꾸는 명령(`settings.update`, 19)이며 현재 방해 금지 상태를 메뉴에 보인다(05 §3.7.4).
+- 방해 금지 켜기·끄기는 의미 설정(14 `OrchestrationSettings`)을 바꾸는 명령(`settings.update`, 19)이며 현재 방해 금지 상태를 메뉴에 보인다(05 §3.7.4).
 - 연결이 없으면 숫자 옆에 "(연결 끊김 기준)"을 붙인다.
 - 연결 안 됨이면 첫 줄 "Helm · 연결 안 됨"과 "연결 화면 열기".
 - 트레이 메뉴는 질문 내용을 보이지 않는다(화면 공유·잠금 상황 고려). 내용은 앱에서 본다.
@@ -2223,7 +2223,7 @@ Helm 열기
 - 복귀 점검(MVP, 첫 2주 평가 기간 G1에만 켬, 02 UQ-05): 24시간 이상 비운 뒤 첫 화면에서 제안. 복귀당 1회, 주 2회까지. 건너뛸 수 있다. 기억으로 답한 뒤 복귀 요약을 보고 다시 답한다(16 OB-11, canon-2 §2.1.6). 메서드는 `resumptionCheck.answer`·`resumptionCheck.score`. 채점 라벨은 "일치 / 부분 일치 / 불일치"다(취향형 판정의 "맞음 / 아님 / 모르겠음"과 겹치지 않게).
 - "예상 못 했다" 표시: 결과 확인 화면, 에이전트가 정한 것 항목, 진행 작업 카드의 메뉴. 이벤트 후보 `surprise.reported`.
 - 결과 적합도 1~5: 결과 확인 화면에 두되 기본은 숨김.
-- 화면 열람 이벤트 `view.opened{surface, depth, subjectRef}`는 복귀 요약, 에이전트가 정한 것, 감사 깊이, 결과 확인, 질문 상세 다섯 곳에서만 보낸다(16 §3.24.2).
+- 화면 열람 이벤트 `view.opened{view, dwellBucket, deviceId, depth}`(열람 대상 레코드는 envelope `refs`)는 복귀 요약, 에이전트가 정한 것, 결과 확인, 질문, 감사 깊이, 결과 확인 중 근거 `SCR-EVIDENCE`의 여섯 종류 열람 장소에서만 보낸다(16 §3.23.1, [판정 J-310]).
 
 **표시 데이터**: 뷰 이름 후보 `view:metrics`(19 카탈로그에 추가 요구).
 

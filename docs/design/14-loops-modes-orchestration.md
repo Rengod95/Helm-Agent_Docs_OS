@@ -1,7 +1,7 @@
 # 14. 루프·모드·오케스트레이션
 
 - 작성: 2026-10-11, P8 오케스트레이션
-- 상태: 설계 초안(2026-10-14 갱신). 기준: 브리프 결정 1~64, 판정 `process/rulings-stage2a.md` J-01~J-276. 다른 문서 대조는 §3.20
+- 상태: 설계 초안(2026-10-14 갱신). 기준: 브리프 결정 1~64, 판정 `process/rulings-stage2a.md` J-01~J-351. 다른 문서 대조는 §3.20
 - 소유: P8. 이 문서는 오케스트레이션 모듈(순수 코어 `@helm/kernel/orchestration`, 효과 부분 `@helm/runtime/orchestration`, §3.20.6)을 만드는 데 필요한 내용을 정한다.
 - 기준: `docs/design/process/00-design-brief.md`(이하 "브리프"). 브리프와 다른 자료가 충돌하면 브리프를 따른다.
 - 표시(브리프 §5.2, [판정 J-144]): `[결정 n]`은 사용자가 정한 브리프 결정 번호가 근거인 것, `[제안: 결정 n 기본값]`은 조정자 기본값(결정 26~32·34·36·37), `[판정 n]`(결정 44~46)·`[판정 J-nn]`은 조정자 판정, `[제안]`은 이 문서가 정한 것, `[가정]`은 확인되지 않은 전제다. 외부 사실은 `[원문]` `[실험]` `[검색]` `[지식]`으로 확인 수준을 적는다.
@@ -262,7 +262,7 @@ X3-7-14의 표를 v0.3 능력 정의(결정 4)와 S 루프로 고쳤다. "쓰기
 // 레코드 필드로 쓰이는 이름은 @helm/domain(08)이 소유한다. 이 문서는 다시 정의하지 않고 import한다.
 import {
   LOOP_IDS, type LoopId, loopFamily, SITUATION_TYPES,      // 08 §3.15 (v0.3 03 §2.1의 18개)
-  type Primitive as PrimitiveAction, type RecordCapability, // 08 §3.3.3 (결정 4)
+  type Primitive, type RecordCapability,                   // 08 §3.3.3 (결정 4)
   type AgentRole,                                          // 08 §3.3: work | verifier | mediator | observer | router | branch
   type QuestionKind, type ExitOutcome, type WorkUnitKind,   // 08 §3.13, §3.15, §3.8
 } from "@helm/domain";
@@ -282,7 +282,7 @@ export type WorkUnitPurpose =
   // 루프 밖 WorkUnit(활성화 id 없음, §3.12.5-7)
   | "entry_assess" | "prediction_check";
 
-// WorkUnitKind(08, 브리프 §6: inquiry | probe | change | integration), PrimitiveAction, RecordCapability,
+// WorkUnitKind(08, 브리프 §6: inquiry | probe | change | integration), Primitive, RecordCapability,
 // AgentRole은 위 import를 쓴다. 발산 가지 run의 역할은 08의 "branch"다(15 §3.1.1).
 ```
 
@@ -356,7 +356,7 @@ export interface WorkUnitTemplate {
   context: "fresh" | "fork" | "resume";
   repeat: "once" | "per_round" | "per_probe" | "per_obligation" | "per_sample";   // 발산 가지는 WorkUnit으로 두지 않고 단계 run의 자식 run으로 둔다(15 §3.1.1)
   /** 계약 전체 능력의 부분집합. 없으면 계약 전체 */
-  primitives?: readonly PrimitiveAction[];
+  primitives?: readonly Primitive[];
   proposalKinds?: readonly ContractProposalKind[];
   role: AgentRole;
   /** 12에 주는 모델 선택 힌트 */
@@ -398,11 +398,11 @@ export interface LoopContract {
   entry: EntrySpec;
   exit: readonly ExitOutcomeSpec[];
   capabilities: {
-    primitives: readonly PrimitiveAction[];
+    primitives: readonly Primitive[];
     records: readonly RecordCapability[];
   };
   /** 모드가 이 원시 행동을 허용하지 않으면 모드를 다시 라우팅한다(§3.10.4) */
-  requiredPrimitives: readonly PrimitiveAction[];
+  requiredPrimitives: readonly Primitive[];
   proposalKinds: readonly ContractProposalKind[];
   planes: PlaneAccess;
   /** 의존 규칙 1에 대한 이 루프의 요구 */
@@ -926,7 +926,7 @@ export interface StandingAgreementTemplate {
     evidence: readonly string[];
     stopConditions: readonly string[];
   };
-  allowedPrimitives: readonly PrimitiveAction[];
+  allowedPrimitives: readonly Primitive[];
   stabilizedWhen?: readonly Condition[];   // emergency만
   confirmedBy: "human";
   confirmedAtMs: number;
@@ -951,7 +951,7 @@ export interface StandingAgreementTemplate {
 | 평면 | N 제안(결과 확인은 사람이 씀), E 제안(근거·반대 근거), M 읽기, 반영 범위 안 쓰기 |
 | 합의 | 결과 확인에는 필요 없음. 반영 WorkUnit이 작업 대상을 바꾸면 반영 범위 합의가 필요하다(`integration`). 작업 에이전트가 결과를 제출할 때 반영 범위 초안을 함께 싣고(08 `ResultSubmission.integrationAgreementDraft`), 결과 확인 화면은 그 범위를 구조 값으로 접지 않고 보인다(04). 사람이 `result.accept`(accepted·conditional)에 `integrationAgreement`를 실어 보내면 커널이 같은 트랜잭션에서 `agreement.confirmed`(via 결과 확인)를 낸다 [판정 J-126]. 그래서 반영 범위 확정은 결과 확인과 같은 조작이고 C/A 상한(2회)을 넘지 않는다(§3.13.7). 사람이 반영 범위를 빼고 확인하면 반영 항목은 쓰기 없는 처리(미루기, 다른 Concern으로 넘기기)만 할 수 있다 |
 | WorkUnit | `verify`(once, fresh, 역할 verifier, 작업자와 다른 모델 권장. 다이얼 `independentVerification`이 꺼짐이면 생략) → (사람 결과 확인) → `integrate`(per_obligation, fresh). 검증 run은 다른 WorkUnit과 같은 경로로만 시작한다: 오케스트레이터가 A.confirm 진입 뒤 `verify` WorkRequest를 스케줄러에 넣고, 스케줄러가 동시 실행 상한 안에서 허가한다. 커널 지시 `agent.request(verifier)`로 시작하는 경로는 쓰지 않는다(10에 요구, §5.2). 커널은 독립 검증이 요구되는 결과에 검증 기록(attestation 또는 "검증 실패" 표시)이 없으면 결과 확인 질문을 내지 않는다 |
-| 사람 접점 | `result_review`(권리, 필수, C/A 상한에 셈). 답(08 `AcceptanceDecision`): `accepted` / `conditional` / `revision_requested` / `rejected` / `criteria_wrong`. 사람은 19 `result.accept` 하나로 답한다([판정 J-123], [판정 J-124]). 조건부 확인의 조건은 같은 트랜잭션에서 미룬 항목(`deferred`, 다시 볼 조건 = 조건 문장)이 된다([판정 J-125]) |
+| 사람 접점 | `result_review`(권리, 필수, C/A 상한에 셈). 답(08 `AcceptanceDecision`): `accepted` / `conditional` / `revision_requested` / `rejected` / `criteria_wrong`. 사람은 19 `result.accept` 하나로 답한다([판정 J-123], [판정 J-124]). 조건 붙여 확인의 조건은 같은 트랜잭션에서 미룬 항목(`deferred`, 다시 볼 조건 = 조건 문장)이 된다([판정 J-125]) |
 | 기본 전달 | 즉시(결과 확인은 사람의 권리) |
 | OPD+C | O `opdc:o.criteria_coverage`(기준별 충족/미충족/확인 못함과 근거), `opdc:o.counter_evidence`(반대 근거는 접지 않음, A9), `opdc:o.obligations` / C `opdc:c.reopen` |
 | 예산 | WorkUnit 6, 하위 호출 20, 90분 |
@@ -1370,7 +1370,7 @@ export interface SituationAssessmentRecord {
   trigger: { eventId: string; signal?: ReassessSignal };
   computedBy: "decision_table@1";
   proposedBy: string;                  // agent:work 등
-  decidedBy: "rule";
+  decidedBy: "kernel";
   autonomous: true;
   whyNotAsked: string;                 // 예: "상황 판정은 이의 가능한 혼자 정한 결정(v0.3 05 §3.2-2)"
 }
@@ -1486,26 +1486,26 @@ export type PlanCause =
   | "initial" | "situation_changed" | "deviation" | "mode_changed" | "directive"
   | "structure" | "contested" | "reopened" | "maturity_gate" | "procedure";
 
-/** 최종 스키마는 08(lp_). */
-export interface LoopPlanRecord {
-  id: string;                           // lp_<ULID>
+/** 08 LoopPlanCore와 같은 모양이다. id와 버전 메타는 08 Meta가 준다([판정 J-226], [판정 J-299]). */
+export interface LoopPlanCore {
   concernId: string;
-  version: number;                      // 1부터
-  supersedes?: string;                  // 이전 버전 id
   situationAssessmentId: string | null;
-  situationType: SituationType | null;
-  modeId: ModeId;
-  steps: readonly PlanStep[];
-  completedStepKeys: readonly string[]; // 이미 지난 단계
-  skipped: readonly { loop: LoopId | LoopFamily; reason: string }[]; // 건너뛴 루프와 이유(v0.3 10 §1 비판 1: I 건너뛰기를 정상 경로로 인정하고 기록)
-  flags: PlanFlags;                     // 계획을 만들 때 쓴 선언
-  cause: PlanCause;
-  reason: string;
+  combo: readonly LoopId[];             // planDetail.steps를 펼친 루프 목록. 계획일 뿐이다
+  planVersion: number;                  // 1부터. 이름 version은 RecordMeta와 겹쳐 planVersion으로 쓴다
+  supersedes: string | null;            // 이전 버전 id
+  planDetail: {
+    modeId: ModeId | null;
+    procedureId: string | null;
+    steps: readonly PlanStep[];
+    completedStepKeys: readonly string[]; // 이미 지난 단계
+    skipped: readonly { loop: LoopId | LoopFamily; reason: string }[]; // 건너뛴 루프와 이유(v0.3 10 §1 비판 1: I 건너뛰기를 정상 경로로 인정하고 기록)
+    flags: PlanFlags;                     // 계획을 만들 때 쓴 선언
+    cause: PlanCause;
+    proofBurdenRequired: { level: string; signals: readonly string[] } | null;   // 자동 상향(§3.11.7)
+  };
   authoredBy: "code" | "model" | "human";   // 계획 본문을 쓴 쪽(J-188). 채널로 정한다(10 §3.8.1): model_tool → model, runtime → code, human_client → human
-  proposedBy: string;                   // 행위자
-  decidedBy: "rule" | "human";          // 받아들인 쪽. authoredBy와 따로 적는다
-  autonomous: boolean;                  // decidedBy가 rule이면 true
-  whyNotAsked?: string;
+  reason: string;
+  autonomy: Autonomy;                   // 채택한 쪽과 whyNotAsked(08 §3.4.5). decidedBy는 human, kernel(규칙 결정), agent:<역할>(모델 결정). authoredBy와 따로 적는다
 }
 
 /** O의 assess WorkUnit이 선언하는 계획 표시(frame_packet의 planFlags). 여섯 표시와 outOfPattern을 합친 일곱 개다. 스키마 정본은 08 §3.15다. */
@@ -1521,14 +1521,14 @@ export interface PlanFlags {
 export interface Flag { value: boolean; evidence: readonly string[] }   // value가 참이면 evidence에 근거 id가 하나 이상 있어야 한다
 ```
 
-현재 위치(cursor)는 레코드에 저장하지 않는다. 마지막 루프 전환과 계획의 `steps`로 계산한다(`planPosition(view)`). 전환마다 계획 레코드를 다시 쓰지 않기 위해서다.
+현재 위치(cursor)는 레코드에 저장하지 않는다. 마지막 루프 전환과 계획의 `planDetail.steps`로 계산한다(`planPosition(view)`). 전환마다 계획 레코드를 다시 쓰지 않기 위해서다.
 
 계획의 기본 경로는 표시 선언과 코드 계산이다. 계획은 "모델이 구조화된 값을 선언하고 코드가 계산"할 수 있는 결정이므로 결정 14에 맞는다. 모델이 자유롭게 쓴 계획은 검증할 기준이 없다. 사람은 계획을 직접 고칠 수 있다(`authoredBy: human`, `decidedBy: human`). 여섯 표시로 나타낼 수 없는 상황에서만 모델이 계획 초안을 낸다(결정 53). 그 초안도 기록되고 이의를 받으며, 커널이 의존 규칙을 검사한다(§3.8.5). 대화 L3913에서 사용자가 동의한 "모델이 계획을 제안하고, 기록되고, 이의를 걸 수 있다"의 세 조건은 혼합 방식에도 그대로 있다. 제안의 형식이 기본값에서 바뀌었으므로 그 변경은 ADR-14-12로 남긴다.
 
 #### 3.8.2 생성 알고리즘
 
 ```text
-buildPlan(input) → LoopPlanRecord 초안(authoredBy: code) | NoRule
+buildPlan(input) → LoopPlanCore 초안(authoredBy: code) | NoRule
 input = { situation, flags, mode, directive?, maturity, dials, procedure?, history, previousPlan? }
 
 0. 규칙이 맞는지 확인
@@ -1547,7 +1547,7 @@ input = { situation, flags, mode, directive?, maturity, dials, procedure?, histo
      flags.needsPossibilities          → I.fact 뒤에 I.possibility(optional=false) 삽입
      flags.consequentialSideEffects 또는 mode == deliberate → I.outcome(optional=false)
    clear:
-     I는 건너뛴다. skipped += {I, "명확 유형"}
+     I는 건너뛴다. planDetail.skipped += {I, "명확 유형"}
    flags.reviewOnly                    → C 단계를 모두 빼고 [O, A.confirm]만 남긴다(검증 Concern)
    !flags.needsWrite && !flags.artifactIsResult
                                        → C.commit 단계를 빼고, I 단계 뒤에 A.confirm(탐구 결과 확인)을 둔다
@@ -1561,15 +1561,15 @@ input = { situation, flags, mode, directive?, maturity, dials, procedure?, histo
    그 밖에는 optional = true
 
 5. 성숙도
-   features.enabledLoops에 없는 루프는 뺀다. skipped += {loop, "기능 미활성"}(§3.15의 대체 동작)
+   features.enabledLoops에 없는 루프는 뺀다. planDetail.skipped += {loop, "기능 미활성"}(§3.15의 대체 동작)
    (§3.15. I가 빠지면 O의 문제 정의 패킷에서 바로 합의 초안을 만든다)
 
 6. 직접 지정
    directive.loop가 있으면 그 루프를 첫 단계로 두고, template에서 그 루프 계열 다음 단계부터 이어 붙인다
 
 7. 이력 합치기(수정일 때)
-   completedStepKeys = previousPlan의 지난 단계
-   새 steps = 지난 단계(그대로) + 현재 루프가 속한 단계부터의 새 template 꼬리
+   planDetail.completedStepKeys = previousPlan의 지난 단계
+   새 planDetail.steps = 지난 단계(그대로) + 현재 루프가 속한 단계부터의 새 template 꼬리
 
 8. 의존 규칙 맞추기(계획 검증)
    C 계열 단계 뒤에 A.confirm이 없으면 붙인다                    // 의존 규칙 2
@@ -1586,7 +1586,7 @@ input = { situation, flags, mode, directive?, maturity, dials, procedure?, histo
 | 첫 O 종료 | `initial` | buildPlan |
 | 상황 유형 변경 | `situation_changed` | buildPlan(history 포함) |
 | 계획에 없는 루프로 전환 | `deviation` | 전환은 그대로 진행. 지난 단계 + [도착 루프] + 그 계열 다음 단계부터의 template 꼬리로 다시 만든다 |
-| 계획에 있지만 뒤에 있는 루프로 바로 전환 | (수정 없음) | 사이의 단계 중 optional이 아닌 것을 `skipped`에 기록한 새 버전을 만든다(cause `deviation`) |
+| 계획에 있지만 뒤에 있는 루프로 바로 전환 | (수정 없음) | 사이의 단계 중 optional이 아닌 것을 `planDetail.skipped`에 기록한 새 버전을 만든다(cause `deviation`) |
 | 모드 변경 | `mode_changed` | buildPlan |
 | 사람의 직접 지시(루프 지정, 계획 수정) | `directive` | 사람이 준 계획(`authoredBy: human`) 또는 buildPlan(directive)(`authoredBy: code`). decidedBy human |
 | S 동작 | `structure` | 상위: 대기(children) 후 `S.recombine → A.confirm …`로. 하위: 각자 initial |
@@ -1614,7 +1614,7 @@ resolveNext(view, exitOutcome) → LoopId | Wait | Close
     close:         return Close(hint.result)
 
 nextInPlan(plan, pos, view):
-  step = plan.steps[pos.index]
+  step = plan.planDetail.steps[pos.index]
   if step.pairWith and not all(step.until):          // ⇄ 구간이 아직 안 끝남
       return (pos.loop == step.pairWith) ? firstUnfinished(step.loops, view) : step.pairWith
   if step.loops에 이번 활성화에서 아직 안 쓴 루프가 남고 그 루프가 필요하다고 표시됨:
@@ -1658,7 +1658,7 @@ nextInPlan(plan, pos, view):
 // 2. V-PLAN-04~06(validatePlan) 위반:
 //      planDraftStrikes = 0  → command.rejected(retryable: true, next: loop_plan.record, 사유), strikes = 1
 //                               모델은 같은 run에서 한 번 더 낸다
-//      planDraftStrikes = 1  → 거부하지 않는다. buildPlan 계획을 authoredBy: code, decidedBy: rule로 기록한다.
+//      planDraftStrikes = 1  → 거부하지 않는다. buildPlan 계획을 authoredBy: code, decidedBy: kernel로 기록한다.
 //                               reason에 대체 사실을 적고 notice.plan_draft_fallback을 낸다. strikes = 0
 // 3. 통과                    → loop_plan.adopted(authoredBy: model)
 // 요청이 필요 없을 때는 runtime 채널이 buildPlan 계획을 authoredBy: code로 낸다.
@@ -1691,7 +1691,7 @@ export interface LoopTransitionRecord {
   planDeviation: boolean;               // 계획에 없던 이동인가
   restart: boolean;                     // 같은 루프로 다시 들어감(G7)
   proposedBy: string;                   // 행위자
-  decidedBy: "rule" | "model" | "human";
+  decidedBy: "kernel" | "agent:<역할>" | "human";
   autonomous: boolean;                  // decidedBy가 human이 아니면 true
   whyNotAsked?: string;                 // autonomous면 필수(불변조건 7, 형식은 11)
   idempotencyKey: string;               // `${trigger.eventId}:${ruleId}` (G1)
@@ -1702,40 +1702,40 @@ export interface LoopTransitionRecord {
 
 #### 3.9.2 전환 규칙표
 
-v0.3 03 §6의 계기 19개(v0.2 재진입 규칙 6개 포함)와 이 문서에서 더한 것이다. "판단"은 누가 전환을 정하는지: rule = 코드가 이벤트로 계산, model = 모델이 `transition_request`로 제안하고 코드가 가드를 검사, human = 사람 명령.
+v0.3 03 §6의 계기 19개(v0.2 재진입 규칙 6개 포함)와 이 문서에서 더한 것이다. "판단"은 누가 전환을 정하는지: kernel = 코드가 이벤트로 계산, agent:<역할> = 모델이 `transition_request`로 제안하고 코드가 가드를 검사, human = 사람 명령.
 
 | id | 계기 | 출발 | 가드 | 도착 | 판단 | 출처 |
 |---|---|---|---|---|---|---|
-| T01 | 새로운 놀라운 관찰(예측·기대와 어긋남, 또는 모델이 surprise로 표시) | O, C.*, A.* | G1, G2 | `I.fact`(유형 변화가 의심되면 T07) | 예측 불일치는 rule, 나머지 model | v0.2 재진입 1, canon-3 G5 |
-| T02 | 탐구 중 Goal과의 충돌 발견 | I.* | – | 루프 유지. `goal_revision` 접점(의존 규칙 5, 커널이 만든다) | model | v0.2 재진입 2 |
-| T03 | 실행 중 합의 범위 밖 요청(커널·권한 레이어가 막음) | C.* | – | 루프 유지, 대기(human). 답이 "탐구 필요"면 `I.fact` | rule | v0.2 재진입 3 |
-| T04 | 확인 중 근거 부족(기준이 "확인 못함" 또는 검증 에이전트의 반대 근거) | A.confirm | 결과 확인 전일 것 | `I.fact`(탐구 WorkUnit) 후 `A.confirm`으로 돌아옴 | rule | v0.2 재진입 4 |
-| T05 | 반영 중 공유 전제 충돌 | A.confirm | – | 루프 유지. 관련 선택·컨텍스트 무효화 명령(10), 영향받는 다른 Concern에 T27 | model | v0.2 재진입 5 |
-| T07 | 상황 유형 변경 신호(§3.7.5) | 모든 루프 | G3 | `O`(재판정). `chaos_signal`이면 `C.emergency` | rule 또는 model | v0.3 |
-| T08 | 명확 유형에서 자동 검증이 예상 밖 결과 | A.confirm | situation = clear | `O` | rule | v0.3 |
+| T01 | 새로운 놀라운 관찰(예측·기대와 어긋남, 또는 모델이 surprise로 표시) | O, C.*, A.* | G1, G2 | `I.fact`(유형 변화가 의심되면 T07) | 예측 불일치는 kernel, 나머지 agent:<역할> | v0.2 재진입 1, canon-3 G5 |
+| T02 | 탐구 중 Goal과의 충돌 발견 | I.* | – | 루프 유지. `goal_revision` 접점(의존 규칙 5, 커널이 만든다) | agent:<역할> | v0.2 재진입 2 |
+| T03 | 실행 중 합의 범위 밖 요청(커널·권한 레이어가 막음) | C.* | – | 루프 유지, 대기(human). 답이 "탐구 필요"면 `I.fact` | kernel | v0.2 재진입 3 |
+| T04 | 확인 중 근거 부족(기준이 "확인 못함" 또는 검증 에이전트의 반대 근거) | A.confirm | 결과 확인 전일 것 | `I.fact`(탐구 WorkUnit) 후 `A.confirm`으로 돌아옴 | kernel | v0.2 재진입 4 |
+| T05 | 반영 중 공유 전제 충돌 | A.confirm | – | 루프 유지. 관련 선택·컨텍스트 무효화 명령(10), 영향받는 다른 Concern에 T27 | agent:<역할> | v0.2 재진입 5 |
+| T07 | 상황 유형 변경 신호(§3.7.5) | 모든 루프 | G3 | `O`(재판정). `chaos_signal`이면 `C.emergency` | kernel 또는 agent:<역할> | v0.3 |
+| T08 | 명확 유형에서 자동 검증이 예상 밖 결과 | A.confirm | situation = clear | `O` | kernel | v0.3 |
 | T09 | 결과 확인에서 "해결되지 않음" | A.confirm | – | `reopenTo`(사람 선택, 08 `C.commit`·`I.fact`·`I.want`). 화면 기본값은 직전 I. 직전 I가 없으면 사람이 C 또는 I를 고른다([판정 J-24], U-26). 전환은 오케스트레이터가 낸다(10 `result.accept`는 루프 전환을 내지 않는다) | human | v0.3 |
 | T10 | 결과 확인에서 수정 요청 | A.confirm | G4 | `C.commit`(합의 유지, 진행 중으로) | human | v0.3, X3-2-13 |
 | T11 | 결과 확인에서 "기준이 틀림" | A.confirm | – | `reopenTo`(사람 선택). 화면 기본값은 complex면 `I.want`, 아니면 `I.fact` | human | X3-2-13 |
-| T12 | 탐침이 키울 조건 충족 | C.probe, A.watch | – | `C.commit` | rule(조건 evaluator가 model이면 model) | v0.3 |
-| T13 | 탐침이 모두 접을 조건 충족 | C.probe, A.watch | – | 직전 I | rule | v0.3 |
-| T14 | 문제가 둘 이상으로 나뉨 | 모든 루프 | G8 | `S.split` | model | v0.3 |
-| T15 | 여러 Concern이 같은 문제 | 모든 루프(거시) | 대상 Concern에 실행 중 WorkUnit 없음 | `S.merge` | model(O 또는 관찰 에이전트 제안) | v0.3 |
-| T16 | 기대 기한 초과("응답 없음" 관찰) | 대기(external) | – | `O`. O의 계획 플래그로 이어서 정함 | rule | v0.3, 결정 9 |
-| T17 | 선호 모델 변경 | 모든 루프, 닫힌 Concern 포함 | 그 선호 모델 기준으로 확인된 결과가 있음 | 그 결과의 Concern을 다시 열고 `A.confirm`(재확인) | rule | v0.3 |
-| T18 | 예측 확인 시각 도래(12 타이머 `prediction_check` → 10 `timer.fire` → `question.recorded(prediction_check)`) | 모든 루프, 닫힌 Concern 포함 | – | 루프를 바꾸지 않고 루프 밖 점검 WorkUnit(`prediction_check`, §3.12.5-7)을 돌려 그 질문에 답할 근거를 만든다. `prediction.checked`가 불일치면 T01(닫힌 Concern은 다시 연다) | rule | v0.3 |
+| T12 | 탐침이 키울 조건 충족 | C.probe, A.watch | – | `C.commit` | kernel(조건 evaluator가 agent:<역할>이면 agent:<역할>) | v0.3 |
+| T13 | 탐침이 모두 접을 조건 충족 | C.probe, A.watch | – | 직전 I | kernel | v0.3 |
+| T14 | 문제가 둘 이상으로 나뉨 | 모든 루프 | G8 | `S.split` | agent:<역할> | v0.3 |
+| T15 | 여러 Concern이 같은 문제 | 모든 루프(거시) | 대상 Concern에 실행 중 WorkUnit 없음 | `S.merge` | agent:<역할>(O 또는 관찰 에이전트 제안) | v0.3 |
+| T16 | 기대 기한 초과("응답 없음" 관찰) | 대기(external) | – | `O`. O의 계획 플래그로 이어서 정함 | kernel | v0.3, 결정 9 |
+| T17 | 선호 모델 변경 | 모든 루프, 닫힌 Concern 포함 | 그 선호 모델 기준으로 확인된 결과가 있음 | 그 결과의 Concern을 다시 열고 `A.confirm`(재확인) | kernel | v0.3 |
+| T18 | 예측 확인 시각 도래(12 타이머 `prediction_check` → 10 `timer.fire` → `question.recorded(prediction_check)`) | 모든 루프, 닫힌 Concern 포함 | – | 루프를 바꾸지 않고 루프 밖 점검 WorkUnit(`prediction_check`, §3.12.5-7)을 돌려 그 질문에 답할 근거를 만든다. `prediction.checked`가 불일치면 T01(닫힌 Concern은 다시 연다) | kernel | v0.3 |
 | T20 | 사람의 직접 지시 | 모든 루프 | 의존 규칙만 | 지시한 루프 | human | v0.3 |
-| T21 | 탐구 멈춤 규칙 충족("내 답이 계획을 더 바꾸지 않으면 C로") | I.* | – | 계획 다음 단계 | rule(15 계산) | 감사 §3.1, X3-6-07 |
-| T22 | 탐구 예산 소진 | I.* | – | 계획 다음 단계(열린 질문을 넘김) | rule | v0.3 03 §3.2 |
-| T23 | 결과 제출 | C.commit | – | `A.confirm` | rule | X3-2-16 |
-| T24 | 비상 조치 후 안정 | C.emergency | – | `O`(재판정) | model 선언 + rule | v0.3 03 §9.2 |
-| T25 | 지속 관찰 판정 | A.watch | – | 키움 `C.commit`, 접음 직전 I, 계속 머무름 | rule 또는 human | v0.3 |
-| T26 | 결과 확인 + 반영 완료 | A.confirm | – | 계획 다음(`A.reflect` 또는 닫기) | rule | v0.3, A10 |
-| T27 | 판단에 이의(새 관찰이 판단의 근거와 맞지 않음 → 판단 contested) | 모든 루프, 닫힌 Concern 포함 | – | `I.fact`(닫힌 Concern은 다시 연다) | 충돌 판정 model, 상태 변경 kernel | X3-3-10, X3-8-18 |
+| T21 | 탐구 멈춤 규칙 충족("내 답이 계획을 더 바꾸지 않으면 C로") | I.* | – | 계획 다음 단계 | kernel(15 계산) | 감사 §3.1, X3-6-07 |
+| T22 | 탐구 예산 소진 | I.* | – | 계획 다음 단계(열린 질문을 넘김) | kernel | v0.3 03 §3.2 |
+| T23 | 결과 제출 | C.commit | – | `A.confirm` | kernel | X3-2-16 |
+| T24 | 비상 조치 후 안정 | C.emergency | – | `O`(재판정) | agent:<역할> 선언 + kernel | v0.3 03 §9.2 |
+| T25 | 지속 관찰 판정 | A.watch | – | 키움 `C.commit`, 접음 직전 I, 계속 머무름 | kernel 또는 human | v0.3 |
+| T26 | 결과 확인 + 반영 완료 | A.confirm | – | 계획 다음(`A.reflect` 또는 닫기) | kernel | v0.3, A10 |
+| T27 | 판단에 이의(새 관찰이 판단의 근거와 맞지 않음 → 판단 contested) | 모든 루프, 닫힌 Concern 포함 | – | `I.fact`(닫힌 Concern은 다시 연다) | 충돌 판정 agent:<역할>, 상태 변경 kernel | X3-3-10, X3-8-18 |
 | T28 | 혼자 정한 결정에 사람이 이의 | 모든 루프 | – | 결정 종류별 처리(§3.12.4) | human | 결정 8 |
-| T30 | 하위 Concern이 모두 끝남 | 대기(children) | – | `S.recombine` | rule | 의존 규칙 4 |
-| T31 | O에서 단순 작업으로 판정(clear, 진입 신호 2개 미만) | O | – | 강등(§3.14.5) 또는 가벼운 계획 | rule | v0.3 01 §3.7 |
-| T32 | 쓰기 뒤 결과 제출 없이 WorkUnit 종료 | C.commit | 이 활성화에서 처음 | `submit` WorkUnit(루프 유지). 두 번째면 `submission_missing` 접점 | rule | X3-2-12 |
-| T33 | 탐구가 탐침을 제안함(바꿔 봐야 아는 확인, 작은 실현 가능성 확인, 15 §3.5·§3.8) | I.* | `probes.defined` | `C.probe`(탐침 정의를 넘겨받음). 기능 꺼짐이면 `C.commit`의 합의 초안으로 | model 선언 + rule | 15 §5.2 요구 |
+| T30 | 하위 Concern이 모두 끝남 | 대기(children) | – | `S.recombine` | kernel | 의존 규칙 4 |
+| T31 | O에서 단순 작업으로 판정(clear, 진입 신호 2개 미만) | O | – | 강등(§3.14.5) 또는 가벼운 계획 | kernel | v0.3 01 §3.7 |
+| T32 | 쓰기 뒤 결과 제출 없이 WorkUnit 종료 | C.commit | 이 활성화에서 처음 | `submit` WorkUnit(루프 유지). 두 번째면 `submission_missing` 접점 | kernel | X3-2-12 |
+| T33 | 탐구가 탐침을 제안함(바꿔 봐야 아는 확인, 작은 실현 가능성 확인, 15 §3.5·§3.8) | I.* | `probes.defined` | `C.probe`(탐침 정의를 넘겨받음). 기능 꺼짐이면 `C.commit`의 합의 초안으로 | agent:<역할> 선언 + kernel | 15 §5.2 요구 |
 
 T06(돌아보기 → P 수정 제안)과 T19(가정 만료점 도달 → 질문 즉시 승격)는 루프를 바꾸지 않는다. T06은 `A.reflect` 계약의 출력이고, T19는 11의 일이다. 번호는 v0.3 03 §6 표의 순서를 남기려고 비워 둔다. T29는 쓰지 않는다.
 
@@ -1761,7 +1761,7 @@ export interface TransitionRule {
   from: readonly LoopId[] | "any" | "any_or_closed" | { wait: WaitReason };
   when: (v: ConcernView, ev: HelmEvent, c: GuardContext) => boolean;
   target: RuleTarget | ((v: ConcernView, ev: HelmEvent) => RuleTarget);
-  decidedBy: "rule" | "model" | "human" | ((ev: HelmEvent) => "rule" | "model");
+  decidedBy: "kernel" | "agent:<역할>" | "human" | ((ev: HelmEvent) => "kernel" | "agent:<역할>");
   guards: readonly GuardId[];                   // §3.9.5
   trigger: TransitionTrigger | ((ev: HelmEvent) => TransitionTrigger);   // 08 §3.15, 대응은 §3.9.7
 }
@@ -1785,70 +1785,70 @@ export const TRANSITION_RULES: readonly TransitionRule[] = [
     target: (v) => ({ kind: "loop", to: nextCInPlan(v) ?? "C.commit" }), decidedBy: "human", guards: ["G1"], trigger: "human_directive" },
   // 2. 혼돈 신호
   { id: "T07", priority: 2, on: ["run.ended"], from: "any", when: (_, ev) => ho(ev)?.kind === "transition_request" && ho(ev)!.signal === "chaos_signal",
-    target: { kind: "loop", to: "C.emergency" }, decidedBy: "model", guards: ["G1", "G3"], trigger: "situation_changed" },
+    target: { kind: "loop", to: "C.emergency" }, decidedBy: "agent:<역할>", guards: ["G1", "G3"], trigger: "situation_changed" },
   // 4. 상황 유형 변경, 예상 밖 결과
   { id: "T07", priority: 4, on: ["run.ended", "attestation.recorded", "inquiry.stopped", "check.observed"], from: "any",   // 판정 이의는 T28
     when: (v, ev, c) => reassessSignal(v, ev, c) !== null && reassessSignal(v, ev, c) !== "chaos_signal",
-    target: { kind: "loop", to: "O" }, decidedBy: (ev) => ev.type === "run.ended" ? "model" : "rule", guards: ["G1", "G3"], trigger: "situation_changed" },
+    target: { kind: "loop", to: "O" }, decidedBy: (ev) => ev.type === "run.ended" ? "agent:<역할>" : "kernel", guards: ["G1", "G3"], trigger: "situation_changed" },
   { id: "T08", priority: 4, on: ["attestation.recorded", "check.observed"], from: ["A.confirm"],
     when: (v, ev) => v.situation?.type === "clear" && autoVerifyUnexpected(ev),
-    target: { kind: "loop", to: "O" }, decidedBy: "rule", guards: ["G1"], trigger: "unexpected_result" },
+    target: { kind: "loop", to: "O" }, decidedBy: "kernel", guards: ["G1"], trigger: "unexpected_result" },
   // 5. 판단 이의, 놀라운 관찰
   { id: "T27", priority: 5, on: ["record.staled", "finding.withdrawn"], from: "any_or_closed", when: (v, ev) => staleFindingUsedBy(v, ev),
-    target: { kind: "loop", to: "I.fact" }, decidedBy: "rule", guards: ["G1", "G2"], trigger: "surprise" },
+    target: { kind: "loop", to: "I.fact" }, decidedBy: "kernel", guards: ["G1", "G2"], trigger: "surprise" },
   { id: "T01", priority: 5, on: ["run.ended", "prediction.checked"], from: ["O", ...C_ALL, ...A_ALL],
     when: (_, ev) => ev.type === "prediction.checked" ? ev.payload.verdict === "failed"
                     : ho(ev)?.kind === "transition_request" && ho(ev)!.trigger === "surprise",
-    target: { kind: "loop", to: "I.fact" }, decidedBy: (ev) => ev.type === "prediction.checked" ? "rule" : "model", guards: ["G1", "G2"], trigger: "surprise" },
+    target: { kind: "loop", to: "I.fact" }, decidedBy: (ev) => ev.type === "prediction.checked" ? "kernel" : "agent:<역할>", guards: ["G1", "G2"], trigger: "surprise" },
   // 6. 구조
   { id: "T14", priority: 6, on: ["run.ended"], from: "any", when: (_, ev) => ho(ev)?.kind === "split_hint",
-    target: { kind: "loop", to: "S.split" }, decidedBy: "model", guards: ["G1", "G8"], trigger: "split_needed" },
+    target: { kind: "loop", to: "S.split" }, decidedBy: "agent:<역할>", guards: ["G1", "G8"], trigger: "split_needed" },
   { id: "T15", priority: 6, on: ["run.ended"], from: "any", when: (v, ev) => ho(ev)?.kind === "transition_request" && ho(ev)!.trigger === "merge_needed" && v.current?.running.length === 0,
-    target: { kind: "loop", to: "S.merge" }, decidedBy: "model", guards: ["G1"], trigger: "merge_needed" },
+    target: { kind: "loop", to: "S.merge" }, decidedBy: "agent:<역할>", guards: ["G1"], trigger: "merge_needed" },
   { id: "T30", priority: 6, on: ["concern.completed", "concern.closed", "concern.merged"], from: { wait: "children" },
-    when: (v) => v.childrenTerminal, target: { kind: "loop", to: "S.recombine" }, decidedBy: "rule", guards: ["G1"], trigger: "plan" },
+    when: (v) => v.childrenTerminal, target: { kind: "loop", to: "S.recombine" }, decidedBy: "kernel", guards: ["G1"], trigger: "plan" },
   // 7. 그 밖의 규칙
   { id: "T02", priority: 7, on: ["goal.revision_proposed"], from: I_ALL, when: () => true,
-    target: { kind: "stay" }, decidedBy: "model", guards: ["G1"], trigger: "goal_conflict" },          // 질문은 커널이 만든다(goal_revision)
+    target: { kind: "stay" }, decidedBy: "agent:<역할>", guards: ["G1"], trigger: "goal_conflict" },          // 질문은 커널이 만든다(goal_revision)
   { id: "T03", priority: 7, on: ["workunit.scope_exceeded", "agreement.scope_change_requested", "agreement.violation_detected"], from: C_ALL,
-    when: () => true, target: { kind: "stay", then: "touchpoint", touchpoint: "scope_change" }, decidedBy: "rule", guards: ["G1"], trigger: "out_of_scope" },
+    when: () => true, target: { kind: "stay", then: "touchpoint", touchpoint: "scope_change" }, decidedBy: "kernel", guards: ["G1"], trigger: "out_of_scope" },
   { id: "T04", priority: 7, on: ["attestation.recorded", "claim.counter_searched"], from: ["A.confirm"],
     when: (v, ev) => v.acceptance === null && insufficientEvidence(ev),
-    target: { kind: "loop", to: "I.fact" }, decidedBy: "rule", guards: ["G1", "G2"], trigger: "insufficient_evidence" },
+    target: { kind: "loop", to: "I.fact" }, decidedBy: "kernel", guards: ["G1", "G2"], trigger: "insufficient_evidence" },
   { id: "T05", priority: 7, on: ["run.ended"], from: ["A.confirm"], when: (_, ev) => ho(ev)?.kind === "transition_request" && ho(ev)!.trigger === "shared_premise_conflict",
-    target: { kind: "stay" }, decidedBy: "model", guards: ["G1"], trigger: "shared_premise_conflict" },  // 무효화 명령과 다른 Concern의 T27
+    target: { kind: "stay" }, decidedBy: "agent:<역할>", guards: ["G1"], trigger: "shared_premise_conflict" },  // 무효화 명령과 다른 Concern의 T27
   { id: "T12", priority: 7, on: ["probe.concluded", "watch.judged"], from: ["C.probe", "A.watch"],
     when: (v, ev) => ev.type === "probe.concluded" ? ev.payload.outcome === "grown" : ev.payload.outcome === "stable",
-    target: { kind: "loop", to: "C.commit" }, decidedBy: "rule", guards: ["G1"], trigger: "probe_grow" },
+    target: { kind: "loop", to: "C.commit" }, decidedBy: "kernel", guards: ["G1"], trigger: "probe_grow" },
   { id: "T13", priority: 7, on: ["probe.concluded", "watch.judged"], from: ["C.probe", "A.watch"],
     when: (v, ev) => ev.type === "probe.concluded" ? allProbesFolded(v) : ev.payload.outcome === "regressed",
-    target: { kind: "lastI", fallback: "I.possibility" }, decidedBy: "rule", guards: ["G1", "G2"], trigger: "probe_fold" },
+    target: { kind: "lastI", fallback: "I.possibility" }, decidedBy: "kernel", guards: ["G1", "G2"], trigger: "probe_fold" },
   { id: "T16", priority: 7, on: ["expectation.timed_out"], from: { wait: "external" }, when: () => true,
-    target: { kind: "loop", to: "O" }, decidedBy: "rule", guards: ["G1"], trigger: "expectation_timeout" },
+    target: { kind: "loop", to: "O" }, decidedBy: "kernel", guards: ["G1"], trigger: "expectation_timeout" },
   { id: "T17", priority: 7, on: ["preference_model.versioned"], from: "any_or_closed", when: (v, ev) => acceptedAgainstOldVersion(v, ev),
-    target: { kind: "loop", to: "A.confirm" }, decidedBy: "rule", guards: ["G1"], trigger: "preference_changed" },
+    target: { kind: "loop", to: "A.confirm" }, decidedBy: "kernel", guards: ["G1"], trigger: "preference_changed" },
   { id: "T18", priority: 7, on: ["question.recorded"], from: "any_or_closed", when: (_, ev) => ev.payload.question.kind === "prediction_check",
-    target: { kind: "stay", then: "workunit", purpose: "prediction_check" }, decidedBy: "rule", guards: ["G1"], trigger: "prediction_due" },
+    target: { kind: "stay", then: "workunit", purpose: "prediction_check" }, decidedBy: "kernel", guards: ["G1"], trigger: "prediction_due" },
   { id: "T21", priority: 7, on: ["inquiry.stop_rule_met"], from: I_ALL, when: () => true,
-    target: { kind: "plan" }, decidedBy: "rule", guards: ["G1"], trigger: "plan" },
+    target: { kind: "plan" }, decidedBy: "kernel", guards: ["G1"], trigger: "plan" },
   { id: "T22", priority: 7, on: ["budget.exhausted"], from: I_ALL, when: (v, ev) => budgetScopeIsActivation(v, ev),
-    target: { kind: "plan" }, decidedBy: "rule", guards: ["G1"], trigger: "plan" },
+    target: { kind: "plan" }, decidedBy: "kernel", guards: ["G1"], trigger: "plan" },
   { id: "T23", priority: 7, on: ["result.submitted"], from: ["C.commit"], when: () => true,
-    target: { kind: "loop", to: "A.confirm" }, decidedBy: "rule", guards: ["G1"], trigger: "contract_exit" },
+    target: { kind: "loop", to: "A.confirm" }, decidedBy: "kernel", guards: ["G1"], trigger: "contract_exit" },
   { id: "T24", priority: 7, on: ["run.ended", "observation.recorded"], from: ["C.emergency"],
     when: (v, ev, c) => (ho(ev)?.kind === "stabilized" || ev.type === "observation.recorded") && emergencyStabilized(v, c),
-    target: { kind: "loop", to: "O" }, decidedBy: "rule", guards: ["G1"], trigger: "situation_changed" },
+    target: { kind: "loop", to: "O" }, decidedBy: "kernel", guards: ["G1"], trigger: "situation_changed" },
   { id: "T25", priority: 7, on: ["watch.judged"], from: ["A.watch"], when: (_, ev) => ev.payload.outcome === "inconclusive",
-    target: { kind: "stay" }, decidedBy: "rule", guards: ["G1"], trigger: "plan" },                    // 연장 또는 watch_verdict
+    target: { kind: "stay" }, decidedBy: "kernel", guards: ["G1"], trigger: "plan" },                    // 연장 또는 watch_verdict
   { id: "T26", priority: 7, on: ["obligation.resolved", "obligation.deferred", "obligation.transferred", "obligation.waived", "integration.completed"],
     from: ["A.confirm"], when: (v) => (v.acceptance?.decision === "accepted" || v.acceptance?.decision === "conditional") && v.obligations.open === 0,
-    target: { kind: "plan" }, decidedBy: "rule", guards: ["G1"], trigger: "plan" },
+    target: { kind: "plan" }, decidedBy: "kernel", guards: ["G1"], trigger: "plan" },
   { id: "T31", priority: 7, on: ["situation.assessed"], from: ["O"], when: (v, ev) => demotable(v, ev),
-    target: { kind: "demote" }, decidedBy: "rule", guards: ["G1"], trigger: "plan" },
+    target: { kind: "demote" }, decidedBy: "kernel", guards: ["G1"], trigger: "plan" },
   { id: "T32", priority: 7, on: ["workunit.concluded"], from: ["C.commit"], when: (v) => v.current!.writeObserved && v.submission === null,
-    target: { kind: "stay", then: "workunit", purpose: "submit" }, decidedBy: "rule", guards: ["G1"], trigger: "contract_exit" },  // 두 번째면 submission_missing
+    target: { kind: "stay", then: "workunit", purpose: "submit" }, decidedBy: "kernel", guards: ["G1"], trigger: "contract_exit" },  // 두 번째면 submission_missing
   { id: "T33", priority: 7, on: ["probe.planned"], from: I_ALL, when: (v) => v.probes.some(p => p.status === "planned"),
-    target: { kind: "loop", to: "C.probe" }, decidedBy: "rule", guards: ["G1"], trigger: "plan" },
+    target: { kind: "loop", to: "C.probe" }, decidedBy: "kernel", guards: ["G1"], trigger: "plan" },
 ];
 ```
 
@@ -1906,15 +1906,15 @@ export const TRANSITION_RULES: readonly TransitionRule[] = [
 
 | 결정 | 레코드 | whyNotAsked 기본 문구 [제안] |
 |---|---|---|
-| 루프 계획 생성·수정 | LoopPlanRecord | "루프 계획은 권고이며 언제든 바꿀 수 있어 묻지 않았습니다" |
-| 루프 전환(rule, model) | LoopTransitionRecord | rule: "규칙 {ruleId}에 따른 이동입니다", model: "모델이 {reason} 때문에 옮겼습니다. 되돌릴 수 있어 묻지 않았습니다" |
+| 루프 계획 생성·수정 | LoopPlanCore | "루프 계획은 권고이며 언제든 바꿀 수 있어 묻지 않았습니다" |
+| 루프 전환(kernel, agent:<역할>) | LoopTransitionRecord | kernel: "규칙 {ruleId}에 따른 이동입니다", agent:<역할>: "모델이 {reason} 때문에 옮겼습니다. 되돌릴 수 있어 묻지 않았습니다" |
 | 상황 판정 | SituationAssessmentRecord | "판정 질문의 답으로 계산했습니다. 이의를 걸면 다시 판정합니다" |
 | S 동작(분해·병합·독립·재배치·보류) | 구조 이벤트 + Choice | "구조 변경은 되돌릴 수 있어 다음 작업 경계에 알립니다" |
 | 모드 라우팅 | Choice(kind `mode_routing`) | "입력과 상황 유형으로 골랐습니다" |
 | 진입 판정(Concern으로 열기, 가벼운 작업으로 두기, 제안) | 08 EntryAssessment(`entry.evaluated`, `decision`: `enter`·`suggest`·`light_work`, `autonomy` 필수) | "진입 신호 {n}개로 판정했습니다" |
 | 강등(가벼운 작업으로 내리기) | 구조 변경(`structure.changed`, 동작 `close`, 사유 `demotion`) + 같은 요청의 가벼운 작업 | "명확한 작업으로 판정했습니다" |
-| 가벼운 계획(Concern 유지) | LoopPlanRecord(cause `procedure` 또는 `initial`, reason "가벼운 계획") | "명확한 작업으로 판정했습니다" |
-| 증명 부담 자동 상향 | LoopPlanRecord의 `planDetail.proofBurdenRequired` | "다음 신호 때문에 올렸습니다: …" |
+| 가벼운 계획(Concern 유지) | LoopPlanCore(planDetail.cause `procedure` 또는 `initial`, reason "가벼운 계획") | "명확한 작업으로 판정했습니다" |
+| 증명 부담 자동 상향 | LoopPlanCore의 `planDetail.proofBurdenRequired` | "다음 신호 때문에 올렸습니다: …" |
 
 #### 3.9.7 규칙 id와 08 `TransitionTrigger`의 대응 [08 §5.2 요구 (2)]
 
@@ -1960,7 +1960,7 @@ export interface ModeDefinition {
   planTemplate: readonly PlanStep[] | "by_situation";
   /** 능력 부분집합. 루프 계약 능력과 교집합을 취한다(§3.10.4) */
   capabilities: {
-    primitives: readonly PrimitiveAction[];
+    primitives: readonly Primitive[];
     records: readonly RecordCapability[];
   };
   /** 다이얼 값(설정 층 3). 정의하지 않은 다이얼은 아래 층 값을 쓴다 */
@@ -2076,15 +2076,15 @@ export type RequestForm =
 | 순서 | 조건 | 모드 | decidedBy |
 |---|---|---|---|
 | 1 | 사용자가 모드를 직접 지정(층 5·6) | 지정한 모드 | human |
-| 2 | 상황 유형 chaotic 또는 요청 형태 incident | `emergency` | rule |
-| 3 | 상황 유형 disorder 또는 요청 형태 restructure | `restructure` | rule |
-| 4 | 요청 형태 review 또는 계획 플래그 reviewOnly | `verify` | rule |
-| 5 | 요청 형태 resume | `orient` | rule |
-| 6 | 상황 유형 complex | `taste` | rule |
-| 7 | complicated이고 (요청 형태 choose 또는 플래그 consequentialSideEffects) | `deliberate` | rule |
-| 8 | complicated | `investigate` | rule |
-| 9 | clear | `execute` | rule |
-| 10 | 그 밖(판정 전) | `orient` | rule |
+| 2 | 상황 유형 chaotic 또는 요청 형태 incident | `emergency` | kernel |
+| 3 | 상황 유형 disorder 또는 요청 형태 restructure | `restructure` | kernel |
+| 4 | 요청 형태 review 또는 계획 플래그 reviewOnly | `verify` | kernel |
+| 5 | 요청 형태 resume | `orient` | kernel |
+| 6 | 상황 유형 complex | `taste` | kernel |
+| 7 | complicated이고 (요청 형태 choose 또는 플래그 consequentialSideEffects) | `deliberate` | kernel |
+| 8 | complicated | `investigate` | kernel |
+| 9 | clear | `execute` | kernel |
+| 10 | 그 밖(판정 전) | `orient` | kernel |
 
 과거 기록(같은 종류 Concern에서 쓰인 모드와 이의 여부, v0.3 07 §5.2)은 v1에서는 라우팅 입력으로 쓰지 않고, 라우팅 Choice에 이의가 걸린 비율만 지표로 남긴다(16). 이의가 걸린 라우팅 기록은 결정표 수정 제안의 자료가 된다(v0.3 07 §5.3). 결정표를 학습형으로 바꿀지는 미결(§7 U-08).
 
@@ -2138,7 +2138,7 @@ enterLoop(L):
 
 #### 3.11.1 정본 목록
 
-다이얼은 열여섯 항목이고 키는 열여덟 개다(질문 문턱 세 키는 한 항목으로 묶었다). 열네 항목은 v0.3 07 §3에서 왔고, 열다섯째 `planAuthoring`은 [판정 J-188]로, 열여섯째 `assumptionDeferOnDowntime`은 [판정 J-197]로 더했다. 이 문서가 목록과 값의 뜻을 소유하며, 다이얼을 더하는 일은 판정으로만 한다. 저장·프로토콜 키는 08 §3.15 `DIAL_KEYS`이고(19 `dial.set`의 `key`), 질문 다이얼의 값 이름과 판정에서의 의미는 11 §3.16을 따른다. 08 `DIAL_KEYS`에는 다이얼 키 열여덟 개에 구조 설정 키 `structure.max_children`, `structure.max_depth`를 더한 스무 개가 든다([판정 J-221]). 구조 설정 키는 정본 다이얼 항목에 들지 않는다(같은 저장 장치와 층을 쓴다).
+다이얼은 열여섯 항목이다(질문 문턱 세 키는 한 항목으로 묶었다). 열네 항목은 v0.3 07 §3에서 왔고, 열다섯째 `planAuthoring`은 [판정 J-188]로, 열여섯째 `assumptionDeferOnDowntime`은 [판정 J-197]로 더했다. 이 문서가 목록과 값의 뜻을 소유하며, 다이얼을 더하는 일은 판정으로만 한다. 저장·프로토콜 키는 08 §3.15 `DIAL_KEYS`이고(19 `dial.set`의 `key`), 질문 다이얼의 값 이름과 판정에서의 의미는 11 §3.16을 따른다. 08 `DIAL_KEYS`는 키 20개 = 다이얼 키 18개(항목 16) + 구조 설정 키 2개다([판정 J-221], [판정 J-300]). 구조 설정 키는 `structure.max_children`, `structure.max_depth`이며 정본 다이얼 항목에 들지 않는다(같은 저장 장치와 층을 쓴다).
 
 | # | 08 키 | 이름 | 값 | 기본값(층 1) | 루프별 | MVP 노출(01 §3.8) | 의미 소유 |
 |---|---|---|---|---|---|---|---|
@@ -2378,7 +2378,7 @@ export interface ConcernView {
 
   situation: { type: SituationType; assessmentId: string; confidence: "low" | "medium" | "high";
                atSeq: number; parts?: readonly { label: string; type: SituationType }[] } | null;
-  plan: LoopPlanRecord | null;
+  plan: LoopPlanCore | null;
   flags: PlanFlags | null;
   requestForm: RequestForm | null;
 
@@ -2579,7 +2579,7 @@ export interface OrchestrationSettings {
     dailyBudget: number;              // 하루 주의 비용 단위(§3.13.5). 기본 20
     interruptsPerHour: number;        // 권리 게이트가 아닌 즉시 전달 상한. 모든 기기 합. 기본 2
     maxVisibleDecisions: number;      // 홈 "지금 주의가 필요한 것"에 펼칠 카드 수. 막는 권리 게이트는 수와 무관하게 펼치고, 막지 않는 권리 게이트는 접고 개수를 보인다. 기본 3 (canon §12.10, 01 §3.7, 04 SC-02)
-    reviewWindows: readonly { days: readonly (0|1|2|3|4|5|6)[]; start: string; end: string }[]; // 기본 매일 09:00~09:30 하나(11 §3.16)
+    reviewWindows: readonly { days: readonly (0|1|2|3|4|5|6)[]; start: string; end: string }[]; // 기본 매일 09:00~09:30 하나. 형식은 14 §3.13.2 {days, start, end}([판정 J-331])
     snoozeUntil: number | null;       // 방해 금지. "지금부터 1시간" 같은 일시 방해 금지(05 §3.7.4). 끝나면 null. 방해 금지는 이 값 하나다([판정 J-166])
     quietHours: { start: string; end: string } | null;   // 조용한 시간. 기본 null. 휴대폰 알림을 켤 때 23:00~08:00을 제안(§3.13.8). 19·04·20·26의 키 이름과 맞춘다([판정 J-195])
     timezone: string;                 // IANA. 기본 시스템
@@ -2663,7 +2663,7 @@ export interface WorkRequest {
   role: AgentRole;
   modelHint: WorkUnitTemplate["modelHint"];
   context: { mode: "fresh" | "fork" | "resume"; sections: readonly ContextSection[]; forkFromSeq?: number };
-  primitives: readonly PrimitiveAction[];      // 유효 원시 행동(§3.10.4)
+  primitives: readonly Primitive[];      // 유효 원시 행동(§3.10.4)
   proposalKinds: readonly ContractProposalKind[];
   recordCaps: readonly RecordCapability[];
   agreementId?: string;
@@ -2791,7 +2791,7 @@ beforeCreateTouchpoint(t, view):          // 오케스트레이터가 만들거�
 - 합의 초안의 필드를 사람에게 하나씩 묻지 않는다. 모델이 여섯 항목을 모두 채운 초안을 만들고 사람은 한 번에 확정하거나 고친다(canon §12.7).
 - 반영 항목의 처리 방침(지금 처리, 미루기)은 결과 확인 1회 안에서 함께 고른다(R-OP-3, §3.6.8).
 - 결정에 쓰이는 판단의 사람 확인(`finding_confirm`)은 사람이 그 판단을 근거로 선택을 하면 그 선택 요청에, 아니면 다음 C의 합의 확인 질문에 함께 싣는다. 합의가 (a)로 질문 없이 활성되는 흐름(UC-02)에서는 선택 요청에 묶이므로 판단 확인이 빠지지 않는다. 묶인 판단 확인은 선택이 확정되는 같은 조작으로 닫힌다(11 §3.2.2에 요구, 04 "정하면 생기는 일"에 "판단 n도 확인됨"을 보이게 요구).
-- 반영 범위 합의는 결과 확인과 같은 조작으로 확정한다(`result.accept.integrationAgreement`, [판정 J-126], §3.6.8). 조건부 확인의 조건 항목은 같은 조작에서 미룬 항목이 된다([판정 J-125]). 그래서 반영이 쓰기를 해도 정상 경로 조작은 2회다(AC-07-09).
+- 반영 범위 합의는 결과 확인과 같은 조작으로 확정한다(`result.accept.integrationAgreement`, [판정 J-126], §3.6.8). 조건 붙여 확인의 조건 항목은 같은 조작에서 미룬 항목이 된다([판정 J-125]). 그래서 반영이 쓰기를 해도 정상 경로 조작은 2회다(AC-07-09).
 - 돌아보기 한 줄은 조작으로 세지 않는다(R-OP-5). 모델이 초안을 쓰고 사람은 나중에 고칠 수 있다.
 
 2주 우회율 지표(대화 L2161–2168)는 01 §3.5.3의 CA 지표로 정의되어 있고 16이 계산한다. 오케스트레이터가 따로 내는 지표 이벤트는 없다(§3.20.5). 계산 재료는 합의·결과·질문 이벤트, `HumanDecisionOp`, 범위 위반 이벤트(`agreement.violation_detected`, `workunit.scope_exceeded`, 게이트 거부의 `command.rejected`), 결과 제출의 "확인 못함" 기준, Concern별 열린 반영 항목이다.
@@ -3021,7 +3021,7 @@ export interface DecideContext {
   guards: GuardRegistry;
   presence: PresenceSnapshot;           // 트리거 이벤트 seq 시점의 presence 투영(presence.changed까지)
   modelAvailable: boolean;              // 12 모델 가용 신호. 깨우기 입력(§3.12.3 waiting(model))에만 쓴다
-  daemonMode: "normal" | "safe" | "read_only";   // 17. safe·read_only면 requestWork는 큐에만 남는다
+  daemonMode: "normal" | "safeMode" | "readOnly" | "draining";   // 19 DaemonMode 이름([판정 J-282]). safeMode·readOnly·draining이면 requestWork는 큐에만 남는다
   ids: DerivedIdFactory;                // 제출 레코드 id를 멱등 키에서 결정적으로 만든다(10 §3.3 derivedIdFactory)
 }
 
@@ -3047,7 +3047,7 @@ export interface TouchpointDraft {
   copyKey: string;                         // 05 문구 키. draftRef가 없으면 종류별 기본 문구 템플릿을 쓴다
   copyArgs: Readonly<Record<string, string | number>>;
   recommendation?: { optionKey: string; reason: string };
-  extraReason?: string;                    // 정상 경로 밖 조작의 사유(01 R-OP-4)
+  extraReason?: string;                    // 08 HumanOpMeta.extraReason, 지표 계산에는 쓰지 않는다([판정 J-76])
 }
 ```
 
@@ -3239,7 +3239,7 @@ on reflection.recorded (필수 A.reflect였을 때):
 | 상황 | 동작 |
 |---|---|
 | 사람 입력이 필요 없는 일 | 그대로 진행한다(읽기 탐구, 탐침 실행, 반영 작업, 지속 관찰 표본, 타이머) |
-| 막히지 않는 정보 게이트 질문 | 기록하고 임시 가정으로 진행한다(11). 전달은 예약(다음 복귀 요약). 휴대폰 푸시를 받을 기기가 있으면 `notice` 강도까지 휴대폰으로 보낸다 [결정 48] |
+| 막히지 않는 정보 게이트 질문 | 기록하고 임시 가정으로 진행한다(11). 전달은 예약(다음 복귀 요약)이며, 예약 전달은 강도 `digest`라 휴대폰 푸시가 없다(11 `urgencyOf`, [판정 J-322]) |
 | 데몬이 멈춰 있던 동안 지난 가정 만료점 | 멈춘 시간이 만료 여유보다 길면 막지 않는 질문의 만료를 "복귀 + 30분"으로 미룬다(다이얼 16 `assumptionDeferOnDowntime`, 기본 `on`, [판정 J-142], [판정 J-197]). 계산은 부팅 때 10·12가 한다 |
 | 막히는 질문(정보 게이트) | 그 질문에 기대는 WorkUnit만 멈춘다. 같은 Concern의 다른 일과 다른 Concern은 계속 |
 | 권리 게이트(합의 확인, 결과 확인, 권리 허락, Goal 수정) | 기다린다. 막는 권리 게이트는 휴대폰 푸시(`interrupt`)로 알린다 [결정 48]. 만료(사람이 정한 마감) 임박 승격만 `interrupt`로 즉시 전달하는 예외다 [결정 64]. 권리 게이트 질문은 만료되어도 가정 확정(assumed)으로 가지 않는다(canon-3 C10, v0.3 06 §6 Q-15). 관련 작업만 멈추고 나머지는 계속 |
@@ -3347,11 +3347,11 @@ v0.3 03 §9.1의 흐름을 오케스트레이션 단위로 옮겼다. "사람"�
 |---|---|---|
 | 루프 식별자, 상황 유형, 확신 등급 | 08 §3.15 `LOOP_IDS`, `SituationTypeSchema`, §3.4.1 `Grade` | import해서 쓴다 |
 | 판정 질문 9개, 답 `yes/no/unknown`, `parts`·`alternative`·`confidence`·`previousType`·`computedBy` | 08 §3.15 `SituationAnswer`, `SituationAssessmentCore` | §3.7.1과 같다 |
-| 루프 계획 | 08 `LoopPlanCore`(`combo`, `planVersion`, `planDetail{steps, flags, completedStepKeys, skipped, cause, proofBurdenRequired, modeId, procedureId}`), 명령 `loop_plan.record`, 이벤트 `loop_plan.adopted` | §3.8.1의 `LoopPlanRecord`는 이 저장 모양으로 옮긴다. `version` → `planVersion`. `authoredBy`는 `planDetail` 밖의 최상위 필드다([판정 J-226]). 거부 기록은 09 `modelDraftRejects`로 남는다([판정 J-188]) |
+| 루프 계획 | 08 `LoopPlanCore`(`combo`, `planVersion`, `planDetail{steps, flags, completedStepKeys, skipped, cause, proofBurdenRequired, modeId, procedureId}`), 명령 `loop_plan.record`, 이벤트 `loop_plan.adopted` | §3.8.1의 `LoopPlanCore`는 이 저장 모양과 같다. `authoredBy`는 `planDetail` 밖의 최상위 필드다([판정 J-226]). 거부 기록은 09 `modelDraftRejects`로 남는다([판정 J-188]) |
 | 루프 전환 | 08 `LoopTransitionCore`(`trigger`, `triggerRefs`, `skipped`, `ruleId`, `exitOutcome`, `triggerEventId`, `planDeviation`, `restart`, `autonomy`) | §3.9.1과 같다. trigger 대응은 §3.9.7. 멱등 키는 제출 envelope의 `idempotencyKey` |
 | `decidedBy`, `whyNotAsked` | 08 §3.4.5: 규칙 결정은 `decidedBy: "kernel"`, `whyNotAsked: { kind: "rule", ruleId }`. 모델 선언 반영은 `runtime` + `declaredBy`(10 §3.3.2, K-13) | §3.18. 11이 쓴 이름 `rule_default`는 08 `rule`로 읽는다 |
 | 모드 8개, 라우팅 기록 | 08 `MODE_IDS`, `ModeAssignment`, 이벤트 `mode.assigned`, 명령 `mode.route`(R 허용) | §3.10과 같다 |
-| 다이얼 키와 층 | 08 `DIAL_KEYS`(키 스무 개: 다이얼 열여덟, 구조 설정 둘), 저장 층 `DialLayer`(user, concern, instruction), 이벤트 `dial.set`·`dial.unset` | §3.11.1·§3.11.2. 해석 순서는 `DialPrecedence`(1~6)로 이름을 나눴다([판정 J-136]). Goal 범위 다이얼은 없다 |
+| 다이얼 키와 층 | 08 `DIAL_KEYS`(키 20개 = 다이얼 키 18개(항목 16) + 구조 설정 키 2개), 저장 층 `DialLayer`(user, concern, instruction), 이벤트 `dial.set`·`dial.unset` | §3.11.1·§3.11.2. 해석 순서는 `DialPrecedence`(1~6)로 이름을 나눴다([판정 J-136]). Goal 범위 다이얼은 없다 |
 | 구조 동작 | 08 `StructureChange`, 10 `structure.*`, 09 `structure.changed` | §3.6.11 |
 | 경계 항목 | 08 §3.6.3 BoundaryItem(`shared_premise|interacting_decision|interface|other`, `open|checked|dropped`), 09 `boundary_item.recorded` | §3.6.11의 `violated`는 재조합에서 반영 항목(`boundary_check`)으로 남긴다 |
 | 탐침 | 08 §3.16 Probe, 10 `probe.define`·`probe.judge`, 09 `probe.planned`·`probe.concluded(grown|folded|inconclusive|exhausted)` | `inconclusive`는 같은 이름. `exhausted`는 `budget_exhausted` 결과 |
@@ -3361,7 +3361,7 @@ v0.3 03 §9.1의 흐름을 오케스트레이션 단위로 옮겼다. "사람"�
 | 질문 종류 | 08 §3.13 `QuestionKind` | §3.5.3 `HumanTouchpointKind`는 `QuestionKind`의 부분집합(`Extract`)이다. 1판 이름 대응: `scope_exceeded` → `scope_change`, `rights_permission` → `send_approval`, `goal_revise`(접점) → `goal_revision`, `probe_agreement` → `agreement_confirm`(합의 종류 probe), `tool_outcome_unknown` → `recovery` |
 | 진입 | 08 `ConcernOrigin`(`human_start`, `promoted_from_work`, `human_designated`, `observer`, `structure`), 08 EntryAssessment(`decision`: `enter`, `suggest`, `light_work`, `autonomy`), 09 `entry.evaluated`, 01 §3.6.3 | §3.14.3. 강등은 `structure.changed`(사유 `demotion`) |
 | 가벼운 작업 | 08 `Project.lightWorkConcernId`, Concern 종류 `light_work`, 판정 J-01 | §3.14.2 |
-| 결과·반영 | 09 `result.submitted`(반영 범위 초안), `acceptance.recorded`(08 `AcceptanceDecision`, `reopenTo`, `integrationAgreementId`), `obligation.resolved`·`deferred`, 19 `result.accept`(10 명령 값), 10 `obligation.defer` | §3.6.8. 결과 확인은 `result.accept` 하나([판정 J-123], [판정 J-124]), 반영 범위는 같은 조작([판정 J-126]), 조건부 확인 조건은 미룬 항목([판정 J-125]) |
+| 결과·반영 | 09 `result.submitted`(반영 범위 초안), `acceptance.recorded`(08 `AcceptanceDecision`, `reopenTo`, `integrationAgreementId`), `obligation.resolved`·`deferred`, 19 `result.accept`(10 명령 값), 10 `obligation.defer` | §3.6.8. 결과 확인은 `result.accept` 하나([판정 J-123], [판정 J-124]), 반영 범위는 같은 조작([판정 J-126]), 조건 붙여 확인 조건은 미룬 항목([판정 J-125]) |
 | 작업 경계 명령 | 10 `runtime.boundary`(1판 `boundary.reach`), 09 `boundary.reached` | §3.13.6 |
 | 접속 상태 | 11 §3.8.1 `PresenceSnapshot`, 09 `PresenceState`(active, idle, hidden, offline)와 상태가 바뀔 때만 남는 `presence.changed`([판정 J-64]), 19 `presence.report` | §3.13.8. 부재는 `isAway` 하나로 계산([판정 J-119]) |
 | 실행 | 12 `startRun(RunSpec)`, 09 `run.*`, 08·09 `workunit.*` | §3.20.3(아래 변환표) |
@@ -3515,7 +3515,7 @@ v0.3 03 §9.1의 흐름을 오케스트레이션 단위로 옮겼다. "사람"�
 
 | 대상 문서 | 제공하는 것 | 위치 |
 |---|---|---|
-| 08 | `ExitOutcome` 값 목록, `RunHandoff` 모양, `HumanTouchpointKind`(`QuestionKind` 부분집합), LoopPlanRecord·LoopTransitionRecord·SituationAssessmentRecord의 필요 필드, ProbeSpec·WatchSpec·Condition, BoundaryItem, StandingAgreementTemplate의 필요 필드 | §3.5.2, §3.5.3, §3.5.6, §3.6.7, §3.6.11, §3.7.1, §3.8.1, §3.9.1 |
+| 08 | `ExitOutcome` 값 목록, `RunHandoff` 모양, `HumanTouchpointKind`(`QuestionKind` 부분집합), LoopPlanCore·LoopTransitionRecord·SituationAssessmentRecord의 필요 필드, ProbeSpec·WatchSpec·Condition, BoundaryItem, StandingAgreementTemplate의 필요 필드 | §3.5.2, §3.5.3, §3.5.6, §3.6.7, §3.6.11, §3.7.1, §3.8.1, §3.9.1 |
 | 09 | 오케스트레이터가 내는 이벤트 목록, ConcernView를 만드는 데 읽는 이벤트, 런타임 체크포인트 | §3.12.1, §3.16.1, §3.18 |
 | 10 | 오케스트레이터가 보내는 명령 목록, 의존 규칙의 오케스트레이션 측 동작과 거부 처리, 루프별 제약이 커널 불변조건에 들지 않는다는 경계 | §3.1, §3.9.4, §3.18 |
 | 11·26 | 사람 접점 종류와 기본 게이트, C/A 상한과 묶기 규칙, 작업 경계 목록과 `boundary.reached`, 주의 예산 상태, 부재 함수 `isAway`, 루프별 전달 기본값(`resolveDials` 유효값) | §3.5.3, §3.11.1, §3.13.5~§3.13.8 |
@@ -3561,7 +3561,7 @@ v0.3 03 §9.1의 흐름을 오케스트레이션 단위로 옮겼다. "사람"�
 | 01 | 가벼운 작업(일반 세션)에 의존 규칙 (1)(2)를 압축 형태로(OQ-14) | 판정 J-01. §3.14.2 |
 | 01 | MVP 모드 4종, MVP 노출 다이얼 5개, 명확·복잡·복합 기본 조합 | §3.15 기능 표, §3.11.1 MVP 열, §3.7.4. MVP 노출 다이얼은 [판정 J-192]로 여섯 개다 |
 | 01 | Quick/Guided/Assured 관계(OQ-12) | §3.11.7, 판정 J-12 |
-| 02 | MVP 복합 조합에서 C.probe·A.watch 생략(UC-01), I 건너뜀 기록(UC-07), 정지 규칙 전환, 강등(UC-15), 다이얼 층(UC-12) | §3.15, §3.8.1 `skipped`, T21, §3.14.5, §3.11.3 |
+| 02 | MVP 복합 조합에서 C.probe·A.watch 생략(UC-01), I 건너뜀 기록(UC-07), 정지 규칙 전환, 강등(UC-15), 다이얼 층(UC-12) | §3.15, §3.8.1 `planDetail.skipped`, T21, §3.14.5, §3.11.3 |
 | 03 | 루프 화면 이름("약속 실행" = C.commit, "확인·반영" = A.confirm) 확인 | 받아들인다. 루프 계약의 `nameKo`는 문서용이고 화면 이름은 03이 정한다 |
 | 03 | 사람 접점 종류와 질문 화면 종류의 대응 | §3.5.3 표와 08 `QuestionKind`(§3.20.1). 화면 대응은 03 §3.2.4 |
 | 03 | `maxVisibleDecisions` 3을 홈 주의 카드 수로 | §3.13.2 |
@@ -3682,8 +3682,8 @@ packages/runtime/src/orchestration/         # @helm/runtime/orchestration. 효�
 | C-1 | contracts/registry | 18개 계약이 모두 로딩된다. 모든 `PredicateRef.name`이 레지스트리에 있다. 모든 계약의 `requiredPrimitives ⊆ capabilities.primitives`. 기능 단계(MVP, 2단계, 3단계)마다 각 루프의 집 모드(꺼진 모드는 대체 모드, §3.10.4)의 원시 행동이 그 계약의 `requiredPrimitives`와 모든 WorkUnit 템플릿 원시 행동을 덮는다. 모든 `exit`의 `next`가 존재하는 루프를 가리킨다. 공통 OPD+C 의무 9개가 모든 계약에 붙는다. 계약 하나에서 조건 이름을 틀리게 바꾸면 `ORCH_CONTRACT_INVALID` |
 | C-2 | contracts/guards | §3.5.4 표의 조건마다 참·거짓 사례 테스트 |
 | C-3 | situation/classify | §3.7.2 표의 각 행에 대한 사례. 같은 답이면 같은 결과. "unknown" 5개 → disorder. taste yes + analysis yes → complex 쪽(취향 감점). 확신 high/medium/low 경계 사례 |
-| C-4 | plan/build | 유형 다섯 개 × 플래그 조합의 기대 계획(스냅숏). C 계열 뒤에 A.confirm이 항상 있다(속성 테스트: 무작위 플래그·모드·유형에서). S.split 뒤에 S.recombine과 A.confirm이 있다. clear는 I를 `skipped`에 기록한다. 같은 입력이면 같은 계획. 모델 초안 경로(§3.8.5): `planAuthoring` 세 값 × `outOfPattern` 참·거짓 × 표시 충돌에서 경로가 표와 같다. 위반 초안은 `retryable` 거부로 한 번 돌아가고, 두 번째 위반이면 `notice.plan_draft_fallback`과 코드 계획(`authoredBy: code`)이 남는다. `computed`의 초안은 `denied.plan_authoring_mode`로 거부된다 |
-| C-5 | plan/position | 계획 뒤쪽 루프로 바로 갈 때 사이의 필수 단계가 `skipped`에 기록된다. `⇄` 구간에서 I와 C.probe가 번갈아 나온다. 계획 끝에서 완료 조건이 없으면 O |
+| C-4 | plan/build | 유형 다섯 개 × 플래그 조합의 기대 계획(스냅숏). C 계열 뒤에 A.confirm이 항상 있다(속성 테스트: 무작위 플래그·모드·유형에서). S.split 뒤에 S.recombine과 A.confirm이 있다. clear는 I를 `planDetail.skipped`에 기록한다. 같은 입력이면 같은 계획. 모델 초안 경로(§3.8.5): `planAuthoring` 세 값 × `outOfPattern` 참·거짓 × 표시 충돌에서 경로가 표와 같다. 위반 초안은 `retryable` 거부로 한 번 돌아가고, 두 번째 위반이면 `notice.plan_draft_fallback`과 코드 계획(`authoredBy: code`)이 남는다. `computed`의 초안은 `denied.plan_authoring_mode`로 거부된다 |
+| C-5 | plan/position | 계획 뒤쪽 루프로 바로 갈 때 사이의 필수 단계가 `planDetail.skipped`에 기록된다. `⇄` 구간에서 I와 C.probe가 번갈아 나온다. 계획 끝에서 완료 조건이 없으면 O |
 | C-6 | transitions/rules | `TRANSITION_RULES`의 T01~T33 각각: 계기 이벤트(09 이름)를 주면 기대 도착과 ruleId·trigger가 나온다. 표(§3.9.2)의 모든 id가 데이터에 있다. 우선순위: 사람 지시와 혼돈 신호가 같은 배치면 사람 지시가 먼저. T09·T11의 도착은 `acceptance.reopenTo`다 |
 | C-7 | transitions/guards | G1: 같은 이벤트를 두 번 넣어도 전환 명령은 같은 키 하나. G2: 진전 없이 A→I→C→A를 세 번 돌면 세 번째에 `progress_stall` 접점이 나오고 전환이 없다. G3: 새 근거 없는 자동 재판정은 막힌다. G4: 수정 요청 3번째에 결과 확인 선택지에 I 제안이 들어간다. G7, G8, G9 사례 |
 | C-8 | transitions/dependency | 활성 합의 없이 write가 있는 WorkUnit을 요청하지 않는다(속성 테스트: 무작위 이벤트 순서에서 write 템플릿 WorkRequest는 항상 `agreementId`를 가진다). 결과 확인 전 `concern.close(completed)` 명령을 내지 않는다(속성 테스트). `goal_revise`는 항상 사람 접점이 된다 |
@@ -3844,13 +3844,13 @@ packages/runtime/src/orchestration/         # @helm/runtime/orchestration. 효�
 | a3 탐구 다이얼(폭·깊이·근거 범위·자율·예산) | §3.11.1 |
 | b3 묶음 표의 질문 빈도·탐구 폭 값 | §3.10.2 다이얼 열 |
 | b4 라우터 결정의 기록·이의 | §3.9.6, §3.10.3 |
-| b9 I를 건너뛰는 경로의 기록 | LoopPlanRecord `skipped`(§3.8.1) |
+| b9 I를 건너뛰는 경로의 기록 | LoopPlanCore `planDetail.skipped`(§3.8.1) |
 | d4 AND/OR 옵션, 문턱 수치 | §3.11.1, U-11 |
 | d7 작업 경계 목록 | §3.13.6 |
 | d9 integrate의 소유자, send·ask가 들어가는 모드 | §3.10.2 메모, §5.2 10 요구, U-16 |
 | d10 Q/G/A를 남길지 | §3.11.7, U-04 |
 | d11 기능별 질문 다이얼 | `perLoop`로 표현(§3.11.1) |
-| d12 I 건너뛴 기록 형식 | `skipped`(§3.8.1) |
+| d12 I 건너뛴 기록 형식 | `planDetail.skipped`(§3.8.1) |
 | d13 탐침 키울·접을 조건 스키마, 지속 관찰 종료 조건 | §3.6.7 `ProbeSpec`, `WatchSpec`, §3.6.9 |
 | d14 비상 합의 형식과 범위 | §3.6.7 `StandingAgreementTemplate` |
 | d15 재판정 트리거와 재진입 규칙 | §3.7.5, §3.9.5 G3 |

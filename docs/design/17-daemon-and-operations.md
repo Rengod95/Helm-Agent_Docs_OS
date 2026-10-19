@@ -1,7 +1,7 @@
 # 17. 데몬과 운영
 
 - 작성: 2026-10-11, P11(데몬)
-- 상태: 4단계 보완판(2026-10-14). 기준 결정은 브리프 결정 1~64과 조정자 판정(`process/rulings-stage2a.md` J-01~J-276)이다. 이벤트 이름과 payload는 09, 명령은 10, 메서드·오류 코드는 19, 레코드 형식은 08이 정본이고 이 문서는 그 이름을 쓴다.
+- 상태: 4단계 보완판(2026-10-14). 기준 결정은 브리프 결정 1~64과 조정자 판정(`process/rulings-stage2a.md` J-01~J-351)이다. 이벤트 이름과 payload는 09, 명령은 10, 메서드·오류 코드는 19, 레코드 형식은 08이 정본이고 이 문서는 그 이름을 쓴다.
 - 소유: `helmd` 프로세스 모델, 수명주기(시작·종료 순서, 신호, 단일 인스턴스), WSL 운영(systemd 단위, 재시작 정책, Windows 쪽 사건별 동작), 저장 위치, 백업·복구·복구 훈련의 운영 절차, 업그레이드와 되돌리기, 상태 확인·진단, 운영 로그, 리소스 한도, 데몬 관련 `justfile` 레시피, 관리 CLI(`@helm/cli`) 명령 목록과 종료 코드, 리스너 주소·소켓 경로, 모바일 정적 파일(`/m/`) 서빙 배치와 릴리스 포함.
 - 소유하지 않음: 보안 정책 전부(인증, 페어링, 토큰, 비밀 마스킹, 도구 격리 요구)는 짝 문서 18이 소유한다. 이벤트 envelope·DDL·마이그레이션 내용·백업 파일의 DB 수준 형식은 09, 크래시 복구 알고리즘과 스케줄러는 12, 도구 실행·프로세스 생성은 13, 프로토콜 메시지·메서드 이름·핸드셰이크 형식은 19, 앱 쪽 SSH 실행·키체인은 20이 소유한다.
 - 출처 표기: "facts-2 §8"은 `docs/design/process/sources/pi-api-facts-2.md` 8절, "사례 §12.1-3"은 `sources/pi-cases-notes.md` 12.1절 3번, "S4 openclaw-runtime §2.4"는 `.helm-design-work/S4/openclaw-runtime.md` 2.4절, "발췌1 E1-094"는 `sources/conversation-extracts-1.md` 항목, "oss §5"는 `docs/v0.3/audit/backend-oss-research.md` 5절, "homelab storage.md"는 `~/projects/homelab/context/storage.md`, "[실험 N]"은 §2.2 표의 N번 행이다. 이 문서의 ID(D17-, A17-, F-, T17-, Q17-, H-)를 다른 문서에서 인용할 때는 "17 F-05"처럼 문서 번호를 붙인다(25 §4.1).
@@ -232,13 +232,13 @@ systemd --user (linger, WSL 부팅 시 시작)
 | `engine`/`kernel` | 주 | 명령 검증과 상태 전이, 이벤트 append | 10 |
 | `store` | 주(쓰기), 워커(읽기 전용) | SQLite 연결, 마이그레이션, 투영 테이블, 백업 API | 09 |
 | `runtime` | 주 | 에이전트 루프, 모델 호출, 도구 실행 요청, 스케줄러, 복구 | 12, 13 |
-| `helm-egress-proxy` | 주 | 실행마다 Unix 소켓 하나에 HTTP CONNECT와 평문 HTTP 프록시를 열고, 호스트 허용 목록(`netHosts`)과 주소 판정을 집행한다. 샌드박스 쪽 중계기 `helm-netshim`(§3.2.2)과 짝을 이룬다 [판정 J-210] | 13(§3.6.3), 18(§3.11.9) |
+| `helm-egress-proxy` | 주 | 실행마다 Unix 소켓 하나에 HTTP CONNECT와 평문 HTTP 프록시를 열고, 호스트 허용 목록(`netHosts`)과 주소 판정을 집행한다. 코드 위치는 `packages/daemon/src/net/egress-proxy.ts`다(샌드박스 실행기가 이 소켓을 bwrap에 잇는 쪽은 `packages/tools/src/sandbox/proxy.ts`). 샌드박스 쪽 중계기 `helm-netshim`(§3.2.2)과 짝을 이룬다 [판정 J-210] [판정 J-278] | 13(§3.6.3), 18(§3.11.9) |
 | `ops` | 주 + 워커 | 상태 보고, 헬스 점검, 백업·복구·훈련 실행, 진단 묶음 | 17 |
 | `secrets` | 주 | 비밀 로더 실행과 메모리 보관, 마스킹 등록 | 17(로딩), 18(정책) |
 
 규칙:
 
-1. **단일 writer**: DB 쓰기는 주 스레드의 쓰기 연결 하나로만 한다. `better-sqlite3`가 동기이므로 쓰기는 자연히 직렬화된다. 쓰기 트랜잭션 하나는 평상시 50 ms를 넘기지 않게 09·12가 나눈다(넘으면 이벤트 루프 지연 점검에 걸린다, §3.11.2).
+1. **단일 writer**: DB 쓰기는 주 스레드의 쓰기 연결 하나로만 한다. `better-sqlite3`가 동기이므로 쓰기는 자연히 직렬화된다. 명령 하나의 커밋(투영 포함)은 목표 p99 25 ms(09 §3.15.2)를 넘기지 않게 09·12가 나눈다. 트랜잭션 시간이 100 ms를 넘으면 `warn` 로그를 남긴다(06 F13). 주 스레드 지연 점검 기준은 §3.11.2다 [판정 J-279].
 2. **워커는 읽기 전용**: 워커 스레드는 `readonly: true` 연결만 연다. WAL 모드에서 읽기 연결은 쓰기를 막지 않는다 [지식].
 3. **긴 동기 작업 금지 구간**: 리스너가 열린 뒤에는 전체 `integrity_check`, 전체 해시 체인 검증, `VACUUM`을 주 스레드에서 돌리지 않는다. 시작 단계(리스너 열기 전)의 마이그레이션·투영 재구성은 주 스레드에서 돌려도 된다.
 4. **모델 스트림·HTTP**: 모두 비동기 I/O라 주 스레드에서 돈다. 모델 응답 조각은 정본에 쓰지 않는다(19 P-08, 사례 §12.1-6).
@@ -289,7 +289,7 @@ export function acquireInstanceLock(dataDir: string): InstanceLock {
 
 1. 잠금 파일은 데이터 디렉터리마다 하나다. 정식 데몬(`/srv/volumes/helm/data`)과 개발 데몬(`/srv/volumes/helm/dev/data`)은 서로 다른 잠금을 쓴다.
 2. 잠금 연결 외에 같은 프로세스에서 `helmd.lock`을 다시 열지 않는다(POSIX 잠금은 프로세스 안의 어느 디스크립터든 닫히면 풀린다 [지식]).
-3. 진단용 정보는 `helmd.owner.json`에 쓴다: `{ pid, procStartTime, bootEpoch, releaseId, startedAt, state: "running" | "stopped" }`. tmp에 쓰고 rename한다. 이 파일은 소유 판정(누가 서버를 쥐는가)에 쓰지 않고, 부팅 기록은 크래시 루프 계산(§3.4.6)에만 쓴다([판정 J-247]). 비정상 종료 판정의 정본은 §3.4.2 10단계의 `boots` 기록이다.
+3. 진단용 정보는 `helmd.owner.json`에 쓴다: `{ pid, procStartTime, bootEpoch, releaseId, startedAt, state: "running" | "stopped" }`. tmp에 쓰고 rename한다. 이 파일의 쓰임은 세 가지다. 진단 정보, 크래시 루프 계산용 부팅 기록(§3.4.6, [판정 J-247], [판정 J-269]), 마이그레이션 실패 표지(`lastFailure: "migration"`, §3.10.3 [판정 J-283]). 소유 판정(누가 서버를 쥐는가)에는 쓰지 않는다. 비정상 종료 판정의 정본은 §3.4.2 10단계의 `boots` 기록이다.
 4. CLI의 오프라인 작업(`helm ops restore`, 데몬이 꺼져 있을 때의 `helm ops backup`)도 같은 잠금을 잡은 뒤에만 DB를 연다. 잠금을 못 잡으면 "데몬이 실행 중"으로 보고 멈춘다(종료 코드 3).
 5. 관찰 에이전트의 읽기 전용 연결(16 OB-2)은 이 잠금을 잡지 않는다.
 
@@ -1092,7 +1092,7 @@ if ($warn -gt 0) { exit 1 } else { exit 0 }
 
 - 위치: `backups/<kind>/<backupId>/{helm.sqlite, manifest.json}`, `backupId = <UTC YYYYMMDDTHHMMSSZ>-seq<N>`(09 §3.14.1).
 - 정리 규칙: 종류별로 오래된 것부터 지우고 `backup.pruned`를 남긴다. 가장 최근의 검증 통과 스냅샷은 종류와 무관하게 지우지 않는다. 디스크 여유가 `diskWarnBytes` 미만이면 `daily` 보관을 1개로 줄이고 경고한다. 주간 전체 검사나 백업 사본 검사가 실패한 동안에는 정리를 멈춘다(09 §3.10.4).
-- 백업 전 디스크 확인: 여유 < DB 크기 × 2 + `diskCriticalBytes`이면 만들지 않고 `backup.failed { reason: "disk" }`.
+- 백업 전 디스크 확인: 여유 < DB 크기 × 2 + `diskCriticalBytes`이면 만들지 않고 `backup.failed { kind: "disk", code, note }` [판정 J-285].
 - blob은 스냅샷에 복사하지 않는다. `data/blobs/sha256/`을 restic이 직접 가져간다(H-2). 참조 없는 blob 행의 GC 유예는 35일(restic 일 7 + 주 4의 최장 보존 창)이다(09 §3.12).
 - 실행 위치: 데몬 안(`helm-backup.service`가 `helm ops backup --kind daily --wait`로 요청). 데몬이 꺼져 있으면 CLI가 잠금을 잡고 같은 코드를 오프라인으로 실행한다.
 
@@ -1171,7 +1171,7 @@ DB 수준 절차는 09 §3.14.2 `restore(backupId, carry)`가 정본이다. `jus
 3. 데몬 코드의 store를 그 경로에 "훈련 모드"(읽기 전용 + 투영은 임시 DB)로 연다. 데몬 잠금과 무관
 4. integrity_check, 09 verify(full)(HMAC 포함), 투영을 임시 DB에 재구성해 09 `projectionDigest()`가 스냅샷 안 투영 테이블의 값과 같은지
 5. 참조 블롭 중 최대 200개 표본이 data/blobs 에 있는지
-6. 각 단계 소요 시간 측정. state/drills/<시각>.json 에 결과 기록, drill.completed { ok, snapshot, durations } append
+6. 각 단계 소요 시간 측정. state/drills/<시각>.json 에 결과 기록, drill.completed { ok, backupId, durationMs, report } append(`durationMs`는 전체 소요 시간, `report`는 이 결과 파일 경로다 [판정 J-285])
    (데몬이 꺼져 있으면 이벤트 대신 상태 파일만)
 7. tmp/drill-<시각> 삭제
 실패: 종료 코드 1 → OnFailure 경보
@@ -1659,7 +1659,7 @@ daemon-backup-copy:
 | F-19 | 이벤트 루프가 120초 정지 | 감시 워커가 SIGABRT, systemd 재시작, 비정상 종료로 기록 | T17-18 |
 | F-20 | 백업 중 데몬 종료 요청 | 백업은 `.tmp`에서 진행되므로 중단하고 지운다. 종료를 미루지 않는다 | T17-17 |
 | F-21 | 03:40 백업이 04:00 restic 시작까지 끝나지 않음 | restic은 이전 날 스냅샷을 가져간다(`.tmp`는 제외). 15분 넘으면 경고 | 수동 확인 |
-| F-22 | 백업 사본 검사 또는 주간 전체 검사 실패(원본 DB 손상 의심) | `backup.failed { stage: "verify" }` 또는 운영 로그, 경보. 실패 지점을 `meta.integrity_broken_seq`로 남겨 다음 부팅 tail 검사가 거기부터 본다. 헬스 `db_integrity` critical, 백업 회전(오래된 스냅샷 삭제)을 멈춘다(좋은 백업을 지우지 않게, 09 §3.10.4). 데몬은 계속 쓰고, 사람에게 "읽기 전용으로 바꾸기 / 계속 쓰기"를 묻는 주의 항목과 §3.9.4 복원 판단을 권한다(§3.4.1) | T17-16, T17-36 |
+| F-22 | 백업 사본 검사 또는 주간 전체 검사 실패(원본 DB 손상 의심) | `backup.failed { kind: "verify", code, note }` [판정 J-285] 또는 운영 로그, 경보. 실패 지점을 `meta.integrity_broken_seq`로 남겨 다음 부팅 tail 검사가 거기부터 본다. 헬스 `db_integrity` critical, 백업 회전(오래된 스냅샷 삭제)을 멈춘다(좋은 백업을 지우지 않게, 09 §3.10.4). 데몬은 계속 쓰고, 사람에게 "읽기 전용으로 바꾸기 / 계속 쓰기"를 묻는 주의 항목과 §3.9.4 복원 판단을 권한다(§3.4.1) | T17-16, T17-36 |
 | F-23 | 복구할 스냅샷이 더 새 릴리스에서 만든 것 | 복구 중단(§3.9.4 3단계) | T17-20 |
 | F-24 | 복구 후 클라이언트가 예전 `lastSeq`로 재접속 | 새 `storeId`라 19의 스냅샷 경로로 간다 | T17-21 + 19 적합성 |
 | F-25 | 업그레이드 자체 시험 실패 | 운영 데몬은 그대로, staging 삭제, 종료 코드 1 | T17-22 |

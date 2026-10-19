@@ -1,6 +1,6 @@
 # 22. 테스트 전략
 
-- 작성: 2026-10-12, T1(2b단계 테스트 전략). 기준 결정은 브리프 결정 1~64이다. 01~21, 24, 26과 조정자 판정(`docs/design/process/rulings-stage2a.md`)의 2026-10-12 판을 읽고 썼다. 판정 범위는 J-01~J-276다. 다른 문서가 2a 통합 중이라 13:00 무렵 판에서 한 번 더 맞췄다(§3.19의 ID 범위).
+- 작성: 2026-10-12, T1(2b단계 테스트 전략). 기준 결정은 브리프 결정 1~64이다. 01~21, 24, 26과 조정자 판정(`docs/design/process/rulings-stage2a.md`)의 2026-10-12 판을 읽고 썼다. 판정 범위는 J-01~J-351다. 다른 문서가 2a 통합 중이라 13:00 무렵 판에서 한 번 더 맞췄다(§3.19의 ID 범위).
 - 상태: 2b단계 초안. T2의 23(구현 계획)과 교차 확인 예정.
 - 소유: 테스트 계층과 패키지별 담당, 테스트 도구와 폴더·이름 규칙, 결정성 장치(시계·ID 주입, 모델 테이프), 픽스처 규칙, 유즈케이스 대본(`ScenarioScript`) 형식과 하네스, 수용 기준 추적표, 장애 주입 방법과 시나리오, 적합성 시험 묶음, 모델 품질 평가와 커널 테스트의 경계, `just verify`의 테스트 범위와 테스트 레시피, 플래키·느린 테스트 규칙, 다른 문서 테스트 ID의 추적 색인.
 - 소유하지 않음: 각 모듈의 개별 완료 조건(그 문서의 §6), 커널 불변조건과 속성 목록(10 §3.17), 장애 대상의 정상 동작(09·12·17), 프로토콜 적합성 시나리오 내용(19 §6.3), 보안 테스트 내용(18 §3.17), 화면 부품 테스트 종류(21 §6.3), 모델 평가 절차와 판정(15 §3.15, 16 §3.27), 레시피 색인 자체(06 §3.16), 마일스톤 순서(23).
@@ -528,7 +528,7 @@ export const t: { text(s: string): ContentBlock; toolCall(name: string, args: un
 
 - 10 §3.17.1 그대로: 명령마다 정상 1건과 공통 거부(채널·능력·스키마), 명령별 거부 코드마다 1건. 규칙(V-*)마다 통과·실패. 파생 R-1~R-16. R-16은 결과 제출 뒤 같은 WorkUnit의 `tool_result` 관찰이 결과 제출의 '제출 뒤 관찰' 목록에 붙는지 본다. 순수성(`deepFreeze` 입력, 두 번 호출 결과 동등).
 - 위치: `packages/kernel/test/unit/<영역>/*.test.ts`. 영역은 10 §6.1의 `src/` 하위 폴더 이름을 따른다(`commands/`, `rules/`, `policy/`, `asking/`, `apply/`, `react/`, `queries/`).
-- 08 §6의 데이터(`constraints.ts`의 R-01~R-55, `machines/*.ts`)는 커널 테스트가 표를 읽어 사례를 만든다. 표에 행을 더하면 시험 사례가 따라 늘어난다(대화 X3-8-25 "명세를 실행 가능한 데이터로").
+- 08 §6의 데이터(`constraints.ts`의 R-01~R-56, `machines/*.ts`)는 커널 테스트가 표를 읽어 사례를 만든다. 표에 행을 더하면 시험 사례가 따라 늘어난다(대화 X3-8-25 "명세를 실행 가능한 데이터로").
 - 커널 단위 테스트는 저장소를 쓰지 않는다. 상태는 빈 상태에서 명령을 `decide` → `apply`로 접어 만든다(`packages/kernel/test/support/build-state.ts`).
 
 #### 3.7.2 속성 테스트 운용
@@ -609,7 +609,7 @@ export const t: { text(s: string): ContentBlock; toolCall(name: string, args: un
 | 22/PL-04 | V-PLAN-04 규칙 1 | 쓰기·발송 단계가 `C.commit` 뒤에 없고 활성 합의도 없음 → `policy.plan_dependency_violation`(`dependency_rule:1`) | 활성 합의가 있거나 `C.commit` 뒤 | prop(무작위 계획), unit | DR-1 |
 | 22/PL-05 | V-PLAN-05 규칙 2·4 | C 계열 단계 뒤 `A.confirm`이 없음, 또는 `S.split` 뒤 `S.recombine`·`A.confirm`이 없음 → `dependency_rule:2`·`:4` | 두 규칙을 모두 맞춘 계획 | prop, unit | DR-2, DR-4 |
 | 22/PL-06 | V-PLAN-06 성숙도 관문 | 계획의 루프가 `features.enabledLoops`에서 꺼져 있음 → `policy.plan_maturity_gate`(`maturity:<loop>`) | 켜진 루프만 쓴 계획 | unit | 14 §3.15 |
-| 22/PL-07 | V-PLAN-07 두 번째 위반 | 같은 Concern의 두 번째 V-PLAN-04~06 위반: 거부하지 않고 `buildPlan` 계획을 `authoredBy: code`로 기록한다. `command.rejected`(두 번째 위반), `loop_plan.adopted`(`modelDraftRejects`), `notice.plan_draft_fallback`이 남는다. 채택 뒤 `planDraftStrikes`는 0 | 첫 위반 뒤 고친 초안이 통과(첫 위반은 `retryable` 거부로 모델에 돌아간다) | int(가짜 모델 `faux:helm` 테이프로 모델 초안 경로 재생, 14 C-4) | 08 E-40, 14 F35 |
+| 22/PL-07 | V-PLAN-07 두 번째 위반 | 같은 Concern의 두 번째 V-PLAN-04~06 위반: 거부하지 않고 `buildPlan` 계획을 `authoredBy: code`로 기록한다. `command.rejected`(두 번째 위반), `loop_plan.adopted`(`modelDraftRejects`)가 남는다. 응답 알림 `notice.plan_draft_fallback`은 이벤트가 아니라 `Decision.notices`로 돌려준다 [판정 J-302]. 채택 뒤 `planDraftStrikes`는 0 | 첫 위반 뒤 고친 초안이 통과(첫 위반은 `retryable` 거부로 모델에 돌아간다) | int(가짜 모델 `faux:helm` 테이프로 모델 초안 경로 재생, 14 C-4) | 08 E-40, 14 F35 |
 
 - PL-02·PL-03의 거부는 두 번째 위반으로 세지 않는다(10 §3.8.1). PL-04~07의 모델 초안 경로는 14 C-4가 `faux:helm` 테이프로 재생한다([판정 J-169], [판정 J-188]). 같은 Concern의 `planDraftStrikes`는 커널 상태가 맡는다.
 - 계획 표시(`PlanFlags`)는 여섯 표시와 `outOfPattern`을 합친 일곱 개다. C-4는 표시 조합마다 같은 입력에서 같은 계획이 나오는지 본다.
@@ -1001,7 +1001,7 @@ runScenario(script, mode):
 | AC-07-06 다섯 행동(결과 확인, 조건부, 수정 요청, 거절(해결 안 됨, [판정 J-170]), 기준이 틀림)은 `result.accept` 하나로(판정 J-123·J-124), 조건부는 조건 문장 필수이고 같은 트랜잭션에서 조건 항목이 deferred(revisitTrigger = 조건 문장)로 생김(판정 J-125) | UC-07/basic, UC-07/A3, UC-07/A5, UC-07/A6, 10/UT-04 | scenario, unit |
 | AC-07-07 반영 항목, 닫히기 전 "결과 확인됨". `integrationAgreement`가 있으면 accepted·conditional에서 같은 트랜잭션에 `agreement.confirmed`(판정 J-126) | UC-07/basic, 22/AX-10 | scenario, unit |
 | AC-07-08 미룬 반영 항목이 다음 복귀 요약 맨 위 | UC-07/basic(`view: brief`) | scenario |
-| AC-07-09 정상 경로 2건, A1은 1건(이벤트 종류로 계산, 조건부 확인 뒤에도 유지, 판정 J-125) | UC-07/basic, UC-07/A1(`humanOps`), 14/C-14 | scenario, unit |
+| AC-07-09 정상 경로 2건, A1은 1건(이벤트 종류로 계산, 조건 붙여 확인 뒤에도 유지, 판정 J-125) | UC-07/basic, UC-07/A1(`humanOps`), 14/C-14 | scenario, unit |
 | AC-07-10 커널이 닫는 항목과 사람만 닫는 항목 | UC-07/basic, 10/UT-12 | scenario, unit |
 | AC-07-11 테스트 통과 제출 ≠ 자동 결과 확인 | UC-07/basic, 22/V02-10 | scenario |
 | AC-07-12 정본 이벤트 직접 추가·`projection.*` 명령 → 경로 거부 | UC-07/E4, helm-toy n21, 22/V02-04, 22/V02-05 | scenario, unit |
@@ -1324,7 +1324,7 @@ runScenario(script, mode):
 | 22/NW-05 서버 측 웹 도구 금지 | 모델 요청 본문의 도구 목록에 Anthropic 서버 측 `web_search`·`web_fetch` 유형이 없다. 웹 도구는 Helm 함수 도구 `web_fetch`·`web_search`로만 나간다 | 서버 측 유형이 하나라도 있으면 실패한다. 구현 전에 서버 측 도구의 이름을 확인한다([판정 J-190 (5)]) | unit(요청 본문 검사), `test` | 13/T-WF-01 |
 | 22/WB-01 요청 가로채기 | (a) 1단계의 브라우저 비-GET 요청, (b) 2단계의 비-GET 요청 보류, (c) `navigator.sendBeacon`·`fetch` keepalive·서비스 워커 요청 | (a) 거부, (b) 보류 뒤 `ask`, (c) 잡히면 같은 판정. 놓치는 종류가 있으면 그 구성에서 상호작용 도구를 끈다(18 Q18-14, 23 스파이크) | unit(판정 표), sys(실제 Chrome, S1, `daemon-systest`) | 13/T-BR-01·T-BR-02, 13/T-E45, 18/T18-52 |
 | 22/WB-02 taint.web | 웹 내용을 본 run에서 합의가 허용한 호스트로 POST | `ask`(합의가 허용해도). 승인 화면에 "웹 내용을 본 뒤의 요청"이 보인다. 같은 run의 읽기와 작업 공간 쓰기는 자동이다. 다음 run은 오염을 이어받는다 | int(`test`, 18 T18-43과 함께) | 13/T-BR-03, 13/T-E46, 12/T-RT-07d·07f, 18/T18-43 |
-| 22/WB-03 외부 효과 분류 | 업로드, 256자를 넘는 GET 질의, 합의 밖 호스트로의 이동, 다운로드 | 업로드와 긴 질의, 합의 밖 이동은 `ask`다. 다운로드는 기본 거부고, 허용되어도 `drafts/<concernId>/downloads/` 밖에 쓰지 않는다 | unit(판정 표), sys(18 T18-46) | 13/T-BR-07, 18/T18-46 |
+| 22/WB-03 외부 효과 분류 | 업로드, 2 KiB를 넘는 GET 질의, 합의 밖 호스트로의 이동, 다운로드 | 업로드와 긴 질의, 합의 밖 이동은 `ask`다. 다운로드는 기본 거부고, 허용되어도 `drafts/<concernId>/downloads/` 밖에 쓰지 않는다 | unit(판정 표), sys(18 T18-46) | 13/T-BR-07, 18/T18-46 |
 | 22/HL-01 낡은 태그 거부 | (a) 태그 없음, (b) 파일이 바뀐 뒤의 태그, (c) 데몬 재시작 뒤의 태그, (d) 같은 4자리 태그에 다른 내용(16비트 충돌) | (a)~(c)는 `stale_snapshot`으로 실행 없이 끝난다. 자동 복구는 없다. (d)는 태그가 같아도 sha256 guard가 달라 `file_changed_since_prepare`로 거부한다(태그만으로 일치를 판정하지 않는다) | int(실제 파일과 데몬 스냅샷 저장소, `test`) | 13/T-HL-01·T-HL-03·T-HL-05, 13/T-E49 |
 | 22/HL-02 편집 연산 검사 | 안 본 줄을 겨냥하거나 연산이 겹침, 여러 파일 중 일부만 쓰이고 실패 | prepare에서 거부하고 실행하지 않는다. 쓰기는 파일별로 원자적이고, 적용된 파일 목록을 결과에 적는다 | unit, int(`test`) | 13/T-HL-02·T-HL-04, 13/T-E50·T-E51 |
 
@@ -1424,7 +1424,7 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 |---|---|---|
 | 22/E2E-UC01 | 입력 → Concern 개요 → 자극판 → 질문 → 합의 → 결과 확인 → Goal | UC-01/basic |
 | 22/E2E-UC02 | 입력 → 탐구 → 근거 체인 → 질문(선택 요청) → 합의 → 결과 확인 | UC-02/basic |
-| 22/E2E-UC03 | 복귀 요약(권리 게이트 첫 항목) → 질문 → 결과 확인 → 에이전트가 정한 것 | UC-03/basic |
+| 22/E2E-UC03 | 입력 → 합의 확정 → (가짜 시계로 밤 경과) → 복귀 요약 → 질문 → 결과 확인 → 에이전트가 정한 것 | UC-03/basic |
 | 22/E2E-UC04 | 알림(모의) → 질문 → 답(1회 조작) | UC-04/basic |
 | 22/E2E-UC05 | 복귀 요약 → 에이전트가 정한 것 → 이의 걸기 | UC-05/basic |
 | 22/E2E-UC06 | 홈 → 복귀 요약 → 근거 체인 → "여기까지 봤음" | UC-06/basic |
@@ -1497,7 +1497,7 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 
 - 함수 수준 측정(`just bench`)은 해당 패키지가 생기면 바로 쓰고, 종단 측정(`just perf`)은 데몬과 클라이언트가 생긴 뒤 쓴다. 저장소 기준은 PF-01(p99 ≤ 25 ms)·PF-09이며 09 §6.2와 23 스파이크의 "p99 100 ms"는 이것으로 바꾼다.
 - 성능 시험은 verify에 넣지 않는다(D2). `@helm/store`·`@helm/kernel`·`@helm/engine`을 바꾼 작업과 마일스톤 관문(23)에서 돈다.
-- 09 §6.2 `bench/*.ts`의 "p99 100 ms를 넘으면 실패(초기 기준)"는 PF-01·PF-09가 대신한다.
+- 09 §6.2 `bench/*.ts`의 "p99 100 ms를 넘으면 실패(초기 기준)"는 "PF-01 기준(p99 25 ms)을 넘으면 실패"로 바꾼다. 100 ms는 엔진 트랜잭션 경고 임계(PF-06, 06 F13)로만 쓴다 [판정 J-279].
 
 ### 3.14 모델 품질 평가
 
@@ -1543,7 +1543,7 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 |---|---|---|
 | `lint` | ESLint(테스트 위생 규칙 22/ST-02 포함) | 06 |
 | `typecheck` | `tsc -b`(타입 테스트 07 I5, 19 등록 표 타입 포함) | 06 |
-| `check-arch` | 06 R1~R14(+ `@helm/tests` 층), 07 I4 | 06, 07 |
+| `check-arch` | 06 R1~R16(+ `@helm/tests` 층), 07 I4 | 06, 07 |
 | `test` | 빠른 계층 전부: `unit`, `prop`(고정 시드), `contract`, `int`(`*.slow` 제외), `scenario`(`runtime` 모드 MVP 대본), `conf`(같은 프로세스 세 리스너, FakeDaemon, 어댑터), `fault`(같은 프로세스), `sec`(통합), 앱의 Vitest 프로젝트(jsdom·node), 골든 비교, 비밀 카나리아 | 22 |
 | `test-trace` | §3.4.3 추적 검사 | 22 |
 | `vendor-verify`, `licenses` 일치 | 07 I2, V8 | 07 |
@@ -1714,7 +1714,7 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 |---|---|---|---|
 | 06/S0 | 빈 패키지에서 `setup && verify` | unit | `verify` |
 | 06/S1 | `--conditions=source` 실행 | int | `test` |
-| 06/S2 | R1~R14 위반 fixture | unit | `test`(scripts 프로젝트) |
+| 06/S2 | R1~R16 위반 fixture | unit | `test`(scripts 프로젝트) |
 | 06/S3 | 설정 우선순위·거부 | unit | `test` |
 | 06/S4 | 엔진 골격(재생, 충돌, 롤백) | int | `test` |
 | 06/S5 | 세 리스너 동등성 | conf | `test`(22/CF-01) |
@@ -1738,7 +1738,7 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 | 08/UT-06 | LoopId 18개 | unit | `test` |
 | 08/UT-07 | `promotionMissing`(helm-toy fixture) | unit | `test` |
 | 08/UT-08 | `canDependOn` | unit | `test` |
-| 08/UT-09 | R-01~R-55 데이터(카탈로그·가드 교차) | unit | `test` |
+| 08/UT-09 | R-01~R-56 데이터(카탈로그·가드 교차) | unit | `test` |
 | 08/UT-10 | 상태 기계 데이터(도달성·중복·종료·카탈로그) | unit | `test` |
 | 08/UT-11 | 거부 갈래 매핑 | unit | `test` |
 | 08/UT-12 | 공개 export(`projection` 이름 없음) | unit | `test` |
@@ -1755,7 +1755,7 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 | 10/UT-02 | 경로·채널·형식·자격 | unit | `test` |
 | 10/UT-03 | 거부 분류(PT-18·19, 코드 패턴) | unit | `test` |
 | 10/UT-04 | 명령 카탈로그(정상 1 + 거부 코드마다 1) | unit | `test` |
-| 10/UT-05 | 08 제약 R-01~R-55 위반 | unit | `test` |
+| 10/UT-05 | 08 제약 R-01~R-56 위반 | unit | `test` |
 | 10/UT-06 | 상태 기계 전이 | unit | `test` |
 | 10/UT-07 | 의존 규칙(= 22/DR-1~5) | unit | `test` |
 | 10/UT-08 | 계획 초안 V-PLAN-01~07(= 22/PL-01~07, [판정 J-188]) | unit, prop, int | `test` |
@@ -1806,7 +1806,7 @@ S1 묶음은 §3.11.3에 따라 bwrap 설치 뒤에 돈다. 설치 전에는 SB-
 | 13/T-MC-01~04 | MCP(MCP 단계) | int | `test` |
 | 13/T-PL-01~02 | 권한 레이어, 기준선은 다이얼로 못 끔 | unit | `test` |
 | 13/T-AD-01~03, 13/AC-01~14 | 어댑터 계약·적합성 | conf | `test` |
-| 13/T-IS-01~02, 13/T-OR-01, 13/T-UC-01 | 격리 운영(자체 시험 여섯, 데이터 디렉터리 거부, 고아 단위 정리, run 사이 외부 변경) | sys, int | `daemon-systest`(T-IS), `test`(T-OR, T-UC) |
+| 13/T-IS-01~02, 13/T-OR-01, 13/T-UC-01 | 격리 운영(자체 시험 여덟(브라우저 조건부 1 별도), 데이터 디렉터리 거부, 고아 단위 정리, run 사이 외부 변경) | sys, int | `daemon-systest`(T-IS), `test`(T-OR, T-UC) |
 | 13/T-SG-01~06 | 데몬 git 고정 환경(§3.11.4와 표본 공유) | sec(int), sys | `test`, `daemon-systest` |
 | 13/T-NP-01~04 | 네트워크 프록시(주소 차단, 허용 목록, 도구의 프록시 경유, 네트워크 없는 실행) | sec(int), sys | `test`, `daemon-systest`(T-NP-03) |
 | 13/T-WF-01~04, T-WS-01~02 | 웹 읽기·검색(주소 차단과 리디렉션 재판정, 변환 작업자, 크기 상한, 제공자 대체와 상한) | unit, int | `test` |

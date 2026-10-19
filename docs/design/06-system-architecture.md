@@ -1,7 +1,7 @@
 # 06. 시스템 아키텍처
 
 - 작성: P3 아키텍트, 2026-10-11 (1단계 초안), 2026-10-12 (2a단계 통합, 4단계 보완)
-- 상태: 설계 초안 3판. 기준은 브리프 결정 1~64과 `process/rulings-stage2a.md`(이하 "판정") J-01~J-276이다. 모바일 클라이언트는 결정 42·47에 따라 데몬이 서빙하는 PWA이고 세부는 26이 정한다.
+- 상태: 설계 초안 3판. 기준은 브리프 결정 1~64과 `process/rulings-stage2a.md`(이하 "판정") J-01~J-351이다. 모바일 클라이언트는 결정 42·47에 따라 데몬이 서빙하는 PWA이고 세부는 26이 정한다.
 - 함께 읽을 문서: `process/00-design-brief.md`(이하 "브리프"), [24 ADR](24-adr.md)
 - 표시 규칙: 브리프 §5.2(판정 J-144). `[결정 n]`은 사용자가 정한 브리프 결정이다. 조정자 기본값은 `[제안: 결정 n 기본값]`, 조정자 판정은 `[판정 n]`(판정 44~46) 또는 `[판정 J-nn]`으로 적는다. `[제안]`은 이 문서가 정한 것이고, 바꾸려면 [24](24-adr.md)의 해당 ADR을 고친다. 외부 사실은 `[원문]`(소스·문서 직접 확인), `[실험]`(이번에 명령을 실행해 확인), `[검색]`, `[지식]`(재확인 안 함)으로 표시한다.
 - 출처 줄임말: `extracts-N`은 `process/sources/conversation-extracts-N.md`, `canon`·`canon-2`·`canon-3`은 `process/sources/helm-canon*.md`, `pi-facts-1`·`pi-facts-2`는 `process/sources/pi-api-facts-*.md`, `S4/<사례>`는 `.helm-design-work/S4/<사례>.md`, `pi-src/`는 `~/projects/_ref/pi-src`의 태그 `v1.1.0`(커밋 `abe508e1`, 판정 44). 이 문서가 인용한 pi 행 번호(`types.ts:264·271·326·341·490`, `ai/package.json:79`, `package.json:65`, `agent/package.json:43-45`)는 1단계에서 `cdaf6c2`로 적었고 2a단계에 `git show v1.1.0:<경로>`로 다시 보아 같은 행임을 확인했다 [실험], `homelab/`은 `~/projects/homelab`이다. 대화 원문 행은 `대화 L<n>`(`docs/handoff/conversation-transcript-until-158.md`)으로 적는다.
@@ -373,7 +373,7 @@ canon §16.8의 소유 경계 4개를 패키지에 대응시킨다.
 | `packages/browserd` | `@helm/browserd` | L3' | **추가**. 별도 프로세스 `helm-browserd`(진입점 `browserd.ts`, 산출 `dist/browserd.js`)를 담는다. `playwright-core`는 이 패키지만 의존한다. `@helm/*`를 import하지 않는다(판정 J-216, §3.4.9a) |
 | `packages/runtime` | `@helm/runtime` | L4 | 같음. 하위 경로 `adapter`(런타임 어댑터 계약), `orchestration`(오케스트레이터의 효과 부분, 14), `testing` |
 | `packages/observer` | `@helm/observer` | L4 | 같음. 진입점 `dist/main.js`(데몬이 fork), 하위 경로 `metrics`(순수 지표 함수), `ipc`(IPC 타입, `typebox`·`domain`만 import하는 순수 모듈) (16 §3.2, §3.24) |
-| `packages/daemon` | `@helm/daemon` | L5 | 같음. 실행 파일 `helmd`, 비밀 내보내기 도구 `helm-secret-export`(17) 포함 |
+| `packages/daemon` | `@helm/daemon` | L5 | 같음. 실행 파일 `helmd`, 비밀 내보내기 도구 `helm-secret-export`(17), 데몬 쪽 CONNECT 프록시 `helm-egress-proxy`(`packages/daemon/src/net/egress-proxy.ts`, 17 §3.1.2) 포함 |
 | `packages/client` | `@helm/client` | L6c | **추가**. 클라이언트 코어(연결 상태 기계, hello, 재접속, 구독 복원, 뷰 무효화, 진행 중 명령 재전송). `@helm/protocol`에만 의존한다. 하위 경로 `node`(Node 전송), `browser`(브라우저 전송), `testing`(가짜 전송) (판정 §2, 19 §3.14) |
 | `packages/ui-language` | `@helm/ui-language` | L6c | **추가**. 문구 키, 한국어 문구, 상태 라벨, 조사 처리, 금지 표현 검사. I/O 없음 (05 A9, 판정 §2) |
 | `packages/client-react` | `@helm/client-react` | L6c | **추가**. 클라이언트 코어의 React 연결과 플랫폼 경계(`PlatformAdapter`). 데스크톱이 쓰고 모바일이 React면 함께 쓴다 (20 §3.14) |
@@ -634,7 +634,7 @@ export function createEngine(deps: {
 
 - 책임: 원시 행동(read, write, execute, send, spawn, ask, 결정 4)에 대응하는 도구 구현. coding-agent 도구 포크(렌더러 의존 제거, pi-facts-1 §9.2), 파일·프로세스 접근을 주입받는 `*Operations` 인터페이스, 범위 검사기 주입 지점, 도구 메타데이터(원시 행동 종류, 재실행 안전성 `replay: "safe" | "never"`), Helm 제안 도구(`helm_*`)의 스키마와 설명. 제안 도구는 `ProposalSink` 인터페이스로 제출을 넘기고, `engine`을 직접 부르지 않는다. `ProposalSink`의 타입은 13이 정의하고, 구현(트랜잭션 본문: 의도 → 제안 → 완료를 `engine.transact` 하나로)은 `runtime`의 `run/hooks.ts`가 맡아 주입한다. 도구 결과 타입은 `@helm/vendor-pi-tools`의 재export를 쓰고 `agent`를 import하지 않는다(판정 J-56).
 - 공개 API 개요(13이 확정): `createPrimitiveTools({ cwd, ops, scope })`, `createProposalTools(sink: ProposalSink)`, `type ToolMeta`, `type ScopeChecker`.
-- 소스 위치([제안: 13 §6의 U-TL 표를 따른다]): `src/basic/`(read·write·edit·ls·find, 해시라인 편집 `edit-hashline.ts`, grep 확장 `grep.ts`), `src/web/`(웹 읽기 `fetch.ts`, 웹 검색 `search.ts`, 변환 작업자 `convert-worker.ts`), `packages/tools/src/browser/`(브라우저 도구 호출기. `helm-browserd` 진입점 `browserd.ts`는 `packages/browserd`에 있다, §3.4.9a), `src/sandbox/`(bwrap 실행기, 프록시 `proxy.ts`), `src/helm/`(제안 도구), `src/repl/`(REPL 샌드박스), `src/pi/`(pi 연결부). 중계기 실행 파일은 `packages/tools/bin/helm-netshim`이다(13 U-TL-16).
+- 소스 위치([제안: 13 §6의 U-TL 표를 따른다]): `src/basic/`(read·write·edit·ls·find, 해시라인 편집 `edit-hashline.ts`, grep 확장 `grep.ts`), `src/web/`(웹 읽기 `fetch.ts`, 웹 검색 `search.ts`, 변환 작업자 `convert-worker.ts`), `packages/tools/src/browser/`(브라우저 도구 호출기. `helm-browserd` 진입점 `browserd.ts`는 `packages/browserd`에 있다, §3.4.9a), `src/sandbox/`(bwrap 실행기. 프록시 `proxy.ts`는 실행마다 데몬이 연 프록시 소켓 경로를 받아 bwrap에 연결하고 `helm-netshim`을 실행하는 쪽 코드다 [판정 J-278]), `src/helm/`(제안 도구), `src/repl/`(REPL 샌드박스), `src/pi/`(pi 연결부). 중계기 실행 파일은 `packages/tools/bin/helm-netshim`이다(13 U-TL-16).
 - 웹 변환 작업자와 `helm-browserd` 진입점은 `@helm/*` 패키지를 import하지 않는다. 두 진입점은 데몬 프로세스 안에서 돌지 않는다(§3.6.7). 변환 작업자의 입출력 타입은 그 파일과 같은 패키지 안에 둔다. `helm-browserd`의 명령·응답 타입은 `packages/browserd`가 정의하고, `packages/tools`가 type-only로 가져온다([판정 J-230]). `browserd`는 `tools`를 가져오지 않는다(§3.4.1).
 - 검색·편집·grep 계약([결정 55], [판정 J-190] (1)): `grep` 확장은 페이지 `skip`, 파일당 상한, 파일 간 라운드로빈, 일치 중심 줄 자르기, `paths[]`를 두고, 실행은 샌드박스 안의 `rg`로 한다. 해시라인 편집(`edit-hashline.ts`)은 oh-my-pi 설계만 참고해 직접 구현하고, `RunSpec.editMode: 'replace' | 'hashline'`을 모델별로 고르며 기본값은 `replace`다. 짧은 태그는 모델용 별칭이고 실제 guard는 sha256이다. 낡은 태그는 자동으로 고치지 않는다.
 - 외부 의존: `@helm/vendor-pi-tools`(coding-agent 도구 7개 포크, 07 D07-4), 고정 의존 pi-codemode·pi-mcp `1.1.0`(07 §3.12·§3.13), `typebox`. vendor 도구가 요구하는 모델 정보는 `@helm/domain/model`의 값으로 채운다(07 §3.9.1 끝). 웹 도구의 외부 의존은 `linkedom`·`@mozilla/readability`·`turndown`(변환 작업자만 import)이고, `playwright-core`는 `packages/browserd`만 import한다(§3.4.9a). 판과 설치 조건은 §3.12.5, 규칙은 R6·R16이다.
@@ -680,7 +680,7 @@ export function createEngine(deps: {
 
 #### 3.4.12 `@helm/daemon` (L5)
 
-- 책임: 조립 루트(composition root)와 프로세스 수명주기. 설정 로드·검증(§3.10), 로거(§3.11), 비밀 로드(17 D17-07), 단일 writer 잠금, 마이그레이션 실행, `engine`·`runtime` 생성, 리스너 셋(`tailnet`, `loopback`, `local`, 17 D17-09), 인증(리스너 단계, 18), JSON-RPC 처리기(메서드 → `engine.submit`/`engine.store` 읽기/`runtime` 호출), 구독과 재전송 송출, 큰 데이터 HTTP 경로, 모바일 PWA 정적 서빙(`/m/*`, `tailnet` 리스너만)과 쿠키 페어링(`/m/pair`·`/m/whoami`·`/m/logout`, 결정 47, 26 §3.3.2), Web Push 송신기(`daemon/push`, 26 §3.4), 관찰 실행 감독기(fork, IPC 처리, 16 §3.2), 신호 처리와 종료 drain.
+- 책임: 조립 루트(composition root)와 프로세스 수명주기. 설정 로드·검증(§3.10), 로거(§3.11), 비밀 로드(17 D17-07), 단일 writer 잠금, 마이그레이션 실행, `engine`·`runtime` 생성, 리스너 셋(`tailnet`, `loopback`, `local`, 17 D17-09), 인증(리스너 단계, 18), JSON-RPC 처리기(메서드 → `engine.submit`/`engine.store` 읽기/`runtime` 호출), 구독과 재전송 송출, 큰 데이터 HTTP 경로, 모바일 PWA 정적 서빙(`/m/*`, `tailnet` 리스너만)과 쿠키 페어링(`/m/pair`·`/m/whoami`·`/m/logout`, 결정 47, 26 §3.3.2), Web Push 송신기(`daemon/push`, 26 §3.4), 관찰 실행 감독기(fork, IPC 처리, 16 §3.2), 데몬 주 스레드 구성 요소인 CONNECT 프록시 `helm-egress-proxy`(`packages/daemon/src/net/egress-proxy.ts`, 실행마다 Unix 소켓 하나에서 허용 목록으로 연결을 판정한다, 17 §3.1.2 [판정 J-278]), 신호 처리와 종료 drain.
 - 공개 API 개요: 실행 파일 `helmd`, 비밀 내보내기 도구 `helm-secret-export`(데몬이 `secrets run`의 자식으로 띄우는 짧은 진입점, 판정 45, 17 §3.8), `startDaemon(config): Promise<DaemonHandle>`, `type DaemonConfig`, `loadConfig(sources)`.
 - 외부 의존: `domain`, `protocol`, `@helm/store/write`, `@helm/store/admin`, `engine`, `runtime`, `ai`(`createModelGateway`로 모델 계층을 만들어 `runtime`에 넘긴다. 관찰 에이전트의 `llm.complete` IPC는 `runtime` 역할 호출 포트로 넘긴다), `@helm/observer/ipc`, `@helm/observer/metrics`, `ws`, `pino`, `smol-toml`, `web-push`(정확한 판 고정, `src/push/`만).
 - 금지: `kernel`(직접), `agent`, `tools`, `client`, `ui-language`, `@helm/observer` 루트(진입점 파일 경로로만 fork), `better-sqlite3` 직접 import(잠금도 `store/admin`으로).
@@ -1869,12 +1869,12 @@ TAVILY_API_KEY=         # web_search 예비 제공자 키(선택)
 
 | 받는 문서 | 제공하는 것 |
 |---|---|
-| 모든 문서 | 패키지 이름·경계·의존 허용 표(§3.3, §3.4.1), 금지 의존 규칙 R1~R14(§3.5), 저장 경계(§3.9.1), 설정 최상위 구조(§3.10.3), 기술 스택과 버전(§3.12) |
+| 모든 문서 | 패키지 이름·경계·의존 허용 표(§3.3, §3.4.1), 금지 의존 규칙 R1~R16(§3.5), 저장 경계(§3.9.1), 설정 최상위 구조(§3.10.3), 기술 스택과 버전(§3.12) |
 | 01, 23 | 기능 플래그 구조(`features.enabledLoops`·`enabledModes`·`flags`, 2단계 기본 꺼짐, §3.10.3), 자원 요구 NFR-C-4·NFR-A-5의 구조상 처리(§3.6.3) |
 | 05, 21 | `@helm/ui-language`의 경계(I/O 없음, 데몬은 키와 인자만, §3.4.16), `@helm/ui-tokens`·`@helm/ui`의 경계(§3.4.17) |
 | 07 | vendor 3개와 감싸는 패키지 대응(R7과 예외), `@helm/ai/pi`·`@helm/domain/model` 하위 경로(R2), vendor tsconfig 덮어쓰기 허용(§3.4.18), ESLint·Prettier의 vendor 제외, 정확한 버전 고정 정책, `vendor-*` 레시피 자리(§3.16) |
 | 08, 09 | 정본 DB 하나·전역 seq(ADR-06-05), 파일 시스템 제약, 쓰기는 `engine`만, `store` 하위 경로 `read`·`write`·`admin`·`testing`과 인스턴스 잠금 위치(§3.4.5), JSONL은 내보내기 전용 |
-| 10, 11 | `engine`의 접수 상자와 `decide` 주입 구조, `SubmitResult`의 다섯 상태(`needs_gate` 포함, §3.4.6), 커널 순수성 규칙(R4, R5), `KernelContext` 요약 |
+| 10, 11 | `engine`의 접수 상자와 `decide` 주입 구조, `SubmitResult`의 여섯 상태와 `replayed` 플래그(`needs_gate` 포함, §3.4.6 [판정 J-280]), 커널 순수성 규칙(R4, R5), `KernelContext` 요약 |
 | 12, 13 | 데몬 내장 1차 런타임 배치, `engine.transact`와 `appendTrace`, 커널 검사 지점 셋(§3.13.3), 보장 수준 계산을 저장하지 않는 규칙(§3.13.4), 어댑터 위치, 적합성 시험 위치, 데몬 안 실행 모델(동기 트랜잭션, 트랜잭션 안 I/O 금지), 스트리밍 델타는 정본 밖 |
 | 14, 15 | `@helm/kernel/orchestration`(순수 코어)과 `@helm/runtime/orchestration`(효과)의 배치, 운영 한도 `orchestration` 절, `inquiry` 절, `budget` 절(§3.10.3), 레시피 `lens-seed`·`eval-inquiry`(§3.16), `scripts/build-lens-seed.ts` 위치(§3.15) |
 | 16 | 관찰 프로세스의 의존 경계(`client`·`protocol` 금지 포함), 프로세스 배치의 일회성 자식(ADR-06-02), 설정 절 `observer`, 모델 판정은 기능 플래그 |
@@ -1921,7 +1921,7 @@ TAVILY_API_KEY=         # web_search 예비 제공자 키(선택)
 |---|---|
 | 01, 23 | `FeatureKey` 목록(루프·모드 밖의 2단계 기능)과 각 키의 단계. 23은 G1 기록 뒤 켜는 순서 |
 | 08 | `@helm/domain/model`의 타입 이름 확정(07 §3.9.2와 함께) |
-| 10 | (1) `SubmitResult`를 이 문서 §3.4.6의 다섯 상태로 받는지 확인(10 §3.3.5 끝의 요구에 대한 답). (2) `CommandDraft`(접수가 채우는 필드를 뺀 envelope) 이름 확인 |
+| 10 | (1) `SubmitResult`를 이 문서 §3.4.6의 여섯 상태와 `replayed` 플래그로 받는지 확인(10 §3.3.5 끝의 요구에 대한 답). (2) `CommandDraft`(접수가 채우는 필드를 뺀 envelope) 이름 확인 |
 | 12 | (1) 스트리밍 델타의 정본 기록 시점. (2) 모델 제공자 목록과 `.env.example` 키. (3) 갱신형 자격 증명 지원 여부(§7 O-08). (4) `budget.monthlyCapUsd`의 집행(80% 알림, 100% 새 실행 중단, 01 NFR-C-1). (5) `user.timeZone` 사용 |
 | 13 | (1) 13 §3.6.2에 남은 데몬 포트 7801을 7840·7841로. (2) 외부 어댑터와 데몬 사이 채널(`adapter` 채널)의 전송(§3.13.5) |
 | 15 | `InquiryConfig`의 TypeBox 스키마는 `packages/kernel/src/orchestration/inquiry/config.ts`에 둔다(판정 J-128). `packages/runtime`이 다시 내보내고 §3.10.3이 그쪽에서 import한다 |
@@ -1950,7 +1950,7 @@ TAVILY_API_KEY=         # web_search 예비 제공자 키(선택)
 | 19 | `runtimeAdapter` 주체의 scope 표 행 |
 | 20 | `app-dev` 프록시 대상 포트를 `HELM_LISTEN_SSH_PORT`에서, 127.0.0.1 바인딩, Origin 조건(§3.17 3) |
 | 22 | testkit 주입 지점 이름을 09·19 API에 맞추고 KIT 항목을 행으로. `@helm/ai/testing` 사용 |
-| 23 | (1) M0-07 완료 조건을 R1~R14로. (2) M4에 엔진 시작·크래시 복구(스냅숏 적재, 지시 재계산) 행. (3) 판정 J-128 위치(`@helm/kernel/orchestration`에 15 순수부 포함). (4) 결정 51의 WBS 열(난이도·담당 단계·모델). (5) 패키지 목록과 저장소 골격에 `packages/browserd`를 더하고 S11의 위치를 맞춘다(판정 J-216). (6) `helm-browserd` 명령·응답 타입의 소재(`packages/browserd` 정의, `packages/tools`는 type-only로 가져옴)를 S11 행에 적는다([판정 J-230]) |
+| 23 | (1) M0-07 완료 조건을 R1~R16으로. (2) M4에 엔진 시작·크래시 복구(스냅숏 적재, 지시 재계산) 행. (3) 판정 J-128 위치(`@helm/kernel/orchestration`에 15 순수부 포함). (4) 결정 51의 WBS 열(난이도·담당 단계·모델). (5) 패키지 목록과 저장소 골격에 `packages/browserd`를 더하고 S11의 위치를 맞춘다(판정 J-216). (6) `helm-browserd` 명령·응답 타입의 소재(`packages/browserd` 정의, `packages/tools`는 type-only로 가져옴)를 S11 행에 적는다([판정 J-230]) |
 | 26 | `@helm/mobile` 이름 확정과 의존 행 반영을 확인(§3.4.1, §3.4.15) |
 
 ## 6. 구현 단위와 완료 기준
@@ -1961,7 +1961,7 @@ TAVILY_API_KEY=         # web_search 예비 제공자 키(선택)
 |---|---|---|
 | S0 저장소 골격 | §2.5 이전 구현 이동(`git mv`), §3.15 파일·디렉터리, 빈 패키지(각 `src/index.ts`, `package.json`, `tsconfig.json`, `README.md`. L6c 넷 포함), vendor 패키지 자리 3개(07), `.just/` 템플릿 복사, 루트 justfile, `.mise.toml`, `.env.example`, `AGENTS.md` | `just setup && just verify`가 빈 패키지에서 통과한다. `just`가 §3.16의 06 소유 레시피를 보인다. 각 패키지의 `exports` 진입점이 Node 해석으로 불러와진다(시험 스크립트). 루트에 `@helmdocs/*`가 워크스페이스로 남아 있지 않다 |
 | S1 실행 형태 확인 | `source` 조건 + Node 타입 제거 실행이 워크스페이스 패키지에서 되는지(§3.12.4 [가정]), `tsc -b` 빌드, Vitest `source` 조건 | `node --conditions=source packages/daemon/src/bin/helmd.ts --version`이 동작한다. 안 되면 대체 방식으로 바꾸고 이 문서를 고친다 |
-| S2 의존 규칙 검사 | `scripts/architecture-rules.ts`, `check-architecture.ts`, ESLint 패키지별 규칙, 테스트 fixture | 규칙 R1~R14마다 위반 fixture가 실패하고(종료 코드 1, 위반 위치 출력), 정상 fixture가 통과한다. 실제 저장소에서 통과한다. `kernel`에 `Date.now()`를 넣으면 `just lint`가 실패한다. `desktop`에 `@helm/kernel` 의존을 더하면 `check-arch`가 실패한다. `observer`가 `@helm/ai`나 `@helm/client`를 import하면 실패한다. `client`가 `@helm/domain`을 직접 import하면 실패한다. `runtime`의 루프 구동 파일 밖에서 `@helm/ai/pi`를 import하면 실패한다. `ai`가 `@helm/vendor-pi-tools`를 import하면 실패한다(R7) |
+| S2 의존 규칙 검사 | `scripts/architecture-rules.ts`, `check-architecture.ts`, ESLint 패키지별 규칙, 테스트 fixture | 규칙 R1~R16마다 위반 fixture가 실패하고(종료 코드 1, 위반 위치 출력), 정상 fixture가 통과한다. 실제 저장소에서 통과한다. `kernel`에 `Date.now()`를 넣으면 `just lint`가 실패한다. `desktop`에 `@helm/kernel` 의존을 더하면 `check-arch`가 실패한다. `observer`가 `@helm/ai`나 `@helm/client`를 import하면 실패한다. `client`가 `@helm/domain`을 직접 import하면 실패한다. `runtime`의 루프 구동 파일 밖에서 `@helm/ai/pi`를 import하면 실패한다. `ai`가 `@helm/vendor-pi-tools`를 import하면 실패한다(R7) |
 | S3 설정과 로그 | `daemon/src/config/`(최상위 스키마, TOML 로더, 우선순위, 출처 표시, 리로드 분류, 기능 플래그), `Logger` 인터페이스와 pino 구현, redact와 마스킹 훅 | 우선순위 5단계가 시험으로 확인된다. 모르는 키, `host`가 127.0.0.1이 아닌 값, 데이터 경로가 `~/projects` 아래·`/mnt/` 아래이면 거부하고 종료 코드 2다. 비밀처럼 보이는 키가 설정에 있으면 거부한다. 리로드 시 잘못된 설정이면 이전 설정이 유지된다. redact 경로의 값과 마스킹기에 등록한 값이 로그에 나오지 않는다(필드 이름이 달라도). 설정이 없으면 2단계 `features.flags`가 모두 false다 |
 | S4 엔진 골격 | `createEngine`, 동기 `submit`·`transact`(`store.transaction` 위), `appendTrace`, `RuntimeStorePort` 구현, `onCommitted`, `onDirective`, `derivedIdFactory`(10·09의 실제 규칙은 해당 단위에서) | 같은 멱등 키·같은 지문 재시도가 `replayed: true`로 같은 결과를 돌려준다. 같은 키·다른 지문은 `key_reused`이고 이벤트와 `commands` 행이 생기지 않는다. 한 `transact` 안에서 뒤 제출이 앞 제출의 결과를 본다(판정 J-148). `runtime`이 `RuntimeStorePort`만으로 복구·스케줄러에 필요한 값을 읽는다(판정 J-127). `basisSeq`보다 뒤에 바뀐 대상은 `conflict`다. 거부·`needs_gate`·`conflict`도 seq를 가진 `command.rejected` 이벤트로 남는다(판정 J-25). `error`는 저장되지 않는다. 트랜잭션 안에서 예외가 나면 이벤트·투영·`commands` 행·실행 기록이 모두 롤백된다. 같은 제출을 다시 결정하면 같은 ID가 나온다. `engine` 밖에서 이벤트를 append하는 코드 경로가 없다(S2 검사로 확인) |
 | S5 리스너와 전송 | 리스너 셋(17), 인증층 인터페이스, 프로토콜 처리기 한 벌, `@helm/client/node` 전송(TCP, Unix) | 같은 대본을 `tailnet`·`loopback`·`local` 세 리스너에서 돌려 응답·이벤트 열이 같다(리스너별 사전 검사 차이 제외). 자격 증명 없는 연결은 프로토콜층으로 넘어가지 않는다. 출발지가 127.0.0.1이어도 TCP 리스너는 기기 토큰 없이 거부한다 |

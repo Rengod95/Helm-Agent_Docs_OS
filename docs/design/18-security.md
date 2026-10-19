@@ -1,7 +1,7 @@
 # 18. 보안
 
 - 작성: 2026-10-11, P11(데몬)
-- 상태: 보완판(2026-10-14). 기준 결정은 브리프 결정 1~64과 조정자 판정(`process/rulings-stage2a.md` J-01~J-276)이다. 모바일은 결정 47~49와 판정 J-118대로 26(데몬이 서빙하는 PWA, HttpOnly 쿠키 토큰, Web Push)을 따른다.
+- 상태: 보완판(2026-10-14). 기준 결정은 브리프 결정 1~64과 조정자 판정(`process/rulings-stage2a.md` J-01~J-351)이다. 모바일은 결정 47~49와 판정 J-118대로 26(데몬이 서빙하는 PWA, HttpOnly 쿠키 토큰, Web Push)을 따른다.
 - 소유: 위협 모델, 리스너별 연결 정책(모바일 쿠키 갈래 포함), 주체(principal)와 권한, 인증(Tailscale 신원 + whois + 기기 토큰, SSH 경로, 로컬), 기기 페어링 규칙, 토큰 형식·수명·회전·폐기·저장, 비밀 저장·주입 정책과 마스킹, 도구 실행 격리의 보안 요구(13과 맞춤), 보호 경로, 감사 기록, 속도·크기 한도의 보안 상한, 공급망, 백업·복구의 보안 조건, `/m/*` 정적 응답의 헤더·캐시·쿠키 조건, 보안 테스트 목록.
 - 소유하지 않음: 핸드셰이크 메시지 형식·오류 코드·메서드 이름(19), 리스너 주소·소켓 경로·데몬 수명주기·비밀 로딩 절차·정적 파일 서빙 배치(17), 격리 수단의 구현과 도구 목록·범위 검사 알고리즘(13), 키체인 사용과 SSH 실행(20), 모바일 앱 구현·푸시 송신·푸시 등록 형식(26), 이벤트 이름 카탈로그와 해시 체인 형식(09), 레코드·`Via`·`ActorRef` 형식(08), 권리 게이트의 묻기 흐름(11).
 - 출처 표기는 17과 같다. "[실험 N]"은 `17-daemon-and-operations.md` §2.2 표의 N번 행이다. 이 문서의 ID(D18-, A18-, AS-, T-, R-, S-, T18-)를 다른 문서에서 인용할 때는 "18 R-6"처럼 문서 번호를 붙인다(25 §4.1).
@@ -352,7 +352,7 @@ PWA(`/m/`)와 `/files/*`는 같은 출처다. 모델이 만든 blob이 그 출�
 // packages/daemon/src/auth/principal.ts
 import type { ListenerKind } from "@helm/protocol";   // "tailnet" | "loopback" | "local" (19)
 export type Principal =
-  | { kind: "device"; deviceId: string; clientKind: "desktop" | "tui" | "mobile"; listener: ListenerKind;
+  | { kind: "device"; deviceId: string; clientKind: "desktop" | "tui" | "mobile" | "cli"; listener: ListenerKind;
       carrier: "header" | "cookie"; tailnetLogin?: string; tailnetNodeId?: string }
   | { kind: "localAdmin"; uid: number; interactive: "tui" | "tty_cli" | null }   // null = 비대화(스크립트·다른 에이전트·SSH 발급)
   | { kind: "runtimeAdapter"; runId: string; adapter: string }                 // 외부 런타임(결정 34) 브리지. run 단위 단기 토큰
@@ -362,7 +362,7 @@ export type Principal =
 
 | 주체 | scope(이름은 19 §3.4.6) | 사람 결정(행위자 `human`) | 비고 |
 |---|---|---|---|
-| `device`, `clientKind` desktop·tui | `read`, `decide`, `devices` | 예 | 1인 앱이라 기기별로 줄이는 정책은 1차에 없다 |
+| `device`, `clientKind` desktop·tui·cli | `read`, `decide`, `devices` | 예 | 1인 앱이라 기기별로 줄이는 정책은 1차에 없다 |
 | `device`, `clientKind` mobile | `read`, `decideMobile`, `devicesLimited` | 예(`decideMobile` 범위만) | 아래 모바일 허용 표. 휴대폰 분실·XSS 때 범위·다이얼·설정·새 기기를 바꾸지 못하게 한다 |
 | `localAdmin`, `interactive` = `tui` \| `tty_cli` | `read`, `decide`, `devices`, `admin` | 예. 단 `tty_cli`는 명령마다 확인 문자열(규칙 6) | 서버 셸 앞의 사람(판정 J-135) |
 | `localAdmin`, `interactive` = null | `read`, `devices`, `admin` | 아니요. 사람 결정 명령은 `denied.channel` | 관리 CLI 스크립트, 타이머, SSH 발급, 같은 uid의 다른 에이전트. `daemon.exitSafeMode`는 받지 않는다(아래 문단) |
@@ -493,7 +493,7 @@ export interface PairingCodeRecord {
 }
 ```
 
-- 코드: 무작위 60비트를 Crockford base32 12자로, 표시 `XXXX-XXXX-XXXX`. 19 예시(`K7Q-4XM-92P`, 9자 45비트)보다 길게 한다. 시도 5회·10분 제한이 있어도, 코드가 화면·클립보드·QR로 옮겨 다니는 동안 노출을 고려해 추측 여유를 크게 둔다 [제안]. 19에 형식 변경을 요구한다(§5.2).
+- 코드: 무작위 60비트를 Crockford base32 12자로, 표시 `XXXX-XXXX-XXXX`. 시도 5회·10분 제한이 있어도, 코드가 화면·클립보드·QR로 옮겨 다니는 동안 노출을 고려해 추측 여유를 크게 둔다 [제안].
 - 정규화: 대문자, `-`·공백 제거, Crockford 혼동 문자(`O→0`, `I/L→1`) 치환.
 - 한 번만 쓴다. 틀린 시도마다 `attemptsLeft--`, 0이면 무효. 출처별 분당 5회(19 §3.7.7)와 별개로 코드별 한도.
 - 동시에 유효한 코드는 3개까지. 넘으면 가장 오래된 것을 무효로 한다.
@@ -675,15 +675,15 @@ export interface Redactor {
 | ID | 요구 |
 |---|---|
 | R-1 | 모든 `execute` 원시 행동(bash, 테스트 실행 등)과 MCP stdio 서버, codemode가 부르는 실행 도구는 샌드박스 안에서 돈다 |
-| R-2 | 환경 변수는 허용 목록만(판정 J-17: 목록은 18이 정한다. 07 `buildShellEnv`, 13 §3.6.4가 이 목록을 쓴다): `PATH`(도구 체인 경로만), `HOME`(실행별 임시 홈, 13 §3.6.2), `USER`, `LANG=C.UTF-8`, `LC_ALL`, `TZ`, `TERM=dumb`, `NO_COLOR=1`, `CI=1`, `TMPDIR`, `HELM_RUN_ID`, `HELM_TOOL_CALL_ID`(비밀 아닌 상관 ID. `HELM_*` 중 이 둘만 허용), 네트워크 허용 실행에서 Helm이 넣는 `HTTP_PROXY`·`HTTPS_PROXY`·`ALL_PROXY`·`NO_PROXY`(R-6), 합의가 명시한 이름. 합의로도 줄 수 없는 이름: 패턴 `*_TOKEN`, `*_KEY`, `*_SECRET`, `*_PASSWORD`, `*_API_KEY`, `SOPS_*`, `AWS_*`, `HELM_*`(위 둘 제외), `ANTHROPIC_*`, `OPENAI_*`, `GEMINI_*`, `OPENROUTER_*`, `SSH_AUTH_SOCK`, `WSL_INTEROP`, `WSL_DISTRO_NAME`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `NODE_OPTIONS`. 예외는 하나다: 운영자 설정 `tools.mcp[].env`에 이름을 적은 키는 그 MCP 서버 프로세스의 환경에만 넘긴다(13 §3.9.1 정본 이름. 근거는 운영자 설정이고 합의로는 바꿀 수 없다, §3.10.1). HTTP 전송 서버는 `headersFromSecrets`로 헤더에만 넣고 환경에는 넣지 않는다. 관찰 자식(16 §3.2.1)의 허용 목록은 `PATH`, `HOME`, `TZ`, `NODE_ENV`, `HELM_OBSERVER_*`(비밀 아닌 실행 설정만) |
+| R-2 | 환경 변수는 허용 목록만(판정 J-17: 목록은 18이 정한다. 07 `buildShellEnv`, 13 §3.6.4가 이 목록을 쓴다): `PATH`(도구 체인 경로만), `HOME`(S1은 작업 공간별 영속 캐시 홈, S1b는 실행별 임시 홈, 13 §3.6.2), `USER`, `LANG=C.UTF-8`, `LC_ALL`, `TZ`, `TERM=dumb`, `NO_COLOR=1`, `CI=1`, `TMPDIR`, `HELM_RUN_ID`, `HELM_TOOL_CALL_ID`(비밀 아닌 상관 ID. `HELM_*` 중 이 둘만 허용), 네트워크 허용 실행에서 Helm이 넣는 `HTTP_PROXY`·`HTTPS_PROXY`·`ALL_PROXY`·`NO_PROXY`(R-6), 합의가 명시한 이름. 합의로도 줄 수 없는 이름: 패턴 `*_TOKEN`, `*_KEY`, `*_SECRET`, `*_PASSWORD`, `*_API_KEY`, `SOPS_*`, `AWS_*`, `HELM_*`(위 둘 제외), `ANTHROPIC_*`, `OPENAI_*`, `GEMINI_*`, `OPENROUTER_*`, `SSH_AUTH_SOCK`, `WSL_INTEROP`, `WSL_DISTRO_NAME`, `DBUS_SESSION_BUS_ADDRESS`, `XDG_RUNTIME_DIR`, `NODE_OPTIONS`. 예외는 하나다: 운영자 설정 `tools.mcp[].env`에 이름을 적은 키는 그 MCP 서버 프로세스의 환경에만 넘긴다(13 §3.9.1 정본 이름. 근거는 운영자 설정이고 합의로는 바꿀 수 없다, §3.10.1). HTTP 전송 서버는 `headersFromSecrets`로 헤더에만 넣고 환경에는 넣지 않는다. 관찰 자식(16 §3.2.1)의 허용 목록은 `PATH`, `HOME`, `TZ`, `NODE_ENV`, `HELM_OBSERVER_*`(비밀 아닌 실행 설정만) |
 | R-3 | 숨기는 경로(접근 거부): §3.11.5의 보호 경로 전부, `/srv/volumes`(Helm 데이터와 홈랩 서비스 데이터. 초안·검증 작업 트리 예외는 R-14), `/run/user/<uid>`(데몬 소켓과 사용자 버스), `/run/WSL`(interop), `/mnt`(Windows 드라이브) |
-| R-4 | 읽기는 허용 목록 방식이다. 홈 디렉터리는 빈 tmpfs로 덮고(`ProtectHome=tmpfs`, bwrap `--tmpfs $HOME`), 도구 체인(`~/.local/share/mise`, `~/.local/bin`의 허용 도구)과 합의 범위의 작업 공간만 다시 붙인다. 쓰기는 합의 범위의 작업 공간과 실행별 임시 디렉터리만. 그 밖은 읽기 전용(`ProtectSystem=strict`). 거부 목록(`InaccessiblePaths`)은 글롭을 받지 않고 실행 뒤 생긴 파일을 빠뜨리므로 홈 아래 비밀 보호의 주 수단으로 쓰지 않는다 [실험 24] |
+| R-4 | 읽기는 허용 목록 방식이다. 홈 디렉터리는 빈 tmpfs로 덮고(`ProtectHome=tmpfs`, bwrap `--tmpfs $HOME`), 도구 체인(`~/.local/share/mise`, `~/.local/bin`의 허용 도구)과 합의 범위의 작업 공간을 다시 붙이고, S1에서는 작업 공간 홈도 다시 붙인다. 쓰기는 S1의 작업 공간 홈, 합의 범위의 작업 공간, 실행별 임시 디렉터리만. 그 밖은 읽기 전용(`ProtectSystem=strict`). 거부 목록(`InaccessiblePaths`)은 글롭을 받지 않고 실행 뒤 생긴 파일을 빠뜨리므로 홈 아래 비밀 보호의 주 수단으로 쓰지 않는다 [판정 J-316] [실험 24] |
 | R-5 | 프로세스 분리: 도구는 데몬의 메모리·환경을 읽을 수 없어야 한다(필수). 일회성 단위의 `PrivateUsers=yes`로 다른 프로세스의 `/proc/<pid>/environ` 읽기가 거부된다 [실험 23]. 데몬에 신호를 보낼 수 없게 하는 것(PID 네임스페이스)은 권장이다. `PrivateUsers`만으로는 같은 uid 프로세스에 신호를 보낼 수 있고 `ProtectProc=invisible`도 같은 uid 프로세스를 숨기지 않는다 [실험 23]. 남는 위험은 도구가 `helmd`를 죽이는 것(서비스 거부)이고, 재시작·복구·크래시 루프 차단이 받는다 |
 | R-6 | 네트워크(판정 J-134): 모든 실행은 별도 네트워크 네임스페이스에서 돈다(`PrivateNetwork=yes`, bwrap `--unshare-net`). 합의가 `net:` 부여를 둔 실행도 호스트 네트워크를 쓰지 않는다. 대신 데몬 쪽 CONNECT 프록시(§3.11.9)로만 바깥에 나간다. 프록시는 루프백·사설·CGNAT·tailnet·링크 로컬 주소를 막는다. 프록시를 쓰지 않는 도구는 연결이 실패한다(fail closed). 샌드박스 안 실행(`execute`와 네트워크를 쓰는 MCP 서버)이 외부 공개 인터넷에 가려면 `net:public` 부여가 있어야 한다(결정 55, §3.11.9). 웹 읽기 도구(`web_fetch`, `web_search`, 브라우저의 GET·HEAD)는 이 부여 없이 공개 주소를 기본으로 읽는다([판정 J-205], §3.11.6 행) |
 | R-7 | 자원: 17 §3.13의 단위별 한도, 시간 제한, 출력 상한(13) |
 | R-8 | 권한 상승 금지: `NoNewPrivileges=yes`. `sudo`는 실행되지 않는다(no_new_privs로 setuid 무효 [지식]) |
 | R-9 | codemode·하위 호출 안에서 부른 도구도 같은 검사(13의 `runToolCall` 경로)와 같은 격리를 탄다(발췌1 E1-187) |
-| R-10 | 1·2순위 수단(§3.11.2)을 모두 쓸 수 없으면 `execute`를 끈다. 상태 `sandbox` critical. 운영자 설정 `tools.sandbox="off"`로만 S0을 허용하고, 그때마다 `tools.sandbox_disabled` 감사 기록과 상태 경고(17 §3.11.2). 합의의 `allowUnscopedExecute`(13)는 S0을 여는 조건이 아니다 |
+| R-10 | 1·2순위 수단(§3.11.2)을 모두 쓸 수 없으면 `execute`를 끈다. 상태 `sandbox` critical. 운영자 설정 `tools.sandbox="off"`로만 S0을 허용하고, 그때마다 `tools.sandbox_disabled` 감사 기록과 상태 경고(17 §3.11.2). 합의의 `allowUnknownTargets`(08 `Scope`)는 S0을 여는 조건이 아니다 [판정 J-296] |
 | R-11 | 도구 프로세스가 끝나면 그 단위의 모든 프로세스를 끝낸다(백그라운드로 남지 않음). 장기 프로세스(개발 서버)는 13이 별도 수명 규칙을 정한다 |
 | R-12 | 데몬 안에서 도는 파일 도구(read/write/edit/grep/find/ls)는 샌드박스를 타지 않으므로 Helm 래퍼가 보호 경로 검사(§3.11.5)를 realpath 기준으로 한다(심볼릭 링크로 범위를 벗어나는 것 방지, facts-1 §0-5) |
 | R-13 | 데몬이 샌드박스 밖에서 작업 공간에 실행하는 git(되돌릴 지점, 검증 트리 등, 13 §3.5.3·§3.7.8)은 `safeGit` 고정 환경(§3.11.10)으로만 돈다. 필터·훅이 도는 명령(`status`, `add`, `checkout`, `archive`, `worktree add`)은 쓰지 않고, 변경 감지는 해시 스캔으로 한다(13의 결정). 도구가 `.git/config`·`.git/info/attributes`·`.git/hooks/`·`.gitattributes`의 필터 정의를 써서 다음 데몬 git 호출이 데몬 uid로 명령을 실행하게 하는 길을 막는다 |
@@ -706,7 +706,7 @@ export interface Redactor {
 | 둘 다 안 됨, `auto` | 없음 | 끔 | 상태 `sandbox` critical, 실행 도구 없음 안내 |
 | `tools.sandbox = "off"`(운영자) | S0 | 켬 | "격리 없음" 경고 배지, 상태 `sandbox` critical, 시작마다 감사 기록 |
 
-S0을 합의 플래그(13의 `allowUnscopedExecute`)만으로 허용하지 않는 이유: S0의 bash는 `rpc.sock`에 붙어 로컬 관리자로 관리 명령을 보낼 수 있고, TTY를 흉내 내면 사람 결정까지 보낼 수 있다(§3.5 규칙 7). 그 영향은 합의 범위 밖(다른 Concern의 결과 확인 등)까지 미친다. 합의에서 사람이 승인한 범위를 넘으므로 합의 한 건의 동의로 열 수 없다.
+S0을 합의 플래그(08 `Scope.allowUnknownTargets`)만으로 허용하지 않는 이유: S0의 bash는 `rpc.sock`에 붙어 로컬 관리자로 관리 명령을 보낼 수 있고, TTY를 흉내 내면 사람 결정까지 보낼 수 있다(§3.5 규칙 7). 그 영향은 합의 범위 밖(다른 Concern의 결과 확인 등)까지 미친다. 합의에서 사람이 승인한 범위를 넘으므로 합의 한 건의 동의로 열 수 없다.
 
 2순위 S1b 구성(단위 하나 기동 비용 약 70 ms [실험 22]):
 
@@ -807,7 +807,7 @@ effect class를 쓰지 않는다(결정 2). 권한 레이어(13 §3.10 `Permissi
 
 `web_fetch`(MVP, 결정 55)처럼 샌드박스 밖 데몬 프로세스가 직접 하는 HTTP 요청은 루프백 서비스에 접근할 수 있다(홈랩 Caddy 관리 API 2019가 무인증 [실험], 17 H-5). 그래서 다음을 지킨다. MVP의 `web_fetch`는 데몬이 직접 가져온다. Anthropic 서버 측 `web_search`·`web_fetch`는 MVP에서 쓰지 않는다(판정 J-190 (5)). 외부 대상은 `net:<호스트>` 또는 `net:public`(공개 주소 전체)으로 판정한다. 공개 주소 읽기는 합의 부여 없이 기본 허용이고, 합의의 웹 부여는 `net:<호스트>` 대상을 더 열 때만 필요하다([판정 J-205]). 변환(linkedom·readability·turndown)은 네트워크 없는 작업자 프로세스에서 메모리·시간 상한을 두고 돈다(판정 J-190 (1)).
 
-1. 주소 차단(SSRF 방지): 이름 해석 뒤의 IP가 `127.0.0.0/8`, `::1`, `0.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`(tailnet), `fd7a:115c:a1e0::/48`(tailnet), `fc00::/7`, `fe80::/10`이면 거부한다. 리디렉션마다 다시 검사한다. 이름 해석과 연결 사이에 주소가 바뀌지 않게 해석한 IP로 직접 연결한다. 이 대역 목록은 `net:public`의 차단 대역과 같다(§3.11.9). 01 NFR-S-10의 루프백·사설·CGNAT·tailnet 대역에 `0.0.0.0/8`과 링크 로컬(`169.254.0.0/16`, `fe80::/10`)을 더한 것이다.
+1. 주소 차단(SSRF 방지): 이름 해석 뒤의 IP가 `127.0.0.0/8`, `::1`, `0.0.0.0/8`, `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `169.254.0.0/16`, `100.64.0.0/10`(tailnet), `fd7a:115c:a1e0::/48`(tailnet), `fc00::/7`, `fe80::/10`이면 거부한다. 서버 자기 주소로 가는 요청과 호스트 이름이 `*.ts.net`·`*.local`인 요청도 거부한다 [판정 J-314]. 리디렉션마다 다시 검사한다. 이름 해석과 연결 사이에 주소가 바뀌지 않게 해석한 IP로 직접 연결한다. 이 대역 목록은 `net:public`의 차단 대역과 같다(§3.11.9). 01 NFR-S-10의 루프백·사설·CGNAT·tailnet 대역에 `0.0.0.0/8`과 링크 로컬(`169.254.0.0/16`, `fe80::/10`)을 더한 것이다.
 2. 방법은 `GET`·`HEAD`만, 쿠키·인증 헤더를 보내지 않는다. 크기 상한 10 MiB, 시간 상한 30초.
 3. 가져온 내용은 신뢰하지 않는 자료다(§3.12). 출처 URL과 함께 관찰로 기록하고 경계 표식으로 감싼다.
 4. URL에 작업 공간 내용이 실려 나가는 것은 막을 수 없다. 모델이 만든 URL의 질의 문자열이 2 KiB를 넘거나 비밀 패턴(§3.10.4)과 맞으면 `ask`(`disclose_data`)로 바꾼다.
@@ -1039,7 +1039,7 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 | T18-07 | 헤더 갈래: Origin이 있는 업그레이드 → 403. Host가 `evil.example` → 403(DNS rebinding, 두 리스너 모두 같은 코드). Origin 없는 네이티브 요청은 토큰으로 판정. `/pair`·`/devices/self/rotate`에 Origin(모바일 출처 포함) → 403. 정식 데몬 설정에 `auth.devAllowedOrigins`가 있으면 시작 거부 | 통합 |
 | T18-07b | 쿠키 갈래(26 T26-05~T26-10, T26-28·T26-29와 함께): `__Host-helm_dt` 쿠키 + 모바일 출처 Origin 업그레이드 → 101 후 hello 성공. Origin 없음·다름 → 403. 쿠키를 `loopback` 리스너로 → 401(쿠키 무시). 헤더와 쿠키가 함께 → 헤더만 사용. 데스크톱 토큰을 쿠키로·모바일 토큰을 헤더로 → 1008 `carrier_mismatch`. `/m/whoami` GET: Origin 없고 `Sec-Fetch-Site: same-origin` → 200, `cross-site` → 403, 폐기 기기 → 401 `revoked`. `/m/pair` 성공 응답 본문에 토큰 없음, `Set-Cookie`에 `__Host-`·`HttpOnly`·`Secure`·`SameSite=Strict`, 본문의 `clientKind`·`credentialCarrier` 값이 무시됨. `/m/` 정적은 hello 전 200, 목록 밖 경로·`..`·심볼릭 링크 → 404. `helm-bearer.` 하위 프로토콜만 있는 업그레이드 → 401 | 통합 |
 | T18-07c | `/files/*`: 모든 응답에 `CSP: sandbox; default-src 'none'`, `nosniff`, `CORP: same-origin`. `image/svg+xml`·`text/html`·`application/xhtml+xml`·XML blob → `application/octet-stream` + `attachment`. 접근 로그에 티켓 원문 없음. 티켓은 같은 blob의 Range 요청에 여러 번, 연결이 닫히면 무효 | 통합 |
-| T18-08 | 샌드박스: §3.11.4의 여섯 시험 + `env`가 허용 목록뿐(user manager 환경이 섞이지 않음) + `/proc/<helmd pid>/environ`·`/proc/<helmd pid>/mem` 읽기 거부(R-5). PID 네임스페이스를 쓰는 구성이면 `helmd` PID가 보이지 않음 | 시스템 |
+| T18-08 | 샌드박스: §3.11.4의 여덟 시험(브라우저 조건부 1 별도) + `env`가 허용 목록뿐(user manager 환경이 섞이지 않음) + `/proc/<helmd pid>/environ`·`/proc/<helmd pid>/mem` 읽기 거부(R-5). PID 네임스페이스를 쓰는 구성이면 `helmd` PID가 보이지 않음 | 시스템 |
 | T18-09 | 샌드박스 안에서 `curl http://127.0.0.1:7840/healthz` → 실패(별도 netns). 네트워크 허용 실행에서도 프록시가 루프백을 막아 실패(R-6) | 시스템 |
 | T18-10 | 샌드박스(S1·S1b 각각) 안에서 `~/.config/sops/age/keys.txt`, `~/.ssh/id_*`, `~/.config/gh/hosts.yml`, `~/.git-credentials`, `~/.npmrc`, `~/.docker/config.json`, `~/.netrc`, `~/data`, `~/vault`, 작업 공간 밖 `.env` 읽기 → 실패(홈 tmpfs), 실행 중 새로 만든 홈 아래 파일도 보이지 않음. 데몬 파일 도구로 같은 경로 → `deny`/`ask`, 심볼릭 링크로 우회 → 거부 | 시스템 + 통합 |
 | T18-11 | 격리 수단을 못 쓰는 환경(`systemd-run` 없음 흉내) → `execute` 도구가 목록에서 빠지고 상태 `sandbox` critical | 통합 |
@@ -1214,7 +1214,7 @@ Chrome 샌드박스와 bwrap 중첩 [제안]:
 |---|---|
 | `packages/daemon/src/auth/{principal,preflight,mobile-cookie,tailscale-ingress,whois,device-auth,local-confirm,runtime-adapter,pairing,tokens,rate-limit}.ts` | §3.4~§3.8, §3.14 |
 | `packages/daemon/src/http/{static-mobile,files-headers}.ts` | §3.4.6 |
-| `packages/daemon/src/net/egress-proxy.ts`(18), `packages/tools/src/sandbox/proxy.ts`·`bin/helm-netshim`(13 정본 이름) | §3.11.9 |
+| `packages/daemon/src/net/egress-proxy.ts`(18), `packages/tools/src/sandbox/proxy.ts`·`bin/helm-netshim`(13 정본 이름) | §3.11.9. `egress-proxy.ts`는 `helm-egress-proxy` 본체(소켓 서버, 허용 목록 판정)이고, `sandbox/proxy.ts`는 샌드박스 실행기가 실행마다 받은 프록시 소켓 경로를 bwrap에 연결하고 `helm-netshim`을 실행하는 쪽 코드다 [판정 J-278] |
 | `packages/browserd`(`helm-browserd`, [판정 J-216], 06 §3.4.9a) | §3.11.11 |
 | `packages/tools/src/git/safe-git.ts`(13 소유, 18 요구) | §3.11.10 |
 | `packages/daemon/src/security/{redactor,secret-store,protected-paths,permission-baseline,audit-batcher,anchors,redact-blob,restore-carry}.ts` | §3.10, §3.11.5~6, §3.13, §3.16 |

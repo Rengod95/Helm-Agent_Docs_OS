@@ -1,7 +1,7 @@
 # 20. 데스크톱 앱 아키텍처
 
 - 작성: P13(데스크톱 앱), 2026-10-11. 1단계 초안
-- 상태: 4c 보완판(2026-10-14). 기준 결정은 브리프 결정 1~64과 판정 `rulings-stage2a.md`(§1~§11, J-01~J-276)다. 03·04·05·06·07·09·11·16·17·18·19·21·26의 같은 시기 판과 맞췄다.
+- 상태: 4c 보완판(2026-10-14). 기준 결정은 브리프 결정 1~64과 판정 `rulings-stage2a.md`(§1~§11, J-01~J-351)다. 03·04·05·06·07·09·11·16·17·18·19·21·26의 같은 시기 판과 맞췄다.
 - 소유: Tauri 구조(Rust 쪽과 웹뷰 쪽 책임, IPC, 권한), 연결 관리(프로필, SSH, 상태 기계), React 앱 구조(폴더, 라우팅, 상태 관리), 클라이언트 저장소와 동기화, 오프라인 표시, OS 통합(알림, 메뉴 막대·트레이, 배지, 단축키, 로그인 시 시작, 딥 링크, 키체인), UI 번들 방식, 빌드·배포, 앱 테스트.
 - 소유하지 않음: 화면 ID·경로 후보·딥 링크 형식(03), 화면 상세·문구(04·05), 컴포넌트·토큰·시각화(21), 프로토콜 메서드·이벤트·오류 코드(19), 위협 모델·토큰 발급·페어링 규칙(18), 데몬 수명주기·tailscale serve 설정(17), 투영 생성(12), 이벤트 카탈로그(09).
 
@@ -1241,7 +1241,7 @@ send(params, { basisSeq, screen, objectId }):
 코어의 재전송(syncing 진입 때):
   재전송 전 확인(§3.9.5): storeId·deviceId·protocol·schemaHash가 다른 행은 보내지 않는다
   나이가 pendingCommandMaxAgeMs 안인 행을 같은 키로 다시 보낸다
-  데몬은 같은 키면 처음 결과를 duplicate: true로 돌려준다(보존 idempotencyWindowMs 7일, 19 §3.9.2)
+  데몬은 같은 키면 처음 결과를 duplicate: true로 돌려준다(보존 idempotencyWindowMs 365일, 19 §3.9.2, 09 §3.15.3)
   결과는 코어의 'pendingResolved' 알림(19 §3.14)으로 받는다. 화면이 아직 기다리면 그 화면에 넘기고, 아니면 결과별 토스트(05 키):
     성공             → "연결이 끊긴 동안 보낸 조작이 처리됐습니다"
     3004·3009        → "연결이 끊긴 동안 상황이 바뀌어 조작이 적용되지 않았습니다", 쓰던 내용을 drafts(origin 'restored')로 되살린다
@@ -1251,7 +1251,7 @@ send(params, { basisSeq, screen, objectId }):
   나이 초과 행과 appState가 붙은 행은 SCR-CONNECT "보내지 못한 조작"(04 §3.19):
     먼저 command.lookup({ idempotencyKey })(19에 요구, 읽기 메서드)로 원래 키의 결과를 묻는다.
       결과가 있으면 그 결과를 보이고 행을 지운다(두 번 적용되지 않게)
-      결과가 없거나 조회할 수 없으면(키 보존 기간 7일 경과, 다른 storeId) 내용과 원래 화면(screen·objectId)을 보이고,
+      결과가 없거나 조회할 수 없으면(키 보존 기간 365일 경과, 다른 storeId) 내용과 원래 화면(screen·objectId)을 보이고,
       다시 보내려면 그 화면을 열어 바뀐 상황을 본 뒤 새 키와 현재 basisSeq로 보낸다
     command.lookup은 원래 기기의 deviceId 범위에서만 찾으므로 deviceChanged 행은 조회 없이 "결과를 알 수 없음"으로 보인다
 
@@ -1800,7 +1800,7 @@ export interface PlatformAdapter {
 
 | 문서 | 요구 |
 |---|---|
-| 19 | (1) 재전송 전에 `hello.log.storeId`를 저장 위치와 비교하고 다르면 `clearServer(serverId, "all")`을 먼저 부른다. `ClientStateStorage.listPending(serverId, current: { storeId, deviceId, protocol, schemaHash })`로 현재 값을 넘기고, `PendingCommand`에 `storeId`·`deviceId`·`protocol`·`schemaHash`를 더한다(§3.9.5, V3-011·V3-012·V3-040). CT-08에 "재전송이 먼저 나가지 않음". (2) `command.lookup({ idempotencyKey })` 읽기 메서드(같은 기기 범위, 보존 7일)(§3.9.7, V3-041). (3) F-17의 "5003이면 보존했다가 모드가 풀리면 보낸다"를 "명령함에서 지우고 초안으로"로(§3.9.7, F-42). (4) F-06을 폐기·만료 구분과 재페어링 뒤 자동 재전송 제외로(§3.9.5). (5) `server.modeChanged.reason`을 17의 사유 값(`disk_critical`·`integrity_suspect`·`recovery_failed`·`projection_fault`·`operator`)의 배열로 정하고 `hello`에도 현재 사유를 싣는다(§3.8.9). (6) 3008 `outcome` 열거에 `expired`, J-120의 `assumedValue`(§3.9.7). (7) §2.4의 "별도 푸시 채널 없음"을 결정 47 기준으로, §3.8.3 숨김 알림 문구를 05 `notif.hidden.*`로 |
+| 19 | (1) 재전송 전에 `hello.log.storeId`를 저장 위치와 비교하고 다르면 `clearServer(serverId, "all")`을 먼저 부른다. `ClientStateStorage.listPending(serverId, current: { storeId, deviceId, protocol, schemaHash })`로 현재 값을 넘기고, `PendingCommand`에 `storeId`·`deviceId`·`protocol`·`schemaHash`를 더한다(§3.9.5, V3-011·V3-012·V3-040). CT-08에 "재전송이 먼저 나가지 않음". (2) `command.lookup({ idempotencyKey })` 읽기 메서드(같은 기기 범위, 보존 365일)(§3.9.7, V3-041). (3) F-17의 "5003이면 보존했다가 모드가 풀리면 보낸다"를 "명령함에서 지우고 초안으로"로(§3.9.7, F-42). (4) F-06을 폐기·만료 구분과 재페어링 뒤 자동 재전송 제외로(§3.9.5). (5) `server.modeChanged.reason`을 17의 사유 값(`disk_critical`·`integrity_suspect`·`recovery_failed`·`projection_fault`·`operator`)의 배열로 정하고 `hello`에도 현재 사유를 싣는다(§3.8.9). (6) 3008 `outcome` 열거에 `expired`, J-120의 `assumedValue`(§3.9.7). (7) §2.4의 "별도 푸시 채널 없음"을 결정 47 기준으로, §3.8.3 숨김 알림 문구를 05 `notif.hidden.*`로 |
 | 09·11 | (1) `question.delivered`에 `deliveryMode`(`immediate`·`negotiated`·`mediated`·`scheduled`)를 더하거나, 11이 협상 전달의 `surface`에서 `os`를 뺀다(§3.10.1 규칙 5, Q-25, AC-04-01). (2) 같은 질문의 승격 전달을 구분하는 표시(예: `cause: 'promotion'`). (3) 11·10의 payload 표기(`deviceIds`, 평평한 `titleKey`)를 09 필드(`targetDevices`, `copy{}`, `batchKey`)로. (4) 11 urgencyOf·`pushReachable`·`planPush`(판정 J-119, 26 §3.4.3) |
 | 05 | (1) 숨김 알림 키 `notif.hidden.title`·`notif.hidden.body`(개수 있음·없음, 26과 같은 값). (2) 읽기 전용 키 `err.daemon.readOnly`(사유별 문장: 기록 점검, 운영자 전환)로 `err.daemon.recoveryMode`를 바꾼다(판정 J-115). (3) 페어링 실패 키 하나("코드가 틀렸거나 만료됐습니다", 판정 J-81). (4) 새 키: `protocol_error` 사유, `policy_closed`·`revoked`·`expired` 사유 문장(§3.8.8 표), 재전송 결과별 토스트 넷(§3.9.7), "보내지 않은 답이 있습니다", 복원 뒤 초안 경고(§3.9.5), 디스크 암호화 안내, blob 404 문장(F-29), 네이티브 확인 창의 Tailscale 밖 주소 경고, 알림 클릭 대체 배너, 재전송 묶음 알림, Windows 첫 숨김 안내. (5) `notice.app.updateRequired`의 "갱신"을 `err.protocol.version`의 "업데이트"와 맞춘다. (6) §3.7.7의 "별도 푸시 채널 없음"을 결정 47 기준으로 |
 | 04 | (1) `SCR-CONNECT`의 "보내지 못한 조작"에 `command.lookup` 결과 표시와 원인별(만료, 복원, 기기 바뀜, 형식 바뀜, 영구 오류) 문장. (2) 읽기 전용 배너를 사유별로(§3.8.9). (3) `SCR-SETTINGS`에 `notifications.negotiated`(협상 전달 알림, 기본 끔)와 §3.9.11의 다른 설정 |

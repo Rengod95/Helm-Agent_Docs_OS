@@ -1,7 +1,7 @@
 # 05. UX 상호작용과 문구
 
 - 작성: 2026-10-11, P2 UX
-- 상태: 4단계 보완판(2026-10-14). 기준 결정 범위는 브리프 결정 1~64이고 조정자 판정(`process/rulings-stage2a.md` §1~§11, J-01~J-276)을 따른다. 응답 선택지와 알림 강도는 11, 오류 코드는 19, 이벤트는 09, 레코드 값은 08을 따른다. 화면 ID는 03 §3.6·§3.12, 화면 상세는 04를 따른다. 남은 차이는 §5.2에 적었다.
+- 상태: 4단계 보완판(2026-10-14). 기준 결정 범위는 브리프 결정 1~64이고 조정자 판정(`process/rulings-stage2a.md` §1~§11, J-01~J-351)을 따른다. 응답 선택지와 알림 강도는 11, 오류 코드는 19, 이벤트는 09, 레코드 값은 08을 따른다. 화면 ID는 03 §3.6·§3.12, 화면 상세는 04를 따른다. 남은 차이는 §5.2에 적었다.
 - 소유: 질문 받기, 자극 반응, 이의 걸기, 자연어 입력과 의미 미리보기, 진행 중 개입의 상호작용 규칙, 알림 정책, 키보드 단축키, 접근성, 한국어 문구 지침과 문구 키 체계, 오류 문구 목록.
 
 ## 1. 목적과 범위
@@ -604,15 +604,15 @@ D, A, G를 보세요. 셋 가운데 비슷한 둘을 고르세요.
 
 막지 않는 권리 게이트는 사람이 정한 마감(`deadline`)이 임박할 때만 만료 임박 승격으로 끼어들기(`interrupt`)가 된다. 그 밖의 막지 않는 권리 질문은 다음 작업 경계 또는 검토 창에 전달한다([결정 64], [판정 J-132]).
 
-#### 3.7.3 주의 예산 [제안, 데몬 쪽 값은 14 `OrchestrationSettings.attention`]
+#### 3.7.3 주의 예산 [제안, 값은 의미 설정(14 `OrchestrationSettings.attention`)]
 
-주의 예산은 데몬 쪽 설정 하나로 둔다(14 §3.13.2, 다이얼이 아님): 하루 예산 `dailyBudget` 20, 권리 게이트를 뺀 즉시 전달 수 `interruptsPerHour` 2, 펼쳐 보일 결정 수 `maxVisibleDecisions` 3, 검토 창 `reviewWindows`, 조용한 시간 `attention.quietHours`([판정 J-195]). 이 값이 질문을 언제 놓을지 정한다. 하루 예산을 넘으면 데몬이 급하지 않은 질문을 다음 검토 창으로 미루고, 화면은 홈 머리에 "오늘 주의 예산을 넘어 급하지 않은 질문은 다음 검토 창(내일 09:00)으로 미뤘습니다."를 보인다.
+주의 예산은 의미 설정 하나로 둔다(14 §3.13.2, 다이얼이 아님): 하루 예산 `dailyBudget` 20, 권리 게이트를 뺀 즉시 전달 수 `interruptsPerHour` 2, 펼쳐 보일 결정 수 `maxVisibleDecisions` 3, 검토 창 `reviewWindows`, 조용한 시간 `attention.quietHours`([판정 J-195]). 이 값이 질문을 언제 놓을지 정한다. 하루 예산을 넘으면 데몬이 급하지 않은 질문을 다음 검토 창으로 미루고, 화면은 홈 머리에 "오늘 주의 예산을 넘어 급하지 않은 질문은 다음 검토 창(내일 09:00)으로 미뤘습니다."를 보인다.
 
 알림 상한은 하나다(14 §3.13.8).
 
 | 값 | 기본 | 범위 | 넘으면 |
 |---|---|---|---|
-| 시간당 알림 상한 `interruptsPerHour` | 2 | 데스크톱 OS 알림과 휴대폰 푸시를 합쳐 사람 한 명 기준으로 센다(데몬 설정 14 `OrchestrationSettings`, 모든 기기 공통). 권리 게이트의 즉시 전달과 만료 임박 승격은 세지 않는다. 앱 쪽 상한과 휴대폰 상한을 따로 두지 않는다 | 넷째부터는 개별 알림 대신 그 시간이 끝날 때 묶음 알림 1개. 묶음은 데몬이 만들고(14 §3.13.5, [판정 J-198]) 앱은 받은 묶음을 그대로 보인다: "확인할 일이 3개 더 있습니다". 앱 안 배너와 배지는 그대로 바뀐다 |
+| 시간당 알림 상한 `interruptsPerHour` | 2 | 데스크톱 OS 알림과 휴대폰 푸시를 합쳐 사람 한 명 기준으로 센다(의미 설정(14 `OrchestrationSettings`), 모든 기기 공통). 권리 게이트의 즉시 전달과 만료 임박 승격은 세지 않는다. 앱 쪽 상한과 휴대폰 상한을 따로 두지 않는다 | 넷째부터는 개별 알림 대신 그 시간이 끝날 때 묶음 알림 1개. 묶음은 데몬이 만들고(14 §3.13.5, [판정 J-198]) 앱은 받은 묶음을 그대로 보인다: "확인할 일이 3개 더 있습니다". 앱 안 배너와 배지는 그대로 바뀐다 |
 | 홈 주의 카드 펼침 수 | 3 | `maxVisibleDecisions` | 04 §3.1, A5 |
 | 같은 Concern에서 한 시간에 전달되는 질문 | 데몬 규칙(14)에 맡김 | | 16이 "Concern당 전달된 질문 수"를 측정하고 기본값 조정 제안 |
 
@@ -1033,7 +1033,7 @@ product-language의 "화면에서 쓰지 않을 말" 16개(canon §18.6)는 그�
 | `conflict.version_mismatch` | 3004 `command.revisionConflict` | `err.intent.staleBasis` |
 | `conflict.already_resolved` | 3008 `command.alreadyResolved` | `err.intent.alreadyResolved`(가정 확정이면 `err.intent.assumedAlready`, [판정 J-120]) |
 | `conflict.superseded` | 3009 `command.superseded` | `err.intent.superseded` |
-| `conflict.idempotency_key_reuse` | 3006 `idempotency.keyReused` | `err.intent.rejected.path` |
+| 저장소 결과 `key_reused`(거부 코드 아님, [판정 J-301]) | 3006 `idempotency.keyReused` | `err.intent.rejected.path` |
 | `conflict.external_observation_changed` | 3001 | `err.rule.external_observation_changed`: "같은 외부 응답을 다른 내용으로 두 번 받아 기록하지 않았습니다. 원본 기록을 보세요." |
 | `invalid.push_endpoint_not_allowed` | 3001 | `err.rule.push_endpoint_not_allowed`: "이 기기의 알림 주소를 서버가 받지 않아 등록하지 않았습니다. 휴대폰에서 알림을 껐다가 다시 켜 보세요." |
 | `denied.recovery_turn`(10 표에 더하도록 요구) | 3002 | `err.rule.recovery_turn`: "복구 중인 작업이라 지금은 이 조작을 할 수 없습니다. 복구 화면에서 먼저 정하세요." |
@@ -1071,6 +1071,7 @@ product-language의 "화면에서 쓰지 않을 말" 16개(canon §18.6)는 그�
 | 5004 `request.cancelled` | 문구 없음(사람이 취소한 요청) |
 | 5006 `runtime.unavailable` | `notice.daemon.safeMode` 또는 `err.daemon.kernelUnavailable`(사유에 따라) |
 | 5007 `feature.disabled` | `err.feature.disabled` |
+| 3010 `browser.staleRef`, 3011 `edit.staleSnapshot`, 4008 `web.tooLarge`, 4009 `web.unsupportedType`, 4010 `web.emptyNeedsBrowser`, 5008 `web.quotaExceeded` | `err.intent.rejected.path`(모델 도구 결과로만 오고 사람 화면에 직접 뜨지 않으므로 이 키로 묶는다. 개발자 보기에서 코드를 확인한다, [판정 J-345]) |
 | 4008 `slowConsumer`(닫힘 코드) | 문구 없음(바로 다시 연결) |
 | 4009 닫힘 코드, `connection.closing.kind`가 `auth.revoked` | `err.auth.revoked` |
 | 4009 닫힘 코드(`replaced`), 그 밖의 4xxx | 문구 없음(백오프 뒤 다시 연결) |

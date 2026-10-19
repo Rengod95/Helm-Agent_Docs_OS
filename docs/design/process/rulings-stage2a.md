@@ -302,7 +302,7 @@
 | J-219 | 새 이름 | 4c 보고의 "새 이름 요구"는 기존 이름과 겹치지 않으면 받아들인다. 오류 코드는 10·19, 이벤트·타이머 목적은 09, 레코드 필드는 08에 정본으로 등록하고 25에 올린다 | 08, 09, 10, 19, 25 |
 | J-220 | 22 SG 시험과 13 safeGit | 22 SG 시험은 13 §3.5.7이 실제로 부르는 git 명령으로 판정한다(13이 쓰지 않는 `status`·`add -A`는 시험 대상에서 뺀다) | 22 |
 
-## 11. 4d~W5 하위 조정자 판정 (2026-10-14)
+## 11. 4d~W5 하위 조정자 판정 (2026-10-14, 잔여 불일치 정리 J-277~ 2026-10-19)
 
 근거는 `.helm-design-work/coordinator/stage4d/done/*.md`의 "판정 필요"다. 이름·참조·정본 소유로 정해지는 것만 판정했고, 제품 동작을 바꾸는 것은 `stage4d/user-questions.md`에 모았다.
 
@@ -364,3 +364,78 @@
 | J-274 | `helm-netshim` 산출 경로 | 산출 실행 파일 경로 `packages/tools/bin/helm-netshim`은 유지한다. 소스 언어는 Rust 제안안이고 소스·빌드 위치는 SP-18 뒤에 확정한다(결정 63) | 23, 13 |
 | J-275 | 결정 58의 모델 열 표기 | WBS 모델 열의 `H → S`, `S 직접` 표기는 바꾸지 않는다. `H`는 Haiku 5.5 xhigh이고 `S`의 추론 강도는 행의 등급이 정한다(A·B medium, C·D high) | 23 |
 | J-276 | SP-15의 확인 시점 | 쿠키·Origin 헤더가 `tailscale serve`를 통과하는지는 SP-10과 함께 M11-12에서 확인한다(M17-01의 쿠키 인증을 쓰기 전). Web Push는 A2 시작(M17-04)에서 확인한다 | 23 |
+| J-277 | 의존 규칙의 개수(A01) | 06 §3.5.1 표가 정본이며 R1~R16이다. 24 ADR-06-04 본문, 06 §5.1·§5.4·§6 S2, 22 `check-arch` 행과 06/S2 행, 25 N-55의 "R1~R13", "R1~R14"는 R1~R16으로 바꾼다. 위반 fixture도 R15·R16을 포함한다 | 24, 06, 22, 25 |
+| J-278 | 데몬 쪽 CONNECT 프록시의 코드 위치(A02) | `helm-egress-proxy`의 본체(소켓 서버, 허용 목록 판정)는 `packages/daemon/src/net/egress-proxy.ts`다(데몬 주 스레드 구성 요소, 17 §3.1.2). `packages/tools/src/sandbox/proxy.ts`는 샌드박스 실행기가 실행마다 데몬이 연 프록시 소켓 경로를 받아 bwrap에 연결하고 `helm-netshim`을 실행하는 쪽 코드다. 06 패키지 목록(daemon의 `net/`)과 13 U-TL-16, 13 §3.6.3, 18 §6 표가 이 분담을 한 문장으로 적는다 | 06, 13, 17, 18 |
+| J-279 | 쓰기 트랜잭션 시간 수치(A03) | 층을 나눠 쓴다. 엔진 트랜잭션 목표 p99 10 ms(06 §3.6.5, 22 PF-06, [가정]), 명령 하나 커밋(투영 포함) 목표 p50 3 ms·p99 25 ms(09 §3.15.2, 22 PF-01), 경고 임계 100 ms(06 F13, `warn` 로그). 09 §6.2 벤치의 "p99 100 ms 초과 시 실패"는 "PF-01 기준(p99 25 ms) 초과 시 실패"로 바꾼다. 17 §3.1.2의 "평상시 50 ms"는 "p99 25 ms(09 §3.15.2)"로 바꾼다 | 06, 09, 17, 22 |
+| J-280 | `SubmitResult`의 상태 수(A04) | 06 §3.4.6 타입이 정본이다. 상태는 여섯 값(`accepted`, `rejected`, `needs_gate`, `conflict`, `key_reused`, `error`)이고 `replayed`는 상태가 아니라 플래그다. "다섯 상태(…`replayed`)" 문장(10 §3.3.5, 06 §5.1·§5.3)은 이렇게 고친다. 09 §3.16.1 타입과 09 §3.8.4의 참조 절은 06 §3.4.6의 모양과 절 번호에 맞춘다. 10 §2.2의 `DecisionStatus` 다섯 값은 별개 개념이므로 그대로 둔다 | 10, 06, 09 |
+| J-281 | 25 N-01의 `Via.listener` 값(A05) | 값은 `tailnet`, `loopback`, `local`이다(08 §3.3.2, 19 `ListenerKind`). 25 N-01 행의 값과 줄 번호 인용을 고치고 N-01을 닫는다 | 25 |
+| J-282 | 데몬 모드 이름(A07) | 프로토콜에 보이는 이름은 19 `DaemonMode`(`normal`, `safeMode`, `readOnly`, `draining`)다. 14 §3.16.1의 `daemonMode` 값 `"safe"`, `"read_only"`는 `"safeMode"`, `"readOnly"`로 바꾼다. 내부 `OpsMode`는 17이 소유한다. 25 N-28 행은 남은 곳이 없으므로 닫는다 | 14, 25 |
+| J-283 | `helmd.owner.json`의 용도(A08, J-247 보완) | 용도는 세 가지다. 진단 정보, 크래시 루프 계산용 부팅 기록(J-247, J-269), 마이그레이션 실패 표지(`lastFailure: "migration"`, 두 번째 실패부터 재시작 멈춤). 소유 판정에는 쓰지 않는다. 09 §3.6.1 표, 17 §3.1.4 규칙 3, 17 §3.10.3이 이 세 용도로 일치하게 쓴다 | 09, 17 |
+| J-284 | `daemon.safe_mode_entered`의 사유(A09, J-164 보완) | 사유는 `crash_loop`와 `restored` 두 값이다(09 §3.4.15). 09 §3.4.13 카탈로그의 "크래시 루프 전용"은 "크래시 루프 또는 복원 뒤 첫 부팅(J-164)"으로 고친다. 25 §3.9 안전 모드 설명에도 복원 사유를 더한다 | 09, 25 |
+| J-285 | `backup.failed`·`drill.completed`의 payload(A10) | 이벤트 payload 정본은 09 §3.4.15다(`backup.failed {kind, code, note}`, `drill.completed {ok, backupId, durationMs, report}`). 17 §3.9.1, §3.9.6, F-22의 필드 표기를 09에 맞춘다. `disk`, `verify` 같은 구분은 `kind` 또는 `code` 값으로 적는다 | 17, 09 |
+| J-286 | 커널 스냅숏의 주기와 함수 이름(A12) | 함수 이름은 09 §3.16.2의 `loadKernelSnapshot`이다. 주기는 가장 짧아지는 합집합으로 "1만 이벤트마다, 하루 한 번, 정상 종료 직전 중 먼저 오는 것"이다. 10 §3.1.4와 09 §3.16.4가 같은 문장을 쓴다 | 10, 09 |
+| J-287 | 멱등 키 보관 기간(A13) | 365일이다(09 §3.15.3, 19 §3.4.4·§3.9.2). 7일은 최소 요구였고 실제 창이 아니다. 20 §3.9.7의 "7일"을 365일로 바꾼다 | 20 |
+| J-288 | 19의 가림 필드와 줄인 결과 이름(A14) | 이벤트의 가림 목록 필드는 `redactions`, 크기 생략은 `payloadOmitted`다(19 §3.5.2). 19 F-12의 `redacted: [""]`는 `redactions`로 고친다. 멱등 결과를 줄인 행은 저장소 이름이 `resultPruned`(09 §3.15.3), 와이어 이름이 `reduced`(19 §3.7.2)이며 두 문서가 대응을 한 줄로 적는다 | 19, 09 |
+| J-289 | Concern 표시 상태의 계산 위치(A15) | 09 §3.7이 정한 `@helm/store/src/views/concern-display.ts`의 함수가 계산한다. SQL 뷰 `v_concern_display`는 없다. 08 §3.6.1, §3.22.2와 03 §3.3.3의 뷰 이름·절 번호 인용을 이 함수로 고친다 | 08, 03 |
+| J-290 | `toolcall.interrupted.cause`의 값(B02, J-160 보완) | `cause`는 `crash`, `daemon_shutdown`, `cancel`, `steering` 네 값이다(09 §3.4.15). `run.interrupted.code`는 `crash`, `daemon_shutdown` 두 값이며 `cause`의 부분 집합이다. 09의 "같은 값" 주석은 "`code` 값을 포함하는 상위 집합"으로 고치고, 부팅 복구 경로는 `crash`만 쓴다고 12 §3.16.3이 적는다 | 09, 12 |
+| J-291 | `toolcall.approved`의 payload(B04) | payload는 `questionId`뿐이다(09 §3.4.15). `editedArgs`는 `toolcall.denied`(`edited_by_human`)의 필드이고, 고쳐서 승인한 실제 인자는 새 호출의 `toolcall.requested`(`editedFrom`)로 간다. 09 §3.4.12 카탈로그 행을 이에 맞춘다 | 09 |
+| J-292 | `RunCore.role`과 `observer`·`router`(B05) | `role`의 타입은 `AgentRoleSchema`를 유지하되 run 레코드에는 `observer`, `router` 값이 오지 않는다(RunKind 6값, J-97). 08 §3.18.1과 12 §3.2.1 `RunSpec.role`의 주석에 이 제한을 적는다 | 08, 12 |
+| J-293 | `PrimitiveAction`·`TruncationInfo`(B07) | 원시 행동 타입의 정본은 08 `Primitive`(§3.3.3)다. 13, 12, 14의 `PrimitiveAction`은 `Primitive`로 바꾸고 14의 별칭 선언(`Primitive as PrimitiveAction`)은 지운다. 13 §1.3의 "10 §3.6.2 `PrimitiveAction`" 인용은 "08 §3.3.3 `Primitive`"로 고친다. `TruncationInfo`는 13 §3.1에서 `{originalBytes, keptBytes}`로 정의하고 09 `toolcall.completed`의 `truncation` payload와 같다고 적는다. `ActionDescriptor`는 권한 층 입력이라 13 정의를 유지한다 | 13, 12, 14 |
+| J-294 | S0 `bash`의 `enforcement` 값(B08) | 13 §3.3.5 식이 정본이다. S0의 `bash`는 변경을 측정했으면 `post_hoc`, 못 했으면 `advisory`다. 13 §3.10 표의 "post_hoc" 단정을 이렇게 고친다. `pre_read_exposed`는 `enforcement` 값이 아니라 표시 플래그이므로 08 enum은 바꾸지 않는다 | 13 |
+| J-295 | 08 주석에 남은 옛 이름(B09) | 08 `ToolCallExecution.fingerprint` 주석의 `fingerprintArgs`는 `fingerprint`로, `ResourceScope.net` 주석의 `net:*`는 지운다(13 §3.7.7, §3.4.1) | 08 |
+| J-296 | 대상 미상 실행 허용 플래그(B10) | 이름은 08 `Scope.allowUnknownTargets`다. 18 §3.11.1과 §3.11.2의 `allowUnscopedExecute`는 `allowUnknownTargets`로 바꾼다 | 18 |
+| J-297 | 19 오류 목록의 웹·브라우저 코드(B11) | 19 §3.3.4 표에 13이 요구한 여섯 코드(`web.too_large`, `web.unsupported_type`, `web.empty_needs_browser`, `web.quota_exceeded`, `browser.stale_ref`, `stale_snapshot`)를 더한다. 프로토콜 표기는 19의 표 규칙(영역 번호, 둘째 부분 camelCase)을 따르고 행마다 13의 내부 코드를 괄호로 적는다(`idempotency.keyReused`의 선례). 번호는 해당 영역의 빈 번호를 쓴다 | 19 |
+| J-298 | 탐구 멈춤의 표기(B12) | `then` 값은 `proceed`, `handoff`, `decide_now`다(10). 04 §3.8, 19 §3.7.1의 `hand_off`와 15 §3.11.2의 `handOff`는 `handoff`로 바꾼다. 이벤트 `inquiry.stopped`의 인수 문서 필드는 09의 `handover`이며 10 `InquiryStopPayload`와 15 `StopDecision`의 `handoverRef`는 09의 이름과 형식에 맞춘다(15 §3.14가 레코드 id로 정했다면 판정 필요로 보고). `ElementSelector`의 키는 08대로 `key`이므로 15 §3.4.11의 `elementId`는 `key`로 고친다 | 04, 19, 15, 10 |
+| J-299 | 루프 계획 레코드 이름과 `decidedBy` 값(B13) | 레코드 정본은 08 `LoopPlanCore`(J-226)다. 14 §3.8.1의 `LoopPlanRecord`와 04의 인용을 `LoopPlanCore`로 바꾸고 필드는 J-226 대응대로 쓴다. `decidedBy` 값은 08 §3.4.5와 같다. 코드 규칙 결정은 `"kernel"`, 사람은 `"human"`, 모델은 `"agent:<역할>"`이다. 14의 `"rule"`, `"model"` 표기를 이에 맞춘다 | 14, 04 |
+| J-300 | "다이얼 개수"의 세는 단위(B13, J-221 보완) | `DIAL_KEYS`는 키 20개이고, 이 가운데 다이얼 키가 18개(항목 16), 구조 설정 키가 2개다. 08 §3.17 주석, 14 §3.11.1, 25 "다이얼" 행이 이 세 숫자와 단위를 같은 문장으로 적는다. "열다섯" 표기는 쓰지 않는다 | 08, 14, 25 |
+| J-301 | 멱등 키 재사용의 이름(B14) | 이름은 저장소 결과 `key_reused`다(06 §3.4.6, 09 §3.9.2, 08 §3.23). 거부 코드가 아니므로 10 §3.4.4 코드 표의 `conflict.idempotency_key_reuse` 행은 "저장소 결과 `key_reused`(거부 코드 아님)"로 바꾸고 10 §4, 19 §3.3.4·§3.3.5, 25, 05 표의 인용도 같은 이름으로 쓴다. 프로토콜 번호 3006은 그대로다 | 10, 19, 25, 05 |
+| J-302 | `conflict` 기록과 `notice.*`(B15, B22) | `conflict`도 `command.rejected`(status `conflict`)로 기록한다(J-25, 09 §3.9.2). 10 §3.4.5 표의 "없음"을 이렇게 고친다. `notice.*`는 `Decision.notices`로 돌려주는 응답 알림이며 이벤트가 아니므로 10 §3.4.5의 "커밋되는 이벤트" 열, V-PLAN-07 결과 열, 22 PL-07 기록 목록에서 이벤트와 구분해 적는다 | 10, 22 |
+| J-303 | 정책 판정 순서의 P-12 위치(B16) | 정책 순서의 정본은 10 §3.6.3 표다. P-12(V-PLAN-02, 4a)는 4a 묶음에 속하므로 표에서 P-6 뒤로 옮기고 번호는 유지한다. §3.4.3 6번 문장이 같은 순서를 적는다. P-10의 결과 열 "(gate)"는 "(needs_gate)"로 쓴다 | 10 |
+| J-304 | 속성 테스트·react 규칙 개수(B17) | 속성 테스트는 PT-01~PT-20이고(10 §3.17.2) 10 §5.1, §6.1, §6.2의 "PT-01~19"는 PT-01~20으로 바꾼다. react 규칙은 R-1~R-15와 R-20이다(10 §3.13). 10 §6.1의 "R-1 ~ R-12"와 23의 "파생 R-1~R-12"를 고친다 | 10, 23 |
+| J-305 | 파생 ID의 입력(B18, J-182 확인) | 모든 채널의 파생 ID는 멱등 키에서 결정적으로 만든다(J-182, 10 §3.1.3). 09 §3.16.1 `KernelContext.newId` 주석과 09 §3.9.1의 "R·S·X 채널" 한정 문장을 이에 맞춘다 | 09 |
+| J-306 | `EventDraft.enforcement`와 `Via` 값(B19) | `enforcement`는 `EventDraft`의 최상위 필드가 아니라 도구 호출 이벤트의 payload 필드다(09 §3.4.15). 10 §3.1.4, §3.2 상자 6의 "EventDraft에 enforcement를 더하도록 09에 요구" 문장은 이렇게 고친다. 10 §3.3.1 `via` 주석의 값 목록에 08 §3.3.2대로 `process`를 더한다 | 10 |
+| J-307 | R-56의 소유(B20) | 정의는 08 §3.20.2다. 10은 구현하므로 "R-01~R-55" 표기를 "R-01~R-56"으로 바꾸고 §3.10 표에 R-56 행(`agreement.activated_by_choice`의 근거 선택 조건, J-133)을 더한다. 22, 23의 같은 표기도 고친다 | 10, 22, 23 |
+| J-308 | 유효 기간이 지난 합의의 쓰기 거부(B21) | 만료는 P-1(합의 범위)의 누락이므로 거부 코드는 `denied.agreement_required`다(10 §3.6.3, §3.6.6). V-POL-04는 예산(`policy.budget_exhausted`)만 맡고 유효 기간 부분의 `conflict.invalid_transition`을 뺀다. 08 §3.22.4 표의 `agreement.activated_by_rule` 근거 포인터는 14 §3.20.1이 아니라 10 §3.11.6으로 고친다 | 10, 08 |
+| J-309 | 스키마 실패 재요청 횟수(B23) | 관찰 에이전트 호출은 1회 재요청이다(16 §3.12.3 정본). 12 §3.14.6은 "관찰 호출은 1회, 그 밖의 호출은 2회까지"로 적는다 | 12 |
+| J-310 | `view.opened`의 표기(B24) | payload 필드는 09 정본(`view`, `dwellBucket`, `deviceId`, `refs`, `depth`)이다. 열람 장소는 16 §3.23.1대로 여섯 종류(복귀 요약, 에이전트가 정한 것, 결과 확인, 질문, 감사 깊이, 결과 확인 중 근거 `SCR-EVIDENCE`)다. 04 §3.27의 `{surface, depth, subjectRef}`와 "다섯 곳", 25의 "다섯 화면", 16의 `view.surface = "auto"`(`view = "SCR-AUTO"`로)를 고친다. 09 카탈로그의 행위자는 데몬이 만들므로(10 `view.record`, 16, 20) 채널 열을 이에 맞춘다 | 04, 09, 16, 25 |
+| J-311 | 25의 낡은 `or` 접두사 메모(B25) | 08 §3.2.2에 `or`(관찰 실행 id)가 있다(J-113). 25 §3.11, §3.12, N-20의 "08 접두사 목록에 없다" 문장은 지우고 N-20을 닫는다 | 25 |
+| J-312 | 남은 `onNormalPath`·`extraReason`(B27) | 23의 `onNormalPath`는 `normalPath`로 고친다. 14 §3.16의 `extraReason` 주석은 "08 `HumanOpMeta.extraReason`, 지표 계산에는 쓰지 않는다(J-76)"로 쓴다. 25 N-06의 남은 곳 목록을 현행 줄로 정리한다 | 23, 14, 25 |
+| J-313 | 웹 본문의 숨은 텍스트 제거(C02) | 변환 절차의 정본은 18 §3.11.8 5번이다. 13 §3.2.4 변환 작업자 단계에 "변환 전에 숨은 텍스트(`display:none`, `aria-hidden`, 크기 0, 주석, `script`·`style`·`template`)를 지운다"를 더하고 U-TL-18 시험 항목에 숨은 텍스트 시험을 더한다 | 13 |
+| J-314 | 내부망 차단 대역(C03) | 차단 목록의 정본은 18 §3.11.8 1번이다. 13 §3.6.3 목록에 `0.0.0.0/8`을 더한다. 서버 자기 주소와 `*.ts.net`·`*.local` 호스트도 `web_fetch`에 적용한다(가장 보수적인 쪽). 18 §3.11.8 1번에 이 세 항목을 더한다 | 13, 18 |
+| J-315 | 긴 질의 기준의 잔존 256자(C04, J-209 확인) | 기준은 2 KiB다. 22 WB-03의 "256자를 넘는 GET 질의"를 "2 KiB를 넘는 GET 질의"로 고친다 | 22 |
+| J-316 | 샌드박스의 홈 디렉터리(C05) | 13 §3.6.2가 정본이다(O-13-10). S1은 작업 공간별 영속 캐시 홈, S1b는 실행별 임시 홈이다. 18 R-2의 `HOME` 설명을 S1과 S1b로 나누고, R-4는 홈을 빈 tmpfs로 덮은 뒤 S1의 작업 공간 홈과 합의 범위 작업 공간, 실행별 임시 디렉터리만 쓰기 가능하다고 쓴다 | 18 |
+| J-317 | 격리 자가 시험의 개수(C06) | 목록의 정본은 18 §3.11.4다. 여덟 시험에 브라우저 조건부 시험 하나(9번)가 있다. 13 §3.6.8 표는 18 (1)~(8)에 맞추고 (9)를 조건부로 적는다. 13 U-TL-14, 18 T18-08, 22의 "여섯 시험"은 "여덟 시험(브라우저 조건부 1 별도)"으로 고친다 | 13, 18, 22 |
+| J-318 | `basic` 묶음의 `grep`·`find` 조건(C07) | 13 §3.2.2 식의 `basic`은 `grep`, `find`를 "샌드박스 수준이 없음이 아닐 때만" 넣는다(§3.6.1 표와 일치) | 13 |
+| J-319 | 26의 18 인용문(C13) | 1차에는 앱 잠금이 없다(18 §3.18.2 6번, MQ-03). 26 §3.3.8, §3.1.4 위험 표의 "기본 켬" 인용을 이에 맞추고, §3.3.3의 18 §3.18.2 4번 인용은 "CSRF·출처 규칙"으로 고친다 | 26 |
+| J-320 | 18의 옛 페어링 코드 예시(C14) | 코드는 12자다(19, 26). 18 §3.7.2의 "9자 45비트 예시" 문장을 지운다 | 18 |
+| J-321 | 18 §3.5의 `clientKind`(C15) | 값 집합의 정본은 08 `ClientKind`(`desktop`, `mobile`, `tui`, `cli`)다. 18 §3.5에 `cli`를 더하고 scope는 `desktop`·`tui`와 같게 둔다. `ClientInfo.kind`의 `test`는 연결 전용 값이며 기기 레코드에 들어가지 않는다고 19가 한 줄 적는다 | 18, 19 |
+| J-322 | 예약된 정보 질문과 휴대폰 푸시(D01) | 예약 전달은 강도 `digest`이고 푸시가 없다(11 §3.5.1 `urgencyOf`, J-273, 26 §3.4.3). 14 §3.17 둘째 행의 "휴대폰으로 notice까지 보낸다" 문장을 이에 맞춘다 | 14 |
+| J-323 | UC-03의 권리 질문 예약과 승격(D02, D03) | 02 §3.6의 UC-03은 푸시 받을 휴대폰이 없는 1단계 시나리오다. 사전 조건에 "푸시를 받을 휴대폰이 등록되어 있지 않다"를 적고, 단계 7의 사유를 "푸시를 받을 기기가 없어"로 바꾼다(J-172). 단계 8과 AC-03-05의 승격은 강도 `notice`이며 이 시나리오에는 푸시 기기가 없어 배지로만 알린다고 적는다 | 02 |
+| J-324 | "가까워짐" 승격의 강도(D09) | 강도는 11 §3.5.1 `urgencyOf`가 정한다. 막는 질문과 권리 게이트는 `interrupt`, 막지 않는 정보 질문은 `notice`다. 11 §3.6.3의 "즉시·끼어들기로 전달 지시" 문장을 "즉시 전달 지시(강도는 `urgencyOf`)"로 고친다 | 11 |
+| J-325 | UC-03 단계 4의 run 이벤트(D04) | 단계 4 행에 `run.queued`, `run.started`(attempt 1)를 더한다(12 §3.2.2). 02의 단계 1~3에서 run이 열려 있어 합의 확정으로 닫히는 경우에만 `run.ended`(`handed_off`)를 함께 적는다. 단계 11의 새 run 요청 행에도 `run.queued`, `run.started`를 더한다 | 02 |
+| J-326 | UC-03 단계 13의 "이의 없음"(D05) | 목록을 펼치는 것은 `autonomous.markSeen`이고 이벤트는 `autonomous.seen`(상태 변화 없음, 사람 조작 아님)이다(19 §3.7.1, 04 §3.5). "이대로 둔다"를 누를 때만 `decision.confirm`/`decision.confirmed`다. 02 단계 13 행의 "이의 없음"을 이 뜻으로 고치고 이벤트 칸에 `autonomous.seen`을 적는다 | 02 |
+| J-327 | "조건부 확인" 표기(D06) | 결과 확인 행동의 화면 라벨은 "조건 붙여 확인"이다(25 N-25, 05 §3.4.1). 02의 라벨·용어로 쓴 "조건부 확인" 8곳을 고치고 코드 주석에 쓴 08, 10, 05의 표기도 같게 한다. 옛 표기를 설명하는 기록·발췌(08 기록 절, 02 §의 05 변경 요청 기록과 원전 발췌)는 건드리지 않는다 | 02, 08, 10, 05 |
+| J-328 | E2E-UC03의 시작점(D07) | 22 E2E-UC03 행의 경로를 02 §3.23의 화면 열과 같게 "입력 → 합의 확정 → (가짜 시계로 밤 경과) → 복귀 요약 → 질문 → 결과 확인 → 에이전트가 정한 것"으로 쓴다 | 22 |
+| J-329 | `notifications.dndException`의 위치(D10) | 값, 기본값, 저장 위치의 정본은 20 §3.9.11(기기 설정)이다. 11 §3.16 표는 이 키를 `OrchestrationSettings`에 둔다는 문장과 행을 "기기 설정, 20 §3.9.11"을 가리키는 행으로 바꾼다 | 11 |
+| J-330 | "데몬 설정"이라는 호칭(D11, J-166 보완) | "데몬 설정"은 `helmd.toml`(25 §3.9, 06 §3.9.1)만 가리킨다. `attention.*`(`snoozeUntil`, `interruptsPerHour` 등)는 14 §3.13.2 `OrchestrationSettings`의 의미 설정이며 `setting.changed` 이벤트로 저장한다. 05, 26, 04, 21의 "데몬 설정" 호칭과 11 §3.16의 문구를 이에 맞춘다 | 05, 26, 04, 21, 11 |
+| J-331 | 검토 창 기본값과 형식(D12) | 기본값은 매일 09:00~09:30 한 개이고 형식은 14 §3.13.2 `{days, start, end}`다. 11 §3.16 표, 11 §3.7 `MediatorInput`, 11 A-11, 04 §3.21의 형식을 같게 하고 14의 "(11 §3.16)" 출처 표기는 바로잡는다 | 11, 04, 14 |
+| J-332 | 복귀 요약의 절 이름(D14) | 절 이름의 정본은 04 §3.2와 05 §3.10.4다. 03 §3.12 표의 "진행 중 작업"은 "진행 중인 작업"으로, "2·3절(반대 근거·깨진 가정·이견 포함)" 설명은 04의 2절 "돌아온 뒤 달라진 점", 3절 "왜 중요한가"에 맞춘다 | 03 |
+| J-333 | ADR A1의 상태(D16) | 24 ADR-03-01이 정본이다. 03의 "[제안, ADR 후보 A1]" 세 곳(§2.2 표, §3.2.2 제목, 부록 A1)을 "채택(J-21, 2주 사용 뒤 재검토)"으로 바꾼다 | 03 |
+| J-334 | `SCR-M-ONBOARD`의 소속(D17) | 03 §3.12 표에 이미 있다. 25 §3.10의 "03에 없다" 문장과 N-31 행을 닫고, 26 §1.4의 새 화면 요구 문장은 "03 §3.12에 반영됨"으로 바꾼다 | 25, 26 |
+| J-335 | `urgencyOf` 사본의 필드명(D18) | `Question`의 레코드 필드는 `blocks`(08 `BlockScope`)다. 파생 불리언 `blocking`은 `blocks != 'nothing'`으로 정의한다. 26 §3.4.3 사본은 `q.blocks != 'nothing'`을 쓰고, 10 §3.5 커널 입력 목록의 `blocking`은 `blocks`로 바꾼다 | 26, 10 |
+| J-336 | 탐구 인수 문서의 필드(J-298 보완) | `InquiryHandover`는 15 §3.14의 투영 타입이며 본문은 blob으로 저장한다. `inquiry.stopped`(09), 명령 `InquiryStopPayload`(10), `StopDecision`(15)은 모두 필드 이름 `handover`, 형식 `BlobRef`(널 허용)를 쓴다. `handoverRef`는 쓰지 않는다 | 10, 15 |
+| J-337 | 커널 스냅숏 적재의 반환 모양(J-286 보완) | 저장소 API 정본은 09 §3.16.2다. `loadKernelSnapshot()`은 `{ seq, rulesVersion, state }`를 돌려주고, 손상 검사는 09 `kernel_snapshots.state_hash`(직렬화 바이트의 sha256)와 규칙 판 대조로 한다. 10 §3.1.4 의사 코드는 이 모양을 쓴다 | 10 |
+| J-338 | 계획 레코드의 필드(J-299 보완) | 08 `LoopPlanCore`에 없는 `proposedBy`, `situationType`은 14 정의에서 뺀다(08이 레코드 정본). 14의 `decidedBy`는 `kernel`, `agent:<역할>`, `human` 세 값만 쓰며 `scheduler`는 계획 채택·전환에 쓰지 않는다 | 14 |
+| J-339 | 전환 레코드·상황 판정 레코드의 모양(J-299 보완) | 14 §3.7.1, §3.9.1의 두 레코드는 08 레코드와 같은 `autonomy` 객체 모양을 쓰는 것이 정본이다. 이번에는 값 어휘만 맞췄고 모양 맞춤은 레코드 스키마를 쓰는 마일스톤에서 08을 기준으로 한다. 구현 착수 점검표의 알려진 위험에 올린다 | 14, 08 |
+| J-340 | 14 `daemonMode`의 값 목록(J-282 보완) | 19 `DaemonMode` 네 값(`normal`, `safeMode`, `readOnly`, `draining`)을 모두 쓴다. `draining`은 상태를 바꾸는 요청을 거절하므로(17 §3.4.3) `requestWork`도 큐에만 남는다 | 14 |
+| J-341 | 보호 파일 시험의 위치(J-317 보완) | 격리 자가 시험의 정본 목록은 18 §3.11.4(여덟 시험과 브라우저 조건부 1)다. `.env`·`.env.example`·`secrets/x` 보호 파일 시험은 목록에 더하지 않고 13 §3.6.8의 표 밖 문단에서 같은 시점에 도는 별도 시험으로 두며, 13 §6 U-TL-14 T-IS-01이 함께 확인한다 | 13 |
+| J-342 | `web_fetch`의 호스트 이름 검사(J-314 보완) | 13 §3.2.4 처리 순서 (2)는 서버 자기 주소와 `*.ts.net`·`*.local` 이름을 해석 전에 거부하고, 나머지는 해석한 IP를 차단 대역과 대조한다 | 13 |
+| J-343 | 19 §3.3.5의 v0.2 대응 문장(J-301 보완) | 대응 문장의 왼쪽은 v0.2 후보 이름이다. `conflict.idempotency_key_reuse` → 3006으로 쓰고 "현행 이름은 저장소 결과 `key_reused`"를 덧붙인다 | 19 |
+| J-344 | 19 신규 오류 코드의 번호와 저장 열(J-297 보완) | 4008~4010, 5008, 3010, 3011을 쓴다. 오류 코드와 WebSocket 닫는 코드는 다른 이름 공간이며 이미 1008, 1001, 1011, 4001이 겹친다(19 §3.2.6, §3.3.4). 3010·3011은 도구 결과로 오므로 저장 열은 `-`다. `web.unsupportedType`의 뜻은 허용 형식 밖이며 허용 형식은 13 §3.2.4가 정한다(사용자 질문 C01) | 19 |
+| J-345 | 신규 여섯 오류 코드의 문구 키 | 19 §3.3.3 규칙(표의 모든 kind에 문구 키)에 따라 05의 오류 코드 대응표에 여섯 코드(`browser.staleRef`, `edit.staleSnapshot`, `web.tooLarge`, `web.unsupportedType`, `web.emptyNeedsBrowser`, `web.quotaExceeded`)를 더한다. 이 코드들은 모델 도구 결과로 오고 사람 화면에 직접 뜨지 않으므로 `err.intent.rejected.path`(개발자 보기에서 코드 확인)로 묶는다 | 05 |
+| J-346 | 25의 화면용 연결 상태 행(J-196 적용) | 값은 04 §3.0.4의 camelCase 열여섯 상태이며 25 행은 예시 값을 같은 표기로 쓴다 | 25 |
+| J-347 | `planDetail.skipped`의 형식(J-299 보완) | 건너뛴 루프의 이유를 기록하는 것이 14 §3.8.1의 규칙(정상 경로 인정과 기록)이므로 08 `LoopPlanCore.planDetail.skipped`를 `{loop, reason}` 배열로 한다. 08 `LoopTransitionCore.skipped`(루프 id 배열)는 그대로 둔다. 04 §3.7과 14 §3.8.1은 이 형식을 쓴다 | 08 |
+| J-348 | `view.opened`의 `refs` 위치(J-310 보완) | payload 필드는 `view`, `dwellBucket`, `deviceId`, `depth`이고 열람 대상 레코드는 envelope `refs`에 둔다(09 §3.4.15, 16 §3.23.1 규칙 2). 04 §3.27이 이 모양을 쓴다 | 04 |
+| J-349 | 04 §3.17 `mode`의 `decidedBy`(J-299 보완) | 코드 규칙 결정은 `"kernel"`이므로 04 §3.17의 `"rule" \| "human"`을 `"kernel" \| "human"`으로 쓴다 | 04 |
+| J-350 | 26 시나리오의 `blocking` 표기 | 26 §3.5의 시나리오 줄 `question.recorded(Q-B, rights, blocking)`은 서술 약칭이며 레코드 필드 표기가 아니다. 고치지 않는다 | 없음 |
+| J-351 | `backup.failed`·`drill.completed` 값(J-285 보완) | `backup.failed.kind`는 `disk`, `verify`, `copy` 세 값이고 `code`는 진단용 문자열이다(값 목록을 정하지 않으며 시험은 `kind`만 단정한다). `drill.completed.report`는 결과 파일 경로(`state/drills/<시각>.json`)다. 17 §3.4.6의 읽기 전용 시작 때 `helmd.owner.json`의 `lastFailure` 사유 기록은 J-283의 첫째 용도(진단 정보)에 속한다 | 09, 17 |
