@@ -36,6 +36,10 @@ layout:
     package: xeon/packages/contracts
     domains: [conversation, records, capabilities, extensions, wire-settings]
     path: "xeon/packages/contracts/src/{domain}/**"
+    # 도메인 밖 서브패스. services는 도메인이 아니고 F.capabilities가 배치 규칙을 정한다
+    # (F.capabilities.spec §3.12, review.decisions-2 D-04). 이 경로를 binds로 쓰는 문서는 F.capabilities spec·plan이다.
+    paths:
+      services: "xeon/packages/contracts/src/services/**"
   X:
     package: xeon/packages/ext-host
     domains: [loading-trust, primitives, operations]
@@ -65,7 +69,55 @@ layout:
       settings-ui: "xeon/apps/desktop/src/settings/**"
   plugins:
     - path: "xeon/plugins/provider-anthropic-oauth/**"
-      docs: [L1.models.spec]
+      docs: [L1.readme, L1.models.spec, L1.models.plan]
+  # 층 밖 코드 경로. layout에 자기 층 항목이 없는 문서(architecture, adr, eng)의 binds 허용 목록이다.
+  # 검사기는 이런 문서에 layout 전체의 경로를 허용하므로 여기 적은 경로가 그 집합에 더해진다.
+  # domains는 경로 이름표이고 문서 도메인이 아니다. layer가 shared인 문서는 두지 않는다.
+  shared:
+    domains:
+      - workspace
+      - packages
+      - apps
+      - plugins
+      - vendor-cordis
+      - check-layers
+      - depcruise-config
+      - root-package
+      - bunfig
+      - turbo
+      - tsconfig-base
+      - oxlint-config
+      - oxfmt-config
+      - lefthook
+      - justfile
+      - ci-workflow
+      - ts-sources
+      - tsx-sources
+      - test-files
+      - test-dirs
+      - testing-dirs
+    paths:
+      workspace: "xeon/**"
+      packages: "xeon/packages/**"
+      apps: "xeon/apps/**"
+      plugins: "xeon/plugins/**"
+      vendor-cordis: "xeon/vendor/cordis/**"
+      check-layers: "xeon/scripts/check-layers.ts"
+      depcruise-config: "xeon/.dependency-cruiser.cjs"
+      root-package: "xeon/package.json"
+      bunfig: "xeon/bunfig.toml"
+      turbo: "xeon/turbo.json"
+      tsconfig-base: "xeon/tsconfig.base.json"
+      oxlint-config: "xeon/.oxlintrc.json"
+      oxfmt-config: "xeon/.oxfmtrc.json"
+      lefthook: "xeon/lefthook.yml"
+      justfile: "xeon/justfile"
+      ci-workflow: ".github/workflows/xeon-ci.yml"
+      ts-sources: "xeon/**/*.ts"
+      tsx-sources: "xeon/**/*.tsx"
+      test-files: "xeon/**/*.test.ts"
+      test-dirs: "xeon/**/test/**"
+      testing-dirs: "xeon/packages/*/src/testing/**"
 
 # 산출 문서 목록 (작성 대상). id는 <층>.<도메인>.<종류>.
 manifest:

@@ -167,6 +167,8 @@ function allowedBinds(routes: Routes, layer: string): Set<string> {
       allowed.add(expanded);
       allowed.add(packageRoot(expanded));
     }
+    // paths keys outside domains are layer-level subpaths (e.g. F services)
+    for (const path of Object.values(entry.paths ?? {})) allowed.add(path);
     if (entry.package !== undefined) allowed.add(`${entry.package}/**`);
   };
   if (layer in routes.layout) add(layoutEntry(routes, layer));

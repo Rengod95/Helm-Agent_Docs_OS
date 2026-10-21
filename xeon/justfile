@@ -54,7 +54,7 @@ depcruise:
 knip:
     {{bun}} run knip
 
-# 문서 라우팅·검사: --check [--allow-missing] | --task <작업> <경로...>
+# 문서 라우팅·검사: --check | --task <작업> <경로...>
 [group('local')]
 docs-route +args:
     {{bun}} scripts/docs-route.ts {{args}}

@@ -58,7 +58,7 @@ depcruise:
 knip:
     cd xeon && just knip
 
-# 문서 라우팅·프런트매터 검사 또는 조회: docs-route --check --allow-missing | --task implement <경로>
+# 문서 라우팅·프런트매터 검사 또는 조회: docs-route --check | --task implement <경로>
 [group('local')]
 docs-route +args:
     cd xeon && just docs-route {{args}}
@@ -70,5 +70,5 @@ ci-layer layer affected="false":
 
 # 완료 기준. 검사 전부와 ws check (ws help justfile)
 [group('quality')]
-verify: setup fmt-check lint typecheck check-layers depcruise knip (docs-route "--check" "--allow-missing") test
+verify: setup fmt-check lint typecheck check-layers depcruise knip (docs-route "--check") test
     ws check

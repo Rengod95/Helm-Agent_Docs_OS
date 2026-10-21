@@ -1,0 +1,360 @@
+---
+id: L4.desktop.plan
+layer: L4
+domain: desktop
+kind: plan
+status: draft
+depends_on: [L4.desktop.spec, L4.host-service.plan, adr.0008, eng.toolchain.guide, eng.testing.guide]
+binds: [xeon/apps/desktop/**]
+---
+
+# L4 데스크톱 구현 계획 (desktop)
+
+`L4.desktop.spec`을 구현하는 순서와 범위를 정한다. 사이드카 단일 바이너리 크기와 Windows 서명은 `_research/foundation-plan.md §7`이 이 문서에 위임했다(adr.0008 §1).
+
+## 1. 목표와 마일스톤 배치
+
+### 1.1 M0
+
+- 데스크톱 쪽 작업은 없다. `xeon/apps/desktop/package.json`(`"xeon": {"layer": "L4", "domain": "desktop"}`)과 README가 이미 있다.
+
+### 1.2 M1 (이번 실행, 스캐폴드까지)
+
+[결정] 이번 실행은 데스크톱 스캐폴드까지다(`_research/foundation-plan.md §5` P4). Rust 툴체인이 없으므로(`xeon/apps/desktop/README.md`) TS 쪽만 만든다.
+
+- D1: WebView에서 쓸 `StdioTransportFactory` 구현과 `HostConnection`이 엔진 프로세스에 대해 `WIRE_CONFORMANCE_CASES`를 통과한다. 엔진은 `bun xeon/apps/host/src/main.ts host --stdio`로 띄운 실제 프로세스이고, 그 stdin/stdout을 `StdioTransportOptions`에 넘긴다. M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다.
+- 디렉터리·패키지 골격: `src/transport/`, `src/views/`(빈 진입점), `src/settings-store/`(키 정의만), `test/`, `sidecar.json`.
+- `src-tauri/`는 만들지 않는다.
+
+### 1.3 M2 (데스크톱 본체)
+
+- Tauri 프로젝트 생성, Rust 릴레이와 엔진 수명 관리(`engine.rs`, `relay.rs`), UI 셸(스레드 목록, 트랜스크립트, 입력창, 상태 표시줄), 승인 대기열.
+- 사이드카 빌드 파이프라인(triple 5종), 3플랫폼 CI, 서명(macOS 공증 포함, Windows 서명 준비).
+- 종료 조건은 `product.scope.spec` M2의 데스크톱 항목(정상 종료 시 사이드카 없음, CLI와 메시지 열 동일)이다.
+
+### 1.4 M3 이후
+
+- 서비스 모드 연동(셸이 서비스 소켓을 릴레이, `L4.desktop.spec` §4.8), 알림(Tauri 알림 플러그인), 자동 업데이트 검토([미결]).
+- Windows 네이티브 정식 지원(배포 채널, SmartScreen 평판이 쌓이는 기간 포함).
+
+## 2. 패키지와 파일 배치
+
+```
+xeon/apps/desktop/
+  package.json                    # @xeon/desktop. 의존: @xeon/contracts(workspace:*), typebox, preact·@preact/signals([미결] 프레임워크)
+  tsconfig.json                   # src: DOM lib, types []. test: bun 타입(별도 tsconfig.test.json) [제안]
+  bunfig.toml                     # [test] coverageThreshold lines 0.5, functions 0.5 (eng.testing.guide TS-10 L4 행)
+  sidecar.json                    # 사이드카 이름·인자·triple 표의 단일 원천 [제안]
+  index.html                      # bun build HTML 진입점 (M2)
+  src/
+    main.ts                       # WebView 진입점 (M2)
+    index.ts                      # 패키지 공개 진입점 (M1: transport 재노출)
+    transport/
+      ipc.ts                      # DesktopIpc, EngineState 스키마, createTauriIpc (@tauri-apps/* 허용 파일, W2)
+      tauri-stdio.ts              # attachRelay, openEngineConnection, CursorStore, resubscribe
+      json-lines.ts               # StdioTransportFactory 구현 (F 이관 전까지, spec §10 미결 3)
+      connection.ts               # createHostConnection (F 이관 전까지)
+      index.ts
+    shell/                        # 창, 트레이, 알림 (M2, M3). @tauri-apps/* 허용 (W2)
+    views/                        # threads/, transcript/, composer/, approvals/, status-bar/ (M2)
+    settings-store/
+      defs.ts                     # defineSettings("l4.desktop", ...) (spec §6)
+      index.ts                    # DesktopSettingsStore
+    settings/                     # L4.settings-ui 소유. 이 계획의 범위 밖
+  src-tauri/                      # M2. 층 규칙 밖 (eng.dependency-rules.guide DR-13)
+    Cargo.toml
+    Cargo.lock
+    rust-toolchain.toml           # Rust 버전 고정 [제안]
+    tauri.conf.json
+    capabilities/default.json
+    binaries/                     # xeon-<triple>[.exe]. 빌드 산출물, 커밋하지 않는다 (TC-05)
+    src/
+      main.rs                     # 앱 조립, RunEvent 처리, 신호 처리기
+      engine.rs                   # EngineSupervisor: spawn·종료·재기동 (spec §4.1 E1~E11, §4.4)
+      relay.rs                    # EnginePipe, 세대 관리, 셸 명령 engine_* (spec §3.3)
+  test/
+    transport-conformance-stdio.int.test.ts
+    shutdown-message-then-exit.int.test.ts
+    stdin-eof-checkpoint.int.test.ts
+    no-grandchild-left.int.test.ts
+    reconnect-resubscribe-from-cursor.test.ts
+    relay-line-framing.test.ts
+    sidecar-config.test.ts
+    memory/                       # S5 측정 스크립트와 MemorySample 형식 (verify 밖)
+    e2e/                          # *.e2e.test.ts (verify 밖, M2)
+xeon/scripts/
+  build-sidecar.ts                # sidecar.json을 읽어 bun build --compile 실행 (층 밖 저장소 도구) [제안]
+  build-sidecar.test.ts           # sidecar-triple-mapping
+```
+
+- `xeon/scripts/build-sidecar.ts`는 패키지를 import하지 않는다(`eng.dependency-rules.guide` 1절 제외 항목). 그래서 공유 값은 코드 상수 대신 데이터 파일 `sidecar.json`에 둔다. 이 계획의 `binds`는 `xeon/apps/desktop/**`이므로 스크립트 파일 위치는 `eng.toolchain.guide`와 함께 확인한다 [미결: 스크립트 위치].
+- `xeon/justfile`에 레시피 `desktop-sidecar <triple>`, `desktop-dev`, `desktop-build`, `desktop-measure`를 더한다(TC-09). M1에는 `desktop-sidecar`만 둔다 [제안].
+
+### 2.1 `sidecar.json`
+
+[제안] 사이드카 이름은 adr.0008 §3.2의 [제안]과 `L4.host-service.spec` §3.2의 단일 바이너리 [제안]을 따른다. `L4.host-service.spec`이 바꾸면 이 파일만 고친다.
+
+```json
+{
+  "name": "xeon",
+  "args": ["host", "--stdio"],
+  "entry": "../cli/src/main.ts",
+  "targets": {
+    "aarch64-apple-darwin": "bun-darwin-arm64",
+    "x86_64-apple-darwin": "bun-darwin-x64",
+    "x86_64-unknown-linux-gnu": "bun-linux-x64",
+    "aarch64-unknown-linux-gnu": "bun-linux-arm64",
+    "x86_64-pc-windows-msvc": "bun-windows-x64"
+  }
+}
+```
+
+- 산출 파일명은 `src-tauri/binaries/<name>-<triple>`, Windows는 끝에 `.exe`를 붙인다(adr.0008 §3.2 파일 위치 행).
+- `entry`는 엔진 바이너리의 컴파일 진입점이다. 단일 바이너리안(`L4.host-service.spec` §3.2, `L4.cli.plan` §4.3)에 따라 `apps/cli/src/main.ts`를 쓴다. `apps/host/src/main.ts`는 개발·테스트 진입이고 배포 진입점이 아니다(D1에서만 쓴다). `L4.readme` §8 미결 2가 단독 사이드카안으로 정해지면 `name`, `args`, `entry`를 함께 바꾼다.
+- `apps/desktop`은 이 파일을 import하지 않고 빌드 스크립트가 경로로만 쓴다(DR-10).
+- triple 대응은 [가정] 일반 지식이다. 실제 triple은 각 러너에서 `rustc --print host-tuple`로 확인한다(`_research/notes/arch-2.md §4.2` 타깃 항목).
+- Windows arm64(`bun-windows-arm64`)와 musl Linux는 목록에 없다. 필요해지면 행을 더한다.
+
+### 2.2 `tauri.conf.json` 발췌 (M2)
+
+adr.0008 §3.2 형식을 따른다.
+
+```jsonc
+// src-tauri/tauri.conf.json (발췌)
+{
+  "bundle": {
+    "externalBin": ["binaries/xeon"],
+    "macOS": {
+      "frameworks": ["../vendor-libs/macos/libsqlite3.dylib"],   // FTS5 SQLite (D8). resources에 두지 않는다
+      "hardenedRuntime": true
+    },
+    "windows": {
+      "webviewInstallMode": { "type": "downloadBootstrapper" }    // spec §4.11 기본값 제안
+    }
+  }
+}
+```
+
+- `frameworks`의 경로와 `vendor-libs` 디렉터리 이름은 [제안]이다. dylib 출처(직접 빌드 또는 배포판)는 D8에서 정한다.
+- 키 이름(`macOS.frameworks`, `windows.webviewInstallMode`)은 Tauri 2.12 설정 스키마와 D2에서 대조한다 [가정].
+
+### 2.3 capabilities 발췌 (M2)
+
+adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서는 WebView가 spawn하지 않으므로 아래 `shell:allow-spawn` 항목은 기본 파일에 넣지 않고, (b)안으로 되돌릴 때의 형식으로만 둔다.
+
+```jsonc
+// src-tauri/capabilities/default.json (발췌, (b)안으로 되돌릴 때)
+{
+  "identifier": "default",
+  "windows": ["main"],
+  "permissions": [
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [{ "name": "binaries/xeon", "sidecar": true, "args": ["host", "--stdio"] }]
+    }
+  ]
+}
+```
+
+```jsonc
+// src-tauri/capabilities/default.json (발췌, (a)안 기본) [제안]
+{
+  "identifier": "default",
+  "windows": ["main"],
+  "permissions": ["core:default", "allow-engine-attach", "allow-engine-write", "allow-engine-restart", "allow-engine-detach",
+                  "allow-desktop-settings-read", "allow-desktop-settings-write"]
+}
+```
+
+- 앱 명령 권한 이름(`allow-engine-attach` 등)은 Tauri의 앱 명령 권한 생성 규칙에 맞춰 D2에서 확정한다 [가정].
+
+## 3. 작업 분해
+
+### 3.1 선행 spike
+
+[제안] spike 코드는 `xeon/` 밖 샘플 디렉터리(예: 저장소 밖 임시 작업 디렉터리)에서 한다(`_research/notes/arch-2.md §8`). 결과는 `_research/notes/`에 조사 노트로 남기고, 이 문서와 spec의 [가정]·[미결]을 고친다. 내려받은 Tauri·Bun 코드는 spike 담당자가 별도 승인 아래 실행한다. 이 문서 작성 과정에서는 실행하지 않았다.
+
+| id | 내용 | 선행 | 규모 | 완료 판정 |
+|---|---|---|---|---|
+| S1 | 종료 원인 4종(창 닫기, 앱 SIGKILL, 앱 SIGTERM, Windows 크래시)에서 셸 → 엔진 → 손자의 프로세스 트리를 확인한다. Rust API spawn + 프로세스 그룹 켬 + stdin EOF 감시 조합이다. SIGTERM에서 `RunEvent::Exit` 발생 여부, Rust API 사이드카의 capabilities 비적용도 본다 | - | M | macOS·Linux에서 4종(Windows는 크래시만) 각각 종료 10초 뒤 남은 프로세스 목록이 표로 남는다. 남는 경우마다 원인과 대응이 spec E 규칙에 반영된다 |
+| S2 | hello-world와 실제 엔진 번들(`sidecar.json`의 `entry`, 곧 `apps/cli/src/main.ts`)의 `bun build --compile` 바이너리 크기를 플래그 조합(`--minify`, `--bytecode`, `--sourcemap` 유무)별로 잰다 | - | S | 5 triple 중 러너가 있는 것의 크기 표와 상한 제안이 이 문서 §7에 기록된다. 상한값이 사용자 확인을 받는다 |
+| S3 | 장수명 엔진의 stdio 동작: 1 MiB 프레임, 초당 수천 개의 작은 프레임, Tauri `Channel` 원시 바이트 전달, 셸 송신 버퍼가 찰 때의 역압, 세대 교체 때 줄 경계 버림 | - | M | 위 다섯 경우에서 프레임 손실·중복 0, 처리량과 지연 수치가 기록된다. stdio 유지 또는 소켓 전환 판정(spec §10 미결 13)이 나온다 |
+| S4 | stdin EOF 감시를 Linux와 WSL에서 확인한다. 부모가 SIGKILL될 때 Bun 컴파일 바이너리가 EOF를 읽고 끝나는지, 손자 프로세스가 어떻게 되는지 | - | S | 두 환경에서 EOF 뒤 종료까지 걸린 시간과 손자 잔존 여부가 기록된다. spec D-02의 시한(`l0.process.shutdown.timeoutMs` 기본 3000ms)이 충분한지 판정이 나온다 |
+| S5 | 메모리 측정 스크립트: spec §3.7 `MemorySample`을 남기는 측정기. 플랫폼별 프로세스 찾기(셸, WebView 보조 프로세스, 사이드카, 손자) | S1 | M | 3 플랫폼 중 가능한 것에서 B1~B4 시나리오 측정값이 JSON Lines로 남는다. 예산(spec §10 미결 8) 확정 제안이 나온다 |
+
+### 3.2 구현 작업
+
+| id | 내용 | 선행 | 규모 | 단계 |
+|---|---|---|---|---|
+| D1 | TS `StdioTransportFactory` 구현(`json-lines.ts`)과 `createHostConnection`(`connection.ts`), 적합성 테스트. 엔진을 `bun xeon/apps/host/src/main.ts host --stdio`(개발 진입)로 띄워 `WIRE_CONFORMANCE_CASES`를 돌린다. 디렉터리·패키지 골격, `sidecar.json`, `settings-store/defs.ts` | F W12·W14(`F.wire-settings.plan`), `L4.host-service.plan` H5(stdio 전송과 `main.ts` 개발 진입) | M | M1 |
+| D2 | Tauri 프로젝트 생성(`src-tauri/`), `tauri.conf.json`, capabilities, `rust-toolchain.toml`, 버전 고정 | S1 | S | M2 |
+| D3 | 사이드카 빌드 스크립트 `xeon/scripts/build-sidecar.ts`와 just 레시피. `sidecar.json`의 `entry`(`apps/cli/src/main.ts`, S2와 같은 진입 파일)를 triple 5종 → bun target 대응으로 컴파일해 `binaries/xeon-<triple>`을 만든다. 크기 상한 검사(S2 결과) | S2, D1(`sidecar.json`) | S | M2 (스크립트 골격과 대응 단위 테스트는 M1에 둘 수 있다) |
+| D4 | `engine.rs`: spawn(E1, E3, E6, E7), 앱 상태 보관(E2), 정상 종료 순서(spec §4.3), 재기동 정책(spec §4.4), Unix 신호 처리기, stderr 로그(E10, E11) | D2, S1, S4 | L | M2 |
+| D5 | `relay.rs`: `EnginePipe`, 셸 명령 `engine_*`, 세대 관리와 줄 경계 버림, 송신 버퍼 한도 | D4, S3 | M | M2 |
+| D6 | UI 셸: `transport/ipc.ts`·`tauri-stdio.ts`, 스레드 목록, 트랜스크립트(가상 스크롤, 조각 합치기), 입력창, 상태 표시줄, 설정 진입점 | D5, 프레임워크 결정(spec §10 미결 11) | L | M2 |
+| D7 | 승인 대기열 화면. A안 [가정] 기준 | D6, F 승인 방향 결정(`F.wire-settings.spec` §10 미결 1) | M | M2 |
+| D8 | macOS 커스텀 SQLite(FTS5) dylib을 `bundle.macOS.frameworks`로 번들하고 서명 대상에 넣는다(`eng.toolchain.guide` TC-11). 엔진이 `setCustomSQLite`에 넘길 절대 경로를 사이드카 실행 파일 기준으로 계산하는 규칙을 `L0.store.spec`과 맞춘다 | D2, D3 | M | M2 |
+| D9 | CI 3플랫폼 매트릭스(§3.3). 러너별 호스트 아키텍처 제약 반영 | D3, D2 | M | M2 |
+| D10 | 서명·배포(§3.4): macOS codesign·공증, Windows 서명 준비, Linux 패키지(AppImage, deb)와 WebKitGTK 의존 선언 | D9, D8 | L | M2 (Windows 정식 배포는 M3 이후) |
+| D11 | e2e: 앱 실행 → 한 턴 → 종료 → 프로세스 잔존 확인, CLI와 메시지 열 비교. `*.e2e.test.ts` | D6, D10 | M | M2 |
+| D12 | 서비스 모드 연동: `SocketPipe`, `ensure` 호출, 서비스 소실 처리 | D5, `L4.host-service.plan` 서비스 모드 | M | M3 |
+| D13 | 알림: `tauri-plugin-notification` 연결. 켜기·종류는 `l2.dialog.notify.*`를 따른다(review.decisions-2 S-04) | D12, 내구 이벤트 kind 기반 대상 선택(spec §4.8), 알림 전용 wire는 M2 계획에서 정한다(spec §10 미결 5) | S | M3 |
+| D14 | 자동 업데이트 검토 | D10 | S | M3 [미결] |
+
+- 규모: S는 하루 안, M은 2~4일, L은 1주 이상 [가정].
+- D1의 `Bun.spawn`: `eng.dependency-rules.guide` DR-07은 `Bun.spawn`을 L0 패키지만 쓰게 한다. 테스트 파일에서 엔진 프로세스를 띄우려면 허용 목록에 `DR-07/desktop-conformance-spawn`(from `apps/desktop`, to `Bun.spawn`, 테스트 파일 한정)을 더하거나, `platform-process`가 `testing` 서브패스로 자식 프로세스 도우미를 내야 한다 [미결: §7 위험 R10]. `L4.host-service.plan`과 `L4.cli.plan`의 자식 프로세스 테스트도 같은 결정을 따른다.
+- D1의 실행 명령: M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다. 그래서 D1은 `bun xeon/apps/host/src/main.ts host --stdio`를 실행한다(`L4.host-service.spec` §3.2 개발 실행 항목). M2부터는 같은 테스트를 컴파일 바이너리 `xeon host --stdio`로도 돈다. 둘 다 import가 아닌 실행이므로 DR-10에 맞는다.
+
+### 3.3 CI 매트릭스 (D9)
+
+[제안] `.github/workflows/xeon-ci.yml`에 `desktop-build` job을 더한다. 공식 사이드카 스크립트는 호스트 아키텍처에서만 동작한다고 경고하므로(`_research/stack-status.md §7-F` 3개 플랫폼 빌드 행) triple마다 같은 아키텍처의 러너를 쓴다.
+
+| triple | 러너 [가정] | 비고 |
+|---|---|---|
+| `aarch64-apple-darwin` | `macos-14` 또는 이후 arm64 러너 | 서명·공증 job도 여기서 돈다 |
+| `x86_64-apple-darwin` | Intel macOS 러너 | Intel 러너 제공이 줄면 arm64 러너에서 교차 빌드로 바꾼다. 그때는 Rust triple을 명시하고 `bun-darwin-x64` 타깃으로 만든다 [미결] |
+| `x86_64-unknown-linux-gnu` | `ubuntu-24.04` | WebKitGTK 개발 패키지 설치 |
+| `aarch64-unknown-linux-gnu` | arm64 Linux 러너 | 러너 제공 여부 [미확인] |
+| `x86_64-pc-windows-msvc` | `windows-latest` | Windows 서명 기본 구현이 동작한다(§3.4) |
+
+- `desktop-build`는 PR에서 수동 실행, `main`에서 야간 실행으로 둔다. `just verify` 시간 목표(`eng.toolchain.guide` 3.1)에 넣지 않는다.
+- 산출물 검사: 각 산출물이 자기 triple의 `xeon-<triple>`만 포함하는지(spec D-06), macOS `.app`의 `Contents/Resources` 아래 Mach-O가 없는지(`_research/notes/L4-2.md §11` 1번).
+- Windows 메타데이터 플래그(`--windows-icon`, `hideConsole` 등)는 교차 컴파일에서 쓸 수 없다는 기록이 있다(`_research/stack-status.md §7-C` 제한 행. arch-2 §4.2는 원문 문장을 찾지 못해 [미확인]). Windows 사이드카는 Windows 러너에서만 만든다.
+
+### 3.4 서명·배포 (D10)
+
+#### macOS
+
+- 서명 대상: 앱 본체, `externalBin` 사이드카, `bundle.macOS.frameworks`의 FTS5 dylib, `.app`. Tauri 번들러가 이 순서(안쪽 → 바깥쪽)로 서명하고 hardened runtime을 켠다(`_research/notes/L4-2.md §6`).
+- entitlements(`_research/notes/L4-2.md §5`): [제안] 출발점은 `com.apple.security.cs.allow-jit` 하나다. `allow-unsigned-executable-memory`는 부족할 때만 더한다. `disable-library-validation`은 넣지 않는다. `get-task-allow`는 금지다. 최소 집합은 macOS 실측으로 확정한다.
+- 한계: Tauri는 entitlements 한 벌을 모든 서명 대상에 붙이고(`sign.rs:53-68`), 호출하는 `codesign` 인자에 `--timestamp`가 없다(`keychain.rs:221-239`, L4-2 §7). 공증 요건(보안 타임스탬프)과 맞는지 [미확인]이다.
+- [미결] 서명 방식: (a) Tauri 자동 서명을 쓰고 entitlements 공유와 타임스탬프 부재를 감수, (b) 자동 서명을 끄고 수동 파이프라인(사이드카 전용 entitlements, `--timestamp`, `notarytool`, `stapler`). L4-2 §11 3번.
+- 검증 단계 [제안]: `codesign -dvv`의 Timestamp 행, `codesign --verify --deep --strict`, `xcrun notarytool log` 보관, `xcrun stapler validate`.
+- 필요 자격: Developer ID Application 인증서와 공증 계정(무료 계정은 공증 불가, L4-2 §7). 보유 여부는 [미결].
+
+#### Windows
+
+- code signing 인증서가 필요하다. SSL 인증서는 쓸 수 없다(`_research/stack-status.md §7-G`).
+- 인증서 종류 [미결]: OV(PFX 변환 또는 Azure Key Vault `relic`), Azure Artifact Signing. Tauri 가이드는 2023-06-01 이전 발급 OV 기준으로 적혀 있다.
+- SmartScreen: 서명하지 않으면 경고가 뜬다. 2024년 이후 EV 인증서도 즉시 평판을 주지 않는다. 평판은 배포량이 쌓여야 생기므로 공개 배포 전 기간을 일정에 넣는다.
+- Linux·macOS 러너에서 Windows 설치 파일을 만들면 기본 서명 구현이 동작하지 않아 커스텀 sign command(`bundle.windows.signCommand`)가 필요하다. [제안] Windows 설치 파일은 Windows 러너에서 만든다. 교차 빌드가 필요해지면 sign command를 그때 정한다.
+- WebView2 설치 모드: spec §4.11의 `downloadBootstrapper` 기본값 제안. 오프라인 설치 요구가 생기면 `offlineInstaller` 산출물을 따로 만든다.
+- 비용: 인증서 연 비용과 Azure Artifact Signing 요금은 조사하지 않았다 [미확인].
+
+#### Linux
+
+- 패키지: AppImage, deb [제안]. rpm은 요청이 있을 때 더한다.
+- 의존: WebKitGTK. [가정] Tauri 2는 `libwebkit2gtk-4.1`을 쓴다. deb에는 런타임 의존으로 선언하고, AppImage는 시스템 WebKitGTK를 쓴다(번들하지 않는다) [가정]. 최소 배포판은 spec §10 미결 10.
+
+#### 비밀 주입
+
+- 서명·공증 자격(인증서, 암호, API 키)은 SOPS로 암호화한 참조로 저장하고 CI에서 복호화해 환경 변수로 주입한다. 값은 저장소, 로그, 문서에 쓰지 않는다. 새 키는 `just secret-add <키> [env]`로 더한다.
+
+#### 자동 업데이트
+
+- [미결] M3 이후 검토한다(D14). Tauri updater를 쓰면 업데이트 서명 키와 배포 서버가 필요하다.
+
+## 4. 채택 코드
+
+| 항목 | 버전 | 쓰는 곳 | 비고 |
+|---|---|---|---|
+| Bun | 1.4.3 | 사이드카 컴파일, 테스트 | `eng.toolchain.guide` 1.1 |
+| `tauri`(crate) | `=2.12.4` [가정] | `src-tauri/Cargo.toml` | 조사에서 본 2.12 계열 최신 태그(`tauri-v2.12.4`, arch-2 §3.3). D2에서 최신 수 버전을 확인하고 정확히 고정한다 |
+| `@tauri-apps/cli` | 2.12.3 | `package.json` devDependencies(catalog) | `_research/stack-status.md §7-F`. crate와 같은 2.12 계열 |
+| `@tauri-apps/api` | 2.12.x 정확 버전 [미확인] | `src/transport/ipc.ts`, `src/shell/**` | D2에서 crate와 맞는 값을 확인해 catalog에 고정한다 |
+| `tauri-plugin-shell`(crate) | 2.x 정확 버전 [미확인] | `engine.rs` | 조사 기준은 `plugins-workspace` `v2` 브랜치 커밋 `11211c30e71796cd737280303244552bb7f70797`(Cargo.toml 2.5.0, arch-2 §3.2). 정식 태그 미확인이라 D2에서 crates.io 버전과 대조한다. 대조 전까지 위 커밋 기준으로 둔다 |
+| `@tauri-apps/plugin-shell` | 넣지 않는다 | - | (a)안에서 WebView는 spawn하지 않는다 |
+| `tauri-plugin-single-instance` | 2.x [미확인] | `main.rs` | spec §5 동시 실행 |
+| `tauri-plugin-notification` | 2.x [미확인] | `src/shell/**`, M3 | spec §4.8 |
+| Rust 툴체인 | 1.84 이상, 정확 버전 [미확인] | `rust-toolchain.toml` | `rustc --print host-tuple`에 1.84+ 필요(adr.0008 §3.2) |
+| `typebox` | 1.4.2 | IPC 스키마 | catalog. [미결] 1.3.27 정렬 문제(`F.wire-settings.spec` §10 미결 6) |
+| `preact`, `@preact/signals` | 정확 버전 [미확인] | `src/views/**` | 프레임워크 [미결]. 결정되면 TC-04 절차로 catalog에 더한다 |
+
+- 포크 원본: 없다.
+- 구조 참고(코드 복사 없음):
+  - Tauri 사이드카 공식 문서 https://v2.tauri.app/develop/sidecar/ (externalBin, triple 규칙, capabilities).
+  - opencode `standalone.ts`의 stdin EOF 임대(`_research/process.md §6.4`, adr.0006 §3.7 6번 근거 `standalone.ts:23-27`). 엔진 쪽 구현은 `L4.host-service.plan` 몫이고, 데스크톱은 그 동작을 전제로 테스트한다.
+- D2 착수 때 확정할 버전 목록(확정 전까지 [미확인]): `@tauri-apps/api`, `tauri-plugin-shell`, `tauri-plugin-single-instance`, `tauri-plugin-notification`, Rust 툴체인(`rust-toolchain.toml`), `preact`, `@preact/signals`(프레임워크 결정 뒤). D2 완료 조건에 이 목록의 정확 버전 기록을 넣는다.
+- 모든 TS 의존은 `xeon/package.json` catalog에 정확 버전으로 둔다(TC-01, TC-02). Rust crate는 `Cargo.toml`에 `=` 버전으로 두고 `Cargo.lock`을 커밋한다 [제안].
+
+## 5. 단위 테스트 목록
+
+| 테스트 | 파일 | 태그 | 확인할 동작 | spec | 단계 |
+|---|---|---|---|---|---|
+| transport-conformance-stdio | `test/transport-conformance-stdio.int.test.ts` | int | 엔진 바이너리를 띄워 그 stdin/stdout으로 만든 `StdioTransportFactory` 전송과 `HostConnection`이 `WIRE_CONFORMANCE_CASES` 전부를 통과한다. 테스트 실행기는 `F.wire-settings.plan`의 `conformance-runner.ts` 틀을 쓴다 | D-07 | M1 |
+| relay-line-framing | `test/relay-line-framing.test.ts` | unit | 1 MiB 경계 프레임(한도 정확히, 한도 + 1), 한 프레임이 여러 바이트 조각으로 나뉘어 오는 경우, 조각 하나에 여러 프레임이 들어 있는 경우, UTF-8 다중 바이트 문자가 조각 경계에서 잘리는 경우, 한도 초과 줄을 버린 뒤 다음 줄을 정상 처리하는 경우 | §3.4, §5 | M1 |
+| reconnect-resubscribe-from-cursor | `test/reconnect-resubscribe-from-cursor.test.ts` | unit | `CursorStore`에 저장한 위치로 `events.subscribe`를 보낸다. `replay.outOfRange`면 `onReset`을 한 번 부르고 `from: "head"`로 다시 보낸다. 위치가 없으면 `"head"`다. 가짜 `HostConnection`을 쓴다 | D-04, §4.6 | M1 |
+| sidecar-config | `test/sidecar-config.test.ts` | unit | `sidecar.json`의 name·args가 `tauri.conf.json` `externalBin`, capabilities, Rust 상수와 같다. M1에서는 `sidecar.json` 스키마 검사만 하고 나머지는 M2에서 켠다 | §3.5 | M1(일부) |
+| sidecar-triple-mapping | `xeon/scripts/build-sidecar.test.ts` | unit | triple 5종이 정해진 bun target으로 대응하고, 산출 파일명이 `binaries/xeon-<triple>`(Windows `.exe`)이며, 모르는 triple은 종료코드 1로 거부한다 | §3.5(D-06의 이름 규칙) | M1(스크립트 골격) 또는 M2 |
+| sidecar-bundle-contents | CI `desktop-build` job의 산출물 검사 단계(§3.3) | CI 검사(테스트 태그 아님) | 각 플랫폼 산출물이 자기 triple의 `xeon-<triple>`만 포함하고 다른 triple의 사이드카를 포함하지 않는다. 단위 테스트가 아닌 산출물 검사다 | D-06 | M2 |
+| shutdown-message-then-exit | `test/shutdown-message-then-exit.int.test.ts` | int | 엔진 stdin에 `host.shutdown` 요청을 쓰고 stdin을 닫으면 엔진이 `shutdownGraceMs` 안에 종료코드 0으로 끝난다. `host.shutdown`이 F에 없을 때는 `-32601` 응답 뒤 EOF로 같은 결과가 나온다 | E4, §4.3 | M2(F 변경 요청 처리 뒤) |
+| stdin-eof-checkpoint | `test/stdin-eof-checkpoint.int.test.ts` | int | 테이프로 turn을 진행하는 중에 stdin을 닫으면 엔진이 `l0.process.shutdown.timeoutMs`(테스트에서는 1초로 줄임) 안에 끝나고, DB에 비정상 종료 표식 또는 체크포인트가 남는다 | E5, D-02 | M2 |
+| no-grandchild-left | `test/no-grandchild-left.int.test.ts` | int | 엔진이 손자 프로세스(긴 `sleep` 명령 도구 호출)를 띄운 상태에서 정상 종료 순서를 돌리면 그룹 안 프로세스가 0개가 된다. Linux·macOS 한정 | E3, E9, D-01 | M2 |
+| engine-state-schema | `src/transport/ipc.test.ts` | unit | `EngineStateSchema`가 여섯 상태를 받아들이고 모르는 `kind`와 여분 필드를 거부한다 | §3.3 | M1 |
+| desktop-settings-defs | `src/settings-store/defs.test.ts` | unit | `l4.desktop.*` 정의가 F `checkSettingDef` 규칙 1~8을 통과하고, 키 접두가 `l4.desktop.`, `layer`가 `"L4"`다 | §6 | M1 |
+| epoch-guard | `test/epoch-guard.test.ts` | unit | 가짜 `DesktopIpc`에서 이전 세대의 `write`가 거부되고, 새 세대 첫 메시지가 `$/connectionReset`(F 수용 뒤) 또는 엔진 재기동 요청(수용 전)이다 | D-09, §4.5 | M2 |
+| restart-policy | `src-tauri/src/engine.rs` 안 Rust 테스트 | unit(cargo) | 백오프 단계, 10분 창 상한, `restartLimit` 0이면 재기동 없음, 10분 안정 뒤 횟수 초기화 | §4.4, D-05 | M2 |
+| relay-no-payload-log | `src-tauri/src/relay.rs` 안 Rust 테스트 | unit(cargo) | 릴레이 로그 기록기가 바이트 수·프레임 수·세대만 남기고 프레임 내용을 남기지 않는다 | E11, D-08 | M2 |
+| desktop-cli-message-parity | `test/e2e/parity.e2e.test.ts` | e2e | 같은 테이프로 CLI와 데스크톱의 호스트 메시지 열이 정규화 뒤 같다 | D-03 | M2 |
+| app-exit-no-sidecar | `test/e2e/exit.e2e.test.ts` | e2e | 앱 창 닫기 뒤 사이드카와 손자가 없다 | D-01 | M2 |
+| tray-close-no-webview | `test/e2e/tray-close.e2e.test.ts` | e2e | `closeBehavior: "tray"`에서 창을 닫으면 WebView 엔진 프로세스가 0개이고 진행 중 turn이 계속되며, 창을 다시 열면 저장 위치부터 이어 받는다 | D-10 | M2 |
+| engine-env-sanitized | `src-tauri/src/engine.rs` 안 Rust 테스트 | unit(cargo) | spawn 명령 구성 함수가 만든 환경에 `BUN_OPTIONS`가 없고, cwd와 넘기는 모든 경로가 절대 경로다 | D-11, E6, E7 | M2 |
+| check-layers-app-rules | `xeon/scripts/check-layers.test.ts`(툴체인 담당에 요청, 위치는 §2 스크립트 위치 미결과 같음) | unit | W1·W2·W6 위반 샘플 import(전송 → 화면, `@tauri-apps/*`를 허용 파일 밖에서 import, `@xeon/host` import)를 앱 내부 규칙이 거부한다 | D-12 | M2 |
+
+- `e2e` 태그는 `just verify`에서 제외한다(`eng.testing.guide` TS-01 표). CI에서 수동 실행과 야간 실행으로 둔다.
+- `int` 테스트는 파일당 10초 이하, 실제 시간 대기는 조건 대기(폴링 + 상한)로만 한다(`eng.testing.guide` TS-01, 4절).
+- `ui` 부품 테스트는 계속 보류한다(`eng.testing.guide` TS-01 버린 계층 표). M2 D6에서 화면 로직은 신호·상태 함수로 떼어 `unit`으로 시험한다 [제안].
+- Rust 테스트(`cargo test`)는 `just verify`에 넣지 않는다. Rust 툴체인이 없는 환경에서 verify가 종료코드 2로 끝나지 않게 하기 위해서다. `desktop-build` CI job에서 돈다 [제안].
+- 테스트 경로는 `import.meta.dir` 기준으로 만든다(`eng.testing.guide` TS-06).
+
+## 6. 완료 기준
+
+### M1
+
+- `xeon/apps/desktop`에서 `bun test`가 단독으로 통과한다. transport-conformance-stdio, relay-line-framing, reconnect-resubscribe-from-cursor, engine-state-schema, desktop-settings-defs, sidecar-config(M1 부분)가 포함된다.
+- 골격 디렉터리와 `sidecar.json`이 §2 배치와 같다. `src-tauri/`는 없다.
+- `cd xeon && just verify`가 종료코드 0이다(check-layers, depcruise, knip 포함).
+- DR-07 예외(D1의 `Bun.spawn`)가 허용 목록 또는 `platform-process/testing` 도우미 중 하나로 해결되어 있다.
+
+### M2
+
+- `product.scope.spec` M2 종료 조건 중 데스크톱 항목을 만족한다: 앱 정상 종료 시 사이드카와 손자가 남지 않고(D-01), 같은 테이프에서 CLI와 데스크톱의 호스트 메시지 열이 같다(D-03).
+- spec 수용 기준 D-02, D-04~D-06, D-08~D-12를 통과한다.
+- `desktop-build` CI가 triple 5종 중 러너가 있는 것 전부에서 산출물을 만들고, 각 산출물이 자기 triple의 사이드카를 포함한다.
+- macOS 산출물이 공증을 통과하고 `stapler validate`가 성공한다(인증서 확보를 전제로 한다. 확보 전이면 ad hoc 서명 산출물과 미결 기록으로 대신한다).
+- 사이드카 크기가 S2에서 정한 상한 이하다.
+- S1~S5 결과가 spec의 [가정]·[미결]에 반영되어 있다.
+
+### M3
+
+- 서비스 사용 설정이 켜지면 셸이 서비스 소켓을 릴레이하고, 앱을 닫아도 서비스의 turn이 계속된다.
+- 알림 wire가 정해졌으면 알림이 OS 알림으로 보인다.
+
+## 7. 위험과 대응
+
+| # | 위험 | 영향 | 대응 |
+|---|---|---|---|
+| R1 | 사이드카 종료 정리의 공식 문서가 없다. 플러그인은 정상 종료 때 JS API 사이드카만 SIGKILL로 정리하고, Rust API 사이드카·크래시·신호 종료·그룹 끈 손자·Windows job은 정리하지 않는다(`_research/notes/arch-2.md §5` 1~9행) | 고아 엔진과 손자 프로세스 | spec E1~E9, S1·S4로 실측. stdin EOF 임대를 1차 방어로 둔다 |
+| R2 | Bun 엔진을 사이드카로 묶는 방식이 Tauri·Bun 어디에도 공식 사례로 없다(adr.0008 §4.2, arch-2 §4.1) | 업그레이드 때 예고 없는 동작 변화 | Bun과 Tauri 버전을 정확히 고정하고, 올릴 때 S1·S3 시나리오를 다시 돈다 |
+| R3 | Bun 단일 바이너리가 크다. 공식 문서가 "still way too big"이라고 적고 수치는 없다(`_research/stack-status.md §7-C`) | 설치 크기, 내려받기 시간 | S2로 재고 상한을 정한다. `--minify`, 소스맵 외부화, 배포판 제외 플러그인(`provider-anthropic-oauth`)을 진입점 그래프에서 빼는지 검사한다(DR-09). CI에서 상한 초과를 실패로 둔다 |
+| R4 | Windows 서명 비용과 SmartScreen 평판. EV도 즉시 평판을 주지 않는다(`§7-G`) | 첫 사용자 경고, 비용 | Windows는 나중 지원이므로 M2는 빌드와 서명 준비까지만 한다. 인증서 종류와 비용은 사용자 확인 [미결] |
+| R5 | WebKitGTK와 WKWebView, WebView2 사이의 렌더링·웹 API 차이(adr.0008 §4.2) | 플랫폼별 화면 버그 | spec V1~V8 확인 목록을 M2 첫 주에 돌린다. 웹 API 대신 셸 명령을 쓰는 기능을 늘린다 |
+| R6 | 교차 컴파일 제약. 공식 사이드카 스크립트는 호스트 아키텍처 전제이고, Windows 메타데이터 플래그는 교차 컴파일에서 쓸 수 없다는 기록이 있다(`§7-C`, `§7-F`) | 러너 비용, 일부 triple 빌드 불가 | triple별 같은 아키텍처 러너(§3.3). Intel macOS와 arm64 Linux 러너 확보 여부를 D9에서 확인한다 |
+| R7 | 메모리 수치 근거 부족. 공개 수치는 벤더 주장이거나 3차이고 tauri#5889 측정 논쟁이 있다(`§7-H`) | 예산을 잘못 잡음 | S5로 직접 잰다. 예산은 측정 전까지 [가정]으로 둔다 |
+| R8 | 장수명 프로세스의 stdio. Tauri Node 가이드는 장수명이면 다른 IPC를 고려하라고 적는다(arch-2 §3.5) | 버퍼링·역압 문제 | S3. 문제가 확인되면 로컬 소켓으로 바꾼다. `EnginePipe` 추상화가 있어 WebView 쪽은 바뀌지 않는다 |
+| R9 | F 변경 요청(`host.shutdown`, `$/connectionReset`, 공용 `createHostConnection`)이 늦어진다 | 새로고침이 엔진 재기동이 된다. 연결 코드가 CLI와 중복된다 | 대체 동작(EOF 종료, 재기동, 앱 안 구현 + 같은 적합성 테스트)을 spec에 정해 두었다 |
+| R10 | 테스트의 `Bun.spawn`이 DR-07과 충돌한다 | M1 적합성 테스트가 check-layers에서 막힘 | 허용 목록 항목 또는 `platform-process/testing` 도우미. 어느 쪽이든 사람 확인이 필요하다. 이 결정 하나를 `L4.host-service.plan`(§2, §7)과 `L4.cli.plan`(§5.2)의 자식 프로세스 테스트에도 적용한다 |
+| R11 | macOS 서명에서 Tauri의 entitlements 공유와 `--timestamp` 부재(`_research/notes/L4-2.md §7`, §9) | 공증 실패 | 공증 실측 뒤 자동 서명 유지 또는 수동 파이프라인 선택 [미결] |
+| R12 | 엔진 바이너리 이름이 `L4.host-service.spec`에서 바뀐다 | 빌드·권한·Rust 상수 불일치 | `sidecar.json` 한 곳과 sidecar-config 테스트로 모은다 |
+
+## 미결 사항
+
+- [미결] 사이드카 크기 상한(S2 뒤 사용자 확인).
+- [미결] macOS 서명 방식(Tauri 자동 서명과 수동 파이프라인 중 선택), Developer ID 인증서와 공증 계정 보유 여부.
+- [미결] Windows code signing 인증서 종류(OV, Azure Artifact Signing)와 비용.
+- [미결] D1의 `Bun.spawn`과 DR-07 충돌 해소 방법.
+- [미결] `xeon/scripts/build-sidecar.ts` 위치(이 문서 `binds` 밖).
+- [미결] Intel macOS, arm64 Linux CI 러너 확보.
+- [미결] 자동 업데이트 채택(M3 이후).
+- [미결] 프런트엔드 프레임워크(`L4.desktop.spec` §10 미결 11).
+- [가정] `tauri` crate `=2.12.4`, `tauri-plugin-shell` 2.5.0 기준, triple 대응표, CI 러너 이름, Linux WebKitGTK 4.1 의존은 실행으로 확인하지 않았다.

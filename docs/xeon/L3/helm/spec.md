@@ -1,0 +1,1032 @@
+---
+id: L3.helm.spec
+layer: L3
+domain: helm
+kind: spec
+status: draft
+depends_on: [F.extensions.spec, F.records.spec, F.capabilities.spec, F.conversation.spec, L3.group-kit.spec, L2.web.spec, L2.knowledge.spec, L2.work.spec, L1.agents.spec]
+binds: [xeon/packages/group-helm/**]
+---
+
+# L3 Helm 그룹 (helm)
+
+패키지: `@xeon/group-helm`(`xeon/packages/group-helm`). 그룹 이름(`ExtensionName`, 주 scope id): `helm`.
+
+## 1. 목적과 범위
+
+[결정] Helm의 목적은 탐구, 새 관점, 모르는 분야 지식을 현재 작업에 적용하는 발견 지원이다. Helm을 스킬이나 일반 플러그인으로 두면 모델에 강제력이 없으므로, 코드 수준에서 루프를 제어한다(`_research/decisions-log.md` 2026-10-21 사용자 의중, product.vision.spec §7.1).
+
+이 문서는 층 구성 계획 v2의 L3-b 구성요소 5개(`_research/layer-plan-v2.json` L3-b)의 인터페이스를 확정한다.
+
+| # | 구성요소 | 쓰는 연산 | 이 문서의 절 |
+|---|---|---|---|
+| 1 | 탐구 신호 감지 | `on` tap(`tool_execution_end`, `agent_settled`) | §3.5, §4.3 |
+| 2 | 관점·방법 주입 | `on` chain(`before_agent_start`), `post` | §3.6, §4.4 |
+| 3 | 탐구 구동 | `drive`(배타 임대), `on` first(`tool_call`) | §3.7, §4.2, §4.5, §4.6 |
+| 4 | 지식 소비 | `g.capability` | §3.8, §4.7 |
+| 5 | 발견 기록과 작업 연결 | `g.record`, `work.*` 능력 | §3.4, §4.8 |
+
+코드 수준 강제 [결정: product.vision.spec §7.1, ADR-0007]. 아래 두 장치는 모델이 지시를 따르지 않아도 동작한다.
+
+- 쓰기 거부: 확산 단계(`diverge`, `explore`)에서 쓰기 도구 호출은 `tool_call` 지점의 first 핸들러가 실행 전에 거부한다. 모델이 쓰기 도구를 불러도 도구는 실행되지 않고 거부 사유가 모델에 돌아간다.
+- 단계 머신: 단계 진행(발산 → 다른 분야 탐색 → 수렴 → 적용)은 drive 함수가 커밋된 상태로 결정한다. 서브에이전트 수, 적용 턴 횟수는 모델 응답과 상관없이 코드가 정한다.
+
+정하는 것:
+
+- 매니페스트(`helmManifest`), 상태 스키마(`HelmState`), 레코드 종류 3개의 payload 스키마
+- 단계 이름 4개와 전이표, 전이 함수 시그니처
+- 신호 종류 3개와 입력, `autoStart` 동작
+- 주입 경로(시스템 프롬프트 추가분, turn 입력, post)와 requestId 규칙
+- drive 함수의 형태(상태 기반 재호출 함수)와 상한 계산 규칙
+- 쓰기 거부 조건과 쓰기 판정 입력
+- 지식 소비 경로와 저하 동작, 외부 텍스트 방어 규칙
+- 설정 키 5개(`l3.helm.*` 4개와 `ext.helm.enabled`)와 명령 `/helm start|stop|status`
+- 실패 처리와 수용 기준
+
+다루지 않는 것(다음 단계 미결):
+
+- 렌즈 목록의 내용, 렌즈 선택 알고리즘(§10 미결 1)
+- 종료 판정과 다회 라운드(§10 미결 2)
+- 신호 임계값 판정 세부(§10 미결 5)
+- 단계별 프롬프트 문구 본문(§4.4는 구조만 정한다)
+- explorer 서브에이전트의 정의 본문(프롬프트, 도구 목록). 형식은 L1.agents.spec
+
+다루지 않는 것(다른 문서 소유):
+
+- 임대 중재 메커니즘과 상한 집행: `X.primitives.spec`. 임대 정책, 그룹 전환 명령 `/group …`: `L3.group-kit.spec`
+- 서브에이전트 실행: `L1.agents.spec`. 웹·지식·작업 능력의 구현: `L2.web.spec`, `L2.knowledge.spec`, `L2.work.spec`
+- 학습 그룹의 정책: `L3.learning.spec`
+
+## 2. 용어
+
+| 용어 | 뜻 |
+|---|---|
+| 탐구(inquiry) | Helm이 drive 임대를 받아 단계 4개를 한 번 지나는 작업 단위. `inquiryId`로 식별한다 |
+| 단계(phase) | `idle`, `diverge`, `explore`, `converge`, `apply` 다섯 값. `idle`은 탐구 밖이다. 나머지 넷이 탐구 단계다 |
+| 발산(diverge) | 문제를 넓게 다시 보는 단계. 모델 turn 한 번을 쓰기 거부 아래에서 실행한다 |
+| 다른 분야 탐색(explore) | 렌즈마다 서브에이전트(explorer)를 병렬로 띄워 다른 분야 지식을 모으는 단계 |
+| 수렴(converge) | 서브에이전트 결과를 발견(finding) 목록으로 정리해 커밋하는 단계. 모델 turn을 쓰지 않는다 |
+| 적용(apply) | 발견을 현재 작업에 적용하는 모델 turn을 정확히 한 번 실행하는 단계 |
+| 확산 단계 | `diverge`와 `explore`를 함께 부르는 이름. 쓰기 거부가 걸리는 단계다 |
+| 렌즈(lens) | 탐색 관점 하나. 예: "생물학의 면역 기억으로 캐시 무효화를 본다". 서브에이전트 하나가 렌즈 하나를 맡는다 |
+| 발견(finding) | 렌즈 하나에서 나온 주장과 출처. 수렴 단계가 만든다 |
+| 탐구 신호 | 탐구가 필요할 수 있다는 관찰. `stuck`, `repeat`, `newDomain` 셋 |
+| 대기 요청(pending) | 시작이 요청됐지만 아직 임대를 받지 못한 탐구. 상태 필드 `pending`에 둔다 |
+| 단계 경계 | F.conversation.spec §2의 정의. step이 끝나고 다음 step이 시작되기 전. 그룹 켜기·끄기와 임대 교체 시점이다 |
+| turn, step | F.conversation.spec §2. 지점 `turn_end`는 Xeon step 끝, `agent_settled`는 Xeon turn 끝에서 발화한다(F.extensions.spec §2) |
+
+## 3. 인터페이스
+
+모든 공개 이름은 `@xeon/group-helm`의 `src/index.ts`가 export한다. 다른 패키지는 이 패키지를 import하지 않는다(CM-06). export는 조립 루트(`apps/host`)의 그룹 등록과 테스트용이다.
+
+외부 이름의 출처:
+
+| 이름 | 출처 |
+|---|---|
+| `ExtensionManifest`, `defineManifest`, `ScopeApi`, `DriveFn`, `LoopHandle`, `DriveOptions`, `DriveLimits`, `SpawnOutcome`, `TurnOutcome`, `PostItem`, `PostOptions`, `ToolCallPayload`, `ToolCallDecision`, `AgentSettledPayload`, `SessionStartPayload`, `HandlerContext`, `RecordKindDecl`, `RecordSubject`, `GroupRecord` | F.extensions.spec §3.1~§3.6 |
+| `ServiceKey`, `CapabilityError`, `ToolHints`, `WebSearchKey` | F.capabilities.spec §3.3, §3.5, §3.6, §3.9 |
+| `WebFetchKey`, `KnowledgeSearchKey`, `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `WorkTasksKey` | L2.web.spec §3.3, L2.knowledge.spec §3, L2.work.spec §3.2(정의 위치는 F `capabilities/defs/<domain>.ts`) |
+| `ThreadId`, `TurnId`, `JsonValue` | F.conversation.spec §3.1, §3.2 |
+| `defineSettings`, `SettingGroup` | F.wire-settings.spec §3.8.3 |
+| `defineGroup`, `GroupDef<S>`, `GroupApi<S>`(`registerCommand` 포함), `GroupModule` | L3.group-kit.spec §3.2 |
+
+### 3.1 매니페스트 (`src/manifest.ts`)
+
+```ts
+import { defineManifest, type ExtensionManifest } from "@xeon/contracts/extensions";
+import { HELM_RECORD_KINDS } from "./records.ts";
+
+export const helmManifest = defineManifest({
+  schemaVersion: 1,
+  name: "helm",
+  version: "0.1.0",
+  displayName: "Helm",
+  description: "탐구, 새 관점, 모르는 분야 지식을 현재 작업에 적용하는 의도 그룹",
+  layer: "L3",
+  kind: "group",
+  entry: "./src/index.ts",
+  defaultEnabled: true,                        // [미결 4] 기본 켬 여부
+  usesDrive: true,
+  usesPost: true,
+  points: [
+    "before_agent_start",                      // chain: 관점 주입(§4.4)
+    "tool_call",                               // first: 확산 단계 쓰기 거부(§4.6)
+    "tool_execution_end",                      // tap: 신호 입력 갱신(§4.3)
+    "agent_settled",                           // tap: 신호 판정, 정착 처리(§4.3)
+    "session_start",                           // tap: 상태 복원 확인(§4.9)
+  ],
+  requires: [],                                // §4.7 저하 동작으로 모든 능력이 없어도 켜진다
+  optional: [
+    { id: "web.search", range: "^1.0.0" },     // L2.web.spec §3.2
+    { id: "web.fetch", range: "^1.0.0" },      // L2.web.spec §3.3. Helm 코드는 부르지 않는다(§3.8)
+    { id: "knowledge.search", range: "^1.0.0" },   // L2.knowledge.spec §1, §3.9
+    { id: "knowledge.skills", range: "^1.0.0" },
+    { id: "knowledge.memory", range: "^1.0.0" },
+    { id: "work.tasks", range: "^1.0.0" },     // L2.work.spec §3.2
+  ],
+  recordKinds: HELM_RECORD_KINDS,              // §3.4
+  readsRecordKinds: [],                        // 다른 그룹의 레코드를 읽지 않는다 [결정(잠정): review.decisions-2 D-10]
+  components: { agents: ["./agents/explorer.md"] },        // [가정] L1.agents.spec 정의 파일 형식
+  trust: { level: "builtin" },
+}) satisfies ExtensionManifest;
+```
+
+- 능력 ID: L2 spec이 정한 이름을 쓴다. `web.search`, `web.fetch`(L2.web.spec §3.2, §3.3), `knowledge.search`, `knowledge.skills`, `knowledge.memory`(L2.knowledge.spec §1, §3.9 대응표), `work.tasks`(L2.work.spec §3.2, §3.6의 `work.task.create` 대응 문장).
+- 모든 능력을 `optional`에 둔다 [제안]. `requires`의 능력은 Cordis `inject`에 들어가므로 provider가 없으면 scope fiber가 켜지지 않는다(X.primitives.spec §3.7 규칙 5). Helm은 웹·지식·작업 능력이 없어도 §4.7 저하 동작으로 탐구를 끝내야 하므로(수용 기준 4, 14) `optional`이 맞다. `optional` 능력은 `g.capability(key)` 호출 때 찾고, 없으면 `capability_unavailable`을 저하 동작으로 바꾼다.
+- `web.fetch`는 Helm 코드가 부르지 않는다. explorer가 모델 도구 `web_fetch`로 쓴다(§4.7). 매니페스트에 두는 것은 provider 유무를 저하 판정(explorer 과제의 고지)에 쓰기 위해서다.
+- `explorer` 정의 파일은 그룹 패키지 안에 둔다 [가정]. L1.agents.spec이 그룹 제공 정의를 받지 않으면 정의를 L1 기본 정의로 옮긴다.
+- `drive_conflict` 경고: 다른 drive 그룹이 기본 활성이면 `validateManifestSet`이 경고한다. 실행 중에는 임대를 하나만 준다(F.extensions.spec §4.7).
+
+### 3.2 상태 (`src/state.ts`)
+
+```ts
+import { Type, type Static } from "typebox";
+
+export const HELM_STATE_VERSION = 1 as const;
+
+export const HelmPhaseSchema = Type.Union([
+  Type.Literal("idle"), Type.Literal("diverge"), Type.Literal("explore"),
+  Type.Literal("converge"), Type.Literal("apply"),
+]);
+export type HelmPhase = Static<typeof HelmPhaseSchema>;
+
+/** 탐구 단계(idle 제외) */
+export type InquiryPhase = Exclude<HelmPhase, "idle">;
+
+export const HelmSignalKindSchema = Type.Union([
+  Type.Literal("stuck"), Type.Literal("repeat"), Type.Literal("newDomain"),
+]);
+export type HelmSignalKind = Static<typeof HelmSignalKindSchema>;
+
+export const LensStatusSchema = Type.Union([
+  Type.Literal("pending"), Type.Literal("running"), Type.Literal("done"),
+  Type.Literal("failed"), Type.Literal("skipped"),
+]);
+export type LensStatus = Static<typeof LensStatusSchema>;
+
+/** 1~16자. requestId에 들어가므로 짧게 둔다 */
+export const LENS_ID_PATTERN = "^[a-z][a-z0-9-]{0,15}$";
+/** "h" + 소문자 base32 13자. requestId 64자 상한(§4.4) 안에 들어간다 */
+export const INQUIRY_ID_PATTERN = "^h[a-z2-7]{13}$";
+export type InquiryId = string;
+
+export const HelmLensSchema = Type.Object({
+  id: Type.String({ pattern: LENS_ID_PATTERN }),
+  title: Type.String({ minLength: 1, maxLength: 120 }),
+  status: LensStatusSchema,
+});
+export type HelmLens = Static<typeof HelmLensSchema>;
+
+export const ConfidenceSchema = Type.Union([Type.Literal("low"), Type.Literal("medium"), Type.Literal("high")]);
+export type Confidence = Static<typeof ConfidenceSchema>;
+
+export const HelmSourceSchema = Type.Object({
+  /** "web" | "knowledge" | "session" */
+  origin: Type.Union([
+    Type.Literal("web"), Type.Literal("knowledge"), Type.Literal("session"),
+  ]),
+  /** URL 또는 L2 지식 항목 참조. 긴 URL은 자른다(§3.2 크기 규칙) */
+  ref: Type.String({ minLength: 1, maxLength: 512 }),
+  title: Type.Optional(Type.String({ maxLength: 80 })),
+});
+export type HelmSource = Static<typeof HelmSourceSchema>;
+
+export const HelmFindingSchema = Type.Object({
+  /** `${lensId}-${n}`. 탐구 안에서 유일, 재생에서 같은 값(§4.8 중복 제거 키) */
+  id: Type.String({ pattern: "^[a-z][a-z0-9-]{0,15}-[0-9]{1,3}$" }),
+  lensId: Type.String({ pattern: LENS_ID_PATTERN }),
+  claim: Type.String({ minLength: 1, maxLength: 1000 }),
+  sources: Type.Array(HelmSourceSchema, { maxItems: 4 }),
+  confidence: ConfidenceSchema,
+  /** 후속 작업 후보 제목. 없으면 작업을 만들지 않는다(§4.8) */
+  followUp: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
+});
+export type HelmFinding = Static<typeof HelmFindingSchema>;
+
+/** 시작 요청. 임대를 받기 전까지 phase는 idle로 남는다(§4.2) [제안] */
+export const HelmPendingSchema = Type.Object({
+  inquiryId: Type.String({ pattern: INQUIRY_ID_PATTERN }),
+  topic: Type.String({ minLength: 1, maxLength: 500 }),
+  source: Type.Union([Type.Literal("signal"), Type.Literal("command")]),
+  signal: Type.Optional(HelmSignalKindSchema),
+});
+export type HelmPending = Static<typeof HelmPendingSchema>;
+
+/** turn을 넘어 이어지는 연속 횟수. agent_settled에서 turn당 한 번 커밋한다(§4.3) [제안] */
+export const HelmWatchSchema = Type.Object({
+  /** `${toolName}:${errorDigest}` */
+  errorKey: Type.Union([Type.String({ maxLength: 96 }), Type.Null()]),
+  errorRun: Type.Integer({ minimum: 0 }),
+  /** `${toolName}:${inputDigest}` */
+  callKey: Type.Union([Type.String({ maxLength: 96 }), Type.Null()]),
+  callRun: Type.Integer({ minimum: 0 }),
+});
+export type HelmWatch = Static<typeof HelmWatchSchema>;
+
+/**
+ * turn 하나 동안 on 핸들러가 프로세스 메모리에 모으는 값. 상태 문서에 넣지 않는다(§4.3).
+ * (threadId, turnId)로 구분하고 agent_settled 커밋 뒤 버린다
+ */
+export interface HelmTurnTally {
+  readonly turnId: TurnId;
+  /** 커밋된 watch에서 시작해 이 turn의 도구 결과로 갱신한 값 */
+  readonly watch: HelmWatch;
+  /** 이미 반영한 toolCallId. 같은 페이로드의 재실행을 한 번으로 센다 */
+  readonly seenToolCallIds: readonly string[];
+  /** 이 turn의 지식 검색 빈 결과 수 */
+  readonly knowledgeMisses: number;
+  /** 이 turn 사용자 입력에서 뽑은 분야 용어 후보. 최대 16개, 각 64자 */
+  readonly promptTerms: readonly string[];
+  /** 이 turn에서 넘은 신호. 중복 없이 최대 3개 */
+  readonly crossed: readonly HelmSignalKind[];
+}
+
+export const HelmStateSchema = Type.Object({
+  phase: HelmPhaseSchema,
+  inquiryId: Type.Union([Type.String({ pattern: INQUIRY_ID_PATTERN }), Type.Null()]),
+  topic: Type.Union([Type.String({ minLength: 1, maxLength: 500 }), Type.Null()]),
+  lenses: Type.Array(HelmLensSchema, { maxItems: 8 }),
+  findings: Type.Array(HelmFindingSchema, { maxItems: 24 }),
+  /** 1부터. idle이면 0 */
+  round: Type.Integer({ minimum: 0 }),
+  appliedTurnId: Type.Union([Type.String(), Type.Null()]),
+  // 아래는 이 문서가 더한 필드 [제안]
+  pending: Type.Union([HelmPendingSchema, Type.Null()]),
+  watch: HelmWatchSchema,
+  /** /helm stop이 켠다. drive가 다음 경계에서 읽는다(§4.5) */
+  stopRequested: Type.Boolean(),
+  /** 수렴 직전에 모은 지식 요약 참조(§4.7). 적용 프롬프트가 쓴다 */
+  context: Type.Array(HelmSourceSchema, { maxItems: 8 }),
+});
+export type HelmState = Static<typeof HelmStateSchema>;
+
+export const INITIAL_HELM_STATE: HelmState = {
+  phase: "idle", inquiryId: null, topic: null, lenses: [], findings: [], round: 0, appliedTurnId: null,
+  pending: null,
+  watch: { errorKey: null, errorRun: 0, callKey: null, callRun: 0 },
+  stopRequested: false,
+  context: [],
+};
+
+/** F.extensions.spec §3.2 StateDecl에 넘기는 값 */
+export const helmStateDecl: { readonly schema: typeof HelmStateSchema; readonly initial: HelmState; readonly version: 1 } = {
+  schema: HelmStateSchema, initial: INITIAL_HELM_STATE, version: HELM_STATE_VERSION,
+};
+
+/** 상태 문서 직렬화 예산. group-kit STATE_DOC_MAX_BYTES(64 KiB)에서 4 KiB를 남긴다 */
+export const HELM_STATE_BUDGET_BYTES = 61_440;
+
+/**
+ * 순수 함수. 직렬화 UTF-8 크기가 HELM_STATE_BUDGET_BYTES 이하가 되도록 줄인다. 줄일 필요가 없으면 같은 값.
+ * 순서: (1) context를 뒤에서부터 뺀다 (2) confidence가 낮은 발견부터, 같으면 뒤의 발견부터 sources를 뺀다
+ * (3) confidence가 낮은 발견부터, 같으면 뒤의 발견부터 발견을 뺀다. 각 단계는 예산 안에 들면 멈춘다
+ */
+export function fitState(state: HelmState): { readonly state: HelmState; readonly dropped: { readonly context: number; readonly sources: number; readonly findings: number } };
+
+/** 모든 상태 쓰기의 단일 경로. g.state() 읽기, fitState, g.commit을 직렬 큐로 묶는다(§4.1) */
+export function updateState(
+  g: Pick<ScopeApi<HelmState>, "state" | "commit">,
+  f: (current: Readonly<HelmState>) => HelmState,
+): Promise<Readonly<HelmState>>;
+```
+
+- [결정] 단계 순서는 발산, 다른 분야 탐색, 수렴, 현재 작업 적용이다(계획 v2 `_research/layer-plan-v2.json` L3-b "탐구 구동", `_research/decisions-log.md` 2026-10-21 계획 v2).
+- [제안] 단계 식별자 `diverge`, `explore`, `converge`, `apply`와 `idle`은 이 문서의 설계다. `diverge`는 사용자 의사코드(`_research/layer-plan-v2-notes.md` "Helm이 보이는 모양")의 이름을 따랐다. 식별자의 확정은 §10 미결 16이다.
+- 상태 저장: scope 상태 문서는 X가 `grp.helm.state.committed` 이벤트와 `x_helm_state` 투영 테이블에 둔다(X.primitives.spec §4.6.1, [결정(잠정): review.decisions-2 T-21]). 투영 열과 활성 가지 규칙은 X 정의를 따른다 [결정(잠정): review.decisions-2 §3 T-20](L3.group-kit.spec §3.6, §4.5 6번 멱등 reducer). 비공개 상태이고 다른 그룹은 읽지 않는다(F.extensions.spec §3.6).
+- 크기 상한 [제안]: 개수는 `lenses` 8개, `findings` 24개, `context` 8개, 발견 하나의 `sources` 4개다. 상한을 넘는 입력은 앞에서부터 자른다. 문자열은 스키마 길이(`claim` 1000자, `ref` 512자, `title` 80자)까지 자른다.
+- 바이트 상한 [제안]: 개수 상한만으로는 group-kit 상태 문서 상한(직렬화 UTF-8 64 KiB, L3.group-kit.spec §3.6, §4.5)을 지키지 못한다. 한국어 `claim` 1000자는 약 3 KB이고 발견 24개면 그것만으로 64 KiB를 넘는다. 그래서 `updateState`는 커밋 전 `fitState`로 직렬화 크기를 `HELM_STATE_BUDGET_BYTES`(60 KiB) 이하로 줄인다. 빈 탐구 필드의 상태는 예산 안이므로 이 절차는 항상 끝난다. 버린 발견은 `grp.helm.discovery.recorded`에도 쓰지 않는다. 초과 커밋은 group-kit이 거부하고(L3.group-kit.spec §5 9번) drive 예외와 임대 `error` 반납으로 이어지므로 이 검사는 커밋 앞에서 한다.
+- 긴 본문은 상태에 두지 않는다. explorer 답 원문은 상태에 넣지 않고(§4.5), 발견은 요약 주장과 출처 참조만 싣는다(L3.group-kit.spec §4.5 규칙 5).
+
+### 3.3 단계 전이 (`src/state.ts`)
+
+전이 함수는 상태 스키마와 같은 파일에 둔다. 파일이 커지면 `src/phase.ts`로 나눌 수 있다(공개 이름은 같다).
+
+```ts
+export type HelmEvent =
+  | { readonly type: "requested"; readonly pending: HelmPending }
+  | { readonly type: "leaseGranted"; readonly lenses: readonly HelmLens[] }
+  | { readonly type: "diverged"; readonly outcome: TurnOutcome }
+  | { readonly type: "lensesStarted" }
+  | { readonly type: "explored"; readonly results: readonly LensResult[] }
+  | { readonly type: "converged"; readonly findings: readonly HelmFinding[]; readonly context: readonly HelmSource[] }
+  | { readonly type: "applied"; readonly outcome: TurnOutcome }
+  | { readonly type: "stopRequested" }
+  | { readonly type: "limitReached"; readonly limit: "turns" | "spawns" | "tokens" }
+  | { readonly type: "failed"; readonly reason: string };
+
+export interface LensResult {
+  readonly lensId: string;
+  readonly outcome: SpawnOutcome | { readonly status: "error"; readonly error: string };
+}
+
+export interface TransitionResult {
+  readonly state: HelmState;
+  /** 이 전이로 탐구가 끝났으면 종료 정보. records.ts가 inquiry.finished로 기록한다 */
+  readonly finished?: InquiryFinishedPayload;
+}
+
+/** 순수 함수. 시각, 난수, I/O를 쓰지 않는다. 표(§4.2)에 없는 (phase, event) 쌍은 상태를 그대로 돌려준다 */
+export function transition(state: Readonly<HelmState>, event: HelmEvent): TransitionResult;
+
+/** 표 검사용. §4.2 전이표와 같은 데이터 */
+export const TRANSITIONS: readonly {
+  readonly from: HelmPhase;
+  readonly on: HelmEvent["type"];
+  readonly to: HelmPhase;
+}[];
+```
+
+- 임대 필요 판정 훅은 두지 않는다 [제안]. X는 drive를 등록한 켜진 그룹을 후보로 삼고, drive 함수가 같은 상태 판으로 두 번 효과 없이 반환하면 임대를 `idle`로 반납하며, 그 그룹은 다음 `turn_settled`나 상태 판이 바뀐 뒤에 다시 후보가 된다(X.primitives.spec §4.4.3). Helm의 drive는 `idle`이고 `pending`이 없으면 효과 없이 반환하므로(§4.5) 임대가 곧 반납된다. `pending`을 커밋하면 상태 판이 바뀌어 다시 후보가 된다. 이 규칙으로 L3.group-kit.spec에 없는 `needsDrive` 필드 없이 같은 동작을 낸다.
+- 비용 [가정]: Helm이 켜져 있고 탐구가 없으면 `turn_settled`마다 임대 부여, drive 호출 두 번, `idle` 반납이 생긴다. 그동안 다른 drive 그룹은 대기한다. 부여·반납 이벤트가 turn마다 쌓이는 것이 문제가 되면 X에 후보 제외 조건을 요청한다(§10 미결 13).
+
+### 3.4 레코드 (`src/records.ts`)
+
+[결정] 공개 레코드 kind 3개는 공통 확정 이름을 쓴다. 형식은 F.extensions.spec §3.6 `RECORD_KIND_PATTERN`(`grp.<그룹>.<영역>.<이름>`)이다.
+
+```ts
+import { Type, type Static } from "typebox";
+import type { RecordKindDecl } from "@xeon/contracts/extensions";
+
+export const SignalDetectedPayloadSchema = Type.Object({
+  signal: HelmSignalKindSchema,
+  /** 신호를 낸 turn */
+  turnId: Type.String(),
+  /** 판정 근거. 값은 요약만 둔다(인자 원문, 오류 원문을 싣지 않는다) */
+  evidence: Type.Object({
+    toolName: Type.Optional(Type.String({ maxLength: 64 })),
+    count: Type.Integer({ minimum: 1 }),
+    terms: Type.Optional(Type.Array(Type.String({ maxLength: 64 }), { maxItems: 8 })),
+  }),
+  /** 기록 시점의 autoStart에 따른 처리 */
+  action: Type.Union([
+    Type.Literal("recorded"),    // autoStart off, 또는 탐구 중
+    Type.Literal("suggested"),   // autoStart suggest: 제안 메시지 post
+    Type.Literal("requested"),   // autoStart auto: pending 커밋(임대 요청)
+  ]),
+  inquiryId: Type.Union([Type.String({ pattern: INQUIRY_ID_PATTERN }), Type.Null()]),
+});
+
+export const DiscoveryRecordedPayloadSchema = Type.Object({
+  inquiryId: Type.String({ pattern: INQUIRY_ID_PATTERN }),
+  /** 렌즈 id */
+  lens: Type.String({ pattern: LENS_ID_PATTERN }),
+  claim: Type.String({ minLength: 1, maxLength: 1000 }),
+  /** 최악 크기: claim 약 3 KB + 출처 4개 × 약 1.8 KB로 16 KiB 안이다(§3.2 바이트 상한) */
+  sources: Type.Array(HelmSourceSchema, { maxItems: 4 }),
+  /** 적용 turn이 completed로 끝났으면 참 */
+  applied: Type.Boolean(),
+  confidence: ConfidenceSchema,
+  /** [제안] 중복 제거 키. HelmFinding.id */
+  findingId: Type.String(),
+  /** [제안] work 능력으로 만든 작업 id. 없으면 생략 */
+  taskId: Type.Optional(Type.String()),
+});
+
+export const InquiryOutcomeSchema = Type.Union([
+  Type.Literal("applied"),     // 적용 turn 완료
+  Type.Literal("empty"),       // 발견 0개라 적용하지 않음
+  Type.Literal("stopped"),     // /helm stop
+  Type.Literal("limit"),       // 임대 상한 도달
+  Type.Literal("failed"),      // 모든 렌즈 실패, turn 오류, 상태 검증 실패
+]);
+export type InquiryOutcome = Static<typeof InquiryOutcomeSchema>;
+
+export const InquiryFinishedPayloadSchema = Type.Object({
+  inquiryId: Type.String({ pattern: INQUIRY_ID_PATTERN }),
+  outcome: InquiryOutcomeSchema,
+  topic: Type.String({ maxLength: 500 }),
+  rounds: Type.Integer({ minimum: 0 }),
+  lensCount: Type.Integer({ minimum: 0 }),
+  failedLenses: Type.Integer({ minimum: 0 }),
+  findingCount: Type.Integer({ minimum: 0 }),
+  appliedTurnId: Type.Union([Type.String(), Type.Null()]),
+  limit: Type.Optional(Type.Union([Type.Literal("turns"), Type.Literal("spawns"), Type.Literal("tokens")])),
+  reason: Type.Optional(Type.String({ maxLength: 500 })),
+});
+
+export type SignalDetectedPayload = Static<typeof SignalDetectedPayloadSchema>;
+export type DiscoveryRecordedPayload = Static<typeof DiscoveryRecordedPayloadSchema>;
+export type InquiryFinishedPayload = Static<typeof InquiryFinishedPayloadSchema>;
+
+export const HELM_RECORD_KINDS: readonly RecordKindDecl[] = [
+  { kind: "grp.helm.signal.detected", version: 1, description: "탐구 신호 관찰", payload: SignalDetectedPayloadSchema },
+  { kind: "grp.helm.discovery.recorded", version: 1, description: "탐구 발견 1건", payload: DiscoveryRecordedPayloadSchema },
+  { kind: "grp.helm.inquiry.finished", version: 1, description: "탐구 종료", payload: InquiryFinishedPayloadSchema },
+];
+```
+
+| kind | subject | 쓰는 시점 | 읽는 쪽 |
+|---|---|---|---|
+| `grp.helm.signal.detected` | `{ type: "turn", id: turnId }` | 신호 판정 시(§4.3) | L4 상태 표시 |
+| `grp.helm.discovery.recorded` | `{ type: "turn", id: appliedTurnId }`. 적용 turn이 없으면 `{ type: "thread", id: threadId }` | 적용 단계 끝(§4.8) | L4 상태 표시. 다른 그룹은 읽지 않는다 |
+| `grp.helm.inquiry.finished` | `{ type: "thread", id: threadId }` | 탐구 종료 전이(§4.2) | L4 상태 표시 |
+
+- [결정(잠정): review.decisions-2 T-21] 공개 레코드와 비공개 상태 모두 `grp.helm.` 접두를 쓴다. 공개 레코드는 `g.record`, 비공개 상태는 상태 문서(`grp.helm.state.committed`, 투영 `x_helm_state`)다. 상한을 넘는 비공개 기록이 필요하면 `ScopeApi.recordPrivate`(kind `grp.helm.*`, X.primitives.spec §4.6.5)를 쓴다. 그 kind는 매니페스트 `recordKinds`(`HELM_RECORD_KINDS`)에 넣지 않고 공개 kind와 이름이 겹치지 않게 한다.
+
+### 3.5 신호 (`src/signals.ts`)
+
+```ts
+/** [제안] 기본 임계. 판정 세부는 [미결 5] */
+export const SIGNAL_DEFAULTS: {
+  readonly stuckErrorRun: 3;        // 같은 도구의 같은 오류가 연속 3회
+  readonly repeatCallRun: 3;        // 같은 도구를 같은 인자로 연속 3회
+  readonly newDomainMisses: 2;      // 한 turn에 지식 검색 빈 결과 2회
+};
+
+/** tool_execution_end 페이로드 [가정]. F.extensions.spec §3.4 17행, pi types.ts:1087 필드에 input을 더한 형태 */
+export interface ToolExecutionEndView {
+  readonly toolCallId: string;
+  readonly toolName: string;
+  readonly isError: boolean;
+  readonly result: unknown;
+  readonly input?: Readonly<Record<string, JsonValue>>;
+  readonly capability?: CapabilityRef;
+}
+
+/** 순수 함수. 집계표를 갱신하고 넘은 신호를 crossed에 더한다. seenToolCallIds에 있는 호출은 그대로 돌려준다 */
+export function observeToolEnd(
+  tally: Readonly<HelmTurnTally>,
+  end: ToolExecutionEndView,
+  thresholds: typeof SIGNAL_DEFAULTS,
+): HelmTurnTally;
+
+/** 순수 함수. turn의 첫 지점에서 커밋된 watch로 빈 집계표를 만든다 */
+export function openTally(turnId: TurnId, watch: Readonly<HelmWatch>): HelmTurnTally;
+
+/** 순수 함수. 사용자 입력에서 분야 용어 후보를 뽑는다. 알고리즘은 [미결 5] */
+export function extractTerms(prompt: string): readonly string[];
+
+/** 순수 함수. turn 정착 때 newDomain을 판정하고, 커밋할 watch와 이 turn에 넘은 신호 전체를 돌려준다 */
+export function settleTurn(
+  tally: Readonly<HelmTurnTally>,
+  thresholds: typeof SIGNAL_DEFAULTS,
+): { readonly watch: HelmWatch; readonly crossed: readonly HelmSignalKind[] };
+
+/** 순수 함수. 결정적 inquiryId. "h" + base32(fnv1a64(seed)) 13자 */
+export function inquiryIdFrom(seed: string): InquiryId;
+
+/** 순수 함수. 신호와 autoStart로 할 일을 정한다(§4.3 표) */
+export function decideAction(
+  state: Readonly<HelmState>,
+  crossed: readonly HelmSignalKind[],
+  autoStart: AutoStart,
+): { readonly action: SignalDetectedPayload["action"]; readonly pending?: HelmPending };
+```
+
+### 3.6 주입 (`src/lenses.ts`, `src/prompts.ts`)
+
+```ts
+// lenses.ts
+export interface LensDef {
+  readonly id: string;           // LENS_ID_PATTERN
+  readonly title: string;
+  /** explorer 과제 문장 틀. {topic} 자리표시자 하나 */
+  readonly taskTemplate: string;
+}
+/** [미결 1] 내장 렌즈 목록. 1차 구현은 자리표시 3개로 시작한다 */
+export const BUILTIN_LENSES: readonly LensDef[];
+/** 순수 함수. 상한 maxLenses 안에서 렌즈를 고른다. 선택 규칙은 [미결 1] */
+export function selectLenses(topic: string, maxLenses: number, catalog: readonly LensDef[]): readonly HelmLens[];
+
+// prompts.ts
+/** 시스템 프롬프트 추가분. 한 시점에 렌즈 하나만 넣는다(§4.4) */
+export interface LensBlock {
+  readonly phase: InquiryPhase;
+  readonly inquiryId: InquiryId;
+  readonly round: number;
+  /** 현재 렌즈. diverge·converge·apply는 없음 */
+  readonly lens?: Pick<HelmLens, "id" | "title">;
+  /** 단계 규칙 문장(쓰기 금지 고지 등). 본문은 다음 단계 */
+  readonly rules: readonly string[];
+}
+export function lensBlockFor(state: Readonly<HelmState>): LensBlock | undefined;
+export function renderLensBlock(block: LensBlock): string;
+
+/** loop.turn 입력. 본문 문구는 다음 단계 */
+export function divergePrompt(state: Readonly<HelmState>): PostItem;
+export function applyPrompt(state: Readonly<HelmState>): PostItem;
+/** explorer 과제 문장. 외부 텍스트 방어 규칙(§4.7)을 포함한다 */
+export function explorerTask(state: Readonly<HelmState>, lens: HelmLens, defs: readonly LensDef[]): string;
+
+/** post requestId. 64자 이하 */
+export function postRequestId(inquiryId: InquiryId, phase: HelmPhase, round: number): string;
+// = `helm:${inquiryId}:${phase}:${round}`
+```
+
+### 3.7 drive (`src/drive.ts`)
+
+```ts
+/** g.drive에 넘기는 함수. 클로저 지역 변수에 진행 상태를 두지 않는다(EV-09) */
+export function helmDrive(g: GroupApi<HelmState>): DriveFn<HelmState>;
+
+/** 필드별 작은 값. undefined는 상한 없음 */
+export function minLimits(a: DriveLimits | undefined, b: DriveLimits | undefined): DriveLimits;
+
+/** loop.turn·loop.spawn에 넘기는 requestId [제안]. 64자 이하 */
+export function turnRequestId(inquiryId: InquiryId, phase: "diverge" | "apply", round: number): string;
+// = `helm:${inquiryId}:turn:${phase}:${round}`
+export function spawnRequestId(inquiryId: InquiryId, round: number, lensId: string): string;
+// = `helm:${inquiryId}:spawn:${round}:${lensId}`
+
+/** explorer 답의 기대 형식. 답 끝의 JSON 블록 하나 [제안] */
+export const ExplorerReportSchema = Type.Object({
+  findings: Type.Array(Type.Object({
+    claim: Type.String({ minLength: 1, maxLength: 1000 }),
+    sources: Type.Array(HelmSourceSchema, { maxItems: 4 }),
+    confidence: ConfidenceSchema,
+    followUp: Type.Optional(Type.String({ maxLength: 200 })),
+  }), { maxItems: 8 }),
+});
+/** 순수 함수. 형식이 맞지 않으면 답 전체를 low 신뢰 발견 1건으로 바꾼다 */
+export function parseExplorerAnswer(lensId: string, answer: string | undefined): readonly HelmFinding[];
+```
+
+### 3.8 지식 소비 (`src/knowledge.ts`)
+
+능력 서비스 키는 F의 `ServiceKey`를 쓴다. 키 상수는 F `capabilities/defs/<domain>.ts`에 둔다(F.capabilities.spec §3.9 [제안]).
+
+| 용도 | 능력 ID | 서비스 키 | 메서드 | 매니페스트 | 근거 |
+|---|---|---|---|---|---|
+| 웹 검색 | `web.search` | `WebSearchKey` | `search({ query, limit, content })` | optional | F.capabilities.spec §3.9, L2.web.spec §3.2 |
+| 본문 읽기 | `web.fetch` | `WebFetchKey` | Helm 코드는 부르지 않는다. explorer가 모델 도구 `web_fetch`로 쓴다 | optional | L2.web.spec §3.3 |
+| 스킬 검색 | `knowledge.search` | `KnowledgeSearchKey` | `query({ query, kinds: ["skill"], limit })` | optional | L2.knowledge.spec §3.9 대응표 |
+| 스킬 본문 | `knowledge.skills` | `KnowledgeSkillsKey` | `view({ name })` | optional | L2.knowledge.spec §3.9 |
+| 메모리 읽기 | `knowledge.memory` | `KnowledgeMemoryKey` | `read({})` | optional | L2.knowledge.spec §3.9 |
+| 과거 대화 검색 | `knowledge.search` | `KnowledgeSearchKey` | `query({ query, kinds: ["session"], limit })` | optional | L2.knowledge.spec §3.9 |
+| 작업 생성 | `work.tasks` | `WorkTasksKey` | `create({ content })`, `CallOptions.requestId` | optional | L2.work.spec §3.2, §3.6 |
+
+```ts
+export interface KnowledgeDigest {
+  readonly sources: readonly HelmSource[];
+  /** 저하 동작으로 빠진 경로 */
+  readonly degraded: readonly ("web" | "knowledge" | "session")[];
+}
+
+/** drive 안에서만 부른다. 각 호출은 replay safe 메서드이고 requestId를 넘긴다 */
+export function gatherContext(
+  g: GroupApi<HelmState>,
+  state: Readonly<HelmState>,
+  opts: { readonly signal: AbortSignal },
+): Promise<KnowledgeDigest>;
+
+/** CapabilityError → 저하 동작 분류. 순수 함수 */
+export function degradeOf(error: unknown): "skip" | "abort";
+```
+
+- [미결 C1] 서비스 키 이름. F는 능력별 `ServiceKey`(`WebSearchKey`)를 쓰고, eng.context-map.design §5.3은 도메인 단위 Cordis 이름(`xeon.web`, `xeon.knowledge`, `xeon.work`)을 쓴다(`_research/notes/L3-3.md` C1). Helm은 F 방식(`g.capability(key)`)만 쓴다. L2 세 문서는 능력 단위 키(`KnowledgeSearchKey` 등)를 정했다.
+- 테스트 가짜 provider는 위 표의 서비스 키(`WebSearchKey`, `KnowledgeSearchKey`, `KnowledgeSkillsKey`, `KnowledgeMemoryKey`, `WorkTasksKey`)마다 둔다(L3.helm.plan §5).
+
+### 3.9 명령 (`src/commands.ts`)
+
+```ts
+export type HelmCommand =
+  | { readonly name: "start"; readonly topic?: string }
+  | { readonly name: "stop" }
+  | { readonly name: "status" };
+
+export interface HelmStatusView {
+  readonly enabled: boolean;
+  readonly phase: HelmPhase;
+  readonly inquiryId: InquiryId | null;
+  readonly topic: string | null;
+  readonly lenses: readonly HelmLens[];
+  readonly findings: number;
+  /** 임대 상태. group-kit GroupStatus에서 온다 [가정] */
+  readonly lease: "held" | "waiting" | "none";
+  /** 대기 중이면 임대를 가진 그룹 이름 */
+  readonly leaseHolder?: string;
+  readonly budget?: LeaseBudget;
+}
+
+/** 순수 함수. "/helm start 주제" 같은 인자 문자열을 해석한다 */
+export function parseHelmCommand(args: string): HelmCommand | { readonly error: string };
+
+/** 명령 실행. 효과는 updateState와 post뿐이다 */
+export function runHelmCommand(g: GroupApi<HelmState>, cmd: HelmCommand, ctx: { readonly turnId: TurnId | null }): Promise<HelmStatusView | { readonly error: string }>;
+
+/** g.registerCommand에 넘기는 정의. parseHelmCommand와 runHelmCommand를 묶는다. 타입은 GroupApi에서 유도해 ext-host를 import하지 않는다 */
+export function helmCommand(g: GroupApi<HelmState>): Parameters<GroupApi<HelmState>["registerCommand"]>[1];
+```
+
+- 명령 등록은 group-kit `g.registerCommand("helm", …)`로 한다(L3.group-kit.spec §3.2). group-kit은 X `hostOf(g).registerCommand`(X.primitives.spec §4.8)로 넘긴다. 이름은 `helm`이고 하위 명령을 인자로 받는다.
+- `/helm start [주제]`: `idle`이고 `pending`이 없을 때만 `pending`(`source: "command"`)을 커밋한다. 주제를 생략하면 마지막 신호 기록의 근거나 현재 turn 입력 용어 후보를 쓴다. `inquiryId`는 `inquiryIdFrom("command:" + (turnId ?? "none") + ":" + topic)`다 [제안].
+- `/helm stop`: §5 4번.
+- `/helm status`: `HelmStatusView`를 돌려준다. 상태를 바꾸지 않는다.
+
+### 3.10 그룹 모듈 (`src/index.ts`)
+
+```ts
+import { defineGroup, type GroupModule } from "@xeon/group-kit";
+
+export const helmGroup: GroupModule = defineGroup<HelmState>({
+  manifest: helmManifest,
+  state: helmStateDecl,
+  settings: helmSettings,          // §6
+  setup(g) {
+    g.registerCommand("helm", helmCommand(g));     // §3.9
+    g.on("before_agent_start", injectLens(g));      // §4.4
+    g.on("tool_call", guardWrite(g));               // §4.6
+    g.on("tool_execution_end", observeTool(g));     // §4.3
+    g.on("agent_settled", settle(g));               // §4.3
+    g.on("session_start", checkRestore(g));         // §4.9
+    g.drive(helmDrive(g), { limits: g.settings().driveLimits });   // §4.5
+  },
+});
+
+export { helmManifest, HelmStateSchema, INITIAL_HELM_STATE, HELM_RECORD_KINDS, helmSettings, transition, TRANSITIONS };
+```
+
+- `defineGroup`의 필드는 L3.group-kit.spec §3.2 `GroupDef`(`manifest`, `state`, `migrations`, `settings`, `setup`)다. Helm은 그중 `migrations`를 쓰지 않는다(상태 버전 1). `/helm` 명령은 `GroupApi.registerCommand`로 등록한다. 임대 필요 여부를 알리는 별도 필드는 두지 않는다(§3.3).
+
+## 4. 동작 규칙
+
+### 4.1 상태 쓰기
+
+- 모든 상태 변경은 `updateState(g, f)`로 한다. `updateState`는 패키지 안 직렬 큐로 `g.state()` 읽기, `f` 적용, `g.commit`을 한 단위로 실행한다. on 핸들러, drive 함수, 명령이 같은 상태를 동시에 바꿀 때 앞선 커밋을 잃지 않게 한다 [제안].
+- `ScopeApi.commit`은 교체 커밋이다(F.extensions.spec §3.2). [미결 6] X가 비교 후 교체(CAS)나 커밋 직렬화를 보장하면 큐를 지운다.
+- 커밋 전 `HelmStateSchema` 검사를 한다. 실패하면 커밋하지 않고 예외를 던진다(on 핸들러면 fold 실패 규칙, drive면 F.extensions.spec §5 6번).
+
+### 4.2 단계와 전이표
+
+[결정] 단계 순서는 발산 → 다른 분야 탐색 → 수렴 → 적용이다(§3.2, 계획 v2 L3-b). 아래 전이표, 진입·중단 조건, 이벤트 이름은 이 문서의 설계다 [제안]. 전이는 `transition(state, event)` 하나가 정한다. drive 함수와 명령은 이 함수를 거쳐서만 `phase`를 바꾼다.
+
+| 단계 | 진입 조건 | 효과(그 단계에서 하는 일) | 다음 단계 | 중단 조건과 결과 |
+|---|---|---|---|---|
+| `idle` | 초기값, 또는 탐구 종료 | 신호 감지만 한다. 쓰기 거부 없음. `pending`을 커밋하면 상태 판이 바뀌어 X가 Helm을 다시 임대 후보로 삼는다(§3.3) | `diverge`: 임대를 받아 drive가 호출되고 `pending`이 있음(`leaseGranted`) | `stopRequested`: `pending`을 지운다. 기록 없음 |
+| `diverge` | `leaseGranted`. `inquiryId`, `topic`을 `pending`에서 옮기고 `round = 1`, `selectLenses`로 `lenses`(모두 `pending`)를 정한다 | 쓰기 거부 켜짐. 발산 프롬프트로 `loop.turn` 1회(`turnRequestId(…, "diverge", round)`). 시스템 프롬프트에 단계 블록 추가 | `explore`: turn이 `completed`(`diverged`) | turn `aborted` → `idle`(`stopped`). turn `error` → `idle`(`failed`). `budget.turns === 0` → `idle`(`limit`, `turns`) |
+| `explore` | `diverged` | 쓰기 거부 켜짐. 렌즈를 `running`으로 커밋(`lensesStarted`), `pending`·`running` 렌즈마다 `loop.spawn({ agent: "explorer" })`를 병렬로 실행 | `converge`: 모든 렌즈가 `done`·`failed`·`skipped`(`explored`) | 모든 렌즈 실패 → `idle`(`failed`) [제안: 부분 결과 허용, 하나라도 `done`이면 진행]. 남은 spawn 예산 < 렌즈 수 → 앞 렌즈만 실행하고 나머지 `skipped`. `budget.spawns === 0` → `idle`(`limit`, `spawns`) |
+| `converge` | `explored` | 모델 turn 없음. `parseExplorerAnswer`로 발견 정리, `gatherContext`로 지식 요약, 한 번에 커밋(`converged`) | `apply`: 발견 1개 이상 | 발견 0개 → `idle`(`empty`) |
+| `apply` | `converged` | 쓰기 거부 없음. 적용 프롬프트로 `loop.turn` 정확히 1회(`turnRequestId(…, "apply", round)`). 끝나면 발견 기록, 작업 연결(§4.8) | `idle`(`applied`): `appliedTurnId` 설정 | turn `error`·`aborted` → `idle`(`failed`·`stopped`), 발견 기록은 `applied: false`. `budget.turns === 0` → `idle`(`limit`, `turns`), 적용 없이 발견만 기록 |
+
+공통 규칙:
+
+- 모든 탐구 단계에서 `stopRequested`가 참이면 다음 drive 경계에서 `idle`(`stopped`)로 간다.
+- `idle`로 가는 전이는 `inquiryId`, `topic`, `lenses`, `findings`, `context`, `round`, `stopRequested`를 초기값으로 되돌리고 `TransitionResult.finished`를 채운다. `appliedTurnId`는 다음 탐구 시작까지 남긴다.
+- 표에 없는 (단계, 이벤트) 쌍은 상태를 바꾸지 않는다. 테스트가 모든 쌍을 열거해 이 규칙을 확인한다(L3.helm.plan `transitions.table-covers-all-phase-pairs`).
+- [미결 2] 종료 판정: [제안] 1차는 적용 1회로 탐구를 끝낸다(라운드 1). 다회 라운드(적용 뒤 다시 `diverge`)와 판정 방식은 다음 단계에서 정한다. `round` 필드와 requestId의 라운드 자리는 이 확장을 위해 둔다.
+- [미결 3] 부분 결과: [제안] 기본은 허용이다. 실패한 렌즈는 `failed`로 남기고 나머지 결과로 수렴한다.
+
+### 4.3 탐구 신호
+
+[결정] 신호 종류는 막힘, 반복, 새 분야 진입 셋이다(계획 v2 `_research/layer-plan-v2.json` L3-b "탐구 신호 감지"). 식별자 `stuck`, `repeat`, `newDomain`과 아래 입력·판정 지점·임계는 이 문서의 설계다 [제안].
+
+| 신호 | 입력 | 판정 지점 | 기본 임계 [제안] |
+|---|---|---|---|
+| `stuck` | 같은 도구의 같은 오류(`toolName` + 오류 요약 다이제스트)가 연속으로 남 | `tool_execution_end`(메모리 집계), `agent_settled`(기록) | 3회 |
+| `repeat` | 같은 도구를 같은 인자(`toolName` + 정규화 인자 다이제스트)로 연속 호출 | `tool_execution_end`(메모리 집계), `agent_settled`(기록) | 3회 |
+| `newDomain` | 한 turn 안의 지식 검색(`knowledge.search` 능력 도구) 빈 결과, 사용자 입력의 낯선 분야 용어 | `agent_settled` | 빈 결과 2회, 또는 용어 후보가 있고 빈 결과 1회 |
+
+핸들러 계약 [결정: F.extensions.spec §4.3, EV-08]:
+
+- 신호 핸들러는 다시 실행해도 되는 질의다. 외부 I/O, 능력 호출, 시각·난수를 쓰지 않는다. 효과는 `g.record`와 `updateState`(commit)로만 낸다. 예외는 하나다: `agent_settled` 핸들러는 `autoStart: "suggest"`일 때 멱등 키를 가진 `post`를 한 번 낸다(F.extensions.spec §4.3이 허용한 효과).
+- 같은 페이로드로 다시 실행되면 `HelmTurnTally.seenToolCallIds`에 그 `toolCallId`가 있으므로 누적값을 다시 올리지 않는다. 신호 기록은 `agent_settled`에서만 쓰고, 그 커밋의 멱등 키(X.primitives.spec §4.6.4 `rec:<scope 해시>:<dispatchKey>:<n>`)로 재실행 때 두 번째 기록이 `replayed`가 된다.
+- 다이제스트는 `fnv1a64`(순수 함수)로 만든다. 인자·오류 원문은 상태와 레코드에 남기지 않는다.
+
+커밋 빈도 [제안]: 상태 커밋은 turn당 1회(`agent_settled`)다. group-kit 규칙(L3.group-kit.spec §4.5 4번, 카운터 틱은 상태 문서에 커밋하지 않는다)을 따르고, 학습 그룹과 같은 방식이다(L3.learning.spec §4.2 커밋 빈도).
+
+- `before_agent_start`와 `tool_execution_end`는 프로세스 메모리의 `HelmTurnTally`(§3.2)만 갱신한다. 집계표는 (threadId, turnId)로 구분하고, 그 turn의 첫 지점에서 커밋된 `watch`로 연다(`openTally`).
+- `agent_settled`는 `settleTurn`으로 커밋할 `watch`(turn을 넘어 이어지는 연속 횟수)와 넘은 신호를 얻고, 신호 기록과 상태 커밋을 한 번씩 한 뒤 집계표를 버린다.
+- 크래시로 집계표를 잃으면 그 turn의 도구 결과가 연속 횟수에 들어가지 않는다. 결과는 신호가 한 turn 늦게 나오거나 그 turn의 `newDomain`을 놓치는 것이므로 받아들인다.
+
+지점별 처리:
+
+| 지점 | fold | 처리 |
+|---|---|---|
+| `before_agent_start` | chain | `phase === "idle"`이면 `extractTerms(payload.prompt)`로 집계표의 `promptTerms`를 채운다. 커밋하지 않고 패치도 돌려주지 않는다. 탐구 단계면 §4.4의 주입만 한다 |
+| `tool_execution_end` | tap | `observeToolEnd`로 집계표를 갱신한다. 커밋과 기록은 하지 않는다 |
+| `agent_settled` | tap | `settleTurn`으로 `newDomain`을 판정하고 넘은 신호 전체를 얻는다. 넘은 신호가 있으면 `decideAction`으로 처리한다(아래 표). 신호마다 `grp.helm.signal.detected` 한 건을 처리 결과(`action`)와 함께 쓴다. 그 뒤 `updateState`로 `watch`(와 `auto`면 `pending`)를 한 번 커밋한다 |
+
+`autoStart` 동작 [제안]:
+
+| `l3.helm.autoStart` | 탐구 중(`phase !== "idle"` 또는 `pending` 있음) | `idle`, 신호 있음 |
+|---|---|---|
+| `off` | 기록만(`recorded`) | 기록만(`recorded`) |
+| `suggest`(기본) | 기록만 | 제안 메시지를 `post`한다(`kind: "context"`, `customType: "grp.helm.notice.suggested"`, `display: true`, `when: "followUp"`, `requestId: postRequestId(inquiryIdFrom(turnId), "idle", 0)`). 사용자가 `/helm start`를 실행하면 시작한다(`suggested`) |
+| `auto` | 기록만 | `pending`(`source: "signal"`)을 커밋한다. 상태 판이 바뀌어 Helm이 다시 임대 후보가 되고, 다음 판단 시점에 DriveArbiter가 임대를 정한다(§3.3, `requested`) |
+
+- `topic`은 신호 근거에서 만든다: `newDomain`이면 용어 후보, `stuck`·`repeat`이면 도구 이름과 사용자 입력 용어 후보. 형식은 [미결 5].
+- `inquiryId`는 `inquiryIdFrom(turnId)`로 만든다. 같은 turn의 재실행은 같은 id를 낸다.
+- [가정] `when: "followUp"`의 `kind: "context"` 항목은 스스로 모델 요청을 시작하지 않는다. ADR-0007 §6 `post.when` 미결이 다르게 정해지면 제안 메시지는 L4 알림 경로로 옮긴다.
+- [가정] `customType`은 `RecordKind` 형식만 맞으면 되고 매니페스트 `recordKinds` 선언이 필요 없다(F.extensions.spec §3.2 `PostItem`).
+
+### 4.4 관점·방법 주입
+
+주입 경로는 셋이다. 셋 모두 커밋된 상태에서 결정적으로 만든다.
+
+| 경로 | 연산 | 쓰는 단계 | 내용 |
+|---|---|---|---|
+| 시스템 프롬프트 추가분 | `on("before_agent_start")` chain 패치 | `diverge`, `explore`, `converge`, `apply`의 Helm 대화 turn | `renderLensBlock(lensBlockFor(state))`를 현재 시스템 프롬프트 끝에 붙인다 |
+| turn 입력 | `loop.turn({ input })` | `diverge`, `apply` | `divergePrompt(state)`, `applyPrompt(state)` |
+| 입력 큐 | `post` | 제안, 상한 도달·부분 실패·종료 알림 | `kind: "context"`, `display: true`. 단계 중간에 방법 힌트를 넣을 때 `when: "steer"` |
+
+- chain 패치 [가정]: F.extensions.spec §3.4 3행의 `BeforeAgentStartPayload`, `BeforeAgentStartPatch`는 아직 필드가 없다. pi `BeforeAgentStartEvent`(`prompt`, `images`, `systemPrompt`)와 `BeforeAgentStartEventResult`(`systemPrompt`, `message`)를 따른다고 보고, Helm 핸들러는 `{ systemPrompt: current.systemPrompt + "\n\n" + block }`을 돌려준다. 원본 `payload`가 아닌 누적값 `current`에 붙여 다른 그룹의 추가분을 지우지 않는다(F.extensions.spec §4.1 chain 보충 규칙).
+- 한 시점에 렌즈 하나만 주입한다 [제안]. `explore` 단계에서 부모 대화의 블록에는 렌즈 목록 제목만 넣고, 렌즈별 지시는 각 explorer 과제에만 넣는다. `diverge`, `converge`, `apply`의 블록에는 렌즈 본문을 넣지 않는다.
+- 블록 구조(`LensBlock`): 머리줄(`[helm] inquiry <id> round <n> phase <phase>`), 단계 규칙 목록(예: 확산 단계 쓰기 금지 고지), 현재 렌즈 제목. 문구 본문은 다음 단계에서 정한다.
+- 대상 thread: 핸들러는 `ctx.threadId`가 Helm 상태를 가진 대화일 때만 패치를 낸다 [가정]. explorer 자식 대화에서 같은 지점이 발화하는지는 L1.agents.spec이 정한다.
+- 프롬프트 캐시 [가정]: 블록을 시스템 프롬프트 끝에 두므로 앞부분 접두는 공유된다. 단계가 바뀔 때마다 블록이 바뀌어 그 뒤 캐시는 다시 만든다. 블록 내용은 한 단계 안에서 같으므로 같은 단계의 turn 사이에서는 캐시가 유지된다. 실제 적중률은 L1.models.spec의 캐시 규칙을 확인한 뒤 잰다.
+- requestId [제안]:
+
+| 호출 | requestId | 근거 |
+|---|---|---|
+| `post` | `helm:<inquiryId>:<phase>:<round>` (알림 종류가 둘 이상이면 끝에 `:<종류>`) | 공통 확정 형식 |
+| `loop.turn` | `helm:<inquiryId>:turn:<phase>:<round>` | §4.5 |
+| `loop.spawn` | `helm:<inquiryId>:spawn:<round>:<lensId>` | §4.5 |
+| 능력 호출(`CallOptions.requestId`) | `helm:<inquiryId>:cap:<용도>:<n>` | §4.7, §4.8 |
+
+  최대 길이는 `helm:`(5) + inquiryId(14) + `:spawn:`(7) + 라운드(3) + `:`(1) + lensId(16) = 46자로 64자 상한 안이다.
+
+### 4.5 탐구 구동 (drive)
+
+[결정] drive 함수는 단계 경계마다 마지막 커밋 상태로 다시 호출되고, 효과는 `loop.turn`, `loop.spawn`, `post`로만 낸다. 상태 변경은 `commit`으로만 한다(F.extensions.spec §4.6, ADR-0007).
+
+의사코드. 사용자 의사코드(`_research/layer-plan-v2-notes.md` "Helm이 보이는 모양")를 상태 기반 재호출 함수로 다시 쓴 것이다. 한 번 호출은 현재 단계 하나만 처리하고 커밋한 뒤 돌아간다. 다음 단계는 X가 다시 호출할 때 처리한다.
+
+```ts
+export function helmDrive(g: GroupApi<HelmState>): DriveFn<HelmState> {
+  return async (loop, st) => {
+    // st는 마지막 커밋 상태. 지역 변수는 이 호출 안에서만 쓴다(EV-09)
+    const s = g.settings();
+    if (st.stopRequested) return void (await finish(g, st, { type: "stopRequested" }));
+
+    switch (st.phase) {
+      case "idle": {
+        if (st.pending === null) return;                       // 할 일 없음. X가 idle 반납(F.extensions.spec §5 7번)
+        const lenses = selectLenses(st.pending.topic, s.maxLenses, BUILTIN_LENSES);
+        await step(g, { type: "leaseGranted", lenses });       // → diverge
+        return;
+      }
+      case "diverge": {
+        if (loop.budget.turns === 0) return void (await finish(g, st, { type: "limitReached", limit: "turns" }));
+        const out = await loop.turn({
+          input: divergePrompt(st),
+          requestId: turnRequestId(st.inquiryId!, "diverge", st.round),
+        });
+        await step(g, { type: "diverged", outcome: out });     // → explore 또는 idle
+        return;
+      }
+      case "explore": {
+        const todo = st.lenses.filter((l) => l.status === "pending" || l.status === "running");
+        const room = loop.budget.spawns ?? todo.length;
+        if (room === 0) return void (await finish(g, st, { type: "limitReached", limit: "spawns" }));
+        const run = todo.slice(0, room);                        // 남은 렌즈는 explored에서 skipped
+        if (run.some((l) => l.status === "pending")) await step(g, { type: "lensesStarted" });
+        const settled = await Promise.allSettled(run.map((l) =>
+          loop.spawn({
+            agent: "explorer",
+            task: explorerTask(st, l, BUILTIN_LENSES),
+            requestId: spawnRequestId(st.inquiryId!, st.round, l.id),
+          })));
+        await step(g, { type: "explored", results: toLensResults(run, settled) });   // → converge 또는 idle
+        if (run.length < todo.length) await notice(g, st, "partial");
+        return;
+      }
+      case "converge": {
+        // st.findings는 explored 전이가 parseExplorerAnswer로 채워 커밋한 값이다
+        const digest = await gatherContext(g, st, { signal: loop.signal });
+        await step(g, { type: "converged", findings: dedupeFindings(st.findings), context: digest.sources });  // g.commit
+        return;
+      }
+      case "apply": {
+        if (loop.budget.turns === 0) return void (await finish(g, st, { type: "limitReached", limit: "turns" }));
+        const out = await loop.turn({                            // 정확히 한 번: 같은 requestId는 기록된 결과를 돌려받는다
+          input: applyPrompt(st),
+          requestId: turnRequestId(st.inquiryId!, "apply", st.round),
+        });
+        await recordDiscoveries(g, st, out);                    // §4.8. 중복 제거 키는 findingId
+        await linkWork(g, st);                                  // §4.8. requestId 멱등
+        await step(g, { type: "applied", outcome: out });       // → idle, inquiry.finished
+        return;
+      }
+    }
+  };
+}
+// step(g, e)   = updateState(g, (cur) => transition(cur, e).state) 후 finished가 있으면 inquiry.finished 기록과 종료 알림 post
+// finish(g, st, e) = step과 같다. 상한·중지 이벤트를 받는 이름만 다르다
+```
+
+- 답 원문(`SpawnOutcome.answer`)은 상태에 두지 않는다 [제안]. `explored` 전이가 렌즈별 답에 `parseExplorerAnswer`(순수 함수)를 실행해 `findings`를 채우고, `converge` 분기는 지식 요약과 정리(`dedupeFindings`: 같은 `claim` 정규화 문자열 제거, 상한 24개, 커밋 전 `fitState`)만 한다. 그래서 `converge`에서 재호출돼도 서브에이전트 결과를 다시 받을 필요가 없다.
+- 단계 하나를 처리할 때마다 커밋하고 반환하므로, 재호출된 함수는 커밋된 `phase`에 해당하는 분기 하나만 실행한다. 사용자 의사코드의 `while` 반복은 X의 재호출이 대신한다.
+- 상한: `DriveOptions.limits`는 `minLimits(x.primitives.driveLimits, l3.helm.driveLimits)`를 넘지 않는다. Helm은 `l3.helm.driveLimits`를 넘기고, X가 `x.primitives.driveLimits`로 다시 자른다(F.extensions.spec §3.2 `DriveOptions` 주석, §6). [가정] group-kit은 임대를 새로 받을 때 `DriveOptions`를 설정에서 다시 읽는다.
+- 상한 도달: `LeaseBudget`이 0이면 `loop.turn`·`loop.spawn`을 부르지 않고 `limitReached`로 끝낸다. X가 먼저 거부하면(F.extensions.spec §4.6) 그 거부를 `limitReached`로 바꾼다. 어느 경우든 `inquiry.finished`에 `outcome: "limit"`과 `limit`을 남기고 알림을 `post`한다(`display: true`). 임대는 X가 `releasing`으로 바꾼다.
+- 기본 requestId: `loop.turn`, `loop.spawn`의 requestId를 생략하면 X가 `${leaseId}:${순번}`으로 만든다(F.extensions.spec §4.6). Helm은 탐구 id에서 만든 requestId를 직접 넘긴다 [제안]. 끄고 다시 켜거나 프로세스를 재시작하면 새 임대를 받아 `leaseId`가 바뀔 수 있고(`lease.released` reason `restart`, F.records.spec §3.3), 그때 기본값은 이미 실행한 spawn을 다시 실행하기 때문이다. [미결 7] 재시작 뒤 `leaseId` 유지 여부는 X.primitives.spec 확인 대상이다.
+- 재개(UC-2): 커밋 전에 프로세스가 끝나면 drive는 마지막 커밋 상태로 다시 호출된다. `explore` 단계에서 커밋 전이던 spawn은 같은 requestId로 다시 호출된다. L1이 이미 결과를 커밋했으면 기록된 결과를 돌려받고, 커밋하지 않았으면 다시 실행해 결과를 다시 수집한다. 같은 렌즈에 서브에이전트가 두 개 이상 결과를 남기지 않는다.
+- 결정성: drive 함수 안에서 `Date.now`, `Math.random`, 직접 I/O를 쓰지 않는다. M2에서는 `replayDrive`가 같은 커밋 상태로 두 번 호출한 효과 목록이 같은지 확인한다. group-kit `scanDriveSource`의 `drive.ts` 정적 검사는 그 도구가 나오는 M3 이후에 더한다(L3.group-kit.plan G-19, L3.helm.plan §5).
+- 능력 호출: `gatherContext`와 `linkWork`는 drive 안에서 서비스 메서드를 부른다(F.capabilities.spec §3.9 그룹 경로). F.extensions.spec §4.6의 효과 목록(`loop.turn`, `loop.spawn`, `post`)에 능력 호출은 없다. Helm은 replay safe 메서드에만 기대고, 효과가 있는 `work.tasks.create`에는 requestId를 넘긴다. [미결 C2] 이 예외를 F에 명시할지 정한다.
+
+### 4.6 쓰기 거부
+
+```ts
+// src/guard.ts
+export const WRITE_DENY_REASON: string;   // 본문은 다음 단계. 단계 이름, 해제 방법(/helm stop, 탐구 종료)을 담는다
+
+/** 순수 함수 */
+export function isWriteCall(call: Readonly<ToolCallPayload>, meta: ToolWriteMeta | undefined): boolean;
+export interface ToolWriteMeta { readonly hints?: ToolHints }
+
+export function guardWrite(g: GroupApi<HelmState>): Handler<"tool_call", HelmState>;
+// (call, ctx) => g.settings().writeGuard && (ctx.state.phase === "diverge" || ctx.state.phase === "explore")
+//   && isWriteCall(call, lookupMeta(call)) ? { block: true, reason: WRITE_DENY_REASON } : undefined
+```
+
+- 조건: `l3.helm.writeGuard`가 참이고 핸들러가 받은 커밋 상태(`ctx.state`)의 `phase`가 `diverge` 또는 `explore`일 때만 거부한다. `idle`(대기 요청 포함), `converge`, `apply`에서는 거부하지 않는다.
+- 결정 형태: F.extensions.spec §3.5의 `ToolCallDecision`(`{ block: true, reason }`)을 쓴다. 사용자 의사코드의 `{ deny: "…" }`는 이 형태에 대응한다. `terminate`는 두지 않는다.
+- 쓰기 판정 입력: 도구 메타의 `ToolHints.readOnly`(F.capabilities.spec §3.3)다. `readOnly === true`면 읽기, 그 밖(거짓, 없음)이면 쓰기로 본다 [제안]. 판정이 불확실하면 확산 단계에서 거부하는 쪽을 고른다.
+- 메타 출처 [가정]: L1.tools가 `ToolCallPayload`에 `hints`를 싣거나, group-kit이 도구 메타 조회를 제공한다. 둘 다 없으면 `call.capability`(능력 도구)를 F 능력 정의에서 찾아 `hints`를 얻는다. 어느 경로도 없으면 모든 도구를 쓰기로 본다. [미결 8] 출처는 L1.tools.spec과 함께 정한다.
+- 핸들러 예외는 `FIRST_DENY.tool_call`로 바뀌어 호출이 거부된다(F.extensions.spec §4.1 first fail-closed). 이 거부는 Helm 단계와 상관없이 일어나므로 핸들러는 상태 읽기와 순수 판정만 하고 I/O를 하지 않는다.
+- 강제력: 이 거부는 모델의 응답 내용과 상관없이 도구 실행 전에 적용된다. 모델이 쓰기 금지 고지(§4.4)를 무시하고 쓰기 도구를 불러도 도구는 실행되지 않는다.
+- explorer 자식 대화의 도구 호출에도 같은 지점이 발화하면 같은 규칙이 적용된다 [가정]. explorer 정의의 도구 목록에서도 쓰기 도구를 뺀다(L1.agents.spec 권한 상한).
+
+### 4.7 지식 소비
+
+- 읽기 경로는 F 정의뿐이다. `g.capability(key)`만 쓴다. `group-learning`과 `cap-*` 패키지를 import하지 않는다(CM-06, F.extensions.spec §4.8, 층 사이 규칙 2).
+- `gatherContext` 순서 [제안]: 스킬 검색(`knowledge.search.query`, `kinds: ["skill"]`) → 메모리 읽기(`knowledge.memory.read`) → 과거 대화 검색(`knowledge.search.query`, `kinds: ["session"]`) → 웹 검색(`topic`, `limit: 5`, `content: "highlights"`). 본문 읽기(`web.fetch`)는 explorer가 도구로 하고 drive는 부르지 않는다.
+- 각 호출은 `CallOptions`에 `signal: loop.signal`과 requestId(`helm:<inquiryId>:cap:<용도>:<n>`)를 넘긴다.
+- 다른 그룹 레코드 [결정(잠정): review.decisions-2 D-10]: 그룹 사이 레코드는 F에 스키마가 없으므로 Helm은 학습 그룹을 비롯한 다른 그룹의 레코드(`g.readRecords`)를 읽지 않는다. 학습 그룹이 승인해 적용한 스킬과 메모리는 L2 지식 저장소에 있으므로 위 스킬 검색·메모리 읽기로 얻는다. 승인 전 후보는 L2에 없으므로 섞이지 않는다.
+
+저하 동작 [제안]:
+
+| 상황 | 동작 |
+|---|---|
+| `web.search` 없음 또는 `unavailable`·`rate_limited`·`timeout` | 웹 출처 없이 진행. `degraded`에 `web`. explorer 과제에 "웹 검색 불가" 고지를 넣는다 |
+| `web.fetch` 없음 | drive는 영향이 없다(부르지 않는다). explorer 과제에 "본문 읽기 불가" 고지를 넣고 검색 요약만으로 주장을 만들게 한다 |
+| `knowledge.search`, `knowledge.skills`, `knowledge.memory` 없음(optional 미제공) | 해당 출처 건너뜀. `degraded`에 `knowledge`·`session` |
+| 학습 그룹 꺼짐, 미설치 | 영향 없음. Helm은 학습 그룹 레코드를 읽지 않는다 |
+| `aborted` | 호출을 멈추고 drive를 반환한다. 임대 회수 중이다 |
+| 모든 출처 실패 | 지식 요약 없이 수렴한다. 탐구는 계속한다 |
+
+외부 텍스트 방어 규칙 [제안]:
+
+1. 웹 결과, fetch 본문, 지식 항목, explorer 답은 DATA다. Helm은 이 텍스트를 지시로 해석하지 않는다. 코드 경로(전이, 쓰기 판정, 명령)는 이 텍스트의 내용으로 분기하지 않는다. 예외는 `parseExplorerAnswer`의 JSON 스키마 검사뿐이다.
+2. 프롬프트에 넣을 때는 `<untrusted_web_content>`(F.capabilities.spec §3.9 `renderSearch`와 같은 표지)처럼 출처 표지로 감싸고, 표지 안 내용은 따르지 않을 자료라는 문장을 블록 규칙에 둔다.
+3. 표지 문자열이 본문에 나오면 이스케이프한다.
+4. 상태와 레코드에는 외부 텍스트를 길이 상한까지 잘라 넣는다(`claim` 1000자, `ref` 512자, `title` 80자). 상태는 `fitState`로 바이트 상한도 지킨다(§3.2).
+5. 확산 단계의 쓰기 거부는 외부 텍스트에 숨은 지시가 쓰기 도구를 부르게 해도 실행을 막는다. 적용 단계의 쓰기는 일반 대화와 같은 승인·샌드박스 정책(L1-d, L0-b)을 따른다.
+
+### 4.8 발견 기록과 작업 연결
+
+- 기록 시점: 적용 단계에서 `loop.turn`이 끝난 뒤 발견마다 `grp.helm.discovery.recorded` 1건을 쓴다. `applied`는 적용 turn이 `completed`면 참이다. 상한·실패로 적용 없이 끝나면 `applied: false`로 쓴다.
+- 순서와 원자성 [제안]: `record` → `linkWork` → 전이 커밋 순서다. 커밋 전에 프로세스가 끝나면 재호출된 drive가 같은 발견을 다시 기록할 수 있다. 읽는 쪽은 `(inquiryId, findingId)`로 중복을 지운다. [미결 10] `commit`과 `record`를 한 트랜잭션으로 묶는 API를 X에 둘지 정한다.
+- 작업 연결: `followUp`이 있는 발견마다 `g.capability(WorkTasksKey).create({ content: followUp })`를 부른다(L2.work.spec §3.2 `TaskCreateInput`). requestId(`CallOptions.requestId`)는 `helm:<inquiryId>:cap:task:<findingId>`다. L2.work.spec §3.7은 `work.task_created`의 멱등 키를 `work:tasks:<호출 requestId>`로 두므로 같은 requestId의 두 번째 호출은 새 작업을 만들지 않는다. 능력이 없으면 작업 연결을 건너뛰고 발견 기록만 남긴다.
+- `inquiry.finished`는 `idle`로 가는 모든 전이에서 1건 쓴다(§4.2).
+
+### 4.9 세션 시작과 재개
+
+- `session_start`(tap)는 상태 복원을 확인만 한다. 마지막 커밋 상태가 `HelmStateSchema`를 통과하는지 본다.
+  - 통과하면 아무것도 하지 않는다. 열린 임대가 있으면 X가 drive를 재호출하고, 없으면 X가 Helm을 후보로 삼아 임대를 다시 정한다(X.primitives.spec §4.4.3). 탐구가 없으면 drive는 효과 없이 반환해 임대가 `idle`로 반납된다.
+  - 실패하면 `INITIAL_HELM_STATE`로 커밋하고, 탐구 중이었으면 `inquiry.finished`(`failed`, `reason: "state invalid"`)를 쓴다.
+- 상태 `version`이 다르면 X가 마이그레이션 훅을 요구한다(F.extensions.spec §3.2 `StateDecl`). 1차는 버전 1뿐이다.
+- `reason: "fork"`로 시작한 대화는 원 대화의 상태를 이어받는다 [가정: 분기 시 scope 상태 복사는 X.primitives.spec].
+
+### 4.10 다른 그룹과의 공존
+
+- 다른 그룹이 drive 임대를 가진 동안 Helm은 대기 상태로 남는다. `pending`은 남고 `phase`는 `idle`이다. 쓰기 거부는 걸리지 않는다. 신호 감지(on 핸들러)와 기록은 계속된다. 임대가 풀리면 DriveArbiter가 Helm에 임대를 준다. 대기·거부 정책은 `x.primitives.activeDriveGroup`과 L3.group-kit.spec §3.5가 정한다.
+- 학습 그룹은 drive를 쓰지 않으므로 Helm 임대 중에도 on, post, 백그라운드 위임으로 동작한다(F.extensions.spec §4.6 [결정]). Helm은 학습 그룹이 꺼져 있어도 같은 동작을 한다(§4.7 저하 동작).
+- 두 그룹의 chain 패치는 X의 디스패치 순서대로 합성되고, first 결정은 먼저 거부한 쪽이 정한다(F.extensions.spec §4.2).
+
+## 5. 실패와 경계 사례
+
+| # | 상황 | 동작 |
+|---|---|---|
+| 1 | 서브에이전트 일부 실패(`SpawnOutcome.status`가 `error`·`aborted`, 또는 spawn 예외) | 그 렌즈는 `failed`. 하나라도 `done`이면 수렴으로 간다. 실패 수는 `inquiry.finished.failedLenses`에 남고, 부분 실패 알림을 `post`한다 |
+| 2 | 모든 렌즈 실패 | `idle`(`failed`). 적용 turn 없음 |
+| 3 | 임대 상한 도달 | §4.5. `inquiry.finished`(`limit`)와 알림 `post`(`requestId: helm:<inquiryId>:<phase>:<round>:limit`). 상한 이름과 남은 단계를 표시한다 |
+| 4 | 사용자 `/helm stop` | `stopRequested`를 커밋한다. 실행 중인 `loop.turn`·`loop.spawn`은 끊지 않는다. drive가 다음 호출에서 `idle`(`stopped`)로 간다. 임대가 없으면(대기 중) `pending`을 지운다 |
+| 5 | 단계 경계에서 disable(`/group off helm`, `ext.helm.enabled` 거짓) | X 순서: on 핸들러 제외 → 임대 반납 → 정리(F.extensions.spec §4.5). 상태는 그대로 남는다. 다시 켜면 Helm이 다시 후보가 되고 임대를 받으면 drive가 커밋된 단계에서 이어 간다. 꺼진 동안 쓰기 거부는 걸리지 않는다 |
+| 6 | 다른 그룹이 임대를 가짐 | §4.10. 대기. on 핸들러만 동작. `/helm status`가 `lease: "waiting"`과 보유 그룹을 보여 준다 |
+| 7 | 프로세스 강제 종료 뒤 재개 | §4.5 재개. drive는 마지막 커밋 상태로 재호출된다. 커밋 전 spawn 결과는 같은 requestId로 다시 수집한다. 적용 turn은 같은 requestId라 다시 실행되지 않는다 |
+| 8 | drive 함수 예외 | X가 임대를 반납하고 drive 등록을 오류로 표시한다(F.extensions.spec §5 6번). 상태는 남는다. `/helm status`가 오류를 보여 준다. 재시도는 X.primitives.spec |
+| 9 | `tool_call` 핸들러 예외 | 거부로 환산(F.extensions.spec §4.1). 단계와 상관없이 그 호출은 실행되지 않는다 |
+| 10 | 신호 핸들러 예외 | tap 규칙: 기록 후 계속. 신호 하나를 놓칠 수 있다 |
+| 11 | chain 핸들러 예외 | 그 패치만 버린다. 해당 turn에 렌즈 블록이 빠진다 |
+| 12 | explorer 답이 형식 위반 | `parseExplorerAnswer`가 답 전체를 `low` 신뢰 발견 1건으로 바꾼다. 답이 없으면 렌즈 `failed` |
+| 13 | `maxLenses` > 남은 spawn 예산 | §4.2 explore 행. 앞 렌즈만 실행하고 나머지 `skipped` |
+| 14 | 탐구 중 `/helm start` | 오류 응답("이미 탐구 중"). 상태를 바꾸지 않는다 |
+| 15 | `idle`에서 drive가 호출됐고 `pending`이 없음 | 효과 없이 반환한다. 같은 상태 판으로 두 번이면 X가 임대를 `idle`로 반납한다(F.extensions.spec §5 7번, X.primitives.spec §4.4.3). Helm은 다음 `turn_settled`나 상태 판 변경 뒤 다시 후보가 된다. 임대 필요 판정 훅은 두지 않는다(§3.3) |
+| 16 | 상태 검증 실패 | §4.9 |
+
+## 6. 설정 노출
+
+`defineSettings("l3.helm", …)`로 선언한다(F.wire-settings.spec §3.8.3). 탭은 `plugins`다. 키는 공통 확정 이름이다.
+
+| 키 | 타입 | 기본값 | 범위 | runtimeChange | allowedScopes | 위젯 |
+|---|---|---|---|---|---|---|
+| `l3.helm.autoStart` | `"off" \| "suggest" \| "auto"` | `"suggest"` [제안] | enum 3개 | `nextTurn` | managed, user, project, local, session | select |
+| `l3.helm.driveLimits` | `DriveLimits`(`{ maxTurns?, maxSpawns?, maxTokens? }`) | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정(잠정): review.decisions-2 U-12] | 각 필드 1 이상 | `nextTurn`(다음 임대 획득 때) [가정] | managed, user, project, local, session | table |
+| `l3.helm.maxLenses` | integer | `3` [제안] | 1~8 | `nextTurn`(다음 탐구 시작 때) | managed, user, project, local, session | number |
+| `l3.helm.writeGuard` | boolean | `true` | | `nextTurn` | managed, user, project, local, session | toggle |
+
+```ts
+// src/settings.ts
+export const AutoStartSchema = Type.Union([Type.Literal("off"), Type.Literal("suggest"), Type.Literal("auto")]);
+export type AutoStart = Static<typeof AutoStartSchema>;
+
+export const helmSettings: SettingGroup<"l3.helm", {
+  autoStart: SettingDefInput<typeof AutoStartSchema>;
+  driveLimits: SettingDefInput<TSchema>;
+  maxLenses: SettingDefInput<TInteger>;
+  writeGuard: SettingDefInput<TBoolean>;
+}>;
+
+export interface HelmSettings {
+  readonly autoStart: AutoStart;
+  readonly driveLimits: DriveLimits;
+  readonly maxLenses: number;
+  readonly writeGuard: boolean;
+}
+```
+
+- `driveLimits.maxTurns` 기본 4는 발산 1, 적용 1에 여유 2를 둔 값이다. `maxSpawns` 기본 8은 `maxLenses` 상한과 같다. 이 기본값은 pi 방식(기본 상한 없음)의 예외다 [결정(잠정): review.decisions-2 U-12]. drive는 사용자 입력 없이 턴을 만들기 때문에 상한이 없으면 끝나지 않을 수 있다. 일반 대화 턴에는 상한을 두지 않는다.
+- `maxLenses`가 `driveLimits.maxSpawns`보다 크면 설정 저장 때 경고하고, 실행 때는 §4.2 explore 행 규칙으로 처리한다.
+- Helm 켜기·끄기 키는 X 로더 예약 키 `ext.helm.enabled` 하나다(F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3). 내장 그룹도 같은 키를 쓰고 Helm은 이 키를 `defineSettings`로 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`(§3.1)가 정한다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정(잠정): review.decisions-2 K-04].
+- L4 노출: 설정 화면 "플러그인과 그룹" 탭의 Helm 항목, 설정 파일, `/helm` 명령(§3.9). `/group on|off|status`는 group-kit 소유다.
+- 비밀 설정은 없다.
+
+## 7. 확장 지점
+
+| 연산 | 지점·대상 | fold | Helm의 쓰임 | 효과 |
+|---|---|---|---|---|
+| `on` | `before_agent_start` | chain | 탐구 단계 블록 주입, `idle`에서 용어 후보 메모리 집계 | 패치(커밋 없음) |
+| `on` | `tool_call` | first | 확산 단계 쓰기 거부 | 결정 |
+| `on` | `tool_execution_end` | tap | `stuck`, `repeat` 입력 메모리 집계(§4.3) | 없음 |
+| `on` | `agent_settled` | tap | 신호 판정과 기록, `autoStart` 처리, turn당 1회 커밋 | commit, record, post(suggest) |
+| `on` | `session_start` | tap | 상태 복원 확인 | commit, record(검증 실패 때만) |
+| `post` | 입력 큐 | | 제안, 알림 | requestId 멱등 |
+| `drive` | 임대 | | 단계 머신(§4.5) | `loop.turn`, `loop.spawn`, `post` |
+| `scope` | `helm` | | 상태 문서 `HelmState`, 켜기·끄기 | |
+
+- 지점 이름은 F.extensions.spec §3.4 표의 pi snake_case 이름이다. 사용자 의사코드의 `request`, `tool.before`, `turn.end`는 쓰지 않는다. `request` 형성은 `before_agent_start`로 옮겼다. 시스템 프롬프트를 turn 시작 때 한 번 바꾸면 그 turn의 모든 step 요청에 같은 블록이 실리기 때문이다 [제안]. 관찰은 `turn_end`(Xeon step 끝) 대신 `tool_execution_end`와 `agent_settled`(둘 다 tap)를 쓴다. `turn_end`는 chain이고 경계 엔트리를 다루는 지점이라 관찰 용도에 맞지 않는다. L3.slots.spec의 템플릿과 예(§3.1.5, §3.3.5)도 같은 권장안을 따른다.
+
+## 8. 다른 문서와의 인터페이스
+
+제공:
+
+| 이름 | 쓰는 문서 |
+|---|---|
+| 레코드 kind `grp.helm.signal.detected`, `grp.helm.discovery.recorded`, `grp.helm.inquiry.finished`와 payload 스키마 | L4.settings-ui.spec·L4.cli.spec(상태 표시) |
+| 설정 키 `l3.helm.*` 4개 | L4.settings-ui.spec, F.wire-settings.spec 카탈로그 |
+| 명령 `/helm start|stop|status`, `HelmStatusView` | L4.cli.spec, L4.desktop.spec |
+| `customType` `grp.helm.notice.suggested`, `grp.helm.notice.status` | L4(표시), F.conversation.spec `XeonCustomMessage` |
+| 서브에이전트 정의 이름 `explorer` | L1.agents.spec |
+| `helmGroup`(GroupModule) | L4.host-service.spec 조립 루트 |
+
+요구:
+
+| 이름 | 출처 | 상태 |
+|---|---|---|
+| `ScopeApi`, `DriveFn`, `LoopHandle`, `DriveOptions`, `PostItem`, `ToolCallDecision`, `RecordKindDecl`, 지점 페이로드 | F.extensions.spec | 확정(M1 지점). `before_agent_start`, `tool_execution_end` 페이로드는 [가정] |
+| `defineGroup`(§3.2), `GroupApi.settings()`·`registerCommand`(§3.2), `DriveArbiter`(§3.5), `replayDrive`(§3.10, M2), `scanDriveSource`(§3.11, M3 이후), `GroupStatus`(§3.8) | L3.group-kit.spec | 문서 있음. 임대 필요 판정 훅은 두지 않는다(§3.3) |
+| 임대 부여·`idle` 반납·상한 집행(§4.4), 상태 커밋의 `expectStateRev`(§4.6.1), `leaseId` 발급(§4.4.1 6번) | X.primitives.spec | 문서 있음. 재시작 뒤 `leaseId` 유지는 [미결 7], 커밋 직렬화로 큐를 지울지는 [미결 6] |
+| `loop.spawn` 실행(§3.2 `SpawnRequest`, §4.5 requestId), `explorer` 정의 형식과 확장 경로 적재(§4.9, M2), 자식 대화 권한 상한(§4.3) | L1.agents.spec | 문서 있음. 자식 대화의 지점 발화는 [가정](§4.4, §4.6) |
+| 도구 메타(`ToolHints`)의 핸들러 노출 | L1.tools.spec | [미결 8] |
+| `web.search`, `web.fetch` 능력 정의와 `WebSearchKey`, `WebFetchKey` | L2.web.spec §3.2, §3.3, F.capabilities.spec §3.9 | 문서 있음 |
+| `knowledge.search`, `knowledge.skills`, `knowledge.memory` 능력 정의와 `KnowledgeSearchKey`, `KnowledgeSkillsKey`, `KnowledgeMemoryKey` | L2.knowledge.spec §1, §3.9 | 문서 있음 |
+| `work.tasks`의 `create`와 `WorkTasksKey`, requestId 멱등 | L2.work.spec §3.2, §3.6, §3.7 | 문서 있음 |
+| 비공개 상태 저장(`grp.helm.state.committed`, `x_helm_state`), 비공개 기록(`recordPrivate`) | X.primitives.spec §4.6.1, §4.6.5, review.decisions-2 T-20, T-21 | 확정(잠정) |
+
+## 9. 수용 기준
+
+모두 테스트로 확인한다. 테스트 이름은 L3.helm.plan §5.
+
+1. (UC-2) Helm이 확산 단계(`diverge`, `explore`)일 때 `ToolHints.readOnly`가 참이 아닌 도구 호출은 실행되지 않고 거부 사유가 모델에 돌아간다. 같은 호출은 Helm을 끈 다음 turn에서 실행된다.
+2. (UC-2) 렌즈 N개로 탐구하면 서브에이전트 N개가 시작되고, 결과 커밋 이벤트 뒤에 적용 turn이 정확히 한 번 실행된다.
+3. drive 함수를 같은 커밋 상태로 두 번 호출하거나 `explore` 단계에서 프로세스를 끊고 재호출해도 렌즈마다 `loop.spawn`은 한 번만 실행되고 적용 turn도 한 번만 실행된다.
+4. 학습 그룹이 꺼져 있거나 설치되지 않아도 탐구가 `applied`로 끝난다. Helm은 학습 그룹 레코드를 읽지 않으므로 `gatherContext` 결과는 학습 그룹 유무와 상관없이 같다.
+5. 다른 그룹이 임대를 가진 동안 Helm은 `phase: "idle"`, `pending`을 유지하고, 같은 기간에 `stuck` 신호를 만드는 도구 오류 열이 들어오면 `grp.helm.signal.detected`가 기록된다. 쓰기 도구 호출은 거부되지 않는다.
+6. `l3.helm.writeGuard`가 거짓이면 확산 단계에서도 쓰기 도구 호출이 거부되지 않는다.
+7. `tool_call` 핸들러가 예외를 내면 그 호출은 거부된다.
+8. 신호 핸들러를 같은 페이로드로 두 번 실행해도 `watch` 카운터와 `signal.detected` 기록 수가 한 번 실행한 것과 같다.
+9. `transition`은 §4.2 표에 있는 모든 (단계, 이벤트) 쌍에서 표의 다음 단계를 돌려주고, 표에 없는 쌍에서는 같은 상태를 돌려준다.
+10. 렌즈 3개 중 1개의 spawn이 `error`면 렌즈 상태는 `done` 2, `failed` 1이고 적용 turn이 실행되며 `inquiry.finished.failedLenses`는 1이다.
+11. `maxSpawns`가 2이고 렌즈가 3개면 spawn은 2번, 렌즈 하나는 `skipped`이고 상한 알림이 1번 `post`된다. `maxTurns` 소진 시 `inquiry.finished.outcome`은 `limit`이다.
+12. 단계 경계에서 disable하면 `lease.released`(`disabled`)가 한 번 기록되고, 다시 켜면 같은 `inquiryId`와 단계에서 이어진다.
+13. `grp.helm.discovery.recorded` payload가 `DiscoveryRecordedPayloadSchema`와 F `validateGroupRecord`를 통과한다. `helmManifest`가 `validateManifest`와 `validateUsage`를 통과한다.
+14. `web.search` provider가 없어도 탐구가 끝나고 `degraded`에 `web`이 들어간다.
+15. `group-helm` 패키지의 import 대상은 `@xeon/contracts`, `@xeon/group-kit`, `typebox`뿐이다(check-layers). Helm을 추가하는 변경에서 `contracts`, `ext-host`, `group-kit` 경로의 diff가 0이다(product.vision.spec S1).
+
+## 10. 미결 사항
+
+내부 설계(다음 단계):
+
+1. [미결] 렌즈 목록과 선택 규칙. 내장 렌즈 내용, 모델이 발산 turn에서 렌즈를 제안하는 경로(그룹 전용 도구 또는 item 읽기 API)를 둘지. 1차는 코드가 `BUILTIN_LENSES`에서 고른다(§3.6).
+2. [미결] 종료 판정과 다회 라운드. [제안] 1차는 적용 1회로 끝낸다(§4.2).
+3. [미결] 부분 결과 허용. [제안] 허용(§4.2, §5 1번).
+4. [미결] 기본 켬 여부(매니페스트 `defaultEnabled`)와 내장 그룹·기본 플러그인 중 어느 형태로 넣을지(product.vision.spec §10 미결 4).
+5. [미결] 신호 임계값과 판정 세부(오류 다이제스트 방식, 용어 추출, `newDomain` 조합 규칙), 임계를 설정으로 노출할지.
+6. [미결] `ScopeApi.commit`의 동시 커밋 규칙(CAS, 직렬화). 정해지면 `updateState`의 큐를 지운다(§4.1). X.primitives.spec.
+7. [미결] 재시작·재활성화 뒤 `leaseId` 유지 여부와 기본 requestId(`${leaseId}:${순번}`)의 재개 안전성(§4.5). X.primitives.spec.
+8. [미결] 쓰기 판정용 도구 메타 출처(§4.6). L1.tools.spec.
+9. [결정(잠정): review.decisions-2 D-10] 다른 그룹 레코드는 읽지 않는다. 학습 결과는 L2 지식 능력으로만 얻는다(§4.7).
+10. [미결] `record`와 `commit`의 원자 묶음 API(§4.8).
+11. (닫힘) work 연결은 `work.tasks`의 `create({ content })`와 requestId 멱등으로 정했다(§4.8, L2.work.spec §3.2, §3.7).
+12. (닫힘) 켜기·끄기 키는 X 예약 키 `ext.helm.enabled` 하나다(§6, X.loading-trust.spec §4.5).
+13. [미결] 탐구가 없을 때 turn마다 생기는 임대 부여·`idle` 반납(§3.3 비용)이 문제가 되는지. 문제가 되면 X에 후보 제외 조건이나 group-kit에 임대 필요 판정 필드를 요청한다. 지금은 훅을 두지 않고 X의 `idle` 반납 규칙에 맡긴다(§3.3).
+14. [미결] `before_agent_start`, `tool_execution_end` 페이로드 필드(§4.3, §4.4). `tool_execution_end`에 `input`이 없으면 `repeat` 입력을 `tool_result` 지점(chain, 패치 없음)으로 옮기고 매니페스트 `points`에 더한다. F.extensions.spec.
+15. [미결] 단계별 프롬프트 문구 본문과 explorer 정의 본문.
+16. [미결] 단계 식별자(`idle`, `diverge`, `explore`, `converge`, `apply`), 신호 식별자(`stuck`, `repeat`, `newDomain`), 전이표(§4.2)의 확정. 단계 순서와 신호 종류 셋은 계획 v2로 정해졌고 [결정], 식별자와 전이표는 이 문서의 [제안]이다(product.usecases.spec UC-2 미결, L3.readme §10.2 미결 9).
+
+공통 모순(조정자 공통 목록, 최종 보고에도 올림):
+
+- [결정(잠정): review.decisions-2 T-21] C1 레코드 kind 접두: 공개·비공개 모두 F 형식 `grp.<그룹>.<영역>.<이름>`이다. eng 문서의 옛 밑줄 접두 표기는 그 문서 쪽에서 고친다.
+- [미결 C1] 서비스 키 체계(F `ServiceKey` 대 `xeon.<도메인>` Cordis 이름, §3.8).
+- [미결 C2] on 핸들러 외부 효과 금지(F.extensions.spec §4.3)와 requestId 멱등 예외. Helm은 on 핸들러에서 `record`, `commit`, 멱등 `post`만 쓰고 `loop.spawn`은 drive 안에서만 쓴다. drive 안의 능력 호출(`gatherContext`, `work.tasks.create`)은 F §4.6 효과 목록 밖이다. `loop.spawn`·`g.delegate`·능력 호출을 requestId 멱등 조건으로 허용하는 문장을 F에 둘지 정한다.
+- [미결 C3] `package.json`의 `xeon.domain`: DR-03 규칙(디렉터리 접두 제거)은 `group-kit`에 `kit`을, routes.yaml layout은 `group-kit`을 준다. Helm은 `group-helm` → `helm`이라 두 규칙의 값이 같다. group-kit 쪽 결정을 따른다.
