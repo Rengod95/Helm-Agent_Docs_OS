@@ -1,0 +1,86 @@
+# Xeon 문서 라우팅 표. 사람용 설명은 README.md.
+# 해석기: xeon/scripts/docs-route.ts (P3에서 구현).
+# 규칙: 작업 유형 묶음 + 코드 경로가 맞는 문서(binds) + 그 문서의 depends_on 한 단계.
+
+version: 1
+
+# 작업 유형별로 항상 읽는 문서 (id)
+by_task:
+  implement:          # 코드를 쓰거나 고치는 모든 작업
+    - eng.dependency-rules.guide
+    - eng.typescript.guide
+    - eng.domain-types.guide
+    - eng.anti-patterns.guide
+    - eng.best-practices.guide
+    - eng.testing.guide
+    - eng.toolchain.guide
+  data:               # 저장, 이벤트, 재생, 원자성을 건드리는 작업 (implement에 더함)
+    - eng.transactions.design
+    - eng.events.design
+    - eng.context-map.design
+  extension:          # 확장 지점, 플러그인, 그룹을 건드리는 작업
+    - X.readme
+    - X.primitives.spec
+    - F.extensions.spec
+  docs:               # 문서를 쓰거나 고치는 작업
+    - xeon.templates
+    - xeon.readme
+  review:             # 정합성 검토
+    - architecture.layers.spec
+    - eng.dependency-rules.guide
+    - eng.context-map.design
+
+# 층·도메인 → 코드 경로. 문서의 binds와 같아야 한다 (검사 대상).
+layout:
+  F:
+    package: xeon/packages/contracts
+    domains: [conversation, records, capabilities, extensions, wire-settings]
+    path: "xeon/packages/contracts/src/{domain}/**"
+  X:
+    package: xeon/packages/ext-host
+    domains: [loading-trust, primitives, operations]
+    path: "xeon/packages/ext-host/src/{domain}/**"
+  L0:
+    domains: [exec, sandbox, secrets, process, store, os]
+    path: "xeon/packages/platform-{domain}/**"
+  L1:
+    domains: [tasks, loop, models, tools, context, persistence, agents]
+    path: "xeon/packages/core-{domain}/**"
+  L2:
+    domains: [workspace, mcp, web, knowledge, work, dialog, artifacts, schedule]
+    path: "xeon/packages/cap-{domain}/**"
+  L3:
+    domains: [group-kit, helm, learning, slots]
+    path: "xeon/packages/group-{domain}/**"   # slots는 코드 없음 (템플릿만)
+  L4:
+    domains: [cli, desktop, host-service, settings-ui]
+    path: "xeon/apps/{domain}/**"
+  plugins:
+    - path: "xeon/plugins/provider-anthropic-oauth/**"
+      docs: [L1.models.spec]
+
+# 산출 문서 목록 (작성 대상). id는 <층>.<도메인>.<종류>.
+manifest:
+  product: [product.vision.spec, product.usecases.spec, product.scope.spec]
+  architecture: [architecture.overview.spec, architecture.layers.spec, architecture.runtime-flow.design]
+  engineering:
+    - eng.dependency-rules.guide
+    - eng.typescript.guide
+    - eng.domain-types.guide
+    - eng.context-map.design
+    - eng.transactions.design
+    - eng.events.design
+    - eng.anti-patterns.guide
+    - eng.best-practices.guide
+    - eng.testing.guide
+    - eng.toolchain.guide
+  decisions:
+    - adr.0001   # 스택(Bun, TS7, oxlint/oxfmt, bun test, turbo)
+    - adr.0002   # DI는 Cordis 하나
+    - adr.0003   # pi durable 부분 포크, 커널 자체 구현
+    - adr.0004   # 세션 저장 C안(SQLite 이벤트 소싱 + 투영, 단일 DB)
+    - adr.0005   # 무료 웹 검색 기본값
+    - adr.0006   # 프로세스 구조와 서비스 모드(데몬)
+    - adr.0007   # 확장 지점 4연산(on/post/drive/scope)
+    - adr.0008   # 데스크톱 Tauri 2 + 엔진 사이드카
+  layers: "각 층마다 <층>.readme 1개 + 도메인마다 spec, plan (layout.domains 참조)"
