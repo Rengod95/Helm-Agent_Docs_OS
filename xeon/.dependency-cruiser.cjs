@@ -44,7 +44,19 @@ const sameLayerGroups = [
   },
   { name: "L2", from: "^packages/(cap-[^/]+)/", to: "^packages/cap-", own: "^packages/$1/" },
   { name: "L3", from: "^packages/(group-[^/]+)/", to: "^packages/group-", own: "^packages/$1/" },
-  { name: "L4", from: "^apps/([^/]+)/", to: "^apps/", own: "^apps/$1/" },
+  // DR-10/cli-host (scripts/dependency-allowlist.json): apps/cli may import @xeon/host entries "." and "./client" only.
+  {
+    name: "L4",
+    from: "^apps/(?!cli/)([^/]+)/",
+    to: "^apps/",
+    own: "^apps/$1/",
+  },
+  {
+    name: "L4-cli",
+    from: "^apps/(cli)/",
+    to: "^apps/",
+    own: ["^apps/$1/", "^apps/host/src/(index|client)\\.ts$"],
+  },
 ];
 
 const sameLayer = sameLayerGroups.map((group) => ({

@@ -1,0 +1,177 @@
+import { expect, test } from "bun:test";
+import { validateManifest, type PortKey } from "@xeon/contracts/extensions";
+import {
+  WorkspaceFilesKey,
+  WorkspaceFiles,
+  WorkspaceShell,
+  WorkspaceShellKey,
+} from "@xeon/contracts/capabilities";
+import type { Redactor } from "@xeon/contracts/services";
+import { createTestHost } from "@xeon/ext-host/testing";
+import {
+  ApprovalsServicePortKey,
+  toolsManifest,
+  toolsPlugin,
+  ToolsServicePortKey,
+  truncatorOf,
+} from "../src/plugin.ts";
+import {
+  fakeRedactor,
+  fakeRunContext,
+  fakeSession,
+  fakeStore,
+  fakeTruncator,
+  sequentialIds,
+  type FakeSession,
+  type FakeStore,
+} from "../src/testing/index.ts";
+import { TOOLS_EXTENSION_NAME } from "../src/index.ts";
+import { fakeTasks, type FakeTasks } from "./support/fake-tasks.ts";
+import { callTool, directTool, errorText, NOW } from "./support/harness.ts";
+
+interface FakeExec {
+  readonly id: string;
+  canonicalPath(path: string): Promise<{ ok: true; value: string }>;
+  absolutePath(path: string): Promise<{ ok: true; value: string }>;
+  truncateHead?: (content: string, options?: { maxLines?: number; maxBytes?: number }) => unknown;
+  formatSize?: (bytes: number) => string;
+}
+
+const SessionKey: PortKey<FakeSession> = { name: "xeon.session" };
+const StoreKey: PortKey<FakeStore> = { name: "xeon.store" };
+const TasksKey: PortKey<FakeTasks> = { name: "xeon.tasks" };
+const ExecKey: PortKey<FakeExec> = { name: "xeon.exec" };
+const SecretsKey: PortKey<{ readonly redactor: Redactor }> = { name: "xeon.secrets" };
+
+async function boot(options: { withTruncation: boolean; passTruncator?: boolean }) {
+  // 테스트 호스트의 기록 포트(xeon.session의 ext 속성)는 빼고, 이 패키지가 쓰는 세션 대역을 올린다
+  const t = await createTestHost({ without: ["records", "queue", "loop"] });
+  const clock = { now: () => NOW };
+  const ids = sequentialIds(5000);
+  const session = fakeSession({ clock, ids });
+  const tasks = fakeTasks();
+  const truncator = fakeTruncator();
+  const exec: FakeExec = {
+    id: "env1",
+    canonicalPath: (path) => Promise.resolve({ ok: true, value: path }),
+    absolutePath: (path) => Promise.resolve({ ok: true, value: path }),
+    ...(options.withTruncation
+      ? {
+          truncateHead: (content: string, o?: { maxLines?: number; maxBytes?: number }) =>
+            truncator.truncateHead(content, o),
+          formatSize: (bytes: number) => truncator.formatSize(bytes),
+        }
+      : {}),
+  };
+  await t.host.registerPlatform({
+    name: "fake-l0",
+    setup(ctx) {
+      ctx.providePort(SessionKey, session);
+      ctx.providePort(StoreKey, fakeStore());
+      ctx.providePort(TasksKey, tasks);
+      ctx.providePort(ExecKey, exec);
+      ctx.providePort(SecretsKey, { redactor: fakeRedactor() });
+    },
+  });
+  const installed = await t.host.install(
+    toolsPlugin({
+      clock,
+      ids,
+      settings: { layers: () => [] },
+      ...(options.passTruncator === true ? { truncator } : {}),
+    }),
+  );
+  return { t, installed, session, tasks, ids };
+}
+
+test("the manifest passes validateManifest and the unit is a builtin L1 plugin", () => {
+  const checked = validateManifest(toolsManifest());
+  expect(checked.issues.filter((issue) => issue.severity === "error")).toEqual([]);
+  expect(checked.manifest?.name).toBe(TOOLS_EXTENSION_NAME);
+  expect(checked.manifest?.layer).toBe("L1");
+  expect(checked.manifest?.optional?.map((entry) => entry.id)).toEqual([
+    "workspace.files",
+    "workspace.shell",
+    "workspace.images",
+  ]);
+  const unit = toolsPlugin({
+    clock: { now: () => NOW },
+    ids: sequentialIds(),
+    settings: { layers: () => [] },
+  });
+  expect(unit.builtin).toBe(true);
+  expect(unit.manifest.points).toEqual([]);
+});
+
+test("installing provides xeon.tools and xeon.approvals ports and runs a call end to end", async () => {
+  const { t, installed, session, tasks, ids } = await boot({ withTruncation: true });
+  expect(installed.setups[0]?.status).toBe("applied");
+  expect(installed.issues.filter((issue) => issue.severity === "error")).toEqual([]);
+  const tools = t.host.ports.get(ToolsServicePortKey);
+  const approvals = t.host.ports.get(ApprovalsServicePortKey);
+  expect(tools).toBeDefined();
+  expect(approvals).toBeDefined();
+  if (tools === undefined) return;
+
+  // 확장 ToolsPort 경로로 등록한 도구도 같은 파이프라인을 지난다
+  const thread = ids.next("thr");
+  await t.host.openThread(thread);
+  const seenThreads: string[] = [];
+  tools.register("acme-notes", {
+    name: "note_add",
+    description: "add a note",
+    parameters: directTool("x", () => Promise.resolve({ content: [], details: null })).parameters,
+    replay: "unsafe",
+    execute: (_args, ctx) => {
+      seenThreads.push(ctx.threadId);
+      return Promise.resolve("noted");
+    },
+  });
+  // 위험 등급을 선언하지 않은 도구는 exec이므로 승인이 필요하다. 비대화형이라 거부된다
+  const run = fakeRunContext({ session, ids, threadId: thread, interactive: false });
+  tasks.addTurn(run.turnId);
+  const denied = await callTool(tools, run, { id: "n1", name: "note_add", args: { text: "x" } });
+  expect(denied.blocked).toContain("noninteractive_ask_denied");
+  expect(seenThreads).toEqual([]);
+
+  // 읽기 도구 능력은 매니페스트 optional에 올라 있어 g.capability로 해석된다(공급자가 없으면 unavailable 결과)
+  tools.register({ kind: "capability", def: WorkspaceFiles, key: WorkspaceFilesKey });
+  tools.register({ kind: "capability", def: WorkspaceShell, key: WorkspaceShellKey });
+  const read = await callTool(tools, run, { id: "r1", name: "read", args: { path: "a" } });
+  expect(read.isError).toBe(true);
+  expect(JSON.stringify(read.result)).toContain("[unavailable]");
+  expect(session.events.map((event) => event.kind)).toEqual([
+    "effect.intent",
+    "effect.exec",
+    "effect.result",
+    "item.recorded",
+  ]);
+});
+
+test("without an output truncator the setup fails loudly (D-08: no copy of truncate.ts here)", async () => {
+  const { installed, t } = await boot({ withTruncation: false });
+  expect(installed.setups[0]?.status).toBe("failed");
+  expect(errorText(installed.setups[0]?.failure?.error)).toContain("output truncator");
+  expect(t.host.ports.get(ToolsServicePortKey)).toBeUndefined();
+});
+
+test("an explicit truncator option works without xeon.exec support", async () => {
+  const { installed, t } = await boot({ withTruncation: false, passTruncator: true });
+  expect(installed.setups[0]?.status).toBe("applied");
+  expect(t.host.ports.get(ToolsServicePortKey)).toBeDefined();
+});
+
+test("truncatorOf wraps xeon.exec functions and rejects malformed results", () => {
+  expect(truncatorOf({})).toBeUndefined();
+  expect(truncatorOf(null)).toBeUndefined();
+  const real = fakeTruncator();
+  const wrapped = truncatorOf({
+    truncateHead: (content: string, o?: { maxLines?: number }) => real.truncateHead(content, o),
+    formatSize: (bytes: number) => real.formatSize(bytes),
+  });
+  expect(wrapped?.truncateHead("a\nb", { maxLines: 1 }).truncated).toBe(true);
+  expect(wrapped?.formatSize(2048)).toBe("2.0KB");
+  const broken = truncatorOf({ truncateHead: () => ({ nope: true }), formatSize: () => 12 });
+  expect(() => broken?.truncateHead("x")).toThrow("truncate_invalid");
+  expect(broken?.formatSize(5)).toBe("5 B");
+});

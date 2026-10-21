@@ -1,0 +1,227 @@
+import {
+  checkEnvelope,
+  WireError,
+  type CloseInfo,
+  type HostConnection,
+  type JsonRpcMessage,
+  type ServerNotificationName,
+  type ServerNotificationParams,
+  type Transport,
+  type Unsubscribe,
+  type WireMethodName,
+  type WireParams,
+  type WireRequestOptions,
+  type WireResult,
+} from "@xeon/contracts/wire";
+
+// L4.host-service.spec §3.3.4 "client.ts". 엔진 패키지를 import하지 않는다: 이 파일의 import는 @xeon/contracts뿐이다
+// (L4.host-service.plan §2, test/client-boundary.test.ts). connectServiceTransport(socket)는 서비스 모드(M3)라 아직 없다.
+
+export interface HostConnectionOptions {
+  /** 요청마다 따로 주지 않았을 때의 시한(ms). 없으면 시한 없음 */
+  readonly defaultTimeoutMs?: number;
+}
+
+export type HostClientErrorKind = "closed" | "timeout" | "aborted" | "sendFailed";
+
+/**
+ * 서버가 응답하지 못한 요청의 끝. 서버가 오류로 응답한 경우는 WireError다.
+ * `closed`는 응답 전에 연결이 닫힌 것이고 closeInfo가 있다. 이때 `turn.start`는 접수됐을 수 있으므로
+ * 재접속 뒤 이벤트로 확인해야 한다(F.wire-settings.spec §5).
+ */
+export class HostClientError extends Error {
+  override readonly name: string = "HostClientError";
+  readonly kind: HostClientErrorKind;
+  readonly closeInfo: CloseInfo | undefined;
+
+  constructor(kind: HostClientErrorKind, message: string, closeInfo?: CloseInfo) {
+    super(message);
+    this.kind = kind;
+    this.closeInfo = closeInfo;
+  }
+}
+
+interface Pending {
+  readonly method: string;
+  resolve(result: unknown): void;
+  reject(error: unknown): void;
+}
+
+function paramsRecord(params: object): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(params));
+}
+
+function toResult<M extends WireMethodName>(value: unknown): WireResult<M> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 서버가 개발 빌드에서 WIRE_METHODS[m].result로 결과를 검사한다(F.wire-settings.spec §4.3 7단계). 클라이언트는 새 부 버전 서버의 추가 필드를 거부하지 않으려고 다시 검사하지 않는다 (eng.typescript.guide TY-06)
+  return value as WireResult<M>;
+}
+
+function toNotification<N extends ServerNotificationName>(
+  value: Record<string, unknown>,
+): ServerNotificationParams<N> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 위와 같다: 알림 params는 서버가 만든 값이고 부 버전 호환을 위해 추가 필드를 거부하지 않는다 (eng.typescript.guide TY-06)
+  return value as ServerNotificationParams<N>;
+}
+
+/** F의 HostConnection 구현. 요청 id는 연결마다 r1, r2, … 를 쓴다(F wire §3.1) */
+export function createHostConnection(
+  transport: Transport,
+  options: HostConnectionOptions = {},
+): HostConnection {
+  const pending = new Map<string, Pending>();
+  const notificationHandlers = new Map<string, Set<(params: Record<string, unknown>) => void>>();
+  const closeWaiter = Promise.withResolvers<CloseInfo>();
+  const state: { counter: number; closed: CloseInfo | undefined } = {
+    counter: 0,
+    closed: undefined,
+  };
+
+  function failAll(info: CloseInfo): void {
+    const entries = [...pending.entries()];
+    pending.clear();
+    for (const [, entry] of entries) {
+      entry.reject(
+        new HostClientError(
+          "closed",
+          `connection closed before ${entry.method} was answered (${info.reason})`,
+          info,
+        ),
+      );
+    }
+  }
+
+  function dispatch(message: JsonRpcMessage): void {
+    if ("method" in message) {
+      if ("id" in message) return; // 서버 → 클라이언트 요청은 쓰지 않는다
+      for (const handler of Array.from(notificationHandlers.get(message.method) ?? [])) {
+        handler(message.params);
+      }
+      return;
+    }
+    if (message.id === null) return; // 요청과 짝지을 수 없는 오류(프레임 오류 등)
+    const entry = pending.get(message.id);
+    if (entry === undefined) return; // 시한이 지났거나 이미 끝난 요청
+    pending.delete(message.id);
+    if ("error" in message) {
+      entry.reject(new WireError(message.error.code, message.error.message, message.error.data));
+    } else {
+      entry.resolve(message.result);
+    }
+  }
+
+  transport.onMessage((raw) => {
+    const checked = checkEnvelope(raw);
+    if (!checked.ok) return;
+    dispatch(checked.message);
+  });
+  transport.onClose((info) => {
+    if (state.closed !== undefined) return;
+    state.closed = info;
+    failAll(info);
+    closeWaiter.resolve(info);
+  });
+
+  function sendCancel(id: string): void {
+    transport
+      .send({ jsonrpc: "2.0", method: "$/cancelRequest", params: { id } })
+      .catch(() => undefined);
+  }
+
+  return {
+    request<M extends WireMethodName>(
+      method: M,
+      params: WireParams<M>,
+      requestOptions?: WireRequestOptions,
+    ): Promise<WireResult<M>> {
+      if (state.closed !== undefined) {
+        return Promise.reject(new HostClientError("closed", "connection is closed", state.closed));
+      }
+      const signal = requestOptions?.signal;
+      if (signal?.aborted === true) {
+        return Promise.reject(
+          new HostClientError("aborted", `${method} was aborted before sending`),
+        );
+      }
+      state.counter += 1;
+      const id = `r${state.counter}`;
+      const waiter = Promise.withResolvers<unknown>();
+      const cleanups: (() => void)[] = [];
+      const finish = (): void => {
+        for (const cleanup of cleanups.splice(0)) cleanup();
+      };
+      pending.set(id, {
+        method,
+        resolve(result) {
+          finish();
+          waiter.resolve(result);
+        },
+        reject(error) {
+          finish();
+          waiter.reject(error);
+        },
+      });
+
+      const timeoutMs = requestOptions?.timeoutMs ?? options.defaultTimeoutMs;
+      if (timeoutMs !== undefined) {
+        const timer = setTimeout(() => {
+          if (!pending.delete(id)) return;
+          sendCancel(id);
+          finish();
+          waiter.reject(new HostClientError("timeout", `${method} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
+        cleanups.push(() => {
+          clearTimeout(timer);
+        });
+      }
+      if (signal !== undefined) {
+        const onAbort = (): void => {
+          // 서버가 5001로 응답하거나 이미 낸 결과를 보낸다(F.wire-settings.spec §4.4). 응답을 기다린다
+          if (pending.has(id)) sendCancel(id);
+        };
+        signal.addEventListener("abort", onAbort, { once: true });
+        cleanups.push(() => {
+          signal.removeEventListener("abort", onAbort);
+        });
+      }
+
+      transport
+        .send({ jsonrpc: "2.0", id, method, params: paramsRecord(params) })
+        .catch((caught: unknown) => {
+          const entry = pending.get(id);
+          if (entry === undefined) return;
+          pending.delete(id);
+          entry.reject(
+            new HostClientError(
+              "sendFailed",
+              caught instanceof Error ? caught.message : String(caught),
+              state.closed,
+            ),
+          );
+        });
+      return waiter.promise.then((result) => toResult<M>(result));
+    },
+
+    onNotification<N extends ServerNotificationName>(
+      name: N,
+      handler: (params: ServerNotificationParams<N>) => void,
+    ): Unsubscribe {
+      const wrapper = (params: Record<string, unknown>): void => {
+        handler(toNotification<N>(params));
+      };
+      const set =
+        notificationHandlers.get(name) ?? new Set<(params: Record<string, unknown>) => void>();
+      set.add(wrapper);
+      notificationHandlers.set(name, set);
+      return () => {
+        set.delete(wrapper);
+      };
+    },
+
+    async close(): Promise<void> {
+      await transport.close();
+      await closeWaiter.promise;
+    },
+
+    closed: closeWaiter.promise,
+  };
+}

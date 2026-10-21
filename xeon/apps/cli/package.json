@@ -4,13 +4,20 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/main.ts"
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
     "typecheck": "tsc -b",
     "test": "bun test",
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
+  },
+  "dependencies": {
+    "@xeon/contracts": "workspace:*",
+    "@xeon/core-models": "workspace:*",
+    "@xeon/group-kit": "workspace:*",
+    "@xeon/host": "workspace:*",
+    "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

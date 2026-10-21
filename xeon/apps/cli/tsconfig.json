@@ -6,5 +6,18 @@
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
   "include": ["src", "test"],
-  "references": []
+  "references": [
+    {
+      "path": "../../packages/contracts"
+    },
+    {
+      "path": "../../packages/core-models"
+    },
+    {
+      "path": "../host"
+    },
+    {
+      "path": "../../packages/group-kit"
+    }
+  ]
 }

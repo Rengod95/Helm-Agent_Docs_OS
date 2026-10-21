@@ -1,0 +1,29 @@
+[
+  {
+    "id": "DR-10/cli-host",
+    "rule": "DR-10",
+    "from": "apps/cli",
+    "to": "@xeon/host",
+    "entries": [".", "./client"],
+    "reason": "The CLI reuses the single engine assembly code in apps/host (review.decisions-2 U-15).",
+    "approvedBy": "review.decisions-2"
+  },
+  {
+    "id": "DR-02/group-kit-helm",
+    "rule": "DR-02",
+    "from": "packages/group-helm",
+    "to": "@xeon/group-kit",
+    "entries": ["."],
+    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15).",
+    "approvedBy": "review.decisions-2"
+  },
+  {
+    "id": "DR-02/group-kit-learning",
+    "rule": "DR-02",
+    "from": "packages/group-learning",
+    "to": "@xeon/group-kit",
+    "entries": ["."],
+    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15).",
+    "approvedBy": "review.decisions-2"
+  }
+]

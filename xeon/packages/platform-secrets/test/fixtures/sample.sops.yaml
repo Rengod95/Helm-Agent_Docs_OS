@@ -1,0 +1,16 @@
+# 가짜 SOPS 형식 픽스처. 값 자리는 가짜 ENC 문자열뿐이고 실제 키와 비밀은 없다.
+GITHUB_TOKEN: ENC[AES256_GCM,data:ZmFrZQ==,iv:ZmFrZQ==,tag:ZmFrZQ==,type:str]
+plain_note: not encrypted
+nested:
+  inner:
+    deep_key: ENC[AES256_GCM,data:ZmFrZQ==,iv:ZmFrZQ==,tag:ZmFrZQ==,type:str]
+  items:
+    - ENC[AES256_GCM,data:ZmFrZQ==,iv:ZmFrZQ==,tag:ZmFrZQ==,type:str]
+"bad.key": ENC[AES256_GCM,data:ZmFrZQ==,iv:ZmFrZQ==,tag:ZmFrZQ==,type:str]
+sops:
+  age:
+    - recipient: age1fakefakefakefakefakefakefakefakefakefakefakefakefakefakefake
+      enc: fake
+  lastmodified: "2026-01-04T10:00:00Z"
+  mac: ENC[AES256_GCM,data:ZmFrZQ==,iv:ZmFrZQ==,tag:ZmFrZQ==,type:str]
+  version: 3.13.3

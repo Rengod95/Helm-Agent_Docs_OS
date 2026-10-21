@@ -4,13 +4,23 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./conversation": "./src/conversation/index.ts",
+    "./records": "./src/records/index.ts",
+    "./extensions": "./src/extensions/index.ts",
+    "./capabilities": "./src/capabilities/index.ts",
+    "./wire": "./src/wire-settings/wire/index.ts",
+    "./settings": "./src/wire-settings/settings/index.ts",
+    "./services": "./src/services/index.ts"
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
     "typecheck": "tsc -b",
     "test": "bun test",
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
+  },
+  "dependencies": {
+    "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

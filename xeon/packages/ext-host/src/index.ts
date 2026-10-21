@@ -1,1 +1,130 @@
-export {};
+// @xeon/ext-host 공개 진입점. X.primitives.spec §3.1 표의 이름만 이름을 적어 다시 내보낸다(export * 금지).
+// 표에 없는 내부 이름(HandlerRegistry, ScopeRuntime, LeaseBroker, CordisBridge 등)은 나가지 않는다.
+export {
+  // primitives §3.2
+  createExtHost,
+  type ExtHost,
+  type ExtHostDeps,
+  type ExtensionUnit,
+  type InstallResult,
+  type ScopeSetupOutcome,
+  type PlatformModule,
+  type PlatformContext,
+  type ExtDiagnostic,
+  // primitives §3.3~§3.5
+  type PayloadOf,
+  type DispatchOptions,
+  type DispatchOutcome,
+  type TapOutcome,
+  type FirstOutcome,
+  type ChainOutcome,
+  type HandlerRef,
+  type HandlerFailure,
+  type DispatchPolicy,
+  type HandlerEntryInfo,
+  type HandlerGate,
+  type HandlerRunOutcome,
+  DEFAULT_DISPATCH_POLICY,
+  type BoundaryHooks,
+  type BoundarySignal,
+  type BoundaryContribution,
+  // primitives §3.6 (F 이름 다시 export)
+  type PortKey,
+  type PortLookup,
+  type LoopPort,
+  LoopPortKey,
+  type InputQueuePort,
+  InputQueuePortKey,
+  type RecordCommitPort,
+  RecordCommitPortKey,
+  type ProjectorRegistryPort,
+  ProjectorRegistryPortKey,
+  type ScopedStorePort,
+  ScopedStorePortKey,
+  type ProcessPort,
+  ProcessPortKey,
+  type LeaseArbiterPort,
+  LeaseArbiterPortKey,
+  ExtHostPortKey,
+  // primitives §3.7, §3.8
+  capabilityServiceName,
+  providerServiceName,
+  isReservedServiceName,
+  hostOf,
+  type ScopeHostApi,
+  // primitives §3.9, §3.10, §6
+  type ScopeInfo,
+  PrimitiveError,
+  type PrimitiveErrorCode,
+  primitivesSettings,
+} from "./primitives/index.ts";
+
+// loading-trust (X.loading-trust.spec §3.1~§3.9 중 M0·M1 몫)
+export {
+  createExtensionLoader,
+  LoadAbortError,
+  loadingTrustSettings,
+  LoadDiagnosticSchema,
+  RESERVED_EXT_KEYS,
+  SOURCE_TRUST,
+  TRUST_LEVELS,
+  TRUST_MATRIX,
+  type BuiltinExtensionModule,
+  type ExtensionLoader,
+  type InstallSource,
+  type LoadDiagnostic,
+  type LoadDiagnosticCode,
+  type LoadedExtensionInfo,
+  type LoaderDeps,
+  type LoaderFs,
+  type LoaderMode,
+  type LoaderPaths,
+  type LoadOptions,
+  type LoadReport,
+  type LoadStage,
+  type LoadState,
+  type TrustLevel,
+  type TrustPermissions,
+} from "./loading-trust/index.ts";
+export type {
+  TrustChoice,
+  TrustChoiceKind,
+  TrustOption,
+  TrustPrompter,
+  TrustPromptRequest,
+  TrustStoreBackend,
+  TrustUpdate,
+} from "@xeon/contracts/extensions";
+
+// operations (X.operations.spec §3.1~§3.8, §6 중 M0·M1 몫)
+export {
+  createOperationsPolicy,
+  extTablePrefix,
+  operationsSettings,
+  parseExtTableName,
+  storageOf,
+  TIERS,
+  type ExtProjection,
+  type ExtQuery,
+  type ExtStorage,
+  type ExtStorageError,
+  type ExtTableDef,
+  type ExtTableDefs,
+  type ExtTableReader,
+  type ExtTables,
+  type ExtTableWriter,
+  type FailureStats,
+  type HandlerOutcomeRecord,
+  type OperationsDeps,
+  type OperationsNotifier,
+  type OperationsPolicy,
+  type OperationsSettingsSource,
+  type ScopeChangeReason,
+  type ScopeControl,
+  type Tier,
+} from "./operations/index.ts";
+
+// 조립 루트(L4 host)가 ExtHost·정책·로더를 이을 때 필요한 이름 [제안: 문서 표에 없어 문서 반영을 요청한다]
+export { scopeToggleSourceOf, type ScopeToggleSourceOf } from "./primitives/index.ts";
+export { createScopeControl, type AdmitInfo, type ScopeToggleSource } from "./operations/index.ts";
+export type { LoaderSettingsSource } from "./loading-trust/index.ts";

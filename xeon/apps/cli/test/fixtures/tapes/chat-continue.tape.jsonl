@@ -1,0 +1,2 @@
+{"kind":"header","format":"xeon.model-tape.v1","tapeId":"cli/chat-continue","origin":"authored","matching":"role-queue"}
+{"kind":"turn","n":1,"role":"main","label":"answers the continued input","response":{"type":"message","stopReason":"stop","content":[{"type":"text","text":"resumed and answered."}],"usage":{"input":200,"output":5}}}

@@ -1,0 +1,77 @@
+import type { Clock, LogFields, Logger, LogLevel } from "@xeon/contracts";
+
+/**
+ * 마스킹 함수. 조립 루트가 platform-secrets의 마스킹 기능을 이 자리에 연결한다. platform-os는 platform-secrets를
+ * import하지 않는다. 연결 예(apps/host, xeon.secrets가 먼저 등록된 뒤):
+ *
+ *     logRedact: (line) => secretService.redactor.mask(line).text
+ *
+ * 마스킹 서비스가 아직 없는 조립(M0 테스트 등)은 `(line) => line`을 명시적으로 넘긴다. 이 인자는 필수다.
+ */
+export type LogRedact = (line: string) => string;
+/** 한 줄을 받아 내보낸다. 운영 기본은 L4가 넘기는 stderr 쓰기 함수 */
+export type LogSink = (line: string) => void;
+
+export interface JsonLinesLoggerOptions {
+  readonly clock: Clock;
+  readonly sink: LogSink;
+  readonly level: LogLevel;
+  /** 없으면 조립 실패. 무동작이 필요하면 명시적으로 identity를 넘긴다 */
+  readonly redact: LogRedact;
+  readonly baseFields?: LogFields;
+}
+
+export type LevelControlledLogger = Logger & { setLevel(level: LogLevel): void };
+
+const LEVEL_RANK: Readonly<Record<LogLevel, number>> = { debug: 0, info: 1, warn: 2, error: 3 };
+
+/** redact가 던지면 원문 줄을 버리고 이 한 줄만 쓴다(원문이 새지 않게) */
+const REDACT_FAILED_LINE = '{"event":"log.redact_failed"}';
+const SERIALIZE_FAILED_LINE = '{"event":"log.serialize_failed"}';
+
+interface LoggerState {
+  level: LogLevel;
+}
+
+/**
+ * JSON Lines 로거. 한 줄에 JSON 객체 하나이고 필드는 ts, level, event, baseFields, child 필드, 호출 필드 순서로
+ * 합친다(같은 키는 뒤가 이긴다). 레벨 미만 호출은 직렬화하지 않는다. 직렬화한 줄 전체를 redact에 넘긴 뒤 sink로 보낸다.
+ */
+export function createJsonLinesLogger(opts: JsonLinesLoggerOptions): LevelControlledLogger {
+  return makeLogger(opts, { level: opts.level }, opts.baseFields ?? {});
+}
+
+function makeLogger(
+  opts: JsonLinesLoggerOptions,
+  state: LoggerState,
+  fixed: LogFields,
+): LevelControlledLogger {
+  const emit = (level: LogLevel, event: string, fields: LogFields | undefined): void => {
+    if (LEVEL_RANK[level] < LEVEL_RANK[state.level]) return;
+    let line: string;
+    try {
+      line = JSON.stringify({ ts: opts.clock.now(), level, event, ...fixed, ...fields });
+    } catch {
+      opts.sink(SERIALIZE_FAILED_LINE);
+      return;
+    }
+    let masked: string;
+    try {
+      masked = opts.redact(line);
+    } catch {
+      opts.sink(REDACT_FAILED_LINE);
+      return;
+    }
+    opts.sink(masked);
+  };
+  return {
+    debug: (event, fields) => emit("debug", event, fields),
+    info: (event, fields) => emit("info", event, fields),
+    warn: (event, fields) => emit("warn", event, fields),
+    error: (event, fields) => emit("error", event, fields),
+    child: (fields) => makeLogger(opts, state, { ...fixed, ...fields }),
+    setLevel: (level) => {
+      state.level = level;
+    },
+  };
+}

@@ -1,0 +1,526 @@
+import { Bug, err, ok, parse, type Result } from "@xeon/contracts";
+import { ThreadIdSchema, TurnCompletedPayloadSchema } from "@xeon/contracts/conversation";
+import type { ThreadId } from "@xeon/contracts/conversation";
+import {
+  StoreIdSchema,
+  WireError,
+  type EventsBatchParams,
+  type EventsSubscribeResult,
+  type EventWire,
+  type JsonRpcMessage,
+  type StreamPosition,
+} from "@xeon/contracts/wire";
+import { HostClientError } from "../host-client.ts";
+import type { ChatTarget } from "../cli/command.ts";
+import type { EngineHandle } from "../engine.ts";
+import type { Failure } from "../errors.ts";
+import { EXIT } from "../exit-codes.ts";
+import {
+  applyBatch,
+  applyChunk,
+  initialTranscript,
+  type RenderOp,
+  type TranscriptState,
+} from "../render/model.ts";
+import type { ApprovalView } from "../render/ops.ts";
+import type { RenderSink } from "../render/text-sink.ts";
+import {
+  EMPTY_CLI_STATE,
+  entryFor,
+  readCliState,
+  withEntry,
+  writeCliStateSync,
+  type CliState,
+  type StateReadOutcome,
+} from "../state.ts";
+import { sequentially } from "../util.ts";
+
+// L4.cli.spec §4.3, §4.4. 세션 하나를 열고(새 세션, --continue, --resume), 구독하고, 내구·휘발 알림을 트랜스크립트로
+// 적용하고, turn 하나를 보내 끝날 때까지 기다린다. print 모드와 대화형이 같은 구동기를 쓴다.
+
+// ── CLI 상태 파일 위치 보관 ───────────────────────────────────────────────
+
+export interface PositionKeeper {
+  /** 대상 세션이 정해졌다. 그 위치를 바로 한 번 쓴다 */
+  activate(threadId: string, position: StreamPosition): void;
+  /**
+   * 연결에서 오간 메시지를 본다(EngineConnectOptions.observe와 같은 자리). events.batch를 보면 위치를 올리고 파일에 쓴다.
+   * 쓰기는 알림이 그려지거나 JSON 줄로 나가기 전에 같은 JS 턴 안에서 끝나야 한다: 강제 종료 뒤 --continue가 이미 본
+   * 이벤트를 다시 받지 않게 하는 조건이다(AC2).
+   */
+  observe(message: JsonRpcMessage): void;
+  /** 쓰기에 실패한 적이 있는가. 상태 파일은 캐시라 실패해도 대화는 계속한다 */
+  readonly writeFailed: boolean;
+}
+
+export function createPositionKeeper(options: {
+  readonly path: string | null;
+  readonly workspace: string;
+  readonly initial: CliState;
+  readonly now: () => number;
+}): PositionKeeper {
+  const keep: {
+    state: CliState;
+    threadId: string | null;
+    storeId: StreamPosition["storeId"] | null;
+    seq: number;
+    failed: boolean;
+  } = { state: options.initial, threadId: null, storeId: null, seq: 0, failed: false };
+
+  const write = (): void => {
+    if (options.path === null || keep.threadId === null || keep.storeId === null) return;
+    keep.state = withEntry(
+      keep.state,
+      options.workspace,
+      keep.threadId,
+      { storeId: keep.storeId, seq: keep.seq },
+      new Date(options.now()).toISOString(),
+    );
+    try {
+      writeCliStateSync(options.path, keep.state);
+    } catch {
+      keep.failed = true;
+    }
+  };
+
+  return {
+    activate(threadId, position) {
+      keep.threadId = threadId;
+      keep.storeId = position.storeId;
+      keep.seq = position.seq;
+      write();
+    },
+    observe(message) {
+      if (keep.threadId === null || !("method" in message) || message.method !== "events.batch") {
+        return;
+      }
+      const { from, to } = message.params;
+      if (typeof from !== "number" || typeof to !== "number") return;
+      // 구멍이 있으면 올리지 않는다: 세션 구동기가 마지막 to부터 다시 구독한다
+      if (from > keep.seq || to <= keep.seq) return;
+      keep.seq = to;
+      write();
+    },
+    get writeFailed() {
+      return keep.failed;
+    },
+  };
+}
+
+// ── 보조 ─────────────────────────────────────────────────────────────────
+
+export interface TurnEnd {
+  readonly status: "completed" | "interrupted" | "failed";
+  readonly error: string | null;
+}
+
+interface SentTurn {
+  readonly turnId: string;
+  /** turn.completed가 오고 그때까지의 그리기가 끝나면 이행한다 */
+  readonly done: Promise<TurnEnd>;
+}
+
+export interface ChatSessionOptions {
+  readonly handle: EngineHandle;
+  readonly workspace: string;
+  /** null이면 그리지 않는다(JSON 모드는 RenderSink를 쓰지 않는다) */
+  readonly sink: RenderSink | null;
+  /** 터미널 폭. 도구 결과 렌더러에 넘긴다 */
+  readonly width: number;
+  /** 대화형: 저장 위치까지의 이전 기록을 user·assistant 텍스트로 접어 그린다(§4.4) */
+  readonly collapseHistory: boolean;
+  readonly keeper: PositionKeeper;
+  /** 승인 요청을 받았을 때. print 모드는 거부로 답한다(§4.11 4번). null이면 보이기만 한다 */
+  readonly onApproval: ((view: ApprovalView) => Promise<void>) | null;
+  /** 출력이 막혔다(EPIPE 등) */
+  readonly onOutputError: (caught: unknown) => void;
+}
+
+export interface ChatSession {
+  readonly threadId: ThreadId;
+  readonly turnActive: boolean;
+  sendTurn(input: string): Promise<SentTurn>;
+  /** 지금까지 도착한 알림의 처리가 끝나기를 기다린다 */
+  idle(): Promise<void>;
+  /** 열 때의 재전송(구독 위치부터 머리까지)을 모두 반영했을 때 이행한다. 대화형이 이전 기록을 다 그린 뒤 입력을 받게 한다 */
+  caughtUp(): Promise<void>;
+}
+
+/** 구간을 collapseUntil에서 둘로 가른다. 앞쪽은 접어 그리고 뒤쪽은 전체를 그린다 */
+export function splitBatchAt(
+  batch: EventsBatchParams,
+  collapseUntil: number,
+): readonly { readonly batch: EventsBatchParams; readonly collapsed: boolean }[] {
+  if (collapseUntil <= batch.from) return [{ batch, collapsed: false }];
+  if (batch.to <= collapseUntil) return [{ batch, collapsed: true }];
+  return [
+    {
+      batch: {
+        ...batch,
+        to: collapseUntil,
+        events: batch.events.filter((event) => event.seq <= collapseUntil),
+      },
+      collapsed: true,
+    },
+    {
+      batch: {
+        ...batch,
+        from: collapseUntil,
+        events: batch.events.filter((event) => event.seq > collapseUntil),
+      },
+      collapsed: false,
+    },
+  ];
+}
+
+/** 접힌 이전 기록: user·assistant 텍스트만 남긴다 */
+export function collapseOps(ops: readonly RenderOp[]): readonly RenderOp[] {
+  const kept: RenderOp[] = [];
+  for (const op of ops) {
+    if (op.kind === "user") kept.push(op);
+    else if (op.kind === "assistant" && op.markdown.length > 0) {
+      kept.push({ ...op, thinking: null });
+    }
+  }
+  return kept;
+}
+
+function turnEndsOf(
+  events: readonly EventWire[],
+): readonly { readonly turnId: string; readonly end: TurnEnd }[] {
+  const ends: { turnId: string; end: TurnEnd }[] = [];
+  for (const event of events) {
+    if (event.kind !== "turn.completed" || event.turnId === null) continue;
+    const parsed = parse(TurnCompletedPayloadSchema, event.payload);
+    if (!parsed.ok) continue;
+    ends.push({
+      turnId: event.turnId,
+      end: { status: parsed.value.status, error: parsed.value.error },
+    });
+  }
+  return ends;
+}
+
+function fail(message: string, fix: string, code: Failure["code"] = EXIT.error): Failure {
+  return { message, fix, code };
+}
+
+/**
+ * 상태 파일의 위치를 구독 위치로 바꾼다. 저장소가 바뀌었는지는 호스트가 replay.outOfRange(storeMismatch)로 알려 주므로
+ * 저장된 storeId를 그대로 보낸다. storeId 형식이 깨졌으면 지금 저장소의 처음부터다
+ */
+function storedPosition(
+  stored: { readonly storeId: string; readonly seq: number },
+  fallbackStore: StreamPosition["storeId"],
+): StreamPosition {
+  const storeId = parse(StoreIdSchema, stored.storeId);
+  return storeId.ok
+    ? { storeId: storeId.value, seq: stored.seq }
+    : { storeId: fallbackStore, seq: 0 };
+}
+
+interface Resolved {
+  readonly threadId: ThreadId;
+  /** 구독을 시작할 위치. 대화형은 이전 기록을 접어 그리려고 저장 위치가 아니라 seq 0이다(§4.4) */
+  readonly from: StreamPosition;
+  /** 상태 파일에 남아 있는 위치. 구독 위치가 더 이르더라도 파일의 위치는 뒤로 가지 않는다 */
+  readonly saved: StreamPosition;
+  /** 접기 경계. 이 seq까지가 이전 기록이다. 새 세션이면 0 */
+  readonly collapseUntil: number | "head";
+}
+
+async function resolveTarget(
+  options: ChatSessionOptions,
+  target: ChatTarget,
+): Promise<Result<Resolved, Failure>> {
+  const { handle } = options;
+  if (target.kind === "new") {
+    const created = await handle.connection.request("thread.create", {
+      workspace: options.workspace,
+    });
+    return ok({
+      threadId: created.threadId,
+      from: created.position,
+      saved: created.position,
+      collapseUntil: 0,
+    });
+  }
+  const path = handle.paths.cliStateFile;
+  const loaded = path === null ? undefined : await readCliState(path);
+  if (target.kind === "continue") {
+    if (path === null) {
+      return err(
+        fail(
+          "상태 파일 위치를 알 수 없어 --continue를 쓸 수 없다",
+          "xeon chat --resume <id>로 세션을 지정한다",
+        ),
+      );
+    }
+    const entry = loaded === undefined ? undefined : entryFor(loaded.state, options.workspace);
+    const threadId = entry === undefined ? undefined : parse(ThreadIdSchema, entry.threadId);
+    if (entry === undefined || threadId === undefined || !threadId.ok) {
+      return err(
+        fail(
+          loaded?.kind === "discarded"
+            ? `CLI 상태 파일을 읽지 못해 버렸다 (${loaded.reason}). 이어 열 세션이 없다`
+            : "이어 열 세션이 없다",
+          "xeon chat으로 새 세션을 시작한다",
+        ),
+      );
+    }
+    const saved = storedPosition(entry.position, handle.storeId);
+    // 대화형: 처음부터 받아 이전 대화를 접어 그린다. print: 저장 위치부터 받는다
+    const from = options.collapseHistory ? { ...saved, seq: 0 } : saved;
+    return ok({ threadId: threadId.value, from, saved, collapseUntil: saved.seq });
+  }
+  // resume: 상태 파일에 그 id의 위치가 있으면 그 위치부터, 없으면 { storeId, seq: 0 }부터(§4.4)
+  const known =
+    loaded === undefined
+      ? undefined
+      : Object.values(loaded.state.workspaces).find((entry) => entry.threadId === target.threadId);
+  const saved =
+    known === undefined
+      ? { storeId: handle.storeId, seq: 0 }
+      : storedPosition(known.position, handle.storeId);
+  const from = options.collapseHistory ? { ...saved, seq: 0 } : saved;
+  return ok({
+    threadId: target.threadId,
+    from,
+    saved,
+    collapseUntil: known === undefined ? "head" : saved.seq,
+  });
+}
+
+/** 상태 파일을 읽는다. 위치를 모르면(null) 빈 상태다. 깨진 파일은 버렸다는 결과로 돌려준다 */
+export async function loadInitialState(path: string | null): Promise<StateReadOutcome> {
+  if (path === null) return { kind: "missing", state: EMPTY_CLI_STATE };
+  return readCliState(path);
+}
+
+/**
+ * 세션을 연다: 대상 결정(§4.4) → 구독(§4.3 3번). 구독 알림은 열린 뒤 바로 처리를 시작한다.
+ * turn.start는 sendTurn이 한다. 구독이 turn.start보다 먼저여야 이벤트를 놓치지 않는다.
+ */
+export async function openChatSession(
+  options: ChatSessionOptions,
+  target: ChatTarget,
+): Promise<Result<ChatSession, Failure>> {
+  const { handle, sink } = options;
+  const { connection } = handle;
+  const resolved = await resolveTarget(options, target);
+  if (!resolved.ok) return resolved;
+  const { threadId } = resolved.value;
+  const fromStart = resolved.value.from;
+  options.keeper.activate(threadId, resolved.value.saved);
+
+  const live: {
+    state: TranscriptState;
+    activeSub: string | undefined;
+    collapseUntil: number;
+    inbox: EventsBatchParams[];
+    chain: Promise<void>;
+    broken: Error | undefined;
+    outputBroken: boolean;
+    turnActive: boolean;
+    /** 열 때 구독 응답의 머리. 이 seq까지 반영하면 재전송이 끝난 것이다 */
+    catchUpTo: number;
+  } = {
+    state: initialTranscript(null),
+    activeSub: undefined,
+    collapseUntil: 0,
+    inbox: [],
+    chain: Promise.resolve(),
+    broken: undefined,
+    outputBroken: false,
+    turnActive: false,
+    catchUpTo: 0,
+  };
+  const replayDone = Promise.withResolvers<void>();
+  const settleCaughtUp = (): void => {
+    const position = live.state.position;
+    if (position !== null && position.seq >= live.catchUpTo) replayDone.resolve();
+  };
+  const ends = new Map<string, TurnEnd>();
+  const waiters = new Map<string, PromiseWithResolvers<TurnEnd>>();
+  const collapsing = options.collapseHistory;
+
+  const pipelineFailed = (caught: unknown): void => {
+    if (live.broken !== undefined) return;
+    const error = caught instanceof Error ? caught : new Bug(`pipeline failed: ${String(caught)}`);
+    live.broken = error;
+    for (const waiter of waiters.values()) waiter.reject(error);
+    replayDone.resolve();
+  };
+  const enqueue = (work: () => Promise<void>): void => {
+    live.chain = live.chain.then(work).catch(pipelineFailed);
+  };
+
+  const emit = async (ops: readonly RenderOp[]): Promise<void> => {
+    if (sink === null || ops.length === 0 || live.outputBroken) return;
+    try {
+      await sink.write(ops);
+    } catch (caught) {
+      live.outputBroken = true;
+      options.onOutputError(caught);
+    }
+  };
+
+  const answerApprovals = (ops: readonly RenderOp[]): Promise<void> => {
+    const handler = options.onApproval;
+    if (handler === null) return Promise.resolve();
+    const views = ops.flatMap((op) => (op.kind === "approval" ? [op.view] : []));
+    return sequentially(views, handler);
+  };
+
+  const subscribeFrom = async (
+    from: StreamPosition | "head",
+  ): Promise<{ readonly result: EventsSubscribeResult; readonly fellBack: boolean }> => {
+    try {
+      const result = await connection.request("events.subscribe", {
+        from,
+        filter: { threadIds: [threadId] },
+      });
+      return { result, fellBack: false };
+    } catch (caught) {
+      if (caught instanceof WireError && caught.data.kind === "replay.outOfRange") {
+        const reason = caught.data.details?.["reason"];
+        await emit([
+          {
+            kind: "notice",
+            text:
+              reason === "storeMismatch"
+                ? "저장소가 바뀌어 이전 기록을 이어 받지 못했다"
+                : "저장된 위치부터 이어 받을 수 없어 지금부터 보인다",
+          },
+        ]);
+        const result = await connection.request("events.subscribe", {
+          from: "head",
+          filter: { threadIds: [threadId] },
+        });
+        return { result, fellBack: true };
+      }
+      throw caught;
+    }
+  };
+
+  /**
+   * 구독을 연다. collapse는 접기 경계다: 숫자는 그 seq까지, "head"는 응답의 머리까지, "keep"은 지금 값을 그대로 둔다.
+   * 알림 처리는 경계가 정해진 뒤에 시작한다(enqueue는 맨 끝).
+   */
+  const open = async (
+    from: StreamPosition | "head",
+    collapse: number | "head" | "keep",
+  ): Promise<void> => {
+    live.activeSub = undefined;
+    const { result, fellBack } = await subscribeFrom(from);
+    if (fellBack) live.collapseUntil = 0;
+    else if (collapse === "head") live.collapseUntil = result.headSeq;
+    else if (collapse !== "keep") live.collapseUntil = collapse;
+    live.state = initialTranscript({ storeId: result.storeId, seq: result.start });
+    live.activeSub = result.sub;
+    live.catchUpTo = Math.max(live.catchUpTo, result.headSeq);
+    settleCaughtUp();
+    enqueue(drain);
+  };
+
+  const processPart = async (batch: EventsBatchParams, collapsed: boolean): Promise<boolean> => {
+    const applied = applyBatch(live.state, batch, handle.storeId, { width: options.width });
+    if (!applied.ok) return false;
+    live.state = applied.value.state;
+    await emit(collapsed ? collapseOps(applied.value.ops) : applied.value.ops);
+    if (!collapsed) await answerApprovals(applied.value.ops);
+    for (const { turnId, end } of turnEndsOf(batch.events)) {
+      ends.set(turnId, end);
+      waiters.get(turnId)?.resolve(end);
+    }
+    settleCaughtUp();
+    return true;
+  };
+
+  const processBatch = async (batch: EventsBatchParams): Promise<void> => {
+    const parts = collapsing
+      ? splitBatchAt(batch, live.collapseUntil)
+      : [{ batch, collapsed: false }];
+    const results: boolean[] = [];
+    await sequentially(parts, async (part) => {
+      if (results.some((contiguous) => !contiguous)) return;
+      results.push(await processPart(part.batch, part.collapsed));
+    });
+    if (results.includes(false)) {
+      // 구멍: 마지막으로 반영한 to부터 다시 구독한다(F wire §4.5)
+      const position = live.state.position;
+      await open(position ?? "head", "keep");
+    }
+  };
+
+  const drain = async (): Promise<void> => {
+    const sub = live.activeSub;
+    if (sub === undefined) return;
+    const index = live.inbox.findIndex((batch) => batch.sub === sub);
+    // 지난 구독의 알림은 버린다
+    live.inbox = live.inbox.filter((batch) => batch.sub === sub);
+    const next = live.inbox.shift();
+    if (index < 0 || next === undefined) return;
+    await processBatch(next);
+    await drain();
+  };
+
+  // 엔진 연결이 끊기면 기다리는 turn을 풀어 준다(§5 "서비스 소켓이 사라졌다"). 정상 종료의 닫힘도 지나가지만 기다리는 이가 없다
+  connection.closed
+    .then((info) => {
+      pipelineFailed(new HostClientError("closed", "engine connection closed", info));
+      return info;
+    })
+    .catch(() => undefined);
+
+  connection.onNotification("events.batch", (params) => {
+    live.inbox.push(params);
+    enqueue(drain);
+  });
+  connection.onNotification("stream.chunk", (params) => {
+    enqueue(async () => {
+      const applied = applyChunk(live.state, params);
+      live.state = applied.state;
+      await emit(applied.ops);
+    });
+  });
+
+  await open(fromStart, options.collapseHistory ? resolved.value.collapseUntil : 0);
+  // 접기 경계가 정해진 뒤 도착한 알림부터 그려진다. 여기서 한 번 비워 열기 직후의 재전송이 끝나기를 기다리지는 않는다
+  const session: ChatSession = {
+    threadId,
+    get turnActive() {
+      return live.turnActive;
+    },
+    async sendTurn(input) {
+      live.turnActive = true;
+      try {
+        const requestId = handle.newRequestId();
+        const started = await connection.request("turn.start", { threadId, input, requestId });
+        const known = ends.get(started.turnId);
+        let done: Promise<TurnEnd>;
+        if (known !== undefined) {
+          done = Promise.resolve(known);
+        } else if (live.broken !== undefined) {
+          done = Promise.reject(live.broken);
+        } else {
+          const waiter = waiters.get(started.turnId) ?? Promise.withResolvers<TurnEnd>();
+          waiters.set(started.turnId, waiter);
+          done = waiter.promise;
+        }
+        const settled = done.finally(() => {
+          live.turnActive = false;
+        });
+        return { turnId: started.turnId, done: settled };
+      } catch (caught) {
+        live.turnActive = false;
+        throw caught;
+      }
+    },
+    async idle() {
+      await live.chain;
+    },
+    caughtUp: () => replayDone.promise,
+  };
+  return ok(session);
+}

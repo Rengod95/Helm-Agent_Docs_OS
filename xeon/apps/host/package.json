@@ -4,13 +4,32 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./client": "./src/client.ts"
   },
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
     "typecheck": "tsc -b",
     "test": "bun test",
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
+  },
+  "dependencies": {
+    "@xeon/cap-workspace": "workspace:*",
+    "@xeon/contracts": "workspace:*",
+    "@xeon/core-context": "workspace:*",
+    "@xeon/core-loop": "workspace:*",
+    "@xeon/core-models": "workspace:*",
+    "@xeon/core-persistence": "workspace:*",
+    "@xeon/core-tasks": "workspace:*",
+    "@xeon/core-tools": "workspace:*",
+    "@xeon/ext-host": "workspace:*",
+    "@xeon/platform-exec": "workspace:*",
+    "@xeon/platform-os": "workspace:*",
+    "@xeon/platform-process": "workspace:*",
+    "@xeon/platform-sandbox": "workspace:*",
+    "@xeon/platform-secrets": "workspace:*",
+    "@xeon/platform-store": "workspace:*",
+    "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

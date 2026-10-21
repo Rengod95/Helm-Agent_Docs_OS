@@ -1,0 +1,495 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "properties": {
+    "l0.process.lockFallback.default": {
+      "default": "ask",
+      "enum": [
+        "ask",
+        "observe",
+        "fork"
+      ],
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L0",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "세션 잠금 실패 때 기본 동작",
+          "order": 40,
+          "tab": "execution",
+          "widget": "select"
+        }
+      }
+    },
+    "l0.sandbox.protectedPaths.extra": {
+      "default": [],
+      "items": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 256,
+      "type": "array",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Absolute paths or paths starting with ~/. Default protected paths cannot be removed.",
+          "label": "Extra protected paths",
+          "order": 102,
+          "tab": "permissions",
+          "widget": "list"
+        }
+      }
+    },
+    "l1.loop.maxSteps": {
+      "default": 0,
+      "maximum": 10000,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "0이면 상한 없음",
+          "label": "turn당 최대 단계",
+          "order": 10,
+          "tab": "budgets",
+          "unit": "단계",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.models.default": {
+      "anyOf": [
+        {
+          "maxLength": 265,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}/\\S{1,200}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "provider/modelId[:추론레벨] 형식",
+          "label": "기본 모델",
+          "order": 10,
+          "tab": "models",
+          "widget": "text"
+        }
+      }
+    },
+    "l1.models.providers": {
+      "default": [],
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "apiKeyRef": {
+            "anyOf": [
+              {
+                "maxLength": 75,
+                "pattern": "^secret://[a-z][a-z0-9-]{1,63}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "baseUrl": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "maxLength": 64,
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "enabled",
+          "apiKeyRef",
+          "baseUrl"
+        ],
+        "type": "object"
+      },
+      "maxItems": 64,
+      "type": "array",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "키는 secret:// 참조만 저장한다",
+          "label": "provider",
+          "order": 10,
+          "tab": "providers",
+          "widget": "table"
+        }
+      }
+    },
+    "l1.tasks.queue.followUpMode": {
+      "default": "one-at-a-time",
+      "enum": [
+        "all",
+        "one-at-a-time"
+      ],
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "후속 입력 배치",
+          "order": 50,
+          "tab": "execution",
+          "widget": "select"
+        }
+      }
+    },
+    "l1.tasks.queue.steeringMode": {
+      "default": "one-at-a-time",
+      "enum": [
+        "all",
+        "one-at-a-time"
+      ],
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "방향 수정 입력 배치",
+          "order": 40,
+          "tab": "execution",
+          "widget": "select"
+        }
+      }
+    },
+    "l2.workspace.list.maxEntries": {
+      "default": 500,
+      "maximum": 10000,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "목록 최대 항목 수",
+          "order": 205,
+          "tab": "tools",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.read.maxBytes": {
+      "default": 51200,
+      "maximum": 10485760,
+      "minimum": 1024,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "읽기 최대 바이트",
+          "order": 201,
+          "tab": "tools",
+          "unit": "B",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.read.maxLines": {
+      "default": 2000,
+      "maximum": 100000,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "읽기 최대 줄 수",
+          "order": 200,
+          "tab": "tools",
+          "unit": "줄",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.shell.defaultTimeoutSec": {
+      "default": 0,
+      "maximum": 86400,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "0이면 제한 없음",
+          "label": "셸 기본 제한 시간",
+          "order": 204,
+          "tab": "tools",
+          "unit": "초",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.shell.maxBytes": {
+      "default": 51200,
+      "maximum": 10485760,
+      "minimum": 1024,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "셸 출력 최대 바이트",
+          "order": 203,
+          "tab": "tools",
+          "unit": "B",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.shell.maxLines": {
+      "default": 2000,
+      "maximum": 100000,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "셸 출력 최대 줄 수",
+          "order": 202,
+          "tab": "tools",
+          "unit": "줄",
+          "widget": "number"
+        }
+      }
+    },
+    "x.primitives.activeDriveGroup": {
+      "anyOf": [
+        {
+          "maxLength": 65,
+          "pattern": "^[a-z][a-z0-9-]{1,31}(/[a-z][a-z0-9-]{0,31})?$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project",
+          "session"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "drive를 쓰는 그룹이 둘 이상일 때 임대를 받을 그룹의 scope id.",
+          "label": "구동 그룹",
+          "order": 110,
+          "tab": "plugins",
+          "widget": "text"
+        }
+      }
+    },
+    "x.primitives.capabilityProviders": {
+      "default": {},
+      "patternProperties": {
+        "^.*$": {
+          "type": "string"
+        }
+      },
+      "type": "object",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project"
+        ],
+        "layer": "X",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "공급자가 여럿인 능력마다 쓸 확장 이름.",
+          "label": "능력 공급자",
+          "order": 120,
+          "tab": "plugins",
+          "widget": "table"
+        }
+      }
+    },
+    "x.primitives.driveLimits": {
+      "additionalProperties": false,
+      "default": {},
+      "properties": {
+        "maxSpawns": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxTokens": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxTurns": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project",
+          "session"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "비어 있으면 상한이 없다(pi 방식). 값이 있으면 그룹이 요청한 상한과 비교해 작은 쪽을 쓴다.",
+          "label": "drive 임대 상한",
+          "order": 100,
+          "tab": "plugins",
+          "widget": "table"
+        }
+      }
+    }
+  },
+  "type": "object",
+  "x-xeon-unknownKeys": "warn"
+}

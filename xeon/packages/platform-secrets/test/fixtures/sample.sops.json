@@ -1,0 +1,10 @@
+{
+  "API_KEY": "ENC[AES256_GCM,data:ZmFrZQ==,iv:ZmFrZQ==,tag:ZmFrZQ==,type:str]",
+  "note": "plain",
+  "group": { "SECRET_ONE": "ENC[AES256_GCM,data:ZmFrZQ==,iv:ZmFrZQ==,tag:ZmFrZQ==,type:str]" },
+  "sops": {
+    "lastmodified": "2026-01-03T00:00:00Z",
+    "mac": "ENC[AES256_GCM,data:ZmFrZQ==,iv:ZmFrZQ==,tag:ZmFrZQ==,type:str]",
+    "version": "3.13.3"
+  }
+}

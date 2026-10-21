@@ -1,0 +1,10 @@
+[test]
+# L4 coverage threshold (eng.testing.guide TS-10). 다른 패키지(host가 끌어오는 하위 층 전체)는 이 패키지의 커버리지가 아니다.
+coverageThreshold = { lines = 0.5, functions = 0.5 }
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = [
+  "../../packages/**",
+  "../../vendor/**",
+  "../host/**",
+  "../../plugins/**",
+]

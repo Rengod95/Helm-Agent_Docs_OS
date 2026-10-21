@@ -1,0 +1,544 @@
+import { assertNever, Bug, err, ok, parse, type Result } from "@xeon/contracts";
+import type { ThreadId } from "@xeon/contracts/conversation";
+import {
+  ProjectorRegistryPortKey,
+  ScopedStorePortKey,
+  type ExtensionName,
+  type PortLookup,
+  type ScopeApi,
+} from "@xeon/contracts/extensions";
+import {
+  ownerOfKind,
+  type DurableEventEnvelope,
+  type EventKind,
+  type ProjectionTx,
+  type Projector,
+  type ProjectorFailure,
+  type SqlRow,
+  type SqlTx,
+  type SqlValue,
+} from "@xeon/contracts/records";
+import type { Static } from "typebox";
+import { scopeInternalsOf } from "../../primitives/host-api.ts";
+import type { DispatchPolicy } from "../../primitives/dispatch-types.ts";
+import type { ExtStorageError } from "./errors.ts";
+import { checkStatement } from "./guard.ts";
+import {
+  columnsOf,
+  extTableName,
+  extTablePrefix,
+  tableDdl,
+  THREAD_COLUMN,
+  type ColumnType,
+  type ExtTableDef,
+  type ExtTableDefs,
+} from "./tables.ts";
+
+export type {} from "./errors.ts";
+
+type RowOf<D extends ExtTableDef> = Static<D["row"]>;
+
+export interface ExtQuery<R> {
+  /** 열 값 같음 조건의 AND. 범위 조건은 2차 */
+  readonly where?: Partial<R>;
+  readonly orderBy?: readonly {
+    readonly column: keyof R & string;
+    readonly dir?: "asc" | "desc";
+  }[];
+  /** 기본 100, 최대 1000 */
+  readonly limit?: number;
+  readonly offset?: number;
+}
+
+export interface ExtTableReader<R> {
+  /** key 열을 모두 준다 */
+  get(key: Partial<R>): R | undefined;
+  list(query?: ExtQuery<R>): readonly R[];
+  count(where?: Partial<R>): number;
+}
+
+export interface ExtTableWriter<R> extends ExtTableReader<R> {
+  insert(row: R): void;
+  upsert(row: R): void;
+  update(key: Partial<R>, patch: Partial<R>): number;
+  delete(key: Partial<R>): number;
+}
+
+type ExtReaders<D extends ExtTableDefs> = {
+  readonly [K in keyof D]: ExtTableReader<RowOf<D[K]>>;
+};
+type ExtWriters<D extends ExtTableDefs> = {
+  readonly [K in keyof D]: ExtTableWriter<RowOf<D[K]>>;
+};
+
+/** 확장의 투영. 코어 커밋 트랜잭션 안에서 동기로 실행된다(eng.events.design §5.1 규칙 1·2) */
+export interface ExtProjection<D extends ExtTableDefs> {
+  /** 올리면 그 확장의 테이블을 지우고 이벤트에서 다시 만든다 */
+  readonly version: number;
+  /** 관심 kind. 자기 접두 kind와 코어 kind만 쓸 수 있다 */
+  readonly kinds: readonly EventKind[];
+  /** 순수 함수. 시계·난수·입출력을 쓰지 않는다. 예외는 커밋 전체를 롤백한다 */
+  apply(event: DurableEventEnvelope, tables: ExtWriters<D>): void;
+}
+
+interface ExtReadOptions {
+  /** perThread 테이블을 이 thread로 좁힌다. 없으면 모든 thread의 행을 본다 */
+  readonly threadId?: ThreadId;
+}
+
+export interface ExtTables<D extends ExtTableDefs> {
+  /** 실제 테이블 이름. 진단·삭제 확인 화면용 */
+  readonly names: { readonly [K in keyof D]: string };
+  /** 읽기 연결의 BEGIN DEFERRED. 트랜잭션 밖 핸들러에서 부른다 */
+  read<T>(fn: (tables: ExtReaders<D>) => T, options?: ExtReadOptions): Result<T, ExtStorageError>;
+}
+
+export interface ExtStorage {
+  readonly extension: ExtensionName;
+  /** extTablePrefix(extension) */
+  readonly prefix: string;
+  /** 확장마다 한 번. 투영기를 등록하고 테이블을 소유 장부에 올린다 */
+  defineTables<const D extends ExtTableDefs>(
+    defs: D,
+    projection: ExtProjection<D>,
+  ): Result<ExtTables<D>, ExtStorageError>;
+}
+
+// ── SQL 생성 ──────────────────────────────────────────────────────────────
+
+const DEFAULT_LIMIT = 100;
+const MAX_LIMIT = 1000;
+const LEDGER_TABLE = "xh_ext_tables";
+const LEDGER_DDL =
+  `CREATE TABLE IF NOT EXISTS "${LEDGER_TABLE}" ("table" TEXT NOT NULL, "extension" TEXT NOT NULL, ` +
+  `"local" TEXT NOT NULL, "projection_version" INTEGER NOT NULL, "created_at" INTEGER NOT NULL, PRIMARY KEY ("table")) STRICT`;
+
+function quote(identifier: string): string {
+  return `"${identifier}"`;
+}
+
+interface Codec {
+  readonly table: string;
+  readonly def: ExtTableDef;
+  readonly columns: readonly { readonly name: string; readonly type: ColumnType }[];
+  readonly byName: ReadonlyMap<string, ColumnType>;
+}
+
+interface SqlRunner {
+  run(sql: string, params: readonly SqlValue[]): void;
+  get(sql: string, params: readonly SqlValue[]): SqlRow | undefined;
+  all(sql: string, params: readonly SqlValue[]): readonly SqlRow[];
+}
+
+function encode(type: ColumnType, value: unknown): SqlValue {
+  if (value === undefined || value === null) return null;
+  if (type.boolean) return value === true ? 1 : 0;
+  if (type.json) return JSON.stringify(value);
+  if (typeof value === "string" || typeof value === "number" || typeof value === "bigint") {
+    return value;
+  }
+  throw new Bug(`ext_storage.unsupported_value: ${typeof value}`);
+}
+
+function decode(type: ColumnType, value: SqlValue | undefined): unknown {
+  if (value === null || value === undefined) return type.acceptsNull ? null : undefined;
+  if (type.boolean) return value === 1 || value === 1n;
+  if (type.json && typeof value === "string") return JSON.parse(value) as unknown;
+  return value;
+}
+
+function codecOf(extension: ExtensionName, local: string, def: ExtTableDef): Codec {
+  const table = extTableName(extension, local);
+  const columns = columnsOf(def, table);
+  if (!columns.ok) throw new Bug(`ext_storage.codec: ${columns.error.kind}`);
+  return {
+    table,
+    def,
+    columns: columns.value,
+    byName: new Map(columns.value.map((column) => [column.name, column.type])),
+  };
+}
+
+function whereClause(
+  codec: Codec,
+  where: Readonly<Record<string, unknown>> | undefined,
+  threadId: ThreadId | undefined,
+): { readonly sql: string; readonly params: SqlValue[] } {
+  const parts: string[] = [];
+  const params: SqlValue[] = [];
+  if (codec.def.perThread && threadId !== undefined) {
+    parts.push(`${quote(THREAD_COLUMN)} = ?`);
+    params.push(threadId);
+  }
+  for (const [column, value] of Object.entries(where ?? {})) {
+    if (value === undefined) continue;
+    const type = codec.byName.get(column);
+    if (type === undefined) throw new Bug(`ext_storage.unknown_column: ${column}`);
+    if (value === null) {
+      parts.push(`${quote(column)} IS NULL`);
+    } else {
+      parts.push(`${quote(column)} = ?`);
+      params.push(encode(type, value));
+    }
+  }
+  return { sql: parts.length === 0 ? "" : ` WHERE ${parts.join(" AND ")}`, params };
+}
+
+function writerFor(
+  codec: Codec,
+  runner: SqlRunner,
+  threadId: ThreadId | undefined,
+  guard: ((sql: string) => void) | undefined,
+): ExtTableWriter<Readonly<Record<string, unknown>>> {
+  const exec = (sql: string, params: readonly SqlValue[]): void => {
+    guard?.(sql);
+    runner.run(sql, params);
+  };
+  const reader = readerFor(codec, runner, threadId, guard);
+
+  function rowValues(row: Readonly<Record<string, unknown>>): {
+    readonly names: string[];
+    readonly values: SqlValue[];
+  } {
+    if (!parse(codec.def.row, row).ok) {
+      throw new Bug(`ext_storage.row_invalid: ${codec.table}`);
+    }
+    const names: string[] = [];
+    const values: SqlValue[] = [];
+    if (codec.def.perThread) {
+      if (threadId === undefined) throw new Bug(`ext_storage.thread_required: ${codec.table}`);
+      names.push(THREAD_COLUMN);
+      values.push(threadId);
+    }
+    for (const column of codec.columns) {
+      names.push(column.name);
+      values.push(encode(column.type, row[column.name]));
+    }
+    return { names, values };
+  }
+
+  function write(
+    verb: "INSERT" | "INSERT OR REPLACE",
+    row: Readonly<Record<string, unknown>>,
+  ): void {
+    const { names, values } = rowValues(row);
+    exec(
+      `${verb} INTO ${quote(codec.table)} (${names.map(quote).join(", ")}) VALUES (${names.map(() => "?").join(", ")})`,
+      values,
+    );
+  }
+
+  return {
+    ...reader,
+    insert: (row) => {
+      write("INSERT", row);
+    },
+    upsert: (row) => {
+      write("INSERT OR REPLACE", row);
+    },
+    update(key, patch) {
+      const target = whereClause(codec, key, threadId);
+      const matched = reader.count(key);
+      const sets: string[] = [];
+      const params: SqlValue[] = [];
+      for (const [column, value] of Object.entries(patch)) {
+        if (value === undefined) continue;
+        const type = codec.byName.get(column);
+        if (type === undefined) throw new Bug(`ext_storage.unknown_column: ${column}`);
+        sets.push(`${quote(column)} = ?`);
+        params.push(encode(type, value));
+      }
+      if (sets.length === 0 || matched === 0) return 0;
+      exec(`UPDATE ${quote(codec.table)} SET ${sets.join(", ")}${target.sql}`, [
+        ...params,
+        ...target.params,
+      ]);
+      return matched;
+    },
+    delete(key) {
+      const target = whereClause(codec, key, threadId);
+      const matched = reader.count(key);
+      if (matched === 0) return 0;
+      exec(`DELETE FROM ${quote(codec.table)}${target.sql}`, target.params);
+      return matched;
+    },
+  };
+}
+
+function readerFor(
+  codec: Codec,
+  runner: SqlRunner,
+  threadId: ThreadId | undefined,
+  guard: ((sql: string) => void) | undefined,
+): ExtTableReader<Readonly<Record<string, unknown>>> {
+  function decodeRow(row: SqlRow): Readonly<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    for (const column of codec.columns) {
+      const value = decode(column.type, row[column.name]);
+      if (value !== undefined) out[column.name] = value;
+    }
+    if (!parse(codec.def.row, out).ok) throw new Bug(`ext_storage.row_corrupt: ${codec.table}`);
+    return out;
+  }
+
+  const select = (sql: string, params: readonly SqlValue[]): readonly SqlRow[] => {
+    guard?.(sql);
+    return runner.all(sql, params);
+  };
+
+  return {
+    get(key) {
+      const where = whereClause(codec, key, threadId);
+      const [row] = select(`SELECT * FROM ${quote(codec.table)}${where.sql} LIMIT 1`, where.params);
+      return row === undefined ? undefined : decodeRow(row);
+    },
+    list(query) {
+      const where = whereClause(codec, query?.where, threadId);
+      const order = (query?.orderBy ?? []).map((item) => {
+        if (!codec.byName.has(item.column))
+          throw new Bug(`ext_storage.unknown_column: ${item.column}`);
+        return `${quote(item.column)} ${item.dir === "desc" ? "DESC" : "ASC"}`;
+      });
+      const limit = Math.min(Math.max(Math.trunc(query?.limit ?? DEFAULT_LIMIT), 0), MAX_LIMIT);
+      const offset = Math.max(Math.trunc(query?.offset ?? 0), 0);
+      const sql =
+        `SELECT * FROM ${quote(codec.table)}${where.sql}` +
+        `${order.length === 0 ? "" : ` ORDER BY ${order.join(", ")}`} LIMIT ? OFFSET ?`;
+      return select(sql, [...where.params, limit, offset]).map(decodeRow);
+    },
+    count(where) {
+      const clause = whereClause(codec, where, threadId);
+      const [row] = select(
+        `SELECT COUNT(*) AS "n" FROM ${quote(codec.table)}${clause.sql}`,
+        clause.params,
+      );
+      const n = row?.["n"];
+      return typeof n === "number" ? n : 0;
+    },
+  };
+}
+
+/** 지역 이름 → 도구 묶음. 키별 행 타입은 정의 D가 정하고 런타임 구조는 같다 */
+function byLocal<D extends ExtTableDefs, T>(
+  defs: D,
+  make: (local: string) => T,
+): { readonly [K in keyof D]: T } {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 키 집합은 defs와 같고 값 타입은 정의에서 유도된다 (선언 함수)
+  return Object.fromEntries(Object.keys(defs).map((local) => [local, make(local)])) as {
+    readonly [K in keyof D]: T;
+  };
+}
+
+// ── 관리자 ────────────────────────────────────────────────────────────────
+
+export interface ExtStorageDeps {
+  readonly ports: PortLookup;
+  readonly now: () => number;
+  /** 참이면 생성한 모든 문장에 checkStatement를 적용한다(테스트·디버그 빌드) */
+  readonly guard: boolean;
+  /** 투영기 apply 예외 통지를 확장 단위로 받는다(자동 끄기 연결, X.operations.spec §5 6번) */
+  readonly onProjectionFailure: (extension: ExtensionName, failure: ProjectorFailure) => void;
+}
+
+export interface ExtStorageManager {
+  /** 확장마다 하나. isolated가 참이면 defineTables는 isolated 오류다 */
+  storageFor(extension: ExtensionName, options: { readonly isolated: boolean }): ExtStorage;
+  /** 확장 제거 때 투영기를 해제한다. 테이블은 남는다 */
+  release(extension: ExtensionName): void;
+}
+
+interface Defined {
+  readonly dispose: () => void;
+  readonly unsubscribe: () => void;
+}
+
+export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager {
+  const storages = new Map<ExtensionName, ExtStorage>();
+  const defined = new Map<ExtensionName, Defined>();
+
+  function build(extension: ExtensionName, isolated: boolean): ExtStorage {
+    const prefix = extTablePrefix(extension);
+    const guardFn = deps.guard
+      ? (sql: string): void => {
+          const violations = checkStatement(sql, prefix);
+          if (violations.length > 0) {
+            throw new Bug(`ext_storage.guard: ${JSON.stringify(violations)} in ${sql}`);
+          }
+        }
+      : undefined;
+
+    return {
+      extension,
+      prefix,
+      defineTables<const D extends ExtTableDefs>(
+        defs: D,
+        projection: ExtProjection<D>,
+      ): Result<ExtTables<D>, ExtStorageError> {
+        if (isolated) return err({ kind: "isolated" });
+        if (defined.has(extension)) return err({ kind: "already_defined" });
+        const registry = deps.ports.get(ProjectorRegistryPortKey);
+        const store = deps.ports.get(ScopedStorePortKey);
+        if (registry === undefined) return err({ kind: "port_unavailable", port: "xeon.session" });
+        if (store === undefined) return err({ kind: "port_unavailable", port: "xeon.store" });
+
+        const codecs = new Map<string, Codec>();
+        const ddl: string[] = [];
+        for (const [local, def] of Object.entries(defs)) {
+          const statements = tableDdl(extension, local, def);
+          if (!statements.ok) return statements;
+          ddl.push(...statements.value);
+          codecs.set(local, codecOf(extension, local, def));
+        }
+        for (const eventKind of projection.kinds) {
+          const owner = ownerOfKind(eventKind);
+          const foreign =
+            owner !== undefined && owner.startsWith("ext.") && owner !== `ext.${extension}`;
+          if (owner === undefined || foreign) return err({ kind: "kind_not_owned", eventKind });
+        }
+        const tables = [...codecs.values()].map((codec) => codec.table);
+        if (guardFn !== undefined) for (const statement of ddl) guardFn(statement);
+
+        // 소유 장부에서 이미 다른 확장이 가진 이름인지 본다
+        const ledger = store.scoped("xh");
+        const owned = ledger.write((tx) => {
+          tx.run(LEDGER_DDL);
+          for (const table of tables) {
+            const row = tx.get(`SELECT * FROM ${quote(LEDGER_TABLE)} WHERE "table" = ?`, [table]);
+            const owner = row?.["extension"];
+            if (typeof owner === "string" && owner !== extension) return { table, owner };
+          }
+          return undefined;
+        });
+        if (!owned.ok) return err({ kind: "busy" });
+        if (owned.value !== undefined) {
+          return err({ kind: "table_owned", table: owned.value.table, owner: owned.value.owner });
+        }
+
+        const projector: Projector = {
+          name: `ext.${extension}`,
+          version: projection.version,
+          tables,
+          ddl,
+          kinds: projection.kinds,
+          apply(tx: ProjectionTx, event: DurableEventEnvelope): void {
+            const runner: SqlRunner = {
+              run: (sql, params) => {
+                tx.run(sql, params);
+              },
+              get: (sql, params) => tx.get(sql, params),
+              all: (sql, params) => tx.all(sql, params),
+            };
+            const writers = byLocal(defs, (local) => {
+              const codec = codecs.get(local);
+              if (codec === undefined) throw new Bug(`ext_storage.unknown_table: ${local}`);
+              return writerFor(codec, runner, event.threadId, guardFn);
+            });
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 행 타입은 정의 D에서 유도되고 런타임 구조는 같다 (X.operations.spec §3.4)
+            projection.apply(event, writers as unknown as ExtWriters<D>);
+          },
+        };
+        const registered = registry.register(projector);
+        if (!registered.ok) {
+          const failure = registered.error;
+          switch (failure.kind) {
+            case "name_taken":
+              return err({ kind: "already_defined" });
+            case "name_reserved":
+              return err({ kind: "identifier_invalid", name: failure.name });
+            case "table_not_owned":
+              return err({ kind: "table_not_owned", table: failure.table });
+            case "table_taken":
+              return err({ kind: "table_owned", table: failure.table, owner: failure.owner });
+            default:
+              return assertNever(failure, "ProjectorRegisterError");
+          }
+        }
+        const recorded = ledger.write((tx) => {
+          for (const [local, codec] of codecs) {
+            tx.run(
+              `INSERT OR REPLACE INTO ${quote(LEDGER_TABLE)} ("table", "extension", "local", "projection_version", "created_at") VALUES (?, ?, ?, ?, ?)`,
+              [codec.table, extension, local, projection.version, deps.now()],
+            );
+          }
+        });
+        if (!recorded.ok) {
+          registered.value.dispose();
+          return err({ kind: "busy" });
+        }
+        const unsubscribe = registry.onFailure((failure) => {
+          if (failure.projector === `ext.${extension}`)
+            deps.onProjectionFailure(extension, failure);
+        });
+        defined.set(extension, { dispose: () => registered.value.dispose(), unsubscribe });
+
+        const reader = store.scoped(`ext.${extension}`);
+        return ok({
+          names: byLocal(defs, (local) => extTableName(extension, local)),
+          read<T>(fn: (tables: ExtReaders<D>) => T, options?: ExtReadOptions) {
+            const result = reader.read((tx: SqlTx) => {
+              const runner: SqlRunner = {
+                run: () => {
+                  throw new Bug("ext_storage.read_only");
+                },
+                get: (sql, params) => tx.get(sql, params),
+                all: (sql, params) => tx.all(sql, params),
+              };
+              const readers = byLocal(defs, (local) => {
+                const codec = codecs.get(local);
+                if (codec === undefined) throw new Bug(`ext_storage.unknown_table: ${local}`);
+                return readerFor(codec, runner, options?.threadId, guardFn);
+              });
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 행 타입은 정의 D에서 유도되고 런타임 구조는 같다
+              return fn(readers as unknown as ExtReaders<D>);
+            });
+            return result.ok ? ok(result.value) : err({ kind: "busy" as const });
+          },
+        });
+      },
+    };
+  }
+
+  return {
+    storageFor(extension, options) {
+      let storage = storages.get(extension);
+      if (storage === undefined) {
+        storage = build(extension, options.isolated);
+        storages.set(extension, storage);
+      }
+      return storage;
+    },
+    release(extension) {
+      const found = defined.get(extension);
+      if (found !== undefined) {
+        found.unsubscribe();
+        found.dispose();
+        defined.delete(extension);
+      }
+      storages.delete(extension);
+    },
+  };
+}
+
+/** 정책이 저장 관리자를 들고 있을 때의 모양 */
+interface StorageHost {
+  readonly storage: ExtStorageManager;
+}
+
+function hasStorage(policy: DispatchPolicy): policy is DispatchPolicy & StorageHost {
+  return "storage" in policy;
+}
+
+/**
+ * 확장 코드가 자기 저장 영역을 얻는 함수 [제안]. hostOf(g)와 같은 방식으로 setup이 받은 g를 받는다.
+ * ext-host가 만든 g가 아니면 PrimitiveError("no_context"). 격리 확장이면 defineTables가 isolated 오류를 낸다
+ */
+export function storageOf<S>(g: ScopeApi<S>): ExtStorage {
+  const internals = scopeInternalsOf(g);
+  const policy = internals.core.deps.policy;
+  if (!hasStorage(policy)) {
+    throw new Bug("storageOf needs a host created with createOperationsPolicy as its policy");
+  }
+  return policy.storage.storageFor(internals.record.extension, {
+    isolated: internals.record.manifest.isolation === "process",
+  });
+}

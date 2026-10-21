@@ -1,0 +1,3 @@
+{"kind":"header","format":"xeon.model-tape.v1","tapeId":"cli/chat-first","origin":"authored","matching":"role-queue"}
+{"kind":"turn","n":1,"role":"main","label":"turn 1 asks to read a file","response":{"type":"message","stopReason":"toolUse","content":[{"type":"toolCall","id":"call_1","name":"read","arguments":{"path":"notes.txt"}}],"usage":{"input":120,"output":18}}}
+{"kind":"turn","n":2,"role":"main","label":"after the read result the model stalls until the process is killed","response":{"type":"stall"}}

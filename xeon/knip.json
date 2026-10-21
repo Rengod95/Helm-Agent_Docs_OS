@@ -3,7 +3,7 @@
   "workspaces": {
     ".": {
       "entry": ["scripts/*.ts"],
-      "ignoreDependencies": ["@swc/core", "typebox"]
+      "ignoreDependencies": ["@swc/core"]
     },
     "packages/*": {
       "entry": ["test/**/*.test.ts"]
@@ -13,6 +13,19 @@
     },
     "apps/*": {
       "entry": ["test/**/*.test.ts"]
+    },
+    "packages/platform-exec": {
+      "entry": ["test/**/*.test.ts"],
+      "ignoreBinaries": ["mkfifo"]
+    },
+    "packages/core-persistence": {
+      "entry": ["test/**/*.test.ts", "test/support/crash-child.ts"]
+    },
+    "packages/platform-process": {
+      "entry": ["test/**/*.test.ts", "test/fixtures/*.ts"]
+    },
+    "apps/cli": {
+      "entry": ["test/**/*.test.ts", "test/fixtures/scenario-main.ts"]
     }
   }
 }

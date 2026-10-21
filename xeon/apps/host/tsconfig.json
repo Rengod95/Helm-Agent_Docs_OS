@@ -6,5 +6,51 @@
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
   "include": ["src", "test"],
-  "references": []
+  "references": [
+    {
+      "path": "../../packages/contracts"
+    },
+    {
+      "path": "../../packages/ext-host"
+    },
+    {
+      "path": "../../packages/cap-workspace"
+    },
+    {
+      "path": "../../packages/core-context"
+    },
+    {
+      "path": "../../packages/core-loop"
+    },
+    {
+      "path": "../../packages/core-models"
+    },
+    {
+      "path": "../../packages/core-persistence"
+    },
+    {
+      "path": "../../packages/core-tasks"
+    },
+    {
+      "path": "../../packages/core-tools"
+    },
+    {
+      "path": "../../packages/platform-exec"
+    },
+    {
+      "path": "../../packages/platform-os"
+    },
+    {
+      "path": "../../packages/platform-process"
+    },
+    {
+      "path": "../../packages/platform-sandbox"
+    },
+    {
+      "path": "../../packages/platform-secrets"
+    },
+    {
+      "path": "../../packages/platform-store"
+    }
+  ]
 }
