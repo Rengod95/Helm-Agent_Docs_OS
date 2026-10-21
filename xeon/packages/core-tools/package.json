@@ -1,0 +1,22 @@
+{
+  "name": "@xeon/core-tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
+    "typecheck": "tsc -b",
+    "test": "bun test",
+    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  },
+  "xeon": {
+    "layer": "L1",
+    "domain": "tools"
+  }
+}

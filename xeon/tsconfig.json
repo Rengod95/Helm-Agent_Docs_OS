@@ -1,0 +1,101 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/contracts"
+    },
+    {
+      "path": "./packages/ext-host"
+    },
+    {
+      "path": "./packages/platform-exec"
+    },
+    {
+      "path": "./packages/platform-sandbox"
+    },
+    {
+      "path": "./packages/platform-secrets"
+    },
+    {
+      "path": "./packages/platform-process"
+    },
+    {
+      "path": "./packages/platform-store"
+    },
+    {
+      "path": "./packages/platform-os"
+    },
+    {
+      "path": "./packages/core-tasks"
+    },
+    {
+      "path": "./packages/core-loop"
+    },
+    {
+      "path": "./packages/core-models"
+    },
+    {
+      "path": "./packages/core-tools"
+    },
+    {
+      "path": "./packages/core-context"
+    },
+    {
+      "path": "./packages/core-persistence"
+    },
+    {
+      "path": "./packages/core-agents"
+    },
+    {
+      "path": "./packages/cap-workspace"
+    },
+    {
+      "path": "./packages/cap-mcp"
+    },
+    {
+      "path": "./packages/cap-web"
+    },
+    {
+      "path": "./packages/cap-knowledge"
+    },
+    {
+      "path": "./packages/cap-work"
+    },
+    {
+      "path": "./packages/cap-dialog"
+    },
+    {
+      "path": "./packages/cap-artifacts"
+    },
+    {
+      "path": "./packages/cap-schedule"
+    },
+    {
+      "path": "./packages/group-kit"
+    },
+    {
+      "path": "./packages/group-helm"
+    },
+    {
+      "path": "./packages/group-learning"
+    },
+    {
+      "path": "./plugins/provider-anthropic-oauth"
+    },
+    {
+      "path": "./apps/cli"
+    },
+    {
+      "path": "./apps/host"
+    },
+    {
+      "path": "./apps/desktop"
+    },
+    {
+      "path": "./scripts"
+    },
+    {
+      "path": "./vendor/cordis"
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+# Hooks for xeon/. Lefthook only reads the git root, so the root lefthook.yml extends this file.
+# Install once from anywhere in the repo: `lefthook install`.
+pre-commit:
+  parallel: false
+  commands:
+    gitleaks:
+      run: gitleaks git --pre-commit --staged --redact --no-banner
+    oxfmt-check:
+      root: xeon/
+      glob: "**/*.{ts,tsx,js,mjs,cjs,json,jsonc}"
+      exclude: "vendor/**"
+      run: mise exec -- bunx oxfmt --check -c .oxfmtrc.json {staged_files}
+    oxlint:
+      root: xeon/
+      glob: "**/*.{ts,tsx,js,mjs,cjs}"
+      exclude: "vendor/**"
+      run: mise exec -- bunx oxlint --type-aware --deny-warnings -c .oxlintrc.json {staged_files}

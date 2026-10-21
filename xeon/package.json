@@ -1,0 +1,54 @@
+{
+  "name": "xeon",
+  "private": true,
+  "workspaces": {
+    "packages": [
+      "packages/*",
+      "apps/*",
+      "plugins/*",
+      "vendor/*"
+    ]
+  },
+  "type": "module",
+  "scripts": {
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "fmt-check": "turbo run fmt-check",
+    "lint:root": "oxlint --type-aware --deny-warnings -c .oxlintrc.json scripts",
+    "typecheck:root": "tsc -b scripts",
+    "fmt-check:root": "oxfmt --check -c .oxfmtrc.json scripts package.json tsconfig.json tsconfig.base.json turbo.json knip.json .oxlintrc.json .oxfmtrc.json .dependency-cruiser.cjs lefthook.yml",
+    "fmt": "oxfmt -c .oxfmtrc.json .",
+    "check-layers": "bun scripts/check-layers.ts",
+    "docs-route": "bun scripts/docs-route.ts",
+    "depcruise": "depcruise packages apps plugins --config .dependency-cruiser.cjs",
+    "knip": "knip"
+  },
+  "devDependencies": {
+    "@swc/core": "catalog:",
+    "@types/bun": "catalog:",
+    "dependency-cruiser": "catalog:",
+    "knip": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "turbo": "catalog:",
+    "typebox": "catalog:",
+    "typescript": "catalog:"
+  },
+  "packageManager": "bun@1.4.3",
+  "catalog": {
+    "typescript": "7.0.2",
+    "oxlint": "1.89.0",
+    "oxlint-tsgolint": "7.0.2004",
+    "oxfmt": "0.74.0",
+    "turbo": "2.11.10",
+    "dependency-cruiser": "18.7.0",
+    "knip": "6.42.1",
+    "typebox": "1.4.2",
+    "@types/bun": "1.4.3",
+    "@standard-schema/spec": "1.1.0",
+    "cosmokit": "1.8.1",
+    "@swc/core": "1.16.18"
+  }
+}

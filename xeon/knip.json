@@ -1,0 +1,18 @@
+{
+  "$schema": "https://unpkg.com/knip@6.42.1/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["scripts/*.ts"],
+      "ignoreDependencies": ["@swc/core", "typebox"]
+    },
+    "packages/*": {
+      "entry": ["test/**/*.test.ts"]
+    },
+    "plugins/*": {
+      "entry": ["test/**/*.test.ts"]
+    },
+    "apps/*": {
+      "entry": ["test/**/*.test.ts"]
+    }
+  }
+}

@@ -1,0 +1,65 @@
+# Xeon 실제 명령. 루트 justfile이 `cd xeon && just <레시피>`로 부른다. 레시피는 10줄 이하, 길면 scripts/*.sh.
+set shell := ["bash", "-euo", "pipefail", "-c"]
+
+bun := "mise exec -- bun"
+
+export TURBO_TELEMETRY_DISABLED := "1"
+
+# 잠금 파일 기준으로 의존성 설치
+[group('setup')]
+setup:
+    {{bun}} install --frozen-lockfile
+
+# 포매팅 적용
+[group('quality')]
+fmt:
+    {{bun}} run fmt
+
+# 포매팅 검사: scripts와 설정 파일, 각 패키지
+[group('quality')]
+fmt-check:
+    {{bun}} run fmt-check:root
+    {{bun}} run fmt-check
+
+# 정적 검사: scripts, 각 패키지 (type-aware)
+[group('quality')]
+lint:
+    {{bun}} run lint:root
+    {{bun}} run lint
+
+# 타입 검사: scripts, 각 패키지 (tsc -b)
+[group('quality')]
+typecheck:
+    {{bun}} run typecheck:root
+    {{bun}} run typecheck
+
+# 단위 테스트: scripts, 각 패키지
+[group('quality')]
+test:
+    {{bun}} test scripts
+    {{bun}} run test
+
+# 층 순위 검사
+[group('local')]
+check-layers:
+    {{bun}} run check-layers
+
+# 의존 경계 검사
+[group('local')]
+depcruise:
+    {{bun}} run depcruise
+
+# 미사용 코드 검사
+[group('local')]
+knip:
+    {{bun}} run knip
+
+# 문서 라우팅·검사: --check [--allow-missing] | --task <작업> <경로...>
+[group('local')]
+docs-route +args:
+    {{bun}} scripts/docs-route.ts {{args}}
+
+# 한 층만 lint, typecheck, test (scripts/ci-layer.sh)
+[group('local')]
+ci-layer layer affected="false":
+    bash scripts/ci-layer.sh {{layer}} {{affected}}

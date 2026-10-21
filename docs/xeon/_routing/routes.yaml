@@ -51,10 +51,18 @@ layout:
     path: "xeon/packages/cap-{domain}/**"
   L3:
     domains: [group-kit, helm, learning, slots]
-    path: "xeon/packages/group-{domain}/**"   # slots는 코드 없음 (템플릿만)
+    paths:
+      group-kit: "xeon/packages/group-kit/**"
+      helm: "xeon/packages/group-helm/**"
+      learning: "xeon/packages/group-learning/**"
+      # slots는 코드 없음 (템플릿 문서만)
   L4:
     domains: [cli, desktop, host-service, settings-ui]
-    path: "xeon/apps/{domain}/**"
+    paths:
+      cli: "xeon/apps/cli/**"
+      desktop: "xeon/apps/desktop/**"
+      host-service: "xeon/apps/host/**"
+      settings-ui: "xeon/apps/desktop/src/settings/**"
   plugins:
     - path: "xeon/plugins/provider-anthropic-oauth/**"
       docs: [L1.models.spec]
