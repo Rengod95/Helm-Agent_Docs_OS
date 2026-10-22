@@ -3,6 +3,7 @@ export * from "./tasks.ts";
 export * from "./loop.ts";
 export * from "./models.ts";
 export * from "./tools.ts";
+export * from "./policy.ts";
 export * from "./approvals.ts";
 export * from "./agents.ts";
 export * from "./context.ts";

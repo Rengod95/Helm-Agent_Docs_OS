@@ -456,6 +456,99 @@ export interface ModelError {
 
 // ── ModelService ─────────────────────────────────────────────────────────
 
+// ── hosted 검색 포트 (L2.web.spec §4.8.4, §8 요구) ────────────────────────────
+
+/** 내장 검색 래퍼가 쓰는 모델. ModelRefString("provider/modelId") 또는 "auto"(역할 search의 모델)다(l2.web.search.wrapper.model) */
+export type HostedSearchModel = string;
+
+/**
+ * 이어 요청용 불투명 문자열. pause_turn 응답이 돌려주고 다음 요청이 그대로 되돌려 보낸다.
+ * 안쪽(직렬화한 응답 블록, encrypted_content 포함)은 core-models만 안다. 호출자는 읽거나 고치지 않고 저장하지 않는다.
+ */
+export type HostedSearchContinuation = string;
+
+export interface HostedSearchRequest {
+  readonly model: HostedSearchModel;
+  /** 고정 시스템 프롬프트. 예: "Search the web for the user's query and stop. Do not answer." */
+  readonly system: string;
+  /** 정규화한 검색어 한 줄 */
+  readonly query: string;
+  /** 출력 토큰 상한. 래퍼는 512를 쓴다 */
+  readonly maxOutputTokens: number;
+  /** hosted 도구의 도메인 필터로 넘길 조건. 넘기지 못하는 provider는 무시하고 호출자가 결과를 다시 거른다 */
+  readonly domains: { readonly allow: readonly string[]; readonly deny: readonly string[] };
+  /** 이전 응답이 pause_turn일 때 그 응답의 continuation. 첫 요청은 null */
+  readonly continuation: HostedSearchContinuation | null;
+}
+
+export type HostedSearchStopReason = "end_turn" | "pause_turn" | "max_tokens" | "refusal";
+
+/** web_search_tool_result 한 건. encrypted_content는 담지 않는다 */
+export interface HostedSearchHit {
+  readonly url: string;
+  readonly title: string | null;
+  /** provider가 준 게시 시기 문자열(page_age). 파싱하지 않는다 */
+  readonly pageAge: string | null;
+}
+
+/** web_search_result_location 한 건. 인용문은 provider가 준 것만 담는다 */
+export interface HostedSearchCitation {
+  readonly url: string;
+  readonly title: string | null;
+  readonly citedText: string | null;
+}
+
+export interface HostedSearchUsage {
+  readonly inputTokens: number;
+  readonly outputTokens: number;
+  /** 검색 요청 수(수수료 단위) */
+  readonly searchRequests: number;
+}
+
+export interface HostedSearchResponse {
+  readonly stopReason: HostedSearchStopReason;
+  /** 모델이 쓴 텍스트. 래퍼는 답을 요구하지 않으므로 대개 비어 있다 */
+  readonly text: string;
+  readonly results: readonly HostedSearchHit[];
+  readonly citations: readonly HostedSearchCitation[];
+  readonly usage: HostedSearchUsage;
+  /** 실제로 요청한 모델 */
+  readonly model: { readonly provider: string; readonly modelId: string };
+  /** stopReason이 pause_turn이면 이어 요청에 쓸 값, 아니면 null */
+  readonly continuation: HostedSearchContinuation | null;
+}
+
+/** 예상 가능한 실패. throw하지 않는다(TY-11) */
+export type HostedSearchError =
+  /** 현재 provider·모델에 hosted 검색이 없다 */
+  | {
+      readonly kind: "unsupported_model";
+      readonly provider: string | null;
+      readonly modelId: string | null;
+    }
+  /** 조직 관리자가 hosted 검색을 꺼 요청이 400으로 거절됐다. 호출자는 프로세스 수명 동안 기억한다 */
+  | { readonly kind: "org_disabled" }
+  | { readonly kind: "rate_limited"; readonly retryAfterMs: number | null }
+  | { readonly kind: "upstream"; readonly status: number | null; readonly message: string }
+  | { readonly kind: "cancelled" };
+
+export type HostedSearchSupport =
+  | { readonly supported: true; readonly provider: string; readonly modelId: string }
+  | { readonly supported: false; readonly reason: "no_model" | "no_hosted_search" };
+
+/**
+ * 모델 provider의 서버 도구 검색을 한 턴 요청하는 포트(내장 검색 래퍼용, L2.web.spec §4.8.4).
+ * 구현은 core-models(L1C.3). 요청 하나는 hosted 검색 도구 하나만 단 단일 턴이고 대화 기록에 남지 않는다.
+ */
+export interface HostedSearchPort {
+  /** 모델이 hosted 검색을 지원하는가. 모델 호출을 하지 않는다 */
+  support(model: HostedSearchModel): HostedSearchSupport;
+  search(
+    request: HostedSearchRequest,
+    signal: AbortSignal,
+  ): Promise<Result<HostedSearchResponse, HostedSearchError>>;
+}
+
 /** ModelsPort(F.extensions.spec §3.2.1)를 확장한다. registerProvider는 JSON 표현의 config만 받는 포트 경로다 */
 export interface ModelService extends ModelsPort {
   /** 역할을 바인딩으로 해석한다. 같은 입력(역할, 덮어쓰기, 설정 스냅샷, 카탈로그)이면 같은 결과다 */
@@ -485,4 +578,9 @@ export interface ModelService extends ModelsPort {
   readonly tokens: TokenEstimator;
   /** 종결 메시지의 오류 분류. 오류가 아니면 null */
   classify(message: AssistantMessage, contextWindow?: number): ModelErrorKind | null;
+  /**
+   * hosted 검색 포트(내장 검색 래퍼용). core-models가 L1C.3에서 구현하면 필수로 올린다.
+   * 없는 동안 소비자는 "지원 안 함"(unsupported-model)으로 본다
+   */
+  readonly hostedSearch?: HostedSearchPort;
 }
