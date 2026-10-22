@@ -14,6 +14,7 @@ import {
   callTool,
   createHarness,
   layer,
+  textOf,
   until,
   type Harness,
 } from "./support/harness.ts";
@@ -207,7 +208,6 @@ function lockedHarness(h: Harness) {
     parameters: BashToolParams,
     outputSchema: undefined,
     executionMode: "parallel",
-    prepareArguments: undefined,
     ref: { capability: "ext.test", name },
     capability: undefined,
     mcpServer: undefined,
@@ -250,27 +250,15 @@ function lockedHarness(h: Harness) {
   registry.add([toolEntry]);
 
   async function drive(run: ToolRunContext, id: string, path: string) {
-    const hooks = pipeline.hooks(run);
-    const tool = pipeline.agentTool(toolEntry, run);
-    const toolCall = { type: "toolCall" as const, id, name: "write", arguments: {} };
-    const context = { messages: [], tools: [tool] };
-    const before = await hooks.beforeToolCall(
-      { assistantMessage: ASSISTANT, toolCall, args: { command: path }, context },
-      run.signal,
-    );
-    if (before?.block === true) return { blocked: before.reason ?? "" };
-    const result = await tool.execute(id, { command: path }, run.signal, undefined);
-    await hooks.afterToolCall(
-      {
-        assistantMessage: ASSISTANT,
-        toolCall,
-        args: { command: path },
-        result,
-        isError: false,
-        context,
-      },
-      run.signal,
-    );
+    const toolCall = {
+      type: "toolCall" as const,
+      id,
+      name: "write",
+      arguments: { command: path },
+    };
+    const prepared = await pipeline.prepare(toolCall, ASSISTANT, run);
+    if (prepared.kind === "settled") return { blocked: textOf(prepared.outcome.result) };
+    await pipeline.execute(prepared.call, () => {}, run);
     return { blocked: undefined };
   }
   return { gate, drive };

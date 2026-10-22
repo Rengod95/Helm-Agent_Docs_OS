@@ -10,12 +10,7 @@ import type {
   ToolSpec,
 } from "@xeon/contracts/capabilities";
 import { toReplayPolicy } from "@xeon/contracts/conversation";
-import type {
-  AgentToolResult,
-  JsonObject,
-  JsonValue,
-  TextContent,
-} from "@xeon/contracts/conversation";
+import type { JsonObject, JsonValue, TextContent } from "@xeon/contracts/conversation";
 import type { ScopeId, ToolResourceDef } from "@xeon/contracts/extensions";
 import type {
   CapabilityToolsRegistration,
@@ -24,7 +19,7 @@ import type {
   ToolRegistration,
 } from "@xeon/contracts/services";
 import { deriveRisk } from "./policy/modes.ts";
-import type { RawCall, RawOutcome, ToolEntry } from "./types.ts";
+import type { RawCall, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
 import { isJsonValue, messageOf, sha256Hex } from "./util.ts";
 
 // 등록(ToolRegistration, ToolResourceDef)을 도구 단위 항목(ToolEntry)으로 바꾼다.
@@ -145,7 +140,7 @@ async function invokeCapability(
       return internalOutcome(spec, `structuredContent violates the output schema of ${spec.name}`);
     }
   }
-  const result: AgentToolResult<unknown> = {
+  const result: RawToolResult = {
     content: [...rendered.content],
     details: rendered.details ?? null,
     isError: false,
@@ -176,7 +171,6 @@ function capabilityEntries(
       parameters: spec.parameters,
       outputSchema: spec.outputSchema,
       executionMode: spec.executionMode,
-      prepareArguments: undefined,
       ref: { capability: def.id, name: spec.name },
       capability: { id: def.id, method: spec.method },
       mcpServer: policy?.mcpServer,
@@ -202,7 +196,6 @@ function directEntry(registration: DirectToolRegistration): ToolEntry {
     parameters: tool.parameters,
     outputSchema: tool.outputSchema,
     executionMode: tool.executionMode,
-    prepareArguments: tool.prepareArguments,
     ref: { capability: registration.orderKey, name: tool.name },
     capability: undefined,
     mcpServer,
@@ -230,7 +223,7 @@ function directEntry(registration: DirectToolRegistration): ToolEntry {
 }
 
 /** 확장 `hostOf(g).registerTool` 결과를 AgentToolResult로 바꾼다 */
-function resourceResult(value: unknown): AgentToolResult<unknown> | undefined {
+function resourceResult(value: unknown): RawToolResult | undefined {
   if (typeof value === "string") return { content: [textBlock(value)], details: null };
   if (!isJsonValue(value)) return undefined;
   return {
@@ -250,7 +243,6 @@ export function resourceEntry(owner: ScopeId, def: ToolResourceDef): ToolEntry {
     parameters: def.parameters,
     outputSchema: undefined,
     executionMode: undefined,
-    prepareArguments: undefined,
     ref: { capability: `ext.${extension}`, name: def.name },
     capability: undefined,
     mcpServer: undefined,
@@ -316,6 +308,7 @@ export function toToolMeta(
     classes: entry.classes,
     hints: entry.hints,
     replay: entry.replay,
+    ...(entry.executionMode === undefined ? {} : { executionMode: entry.executionMode }),
     exposure: entry.exposure,
     outputLimits:
       entry.outputLimits === "self"

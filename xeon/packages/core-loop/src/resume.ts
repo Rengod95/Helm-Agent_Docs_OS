@@ -22,7 +22,7 @@ import {
   type StepCheckpoint,
 } from "@xeon/contracts/records";
 import type { ModelBinding, ResumeFrom } from "@xeon/contracts/services";
-import type { ToolCallResume, TurnEntry } from "./agent-wrapper.ts";
+import type { ToolCallResume, TurnEntry } from "./loop/types.ts";
 import { textAndImages } from "./turn-start.ts";
 
 // L1.loop.spec §4.5 `next` 판별자별 재진입, §4.6 재개 진입. 이벤트로 열린 turn의 상태를 다시 만든다(순수 함수).

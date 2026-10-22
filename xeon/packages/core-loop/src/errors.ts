@@ -16,25 +16,3 @@ export class LoopRejection extends Error {
     this.kind = loopError.kind;
   }
 }
-
-export type RunFailureCode =
-  | "commit_failed"
-  | "model_unavailable"
-  | "context_unavailable"
-  | "tools_unavailable"
-  | "invariant";
-
-/**
- * agent-core 싱크·훅에서 던져 run을 멈추는 값(L1.loop.spec §3.3 "리스너 예외", §4.2 규칙 6).
- * 래퍼가 run 거부를 잡아 T6 `failed`, `error: "loop_rejected"`로 바꾼다. 흐름 제어용 throw라
- * eng.typescript.guide TY-11 허용 경우 3(라이브러리 콜백 계약)에 해당하며 호출부는 `throw failure` 형태로만 던진다.
- */
-export class RunFailure extends Error {
-  override readonly name: string = "RunFailure";
-  readonly code: RunFailureCode;
-
-  constructor(code: RunFailureCode, detail: string) {
-    super(`${code}: ${detail}`);
-    this.code = code;
-  }
-}

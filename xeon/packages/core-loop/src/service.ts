@@ -1,5 +1,6 @@
 import { assertNever, err, ok, type Result, type Scheduler } from "@xeon/contracts";
 import type {
+  AgentToolCall,
   EventId,
   ItemId,
   StopReason,
@@ -19,12 +20,13 @@ import type {
   TaskScope,
   ThreadLoopStatus,
 } from "@xeon/contracts/services";
-import { executeTurn, type TurnEntry, type TurnRunResult } from "./agent-wrapper.ts";
 import { abortIntentRequest } from "./commits.ts";
 import { commitWithRetry, describeCommitFailure, type CommitFailure } from "./commit.ts";
 import { createDrafter } from "./drafts.ts";
 import { LoopRejection } from "./errors.ts";
 import { planReentry, reduceOpenTurn, type OpenTurnReduction } from "./resume.ts";
+import { runTurn as runLoopTurn } from "./loop/run-turn.ts";
+import type { TurnEntry, TurnRunResult } from "./loop/types.ts";
 import { createThreadGate } from "./thread-gate.ts";
 import { textAndImages, turnStartRequest, type TurnStartSource } from "./turn-start.ts";
 import type { LoopContext, LoopDeps, StartOutcome, ThreadRuntime } from "./types.ts";
@@ -99,12 +101,12 @@ function priorOf(reduction: OpenTurnReduction): Prior {
   };
 }
 
-/** 결과 없이 남은 호출 id: 마지막 단계의 어시스턴트가 낸 호출 중 기록된 결과가 없는 것 */
-function unansweredCalls(reduction: OpenTurnReduction): string[] {
+/** 결과 없이 남은 호출: 마지막 단계의 어시스턴트가 낸 호출 중 기록된 결과가 없는 것 */
+function unansweredCalls(reduction: OpenTurnReduction): AgentToolCall[] {
   const step = reduction.step;
   if (step === null || step.assistant === null) return [];
   return step.assistant.message.content.flatMap((block) =>
-    block.type === "toolCall" && !step.toolResults.has(block.id) ? [block.id] : [],
+    block.type === "toolCall" && !step.toolResults.has(block.id) ? [block] : [],
   );
 }
 
@@ -208,7 +210,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     for (const input of planned.inputs) thread.placed.set(input.inputId, turnId);
     onStarted({ status: "started", turnId, planned });
     try {
-      const result = await executeTurn(ctx, {
+      const result = await runLoopTurn(ctx, {
         thread,
         turnId,
         scope,
@@ -313,7 +315,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     }
     const step = reduction.step;
     const unanswered = unansweredCalls(reduction);
-    const result = await executeTurn(ctx, {
+    const result = await runLoopTurn(ctx, {
       thread,
       turnId,
       scope,
@@ -329,7 +331,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
                   stepId: step.stepId,
                   stepIndex: step.stepIndex,
                 },
-                toolCallIds: unanswered,
+                calls: unanswered,
               },
       },
       ...priorOf(reduction),
@@ -407,7 +409,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     const entry: TurnEntry = reentry.entry;
     const checkpoint =
       plan.checkpoint !== null && plan.checkpoint.turnId === open.turnId ? plan.checkpoint : null;
-    const result = await executeTurn(ctx, {
+    const result = await runLoopTurn(ctx, {
       thread,
       turnId: open.turnId,
       scope,

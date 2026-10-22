@@ -39,9 +39,13 @@ xeon/packages/core-loop/
   LICENSE.pi                # pi 저장소 MIT LICENSE 원문 사본
   src/
     loop/                   # 자체 루프 본체. 원본 대응이 있는 파일은 머리에 출처 주석
-      types.ts              # TurnEntry, OpenStep, ToolCallResume, StepNext, LoopEventSink (내부)
-      run-turn.ts           # runTurn(entry): 진입 분기, 단계 반복, T6 앞 정착. 원본 runLoop 안쪽 반복(163-321)
-      open-step.ts          # 바인딩 결정, 도구 광고, S1(T2) 커밋, turn_start tap
+      types.ts              # TurnEntry, ToolCallResume, StepNext, LoopFailure, TurnRunSpec (내부)
+      turn-run.ts           # TurnRun(상태와 도우미): 단계 함수가 나눠 쓰는 값, 커밋·모델·도구 실행 맥락
+      sink.ts               # 이벤트 싱크: 매퍼 + tap 발화만, 커밋하지 않는다
+      run-turn.ts           # runTurn(ctx, spec), requestLoop, 진입 분기. 원본 runLoop 안쪽 반복(163-321)
+      finish-turn.ts        # T6: 소유 작업 정착 뒤 turn.completed, agent_end tap
+      prepare-request.ts    # 모델 바인딩, 도구 광고, 커밋된 이벤트로 컨텍스트 조립
+      open-step.ts          # agent_start, 단계 시작 알림, S1(T2) 커밋, turn_start tap, 배치 입력 메시지 이벤트
       stream-response.ts    # modelCalls 슬롯, streamFn 호출, 부분 메시지 처리. 원본 streamAssistantResponse(381-476)
       commit-response.ts    # message_end chain, 도구 선언 차이 item, C3(T3) + next:"tools" 체크포인트
       tool-batch.ts         # 순차·병렬 스케줄, 이벤트 순서, 취소 시 not_executed, length 절단, terminate. 원본 508-692
@@ -109,12 +113,12 @@ xeon/packages/core-loop/
 | LP13 | 목표 판정 소비 지점 계약 시험(가짜 판정 핸들러) | LP7, L1.agents 판정 API | S | M3 |
 | LP14 | 반복 감지 | LP7, FR-L5 | M | 2차 |
 | LP15 | 자식 thread turn `runChildTurn`(spec §4.13): requestId 멱등 조회, 자식 turn 노드(`openScope` 부모 subagent), `systemPrompt`·`model`·`ToolRunContext` 값 전달, 자식 한도(`child_limit`) | LP5, LP10, L1.agents.plan AG-2 | M | M2 |
-| LP16 | F 타입 이행: `contracts/src/conversation/agent.ts`에 `AgentMessage`(닫힌 유니온), `AgentEvent`, `AgentTool`, `AgentToolResult`, `AgentToolCall`, `AgentToolUpdateCallback`, `ToolExecutionMode`, `AgentContext` 정의(`F.conversation.spec` §3.1.1). `pi.ts`에서 agent-core 재노출 제거, `hierarchy.ts` 선언 병합 제거, `AgentToolHooks` 제거. `pi-types.test.ts`의 agent-core 항등 검사를 F 정의 검사로 바꾼다 | — | M | 이행 1 |
-| LP17 | 루프 본체 포크: `loop/stream-response.ts`, `loop/tool-batch.ts`, `loop/run-turn.ts`. 원본 `agent-loop.ts` 1.3.0의 해당 함수를 옮기고 spec §3.2·§3.3대로 고친다. `UPSTREAM.json`, `LICENSE.pi`, 출처 주석. pi-ai 값 함수 호출은 `xeon.models` 메서드로 바꾼다 | LP16, LP18 | L | 이행 2 |
-| LP18 | 이웃 계약 바꾸기(다른 plan과 함께): `ToolService`의 `hooks`·`toAgentTools`·`observe`·`closeUnexecuted`를 `prepare`·`execute`·`settleRejected` 단계 계약으로(`L1.tools.plan`), `ModelService`에 도구 선언 차이 계산과 streamFn 안 정규화(`L1.models.plan`). 첫 테스트로 typebox 검증이 pi-ai `validateToolArguments`와 같은 결과를 내는지 확인(adr.0009 §6 [가정]) | LP16 | M | 이행 2 |
-| LP19 | 단계 함수와 진입점: `open-step.ts`, `commit-response.ts`, `step-end.ts`, `before-start.ts`. `agent-wrapper.ts`의 `executeTurn`·`finishStep`·`replayTools`·`runPendingCall`·`emit` 본문을 단계 함수로 나눠 옮긴다. `resume.ts`는 `TurnEntry`만 만든다. 커밋 실패는 `Result`로 돌린다(throw 제거, `RunFailure` 예외 제거) | LP17 | L | 이행 3 |
-| LP20 | 정리: `agent-wrapper.ts`, `pi-bridge.ts`, `streams.ts`의 pi 대응 부분 삭제. `core-loop`·`contracts`의 `package.json`과 bun catalog에서 `@earendil-works/pi-agent-core` 제거, `bun.lock` 갱신. `check-layers.ts` `MODULE_OWNERS`의 pi-agent-core 행을 owners `[]`로. `plugin.ts` 설명 문구 수정 | LP19 | S | 이행 4 |
-| LP21 | 시험 이행: §5의 이행 시험 추가, `agent-wrapper.contract.test.ts` → `loop.contract.test.ts`(이름과 `runAgentLoop` 사례 교체), 기존 테이프·결정성 시험이 그대로 통과하는지 확인 | LP19 | M | 이행 4 |
+| LP16 | (완료 2026-10-23) F 타입 이행: `contracts/src/conversation/agent.ts`에 `AgentMessage`(닫힌 유니온), `AgentEvent`, `AgentTool`, `AgentToolResult`, `AgentToolCall`, `AgentToolUpdateCallback`, `ToolExecutionMode`, `AgentContext` 정의(`F.conversation.spec` §3.1.1). `pi.ts`에서 agent-core 재노출 제거, `hierarchy.ts` 선언 병합 제거, `AgentToolHooks` 제거. `pi-types.test.ts`의 agent-core 항등 검사를 F 정의 검사로 바꾼다 | — | M | 이행 1 |
+| LP17 | (완료 2026-10-23) 루프 본체 포크: `loop/stream-response.ts`, `loop/tool-batch.ts`, `loop/run-turn.ts`. 원본 `agent-loop.ts` 1.3.0의 해당 함수를 옮기고 spec §3.2·§3.3대로 고친다. `UPSTREAM.json`, `LICENSE.pi`, 출처 주석. pi-ai 값 함수 호출은 `xeon.models` 메서드로 바꾼다 | LP16, LP18 | L | 이행 2 |
+| LP18 | (완료 2026-10-23) 이웃 계약 바꾸기(다른 plan과 함께): `ToolService`의 `hooks`·`toAgentTools`·`observe`·`closeUnexecuted`를 `prepare`·`execute`·`settleRejected` 단계 계약으로(`L1.tools.plan`), `ModelService`에 도구 선언 차이 계산과 streamFn 안 정규화(`L1.models.plan`). 첫 테스트로 typebox 검증이 pi-ai `validateToolArguments`와 같은 결과를 내는지 확인(adr.0009 §6 [가정]) | LP16 | M | 이행 2 |
+| LP19 | (완료 2026-10-23) 단계 함수와 진입점: `open-step.ts`, `commit-response.ts`, `step-end.ts`, `before-start.ts`. `agent-wrapper.ts`의 `executeTurn`·`finishStep`·`replayTools`·`runPendingCall`·`emit` 본문을 단계 함수로 나눠 옮긴다. `resume.ts`는 `TurnEntry`만 만든다. 커밋 실패는 `Result`로 돌린다(throw 제거, `RunFailure` 예외 제거) | LP17 | L | 이행 3 |
+| LP20 | (완료 2026-10-23) 정리: `agent-wrapper.ts`, `pi-bridge.ts`, `streams.ts`의 pi 대응 부분 삭제. `core-loop`·`contracts`의 `package.json`과 bun catalog에서 `@earendil-works/pi-agent-core` 제거, `bun.lock` 갱신. `check-layers.ts` `MODULE_OWNERS`의 pi-agent-core 행을 owners `[]`로. `plugin.ts` 설명 문구 수정 | LP19 | S | 이행 4 |
+| LP21 | (완료 2026-10-23) 시험 이행: §5의 이행 시험 추가, `agent-wrapper.contract.test.ts` → `loop.contract.test.ts`(이름과 `runAgentLoop` 사례 교체), 기존 테이프·결정성 시험이 그대로 통과하는지 확인 | LP19 | M | 이행 4 |
 
 선행 요약: contracts(F.conversation 매퍼 타입, F.records 체크포인트·휘발 envelope, F.extensions 지점 표), core-persistence 커밋 API, core-tools 파이프라인 인터페이스, core-tasks 서비스(L1.tasks.plan TK-1, TK-5, TK-6).
 

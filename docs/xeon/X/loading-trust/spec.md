@@ -1110,14 +1110,14 @@ flowchart LR
 #### 4.10.6 가상 모듈
 
 - pi 확장은 `@earendil-works/pi-coding-agent` 등을 import한다(79단위 전부, `_research/notes/X-3.md` §2.1). pi는 `virtual-modules.ts`(38줄)에서 키 20개를 실체 9개에 대응시킨다.
-- [제안] ext-host는 `pi-ai`, `pi-agent-core`를 직접 import할 수 없다(eng.dependency-rules.guide DR-07: `pi-ai`는 `core-models`와 `plugins/*`([결정: review.decisions-2 U-16]), `pi-agent-core`는 `core-loop`만). 그래서 가상 모듈 표는 소유 패키지가 `VirtualModuleRegistry.register`로 채운다.
+- [제안] ext-host는 `pi-ai`, `pi-agent-core`를 직접 import할 수 없다(eng.dependency-rules.guide DR-07: `pi-ai`는 `core-models`와 `plugins/*`([결정: review.decisions-2 U-16]), `pi-agent-core`는 어느 패키지도 import하지 않는다[결정: adr.0009]). 그래서 가상 모듈 표는 소유 패키지가 `VirtualModuleRegistry.register`로 채운다.
 
 | 지정자(키) | 실체 | 등록하는 패키지 |
 |---|---|---|
 | `typebox`, `typebox/compile`, `typebox/value`, `@sinclair/typebox`, `@sinclair/typebox/compile`, `@sinclair/typebox/value` | 워크스페이스 `typebox` 1.3.27 | ext-host |
 | `@earendil-works/pi-ai`, `@earendil-works/pi-ai/compat`, `@mariozechner/pi-ai`, `@mariozechner/pi-ai/compat` | pi-ai 공개 엔트리 [가정: 1.3.0에 compat 엔트리가 있다] | core-models |
 | `@earendil-works/pi-ai/providers/all`, `@mariozechner/pi-ai/providers/all` | pi-ai providers | core-models |
-| `@earendil-works/pi-agent-core`, `@mariozechner/pi-agent-core` | pi-agent-core | core-loop |
+| `@earendil-works/pi-agent-core`, `@mariozechner/pi-agent-core` | pi-agent-core | 소유 패키지 없음 [미결](§10 16) |
 | `@earendil-works/pi-coding-agent`, `@mariozechner/pi-coding-agent` | 어댑터 shim(지원 표의 export만) | ext-host |
 | `@earendil-works/pi-ai/oauth`, `@mariozechner/pi-ai/oauth` | 차단 | ext-host |
 | `@earendil-works/pi-tui`, `@mariozechner/pi-tui` | 차단 | ext-host |
@@ -1258,3 +1258,4 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 13. (해소) 이벤트 kind 접두는 F 규칙 `x.<name>.`/`grp.<name>.`이다([결정: review.decisions-2 T-21]). 이 문서는 `x.<name>.pi.entry`를 쓴다.
 14. [미결] eng.dependency-rules.guide DR-07 표에 `vscode-jsonrpc` → `ext-host` 행 추가 요청.
 15. [가정] Bun 직접 `import()`가 `bun build --compile` 바이너리에서 외부 `.ts`를 불러오는지, `Bun.plugin` 모듈 등록이 가상 모듈로 동작하는지, 질의 접미로 캐시를 피할 수 있는지. 확인 전이다.
+16. [미결] adr.0009로 pi-agent-core 의존이 없어졌다. 가상 모듈 `@earendil-works/pi-agent-core`(pi 확장 호환)를 계속 제공할지, 제공하면 F `AgentTool` 등 타입 별칭을 둘지(adr.0009 §6). 1차는 비지원으로 둔다 [제안].

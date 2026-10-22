@@ -91,7 +91,12 @@ test("a deny response blocks the call with the fixed sentence and the user's fee
   );
   expect(probe.calls).toEqual([]);
   // 거부된 호출에는 효과 이벤트가 없다
-  expect(kinds(h)).toEqual(["approval.requested", "checkpoint.step", "approval.resolved"]);
+  expect(kinds(h)).toEqual([
+    "approval.requested",
+    "checkpoint.step",
+    "approval.resolved",
+    "item.recorded",
+  ]);
 });
 
 test("approval_respond_twice_not_applied: the second response changes nothing", async () => {
@@ -194,7 +199,12 @@ test("approval_turn_abort_cancels_pending: the request is closed as cancelled an
   const out = await done;
   expect(out.blocked).toContain("approval_cancelled");
   expect(probe.calls).toEqual([]);
-  expect(kinds(h)).toEqual(["approval.requested", "checkpoint.step", "approval.resolved"]);
+  expect(kinds(h)).toEqual([
+    "approval.requested",
+    "checkpoint.step",
+    "approval.resolved",
+    "item.recorded",
+  ]);
   const resolved = parse(
     ApprovalResolvedPayloadSchema,
     h.session.events.find((event) => event.kind === "approval.resolved")?.payload,
@@ -329,5 +339,5 @@ test("non-interactive runs deny an ask before any request is written", async () 
     args: { command: "ls" },
   });
   expect(out.blocked).toContain("noninteractive_ask_denied");
-  expect(kinds(h)).toEqual([]);
+  expect(kinds(h)).toEqual(["item.recorded"]);
 });

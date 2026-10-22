@@ -1,6 +1,8 @@
 export * from "./ids.ts";
 export * from "./local-ids.ts";
 export type * from "./pi.ts";
+export type * from "./agent.ts";
+export * from "./agent-schema.ts";
 export * from "./message-schema.ts";
 export * from "./parts.ts";
 export * from "./hierarchy.ts";

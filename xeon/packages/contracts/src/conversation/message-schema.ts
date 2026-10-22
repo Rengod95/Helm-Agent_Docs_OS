@@ -1,7 +1,5 @@
 import { Type, type TSchema, type TUnsafe } from "typebox";
 import type {
-  AgentMessage,
-  AgentToolResult,
   AssistantMessage,
   AssistantMessageEvent,
   ImageContent,
@@ -161,15 +159,6 @@ const toolResultShape = open({
   isError: Type.Boolean(),
   timestamp: Type.Number(),
 });
-const customShape = open({
-  role: Type.Literal("custom"),
-  customType: Type.String({ minLength: 1 }),
-  content: Type.Union([Type.String(), Type.Array(textOrImage)]),
-  display: Type.Boolean(),
-  details: Type.Unknown(),
-  timestamp: Type.Number(),
-});
-
 /** 모든 JSON 값. 저장 경로는 JSON 왕복을 거치므로 얕게 통과시킨다(깊은 검사는 하지 않는다). */
 export const JsonValueSchema: TUnsafe<JsonValue> = Type.Unsafe<JsonValue>(Type.Unknown());
 export const JsonObjectSchema: TUnsafe<JsonObject> = Type.Unsafe<JsonObject>(
@@ -199,19 +188,9 @@ export const MessageSchema: TUnsafe<Message> = Type.Unsafe<Message>(
   Type.Union([systemShape, userShape, assistantShape, toolResultShape]),
 );
 
-/** Message + XeonCustomMessage(role "custom"). */
-export const AgentMessageSchema: TUnsafe<AgentMessage> = Type.Unsafe<AgentMessage>(
-  Type.Union([systemShape, userShape, assistantShape, toolResultShape, customShape]),
-);
-
 /** type 판별만 한다. 휘발 경로 디버깅용이며 저장 경로에서는 쓰지 않는다. */
 export const AssistantMessageEventSchema: TUnsafe<AssistantMessageEvent> =
   Type.Unsafe<AssistantMessageEvent>(open({ type: literalUnion(ASSISTANT_EVENT_TYPES) }));
-
-/** 도구 결과(부분 결과 포함)의 얕은 검사. details는 undefined일 수 있어 JSON 왕복 뒤에는 키가 없을 수 있다. */
-export const AgentToolResultSchema: TUnsafe<AgentToolResult> = Type.Unsafe<AgentToolResult>(
-  open({ content: Type.Array(textOrImage), details: Type.Optional(Type.Unknown()) }),
-);
 
 /** 추론 수준 7종(off 포함). 체크포인트가 재개 후 첫 요청의 수준으로 쓴다. */
 export const ModelThinkingLevelSchema: TUnsafe<ModelThinkingLevel> =

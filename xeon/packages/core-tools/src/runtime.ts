@@ -17,7 +17,6 @@ import { advertiseTools } from "./expose.ts";
 import { createPipeline } from "./pipeline.ts";
 import { createRegistry } from "./registry.ts";
 import { TOOLS_SETTING_KEYS } from "./settings.ts";
-import type { ToolEntry } from "./types.ts";
 
 // ToolService(xeon.tools)와 ApprovalService(xeon.approvals) 조립(L1.tools.plan TL-8). Cordis는 쓰지 않는다.
 
@@ -62,22 +61,13 @@ export function createToolRuntime(deps: ToolsDeps): ToolRuntime {
         bypassAllowed: config.bypassAllowed,
       });
     },
-    toAgentTools(toolset, run) {
-      const entries: ToolEntry[] = [];
-      for (const ordered of toolset.tools) {
-        const entry = registry.get(ordered.name);
-        if (entry !== undefined) entries.push(entry);
-      }
-      return entries.map((entry) => pipeline.agentTool(entry, run));
-    },
-    hooks: (run) => pipeline.hooks(run),
-    observe: (event, run) => pipeline.observe(event, run),
-    settledItem: (toolCallId) => pipeline.settledItem(toolCallId),
+    prepare: (call, assistant, run) => pipeline.prepare(call, assistant, run),
+    execute: (call, onUpdate, run) => pipeline.execute(call, onUpdate, run),
+    settleRejected: (toClose, reason, run) => pipeline.settleRejected(toClose, reason, run),
     rerun: (intent, run) => pipeline.rerun(intent, run),
     registerRules() {
       throw new Bug("tools.registerRules arrives in M2 (L1.tools.plan TL-3)");
     },
-    closeUnexecuted: (run, toolCallIds) => pipeline.closeUnexecuted(run, toolCallIds),
     runUserShell() {
       throw new Bug("tools.runUserShell arrives in M2 (L1.tools.plan TL-16)");
     },

@@ -13,7 +13,6 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "catalog:",
     "@xeon/contracts": "workspace:*",
     "@xeon/ext-host": "workspace:*",
     "typebox": "catalog:"

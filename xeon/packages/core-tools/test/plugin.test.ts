@@ -139,6 +139,7 @@ test("installing provides xeon.tools and xeon.approvals ports and runs a call en
   expect(read.isError).toBe(true);
   expect(JSON.stringify(read.result)).toContain("[unavailable]");
   expect(session.events.map((event) => event.kind)).toEqual([
+    "item.recorded",
     "effect.intent",
     "effect.exec",
     "effect.result",

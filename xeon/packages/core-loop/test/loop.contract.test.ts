@@ -6,7 +6,7 @@ import { createHarness } from "./support/harness.ts";
 import { createRecorder } from "./support/recorder.ts";
 import { countKind } from "./support/inspect.ts";
 
-// agent-core 1.3.0 계약: 훅 순서, 이벤트 순서, 모든 turn이 runAgentLoop([], …) 하나라는 점(L1.loop.plan §5)
+// 자체 루프(adr.0009) 계약: 확장 지점·커밋 순서, import 검사, 의존 제거(L1.loop.plan §5)
 
 const answer = {
   kind: "message",
@@ -72,16 +72,50 @@ test("turn_end_fires_on_each_step_boundary_and_agent_before_settle_only_when_set
   expect(count("agent_end")).toBe(1);
 });
 
-test("the_wrapper_calls_only_runAgentLoop_with_an_empty_prompt_list", async () => {
-  const source = await Bun.file(join(import.meta.dir, "../src/agent-wrapper.ts")).text();
-  expect(source).not.toContain("runAgentLoopContinue");
-  expect(source).not.toContain("agentLoopContinue");
-  expect(source).not.toContain("getDefaultStreamFn");
-  expect(source).not.toContain("setDefaultStreamFn");
-  expect(source).not.toContain("streamProxy");
-  expect(source).toMatch(/runAgentLoop\(\s*\[\]/);
-  // Agent 클래스와 pi-ai는 import하지 않는다(DR-07)
-  expect(source).not.toMatch(/from "@earendil-works\/pi-ai"/);
+async function sourcesOf(
+  root: string,
+  pattern: string,
+): Promise<readonly { readonly file: string; readonly text: string }[]> {
+  const files = await Array.fromAsync(new Bun.Glob(pattern).scan({ cwd: root }));
+  return await Promise.all(
+    files.map(async (file) => ({ file, text: await Bun.file(join(root, file)).text() })),
+  );
+}
+
+test("the_loop_has_no_callback_hooks_and_no_default_stream_function", async () => {
+  const sources = await sourcesOf(join(import.meta.dir, "../src/loop"), "**/*.ts");
+  expect(sources.map((entry) => entry.file)).toContain("run-turn.ts");
+  for (const { file, text } of sources) {
+    // 주석은 원본의 이름을 인용한다. 코드만 본다
+    const source = text.replace(/\/\/.*$/gm, "");
+    // 훅 콜백으로 바깥 동작을 끼우지 않는다. 배치 입력은 StepNext.placed로 돌아온다
+    expect(source, file).not.toMatch(
+      /getSteeringMessages|getFollowUpMessages|finishTurn\s*:|beforeToolCall|afterToolCall/,
+    );
+    // 전역 기본 streamFn은 없다
+    expect(source, file).not.toMatch(/getDefaultStreamFn|setDefaultStreamFn/);
+  }
+});
+
+test("workspace_has_no_pi_agent_core_dependency", async () => {
+  const name = ["@earendil-works", "pi-agent-core"].join("/");
+  const roots = [
+    join(import.meta.dir, ".."),
+    join(import.meta.dir, "../../contracts"),
+    join(import.meta.dir, "../../core-models"),
+    join(import.meta.dir, "../../core-tools"),
+  ];
+  const checked = await Promise.all(
+    roots.map(async (root) => ({
+      root,
+      manifest: await Bun.file(join(root, "package.json")).text(),
+      sources: await sourcesOf(root, "{src,test}/**/*.ts"),
+    })),
+  );
+  for (const { root, manifest, sources } of checked) {
+    expect(manifest, root).not.toContain(name);
+    for (const { file, text } of sources) expect(text, `${root}/${file}`).not.toContain(name);
+  }
 });
 
 test("core_loop_imports_no_other_core_package_and_no_cordis", async () => {

@@ -19,15 +19,8 @@ import {
   TextContentSchema,
   UsageSchema,
 } from "./message-schema.ts";
-import type {
-  AgentTool,
-  AgentToolResult,
-  ImageContent,
-  JsonObject,
-  JsonValue,
-  TextContent,
-  Usage,
-} from "./pi.ts";
+import type { AgentTool, AgentToolResult } from "./agent.ts";
+import type { ImageContent, JsonObject, JsonValue, TextContent, Usage } from "./pi.ts";
 
 export const ResultStatusSchema: TUnion<[TLiteral<"complete">, TLiteral<"input_required">]> =
   Type.Union([Type.Literal("complete"), Type.Literal("input_required")]);
@@ -100,7 +93,7 @@ export const ReplayPolicySchema: TUnion<[TLiteral<"safe">, TLiteral<"unsafe">]> 
 ]);
 export type ReplayPolicy = Static<typeof ReplayPolicySchema>;
 
-/** agent-core AgentTool.replay("never" | "safe" | undefined) → ReplayPolicy. "safe"만 "safe", 나머지는 "unsafe". 순수 함수. */
+/** AgentTool.replay("never" | "safe" | undefined) → ReplayPolicy. "safe"만 "safe", 나머지는 "unsafe". 순수 함수. */
 export function toReplayPolicy(replay: AgentTool["replay"]): ReplayPolicy {
   return replay === "safe" ? "safe" : "unsafe";
 }

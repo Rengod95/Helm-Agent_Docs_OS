@@ -184,7 +184,8 @@ export function resultRequest(kit: EffectKit, input: ResultInput): CommitRequest
 export interface ItemInput {
   readonly run: ToolRunContext;
   readonly itemId: ItemId;
-  readonly effectId: EffectId;
+  /** 효과 기록과 함께 쓰면 그 효과, 효과 없이 닫는 호출이면 null */
+  readonly effectId: EffectId | null;
   readonly message: ToolResultMessage;
 }
 
@@ -199,6 +200,29 @@ export function itemDraftOf(input: ItemInput): StampedDraft | undefined {
     effectId: input.effectId,
   });
   return isStampedDraft(made) ? made : undefined;
+}
+
+export interface ItemOnlyInput {
+  readonly run: ToolRunContext;
+  readonly key: string;
+  readonly toolCallId: string;
+  readonly item: StampedDraft;
+  /** 같은 커밋에 넣을 secret.masked 초안 */
+  readonly extra: readonly StampedDraft[];
+}
+
+/**
+ * 효과 없이 닫는 호출(미발견, 인자 오류, 거부, 실행 전 중단, 출력 절단)의 toolResult item을 한 커밋으로 쓴다.
+ * 커밋 키는 효과 결과와 같은 `tool:<key>:result`다. 한 호출은 둘 중 하나만 쓴다.
+ */
+export function itemOnlyRequest(input: ItemOnlyInput): CommitRequest {
+  const { run } = input;
+  return {
+    threadId: run.threadId,
+    requestId: `tool:${input.key}:result`,
+    fingerprintSource: { kind: "tool_result_item", toolCallId: input.toolCallId },
+    build: () => ({ kind: "append", drafts: [input.item, ...input.extra], checkpoint: null }),
+  };
 }
 
 /** 이벤트 하나(256 KiB 상한, ENVELOPE_MAX_BYTES)에 싣는 구조화 필드의 상한. 넘으면 크기만 남긴다 */

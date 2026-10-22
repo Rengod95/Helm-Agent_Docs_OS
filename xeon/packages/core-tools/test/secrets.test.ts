@@ -62,7 +62,7 @@ test("tool_result_masked_before_commit_and_points: the value reaches no event, b
   expect(commit?.kinds).toEqual(["effect.result", "item.recorded", "secret.masked"]);
 });
 
-test("progress updates are masked before they reach the caller, and observe masks the tap payloads", async () => {
+test("progress updates are masked before they reach the caller and the tap payloads", async () => {
   const h = await createHarness({ secrets: { API: SECRET } });
   const delivered: string[] = [];
   const tapped: string[] = [];
@@ -78,7 +78,7 @@ test("progress updates are masked before they reach the caller, and observe mask
     kind: "direct",
     orderKey: "ext.test",
     tool: directTool("progress", (_id, _params, _signal, onUpdate) => {
-      onUpdate?.({
+      onUpdate({
         content: [{ type: "text", text: `partial ${SECRET}` }],
         details: { raw: SECRET },
       });
@@ -87,40 +87,13 @@ test("progress updates are masked before they reach the caller, and observe mask
     policy: { risk: "read" },
   });
   const run = h.run();
-  await callTool(
-    h.runtime.tools,
-    run,
-    { id: "call_2", name: "progress", args: {} },
-    undefined,
-    (partial) => {
-      delivered.push(JSON.stringify(partial));
-    },
-  );
+  await callTool(h.runtime.tools, run, { id: "call_2", name: "progress", args: {} }, (partial) => {
+    delivered.push(JSON.stringify(partial));
+  });
   expect(delivered).toHaveLength(1);
   expect(delivered[0]).not.toContain(SECRET);
   expect(delivered[0]).toContain("[REDACTED:API]");
 
-  await h.runtime.tools.observe(
-    {
-      type: "tool_execution_update",
-      toolCallId: "call_2",
-      toolName: "progress",
-      args: { auth: SECRET },
-      partialResult: { content: [{ type: "text", text: SECRET }] },
-    },
-    run,
-  );
-  await h.runtime.tools.observe(
-    {
-      type: "tool_execution_end",
-      toolCallId: "call_2",
-      toolName: "progress",
-      result: { text: SECRET },
-      isError: false,
-      durationMs: 4,
-    },
-    run,
-  );
   expect(tapped).toHaveLength(2);
   for (const payload of tapped) expect(payload).not.toContain(SECRET);
   expect(tapped[0]).toContain("[REDACTED:API]");

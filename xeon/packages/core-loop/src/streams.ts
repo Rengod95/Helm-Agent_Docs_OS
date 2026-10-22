@@ -2,7 +2,6 @@ import type {
   AssistantMessage,
   AssistantMessageEvent,
   AssistantMessageEventStream,
-  JsonValue,
 } from "@xeon/contracts/conversation";
 
 /** 슬롯 대기 중 취소된 모델 요청에 돌려주는 스트림: 종결 이벤트 하나로 `aborted`를 낸다 */
@@ -38,30 +37,4 @@ export function abortedStream(
     },
     result: () => Promise.resolve(message),
   };
-}
-
-/** JSON 값인지 얕게 확인한다. 도구 결과의 `details`(pi는 any)를 기록 모양으로 옮길 때 쓴다 */
-function isJsonValue(value: unknown): value is JsonValue {
-  if (value === null) return true;
-  switch (typeof value) {
-    case "string":
-    case "boolean":
-      return true;
-    case "number":
-      return Number.isFinite(value);
-    case "object":
-      if (Array.isArray(value)) return value.every(isJsonValue);
-      return Object.values(value).every(isJsonValue);
-    case "bigint":
-    case "function":
-    case "symbol":
-    case "undefined":
-      return false;
-    default:
-      return false;
-  }
-}
-
-export function jsonOrUndefined(value: unknown): JsonValue | undefined {
-  return isJsonValue(value) ? value : undefined;
 }

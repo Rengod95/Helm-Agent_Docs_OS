@@ -11,7 +11,6 @@ import type {
   StepId,
   TextContent,
   ThreadId,
-  ToolResultMessage,
   TurnCompletedPayload,
   TurnId,
   XeonCustomMessage,
@@ -46,8 +45,6 @@ export const commitKeys: {
   readonly stepEnd: (turnId: TurnId, stepIndex: number) => string;
   readonly turnEnd: (turnId: TurnId) => string;
   readonly abort: (turnId: TurnId) => string;
-  readonly toolResult: (toolCallId: string) => string;
-  readonly strayItem: (turnId: TurnId, stepIndex: number, n: number) => string;
 } = {
   turnStart: (turnId) => `turn:${turnId}:start`,
   turnPrestart: (turnId) => `turn:${turnId}:prestart`,
@@ -56,8 +53,6 @@ export const commitKeys: {
   stepEnd: (turnId, stepIndex) => `step:${turnId}:${stepIndex}:end`,
   turnEnd: (turnId) => `turn:${turnId}:end`,
   abort: (turnId) => `abort:${turnId}`,
-  toolResult: (toolCallId) => `tool:${toolCallId}:result`,
-  strayItem: (turnId, stepIndex, n) => `item:${turnId}:${stepIndex}:${n}`,
 };
 
 function append(
@@ -151,7 +146,7 @@ export function stepStartRequest(drafter: Drafter, step: StepRef): CommitRequest
 
 // ── T3 응답 확정 ─────────────────────────────────────────────────────────
 
-/** 단계 안에서 pi가 만든 system·custom item, 조립이 낸 system item. 어시스턴트 item과 같은 커밋에 기록한다 */
+/** 조립이 낸 system item과 custom item. 어시스턴트 item과 같은 커밋에 기록한다 */
 export type PreludeItem = Extract<ItemRecord, { readonly kind: "system" | "custom" }>;
 
 export interface ResponseCommit {
@@ -183,56 +178,6 @@ export function responseRequest(drafter: Drafter, response: ResponseCommit): Com
       drafts.push(drafter.make("item.recorded", { item: response.assistant }, step));
       return append(drafts, null);
     },
-  };
-}
-
-/** 기록되지 않은 system·custom·user 메시지 하나를 따로 기록한다(드문 경로) */
-export function strayItemRequest(
-  drafter: Drafter,
-  step: StepRef,
-  n: number,
-  item: ItemRecord,
-): CommitRequest {
-  return {
-    threadId: step.threadId,
-    requestId: commitKeys.strayItem(step.turnId, step.stepIndex, n),
-    fingerprintSource: {
-      kind: "stray_item",
-      threadId: step.threadId,
-      turnId: step.turnId,
-      stepIndex: step.stepIndex,
-      n,
-    },
-    build: () => append([drafter.make("item.recorded", { item }, step)], null),
-  };
-}
-
-/** 효과 이벤트 없이 끝난 도구 호출(차단·미발견·검증 실패)의 결과 item을 기록한다(L1.tools.spec §4.2) */
-export function toolResultItemRequest(
-  drafter: Drafter,
-  step: StepRef,
-  itemId: ItemId,
-  message: ToolResultMessage,
-): CommitRequest {
-  return {
-    threadId: step.threadId,
-    requestId: commitKeys.toolResult(message.toolCallId),
-    fingerprintSource: {
-      kind: "tool_result_item",
-      threadId: step.threadId,
-      toolCallId: message.toolCallId,
-    },
-    build: () =>
-      append(
-        [
-          drafter.make(
-            "item.recorded",
-            { item: { itemId, status: "completed", kind: "toolResult", message, effectId: null } },
-            step,
-          ),
-        ],
-        null,
-      ),
   };
 }
 

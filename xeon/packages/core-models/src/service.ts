@@ -38,7 +38,7 @@ import { DEFAULT_RETRY_SETTINGS, type ProviderSetting, type RetrySettings } from
 import { createTokenEstimator } from "./tokens.ts";
 import { createUsageMeter } from "./usage.ts";
 
-// L1.models.spec §3.3, plan M-1. pi-ai Models 위의 ModelService 구현이다. pi-agent-core와 Cordis는 import하지 않는다.
+// L1.models.spec §3.3, plan M-1. pi-ai Models 위의 ModelService 구현이다. Cordis는 import하지 않는다.
 
 /** 서비스가 읽는 설정 값 중 M1 키 셋. 값은 설정 서비스가 스키마로 검증해 넘긴다 */
 export interface ModelsSettings {

@@ -34,7 +34,7 @@ binds: [xeon/packages/core-tools/**]
 
 ```
 xeon/packages/core-tools/
-  package.json                 # dependencies: @xeon/contracts, @xeon/ext-host(플러그인 등록 API), typebox. @earendil-works/pi-agent-core는 넣지 않는다(DR-07, 타입은 F 재노출)
+  package.json                 # dependencies: @xeon/contracts, @xeon/ext-host(플러그인 등록 API), typebox. @earendil-works/pi-agent-core는 넣지 않는다(adr.0009, 타입은 F `conversation/agent.ts`)
   src/
     index.ts                   # plugin만 export. 다른 L1은 이 패키지를 import하지 않는다
     plugin.ts                  # ext-host 플러그인 정의: xeon.tools, xeon.approvals 제공, 설정 등록 (TL-8)
@@ -67,7 +67,7 @@ xeon/packages/core-tools/
 
 - `bound.ts`, `effects.ts`, `tasks.ts`, `secrets.ts`, `builtin/`, `testing/`은 이 계획이 나눈 파일이다 [제안]. durable `truncate.ts` 포크는 core-tools에 두지 않는다. 포크는 L0 `platform-exec`에 있고 `bound.ts`가 F 서비스 `xeon.exec`로 부른다 [결정: review.decisions-2 D-08].
 - Cordis는 import하지 않는다. 서비스 등록은 ext-host가 주는 플러그인 API로 한다(`eng.dependency-rules.guide` DR-11, `L1.readme` §4.2, X.primitives.spec) [가정: API 이름은 X.primitives.spec이 정한다].
-- `@earendil-works/pi-agent-core`는 import하지 않는다. `AgentTool`, `AgentEvent`, `AgentLoopConfig`, `AgentToolCall`은 `@xeon/contracts/conversation` 재노출 타입으로 쓴다(L1.tools.spec §3 머리말, §8.3 F 요청 7). agent-core `runToolCall` 호출은 core-loop가 한다.
+- `@earendil-works/pi-agent-core`는 import하지 않는다. `AgentTool`, `AgentToolCall`, `AgentToolResult`는 `@xeon/contracts/conversation`의 F 정의를 쓴다(L1.tools.spec §3 머리말). 도구 한 호출의 `prepare`·`execute`·`settleRejected`는 core-tools가, 배치 스케줄은 core-loop가 한다(adr.0009).
 - 공용 타입(`ToolService`, `PolicyRule` 등)은 contracts에 둔다(L1.tools.spec §8.3 F 요청 6). core-tools는 그 타입을 구현한다.
 
 ## 3. 작업 분해
@@ -200,7 +200,7 @@ xeon/packages/core-tools/
 | `afterToolCall` 래퍼 예외가 결과를 오류로 덮음(agent-loop.ts:897-900) | 래퍼 전체를 try로 감싸고 내부 오류는 `details.xeonError`로 남긴 채 원래 결과를 돌려준다. 테스트 `tool_result_handler_throw_skipped` |
 | 질문 도구가 실행 중 대기하므로 재개 때 `unsafe`면 결과 불명으로 닫힘 | 질문·계획 도구에 `replay: "safe"` 선언을 L2에 요청한다(L1.tools.spec §8.4). 선언이 없으면 등록 때 경고 진단 |
 | 범위별 규칙 수집이 F 설정 규칙(키 단위 교체)과 어긋남 | F 요청 5가 닫히기 전에는 core-tools가 범위 층을 직접 읽는다. 거절되면 범위별 키로 나눈다(L1.tools.spec §10) |
-| F 재노출 타입(`AgentLoopConfig`, `AgentToolCall`, F 요청 7) 반영이 늦음 | TL-0 확인 항목으로 둔다. 반영 전에 core-tools에 `@earendil-works/pi-agent-core` 의존을 임시로 넣지 않는다 |
+| F 에이전트 타입(`agent.ts`) 반영이 늦음 | 반영됐다(adr.0009 이행 LP16). core-tools에 `@earendil-works/pi-agent-core` 의존을 넣지 않는다 |
 | 절단 함수가 `platform-exec`로 옮겨지는 adr.0003·L0.exec 수정이 늦음 | TL-6은 `xeon.exec` 절단 메서드의 F 시그니처만 전제하고 테스트는 대역으로 한다. core-tools에 임시 사본을 두지 않는다(review.decisions-2 D-08) |
 
 인자 재작성 포크 비용 추정 [가정: 측정하지 않은 추정]:

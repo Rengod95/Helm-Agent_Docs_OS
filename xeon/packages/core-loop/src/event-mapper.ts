@@ -427,7 +427,7 @@ export function createAgentEventMapper(
         ];
       }
       case "message_update":
-        return event.message.role === "assistant" ? mapAssistantUpdate(event) : [];
+        return mapAssistantUpdate(event);
       case "message_end": {
         const message = event.message;
         if (message.role === "assistant") {
@@ -481,8 +481,7 @@ export function createAgentEventMapper(
         ];
       }
       case "turn_end": {
-        const message = event.message;
-        const stopReason: StopReason = message.role === "assistant" ? message.stopReason : "stop";
+        const stopReason: StopReason = event.message.stopReason;
         for (const result of event.toolResults) {
           const known = toolResultItems.get(result.toolCallId);
           if (known !== undefined && !stepToolResultItems.includes(known)) {

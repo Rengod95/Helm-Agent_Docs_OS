@@ -1,4 +1,4 @@
-import type { Logger, LogFields } from "@xeon/contracts";
+import { Bug, type Logger, type LogFields } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import { InputQueuePortKey, LoopPortKey, RecordCommitPortKey } from "@xeon/contracts/extensions";
 import { EVENT_CATALOG, type CatalogEntry } from "@xeon/contracts/records";
@@ -53,6 +53,8 @@ export interface HarnessOptions {
   readonly modelCallsCapacity?: number;
   readonly maxResumeAttempts?: number;
   readonly cancelledByOwner?: () => boolean;
+  /** 루프 서비스를 만들지 않는다. 단계 함수를 직접 부르는 시험(loop-rig)이 `core.loop` 생산자를 쓰려고 한다 */
+  readonly withoutLoop?: boolean;
 }
 
 export interface Harness {
@@ -90,6 +92,26 @@ function resolved(): Promise<void> {
   return Promise.resolve();
 }
 
+function unavailable(name: string): never {
+  throw new Bug(`harness: the loop service is disabled (withoutLoop): ${name}`);
+}
+
+function disabledLoop(): LoopServiceHandle {
+  return {
+    status: () => unavailable("status"),
+    runTurn: () => unavailable("runTurn"),
+    spawn: () => unavailable("spawn"),
+    whenIdle: (_threadId, fn) => fn(),
+    admit: () => unavailable("admit"),
+    runChildTurn: () => unavailable("runChildTurn"),
+    interrupt: () => unavailable("interrupt"),
+    resume: () => unavailable("resume"),
+    stopAtSafeBoundary: () => unavailable("stopAtSafeBoundary"),
+    threadStatus: () => unavailable("threadStatus"),
+    dispose: () => {},
+  };
+}
+
 async function build(
   fake: FakeSession,
   clock: ManualClock,
@@ -116,23 +138,26 @@ async function build(
   const models = createFakeModels({ clock, script: options.script ?? [] });
   const context = createFakeContext({ session: fake.session, clock });
   const logs = capturedLogger();
-  const loop = createLoopService({
-    clock,
-    scheduler: clock,
-    ids,
-    logger: logs.logger,
-    session: fake.session,
-    tasks: tasks.service,
-    tools: tools.service,
-    context: context.service,
-    models: models.service,
-    ext: host.host,
-    settings: { maxSteps: () => options.maxSteps ?? 0 },
-    basePrompt: "You are a test assistant.",
-    hostMode: "in-process",
-    kindLookup: options.kindLookup ?? testKindLookup,
-    cancelledByOwner: options.cancelledByOwner ?? (() => false),
-  });
+  const loop =
+    options.withoutLoop === true
+      ? disabledLoop()
+      : createLoopService({
+          clock,
+          scheduler: clock,
+          ids,
+          logger: logs.logger,
+          session: fake.session,
+          tasks: tasks.service,
+          tools: tools.service,
+          context: context.service,
+          models: models.service,
+          ext: host.host,
+          settings: { maxSteps: () => options.maxSteps ?? 0 },
+          basePrompt: "You are a test assistant.",
+          hostMode: "in-process",
+          kindLookup: options.kindLookup ?? testKindLookup,
+          cancelledByOwner: options.cancelledByOwner ?? (() => false),
+        });
   await host.host.registerPlatform({
     name: "loop-test-ports",
     setup(ctx) {

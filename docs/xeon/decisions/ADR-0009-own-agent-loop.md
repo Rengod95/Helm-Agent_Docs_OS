@@ -137,8 +137,8 @@ export interface ToolStepPort {
 
 | pi-ai 함수 | 감싸는 곳 |
 |---|---|
-| `normalizeContext` | core-models `streamFn` 안. 루프는 `AgentMessage[]`와 도구 목록을 넘기고, 변환(`convertToLlm`, L1.context)과 정규화는 그 뒤에 한다 |
-| `getCurrentTools`, `getToolStateChanges`, `toToolDeclaration` | `ModelService` 메서드 하나(예: `declareTools(committed, tools)`). 바뀐 것이 없으면 `null`, 있으면 기록할 `SystemMessage` |
+| `normalizeContext` | 구현에서 F `StreamFn`의 컨텍스트 인자를 `Context`(`messages`만)로 바꿨다. `TranscriptContext`는 `normalizeContext`만 만들 수 있어 루프가 만들 수 없다. 정규화는 `Models.streamSimple` 안에서 pi-ai가 한다(이행 때 확인). 루프는 변환(`convertToLlm`, L1.context)만 한다 |
+| `getCurrentTools`, `getToolStateChanges`, `toToolDeclaration` | 감싸지 않았다. L1.context가 고정 접두의 `toolsAdded`로 선언하고 `pendingItems`로 돌려주므로 `declareTools`는 필요 없었다(이행 때 확인) |
 | `validateToolArguments` | 필요할 때 `ModelService` 메서드로 감싸 `Result`로 돌려준다(§3.4) |
 | `EventStream` | 쓰지 않는다. 루프는 싱크 함수만 쓴다 |
 
@@ -190,3 +190,20 @@ export interface ToolStepPort {
 - [미결] X 가상 모듈 `@earendil-works/pi-agent-core`(pi 확장 호환용)를 계속 제공할지, 제공하면 F 타입으로 별칭을 둘지(`X.loading-trust.spec` §4 가상 모듈 표). 그 문서 §10에 같은 미결을 더한다.
 - [미결] 도구 선언 차이 system item을 C3에 둘지 S1에 둘지. 이 ADR은 지금 위치(C3)를 유지한다. S1로 옮기면 요청 전에 기록되어 재개 때 요청 컨텍스트 재구성이 단순해진다.
 - [가정] core-tools가 typebox만으로 pi-ai `validateToolArguments`와 같은 결과를 낼 수 있다. 다르면 §3.5 표의 감싸기 메서드를 쓴다. 이행 작업 LP18의 첫 테스트로 확인한다.
+
+## 7. 이행 기록
+
+이행(`L1.loop.plan` LP16~LP21)은 2026-10-23에 끝났다. 설계와 달라진 점을 적는다. 결정은 바뀌지 않았다.
+
+- 도구 단계 계약(§3.4): `ToolService`의 `prepare`·`execute`·`settleRejected`와 함께 `rerun`도 `ToolCallOutcome`을 돌려준다. `ToolCallOutcome`은 `toolCall`, `state`(`executed`·`rejected`·`not_executed`·`truncated`), `result`, `isError`, `durationMs`, 기록한 `message`와 `itemId`(결과 기록 커밋이 실패하면 `null`)를 가진다. 거부·중단·절단 호출의 toolResult item도 core-tools가 기록한다(`effectId: null`). 루프는 toolResult item을 직접 커밋하지 않는다. `ToolService.settledItem`은 없앴다.
+- `afterToolCall` 병합 규칙(§3.4 둘째 항목)은 옮길 대상이 없다. core-tools가 결과를 직접 만들므로 "덮어쓰기 객체"가 없고, `structuredContent` 처리는 `execute`의 마감이 한다.
+- tool tap 3종(`tool_execution_*`)은 core-tools가 `prepare`·`execute`·`settleRejected` 안에서 발화한다. 이전의 `ToolService.observe`는 없다.
+- 인자 검증(§3.4 첫째 항목): core-tools `validate.ts`가 pi-ai `validateToolArguments`의 TypeBox 경로를 옮겼다. 사례 시험(`validate.test.ts`)으로 같은 결과를 고정했다. §6 [가정]은 TypeBox 스키마에 대해 성립했다. TypeBox 표지가 없는 순수 JSON Schema(MCP 도구)의 coerce 경로는 옮기지 않았고 M2 cap-mcp에서 `ModelService`의 감싸기 메서드(§3.5)로 더한다.
+- `ToolMeta.executionMode`를 더했다. 루프가 배치를 순차·병렬로 정할 때 쓴다.
+- F `StreamFn`의 컨텍스트 인자를 `TranscriptContext`에서 `Context`로 바꿨다(§3.5 표). `declareTools`는 만들지 않았다(L1.context가 접두의 `toolsAdded`로 선언한다).
+- 단계 반복은 `StepNext.kind === "request"`인 동안 꼬리 호출(`requestLoop`)로 이어진다. `no-await-in-loop` 예외를 두지 않기 위해서다.
+- `StepNext`는 `request`·`settle`·`stop` 셋이다. 승인 대기(`await_input`)는 도구 단계의 대기 체크포인트가 맡고, 한도 도달(`step_limit`·`external`)은 `settle`과 turn 상태(`endReason`)로 T6 status에 반영한다.
+- `AgentTool.prepareArguments`는 F 타입에서 뺐다(인자 준비는 `prepare`가 한다).
+- 포크 기록: `core-loop/UPSTREAM.json`, `LICENSE.pi`, `PATCHES.md`, `test/fork-records.test.ts`(패치 id 세 곳 일치와 출처 주석 검사). 패치 id는 슬러그다(`entry-points`, `no-outer-loop`, `step-functions`, `no-context-array`, `no-api-key`, `model-slot`, `batch-cancel`, `batch-length`, `batch-record`).
+- `check-layers.ts`에는 `MODULE_OWNERS` 표가 없다(DR-07의 표는 문서뿐이다). 층 검사는 각 `package.json`의 의존 선언과 import 일치로 한다. 이행 뒤 어느 `package.json`에도 pi-agent-core가 없고 `bun.lock`에서 사라졌다.
+- 타입 시험 파일 이름은 기존 관례를 따라 `agent-types.test.ts`, `no-pi-agent-core.test.ts`다(`F.conversation.plan`은 `.type-test.ts`로 적었다).

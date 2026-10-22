@@ -84,7 +84,7 @@ P6 해시 선택 [제안]:
 |---|---|---|
 | `typebox` | 1.3.27 (워크스페이스 catalog, `_research/foundation-plan.md` §2) | 그대로. `Type`, `Static`, `TSchema`, `TUnsafe`, `typebox/value`의 `Value.Check`(테스트) |
 | `@earendil-works/pi-ai` | 1.3.0 정확 고정 | 그대로. `Tool`, `ToolReference`, `SystemMessage` 타입만 `import type` |
-| `@earendil-works/pi-agent-core` | 1.3.0 정확 고정 | 그대로. `AgentTool`, `ToolExecutionMode` 타입만 `import type`(호환 타입 테스트) |
+| `@earendil-works/pi-agent-core` | 의존하지 않음(adr.0009) | `AgentTool`, `ToolExecutionMode`는 F `conversation/agent.ts` 정의를 쓴다 |
 | Cordis | — | F에서 import하지 않는다 |
 
 - 포크 없음.

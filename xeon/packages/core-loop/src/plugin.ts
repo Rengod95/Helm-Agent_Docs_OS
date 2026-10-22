@@ -39,7 +39,7 @@ export const LOOP_MANIFEST: ExtensionManifest = defineManifest({
   version: "0.1.0",
   displayName: "Agent loop",
   description:
-    "L1 agent loop: wraps pi-agent-core, commits step boundaries, fires extension points.",
+    "L1 agent loop: runs the own agent loop (adr.0009), commits step boundaries, fires extension points.",
   defaultEnabled: true,
   layer: "L1",
   kind: "plugin",

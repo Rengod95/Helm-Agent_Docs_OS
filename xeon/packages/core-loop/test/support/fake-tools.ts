@@ -1,16 +1,18 @@
 import { Bug, canonicalJson, type Clock } from "@xeon/contracts";
 import type {
-  AgentEvent,
-  AgentTool,
+  AgentToolCall,
+  AgentToolResult,
   EffectId,
   IdFactory,
-  ItemId,
-  JsonValue,
   ToolResultMessage,
 } from "@xeon/contracts/conversation";
 import type { EffectIntent, SessionService } from "@xeon/contracts/records";
 import type {
   AdvertisedToolset,
+  CallPreparation,
+  RejectReason,
+  ToolCallOutcome,
+  ToolCallState,
   ToolMeta,
   ToolRunContext,
   ToolService,
@@ -18,7 +20,7 @@ import type {
 import { Type } from "typebox";
 
 // 테스트 대역: core-tools의 파이프라인 중 루프와 맞닿는 부분만 흉내 낸다.
-// beforeToolCall → effect.intent, execute → effect.exec, afterToolCall → effect.result + toolResult item(한 커밋).
+// prepare → effect.intent, execute → effect.exec + effect.result + toolResult item(한 커밋), 효과 없이 닫는 호출 → toolResult item 하나.
 
 export interface FakeToolDef {
   readonly name: string;
@@ -30,16 +32,16 @@ export interface FakeToolDef {
   readonly replay?: "safe" | "never";
   /** "sequential"이면 한 배치가 순서대로 준비·실행된다 */
   readonly executionMode?: "sequential" | "parallel";
-  /** 있으면 beforeToolCall이 이 사유로 막는다(의도 커밋 없음) */
+  /** 있으면 prepare가 이 사유로 막는다(의도 커밋 없음, 결과 item만 기록) */
   readonly blockReason?: string;
 }
 
 export interface FakeTools {
   readonly service: ToolService;
-  /** `hooks(run)`와 `toAgentTools(…, run)`이 받은 실행 맥락 */
+  /** `prepare`가 받은 실행 맥락 */
   readonly runs: readonly ToolRunContext[];
   readonly executed: readonly string[];
-  readonly observed: readonly AgentEvent[];
+  /** `settleRejected`가 닫은 호출 id */
   readonly closed: readonly string[];
   readonly reran: readonly string[];
   /** 한 호출이 실행되면 불린다(시작 직후, 결과 커밋 전). 크래시 시험에서 쓴다 */
@@ -48,6 +50,22 @@ export interface FakeTools {
 
 function notImplemented(name: string): never {
   throw new Bug(`fake-tools: ${name} is not implemented`);
+}
+
+function outcomeOf(
+  call: AgentToolCall,
+  state: ToolCallState,
+  message: ToolResultMessage,
+  itemId: ToolCallOutcome["itemId"],
+  terminate: boolean,
+): ToolCallOutcome {
+  const result: AgentToolResult = {
+    content: [...message.content],
+    details: {},
+    isError: message.isError,
+    ...(terminate ? { terminate: true } : {}),
+  };
+  return { toolCall: call, state, result, isError: message.isError, message, itemId };
 }
 
 export function createFakeTools(options: {
@@ -60,11 +78,9 @@ export function createFakeTools(options: {
   const producer = session.producer("core.tools");
   const defs = new Map(options.tools.map((def) => [def.name, def]));
   const executed: string[] = [];
-  const observed: AgentEvent[] = [];
   const closed: string[] = [];
   const reran: string[] = [];
   const runs: ToolRunContext[] = [];
-  const settled = new Map<string, ItemId>();
   const intents = new Map<string, EffectId>();
   const hooks: { onExecute: ((toolCallId: string) => void) | null } = { onExecute: null };
 
@@ -97,17 +113,13 @@ export function createFakeTools(options: {
     if (!result.ok) throw new Bug(`fake-tools: commit failed ${result.error.kind}`);
   }
 
-  function resultCommit(
-    run: ToolRunContext,
+  function textMessage(
     toolCallId: string,
     toolName: string,
     text: string,
     isError: boolean,
-    synthesized: boolean,
   ): ToolResultMessage {
-    const itemId = ids.next("itm");
-    const effectId = intents.get(toolCallId) ?? ids.next("efx");
-    const message: ToolResultMessage = {
+    return {
       role: "toolResult",
       toolCallId,
       toolName,
@@ -115,15 +127,46 @@ export function createFakeTools(options: {
       isError,
       timestamp: clock.now(),
     };
+  }
+
+  /** 효과 없이 닫는 호출: toolResult item 하나만 기록한다 */
+  function itemOnly(
+    run: ToolRunContext,
+    call: AgentToolCall,
+    state: ToolCallState,
+    text: string,
+    terminate: boolean = false,
+  ): ToolCallOutcome {
+    const itemId = ids.next("itm");
+    const message = textMessage(call.id, call.name, text, true);
+    const item = run.drafts.toolResultItem({ itemId, message, effectId: null });
+    commitDrafts(run, `tool:${call.id}:result`, [
+      { kind: "item.recorded", payload: item.draft.payload },
+    ]);
+    return outcomeOf(call, state, message, itemId, terminate);
+  }
+
+  function resultCommit(
+    run: ToolRunContext,
+    call: AgentToolCall,
+    state: ToolCallState,
+    text: string,
+    isError: boolean,
+    synthesized: boolean,
+    terminate: boolean = false,
+  ): ToolCallOutcome {
+    const itemId = ids.next("itm");
+    const effectId = intents.get(call.id) ?? ids.next("efx");
+    const message = textMessage(call.id, call.name, text, isError);
     const item = run.drafts.toolResultItem({ itemId, message, effectId });
-    commitDrafts(run, `tool:${toolCallId}:result`, [
+    commitDrafts(run, `tool:${call.id}:result`, [
       {
         kind: "effect.result",
         payload: {
           effectId,
           status: isError ? "error" : "ok",
           resultItemId: itemId,
-          output: { structuredContent: null, terminate: false },
+          output: { structuredContent: null, terminate },
           blobRef: null,
           durationMs: 0,
           synthesized,
@@ -131,38 +174,7 @@ export function createFakeTools(options: {
       },
       { kind: "item.recorded", payload: item.draft.payload },
     ]);
-    settled.set(toolCallId, itemId);
-    return message;
-  }
-
-  function agentToolOf(def: FakeToolDef, run: ToolRunContext): AgentTool {
-    return {
-      name: def.name,
-      label: def.name,
-      description: `fake tool ${def.name}`,
-      parameters: Type.Object({}),
-      ...(def.replay === undefined ? {} : { replay: def.replay }),
-      ...(def.executionMode === undefined ? {} : { executionMode: def.executionMode }),
-      async execute(toolCallId, params, signal) {
-        executed.push(toolCallId);
-        hooks.onExecute?.(toolCallId);
-        const effectId = intents.get(toolCallId);
-        if (effectId !== undefined) {
-          commitDrafts(run, `tool:${toolCallId}:exec`, [
-            { kind: "effect.exec", payload: { effectId, startedAt: clock.now() } },
-          ]);
-        }
-        const outcome: { readonly text: string; readonly terminate?: boolean } = await (def.run?.(
-          isRecord(params) ? params : {},
-          signal,
-        ) ?? Promise.resolve({ text: "ok" }));
-        return {
-          content: [{ type: "text", text: outcome.text }],
-          details: {},
-          ...(outcome.terminate === true ? { terminate: true } : {}),
-        };
-      },
-    };
+    return outcomeOf(call, state, message, itemId, terminate);
   }
 
   const toolsetOf = (): AdvertisedToolset => ({
@@ -180,6 +192,88 @@ export function createFakeTools(options: {
     fingerprint: "sha256:fake",
   });
 
+  function prepare(call: AgentToolCall, run: ToolRunContext): CallPreparation {
+    runs.push(run);
+    const def = defs.get(call.name);
+    if (def === undefined) {
+      return {
+        kind: "settled",
+        outcome: itemOnly(run, call, "rejected", `Tool ${call.name} is not available.`),
+      };
+    }
+    if (def.blockReason !== undefined) {
+      return { kind: "settled", outcome: itemOnly(run, call, "rejected", def.blockReason) };
+    }
+    const effectId = ids.next("efx");
+    intents.set(call.id, effectId);
+    const args = call.arguments;
+    const intent: EffectIntent = {
+      effectId,
+      toolCallId: call.id,
+      toolName: call.name,
+      itemId: ids.next("itm"),
+      argsHash: "0".repeat(64),
+      args,
+      replay: def.replay === "safe" ? "safe" : "unsafe",
+      idempotencyKey: null,
+    };
+    commitDrafts(run, `tool:${call.id}:intent`, [
+      {
+        kind: "effect.intent",
+        payload: {
+          ...intent,
+          argsHash: canonicalJson(args).length.toString(16).padStart(64, "0"),
+        },
+      },
+    ]);
+    return { kind: "ready", call: { toolCall: call, args } };
+  }
+
+  async function execute(
+    call: AgentToolCall,
+    args: Readonly<Record<string, unknown>>,
+    run: ToolRunContext,
+  ): Promise<ToolCallOutcome> {
+    const def = defs.get(call.name);
+    executed.push(call.id);
+    hooks.onExecute?.(call.id);
+    const effectId = intents.get(call.id);
+    if (effectId !== undefined) {
+      commitDrafts(run, `tool:${call.id}:exec`, [
+        { kind: "effect.exec", payload: { effectId, startedAt: clock.now() } },
+      ]);
+    }
+    const outcome: { readonly text: string; readonly terminate?: boolean } = await (def?.run?.(
+      args,
+      run.signal,
+    ) ?? Promise.resolve({ text: "ok" }));
+    return resultCommit(
+      run,
+      call,
+      "executed",
+      outcome.text,
+      false,
+      false,
+      outcome.terminate === true,
+    );
+  }
+
+  function settleOne(
+    call: AgentToolCall,
+    reason: RejectReason,
+    run: ToolRunContext,
+  ): ToolCallOutcome {
+    closed.push(call.id);
+    const text =
+      reason === "truncated"
+        ? "The tool call was not executed: the response hit the output token limit."
+        : "The tool call was not executed.";
+    if (intents.has(call.id)) {
+      return resultCommit(run, call, reason, text, true, true);
+    }
+    return itemOnly(run, call, reason, text);
+  }
+
   const service: ToolService = {
     register: () => notImplemented("register"),
     meta(name): ToolMeta | undefined {
@@ -193,96 +287,28 @@ export function createFakeTools(options: {
         classes: [],
         hints: {},
         replay: def.replay === "safe" ? "safe" : "unsafe",
+        ...(def.executionMode === undefined ? {} : { executionMode: def.executionMode }),
         exposure: "always",
         outputLimits: "self",
       };
     },
     advertise: () => Promise.resolve(toolsetOf()),
-    toAgentTools: (_toolset, run) => [...defs.values()].map((def) => agentToolOf(def, run)),
-    hooks: (run) => {
-      runs.push(run);
-      return {
-        beforeToolCall: (callContext) => {
-          const def = defs.get(callContext.toolCall.name);
-          if (def?.blockReason !== undefined) {
-            return Promise.resolve({ block: true, reason: def.blockReason });
-          }
-          const effectId = ids.next("efx");
-          intents.set(callContext.toolCall.id, effectId);
-          const args = callContext.toolCall.arguments;
-          const intent: EffectIntent = {
-            effectId,
-            toolCallId: callContext.toolCall.id,
-            toolName: callContext.toolCall.name,
-            itemId: ids.next("itm"),
-            argsHash: "0".repeat(64),
-            args,
-            replay: def?.replay === "safe" ? "safe" : "unsafe",
-            idempotencyKey: null,
-          };
-          commitDrafts(run, `tool:${callContext.toolCall.id}:intent`, [
-            {
-              kind: "effect.intent",
-              payload: {
-                ...intent,
-                argsHash: canonicalJson(args).length.toString(16).padStart(64, "0"),
-              },
-            },
-          ]);
-          return Promise.resolve(undefined);
-        },
-        afterToolCall: (callContext) => {
-          const text = callContext.result.content
-            .map((block) => (block.type === "text" ? block.text : ""))
-            .join("");
-          resultCommit(
-            run,
-            callContext.toolCall.id,
-            callContext.toolCall.name,
-            text,
-            callContext.isError,
-            false,
-          );
-          return Promise.resolve(undefined);
-        },
-      };
-    },
-    observe: (event) => {
-      observed.push(event);
-      return Promise.resolve();
-    },
-    settledItem: (toolCallId) => settled.get(toolCallId),
-    rerun(
-      intent,
-      run,
-    ): Promise<{
-      content: { type: "text"; text: string }[];
-      details: JsonValue;
-      structuredContent: JsonValue;
-      isError: boolean;
-      terminate: boolean;
-      usage: null;
-    }> {
+    prepare: (call, _assistant, run) => Promise.resolve(prepare(call, run)),
+    execute: (prepared, _onUpdate, run) => execute(prepared.toolCall, prepared.args, run),
+    settleRejected: (calls, reason, run) =>
+      Promise.resolve(calls.map((call) => settleOne(call, reason, run))),
+    rerun(intent, run): Promise<ToolCallOutcome> {
       reran.push(intent.toolCallId);
       intents.set(intent.toolCallId, intent.effectId);
-      resultCommit(run, intent.toolCallId, intent.toolName, "rerun ok", false, false);
-      return Promise.resolve({
-        content: [{ type: "text", text: "rerun ok" }],
-        details: null,
-        structuredContent: null,
-        isError: false,
-        terminate: false,
-        usage: null,
-      });
+      const call: AgentToolCall = {
+        type: "toolCall",
+        id: intent.toolCallId,
+        name: intent.toolName,
+        arguments: {},
+      };
+      return Promise.resolve(resultCommit(run, call, "executed", "rerun ok", false, false));
     },
     registerRules: () => notImplemented("registerRules"),
-    closeUnexecuted: (run, toolCallIds) => {
-      for (const id of toolCallIds) {
-        closed.push(id);
-        resultCommit(run, id, "unknown", "The tool call was not executed.", true, true);
-      }
-      return Promise.resolve();
-    },
     runUserShell: () => notImplemented("runUserShell"),
     mode: () => "default",
     setMode: () => notImplemented("setMode"),
@@ -292,7 +318,6 @@ export function createFakeTools(options: {
     service,
     runs,
     executed,
-    observed,
     closed,
     reran,
     get onExecute() {
@@ -302,8 +327,4 @@ export function createFakeTools(options: {
       hooks.onExecute = value;
     },
   };
-}
-
-function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -216,7 +216,7 @@ export type TurnEntry =
   | { readonly kind: "fresh"; readonly skipBeforeStart: boolean }
   | { readonly kind: "request"; readonly stepIndex: number; readonly adoptStepId: StepId | null; readonly binding: ModelBinding | null }
   | { readonly kind: "tools"; readonly step: OpenStep; readonly calls: readonly ToolCallResume[]; readonly awaitInput: boolean }
-  | { readonly kind: "turn_end"; readonly closing: { readonly step: OpenStep; readonly toolCallIds: readonly string[] } | null };
+  | { readonly kind: "turn_end"; readonly closing: { readonly step: StepRef; readonly calls: readonly AgentToolCall[] } | null };
 
 export interface OpenStep {
   readonly stepIndex: number;
@@ -233,10 +233,16 @@ export type ToolCallResume =
 
 /** 단계 끝(C5) 뒤 루프가 고르는 다음 행동 */
 export type StepNext =
-  | { readonly kind: "request"; readonly placed: readonly PlacedInput[] }   // 도구 결과, steer, 게이트 계속
-  | { readonly kind: "await_input" }
-  | { readonly kind: "settle" }
-  | { readonly kind: "stop"; readonly reason: "step_limit" | "external" | "stopped" | "deferred" };
+  | { readonly kind: "request"; readonly placed: readonly PlacedMessage[] }   // 도구 결과, steer, 게이트 계속. placed는 C5가 커밋한 입력
+  | { readonly kind: "settle" }                                              // 정착: 소유 작업을 기다린 뒤 T6. 한도 도달(step_limit, external)은 state.endReason으로 T6 status에 반영
+  | { readonly kind: "stop"; readonly reason: "stopped" | "deferred" };      // T6 없이 turn을 열어 둔다(재개 후보). 승인 대기(await_input)는 도구 단계의 대기 체크포인트가 맡는다
+
+/** 단계 함수가 값으로 돌려주는 실패. 예외로 run을 멈추지 않는다. 불변식 위반만 Bug다 */
+export type LoopFailure =
+  | { readonly kind: "commit_failed"; readonly detail: string }
+  | { readonly kind: "model_unavailable"; readonly detail: string }
+  | { readonly kind: "context_unavailable"; readonly detail: string }
+  | { readonly kind: "tools_unavailable"; readonly detail: string };
 ```
 
 단계 순서(한 단계):

@@ -172,13 +172,6 @@ export const XeonCustomMessageSchema: TObject<{
 );
 export type XeonCustomMessage = Static<typeof XeonCustomMessageSchema>;
 
-// 확장은 CustomAgentMessages 병합으로 늘리지 않고 customType으로 구분한다. 선언 병합은 F에 이 한 번뿐이다.
-declare module "@earendil-works/pi-agent-core" {
-  interface CustomAgentMessages {
-    "xeon.custom": XeonCustomMessage;
-  }
-}
-
 // ── item 레코드 ─────────────────────────────────────────────────────────
 const requestIdSchema = Nullable(Type.String({ minLength: 1, maxLength: 64 }));
 

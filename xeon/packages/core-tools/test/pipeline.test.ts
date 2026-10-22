@@ -9,6 +9,7 @@ import {
 import { EffectIntentSchema, EffectResultSchema } from "@xeon/contracts/records";
 import { createToolRuntime } from "../src/runtime.ts";
 import {
+  ASSISTANT,
   callTool,
   createHarness,
   directTool,
@@ -59,7 +60,8 @@ test("a read call is allowed and recorded as intent, exec, result in three commi
     ["effect.exec"],
     ["effect.result", "item.recorded"],
   ]);
-  expect(h.runtime.tools.settledItem("call_1")).toBeDefined();
+  expect(out.outcome.itemId).not.toBeNull();
+  expect(out.outcome.state).toBe("executed");
 });
 
 test("exec_committed_separately: intent and exec are different commits before the provider runs", async () => {
@@ -137,7 +139,8 @@ test("intent_committed_before_execute: a failed intent commit blocks the call an
   });
   expect(out.blocked).toContain("tools.commit_failed");
   expect(probe.calls).toEqual([]);
-  expect(kindsOf(h)).toEqual([]);
+  // 효과 기록 없이 닫은 호출은 toolResult item만 남는다
+  expect(kindsOf(h)).toEqual(["item.recorded"]);
 });
 
 test("a busy intent commit is retried with the same request id", async () => {
@@ -165,20 +168,19 @@ test("a busy intent commit is retried with the same request id", async () => {
   ]);
 });
 
-test("executing an adapter without a committed intent is a bug and never reaches the provider", async () => {
+test("executing a call that was never prepared is a bug and never reaches the provider", async () => {
   const h = await createHarness();
   const probe = registerWorkspace(h);
   const run = h.run();
-  const toolset = await h.runtime.tools.advertise({ run, activated: new Set() });
-  const tools = h.runtime.tools.toAgentTools(toolset, run);
-  const read = tools.find((tool) => tool.name === "read");
-  expect(read).toBeDefined();
-  let thrown: unknown;
-  try {
-    await read?.execute("call_7", { path: "a.txt" }, run.signal, undefined);
-  } catch (error) {
-    thrown = error;
-  }
+  const toolCall = {
+    type: "toolCall" as const,
+    id: "call_7",
+    name: "read",
+    arguments: { path: "a.txt" },
+  };
+  const thrown = await rejectionOf(() =>
+    h.runtime.tools.execute({ toolCall, args: { path: "a.txt" } }, () => {}, run),
+  );
   expect(thrown).toBeInstanceOf(Bug);
   expect(errorText(thrown)).toContain("tools.intent_missing");
   expect(probe.calls).toEqual([]);
@@ -278,7 +280,7 @@ test("tool_call_hook_throw_denies: a throwing handler blocks the call and leaves
   });
   expect(out.blocked).toBe("[xeon:denied_by_extension] extension handler failed");
   expect(probe.calls).toEqual([]);
-  expect(kindsOf(h)).toEqual([]);
+  expect(kindsOf(h)).toEqual(["item.recorded"]);
 });
 
 test("a tool_call handler decision blocks with its own reason", async () => {
@@ -307,7 +309,7 @@ test("a dispatcher exception is also a denial (fail closed)", async () => {
     args: { path: "a" },
   });
   expect(out.blocked).toContain("denied_by_extension");
-  expect(kindsOf(h)).toEqual([]);
+  expect(kindsOf(h)).toEqual(["item.recorded"]);
 });
 
 test("tool_result_handler_throw_skipped: one failing handler does not turn the result into an error", async () => {
@@ -385,41 +387,17 @@ test("policy denies from settings never reach the provider", async () => {
   const toolset = await h.runtime.tools.advertise({ run, activated: new Set() });
   expect(toolset.tools.map((tool) => tool.name)).not.toContain("read");
   expect(toolset.removed.map((entry) => entry.ruleId)).toEqual(["m.no-read"]);
-  const tools = h.runtime.tools.toAgentTools(
-    await h.runtime.tools.advertise({ run, activated: new Set() }),
+  const prepared = await h.runtime.tools.prepare(
+    { type: "toolCall", id: "call_18", name: "read", arguments: { path: "a" } },
+    ASSISTANT,
     run,
   );
-  const hooks = h.runtime.tools.hooks(run);
-  const toolCall = { type: "toolCall" as const, id: "call_18", name: "read", arguments: {} };
-  const before = await hooks.beforeToolCall(
-    {
-      assistantMessage: {
-        role: "assistant",
-        content: [],
-        api: "x",
-        provider: "x",
-        model: "x",
-        usage: {
-          input: 0,
-          output: 0,
-          cacheRead: 0,
-          cacheWrite: 0,
-          totalTokens: 0,
-          cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-        },
-        stopReason: "toolUse",
-        timestamp: 0,
-      },
-      toolCall,
-      args: { path: "a" },
-      context: { messages: [], tools: [...tools] },
-    },
-    run.signal,
-  );
-  expect(before?.block).toBe(true);
-  expect(before?.reason).toContain("denied_by_policy");
+  expect(prepared.kind).toBe("settled");
+  if (prepared.kind !== "settled") return;
+  expect(prepared.outcome.state).toBe("rejected");
+  expect(textOf(prepared.outcome.result)).toContain("denied_by_policy");
   expect(probe.calls).toEqual([]);
-  expect(kindsOf(h)).toEqual([]);
+  expect(kindsOf(h)).toEqual(["item.recorded"]);
 });
 
 test("a call from a child conversation is refused until the ceiling stage exists (M2)", async () => {
@@ -429,17 +407,11 @@ test("a call from a child conversation is refused until the ceiling stage exists
     ...h.run(),
     ceiling: { caller: "main" as const, depth: 0, mode: "default" as const },
   };
-  const out = await callTool(
-    h.runtime.tools,
-    run,
-    { id: "call_19", name: "read", args: { path: "a" } },
-    [
-      ...h.runtime.tools.toAgentTools(
-        await h.runtime.tools.advertise({ run: h.run(), activated: new Set() }),
-        run,
-      ),
-    ],
-  );
+  const out = await callTool(h.runtime.tools, run, {
+    id: "call_19",
+    name: "read",
+    args: { path: "a" },
+  });
   expect(out.blocked).toContain("ceiling_unsupported");
   expect(probe.calls).toEqual([]);
   expect(
@@ -486,3 +458,79 @@ function createToolRuntimeWith(h: Harness, ext: { dispatch: Harness["deps"]["ext
   runtime.tools.register({ kind: "capability", def: WorkspaceFiles, key: WorkspaceFilesKey });
   return runtime;
 }
+
+test("tap points fire for a settled call: start and end, both with masked payloads", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  const seen: string[] = [];
+  await installHandlers(h, "watch", ["tool_execution_start", "tool_execution_end"], (g) => {
+    g.on("tool_execution_start", (payload) => {
+      seen.push(`start:${payload.toolCallId}`);
+    });
+    g.on("tool_execution_end", (payload) => {
+      seen.push(`end:${payload.toolCallId}:${String(payload.isError)}`);
+    });
+  });
+  const out = await callTool(h.runtime.tools, h.run(), { id: "nope_1", name: "nope", args: {} });
+  expect(out.blocked).toContain("tool_unavailable");
+  expect(seen).toEqual(["start:nope_1", "end:nope_1:true"]);
+});
+
+test("tap points fire once per phase for an executed call", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  const seen: string[] = [];
+  await installHandlers(h, "watch", ["tool_execution_start", "tool_execution_end"], (g) => {
+    g.on("tool_execution_start", (payload) => {
+      seen.push(`start:${payload.toolCallId}`);
+    });
+    g.on("tool_execution_end", (payload) => {
+      seen.push(`end:${payload.toolCallId}:${String(payload.isError)}`);
+    });
+  });
+  await callTool(h.runtime.tools, h.run(), { id: "call_t1", name: "read", args: { path: "a" } });
+  expect(seen).toEqual(["start:call_t1", "end:call_t1:false"]);
+});
+
+test("settleRejected with the truncated reason records a result item without any effect event", async () => {
+  const h = await createHarness();
+  registerWorkspace(h);
+  const run = h.run();
+  const [outcome] = await h.runtime.tools.settleRejected(
+    [{ type: "toolCall", id: "cut_1", name: "read", arguments: { path: "a" } }],
+    "truncated",
+    run,
+  );
+  expect(outcome?.state).toBe("truncated");
+  expect(outcome?.isError).toBe(true);
+  expect(textOf(outcome?.result)).toContain("output token limit");
+  expect(outcome?.itemId).not.toBeNull();
+  expect(kindsOf(h)).toEqual(["item.recorded"]);
+});
+
+test("invalid arguments are settled by prepare before any policy or effect work", async () => {
+  const h = await createHarness();
+  const probe = registerWorkspace(h);
+  const out = await callTool(h.runtime.tools, h.run(), {
+    id: "bad_1",
+    name: "read",
+    args: { offset: "not a number" },
+  });
+  expect(out.blocked).toContain("Validation failed");
+  expect(out.outcome.state).toBe("rejected");
+  expect(probe.calls).toEqual([]);
+  expect(kindsOf(h)).toEqual(["item.recorded"]);
+});
+
+test("arguments are converted to the schema types before the intent and the provider call", async () => {
+  const h = await createHarness();
+  const probe = registerWorkspace(h);
+  await callTool(h.runtime.tools, h.run(), {
+    id: "conv_1",
+    name: "read",
+    args: { path: "a.txt", offset: "3" },
+  });
+  expect(probe.calls).toEqual([{ method: "read", input: { path: "a.txt", offset: 3 } }]);
+  const intent = parse(EffectIntentSchema, eventsOfKind(h, "effect.intent")[0]?.payload);
+  expect(intent.ok && intent.value.args).toEqual({ path: "a.txt", offset: 3 });
+});

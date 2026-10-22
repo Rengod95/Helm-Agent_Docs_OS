@@ -27,7 +27,8 @@ test("the_tool_run_context_carries_the_turn_step_and_origin", async () => {
     .events(h.threadId)
     .filter((event) => event.kind === "step.started")
     .map((event) => event.stepId);
-  expect(h.tools.runs.length).toBeGreaterThanOrEqual(2);
+  // 실행 맥락은 도구 호출이 있는 단계의 배치마다 만든다. 이 시나리오는 첫 단계에만 도구 호출이 있다
+  expect(h.tools.runs).toHaveLength(1);
   for (const [index, run] of h.tools.runs.entries()) {
     expect(run.threadId).toBe(h.threadId);
     expect(run.turnId).toBe(turnStarted?.turnId ?? run.turnId);

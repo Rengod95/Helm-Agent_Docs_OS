@@ -185,14 +185,14 @@ export type CapabilityApi<D extends AnyCapabilityDef> = {
 
 - [제안] 서비스 메서드는 입력 객체 하나를 받는다. 위치 인자(`search(query, opts)`)는 쓰지 않는다. 모델 도구의 파라미터가 JSON 객체 하나이므로 메서드 입력도 객체 하나로 두면 도구를 얇은 어댑터로 유지할 수 있다(§4.2). 예시의 `search(query, opts)`는 `search({ query, ...opts })`로 표현한다.
 - [제안] `CallOptions.context`는 `L2.readme` §5.8의 요청을 받은 것이다. `context`가 없으면 provider는 `{ caller: { kind: "host" } }`로 본다. 대상 세션 해석: 메서드 입력에 `threadId`가 있으면 그것을, 없으면 `context.threadId`를 쓰고 둘 다 없으면 `invalid_input`이다. 도구 경로(`context.toolCallId`가 있음)에서 입력 `threadId`가 `context.threadId`와 다르면 `denied`다.
-- 서비스 메서드는 실패 시 `CapabilityError`로 거부(reject)한다(§3.6). pi-agent-core `AgentTool.execute`도 실패 시 throw하므로(`~/projects/_ref/pi-src/packages/agent/src/types.ts` `execute` 주석) 같은 규약을 쓴다. [가정] eng.typescript.guide의 Result 규약은 층 내부 함수에 적용되고, Cordis 서비스 경계는 예외 기반으로 둔다고 본다.
+- 서비스 메서드는 실패 시 `CapabilityError`로 거부(reject)한다(§3.6). F `AgentTool.execute`(`F.conversation.spec` §3.1.1)도 도구가 실패하면 거부하고 core-tools가 오류 결과로 바꾸므로 같은 규약을 쓴다. [가정] eng.typescript.guide의 Result 규약은 층 내부 함수에 적용되고, Cordis 서비스 경계는 예외 기반으로 둔다고 본다.
 
 ### 3.3 모델 도구 (`tool-spec.ts`)
 
 ```ts
 import type { Static, TSchema } from "typebox";
 import type { Tool, ToolReference } from "@earendil-works/pi-ai";
-import type { ToolExecutionMode } from "@earendil-works/pi-agent-core";
+import type { ToolExecutionMode } from "../conversation/index.ts";   // F agent.ts(F.conversation.spec §3.1.1). pi-agent-core는 import하지 않는다(adr.0009)
 
 /** 정책 힌트. 의미는 MCP tool annotations와 pi ToolAnnotations를 따른다. 검증되지 않는 작성자 선언이다 */
 export interface ToolHints {
@@ -1005,7 +1005,7 @@ export type NotifyError =
 | `ReplayPolicy`, `ResultStatus`, `InputRequiredInfo`, `JsonValue`, `TextContent`, `ImageContent`, `requestId` 필드의 뜻 | F.conversation.spec |
 | 브랜드·리터럴 이름 규칙 [가정] | eng.domain-types.guide |
 | pi-ai `Tool`, `ToolReference`, `SystemMessage` 타입 | `@earendil-works/pi-ai` 1.3.0 (type-only) |
-| agent-core `ToolExecutionMode` 타입 | `@earendil-works/pi-agent-core` 1.3.0 (type-only) |
+| `ToolExecutionMode` 타입 | F `conversation/agent.ts`(F.conversation.spec §3.1.1) |
 
 ## 9. 수용 기준
 

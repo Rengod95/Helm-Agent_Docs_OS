@@ -87,7 +87,7 @@ Xeon 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유 �
 ```mermaid
 flowchart LR
   subgraph EXTLIB["외부 라이브러리"]
-    PIAI["pi-ai / pi-agent-core"]
+    PIAI["pi-ai"]
     MCPSDK["MCP SDK v2"]
     TAURI["Tauri 2"]
     CORDIS["Cordis (vendored)"]

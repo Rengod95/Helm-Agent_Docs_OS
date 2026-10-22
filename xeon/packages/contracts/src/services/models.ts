@@ -461,7 +461,7 @@ export interface ModelService extends ModelsPort {
   stream(request: ModelCallRequest): AssistantMessageEventStream;
   /** 완성 호출. stream을 끝까지 읽은 최종 메시지 */
   complete(request: ModelCallRequest): Promise<AssistantMessage>;
-  /** core-loop가 agent-core에 넘기는 StreamFn. ctx의 귀속 정보로 사용량을 기록하고 지점을 발화한다 */
+  /** core-loop 자체 루프가 부르는 StreamFn. ctx의 귀속 정보로 사용량을 기록하고 지점을 발화한다 */
   streamFn(ctx: ModelCallContext): StreamFn;
 
   /** 카탈로그 조회. 허용·차단 목록을 적용한 결과 */

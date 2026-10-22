@@ -99,7 +99,7 @@ export type {
 // pi-agent-core 재노출은 없다(adr.0009). 에이전트 타입은 agent.ts(§3.1.1)
 ```
 
-재노출하지 않고 F가 적는 이름 둘 [결정(잠정)]: pi-ai의 `AssistantMessageEventStream`은 `#private`을 가진 클래스라 구조 대입이 안 되고 만들려면 값 import가 필요한데, 값 import는 core-models만 한다(`eng.dependency-rules.guide` DR-07). 그래서 소비 계약(`AsyncIterable<AssistantMessageEvent>`와 `result()`)만 적은 인터페이스를 F `pi.ts`에 두고, 이를 쓰는 `StreamFn`도 F가 적는다. pi-ai 원본 `AssistantMessageEventStream` 클래스는 F 인터페이스에 대입할 수 있다(타입 테스트 `pi-types.test.ts`). core-loop 자체 루프도 F `StreamFn`을 받으므로 둘 사이에 단언이 필요 없다(adr.0009 §3.2). 나머지 재노출 이름은 같은 테스트가 pi-ai 원본과의 항등(`Equal`)을 컴파일 시점에 판정한다. 이전 판의 `AgentToolHooks`는 없앴다.
+재노출하지 않고 F가 적는 이름 둘 [결정(잠정)]: pi-ai의 `AssistantMessageEventStream`은 `#private`을 가진 클래스라 구조 대입이 안 되고 만들려면 값 import가 필요한데, 값 import는 core-models만 한다(`eng.dependency-rules.guide` DR-07). 그래서 소비 계약(`AsyncIterable<AssistantMessageEvent>`와 `result()`)만 적은 인터페이스를 F `pi.ts`에 두고, 이를 쓰는 `StreamFn`도 F가 적는다. pi-ai 원본 `AssistantMessageEventStream` 클래스는 F 인터페이스에 대입할 수 있다(타입 테스트 `pi-types.test.ts`). core-loop 자체 루프도 F `StreamFn`을 받으므로 둘 사이에 단언이 필요 없다(adr.0009 §3.2). `StreamFn`의 컨텍스트 인자는 `Context`다. `TranscriptContext`는 pi-ai `normalizeContext`(값 함수)만 만들 수 있어 루프가 만들 수 없으므로, 정규화는 core-models의 pi-ai 호출 안에서 한다(adr.0009 §3.5). 나머지 재노출 이름은 같은 테스트가 pi-ai 원본과의 항등(`Equal`)을 컴파일 시점에 판정한다. 이전 판의 `AgentToolHooks`는 없앴다.
 
 규칙:
 

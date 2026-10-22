@@ -151,21 +151,12 @@ test("arguments over 256 KiB go to a blob in the intent and a rerun reads them b
   });
   const big = "z".repeat(300_000);
   const run = h.run();
-  const hooks = h.runtime.tools.hooks(run);
-  const tools = h.runtime.tools.toAgentTools(
-    await h.runtime.tools.advertise({ run, activated: new Set() }),
+  const prepared = await h.runtime.tools.prepare(
+    { type: "toolCall", id: "call_3", name: "bash", arguments: { command: big } },
+    ASSISTANT,
     run,
   );
-  const before = await hooks.beforeToolCall(
-    {
-      assistantMessage: ASSISTANT,
-      toolCall: { type: "toolCall", id: "call_3", name: "bash", arguments: {} },
-      args: { command: big },
-      context: { messages: [], tools: [...tools] },
-    },
-    run.signal,
-  );
-  expect(before).toBeUndefined();
+  expect(prepared.kind).toBe("ready");
   const intent = parse(EffectIntentSchema, h.session.events[0]?.payload);
   expect(intent.ok).toBe(true);
   if (!intent.ok) return;
@@ -178,43 +169,28 @@ test("arguments over 256 KiB go to a blob in the intent and a rerun reads them b
   expect(seen).toEqual([big]);
 });
 
-test("a call whose tool_execution_end arrives without an afterToolCall still releases its tool node", async () => {
+test("an executed call releases its tool node", async () => {
   const h = await createHarness();
   registerWorkspace(h);
   const run = h.run();
-  const tools = h.runtime.tools.toAgentTools(
-    await h.runtime.tools.advertise({ run, activated: new Set() }),
+  const prepared = await h.runtime.tools.prepare(
+    { type: "toolCall", id: "call_4", name: "read", arguments: { path: "a" } },
+    ASSISTANT,
     run,
   );
-  const hooks = h.runtime.tools.hooks(run);
-  const read = tools.find((tool) => tool.name === "read");
-  await hooks.beforeToolCall(
-    {
-      assistantMessage: ASSISTANT,
-      toolCall: { type: "toolCall", id: "call_4", name: "read", arguments: {} },
-      args: { path: "a" },
-      context: { messages: [], tools: [...tools] },
-    },
-    run.signal,
-  );
-  await read?.execute("call_4", { path: "a" }, run.signal, undefined);
-  const node = h.tasks.scopes.find((scope) => scope.kind === "tool");
-  expect(node).toBeDefined();
+  expect(prepared.kind).toBe("ready");
+  if (prepared.kind !== "ready") return;
+  const node = () => h.tasks.scopes.find((scope) => scope.kind === "tool");
+  const outcome = await h.runtime.tools.execute(prepared.call, () => {}, run);
+  expect(outcome.state).toBe("executed");
+  expect(node()).toBeDefined();
   let settled = false;
-  const watching = node?.settle().then(() => {
-    settled = true;
-    return settled;
-  });
-  await h.runtime.tools.observe(
-    {
-      type: "tool_execution_end",
-      toolCallId: "call_4",
-      toolName: "read",
-      result: {},
-      isError: false,
-    },
-    run,
-  );
+  const watching = node()
+    ?.settle()
+    .then(() => {
+      settled = true;
+      return settled;
+    });
   await until(() => settled);
   await watching;
   expect(settled).toBe(true);
@@ -227,49 +203,63 @@ test("a tool_call decision with terminate stops the batch", async () => {
     g.on("tool_call", () => ({ block: true, reason: "stop here", terminate: true }));
   });
   const run = h.run();
-  const hooks = h.runtime.tools.hooks(run);
-  const before = await hooks.beforeToolCall(
-    {
-      assistantMessage: ASSISTANT,
-      toolCall: { type: "toolCall", id: "call_5", name: "read", arguments: {} },
-      args: { path: "a" },
-      context: { messages: [], tools: [] },
-    },
-    run.signal,
+  const prepared = await h.runtime.tools.prepare(
+    { type: "toolCall", id: "call_5", name: "read", arguments: { path: "a" } },
+    ASSISTANT,
+    run,
   );
-  expect(before).toEqual({
-    block: true,
-    reason: "[xeon:denied_by_extension] stop here",
-    terminate: true,
-  });
+  expect(prepared.kind).toBe("settled");
+  if (prepared.kind !== "settled") return;
+  expect(textOf(prepared.outcome.result)).toBe("[xeon:denied_by_extension] stop here");
+  expect(prepared.outcome.result.terminate).toBe(true);
+  expect(prepared.outcome.state).toBe("rejected");
 });
 
-test("an unregistered tool and non-object args are refused by the hook", async () => {
+test("an unregistered tool and invalid arguments are settled by prepare with a result item", async () => {
   const h = await createHarness();
   registerWorkspace(h);
   const run = h.run();
-  const hooks = h.runtime.tools.hooks(run);
-  const missing = await hooks.beforeToolCall(
-    {
-      assistantMessage: ASSISTANT,
-      toolCall: { type: "toolCall", id: "c", name: "nope", arguments: {} },
-      args: {},
-      context: { messages: [], tools: [] },
-    },
-    run.signal,
+  const missing = await h.runtime.tools.prepare(
+    { type: "toolCall", id: "c", name: "nope", arguments: {} },
+    ASSISTANT,
+    run,
   );
-  expect(missing?.reason).toContain("tool_unavailable");
-  const notObject = await hooks.beforeToolCall(
-    {
-      assistantMessage: ASSISTANT,
-      toolCall: { type: "toolCall", id: "c2", name: "read", arguments: {} },
-      args: "text",
-      context: { messages: [], tools: [] },
-    },
-    run.signal,
+  expect(missing.kind === "settled" ? textOf(missing.outcome.result) : "").toContain(
+    "tool_unavailable",
   );
-  expect(notObject?.reason).toContain("invalid_args");
-  expect(h.session.events).toEqual([]);
+  const invalid = await h.runtime.tools.prepare(
+    { type: "toolCall", id: "c2", name: "read", arguments: {} },
+    ASSISTANT,
+    run,
+  );
+  expect(invalid.kind === "settled" ? textOf(invalid.outcome.result) : "").toContain(
+    "Validation failed",
+  );
+  const broken = await h.runtime.tools.prepare(
+    {
+      type: "toolCall",
+      id: "c3",
+      name: "read",
+      arguments: {},
+      argumentsError: "Unexpected end of JSON input",
+    },
+    ASSISTANT,
+    run,
+  );
+  expect(broken.kind === "settled" ? textOf(broken.outcome.result) : "").toContain(
+    "Invalid arguments",
+  );
+  // 효과가 없는 호출은 intent 없이 toolResult item만 기록한다
+  expect(h.session.events.map((event) => event.kind)).toEqual([
+    "item.recorded",
+    "item.recorded",
+    "item.recorded",
+  ]);
+  expect(h.session.commits.map((commit) => commit.requestId)).toEqual([
+    "tool:c:result",
+    "tool:c2:result",
+    "tool:c3:result",
+  ]);
 });
 
 test("a failed approval.requested commit blocks the call with commit_failed and runs nothing", async () => {
@@ -285,5 +275,5 @@ test("a failed approval.requested commit blocks the call with commit_failed and 
   });
   expect(out.blocked).toContain("tools.commit_failed");
   expect(probe.calls).toEqual([]);
-  expect(h.session.events).toEqual([]);
+  expect(h.session.events.map((event) => event.kind)).toEqual(["item.recorded"]);
 });

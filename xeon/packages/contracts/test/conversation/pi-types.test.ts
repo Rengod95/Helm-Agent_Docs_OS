@@ -1,25 +1,12 @@
 import { test } from "bun:test";
-import type * as PiAgentCore from "@earendil-works/pi-agent-core";
 import type * as PiAi from "@earendil-works/pi-ai";
 import type {
-  AfterToolCallContext,
-  AfterToolCallResult,
-  AgentContext,
-  AgentEvent,
-  AgentTool,
-  AgentToolCall,
-  AgentToolHooks,
-  AgentToolResult,
-  AgentToolUpdateCallback,
   Api,
   AssistantMessageDiagnostic,
   AssistantMessageEvent,
   AssistantMessageEventStream,
-  BeforeToolCallContext,
-  BeforeToolCallResult,
   CacheRetention,
   Context,
-  CustomAgentMessages,
   DeferredHandle,
   DiagnosticErrorInfo,
   ImageContent,
@@ -40,13 +27,11 @@ import type {
   ThinkingContent,
   Tool,
   ToolCall,
-  ToolExecutionMode,
   ToolReference,
   ToolResultMessage,
   TranscriptContext,
   Usage,
   UserMessage,
-  AgentMessage,
   AssistantMessage,
   CheckpointId,
   EffectId,
@@ -66,7 +51,6 @@ import type {
   ThreadId,
   ToolResultRecord,
   TurnId,
-  XeonCustomMessage,
 } from "../../src/conversation/index.ts";
 import type { Assignable, Equal, Expect } from "../types/expect.ts";
 
@@ -107,49 +91,22 @@ export type PiAiIdentity = [
   Expect<Equal<Provider, PiAi.Provider>>,
 ];
 
-export type PiAgentCoreIdentity = [
-  Expect<Equal<ToolExecutionMode, PiAgentCore.ToolExecutionMode>>,
-  Expect<Equal<CustomAgentMessages, PiAgentCore.CustomAgentMessages>>,
-  Expect<Equal<AgentMessage, PiAgentCore.AgentMessage>>,
-  Expect<Equal<AgentToolResult, PiAgentCore.AgentToolResult>>,
-  Expect<Equal<AgentToolUpdateCallback, PiAgentCore.AgentToolUpdateCallback>>,
-  Expect<Equal<AgentTool, PiAgentCore.AgentTool>>,
-  Expect<Equal<AgentEvent, PiAgentCore.AgentEvent>>,
-  Expect<Equal<AgentToolCall, PiAgentCore.AgentToolCall>>,
-  Expect<Equal<AgentContext, PiAgentCore.AgentContext>>,
-  Expect<Equal<BeforeToolCallResult, PiAgentCore.BeforeToolCallResult>>,
-  Expect<Equal<AfterToolCallResult, PiAgentCore.AfterToolCallResult>>,
-  Expect<Equal<BeforeToolCallContext, PiAgentCore.BeforeToolCallContext>>,
-  Expect<Equal<AfterToolCallContext, PiAgentCore.AfterToolCallContext>>,
-];
-
-/** 스트림과 StreamFn은 재노출하지 않고 소비 계약만 적었다(pi.ts). pi 원본은 F 쪽에 대입할 수 있어야 한다 */
+/** 스트림은 재노출하지 않고 소비 계약만 적었다(pi.ts). pi-ai 클래스는 F 인터페이스에 대입할 수 있어야 한다 */
 export type StreamContractAcceptsPi = [
   Expect<Assignable<PiAi.AssistantMessageEventStream, AssistantMessageEventStream>>,
-  Expect<Assignable<PiAgentCore.StreamFn, StreamFn>>,
 ];
 
-/** AgentToolHooks는 pi에 같은 이름이 없다. AgentLoopConfig의 두 훅을 필수로 좁힌 모양이다 */
-export type ToolHooksShape = Expect<
+/** StreamFn은 변환을 마친 메시지(Context)를 받는다. TranscriptContext 정규화는 core-models 몫이다(adr.0009 §3.5) */
+export type StreamFnShape = Expect<
   Equal<
-    AgentToolHooks,
-    {
-      beforeToolCall: (
-        context: PiAgentCore.BeforeToolCallContext,
-        signal?: AbortSignal,
-      ) => Promise<PiAgentCore.BeforeToolCallResult | undefined>;
-      afterToolCall: (
-        context: PiAgentCore.AfterToolCallContext,
-        signal?: AbortSignal,
-      ) => Promise<PiAgentCore.AfterToolCallResult | undefined>;
-    }
+    StreamFn,
+    (
+      model: Model<Api>,
+      context: Context,
+      options?: SimpleStreamOptions,
+    ) => AssistantMessageEventStream | Promise<AssistantMessageEventStream>
   >
 >;
-
-/** AgentMessage에 XeonCustomMessage가 들어간다(CustomAgentMessages 병합) */
-export type CustomIsAgentMessage = Expect<Assignable<XeonCustomMessage, AgentMessage>>;
-/** Message는 custom을 포함하지 않는다 */
-export type CustomIsNotMessage = Expect<Equal<Assignable<XeonCustomMessage, Message>, false>>;
 
 /** IdByPrefix의 키가 IdPrefix와 같고 ID들이 서로 대입되지 않는다(브랜드) */
 export type PrefixKeys = Expect<Equal<keyof IdByPrefix, IdPrefix>>;

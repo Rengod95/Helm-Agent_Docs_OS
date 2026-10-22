@@ -25,7 +25,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 - 층 순위는 F → X → L0 → L1 → L2 → L3 → L4이고 F가 가장 낮다(`_research/foundation-plan.md` §3). 그래서 `@xeon/contracts`는 다른 xeon 패키지를 import하지 않는다. `scripts/check-layers.ts`가 `package.json`의 `xeon.layer = "F"`로 이를 검사한다.
 - 허용하는 외부 의존:
   - `typebox` 1.3.27(워크스페이스 catalog). 값 import 허용.
-  - `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core` 1.3.0. `import type`, `export type`만 허용(`F.conversation.spec` §3.1 규칙 1).
+  - `@earendil-works/pi-ai` 1.3.0. `import type`, `export type`만 허용(`F.conversation.spec` §3.1 규칙 1). `@earendil-works/pi-agent-core`에는 의존하지 않는다(adr.0009).
   - `@opentelemetry/api` 1.10.0. 2차, `import type`만(`F.wire-settings.spec` §3.6).
   - Cordis는 import하지 않는다(`F.capabilities.spec` §3.5).
 

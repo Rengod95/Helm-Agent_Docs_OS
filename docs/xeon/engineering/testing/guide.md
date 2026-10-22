@@ -60,7 +60,7 @@ Xeon 코드의 테스트를 어떻게 쓰고, 어디에 두고, 어떻게 돌리
 |---|---|---|---|---|---|---|
 | `unit` | 접미사 없는 `*.test.ts` | 함수·모듈 하나의 입력과 출력, 규칙 하나의 통과·실패 | 같은 프로세스, I/O 없음 또는 임시 디렉터리 | 없음 | D0 | 넣는다 |
 | `prop` | `*.prop.test.ts` | 무작위 입력열에서 항상 성립해야 하는 성질 | 같은 프로세스 | 없음 | D0(고정 시드) | 넣는다 |
-| `contract` | `*.contract.test.ts` | 외부 코드(pi-ai 1.3.0, pi-agent-core 1.3.0, Cordis vendored, durable env 포크)와 F 스키마·확장 지점 선언의 약속 | 같은 프로세스 | 테이프 | D0 | 넣는다 |
+| `contract` | `*.contract.test.ts` | 외부 코드(pi-ai 1.3.0, Cordis vendored, durable env 포크, 자체 루프의 pi-agent-core 루프 포크)와 F 스키마·확장 지점 선언의 약속 | 같은 프로세스 | 테이프 | D0 | 넣는다 |
 | `int` | `*.int.test.ts` | 한 패키지 안에서 실제 SQLite 파일, 실제 자식 프로세스, 실제 파일 시스템을 쓰는 동작 | 임시 디렉터리 | 테이프 | D0/D1 | 넣는다(파일당 10초 이하) |
 | `fault` | `*.fault.test.ts` | 트랜잭션 고장 주입 지점, 강제 종료 뒤 재개, 손상 파일 | 같은 프로세스 또는 자식 프로세스 | 테이프 | D0/D1 | 넣는다 |
 | `scenario` | `*.scenario.test.ts` | 모델 테이프로 `xeon chat` 한 턴 + 강제 종료 뒤 재개(스모크). 저장소 전체에 1개 | `apps/cli`의 자식 프로세스 | 테이프 | D1 | 넣는다(M1부터) |

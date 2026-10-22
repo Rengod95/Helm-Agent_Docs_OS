@@ -13,7 +13,12 @@ import type {
   ToolCall,
   Usage,
 } from "@xeon/contracts/conversation";
-import type { ModelBinding, ModelService, ResolvedModel } from "@xeon/contracts/services";
+import type {
+  ModelBinding,
+  ModelError,
+  ModelService,
+  ResolvedModel,
+} from "@xeon/contracts/services";
 import type { Clock } from "@xeon/contracts";
 
 // 테스트 대역: core-models의 `resolve`·`rebind`·`streamFn`만 흉내 낸다. 모델 호출은 대본(테이프) 순서로 응답한다
@@ -29,6 +34,8 @@ export type ScriptedResponse =
       readonly totalTokens?: number;
     }
   | { readonly kind: "error"; readonly message: string }
+  /** `start` 이벤트 없이 종결 이벤트(`done`)만 내는 스트림(원본 streamAssistantResponse의 시작 이벤트 없는 응답) */
+  | { readonly kind: "bare"; readonly text: string }
   /** 신호가 켜질 때까지 응답이 없다. 켜지면 부분 응답을 aborted로 낸다 */
   | { readonly kind: "stall"; readonly partialText?: string };
 
@@ -45,6 +52,8 @@ export interface FakeModels {
   push(...responses: readonly ScriptedResponse[]): void;
   /** resolve가 돌려줄 바인딩을 바꾼다(모델 전환 시험) */
   setBinding(binding: ModelBinding): void;
+  /** 이후 resolve·rebind가 이 종류로 실패한다(모델 해석 실패 시험) */
+  failResolve(kind: ModelError["kind"]): void;
 }
 
 const FAKE_MODEL: Model<Api> = {
@@ -186,9 +195,16 @@ export function createFakeModels(options: {
     },
   });
 
+  const failing: { kind: ModelError["kind"] | null } = { kind: null };
+  const unavailable = (): ModelError => ({
+    kind: failing.kind ?? "model_not_found",
+    message: "fake",
+  });
+
   const service: ModelService = {
-    resolve: () => ok(resolved()),
+    resolve: () => (failing.kind === null ? ok(resolved()) : err(unavailable())),
     rebind(next) {
+      if (failing.kind !== null) return err(unavailable());
       binding = next;
       return ok(resolved());
     },
@@ -206,6 +222,13 @@ export function createFakeModels(options: {
       }
       if (response.kind === "message") {
         return streamOf(eventsOf(response, clock), messageOf(response, clock));
+      }
+      if (response.kind === "bare") {
+        const bare = messageOf(
+          { kind: "message", content: [{ type: "text", text: response.text }], stopReason: "stop" },
+          clock,
+        );
+        return streamOf([{ type: "done", reason: "stop", message: bare }], bare);
       }
       const base: AssistantMessage = {
         role: "assistant",
@@ -301,6 +324,9 @@ export function createFakeModels(options: {
     },
     setBinding: (next) => {
       binding = next;
+    },
+    failResolve: (kind) => {
+      failing.kind = kind;
     },
   };
 }

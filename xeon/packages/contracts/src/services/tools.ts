@@ -10,17 +10,21 @@ import type {
   ToolsetFingerprint,
 } from "../capabilities/index.ts";
 import type {
-  AgentEvent,
   AgentTool,
-  AgentToolHooks,
+  AgentToolCall,
+  AgentToolResult,
+  AgentToolUpdateCallback,
+  AssistantMessage,
   EffectId,
   ImageContent,
   ItemId,
+  JsonObject,
   JsonValue,
   ReplayPolicy,
   StepId,
   TextContent,
   ThreadId,
+  ToolExecutionMode,
   ToolResultMessage,
   ToolResultRecord,
   TurnId,
@@ -78,6 +82,8 @@ export interface ToolMeta extends Required<Pick<ToolPolicyMeta, "risk" | "classe
   readonly hints: NonNullable<ToolSpec["hints"]>;
   /** 미선언은 "unsafe" */
   readonly replay: ReplayPolicy;
+  /** 배치 스케줄에 쓴다. "sequential"인 도구가 하나라도 있으면 그 배치는 순차로 돈다(adr.0009 §3.3). 미선언은 생략 */
+  readonly executionMode?: ToolExecutionMode;
   readonly exposure: ExposureMode;
   /** "self": 도구가 스스로 경계화함 */
   readonly outputLimits: Required<OutputLimits> | "self";
@@ -123,7 +129,8 @@ export interface ToolRunDrafts {
   toolResultItem(input: {
     readonly itemId: ItemId;
     readonly message: ToolResultMessage;
-    readonly effectId: EffectId;
+    /** 효과 기록과 함께 커밋하면 그 효과, 효과 없이 닫는 호출(미발견, 거부, 실행 전 중단)이면 null */
+    readonly effectId: EffectId | null;
   }): StampedDraft;
   /** 승인 대기를 기록하는 checkpoint.step 초안(next: "await_input") */
   waitingCheckpoint(pending: readonly PendingToolCall[]): DurableEventDraft;
@@ -400,6 +407,49 @@ export interface ToolsError {
   readonly detail?: JsonValue;
 }
 
+// ── 도구 단계 계약(adr.0009 §3.4) ───────────────────────────────────────
+
+/** `prepare`를 통과해 실행할 수 있는 호출. 인자는 도구 스키마 검증을 마친 값이다 */
+export interface PreparedCall {
+  readonly toolCall: AgentToolCall;
+  readonly args: JsonObject;
+}
+
+/** 도구 호출 하나가 끝난 방식 */
+export type ToolCallState =
+  /** 도구를 실행했다(성공이든 오류 결과든) */
+  | "executed"
+  /** 미발견, 인자 오류, 확장·정책·사용자 거부, 준비 중 중단, 내부 오류. 실행하지 않았다 */
+  | "rejected"
+  /** 중단으로 실행하지 않고 닫았다 */
+  | "not_executed"
+  /** 응답이 출력 한도에서 잘려 실행하지 않고 닫았다 */
+  | "truncated";
+
+/** 실행하지 않고 닫는 이유 */
+export type RejectReason = "not_executed" | "truncated";
+
+/** 도구 호출 하나의 최종 결과. 마스킹·경계화를 마치고 기록한 값이다 */
+export interface ToolCallOutcome {
+  readonly toolCall: AgentToolCall;
+  readonly state: ToolCallState;
+  /** 모델에 돌려줄 최종 결과. `terminate`가 있으면 배치 종료 판정에 쓴다 */
+  readonly result: AgentToolResult;
+  readonly isError: boolean;
+  /** 도구 실행에 걸린 시간. 실행하지 않았으면 없다 */
+  readonly durationMs?: number;
+  /** 기록한 toolResult 메시지. 이벤트와 다음 컨텍스트가 쓰는 값과 같다 */
+  readonly message: ToolResultMessage;
+  /** 기록한 toolResult item. 결과 기록 커밋이 실패했으면 null이고, 루프는 run을 `loop_rejected`로 끝낸다 */
+  readonly itemId: ItemId | null;
+}
+
+export type CallPreparation =
+  /** 정책 허용, 의도 커밋됨. 실행할 수 있다 */
+  | { readonly kind: "ready"; readonly call: PreparedCall }
+  /** 실행하지 않고 결과까지 기록했다 */
+  | { readonly kind: "settled"; readonly outcome: ToolCallOutcome };
+
 // ── ToolService ──────────────────────────────────────────────────────────
 
 export interface UserShellRequest {
@@ -438,29 +488,45 @@ export interface ToolService extends ToolsPort {
   /** 광고 목록 산출. 같은 입력과 같은 등록·규칙 상태면 같은 결과 */
   advertise(input: AdvertiseInput): Promise<AdvertisedToolset>;
 
-  /** 광고 목록을 agent-core AgentTool 배열로 바꾼다. 반환 순서는 toolset.tools 순서 */
-  toAgentTools(toolset: AdvertisedToolset, run: ToolRunContext): AgentTool[];
-
-  /** agent-core 훅 쌍. 파이프라인의 정책·승인·의도 커밋·결과 커밋을 담는다 */
-  hooks(run: ToolRunContext): AgentToolHooks;
-
-  /** 루프가 Agent.subscribe로 받은 tool_execution_* 이벤트를 넘긴다. tap 지점을 발화한다 */
-  observe(
-    event: Extract<AgentEvent, { type: `tool_execution_${string}` }>,
+  /**
+   * 도구 호출 하나의 준비(adr.0009 §3.4). 도구 조회, 인자 검증, `tool_call` 지점, 정책·승인, E1(`effect.intent`) 커밋을 차례로 한다.
+   * 실패는 던지지 않고 `settled`로 돌려준다. 미발견·인자 오류·거부·중단 호출은 결과 item까지 기록된 상태다.
+   * 루프는 준비를 항상 원래 순서대로 하나씩 부른다.
+   */
+  prepare(
+    call: AgentToolCall,
+    assistant: AssistantMessage,
     run: ToolRunContext,
-  ): Promise<void>;
+  ): Promise<CallPreparation>;
 
-  /** 이 호출의 결과가 core-tools 커밋으로 이미 기록되었으면 그 item id. 루프가 중복 기록을 피할 때 쓴다 */
-  settledItem(toolCallId: string): ItemId | undefined;
+  /**
+   * 준비를 마친 호출의 실행과 마감: E2(`effect.exec`), 실행, 마스킹, `tool_result` chain, 경계화, E3(`effect.result` + toolResult item).
+   * 병렬로 불러도 된다. 도구가 던진 오류는 `isError` 결과가 되어 돌아온다.
+   */
+  execute(
+    call: PreparedCall,
+    onUpdate: AgentToolUpdateCallback,
+    run: ToolRunContext,
+  ): Promise<ToolCallOutcome>;
 
-  /** 재개 때 재실행. decideEffectRecovery가 rerun을 낸 효과만 받는다. tool_call 지점과 정책을 다시 거치지 않는다 */
-  rerun(intent: EffectIntent, run: ToolRunContext): Promise<ToolResultRecord>;
+  /**
+   * 실행하지 않은 호출을 이유와 함께 닫는다(중단 `not_executed`, 출력 한도 절단 `truncated`). 입력 순서대로 결과를 돌려준다.
+   * 의도가 이미 커밋된 호출은 `effect.result`로, 없는 호출은 효과 없는 toolResult item으로 기록한다.
+   */
+  settleRejected(
+    calls: readonly AgentToolCall[],
+    reason: RejectReason,
+    run: ToolRunContext,
+  ): Promise<readonly ToolCallOutcome[]>;
+
+  /**
+   * 재개 때 재실행. decideEffectRecovery가 rerun을 낸 효과만 받는다. tool_call 지점과 정책을 다시 거치지 않는다.
+   * 결과는 `effect.result`와 같은 커밋에 기록되어 돌아온다.
+   */
+  rerun(intent: EffectIntent, run: ToolRunContext): Promise<ToolCallOutcome>;
 
   /** 코어 규칙 등록(default 티어). source는 "core:<L1 도메인>". 같은 source로 다시 부르면 그 source의 규칙을 통째로 바꾼다 */
   registerRules(source: `core:${string}`, rules: readonly PolicyRule[]): RuleRegistration;
-
-  /** 중단으로 결과 없이 남은 호출을 not_executed 결과로 닫는다. 루프가 단계 끝 커밋 전에 부른다 */
-  closeUnexecuted(run: ToolRunContext, toolCallIds: readonly string[]): Promise<void>;
 
   /** 사용자 셸(`!명령`) 경로(M2). L1.loop의 runUserBash가 user_bash 지점 뒤에 부른다. 정책은 caller "main", 대화형으로 평가한다 */
   runUserShell(request: UserShellRequest, run: ToolRunContext): Promise<ToolResultRecord>;

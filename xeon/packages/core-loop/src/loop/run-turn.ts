@@ -1,0 +1,170 @@
+// Derived from pi-agent-core 1.3.0 agent-loop.ts runLoop inner iteration (MIT, Copyright (c) 2025 Mario Zechner). See LICENSE.pi.
+import { Bug, ok, type Result } from "@xeon/contracts";
+import type { AgentToolCall, AssistantMessage } from "@xeon/contracts/conversation";
+import type {
+  PlacedMessage,
+  LoopFailure,
+  TurnRunResult,
+  TurnRunSpec,
+  ToolsResume,
+} from "./types.ts";
+import { beforeAgentStart } from "./before-start.ts";
+import { commitResponse } from "./commit-response.ts";
+import { finishTurn } from "./finish-turn.ts";
+import { openStep } from "./open-step.ts";
+import { prepareRequest } from "./prepare-request.ts";
+import { endStep } from "./step-end.ts";
+import { streamResponse } from "./stream-response.ts";
+import { resultMessagesOf, runToolBatch, type BatchResult } from "./tool-batch.ts";
+import {
+  createTurnRun,
+  currentStep,
+  failureText,
+  resolveModel,
+  toolRunContext,
+  type TurnRun,
+} from "./turn-run.ts";
+import { failureDetail } from "./types.ts";
+import type { LoopContext } from "../types.ts";
+
+// L1.loop.spec §3.2 `runTurn(entry)`. turn 하나의 실행: 진입 분기 → 단계 반복 → 정착 → T6.
+// XEON-PATCH: entry-points — 원본의 새 프롬프트·이어가기 두 진입점을 재개 판별자 네 가지(fresh, request, tools, turn_end)로 바꿨다.
+// XEON-PATCH: no-outer-loop — 원본의 follow-up 바깥 반복은 없다. followUp은 새 turn이다.
+// XEON-PATCH: step-functions — 단계 경계마다 커밋 지점과 확장 지점을 명시 단계 함수가 부른다(콜백 훅 없음).
+
+function toolCallsOf(message: AssistantMessage): AgentToolCall[] {
+  return message.content.filter((block): block is AgentToolCall => block.type === "toolCall");
+}
+
+/**
+ * 요청 단계 하나를 돌고, 다음 행동이 `request`이면 이어서 다음 단계를 돈다. 단계는 앞 단계의 커밋이 끝나야 시작하므로
+ * 꼬리 호출로 이어 간다(반복문 안의 await를 쓰지 않는다).
+ */
+export async function requestLoop(
+  run: TurnRun,
+  placed: readonly PlacedMessage[],
+): Promise<Result<void, LoopFailure>> {
+  const opened = await openStep(run, placed);
+  if (!opened.ok) return opened;
+  const request = await prepareRequest(run);
+  if (!request.ok) return request;
+  const streamed = await streamResponse(run, request.value);
+  const responded = await commitResponse(run, streamed);
+  if (!responded.ok) return responded;
+  const message = responded.value;
+  const calls = toolCallsOf(message);
+  const hardStop = message.stopReason === "error" || message.stopReason === "aborted";
+
+  let batch: BatchResult | undefined;
+  if (calls.length > 0 && !hardStop) {
+    const ran = await runToolBatch(run, {
+      step: currentStep(run),
+      assistant: message,
+      calls,
+      resume: null,
+    });
+    if (!ran.ok) return ran;
+    batch = ran.value;
+  }
+  const next = await endStep(run, {
+    message,
+    outcomes: batch?.outcomes ?? [],
+    terminate: batch?.terminate ?? false,
+    contextMessages: [
+      ...request.value.messages,
+      message,
+      ...resultMessagesOf(batch?.outcomes ?? []),
+    ],
+  });
+  if (!next.ok) return next;
+  if (next.value.kind !== "request") return ok(undefined);
+  return requestLoop(run, next.value.placed);
+}
+
+/** 도구 단계 중간에서 재개한다. 주 경로와 같은 도구 배치·단계 끝 함수를 쓴다(L1.loop.spec §4.5 tools 행) */
+async function resumeTools(run: TurnRun, resume: ToolsResume): Promise<Result<void, LoopFailure>> {
+  const { mapper, state, running } = run;
+  mapper.restoreStep({
+    stepId: resume.stepId,
+    stepIndex: resume.stepIndex,
+    assistantItemId: resume.assistantItemId,
+  });
+  state.assistant = resume.assistant;
+  state.assistantItemId = resume.assistantItemId;
+  const step = currentStep(run);
+  running.phase = "tools";
+  const resolved = resolveModel(run);
+  if (!resolved.ok) return resolved;
+  const batch = await runToolBatch(run, {
+    step,
+    assistant: resume.assistant,
+    calls: toolCallsOf(resume.assistant),
+    resume: resume.calls,
+  });
+  if (!batch.ok) return batch;
+  const next = await endStep(run, {
+    message: resume.assistant,
+    outcomes: batch.value.outcomes,
+    terminate: batch.value.terminate,
+    contextMessages: [],
+  });
+  if (!next.ok) return next;
+  if (next.value.kind === "request" && state.endReason === null) {
+    return requestLoop(run, next.value.placed);
+  }
+  return ok(undefined);
+}
+
+async function runEntry(run: TurnRun): Promise<Result<void, LoopFailure>> {
+  const entry = run.spec.entry;
+  switch (entry.kind) {
+    case "fresh": {
+      if (!entry.skipBeforeStart) {
+        const started = await beforeAgentStart(run, entry);
+        if (!started.ok) return started;
+      }
+      return requestLoop(run, []);
+    }
+    case "request":
+      return requestLoop(run, []);
+    case "tools":
+      return resumeTools(run, entry.resume);
+    case "turn_end": {
+      // 요청 없이 T6부터. 결과 없이 남은 호출은 먼저 닫는다
+      if (entry.closing !== null && entry.closing.calls.length > 0) {
+        await run.ctx.tools.settleRejected(
+          entry.closing.calls,
+          "not_executed",
+          toolRunContext(run, entry.closing.step),
+        );
+      }
+      return ok(undefined);
+    }
+    default:
+      throw new Bug("loop.unknown_entry");
+  }
+}
+
+/** turn 하나를 끝까지 실행한다. T1은 호출자가 이미 커밋했다. 마지막에 T6(또는 열어 둔 채 반환)까지 한다 */
+export async function runTurn(ctx: LoopContext, spec: TurnRunSpec): Promise<TurnRunResult> {
+  const run = createTurnRun(ctx, spec);
+  let rejection: { readonly reason: string } | null = null;
+  try {
+    const finished = await spec.scope.track(runEntry(run));
+    if (!finished.ok) {
+      // 단계 실패는 값으로 돌아온다. run을 멈추고 T6를 failed로 쓴다
+      rejection = { reason: failureDetail(finished.error) };
+    }
+  } catch (error) {
+    // 불변식 위반(Bug)이나 도구·모델 계약 위반. 같은 경로로 T6 failed에 이른다
+    rejection = { reason: failureText(error) };
+  }
+  if (rejection !== null) {
+    ctx.logger.error("loop.run_rejected", {
+      threadId: run.threadId,
+      turnId: run.turnId,
+      reason: rejection.reason,
+    });
+  }
+  return finishTurn(run, rejection);
+}

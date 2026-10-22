@@ -19,5 +19,5 @@ export {
   type MapperOptions,
 } from "./event-mapper.ts";
 export { finalizeBoundary, type BoundaryCheckContext, type BoundaryVerdict } from "./checkpoint.ts";
-export { LoopRejection, RunFailure, type RunFailureCode } from "./errors.ts";
+export { LoopRejection } from "./errors.ts";
 export type { HostMode, LoopContext, LoopDeps, LoopExtHost } from "./types.ts";

@@ -1,13 +1,16 @@
 import type { CapabilityId, ToolName, ToolRef, ToolSpec } from "@xeon/contracts/capabilities";
 import type {
   AgentTool,
-  AgentToolResult,
   AgentToolUpdateCallback,
   EffectId,
+  ImageContent,
   ItemId,
   JsonObject,
+  JsonValue,
   ReplayPolicy,
+  TextContent,
   ThreadId,
+  Usage,
 } from "@xeon/contracts/conversation";
 import type {
   ExposureMode,
@@ -19,8 +22,18 @@ import type {
 
 // core-tools 내부 공용 타입.
 
-/** 도구 실행 결과. 어댑터의 details는 AgentTool 기본값(unknown)을 따른다 */
-type ToolResult = AgentToolResult<unknown>;
+/**
+ * 도구가 낸 결과. 기록 전이라 `details`가 JSON인지 아직 모른다(확인은 finishCall). AgentToolResult는 이 모양에 대입할 수 있다.
+ * 읽기 전용이라 마스킹·경계화가 새 값을 만든다.
+ */
+export interface RawToolResult {
+  readonly content: readonly (TextContent | ImageContent)[];
+  readonly details?: unknown;
+  readonly structuredContent?: JsonValue;
+  readonly usage?: Usage;
+  readonly isError?: boolean;
+  readonly terminate?: boolean;
+}
 
 /** 한 호출의 원시 실행 입력. 정책·승인·효과 기록은 바깥(파이프라인)이 맡는다 */
 export interface RawCall {
@@ -28,11 +41,11 @@ export interface RawCall {
   readonly toolCallId: string;
   readonly params: unknown;
   readonly signal: AbortSignal;
-  readonly onUpdate: AgentToolUpdateCallback | undefined;
+  readonly onUpdate: AgentToolUpdateCallback;
 }
 
 export interface RawOutcome {
-  readonly result: ToolResult;
+  readonly result: RawToolResult;
   /** 실행 중 중단되어 효과가 어디까지 났는지 모르는 결과(능력 오류 aborted 등) */
   readonly interrupted: boolean;
 }
@@ -55,7 +68,6 @@ export interface ToolEntry {
   readonly parameters: AgentTool["parameters"];
   readonly outputSchema: AgentTool["outputSchema"];
   readonly executionMode: AgentTool["executionMode"];
-  readonly prepareArguments: AgentTool["prepareArguments"];
   readonly ref: ToolRef;
   readonly capability: { readonly id: CapabilityId; readonly method: string } | undefined;
   readonly mcpServer: string | undefined;

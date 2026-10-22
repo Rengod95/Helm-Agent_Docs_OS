@@ -1,6 +1,5 @@
 import { parse } from "@xeon/contracts";
 import type {
-  AgentToolResult,
   ImageContent,
   JsonObject,
   JsonValue,
@@ -13,7 +12,7 @@ import {
   type StoreService,
 } from "@xeon/contracts/records";
 import type { BoundedResult, OutputLimits } from "@xeon/contracts/services";
-import type { OutputTruncator } from "./types.ts";
+import type { OutputTruncator, RawToolResult } from "./types.ts";
 import { isJsonObject, isJsonValue, utf8Bytes } from "./util.ts";
 
 // L1.tools.spec §3.7, §4.8 결과 경계화. 한도를 넘는 텍스트는 원문을 blob으로 옮기고 모델에는 미리보기와 안내 문장을 준다.
@@ -56,14 +55,14 @@ function withTruncation(details: JsonValue | null, truncation: JsonObject): Json
   return { value: details, truncation };
 }
 
-function detailsOf(result: AgentToolResult<unknown>): JsonValue | null {
+function detailsOf(result: RawToolResult): JsonValue | null {
   const raw: unknown = result.details;
   // details는 JSON이어야 한다(ToolResultMessage.details). JSON이 아니면 버린다
   return isJsonValue(raw) ? raw : null;
 }
 
 /** "self" 도구가 details.blobRef로 넘긴 blob 참조 */
-export function selfBlobRef(result: AgentToolResult<unknown>): BlobRef | null {
+export function selfBlobRef(result: RawToolResult): BlobRef | null {
   const details: unknown = result.details;
   if (!isJsonObject(details)) return null;
   const parsed = parse(BlobRefSchema, details["blobRef"]);
@@ -76,7 +75,7 @@ export function selfBlobRef(result: AgentToolResult<unknown>): BlobRef | null {
  */
 export function boundResult(
   deps: BoundDeps,
-  result: AgentToolResult<unknown>,
+  result: RawToolResult,
   limits: Required<OutputLimits>,
 ): BoundOutput {
   const details = detailsOf(result);

@@ -1,5 +1,4 @@
 import {
-  BashToolParams,
   WorkspaceFiles,
   WorkspaceFilesKey,
   WorkspaceShell,
@@ -8,16 +7,17 @@ import {
 } from "@xeon/contracts/capabilities";
 import type { Clock } from "@xeon/contracts";
 import type {
-  AfterToolCallResult,
   AgentTool,
   AgentToolResult,
   AgentToolUpdateCallback,
   AssistantMessage,
+  JsonValue,
   ThreadId,
 } from "@xeon/contracts/conversation";
 import type { ExtensionManifest, ScopeSetup } from "@xeon/contracts/extensions";
 import type { ScopeLayer, ScopeStack } from "@xeon/contracts/settings";
-import type { ToolRunContext, ToolService } from "@xeon/contracts/services";
+import type { ToolCallOutcome, ToolRunContext, ToolService } from "@xeon/contracts/services";
+import { Type } from "typebox";
 import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
 import type { ExtensionUnit } from "@xeon/ext-host";
 import type { ToolsDeps } from "../../src/deps.ts";
@@ -239,66 +239,46 @@ export const ASSISTANT: AssistantMessage = {
 };
 
 export interface CallResult {
-  /** 훅이 막았으면 그 사유 */
+  /** 준비 단계에서 실행하지 않고 닫았으면 모델에 보인 사유 */
   readonly blocked: string | undefined;
-  readonly result: AgentToolResult<unknown> | undefined;
+  readonly result: AgentToolResult | undefined;
   readonly isError: boolean;
+  /** 마감한 호출의 최종 결과(준비 단계에서 닫은 것도 포함) */
+  readonly outcome: ToolCallOutcome;
 }
 
-/** agent-core가 도구 호출 하나를 처리하는 순서를 흉내 낸다: before → execute → after */
+/** 루프가 도구 호출 하나를 처리하는 순서를 흉내 낸다: prepare → execute */
 export async function callTool(
   service: ToolService,
   run: ToolRunContext,
-  call: { readonly id: string; readonly name: string; readonly args: Record<string, unknown> },
-  tools?: readonly AgentTool[],
-  onUpdate?: AgentToolUpdateCallback,
+  call: { readonly id: string; readonly name: string; readonly args: Record<string, JsonValue> },
+  onUpdate: AgentToolUpdateCallback = () => {},
 ): Promise<CallResult> {
-  const hooks = service.hooks(run);
-  const toolCall = { type: "toolCall" as const, id: call.id, name: call.name, arguments: {} };
-  const advertised =
-    tools ?? service.toAgentTools(await service.advertise({ run, activated: new Set() }), run);
-  const tool = advertised.find((candidate) => candidate.name === call.name);
-  const context = { messages: [], tools: [...advertised] };
-  const before = await hooks.beforeToolCall(
-    { assistantMessage: ASSISTANT, toolCall, args: call.args, context },
-    run.signal,
-  );
-  if (before?.block === true) {
-    return { blocked: before.reason ?? "blocked", result: undefined, isError: true };
-  }
-  if (tool === undefined) throw new Error(`tool ${call.name} is not advertised`);
-  let result: AgentToolResult<unknown>;
-  let isError = false;
-  try {
-    result = await tool.execute(call.id, call.args, run.signal, onUpdate);
-    isError = result.isError === true;
-  } catch (error) {
-    if (error instanceof Error && error.name === "Bug") throw error;
-    result = {
-      content: [{ type: "text", text: error instanceof Error ? error.message : "failed" }],
-      details: null,
-      isError: true,
-    };
-    isError = true;
-  }
-  const after: AfterToolCallResult | undefined = await hooks.afterToolCall(
-    { assistantMessage: ASSISTANT, toolCall, args: call.args, result, isError, context },
-    run.signal,
-  );
-  const merged: AgentToolResult<unknown> = {
-    ...result,
-    ...(after?.content === undefined ? {} : { content: after.content }),
-    ...(after?.details === undefined ? {} : { details: after.details }),
-    ...(after?.structuredContent === undefined
-      ? {}
-      : { structuredContent: after.structuredContent }),
-    ...(after?.isError === undefined ? {} : { isError: after.isError }),
-    ...(after?.terminate === undefined ? {} : { terminate: after.terminate }),
+  const toolCall = {
+    type: "toolCall" as const,
+    id: call.id,
+    name: call.name,
+    arguments: call.args,
   };
-  return { blocked: undefined, result: merged, isError: merged.isError === true };
+  const prepared = await service.prepare(toolCall, ASSISTANT, run);
+  if (prepared.kind === "settled") {
+    return {
+      blocked: textOf(prepared.outcome.result),
+      result: undefined,
+      isError: true,
+      outcome: prepared.outcome,
+    };
+  }
+  const outcome = await service.execute(prepared.call, onUpdate, run);
+  return {
+    blocked: undefined,
+    result: outcome.result,
+    isError: outcome.isError,
+    outcome,
+  };
 }
 
-export function textOf(result: AgentToolResult<unknown> | undefined): string {
+export function textOf(result: AgentToolResult | undefined): string {
   if (result === undefined) return "";
   return result.content.map((part) => (part.type === "text" ? part.text : "")).join("\n");
 }
@@ -336,7 +316,7 @@ export function directTool(
     name,
     label: name,
     description: `test tool ${name}`,
-    parameters: BashToolParams,
+    parameters: Type.Record(Type.String(), Type.Unknown()),
     execute,
     ...extra,
   };

@@ -257,7 +257,7 @@ export interface ContextUsageEstimate {
 ```
 
 - `streamFn(ctx)`가 돌려준 함수는 core-loop 자체 루프가 넘기는 `model` 인자를 그대로 쓴다. core-loop는 단계 시작(`openStep`)에서 정한 바인딩의 `ResolvedModel.model`을 넣는다(`L1.loop.spec` §3.2). 넘어온 `model`이 등록되지 않은 provider면 `provider_unavailable` 오류 종결 메시지를 낸다.
-- [제안: adr.0009 §3.5] 자체 루프는 pi-ai 값 함수를 쓰지 않으므로 core-models가 대신 감싼다. (1) `streamFn`은 받은 `AgentMessage[]` 변환 결과(`convertToLlm`, L1.context)를 pi-ai `normalizeContext`로 정규화한 뒤 provider에 넘긴다. (2) 도구 선언 차이: `ModelService`에 `declareTools(committed: readonly AgentMessage[], tools: readonly AgentTool[]): SystemMessage | null`을 더한다. pi-ai `getCurrentTools`·`getToolStateChanges`·`toToolDeclaration`으로 계산하고 바뀐 것이 없으면 `null`이다. core-loop는 결과를 C3에 system item으로 기록한다. (3) core-tools의 typebox 검증이 pi-ai `validateToolArguments`와 다르게 판정하는 경우가 확인되면 그 함수를 감싸 `Result`로 돌려주는 메서드를 더한다(`L1.loop.plan` LP18). 세 함수 모두 예외를 밖으로 내지 않는다.
+- [결정: adr.0009 §3.5, 구현 반영] 자체 루프는 pi-ai 값 함수를 쓰지 않으므로 core-models가 대신 감싼다. (1) `streamFn`은 루프가 넘기는 변환 결과(`convertToLlm`, L1.context)를 `Context`(`messages`만 담음)로 받는다. F `StreamFn`의 컨텍스트 인자는 `Context`다. `TranscriptContext`는 pi-ai `normalizeContext`만 만들 수 있고 값 import는 core-models만 하기 때문이다. 정규화는 `Models.streamSimple` 안에서 pi-ai가 한다. (2) 도구 선언 차이: `declareTools`는 만들지 않았다. L1.context가 고정 접두 system 메시지의 `toolsAdded`로 도구 목록을 이미 선언하고 `AssembledContext.pendingItems`로 돌려주며, core-loop가 그 item을 C3에 기록하기 때문이다(`L1.context.spec`). 원본 `declareToolChanges`는 옮기지 않았다. (3) core-tools의 TypeBox 검증(`validate.ts`)이 pi-ai `validateToolArguments`의 TypeBox 경로와 같은 결과를 내는 것을 사례 시험으로 고정했다(선택 null 제거, 변환, 오류 문장). TypeBox 표지가 없는 순수 JSON Schema(MCP 도구)의 coerce 경로는 M2 cap-mcp에서 이 메서드를 감싸 `Result`로 돌려주는 방식으로 더한다(`L1.loop.plan` LP18).
 - `stream`, `complete`, `streamFn`은 모두 같은 파이프라인(§4.3)을 지난다.
 
 ### 3.4 역할 표

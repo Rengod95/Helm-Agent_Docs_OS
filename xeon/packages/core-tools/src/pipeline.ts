@@ -1,4 +1,4 @@
-import { assertNever, Bug, canonicalJson, parse } from "@xeon/contracts";
+import { Bug, canonicalJson, parse } from "@xeon/contracts";
 import { FIRST_DENY, type CapabilityRef, type ToolResultValue } from "@xeon/contracts/extensions";
 import {
   BlobRefSchema,
@@ -10,26 +10,25 @@ import {
   type EffectStatus,
   type StampedDraft,
 } from "@xeon/contracts/records";
-import {
-  toToolResultRecord,
-  type AfterToolCallContext,
-  type AfterToolCallResult,
-  type AgentEvent,
-  type AgentToolHooks,
-  type AgentTool,
-  type AgentToolResult,
-  type BeforeToolCallContext,
-  type BeforeToolCallResult,
-  type ItemId,
-  type JsonObject,
-  type JsonValue,
-  type ToolResultMessage,
-  type ToolResultRecord,
+import type {
+  AgentToolCall,
+  AgentToolResult,
+  AgentToolUpdateCallback,
+  AssistantMessage,
+  ItemId,
+  JsonObject,
+  JsonValue,
+  ToolResultMessage,
 } from "@xeon/contracts/conversation";
 import type {
   ApprovalOrigin,
   ApprovalRequestInput,
+  CallPreparation,
   PolicyInput,
+  PreparedCall,
+  RejectReason,
+  ToolCallOutcome,
+  ToolCallState,
   ToolRunContext,
 } from "@xeon/contracts/services";
 import { denialReason, requestKeyFor } from "./approvals/protocol.ts";
@@ -46,6 +45,7 @@ import {
   fitForEvent,
   intentRequest,
   itemDraftOf,
+  itemOnlyRequest,
   resultRequest,
   type EffectKit,
 } from "./effects.ts";
@@ -53,7 +53,8 @@ import { evaluatePolicy } from "./policy/engine.ts";
 import type { ToolRegistry } from "./registry.ts";
 import { addHits, hitsPayload, maskResult } from "./secrets.ts";
 import { lockRequests, openToolScope } from "./tasks.ts";
-import type { CallState, RawOutcome, ToolEntry } from "./types.ts";
+import type { CallState, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
+import { validateToolArguments } from "./validate.ts";
 import {
   eachInOrder,
   isJsonObject,
@@ -63,19 +64,28 @@ import {
   utf8Bytes,
 } from "./util.ts";
 
-// L1.tools.spec §4.2 실행 파이프라인. agent-core의 beforeToolCall·afterToolCall 훅 쌍과 어댑터 execute에
-// 정책·승인·효과 기록·마스킹·경계화를 끼운다. core-tools는 agent-core 값을 import하지 않는다(DR-07).
+// L1.tools.spec §4.2 실행 파이프라인(adr.0009 §3.4). 루프가 도구 한 호출을 prepare → execute로 부르고, 실행하지 않는 호출은
+// settleRejected로 닫는다. 정책·승인·효과 기록·마스킹·경계화를 이 세 메서드와 어댑터 실행 함수에 끼운다.
+// 예상 가능한 실패(미발견, 인자 오류, 거부, 중단, 커밋 실패)는 던지지 않고 ToolCallOutcome으로 돌려준다.
+// Bug는 호출 순서 위반(prepare 없는 execute)에만 던진다. core-tools는 pi 값을 import하지 않는다(DR-07).
 
 export interface Pipeline {
-  hooks(run: ToolRunContext): AgentToolHooks;
-  agentTool(entry: ToolEntry, run: ToolRunContext): AgentTool;
-  observe(
-    event: Extract<AgentEvent, { type: `tool_execution_${string}` }>,
+  prepare(
+    call: AgentToolCall,
+    assistant: AssistantMessage,
     run: ToolRunContext,
-  ): Promise<void>;
-  rerun(intent: EffectIntent, run: ToolRunContext): Promise<ToolResultRecord>;
-  closeUnexecuted(run: ToolRunContext, toolCallIds: readonly string[]): Promise<void>;
-  settledItem(toolCallId: string): ItemId | undefined;
+  ): Promise<CallPreparation>;
+  execute(
+    call: PreparedCall,
+    onUpdate: AgentToolUpdateCallback,
+    run: ToolRunContext,
+  ): Promise<ToolCallOutcome>;
+  settleRejected(
+    calls: readonly AgentToolCall[],
+    reason: RejectReason,
+    run: ToolRunContext,
+  ): Promise<readonly ToolCallOutcome[]>;
+  rerun(intent: EffectIntent, run: ToolRunContext): Promise<ToolCallOutcome>;
 }
 
 /**
@@ -84,8 +94,11 @@ export interface Pipeline {
  * 저장소가 큰 문자열 분리로 줄일 수 없다 [L1.tools.spec §4.4 2번은 256 KiB다: 정정은 문서 쪽 미결]
  */
 const ARGS_INLINE_MAX_BYTES = 192 * 1024;
-/** 결과 item을 기억할 호출 수 */
-const SETTLED_ITEM_LIMIT = 4096;
+/** 닫은 결과를 기억할 호출 수. 같은 호출을 두 번 닫아도 같은 결과를 돌려준다 */
+const CLOSED_OUTCOME_LIMIT = 4096;
+
+const TRUNCATED_TEXT = (name: string): string =>
+  `Tool call "${name}" was not executed: the response hit the output token limit, so its arguments may be truncated. Re-issue the tool call with complete arguments.`;
 
 interface FinishOptions {
   readonly signal: AbortSignal | undefined;
@@ -93,14 +106,22 @@ interface FinishOptions {
   readonly skipChain: boolean;
 }
 
+/** 실행 결과를 마감한 값: 경계화·기록을 마친 결과와 기록한 메시지 */
 interface Finished {
-  /** 경계화를 마친 최종 결과 */
   readonly result: AgentToolResult;
-  readonly override: AfterToolCallResult;
+  readonly message: ToolResultMessage;
+  /** 결과를 기록한 toolResult item. 기록 커밋이 실패했으면 null */
+  readonly itemId: ItemId | null;
 }
 
-function blocked(reason: string, terminate: boolean = false): BeforeToolCallResult {
-  return terminate ? { block: true, reason, terminate: true } : { block: true, reason };
+/** 실행 전에 막은 이유 */
+interface Denied {
+  readonly reason: string;
+  readonly terminate: boolean;
+}
+
+function denied(reason: string, terminate: boolean = false): Denied {
+  return { reason, terminate };
 }
 
 function capabilityRefOf(entry: ToolEntry): CapabilityRef | undefined {
@@ -119,10 +140,10 @@ function statusOf(state: CallState, isError: boolean): EffectStatus {
   return state.interrupted ? "interrupted" : "error";
 }
 
-function toValue(result: AgentToolResult<unknown>, isError: boolean): ToolResultValue {
+function toValue(result: RawToolResult, isError: boolean): ToolResultValue {
   const details: unknown = result.details;
   return {
-    content: result.content,
+    content: [...result.content],
     isError,
     ...(isJsonValue(details) && details !== null ? { details } : {}),
     ...(result.structuredContent === undefined
@@ -132,10 +153,7 @@ function toValue(result: AgentToolResult<unknown>, isError: boolean): ToolResult
   };
 }
 
-function fromValue(
-  value: ToolResultValue,
-  terminate: boolean | undefined,
-): AgentToolResult<unknown> {
+function fromValue(value: ToolResultValue, terminate: boolean | undefined): RawToolResult {
   return {
     content: value.content,
     details: value.details ?? null,
@@ -148,6 +166,52 @@ function fromValue(
   };
 }
 
+/** 부분 결과를 AgentToolResult로 옮긴다. details가 JSON이 아니면 null이다 */
+function asAgentResult(result: RawToolResult): AgentToolResult {
+  const details: unknown = result.details;
+  return {
+    content: [...result.content],
+    details: isJsonValue(details) ? details : null,
+    ...(result.isError === undefined ? {} : { isError: result.isError }),
+    ...(result.structuredContent === undefined
+      ? {}
+      : { structuredContent: result.structuredContent }),
+    ...(result.usage === undefined ? {} : { usage: result.usage }),
+    ...(result.terminate === undefined ? {} : { terminate: result.terminate }),
+  };
+}
+
+function closedKey(run: ToolRunContext, toolCallId: string): string {
+  return `${run.threadId}\0${toolCallId}`;
+}
+
+function rejectedResult(reason: string, terminate: boolean): RawToolResult {
+  return {
+    content: [{ type: "text", text: reason }],
+    details: null,
+    isError: true,
+    ...(terminate ? { terminate: true } : {}),
+  };
+}
+
+function outcomeOf(
+  call: AgentToolCall,
+  callState: ToolCallState,
+  finished: Finished,
+): ToolCallOutcome {
+  return {
+    toolCall: call,
+    state: callState,
+    result: finished.result,
+    isError: finished.result.isError === true,
+    ...(finished.message.durationMs === undefined
+      ? {}
+      : { durationMs: finished.message.durationMs }),
+    message: finished.message,
+    itemId: finished.itemId,
+  };
+}
+
 export function createPipeline(
   deps: ToolsDeps,
   registry: ToolRegistry,
@@ -155,14 +219,15 @@ export function createPipeline(
   approvals: ApprovalsInternal,
 ): Pipeline {
   const kit: EffectKit = { producer: deps.producer, ids: deps.ids, clock: deps.clock };
-  const settled = new Map<string, ItemId>();
+  const closed = new Map<string, ToolCallOutcome>();
 
-  function remember(toolCallId: string, itemId: ItemId): void {
-    settled.delete(toolCallId);
-    settled.set(toolCallId, itemId);
-    if (settled.size > SETTLED_ITEM_LIMIT) {
-      const oldest = settled.keys().next();
-      if (oldest.done !== true) settled.delete(oldest.value);
+  function remember(run: ToolRunContext, outcome: ToolCallOutcome): void {
+    const key = closedKey(run, outcome.toolCall.id);
+    closed.delete(key);
+    closed.set(key, outcome);
+    if (closed.size > CLOSED_OUTCOME_LIMIT) {
+      const oldest = closed.keys().next();
+      if (oldest.done !== true) closed.delete(oldest.value);
     }
   }
 
@@ -174,6 +239,72 @@ export function createPipeline(
     state.release?.();
     state.release = undefined;
     calls.remove(state);
+  }
+
+  // ── tap 3종(tool_execution_*) ─────────────────────────────────────────
+  // 탭 지점은 실패해도 기록하고 계속한다. payload는 비밀을 가린 값이다.
+
+  async function tapStart(run: ToolRunContext, call: AgentToolCall): Promise<void> {
+    try {
+      await deps.ext.dispatch(
+        "tool_execution_start",
+        {
+          toolCallId: call.id,
+          toolName: call.name,
+          args: deps.redactor.maskDeep(call.arguments).value,
+        },
+        { threadId: run.threadId, dispatchKey: `${run.stepId}:tool_execution_start:${call.id}` },
+      );
+    } catch (error) {
+      warn("tools.observe_failed", { point: "tool_execution_start", message: messageOf(error) });
+    }
+  }
+
+  async function tapUpdate(
+    run: ToolRunContext,
+    call: AgentToolCall,
+    partial: AgentToolResult,
+    n: number,
+  ): Promise<void> {
+    try {
+      await deps.ext.dispatch(
+        "tool_execution_update",
+        {
+          toolCallId: call.id,
+          toolName: call.name,
+          args: deps.redactor.maskDeep(call.arguments).value,
+          partialResult: deps.redactor.maskDeep(partial).value,
+        },
+        {
+          threadId: run.threadId,
+          dispatchKey: `${run.stepId}:tool_execution_update:${call.id}:${n}`,
+        },
+      );
+    } catch (error) {
+      warn("tools.observe_failed", { point: "tool_execution_update", message: messageOf(error) });
+    }
+  }
+
+  async function tapEnd(
+    run: ToolRunContext,
+    call: AgentToolCall,
+    outcome: ToolCallOutcome,
+  ): Promise<void> {
+    try {
+      await deps.ext.dispatch(
+        "tool_execution_end",
+        {
+          toolCallId: call.id,
+          toolName: call.name,
+          result: deps.redactor.maskDeep(outcome.result).value,
+          isError: outcome.isError,
+          ...(outcome.durationMs === undefined ? {} : { durationMs: outcome.durationMs }),
+        },
+        { threadId: run.threadId, dispatchKey: `${run.stepId}:tool_execution_end:${call.id}` },
+      );
+    } catch (error) {
+      warn("tools.observe_failed", { point: "tool_execution_end", message: messageOf(error) });
+    }
   }
 
   // ── 인자 ──────────────────────────────────────────────────────────────
@@ -191,7 +322,7 @@ export function createPipeline(
   async function dispatchToolCall(
     state: CallState,
     signal: AbortSignal,
-  ): Promise<BeforeToolCallResult | undefined> {
+  ): Promise<Denied | undefined> {
     const { run, entry, toolCallId } = state;
     const capability = capabilityRefOf(entry);
     try {
@@ -207,11 +338,11 @@ export function createPipeline(
       );
       const decision = outcome.decision;
       if (decision === undefined) return undefined;
-      return blocked(`[xeon:denied_by_extension] ${decision.reason}`, decision.terminate === true);
+      return denied(`[xeon:denied_by_extension] ${decision.reason}`, decision.terminate === true);
     } catch (error) {
       // 디스패처 자체의 실패도 거부다(fail-closed, L1.tools.spec §5 사례 3)
       warn("tools.tool_call_dispatch_failed", { toolCallId, message: messageOf(error) });
-      return blocked(`[xeon:denied_by_extension] ${FIRST_DENY.tool_call.reason}`);
+      return denied(`[xeon:denied_by_extension] ${FIRST_DENY.tool_call.reason}`);
     }
   }
 
@@ -222,7 +353,7 @@ export function createPipeline(
     argsPayload: JsonObject | BlobRef,
     argsHash: string,
     signal: AbortSignal,
-  ): Promise<BeforeToolCallResult | undefined> {
+  ): Promise<Denied | undefined> {
     const { run, entry, toolCallId } = state;
     const config = deps.config(run.threadId);
     const input: PolicyInput = {
@@ -241,7 +372,7 @@ export function createPipeline(
     };
     const decision = evaluatePolicy(input, config.rules);
     if (decision.effect === "deny") {
-      return blocked(
+      return denied(
         decision.message ?? `[xeon:denied_by_policy] Tool call "${entry.name}" is denied.`,
       );
     }
@@ -274,7 +405,7 @@ export function createPipeline(
     };
     const answered = await approvals.requestTool(request, signal);
     if (!answered.ok) {
-      return blocked(`[xeon:tools.commit_failed] ${describeFailure(answered.error)}`);
+      return denied(`[xeon:tools.commit_failed] ${describeFailure(answered.error)}`);
     }
     const resolution = answered.value;
     if (resolution.decision === "allow") return undefined;
@@ -282,7 +413,7 @@ export function createPipeline(
       // 턴 취소는 대기 중인 요청을 cancelled로 닫는다(L1.tools.spec §4.7 8번)
       await approvals.cancel(resolution.approvalId, "turn aborted");
     }
-    return blocked(denialReason(resolution));
+    return denied(denialReason(resolution));
   }
 
   // ── 6 effect.intent ──────────────────────────────────────────────────
@@ -291,7 +422,7 @@ export function createPipeline(
     state: CallState,
     argsPayload: JsonObject | BlobRef,
     argsHash: string,
-  ): BeforeToolCallResult | undefined {
+  ): Denied | undefined {
     const { run, entry, toolCallId } = state;
     const intent: EffectIntent = {
       effectId: deps.ids.next("efx"),
@@ -308,7 +439,7 @@ export function createPipeline(
       intentRequest(kit, { run, key: state.key, intent }),
     );
     if (!committed.ok) {
-      return blocked(`[xeon:tools.commit_failed] ${describeFailure(committed.failure)}`);
+      return denied(`[xeon:tools.commit_failed] ${describeFailure(committed.failure)}`);
     }
     if (!committed.result.replayed) {
       state.intent = { effectId: intent.effectId, itemId: intent.itemId };
@@ -319,38 +450,128 @@ export function createPipeline(
       .openEffects(run.threadId)
       .find((effect) => effect.toolCallId === toolCallId);
     if (stored === undefined) {
-      return blocked("[xeon:tools.commit_failed] the stored effect.intent is already settled");
+      return denied("[xeon:tools.commit_failed] the stored effect.intent is already settled");
     }
     state.intent = { effectId: stored.effectId, itemId: intent.itemId };
     return undefined;
   }
 
-  // ── beforeToolCall ───────────────────────────────────────────────────
+  // ── 효과 없이 닫는 호출의 결과 기록 ────────────────────────────────────
 
-  async function before(
+  /**
+   * 효과(intent) 없이 끝난 호출의 결과를 toolResult item 하나로 기록한다. 비밀 마스킹을 거친다.
+   * item 커밋이 실패하면 itemId는 null이고 루프가 run을 끝낸다.
+   */
+  async function recordWithoutEffect(
     run: ToolRunContext,
-    context: BeforeToolCallContext,
-    hookSignal: AbortSignal | undefined,
-  ): Promise<BeforeToolCallResult | undefined> {
-    const toolCallId = context.toolCall.id;
-    const entry = registry.get(context.toolCall.name);
+    call: AgentToolCall,
+    input: {
+      readonly state: ToolCallState;
+      readonly result: RawToolResult;
+    },
+  ): Promise<ToolCallOutcome> {
+    const hits = new Map<string, number>();
+    const masked = maskResult(deps.redactor, input.result);
+    addHits(hits, masked.hits);
+    const result = asAgentResult({ ...masked.result, isError: true });
+    const now = deps.clock.now();
+    const message: ToolResultMessage = {
+      role: "toolResult",
+      toolCallId: call.id,
+      toolName: call.name,
+      content: result.content,
+      isError: true,
+      timestamp: now,
+      ...(result.details === undefined || result.details === null
+        ? {}
+        : { details: result.details }),
+    };
+    const itemId = deps.ids.next("itm");
+    const draft = itemDraftOf({ run, itemId, effectId: null, message });
+    const key = await commitKeyPart(call.id);
+    let recorded: ItemId | null = null;
+    if (draft === undefined) {
+      warn("tools.item_draft_unstamped", { toolCallId: call.id });
+    } else {
+      const extra: StampedDraft[] = [];
+      const payload = hitsPayload(hits);
+      if (payload.length > 0) {
+        extra.push(
+          deps.producer.draft({
+            id: deps.ids.next("evt"),
+            kind: "secret.masked",
+            threadId: run.threadId,
+            turnId: run.turnId,
+            stepId: run.stepId,
+            causationId: null,
+            correlationId: itemId,
+            payload: { hits: payload, layer: "tool-result", at: now },
+          }),
+        );
+      }
+      const committed = commitWithRetry(
+        deps.session,
+        itemOnlyRequest({ run, key, toolCallId: call.id, item: draft, extra }),
+      );
+      if (committed.ok) {
+        recorded = itemId;
+      } else {
+        warn("tools.result_commit_failed", {
+          toolCallId: call.id,
+          message: describeFailure(committed.failure),
+        });
+      }
+    }
+    const outcome: ToolCallOutcome = {
+      toolCall: call,
+      state: input.state,
+      result,
+      isError: true,
+      message,
+      itemId: recorded,
+    };
+    remember(run, outcome);
+    await tapEnd(run, call, outcome);
+    return outcome;
+  }
+
+  // ── prepare ──────────────────────────────────────────────────────────
+
+  async function prepare(
+    call: AgentToolCall,
+    _assistant: AssistantMessage,
+    run: ToolRunContext,
+  ): Promise<CallPreparation> {
+    await tapStart(run, call);
+    const settle = async (
+      reason: string,
+      terminate: boolean = false,
+    ): Promise<CallPreparation> => ({
+      kind: "settled",
+      outcome: await recordWithoutEffect(run, call, {
+        state: "rejected",
+        result: rejectedResult(reason, terminate),
+      }),
+    });
+
+    const entry = registry.get(call.name);
     if (entry === undefined) {
-      return blocked(`[xeon:tool_unavailable] Tool ${context.toolCall.name} is not available.`);
+      return settle(`[xeon:tool_unavailable] Tool ${call.name} is not available.`);
     }
     if (run.ceiling !== undefined) {
       // 자식 대화의 권한 상한은 M2(TL-13)다. 상한을 적용하지 못하면 실행하지 않는다
-      return blocked("[xeon:ceiling_unsupported] Child conversations cannot run tools yet.");
+      return settle("[xeon:ceiling_unsupported] Child conversations cannot run tools yet.");
     }
-    if (!isJsonObject(context.args)) {
-      return blocked("[xeon:invalid_args] The tool arguments are not a JSON object.");
-    }
+    const checked = validateToolArguments(entry.parameters, call);
+    if (!checked.ok) return settle(checked.error.message);
+
     const state: CallState = {
       threadId: run.threadId,
-      toolCallId,
-      key: await commitKeyPart(toolCallId),
+      toolCallId: call.id,
+      key: await commitKeyPart(call.id),
       run,
       entry,
-      args: context.args,
+      args: checked.value,
       intent: undefined,
       execCommitted: false,
       startedAt: undefined,
@@ -362,26 +583,39 @@ export function createPipeline(
       settledItem: undefined,
     };
     calls.put(state);
+    let verdict: Denied | undefined;
     try {
-      const signal = mergeSignals(run.signal, hookSignal);
-      const denied = await dispatchToolCall(state, signal);
-      if (denied !== undefined) return denied;
-
-      const argsPayload = inlineOrBlob(state.args);
-      if (argsPayload === undefined) {
-        return blocked("[xeon:tools.commit_failed] the tool arguments could not be stored");
-      }
-      const argsHash = await argsHashOf(state.args);
-      const verdict = await decide(state, argsPayload, argsHash, signal);
-      if (verdict !== undefined) return verdict;
-
-      return commitIntent(state, argsPayload, argsHash);
+      verdict = await gate(state, run.signal);
     } catch (error) {
-      deps.logger?.error("tools.before_failed", { toolCallId, message: messageOf(error) });
-      return blocked("[xeon:tools.internal_error] The tool call could not be prepared.");
-    } finally {
-      if (state.intent === undefined) forget(state);
+      if (error instanceof Bug) {
+        forget(state);
+        throw error;
+      }
+      deps.logger?.error("tools.before_failed", { toolCallId: call.id, message: messageOf(error) });
+      verdict = denied("[xeon:tools.internal_error] The tool call could not be prepared.");
     }
+    if (verdict !== undefined) {
+      forget(state);
+      return settle(verdict.reason, verdict.terminate);
+    }
+    return { kind: "ready", call: { toolCall: call, args: checked.value } };
+  }
+
+  /** tool_call 지점 → 정책·승인 → 중단 확인 → effect.intent. 막히면 이유를 돌려준다 */
+  async function gate(state: CallState, signal: AbortSignal): Promise<Denied | undefined> {
+    const toolCallDenied = await dispatchToolCall(state, signal);
+    if (toolCallDenied !== undefined) return toolCallDenied;
+
+    const argsPayload = inlineOrBlob(state.args);
+    if (argsPayload === undefined) {
+      return denied("[xeon:tools.commit_failed] the tool arguments could not be stored");
+    }
+    const argsHash = await argsHashOf(state.args);
+    const verdict = await decide(state, argsPayload, argsHash, signal);
+    if (verdict !== undefined) return verdict;
+    // 의도를 쓰기 전에 중단을 확인한다. 의도가 있는 호출은 실행 전이라도 settleRejected가 효과 결과로 닫아야 한다
+    if (signal.aborted) return denied("[xeon:aborted] Operation aborted");
+    return commitIntent(state, argsPayload, argsHash);
   }
 
   // ── 7·8 실행 ─────────────────────────────────────────────────────────
@@ -390,7 +624,7 @@ export function createPipeline(
     state: CallState,
     params: unknown,
     signal: AbortSignal,
-    onUpdate: Parameters<AgentTool["execute"]>[3],
+    onUpdate: AgentToolUpdateCallback,
   ): Promise<RawOutcome> {
     const { run, entry, intent } = state;
     if (intent === undefined) throw new Bug("tools.intent_missing");
@@ -415,14 +649,11 @@ export function createPipeline(
     }
     state.execCommitted = true;
     state.startedAt = startedAt;
-    const masking =
-      onUpdate === undefined
-        ? undefined
-        : (partial: AgentToolResult<unknown>): void => {
-            const masked = maskResult(deps.redactor, partial);
-            addHits(state.maskedHits, masked.hits);
-            onUpdate(masked.result);
-          };
+    const masking = (partial: AgentToolResult): void => {
+      const masked = maskResult(deps.redactor, partial);
+      addHits(state.maskedHits, masked.hits);
+      onUpdate(asAgentResult(masked.result));
+    };
     try {
       const outcome = await entry.raw({
         run,
@@ -448,13 +679,13 @@ export function createPipeline(
   async function runCall(
     state: CallState,
     params: unknown,
-    hookSignal: AbortSignal | undefined,
-    onUpdate: Parameters<AgentTool["execute"]>[3],
+    callerSignal: AbortSignal | undefined,
+    onUpdate: AgentToolUpdateCallback,
   ): Promise<RawOutcome> {
     const { run, entry } = state;
     const scope = openToolScope(deps.tasks, run, state.toolCallId);
     if (scope !== undefined) state.release = scope.release;
-    const signal = mergeSignals(hookSignal, run.signal, scope?.node.signal);
+    const signal = mergeSignals(callerSignal, run.signal, scope?.node.signal);
     const tasks = deps.tasks;
     const locksFor = entry.locks;
     if (
@@ -524,7 +755,7 @@ export function createPipeline(
 
   async function finishCall(
     state: CallState,
-    input: AgentToolResult<unknown>,
+    input: RawToolResult,
     isError: boolean,
     options: FinishOptions,
   ): Promise<Finished> {
@@ -566,7 +797,7 @@ export function createPipeline(
       role: "toolResult",
       toolCallId: state.toolCallId,
       toolName: entry.name,
-      content,
+      content: [...content],
       isError: current.isError,
       timestamp: now,
       ...(details === null ? {} : { details: fitForEvent(details) }),
@@ -628,17 +859,25 @@ export function createPipeline(
         isError: true,
         terminate: true,
       };
-      return { result: failed, override: { ...failed } };
+      return {
+        result: failed,
+        message: {
+          role: "toolResult",
+          toolCallId: state.toolCallId,
+          toolName: entry.name,
+          content: failed.content,
+          isError: true,
+          timestamp: now,
+        },
+        itemId: null,
+      };
     }
-    if (itemDraft !== undefined) {
-      state.settledItem = resultItemId;
-      remember(state.toolCallId, resultItemId);
-    }
+    if (itemDraft !== undefined) state.settledItem = resultItemId;
     state.release?.();
     state.release = undefined;
 
     const result: AgentToolResult = {
-      content,
+      content: [...content],
       details,
       isError: current.isError,
       ...(current.structuredContent === undefined
@@ -647,130 +886,52 @@ export function createPipeline(
       ...(current.usage === undefined ? {} : { usage: current.usage }),
       ...(terminate === undefined ? {} : { terminate }),
     };
-    return { result, override: { ...result } };
+    return { result, message, itemId: itemDraft === undefined ? null : resultItemId };
   }
 
-  // ── afterToolCall ────────────────────────────────────────────────────
+  // ── execute ──────────────────────────────────────────────────────────
 
-  async function after(
+  async function execute(
+    prepared: PreparedCall,
+    onUpdate: AgentToolUpdateCallback,
     run: ToolRunContext,
-    context: AfterToolCallContext,
-    hookSignal: AbortSignal | undefined,
-  ): Promise<AfterToolCallResult | undefined> {
-    const state = calls.get(run.threadId, context.toolCall.id);
-    if (state?.intent === undefined) return undefined;
+  ): Promise<ToolCallOutcome> {
+    const call = prepared.toolCall;
+    const state = calls.get(run.threadId, call.id);
+    if (state?.intent === undefined) {
+      // 커밋된 effect.intent가 없으면 provider를 부르지 않는다(L1.tools.spec §4.4 1번, 호출 순서 위반)
+      throw new Bug(`tools.intent_missing: no committed effect.intent for ${call.id}`);
+    }
+    const updates: Promise<void>[] = [];
+    const forward: AgentToolUpdateCallback = (partial) => {
+      state.updates += 1;
+      updates.push(tapUpdate(run, call, partial, state.updates));
+      onUpdate(partial);
+    };
     try {
-      const finished = await finishCall(state, context.result, context.isError, {
-        signal: hookSignal,
+      const outcome = await runCall(state, prepared.args, undefined, forward);
+      await Promise.all(updates);
+      const finished = await finishCall(state, outcome.result, outcome.result.isError === true, {
+        signal: run.signal,
         skipChain: false,
       });
       forget(state);
-      return finished.override;
+      const result = outcomeOf(call, "executed", finished);
+      await tapEnd(run, call, result);
+      return result;
     } catch (error) {
-      // 이 훅이 던지면 agent-core가 결과를 오류로 덮는다. 던지지 않고 비밀이 새지 않는 오류 결과를 돌려준다
-      deps.logger?.error("tools.after_failed", {
-        toolCallId: context.toolCall.id,
-        message: messageOf(error),
-      });
       forget(state);
-      return {
-        content: [
-          {
-            type: "text",
-            text: "[xeon:tools.internal_error] The tool result could not be recorded.",
-          },
-        ],
-        details: { xeonError: "after_failed" },
-        isError: true,
-      };
-    }
-  }
-
-  // ── 어댑터 ───────────────────────────────────────────────────────────
-
-  function agentTool(entry: ToolEntry, run: ToolRunContext): AgentTool {
-    return {
-      name: entry.name,
-      label: entry.label,
-      description: entry.description,
-      parameters: entry.parameters,
-      replay: entry.replay === "safe" ? "safe" : "never",
-      ...(entry.outputSchema === undefined ? {} : { outputSchema: entry.outputSchema }),
-      ...(entry.executionMode === undefined ? {} : { executionMode: entry.executionMode }),
-      ...(entry.prepareArguments === undefined ? {} : { prepareArguments: entry.prepareArguments }),
-      execute: async (toolCallId, params, signal, onUpdate) => {
-        const state = calls.get(run.threadId, toolCallId);
-        if (state?.intent === undefined) {
-          // 커밋된 effect.intent가 없으면 provider를 부르지 않는다(L1.tools.spec §4.4 1번, 버그)
-          throw new Bug(`tools.intent_missing: no committed effect.intent for ${toolCallId}`);
-        }
-        const outcome = await runCall(state, params, signal, onUpdate);
-        return outcome.result;
-      },
-    };
-  }
-
-  // ── 관찰(tap 3종) ────────────────────────────────────────────────────
-
-  async function observe(
-    event: Extract<AgentEvent, { type: `tool_execution_${string}` }>,
-    run: ToolRunContext,
-  ): Promise<void> {
-    const state = calls.get(run.threadId, event.toolCallId);
-    const base = { threadId: run.threadId };
-    try {
-      switch (event.type) {
-        case "tool_execution_start":
-          await deps.ext.dispatch(
-            "tool_execution_start",
-            {
-              toolCallId: event.toolCallId,
-              toolName: event.toolName,
-              args: deps.redactor.maskDeep(event.args).value,
-            },
-            { ...base, dispatchKey: `${run.stepId}:tool_execution_start:${event.toolCallId}` },
-          );
-          return;
-        case "tool_execution_update": {
-          if (state !== undefined) state.updates += 1;
-          const n = state?.updates ?? 0;
-          await deps.ext.dispatch(
-            "tool_execution_update",
-            {
-              toolCallId: event.toolCallId,
-              toolName: event.toolName,
-              args: deps.redactor.maskDeep(event.args).value,
-              partialResult: deps.redactor.maskDeep(event.partialResult).value,
-            },
-            {
-              ...base,
-              dispatchKey: `${run.stepId}:tool_execution_update:${event.toolCallId}:${n}`,
-            },
-          );
-          return;
-        }
-        case "tool_execution_end":
-          await deps.ext.dispatch(
-            "tool_execution_end",
-            {
-              toolCallId: event.toolCallId,
-              toolName: event.toolName,
-              result: deps.redactor.maskDeep(event.result).value,
-              isError: event.isError,
-              ...(event.durationMs === undefined ? {} : { durationMs: event.durationMs }),
-            },
-            { ...base, dispatchKey: `${run.stepId}:tool_execution_end:${event.toolCallId}` },
-          );
-          return;
-        default:
-          return assertNever(event, "pipeline.observe");
-      }
-    } catch (error) {
-      // 탭 지점은 기록하고 계속한다
-      warn("tools.observe_failed", { point: event.type, message: messageOf(error) });
-    } finally {
-      // 도구 실행이 끝났다. afterToolCall이 불리지 않아 정착하지 못한 노드가 남아 있으면 안전망으로 내린다
-      if (event.type === "tool_execution_end" && state !== undefined) forget(state);
+      if (error instanceof Bug) throw error;
+      // 결과를 기록하는 중 예상하지 못한 오류. 비밀이 새지 않는 오류 결과를 돌려주고 기록하지 못한 것으로 표시한다
+      deps.logger?.error("tools.after_failed", { toolCallId: call.id, message: messageOf(error) });
+      const failed = await recordWithoutEffect(run, call, {
+        state: "executed",
+        result: rejectedResult(
+          "[xeon:tools.internal_error] The tool result could not be recorded.",
+          true,
+        ),
+      });
+      return failed;
     }
   }
 
@@ -784,17 +945,25 @@ export function createPipeline(
     try {
       const parsed: unknown = JSON.parse(new TextDecoder().decode(read.value));
       return isJsonObject(parsed) ? parsed : undefined;
-    } catch {
+    } catch (error) {
+      // 저장된 인자 blob이 JSON이 아니다. 인자를 읽을 수 없는 호출로 닫는다
+      warn("tools.args_unreadable", { toolCallId: intent.toolCallId, message: messageOf(error) });
       return undefined;
     }
   }
 
-  async function rerun(intent: EffectIntent, run: ToolRunContext): Promise<ToolResultRecord> {
+  async function rerun(intent: EffectIntent, run: ToolRunContext): Promise<ToolCallOutcome> {
     const entry = registry.get(intent.toolName);
     if (entry === undefined) {
       throw new Bug(`tools.rerun_tool_missing: ${intent.toolName} is no longer registered`);
     }
     const args = argsOf(intent);
+    const call: AgentToolCall = {
+      type: "toolCall",
+      id: intent.toolCallId,
+      name: intent.toolName,
+      arguments: args ?? {},
+    };
     const execCount =
       deps.session.query
         .openEffects(run.threadId)
@@ -827,53 +996,73 @@ export function createPipeline(
           signal: undefined,
           skipChain: true,
         });
-        return toToolResultRecord(finished.result);
+        return outcomeOf(call, "executed", finished);
       }
-      const outcome = await runCall(state, args, undefined, undefined);
+      const outcome = await runCall(state, args, undefined, () => {});
       const finished = await finishCall(state, outcome.result, outcome.result.isError === true, {
         signal: undefined,
         skipChain: false,
       });
-      return toToolResultRecord(finished.result);
+      return outcomeOf(call, "executed", finished);
     } finally {
       forget(state);
     }
   }
 
-  // ── 중단으로 남은 호출 닫기(L1.tools.spec §4.2, §3.3 closeUnexecuted) ──
+  // ── settleRejected(L1.tools.spec §4.2) ───────────────────────────────
 
-  async function closeUnexecuted(
+  async function settleOne(
+    call: AgentToolCall,
+    reason: RejectReason,
     run: ToolRunContext,
-    toolCallIds: readonly string[],
-  ): Promise<void> {
-    await eachInOrder(toolCallIds, async (toolCallId) => {
-      const state = calls.get(run.threadId, toolCallId);
-      // 의도가 없는 호출은 효과 이벤트가 없다. toolResult item은 루프가 기록한다
-      if (state?.intent === undefined || state.settledItem !== undefined) return;
+  ): Promise<ToolCallOutcome> {
+    const known = closed.get(closedKey(run, call.id));
+    if (known !== undefined) return known;
+    const state = calls.get(run.threadId, call.id);
+    if (state === undefined) {
+      // 준비하지 않은 호출: 시작 tap을 짝으로 내고 효과 없이 닫는다
+      await tapStart(run, call);
+    }
+    if (state?.intent !== undefined) {
+      // 의도가 커밋된 호출: 실행 전이면 "시작 전", 실행 표시가 있으면 "결과 불명"으로 효과 결과를 쓴다
       const text = state.execCommitted ? OUTCOME_UNKNOWN_TEXT : NOT_STARTED_TEXT;
       state.interrupted = state.execCommitted;
-      await finishCall(
+      const finished = await finishCall(
         state,
         { content: [{ type: "text", text }], details: null, isError: true },
         true,
-        {
-          signal: undefined,
-          skipChain: true,
-        },
+        { signal: undefined, skipChain: true },
       );
       forget(state);
+      const outcome = outcomeOf(call, reason, finished);
+      remember(run, outcome);
+      await tapEnd(run, call, outcome);
+      return outcome;
+    }
+    if (state !== undefined) forget(state);
+    const text = reason === "truncated" ? TRUNCATED_TEXT(call.name) : NOT_STARTED_TEXT;
+    return recordWithoutEffect(run, call, {
+      state: reason,
+      result: { content: [{ type: "text", text }], details: null, isError: true },
     });
   }
 
+  async function settleRejected(
+    toClose: readonly AgentToolCall[],
+    reason: RejectReason,
+    run: ToolRunContext,
+  ): Promise<readonly ToolCallOutcome[]> {
+    const outcomes: ToolCallOutcome[] = [];
+    await eachInOrder(toClose, async (call) => {
+      outcomes.push(await settleOne(call, reason, run));
+    });
+    return outcomes;
+  }
+
   return {
-    hooks: (run) => ({
-      beforeToolCall: (context, signal) => before(run, context, signal),
-      afterToolCall: (context, signal) => after(run, context, signal),
-    }),
-    agentTool,
-    observe,
+    prepare,
+    execute,
+    settleRejected,
     rerun,
-    closeUnexecuted,
-    settledItem: (toolCallId) => settled.get(toolCallId),
   };
 }

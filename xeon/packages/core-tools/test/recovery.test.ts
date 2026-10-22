@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { parse } from "@xeon/contracts";
 import { NOT_STARTED_TEXT, EffectIntentSchema, EffectResultSchema } from "@xeon/contracts/records";
 import type { EffectIntent } from "@xeon/contracts/records";
+import type { AgentToolCall } from "@xeon/contracts/conversation";
 import type { ToolRunContext } from "@xeon/contracts/services";
 import {
   ASSISTANT,
@@ -13,22 +14,18 @@ import {
   type Harness,
 } from "./support/harness.ts";
 
-/** before 훅만 돌려 effect.intent를 커밋한다(실행 전 상태) */
+/** prepare만 돌려 effect.intent를 커밋한다(실행 전 상태) */
 async function commitIntentOnly(h: Harness, run: ToolRunContext, id: string, name = "read") {
-  const tools = h.runtime.tools.toAgentTools(
-    await h.runtime.tools.advertise({ run, activated: new Set() }),
+  const prepared = await h.runtime.tools.prepare(
+    { type: "toolCall", id, name, arguments: { path: "a.txt" } },
+    ASSISTANT,
     run,
   );
-  const before = await h.runtime.tools.hooks(run).beforeToolCall(
-    {
-      assistantMessage: ASSISTANT,
-      toolCall: { type: "toolCall", id, name, arguments: {} },
-      args: { path: "a.txt" },
-      context: { messages: [], tools: [...tools] },
-    },
-    run.signal,
-  );
-  expect(before).toBeUndefined();
+  expect(prepared.kind).toBe("ready");
+}
+
+function callOf(id: string, name = "read"): AgentToolCall {
+  return { type: "toolCall", id, name, arguments: { path: "a.txt" } };
 }
 
 function intentOf(h: Harness, toolCallId: string): EffectIntent {
@@ -58,7 +55,8 @@ test("rerun_skips_tool_call_hook: stored args run again without the tool_call ha
   expect(handlerCalls).toBe(1);
   expect(probe.calls).toEqual([{ method: "read", input: { path: "a.txt" } }]);
   expect(record.isError).toBe(false);
-  expect(record.content[0]).toMatchObject({ type: "text", text: "hello" });
+  expect(record.itemId).not.toBeNull();
+  expect(record.result.content[0]).toMatchObject({ type: "text", text: "hello" });
   // 결과의 requestId는 처음 실행과 같은 키다
   expect(h.session.commits.map((commit) => commit.requestId)).toEqual([
     "tool:call_1:intent",
@@ -102,13 +100,23 @@ test("a rerun after an unrecorded result commits exec with the attempt number", 
   expect(result.ok && result.value.status).toBe("ok");
 });
 
-test("close_unexecuted_marks_not_executed: calls with an intent get an abandoned result in the same commit as the item", async () => {
+test("settle_rejected_marks_not_executed: calls with an intent get an abandoned result in the same commit as the item", async () => {
   const h = await createHarness();
   registerWorkspace(h);
   const run = h.run();
   await commitIntentOnly(h, run, "call_3");
   await commitIntentOnly(h, run, "call_4");
-  await h.runtime.tools.closeUnexecuted(run, ["call_3", "call_4", "call_5"]);
+  const closed = await h.runtime.tools.settleRejected(
+    [callOf("call_3"), callOf("call_4"), callOf("call_5")],
+    "not_executed",
+    run,
+  );
+  expect(closed.map((outcome) => outcome.state)).toEqual([
+    "not_executed",
+    "not_executed",
+    "not_executed",
+  ]);
+  expect(closed.every((outcome) => outcome.itemId !== null)).toBe(true);
 
   const results = h.session.events.filter((event) => event.kind === "effect.result");
   expect(results).toHaveLength(2);
@@ -121,22 +129,25 @@ test("close_unexecuted_marks_not_executed: calls with an intent get an abandoned
   expect(commits.map((commit) => commit.kinds)).toEqual([
     ["effect.result", "item.recorded"],
     ["effect.result", "item.recorded"],
+    // 의도가 없던 호출은 효과 이벤트 없이 toolResult item만 기록한다
+    ["item.recorded"],
+  ]);
+  expect(commits.map((commit) => commit.requestId)).toEqual([
+    "tool:call_3:result",
+    "tool:call_4:result",
+    "tool:call_5:result",
   ]);
   expect(JSON.stringify(h.session.events)).toContain(NOT_STARTED_TEXT);
-  expect(h.runtime.tools.settledItem("call_3")).toBeDefined();
-  expect(h.runtime.tools.settledItem("call_4")).toBeDefined();
-  // 의도가 없던 호출은 효과 이벤트가 없다(toolResult item은 루프가 기록한다)
-  expect(h.runtime.tools.settledItem("call_5")).toBeUndefined();
-  expect(h.session.commits.some((commit) => commit.requestId.includes("call_5"))).toBe(false);
 });
 
-test("closeUnexecuted does not close a call twice", async () => {
+test("settleRejected does not close a call twice and returns the first outcome", async () => {
   const h = await createHarness();
   registerWorkspace(h);
   const run = h.run();
   await commitIntentOnly(h, run, "call_6");
-  await h.runtime.tools.closeUnexecuted(run, ["call_6"]);
+  const first = await h.runtime.tools.settleRejected([callOf("call_6")], "not_executed", run);
   const before = h.session.events.length;
-  await h.runtime.tools.closeUnexecuted(run, ["call_6"]);
+  const second = await h.runtime.tools.settleRejected([callOf("call_6")], "not_executed", run);
   expect(h.session.events).toHaveLength(before);
+  expect(second[0]?.itemId).toBe(first[0]?.itemId);
 });

@@ -31,9 +31,11 @@ import {
   type ItemRecordSchema,
   type ToolCallItemSchema,
 } from "./hierarchy.ts";
-import { AgentToolResultSchema, StopReasonSchema, UsageSchema } from "./message-schema.ts";
+import { AgentToolResultSchema } from "./agent-schema.ts";
+import { StopReasonSchema, UsageSchema } from "./message-schema.ts";
 import { PartDeltaSchema, PartRecordSchema } from "./parts.ts";
-import type { AgentEvent, AgentToolResult, StopReason, Usage } from "./pi.ts";
+import type { AgentEvent, AgentToolResult } from "./agent.ts";
+import type { StopReason, Usage } from "./pi.ts";
 
 /** 공통 범위 필드. envelope 필드(F.records.spec)와 이름이 같다. */
 export interface LifecycleScope {
