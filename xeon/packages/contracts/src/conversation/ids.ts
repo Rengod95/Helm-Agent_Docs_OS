@@ -62,6 +62,10 @@ export const EventIdSchema: TUnsafe<EventId> = idSchema("evt");
 export const EffectIdSchema: TUnsafe<EffectId> = idSchema("efx");
 export const CheckpointIdSchema: TUnsafe<CheckpointId> = idSchema("ckp");
 
+/** 승인 요청 ID. approval.requested 이벤트의 EventId다(L1.tools.spec §3.6, F.records.spec §3.3.1). 별칭이며 새 접두를 만들지 않는다 */
+export type ApprovalId = EventId;
+export const ApprovalIdSchema: TUnsafe<ApprovalId> = idSchema("evt");
+
 /** 발급은 F 밖에서 한다. 구현은 L0(platform-os, 시계·난수)이 맡고 L1 이상은 주입받는다. */
 export interface IdFactory {
   next<P extends IdPrefix>(prefix: P): IdByPrefix[P];
