@@ -150,7 +150,7 @@ export async function createOsService(
     logger,
     lifetime: lifetime.signal,
     // 소스 실행의 번들 rg는 @vscode/ripgrep이 준다. 조립 루트가 다른 수단을 넘기면 그것을 쓴다
-    bundledSource: config.bundledSource ?? createRipgrepSource({ run: runtime.run }),
+    bundledSource: config.bundledSource ?? createRipgrepSource({ run: runtime.run, logger }),
   });
 
   const service: OsService = {

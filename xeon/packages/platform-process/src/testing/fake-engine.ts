@@ -220,9 +220,16 @@ export async function spawnFakeEngine(
         },
       }),
     )
-    .catch((cause: unknown) => {
-      ready.reject(cause);
-    });
+    .then(
+      () => {
+        // stderr가 끝났다. ready 전이면 자식이 준비 사건 없이 끝난 것이다(ready가 이미 풀렸으면 아무 일도 아니다)
+        ready.reject(new Error("fake engine exited before ready"));
+        return undefined;
+      },
+      (cause: unknown) => {
+        ready.reject(cause);
+      },
+    );
   await ready.promise;
   const client = createStdioTransportWith({
     readable: child.stdout,

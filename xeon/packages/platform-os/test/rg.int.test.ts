@@ -30,7 +30,7 @@ function hostInfo(): OsInfo {
 
 describe("@vscode/ripgrep", () => {
   test("the source run uses the package's rg and reads its version", async () => {
-    const source = createRipgrepSource({ run: createRunCommand() });
+    const source = createRipgrepSource({ run: createRunCommand(), logger: memoryLogger().logger });
     const bundled = await source("rg", signal);
     expect(bundled.ok && bundled.value?.path).toBe(rgPath);
     expect(bundled.ok && bundled.value?.version).toMatch(/^\d+\.\d+\.\d+$/);
@@ -46,7 +46,10 @@ describe("@vscode/ripgrep", () => {
       run: createRunCommand(),
       logger: memoryLogger().logger,
       lifetime: signal,
-      bundledSource: createRipgrepSource({ run: createRunCommand() }),
+      bundledSource: createRipgrepSource({
+        run: createRunCommand(),
+        logger: memoryLogger().logger,
+      }),
     });
     const resolved = await resolve("rg", {}, signal);
     expect(resolved.ok && resolved.value.source).toBe("bundled");
@@ -59,7 +62,10 @@ describe("@vscode/ripgrep", () => {
     await mkdir(join(temp.path, "bin"), { recursive: true });
     await copyFile(rgPath, join(temp.path, "bin", "rg"));
     await chmod(join(temp.path, "bin", "rg"), 0o755);
-    const source = await createRipgrepSource({ run: createRunCommand() })("rg", signal);
+    const source = await createRipgrepSource({
+      run: createRunCommand(),
+      logger: memoryLogger().logger,
+    })("rg", signal);
     if (!source.ok || source.value === undefined) throw new Error("no bundled rg");
     const lock = await generateBinariesLock(
       temp.path,

@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import type { Logger, Scheduler, TimerHandle } from "@xeon/contracts";
+import { attempt, type Logger, type Scheduler, type TimerHandle } from "@xeon/contracts";
 import type { HookRawRun, HookRunSpec } from "@xeon/contracts/extensions";
 import type { ProcessPlatformProvider } from "../select.ts";
 
@@ -104,14 +104,23 @@ export function createHookRunner(deps: HookRunnerDeps): HookRunner {
         });
         return;
       }
-      const child = spawn(command, args, {
-        cwd: spec.cwd,
-        env: spec.env,
-        stdio: ["pipe", "pipe", "pipe"],
-        detached: platform.detachedSpawn,
-        windowsHide: true,
-        shell: false,
-      });
+      // argv의 NUL 바이트나 잘못된 cwd 형식처럼 런타임이 동기로 거부하는 인자도 4번 규칙대로 spawnError로 돌려준다
+      const spawned = attempt(() =>
+        spawn(command, args, {
+          cwd: spec.cwd,
+          env: spec.env,
+          stdio: ["pipe", "pipe", "pipe"],
+          detached: platform.detachedSpawn,
+          windowsHide: true,
+          shell: false,
+        }),
+      );
+      if (!spawned.ok) {
+        deps.logger.debug("hook.spawn_threw", { code: errnoCode(spawned.error.cause) });
+        resolve(spawnFailure(errnoCode(spawned.error.cause)));
+        return;
+      }
+      const child = spawned.value;
       const stdout = limitedCollector(spec.maxStdoutChars);
       const stderr = limitedCollector(spec.maxStderrChars);
       const run: { aborted: boolean; settled: boolean; killTimer: TimerHandle | undefined } = {

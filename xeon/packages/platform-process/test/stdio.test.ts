@@ -149,6 +149,27 @@ describe("stdio transport", () => {
     expect(late).toEqual([PING]);
   });
 
+  test("messages that arrive before the first handler survive an EOF that follows them", async () => {
+    const io = bytePipe();
+    const back = bytePipe();
+    const server = createStdioTransport({ readable: io.readable, writable: back.writable });
+    const order: string[] = [];
+    // onClose만 붙인 채 상대가 마지막 메시지를 쓰고 끝낸다
+    server.onClose((info) => {
+      order.push(`close:${info.reason}`);
+    });
+    const writer = io.writable.getWriter();
+    await writer.write(bytes(`${JSON.stringify(PING)}\n`));
+    await writer.close();
+    await until(() => false);
+    expect(order).toEqual([]);
+    server.onMessage((message) => {
+      order.push(`message:${JSON.stringify(message)}`);
+    });
+    await until(() => order.length === 2);
+    expect(order).toEqual([`message:${JSON.stringify(PING)}`, "close:eof"]);
+  });
+
   test("an unterminated tail at EOF is dropped and logged", async () => {
     const io = bytePipe();
     const back = bytePipe();

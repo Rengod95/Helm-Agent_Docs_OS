@@ -1,4 +1,4 @@
-import { attemptAsync, err, ok } from "@xeon/contracts";
+import { attemptAsync, err, ok, type Logger } from "@xeon/contracts";
 import type { RunCommand } from "../proc.ts";
 import type { BundledSource } from "./resolve.ts";
 import { findVersion } from "./semver.ts";
@@ -9,6 +9,8 @@ import { findVersion } from "./semver.ts";
 
 export interface RipgrepSourceDeps {
   readonly run: RunCommand;
+  /** 번들을 못 읽은 원인을 debug로 남긴다 */
+  readonly logger: Logger;
   /** `rgPath`를 주는 모듈 불러오기. 기본은 `@vscode/ripgrep`. 시험이 대신 넣는다 */
   readonly load?: () => Promise<{ readonly rgPath: string }>;
 }
@@ -17,13 +19,22 @@ function loadVscodeRipgrep(): Promise<{ readonly rgPath: string }> {
   return import("@vscode/ripgrep");
 }
 
+function codeOf(cause: unknown): string {
+  const code: unknown =
+    typeof cause === "object" && cause !== null ? Reflect.get(cause, "code") : undefined;
+  return typeof code === "string" ? code : cause instanceof Error ? cause.name : "unknown";
+}
+
 export function createRipgrepSource(deps: RipgrepSourceDeps): BundledSource {
   const load = deps.load ?? loadVscodeRipgrep;
   return async (name, signal) => {
     if (name !== "rg") return ok(undefined);
     const loaded = await attemptAsync(load);
-    // 플랫폼 패키지가 없거나 모듈을 읽지 못했다. 번들 없음이다
-    if (!loaded.ok) return ok(undefined);
+    // 플랫폼 패키지가 없거나 모듈을 읽지 못했다. 번들 없음으로 보되, 모듈이 깨진 경우를 가릴 수 있어 원인을 남긴다
+    if (!loaded.ok) {
+      deps.logger.debug("os.rg.bundle_unavailable", { code: codeOf(loaded.error.cause) });
+      return ok(undefined);
+    }
     const path = loaded.value.rgPath;
     const out = await deps.run([path, "--version"], { signal });
     if (!out.ok) {

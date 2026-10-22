@@ -93,6 +93,14 @@ describe("hook run", () => {
     expect(empty.spawnError).toBe("EINVAL");
   });
 
+  test("arguments the runtime refuses synchronously come back as spawnError, not as a rejection", async () => {
+    // argv의 NUL 바이트는 spawn이 동기로 던진다
+    const run = await makeRunner().run(spec({ args: [], argv: [process.execPath, "bad\0arg"] }));
+    expect(run.exitCode).toBeNull();
+    expect(run.timedOut).toBe(false);
+    expect(typeof run.spawnError).toBe("string");
+  });
+
   test("hook run truncates output and flags only stdout truncation", async () => {
     const run = await makeRunner().run(
       spec({ args: ["big", "50000"], maxStdoutChars: 100, maxStderrChars: 10 }),
