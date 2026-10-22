@@ -1,8 +1,9 @@
 import { expect, test } from "bun:test";
 import { validateManifest, type PortKey } from "@xeon/contracts/extensions";
+import { ContextPortKey } from "@xeon/contracts/services";
 import type { ExtensionUnit } from "@xeon/ext-host";
 import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
-import { ContextPortKey, extension, manifest } from "../src/index.ts";
+import { extension, manifest } from "../src/index.ts";
 import { memoryLog, type BranchReader } from "./support/log.ts";
 import {
   assembleOptions,

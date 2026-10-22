@@ -19,7 +19,13 @@ import type {
   TurnId,
   Usage,
 } from "../conversation/index.ts";
-import type { ModelsPort, ProviderResourceDef, ScopeId, Unsubscribe } from "../extensions/index.ts";
+import type {
+  ModelsPort,
+  PortKey,
+  ProviderResourceDef,
+  ScopeId,
+  Unsubscribe,
+} from "../extensions/index.ts";
 
 // L1.models.spec §3.2~§3.8. 구현은 core-models다. 모델·캐시 값 타입은 여러 서비스가 쓰므로 이 파일에 두고
 // services/context.ts가 가져간다(F.capabilities.spec §3.12 규칙 3).
@@ -38,6 +44,12 @@ export type {
 };
 
 export const ModelServiceName = "xeon.models" as const;
+
+/**
+ * `xeon.models` 전체 모양(ModelService)의 포트 키. 제공 core-models, 소비 core-context 등.
+ * 등록 부분형(ModelsPort)의 키는 extensions의 `ModelsPortKey`이고 이름은 같다.
+ */
+export const ModelServicePortKey: PortKey<ModelService> = { name: ModelServiceName };
 
 // ── 역할과 참조 ──────────────────────────────────────────────────────────
 
@@ -195,7 +207,7 @@ export interface ResolvedModel {
     readonly ref: ModelRefString | null;
   }[];
   /** 카탈로그 항목 */
-  readonly model: Model;
+  readonly model: Model<Api>;
   /** 레벨별 토큰 예산. 레벨이 off이거나 provider가 토큰 예산을 쓰지 않으면 null */
   readonly thinkingBudgetTokens: number | null;
   readonly cachePolicy: CachePolicy;

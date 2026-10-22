@@ -1,5 +1,6 @@
 import { Bug, err, ok } from "@xeon/contracts";
 import type {
+  Api,
   AssistantMessage,
   AssistantMessageEvent,
   AssistantMessageEventStream,
@@ -46,7 +47,7 @@ export interface FakeModels {
   setBinding(binding: ModelBinding): void;
 }
 
-const FAKE_MODEL: Model = {
+const FAKE_MODEL: Model<Api> = {
   id: "fake-1",
   name: "Fake model",
   api: "fake-api",

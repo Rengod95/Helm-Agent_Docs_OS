@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "catalog:",
-    "@xeon/contracts": "workspace:*"
+    "@xeon/contracts": "workspace:*",
+    "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:"

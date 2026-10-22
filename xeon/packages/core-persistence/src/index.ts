@@ -11,7 +11,11 @@ export {
   type PersistenceSettings,
   type SessionDeps,
 } from "./deps.ts";
-export { resolvePersistenceSettings, type PersistenceSettingIssue } from "./settings.ts";
+export {
+  PERSISTENCE_SETTING_DEFS,
+  resolvePersistenceSettings,
+  type PersistenceSettingIssue,
+} from "./settings.ts";
 export { decideOpenEffect, type OpenEffectInput } from "./recovery.ts";
 export { SESSION_MIGRATION_OWNER, SESSION_MIGRATION_SET } from "./schema/migrations.ts";
 export { SESSION_TABLE_COLUMNS } from "./schema/ddl.ts";

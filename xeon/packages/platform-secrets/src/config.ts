@@ -1,6 +1,6 @@
 import type { SecretApproval, SecretProviderId } from "@xeon/contracts/capabilities";
 
-// L0.secrets.spec §6.1 `l0.secrets.*` 설정 키의 값 모양. 설정 정의(defineSettings)와 로딩은 조립 루트가 하고,
+// L0.secrets.spec §6.1 `l0.secrets.*` 설정 키의 값 모양. 설정 정의(defineSettings)는 settings.ts에, 로딩은 조립 루트가 하고,
 // 이 패키지는 이미 검증된 값을 getter로 받는다(live 키는 호출마다 다시 읽는다).
 
 export interface SecretsSopsFile {

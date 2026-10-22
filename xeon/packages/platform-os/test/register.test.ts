@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
+import { OsPortKey } from "@xeon/contracts/services";
 import { createExtHost } from "@xeon/ext-host";
-import { createIdFactory, OsPortKey, platformOsPlugin } from "../src/index.ts";
+import { createIdFactory, platformOsPlugin } from "../src/index.ts";
 import { eventOf } from "./support/json.ts";
 import { manualClock, seededRandom } from "./support/clock.ts";
 import { fakeRuntime } from "./support/runtime.ts";

@@ -7,6 +7,7 @@ export {
 } from "./plugin.ts";
 export {
   TOOLS_SETTING_DEFAULTS,
+  TOOLS_SETTING_DEFS,
   TOOLS_SETTING_KEYS,
   type ToolsSettingsSource,
 } from "./settings.ts";

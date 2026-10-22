@@ -4,18 +4,23 @@ import { join } from "node:path";
 import {
   AgentServiceName,
   ApprovalServiceName,
+  ContextPortKey,
   ContextServiceName,
+  ExecPortKey,
   ExecServiceName,
   GroupServiceName,
   LoopServiceName,
   McpServiceName,
   ModelServiceName,
+  ModelServicePortKey,
+  OsPortKey,
   OsServiceName,
   ProcessServiceName,
   SERVICE_NAMES,
   SandboxServiceName,
   SecretAdminServiceName,
   SecretServiceName,
+  SessionPortKey,
   TaskServiceName,
   ToolServiceName,
 } from "../../src/services/index.ts";
@@ -76,6 +81,16 @@ describe("SERVICE_NAMES", () => {
     expect(McpPortKey.name).toBe(SERVICE_NAMES.mcp);
     expect(ProcessPortKey.name).toBe(SERVICE_NAMES.process);
     expect(LeaseArbiterPortKey.name).toBe(SERVICE_NAMES.groups);
+  });
+
+  test("full-shape service port keys carry their service name and no member", () => {
+    expect(ExecPortKey).toEqual({ name: SERVICE_NAMES.exec });
+    expect(OsPortKey).toEqual({ name: SERVICE_NAMES.os });
+    expect(ContextPortKey).toEqual({ name: SERVICE_NAMES.context });
+    expect(ModelServicePortKey).toEqual({ name: SERVICE_NAMES.models });
+    expect(ModelServicePortKey.name).toBe(ModelsPortKey.name);
+    // SessionService는 records가 소유해 services/session.ts가 이름을 리터럴로 적는다. 두 값이 어긋나면 여기서 잡는다
+    expect(SessionPortKey).toEqual({ name: SessionServiceName });
   });
 
   test("services that records and capabilities own keep their own names", () => {

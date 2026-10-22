@@ -14,20 +14,19 @@ import {
   type ExtensionManifest,
   type PortKey,
 } from "@xeon/contracts/extensions";
-import { StoreServiceName, SessionServiceName } from "@xeon/contracts/records";
+import { StoreServiceName, type SessionService, type StoreService } from "@xeon/contracts/records";
 import {
   ApprovalServiceName,
-  ExecServiceName,
+  ExecPortKey,
   SecretServiceName,
+  SessionPortKey,
   TaskServiceName,
   ToolServiceName,
   type ApprovalService,
-  type ExecService,
   type SecretService,
   type TaskService,
   type ToolService,
 } from "@xeon/contracts/services";
-import type { SessionService, StoreService } from "@xeon/contracts/records";
 import type { ScopeStack } from "@xeon/contracts/settings";
 import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@xeon/ext-host";
 import type { ToolsConfig, ToolsDeps } from "./deps.ts";
@@ -40,10 +39,8 @@ import type { OutputTruncator, TruncationOutcome } from "./types.ts";
 // L1.tools.plan TL-8 plugin.ts. ext-host의 내장 확장 단위로 xeon.tools, xeon.approvals를 제공한다.
 // 이 패키지는 Cordis를 import하지 않는다(DR-11). 서비스 등록은 hostOf(g).providePort로 한다.
 
-const SessionPortKey: PortKey<SessionService> = { name: SessionServiceName };
 const StorePortKey: PortKey<StoreService> = { name: StoreServiceName };
 const TasksPortKey: PortKey<TaskService> = { name: TaskServiceName };
-const ExecPortKey: PortKey<ExecService> = { name: ExecServiceName };
 const SecretsPortKey: PortKey<SecretService> = { name: SecretServiceName };
 export const ToolsServicePortKey: PortKey<ToolService> = { name: ToolServiceName };
 export const ApprovalsServicePortKey: PortKey<ApprovalService> = { name: ApprovalServiceName };

@@ -13,6 +13,7 @@ import {
   ApprovalServiceName,
   LoopServiceName,
   ModelServiceName,
+  OsPortKey,
   TaskServiceName,
   ToolServiceName,
   type ApprovalService,
@@ -37,7 +38,6 @@ import { createExecPlatformModule, detectExecPlatform } from "@xeon/platform-exe
 import {
   createIdFactory,
   createLocalIdFactory,
-  OsPortKey,
   platformOsPlugin,
   readOsRuntime,
   type OsRuntime,

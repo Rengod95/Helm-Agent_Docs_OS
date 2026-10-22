@@ -8,6 +8,7 @@ export {
   type SecretsConfig,
   type SecretsSopsFile,
 } from "./config.ts";
+export { SECRETS_SETTING_DEFS } from "./settings.ts";
 export { createSecretServiceCore, type SecretServiceRuntime } from "./service.ts";
 export {
   bunRunner,

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import type { PortKey } from "@xeon/contracts/extensions";
-import { type ExecService, SecretServiceName } from "@xeon/contracts/services";
+import { type ExecService, ExecPortKey, SecretServiceName } from "@xeon/contracts/services";
 import type { PlatformContext } from "@xeon/ext-host";
-import { createExecPlatformModule, ExecPortKey } from "../src/platform-module.ts";
+import { createExecPlatformModule } from "../src/platform-module.ts";
 import { darwinProvider } from "../src/providers/darwin.ts";
 import { fakeSecrets } from "./support/fake-secrets.ts";
 

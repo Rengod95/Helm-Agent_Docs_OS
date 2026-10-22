@@ -17,6 +17,9 @@
       "path": "../../packages/cap-workspace"
     },
     {
+      "path": "../../packages/core-agents"
+    },
+    {
       "path": "../../packages/core-context"
     },
     {

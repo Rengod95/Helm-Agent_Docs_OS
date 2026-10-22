@@ -7,12 +7,10 @@ import {
 } from "@xeon/contracts/capabilities";
 import type { ExtensionEntry, PortKey } from "@xeon/contracts/extensions";
 import {
-  ExecServiceName,
-  OsServiceName,
+  ExecPortKey,
+  OsPortKey,
   SandboxServiceName,
   ToolServiceName,
-  type ExecService,
-  type OsService,
   type SandboxService,
   type ToolService,
 } from "@xeon/contracts/services";
@@ -26,8 +24,6 @@ import { readWorkspaceSettings, type WorkspaceSettingsSource } from "./settings.
 // L2.workspace.plan W4. 구현 패키지(platform-exec, platform-sandbox, core-tools)를 import하지 않고 F 서비스 인터페이스를
 // 포트(xeon.exec, xeon.sandbox, xeon.os, xeon.tools)로만 받는다. Cordis는 import하지 않는다(DR-11).
 
-const ExecPortKey: PortKey<ExecService> = { name: ExecServiceName };
-const OsPortKey: PortKey<OsService> = { name: OsServiceName };
 const SandboxPortKey: PortKey<SandboxService> = { name: SandboxServiceName };
 const ToolsPortKey: PortKey<ToolService> = { name: ToolServiceName };
 

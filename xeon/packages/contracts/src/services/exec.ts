@@ -1,5 +1,6 @@
 import type { Result } from "../base/index.ts";
 import type { SecretRef } from "../capabilities/index.ts";
+import type { PortKey } from "../extensions/index.ts";
 import type { SandboxRunReport } from "./sandbox-report.ts";
 import type { UseCtx } from "./secrets.ts";
 
@@ -7,6 +8,9 @@ import type { UseCtx } from "./secrets.ts";
 // node:* 타입을 쓰지 않는다. 출력 절단 함수(truncateHead 등)는 platform-exec가 구현하고 L1·L2는 xeon.exec로 부른다(review.decisions-2 D-08).
 
 export const ExecServiceName = "xeon.exec" as const;
+
+/** `xeon.exec` 전체 모양(ExecService)의 포트 키. 제공 platform-exec, 소비 core-tools·cap-workspace */
+export const ExecPortKey: PortKey<ExecService> = { name: ExecServiceName };
 
 /** 취소 신호만 전달한다. DI 기능은 없다(adr.0003 §3.1). 원본 모양대로 AbortSignal | undefined를 받는다 */
 export interface CancelScope {

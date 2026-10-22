@@ -12,11 +12,15 @@ import type {
   TurnId,
   Usage,
 } from "../conversation/index.ts";
+import type { PortKey } from "../extensions/index.ts";
 import type { CacheMarks, CachePolicy, ContextUsageEstimate, ModelBinding } from "./models.ts";
 
 // L1.context.spec §3.1. 구현은 core-context다. 컴팩션 내부 타입(§3.2)은 core-context 안에 둔다.
 
 export const ContextServiceName = "xeon.context" as const;
+
+/** `xeon.context` 전체 모양(ContextService)의 포트 키. 제공 core-context */
+export const ContextPortKey: PortKey<ContextService> = { name: ContextServiceName };
 
 export interface AssembleOptions {
   /** 이번 단계 바인딩(체크포인트 고정값). 모델 전환 경고와 창 크기에 쓴다 */

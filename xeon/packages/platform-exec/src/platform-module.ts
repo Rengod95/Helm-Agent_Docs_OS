@@ -1,5 +1,5 @@
 import type { PortKey } from "@xeon/contracts/extensions";
-import { type ExecService, ExecServiceName, SecretServiceName } from "@xeon/contracts/services";
+import { ExecPortKey, SecretServiceName } from "@xeon/contracts/services";
 import type { Logger } from "@xeon/contracts";
 import type { PlatformModule } from "@xeon/ext-host";
 import type { ExecPlatformProvider } from "./provider.ts";
@@ -8,9 +8,6 @@ import { createExecService, type ExecServiceOptions } from "./service.ts";
 
 // L0.exec.spec §3.8, L0.exec.plan EX-14. ext-host의 L0 등록 단위(PlatformModule)로 xeon.exec를 제공한다.
 // 이 패키지는 Cordis를 import하지 않는다(DR-11). 등록은 조립 루트가 `ExtHost.registerPlatform`으로 한다.
-
-/** `xeon.exec` 포트 키. F에 키가 생기면 그쪽으로 옮긴다 */
-export const ExecPortKey: PortKey<ExecService> = { name: ExecServiceName };
 
 const SecretsPortKey: PortKey<SecretEnvSource> = { name: SecretServiceName };
 

@@ -451,7 +451,7 @@ export function createAgentEventMapper(
       }
       case "tool_execution_update": {
         const itemId = toolItemFor(event.toolCallId);
-        const partial = event.partialResult;
+        const partial: unknown = event.partialResult;
         if (!isAgentToolResultLike(partial)) return [];
         return [
           {

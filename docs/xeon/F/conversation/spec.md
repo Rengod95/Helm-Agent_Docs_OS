@@ -91,11 +91,18 @@ export type {
   TextContent, ThinkingContent, ImageContent, ToolCall,
   AssistantMessageEvent, StopReason, Usage, Tool,
   ModelThinkingLevel, JsonValue, JsonObject,
+  // 이 밖에 구현이 재노출하는 이름(구성 표 밖): ToolReference, DiagnosticErrorInfo, AssistantMessageDiagnostic, DeferredHandle,
+  // NestedToolCallRecord, NestedToolCalls, ModelCost, Api, CacheRetention, ThinkingBudgets, Model, Context, TranscriptContext,
+  // SimpleStreamOptions, Provider (L1.models.spec §3.2가 쓴다)
 } from "@earendil-works/pi-ai";
 export type {
   AgentTool, AgentToolResult, AgentEvent, AgentMessage, CustomAgentMessages,
+  // 위와 같이 구성 표 밖: ToolExecutionMode, AgentToolUpdateCallback, AgentToolCall, AgentContext,
+  // BeforeToolCallResult, AfterToolCallResult, BeforeToolCallContext, AfterToolCallContext
 } from "@earendil-works/pi-agent-core";
 ```
+
+재노출하지 않고 F가 적는 이름 둘 [결정(잠정)]: pi-ai의 `AssistantMessageEventStream`은 `#private`을 가진 클래스라 구조 대입이 안 되고 만들려면 값 import가 필요한데, 값 import는 core-models만 한다(`eng.dependency-rules.guide` DR-07). 그래서 소비 계약(`AsyncIterable<AssistantMessageEvent>`와 `result()`)만 적은 인터페이스를 F `pi.ts`에 두고, 이를 쓰는 `StreamFn`도 F가 적는다. pi 원본 `AssistantMessageEventStream`과 `StreamFn`은 F 쪽에 대입할 수 있다(타입 테스트 `pi-types.test.ts`). `AgentToolHooks`(`beforeToolCall`·`afterToolCall` 쌍)는 pi에 같은 이름이 없어 `AgentLoopConfig`에서 `Required<Pick<…>>`로 파생한다. 나머지 재노출 이름은 같은 테스트가 pi 원본과의 항등(`Equal`)을 컴파일 시점에 판정한다.
 
 규칙:
 

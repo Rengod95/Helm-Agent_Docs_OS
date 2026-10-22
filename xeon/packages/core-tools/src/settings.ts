@@ -1,16 +1,17 @@
+import { Type } from "typebox";
 import {
+  defineSettings,
   SCOPE_PRECEDENCE,
   type ScopeLayer,
   type ScopeStack,
+  type SettingDef,
   type SettingScope,
 } from "@xeon/contracts/settings";
-import type { PermissionMode } from "@xeon/contracts/services";
+import { PolicyRuleSchema, type PermissionMode } from "@xeon/contracts/services";
 
-// L1.tools.spec §6. `l1.tools.*` 키 6개를 읽는다.
-// TL-8의 `defineSettings("l1.tools", …)` 선언(settings_defs_pass_checks)은 TypeBox 직접 의존이 필요하다.
-// 이 패키지 package.json에 `typebox`가 없어(새 외부 패키지 금지) 선언은 의존이 연결된 뒤로 미룬다.
-// 여기서는 같은 키·기본값·허용 범위·값 범위를 코드로 적고 resolveSetting과 같은 규칙(우선순위, 허용 범위, 값 검사
-// 실패한 층은 건너뜀, 키 단위 교체)으로 읽는다.
+// L1.tools.spec §6. `l1.tools.*` 키 6개를 선언(defineSettings, TL-8)하고 읽는다.
+// 읽기는 resolveSetting과 같은 규칙(우선순위, 허용 범위, 값 검사 실패한 층은 건너뜀, 키 단위 교체)을 따른다.
+// 기본값과 허용 범위는 아래 TOOLS_SETTING_DEFAULTS·ALL_SCOPES 등 한 곳에서 선언과 읽기가 함께 쓴다.
 
 export const TOOLS_SETTING_KEYS: {
   readonly permissionMode: "l1.tools.permissionMode";
@@ -44,9 +45,80 @@ export const TOOLS_SETTING_DEFAULTS: {
   deferThreshold: 64,
 };
 
-const ALL_SCOPES: readonly SettingScope[] = ["managed", "user", "project", "local", "session"];
-const FILE_SCOPES: readonly SettingScope[] = ["managed", "user", "project", "local"];
-const MANAGED_ONLY: readonly SettingScope[] = ["managed"];
+const ALL_SCOPES = ["managed", "user", "project", "local", "session"] as const;
+const FILE_SCOPES = ["managed", "user", "project", "local"] as const;
+const MANAGED_ONLY = ["managed"] as const;
+
+const group = defineSettings("l1.tools", {
+  permissionMode: {
+    type: Type.String({ maxLength: 16 }),
+    default: TOOLS_SETTING_DEFAULTS.permissionMode,
+    range: { enum: [...PERMISSION_MODES] },
+    runtimeChange: "live",
+    allowedScopes: ALL_SCOPES,
+    ui: { tab: "permissions", widget: "select", order: 10, label: "권한 모드" },
+    since: "0.1.0",
+  },
+  bypassAllowed: {
+    type: Type.Boolean(),
+    default: TOOLS_SETTING_DEFAULTS.bypassAllowed,
+    runtimeChange: "live",
+    allowedScopes: MANAGED_ONLY,
+    ui: {
+      tab: "permissions",
+      widget: "toggle",
+      order: 20,
+      label: "bypass 모드 허용",
+      help: "관리 설정에서만 바꾼다",
+    },
+    since: "0.1.0",
+  },
+  rules: {
+    type: Type.Array(PolicyRuleSchema, { maxItems: 512 }),
+    default: [],
+    runtimeChange: "live",
+    allowedScopes: ALL_SCOPES,
+    ui: { tab: "permissions", widget: "table", order: 30, label: "권한 규칙" },
+    since: "0.1.0",
+  },
+  "output.maxLines": {
+    type: Type.Integer(),
+    default: TOOLS_SETTING_DEFAULTS.outputMaxLines,
+    range: { min: 100, max: 100_000 },
+    runtimeChange: "nextTurn",
+    allowedScopes: FILE_SCOPES,
+    ui: { tab: "tools", widget: "number", order: 10, label: "도구 출력 최대 줄 수", unit: "줄" },
+    since: "0.1.0",
+  },
+  "output.maxBytes": {
+    type: Type.Integer(),
+    default: TOOLS_SETTING_DEFAULTS.outputMaxBytes,
+    range: { min: 1024, max: 1_048_576 },
+    runtimeChange: "nextTurn",
+    allowedScopes: FILE_SCOPES,
+    ui: { tab: "tools", widget: "number", order: 20, label: "도구 출력 최대 바이트", unit: "B" },
+    since: "0.1.0",
+  },
+  "exposure.deferThreshold": {
+    type: Type.Integer(),
+    default: TOOLS_SETTING_DEFAULTS.deferThreshold,
+    range: { min: 0, max: 128 },
+    runtimeChange: "nextTurn",
+    allowedScopes: FILE_SCOPES,
+    ui: {
+      tab: "tools",
+      widget: "number",
+      order: 30,
+      label: "도구 지연 노출 기준",
+      help: "0이면 auto 도구는 모두 지연 도구다",
+      unit: "개",
+    },
+    since: "0.1.0",
+  },
+});
+
+/** `l1.tools.*` 선언 전체. 카탈로그 조립(buildCatalog)이 쓴다 */
+export const TOOLS_SETTING_DEFS: readonly SettingDef[] = Object.values(group.defs);
 
 /** 설정 층을 돌려준다. 파일 범위(managed, user, project, local)는 조립 루트가 읽어 넘긴다 */
 export interface ToolsSettingsSource {

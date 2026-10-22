@@ -3,6 +3,7 @@ export { storePlugin } from "./service.ts";
 export {
   DEFAULT_STORE_SETTINGS,
   resolveStoreSettings,
+  STORE_SETTING_DEFS,
   type StoreSettingIssue,
 } from "./settings.ts";
 export type {

@@ -1,7 +1,7 @@
-// F `@xeon/contracts/conversation`의 pi 타입 거울과 설치된 pi 패키지 타입 사이의 부패 방지 계층(CM-03).
-// 런타임 값은 같다. F의 거울 타입이 `TranscriptContext` 브랜드, `constrainedSampling`, 스트림 클래스의 #private 같은
-// 선언 차이를 가져서 F → pi 방향 대입이 막힌다. 이 차이를 이 파일의 함수 몇 개로만 건넌다.
-// F가 pi 타입 재노출(F.conversation.spec §3.1)로 바뀌면 이 파일의 단언이 필요 없어진다.
+// F `@xeon/contracts/conversation`의 pi 타입 재노출과 pi 패키지 사이의 경계(CM-03). F가 pi 타입을 그대로 재노출하므로
+// (F.conversation.spec §3.1) 메시지·도구·컨텍스트는 변환이나 단언이 필요 없고, 읽기 전용 배열을 가변 배열로 복사할 뿐이다.
+// 남은 단언은 하나다: F의 `AssistantMessageEventStream`은 소비 계약(AsyncIterable과 result())만 적은 인터페이스이고
+// pi-ai의 같은 이름은 `#private` 클래스라서, 모델 게이트웨이가 낸 스트림을 agent-core에 건널 때만 단언한다.
 import type {
   AgentContext as PiAgentContext,
   AgentLoopConfig,
@@ -17,27 +17,22 @@ import type {
   Message,
   StreamFn,
   ToolCall,
-  TranscriptContext,
 } from "@xeon/contracts/conversation";
 
 type PiTools = NonNullable<PiAgentContext["tools"]>;
 type PiLlmMessages = Awaited<ReturnType<AgentLoopConfig["convertToLlm"]>>;
 type PiStream = Awaited<ReturnType<PiStreamFn>>;
-type PiTranscript = Parameters<PiStreamFn>[1];
 
 export function toPiMessages(messages: readonly AgentMessage[]): PiAgentMessage[] {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- F 거울 AgentMessage와 pi AgentMessage는 런타임 모양이 같다 (CM-03, 이 파일 머리말)
-  return [...messages] as PiAgentMessage[];
+  return [...messages];
 }
 
 export function toPiTools(tools: readonly AgentTool[]): PiTools {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- F 거울 AgentTool의 constrainedSampling 선언이 다를 뿐 런타임 모양은 같다 (CM-03)
-  return [...tools] as PiTools;
+  return [...tools];
 }
 
 export function toPiLlmMessages(messages: readonly Message[]): PiLlmMessages {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- F 거울 Message와 pi Message는 런타임 모양이 같다 (CM-03)
-  return [...messages] as PiLlmMessages;
+  return [...messages];
 }
 
 type PiAssistant = RunToolCallOptions["assistantMessage"];
@@ -58,18 +53,12 @@ export function fromPiMessages(messages: readonly PiAgentMessage[]): AgentMessag
   return [...messages];
 }
 
-function fromPiTranscript(context: PiTranscript): TranscriptContext {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- F 거울 TranscriptContext의 unique symbol 브랜드는 타입에만 있다 (CM-03)
-  return context as unknown as TranscriptContext;
-}
-
 function toPiStream(stream: Awaited<ReturnType<StreamFn>>): PiStream {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 모델 게이트웨이가 낸 스트림은 실행 때 pi-ai 스트림이다. F 거울은 클래스 #private을 갖지 않는다 (CM-03)
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 모델 게이트웨이가 낸 스트림은 실행 때 pi-ai 스트림이다. F 인터페이스는 클래스 #private을 갖지 않는다 (CM-03)
   return stream as unknown as PiStream;
 }
 
 /** F `StreamFn`을 agent-core `StreamFn`으로 건넨다. 요청 본문은 그대로 넘긴다 */
 export function toPiStreamFn(streamFn: StreamFn): PiStreamFn {
-  return async (model, context, options) =>
-    toPiStream(await streamFn(model, fromPiTranscript(context), options));
+  return async (model, context, options) => toPiStream(await streamFn(model, context, options));
 }

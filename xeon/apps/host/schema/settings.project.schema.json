@@ -2,6 +2,48 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "l0.exec.defaultTimeoutMs": {
+      "default": 0,
+      "maximum": 2147483647,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "0이면 호출자가 정하지 않을 때 제한 없음",
+          "label": "명령 기본 시간 제한",
+          "order": 110,
+          "tab": "execution",
+          "unit": "ms",
+          "widget": "number"
+        }
+      }
+    },
+    "l0.exec.outputSpillBytes": {
+      "default": 10485760,
+      "maximum": 1073741824,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L0",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0"
+      }
+    },
     "l0.process.lockFallback.default": {
       "default": "ask",
       "enum": [
@@ -53,6 +95,277 @@
           "order": 102,
           "tab": "permissions",
           "widget": "list"
+        }
+      }
+    },
+    "l1.agents.judge.maxRuns": {
+      "default": 3,
+      "maximum": 20,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "목표 판정 최대 실행 수",
+          "order": 330,
+          "tab": "models",
+          "unit": "회",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.agents.maxConcurrent": {
+      "default": 8,
+      "maximum": 32,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "소유 트리 루트 하나의 동시 자식 수",
+          "label": "동시 서브에이전트 수",
+          "order": 310,
+          "tab": "models",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.agents.maxDepth": {
+      "default": 1,
+      "maximum": 5,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "0이면 서브에이전트를 쓰지 않는다",
+          "label": "서브에이전트 최대 깊이",
+          "order": 300,
+          "tab": "models",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.agents.resultMaxChars": {
+      "default": 24000,
+      "maximum": 200000,
+      "minimum": 1000,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "서브에이전트 결과 최대 길이",
+          "order": 320,
+          "tab": "models",
+          "unit": "자",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.context.autoCompact": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "자동 컴팩션",
+          "order": 200,
+          "tab": "sessions",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l1.context.compactionInstructions": {
+      "default": "",
+      "maxLength": 4000,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "컴팩션 지침",
+          "order": 230,
+          "tab": "sessions",
+          "widget": "text"
+        }
+      }
+    },
+    "l1.context.keepRecentTokens": {
+      "default": 20000,
+      "maximum": 262144,
+      "minimum": 1024,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "컴팩션 뒤 유지할 최근 토큰",
+          "order": 220,
+          "tab": "sessions",
+          "unit": "토큰",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.context.pruneThresholdChars": {
+      "default": 200,
+      "maximum": 100000,
+      "minimum": 50,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "도구 결과 줄이기 기준",
+          "order": 250,
+          "tab": "sessions",
+          "unit": "자",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.context.pruneToolResults": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "오래된 도구 결과 줄이기",
+          "order": 240,
+          "tab": "sessions",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l1.context.reinjectRecentFiles": {
+      "default": 5,
+      "maximum": 20,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "컴팩션 뒤 다시 넣을 최근 파일",
+          "order": 260,
+          "tab": "sessions",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.context.reserveTokens": {
+      "default": 16384,
+      "maximum": 262144,
+      "minimum": 1024,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "응답용 예약 토큰",
+          "order": 210,
+          "tab": "sessions",
+          "unit": "토큰",
+          "widget": "number"
         }
       }
     },
@@ -235,6 +548,303 @@
           "order": 40,
           "tab": "execution",
           "widget": "select"
+        }
+      }
+    },
+    "l1.tools.exposure.deferThreshold": {
+      "default": 64,
+      "maximum": 128,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "0이면 auto 도구는 모두 지연 도구다",
+          "label": "도구 지연 노출 기준",
+          "order": 30,
+          "tab": "tools",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.tools.output.maxBytes": {
+      "default": 51200,
+      "maximum": 1048576,
+      "minimum": 1024,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "도구 출력 최대 바이트",
+          "order": 20,
+          "tab": "tools",
+          "unit": "B",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.tools.output.maxLines": {
+      "default": 2000,
+      "maximum": 100000,
+      "minimum": 100,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "도구 출력 최대 줄 수",
+          "order": 10,
+          "tab": "tools",
+          "unit": "줄",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.tools.permissionMode": {
+      "default": "default",
+      "enum": [
+        "default",
+        "acceptEdits",
+        "plan",
+        "bypass"
+      ],
+      "maxLength": 16,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "권한 모드",
+          "order": 10,
+          "tab": "permissions",
+          "widget": "select"
+        }
+      }
+    },
+    "l1.tools.rules": {
+      "default": [],
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "const": "tool.call",
+            "type": "string"
+          },
+          "description": {
+            "maxLength": 500,
+            "type": "string"
+          },
+          "effect": {
+            "anyOf": [
+              {
+                "const": "allow",
+                "type": "string"
+              },
+              {
+                "const": "ask",
+                "type": "string"
+              },
+              {
+                "const": "deny",
+                "type": "string"
+              }
+            ]
+          },
+          "id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "priority": {
+            "maximum": 999,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "resource": {
+            "additionalProperties": false,
+            "properties": {
+              "args": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "pattern": {
+                      "maxLength": 1024,
+                      "type": "string"
+                    },
+                    "pointer": {
+                      "maxLength": 256,
+                      "pattern": "^(?:|/.*)$",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "pointer",
+                    "pattern"
+                  ],
+                  "type": "object"
+                },
+                "maxItems": 16,
+                "type": "array"
+              },
+              "caller": {
+                "maxLength": 64,
+                "pattern": "^(main|subagent|subagent:[a-z][a-z0-9-]{1,47})$",
+                "type": "string"
+              },
+              "capability": {
+                "maxLength": 96,
+                "minLength": 1,
+                "type": "string"
+              },
+              "classes": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "const": "spawn",
+                      "type": "string"
+                    },
+                    {
+                      "const": "user_interaction",
+                      "type": "string"
+                    },
+                    {
+                      "const": "shared_state_write",
+                      "type": "string"
+                    },
+                    {
+                      "const": "external_send",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "maxItems": 4,
+                "type": "array"
+              },
+              "mcpServer": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              },
+              "minDepth": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "mode": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "const": "default",
+                      "type": "string"
+                    },
+                    {
+                      "const": "acceptEdits",
+                      "type": "string"
+                    },
+                    {
+                      "const": "plan",
+                      "type": "string"
+                    },
+                    {
+                      "const": "bypass",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "maxItems": 4,
+                "type": "array"
+              },
+              "risk": {
+                "items": {
+                  "anyOf": [
+                    {
+                      "const": "read",
+                      "type": "string"
+                    },
+                    {
+                      "const": "write",
+                      "type": "string"
+                    },
+                    {
+                      "const": "exec",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "maxItems": 3,
+                "type": "array"
+              },
+              "tool": {
+                "maxLength": 128,
+                "minLength": 1,
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "resource",
+          "effect"
+        ],
+        "type": "object"
+      },
+      "maxItems": 512,
+      "type": "array",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "권한 규칙",
+          "order": 30,
+          "tab": "permissions",
+          "widget": "table"
         }
       }
     },

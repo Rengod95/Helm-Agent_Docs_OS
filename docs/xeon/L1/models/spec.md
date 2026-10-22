@@ -99,7 +99,11 @@ import type { AssistantMessage, Message, ModelThinkingLevel, StopReason, Usage }
 import type { ThreadId, TurnId, StepId } from "../conversation/ids.ts";
 import type { Result } from "../base/index.ts";
 
-/** pi-ai 타입 재노출(타입 전용). F.conversation.spec §3.1 규칙 1과 같은 방식 */
+/**
+ * pi-ai 타입 재노출(타입 전용). F.conversation.spec §3.1 규칙 1과 같은 방식.
+ * 구현에서는 `AssistantMessageEventStream`과 `StreamFn`만 순수 재노출이 아니라 F가 소비 계약(AsyncIterable과 result())을
+ * 적은 인터페이스다(pi-ai 클래스의 `#private` 때문, F.conversation.spec §3.1). `Model`은 pi처럼 `Model<Api>`로 쓴다.
+ */
 export type { Model, Api, Context, Provider, CacheRetention, ThinkingBudgets, AssistantMessageEventStream, SimpleStreamOptions, StreamFn };
 
 export const ModelServiceName: "xeon.models" = "xeon.models";

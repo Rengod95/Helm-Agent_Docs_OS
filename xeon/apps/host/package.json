@@ -16,6 +16,7 @@
   "dependencies": {
     "@xeon/cap-workspace": "workspace:*",
     "@xeon/contracts": "workspace:*",
+    "@xeon/core-agents": "workspace:*",
     "@xeon/core-context": "workspace:*",
     "@xeon/core-loop": "workspace:*",
     "@xeon/core-models": "workspace:*",

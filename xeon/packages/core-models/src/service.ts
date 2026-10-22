@@ -35,7 +35,6 @@ import {
   type SecretTarget,
 } from "./secrets-bridge.ts";
 import { DEFAULT_RETRY_SETTINGS, type ProviderSetting, type RetrySettings } from "./settings.ts";
-import { toPiContext, toPiMessages } from "./pi-bridge.ts";
 import { createTokenEstimator } from "./tokens.ts";
 import { createUsageMeter } from "./usage.ts";
 
@@ -100,7 +99,7 @@ function callOf(request: ModelCallRequest, providerRetries: boolean): CallSpec {
     modelId: binding.modelId,
     thinkingLevel: binding.thinkingLevel,
     cachePolicy,
-    context: toPiContext(request.context),
+    context: request.context,
     ...(request.options === undefined ? {} : { options: request.options }),
     providerRetries,
   };
@@ -211,7 +210,7 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
         modelId: model.id,
         thinkingLevel: options?.reasoning ?? "off",
         cachePolicy: basicCachePolicy(ctx.role, retention),
-        context: { messages: toPiMessages(context.messages) },
+        context: { messages: [...context.messages] },
         ...(options?.maxTokens === undefined && options?.temperature === undefined
           ? {}
           : {

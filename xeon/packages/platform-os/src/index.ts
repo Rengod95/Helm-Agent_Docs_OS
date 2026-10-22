@@ -1,6 +1,6 @@
 import { Bug } from "@xeon/contracts";
 import type { PlatformModule } from "@xeon/ext-host";
-import { OsPortKey } from "./port.ts";
+import { OsPortKey } from "@xeon/contracts/services";
 import { readOsRuntime, type OsRuntime } from "./runtime.ts";
 import { createOsService, type PlatformOsConfig } from "./service.ts";
 
@@ -8,7 +8,6 @@ export type { PlatformOsConfig, OsServiceHandle, OsStartError } from "./service.
 export { createOsService } from "./service.ts";
 export type { OsRuntime } from "./runtime.ts";
 export { readOsRuntime } from "./runtime.ts";
-export { OsPortKey } from "./port.ts";
 export type { LogRedact, LogSink } from "./logger.ts";
 export type { BundledPath, BundledSource } from "./binaries/resolve.ts";
 export { createIdFactory, createLocalIdFactory } from "./ids.ts";
