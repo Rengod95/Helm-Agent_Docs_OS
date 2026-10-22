@@ -12,7 +12,7 @@ binds: [xeon/packages/platform-sandbox/**]
 
 ## 1. 목적과 범위
 
-`platform-sandbox`는 셸 명령과 그 자식 프로세스를 OS 샌드박스(macOS Seatbelt, Linux bubblewrap) 안에서 실행하게 하는 서비스 `xeon.sandbox`(`SandboxService`)를 제공한다. 격리 구현은 `@anthropic-ai/sandbox-runtime`(이하 srt) 0.0.81(Apache-2.0)을 그대로 쓰고, 이 패키지는 Xeon 정책과 srt 설정 사이의 접착 계층이다 [결정: `_research/foundation-plan.md` §2 샌드박스 행, `_research/packages.md` §4.2 L0-b].
+`platform-sandbox`는 셸 명령과 그 자식 프로세스를 OS 샌드박스(macOS Seatbelt, Linux bubblewrap) 안에서 실행하게 하는 서비스 `xeon.sandbox`(`SandboxService`)를 제공한다. 격리 구현은 `@anthropic-ai/sandbox-runtime`(이하 srt) 0.0.79(Apache-2.0)을 그대로 쓰고, 이 패키지는 Xeon 정책과 srt 설정 사이의 접착 계층이다 [결정: `_research/foundation-plan.md` §2 샌드박스 행, `_research/packages.md` §4.2 L0-b].
 
 - [결정: `eng.dependency-rules.guide` DR-07] srt는 `platform-sandbox`만 import한다.
 - [결정: DR-02] `platform-sandbox`는 `platform-exec`를 import하지 않는다. 두 패키지는 F `Shell` 인터페이스로만 만난다(3.4절).
@@ -76,10 +76,10 @@ binds: [xeon/packages/platform-sandbox/**]
 
 ### 3.1 F에 둘 샌드박스 계약 초안
 
-아래 타입은 F `@xeon/contracts/services`의 `services/sandbox.ts`와 `services/sandbox-report.ts`에 둔다. L0·L1 서비스 인터페이스는 이 서브패스에 둔다 [결정(잠정): review.decisions-2 D-04]. 이름은 `F.capabilities.spec` §3.12 파일별 이름 표의 두 파일 행에 있다. 아래 블록은 F로 옮기기 전의 초안이고, 필드는 이 블록을 F로 옮겨 확정한다(같은 절 규칙 1, `F.capabilities.plan` P9). 8절 'F에 요청'은 그 작업의 목록이다. 표기는 `F.conversation.spec` §3 머리말을 따른다(`interface X` + `XSchema: Schema<X>`는 TypeBox 명시 타입 상수).
+아래 타입은 F `@xeon/contracts/services`의 `services/sandbox.ts`와 `services/sandbox-report.ts`에 둔다. L0·L1 서비스 인터페이스는 이 서브패스에 둔다 [결정: review.decisions-2 D-04]. 이름은 `F.capabilities.spec` §3.12 파일별 이름 표의 두 파일 행에 있다. 아래 블록은 F로 옮기기 전의 초안이고, 필드는 이 블록을 F로 옮겨 확정한다(같은 절 규칙 1, `F.capabilities.plan` P9). 8절 'F에 요청'은 그 작업의 목록이다. 표기는 `F.conversation.spec` §3 머리말을 따른다(`interface X` + `XSchema: Schema<X>`는 TypeBox 명시 타입 상수).
 
 ```ts
-// @xeon/contracts/services — sandbox-report.ts [결정(잠정): review.decisions-2 D-04]. 아무것도 import하지 않는다(exec.ts와 sandbox.ts가 함께 쓴다)
+// @xeon/contracts/services — sandbox-report.ts [결정: review.decisions-2 D-04]. 아무것도 import하지 않는다(exec.ts와 sandbox.ts가 함께 쓴다)
 export interface SandboxViolation {
   source: "proxy" | "seatbelt" | "seccomp";
   operation: "file_read" | "file_write" | "network" | "other";
@@ -208,7 +208,7 @@ export const SandboxServiceName = "xeon.sandbox" as const;
 
 ### 3.2 Xeon 정책 → srt 설정 매핑
 
-srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.81 소스 `src/sandbox/sandbox-config.ts:957-1266`, `.d.ts` 대조)으로 확인했다. 실제 격리 효과는 실행으로 확인하지 않았다(같은 문서 §0 1번 [미확인]). 동작 열의 [가정]은 실행 확인 전이다.
+srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandbox-config.ts:957-1266`, `.d.ts` 대조)으로 확인했다. 실제 격리 효과는 실행으로 확인하지 않았다(같은 문서 §0 1번 [미확인]). 동작 열의 [가정]은 실행 확인 전이다.
 
 | Xeon | srt 설정 | 키 확인 | 동작 |
 |---|---|---|---|
@@ -467,7 +467,7 @@ export function selectSandboxProvider(input: {
 
 | 요청 | 대상 | 이유 |
 |---|---|---|
-| `SandboxPlatform`, `SandboxUnavailableReason`, `OnUnavailable`, `SandboxStatus`(+Schema), `SandboxNetworkPolicy`, `SandboxPolicy`(+Schema), `ProtectedAccess`, `ProtectedMatch`, `ProtectedPathEntry`, `matchProtectedPath`, `AutoAllowBlock`, `AutoAllowDecision`, `SelfTestItemId`, `SelfTestItem`, `SelfTestReport`(+Schema), `SandboxViolation`, `SandboxRunReport`(+Schema), `SandboxService`, `SandboxServiceName`을 `@xeon/contracts/services`(`services/sandbox.ts`)에 둔다 [결정(잠정): review.decisions-2 D-04] | `F.capabilities.spec` §3.12(services) | 3.1절. L1 tools, L2 workspace가 같은 타입을 쓴다 |
+| `SandboxPlatform`, `SandboxUnavailableReason`, `OnUnavailable`, `SandboxStatus`(+Schema), `SandboxNetworkPolicy`, `SandboxPolicy`(+Schema), `ProtectedAccess`, `ProtectedMatch`, `ProtectedPathEntry`, `matchProtectedPath`, `AutoAllowBlock`, `AutoAllowDecision`, `SelfTestItemId`, `SelfTestItem`, `SelfTestReport`(+Schema), `SandboxViolation`, `SandboxRunReport`(+Schema), `SandboxService`, `SandboxServiceName`을 `@xeon/contracts/services`(`services/sandbox.ts`)에 둔다 [결정: review.decisions-2 D-04] | `F.capabilities.spec` §3.12(services) | 3.1절. L1 tools, L2 workspace가 같은 타입을 쓴다 |
 | `ShellExecResult.sandbox?: SandboxRunReport`. `SandboxRunReport`·`SandboxViolation`은 `services/sandbox-report.ts`에 두고 `exec.ts`·`sandbox.ts`가 그 파일만 import한다 | `F.capabilities.spec` §3.12(services) | `L0.exec.spec` §3.1과 같은 요청. 순환 import 방지 |
 | `describeSandboxStatus`, `SandboxStatusSummary`, `SandboxStatus.installHints`를 `services/sandbox.ts`에 둔다 | `F.capabilities.spec` §3.12(services, 규칙 6의 순수 함수) | 4.6절. L4 소비자가 구현 패키지를 import하지 않게 한다 |
 | `SettingsTab`에 `"sandbox"` 추가 | `F.wire-settings.spec` §3.8.2 | 6절. `_research/settings.md` §4 5번 탭 |

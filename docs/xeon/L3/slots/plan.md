@@ -125,7 +125,7 @@ xeon/packages/group-kit/
 
 - [가정] 버전 0.3.1은 `_research/packages.md` §4.6의 기록이고, 그 행의 판정 자체가 추측이다. 코드를 채택하지 않으므로 의존성에 넣지 않는다. 참고할 때 npm 레지스트리의 실제 판과 라이선스를 다시 확인한다.
 - 그 밖의 채택 코드는 없다. L3 구성요소는 21개다(`_research/layer-plan-v2.json` L3-a 7, L3-b 5, L3-c 6, L3-d 3). 코드를 채택한 것은 없다. L3-c 학습 그룹 6개 가운데 4개(학습 트리거, 검토 포크, 큐레이터, 학습 이력 보기)는 출처 표기가 '설계'이고 Hermes 자기 개선 루프의 설계를 차용한다(L3.learning.plan §4). 나머지 17개는 선례가 없어 자체 구현이다. `_research/packages.md` §4.6 제목의 "17개 모두 자체"는 학습 그룹을 L3로 옮기기 전 집계이고 L3-c 행이 지금의 L3-d(추가 그룹 슬롯) 구성요소를 적고 있으므로 갱신이 필요하다.
-- 템플릿이 쓰는 패키지(`typebox`, `@xeon/contracts`, `@xeon/group-kit`)의 판은 워크스페이스 catalog를 따른다. `typebox`는 1.4.2다(L3.group-kit.plan §4 표). 템플릿 `package.json`에 판을 직접 적지 않는다 [제안].
+- 템플릿이 쓰는 패키지(`typebox`, `@xeon/contracts`, `@xeon/group-kit`)의 판은 워크스페이스 catalog를 따른다. `typebox`는 1.3.27다(L3.group-kit.plan §4 표). 템플릿 `package.json`에 판을 직접 적지 않는다 [제안].
 
 ## 5. 단위 테스트 목록
 

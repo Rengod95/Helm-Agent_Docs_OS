@@ -124,7 +124,7 @@ xeon/packages/ext-host/
 |---|---|---|---|
 | Cordis | vendored `xeon/vendor/cordis`, 4.0.0-rc.11, 커밋 `df4431e` | 이 도메인은 직접 쓰지 않는다. fiber 생성과 해제는 `ExtHost.install`·`uninstall`을 거쳐 `src/primitives/cordis-bridge.ts`가 한다(X.primitives.plan §2) | MIT |
 | `@cordisjs/plugin-loader` | - | 쓰지 않는다. vendored에 없고(`UPSTREAM.json` `notCopied`), 설정 파일 기반 로딩은 이 패키지가 직접 구현한다(adr.0002 §4.2) | - |
-| `typebox` | 1.4.2(워크스페이스 catalog, 1.4.x) | 그대로. `TrustFileSchema`, `LoadDiagnosticSchema`, 격리 RPC 스키마, `Value.Check` | MIT |
+| `typebox` | 1.3.27(워크스페이스 catalog, review.decisions-2 U-24) | 그대로. `TrustFileSchema`, `LoadDiagnosticSchema`, 격리 RPC 스키마, `Value.Check` | MIT |
 | `vscode-jsonrpc` | 9.0.3 정확 고정(의존 0) | 그대로. `vscode-jsonrpc/node`의 `createMessageConnection`, `StreamMessageReader`, `StreamMessageWriter`, 취소 토큰. M2 격리 작업(L-22)에서 `package.json`에 더한다. eng.dependency-rules.guide DR-07 표에 `vscode-jsonrpc` → `ext-host` 행 추가를 함께 요청한다 | MIT |
 | pi `trust-manager.ts` | `~/projects/_ref/pi-src/packages/coding-agent/src/core/trust-manager.ts`, 246줄, pi 소스 1.1.0, 커밋 `cdaf6c227d4718a72b59ccd02152c9614df44cfc` | 포크 → `trust/store.ts`, `trust/resources.ts` | MIT(`pi-src/LICENSE`, Copyright (c) 2025 Mario Zechner) |
 | pi `project-trust.ts` | 같은 디렉터리 `project-trust.ts`, 97줄, 같은 커밋 | 포크 → `trust/resolve.ts` | MIT |

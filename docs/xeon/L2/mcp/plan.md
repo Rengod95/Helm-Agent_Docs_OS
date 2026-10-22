@@ -105,7 +105,7 @@ xeon/packages/cap-mcp/
 |---|---|---|---|
 | `@modelcontextprotocol/client` | 2.3.1 정확 고정 | Apache-2.0 | 그대로. 6.9MB, 의존 7(`@modelcontextprotocol/core` 2.3.1, `cross-spawn`, `eventsource`, `eventsource-parser`, `jose`, `pkce-challenge`, `zod ^4.2.0`), engines Node >=20(`_research/packages.md` §4.4 L2-b, §5, `_research/notes/L2-1.md` §2). 레지스트리 integrity는 `_research/notes/L2-1.md` 머리말의 값으로 lockfile에서 확인한다 |
 | `zod` | SDK가 해석한 4.x를 lockfile로 고정 | MIT | 직접 import는 `adapter.ts`, `tasks/schemas.ts`만. 직접 import하면 `package.json`에 SDK와 같은 범위로 선언한다(`eng.dependency-rules.guide` DR-07) |
-| `typebox` | 1.4.2(catalog) | MIT | F 정의(MC1) |
+| `typebox` | 1.3.27(catalog) | MIT | F 정의(MC1) |
 | `@modelcontextprotocol/server` | 2.3.1(devDependency) [가정: 패키지 이름과 존재] | Apache-2.0 [가정] | 스텁 서버 작성에 쓸 수 있으면 쓴다. 없으면 `src/testing/stub-server.ts`를 core 타입과 인메모리 전송으로 직접 쓴다 |
 | pi `pi-mcp` 1.3.0 | — | MIT | 참고만. OAuth 약 1.8k줄(RFC 9207 `iss` 검사), stdio 종료 정책(SIGTERM 뒤 2초 SIGKILL, `mcp/src/transports/stdio.ts:9-49`), 요청 타임아웃·progress 재설정(`mcp/src/client.ts:531-575`)을 설계 근거로 인용한다. 코드는 가져오지 않는다 |
 

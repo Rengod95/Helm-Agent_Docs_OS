@@ -869,7 +869,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 
 - 스타일은 시스템 프롬프트 조각이다. 기본 스타일 `default`는 빈 조각이다.
 - `select`는 세션 범위 설정 `l2.dialog.styles.active`를 쓴다(F.wire-settings.spec §3.8.1 `session` 범위). 그래서 재개 때 선택이 복원된다. 기록은 `settings.changed`(F.records.spec §3.3)다.
-- [제안] 적용 시점은 다음 턴 시작이다. 턴 시작은 단계 경계의 하나다 [결정(잠정): review.decisions-2 U-01]. 턴 중간의 단계 경계에서 시스템 프롬프트를 바꾸면 그 턴의 프롬프트 캐시 접두가 깨지기 때문에 턴 시작까지 미룬다. 출력 `appliesAt: "next_turn"`이 이 규칙을 알린다.
+- [제안] 적용 시점은 다음 턴 시작이다. 턴 시작은 단계 경계의 하나다 [결정: review.decisions-2 U-01]. 턴 중간의 단계 경계에서 시스템 프롬프트를 바꾸면 그 턴의 프롬프트 캐시 접두가 깨지기 때문에 턴 시작까지 미룬다. 출력 `appliesAt: "next_turn"`이 이 규칙을 알린다.
 - 등록은 코드(`register`)와 파일(`~/.xeon/styles/*.md`, 2차)이다.
 
 ### 4.7 알림
@@ -911,7 +911,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | `error` | `error` |
 | `background_completed` | `done` |
 
-- 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 설정 탭은 이 문서의 `l2.dialog.notify.*`(§6)가 정본이다. L0.os는 전달 수단(`xeon.os`의 `notify`)만 소유하고 켜기·종류 키를 두지 않는다 [결정(잠정): review.decisions-2 S-04]. OS가 알림을 막아 `notify`가 전달하지 못하면 cap-dialog는 이를 실패로 보지 않고 운영 로그에 남긴다.
+- 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 설정 탭은 이 문서의 `l2.dialog.notify.*`(§6)가 정본이다. L0.os는 전달 수단(`xeon.os`의 `notify`)만 소유하고 켜기·종류 키를 두지 않는다 [결정: review.decisions-2 S-04]. OS가 알림을 막아 `notify`가 전달하지 못하면 cap-dialog는 이를 실패로 보지 않고 운영 로그에 남긴다.
 
 ### 4.8 노출 계약: 입력 큐와 되감기
 
@@ -953,7 +953,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | `l2.dialog.notify.backgroundCompleted` | boolean | true | — | live | user, project, local | execution | false | 화면 |
 
 - 질문 기본 시간 제한 0은 Claude Code의 기본(제한 없음)과 같고, 시간 제한은 옵션이다(`_research/l2e.md` §3.2 B1).
-- `segments` 기본값의 `"*"`는 내장 셋 뒤에 다른 모든 세그먼트(그룹·확장 세그먼트)를 보인다는 뜻이다. 이 능력은 L3 그룹 이름을 기본값에 쓰지 않는다. 특정 그룹 세그먼트만 보이려면 L3나 사용자가 설정으로 목록을 채운다 [결정(잠정): review.decisions-2 D-11].
+- `segments` 기본값의 `"*"`는 내장 셋 뒤에 다른 모든 세그먼트(그룹·확장 세그먼트)를 보인다는 뜻이다. 이 능력은 L3 그룹 이름을 기본값에 쓰지 않는다. 특정 그룹 세그먼트만 보이려면 L3나 사용자가 설정으로 목록을 채운다 [결정: review.decisions-2 D-11].
 - `shellInjection`을 `managed`에서 `off`로 잠그면 조직이 명령 파일의 셸 실행을 막을 수 있다.
 - `styles.active`의 값 검사는 등록된 스타일 목록과 대조하는 의미 검사라 `range.enum`으로 두지 않는다. 모르는 값이면 `default`로 적용하고 진단을 남긴다.
 - 알림 분류별 켜기·끄기를 키 다섯 개로 나눈 이유: 설정 화면이 토글 목록으로 그리기 쉽고, `range`가 문자열 배열을 다루지 않기 때문이다(F.wire-settings.spec D5).
@@ -1044,4 +1044,4 @@ export const manifest = defineManifest({
 - D-8 [미결] 명령 파일 기본 디렉터리 이름(`.xeon/commands`)과 사용자 설정 디렉터리 위치. L4.host-service.spec과 정한다.
 - D-9 [미결] `dialog.attachments`의 `workspace.images` 의존 종류. `L2.readme` §6은 `requires`, 브리프는 "없으면 원본"이다. 이 문서는 정의 `requires`를 두고 호출 시 `unavailable`이면 원본으로 계속한다.
 - D-10 [미결] 테이블 접두사 예약(`cap_dialog_`). 공통 규약은 "없음"이고 eng.context-map.design은 "예약"이다(`L2.readme` §10 미결 6). 이 문서의 M2·M3 범위는 테이블이 필요 없다.
-- D-11 [결정(잠정): review.decisions-2 S-04] 알림 마일스톤. 알림은 1차(M3)다. 켜기 기본값·종류 목록·탭은 이 문서가 정하고 L0.os는 전달 수단만 소유한다.
+- D-11 [결정: review.decisions-2 S-04] 알림 마일스톤. 알림은 1차(M3)다. 켜기 기본값·종류 목록·탭은 이 문서가 정하고 L0.os는 전달 수단만 소유한다.

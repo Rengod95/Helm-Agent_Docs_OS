@@ -14,7 +14,7 @@ binds: [xeon/packages/platform-secrets/**]
 
 ### 1.1 정하는 것
 
-- 서비스 `xeon.secrets`(`SecretService`)와 제공자 인터페이스 `SecretProvider`. `platform-secrets`가 구현해 Cordis에 등록한다(`eng.context-map.design` 5.3절). 참조 형식(`SECRET_REF_PATTERN`, `SecretRef`)의 정본은 F `capabilities/secrets.ts`(`F.capabilities.spec` §3.10)이고, 여러 층이 쓰는 값 타입 `SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`도 같은 파일에 둔다 [결정(잠정): review.decisions-2 U-08]. 서비스 인터페이스의 F 위치는 3절 첫 단락이다.
+- 서비스 `xeon.secrets`(`SecretService`)와 제공자 인터페이스 `SecretProvider`. `platform-secrets`가 구현해 Cordis에 등록한다(`eng.context-map.design` 5.3절). 참조 형식(`SECRET_REF_PATTERN`, `SecretRef`)의 정본은 F `capabilities/secrets.ts`(`F.capabilities.spec` §3.10)이고, 여러 층이 쓰는 값 타입 `SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`도 같은 파일에 둔다 [결정: review.decisions-2 U-08]. 서비스 인터페이스의 F 위치는 3절 첫 단락이다.
 - 핵심 규칙 [결정: `_research/decisions-log.md` 2026-10-21 2차 "에이전트는 값을 모른 채 참조로 사용", 층 구성 계획 v2 L0-c note(`_research/layer-plan-v2.json`)]:
   1. 에이전트와 모델은 값을 모른 채 `secret://<name>` 참조만 쓴다. name은 `[a-z][a-z0-9-]{1,63}`이고 형식은 F `SecretRef`(`F.wire-settings.spec` §3.8.1)다.
   2. 값은 런타임 부모 프로세스 메모리에서 도구 실행 직전에만 풀린다.
@@ -59,8 +59,8 @@ binds: [xeon/packages/platform-secrets/**]
 
 아래 타입의 F 위치는 둘로 나뉜다.
 
-- 참조 형식(§3.1)과 여러 층이 함께 쓰는 값 타입(§3.2 메타, §3.5 `RedactionHit`, §3.9 감사 레코드)은 F `@xeon/contracts/capabilities`의 `capabilities/secrets.ts`(`F.capabilities.spec` §3.10)가 정본이다 [결정(잠정): review.decisions-2 U-08]. 이 문서는 그 블록을 다시 적지 않고 이름만 인용한다. 이름과 필드는 F를 따른다.
-- 서비스 인터페이스와 그 부속 타입(§3.3, §3.4, §3.5의 `Redactor`, §3.6, §3.10)은 F `@xeon/contracts/services`의 `services/secrets.ts`, 관리 서비스(§3.8)는 `services/secret-admin.ts`에 둔다 [결정(잠정): review.decisions-2 D-04]. `F.capabilities.spec` §3.12 표의 `SecretService`·`SecretAdminService` 행과 파일별 이름 표가 이 배치를 정했다(8.3절 R1-a, R2). 소비자(L1 tools, L1 models, L2 web·mcp)는 DR-14 때문에 `platform-secrets`를 import할 수 없으므로 이 서브패스로 받는다. 아래 블록은 F로 옮기기 전의 초안이고, 옮긴 뒤에는 F 이름을 인용한다(`F.capabilities.spec` §3.12 규칙 1).
+- 참조 형식(§3.1)과 여러 층이 함께 쓰는 값 타입(§3.2 메타, §3.5 `RedactionHit`, §3.9 감사 레코드)은 F `@xeon/contracts/capabilities`의 `capabilities/secrets.ts`(`F.capabilities.spec` §3.10)가 정본이다 [결정: review.decisions-2 U-08]. 이 문서는 그 블록을 다시 적지 않고 이름만 인용한다. 이름과 필드는 F를 따른다.
+- 서비스 인터페이스와 그 부속 타입(§3.3, §3.4, §3.5의 `Redactor`, §3.6, §3.10)은 F `@xeon/contracts/services`의 `services/secrets.ts`, 관리 서비스(§3.8)는 `services/secret-admin.ts`에 둔다 [결정: review.decisions-2 D-04]. `F.capabilities.spec` §3.12 표의 `SecretService`·`SecretAdminService` 행과 파일별 이름 표가 이 배치를 정했다(8.3절 R1-a, R2). 소비자(L1 tools, L1 models, L2 web·mcp)는 DR-14 때문에 `platform-secrets`를 import할 수 없으므로 이 서브패스로 받는다. 아래 블록은 F로 옮기기 전의 초안이고, 옮긴 뒤에는 F 이름을 인용한다(`F.capabilities.spec` §3.12 규칙 1).
 - `KeyProvider`, `Redactor` 구현, SOPS 래퍼는 `platform-secrets` 내부다.
 
 ### 3.1 참조 (`ref.ts`)
@@ -97,7 +97,7 @@ import {
 
 ### 3.2 메타 (`meta.ts`)
 
-정본은 `F.capabilities.spec` §3.10 둘째 블록의 메타 부분이다 [결정(잠정): review.decisions-2 U-08]. 이 패키지는 아래 이름을 import해 메타 파일을 검증하고 `SecretService.list()` 결과를 만든다.
+정본은 `F.capabilities.spec` §3.10 둘째 블록의 메타 부분이다 [결정: review.decisions-2 U-08]. 이 패키지는 아래 이름을 import해 메타 파일을 검증하고 `SecretService.list()` 결과를 만든다.
 
 ```ts
 import {
@@ -312,7 +312,7 @@ export interface SecretService {
     template: HttpTemplate, ctx: Omit<UseCtx, "mode" | "target">,
     send: (req: ConcreteHttpRequest) => Promise<T>,
   ): Promise<Result<{ readonly response: T; readonly echoed: boolean }, SecretError>>;
-  /** M1(env): 승인된 명령의 자식 env에 넣을 값을 lease로 연다. ctx.target은 { kind: "command" }여야 하고 per-use 승인 증거가 필요하다. 마일스톤 M1 [결정(잠정): review.decisions-2 U-19] */
+  /** M1(env): 승인된 명령의 자식 env에 넣을 값을 lease로 연다. ctx.target은 { kind: "command" }여야 하고 per-use 승인 증거가 필요하다. 마일스톤 M1 [결정: review.decisions-2 U-19] */
   withEnv(handle: SecretHandle, ctx: Omit<UseCtx, "mode">): Promise<Result<SecretLease, SecretError>>;
   /** M4: origin을 검사한 뒤 fill 콜백에만 값을 준다 */
   withBrowserInput<T>(
@@ -332,7 +332,7 @@ export interface SecretService {
 ```
 
 - `withHttp` 규칙: `template.url`의 호스트와 포트가 메타 `use.hosts`에 맞을 때만 치환한다. URL에 핸들이 있으면 `invalid_ref`로 거부한다(쿼리 문자열은 로그와 리퍼러로 새기 쉽다) [제안]. 치환된 `ConcreteHttpRequest`는 `send` 안에서만 쓰고, 호출자는 이를 로그·이벤트에 싣지 않는다.
-- `withEnv` 규칙 [결정(잠정): review.decisions-2 U-19]: 마일스톤 M1의 비밀 검증 경로는 bash 도구의 `env` 주입이고 실행마다 승인을 받는다. `withEnv`는 `mode: "env"`로 `lease(handle, ctx)`와 같은 판정(§4.2)을 한다. `ctx`는 `purpose`(예: `"bash:gh"`), `toolCallId`, `target: { kind: "command", argv0, commandLine }`, `approval`(`per-use` `ApprovalEvidence`)을 싣는다. `target`이 `command`가 아니면 `denied`(`mode_not_allowed`)다. exec는 `ShellExecOptions.secretEnv`(`SecretEnvRequest`의 `ctx`)로 받은 값에 `target`을 채워 이 메서드를 부른다(`L0.exec.spec` §3.6). 사람 직접 실행(`secret run`)은 §3.8의 관리 서비스가 맡는다.
+- `withEnv` 규칙 [결정: review.decisions-2 U-19]: 마일스톤 M1의 비밀 검증 경로는 bash 도구의 `env` 주입이고 실행마다 승인을 받는다. `withEnv`는 `mode: "env"`로 `lease(handle, ctx)`와 같은 판정(§4.2)을 한다. `ctx`는 `purpose`(예: `"bash:gh"`), `toolCallId`, `target: { kind: "command", argv0, commandLine }`, `approval`(`per-use` `ApprovalEvidence`)을 싣는다. `target`이 `command`가 아니면 `denied`(`mode_not_allowed`)다. exec는 `ShellExecOptions.secretEnv`(`SecretEnvRequest`의 `ctx`)로 받은 값에 `target`을 채워 이 메서드를 부른다(`L0.exec.spec` §3.6). 사람 직접 실행(`secret run`)은 §3.8의 관리 서비스가 맡는다.
 - 자식 env 거부 목록은 이 서비스에 두지 않는다. 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`L0.exec.spec` §3.5)다(§4.5).
 - [가정] `Disposable`은 TS 표준 `Disposable`(`Symbol.dispose`)이다.
 
@@ -424,12 +424,12 @@ export interface SecretAdminService {
 }
 ```
 
-- 에이전트는 생성과 열람을 하지 않는다(`_research/secrets.md` §6.6 `rotate` 행, `docs/design/18-security.md` §3.10.5와 같은 원칙). 그래서 관리 메서드를 별도 서비스 `xeon.secretAdmin`으로 나눈다 [결정(잠정): review.decisions-2 D-04]. 이 이름은 `F.capabilities.spec` §3.12 표와 `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 있다. 조립 루트(`apps/host`)가 L4 진입점에만 이 서비스를 넘기고, 확장과 모델 도구에는 주지 않는다. 신뢰 등급과 서비스 노출 규칙은 `X.loading-trust.spec`이 정한다 [가정].
+- 에이전트는 생성과 열람을 하지 않는다(`_research/secrets.md` §6.6 `rotate` 행, `docs/design/18-security.md` §3.10.5와 같은 원칙). 그래서 관리 메서드를 별도 서비스 `xeon.secretAdmin`으로 나눈다 [결정: review.decisions-2 D-04]. 이 이름은 `F.capabilities.spec` §3.12 표와 `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 있다. 조립 루트(`apps/host`)가 L4 진입점에만 이 서비스를 넘기고, 확장과 모델 도구에는 주지 않는다. 신뢰 등급과 서비스 노출 규칙은 `X.loading-trust.spec`이 정한다 [가정].
 - 명령과 화면의 경계는 §6.3 표다.
 
 ### 3.9 감사 레코드 (`audit.ts`)
 
-정본은 `F.capabilities.spec` §3.10 둘째 블록의 감사 레코드 부분이다 [결정(잠정): review.decisions-2 U-08]. 이 패키지는 `onAudit`로 이 타입을 낸다.
+정본은 `F.capabilities.spec` §3.10 둘째 블록의 감사 레코드 부분이다 [결정: review.decisions-2 U-08]. 이 패키지는 `onAudit`로 이 타입을 낸다.
 
 ```ts
 import type {
@@ -503,9 +503,9 @@ export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "
 
 | 모드 | 대상 | 모델과 셸에 보이는 것 | 실제 값의 위치 | 통제 수단 | 단계 |
 |---|---|---|---|---|---|
-| M1 env | 승인된 CLI 명령(`gh`, `kubectl` 등) | 값(자식 env). 셸이 `env`로 출력할 수 있다 | 도구 자식 프로세스 env | 명령 패턴, `per-use` 승인, 출력 마스킹(2계층) | 에이전트용(bash 도구, 실행마다 승인)은 마일스톤 M1이고 M1 비밀 검증 경로다 [결정(잠정): review.decisions-2 U-19]. 사람 직접 실행 `secret run`은 마일스톤 M2 |
+| M1 env | 승인된 CLI 명령(`gh`, `kubectl` 등) | 값(자식 env). 셸이 `env`로 출력할 수 있다 | 도구 자식 프로세스 env | 명령 패턴, `per-use` 승인, 출력 마스킹(2계층) | 에이전트용(bash 도구, 실행마다 승인)은 마일스톤 M1이고 M1 비밀 검증 경로다 [결정: review.decisions-2 U-19]. 사람 직접 실행 `secret run`은 마일스톤 M2 |
 | M2 sentinel | HTTPS 토큰을 쓰는 CLI와 도구 | sentinel 문자열 | 런타임 프록시 메모리. 전송 직전 헤더에서 치환 | 호스트 바인딩, TLS 종단 | 설계만 이 문서에서 정하고 구현은 후속 |
-| M3 런타임 HTTP | 런타임 내장 HTTP 경로(`GuardedHttp`, 모델 provider 호출, 테스트 그룹 HTTP 도구) | 핸들 | 부모 프로세스. `withHttp`가 전송 직전 헤더·본문에서 치환 | 호스트 바인딩, 응답 에코 검사 | 마일스톤 M1, 기본 안전 모드 |
+| M3 런타임 HTTP | 런타임 내장 HTTP 경로(`GuardedHttp`, 모델 provider 호출, 테스트 그룹 HTTP 도구) | 핸들 | 부모 프로세스. `withHttp`가 전송 직전 헤더·본문에서 치환. 모델 provider 키는 core-models가 `lease`(purpose `model.provider:<id>`)로 열어 프로세스 안 HTTP 클라이언트에만 넘긴다 | 호스트 바인딩, 응답 에코 검사 | 마일스톤 M1(모델 provider 키, review.decisions-2 U-19 보충), 기본 안전 모드. 값은 모델 컨텍스트, 이벤트, DB에 들어가지 않는다 |
 | M4 브라우저 입력 | 로그인 폼 | 핸들 | 부모 프로세스. 드라이버가 입력할 때만 | origin 바인딩, 스크린샷 마스킹 | 마일스톤 M2, 기본 안전 모드 |
 
 - 기본 모드 [제안]: M3과 M4가 기본 안전 모드다. `_research/secrets.md` §6.2 마지막 줄은 기본값을 M3과 M2로 적었으나, M2가 후속이므로 1차 기본은 M3과 M4로 둔다.
@@ -528,7 +528,7 @@ M2 설계(후속 구현):
 
 1. 도구 자식 env에는 `XEON_SECRET_<NAME>=xeon-sentinel-<무작위 32 hex>` 같은 sentinel만 넣는다. sentinel은 lease 하나에 하나다.
 2. 자식의 HTTPS는 `xeon.sandbox`의 프록시를 지나고, 프록시가 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾼다. 허용 호스트 밖으로 가는 요청에 sentinel이 있으면 요청을 막고 `secret.denied`(`host_mismatch`)를 낸다.
-3. [미결] TLS 종단 방식은 sandbox-runtime 프록시 조사 결과에 의존한다. `@anthropic-ai/sandbox-runtime` 0.0.81은 `tlsTerminate`(실험, Bun 1.4 이상)와 `mitmProxy`(외부 Unix 소켓)를 서로 배타적으로 제공하고, `SandboxManager`가 프로세스당 정책 하나인 싱글턴이다(`_research/notes/L0-1.md`). 어느 쪽을 쓸지, 자식 프로세스에 CA를 어떻게 신뢰시킬지는 후속에서 정한다.
+3. [미결] TLS 종단 방식은 sandbox-runtime 프록시 조사 결과에 의존한다. `@anthropic-ai/sandbox-runtime` 0.0.81(조사한 판. catalog 고정은 0.0.79, review.decisions-2 U-24. 0.0.79에도 같은 선택지가 있는지 후속에서 확인한다)은 `tlsTerminate`(실험, Bun 1.4 이상)와 `mitmProxy`(외부 Unix 소켓)를 서로 배타적으로 제공하고, `SandboxManager`가 프로세스당 정책 하나인 싱글턴이다(`_research/notes/L0-1.md`). 어느 쪽을 쓸지, 자식 프로세스에 CA를 어떻게 신뢰시킬지는 후속에서 정한다.
 4. 요구: `xeon.sandbox`의 프록시 훅(후속, `L0.sandbox.spec` §10 9번, `L0.sandbox.plan` SB-16). 8.2절에 적는다.
 
 ### 4.4 마스킹 5계층
@@ -605,7 +605,7 @@ M2 설계(후속 구현):
 | `rm <name>` | `references()`로 참조하는 설정 키, 활성 lease, 최근 세션을 보인 뒤 확인을 받는다. 활성 lease가 있으면 `in_use`로 거부한다. `secret.deleted` |
 | `test <name>` | 복호화 가능 여부, 길이, SHA-256 hex 앞 8자만 돌려준다. 값은 돌려주지 않는다. 결과는 사람 출력에만 쓰고 감사 레코드에는 싣지 않는다 |
 | `run -- <cmd>` | 사람이 터미널에서 직접 실행할 때 쓰는 env 주입이다. 자식 stdio는 터미널을 그대로 쓰고 런타임이 출력을 저장하지 않는다. 에이전트 도구 경로에서 부를 수 없다(관리 서비스는 에이전트에 주지 않는다) |
-| 값 보기 | `reveal`. 재인증 증거가 60초 안이어야 한다. OS 인증 재확인을 쓸 수 있는 환경에서는 `os-auth`만 받고, 쓸 수 없는 터미널에서만 `tty-confirm`을 받는다 [결정(잠정): review.decisions-2 U-20]. `show` 콜백에 한 번 주고 끝나면 값을 덮는다. 자동 숨김 시간은 L4가 정한다. 에이전트 경로에는 열람이 없다(관리 서비스는 에이전트에 주지 않는다). `secret.revealed` |
+| 값 보기 | `reveal`. 재인증 증거가 60초 안이어야 한다. OS 인증 재확인을 쓸 수 있는 환경에서는 `os-auth`만 받고, 쓸 수 없는 터미널에서만 `tty-confirm`을 받는다 [결정: review.decisions-2 U-20]. `show` 콜백에 한 번 주고 끝나면 값을 덮는다. 자동 숨김 시간은 L4가 정한다. 에이전트 경로에는 열람이 없다(관리 서비스는 에이전트에 주지 않는다). `secret.revealed` |
 
 ## 5. 실패와 경계 사례
 
@@ -687,7 +687,7 @@ M2 설계(후속 구현):
 | 삭제 | `references`, `rm` | `xeon secret rm <name> [--yes]` | 삭제(참조 표시 후 확인) | M2 |
 | 점검 | `test` | `xeon secret test <name>` | 상태 열 | M2 |
 | 사람 실행 | `run` | [미결] `L4.cli.spec` §10 3번 | 없음 | M2 |
-| 값 보기 | `reveal` | `xeon secret reveal <name>`(TTY만, OS 인증 재확인이 가능한 곳은 재확인) | 값 보기(재인증 후 한 번) | 명령줄 M2, 화면 M3 [결정(잠정): review.decisions-2 U-20] |
+| 값 보기 | `reveal` | `xeon secret reveal <name>`(TTY만, OS 인증 재확인이 가능한 곳은 재확인) | 값 보기(재인증 후 한 번) | 명령줄 M2, 화면 M3 [결정: review.decisions-2 U-20] |
 | 승인 | `check` → L1 | 대화형 승인 프롬프트(`L1.tools.spec`) | 승인 요청 "무엇에, 어느 호스트에, 몇 분간" | M2 |
 | 등록 안내 | `diagnose`의 `hint` | `xeon doctor` 출력 | 첫 실행 설정 | M1 |
 
@@ -732,12 +732,13 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 
 | 요청 | 위치 | 내용 |
 |---|---|---|
-| R1 | `@xeon/contracts/capabilities` `secrets.ts` | 반영되었다. `F.capabilities.spec` §3.10에 참조 형식(`SECRET_REF_PATTERN`, `SECRET_NAME_PATTERN`, `SecretRef`, `SecretNameSchema`, `SecretName`, `SecretHandle`, `SecretRefError`), 순수 함수(`parseSecretRef`, `secretRef`, `findForeignSecretSyntax`), 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretUseMode`, `SecretProviderId`, `SecretApproval`, `SecretScope`, `SecretAuditRecord`, `SecretDenyReason`, `RedactionLayer`, `RedactionHit`, `ReauthMethod`)이 있다 [결정(잠정): review.decisions-2 U-08]. 이 문서 §3.1, §3.2, §3.5, §3.9는 그 이름을 인용한다 |
-| R1-a | `@xeon/contracts/services` `services/secrets.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretService` 행(`xeon.secrets`)이 있고, 파일별 이름 표의 `services/secrets.ts` 행에 `SecretServiceName`, `UseCtx`, `SecretUseTarget`, `ApprovalEvidence`, `SecretValueView`, `SecretLease`, `SecretProvider`, `ProviderEntry`, `Redactor`, `SecretError` 등이 있다 [결정(잠정): review.decisions-2 D-04]. 필드는 이 문서 §3.3~§3.6, §3.10 블록을 F로 옮겨 확정한다(`F.capabilities.plan` P9) |
-| R2 | `@xeon/contracts/services` `services/secret-admin.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretAdminService` 행(`xeon.secretAdmin`)이 있고 `SERVICE_NAMES`에 들었다. `eng.context-map.design` §5.3 표에도 행이 있다 [결정(잠정): review.decisions-2 D-04]. 필드는 이 문서 §3.8 블록을 옮겨 확정한다 |
+| R1 | `@xeon/contracts/capabilities` `secrets.ts` | 반영되었다. `F.capabilities.spec` §3.10에 참조 형식(`SECRET_REF_PATTERN`, `SECRET_NAME_PATTERN`, `SecretRef`, `SecretNameSchema`, `SecretName`, `SecretHandle`, `SecretRefError`), 순수 함수(`parseSecretRef`, `secretRef`, `findForeignSecretSyntax`), 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretUseMode`, `SecretProviderId`, `SecretApproval`, `SecretScope`, `SecretAuditRecord`, `SecretDenyReason`, `RedactionLayer`, `RedactionHit`, `ReauthMethod`)이 있다 [결정: review.decisions-2 U-08]. 이 문서 §3.1, §3.2, §3.5, §3.9는 그 이름을 인용한다 |
+| R1-a | `@xeon/contracts/services` `services/secrets.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretService` 행(`xeon.secrets`)이 있고, 파일별 이름 표의 `services/secrets.ts` 행에 `SecretServiceName`, `UseCtx`, `SecretUseTarget`, `ApprovalEvidence`, `SecretValueView`, `SecretLease`, `SecretProvider`, `ProviderEntry`, `Redactor`, `SecretError` 등이 있다 [결정: review.decisions-2 D-04]. 필드는 이 문서 §3.3~§3.6, §3.10 블록을 F로 옮겨 확정한다(`F.capabilities.plan` P9) |
+| R2 | `@xeon/contracts/services` `services/secret-admin.ts` | 반영되었다. `F.capabilities.spec` §3.12 표에 `SecretAdminService` 행(`xeon.secretAdmin`)이 있고 `SERVICE_NAMES`에 들었다. `eng.context-map.design` §5.3 표에도 행이 있다 [결정: review.decisions-2 D-04]. 필드는 이 문서 §3.8 블록을 옮겨 확정한다 |
 | R3 | `F.records.spec` §3.3.1 | 반영되었다. `CoreArea`에 `secret`, `CoreEventKind`에 `secret.used`, `secret.denied`, `secret.approved`, `secret.masked`가 있고 생산자는 `core.tools`다. 관리 레코드는 세션 이벤트로 넣지 않는다 |
 | R4 | `F.wire-settings.spec` 메서드 표 | 값 없는 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(값 입력은 호스트 쪽 OS 창, `L4.settings-ui.spec` §4.6.4 C안). 값을 싣는 메서드는 요청하지 않는다 |
 | R5 | `eng.dependency-rules.guide` DR-07 | 플러그인 제공자가 `op`, `bws` 바이너리를 부를 때의 소유 행(2차) |
+| R6 | `F.capabilities.spec` §3.10 `SecretUseModeSchema` | 반영되었다. 값 옆 주석이 사용 모드 번호(M1~M4)와 마일스톤을 함께 적는다. 이전 주석 `// M3`은 사용 모드 번호였는데 마일스톤으로 읽혀 `runtime-http`가 마일스톤 M3 기능처럼 보였다. `runtime-http`는 마일스톤 M1부터 모델 provider 키에 쓴다(§4.3 표) |
 
 ## 9. 수용 기준
 
@@ -754,16 +755,17 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 11. 8바이트 미만: 7바이트 값의 `registerKnown`은 `value_too_short`, 같은 비밀의 `env` lease는 `mode_not_allowed`다.
 12. 플랫폼 선택: `process.platform` 참조가 `src/select.ts` 밖에 없다(`check-layers` DR-13 검사).
 13. env 모드(마일스톤 M1): `use.modes: ["env"]`, `use.commands: ["gh api *"]`인 비밀로 `withEnv`를 `target: { kind: "command", argv0: "gh", commandLine: "gh api user" }`와 `per-use` 승인 증거로 부르면 lease가 열린다. 같은 호출을 `commandLine: "curl …"`로 부르면 `denied`(`command_mismatch`)이고 제공자 `lease`가 불리지 않는다. `target.kind`가 `host`면 `mode_not_allowed`다.
+14. 모델 provider 키(`runtime-http`, 마일스톤 M1): `use.modes: ["runtime-http"]`, `use.hosts: ["api.example.test"]`인 비밀로 `lease`를 `mode: "runtime-http"`, purpose `model.provider:example`, `target: { kind: "host", host: "api.example.test", port: null }`, `approval: null`로 부르면 lease가 열린다. 같은 호출을 다른 호스트로 하면 `denied`(`host_mismatch`)이고 제공자 `lease`가 불리지 않는다. `use.modes`에 `runtime-http`가 없으면 `mode_not_allowed`다(`policy.test.ts`, review.decisions-2 U-19 보충).
 
 ## 10. 미결 사항
 
 1. [미결] 세션 밖 관리 레코드의 저장 위치(권고: `platform-secrets` 소유 추가 전용 파일)와 단일 DB 결정(ADR-0004)과의 관계(§3.9). 감사 이벤트 kind 소유자는 `F.records.spec` §3.3.1의 (a)안(tool-runtime 발행)으로 정해졌다.
-2. [결정(잠정): review.decisions-2 U-19] 마일스톤 M1의 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다. `withEnv`(§3.6)와 exec `secretEnv`(`L0.exec.spec` §3.6)를 M1에 둔다. `product.scope.spec` §4.4 M1 행, `L2.workspace.spec` §3.3과 같은 배치다.
+2. [결정: review.decisions-2 U-19] 마일스톤 M1의 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다. `withEnv`(§3.6)와 exec `secretEnv`(`L0.exec.spec` §3.6)를 M1에 둔다. `product.scope.spec` §4.4 M1 행, `L2.workspace.spec` §3.3과 같은 배치다. 모델 provider API 키는 마일스톤 M1부터 `runtime-http` 모드로 lease한다(§4.3 표, 수용 기준 14). env 경로는 아직 끝까지 이어지지 않았다. M1 코드는 승인 증거를 `null`로 넘기고 호스트 `approval.respond`가 `notImplemented`다. 마일스톤 M2 승인 프로토콜 작업(`L4.host-service.plan` H18)에서 증거 전달까지 완성한다.
 3. [미결] sops 최소 버전. 이 문서는 3.10.0을 하한으로 두었다. 조사는 3.12.0 하한, 3.13.3 실사용을 제안한다(`_research/notes/L0-3.md` §2.1).
 4. [미결] 사용자 `secrets` 도구(`just secret-add`)가 관리하는 SOPS 파일의 위치와 env 이름 매핑 규약. 확인 전까지 `l0.secrets.sops.files`는 사람이 적는다.
 5. [미결] sops `set`이 stdin으로 값을 받는지. 받지 못하면 SOPS 제공자 `put`을 끄고 `just secret-add` 경로만 쓴다(§4.6 6번).
 6. [미결] M2 sentinel의 TLS 종단 방식(`tlsTerminate`와 `mitmProxy` 중 선택, 자식 CA 신뢰). `xeon.sandbox` 프록시 훅(후속, sentinel 모드 요구, `L0.sandbox.plan` SB-16)과 함께 정한다.
 7. [미결] Windows 네이티브 age 키 획득 수단(PowerShell P/Invoke 헬퍼, Bun 컴파일 헬퍼 + `@napi-rs/keyring`)과 1차 `win32` 동작(파일 폴백 허용 여부).
-8. [결정(잠정): review.decisions-2 D-04] 관리 서비스는 `xeon.secretAdmin`(`SecretAdminService`)으로 나눈다. `F.capabilities.spec` §3.12 표, `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 반영되었다(8.3절 R2).
+8. [결정: review.decisions-2 D-04] 관리 서비스는 `xeon.secretAdmin`(`SecretAdminService`)으로 나눈다. `F.capabilities.spec` §3.12 표, `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 반영되었다(8.3절 R2).
 9. [미결] 이미 기록된 이벤트에 남은 값의 사후 가림. `docs/design/18-security.md` §3.10.6의 판정을 Xeon에 옮길지 정한다.
 10. [미결] 플러그인 제공자(`op`, `bws`)의 바이너리 호출 소유 규칙(DR-07 행 추가).

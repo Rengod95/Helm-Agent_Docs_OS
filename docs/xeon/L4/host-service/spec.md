@@ -72,11 +72,11 @@ CLI는 엔진을 in-process로 쓴다(ADR-0006 §3.3). 그래서 CLI 프로세�
 
 | 안 | 내용 | 층 순위와의 관계 | 결과 | 판정 |
 |---|---|---|---|---|
-| 1 | `apps/host`를 L4의 "층 기반 패키지"로 두고 `apps/cli`가 `@xeon/host`를 import한다(`architecture.layers.spec` §3.2) | L4 안의 같은 층 간선 하나(`cli → host`)를 허용 목록으로 연다. 한 방향만이고 `host`는 다른 앱을 import하지 않는다 | 조립 코드가 한 곳에 있다. CLI와 서비스·사이드카가 같은 `assemble`을 쓴다 | 채택 [결정(잠정): review.decisions-2 U-15] |
+| 1 | `apps/host`를 L4의 "층 기반 패키지"로 두고 `apps/cli`가 `@xeon/host`를 import한다(`architecture.layers.spec` §3.2) | L4 안의 같은 층 간선 하나(`cli → host`)를 허용 목록으로 연다. 한 방향만이고 `host`는 다른 앱을 import하지 않는다 | 조립 코드가 한 곳에 있다. CLI와 서비스·사이드카가 같은 `assemble`을 쓴다 | 채택 [결정: review.decisions-2 U-15] |
 | 2 | 조립 코드를 L4 아래 층 패키지로 내린다(DR-10 셋째 항목) | 조립 코드는 L3 그룹(`group-helm`, `group-learning`, 순위 5), L2, L1, L0, X를 모두 import한다. L3에 두면 L3 그룹끼리 import(DR-02)가 생기고, L2 이하에 두면 상향 import(DR-01)가 생긴다. 순위 5 이하 어느 자리에서도 성립하지 않는다 | 새 순위(예: L3와 L4 사이)를 만들어야 한다. 층 순위 변경이라 ADR이 필요하다(`eng.dependency-rules.guide` §4 1번) | 불가 |
 | 3 | CLI도 항상 서비스를 거친다 | 같은 층 import가 없다 | CLI 한 번 실행에 서비스 기동이 필요하다. ADR-0006 §5가 탈락시킨 "서비스 모드만 단독" 안과 같고, CLI 기본 전송 in-process [결정]과 충돌한다 | 불가 |
 
-[결정(잠정): review.decisions-2 U-15] 안 1을 채택한다. 규칙 문구 수정안은 다음과 같다. `eng.dependency-rules.guide`와 허용 목록 파일은 같은 커밋에서 고친다(같은 문서 §4 절차). eng 문서 반영은 그 문서 쪽 수정이다.
+[결정: review.decisions-2 U-15] 안 1을 채택한다. 규칙 문구 수정안은 다음과 같다. `eng.dependency-rules.guide`와 허용 목록 파일은 같은 커밋에서 고친다(같은 문서 §4 절차). eng 문서 반영은 그 문서 쪽 수정이다.
 
 1. 허용 목록 항목(`xeon/scripts/dependency-allowlist.json`). `architecture.layers.spec` §3.2는 "`check-layers.ts`에 목록으로 둔다"고 적었지만, `eng.dependency-rules.guide` §4 2번이 import 한 쌍의 예외를 허용 목록 파일 한 곳에만 두라고 정하므로 그 형식을 따른다. `check-layers.ts`는 이 항목을 읽어 DR-02·DR-10 위반에서 뺀다.
 
@@ -479,6 +479,30 @@ export declare function listenServiceSocket(path: string, maxFrameBytes?: number
 
 - 종료코드 관계: `runHostCommand`의 0·1·2는 CLI가 바꾸지 않고 그대로 `xeon`의 종료코드로 쓴다(`L4.cli.spec` §3.6의 0 정상, 1 일반 오류, 2 사용법 오류와 같은 뜻). 이 경로의 시작 거부(`AssembleError`, SV-05 권한 검사)는 1이다. CLI가 in-process로 `assemble`할 때의 `EngineStartError`만 `L4.cli.spec` §4.10 표로 1 또는 3이 된다.
 
+#### 3.3.6 상태 디렉터리 API [결정: review.decisions-2 B-07]
+
+CLI는 경로를 계산하지 않는다(DR-13, `L4.cli.spec` §10 1번). 그래서 `@xeon/host`가 L0.os의 `OsDirs.state`에서 CLI 상태 파일 위치를 만들어 준다.
+
+```ts
+export interface HostStatePaths {
+  /** OsDirs.state. 로그, 복구 표식처럼 기기에 남는 상태 */
+  readonly stateDir: string;
+  /** <stateDir>/cli/state.json. L4.cli.spec §3.7 CliStateSchema 파일 */
+  readonly cliStateFile: string;
+}
+export type HostStatePathError =
+  | { readonly kind: "dirs_unavailable"; readonly message: string }     // OsDirs를 정할 수 없음(홈 없음 등)
+  | { readonly kind: "permission"; readonly path: string };            // 디렉터리를 만들거나 쓸 수 없음
+/** 디렉터리를 만들고(0700) 경로를 돌려준다. 예상 가능한 실패는 Result로 돌려준다 */
+export declare function resolveHostStatePaths(options?: {
+  /** 테스트 격리용 덮어쓰기. 값이 있으면 cliStateFile로 그대로 쓴다. 운영 경로는 이 값을 넘기지 않는다 */
+  readonly cliStateFileOverride?: string;
+}): Promise<Result<HostStatePaths, HostStatePathError>>;
+```
+
+- `connectEngine`은 이 함수의 결과로 `EngineHandle.paths.cliStateFile`을 채운다. 서비스 모드에서도 CLI 프로세스 쪽에서 부른다. 상태 파일은 CLI 프로세스의 파일이기 때문이다.
+- 환경 변수 `XEON_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남긴다. CLI가 이 값을 읽어 `cliStateFileOverride`로 넘기고, 값이 없으면 기본 경로를 쓴다. M1 코드처럼 환경 변수가 없을 때 상태 파일을 쓰지 않는 동작은 없앤다.
+
 ### 3.4 처리기 표
 
 "서비스"는 처리기가 부르는 포트와 그 뒤의 아래 층 문서다. "오류"는 처리기가 던지는 `WireError`의 kind이고 code는 `WIRE_ERRORS`(F wire §3.5.2)의 값이다. 모든 메서드에 공통으로 `-32602`(params), `-32603`(정제된 내부 오류), `5001 request.cancelled`, `5002 host.shuttingDown`이 올 수 있으므로 표에서 생략한다. `host.hello` 외의 모든 메서드는 hello 전이면 `1001 host.helloRequired`다.
@@ -659,7 +683,7 @@ F wire §4.3의 1~7단계를 그대로 구현한다. 1단계(프레임 크기)�
 
 ### 4.7 단일 소유
 
-[결정: ADR-0006 §3.6] 쓰기 소유자는 세션마다 하나다. [결정(잠정): review.decisions-2 U-09] 판정은 OS 잠금(생존 판정)과 `sys_leases.epoch` 펜싱 둘로 한다. 별도 소유 표시 테이블은 두지 않고 `sys_leases` 행(`kind`, `pid`, `host`, `heartbeat_at`)이 표시를 겸한다(`L0.store.spec` §3.1 `LeaseService`). 호스트 코드는 `SessionLockPort` 뒤의 구현에 의존하지 않는다.
+[결정: ADR-0006 §3.6] 쓰기 소유자는 세션마다 하나다. [결정: review.decisions-2 U-09] 판정은 OS 잠금(생존 판정)과 `sys_leases.epoch` 펜싱 둘로 한다. 별도 소유 표시 테이블은 두지 않고 `sys_leases` 행(`kind`, `pid`, `host`, `heartbeat_at`)이 표시를 겸한다(`L0.store.spec` §3.1 `LeaseService`). 호스트 코드는 `SessionLockPort` 뒤의 구현에 의존하지 않는다.
 
 - HS-23. 쓰기 소유는 호스트 프로세스 단위다. 같은 호스트(예: 서비스)의 여러 연결이 같은 thread를 `write`로 열면 모두 `role: "owner"`이고 입력은 L1.tasks 입력 큐가 직렬화한다.
 - HS-24. `thread.open { mode: "write" }`:
@@ -798,7 +822,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 
 ### 4.11 원격 전송
 
-[결정(잠정): review.decisions-2 U-11] 원격 사용은 1차(M3)에 넣는다. 방식은 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 것이다. 호스트는 비루프백 리스너를 만들지 않고, 원격 클라이언트도 로컬 서비스 전송(`socket`)으로 붙는다. 내장 TLS + 토큰 WebSocket은 2차다. 2차 전송에 대한 불변식은 다음과 같다.
+[결정: review.decisions-2 U-11] 원격 사용은 1차(M3)에 넣는다. 방식은 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 것이다. 호스트는 비루프백 리스너를 만들지 않고, 원격 클라이언트도 로컬 서비스 전송(`socket`)으로 붙는다. 내장 TLS + 토큰 WebSocket은 2차다. 2차 전송에 대한 불변식은 다음과 같다.
 
 - 원격 전송도 F의 `Transport`를 구현하고 같은 `WireHandlers` 표를 쓴다.
 - 비루프백 리스너는 토큰 없이 기동하지 않는다. 인증은 `host.hello` 전에 끝낸다. 실패한 연결은 hello 전에 닫는다(`product.scope.spec` §4.4 M3 조건).
@@ -918,21 +942,21 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 
 ## 10. 미결 사항
 
-1. [결정(잠정): review.decisions-2 U-15] 조립 위치(DR-10)는 안 1이다(§3.1). 허용 목록 항목 `DR-10/cli-host`, DR-10·DR-14 문구 수정, `architecture.layers.spec` §3.2의 L4 부분은 각 문서 쪽에서 반영한다.
+1. [결정: review.decisions-2 U-15] 조립 위치(DR-10)는 안 1이다(§3.1). 허용 목록 항목 `DR-10/cli-host`, DR-10·DR-14 문구 수정, `architecture.layers.spec` §3.2의 L4 부분은 각 문서 쪽에서 반영한다.
 2. [미결] 바이너리 구성. 단일 `xeon`(제안)과 `apps/host` 단독 사이드카 중 선택(§3.2). 사용자 확인.
 3. [미결] 문서 수정 요청: `eng.toolchain.guide` TC-10과 같은 문서 §2 바이너리 행, `xeon/apps/desktop/README.md`의 사이드카 문구(§3.2). 2번이 확정되면 작성자가 고친다.
-4. [결정(잠정): review.decisions-2 U-11] 원격 사용은 M3이고 로컬 서비스 소켓을 SSH 터널·사설망으로 연결한다. 내장 TLS + 토큰 WebSocket은 2차다(§4.11).
+4. [결정: review.decisions-2 U-11] 원격 사용은 M3이고 로컬 서비스 소켓을 SSH 터널·사설망으로 연결한다. 내장 TLS + 토큰 WebSocket은 2차다(§4.11).
 5. [미결] 데스크톱 TS 코드가 `@xeon/host/client`(엔진 없는 클라이언트 구현)를 import할지. DR-10 예외를 하나 더 여는 일이다. 다른 안은 `createHostConnection`을 F 아래 층으로 옮기는 것이다. F는 타이머·상태를 쓰는 런타임 로직을 두지 않으므로(F.readme §1) F 변경이 필요하다. `L4.desktop.spec`과 함께 정한다.
 6. [미결] 승인 대기 세션을 유휴 종료 판정에서 live로 볼지(ADR-0006 §6). 제안은 live(SV-04).
 7. [미결] 등록 파일 스키마의 정본 위치. 이 문서(§3.5)와 `L0.process.spec` 중 하나로 정한다. 작성자 결정(L0.process 작성자와 조율).
-8. [결정(잠정): review.decisions-2 U-04] F 변경 요청: 비정상 종료 표식(`running_since`, `resume_attempts`)의 "이어서 실행" 후보를 클라이언트에 알리는 수단. M1에 넣지 않고 M2 계획에서 정한다. 그때까지 F.wire-settings 미결로 둔다. 후보는 `ThreadSummary`에 재개 후보 필드를 두는 것 또는 전용 메서드다(HS-30).
+8. [결정: review.decisions-2 U-04] F 변경 요청: 비정상 종료 표식(`running_since`, `resume_attempts`)의 "이어서 실행" 후보를 클라이언트에 알리는 수단. M1에 넣지 않고 M2 계획에서 정한다. 그때까지 F.wire-settings 미결로 둔다. 후보는 `ThreadSummary`에 재개 후보 필드를 두는 것 또는 전용 메서드다(HS-30).
 9. (닫힘) 종료 협조용 메시지는 F `host.shutdown`(M2)이다(`F.wire-settings.spec` §4). M2 전까지 stdin 닫기로 대신한다(HS-34).
 10. [미결] 서비스 인증: Unix 소켓 + 파일 권한만으로 충분한지, 토큰을 `host.hello`에 실을지(F wire §10 미결 4). 사용자 확인. 이 문서는 F 결정에 맞춘다(SV-05).
 11. [미결] `settings.list`의 `SettingDefWire.type`에 `range`를 합쳐 실을지, 병합 함수를 F에 둘지(`_research/notes/L4-3.md` §1, §4). F 변경 요청.
 12. 닫음: `xeon service ensure --json` 출력 형식(HS-38)을 `L4.desktop.spec` §4.8이 그대로 인용한다. 서비스 경로 진입 판정은 `xeon service launch-mode --json`(§3.2)으로 맞췄다.
-13. [결정(잠정): review.decisions-2 U-04] F 변경 요청: 사용자 알림용 wire 알림 또는 표시 힌트 필드(HS-43). M1에 넣지 않고 M2 계획에서 정한다.
-14. [결정(잠정): review.decisions-2 U-09] 세션 잠금 구현은 OS 잠금(생존) + `sys_leases.epoch` 펜싱이다. 호스트는 `SessionLockPort`로 감싸고 받은 `LeaseToken`을 L1.persistence에 넘긴다(§4.7).
+13. [결정: review.decisions-2 U-04] F 변경 요청: 사용자 알림용 wire 알림 또는 표시 힌트 필드(HS-43). M1에 넣지 않고 M2 계획에서 정한다.
+14. [결정: review.decisions-2 U-09] 세션 잠금 구현은 OS 잠금(생존) + `sys_leases.epoch` 펜싱이다. 호스트는 `SessionLockPort`로 감싸고 받은 `LeaseToken`을 L1.persistence에 넘긴다(§4.7).
 15. (닫힘) `architecture.runtime-flow.design` §4.6 표의 service 열은 로컬 소켓과 원격 [미결]로 고쳐졌다(review.consistency-1 S-16). 원격은 U-11에 따라 로컬 소켓을 터널로 연결한다.
-16. [결정(잠정): review.decisions-2 U-03] 적합성 실행기 위치: F에는 `./testing` 서브패스를 두지 않는다. 실행기는 `apps/host/test/contract/conformance-runner.ts`에 둔다. F plan W14의 틀을 다른 패키지 테스트가 함께 쓰는 방법은 F 문서 쪽에서 정한다.
-17. [결정(잠정): review.decisions-2 U-04] F 변경 요청: 파일 범위 설정 변경을 접속 중인 다른 클라이언트에 알리는 수단(`settings.invalidated` 등). M1에 넣지 않고 M2 계획에서 정한다. `L4.settings-ui.spec` §10 미결 1과 같은 항목이다.
+16. [결정: review.decisions-2 U-03] 적합성 실행기 위치: F에는 `./testing` 서브패스를 두지 않는다. 실행기는 `apps/host/test/contract/conformance-runner.ts`에 둔다. F plan W14의 틀을 다른 패키지 테스트가 함께 쓰는 방법은 F 문서 쪽에서 정한다.
+17. [결정: review.decisions-2 U-04] F 변경 요청: 파일 범위 설정 변경을 접속 중인 다른 클라이언트에 알리는 수단(`settings.invalidated` 등). M1에 넣지 않고 M2 계획에서 정한다. `L4.settings-ui.spec` §10 미결 1과 같은 항목이다.
 18. [미결] 패키지 도메인 이름: `package.json`의 `xeon.domain`은 `host`이고 routes.yaml 도메인은 `host-service`다(`architecture.layers.spec` §10 첫 항목). 작성자 결정 사항이며 이 문서는 디렉터리와 패키지 이름 `host`를 유지한다.

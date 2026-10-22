@@ -48,7 +48,7 @@ binds: [xeon/packages/cap-artifacts/**]
 | 산출물 kind 목록과 미리보기 메타 스키마 | 세션 커밋 `xeon.session` `SessionWriter.commit` (`L1.persistence.spec`, TX-07) | 미리보기 렌더링과 화면(L4) |
 | 리뷰 상태(hunk 분할, 결정, 코멘트, 라운드)와 `artifact.review_*` 이벤트 | 승인 요청 `xeon.approvals` (`L1.tools.spec`) | 승인 프로토콜과 `approval.*` 이벤트(L1.tools) |
 | diff 정규화와 hunk ID 규칙 | workspace 도구 결과 `details`의 diff (`L2.workspace.spec`) | 파일 쓰기 도구와 그 결과 형식(L2.workspace) |
-| 코멘트를 에이전트 입력으로 만드는 규칙과 멱등 키 | 입력 큐 `xeon.tasks` post (`L1.tasks.spec`) | 입력 큐, 전달 모드, `input.*`·`post.accepted` 이벤트(L1.tasks) |
+| 코멘트를 에이전트 입력으로 만드는 규칙과 멱등 키 | 입력 큐 `xeon.tasks` post (`L1.tasks.spec`) | 입력 큐, 전달 모드, `input.*` 이벤트(L1.tasks) |
 | 거절 hunk의 역패치 계산 | 파일 되돌림 `workspace.files` 또는 L1 복원 ([미결] §4.2.5) | 체크포인트와 되감기, 파일 상태 복원(L1.persistence) |
 | 세션 라벨과 `artifact.session_labeled` | 제목 변경 `xeon.session` retitle (`L1.persistence.spec`) | 제목 이벤트(`session.retitled`)와 `session_info_changed` 지점 디스패치(L1·X) |
 | 자동 제목 생성 시점과 프롬프트 | 소형 모델 호출 `xeon.models` 용도 라우팅 (`L1.models.spec`) | 모델 라우팅과 용도 이름(L1.models) |
@@ -1447,7 +1447,7 @@ export const ReviewAnswerSchema = Type.Object({
 
 1. 닫힘. `CallOptions.context`(`CallContext`)는 `F.capabilities.spec` §3.2에 있다(§3.5).
 2. [미결] 제목 이벤트 이름: `session.retitled`(eng.events.design §4.4) 대 `thread.updated`의 `title`(F.records.spec §3.3). 제목 출처(`source: user | auto | model`)를 payload에 둘지도 함께 정한다. 이 문서의 `titleSource` 투영은 그 필드를 전제한다.
-3. [결정(잠정): review.decisions-2 K-09] 새 ID 접두 `art`, `rvw`, `cmt`, `hof`는 F `IdPrefix`에 더하지 않고 F.conversation.spec §3.2.1 `LocalIdPrefix` 표의 지역 ID로 둔다.
+3. [결정: review.decisions-2 K-09] 새 ID 접두 `art`, `rvw`, `cmt`, `hof`는 F `IdPrefix`에 더하지 않고 F.conversation.spec §3.2.1 `LocalIdPrefix` 표의 지역 ID로 둔다.
 4. [미결] 리뷰 결정의 도착 경로(§4.2.4). (a) 승인 프로토콜에 비차단 `review` kind 추가(제안), (b) `question` kind + `answerSchema`, (c) F wire에 `artifacts.review.*` 메서드 추가. L1.tools.spec·F.wire-settings.spec 소유자와 정한다.
 5. [미결] `eng.context-map.design` §4.1 artifacts 행 (d)열에 `xeon.tasks`, `xeon.approvals`, `xeon.models`, `xeon.exec`를 더하는 개정(§3.8). CM-04에 따라 그 문서를 먼저 고친다.
 6. [미결] 거절 적용 경로(§4.2.5): A `workspace.files`(제안), B L1 복원, C 직접 쓰기. A로 정하면 `L2.workspace.spec`에 패치 적용 서비스 메서드와 F `WorkspaceDiffDetailsSchema`를 요청한다. 정해지면 `L2.readme` §10 미결 5도 닫는다.

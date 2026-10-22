@@ -18,11 +18,11 @@ binds: [xeon/packages/platform-os/**]
 |---|---|---|
 | M0 | `OsInfo`, `OsDirs`(3플랫폼 표, `home` 포함), `fsKind`, `Clock`·`Scheduler`·`RandomSource` 운영 구현, `Logger` 기본 구현과 마스킹 훅, ID 발급기 구현 `createIdFactory`·`createLocalIdFactory`, `testing` 서브패스(`tempDir`, `withIsolatedEnv`), 프로세스 지문·기계 식별자·uid(store 세션 잠금이 M0) | OS-01~OS-09, OS-18, OS-19 |
 | M1 | 바이너리 해석(`rg`, secrets 키 명령용 `security`·`secret-tool` 포함), 서비스 등록(`xeon.os`) | OS-10~OS-11 |
-| M3(1차) | 알림 전달 수단 `Notifier`(macOS·Linux 먼저) [결정(잠정): review.decisions-2 S-04] | OS-13 |
+| M3(1차) | 알림 전달 수단 `Notifier`(macOS·Linux 먼저) [결정: review.decisions-2 S-04] | OS-13 |
 | M2 이후(2차) | `FileWatcher`, 텔레메트리, Windows 보강, 번들 바이너리 추출 실측 | OS-12, OS-14~OS-17 |
 
 - [결정] M0 범위는 `contracts`, `ext-host`, `platform-store`, `platform-exec`다(`_research/foundation-plan.md` §5 P4). platform-os의 M0 작업은 store·exec 테스트가 `tempDir`과 시계 구현을 쓰기 때문에 넣는다 [제안].
-- M0 작업은 `@xeon/contracts` 루트의 `Clock`, `Scheduler`, `RandomSource`, `Logger`(`L0.os.spec` §8 F에 요청 1)와 `@xeon/contracts/conversation`의 `IdFactory`·`LocalIdFactory`를 전제로 한다. F에 아직 없으면 OS-05·OS-06·OS-07·OS-19는 F 작업을 기다린다. `manualClock` 같은 테스트 대역은 F에 두지 않고 이 패키지의 `test/` 안에 둔다 [결정(잠정): review.decisions-2 U-03].
+- M0 작업은 `@xeon/contracts` 루트의 `Clock`, `Scheduler`, `RandomSource`, `Logger`(`L0.os.spec` §8 F에 요청 1)와 `@xeon/contracts/conversation`의 `IdFactory`·`LocalIdFactory`를 전제로 한다. F에 아직 없으면 OS-05·OS-06·OS-07·OS-19는 F 작업을 기다린다. `manualClock` 같은 테스트 대역은 F에 두지 않고 이 패키지의 `test/` 안에 둔다 [결정: review.decisions-2 U-03].
 - 서비스 등록(OS-10)은 ext-host 등록 API(`ExtHost.registerPlatform`, `PlatformModule`, `X.primitives.spec` §3.2)가 필요하므로 M1에 둔다. M0에서는 다른 패키지가 함수(`systemClock` 등)를 쓰지 않고 테스트 도우미만 쓴다.
 
 ## 2. 패키지와 파일 배치
@@ -132,7 +132,7 @@ xeon/packages/platform-os/
 
 - 포크 코드는 없다. `src/upstream/` 디렉터리를 두지 않는다.
 - 자체 구현: 디렉터리 규칙, `fsKind`, 시계 3종, 로거, 바이너리 해석, 알림 provider, 디바운스, 텔레메트리 어댑터.
-- `Bun.spawn` 사용(시스템 바이너리 `--version`, `osascript`, `notify-send`, `mount`)은 DR-07 표의 `Bun.spawn` 소유 패키지 `platform-os` 행을 따른다 [결정(잠정): review.decisions-2 U-17].
+- `Bun.spawn` 사용(시스템 바이너리 `--version`, `osascript`, `notify-send`, `mount`)은 DR-07 표의 `Bun.spawn` 소유 패키지 `platform-os` 행을 따른다 [결정: review.decisions-2 U-17].
 
 ## 5. 단위 테스트 목록
 

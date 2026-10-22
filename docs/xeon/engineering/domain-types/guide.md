@@ -21,12 +21,12 @@ F 계약 패키지(`xeon/packages/contracts`)의 스키마, 와이어 DTO, 도�
   - 트랜잭션, 멱등, outbox: `eng.transactions.design`.
   - 각 F 도메인의 구체 타입: `F.conversation.spec`, `F.records.spec`, `F.capabilities.spec`, `F.extensions.spec`, `F.wire-settings.spec`.
 - 근거 자료:
-  - [결정] 스키마는 TypeBox 1.4, pi-ai와 같은 계열(`_research/foundation-plan.md §2` 스키마 행). 계약 정본은 F `xeon/packages/contracts`이고 서브패스는 conversation, records, capabilities, extensions, wire, settings다(`_research/foundation-plan.md §3`).
-  - TypeBox 1.4.2 API, `isolatedDeclarations` 충돌: `_research/notes/eng-2.md`
+  - [결정] 스키마는 TypeBox 1.3.27(review.decisions-2 U-24), pi-ai와 같은 판(`_research/foundation-plan.md §2` 스키마 행). 계약 정본은 F `xeon/packages/contracts`이고 서브패스는 conversation, records, capabilities, extensions, wire, settings다(`_research/foundation-plan.md §3`).
+  - TypeBox 1.3.27 API, `isolatedDeclarations` 충돌: `_research/notes/eng-2.md`
   - F 구성요소 판정: `_research/packages.md §4.1`(F3 도구 스키마 "그대로", F4 열거형 확장 예약)
   - 단일 원천 스키마와 CI diff 검사 패턴: `_research/ref-synthesis.md` F 계약 절(Hermes)
   - 기존 설계의 envelope·업캐스터·ID 규약: `docs/design/09-event-store.md §3.2, §3.13.3`, `docs/design/08-domain-model.md §3.2, §3.4.1, §3.4.7`(참고용, 커널·데몬 전제는 따르지 않는다)
-  - 기준 버전: `typebox` 1.4.2(`xeon/package.json` catalog)
+  - 기준 버전: `typebox` 1.3.27(`xeon/package.json` catalog)
 
 ### 1.1 용어
 
@@ -56,15 +56,15 @@ F 계약 패키지(`xeon/packages/contracts`)의 스키마, 와이어 DTO, 도�
 | 스키마 상수 이름 `<Name>Schema`, 타입 이름 `<Name>` | 명명 규약 | DT-02 |
 
 - 브랜드 ID(`ThreadId`, `TurnId`, `StepId`, `ItemId`, `PartId`, `EventId`, `EffectId`, `CheckpointId`), 그 스키마, `IdPrefix`, `IdByPrefix`, `ULID_PATTERN`, `idPattern`, `isId`, `IdFactory`는 `F.conversation.spec` §3.2가 정의하고 서브패스 `@xeon/contracts/conversation`에 둔다(DT-06). 루트 진입점에는 두지 않는다(`F.readme` §3).
-- 이 문서의 이전 판에 있던 `SessionId`·`TaskId`·`MessageId`·`InputId`·`ApprovalId`·`RequestId`·`ToolCallId`·`ScopeId` 브랜드, `ID_PREFIXES`, `REQUEST_ID_PATTERN`, `deriveRequestId`는 두지 않는다. `createIdFactory`는 F에 두지 않는다(DT-06, [결정(잠정): review.decisions-2 U-03]).
+- 이 문서의 이전 판에 있던 `SessionId`·`TaskId`·`MessageId`·`InputId`·`ApprovalId`·`RequestId`·`ToolCallId`·`ScopeId` 브랜드, `ID_PREFIXES`, `REQUEST_ID_PATTERN`, `deriveRequestId`는 두지 않는다. `createIdFactory`는 F에 두지 않는다(DT-06, [결정: review.decisions-2 U-03]).
 
 ## 2. 규칙
 
-각 규칙은 번호, 내용, 이유, 좋은 예, 나쁜 예를 가진다. 코드는 TypeBox 1.4.2 시그니처(`_research/notes/eng-2.md §3-4, §4~§7`)를 따른다. 컴파일과 실행은 검증하지 않았다 [가정: 조사 2가 내려받은 패키지를 실행하지 않았다]. 첫 구현 작업(M0 `contracts`)에서 이 문서의 예를 타입 테스트로 옮겨 확인한다.
+각 규칙은 번호, 내용, 이유, 좋은 예, 나쁜 예를 가진다. 코드는 TypeBox 1.3.27 시그니처(`_research/notes/eng-2.md §3-4, §4~§7`)를 따른다. 컴파일과 실행은 검증하지 않았다 [가정: 조사 2가 내려받은 패키지를 실행하지 않았다]. 첫 구현 작업(M0 `contracts`)에서 이 문서의 예를 타입 테스트로 옮겨 확인한다.
 
-### DT-01 스키마는 TypeBox 1.4(`typebox` 패키지)로 정의한다
+### DT-01 스키마는 TypeBox 1.3.27(`typebox` 패키지)로 정의한다
 
-[결정] 스키마 라이브러리는 TypeBox 1.4다(`_research/foundation-plan.md §2`).
+[결정] 스키마 라이브러리는 TypeBox 1.x(`typebox` 패키지)이고 판은 1.3.27이다(`_research/foundation-plan.md §2`, review.decisions-2 U-24). pi-ai가 고정한 판과 같아 한 사본만 설치한다.
 
 | import 경로 | 쓰는 것 | 허용 위치 |
 |---|---|---|
@@ -96,7 +96,7 @@ import { Value } from "typebox/value";
 const valid = Value.Check(ThreadIdSchema, input);
 ```
 
-- [미결] pi-ai·pi-agent-core가 고정한 TypeBox 1.3.27과 Xeon catalog의 1.4.2가 한 트리에 함께 있을 때 스키마 값 호환(`Compile`이 다른 버전 스키마를 받는지). 1.4.2로 통일하면 pi 포크 코드의 호환을 따로 확인해야 한다(`_research/notes/eng-2.md §11`).
+- [미결] pi-ai·pi-agent-core가 고정한 TypeBox 1.3.27과 Xeon catalog의 1.3.27가 한 트리에 함께 있을 때 스키마 값 호환(`Compile`이 다른 버전 스키마를 받는지). 1.3.27로 통일하면 pi 포크 코드의 호환을 따로 확인해야 한다(`_research/notes/eng-2.md §11`).
 
 ### DT-02 스키마가 단일 진실 원천이다. 타입을 따로 손으로 쓰지 않는다
 
@@ -301,7 +301,7 @@ export function readEnvelope(row: { readonly envelope: string }): DurableEventEn
 const ev = Value.Parse(DurableEventEnvelopeSchema, json);
 ```
 
-- [가정] `Compile(schema).Check(value)`의 반환 타입이 `value is Static<S>` 타입 가드다. 가드가 아니면 `parse` 구현 안에서만 단언을 쓴다(TY-06 허용 위치 1).
+- [가정] `Compile(schema).Check(value)`의 반환 타입이 `value is Static<S>` 타입 가드다. 가드가 아니면 `parse` 구현 안에서만 단언을 쓴다(TY-06 허용 목록 A1).
 - [미결] 모르는 키의 처리. 닫힌 객체(DT-17)는 모르는 키가 있으면 `parse`가 실패한다. 이벤트 재생에서 모르는 키를 보존하고 통과시킬지, 실패시킬지 정해야 한다(eng-2 §11). 이 문서의 현재 규칙은 "실패"이고, DT-10 규칙 6에 따라 높은 버전 데이터는 열기 전에 거부되므로 정상 운영에서는 생기지 않는다.
 
 ### DT-06 브랜드 ID는 F 접두 규약을 따르고, 발급은 주입된 `IdFactory`로 한다
@@ -376,8 +376,8 @@ export interface IdFactory {
 
 - 서브패스: ID 이름과 `IdFactory`는 `@xeon/contracts/conversation`에서 import한다. 루트 `@xeon/contracts`에는 두지 않는다(`F.readme` §3). `@xeon/contracts/records`가 `EventId`, `EffectId`, `CheckpointId`를 같은 심볼로 다시 export한다.
 - 경계에서 받은 ID는 `parse(ThreadIdSchema, input)`로만 얻는다. 별도 `parseThreadId` 함수를 만들지 않는다 [제안: 검증 진입점을 하나로 유지].
-- 새 접두 ID는 `IdFactory.next(prefix)`로만 만든다. 브랜드 단언은 `IdFactory` 구현 안에만 있다(TY-06 허용 위치 2).
-- [결정(잠정): review.decisions-2 U-03] `IdFactory` 구현의 위치. F에는 `Clock`·`RandomSource`·`IdFactory` 인터페이스와 순수 함수만 둔다. `createIdFactory(clock, random)` 같은 발급기 구현은 `platform-os`에 두고, 조립 루트가 주입한다. F에는 `./testing` 서브패스를 두지 않는다. 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다(`eng.testing.guide` 1.2절). 이 문서의 이전 판에 있던 스키마 생성 도우미 `brandedId`는 두지 않고, 각 ID 스키마는 위 구현 예처럼 `Type.Unsafe`로 직접 만든다.
+- 새 접두 ID는 `IdFactory.next(prefix)`로만 만든다. 브랜드 단언은 `IdFactory` 구현 안에만 있다(TY-06 허용 목록 A2).
+- [결정: review.decisions-2 U-03] `IdFactory` 구현의 위치. F에는 `Clock`·`RandomSource`·`IdFactory` 인터페이스와 순수 함수만 둔다. `createIdFactory(clock, random)` 같은 발급기 구현은 `platform-os`에 두고, 조립 루트가 주입한다. F에는 `./testing` 서브패스를 두지 않는다. 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다(`eng.testing.guide` 1.2절). 이 문서의 이전 판에 있던 스키마 생성 도우미 `brandedId`는 두지 않고, 각 ID 스키마는 위 구현 예처럼 `Type.Unsafe`로 직접 만든다.
 - `Type.Unsafe`는 감싼 스키마의 패턴만 검사하고 브랜드 자체는 런타임에 없다(eng-2 §7). 브랜드는 정적 타입 전용이다.
 - 타입 테스트(3.3절)가 `keyof IdByPrefix`와 `IdPrefix`의 일치를 검사한다.
 
@@ -410,6 +410,8 @@ const key = `rq_${ulid()}`;
 
 - 와이어 메시지, 대화 파트, 도구 결과처럼 저장·전송되는 데이터 유니온의 판별자는 `type`이다. 이벤트 envelope만 위 예외를 따른다.
 - 오류 유니온(`Result`의 `E`)의 판별자는 `kind`다(TY-12).
+- 예상 가능한 실패의 `kind` 이름(`io`, `busy`, `disk_full`, `read_only`, `cancelled`, `not_found`, `timeout`, `ownership_lost` 등)은 `eng.typescript.guide` TY-24 표를 기준으로 고른다. 같은 뜻에 다른 이름(`locked`, `enospc`, `aborted`)을 새로 만들지 않는다 [제안].
+- 오류 값의 `cause: unknown` 필드는 프로세스 안에서만 쓴다. 오류를 이벤트 payload, 와이어 응답, 설정 화면으로 내보낼 때는 경계 변환에서 `cause`를 빼고 직렬화 가능한 필드(`kind`, 관련 ID, `code` 문자열)만 남긴다(DT-04, DT-14). 내보내는 오류의 스키마는 F에 둔다.
 - 한 유니온은 판별자 하나만 쓴다. 변형마다 판별자 프로퍼티는 `Type.Literal`이고 필수다.
 - `tag`, `_tag`, `variant`, `code` 같은 다른 이름은 쓰지 않는다. 숫자 판별자는 쓰지 않는다.
 - 판별자 값의 명명: 이벤트 `kind`는 `F.records.spec` §3.2의 kind 이름 규칙을 따른다. 그 밖의 `type`과 `kind` 값은 소문자 `snake_case`다 [제안].
@@ -434,7 +436,7 @@ export const NoticeSchema: TUnion<[typeof InfoNoticeSchema, typeof WarnNoticeSch
 
 - 확장이 변형을 더할 수 있는 유니온(열린 유니온)은 F가 정한 알려진 변형 목록에 열린 변형 하나를 더해 정의한다.
 - 열린 변형의 판별자 값 형식은 플러그인 `x.<extId>.<name>`, 의도 그룹 `grp.<groupId>.<name>`이다(`F.records.spec` §3.2, `F.extensions.spec` §4.9). 예: `kind: "grp.helm.phase.changed"`(이벤트), `kind: "grp.helm.lens_missing"`(오류), `type: "x.mermaid.diagram"`(데이터).
-  - `extId`·`groupId`는 확장 매니페스트의 이름이고 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 소문자·숫자·하이픈, 밑줄 금지)이다(`F.extensions.spec` §3.1, [결정(잠정): review.decisions-2 U-18]). 생산자 id는 `ext.<확장 이름>`, 확장 테이블 접두는 `x_<확장 이름의 '-'를 '_'로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다(`eng.context-map.design` 5.1·5.2절, `X.operations.spec` §4.4.2).
+  - `extId`·`groupId`는 확장 매니페스트의 이름이고 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 소문자·숫자·하이픈, 밑줄 금지)이다(`F.extensions.spec` §3.1, [결정: review.decisions-2 U-18]). 생산자 id는 `ext.<확장 이름>`, 확장 테이블 접두는 `x_<확장 이름의 '-'를 '_'로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다(`eng.context-map.design` 5.1·5.2절, `X.operations.spec` §4.4.2).
   - 패턴: `^(?:x|grp)\.[a-z][a-z0-9-]{1,31}\.[a-z][a-z0-9_.]{0,63}$`
   - `_` 접두 값은 코어 열거형 확장 예약으로만 남는다(`F.extensions.spec` §4.9). 이 문서의 이전 판에 있던 `_ext.` 접두는 쓰지 않는다.
 - 열린 변형의 나머지 내용은 `data: unknown` 하나로 둔다. 내용 검증은 그 확장이 자기 스키마로 한다.
@@ -630,7 +632,7 @@ color: Type.String({ minLength: 1, maxLength: 16 }),
 
 이유: envelope 형식(seq, id, 시각 필드)은 저장소와 재생 코드 전체가 의존하므로 거의 바뀌지 않아야 하고, payload는 이벤트 종류마다 독립적으로 바뀐다. 한 버전 번호로 묶으면 payload 하나의 변경이 전체 envelope 버전을 올리게 된다. 규칙 6은 다운그레이드한 앱이 모르는 데이터를 건너뛰고 투영해 틀린 상태 위에 쓰기를 받는 것을 막는다(09 §3.13.3 규칙 6의 이유).
 
-envelope 표기 시연(`F.records.spec` §3.1의 내구 envelope을 TypeBox 1.4로 적은 형식. 필드 목록과 뜻의 정본은 F이고, 아래는 DT-03 주석, DT-06 브랜드 ID 스키마, DT-08 확장 kind 접두를 적용한 모양이다):
+envelope 표기 시연(`F.records.spec` §3.1의 내구 envelope을 TypeBox 1.3.27로 적은 형식. 필드 목록과 뜻의 정본은 F이고, 아래는 DT-03 주석, DT-06 브랜드 ID 스키마, DT-08 확장 kind 접두를 적용한 모양이다):
 
 ```ts
 // packages/contracts/src/records/envelope.ts
@@ -802,7 +804,7 @@ export const badUpcaster: Upcaster = (payload) => ok({ ...(payload as object), m
 
 ### DT-12 F 서브패스 사이 의존은 한 방향이고 순환을 두지 않는다
 
-[제안] `@xeon/contracts` 안의 의존 순서는 `F.readme` §3의 도메인 사이 import 표(base 0 < conversation 1 < capabilities 2 = records 2 < extensions 3 < settings 4 = services 4 < wire 5)를 따른다. 각 소스 디렉터리는 자기보다 순서가 낮은 것만 import하고, 순서가 같은 것끼리(capabilities와 records, settings와 services)는 import하지 않는다. `services`는 L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3), 서비스 이름 상수 `SERVICE_NAMES`(15개)를 모은 서브패스다([결정(잠정): review.decisions-2 D-04], `F.capabilities.spec` §3.12). 서비스 인터페이스가 extensions(순서 3)의 포트(`LoopPort`, `InputQueuePort`, `ToolsPort`, `ModelsPort`, `ProcessPort`, `McpPort`, `LeaseArbiterPort`)를 확장하므로 `services`는 순서 4이고, base·conversation·records·capabilities·extensions를 `import type`으로만 가져온다. 같은 순서인 settings는 import하지 않으므로 `GroupService`의 설정 범위는 `SettingScope`와 같은 모양의 리터럴 유니언으로 적는다. wire(순서 5)는 `services`를 import하지 않는다(`F.readme` §3). `import type`도 같은 방향을 지킨다. `check-layers.ts`의 서브패스 순서 검사는 그 표를 그대로 쓴다.
+[제안] `@xeon/contracts` 안의 의존 순서는 `F.readme` §3의 도메인 사이 import 표(base 0 < conversation 1 < capabilities 2 = records 2 < extensions 3 < settings 4 = services 4 < wire 5)를 따른다. 각 소스 디렉터리는 자기보다 순서가 낮은 것만 import하고, 순서가 같은 것끼리(capabilities와 records, settings와 services)는 import하지 않는다. `services`는 L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3), 서비스 이름 상수 `SERVICE_NAMES`(15개)를 모은 서브패스다([결정: review.decisions-2 D-04], `F.capabilities.spec` §3.12). 서비스 인터페이스가 extensions(순서 3)의 포트(`LoopPort`, `InputQueuePort`, `ToolsPort`, `ModelsPort`, `ProcessPort`, `McpPort`, `LeaseArbiterPort`)를 확장하므로 `services`는 순서 4이고, base·conversation·records·capabilities·extensions를 `import type`으로만 가져온다. 같은 순서인 settings는 import하지 않으므로 `GroupService`의 설정 범위는 `SettingScope`와 같은 모양의 리터럴 유니언으로 적는다. wire(순서 5)는 `services`를 import하지 않는다(`F.readme` §3). `import type`도 같은 방향을 지킨다. `check-layers.ts`의 서브패스 순서 검사는 그 표를 그대로 쓴다.
 
 - 서브패스는 `packages/contracts/package.json` `exports`에 `F.readme` §3의 모양으로 둔다. 소비 층은 서브패스 진입점으로만 import한다(`no-restricted-imports`의 `@xeon/*/src` 금지).
 - `import/no-cycle`의 `ignoreTypes` 기본값이 `true`라 타입 순환은 린트가 잡지 않으므로(`_research/notes/eng-1.md §2`) `check-layers.ts`가 서브패스 순서를 검사한다 [제안].
@@ -1114,12 +1116,12 @@ test("type assertions compile", () => {});
 ## 6. 미결 사항
 
 - [미결] `isolatedDeclarations` 적용 범위: 공개 패키지만인지 전체인지. contracts가 공개 패키지인지에 달려 있다(DT-03, eng-2 §11).
-- [미결] TypeBox 버전: pi가 고정한 1.3.27과 catalog의 1.4.2 중 무엇으로 통일할지, 두 버전 공존 시 스키마 값 호환(DT-01).
+- [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다. pi가 고정한 판과 같아 두 버전 공존 문제가 없다(DT-01).
 - [미결] 모르는 키의 처리: 닫힌 객체에서 실패시킬지, 이벤트 재생에서 보존·통과할지(DT-05, eng-2 §11).
 - [미결] 와이어 직렬화에서 `Date`와 `bigint` 처리. 현재 제안은 정수 ms와 큰 정수의 10진 문자열(DT-14).
 - [미결] 큰 payload의 blob 참조 기준 크기. `BlobRef` 모양은 `F.records.spec` §3.4(`{ type: "blob", sha256, size, mediaType }`)로 정해졌고, 기준 크기는 `eng.events.design` EV-04와 일치시킨다(DT-15).
 - [미결] 열린 유니온에 F가 새 알려진 변형을 더할 때 와이어의 옛 클라이언트 처리. 버전 협상 방식(`F.wire-settings.spec`)이 정해지기 전까지 "금지, `version` 올림"(DT-09).
-- [결정(잠정): review.decisions-2 U-03] `IdFactory` 구현(`createIdFactory`)은 F에 두지 않고 `platform-os`에 둔다. 스키마 도우미 `brandedId`는 두지 않는다(DT-06). ID 접두 표와 `requestId`의 브랜드 여부는 F 정본(`F.conversation.spec` §3.2, §3.5)으로 정리했다.
+- [결정: review.decisions-2 U-03] `IdFactory` 구현(`createIdFactory`)은 F에 두지 않고 `platform-os`에 둔다. 스키마 도우미 `brandedId`는 두지 않는다(DT-06). ID 접두 표와 `requestId`의 브랜드 여부는 F 정본(`F.conversation.spec` §3.2, §3.5)으로 정리했다.
 - 닫은 항목: F 서브패스 의존 순서(DT-12)는 `F.readme` §3 표로 정리했다.
 - [미결] 설정 키 형식(DT-13)의 최종 확정. `F.wire-settings.spec`이 정한다.
 - [미결] `Type.Optional`의 주석 타입 `TAddOptional`, `Type.Unsafe` 감싼 스키마의 `Compile` 호환, `isOpenVariant`의 `Extract` 좁히기 등 이 문서 예의 컴파일 확인. M0 contracts 타입 테스트로 확인한다.

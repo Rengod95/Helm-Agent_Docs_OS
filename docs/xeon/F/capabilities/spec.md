@@ -323,7 +323,7 @@ export function serviceKey<const D extends AnyCapabilityDef>(def: D): ServiceKey
 - consumer는 `ScopeApi.capability(key)`(F.extensions.spec §3.2)로 서비스 API를 얻는다. 반환 타입은 `ApiOf<typeof key>`다. consumer 코드는 provider 패키지를 import하지 않는다.
 - Cordis 서비스 이름은 X가 `CapabilityId`에서 유도한다. 유도 규칙은 `X.primitives.spec` §3.7이고 능력마다 `cap:<id>` 바인딩 하나다. L0·L1 서비스 이름 `xeon.*`(§3.12, `eng.context-map.design` §5.3)와 이름 공간이 겹치지 않는다.
 - [제안] 도메인 서비스 묶음 타입(예: `WebService`)은 같은 도메인 능력 API를 모은 TypeScript 타입일 뿐이고 Cordis 서비스로 등록하지 않는다. consumer는 능력 단위 `ServiceKey`로 API를 얻는다(`L2.readme` §5.6과의 정리).
-- [결정(잠정): review.decisions-2 D-04] 예외는 `xeon.mcp` 하나다. L2 서비스 이름 중 Cordis에 등록되는 것은 `xeon.mcp`뿐이고, 인터페이스는 `McpService`(`McpPort` 확장, §3.12 `services/mcp.ts`)다. X가 확장의 MCP 서버 등록을 `McpPort`로 넘겨야 하기 때문이다(`F.extensions.spec` §3.2.1). `xeon.workspace`, `xeon.web`, `xeon.knowledge`, `xeon.work`, `xeon.dialog`, `xeon.artifacts`, `xeon.schedule`은 등록하지 않는 묶음 이름이다.
+- [결정: review.decisions-2 D-04] 예외는 `xeon.mcp` 하나다. L2 서비스 이름 중 Cordis에 등록되는 것은 `xeon.mcp`뿐이고, 인터페이스는 `McpService`(`McpPort` 확장, §3.12 `services/mcp.ts`)다. X가 확장의 MCP 서버 등록을 `McpPort`로 넘겨야 하기 때문이다(`F.extensions.spec` §3.2.1). `xeon.workspace`, `xeon.web`, `xeon.knowledge`, `xeon.work`, `xeon.dialog`, `xeon.artifacts`, `xeon.schedule`은 등록하지 않는 묶음 이름이다.
 - [미결] Cordis `Context` 타입에 대한 선언 병합을 F가 해야 하는지. 아래 장단을 사용자 확인 항목으로 남긴다(§10).
 
 | 안 | 내용 | 장점 | 단점 |
@@ -604,19 +604,19 @@ export function secretRef(name: string): SecretHandle;
 export function findForeignSecretSyntax(text: string): readonly SecretRefError[];
 ```
 
-- [결정(잠정): review.decisions-2 U-08] `SecretName`은 브랜드 타입이다. 문자열을 `SecretName`으로 바꾸는 경로는 `parseSecretRef`와 `SecretNameSchema` 검증(`parse`, `eng.typescript.guide` §1.2) 둘이다. `parseSecretRef`, `secretRef`, `findForeignSecretSyntax`는 입출력과 전역 상태를 쓰지 않으므로 F 런타임 로직 예외 1번(`F.readme` §1)에 든다. 구현은 이 파일에 두고, `SecretRefError`도 이 파일이 정본이다(`services/secrets.ts`에 두지 않는다).
+- [결정: review.decisions-2 U-08] `SecretName`은 브랜드 타입이다. 문자열을 `SecretName`으로 바꾸는 경로는 `parseSecretRef`와 `SecretNameSchema` 검증(`parse`, `eng.typescript.guide` §1.2) 둘이다. `parseSecretRef`, `secretRef`, `findForeignSecretSyntax`는 입출력과 전역 상태를 쓰지 않으므로 F 런타임 로직 예외 1번(`F.readme` §1)에 든다. 구현은 이 파일에 두고, `SecretRefError`도 이 파일이 정본이다(`services/secrets.ts`에 두지 않는다).
 
-[결정(잠정): review.decisions-2 U-08] 여러 층(L0.secrets, L1.tools, L2.workspace, L4 설정 화면)이 함께 쓰는 값 타입이다. 아래 블록이 정본이다. `L0.secrets.spec` §3.2(메타), §3.5(`RedactionHit`), §3.9(감사 레코드)의 블록을 옮겼고, 그 문서는 이 이름을 인용한다.
+[결정: review.decisions-2 U-08] 여러 층(L0.secrets, L1.tools, L2.workspace, L4 설정 화면)이 함께 쓰는 값 타입이다. 아래 블록이 정본이다. `L0.secrets.spec` §3.2(메타), §3.5(`RedactionHit`), §3.9(감사 레코드)의 블록을 옮겼고, 그 문서는 이 이름을 인용한다.
 
 ```ts
 // secrets.ts (계속). import는 앞 블록과 같다
 
 // ── 메타 (L0.secrets.spec §3.2) ─────────────────────────────────────
 export const SecretUseModeSchema: TSchema = Type.Union([
-  Type.Literal("env"),            // M1
-  Type.Literal("sentinel"),       // M2
-  Type.Literal("runtime-http"),   // M3
-  Type.Literal("browser-input"),  // M4
+  Type.Literal("env"),            // 사용 모드 M1. 마일스톤 M1: bash 도구 env 주입, 실행마다 승인(review.decisions-2 U-19)
+  Type.Literal("sentinel"),       // 사용 모드 M2. 구현은 후속
+  Type.Literal("runtime-http"),   // 사용 모드 M3. 마일스톤 M1: 모델 provider 키를 core-models의 프로세스 안 HTTP 클라이언트에 lease(L0.secrets.spec §4.3)
+  Type.Literal("browser-input"),  // 사용 모드 M4. 마일스톤 M2
 ]);
 export type SecretUseMode = "env" | "sentinel" | "runtime-http" | "browser-input";
 
@@ -702,7 +702,7 @@ export type SecretAuditRecord =
 ```
 
 - [결정] 비밀 참조 형식은 `secret://<name>`이다(`_research/secrets.md` §6.1, `_research/decisions-log.md` 2026-10-21 2차).
-- [결정(잠정): review.decisions-2 U-08] 값 타입의 정본은 위 블록이다. `SecretMeta`·`SecretUsePolicy`는 TS 인터페이스와 스키마(`*Schema`)를 함께 두고, 두 모양이 같은지 타입 테스트로 확인한다(§9). 세션 이벤트로 남는 감사 레코드 네 종류(`used`, `denied`, `approved`, `masked`)는 `F.records.spec` §3.3.1 `secret.*` payload가 정본이고, `SecretAuditRecord`의 같은 `type` 변형과 필드가 같아야 한다. 관리 레코드(`created`·`updated`·`deleted`·`rotated`·`revealed`)는 세션 이벤트가 아니다.
+- [결정: review.decisions-2 U-08] 값 타입의 정본은 위 블록이다. `SecretMeta`·`SecretUsePolicy`는 TS 인터페이스와 스키마(`*Schema`)를 함께 두고, 두 모양이 같은지 타입 테스트로 확인한다(§9). 세션 이벤트로 남는 감사 레코드 네 종류(`used`, `denied`, `approved`, `masked`)는 `F.records.spec` §3.3.1 `secret.*` payload가 정본이고, `SecretAuditRecord`의 같은 `type` 변형과 필드가 같아야 한다. 관리 레코드(`created`·`updated`·`deleted`·`rotated`·`revealed`)는 세션 이벤트가 아니다.
 - 서비스 인터페이스(`SecretService`, `SecretProvider`, `Redactor`, `UseCtx`, `SecretLease`, `SecretError` 등)와 관리 서비스(`SecretAdminService`)는 이 파일에 두지 않고 `@xeon/contracts/services`의 `services/secrets.ts`, `services/secret-admin.ts`에 둔다(§3.12 표). `Redactor` 구현, SOPS 래퍼, `KeyProvider`는 `platform-secrets` 내부다.
 
 ### 3.11 provider 선택 공통 타입 (`provider.ts`)
@@ -751,7 +751,7 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 
 ### 3.12 서비스 인터페이스 서브패스 (`@xeon/contracts/services`)
 
-[결정(잠정): review.decisions-2 D-04] L0·L1 서비스 인터페이스, X 포트를 확장하는 L2·L3 서비스 인터페이스(`McpService`, `GroupService`, 규칙 7), 서비스 이름 상수를 F 서브패스 `@xeon/contracts/services`(`src/services/`)에 둔다. DR-02·DR-14·CM-05는 층 사이와 같은 층 패키지 사이의 협력을 F 인터페이스로만 하게 한다. 그래서 구현 패키지(`platform-*`, `core-*`)는 이 인터페이스를 구현해 Cordis 서비스로 등록하고, 소비 쪽은 구현 패키지를 import하지 않고 이 인터페이스로 주입받는다. 이 서브패스는 도메인을 새로 만들지 않는다. 능력과 같은 "서비스 계약" 범주라 이 문서가 배치 규칙을 정한다(`F.readme` §3).
+[결정: review.decisions-2 D-04] L0·L1 서비스 인터페이스, X 포트를 확장하는 L2·L3 서비스 인터페이스(`McpService`, `GroupService`, 규칙 7), 서비스 이름 상수를 F 서브패스 `@xeon/contracts/services`(`src/services/`)에 둔다. DR-02·DR-14·CM-05는 층 사이와 같은 층 패키지 사이의 협력을 F 인터페이스로만 하게 한다. 그래서 구현 패키지(`platform-*`, `core-*`)는 이 인터페이스를 구현해 Cordis 서비스로 등록하고, 소비 쪽은 구현 패키지를 import하지 않고 이 인터페이스로 주입받는다. 이 서브패스는 도메인을 새로 만들지 않는다. 능력과 같은 "서비스 계약" 범주라 이 문서가 배치 규칙을 정한다(`F.readme` §3).
 
 | 인터페이스 | 서비스 이름 상수 | 서비스 이름 | 파일 | 구현 | 확장하는 포트 | 시그니처 초안(정본으로 옮길 블록) |
 |---|---|---|---|---|---|---|
@@ -843,12 +843,12 @@ export type NotifyError =
 규칙:
 
 1. 인터페이스와 그 서비스만 쓰는 인자·결과·오류 타입은 위 표의 파일에 둔다. 메서드 모양의 정본은 F다. 표의 소유 문서 블록은 F로 옮기기 전의 초안이고, 옮긴 뒤 소유 문서는 F 이름을 인용한다. 옮기는 작업은 `F.capabilities.plan` P9가 맡는다.
-2. 서비스 이름은 `xeon.<이름>` 형식이고 `eng.context-map.design` §5.3 표와 같다. 능력 서비스 이름 `cap:<id>`(§3.5)와 이름 공간이 겹치지 않는다. [결정(잠정): review.decisions-2 D-04] 같은 서비스 이름의 X 포트(`F.extensions.spec` §3.2.1 `ports.ts`)가 있으면 서비스 인터페이스가 포트를 확장한다. 대상은 `LoopService extends LoopPort`, `TaskService extends InputQueuePort`, `ToolService extends ToolsPort`, `ModelService extends ModelsPort`, `ProcessService extends ProcessPort`, `McpService extends McpPort`, `GroupService extends LeaseArbiterPort`다(위 표 "확장하는 포트" 열). records에 있는 `StoreService`는 `ScopedStorePort`(`Pick<StoreService, "scoped">`)를 그대로 만족하고, `SessionService`는 `ext`·`projectors` 속성이 `RecordCommitPort`·`ProjectorRegistryPort`다(`F.records.spec` §3.9). Cordis에는 서비스 인터페이스 하나로 등록한다.
+2. 서비스 이름은 `xeon.<이름>` 형식이고 `eng.context-map.design` §5.3 표와 같다. 능력 서비스 이름 `cap:<id>`(§3.5)와 이름 공간이 겹치지 않는다. [결정: review.decisions-2 D-04] 같은 서비스 이름의 X 포트(`F.extensions.spec` §3.2.1 `ports.ts`)가 있으면 서비스 인터페이스가 포트를 확장한다. 대상은 `LoopService extends LoopPort`, `TaskService extends InputQueuePort`, `ToolService extends ToolsPort`, `ModelService extends ModelsPort`, `ProcessService extends ProcessPort`, `McpService extends McpPort`, `GroupService extends LeaseArbiterPort`다(위 표 "확장하는 포트" 열). records에 있는 `StoreService`는 `ScopedStorePort`(`Pick<StoreService, "scoped">`)를 그대로 만족하고, `SessionService`는 `ext`·`projectors` 속성이 `RecordCommitPort`·`ProjectorRegistryPort`다(`F.records.spec` §3.9). Cordis에는 서비스 인터페이스 하나로 등록한다.
 3. 여러 서비스가 함께 쓰는 값 타입은 원래 도메인 파일에 둔다. 예: 저장·투영 포트(`StoreService`, `SessionService`)는 `F.records.spec` §3.9, 비밀 값 타입은 §3.10, provider 선택 타입은 §3.11이다. [제안] 모델·컨텍스트 값 타입(`ModelBinding`, `CachePolicy` 등)은 `services/models.ts`에 두고 `services/context.ts`가 import한다. `L1.models.spec`·`L1.context.spec`이 요청한 `capabilities/models.ts`·`context.ts` 위치는 이 규칙으로 바꾼다.
 4. import 순서는 `F.readme` §3 표의 순서 4다. `services/`는 base, conversation, records, capabilities, extensions를 `import type`으로만 import한다. settings·wire와는 서로 import하지 않는다. 같은 서브패스 안에서는 `exec.ts`가 `sandbox-report.ts`와 `secrets.ts`를, `sandbox.ts`가 `exec.ts`와 `sandbox-report.ts`를, `secret-admin.ts`가 `secrets.ts`를 import한다. `sandbox-report.ts`, `secrets.ts`, `groups.ts`는 같은 서브패스의 파일을 import하지 않는다. 이 밖의 파일끼리는 import하지 않는다.
 5. 문서 라우팅: `_routing/routes.yaml`의 F layout은 도메인 경로 `src/<도메인>/**`와 services 경로 `src/services/**`를 둔다. 이 문서와 `F.capabilities.plan`의 binds에 `xeon/packages/contracts/src/services/**`가 있으므로 `src/services/**`는 이 두 문서로 라우팅된다.
 6. 런타임 값은 서비스 이름 상수, 서비스 전체 모양의 포트 키(규칙 9), F 런타임 로직 예외에 드는 순수 함수(`describeSandboxStatus`, `matchProtectedPath`)뿐이다. 구현, 기본 구현, 테스트 대역은 두지 않는다(`F.readme` §1, review.decisions-2 U-03).
-7. [결정(잠정): review.decisions-2 D-04] `ApprovalService`, `AgentService`, `SecretService`(`L0.secrets.spec` §8.3 R1-a), `SecretAdminService`(같은 문서 R2), `McpService`, `GroupService`도 이 서브패스에 둔다. `McpService`는 L2 서비스지만 `McpPort`(extensions)를 확장해야 하고 capabilities는 extensions보다 낮아(`F.readme` §3) `capabilities/defs/mcp.ts`에 둘 수 없다. 그래서 `services/mcp.ts`에 두고 능력 정의 `McpClient`만 capabilities에 둔다. `GroupService`는 L3 `group-kit`이 구현하는 서비스지만 `LeaseArbiterPort`(extensions)를 확장하고 X가 그 포트로 주입받으므로 같은 이유로 `services/groups.ts`에 둔다. `L3.group-kit.spec` §3.8의 블록은 F로 옮기기 전의 초안이다(규칙 1). 다른 L2 서비스(`WorkspaceService` 등)는 포트를 확장하지 않으므로 지금처럼 capabilities에 둔다.
+7. [결정: review.decisions-2 D-04] `ApprovalService`, `AgentService`, `SecretService`(`L0.secrets.spec` §8.3 R1-a), `SecretAdminService`(같은 문서 R2), `McpService`, `GroupService`도 이 서브패스에 둔다. `McpService`는 L2 서비스지만 `McpPort`(extensions)를 확장해야 하고 capabilities는 extensions보다 낮아(`F.readme` §3) `capabilities/defs/mcp.ts`에 둘 수 없다. 그래서 `services/mcp.ts`에 두고 능력 정의 `McpClient`만 capabilities에 둔다. `GroupService`는 L3 `group-kit`이 구현하는 서비스지만 `LeaseArbiterPort`(extensions)를 확장하고 X가 그 포트로 주입받으므로 같은 이유로 `services/groups.ts`에 둔다. `L3.group-kit.spec` §3.8의 블록은 F로 옮기기 전의 초안이다(규칙 1). 다른 L2 서비스(`WorkspaceService` 등)는 포트를 확장하지 않으므로 지금처럼 capabilities에 둔다.
 8. `SERVICE_NAMES`는 위 표의 서비스 이름 15개와 같다(§9).
 9. 서비스 전체 모양의 포트 키(`PortKey<XService>`, 값은 `{ name: <X>ServiceName }`)는 서비스 이름 상수 옆에 둔다: `TaskServicePortKey`(`services/tasks.ts`), `ModelServicePortKey`(`models.ts`), `ToolServicePortKey`(`tools.ts`), `ApprovalServicePortKey`(`approvals.ts`), `ContextPortKey`(`context.ts`), `ExecPortKey`(`exec.ts`), `OsPortKey`(`os.ts`), `SecretServicePortKey`(`secrets.ts`), `SessionPortKey`(`services/session.ts`), `StoreServicePortKey`(`services/store.ts`). `ModelService`, `TaskService`, `ToolService`는 각각 `ModelsPort`, `InputQueuePort`, `ToolsPort`를 확장하지만 키는 둘이다: 확장 지점이 등록 부분형만 볼 때는 extensions의 `ModelsPortKey`, `InputQueuePortKey`, `ToolsPortKey`를, 서비스 전체를 쓸 때는 위 키를 쓴다(이름은 같다). `SessionService`와 `StoreService`는 records가 소유하는데 records(순서 2)는 `PortKey`(extensions, 순서 3)를 import할 수 없어 키만 `services/session.ts`, `services/store.ts`에 두고, 이름은 `SessionServiceName`, `StoreServiceName`과 같아야 한다(`names.test.ts`가 지킨다). 소비 패키지는 키를 자기 쪽에 다시 만들지 않고 `@xeon/contracts/services`에서 가져온다. 남은 지역 키는 `platform-exec`의 `SecretsPortKey`(`SecretEnvSource` 부분형)뿐이며 F 서비스의 전체 모양이 아니다.
 
@@ -881,7 +881,7 @@ export type NotifyError =
 ### 4.3 도구 스키마
 
 - 단일 원천: TypeBox 스키마 하나가 JSON Schema와 TS 타입을 함께 정한다. TypeBox 값이 곧 JSON Schema이므로 별도 생성 단계와 drift 검사 단계를 두지 않는다(`_research/layer-plan-v2.json` F3 "도구 스키마", `_research/packages.md` §4.1 F3 도구 스키마 행). `_research/item-catalog.md` F절 "스키마 단일 원천 생성과 drift 검사" 행의 생성·CI diff 단계는 이 능력 계약에는 적용하지 않는다.
-- 방언: JSON Schema 2020-12를 쓴다(`_research/item-catalog.md` F절 "도구 스키마 정의" 행). [가정] TypeBox 1.4.2가 내는 키워드는 2020-12 어휘 안에 있다. `typebox` 1.4.2가 2020-12 메타 스키마 모듈을 포함한다는 점까지만 확인했다(`_research/notes/F-2.md` §5.3).
+- 방언: JSON Schema 2020-12를 쓴다(`_research/item-catalog.md` F절 "도구 스키마 정의" 행). [가정] TypeBox 1.3.27가 내는 키워드는 2020-12 어휘 안에 있다. `typebox` 1.3.27가 2020-12 메타 스키마 모듈을 포함한다는 점까지만 확인했다(`_research/notes/F-2.md` §5.3).
 - `toJsonSchema(schema)` 규칙 [제안]:
   - 열거 가능한 문자열 키만 남긴다. `~`로 시작하는 TypeBox 내부 키(`~kind`, `~optional`, `~refine` 등)는 지운다.
   - 함수, `RegExp`, `undefined`, 심볼은 지운다. 이 과정에서 무언가 지워지면 `schema_not_json` 경고다.
@@ -1034,7 +1034,7 @@ export type NotifyError =
 - [미결] Cordis 선언 병합을 F에서 할지(§3.5 표의 A·B·C).
 - [미결] 도구 없는 능력 허용(§4.4).
 - 닫음: 내장 L2 능력 정의의 위치는 F `capabilities/defs/<domain>.ts`다(§3.9).
-- [결정(잠정): review.decisions-2 U-08] 비밀 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`와 부속 타입)은 §3.10 `secrets.ts` 블록이 정본이다. `SECRET_REF_PATTERN` 정본도 F다.
-- [결정(잠정): review.decisions-2 D-04] L0·L1 서비스 인터페이스와 `McpService`, `GroupService`는 `@xeon/contracts/services`에 둔다. 같은 이름의 X 포트가 있으면 서비스 인터페이스가 포트를 확장한다(§3.12 표, 규칙 2·7).
+- [결정: review.decisions-2 U-08] 비밀 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`와 부속 타입)은 §3.10 `secrets.ts` 블록이 정본이다. `SECRET_REF_PATTERN` 정본도 F다.
+- [결정: review.decisions-2 D-04] L0·L1 서비스 인터페이스와 `McpService`, `GroupService`는 `@xeon/contracts/services`에 둔다. 같은 이름의 X 포트가 있으면 서비스 인터페이스가 포트를 확장한다(§3.12 표, 규칙 2·7).
 - [미결] `ReplayPolicy` 값 이름(`safe|unsafe` 대 `never|safe`). F.records.spec §10 미결 4의 결정을 따른다(정의는 F.conversation.spec §3.6).
-- [미결] TypeBox 버전. foundation-plan §2와 워크스페이스 catalog는 1.4.2, pi-ai·agent-core 1.3.0은 1.3.27 정확 고정이다(`_research/notes/F-2.md` §7).
+- [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai 1.3.0이 고정한 판과 같다.

@@ -110,7 +110,7 @@ xeon/packages/platform-store/
 | ST-20 | `lock/win32.ts`: named mutex 또는 `LockFileEx` bun:ffi 실측과 구현(미결 S-5) | ST-11 | M | M2 이후 |
 | ST-21 | macOS 동봉 SQLite 배포 경로: FTS5 포함 dylib 빌드 스크립트, `L0.os` `resourceDir()` 연동, `L4.desktop.plan`·`L4.cli.plan`과 패키징 합의 | ST-02 | L | M2 이후 |
 | ST-22 | 운영 빌드 접두사 검사 확대 판단(ST-07 측정 결과), 블롭 해시 재검증 운영 적용 판단 | ST-07, ST-14 | S | M2 이후 |
-| ST-23 | 확장 저장 영역 계약 스위트(`ext-storage.contract.int.test.ts`): X `test/operations/storage/ext-storage.contract.ts`의 시나리오 모음을 테스트 파일 교차 import로 가져와 `openTestStore` 기반 저장소 팩토리(`StoreDb`, `ProjectionTx`, `Projector`, F.records.spec §3.9)로 돌린다. 장애 주입 지점 이름은 X와 같은 문자열(`after_ext_projection:<n>` 등)을 쓴다. 시나리오 파일은 `X.operations.plan` O-15가 만든다 [결정(잠정): review.decisions-2 D-05, U-17] | ST-08, ST-09 | S | M1 |
+| ST-23 | 확장 저장 영역 계약 스위트(`ext-storage.contract.int.test.ts`): X `test/operations/storage/ext-storage.contract.ts`의 시나리오 모음을 테스트 파일 교차 import로 가져와 `openTestStore` 기반 저장소 팩토리(`StoreDb`, `ProjectionTx`, `Projector`, F.records.spec §3.9)로 돌린다. 장애 주입 지점 이름은 X와 같은 문자열(`after_ext_projection:<n>` 등)을 쓴다. 시나리오 파일은 `X.operations.plan` O-15가 만든다 [결정: review.decisions-2 D-05, U-17] | ST-08, ST-09 | S | M1 |
 
 ## 4. 채택 코드
 
@@ -118,7 +118,7 @@ xeon/packages/platform-store/
 |---|---|---|---|
 | `bun:sqlite` | Bun 1.4.3 내장(`packageManager: bun@1.4.3`) | 그대로 쓴다 | [결정] `_research/foundation-plan.md §2` DB 행. 이 패키지만 import한다(DR-07) |
 | `bun:ffi` | Bun 1.4.3 내장 | `lock/posix.ts`에서 libc `flock`만 부른다 | `_research/notes/L0-2.md §4.1` 1안. Linux x64 실측, macOS 미실측. 실험 기능 경고 원문 확인은 미결 S-10 |
-| `typebox` | 1.4.2(`xeon/package.json` catalog) | 설정 스키마 | `F.wire-settings.spec` §3.0 |
+| `typebox` | 1.3.27(`xeon/package.json` catalog) | 설정 스키마 | `F.wire-settings.spec` §3.0 |
 | `better-sqlite3`, `node:sqlite`, `sqlite3` | - | 금지 | `.oxlintrc.json` `no-restricted-imports` 패턴에 있다. 계획 v2 L0-e 표의 better-sqlite3 서술은 `_research/foundation-plan.md §2`의 bun:sqlite 결정이 우선한다 |
 | `proper-lockfile` | - | 쓰지 않는다 | 크래시 뒤 약 5~10초 대기(`_research/notes/L0-2.md §2.6`). flock이 즉시 인수한다 |
 | oh-my-pi `coding-agent/src/session/blob-store.ts`(437줄, 커밋 `d1bffdf`) | - | 규칙만 차용, 포크하지 않는다 | GC 쓰기 유예(재쓰기 요청 시 갱신)와 임시 파일 규칙만 가져온다. `Bun.SHA256`·pi-tui·pi-utils 결합 때문에 포크 비용이 새로 쓰기보다 크다(`_research/packages.md §2.3`, `§4.2` L0-e) |

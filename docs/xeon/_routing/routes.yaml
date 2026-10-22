@@ -25,10 +25,12 @@ by_task:
   docs:               # 문서를 쓰거나 고치는 작업
     - xeon.templates
     - xeon.readme
-  review:             # 정합성 검토
+  review:             # 정합성 검토. 코드 리뷰는 implement와 함께 지정한다
     - architecture.layers.spec
     - eng.dependency-rules.guide
     - eng.context-map.design
+    - eng.typescript.guide
+    - eng.anti-patterns.guide
 
 # 층·도메인 → 코드 경로. 문서의 binds와 같아야 한다 (검사 대상).
 layout:
@@ -143,4 +145,5 @@ manifest:
     - adr.0006   # 프로세스 구조와 서비스 모드(데몬)
     - adr.0007   # 확장 지점 4연산(on/post/drive/scope)
     - adr.0008   # 데스크톱 Tauri 2 + 엔진 사이드카
+    - adr.0009   # 자체 에이전트 루프(pi-agent-core 루프 포크, 의존 제거)
   layers: "각 층마다 <층>.readme 1개 + 도메인마다 spec, plan (layout.domains 참조)"

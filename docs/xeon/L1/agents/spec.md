@@ -61,7 +61,7 @@ L1.tools.spec 이름을 그대로 쓴다: `CallerId`, `PolicyRule`, `TieredRule`
 
 ## 3. 인터페이스
 
-[결정(잠정): review.decisions-2 D-04] 서비스 인터페이스 `AgentService`와 서비스 이름 상수 `AgentServiceName`은 F `@xeon/contracts/services`의 `services/agents.ts`에 둔다(`F.capabilities.spec` §3.12 표와 규칙 7, `eng.context-map.design` §5.3 `xeon.agents`(services)). AgentService는 확장하는 X 포트가 없다. §3.1·§3.2·§3.4의 공용 값 타입은 F `@xeon/contracts/capabilities`의 `agents.ts`에 두도록 요청한다(§8.3 8번) [제안]. 아래 절 제목의 `agents.ts`는 이 두 파일을 가리킨다.
+[결정: review.decisions-2 D-04] 서비스 인터페이스 `AgentService`와 서비스 이름 상수 `AgentServiceName`은 F `@xeon/contracts/services`의 `services/agents.ts`에 둔다(`F.capabilities.spec` §3.12 표와 규칙 7, `eng.context-map.design` §5.3 `xeon.agents`(services)). AgentService는 확장하는 X 포트가 없다. §3.1·§3.2·§3.4의 공용 값 타입은 F `@xeon/contracts/capabilities`의 `agents.ts`에 두도록 요청한다(§8.3 8번) [제안]. 아래 절 제목의 `agents.ts`는 이 두 파일을 가리킨다.
 
 ### 3.1 정의 (`agents.ts`)
 
@@ -452,7 +452,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - B안은 2차 선택지로 둔다. 증거가 파일 내용이어야 하는 목표가 많으면 다시 본다.
 - 모델 역할: L1.models.spec 역할 표의 `judge`(설정 `l1.models.routing.judge`, 대체 순서 `review` → `main`)를 쓴다. 대체 순서 끝에서 루프 모델과 같은 모델이 될 수 있다. 같은 모델로 해석되면 판정은 하되 설정 화면과 `agent.judged`에 표시한다 [제안]. 결정 4의 "별도 판정 모델"을 지키려면 사용자가 `judge` 라우팅을 정해야 하므로, 첫 실행 설정에서 권장한다 [제안].
 - 출력 스키마: `{ verdict: "met" | "not_met" | "undecidable", rationale: string, missing: string[] }`. 스키마를 어기면 한 번 다시 묻지 않고 `undecidable`로 본다 [제안]. 다시 묻기는 상한을 흐리게 하기 때문이다.
-- 상한: `l1.agents.judge.maxRuns`(기본 3)은 `(threadId, goalRef)`마다의 판정 실행 수다. 판정 상한 키는 이 하나이고 L2.work는 자기 상한 키를 두지 않고 이 키를 참조한다 [결정(잠정): review.decisions-2 S-06]. 판정 오류(`failed`)는 실행 수에 넣지 않는다(§5 사례 8). 판정 역할 이름은 L1.models.spec 역할 표의 `judge`다. `judge`는 그 대화의 `agent.judged` 수를 세어 상한이면 모델을 부르지 않고 `{ kind: "capped" }`를 돌려준다. 완료 게이트가 이 결과를 어떻게 처리할지(turn 종료와 사용자 알림)는 L1.loop.spec이 정한다 [가정].
+- 상한: `l1.agents.judge.maxRuns`(기본 3)은 `(threadId, goalRef)`마다의 판정 실행 수다. 판정 상한 키는 이 하나이고 L2.work는 자기 상한 키를 두지 않고 이 키를 참조한다 [결정: review.decisions-2 S-06]. 판정 오류(`failed`)는 실행 수에 넣지 않는다(§5 사례 8). 판정 역할 이름은 L1.models.spec 역할 표의 `judge`다. `judge`는 그 대화의 `agent.judged` 수를 세어 상한이면 모델을 부르지 않고 `{ kind: "capped" }`를 돌려준다. 완료 게이트가 이 결과를 어떻게 처리할지(turn 종료와 사용자 알림)는 L1.loop.spec이 정한다 [가정].
 - 기록 [제안]: `judge`는 모델 응답을 받은 직후 `agent.judged`를 자기 커밋(requestId `judge:<threadId 해시>:<goalRef>:<run>`)으로 남기고 결과를 돌려준다. 재개 때 같은 `(goalRef, run)`의 기록이 있으면 `{ kind: "recorded" }`를 돌려주고 다시 판정하지 않는다. 모델 호출 뒤 커밋 전에 끝나면 재개 때 다시 판정한다(비용만 든다).
 - 단계 경계 커밋과의 관계: architecture.runtime-flow.design §4.5는 "판정 결과는 단계 경계 커밋에 내구 이벤트로 남아"라고 적었고, L1.loop.spec §4.9는 L2.work의 `agent_before_settle` 핸들러가 판정 결과를 확장 kind 엔트리로 T4에 넣는다고 적었다. 그런데 `finalizeBoundary`는 접두 없는 코어 kind 엔트리를 거부한다(L1.loop.spec §9 수용 기준 5). 그래서 `agent.judged`는 판정 호출의 자기 커밋으로 쓰고, L2.work 핸들러는 T4 엔트리에 판정 참조(`agent.judged`의 EventId)만 남긴다 [제안]. 이렇게 하면 단계 경계 커밋보다 먼저 판정이 내구화된다. 이 정리는 L1.loop.spec·L2.work.spec과 맞춰야 한다 [미결](§10).
 - 판정 모델 요청의 requestId(모델 호출 멱등 키가 생기면)는 `judge:<goalRef>:<run>`이다.
@@ -494,7 +494,7 @@ export type AgentJudgedPayload = JudgeRecord;
 
 - `maxDepth: 0`이면 서브에이전트를 쓰지 않는다(opencode `subagent_depth` 0 관례, `_research/settings.md` §2.9).
 - `maxConcurrent`는 소유 트리 루트 하나의 동시 자식 수다. 전체 동시 수는 L1.tasks.spec의 `l1.tasks.limits.subagents`(기본 16)이고 이 문서는 그 키를 다시 정의하지 않는다. 기본 8은 [제안] 값이다. Helm 렌즈 상한 `l3.helm.maxLenses`(최대 8, L3.helm.spec)가 한 번에 돌 수 있고, 전체 풀의 절반이라 다른 대화가 남은 슬롯을 쓸 수 있다.
-- 탭: F 12탭(F.wire-settings.spec §3.8.2)은 에이전트를 `models` 탭에 합쳤다. `l1.agents.*`의 `ui.tab`은 `models`다 [결정(잠정): review.decisions-2 S-14]. agents 탭은 더하지 않는다.
+- 탭: F 12탭(F.wire-settings.spec §3.8.2)은 에이전트를 `models` 탭에 합쳤다. `l1.agents.*`의 `ui.tab`은 `models`다 [결정: review.decisions-2 S-14]. agents 탭은 더하지 않는다.
 - 서브에이전트 기본 모델은 L1.models.spec의 역할 `subagent` 라우팅으로 설정한다. 이 문서는 키를 두지 않는다.
 - 정의 파일은 파일로만 편집한다. 설정 화면은 정의 목록과 출처를 읽기 전용으로 보인다(`_research/settings.md` §2.9 "파일만").
 
@@ -503,7 +503,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - core-agents는 지점을 소유하지 않는다(`L1.readme` §6 소유표).
 - 자식 대화 안의 지점(도구, 경계, 입력)은 그 대화를 돌리는 core-loop·core-tools가 주 대화와 같은 규칙으로 발화한다. `HandlerContext.threadId`가 자식 대화다. 그룹 핸들러가 자식 대화를 구분하려면 `ToolCallPayload.caller`(L1.tools.spec §7 F 요청)를 본다.
 - drive와의 관계: `LoopHandle.spawn`이 이 서비스의 `spawn`이다. `LeaseBudget.spawns`(F.extensions.spec §3.2) 집계는 X가 한다. 백그라운드 위임은 drive 임대 상한에 들어가지 않는다(L3.group-kit.spec §3.4).
-- post와의 관계: 완료 보고는 확장 `post`를 거치지 않고 `xeon.tasks`의 입력 큐 초안(`draftQueued`, `source.type: "delegation"`)으로 `agent.settled`와 같은 커밋에 들어간다(§4.7). 그래서 `post.accepted`를 쓰지 않고, 매니페스트 `usesPost`는 코어 경로에 적용되지 않는다 [가정].
+- post와의 관계: 완료 보고는 확장 `post`를 거치지 않고 `xeon.tasks`의 입력 큐 초안(`draftQueued`, `source.type: "delegation"`)으로 `agent.settled`와 같은 커밋에 들어간다(§4.7). 그래서 확장 post 경로를 쓰지 않고, 매니페스트 `usesPost`는 코어 경로에 적용되지 않는다 [가정].
 - scope와의 관계: 확장이 비활성화되면 그 확장이 등록한 정의는 빠진다. 이미 실행 중인 자식은 끝까지 실행된다.
 
 ## 8. 다른 문서와의 인터페이스

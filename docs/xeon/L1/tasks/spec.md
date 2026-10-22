@@ -64,7 +64,7 @@ turn과 step은 `F.conversation.spec` §2, §2.1을 따른다. pi의 turn은 Xeo
 
 ## 3. 인터페이스
 
-이 절의 타입은 다른 L1 패키지(core-loop, core-tools, core-agents)와 X가 함께 쓴다. 같은 층 패키지끼리 import할 수 없으므로(`eng.dependency-rules.guide` DR-14) 서비스 인터페이스 `TaskService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 두고, `core-tasks`가 구현한다 [결정(잠정): review.decisions-2 D-04]. 파일 위치는 `F.capabilities.spec` §3.12 `services/tasks.ts`(`TaskService extends InputQueuePort`)이고 §8.1 FR-T5가 반영됐다. 코드는 `isolatedDeclarations`를 켠 상태로 컴파일되므로 export 상수에는 명시 타입을 단다.
+이 절의 타입은 다른 L1 패키지(core-loop, core-tools, core-agents)와 X가 함께 쓴다. 같은 층 패키지끼리 import할 수 없으므로(`eng.dependency-rules.guide` DR-14) 서비스 인터페이스 `TaskService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 두고, `core-tasks`가 구현한다 [결정: review.decisions-2 D-04]. 파일 위치는 `F.capabilities.spec` §3.12 `services/tasks.ts`(`TaskService extends InputQueuePort`)이고 §8.1 FR-T5가 반영됐다. 코드는 `isolatedDeclarations`를 켠 상태로 컴파일되므로 export 상수에는 명시 타입을 단다.
 
 ### 3.1 서비스 진입점
 
@@ -310,7 +310,7 @@ export interface InputQueue {
 ```
 
 - `drain`은 호출자의 커밋 안에서 고르는 일로 정한다 [제안]. 큐에서 실제로 빠지는 시점은 호출자의 커밋에 든 `input.placed`가 투영에 반영되는 때다. 이렇게 하면 배치 기록과 item 기록과 단계 체크포인트가 한 커밋에 들어간다(TX-08).
-- 출처 키 [제안]: `user`는 `"user"`, `extension`은 `scopeId`, `delegation`은 `"deleg"`, `schedule`은 `"timer"`다. 서로 다른 출처가 같은 문자열의 `requestId`를 써도 충돌하지 않게 한다.
+- 출처 키 [제안]: `user`는 `"user"`, `extension`은 `scopeId`, `delegation`은 `"deleg"`, `schedule`은 `"timer"`다. 서로 다른 출처가 같은 문자열의 `requestId`를 써도 충돌하지 않게 한다. `user`·`deleg`·`timer`는 확장 id로 예약해 확장의 `scopeId`와 겹치지 않는다(F `RESERVED_SOURCE_KEYS`, [결정: review.decisions-2 U-13]).
 
 ### 3.7 활동 집계
 
@@ -511,8 +511,8 @@ abort(target, reason, { background }):
 ### 4.7 멱등
 
 - [결정] 같은 `requestId`는 한 번만 큐에 들어가고 두 번째 `post`는 `PostReceipt.duplicate: true`를 돌려준다(adr.0007 §3.1, `F.extensions.spec` §4.4).
-- 커밋 키: 입력 큐 커밋의 `CommitRequest.requestId`는 `eng.transactions.design` §4.7의 `COMMIT_KEY_PATTERN`을 따른다. 이 정규식이 커밋 키 형식의 정본이다 [결정(잠정): review.decisions-2 U-13]. 키는 `in:<sourceKey>:<requestId>`(사용자·확장·위임·예약 공통)이다.
-- scope id 치환: `sourceKey`나 다른 부분에 scope id가 들어갈 때 하위 scope 구분자 `/`는 `:`로 바꾼다(예: scope `helm/review`의 확장 post는 `in:helm:review:<requestId>`) [결정(잠정): review.decisions-2 U-13]. 치환 뒤 키가 `COMMIT_KEY_PATTERN`(1~200자)을 넘거나 허용 문자 밖이면 `invalid_request_id`다.
+- 커밋 키: 입력 큐 커밋의 `CommitRequest.requestId`는 `eng.transactions.design` §4.7의 `COMMIT_KEY_PATTERN`을 따른다. 이 정규식이 커밋 키 형식의 정본이다 [결정: review.decisions-2 U-13]. 키는 `in:<sourceKey>:<requestId>`(사용자·확장·위임·예약 공통)이다.
+- scope id 치환: `sourceKey`나 다른 부분에 scope id가 들어갈 때 하위 scope 구분자 `/`는 `:`로 바꾼다(예: scope `helm/review`의 확장 post는 `in:helm:review:<requestId>`) [결정: review.decisions-2 U-13]. 치환 뒤 키가 `COMMIT_KEY_PATTERN`(1~200자)을 넘거나 허용 문자 밖이면 `invalid_request_id`다.
 - 지문 원천(`fingerprintSource`)은 신원 `{ threadId, sourceKey, requestId }`만이다 [제안]. `mode`, `item`을 넣지 않는다. 저장소는 `requests (thread_id, request_id)` 조회를 `build`보다 먼저 하고, 같은 키·다른 지문을 `key_reused`(호출자 버그)로 돌려준다(`eng.transactions.design` §4.3·§4.7, `L1.persistence.spec` §4.1 3단계). 내용을 지문에 넣으면 같은 `requestId`로 내용이 다른 두 번째 post가 `duplicate: true`가 되지 못하고 `key_reused`가 된다. 그래서 지문은 신원만 담는다. 시각과 생성 id도 넣지 않는다.
 - 판정 순서 [제안]:
   1. 같은 키의 두 번째 `enqueue`(재시도이든 다른 내용이든)는 `requests`에서 같은 지문으로 걸려 `replayed: true` 결과가 온다. `enqueue`는 그 결과의 `eventIds`에서 기존 입력 id를 꺼내고 투영 `p_inputs`의 현재 상태로 `duplicate: true` 영수증을 만든다. 큐에 변화가 없다(`X.primitives.spec` 수용 기준 8, `F.extensions.spec` §4.4).
@@ -617,7 +617,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 
 - 이 도메인이 발화하는 지점은 없다. 발화 소유표(41개)에서 tasks 몫은 0이다.
 - `post`: `xeon.tasks`가 `InputQueuePort`(`X.primitives.spec` §3.6)를 구현한다. `enqueue(EnqueueRequest)`를 `TaskService` 최상위에 두고, 안에서 `inputs.enqueue`를 부른다. X의 `ExtensionOps.post`(`F.extensions.spec` §3.2) 구현은 이 포트를 부른다. 대응은 `when` → `mode`, `requestId` → `requestId`, `item` → `item`, `source: { type: "extension", scopeId }`다. 결과 `EnqueueResult.duplicate`는 `EnqueueReceipt.duplicate`다.
-- [제안] 확장 post의 커밋에는 `input.queued`(`source.type: "extension"`)와 `post.accepted`를 함께 넣는다(`X.primitives.spec` §3.6 "post.accepted와 입력 큐 항목을 한 커밋으로", `F.records.spec` §3.3). 두 kind의 역할은 다르다. `input.queued`는 모든 입력(사용자, 위임 완료, 예약, 확장 post)의 큐 항목 사실이고, `post.accepted`는 `ScopeApi.post` 호출의 영수증(`requestId` 멱등, `scopeId`, `itemId`)이다. 역할 설명은 F.records.spec §3.3 카탈로그와 §4에 반영됐다(FR-T3). `post.accepted`의 생산자는 [가정: `eng.context-map.design` §5.1에 `post.` 행이 없다. 이 커밋을 쓰는 `core.tasks`로 둘지 `xh`로 둘지 F·context-map이 정한다].
+- [결정: review.decisions-2 U-05] 확장 post의 커밋에는 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나만 넣는다. `post.accepted`는 retire했다(`F.records.spec` §3.3 `retired: true`). 같은 post의 두 번째 호출은 커밋 키 `in:<scopeId>:<requestId>`와 `TxView.inputByRequestId`로 걸러 `duplicate: true` 영수증을 돌려준다. 배치된 item은 `input.placed`가 적는다.
 - `drive`: `LoopHandle.turn`은 `xeon.loop`가 처리한다(`L1.loop.spec`). tasks는 drive turn에 turn 노드를 주고, 임대 회수 신호를 받지 않는다. 임대 신호 처리는 loop 몫이다.
 - `scope` 토글의 정리(`onDispose`)에서 진행 중 작업을 멈추려는 확장은 자기가 연 노드만 `abort`한다. 확장은 `xeon.tasks`를 직접 받지 않고 X가 노출하는 API를 쓴다(X.primitives.spec).
 
@@ -660,9 +660,9 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 
 | id | 대상 문서 | 요청 | 이유 |
 |---|---|---|---|
-| FR-T1 | F.records.spec §3.2, §3.3 | (반영됨) `CoreArea`에 `"input"`을 더하고, 카탈로그에 `input.queued`, `input.placed`, `input.withdrawn`(모두 durable, version 1)과 §3.8 payload 스키마를 더한다 | F에 입력 큐 kind가 `post.accepted`뿐이다. 사용자 입력·위임 완료·예약 입력도 같은 큐를 쓴다 |
+| FR-T1 | F.records.spec §3.2, §3.3 | (반영됨) `CoreArea`에 `"input"`을 더하고, 카탈로그에 `input.queued`, `input.placed`, `input.withdrawn`(모두 durable, version 1)과 §3.8 payload 스키마를 더한다 | F에 입력 큐 kind가 `post.accepted`뿐이었다. 사용자 입력·위임 완료·예약 입력도 같은 큐를 쓴다 |
 | FR-T2 | F.records.spec §3.2, §3.3 | (반영됨) `CoreEventKind`에 `turn.abort_requested`(durable, version 1)와 `TurnAbortRequestedPayloadSchema`를 더한다 | `turn.updated`는 휘발이라 취소 의도를 남길 수 없다(§3.8). transactions §6.2 2·7항 |
-| FR-T3 | F.records.spec §3.3 | (반영됨) `post.accepted`를 유지하고 역할을 한 줄씩 적는다. `input.queued`는 모든 입력의 큐 항목 사실, `post.accepted`는 `ScopeApi.post` 호출의 영수증(`requestId` 멱등, `scopeId`, `itemId`)이다. 확장 post는 한 커밋에 두 kind를 함께 쓴다. `PostAcceptedPayload`에 `inputId: EventId`(같은 커밋의 `input.queued` 이벤트 id)를 더해, `itemId`가 그 입력이 대화에 배치된 뒤의 item을 가리키게 한다 | F.records, F.extensions §4.4 `PostReceipt`, X.primitives §3.6·§4.7, X README §4가 `post.accepted`를 유지한다. 유지안과 `inputId` 추가는 [결정(잠정): review.decisions-2 U-05]이다 |
+| FR-T3 | F.records.spec §3.3 | (반영됨, 바뀜) `post.accepted`를 retire한다. 카탈로그 항목은 `retired: true`로 남긴다. 확장 post는 `input.queued` 하나를 쓰고 멱등은 커밋 키가 맡는다 | `input.queued`가 `scopeId`·`requestId`를 이미 싣고 `input.placed`가 item을 적어 영수증 kind가 중복이다. retire안은 [결정: review.decisions-2 U-05]이다(2026-10-22 사용자 확인에서 유지안을 바꿈) |
 | FR-T4 | F.extensions.spec §3.2 | [미결] `PostWhen`에 `"aside"`를 더할지(§4.9 표 2안) | 1안을 고르면 요청을 철회한다 |
 | FR-T5 | F `@xeon/contracts/services` | (반영됨: `F.capabilities.spec` §3.12 `services/tasks.ts`) §3.1~§3.7의 타입과 `TaskServiceName`을 F `services` 서브패스에 둔다(review.decisions-2 D-04) | 같은 층 import 금지(DR-14) |
 | FR-T6 | F.capabilities.spec §3.3 | `ToolSpec`에 잠금 선언 필드를 더한다. [제안] `readonly locks?: (params: Static<P>) => readonly { readonly path: string; readonly access: "read" \| "write" }[]`. 순수 함수 | 키 산출 입력을 도구 정의가 내야 L1.tools가 realpath 키를 만든다(§4.4) |
@@ -675,7 +675,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 1. 부모 turn을 `abort`하면 그 turn의 실행 중 tool 노드와 소유 subagent 노드(자식 thread의 turn과 그 tool 포함)의 `signal`이 모두 켜지고, `ticket.settled`는 모든 자식이 정착한 뒤에 이행한다.
 2. 부모 turn을 `abort`해도 `background: true` subagent 노드의 `signal`은 켜지지 않는다. 같은 호출을 `{ background: true }`로 하면 켜진다.
 3. `abort` 뒤 이벤트 열에서 `turn.abort_requested`의 seq는 같은 turn의 모든 `effect.result`·`agent.settled`·`turn.completed`의 seq보다 작다. 의도 커밋이 실패하도록 만든 경우(`busy` 지속) 신호는 켜지지 않는다.
-4. 같은 `(threadId, 출처, requestId)`로 `enqueue`를 두 번 하면 `input.queued`는 하나이고 두 번째 영수증은 `duplicate: true`, `inputId`가 첫 번째와 같다. 두 번째 호출의 `item`이 첫 번째와 달라도 같고, `key_reused`는 나오지 않는다. 확장 post면 같은 커밋에 `post.accepted`가 하나 있다.
+4. 같은 `(threadId, 출처, requestId)`로 `enqueue`를 두 번 하면 `input.queued`는 하나이고 두 번째 영수증은 `duplicate: true`, `inputId`가 첫 번째와 같다. 두 번째 호출의 `item`이 첫 번째와 달라도 같고, `key_reused`는 나오지 않는다. 확장 post여도 같은 커밋에 `post.accepted`는 없다(U-05).
 5. 상한 2인 풀에서 세 번째 `acquire`는 대기하고, 대기 중 owner를 취소하면 대기열 길이가 0으로 줄고 Promise는 `AbortReason`으로 거부된다. 앞의 슬롯 하나를 반납하면 다음 대기자가 FIFO 순서로 슬롯을 얻는다.
 6. `tools`·`subagents` 상한을 모두 1로 두고 깊이 3의 서브에이전트 사슬(도구 → 자식 → 도구 → 손자)을 돌려도 모두 정착한다(C2·C3). 시한 테스트는 수동 시계로 한다.
 7. `input.queued` 두 건(steer 1, followUp 1)을 커밋하고 프로세스를 끊은 뒤 다시 열면 `peek`가 같은 두 건을 같은 seq 순서로 돌려준다.
@@ -688,7 +688,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 
 - [미결] `post.when = next`가 요청을 스스로 시작하는지(adr.0007 §6, §4.9). [제안] B안(붙기만 한다).
 - [미결] `aside`의 위치: L1 사용자·CLI 전용 모드(1안, [제안])인지 F `PostWhen` 변경(2안, FR-T4)인지(§4.9).
-- [결정(잠정): review.decisions-2 U-05] `post.accepted`는 유지하고 payload에 `inputId`를 더한다(FR-T3). retire 안은 택하지 않는다.
+- [결정: review.decisions-2 U-05] `post.accepted`는 retire한다(FR-T3). 멱등은 커밋 키, 기록은 `input.queued`다.
 - [미결] turn 취소 때 queued 입력을 거둘지. [제안] 거두지 않는다. durable은 대화 abort 때 거둔다(§4.6 끝).
 - [미결] 확장 `post`가 `input` 지점을 지나지 않는 규칙(§7). pi가 확장 메시지에 `input`을 발화하는지 [가정]으로 남아 있다.
 - [미결] 동시 상한 기본값 `subagents` 16, `modelCalls` 16. 근거가 약하다(§6). M2에서 Helm 렌즈 탐구 테이프로 조정한다.

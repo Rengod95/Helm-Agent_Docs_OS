@@ -65,9 +65,9 @@ binds: []
 4. 이 색인 표의 두 행 상태를 함께 고친다.
 5. 이전 ADR을 `depends_on`으로 가진 문서를 찾아 새 ADR로 바꾼다. 찾는 방법은 `just docs-route`와 `depends_on` 검색이다.
 
-부분 번복(결정 일부만 바뀜)도 같은 절차를 따른다. 새 ADR이 이어받는 부분과 바꾸는 부분을 결정 절에 나눠 적는다.
+부분 번복(결정 일부만 바뀜)도 같은 절차를 따른다. 새 ADR이 이어받는 부분과 바꾸는 부분을 결정 절에 나눠 적는다. 이전 ADR의 결정 대부분이 그대로 남으면 3번 대신 이전 ADR의 `status`를 accepted로 두고, "상태와 날짜" 절에 "부분 대체: 날짜 ADR-MMMM, 대체된 절" 한 줄을 남긴다. 대체된 항목 끝에도 ADR-MMMM을 가리키는 표시를 단다(예: ADR-0003 §3.2 마지막 항목과 ADR-0009).
 
-보충은 번복과 다르게 다룬다. 결정을 뒤집지 않고 [미결]·[제안]을 정하거나 같은 방향으로 세부를 좁히는 개정은 기존 ADR 본문을 고치고, "상태와 날짜" 절에 "개정: 날짜, 근거 문서, 고친 절" 한 줄을 남긴다. 2026-10-21 `review.decisions-2`에 따른 ADR-0002·0004·0006·0007 개정이 이에 해당한다. 그 항목은 [결정(잠정)]으로 표시하고 사용자 확인 뒤 [결정]으로 바꾼다.
+보충은 번복과 다르게 다룬다. 결정을 뒤집지 않고 [미결]·[제안]을 정하거나 같은 방향으로 세부를 좁히는 개정은 기존 ADR 본문을 고치고, "상태와 날짜" 절에 "개정: 날짜, 근거 문서, 고친 절" 한 줄을 남긴다. 2026-10-21 `review.decisions-2`에 따른 ADR-0002·0004·0006·0007 개정이 이에 해당한다. 그 항목은 [결정(잠정)]으로 표시했다가 2026-10-22 사용자 확인으로 [결정]으로 바꿨다.
 
 ## 2. 색인
 
@@ -75,14 +75,15 @@ binds: []
 |---|---|---|---|---|---|---|
 | 0001 | 스택 | [ADR-0001-stack.md](ADR-0001-stack.md) | accepted | Bun 1.4.x(`bun@1.4.3`) + workspaces catalog, TypeScript 7.0.x(tsgo) strict + `isolatedDeclarations`, oxlint 1.89 + tsgolint, oxfmt 0.74 정확 고정, `bun test`, Turborepo 2.11, dependency-cruiser 18, knip 6, TypeBox 1.4, `bun:sqlite` | decisions-log 2026-10-21 3차, foundation-plan §2 | 전 층(F~L4), 툴체인 |
 | 0002 | 단일 DI Cordis | [ADR-0002-di-cordis.md](ADR-0002-di-cordis.md) | accepted | DI·플러그인 수명은 Cordis 하나. `xeon/vendor/cordis`에 4.0.0-rc.x 커밋(df4431e) 고정, ext-host 뒤에 숨긴다 | decisions-log 2026-10-19·3차, foundation-plan §1 표 1번·§2 DI 행 | X, 그리고 서비스를 쓰는 L0~L3 |
-| 0003 | pi durable 부분 포크 | [ADR-0003-pi-durable-fork.md](ADR-0003-pi-durable-fork.md) | accepted | env·tools·images·truncate만 Chord 제거 포크(`CancelScope`로 치환), 커널 L1-a·b·f·g는 직접 구현하고 durable spec을 인용 | decisions-log 3차, foundation-plan §1 표 1번 | L0(exec), L1(tasks, loop, persistence, agents), L2(workspace) |
+| 0003 | pi durable 부분 포크 | [ADR-0003-pi-durable-fork.md](ADR-0003-pi-durable-fork.md) | accepted(§3.2 마지막 항목은 0009가 대체) | env·tools·images·truncate만 Chord 제거 포크(`CancelScope`로 치환), 커널 L1-a·b·f·g는 직접 구현하고 durable spec을 인용 | decisions-log 3차, foundation-plan §1 표 1번 | L0(exec), L1(tasks, loop, persistence, agents), L2(workspace) |
 | 0004 | 세션 저장 C안 | [ADR-0004-session-storage.md](ADR-0004-session-storage.md) | accepted | SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블(`x_<id>_`), 단계 경계 FULL, 도구별 효과 커밋(E1~E3), 세션 id OS 잠금 + `sys_leases.epoch` 펜싱 | decisions-log 2026-10-21 2차 | F(records), L0(store), L1(persistence) |
 | 0005 | 무료 웹 검색 기본값 | [ADR-0005-web-search-default.md](ADR-0005-web-search-default.md) | accepted | 모델용은 provider 내장 검색. 서비스 API `web.search`는 소형 모델 한 턴 래퍼(약 $0.011/회). SearXNG를 감지하면 우선. 무료 크레딧 API(Exa 월 2,500건, Brave 약 1,000건)는 첫 실행 설정에서 플러그인으로 권장. 키 없는 DuckDuckGo 스크레이핑 제외 | decisions-log 3차, foundation-plan §1 표 6번 | L2(web), L4(첫 실행 설정) |
 | 0006 | 프로세스 구조와 서비스 모드 | [ADR-0006-process-service-mode.md](ADR-0006-process-service-mode.md) | accepted | 엔진 라이브러리 + 단일 호스트 계약 + 전송 교체(CLI in-process, 데스크톱 자식 엔진 stdio). 공유 서비스 모드 `xeon service`(자동 기동, 유휴 종료)는 1차, OS 서비스 등록은 2차. 원격 사용은 1차(SSH 터널·사설망), 내장 원격 전송은 2차. 세션 단위 OS 잠금 + `sys_leases` 소유 표시 | decisions-log 계획 v2·3차, foundation-plan §1 표 2번 | L0(process), L4(cli, host-service, desktop) |
 | 0007 | 확장 지점 4연산 | [ADR-0007-ext-points.md](ADR-0007-ext-points.md) | accepted | on(fold tap/first/chain), post, drive(배타 임대, 기본 상한은 pi 방식의 예외), scope 4연산. 켜기·끄기와 임대 교대는 단계 경계. 지점 종류 5개와 지점 목록은 [제안](미합의) | decisions-log 2026-10-21 계획 v2 | F(extensions), X, L1, L3 |
 | 0008 | 데스크톱 Tauri 2 + 엔진 사이드카 | [ADR-0008-desktop-tauri.md](ADR-0008-desktop-tauri.md) | accepted | Tauri 2.12(시스템 WebView, 3플랫폼) + `bun build --compile` 엔진 사이드카 + stdio JSON-RPC | decisions-log 3차, foundation-plan §1 표 3번·§2 데스크톱 행 | L4(desktop, settings-ui) |
+| 0009 | 자체 에이전트 루프 | [ADR-0009-own-agent-loop.md](ADR-0009-own-agent-loop.md) | accepted | pi-agent-core 의존 제거. 1.3.0(MIT) 루프를 core-loop로 포크해 자체 루프로 재설계(진입점 `runTurn(entry)`, 단계 경계 커밋·확장 지점을 루프 코드가 직접 호출, 도구 단계는 core-tools 단계 계약). F가 `AgentMessage`·`AgentEvent`·`AgentTool`을 직접 정의. pi-ai는 유지 | 사용자 지시 2026-10-22, decisions-log 2026-10-21 첫 결정 | F(conversation), L1(loop, tools, models) |
 
-- 상태 열은 각 ADR 파일 프런트매터의 `status`와 같아야 한다. 이 색인을 쓴 시점(2026-10-21)에 0001~0008 여덟 파일 모두와 대조했다.
+- 상태 열은 각 ADR 파일 프런트매터의 `status`와 같아야 한다. 이 색인을 쓴 시점(2026-10-21)에 0001~0008 여덟 파일 모두와 대조했다. 0009는 2026-10-22에 더했다.
 - 0005~0008의 핵심 결정 열은 조정자가 전달한 요약이다. 정확한 문구는 각 ADR이 기준이다.
 
 ## 3. ADR 사이 의존
@@ -99,6 +100,7 @@ flowchart LR
   A6["0006 프로세스 구조<br/>서비스 모드"]
   A7["0007 확장 지점<br/>4연산"]
   A8["0008 데스크톱<br/>Tauri 2 + 사이드카"]
+  A9["0009 자체 루프<br/>pi-agent-core 포크"]
 
   A1 --> A2
   A2 --> A7
@@ -110,11 +112,15 @@ flowchart LR
   A6 --> A7
   A6 --> A8
   A1 --> A8
+  A3 --> A9
+  A4 --> A9
+  A7 --> A9
 ```
 
 - 0001 → 0008: 사이드카는 `bun build --compile`로 만든다.
 - 0002 → 0005: 검색 provider는 Cordis 서비스로 등록·교체한다(ADR-0005 `depends_on`).
 - 0006 → 0007: 확장 지점의 적용 시점(단계 경계)과 실행 위치가 프로세스 구조를 전제한다(ADR-0007 `depends_on`).
+- 0003·0004·0007 → 0009: 자체 루프는 커널 직접 구현(0003)을 이어받고, 단계 경계 커밋(0004)과 확장 지점 4연산(0007)을 루프 코드에서 직접 호출한다. 0009는 0003 §3.2 마지막 항목을 대체한다.
 - 0003은 0004의 이벤트 소싱 결정과 맞물리지만 `depends_on`에는 0002만 둔다. 커널 저장 규칙은 0003 본문에서 0004를 참조한다.
 
 ## 4. 아직 ADR이 아닌 결정
@@ -141,12 +147,12 @@ flowchart LR
 | 작업 대상 | 먼저 읽을 ADR | 함께 읽을 문서 id |
 |---|---|---|
 | 툴체인, CI, 패키지 설정(`xeon/package.json`, `tsconfig.base.json` 등) | 0001 | `eng.toolchain.guide`, `eng.typescript.guide` |
-| F `contracts` | 0001, 0004(records), 0007(extensions) | `F.records.spec`, `F.extensions.spec` |
+| F `contracts` | 0001, 0004(records), 0007(extensions), 0009(conversation) | `F.records.spec`, `F.extensions.spec` |
 | X `ext-host` | 0002, 0007 | `X.readme`, `X.primitives.spec`, `X.loading-trust.spec` |
 | L0 `platform-exec` | 0003 | `L0.exec.spec` |
 | L0 `platform-store` | 0004, 0001 | `L0.store.spec`, `eng.transactions.design` |
 | L0 `platform-process` | 0006, 0004 | `L0.process.spec` |
-| L1 `core-tasks`, `core-loop`, `core-persistence`, `core-agents` | 0003, 0004, 0007 | `L1.tasks.spec`, `L1.loop.spec`, `L1.persistence.spec`, `L1.agents.spec`, `eng.events.design` |
+| L1 `core-tasks`, `core-loop`, `core-persistence`, `core-agents` | 0003, 0004, 0007, 0009(`core-loop`) | `L1.tasks.spec`, `L1.loop.spec`, `L1.persistence.spec`, `L1.agents.spec`, `eng.events.design` |
 | L2 `cap-workspace` | 0003 | `L2.workspace.spec` |
 | L2 `cap-web` | 0005 | `L2.web.spec` |
 | L3 그룹(`group-kit`, `group-helm`, `group-learning`) | 0007, 0002 | `L3.group-kit.spec`, `F.extensions.spec` |

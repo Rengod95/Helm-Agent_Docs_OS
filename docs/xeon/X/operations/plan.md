@@ -76,8 +76,8 @@ xeon/packages/ext-host/
 - import 방향: `tier` ← `budget` ← `failure` ← `auto-disable` ← `index`. `storage/tables` ← `storage/guard` ← `storage/ext-storage`. `hooks/config` ← `hooks/protocol` ← `hooks/run`. `naming`, `safe-mode`는 `tier`만 import한다. `index.ts`만 모든 파일을 import한다.
 - 외부 import: `@xeon/contracts`(루트, `/extensions`, `/records`, `/conversation`, `/settings`)와 `typebox`만 쓴다. 같은 패키지의 `../primitives/index.ts`(`DispatchPolicy`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy` 등)와 `../loading-trust/index.ts`(`TrustLevel`, `InstallSource`, `LoadedExtensionInfo`)는 타입만 import한다(`import type`). 그래서 도메인 사이 값 순환이 없다. `operations/`는 Cordis를 import하지 않는다 [제안]. Cordis import는 `src/primitives/cordis-bridge.ts` 한 파일이고(X.primitives.plan §2), operations는 포트(`ScopeControl`, `PortLookup`, 설정 포트)로만 받는다. 이 규칙은 `eng.dependency-rules.guide` DR-11(Cordis는 `ext-host`만 import)보다 좁고, X.primitives.plan §6 4번의 grep 검사로 확인한다.
 - L0·L1 기능(`xeon.store`, `xeon.session`, `xeon.process`)은 Cordis 서비스 주입으로 받는다. primitives가 주입받은 서비스를 `ExtHost.ports`(`PortLookup`)로 내놓고, 조립 루트가 그것을 `OperationsDeps.ports`로 늦은 연결해 넘긴다. operations는 `ProjectorRegistryPortKey`·`ScopedStorePortKey`(저장 영역, `storageOf`)와 `ProcessPortKey`(외부 훅)로 꺼낸다(X.primitives.spec §3.6, `architecture.layers.spec` §4.3.3).
-- 시계와 타이머는 `ExtHostDeps`와 같은 `now`, `setTimer` 함수로 받는다(X.primitives.spec §3.2). [결정(잠정): review.decisions-2 U-03] F에는 `./testing` 서브패스가 없고 테스트 대역은 각 패키지 `test/` 안에 둔다. 그래서 `test/operations/support/manual-clock.ts`에 F `Clock` 인터페이스로 `ManualClock`을 두고 두 함수를 만든다. 같은 패키지의 `@xeon/ext-host/testing` 가짜 타이머(X.primitives.plan P-03)가 같은 일을 하면 그것을 쓴다.
-- [결정(잠정): review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 저장 대역은 `test/operations/support/` 안에 F 인터페이스(`StoreDb`, `ProjectionTx`, `Projector`, F.records.spec §3.9)로 만든다. 실제 bun:sqlite 저장소로 같은 계약 시나리오를 돌리는 일은 L0.store.plan ST-23(`ext-storage.contract.int.test.ts`, L0.store.spec §9 18번)이 맡는다(O-15).
+- 시계와 타이머는 `ExtHostDeps`와 같은 `now`, `setTimer` 함수로 받는다(X.primitives.spec §3.2). [결정: review.decisions-2 U-03] F에는 `./testing` 서브패스가 없고 테스트 대역은 각 패키지 `test/` 안에 둔다. 그래서 `test/operations/support/manual-clock.ts`에 F `Clock` 인터페이스로 `ManualClock`을 두고 두 함수를 만든다. 같은 패키지의 `@xeon/ext-host/testing` 가짜 타이머(X.primitives.plan P-03)가 같은 일을 하면 그것을 쓴다.
+- [결정: review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 저장 대역은 `test/operations/support/` 안에 F 인터페이스(`StoreDb`, `ProjectionTx`, `Projector`, F.records.spec §3.9)로 만든다. 실제 bun:sqlite 저장소로 같은 계약 시나리오를 돌리는 일은 L0.store.plan ST-23(`ext-storage.contract.int.test.ts`, L0.store.spec §9 18번)이 맡는다(O-15).
 - 아래 표의 L0·L1 plan 선행 작업은 구현 순서의 의존이다. X 코드와 테스트의 import 의존은 아니다.
 
 ## 3. 작업 분해
@@ -92,7 +92,7 @@ xeon/packages/ext-host/
 | O-04 | `budget.ts`: `runWithBudget`(`now`·`setTimer` 주입, pause 깊이, TimeoutError abort, 늦은 결과 버림, outer abort), `awaitUser` | O-02 | M | M0 |
 | O-05 | `budgetClassOf`, `budgetMsFrom`, `STREAM_TAP_POINTS`, `DEFAULT_BUDGETS_MS`, `OperationsSettingsSource.budgets()`로 유효 예산 읽기(`live`). `OperationsPolicy.setupBudgetMs`로 scope setup 예산(`ExtHostDeps.setupBudgetMs`)에 `setup` 값 제공 | O-01, O-04 | S | M0 |
 | O-06 | `OperationsPolicy.run` 구현(`DispatchPolicy.run`, X.primitives.spec §3.4): 디스패처가 이 함수로 핸들러를 실행하고, 결과(`timeout`, `threw`, `aborted`)를 fold 규칙(tap 기록, first `FIRST_DENY`, chain 패치 버림)에 넘기는지 확인. drive 경로는 `budgetMs: null` | P-06(fold 엔진, `run` 호출), P-11(drive 실행기), O-05 | M | M0 |
-| O-07 | UI 포트 래핑: primitives가 핸들러에 주는 UI 포트·승인 대기를 `awaitUser`로 감싼다. signal 합치기(`AbortSignal.any`). [결정(잠정): review.decisions-2 U-07] `HandlerContext.ui`는 M1에 넣지 않으므로 M2에 둔다 | X.primitives.plan(UI 포트, 스펙 §10 미결 5), O-04 | S | M2 |
+| O-07 | UI 포트 래핑: primitives가 핸들러에 주는 UI 포트·승인 대기를 `awaitUser`로 감싼다. signal 합치기(`AbortSignal.any`). [결정: review.decisions-2 U-07] `HandlerContext.ui`는 M1에 넣지 않으므로 M2에 둔다 | X.primitives.plan(UI 포트, 스펙 §10 미결 5), O-04 | S | M2 |
 | O-08 | `failure.ts`: `fromHandlerFailure`, `FailureLedger`(연속 수, 창, aborted·`value_from_tap` 제외), `onHandlerFailure`·`onHandlerSettled` 구현 | O-06 | M | M0 |
 | O-09 | `OperationsNotifier` 기본 구현: 운영 로그. F.records에 `scope.handler_failed`가 생기면 휘발 이벤트 발신으로 바꾼다 | F.records.plan(kind 추가 요청, 스펙 §10 미결 4), O-08 | S | M0 |
 | O-10 | `auto-disable.ts`: `judgeAutoDisable`, `createAutoDisabler`(요청 1회 보장, 면제 tier, 훅 끄기 자리), 자동 끄기 설정 키 5개 | P-09(scope 토글, `ScopeControl`의 바탕), O-08 | M | M1 |
@@ -100,7 +100,7 @@ xeon/packages/ext-host/
 | O-12 | `storage/tables.ts`: 이름 규칙, `parseExtTableName`, `columnTypeOf`, `tableDdl`(인용, STRICT, 인덱스 이름) | F.extensions.plan(`ExtensionName`) | M | M1 |
 | O-13 | `storage/guard.ts`: `checkStatement`(접두 대조, 금지 키워드, 여러 문장). 테스트·디버그 빌드에서 O-14가 만든 모든 문장에 적용 | O-12 | S | M1 |
 | O-14 | `storage/ext-storage.ts`: `defineTables`(검사, 소유 장부 `xh_ext_tables`, `kinds` 소유 검사), `ExtProjection` → `Projector` 변환과 `ProjectorRegistryPort.register` 등록(`Result` 오류 → `defineTables` 실패), `onFailure` 구독, `ExtWriters`(ProjectionTx 감싸기), `read`(`scoped("ext.<name>")` 읽기), 소유 장부(`scoped("xh")`), `storageOf` | P-30(`ProjectorRegistryPortKey`, `ScopedStorePortKey`, `PortLookup`), L0.store.plan(`StoreService.scoped`, `ProjectionTx` 포트), L1.persistence.plan(`ProjectorRegistry.register`), F.records.plan(확장 kind 등록 `EventKindRegistry`), O-12, O-13 | L | M1 |
-| O-15 | 저장 영역 계약 시나리오 `ext-storage.contract.ts`: 저장소 팩토리를 인자로 받는 시나리오 모음. X `test/` 안에서는 F 인터페이스로 만든 자체 저장 대역(`test/operations/support/fake-store.ts`, 장애 주입 지점 포함)으로 돌린다. 시나리오 파일은 테스트 파일이라 L0.store.plan ST-23이 실제 bun:sqlite 팩토리로 같은 시나리오를 돌릴 수 있다(테스트 파일 교차 import, [결정(잠정): review.decisions-2 U-17]). 장애 주입 롤백 시나리오 포함 | F.records.plan(`StoreDb`, `ProjectionTx`, `Projector`), O-14 | M | M1 |
+| O-15 | 저장 영역 계약 시나리오 `ext-storage.contract.ts`: 저장소 팩토리를 인자로 받는 시나리오 모음. X `test/` 안에서는 F 인터페이스로 만든 자체 저장 대역(`test/operations/support/fake-store.ts`, 장애 주입 지점 포함)으로 돌린다. 시나리오 파일은 테스트 파일이라 L0.store.plan ST-23이 실제 bun:sqlite 팩토리로 같은 시나리오를 돌릴 수 있다(테스트 파일 교차 import, [결정: review.decisions-2 U-17]). 장애 주입 롤백 시나리오 포함 | F.records.plan(`StoreDb`, `ProjectionTx`, `Projector`), O-14 | M | M1 |
 | O-16 | M1 스모크 연결: 테스트 그룹이 `storageOf(g).defineTables`로 테이블 하나를 정의하고 `turn_end` entries의 자기 kind 이벤트를 투영한다. 재개 뒤 행이 이어지는지 확인 | F.extensions.plan M1 스모크 매니페스트, L4.host-service.plan 조립, O-14 | M | M1 |
 | O-17 | `doc-constants.test.ts`: 스펙 §4.2.2 표·§6 표의 기본값과 §3.1 tier 이름을 코드 상수와 대조 | O-05, O-10, O-02 | S | M1 |
 | O-18 | `naming.ts`: `qualifiedName`, `resolveNames`(순서 무관, 예약, 충돌, 64자), `createResourcePolicy`(`ResourcePolicy.resolve` 쌍 판정) | P-24(리소스 레지스트리, `ResourcePolicy`) | M | M2 |
@@ -117,7 +117,7 @@ xeon/packages/ext-host/
 ## 4. 채택 코드
 
 - 외부 패키지: 없음. 이 도메인은 자체 구현이다(`_research/packages.md` §4.5 X-c "패키지 없음", "자체").
-- 쓰는 워크스페이스 의존: `@xeon/contracts`(workspace), `typebox` 1.4.2(워크스페이스 catalog, `F.readme` §1). 런타임 Bun 1.4.3, TypeScript 7.0.x(`_research/foundation-plan.md` §2).
+- 쓰는 워크스페이스 의존: `@xeon/contracts`(workspace), `typebox` 1.3.27(워크스페이스 catalog, `F.readme` §1). 런타임 Bun 1.4.3, TypeScript 7.0.x(`_research/foundation-plan.md` §2).
 - 읽기 자료(복사하지 않음):
 
   | 자료 | 경로 | 라이선스 | 쓰는 방법 |
@@ -193,4 +193,4 @@ xeon/packages/ext-host/
 | F 매니페스트 필드(`storage`, `hooks`)와 F.records 필드(`reason`, `scope.handler_failed`) 추가가 늦어진다 | 설치 전 검토와 사유 기록이 빠진다 | 테이블 선언은 코드(`defineTables`)가 정본이고 매니페스트는 검토용이라 M1은 필드 없이 동작한다. 필드가 늦어지면 확장 루트의 임시 구성 파일 `.xeon-plugin/operations.json`을 X가 읽는다. 사유는 운영 로그로 남긴다(O-09, O-11) |
 | primitives의 `DispatchPolicy`(X.primitives.spec §3.4) 모양이 구현 중에 바뀐다 | O-03, O-06 연결을 다시 쓴다 | `createOperationsPolicy` 내부를 `orderKey`, `run`, `report` 세 함수로 나눠 두어 모양이 바뀌어도 어댑터만 고친다. P-06·P-20과 같은 M0에서 함께 확인한다 |
 | 투영 `apply` 예외가 세션 커밋을 계속 막는다 | 확장 하나의 결함으로 세션이 진행되지 않는다 | 스펙 §5 6번의 복구 경로(투영기 해제와 확장 끄기 뒤 재시도)를 L1.persistence.plan과 정한다(스펙 §10 미결 6). 그 전에는 M1 테스트 그룹 투영을 단순한 삽입 하나로 제한한다 |
-| 확장 이름 규칙(`^[a-z][a-z0-9-]{1,31}$`, 접두 `x_`, [결정(잠정): review.decisions-2 U-18])이 사용자 확인에서 바뀐다 | 테이블 이름 규칙과 역변환이 달라진다 | 이름 변환을 `extTablePrefix`·`parseExtTableName` 두 함수에 모은다. 규칙이 바뀌면 두 함수와 `doc-constants.test.ts`만 고친다 |
+| 확장 이름 규칙(`^[a-z][a-z0-9-]{1,31}$`, 접두 `x_`, [결정: review.decisions-2 U-18])이 번복된다 | 테이블 이름 규칙과 역변환이 달라진다 | 이름 변환을 `extTablePrefix`·`parseExtTableName` 두 함수에 모은다. 규칙이 바뀌면 두 함수와 `doc-constants.test.ts`만 고친다 |

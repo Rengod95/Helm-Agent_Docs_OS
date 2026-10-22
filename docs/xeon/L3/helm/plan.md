@@ -24,7 +24,7 @@ binds: [xeon/packages/group-helm/**]
 | M3 | 학습 그룹 공존 확인(학습 그룹 `group-learning`이 M3에 들어온 뒤), `scanDriveSource` 정적 검사(group-kit G-19 뒤) | H-16, H-18 |
 | 2차 이후 | 렌즈 제안 경로(L3.helm.spec §10 미결 1), 다회 라운드와 종료 판정(미결 2), 신호 임계 설정 노출(미결 5) | 미배정 |
 
-학습 그룹과의 관계 [결정(잠정): review.decisions-2 D-10]: Helm은 다른 그룹의 레코드를 읽지 않는다. 학습 그룹이 적용한 스킬과 메모리는 L2 지식 능력(`knowledge.search`, `knowledge.skills`, `knowledge.memory`)으로 얻는다. 그래서 학습 그룹이 M3에 들어와도 Helm 코드는 바뀌지 않고, M3에는 공존 확인(H-16)만 둔다.
+학습 그룹과의 관계 [결정: review.decisions-2 D-10]: Helm은 다른 그룹의 레코드를 읽지 않는다. 학습 그룹이 적용한 스킬과 메모리는 L2 지식 능력(`knowledge.search`, `knowledge.skills`, `knowledge.memory`)으로 얻는다. 그래서 학습 그룹이 M3에 들어와도 Helm 코드는 바뀌지 않고, M3에는 공존 확인(H-16)만 둔다.
 
 ## 2. 패키지와 파일 배치
 
@@ -64,8 +64,8 @@ xeon/packages/group-helm/
     fixtures/             # 가짜 explorer 응답표, 학습 레코드 픽스처, 가짜 능력 provider
 ```
 
-- import 규칙: 소스는 `@xeon/contracts`, `@xeon/group-kit`, `typebox`만 import한다. `group-kit`은 DR-02 허용 목록 `DR-02/group-kit-helm`으로 허용된 유일한 같은 층 대상이다(eng.dependency-rules.guide DR-02, [결정(잠정): review.decisions-2 U-15]). `group-learning`, `cap-*`, `core-*`, `ext-host`는 소스에서 import하지 않는다(CM-06, DR-01·DR-02).
-- 테스트 파일은 다른 컨텍스트의 `testing` 서브패스를 import할 수 있다(eng.testing.guide §1.2, DR-14 예외 3): `@xeon/ext-host/testing`(테스트 확장 호스트), `@xeon/core-models/testing`(테이프), `@xeon/core-agents/testing`(가짜 서브에이전트 [가정]). 시계·ID 대역은 F에 `./testing` 서브패스가 없으므로 이 패키지 `test/` 안에 F `Clock`·`IdFactory` 인터페이스로 만든다 [결정(잠정): review.decisions-2 U-03].
+- import 규칙: 소스는 `@xeon/contracts`, `@xeon/group-kit`, `typebox`만 import한다. `group-kit`은 DR-02 허용 목록 `DR-02/group-kit-helm`으로 허용된 유일한 같은 층 대상이다(eng.dependency-rules.guide DR-02, [결정: review.decisions-2 U-15]). `group-learning`, `cap-*`, `core-*`, `ext-host`는 소스에서 import하지 않는다(CM-06, DR-01·DR-02).
+- 테스트 파일은 다른 컨텍스트의 `testing` 서브패스를 import할 수 있다(eng.testing.guide §1.2, DR-14 예외 3): `@xeon/ext-host/testing`(테스트 확장 호스트), `@xeon/core-models/testing`(테이프), `@xeon/core-agents/testing`(가짜 서브에이전트 [가정]). 시계·ID 대역은 F에 `./testing` 서브패스가 없으므로 이 패키지 `test/` 안에 F `Clock`·`IdFactory` 인터페이스로 만든다 [결정: review.decisions-2 U-03].
 - 파일 단위 교체: 내부 설계가 미결인 부분(`lenses.ts`, `prompts.ts`, `signals.ts`의 판정 함수)은 공개 시그니처를 고정하고 파일 안 구현만 바꾼다(§7 위험 1).
 
 ## 3. 작업 분해
@@ -89,7 +89,7 @@ xeon/packages/group-helm/
 | H-13 | 조립: `index.ts`의 `helmGroup = defineGroup(...)`, 조립 루트 등록 항목(L4.host-service 쪽 한 줄) | H-05, H-07, H-08, H-09, H-11, H-12 | S |
 | H-14 | 재생·재개 단위 테스트: `replayDrive`로 단계마다 재호출, 임대 교체 뒤 requestId 안정성 | H-13 | M |
 | H-15 | 통합 테스트: UC-2 테이프 재생(int)과 강제 종료 뒤 재개(fault) | H-13, `@xeon/ext-host/testing`, `@xeon/core-models/testing`, 가짜 서브에이전트 | M |
-| H-16 | (M3) 학습 그룹 공존 확인: `grp.learning.*` 레코드 픽스처가 있어도 `gatherContext`가 다른 그룹 레코드를 읽지 않는지 검사([결정(잠정): review.decisions-2 D-10]), 학습 그룹과 공존 통합 확인 | H-10, L3.learning M3 | S |
+| H-16 | (M3) 학습 그룹 공존 확인: `grp.learning.*` 레코드 픽스처가 있어도 `gatherContext`가 다른 그룹 레코드를 읽지 않는지 검사([결정: review.decisions-2 D-10]), 학습 그룹과 공존 통합 확인 | H-10, L3.learning M3 | S |
 | H-17 | 문서 대조: 스펙 §4.2 전이표, §3.4 kind 목록, §6 설정 표와 코드 상수 대조 테스트 | H-04, H-06, H-02 | S |
 | H-18 | (M3 이후) 정적 결정성 검사: `scanDriveSource`로 `drive.ts` 검사(테스트 26번) | H-09, L3.group-kit.plan G-19(M3) | S |
 
@@ -116,7 +116,7 @@ xeon/packages/group-helm/
 |---|---|---|
 | `@xeon/contracts` | `workspace:*` | F 타입(extensions, records, capabilities, settings) |
 | `@xeon/group-kit` | `workspace:*` | `defineGroup`, `GroupApi`, 테스트 도우미 `replayDrive`(M2), `scanDriveSource`(M3 이후) |
-| `typebox` | 1.4.2(`catalog:`, L3.group-kit.plan §4 표, eng.toolchain.guide TC-02) | 상태·레코드·설정 스키마 |
+| `typebox` | 1.3.27(`catalog:`, L3.group-kit.plan §4 표, eng.toolchain.guide TC-02) | 상태·레코드·설정 스키마 |
 
 - 참고 자료(코드 복사 없음): 사용자 의사코드(`_research/layer-plan-v2-notes.md` "Helm이 보이는 모양"), ext-points 안 1 재생·토글 보장(`_research/ext-points.md` §5), F `renderSearch`의 외부 내용 표지(F.capabilities.spec §3.9).
 
@@ -166,7 +166,7 @@ xeon/packages/group-helm/
 | 33 | `coexist.waiting-lease-keeps-signals` | 다른 그룹이 임대를 가진 동안 `pending` 유지, `phase` `idle`, 신호 기록 계속, 쓰기 거부 없음 |
 | 34 | `restore.invalid-state-resets` | `session_start`에서 스키마 위반 상태면 초기 상태 커밋과 `inquiry.finished`(`failed`) |
 
-M3 추가: `knowledge.no-cross-group-records`(H-16). `grp.learning.skill.applied`, `grp.learning.skill.proposed` 레코드 픽스처를 테스트 호스트 로그에 넣어도 `gatherContext` 결과 출처에 들어가지 않고 `readRecords` 호출은 0이다([결정(잠정): review.decisions-2 D-10]).
+M3 추가: `knowledge.no-cross-group-records`(H-16). `grp.learning.skill.applied`, `grp.learning.skill.proposed` 레코드 픽스처를 테스트 호스트 로그에 넣어도 `gatherContext` 결과 출처에 들어가지 않고 `readRecords` 호출은 0이다([결정: review.decisions-2 D-10]).
 
 ### 5.2 테이프 시나리오
 
@@ -209,7 +209,7 @@ eng.testing.guide TS-01의 `scenario` 태그는 저장소 전체에 1개(`apps/c
 | # | 위험 | 대응 |
 |---|---|---|
 | 1 | 내부 설계(렌즈 목록, 종료 판정, 신호 임계, 프롬프트 문구)가 미결이라 구현 뒤 바뀐다 | 공개 시그니처(`selectLenses`, `lensBlockFor`, `observeToolEnd`, `settleTurn`, `transition`)와 상태 스키마를 고정하고, 내용은 파일 단위(`lenses.ts`, `prompts.ts`, `signals.ts` 판정부)로 바꾼다. 1차 렌즈는 자리표시 3개로 두고 테스트는 렌즈 내용에 기대지 않는다 |
-| 2 | 서브에이전트 병렬 실행 비용이 커진다 | 임대 상한(`maxSpawns`, `maxTokens`)을 `x.primitives.driveLimits`와 `l3.helm.driveLimits`의 작은 쪽으로 건다. 기본 `maxLenses` 3. 남은 spawn 예산보다 렌즈가 많으면 앞 렌즈만 실행한다(`drive.limit-reached-releases-lease`) |
+| 2 | 서브에이전트 병렬 실행 비용이 커진다 | 임대 상한(`maxSpawns`, `maxTokens`)을 `l3.helm.driveLimits`로 걸고 천장 `x.primitives.driveLimits`로 자른다(review.decisions-2 U-12). 기본 `maxLenses` 3. 남은 spawn 예산보다 렌즈가 많으면 앞 렌즈만 실행한다(`drive.limit-reached-releases-lease`) |
 | 3 | 프롬프트 주입: 웹·지식·explorer 답의 숨은 지시가 적용 turn이나 쓰기를 유도한다 | 외부 텍스트를 DATA로 감싸고 코드 경로가 그 내용으로 분기하지 않는다(L3.helm.spec §4.7). 확산 단계 쓰기 거부, explorer 정의의 쓰기 도구 제외, 적용 단계의 일반 승인·샌드박스 정책. `knowledge.untrusted-text-wrapped` |
 | 4 | drive 클로저 상태 실수로 재개 뒤 동작이 바뀐다 | 단계당 한 분기·커밋 후 반환 구조, `replayDrive` 재호출 테스트(`drive.recall-from-committed-state-spawns-once`), 리뷰 규칙 EV-09. M3 이후 `scanDriveSource` 정적 검사(H-18)를 더한다 |
 | 5 | 선행 문서(X.primitives, L1.agents, L2 3종, group-kit)는 생겼지만 [가정]으로 남은 항목(X 요청 4개, 지점 페이로드 필드, 자식 대화의 지점 발화)이 있고, L1.tools.spec의 도구 메타 노출은 아직 정해지지 않았다(L3.helm.spec 미결 8) | Helm이 쓰는 외부 이름을 L3.helm.spec §8 요구 표에 문서 절과 함께 모았다. 이름이 바뀌면 그 표와 해당 파일 하나(`knowledge.ts`, `guard.ts`, `index.ts`)만 고친다 |

@@ -14,19 +14,19 @@ binds: [xeon/packages/platform-secrets/**]
 
 ## 1. 목표와 마일스톤 배치
 
-목표: `L0.secrets.spec`의 `xeon.secrets`(`SecretService`)와 `xeon.secretAdmin`(`SecretAdminService`, [결정(잠정): review.decisions-2 D-04])을 구현한다. 값은 부모 프로세스의 lease 안에만 있고, 모델 컨텍스트·이벤트·로그·도구 자식 env에 나오지 않아야 한다.
+목표: `L0.secrets.spec`의 `xeon.secrets`(`SecretService`)와 `xeon.secretAdmin`(`SecretAdminService`, [결정: review.decisions-2 D-04])을 구현한다. 값은 부모 프로세스의 lease 안에만 있고, 모델 컨텍스트·이벤트·로그·도구 자식 env에 나오지 않아야 한다.
 
 [결정] 마일스톤 M1에 "SOPS 비밀 참조 1종"이 `xeon chat` 도구 호출에서 해석된다(`_research/foundation-plan.md` §5 P4 M1). `L0.readme` §2.2도 M1에 secrets(SOPS 참조 1종)를 둔다.
 
 | 단계 | 범위 | 근거 |
 |---|---|---|
 | M0 | 코드 없음. 선행 조건: contracts에 spec 8.3절 R1의 참조 형식·순수 함수·값 타입(`capabilities/secrets.ts`, `F.capabilities.spec` §3.10, `F.capabilities.plan` P8)과 R1-a·R2의 서비스 인터페이스·이름 상수(`services/secrets.ts`, `services/secret-admin.ts`, `F.capabilities.spec` §3.12, `F.capabilities.plan` P9)가 들어간다. `platform-os`의 경로·Clock·RandomSource 최소형(`L0.readme` §2.2 os M0 행) | `_research/foundation-plan.md` §5 P4 M0 |
-| M1 | `SecretProvider` 인터페이스 구현 틀, SOPS 제공자(목록·lease), 메타 파일 읽기, lease, 모드 M1 에이전트 env 주입(`withEnv`, bash 도구, 실행마다 승인. exec 쪽은 `L0.exec.plan` EX-13) [결정(잠정): review.decisions-2 U-19], 모드 M3(`withHttp`), 마스킹 기본 계층(`Redactor` 규칙 1~3, 계층 2·4·5 연결), 자식 env 필터, 감사 훅(`onAudit`), 키 획득은 OS 1종 이상 + 파일 폴백, `diagnose()` 안내문 | spec §4.3 단계 열, `_research/foundation-plan.md` §5, review.decisions-2 U-19 |
-| M2 | 관리 서비스 전체(`ls`, `add`, `set`, `meta`, `rotate`, `rm`, `test`, `run`, `references`, `usage`, `reveal`. `reveal`은 CLI `xeon secret reveal`이 먼저 쓰고 데스크톱 화면은 M3다 [결정(잠정): review.decisions-2 U-20]), 모드 M4(`withBrowserInput`), 마스킹 5계층 전체 연결(1·3계층 포함), 키체인 provider 3 OS(Windows는 [미결] 해소 뒤), 감사 파일 | `product.scope.spec` §4.4 M2 행(비밀 관리 명령), spec §6.3 |
+| M1 | `SecretProvider` 인터페이스 구현 틀, SOPS 제공자(목록·lease), 메타 파일 읽기, lease, 모드 M1 에이전트 env 주입(`withEnv`, bash 도구, 실행마다 승인. exec 쪽은 `L0.exec.plan` EX-13) [결정: review.decisions-2 U-19], 모드 M3(`withHttp`), 마스킹 기본 계층(`Redactor` 규칙 1~3, 계층 2·4·5 연결), 자식 env 필터, 감사 훅(`onAudit`), 키 획득은 OS 1종 이상 + 파일 폴백, `diagnose()` 안내문 | spec §4.3 단계 열, `_research/foundation-plan.md` §5, review.decisions-2 U-19 |
+| M2 | 관리 서비스 전체(`ls`, `add`, `set`, `meta`, `rotate`, `rm`, `test`, `run`, `references`, `usage`, `reveal`. `reveal`은 CLI `xeon secret reveal`이 먼저 쓰고 데스크톱 화면은 M3다 [결정: review.decisions-2 U-20]), 모드 M4(`withBrowserInput`), 마스킹 5계층 전체 연결(1·3계층 포함), 키체인 provider 3 OS(Windows는 [미결] 해소 뒤), 감사 파일 | `product.scope.spec` §4.4 M2 행(비밀 관리 명령), spec §6.3 |
 | 후속 | 모드 M2 sentinel 프록시(`xeon.sandbox` 프록시 훅 `L0.sandbox.plan` SB-16, TLS 종단), 값 저장 제공자 플러그인(1Password `op`, Bitwarden `bws`, 키체인 `keychain`) | spec §4.3, §10 6·7번 |
 
 - [제안] M1 키 획득: Linux(Secret Service)와 파일 폴백을 먼저 만든다. 개발과 CI가 Linux·WSL이고, WSL에는 Secret Service가 대부분 없기 때문이다. macOS Keychain은 M1 안에서 명령 구성만 만들고 실기 확인은 M2 완료 기준에 둔다.
-- [결정(잠정): review.decisions-2 U-19] M1 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다(spec §10 2번). SC-15와 SC-22를 M1에 둔다.
+- [결정: review.decisions-2 U-19] M1 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다(spec §10 2번). SC-15와 SC-22를 M1에 둔다. 승인 증거 전달은 M2 승인 프로토콜 작업에서 완성한다. 모델 provider 키는 M1부터 `runtime-http`로 lease하고 `policy.test.ts`가 이 허용을 확인한다(spec §9 14번).
 
 ## 2. 패키지와 파일 배치
 
@@ -148,6 +148,7 @@ xeon/packages/platform-secrets/
 | | `wildcard host matches subdomain only` | `*.example.test`가 `example.test`와 맞지 않는다 |
 | | `env mode requires per-use approval` | 메타 `none`이어도 `approval_missing` |
 | | `expired secret denied` | 메타 `expiresAt` 지남 → `expired` |
+| | `runtime-http lease for model provider key` | spec §9 14번. 허용 호스트면 lease, 다른 호스트면 `host_mismatch`, 모드 미허용이면 `mode_not_allowed`(review.decisions-2 U-19 보충) |
 | `http-mode.test.ts` | `substitutes handle in header only for allowed host` | 치환된 요청이 `send`에만 간다 |
 | | `rejects handle in url` | `invalid_ref` |
 | | `flags echoed response` | 응답 본문에 값 → `echoed: true` |
@@ -178,12 +179,12 @@ xeon/packages/platform-secrets/
 ## 6. 완료 기준
 
 1. `just verify`가 종료코드 0이다.
-2. M1 스모크 [결정(잠정): review.decisions-2 U-19]: 모델 테이프로 `xeon chat` 한 턴을 돌릴 때 bash 도구가 `secret://` 참조 1개를 env 주입으로 쓴다(사용 모드 M1, 실행마다 승인, 메타 `use.commands`에 시험 명령 등록). 시험 명령은 받은 env 값의 길이와 해시 비교 결과만 출력한다. 다음 검사를 통과한다.
+2. M1 스모크 [결정: review.decisions-2 U-19]: 모델 테이프로 `xeon chat` 한 턴을 돌릴 때 bash 도구가 `secret://` 참조 1개를 env 주입으로 쓴다(사용 모드 M1, 실행마다 승인, 메타 `use.commands`에 시험 명령 등록). 시험 명령은 받은 env 값의 길이와 해시 비교 결과만 출력한다. 다음 검사를 통과한다.
    - 시험 명령이 기대한 값을 받았다고 보고한다(종료 코드 0).
    - 이벤트 DB 전체, blob, 운영 로그, 모델 요청 본문(테이프 기록), CLI stdout·stderr에 값과 변형(base64, URL, hex, JSON 이스케이프)이 없다.
    - 승인을 거부한 같은 시나리오는 `secret.denied`(`approval_missing`) 레코드를 남기고 자식 프로세스를 띄우지 않는다. 명령 패턴 밖 명령은 `command_mismatch`다.
 3. 픽스처: gitleaks 대상 경로(`test/fixtures/**`)에 실제 비밀과 age 키가 없다. lefthook pre-commit gitleaks가 통과한다.
-4. spec §9 수용 기준 1~13이 아래 표의 테스트로 대응된다.
+4. spec §9 수용 기준 1~14가 아래 표의 테스트로 대응된다.
 
 | spec §9 | 테스트 |
 |---|---|
@@ -200,6 +201,7 @@ xeon/packages/platform-secrets/
 | 11 | `registerKnown rejects short values` |
 | 12 | `platform branch only in select.ts` |
 | 13 | `withEnv opens lease for matching command`, `withEnv denies command outside pattern`(SC-22) |
+| 14 | `runtime-http lease for model provider key` |
 5. M2: 관리 서비스 메서드 전부와 M4가 테스트를 통과하고, macOS와 Linux 데스크톱에서 키체인 provider 실기 확인 기록(대화상자 횟수 포함)을 남긴다. 실기 확인은 수동 항목이다.
 
 ## 7. 위험과 대응

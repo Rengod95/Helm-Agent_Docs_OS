@@ -52,8 +52,8 @@ Xeon(임시 이름)은 CLI와 데스크톱으로 배포하는 대화형 에이�
 | 확장 지점 4연산 | `on`(fold: tap, first, chain), `post`(when: steer, followUp, next), `drive`(배타 임대), `scope`(그룹 단위 켜기·끄기). ADR-0007. |
 | post 큐 모드 | ADR-0007 §3.1 표를 따른다. `steer`는 다음 도구 라운드 뒤, `followUp`은 에이전트 정착 뒤 입력으로 들어간다. `next`는 경계 뒤 정확히 한 요청에 들어가고, 그 요청을 스스로 시작하는지는 [미결](ADR-0007 §6)이다. |
 | 지점 종류 | [제안] input, request, tool, boundary, session. 종류 수와 지점 이름은 사용자 합의 전이다(ADR-0007 §3.3). |
-| drive 임대 | 그룹 하나가 턴 구동을 독점하는 권한. 상한은 `{maxTurns, maxSpawns, maxTokens}`(`F.extensions.spec`의 `DriveLimits`)다. X 설정 `x.primitives.driveLimits`의 기본값은 상한 없음(`{}`)이다. Helm은 `l3.helm.driveLimits` 기본값 `{maxTurns: 4, maxSpawns: 8, maxTokens: 400000}`을 넘긴다. drive는 사용자 입력 없이 턴을 만들기 때문에 이 기본 상한을 pi 방식(기본 상한 없음)의 예외로 둔다 [결정(잠정): review.decisions-2 U-12]. |
-| 단계 경계 | step(모델 요청 한 번과 그 도구 실행)이 끝나고 다음 step이 시작하기 전의 지점이다. `turn_end` 지점 처리 직후이며 한 턴 안에 여러 번 있다. 그룹 켜기·끄기와 임대 반납이 여기서 적용된다(`F.conversation.spec` §2.1, `F.extensions.spec` §4.5). 사용자 결정 원문의 '턴 경계'는 이 지점으로 읽는다. drive 임대 교대도 같은 시점이다 [결정(잠정): review.decisions-2 U-01]. |
+| drive 임대 | 그룹 하나가 턴 구동을 독점하는 권한. 상한은 `{maxTurns, maxSpawns, maxTokens}`(`F.extensions.spec`의 `DriveLimits`)다. 상한을 명시하지 않은 임대는 X 설정 `x.primitives.driveDefaultLimits` 기본값 `{maxTurns: 4, maxSpawns: 8, maxTokens: 400000}`을 쓴다. Helm은 `l3.helm.driveLimits`(같은 기본값)로 덮어쓴다. 두 값 모두 설정 화면에서 조정한다. drive는 사용자 입력 없이 턴을 만들기 때문에 이 기본 상한을 pi 방식(기본 상한 없음)의 예외로 둔다 [결정: review.decisions-2 U-12]. |
+| 단계 경계 | step(모델 요청 한 번과 그 도구 실행)이 끝나고 다음 step이 시작하기 전의 지점이다. `turn_end` 지점 처리 직후이며 한 턴 안에 여러 번 있다. 그룹 켜기·끄기와 임대 반납이 여기서 적용된다(`F.conversation.spec` §2.1, `F.extensions.spec` §4.5). 사용자 결정 원문의 '턴 경계'는 이 지점으로 읽는다. drive 임대 교대도 같은 시점이다 [결정: review.decisions-2 U-01]. |
 
 ## 3. 인터페이스
 

@@ -67,7 +67,7 @@ binds: [xeon/packages/core-tools/**]
 
 ## 3. 인터페이스
 
-서비스 인터페이스 `ToolService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정(잠정): review.decisions-2 D-04]. `ApprovalService`도 같은 서브패스에 두도록 요청한다. 도구·정책·승인의 공용 타입은 F `@xeon/contracts/capabilities`의 `tools.ts`, `policy.ts`, `approvals.ts`에 둔다 [제안](eng.context-map.design §5.3 표의 "F 인터페이스(위치)" 열). L1 패키지끼리 import하지 않으므로 L1.loop, L1.agents, L2가 이 타입을 쓰려면 F에 있어야 한다. F.capabilities.spec에 이전을 요청한다(§8.3). 아래 블록의 파일 경로는 이전 뒤 위치다. 구현은 `core-tools`가 한다.
+서비스 인터페이스 `ToolService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. `ApprovalService`도 같은 서브패스에 두도록 요청한다. 도구·정책·승인의 공용 타입은 F `@xeon/contracts/capabilities`의 `tools.ts`, `policy.ts`, `approvals.ts`에 둔다 [제안](eng.context-map.design §5.3 표의 "F 인터페이스(위치)" 열). L1 패키지끼리 import하지 않으므로 L1.loop, L1.agents, L2가 이 타입을 쓰려면 F에 있어야 한다. F.capabilities.spec에 이전을 요청한다(§8.3). 아래 블록의 파일 경로는 이전 뒤 위치다. 구현은 `core-tools`가 한다.
 
 [제안] agent-core 타입의 출처: `eng.dependency-rules.guide` DR-07은 `@earendil-works/pi-agent-core`의 import를 core-loop에만 허용한다. 그래서 F capabilities의 `tools.ts`와 core-tools는 이 패키지를 직접 import하지 않고, F conversation이 다시 export한 이름(`F.conversation.spec` §3.1 `pi.ts`의 `AgentTool`, `AgentEvent` 등)만 쓴다. 재노출 목록에 없는 `AgentLoopConfig`, `AgentToolCall`은 추가를 요청한다(§8.3 F 요청 7). agent-core 값(`runToolCall` 등)을 부르는 일은 core-loop가 한다(§4.2, §4.7).
 
@@ -239,7 +239,7 @@ export interface ToolService extends ToolsPort {
 }
 ```
 
-- [결정(잠정): review.decisions-2 D-04] `ToolService`는 `ToolsPort`(`F.extensions.spec` §3.2.1 `ports.ts`, X.primitives.spec §3.9)를 확장한다(`F.capabilities.spec` §3.12 규칙 2, `services/tools.ts`). X는 같은 서비스 이름 `xeon.tools`에 별도 인터페이스를 등록하지 않고, 확장의 `hostOf(g).registerTool(def)`는 `register(owner, def)` 오버로드로 들어온다. 이 오버로드가 `ToolsPort`를 충족한다.
+- [결정: review.decisions-2 D-04] `ToolService`는 `ToolsPort`(`F.extensions.spec` §3.2.1 `ports.ts`, X.primitives.spec §3.9)를 확장한다(`F.capabilities.spec` §3.12 규칙 2, `services/tools.ts`). X는 같은 서비스 이름 `xeon.tools`에 별도 인터페이스를 등록하지 않고, 확장의 `hostOf(g).registerTool(def)`는 `register(owner, def)` 오버로드로 들어온다. 이 오버로드가 `ToolsPort`를 충족한다.
 - `register(owner, def)` 변환 규칙 [제안]: `orderKey`는 `ext.<owner의 확장 이름>`, `tool`은 `def.name`·`def.description`·`def.parameters`와 `def.execute`를 감싼 `AgentTool`, 재생 정책은 `def.replay`다. `hints`·`policy`·`exposure`·`outputLimits`는 생략하고 §4.6 유도 규칙을 따른다. 반환 `Unregister`는 F `Unsubscribe`와 같은 모양(`() => void`)이다. owner scope가 dispose되면 X가 이 함수를 부른다.
 
 ```ts
@@ -523,7 +523,7 @@ export const ApprovalResolutionSchema: TSchema;
 ```
 
 - wire 대응: `approval.respond { approvalId, decision, answer?, remember? }`(F.wire-settings.spec §3.3.1)가 `ApprovalService.respond(approvalId, { decision, answer, remember })`로 그대로 들어간다. 호스트(L4 host)가 이 호출을 한다.
-- `approvalId`: 승인 요청은 내구 이벤트 `approval.requested`와 호스트 메서드 `approval.respond`로 한다 [결정(잠정): review.decisions-2 U-02]. `approvalId`는 `approval.requested` 이벤트의 `EventId`(`evt_` 접두)다. 같은 `requestKey` 재요청은 저장된 커밋 결과를 돌려받으므로(`replayed: true`) 같은 `approvalId`가 나온다.
+- `approvalId`: 승인 요청은 내구 이벤트 `approval.requested`와 호스트 메서드 `approval.respond`로 한다 [결정: review.decisions-2 U-02]. `approvalId`는 `approval.requested` 이벤트의 `EventId`(`evt_` 접두)다. 같은 `requestKey` 재요청은 저장된 커밋 결과를 돌려받으므로(`replayed: true`) 같은 `approvalId`가 나온다.
 - 종류별 응답 규칙:
 
 | kind | 허용 decision | answer | remember |
@@ -534,7 +534,7 @@ export const ApprovalResolutionSchema: TSchema;
 
 ### 3.7 결과 경계화 (`core-tools/src/bound.ts`)
 
-출력 절단 함수(pi durable `truncate.ts` 포크)는 L0 `platform-exec`에 둔다. core-tools와 L2는 그 함수를 F 서비스 `xeon.exec`로 부른다 [결정(잠정): review.decisions-2 D-08]. 아래는 core-tools가 쓰는 모양이다. 메서드 이름과 F 위치(`@xeon/contracts/services`)는 `L0.exec.spec`이 정한다.
+출력 절단 함수(pi durable `truncate.ts` 포크)는 L0 `platform-exec`에 둔다. core-tools와 L2는 그 함수를 F 서비스 `xeon.exec`로 부른다 [결정: review.decisions-2 D-08]. 아래는 core-tools가 쓰는 모양이다. 메서드 이름과 F 위치(`@xeon/contracts/services`)는 `L0.exec.spec`이 정한다.
 
 ```ts
 // platform-exec가 제공하는 절단(원본 truncate.ts의 export 이름과 시그니처 그대로). core-tools는 xeon.exec로 받는다
@@ -588,7 +588,7 @@ core-tools가 쓰는 코어 kind(F.records.spec §3.3 카탈로그):
 
 | kind | 시점 | requestId [제안] |
 |---|---|---|
-| `effect.intent` | 정책·승인 통과 뒤, 실행 전(§4.2 6단계) | `tool:<toolCallId>:intent` |
+| `effect.intent` | 정책·승인 통과 뒤, 실행 전(§4.2 6단계) | `tool:<toolCallId>:intent`. 이 표의 `<toolCallId>`는 F `commitKeyPart`의 값이다(review.decisions-2 U-13) |
 | `effect.exec` | 키 잠금·슬롯을 얻은 뒤 실행 직전(§4.2 7d단계) | `tool:<toolCallId>:exec` |
 | `effect.result` + toolResult `item.recorded` | 결과 경계화 뒤 한 커밋(§4.2 10단계) | `tool:<toolCallId>:result` |
 | `settings.changed` | 권한 모드 변경(세션 범위) | `mode:<threadId>:<clientUlid>` |
@@ -697,7 +697,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 2. `effect.intent` 필드: `effectId`(IdFactory `efx_`), `toolCallId`, `toolName`, `itemId`(도구 호출 item), `argsHash`(최종 인자 정규화 JSON의 sha256 hex), `args`(256 KiB를 넘으면 `BlobRef`), `replay`(§4.3), `idempotencyKey`(도구가 주면 그 값, 없으면 null). F.records.spec §3.5와 같다.
 3. `effect.exec`는 의도와 별도 커밋이다 [제안]. 두 커밋을 나누면 재개 때 "실행 시작 전 중단"(`not_started`)과 "실행 중 중단"(`outcome_unknown`)이 구분된다(F.records.spec §3.5 결정표).
 4. `effect.result`와 toolResult `item.recorded`는 한 커밋이다. `effect.result.resultItemId`는 같은 커밋의 item id, `output`은 `{ structuredContent, terminate, status, inputRequired }`, `blobRef`는 경계화로 옮긴 원문(§4.8), `durationMs`는 어댑터가 잰 실행 시간이다.
-5. 도구별 커밋: 의도·실행·결과는 도구 호출마다 따로 커밋한다(E1 의도, E2 실행 시작, E3 결과). ADR-0004 §3.2 3번의 보충으로 올리고 단계당 커밋 수는 `3 + 3n`이다 [결정(잠정): review.decisions-2 U-10]. eng.transactions.design §4.1 C3은 모델 응답 확정 커밋에 호출마다 의도를 넣는다고 적었지만, 승인 대기(§4.7)가 의도 앞에 오므로 응답 확정 때는 의도를 쓸 수 없다. architecture.runtime-flow.design §4.1 그림도 도구마다 의도를 커밋한다. eng.transactions.design은 이 모양으로 고쳤다(§4.1·TX-08).
+5. 도구별 커밋: 의도·실행·결과는 도구 호출마다 따로 커밋한다(E1 의도, E2 실행 시작, E3 결과). ADR-0004 §3.2 3번의 보충으로 올리고 단계당 커밋 수는 `3 + 3n`이다 [결정: review.decisions-2 U-10]. eng.transactions.design §4.1 C3은 모델 응답 확정 커밋에 호출마다 의도를 넣는다고 적었지만, 승인 대기(§4.7)가 의도 앞에 오므로 응답 확정 때는 의도를 쓸 수 없다. architecture.runtime-flow.design §4.1 그림도 도구마다 의도를 커밋한다. eng.transactions.design은 이 모양으로 고쳤다(§4.1·TX-08).
 6. 커밋은 모두 `xeon.session`의 커밋 경로(eng.transactions.design TX-07 `SessionWriter.commit`)로 한다. core-tools는 세션 테이블에 직접 쓰지 않는다.
 
 ### 4.5 정책 평가
@@ -803,7 +803,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 6. 모델이 원문을 다시 읽는 도구 [제안]: M2에 내장 도구 `read_tool_output`(인자 `sha256`, `offset`, `limit`, risk `read`)을 둔다. M1은 안내 문장만 둔다.
 7. 꼬리 보존 미리보기(bash처럼 끝부분이 중요한 출력)는 durable 포크에 `truncateTail`이 없어 1차에 두지 않는다. 필요한 도구는 `"self"`로 스스로 처리한다. 공통 꼬리 모드를 둘지는 [미결](§10)이다.
 
-truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `platform-exec`에 둔다. core-tools와 L2.workspace의 read·bash 포크는 같은 함수를 F 서비스 `xeon.exec`로 부른다. L1과 L2가 구현 패키지를 import하지 않으므로 사본이나 F 순수 함수가 필요 없다 [결정(잠정): review.decisions-2 D-08]. adr.0003 §3 표의 `D/src/truncate.ts` 행 위치를 `xeon/packages/platform-exec`로 고치는 일은 §8.4에 적는다.
+truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `platform-exec`에 둔다. core-tools와 L2.workspace의 read·bash 포크는 같은 함수를 F 서비스 `xeon.exec`로 부른다. L1과 L2가 구현 패키지를 import하지 않으므로 사본이나 F 순수 함수가 필요 없다 [결정: review.decisions-2 D-08]. adr.0003 §3 표의 `D/src/truncate.ts` 행 위치를 `xeon/packages/platform-exec`로 고치는 일은 §8.4에 적는다.
 
 ### 4.9 재생
 
@@ -816,7 +816,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 - agent-core 1.3.0 `BeforeToolCallResult`에는 `args` 필드가 없다(agent `types.ts:66-74`, `_research/notes/L1-1.md` §3(e)). `beforeToolCall` 인자 객체의 제자리 변경은 동작하지만 문서 계약이 아니다.
 - 그래서 인자 재작성은 2차로 둔다. 도입하려면 agent-core 포크로 `BeforeToolCallResult.args`를 더하고 재검증한다(`docs/design/07-pi-reuse-and-fork.md` §3.5 A4, `_research/packages.md` §4.3 L1-d "인자 재작성: 포크하면 필드 하나 추가").
-- `tool_call` 지점에서는 인자를 바꿀 수 없다. 이 지점의 결정은 허용·거부·결과 대체뿐이다. 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해지기 때문이다. 확장의 인자 변경이 필요하면 2차에 별도 chain 지점을 더한다 [결정(잠정): review.decisions-2 U-06].
+- `tool_call` 지점에서는 인자를 바꿀 수 없다. 이 지점의 결정은 허용·거부·결과 대체뿐이다. 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해지기 때문이다. 확장의 인자 변경이 필요하면 2차에 별도 chain 지점을 더한다 [결정: review.decisions-2 U-06].
 - 포크 없는 대안(L1.loop.spec §3.3 A4 행): 실행 함수는 core-tools 어댑터가 만들므로, 교체 인자를 core-tools가 재검증해 의도 표에 넣고 어댑터 `execute`가 agent-core가 넘긴 `params` 대신 그 값을 쓸 수 있다. `effect.intent.args`도 교체 인자다. 이 방식은 agent-core를 고치지 않는다. 단, `afterToolCall`·`tool_execution_*` 이벤트의 `args`는 원래 인자로 남으므로 지점 페이로드에는 core-tools가 교체 인자를 따로 싣는다. [제안] 2차 착수 때 이 대안을 먼저 검토하고, 재검증 실패를 `invalid_args` 결과로 낼 수 없거나 F 결정과 맞지 않으면 포크한다(포크 비용은 L1.tools.plan §7).
 - 도입 뒤 규칙 [제안]: 재작성된 인자는 스키마 검증을 다시 거치고, 승인 요청에는 재작성된 인자를 싣는다. `effect.intent.args`는 재작성 뒤 값이다. 승인자가 본 인자와 실행되는 인자가 같아야 하기 때문이다(`_research/item-catalog.md` L1-d "인자 재작성과 재검증").
 
@@ -840,7 +840,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 - M1 종료 조건의 비밀 항목(`product.scope.spec` §4.4 M1 행: SOPS 비밀 참조 1종을 쓰는 도구 호출에서 값이 이벤트 DB와 모델 요청 본문에 없다)은 위 표대로 나뉜다. L1.tools 몫은 승인·명령 패턴과 2계층 마스킹이다. 주입과 lease는 L0.exec·L0.secrets 몫이다. 세 몫을 한 번에 확인하는 것은 `apps/cli` M1 스모크 시나리오다(L1.tools.plan §6).
 - [미결] lease를 부르는 쪽이 문서마다 다르다. L0.exec.spec §3.6은 `xeon.exec`가 `secretEnv`마다 lease를 얻는다고 적었고, L0.secrets.spec §8.1 제공 표는 L1.tools가 `lease`를 쓴다고 적었다. 이 문서는 L0.exec 쪽을 따른다.
-- M1 비밀 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다 [결정(잠정): review.decisions-2 U-19]. L1.tools 몫은 실행마다의 승인(§4.7)과 2계층 마스킹이다.
+- M1 비밀 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다 [결정: review.decisions-2 U-19]. L1.tools 몫은 실행마다의 승인(§4.7)과 2계층 마스킹이다.
 - [미결] M1에서 모델 도구 호출이 `secretEnv`를 받는 경로. L2.workspace.spec §3.3은 `secretEnv`를 모델 도구 파라미터에 두지 않는다. 참조를 bash 실행 옵션으로 넘기는 위치는 L2.workspace.spec과 정한다.
 
 ## 5. 실패와 경계 사례
@@ -945,7 +945,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 ### 8.4 다른 문서 수정 요청
 
-- adr.0003 §3 표·§6, L0.exec.spec §1·§3, L2.workspace.spec: `D/src/truncate.ts` 포크 위치를 `xeon/packages/platform-exec`로 고치고 `xeon.exec`에 절단 메서드를 둔다 [결정(잠정): review.decisions-2 D-08].
+- (반영됨) adr.0003 §3 표·§6, L0.exec.spec §1·§3, L2.workspace.spec: `D/src/truncate.ts` 포크 위치를 `xeon/packages/platform-exec`로 고치고 `xeon.exec`에 절단 메서드(`truncateHead`, `formatSize`)를 둔다 [결정: review.decisions-2 D-08].
 - eng.context-map.design §5.1: `tool.` 접두 행을 `effect.`로 바꾸고 `approval.` 행 type 이름을 F 형식으로 맞춘다. §4.1 `tool-runtime` 행의 쓰는 서비스에 `xeon.store`(blob)를 더한다.
 - L2.dialog.spec, L2.work.spec: 질문 도구와 계획 도구는 `replay: "safe"`, `risk: "read"`, `classes: ["user_interaction"]`를 선언하고 `xeon.approvals.request`를 실행 안에서 부른다(§4.7).
 
@@ -976,7 +976,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 ## 10. 미결 사항
 
 - [미결] 서비스 모드 유휴 종료에서 승인 대기 세션을 live로 셀지(architecture.runtime-flow.design §7). 이 문서와 L1.tools.plan은 M2까지 live로 취급한다.
-- [결정(잠정): review.decisions-2 U-06] `tool_call` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 별도 chain 지점을 더한다(§4.10).
+- [결정: review.decisions-2 U-06] `tool_call` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 별도 chain 지점을 더한다(§4.10).
 - [미결] 꼬리 보존 미리보기의 공통 모드(§4.8 7번).
 - [미결] 재실행 시도 횟수 기록 방식과 상한(§4.9). eng.transactions.design `MAX_REPLAY_ATTEMPTS`와 F.records.spec 결정표의 연결.
 - [미결] `input_required` 출력 변형의 판별 필드 이름(§4.3). F.capabilities.spec §3.6이 이 문서에 맡겼다.

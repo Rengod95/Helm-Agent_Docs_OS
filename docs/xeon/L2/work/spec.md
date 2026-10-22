@@ -1083,7 +1083,7 @@ stateDiagram-v2
 
 - 스레드마다 활성 목표는 하나다. 활성 목표가 있는데 `set`을 부르면 `goal_active`다. `replace: true`면 이전 목표를 `cleared`로 끝내고 새 목표를 같은 커밋에 건다.
 - `set` 시점에 `judge` 생략값은 `{ kind: "model" }`, `continuation` 생략값은 `"self"`다. 값은 `work.goal_set`에 기록한다.
-- 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다(L1.agents 소유, 기본 3, `(threadId, goalRef)`마다) [결정(잠정): review.decisions-2 S-06]. 이 능력은 상한 키를 따로 두지 않고 목표별 상한 인자도 받지 않는다. `goalRef`는 `goalId`다. `Goal.maxRuns`는 목표 설정 시점의 값을 표시용으로 기록한 것이다.
+- 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다(L1.agents 소유, 기본 3, `(threadId, goalRef)`마다) [결정: review.decisions-2 S-06]. 이 능력은 상한 키를 따로 두지 않고 목표별 상한 인자도 받지 않는다. `goalRef`는 `goalId`다. `Goal.maxRuns`는 목표 설정 시점의 값을 표시용으로 기록한 것이다.
 - 판정 계기: 활성 목표가 있는 스레드에서 `turn.completed`(F.records.spec §3.3, eng.events.design의 `turn.ended`와 같은 기록 [가정])가 커밋되면 cap-work가 그 턴을 판정한다. 턴 종결 상태가 `interrupted`면 판정하지 않는다. 사용자가 끊은 턴은 다음 턴 시작을 원하지 않는다는 뜻으로 본다. `failed`면 판정한다. 실패도 증거다.
 - 판정 순서:
   1. 판정 대상 턴 T. 같은 목표에 T의 판정이 이미 있으면 아무것도 하지 않는다(`cap_work_goal_judgments`의 `UNIQUE(goal_id, turn_id)`).
@@ -1099,7 +1099,7 @@ stateDiagram-v2
 
 #### 4.3.3 기본 판정자: 판정 모델
 
-- 판정 모델 호출은 L1.agents의 `judge`(`L1.agents.spec` §3.4, §4.8)로 한다. L1.agents가 L1.models 역할 표의 `judge` 역할(설정 `l1.models.routing.judge`, 대체 순서 `review` → `main`)로 모델을 고르고, 상한 `l1.agents.judge.maxRuns`를 세며, `agent.judged`를 자기 커밋으로 남긴다 [결정(잠정): review.decisions-2 S-06]. 이 능력은 판정 역할 키를 따로 두지 않는다.
+- 판정 모델 호출은 L1.agents의 `judge`(`L1.agents.spec` §3.4, §4.8)로 한다. L1.agents가 L1.models 역할 표의 `judge` 역할(설정 `l1.models.routing.judge`, 대체 순서 `review` → `main`)로 모델을 고르고, 상한 `l1.agents.judge.maxRuns`를 세며, `agent.judged`를 자기 커밋으로 남긴다 [결정: review.decisions-2 S-06]. 이 능력은 판정 역할 키를 따로 두지 않는다.
 - 증거(`GoalEvidence`) [제안]:
 
 ```ts
@@ -1223,7 +1223,7 @@ export interface JudgePort {
 | `l2.work.tasks.autoStart` | boolean | false | — | nextTurn | user, project, local, session | tools | false | 화면, 파일 |
 | `l2.work.tasks.reminderTurns` | integer | 0(끔) | min 0, max 50 | nextTurn | user, project, local, session | tools | false | 화면, 파일 |
 
-- 판정 상한과 판정 모델 역할은 이 능력의 키가 아니다. 상한은 `l1.agents.judge.maxRuns`(L1.agents.spec §6, `ui.tab` `models`), 역할 라우팅은 `l1.models.routing.judge`(L1.models.spec)다 [결정(잠정): review.decisions-2 S-06].
+- 판정 상한과 판정 모델 역할은 이 능력의 키가 아니다. 상한은 `l1.agents.judge.maxRuns`(L1.agents.spec §6, `ui.tab` `models`), 역할 라우팅은 `l1.models.routing.judge`(L1.models.spec)다 [결정: review.decisions-2 S-06].
 - `requireApproval`을 `managed`에서 잠그면 조직이 계획 승인을 강제할 수 있다.
 - `l1.agents.judge.maxRuns`는 runtimeChange `nextTurn`이라 진행 중인 목표에도 다음 판정부터 적용된다. `Goal.maxRuns`는 설정 시점의 표시값이다.
 - `requireApproval`, `exitOnApprove`는 `permissions` 탭에 둔다. 계획 승인 강제는 권한 성격이라 이 탭이 맞다고 본다 [제안]. `L2.readme` §7.2 표의 `permissions` 행이 이 두 키를 적는다. 확정은 L4.settings-ui.spec이 한다(§10 W-8).
@@ -1342,5 +1342,5 @@ export const manifest = defineManifest({
 - W-9 [미결] `work.reports` 마일스톤. 이 문서와 `L2.readme` §2는 목표 종결 보고 때문에 M3로 둔다. JSON의 2차 표기와 다른 배치이므로 `L2.readme` §10 미결 17에서 사용자가 확인한다.
 - W-10 [미결] work → `dialog.commands` 선택 의존. `L2.readme` §6 표에 [미결] 간선으로 올렸다(`L2.readme` §10 미결 16). 순환은 생기지 않는다(dialog는 work를 부르지 않고 등록된 처리기만 실행한다, `L2.dialog.spec` §4.3). 넣지 않으면 명령 등록을 L4 클라이언트가 직접 한다.
 - W-11 [미결] 작업 상태 5종의 확정(`failed` 포함 여부)과 `failed` 선행 작업이 막힘을 유지하는 규칙.
-- W-12 [결정(잠정): review.decisions-2 S-06] 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다. 이 능력은 판정 상한 키와 판정 역할 키를 두지 않는다(§6.1).
+- W-12 [결정: review.decisions-2 S-06] 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다. 이 능력은 판정 상한 키와 판정 역할 키를 두지 않는다(§6.1).
 - W-13 [미결] 목표의 `continuation` 필드와 루프 결합 규칙(§4.3.5). `L2.readme` §10 미결 18과 같은 항목이다.

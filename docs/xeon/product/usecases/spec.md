@@ -33,7 +33,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 | 행위자 | 유즈케이스를 시작하거나 그 결과를 받는 주체. 사용자, 모델, 그룹, 서비스 프로세스, 원격 클라이언트. |
 | 입력 큐 | 사용자 입력과 `post` 항목이 들어가는 내구 큐. L1-a(`core-tasks`)가 소유한다. |
 | 큐 모드 | `post`의 `when` 값. 정의는 ADR-0007 §3.1 표를 따른다. `steer`는 다음 도구 라운드 뒤 입력으로 들어간다. `followUp`은 에이전트 정착 뒤 입력으로 들어간다. `next`는 경계 뒤 정확히 한 요청에 들어간다. `next`가 그 요청을 스스로 시작하는지는 [미결](ADR-0007 §6)이다. |
-| 단계 경계 | step(모델 요청 한 번과 그 도구 실행)이 끝나고 다음 step이 시작하기 전의 지점이다. `turn_end` 지점 처리 직후이며 한 턴 안에 여러 번 있다. 그룹 켜기·끄기, drive 임대 부여, 임대 반납이 여기서 적용된다(`F.conversation.spec` §2.1, `F.extensions.spec` §4.5). 사용자 결정 원문의 '턴 경계'는 이 지점으로 읽는다 [결정(잠정): review.decisions-2 U-01]. |
+| 단계 경계 | step(모델 요청 한 번과 그 도구 실행)이 끝나고 다음 step이 시작하기 전의 지점이다. `turn_end` 지점 처리 직후이며 한 턴 안에 여러 번 있다. 그룹 켜기·끄기, drive 임대 부여, 임대 반납이 여기서 적용된다(`F.conversation.spec` §2.1, `F.extensions.spec` §4.5). 사용자 결정 원문의 '턴 경계'는 이 지점으로 읽는다 [결정: review.decisions-2 U-01]. |
 | 공유 서비스 모드 | `xeon service`. 클라이언트가 없으면 자동 기동하고 연결과 작업이 없으면 유휴 종료하는 엔진 프로세스. ADR-0006. |
 | 모델 테이프 | 기록해 둔 모델 응답을 재생하는 테스트용 가짜 모델. `eng.testing.guide`. |
 
@@ -164,7 +164,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
   5. 사용자가 앱을 닫아도 서비스는 계속 실행된다. 유휴 종료는 연결 0, live task 0, 대기 예약 0일 때만 일어난다(process.md §6.4).
   6. 실행 결과는 이벤트로 저장되고 알림이 나간다. 다음에 앱을 열면 결과를 본다.
 - 대안·실패 흐름
-  - 서비스 모드가 꺼져 있음: 앱을 닫아도 계속되어야 하는 예약을 만들면 서비스 자동 기동(ensure)을 시도한다. 기동에 성공하면 주 흐름 3번부터 이어진다. 실패하면 예약을 만들지 않고 조치 안내(서비스 모드 켜기, 실패 원인)와 함께 거부한다. 설정 `l2.schedule.timers.whenServiceOff`의 기본값은 `autoStart`다 [결정(잠정): review.decisions-2 U-23]. 앱 실행 중 반복은 서비스 모드와 무관하게 동작한다.
+  - 서비스 모드가 꺼져 있음: 앱을 닫아도 계속되어야 하는 예약을 만들면 서비스 자동 기동(ensure)을 시도한다. 기동에 성공하면 주 흐름 3번부터 이어진다. 실패하면 예약을 만들지 않고 조치 안내(서비스 모드 켜기, 실패 원인)와 함께 거부한다. 설정 `l2.schedule.timers.whenServiceOff`의 기본값은 `autoStart`다 [결정: review.decisions-2 U-23]. 앱 실행 중 반복은 서비스 모드와 무관하게 동작한다.
   - 기기가 꺼져 있어 예약 시각을 놓침: [미결] 놓친 실행을 따라잡을지 건너뛸지. `L2.schedule.spec`이 정한다.
   - 서비스 버전 불일치: 서비스가 한가하면 재기동하고 아니면 경고한다.
   - 서비스 크래시: DB와 복구 표식이 남고 다음 ensure에서 재개 후보로 제시한다. 자동 재개는 `l1.persistence.autoResume`으로 켜고, [제안] 기본값은 꺼짐이다(기본값은 ADR-0006 §6 [미결]).
@@ -185,7 +185,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 - 사전 조건
   - 공유 서비스 모드가 실행 중이다(UC-4와 같은 서비스).
   - [결정: decisions-log 2026-10-21 3차] 원격 접속은 범위에 포함된다. OS 서비스 등록(launchd, systemd)은 2차다. 그래서 서비스가 떠 있지 않은 동안에는 원격 접속을 받을 수 없다.
-  - [결정(잠정): review.decisions-2 U-11] 원격 사용의 첫 마일스톤은 M3다(`product.scope.spec` I13). 1차 원격은 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 방식이다. 내장 TLS + 토큰 WebSocket 전송은 2차다.
+  - [결정: review.decisions-2 U-11] 원격 사용의 첫 마일스톤은 M3다(`product.scope.spec` I13). 1차 원격은 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 방식이다. 내장 TLS + 토큰 WebSocket 전송은 2차다.
   - 원격 기기에서 서비스 호스트로 SSH 접속이나 사설망 연결이 가능하다.
 - 주 흐름
   1. 로컬 클라이언트는 Unix 소켓과 파일 권한으로 서비스에 접속한다.
@@ -215,13 +215,13 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 - 주 흐름(사용자 관리)
   1. 목록: 사용자가 비밀 목록을 연다. 이름, provider, 설명, 허용 호스트, 마지막 사용, 만료가 보이고 값 열은 없다.
   2. 등록: 이름과 메타를 입력하고 값은 가린 입력란이나 stdin으로 넣는다. 명령 인자로 값을 받지 않는다.
-  3. 열람: 사용자가 재인증한 뒤 값을 한 번 보고, 값은 자동으로 다시 가려진다. 열람은 감사 이벤트로 남는다. 에이전트 경로에는 열람이 없다. 경로는 M2 CLI `xeon secret reveal`(OS 인증 재확인이 가능한 곳은 재확인)과 M3 데스크톱 설정 화면 둘이다 [결정(잠정): review.decisions-2 U-20].
+  3. 열람: 사용자가 재인증한 뒤 값을 한 번 보고, 값은 자동으로 다시 가려진다. 열람은 감사 이벤트로 남는다. 에이전트 경로에는 열람이 없다. 경로는 M2 CLI `xeon secret reveal`(OS 인증 재확인이 가능한 곳은 재확인)과 M3 데스크톱 설정 화면 둘이다 [결정: review.decisions-2 U-20].
   4. 삭제: 참조하는 정책과 세션을 보여 준 뒤 확인을 받는다.
 - 주 흐름(에이전트 사용)
   1. 모델은 도구 인자에 `secret://github-token` 같은 참조만 쓴다. 참조는 값이 아니므로 대화와 이벤트에 남아도 된다.
   2. 도구 실행 직전, 정책 검사 뒤에 참조가 해석된다. 값은 부모 엔진 프로세스 메모리의 lease에만 있다.
   3. 런타임 HTTP 도구는 전송 직전에 헤더와 본문에서 치환한다(`runtime-http` 모드). HTTPS 토큰 CLI는 sentinel 치환을 쓴다(`sentinel` 모드).
-     - M1 검증은 `env` 주입 모드(bash 도구, 실행마다 승인)로 한다 [결정(잠정): review.decisions-2 U-19].
+     - M1 검증은 `env` 주입 모드(bash 도구, 실행마다 승인)로 한다 [결정: review.decisions-2 U-19].
      - 주입 모드 이름은 `env`, `sentinel`, `runtime-http`, `browser-input`으로 쓴다. `_research/secrets.md` §6.2 표의 M1, M2, M3, M4에 차례로 대응한다. 이 문서의 M0~M3은 마일스톤만 뜻한다.
   4. 사용은 값 없는 감사 이벤트로 남는다.
 - 대안·실패 흐름(마스킹 포함)
@@ -244,7 +244,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 
 | 이름 | 내용 | 관여 패키지 | 근거 |
 |---|---|---|---|
-| 질문·계획 승인 | 모델의 사용자 질문과 계획 승인을 L1-d 승인 프로토콜 하나로 처리한다. 요청은 내구 이벤트 `approval.requested`, 응답은 호스트 메서드 `approval.respond`다 [결정(잠정): review.decisions-2 U-02]. 원격 승인(UC-5)도 같은 경로를 쓴다. | `core-tools`, `cap-dialog`, `cap-work` | [결정: decisions-log 2026-10-21 3차, foundation-plan.md §1 결정 5] |
+| 질문·계획 승인 | 모델의 사용자 질문과 계획 승인을 L1-d 승인 프로토콜 하나로 처리한다. 요청은 내구 이벤트 `approval.requested`, 응답은 호스트 메서드 `approval.respond`다 [결정: review.decisions-2 U-02]. 원격 승인(UC-5)도 같은 경로를 쓴다. | `core-tools`, `cap-dialog`, `cap-work` | [결정: decisions-log 2026-10-21 3차, foundation-plan.md §1 결정 5] |
 | 목표 지속 | 완료 조건을 걸면 턴이 끝날 때마다 별도 판정 모델이 판정하고, 미충족이면 다음 턴을 시작한다. 판정 실행 횟수 상한(`l1.agents.judge.maxRuns`)에서 멈춘다. | `cap-work`, `core-loop`, `core-models` | [결정: decisions-log 2026-10-21 3차, foundation-plan.md §1 결정 4] |
 | 재개 | 크래시 뒤 다시 열면 복구 표식이 남은 세션을 "이어서 실행" 후보로 제시한다. 자동 재개(`l1.persistence.autoResume`)는 기본 꺼짐이다(기본값은 ADR-0006 §6 [미결]). 재개 시도 상한은 `l1.persistence.maxResumeAttempts`다. 결과 불명 도구 호출 가운데 `replay` 선언이 `unsafe`(기본값)이거나 선언이 없는 도구는 다시 실행하지 않고 "중단됨" 결과로 합성한다. 저장된 정책과 현재 선언이 모두 `safe`인 도구만 다시 실행한다(ADR-0004 §3.2 3번). | `core-persistence`, `platform-store` | [제안: process.md §6.3 5~6] 후보 제시와 자동 재개 기본값 / [결정: ADR-0004] 결과 불명 처리 |
 | 무료 웹 검색 | 모델용은 provider 내장 검색, 서비스 API `web.search`는 내장 검색 래퍼, SearXNG를 감지하면 우선, 무료 크레딧 API는 플러그인으로 권장한다. | `cap-web` | [결정: decisions-log 2026-10-21 3차, foundation-plan.md §1 결정 6, ADR-0005] |

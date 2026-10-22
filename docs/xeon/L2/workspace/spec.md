@@ -451,7 +451,7 @@ export const WorkspaceShellKey = serviceKey(WorkspaceShell);
 ```
 
 - 모델 도구의 0 아닌 종료 코드: pi durable `bash`는 0이 아닌 종료를 출력이 담긴 오류 결과로 낸다(`packages/durable/src/tools/bash.ts` `runCommand`). [제안] 같은 동작을 F 환원 규칙 안에서 내기 위해 도구 `toInput`이 `failOnNonZero: true`를 넣고, 메서드가 `exit_nonzero` `CapabilityError`를 낸다. `message`는 `"exit code <n>\n<출력 꼬리>"`이고 `detail`은 `RunOutput`이다. 그래서 모델은 `isError: true` 결과에서 출력을 그대로 본다. 그룹 코드는 `failOnNonZero`를 생략하고 `exitCode`를 직접 읽는다.
-- `secretEnv`는 모델 도구 파라미터에 없다. M1의 비밀 참조 검증(`product.scope.spec` §4.4 M1)은 `env` 주입 모드(bash 도구, 실행마다 승인)로 `xeon.exec`와 `xeon.secrets`가 처리한다 [결정(잠정): review.decisions-2 U-19]. 비밀 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)과 `SECRET_REF_PATTERN`의 정본은 F `capabilities/secrets.ts`다(U-08). 출력 마스킹은 저장 전에 L0.secrets·L1.tools가 한다.
+- `secretEnv`는 모델 도구 파라미터에 없다. M1의 비밀 참조 검증(`product.scope.spec` §4.4 M1)은 `env` 주입 모드(bash 도구, 실행마다 승인)로 `xeon.exec`와 `xeon.secrets`가 처리한다 [결정: review.decisions-2 U-19]. 비밀 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)과 `SECRET_REF_PATTERN`의 정본은 F `capabilities/secrets.ts`다(U-08). 출력 마스킹은 저장 전에 L0.secrets·L1.tools가 한다.
 - `bash`를 `sequential`로 둔 이유 [제안]: 명령의 부수 효과 순서를 모델이 적은 순서와 같게 한다. agent-core는 한 라운드에 `sequential` 도구가 하나라도 있으면 그 라운드를 순차로 돈다(`_research/refs/pi-durable.md` 도구 라운드 병렬/순차). `write`, `edit`는 `parallel`로 두고 같은 경로의 변경은 포크한 `file-mutation-queue.ts`가 경로별로 줄 세운다.
 
 ### 3.4 `workspace.images`
@@ -614,7 +614,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 ### 4.5 출력 절단
 
 - 원본은 durable `truncate.ts`(205줄, import 없음)다. 기본 한도는 2,000줄 또는 50KB 중 먼저 걸리는 쪽이고 줄 중간에서 자르지 않는다(`truncate.ts` `DEFAULT_MAX_LINES`, `DEFAULT_MAX_BYTES`).
-- 위치 [결정(잠정): review.decisions-2 D-08]: 절단 함수의 포크 원본은 ADR-0003대로 `platform-exec`에 둔다. `cap-workspace`는 구현 패키지를 import하지 않고 F 서비스 인터페이스(`ExecutionEnv`, `@xeon/contracts/services`, 서비스 `xeon.exec`)로 절단을 호출한다. L1.tools의 결과 경계화도 같은 서비스를 쓴다. `cap-workspace/src/truncate/`에는 `read`의 이어 읽기 계산(offset, nextOffset, `TruncationInfo` 조립)만 둔다. 서비스 메서드 이름은 `L0.exec.spec`이 정한다 [가정].
+- 위치 [결정: review.decisions-2 D-08]: 절단 함수의 포크 원본은 ADR-0003대로 `platform-exec`에 둔다. `cap-workspace`는 구현 패키지를 import하지 않고 F 서비스 인터페이스(`ExecutionEnv`, `@xeon/contracts/services`, 서비스 `xeon.exec`)로 절단을 호출한다. L1.tools의 결과 경계화도 같은 서비스를 쓴다. `cap-workspace/src/truncate/`에는 `read`의 이어 읽기 계산(offset, nextOffset, `TruncationInfo` 조립)만 둔다. 서비스 메서드 이름은 `L0.exec.spec`이 정한다 [가정].
 - `read`: 앞에서부터 남긴다. `offset`부터 `min(limit, maxLines)`줄을 읽고 바이트 한도를 넘으면 그 전 줄까지 남긴다. 남긴 줄이 끝까지가 아니면 `truncated = { by, shown, total, nextOffset: endLine + 1 }`이다. 첫 줄 하나가 바이트 한도를 넘으면 그 줄의 앞부분만 남기고 `by: "bytes"`, `nextOffset: startLine + 1`로 둔다(`TruncationResult.firstLineExceedsLimit`).
 - `bash`: 꼬리를 남기고 넘친 출력은 spill 파일로 둔다(`fullOutputPath`). spill은 `ExecutionEnv.exec`가 한다.
 - `grep`, `find`, `ls`: 항목 수 한도(`limit` 또는 설정 기본값)와 바이트 한도 중 먼저 걸리는 쪽에서 자른다. `by: "entries"` 또는 `"bytes"`. `grep`의 긴 줄은 설정 `l2.workspace.grep.maxLineLength`자에서 자른다.
@@ -742,7 +742,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 
 ## 10. 미결 사항
 
-1. [결정(잠정): review.decisions-2 D-08] 절단 함수 위치. 포크 원본은 `platform-exec`에 두고 `cap-workspace`는 F 서비스(`ExecutionEnv`)로 호출한다(§4.5).
+1. [결정: review.decisions-2 D-08] 절단 함수 위치. 포크 원본은 `platform-exec`에 두고 `cap-workspace`는 F 서비스(`ExecutionEnv`)로 호출한다(§4.5).
 2. [미결] `workspace.images` 최소형(처리기 없음)을 M2에 두는 배치. JSON은 "이미지와 첨부 처리" 2차이고 `dialog.attachments`(M2)는 이 능력을 필수로 쓴다(`L2.readme` §2 각주).
 3. [미결] `ImageBlobRefSchema`의 중복. F capabilities는 records를 import하지 않으므로 같은 모양을 적었다. `BlobRef`를 conversation이나 base로 내려 공유할지 F 문서가 정한다. 그 전까지는 두 스키마의 JSON이 같은지 테스트로 확인한다.
 4. [미결] 원자적 쓰기와 동시 변경 감지. 포크 원본의 `writeFile`이 직접 덮어쓰는지 확인하고, 임시 파일 + 이름 바꾸기와 읽은 시점 해시 비교(낙관적 동시성)를 넣을지 정한다.

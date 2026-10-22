@@ -112,7 +112,7 @@ xeon/plugins/provider-anthropic-oauth/
 | 대상 | 방식 | 정확한 버전·원본 | 바꿀 점·확인 항목 |
 |---|---|---|---|
 | `@earendil-works/pi-ai` | 그대로 | 1.3.0 정확 고정(catalog). hard dependency로 `@anthropic-ai/sdk` 0.129.0, `openai` 7.19.0, `@google/genai` 2.21.0, `@aws-sdk/client-bedrock-runtime` 3.1127.0 등이 함께 설치된다. 설치 크기 4.2MB·837파일(`_research/packages.md` §1.1) | 없음. 업그레이드는 체크리스트(§7 위험 1)로만 |
-| TypeBox | 그대로 | 워크스페이스 `typebox` 1.4.2. pi-ai는 `typebox` 1.3.27에 의존 | 확인 항목: pi-ai `Tool.parameters`(1.3.27 스키마 객체)와 Xeon 1.4.2 스키마를 같은 `Value.Check`·`validateToolArguments`에 넣어도 되는지. 중복 설치 시 `Symbol` 기반 `TYPEBOX_KIND` 판정(`utils/validation.ts:324`)이 달라지는지. 결과에 따라 catalog를 1.3.27로 맞출지 `F.readme` §8 미결 7에 보고 |
+| TypeBox | 그대로 | 워크스페이스 `typebox` 1.3.27. pi-ai가 고정한 판과 같다(review.decisions-2 U-24) | 확인 항목: `bun.lock`에 typebox 사본이 하나뿐인지 |
 | `usage-totals.ts` `combineUsage` | 소형 포크 후보 | `~/projects/_ref/pi-src/packages/coding-agent/src/core/usage-totals.ts:31`(커밋 `cdaf6c2`) | F `Usage`로 타입 교체. 15줄 안팎이면 자체 작성 쪽이 낫다(M-3에서 판단) |
 | 회귀 테스트 2개 | 복사 | `~/projects/_ref/pi-src/packages/ai/test/anthropic-oauth.test.ts`(299줄), `anthropic-tool-name-normalization.test.ts`(204줄) | import 경로를 플러그인 래퍼로 바꾼다. 실 API 테스트는 키가 없으면 건너뛴다 |
 | `anthropic-messages.ts` | 방안 B를 고를 때만 포크 | `~/projects/_ref/pi-src/packages/ai/src/api/anthropic-messages.ts`(pi 커밋 `cdaf6c2`, 1639줄) | 1.3.0 dist의 재시도 루프(`dist:434-470`) 차이를 반영한다. 플러그인 안 `src/anthropic-messages-cc.ts`로 둔다 |
@@ -170,5 +170,5 @@ xeon/plugins/provider-anthropic-oauth/
 | 3 | 위장 경로의 약관 위반과 계정 제재 | 기본 꺼짐, 배포 제외 검사, `acknowledgeRisk` 사용자 확인 문구, 관리 범위 잠금. 서버 수용과 이용 조건은 확인하지 않은 전제([가정], `L1.models.spec` §4.11.3)로 두고 공개 배포 결정 전에 확인한다 |
 | 4 | 계정 회전 설계의 참고 자료가 AgentSession 결합 구현(omp)뿐이다 | M3 착수 전에 별도 설계 문서(`L1.models` 하위 design, 예: `docs/xeon/L1/models/design.md`)로 분리하고 M-13 착수 조건으로 둔다. 구독 계정 회전의 약관 검토를 그 문서에 넣는다 |
 | 5 | pi-ai 설치가 provider SDK 전부를 끌어온다(4.2MB·837파일) | 단일 바이너리 크기를 L4 plan에서 측정한다. 쓰지 않는 provider의 lazy import(`api/*.lazy.ts`)가 번들에서 빠지는지 `bun build` 메타파일로 확인한다 |
-| 6 | TypeBox 1.4.2와 1.3.27 혼용 | §4 확인 항목. 실패하면 catalog를 pi와 같은 판으로 내리는 안을 F 트랙에 올린다 |
+| 6 | TypeBox 사본 중복 | catalog를 pi-ai와 같은 1.3.27로 고정했다(review.decisions-2 U-24). pi-ai를 올릴 때 typebox 판을 함께 확인한다 |
 | 7 | 위장 플러그인의 import 규칙(review.decisions-2 U-16)이 DR-07·DR-09에 아직 반영되지 않았다 | DR-07·DR-09 개정이 반영되기 전에는 M-8을 플러그인 디렉터리 안 스파이크로만 두고 CI 층 검사 예외를 만들지 않는다 |

@@ -131,12 +131,12 @@ xeon/packages/group-kit/
 ```
 
 - `xeon.domain`: 현재 스캐폴드 값 `kit`을 routes layout 도메인 `group-kit`으로 맞춘다(`architecture.layers.spec` 3.2절, `eng.dependency-rules.guide` DR-03). DR-03의 "디렉터리 이름의 접두사를 뺀 값" 규칙으로는 `kit`이 나오므로, `check-layers.ts`에 DR-03 검사를 넣을 때 `group-kit`을 예외로 적는다. 이 예외의 확정은 L3.group-kit.spec §10 공통 모순 3이다.
-- `@xeon/ext-host`는 `dependencies`다. 운영 코드가 `hostOf`(`registerTool`, `registerCommand` 래퍼)와 리소스 정의 타입을 쓰기 때문이다(L3.group-kit.spec §3.2). `LeaseArbiterPort`·`LeaseCandidate`는 `@xeon/contracts/extensions`(F.extensions.spec §3.2.1)에서, `GroupService`와 부속 타입은 `@xeon/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 테스트 호스트(`@xeon/ext-host/testing`)는 테스트 파일만 import한다. 운영 코드의 `@xeon/ext-host` import는 DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정(잠정): review.decisions-2 U-17].
+- `@xeon/ext-host`는 `dependencies`다. 운영 코드가 `hostOf`(`registerTool`, `registerCommand` 래퍼)와 리소스 정의 타입을 쓰기 때문이다(L3.group-kit.spec §3.2). `LeaseArbiterPort`·`LeaseCandidate`는 `@xeon/contracts/extensions`(F.extensions.spec §3.2.1)에서, `GroupService`와 부속 타입은 `@xeon/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 테스트 호스트(`@xeon/ext-host/testing`)는 테스트 파일만 import한다. 운영 코드의 `@xeon/ext-host` import는 DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정: review.decisions-2 U-17].
 - `@xeon/core-models`는 `testing` 서브패스만 쓰므로 `devDependencies`다(DR-08). 다른 패키지의 `testing` 서브패스를 import하는 파일(`replay/`)과 테스트 전용 검사(`scan/`)는 모두 `src/testing/` 아래에 둔다. DR-08은 그 import를 테스트 파일과 `testing` 서브패스 자신에서만 허용한다. 운영 진입점 `.`은 `src/testing/**`를 import하지 않는다.
 - `templates/`(2차): `exports`에 넣지 않는다. 생성 명령은 import 없이 파일로 읽는다(L3.slots.spec §3.3.6 R3). 템플릿 `.ts`에는 치환 자리(`__ID__`)가 있어 그대로 컴파일하지 않는다. 그래서 `tsconfig.json`의 `include`, oxlint·oxfmt 대상(`src test`만 넘긴다), knip 진입점에서 뺀다. 생성 결과는 `test/slots/`의 테스트가 임시 디렉터리에 만든 뒤 컴파일·로드한다(L3.slots.plan §2.2).
 - `src/testing/policies/`(2차): 정식 예 3종은 `testing` 진입점에서만 내보내므로 기본 배포 카탈로그에 들어가지 않는다(L3.slots.plan §2.3).
 - `@swc/core`는 `scanDriveSource`(2차)가 쓴다. DR-07 `MODULE_OWNERS` 표에 `@swc/core` 행(소유: `group-kit`, dependency-cruiser 설정)을 더하는 작업이 G-19에 있다.
-- 허용 목록 `xeon/scripts/dependency-allowlist.json`에 `DR-02/group-kit-helm`, `DR-02/group-kit-learning`을 등록한다(`eng.dependency-rules.guide` 4절. `DR-02/group-kit-*` 예외는 [결정(잠정): review.decisions-2 U-15]). `reason`의 "pending L3.group-kit.spec"은 "L3.group-kit.spec §3.1"로 바꾸고 `approvedBy`는 `eng.dependency-rules.guide`로 둔다.
+- 허용 목록 `xeon/scripts/dependency-allowlist.json`에 `DR-02/group-kit-helm`, `DR-02/group-kit-learning`을 등록한다(`eng.dependency-rules.guide` 4절. `DR-02/group-kit-*` 예외는 [결정: review.decisions-2 U-15]). `reason`의 "pending L3.group-kit.spec"은 "L3.group-kit.spec §3.1"로 바꾸고 `approvedBy`는 `eng.dependency-rules.guide`로 둔다.
 
 ## 3. 작업 분해
 
@@ -186,7 +186,7 @@ xeon/packages/group-kit/
 | `@cordisjs/plugin-group` | 쓰지 않음 | 이름만 겹치는 3줄 설정 그룹 재수출(`group/src/index.ts`)이다(`_research/packages.md` §4.6). 의미가 다르고 Cordis 직접 import도 DR-11 위반이다 |
 | `create-cordis` 스캐폴딩 방식 | 참고만 | 추가 그룹 템플릿의 스캐폴드 방식 참고 자료다. `create-cordis` 코드는 들이지 않는다. 템플릿 파일 자체는 L3.slots.plan §2.1 후보 a에 따라 이 패키지의 `templates/`에 둔다(G-24). 위치의 최종 확정은 `eng.context-map.design` C-2 [미결]과 함께 한다 |
 | 결정성 규칙(Date.now·Math.random 금지) | 읽기 자료 | Claude Code 워크플로 문서와 pi durable tasks를 근거로 규칙만 가져온다(`_research/packages.md` §4.6, `_research/ref-synthesis.md` 확장 지점 발견 4). 코드는 들이지 않는다 |
-| `typebox` 1.4.2 | 그대로(catalog) | 상태 스키마 검사(`Value.Check`). DR-07상 소유 제한 없음 |
+| `typebox` 1.3.27 | 그대로(catalog) | 상태 스키마 검사(`Value.Check`). DR-07상 소유 제한 없음 |
 | `@swc/core` 1.16.18 | 그대로(catalog, 2차) | `scanDriveSource` 파서. dependency-cruiser가 이미 같은 버전을 쓴다(`eng.toolchain.guide` 1.1절). DR-07 행 추가 필요 |
 | Cordis vendored(`df4431eb43086bd1f8263a0e8c03e9b7c5233b68`) | 직접 사용 안 함 | ext-host가 감싼 API만 쓴다(ADR-0002) |
 
@@ -280,7 +280,7 @@ xeon/packages/group-kit/
 | 위험 | 영향 | 대응 |
 |---|---|---|
 | X 요청 사항 반영 지연. X.primitives.spec은 `LeaseArbiterPort`, `ExtHost.scopes()`, 유휴 토글 적용을 정했지만 `LeaseCandidate.enabledAtSeq`, `leaseId` 조회, 변경 구독, 테스트 호스트 재시작 지원은 아직 없다(스펙 §3.13) | G-08의 요청 순번, G-12의 구독, G-15가 늦어진다 | `DriveArbiter`(G-07), 명령·상태줄(G-13 문자열 부분), 상태 검사(G-09 순수 함수)를 먼저 순수 함수로 끝낸다. `enabledAtSeq`가 없으면 `loadOrder`만으로 정하고, 구독이 없으면 경계 훅 뒤 `scopes()`를 다시 읽는다. 요청 4개는 스펙 §3.13 목록으로 X 작성자에게 넘긴다 |
-| DR-02 예외는 방법 (b)로 정했다(review.decisions-2 U-15). 사용자 확인에서 (a)(F·X로 이동)로 바뀌면 group-kit의 정의 API 위치가 바뀐다 | G-03, G-04의 배치 변경 | 공개 이름과 시그니처는 그대로 두고 파일만 옮길 수 있게 `define-group.ts`가 F 타입만 의존하도록 쓴다 |
+| DR-02 예외는 방법 (b)로 정했다(review.decisions-2 U-15, 2026-10-22 확인). 뒤에 (a)(F·X로 이동)로 번복하면 group-kit의 정의 API 위치가 바뀐다 | G-03, G-04의 배치 변경 | 공개 이름과 시그니처는 그대로 두고 파일만 옮길 수 있게 `define-group.ts`가 F 타입만 의존하도록 쓴다 |
 | drive 재생 규율을 타입으로 막을 수 없다(F.extensions.spec §4.6) | 클로저 상태를 쓰는 그룹이 재개 뒤 다르게 동작한다 | M2에 `replayDrive`를 그룹 테스트 필수 항목으로 두고(G-15), 2차에 `scanDriveSource`(G-19)로 정적 검사를 더한다. 두 수단 모두 협조적 코드만 잡는다는 한계를 그룹 문서에 적는다 |
 | 계측 kind `grp.<그룹>.metrics.recorded`는 그룹 접두이고 group-kit이 만든다 | X `recordPrivate`가 늦으면 G-17이 늦어진다 | G-17을 M3에 두고 그때까지 메모리 집계만 쓴다 |
 | L1.agents 위임 서비스 미정 | `delegate` 구현(G-14 M3)이 늦어진다 | M2는 입력 검사와 `group.delegateUnavailable`만 둔다. 학습 그룹 계획(L3.learning.plan)과 같은 시점에 맞춘다 |

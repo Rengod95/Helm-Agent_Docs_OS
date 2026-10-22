@@ -148,7 +148,8 @@ export interface ExtHostDeps {
 }
 
 export interface PrimitivesSettingsSource {
-  driveLimits(): DriveLimits;                          // x.primitives.driveLimits
+  driveDefaultLimits(): DriveLimits;                   // x.primitives.driveDefaultLimits (review.decisions-2 U-12)
+  driveLimits(): DriveLimits;                          // x.primitives.driveLimits (천장)
   activeDriveGroup(threadId: ThreadId): ScopeId | null; // x.primitives.activeDriveGroup
   capabilityProviders(): Readonly<Record<CapabilityId, ExtensionName>>; // x.primitives.capabilityProviders
 }
@@ -421,7 +422,7 @@ export interface BoundaryHooks {
 
 X는 L0·L1을 import하지 않는다(architecture.layers.spec §4.3.3, eng.dependency-rules.guide DR-01·DR-11). 루프 구동, 입력 큐, 세션 커밋, 확장 투영기 등록, 접두 테이블 읽기, 프로세스 실행은 아래 포트로만 쓰고, 구현은 L1 패키지와 L0 패키지(`registerPlatform`, §3.2)가 Cordis 서비스로 제공한다. 서비스 이름은 eng.context-map.design §5.3 표를 따른다.
 
-[결정(잠정): review.decisions-2 U-14, D-04] 포트 타입의 정본은 F다. architecture.layers.spec §4.3.3 결론 2번(X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다)이 X 순위 유지의 조건이다. 포트의 이름, 필드, 메서드 시그니처, 키 값은 F.extensions.spec §3.2.1 `ports.ts`가 정하고, `RecordCommitPort`와 부속 타입은 F.records.spec §3.9 `session-service.ts`가 정한다(F `ports.ts`가 다시 export한다). ext-host는 자기 정의를 두지 않고 아래 블록으로 F 이름을 다시 export한다. 이 문서는 X가 포트를 쓰는 규칙(아래 주입 규칙, §4.4, §4.6, §4.7, §4.8)만 정한다. ext-host가 정의하는 포트 키는 `ExtHostPortKey` 하나다. `ExtHost`가 X 타입이라 F에 둘 수 없기 때문이다(F.extensions.spec §3.2.1, eng.context-map.design §5.3 DR-14 예외 4).
+[결정: review.decisions-2 U-14, D-04] 포트 타입의 정본은 F다. architecture.layers.spec §4.3.3 결론 2번(X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다)이 X 순위 유지의 조건이다. 포트의 이름, 필드, 메서드 시그니처, 키 값은 F.extensions.spec §3.2.1 `ports.ts`가 정하고, `RecordCommitPort`와 부속 타입은 F.records.spec §3.9 `session-service.ts`가 정한다(F `ports.ts`가 다시 export한다). ext-host는 자기 정의를 두지 않고 아래 블록으로 F 이름을 다시 export한다. 이 문서는 X가 포트를 쓰는 규칙(아래 주입 규칙, §4.4, §4.6, §4.7, §4.8)만 정한다. ext-host가 정의하는 포트 키는 `ExtHostPortKey` 하나다. `ExtHost`가 X 타입이라 F에 둘 수 없기 때문이다(F.extensions.spec §3.2.1, eng.context-map.design §5.3 DR-14 예외 4).
 
 ```ts
 // primitives/ports.ts
@@ -474,7 +475,7 @@ X가 F 정의를 쓸 때 지키는 대응은 다음과 같다.
 3. `LeaseArbiterPort`는 선택이다. 없으면 §4.4.1의 기본 규칙을 쓴다.
 4. `xeon.*` 이름의 서비스는 `ExtensionUnit.builtin`이 참인 확장과 `registerPlatform`으로 등록한 L0 패키지만 제공할 수 있다(§3.7).
 5. 확장이 아닌 사용처의 포트 경로 [제안]: X 안의 loading-trust·operations는 Cordis를 쓰지 않고 `ExtHost.ports`(`PortLookup`)로 포트를 얻는다. operations는 `OperationsDeps.ports`로 받은 `PortLookup`에서 `ProjectorRegistryPortKey`·`ScopedStorePortKey`(확장 전용 저장, `storageOf`)와 `ProcessPortKey`(외부 훅)를 꺼낸다. operations 정책은 `ExtHost`보다 먼저 만들어지므로 조립 루트가 `ExtHost.ports`를 늦은 연결로 넘긴다(X.operations.spec §3.8). 로더의 `IsolationProcessPort`는 조립 루트가 `ExtHost.ports.get(ProcessPortKey)`로 꺼내 `LoaderDeps.process`에 넣는다(X.loading-trust.spec §3.5).
-6. [결정(잠정): review.decisions-2 D-04] 포트와 서비스 인터페이스의 관계. 같은 서비스 이름에 등록되는 서비스 인터페이스는 F에 있고, 이 포트를 부분형으로 포함한다. 서비스 이름 하나에는 인터페이스 하나만 등록되므로 X 포트의 메서드와 서비스 인터페이스의 메서드가 어긋나지 않는다.
+6. [결정: review.decisions-2 D-04] 포트와 서비스 인터페이스의 관계. 같은 서비스 이름에 등록되는 서비스 인터페이스는 F에 있고, 이 포트를 부분형으로 포함한다. 서비스 이름 하나에는 인터페이스 하나만 등록되므로 X 포트의 메서드와 서비스 인터페이스의 메서드가 어긋나지 않는다.
 
    | 서비스 이름 | 서비스 인터페이스(F 위치) | 포함하는 포트 |
    |---|---|---|
@@ -489,7 +490,7 @@ X가 F 정의를 쓸 때 지키는 대응은 다음과 같다.
    | `xeon.groups` | `GroupService`(`@xeon/contracts/services`, F.capabilities.spec §3.12 `services/groups.ts`) | `LeaseArbiterPort` |
 
    - L1.loop.spec의 `LoopService extends LoopPort`와 `threadStatus`가 이 규칙의 예다. L1.tools.spec `ToolService extends ToolsPort`, L1.models.spec의 `registerProvider`, L2.mcp.spec §3.2 `McpService extends McpPort`, F.capabilities.spec §3.12 `GroupService extends LeaseArbiterPort`도 같은 규칙을 따른다.
-7. [결정(잠정): review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 포트 가짜는 X `test/`와 `@xeon/ext-host/testing` 안에 F 인터페이스로 만든다.
+7. [결정: review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 포트 가짜는 X `test/`와 `@xeon/ext-host/testing` 안에 F 인터페이스로 만든다.
 
 ### 3.7 Cordis 서비스 이름 유도
 
@@ -608,9 +609,9 @@ export {
 } from "@xeon/contracts/extensions";
 ```
 
-- [결정(잠정): review.decisions-2 D-04] 세 포트는 같은 서비스 이름에 등록되는 서비스 인터페이스의 부분형이다. `ToolService extends ToolsPort`, `ModelService extends ModelsPort`, `McpService extends McpPort`이고 세 인터페이스는 F `@xeon/contracts/services`에 있다(F.capabilities.spec §3.12). X가 같은 서비스 이름에 별도 인터페이스를 등록하지 않는다(§3.6 규칙 6 표).
+- [결정: review.decisions-2 D-04] 세 포트는 같은 서비스 이름에 등록되는 서비스 인터페이스의 부분형이다. `ToolService extends ToolsPort`, `ModelService extends ModelsPort`, `McpService extends McpPort`이고 세 인터페이스는 F `@xeon/contracts/services`에 있다(F.capabilities.spec §3.12). X가 같은 서비스 이름에 별도 인터페이스를 등록하지 않는다(§3.6 규칙 6 표).
 - 등록 메서드의 이름과 인자, 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`)의 모양은 F.extensions.spec §3.2.1이 정한다. `ProviderResourceDef`와 `McpServerResourceDef`의 내용 모양은 각각 L1.models.spec과 L2.mcp.spec(`McpServerDefSchema`)이 정한다. X가 보관만 하는 리소스(`CommandResourceDef`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef`)는 위 블록이 정본이다.
-- 위장 provider 플러그인(`plugins/*`, L1 순위)은 이 포트를 쓰지 않는다. F provider 인터페이스로 `core-models` 서비스에 등록한다([결정(잠정): review.decisions-2 U-16]). `ModelsPort`는 확장의 `hostOf(g).registerProvider` 경로다.
+- 위장 provider 플러그인(`plugins/*`, L1 순위)은 이 포트를 쓰지 않는다. F provider 인터페이스로 `core-models` 서비스에 등록한다([결정: review.decisions-2 U-16]). `ModelsPort`는 확장의 `hostOf(g).registerProvider` 경로다.
 
 ### 3.10 오류
 
@@ -782,7 +783,7 @@ chain(entries, payload, options):
 | 해제된 fiber는 다시 살아나지 않고, FAILED fiber의 `restart()`는 아무 일도 하지 않는다 | `fiber.ts:136`, `400`, `485-491` | `restart`를 쓰지 않는다. 켤 때마다 `ctx.plugin`으로 새 fiber를 만든다 |
 | 같은 isolation에서 같은 서비스 이름을 두 번 provide하면 던진다 | `reflect.ts:214-216` | 공급자 이름에 확장 이름을 넣는다(§3.7) |
 | `_` 접두, 숫자 문자열, `then`, `prototype` 이름은 Proxy 검사를 건너뛴다 | `reflect.ts:27-38` | 서비스 이름은 `xeon.`·`cap:` 접두로만 만든다 |
-| `Config` 검증은 Standard Schema만 받는다. TypeBox 1.4.2 빌드에서 `~standard` 문자열이 검색되지 않았다 | `fiber.ts:34-46` | Cordis 플러그인에 `Config` 스키마를 두지 않는다. 설정·상태는 TypeBox로 X가 먼저 검증하고 평문 객체만 넘긴다 |
+| `Config` 검증은 Standard Schema만 받는다. TypeBox 1.4.2 빌드(조사 당시)에서 `~standard` 문자열이 검색되지 않았다 | `fiber.ts:34-46` | Cordis 플러그인에 `Config` 스키마를 두지 않는다. 설정·상태는 TypeBox로 X가 먼저 검증하고 평문 객체만 넘긴다 |
 | 공급자가 내려가면 소비자 fiber가 경계와 무관하게 즉시 내려갔다 다시 올라온다 | `fiber.ts:383-412`, X-2 §6 | 소비자 scope의 setup 재실행은 새 세대로 처리한다. 레지스트리 교체는 다음 디스패치부터 보인다. 경계 게이팅은 하지 않는다(§10 미결) |
 
 ### 4.4 drive
@@ -795,15 +796,18 @@ chain(entries, payload, options):
 4. 후보는 그 thread에서 켜져 있고 drive 등록이 있고 오류 상태가 아닌 scope다. 고르는 순서 [제안]:
    - `LeaseArbiterPort`가 있으면 그 결과를 쓴다(L3.group-kit.spec의 `DriveArbiter`).
    - 없으면 후보가 하나일 때 그 scope를 고른다.
-   - 둘 이상이면 설정 `x.primitives.activeDriveGroup`(thread 범위 값)이 가리키는 후보를 고른다. drive 보유 그룹을 고르는 설정은 이 키 하나다([결정(잠정): review.decisions-2 S-15]). 설정이 없거나 후보 밖이면 아무에게도 주지 않고 `drive_conflict` 경고를 낸다. 사용자는 L4 설정 화면에서 고른다(F.extensions.spec §5 5번).
+   - 둘 이상이면 설정 `x.primitives.activeDriveGroup`(thread 범위 값)이 가리키는 후보를 고른다. drive 보유 그룹을 고르는 설정은 이 키 하나다([결정: review.decisions-2 S-15]). 설정이 없거나 후보 밖이면 아무에게도 주지 않고 `drive_conflict` 경고를 낸다. 사용자는 L4 설정 화면에서 고른다(F.extensions.spec §5 5번).
 5. 이미 임대가 있으면 새 판단을 하지 않는다. 선택이 바뀌어도(설정 변경) 현재 임대가 반납된 뒤 다음 경계에서 반영한다.
 6. 부여: `leaseEpoch = 그 scope의 직전 차수 + 1`, `leaseId = ids`로 만든 불투명 문자열(40자 이하) [제안]. 경계 기여에 `lease.acquired { leaseId, scopeId, limits }`(F.records.spec §3.3)를 넣는다. 임대 상태는 `active`다.
 7. `leaseEpoch`는 F `LeaseAcquiredPayload`에 필드가 없다. X는 활성 가지 위 scope별 `lease.acquired` 개수로 다시 계산한다(`ExtThreadSnapshot.leaseEpochs`). 되감은 뒤에는 버려진 가지에서 쓴 차수 값이 다시 나올 수 있다. 펜싱과 멱등 키는 `leaseId`(임대마다 새로 발급)를 함께 쓰므로 버려진 가지의 요청과 섞이지 않는다. [미결] payload에 `leaseEpoch`를 추가할지(eng.events.design §4.4 `drive.leased`는 이 필드를 가진다).
 
 #### 4.4.2 상한
 
-1. [결정] 기본 상한은 없다. 상한은 drive 임대에만 건다(pi 방식, `_research/decisions-log.md` 20행). X 설정 `x.primitives.driveLimits`의 기본값은 `{}`다. [결정(잠정): review.decisions-2 U-12] Helm의 `l3.helm.driveLimits` 기본값 4/8/400000은 pi 방식의 예외로 인정한다. 이 값은 Helm이 `DriveOptions.limits`로 넘기고 X는 아래 2번의 최솟값 규칙으로 적용한다. 일반 대화 턴에는 상한을 두지 않는다.
-2. 실효 상한 = 필드마다 `min(설정 x.primitives.driveLimits[k], DriveOptions.limits[k])`. 한쪽만 정의되어 있으면 그 값, 둘 다 없으면 상한 없음(`LeaseBudget`의 `null`)이다. `DriveOptions.limits`가 설정보다 크면 설정 값으로 클램프하고 `info` 진단을 낸다(F.extensions.spec §6).
+1. [결정] 일반 대화 턴에는 기본 상한을 두지 않는다(pi 방식, `_research/decisions-log.md` 20행). 상한은 drive 임대에만 건다. [결정: review.decisions-2 U-12] drive 임대에는 기본 상한을 둔다. drive는 사용자 입력 없이 턴을 만들기 때문이다. 기본 상한은 설정 두 단계로 정하고, 둘 다 사용자가 설정 화면에서 조정한다(§6).
+   - 일반 기본값 `x.primitives.driveDefaultLimits`(기본 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`): 상한을 명시하지 않은 임대에 쓴다.
+   - 그룹 덮어쓰기: 그룹이 자기 설정(예: `l3.helm.driveLimits`, Helm 기본 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`)을 `DriveOptions.limits`로 넘긴다.
+   - 천장 `x.primitives.driveLimits`(기본 `{}`, 천장 없음): 어떤 임대도 이 값을 넘지 못한다.
+2. 실효 상한은 필드마다 정한다. 먼저 `base[k] = DriveOptions.limits[k] ?? driveDefaultLimits[k]`다. `driveLimits[k]`가 있으면 `min(base[k], driveLimits[k])`, 없으면 `base[k]`다. `base[k]`도 천장도 없으면 그 필드는 상한 없음(`LeaseBudget`의 `null`)이다. 사용자가 `driveDefaultLimits`에서 필드를 지우면 그 필드는 기본 상한이 사라진다. `DriveOptions.limits`가 천장보다 크면 천장 값으로 클램프하고 `info` 진단을 낸다(F.extensions.spec §6).
 3. 실효 상한은 임대 부여 때 한 번 정하고 `lease.acquired.limits`에 기록한다. 임대 도중 설정을 바꿔도 현재 임대에는 반영하지 않는다 [제안].
 4. 사용량: `turns`는 새로 실행된(재생이 아닌) `loop.turn` 수, `spawns`는 새로 실행된 `loop.spawn` 수, `tokens`는 그 결과 `usage.totalTokens`의 합이다 [가정: pi-ai `Usage`의 필드 이름]. 재개 때는 `OpenLease.used`로 복원한다.
 5. 검사 시점은 `loop.turn`·`loop.spawn` 호출 직전이다. 남은 양이 0 이하면 `PrimitiveError("lease_budget")`로 거부하고 임대를 `releasing`으로 바꾼다. 실행 중인 turn이 토큰 상한을 넘겨도 그 turn을 끊지 않는다.
@@ -960,7 +964,7 @@ F.extensions.spec §4.5와 L3.readme가 위임한 항목이다.
 [제안] thread가 유휴이면 토글 요청을 다음 매크로태스크에서 적용한다. 절차는 다음과 같다.
 
 1. X는 `LoopPort.whenIdle(threadId, apply)`를 부른다. L1은 `apply`가 끝날 때까지 새 turn 시작을 막는다.
-2. `apply`는 `boundary.prepare({ kind: "idle" })`, `RecordCommitPort.commit({ requestId: "scope:<scopeId>:<세대>" 또는 임대 키, drafts })`, `boundary.settle(...)`을 차례로 실행한다. 키에 넣는 scope id의 `/`는 `:`로 바꾼다(예: `scope:helm:review:3`). [결정(잠정): review.decisions-2 U-13] 커밋 키 형식의 정본은 eng.transactions.design의 `COMMIT_KEY_PATTERN`이고 `/`는 그 패턴에 없다.
+2. `apply`는 `boundary.prepare({ kind: "idle" })`, `RecordCommitPort.commit({ requestId: "scope:<scopeId>:<세대>" 또는 임대 키, drafts })`, `boundary.settle(...)`을 차례로 실행한다. 키에 넣는 scope id의 `/`는 `:`로 바꾼다(예: `scope:helm:review:3`). [결정: review.decisions-2 U-13] 커밋 키 형식의 정본은 eng.transactions.design의 `COMMIT_KEY_PATTERN`이고 `/`는 그 패턴에 없다.
 3. 실행 중에 요청이 오면 다음 단계 경계에서 적용한다. 같은 요청이 유휴 적용과 경계 적용 양쪽에 걸리지 않게 요청마다 처리 표시를 둔다.
 
 근거: 유휴 thread에는 다가올 단계 경계가 없다. 경계까지 미루면 사용자가 다음 입력을 보낼 때까지 토글이 보류된다. 유휴 상태에는 중간에 끊길 step이 없으므로 즉시 적용해도 경계 적용과 같은 보장을 낸다. L1이 turn 시작을 막는 동안 적용하므로 입력과 경합하지 않는다.
@@ -1022,7 +1026,7 @@ commit(next):
   3. `expectStateRev`는 저장소가 같은 트랜잭션 안에서 활성 가지 위 판과 비교한다. 버려진 가지의 더 큰 판과 비교하지 않는다.
   4. leaf가 옮겨지면(`thread.leaf_moved`, F.records.spec) X는 그 thread의 상태 캐시와 임대 정보를 버리고 `loadThread`로 다시 읽는다(§4.6.2).
   5. L1.persistence.spec §3.3의 `ext.loadThread` 구현은 이 규칙을 지켜야 한다. 가지를 구분하지 않는 `query.latestEvent`와 이벤트 순서로 갱신되는 `p_scopes`만으로는 버려진 가지의 마지막 값을 돌려줄 수 있다. 그래서 L1.persistence.spec §3.3은 `latestEvent`에 `onActiveBranch: true` 옵션을 두고 `branchItems`와 같은 사슬 조회를 한다.
-- 멱등 키 [제안]: on 핸들러 안에서는 `st:<scope 해시>:<dispatchKey>:<n>`, drive 함수 안에서는 `${leaseId}:${baseRev}.c<n>`이다. 핸들러가 소비 커밋 전 크래시로 다시 실행되면 같은 키가 나와 두 번째 커밋은 `replayed`가 된다(F.extensions.spec §4.3). `<scope 해시>`는 scope id의 SHA-256 앞 12자다. eng.transactions.design §4.7·§4.8의 키 표는 이 키를 쓴다. 키 형식 검사는 `COMMIT_KEY_PATTERN`이다([결정(잠정): review.decisions-2 U-13]).
+- 멱등 키 [제안]: on 핸들러 안에서는 `st:<scope 해시>:<dispatchKey>:<n>`, drive 함수 안에서는 `${leaseId}:${baseRev}.c<n>`이다. 핸들러가 소비 커밋 전 크래시로 다시 실행되면 같은 키가 나와 두 번째 커밋은 `replayed`가 된다(F.extensions.spec §4.3). `<scope 해시>`는 scope id의 SHA-256 앞 12자다. eng.transactions.design §4.7·§4.8의 키 표는 이 키를 쓴다. 키 형식 검사는 `COMMIT_KEY_PATTERN`이다([결정: review.decisions-2 U-13]).
 - 지문 규칙 [제안]: 상태 커밋의 지문 원천(`fingerprintSource`)은 키의 신원 부분(on: `{ scopeId, dispatchKey, n }`, drive: `{ scopeId, leaseId, baseRev, n }`)뿐이다. doc 본문과 기대 판은 넣지 않는다. 재실행 때는 상태 커밋이 이미 반영되어 기대 판이 한 칸 앞서 있고 핸들러가 계산한 doc도 처음과 다를 수 있다. 둘 중 하나라도 지문에 들어가면 정당한 재실행이 `key_reused`가 된다.
 - 재실행 규칙 [제안]: 소비 커밋 전 크래시 뒤 다시 실행된 핸들러는 이미 커밋된 상태 판을 본다. 재시작 뒤 캐시는 `loadThread`가 읽은 판 k+1이고, `ctx.state`와 `g.state()`도 그 값이다. 핸들러가 그 값으로 다시 계산한 `next`는 `replayed` 결과에서 버려지고, X는 `ExtCommitResult.stored`(저장된 판 k+1)를 캐시에 두고 `commit`의 반환값으로 돌려준다. 그래서 DB, 캐시, 핸들러가 받는 반환값은 같은 doc이다. 다만 `replayed` 이전에 핸들러가 `ctx.state`로 계산한 다른 부수 결과(post 본문, record payload)는 처음 실행과 다를 수 있다. 그래서 상태 갱신 함수는 이미 반영된 갱신을 다시 적용해도 결과가 같은 멱등 reducer로 쓴다(예: 판 번호나 처리한 입력 id를 doc에 두고 비교한다). L3.group-kit.spec §4.5 6번의 멱등 reducer 예제가 이 형태다.
 - 저장소 결과 변환: L1.persistence.spec §3.3이 `SessionWriter` 결과를 `ExtCommitResult`로 바꾼다. `ownership_lost` → `lease_lost`, `key_reused` → `invalid`, 쓰기 잠금 대기 초과 → `busy`, `disk_full`·`read_only` → `storage`다. 같은 키·같은 지문의 상태 커밋은 `replayed`와 저장된 상태(`stored`)를 돌려준다. L1.persistence.spec §3.3의 변환표가 이 규칙과 같다.
@@ -1067,7 +1071,7 @@ readRecords(query):
 
 #### 4.6.5 recordPrivate
 
-[결정(잠정): review.decisions-2 T-21] 비공개 기록 연산은 `ScopeApi.recordPrivate(kind, payload)`다(F.extensions.spec §3.2, §4.8). 다른 확장이 읽지 않는 자기 이력(예: L3.learning.spec §3.7.1의 `grp.learning.proposal.*`, L3.group-kit.spec의 `grp.<그룹>.metrics.recorded`)을 남긴다.
+[결정: review.decisions-2 T-21] 비공개 기록 연산은 `ScopeApi.recordPrivate(kind, payload)`다(F.extensions.spec §3.2, §4.8). 다른 확장이 읽지 않는 자기 이력(예: L3.learning.spec §3.7.1의 `grp.learning.proposal.*`, L3.group-kit.spec의 `grp.<그룹>.metrics.recorded`)을 남긴다.
 
 ```text
 recordPrivate(kind, payload):
@@ -1092,9 +1096,9 @@ recordPrivate(kind, payload):
 1. 첫 `post` 호출 때 `validateUsage`의 `post_undeclared` 검사를 한다. 매니페스트 `usesPost`가 참이 아니면 `PrimitiveError("post_undeclared")`로 거부한다. 플러그인과 그룹 모두 쓸 수 있다.
 2. `requestId`가 1~64자가 아니면 `TypeError`로 거부한다(F 타입 위반).
 3. `InputQueuePort.enqueue({ threadId, scopeId, requestId, when, item })`를 부른다. 같은 thread에서 같은 (scopeId, requestId)의 두 번째 post는 `{ duplicate: true }`를 받고 큐에 넣지 않는다. X는 `PostReceipt { requestId, duplicate }`로 돌려준다.
-4. 멱등 범위는 thread와 scope다 [제안]. F.extensions.spec §4.4는 "같은 대화"만 적었다. scope를 더하면 다른 확장이 같은 문자열을 써도 서로의 post를 지우지 않는다. 커밋 키는 L1.tasks가 만들고, 키에 scope id를 넣을 때 `/`를 `:`로 바꾼다([결정(잠정): review.decisions-2 U-13]).
+4. 멱등 범위는 thread와 scope다 [제안]. F.extensions.spec §4.4는 "같은 대화"만 적었다. scope를 더하면 다른 확장이 같은 문자열을 써도 서로의 post를 지우지 않는다. 커밋 키는 L1.tasks가 만들고, 키에 scope id를 넣을 때 `/`를 `:`로 바꾼다([결정: review.decisions-2 U-13]).
 5. `post`는 효과이므로 재실행되는 on 핸들러에서 써도 된다. 같은 `requestId`를 쓰는 한 중복되지 않는다(F.extensions.spec §4.3).
-6. [결정(잠정): review.decisions-2 U-05] `post.accepted`를 유지한다. payload에는 큐 항목의 `inputId`가 들어가고, 재개 때 post 멱등 판정의 근거가 된다(F.records.spec `PostAcceptedPayload`, L1.tasks.spec).
+6. [결정: review.decisions-2 U-05] `post.accepted`는 retire했다. post의 기록은 `input.queued`(`source.type: "extension"`) 하나이고, 재개 때 멱등 판정은 커밋 키 `in:<scopeId>:<requestId>`(`eng.transactions.design` §4.8)가 한다.
 
 `when` 값의 큐 위치 [제안]. 큐 구현은 L1(core-tasks)이고 X는 값을 넘긴다.
 
@@ -1188,13 +1192,14 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 
 | 키 | 타입 | 기본값 | 범위 | 변경 적용 | L4 노출 |
 |---|---|---|---|---|---|
-| `x.primitives.driveLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{}`(상한 없음, [결정] pi 방식) | user, project, session | `nextTurn`. 다음 임대 부여부터 | 설정 화면 "플러그인과 그룹" 탭의 "drive 임대 상한"(숫자 칸 세 개) |
+| `x.primitives.driveDefaultLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정: review.decisions-2 U-12] | managed, user, project, session | `nextTurn`. 다음 임대 부여부터 | 설정 화면 "플러그인과 그룹" 탭의 "drive 기본 상한"(숫자 칸 세 개) |
+| `x.primitives.driveLimits` | `{ maxTurns?: 정수≥1, maxSpawns?: 정수≥0, maxTokens?: 정수≥1 }` | `{}`(천장 없음) | managed, user, project, session | `nextTurn`. 다음 임대 부여부터 | 같은 탭의 "drive 상한 천장"(숫자 칸 세 개) |
 | `x.primitives.activeDriveGroup` | `ScopeId \| null` | `null` | user, project, session | `nextTurn`. 현재 임대가 반납된 뒤 다음 경계 | 같은 탭 "구동 그룹" 선택. 후보 목록은 `ExtHost.scopes()`의 drive 등록 scope |
 | `x.primitives.capabilityProviders` | `Record<CapabilityId, ExtensionName>` | `{}` | user, project | `restart` | 같은 탭 "능력 공급자" 표 |
 
-- `driveLimits`의 `ui.widget`은 `table`, `activeDriveGroup`은 `select`, `capabilityProviders`는 `table`이다 [제안].
-- [결정(잠정): review.decisions-2 S-15] drive 보유 그룹 설정은 `x.primitives.activeDriveGroup` 하나다. L3 문서는 별도 키를 두지 않고 이 키를 쓴다. L4 설정 화면은 이 표의 탭을 따른다([결정(잠정): review.decisions-2 S-11]).
-- [결정(잠정): review.decisions-2 U-12] `driveLimits` 기본값 `{}`는 X 설정의 기본값이다. Helm 기본 상한(`l3.helm.driveLimits` 4/8/400000)은 L3.helm이 소유하고 `DriveOptions.limits`로 넘긴다(§4.4.2).
+- `driveDefaultLimits`·`driveLimits`의 `ui.tab`은 `plugins`, `ui.widget`은 `table`이다. `activeDriveGroup`은 `select`, `capabilityProviders`는 `table`이다 [제안]. 두 상한 키는 F 설정 정의(`defineSettings`)의 `allowedScopes`·`ui` 메타데이터를 다른 키와 같은 방식으로 갖는다.
+- [결정: review.decisions-2 S-15] drive 보유 그룹 설정은 `x.primitives.activeDriveGroup` 하나다. L3 문서는 별도 키를 두지 않고 이 키를 쓴다. L4 설정 화면은 이 표의 탭을 따른다([결정: review.decisions-2 S-11]).
+- [결정: review.decisions-2 U-12] 상한을 명시하지 않은 임대의 기본값은 `driveDefaultLimits` `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`이다. 값 근거는 Helm 기본값과 같다(`L3.helm.spec` §6) [제안]. 그룹 덮어쓰기(예: `l3.helm.driveLimits`)는 각 그룹이 소유하고 `DriveOptions.limits`로 넘긴다. `driveLimits`는 천장이고 기본값 `{}`다(§4.4.2).
 - 명령 [가정: L4.cli.spec이 이름을 정한다]: `xeon ext drive <scopeId>`가 `activeDriveGroup`을 세션 범위로 바꾸고, `xeon ext enable|disable <scopeId>`가 `ScopeHandle.enable/disable`을 부른다.
 - 파일: 사용자·프로젝트 설정 파일의 같은 키(F.wire-settings.spec).
 
@@ -1205,7 +1210,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | 연산 | 이 문서의 구현 | 관련 이벤트(F.records.spec §3.3) |
 |---|---|---|
 | `on` | 레지스트리, 스냅샷, fold 디스패처, 시간 예산 | 기록하지 않는다. fold 결과는 해당 이벤트(예: `effect.intent`)에 남는다 |
-| `post` | `InputQueuePort.enqueue` 위임, 멱등, `usesPost` 검사 | `post.accepted` |
+| `post` | `InputQueuePort.enqueue` 위임, 멱등, `usesPost` 검사 | `input.queued`(`source.type: "extension"`) |
 | `drive` | `LeaseBroker`, `LoopHandle`, 재호출 루프, 상한 | `lease.acquired`, `lease.released`, drive turn의 `turn.started` |
 | `scope` | `ScopeRuntime`, 세대, 상태 커밋, record, recordPrivate | `scope.changed`, `<x\|grp>.<name>.state.committed`, 그룹 레코드 kind, 비공개 기록 kind |
 
@@ -1235,7 +1240,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 |---|---|
 | `PointName`, `PointSignatures`, `POINTS`, `PointDecl`, `FIRST_DENY`, `CHAIN_RULES`, `Handler`, `HandlerContext`, `ExtensionOps`, `PostItem`, `PostOptions`, `PostReceipt`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `LeaseBudget`, `ScopeDef`, `ScopeApi`, `ScopeHandle`, `ScopeFn`, `ExtensionEntry`, `GroupRecord`, `validateManifest`, `validateUsage`, `validateManifestSet`, `validateGroupRecord` | F.extensions.spec |
 | `CapabilityId`, `ServiceKey`, `ApiOf` | F.capabilities.spec |
-| `DurableEventDraft`, `EventId`, `ENVELOPE_MAX_BYTES`, `Projector`, `StoreDb`, 코어 kind `scope.changed`·`lease.acquired`·`lease.released`·`post.accepted`·`thread.leaf_moved`와 payload, leaf·`parentId` 분기 트리 | F.records.spec |
+| `DurableEventDraft`, `EventId`, `ENVELOPE_MAX_BYTES`, `Projector`, `StoreDb`, 코어 kind `scope.changed`·`lease.acquired`·`lease.released`·`input.queued`·`thread.leaf_moved`와 payload, leaf·`parentId` 분기 트리 | F.records.spec |
 | 호스트 포트와 키(`PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `IsolationProcessPort`, `HookProcessPort`, `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`, `*PortKey`), 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`) | F.extensions.spec §3.2.1 `ports.ts` |
 | `RecordCommitPort`, `ExtCommitRequest`(`visibility` 포함), `ExtRecordQuery`, `ExtRecordRow`와 부속 타입, `queryRecords`의 `reader` 인자와 비공개 기록 규칙 | F.records.spec §3.9 |
 | `ProjectorRegistry.register`의 반환(`Result<{ dispose }, ProjectorRegisterError>`) | L1.persistence.spec §3.4 |
@@ -1271,7 +1276,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 16. turn 실행 중 `disable()`을 부르면 상태가 `disabling`이 되고, 진행 중인 `loop.turn`은 정착까지 진행하며, 다음 단계 경계의 `prepare`에서 핸들러가 제외되고 `settle(committed)` 뒤 `onDispose`가 실행된다. 적용 순서는 핸들러 제외 → `lease.released` → `onDispose`다.
 17. 유휴 thread에서 `enable()`을 부르면 `whenIdle` 안에서 적용되고 `scope.changed { status: "enabled" }`가 커밋된다.
 18. scope를 끄면 그 scope가 `on`으로 건 핸들러와 `hostOf(g).provide`로 등록한 서비스, `registerTool`로 등록한 도구가 모두 해제된다(레지스트리 크기, Cordis 서비스 조회, 가짜 `ToolsPort` 등록 수로 확인).
-19. `DriveOptions.limits.maxTurns: 10`이고 설정 `x.primitives.driveLimits.maxTurns: 5`이면 `lease.acquired.limits.maxTurns`가 5다.
+19. `DriveOptions.limits.maxTurns: 10`이고 설정 `x.primitives.driveLimits.maxTurns: 5`이면 `lease.acquired.limits.maxTurns`가 5다. `DriveOptions.limits`가 없고 `driveDefaultLimits`가 기본값이면 `lease.acquired.limits`가 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`다.
 20. `commit`에 스키마를 어기는 값을 넘기면 `state_schema`, 같은 판에 대한 두 번째 커밋은 `state_conflict`다.
 21. `record`에 선언하지 않은 kind를 넘기면 `record_kind_undeclared`, `readRecords`에 `readsRecordKinds`에 없는 kind를 넘기면 `read_kind_undeclared`다.
 22. 꺼진 scope의 옛 `g`로 `on`을 부르면 `scope_inactive`다.
@@ -1290,8 +1295,8 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - [미결] `post.when = next`가 turn을 스스로 시작하는지. 조사(`_research/notes/X-1.md`)는 pi `nextTurn`이 시작하지 않음을 확인했다. [제안] 시작하지 않는다(§4.7). 확정되면 ADR-0007 §3.1, architecture.runtime-flow.design §4 표를 고친다.
 - [미결] 유휴 상태 post의 동작(보관, 시작, 오류)과 `start` 값 추가 여부(§4.7).
 - [미결] pi `triggerTurn: false` 대응 연산(§4.7).
-- 포트 정본 이전(해소, [결정(잠정): review.decisions-2 U-14, D-04]): 모든 호스트 포트, 리소스 등록 포트와 리소스 정의, 키는 F.extensions.spec §3.2.1 `ports.ts`에 있고, `RecordCommitPort`와 부속 타입(`ExtCommitRequest.visibility` 포함)은 F.records.spec §3.9에 있다. 이 문서는 §3.6·§3.9에서 F 이름을 다시 export만 하고, ext-host 고유 키는 `ExtHostPortKey`뿐이다. `queryRecords`의 셋째 인자 `reader`도 F.records.spec §3.9에 반영됐고 §4.6.4가 호출한 확장 이름을 넘긴다.
-- 서비스 인터페이스(해소, [결정(잠정): review.decisions-2 D-04]): 같은 서비스 이름의 포트를 부분형으로 포함하는 서비스 인터페이스(`LoopService`, `TaskService`, `ProcessService`, `ToolService`, `ModelService`, `McpService`, `GroupService`)는 F `@xeon/contracts/services`(F.capabilities.spec §3.12)에, `SessionService`와 `StoreService`는 F.records.spec §3.9에 있다(§3.6 규칙 6 표). L1.tools.spec, L1.models.spec, L2.mcp.spec §3.2, L3.group-kit.spec §3.8도 같은 구성을 쓴다.
+- 포트 정본 이전(해소, [결정: review.decisions-2 U-14, D-04]): 모든 호스트 포트, 리소스 등록 포트와 리소스 정의, 키는 F.extensions.spec §3.2.1 `ports.ts`에 있고, `RecordCommitPort`와 부속 타입(`ExtCommitRequest.visibility` 포함)은 F.records.spec §3.9에 있다. 이 문서는 §3.6·§3.9에서 F 이름을 다시 export만 하고, ext-host 고유 키는 `ExtHostPortKey`뿐이다. `queryRecords`의 셋째 인자 `reader`도 F.records.spec §3.9에 반영됐고 §4.6.4가 호출한 확장 이름을 넘긴다.
+- 서비스 인터페이스(해소, [결정: review.decisions-2 D-04]): 같은 서비스 이름의 포트를 부분형으로 포함하는 서비스 인터페이스(`LoopService`, `TaskService`, `ProcessService`, `ToolService`, `ModelService`, `McpService`, `GroupService`)는 F `@xeon/contracts/services`(F.capabilities.spec §3.12)에, `SessionService`와 `StoreService`는 F.records.spec §3.9에 있다(§3.6 규칙 6 표). L1.tools.spec, L1.models.spec, L2.mcp.spec §3.2, L3.group-kit.spec §3.8도 같은 구성을 쓴다.
 - F.extensions.spec §1·§4.2 문구(해소): tier 정의와 핸들러 시간 예산은 X.operations 소유이고 primitives는 `DispatchPolicy` 주입 구멍만 둔다(§1). F.extensions.spec §1과 §4.2가 이미 X.operations.spec을 가리킨다.
 - [미결] F `ScopeApi`에 `provide`를 넣을지, X `hostOf(g).provide`로 둘지(§3.8).
 - [미결] `LeaseAcquiredPayload`에 `leaseEpoch` 필드를 추가할지(§4.4.1 7번).
@@ -1301,11 +1306,11 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 - 고칠 문서 반영(해소, §4.6.1): L1.persistence.spec §3.3의 `ExtCommitResult` 변환표(`key_reused`·`busy`·`disk_full`·`read_only`), `fingerprintSource` 지문 규칙, `replayed`의 `stored`, `ext.loadThread`의 활성 가지 조회(`latestEvent`의 `onActiveBranch`)가 이 문서와 같다. L3.group-kit.spec §3.6 `StateProjectionRow` 열 이름과 §4.5 6번 멱등 reducer 예제도 반영됐다.
 - [미결] thread 맥락 밖 post 허용과 F `PostOptions.threadId?` 추가(§4.6.3).
 - [미결] 서비스 모드에서 여러 thread가 열려 있을 때 scope 켜짐 상태를 thread별로 둘지(§4.5.2 [가정]과 [제안]).
-- [미결] 공급자 재시작으로 소비자 scope의 setup이 경계와 무관하게 다시 실행되는 연쇄를 제품 동작으로 받아들일지(§4.5.4, `_research/notes/X-2.md` §8).
+- [미결] 공급자 재시작으로 소비자 scope의 setup이 경계와 무관하게 다시 실행되는 연쇄를 제품 동작으로 받아들일지(§4.5.4, `_research/notes/X-2.md` §8). M1 구현에서 확인한 현상과 U-01 예외 여부는 `review.open-issues` N-02다.
 - [미결] 능력 공급자 선택 규칙(설정 `x.primitives.capabilityProviders`)이 F.capabilities.spec §5 1번의 "provider 선택은 X와 각 L2 spec"과 맞는지, L2 spec별 기본 선택이 필요한지(§3.7).
 - [미결] `registerVirtualModel`과 명령 전용 세션 제어의 지원 여부(§4.8, `_research/notes/X-3.md` §5).
-- [결정(잠정): review.decisions-2 U-01] scope 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§3.5, §4.5.3). 이 문서는 "단계 경계"만 쓴다.
-- 이름 정리(해소): eng.transactions.design·eng.events.design의 옛 키(`drive:…`, `spawn:…`, `scope:<scopeId>:<clientUlid>`, `ext:<extId>:…`)와 옛 kind(`scope.toggled`, `drive.leased`)는 고쳐졌다. 확장 kind 접두는 `x.`/`grp.`이다([결정(잠정): review.decisions-2 T-21]). 확장 id는 `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두는 `x_<name의 하이픈을 밑줄로>_`다([결정(잠정): review.decisions-2 U-18]). F.extensions.spec `EXTENSION_NAME_PATTERN`·`SCOPE_ID_PATTERN`·`RECORD_KIND_PATTERN`, eng.context-map.design §5.2 `EXT_ID_PATTERN`, eng.domain-types.guide DT-08, L0.store.spec, adr.0004도 이 결정대로 `{1,31}`과 `x_` 접두를 쓴다.
-- [미결] install 시작 적용(§4.5.6)으로 켜진 scope의 `scope.changed`를 언제 커밋할지. [제안] thread를 열 때 저장된 켜짐 상태와 다르면 첫 경계 기여에 넣는다. thread별 켜짐 상태(§4.5.2) 결정과 함께 정한다.
+- [결정: review.decisions-2 U-01] scope 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§3.5, §4.5.3). 이 문서는 "단계 경계"만 쓴다.
+- 이름 정리(해소): eng.transactions.design·eng.events.design의 옛 키(`drive:…`, `spawn:…`, `scope:<scopeId>:<clientUlid>`, `ext:<extId>:…`)와 옛 kind(`scope.toggled`, `drive.leased`)는 고쳐졌다. 확장 kind 접두는 `x.`/`grp.`이다([결정: review.decisions-2 T-21]). 확장 id는 `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두는 `x_<name의 하이픈을 밑줄로>_`다([결정: review.decisions-2 U-18]). F.extensions.spec `EXTENSION_NAME_PATTERN`·`SCOPE_ID_PATTERN`·`RECORD_KIND_PATTERN`, eng.context-map.design §5.2 `EXT_ID_PATTERN`, eng.domain-types.guide DT-08, L0.store.spec, adr.0004도 이 결정대로 `{1,31}`과 `x_` 접두를 쓴다.
+- [미결] install 시작 적용(§4.5.6)으로 켜진 scope의 `scope.changed`를 언제 커밋할지. [제안] thread를 열 때 저장된 켜짐 상태와 다르면 첫 경계 기여에 넣는다. thread별 켜짐 상태(§4.5.2) 결정과 함께 정한다. M1 구현은 다시 열 때 builtin scope에 같은 기록을 다시 남긴다(`review.open-issues` N-01).
 - [미결] F `TrustRequestSchema.level` 값(builtin/user/project/untrusted)은 [가정]이고 X.loading-trust.spec이 확정한다. 이 문서는 `ExtensionUnit.builtin` 불리언만 쓴다.
 - [미결] `@xeon/ext-host/src/index.ts`는 다른 작업자가 작성 중이다. §3.1 공개 이름과 충돌하면 이 문서를 기준으로 맞추되 충돌 내용을 여기에 적는다(현재 파일은 `export {}` 스텁이라 충돌 없음).

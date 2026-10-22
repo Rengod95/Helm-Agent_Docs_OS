@@ -38,7 +38,7 @@ binds: [xeon/apps/cli/**]
 | 용어 | 뜻 |
 |---|---|
 | 엔진 바이너리 | `bun build --compile`로 만든 단일 실행 파일. [제안] 이름은 `xeon`이고 CLI 명령과 엔진 진입(`host --stdio`, 서비스)을 한 파일에 담는다. 확정은 `L4.host-service.spec`이 한다 |
-| 조립 진입점 | `@xeon/host`의 공개 진입점 `.`과 `./client`(`L4.host-service.spec` §3.3). CLI는 이 API를 조합해 엔진 연결을 만든다(§3.3). `apps/cli` → `@xeon/host` import는 허용 목록 `DR-10/cli-host`로 연다 [결정(잠정): review.decisions-2 U-15] |
+| 조립 진입점 | `@xeon/host`의 공개 진입점 `.`과 `./client`(`L4.host-service.spec` §3.3). CLI는 이 API를 조합해 엔진 연결을 만든다(§3.3). `apps/cli` → `@xeon/host` import는 허용 목록 `DR-10/cli-host`로 연다 [결정: review.decisions-2 U-15] |
 | 대화형 모드 | stdin과 stdout이 모두 TTY일 때 입력 편집기와 트랜스크립트를 보이는 모드 |
 | print 모드 | 입력 하나로 turn 하나를 돌리고 끝내는 비대화 모드. `-p`이거나 TTY가 아니면 이 모드다 |
 | JSON 모드 | print 모드에서 사람용 출력 대신 JSON-RPC 메시지를 한 줄에 하나씩 쓰는 모드(`--json`) |
@@ -90,7 +90,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon secret rotate <name>` | 새 값으로 교체하고 기존 lease를 폐기한다. TTY 프롬프트로만 받는다 | `secret.beginEntry { name, action: "rotate" }`. 값 필드 없음 | M2 |
 | `xeon secret rm <name> [--yes]` | 삭제. 참조하는 정책을 보인 뒤 확인한다. 사용 중이면 거부된다 | `secret.remove` | M2 |
 | `xeon secret test <name>` | 존재와 복호화 가능 여부. 길이와 해시 앞 8자만 출력한다 | `secret.test` | M2 |
-| `xeon secret reveal <name>` | 값 열람. 사람 전용이고 TTY에서만 동작한다. OS 인증 재확인이 가능한 플랫폼에서는 재확인한다(§4.7) [결정(잠정): review.decisions-2 U-20] | `secret.beginReveal { name }`. 값 필드 없음. F 메서드 추가는 M2 계획에서 정한다(review.decisions-2 U-04) | M2 |
+| `xeon secret reveal <name>` | 값 열람. 사람 전용이고 TTY에서만 동작한다. OS 인증 재확인이 가능한 플랫폼에서는 재확인한다(§4.7) [결정: review.decisions-2 U-20] | `secret.beginReveal { name }`. 값 필드 없음. F 메서드 추가는 M2 계획에서 정한다(review.decisions-2 U-04) | M2 |
 | `xeon service start\|status\|stop` | 서비스 기동, 상태, 종료. `install`/`uninstall`은 2차 | 없음. `runHostCommand({ kind: "service-start" \| "service-status" \| "service-stop" })`(§3.3). status는 그 안에서 `host.status`를 부른다 | M3 |
 | `xeon service ensure --json` | `ensure`만 하고 소켓 경로를 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.host-service.spec` HS-38) | 없음. `runHostCommand({ kind: "service-ensure" })` | M3 |
 | `xeon service launch-mode --json` | 서비스 사용 설정을 엔진 없이 읽어 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.desktop.spec` §4.2). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-launch-mode" })` | M3 |
@@ -264,7 +264,7 @@ export interface EngineHandle {
   readonly connection: HostConnection;                          // host.hello까지 마친 연결
   readonly transport: TransportKind;                            // "in-process" | "socket"
   readonly storeId: string;                                     // host.hello 결과의 storeId
-  readonly paths: { readonly cliStateFile: string };            // CLI 상태 파일 위치(L0.os 상태 디렉터리 아래, §10 1번)
+  readonly paths: { readonly cliStateFile: string };            // CLI 상태 파일 위치. @xeon/host resolveHostStatePaths(L4.host-service.spec §3.3.6)
   /** in-process면 InProcessHost.close()(HS-31), socket이면 HostConnection.close()만 한다.
    *  체크포인트 시한은 l0.process.shutdown.timeoutMs다(L0.process.spec §6, L4.host-service.spec §3.3.5). */
   shutdown(reason: "user" | "signal"): Promise<"clean" | "deadline">;
@@ -501,7 +501,7 @@ export type CliState = Static<typeof CliStateSchema>;
 | `item.recorded`(toolResult) + `effect.result` | 도구 결과(아래 3채널 규칙) |
 | `item.recorded`(custom) | `display: true`면 `content`의 텍스트를 보이고, `false`면 보이지 않는다 |
 | `turn.completed` | 상태가 `interrupted`·`failed`면 한 줄 알림. print 모드 종료 코드 결정(§3.6) |
-| `step.*`, `checkpoint.step`, `lease.*`, `scope.changed`, `post.accepted` | 트랜스크립트에 그리지 않는다. 대화형 상태 줄에만 반영할 수 있다 |
+| `step.*`, `checkpoint.step`, `lease.*`, `scope.changed`, retire된 `post.accepted`(M1 개발 DB에 남은 행) | 트랜스크립트에 그리지 않는다. 대화형 상태 줄에만 반영할 수 있다 |
 | `settings.changed` | 대화형에서 한 줄 알림. 값이 비밀 참조면 참조 문자열만 보인다 |
 | 확장 kind(`x.<id>.*`, `grp.<id>.*`) | 그리지 않는다. 확장이 보일 내용은 `custom` item으로 낸다(F conversation §3.5.2) |
 | `stream.chunk` `item.updated{part_delta}` | 진행 줄에 텍스트를 이어 붙인다 |
@@ -547,7 +547,7 @@ export type CliState = Static<typeof CliStateSchema>;
   - [제안] 비밀 명령에는 `--json` 메시지 탭을 붙이지 않는다. `secret ls`, `secret test`의 `--json`은 결과 객체만 쓴다.
   - 값을 담은 바이트 배열은 L0.secrets에 넘긴 직후 0으로 덮는다. 문자열로 바꾸지 않는다 [제안].
 - `secret test`는 존재, 복호화 가능 여부, 길이, SHA-256 hex 앞 8자만 출력한다.
-- 값 열람 [결정(잠정): review.decisions-2 U-20]: 열람 경로는 M2 CLI `xeon secret reveal <name>`과 M3 데스크톱 화면(`L4.settings-ui.spec`) 둘이다. 에이전트 경로(모델 도구, 확장 API)에는 열람이 없다.
+- 값 열람 [결정: review.decisions-2 U-20]: 열람 경로는 M2 CLI `xeon secret reveal <name>`과 M3 데스크톱 화면(`L4.settings-ui.spec`) 둘이다. 에이전트 경로(모델 도구, 확장 API)에는 열람이 없다.
   - [제안] `reveal`은 stdin과 stdout이 모두 TTY일 때만 동작한다. 아니면 `revealRequiresTty` 사용법 오류(2)다. `--json`을 받지 않는다.
   - [제안] 시작은 값 필드가 없는 `secret.beginReveal { name }`이다. 값 표시는 호스트 쪽 L0.secrets가 맡는다. in-process면 같은 프로세스가 TTY에 직접 쓰고, 서비스 접속이면 서비스 쪽 L0.secrets가 OS 창으로 보인다(`L4.settings-ui.spec` §4.6.4 C안과 같은 경로). 값은 wire 프레임, 로그, 이벤트에 없다.
   - [제안] OS 인증 재확인(macOS Touch ID·암호, Windows Hello 등)이 가능한 플랫폼에서는 표시 전에 재확인한다. 수단은 `L0.secrets.spec`·`L0.os.spec`이 정한다. 재확인을 못 하는 플랫폼에서는 TTY 확인 문구(이름을 다시 입력)만 받는다.
@@ -744,14 +744,14 @@ export type CliState = Static<typeof CliStateSchema>;
 
 ## 10. 미결 사항
 
-1. [결정(잠정): review.decisions-2 U-15] `apps/cli` → `@xeon/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1). 남은 [미결]: 엔진 바이너리 이름 `xeon`([제안], 같은 문서 §10 미결 2)과 `EngineHandle.paths.cliStateFile`의 원천. CLI는 경로를 계산하지 않으므로(DR-13) `@xeon/host`가 L0.os 상태 디렉터리를 알려 주는 API를 두도록 host-service에 요청한다.
+1. [결정: review.decisions-2 U-15] `apps/cli` → `@xeon/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1). 남은 [미결]: 엔진 바이너리 이름 `xeon`([제안], 같은 문서 §10 미결 2). `EngineHandle.paths.cliStateFile`의 원천은 정했다 [결정: review.decisions-2 B-07]: `@xeon/host`의 `resolveHostStatePaths()`가 L0.os `OsDirs.state` 아래 `cli/state.json`을 돌려준다(`L4.host-service.spec` §3.3.6). CLI는 경로를 계산하지 않는다(DR-13). 환경 변수 `XEON_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남는다.
 2. [미결] M1 중단의 wire 지원. `turn.interrupt`가 M2라서 M1의 Ctrl+C 1회가 종료 요청이다(§4.6). M1에 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1으로 당기는 F 변경 요청이 필요하다. 기존 세션의 쓰기 소유를 `turn.start`가 얻는 동작은 `L4.host-service.spec` HS-28로 확정되어 이 항목에서 닫았다(§4.3).
-3. [미결] 비밀 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `xeon secret reveal`로 정했다 [결정(잠정): review.decisions-2 U-20]. 남은 것: `secret.beginReveal`의 F 추가(review.decisions-2 U-04에 따라 M2 계획에서 정한다), in-process에서 CLI가 읽은 값을 wire 밖으로 L0.secrets에 넘기는 `@xeon/host` API(§4.7), `secret run -- <cmd>`를 둘지.
+3. [미결] 비밀 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `xeon secret reveal`로 정했다 [결정: review.decisions-2 U-20]. 남은 것: `secret.beginReveal`의 F 추가(review.decisions-2 U-04에 따라 M2 계획에서 정한다), in-process에서 CLI가 읽은 값을 wire 밖으로 L0.secrets에 넘기는 `@xeon/host` API(§4.7), `secret run -- <cmd>`를 둘지.
 4. [미결] `type`에 `range`를 병합하는 함수를 F에 공통으로 둘지(`_research/notes/L4-3.md`). `config schema`는 wire 없이 로컬 명령(`L4.host-service.spec` §6.2)으로 정해져 F 변경 요청에서 뺐다.
 5. [미결] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. [제안] 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더한다.
 6. [미결] pi-tui 채택. 스택 표에 행이 없다. 조건은 §4.9.2. 실패하면 최소 renderer로 유지한다.
 7. [미결] 릴리즈 형태: 단일 파일만 배포할지, pi처럼 `native/` 사이드카 디렉터리를 함께 둘지(`_research/notes/L4-1.md` §5). macOS 공증 때 사이드카 `.node`와 FTS5 dylib의 서명 위치는 `_research/notes/L4-2.md`가 다룬다.
 8. [미결] print 모드에서 승인 요청이 오면 거부하는 기본값, 비대화 자동 승인 플래그를 둘지.
-9. [결정(잠정): review.decisions-2 U-02] 승인 요청은 A안(내구 이벤트 `approval.requested`/`approval.resolved` + `approval.respond`)이다. kind는 F.records 카탈로그에 있다(`F.records.spec` §3.2).
+9. [결정: review.decisions-2 U-02] 승인 요청은 A안(내구 이벤트 `approval.requested`/`approval.resolved` + `approval.respond`)이다. kind는 F.records 카탈로그에 있다(`F.records.spec` §3.2).
 10. [미결] TUI 설정 화면과 view-model 공유 위치(§4.9.4).
 11. [미결] stdout EPIPE의 종료 코드(0 제안)와 129·143 추가.

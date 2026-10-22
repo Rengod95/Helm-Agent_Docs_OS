@@ -46,7 +46,19 @@ Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 
 - 내부 패키지는 TS 소스를 그대로 export한다(`"exports": {".": "./src/index.ts"}`). 빌드 산출물에 의존하지 않는다.
 - 테스트는 `bun test`, 패키지의 `test/*.test.ts`. 단위 테스트를 함께 둔다. vitest, jest를 쓰지 않는다.
 - 스키마는 `typebox`(1.x). SQLite는 `bun:sqlite`만 쓴다.
-- `any`, 비null 단언(`!`), `console`(scripts와 apps/cli, apps/host 제외), default export는 lint가 막는다. 검사를 끄거나 우회하지 않는다.
+- `console`(scripts와 apps/cli, apps/host 제외), default export는 lint가 막는다. 검사를 끄거나 우회하지 않는다.
+
+### 타입과 실패 처리 (구속, `xeon-ts` 스킬)
+
+정본은 `../docs/xeon/engineering/typescript/guide.md`(eng.typescript.guide) 1.3절 체크리스트와 2절 규칙이다. 구현·리뷰 작업자는 코드를 쓰기 전에 읽는다.
+
+- `as` 단언 금지. `as unknown as T`, `<T>x`, `JSON.parse(s) as T`도 같다. `as const`만 허용. 예외는 TY-06 허용 목록 위치뿐이고, 줄마다 `// oxlint-disable-next-line typescript/consistent-type-assertions -- <허용 목록 ID와 이유> (eng.typescript.guide TY-06)`를 단다.
+- 비null 단언 `!`, `any`, `@ts-ignore`, `@ts-nocheck` 금지. `@ts-expect-error`는 테스트 파일의 타입 테스트에서만 이유를 달아 쓴다 (TY-02, TY-07, TY-08).
+- 단언 대신 `parse`(TypeBox), 타입 가드, `satisfies`, 브랜드 생성 함수, 판별 유니온 + `assertNever`를 쓴다. 타입은 런타임에 지워지므로 경계 값은 항상 `parse`로 검증한다 (TY-10, TY-23).
+- 예상 가능한 실패(I/O, busy, disk_full, read_only, cancelled, not_found, 검증 실패, ownership_lost, timeout, 저장 데이터 손상)는 `kind`가 있는 오류 값을 `Result`로 돌려준다. `throw`하지 않고 `Bug`로 던지지 않는다. `Bug`는 불변 조건 위반에만 쓴다 (TY-11, TY-24).
+- `catch`는 오류를 조용히 삼키지 않는다. `cause`를 담은 오류 값으로 바꾸거나, 근거 문서가 있는 자리에서 주입된 Logger로 기록하거나, 그대로 다시 던진다 (TY-25).
+- 지킬 수 없는 줄이 있으면 주석으로 넘기지 말고 작업 보고에 `[미결] TY-NN <파일:줄> <이유>`로 적는다.
+- 강제 lint 규칙 목록은 eng.typescript.guide 3.1.1절, 안티패턴 설명은 `eng.anti-patterns.guide` AP-C-01, AP-C-02, AP-C-10, AP-C-11이다.
 - `vendor/cordis`는 고치지 않는다. 갱신은 새 커밋을 다시 복사하고 `UPSTREAM.json`을 고친다.
 
 ## 검사 명령

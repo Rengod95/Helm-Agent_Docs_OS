@@ -210,7 +210,6 @@ export const BlobRefSchema: Schema<BlobRef>;
 | `scope.changed` | 내구 | extension-host (`xh`) | `scopeId`, `status`(enabled·disabled) | 투영, ext-host |
 | `lease.acquired` | 내구 | extension-host (`xh`) | `leaseId`, `scopeId`, 상한 `limits` | 투영, ext-host 재개 |
 | `lease.released` | 내구 | extension-host (`xh`) | `leaseId`, `scopeId`, 사유 | 투영, ext-host |
-| `post.accepted` | 내구 | run-engine (`core.tasks`) | `requestId`, `scopeId`, `when`, `itemId` | 투영, ext-host |
 | `settings.changed` | 내구 | session-core (`core.persistence`) | `key`, `scope`, 값(비밀은 참조만) | 투영, loop |
 
 - `effect.result.status` 값은 `ok`, `error`, `interrupted`, `abandoned` 네 개이고 복구 규칙이 만든 결과는 `synthesized: true`다(`F.records.spec` §3.5). 이 문서의 이전 판에 있던 6값(`completed`, `failed`, `denied`, `not_executed`, `interrupted`, `outcome_uncertain`)은 쓰지 않는다. 대응은 `L1.persistence.spec` §2.1 표다. `effect.intent`가 있는 호출마다 `effect.result`는 0 또는 1건이다. `effect.intent` 전에 거부된 호출(`tool_call` 핸들러 거부, 정책·승인 거부)은 효과 이벤트 없이 `isError: true`인 toolResult item만 남는다(`L1.tools.spec`). 기록 규칙은 `eng.transactions.design` 5절이다.
@@ -218,7 +217,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 - `effect.intent.replay` 값은 `safe`, `unsafe`다. pi-agent-core의 `replay?: "never" | "safe"`(`pi-src/packages/agent/src/types.ts:489-490`)는 `toReplayPolicy`가 `never → unsafe`로 바꾼다(`F.conversation.spec` §3.6).
 - toolResult `item.recorded`는 `effect.result`와 한 커밋(E3)에 들어간다. 커밋은 tool-runtime이 내고, item 초안은 루프의 생산자 핸들로 만든다(`L1.tools.spec` `ToolRunContext.drafts`).
 - `drive` 임대 차수(`leaseEpoch`)는 `LeaseAcquiredPayload`에 필드가 없다. X는 thread 이벤트에서 scope별 `lease.acquired` 개수로 다시 계산한다(`X.primitives.spec` §4.4.1 7번). payload에 더할지는 그 문서의 [미결]이다.
-- L1이 쓰는 다음 kind는 F 코어 카탈로그에 있다(`F.records.spec` §3.3): `input.queued`·`input.placed`·`input.withdrawn`(`core.tasks`, `L1.tasks.spec`), `turn.abort_requested`(`core.loop`), `approval.requested`·`approval.resolved`(`core.tools`, `L1.tools.spec` §8.3. 승인 방식은 [결정(잠정): review.decisions-2 U-02] A안), `agent.spawned`·`agent.settled`·`agent.judged`(`core.agents`, `L1.agents.spec` §8.3), `thread.resumed`(`core.persistence`, `L1.persistence.spec`), `post.accepted`(payload에 `inputId`, [결정(잠정): review.decisions-2 U-05]). payload 정본은 F다.
+- L1이 쓰는 다음 kind는 F 코어 카탈로그에 있다(`F.records.spec` §3.3): `input.queued`·`input.placed`·`input.withdrawn`(`core.tasks`, `L1.tasks.spec`), `turn.abort_requested`(`core.loop`), `approval.requested`·`approval.resolved`(`core.tools`, `L1.tools.spec` §8.3. 승인 방식은 [결정: review.decisions-2 U-02] A안), `agent.spawned`·`agent.settled`·`agent.judged`(`core.agents`, `L1.agents.spec` §8.3), `thread.resumed`(`core.persistence`, `L1.persistence.spec`). `post.accepted`는 retire했다([결정: review.decisions-2 U-05]). 확장 post도 `input.queued`(`source.type: "extension"`)로 남는다. payload 정본은 F다.
 - L2 능력의 이벤트(`work.*`, `artifact.*`, `schedule.*`, `dialog.*`)와 확장 이벤트(`x.<extId>.*`, `grp.<groupId>.*`)는 각 소유 spec과 확장 매니페스트가 카탈로그를 둔다. 확장 kind는 `EventKindRegistry`로 등록한다(`F.records.spec` §3.2). 접두 소유는 `eng.context-map.design` 5.1절이다.
 - thread 메타(제목)는 session-core만 쓴다. L2 artifacts가 자동 제목을 만들면 session-core 서비스 API(`threads.setTitle`)로 요청하고, 이벤트는 session-core가 쓴다.
 
@@ -229,7 +228,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 kind 이름 규칙의 정본은 `F.records.spec` §3.2다. 요약:
 
 1. 코어 kind는 `<영역>.<이름>`이다. 점은 하나, 소문자 `snake_case`다. 영역은 `CoreArea`(`thread`, `turn`, `step`, `item`, `part`, `effect`, `checkpoint`, `scope`, `lease`, `post`, `settings`)다. 예: `effect.result`, `thread.leaf_moved`.
-2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 의도 그룹 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용, 밑줄 금지. [결정(잠정): review.decisions-2 U-18])이다. 예: `grp.helm.phase.changed`, `grp.learning.counter.advanced`. 열린 유니온의 일반 규칙은 `eng.domain-types.guide` DT-08이다.
+2. 확장 kind는 `x.<extId>.<영역>.<이름>`, 의도 그룹 kind는 `grp.<groupId>.<영역>.<이름>`이다. `extId`·`groupId`는 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용, 밑줄 금지. [결정: review.decisions-2 U-18])이다. 예: `grp.helm.phase.changed`, `grp.learning.counter.advanced`. 열린 유니온의 일반 규칙은 `eng.domain-types.guide` DT-08이다.
 3. 내구·휘발은 이름이 아닌 카탈로그 항목의 `durable`로 정한다. 같은 kind가 내구와 휘발을 함께 갖지 않는다.
 4. 금지 접두사: `ui.`, `notification.`, `projection.`. 화면 갱신과 알림은 이벤트가 아니다 [제안].
 5. 벤더 이름(`pi`, `anthropic`, `openai`)을 코어 kind에 넣지 않는다.
@@ -458,7 +457,7 @@ resume(threadId):                                       // 쓰기 소유를 얻�
 - 취소 판정(5단계)은 열린 효과 처리(6단계)보다 앞이다. 사용자가 취소한 turn의 `safe` 효과가 크래시 뒤 다시 실행되면 안 되기 때문이다(`eng.transactions.design` 6.2절 7번, `L1.persistence.spec` §4.8.1).
 - `reduceLoopState`는 `core-loop`이 소유하는 순수 함수다. 체크포인트는 이 함수의 결과를 빨리 얻기 위한 이벤트이며, `step_checkpoints`를 지우고 재생해도 같은 결과가 나와야 한다.
 - 이 문서의 이전 판에 있던 `tool.replay_started` 이벤트는 두지 않는다. 재실행 수는 `effect.exec` 건수로 센다(재실행 수 = `max(0, execCount - 1)`, `L1.persistence.spec` §4.7.3).
-- 자동 재개는 기본으로 꺼 둔다(층 구성 계획 v2 L0-e "복구 표식", adr.0006 §6 [미결]). 설정 키는 `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts`뿐이다([결정(잠정): review.decisions-2 S-03], `L1.persistence.spec` §6). 꺼져 있으면 7단계까지만 하고, 다음 turn은 사용자 입력이 들어올 때 시작한다.
+- 자동 재개는 기본으로 꺼 둔다(층 구성 계획 v2 L0-e "복구 표식", adr.0006 §6 [미결]). 설정 키는 `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts`뿐이다([결정: review.decisions-2 S-03], `L1.persistence.spec` §6). 꺼져 있으면 7단계까지만 하고, 다음 turn은 사용자 입력이 들어올 때 시작한다.
 
 ## 8. 스키마 버전
 

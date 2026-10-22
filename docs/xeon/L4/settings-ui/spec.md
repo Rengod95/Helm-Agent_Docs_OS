@@ -13,7 +13,7 @@ binds: [xeon/apps/desktop/src/settings/**]
 이 문서는 데스크톱 앱의 설정 화면을 정한다. 설정 화면은 F5 설정 스키마(`SettingDefWire`, `EffectiveSetting`)를 호스트 계약으로 받아 탭과 항목을 만들고, 값 쓰기를 `settings.set`·`settings.reset`으로 보낸다.
 
 - [결정] 모든 설정은 F5 설정 스키마 하나에서 L4 화면, 설정 파일, 명령을 함께 만든다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 6, `F.wire-settings.spec` §4.9).
-- [결정] 추론 예산, 라우팅, 레이트 리밋, 계정 회전은 L4 클라이언트 설정 화면에서 조작할 수 있어야 한다(`_research/decisions-log.md` 2026-10-21 결정(2차)). 마일스톤은 M3다(`product.scope.spec` I14). 레이트 리밋·계정 회전 설정을 2차로 미루지 않고 M3 화면에 넣는다 [결정(잠정): review.decisions-2 U-21].
+- [결정] 추론 예산, 라우팅, 레이트 리밋, 계정 회전은 L4 클라이언트 설정 화면에서 조작할 수 있어야 한다(`_research/decisions-log.md` 2026-10-21 결정(2차)). 마일스톤은 M3다(`product.scope.spec` I14). 레이트 리밋·계정 회전 설정을 2차로 미루지 않고 M3 화면에 넣는다 [결정: review.decisions-2 U-21].
 - [결정] 데스크톱은 Tauri 2이고 UI와 엔진은 stdio JSON-RPC로 연결한다(adr.0008).
 
 ## 1. 목적과 범위
@@ -71,7 +71,7 @@ binds: [xeon/apps/desktop/src/settings/**]
 | `SettingDefWire`, `EffectiveSetting`, `SettingsTab`, `SettingWidget`, `SettingScope`, `RuntimeChange`, `SettingKey`, `SecretRef` 타입 | `@xeon/contracts/settings`(F) | `model/**` |
 | `ThreadId` 타입 | `@xeon/contracts/conversation`(F) | `model/**`, `connection.ts` |
 | `Result` 타입 | `@xeon/contracts`(F 루트) | `model/**` |
-| `Check`(JSON Schema 검사) | `typebox/schema`(1.4.2, `xeon/package.json` catalog) | `model/validate.ts` |
+| `Check`(JSON Schema 검사) | `typebox/schema`(1.3.27, `xeon/package.json` catalog) | `model/validate.ts` |
 | `DesktopSettingsStore` 타입 | `xeon/apps/desktop/src/settings-store`(같은 desktop 패키지, `L4.desktop.spec` §3.6) | `index.ts`, `connection.ts` |
 | `HostConnection` 인스턴스 | `xeon/apps/desktop/src/transport` 공개 진입점(같은 패키지). 실제 값은 셸 포트로 받는다 | `index.ts` |
 
@@ -470,15 +470,15 @@ export declare function reduceSettings(state: SettingsState, action: SettingsAct
 | `permissions` | 권한과 샌드박스 | L1-d 승인·권한 규칙(소유 문서 `L1.tools.spec`, `l1.tools.*`), L0-c `l0.secrets.approval.*`(비밀 승인 기본 정책, 쓰기 허용 호스트), L0-b `l0.sandbox.*`(켜기·끄기, 쓰기 경로, 허용 도메인, 프록시) | 규칙 편집기, 목록 편집기(M3) | 없음 |
 | `sessions` | 세션과 컨텍스트 | L1-e `l1.context.*`(자동 컴팩션, 임계), L1-f `l1.persistence.*`(보관 기간, 내보내기, 자동 재개), L2-d `l2.knowledge.*`(메모리) | 토글과 폼. 삭제성 동작은 확인 단계 | 없음 |
 | `tools` | 도구와 웹 | L2 `l2.mcp.*`, `l2.web.*`, `l2.workspace.*`, `l2.knowledge.*`(스킬), `l2.dialog.*` 중 질문·명령·첨부 키, 그 밖의 `l2.*` | 목록 토글, 선택 | 없음 |
-| `plugins` | 플러그인과 그룹 | X `x.loading-trust.*`(신뢰, 격리), `x.operations.*`(핸들러 시한, 자동 끄기, 안전 모드), `x.primitives.driveLimits`, `x.primitives.activeDriveGroup`(구동 그룹 선택, review.decisions-2 S-15), `x.primitives.capabilityProviders`, 그룹 켜기 키 `ext.<id>.enabled`, L3 `l3.group-kit.*`, `l3.helm.*`, `l3.learning.*`, 확장 `ext.<id>.*`(userConfig에서 온 키는 `plugins` 고정, `F.wire-settings.spec` §3.8.3) | 목록 토글과 그룹별 묶음 | 없음 |
+| `plugins` | 플러그인과 그룹 | X `x.loading-trust.*`(신뢰, 격리), `x.operations.*`(핸들러 시한, 자동 끄기, 안전 모드), `x.primitives.driveDefaultLimits`(drive 기본 상한, review.decisions-2 U-12), `x.primitives.driveLimits`(천장), `x.primitives.activeDriveGroup`(구동 그룹 선택, review.decisions-2 S-15), `x.primitives.capabilityProviders`, 그룹 켜기 키 `ext.<id>.enabled`, L3 `l3.group-kit.*`, `l3.helm.*`, `l3.learning.*`, 확장 `ext.<id>.*`(userConfig에서 온 키는 `plugins` 고정, `F.wire-settings.spec` §3.8.3) | 목록 토글과 그룹별 묶음 | 없음 |
 | `execution` | 실행과 서비스 | L1-a `l1.tasks.*`(동시 상한, 큐 기본 모드), L0-d `l0.process.*`, L2 `l2.dialog.notify.*`(알림 켜기와 종류. L0.os는 전달 수단만 소유한다, review.decisions-2 S-04), `l0.exec.*`(셸), `l2.schedule.*`, `l4.host-service.*`(재전송·구독 한도). 공유 서비스 모드 토글은 `l0.process.service.enabled`이고 L0-d 행에 포함된다, `l4.desktop.engine.restartLimit`(desktop 원천) | 토글과 폼 | 없음 |
 | `appearance` | 외관 | `l4.desktop.appearance.*`(테마, 글꼴, 글자 크기, 키 바인딩), `l4.desktop.window.*`(desktop 원천, §4.1.3), `l4.cli.*`(TUI 표시, 엔진 원천), `l2.dialog.status.segments`, `l2.dialog.styles.active` | 선택, 토글. 미리보기는 desktop이 정한다 | 없음 |
 | `advanced` | 고급 | `ui.tab: "advanced"` 정의(캐시 TTL, 샘플링, 재시도 `l1.models.retry`, `l4.desktop.engine.shutdownGraceMs` 등) + `ui`가 없는 모든 키(파일 편집기) | 폼 + 파일 편집기(§4.2.3) | 없음 |
 
 - 층 표기(L1-a~L1-g, L0-b 등)는 `_research/settings.md` §2와 `_research/layer-plan-v2-notes.md` L4 설정 화면 구성안의 하위 층 이름이다. 네임스페이스의 도메인 이름은 `_routing/routes.yaml` layout을 따른다(`F.wire-settings.spec` §3.8.1).
 - [가정] 승인·권한 규칙 키의 소유 문서는 `L1.tools.spec`이다(`F.wire-settings.spec` §4.6 "payload는 `L1.tools.spec`(승인 프로토콜) 소관"). 키 이름은 그 문서가 정한다.
-- [결정(잠정): review.decisions-2 S-11] 이 표의 배치는 각 키 소유 층 문서의 `ui.tab`을 옮긴 것이다(`L1.loop.spec` §6, `L1.models.spec` §6, `L1.agents.spec` §6, `L0.secrets.spec` §6, `L2.dialog.spec` §6, `X.operations.spec` §6, `X.primitives.spec` §6). 어긋나면 소유 층 문서가 정본이고 이 표를 고친다.
-- [결정(잠정): review.decisions-2 S-14] `l1.agents.*`는 models 탭이다. `F.wire-settings.spec` §4.9가 "에이전트" 탭을 모델에 합쳤기 때문이다.
+- [결정: review.decisions-2 S-11] 이 표의 배치는 각 키 소유 층 문서의 `ui.tab`을 옮긴 것이다(`L1.loop.spec` §6, `L1.models.spec` §6, `L1.agents.spec` §6, `L0.secrets.spec` §6, `L2.dialog.spec` §6, `X.operations.spec` §6, `X.primitives.spec` §6). 어긋나면 소유 층 문서가 정본이고 이 표를 고친다.
+- [결정: review.decisions-2 S-14] `l1.agents.*`는 models 탭이다. `F.wire-settings.spec` §4.9가 "에이전트" 탭을 모델에 합쳤기 때문이다.
 
 #### 4.1.2 초안 탭과 F 12값의 대응
 
@@ -692,7 +692,7 @@ sequenceDiagram
 3. 범위 허용(`allowedScopes`)은 클라이언트가 미리 막는다(§4.3.6).
 4. 잠금과 비밀 값 거부의 최종 판정은 서버 전용이다. 화면은 `locked`로 편집을 막고, secret 위젯은 참조 형식이 아닌 입력을 받지 않을 뿐이다.
 5. 서버가 권위다. 클라이언트 검사가 통과해도 서버가 거부하면 서버 결과를 보인다. 클라이언트 검사가 실패하면 전송하지 않는다.
-6. [제안] 새 검사기를 만들지 않는다. 서버 `validateSettingValue`와 같은 스키마(type + range)를 같은 검사 엔진(TypeBox 1.4.2)으로 검사한다. 일치는 계약 테스트(`client-check-matches-server`, plan §5)로 확인한다.
+6. [제안] 새 검사기를 만들지 않는다. 서버 `validateSettingValue`와 같은 스키마(type + range)를 같은 검사 엔진(TypeBox 1.3.27)으로 검사한다. 일치는 계약 테스트(`client-check-matches-server`, plan §5)로 확인한다.
 7. `Check`는 불리언만 돌려준다. 필드 문구는 정의의 `range`와 `type` 키워드에서 만든다(§4.4.4). [가정] `typebox/schema`에 오류 목록 함수가 있으면 첫 오류 경로를 함께 보인다. 없으면 정의에서 만든 문구만 쓴다.
 8. `Check` 경로는 `new Function`을 쓰지 않으므로 WebView CSP에서 `unsafe-eval`이 필요 없다(L4-3 §2.5).
 
@@ -798,7 +798,7 @@ sequenceDiagram
 | C. L0.secrets 흐름 위임 | WebView는 `secret.beginEntry {name, action}` 같은 값 없는 요청만 보낸다 → 호스트의 L0.secrets가 OS 보안 입력(키체인 대화상자, pinentry 등)이나 터미널 프롬프트를 띄워 값을 직접 받는다 → 결과 상태만 돌려준다 | L0.secrets와 OS 입력 창 | 값이 DOM, wire, 이벤트 어디에도 없다. 열람(`secret.beginReveal`)도 같은 경로로 OS 창에 한 번 보이고 닫힌다. CLI의 `secret add`(stdin) 흐름과 소유 위치가 같다(`_research/secrets.md` §6.6) | OS별 보안 입력 구현이 필요하다(L0.os·L0.secrets). Linux에 pinentry가 없으면 대체 경로가 필요하다 | 값 없는 메서드 추가 |
 
 - [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. M3 전까지(M2)는 비밀 등록 버튼 대신 `xeon secret add <이름>` 명령 안내를 보인다. 이 명령은 stdin으로 값을 받는다(`_research/secrets.md` §6.6).
-- [결정(잠정): review.decisions-2 U-20] 값 열람 경로는 M2 CLI `xeon secret reveal`(`L4.cli.spec` §4.7)과 M3 이 화면의 "값 보기" 둘이다. 에이전트 경로에는 열람이 없다. 이 화면의 열람은 C안 경로(`secret.beginReveal`, OS 인증 재확인)를 쓴다.
+- [결정: review.decisions-2 U-20] 값 열람 경로는 M2 CLI `xeon secret reveal`(`L4.cli.spec` §4.7)과 M3 이 화면의 "값 보기" 둘이다. 에이전트 경로에는 열람이 없다. 이 화면의 열람은 C안 경로(`secret.beginReveal`, OS 인증 재확인)를 쓴다.
 - [제안] C안에서 셸 포트 `openSecretFlow`는 desktop이 호스트 메서드를 불러 구현한다. settings-ui는 결과 상태(`SecretFlowOutcome`)만 받는다.
 - C안이 OS에서 불가능한 경우의 대체로 A안을 쓸지는 [미결]이다(§10 미결 2). A안을 쓰면 값이 wire를 지나므로 `L4.readme` §4 비밀 행, `L4.desktop.spec` E11, `L0.secrets.spec` §8.3 R4의 전제를 함께 고쳐야 한다. 그때도 입력란은 한 번 쓰고 비우는 별도 창에 두고, view-model 상태에는 넣지 않는다.
 - 어느 안이든 F 메서드 추가가 필요하므로 F 변경 요청 여부를 §10 미결 2, 3에 둔다.
@@ -807,7 +807,7 @@ sequenceDiagram
 
 - budgets 탭과 providers 탭에 게이지 자리를 둔다. 사용량과 한도 데이터 원천은 L1.models의 사용량 투영이다(`_research/settings.md` §2.5 "레이트 리밋과 사용량 한도 대응" 행).
 - 현재 이 투영을 읽는 wire 메서드가 없다(`F.wire-settings.spec` §3.3.1 메서드 표). 그래서 M3 범위에서 게이지는 자리만 두고 `GaugeSlotVM.status: "unavailable"`과 "사용량 정보는 아직 볼 수 없어요"를 보인다.
-- 레이트 리밋·계정 회전 설정 항목은 M3에 넣는다 [결정(잠정): review.decisions-2 U-21]. 사용량 wire 메서드(예: `usage.get`)는 M1에 넣지 않고 M2 계획에서 정한다 [결정(잠정): review.decisions-2 U-04]. 메서드가 정해지기 전에는 게이지를 자리만 둔다(§10 미결 5).
+- 레이트 리밋·계정 회전 설정 항목은 M3에 넣는다 [결정: review.decisions-2 U-21]. 사용량 wire 메서드(예: `usage.get`)는 M1에 넣지 않고 M2 계획에서 정한다 [결정: review.decisions-2 U-04]. 메서드가 정해지기 전에는 게이지를 자리만 둔다(§10 미결 5).
 
 ### 4.8 접근성과 문구
 
@@ -895,8 +895,8 @@ sequenceDiagram
 
 - 이 도메인은 on·post·drive·scope 지점을 선언하지 않는다. L4 앱 코드라 확장 호스트에 참여하지 않는다.
 - 확장(외부 의도 그룹 포함)의 설정은 `ExtensionManifest.userConfig` → `settingsFromManifest` → 카탈로그 → `settings.list` 경로로 들어오고, `ui.tab`이 `plugins`로 고정된다(`F.wire-settings.spec` §3.8.3 규칙 1). 설정 화면은 이 정의를 다른 정의와 같은 규칙으로 그린다.
-- L3 기본 그룹(Helm, 학습 그룹)의 키는 `l3.helm.*`, `l3.learning.*`이다(같은 절 규칙 3). 그룹 켜기·끄기 키는 X 로더 예약 키 `ext.<name>.enabled` 하나다(내장 그룹도 `ext.helm.enabled`, `ext.learning.enabled`) [결정(잠정): review.decisions-2 K-04]. 범위는 X 정의(managed~session), `runtimeChange`는 `live`이고 적용은 다음 단계 경계다(`X.loading-trust.spec` §6). 설정 화면은 이 키를 일반 토글로 그리고, 실행 중이면 "다음 단계 경계에 적용" 배지를 보인다.
-- drive 보유 그룹 선택은 X 키 `x.primitives.activeDriveGroup`(`select`, 후보는 drive를 등록한 scope, 빈 값은 "자동") 하나다 [결정(잠정): review.decisions-2 S-15]. group-kit은 별도 키를 두지 않는다(`L3.group-kit.spec` §6).
+- L3 기본 그룹(Helm, 학습 그룹)의 키는 `l3.helm.*`, `l3.learning.*`이다(같은 절 규칙 3). 그룹 켜기·끄기 키는 X 로더 예약 키 `ext.<name>.enabled` 하나다(내장 그룹도 `ext.helm.enabled`, `ext.learning.enabled`) [결정: review.decisions-2 K-04]. 범위는 X 정의(managed~session), `runtimeChange`는 `live`이고 적용은 다음 단계 경계다(`X.loading-trust.spec` §6). 설정 화면은 이 키를 일반 토글로 그리고, 실행 중이면 "다음 단계 경계에 적용" 배지를 보인다.
+- drive 보유 그룹 선택은 X 키 `x.primitives.activeDriveGroup`(`select`, 후보는 drive를 등록한 scope, 빈 값은 "자동") 하나다 [결정: review.decisions-2 S-15]. group-kit은 별도 키를 두지 않는다(`L3.group-kit.spec` §6).
 - [제안] 확장이 설정 화면에 자기 화면 부품(맞춤 패널)을 넣는 것은 M3 범위에 두지 않는다(§10 미결 13).
 
 ## 8. 다른 문서와의 인터페이스
@@ -936,12 +936,12 @@ sequenceDiagram
 
 ## 10. 미결 사항
 
-1. [결정(잠정): review.decisions-2 U-04] 변경 신호 범위. `settings.changed`는 thread 내구 이벤트라 user·project 파일 변경이 오지 않을 수 있다. 값 없는 서버 알림 `settings.invalidated`(§4.5.2)는 M1에 넣지 않고 M2 계획에서 정한다. 그때까지 F.wire-settings 미결이고 화면은 §4.5.2의 다시 읽기 규칙을 쓴다.
+1. [결정: review.decisions-2 U-04] 변경 신호 범위. `settings.changed`는 thread 내구 이벤트라 user·project 파일 변경이 오지 않을 수 있다. 값 없는 서버 알림 `settings.invalidated`(§4.5.2)는 M1에 넣지 않고 M2 계획에서 정한다. 그때까지 F.wire-settings 미결이고 화면은 §4.5.2의 다시 읽기 규칙을 쓴다.
 2. [미결] 비밀 값 입력·열람 경로. 제안은 C안(L0.secrets 흐름 위임, 값 없는 `secret.beginEntry`·`secret.beginReveal`). CLI도 같은 C안을 쓴다. C안이 불가능한 OS에서 A안(wire 전용 메서드)을 대체로 쓸지(§4.6.4). F 변경 요청.
 3. (닫힘) 비밀 관리 데이터의 wire 경로. `secret.list { meta?, usage? }`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`는 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4). 열람 시작 `secret.beginReveal`의 F 추가는 M2 계획에서 정한다(review.decisions-2 U-04, U-20). 정본 표는 `L4.readme` §8.1이다.
 4. [미결] secrets 탭과 비밀 관리 명령(M2, `product.scope.spec` UC-6)의 순서. 명령이 M2이고 화면이 M3이므로 M2 화면은 명령 안내만 보인다.
-5. [결정(잠정): review.decisions-2 U-04, U-21] 레이트 리밋·계정 회전 설정은 M3 화면에 넣는다. 사용량 wire 메서드와 게이지 채우기 시점은 M2 계획에서 정한다(§4.7).
-6. [결정(잠정): review.decisions-2 U-04] 파일 단위 편집기의 `settings.readFile`·`settings.writeFile`, 모르는 키 목록, "파일 열기" 동작 제공 여부(§4.2.3, §4.3.5)는 M1에 넣지 않고 M2 계획에서 정한다.
+5. [결정: review.decisions-2 U-04, U-21] 레이트 리밋·계정 회전 설정은 M3 화면에 넣는다. 사용량 wire 메서드와 게이지 채우기 시점은 M2 계획에서 정한다(§4.7).
+6. [결정: review.decisions-2 U-04] 파일 단위 편집기의 `settings.readFile`·`settings.writeFile`, 모르는 키 목록, "파일 열기" 동작 제공 여부(§4.2.3, §4.3.5)는 M1에 넣지 않고 M2 계획에서 정한다.
 7. [미결] 검사용 병합 함수 `toValueJsonSchema`를 F에 둘지, `settings.list`가 병합한 `type`을 실을지(`_research/notes/L4-3.md` §4 P1, `L4.host-service.spec` §10 미결 11과 같은 항목). 두면 settings-ui의 같은 이름 함수를 지우고 F 것을 쓴다. 그 전까지는 settings-ui에 두고 계약 테스트로 F `settingsJsonSchema`와 같은지 확인한다.
 8. [미결] `SettingsTab` enum과 `SettingUi` 변경. 현재 변경은 필요 없다고 본다. 전용 편집기 힌트 필드를 더할지, 탭을 더할지는 M3 전용 편집기 작업 때 F 부 버전 변경 요청으로 올린다(§4.1.2, §4.2.4).
 9. [미결] i18n 방침. `ui.label`·`ui.help`의 언어와 메시지 카탈로그 여부(§4.8.2).
@@ -950,7 +950,7 @@ sequenceDiagram
 12. [미결] CLI와 view-model 공유 위치(DR-10, §4.9).
 13. [미결] 확장의 맞춤 설정 패널 허용 여부와 시점(§7).
 14. 닫음: project·local 범위 쓰기에서 열린 프로젝트가 없을 때의 오류는 3103 `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"`다(`L4.host-service.spec` §3.4 `settings.set` 행). §4.4.4 표와 §5에 반영했다.
-15. [미결] TypeBox 버전(`F.wire-settings.spec` §10 미결 6). 클라이언트 `Check`와 서버 검사가 같은 버전이어야 AC11이 성립한다.
+15. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다(`F.wire-settings.spec` §10 6번). 클라이언트 `Check`와 서버 검사가 catalog의 같은 사본을 써서 AC11이 성립한다.
 16. [미결] 화면 프레임워크와 렌더러 형식, 화면 부품 테스트(`ui` 태그)와 시각 회귀(`visual`) 도입 여부. `eng.testing.guide` TS-01에서 보류이고 `L4.desktop.spec`이 정한다. AC4의 "렌더러가 8종 모두를 그린다"와 AC6의 DOM 확인은 이 결정 뒤에 테스트 형식이 정해진다. `L4.desktop.spec` §10 미결 11은 Preact + `@preact/signals`를 제안한다.
 17. [미결] `L4.desktop.spec` §4.9 규칙 W3의 허용 목록에 `@xeon/contracts/{wire,settings,conversation}`와 `typebox/schema`를 넣을지(§3.1). W3을 문자 그대로 읽으면 F 서브패스 import가 빠진다.
 18. [미결] 설정 원천 둘(§4.1.3). `L4.desktop.spec` §10 미결 6과 같은 항목이다. 로컬 저장소 키의 관리 잠금(`locked`)을 어떻게 채울지도 그 결정에 따른다.

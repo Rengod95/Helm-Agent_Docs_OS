@@ -112,7 +112,7 @@ xeon/packages/cap-work/
 
 | 패키지 | 버전 | 쓰임 |
 |---|---|---|
-| `typebox` | 워크스페이스 catalog 고정 버전(1.4.2, F.capabilities.spec §10 TypeBox 버전 미결을 따른다) | 정의 스키마. F에만 직접 의존이 있고 cap-work는 F 타입만 쓴다 |
+| `typebox` | 워크스페이스 catalog 고정 버전(1.3.27, review.decisions-2 U-24) | 정의 스키마. F에만 직접 의존이 있고 cap-work는 F 타입만 쓴다 |
 
 - 외부 패키지를 새로 더하지 않는다. 스키마는 TypeBox로 직접 쓴다(`_research/packages.md` §4.4 L2-e "작업 목록과 계획 객체: typebox 스키마로 자체").
 

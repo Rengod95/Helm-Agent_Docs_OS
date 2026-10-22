@@ -70,7 +70,7 @@ thread, turn, step, item 용어는 `F.conversation.spec`을 따른다. 이 문�
 
 ### 3.0 코드 블록 표기
 
-- 스키마는 `typebox` 1.4.2(`xeon/package.json` catalog)로 쓴다.
+- 스키마는 `typebox` 1.3.27(`xeon/package.json` catalog)로 쓴다.
 - 이름 규칙은 F 공통 규칙(`F.conversation.spec` §3 첫 단락)을 따른다. 정적 타입은 `X`, 그 런타임 스키마 상수는 `XSchema`다.
 - [제안] 이 문서의 코드 블록은 읽기 쉽게 줄여 썼다. `export const X = Obj({...})`라고 적은 것은 코드에서 다음 두 줄이다.
   - `export type X = { ... }`(또는 `Static<typeof XSchema>`)
@@ -179,13 +179,13 @@ export type WireHandlers = { readonly [M in WireMethodName]: WireHandler<M> };
 | `result` | 항상 객체 | 같음. 결과가 없으면 `{}` | [제안] |
 | 메서드 이름 | `<영역>.<동사>` 소문자 낙타, `$/` 제어 예약 | 같음. 확장 메서드는 `ext.<확장id>.<동사>`(M2 이후, §4.2) | [제안] |
 | 알림 이름 | 메서드와 같은 규칙. 예외로 `events` | 예외 없이 같은 규칙. 내구 이벤트 알림은 `events.batch` | [제안] |
-| 서버 → 클라이언트 요청 | 보내지 않음 | 보내지 않는다. 승인은 내구 이벤트 + 응답 메서드(§4.6) | [결정(잠정): review.decisions-2 U-02] |
+| 서버 → 클라이언트 요청 | 보내지 않음 | 보내지 않는다. 승인은 내구 이벤트 + 응답 메서드(§4.6) | [결정: review.decisions-2 U-02] |
 | 클라이언트 → 서버 알림 | `$/cancelRequest`, `presence.report` | `$/cancelRequest` 하나 | [제안] |
 | 값 규칙 | strict JSON, 안전 정수, 시각은 ISO 8601 UTC 문자열 | 같음 | [제안] |
 | 깊이·길이 한도 | 깊이 64, 배열 10,000 | 같음. 그 위에 프레임 1 MiB(omp RPC v2와 같은 값, `_research/item-catalog.md` F절) | [제안] |
 | envelope 검사 | `additionalProperties: false` | 같음 | [제안] |
 | 핸드셰이크 | `hello` + 기기 토큰·챌린지 인증 | `host.hello` 하나. 인증 없음(in-process, stdio는 부모-자식이라 인증이 필요 없다). 서비스 소켓 인증은 미결 | [미결] |
-| 제외 | Tailscale·SSH 경로, 기기 페어링, 기기 인증, `clientKind` 대조, `localConfirm` | 가져오지 않는다. 데몬·홈서버 전제다(`_research/decisions-log.md` 2026-10-19). 원격 사용은 로컬 서비스 소켓을 SSH 터널이나 사설망으로 잇는 방식이라 프로토콜에 원격 전용 요소를 더하지 않는다([결정(잠정): review.decisions-2 U-11]) | [결정] |
+| 제외 | Tailscale·SSH 경로, 기기 페어링, 기기 인증, `clientKind` 대조, `localConfirm` | 가져오지 않는다. 데몬·홈서버 전제다(`_research/decisions-log.md` 2026-10-19). 원격 사용은 로컬 서비스 소켓을 SSH 터널이나 사설망으로 잇는 방식이라 프로토콜에 원격 전용 요소를 더하지 않는다([결정: review.decisions-2 U-11]) | [결정] |
 
 ```ts
 // wire/jsonrpc.ts
@@ -857,7 +857,7 @@ export const loopSettings: SettingGroup<"l1.loop", { maxSteps: SettingDefInput<T
 1. 확장은 `ExtensionManifest.userConfig`(`F.extensions.spec` §3.1)에 설정을 선언한다. 로더(X)가 `settingsFromManifest`로 `SettingDef`를 만들고 `buildCatalog`에 넣는다. 확장 코드가 `defineSettings`를 직접 불러도 되지만 네임스페이스는 `ext.<자기 이름>`만 쓸 수 있다.
    - 대응 [제안]: userConfig 키 `apiKey` → 설정 키 `ext.<name>.apiKey`, `title` → `ui.label`, `description` → `ui.help`, `sensitive: true` → `secret: true`(값은 `secret://` 참조), `required` → 값이 없으면 확장 시작 때 진단. `ui.tab`은 `"plugins"`로 고정한다. `layer`는 매니페스트 `layer`(`"plugin"`이면 `"L2"`로 본다 [가정]).
    - 현재 `UserConfigEntrySchema`에는 값 스키마가 없고 `setting` 필드(형식 `ext.<name>.<key>`)가 설정 키를 가리킨다. JSON 매니페스트만 있는 외부 확장도 값 검사를 받으려면 항목에 `type`(JSON Schema), `default`, `range`, `runtimeChange`, `allowedScopes`가 있어야 한다. [제안] `F.extensions.spec`에 이 필드 추가를 요청하고, `setting` 필드는 위 대응 규칙으로 유도되므로 생략하거나 `ext.<name>.<key>`와 같아야 하는 검사용 값으로 둔다. 키 접두는 `ext.`로 맞췄다(`F.extensions.spec` §3.1 `UserConfigEntry.setting`, §6). 값 스키마 필드 추가 여부는 §10 미결 8로 남긴다.
-   - 확장 공통 키 [제안]: `ext.<name>.enabled`, `ext.<name>.isolation`(`F.extensions.spec` §6)은 예약하고 X 로더가 정의한다(소유 문서 `X.loading-trust.spec`). 켜기 키는 플러그인과 L3 그룹(내장 Helm·학습 그룹 포함) 모두 `ext.<name>.enabled` 하나이고, 범위와 적용 시점은 X 정의(`managed`~`session`, `live`)를 따른다 [결정(잠정): review.decisions-2 K-04]. userConfig는 이 이름을 쓸 수 없다. drive 임대 상한은 X 층 키 `x.primitives.driveLimits`다(소유 문서 `X.primitives.spec`, `F.extensions.spec` §6). 예전 제안 키 `extensions.<name>.*`, `groups.drive.limits`는 키 문법(§3.8.1)에 맞지 않아 쓰지 않는다.
+   - 확장 공통 키 [제안]: `ext.<name>.enabled`, `ext.<name>.isolation`(`F.extensions.spec` §6)은 예약하고 X 로더가 정의한다(소유 문서 `X.loading-trust.spec`). 켜기 키는 플러그인과 L3 그룹(내장 Helm·학습 그룹 포함) 모두 `ext.<name>.enabled` 하나이고, 범위와 적용 시점은 X 정의(`managed`~`session`, `live`)를 따른다 [결정: review.decisions-2 K-04]. userConfig는 이 이름을 쓸 수 없다. drive 임대 상한은 X 층 키 `x.primitives.driveLimits`다(소유 문서 `X.primitives.spec`, `F.extensions.spec` §6). 예전 제안 키 `extensions.<name>.*`, `groups.drive.limits`는 키 문법(§3.8.1)에 맞지 않아 쓰지 않는다.
 2. 확장은 코어 네임스페이스(`f.`~`l4.`)와 다른 확장의 `ext.<id>.`에 키를 더할 수 없다. 어기면 `foreignNamespace`로 그 확장의 설정 전체를 거부한다. 확장 로딩 자체를 막을지는 `X.loading-trust.spec`이 정한다.
 3. L3 기본 그룹(Helm, 학습 그룹)은 내장 패키지이므로 자기 설정에 코어 네임스페이스 `l3.helm.`, `l3.learning.`을 쓴다. 켜기 키만은 예외로 `ext.helm.enabled`, `ext.learning.enabled`를 쓴다(1번의 확장 공통 키). 외부 의도 그룹은 확장이므로 `ext.<id>.`를 쓴다.
 4. 확장이 제거되면 그 키는 카탈로그에서 빠진다. 파일에 남은 값은 "모르는 키"로 보존하고 적용하지 않는다(§4.8).
@@ -947,11 +947,11 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 
 ### 4.6 승인 요청 방향
 
-[결정(잠정): review.decisions-2 U-02] L1-d 승인 프로토콜(`_research/foundation-plan.md` §1 5번: 질문과 계획 승인을 하나로 합침)은 A안으로 wire에 싣는다. 승인 대기 중 프로세스가 죽어도 재개 뒤 같은 요청을 다시 보일 수 있기 때문이다.
+[결정: review.decisions-2 U-02] L1-d 승인 프로토콜(`_research/foundation-plan.md` §1 5번: 질문과 계획 승인을 하나로 합침)은 A안으로 wire에 싣는다. 승인 대기 중 프로세스가 죽어도 재개 뒤 같은 요청을 다시 보일 수 있기 때문이다.
 
 | 안 | 흐름 | 장점 | 단점 |
 |---|---|---|---|
-| A. 내구 이벤트 + 응답 메서드 [결정(잠정)] | 엔진이 `approval.requested` 내구 이벤트를 커밋한다. 클라이언트는 `events.batch`로 받고 `approval.respond`로 답한다. 결과는 `approval.resolved` 이벤트로 남는다 | 재접속·재시작 뒤에도 대기 상태가 저장소에서 복구된다. 여러 클라이언트 중 아무나 답할 수 있다. 서버 → 클라이언트 요청이 필요 없다 | 대기 시간 제한을 엔진이 따로 관리한다 |
+| A. 내구 이벤트 + 응답 메서드 [결정] | 엔진이 `approval.requested` 내구 이벤트를 커밋한다. 클라이언트는 `events.batch`로 받고 `approval.respond`로 답한다. 결과는 `approval.resolved` 이벤트로 남는다 | 재접속·재시작 뒤에도 대기 상태가 저장소에서 복구된다. 여러 클라이언트 중 아무나 답할 수 있다. 서버 → 클라이언트 요청이 필요 없다 | 대기 시간 제한을 엔진이 따로 관리한다 |
 | B. 서버 → 클라이언트 요청 | 엔진이 JSON-RPC 요청 `approval.request`를 보내고 클라이언트 응답을 기다린다 | ACP·MCP의 elicitation과 모양이 같다 | 연결이 끊기면 요청이 사라진다. 클라이언트가 여럿이면 누구에게 보낼지 정해야 한다 |
 
 - A안이라 승인 요청·해결 이벤트가 필요하다. `approval.requested`, `approval.resolved` kind를 `F.records.spec` §3.3.1 코어 카탈로그에 두었다(`body.kind`는 `tool`, `question`, `plan`). 하위 모양의 필드 뜻은 `L1.tools.spec`(승인 프로토콜) 소관이다. 이 문서는 `approval.respond` 메서드만 정한다. 사용자가 B안으로 답하면 두 kind를 `retired: true`로 두고 이 절을 고친다.
@@ -1074,7 +1074,7 @@ export declare function settingsJsonSchema(catalog: SettingCatalog, options: Set
 
 | 방향 | 문서 | 내용 |
 |---|---|---|
-| 요구 | `F.records.spec` | `DurableEventEnvelope`, `VolatileEventEnvelope`, `EventKindSchema`, `DetachedFieldSchema`, seq 규칙(§4.1), 휘발 kind 목록. 승인 이벤트 kind(`F.records.spec` §3.3.1, A안 [결정(잠정): review.decisions-2 U-02]) |
+| 요구 | `F.records.spec` | `DurableEventEnvelope`, `VolatileEventEnvelope`, `EventKindSchema`, `DetachedFieldSchema`, seq 규칙(§4.1), 휘발 kind 목록. 승인 이벤트 kind(`F.records.spec` §3.3.1, A안 [결정: review.decisions-2 U-02]) |
 | 제공 | `F.records.spec` | `settings.changed` payload의 `key`·`scope` 값 집합(`SettingKey`, `SettingScope`). records는 settings보다 낮은 순위라 스키마를 import하지 않고 문자열로 둔다(`F.readme` §3). 값 집합 일치는 `F.wire-settings.plan`의 테스트가 확인한다. `redactions` 규칙(§3.4.5) |
 | 요구 | `L0.store.spec` | `StoreId` 발급·보관, `headSeq()`와 구간 읽기, 커밋 직후 같은 턴의 방송 |
 | 요구 | `F.conversation.spec` | ID 타입과 `XSchema`, `PartDelta`, `TextContentSchema`, `ImageContentSchema`, `UserMessage`, 수명주기 알림 이름(`item.updated` 등) |
@@ -1122,16 +1122,16 @@ settings:
 
 ## 10. 미결 사항
 
-1. [결정(잠정): review.decisions-2 U-02] 승인 요청 방향은 A안(내구 이벤트 `approval.requested` + `approval.respond`)이다(§4.6). 사용자 확인 대상이다.
+1. [결정: review.decisions-2 U-02] 승인 요청 방향은 A안(내구 이벤트 `approval.requested` + `approval.respond`)이다(§4.6).
 2. [미결] 설정 우선순위 표(§4.7). 관리 범위를 잠금 전용으로 둘지, 관리 기본값을 따로 둘지.
 3. [미결] 폐기 기간(§3.7). 제안은 12개월 또는 다음 주 버전 중 늦은 쪽.
-4. [미결] 서비스 모드 인증. Unix 소켓 + 파일 권한만으로 충분한지, 토큰을 필수로 할지(`_research/process.md` §6.4). 토큰을 실을 자리(`host.hello` `auth?`)와 오류 `host.authFailed`는 M2 선택 필드로 두었다(§3.3.1, §3.5.2). 원격은 [결정(잠정): review.decisions-2 U-11]로 M3에 넣되, 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 방식이다. 그래서 원격도 소켓 인증 규칙을 그대로 쓴다. 내장 TLS + 토큰 WebSocket 전송은 2차다.
+4. [미결] 서비스 모드 인증. Unix 소켓 + 파일 권한만으로 충분한지, 토큰을 필수로 할지(`_research/process.md` §6.4). 토큰을 실을 자리(`host.hello` `auth?`)와 오류 `host.authFailed`는 M2 선택 필드로 두었다(§3.3.1, §3.5.2). 원격은 [결정: review.decisions-2 U-11]로 M3에 넣되, 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 방식이다. 그래서 원격도 소켓 인증 규칙을 그대로 쓴다. 내장 TLS + 토큰 WebSocket 전송은 2차다.
 5. [미결] 확장이 wire 메서드를 더하는 것을 허용할지(§4.2).
-6. [미결] TypeBox 버전. `xeon/package.json` catalog는 1.4.2이고 pi-ai·agent-core는 1.3.27을 정확 고정한다. 두 사본 설치를 피하려면 1.3.27로 맞추자는 조사 의견이 있다(`_research/notes/F-2.md`). 이 문서의 스키마는 두 버전에서 같은 API만 쓴다 [가정].
+6. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 1.3.27을 정확 고정하므로 같은 판으로 맞춰 한 사본만 설치한다. 1.4로 올리는 시점은 pi가 올릴 때다.
 7. [미결] `Seq`·`StoreId`를 F.records로 옮길지. `sto` 접두는 `IdPrefix`에 넣지 않고 저장소 정체성 ID 부류로 둔다(`F.conversation.spec` §3.2.1 ①) [제안].
 8. [미결] `UserConfigEntry`에 값 스키마 필드(`type`, `default`, `range`, `runtimeChange`, `allowedScopes`)를 둘지(§3.8.3). 확장 설정 키 접두는 `ext.<name>.`로 맞췄다(`F.extensions.spec` §3.1, §6).
 9. [미결] `ThreadSummary`의 필드(`thread.list` 결과, M2). 후보는 `threadId`, `title`, `status`, `workspace`, 마지막 활동 시각이다.
-10. [결정(잠정): review.decisions-2 U-04] 판정하지 않은 아래 호스트 계약 요청은 M1에 넣지 않는다. M2 계획에서 하나씩 받을지 반려할지 정하고, 그때까지 이 항목에 미결로 남긴다. 정하기 전에는 소비 문서가 이 항목에 의존하지 않고 각자 대체 경로를 둔다.
+10. [결정: review.decisions-2 U-04] 판정하지 않은 아래 호스트 계약 요청은 M1에 넣지 않는다. M2 계획에서 하나씩 받을지 반려할지 정하고, 그때까지 이 항목에 미결로 남긴다. 정하기 전에는 소비 문서가 이 항목에 의존하지 않고 각자 대체 경로를 둔다.
     - `settings.invalidated` 알림(`L4.readme` §8 14번), `settings.list`의 `range` 병합(15번), `settings.readFile`·`settings.writeFile`(36번), `SettingsTab`·`SettingUi` 필드(37번), `EffectiveSetting`의 잠금 사유 문구(39번)
     - 사용량 wire 메서드(35번), 사용자 알림 wire 알림(13번)
     - 이어서 실행 후보 조회: `ThreadSummary` 필드 또는 전용 메서드(11번, 미결 9)

@@ -3,20 +3,22 @@ id: review.decisions-2
 layer: meta
 domain: review
 kind: review
-status: draft
+status: accepted
 depends_on: [review.consistency-1]
 binds: []
 ---
 
-# 잠정 결정 2차 (정합성 검토 1차 후속)
+# 결정 2차 (정합성 검토 1차 후속)
 
 ## 1. 목적
 
 - `review/consistency-1.md` §5의 U-01~U-23과, 같은 문서에서 키 중복·표기 충돌로 남은 항목의 답을 정한다.
-- 사용자가 "너의 추천"으로 판단을 맡긴 범위(2026-10-21) 안에서 메인 조정자가 정한 답이다. 표기는 `[결정(잠정)]`으로 하고, 최종 보고에서 사용자 확인을 받는다. 확인 전에도 문서와 M0·M1 구현은 이 답을 따른다.
-- 사용자가 다르게 답하면 이 문서의 해당 행을 고치고, 영향 문서 열의 문서를 다시 맞춘다.
+- 사용자가 "너의 추천"으로 판단을 맡긴 범위(2026-10-21) 안에서 메인 조정자가 잠정 답을 정했다. 2026-10-22 사용자 확인으로 모두 최종 결정이 되었다. 다른 문서의 표기는 `[결정(잠정)]`에서 `[결정]`으로 바꿨다.
+- 사용자는 잠정 답을 그대로 승인했다. 바꾼 것은 U-05(retire로 변경)와 U-12(기본 상한을 설정에서 조정)다. U-09, U-13, U-19, U-24는 승인하면서 정정·보완을 더했다. 아래 표는 최종 답이다.
+- M1 구현 뒤 남은 차단 항목 가운데 사람 결정이 필요했던 네 건(§4)도 같은 날 정했다. pi-agent-core를 자체 루프로 대체하는 결정은 ADR-0009가 다룬다.
+- 결정을 뒤집으려면 이 문서의 해당 행을 고치고 영향 문서 열의 문서를 다시 맞춘다.
 
-## 2. 사용자 확인 대상 결정
+## 2. 사용자 확인 결정 (2026-10-22 확정)
 
 | 번호 | 답 | 이유 | 영향 문서 |
 |---|---|---|---|
@@ -24,26 +26,26 @@ binds: []
 | U-02 | 승인 요청은 A안(내구 이벤트 `approval.requested` + 호스트 메서드 `approval.respond`)으로 한다. | 승인 대기 중 프로세스가 죽어도 재개 뒤 같은 요청을 다시 보일 수 있다. | F.wire-settings, F.records |
 | U-03 | F에는 `Clock`·`RandomSource`·`IdFactory` 인터페이스와 순수 함수만 둔다. 구현은 `platform-os`에 둔다. `./testing` 서브패스는 두지 않고, 테스트 대역은 각 패키지 `test/` 안에 둔다. `createIdFactory`는 F에 두지 않는다. | F를 타입·스키마·순수 판정 함수로 한정하는 규칙(DT·F README)을 지킨다. | F.readme, L0.os, L4.host-service, eng.typescript, eng.domain-types |
 | U-04 | 판정하지 않은 호스트 계약 요청은 M1에 넣지 않는다. M2 계획에서 하나씩 정하고, 그때까지 F.wire-settings 미결로 둔다. | M1 걸어 다니는 골격에는 필요 없다. | F.wire-settings |
-| U-05 | `post.accepted`는 유지한다. payload에 `inputId`를 더한다. | 재개 때 post 멱등 판정의 근거가 된다. | F.records, L1.tasks |
+| U-05 | `post.accepted`는 retire한다(잠정안 '유지 + `inputId`'에서 바꿈). 카탈로그 항목은 `retired: true`로 남기고 새로 쓰지 않는다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`) 하나이고, 배치된 item은 `input.placed`가 적는다. 멱등 판정은 커밋 키 `in:<sourceKey>:<requestId>`와 `TxView.inputByRequestId`가 한다. | `input.queued`가 이미 `scopeId`·`requestId`를 싣고 커밋 키가 멱등을 보장한다. 같은 사실을 두 kind로 쓰면 생산자·소비자·카탈로그가 늘어날 뿐 판정 근거는 늘지 않는다. core-tasks의 `post.accepted` 동봉 코드는 구현 후속에서 지운다. | F.records, F.extensions, X.primitives, X.readme, L1.tasks, L1.readme, L1.persistence, eng.events, eng.transactions, L4.cli |
 | U-06 | `tool_call` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 chain 지점을 따로 더한다. | 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해진다. | F.extensions, ADR-0007 |
 | U-07 | 매니페스트 `storage`·`hooks`·`delegates`, `HandlerContext.ui`는 M1에 넣지 않는다. | M1 테스트 그룹은 on/post/drive/scope만 쓴다. | F.extensions |
 | U-08 | `SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`는 F `capabilities/secrets.ts`에 둔다. `SECRET_REF_PATTERN` 정본도 F다. | L0.secrets, L2.workspace, L4 설정 화면이 같은 타입을 쓴다. | F.capabilities, L0.secrets |
-| U-09 | 쓰기 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱으로 한다. `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. ADR-0004 §3.4와 ADR-0006을 이에 맞게 개정한다. | OS 잠금만으로는 잠금을 잃은 옛 소유자의 늦은 쓰기를 막지 못한다. epoch를 커밋마다 대조하면 막힌다. | ADR-0004, ADR-0006, eng.transactions, L0.store, L1.persistence |
+| U-09 | 쓰기 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱으로 한다(안 A). `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. ADR-0004 §3.4와 ADR-0006을 이에 맞게 개정한다. 정정: OS 잠금이 없을 때도 같은 host의 죽은 소유자는 기록된 `pid`와 프로세스 시작 지문으로 바로 인수한다(`platform-store/src/lease.ts` `decide`). 만료(30초)를 기다리는 경우는 살아 있지만 멈춘 소유자와 다른 host뿐이다. 알려진 한계: flock이 있으면 멈춘 소유자(잠자기, SIGSTOP)는 깨어나거나 죽을 때까지 세션을 잠근 채 둔다. | OS 잠금만으로는 잠금을 잃었거나 공유하지 않는 옛 소유자의 늦은 쓰기를 막지 못한다. epoch를 커밋마다 대조하면 막힌다. | ADR-0004, ADR-0006, eng.transactions, L0.store, L1.persistence |
 | U-10 | 도구별 효과 커밋(E1 의도, E2 실행 시작, E3 결과)을 ADR-0004 §3.2 3번 보충으로 올린다. 단계당 커밋 수는 `3 + 3n`이다. | L1.persistence와 eng.transactions가 이미 이 모양이다. | ADR-0004, L0.store |
 | U-11 | 원격은 1차(M3)에 넣되, 자체 TLS WebSocket 대신 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 방식으로 한다. 내장 TLS + 토큰 WebSocket은 2차다. | 사용자는 원격이 필요하다고 답했다(결정 2). 인증서·노출 위험이 큰 내장 서버 없이 원격 사용이 가능하다. | ADR-0006, L0.process, product.scope, product.usecases, L2.schedule |
-| U-12 | drive 임대 상한은 둔다. `l3.helm.driveLimits` 기본값 4/8/400000을 pi 방식(기본 상한 없음)의 예외로 인정한다. 일반 대화 턴에는 상한을 두지 않는다. | drive는 사용자 입력 없이 턴을 만들기 때문에 상한이 없으면 무한 실행된다. 이 예외는 계획 v2에서 이미 정했다. | ADR-0007, L3.helm, product.scope |
-| U-13 | 커밋 키 정본은 eng.transactions의 `COMMIT_KEY_PATTERN`이다. scope id의 `/`는 키에 넣을 때 `:`로 바꾼다. | 키 형식이 한 곳에 있어야 L1·X가 같은 검사를 쓴다. | eng.transactions, L1.tasks, L1.persistence |
+| U-12 | drive 임대에는 기본 상한을 두고 사용자가 설정 화면에서 조정한다. 상한을 명시하지 않은 임대의 일반 기본값은 X 설정 `x.primitives.driveDefaultLimits`(기본 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`)다. 그룹은 자기 설정으로 덮어쓴다. Helm은 `l3.helm.driveLimits`(기본 4/8/400000)다. 천장 `x.primitives.driveLimits`(기본 없음)는 어떤 임대도 넘지 못한다. 세 키 모두 F5 설정이고 `allowedScopes`·`ui`(탭 `plugins`, 위젯 `table`) 메타데이터를 갖는다. 일반 대화 턴에는 상한을 두지 않는다(pi 방식). | drive는 사용자 입력 없이 턴을 만들기 때문에 상한이 없으면 끝나지 않을 수 있다. 사용자 지시로 기본 상한을 설정 화면에서 바꿀 수 있게 했다. 키 이름은 설정 키 규칙 `<층>.<도메인>.<이름>`(도메인은 routes.yaml)에 맞춰 `x.drive.defaultLimits` 대신 `x.primitives.driveDefaultLimits`로 했다. | ADR-0007, F.extensions, X.primitives, L3.helm, L3.group-kit, L4.settings-ui, product.scope, product.vision |
+| U-13 | 커밋 키 정본은 eng.transactions의 `COMMIT_KEY_PATTERN`이다. scope id의 `/`는 키에 넣을 때 `:`로 바꾼다. 보완 1: `toolCallId`를 키 부분으로 바꾸는 함수는 F `commitKeyPart` 하나이고, 모든 생산자(core-tools E1~E3, core-loop 차단 결과 키, core-persistence 복구 합성 키)가 쓴다. 보완 2: 확장이 아닌 입력 출처 키 `user`, `deleg`, `timer`는 확장 id로 예약한다(F `RESERVED_SOURCE_KEYS`, `validateManifest` `name_reserved`). | 키 형식이 한 곳에 있어야 L1·X가 같은 검사를 쓴다. 생산자마다 변환이 다르면 같은 호출의 결과가 두 키로 커밋되고, 확장 id가 출처 키와 같으면 확장 post 키가 다른 출처 입력 키와 겹친다. | eng.transactions §4.7·§4.8, F.records, F.extensions, L1.tasks, L1.tools, L1.persistence |
 | U-14 | X는 순위 1(L0 아래)을 유지한다. 조건은 architecture.layers 4.3.3의 세 가지다. | X가 L0 기능을 직접 쓰지 않고 F 포트로 받는다. | eng.dependency-rules, X.readme, L0.readme |
 | U-15 | 같은 층 예외 두 개를 허용 목록에 둔다: `apps/cli`→`apps/host`(`DR-10/cli-host`), `group-*`→`group-kit`(`DR-02/group-kit-*`). | 엔진 조립 코드를 한 곳에 두고, 그룹 공통 기반을 중복하지 않는다. | eng.dependency-rules, architecture.layers |
 | U-16 | `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F의 provider 인터페이스로 `core-models` 서비스에 등록한다. 같은 층 예외는 두지 않는다. | 층 규칙에 예외를 더하지 않고 플러그인 경계를 지킨다. | eng.dependency-rules(DR-09), L1.readme, L1.models, X.loading-trust, architecture.layers, L2.web.plan |
 | U-17 | 구속 문서 개정을 승인한다: DR-14에 `@xeon/ext-host` import 예외(하위 층이 서비스 등록·주입 API만 사용), DR-07 F의 pi 타입 재노출 예외, DR-08·DR-14 testing 정의 통일(테스트 파일만 교차 import 허용), 서비스 모드 1차 표기, 확장 id 정규식 통일. | 결정 2와 U-03, U-18을 구속 문서에 반영한다. | eng 전체 |
 | U-18 | 확장 id는 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이다. 밑줄은 쓰지 않는다. 테이블 접두는 `x_<id에서 하이픈을 밑줄로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다. | 밑줄을 금지하면 접두 일치로 다른 확장의 테이블을 지우는 일이 생기지 않는다(T-18). | eng.context-map, eng.domain-types, eng.events, X.operations, L0.store, ADR-0004 |
-| U-19 | M1 비밀 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다. | 가장 단순하고 SOPS 해석 경로 전체를 확인한다. | product.scope, L0.readme, L2.workspace |
+| U-19 | M1 비밀 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다. 이 경로는 아직 끝까지 이어지지 않았다. M1 코드는 승인 증거를 `null`로 넘기고 호스트 `approval.respond`는 `notImplemented`다. M2 승인 프로토콜 작업(`L4.host-service.plan` H18)에서 완성한다. 보충(§4 B-05): 모델 provider API 키는 M1부터 `runtime-http` 모드로 lease한다. | 가장 단순하고 SOPS 해석 경로 전체를 확인한다. | product.scope, L0.readme, L0.secrets, L2.workspace, L4.host-service.plan |
 | U-20 | 비밀 값 열람은 M2 CLI `xeon secret reveal`(OS 인증 재확인이 가능한 곳은 재확인)과 M3 데스크톱 화면 둘이다. 에이전트 경로에는 열람이 없다. | 사용자가 요청한 키체인식 열람을 CLI에서 먼저 제공한다. | product.scope, L4.cli, L4.settings-ui |
 | U-21 | 레이트 리밋·계정 회전 설정은 M3 설정 화면에 넣는다(2차로 미루지 않음). | 사용자가 L4에서 조작 가능해야 한다고 지시했다. | product.scope, L1.models, L4.settings-ui |
 | U-22 | 예약 안전 상한(`maxRunsPerHour`, 최소 간격, 루프 `maxIterations`)과 `l3.learning.review.maxIterations`를 pi 방식의 예외로 인정한다. | 사용자 입력 없이 실행되는 경로라 U-12와 같은 이유다. | product.scope, L2.schedule, L3.learning |
 | U-23 | 서비스 모드가 꺼져 있을 때 예약을 만들면 서비스 자동 기동을 시도한다. 실패하면 조치 안내와 함께 거부한다. 기본값 이름은 `autoStart`다. | 서비스 모드 자동 기동은 결정 2의 1차 범위다. | L2.schedule, product.usecases, L2.readme |
-| U-24 | TypeBox는 1.3.27로 고정한다(catalog). 외부 패키지 `@earendil-works/pi-ai`·`pi-agent-core` 1.3.0, `@anthropic-ai/sandbox-runtime` 0.0.79를 catalog에 정확 고정한다. | pi-ai·pi-agent-core가 typebox 1.3.27을 정확 고정한다. 두 버전이 함께 설치되면 도구 스키마 값이 섞인다. 1.4로 올리는 시점은 pi가 올릴 때다. | ADR-0001, eng.toolchain, eng.domain-types |
+| U-24 | TypeBox는 1.3.27로 고정한다(catalog). 외부 패키지 `@earendil-works/pi-ai` 1.3.0, `@anthropic-ai/sandbox-runtime` 0.0.79를 catalog에 정확 고정한다. `pi-agent-core` 의존은 ADR-0009로 없앤다. 문서에 남은 TypeBox 1.4.2와 srt 0.0.81 표기는 모두 1.3.27, 0.0.79로 고쳤다. | pi-ai가 typebox 1.3.27을 정확 고정한다. 두 버전이 함께 설치되면 도구 스키마 값이 섞인다. 1.4로 올리는 시점은 pi가 올릴 때다. | ADR-0001, eng.toolchain, eng.domain-types, F.readme, F.wire-settings, F.capabilities, F.conversation, L0.exec.plan, L0.sandbox, L1.models, X.loading-trust, L4.settings-ui 외 plan의 의존 표 |
 
 ## 3. 키·이름 충돌 정리 (사용자 확인 불필요)
 
@@ -66,3 +68,25 @@ binds: []
 | T-21 | X `ScopeApi.recordPrivate(kind, payload)`를 둔다. kind는 `grp.<그룹>.*`이다. `_ext.` 표기는 모두 `x.`/`grp.`로 바꾼다. |
 | T-20 | 확장 상태 투영은 X.primitives 정의(활성 가지 규칙, `prev_event_id` 열)를 따른다. L3.group-kit `StateProjectionRow`는 X 열 이름을 그대로 쓰고, L1.persistence `latestEvent`는 가지 옵션을 받는다. |
 | 기타 ID 접두(K-09) | 지역 ID는 F.conversation §3.2.1 `LocalIdPrefix` 표를 따른다. |
+
+## 4. M1 구현 뒤 차단 항목 결정 (2026-10-22)
+
+`review.open-issues` §1 차단 표에서 사람 결정이 필요했던 항목이다. 사용자는 제안 처리대로 진행하라고 답했다.
+
+| 번호 | 답 | 이유 | 영향 문서 |
+|---|---|---|---|
+| B-02 | pi-agent-core에 의존하지 않는다. 루프를 포크해 core-loop의 자체 에이전트 루프로 재설계한다. pi-ai는 provider 층 의존으로 남긴다. | pi 판이 오를 때마다 훅 래핑을 다시 맞춰야 한다. 단계 경계 커밋과 확장 지점을 층 설계에 맞게 둘 수 있다. | ADR-0009, L1.loop, F.conversation(다른 작업이 맡는다) |
+| B-04 | 출력 절단 함수는 D-08대로 `platform-exec`에 둔다. `ExecService`에 `truncateHead`·`formatSize`를 더한다. cap-workspace와 apps/host의 사본은 지운다. | 구현이 한 곳이어야 L1·L2가 같은 한도로 자른다. | L0.exec.spec §1·§3.1·§3.3.1, L0.exec.plan EX-21, L1.tools, L2.workspace.plan |
+| B-05 | 모델 provider API 키는 M1부터 `runtime-http` 모드로 lease한다. core-models가 프로세스 안 HTTP 클라이언트에 넘기고, 값은 모델 컨텍스트, 이벤트, DB에 들어가지 않는다. bash 도구는 `env` 모드 그대로다(U-19). | 실제 키로 chat을 돌리려면 provider 호출 경로의 모드가 정해져 있어야 한다. | F.capabilities `SecretUseModeSchema` 주석, L0.secrets §4.3·§8.3 R6·§9 14번, L0.secrets.plan, L1.models |
+| B-06 | DR-07에 테스트 한정 행을 둔다. `Bun.spawn`·`Bun.spawnSync`·`node:child_process`는 허용 목록 `scope: "test"` 항목이 있는 패키지의 테스트 파일에서만 쓸 수 있다. `check-layers.ts`가 범위를 검사한다. | 엔진 재개와 stdio 적합성은 실제 프로세스로 시험해야 한다. 운영 소스의 금지는 그대로다. | eng.dependency-rules DR-07·§4·§5, L4.desktop.plan |
+| B-07 | `@xeon/host`에 `resolveHostStatePaths()`를 둔다. CLI 상태 파일은 `OsDirs.state` 아래 `cli/state.json`이다. `XEON_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남긴다. | CLI는 경로를 계산하지 않는다(DR-13). 환경 변수가 없으면 `--continue`가 동작하지 않던 M1 상태를 고친다. | L4.host-service.spec §3.3.6, L4.host-service.plan H21, L4.cli.spec §3.3·§10-1, L4.cli.plan C4, L4.readme |
+
+## 5. 구현 후속
+
+문서는 위 결정에 맞췄다. 다음 코드 변경은 구현 작업이 한다.
+
+- U-05: core-tasks `input-queue.ts`의 `post.accepted` 동봉을 지우고, contracts 카탈로그 항목에 `retired: true`를 단다. 관련 시험을 고친다.
+- U-12: ext-host `PrimitivesSettingsSource.driveDefaultLimits`와 설정 선언 `x.primitives.driveDefaultLimits`를 더하고 실효 상한 계산을 §4.4.2 규칙으로 바꾼다.
+- U-13: F `records/commit.ts`에 `commitKeyPart`·`RESERVED_SOURCE_KEYS`를 두고 core-tools `effects.ts`, core-loop `commits.ts`, core-persistence 복구 합성이 이 함수를 쓰게 한다. `validateManifest`에 예약 출처 키 검사를 더한다.
+- U-19: M2 H18에서 승인 증거 전달을 완성한다.
+- B-04~B-07: `L0.exec.plan` EX-21, `L0.secrets.plan` 수용 기준 14번 시험, 허용 목록 `scope: "test"` 항목과 `check-layers.ts` 검사, `L4.host-service.plan` H21.

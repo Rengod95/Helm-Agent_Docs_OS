@@ -18,7 +18,7 @@ binds: [xeon/packages/platform-process/**, xeon/apps/host/**, xeon/apps/cli/**]
 - [결정] 예약·원격·알림을 제품 범위에 넣고 데몬을 허용한다(`_research/decisions-log.md` 2026-10-21 결정(3차)).
 - [결정] 프로세스 구조는 "엔진 라이브러리 + 단일 호스트 계약 + 전송 교체(CLI in-process, 데스크톱 자식 엔진)"다(`_research/decisions-log.md` 2026-10-21 "계획 v2"). 계획 v2는 공유 서비스 모드를 2차로 두었으나 3차 결정이 1차로 올렸다.
 - 표기: `_research/process.md`의 `helm service`는 이 문서에서 `xeon service`로 바꿔 쓴다.
-- 개정: 2026-10-21 `review.decisions-2` U-09(§3.6 1·4번 쓰기 소유 펜싱과 소유 표시), U-11(§3.3·§3.5 원격 사용 단계). 결정을 뒤집지 않고 미결과 세부를 정한 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 두 항목은 [결정(잠정)]이고 사용자 확인 대상이다.
+- 개정: 2026-10-21 `review.decisions-2` U-09(§3.6 1·4번 쓰기 소유 펜싱과 소유 표시), U-11(§3.3·§3.5 원격 사용 단계). 결정을 뒤집지 않고 미결과 세부를 정한 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 두 항목은 사용자 확인을 거친 [결정]이다(2026-10-22). U-09 세부 정정은 `review.decisions-2` U-09 행을 따른다.
 
 ## 2. 맥락
 
@@ -76,7 +76,7 @@ binds: [xeon/packages/platform-process/**, xeon/apps/host/**, xeon/apps/cli/**]
 | stdio | 데스크톱(자식 엔진) | 자식 프로세스 stdin/stdout, 줄 단위 JSON | 데스크톱 앱(ADR-0008 `./ADR-0008-desktop-tauri.md`) | 1차 |
 | service | `xeon service`에 접속하는 CLI·데스크톱 | 로컬 Unix 소켓 | 서비스 프로세스 | 1차(OS 등록은 2차) |
 
-- [결정(잠정): review.decisions-2 U-11] 원격 사용은 1차(M3)에 넣는다. 다른 기기의 클라이언트는 service 전송의 로컬 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결해 쓴다. 전송 종류와 호스트 계약은 service와 같고, 인증은 SSH·사설망 인증과 소켓 파일 권한이 맡는다. 내장 TLS + 토큰 WebSocket 전송은 2차다. 인증서 관리와 외부 노출 위험이 큰 내장 서버 없이 원격 사용을 얻기 위해서다.
+- [결정: review.decisions-2 U-11] 원격 사용은 1차(M3)에 넣는다. 다른 기기의 클라이언트는 service 전송의 로컬 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결해 쓴다. 전송 종류와 호스트 계약은 service와 같고, 인증은 SSH·사설망 인증과 소켓 파일 권한이 맡는다. 내장 TLS + 토큰 WebSocket 전송은 2차다. 인증서 관리와 외부 노출 위험이 큰 내장 서버 없이 원격 사용을 얻기 위해서다.
 
 [제안] 호스트 쪽 전송 인터페이스는 다음 형태로 둔다. 메시지 타입 `HostMessage`는 F `wire-settings`가 정한다.
 
@@ -141,7 +141,7 @@ export type ServiceRegistration = Static<typeof ServiceRegistration>;
 | 0 | 데몬 없음. CLI = in-process, 앱 = 자식 엔진 | 호스트 계약, 세션 소유 잠금, 열 때 복구(§3.6) | 크래시 재개, 분기, 승인 대기 복구, 이력 검색 | 앱을 닫고 계속 실행, 예약, 다중 클라이언트 쓰기 | M1(`xeon chat` in-process) |
 | 1 | 단계 0 + 자식 엔진 수명 임대 | stdin EOF 임대(opencode standalone 방식), 앱 종료 시 진행 중 턴을 안전 경계에서 멈추고 체크포인트 | 앱이 비정상 종료돼도 자식이 남지 않음. 다음 실행 때 "이어서 실행" 제안 | 앱 종료 뒤 계속 실행 | M2(데스크톱 스캐폴드와 함께) |
 | 2 | 선택 모드 `xeon service` | 등록 파일, `ensure`, 이중 기동 방지, 유휴 종료, 앱·CLI의 서비스 발견과 접속 | 앱을 닫아도 작업 지속, 앱·CLI 동시 접속, 입력 위임 | 재부팅 뒤 자동 시작, 예약, 원격 | 1차 |
-| 3 | 선택 모드: OS 서비스 등록 + 원격 | `xeon service install`(명시 동의), 예약 작업 테이블과 틱, 알림, 원격 전송(TLS + 토큰 WebSocket, 비루프백 무인증 금지) | 예약 실행, 원격·폰, 알림 | 클라우드 실행(범위 밖) | OS 등록은 2차. 예약 틱과 알림은 1차 서비스 모드 안에서 동작. 원격 사용은 1차(M3)에 SSH 터널·사설망 연결로 두고, 내장 원격 전송(TLS + 토큰 WebSocket)은 2차 [결정(잠정): review.decisions-2 U-11] |
+| 3 | 선택 모드: OS 서비스 등록 + 원격 | `xeon service install`(명시 동의), 예약 작업 테이블과 틱, 알림, 원격 전송(TLS + 토큰 WebSocket, 비루프백 무인증 금지) | 예약 실행, 원격·폰, 알림 | 클라우드 실행(범위 밖) | OS 등록은 2차. 예약 틱과 알림은 1차 서비스 모드 안에서 동작. 원격 사용은 1차(M3)에 SSH 터널·사설망 연결로 두고, 내장 원격 전송(TLS + 토큰 WebSocket)은 2차 [결정: review.decisions-2 U-11] |
 
 - [결정] 불변식: 호스트 계약과 DB 스키마는 단계가 바뀌어도 변하지 않는다. 단계 전환은 엔진 프로세스를 누가 소유하는지만 바꾼다(`_research/process.md §6.2` 끝 문단).
 - [제안] 예약 틱은 서비스 프로세스 안에서 돈다. 대기 예약이 있으면 유휴 종료 조건이 성립하지 않으므로 서비스가 살아 있는 동안 예약이 실행된다. 재부팅 뒤에는 2차 OS 등록 전까지 사용자가 앱이나 CLI를 열어 `ensure`가 실행될 때 서비스가 다시 뜬다. 그 사이 놓친 예약을 따라잡을지 건너뛸지는 `L2.schedule.spec`이 정한다 [미결: L2.schedule.spec].
@@ -151,13 +151,13 @@ export type ServiceRegistration = Static<typeof ServiceRegistration>;
 
 [결정] 단계 0부터 아래 여섯 규칙을 적용한다(`_research/process.md §6.3`). 규칙 5의 자동 재개 기본값만 [미결]이다. 두 문서가 어긋나면 ADR이 우선한다(`adr.readme` §5). 상태 전이와 순서의 상세는 `architecture.runtime-flow.design`이 정하되, 어긋남을 발견하면 이 ADR을 먼저 고치고(결정이 바뀌면 `adr.readme` §1.4 번복 절차) runtime-flow를 맞춘다.
 
-1. 쓰기 소유자는 세션마다 하나다. 세션 실행을 시작하려는 프로세스는 세션 id를 키로 한 OS 잠금을 얻어야 한다. 경로 대신 id를 키로 쓰고, 프로세스가 죽으면 커널이 잠금을 푼다(omp 방식, `OMP/docs/session.md:538`). OS 잠금은 생존 판정에 쓰고, 쓰기 소유는 `sys_leases.epoch` 펜싱으로 커밋마다 확인한다. 잠금을 얻은 프로세스가 `sys_leases` 행의 epoch를 올려 `LeaseToken`을 받고, 커밋 트랜잭션 안에서 epoch가 다르면 롤백한다(ADR-0004 §3.4) [결정(잠정): review.decisions-2 U-09].
+1. 쓰기 소유자는 세션마다 하나다. 세션 실행을 시작하려는 프로세스는 세션 id를 키로 한 OS 잠금을 얻어야 한다. 경로 대신 id를 키로 쓰고, 프로세스가 죽으면 커널이 잠금을 푼다(omp 방식, `OMP/docs/session.md:538`). OS 잠금은 생존 판정에 쓰고, 쓰기 소유는 `sys_leases.epoch` 펜싱으로 커밋마다 확인한다. 잠금을 얻은 프로세스가 `sys_leases` 행의 epoch를 올려 `LeaseToken`을 받고, 커밋 트랜잭션 안에서 epoch가 다르면 롤백한다(ADR-0004 §3.4) [결정: review.decisions-2 U-09]. 멈춘 소유자(잠자기, SIGSTOP)는 잠금을 쥔 채라 깨어나거나 죽을 때까지 세션이 잠긴다. 이 한계는 받아들인다(`L0.store.spec` §4.7.1).
 2. 읽기는 자유다. SQLite WAL은 읽기 여럿과 쓰기 하나를 허용한다. 잠금은 세션 실행 소유를 막는 장치이고 조회·검색·관찰 UI는 잠금 없이 연다.
 3. 잠금을 얻지 못하면 세 가지 중 하나를 고르게 한다.
    - 위임: 서비스가 있으면 소유자에게 입력을 보내는 클라이언트가 된다(단계 2 이후 기본).
    - 관찰: 읽기 전용으로 열고 DB를 따라간다.
    - 분기: 현재 시점에서 `parentId`로 새 분기를 만들어 별도 세션으로 연다.
-4. 소유 표시는 `sys_leases` 행(`holder_id`, `kind`, `pid`, `host`, `heartbeat_at`, `expires_at`)이 겸한다. `kind`는 `cli`, `app`, `service` 중 하나다. 별도 `session_owner` 테이블은 두지 않는다. 생존 판정은 OS 잠금이, 소유 판정은 epoch 대조가 하므로 표시 열이 틀려도 안전하다(`L0.store.spec` §3.3) [결정(잠정): review.decisions-2 U-09].
+4. 소유 표시는 `sys_leases` 행(`holder_id`, `kind`, `pid`, `host`, `heartbeat_at`, `expires_at`)이 겸한다. `kind`는 `cli`, `app`, `service` 중 하나다. 별도 `session_owner` 테이블은 두지 않는다. 생존 판정은 OS 잠금이, 소유 판정은 epoch 대조가 하므로 표시 열이 틀려도 안전하다(`L0.store.spec` §3.3) [결정: review.decisions-2 U-09].
 5. 비정상 종료 표식: 턴 시작 커밋(`turn.started`)이 `running_since`를 세우고 턴 종료 커밋(`turn.completed`)이 지운다. 표식은 `p_threads`의 `running_since`, `resume_attempts` 열이다(`L1.persistence.spec` §4.8). 열 때 표식이 남은 세션을 "이어서 실행" 후보로 보여 준다. 재개 횟수 상한은 `l1.persistence.maxResumeAttempts`다. 자동 재개 키는 `l1.persistence.autoResume`이고 기본값은 §6 [미결]이다. 작성자 제안은 기본 꺼짐이고 서비스 모드에서만 켜는 것이다 [제안].
 6. 결과 불명 도구 호출은 기본적으로 재개 때 다시 실행하지 않고 "중단됨" 결과로 합성한다. 선언이 `unsafe`(기본값)이거나 선언이 없는 도구가 여기에 해당한다. 예외로, 저장된 정책과 현재 선언이 모두 `replay: safe`인 도구만 다시 실행한다(ADR-0004 §3.2 3번).
 

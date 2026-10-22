@@ -202,7 +202,7 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 | D14 | 자동 업데이트 검토 | D10 | S | M3 [미결] |
 
 - 규모: S는 하루 안, M은 2~4일, L은 1주 이상 [가정].
-- D1의 `Bun.spawn`: `eng.dependency-rules.guide` DR-07은 `Bun.spawn`을 L0 패키지만 쓰게 한다. 테스트 파일에서 엔진 프로세스를 띄우려면 허용 목록에 `DR-07/desktop-conformance-spawn`(from `apps/desktop`, to `Bun.spawn`, 테스트 파일 한정)을 더하거나, `platform-process`가 `testing` 서브패스로 자식 프로세스 도우미를 내야 한다 [미결: §7 위험 R10]. `L4.host-service.plan`과 `L4.cli.plan`의 자식 프로세스 테스트도 같은 결정을 따른다.
+- D1의 `Bun.spawn` [결정: review.decisions-2 B-06]: `eng.dependency-rules.guide` DR-07의 테스트 한정 행으로 푼다. 허용 목록 `DR-07/desktop-test-spawn`(from `apps/desktop`, to `Bun.spawn`, `scope: "test"`)을 쓰고, 운영 소스에서는 여전히 금지다. `L4.host-service.plan`과 `L4.cli.plan`의 자식 프로세스 테스트도 같은 방식이다(`DR-07/cli-test-spawn`).
 - D1의 실행 명령: M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다. 그래서 D1은 `bun xeon/apps/host/src/main.ts host --stdio`를 실행한다(`L4.host-service.spec` §3.2 개발 실행 항목). M2부터는 같은 테스트를 컴파일 바이너리 `xeon host --stdio`로도 돈다. 둘 다 import가 아닌 실행이므로 DR-10에 맞는다.
 
 ### 3.3 CI 매트릭스 (D9)
@@ -267,7 +267,7 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 | `tauri-plugin-single-instance` | 2.x [미확인] | `main.rs` | spec §5 동시 실행 |
 | `tauri-plugin-notification` | 2.x [미확인] | `src/shell/**`, M3 | spec §4.8 |
 | Rust 툴체인 | 1.84 이상, 정확 버전 [미확인] | `rust-toolchain.toml` | `rustc --print host-tuple`에 1.84+ 필요(adr.0008 §3.2) |
-| `typebox` | 1.4.2 | IPC 스키마 | catalog. [미결] 1.3.27 정렬 문제(`F.wire-settings.spec` §10 미결 6) |
+| `typebox` | 1.3.27 | IPC 스키마 | catalog. pi-ai와 같은 판(review.decisions-2 U-24) |
 | `preact`, `@preact/signals` | 정확 버전 [미확인] | `src/views/**` | 프레임워크 [미결]. 결정되면 TC-04 절차로 catalog에 더한다 |
 
 - 포크 원본: 없다.
@@ -314,7 +314,7 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 - `xeon/apps/desktop`에서 `bun test`가 단독으로 통과한다. transport-conformance-stdio, relay-line-framing, reconnect-resubscribe-from-cursor, engine-state-schema, desktop-settings-defs, sidecar-config(M1 부분)가 포함된다.
 - 골격 디렉터리와 `sidecar.json`이 §2 배치와 같다. `src-tauri/`는 없다.
 - `cd xeon && just verify`가 종료코드 0이다(check-layers, depcruise, knip 포함).
-- DR-07 예외(D1의 `Bun.spawn`)가 허용 목록 또는 `platform-process/testing` 도우미 중 하나로 해결되어 있다.
+- DR-07 예외(D1의 `Bun.spawn`)가 허용 목록 `DR-07/desktop-test-spawn`(`scope: "test"`)으로 등록되어 있다(review.decisions-2 B-06).
 
 ### M2
 
@@ -343,7 +343,7 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 | R7 | 메모리 수치 근거 부족. 공개 수치는 벤더 주장이거나 3차이고 tauri#5889 측정 논쟁이 있다(`§7-H`) | 예산을 잘못 잡음 | S5로 직접 잰다. 예산은 측정 전까지 [가정]으로 둔다 |
 | R8 | 장수명 프로세스의 stdio. Tauri Node 가이드는 장수명이면 다른 IPC를 고려하라고 적는다(arch-2 §3.5) | 버퍼링·역압 문제 | S3. 문제가 확인되면 로컬 소켓으로 바꾼다. `EnginePipe` 추상화가 있어 WebView 쪽은 바뀌지 않는다 |
 | R9 | F 변경 요청(`host.shutdown`, `$/connectionReset`, 공용 `createHostConnection`)이 늦어진다 | 새로고침이 엔진 재기동이 된다. 연결 코드가 CLI와 중복된다 | 대체 동작(EOF 종료, 재기동, 앱 안 구현 + 같은 적합성 테스트)을 spec에 정해 두었다 |
-| R10 | 테스트의 `Bun.spawn`이 DR-07과 충돌한다 | M1 적합성 테스트가 check-layers에서 막힘 | 허용 목록 항목 또는 `platform-process/testing` 도우미. 어느 쪽이든 사람 확인이 필요하다. 이 결정 하나를 `L4.host-service.plan`(§2, §7)과 `L4.cli.plan`(§5.2)의 자식 프로세스 테스트에도 적용한다 |
+| R10 | 테스트의 `Bun.spawn`이 DR-07과 충돌한다 | M1 적합성 테스트가 check-layers에서 막힘 | 해소: DR-07 테스트 한정 행과 허용 목록 `scope: "test"` 항목으로 정했다(review.decisions-2 B-06). 같은 결정을 `L4.host-service.plan`(§2, §7)과 `L4.cli.plan`(§5.2)의 자식 프로세스 테스트에도 적용한다 |
 | R11 | macOS 서명에서 Tauri의 entitlements 공유와 `--timestamp` 부재(`_research/notes/L4-2.md §7`, §9) | 공증 실패 | 공증 실측 뒤 자동 서명 유지 또는 수동 파이프라인 선택 [미결] |
 | R12 | 엔진 바이너리 이름이 `L4.host-service.spec`에서 바뀐다 | 빌드·권한·Rust 상수 불일치 | `sidecar.json` 한 곳과 sidecar-config 테스트로 모은다 |
 
@@ -352,7 +352,7 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 - [미결] 사이드카 크기 상한(S2 뒤 사용자 확인).
 - [미결] macOS 서명 방식(Tauri 자동 서명과 수동 파이프라인 중 선택), Developer ID 인증서와 공증 계정 보유 여부.
 - [미결] Windows code signing 인증서 종류(OV, Azure Artifact Signing)와 비용.
-- [미결] D1의 `Bun.spawn`과 DR-07 충돌 해소 방법.
+- [결정: review.decisions-2 B-06] D1의 `Bun.spawn`은 DR-07 테스트 한정 행과 허용 목록 `DR-07/desktop-test-spawn`으로 푼다.
 - [미결] `xeon/scripts/build-sidecar.ts` 위치(이 문서 `binds` 밖).
 - [미결] Intel macOS, arm64 Linux CI 러너 확보.
 - [미결] 자동 업데이트 채택(M3 이후).

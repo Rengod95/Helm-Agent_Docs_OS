@@ -14,6 +14,7 @@ binds: [xeon/package.json, xeon/bunfig.toml, xeon/turbo.json, xeon/tsconfig.base
 
 - 상태: accepted
 - 날짜: 2026-10-21
+- 개정: 2026-10-22 `review.decisions-2` U-24(§3 스키마 행 TypeBox 판을 1.3.27로 정정, pi-ai 1.3.0·sandbox-runtime 0.0.79 정확 고정). 계열을 바꾸지 않는 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4).
 - [결정] 사용자가 `_research/foundation-plan.md §2` 스택 표를 담은 계획을 승인했다("승인 = 컨펌"). 런타임 Bun 1.4와 개별 도구 툴체인(oxlint·oxfmt·tsgo·bun test·turbo)은 `_research/decisions-log.md` 2026-10-21 결정(3차)의 사용자 지시다.
 
 ## 2. 맥락
@@ -46,7 +47,7 @@ binds: [xeon/package.json, xeon/bunfig.toml, xeon/turbo.json, xeon/tsconfig.base
 | 태스크 러너 | Turborepo 2.11(`--affected`, 캐시) | `turbo` 2.11.10 |
 | 경계·위생 | dependency-cruiser 18(층 순위 규칙), knip 6(미사용 코드), publint와 attw(공개 패키지만), 자체 `scripts/check-layers.ts` | `dependency-cruiser` 18.7.0, `knip` 6.42.1 |
 | 빌드 | 내부 패키지는 TS 소스를 그대로 export한다. 바이너리는 `bun build --compile`(CLI, 사이드카). 공개 라이브러리만 tsdown 0.23 | 공개 라이브러리 없음(작성 시점) |
-| 스키마 | TypeBox 1.4 | `typebox` 1.4.2 |
+| 스키마 | TypeBox 1.x | `typebox` 1.3.27(pi-ai 고정 판과 같음, `review.decisions-2` U-24) |
 | DB | `bun:sqlite`(WAL, 단계 경계 FULL). 세부는 ADR-0004 | Bun 내장 |
 | 커밋 전 검사·작업 진입점 | lefthook(pre-commit에서 oxfmt, oxlint, gitleaks), `xeon/justfile`(`just verify`) | — |
 
@@ -55,7 +56,7 @@ binds: [xeon/package.json, xeon/bunfig.toml, xeon/turbo.json, xeon/tsconfig.base
 - DI·플러그인(Cordis 4.0.0-rc.x vendored): ADR-0002
 - DB 사용 방식(이벤트 소싱, 단일 DB): ADR-0004
 - 데스크톱 셸(Tauri 2.12 + 사이드카): ADR-0008
-- 모델·루프(`@earendil-works/pi-ai`, `pi-agent-core` 1.3.0): `L1.models.spec`, `L1.loop.spec`
+- 모델(`@earendil-works/pi-ai` 1.3.0): `L1.models.spec`. 루프는 pi-agent-core 1.3.0을 포크한 자체 루프이고 pi-agent-core에 의존하지 않는다: ADR-0009, `L1.loop.spec`
 - MCP(`@modelcontextprotocol/client` 2.3.1): `L2.mcp.spec`
 - 샌드박스, 웹, 비밀 도구: `L0.sandbox.spec`, `L2.web.spec`, `L0.secrets.spec`
 
@@ -116,7 +117,7 @@ binds: [xeon/package.json, xeon/bunfig.toml, xeon/turbo.json, xeon/tsconfig.base
 - [가정] oxfmt 설정 파일은 `.oxfmtrc.json` 형식으로 읽힌다. 공식 포매터 문서에 형식 명시가 없다(`_research/stack-status.md §1-B`).
 - [가정] `bun test`는 패키지 디렉터리 단위 실행으로 패키지별 테스트를 나눌 수 있다. workspace/projects 설정 문서는 확인하지 않았다(`§3-C`).
 - [가정] Turborepo `--affected`의 기본 세분화는 패키지 단위다. 정식 버전 기본값은 확인하지 않았다(`§5-B`).
-- [가정] TypeBox 1.4(`typebox` 패키지)는 0.34(`@sinclair/typebox`)와 다른 패키지이고, pi-ai가 쓰는 1.3.x 계열과 타입 호환된다. 1.0 breaking 목록과 이주 가이드는 확인하지 못했다(`§8`).
+- [가정] TypeBox 1.x(`typebox` 패키지)는 0.34(`@sinclair/typebox`)와 다른 패키지다. 판은 pi-ai가 정확 고정한 1.3.27로 맞춘다(`review.decisions-2` U-24). 1.4로 올리는 시점은 pi가 올릴 때다. 1.0 breaking 목록과 이주 가이드는 확인하지 못했다(`§8`).
 - [가정] dependency-cruiser 18, knip 6, tsdown 0.23은 Bun으로 실행해도 동작한다. 세 도구 모두 npm engines에 Node만 적는다(`§4`, `§6`).
 - [가정] 엔진·UI 경계 밖의 Node 전용 도구(Playwright 등)는 Node 자식 프로세스 우회로 충분하다.
 - [가정] `setCustomSQLite`의 반환값으로 플랫폼을 판별하지 않는다. 1.4.3 소스는 비-macOS에서도 `true`를 반환하므로 `_research/stack-status.md §7-D`의 "`false` 반환" 기술은 1.4.3과 맞지 않는다(`_research/notes/arch-3.md §3.2`).

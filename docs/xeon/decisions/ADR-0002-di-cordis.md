@@ -15,7 +15,7 @@ binds: [xeon/vendor/cordis/**, xeon/packages/ext-host/**]
 - 상태: accepted
 - 날짜: 2026-10-21
 - [결정] "DI는 Cordis 하나"(`_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md §1` 표 1번). 고정 방식은 `_research/foundation-plan.md §2` DI·플러그인 행("Cordis 4.0.0-rc.x를 `xeon/vendor/cordis`에 커밋 고정")이다.
-- 개정: 2026-10-21 `review.decisions-2` U-01(§3 6번 적용 시점을 단계 경계로 읽음), U-17(§3 4번 하위 층의 `@xeon/ext-host` import 범위). 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 두 항목은 [결정(잠정)]이고 사용자 확인 대상이다.
+- 개정: 2026-10-21 `review.decisions-2` U-01(§3 6번 적용 시점을 단계 경계로 읽음), U-17(§3 4번 하위 층의 `@xeon/ext-host` import 범위). 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 두 항목은 사용자 확인을 거친 [결정]이다(2026-10-22).
 
 ## 2. 맥락
 
@@ -44,9 +44,9 @@ binds: [xeon/vendor/cordis/**, xeon/packages/ext-host/**]
      ```
 
      위 예의 `@xeon/ext-host` 패키지 이름과 `ScopeHandle` 타입 이름은 설명용이다. 실제 이름은 X 스펙이 정한다.
-   - [결정(잠정): review.decisions-2 U-17] X보다 위 층의 구현 패키지(L0~L2)가 `@xeon/ext-host`를 import하는 것은 `eng.dependency-rules.guide` DR-14의 예외로 허용한다. 범위는 서비스 등록·주입 API뿐이다. 4연산 API는 L3 `group-kit`이 쓴다. 다른 구현 패키지의 import는 계속 금지다.
+   - [결정: review.decisions-2 U-17] X보다 위 층의 구현 패키지(L0~L2)가 `@xeon/ext-host`를 import하는 것은 `eng.dependency-rules.guide` DR-14의 예외로 허용한다. 범위는 서비스 등록·주입 API뿐이다. 4연산 API는 L3 `group-kit`이 쓴다. 다른 구현 패키지의 import는 계속 금지다.
 5. [결정] 층 사이 협력은 F 정의 + Cordis 서비스로만 한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 1, `_research/foundation-plan.md §3` 패키지 의존 규칙). 같은 층 패키지끼리 import하지 않는다.
-6. [결정] 켜기·끄기는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용하고 정리는 Cordis dispose로 실행한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 5. 원문 표기 "턴 경계"를 단계 경계로 읽는 것은 [결정(잠정): review.decisions-2 U-01], ADR-0007 §3.6).
+6. [결정] 켜기·끄기는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용하고 정리는 Cordis dispose로 실행한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 5. 원문 표기 "턴 경계"를 단계 경계로 읽는 것은 [결정: review.decisions-2 U-01], ADR-0007 §3.6).
 7. [결정] 연동 규칙: pi durable의 `Context`는 DI 기능이 없는 취소 토큰(`abortSignal` 전달)이다. 포크할 때 로컬 타입 `CancelScope`로 치환한다. Cordis의 `Context`(DI 루트)와 이름이 겹치므로 포크 코드에 Cordis `Context`를 들이지 않는다(`_research/durable-and-search-facts.md §A-4` 이름 충돌 주의). 정의와 위치는 ADR-0003이 정한다.
 
 ### 3.1 Cordis 원시 연산과 4연산의 대응
@@ -102,5 +102,5 @@ df4431e 소스 읽기로 확인한 대응이다(`_research/notes/arch-1.md §2`,
 - [미결] Cordis rc API 변경 대응, 곧 고정 커밋 갱신 정책. 갱신 주기(정기 대 필요할 때), 갱신 조건(보안 수정, 필요한 기능), 갱신 절차(재복사 → `UPSTREAM.json` 기록 → ext-host 테스트 → 시그니처 대조표 재확인)를 정해야 한다. [제안] 필요할 때만 갱신하고, 갱신마다 `_research/notes/arch-1.md §2` 대조표를 다시 확인한다.
 - [미결] vendor 고정 기준을 df4431e로 유지할지, npm rc.11 배포본 소스로 바꿀지(`_research/notes/arch-1.md §8`). [제안] df4431e를 유지하고 `UPSTREAM.json`의 version 표기를 "4.0.0-rc.11 이후 커밋(df4431e)"처럼 고친다.
 - [미결] 그룹 간 이벤트·서비스 이름 격리 정책. 전역 전달을 그대로 둘지, 그룹 접두사나 thisArg 필터를 기본으로 둘지, `ctx.isolate`를 그룹 단위로 쓸지(`_research/notes/arch-1.md §3`). `X.primitives.spec`에서 정한다.
-- [미결] F5 설정 스키마(TypeBox 1.4)를 Cordis `Config`(Standard Schema) 검증에 바로 쓸 수 있는지. 안 되면 ext-host가 변환 어댑터를 둔다.
+- [미결] F5 설정 스키마(TypeBox 1.3.27)를 Cordis `Config`(Standard Schema) 검증에 바로 쓸 수 있는지. 안 되면 ext-host가 변환 어댑터를 둔다.
 - [미결] 설정 파일 기반 플러그인 로딩에 `@cordisjs/plugin-loader`를 들일지, ext-host가 자체 구현할지.

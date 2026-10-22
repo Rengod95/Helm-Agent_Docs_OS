@@ -43,7 +43,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 | [AP-A-08](#ap-a-08) | 격리 없이 신뢰 등급만 선언 | BP-03 | 리뷰 질문 |
 | [AP-A-09](#ap-a-09) | `drive` 남용과 클로저 상태 | BP-03 | 재생 테스트, 리뷰 질문 |
 | [AP-C-01](#ap-c-01) | `any`와 타입 단언 남발 | BP-01 | oxlint |
-| [AP-C-02](#ap-c-02) | 광역 try/catch로 오류 삼킴 | BP-04 | 리뷰 질문, oxlint 일부 |
+| [AP-C-02](#ap-c-02) | 광역 try/catch로 오류 삼킴 | BP-04 | oxlint `no-empty`, `preserve-caught-error`, 검사 스크립트 [제안], 리뷰 질문 |
 | [AP-C-03](#ap-c-03) | throw를 흐름 제어에 사용 | BP-04 | 리뷰 질문 |
 | [AP-C-04](#ap-c-04) | 모듈 전역 가변 상태 | BP-02, BP-05 | oxlint 일부, 리뷰 질문 |
 | [AP-C-05](#ap-c-05) | `Date.now`·`Math.random` 직접 호출 | BP-05 | 검사 스크립트 [제안] |
@@ -51,6 +51,8 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 | [AP-C-07](#ap-c-07) | 테스트 안 sleep | (eng.testing.guide) | 검사 스크립트 [제안] |
 | [AP-C-08](#ap-c-08) | 비밀 값 출력·로그 | BP-07 | gitleaks, 리뷰 질문 |
 | [AP-C-09](#ap-c-09) | L0·L1에서 console이나 로거 직접 생성 | BP-12 | oxlint `no-console`, `no-restricted-imports` |
+| [AP-C-10](#ap-c-10) | 단언을 다른 모양으로 감춘 typed programming 안티패턴 | BP-01, BP-04 | oxlint `no-unnecessary-type-parameters`, `ban-ts-comment`, 리뷰 질문 |
+| [AP-C-11](#ap-c-11) | 예상 가능한 실패를 `Bug`로 던짐 | BP-04 | 검사 스크립트 [제안], 리뷰 질문 |
 | [AP-S-01](#ap-s-01) | fsync 없는 JSONL 세션 쓰기 | BP-08 | `no-restricted-imports`, 리뷰 질문 |
 | [AP-S-02](#ap-s-02) | 토큰마다 이벤트 저장 | BP-08 | 단위 테스트, 리뷰 질문 |
 | [AP-S-03](#ap-s-03) | 확장별 DB 파일로 원자성 상실 | BP-08 | `no-restricted-imports`, 리뷰 질문 |
@@ -71,7 +73,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 왜 문제인가:
   - [결정] 같은 층의 패키지끼리는 import하지 않는다. 같은 층 협력은 F 정의와 Cordis 서비스로만 한다(`_research/foundation-plan.md §3` "층 순위와 의존 방향", `architecture.layers.spec §3` 규칙 2).
   - 같은 층 간선이 생기면 패키지 교체와 그룹 단위 켜고 끄기가 어려워진다. 사용자가 층마다 플러그인을 교체할 수 있어야 한다는 결정(`_research/decisions-log.md` 2026-10-21 배포 단위 정정)과 맞지 않는다.
-  - 같은 층 예외는 두 개뿐이다. `group-*` → `group-kit`(`DR-02/group-kit-*`)과 `apps/cli` → `apps/host`(`DR-10/cli-host`)다([결정(잠정): review.decisions-2 U-15], `eng.dependency-rules.guide` 4절 허용 목록). `plugins/*`는 L1 순위이고 같은 층 예외가 없다([결정(잠정): review.decisions-2 U-16]).
+  - 같은 층 예외는 두 개뿐이다. `group-*` → `group-kit`(`DR-02/group-kit-*`)과 `apps/cli` → `apps/host`(`DR-10/cli-host`)다([결정: review.decisions-2 U-15], `eng.dependency-rules.guide` 4절 허용 목록). `plugins/*`는 L1 순위이고 같은 층 예외가 없다([결정: review.decisions-2 U-16]).
 - 나쁜 예:
 
   ```ts
@@ -129,7 +131,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 증상: `group-helm`이 `group-learning`을 import해 학습 결과를 읽거나, 학습 그룹의 내부 상태를 Cordis 서비스로 꺼내 Helm이 직접 바꾼다.
 - 왜 문제인가:
   - [결정] 그룹끼리는 직접 참조하지 않는다(`architecture.layers.spec §3.1` 3행, `_research/layer-plan-v2-notes.md` "층 사이 규칙"). 그룹 사이 정보는 L2 능력의 레코드와 서비스(예: L2 knowledge 검색)로만 주고받는다(`eng.context-map.design` 3절 협력 규칙 7, CM-06).
-  - [결정(잠정): review.decisions-2 D-10] 그룹 사이 레코드의 스키마는 F에 두지 않는다. 그룹은 다른 그룹의 비공개 레코드(`grp.<다른 그룹>.*`)를 읽지 않는다.
+  - [결정: review.decisions-2 D-10] 그룹 사이 레코드의 스키마는 F에 두지 않는다. 그룹은 다른 그룹의 비공개 레코드(`grp.<다른 그룹>.*`)를 읽지 않는다.
   - 사용자가 그룹 간 강결합을 우려했다(`_research/decisions-log.md` 2026-10-21 사용자 의중). Helm과 학습 그룹은 따로 켜고 끌 수 있어야 하고, 학습 그룹은 Helm 없이도 동작해야 한다.
 - 나쁜 예:
 
@@ -353,7 +355,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 - 증상: 외부 입력을 `as ToolCall`로 단언하거나, 타입 오류를 `any`, `as unknown as T`, `!`로 지운다.
 - 왜 문제인가:
   - 단언은 검증 없이 타입만 바꾼다. 도구 인자, 이벤트 `data`, 설정 파일처럼 경계에서 들어오는 값은 TypeBox 스키마 검증을 거쳐야 한다. 이벤트 `data`는 타입별 TypeBox 스키마로 검증한다(ADR-0004 §3.2 이벤트 레코드 초안).
-  - 단언을 허용하는 곳은 두 곳이다. `@xeon/contracts`의 `parse` 구현 안과 `IdFactory` 구현 안이다(구현은 `platform-os`의 `createIdFactory`, [결정(잠정): review.decisions-2 U-03])(`eng.typescript.guide` TY-06). 경계 검증은 `parse` 하나로 한다(`eng.domain-types.guide` DT-05). `typebox/value`의 `Value.Check`는 contracts base 밖에서 import하지 않는다(DT-01).
+  - 단언을 허용하는 곳은 `eng.typescript.guide` TY-06 허용 목록뿐이다. A1 `@xeon/contracts`의 `parse` 구현, A2 `IdFactory` 구현(`platform-os`의 `createIdFactory`, [결정: review.decisions-2 U-03])과 테스트 대역 `fixedIdFactory`, A3 타입 키 레지스트리 조회 함수 한 곳 [제안]이다. 경계 검증은 `parse` 하나로 한다(`eng.domain-types.guide` DT-05). `typebox/value`의 `Value.Check`는 contracts base 밖에서 import하지 않는다(DT-01).
 - 나쁜 예:
 
   ```ts
@@ -378,7 +380,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   }
   ```
 
-- 감지 방법: oxlint `typescript/no-explicit-any`, `typescript/no-non-null-assertion`, `typescript/no-unsafe-*`, `typescript/no-unnecessary-type-assertion`(현재 `xeon/.oxlintrc.json`에 있다). `as` 단언 자체는 `typescript/consistent-type-assertions`(`assertionStyle: "never"`)가 막고, 허용 위치의 단언 disable 주석이 `packages/contracts/src/base/**` 밖에 있으면 스캔 `xeon/as-location`이 실패시킨다(`eng.typescript.guide` TY-06, 3.1절 [제안]). 리뷰 질문: "이 `as`는 TY-06의 허용 위치 두 곳 안에 있는가?"
+- 감지 방법: oxlint `typescript/no-explicit-any`, `typescript/no-non-null-assertion`, `typescript/no-unsafe-*`, `typescript/no-unnecessary-type-assertion`(현재 `xeon/.oxlintrc.json`에 있다). `as` 단언 자체는 `typescript/consistent-type-assertions`(`assertionStyle: "never"`)가 막고, 단언 disable 주석이 TY-06 허용 목록 경로 밖에 있으면 스캔 `xeon/as-location`이 실패시킨다(`eng.typescript.guide` TY-06, 3.1절 [제안]). 리뷰 질문: "이 `as`는 TY-06 허용 목록(A1 `parse` 구현, A2 브랜드 생성 함수, A3 타입 키 레지스트리 조회) 안에 있는가?"
 
 <a id="ap-c-02"></a>
 #### AP-C-02 광역 try/catch로 오류 삼킴
@@ -410,7 +412,8 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   });
   ```
 
-- 감지 방법: 빈 catch와 오류를 버리는 catch는 리뷰 질문으로 본다: "이 catch는 무엇을 복구하는가? 복구하지 않으면 왜 잡는가?" oxlint `no-empty`(correctness 범주)가 빈 블록 일부를 잡는다 [가정: 1.89 기본 범주 포함 여부는 `eng.toolchain.guide`에서 확인].
+- 규칙: `catch`는 변환(받은 값을 `cause`로 담은 오류 값), 근거 문서가 있는 기록 후 계속(주입된 Logger), 다시 던지기 중 하나만 한다(`eng.typescript.guide` TY-25). 빈 `catch`, 바인딩 없는 `catch`, `void caught`, `.catch(() => undefined)`, 실패를 기본값으로 바꾸는 반환은 금지다.
+- 감지 방법: oxlint `no-empty` `{ "allowEmptyCatch": false }`와 `preserve-caught-error` `{ "requireCatchParameter": true }`(추가 [제안], 1.89 프로브로 동작 확인. `no-empty`는 restriction 범주라 지금 설정에서는 꺼져 있다), `no-unused-vars`(받고 쓰지 않은 값), 스캔 `xeon/catch-swallow` [제안](`void <식별자>`, 빈 `.catch` 콜백). 리뷰 질문: "이 catch는 무엇을 복구하는가? 복구하지 않으면 왜 잡는가?"
 
 <a id="ap-c-03"></a>
 #### AP-C-03 throw를 흐름 제어에 사용
@@ -614,6 +617,76 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 
 - 감지 방법: oxlint `no-console`(현재 설정, `scripts/**`, `apps/cli/**`, `apps/host/**`만 예외). 로거 라이브러리는 `no-restricted-imports`로 L4 진입점 밖에서 막는다 [제안].
 
+<a id="ap-c-10"></a>
+#### AP-C-10 단언을 다른 모양으로 감춘 typed programming 안티패턴
+
+- 증상: `as`를 직접 쓰지 않고 같은 효과를 내는 코드를 쓴다.
+  - 반환 타입에만 나오는 타입 매개변수: `function getState<T>(key: string): T`, `call<R>(method): Promise<R>`.
+  - 판별자 하나만 보고 전체 모양을 약속하는 손 타입 가드: `(v: unknown): v is ToolCall => v.type === "toolCall"`.
+  - `Function`, `Object`, `{}` 타입으로 받고 호출 지점에서 다시 단언.
+  - 빈 컨테이너를 단언으로 초기화: `{} as Record<K, V>`, `[] as Item[]`.
+  - `Object.keys(o) as (keyof T)[]`, `JSON.parse(x) as T`.
+  - 운영 코드의 `@ts-expect-error`로 타입 오류 한 줄을 넘기기.
+- 왜 문제인가:
+  - TypeScript 타입은 런타임에 지워진다. 위 모양은 모두 런타임 검사 없이 타입만 정하므로 `as`와 같은 결과를 낸다. 린트 `consistent-type-assertions`를 통과해도 잘못된 데이터가 도메인 타입 이름을 달고 들어간다.
+  - 단언을 허용 목록(TY-06) 밖으로 흩어 놓으면 리뷰가 단언 위치를 찾을 수 없다.
+- 나쁜 예:
+
+  ```ts
+  export function getState<T>(store: ScopeStore, key: string): T {
+    const raw: unknown = store.read(key);
+    // @ts-expect-error -- 저장한 쪽이 T로 썼음
+    return raw;
+  }
+
+  export function isToolCall(v: unknown): v is ToolCall {
+    return typeof v === "object" && v !== null && "type" in v && v.type === "toolCall";
+  }
+  ```
+
+- 좋은 예:
+
+  ```ts
+  export function getState<S extends TSchema>(store: ScopeStore, key: string, schema: S): Result<Static<S>, StateReadError> {
+    const raw: unknown = store.read(key);
+    const state = parse(schema, raw);
+    return state.ok ? state : err({ kind: "state_invalid", key, issues: state.error.issues });
+  }
+  ```
+
+- 감지 방법: oxlint `typescript/no-unnecessary-type-parameters`(반환에만 나오는 타입 매개변수), `typescript/no-unsafe-function-type`, `typescript/ban-ts-comment`(운영 코드 `ts-expect-error: true`), `typescript/consistent-type-assertions`(`eng.typescript.guide` 3.1.1절). 손 타입 가드는 리뷰 질문: "이 타입 가드는 술어 타입의 필드를 모두 검사하는가? 경계 값이면 `parse`로 바꿨는가?" 짝 규칙: `eng.typescript.guide` TY-06, TY-08, TY-23.
+
+<a id="ap-c-11"></a>
+#### AP-C-11 예상 가능한 실패를 `Bug`로 던짐
+
+- 증상: I/O 오류, `SQLITE_BUSY`, 디스크 가득 참, 읽기 전용 파일 시스템, 취소, 찾지 못함, 검증 실패, lease·잠금 상실, 시간 초과를 `throw new Bug("store.io: ...")`처럼 `Bug`로 던진다. 하위 함수가 `Result`로 돌려준 실패를 상위에서 `Bug`로 바꾼다. 실패 종류를 `kind` 대신 `Bug` 메시지 문자열 접두어로 표시한다.
+- 왜 문제인가:
+  - `Bug`는 코드를 고쳐야 사라지는 상태를 뜻한다(`eng.typescript.guide` TY-24). 운영 중 정상적으로 생기는 실패를 `Bug`로 던지면 호출자가 재시도, 세션 정지, 사용자 안내 중 하나를 고를 수 없다.
+  - 메시지 문자열은 판별자가 아니므로 호출자가 `switch`와 `assertNever`로 처리할 수 없다(TY-12, TY-13).
+  - 확장 지점 fold에서 던진 예외는 거부로 환산되고(ADR-0007 §3.2), 저장소 실패가 런타임 전체 실패로 번진다(AP-S-06).
+- 나쁜 예:
+
+  ```ts
+  const put = store.putBlob(bytes);
+  if (!put.ok) throw new Bug(`store.blob_unavailable: putBlob returned ${put.error.kind}`);
+
+  if (code === "SQLITE_BUSY") throw new Bug("store.busy");
+  ```
+
+- 좋은 예:
+
+  ```ts
+  export type CommitError =
+    | { readonly kind: "blob_unavailable"; readonly cause: BlobError }
+    | { readonly kind: "busy"; readonly retryAfterMs: number }
+    | { readonly kind: "disk_full" };
+
+  const put = store.putBlob(bytes);
+  if (!put.ok) return err({ kind: "blob_unavailable", cause: put.error });
+  ```
+
+- 감지 방법: 스캔 `xeon/bug-for-expected` [제안]: `new Bug(` 메시지에 예상 가능한 실패 단어(`io`, `busy`, `disk_full`, `read_only`, `timeout`, `cancel`, `not_found`, `corrupt`, `lease`, `ownership`)가 있으면 실패. 리뷰 질문: "코드와 설정이 올바라도 이 실패가 일어날 수 있는가?" 테스트가 예상 가능한 실패를 `toThrow`로 확인하면 같은 안티패턴이다. 짝 규칙: `eng.typescript.guide` TY-11, TY-24, `eng.best-practices.guide` BP-04.
+
 ### 2.4 스택 (AP-S)
 
 <a id="ap-s-01"></a>
@@ -760,7 +833,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 <a id="ap-s-06"></a>
 #### AP-S-06 저장소 오류 시 프로세스 전체 종료
 
-- 증상: SQLite 쓰기 오류(`SQLITE_BUSY`, 디스크 가득 참)가 나면 `process.exit(1)`을 부르거나 잡히지 않은 예외로 런타임이 내려간다.
+- 증상: SQLite 쓰기 오류(`SQLITE_BUSY`, 디스크 가득 참)가 나면 `process.exit(1)`을 부르거나, 잡히지 않은 예외나 `Bug`로 던져 런타임이 내려간다([AP-C-11](#ap-c-11)).
 - 왜 문제인가:
   - 저장소 오류가 나면 런타임 전체를 종료하는 구조(pi durable)는 피할 사례다(`_research/ref-synthesis.md` "피할 것").
   - 서비스 모드는 세션 여러 개와 예약 작업을 함께 돌린다(ADR-0006). 한 세션의 쓰기 실패가 다른 세션을 끝내면 안 된다.
@@ -815,14 +888,14 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 <a id="ap-s-08"></a>
 #### AP-S-08 버전 범위(`^`, `~`) 사용
 
-- 증상: `package.json`이나 catalog에 `"typebox": "^1.4.2"`, `"oxfmt": "~0.74.0"`처럼 범위를 쓴다.
+- 증상: `package.json`이나 catalog에 `"typebox": "^1.3.27"`, `"oxfmt": "~0.74.0"`처럼 범위를 쓴다.
 - 왜 문제인가:
   - [결정] 스택 표는 모든 도구를 정확 버전으로 고정한다(`_research/foundation-plan.md §2` "정확 버전 고정"). oxfmt는 0.x라 정확 고정이고, tsgolint는 TS 7.0.x에 묶여 두 버전을 함께 고정한다(같은 문서 §7).
   - 공개 API가 안정된 레퍼런스가 하나도 없다. pi·omp·opencode는 매주나 마이너 버전에서 계약이 깨진다(`_research/ref-synthesis.md` 대상 한눈 비교 아래 문단). 범위는 이 변경을 예고 없이 들인다.
 - 나쁜 예:
 
   ```json
-  { "dependencies": { "@earendil-works/pi-ai": "^1.3.0", "typebox": "^1.4.2" } }
+  { "dependencies": { "@earendil-works/pi-ai": "^1.3.0", "typebox": "^1.3.27" } }
   ```
 
 - 좋은 예:
@@ -831,7 +904,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
   { "dependencies": { "@earendil-works/pi-ai": "catalog:", "typebox": "catalog:" } }
   ```
 
-  루트 `package.json`의 catalog에 `"typebox": "1.4.2"`처럼 정확 버전을 둔다.
+  루트 `package.json`의 catalog에 `"typebox": "1.3.27"`처럼 정확 버전을 둔다.
 
 - 감지 방법: 모든 `package.json`의 의존 값이 정확 버전, `catalog:`, `workspace:*` 중 하나인지 확인하는 검사 스크립트 [제안: `check-layers.ts`가 이미 `package.json`을 읽으므로 같은 스크립트에 넣는다]. 세부는 `eng.toolchain.guide`가 정한다.
 
@@ -904,7 +977,9 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 | 규칙 | 상태 | 대상 항목 |
 |---|---|---|
 | `typescript/no-explicit-any`, `typescript/no-non-null-assertion`, `typescript/no-unsafe-*`, `typescript/no-unnecessary-type-assertion` | 있음 | AP-C-01 |
-| `typescript/consistent-type-assertions`(`assertionStyle: "never"`), `typescript/no-unsafe-type-assertion` | [제안](`eng.typescript.guide` TY-06, 3.1절) | AP-C-01 |
+| `typescript/consistent-type-assertions`(`assertionStyle: "never"`), `typescript/no-unsafe-type-assertion`, `typescript/no-non-null-asserted-nullish-coalescing` | [제안](`eng.typescript.guide` TY-06, 3.1.1절) | AP-C-01 |
+| `typescript/no-unnecessary-type-parameters`, `typescript/no-unsafe-function-type`, `typescript/ban-ts-comment`(운영 코드 `ts-expect-error: true`, 테스트만 `allow-with-description`) | [제안](`eng.typescript.guide` TY-08, TY-23, 3.1.1절) | AP-C-10 |
+| `no-empty`(`allowEmptyCatch: false`), `preserve-caught-error`(`requireCatchParameter: true`), `typescript/use-unknown-in-catch-callback-variable` | [제안](`eng.typescript.guide` TY-25, 3.1.1절) | AP-C-02 |
 | `typescript/no-floating-promises`, `typescript/no-misused-promises` | 있음 | AP-C-06 일부 |
 | `import/no-cycle` | 있음 | AP-A-02 |
 | `import/no-mutable-exports` | 있음 | AP-C-04 일부 |
@@ -923,6 +998,7 @@ Xeon 코드에서 반복해서 나오기 쉬운 잘못된 구조를 모은 구�
 | `just knip` | 있음 | 쓰이지 않는 의존(Vitest, 포매터 등) | AP-S-07, AP-S-09 |
 | gitleaks (lefthook pre-commit) | 있음 | 커밋된 비밀 값 | AP-C-08 |
 | 금지 호출 목록: `Date.now`, `new Date()`(인자 없음), `Math.random`, `process.exit`(apps 밖), 테스트 안 `Bun.sleep` | [제안] `check-layers.ts`에 추가 | 소스 텍스트 검사 | AP-C-05, AP-S-06, AP-C-07 |
+| `scripts/check-ts-rules.ts` 스캔 `xeon/as-location`, `xeon/catch-swallow`, `xeon/bug-for-expected` | [제안] `eng.typescript.guide` 3.2절 | 허용 목록 밖 단언 주석, 삼킨 catch, 예상 가능한 실패 단어가 든 `Bug` 메시지 | AP-C-01, AP-C-02, AP-C-11 |
 | 의존 버전 형식 검사: 정확 버전, `catalog:`, `workspace:*`만 허용 | [제안] `check-layers.ts`에 추가 | `package.json` | AP-S-08 |
 | 배포 매니페스트 검사: `plugins/provider-anthropic-oauth` 제외 | [제안] L4 빌드 단계 | 배포 산출물 목록 | AP-S-04 |
 | 재생 테스트: `drive`를 경계에서 끊고 재호출 | [제안] `eng.testing.guide` 형식 | `loop.turn` 순서 | AP-A-09 |
@@ -942,8 +1018,10 @@ TS 7.0에는 안정 programmatic API가 없으므로(`_research/notes/eng-1.md �
 | 그룹 코드의 효과는 `on` 반환값, `post`, `drive`, `g.commit` 중 어디로 나가는가? | AP-A-07 |
 | 신뢰 등급 2·3 확장이 선언하지 않은 능력에 접근할 수 있는가? | AP-A-08 |
 | `drive` 안에 `let` 진행 변수가 있는가? `on`과 `post`로 같은 일을 할 수 있는가? | AP-A-09 |
-| 이 `as`는 TY-06의 허용 위치 두 곳(`parse` 구현, 브랜드 생성 함수) 안에 있는가? | AP-C-01 |
-| 이 catch는 무엇을 복구하는가? | AP-C-02 |
+| 이 `as`는 TY-06 허용 목록(A1 `parse` 구현, A2 브랜드 생성 함수, A3 타입 키 레지스트리 조회) 안에 있는가? 밖이면 타입 가드, `satisfies`, `parse`로 바꿨는가? | AP-C-01, AP-C-10 |
+| 이 catch는 무엇을 복구하는가? 받은 값을 `cause`로 넘기거나 Logger로 남기는가? | AP-C-02 |
+| 이 타입 매개변수는 인자에서 오는가? 이 타입 가드는 술어 타입의 필드를 모두 검사하는가? | AP-C-10 |
+| 이 `Bug`는 코드와 설정이 올바라도 일어날 수 있는 실패인가? | AP-C-11 |
 | 이 throw는 호출자가 정상 흐름에서 처리해야 하는 결과인가? | AP-C-03 |
 | 이 값은 누가 언제 지우는가? dispose 경로가 있는가? | AP-C-04 |
 | 트랜잭션 콜백 안에 `await`가 있는가? | AP-C-06 |
@@ -986,5 +1064,5 @@ TS 7.0에는 안정 programmatic API가 없으므로(`_research/notes/eng-1.md �
 ## 5. 미결 사항
 
 - [미결] 3.1절과 3.2절의 [제안] 린트 패턴과 검사 스크립트 항목을 `eng.toolchain.guide`와 `check-layers.ts`에 넣을지. 코드는 다른 작업자가 만드는 중이므로 이 문서는 목록만 둔다.
-- [결정(잠정): review.decisions-2 U-15] 같은 층 예외(`DR-02/group-kit-*`, `DR-10/cli-host`)를 AP-A-01에 반영했다.
+- [결정: review.decisions-2 U-15] 같은 층 예외(`DR-02/group-kit-*`, `DR-10/cli-host`)를 AP-A-01에 반영했다.
 - [미결] 4.4절 항목 추가 절차를 채택할지, 채택하면 누가 추가를 승인하는지.

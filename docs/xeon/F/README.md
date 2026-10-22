@@ -21,10 +21,10 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
   3. Web Crypto 해시: `globalThis.crypto.subtle`의 SHA-256만 쓴다. 같은 입력에 같은 값을 내므로 순수 함수로 본다. 비동기라 `Promise`를 돌려준다. 예: `toolsetFingerprint`(`F.capabilities.spec` §3.8). 그 밖의 전역 API는 쓰지 않는다.
   4. 오류 클래스와 선언 함수: 오류를 나타내는 `Error` 하위 클래스(`CapabilityError`, `WireError`, `SettingDefError`, 루트의 `Bug`)와, 선언을 받아 그대로 또는 정규화해 돌려주는 `define*` 함수(`defineCapability`, `defineManifest`, `defineSettings`). `define*`는 규칙 위반이면 오류 클래스를 던질 수 있다(`defineSettings` → `SettingDefError`, `F.wire-settings.spec` §3.8.3). 호출 결함과 선언 결함은 `Result` 대신 예외로 알린다(`eng.typescript.guide` TY-11).
   5. 데이터 상수: 케이스 표나 선언 표 같은 값만 있는 상수. 예: `POINTS`, `CORE_EVENT_CATALOG`, `WIRE_METHODS`, `WIRE_CONFORMANCE_CASES`. 케이스를 돌리는 실행기 틀은 `src/`가 아닌 `test/`에 둔다(`F.wire-settings.plan` W14).
-- 발급(`IdFactory`·`LocalIdFactory` 구현), 저장, 전송, 로딩은 F 밖에서 구현한다. `createIdFactory(clock, random)` 같은 발급기 구현과 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 시계·난수를 쓰므로 위 다섯 예외에 들지 않는다. 운영 구현은 `platform-os`에 두고, 테스트 대역은 쓰는 패키지마다 자기 `test/` 안에 둔다 [결정(잠정): review.decisions-2 U-03](§8 10번).
+- 발급(`IdFactory`·`LocalIdFactory` 구현), 저장, 전송, 로딩은 F 밖에서 구현한다. `createIdFactory(clock, random)` 같은 발급기 구현과 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 시계·난수를 쓰므로 위 다섯 예외에 들지 않는다. 운영 구현은 `platform-os`에 두고, 테스트 대역은 쓰는 패키지마다 자기 `test/` 안에 둔다 [결정: review.decisions-2 U-03](§8 10번).
 - 층 순위는 F → X → L0 → L1 → L2 → L3 → L4이고 F가 가장 낮다(`_research/foundation-plan.md` §3). 그래서 `@xeon/contracts`는 다른 xeon 패키지를 import하지 않는다. `scripts/check-layers.ts`가 `package.json`의 `xeon.layer = "F"`로 이를 검사한다.
 - 허용하는 외부 의존:
-  - `typebox` 1.4.2(워크스페이스 catalog). 값 import 허용.
+  - `typebox` 1.3.27(워크스페이스 catalog). 값 import 허용.
   - `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core` 1.3.0. `import type`, `export type`만 허용(`F.conversation.spec` §3.1 규칙 1).
   - `@opentelemetry/api` 1.10.0. 2차, `import type`만(`F.wire-settings.spec` §3.6).
   - Cordis는 import하지 않는다(`F.capabilities.spec` §3.5).
@@ -41,7 +41,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 | extensions | 확장 매니페스트, 지점 선언 표(on fold, post, drive, scope), 그룹 레코드 형식(kind 접두, `GroupRecord`, 종류 등록), 열거형 확장 예약 | F4 확장 계약 | `@xeon/contracts/extensions` | `F.extensions.spec`, `F.extensions.plan` | 포함(열거형 확장 예약은 2차) |
 | wire-settings | 호스트 계약(JSON-RPC, 메서드 레지스트리, seq 커서, 오류, 전송 인터페이스, 버전 정책)과 설정 스키마 단일 원천(`SettingDef`, 범위 우선순위, JSON Schema 출력) | F5 연결·설정 계약 | `@xeon/contracts/wire`, `@xeon/contracts/settings` | `F.wire-settings.spec`, `F.wire-settings.plan` | 포함(오류 구간, `_meta`, 소켓 전송은 M2) |
 
-- 서비스 인터페이스 서브패스 `@xeon/contracts/services`는 도메인을 새로 만들지 않는다. L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3), 서비스 이름 상수를 모으는 서브패스이고 정의는 `F.capabilities.spec` §3.12가 정한다 [결정(잠정): review.decisions-2 D-04]. 층 사이 협력은 이 인터페이스로만 한다(DR-02, DR-14, CM-05).
+- 서비스 인터페이스 서브패스 `@xeon/contracts/services`는 도메인을 새로 만들지 않는다. L0·L1 서비스 인터페이스, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3), 서비스 이름 상수를 모으는 서브패스이고 정의는 `F.capabilities.spec` §3.12가 정한다 [결정: review.decisions-2 D-04]. 층 사이 협력은 이 인터페이스로만 한다(DR-02, DR-14, CM-05).
 
 [결정] M0 범위에 `contracts`(F 전 도메인의 TypeBox 타입)가 들어간다(`_research/foundation-plan.md` §5 P4).
 
@@ -109,12 +109,12 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 | 스키마 상수 | 타입 `X`, 스키마 `XSchema` | `F.conversation.spec` §3 |
 | 이벤트 kind | 코어 `<영역>.<이름>`(snake_case, 점 하나). 내장 L2 도메인 `<도메인 영역>.<이름>`(`DomainArea`: `work`, `dialog`, `artifact`, `schedule`). 확장 `x.<extId>.<영역>.<이름>`, 의도 그룹 `grp.<groupId>.<영역>.<이름>`(`ExtensionEventKind`) | `F.records.spec` §3.2, §3.3.2 |
 | 그룹 레코드 kind, 커스텀 메시지 `customType` | 확장 이벤트 kind와 같은 형식(`RecordKind` = `ExtensionEventKind`). 예: `grp.learning.skill.proposed` | `F.extensions.spec` §3.6, `F.conversation.spec` §3.5.2 |
-| 확장 이름 | `^[a-z][a-z0-9-]{1,31}$`(`ExtensionName`, 소문자·숫자·하이픈, 밑줄 없음). 매니페스트 `kind`는 `plugin` 또는 `group`. 확장 테이블 접두는 `x_<이름의 하이픈을 밑줄로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다 [결정(잠정): review.decisions-2 U-18] | `F.extensions.spec` §3.1 |
+| 확장 이름 | `^[a-z][a-z0-9-]{1,31}$`(`ExtensionName`, 소문자·숫자·하이픈, 밑줄 없음). 매니페스트 `kind`는 `plugin` 또는 `group`. 확장 테이블 접두는 `x_<이름의 하이픈을 밑줄로>_`이고 지역 테이블 이름에는 밑줄을 쓰지 않는다 [결정: review.decisions-2 U-18] | `F.extensions.spec` §3.1 |
 | 확장 지점 이름 | pi 이벤트 이름을 그대로 쓴다(snake_case, 예: `tool_call`, `turn_start`). 41종, 지점 종류 input·request·tool·boundary·session. fold는 tap, first, chain | `F.extensions.spec` §3.3~§3.4 |
 | 능력 id | `<도메인>.<이름>` 소문자·하이픈, 2~4마디(예: `web.search`) | `F.capabilities.spec` §3.1 |
 | 도구 이름 | 내장 능력 작성 규칙 `^[a-z][a-z0-9_]{0,63}$`, 확장 도구 `<확장 이름>__<이름>`, 허용 문자 `^[a-zA-Z0-9_-]{1,64}$`. 표시 제목은 `label` | `F.capabilities.spec` §3.1, §3.3 |
 | wire 메서드 | `<영역>.<동사>` 소문자 낙타, `$/` 제어 예약, 확장은 `ext.<id>.<동사>`(M2 이후) | `F.wire-settings.spec` §3.2 |
-| 설정 키 | `<층>.<도메인>.<이름>`(층은 `f`, `x`, `l0`~`l4`), 확장·외부 그룹은 `ext.<name>.<이름>`. 확장 공통 키 `ext.<name>.enabled`, `ext.<name>.isolation`, drive 상한 `x.primitives.driveLimits` | `F.wire-settings.spec` §3.8.1, §3.8.3, `F.extensions.spec` §6 |
+| 설정 키 | `<층>.<도메인>.<이름>`(층은 `f`, `x`, `l0`~`l4`), 확장·외부 그룹은 `ext.<name>.<이름>`. 확장 공통 키 `ext.<name>.enabled`, `ext.<name>.isolation`, drive 상한 `x.primitives.driveDefaultLimits`(기본값)·`x.primitives.driveLimits`(천장) | `F.wire-settings.spec` §3.8.1, §3.8.3, `F.extensions.spec` §6 |
 | 비밀 참조 | `secret://<name>`, name은 `[a-z][a-z0-9-]{1,63}`(`SECRET_REF_PATTERN`) | `F.capabilities.spec` §3.10(정본), `F.wire-settings.spec` §3.8.1(재노출), `_research/secrets.md` §6.1 |
 
 확장 접두가 두 가지인 이유: 기록 쪽 이름(이벤트 kind, 그룹 레코드 kind, `customType`)은 `x.`/`grp.`로 확장과 그룹을 나눈다. 설정 키에서 `x.`는 X 층 코어 키와 겹치므로 설정 키, wire 메서드, wire 오류 kind는 확장과 외부 그룹 모두 `ext.<id>.`를 쓴다(`F.wire-settings.spec` §3.8.1, §3.5.3). 도구 순서 키의 능력 자리도 확장 도구는 `ext.<확장 이름>`이다(`F.capabilities.spec` §4.5). 대응은 `x.<id>.…`(기록) ↔ `ext.<id>.…`(설정·메서드)다.
@@ -129,7 +129,7 @@ F는 모든 층이 쓰는 이름의 기준이다. 메시지, 이벤트, 능력, 
 | item | 입출력 단위(메시지, 도구 호출, 도구 결과) | message, tool_execution |
 | part | 어시스턴트 메시지 블록 하나의 id 레코드 | `contentIndex` |
 
-[결정(잠정): review.decisions-2 U-01] pi turn = Xeon step이다. 지점 이름은 pi 이름을 그대로 쓰므로 `turn_start` 지점은 Xeon step 경계에서 발화한다. 켜기·끄기와 drive 임대 교대의 적용 시점은 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다(`F.conversation.spec` §2.1).
+[결정: review.decisions-2 U-01] pi turn = Xeon step이다. 지점 이름은 pi 이름을 그대로 쓰므로 `turn_start` 지점은 Xeon step 경계에서 발화한다. 켜기·끄기와 drive 임대 교대의 적용 시점은 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다(`F.conversation.spec` §2.1).
 
 ### 4.2 대표 타입
 
@@ -222,13 +222,13 @@ F가 정하지 않는 것:
 
 하위 spec의 미결 가운데 층 전체에 걸리는 것만 모은다. 세부와 선택지는 각 spec의 "미결 사항" 절에 있다.
 
-1. [결정(잠정): review.decisions-2 U-01] 용어: pi turn = Xeon step, pi run = Xeon turn(`F.conversation.spec` §10 1번). scope 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(`F.extensions.spec` §4.5). 사용자 확인 대상이다.
+1. [결정: review.decisions-2 U-01] 용어: pi turn = Xeon step, pi run = Xeon turn(`F.conversation.spec` §10 1번). scope 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(`F.extensions.spec` §4.5). 사용자 확인 대상이다.
 2. [미결] boundary fold: `F.extensions.spec`은 fold 3종을 유지하고 chain 교체 + `finalize` 표지로 표현하자고 제안한다. 4번째 fold(collect)나 지점별 예외 표를 둘지 결정이 필요하다(`F.extensions.spec` §4.1, §10, `_research/notes/F-1.md` §3).
 3. [미결] Cordis 선언 병합을 F, X 중 어디서 할지(`F.capabilities.spec` §3.5 A·B·C안).
 4. [미결] 설정 우선순위 표: 관리 > 세션 > 로컬 > 프로젝트 > 사용자 > 기본값 제안과 관리 기본값 여부(`F.wire-settings.spec` §4.7).
-5. [결정(잠정): review.decisions-2 U-02] 승인 요청 방향은 A안(내구 이벤트 `approval.requested` + 호스트 메서드 `approval.respond`)이다(`F.wire-settings.spec` §4.6). `F.records.spec` §3.3.1 코어 카탈로그의 승인 kind가 이 결정을 따른다. 사용자 확인 대상이다.
+5. [결정: review.decisions-2 U-02] 승인 요청 방향은 A안(내구 이벤트 `approval.requested` + 호스트 메서드 `approval.respond`)이다(`F.wire-settings.spec` §4.6). `F.records.spec` §3.3.1 코어 카탈로그의 승인 kind가 이 결정을 따른다. 사용자 확인 대상이다.
 6. [미결] 재생 정책 이름: `safe|unsafe`와 agent-core `never|safe`의 통일(`F.records.spec` §10 미결 4). 정의 위치는 `F.conversation.spec` §3.6이다.
-7. [미결] TypeBox 버전: catalog 1.4.2와 pi 고정 1.3.27 중 하나로 맞출지(`_research/notes/F-2.md`, 각 spec 미결).
+7. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 고정한 판과 같다.
 8. [미결] ULID 단조성 소유처(`F.conversation.spec` §10 미결 3, `F.records.spec` §10 미결 3).
 9. [미결] `UserConfigEntry`에 값 스키마 필드를 둘지(`F.wire-settings.spec` §10 미결 8). 확장 설정 키 접두는 `ext.<name>.`로 맞췄다. 예전 제안 키 `extensions.<name>.enabled`, `extensions.<name>.isolation`, `groups.drive.limits`는 키 문법에 맞지 않아 `ext.<name>.enabled`, `ext.<name>.isolation`, `x.primitives.driveLimits`로 바꿨다(`F.extensions.spec` §6, `F.wire-settings.spec` §3.8.3).
-10. [결정(잠정): review.decisions-2 U-03] 시계·난수·로그 인터페이스와 테스트 대역의 위치는 (a)안이다. `L0.os`, `L0.store`, `L0.process`, `L4.host-service`가 이미 루트 import를 전제하고, X는 순위상 L0를 import할 수 없어 (b)안은 성립하지 않는다. 루트 base(`src/base/`)에 `Clock`, `Scheduler`, `TimerHandle`, `RandomSource`, `Logger`, `LogLevel`, `LogValue`, `LogFields` 인터페이스만 둔다. 모양은 `eng.typescript.guide` §1.2와 `L0.os.spec` §3.5 초안을 따른다. `IdSource`·`Random`(`eng.best-practices.guide` BP-05)은 `IdFactory`·`RandomSource`로 읽는다. `IdFactory`는 루트가 아닌 `./conversation` 서브패스다. `./testing` 서브패스는 두지 않는다. `createIdFactory`는 F에 두지 않고 `platform-os`에 둔다. 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다(§1). 이 정리에 맞춰 고칠 소비 문서: `eng.typescript.guide` §1.2("createIdFactory는 contracts base"), `eng.testing.guide`의 import 경로, `L0.os.spec` §3, `L0.readme` §9 미결 3, `L4.host-service.spec` §3.1(`IdFactory` import 경로).
+10. [결정: review.decisions-2 U-03] 시계·난수·로그 인터페이스와 테스트 대역의 위치는 (a)안이다. `L0.os`, `L0.store`, `L0.process`, `L4.host-service`가 이미 루트 import를 전제하고, X는 순위상 L0를 import할 수 없어 (b)안은 성립하지 않는다. 루트 base(`src/base/`)에 `Clock`, `Scheduler`, `TimerHandle`, `RandomSource`, `Logger`, `LogLevel`, `LogValue`, `LogFields` 인터페이스만 둔다. 모양은 `eng.typescript.guide` §1.2와 `L0.os.spec` §3.5 초안을 따른다. `IdSource`·`Random`(`eng.best-practices.guide` BP-05)은 `IdFactory`·`RandomSource`로 읽는다. `IdFactory`는 루트가 아닌 `./conversation` 서브패스다. `./testing` 서브패스는 두지 않는다. `createIdFactory`는 F에 두지 않고 `platform-os`에 둔다. 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다(§1). 이 정리에 맞춰 고칠 소비 문서: `eng.typescript.guide` §1.2("createIdFactory는 contracts base"), `eng.testing.guide`의 import 경로, `L0.os.spec` §3, `L0.readme` §9 미결 3, `L4.host-service.spec` §3.1(`IdFactory` import 경로).

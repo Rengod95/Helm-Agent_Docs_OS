@@ -15,7 +15,7 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 - 상태: accepted
 - 날짜: 2026-10-21
 - [결정] "세션 저장 C안 확정(SQLite 이벤트 소싱+투영, 단일 DB, 확장 접두사 테이블)"(`_research/decisions-log.md` 2026-10-21 결정(2차), `_research/layer-plan-v2-notes.md` 이번에 확정한 것).
-- 개정: 2026-10-21 `review.decisions-2` U-09(§3.4 쓰기 소유 펜싱), U-10(§3.2 3번 도구별 효과 커밋 보충), U-18(§3.3 확장 테이블 접두). C안 결정을 뒤집지 않는 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 세 항목은 [결정(잠정)]이고 사용자 확인 대상이다.
+- 개정: 2026-10-21 `review.decisions-2` U-09(§3.4 쓰기 소유 펜싱), U-10(§3.2 3번 도구별 효과 커밋 보충), U-18(§3.3 확장 테이블 접두). C안 결정을 뒤집지 않는 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 세 항목은 사용자 확인을 거친 [결정]이다(2026-10-22). U-09 세부 정정은 `review.decisions-2` U-09 행을 따른다.
 
 ## 2. 맥락
 
@@ -70,7 +70,7 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 |---|---|---|---|
 | 1 | 이벤트에 `parentId`를 둔다. B안의 분기·되감기를 포인터 이동으로 지원한다 | [결정] | `_research/session-storage.md` 권장안. 사용자가 확정한 C안 권장안의 일부 |
 | 2 | 단계 체크포인트 테이블을 둔다. D안처럼 마지막 단계에서 바로 재개한다. 체크포인트는 이벤트에서 다시 만들 수 있는 파생 데이터다 | [결정] | 같음 |
-| 3 | 도구 실행은 의도 → 실행 → 결과 세 이벤트(`effect.intent`, `effect.exec`, `effect.result`)로 기록한다. 결과 없는 의도는 `replay: "safe" \| "unsafe"` 규칙으로 처리한다. 기본값은 `unsafe`이고, `unsafe`는 재개 때 다시 실행하지 않고 "중단됨" 결과를 합성한다. 저장된 정책과 현재 선언이 모두 `safe`일 때만 저장된 인자로 다시 실행한다. 보충: 세 이벤트는 도구 호출마다 각각 별도 커밋(E1 의도, E2 실행 시작, E3 결과 + toolResult `item.recorded`)으로 쓰고 단계 경계 커밋을 기다리지 않는다. 한 단계의 커밋 수는 `3 + 3n`(n은 도구 호출 수)이다. 커밋 지점 표의 정본은 `L1.persistence.spec` §4.2다 | [결정] 3이벤트·replay 규칙 / [제안] 기본값과 승격 금지 세부 / 도구별 커밋 [결정(잠정): review.decisions-2 U-10] | `_research/session-storage.md` 권장안, `_research/process.md §6.3` 6번, durable spec 1917-1927·2082-2108·3136-3170 |
+| 3 | 도구 실행은 의도 → 실행 → 결과 세 이벤트(`effect.intent`, `effect.exec`, `effect.result`)로 기록한다. 결과 없는 의도는 `replay: "safe" \| "unsafe"` 규칙으로 처리한다. 기본값은 `unsafe`이고, `unsafe`는 재개 때 다시 실행하지 않고 "중단됨" 결과를 합성한다. 저장된 정책과 현재 선언이 모두 `safe`일 때만 저장된 인자로 다시 실행한다. 보충: 세 이벤트는 도구 호출마다 각각 별도 커밋(E1 의도, E2 실행 시작, E3 결과 + toolResult `item.recorded`)으로 쓰고 단계 경계 커밋을 기다리지 않는다. 한 단계의 커밋 수는 `3 + 3n`(n은 도구 호출 수)이다. 커밋 지점 표의 정본은 `L1.persistence.spec` §4.2다 | [결정] 3이벤트·replay 규칙 / [제안] 기본값과 승격 금지 세부 / 도구별 커밋 [결정: review.decisions-2 U-10] | `_research/session-storage.md` 권장안, `_research/process.md §6.3` 6번, durable spec 1917-1927·2082-2108·3136-3170 |
 | 4 | 큰 도구 출력은 블롭 파일로 빼고 이벤트에는 해시만 남긴다(oh-my-pi 방식) | [결정] 방식 / [제안] 크기 임계와 해시 함수는 `L0.store.spec` | `_research/session-storage.md` 권장안, `_research/packages.md §2.3` 블롭 저장 행 |
 | 5 | 단계 경계 커밋은 `PRAGMA synchronous=FULL`로 디스크까지 보장하고, 평소는 WAL이다. 구현은 쓰기 연결을 항상 FULL로 두어 효과 커밋(E1~E3)도 FULL이다(`L0.store.spec` §4.3) | [결정] | `_research/foundation-plan.md §2` DB 행 "WAL, 단계 경계 FULL" |
 | 6 | 스트리밍 토큰 델타는 휘발 이벤트로 UI에만 흘리고 저장하지 않는다. 완성된 메시지 파트만 저장한다 | [결정] | `_research/session-storage.md` 방식별 장단점, `_research/process.md §6.1` |
@@ -99,15 +99,15 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 
 - 기존 설계는 확장마다 SQLite 파일을 따로 두는 안이었다. SQLite는 여러 파일을 `ATTACH`해 한 트랜잭션으로 묶을 수 있지만, WAL 모드에서는 파일 하나하나의 원자성만 보장하고 여러 파일에 걸친 원자성은 보장하지 않는다(`_research/session-storage.md` 놓치기 쉬운 제약).
 - [결정] 그래서 파일 하나 + 확장 접두사 테이블(1안)을 쓴다. 확장을 지울 때는 그 접두사의 테이블만 지운다.
-- [결정(잠정): review.decisions-2 U-18] 확장 id는 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이고 밑줄을 쓰지 않는다. 테이블 접두는 `x_<확장 id의 하이픈을 밑줄로 바꾼 값>_`이다. 예: `acme-notes` → `x_acme_notes_`. 접두 뒤 지역 테이블 이름에는 밑줄을 쓰지 않는다. 그래서 확장 `a`의 삭제가 `a-b`의 테이블(`x_a_b_…`)을 접두 일치로 지우는 일이 생기지 않는다. 코어 테이블은 이 접두사를 쓰지 않는다. 구현은 `L0.store.spec`, 접두 소유표는 `eng.context-map.design`이 정한다.
+- [결정: review.decisions-2 U-18] 확장 id는 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이고 밑줄을 쓰지 않는다. 테이블 접두는 `x_<확장 id의 하이픈을 밑줄로 바꾼 값>_`이다. 예: `acme-notes` → `x_acme_notes_`. 접두 뒤 지역 테이블 이름에는 밑줄을 쓰지 않는다. 그래서 확장 `a`의 삭제가 `a-b`의 테이블(`x_a_b_…`)을 접두 일치로 지우는 일이 생기지 않는다. 코어 테이블은 이 접두사를 쓰지 않는다. 구현은 `L0.store.spec`, 접두 소유표는 `eng.context-map.design`이 정한다.
 - [결정] outbox(2안)는 별도 프로세스로 격리한 확장에만 쓴다. 세션 DB에 "확장 기록 예정"을 함께 커밋하고 확장 쪽에는 나중에 멱등하게 반영한다. 프로세스 격리는 2차 선택 기능이다(`_research/decisions-log.md` 2차 "확장 프로세스 격리는 기본값 아님 검토").
 
 ### 3.4 단일 소유
 
 - [결정] 세션 실행(루프 구동)의 쓰기 소유자는 세션 단위로 하나다. 세션 id를 키로 한 OS 잠금(omp 방식)으로 생존을 판정한다. 경로 대신 id를 키로 쓰고, 프로세스가 죽으면 커널이 잠금을 해제하므로 stale 대기가 없다(`_research/process.md §5`, `§6.3` 1번).
-- [결정(잠정): review.decisions-2 U-09] 쓰기 소유 판정은 OS 잠금(생존 판정)과 `sys_leases.epoch` 펜싱을 함께 쓴다. 잠금을 얻은 프로세스는 `sys_leases` 행(`session:<threadId>`)의 epoch를 올리고 `LeaseToken`을 받는다. 모든 커밋은 같은 트랜잭션 안에서 `sys_leases` 행을 다시 읽어 epoch를 대조하고, 다르면 롤백한다(`ownership_lost`). OS 잠금만으로는 정지했다 깨어난 이전 소유자의 늦은 쓰기를 막지 못하기 때문이다. 세부는 `L0.store.spec` §3.1, `L1.persistence.spec` §3.6, `eng.transactions.design` TX-10이다.
+- [결정: review.decisions-2 U-09] 쓰기 소유 판정은 OS 잠금(생존 판정)과 `sys_leases.epoch` 펜싱을 함께 쓴다. 잠금을 얻은 프로세스는 `sys_leases` 행(`session:<threadId>`)의 epoch를 올리고 `LeaseToken`을 받는다. 모든 커밋은 같은 트랜잭션 안에서 `sys_leases` 행을 다시 읽어 epoch를 대조하고, 다르면 롤백한다(`ownership_lost`). OS 잠금은 트랜잭션 안에서 확인할 수 없어, 잠금을 잃었거나 공유하지 않는 이전 소유자(OS 잠금이 없는 후퇴안에서 만료로 인수당한 프로세스, 잠금 디렉터리가 다른 프로세스)의 늦은 쓰기를 막지 못하기 때문이다. flock이 있으면 멈춘 소유자는 잠금을 쥔 채라 인수당하지 않고, 깨어나거나 죽을 때까지 세션이 잠긴다(알려진 한계, `L0.store.spec` §4.7.1). 세부는 `L0.store.spec` §3.1, `L1.persistence.spec` §3.6, `eng.transactions.design` TX-10이다.
 - [결정] 읽기는 잠금 없이 한다. WAL은 읽기 여럿 + 쓰기 하나를 허용하므로 조회·검색·관찰 UI는 잠금을 잡지 않는다(`_research/process.md §6.3` 2번).
-- 소유 표시(`kind`, `pid`, `host`, `heartbeatAt`)는 `sys_leases` 행이 겸한다. 별도 소유 표시 테이블(`session_owner`)을 두지 않는다 [결정(잠정): review.decisions-2 U-09].
+- 소유 표시(`kind`, `pid`, `host`, `heartbeatAt`)는 `sys_leases` 행이 겸한다. 별도 소유 표시 테이블(`session_owner`)을 두지 않는다 [결정: review.decisions-2 U-09].
 - 잠금을 못 얻었을 때의 위임·관찰·분기 선택지는 ADR-0006과 `L0.process.spec`이 정한다(`_research/process.md §6.3` 3~5번). 복구 표식은 `L1.persistence.spec`의 `p_threads` 열(`running_since`, `resume_attempts`)이다.
 
 ### 3.5 시작 시 FTS5 검사

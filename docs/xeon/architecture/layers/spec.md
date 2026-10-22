@@ -58,13 +58,13 @@ export interface XeonPackageField {
 |---|---|---|---|
 | 1 | 의존은 위에서 아래로만 흐른다. 같은 층의 다른 부품은 F 정의를 통해서만 참조한다 | 기본 규칙 1, 2 | `check-layers.ts`, dependency-cruiser |
 | 2 | L3 그룹은 L2 능력의 정의(F3)만 참조하고 provider 구현을 import하지 않는다 | L3 패키지는 `cap-*`를 import하지 않는다. 능력은 `contracts`의 F3 정의와 Cordis 서비스 주입으로 쓴다 [결정: 계획 v2 '층 사이 규칙' 2, `eng.dependency-rules.guide` DR-14] | `check-layers.ts`의 DR-14 컨텍스트 검사(M1부터). DR-14 도입 전 M0 구간은 dependency-cruiser의 `group-*` 경로 규칙 하나가 `cap-*`를 `forbidden`에 넣어 막는다 [제안] |
-| 3 | 그룹끼리 직접 참조하지 않는다. 그룹 사이 통신은 F4에 스키마가 있는 이벤트와 레코드로만 한다 | `group-helm`과 `group-learning` 사이 import 금지. 그룹 레코드는 F4 `GroupRecord` 형식과 kind 규칙(`grp.<그룹>.*`)을 따르고, payload 스키마는 F에 두지 않고 그룹 매니페스트 `recordKinds`(`RecordKindDecl`)에 둔다. 그룹은 다른 그룹의 비공개 레코드를 읽지 않는다 [결정(잠정): review.decisions-2 §3 D-10]. 예: Helm은 학습 결과를 L2-d 지식 검색으로 읽는다 | `check-layers.ts`(같은 층 금지) |
+| 3 | 그룹끼리 직접 참조하지 않는다. 그룹 사이 통신은 F4에 스키마가 있는 이벤트와 레코드로만 한다 | `group-helm`과 `group-learning` 사이 import 금지. 그룹 레코드는 F4 `GroupRecord` 형식과 kind 규칙(`grp.<그룹>.*`)을 따르고, payload 스키마는 F에 두지 않고 그룹 매니페스트 `recordKinds`(`RecordKindDecl`)에 둔다. 그룹은 다른 그룹의 비공개 레코드를 읽지 않는다 [결정: review.decisions-2 §3 D-10]. 예: Helm은 학습 결과를 L2-d 지식 검색으로 읽는다 | `check-layers.ts`(같은 층 금지) |
 | 4 | `drive` 임대는 한 번에 그룹 하나만 가진다. `on`, `post`, 백그라운드 위임은 여러 그룹이 함께 쓴다 | 실행 규칙. `X.primitives.spec`과 `L3.group-kit.spec`이 정한다 | ext-host 테스트 |
-| 5 | 켜기와 끄기는 턴 경계에서 적용되고, 정리는 Cordis dispose로 실행된다 | 실행 규칙. 원문의 "턴 경계"는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)로 읽는다. drive 임대 교대도 같은 시점이다 [결정(잠정): review.decisions-2 U-01]. `architecture.runtime-flow.design` 4.2절 | ext-host 테스트 |
+| 5 | 켜기와 끄기는 턴 경계에서 적용되고, 정리는 Cordis dispose로 실행된다 | 실행 규칙. 원문의 "턴 경계"는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)로 읽는다. drive 임대 교대도 같은 시점이다 [결정: review.decisions-2 U-01]. `architecture.runtime-flow.design` 4.2절 | ext-host 테스트 |
 | 6 | 모든 설정은 F5 설정 스키마 하나에서 L4 화면, 설정 파일, 명령을 함께 생성한다 | 설정 키 정의는 `contracts`에만 둔다 | `F.wire-settings.spec`의 생성 검사 |
 | 7 | 이미 있는 패키지는 그대로 쓰고, 부족하면 포크한다 | 패키지 채택 규칙. 의존 방향과 무관 | `eng.best-practices.guide`, 리뷰 |
 
-### 3.2 같은 층 예외 [결정(잠정): review.decisions-2 U-15]
+### 3.2 같은 층 예외 [결정: review.decisions-2 U-15]
 
 기본 규칙 2의 예외는 다음 두 간선뿐이다. 둘 다 허용 목록 파일(`xeon/scripts/dependency-allowlist.json`, `eng.dependency-rules.guide` 4절)에 예외 id로 올린다.
 
@@ -74,7 +74,7 @@ export interface XeonPackageField {
 | `DR-02/group-kit-*` | `group-helm`, `group-learning` → `group-kit` | 그룹은 `group-kit`의 `defineGroup`을 쓴다. 그룹 공통 기반을 그룹마다 중복하지 않는다 |
 
 - 예외 대상 패키지(`apps/host`, `group-kit`) 자신은 같은 층을 import하지 않는다.
-- `plugins/*`는 L1 순위이고 같은 층 예외를 두지 않는다 [결정(잠정): review.decisions-2 U-16]. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`를 import하지 않는다. `plugins/provider-anthropic-oauth`는 F의 provider 인터페이스로 provider를 만들고 `core-models` 서비스에 등록한다.
+- `plugins/*`는 L1 순위이고 같은 층 예외를 두지 않는다 [결정: review.decisions-2 U-16]. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`를 import하지 않는다. `plugins/provider-anthropic-oauth`는 F의 provider 인터페이스로 provider를 만들고 `core-models` 서비스에 등록한다.
 - 목록 밖의 같은 층 import는 `check-layers.ts`가 거부한다.
 
 세부 규칙 본문, 좋은 예·나쁜 예, 린트 설정은 `eng.dependency-rules.guide`가 정한다.
@@ -95,7 +95,7 @@ export interface XeonPackageField {
 | L3 의도 그룹 | 5 | `scope`로 묶인 의도 그룹. Helm과 학습 그룹이 기본 그룹이다 | L3-a 그룹 기반, L3-b Helm (기본 그룹), L3-c 학습 그룹 (기본 그룹), L3-d 추가 그룹 슬롯 | `xeon/packages/group-kit/**`, `xeon/packages/group-helm/**`, `xeon/packages/group-learning/**` (slots는 코드 없음) |
 | L4 배포 런타임 | 6 | 엔진 조립과 배포 단위. CLI, 데스크톱, 호스트·서비스, 설정 화면 | 계획 v2 데이터에 하위 층이 없다. 도메인은 4.7절 | `xeon/apps/cli/**`, `xeon/apps/desktop/**`, `xeon/apps/host/**`, `xeon/apps/desktop/src/settings/**` |
 
-- `xeon/plugins/provider-anthropic-oauth`는 L1-c의 배포 제외 구성요소(Anthropic OAuth 위장 provider)다. `check-layers.ts`는 `plugins/*`를 L1로 본다 [결정(잠정): review.decisions-2 U-16]. `core-*`를 import하지 않고 F provider 인터페이스로 `core-models` 서비스에 등록한다(3.2절). 배포판에는 넣지 않는다 [결정: `_research/decisions-log.md` 2026-10-21 결정(2차)].
+- `xeon/plugins/provider-anthropic-oauth`는 L1-c의 배포 제외 구성요소(Anthropic OAuth 위장 provider)다. `check-layers.ts`는 `plugins/*`를 L1로 본다 [결정: review.decisions-2 U-16]. `core-*`를 import하지 않고 F provider 인터페이스로 `core-models` 서비스에 등록한다(3.2절). 배포판에는 넣지 않는다 [결정: `_research/decisions-log.md` 2026-10-21 결정(2차)].
 - `xeon/vendor/cordis`는 층 검사 대상에서 빠진다. Cordis는 `ext-host` 뒤에 숨긴다 [결정: ADR-0002 3번]. 직접 import하는 패키지를 `ext-host` 하나로 제한한다 [제안: ADR-0002 4번].
 
 ### 4.2 패키지 지도
@@ -136,7 +136,7 @@ flowchart TB
 
 F와 X는 각각 패키지가 하나라 "같은 층 금지"는 패키지 안 import에 영향이 없다.
 
-표의 허용은 순위(DR-01)만 본 값이다. 컨텍스트가 다르면 DR-14가 구현 import를 다시 막고, F와 ext-host의 서비스 등록·주입 API 외에는 서비스 주입으로 쓴다(`eng.dependency-rules.guide` DR-14, 하위 층의 `@xeon/ext-host` import 예외 [결정(잠정): review.decisions-2 U-17]). 구현 패키지를 직접 import하는 곳은 조립 루트(`apps/host`), 같은 컨텍스트 안, 테스트 파일(`*.test.ts`, `test/` 아래)뿐이다. `./testing` 서브패스는 두지 않고 테스트 대역은 각 패키지 `test/` 안에 둔다 [결정(잠정): review.decisions-2 U-03, U-17].
+표의 허용은 순위(DR-01)만 본 값이다. 컨텍스트가 다르면 DR-14가 구현 import를 다시 막고, F와 ext-host의 서비스 등록·주입 API 외에는 서비스 주입으로 쓴다(`eng.dependency-rules.guide` DR-14, 하위 층의 `@xeon/ext-host` import 예외 [결정: review.decisions-2 U-17]). 구현 패키지를 직접 import하는 곳은 조립 루트(`apps/host`), 같은 컨텍스트 안, 테스트 파일(`*.test.ts`, `test/` 아래)뿐이다. `./testing` 서브패스는 두지 않고 테스트 대역은 각 패키지 `test/` 안에 둔다 [결정: review.decisions-2 U-03, U-17].
 
 #### 4.2.2 패키지 단위 지도
 
@@ -215,7 +215,7 @@ flowchart TB
   poauth -.->|"provider 등록(F 타입)"| cmodels
 ```
 
-- `plugins/provider-anthropic-oauth`는 `core-models`를 import하지 않는다. F provider 인터페이스로 만든 provider를 `core-models` 서비스에 등록한다. 라벨 "provider 등록(F 타입)" 점선은 import가 아니다 [결정(잠정): review.decisions-2 U-16].
+- `plugins/provider-anthropic-oauth`는 `core-models`를 import하지 않는다. F provider 인터페이스로 만든 provider를 `core-models` 서비스에 등록한다. 라벨 "provider 등록(F 타입)" 점선은 import가 아니다 [결정: review.decisions-2 U-16].
 - `cli`가 `host`를, 그룹이 `group-kit`을 import하는 "같은 층 예외" 점선 간선은 3.2절의 허용 목록 예외(`DR-10/cli-host`, `DR-02/group-kit-*`)다.
 - 그림에서 생략한 `core-*`·`cap-*`·`platform-*` 패키지도 `contracts`와 `ext-host`로 가는 실선만 가진다. `core-persistence`는 `platform-store`를 import하지 않고 `xeon.store`를 F 타입으로 주입받는다(`L1.persistence.plan`). L2 패키지는 L0 패키지를 import하지 않는다(`L0.exec.spec`).
 
@@ -299,10 +299,10 @@ flowchart TB
    - 판단: `drive`가 받는 루프 인터페이스는 포트(`LoopPort`)로 받는다. `core-loop`가 이를 제공하고 X는 주입받으므로 순환이 없다.
    - 포트 타입의 정본은 `F.extensions.spec` §3.2.1 `ports.ts`(`PortKey`, `LoopPort`, `InputQueuePort`, `RecordCommitPort`, `ProjectorRegistryPort`)다. L1 `LoopService`는 `LoopPort`를 확장한다(`L1.loop.spec`). ext-host는 포트 타입을 따로 정의하지 않는다.
 
-결론 [결정(잠정): review.decisions-2 U-14]: 순위를 유지한다. 단 다음 세 조건을 지킨다.
+결론 [결정: review.decisions-2 U-14]: 순위를 유지한다. 단 다음 세 조건을 지킨다.
 
 1. X 소스와 테스트에서 L0·L1 import가 0건이다(DR-01. 테스트도 대상이다).
-2. X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다. 포트는 `F.extensions.spec` §3.2.1, L0·L1 서비스 인터페이스와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스다 [결정(잠정): review.decisions-2 §3 D-04].
+2. X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다. 포트는 `F.extensions.spec` §3.2.1, L0·L1 서비스 인터페이스와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스다 [결정: review.decisions-2 §3 D-04].
 3. L0는 `ExtHost.registerPlatform`으로 등록한다.
 
 이 결론으로 `eng.dependency-rules.guide` 1.1절·6절, `L0.readme` 순위 제약 단락, `X.readme` 6절 마지막 단락의 [미결]을 닫는다. 각 문서의 갱신은 그 문서 담당이 이 절을 인용해 한다. X가 OS 기능을 Bun 표준 API로 직접 쓰지 않고 L0.os가 구현한 포트로 받는다는 것이 근거다(1번 질문).

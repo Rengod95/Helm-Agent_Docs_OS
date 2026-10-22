@@ -1034,7 +1034,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - `agent`(main)이고 `caller.afterUntrusted = true`이면 설정이 꺼져 있어도 승인을 요청한다 [제안]. 웹 결과를 읽은 turn의 쓰기는 인젝션 경로일 수 있기 때문이다(§4.6.3).
 - 승인 요청은 `xeon.approvals`로 낸다. 포트 모양은 `L2.readme` §5.7의 L2 공통 `ApprovalsPort`이고(`cap-knowledge/src/ports/approvals.ts`), kind는 `tool`, 멱등 키는 입력 `requestId`(쓰기 호출의 `CallOptions.requestId`)다. 대상은 `{ capability, op, target, preview, scan }`이다 [가정: payload 모양은 `L1.tools.spec`]. `preview`는 현재 내용 기준 통합 diff이고 20,000자에서 자른다.
 - 승인 대기는 루프의 승인 대기 상태로 커밋되고 멈춘다. 재개 때 결과 이벤트로 이어진다(`L2.readme` §5.7). 승인 결과 "항상"은 이 능력에 적용하지 않는다 [제안]. 스킬·메모리 쓰기는 매번 내용이 달라서다.
-- `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 그룹 이름을 쓰지 않는다. 증거를 낼 L3 그룹의 source는 L3가 설정으로 채운다 [결정(잠정): review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다.
+- `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 그룹 이름을 쓰지 않는다. 증거를 낼 L3 그룹의 source는 L3가 설정으로 채운다 [결정: review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다.
 
 #### 4.5.2 제안 대기열
 

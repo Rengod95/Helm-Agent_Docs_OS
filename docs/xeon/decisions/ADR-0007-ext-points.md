@@ -17,7 +17,7 @@ binds: [xeon/packages/ext-host/**, xeon/packages/contracts/src/extensions/**, xe
 - [결정] 확장 지점은 `on`(fold `tap`/`first`/`chain`), `post`, `drive`(배타 임대), `scope` 네 연산이다(`_research/decisions-log.md` 2026-10-21 "계획 v2").
 - [결정] Hermes식 학습 정책은 L3 학습 그룹이고 `drive`를 쓰지 않으며 Helm과 함께 켤 수 있다(같은 기록).
 - 사용자가 확인한 범위는 연산 4개와 fold 3종까지다. 확장 지점 목록과 Helm 내부 설계는 "층 구성 계획 보완·합의 뒤 착수"로 남아 있다(`_research/decisions-log.md` 2026-10-21 결정(2차) 끝 문장). 그래서 이 ADR의 지점 종류 수(5개), 지점 이름 목록, 지점별 fold 배정은 [제안]이다.
-- 개정: 2026-10-21 `review.decisions-2` U-01(§3.1·§3.6 켜기·끄기와 임대 교대 시점을 단계 경계로 읽음), U-06(§3.3 `tool_call` 인자 변경 미지원), U-12(§3.5 drive 상한 기본값을 pi 방식의 예외로 인정). 결정을 뒤집지 않고 해석과 미결을 정한 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 세 항목은 [결정(잠정)]이고 사용자 확인 대상이다.
+- 개정: 2026-10-21 `review.decisions-2` U-01(§3.1·§3.6 켜기·끄기와 임대 교대 시점을 단계 경계로 읽음), U-06(§3.3 `tool_call` 인자 변경 미지원), U-12(§3.5 drive 상한 기본값을 pi 방식의 예외로 인정, 기본값은 설정 화면에서 조정). 결정을 뒤집지 않고 해석과 미결을 정한 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 세 항목은 사용자 확인을 거친 [결정]이다(2026-10-22).
 
 ## 2. 맥락
 
@@ -74,7 +74,7 @@ binds: [xeon/packages/ext-host/**, xeon/packages/contracts/src/extensions/**, xe
 | `input` | `user_bash` | `first` |
 | `input` | `before_agent_start` | `chain` |
 | `request` | `context`, `context_with_system`, `cache_warming_decision`, `before_provider_request`, `before_provider_headers` | `chain` |
-| `tool` | `tool_call` | `first`(`ToolCallDecision`). 허용·거부·결과 대체만 하고 인자 변경은 지원하지 않는다 [결정(잠정): review.decisions-2 U-06] |
+| `tool` | `tool_call` | `first`(`ToolCallDecision`). 허용·거부·결과 대체만 하고 인자 변경은 지원하지 않는다 [결정: review.decisions-2 U-06] |
 | `tool` | `tool_result` | `chain` |
 | `boundary` | `message_end` | `chain` |
 | `boundary` | `turn_end`, `agent_before_settle` | `chain`(엔트리 추가 + 계속) [미결] |
@@ -99,14 +99,14 @@ binds: [xeon/packages/ext-host/**, xeon/packages/contracts/src/extensions/**, xe
 | 이벤트 모드 | 지점 선언의 fold가 된다. 큐는 `post`, 배타는 `drive`다 |
 | 실패 정책 | 세 줄 규칙이다. `tap`은 기록 후 계속, `first`는 거부, `chain`은 그 핸들러만 건너뜀 |
 | 재생 규칙 | 계약 하나다. "`on` 핸들러는 다시 실행해도 되는 질의다" |
-| 예산 | `drive` 임대 상한 `{maxTurns, maxSpawns, maxTokens}`로만 남는다. 일반 대화 턴에는 기본 단계·비용 상한을 두지 않는다(pi 방식, `_research/decisions-log.md` "계획 v2"). drive 임대에는 기본 상한을 두고 pi 방식의 예외로 인정한다. Helm 기본값은 `l3.helm.driveLimits` `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`이다. drive는 사용자 입력 없이 턴을 만들어 상한이 없으면 끝나지 않기 때문이다 [결정(잠정): review.decisions-2 U-12] |
+| 예산 | `drive` 임대 상한 `{maxTurns, maxSpawns, maxTokens}`로만 남는다. 일반 대화 턴에는 기본 단계·비용 상한을 두지 않는다(pi 방식, `_research/decisions-log.md` "계획 v2"). drive 임대에는 기본 상한을 두고 pi 방식의 예외로 인정한다. 상한을 명시하지 않은 임대의 일반 기본값은 X 설정 `x.primitives.driveDefaultLimits`, Helm 덮어쓰기는 `l3.helm.driveLimits`이고 둘 다 기본 `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }`이다. 사용자는 설정 화면에서 조정한다. drive는 사용자 입력 없이 턴을 만들어 상한이 없으면 끝나지 않기 때문이다 [결정: review.decisions-2 U-12] |
 
 ### 3.6 임대와 켜고 끄기
 
 - [결정] `drive` 임대는 한 번에 그룹 하나만 가진다. `on`, `post`, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` "층 사이 규칙" 4번). 학습 그룹은 검토 포크를 L1-g 백그라운드 위임으로 돌리므로 Helm이 임대를 쥐고 있어도 함께 켤 수 있다("질문에 대한 답" Hermes 학습 루프 항목).
 - [결정] 켜기와 끄기는 경계에서 적용되고, 정리는 Cordis dispose로 실행된다("층 사이 규칙" 5번. 원문 표기는 "턴 경계").
-- [결정(잠정): review.decisions-2 U-01] 위 원문의 "턴 경계"는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)로 읽는다. 턴은 여러 단계로 이어질 수 있어 턴 끝까지 기다리면 긴 턴에서 토글이 늦게 적용된다. 단계 경계는 커밋된 상태만 보이는 가장 이른 안전 지점이고 턴 경계는 그 부분집합이다. 실행 중인 턴이 없으면 바로 적용한다(`X.primitives.spec` §4.5.5).
-- [결정(잠정): review.decisions-2 U-01] drive 임대 교대도 단계 경계에서 적용한다. 반납은 단계 경계에서 기록하고, 진행 중인 `loop.turn()`은 끊지 않고 정착까지 진행한다(`X.primitives.spec` §4.5.3). 임대가 반납되면 루프 소유는 기본 소유자(사용자 입력)로 돌아간다. 디스패치는 시작 시 핸들러 목록을 스냅샷하므로 한 디스패치 도중 집합이 바뀌지 않는다(`_research/ext-points.md §5` 안 1 "재생·토글 보장", pi `runner.ts:269-271`).
+- [결정: review.decisions-2 U-01] 위 원문의 "턴 경계"는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)로 읽는다. 턴은 여러 단계로 이어질 수 있어 턴 끝까지 기다리면 긴 턴에서 토글이 늦게 적용된다. 단계 경계는 커밋된 상태만 보이는 가장 이른 안전 지점이고 턴 경계는 그 부분집합이다. 실행 중인 턴이 없으면 바로 적용한다(`X.primitives.spec` §4.5.5).
+- [결정: review.decisions-2 U-01] drive 임대 교대도 단계 경계에서 적용한다. 반납은 단계 경계에서 기록하고, 진행 중인 `loop.turn()`은 끊지 않고 정착까지 진행한다(`X.primitives.spec` §4.5.3). 임대가 반납되면 루프 소유는 기본 소유자(사용자 입력)로 돌아간다. 디스패치는 시작 시 핸들러 목록을 스냅샷하므로 한 디스패치 도중 집합이 바뀌지 않는다(`_research/ext-points.md §5` 안 1 "재생·토글 보장", pi `runner.ts:269-271`).
 - [제안] `drive` 함수는 마지막으로 커밋된 `scope` 상태로 다시 호출되어도 같은 진행을 내야 한다. 상태는 `scope`의 상태 레코드에만 두고 클로저 지역 변수에 두지 않는다. `loop.turn`의 결과는 엔트리로 커밋되고 `requestId`를 scope id와 턴 번호에서 파생해 중복 실행을 막는다(`_research/ext-points.md §5` 안 1, 안 3의 `drive` 규율).
 
 ### 3.7 인터페이스 초안
@@ -245,7 +245,7 @@ helm.disable(); // ScopeHandle. 다음 단계 경계에서 임대 반납
 - [미결] 비협조적인 확장 코드의 강제 종료는 프로세스 경계 없이 불가능하다. `drive` 상한이 협조적 코드에만 유효하다는 한계를 받아들일지, 그룹별 격리 선택지를 1차에 둘지(`_research/ext-points.md §6.1` 3번).
 - [미결] 지점 종류 5개(`input`, `request`, `tool`, `boundary`, `session`), 지점 이름 목록, 지점별 fold 배정(§3.3). 사용자 합의 전이다(`_research/decisions-log.md` 2차).
 - [미결] `post.when = next`가 경계 뒤 요청을 스스로 시작하는지, 다음 사용자 입력이 시작하는 요청에 붙기만 하는지(§3.1). §3.1 표의 pi 대응 가운데 경계 지점의 `continue`는 요청을 시작하는 쪽으로 읽힌다. pi `nextTurn`의 정확한 동작은 확인하지 않았다 [가정]. `product.usecases.spec` UC-1의 수용 기준은 이 결정 뒤에 확정한다.
-- [결정(잠정): review.decisions-2 U-06] `tool_call`의 인자 변경(pi는 `event.input` 제자리 수정)은 지원하지 않는다. 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해진다. 필요하면 2차에 별도 chain 지점을 더한다.
-- [결정(잠정): review.decisions-2 U-12] `drive` 임대 상한 기본값은 §3.5 예산 행이다. 설정 노출은 `L4.settings-ui.spec` "플러그인과 그룹" 탭의 drive 임대 상한 항목이다(`_research/layer-plan-v2-notes.md` "L4 설정 화면 구성안").
+- [결정: review.decisions-2 U-06] `tool_call`의 인자 변경(pi는 `event.input` 제자리 수정)은 지원하지 않는다. 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해진다. 필요하면 2차에 별도 chain 지점을 더한다.
+- [결정: review.decisions-2 U-12] `drive` 임대 상한 기본값은 §3.5 예산 행이다. 설정 노출은 `L4.settings-ui.spec` "플러그인과 그룹" 탭의 drive 임대 상한 항목이다(`_research/layer-plan-v2-notes.md` "L4 설정 화면 구성안").
 - [미결] 그룹 사이 이벤트 격리 정책. Cordis 일반 `emit`은 전역 전달이므로 그룹 접두사나 필터를 기본으로 둘지(`_research/notes/arch-1.md §8`).
 - [가정] pi 확장 대부분이 거의 수정 없이 올라온다. 실제 이식은 검증하지 않았다(`_research/ext-points.md §7`).

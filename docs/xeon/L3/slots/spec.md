@@ -53,7 +53,7 @@ binds: []
 | 정식 예 | 이 문서가 정한 정책 플러그인 3종. 템플릿 검증용 fixture |
 | 그룹 템플릿 | 새 그룹 패키지의 최소 골격 파일 묶음. 종류는 drive, policy, observe |
 | 템플릿 색인 | 템플릿 종류별 파일 목록과 치환 자리를 적은 JSON(`templates/index.json`) |
-| 단계 경계 | Xeon step 종료 직후(도구 결과 커밋 뒤). 켜기·끄기와 임대 교대가 적용되는 시점이다(`F.extensions.spec` §4.5) [결정(잠정): review.decisions-2 U-01] |
+| 단계 경계 | Xeon step 종료 직후(도구 결과 커밋 뒤). 켜기·끄기와 임대 교대가 적용되는 시점이다(`F.extensions.spec` §4.5) [결정: review.decisions-2 U-01] |
 
 ## 3. 인터페이스
 
@@ -379,7 +379,7 @@ export const TemplateIndexSchema: TObject = Type.Object({
 
 #### 3.3.4 이름 규칙
 
-- [결정(잠정): review.decisions-2 U-18] 그룹 이름은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이다. 밑줄은 쓰지 않는다. 테이블 접두는 이름의 하이픈을 밑줄로 바꾼 `x_<id>_`이고 지역 테이블 이름에 밑줄을 쓰지 않으므로 접두의 경계를 하나로 읽는다. 정본 상수는 `L3.group-kit.spec` §3.2 `GROUP_NAME_PATTERN`이다.
+- [결정: review.decisions-2 U-18] 그룹 이름은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이다. 밑줄은 쓰지 않는다. 테이블 접두는 이름의 하이픈을 밑줄로 바꾼 `x_<id>_`이고 지역 테이블 이름에 밑줄을 쓰지 않으므로 접두의 경계를 하나로 읽는다. 정본 상수는 `L3.group-kit.spec` §3.2 `GROUP_NAME_PATTERN`이다.
 - 쓸 수 없는 이름: 예약 이름의 정본은 `L3.group-kit.spec` §3.2 `RESERVED_GROUP_NAMES`다(`RESERVED_EXT_IDS`, `grp`·`x`·`xeon`, L2 도메인 이름, `auto`·`all`·`none`·`group`·`groups`·`kit`). 생성 명령(R2)과 `defineGroup`은 같은 상수로 거부한다. 설치된 확장 이름(`helm`, `learning` 포함)과 겹치는 이름은 설치 목록으로 거부한다(R2, `validateManifestSet`의 `name_conflict`). 이 경우는 상수에 넣지 않는다.
 - 패키지 이름은 저장소 안이면 `@xeon/group-<id>`, 외부면 제한하지 않는다 [제안].
 - 그룹 이름에서 파생되는 이름: scope id `<id>`, 레코드 kind `grp.<id>.<영역>.<이름>`, 설정 키 `ext.<id>.<이름>`, 테이블 `x_<id의 하이픈을 밑줄로>_*`, 비공개 기록 kind `grp.<id>.*`(`recordPrivate`), 명령 `/<id>`(선택).
@@ -719,6 +719,6 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 - [미결] 입출력 가드레일 보류 해제 조건(4.2.4)과, 해제 시 모델 분류기를 on 핸들러에서 쓸지(재실행 결정성).
 - [미결] 외부 그룹의 신뢰 등급 값 집합과 다른 그룹 import를 X 로더가 거부할지(`X.loading-trust.spec`, `F.extensions.spec` §10).
 - [미결] 생성 명령 `xeon group new`의 소유 문서. 이 문서는 실행을 `L4.cli.spec`에 두고 요구 R1~R6만 정한다. 매니페스트 형식(`plugin.json` 또는 `manifest.ts`) 선택 옵션도 함께 정한다.
-- [결정(잠정): review.decisions-2 U-18] 새 그룹 이름 규칙: `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음). `eng.context-map.design` CM-07·C-6과 F `ExtensionName` 정정은 그 문서 쪽 변경이다.
-- [결정(잠정): review.decisions-2 T-21] 공통 모순 (1) 그룹 kind 접두는 공개·비공개 모두 `grp.<id>.*`다. 템플릿은 공개 레코드에 `g.record`, 비공개 기록에 `recordPrivate`를 쓴다(`L3.readme` §10.2).
+- [결정: review.decisions-2 U-18] 새 그룹 이름 규칙: `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음). `eng.context-map.design` CM-07·C-6과 F `ExtensionName` 정정은 그 문서 쪽 변경이다.
+- [결정: review.decisions-2 T-21] 공통 모순 (1) 그룹 kind 접두는 공개·비공개 모두 `grp.<id>.*`다. 템플릿은 공개 레코드에 `g.record`, 비공개 기록에 `recordPrivate`를 쓴다(`L3.readme` §10.2).
 - [미결] 공통 모순 (2) on 핸들러 외부 효과 금지와 `delegate`의 `requestId` 멱등 예외. 템플릿은 핸들러에서 `delegate`를 쓰지 않는다.

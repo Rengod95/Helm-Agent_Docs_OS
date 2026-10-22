@@ -82,7 +82,7 @@ xeon/scripts/check-points-doc.ts         # 스펙 §3.4 표와 POINTS 대조 [�
 
 | 대상 | 버전 | 쓰는 방식 |
 |---|---|---|
-| `typebox` | 1.4.2 (워크스페이스 catalog) | 그대로. 스키마 정의, `Value.Check`(테스트) |
+| `typebox` | 1.3.27 (워크스페이스 catalog) | 그대로. 스키마 정의, `Value.Check`(테스트) |
 | `@earendil-works/pi-ai` | 1.3.0 정확 고정 | 그대로. 페이로드가 참조하는 메시지·스트림 타입을 F.conversation 재노출을 거쳐 `import type` |
 | `@earendil-works/pi-agent-core` | 1.3.0 정확 고정 | 그대로. `AgentMessage`, `CustomAgentMessages`를 F.conversation 재노출을 거쳐 `import type` |
 | pi coding-agent 확장 타입 | 소스 1.1.0 (`~/projects/_ref/pi-src/packages/coding-agent/src/core/extensions/types.ts`) | 참고만. 이벤트 페이로드 형태와 결과 타입의 필드 이름을 옮겨 적는다. 패키지(`@earendil-works/pi-coding-agent`) 전체에 의존하지 않는다 |

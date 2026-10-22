@@ -15,11 +15,11 @@ binds: [xeon/packages/platform-*/**]
 L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터페이스 뒤에 두고, OS·환경마다 구현만 바꾸는 층이다. 소비자 코드(X, L1~L4)에는 OS 분기를 두지 않는다 [결정: `_research/decisions-log.md` 2026-10-19 설계 규칙, `_research/layer-plan-v2.json` L0 intro "L0는 OS와 실행 환경 차이를 공통 인터페이스 뒤에 둡니다"].
 
 - 범위: 셸·파일 연산의 실행 위치(exec), OS 샌드박스(sandbox), 비밀 해석(secrets), 엔진 프로세스와 전송·자식 수명(process), 단일 SQLite DB와 잠금·블롭(store), 경로·시각·바이너리·알림·감시·텔레메트리(os). 하위 층 6개(`_research/layer-plan-v2.json` L0-a~L0-f)가 패키지 6개에 1:1로 대응한다.
-- 층 순위는 F → X → L0 → L1 → L2 → L3 → L4다(`_research/foundation-plan.md` §3). L0 패키지는 F(`@xeon/contracts`)와 X(`@xeon/ext-host`의 등록 API `ExtHost.registerPlatform`, `PlatformModule`, `PlatformContext`)만 import한다. `@xeon/ext-host` import는 서비스 등록·주입 API에 한정한 DR-14 예외다 [결정(잠정): review.decisions-2 U-17]. L0 패키지끼리는 import하지 않는다(`eng.dependency-rules.guide` DR-02). 같은 층 협력은 F에 둔 서비스 인터페이스와 Cordis 서비스 주입으로만 한다.
+- 층 순위는 F → X → L0 → L1 → L2 → L3 → L4다(`_research/foundation-plan.md` §3). L0 패키지는 F(`@xeon/contracts`)와 X(`@xeon/ext-host`의 등록 API `ExtHost.registerPlatform`, `PlatformModule`, `PlatformContext`)만 import한다. `@xeon/ext-host` import는 서비스 등록·주입 API에 한정한 DR-14 예외다 [결정: review.decisions-2 U-17]. L0 패키지끼리는 import하지 않는다(`eng.dependency-rules.guide` DR-02). 같은 층 협력은 F에 둔 서비스 인터페이스와 Cordis 서비스 주입으로만 한다.
 - L0는 확장 지점을 구독하지 않는다 [제안: `architecture.layers.spec` 4.2절 "L0는 `on`을 쓰지 않는다"]. X에서 쓰는 것은 `PlatformModule.setup`, `PlatformContext.providePort`·`port`, `onDispose`(잠금 해제, 감시 종료, 스팬 내보내기 마무리)뿐이다(`X.primitives.spec` §3.2).
 - 예상 가능한 실패는 F `Result`와 `kind` 판별 오류 유니온으로 돌려준다. `throw`는 `Bug`에 한정한다(`eng.typescript.guide` TY-11, TY-12).
 
-순위 제약 [결정(잠정): review.decisions-2 U-14, `architecture.layers.spec` 4.3.3]: X(`ext-host`, 순위 1)는 L0(순위 2) 아래에 둔다. 그래서 `ext-host`는 L0 기능(프로세스 실행, 파일 잠금, 저장, 경로 해석)을 import할 수 없다. X는 이 기능을 F에 둔 포트와 서비스 인터페이스로 주입받는다. 저장은 `ScopedStorePort`, 프로세스 격리는 `ProcessPort`, 탐색과 신뢰 판정용 파일 접근은 `X.loading-trust.spec`의 `LoaderFs`·`LoaderPaths`·`TrustStoreBackend` 포트다. L0가 이 포트를 구현해 `ExtHost.registerPlatform`으로 제공하고, 조립 루트가 `LoaderDeps`로 주입한다. 그래서 OS 분기는 L0 안에만 남는다(DR-13). 순위 유지 조건은 4.3.3의 세 가지다. X 소스와 테스트의 L0·L1 import 0건, 포트와 서비스 인터페이스의 F 정의, L0의 `ExtHost.registerPlatform` 등록이다.
+순위 제약 [결정: review.decisions-2 U-14, `architecture.layers.spec` 4.3.3]: X(`ext-host`, 순위 1)는 L0(순위 2) 아래에 둔다. 그래서 `ext-host`는 L0 기능(프로세스 실행, 파일 잠금, 저장, 경로 해석)을 import할 수 없다. X는 이 기능을 F에 둔 포트와 서비스 인터페이스로 주입받는다. 저장은 `ScopedStorePort`, 프로세스 격리는 `ProcessPort`, 탐색과 신뢰 판정용 파일 접근은 `X.loading-trust.spec`의 `LoaderFs`·`LoaderPaths`·`TrustStoreBackend` 포트다. L0가 이 포트를 구현해 `ExtHost.registerPlatform`으로 제공하고, 조립 루트가 `LoaderDeps`로 주입한다. 그래서 OS 분기는 L0 안에만 남는다(DR-13). 순위 유지 조건은 4.3.3의 세 가지다. X 소스와 테스트의 L0·L1 import 0건, 포트와 서비스 인터페이스의 F 정의, L0의 `ExtHost.registerPlatform` 등록이다.
 
 ## 2. 도메인
 
@@ -32,9 +32,9 @@ L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터�
 | L0-e | store | `platform-store` | `xeon.store`(`StoreService`) | `bun:sqlite` 단일 DB(WAL, 단계 경계 FULL), 세션 소유 잠금, 블롭 저장소 | M0(세션 잠금 포함). 블롭은 M1 | [spec](store/spec.md), [plan](store/plan.md) |
 | L0-f | os | `platform-os` | `xeon.os`(`OsService`) | 플랫폼 정보, 디렉터리, 시각·타이머·난수, 로거, 외부 바이너리, 알림·파일 감시·텔레메트리 | M0(경로·시각·ID 발급기 등 기반). 바이너리 해석은 1차(M1). 알림 전달 수단은 1차(M3). 감시·텔레메트리는 2차(M2 이후) | [spec](os/spec.md), [plan](os/plan.md) |
 
-- 서비스 이름과 인터페이스 이름은 `eng.context-map.design` §5.3과 `F.capabilities.spec` §3.12 표가 정본이다. exec의 F 인터페이스는 `ExecService`(`ExecutionEnv` 확장, `withCwd`·`startBackground` 추가)이고, process의 `ProcessService`는 X 포트 `ProcessPort`를 확장한다(`F.extensions.spec` §3.2.1) [결정(잠정): review.decisions-2 D-04].
-- 위 표 밖에 L0가 등록하는 서비스가 하나 더 있다. `platform-secrets`의 관리 서비스 `xeon.secretAdmin`(`SecretAdminService`, `L0.secrets.spec` §3.8)이다 [결정(잠정): review.decisions-2 D-04]. 에이전트와 확장에 주지 않고 L4 진입점에만 넘기려고 `xeon.secrets`와 나눴다. `xeon.<도메인>` 이름 규칙(4절)의 예외이고, `F.capabilities.spec` §3.12 표와 `eng.context-map.design` §5.3 표에 행이 있다(9절 10). 패키지 6개 중 exec, sandbox, process는 컨텍스트 `platform-execution` 하나에 속하고, 나머지는 각자 한 컨텍스트다(`eng.context-map.design` §4.1, §4.5).
-- 위 서비스 인터페이스와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스(`src/services/`)에 둔다 [결정(잠정): review.decisions-2 D-04, `F.readme` §3, `F.capabilities.spec` §3.12]. 파일은 `services/exec.ts`(`ExecService`), `services/sandbox.ts`·`services/sandbox-report.ts`(`SandboxService`, `SandboxRunReport`), `services/process.ts`(`ProcessService`), `services/os.ts`(`OsService`), `services/secrets.ts`(`SecretService`), `services/secret-admin.ts`(`SecretAdminService`)다. `StoreService`는 `F.records.spec` §3.9에 있다. 비밀 참조 형식과 비밀 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`, `RedactionHit` 등)은 F `capabilities/secrets.ts`가 정본이다(`F.capabilities.spec` §3.10, U-08). 이름과 파일은 F 표에 있고, 필드는 각 도메인 spec 3절의 초안 블록을 F로 옮겨 확정한다(`F.capabilities.plan` P9). 옮기기 전까지는 그 초안이 기준이다.
+- 서비스 이름과 인터페이스 이름은 `eng.context-map.design` §5.3과 `F.capabilities.spec` §3.12 표가 정본이다. exec의 F 인터페이스는 `ExecService`(`ExecutionEnv` 확장, `withCwd`·`startBackground` 추가)이고, process의 `ProcessService`는 X 포트 `ProcessPort`를 확장한다(`F.extensions.spec` §3.2.1) [결정: review.decisions-2 D-04].
+- 위 표 밖에 L0가 등록하는 서비스가 하나 더 있다. `platform-secrets`의 관리 서비스 `xeon.secretAdmin`(`SecretAdminService`, `L0.secrets.spec` §3.8)이다 [결정: review.decisions-2 D-04]. 에이전트와 확장에 주지 않고 L4 진입점에만 넘기려고 `xeon.secrets`와 나눴다. `xeon.<도메인>` 이름 규칙(4절)의 예외이고, `F.capabilities.spec` §3.12 표와 `eng.context-map.design` §5.3 표에 행이 있다(9절 10). 패키지 6개 중 exec, sandbox, process는 컨텍스트 `platform-execution` 하나에 속하고, 나머지는 각자 한 컨텍스트다(`eng.context-map.design` §4.1, §4.5).
+- 위 서비스 인터페이스와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스(`src/services/`)에 둔다 [결정: review.decisions-2 D-04, `F.readme` §3, `F.capabilities.spec` §3.12]. 파일은 `services/exec.ts`(`ExecService`), `services/sandbox.ts`·`services/sandbox-report.ts`(`SandboxService`, `SandboxRunReport`), `services/process.ts`(`ProcessService`), `services/os.ts`(`OsService`), `services/secrets.ts`(`SecretService`), `services/secret-admin.ts`(`SecretAdminService`)다. `StoreService`는 `F.records.spec` §3.9에 있다. 비밀 참조 형식과 비밀 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`, `RedactionHit` 등)은 F `capabilities/secrets.ts`가 정본이다(`F.capabilities.spec` §3.10, U-08). 이름과 파일은 F 표에 있고, 필드는 각 도메인 spec 3절의 초안 블록을 F로 옮겨 확정한다(`F.capabilities.plan` P9). 옮기기 전까지는 그 초안이 기준이다.
 
 ### 2.1 OS 지원 매트릭스
 
@@ -60,7 +60,7 @@ L0는 OS와 실행 환경에 따라 달라지는 내부 부분을 공통 인터�
 | store | 연결·PRAGMA, FTS5 프로브, 트랜잭션, 접두사 검사, sys v1·v2, 마이그레이션 실행기, 세션 잠금(flock + epoch), `openTestStore` | 블롭(sys v3), 확장 접두사 테이블, 장애 주입 시험, fullfsync 측정 | 블롭 GC, 청크 마이그레이션, Windows `LockProvider`, macOS 동봉 SQLite | — |
 | os | `OsInfo`, `OsDirs`, `fsKind`, `Clock`·`Scheduler`·`RandomSource`, `Logger`, `createIdFactory`·`createLocalIdFactory`, 프로세스 지문·`machineId`·`userId`, `tempDir`·`withIsolatedEnv` | 바이너리 해석(rg, security, secret-tool), 서비스 등록 | 알림 전달 수단(M3), 파일 감시, 텔레메트리, 번들 추출 실측 | Windows 보강 |
 
-[결정] M0 범위에 `platform-store`, `platform-exec`가 들어가고 M1에 sandbox(bash), SOPS 비밀 참조 1종이 들어간다(`_research/foundation-plan.md` §5 P4). os 기반을 M0에 두는 것은 store·exec 테스트가 `tempDir`과 시계 구현을 쓰기 때문이다 [제안]. 세션 잠금은 foundation-plan M0 목록(`platform-store` 행)에 있으므로 store M0에 둔다. M1의 SOPS 비밀 참조 1종은 에이전트 env 모드(bash 도구, 실행마다 승인. exec `secretEnv`, secrets `withEnv`)로 검증한다 [결정(잠정): review.decisions-2 U-19].
+[결정] M0 범위에 `platform-store`, `platform-exec`가 들어가고 M1에 sandbox(bash), SOPS 비밀 참조 1종이 들어간다(`_research/foundation-plan.md` §5 P4). os 기반을 M0에 두는 것은 store·exec 테스트가 `tempDir`과 시계 구현을 쓰기 때문이다 [제안]. 세션 잠금은 foundation-plan M0 목록(`platform-store` 행)에 있으므로 store M0에 둔다. M1의 SOPS 비밀 참조 1종은 에이전트 env 모드(bash 도구, 실행마다 승인. exec `secretEnv`, secrets `withEnv`)로 검증한다 [결정: review.decisions-2 U-19].
 
 ## 3. 패키지 배치
 
@@ -112,7 +112,7 @@ provider id [미결]: 계획 v2는 "os.* provider"라고만 적었고 provider i
 
 ### 3.2 외부 의존 소유
 
-`eng.dependency-rules.guide` DR-07 표 가운데 L0 행을 옮겼다. platform-os 행과 `bun:ffi` 행은 [결정(잠정): review.decisions-2 U-17]로 DR-07 표에 들어갔다. 소유 패키지 밖에서 import하거나 호출하면 `check-layers.ts`가 거부한다.
+`eng.dependency-rules.guide` DR-07 표 가운데 L0 행을 옮겼다. platform-os 행과 `bun:ffi` 행은 [결정: review.decisions-2 U-17]로 DR-07 표에 들어갔다. 소유 패키지 밖에서 import하거나 호출하면 `check-layers.ts`가 거부한다.
 
 | 외부 모듈·바이너리 | 소유 패키지 | 근거 | DR-07 표 |
 |---|---|---|---|
@@ -141,7 +141,7 @@ provider id [미결]: 계획 v2는 "os.* provider"라고만 적었고 provider i
 | `@xeon/platform-process/testing` | `fakeEngine`(stdio 자식 엔진 시뮬레이터), `idleClock`, 전송 적합성 하네스 연결 | L4 host-service·desktop 테스트 | `L0.process.spec` §8, `L0.process.plan` §2 |
 
 - 다른 컨텍스트 패키지의 `testing` 서브패스는 테스트 파일에서만 import한다(DR-08, DR-14 예외 3).
-- 시계·난수·ID 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 F에 두지 않는다. F에는 `./testing` 서브패스가 없고, 대역은 쓰는 패키지의 `test/` 안에 둔다 [결정(잠정): review.decisions-2 U-03]. 운영 구현과 ID 발급기 구현은 `platform-os`다(`L0.os.spec` §3.4).
+- 시계·난수·ID 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 F에 두지 않는다. F에는 `./testing` 서브패스가 없고, 대역은 쓰는 패키지의 `test/` 안에 둔다 [결정: review.decisions-2 U-03]. 운영 구현과 ID 발급기 구현은 `platform-os`다(`L0.os.spec` §3.4).
 
 ## 4. 이름 규칙
 
@@ -183,7 +183,7 @@ provider id [미결]: 계획 v2는 "os.* provider"라고만 적었고 provider i
 - L4 `apps/cli`·`apps/desktop`이 쓰는 process 함수(`ensureService` 등)는 `apps/host` 경유이고(`L0.process.spec` §3.2), sandbox 상태 문구(`describeSandboxStatus`)는 F 순수 함수다(`L0.sandbox.spec` §3.1). 그래서 L4 클라이언트 행은 표에 두지 않는다.
 - `host`는 조립 루트라 서비스를 주입받는 대신 L0 등록 단위를 직접 import해 `ExtHost.registerPlatform`으로 등록한다(DR-14 예외 2). 표의 ○는 런타임에 쓰는 서비스다.
 
-협력 흐름 예: 모델이 bash 도구를 부르는 경우. 비밀 env 주입 단계(아래 `xeon.secrets` lease)는 M1 비밀 검증 경로다 [결정(잠정): review.decisions-2 U-19]. 결합(비밀 해석 → 샌드박스 감싸기 → 실행 → 마스킹)은 L1 tool-runtime이 한다. L0 패키지끼리는 서로 부르지 않는다 [제안, 상세는 `L1.tools.spec`].
+협력 흐름 예: 모델이 bash 도구를 부르는 경우. 비밀 env 주입 단계(아래 `xeon.secrets` lease)는 M1 비밀 검증 경로다 [결정: review.decisions-2 U-19]. 결합(비밀 해석 → 샌드박스 감싸기 → 실행 → 마스킹)은 L1 tool-runtime이 한다. L0 패키지끼리는 서로 부르지 않는다 [제안, 상세는 `L1.tools.spec`].
 
 ```mermaid
 sequenceDiagram
@@ -237,11 +237,11 @@ L0가 정하지 않는 것:
 | [결정] 첫 지원 OS는 macOS, Linux(WSL 포함). Windows 네이티브는 나중 | `_research/decisions-log.md` 2026-10-19 |
 | [결정] 층 순위 F → X → L0 → L1 → L2 → L3 → L4, 같은 층 import 금지 | `_research/foundation-plan.md` §3 |
 | [결정] pi durable은 env·tools·images·truncate만 Chord 제거 포크하고, `CancelScope`로 치환한다 | `_research/decisions-log.md` 2026-10-21 결정(3차), adr.0003 |
-| [결정] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블(`x_<확장 id의 하이픈을 밑줄로>_`). 세션 쓰기 소유는 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱 [결정(잠정): review.decisions-2 U-09, U-18] | `_research/decisions-log.md` 2026-10-21 결정(2차), adr.0004 |
+| [결정] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블(`x_<확장 id의 하이픈을 밑줄로>_`). 세션 쓰기 소유는 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱 [결정: review.decisions-2 U-09, U-18] | `_research/decisions-log.md` 2026-10-21 결정(2차), adr.0004 |
 | [결정] DB는 `bun:sqlite`(WAL, 단계 경계 FULL). macOS는 FTS5 포함 SQLite를 지정한다 | `_research/foundation-plan.md` §2 DB 행 |
 | [결정] 비밀 기본값은 SOPS(age). 에이전트는 값을 모른 채 참조로 쓴다 | `_research/decisions-log.md` 2026-10-21 결정(2차), `_research/foundation-plan.md` §2 비밀 행 |
 | [결정] 샌드박스는 `@anthropic-ai/sandbox-runtime` | `_research/foundation-plan.md` §2 샌드박스 행 |
-| [결정] 공유 서비스 모드 `xeon service`(자동 기동, 유휴 종료)는 1차, OS 서비스 등록은 2차. 원격 사용은 1차(M3)이고 서비스 소켓을 SSH 터널·사설망으로 연결한다 [결정(잠정): review.decisions-2 U-11] | `_research/foundation-plan.md` §1 표 2번, adr.0006 |
+| [결정] 공유 서비스 모드 `xeon service`(자동 기동, 유휴 종료)는 1차, OS 서비스 등록은 2차. 원격 사용은 1차(M3)이고 서비스 소켓을 SSH 터널·사설망으로 연결한다 [결정: review.decisions-2 U-11] | `_research/foundation-plan.md` §1 표 2번, adr.0006 |
 | [결정] DI는 Cordis 하나. L0는 ext-host `ExtHost.registerPlatform`으로 서비스를 등록한다(DR-14 예외, review.decisions-2 U-17) | `_research/decisions-log.md` 2026-10-21 결정(3차), adr.0002 |
 | [결정] Bun 1.4 런타임, 데스크톱은 Tauri 2 + `bun build --compile` 사이드카 | `_research/foundation-plan.md` §1 표 3번, §2 |
 
@@ -261,13 +261,13 @@ L0가 정하지 않는 것:
 도메인별 세부 미결은 각 문서의 미결 사항 절에 있다: `L0.exec.spec` 미결 사항, `L0.sandbox.spec` 미결 사항, `L0.secrets.spec` 미결 사항, `L0.process.spec` 미결 사항, `L0.store.spec` 미결 사항, `L0.os.spec` 미결 사항. 아래는 층 전체에 걸친 것만 모은다.
 
 1. [미결] provider id 이름 규칙. 계획 v2는 "os.* provider"만 적었다. 권고안은 `os.<도메인>.<슬롯>/<구현 id>`다(3.1절).
-2. [결정(잠정): review.decisions-2 D-04] F에 L0 서비스 인터페이스를 두는 서브패스는 `@xeon/contracts/services`다(2절). `StoreService`는 `F.records.spec` §3.9에 그대로 둔다. `eng.context-map.design` §5.3 표는 L0 서비스 위치를 "(services)"로 적는다.
-3. [결정(잠정): review.decisions-2 U-03] `Clock`·`Scheduler`·`RandomSource`·`Logger`는 인터페이스만 F 루트 base에 두고, 운영 구현과 `createIdFactory`·`createLocalIdFactory`는 `platform-os`에 둔다. `@xeon/contracts/testing` 서브패스는 두지 않고 테스트 대역은 쓰는 패키지의 `test/` 안에 둔다(3.3절).
-4. [결정(잠정): review.decisions-2 D-04] `CancelScope`는 F `services/exec.ts`에 둔다(`F.capabilities.spec` §3.12 파일별 이름 표, `L0.exec.spec` §3.2). `eng.typescript.guide` §1.2·TY-22 문구 정정과 `abortSignal`의 `undefined` 허용 여부는 `L0.exec.spec` 미결 1로 남는다.
-5. [결정(잠정): review.decisions-2 U-09] 세션 쓰기 소유 판정은 OS 잠금(`bun:ffi` `flock` 사이드카 파일, 세션 id 키) + `sys_leases.epoch` 펜싱이다. `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. adr.0004 §3.4와 adr.0006은 이에 맞게 개정한다(decisions 문서 담당). Windows 수단과 Bun FFI experimental 경고 원문 확인은 `L0.store.spec` 미결 S-5·S-10으로 남는다.
+2. [결정: review.decisions-2 D-04] F에 L0 서비스 인터페이스를 두는 서브패스는 `@xeon/contracts/services`다(2절). `StoreService`는 `F.records.spec` §3.9에 그대로 둔다. `eng.context-map.design` §5.3 표는 L0 서비스 위치를 "(services)"로 적는다.
+3. [결정: review.decisions-2 U-03] `Clock`·`Scheduler`·`RandomSource`·`Logger`는 인터페이스만 F 루트 base에 두고, 운영 구현과 `createIdFactory`·`createLocalIdFactory`는 `platform-os`에 둔다. `@xeon/contracts/testing` 서브패스는 두지 않고 테스트 대역은 쓰는 패키지의 `test/` 안에 둔다(3.3절).
+4. [결정: review.decisions-2 D-04] `CancelScope`는 F `services/exec.ts`에 둔다(`F.capabilities.spec` §3.12 파일별 이름 표, `L0.exec.spec` §3.2). `eng.typescript.guide` §1.2·TY-22 문구 정정과 `abortSignal`의 `undefined` 허용 여부는 `L0.exec.spec` 미결 1로 남는다.
+5. [결정: review.decisions-2 U-09] 세션 쓰기 소유 판정은 OS 잠금(`bun:ffi` `flock` 사이드카 파일, 세션 id 키) + `sys_leases.epoch` 펜싱이다. `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. adr.0004 §3.4와 adr.0006은 이에 맞게 개정한다(decisions 문서 담당). Windows 수단과 Bun FFI experimental 경고 원문 확인은 `L0.store.spec` 미결 S-5·S-10으로 남는다.
 6. [미결] 전송 구현의 층 배치. F.readme §6은 "전송 구현"을 L4가 정한다고 적었고, 계획 v2 L0-d는 "엔진 라이브러리와 전송"(in-process, stdio JSONL)을 L0 process 구성요소로 둔다. 두 문서 중 하나를 고친다.
 7. 닫음. 감사 이벤트 소유자는 (a)안(tool-runtime 발행)이다(`F.records.spec` §3.3.1, `L0.secrets.spec` §3.9). 세션 밖 관리 레코드 저장 위치만 `L0.secrets.spec` 미결 1로 남는다.
-8. [결정(잠정): review.decisions-2 U-17] DR-07 표에 `platform-os`의 `@vscode/ripgrep`, `@parcel/watcher`, OTel SDK, `pi-telemetry`, `Bun.spawn`(알림 명령, 시스템 바이너리 버전 확인)과 `platform-store`의 `bun:ffi` 행이 있다(`eng.dependency-rules.guide` DR-07, 3.2절).
+8. [결정: review.decisions-2 U-17] DR-07 표에 `platform-os`의 `@vscode/ripgrep`, `@parcel/watcher`, OTel SDK, `pi-telemetry`, `Bun.spawn`(알림 명령, 시스템 바이너리 버전 확인)과 `platform-store`의 `bun:ffi` 행이 있다(`eng.dependency-rules.guide` DR-07, 3.2절).
 9. [미결] 서비스 소비 관계의 context-map 반영. (1) exec·sandbox·process·secrets·store가 `xeon.os`(경로, `fsKind`, 바이너리 경로, 시계, 프로세스 지문)를 주입받는 관계, sandbox의 `xeon.secrets`(`protectedPaths`), process의 `xeon.store`(임대)를 `eng.context-map.design` §4.1 (d)열에 더해야 한다. `platform-os`가 쓰는 서비스는 없다. (2) §5.3 소비 열에 `xeon.sandbox` → workspace(이미 있음), `xeon.process` → tool-runtime·run-engine·session-core, `xeon.secrets` → run-engine, `xeon.store` → tool-runtime·run-engine을 더한다(5절 표).
-10. [결정(잠정): review.decisions-2 D-04] `xeon.secretAdmin` 서비스(`L0.secrets.spec` §3.8, §10 8번)는 `xeon.<도메인>` 이름 규칙의 예외로 둔다. `F.capabilities.spec` §3.12 표, `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 행이 있다.
-11. [결정(잠정): review.decisions-2 U-19] 마일스톤 M1의 비밀 경로는 에이전트 env 모드(bash 도구, 실행마다 승인)다. exec `secretEnv`와 secrets `withEnv`를 M1에 둔다(`L0.exec.spec` §3.6, `L0.secrets.spec` §3.6). `L2.workspace.spec` §3.3, `product.scope.spec` §4.4 M1 행과 같은 배치다.
+10. [결정: review.decisions-2 D-04] `xeon.secretAdmin` 서비스(`L0.secrets.spec` §3.8, §10 8번)는 `xeon.<도메인>` 이름 규칙의 예외로 둔다. `F.capabilities.spec` §3.12 표, `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 행이 있다.
+11. [결정: review.decisions-2 U-19] 마일스톤 M1의 비밀 경로는 에이전트 env 모드(bash 도구, 실행마다 승인)다. exec `secretEnv`와 secrets `withEnv`를 M1에 둔다(`L0.exec.spec` §3.6, `L0.secrets.spec` §3.6). `L2.workspace.spec` §3.3, `product.scope.spec` §4.4 M1 행과 같은 배치다.

@@ -38,8 +38,10 @@ Xeon 워크스페이스의 런타임, 패키지 관리, 타입 검사, 린트, �
 | 공개 패키지 검사 | publint, @arethetypeswrong/cli(attw) | 0.3.25, 0.18.5 | 공개 패키지가 생길 때 catalog에 더한다 | 공개 패키지만 |
 | 공개 라이브러리 빌드 | tsdown | 0.23.1 | 공개 패키지가 생길 때 catalog에 더한다 | 공개 라이브러리만 |
 | 바이너리 | `bun build --compile` | Bun과 같음 | — | `apps/cli`, `apps/host`(사이드카) |
-| 스키마 | typebox | 1.4.2 | catalog `typebox` | [미결] pi-ai 1.3.0이 고정한 1.3.27과의 중복 |
+| 스키마 | typebox | 1.3.27 | catalog `typebox` | pi-ai 1.3.0이 고정한 판과 같다(review.decisions-2 U-24). pi가 올릴 때 함께 올린다 |
 | Bun 타입 | @types/bun | 1.4.3 | catalog `@types/bun` | Bun 버전과 같은 값 |
+| 모델 provider | @earendil-works/pi-ai | 1.3.0 | catalog `@earendil-works/pi-ai` | 정확 고정(review.decisions-2 U-24). typebox 판을 함께 맞춘다 |
+| OS 샌드박스 | @anthropic-ai/sandbox-runtime | 0.0.79 | catalog `@anthropic-ai/sandbox-runtime` | 0.x라 정확 고정(review.decisions-2 U-24). 올릴 때는 `L0.sandbox.plan` 업그레이드 점검을 거친다 |
 | 레시피 | just | 1.58.0 | CI `extractions/setup-just` | 로컬 버전은 [미결] |
 | 훅 | lefthook, gitleaks | [미결] | `mise.toml`에 더한다 [제안] | 현재 고정 위치 없음 |
 
@@ -201,7 +203,8 @@ docs/xeon/decisions/ADR-0009-add-publint.md 작성 → 승인 → catalog "publi
 
 - 금지: `git commit --no-verify`, lefthook 건너뛰기(`LEFTHOOK=0`), `just verify` 단계 삭제·약화, `.oxlintrc.json`의 규칙을 `"off"`로 바꾸기, `tsconfig`의 strict 옵션 끄기, 파일 전체 disable 주석(`/* oxlint-disable */`), `// @ts-ignore`, `// @ts-nocheck`.
 - 줄 단위 disable은 `eng.typescript.guide` 4.1절 형식만 쓴다: `// oxlint-disable-next-line <규칙> -- <이유> (<이슈 URL>)`. 구속 문서가 미리 허용한 예외는 이슈 URL 대신 `(<문서 id> <규칙 ID>)`를 쓴다. `-- <이유>` 접미는 oxlint 1.89에서 억제가 적용됨을 프로브로 확인했다(`eng.typescript.guide` 4.1절, `_research/notes/eng-1.md §4`). 형식은 스캔 `xeon/directive-format`이 검사한다. 쓰지 않는 disable 주석은 `options.reportUnusedDisableDirectives: "error"`로 실패한다.
-- `// @ts-expect-error`는 이유와 이슈 링크를 단다(`eng.typescript.guide` TY-08). `typescript/ban-ts-comment`는 설명 유무만 보고, 링크는 스캔 `xeon/directive-format`이 검사한다.
+- `// @ts-expect-error`는 테스트 파일에서만 이유를 달아 쓴다. 운영 코드에서는 `typescript/ban-ts-comment`가 `ts-expect-error: true`로 막는다(`eng.typescript.guide` TY-08, 3.1.1절). 이유 형식은 스캔 `xeon/directive-format`이 검사한다.
+- typed programming 안티패턴(`as` 단언, `!`, `any`, ts 억제 주석, 삼킨 `catch`)을 막는 oxlint 규칙 목록의 정본은 `eng.typescript.guide` 3.1.1절이다. `.oxlintrc.json`은 그 목록을 모두 담는다.
 - 패키지 `tsconfig.json`은 `tsconfig.base.json`을 extends하고 TC-08 옵션을 덮어쓰지 않는다.
 - `verify`에서 단계를 빼거나 약하게 바꾸려면 사람 확인을 받는다(루트 `justfile` 머리 주석 5번).
 
@@ -478,7 +481,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 
 - [미결] oxfmt 0.x 설정 형식: `.oxfmtrc.json`을 읽는 것은 확인했다. 같은 디렉터리에 설정 파일 이름이 여러 개 있을 때의 우선순위와 공식 stability는 확인하지 못했다(`_research/notes/eng-1.md §5`, §8). 한 디렉터리에 설정 파일 하나만 둔다 [제안].
 - [미결] Playwright의 Bun 호환. 안 되면 Node 자식 프로세스로 우회하며, 이때 Node 버전 고정 방법을 `L2.web.spec`이 정한다(TC-12).
-- [미결] `isolatedDeclarations` 적용 범위(전체 또는 공개 패키지만)와 TypeBox 1.3.27·1.4.2 선택(`_research/notes/eng-2.md`).
+- [미결] `isolatedDeclarations` 적용 범위(전체 또는 공개 패키지만)와 TypeBox 1.3.27·1.3.27 선택(`_research/notes/eng-2.md`).
 - [미결] lefthook, gitleaks, 로컬 just의 버전 고정 위치. `mise.toml`에 더하는 안을 제안한다.
 - [미결] FTS5 검사 실패 시 운영 시작 동작(시작 거부 또는 기능 비활성). `L0.store.spec`이 정한다. macOS 실측 담당과 시점도 정해야 한다(`_research/notes/eng-3.md §6` M-1, M-3).
 - [미결] 도구가 실행되지 못한 경우를 종료코드 2로 바꾸는 감싸개 스크립트의 이름과 범위.

@@ -27,7 +27,7 @@ binds: [xeon/packages/platform-process/**]
 7. OS 서비스 등록 provider(2차)
 8. X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1) 구현: 외부 훅 실행 `run`(M2)과 격리 확장 자식 기동 `spawn`(2차). `ProcessService`가 이 포트를 확장한다(§3.1, §4.8)
 
-원격 사용은 1차(M3)이고 새 전송을 두지 않는다. 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결해 쓴다. 내장 TLS + 토큰 WebSocket은 2차다 [결정(잠정): review.decisions-2 U-11].
+원격 사용은 1차(M3)이고 새 전송을 두지 않는다. 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결해 쓴다. 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
 
 ### 1.2 다루지 않는 것
 
@@ -77,11 +77,11 @@ binds: [xeon/packages/platform-process/**]
 
 ## 3. 인터페이스
 
-코드 표기는 `F.conversation.spec` §3 머리말을 따른다. 예상 가능한 실패는 `Result`, 버그는 `Bug`다(`eng.typescript.guide` TY-11). `Clock`(`now()`만)과 `Scheduler`(`setTimeout`, `clearTimeout`)는 `L0.os.spec` §3.4의 분리를 따른다. 타이머가 필요한 팩토리는 `Scheduler`를 따로 받는다. 두 인터페이스는 F 루트 base에 둔다 [결정(잠정): review.decisions-2 U-03].
+코드 표기는 `F.conversation.spec` §3 머리말을 따른다. 예상 가능한 실패는 `Result`, 버그는 `Bug`다(`eng.typescript.guide` TY-11). `Clock`(`now()`만)과 `Scheduler`(`setTimeout`, `clearTimeout`)는 `L0.os.spec` §3.4의 분리를 따른다. 타이머가 필요한 팩토리는 `Scheduler`를 따로 받는다. 두 인터페이스는 F 루트 base에 둔다 [결정: review.decisions-2 U-03].
 
 ### 3.1 F에 둘 인터페이스 초안
 
-`ProcessService`는 F `@xeon/contracts/services` 서브패스의 `services/process.ts`에 둔다 [결정(잠정): review.decisions-2 D-04]. `ProcessService`는 X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1 `ports.ts`, `IsolationProcessPort`와 `HookProcessPort`를 합친 포트)를 확장한다(`F.capabilities.spec` §3.12 표 "확장하는 포트" 열과 규칙 2). 그래서 X는 `ProcessPortKey`(`{ name: "xeon.process" }`)로 같은 서비스 객체를 받는다. 포트 메서드(`spawn`, `run`)와 부속 타입(`IsolationSpawnSpec`, `IsolatedChild`, `HookRunSpec`, `HookRawRun`)은 F.extensions가 정본이고 이 문서는 다시 정의하지 않는다. 이 인터페이스가 더하는 것은 레지스트리와 종료 협조다. 전송, 잠금 실패 정책, 재개 제시는 Cordis 서비스가 아니고 조립 루트(`apps/host`, DR-14 예외 2)가 쓰는 라이브러리 함수다(§3.2).
+`ProcessService`는 F `@xeon/contracts/services` 서브패스의 `services/process.ts`에 둔다 [결정: review.decisions-2 D-04]. `ProcessService`는 X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1 `ports.ts`, `IsolationProcessPort`와 `HookProcessPort`를 합친 포트)를 확장한다(`F.capabilities.spec` §3.12 표 "확장하는 포트" 열과 규칙 2). 그래서 X는 `ProcessPortKey`(`{ name: "xeon.process" }`)로 같은 서비스 객체를 받는다. 포트 메서드(`spawn`, `run`)와 부속 타입(`IsolationSpawnSpec`, `IsolatedChild`, `HookRunSpec`, `HookRawRun`)은 F.extensions가 정본이고 이 문서는 다시 정의하지 않는다. 이 인터페이스가 더하는 것은 레지스트리와 종료 협조다. 전송, 잠금 실패 정책, 재개 제시는 Cordis 서비스가 아니고 조립 루트(`apps/host`, DR-14 예외 2)가 쓰는 라이브러리 함수다(§3.2).
 
 ```ts
 // xeon/packages/contracts/src/services/process.ts
@@ -432,7 +432,7 @@ socket(`listenSocket`, `connectSocket`):
 - 구현 수단은 `Bun.listen({ unix })`/`Bun.connect({ unix })` [가정: Bun 1.4.3 선언 `bun.d.ts:7401-7406`]. 실패하면 `node:net`으로 바꾼다.
 - 소켓 경로 길이를 열기 전에 검사한다(macOS 104바이트, Linux 108바이트, §5.1). 넘으면 `path_too_long`.
 - 리스너는 바인드 뒤 소켓 파일을 0600으로 바꾸고, 부모 디렉터리는 0700이어야 한다.
-- 원격 사용(1차, M3)은 이 소켓을 SSH 터널(Unix 소켓 전달)이나 사설망으로 연결한다. 원격 클라이언트도 같은 socket 전송과 인증 규칙(§4.4.5)을 쓴다. 내장 TCP·WebSocket 원격 전송은 2차다 [결정(잠정): review.decisions-2 U-11].
+- 원격 사용(1차, M3)은 이 소켓을 SSH 터널(Unix 소켓 전달)이나 사설망으로 연결한다. 원격 클라이언트도 같은 socket 전송과 인증 규칙(§4.4.5)을 쓴다. 내장 TCP·WebSocket 원격 전송은 2차다 [결정: review.decisions-2 U-11].
 
 ### 4.2 자식 엔진 수명 임대
 
@@ -549,7 +549,7 @@ ensureService():
 
 ### 4.5 잠금 실패 동작 정책
 
-- 세션 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱이다(`L0.store.spec` §4.7.1과 같은 문장) [결정(잠정): review.decisions-2 U-09]. ADR-0004 §3.4와 ADR-0006은 이에 맞게 개정한다.
+- 세션 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱이다(`L0.store.spec` §4.7.1과 같은 문장) [결정: review.decisions-2 U-09]. ADR-0004 §3.4와 ADR-0006은 이에 맞게 개정한다.
 - store는 `LockBusy{ owner }` 정보만 돌려주고, 위임·관찰·분기 선택은 이 패키지의 `LockFallbackPolicy`가 정한다.
 - `decide(context)` 규칙 [제안]:
   1. `requested`가 있으면 그 선택을 `act`로 돌려준다. 단 `delegate`인데 `serviceOwnsSession`이 거짓이면 `ask`로 바꾼다.
@@ -561,7 +561,7 @@ ensureService():
   - 관찰: `thread.open { mode: "observe" }`, 읽기 전용으로 DB를 따라간다(`eng.events.design` §4.6).
   - 분기: `thread.fork`로 현재 시점에서 `parentId`를 가진 새 세션을 만들어 연다.
 - wire 오류 `thread.locked`(3002)의 `details.options`는 이 결정의 선택지 목록과 같다. `ownerKind`는 `LockBusy.owner?.kind`다.
-- 소유 표시: 별도 소유 테이블을 두지 않고 `sys_leases` 행이 표시를 겸한다(`kind` 열: cli|app|service) [결정(잠정): review.decisions-2 U-09]. 소유 판정은 OS 잠금과 epoch가 하고 `kind`·`pid`·`host`는 표시용이며, 표시 정보가 틀려도 안전하다(`L0.store.spec` §3.3과 같은 문장).
+- 소유 표시: 별도 소유 테이블을 두지 않고 `sys_leases` 행이 표시를 겸한다(`kind` 열: cli|app|service) [결정: review.decisions-2 U-09]. 소유 판정은 OS 잠금과 epoch가 하고 `kind`·`pid`·`host`는 표시용이며, 표시 정보가 틀려도 안전하다(`L0.store.spec` §3.3과 같은 문장).
 
 ### 4.6 복구 표식 제시('이어서 실행')
 
@@ -570,7 +570,7 @@ ensureService():
   - `resumeAttempts >= maxAttempts` → `exhausted`. 자동 재개하지 않고 사용자에게 "재개가 반복해서 실패했다"를 보인다.
   - `serviceMode && autoResumeEnabled` → `auto_resume`.
   - 그 밖 → `offer`.
-- 자동 재개 설정은 `l1.persistence.autoResume`(기본 꺼짐)과 `l1.persistence.maxResumeAttempts` 둘이고 L1.persistence가 소유한다. 이 패키지는 설정 키를 두지 않고 호스트가 읽은 값을 `ResumePolicyInput`으로 받는다 [결정(잠정): review.decisions-2 S-03]. 자동 재개는 서비스 모드에서만 켠다(adr.0006 §3.6 5번). CLI·데스크톱 단독 모드에서는 설정이 켜져 있어도 `offer`다. 사용자가 없는 동안 비용과 부작용이 나는 일을 서비스 모드로 한정하기 위해서다.
+- 자동 재개 설정은 `l1.persistence.autoResume`(기본 꺼짐)과 `l1.persistence.maxResumeAttempts` 둘이고 L1.persistence가 소유한다. 이 패키지는 설정 키를 두지 않고 호스트가 읽은 값을 `ResumePolicyInput`으로 받는다 [결정: review.decisions-2 S-03]. 자동 재개는 서비스 모드에서만 켠다(adr.0006 §3.6 5번). CLI·데스크톱 단독 모드에서는 설정이 켜져 있어도 `offer`다. 사용자가 없는 동안 비용과 부작용이 나는 일을 서비스 모드로 한정하기 위해서다.
 - 다른 프로세스가 그 세션 임대를 쥐고 있으면(`heldBy`) 후보에 표시만 하고 재개 버튼 대신 §4.5 선택지를 보인다.
 - 재개 실행은 L1(`L1.persistence.spec` 재개 절차, `eng.events.design` §7.2)이 한다. 재개 시작 때 `thread.resumed`를 커밋하고, 투영 `p_threads.resume_attempts`가 그 커밋에서 오른다(`L1.persistence.spec` §4.8.1).
 - 경계: 결과 불명 도구 호출은 자동 재실행하지 않고, 저장된 정책과 현재 선언이 모두 `replay: safe`인 도구만 재실행한다(adr.0006 §3.6 6번). 이 판정은 L1 몫이고 이 패키지는 관여하지 않는다.
@@ -661,7 +661,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 | `l0.process.shutdown.timeoutMs` | integer | 3000 | 500~60000 | live | managed, user | `execution` 탭 |
 | `l0.process.lockFallback.default` | string | `"ask"` | enum `ask`, `observe`, `fork` | live | managed, user, project | `execution` 탭 select |
 
-- 자동 재개 키는 이 표에 두지 않는다. `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts`(`L1.persistence.spec` §6)가 정본이다 [결정(잠정): review.decisions-2 S-03].
+- 자동 재개 키는 이 표에 두지 않는다. `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts`(`L1.persistence.spec` §6)가 정본이다 [결정: review.decisions-2 S-03].
 - `startupGraceMs`(10000)는 설정으로 열지 않는다 [제안].
 
 ## 7. 확장 지점
@@ -711,7 +711,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 | FR-P5 | F.conversation.spec §3.2.1 | 반영되었다. `LocalIdPrefix`에 `bgp`가 있다. `BackgroundProcessId`는 `LocalId<"bgp">`다 | `BackgroundProcessId` 형식 |
 | FR-P6 | F.readme §6, F.wire-settings.spec §1.2 | "전송 구현은 L4" 줄을 "전송 구현은 `L0.process.spec`, 조립은 L4"로 고친다(미결 P-3 권고 채택 시) | 배치 정합 |
 | FR-P7 | F `@xeon/contracts/services`(`services/process.ts`, review.decisions-2 D-04) | §3.1의 `ProcessServiceName`, `ProcessService`(`ProcessPort` 확장), `BackgroundRegistry`와 관련 타입, `ShutdownCoordinator`, `ShutdownReason`을 둔다. 이름은 `F.capabilities.spec` §3.12 표와 `services/process.ts` 행에 반영되었고, 필드는 §3.1 블록을 옮겨 확정한다(`F.capabilities.plan` P9) | 같은 층 import 금지(DR-02). X가 `ProcessPortKey`로 받는다(`F.extensions.spec` §9 13) |
-| FR-P8 | adr.0006 §3.3, §3.6 규칙 1·4, adr.0004 §3.4 | `HostTransport`·`service` 이름을 F 이름으로, 소유 판정을 OS 잠금 + epoch 펜싱으로, `session_owner`를 지우고 `sys_leases` 행이 표시를 겸하게 고친다 [결정(잠정): review.decisions-2 U-09] | 문서 사이 상충 |
+| FR-P8 | adr.0006 §3.3, §3.6 규칙 1·4, adr.0004 §3.4 | `HostTransport`·`service` 이름을 F 이름으로, 소유 판정을 OS 잠금 + epoch 펜싱으로, `session_owner`를 지우고 `sys_leases` 행이 표시를 겸하게 고친다 [결정: review.decisions-2 U-09] | 문서 사이 상충 |
 
 ## 9. 수용 기준
 
@@ -733,14 +733,14 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 
 ## 10. 미결 사항
 
-- [결정(잠정): review.decisions-2 U-09] P-1. 세션 소유 판정은 OS 잠금 + `sys_leases` epoch 펜싱이다. adr.0004 §3.4 개정 대상이다. `L0.store.spec` S-1과 같은 항목이다.
-- [결정(잠정): review.decisions-2 U-09] P-2. adr.0006 §3.6 규칙 4의 `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. `L0.store.spec` S-2와 같은 항목이다.
+- [결정: review.decisions-2 U-09] P-1. 세션 소유 판정은 OS 잠금 + `sys_leases` epoch 펜싱이다. adr.0004 §3.4 개정 대상이다. `L0.store.spec` S-1과 같은 항목이다.
+- [결정: review.decisions-2 U-09] P-2. adr.0006 §3.6 규칙 4의 `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. `L0.store.spec` S-2와 같은 항목이다.
 - [미결 P-3] 전송 구현 배치: L0 구현 + L4 조립(권고) 또는 L4 구현(`F.readme` §6).
 - [미결 P-4] 백그라운드 프로세스 종료 수단. 권고는 `xeon.exec`의 `startBackground`(`L0.exec.spec` §3.9) 핸들을 등록자가 `BackgroundStopper`로 넘기는 방식이다. 등록자가 이 수단을 쓸 수 없는 경우(stdin 파이프가 필요한 MCP stdio 서버, `L0.exec.spec` §10 9번)를 위해 이 패키지에 자체 프로세스 트리 종료 provider를 둘지가 남았다.
 - [미결 P-5] 엔진 진입점 `Runtime.open(dbPath)`의 시그니처와 소유. 권고는 L4 `apps/host`가 소유하고 `openRuntime({ dbPath, transport, … }): Promise<Result<Runtime, RuntimeOpenError>>` 모양이다. F에 둘지 함께 정한다.
 - [미결 P-6] Windows 서비스 전송(AF_UNIX, named pipe, loopback TCP + 토큰). §5.1 비교표.
 - [미결 P-7] 자동 재개 기본값(adr.0006 §6). 키 소유는 `L1.persistence.spec`이고 기본값 판단도 그 문서 미결 4로 옮겼다. 이 문서의 권고는 꺼짐, 서비스 모드에서만 켤 수 있음이다.
 - [미결 P-8] 승인 대기 세션을 유휴 판정에서 live로 볼지(adr.0006 §6). 권고는 live.
-- [결정(잠정): review.decisions-2 U-11] P-9. 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다. 내장 TLS + 토큰 WebSocket(PR-18)은 2차다.
+- [결정: review.decisions-2 U-11] P-9. 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다. 내장 TLS + 토큰 WebSocket(PR-18)은 2차다.
 - [미결 P-10] Unix 소켓에서도 토큰을 요구할지(FR-P2, `F.wire-settings.spec` §10 미결 4).
 - [가정] Bun 1.4.3의 `node:child_process` `detached`·`unref`와 `Bun.listen({ unix })`의 macOS 동작은 실측하지 않았다.

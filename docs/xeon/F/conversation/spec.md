@@ -4,7 +4,7 @@ layer: F
 domain: conversation
 kind: spec
 status: draft
-depends_on: [eng.domain-types.guide, eng.typescript.guide]
+depends_on: [eng.domain-types.guide, eng.typescript.guide, adr.0009]
 binds: [xeon/packages/contracts/src/conversation/**]
 ---
 
@@ -16,13 +16,14 @@ binds: [xeon/packages/contracts/src/conversation/**]
 
 ### 1.1 정하는 것
 
-- 대화 모델의 공용 이름과 형태를 정한다. 메시지, 스트림 이벤트, 도구, 도구 결과는 pi-ai·pi-agent-core 1.3.0 타입을 그대로 쓰고, 그 위에 Xeon이 더하는 이름만 새로 정의한다.
-- 새로 정의하는 이름은 다섯 묶음이다.
+- 대화 모델의 공용 이름과 형태를 정한다. 메시지, 콘텐츠 블록, 스트림 이벤트는 pi-ai 1.3.0 타입을 그대로 쓴다. 루프가 내고 받는 에이전트 타입(`AgentMessage`, `AgentEvent`, `AgentTool`, `AgentToolResult`)은 F가 정의한다(adr.0009). pi-agent-core는 참조하지 않는다.
+- 새로 정의하는 이름은 여섯 묶음이다.
   1. 브랜드 ID: `ThreadId`, `TurnId`, `StepId`, `ItemId`, `PartId`와 기록 계약이 쓰는 `EventId`, `EffectId`, `CheckpointId`. 발급 인터페이스 `IdFactory`.
   2. pi 타입의 런타임 검증 스키마: `MessageSchema`, `AgentMessageSchema`, `UsageSchema` 등.
   3. 파트 발급 ID 래퍼: `PartRecord`, `PartDelta`, `assignPartIds`.
   4. thread/turn/step/item 계층과 수명주기 알림: `ThreadEvent`, `TurnEvent`, `StepEvent`, `ItemEvent`, 상태 enum, `AgentEventMapper`.
   5. 도구 결과 3채널, 결과 상태 태그, 재생 정책: `ToolResultRecord`, `ResultStatus`, `ReplayPolicy`.
+  6. 에이전트 루프 타입: `AgentMessage`, `AgentEvent`, `AgentTool`, `AgentToolResult`, `AgentToolCall`, `AgentToolUpdateCallback`, `ToolExecutionMode`, `AgentContext`(§3.1.1).
 
 ### 1.2 다루지 않는 것
 
@@ -41,14 +42,14 @@ binds: [xeon/packages/contracts/src/conversation/**]
 | step | 모델 응답 1회와 그 응답이 부른 도구 결과 묶음. 체크포인트 단위다 | `turn_start` ~ `turn_end` |
 | item | 입출력 단위. 사용자 메시지, 어시스턴트 메시지, 시스템 메시지, 도구 호출, 도구 결과, 확장 커스텀 메시지 | `message_start` ~ `message_end`, `tool_execution_start` ~ `tool_execution_end` |
 | part | 어시스턴트 메시지 `content` 배열의 블록 하나(text, thinking, toolCall)에 Xeon이 붙인 id 레코드 | `contentIndex` |
-| 단계 경계 | step이 끝나고 다음 step이 시작되기 전 시점(step 종료 직후, 도구 결과 커밋 뒤). 체크포인트 커밋, drive 임대 교대, scope 켜기·끄기 적용 시점이다 [결정(잠정): review.decisions-2 U-01] | `turn_end` 직후 |
+| 단계 경계 | step이 끝나고 다음 step이 시작되기 전 시점(step 종료 직후, 도구 결과 커밋 뒤). 체크포인트 커밋, drive 임대 교대, scope 켜기·끄기 적용 시점이다 [결정: review.decisions-2 U-01] | `turn_end` 직후 |
 
-### 2.1 turn과 step 용어 충돌 [결정(잠정): review.decisions-2 U-01]
+### 2.1 turn과 step 용어 충돌 [결정: review.decisions-2 U-01]
 
 - pi의 turn은 Xeon의 step이다. pi의 run(`agent_start`~`agent_end`)이 Xeon의 turn이다.
 - 확장 지점 이름은 pi 이벤트 이름을 그대로 쓴다(`F.extensions.spec`의 지점 선언 표). 그래서 `turn_start`·`turn_end` 지점은 Xeon의 step 경계에서 발화한다. 지점 이름과 Xeon 계층 이름이 다르다는 점을 지점 선언 표의 설명 열에 적는다.
 - `_research/foundation-plan.md` §6 M1 스모크가 정한 drive 그룹 켜기·끄기의 적용 시점은 단계 경계다. 턴은 여러 단계로 이어질 수 있어 턴이 끝날 때까지 기다리면 긴 턴에서 토글이 늦게 적용된다. 단계 경계는 커밋된 상태만 보이는 가장 이른 안전 지점이고, 턴의 끝은 그 부분집합이다. 모든 문서는 적용 시점을 "단계 경계"로 쓴다.
-- 이 매핑은 `review.decisions-2` U-01의 잠정 결정이다. 사용자 확인 뒤 바뀌면 이 절과 §10 1번을 고친다.
+- 이 매핑은 `review.decisions-2` U-01의 결정이다(2026-10-22 사용자 확인). 번복하면 이 절과 §10 1번을 고친다.
 
 ## 3. 인터페이스
 
@@ -58,22 +59,22 @@ binds: [xeon/packages/contracts/src/conversation/**]
 - 이 문서의 코드 블록은 형태를 읽기 쉽게 `interface X`로 적고 스키마 상수 타입을 `Schema<X>`로 줄여 적는다. `Schema<X>`는 실제 타입 이름이 아니다. 코드에서는 "`Static<typeof XSchema>`가 X와 같은 TypeBox 명시 타입"을 뜻한다.
 - `TUnsafe<X>`는 실제 타입이다. 브랜드 ID 스키마(§3.2)와 pi 타입 래핑 스키마(§3.3)에만 쓴다. 브랜드와 외부 인터페이스는 TypeBox 구조에서 파생할 수 없기 때문이다.
 - `Brand`, `Result`, `ok`, `err`, `Bug`, `parse`는 `@xeon/contracts` 루트 진입점의 것을 쓴다(`eng.typescript.guide` §1.2). 소스 위치는 `src/base/`이고 루트 `src/index.ts`가 이 이름만 다시 export한다(`F.readme` §3). 예상 가능한 실패는 `Result`로 돌려주고, 호출 결함에는 `Bug`를 던진다(TY-11).
-- pi 소스 줄 번호: pi-ai `types.ts`는 1.3.0 줄 번호로 적는다. 로컬 소스(`~/projects/_ref/pi-src`, 1.1.0)보다 `ToolCall` 이후가 5줄 밀린다. agent-core `types.ts`는 1.1.0과 1.3.0의 줄이 같다(`_research/notes/F-2.md` §4).
+- pi 소스 줄 번호: pi-ai `types.ts`는 1.3.0 줄 번호로 적는다. 로컬 소스(`~/projects/_ref/pi-src`, 1.1.0)보다 `ToolCall` 이후가 5줄 밀린다. agent-core `types.ts`는 1.1.0과 1.3.0의 줄이 같다(`_research/notes/F-2.md` §4). agent-core 줄 번호는 §3.1.1 타입의 출발점을 가리키는 참고 인용이다.
 
 ### 3.1 pi 재사용 범위
 
-[결정] pi-ai provider와 타입은 그대로 쓰고 부족분만 포크한다(`_research/decisions-log.md` 2026-10-21 결정 2차). 모델·루프 패키지는 `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core` 1.3.0 정확 고정이다(`_research/foundation-plan.md` §2). 판정 근거는 `_research/packages.md` §4.1 F1이다. `_research/item-catalog.md` F절은 메시지 스키마를 "설계 채택, 우리 스키마로 재정의"로 적었으나 결정 로그 2차가 뒤의 판단이므로 이를 따른다.
+[결정] pi-ai provider와 타입은 그대로 쓰고 부족분만 포크한다(`_research/decisions-log.md` 2026-10-21 결정 2차). 모델 패키지는 `@earendil-works/pi-ai` 1.3.0 정확 고정이다(`_research/foundation-plan.md` §2). [결정] `@earendil-works/pi-agent-core`에는 의존하지 않는다. 루프는 그 1.3.0 루프를 포크한 core-loop 자체 루프이고, 에이전트 타입은 F가 정의한다(adr.0009, §3.1.1). 판정 근거는 `_research/packages.md` §4.1 F1이다. `_research/item-catalog.md` F절은 메시지 스키마를 "설계 채택, 우리 스키마로 재정의"로 적었으나 결정 로그 2차가 뒤의 판단이므로 이를 따른다.
 
-| 구성 | 그대로 (pi 타입 re-export) | 자체 (Xeon 정의) | 설계 (모양만 참고) |
+| 구성 | 그대로 (pi-ai 타입 re-export) | 자체 (Xeon 정의) | 설계 (모양만 참고) |
 |---|---|---|---|
 | 메시지 | `Message`, `SystemMessage`, `UserMessage`, `AssistantMessage`, `ToolResultMessage` (pi-ai 1.3.0 `types.ts:546-644`) | 런타임 검증 스키마 `MessageSchema` 등(§3.3) | — |
 | 콘텐츠 블록 | `TextContent`, `ThinkingContent`, `ImageContent`, `ToolCall` | 파트 id 래퍼 `PartRecord`(§3.4) | ACP 메시지 chunk id |
 | 스트림 이벤트 | `AssistantMessageEvent` 12종(pi-ai 1.3.0 `types.ts:806-822`: start, text_start/delta/end, thinking_start/delta/end, toolcall_start/delta/end, done, error) | 휘발 파트 델타 `PartDelta` | — |
 | 종료·사용량 | `StopReason`, `Usage` | `UsageSchema` | — |
-| 도구 | `Tool`, `AgentTool`(`label`, `replay` 포함, agent `types.ts:463-500`) | — | — |
-| 도구 결과 | `AgentToolResult`(`content`, `details`, `structuredContent`, `usage`, `isError`, `terminate`, agent `types.ts:424-445`) | 저장용 `ToolResultRecord`, `ResultStatus`(§3.6) | MCP 2026-07-28 `resultType` |
-| 에이전트 이벤트 | `AgentEvent` 10종(agent `types.ts:516`) | 대응 함수 시그니처 `AgentEventMapper`(§3.5.5) | — |
-| 에이전트 메시지 | `AgentMessage`, `CustomAgentMessages`(선언 병합, agent `types.ts:365-374`) | `XeonCustomMessage`와 병합 선언 | — |
+| 도구 | `Tool` | `AgentTool`(§3.1.1. `label`, `replay`, `executionMode`) | pi-agent-core `AgentTool`(agent `types.ts:463-500`) |
+| 도구 결과 | — | `AgentToolResult`(§3.1.1. `content`, `details`, `structuredContent`, `usage`, `isError`, `terminate`), 저장용 `ToolResultRecord`, `ResultStatus`(§3.6) | pi-agent-core `AgentToolResult`(agent `types.ts:424-445`), MCP 2026-07-28 `resultType` |
+| 에이전트 이벤트 | — | `AgentEvent` 10종(§3.1.1), 대응 함수 시그니처 `AgentEventMapper`(§3.5.5) | pi-agent-core `AgentEvent`(agent `types.ts:516`) |
+| 에이전트 메시지 | — | `AgentMessage = Message \| XeonCustomMessage`(§3.1.1, 선언 병합 없음) | pi-agent-core `AgentMessage`·`CustomAgentMessages`(agent `types.ts:365-374`) |
 | 추론 수준 | `ModelThinkingLevel`(7종, `off` 포함) | — | — |
 | JSON 값 | `JsonValue`, `JsonObject` | — | — |
 | 계층 | — | ID, 상태 enum, 알림 유니온(§3.5) | Codex app-server thread/turn/item, pi durable conversation/entry/task |
@@ -95,20 +96,90 @@ export type {
   // NestedToolCallRecord, NestedToolCalls, ModelCost, Api, CacheRetention, ThinkingBudgets, Model, Context, TranscriptContext,
   // SimpleStreamOptions, Provider (L1.models.spec §3.2가 쓴다)
 } from "@earendil-works/pi-ai";
-export type {
-  AgentTool, AgentToolResult, AgentEvent, AgentMessage, CustomAgentMessages,
-  // 위와 같이 구성 표 밖: ToolExecutionMode, AgentToolUpdateCallback, AgentToolCall, AgentContext,
-  // BeforeToolCallResult, AfterToolCallResult, BeforeToolCallContext, AfterToolCallContext
-} from "@earendil-works/pi-agent-core";
+// pi-agent-core 재노출은 없다(adr.0009). 에이전트 타입은 agent.ts(§3.1.1)
 ```
 
-재노출하지 않고 F가 적는 이름 둘 [결정(잠정)]: pi-ai의 `AssistantMessageEventStream`은 `#private`을 가진 클래스라 구조 대입이 안 되고 만들려면 값 import가 필요한데, 값 import는 core-models만 한다(`eng.dependency-rules.guide` DR-07). 그래서 소비 계약(`AsyncIterable<AssistantMessageEvent>`와 `result()`)만 적은 인터페이스를 F `pi.ts`에 두고, 이를 쓰는 `StreamFn`도 F가 적는다. pi 원본 `AssistantMessageEventStream`과 `StreamFn`은 F 쪽에 대입할 수 있다(타입 테스트 `pi-types.test.ts`). `AgentToolHooks`(`beforeToolCall`·`afterToolCall` 쌍)는 pi에 같은 이름이 없어 `AgentLoopConfig`에서 `Required<Pick<…>>`로 파생한다. 나머지 재노출 이름은 같은 테스트가 pi 원본과의 항등(`Equal`)을 컴파일 시점에 판정한다.
+재노출하지 않고 F가 적는 이름 둘 [결정(잠정)]: pi-ai의 `AssistantMessageEventStream`은 `#private`을 가진 클래스라 구조 대입이 안 되고 만들려면 값 import가 필요한데, 값 import는 core-models만 한다(`eng.dependency-rules.guide` DR-07). 그래서 소비 계약(`AsyncIterable<AssistantMessageEvent>`와 `result()`)만 적은 인터페이스를 F `pi.ts`에 두고, 이를 쓰는 `StreamFn`도 F가 적는다. pi-ai 원본 `AssistantMessageEventStream` 클래스는 F 인터페이스에 대입할 수 있다(타입 테스트 `pi-types.test.ts`). core-loop 자체 루프도 F `StreamFn`을 받으므로 둘 사이에 단언이 필요 없다(adr.0009 §3.2). 나머지 재노출 이름은 같은 테스트가 pi-ai 원본과의 항등(`Equal`)을 컴파일 시점에 판정한다. 이전 판의 `AgentToolHooks`는 없앴다.
 
 규칙:
 
-1. [제안] F 소스는 pi 패키지를 `import type`·`export type`으로만 참조한다. pi-ai 런타임 코드(`stream`, `Type` 재수출 등)를 import하지 않는다. TypeBox는 `typebox`에서 직접 import한다.
+1. [제안] F 소스는 pi-ai를 `import type`·`export type`으로만 참조한다. pi-ai 런타임 코드(`stream`, `Type` 재수출 등)를 import하지 않는다. `@earendil-works/pi-agent-core`는 타입으로도 참조하지 않는다(adr.0009). TypeBox는 `typebox`에서 직접 import한다.
 2. [제안] 1.3.0의 `ToolCall.argumentsError?: string`(인자 JSON이 객체가 아닐 때 설명)은 re-export된 타입에 이미 들어 있다. 저장되는 어시스턴트 메시지에도 그대로 남는다(`_research/notes/F-2.md` §4).
 3. [제안] pi 버전을 올릴 때는 이 파일과 §3.3 스키마만 고친다. 소비 층은 `@xeon/contracts/conversation`에서만 이 이름을 가져온다(별칭 re-export). L1 이상이 pi 패키지를 직접 import해 대화 타입을 얻는 것은 `eng.dependency-rules.guide`가 금지한다 [가정: 해당 가이드가 이 규칙을 둔다].
+
+#### 3.1.1 에이전트 루프 타입 [결정: adr.0009]
+
+루프가 내고 받는 타입은 F가 정의한다. pi-agent-core는 import하지 않는다(타입 import 포함). 이름과 필드는 pi-agent-core 1.3.0 `types.ts`에서 출발했고, 기록된 메시지·결과 payload가 pi 메시지 모양을 그대로 담으므로 같은 필드 이름을 쓴다. 다른 점은 `any`를 쓰지 않는다는 것과 `AgentMessage`가 닫힌 유니온이라는 것이다.
+
+```ts
+// src/conversation/agent.ts — 타입만 둔다. 값 export 0건
+import type { Static, TSchema } from "typebox";
+import type {
+  AssistantMessage, AssistantMessageEvent, ImageContent, JsonObject, JsonValue,
+  Message, TextContent, Tool, ToolResultMessage, Usage,
+} from "./pi.ts";
+import type { XeonCustomMessage } from "./hierarchy.ts";
+
+/** 대화 기록에 들어가는 메시지. 닫힌 유니온이고 선언 병합은 없다. 확장 구분은 XeonCustomMessage.customType */
+export type AgentMessage = Message | XeonCustomMessage;
+
+/** 어시스턴트 메시지의 도구 호출 블록 하나 */
+export type AgentToolCall = Extract<AssistantMessage["content"][number], { type: "toolCall" }>;
+
+/** 도구 결과. 필드 뜻은 pi-agent-core 1.3.0 AgentToolResult와 같다(§3.6 3채널) */
+export interface AgentToolResult<TDetails extends JsonValue | undefined = JsonValue | undefined> {
+  content: (TextContent | ImageContent)[];
+  details: TDetails;
+  structuredContent?: JsonValue;
+  usage?: Usage;
+  isError?: boolean;
+  terminate?: boolean;
+}
+
+export type AgentToolUpdateCallback<TDetails extends JsonValue | undefined = JsonValue | undefined> =
+  (partial: AgentToolResult<TDetails>) => void;
+
+export type ToolExecutionMode = "sequential" | "parallel";
+
+/** 실행할 수 있는 도구. pi-ai Tool(이름·설명·parameters)에 실행 정보를 더한다 */
+export interface AgentTool<TParameters extends TSchema = TSchema, TDetails extends JsonValue | undefined = JsonValue | undefined>
+  extends Tool<TParameters> {
+  label: string;
+  outputSchema?: TSchema;
+  replay?: "never" | "safe";
+  executionMode?: ToolExecutionMode;
+  execute(
+    toolCallId: string,
+    params: Static<TParameters>,
+    signal: AbortSignal,
+    onUpdate: AgentToolUpdateCallback<TDetails>,
+  ): Promise<AgentToolResult<TDetails>>;
+}
+
+/** 요청 하나의 입력. 루프는 이 값을 요청마다 새로 받고 고치지 않는다 */
+export interface AgentContext {
+  readonly messages: readonly AgentMessage[];
+  readonly tools: readonly AgentTool[];
+}
+
+/** 루프 이벤트. 변형 이름은 pi와 같다(확장 지점 이름, §3.5.4) */
+export type AgentEvent =
+  | { readonly type: "agent_start" }
+  | { readonly type: "agent_end"; readonly messages: readonly AgentMessage[] }
+  | { readonly type: "turn_start" }
+  | { readonly type: "turn_end"; readonly message: AssistantMessage; readonly toolResults: readonly ToolResultMessage[] }
+  | { readonly type: "message_start"; readonly message: AgentMessage }
+  | { readonly type: "message_update"; readonly message: AssistantMessage; readonly assistantMessageEvent: AssistantMessageEvent }
+  | { readonly type: "message_end"; readonly message: AgentMessage }
+  | { readonly type: "tool_execution_start"; readonly toolCallId: string; readonly toolName: string; readonly args: JsonObject }
+  | { readonly type: "tool_execution_update"; readonly toolCallId: string; readonly toolName: string; readonly args: JsonObject; readonly partialResult: AgentToolResult }
+  | { readonly type: "tool_execution_end"; readonly toolCallId: string; readonly toolName: string; readonly result: AgentToolResult; readonly isError: boolean; readonly durationMs?: number };
+```
+
+- pi-agent-core의 `AgentTool.prepareArguments`(인자 호환 변환)는 두지 않는다. 인자 준비와 검증은 L1.tools가 한다(`L1.tools.spec` §3.3, adr.0009 §3.4).
+- `turn_end.message`, `message_update.message`는 pi에서 `AgentMessage`였으나 실제 값은 항상 어시스턴트 메시지라 `AssistantMessage`로 좁혔다.
+- `beforeToolCall`·`afterToolCall` 훅 타입, `AgentToolHooks`, `AgentLoopConfig`, `CustomAgentMessages`는 두지 않는다. 도구 단계 계약은 `F.capabilities.spec` §3.12 `services/tools.ts`(`L1.tools.spec` §3.3)가 정한다.
+- `agent.ts`가 `hierarchy.ts`의 `XeonCustomMessage`를 import하고 `hierarchy.ts`는 `agent.ts`를 import하지 않는다(DR-06 순환 금지).
 
 ### 3.2 브랜드 ID
 
@@ -215,9 +286,10 @@ pi 타입은 TS 인터페이스라 런타임 스키마가 없다. 이벤트 payl
 // src/conversation/message-schema.ts
 import { Type, type TUnsafe } from "typebox";
 import type {
-  Message, SystemMessage, UserMessage, AssistantMessage, ToolResultMessage, AgentMessage,
+  Message, SystemMessage, UserMessage, AssistantMessage, ToolResultMessage,
   TextContent, ThinkingContent, ImageContent, ToolCall, Usage, StopReason, AssistantMessageEvent,
 } from "./pi.ts";
+import type { AgentMessage } from "./agent.ts";
 
 export const StopReasonSchema: TUnsafe<StopReason>;
 // "pending" | "stop" | "length" | "toolUse" | "error" | "aborted" | "deferred"
@@ -365,12 +437,6 @@ export interface XeonCustomMessage {
   timestamp: number;           // ms
 }
 
-declare module "@earendil-works/pi-agent-core" {
-  interface CustomAgentMessages {
-    "xeon.custom": XeonCustomMessage;
-  }
-}
-
 interface ItemBase { itemId: ItemId; status: ItemStatus }
 export type ItemRecord =
   | ItemBase & { kind: "user"; message: UserMessage; requestId: string | null }
@@ -391,7 +457,7 @@ export interface ToolCallItem {
 }
 ```
 
-- [제안] 확장 커스텀 메시지는 `CustomAgentMessages` 선언 병합으로 `AgentMessage`에 들어간다. 병합 대상 모듈 이름은 `@earendil-works/pi-agent-core`다(pi 주석의 `@mariozechner/agent`는 옛 이름, `_research/notes/F-2.md` §5.2).
+- [결정: adr.0009] 확장 커스텀 메시지는 `AgentMessage = Message | XeonCustomMessage`(§3.1.1)의 한 변형이다. 선언 병합은 없다. 이전 판의 `CustomAgentMessages` 병합(`@earendil-works/pi-agent-core` 대상)은 없앴다.
 - `customType`의 형식은 확장 이벤트 kind와 같다(`F.records.spec` §3.2, `F.extensions.spec` §3.6 `RecordKind`). conversation은 records를 import하지 않으므로 타입은 `string`으로 두고 형식 검사는 `F.extensions.spec`의 `PostItem.customType`(`RecordKind`)과 X가 한다. 다른 확장이 쓴 값의 충돌 처리는 `F.extensions.spec`이 정한다.
 
 #### 3.5.3 수명주기 알림 유니온
@@ -489,9 +555,11 @@ export const ItemUpdatedPayloadSchema: Schema<ItemUpdatedPayload>;
 - 알림 `type` 문자열은 `F.records.spec` 카탈로그의 `kind`와 같다. 예외는 하나다. `item.completed` 알림의 내구 기록은 `item.recorded`(메시지 item)이거나 `effect.result`(도구 호출 item)다. 대응은 §3.5.4 표에 있다.
 - `item.updated`의 `part_completed`에 대응하는 내구 기록은 `part.recorded`다.
 
-#### 3.5.4 pi `AgentEvent` → Xeon 알림 대응표
+#### 3.5.4 `AgentEvent` → Xeon 알림 대응표
 
-| pi `AgentEvent` | Xeon 알림 | 내구 기록 (`F.records.spec`) | 비고 |
+`AgentEvent`는 §3.1.1의 F 정의이고 변형 이름은 pi와 같다. 이벤트를 내는 쪽은 core-loop 자체 루프다(`L1.loop.spec` §3.2).
+
+| `AgentEvent` | Xeon 알림 | 내구 기록 (`F.records.spec`) | 비고 |
 |---|---|---|---|
 | (입력 접수, pi 이전) | `item.started`/`item.completed`(user), `turn.started` | `item.recorded`, `turn.started` | 입력 item은 turn 시작 전에 기록한다. `requestId` 멱등 |
 | `agent_start` | `turn.updated{status:"running"}` | — | turn.started는 입력 접수 때 이미 냈다 |
@@ -530,7 +598,7 @@ export interface AgentEventMapInit {
   ids: IdFactory;
 }
 export interface AgentEventMapper {
-  /** pi 이벤트 하나를 받아 0개 이상의 알림을 순서대로 돌려준다. 같은 입력 열에 같은 출력 열(ids 제외). */
+  /** 루프 이벤트 하나를 받아 0개 이상의 알림을 순서대로 돌려준다. 같은 입력 열에 같은 출력 열(ids 제외). */
   map(event: AgentEvent): readonly LifecycleEvent[];
   /** 현재 열린 step과 item. 체크포인트 작성에 쓴다. */
   snapshot(): { stepId: StepId | null; stepIndex: number; openItemIds: readonly ItemId[] };
@@ -540,7 +608,7 @@ export type CreateAgentEventMapper = (init: AgentEventMapInit) => AgentEventMapp
 
 ### 3.6 도구 결과 3채널, 결과 상태 태그, 재생 정책
 
-[결정] 도구 결과는 agent-core `AgentToolResult`를 그대로 쓴다(`_research/packages.md` §4.1 F1 "도구 결과 3채널: 그대로", 결정 로그 2차). 채널은 다음과 같다.
+[결정] 도구 결과는 F `AgentToolResult`(§3.1.1)를 쓴다. 필드는 pi-agent-core 1.3.0 `AgentToolResult`와 같다(`_research/packages.md` §4.1 F1 "도구 결과 3채널: 그대로", 결정 로그 2차, adr.0009). 채널은 다음과 같다.
 
 | 채널 | 필드 | 받는 쪽 | 저장 위치 (`F.records.spec`) |
 |---|---|---|---|
@@ -581,7 +649,7 @@ export function toToolResultRecord(result: AgentToolResult<JsonValue | undefined
 export type ReplayPolicy = "safe" | "unsafe";
 export const ReplayPolicySchema: Schema<ReplayPolicy>;
 
-/** agent-core AgentTool.replay("never" | "safe" | undefined) → ReplayPolicy. "safe"만 "safe", 나머지는 "unsafe". 순수 함수. */
+/** AgentTool.replay("never" | "safe" | undefined, §3.1.1) → ReplayPolicy. "safe"만 "safe", 나머지는 "unsafe". 순수 함수. */
 export function toReplayPolicy(replay: AgentTool["replay"]): ReplayPolicy;
 ```
 
@@ -592,7 +660,7 @@ export function toReplayPolicy(replay: AgentTool["replay"]): ReplayPolicy;
 
 ### 3.7 기계 이름과 표시 제목
 
-도구의 기계 이름(`Tool.name`)과 표시 제목(`AgentTool.label`)의 분리 규칙은 `F.capabilities.spec`이 정한다. 이 문서는 두 필드가 pi 타입에 이미 있다는 사실만 기록한다(agent-core `types.ts:465`, 1.1.0·1.3.0 같음).
+도구의 기계 이름(`Tool.name`)과 표시 제목(`AgentTool.label`)의 분리 규칙은 `F.capabilities.spec`이 정한다. 이 문서는 두 필드가 pi-ai `Tool.name`과 F `AgentTool.label`(§3.1.1, pi-agent-core `types.ts:465`와 같은 필드)에 있다는 사실만 기록한다.
 
 ### 3.8 인덱스
 
@@ -601,6 +669,7 @@ export function toReplayPolicy(replay: AgentTool["replay"]): ReplayPolicy;
 export * from "./ids.ts";
 export * from "./local-ids.ts";
 export type * from "./pi.ts";
+export type * from "./agent.ts";
 export * from "./message-schema.ts";
 export * from "./parts.ts";
 export * from "./hierarchy.ts";
@@ -638,20 +707,20 @@ export * from "./tool-result.ts";
 
 ## 7. 확장 지점
 
-- 지점 `turn_start`, `turn_end`, `message_start`, `message_update`, `message_end`, `tool_execution_*`은 pi 이벤트 이름을 그대로 쓴다. 선언(fold 종류, 페이로드 타입)은 `F.extensions.spec`의 지점 선언 표가 정한다. 페이로드 타입은 이 문서의 `AgentEvent` 변형과 알림 타입을 참조한다.
+- 지점 `turn_start`, `turn_end`, `message_start`, `message_update`, `message_end`, `tool_execution_*`은 pi 이벤트 이름을 그대로 쓴다. 선언(fold 종류, 페이로드 타입)은 `F.extensions.spec`의 지점 선언 표가 정한다. 페이로드 타입은 이 문서의 `AgentEvent`(§3.1.1) 변형과 알림 타입을 참조한다.
 - `turn_start`·`turn_end` 지점은 Xeon step 경계에서 발화한다(§2.1).
-- 확장은 `CustomAgentMessages` 병합으로 늘리지 않고 `XeonCustomMessage.customType`으로 구분한다 [제안]. 그래서 선언 병합은 F에 한 번만 있다.
-- post로 들어온 내용이 대화에 남을 때는 `custom` item으로 기록된다. post 수용 기록은 `F.records.spec`의 `post.accepted`다.
+- 확장은 `XeonCustomMessage.customType`으로 구분한다. `AgentMessage`는 닫힌 유니온이고 선언 병합은 없다(§3.1.1, adr.0009).
+- post로 들어온 내용이 대화에 남을 때는 `custom` item으로 기록된다. post 수용 기록은 `F.records.spec`의 `input.queued`(`source.type: "extension"`)다(`post.accepted` retire, review.decisions-2 U-05).
 
 ## 8. 다른 문서와의 인터페이스
 
 | 문서 | 제공·요구 |
 |---|---|
 | `F.records.spec` | 제공: 8개 ID와 스키마, `ItemRecord`, `PartRecord`, 수명주기 페이로드 스키마, `ToolResultRecord`, `ReplayPolicy`·`toReplayPolicy`. 요구: envelope의 `threadId`/`turnId`/`stepId` 이름이 `LifecycleScope`와 같을 것 |
-| `F.capabilities.spec` | 제공: `ReplayPolicy`, `ResultStatus`, `InputRequiredInfo`, pi 재노출 타입. 요구: `Tool.name`/`AgentTool.label` 분리 규칙 |
+| `F.capabilities.spec` | 제공: `ReplayPolicy`, `ResultStatus`, `InputRequiredInfo`, pi-ai 재노출 타입, `AgentTool`·`AgentToolResult`·`ToolExecutionMode`(§3.1.1). 요구: `Tool.name`/`AgentTool.label` 분리 규칙 |
 | `F.extensions.spec` | 요구: 지점 선언 표에 §2.1 매핑 표기, `customType` 접두 규칙, 열거형 확장 예약 |
 | `F.wire-settings.spec` | 제공: 알림 유니온. 요구: 와이어 표현은 그쪽이 정한다 |
-| `L1.loop.spec` (L1-b) | 요구: `CreateAgentEventMapper` 구현 |
+| `L1.loop.spec` (L1-b) | 제공: §3.1.1 에이전트 루프 타입. 요구: `CreateAgentEventMapper` 구현, 자체 루프가 `AgentEvent`를 낸다 |
 | `L1.persistence.spec` (L1-f), `L0.store.spec` (L0-e) | 요구: `IdFactory` 구현, ULID 단조성. `storeId`(`sto_`) 발급은 `L0.store.spec`(§3.2.1 ①) |
 | `L0.os.spec`, 지역 접두 소유 문서(`L2.artifacts`, `L2.schedule`, `L2.web`, `L2.knowledge`, `L0.process`, `L0.secrets`) | 제공: §3.2.1 `LocalIdPrefix`·`LOCAL_ID_PREFIXES`. 요구: `LocalIdFactory` 구현(`L0.os`), 접두 표기를 표에 맞추기(소유 문서) |
 | `L2.mcp.spec` (L2-b) | 요구: MCP `InputRequiredResult` → `ToolResultRecord` 변환 |
@@ -662,17 +731,18 @@ export * from "./tool-result.ts";
 1. 모든 ID 스키마(`ThreadIdSchema` ~ `CheckpointIdSchema`)가 접두사 위반, 소문자 ULID, 길이 위반을 거부하고 올바른 값을 통과시킨다.
 2. pi 메시지 픽스처(4개 role × 대표 변형, `argumentsError`가 있는 toolCall, `aborted` 어시스턴트 포함)를 `JSON.stringify`→`JSON.parse` 한 뒤 `MessageSchema` 검증을 통과한다. role을 바꾼 변형은 실패한다.
 3. `assignPartIds`에 이전 결과를 `existing`으로 넘기면 같은 `PartId`를 돌려주고 `IdFactory.next`를 부르지 않는다. 같은 `PartRecord` 목록에 대한 `partIdAt` 조회는 재생할 때마다 같은 id를 낸다.
-4. F 소스(`src/**`)에 `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`의 값 import가 0건이다(`import type`, `export type`만 허용).
+4. F 소스(`src/**`)에 `@earendil-works/pi-ai`의 값 import가 0건이다(`import type`, `export type`만 허용). `@earendil-works/pi-agent-core`는 타입 import도 0건이고 `contracts/package.json` 의존에 없다(adr.0009).
 5. `canTransition`은 §3.5.1 표의 전이만 `true`이고 종결 상태에서 나가는 전이는 모두 `false`다.
 6. pi 래핑 스키마의 판별 값 목록(role 4종, 블록 `type` 4종, `StopReason` 7종, `AssistantMessageEvent.type` 12종)이 pi 타입의 해당 유니온과 같다(값 목록 상수에 대한 완전성 타입 검사와 스키마 검증 테스트).
 7. `resultStatusOf`는 `status`가 없으면 `"complete"`를 돌려준다.
-8. `pi.ts`의 re-export 타입이 pi 원본 타입과 같다(`expectTypeOf` + `tsc -b`).
+8. `pi.ts`의 re-export 타입이 pi-ai 원본 타입과 같다(`expectTypeOf` + `tsc -b`). pi-ai `AssistantMessageEventStream` 클래스는 F `AssistantMessageEventStream`에 대입할 수 있다.
 9. `toReplayPolicy("never")`, `toReplayPolicy(undefined)`는 `"unsafe"`, `toReplayPolicy("safe")`는 `"safe"`다.
 10. `LOCAL_ID_PREFIXES`의 키는 모두 `LOCAL_ID_PREFIX_PATTERN`을 만족하고 `RESERVED_ID_PREFIXES`(`IdPrefix` 8종과 `sto`)와 겹치지 않는다. `localIdPattern("art")`은 `art_` + 소문자 ULID와 두 글자 접두 값을 거부한다.
+11. `AgentMessage`가 `Message | XeonCustomMessage`와 같다(`Equal` 타입 검사). §3.1.1 타입 선언에 `any`가 0건이고, `AgentEvent`의 `type` 값 목록이 §3.5.4 표 첫 열(10종)과 같다.
 
 ## 10. 미결 사항
 
-1. [결정(잠정): review.decisions-2 U-01] 용어: pi turn = Xeon step, pi run = Xeon turn이다. 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§2.1). 사용자 확인 대상이다.
+1. [결정: review.decisions-2 U-01] 용어: pi turn = Xeon step, pi run = Xeon turn이다. 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§2.1). 사용자 확인 대상이다.
 2. [미결] 런타임 스키마 방식: `Type.Unsafe` 래핑 + 얕은 검증(§3.3)으로 충분한지, pi 타입 전체를 TypeBox로 재정의해 깊은 검증까지 할지. 재정의안은 pi minor마다 추종 비용이 커진다.
 3. [미결] ULID 단조성 소유처: 같은 밀리초 안 증가 보장을 L0(`L0.os.spec` 시계·난수) 구현에 둘지, L1 `IdFactory` 래퍼에 둘지, 보장하지 않을지.
-4. [미결] TypeBox 버전: 계획과 워크스페이스 catalog는 1.4.2이고 pi-ai·agent-core는 1.3.27을 정확 고정한다. 두 벌 설치를 받아들일지, 1.3.27로 맞출지(`_research/notes/F-2.md` §7).
+4. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 고정한 판과 같아 한 사본만 설치한다.

@@ -20,7 +20,7 @@ binds: [xeon/packages/platform-os/**]
 |---|---|---|---|
 | 기반 | 플랫폼 정보 `OsInfo`, 디렉터리 `OsDirs`, 파일 시스템 종류 `fsKind`, 시각·타이머·난수(`Clock`, `Scheduler`, `RandomSource`의 운영 구현), 로거(`Logger`의 운영 구현) | M0 | `eng.typescript.guide` §1.2·TY-21, `eng.best-practices.guide` BP-05·BP-12, `eng.testing.guide` TS-03 |
 | 연동 | 외부 바이너리 해석 `resolveBinary` | 1차(M1) | `_research/layer-plan-v2.json` L0-f "외부 바이너리", `_research/packages.md` §4.2 L0-f |
-| 연동 | 사용자 알림 전달 수단 `Notifier` | 1차(M3) [결정(잠정): review.decisions-2 S-04, 결정 2] | `_research/layer-plan-v2.json` L0-f, `L2.dialog.spec` §4.7 |
+| 연동 | 사용자 알림 전달 수단 `Notifier` | 1차(M3) [결정: review.decisions-2 S-04, 결정 2] | `_research/layer-plan-v2.json` L0-f, `L2.dialog.spec` §4.7 |
 | 연동 | 앱 파일 감시 `FileWatcher`, 텔레메트리 스팬 | 2차(M2 이후) | `_research/layer-plan-v2.json` L0-f |
 
 - 이 패키지는 다른 L0 패키지와 L1 이상이 묻는 경로·시각·바이너리 위치 질의에 값을 돌려주는 서비스다. 다른 L0 패키지는 `platform-os`를 import하지 않고 F 인터페이스 `OsService`를 Cordis로 주입받는다(`eng.dependency-rules.guide` DR-02, DR-14).
@@ -37,7 +37,7 @@ binds: [xeon/packages/platform-os/**]
 | 로그 출력 위치 선택(stderr, 파일, 데스크톱 UI) | L4 진입점(`eng.best-practices.guide` BP-12) |
 | sops·age 실행, srt 실행 | `L0.secrets.spec`, `L0.sandbox.spec`. 이 패키지는 바이너리 경로만 해석한다 |
 | 서비스 소켓·등록 파일 형식 | `L0.process.spec`. 이 패키지는 `OsDirs.runtime` 디렉터리만 준다 |
-| 알림을 보낼 시점, 알림 종류, 켜기·끄기 설정과 그 기본값·탭 | `L2.dialog.spec` §4.7(`dialog.notify`, `l2.dialog.notify.*`). 이 패키지는 받은 알림을 OS 수단으로 내보내는 전달 수단만 소유한다 [결정(잠정): review.decisions-2 S-04] |
+| 알림을 보낼 시점, 알림 종류, 켜기·끄기 설정과 그 기본값·탭 | `L2.dialog.spec` §4.7(`dialog.notify`, `l2.dialog.notify.*`). 이 패키지는 받은 알림을 OS 수단으로 내보내는 전달 수단만 소유한다 [결정: review.decisions-2 S-04] |
 
 ## 2. 용어
 
@@ -54,8 +54,8 @@ binds: [xeon/packages/platform-os/**]
 
 ### 3.0 위치
 
-- `OsService`와 그 값 타입, 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스(`src/services/os.ts`)에 둔다 [결정(잠정): review.decisions-2 D-04].
-- `Clock`, `Scheduler`, `TimerHandle`, `RandomSource`, `Logger`, `LogLevel`, `LogValue`, `LogFields`는 인터페이스만 F 루트 base(`@xeon/contracts`)에 두고 구현은 이 패키지에 둔다 [결정(잠정): review.decisions-2 U-03, `F.readme` §3·§8 10번]. `IdFactory`·`LocalIdFactory` 인터페이스는 `@xeon/contracts/conversation`이고 구현(`createIdFactory`, `createLocalIdFactory`)은 이 패키지가 둔다(3.4절).
+- `OsService`와 그 값 타입, 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스(`src/services/os.ts`)에 둔다 [결정: review.decisions-2 D-04].
+- `Clock`, `Scheduler`, `TimerHandle`, `RandomSource`, `Logger`, `LogLevel`, `LogValue`, `LogFields`는 인터페이스만 F 루트 base(`@xeon/contracts`)에 두고 구현은 이 패키지에 둔다 [결정: review.decisions-2 U-03, `F.readme` §3·§8 10번]. `IdFactory`·`LocalIdFactory` 인터페이스는 `@xeon/contracts/conversation`이고 구현(`createIdFactory`, `createLocalIdFactory`)은 이 패키지가 둔다(3.4절).
 - 아래 코드는 F에 들어갈 정의 초안과 `platform-os` 내부 정의를 함께 적는다. 각 블록 첫 줄 주석이 위치다.
 
 ### 3.1 플랫폼 정보
@@ -250,7 +250,7 @@ export function systemRandom(): RandomSource;       // crypto.getRandomValues �
 - `ms`가 음수이거나 `NaN`이면 0으로 다룬다. 테스트 대역 `manualClock`도 같은 규칙이어야 한다(계약 테스트, 9절).
 - `systemRandom`: `crypto.getRandomValues(new Uint32Array(2))`의 53비트로 `[0, 1)` 값을 만든다 [제안]. `Math.random`보다 예측이 어렵고 `createIdFactory`·`createLocalIdFactory`가 ULID 난수 부분에 쓴다.
 - [제안] 경과 시간은 `Clock.now()` 두 값의 차이로 잰다. 단조 시계(`performance.now`)를 F 계약에 더할지는 미결 6이다.
-- ID 발급기 구현은 이 패키지에 둔다 [결정(잠정): review.decisions-2 U-03]. F에는 인터페이스 `IdFactory`·`LocalIdFactory`(`F.conversation.spec` §3.2, §3.2.1)만 있다.
+- ID 발급기 구현은 이 패키지에 둔다 [결정: review.decisions-2 U-03]. F에는 인터페이스 `IdFactory`·`LocalIdFactory`(`F.conversation.spec` §3.2, §3.2.1)만 있다.
 
 ```ts
 // platform-os 공개: src/ids.ts
@@ -266,7 +266,7 @@ export function createLocalIdFactory(clock: Clock, random: RandomSource): LocalI
 
 ### 3.5 로거
 
-`Logger` 인터페이스 위치는 (a)안으로 정해졌다 [결정(잠정): review.decisions-2 U-03, `F.readme` §8 10번]. 검토한 선택지:
+`Logger` 인터페이스 위치는 (a)안으로 정해졌다 [결정: review.decisions-2 U-03, `F.readme` §8 10번]. 검토한 선택지:
 
 | 안 | 내용 | 장점 | 단점 |
 |---|---|---|---|
@@ -318,7 +318,7 @@ export function createJsonLinesLogger(opts: JsonLinesLoggerOptions): Logger & { 
 
 | 대역 | 위치 | 용도 |
 |---|---|---|
-| `manualClock`, `seededRandom`, `fixedIdFactory` | 쓰는 패키지의 `test/` 안 | 시각·타이머·난수·ID. F에는 `./testing` 서브패스를 두지 않는다 [결정(잠정): review.decisions-2 U-03] |
+| `manualClock`, `seededRandom`, `fixedIdFactory` | 쓰는 패키지의 `test/` 안 | 시각·타이머·난수·ID. F에는 `./testing` 서브패스를 두지 않는다 [결정: review.decisions-2 U-03] |
 | `memoryLogger` [제안] | 쓰는 패키지의 `test/` 안 | 기록된 로그 줄 배열을 돌려주는 `Logger`. BP-05 좋은 예가 쓰는 이름 |
 | `tempDir`, `withIsolatedEnv` | `@xeon/platform-os/testing` | 임시 디렉터리, 격리된 환경 변수. 파일 시스템을 쓰므로 L0에 둔다 |
 
@@ -392,7 +392,7 @@ export type BinaryError =
 3. 둘 다 없으면 `not_found`. `hint`는 OS별 설치 안내 문구다(예: Linux bwrap: "bubblewrap 패키지를 설치한다"). 이 실패는 사용자 환경 문제이고 호출자는 코드를 고칠 대상으로 다루지 않는다. CLI는 환경 문제 종료코드(2 계열)로 끝낸다 [제안: 종료코드 체계는 `L4.cli.spec`].
 
 - 결과는 서비스 수명 동안 이름별로 캐시한다. 바이너리 경로가 바뀌어도 재시작 전까지 반영하지 않는다.
-- 시스템 바이너리 버전 확인은 자식 프로세스 실행이 필요하다. DR-07 표의 `Bun.spawn` 소유 패키지에 `platform-os`가 있다 [결정(잠정): review.decisions-2 U-17].
+- 시스템 바이너리 버전 확인은 자식 프로세스 실행이 필요하다. DR-07 표의 `Bun.spawn` 소유 패키지에 `platform-os`가 있다 [결정: review.decisions-2 U-17].
 - 번들 정책: `rg`만 번들로 확정했다. `sops`, `age`, `bwrap`, `socat`의 번들 여부는 미결 3이다. 정해지기 전에는 시스템 바이너리를 요구하고 없으면 안내한다.
 
 ### 3.7 사용자 알림 (1차, M3)
@@ -436,7 +436,7 @@ export function buildNotifyCommand(info: OsInfo, n: OsNotification): readonly st
 | `desktop-tauri` | 데스크톱 앱에서는 엔진이 사이드카라 Tauri API를 직접 부를 수 없다. L4 host가 wire 알림으로 UI에 넘기고 UI가 Tauri 알림을 띄운다. 이 provider는 L4가 구현해 플러그인 설정으로 주입한다 | — |
 
 - 선택: L4가 환경 provider를 넘기면 그것을 쓴다. 넘기지 않으면 `select.ts`가 OS provider를 고른다. 선택 기준은 배포 환경이 먼저이고 OS가 다음이다.
-- 켜기·끄기: 이 패키지는 알림 켜기·종류 설정을 두지 않는다. 알림을 보낼지는 호출자(`cap-dialog`)가 `l2.dialog.notify.os`와 종류별 키(`l2.dialog.notify.<kind>`)로 정하고, 이 패키지는 받은 알림을 그대로 내보낸다 [결정(잠정): review.decisions-2 S-04]. `notify`가 `disabled`를 돌려주는 경우는 M3 이전 빌드와 조립 루트가 provider `none`을 고른 경우뿐이다.
+- 켜기·끄기: 이 패키지는 알림 켜기·종류 설정을 두지 않는다. 알림을 보낼지는 호출자(`cap-dialog`)가 `l2.dialog.notify.os`와 종류별 키(`l2.dialog.notify.<kind>`)로 정하고, 이 패키지는 받은 알림을 그대로 내보낸다 [결정: review.decisions-2 S-04]. `notify`가 `disabled`를 돌려주는 경우는 M3 이전 빌드와 조립 루트가 provider `none`을 고른 경우뿐이다.
 - 비밀: 알림 본문과 제목은 OS 알림 센터에 남는다. 호출자는 마스킹한 문자열만 넘기고, `platform-os`도 보내기 전에 로거와 같은 `redact`를 한 번 더 적용한다 [제안]. 도구 인자, 프롬프트 본문 원문은 넣지 않는다.
 - WSL: linux provider가 쓰이며 `notify-send`가 보통 없다. Windows 토스트 상호운용(`powershell.exe` 호출)을 쓸지는 미결 4다.
 - 같은 `threadId`·`kind` 알림이 1초 안에 반복되면 하나만 보낸다(`Scheduler` 기반 디바운스) [제안].
@@ -634,14 +634,14 @@ export function platformOsPlugin(config: PlatformOsConfig): PlatformModule;   //
 | `l0.os.dirs.override` | string | 없음 | 절대 경로 | restart | managed | 화면에 두지 않음 | 아니오 | 파일(관리 설정)만. 환경 변수 `XEON_HOME`이 같은 역할을 한다 |
 | `l0.os.log.level` | string | `"info"` | enum `debug`, `info`, `warn`, `error` | live | managed, user, local, session | advanced / select | 아니오 | 화면, 파일, 명령 |
 
-- 알림 켜기·종류 키는 이 표에 두지 않는다. 정본은 `L2.dialog.spec` §6의 `l2.dialog.notify.*`이고 기본값과 탭도 그 표를 따른다 [결정(잠정): review.decisions-2 S-04].
+- 알림 켜기·종류 키는 이 표에 두지 않는다. 정본은 `L2.dialog.spec` §6의 `l2.dialog.notify.*`이고 기본값과 탭도 그 표를 따른다 [결정: review.decisions-2 S-04].
 - `dirs.override`: 사용자 설정 파일은 `config` 디렉터리 안에 있으므로 사용자 범위에서 이 값을 읽을 수 없다(순환). 그래서 관리 범위만 허용한다 [제안]. 관리 설정 파일 위치는 L4가 정한다.
 - 이 표의 키 이름은 F 키 문법(`^l0\.os(\.[a-z][A-Za-z0-9]*)+$`)을 지킨다.
 
 ## 7. 확장 지점
 
 - 이 패키지는 on 지점을 구독하지 않고, post·drive·scope를 쓰지 않는다(`L0.readme` §1).
-- X에서 쓰는 것은 `PlatformModule`(`setup`), `PlatformContext.providePort`, `onDispose`(4절 6번)다. 등록은 조립 루트가 `ExtHost.registerPlatform`으로 한다(`X.primitives.spec` §3.2). `@xeon/ext-host` import는 이 등록 API에 한정한 DR-14 예외다 [결정(잠정): review.decisions-2 U-17].
+- X에서 쓰는 것은 `PlatformModule`(`setup`), `PlatformContext.providePort`, `onDispose`(4절 6번)다. 등록은 조립 루트가 `ExtHost.registerPlatform`으로 한다(`X.primitives.spec` §3.2). `@xeon/ext-host` import는 이 등록 API에 한정한 DR-14 예외다 [결정: review.decisions-2 U-17].
 - 확장(플러그인)이 알림을 보내려면 `dialog.notify`의 `emit`을 쓴다(`L2.dialog.spec` §3.6). `xeon.os`의 `notify`는 `cap-dialog`가 부르는 전달 수단이다. 확장이 OS 명령을 직접 실행하는 경로는 없다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -672,9 +672,9 @@ export function platformOsPlugin(config: PlatformOsConfig): PlatformModule;   //
 F에 요청:
 
 1. `@xeon/contracts` 루트 base: `Clock`, `TimerHandle`, `Scheduler`, `RandomSource`(이미 `eng.typescript.guide` §1.2 이름)와 `Logger`, `LogLevel`, `LogValue`, `LogFields`(3.5절)를 둔다. `F.readme` §3에 반영되었다(U-03).
-2. (철회) `@xeon/contracts/testing` 서브패스는 두지 않는다 [결정(잠정): review.decisions-2 U-03]. `manualClock`, `seededRandom`, `fixedIdFactory`, `memoryLogger`는 쓰는 패키지의 `test/` 안에 둔다.
-3. `@xeon/contracts/services` [결정(잠정): review.decisions-2 D-04]: `OsService`, `OsServiceName`, `OsTime`, `FingerprintError`, `OsInfo`, `OsInfoSchema`, `OsPlatform`, `OsArch`, `PlatformError`, `OsDirs`, `DirsError`, `FsKind`, `FsKindError`, `BinaryName`, `BinarySource`, `ResolveBinaryOptions`, `ResolvedBinary`, `BinaryError`, `NotifyKind`, `OsNotification`, `NotifyError`, `FileChangeType`, `FileChange`, `WatchOptions`, `WatchHandle`, `WatchError`, `OsTelemetry`.
-4. (반영됨) `eng.dependency-rules.guide` DR-07 표: `@vscode/ripgrep`, `@parcel/watcher`, `pi-telemetry`, `@opentelemetry/sdk-trace-node`, `@opentelemetry/api`(값 import)의 소유 패키지와 `Bun.spawn` 소유 패키지에 `platform-os`가 있다 [결정(잠정): review.decisions-2 U-17].
+2. (철회) `@xeon/contracts/testing` 서브패스는 두지 않는다 [결정: review.decisions-2 U-03]. `manualClock`, `seededRandom`, `fixedIdFactory`, `memoryLogger`는 쓰는 패키지의 `test/` 안에 둔다.
+3. `@xeon/contracts/services` [결정: review.decisions-2 D-04]: `OsService`, `OsServiceName`, `OsTime`, `FingerprintError`, `OsInfo`, `OsInfoSchema`, `OsPlatform`, `OsArch`, `PlatformError`, `OsDirs`, `DirsError`, `FsKind`, `FsKindError`, `BinaryName`, `BinarySource`, `ResolveBinaryOptions`, `ResolvedBinary`, `BinaryError`, `NotifyKind`, `OsNotification`, `NotifyError`, `FileChangeType`, `FileChange`, `WatchOptions`, `WatchHandle`, `WatchError`, `OsTelemetry`.
+4. (반영됨) `eng.dependency-rules.guide` DR-07 표: `@vscode/ripgrep`, `@parcel/watcher`, `pi-telemetry`, `@opentelemetry/sdk-trace-node`, `@opentelemetry/api`(값 import)의 소유 패키지와 `Bun.spawn` 소유 패키지에 `platform-os`가 있다 [결정: review.decisions-2 U-17].
 
 ## 9. 수용 기준
 
@@ -693,7 +693,7 @@ F에 요청:
 
 ## 10. 미결 사항
 
-1. [결정(잠정): review.decisions-2 U-03] `Logger`·`Clock` 인터페이스 위치는 F 루트 base((a)안)이고 구현과 ID 발급기 구현은 이 패키지, 테스트 대역은 쓰는 패키지의 `test/`다(3.4절, 3.5절).
+1. [결정: review.decisions-2 U-03] `Logger`·`Clock` 인터페이스 위치는 F 루트 base((a)안)이고 구현과 ID 발급기 구현은 이 패키지, 테스트 대역은 쓰는 패키지의 `test/`다(3.4절, 3.5절).
 2. [미결] 파일 감시 책임 경계. 작업 공간 = exec(`ExecutionEnv.watch`), 앱 설정·스킬·플러그인 디렉터리 = os(`FileWatcher`). 계획 v2의 "ExecutionEnv.watch를 쓰고 없으면 @parcel/watcher" 문장과 다르므로 사용자 확인이 필요하다. `L0.exec.spec`과 같은 문장으로 맞춘다.
 3. [미결] `sops`, `age`, `bwrap`, `socat`의 번들 정책. 번들하면 설치가 쉬워지고 배포 크기와 라이선스 고지, 보안 갱신 책임이 늘어난다. 정해지기 전에는 시스템 바이너리를 요구한다.
 4. [미결] WSL 알림에서 Windows 토스트 상호운용(`powershell.exe`)을 쓸지.

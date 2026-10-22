@@ -30,12 +30,12 @@ binds: [xeon/packages/cap-schedule/**]
 
 다루지 않는 것:
 
-- 프로세스 레지스트리, 분리(detached) spawn: `L0.process.spec`. 쓰기 소유 판정(OS 잠금 + `sys_leases.epoch` 펜싱): `L0.store.spec`, `L1.persistence.spec` [결정(잠정): review.decisions-2 U-09].
+- 프로세스 레지스트리, 분리(detached) spawn: `L0.process.spec`. 쓰기 소유 판정(OS 잠금 + `sys_leases.epoch` 펜싱): `L0.store.spec`, `L1.persistence.spec` [결정: review.decisions-2 U-09].
 - 워크트리 격리 자체, 파일 감시, OS 알림, 타이머 원시 기능: `L0.os.spec`, `L0.sandbox.spec`.
 - 임대 테이블 `sys_leases`와 펜싱: `L0.store.spec`, `eng.transactions.design` §3.3.
 - 서브에이전트 백그라운드 위임과 그 결과 전달: `L1.agents.spec`.
 - 입력 큐와 전달 모드: `L1.tasks.spec`(`xeon.tasks`).
-- 서비스 프로세스 수명, 등록 파일, 유휴 종료 판정 함수, 원격 연결의 수용과 인증: `L4.host-service.spec`. 원격은 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이고, 내장 TLS + 토큰 WebSocket은 2차다 [결정(잠정): review.decisions-2 U-11].
+- 서비스 프로세스 수명, 등록 파일, 유휴 종료 판정 함수, 원격 연결의 수용과 인증: `L4.host-service.spec`. 원격은 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이고, 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
 - 목표 판정: `L2.work.spec`(`work.goals`). 이 문서는 선택 의존으로만 쓴다.
 - 예약 세션에서 어떤 그룹 동작을 끌지 정하는 규칙: L3 그룹 문서(§4.4.8 경계).
 - OS 서비스 등록(launchd, systemd)과 재부팅 뒤 자동 시작: 2차(`product.scope.spec` §4.2 N3).
@@ -46,7 +46,7 @@ binds: [xeon/packages/cap-schedule/**]
 
 | 이 층이 소유하는 것 | 호출만 하는 것 (소유자) | 다른 층이 소유하는 것 |
 |---|---|---|
-| 루프 정의, 종료 조건 판정, 반복 횟수, 만료와 `schedule.loop_*` 이벤트 | 입력 큐 투입 `xeon.tasks` post (`L1.tasks.spec`) | 입력 큐, 전달 모드, `input.*`·`post.accepted`(L1.tasks) |
+| 루프 정의, 종료 조건 판정, 반복 횟수, 만료와 `schedule.loop_*` 이벤트 | 입력 큐 투입 `xeon.tasks` post (`L1.tasks.spec`) | 입력 큐, 전달 모드, `input.*`(L1.tasks) |
 | 웨이크업 예약과 `schedule.wakeup_*` | 타이머 `xeon.os` (`L0.os.spec`) | 시계·타이머 원시 기능(L0.os) |
 | 셸 종료 조건의 판정(종료 코드 비교) | 명령 실행 `xeon.exec`·`xeon.sandbox` (`L0.exec.spec`, `L0.sandbox.spec`) | 실행 환경과 격리 정책(L0) |
 | 작업 상태 분류 규칙(4상태)과 감시(`watch`) | 프로세스 목록·출력 `xeon.process` (`L0.process.spec`), 위임 실행 `xeon.agents` (`L1.agents.spec`) | 프로세스 레지스트리(L0.process), 백그라운드 위임과 자식 세션(L1.agents) |
@@ -1276,7 +1276,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 - `list`는 세션의 실행 상태(소유자 표시, idle·working·needs_input, 작업 수, 마지막 활동)를 돌려준다. 제목과 라벨은 `artifacts.sessions`가 소유하고, 두 능력은 서로 부르지 않는다. L4 세션 목록 화면이 `threadId`로 두 결과를 합친다 [제안].
 - 상태 계산: 진행 중 turn이 있으면 working, 해결되지 않은 승인 요청이 있으면 needs_input(우선), 그 밖에 idle이다. turn 진행 여부는 `turn.started`·`turn.completed`(또는 `turn.ended`) 이벤트 투영으로 센다.
-- 소유자 표시는 그 세션의 `sys_leases` 행(`kind`, `host`, `epoch`)에서 온다. 별도 소유자 표시 열은 두지 않는다 [결정(잠정): review.decisions-2 U-09]. 표시값은 틀릴 수 있으며 판단 근거로 쓰지 않는다. 읽는 경로는 `xeon.session`의 조회 API다 [가정].
+- 소유자 표시는 그 세션의 `sys_leases` 행(`kind`, `host`, `epoch`)에서 온다. 별도 소유자 표시 열은 두지 않는다 [결정: review.decisions-2 U-09]. 표시값은 틀릴 수 있으며 판단 근거로 쓰지 않는다. 읽는 경로는 `xeon.session`의 조회 API다 [가정].
 - `create`의 `worktree`는 워크트리를 만든 뒤 그 경로를 `workspace`로 세션을 만든다. 워크트리 연산(만들기, 목록, 지우기)은 `L0.os.spec`에 없다. [미결] L0.os에 연산 추가를 요청할지, `xeon.exec`로 `git worktree`를 실행할지 정한다(§10 미결 13). 워크트리 격리(파일 시스템 경계, 샌드박스 허용 경로)는 L0(`L0.os.spec`, `L0.sandbox.spec`)의 것이다.
 - `worktreeRemove`는 그 워크트리를 쓰는 세션 중 working인 것이 있으면 `worktree_in_use`다.
 - 워크트리 도구 노출 [제안]: 기본 꺼짐(`l2.schedule.tools.worktree: false`). 선택 기능이고, 켜면 모델이 브랜치와 디렉터리를 만들고 지울 수 있다. 서비스 메서드는 항상 쓸 수 있으므로 L4 명령(`/worktree`)과 그룹은 영향을 받지 않는다.
@@ -1360,7 +1360,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `"reject"` | `unavailable`, `detail.reason: "service_mode_off"`와 조치 안내. 저장하지 않는다 | 없음 |
 | `"keepWithWarning"` | 저장하고 결과 `warnings`에 `runs_only_while_app_open`을 싣는다 | 앱 호스트가 임대를 쥐는 동안(앱이 열려 있는 동안)만 틱이 돈다. 앱을 닫은 동안의 기한은 다음에 앱을 열 때 놓친 실행 정책을 따른다 |
 
-- 기본값은 `"autoStart"`다 [결정(잠정): review.decisions-2 U-23]. 서비스 모드 자동 기동은 결정 2의 1차 범위이고, 기동에 실패하면 거부하므로 사용자가 "예약했는데 안 돌았다"를 겪지 않는다. `L2.readme` §8의 수준 2 규칙과 같다. UC-4 대안 흐름("앱을 닫으면 멈춘다는 점을 예약 생성 때 표시한다")은 `"keepWithWarning"`이 구현한다.
+- 기본값은 `"autoStart"`다 [결정: review.decisions-2 U-23]. 서비스 모드 자동 기동은 결정 2의 1차 범위이고, 기동에 실패하면 거부하므로 사용자가 "예약했는데 안 돌았다"를 겪지 않는다. `L2.readme` §8의 수준 2 규칙과 같다. UC-4 대안 흐름("앱을 닫으면 멈춘다는 점을 예약 생성 때 표시한다")은 `"keepWithWarning"`이 구현한다.
 - 자동 기동 요청 경로는 `l2.schedule.service.ensureOnCreate`와 같은 클라이언트 호스트 `ensure`다. 요청 경로는 `L4.host-service.spec`이 정한다 [가정].
 - 서비스 모드가 켜져 있는데 서비스가 떠 있지 않으면 `create`는 저장한 뒤, `l2.schedule.service.ensureOnCreate`(기본 참)이면 클라이언트 호스트에 `ensure`를 요청한다. 요청 경로는 `L4.host-service.spec`이 정한다 [가정].
 
@@ -1374,13 +1374,13 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 - Hermes는 cron 세션에서 학습 관련 동작(메모리 쓰기 등)을 제한한다(`_research/refs/hermes.md` 91행 자식 차단 도구 목록의 `cronjob_manage`, `memory`). Xeon에서 "예약 세션에서는 학습 검토를 끈다" 같은 규칙은 L3 그룹 소관이다.
 - 이 능력이 하는 일은 표식뿐이다. 실행 세션의 첫 이벤트로 `schedule.run_started { origin: "timer" }`를 남긴다. L3 그룹은 자기 투영기에서 이 kind를 읽어 그 세션을 예약 세션으로 알아본다. `xeon.session.create`의 `origin: "timer"`도 같은 정보를 세션 메타에 남긴다 [가정].
-- 이 능력은 L3 그룹을 부르지 않고 L3 그룹의 설정도 읽지 않는다. 이 문서는 L3 그룹 이름을 쓰지 않는다 [결정(잠정): review.decisions-2 D-11].
+- 이 능력은 L3 그룹을 부르지 않고 L3 그룹의 설정도 읽지 않는다. 이 문서는 L3 그룹 이름을 쓰지 않는다 [결정: review.decisions-2 D-11].
 
 ### 4.5 원격 제어
 
 #### 4.5.1 경계
 
-- 원격 사용은 1차(M3)다. 원격 클라이언트는 서비스의 로컬 소켓에 SSH 터널이나 사설망(Tailscale 등)으로 연결한다. 서비스는 비루프백 리스너를 열지 않는다. 내장 TLS + 토큰 WebSocket은 2차다 [결정(잠정): review.decisions-2 U-11].
+- 원격 사용은 1차(M3)다. 원격 클라이언트는 서비스의 로컬 소켓에 SSH 터널이나 사설망(Tailscale 등)으로 연결한다. 서비스는 비루프백 리스너를 열지 않는다. 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
 - 연결 수용, 토큰 발급·저장, 인증 절차는 `L4.host-service.spec` 소관이다.
 - 이 문서가 정하는 것: 원격 클라이언트가 승인과 질문에 답하는 흐름, 원격 기능의 켜기·끄기 정책, 감사 기록, 인증 요구 사항.
 
@@ -1466,7 +1466,7 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 | `l2.schedule.tools.jobs` | boolean | false | — | nextTurn | managed, user, project, local, session | tools | false | 화면. `job_*`, `monitor_start` |
 | `l2.schedule.tools.worktree` | boolean | false | — | nextTurn | managed, user, project, local, session | tools | false | 화면. `worktree_*` |
 
-- 안전 상한(`l2.schedule.timers.maxRunsPerHour`, `l2.schedule.timers.minIntervalSeconds`, `l2.schedule.timers.maxActive`, `l2.schedule.loops.maxIterations`, `l2.schedule.loops.maxLifetimeHours`)은 pi 방식(기본 상한 없음)의 예외다. 사용자 입력 없이 실행되는 경로라 상한이 없으면 무한 실행된다 [결정(잠정): review.decisions-2 U-22].
+- 안전 상한(`l2.schedule.timers.maxRunsPerHour`, `l2.schedule.timers.minIntervalSeconds`, `l2.schedule.timers.maxActive`, `l2.schedule.loops.maxIterations`, `l2.schedule.loops.maxLifetimeHours`)은 pi 방식(기본 상한 없음)의 예외다. 사용자 입력 없이 실행되는 경로라 상한이 없으면 무한 실행된다 [결정: review.decisions-2 U-22].
 - 타이머·원격 키의 `allowedScopes`를 `managed`, `user`로 좁힌 이유: 예약과 원격은 기기 단위 기능이고, 저장소를 받는 것만으로 예약 폭주나 원격 접속이 켜지지 않게 하려는 것이다.
 - `l2.schedule.remote.tokenRef`는 D2·D3 규칙에 따라 `default`가 없고 `ui.widget`은 `"secret"`이다.
 - `l2.schedule.remote.enabled`와 서비스 사용 설정(`l0.process.service.enabled`, `L0.process.spec` §6)은 다른 키다. 서비스 로컬 소켓 위치는 설정 키가 없고 `L0.process.spec` §4.4가 `<runtimeDir>/xeon.sock`으로 정한다.
@@ -1531,8 +1531,8 @@ oh-my-pi는 오래 걸리는 bash를 자동으로 백그라운드로 돌린다(`
 
 ## 10. 미결 사항
 
-1. [결정(잠정): review.decisions-2 U-11] 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이다. 내장 TLS + 토큰 WebSocket은 2차다. 이 문서의 `schedule.remote`는 서비스가 없으면 `status.transport: "unavailable"`로 동작한다.
-2. [결정(잠정): review.decisions-2 K-09] 새 ID 접두 `lop`, `wak`, `tmr`, `wch`는 F.conversation.spec §3.2.1 `LocalIdPrefix` 표의 지역 ID로 둔다.
+1. [결정: review.decisions-2 U-11] 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이다. 내장 TLS + 토큰 WebSocket은 2차다. 이 문서의 `schedule.remote`는 서비스가 없으면 `status.transport: "unavailable"`로 동작한다.
+2. [결정: review.decisions-2 K-09] 새 ID 접두 `lop`, `wak`, `tmr`, `wch`는 F.conversation.spec §3.2.1 `LocalIdPrefix` 표의 지역 ID로 둔다.
 3. [미결] 모바일 푸시와 알림 채널의 소유(§4.5.4). 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다.
 4. [미결] `eng.context-map.design` §4.1 schedule 행 (d)열에 `xeon.session`, `xeon.agents`, `xeon.approvals`, `xeon.exec`, `xeon.sandbox`를 더하는 개정(§3.10).
 5. 닫힘. 세션 생성 멱등은 `L1.persistence.spec` §4.10.1의 `creationKey`(`thread_creation_keys`)로 한다(§4.4.4 둘째 장치).

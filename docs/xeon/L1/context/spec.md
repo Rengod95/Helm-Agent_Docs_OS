@@ -58,7 +58,7 @@ binds: [xeon/packages/core-context/**]
 
 ### 3.1 서비스 (F 요청 사항)
 
-서비스 인터페이스 `ContextService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정(잠정): review.decisions-2 D-04]. `CachePolicy`, `CacheMarks`, `ModelBinding`, `ContextUsageEstimate`는 `L1.models.spec` §3.2~§3.6이 F capabilities에 두도록 요청한 이름이고, services 서브패스가 그 이름을 import한다. `eng.context-map.design` §5.3의 위치 표기(conversation)를 services로 고치도록 요청한다.
+서비스 인터페이스 `ContextService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. `CachePolicy`, `CacheMarks`, `ModelBinding`, `ContextUsageEstimate`는 `L1.models.spec` §3.2~§3.6이 F capabilities에 두도록 요청한 이름이고, services 서브패스가 그 이름을 import한다. `eng.context-map.design` §5.3의 위치 표기(conversation)를 services로 고치도록 요청한다.
 
 ```ts
 // xeon/packages/contracts/src/services/context.ts (F 요청, review.decisions-2 D-04)

@@ -84,7 +84,7 @@ import { CapabilityIdSchema, SemVerSchema, SemVerRangeSchema } from "../capabili
 import { PointNameSchema } from "./points.ts";                                          // §3.3
 import { RecordKindDeclJsonSchema, RECORD_KIND_READ_PATTERN } from "./group-record.ts";   // §3.6
 
-/** [결정(잠정): review.decisions-2 U-18] 소문자·숫자·하이픈 2~32자. 밑줄은 쓰지 않는다.
+/** [결정: review.decisions-2 U-18] 소문자·숫자·하이픈 2~32자. 밑줄은 쓰지 않는다.
  *  확장 테이블 접두는 "x_<이름의 하이픈을 밑줄로>_"이고 지역 테이블 이름에는 밑줄을 쓰지 않는다 */
 export const EXTENSION_NAME_PATTERN = "^[a-z][a-z0-9-]{1,31}$";
 export const ExtensionNameSchema = Type.String({ pattern: EXTENSION_NAME_PATTERN });
@@ -250,7 +250,7 @@ export interface DriveLimits {
 }
 
 export interface DriveOptions {
-  /** 그룹이 요청하는 상한. 설정(§6)의 상한보다 클 수 없다 */
+  /** 그룹이 요청하는 상한. 없는 필드는 X 기본값 x.primitives.driveDefaultLimits를 쓰고, 천장 x.primitives.driveLimits보다 클 수 없다(§6) */
   readonly limits?: DriveLimits;
 }
 
@@ -345,7 +345,7 @@ export interface ScopeApi<S> extends ExtensionOps<S> {
   readRecords(query: RecordQuery): Promise<readonly GroupRecord[]>;
   /** 비공개 기록. kind는 자기 접두(그룹 grp.<name>.*, 플러그인 x.<name>.*)만 받는다.
    *  다른 확장의 readRecords로 조회되지 않는다. 의미와 멱등 키 규칙은 X.primitives.spec이 정한다
-   *  [결정(잠정): review.decisions-2 T-21] */
+   *  [결정: review.decisions-2 T-21] */
   recordPrivate(kind: RecordKind, payload: JsonValue): Promise<void>;
   /** 능력 서비스 API. key의 능력은 매니페스트 requires나 optional에 있어야 한다 */
   capability<Api>(key: ServiceKey<Api>): Api;
@@ -378,7 +378,7 @@ export type ExtensionEntry = (host: {
 
 [제안] `ScopeApi`는 4연산과 상태·레코드·능력 조회만 둔다. 능력 공급자 등록(`provide`), 포트 제공·조회, 리소스 등록(도구, 명령, provider, MCP 서버 등), 상태 마이그레이션은 X의 공식 부가 API `hostOf(g)`(`X.primitives.spec` §3.8 `ScopeHostApi`)로 한다. `ScopeApi`에 `provide`를 넣지 않는 이유는 공급자 등록이 Cordis 서비스 이름 유도(`cap:<id>`)와 fiber 추적을 함께 요구해 X 구현과 떨어질 수 없기 때문이다. 공급 대상 능력은 매니페스트 `provides`에 있어야 한다(§4.7).
 
-[결정(잠정): review.decisions-2 U-14, D-04] X가 L0·L1을 import하지 않고 루프, 입력 큐, 기록, 투영기 등록, 접두 테이블, 프로세스, 리소스 등록을 쓰도록 호스트 포트 타입을 F에 둔다. 아래 블록이 이름과 필드의 정본이다(`architecture.layers.spec` §4.3.3 결론 2번). `X.primitives.spec` §3.6·§3.9, `X.loading-trust.spec` §3.2·§3.7·§3.8, `X.operations.spec` §3.7에 있던 블록을 이 파일로 옮겼다. ext-host는 이 이름을 `import type`으로 가져와 다시 export하고 자기 정의를 두지 않는다. 기록 포트(`RecordCommitPort`)는 `SessionService.ext`가 쓰므로 records에 두고 여기서 다시 export한다(`F.records.spec` §3.9).
+[결정: review.decisions-2 U-14, D-04] X가 L0·L1을 import하지 않고 루프, 입력 큐, 기록, 투영기 등록, 접두 테이블, 프로세스, 리소스 등록을 쓰도록 호스트 포트 타입을 F에 둔다. 아래 블록이 이름과 필드의 정본이다(`architecture.layers.spec` §4.3.3 결론 2번). `X.primitives.spec` §3.6·§3.9, `X.loading-trust.spec` §3.2·§3.7·§3.8, `X.operations.spec` §3.7에 있던 블록을 이 파일로 옮겼다. ext-host는 이 이름을 `import type`으로 가져와 다시 export하고 자기 정의를 두지 않는다. 기록 포트(`RecordCommitPort`)는 `SessionService.ext`가 쓰므로 records에 두고 여기서 다시 export한다(`F.records.spec` §3.9).
 
 ```ts
 // ports.ts
@@ -461,7 +461,7 @@ export interface EnqueueResult {
   readonly duplicate: boolean;
 }
 export interface InputQueuePort {
-  /** post.accepted와 입력 큐 항목을 한 커밋으로 남긴다(F.records.spec §3.3) */
+  /** 입력 큐 항목(input.queued, source.type "extension")을 커밋한다. 멱등은 커밋 키가 맡는다(review.decisions-2 U-05) */
   enqueue(request: EnqueueRequest): Promise<EnqueueResult>;
 }
 export const InputQueuePortKey: PortKey<InputQueuePort>;           // { name: "xeon.tasks" }
@@ -1117,7 +1117,7 @@ chain의 보충 규칙 [제안]:
 ### 4.5 켜기·끄기
 
 - [결정] 켜기와 끄기는 경계에서 적용되고, 정리는 Cordis dispose로 실행된다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 5).
-- [결정(잠정): review.decisions-2 U-01] 적용 시점은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤, `turn_end` 처리 뒤)다(F.conversation.spec §2, §2.1). drive 임대 교대도 같은 시점이다. turn의 마지막 step이 끝나는 시점도 단계 경계이므로 turn 정착 시점을 따로 두지 않는다. 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec이 정한다. drive 임대의 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 step이나 `loop.turn()`은 중간에 끊지 않는다.
+- [결정: review.decisions-2 U-01] 적용 시점은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤, `turn_end` 처리 뒤)다(F.conversation.spec §2, §2.1). drive 임대 교대도 같은 시점이다. turn의 마지막 step이 끝나는 시점도 단계 경계이므로 turn 정착 시점을 따로 두지 않는다. 실행 중인 turn이 없을 때의 적용 시점은 X.primitives.spec이 정한다. drive 임대의 반납은 `loop.turn()` 호출 사이에서만 일어난다. 실행 중인 step이나 `loop.turn()`은 중간에 끊지 않는다.
 - `enable()`, `disable()`은 요청만 기록한다. 상태는 `enabling`, `disabling`을 거쳐 적용 지점에서 바뀐다.
 - 비활성화 적용 순서 [제안]: on 핸들러 제외 → drive 임대 반납 → `onDispose` 정리 동작 실행. 큐에 이미 들어간 post 항목은 그대로 둔다.
 
@@ -1131,7 +1131,7 @@ chain의 보충 규칙 [제안]:
   - `loop.turn`과 `loop.spawn`의 기본 `requestId`는 `${leaseId}:${순번}`이다. 재호출된 함수가 같은 순서로 같은 호출을 하면 이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려받는다.
   - 클로저 지역 변수에 진행 상태를 두는 drive 함수는 재개 뒤 다르게 동작한다. 이 위반은 타입으로 막을 수 없다. 결정성 검사(`Date.now`, `Math.random` 금지 등)는 L3.group-kit.spec의 lint 규칙으로 보완한다(`_research/packages.md` §4.6 L3-a).
 - 예산: [결정] 일반 대화 turn에는 기본 상한을 두지 않고 상한은 drive 임대에만 건다(`_research/decisions-log.md` 20행 "예산은 pi 방식"). `LeaseBudget`은 남은 양이고 `null`은 상한 없음이다. 상한에 이르면 `loop.turn`과 `loop.spawn`은 거부되고 임대는 `releasing`이 된다.
-  - [결정(잠정): review.decisions-2 U-12] drive는 사용자 입력 없이 turn을 만들므로 pi 방식의 예외로 기본 상한을 둔다. Helm의 기본값은 `l3.helm.driveLimits` 4/8/400000이고(`L3.helm.spec`), 실효 상한은 `x.primitives.driveLimits`와 `DriveOptions.limits`의 필드별 최솟값이다(`X.primitives.spec` §4.4.2).
+  - [결정: review.decisions-2 U-12] drive는 사용자 입력 없이 turn을 만들므로 pi 방식의 예외로 기본 상한을 둔다. 상한을 명시하지 않은 임대는 X 설정 `x.primitives.driveDefaultLimits`(기본 4/8/400000)를 쓰고, 그룹은 자기 설정(Helm은 `l3.helm.driveLimits`, 기본 4/8/400000)으로 덮어쓴다. 천장 `x.primitives.driveLimits`(기본 없음)를 넘지 못한다. 세 키 모두 설정 화면에서 조정한다(`X.primitives.spec` §4.4.2, §6).
 
 ### 4.7 정적 검사 규칙
 
@@ -1141,7 +1141,7 @@ chain의 보충 규칙 [제안]:
 |---|---|---|
 | `schema` | error | `ExtensionManifestSchema` 위반 |
 | `unknown_key` | warning | 알 수 없는 최상위 키(제거됨) |
-| `name_invalid` / `name_reserved` | error | 이름 형식 위반 / `core`, `ext`, `grp`, `x`, `xeon` 또는 L2 도메인 이름을 외부 확장(`trust.level`이 `builtin`이 아님)이 씀 |
+| `name_invalid` / `name_reserved` | error | 이름 형식 위반 / `core`, `ext`, `grp`, `x`, `xeon` 또는 L2 도메인 이름을 외부 확장(`trust.level`이 `builtin`이 아님)이 씀. 입력 출처 키 `user`, `deleg`, `timer`(F `RESERVED_SOURCE_KEYS`)는 신뢰 등급과 무관하게 모든 확장에 금지한다(review.decisions-2 U-13, `eng.transactions.design` §4.7) |
 | `layer_kind_mismatch` | error | `kind: "group"`인데 `layer`가 `L3`가 아님, 또는 `layer: "L3"`인데 `kind`가 `group`이 아님 |
 | `drive_requires_group` | error | `usesDrive: true`인데 `kind`가 `group`이 아님 |
 | `entry_invalid` | error | `entry`가 절대 경로이거나 `..`로 확장 루트 밖을 가리킴 |
@@ -1177,7 +1177,7 @@ chain의 보충 규칙 [제안]:
 ### 4.8 그룹 간 통신
 
 - [결정] 그룹끼리 직접 참조하지 않는다. 그룹 사이 통신은 F4 형식의 이벤트와 그룹 레코드로만 한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 3).
-- [결정(잠정): review.decisions-2 D-10] F는 그룹 레코드의 형식(kind 접두, `GroupRecord`, `RecordKindDecl`)만 두고 그룹 사이 레코드의 payload 스키마는 두지 않는다. payload 스키마는 쓰는 그룹이 매니페스트 `recordKinds`에 선언한다. 그룹은 다른 그룹의 비공개 기록(`ScopeApi.recordPrivate`)을 읽지 않는다.
+- [결정: review.decisions-2 D-10] F는 그룹 레코드의 형식(kind 접두, `GroupRecord`, `RecordKindDecl`)만 두고 그룹 사이 레코드의 payload 스키마는 두지 않는다. payload 스키마는 쓰는 그룹이 매니페스트 `recordKinds`에 선언한다. 그룹은 다른 그룹의 비공개 기록(`ScopeApi.recordPrivate`)을 읽지 않는다.
 - 그룹 패키지는 다른 그룹 패키지를 import하지 않는다(같은 층 import 금지, `_research/foundation-plan.md` §3). check-layers가 이를 거부한다.
 - 그룹 레코드 쓰기는 `ScopeApi.record`만 쓴다. 쓰는 그룹은 매니페스트 `recordKinds`에 `RecordKindDecl`을 선언한다. X는 쓰기 시 `validateGroupRecord`로 payload를 검사한다.
 - 읽기는 `ScopeApi.readRecords`만 쓴다. 읽는 그룹은 `readsRecordKinds`에 종류나 `grp.<id>.*`를 선언한다. 대상 그룹이 설치되어 있지 않으면 빈 목록이다(오류 아님).
@@ -1206,7 +1206,7 @@ chain의 보충 규칙 [제안]:
 7. drive 함수가 `loop.turn` 없이 반환함: 다음 경계에서 다시 호출된다. 같은 상태로 연속 두 번 아무 효과 없이 반환하면 X가 임대를 반납한다 [제안].
 8. `readRecords`의 대상 그룹이 제거됨: 이미 기록된 레코드는 이벤트 로그에 남으므로 계속 읽힌다. 새 레코드만 없다.
 9. 레코드 `version`이 읽는 쪽이 아는 버전보다 큼: `record_version_unknown` 경고와 함께 payload를 원형 그대로 돌려준다. 해석 실패 처리는 읽는 그룹 몫이다.
-10. pi 확장을 그대로 올릴 때 `tool_call`의 `event.input` 제자리 수정에 의존하는 경우: 페이로드가 읽기 전용이라 동작하지 않는다. `tool_call`은 인자 변경을 지원하지 않는다(허용·거부·결과 대체만) [결정(잠정): review.decisions-2 U-06]. 인자 변경이 필요하면 2차에 chain 지점을 따로 더한다.
+10. pi 확장을 그대로 올릴 때 `tool_call`의 `event.input` 제자리 수정에 의존하는 경우: 페이로드가 읽기 전용이라 동작하지 않는다. `tool_call`은 인자 변경을 지원하지 않는다(허용·거부·결과 대체만) [결정: review.decisions-2 U-06]. 인자 변경이 필요하면 2차에 chain 지점을 따로 더한다.
 
 ## 6. 설정 노출
 
@@ -1215,9 +1215,9 @@ chain의 보충 규칙 [제안]:
 | 연결 | 내용 | L4 노출 |
 |---|---|---|
 | 매니페스트 `userConfig` | 항목마다 F.wire-settings 설정 키 하나(`ext.<name>.<userConfig 키>`)를 가리킨다. `sensitive`면 비밀 참조로 저장한다 | 설정 화면 "플러그인과 그룹" 탭의 확장별 설정 |
-| 확장 켜기·끄기 | 키 `ext.<name>.enabled` 하나다. 플러그인과 L3 그룹이 같은 키를 쓴다(`l3.<그룹>.*` 켜기 키는 두지 않는다). 범위 `managed`, `user`, `project`, `local`, `session`, 적용 `live`(실제 켜짐·꺼짐은 단계 경계, §4.5). 기본값은 매니페스트 `defaultEnabled`, 없으면 `true`. 예약 키이고 X 로더가 정의한다(F.wire-settings.spec §3.8.3, 소유 X.loading-trust.spec §6) [결정(잠정): review.decisions-2 K-04] | 같은 탭의 토글, 명령, 설정 파일 |
-| drive 임대 상한 | [제안] 키 `x.primitives.driveLimits`(`DriveLimits` 형식, 소유 X.primitives.spec). `DriveOptions.limits`는 이 값보다 클 수 없다 | 같은 탭(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안 "drive 임대 상한") |
-| 구동 그룹 | 키 `x.primitives.activeDriveGroup` 하나(소유 X.primitives.spec) [결정(잠정): review.decisions-2 S-15] | 같은 탭 "구동 그룹" 선택 |
+| 확장 켜기·끄기 | 키 `ext.<name>.enabled` 하나다. 플러그인과 L3 그룹이 같은 키를 쓴다(`l3.<그룹>.*` 켜기 키는 두지 않는다). 범위 `managed`, `user`, `project`, `local`, `session`, 적용 `live`(실제 켜짐·꺼짐은 단계 경계, §4.5). 기본값은 매니페스트 `defaultEnabled`, 없으면 `true`. 예약 키이고 X 로더가 정의한다(F.wire-settings.spec §3.8.3, 소유 X.loading-trust.spec §6) [결정: review.decisions-2 K-04] | 같은 탭의 토글, 명령, 설정 파일 |
+| drive 임대 상한 | 기본값 키 `x.primitives.driveDefaultLimits`(기본 4/8/400000)와 천장 키 `x.primitives.driveLimits`(`DriveLimits` 형식, 소유 X.primitives.spec, [결정: review.decisions-2 U-12]). `DriveOptions.limits`는 기본값을 덮어쓰고 천장보다 클 수 없다 | 같은 탭(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안 "drive 임대 상한") |
+| 구동 그룹 | 키 `x.primitives.activeDriveGroup` 하나(소유 X.primitives.spec) [결정: review.decisions-2 S-15] | 같은 탭 "구동 그룹" 선택 |
 | 격리 | [제안] 키 `ext.<name>.isolation`(예약 키, 소유 X.loading-trust.spec). 매니페스트 `isolation`은 요청이고 실제 값은 사용자 설정이 정한다(2차) | 같은 탭 |
 
 ## 7. 확장 지점
@@ -1281,12 +1281,12 @@ chain의 보충 규칙 [제안]:
 
 - [미결] boundary fold: chain 교체 + `finalize` 표지로 확정할지, 4번째 fold(collect)나 지점별 예외 표를 둘지(§4.1). 계획 v2의 fold 3종 결정(`_research/decisions-log.md` 20행)을 바꾸는 사안이다.
 - [미결] first fail-closed를 `session_before_*`, `project_trust`에도 적용할지(§4.1).
-- [결정(잠정): review.decisions-2 U-06] `tool_call`의 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해진다. 인자 변경이 필요하면 2차에 pi 밖 이름의 chain 지점을 따로 더한다.
+- [결정: review.decisions-2 U-06] `tool_call`의 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해진다. 인자 변경이 필요하면 2차에 pi 밖 이름의 chain 지점을 따로 더한다.
 - [미결] 지점 5종 밖 이벤트(Xeon 고유 이벤트) 처리(§7).
 - [미결] 지점 이름 표기: pi snake_case 정본과 조사 자료 점 표기의 별칭 허용 여부(§4.10).
 - [미결] 능력·확장 이름 네임스페이스(예약 이름 목록, 외부 확장의 L2 도메인 이름 사용 금지). F.capabilities.spec §10과 함께 정한다.
 - [미결] 매니페스트 신뢰 필드 범위: `trust.level` 값 집합과 매니페스트가 요청할 수 있는 범위. X.loading-trust.spec과 함께 정한다.
 - 닫음: session 지점 15종의 발화 문서 배정(§7 표, `L1.readme` §6).
-- [결정(잠정): review.decisions-2 U-07] 매니페스트 선택 필드 `storage`·`hooks`(`X.operations.spec` §10), 위임 선언 `delegates`(`L3.group-kit.spec`), `HandlerContext.ui` 포트는 M1에 넣지 않는다. M1 테스트 그룹은 on, post, drive, scope만 쓴다. 소비 문서는 이 필드에 의존하지 않는다.
-- [결정(잠정): review.decisions-2 U-01] 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§4.5). F.conversation.spec §10 1번, F.readme §8 1번과 같은 항목이다.
+- [결정: review.decisions-2 U-07] 매니페스트 선택 필드 `storage`·`hooks`(`X.operations.spec` §10), 위임 선언 `delegates`(`L3.group-kit.spec`), `HandlerContext.ui` 포트는 M1에 넣지 않는다. M1 테스트 그룹은 on, post, drive, scope만 쓴다. 소비 문서는 이 필드에 의존하지 않는다.
+- [결정: review.decisions-2 U-01] 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§4.5). F.conversation.spec §10 1번, F.readme §8 1번과 같은 항목이다.
 - [미결] Cordis dispose와 `onDispose`의 관계. 정리 동작을 Cordis effect로만 둘지 F 타입에 남길지(X.primitives.spec과 함께).

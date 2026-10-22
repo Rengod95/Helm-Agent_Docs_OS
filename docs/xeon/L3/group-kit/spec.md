@@ -65,7 +65,7 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 | 위임 | L1-g 백그라운드 위임. 자식 thread에서 서브에이전트를 실행하고 결과를 부모 대화에 보고한다 |
 | 승격 | 그룹 전용 도구를 L2 능력으로 옮기는 일 |
 
-이 문서는 켜기·끄기와 임대 교대 시점을 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다 [결정(잠정): review.decisions-2 U-01](F.conversation.spec §2.1). 지점 이름은 F.extensions.spec §3.4 표의 pi 이벤트명(snake_case)이다.
+이 문서는 켜기·끄기와 임대 교대 시점을 "단계 경계"(step 종료 직후, 도구 결과 커밋 뒤)로 쓴다 [결정: review.decisions-2 U-01](F.conversation.spec §2.1). 지점 이름은 F.extensions.spec §3.4 표의 pi 이벤트명(snake_case)이다.
 
 ## 3. 인터페이스
 
@@ -83,8 +83,8 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 - [제안] 정식 예 3종은 `src/testing/policies/`에 두고 `testing` 진입점에서만 내보낸다. 템플릿 파일은 패키지 루트의 `templates/`에 두고 진입점에 넣지 않는다(L3.slots.spec §3.3.1, L3.slots.plan §2.1 후보 a). 위치의 최종 확정은 §10 템플릿 위치 [미결]과 함께 한다.
 
 - [결정] 그룹끼리 직접 참조하지 않는다. 그룹 사이 통신은 F4에 스키마가 있는 이벤트와 레코드로만 한다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 3, F.extensions.spec §4.8, `eng.context-map.design` CM-06).
-- [제안] `group-kit`은 `@xeon/contracts`의 서브패스(`extensions`, `records`, `capabilities`, `services`, `conversation`, `settings`)와 `@xeon/ext-host`의 `hostOf`, 리소스 정의 타입만 import한다(X.primitives.spec §3.8). `LeaseArbiterPort`·`LeaseCandidate`는 F `@xeon/contracts/extensions`(F.extensions.spec §3.2.1 `ports.ts`)에서, `GroupService`와 부속 타입은 F `@xeon/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 이 import는 DR-14의 `@xeon/ext-host` 예외(하위 층은 서비스 등록·주입 API만 쓴다)에 든다 [결정(잠정): review.decisions-2 U-17]. Cordis는 import하지 않는다(ADR-0002 3번 [결정], 4번 [제안], `eng.dependency-rules.guide` DR-11). 확장 호스트 기능은 서비스 `xeon.ext`(`ExtHost`)로 주입받는다(`eng.context-map.design` 4.1절 `group-kit` 행).
-- [결정(잠정): review.decisions-2 U-15] 그룹 패키지(`group-helm`, `group-learning`)는 `@xeon/group-kit`의 `.`만 import한다. 이 import는 `eng.dependency-rules.guide` DR-02 방법 (b)의 허용 목록 항목 `DR-02/group-kit-*`(`DR-02/group-kit-helm`, `DR-02/group-kit-learning`)이다. `group-kit`은 어떤 그룹 패키지도 import하지 않는다.
+- [제안] `group-kit`은 `@xeon/contracts`의 서브패스(`extensions`, `records`, `capabilities`, `services`, `conversation`, `settings`)와 `@xeon/ext-host`의 `hostOf`, 리소스 정의 타입만 import한다(X.primitives.spec §3.8). `LeaseArbiterPort`·`LeaseCandidate`는 F `@xeon/contracts/extensions`(F.extensions.spec §3.2.1 `ports.ts`)에서, `GroupService`와 부속 타입은 F `@xeon/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 이 import는 DR-14의 `@xeon/ext-host` 예외(하위 층은 서비스 등록·주입 API만 쓴다)에 든다 [결정: review.decisions-2 U-17]. Cordis는 import하지 않는다(ADR-0002 3번 [결정], 4번 [제안], `eng.dependency-rules.guide` DR-11). 확장 호스트 기능은 서비스 `xeon.ext`(`ExtHost`)로 주입받는다(`eng.context-map.design` 4.1절 `group-kit` 행).
+- [결정: review.decisions-2 U-15] 그룹 패키지(`group-helm`, `group-learning`)는 `@xeon/group-kit`의 `.`만 import한다. 이 import는 `eng.dependency-rules.guide` DR-02 방법 (b)의 허용 목록 항목 `DR-02/group-kit-*`(`DR-02/group-kit-helm`, `DR-02/group-kit-learning`)이다. `group-kit`은 어떤 그룹 패키지도 import하지 않는다.
 - [결정: 계획 v2 규칙 2, DR-14] L3 패키지는 `cap-*`를 import하지 않는다. 능력은 `g.capability(ServiceKey)`로 쓴다(`architecture.layers.spec` 3.1절 2행, F.capabilities.spec §3.5).
 
 ### 3.2 defineGroup
@@ -185,7 +185,7 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = Record
 - 상태 없는 그룹 [제안]: `state`를 생략할 수 있다. 상태 없이 `on`, `post`, `record`만 쓰는 정책 그룹(L3.slots.spec §3.2, policy 템플릿)을 위해서다. 생략하면 `migrations`를 둘 수 없고(`state_migration_missing`이 아닌 `state_version` 오류), `g.state()`·`g.commit()`은 X가 `state_undeclared`로 거부한다.
 - 매니페스트 전달 [제안]: 저장소 안 그룹은 `defineManifest` 상수를 `manifest`에 넘긴다. `.xeon-plugin/plugin.json`만 가진 외부 그룹은 JSON import(`import manifestJson from "../.xeon-plugin/plugin.json" with { type: "json" }`)로 읽고 `groupManifest(manifestJson)`을 넘긴다. X 로더도 같은 파일을 읽으므로 두 값은 같다. 같은지는 X 로더가 `validateManifestSet` 전에 비교한다 [가정: X.loading-trust.spec].
 - 리소스 등록 [제안]: `registerTool`, `registerCommand`는 X `hostOf(g)`(X.primitives.spec §3.8, §4.8)의 같은 이름 연산을 그대로 부른다. 그룹 패키지는 `@xeon/ext-host`를 import하지 않으므로(§3.1, DR-14) group-kit이 이 두 연산을 `GroupApi`로 옮긴다. 그 밖의 `hostOf` 연산(`registerShortcut`, `registerFlag`, `registerMessageRenderer` 등)은 그룹 요구가 생기면 같은 방식으로 더한다.
-- 비공개 기록 [결정(잠정): review.decisions-2 T-21]: 비공개 기록 연산은 X `ScopeApi.recordPrivate(kind, payload)`다. kind는 자기 `grp.<name>.*`이고, `readsRecordKinds`와 다른 그룹의 `readRecords`로 조회되지 않으며, 큰 값은 blob으로 분리한다(조건은 L3.learning.spec §3.7.1). `GroupApi`는 `ScopeApi`를 상속하므로 이 연산을 그대로 전달한다. 작은 비공개 상태는 상태 문서(`commit`, §4.5 상한 안)를 쓴다.
+- 비공개 기록 [결정: review.decisions-2 T-21]: 비공개 기록 연산은 X `ScopeApi.recordPrivate(kind, payload)`다. kind는 자기 `grp.<name>.*`이고, `readsRecordKinds`와 다른 그룹의 `readRecords`로 조회되지 않으며, 큰 값은 blob으로 분리한다(조건은 L3.learning.spec §3.7.1). `GroupApi`는 `ScopeApi`를 상속하므로 이 연산을 그대로 전달한다. 작은 비공개 상태는 상태 문서(`commit`, §4.5 상한 안)를 쓴다.
 - `drive` 함수에는 상태를 인자로만 넘긴다. 반환값이나 이전 호출의 값을 다음 호출에 넘기지 않는다(`architecture.runtime-flow.design` §4.3 완화책).
 - `GroupDef<S>`의 두 번째 타입 인자 `D`는 기본값이 있으므로 설정이 없는 그룹은 `GroupDef<S>`로 쓴다.
 - 예(설명용, 그룹 내부 설계 아님):
@@ -430,7 +430,7 @@ export function leaseArbiterPort(
 
 - [결정] drive 임대는 한 번에 그룹 하나만 가진다. `on`, `post`, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4, F.extensions.spec §4.6).
 - `product.vision.spec` §5와 §10 미결 3("두 그룹이 동시에 drive를 요청할 때 기본 동작, 대기 또는 거부")에 이 문서는 위 규칙 3(대기)을 [제안]으로 답한다. 확정은 사용자 확인 뒤다(§10).
-- 설정 키 [결정(잠정): review.decisions-2 S-15]: drive 보유 그룹 설정은 X 키 `x.primitives.activeDriveGroup` 하나다. group-kit은 별도 키를 두지 않고 이 키의 유효 값을 정책 입력으로 읽는다. 포트가 없을 때(group-kit 없이 X만 올린 테스트 호스트 등) X는 같은 키로 기본 규칙을 쓴다(X.primitives.spec §4.4.1 4번). 값이 `null`이고 후보가 둘 이상일 때 X 기본 규칙은 아무에게도 주지 않고, group-kit 정책은 요청 순서로 정한다(규칙 2). `/group drive`와 설정 화면의 "구동 그룹" 선택은 이 키를 쓴다.
+- 설정 키 [결정: review.decisions-2 S-15]: drive 보유 그룹 설정은 X 키 `x.primitives.activeDriveGroup` 하나다. group-kit은 별도 키를 두지 않고 이 키의 유효 값을 정책 입력으로 읽는다. 포트가 없을 때(group-kit 없이 X만 올린 테스트 호스트 등) X는 같은 키로 기본 규칙을 쓴다(X.primitives.spec §4.4.1 4번). 값이 `null`이고 후보가 둘 이상일 때 X 기본 규칙은 아무에게도 주지 않고, group-kit 정책은 요청 순서로 정한다(규칙 2). `/group drive`와 설정 화면의 "구동 그룹" 선택은 이 키를 쓴다.
 - 회수 경로 [제안]: 정책 결과로 임대를 회수하지 않는다. X에 회수 경로가 없기 때문이다. 사용자가 즉시 바꾸려면 현재 holder를 끄거나(`/group off <이름>`, 끄기 적용 때 `lease.released{reason:"disabled"}`) 그 그룹의 drive가 `idle`로 반납하기를 기다린다. 이름 지정의 즉시 교체(선점)는 §10 [미결]이다.
 - `DriveLease.status`에 대기 상태는 넣지 않는다 [제안]. 대기는 정책 결과다. 임대 상태 기계에 넣지 않고 group-kit의 `GroupStatus.drive`로만 나타낸다.
 
@@ -443,7 +443,7 @@ export function leaseArbiterPort(
 | 정의 | `StateDecl<S>`(schema, initial, version), F.extensions.spec §3.2 | `GroupRecord`, `RecordKindDecl`, F.extensions.spec §3.6 |
 | 쓰기 연산 | `g.commit(next)` | `g.record(kind, subject, payload)` |
 | 읽기 연산 | `g.state()`, 핸들러 `ctx.state`, drive 함수 인자 | `g.readRecords(query)`(다른 그룹), 자기 레코드는 선언 없이 |
-| 내구 이벤트 kind | `grp.<그룹>.state.committed`(X.primitives.spec §4.6.1. 영역 `state`는 X 예약) [결정(잠정): review.decisions-2 T-21] | `grp.<그룹>.<영역>.<이름>`(F.records.spec §3.2) |
+| 내구 이벤트 kind | `grp.<그룹>.state.committed`(X.primitives.spec §4.6.1. 영역 `state`는 X 예약) [결정: review.decisions-2 T-21] | `grp.<그룹>.<영역>.<이름>`(F.records.spec §3.2) |
 | 투영 | `x_<그룹의 하이픈을 밑줄로>_state`(X 소유 투영기, X.primitives.spec §4.6.1. 접두 규칙은 review.decisions-2 U-18) | 투영 없음. 이벤트 로그를 kind로 읽는다 [가정: L1.persistence.spec 조회] |
 | 읽는 쪽 | 그 그룹만 | 매니페스트 `readsRecordKinds`를 선언한 그룹 |
 | 스키마 버전 | `StateDecl.version`, 업캐스터는 `GroupDef.migrations`에서 만든다(§4.7) | `RecordKindDecl.version`, 읽는 쪽이 해석(F.extensions.spec §5 9번) |
@@ -470,7 +470,7 @@ export interface StateCommittedPayload {
   readonly doc: JsonValue;
 }
 
-/** x_<그룹>_state 투영 행. 열 이름과 DDL의 정본은 X.primitives.spec §4.6.1(X 소유 투영기). [결정(잠정): review.decisions-2 §3 T-20] X 열 이름을 그대로 쓴다 */
+/** x_<그룹>_state 투영 행. 열 이름과 DDL의 정본은 X.primitives.spec §4.6.1(X 소유 투영기). [결정: review.decisions-2 §3 T-20] X 열 이름을 그대로 쓴다 */
 export interface StateProjectionRow {
   readonly thread_id: string;
   readonly scope_id: string;
@@ -526,7 +526,7 @@ export function checkStateCommit<S>(decl: StateDecl<S>, current: Readonly<S>, ne
 
 ### 3.8 GroupService (`xeon.groups`)
 
-[결정(잠정): review.decisions-2 D-04] `GroupService`와 부속 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 둔다(`F.capabilities.spec` §3.12 표와 파일별 이름 표, 규칙 7). `GroupService`가 X `LeaseArbiterPort`(`F.extensions.spec` §3.2.1)를 확장하고 X가 그 포트로 주입받기 때문이다. 아래 블록은 그 파일의 필드 정의이고, `F.capabilities.spec` §3.12는 이 절을 필드 출처로 가리킨다. group-kit은 `service.ts`에서 이 인터페이스를 구현한다.
+[결정: review.decisions-2 D-04] `GroupService`와 부속 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 둔다(`F.capabilities.spec` §3.12 표와 파일별 이름 표, 규칙 7). `GroupService`가 X `LeaseArbiterPort`(`F.extensions.spec` §3.2.1)를 확장하고 X가 그 포트로 주입받기 때문이다. 아래 블록은 그 파일의 필드 정의이고, `F.capabilities.spec` §3.12는 이 절을 필드 출처로 가리킨다. group-kit은 `service.ts`에서 이 인터페이스를 구현한다.
 
 ```ts
 // xeon/packages/contracts/src/services/groups.ts  (F.capabilities.spec §3.12)
@@ -617,7 +617,7 @@ export interface GroupService extends LeaseArbiterPort {
 ```
 
 - 서비스 이름 `xeon.groups`와 인터페이스 이름 `GroupService`는 `eng.context-map.design` 5.3절 표와 같다. 소비자는 `helm`, `learning`, `host`, 그리고 `LeaseArbiterPort`로 주입받는 X다. `choose`는 `leaseArbiterPort(defaultDriveArbiter, …)`가 만든 함수다(§3.5).
-- [결정(잠정): review.decisions-2 D-04] 위 이름(`GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-kit은 `@xeon/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `GroupId`, `ScopeStatus`, `LeaseId`, `RecordKind`, `Unsubscribe`, `LeaseArbiterPort`, `ScopeId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
+- [결정: review.decisions-2 D-04] 위 이름(`GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-kit은 `@xeon/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `GroupId`, `ScopeStatus`, `LeaseId`, `RecordKind`, `Unsubscribe`, `LeaseArbiterPort`, `ScopeId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
 - `enable`, `disable`의 지속: 이 메서드는 현재 엔진의 scope 상태만 바꾼다. 다음 실행에도 남기려면 X 예약 키 `ext.<이름>.enabled`를 L4 설정 경로로 쓴다(§6).
 - `setDriveHolder` 오류: 설치되지 않은 이름은 `group.unknown`, `usesDrive`가 false인 그룹은 `group.noDrive`, 관리 범위가 값을 잠갔으면 `group.settingLocked`. 오류면 설정을 바꾸지 않는다.
 - [가정] 서비스 한 인스턴스는 현재 활성 thread 하나의 그룹 상태를 보인다. scope 토글과 임대가 thread마다 따로인지는 X.primitives.spec이 정한다.
@@ -723,7 +723,7 @@ export function formatGroupStatusLine(groups: readonly GroupStatus[], options?: 
 M2 최소형은 Helm 테스트가 쓴다. 2차에 옵션을 넓힌다.
 
 - 파일 위치: `replayDrive`(§3.10)와 `scanDriveSource`(§3.11)는 `src/testing/` 아래에 둔다. 테스트 전용 도구이기 때문이다.
-- 다른 패키지 import [제안]: DR-08·DR-14의 testing 정의는 "테스트 파일만 다른 패키지의 테스트 대역을 import한다"로 통일되었다 [결정(잠정): review.decisions-2 U-17]. 그래서 `replayDrive`는 테스트 호스트와 모델 테이프를 import하지 않고 `ReplayHarness`로 받는다. 하니스는 그룹 패키지의 테스트 파일이 `@xeon/ext-host`·`@xeon/core-models`의 테스트 대역으로 만든다.
+- 다른 패키지 import [제안]: DR-08·DR-14의 testing 정의는 "테스트 파일만 다른 패키지의 테스트 대역을 import한다"로 통일되었다 [결정: review.decisions-2 U-17]. 그래서 `replayDrive`는 테스트 호스트와 모델 테이프를 import하지 않고 `ReplayHarness`로 받는다. 하니스는 그룹 패키지의 테스트 파일이 `@xeon/ext-host`·`@xeon/core-models`의 테스트 대역으로 만든다.
 
 ```ts
 // xeon/packages/group-kit/src/testing/replay/replay-drive.ts  (공개 진입점: @xeon/group-kit/testing)
@@ -775,7 +775,7 @@ export function replayDrive<S>(options: ReplayDriveOptions<S>): Promise<ReplayDr
 
 1. 기준 실행: `harness.run(group, null)`으로 그룹 하나를 holder로 올려 테이프로 끝까지 실행한다. 내구 이벤트열과 커밋 지점 목록을 얻는다. 커밋 지점은 `g.commit`, `loop.turn` 결과, `loop.spawn` 결과, `post` 수락, `record` 쓰기가 커밋된 위치다.
 2. 지점 k마다: `harness.run(group, { events, commits: k })`로 새 호스트에 앞 k개 커밋만 복원하고 프로세스 재시작과 같은 재개 절차로 drive 함수를 마지막 커밋 상태로 다시 부른다. 같은 테이프로 끝까지 실행한다.
-3. 두 이벤트열을 `harness.digest`로 비교하고 다르면 `harness.firstDiff`로 위치를 얻는다. 정규화 규칙은 `eng.testing.guide` 1.2절을 따른다. F에는 `./testing` 서브패스를 두지 않으므로 정규화 함수는 하니스를 만드는 테스트 쪽이 가진다 [결정(잠정): review.decisions-2 U-03]. 모든 지점에서 같으면 `ok`다.
+3. 두 이벤트열을 `harness.digest`로 비교하고 다르면 `harness.firstDiff`로 위치를 얻는다. 정규화 규칙은 `eng.testing.guide` 1.2절을 따른다. F에는 `./testing` 서브패스를 두지 않으므로 정규화 함수는 하니스를 만드는 테스트 쪽이 가진다 [결정: review.decisions-2 U-03]. 모든 지점에서 같으면 `ok`다.
 - 근거: `eng.events.design` EV-09 강제 수단("커밋 지점마다 프로세스를 끊고 재호출해 같은 이벤트 열이 나오는지"), 7.1절 4번. 결정성 등급은 D0다(`eng.testing.guide` TS-02).
 
 ### 3.11 scanDriveSource (2차)
@@ -954,10 +954,10 @@ X에 요청하는 것 [가정: X.primitives.spec에 아직 없다]:
 |---|---|
 | drive 임대는 한 번에 그룹 하나만 가진다. `on`, `post`, 백그라운드 위임은 공유한다 | [결정] `_research/layer-plan-v2-notes.md` 층 사이 규칙 4, F.extensions.spec §4.6 |
 | 그룹끼리 직접 참조하지 않는다. 통신은 이벤트와 레코드만 쓴다 | [결정] 층 사이 규칙 3, F.extensions.spec §4.8, `eng.context-map.design` CM-06 |
-| 켜기·끄기는 단계 경계에 적용하고 정리는 Cordis dispose로 실행한다 | [결정] 층 사이 규칙 5, F.extensions.spec §4.5. 적용 시점을 단계 경계로 읽는 해석은 [결정(잠정): review.decisions-2 U-01] |
+| 켜기·끄기는 단계 경계에 적용하고 정리는 Cordis dispose로 실행한다 | [결정] 층 사이 규칙 5, F.extensions.spec §4.5. 적용 시점을 단계 경계로 읽는 해석은 [결정: review.decisions-2 U-01] |
 | Helm과 학습 그룹은 L3 기본 그룹이고 학습 그룹은 drive를 쓰지 않는다 | [결정] `_research/decisions-log.md` 2026-10-21 계획 v2, `eng.context-map.design` 3절 규칙 4 |
 | drive 함수는 마지막 커밋 상태로 다시 호출되고 효과는 `loop.turn`, `loop.spawn`, `post`로만 낸다 | [결정] F.extensions.spec §4.6 |
-| 예산은 drive 임대 상한에만 건다. drive 임대 상한 기본값은 pi 방식(기본 상한 없음)의 예외로 둔다 | [결정] F.extensions.spec §4.6, `_research/decisions-log.md` 계획 v2. 예외는 [결정(잠정): review.decisions-2 U-12] |
+| 예산은 drive 임대 상한에만 건다. drive 임대 상한 기본값은 pi 방식(기본 상한 없음)의 예외로 둔다 | [결정] F.extensions.spec §4.6, `_research/decisions-log.md` 계획 v2. 예외는 [결정: review.decisions-2 U-12] |
 
 ### 4.2 로드와 setup 순서
 
@@ -991,7 +991,7 @@ X는 임대가 없을 때 경계 훅(`step_end`, `turn_settled`, `idle`)과 `ope
 3. 직전 커밋 값과 깊이 같으면 이벤트를 쓰지 않고 현재 값을 돌려준다.
 4. 빈도 [제안]: drive 함수는 `loop.turn`·`loop.spawn` 결과 하나에 커밋 한 번을 권장한다. `on` 핸들러는 한 디스패치에서 같은 scope에 커밋 한 번까지다. 넘으면 계측에 경고를 남긴다(2차). 토큰 단위 진행이나 카운터 틱은 상태 문서에 커밋하지 않는다(`eng.events.design` EV-02 취지).
 5. 큰 본문(탐구 결과, 스킬 본문)은 상태 문서에 넣지 않는다. L2 저장소에 쓰고 id만 둔다.
-6. 멱등 reducer [결정(잠정): review.decisions-2 §3 T-20]: 확장 상태 투영은 X.primitives.spec 정의를 따르므로 재실행 규칙도 X 규칙을 따른다. `on` 핸들러는 소비 커밋 전 크래시 뒤 다시 실행될 수 있다. 다시 실행된 핸들러의 `ctx.state`는 이미 커밋된 판(k+1)이다(X.primitives.spec §4.6.1 재실행 규칙). 그래서 상태 갱신은 이미 반영된 입력을 다시 적용해도 결과가 같은 함수로 쓴다. 처리한 입력의 id를 doc에 두고, 같은 id이면 현재 값을 그대로 돌려준다. 그러면 재실행의 `commit`은 3번 규칙에 따라 이벤트를 쓰지 않는다.
+6. 멱등 reducer [결정: review.decisions-2 §3 T-20]: 확장 상태 투영은 X.primitives.spec 정의를 따르므로 재실행 규칙도 X 규칙을 따른다. `on` 핸들러는 소비 커밋 전 크래시 뒤 다시 실행될 수 있다. 다시 실행된 핸들러의 `ctx.state`는 이미 커밋된 판(k+1)이다(X.primitives.spec §4.6.1 재실행 규칙). 그래서 상태 갱신은 이미 반영된 입력을 다시 적용해도 결과가 같은 함수로 쓴다. 처리한 입력의 id를 doc에 두고, 같은 id이면 현재 값을 그대로 돌려준다. 그러면 재실행의 `commit`은 3번 규칙에 따라 이벤트를 쓰지 않는다.
 
 ```ts
 // 설명용. 처리한 stepId를 doc에 두는 멱등 reducer
@@ -1014,7 +1014,7 @@ g.on("turn_end", async (end, _current, ctx) => {
 ### 4.6 분기·재개 때 복원
 
 - 기준은 thread의 leaf다(F.records.spec §4.6).
-- [결정(잠정): review.decisions-2 §3 T-20] 그룹 상태 = leaf의 조상 경로(활성 가지)에서 가장 가까운 `grp.<그룹>.state.committed` 이벤트의 `doc`(업캐스트 뒤). 없으면 `StateDecl.initial`이다. 활성 가지 규칙은 X.primitives.spec §4.6.1이 정한다.
+- [결정: review.decisions-2 §3 T-20] 그룹 상태 = leaf의 조상 경로(활성 가지)에서 가장 가까운 `grp.<그룹>.state.committed` 이벤트의 `doc`(업캐스트 뒤). 없으면 `StateDecl.initial`이다. 활성 가지 규칙은 X.primitives.spec §4.6.1이 정한다.
 - 투영 `x_<그룹>_state`의 `prev_event_id` 연결로 조상 경로의 상태를 찾는다. 투영은 X가 소유하고 재생으로 다시 만들 수 있다(X.primitives.spec §4.6.1).
 - 임대 복원: 마지막 `checkpoint.step`의 `leaseRefs`(F.records.spec §3.6)가 가리키는 `lease.acquired`가 있으면 X가 그 그룹의 drive 함수를 복원한 상태로 다시 부른다. 분기로 leaf가 임대 전 지점으로 가면 `leaseRefs`가 비고, `decide`가 처음부터 다시 정한다.
 - 분기 뒤의 drive 재호출은 재개와 같은 규율을 따른다. `loop.turn`의 기본 `requestId`(`${leaseId}:${순번}`)는 가지가 다르면 `leaseId`가 달라 충돌하지 않는다 [가정: X.primitives.spec].
@@ -1031,16 +1031,16 @@ g.on("turn_end", async (end, _current, ctx) => {
 - 레코드 kind는 F 형식 `grp.<그룹>.<영역>.<이름>`이다. 공통 확정 kind(L3.helm.spec, L3.learning.spec가 소유):
   - helm 작성: `grp.helm.signal.detected`, `grp.helm.discovery.recorded`, `grp.helm.inquiry.finished`
   - learning 작성: `grp.learning.skill.proposed`, `grp.learning.skill.approved`, `grp.learning.skill.rejected`, `grp.learning.skill.applied`, `grp.learning.memory.proposed`, `grp.learning.feedback.proposed`, `grp.learning.review.finished`, (2차) `grp.learning.script.proposed`
-  - 읽기: helm과 learning은 서로의 레코드를 읽지 않는다 [결정(잠정): review.decisions-2 D-10]. 두 그룹의 레코드는 L4 표시와 이력용이다
+  - 읽기: helm과 learning은 서로의 레코드를 읽지 않는다 [결정: review.decisions-2 D-10]. 두 그룹의 레코드는 L4 표시와 이력용이다
 - 그룹은 레코드를 읽고 해석에 실패해도 예외를 밖으로 던지지 않는다. 버전이 더 크면 F `record_version_unknown` 경고와 원형 payload를 받는다(F.extensions.spec §5 9번).
 - 한 그룹이 꺼져도 다른 그룹은 동작한다. 레코드가 오지 않을 뿐이다.
 
 ### 4.9 계측 기록 (2차)
 
 - `wrap`이 감싼 연산에서 메모리 카운터를 올린다. `on` 래퍼는 first 지점 반환이 `undefined`가 아니면 `denies`, chain 지점 반환이 `undefined`가 아니면 `chainPatches`, 예외면 `handlerErrors`를 올린다.
-- `l3.group-kit.instrumentation`이 참이면 단계 경계마다 증가분이 0이 아닌 그룹에 대해 `grp.<그룹>.metrics.recorded` 비공개 기록을 그 그룹의 `recordPrivate`로 쓴다 [결정(잠정): review.decisions-2 T-21]. 커밋 단위는 X.primitives.spec §4.6.5를 따른다. 핸들러 안의 호출은 따로 커밋하고, 단계 커밋에 함께 실으려면 boundary chain 결과의 `entries`를 쓴다. 멱등 키는 `record`와 같아 재실행된 같은 호출은 `replayed`다. kind는 매니페스트 `recordKinds`에 선언하지 않는다(공개 kind와 같은 이름이면 `record_private_invalid`).
+- `l3.group-kit.instrumentation`이 참이면 단계 경계마다 증가분이 0이 아닌 그룹에 대해 `grp.<그룹>.metrics.recorded` 비공개 기록을 그 그룹의 `recordPrivate`로 쓴다 [결정: review.decisions-2 T-21]. 커밋 단위는 X.primitives.spec §4.6.5를 따른다. 핸들러 안의 호출은 따로 커밋하고, 단계 커밋에 함께 실으려면 boundary chain 결과의 `entries`를 쓴다. 멱등 키는 `record`와 같아 재실행된 같은 호출은 `replayed`다. kind는 매니페스트 `recordKinds`에 선언하지 않는다(공개 kind와 같은 이름이면 `record_private_invalid`).
 - 토큰·비용은 그룹이 시작한 turn의 `turn.completed` 사용량과 자식 thread 사용량에서 계산한다. 임대 시간은 `lease.*` 이벤트의 `recordedAt` 차이로 잰다. 계측 코드는 시계를 직접 읽지 않는다(TY-21).
-- kind 소유 [결정(잠정): review.decisions-2 T-21]: `grp.<그룹>.metrics.recorded`의 접두 소유자는 각 그룹이고 생산 코드는 group-kit `wrap`이다. `grp.<그룹>.state.committed`는 X가 쓴다(X.primitives.spec §4.6.1).
+- kind 소유 [결정: review.decisions-2 T-21]: `grp.<그룹>.metrics.recorded`의 접두 소유자는 각 그룹이고 생산 코드는 group-kit `wrap`이다. `grp.<그룹>.state.committed`는 X가 쓴다(X.primitives.spec §4.6.1).
 
 ### 4.10 위임 규칙
 
@@ -1075,9 +1075,9 @@ g.on("turn_end", async (end, _current, ctx) => {
 | `l3.group-kit.instrumentation` | boolean | `true` | managed, user, project, local, session | 가능 | `live` | `toggle` | 그룹 계측 기록(§4.9, 2차) |
 | `l3.group-kit.statusLine` | boolean | `true` | user, project, local, session | 가능 | `live` | `toggle` | 상태줄 그룹 표시(§3.9) |
 
-- 구동 그룹 선택 [결정(잠정): review.decisions-2 S-15]: group-kit은 구동 그룹 키를 두지 않는다. 선택은 X 키 `x.primitives.activeDriveGroup`(`ScopeId | null`, 기본 `null`, 범위 user·project·session, `nextTurn`, 위젯 `select`)이고 정의는 X.primitives.spec §6이 소유한다. group-kit은 이 값을 정책 입력으로 읽고(§3.5), `null`을 "auto"로 표시한다. 다른 그룹이 임대를 가지고 있으면 바뀐 값은 그 임대가 반납된 뒤 적용된다(§4.3 4번).
-- 그룹 켜기 키: 내장 그룹과 외부 그룹 모두 X 로더 예약 키 `ext.<이름>.enabled`다(예: `ext.helm.enabled`, `ext.learning.enabled`. F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3 규칙 1). X 로더만 이 키를 읽고, 그룹과 group-kit은 이 키를 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정(잠정): review.decisions-2 K-04].
-- drive 임대 상한은 X 키 `x.primitives.driveLimits`이고(F.extensions.spec §6), 그룹별 요청 상한은 각 그룹 키(예: `l3.helm.driveLimits`)가 그보다 작게 정한다.
+- 구동 그룹 선택 [결정: review.decisions-2 S-15]: group-kit은 구동 그룹 키를 두지 않는다. 선택은 X 키 `x.primitives.activeDriveGroup`(`ScopeId | null`, 기본 `null`, 범위 user·project·session, `nextTurn`, 위젯 `select`)이고 정의는 X.primitives.spec §6이 소유한다. group-kit은 이 값을 정책 입력으로 읽고(§3.5), `null`을 "auto"로 표시한다. 다른 그룹이 임대를 가지고 있으면 바뀐 값은 그 임대가 반납된 뒤 적용된다(§4.3 4번).
+- 그룹 켜기 키: 내장 그룹과 외부 그룹 모두 X 로더 예약 키 `ext.<이름>.enabled`다(예: `ext.helm.enabled`, `ext.learning.enabled`. F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3 규칙 1). X 로더만 이 키를 읽고, 그룹과 group-kit은 이 키를 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정: review.decisions-2 K-04].
+- drive 임대 상한의 일반 기본값은 X 키 `x.primitives.driveDefaultLimits`, 천장은 `x.primitives.driveLimits`다(F.extensions.spec §6). 그룹별 요청 상한은 각 그룹 키(예: `l3.helm.driveLimits`)가 기본값을 덮어쓰고, 천장보다 클 수 없다(review.decisions-2 U-12).
 - 명령: `/group status|on <이름>|off <이름>|drive <이름|auto>`(§3.9). 설정 파일과 `xeon config` 명령은 F.wire-settings.spec §4.9 생성 규칙을 따른다.
 
 ## 7. 확장 지점
@@ -1149,23 +1149,23 @@ g.on("turn_end", async (end, _current, ctx) => {
 
 ## 10. 미결 사항
 
-- [결정(잠정): review.decisions-2 T-21] 공통 모순 1(닫힘): 확장 kind는 F 형식 `grp.<그룹>.<영역>.<이름>` 하나다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유), 계측은 `grp.<그룹>.metrics.recorded`(`recordPrivate`)다. eng 문서의 옛 밑줄 접두 표기는 쓰지 않는다.
+- [결정: review.decisions-2 T-21] 공통 모순 1(닫힘): 확장 kind는 F 형식 `grp.<그룹>.<영역>.<이름>` 하나다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유), 계측은 `grp.<그룹>.metrics.recorded`(`recordPrivate`)다. eng 문서의 옛 밑줄 접두 표기는 쓰지 않는다.
 - [미결] 공통 모순 2: F.extensions.spec §4.3(on 핸들러 외부 효과 금지)과 학습 검토 포크 시작·Helm spawn의 관계. requestId 멱등 연산(`g.delegate`, `loop.spawn`)만 허용 목록에 더하는 규칙의 확정(§3.4).
 - [미결] 공통 모순 3: `xeon/packages/group-kit/package.json`의 `xeon.domain`이 `kit`이고 routes layout 도메인은 `group-kit`이다. DR-03은 "디렉터리 이름의 접두사를 뺀 값"과 layout 도메인 이름이 같다고 적었는데 `group-kit`에서 두 값이 다르다. [제안] `group-kit`으로 맞추고 DR-03에 `group-kit`을 접두 규칙 예외로 적는다(L3.group-kit.plan G-02).
 - [미결] 대기 vs 거부: 이 문서는 대기를 [제안]한다(§3.5 규칙 3). `product.vision.spec` §5와 §10 미결 3의 답이다.
 - [미결] 선점 허용: X는 임대가 있는 동안 정책을 다시 묻지 않으므로 이 문서는 `auto`와 이름 지정 모두 선점하지 않는다(§3.5 규칙 4, §4.3 4번). 이름 지정의 즉시 교체나 `auto` 우선순위 선점을 두려면 X.primitives.spec §4.4.1 5번에 회수 경로(예: `lease.released{reason:"revoked"}`)를 더하도록 요청해야 한다.
-- (닫힘) [결정(잠정): review.decisions-2 D-04] `GroupService`와 부속 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 둔다(F.capabilities.spec §3.12, 이 문서 §3.8). `eng.context-map.design` §5.3의 F 위치 열은 그 문서 쪽에서 services로 고친다.
+- (닫힘) [결정: review.decisions-2 D-04] `GroupService`와 부속 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 둔다(F.capabilities.spec §3.12, 이 문서 §3.8). `eng.context-map.design` §5.3의 F 위치 열은 그 문서 쪽에서 services로 고친다.
 - [미결] 템플릿 위치: `eng.context-map.design` C-2. 이 문서와 L3.group-kit.plan §2는 L3.slots.plan §2.1 후보 a(`xeon/packages/group-kit/templates/`, 정식 예는 `src/testing/policies/`)를 [제안]으로 따른다. 스캐폴드 명령의 실행은 L4.cli.spec이 맡는다(L3.slots.spec §3.3.6).
-- [결정(잠정): review.decisions-2 U-15] DR-02 방법 (b)(허용 목록 `DR-02/group-kit-*`). `eng.context-map.design` C-5와 같은 항목이다.
+- [결정: review.decisions-2 U-15] DR-02 방법 (b)(허용 목록 `DR-02/group-kit-*`). `eng.context-map.design` C-5와 같은 항목이다.
 - (닫힘) 정책 포트 타입 `LeaseArbiterPort`·`LeaseCandidate`의 정본은 F.extensions.spec §3.2.1 `ports.ts`다. group-kit은 `@xeon/contracts/extensions`에서 가져온다. 역할 분담은 §3.5 표로 정했다.
 - [미결] X에 요청하는 4개 항목(§3.13)의 반영.
 - [미결] 유휴 중 임대 부여로 자율 turn이 시작되는 것을 허용할지. X.primitives.spec §4.5.5는 유휴 토글을 즉시 적용하고 자율 turn을 [제안]으로 허용한다.
 - [미결] `GroupService`가 thread별 상태를 보이는 방식(§3.8 [가정]).
 - [미결] 완료 보고가 새 turn을 시작하는지, 위임 상한의 귀속, 그룹 끄기 때 진행 중 위임 처리(§3.4, §4.10, `_research/notes/L3-1.md` §6). 위임 도구 정책(허용·차단)은 §3.4에서 둘 다 받는 것으로 정했다 [제안].
-- [결정(잠정): review.decisions-2 T-21] 상태 상한(64 KiB)을 넘는 비공개 기록은 X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 `GroupApi`가 그대로 전달한다(§3.2).
+- [결정: review.decisions-2 T-21] 상태 상한(64 KiB)을 넘는 비공개 기록은 X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 `GroupApi`가 그대로 전달한다(§3.2).
 - [미결] 임대 이벤트 이름: F.records.spec `lease.acquired`·`lease.released`와 `eng.context-map.design` 5.1절 `drive.leased`·`drive.released`. 이 문서는 F 이름을 쓴다.
-- [결정(잠정): review.decisions-2 T-21] `grp.<그룹>.metrics.recorded`와 `grp.<그룹>.state.committed`의 소유는 §4.9와 §3.6 표에 적었다.
-- [결정(잠정): review.decisions-2 U-18] 그룹 이름 규칙은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음)이다. 테이블 접두는 이름의 하이픈을 밑줄로 바꿔 만든다.
+- [결정: review.decisions-2 T-21] `grp.<그룹>.metrics.recorded`와 `grp.<그룹>.state.committed`의 소유는 §4.9와 §3.6 표에 적었다.
+- [결정: review.decisions-2 U-18] 그룹 이름 규칙은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음)이다. 테이블 접두는 이름의 하이픈을 밑줄로 바꿔 만든다.
 - [미결] `scanDriveSource`의 파서 `@swc/core`를 group-kit이 import하려면 DR-07 `MODULE_OWNERS` 항목이 필요하다.
 - (닫힘) `RuntimeChange`의 단계 경계 값: 이 값을 쓰던 group-kit의 구동 그룹 키를 지웠다(§6, review.decisions-2 S-15).
-- [결정(잠정): review.decisions-2 U-17] `group-kit`의 `@xeon/ext-host` import(`hostOf`, 리소스 정의 타입, 플러그인 등록)는 DR-14의 ext-host 예외(서비스 등록·주입 API만)에 든다. 그룹 패키지는 `@xeon/ext-host`를 import하지 않는다(L3.readme §3).
+- [결정: review.decisions-2 U-17] `group-kit`의 `@xeon/ext-host` import(`hostOf`, 리소스 정의 타입, 플러그인 등록)는 DR-14의 ext-host 예외(서비스 등록·주입 API만)에 든다. 그룹 패키지는 `@xeon/ext-host`를 import하지 않는다(L3.readme §3).

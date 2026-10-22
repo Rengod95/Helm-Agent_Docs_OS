@@ -70,9 +70,9 @@ xeon/packages/group-learning/
     fixtures/
 ```
 
-- import 허용: `@xeon/contracts`(F), `@xeon/group-kit`(DR-02 허용 목록 `DR-02/group-kit-learning`, `eng.dependency-rules.guide` DR-02, [결정(잠정): review.decisions-2 U-15]), 테스트 파일에서만 `@xeon/core-models/testing`(테이프, `eng.testing.guide` TS-04)과 각 패키지의 `testing` 서브패스(DR-14 예외, review.decisions-2 U-17). F에는 `./testing` 서브패스가 없으므로 시계·ID 대역은 이 패키지 `test/` 안에 둔다(review.decisions-2 U-03).
+- import 허용: `@xeon/contracts`(F), `@xeon/group-kit`(DR-02 허용 목록 `DR-02/group-kit-learning`, `eng.dependency-rules.guide` DR-02, [결정: review.decisions-2 U-15]), 테스트 파일에서만 `@xeon/core-models/testing`(테이프, `eng.testing.guide` TS-04)과 각 패키지의 `testing` 서브패스(DR-14 예외, review.decisions-2 U-17). F에는 `./testing` 서브패스가 없으므로 시계·ID 대역은 이 패키지 `test/` 안에 둔다(review.decisions-2 U-03).
 - import 금지: `cap-*`(L2-d는 `g.capability(<ServiceKey>)`로만 쓴다), `core-*`(위임은 `g.delegate`로만 쓴다), `ext-host`, `platform-*`, `group-helm`(CM-06).
-- 의존 추가: 외부 npm 의존을 더하지 않는다. `typebox`는 workspace catalog의 1.4.2를 쓴다(`catalog:`, L3.group-kit.plan §4 표, eng.toolchain.guide).
+- 의존 추가: 외부 npm 의존을 더하지 않는다. `typebox`는 workspace catalog의 1.3.27를 쓴다(`catalog:`, L3.group-kit.plan §4 표, eng.toolchain.guide).
 
 ## 3. 작업 분해
 
@@ -112,7 +112,7 @@ xeon/packages/group-learning/
 
 ## 4. 채택 코드
 
-그대로 쓰는 외부 패키지는 워크스페이스 공용 `typebox` 1.4.2(`catalog:`, L3.group-kit.plan §4 표)뿐이다. Hermes 소스는 가져오지 않는다. Hermes는 MIT 라이선스이고 Python이므로 개념만 TypeScript로 재구현한다(`_research/refs/hermes.md` §4.1 라이선스 항목, §4.2 첫 항목). 아래 표의 소스 경로는 설계 참고 위치이며, 커밋은 `0319e113c9602b86ffda350e931cb4b035e1d5d8`이다(`_research/notes/L3-3.md` §0).
+그대로 쓰는 외부 패키지는 워크스페이스 공용 `typebox` 1.3.27(`catalog:`, L3.group-kit.plan §4 표)뿐이다. Hermes 소스는 가져오지 않는다. Hermes는 MIT 라이선스이고 Python이므로 개념만 TypeScript로 재구현한다(`_research/refs/hermes.md` §4.1 라이선스 항목, §4.2 첫 항목). 아래 표의 소스 경로는 설계 참고 위치이며, 커밋은 `0319e113c9602b86ffda350e931cb4b035e1d5d8`이다(`_research/notes/L3-3.md` §0).
 
 | Hermes 요소 | 참고 위치 | 학습 그룹 대응 | 바꾸는 점 |
 |---|---|---|---|

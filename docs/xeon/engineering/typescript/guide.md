@@ -16,7 +16,7 @@ Xeon의 모든 TypeScript 코드에 적용하는 언어 차원 규칙이다. 금
 
 - 대상 코드: `xeon/` 아래 모든 `.ts`, `.tsx` 파일. `packages/*`, `apps/*`, `plugins/*`, `scripts/*`를 포함한다.
 - 제외: `xeon/vendor/**`(Cordis 커밋 고정본, `.oxlintrc.json` `ignorePatterns`에 있다), 생성 산출물(`dist/**`).
-- 포크 코드: pi durable 포크(`platform-exec`)와 pi agent-core 포크는 이 규칙을 따른다. 업스트림 병합 비용 때문에 지킬 수 없는 줄은 4절의 예외 형식으로 표시한다. [제안]
+- 포크 코드: pi durable 포크(`platform-exec`, `cap-workspace`의 `upstream/`)와 pi agent-core에서 가져온 코드도 이 규칙을 그대로 따른다. 업스트림 병합 비용은 단언·`!`·억제 주석의 예외 사유가 아니다. 지킬 수 없는 줄은 우회하지 않고 `[미결] TY-NN <위치> <이유>`로 보고한다. 에이전트 루프는 pi agent-core를 참고 자료로만 쓰고 Xeon 코드로 다시 쓴다(`adr.0009`).
 - 테스트 코드: 규칙은 같다. 경로 단위로 완화한 항목은 4.3절 표에 적힌 것만 허용한다.
 - 근거 자료:
   - 스택과 tsconfig 옵션: `_research/foundation-plan.md §2` 언어·타입 검사 행 [결정], `decisions/ADR-0001-stack.md`
@@ -30,8 +30,10 @@ Xeon의 모든 TypeScript 코드에 적용하는 언어 차원 규칙이다. 금
 |---|---|
 | 경계 | 프로세스 밖이나 신뢰하지 않는 코드에서 값이 들어오는 지점. 파일·DB 읽기, 와이어 수신, 모델 도구 인자, 확장 페이로드, 환경 변수, 설정 파일 |
 | 도메인 타입 | 경계 검증을 통과한 뒤의 타입. `Static<typeof XSchema>`나 브랜드 타입 |
-| 예상 가능한 실패 | 입력·환경 때문에 정상 운영 중에도 일어나는 실패. 검증 실패, 도구 없음, 시간 초과, 취소 |
-| 버그 | 코드가 스스로 세운 불변 조건을 어긴 상태. 도달 불가 분기, 깨진 내부 상태 |
+| 예상 가능한 실패 | 코드와 설정이 올바라도 입력·환경 때문에 정상 운영 중에 일어나는 실패. I/O 오류, 잠금 경합(busy), 디스크 가득 참(disk_full), 읽기 전용(read_only), 취소, 찾지 못함, 검증 실패, 소유권 상실(lease·잠금을 잃음), 시간 초과, 외부 프로세스·네트워크 실패, 저장 데이터 손상. 목록은 TY-24가 정한다 |
+| 버그 | 코드가 스스로 세운 불변 조건을 어긴 상태. 도달 불가 분기, 깨진 내부 상태, 호출 계약 위반(닫힌 저장소에 쓰기, 트랜잭션 중첩). 코드를 고쳐야만 사라진다 |
+| 타입 소거 | TypeScript 타입은 컴파일 뒤 런타임에 남지 않는다. 타입 선언과 단언은 런타임 값을 검사하지 않는다 |
+| 단언 허용 목록 | TY-06 표. `as` 단언이 허용되는 위치의 닫힌 목록이다. 표에 없는 위치의 단언은 예외 주석으로도 허용하지 않는다 |
 | 스캔 | `scripts/check-ts-rules.ts` [제안]. oxlint와 tsc에 없는 규칙을 검사하는 저장소 자체 스크립트 |
 
 ### 1.2 공용 이름
@@ -86,9 +88,34 @@ export type RandomSource = () => number;
 ```
 
 - `ThreadId`, `EventId`, `TurnId`, `ItemId`, `EffectId` 같은 브랜드 ID 타입과 `IdFactory`는 `F.conversation.spec` §3.2가 정의하고 `@xeon/contracts/conversation`에 둔다. `parse`, `ParseError`는 `eng.domain-types.guide` DT-05가 정의한다. 멱등 키(`requestId`, 커밋 키)에는 브랜드가 없다(DT-06).
-- 구현 위치 [결정(잠정): review.decisions-2 U-03]: F에는 `Clock`·`Scheduler`·`RandomSource`·`IdFactory` 인터페이스만 둔다. `Clock`, `RandomSource`, `Scheduler`의 운영 구현과 `IdFactory` 구현 `createIdFactory(clock, random)`은 L0 `platform-os`에 두고 Cordis 서비스로 주입한다. `createIdFactory`는 주입받은 `Clock`·`RandomSource`로 ID를 만든다(TY-06 허용 위치 2). F에는 `./testing` 서브패스가 없고, 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다(`F.readme` §1, `eng.domain-types.guide` DT-06).
+- 구현 위치 [결정: review.decisions-2 U-03]: F에는 `Clock`·`Scheduler`·`RandomSource`·`IdFactory` 인터페이스만 둔다. `Clock`, `RandomSource`, `Scheduler`의 운영 구현과 `IdFactory` 구현 `createIdFactory(clock, random)`은 L0 `platform-os`에 두고 Cordis 서비스로 주입한다. `createIdFactory`는 주입받은 `Clock`·`RandomSource`로 ID를 만든다(TY-06 허용 목록 A2). F에는 `./testing` 서브패스가 없고, 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다(`F.readme` §1, `eng.domain-types.guide` DT-06).
 - [제안] `Scheduler`, `TimerHandle`은 이 절이 정한다. `Clock`에 타이머를 넣지 않는 이유: 시각만 읽는 코드(투영 입력, envelope 도장)가 타이머 능력까지 받지 않게 한다.
-- `CancelScope`(`{ readonly abortSignal: AbortSignal | undefined }`)는 F `services`(`@xeon/contracts/services`의 `services/exec.ts`)에 둔다(`L0.exec.spec` §3.2, `F.capabilities.spec` §3.12) [결정(잠정): review.decisions-2 D-04]. pi durable 포크 코드(`platform-exec`, L2 `cap-workspace`)와 그 직접 소비자만 쓴다. 그 밖의 API는 `AbortSignal`을 받는다. 다른 곳에서 이 이름을 새로 정의하지 않는다(TY-22).
+- `CancelScope`(`{ readonly abortSignal: AbortSignal | undefined }`)는 F `services`(`@xeon/contracts/services`의 `services/exec.ts`)에 둔다(`L0.exec.spec` §3.2, `F.capabilities.spec` §3.12) [결정: review.decisions-2 D-04]. pi durable 포크 코드(`platform-exec`, L2 `cap-workspace`)와 그 직접 소비자만 쓴다. 그 밖의 API는 `AbortSignal`을 받는다. 다른 곳에서 이 이름을 새로 정의하지 않는다(TY-22).
+
+### 1.3 구현자 체크리스트 (구속)
+
+구현 에이전트와 사람 구현자는 코드를 쓰기 전과 `just verify` 전에 이 목록을 확인한다. 각 줄은 2절 규칙의 요약이고, 판정은 규칙 본문이 한다. `xeon/AGENTS.md`와 `.claude/skills/xeon-*/SKILL.md`는 이 목록을 가리킨다.
+
+타입 단언과 우회 금지:
+
+1. `as` 타입 단언을 쓰지 않는다. `as unknown as T`, `<T>value`, `JSON.parse(x) as T`도 같다. `as const`만 허용한다. 예외는 TY-06 허용 목록의 위치뿐이다 (TY-06).
+2. 비null 단언 `!`을 쓰지 않는다. `undefined` 분기를 쓰고, 없으면 `Result`로 돌려준다 (TY-07, TY-18).
+3. `any`를 쓰지 않는다. 외부 `any`는 받는 즉시 `unknown`으로 주석한다 (TY-02).
+4. `@ts-ignore`, `@ts-nocheck`를 쓰지 않는다. `@ts-expect-error`는 테스트 파일에서만, 이유를 달아 쓴다 (TY-08).
+5. 단언 대신 타입 가드, `satisfies`, 브랜드 생성 함수, 판별 유니온과 `assertNever`로 좁힌다. 반환 타입에만 나오는 타입 매개변수(`function load<T>(): T`)는 숨은 단언이므로 쓰지 않는다 (TY-23).
+6. 타입은 런타임에 지워진다. 경계 값(파일, DB, 와이어, 모델 출력, 확장 페이로드, 환경 변수)은 `unknown`으로 받아 TypeBox `parse`로 검증한다 (TY-10, `eng.domain-types.guide` DT-05).
+
+실패 처리:
+
+7. 예상 가능한 실패(I/O, busy, disk_full, read_only, cancelled, not_found, 검증 실패, 소유권 상실, timeout)는 `kind`가 있는 오류 값으로 `Result`에 담아 돌려준다. `throw`하지 않고, 특히 `Bug`로 던지지 않는다 (TY-11, TY-24).
+8. `Bug`는 불변 조건 위반(프로그래머 오류)에만 쓴다. 판정 질문: "코드와 설정이 올바라도 이 실패가 일어날 수 있는가?" 그렇다면 `Bug`가 아니다 (TY-24).
+9. `catch`는 오류를 조용히 삼키지 않는다. 받은 값을 `cause`로 담아 오류 값으로 바꾸거나, 주입된 Logger로 기록하고 문서가 정한 정책대로 계속하거나, 그대로 다시 던진다. 빈 `catch`, 바인딩 없는 `catch`, `.catch(() => undefined)`는 금지다 (TY-25).
+10. 오류 유니온의 판별자는 `kind`다. `switch`는 `default`에서 `assertNever`를 부른다 (TY-12, TY-13, TY-14).
+
+억제와 예외:
+
+11. 린트·tsc 검사를 끄거나 설정을 바꿔 통과시키지 않는다. 줄 단위 예외는 4.1절 형식만 쓰고, 미리 허용된 위치는 이유와 `(<문서 id> <규칙 ID>)`를 단다. 예: `// oxlint-disable-next-line typescript/consistent-type-assertions -- 허용 목록 A2 브랜드 생성 (eng.typescript.guide TY-06)`.
+12. 이 목록을 지킬 수 없는 줄이 있으면 우회하지 말고 작업 보고에 `[미결] TY-NN <위치> <이유>`로 적는다.
 
 ## 2. 규칙
 
@@ -280,26 +307,34 @@ export default function (deps: ToolRegistryDeps): ToolRegistry {
 
 - 도구 설정 파일이 default export를 요구하면(예: `oxfmt.config.ts`) `.oxlintrc.json` `overrides`에 그 파일 경로만 넣는다. 현재 저장소는 JSON 설정만 쓰므로 해당 경로가 없다.
 
-### TY-06 타입 단언 `as`는 두 곳에서만 쓴다
+### TY-06 타입 단언 `as`는 허용 목록 위치에서만 쓴다
 
-허용 위치:
+금지 형태: `value as T`, `value as unknown as T`(이중 단언), `<T>value`(꺾쇠 단언), `JSON.parse(text) as T`, `{} as T`(빈 객체를 채울 것처럼 단언), `as any`. 모두 `typescript/consistent-type-assertions`(`assertionStyle: "never"`)가 실패시킨다. `as const`는 단언으로 세지 않는다(oxlint 1.89에서 `assertionStyle: "never"`가 `as const`를 통과시킴을 프로브로 확인했다).
 
-1. 스키마 검증 직후: `@xeon/contracts`의 `parse` 구현 안. 검증기가 값과 `Static<S>`의 일치를 확인한 뒤다.
-2. 브랜드 생성 함수 안: `IdFactory` 구현(`platform-os`의 `createIdFactory`)과 테스트 대역 `fixedIdFactory`. 새 문자열에 브랜드를 붙이는 유일한 길이다.
+허용 목록(닫힌 목록. 행 ID로 인용한다):
 
-허용 위치 밖에서는 단언 없이 `parse`나 브랜드 생성 함수를 호출한다. `as const`는 단언으로 세지 않는다.
+| ID | 위치 | 허용하는 단언 | 조건 |
+|---|---|---|---|
+| A1 | `packages/contracts/src/base/parse.ts`의 `parse` 구현 | 검증을 통과한 값을 `Static<S>`로 | 검증기의 `Check`가 참을 돌려준 뒤에만. 검증기가 타입 가드를 돌려주면 단언을 지운다 |
+| A2 | 브랜드 생성 함수: `packages/platform-os/src/ids.ts`의 `createIdFactory`, 각 패키지 `test/` 안의 테스트 대역 `fixedIdFactory` | 새로 만든 문자열을 `IdByPrefix[P]`로 | 문자열을 그 함수 안에서 만들었을 때만. 받은 문자열에 브랜드를 붙이는 일은 `parse(XxxIdSchema, input)`으로 한다 |
+| A3 [제안] | 타입 키 레지스트리 조회 함수 한 곳: `packages/ext-host/src/primitives/keyed.ts` | `ServiceKey<T>`로 등록된 값을 조회할 때 `T`로 | 등록 함수가 같은 키의 타입 매개변수로만 값을 받는다. 서비스·핸들러·저장소 판독기의 이종 맵은 모두 이 함수 하나를 거친다 |
 
-이유: `as`를 쓰면 컴파일러가 값을 검사하지 않고 타입만 바꾼다. 단언이 흩어지면 잘못된 데이터가 도메인 타입 이름을 달고 깊은 곳까지 들어간다. 단언을 두 위치로 모으면 리뷰 대상이 두 파일로 줄어든다.
+- 표에 없는 위치의 단언은 disable 주석을 달아도 허용하지 않는다. 스캔 `xeon/as-location`이 실패시킨다.
+- 허용 위치의 단언은 줄마다 disable 주석을 단다. 형식: `// oxlint-disable-next-line typescript/consistent-type-assertions -- <허용 목록 ID와 이유> (eng.typescript.guide TY-06)`. 경로 단위 `overrides`로 규칙을 끄지 않는다. 그래야 단언 개수가 4.2절 집계에 나온다.
+- 허용 목록에 행을 더하려면 이 표를 먼저 고치고 리뷰어 승인을 받는다. 구현 작업 중에는 행을 더하지 않고 `[미결] TY-06 <위치> <이유>`로 보고한다. 목록은 줄어드는 방향으로만 관리한다.
+- 허용 위치 밖에서는 단언 없이 `parse`, 브랜드 생성 함수, 타입 가드, `satisfies`를 쓴다(TY-23).
+
+이유: `as`를 쓰면 컴파일러가 값을 검사하지 않고 타입만 바꾼다. 타입은 런타임에 지워지므로 단언은 런타임에도 아무것도 확인하지 않는다. 단언이 흩어지면 잘못된 데이터가 도메인 타입 이름을 달고 깊은 곳까지 들어간다. 단언을 닫힌 목록으로 모으면 리뷰 대상이 몇 파일로 줄어든다.
 
 좋은 예:
 
 ```ts
-// packages/platform-os/src/ids.ts: IdFactory 구현 (허용 위치 2. 위치는 review.decisions-2 U-03)
+// packages/platform-os/src/ids.ts: IdFactory 구현 (허용 목록 A2. 위치는 review.decisions-2 U-03)
 export function createIdFactory(clock: Clock, random: RandomSource): IdFactory {
   return {
     next(prefix) {
       const ulid = encodeUlid(clock.now(), random);
-      // oxlint-disable-next-line typescript/consistent-type-assertions -- 브랜드 생성 함수 (eng.typescript.guide TY-06)
+      // oxlint-disable-next-line typescript/consistent-type-assertions -- 허용 목록 A2 브랜드 생성 (eng.typescript.guide TY-06)
       return `${prefix}_${ulid}` as IdByPrefix[typeof prefix];
     },
   };
@@ -316,11 +351,17 @@ const threadId = ids.next("thr");
 const threadId = request.params.threadId as ThreadId;
 
 // 같은 규칙 실패: 이중 단언
-const event = (raw as unknown) as DurableEventEnvelope;
+const event = raw as unknown as DurableEventEnvelope;
+
+// 같은 규칙 실패: JSON 결과 단언. 타입 소거 때문에 런타임 검사는 하나도 없다
+const settings = JSON.parse(text) as SettingsFile;
+
+// 같은 규칙 실패, 스캔 xeon/as-location 실패: 허용 목록 밖의 단언은 주석이 있어도 실패
+// oxlint-disable-next-line typescript/consistent-type-assertions -- 타입이 맞음 (eng.typescript.guide TY-06)
+return handler as unknown as HandlerEntry["fn"];
 ```
 
-- 허용 위치 1, 2는 `packages/contracts/src/base/**`에 둔다 [제안]. 이 경로는 `.oxlintrc.json` `overrides`로 규칙을 끄지 않고, 줄마다 disable 주석을 단다. 그래야 단언 개수가 4.2절 집계에 나온다.
-- 위 좋은 예의 disable 주석은 이슈 링크가 없다. 허용 위치의 주석은 규칙 번호를 링크 대신 적는다(4.1절).
+- 위 좋은 예의 disable 주석은 이슈 링크가 없다. 허용 목록 위치의 주석은 허용 목록 ID와 이유, `(eng.typescript.guide TY-06)`을 링크 대신 적는다(4.1절).
 
 ### TY-07 비null 단언 `!`을 쓰지 않는다
 
@@ -346,15 +387,26 @@ pendingCalls.get(toolCallId)!.abort.abort();
 const name = session?.title!;
 ```
 
-### TY-08 `@ts-ignore`, `@ts-nocheck`를 쓰지 않는다. `@ts-expect-error`는 이유와 이슈 링크를 단다
+### TY-08 `@ts-ignore`, `@ts-nocheck`를 쓰지 않는다. `@ts-expect-error`는 테스트 파일에서만 이유를 달아 쓴다
 
-이유: `@ts-ignore`는 오류가 사라진 뒤에도 남아 다음 줄의 새 오류까지 숨긴다. `@ts-expect-error`는 오류가 없어지면 그 자체가 오류가 되므로 낡은 억제가 남지 않는다.
+규칙:
+
+- 운영 코드(`src/**`, `scripts/**`의 테스트 아닌 파일)에서는 `@ts-ignore`, `@ts-nocheck`, `@ts-expect-error`를 모두 쓰지 않는다.
+- 테스트 파일(`**/test/**`, `**/*.test.ts`)에서는 `@ts-expect-error`만 쓴다. 용도는 "이 코드는 타입 검사에서 거부되어야 한다"를 확인하는 타입 테스트다. 형식은 `// @ts-expect-error -- <이유> (<문서 id> <규칙·절>)` 또는 이슈 URL이다.
+- 외부 라이브러리 타입이 틀려 운영 코드가 컴파일되지 않으면 억제 주석을 쓰지 않는다. 그 라이브러리를 감싸는 경계 어댑터에서 값을 `unknown`으로 받아 `parse`나 타입 가드로 좁힌다(TY-10, TY-23). 어댑터로도 풀리지 않으면 `[미결] TY-08 <위치> <이유>`로 보고한다.
+
+이유: `@ts-ignore`는 오류가 사라진 뒤에도 남아 다음 줄의 새 오류까지 숨긴다. `@ts-expect-error`는 오류가 없어지면 그 자체가 오류(TS2578)가 되므로 낡은 억제가 남지 않지만, 운영 코드에서는 단언과 같은 결과를 낸다. 컴파일러가 확인하지 않은 값을 그대로 다음 줄에 넘긴다.
 
 좋은 예:
 
 ```ts
-// @ts-expect-error -- pi-ai 1.3.0 타입이 signal을 선택으로 두지 않음 (https://github.com/<owner>/<repo>/issues/12)
-stream(model, context, { signal: undefined });
+// 테스트 파일: 잘못된 호출이 컴파일 오류인지 확인한다
+// @ts-expect-error -- 레지스트리에 없는 메서드는 컴파일 오류다 (F.wire-settings.spec §9 A8)
+client.call("turn.unknown", {});
+
+// 운영 코드: 외부 타입이 틀리면 경계에서 unknown으로 받아 좁힌다
+const raw: unknown = piStream.result();
+const message = parse(AssistantMessageSchema, raw);
 ```
 
 나쁜 예:
@@ -364,13 +416,13 @@ stream(model, context, { signal: undefined });
 // @ts-ignore
 stream(model, context, { signal: undefined });
 
-// oxlint typescript/ban-ts-comment 실패 (allow-with-description: 설명 없음)
-// @ts-expect-error
+// oxlint typescript/ban-ts-comment 실패 (운영 코드의 ts-expect-error: true)
+// @ts-expect-error -- pi-ai 1.3.0 타입이 signal을 선택으로 두지 않음 (https://github.com/<owner>/<repo>/issues/12)
 stream(model, context, { signal: undefined });
 
-// 스캔 xeon/directive-format 실패: 이유는 있으나 이슈 링크 없음
-// @ts-expect-error -- 타입이 틀림
-stream(model, context, { signal: undefined });
+// 테스트 파일에서도 oxlint typescript/ban-ts-comment 실패 (allow-with-description: 설명 없음)
+// @ts-expect-error
+client.call("turn.unknown", {});
 ```
 
 ### TY-09 ID는 브랜드 타입으로 구분한다
@@ -378,7 +430,7 @@ stream(model, context, { signal: undefined });
 이유: `ThreadId`, `EventId`, `TurnId`, `EffectId`는 런타임에 모두 문자열이다. 브랜드 없이 `string`으로 두면 함수 인자 순서를 바꿔 넘겨도 컴파일된다. 브랜드는 런타임 비용 없이 이 실수를 컴파일 오류로 만든다.
 
 - 정의: `Brand<T, Name>`(1.2절). 브랜드 ID 타입과 스키마는 `F.conversation.spec` §3.2가 정하고, 쓰는 규칙은 `eng.domain-types.guide` DT-06이 정한다.
-- 브랜드 값을 만드는 길은 둘뿐이다. 새 접두 ID는 `IdFactory.next(prefix)`, 경계에서 받은 값은 `parse(XxxIdSchema, input)`이다. 단언은 TY-06의 허용 위치 2에만 있다.
+- 브랜드 값을 만드는 길은 둘뿐이다. 새 접두 ID는 `IdFactory.next(prefix)`, 경계에서 받은 값은 `parse(XxxIdSchema, input)`이다. 단언은 TY-06 허용 목록 A2에만 있다.
 - 멱등 키는 브랜드가 없는 문자열이다. payload `requestId`는 1~64자(`F.conversation.spec` §3.5), 커밋 키는 먼저 커밋된 값에서 만드는 `CommitKey`다(`eng.transactions.design` 4.7·4.8절). 결정적으로 만들어야 하므로 `IdFactory.next`로 만들지 않는다.
 
 좋은 예:
@@ -399,17 +451,18 @@ loadEvent(thread.id, event.id);
 // tsc TS2345 실패: 인자 순서가 바뀜 (EventId는 ThreadId에 대입 불가)
 loadEvent(event.id, thread.id);
 
-// oxlint typescript/consistent-type-assertions 실패: 허용 위치 밖에서 브랜드 생성
+// oxlint typescript/consistent-type-assertions 실패: 허용 목록 밖에서 브랜드 생성
 const id = `thr_${crypto.randomUUID()}` as ThreadId;
 ```
 
 ### TY-10 경계 입력은 `unknown`으로 받아 검증한 뒤 도메인 타입으로 들인다
 
-이유: 디스크·와이어·모델·확장에서 온 값은 타입 선언과 무관하게 어떤 모양이든 될 수 있다. 경계에서 한 번 검증하면 안쪽 코드는 방어 검사 없이 도메인 타입을 믿을 수 있다. 검증을 안쪽으로 미루면 같은 검사가 여러 곳에 흩어지고 일부는 빠진다.
+이유: 디스크·와이어·모델·확장에서 온 값은 타입 선언과 무관하게 어떤 모양이든 될 수 있다. TypeScript 타입은 컴파일 뒤 지워지므로 타입 선언, 제네릭 인자, 단언은 런타임 값을 하나도 확인하지 않는다. 런타임 검사는 TypeBox 검증뿐이다. 경계에서 한 번 검증하면 안쪽 코드는 방어 검사 없이 도메인 타입을 믿을 수 있다. 검증을 안쪽으로 미루면 같은 검사가 여러 곳에 흩어지고 일부는 빠진다.
 
 - 경계 함수의 입력 매개변수 타입은 `unknown`이다. `string`, `Record<string, unknown>` 같은 부분 가정 타입으로 받지 않는다.
 - 검증은 TypeBox 스키마와 `parse(schema, input): Result<Static<S>, ParseError>`로 한다(DT-05). 검증 실패는 `Result`의 `error`로 돌려준다(TY-11).
 - 경계 목록과 변환 위치는 `eng.domain-types.guide` DT-04, DT-05가 정한다.
+- 타입 매개변수로 경계 값의 타입을 정하지 않는다. `readJson<T>(path): T`, `call<R>(method): Promise<R>`처럼 호출자가 고른 `T`를 그대로 돌려주는 함수는 검증 없는 단언이다. 스키마를 인자로 받는다: `readJson(path, schema): Result<Static<S>, ReadJsonError>`(TY-23).
 
 좋은 예:
 
@@ -429,7 +482,7 @@ export function acceptPost(item: Record<string, unknown>): PostItem {
 }
 ```
 
-### TY-11 예상 가능한 실패는 `Result`나 오류 유니온으로 돌려주고, `throw`는 버그와 복구 불가 상황에만 쓴다
+### TY-11 예상 가능한 실패는 `Result`나 오류 유니온으로 돌려주고, `throw`는 버그에만 쓴다
 
 이유:
 
@@ -439,9 +492,10 @@ export function acceptPost(item: Record<string, unknown>): PostItem {
 
 `throw`를 허용하는 경우:
 
-1. 버그: 불변 조건 위반, 도달 불가 분기. `throw new Bug(...)` 또는 `assertNever(...)`.
-2. 복구 불가: 프로세스를 계속할 수 없는 상태(예: DB 파일 손상으로 시작 불가). 진입점(L4 `apps/*`)까지 전파해 종료 코드로 바꾼다.
-3. 외부 API 계약: 라이브러리가 콜백에서 throw를 요구할 때. 해당 줄에 4절 예외 주석을 단다.
+1. 버그: 불변 조건 위반, 도달 불가 분기, 호출 계약 위반. `throw new Bug(...)` 또는 `assertNever(...)`. 판정은 TY-24가 한다.
+2. 외부 API 계약: 라이브러리가 콜백에서 throw를 요구할 때. 받은 오류를 그대로 다시 던지거나(`throw caught`), 4절 예외 주석을 단다.
+
+복구할 수 없는 상태(예: DB 파일 손상으로 시작 불가, 디스크 가득 참으로 세션 진행 불가)도 예상 가능한 실패다. `throw`하지 않고 `kind`가 있는 오류 값으로 돌려준다. 진입점(L4 `apps/*`)이 그 `kind`를 보고 세션을 멈추거나 종료 코드로 바꾼다. 어느 세션을 멈출지는 호출 사슬의 각 층이 값으로 보고 정한다(`eng.anti-patterns.guide` AP-S-06).
 
 좋은 예:
 
@@ -799,7 +853,7 @@ export const EMPTY_SESSION_VIEW = createEmptyView();
 이유: 재생, 재개, 테이프 기반 테스트는 같은 입력에서 같은 결과를 요구한다(`eng.testing.guide`). `Date.now()`, `Math.random()`, `crypto.randomUUID()`를 직접 부르면 결과가 실행마다 달라지고 테스트는 시계를 가로채는 전역 대역에 의존한다.
 
 - 시각은 `Clock.now()`(epoch ms 정수), 난수는 `RandomSource`, 지연 실행은 `Scheduler`, ID는 `IdFactory.next(prefix)`로 얻는다(1.2절, DT-06).
-- `Clock`, `RandomSource`, `Scheduler`의 실제 구현은 L0 `platform-os`가 제공하고 Cordis 서비스로 주입한다 [제안]. 이 패키지만 전역 시각·난수 API 직접 호출을 허용한다(경로 예외, 4.3절). `IdFactory` 구현(`createIdFactory`)도 `platform-os`에 있고 주입받은 `Clock`·`RandomSource`로 ID를 만든다(1.2절, DT-06, [결정(잠정): review.decisions-2 U-03]).
+- `Clock`, `RandomSource`, `Scheduler`의 실제 구현은 L0 `platform-os`가 제공하고 Cordis 서비스로 주입한다 [제안]. 이 패키지만 전역 시각·난수 API 직접 호출을 허용한다(경로 예외, 4.3절). `IdFactory` 구현(`createIdFactory`)도 `platform-os`에 있고 주입받은 `Clock`·`RandomSource`로 ID를 만든다(1.2절, DT-06, [결정: review.decisions-2 U-03]).
 - `performance.now()`도 `platform-os` 밖에서 쓰지 않는다. 경과 시간은 주입된 `Clock.now()` 두 값의 차이로 잰다 [제안].
 
 좋은 예:
@@ -883,6 +937,196 @@ export async function fetchPage(url: string, signal: AbortSignal): Promise<strin
 - `typescript/no-misused-promises`는 Promise를 돌려주는 함수를 `void` 콜백 자리에 넘기는 실수를, `typescript/await-thenable`과 `typescript/require-await`는 의미 없는 `await`·`async`를 막는다(`xeon/.oxlintrc.json`).
 - signal 미전파 검사는 자동화 수단이 없다. 리뷰 항목이다 [미결: 스캔 가능성].
 
+### TY-23 단언 대신 좁히기 수단을 쓴다: 타입 가드, `satisfies`, 브랜드 생성 함수, 판별 유니온
+
+단언(TY-06)이 필요해 보이는 자리는 아래 표에서 대체 수단을 고른다.
+
+| 상황 | 쓰는 것 | 쓰지 않는 것 |
+|---|---|---|
+| 경계에서 받은 값 | `parse(Schema, value)` (TY-10, DT-05) | `value as T`, `JSON.parse(x) as T` |
+| 이미 타입이 있는 값의 한 변형 고르기 | 판별자 비교(`if (x.type === "text")`), `switch` + `assertNever` (TY-13, TY-14) | `x as TextPart` |
+| `unknown` 오류 값에서 필드 하나 읽기 | 작은 타입 가드(`isErrnoException`) | `(error as NodeJS.ErrnoException).code` |
+| 객체 리터럴이 타입에 맞는지 확인하면서 리터럴 타입 유지 | `satisfies` | `{ ... } as T` |
+| 빈 컨테이너 초기화 | 변수 타입 주석(`const out: Item[] = []`, `new Map<K, V>()`) | `[] as Item[]`, `{} as Record<K, V>` |
+| 새 브랜드 값 | `IdFactory.next(prefix)`, `parse(XxxIdSchema, s)` (TY-09) | `` `thr_${x}` as ThreadId `` |
+| 이종 레지스트리 조회 | TY-06 허용 목록 A3 조회 함수 | 호출 지점마다 `as Api` |
+| 객체 키 순회 | 키 목록을 `as const` 튜플로 두고 순회, 또는 `Object.entries` 결과를 타입 가드로 거른다 | `Object.keys(o) as (keyof T)[]` |
+
+타입 가드 규칙:
+
+- 사용자 정의 타입 술어(`(v: unknown): v is T`)는 `T`의 판별자와 그 함수가 읽는 필드를 실제로 검사한다. 검사하지 않는 필드가 있으면 술어 타입을 그 필드만 가진 좁은 타입으로 둔다(`v is { readonly code: string }`).
+- 경계 값 전체 모양을 확인하는 타입 가드를 손으로 쓰지 않는다. 그 자리는 스키마와 `parse`다(DT-02, DT-05).
+- `asserts v is T` 함수는 실패 시 `Bug`를 던지는 불변 조건 확인에만 쓴다. 예상 가능한 실패에는 쓰지 않는다(TY-24).
+
+제네릭 규칙:
+
+- 타입 매개변수가 반환 타입에만 나오는 함수(`function load<T>(key: string): T`)는 쓰지 않는다. 호출자가 고른 타입을 검증 없이 돌려주는 숨은 단언이다. 스키마나 타입 키(`ServiceKey<T>`)를 인자로 받아 타입이 인자에서 오게 한다. `typescript/no-unnecessary-type-parameters`가 일부를 잡는다.
+- `Function`, `Object`, `{}` 타입은 쓰지 않는다. 호출 모양을 적은 함수 타입, `Record<string, unknown>`, `unknown`을 쓴다.
+
+이유: 단언·`any`·`!`는 컴파일러가 아는 사실을 지우고 쓴 사람의 믿음으로 바꾼다. 타입 가드와 판별자 비교는 런타임 검사와 타입 좁히기가 같은 코드라 둘이 어긋나지 않는다. `satisfies`는 값의 리터럴 타입을 지키면서 모양만 확인한다.
+
+좋은 예:
+
+```ts
+// 작은 타입 가드: 읽는 필드만 검사하고, 술어 타입도 그 필드만 가진다
+export function hasErrnoCode(value: unknown): value is { readonly code: string } {
+  return typeof value === "object" && value !== null && "code" in value && typeof value.code === "string";
+}
+
+// satisfies: 키 누락은 컴파일 오류, 값의 리터럴 타입은 유지
+const RETRY_LIMITS = { model: 3, tool: 1 } satisfies Record<RetryTarget, number>;
+
+// 빈 컨테이너는 주석으로 타입을 준다
+const pending: Map<ToolCallId, PendingCall> = new Map();
+
+// 타입 키: T가 인자에서 온다
+export function getService<T>(key: ServiceKey<T>): Result<T, ServiceLookupError>;
+```
+
+나쁜 예:
+
+```ts
+// oxlint typescript/consistent-type-assertions 실패
+const code = (error as NodeJS.ErrnoException).code;
+const limits = { model: 3 } as Record<RetryTarget, number>; // tool 키 누락이 숨는다
+
+// oxlint typescript/no-unnecessary-type-parameters 실패: T가 반환에만 나온다
+export function readState<T>(raw: string): T {
+  const json: unknown = JSON.parse(raw);
+  return json; // 리뷰 TY-23: 이 줄을 통과시키려면 단언이 필요하다
+}
+
+// 리뷰 TY-23: 타입 가드가 판별자만 보고 전체 모양을 약속한다
+export function isToolCall(v: unknown): v is ToolCall {
+  return typeof v === "object" && v !== null && "type" in v && v.type === "toolCall";
+}
+```
+
+### TY-24 `Bug`는 불변 조건 위반에만 쓴다. 예상 가능한 실패를 `Bug`로 던지지 않는다
+
+판정 질문: "코드와 설정이 모두 올바라도 이 실패가 일어날 수 있는가?" 그렇다면 예상 가능한 실패이고, `kind`가 있는 오류 값으로 돌려준다(TY-11, TY-12). 일어날 수 없으면 버그이고 `throw new Bug(...)`를 쓴다.
+
+예상 가능한 실패 목록(이 `kind` 이름은 [제안]이다. 실제 이름은 각 F 오류 유니온이 정한다):
+
+| 범주 | 예 (`kind`) | Bug가 아닌 이유 |
+|---|---|---|
+| I/O | `io`, `not_found`, `permission_denied` | 파일·네트워크·프로세스는 코드 밖 상태다 |
+| 자원 | `busy`(SQLITE_BUSY, 잠금 경합), `disk_full`, `read_only` | 다른 프로세스와 디스크 상태에 달렸다 |
+| 시간과 취소 | `timeout`, `cancelled` | 사용자 동작과 외부 지연에 달렸다 |
+| 입력 | `parse`(검증 실패), `invalid_args`, `schema_too_new` | 외부·과거 버전·확장이 만든 값이다 |
+| 소유 | `ownership_lost`(lease·잠금 상실), `duplicate`(멱등 재제출) | 경합과 재시작에서 정상적으로 생긴다 |
+| 저장 데이터 | `corrupt`, `row_invalid` | 손상·수동 편집·이전 버전이 만든다 |
+| 외부 서비스 | `provider_error`, `rate_limited`, `unavailable` | 모델 provider, MCP 서버, 웹은 코드 밖이다 |
+
+`Bug`인 경우: 도달 불가 분기(`assertNever`), 같은 모듈이 세운 상태 기계 위반(닫힌 저장소에 쓰기, 쓰기 트랜잭션 중첩, 동기 콜백 자리에 async 함수), 등록 시점 계약 위반(F에 없는 이벤트 kind를 생산자가 씀), 자기 코드가 만든 값의 불변 조건 위반(직렬화 대상에 `NaN`).
+
+규칙:
+
+- `Bug` 메시지에 오류 종류를 문자열로 넣어 `kind` 대신 쓰지 않는다(`new Bug("store.io: ...")`). 호출자는 메시지 문자열로 분기할 수 없다.
+- 외부 라이브러리·OS가 던진 오류를 `Bug`로 감싸지 않는다. 경계 어댑터의 `catch`에서 오류 값으로 바꾼다(TY-25).
+- 하위 함수가 `Result`로 돌려준 실패를 상위 함수가 `Bug`로 바꾸지 않는다. 처리할 수 없으면 자기 오류 유니온에 변형을 더해 위로 돌려준다.
+- 테스트는 예상 가능한 실패를 `expect(...).toThrow()`로 확인하지 않는다. 돌려받은 `Result`의 `error.kind`를 확인한다. `toThrow(Bug)`는 버그 경로 테스트에만 쓴다.
+
+이유: `Bug`는 "코드를 고쳐야 사라지는 상태"라는 신호다. 예상 가능한 실패를 `Bug`로 던지면 호출자는 재시도·세션 정지·사용자 안내를 고를 수 없고, 확장 지점 fold는 실패를 거부로 환산하며, 로그와 경보가 실제 버그와 운영 실패를 구분하지 못한다. 디스크 가득 참 하나로 런타임 전체가 버그 경로를 탄다(`eng.anti-patterns.guide` AP-S-06).
+
+좋은 예:
+
+```ts
+export type AppendError =
+  | { readonly kind: "io"; readonly code: string; readonly cause: unknown }
+  | { readonly kind: "disk_full" }
+  | { readonly kind: "busy"; readonly retryAfterMs: number }
+  | { readonly kind: "ownership_lost"; readonly threadId: ThreadId };
+
+export function append(store: SessionStore, draft: EventDraft): Result<EventId, AppendError> {
+  const written = store.write(draft);       // L0가 Result로 돌려준다
+  if (!written.ok) return written;          // 그대로 위로. Bug로 바꾸지 않는다
+  return ok(written.value.id);
+}
+
+// 불변 조건 위반만 Bug
+if (state.phase === "closed") throw new Bug("SessionStore.write after close");
+```
+
+나쁜 예:
+
+```ts
+// 스캔 xeon/bug-for-expected 실패 [제안]: Bug 메시지에 예상 가능한 실패 종류가 있다
+if (!written.ok && written.error.kind === "io") throw new Bug(`store.io: ${written.error.code}`);
+
+// 리뷰 TY-24: SQLITE_BUSY는 다른 프로세스 때문에 생긴다
+if (code === "SQLITE_BUSY") throw new Bug("store.busy");
+
+// 리뷰 TY-24: 예상 가능한 실패를 toThrow로 확인
+expect(() => append(store, draft)).toThrow(Bug);
+```
+
+- 스캔 `xeon/bug-for-expected` [제안]은 `new Bug(` 인자 문자열에 위 표의 `kind` 단어(`io`, `busy`, `disk_full`, `read_only`, `timeout`, `cancel`, `not_found`, `corrupt`, `lease`, `ownership`)가 있으면 실패시킨다. 오탐은 4.1절 형식의 예외 주석으로 넘기고 이유를 적는다.
+
+### TY-25 `catch`는 오류를 조용히 삼키지 않는다
+
+`catch` 블록과 `.catch()` 콜백은 아래 셋 중 하나를 한다.
+
+1. 변환: 받은 값을 `cause` 필드에 담아 `kind`가 있는 오류 값으로 돌려준다(`return err({ kind: "io", cause: caught })`).
+2. 기록 후 계속: 문서가 "실패해도 계속"을 정한 자리(확장 지점 `tap` fold, 정리 단계 dispose, 최선 노력 캐시)에서만 쓴다. 주입된 `Logger`로 고정 메시지와 구조화 필드(`cause`, 관련 ID)를 남긴다(`eng.best-practices.guide` BP-12). 그 자리의 근거 문서와 절을 주석에 적는다.
+3. 다시 던지기: 받은 값을 그대로 던진다(`throw caught`). 감싸야 하면 `new Bug(msg, { cause: caught })`이고, 이 경우는 버그일 때뿐이다(TY-24).
+
+금지:
+
+- 빈 `catch {}`, 바인딩 없는 `catch { return fallback; }`, 받은 값을 `void caught`로 버리기.
+- `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)`.
+- 기본값 반환으로 실패를 성공처럼 바꾸기(`catch { return []; }`). 빈 결과가 정상 값이라면 실패와 구분되는 변형을 돌려준다.
+- 함수 본문 전체를 감싸는 광역 `try`. `try`는 실패할 수 있는 호출 하나를 감싼다(`eng.anti-patterns.guide` AP-C-02).
+- `console`로 찍고 계속하기(L0·L1, BP-12).
+
+이유: 삼킨 오류는 호출자에게도 로그에도 남지 않는다. 저장소 쓰기 실패를 삼키면 커밋 여부를 모른 채 진행하고, 확장 지점 `first` 핸들러에서 삼키면 fail-closed가 fail-open이 된다(`eng.anti-patterns.guide` AP-C-02).
+
+좋은 예:
+
+```ts
+export function readSettingsFile(path: string, fs: FsPort): Result<unknown, SettingsReadError> {
+  let text: string;
+  try {
+    text = fs.readText(path);
+  } catch (caught) {
+    if (hasErrnoCode(caught) && caught.code === "ENOENT") return err({ kind: "not_found", path });
+    return err({ kind: "io", path, cause: caught });
+  }
+  try {
+    const json: unknown = JSON.parse(text);
+    return ok(json);
+  } catch (caught) {
+    return err({ kind: "parse_json", path, cause: caught });
+  }
+}
+
+// 기록 후 계속: tap fold는 핸들러 실패를 기록하고 계속한다 (ADR-0007 §3.2)
+try {
+  handler(payload);
+} catch (caught) {
+  log.warn("ext.tap_failed", { extId, point, cause: caught });
+}
+```
+
+나쁜 예:
+
+```ts
+// oxlint no-empty, preserve-caught-error(requireCatchParameter) 실패
+try { fs.unlink(tmp); } catch {}
+
+// oxlint preserve-caught-error 실패: 감싼 오류에 cause가 없다
+try { db.exec(sql); } catch (caught) { throw new Bug("exec failed"); }
+
+// 스캔 xeon/catch-swallow 실패 [제안]: 받은 값을 버리고 기본값 반환
+try { return parseTools(raw); } catch (caught) { void caught; return []; }
+
+// 스캔 xeon/catch-swallow 실패 [제안]
+void flush().catch(() => undefined);
+```
+
+- `preserve-caught-error`의 `requireCatchParameter: true`는 바인딩 없는 `catch`를 실패시킨다. 바인딩한 값을 쓰지 않으면 `no-unused-vars`(correctness, `caughtErrors` 기본값)가 실패시킨다. 둘이 함께 "받아서 쓴다"를 강제한다(oxlint 1.89 프로브로 확인).
+- `void caught`와 빈 화살표 `.catch` 콜백은 위 린트를 통과한다(프로브로 확인). 스캔 `xeon/catch-swallow` [제안]이 `catch` 블록 안 `void <식별자>`와 `.catch(() => undefined)`, `.catch(() => {})`를 실패시킨다.
+
 ## 3. 강제 수단
 
 ### 3.1 규칙별 강제 수단
@@ -896,12 +1140,12 @@ oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부
 | TY-03 enum 금지 | `erasableSyntaxOnly`(TS1294) | `oxc/no-const-enum`(추가) | `xeon/no-declare-enum`: `declare enum`, `const enum` 선언 검출 | — |
 | TY-04 namespace 금지 | `erasableSyntaxOnly`(값 있는 namespace) | `typescript/no-namespace`(추가) | — | — |
 | TY-05 default export 금지 | — | `import/no-default-export` | — | — |
-| TY-06 as 제한 | — | `typescript/consistent-type-assertions` `{ "assertionStyle": "never" }`(추가), `typescript/no-unnecessary-type-assertion`, `typescript/no-unsafe-type-assertion`(추가) | `xeon/as-location`: 단언 disable 주석이 `packages/contracts/src/base/**` 밖에 있으면 실패 | 허용 위치 두 곳의 단언 |
-| TY-07 `!` 금지 | `strict` | `typescript/no-non-null-assertion`, `typescript/no-non-null-asserted-optional-chain` | — | — |
-| TY-08 ts 주석 | — | `typescript/ban-ts-comment` `{ "ts-expect-error": "allow-with-description", "ts-ignore": true, "ts-nocheck": true }` | `xeon/directive-format`(4.1절) | — |
+| TY-06 as 제한 | — | `typescript/consistent-type-assertions` `{ "assertionStyle": "never" }`(추가), `typescript/no-unnecessary-type-assertion`, `typescript/no-unsafe-type-assertion`(추가) | `xeon/as-location`: `consistent-type-assertions` disable 주석이 TY-06 허용 목록 경로 밖에 있거나 허용 목록 ID가 없으면 실패 | 허용 목록 위치의 단언, 허용 목록 변경 |
+| TY-07 `!` 금지 | `strict` | `typescript/no-non-null-assertion`, `typescript/no-non-null-asserted-optional-chain`, `typescript/no-non-null-asserted-nullish-coalescing`(추가) | — | — |
+| TY-08 ts 주석 | — | `typescript/ban-ts-comment` 기본 `{ "ts-expect-error": true, "ts-ignore": true, "ts-nocheck": true, "ts-check": false }`(변경), 테스트 overrides `{ "ts-expect-error": "allow-with-description", "ts-ignore": true, "ts-nocheck": true, "ts-check": false, "minimumDescriptionLength": 10 }`(추가) | `xeon/directive-format`(4.1절) | 테스트의 `@ts-expect-error`가 타입 테스트인가 |
 | TY-09 브랜드 ID | `strict` | TY-06 규칙 | — | 새 ID 타입이 `Brand`를 쓰는가 |
 | TY-10 unknown 경계 | `strict` | TY-02의 `no-unsafe-*` | — | 경계 함수 입력이 `unknown`인가 |
-| TY-11 Result와 throw | — | `typescript/only-throw-error`, `no-throw-literal`, `unicorn/throw-new-error` | `xeon/throw-only-bug`: `throw new X(...)`에서 `X`가 `Bug`가 아니면 실패 | 복구 불가 throw의 정당성 |
+| TY-11 Result와 throw | — | `typescript/only-throw-error`, `no-throw-literal`, `unicorn/throw-new-error` | `xeon/throw-only-bug`: `throw new X(...)`에서 `X`가 `Bug`가 아니면 실패 | 외부 API 계약 throw의 정당성 |
 | TY-12 오류 kind | — | — | `xeon/error-discriminant` | 판별자 이름 |
 | TY-13 완전성 | `strict` | `typescript/switch-exhaustiveness-check` | — | — |
 | TY-14 switch default | `noFallthroughCasesInSwitch` | `default-case`(추가), `typescript/switch-exhaustiveness-check` | `xeon/switch-default-never`: `default` 블록에 `assertNever` 호출이 없으면 실패 | default의 처리 내용 |
@@ -913,6 +1157,9 @@ oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부
 | TY-20 명시 반환 타입 | `isolatedDeclarations` | `typescript/explicit-module-boundary-types`(추가) | — | — |
 | TY-21 시간·난수·ID 주입 | — | `no-restricted-properties`(추가): `Date.now`, `Math.random`, `crypto.randomUUID`, `crypto.getRandomValues`, `performance.now` | `xeon/no-ambient-time`: 인자 없는 `new Date()` | — |
 | TY-22 Promise | — | `typescript/no-floating-promises`, `typescript/no-misused-promises`, `typescript/await-thenable`, `typescript/require-await` | `xeon/no-void-promise`: `void <호출식>` 검출 | signal 전파 |
+| TY-23 좁히기 수단 | `strict` | TY-06 규칙, `typescript/no-unnecessary-type-parameters`(추가), `typescript/no-unsafe-function-type`(추가), `typescript/no-wrapper-object-types`(correctness 범주로 켜져 있음) | — | 타입 가드가 술어 타입의 필드를 실제로 검사하는가 |
+| TY-24 Bug 범위 | — | — | `xeon/bug-for-expected`: `new Bug(` 메시지에 예상 가능한 실패 단어 | 이 Bug는 코드와 설정이 올바라도 생길 수 있는가 |
+| TY-25 catch 처리 | — | `no-empty` `{ "allowEmptyCatch": false }`(추가), `preserve-caught-error` `{ "requireCatchParameter": true }`(추가), `no-useless-catch`(correctness 범주로 켜져 있음), `no-unused-vars`(correctness), `typescript/use-unknown-in-catch-callback-variable`(추가) | `xeon/catch-swallow`: `catch` 안 `void <식별자>`, `.catch(() => undefined)`, `.catch(() => {})` | 기록 후 계속하는 catch에 근거 문서가 있는가 |
 
 추가할 `.oxlintrc.json` 항목 [제안]. 설정 파일은 `eng.toolchain.guide`가 소유하므로 반영은 그 문서의 작업으로 한다.
 
@@ -924,6 +1171,16 @@ oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부
     "default-case": "error",
     "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
     "typescript/no-unsafe-type-assertion": "error",
+    "typescript/no-non-null-asserted-nullish-coalescing": "error",
+    "typescript/no-unnecessary-type-parameters": "error",
+    "typescript/no-unsafe-function-type": "error",
+    "typescript/use-unknown-in-catch-callback-variable": "error",
+    "typescript/ban-ts-comment": [
+      "error",
+      { "ts-expect-error": true, "ts-ignore": true, "ts-nocheck": true, "ts-check": false }
+    ],
+    "no-empty": ["error", { "allowEmptyCatch": false }],
+    "preserve-caught-error": ["error", { "requireCatchParameter": true }],
     "typescript/explicit-module-boundary-types": "error",
     "typescript/prefer-readonly": "error",
     "unicorn/no-static-only-class": "error",
@@ -937,14 +1194,56 @@ oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부
     ]
   },
   "overrides": [
-    { "files": ["packages/platform-os/**"], "rules": { "no-restricted-properties": "off" } }
+    { "files": ["packages/platform-os/**"], "rules": { "no-restricted-properties": "off" } },
+    {
+      // 기존 테스트 override 항목에 더한다. 테스트에서는 타입 테스트용 @ts-expect-error만 설명과 함께 허용한다 (TY-08)
+      "files": ["**/test/**", "**/*.test.ts", "scripts/**/*.test.ts"],
+      "rules": {
+        "typescript/ban-ts-comment": [
+          "error",
+          { "ts-expect-error": "allow-with-description", "ts-ignore": true, "ts-nocheck": true, "ts-check": false, "minimumDescriptionLength": 10 }
+        ]
+      }
+    }
   ]
 }
 ```
 
+- `typescript/consistent-type-assertions`는 테스트 overrides에서 끄지 않는다. 테스트 픽스처도 `satisfies`, 타입 주석, `parse`, A2 테스트 대역으로 만든다.
+- `typescript/ban-ts-comment`는 현재 `xeon/.oxlintrc.json` 기본 설정에 `"ts-expect-error": "allow-with-description"`으로 있다. 위 항목은 기본 설정을 바꾸고 테스트 경로에 완화를 옮긴다.
+
+#### 3.1.1 TY-02·06·07·08·23·24·25 lint 규칙 목록 (구현 대상)
+
+typed programming 안티패턴을 막는 규칙 전체다. `xeon/.oxlintrc.json`에 이 목록이 모두 있어야 한다. 규칙 존재와 범주는 oxlint 1.89.0 `--rules` 목록으로 확인했다. "TA"는 type-aware(oxlint-tsgolint) 규칙이다.
+
+| 규칙 | 설정 | 상태 | 막는 것 |
+|---|---|---|---|
+| `typescript/consistent-type-assertions` | `["error", { "assertionStyle": "never" }]` | 추가 | `as T`, `as unknown as T`, `<T>x`. `as const`는 통과(프로브 확인) |
+| `typescript/no-unsafe-type-assertion` (TA) | `"error"` | 추가 | 허용 목록 안 단언 중 넓은 타입을 좁히는 단언 표시 |
+| `typescript/no-unnecessary-type-assertion` (TA) | `"error"` | 있음 | 필요 없는 단언 |
+| `typescript/no-explicit-any` | `"error"` | 있음 | `any` |
+| `typescript/no-unsafe-argument`, `-assignment`, `-call`, `-member-access`, `-return` (TA) | `"error"` | 있음 | 외부 `any` 전파 |
+| `typescript/no-unsafe-function-type` | `"error"` | 추가 | `Function` 타입 |
+| `typescript/no-wrapper-object-types` | correctness 범주 | 있음 | `Object`, `String` 같은 래퍼 타입 |
+| `typescript/no-non-null-assertion` | `"error"` | 있음 | `x!` |
+| `typescript/no-non-null-asserted-optional-chain` | `"error"` | 있음 | `a?.b!` |
+| `typescript/no-non-null-asserted-nullish-coalescing` | `"error"` | 추가 | `x! ?? y` |
+| `typescript/ban-ts-comment` | 기본: `{ "ts-expect-error": true, "ts-ignore": true, "ts-nocheck": true, "ts-check": false }`. 테스트 overrides: `{ "ts-expect-error": "allow-with-description", "ts-ignore": true, "ts-nocheck": true, "ts-check": false, "minimumDescriptionLength": 10 }` | 변경 | 운영 코드의 모든 ts 억제, 테스트의 설명 없는 억제 |
+| `typescript/no-unnecessary-type-parameters` (TA) | `"error"` | 추가 | 반환에만 나오는 타입 매개변수(숨은 단언) |
+| `typescript/only-throw-error` (TA), `no-throw-literal`, `unicorn/throw-new-error` | `"error"` | 있음 | 문자열·객체 throw |
+| `typescript/use-unknown-in-catch-callback-variable` (TA) | `"error"` | 추가 | `.catch((e: any) => ...)` |
+| `no-empty` | `["error", { "allowEmptyCatch": false }]` | 추가 | 빈 `catch {}` |
+| `preserve-caught-error` | `["error", { "requireCatchParameter": true }]` | 추가 | 바인딩 없는 `catch`, `cause` 없이 감싼 throw |
+| `no-useless-catch` | correctness 범주 | 있음 | 받아서 그대로 던지기만 하는 `try` |
+| `no-unused-vars` | correctness 범주 | 있음 | 받고 쓰지 않은 `catch (caught)` |
+| `typescript/switch-exhaustiveness-check` (TA) | `"error"` | 있음 | 판별 유니온 누락 |
+
+- 규칙을 더한 뒤 위반이 나오면 규칙을 끄지 않고 코드를 고친다. 위반 위치가 TY-06 허용 목록에 해당하면 4.1절 주석을 단다.
+- `preserve-caught-error`, `no-empty`, `consistent-type-assertions`, `no-non-null-asserted-nullish-coalescing`, `ban-ts-comment`의 동작은 oxlint 1.89.0 프로브로 확인했다. TA 규칙의 검출 여부는 6절 [미결]의 픽스처 확인 대상이다.
+
 - 같은 규칙에 경로별 `overrides`를 더하면 override 목록이 기본 목록을 대체한다고 보고 쓴다(`eng.dependency-rules.guide` 3.2절 [가정]). 그래서 `no-restricted-properties`를 다시 설정하는 override(예: `eng.domain-types.guide` 3.1절의 contracts 항목)는 위 TY-21 다섯 항목을 같은 목록에 함께 적는다.
 - `no-restricted-properties`의 옵션 형식은 ESLint 규칙과 같은 `{ object, property, message }` 배열로 가정한다 [미확인: 규칙 존재만 확인. 옵션 스키마는 프로브하지 않음].
-- `consistent-type-assertions`의 `assertionStyle: "never"`가 `as const`를 허용하는지는 [미확인]이다. 허용하지 않으면 `as const`가 필요한 줄이 많으므로 스캔 `xeon/as-location`으로 대체한다.
+- `consistent-type-assertions`의 `assertionStyle: "never"`는 `as const`를 허용한다(oxlint 1.89.0 프로브로 확인).
 - `default-case`는 TS 완전성과 별개로 `default` 존재만 검사한다. `default`가 `assertNever`를 부르는지는 스캔 `xeon/switch-default-never`가 검사한다.
 
 ### 3.2 스캔 스크립트
@@ -963,7 +1262,11 @@ oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부
 PR 리뷰에서 확인한다. 자동 검사가 없는 항목만 적는다.
 
 - [ ] 경계 함수(파일·DB·와이어·모델·확장 입력)의 입력 타입이 `unknown`이고 `parse`로 검증하는가 (TY-10)
-- [ ] 새 `throw`가 버그 또는 복구 불가 상황인가. 예상 가능한 실패는 `Result`인가 (TY-11)
+- [ ] 새 `throw`가 버그인가. 예상 가능한 실패(I/O, busy, disk_full, read_only, cancelled, not_found, 검증 실패, 소유권 상실, timeout)는 `kind`가 있는 `Result`인가 (TY-11, TY-24)
+- [ ] 새 `Bug`가 "코드와 설정이 올바라도 생길 수 있는가" 질문에 "아니다"인가 (TY-24)
+- [ ] 새 `catch`가 변환, 근거 있는 기록 후 계속, 다시 던지기 중 하나인가 (TY-25)
+- [ ] 새 타입 가드가 술어 타입의 필드를 실제로 검사하는가. 경계 값 전체를 손 가드로 검사하지 않는가 (TY-23)
+- [ ] 새 disable 주석이 TY-06 허용 목록 위치이거나 이슈가 있는 예외인가. 허용 목록 행이 늘었으면 리뷰어가 따로 승인했는가 (TY-06)
 - [ ] `switch`의 `default`가 새 변형을 조용히 흡수하지 않는가 (TY-14)
 - [ ] 함수가 입력 객체·배열을 제자리에서 바꾸지 않는가 (TY-15)
 - [ ] `AbortSignal`을 받은 함수가 모든 하위 I/O 호출에 넘기는가 (TY-22)
@@ -983,7 +1286,7 @@ PR 리뷰에서 확인한다. 자동 검사가 없는 항목만 적는다.
 | 스캔 규칙 | `// xeon-disable-next-line xeon/<규칙> -- <이유> (<이슈 URL>)` |
 
 - 이슈 URL 정규식: `https://github\.com/[^/\s]+/[^/\s]+/issues/\d+` [제안].
-- 구속 문서가 미리 허용한 위치·경우의 예외(TY-06 허용 위치 1, 2, TY-14 열린 외부 값, 각 guide가 허용한 항목)는 이슈 URL 대신 `(<문서 id> <규칙 ID>)`를 쓴다. 예: `(eng.typescript.guide TY-06)`, `(eng.anti-patterns.guide AP-C-05)`.
+- 구속 문서가 미리 허용한 위치·경우의 예외(TY-06 허용 목록 A1~A3, TY-14 열린 외부 값, 각 guide가 허용한 항목)는 이슈 URL 대신 `(<문서 id> <규칙 ID>)`를 쓴다. 예: `(eng.typescript.guide TY-06)`, `(eng.anti-patterns.guide AP-C-05)`.
 - 이 형식이 저장소의 유일한 disable 주석 형식이다. `eng.toolchain.guide` TC-07, `eng.anti-patterns.guide` 4.1절, `eng.best-practices.guide` 4절, `eng.readme` 4·5절은 이 절을 따른다.
 - `-- <이유>` 표기는 oxlint 1.89에서 억제가 적용되고 오류가 나지 않음을 프로브로 확인했다. 공식 문서 근거는 없다(`_research/notes/eng-1.md §4` [미확인]). 그래서 형식 검사는 oxlint에 맡기지 않고 스캔 `xeon/directive-format`이 한다.
 - 쓰이지 않은 oxlint disable 주석은 `options.reportUnusedDisableDirectives: "error"`가 실패시킨다(`xeon/.oxlintrc.json` `options`). `@ts-expect-error`는 오류가 없으면 TS2578로 실패한다. 스캔 disable 주석은 스캔이 해당 줄에서 위반을 찾지 못하면 실패시킨다 [제안].
@@ -1025,6 +1328,7 @@ flushLater();
 | `packages/ext-host/**` | `no-restricted-imports` | Cordis import를 허용하는 유일한 패키지 | `xeon/.oxlintrc.json` overrides, `foundation-plan.md §2` DI 행 |
 | `scripts/**`, `apps/cli/**`, `apps/host/**` | `no-console` | 진입점의 표준 출력 | `xeon/.oxlintrc.json` overrides |
 | `**/test/**`, `**/*.test.ts` | `typescript/no-non-null-assertion`, `typescript/no-unsafe-assignment`, `typescript/no-unsafe-member-access`, `typescript/require-await`, `no-shadow` | 테스트 단언과 픽스처 작성 | `xeon/.oxlintrc.json` overrides |
+| `**/test/**`, `**/*.test.ts` | `typescript/ban-ts-comment`를 `"ts-expect-error": "allow-with-description"`, `minimumDescriptionLength: 10`으로 완화 | 컴파일 오류를 확인하는 타입 테스트 | TY-08 |
 | `packages/platform-os/**` | `no-restricted-properties` | `Clock`, `RandomSource`, `Scheduler`의 실제 구현 | TY-21 [제안] |
 | `**/test/**`, `**/*.test.ts`, `packages/*/src/testing/**` | 스캔 `xeon/throw-only-bug`, `xeon/no-class`: `Bug`를 상속한 테스트 인프라 오류 클래스(`TapeMismatchError`, `TapeLeftoverError`)의 선언과 throw만 | 테스트 가짜가 계약 위반을 그 자리에서 실패로 알린다 | `eng.testing.guide` TS-04 [제안] |
 
@@ -1034,14 +1338,19 @@ flushLater();
 
 - 2절의 나쁜 예 각각을 `xeon/scripts/fixtures/ts-rules/bad/TY-NN-<이름>.ts`로 두고, 같은 규칙의 좋은 예를 `good/`에 둔다 [제안]. 픽스처 디렉터리는 일반 `tsc -b`와 lint 대상에서 제외하고 테스트에서만 검사한다.
 - `scripts/check-ts-rules.test.ts` [제안]가 각 나쁜 예에 대해 tsc, oxlint(type-aware), 스캔을 실행하고, 나쁜 예 옆 주석에 적힌 검사(오류 코드 또는 규칙 이름)가 보고되는지 확인한다. 좋은 예는 진단 0건이어야 한다. 이 테스트는 `just test`(`bun test scripts`)에 포함되므로 `just verify`가 실패를 보고한다.
-- 자동 검사 수단이 "리뷰"뿐인 나쁜 예는 이 기준에서 빠진다. 해당 규칙: TY-14 두 번째 나쁜 예(조건부, tsgolint 확인 전), TY-15 첫 번째 나쁜 예, TY-22 세 번째 나쁜 예. 이 목록이 줄어드는 방향으로 스캔을 늘린다.
+- 자동 검사 수단이 "리뷰"뿐인 나쁜 예는 이 기준에서 빠진다. 해당 규칙: TY-14 두 번째 나쁜 예(조건부, tsgolint 확인 전), TY-15 첫 번째 나쁜 예, TY-22 세 번째 나쁜 예, TY-23 세 번째 나쁜 예(손 타입 가드), TY-24 두 번째·세 번째 나쁜 예. 이 목록이 줄어드는 방향으로 스캔을 늘린다.
 - 4.1절 형식에 맞지 않는 disable 주석이 하나라도 있으면 `just verify`가 실패한다.
 - `bun scripts/check-ts-rules.ts --exceptions`가 저장소의 모든 예외 주석을 빠짐없이 출력한다(픽스처에 넣은 예외 3종이 모두 나오는지 테스트한다).
+- 3.1.1절 목록의 규칙이 `xeon/.oxlintrc.json`에 모두 있고, `consistent-type-assertions` disable 주석이 TY-06 허용 목록 경로 밖에 하나도 없다.
+- 운영 코드(`src/**`)에 `@ts-expect-error`, `@ts-ignore`, `@ts-nocheck`가 없다.
 
 ## 6. 미결 사항
 
 - [미결] oxlint-tsgolint 7.0.2004가 지원하지 않는 type-aware 규칙. 조사 1은 `typescript/no-floating-promises`만 프로브했다(`_research/notes/eng-1.md §2`). `switch-exhaustiveness-check`, `no-unsafe-*`, `only-throw-error`, `no-misused-promises`, `prefer-readonly`, `no-unsafe-type-assertion`, `no-unnecessary-condition`(nursery)의 실제 검출은 확인하지 않았다. 5절 수용 기준의 나쁜 예 픽스처로 확인하고, 검출하지 않는 규칙은 스캔이나 리뷰로 옮긴다.
-- [미결] `no-restricted-properties` 옵션 형식과 `consistent-type-assertions` `assertionStyle: "never"`의 `as const` 처리.
+- [미결] `no-restricted-properties` 옵션 형식. `consistent-type-assertions` `assertionStyle: "never"`의 `as const` 허용은 프로브로 확인했다.
+- [미결] TY-06 허용 목록 A3(타입 키 레지스트리 조회) 채택 여부와 위치. 채택하지 않으면 ext-host의 서비스·핸들러·저장소 판독기 조회를 타입 키와 클로저로 다시 짜야 한다.
+- [미결] TY-24 적용 전 코드의 예상 가능한 실패 `Bug` 정리 범위. 2026-10-22 기준 `core-persistence/src/writer.ts`(`store.io`, `store.blob_unavailable`), `platform-store/src/db.ts`(`store.corrupt`)가 TY-24 나쁜 예에 해당한다. 오류 유니온 변형 이름은 해당 F·L0 spec이 정한다.
+- [미결] TY-24 `kind` 이름 표(`io`, `busy`, `disk_full`, `read_only`, `ownership_lost` 등)를 F 공용 오류 변형으로 둘지, 각 오류 유니온이 따로 정할지.
 - [미결] `declare enum`, `const enum`에 대한 `erasableSyntaxOnly` 동작(`_research/notes/eng-1.md §3`). 스캔 `xeon/no-declare-enum`으로 보완한다.
 - [미결] 스캔 스크립트의 파서 선택(정규식, 별도 파서)과 `check-layers.ts` 통합 여부.
 - [미결] Cordis 서비스 등록에 클래스 상속이 필요한 경우 TY-16 예외 범위. ext-host 래퍼가 함수형 등록 API만 노출하면 예외가 없다(`X.primitives.spec`).

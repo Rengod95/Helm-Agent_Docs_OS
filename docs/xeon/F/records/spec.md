@@ -147,12 +147,12 @@ export function checkEnvelopeSize(envelope: EventEnvelope): Result<number, Envel
 | envelope 필드 이름 | `kind`, `version`, `threadId`, `durable`. `v`, `producer`, `requestId` 없음(§3.1, §3.1.1) | `type`, `typeVersion`, `sessionId`, `v`, `producer`, `requestId`(`eng.events.design` §4.1) | F. `kind`/`version`은 [결정](사용자 지시) |
 | `BlobRef` 모양 | `{ type: "blob", sha256, size, mediaType }`(§3.4) | `{ hash: "sha256:…", size, mime }`(`eng.events.design` §4.1) | F [제안] |
 | ID 접두 | 세 글자 8종 `thr` `trn` `stp` `itm` `prt` `evt` `efx` `ckp`, 타입 `IdPrefix`(`F.conversation.spec` §3.2). `ID_PREFIXES` 상수와 `SessionId`·`RequestId`·`TaskId`는 없다 | 두 글자 `ss` `ev` `rq` `tk`, 상수 `ID_PREFIXES`(`eng.domain-types.guide` DT-06) | F. DT-06은 F 표를 정본으로 지정했다 |
-| 확장 접두 | 이벤트·레코드 kind `x.<extId>.<영역>.<이름>`, `grp.<groupId>.<영역>.<이름>`, `extId`는 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용·밑줄 금지, §3.2) | DT-08은 `x.`/`grp.` 접두로 고쳤다(K-06). `extId` 정규식은 하이픈을 허용하지 않는다(`eng.domain-types.guide` DT-08) | F. 정규식은 [결정(잠정): review.decisions-2 U-18]. `_` 접두는 코어 열거형 확장 예약으로만 남는다(`F.extensions.spec` §4.9) |
+| 확장 접두 | 이벤트·레코드 kind `x.<extId>.<영역>.<이름>`, `grp.<groupId>.<영역>.<이름>`, `extId`는 `ExtensionName`(`^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용·밑줄 금지, §3.2) | DT-08은 `x.`/`grp.` 접두로 고쳤다(K-06). `extId` 정규식은 하이픈을 허용하지 않는다(`eng.domain-types.guide` DT-08) | F. 정규식은 [결정: review.decisions-2 U-18]. `_` 접두는 코어 열거형 확장 예약으로만 남는다(`F.extensions.spec` §4.9) |
 | 코어 kind 형식 | `<영역>.<이름>` snake_case(§3.2) | `<대상>.<과거형>`(`eng.events.design` §4.1) | F [제안] |
 | `IdFactory` | `F.conversation.spec` §3.2, 서브패스 `./conversation` | 루트 `@xeon/contracts`에서 import(`eng.testing.guide`) | F. 루트에는 두지 않는다(`F.readme` §3) |
 | `Clock`, 난수, `Logger` 인터페이스 | 루트 base의 `Clock`, `Scheduler`, `TimerHandle`, `RandomSource`, `Logger` 인터페이스(`F.readme` §3) | `Clock`·`RandomSource`(`eng.typescript.guide`), `Clock`·`IdSource`·`Random`·`Logger`(`eng.best-practices.guide` BP-05) | F [제안]. `IdSource`·`Random`은 `IdFactory`·`RandomSource`로 읽는다(`F.readme` §8 미결 10 정리) |
-| 테스트 대역 서브패스 `@xeon/contracts/testing` | 없음(서브패스 7개, `F.readme` §3). 대역 구현(`manualClock`, `seededRandom`, `fixedIdFactory`)은 쓰는 패키지마다 자기 `test/` 안에 둔다 | `manualClock`, `fixedIdFactory` 등(`eng.testing.guide`) | F [결정(잠정): review.decisions-2 U-03]. 대역은 시계·난수 구현이라 F 런타임 로직 예외(`F.readme` §1)에 들지 않는다 |
-| `createIdFactory` 위치 | F에 없음. 구현은 `platform-os`(`F.readme` §1, §8 10번) | `@xeon/contracts` base(`eng.typescript.guide` §1.2) | F [결정(잠정): review.decisions-2 U-03]. eng 문서의 수정은 요청으로 남긴다 |
+| 테스트 대역 서브패스 `@xeon/contracts/testing` | 없음(서브패스 7개, `F.readme` §3). 대역 구현(`manualClock`, `seededRandom`, `fixedIdFactory`)은 쓰는 패키지마다 자기 `test/` 안에 둔다 | `manualClock`, `fixedIdFactory` 등(`eng.testing.guide`) | F [결정: review.decisions-2 U-03]. 대역은 시계·난수 구현이라 F 런타임 로직 예외(`F.readme` §1)에 들지 않는다 |
+| `createIdFactory` 위치 | F에 없음. 구현은 `platform-os`(`F.readme` §1, §8 10번) | `@xeon/contracts` base(`eng.typescript.guide` §1.2) | F [결정: review.decisions-2 U-03]. eng 문서의 수정은 요청으로 남긴다 |
 
 ### 3.2 이벤트 종류 이름 규칙
 
@@ -173,7 +173,7 @@ export type CoreEventKind =
   | "effect.intent" | "effect.exec" | "effect.result"
   | "checkpoint.step"
   | "scope.changed" | "scope.handler_failed" | "lease.acquired" | "lease.released"
-  | "post.accepted" | "settings.changed"
+  | "post.accepted" /* retired: review.decisions-2 U-05 */ | "settings.changed"
   | "approval.requested" | "approval.resolved"
   | "input.queued" | "input.placed" | "input.withdrawn"
   | "agent.spawned" | "agent.settled" | "agent.judged"
@@ -275,7 +275,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `scope.handler_failed` | 아니오 | `ScopeHandlerFailedPayloadSchema` | 확장 핸들러 실패 알림(`X.operations.spec` §4.3.4) |
 | `lease.acquired` | 예 | `LeaseAcquiredPayloadSchema` | drive 배타 임대 획득 |
 | `lease.released` | 예 | `LeaseReleasedPayloadSchema` | drive 임대 해제 |
-| `post.accepted` | 예 | `PostAcceptedPayloadSchema` | `ScopeApi.post` 호출의 영수증(멱등 키, 같은 커밋의 `input.queued` id, 투입 시점). 큐 항목 사실은 `input.queued`가 적는다 |
+| `post.accepted` | 예 | `PostAcceptedPayloadSchema` | retired(`retired: true`, [결정: review.decisions-2 U-05]). 새로 쓰지 않는다. M1 개발 DB에 남은 행을 읽을 때만 스키마를 쓴다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`)다 |
 | `settings.changed` | 예 | `SettingsChangedPayloadSchema` | 세션 범위 설정 변경 |
 | `approval.requested` | 예 | `ApprovalRequestedPayloadSchema` | 승인 요청. `body.kind`는 `tool` \| `question` \| `plan`. 승인 id = 이 이벤트 id |
 | `approval.resolved` | 예 | `ApprovalResolvedPayloadSchema` | 승인 응답 결과 |
@@ -346,7 +346,7 @@ export interface PostAcceptedPayload {
   requestId: string;              // F.extensions.spec PostOptions.requestId. 대화 범위 멱등 키
   scopeId: string;                // post한 확장의 scope
   when: "steer" | "followUp" | "next";   // PostOptions.when(PostWhen)
-  /** 같은 커밋의 input.queued 이벤트 id. 재개 때 post 멱등 판정의 근거다 [결정(잠정): review.decisions-2 U-05] */
+  /** 같은 커밋의 input.queued 이벤트 id. kind가 retired라 새로 쓰지 않는다 [결정: review.decisions-2 U-05] */
   inputId: EventId;
   itemId: ItemId | null;          // 대화에 남은 item(user 또는 custom). 아직 큐에 있으면 null
 }
@@ -361,7 +361,7 @@ export interface SettingsChangedPayload { key: string; scope: string; value: Jso
 
 #### 3.3.1 L0·L1·X 요청으로 더한 코어 kind
 
-[제안] L1·L0·X 문서가 "F에 요청"으로 남긴 kind를 한 번에 받는다. 받은 요청: `L1.tools.spec` §8.3 F 요청 3과 `F.wire-settings.spec` §4.6(승인, A안 [결정(잠정): review.decisions-2 U-02]), `L1.tasks.spec` FR-T1·FR-T2(입력 큐, 취소 의도), `L1.agents.spec` §8.3 3(자식 대화), `L1.persistence.spec` FR-P3(재개), `L0.secrets.spec` §8.3 R3 (a)안(비밀 사용), `X.operations.spec` §10 미결 4(`scope.handler_failed`, `ScopeChangedPayload.reason`). 생산자 소유(`TYPE_PREFIX_OWNERS`)는 `eng.context-map.design` §5.1을 따른다.
+[제안] L1·L0·X 문서가 "F에 요청"으로 남긴 kind를 한 번에 받는다. 받은 요청: `L1.tools.spec` §8.3 F 요청 3과 `F.wire-settings.spec` §4.6(승인, A안 [결정: review.decisions-2 U-02]), `L1.tasks.spec` FR-T1·FR-T2(입력 큐, 취소 의도), `L1.agents.spec` §8.3 3(자식 대화), `L1.persistence.spec` FR-P3(재개), `L0.secrets.spec` §8.3 R3 (a)안(비밀 사용), `X.operations.spec` §10 미결 4(`scope.handler_failed`, `ScopeChangedPayload.reason`). 생산자 소유(`TYPE_PREFIX_OWNERS`)는 `eng.context-map.design` §5.1을 따른다.
 
 records는 capabilities·extensions보다 낮은 순서라(`F.readme` §3) 그 도메인 타입을 import하지 않고 같은 모양을 JSON 수준으로 적는다(`extension-ops.ts`와 같은 방식). 하위 모양의 필드 뜻은 괄호 안 소유 문서를 따르고, 소유 문서와 이 블록이 다르면 이 블록을 고친 뒤 소유 문서를 맞춘다.
 
@@ -485,7 +485,7 @@ export interface SecretMaskedPayload {
 ```
 
 - [제안] `secret.*`는 `L0.secrets.spec` §8.3 R3의 (a)안으로 한정한다. 세션 이벤트는 `used`, `denied`, `approved`, `masked` 넷이고 생산자는 `core.tools`(tool-runtime)다. 관리 레코드(`secret.created`, `updated`, `deleted`, `rotated`, `revealed`)는 세션 이벤트로 넣지 않는다. 감사 레코드의 `threadId`와 `type`은 envelope의 `threadId`와 `kind`로 옮겨서 payload에 두지 않는다.
-- [결정(잠정): review.decisions-2 U-05] `post.accepted`는 유지한다(`L1.tasks.spec` FR-T3). 두 kind의 역할은 다르다. `input.queued`는 모든 입력(사용자, 위임 완료, 예약, 확장 post)의 큐 항목 사실이고, `post.accepted`는 `ScopeApi.post` 호출의 영수증이다. 확장 post는 한 커밋에 두 kind를 함께 쓰고, `PostAcceptedPayload.inputId`가 같은 커밋의 `input.queued` 이벤트 id를 가리킨다.
+- [결정: review.decisions-2 U-05] `post.accepted`는 retire한다. 카탈로그 항목은 `retired: true`로 남기고(§3.2 규칙 5) 새로 쓰지 않는다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나이고, 대화에 배치된 item은 `input.placed`가 적는다. 멱등 판정은 커밋 키 `in:<sourceKey>:<requestId>`(`eng.transactions.design` §4.8)와 `TxView.inputByRequestId`가 한다.
 - [제안] M1 표지: 위 15종은 이 절로 카탈로그에 들어왔다. 그래도 코드(`CORE_EVENT_CATALOG`)와 `check-event-catalog.ts` 대조가 `F.records.plan`의 해당 작업으로 반영되기 전에는 소비 plan(`L1.tools`, `L1.tasks`, `L1.agents`)이 이 kind를 쓰는 테스트를 M1 완료 조건에 넣지 않는다.
 
 #### 3.3.2 내장 L2 도메인 소유 카탈로그
@@ -809,6 +809,11 @@ export interface StoreService {
 export type CommitKey = string;
 /** 코드 상수 위치. 형식 정본은 eng.transactions.design §4.7(review.decisions-2 U-13) */
 export const COMMIT_KEY_PATTERN: string = "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$";
+/** 밖에서 온 id(toolCallId)를 키 부분으로 바꾸는 유일한 함수. 규칙 정본은 eng.transactions.design §4.7(review.decisions-2 U-13).
+ *  원문이 ^[A-Za-z0-9_.-]{1,120}$이고 "h_"로 시작하지 않으면 그대로, 아니면 "h_" + sha256Hex(원문) 앞 40자. 순수 */
+export function commitKeyPart(raw: string, sha256Hex: (text: string) => string): string;
+/** 확장이 아닌 입력 출처 키. 확장 id로 쓸 수 없다(F.extensions.spec §4.7 name_reserved, review.decisions-2 U-13) */
+export const RESERVED_SOURCE_KEYS: readonly ["user", "deleg", "timer"];
 /** 생산자 id. 형식 정본은 eng.context-map.design §5.1 */
 export type ProducerId =
   | "core.persistence" | "core.tasks" | "core.loop" | "core.context" | "core.tools" | "core.agents" | "core.models"
@@ -912,7 +917,7 @@ export interface ExtCommitRequest {
   /** 멱등 지문의 원천. 있으면 drafts 대신 이 값으로 지문을 만든다. 규칙은 X.primitives.spec §4.6.1 */
   readonly fingerprintSource?: JsonValue;
   /**
-   * 기록 초안의 공개 범위 [결정(잠정): review.decisions-2 T-21]. 생략하면 "public".
+   * 기록 초안의 공개 범위 [결정: review.decisions-2 T-21]. 생략하면 "public".
    * "private"는 ScopeApi.recordPrivate(F.extensions.spec §3.2, X.primitives.spec §4.6.5)만 쓴다
    */
   readonly visibility?: "public" | "private";
@@ -982,7 +987,7 @@ export interface RecordCommitPort {
 }
 ```
 
-- 비공개 기록 규칙 [결정(잠정): review.decisions-2 T-21]:
+- 비공개 기록 규칙 [결정: review.decisions-2 T-21]:
   1. `visibility: "private"`인 커밋의 초안은 모두 그 확장 자신의 접두 kind(`x.<name>.*` 또는 `grp.<name>.*`)여야 한다. 아니면 `rejected(invalid)`다. 행의 소유 확장은 kind의 둘째 마디다.
   2. 저장소는 private 여부를 이벤트와 함께 남긴다. 저장 위치(envelope 필드 또는 core 투영 열)는 `L1.persistence.spec`이 정한다.
   3. `queryRecords`의 셋째 인자 `reader: ExtensionName`은 조회하는 확장 이름이다(`L1.persistence.spec` FR-P11). records는 extensions보다 낮아 시그니처에는 같은 모양인 `string`으로 적는다. `queryRecords`는 private 행을 `reader`가 그 행의 소유 확장일 때만 돌려준다. 다른 확장의 조회 결과에는 넣지 않는다. 공개 행은 지금처럼 `kind` 일치만으로 돌려준다.
@@ -1070,7 +1075,7 @@ export interface RecordCommitPort {
 ## 7. 확장 지점
 
 - 확장과 의도 그룹은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
-- X의 네 연산 중 scope, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `post.accepted`로 기록된다. on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool_result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool_call` 지점은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
+- X의 네 연산 중 scope, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `input.queued`(`source.type: "extension"`)로 기록된다(post는 [결정: review.decisions-2 U-05]). on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool_result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool_call` 지점은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
 - 그룹 간 레코드 형식은 `F.extensions.spec`이 정한다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -1116,6 +1121,6 @@ export interface RecordCommitPort {
 5. [미결] 등록 해제된 확장 kind를 투영 재생에서 건너뛸지, 시작을 거부할지.
 6. [미결] 효과 결과 코드 집합: `ok`, `error`, `interrupted`, `abandoned` 네 값으로 충분한지(`_research/notes/F-3.md` §8.3 미결 3).
 7. [미결] 모델 요청 재전송: 재개 시 `next: "request"` 체크포인트에서 요청을 다시 보내는 것을 기본으로 할지, 요청마다 멱등 키를 둘지(`_research/notes/F-3.md` §8.3 미결 2).
-8. [결정(잠정): review.decisions-2 U-05] `post.accepted`는 유지하고 payload에 `inputId`를 더했다(§3.3, `L1.tasks.spec` FR-T3). retire 안은 택하지 않는다.
+8. [결정: review.decisions-2 U-05] `post.accepted`는 retire한다(§3.3). 멱등은 커밋 키가 맡고 기록은 `input.queued`가 맡는다. 2026-10-22 사용자 확인에서 잠정안(유지 + `inputId`)을 바꿨다.
 9. [미결] `SessionStore.readFrom`·`subscribe` 첫 인자의 이름과 경계: §3.9 `SessionService`는 배타 경계 `afterSeq`다. `SessionStore`도 `afterSeq`로 바꿀지(`L1.persistence.spec` FR-P2).
 10. 닫음 [제안]: X 포트 `RecordCommitPort`는 records `session-service.ts`에 둔다. `SessionService.ext`가 이 타입을 쓰고 records는 extensions를 import할 수 없기 때문이다. `F.extensions.spec` §3.2.1 `ports.ts`가 다시 export한다.

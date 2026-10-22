@@ -377,7 +377,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 ### 4.7 이어서 실행
 
 - 재기동이나 앱 재시작 뒤 비정상 종료 표식이 남은 thread는 스레드 목록과 트랜스크립트 끝에 "이어서 실행" 후보로 표시한다(adr.0006 §3.6 5번).
-- 자동 재개는 기본 꺼짐이다. 사용자가 후보를 눌러야 재개한다. 키는 `l1.persistence.autoResume`(기본 `false`)과 `l1.persistence.maxResumeAttempts`이고 `L1.persistence.spec` §6이 소유한다 [결정(잠정): review.decisions-2 S-03]. 데스크톱은 자기 자동 재개 키를 두지 않는다.
+- 자동 재개는 기본 꺼짐이다. 사용자가 후보를 눌러야 재개한다. 키는 `l1.persistence.autoResume`(기본 `false`)과 `l1.persistence.maxResumeAttempts`이고 `L1.persistence.spec` §6이 소유한다 [결정: review.decisions-2 S-03]. 데스크톱은 자기 자동 재개 키를 두지 않는다.
 - 표식을 알리는 wire 값(이벤트 kind 또는 `ThreadSummary` 필드)은 정해지지 않았다. `ThreadSummary` 필드 확정(`F.wire-settings.spec` §10 미결 9) 때 `resumable` 성격의 필드를 요청한다(§10 미결 4).
 
 ### 4.8 서비스 모드 연동 (M3)
@@ -397,7 +397,7 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 - `ensure`는 셸이 엔진 바이너리를 `xeon service ensure --json`으로 짧게 실행해 얻는다(`L4.host-service.spec` HS-38). stdout은 JSON 한 줄이다. 성공이면 `{ "ok": true, "socket": <경로>, "version": <버전>, "action": <EnsureResult.action> }`이고 종료코드 0, 실패면 `{ "ok": false, "reason": <EnsureResult.reason> }`이고 종료코드 1이다. 셸은 `socket`만 쓰고, 실패면 `restarting` 상태와 §4.4 재기동 정책을 따른다.
 - 서비스 공급원에서 앱을 닫아도 서비스와 진행 중 turn은 계속된다. §4.3의 `host.shutdown`과 그룹 SIGKILL은 서비스에 보내지 않는다. 셸은 소켓만 닫는다.
 - 서비스가 사라지면(소켓 EOF) 셸은 `restarting`으로 두고 `ensure`를 다시 부른다. 재기동 정책은 §4.4와 같다.
-- 알림 [결정(잠정): review.decisions-2 S-04]: 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 탭은 `L2.dialog.spec`의 `l2.dialog.notify.*` 정의(`notify.os`, `notify.completed`, `notify.approvalWaiting`, `notify.questionWaiting`, `notify.error`, `notify.backgroundCompleted`, 탭 `execution`)를 따른다. 데스크톱은 전달 수단으로 Tauri 알림 플러그인(`tauri-plugin-notification`)을 쓴다. 사건 원천은 `events.batch`의 내구 이벤트(승인 요청 등)다. 창이 앞에 있을 때 보내지 않는 조건은 데스크톱이 판단한다(`L2.dialog.spec` §10 D-6). 사용자 알림 전용 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다(review.decisions-2 U-04, §10 미결 5).
+- 알림 [결정: review.decisions-2 S-04]: 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 탭은 `L2.dialog.spec`의 `l2.dialog.notify.*` 정의(`notify.os`, `notify.completed`, `notify.approvalWaiting`, `notify.questionWaiting`, `notify.error`, `notify.backgroundCompleted`, 탭 `execution`)를 따른다. 데스크톱은 전달 수단으로 Tauri 알림 플러그인(`tauri-plugin-notification`)을 쓴다. 사건 원천은 `events.batch`의 내구 이벤트(승인 요청 등)다. 창이 앞에 있을 때 보내지 않는 조건은 데스크톱이 판단한다(`L2.dialog.spec` §10 D-6). 사용자 알림 전용 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다(review.decisions-2 U-04, §10 미결 5).
 
 ### 4.9 앱 내부 모듈 경계
 
@@ -605,8 +605,8 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 1. [미결] 엔진 바이너리 이름과 서브커맨드. 이 문서는 `xeon`, `host --stdio`를 [제안]으로 쓴다. `L4.host-service.spec`이 확정하고, `xeon/apps/desktop/README.md`와 `eng.toolchain.guide` TC-10의 "apps/host 단독 사이드카" 서술과 맞춘다. 바꿀 곳은 `sidecar.json` 한 곳이다.
 2. (닫힘) F 변경 요청 두 건, `host.shutdown`과 클라이언트 알림 `$/connectionReset`은 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4, review.consistency-1 K-15). 이 문서의 params 예와 다르면 F 정의를 따른다. M2 전에는 새로고침을 엔진 재기동으로 처리한다(§4.5).
 3. [미결] `StdioTransportFactory` 구현(JSON Lines 프레이밍)과 `createHostConnection`(id 발급, 대기 요청 표, 취소)의 위치. CLI와 데스크톱이 함께 쓰므로 DR-10에 따라 아래 층에 있어야 한다. F `@xeon/contracts/wire`에 런타임 중립 구현을 두자고 요청한다. 정해지기 전에는 `apps/desktop/src/transport/`에 두고 같은 적합성 케이스로 검사한다.
-4. [결정(잠정): review.decisions-2 U-04] 이어서 실행 후보를 wire로 알리는 방법(`ThreadSummary` 필드 또는 이벤트)은 M1에 넣지 않고 M2 계획에서 정한다.
-5. [결정(잠정): review.decisions-2 U-04] 사용자 알림 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다. 그 전에는 내구 이벤트 kind로 알림 대상을 고른다(§4.8).
+4. [결정: review.decisions-2 U-04] 이어서 실행 후보를 wire로 알리는 방법(`ThreadSummary` 필드 또는 이벤트)은 M1에 넣지 않고 M2 계획에서 정한다.
+5. [결정: review.decisions-2 U-04] 사용자 알림 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다. 그 전에는 내구 이벤트 kind로 알림 대상을 고른다(§4.8).
 6. [미결] `l4.desktop.*` 값의 저장 위치. 제안은 데스크톱 로컬 파일(엔진 카탈로그 밖)이다. 대안은 F에 클라이언트 카탈로그 등록을 더해 엔진 설정 계층에 넣는 것이다. 관리 범위 잠금을 로컬 파일에서 어떻게 읽을지도 함께 정한다.
 7. [미결] Windows 크래시 때 엔진이 남는 문제. 셸이 kill-on-close job object를 직접 만들지, 플러그인 상류에 요청할지(adr.0008 §6, arch-2 §5 4행).
 8. [미결] 메모리 예산 수치(§4.10 B1~B4). S5 측정 뒤 확정한다.

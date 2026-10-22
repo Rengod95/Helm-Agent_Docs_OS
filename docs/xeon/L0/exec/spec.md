@@ -17,6 +17,7 @@ binds: [xeon/packages/platform-exec/**]
 정하는 것:
 
 - F에 둘 실행 계약 초안: `CancelScope`, `ExecutionEnv`, `FileSystem`, `Shell`, 오류 코드, 서비스 이름 `ExecServiceName`(3.1절)
+- 출력 절단: pi durable `truncate.ts` 포크와 `ExecService.truncateHead`·`formatSize`(3.1절 끝, 3.3.1절) [결정: review.decisions-2 D-08]
 - 포크 범위, 포크 기록, 바꿀 점(패치 표, 3.3절)
 - OS 분기 인터페이스 `ExecPlatformProvider`와 선택 지점 `select.ts`(3.4절)
 - 포크 위에 얹는 Xeon 연결 코드: 자식 프로세스 환경 변수 허용 목록 빌더, 비밀 주입 지점 `ShellExecOptions.secretEnv`(M1), 데코레이션 가능한 `Shell` 요구(3.5절~3.7절), 백그라운드 실행 `startBackground`(3.9절)
@@ -26,7 +27,7 @@ binds: [xeon/packages/platform-exec/**]
 
 | 대상 | 정하는 곳 |
 |---|---|
-| 도구 본문(`D/src/tools/*`), 이미지 처리(`D/src/images/*`), 출력 절단(`D/src/truncate.ts`)의 포크 | `L2.workspace.spec`, `L2.workspace.plan`. 이 문서는 env 5파일만 포크한다 [결정: adr.0003 §3.1] |
+| 도구 본문(`D/src/tools/*`), 이미지 처리(`D/src/images/*`)의 포크 | `L2.workspace.spec`, `L2.workspace.plan`. 이 문서는 env 5파일과 출력 절단 `D/src/truncate.ts`를 포크한다 [결정: adr.0003 §3.1, review.decisions-2 D-08] |
 | OS 샌드박스, 보호 경로, 자동 허용 판정 | `L0.sandbox.spec` |
 | 장시간 백그라운드 프로세스 레지스트리, 엔진 프로세스 수명 | `L0.process.spec`. 레지스트리에 넘길 pid와 정지 수단은 이 문서의 `startBackground`(3.9절)가 만든다 |
 | 비밀 해석(lease), 마스킹, 사용 감사 | `L0.secrets.spec` |
@@ -39,7 +40,7 @@ binds: [xeon/packages/platform-exec/**]
 | 구성요소 | 단계 | 표지 |
 |---|---|---|
 | 로컬 `NodeExecutionEnv`(포크) + Xeon 연결 코드 | 1차, M0(포크·적합성), M1(env 빌더·서비스 등록) | [결정: `_research/foundation-plan.md` §5 P4 M0 `platform-exec`] |
-| 비밀 주입 지점 `secretEnv`(에이전트 env 모드) | 1차, M1. M1 비밀 검증 경로다(3.6절) | [결정(잠정): review.decisions-2 U-19] |
+| 비밀 주입 지점 `secretEnv`(에이전트 env 모드) | 1차, M1. M1 비밀 검증 경로다(3.6절) | [결정: review.decisions-2 U-19] |
 | 백그라운드 실행 `startBackground` | 1차, 구현은 M2 이후(소비자 L1 tools 백그라운드 셸, L2 mcp가 M2 이후다) | [제안] |
 | Docker 어댑터(`ExecutionEnv`의 컨테이너 구현) | 1차 목표, 구현은 M2 이후 | [제안, `_research/layer-plan-v2.json` L0-a "Docker만 어댑터"] |
 | SSH 원격 워크스페이스 | 보류. `@earendil-works/pi-env` 1.3.0을 채택 후보로 둔다 | [결정: 계획 v2 L0-a "보류"], `_research/packages.md` §4.2 158행 |
@@ -65,7 +66,7 @@ binds: [xeon/packages/platform-exec/**]
 
 ### 3.1 F에 둘 실행 계약 초안
 
-아래 타입은 F `@xeon/contracts/services` 서브패스의 `services/exec.ts`에 둔다. L0·L1 서비스 인터페이스는 이 서브패스에 둔다 [결정(잠정): review.decisions-2 D-04]. L0 `platform-exec`(구현), L0 `platform-sandbox`(`Shell` 데코레이터), L1 `core-tools`, L2 `cap-workspace`(포크한 도구 본문)가 같은 타입을 쓰므로 F 외에는 공유할 곳이 없다(`eng.dependency-rules.guide` DR-02, DR-07의 "pi durable env 포크는 `platform-exec`만"). 이 절의 이름은 `F.capabilities.spec` §3.12 파일별 이름 표의 `services/exec.ts` 행에 있다. 아래 블록은 F로 옮기기 전의 초안이고, 필드는 이 블록을 F로 옮겨 확정한다(같은 절 규칙 1, `F.capabilities.plan` P9). 8절 'F에 요청'은 그 작업의 목록이다.
+아래 타입은 F `@xeon/contracts/services` 서브패스의 `services/exec.ts`에 둔다. L0·L1 서비스 인터페이스는 이 서브패스에 둔다 [결정: review.decisions-2 D-04]. L0 `platform-exec`(구현), L0 `platform-sandbox`(`Shell` 데코레이터), L1 `core-tools`, L2 `cap-workspace`(포크한 도구 본문)가 같은 타입을 쓰므로 F 외에는 공유할 곳이 없다(`eng.dependency-rules.guide` DR-02, DR-07의 "pi durable env 포크는 `platform-exec`만"). 이 절의 이름은 `F.capabilities.spec` §3.12 파일별 이름 표의 `services/exec.ts` 행에 있다. 아래 블록은 F로 옮기기 전의 초안이고, 필드는 이 블록을 F로 옮겨 확정한다(같은 절 규칙 1, `F.capabilities.plan` P9). 8절 'F에 요청'은 그 작업의 목록이다.
 
 - 모양은 포크 원본 `D/src/env/index.ts`의 선언을 그대로 옮긴다. 포크한 도구 본문(`L2.workspace.plan`)이 원본 시그니처로 `env.exec(…, context)`를 부르기 때문이다.
 - F 규칙(`F.readme` §1): `node:*` 타입을 쓰지 않는다. 원본의 `NodeJS.ProcessEnv`는 연결 코드 쪽 생성 옵션에만 있고 아래 계약에는 없다.
@@ -223,6 +224,25 @@ export interface ExecService extends ExecutionEnv {
   withCwd(cwd: string): ExecutionEnv;
   /** [제안] 종료를 기다리지 않는 실행(3.9절). spawn이 끝나면 이행한다. timeout은 받지 않는다 */
   startBackground(command: string | readonly string[], options: Omit<ShellExecOptions, "timeout" | "spill"> | undefined, context: CancelScope): Promise<Result<BackgroundExecHandle, ExecutionError>>;
+  /** 앞에서부터 남기는 출력 절단(포크 truncate.ts의 truncateHead). 순수 계산이고 cwd와 무관하다 [결정: review.decisions-2 D-08] */
+  truncateHead(content: string, options?: TruncationOptions): TruncationResult;
+  /** 바이트 수를 읽기 쉬운 크기 문자열로 바꾼다(포크 truncate.ts의 formatSize) */
+  formatSize(bytes: number): string;
+}
+/** 포크 truncate.ts:14-37과 같은 모양. F services/exec.ts에 둔다 */
+export interface TruncationOptions { readonly maxLines?: number; readonly maxBytes?: number }
+export interface TruncationResult {
+  readonly content: string;
+  readonly truncated: boolean;
+  readonly truncatedBy: "lines" | "bytes" | null;
+  readonly totalLines: number;
+  readonly totalBytes: number;
+  readonly outputLines: number;
+  readonly outputBytes: number;
+  readonly lastLinePartial: boolean;
+  readonly firstLineExceedsLimit: boolean;
+  readonly maxLines: number;
+  readonly maxBytes: number;
 }
 export const ExecServiceName = "xeon.exec" as const;
 ```
@@ -230,7 +250,8 @@ export const ExecServiceName = "xeon.exec" as const;
 - `SandboxRunReport`는 `L0.sandbox.spec` §3.1의 초안이고 F 위치는 `services/sandbox-report.ts`다(`F.capabilities.spec` §3.12). `ShellExecResult`가 그 이름을 참조하므로 두 블록은 같은 F 변경(`F.capabilities.plan` P9)으로 옮긴다.
 - import 방향 [제안]: `sandbox.ts`는 `exec.ts`(`CancelScope`, `Shell`)를 import한다. 그래서 `exec.ts`가 `sandbox.ts`를 import하면 `import/no-cycle`(타입 import 포함)에 걸린다. `SandboxRunReport`와 `SandboxViolation`은 아무것도 import하지 않는 `services/sandbox-report.ts`에 두고, `exec.ts`와 `sandbox.ts`가 둘 다 이 파일을 import한다. 방향은 `sandbox-report.ts` ← `exec.ts` ← `sandbox.ts` 한 방향이다(`L0.store.spec` §3.1의 `sql.ts` 분리와 같은 방식).
 - `SecretRef`는 F `capabilities/secrets.ts`가 정본이고(`F.capabilities.spec` §3.10) settings가 다시 export한다. services(순서 4)는 capabilities를 `import type`으로 쓸 수 있다(`F.readme` §3). `UseCtx`는 같은 서브패스의 `services/secrets.ts`에 있고, 그 파일은 같은 서브패스의 다른 파일을 import하지 않으므로 순환이 없다(`F.capabilities.spec` §3.12 규칙 4).
-- [결정(잠정): review.decisions-2 D-04] `xeon.exec`의 F 인터페이스는 `ExecService`(`ExecService extends ExecutionEnv`)다. 세션마다 cwd가 다른 공유 서비스 모드(`L0.process.spec`, ADR-0006)에서 파생 env가 필요해 `withCwd`와 `startBackground`를 더했다. `F.capabilities.spec` §3.12 표와 `eng.context-map.design` §5.3 표가 이 이름을 쓴다.
+- 출력 절단 [결정: review.decisions-2 D-08]: 절단 함수의 유일한 구현은 이 패키지의 포크(`src/upstream/truncate.ts`)다. L1(core-tools 결과 경계화)과 L2(cap-workspace `read`·`bash`)는 `xeon.exec`의 `truncateHead`·`formatSize`로 부르고 사본을 두지 않는다. M1 코드에 남은 사본 두 곳(`cap-workspace/src/truncate`, `apps/host/src/assembly/truncator.ts`)과 core-tools의 `truncator` 주입 옵션은 이 메서드로 바꾸고 지운다. `TruncationResult` 필드는 포크 원본을 옮길 때 원문과 대조해 확정한다.
+- [결정: review.decisions-2 D-04] `xeon.exec`의 F 인터페이스는 `ExecService`(`ExecService extends ExecutionEnv`)다. 세션마다 cwd가 다른 공유 서비스 모드(`L0.process.spec`, ADR-0006)에서 파생 env가 필요해 `withCwd`와 `startBackground`를 더했다. `F.capabilities.spec` §3.12 표와 `eng.context-map.design` §5.3 표가 이 이름을 쓴다.
 - [제안] 원본 `Result`, `ok`, `err`는 F 루트(`eng.typescript.guide` §1.2)의 것으로 바꾼다(3.3절 P2). F 계약의 `Result`는 F 루트 타입이다.
 - [제안] `CancelScope`는 원본 모양대로 `AbortSignal | undefined`를 받는다. `eng.typescript.guide` §1.2·TY-22 예시는 `AbortSignal`(undefined 없음)이다. 원본 테스트와 적합성 스위트가 취소 없는 호출을 `{ abortSignal: undefined }`로 표현하므로(`D/src/testing/env-conformance.ts`, `BACKGROUND_CONTEXT`) undefined를 허용한다. 10절 [미결] 1과 함께 정한다.
 
@@ -242,7 +263,7 @@ export const ExecServiceName = "xeon.exec" as const;
 | `eng.typescript.guide` §1.2, TY-22 4번 | `CancelScope`는 `platform-exec` 안의 로컬 타입이다. 포크 경계 밖 API는 `AbortSignal`을 받는다. 다른 패키지는 같은 이름을 새로 만들지 않는다 |
 | `L2.workspace.plan` 102행 | `CancelScope`는 L0와 L2가 함께 쓰므로 F에 둔다 |
 
-- 위치 [결정(잠정): review.decisions-2 D-04]: F `services/exec.ts`에 둔다(`F.capabilities.spec` §3.12 파일별 이름 표). L2 `cap-workspace`의 포크한 도구 본문(`tools/read.ts:1`, `bash.ts:1`, `file-mutation-queue.ts:1`, `path-utils.ts:1`)이 같은 타입을 쓰고, L2는 L0 패키지를 import할 수 없다(DR-14). 로컬 타입으로 두면 L2가 같은 모양을 다시 선언해야 하고, 이는 TY-22 4번이 금지한 것이다.
+- 위치 [결정: review.decisions-2 D-04]: F `services/exec.ts`에 둔다(`F.capabilities.spec` §3.12 파일별 이름 표). L2 `cap-workspace`의 포크한 도구 본문(`tools/read.ts:1`, `bash.ts:1`, `file-mutation-queue.ts:1`, `path-utils.ts:1`)이 같은 타입을 쓰고, L2는 L0 패키지를 import할 수 없다(DR-14). 로컬 타입으로 두면 L2가 같은 모양을 다시 선언해야 하고, 이는 TY-22 4번이 금지한 것이다.
 - 남은 일은 `eng.typescript.guide` 문구다. 확정은 사용자와 `eng.typescript.guide` 소유자가 한다. TY-22 4번과 §1.2 마지막 항목의 문구를 "F `services`(`@xeon/contracts/services`)의 `CancelScope`. 포크 코드와 그 직접 소비자만 쓴다. 그 밖의 API는 `AbortSignal`을 받는다"로 고치기를 요청한다(8절).
 
 ### 3.3 포크 범위, 기록, 바꿀 점
@@ -258,6 +279,7 @@ export const ExecServiceName = "xeon.exec" as const;
 | `src/env/node-watch.ts` | 522 | `src/upstream/env/node-watch.ts` | `NodeFileWatcher`(native·polling) |
 | `src/env/decode.ts` | 30 | `src/upstream/env/decode.ts` | `StreamDecoder`, BOM 판정 |
 | `src/env/line-scan.ts` | 145 | `src/upstream/env/line-scan.ts` | `LineScanner` |
+| `src/truncate.ts` | 205 | `src/upstream/truncate.ts` | 출력 절단(`truncateHead`, `truncateHeadOf`, `formatSize`, `utf8ByteLength`). import 없음 [결정: review.decisions-2 D-08] |
 | `src/testing/env-conformance.ts` | 511 | `src/upstream/testing/env-conformance.ts` | 실행기 독립 적합성 사례(24개) |
 | `src/testing/types.ts`(env 부분), `runner.ts`(`registerEnvConformance`), `assertions.ts` | 44·38·39 중 env 관련 부분 | `src/upstream/testing/` | 적합성 스위트가 import하는 타입과 등록기 [제안: brief 목록에 없던 보조 파일. `env-conformance.ts:12`와 `env-node-conformance.test.ts:9`가 import한다] |
 | `test/env-node.test.ts` | 1,002 | `test/upstream/env-node.int.test.ts` | 노드 구현 단위·통합 시험 |
@@ -266,12 +288,12 @@ export const ExecServiceName = "xeon.exec" as const;
 | `test/env-line-scan.test.ts` | 107 | `test/upstream/env-line-scan.test.ts` | 줄 스캔 단위 시험 |
 
 - 포크 env 폐포의 import는 `node:child_process`, `node:crypto`, `node:fs`, `node:fs/promises`, `node:os`, `node:path`, `node:url`와 Chord `import type` 3줄뿐이다(원본 소스 확인). 외부 npm 의존은 들어오지 않는다.
-- `test/env-truncate.test.ts`(98줄)는 `truncate.ts`를 시험하므로 `L2.workspace.plan`으로 간다.
+- `test/env-truncate.test.ts`(98줄)는 `truncate.ts`와 함께 이 패키지의 `test/upstream/truncate.test.ts`로 온다 [결정: review.decisions-2 D-08].
 - 테스트 파일 이름의 태그(`.int`)는 `eng.testing.guide` TS-01을 따른다. 실제 자식 프로세스와 파일 시스템을 쓰기 때문이다.
 
 #### 3.3.2 포크 기록 [제안: adr.0003 §3.4]
 
-- `UPSTREAM.json`: `upstream`(`https://github.com/earendil-works/pi`), `commit`(`cdaf6c227d4718a72b59ccd02152c9614df44cfc`), `version`(`1.1.0`), `license`(`MIT`), `copiedPaths`(원본 → 포크 경로 표, 3.3.1절), `notCopied`(`tools/`, `images/`, `truncate.ts`, `harness/`, `session/`, `storage/`, `testing/storage-*`), `modifications`(패치 id 목록).
+- `UPSTREAM.json`: `upstream`(`https://github.com/earendil-works/pi`), `commit`(`cdaf6c227d4718a72b59ccd02152c9614df44cfc`), `version`(`1.1.0`), `license`(`MIT`), `copiedPaths`(원본 → 포크 경로 표, 3.3.1절), `notCopied`(`tools/`, `images/`, `harness/`, `session/`, `storage/`, `testing/storage-*`), `modifications`(패치 id 목록).
 - `PATCHES.md`: 아래 패치 표와 같은 열(패치 id, 파일:줄, 이유, 확인 테스트).
 - `LICENSE.pi`: pi 저장소 루트 `LICENSE`(MIT, "Copyright (c) 2025 Mario Zechner") 원문 사본.
 - 패치 표지: 고친 줄 바로 위에 `// XEON-PATCH: <id>`. 세 기록(UPSTREAM.json `modifications`, PATCHES.md 행, 표지)의 id 집합이 같아야 한다(`L0.exec.plan` EX-11 검사).
@@ -419,7 +441,7 @@ export function buildChildEnv(input: {
 
 [제안] 계획 v2 L0-c "값은 도구를 실행하기 직전에만 풀리고 … 도구 자식 프로세스의 기본 env에는 들어가지 않는다"(`_research/layer-plan-v2.json` L0-c note)와 `_research/secrets.md` §6.2 M1 env 모드(M1은 사용 모드 번호다)를 구현하는 지점이다.
 
-단계 [결정(잠정): review.decisions-2 U-19]: 마일스톤 M1의 비밀 검증 경로는 bash 도구의 env 주입(실행마다 승인)이다. 그래서 이 주입 지점과 `SecretEnvRequest`, `secret_unavailable` 코드를 M1에 둔다. `L0.secrets.spec` §3.6 `withEnv`, `L2.workspace.spec` §3.3과 같은 배치다.
+단계 [결정: review.decisions-2 U-19]: 마일스톤 M1의 비밀 검증 경로는 bash 도구의 env 주입(실행마다 승인)이다. 그래서 이 주입 지점과 `SecretEnvRequest`, `secret_unavailable` 코드를 M1에 둔다. `L0.secrets.spec` §3.6 `withEnv`, `L2.workspace.spec` §3.3과 같은 배치다.
 
 구현의 전제 [제안]:
 
@@ -633,10 +655,11 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 
 | 요청 | 대상 | 이유 |
 |---|---|---|
-| `CancelScope`, `FileKind`, `FileErrorCode`, `ExecutionErrorCode`, `FileError`, `ExecutionError`, `FileInfo`, `TextLine`, `TextLineReader`, `LineScan`, `BinaryReader`, `DirReader`, `WatchTarget`, `WatchChange`, `FileWatcher`, `FileSystem`, `ShellSpillOptions`, `ShellOutputWindow`, `ShellOutputSkip`, `ShellOutputInfo`, `ShellExecOptions`, `ShellExecResult`, `Shell`, `ExecutionEnv`, `ExecService`, `ExecServiceName`를 `@xeon/contracts/services`(`services/exec.ts`)에 둔다 [결정(잠정): review.decisions-2 D-04] | `F.capabilities.spec` §3.12(services) | 3.1절. L0 두 패키지와 L1·L2가 공유한다 |
-| `ShellExecResult.sandbox`(`SandboxRunReport`) 필드 추가. `SandboxRunReport`·`SandboxViolation`은 아무것도 import하지 않는 `services/sandbox-report.ts`에 둔다 [결정(잠정): review.decisions-2 D-04] | `F.capabilities.spec` §3.12(services) | 3.1절 import 방향, `L0.sandbox.spec` §3.1 |
+| `CancelScope`, `FileKind`, `FileErrorCode`, `ExecutionErrorCode`, `FileError`, `ExecutionError`, `FileInfo`, `TextLine`, `TextLineReader`, `LineScan`, `BinaryReader`, `DirReader`, `WatchTarget`, `WatchChange`, `FileWatcher`, `FileSystem`, `ShellSpillOptions`, `ShellOutputWindow`, `ShellOutputSkip`, `ShellOutputInfo`, `ShellExecOptions`, `ShellExecResult`, `Shell`, `ExecutionEnv`, `ExecService`, `ExecServiceName`를 `@xeon/contracts/services`(`services/exec.ts`)에 둔다 [결정: review.decisions-2 D-04] | `F.capabilities.spec` §3.12(services) | 3.1절. L0 두 패키지와 L1·L2가 공유한다 |
+| `ShellExecResult.sandbox`(`SandboxRunReport`) 필드 추가. `SandboxRunReport`·`SandboxViolation`은 아무것도 import하지 않는 `services/sandbox-report.ts`에 둔다 [결정: review.decisions-2 D-04] | `F.capabilities.spec` §3.12(services) | 3.1절 import 방향, `L0.sandbox.spec` §3.1 |
 | `ShellExecOptions.secretEnv`(`SecretEnvRequest`: `refs`와 `ctx`) 필드 추가 | `F.capabilities.spec` §3.12(services) | 반영되었다. 파일별 이름 표 `services/exec.ts` 행에 `ShellExecOptions`(`secretEnv?: SecretEnvRequest` 포함)와 `SecretEnvRequest`가 있다. `SecretRef`는 `capabilities/secrets.ts`(§3.10, settings가 다시 export), `UseCtx`는 `services/secrets.ts`에서 가져온다. 3.6절. M1 F 변경에 넣는다(U-19) |
 | `BackgroundExecHandle`, `ExecService.startBackground` | `F.capabilities.spec` §3.12(services) | 반영되었다(`services/exec.ts` 행과 `ExecService` 발췌 블록). 3.9절 |
+| `ExecService.truncateHead`·`formatSize`, `TruncationOptions`, `TruncationResult` | `F.capabilities.spec` §3.12(services) | 출력 절단을 L1·L2가 F 서비스로 부른다(3.1절 끝, review.decisions-2 D-08) |
 | `SENSITIVE_ENV_PATTERNS`(3.5절 `deny` 표의 값, `readonly string[]` 상수). 자식 env 거부 목록의 유일한 정본 | `F.capabilities.spec` §3.12(services) | 이름은 `services/exec.ts` 행에 있다. exec env 빌더, sandbox 자가 시험, secrets의 sops 호출 env가 같은 목록을 쓴다 |
 | `ExecutionErrorCode`에 Xeon 코드 4개(`env_denied`, `secret_unavailable`, `sandbox_unavailable`, `sandbox_failed`) 추가 | `F.capabilities.spec` §3.12(services) | 3.1절. 필드를 옮길 때(P9) 넣는다 |
 | `eng.typescript.guide` TY-22 4번·§1.2 문구 정정(`CancelScope`는 F `services/exec.ts`) | `eng.typescript.guide` | 3.2절 |
@@ -669,12 +692,12 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 
 ## 10. 미결 사항
 
-1. [미결] `abortSignal`의 `undefined` 허용 여부와 `eng.typescript.guide` §1.2·TY-22 문구 정정. 위치는 F `services/exec.ts`로 정해졌다([결정(잠정): review.decisions-2 D-04], 3.2절).
+1. [미결] `abortSignal`의 `undefined` 허용 여부와 `eng.typescript.guide` §1.2·TY-22 문구 정정. 위치는 F `services/exec.ts`로 정해졌다([결정: review.decisions-2 D-04], 3.2절).
 2. [미결] `ExecService.withCwd` 추가와 `eng.context-map.design` §5.3 표 정정(3.1절). 공유 서비스 모드에서 세션별 cwd를 어떻게 줄지 `L0.process.spec`과 함께 정한다.
 3. [미결] 포크 업그레이드 정책(정기 diff 또는 보안·버그 수정 때만). adr.0003 §6을 이어받는다.
 4. [미결] spill 파일 위치와 삭제 시점. 원본은 OS 임시 디렉터리에 남긴다. env 모드 비밀이 출력에 섞이면 원문이 디스크에 남으므로 위치(`xeon.os`의 임시 디렉터리, 권한 0600)와 세션 종료 시 삭제를 `L0.secrets.spec`, `L2.workspace.spec`과 함께 정한다.
 5. [미결] 적합성 스위트의 watch 사례(사례당 최대 30초)를 `int` 파일 10초 상한(`eng.testing.guide` TS-01)에 맞추는 방법: 파일 분할, 별도 태그, 상한 예외 중 하나.
 6. [미결] `l0.exec.defaultTimeoutMs` 기본값. 0(제한 없음)과 안전 상한(예: 2시간) 중 고른다. `l2.workspace.shell.defaultTimeoutSec`과의 우선순위는 호출자 값이 앞선다.
 7. [미결] Windows 네이티브 적합성 기대 표(5.2절)는 실행하지 않은 [가정]이다. M2 이후 Windows CI에서 확인한다.
-8. [결정(잠정): review.decisions-2 U-19] 마일스톤 M1의 비밀 경로는 에이전트 env 모드(`secretEnv`, bash 도구, 실행마다 승인)다. `L0.secrets.spec` §3.6에 `withEnv`를 두고 EX-13을 M1에 둔다.
+8. [결정: review.decisions-2 U-19] 마일스톤 M1의 비밀 경로는 에이전트 env 모드(`secretEnv`, bash 도구, 실행마다 승인)다. `L0.secrets.spec` §3.6에 `withEnv`를 두고 EX-13을 M1에 둔다.
 9. [미결] stdin 파이프가 필요한 장시간 프로세스(MCP stdio 서버)를 `startBackground`로 띄울지, 옵션에 stdin 스트림을 더할지. `L2.mcp.spec`, `L0.process.spec` 미결 P-4와 함께 정한다.

@@ -14,7 +14,7 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 
 이 문서는 구속 문서다. 마지막 절 "구현 작업자 규칙"(TX-NN)은 `platform-store`, `core-persistence`, `cap-schedule`과 세션에 쓰는 모든 코드에 적용된다.
 
-기존 Helm 설계 `docs/design/09-event-store.md §3.8~3.9`, `12-runtime-engine.md §3.7~3.8`은 데몬 하나가 DB의 유일한 쓰기 주체라는 전제다. Xeon은 CLI(같은 프로세스 엔진), 데스크톱(자식 엔진), 공유 서비스 모드(1차. OS 서비스 등록만 2차)가 같은 DB 파일을 열 수 있다(`_research/foundation-plan.md §1` 결정 2·3, [결정(잠정): review.decisions-2 S-01]). 그래서 데몬 단일 쓰기 잠금과 부팅 epoch 펜싱 대신 세션 단위 소유(OS 잠금 + 임대 행 epoch)를 쓴다. 해시 체인과 HMAC은 범위에서 뺐다(`eng.events.design` 미결 E-3).
+기존 Helm 설계 `docs/design/09-event-store.md §3.8~3.9`, `12-runtime-engine.md §3.7~3.8`은 데몬 하나가 DB의 유일한 쓰기 주체라는 전제다. Xeon은 CLI(같은 프로세스 엔진), 데스크톱(자식 엔진), 공유 서비스 모드(1차. OS 서비스 등록만 2차)가 같은 DB 파일을 열 수 있다(`_research/foundation-plan.md §1` 결정 2·3, [결정: review.decisions-2 S-01]). 그래서 데몬 단일 쓰기 잠금과 부팅 epoch 펜싱 대신 세션 단위 소유(OS 잠금 + 임대 행 epoch)를 쓴다. 해시 체인과 HMAC은 범위에서 뺐다(`eng.events.design` 미결 E-3).
 
 ## 1. 문제
 
@@ -88,17 +88,17 @@ PRAGMA application_id = 1480937294;  -- 0x58454F4E 'XEON'. 새 파일에서만 �
 
 - [제안] 쓰기 연결은 `synchronous`를 바꾸지 않고 FULL로 둔다. adr.0004는 단계 경계 FULL의 구현 방식(연결 단위 전환 대 단계 경계 직후 체크포인트)을 `L0.store.spec`에 넘겼고, `L0.store.spec` §4.3이 이 "항상 FULL" 권고를 채택했다. 단계 경계가 아닌 커밋(효과 커밋, 임대 하트비트, 입력 수락)도 FULL이다. 커밋마다 모드를 바꾸면 바꾸는 코드에 오류가 생길 자리가 늘고, 효과 의도가 디스크에 없으면 외부 효과를 낸 뒤 흔적이 없을 수 있다.
 - [제안] 커밋 단위: 경계 하나(4.1절 표의 행 하나)의 쓰기는 커밋 하나에 모두 들어가고, 여러 커밋으로 나누지 않는다(TX-08). 효과는 도구 호출마다 의도(E1), 실행 시작(E2), 결과(E3)를 각각 커밋한다(`L1.persistence.spec` §4.2, `architecture.runtime-flow.design` §3). 그래서 모든 커밋이 FULL이면 커밋 수가 fsync 수이고, 한 모델 단계의 커밋 수는 `1(S1) + 1(C3) + 3 × 도구 수 + 1(C5)` = `3 + 3 × 도구 수`다. turn마다 C2와 C6이 하나씩 더해지고, C2b는 `before_agent_start`가 메시지를 더할 때만, C1은 유휴 thread의 입력일 때 하나 더 있다. 취소 의도(X1)와 승인 요청(A1)은 일어날 때만 더한다. fsync 비용은 모델 호출 시간보다 작다고 본다 [가정]. 측정은 `L1.persistence.plan` §6, `L0.store.plan` ST-17이다.
-- [결정(잠정): review.decisions-2 U-10] 도구별 효과 커밋(E1 의도, E2 실행 시작, E3 결과)은 adr.0004 §3.2 3번의 보충으로 올린다. 단계당 커밋 수는 `3 + 3n`(n은 도구 수)이다. adr.0004 §3.2 아래 "한 단계에 커밋 한 번" 문장은 이 결정에 맞게 고친다(decisions 문서 담당).
+- [결정: review.decisions-2 U-10] 도구별 효과 커밋(E1 의도, E2 실행 시작, E3 결과)은 adr.0004 §3.2 3번의 보충으로 올린다. 단계당 커밋 수는 `3 + 3n`(n은 도구 수)이다. adr.0004 §3.2 아래 "한 단계에 커밋 한 번" 문장은 이 결정에 맞게 고친다(decisions 문서 담당).
 - 읽기 연결은 `readonly: true`로 열고 `PRAGMA query_only = ON`, `busy_timeout = 5000`을 건다. bun:sqlite는 `fileMustExist`를 지원하지 않으므로 열기 전에 파일 존재를 검사한다(`_research/notes/eng-3.md §2.2`).
 - 종료 때 `PRAGMA wal_checkpoint(TRUNCATE)` 뒤 닫는다.
 - DB 파일 위치(OS별 데이터 디렉터리), 네트워크·가상 파일시스템 거부 검사, FTS5 프로브는 `L0.store.spec`이 정한다.
 
 ### 3.3 쓰기 단일 소유
 
-[결정(잠정): review.decisions-2 U-09] 한 세션에 쓰기 소유자는 하나다. 판정은 OS 잠금(생존 판정)과 DB 임대 행의 epoch(펜싱)를 함께 쓴다. 정본은 `L0.store.spec` §3.1(`LeaseService`, `LeaseToken`), §3.3(`sys_leases` DDL), §4.7이다. 읽기는 소유 없이 여럿이 한다.
+[결정: review.decisions-2 U-09] 한 세션에 쓰기 소유자는 하나다. 판정은 OS 잠금(생존 판정)과 DB 임대 행의 epoch(펜싱)를 함께 쓴다. 정본은 `L0.store.spec` §3.1(`LeaseService`, `LeaseToken`), §3.3(`sys_leases` DDL), §4.7이다. 읽기는 소유 없이 여럿이 한다.
 
 - 층 구성 계획 v2의 L0-e 행과 adr.0004(`decisions/ADR-0004-session-storage.md`) §3.4는 "세션 id 키 OS 잠금"(omp 방식, `_research/process.md §6.3` 1번)을 적었다. OS 잠금은 SQLite 트랜잭션 안에서 확인할 수 없어서, 잠금을 잃은 뒤 늦게 깨어난 이전 소유자의 쓰기를 막지 못한다. 그래서 `L0.store.spec` §4.7.1은 OS 잠금과 `sys_leases.epoch` 펜싱 병용을 권고안으로 둔다(이전 판 미결 T-4의 (b)안).
-- [결정(잠정): review.decisions-2 U-09] 쓰기 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱이다. 별도 `session_owner` 테이블은 두지 않고 `sys_leases` 행이 소유자 표시를 겸한다. adr.0004 §3.4와 adr.0006은 이 결정에 맞게 개정한다(decisions 문서 담당). 이 절에 기대는 규칙(4.3절 소유 확인 단계, 4.6절 `after_lease_check`, TX-10, 10절 수용 기준 4)도 같은 결정을 따른다.
+- [결정: review.decisions-2 U-09] 쓰기 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱이다. 별도 `session_owner` 테이블은 두지 않고 `sys_leases` 행이 소유자 표시를 겸한다. adr.0004 §3.4와 adr.0006은 이 결정에 맞게 개정한다(decisions 문서 담당). 이 절에 기대는 규칙(4.3절 소유 확인 단계, 4.6절 `after_lease_check`, TX-10, 10절 수용 기준 4)도 같은 결정을 따른다.
 - L1은 이 판정을 `OwnershipGuard.holds()`(`L1.persistence.spec` §3.6)로 받는다. 예상 실패 이름은 `ownership_lost`다.
 
 임대 테이블(L0 store 소유, `L0.store.spec` §3.3 sys v2):
@@ -124,9 +124,10 @@ CREATE TABLE sys_leases (
 2. 하트비트: `l0.store.heartbeatMs`(기본 5초)마다 `expires_at = now + leaseTtlMs`(기본 30초)로 갱신한다. 갱신 때 `holder_id`·`epoch`가 자기 것이 아니면 임대를 잃은 것이다. 그 세션의 메모리 작업을 모두 취소하고 쓰기를 멈춘다.
 3. 펜싱: 모든 세션 쓰기 트랜잭션은 `BEGIN IMMEDIATE` 직후 `sys_leases`를 새로 읽어 `holder_id`와 `epoch`가 자기 토큰과 같고 `released_at`이 비었는지 확인한다(`LeaseService.holds(tx, token)`). 다르면 롤백하고 `ownership_lost` 오류를 돌려준다. 확인은 시각을 쓰지 않는다. 인수는 epoch를 바꾸므로 epoch 비교만으로 늦은 쓰기를 막는다.
 4. 반납: 정상 종료 때 행을 지우지 않고 `released_at`을 채운다. epoch는 유지한다. 행을 지우면 다음 획득의 epoch가 1로 돌아가 펜싱 토큰의 단조성이 깨지기 때문이다(`L0.store.spec` §3.3).
-5. OS 잠금이 없을 때(`lockProvider.kind === "none"`)는 DB 임대만으로 판정한다. 1번의 "같은 host 즉시 인수"를 "같은 host이고 `pid`·`started_at` 프로세스가 살아 있지 않으면 인수"로 바꾸고, 그 밖에는 만료를 기다린다(`L0.store.spec` §4.7.4).
+5. OS 잠금이 없을 때(`lockProvider.kind === "none"`)는 DB 임대만으로 판정한다. 1번의 "같은 host 즉시 인수"를 "같은 host이고 `pid`·`started_at` 프로세스가 살아 있지 않으면 인수"로 바꾼다. 그래서 같은 host의 죽은 소유자는 기다리지 않고 바로 인수한다. 만료(기본 30초)를 기다리는 경우는 살아 있지만 멈춘 소유자와 다른 host뿐이다(`L0.store.spec` §4.7.4, review.decisions-2 U-09 정정).
 6. 쓰기 소유자가 아닌 프로세스가 같은 세션을 열려 하면 위임·관찰·분기 중 하나를 고른다. 선택 정책은 `L0.process.spec` §4.5의 `LockFallbackPolicy`이고, 관찰 열기의 따라잡기는 `eng.events.design` 4.6절이다.
 7. 주기 값은 설정 키 `l0.store.heartbeatMs`, `l0.store.leaseTtlMs`로 노출한다(`L0.store.spec` §6).
+8. 알려진 한계 [결정: review.decisions-2 U-09]: OS 잠금(flock)이 있으면 멈춘 소유자(잠자기, SIGSTOP)는 잠금을 계속 쥔다. 그 프로세스가 깨어나거나 죽을 때까지 세션은 잠긴 채이고, 다른 프로세스의 `acquire`는 `sys_leases.expires_at`이 지나도 `os_lock_held`다. 사용자는 위임·관찰·분기(`L0.process.spec` §4.5 `LockFallbackPolicy`)로 진행하거나 멈춘 프로세스를 끝낸다(`L0.store.spec` §4.7.1).
 
 `BEGIN IMMEDIATE`는 BEGIN 시점에 DB 전체 쓰기 잠금을 잡는다(`_research/notes/eng-3.md §2.2` 실측). 그래서 3번 확인과 그 뒤 쓰기 사이에 다른 프로세스의 쓰기가 끼지 않는다.
 
@@ -159,7 +160,7 @@ CREATE TABLE sys_leases (
 - 체크포인트는 단계 경계(C5)와 승인 대기(A1)에만 쓴다(`L1.persistence.spec` §4.2). A1은 `step.completed` 없는 체크포인트라 `F.records.spec` §3.6에 예외를 적도록 요청 중이다(`L1.persistence.spec` FR-P4). `L1.loop.spec` T3은 도구 호출이 있으면 C3에 `next: "tools"` 체크포인트를 요청한다. 이 요청은 F의 결정 뒤 이 표에 반영한다 [미결](`L1.readme` §13 (j)).
 - 확장 기여: 그 지점의 `on` 핸들러(`chain`, `first`)가 돌려준 확장 이벤트 초안과 X의 경계 기여(`scope.changed`, `lease.acquired`, `lease.released`, `X.primitives.spec` 용어표)다. 핸들러는 커밋 전에 트랜잭션 밖에서 실행하고(await 허용), 결과 초안만 커밋에 넣는다. `tap` 핸들러는 커밋 뒤에 실행하고, 기록이 필요하면 자기 커밋 키로 따로 커밋한다.
 - 확장 지점 이름(`tool_call`, `turn_end`, `before_agent_start`)은 adr.0007 §3.3의 pi 이벤트명을 따른 [가정]이다. 목록은 `F.extensions.spec`이 확정한다.
-- `tool_call`(`first`)은 C3 뒤, E1 전에 실행한다. `tool_call`은 허용·거부·결과 대체만 하고 인자를 바꾸지 않는다([결정(잠정): review.decisions-2 U-06]). 통과한 호출은 모델이 낸 인자 그대로 `effect.intent`를 남긴다. 거부된 호출은 `effect.intent`도 `effect.result`도 없이 `isError: true`인 toolResult item만 남는다(`L1.tools.spec`). 재개 때는 `effect.intent`의 인자를 쓰고 핸들러를 다시 부르지 않는다(`eng.events.design` 7.1절).
+- `tool_call`(`first`)은 C3 뒤, E1 전에 실행한다. `tool_call`은 허용·거부·결과 대체만 하고 인자를 바꾸지 않는다([결정: review.decisions-2 U-06]). 통과한 호출은 모델이 낸 인자 그대로 `effect.intent`를 남긴다. 거부된 호출은 `effect.intent`도 `effect.result`도 없이 `isError: true`인 toolResult item만 남는다(`L1.tools.spec`). 재개 때는 `effect.intent`의 인자를 쓰고 핸들러를 다시 부르지 않는다(`eng.events.design` 7.1절).
 - 진행 중 스트리밍 응답은 C3 전까지 저장하지 않는다. C3 전에 크래시가 나면 같은 단계의 모델 요청을 다시 보낸다.
 - 이전 판의 C4(도구 정착 한 커밋)는 E1~E3으로 나눴으므로 쓰지 않는다.
 
@@ -367,10 +368,12 @@ commit(req: CommitRequest): Result<CommitResult, StoreError> {
 [제안] 09 §3.9.1을 Xeon에 맞게 줄였다.
 
 - 범위: 커밋 키는 thread 하나 안에서 유일하다. `requests` 테이블의 기본 키는 `(thread_id, request_id)`다(`L1.persistence.spec` §3.10).
-- 형식: 정규식 `COMMIT_KEY_PATTERN` = `^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$`(1~200자)를 이 문서의 정본으로 둔다. 코드 상수는 F `records/commit.ts`(`F.records.spec` §3.9)에 두고 `L1.persistence.spec` §3.2는 인용한다 [결정(잠정): review.decisions-2 U-13]. L1과 X는 이 상수 하나로 키를 검사한다. 이전 판의 `REQUEST_ID_PATTERN`(`<종류>:<부분>`)은 X의 키(`${leaseId}:…`, `st:<해시>:…`, `X.primitives.spec` §4.4.4·§4.6.1)를 받지 못해 쓰지 않는다. 키는 대부분 `<종류>:<부분>[:<부분>…]` 꼴이지만, 형식 검사는 위 정규식 하나다. 저장소가 커밋 처리 전에 검사한다(`L1.persistence.spec` §4.4).
+- 형식: 정규식 `COMMIT_KEY_PATTERN` = `^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$`(1~200자)를 이 문서의 정본으로 둔다. 코드 상수는 F `records/commit.ts`(`F.records.spec` §3.9)에 두고 `L1.persistence.spec` §3.2는 인용한다 [결정: review.decisions-2 U-13]. L1과 X는 이 상수 하나로 키를 검사한다. 이전 판의 `REQUEST_ID_PATTERN`(`<종류>:<부분>`)은 X의 키(`${leaseId}:…`, `st:<해시>:…`, `X.primitives.spec` §4.4.4·§4.6.1)를 받지 못해 쓰지 않는다. 키는 대부분 `<종류>:<부분>[:<부분>…]` 꼴이지만, 형식 검사는 위 정규식 하나다. 저장소가 커밋 처리 전에 검사한다(`L1.persistence.spec` §4.4).
 - 커밋 키는 브랜드 없는 문자열(`CommitKey`)이다. F에는 `RequestId` 브랜드가 없다(`F.readme` §4, `F.records.spec` §3.1.2). 키는 먼저 커밋된 값에서 결정적으로 만들므로 무작위 ULID 하나로 정할 수 없다. 사용자 입력처럼 원인 이벤트가 없는 요청만 클라이언트가 만든 값을 부분으로 쓴다(`in:user:<requestId>`).
 - payload의 `requestId`(사용자 입력, `post`, `turn.start`)는 F 규칙(브랜드 없는 1~64자, `F.conversation.spec` §3.5)이다. 커밋 키는 그 값을 감싸 만든다(예: `in:<sourceKey>:<requestId>`). 감싸기 규칙은 각 생산 spec이 정한다.
-- `/` 치환 [결정(잠정): review.decisions-2 U-13]: 커밋 키의 부분에 scope id가 들어갈 때 하위 scope 구분자 `/`는 `COMMIT_KEY_PATTERN`에 없으므로 `:`로 바꾼다(예: scope `helm/review` → `in:helm:review:<requestId>`). `L1.tasks.spec` §4.7의 출처 키와 `L1.persistence.spec`이 같은 규칙을 쓴다.
+- `/` 치환 [결정: review.decisions-2 U-13]: 커밋 키의 부분에 scope id가 들어갈 때 하위 scope 구분자 `/`는 `COMMIT_KEY_PATTERN`에 없으므로 `:`로 바꾼다(예: scope `helm/review` → `in:helm:review:<requestId>`). `L1.tasks.spec` §4.7의 출처 키와 `L1.persistence.spec`이 같은 규칙을 쓴다.
+- 부분 정규화 [결정: review.decisions-2 U-13]: 밖에서 온 id(provider `toolCallId`)를 키 부분에 넣을 때는 F `records/commit.ts`의 `commitKeyPart` 하나로 바꾼다. 원문이 `^[A-Za-z0-9_.-]{1,120}$`에 맞고 `h_`로 시작하지 않으면 그대로 쓰고, 아니면 `h_` + 원문 UTF-8의 sha256 hex 앞 40자를 쓴다. `:`는 부분 구분자라 원문에 있으면 해시한다. `h_`로 시작하는 원문도 해시하므로 원문과 해시 결과가 같은 문자열이 되지 않는다. 쓰는 곳은 셋이고 모두 이 함수를 부른다: core-tools의 E1~E3 키, core-loop가 차단 결과에 쓰는 `tool:<…>:result` 키, core-persistence가 복구 합성에 쓰는 `tool:<…>:result` 키. 생산자마다 다른 변환을 쓰면 같은 호출의 정상 결과와 복구 합성이 서로 다른 키로 두 번 커밋된다. 시그니처 [제안]: `commitKeyPart(raw: string, sha256Hex: (text: string) => string): string`. F는 해시 구현을 갖지 않으므로 호출자가 동기 해시 함수를 넘긴다.
+- 예약 출처 키 [결정: review.decisions-2 U-13]: 입력 큐 키 `in:<sourceKey>:<requestId>`에서 확장이 아닌 출처 키 `user`, `deleg`, `timer`는 확장 id로 쓸 수 없다. 쓰면 확장 post 키가 사용자·위임·예약 입력 키와 같아질 수 있다. F `validateManifest`가 신뢰 등급과 무관하게 `name_reserved`로 거부한다(`F.extensions.spec` §4.7). 목록 상수는 F `records/commit.ts`의 `RESERVED_SOURCE_KEYS`다 [제안]. 확장이 아닌 출처를 새로 더하면 이 목록에 먼저 더한다.
 - 이 문서의 코드 예에 쓴 템플릿 문자열(`` `resp:${turnId}:${stepIndex}` ``)은 키 모양을 그대로 보인다.
 - 지문: `sha256Hex(canonicalJson(fingerprintSource))`. 정규화 JSON은 RFC 8785 규칙(09 §3.2.1, `eng.domain-types.guide` DT-14)이다.
 - 지문에서 뺄 것: 커밋 때 새로 만드는 id(`effectId`, `itemId`, 이벤트 id), 시각, 시도 번호, 연결 id, 프로세스 id. 이 값이 들어가면 같은 요청의 재시도가 `key_reused`가 된다.
@@ -404,9 +407,11 @@ CREATE TABLE requests (
 
 [제안] 키에 들어가는 id(`turnId`, `toolCallId`, `stepIndex`)는 먼저 커밋된 이벤트에 기록된 값이다. 아직 커밋되지 않은 id로 키를 만들지 않는다. 값의 정본은 각 행의 출처 문서다.
 
+[결정: review.decisions-2 U-13] 아래 표의 `<toolCallId>`는 `commitKeyPart(toolCallId)`로 바꾼 값이다(4.7절 부분 정규화). 출처 키 `user`, `deleg`, `timer`는 확장 id로 예약한다(4.7절 예약 출처 키).
+
 | 쓰는 쪽(소유 컨텍스트) | 이벤트 | 커밋 키 | 보장 | 출처 |
 |---|---|---|---|---|
-| 입력 큐(run-engine tasks): 사용자, 확장 post, 위임 보고, 예약 실행 공통 | `input.queued`(확장 post면 `post.accepted` 함께) | `in:<sourceKey>:<requestId>`. 출처 키는 사용자 `user`, 확장 `scopeId`(`/`는 `:`, 4.7절 `/` 치환 [결정(잠정): review.decisions-2 U-13]), 위임 `deleg`, 예약 `timer` | 같은 출처·같은 `requestId`의 입력 한 번 | `L1.tasks.spec` §4.7, `X.primitives.spec` `InputQueuePort` |
+| 입력 큐(run-engine tasks): 사용자, 확장 post, 위임 보고, 예약 실행 공통 | `input.queued`(확장 post도 같음. `post.accepted`는 retire, review.decisions-2 U-05) | `in:<sourceKey>:<requestId>`. 출처 키는 사용자 `user`, 확장 `scopeId`(`/`는 `:`, 4.7절 `/` 치환 [결정: review.decisions-2 U-13]), 위임 `deleg`, 예약 `timer` | 같은 출처·같은 `requestId`의 입력 한 번 | `L1.tasks.spec` §4.7, `X.primitives.spec` `InputQueuePort` |
 | 확장 `post`(ext-host) | 위 행 | payload `requestId`는 확장이 정한다. 멱등 범위는 (scopeId, requestId) | 같은 주입 한 번 | `X.primitives.spec` `EnqueueRequest` |
 | 백그라운드 위임 완료 보고(run-engine agents) | 부모의 `input.queued`(post) | post `requestId` = `<자식 requestId>:report` | 완료 보고 한 번 | `L1.agents.spec` §4.7 |
 | 예약 실행(cap-schedule) | 대상 thread의 `input.queued`(post) | post `requestId` = `timer:<timerId>:<dueAt>` | 재시작 뒤 같은 기한 한 번 | `L2.schedule.spec` |
@@ -755,7 +760,7 @@ return res;
 
 ### TX-06 시간과 ID는 주입한다
 
-이유: 커밋 결과가 시계와 난수에 직접 기대면 테스트에서 재현할 수 없고, 지문에 섞이면 재시도가 `key_reused`가 된다. 저장소와 생산자는 `Clock`, `IdFactory`를 주입받는다(`IdFactory` 인터페이스는 `F.conversation.spec` §3.2, `Clock`은 F 루트 base. 구현은 `platform-os`다. [결정(잠정): review.decisions-2 U-03]).
+이유: 커밋 결과가 시계와 난수에 직접 기대면 테스트에서 재현할 수 없고, 지문에 섞이면 재시도가 `key_reused`가 된다. 저장소와 생산자는 `Clock`, `IdFactory`를 주입받는다(`IdFactory` 인터페이스는 `F.conversation.spec` §3.2, `Clock`은 F 루트 base. 구현은 `platform-os`다. [결정: review.decisions-2 U-03]).
 
 강제: `core-persistence`, `platform-store`, 투영기 경로에 `no-restricted-globals`(`Date.now`, `Math.random`, `crypto.randomUUID`). 테스트는 수동 시계와 고정 ID 발급기를 쓴다(`eng.testing.guide`).
 
@@ -842,7 +847,7 @@ const listener: CommitListener = (batch) => {
 
 ### TX-10 소유 확인은 트랜잭션 안에서 새로 읽는다
 
-이 규칙은 3.3절의 임대 행 epoch 펜싱을 전제한다([결정(잠정): review.decisions-2 U-09]).
+이 규칙은 3.3절의 임대 행 epoch 펜싱을 전제한다([결정: review.decisions-2 U-09]).
 
 이유: 트랜잭션 시작 전에 읽은 임대 정보는 그 사이 다른 프로세스가 인수했을 수 있다. 쓰기와 같은 트랜잭션에서 읽어야 펜싱이 성립한다(12 §3.8.2 "펜싱 검사는 트랜잭션 안에서 행을 새로 읽는다").
 
@@ -865,7 +870,7 @@ if (this.cachedLease.epoch === this.token.epoch) this.db.write((tx) => { /* 확�
 1. 4.6절의 모든 장애 주입 지점에서 예외를 던져도, 커밋 전 지점이면 `events`·`event_seq`·`p_*`·`x_*`·`cap_*`·`requests`·`step_checkpoints`의 행 수와 행 해시가 시도 전과 같다.
 2. 같은 커밋 키와 같은 지문으로 두 번 커밋하면 두 번째 결과는 `replayed: true`이고 `events` 행 수가 늘지 않는다.
 3. 같은 커밋 키에 다른 지문으로 커밋하면 `key_reused`이고 아무 행도 늘지 않는다.
-4. [결정(잠정): review.decisions-2 U-09] 임대를 인수당한 쓰기 핸들로 커밋하면 `err({ kind: "ownership_lost" })`이고 아무 행도 늘지 않는다(3.3절, `L0.store.spec` S-1).
+4. [결정: review.decisions-2 U-09] 임대를 인수당한 쓰기 핸들로 커밋하면 `err({ kind: "ownership_lost" })`이고 아무 행도 늘지 않는다(3.3절, `L0.store.spec` S-1).
 5. `unsafe` 도구가 `effect.intent` 커밋 뒤 `effect.exec` 전에 끊기면, 다시 열 때 `effect.result{status:"abandoned", synthesized:true}` 한 건과 `NOT_STARTED_TEXT` toolResult item으로 닫히고 다시 실행되지 않는다. `effect.exec` 뒤 실행 중에 끊기면 `effect.result{status:"interrupted", synthesized:true}` 한 건과 `OUTCOME_UNKNOWN_TEXT`로 닫히고 다시 실행되지 않는다. 저장 정책과 현재 선언이 모두 `safe`인 도구는 한 번 다시 실행되어 `effect.exec`(`tool:<id>:exec:1`) 한 건이 더 붙고 `effect.result` 한 건으로 닫힌다.
 6. 이미 `effect.result`가 있는 효과에 늦은 결과를 커밋하면 거부되고 결과 기록은 하나로 남는다.
 7. turn 취소 뒤 `turn.completed{status:"interrupted"}`의 `seq`는 그 turn 모든 `effect.result`와 `agent.settled`의 `seq`보다 크다. 크래시 뒤 `turn.abort_requested`가 있는 turn의 열린 `safe` 효과는 다시 실행되지 않는다.
@@ -879,6 +884,6 @@ if (this.cachedLease.epoch === this.token.epoch) this.db.write((tx) => { /* 확�
 - [미결 T-2] bun:sqlite 트랜잭션 API 세부. `db.transaction(fn).immediate()`의 중첩 저장점 동작을 SQL 추적으로 확인하지 않았다(`_research/notes/eng-3.md §2.4`). 직접 `BEGIN IMMEDIATE`·`COMMIT` 문장으로 갈지 정한다.
 - [미결 T-3] 해시 체인 도입 여부. `eng.events.design` 미결 E-3과 같은 항목이다.
 - [미결 T-5] 읽기 도구도 의도를 먼저 커밋하는 규칙(5.1절)의 비용. 12 CR-3은 읽기 빠른 경로(실행 뒤 의도와 결과를 한 커밋에)를 예외로 두었다. 성능 측정 뒤 예외를 둘지 정한다.
-- [결정(잠정): review.decisions-2 U-13] T-7 커밋 키 형식의 정본은 `COMMIT_KEY_PATTERN`(4.7절)이다. scope id의 `/`는 `:`로 바꾼다.
-- [결정(잠정): review.decisions-2 U-10] T-8 도구별 효과 커밋(E1~E3)을 adr.0004 §3.2 3번의 보충으로 올린다. 단계당 커밋 수는 `3 + 3n`이다(3.2절).
-- 닫은 항목: 이전 판의 T-1(동시 오픈 때 두 번째 프로세스 동작)은 `L0.process.spec` §4.5 `LockFallbackPolicy`(위임·관찰·분기)로, T-4(쓰기 소유 판정 수단)는 OS 잠금 + `sys_leases.epoch` 펜싱 병용([결정(잠정): review.decisions-2 U-09], `L0.store.spec` §4.7.1)으로, T-6(임대 주기 설정 키)은 `L0.store.spec` §6(`l0.store.heartbeatMs`, `l0.store.leaseTtlMs`)으로 닫는다. adr.0004 §3.4와 adr.0006의 개정은 U-09에 따라 decisions 문서 담당이 한다.
+- [결정: review.decisions-2 U-13] T-7 커밋 키 형식의 정본은 `COMMIT_KEY_PATTERN`(4.7절)이다. scope id의 `/`는 `:`로 바꾼다. `toolCallId`는 모든 생산자가 `commitKeyPart` 하나로 바꾸고, 출처 키 `user`·`deleg`·`timer`는 확장 id로 예약한다(4.7절, 4.8절).
+- [결정: review.decisions-2 U-10] T-8 도구별 효과 커밋(E1~E3)을 adr.0004 §3.2 3번의 보충으로 올린다. 단계당 커밋 수는 `3 + 3n`이다(3.2절).
+- 닫은 항목: 이전 판의 T-1(동시 오픈 때 두 번째 프로세스 동작)은 `L0.process.spec` §4.5 `LockFallbackPolicy`(위임·관찰·분기)로, T-4(쓰기 소유 판정 수단)는 OS 잠금 + `sys_leases.epoch` 펜싱 병용([결정: review.decisions-2 U-09], `L0.store.spec` §4.7.1)으로, T-6(임대 주기 설정 키)은 `L0.store.spec` §6(`l0.store.heartbeatMs`, `l0.store.leaseTtlMs`)으로 닫는다. adr.0004 §3.4와 adr.0006의 개정은 U-09에 따라 decisions 문서 담당이 한다.

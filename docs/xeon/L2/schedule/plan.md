@@ -37,7 +37,7 @@ binds: [xeon/packages/cap-schedule/**]
 
 - H11(설정 키)은 S1부터 묶음마다 그 묶음의 키를 더한다.
 - S1·S2는 서비스 모드와 무관하게 끝낼 수 있다. S3는 `L4.host-service.plan` §1.4(M3 서비스 모드)와 같은 시기에 진행한다. 서비스 모드가 늦어지면 S3의 틱 루프(H7)는 앱 호스트 모드(`startTick({ mode: "app" })`)로 먼저 검증한다.
-- S4는 M3에 둔다 [결정(잠정): review.decisions-2 U-11]. 원격 연결은 로컬 서비스 소켓을 SSH 터널이나 사설망으로 잇는 방식이고, 내장 TLS + 토큰 WebSocket 전송은 2차다.
+- S4는 M3에 둔다 [결정: review.decisions-2 U-11]. 원격 연결은 로컬 서비스 소켓을 SSH 터널이나 사설망으로 잇는 방식이고, 내장 TLS + 토큰 WebSocket 전송은 2차다.
 
 ### 1.3 M3 이후(2차)
 
@@ -142,7 +142,7 @@ xeon/packages/cap-schedule/
 
 | 패키지 | 버전 | 라이선스 | 쓰는 곳 |
 |---|---|---|---|
-| `typebox` | 1.4.2 (워크스페이스 catalog) | MIT | 정의(F), 입력 검사 |
+| `typebox` | 1.3.27 (워크스페이스 catalog) | MIT | 정의(F), 입력 검사 |
 
 - regex 부분 집합 검사(spec §4.2.3)는 패키지를 쓰지 않는다. 역참조(`\1`), 전후방 탐색(`(?=`, `(?!`, `(?<=`, `(?<!`)과 중첩 수량자를 거부하는 작은 검사기를 직접 둔다 [제안].
 
@@ -264,7 +264,7 @@ xeon/packages/cap-schedule/
 | › started 뒤 재시작 | 투입 전이면 post를 다시 하고, 결과 불명 턴이면 `failed(host_exit)` |
 | › 워치독 | 진행 중 턴의 마지막 이벤트 뒤 600초 → interrupt 1회와 `run_stalled` |
 | › 승인 대기는 멈춤 아님 | 승인 대기 세션은 600초가 지나도 중단하지 않는다 |
-| › whenServiceOff autoStart | 서비스 꺼짐에서 `create`가 자동 기동을 요청하고, 기동하면 저장한다. 가짜 호스트가 기동에 실패하면 `unavailable` + `service_mode_off`와 조치 안내, 저장 없음 [결정(잠정): review.decisions-2 U-23] |
+| › whenServiceOff autoStart | 서비스 꺼짐에서 `create`가 자동 기동을 요청하고, 기동하면 저장한다. 가짜 호스트가 기동에 실패하면 `unavailable` + `service_mode_off`와 조치 안내, 저장 없음 [결정: review.decisions-2 U-23] |
 | › whenServiceOff reject | 서비스 꺼짐에서 `create`가 `unavailable` + `service_mode_off`, 저장 없음 |
 | › whenServiceOff keepWithWarning | 저장하고 `runs_only_while_app_open` 경고 |
 

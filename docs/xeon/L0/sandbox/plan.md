@@ -12,7 +12,7 @@ binds: [xeon/packages/platform-sandbox/**]
 
 ## 1. 목표와 마일스톤 배치
 
-목표: srt 0.0.81을 감싼 `xeon.sandbox`(`SandboxService`)를 만들어 M1에서 `xeon chat`의 bash 도구가 샌드박스 안에서 돌게 한다(`L0.sandbox.spec`).
+목표: srt 0.0.79을 감싼 `xeon.sandbox`(`SandboxService`)를 만들어 M1에서 `xeon chat`의 bash 도구가 샌드박스 안에서 돌게 한다(`L0.sandbox.spec`).
 
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
@@ -25,7 +25,7 @@ binds: [xeon/packages/platform-sandbox/**]
 ```
 xeon/packages/platform-sandbox/
   package.json                 # name @xeon/platform-sandbox, "xeon": {"layer": "L0", "domain": "sandbox"}
-                               # dependencies: "@anthropic-ai/sandbox-runtime": "catalog:" (0.0.81)
+                               # dependencies: "@anthropic-ai/sandbox-runtime": "catalog:" (0.0.79)
                                # exports: "." → src/index.ts, "./testing" → src/testing/index.ts
   tsconfig.json                # references: ../contracts, ../ext-host
   src/
@@ -83,7 +83,7 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 
 | id | 내용 | 선행 | 규모 |
 |---|---|---|---|
-| SB-01 | srt 의존 고정과 Bun 구동 스파이크: catalog에 `"@anthropic-ai/sandbox-runtime": "0.0.81"` 추가, `platform-sandbox` 의존 선언, DR-07 소유표 행 확인. `srt-spike.int.test.ts` 1개로 (a) Bun 1.4.3에서 `initialize` + `wrapWithSandboxArgv` + 실행 한 번, (b) 반환 `env`가 전체인지 추가분인지, (c) `bun build --compile` 산출물에서 헬퍼 경로(apply-seccomp) 탐색 성공 여부를 확인 | L0.exec.plan EX-09(셸 실행 경로) | M |
+| SB-01 | srt 의존 고정과 Bun 구동 스파이크: catalog에 `"@anthropic-ai/sandbox-runtime": "0.0.79"` 추가, `platform-sandbox` 의존 선언, DR-07 소유표 행 확인. `srt-spike.int.test.ts` 1개로 (a) Bun 1.4.3에서 `initialize` + `wrapWithSandboxArgv` + 실행 한 번, (b) 반환 `env`가 전체인지 추가분인지, (c) `bun build --compile` 산출물에서 헬퍼 경로(apply-seccomp) 탐색 성공 여부를 확인 | L0.exec.plan EX-09(셸 실행 경로) | M |
 | SB-02 | 상태 탐지: `provider.ts`, `providers/*`, `select.ts`, `status.ts`. 필요 프로그램 PATH 탐색과 절대 경로 기록, srt `isSupportedPlatform`·`checkDependencies` 결과 대응, `SandboxStatus.installHints`. `describeSandboxStatus` 본문은 F 순수 함수라 `F.capabilities.plan` 작업이고 이 작업은 그 시험 사례를 제공한다 | SB-01 | M |
 | SB-03 | 정책 변환기: `policy.ts`의 `toSrtConfig`(경로 절대화·realpath·정렬·중복 제거, 리터럴만, 고정 값, 프로세스 전역/명령별 분리), srt 스키마 검증 | SB-01 | M |
 | SB-04 | 보호 경로 목록과 경로 질의 연동: `protected-paths.ts`(spec §3.3 표), `xeon.os` 디렉터리(`OsDirs.home`·`data`·`config`)와 `SecretService.protectedPaths()` 주입, `<xeonConfig>/secrets/` 행, `protectedPaths.extra` 합치기, basename 전개, 보호 경로 안 쓰기 루트 제거 | SB-03, L0.os.plan 디렉터리 질의, L0.secrets.plan SC-21 | M |
@@ -107,9 +107,9 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 | 항목 | 값 |
 |---|---|
 | 패키지 | `@anthropic-ai/sandbox-runtime` |
-| 버전 | `0.0.81` 정확 고정(캐럿·틸드 없음). workspace catalog에 둔다 |
+| 버전 | `0.0.79` 정확 고정(캐럿·틸드 없음). workspace catalog에 둔다 |
 | 라이선스 | Apache-2.0. 배포물 서드파티 고지에 넣는다(위치 `eng.toolchain.guide`) |
-| 저장소 | `https://github.com/anthropics/sandbox-runtime`(태그 v0.0.81) |
+| 저장소 | `https://github.com/anthropics/sandbox-runtime`(태그 v0.0.79) |
 | 런타임 의존 | `zod ^3.25.0`, `commander ^12.1.0`, `node-forge ^1.4.0`, `@pondwader/socks5-server ^1.0.10`(srt `package.json`). lockfile로 고정된다 |
 | 포크 | 없음. 래핑만 한다 |
 | 소유 | `platform-sandbox`만 import한다(DR-07). 패키지 안에서도 `src/srt.ts`만 |

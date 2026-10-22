@@ -31,7 +31,7 @@ Xeon 코드의 테스트를 어떻게 쓰고, 어디에 두고, 어떻게 돌리
 
 [제안] 공용 가짜와 도우미는 그 인터페이스를 구현한 L0 이상 패키지의 `testing` 서브패스가 제공한다. 순위 규칙(DR-01)은 `testing` 서브패스에도 적용된다.
 
-[결정(잠정): review.decisions-2 U-03] F(`contracts`)에는 `testing` 서브패스가 없다. F 인터페이스(`Clock`, `Scheduler`, `RandomSource`, `IdFactory`)의 테스트 대역 `manualClock`, `seededRandom`, `fixedIdFactory`는 각 패키지 `test/support/` 안에 둔다. 시그니처는 TS-03의 코드 블록을 따르고, 같은 시그니처를 쓰는 패키지끼리 동작이 같은지는 `L0.os.spec`의 Clock·Scheduler 계약 테스트 묶음으로 확인한다.
+[결정: review.decisions-2 U-03] F(`contracts`)에는 `testing` 서브패스가 없다. F 인터페이스(`Clock`, `Scheduler`, `RandomSource`, `IdFactory`)의 테스트 대역 `manualClock`, `seededRandom`, `fixedIdFactory`는 각 패키지 `test/support/` 안에 둔다. 시그니처는 TS-03의 코드 블록을 따르고, 같은 시그니처를 쓰는 패키지끼리 동작이 같은지는 `L0.os.spec`의 Clock·Scheduler 계약 테스트 묶음으로 확인한다.
 
 | 서브패스 | 층 | 제공하는 것 | 근거 규칙 |
 |---|---|---|---|
@@ -45,9 +45,9 @@ Xeon 코드의 테스트를 어떻게 쓰고, 어디에 두고, 어떻게 돌리
 | `@xeon/core-models/testing` | L1 | 모델 테이프 형식, `loadTape`, `tape`, `tapePlayer`, `contextHash`, `t` | TS-04 |
 | `@xeon/ext-host/testing` | X | 테스트용 확장 호스트(on/post/drive/scope 최소형). L0를 import하지 않는다 | `X.primitives.spec`이 정한다 |
 
-- 다른 컨텍스트 패키지의 `testing` 서브패스는 테스트 파일(`src/**/*.test.ts`, `test/**`)에서만 import한다. 패키지의 `src/testing/**` 소스는 다른 패키지의 `testing` 서브패스를 import하지 않는다(`eng.dependency-rules.guide` DR-08, DR-14 예외 3, [결정(잠정): review.decisions-2 U-17]).
+- 다른 컨텍스트 패키지의 `testing` 서브패스는 테스트 파일(`src/**/*.test.ts`, `test/**`)에서만 import한다. 패키지의 `src/testing/**` 소스는 다른 패키지의 `testing` 서브패스를 import하지 않는다(`eng.dependency-rules.guide` DR-08, DR-14 예외 3, [결정: review.decisions-2 U-17]).
 - F와 X 패키지의 테스트는 L0 `testing`을 쓸 수 없다(DR-01). F 테스트는 임시 디렉터리가 필요 없게 순수 함수로 쓴다. X 테스트가 파일 시스템을 쓰면 `node:os`의 `tmpdir()`를 직접 쓰되 정리를 `afterEach`에 둔다.
-- [결정(잠정): review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 저장 대역(`ScopedStorePort` 등)은 X `test/` 안에 F 인터페이스로 만든다.
+- [결정: review.decisions-2 D-05] X 테스트는 L0를 import하지 않는다. 저장 대역(`ScopedStorePort` 등)은 X `test/` 안에 F 인터페이스로 만든다.
 - 이름과 시그니처의 정본은 각 패키지의 spec이다. 이 문서의 시그니처는 그 spec이 정하기 전까지의 기준이다.
 
 ## 2. 규칙
@@ -700,4 +700,4 @@ coverageThreshold = { lines = 0.9, functions = 0.9 }
 - [미결] 속성 테스트 라이브러리(fast-check) 도입 여부. 도입하면 TC-04 절차로 ADR을 쓴다.
 - [미결] 모델 용도 이름(`role`)과 테이프 재생기를 L1 모델 서비스에 연결하는 방식. `L1.models.spec`이 정한다.
 - [미결] preload가 소켓 수준 네트워크(`Bun.connect`, `node:net`)를 막지 못하는 문제의 보완.
-- `ManualClock`이 구현할 F `Clock`·`Scheduler`는 F 루트 base, `IdFactory`는 `@xeon/contracts/conversation`이다(`F.readme` §3, `eng.typescript.guide` 1.2절). 대역은 각 패키지 `test/support/`에 둔다([결정(잠정): review.decisions-2 U-03]).
+- `ManualClock`이 구현할 F `Clock`·`Scheduler`는 F 루트 base, `IdFactory`는 `@xeon/contracts/conversation`이다(`F.readme` §3, `eng.typescript.guide` 1.2절). 대역은 각 패키지 `test/support/`에 둔다([결정: review.decisions-2 U-03]).

@@ -82,14 +82,14 @@ P6 해시 선택 [제안]:
 
 | 대상 | 버전 | 쓰는 방식 |
 |---|---|---|
-| `typebox` | 1.4.2 (워크스페이스 catalog, `_research/foundation-plan.md` §2) | 그대로. `Type`, `Static`, `TSchema`, `TUnsafe`, `typebox/value`의 `Value.Check`(테스트) |
+| `typebox` | 1.3.27 (워크스페이스 catalog, `_research/foundation-plan.md` §2) | 그대로. `Type`, `Static`, `TSchema`, `TUnsafe`, `typebox/value`의 `Value.Check`(테스트) |
 | `@earendil-works/pi-ai` | 1.3.0 정확 고정 | 그대로. `Tool`, `ToolReference`, `SystemMessage` 타입만 `import type` |
 | `@earendil-works/pi-agent-core` | 1.3.0 정확 고정 | 그대로. `AgentTool`, `ToolExecutionMode` 타입만 `import type`(호환 타입 테스트) |
 | Cordis | — | F에서 import하지 않는다 |
 
 - 포크 없음.
 - 참고만 하는 코드: pi durable `ToolRegistration`(`~/projects/_ref/pi-src/packages/durable/src/harness/types.ts`). 서비스와 도구를 한 쌍으로 정의한 선례가 없어 형식은 자체 설계다(`_research/packages.md` §4.1 F3 능력 정의 행).
-- TypeBox 버전은 [미결]이다. pi-ai·agent-core 1.3.0이 `typebox` 1.3.27을 정확 고정하므로 1.4.2를 쓰면 설치본이 두 벌일 수 있다(`_research/notes/F-2.md` §5.3, §7). F가 쓰는 `TSchema`, `Static` 선언은 두 버전에서 같다. 결정 전까지 catalog 값(1.4.2)을 따르고, 두 벌 설치 여부를 P2에서 `bun pm ls`로 확인해 보고한다.
+- TypeBox 버전은 [미결]이다. pi-ai·agent-core 1.3.0이 `typebox` 1.3.27을 정확 고정하므로 1.3.27를 쓰면 설치본이 두 벌일 수 있다(`_research/notes/F-2.md` §5.3, §7). F가 쓰는 `TSchema`, `Static` 선언은 두 버전에서 같다. 결정 전까지 catalog 값(1.3.27)을 따르고, 두 벌 설치 여부를 P2에서 `bun pm ls`로 확인해 보고한다.
 
 ## 5. 단위 테스트 목록
 

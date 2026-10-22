@@ -85,15 +85,15 @@ flowchart TD
 
 | 간선 | 판정 | 근거 |
 |---|---|---|
-| `group-helm`, `group-learning` → `group-kit` | 허용 [결정(잠정): review.decisions-2 U-15]. 허용 목록 `DR-02/group-kit-*`(`DR-02/group-kit-helm`, `DR-02/group-kit-learning`) | `eng.dependency-rules.guide` DR-02 (b), 4절, `architecture.layers.spec` §3.2 |
+| `group-helm`, `group-learning` → `group-kit` | 허용 [결정: review.decisions-2 U-15]. 허용 목록 `DR-02/group-kit-*`(`DR-02/group-kit-helm`, `DR-02/group-kit-learning`) | `eng.dependency-rules.guide` DR-02 (b), 4절, `architecture.layers.spec` §3.2 |
 | `group-kit` → 다른 그룹 | 금지 | DR-02 (b) "group-kit은 다른 그룹을 import하지 않는다" |
 | 그룹 ↔ 그룹 (`group-helm` ↔ `group-learning`, 외부 그룹 포함) | 금지 [결정] | `F.extensions.spec` §4.8, `eng.context-map.design` CM-06 |
 | L3 → `cap-*`(L2) | 금지 [결정: 계획 v2 규칙 2, DR-14]. 능력은 F3 정의와 `g.capability(ServiceKey)`로 쓴다 | `architecture.layers.spec` §3.1 2행, §4.2.1 표 |
 | L3 → F `contracts` | 허용. `extensions`, `capabilities`, `records`, `settings` 서브패스 | DR-01 |
-| L3 → X `ext-host` | `group-kit`만 허용. DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정(잠정): review.decisions-2 U-17]. 그룹 패키지는 X 타입을 F에서 가져오고, 연산은 `GroupApi`로 받는다 | DR-01, DR-14 |
+| L3 → X `ext-host` | `group-kit`만 허용. DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정: review.decisions-2 U-17]. 그룹 패키지는 X 타입을 F에서 가져오고, 연산은 `GroupApi`로 받는다 | DR-01, DR-14 |
 | L3 → L0 `platform-*` | 순위상 허용이나 DR-14로 구현 import 금지. 그룹은 저장소를 직접 열지 않는다 | `eng.dependency-rules.guide` DR-14 나쁜 예 |
 | L3 → L1 `core-*` | 순위상 허용이나 DR-14로 구현 import 금지. `xeon.agents` 등은 F 타입으로 주입받는다 | DR-14, `eng.context-map.design` §4.1 helm·learning 행 |
-| 테스트 파일 → 다른 패키지 `testing` 서브패스 | 테스트 파일만 허용 [결정(잠정): review.decisions-2 U-17] | DR-08, DR-14 예외 3 |
+| 테스트 파일 → 다른 패키지 `testing` 서브패스 | 테스트 파일만 허용 [결정: review.decisions-2 U-17] | DR-08, DR-14 예외 3 |
 
 각 패키지 `package.json`의 `xeon` 필드(현재 값):
 
@@ -109,17 +109,17 @@ flowchart TD
 
 | 대상 | 규칙 | 정본 |
 |---|---|---|
-| 그룹 이름(확장 이름) | 기본 그룹 `helm`, `learning`. 그룹 이름은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈. 밑줄 없음)을 따른다 [결정(잠정): review.decisions-2 U-18]. 밑줄을 금지하므로 테이블 접두의 경계를 하나로 읽는다 | `L3.group-kit.spec` §3.2 `GROUP_NAME_PATTERN`, `L3.slots.spec` §3.3 |
+| 그룹 이름(확장 이름) | 기본 그룹 `helm`, `learning`. 그룹 이름은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈. 밑줄 없음)을 따른다 [결정: review.decisions-2 U-18]. 밑줄을 금지하므로 테이블 접두의 경계를 하나로 읽는다 | `L3.group-kit.spec` §3.2 `GROUP_NAME_PATTERN`, `L3.slots.spec` §3.3 |
 | 예약 이름 | 정본은 `RESERVED_GROUP_NAMES`(`L3.group-kit.spec` §3.2): `core`, `cap`, `xh`, `sys`, `p`, `ext`, `grp`, `x`, `xeon`, L2 도메인 이름(`workspace`, `mcp`, `web`, `knowledge`, `work`, `dialog`, `artifacts`, `schedule`), `auto`, `all`, `none`, `group`, `groups`, `kit`. 설치된 확장 이름과의 충돌은 `name_conflict`로 따로 거부한다 | `L3.group-kit.spec` §3.2, `eng.context-map.design` §5.2, `F.extensions.spec` §4.7 `name_reserved` |
 | scope id | 주 scope id는 그룹 이름. 하위 scope는 `<그룹>/<하위>`(`SCOPE_ID_PATTERN`) | `F.extensions.spec` §3.2 |
 | 그룹 레코드 kind | `grp.<그룹>.<영역>.<이름>`(`RecordKind`, 4마디) | `F.extensions.spec` §3.6 |
 | 커스텀 메시지 `customType` | 레코드 kind와 같은 형식 | `F.extensions.spec` §3.2 `PostItem` |
-| 비공개 기록 kind | `grp.<그룹>.<영역>.<이름>`. X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 다른 그룹은 조회하지 못한다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유) [결정(잠정): review.decisions-2 T-21] | `X.primitives.spec` §4.6.1, `L3.group-kit.spec` §3.2 |
-| 비공개 테이블 | `x_<그룹의 하이픈을 밑줄로>_<지역 이름>`. 지역 이름에는 밑줄을 쓰지 않는다 [결정(잠정): review.decisions-2 U-18] | `eng.context-map.design` §5.2, `X.operations.spec` |
+| 비공개 기록 kind | `grp.<그룹>.<영역>.<이름>`. X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 다른 그룹은 조회하지 못한다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유) [결정: review.decisions-2 T-21] | `X.primitives.spec` §4.6.1, `L3.group-kit.spec` §3.2 |
+| 비공개 테이블 | `x_<그룹의 하이픈을 밑줄로>_<지역 이름>`. 지역 이름에는 밑줄을 쓰지 않는다 [결정: review.decisions-2 U-18] | `eng.context-map.design` §5.2, `X.operations.spec` |
 | 설정 키(기본 그룹·group-kit) | `l3.<도메인>.<이름>` | `F.wire-settings.spec` §3.8.1, §3.8.3 규칙 3 |
 | 설정 키(외부 그룹) | `ext.<id>.<이름>`. `ext.<id>.enabled`, `ext.<id>.isolation`은 X 로더 예약 키. 켜기 키 `ext.<id>.enabled`는 내장 그룹도 쓴다(`ext.helm.enabled`, `ext.learning.enabled`) | `F.wire-settings.spec` §3.8.3, `F.extensions.spec` §6 |
 | 명령 | `/group …`(group-kit), `/<그룹 이름> …`(각 그룹) | `L3.group-kit.spec`, 각 그룹 spec |
-| 서비스 이름 | `xeon.groups`(`GroupService`, group-kit 제공). 인터페이스 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 두고 X `LeaseArbiterPort`를 확장한다 [결정(잠정): review.decisions-2 D-04]. 그룹은 서비스를 제공하지 않는다 | `F.capabilities.spec` §3.12, `eng.context-map.design` §5.3, CM-06 |
+| 서비스 이름 | `xeon.groups`(`GroupService`, group-kit 제공). 인터페이스 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 두고 X `LeaseArbiterPort`를 확장한다 [결정: review.decisions-2 D-04]. 그룹은 서비스를 제공하지 않는다 | `F.capabilities.spec` §3.12, `eng.context-map.design` §5.3, CM-06 |
 | 지점 이름 | pi snake_case(`tool_call`, `agent_before_settle`, `tool_result`, `input`, `turn_end`, `agent_settled` 등) | `F.extensions.spec` §3.4, §4.10 |
 
 공통 확정 이름(L3 네 문서가 같은 문자열을 쓴다):
@@ -130,14 +130,14 @@ flowchart TD
 | group-kit 공개 이름 | `defineGroup`, `GroupDef<S>`, `GroupApi<S>`, `GroupModule`, `GroupService`(`xeon.groups`)·`GroupStatus`(F `services/groups.ts` 정의를 다시 내보냄), `DriveArbiter`, `replayDrive`, `scanDriveSource`, `PromotionReport`, `GroupMetrics` |
 | helm 레코드(작성) | `grp.helm.signal.detected`, `grp.helm.discovery.recorded`, `grp.helm.inquiry.finished` |
 | learning 레코드(작성) | `grp.learning.skill.proposed`, `grp.learning.skill.approved`, `grp.learning.skill.rejected`, `grp.learning.skill.applied`, `grp.learning.memory.proposed`, `grp.learning.feedback.proposed`, `grp.learning.review.finished`, (2차) `grp.learning.script.proposed` |
-| 레코드 읽기 | helm과 learning은 서로의 레코드를 읽지 않는다. 두 매니페스트의 `readsRecordKinds`는 빈 목록이다 [결정(잠정): review.decisions-2 D-10] |
-| group-kit 설정 | `l3.group-kit.instrumentation`, `l3.group-kit.statusLine`. 구동 그룹 선택은 X 키 `x.primitives.activeDriveGroup`(`null`은 auto) 하나다 [결정(잠정): review.decisions-2 S-15] |
+| 레코드 읽기 | helm과 learning은 서로의 레코드를 읽지 않는다. 두 매니페스트의 `readsRecordKinds`는 빈 목록이다 [결정: review.decisions-2 D-10] |
+| group-kit 설정 | `l3.group-kit.instrumentation`, `l3.group-kit.statusLine`. 구동 그룹 선택은 X 키 `x.primitives.activeDriveGroup`(`null`은 auto) 하나다 [결정: review.decisions-2 S-15] |
 | helm 설정 | `l3.helm.autoStart`, `l3.helm.driveLimits`, `l3.helm.maxLenses`, `l3.helm.writeGuard` |
 | learning 설정 | `l3.learning.trigger.userTurns`, `l3.learning.trigger.toolIterations`, `l3.learning.review.maxIterations`, `l3.learning.review.tokenBudget`, `l3.learning.review.model`, `l3.learning.approval.required`, `l3.learning.scan.enabled`, `l3.learning.queue.expiryDays`, `l3.learning.curator.enabled`, `l3.learning.curator.intervalHours`, `l3.learning.curator.minIdleHours`, `l3.learning.curator.llmConsolidate` |
 | 명령 | `/group status`, `/group on <id>`, `/group off <id>`, `/group drive <id\|auto>`; `/helm start`, `/helm stop`, `/helm status`; `/learning queue`, `/learning review`, `/learning history` |
 
 - 설정 키는 모두 설정 화면 `plugins` 탭에 둔다(`F.wire-settings.spec` §3.8.2 `SettingsTab`).
-- 단계 경계 용어 [결정(잠정): review.decisions-2 U-01]: 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다. 계획 v2 원문의 경계 표현도 이 뜻으로 읽는다(`F.conversation.spec` §2.1, `F.extensions.spec` §4.5). 실행 중인 turn이 없을 때의 적용 시점은 `X.primitives.spec`이 정한다.
+- 단계 경계 용어 [결정: review.decisions-2 U-01]: 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다. 계획 v2 원문의 경계 표현도 이 뜻으로 읽는다(`F.conversation.spec` §2.1, `F.extensions.spec` §4.5). 실행 중인 turn이 없을 때의 적용 시점은 `X.primitives.spec`이 정한다.
 
 ## 5. 소비 지도
 
@@ -154,10 +154,10 @@ flowchart TD
 
 | 쓰는 그룹 | 레코드 kind | 읽는 그룹 | 읽는 방법 | 표지 |
 |---|---|---|---|---|
-| learning | `grp.learning.*` 8종 | 없음(L4 표시, 이력) | 이벤트 피드 | [결정(잠정): review.decisions-2 D-10] |
-| helm | `grp.helm.signal.detected`, `grp.helm.discovery.recorded`, `grp.helm.inquiry.finished` | 없음(L4 표시, 이력) | 이벤트 피드 | [결정(잠정): review.decisions-2 D-10] |
+| learning | `grp.learning.*` 8종 | 없음(L4 표시, 이력) | 이벤트 피드 | [결정: review.decisions-2 D-10] |
+| helm | `grp.helm.signal.detected`, `grp.helm.discovery.recorded`, `grp.helm.inquiry.finished` | 없음(L4 표시, 이력) | 이벤트 피드 | [결정: review.decisions-2 D-10] |
 
-그룹 사이에는 직접 호출이 없고 레코드 읽기도 없다 [결정(잠정): review.decisions-2 D-10]. 학습 그룹이 적용한 스킬과 메모리는 L2 지식 능력을 거쳐 helm에 전달된다.
+그룹 사이에는 직접 호출이 없고 레코드 읽기도 없다 [결정: review.decisions-2 D-10]. 학습 그룹이 적용한 스킬과 메모리는 L2 지식 능력을 거쳐 helm에 전달된다.
 
 ```mermaid
 flowchart LR
@@ -172,7 +172,7 @@ flowchart LR
   helm -. "직접 호출·import 없음" .- learn
 ```
 
-- [결정] 그룹끼리 직접 참조하지 않는다(`F.extensions.spec` §4.8). 다른 그룹의 레코드도 읽지 않는다 [결정(잠정): review.decisions-2 D-10].
+- [결정] 그룹끼리 직접 참조하지 않는다(`F.extensions.spec` §4.8). 다른 그룹의 레코드도 읽지 않는다 [결정: review.decisions-2 D-10].
 - [제안] 그룹은 다른 그룹을 서비스로도 부르지 않는다. 두 그룹이 같은 능력을 필요로 하면 그 능력을 L2로 옮긴다(`eng.context-map.design` CM-06, 3절 협력 규칙 6·7).
 
 ## 6. 층 경계
@@ -184,7 +184,7 @@ flowchart LR
 | 2 | L3 그룹은 L2 능력의 정의(F3)만 참조하고 provider 구현은 모른다 | 그룹은 `cap-*`를 import하지 않고 `g.capability(ServiceKey)`로 쓴다. 쓰는 능력은 매니페스트 `requires`, `optional`에 선언한다 | [결정] 원칙과 `cap-*` import 금지(계획 v2 규칙 2, DR-14) | depcruise `group-*` → `cap-*` 금지 [제안](`architecture.layers.spec` §9), `validateUsage` `capability_undeclared` |
 | 3 | 그룹끼리 직접 참조하지 않는다. 통신은 F4 스키마가 있는 이벤트와 레코드로만 한다 | `g.record`, `g.readRecords`만 쓴다. `recordKinds`, `readsRecordKinds` 선언 | [결정] | check-layers DR-02(같은 층 import), depcruise, `validateUsage` `record_kind_undeclared`·`read_kind_undeclared`, X 쓰기 시 `validateGroupRecord` |
 | 4 | drive 임대는 한 번에 그룹 하나만 가진다. on, post, 백그라운드 위임은 여러 그룹이 함께 쓴다 | Helm만 기본 drive 그룹이다. 정책은 `DriveArbiter`(group-kit), 메커니즘은 X | [결정] | ext-host 테스트, `validateManifestSet` `drive_conflict`, group-kit 단위 테스트 |
-| 5 | 켜기와 끄기는 경계에서 적용되고, 정리는 Cordis dispose로 실행된다 | 적용 시점은 단계 경계. 비활성화 순서는 on 제외 → 임대 반납 → `onDispose` | [결정] 원칙, 단계 경계 해석은 [결정(잠정): review.decisions-2 U-01] | ext-host 테스트, M1 스모크(drive 그룹 토글) |
+| 5 | 켜기와 끄기는 경계에서 적용되고, 정리는 Cordis dispose로 실행된다 | 적용 시점은 단계 경계. 비활성화 순서는 on 제외 → 임대 반납 → `onDispose` | [결정] 원칙, 단계 경계 해석은 [결정: review.decisions-2 U-01] | ext-host 테스트, M1 스모크(drive 그룹 토글) |
 | 6 | 모든 설정은 F5 설정 스키마 하나에서 화면, 파일, 명령을 함께 만든다 | 기본 그룹은 `defineSettings("l3.<도메인>", …)`, 외부 그룹은 `ext.<id>` | [결정] | `buildCatalog`의 `foreignNamespace`·`duplicateKey`, `F.wire-settings.spec` 생성 검사 |
 | 7 | 이미 있는 패키지는 그대로 쓰고, 부족하면 포크한다 | L3 구성요소 21개(`_research/layer-plan-v2.json` L3-a 7, L3-b 5, L3-c 6, L3-d 3)에서 채택하는 코드는 없다. L3-c 학습 그룹의 4개(학습 트리거, 검토 포크, 큐레이터, 학습 이력 보기)는 Hermes 자기 개선 루프의 설계를 차용하고(출처 표기 '설계', `L3.learning.plan` §4), 나머지 17개는 선례가 없어 자체 구현이다. 템플릿은 `create-cordis` 스캐폴딩 방식을 참고만 한다. `_research/packages.md` §4.6의 "17개 모두 자체"는 학습 그룹 분리 전 집계라 갱신이 필요하다 | [결정] 원칙(`_research/decisions-log.md` 2026-10-21 결정 2차) | 리뷰, `_research/packages.md` §4.6 |
 
@@ -230,7 +230,7 @@ Helm과 학습 그룹을 동시에 켰을 때:
 
 | 노출 | 내용 | 소유 문서 |
 |---|---|---|
-| 설정 화면 `plugins` 탭 | 그룹 목록과 토글, 그룹별 설정(4절 키), drive 보유 그룹 선택(`x.primitives.activeDriveGroup`), drive 임대 상한(`x.primitives.driveLimits`, `l3.helm.driveLimits`) | `L4.settings-ui.spec`, `F.wire-settings.spec` §4.9 |
+| 설정 화면 `plugins` 탭 | 그룹 목록과 토글, 그룹별 설정(4절 키), drive 보유 그룹 선택(`x.primitives.activeDriveGroup`), drive 임대 상한(`x.primitives.driveDefaultLimits`, `x.primitives.driveLimits`, `l3.helm.driveLimits`) | `L4.settings-ui.spec`, `F.wire-settings.spec` §4.9 |
 | `/group` 명령 | `status`, `on <id>`, `off <id>`, `drive <id\|auto>` | `L3.group-kit.spec`(동작), `L4.cli.spec`(해석) |
 | `/helm` 명령 | `start`, `stop`, `status` | `L3.helm.spec`, `L4.cli.spec` |
 | `/learning` 명령 | `queue`, `review`, `history`(`history`는 2차) | `L3.learning.spec`, `L4.cli.spec` |
@@ -259,17 +259,17 @@ Helm과 학습 그룹을 동시에 켰을 때:
 | [결정] 학습 저장은 L2 knowledge, 정책은 L3 학습 그룹 | `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로" |
 | [결정] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블. 그룹 비공개 상태는 `x_<그룹>_*` | `_research/decisions-log.md` 2026-10-21 결정 2차, adr.0004 |
 | [결정] DI는 Cordis 하나. 같은 층 협력은 F 정의와 Cordis 서비스로만 | `_research/decisions-log.md` 2026-10-21 결정 3차, `_research/foundation-plan.md` §3 |
-| [결정] 예산은 pi 방식. 기본 상한 없음, 상한은 drive 임대에만. drive 임대 상한 기본값(`l3.helm.driveLimits`)과 학습 검토 상한(`l3.learning.review.maxIterations`)은 pi 방식의 예외로 둔다 [결정(잠정): review.decisions-2 U-12, U-22] | `_research/decisions-log.md` 2026-10-21 계획 v2 |
+| [결정] 예산은 pi 방식. 기본 상한 없음, 상한은 drive 임대에만. drive 임대 상한 기본값(`l3.helm.driveLimits`)과 학습 검토 상한(`l3.learning.review.maxIterations`)은 pi 방식의 예외로 둔다 [결정: review.decisions-2 U-12, U-22] | `_research/decisions-log.md` 2026-10-21 계획 v2 |
 | [결정] 입출력 가드레일은 코어에서 빼고 보류. 필요하면 first 지점에 붙는 선택 플러그인 | `_research/layer-plan-v2-notes.md` "입출력 가드레일은 필요한가" |
 
 ### 10.2 미결 사항
 
 공통 모순(L3 네 문서에 걸린다):
 
-1. [결정(잠정): review.decisions-2 T-21] 그룹 레코드 이름 접두: 공개 레코드와 비공개 기록 모두 F 형식 `grp.<그룹>.<영역>.<이름>`을 쓴다. 비공개 기록은 X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 다른 그룹의 `readRecords`로 조회되지 않는다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유)다.
+1. [결정: review.decisions-2 T-21] 그룹 레코드 이름 접두: 공개 레코드와 비공개 기록 모두 F 형식 `grp.<그룹>.<영역>.<이름>`을 쓴다. 비공개 기록은 X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 다른 그룹의 `readRecords`로 조회되지 않는다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유)다.
 2. [미결] on 핸들러 외부 효과 금지(`F.extensions.spec` §4.3: 효과는 `post`, `commit`, `record`만)와 `GroupApi.delegate`·`loop.spawn`의 관계. 학습 그룹의 검토 포크는 drive 밖에서 위임을 시작해야 하므로 `requestId` 멱등을 조건으로 한 예외가 필요하다(`_research/notes/L3-1.md` §1). 예외를 F에 둘지, delegate를 `post`처럼 커밋 단위 연산으로 정의할지 정해야 한다.
 3. [미결] `package.json` `xeon.domain`의 `kit` 대 routes.yaml `group-kit`(3절, `architecture.layers.spec` §10).
-4. [결정(잠정): review.decisions-2 U-15] 같은 층 예외: DR-02 방법 (b), `group-*` → `group-kit` 한 방향 허용 목록(`DR-02/group-kit-*`)이다(`eng.dependency-rules.guide` DR-02, `architecture.layers.spec` §3.2, `eng.context-map.design` C-5).
+4. [결정: review.decisions-2 U-15] 같은 층 예외: DR-02 방법 (b), `group-*` → `group-kit` 한 방향 허용 목록(`DR-02/group-kit-*`)이다(`eng.dependency-rules.guide` DR-02, `architecture.layers.spec` §3.2, `eng.context-map.design` C-5).
 
 도메인 문서에서 모은 것:
 
@@ -282,4 +282,4 @@ Helm과 학습 그룹을 동시에 켰을 때:
 11. [미결] `slots` 템플릿 파일 위치(`eng.context-map.design` C-2). `L3.slots.spec`은 `group-kit/templates/`를 [제안]한다.
 12. [미결] 정책 플러그인을 `kind: "group"`으로 둘지 `kind: "plugin"`으로 둘지의 최종 기준(`L3.slots.spec` §4.2).
 13. [미결] 입출력 가드레일 보류 해제 조건(`L3.slots.spec` §4.2.3).
-14. [결정(잠정): review.decisions-2 U-18] 새 그룹 이름 규칙: 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음)을 따른다. 테이블 접두는 이름의 하이픈을 밑줄로 바꿔 만든다.
+14. [결정: review.decisions-2 U-18] 새 그룹 이름 규칙: 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음)을 따른다. 테이블 접두는 이름의 하이픈을 밑줄로 바꿔 만든다.

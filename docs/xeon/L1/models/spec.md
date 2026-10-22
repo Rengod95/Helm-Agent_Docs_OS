@@ -34,7 +34,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
 | 단계 체크포인트 레코드 모양 | `F.records.spec` §3.6 |
 | 지점 선언 표, fold, 페이로드 형태 규칙 | `F.extensions.spec` §3.3~§3.5 |
 | 컨텍스트 조립, 캐시 표식 위치 계산, 컴팩션 | `L1.context.spec` |
-| 루프와 agent-core 연결, 예산(단계·비용 상한 없음) | `L1.loop.spec` |
+| 자체 루프(adr.0009)와의 연결, 예산(단계·비용 상한 없음) | `L1.loop.spec` |
 | 서브에이전트 정의 파일의 `model` 필드, 목표 판정 실행 | `L1.agents.spec` |
 | 비밀 저장, 해석 구현, 마스킹 | `L0.secrets.spec` |
 | 설정 화면 렌더링 | `L4.settings-ui.spec` |
@@ -67,7 +67,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
 | 재시도와 백오프 | `retryAssistantCall`, `RetryPolicy`, `isRetryableAssistantError`, `retryProviderRequest` | `utils/retry.ts`(257줄), `utils/provider-retry.ts`(128줄) | 재시도 수치 설정(§6) |
 | 비용·토큰 계측 | `Usage`, `calculateCost`. 중단된 응답도 `error` 이벤트의 `AssistantMessage`에 `usage`가 실린다 | `types.ts:446-466`, `models.ts:1200` | 합산기 `UsageMeter`(§3.5) |
 | 캐시 | `cacheRetention`, `sessionId`, `ModelPromptCache` | `types.ts:243`, `249`, `848` | 캐시 정책 객체(§3.6) |
-| 추론 | `reasoning?: ThinkingLevel`, `thinkingBudgets`(pi-ai `SimpleStreamOptions`, agent-core `AgentLoopConfig`가 상속), `clampThinkingLevel` | `types.ts:372-376`, `models.ts:1235`, agent `agent.ts:137` | 레벨별 토큰 설정, 체크포인트 고정(§4.2) |
+| 추론 | `reasoning?: ThinkingLevel`, `thinkingBudgets`(pi-ai `SimpleStreamOptions`. core-loop 자체 루프는 단계 바인딩으로 받아 그대로 넘긴다), `clampThinkingLevel` | `types.ts:372-376`, `models.ts:1235`, agent `agent.ts:137` | 레벨별 토큰 설정, 체크포인트 고정(§4.2) |
 | 토큰 추정, 오버플로우 감지 | `estimateMessageTokens`, `estimateContextTokens`, `calculateContextTokens`, `isContextOverflow` | `utils/estimate.ts`, `utils/overflow.ts:137` | `L1.context.spec`에 서비스로 위임(§3.3) |
 | 인자 검증 | `validateToolArguments` | `utils/validation.ts:317` | 2차 구조화 출력 재시도 루프(§4.10) |
 | 요청 변형 훅 | `onPayload`, `onResponse`, `onProviderStreamEvent`, `ModelsRequestTransforms.transformHeaders` | `types.ts:178`, `182`, `219-223`, `models.ts:112-115` | 지점 디스패치(§7) |
@@ -85,7 +85,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
 
 ### 3.2 F에 두는 이름
 
-서비스 인터페이스 `ModelService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정(잠정): review.decisions-2 D-04]. 나머지 이름(역할, 참조, 바인딩, `CachePolicy`)도 같은 서브패스의 `services/models.ts`에 둔다. 여러 서비스가 함께 쓰는 모델 값 타입의 위치는 `F.capabilities.spec` §3.12 규칙 3이 정했고, `L1.context.spec`은 이 파일에서 import한다. 순수 함수 `parseModelRef`, `formatModelRef`, `resolveRole`은 `F.readme` §1의 런타임 로직 예외 1(순수 함수)에 해당한다.
+서비스 인터페이스 `ModelService`와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 D-04]. 나머지 이름(역할, 참조, 바인딩, `CachePolicy`)도 같은 서브패스의 `services/models.ts`에 둔다. 여러 서비스가 함께 쓰는 모델 값 타입의 위치는 `F.capabilities.spec` §3.12 규칙 3이 정했고, `L1.context.spec`은 이 파일에서 import한다. 순수 함수 `parseModelRef`, `formatModelRef`, `resolveRole`은 `F.readme` §1의 런타임 로직 예외 1(순수 함수)에 해당한다.
 
 ```ts
 // xeon/packages/contracts/src/services/models.ts  (F.capabilities.spec §3.12 규칙 3)
@@ -94,8 +94,7 @@ import type {
   Model, Api, Context, Provider, CacheRetention, ThinkingBudgets,
   AssistantMessageEventStream, SimpleStreamOptions,
 } from "@earendil-works/pi-ai";
-import type { StreamFn } from "@earendil-works/pi-agent-core";
-import type { AssistantMessage, Message, ModelThinkingLevel, StopReason, Usage } from "../conversation/pi.ts";
+import type { AssistantMessage, Message, ModelThinkingLevel, StopReason, StreamFn, Usage } from "../conversation/pi.ts";
 import type { ThreadId, TurnId, StepId } from "../conversation/ids.ts";
 import type { Result } from "../base/index.ts";
 
@@ -159,7 +158,7 @@ export interface ModelService extends ModelsPort {
   stream(request: ModelCallRequest): AssistantMessageEventStream;
   /** 완성 호출. stream을 끝까지 읽은 최종 메시지 */
   complete(request: ModelCallRequest): Promise<AssistantMessage>;
-  /** core-loop가 agent-core에 넘기는 StreamFn. ctx의 귀속 정보로 사용량을 기록하고 지점을 발화한다 */
+  /** core-loop 자체 루프가 부르는 StreamFn(F 정의). ctx의 귀속 정보로 사용량을 기록하고 지점을 발화한다 */
   streamFn(ctx: ModelCallContext): StreamFn;
 
   /** 카탈로그 조회. 허용·차단 목록을 적용한 결과 */
@@ -257,7 +256,8 @@ export interface ContextUsageEstimate {
 }
 ```
 
-- `streamFn(ctx)`가 돌려준 함수는 agent-core가 넘기는 `model` 인자를 그대로 쓴다. core-loop는 `prepareRequest` 훅에서 단계 시작 바인딩의 `ResolvedModel.model`을 넣는다(`L1.loop.spec`). 넘어온 `model`이 등록되지 않은 provider면 `provider_unavailable` 오류 종결 메시지를 낸다.
+- `streamFn(ctx)`가 돌려준 함수는 core-loop 자체 루프가 넘기는 `model` 인자를 그대로 쓴다. core-loop는 단계 시작(`openStep`)에서 정한 바인딩의 `ResolvedModel.model`을 넣는다(`L1.loop.spec` §3.2). 넘어온 `model`이 등록되지 않은 provider면 `provider_unavailable` 오류 종결 메시지를 낸다.
+- [제안: adr.0009 §3.5] 자체 루프는 pi-ai 값 함수를 쓰지 않으므로 core-models가 대신 감싼다. (1) `streamFn`은 받은 `AgentMessage[]` 변환 결과(`convertToLlm`, L1.context)를 pi-ai `normalizeContext`로 정규화한 뒤 provider에 넘긴다. (2) 도구 선언 차이: `ModelService`에 `declareTools(committed: readonly AgentMessage[], tools: readonly AgentTool[]): SystemMessage | null`을 더한다. pi-ai `getCurrentTools`·`getToolStateChanges`·`toToolDeclaration`으로 계산하고 바뀐 것이 없으면 `null`이다. core-loop는 결과를 C3에 system item으로 기록한다. (3) core-tools의 typebox 검증이 pi-ai `validateToolArguments`와 다르게 판정하는 경우가 확인되면 그 함수를 감싸 `Result`로 돌려주는 메서드를 더한다(`L1.loop.plan` LP18). 세 함수 모두 예외를 밖으로 내지 않는다.
 - `stream`, `complete`, `streamFn`은 모두 같은 파이프라인(§4.3)을 지난다.
 
 ### 3.4 역할 표
@@ -354,7 +354,7 @@ export interface CacheMarks {
 
 ### 3.7 provider 등록
 
-[결정(잠정): review.decisions-2 D-04] `ModelService`는 `ModelsPort`(`F.extensions.spec` §3.2.1 `ports.ts`)를 확장한다(`F.capabilities.spec` §3.12 규칙 2). 확장의 `hostOf(g).registerProvider(name, config)`는 `ModelsPort.registerProvider(owner, name, config: ProviderResourceDef)`로 이 서비스에 들어온다. `ProviderResourceDef`는 F에서 `JsonValue`이므로 이 경로는 JSON으로 표현되는 `kind: "config"`만 받는다. 함수를 담는 `kind: "runtime"`은 플러그인이 `addProvider`로 등록한다(§3.11). 두 메서드는 같은 등록부를 쓴다 [제안].
+[결정: review.decisions-2 D-04] `ModelService`는 `ModelsPort`(`F.extensions.spec` §3.2.1 `ports.ts`)를 확장한다(`F.capabilities.spec` §3.12 규칙 2). 확장의 `hostOf(g).registerProvider(name, config)`는 `ModelsPort.registerProvider(owner, name, config: ProviderResourceDef)`로 이 서비스에 들어온다. `ProviderResourceDef`는 F에서 `JsonValue`이므로 이 경로는 JSON으로 표현되는 `kind: "config"`만 받는다. 함수를 담는 `kind: "runtime"`은 플러그인이 `addProvider`로 등록한다(§3.11). 두 메서드는 같은 등록부를 쓴다 [제안].
 
 ```ts
 /** JSON으로 표현되는 provider. pi registerProvider(name, ProviderConfig)의 직렬화 가능한 부분 */
@@ -449,6 +449,7 @@ export function secretBackedCredentialStore(refs: ProviderCredentialRefs, secret
 
 - 해석 시점: pi-ai `Models.getAuth`가 요청마다 `CredentialStore.read(providerId)`를 부른다(`auth/types.ts:65-70`). 이 함수 안에서만 `xeon.secrets`로 값을 얻고, 값은 반환 객체 안에만 있다. 캐시하지 않는다 [제안](`_research/secrets.md` §6.2 "실행 직전 해석").
 - 값은 요청 헤더로만 나간다. `ModelCallRequest`, `ResolvedModel`, 이벤트, 로그, 지점 페이로드에 싣지 않는다(§7.2 헤더 가림).
+- 사용 모드: `runtime-http`(`L0.secrets.spec` §4.3 M3)로 `lease`한다. purpose는 `model.provider:<id>`, `target`은 provider 기본 URL의 호스트다. 마일스톤 M1부터 이 모드를 쓴다. 값은 프로세스 안 HTTP 클라이언트에만 있고 모델 컨텍스트, 이벤트, DB에 들어가지 않는다(review.decisions-2 U-19 보충). bash 도구의 비밀 주입은 `env` 모드 그대로다.
 - `modify`, `delete`는 `ModelsError("auth")`를 던진다. 키 등록과 삭제는 비밀 관리 경로(`just secret-add`, 설정 화면 secrets 탭)로만 한다.
 - `list()`는 provider 이름과 참조 유무만 돌려준다(pi 계약: "must not execute configured API-key commands while listing").
 - 오류 문자열은 `xeon.secrets`의 마스킹 함수를 지난다 [가정: L0.secrets.spec이 마스킹 API를 서비스로 제공한다].
@@ -502,7 +503,7 @@ export const manifest: ExtensionManifest;   // name "provider-anthropic-oauth", 
 export function setup(g: ScopeApi<unknown>): void;
 ```
 
-- [결정(잠정): review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`는 import하지 않는다. 같은 층 예외는 두지 않는다.
+- [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`는 import하지 않는다. 같은 층 예외는 두지 않는다.
 - 등록 경로: 플러그인 → F provider 인터페이스(`ProviderDef`) → `xeon.models`(core-models 서비스)의 `addProvider`. 서비스는 X가 주입한다. 플러그인은 X `ModelsPort`(`hostOf(g).registerProvider`)를 쓰지 않는다(`X.primitives.spec` §3.9). 플러그인은 core-models를 import하지 않는다.
 - 이 경로는 import 자체를 없애므로 `plugins/*`를 L1에 두어도 같은 층 import가 생기지 않는다. 고칠 구속 문서: `eng.dependency-rules.guide` DR-07(pi-ai 소유 패키지에 `plugins/provider-anthropic-oauth`를 더한다)과 DR-09(플러그인 허용 목록을 F, X, L0, pi-ai·Anthropic SDK로 바꾸고 `DR-02/provider-anthropic-oauth` 항목을 지운다).
 
@@ -616,7 +617,7 @@ export function resolveRole(input: {
 - 한도 오류: `rate_limited`는 `retryAfterMs`만큼 그 계정을 대기 상태로 두고 `onLimit`에 따라 대기하거나 다른 계정으로 바꾼다. `quota_exhausted`는 재시도 불가로 분류하고 그 계정을 창이 끝날 때까지 뺀다.
 - 상태 저장: `core_models_accounts`(계정 메타, 참조만), `core_models_usage_windows`(계정·창별 합계), `core_models_cooldowns`(대기 종료 시각)를 `xeon.store.scoped("core_models_")`로 쓴다(`eng.context-map.design` §5.2). 세션 투영이 아니므로 재생으로 다시 만들지 않는다.
 - 읽기 자료: omp `usage-limit.ts`, `credential-pin.ts`. AgentSession에 결합된 구현이라 코드를 가져오지 않는다(`_research/packages.md` §4.3 L1-c 레이트 리밋 행).
-- 단계: M3다. 설정(`l1.models.accounts`, `l1.models.rateLimit`)은 M3 설정 화면에서 조작한다 [결정(잠정): review.decisions-2 U-21].
+- 단계: M3다. 설정(`l1.models.accounts`, `l1.models.rateLimit`)은 M3 설정 화면에서 조작한다 [결정: review.decisions-2 U-21].
 - [미결] 구독 계정 회전은 provider 약관 검토가 필요하다(`_research/settings.md` §2.5 계정 행). M3 착수 전에 별도 설계 문서에서 정한다. 검토 결과가 부정이면 구독 계정 회전만 빼고 API 키 계정 회전과 레이트 리밋은 M3에 둔다.
 
 ### 4.9 폴백 체인 (2차)
@@ -860,11 +861,11 @@ export interface ThinkingLevelSelectPayload {
 1. [미결 M-1] 기본 `anthropic-messages` 경로의 `sk-ant-oat` 자동 분기를 core-models 가드(§3.9)로 막을지, pi-ai를 포크해 분기를 지울지(`_research/notes/L1-2.md` §6).
 2. [미결 M-2] 방안 A의 갈래: A1(새 Api id)과 A2(Api id 유지, provider id 분리). 제안은 A2.
 3. [미결] 위장 플러그인의 별도 배포 여부(`product.scope.spec` N6)와 서버 수용·이용 조건 확인 시점.
-4. [결정(잠정): review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F provider 인터페이스로 `xeon.models`에 등록한다(§3.11). DR-07·DR-09를 고친다.
+4. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F provider 인터페이스로 `xeon.models`에 등록한다(§3.11). DR-07·DR-09를 고친다.
 5. [미결] 그룹 정의 역할(6종 밖)을 허용할지(§3.4).
 6. [미결] `StepCheckpoint.model`에 `role`을 넣을지(§3.2).
 7. [미결] `l1.models.thinkingLevel` 기본값과 `cacheRetention` 기본값(§4.6).
 8. [미결] 구독 계정 회전(M3, review.decisions-2 U-21)의 약관 검토와 별도 설계 문서(§4.8).
 9. [미결] pi `registerVirtualModel` 지원 여부(§3.7).
-10. [미결] TypeBox 버전: 워크스페이스 catalog 1.4.2와 pi-ai가 고정한 1.3.27의 타입 호환(`F.readme` §8 미결 7). core-models는 pi-ai `Tool.parameters`를 그대로 넘기므로 두 버전의 스키마 객체가 섞인다.
+10. [결정: review.decisions-2 U-24] TypeBox 버전은 catalog 1.3.27이고 pi-ai가 고정한 판과 같다. core-models가 pi-ai `Tool.parameters`를 그대로 넘겨도 스키마 객체가 한 판이다.
 11. [미결] L1 서비스가 유효 설정을 읽는 경로와 서비스 이름(§8.2 마지막 행).

@@ -338,7 +338,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader;
 - [제안] `ExtensionLoader`는 Cordis 서비스로 등록하지 않는다. 조립 루트(L4 host)가 `createExtensionLoader(deps)` 결과를 직접 쥐고 `host.status`, 설정 화면, 확장 명령에 넘긴다. `ExtHost`(`xeon.ext`)에는 `loader` 속성을 두지 않는다. 로더는 `ExtHost`를 쓰고 `ExtHost`는 로더를 참조하지 않으므로 의존이 한 방향이다.
 - 조립 순서: `createOperationsPolicy` → `createExtHost` → `ExtHost.registerPlatform`(L0) → `createExtensionLoader({ host, policy, … })` → `loadAll`(X.operations.spec §3.8, L4.host-service.spec).
 - L4.host-service.spec이 [가정]으로 둔 `HostPluginModule = import("@xeon/ext-host").PluginModule`은 이 문서의 `BuiltinExtensionModule`이다 [제안]. 이름 `PluginModule`을 따로 두지 않는다.
-- `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`, `IsolationProcessPort`는 L0·L4가 구현하는 포트다. 타입 정본은 F.extensions.spec §3.2.1 `ports.ts`이고, 이 문서는 `@xeon/contracts/extensions`에서 가져와 다시 export만 한다([결정(잠정): review.decisions-2 U-14]). 판정 함수(`discover`, `resolveProjectTrust`, `trustOptions`)와 신뢰 파일 스키마(`TrustFileSchema`)는 X에 남는다.
+- `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`, `IsolationProcessPort`는 L0·L4가 구현하는 포트다. 타입 정본은 F.extensions.spec §3.2.1 `ports.ts`이고, 이 문서는 `@xeon/contracts/extensions`에서 가져와 다시 export만 한다([결정: review.decisions-2 U-14]). 판정 함수(`discover`, `resolveProjectTrust`, `trustOptions`)와 신뢰 파일 스키마(`TrustFileSchema`)는 X에 남는다.
 
 ### 3.6 설정 키 정의 (`settings-keys.ts`)
 
@@ -701,7 +701,7 @@ export interface VirtualModuleRegistry {
 
 - 모든 실패와 경고는 `LoadDiagnostic` 하나로 남는다. `issues`에는 `validate*`가 돌려준 `ManifestIssue`를 그대로 담는다.
 - 진단은 메모리에 두고 `ExtensionLoader.diagnostics()`로 읽는다. L4는 설정 화면 "플러그인과 그룹" 탭과 `host.status`에서 보인다(L4.settings-ui.spec, L4.host-service.spec).
-- 진단을 내구 이벤트로 남길지는 [미결]이다(§10 미결 6). 현재 ext-host가 발행하는 코어 kind 영역은 `scope.`, `lease.`, `post.`이다(F.records.spec §3.3, X.primitives.spec §7). 확장 kind는 `x.`/`grp.` 접두다([결정(잠정): review.decisions-2 T-21]).
+- 진단을 내구 이벤트로 남길지는 [미결]이다(§10 미결 6). 현재 ext-host가 발행하는 코어 kind 영역은 `scope.`, `lease.`, `post.`이다(F.records.spec §3.3, X.primitives.spec §7). 확장 kind는 `x.`/`grp.` 접두다([결정: review.decisions-2 T-21]).
 - `message`에는 비밀 값, 설정 값, 파일 내용을 넣지 않는다. 경로와 코드만 넣는다.
 
 ### 4.4 엔트리 로딩과 호출 규약
@@ -1072,7 +1072,7 @@ flowchart LR
 |---|---|---|---|---|
 | `pi.on` 이벤트 41종 | 지원 | 같은 이름 지점 | 24종 사용(`session_start` 25, `before_agent_start` 8 …) | fold가 pi와 다른 지점은 F.extensions.spec §3.4 "pi와 차이" 열 |
 | `tool_call` 차단(`block`) | 지원 | `ToolCallDecision` 거부 | 4 | |
-| `tool_call` `event.input` 제자리 수정 | 비지원 | 없음 | 0 | 페이로드는 읽기 전용(F.extensions.spec §5 10번). `tool_call`은 인자 변경을 지원하지 않는다([결정(잠정): review.decisions-2 U-06]). [제안] 어댑터는 사본을 넘기고 핸들러 뒤 사본이 바뀌었으면 거부로 처리하고 `pi_input_mutation` 진단을 남긴다. 무시하면 정리 의도의 변경이 빠진 채 도구가 실행되므로 거부가 안전하다 |
+| `tool_call` `event.input` 제자리 수정 | 비지원 | 없음 | 0 | 페이로드는 읽기 전용(F.extensions.spec §5 10번). `tool_call`은 인자 변경을 지원하지 않는다([결정: review.decisions-2 U-06]). [제안] 어댑터는 사본을 넘기고 핸들러 뒤 사본이 바뀌었으면 거부로 처리하고 `pi_input_mutation` 진단을 남긴다. 무시하면 정리 의도의 변경이 빠진 채 도구가 실행되므로 거부가 안전하다 |
 | `session_before_*` 취소 | 부분 | first `SessionCancelDecision` | fork 3, switch 3, compact 1 | pi는 예외 시 계속, Xeon은 취소 |
 | `registerCommand` | 지원 | 리소스 등록 | 35 | |
 | `registerTool` | 지원 | 리소스 등록 | 19 | |
@@ -1098,7 +1098,7 @@ flowchart LR
 | import `@earendil-works/pi-coding-agent` 도구 팩토리 15종 | 비지원(1차) | 없음 | 4~1 | §10 미결 9 |
 | import `@earendil-works/pi-coding-agent` TUI 계열 6종 | 비지원 | 없음 | 3~1 | |
 | import `typebox`, `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core` | 지원 | 가상 모듈 | 12, 14, 3 | 버전 차이는 §10 미결 10 |
-| import `@earendil-works/pi-ai/oauth` | 비지원 | 차단 모듈 | 0 | 위장 경로 분리 결정(`_research/decisions-log.md` 2026-10-21 결정(2차)). 위장 provider는 pi 확장 경로에 두지 않고 `plugins/*` 패키지(L1 순위)로 둔다. 그 패키지는 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않으며, F provider 인터페이스로 `core-models` 서비스에 등록한다([결정(잠정): review.decisions-2 U-16]) |
+| import `@earendil-works/pi-ai/oauth` | 비지원 | 차단 모듈 | 0 | 위장 경로 분리 결정(`_research/decisions-log.md` 2026-10-21 결정(2차)). 위장 provider는 pi 확장 경로에 두지 않고 `plugins/*` 패키지(L1 순위)로 둔다. 그 패키지는 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않으며, F provider 인터페이스로 `core-models` 서비스에 등록한다([결정: review.decisions-2 U-16]) |
 
 - 지원률 [가정]: TUI 의존 단위 32개(40.5%)와 명령 전용 제어 단위(`reload-runtime` 1, `handoff`는 TUI 집합에 이미 포함)를 빼면 수정 없이 올라갈 수 있는 상한은 79단위 중 46단위(약 58%)다(`_research/notes/X-3.md` §2.6, §2.8). 외부 npm 의존 4단위의 설치 상태, 도구 팩토리 사용 단위, 실행 결과는 확인하지 않았다. 실제 비율은 X.loading-trust.plan의 호환 보고(`compat-report.ts`)로 다시 잰다.
 - 이 표는 어댑터 범위의 고정선이다. 표에 없는 멤버는 비지원이고, 표를 고쳐야 범위가 늘어난다(X.loading-trust.plan §7).
@@ -1110,11 +1110,11 @@ flowchart LR
 #### 4.10.6 가상 모듈
 
 - pi 확장은 `@earendil-works/pi-coding-agent` 등을 import한다(79단위 전부, `_research/notes/X-3.md` §2.1). pi는 `virtual-modules.ts`(38줄)에서 키 20개를 실체 9개에 대응시킨다.
-- [제안] ext-host는 `pi-ai`, `pi-agent-core`를 직접 import할 수 없다(eng.dependency-rules.guide DR-07: `pi-ai`는 `core-models`와 `plugins/*`([결정(잠정): review.decisions-2 U-16]), `pi-agent-core`는 `core-loop`만). 그래서 가상 모듈 표는 소유 패키지가 `VirtualModuleRegistry.register`로 채운다.
+- [제안] ext-host는 `pi-ai`, `pi-agent-core`를 직접 import할 수 없다(eng.dependency-rules.guide DR-07: `pi-ai`는 `core-models`와 `plugins/*`([결정: review.decisions-2 U-16]), `pi-agent-core`는 `core-loop`만). 그래서 가상 모듈 표는 소유 패키지가 `VirtualModuleRegistry.register`로 채운다.
 
 | 지정자(키) | 실체 | 등록하는 패키지 |
 |---|---|---|
-| `typebox`, `typebox/compile`, `typebox/value`, `@sinclair/typebox`, `@sinclair/typebox/compile`, `@sinclair/typebox/value` | 워크스페이스 `typebox` 1.4.2 | ext-host |
+| `typebox`, `typebox/compile`, `typebox/value`, `@sinclair/typebox`, `@sinclair/typebox/compile`, `@sinclair/typebox/value` | 워크스페이스 `typebox` 1.3.27 | ext-host |
 | `@earendil-works/pi-ai`, `@earendil-works/pi-ai/compat`, `@mariozechner/pi-ai`, `@mariozechner/pi-ai/compat` | pi-ai 공개 엔트리 [가정: 1.3.0에 compat 엔트리가 있다] | core-models |
 | `@earendil-works/pi-ai/providers/all`, `@mariozechner/pi-ai/providers/all` | pi-ai providers | core-models |
 | `@earendil-works/pi-agent-core`, `@mariozechner/pi-agent-core` | pi-agent-core | core-loop |
@@ -1243,7 +1243,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 ## 10. 미결 사항
 
-1. (해소) [결정(잠정): review.decisions-2 U-14] 포트 타입(`LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`와 부속 타입, `IsolationProcessPort`, `IsolationSpawnSpec`, `IsolatedChild`)의 정본은 F.extensions.spec §3.2.1 `ports.ts`다. X 순위 유지의 조건 2(architecture.layers.spec §4.3.3, X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다)를 따른다. 이 문서는 §3.2, §3.7, §3.8에서 F 이름을 다시 export만 하고 자기 정의를 두지 않는다.
+1. (해소) [결정: review.decisions-2 U-14] 포트 타입(`LoaderFs`, `LoaderPaths`, `TrustStoreBackend`, `TrustPrompter`와 부속 타입, `IsolationProcessPort`, `IsolationSpawnSpec`, `IsolatedChild`)의 정본은 F.extensions.spec §3.2.1 `ports.ts`다. X 순위 유지의 조건 2(architecture.layers.spec §4.3.3, X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다)를 따른다. 이 문서는 §3.2, §3.7, §3.8에서 F 이름을 다시 export만 하고 자기 정의를 두지 않는다.
 2. [미결] 엔트리 export 형태. F.extensions.spec §3.2는 `ExtensionEntry`를 default export로 적었고, Xeon lint는 default export를 막는다. [제안] 내장은 named `extension`, 외부는 `default` 또는 `extension`을 허용한다. F 주석 수정 요청.
 3. [미결] F `validateManifest`의 `name_reserved` 판정이 매니페스트 `trust.level`에만 의존한다. [제안] F가 설치 위치를 인자로 받거나, 로더의 `trust_exceeds_source` 검사를 정본으로 둔다. F 수정 요청.
 4. [미결] `untrusted` 처리(§4.6.3). [제안] 로드하지 않음. 격리와 샌드박스를 함께 쓰는 경로가 생기면 격리 강제를 다시 검토한다.
@@ -1252,9 +1252,9 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 7. [미결] "이번 세션만" 신뢰의 범위. [제안] 호스트 프로세스 수명. 서비스 모드에서 thread·클라이언트 단위로 좁힐지.
 8. [미결] 격리 확장의 drive 허용(§4.9.5). [제안] 1차 격리에서는 금지.
 9. [미결] pi `pi-coding-agent` 도구 팩토리 15종의 대응(L1.tools·L2.workspace 계약과 연결). 1차는 비지원.
-10. [미결] TypeBox 버전. pi 확장은 1.3.27 기준이고 워크스페이스는 1.4.2다(F.wire-settings.spec §10 미결 6). 가상 모듈 `typebox`가 1.4.2를 줄 때 pi 확장 호환성은 확인하지 않았다.
+10. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다. pi 확장과 워크스페이스가 같은 판이라 가상 모듈 `typebox`가 pi 확장에 같은 판을 준다.
 11. [미결] eng.context-map.design §4.1이 ext-host 소유 데이터로 `xh_*`(신뢰 결정, 설치·신뢰 등급)를 적었다. 이 문서는 신뢰 결정을 사용자 영역 파일(`<userDir>/trust.json`)에 둔다 [제안]. DB 테이블을 둘지, context-map 표를 고칠지 정해야 한다.
-12. [미결] 서비스 모드에서 프로젝트 확장의 단위. 여러 작업 폴더를 동시에 여는 서비스 프로세스에서 프로젝트 확장을 작업 폴더별로 따로 로드할지, 프롬프트를 어느 클라이언트에 보낼지. [제안] 작업 폴더를 처음 여는 thread 시점에 판정하고, 프롬프트는 그 thread를 연 연결로 보낸다. wire 방식은 승인 요청과 같은 A안(내구 이벤트 `approval.requested` + 호스트 메서드 `approval.respond`, [결정(잠정): review.decisions-2 U-02])을 따른다. 남은 결정은 프로젝트 확장의 로드 단위다.
-13. (해소) 이벤트 kind 접두는 F 규칙 `x.<name>.`/`grp.<name>.`이다([결정(잠정): review.decisions-2 T-21]). 이 문서는 `x.<name>.pi.entry`를 쓴다.
+12. [미결] 서비스 모드에서 프로젝트 확장의 단위. 여러 작업 폴더를 동시에 여는 서비스 프로세스에서 프로젝트 확장을 작업 폴더별로 따로 로드할지, 프롬프트를 어느 클라이언트에 보낼지. [제안] 작업 폴더를 처음 여는 thread 시점에 판정하고, 프롬프트는 그 thread를 연 연결로 보낸다. wire 방식은 승인 요청과 같은 A안(내구 이벤트 `approval.requested` + 호스트 메서드 `approval.respond`, [결정: review.decisions-2 U-02])을 따른다. 남은 결정은 프로젝트 확장의 로드 단위다.
+13. (해소) 이벤트 kind 접두는 F 규칙 `x.<name>.`/`grp.<name>.`이다([결정: review.decisions-2 T-21]). 이 문서는 `x.<name>.pi.entry`를 쓴다.
 14. [미결] eng.dependency-rules.guide DR-07 표에 `vscode-jsonrpc` → `ext-host` 행 추가 요청.
 15. [가정] Bun 직접 `import()`가 `bun build --compile` 바이너리에서 외부 `.ts`를 불러오는지, `Bun.plugin` 모듈 등록이 가상 모듈로 동작하는지, 질의 접미로 캐시를 피할 수 있는지. 확인 전이다.

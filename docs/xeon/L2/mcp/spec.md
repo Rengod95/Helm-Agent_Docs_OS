@@ -392,7 +392,7 @@ import type { McpClient } from "../capabilities/defs/mcp.ts";
 export const McpServiceName = "xeon.mcp" as const;
 /**
  * xeon.mcp에 Cordis로 등록하는 서비스 인터페이스. X McpPort(registerServer)를 확장한다.
- * L2 서비스 이름 중 Cordis에 등록하는 것은 이것 하나다(F.capabilities.spec §3.5 [결정(잠정): review.decisions-2 D-04], L2.readme §5.6)
+ * L2 서비스 이름 중 Cordis에 등록하는 것은 이것 하나다(F.capabilities.spec §3.5 [결정: review.decisions-2 D-04], L2.readme §5.6)
  */
 export interface McpService extends McpPort {
   /** 능력 API. 같은 객체를 cap:mcp.client 바인딩(g.capability(McpClientKey))으로도 얻는다 */

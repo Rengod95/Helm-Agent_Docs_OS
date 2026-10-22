@@ -67,7 +67,7 @@ binds: [xeon/packages/platform-store/**]
 
 ## 3. 인터페이스
 
-코드 표기는 `F.conversation.spec` §3 머리말을 따른다. 예상 가능한 실패는 `@xeon/contracts`의 `Result<T, E>`로 돌려주고 `E`는 `kind` 판별 유니온이다. 버그는 `Bug`를 던진다(`eng.typescript.guide` TY-11). `Clock`(`now(): number`, epoch ms)과 `Scheduler`(`setTimeout`, `clearTimeout`)는 `L0.os.spec` §3.4의 분리를 따른다. `Clock`은 시각만 주고 타이머는 `Scheduler`가 건다. 두 인터페이스는 F 루트 base에 둔다 [결정(잠정): review.decisions-2 U-03, `L0.readme` §9 3번].
+코드 표기는 `F.conversation.spec` §3 머리말을 따른다. 예상 가능한 실패는 `@xeon/contracts`의 `Result<T, E>`로 돌려주고 `E`는 `kind` 판별 유니온이다. 버그는 `Bug`를 던진다(`eng.typescript.guide` TY-11). `Clock`(`now(): number`, epoch ms)과 `Scheduler`(`setTimeout`, `clearTimeout`)는 `L0.os.spec` §3.4의 분리를 따른다. `Clock`은 시각만 주고 타이머는 `Scheduler`가 건다. 두 인터페이스는 F 루트 base에 둔다 [결정: review.decisions-2 U-03, `L0.readme` §9 3번].
 
 ### 3.1 F에 둘 인터페이스 초안 (records)
 
@@ -434,7 +434,7 @@ CREATE INDEX sys_blob_refs_by_key ON sys_blob_refs (owner, ref_key);
 
 - `sys_meta.store_id`: 새 파일을 만들 때 `sto_<ULID>`를 한 번 쓴다. `IdPrefix`에 `sto`가 없어서 [가정] `IdFactory` 대신 L0 내부 ULID 생성기로 만들고, `sto` 추가는 `F.wire-settings.spec` §10 미결 7의 결과를 따른다.
 - `sys_leases.released_at`: [제안] 반납 때 행을 지우지 않고 `released_at`만 채운다. `eng.transactions.design` §3.3 규칙 4("정상 종료 때 행을 지운다")와 다르다. 행을 지우면 다음 획득의 epoch가 1로 돌아가므로 epoch 단조성을 지키기 위해 남긴다. 그 문서 수정 요청은 §8.1 FR-S2다.
-- `sys_leases.kind`: 별도 소유 테이블을 두지 않고 `sys_leases` 행이 소유 표시를 겸한다(`kind` 열: cli|app|service) [결정(잠정): review.decisions-2 U-09]. 소유 판정은 OS 잠금과 epoch가 하고 `kind`·`pid`·`host`는 표시용이며, 표시 정보가 틀려도 안전하다. 이 문장은 `L0.process.spec` §4.5와 같다.
+- `sys_leases.kind`: 별도 소유 테이블을 두지 않고 `sys_leases` 행이 소유 표시를 겸한다(`kind` 열: cli|app|service) [결정: review.decisions-2 U-09]. 소유 판정은 OS 잠금과 epoch가 하고 `kind`·`pid`·`host`는 표시용이며, 표시 정보가 틀려도 안전하다. 이 문장은 `L0.process.spec` §4.5와 같다.
 - `sys_blob_refs`: [제안] 블롭 참조 기록이다. `core-persistence`는 `BlobRef`를 담은 이벤트를 커밋하는 같은 트랜잭션에서 `pinBlob(tx, sha256, owner, refKey)`(§3.4)를 부른다. GC는 이 테이블만 보고 판정하므로 이벤트 payload를 훑지 않는다.
 
 ### 3.4 내부 연산 시그니처
@@ -543,7 +543,7 @@ macOS `fullfsync` [제안]:
 
 - macOS의 `fsync`는 드라이브 쓰기 캐시를 비우지 않는다. SQLite는 `F_FULLFSYNC` 방식을 `PRAGMA fullfsync`로 켠다. 기본값은 꺼짐이고 macOS만 지원한다. `fullfsync`가 켜지면 모든 동기화가 `F_FULLFSYNC`를 쓰고 `checkpoint_fullfsync` 설정은 의미가 없다(SQLite `pragma.html` fullfsync·checkpoint_fullfsync 절, 2026-10-21 확인).
 - 제안: macOS 쓰기 연결에 `fullfsync = ON`을 건다. 설정 `l0.store.macFullFsync`(기본 true)로 끌 수 있다. 끄면 `checkpoint_fullfsync = ON`만 건다.
-- 비용: 커밋마다 `F_FULLFSYNC` 한 번이 든다. 한 모델 단계의 커밋 수는 도구 호출 수를 n이라 할 때 `3 + 3n`(도구마다 E1 의도, E2 실행 시작, E3 결과 커밋, `eng.transactions.design` §3.2, `L1.persistence.spec`)이다 [결정(잠정): review.decisions-2 U-10]. 이 수는 모델 호출 시간에 비해 작다고 본다 [가정]. 측정은 `L0.store.plan` ST-17이다. Apple 시스템 SQLite나 동봉 SQLite의 컴파일 기본값이 다를 수 있으므로 적용 뒤 조회로 확인한다 [가정].
+- 비용: 커밋마다 `F_FULLFSYNC` 한 번이 든다. 한 모델 단계의 커밋 수는 도구 호출 수를 n이라 할 때 `3 + 3n`(도구마다 E1 의도, E2 실행 시작, E3 결과 커밋, `eng.transactions.design` §3.2, `L1.persistence.spec`)이다 [결정: review.decisions-2 U-10]. 이 수는 모델 호출 시간에 비해 작다고 본다 [가정]. 측정은 `L0.store.plan` ST-17이다. Apple 시스템 SQLite나 동봉 SQLite의 컴파일 기본값이 다를 수 있으므로 적용 뒤 조회로 확인한다 [가정].
 
 ### 4.4 열기와 종료 절차
 
@@ -598,7 +598,7 @@ macOS `fullfsync` [제안]:
 | `cap.<도메인>` | `cap_<도메인>_` | 코어(L2 layout 도메인 8개) |
 | `ext.<확장 이름>` | `x_<확장 이름의 하이픈을 밑줄로 바꾼 값>_` | `extensions.register(name)` |
 
-- 확장 이름 규칙 [제안]: `register(name)`은 `F.extensions.spec`의 `ExtensionName`(`EXTENSION_NAME_PATTERN`, `^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용, 밑줄 없음)을 받는다 [결정(잠정): review.decisions-2 U-18]. 어기면 `ext_id_invalid{reason:"pattern"}`이다. 예약어 `core`, `cap`, `xh`, `sys`, `ext`(`RESERVED_EXT_IDS`, `eng.context-map.design` §5.4)는 `ext_id_invalid{reason:"reserved"}`다. 테이블 접두는 `x_<확장 이름의 하이픈을 밑줄로 바꾼 값>_`이다(U-18, `eng.context-map.design` §5.2 `extTablePrefix`). 예: `acme-notes` → `x_acme_notes_`. 이 변환은 일대일이다(확장 이름에 밑줄이 없다). `eng.context-map.design` §5.2·CM-07도 같은 규칙이다(U-18).
+- 확장 이름 규칙 [제안]: `register(name)`은 `F.extensions.spec`의 `ExtensionName`(`EXTENSION_NAME_PATTERN`, `^[a-z][a-z0-9-]{1,31}$`, 하이픈 허용, 밑줄 없음)을 받는다 [결정: review.decisions-2 U-18]. 어기면 `ext_id_invalid{reason:"pattern"}`이다. 예약어 `core`, `cap`, `xh`, `sys`, `ext`(`RESERVED_EXT_IDS`, `eng.context-map.design` §5.4)는 `ext_id_invalid{reason:"reserved"}`다. 테이블 접두는 `x_<확장 이름의 하이픈을 밑줄로 바꾼 값>_`이다(U-18, `eng.context-map.design` §5.2 `extTablePrefix`). 예: `acme-notes` → `x_acme_notes_`. 이 변환은 일대일이다(확장 이름에 밑줄이 없다). `eng.context-map.design` §5.2·CM-07도 같은 규칙이다(U-18).
 - 확장 테이블 소유 판정 [제안]: 접두 문자열 일치만으로 판정하지 않는다. 확장 `ab`의 접두 `x_ab_`는 확장 `ab-cd`의 테이블 `x_ab_cd_ef`의 앞부분과도 같기 때문이다. 테이블 이름 `t`가 확장 `E`의 것이려면 `t`가 `E`의 접두로 시작하고 나머지(지역 이름)가 `^[a-z][a-z0-9]{0,31}$`(밑줄 없음)이어야 한다. `X.operations.spec` §3.4 `parseExtTableName`과 같은 규칙이고, L0는 X를 import할 수 없으므로(DR-02) 같은 규칙을 이 패키지 안에 따로 구현한다. 이 규칙으로 `x_ab_cd_ef`의 소유 확장은 `ab-cd` 하나로 정해진다. 그래서 `ab`와 `ab-cd`는 둘 다 등록할 수 있다(`X.operations.spec` §9 18번과 같다). 범위 핸들의 문장 검사(아래 표)와 `drop`의 대상 검사가 이 판정을 쓴다.
 - 문장 검사 [제안]:
 
@@ -625,7 +625,7 @@ macOS `fullfsync` [제안]:
 
 ### 4.7 세션 소유 잠금
 
-#### 4.7.1 판정 장치 [결정(잠정): review.decisions-2 U-09]
+#### 4.7.1 판정 장치 [결정: review.decisions-2 U-09]
 
 판정은 두 장치를 함께 쓴다. OS 잠금(생존 판정)과 `sys_leases.epoch` 펜싱이다(`eng.transactions.design` §3.3, `_research/notes/L0-2.md §4.2`). OS 잠금만으로는 잠금을 잃은 옛 소유자의 늦은 쓰기를 막지 못하므로 커밋마다 epoch를 대조한다. adr.0004 §3.4(세션 id 키 OS 잠금만)는 이에 맞게 개정한다.
 
@@ -635,6 +635,8 @@ macOS `fullfsync` [제안]:
 | `sys_leases.epoch` 펜싱 | 늦게 깨어난 이전 소유자의 쓰기 차단. 모든 세션 쓰기 트랜잭션이 `BEGIN IMMEDIATE` 직후 행을 새로 읽어 대조한다(TX-10) | OS 잠금은 SQLite 트랜잭션 안에서 확인할 수 없다(`eng.transactions.design` §3.3). 잠금 디렉터리가 다른 프로세스와는 잠금이 공유되지 않는다(`_research/notes/L0-2.md §2.5`) |
 
 이 판정은 `L0.process.spec` §4.5와 같은 문장이다. adr.0004 §3.4와 adr.0006의 개정은 decisions 문서 담당이 한다.
+
+- 알려진 한계 [결정: review.decisions-2 U-09]: OS 잠금(flock)이 있으면 멈춘 소유자(잠자기, SIGSTOP)는 잠금을 계속 쥔다. 그 프로세스가 깨어나거나 죽을 때까지 세션은 잠긴 채이고, 다른 프로세스의 `acquire`는 `sys_leases.expires_at`이 지나도 `os_lock_held`다. 사용자는 위임·관찰·분기(`L0.process.spec` §4.5 `LockFallbackPolicy`)로 진행하거나 멈춘 프로세스를 끝낸다. 늦은 쓰기를 epoch로 막아야 하는 경우는 OS 잠금을 잃었거나 공유하지 않는 경우다. 예: OS 잠금이 없는 후퇴안(§4.7.4)에서 만료로 인수당한 소유자, 잠금 디렉터리가 다른 프로세스.
 
 #### 4.7.2 OS 잠금 (posix provider)
 
@@ -676,7 +678,8 @@ macOS `fullfsync` [제안]:
 `lockProvider.kind === "none"`(Windows M2 이전, FFI 로드 실패)이면 DB 임대만으로 판정한다(`eng.transactions.design` T-4 (a)안).
 
 - 획득 3단계의 "같은 host 즉시 인수"를 "같은 host이고 `pid`·`started_at` 프로세스가 살아 있지 않으면 인수"로 바꾼다. 생존 확인은 `env.processStartedAt(pid)`(`xeon.os` `processStartFingerprint`)가 `null`이거나 행의 `started_at`과 다를 때 "살아 있지 않음"이다(§8.1 FR-S8).
-- 다른 host이거나 생존 확인이 불가하면 만료(`leaseTtlMs`, 기본 30초)를 기다린다. 정합성은 epoch 펜싱으로 같고, 비용은 크래시 뒤 인수 지연 최대 30초와 PID 검사 코드다(`_research/notes/L0-2.md §4.3`).
+- 같은 host에서 죽은 소유자는 위 규칙으로 바로 인수한다. 기록된 `pid`와 프로세스 시작 지문 `started_at`으로 판정하고 만료를 기다리지 않는다(`platform-store/src/lease.ts` `decide`).
+- 만료(`leaseTtlMs`, 기본 30초)를 기다리는 경우는 둘이다. 소유자가 살아 있지만 멈춰서 하트비트가 끊긴 경우(같은 host), 그리고 다른 host이거나 생존 확인이 불가한 경우다. 정합성은 epoch 펜싱으로 같고, 비용은 이 경우의 인수 지연 최대 30초와 PID 검사 코드다(`_research/notes/L0-2.md §4.3`). 크래시(죽은 소유자)는 지연이 없다 [결정: review.decisions-2 U-09 정정].
 
 ### 4.8 복구 표식
 
@@ -781,7 +784,7 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 | `putBlob`, `readBlob`, `BlobError` | L1.persistence.spec, L1.context.spec, L1.tools.spec |
 | `storeId` | L4.host-service.spec(`host.hello`의 `storeId`) |
 | `openTestStore`, `TestStore`, `StoreFaultPoint` | eng.testing.guide TS-07·TS-08, 모든 저장 테스트 |
-| 확장 저장 영역 계약 스위트(실제 bun:sqlite 팩토리) | X.operations.spec(확장 저장 영역). 시나리오 정본은 X `test/operations/storage/ext-storage.contract.ts`이고, 이 패키지 테스트가 그 시나리오를 `openTestStore` 기반 팩토리로 돌린다 [결정(잠정): review.decisions-2 D-05, U-17] |
+| 확장 저장 영역 계약 스위트(실제 bun:sqlite 팩토리) | X.operations.spec(확장 저장 영역). 시나리오 정본은 X `test/operations/storage/ext-storage.contract.ts`이고, 이 패키지 테스트가 그 시나리오를 `openTestStore` 기반 팩토리로 돌린다 [결정: review.decisions-2 D-05, U-17] |
 | 설정 `l0.store.*` | L4.settings-ui.spec |
 
 요구:
@@ -830,12 +833,12 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 15. 이미 적용된 마이그레이션 단계의 SQL을 바꾸면 `apply`가 `migration_checksum_mismatch`이고 아무 DDL도 실행되지 않는다.
 16. `extensions.register("Helm")`, `register("ext")`, `register("a_b")`는 `ext_id_invalid`다. `register("acme-notes")`의 `tablePrefix`는 `x_acme_notes_`다. 확장 `ab`(`x_ab_cd`)와 `ab-cd`(`x_ab_cd_ef`)를 둘 다 등록한 뒤 `drop("ab", ["x_ab_cd"])`는 `x_ab_cd`만 지우고 `x_ab_cd_ef`와 `events` 행 수는 그대로다. `drop("ab", ["x_ab_cd_ef"])`는 `table_not_owned`이고 아무것도 지우지 않는다.
 17. `bun:sqlite` import가 `platform-store` 밖에 없다(DR-07 검사).
-18. X의 확장 저장 영역 계약 시나리오(`ext-storage.contract.ts`)가 이 패키지의 실제 bun:sqlite 팩토리로 통과한다. 장애 주입 롤백 시나리오(`after_ext_projection:<n>`)에서 확장 테이블 행 해시가 바뀌지 않는다 [결정(잠정): review.decisions-2 D-05]. X 테스트는 L0를 import하지 않으므로 bun:sqlite 실행은 이 스위트만 맡는다.
+18. X의 확장 저장 영역 계약 시나리오(`ext-storage.contract.ts`)가 이 패키지의 실제 bun:sqlite 팩토리로 통과한다. 장애 주입 롤백 시나리오(`after_ext_projection:<n>`)에서 확장 테이블 행 해시가 바뀌지 않는다 [결정: review.decisions-2 D-05]. X 테스트는 L0를 import하지 않으므로 bun:sqlite 실행은 이 스위트만 맡는다.
 
 ## 10. 미결 사항
 
-- [결정(잠정): review.decisions-2 U-09] S-1. 세션 소유 판정은 OS 잠금 + `sys_leases` epoch 펜싱이다. adr.0004 §3.4 개정 대상이다. `L0.process.spec` P-1과 같은 항목이다.
-- [결정(잠정): review.decisions-2 U-09] S-2. adr.0006 §3.6 규칙 4의 `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. `L0.process.spec` P-2와 같은 항목이다.
+- [결정: review.decisions-2 U-09] S-1. 세션 소유 판정은 OS 잠금 + `sys_leases` epoch 펜싱이다. adr.0004 §3.4 개정 대상이다. `L0.process.spec` P-1과 같은 항목이다.
+- [결정: review.decisions-2 U-09] S-2. adr.0006 §3.6 규칙 4의 `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. `L0.process.spec` P-2와 같은 항목이다.
 - [미결 S-4] FTS5 프로브 실패 시 운영 시작 동작. 권고는 저장소를 열고 `capabilities.fts5 = false`로 검색만 끄는 것이다(TC-11, adr.0004 §6).
 - [미결 S-5] Windows `LockProvider` 수단: named mutex(`CreateMutexW`) 또는 `LockFileEx`. bun:ffi 실측 뒤 정한다(`_research/notes/L0-2.md §6`).
 - [미결 S-7] 범위 핸들 소유자(`cap.*`, `ext.*`)에게 블롭 참조 기록(`pinBlob`)을 열지.

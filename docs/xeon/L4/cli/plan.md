@@ -99,7 +99,7 @@ xeon/apps/cli/
 | C1 | 인자 파서와 명령 분기: `parseArgv`(spec §3.2) 전체 문법, 모드 결정(spec §4.2), 설정 키 형식 검사(`SETTING_KEY_PATTERN`, F wire §4.11), 비밀 값 argv 거부. M1 밖 명령은 "M2에서 제공" 한 줄과 1 | C0 | M | M1 |
 | C2 | `chat -p`(in-process): `connectEngine`(spec §3.3, `startInProcessHost` + `createHostConnection` 조합, `AssembleError` → `EngineStartError` 변환), `thread.create`, `events.subscribe`, `turn.start`, 종료 판정(spec §3.6), `devWireRoundTrip` → `devChecks` 전달, `--json` 탭 연결 | C1, C3, `L4.host-service.plan` H2(`assemble`)·H3(`createHostConnection`)·H4(처리기) | M | M1 |
 | C3 | renderer: `applyBatch`·`applyChunk`(내구·휘발 분리, 구간 검사, seq 중복 제거, `afterSeq` 지연), 도구 결과 3채널 규칙, `text-sink`, `json-tap` | C0 | M | M1 |
-| C4 | 재개: `--continue`/`--resume`, CLI 상태 파일(spec §3.7) 원자 쓰기, `replay.outOfRange` 처리, 대화형의 접힌 이전 기록 | C2, C3 | M | M1 |
+| C4 | 재개: `--continue`/`--resume`, CLI 상태 파일(spec §3.7, 경로는 `@xeon/host` `resolveHostStatePaths`, review.decisions-2 B-07) 원자 쓰기, `replay.outOfRange` 처리, 대화형의 접힌 이전 기록 | C2, C3 | M | M1 |
 | C5 | `config get`: 텍스트·JSON 출력, `source`·`shadowed`·`locked`·`pendingUntil` 표시. `config schema`: `--scope <managed\|user\|project\|local>`, `--out`, `--core-only` 파싱과 `runHostCommand({ kind: "config-schema" })` 호출 | C2, `L4.host-service.plan` H8 | S | M1 |
 | C6 | 최소 대화형: `node:readline` 입력, 진행 줄 한 줄 덮어쓰기, Ctrl+C 계수(`signals.ts`), SIGTERM·SIGHUP 종료 요청 | C3, C2 | M | M1 |
 | C7 | scenario 테스트와 테이프: `chat.scenario.test.ts`, `fixtures/scenario-main.ts`, 테이프 2개(§5.2) | C2, C4, `@xeon/core-models/testing` 테이프, 조립 진입점의 테스트용 모델 주입 | M | M1 |
@@ -122,7 +122,7 @@ xeon/apps/cli/
 | 패키지 | 버전 | 고정 위치 | 쓰는 곳 | 비고 |
 |---|---|---|---|---|
 | `@xeon/contracts` | `workspace:*` | `apps/cli/package.json` | wire·settings·conversation 타입, `SETTING_KEY_PATTERN` | F |
-| `typebox` | 1.4.2 | 루트 catalog | `CliStateSchema`, 미리 검사(`typebox/schema` `Check`) | [미결] pi-ai 1.3.0이 고정한 1.3.27과의 중복(`eng.toolchain.guide` 1.1절) |
+| `typebox` | 1.3.27 | 루트 catalog | `CliStateSchema`, 미리 검사(`typebox/schema` `Check`) | pi-ai와 같은 판(review.decisions-2 U-24) |
 | `@earendil-works/pi-tui` | 1.3.0 정확 고정 | 루트 catalog(C8 통과와 승인 뒤 추가) | 대화형 화면 | pi-ai·agent-core 1.3.0과 같은 릴리즈 묶음(`_research/notes/L4-1.md` §2). 배포물에 MIT 고지를 함께 싣는다 |
 | `get-east-asian-width` | 1.6.0 | pi-tui 전이 의존. 최소 renderer가 직접 쓰면 catalog에 같은 값 | CJK 폭 | pi-tui 1.3.0 의존과 같은 값 |
 | `marked` | 18.0.11 | pi-tui 전이 의존 | Markdown 렌더 | 직접 import하지 않는다 |
@@ -225,7 +225,7 @@ xeon/apps/cli/
 | CJK 폭 계산과 IME 후보 창 위치 | 한글 줄바꿈 깨짐, 입력 위치 어긋남 | C8에서 macOS·Linux·WSL 터미널로 확인. `Focusable`과 `showHardwareCursor` 설정. 최소 renderer는 터미널 줄 편집을 그대로 쓴다 |
 | `--bytecode`와의 호환 | 기동 실패나 스택 정보 손실 | C14에서 켠 것과 끈 것을 비교하고, 문제가 있으면 끈다 |
 | M1 대화형 범위가 커진다 | M1 지연 | print 모드를 먼저 끝내고(C2·C3·C4), 대화형은 C6 범위(한 줄 입력, 진행 줄)로 제한한다. 화면 기능은 M2 C8로 넘긴다 |
-| 승인 wire가 사용자 확인에서 바뀐다(A안은 review.decisions-2 U-02로 잠정 결정) | C11 재작업 | C11을 M2에 둔다. `ApprovalView` 변환 함수 하나에 payload 의존을 모아 바뀌는 범위를 줄인다 |
-| 허용 목록 `DR-10/cli-host`(review.decisions-2 U-15)가 사용자 확인에서 바뀐다 | C2·C7 재작업 | spec §3.3의 `ConnectEngine` 가짜를 먼저 두고 C1·C3·C5의 단위 테스트를 진행한다. 실제 `@xeon/host` 연결은 그 뒤 붙인다 |
+| 승인 wire가 번복된다(A안은 review.decisions-2 U-02로 결정, 2026-10-22 확인) | C11 재작업 | C11을 M2에 둔다. `ApprovalView` 변환 함수 하나에 payload 의존을 모아 바뀌는 범위를 줄인다 |
+| 허용 목록 `DR-10/cli-host`(review.decisions-2 U-15, 2026-10-22 확인)가 번복된다 | C2·C7 재작업 | spec §3.3의 `ConnectEngine` 가짜를 먼저 두고 C1·C3·C5의 단위 테스트를 진행한다. 실제 `@xeon/host` 연결은 그 뒤 붙인다 |
 | M1 wire에 `turn.interrupt`·`thread.open`이 없다 | M1 Ctrl+C와 재개 동작 제한 | spec §4.6, §4.4의 M1 동작(종료 요청, `turn.start`의 암묵 획득 `L4.host-service.spec` HS-28)으로 통과하고, 필요하면 F 변경 요청(spec §10 2번) |
 | macOS FTS5 | M1 시작 실패(종료 코드 3) | `@xeon/host`가 `AssembleError { code: "store" }`를 던지고 `connectEngine`이 `fts5Missing`으로 바꿔 해결 한 줄을 보인다(TC-11). 해결책은 `L0.store.spec`이 정한다 |

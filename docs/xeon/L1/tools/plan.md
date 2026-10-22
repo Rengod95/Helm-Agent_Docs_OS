@@ -65,7 +65,7 @@ xeon/packages/core-tools/
     *.test.ts, *.fault.test.ts, *.contract.test.ts
 ```
 
-- `bound.ts`, `effects.ts`, `tasks.ts`, `secrets.ts`, `builtin/`, `testing/`은 이 계획이 나눈 파일이다 [제안]. durable `truncate.ts` 포크는 core-tools에 두지 않는다. 포크는 L0 `platform-exec`에 있고 `bound.ts`가 F 서비스 `xeon.exec`로 부른다 [결정(잠정): review.decisions-2 D-08].
+- `bound.ts`, `effects.ts`, `tasks.ts`, `secrets.ts`, `builtin/`, `testing/`은 이 계획이 나눈 파일이다 [제안]. durable `truncate.ts` 포크는 core-tools에 두지 않는다. 포크는 L0 `platform-exec`에 있고 `bound.ts`가 F 서비스 `xeon.exec`로 부른다 [결정: review.decisions-2 D-08].
 - Cordis는 import하지 않는다. 서비스 등록은 ext-host가 주는 플러그인 API로 한다(`eng.dependency-rules.guide` DR-11, `L1.readme` §4.2, X.primitives.spec) [가정: API 이름은 X.primitives.spec이 정한다].
 - `@earendil-works/pi-agent-core`는 import하지 않는다. `AgentTool`, `AgentEvent`, `AgentLoopConfig`, `AgentToolCall`은 `@xeon/contracts/conversation` 재노출 타입으로 쓴다(L1.tools.spec §3 머리말, §8.3 F 요청 7). agent-core `runToolCall` 호출은 core-loop가 한다.
 - 공용 타입(`ToolService`, `PolicyRule` 등)은 contracts에 둔다(L1.tools.spec §8.3 F 요청 6). core-tools는 그 타입을 구현한다.
@@ -195,7 +195,7 @@ xeon/packages/core-tools/
 |---|---|
 | 정책 규칙 언어 과설계 | M1은 allow·ask·deny, 도구명 glob, 인자 패턴만 둔다(§1). 티어 4종과 나머지 resource 필드는 M2. 셸 접두 규칙은 2차 |
 | 승인 대기 중 서비스 유휴 종료 정책 미정(architecture.runtime-flow.design §7) | M2까지 [미결]로 두고 테스트에서 대기 세션을 live로 취급한다. M3 서비스 모드 작업 전에 사용자 결정을 받는다 |
-| agent-core에 인자 재작성 필드 없음 | `tool_call`에서는 인자 변경을 지원하지 않는다 [결정(잠정): review.decisions-2 U-06]. 2차에 별도 chain 지점을 더할 때 다룬다. 포크 비용 추정은 아래 |
+| agent-core에 인자 재작성 필드 없음 | `tool_call`에서는 인자 변경을 지원하지 않는다 [결정: review.decisions-2 U-06]. 2차에 별도 chain 지점을 더할 때 다룬다. 포크 비용 추정은 아래 |
 | 병렬 배치에서 승인 대기가 다른 호출 준비를 막음 | 한 배치의 승인은 차례로 낸다(L1.tools.spec §4.2). 체감 문제가 확인되면 L4 화면이 `pending()`으로 묶어 보인다 |
 | `afterToolCall` 래퍼 예외가 결과를 오류로 덮음(agent-loop.ts:897-900) | 래퍼 전체를 try로 감싸고 내부 오류는 `details.xeonError`로 남긴 채 원래 결과를 돌려준다. 테스트 `tool_result_handler_throw_skipped` |
 | 질문 도구가 실행 중 대기하므로 재개 때 `unsafe`면 결과 불명으로 닫힘 | 질문·계획 도구에 `replay: "safe"` 선언을 L2에 요청한다(L1.tools.spec §8.4). 선언이 없으면 등록 때 경고 진단 |

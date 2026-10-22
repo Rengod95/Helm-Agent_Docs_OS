@@ -38,8 +38,8 @@ Xeon 워크스페이스의 패키지가 무엇을 import할 수 있는지 정한
 | 제외 | 고정 외부 코드 | `vendor/*` | 없음 |
 
 - 숫자가 작을수록 아래 층이다. 화살표 F → X → L0 → L1 → L2 → L3 → L4는 "왼쪽이 오른쪽에 쓰인다"는 뜻이다.
-- [결정(잠정): review.decisions-2 U-16] `plugins/*`는 L1 순위로 센다. 현재 `scripts/check-layers.ts`의 `expectedLayer()`와 `.dependency-cruiser.cjs`의 `LAYERS`가 이 값을 쓴다. 플러그인이 import할 수 있는 범위는 DR-09가 정한다.
-- [결정(잠정): review.decisions-2 U-14] X는 L0 아래(순위 1)에 둔다. 판정과 근거는 `architecture.layers.spec` 4.3.3절이다. 이 순위에서 `ext-host`는 OS 기능(프로세스 실행, 파일 잠금, 저장)을 L0에서 import할 수 없고, 다음 세 조건을 지킨다.
+- [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위로 센다. 현재 `scripts/check-layers.ts`의 `expectedLayer()`와 `.dependency-cruiser.cjs`의 `LAYERS`가 이 값을 쓴다. 플러그인이 import할 수 있는 범위는 DR-09가 정한다.
+- [결정: review.decisions-2 U-14] X는 L0 아래(순위 1)에 둔다. 판정과 근거는 `architecture.layers.spec` 4.3.3절이다. 이 순위에서 `ext-host`는 OS 기능(프로세스 실행, 파일 잠금, 저장)을 L0에서 import할 수 없고, 다음 세 조건을 지킨다.
   1. X 소스와 테스트에서 L0·L1 import가 0건이다(DR-01. 테스트도 대상이다).
   2. X가 받는 포트와 각 층의 서비스 인터페이스는 F에 정의한다.
   3. L0는 `ExtHost.registerPlatform`으로 등록한다.
@@ -141,7 +141,7 @@ import { ModelServiceName, type ModelService } from "@xeon/contracts/services";
 // ModelService 구현은 core-models가 Cordis 서비스로 등록한다. core-loop는 F 타입으로만 받는다.
 ```
 
-- [결정(잠정): review.decisions-2 D-04] L1·L0 서비스 인터페이스(`TaskService`, `LoopService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService`, `ModelService`, `ToolService`, `ContextService`)와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다. 위 예의 메서드 모양은 설명용이고, 실제 시그니처는 F 문서와 `L1.models.spec`이 정한다 [가정].
+- [결정: review.decisions-2 D-04] L1·L0 서비스 인터페이스(`TaskService`, `LoopService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService`, `ModelService`, `ToolService`, `ContextService`)와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다. 위 예의 메서드 모양은 설명용이고, 실제 시그니처는 F 문서와 `L1.models.spec`이 정한다 [가정].
 
 나쁜 예:
 
@@ -155,7 +155,7 @@ import { resolveModel } from "@xeon/core-models";     // DR-02: 같은 L1
 import { helmSignals } from "@xeon/group-helm";       // DR-02: L3 그룹끼리
 ```
 
-- [결정(잠정): review.decisions-2 U-15] `group-kit`(L3 그룹 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `group-kit` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/group-kit-helm`, `DR-02/group-kit-learning`으로 기록한다. `group-kit`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
+- [결정: review.decisions-2 U-15] `group-kit`(L3 그룹 정의 API)은 그룹이 공통으로 쓰는 정의 도우미다. `group-*` → `group-kit` 한 방향만 허용하고 허용 목록(4절)에 `DR-02/group-kit-helm`, `DR-02/group-kit-learning`으로 기록한다. `group-kit`은 다른 그룹을 import하지 않는다. 그룹 공통 기반을 그룹마다 중복하지 않기 위해서다.
 
 ### DR-03 모든 패키지는 `package.json`에 `"xeon": {"layer", "domain"}`을 두고, 값은 위치와 맞아야 한다
 
@@ -286,14 +286,15 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 | `bun:sqlite` | `platform-store` | packages.md §4.2 L0-e, foundation-plan §2 DB 행 |
 | `better-sqlite3`, `node:sqlite`, `sqlite3` | 없음(전부 금지) | foundation-plan §2. 현재 `.oxlintrc.json` 패턴에 있다 |
 | `@earendil-works/pi-ai` | `core-models`, `plugins/provider-anthropic-oauth`(DR-09). F는 아래 예외 | packages.md §4.3 L1-c, foundation-plan §2 모델·루프 행, review.decisions-2 U-16 |
-| `@earendil-works/pi-agent-core` | `core-loop`. F는 아래 예외 | packages.md §4.3 L1-b |
+| `@earendil-works/pi-agent-core` | 없음(전부 금지, 타입 import 포함). 루프는 그 1.3.0 루프를 포크한 core-loop 자체 코드다 | adr.0009 |
 | pi durable env 포크(`platform-exec` 안 소스) | `platform-exec` | foundation-plan §1 결정 1, §3 배치 |
 | `sops`, `age` 바이너리 호출 | `platform-secrets` | foundation-plan §2 비밀 행 |
 | `@anthropic-ai/sandbox-runtime` | `platform-sandbox` | packages.md §4.2 L0-b |
-| `bun:ffi` | `platform-store`(`lock/posix.ts`, M2 이후 `lock/win32.ts`) | `L0.store.plan` §4 채택 코드 표(쓰기 잠금 `flock`) [결정(잠정): review.decisions-2 U-17] |
-| `node:child_process`, `Bun.spawn`, `Bun.spawnSync` | `platform-exec`, `platform-process`, `platform-sandbox`, `platform-secrets`, `platform-os` | 프로세스 실행은 L0 인터페이스 뒤에 둔다(DR-13). `platform-os`는 바이너리 `--version` 확인, 알림 명령, `mount` 조회에 쓴다(`L0.os.plan` §4) [결정(잠정): review.decisions-2 U-17] |
-| `@vscode/ripgrep`, `@parcel/watcher` | `platform-os` | packages.md §4.2 L0-f, `L0.os.plan` §4 채택 코드 표 [결정(잠정): review.decisions-2 U-17] |
-| `@opentelemetry/api`, `@opentelemetry/sdk-trace-node`, `pi-telemetry` | `platform-os`. F는 `@opentelemetry/api`를 `import type`으로만 쓴다 | packages.md §4.2 L0-f, `L0.os.plan` §4, `F.readme` §1 [결정(잠정): review.decisions-2 U-17] |
+| `bun:ffi` | `platform-store`(`lock/posix.ts`, M2 이후 `lock/win32.ts`) | `L0.store.plan` §4 채택 코드 표(쓰기 잠금 `flock`) [결정: review.decisions-2 U-17] |
+| `node:child_process`, `Bun.spawn`, `Bun.spawnSync` | `platform-exec`, `platform-process`, `platform-sandbox`, `platform-secrets`, `platform-os` | 프로세스 실행은 L0 인터페이스 뒤에 둔다(DR-13). `platform-os`는 바이너리 `--version` 확인, 알림 명령, `mount` 조회에 쓴다(`L0.os.plan` §4) [결정: review.decisions-2 U-17] |
+| `node:child_process`, `Bun.spawn`, `Bun.spawnSync`(테스트 한정) | 허용 목록에 `scope: "test"` 항목이 있는 패키지의 테스트 파일(`test/**`). 운영 소스(`src/**`)는 위 행 그대로 L0만 | 엔진·CLI·자식 프로세스 장애를 실제 프로세스로 시험한다(SIGKILL 재개, stdio 적합성, 포크 기록 검사). `check-layers.ts`가 항목의 `from` 패키지와 테스트 파일 경로를 함께 검사한다 [결정: review.decisions-2 B-06] |
+| `@vscode/ripgrep`, `@parcel/watcher` | `platform-os` | packages.md §4.2 L0-f, `L0.os.plan` §4 채택 코드 표 [결정: review.decisions-2 U-17] |
+| `@opentelemetry/api`, `@opentelemetry/sdk-trace-node`, `pi-telemetry` | `platform-os`. F는 `@opentelemetry/api`를 `import type`으로만 쓴다 | packages.md §4.2 L0-f, `L0.os.plan` §4, `F.readme` §1 [결정: review.decisions-2 U-17] |
 | `@modelcontextprotocol/client` | `cap-mcp` | packages.md §4.4 L2-b |
 | `playwright-core` | `cap-web` | packages.md §4.4 L2-c web.browse |
 | `guarded-fetch`, `defuddle`, `turndown` | `cap-web` | packages.md §4.4 L2-c web.fetch |
@@ -301,7 +302,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 | `@tauri-apps/*` | `apps/desktop` | foundation-plan §2 데스크톱 행 |
 | `node:*`, `bun:*`, Bun 전역 | F(`contracts`)에서 금지 | 06 R4를 F에 한정해 옮긴다. F는 데스크톱 WebView에서도 import되므로 런타임 중립이어야 한다 [제안] |
 
-- [결정(잠정): review.decisions-2 U-17] F의 pi 타입 재노출 예외: `contracts`는 `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core`를 `import type`과 `export type`으로만 쓸 수 있다. 값 import는 금지다. 근거는 `F.readme` §1 허용 외부 의존과 `F.conversation.spec` §3.1 규칙 1이다. `check-layers.ts`는 F에서 이 두 모듈의 값 import를 `DR-07`로 거부한다.
+- [결정: review.decisions-2 U-17] F의 pi 타입 재노출 예외: `contracts`는 `@earendil-works/pi-ai`를 `import type`과 `export type`으로만 쓸 수 있다. 값 import는 금지다. 근거는 `F.readme` §1 허용 외부 의존과 `F.conversation.spec` §3.1 규칙 1이다. `check-layers.ts`는 F에서 이 모듈의 값 import를 `DR-07`로 거부한다. `@earendil-works/pi-agent-core`는 F에서도 타입 import까지 금지다(adr.0009).
 - `typebox`는 소유 제한이 없다. 모든 층이 스키마를 쓴다. 단 `@sinclair/typebox`(0.x 계열)는 금지다(현재 `.oxlintrc.json` 패턴).
 - 표에 없는 새 외부 의존을 들일 때는 이 표에 행을 더하는 변경과 함께 한다. 소유를 정하지 않은 외부 모듈은 여러 층에 퍼진다.
 
@@ -338,9 +339,9 @@ import { streamSimple } from "@earendil-works/pi-ai";   // DR-07: pi-ai는 core-
 
 ### DR-08 테스트 전용 모듈은 테스트 파일에서만 import한다
 
-[제안] 06 §3.5.1 R3을 옮긴다. testing 정의는 [결정(잠정): review.decisions-2 U-17]로 DR-14 예외 3과 하나로 맞춘다.
+[제안] 06 §3.5.1 R3을 옮긴다. testing 정의는 [결정: review.decisions-2 U-17]로 DR-14 예외 3과 하나로 맞춘다.
 
-- 테스트 전용 모듈: `testing` 서브패스가 있는 패키지의 `testing` 서브패스(`@xeon/<이름>/testing`), `bun:test`. F(`contracts`)는 `testing` 서브패스를 두지 않고, 시계·난수·ID 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다([결정(잠정): review.decisions-2 U-03]).
+- 테스트 전용 모듈: `testing` 서브패스가 있는 패키지의 `testing` 서브패스(`@xeon/<이름>/testing`), `bun:test`. F(`contracts`)는 `testing` 서브패스를 두지 않고, 시계·난수·ID 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다([결정: review.decisions-2 U-03]).
 - 테스트 파일: `src/**/*.test.ts`, `test/**`. 다른 패키지의 `testing` 서브패스를 import할 수 있는 파일은 테스트 파일뿐이다. 패키지 자신의 `src/testing/**`도 테스트 파일이 아니므로 다른 패키지의 `testing` 서브패스를 import하지 않는다.
 - 다른 패키지의 `testing` 서브패스를 쓰는 패키지는 그 패키지를 `devDependencies`에 둔다. 이미 `dependencies`에 있으면 그대로 쓴다. DR-01 순위는 테스트 파일에도 적용된다.
 
@@ -371,7 +372,7 @@ export { openTestStore } from "@xeon/platform-store/testing";   // DR-08: testin
 
 [결정] provider 위장 경로는 유지하되 별도 플러그인으로 분리하고 릴리즈에서 제외한다(`_research/decisions-log.md` 2026-10-21 결정 2차, `_research/foundation-plan.md §2` 모델·루프 행).
 
-[결정(잠정): review.decisions-2 U-16] import 범위와 등록 경로:
+[결정: review.decisions-2 U-16] import 범위와 등록 경로:
 
 - import 허용: `@xeon/contracts`의 공개 진입점, `@xeon/ext-host`의 서비스 등록·주입 API(DR-14 예외 4), 외부 패키지 `@earendil-works/pi-ai`(DR-07 표). L0 패키지 import는 DR-01 순위상 허용되지만 컨텍스트가 다르므로 DR-14에 따라 F 서비스 타입으로 주입받는다.
 - import 금지: `core-*`를 포함한 L1 패키지 전부. `plugins/*`는 L1 순위이므로 L1 import는 DR-02(같은 층)에 걸리고, 같은 층 예외는 두지 않는다.
@@ -411,7 +412,7 @@ import { runTurn } from "@xeon/core-loop";                        // DR-09: L1 i
 
 - `apps/desktop`은 엔진을 `apps/host`에서 만든 사이드카 바이너리로 실행하고 stdio JSON-RPC로 연결한다(`_research/foundation-plan.md §1` 결정 3). `@xeon/host`를 import하지 않는다.
 - `apps/cli`는 엔진 라이브러리를 in-process로 쓴다.
-- [결정(잠정): review.decisions-2 U-15] 엔진 조립 코드는 `apps/host` 한 곳에 둔다. `apps/cli` → `apps/host` 한 방향만 허용 목록 항목 `DR-10/cli-host`로 허용한다(4절). `apps/host`는 다른 앱을 import하지 않고, `apps/desktop`은 어떤 앱도 import하지 않는다.
+- [결정: review.decisions-2 U-15] 엔진 조립 코드는 `apps/host` 한 곳에 둔다. `apps/cli` → `apps/host` 한 방향만 허용 목록 항목 `DR-10/cli-host`로 허용한다(4절). `apps/host`는 다른 앱을 import하지 않고, `apps/desktop`은 어떤 앱도 import하지 않는다.
 
 이유: 앱끼리 import하면 데스크톱 번들에 CLI 코드가 섞이고, 사이드카 경계(프로세스 분리)가 무너진다. 조립 코드를 두 앱에 나눠 두면 플러그인 등록 순서가 두 벌이 된다.
 
@@ -545,7 +546,7 @@ const dir = process.platform === "darwin"
 
 - 대상: DR-01이 순위상 허용하는 하위 층 import 가운데, import하는 패키지와 대상 패키지의 컨텍스트가 다른 것. 값 import, `import type`, 재수출, 동적 `import()`, `package.json`의 워크스페이스 의존을 모두 센다.
 - 협력 방법: DR-02와 같다. 주고받을 타입과 서비스 이름을 F에 두고, 구현은 Cordis 서비스로 주입받는다.
-- 예외 [결정(잠정): review.decisions-2 U-15·U-16·U-17]:
+- 예외 [결정: review.decisions-2 U-15·U-16·U-17]:
   1. F(`contracts`)는 공유 커널이다. 모든 패키지가 import한다.
   2. 조립 루트 `apps/host`는 플러그인을 등록하려고 모든 패키지를 import한다. `apps/cli`는 엔진 조립 코드를 `apps/host`에서 가져온다(DR-10, 허용 목록 `DR-10/cli-host`).
   3. 테스트 파일(DR-08의 정의: `src/**/*.test.ts`, `test/**`)만 다른 컨텍스트 패키지의 `testing` 서브패스를 import한다. 공용 가짜가 L0 인터페이스 구현이기 때문이다(`eng.testing.guide` TS-05, TS-07). 패키지의 `src/testing/**` 소스는 이 예외에 들지 않는다.
@@ -607,7 +608,7 @@ export const MODULE_OWNERS: readonly ModuleOwner[] = [
   { module: "bun:sqlite", owners: ["packages/platform-store"], rule: "DR-07" },
   { module: "better-sqlite3", owners: [], rule: "DR-07" },
   { module: "@earendil-works/pi-ai", owners: ["packages/core-models"], rule: "DR-07" },
-  { module: "@earendil-works/pi-agent-core", owners: ["packages/core-loop"], rule: "DR-07" },
+  { module: "@earendil-works/pi-agent-core", owners: [], rule: "DR-07" },   // adr.0009: 전부 금지
   { module: "playwright-core", owners: ["packages/cap-web"], rule: "DR-07" },
   { module: "cordis", owners: ["packages/ext-host"], rule: "DR-11" },
   // … DR-07 표 전체
@@ -657,7 +658,7 @@ export interface SourcePattern {
 | R4 | 순수 패키지는 `node:*`·Node 전역 금지 | 채택(F 한정) | DR-07 마지막 행 | ESLint `no-restricted-imports`·`no-restricted-globals` → oxlint 같은 이름 규칙(1.89에 있음) |
 | R5 | 커널은 시각·난수·타이머 금지 | 대체 | `eng.testing.guide` TS-03, `eng.typescript.guide` | 커널이 없다. 결정성은 주입으로 확보한다. ESLint `no-restricted-syntax`는 oxlint에 없으므로 필요하면 `check-layers.ts` 패턴으로 옮긴다 |
 | R6 | 외부 모듈 소유 | 채택 | DR-07 | 소유표를 Xeon 패키지로 다시 쓴다. `better-sqlite3` → `bun:sqlite` |
-| R7 | pi 코드 소유 | 채택 | DR-07(pi-ai, agent-core, durable env 포크 행) | 07 §3.9.1 표 대신 DR-07 표 |
+| R7 | pi 코드 소유 | 채택 | DR-07(pi-ai, durable env 포크 행. agent-core는 adr.0009로 전부 금지) | 07 §3.9.1 표 대신 DR-07 표 |
 | R8 | 런타임 어댑터 폴더 제한 | 폐기 | — | Xeon에 외부 런타임 어댑터 구조가 없다 |
 | R9 | 깊은 import 금지 | 채택 | DR-05 | pnpm `exports` 해석 거부 → Bun도 `exports`를 따르지만 상대 경로 이탈은 막지 않으므로 `check-layers.ts` `relative-escape`와 oxlint 패턴을 둔다 |
 | R10 | 패키지 순환 금지 | 채택 | DR-06 | `tsc -b` 참조 순환 + depcruise `no-circular` + oxlint `import/no-cycle` |
@@ -703,6 +704,8 @@ export const AllowEntry = Type.Object({
   reason: Type.String({ minLength: 10 }),
   /** 근거 문서 id 또는 ADR id */
   approvedBy: Type.String(),
+  /** "test"이면 from 패키지의 테스트 파일(test/**, *.test.ts)에서만 허용한다. 운영 소스의 같은 import는 위반이다 */
+  scope: Type.Optional(Type.Literal("test")),
 });
 export type AllowEntry = Static<typeof AllowEntry>;
 export const AllowList = Type.Array(AllowEntry);
@@ -736,11 +739,21 @@ export const AllowList = Type.Array(AllowEntry);
     "entries": ["."],
     "reason": "The CLI reuses the single engine assembly code in apps/host (review.decisions-2 U-15).",
     "approvedBy": "review.decisions-2"
+  },
+  {
+    "id": "DR-07/cli-test-spawn",
+    "rule": "DR-07",
+    "from": "apps/cli",
+    "to": "Bun.spawn",
+    "reason": "CLI scenario tests run the real xeon process and kill it to check resume (review.decisions-2 B-06).",
+    "approvedBy": "review.decisions-2",
+    "scope": "test"
   }
 ]
 ```
 
-- 위 세 항목이 이 문서가 미리 승인하는 예외의 전부다. `plugins/*`의 같은 층 예외는 두지 않는다([결정(잠정): review.decisions-2 U-16]).
+- 위 세 항목(DR-02 둘, DR-10 하나)과 테스트 한정 `DR-07/*-test-spawn` 항목이 이 문서가 미리 승인하는 예외의 전부다. `plugins/*`의 같은 층 예외는 두지 않는다([결정: review.decisions-2 U-16]).
+- 테스트 한정 프로세스 실행 [결정: review.decisions-2 B-06]: `scope: "test"`, `rule: "DR-07"`, `to: "Bun.spawn"`(같은 항목이 `Bun.spawnSync`, `node:child_process`도 덮는다) 항목을 미리 승인한다. 대상 패키지는 `apps/cli`(`DR-07/cli-test-spawn`), `packages/core-persistence`(`DR-07/persistence-test-spawn`), `packages/cap-workspace`(`DR-07/workspace-test-spawn`, `test/fork-records.test.ts`), `apps/desktop`(`DR-07/desktop-test-spawn`, `L4.desktop.plan` D1)이다. 위 JSON은 그중 하나만 보인다. L0 소유 패키지(`platform-*`)는 원래 소유자라 항목이 필요 없다. `check-layers.ts`는 `scope: "test"` 항목을 테스트 파일에만 적용하고, 같은 패키지의 `src/**`에서 쓰면 `DR-07`로 실패한다.
 - `TS-NN` 항목은 `eng.testing.guide` TS-05의 `mock.module` 예외를 같은 파일에 기록하는 형식이다. `from`은 테스트 파일이 있는 패키지 디렉터리, `to`는 바꾸는 외부 npm 모듈 지정자다. 미리 승인한 `TS-05` 항목은 없다.
 - 새 항목을 더하는 절차:
   1. 작업자는 항목을 더하지 않고 `[미결]`로 보고한다.
@@ -766,12 +779,13 @@ export const AllowList = Type.Array(AllowEntry);
   - `check-layers.ts`의 출력이 1.2절 형식(DR ID, 행 번호)이 아니다.
   - depcruise 규칙 이름과 oxlint 메시지에 DR ID가 없다.
   - `MODULE_OWNERS`, 허용 목록, `domain` 검사, `references` 검사가 없다.
+  - `Bun.spawn`·`node:child_process` 호출 패턴 검사와 허용 목록 `scope: "test"` 적용이 없다(review.decisions-2 B-06).
   - 컨텍스트 사이 import 검사(DR-14)가 없다. M1에서 `CONTEXTS` 상수와 함께 더한다(`eng.context-map.design` 6절 마일스톤).
 
 ## 6. 미결 사항
 
-- [결정(잠정): review.decisions-2 U-14] X를 L0 아래(순위 1)에 두는 순위는 유지한다. 1.1절의 세 조건을 지킨다.
+- [결정: review.decisions-2 U-14] X를 L0 아래(순위 1)에 두는 순위는 유지한다. 1.1절의 세 조건을 지킨다.
 - [미결] oxlint에 `no-restricted-paths`가 없을 때의 보완 방식. 현재는 `check-layers.ts` 정규식 스캔 + dependency-cruiser 경로 규칙이다. 파서 교체(별도 패키지 또는 `Bun.Transpiler`) 여부를 구현 단계에서 정한다(`_research/notes/eng-1.md §7`).
 - [미결] 타입 전용 순환(`import type` 순환)의 허용 여부. oxlint 기본값은 허용, depcruise 현재 설정은 금지다.
-- [결정(잠정): review.decisions-2 U-15] `group-kit`은 L3 안의 공용 기반으로 두고 허용 목록 `DR-02/group-kit-*`로 허용한다. 엔진 조립 코드는 `apps/host`에 두고 `apps/cli` → `apps/host`를 `DR-10/cli-host`로 허용한다.
-- [결정(잠정): review.decisions-2 U-16] `plugins/*`는 L1 순위이고 `core-*`를 import하지 않는다. 같은 층 예외는 두지 않는다(DR-09).
+- [결정: review.decisions-2 U-15] `group-kit`은 L3 안의 공용 기반으로 두고 허용 목록 `DR-02/group-kit-*`로 허용한다. 엔진 조립 코드는 `apps/host`에 두고 `apps/cli` → `apps/host`를 `DR-10/cli-host`로 허용한다.
+- [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위이고 `core-*`를 import하지 않는다. 같은 층 예외는 두지 않는다(DR-09).

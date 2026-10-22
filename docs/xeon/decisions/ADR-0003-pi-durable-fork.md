@@ -16,7 +16,8 @@ binds: [xeon/packages/platform-exec/**, xeon/packages/cap-workspace/**, xeon/pac
 - 날짜: 2026-10-21
 - [결정] "pi durable은 그대로 쓰지 않고 env·tools·images·truncate만 Chord 제거 포크, DI는 Cordis 하나"(`_research/decisions-log.md` 2026-10-21 결정(3차)). 세부는 `_research/foundation-plan.md §1` 표 1번 "권고안을 따른다"이고, 스파이크는 하지 않는다.
 - `_research/layer-plan-v2-notes.md`는 이 항목을 "남은 결정"으로 적었다. 그 뒤 `_research/foundation-plan.md §1`과 `_research/decisions-log.md` 3차에서 결정으로 바뀌었으므로 이 ADR은 후자를 따른다.
-- 개정: 2026-10-21 `review.decisions-2` §3 D-08(§3.1 `truncate.ts` 포크 위치를 `platform-exec`로 정함, §6 위치 미결 해소). 포크 대상은 그대로이고 위치만 정한 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). [결정(잠정)]이고 사용자 확인 대상이다.
+- 개정: 2026-10-21 `review.decisions-2` §3 D-08(§3.1 `truncate.ts` 포크 위치를 `platform-exec`로 정함, §6 위치 미결 해소). 포크 대상은 그대로이고 위치만 정한 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 사용자 확인을 거친 [결정]이다(2026-10-22).
+- 부분 대체: 2026-10-22 ADR-0009. §3.2 마지막 항목(L1-b 루프의 `pi-agent-core` 1.3.0 정확 고정 + 훅 래핑)은 ADR-0009가 대체한다. pi-agent-core 루프는 core-loop로 포크해 자체 루프로 다시 설계하고 pi-agent-core 의존은 없앤다. 나머지 결정은 그대로라 상태는 accepted로 둔다(`adr.readme` §1.4 부분 번복).
 
 ## 2. 맥락
 
@@ -47,7 +48,7 @@ binds: [xeon/packages/platform-exec/**, xeon/packages/cap-workspace/**, xeon/pac
 | `D/src/env/*` (index, node, node-watch, decode, line-scan) | 5파일 2,250줄 | `xeon/packages/platform-exec` (L0-a, `_research/foundation-plan.md §3` "exec = pi durable env 포크") | `Context` import type 3줄을 `CancelScope`로 치환 |
 | `D/src/tools/*` | 11파일 1,562줄 | `xeon/packages/cap-workspace` (L2-a 도구 본문) | `Context` import type 4줄 치환. `harness/define.ts`·`harness/types.ts` 의존을 추출한 도구 타입으로 교체 |
 | `D/src/images/*` | 6파일 390줄 | `xeon/packages/cap-workspace` | Chord import 없음. 그대로 복사 |
-| `D/src/truncate.ts` | 205줄 | `xeon/packages/platform-exec` [결정(잠정): review.decisions-2 §3 D-08] | import 없음. 그대로 복사. L1 `core-tools`와 L2 `cap-workspace`는 F 서비스(`ExecutionEnv` 계열)로 호출하고 구현을 import하지 않는다 |
+| `D/src/truncate.ts` | 205줄 | `xeon/packages/platform-exec` [결정: review.decisions-2 §3 D-08] | import 없음. 그대로 복사. L1 `core-tools`와 L2 `cap-workspace`는 F 서비스(`ExecutionEnv` 계열)로 호출하고 구현을 import하지 않는다 |
 
 - [결정] Chord `Context`(7곳)는 로컬 타입 `CancelScope`로 치환한다. Chord `JsonValue`(1곳, `harness/define.ts:1`)는 로컬 JSON 타입으로 치환한다.
 - [결정] `harness/types.ts`(786줄)에서 도구 타입만 100~200줄 추출한다. 대상은 `ToolRegistration`, `ToolExecutionApi`, `ToolExecutionResult`, `ToolDiagnostic`과 이들이 참조하는 타입이다(`_research/durable-and-search-facts.md §A-3`).
@@ -87,7 +88,7 @@ durable `docs/spec.md` 인용 범위:
 
 - [가정] 줄 번호는 `~/projects/_ref/pi-src/packages/durable/docs/spec.md`(5,123줄) 사본 기준이다. 이 사본은 패키지 조사 기준 커밋 `cdaf6c2`(패키지 1.1.0)와 같다고 가정한다(`_research/packages.md` 머리말). `.helm-design-work/P4/pi-v1.1.0/packages/durable/docs/spec.md` 사본과는 574줄이 다르다(`documentRetentionMs`, `modelTools`, `closed` 관련 절이 한쪽에만 있음). 다른 사본으로 읽으면 줄 범위가 맞지 않는다.
 - [결정] 커널 저장은 ADR-0004(SQLite 이벤트 소싱 + 투영, 단일 DB)를 따른다. durable의 체크포인트 모델과 `synchronous=NORMAL`은 따르지 않는다.
-- L1-b 루프의 모델 호출부는 `pi-agent-core` 1.3.0 정확 고정 + 훅 래핑을 쓴다(`_research/foundation-plan.md §2` 모델·루프 행). "직접 구현"은 durable의 phase 루프를 포크하지 않는다는 뜻이다. 세부는 `L1.loop.spec`이 정한다.
+- L1-b 루프의 모델 호출부는 `pi-agent-core` 1.3.0 정확 고정 + 훅 래핑을 쓴다(`_research/foundation-plan.md §2` 모델·루프 행). "직접 구현"은 durable의 phase 루프를 포크하지 않는다는 뜻이다. 세부는 `L1.loop.spec`이 정한다. (2026-10-22 ADR-0009가 이 항목을 대체: pi-agent-core 루프를 core-loop로 포크한 자체 루프를 쓰고 pi-agent-core에 의존하지 않는다.)
 
 ### 3.3 DI
 
@@ -143,7 +144,7 @@ durable `docs/spec.md` 인용 범위:
 ## 6. 미결 사항
 
 - [미결] `CancelScope`와 추출한 도구 타입의 F 서브패스. `F.capabilities.spec`과 `F.conversation.spec` 중 어디에 둘지 F 문서가 정한다.
-- [미결] tools·images의 위치. 이 ADR은 `cap-workspace`를 제안했다. truncate는 L1 도구 디스패치(`core-tools`)의 출력 절단에도 쓰이므로 `platform-exec`에 두고 F 서비스로 부른다 [결정(잠정): review.decisions-2 §3 D-08].
+- [미결] tools·images의 위치. 이 ADR은 `cap-workspace`를 제안했다. truncate는 L1 도구 디스패치(`core-tools`)의 출력 절단에도 쓰이므로 `platform-exec`에 두고 F 서비스로 부른다 [결정: review.decisions-2 §3 D-08].
 - [미결] pi 저장소 원문 URL과 `cdaf6c2`가 원본 커밋으로 맞는지 확인. `_ref/pi-src` 사본 기준이다.
 - [미결] 포크 업그레이드 정책. 정기 diff 확인을 할지, 보안·버그 수정이 있을 때만 할지.
 - [미결] durable 적합성 스위트(`env-conformance.ts`, 저장소 `registerStorageConformance`)를 포크해 커널 테스트에 쓸지. 저장소 스위트는 Session 커밋 API에 묶여 있다(`_research/refs/pi-durable.md §5.1`).

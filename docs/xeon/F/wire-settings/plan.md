@@ -140,7 +140,7 @@ xeon/packages/contracts/
 
 | 대상 | 방식 | 버전·원본 | 바꿀 점 |
 |---|---|---|---|
-| `typebox` | 그대로 사용 | 1.4.2(`xeon/package.json` catalog) | 없음. 1.3.27로 맞출지는 스펙 미결 6 |
+| `typebox` | 그대로 사용 | 1.3.27(`xeon/package.json` catalog, review.decisions-2 U-24) | 없음 |
 | `docs/design/19-client-protocol.md` §3.3.1 TypeBox 정의 | 이식·수정 | 문서의 코드 블록(원래 경로 `packages/protocol/src/jsonrpc.ts`는 코드가 없다. 새로 작성한다) | `HelmErrorData` → `WireErrorData`, 기기 인증·`clientKind` 제거, 프레임 1 MiB 추가, 알림 이름 `events` → `events.batch` |
 | 19 §3.5.3~§3.5.4 구독 계약과 재전송 알고리즘 | 이식(계약만) | 문서 | 알고리즘 구현은 L4 host. F는 스키마와 적합성 케이스만 |
 | 19 §3.3.4 오류 표 | 일부 이식 | 문서 | 1000번대 인증·페어링 코드 제거, kind 이름 재배정(스펙 §3.5.2) |
@@ -235,9 +235,9 @@ JSON Schema 검사 도구 [제안]: `jsonschema.test.ts`는 출력 JSON을 `Type
 |---|---|---|
 | 19번 문서의 데몬·기기 인증 전제를 함께 가져와 범위가 커진다 | 쓰지 않는 메서드·오류 코드가 계약에 남고 M1이 늦어진다 | 이식 대상을 envelope 규칙, 이름 규칙, 재전송 알고리즘 셋으로 한정한다(스펙 §1.3). 오류 표는 M1 항목만 둔다. 리뷰 때 19의 kind 이름이 새로 들어오면 근거를 묻는다 |
 | 설정 우선순위 해석이 문서마다 다르다 | 층 문서와 L4 화면이 서로 다른 순서를 가정한다 | 스펙 §4.7 표를 유일한 기준으로 두고 [미결]로 사용자 확인을 받는다. `layers.test.ts`가 그 표를 그대로 검사한다. 결정이 바뀌면 `SCOPE_PRECEDENCE` 한 줄과 테스트만 고친다 |
-| 승인 요청 방향의 잠정 결정(A안, review.decisions-2 U-02)이 사용자 확인에서 바뀐다 | `approval.respond` 모양, 서버 → 클라이언트 요청 허용 여부가 바뀐다 | `approval.respond`는 M2에 둔다. M1 메서드는 승인과 무관하다. 사용자가 B안으로 답하면 envelope 규칙 표의 "서버 → 클라이언트 요청" 행과 `HostConnection`에 요청 처리기 등록 메서드를 더한다 |
+| 승인 요청 방향은 A안으로 정했다(review.decisions-2 U-02, 2026-10-22 확인). 뒤에 B안으로 번복하는 경우 | `approval.respond` 모양, 서버 → 클라이언트 요청 허용 여부가 바뀐다 | `approval.respond`는 M2에 둔다. M1 메서드는 승인과 무관하다. B안으로 번복하면 envelope 규칙 표의 "서버 → 클라이언트 요청" 행과 `HostConnection`에 요청 처리기 등록 메서드를 더한다 |
 | 설정 키 중복 소유 | 두 층이 같은 의미의 키를 각자 정의하거나 같은 키를 쓴다 | 키 접두가 소유 층·도메인을 정하므로 다른 도메인 키는 이름부터 다르다. 의미 중복은 P2 정합성 검토 ④(설정 노출) 항목으로 확인한다. 코드에서는 `buildCatalog`가 같은 키를 거부한다 |
 | `isolatedDeclarations` 주석 부담 | `defineSettings` 결과와 스키마 상수마다 긴 타입 주석이 필요하다 | `xeon/tsconfig.base.json`에서 이미 켜져 있다(`_research/foundation-plan.md` §2). eng-2의 명시 주석 패턴을 따른다. 스펙 코드 블록의 주석 생략은 예시 한정이다 |
 | `UserConfigEntry`에 값 스키마가 없다(키 접두는 `ext.`로 맞췄다) | W8의 `settingsFromManifest`가 만들 수 없는 정의가 생긴다 | 스펙 미결 8. W8은 값 스키마가 없는 항목을 issue로 돌려주는 동작부터 구현하고, F.extensions 쪽 결정 뒤 대응 규칙을 고친다 |
 | 다른 F 도메인 이름이 바뀐다 | `EventWire` 필드, `TurnStartInput`, `PartDelta` import가 깨진다 | W4·W5·W8은 F.records.plan, F.conversation.plan, F.extensions.plan의 해당 작업 뒤에 시작한다. 이름이 다르면 스펙을 먼저 고친다 |
-| TypeBox 1.4.2와 pi 고정 1.3.27이 함께 설치된다 | 스키마 객체를 두 버전 사이에 넘길 때 `Value.Check` 동작이 다를 수 있다 | 스펙 미결 6. 결정 전에는 pi 타입을 스키마로 쓰지 않고 `import type`만 한다 |
+| TypeBox 사본 중복 | 해소했다. catalog를 pi와 같은 1.3.27로 고정했다(review.decisions-2 U-24) | pi-ai를 올릴 때 typebox 판을 함께 확인한다 |

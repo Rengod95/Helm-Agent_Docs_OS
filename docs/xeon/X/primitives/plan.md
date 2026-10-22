@@ -97,10 +97,10 @@ xeon/packages/ext-host/
 | P-12 | `state.ts`: 상태 캐시(`openThread`에서 적재), `state()`, `commit()`(스키마, 크기, 멱등 키, `expectStateRev`), 상태 이벤트 kind `<x\|grp>.<name>.state.committed` 초안 | P-05, P-07, P-03 | M | M0 |
 | P-13 | `host.ts`, `host-api.ts`: `createExtHost`, `install`(엔트리 실행과 `entryError`, scope 정의 수집, 시작 적용 spec §4.5.6과 `ScopeSetupOutcome`, `setupBudgetMs`), `uninstall`, `dispatch`·`boundary`·`openThread`·`closeThread`·`dispose` 연결, `hostOf`(M0는 `provide`, `providePort`, `port`), `xeon.ext` 서비스 등록, `src/index.ts` 공개 목록(spec §3.1 표 전체. loading-trust·operations 행은 그 도메인 작업이 끝날 때 더한다) | P-06, P-08, P-09, P-11, P-12 | M | M0 |
 | P-14 | `testing/host.ts`: `createTestHost`와 경계 도우미(`stepEnd`, `turnSettled`, `idle`) | P-13 | S | M0 |
-| P-15 | `state.ts` 확장: `record`(`validateGroupRecord`), `readRecords`(읽기 선언 검사, `queryRecords`의 셋째 인자 `reader`에 호출한 확장 이름을 넘겨 다른 확장의 비공개 행 제외, `record_version_unknown` 진단), `recordPrivate`(자기 접두·`state` 영역·공개 kind 중복 검사, `visibility: "private"` 커밋, `record`와 같은 멱등 키, spec §4.6.5, [결정(잠정): review.decisions-2 T-21]). `testing/ports.ts`의 `RecordCommitPort` 가짜에 `visibility`와 `reader` 필터를 더한다(F.records.spec §3.9 비공개 기록 규칙 3) | P-12, F E6(`ScopeApi.recordPrivate`), F E9 | S | M1 |
+| P-15 | `state.ts` 확장: `record`(`validateGroupRecord`), `readRecords`(읽기 선언 검사, `queryRecords`의 셋째 인자 `reader`에 호출한 확장 이름을 넘겨 다른 확장의 비공개 행 제외, `record_version_unknown` 진단), `recordPrivate`(자기 접두·`state` 영역·공개 kind 중복 검사, `visibility: "private"` 커밋, `record`와 같은 멱등 키, spec §4.6.5, [결정: review.decisions-2 T-21]). `testing/ports.ts`의 `RecordCommitPort` 가짜에 `visibility`와 `reader` 필터를 더한다(F.records.spec §3.9 비공개 기록 규칙 3) | P-12, F E6(`ScopeApi.recordPrivate`), F E9 | S | M1 |
 | P-16 | 재개: `openThread`가 `ExtThreadSnapshot`으로 켜짐 상태·상태 판·열린 임대·차수를 복원하고 첫 경계에서 drive 재호출 또는 `restart` 반납 | P-11, P-12 | M | M1 |
 | P-17 | `services.ts` 능력 바인딩(공급자 하나): `hostOf(g).provide` → `providerServiceName` provide, 바인딩 플러그인이 `capabilityServiceName`으로 다시 provide, scope fiber의 `inject`를 `requires`에서 계산, `capability(key)` 구현(`optional`은 루트 조회) | P-07, P-13 | M | M1 |
-| P-18 | `settings.ts`: `primitivesSettings`(`driveLimits`, `activeDriveGroup`, `capabilityProviders`) 선언과 `PrimitivesSettingsSource` 기본 구현(값 없음 = 상한 없음) | P-13, F.wire-settings.plan(`defineSettings`) | S | M1 |
+| P-18 | `settings.ts`: `primitivesSettings`(`driveDefaultLimits`, `driveLimits`, `activeDriveGroup`, `capabilityProviders`) 선언과 `PrimitivesSettingsSource` 기본 구현(`driveDefaultLimits` 기본 4/8/400000, 천장 없음, review.decisions-2 U-12) | P-13, F.wire-settings.plan(`defineSettings`) | S | M1 |
 | P-19 | `testing/port-contract.ts`: `runPortContract`(runTurn 멱등, `leaseEpoch` 펜싱, `whenIdle` 중 turn 시작 차단, enqueue 멱등, `expectStateRev` 충돌). L1 core-loop·core-tasks·core-persistence가 자기 테스트에서 돌린다 | P-03, P-13 | M | M1 |
 | P-20 | `DispatchPolicy` 결합: X.operations 구현을 `ExtHostDeps.policy`로 받는 통합 테스트(tier 정렬, `run` 위임 예산, 실패·성공 보고) | P-06, O-03, O-06 | S | M0 |
 | P-21 | `testing/smoke-group.ts`: M1 스모크 그룹(매니페스트는 F.extensions.plan `fixtures/smoke-group.manifest.json`과 같은 내용). `tool_call`에서 특정 도구 거부, `turn_end`에서 엔트리 추가, `post(followUp)`, drive로 `loop.turn` 1회 후 commit | P-13, P-15 | S | M1 |
@@ -113,7 +113,7 @@ xeon/packages/ext-host/
 | P-28 | thread별 scope 켜짐 상태와 fiber 수명(한 thread 이상 켜짐 동안 유지) | P-09, P-16 | M | M2 |
 | P-29 | `ExtHost.registerPlatform`(`PlatformModule`, `PlatformContext`, L0 fiber, dispose 역순)과 `ExtHost.ports`(`PortLookup`) | P-07, P-13 | S | M0 |
 | P-30 | 포트 키 재export 추가: `ProjectorRegistryPortKey`(`xeon.session`의 `projectors`), `ScopedStorePortKey`(`xeon.store`), `ProcessPortKey`(`xeon.process`)와 `testing/ports.ts`의 가짜 구현(`register`는 `Result<{ dispose }, ProjectorRegisterError>`, `scoped(owner)`). O-14(저장 영역), O-23(외부 훅), L-22(격리)의 선행 | P-02, P-29 | S | M1 |
-| P-31 | 포트 재export 확인: `primitives/ports.ts`·`resources.ts`, loading-trust의 로더 포트, operations의 훅 포트에 자기 정의가 없고 모두 F `ports.ts` 이름을 다시 export하는지(spec §3.6, §3.9, [결정(잠정): review.decisions-2 U-14, D-04]), `src/index.ts` 공개 이름이 spec §3.1 표와 같은지 타입 테스트로 확인 | P-02, P-30, F.extensions.plan E10 | S | M1 |
+| P-31 | 포트 재export 확인: `primitives/ports.ts`·`resources.ts`, loading-trust의 로더 포트, operations의 훅 포트에 자기 정의가 없고 모두 F `ports.ts` 이름을 다시 export하는지(spec §3.6, §3.9, [결정: review.decisions-2 U-14, D-04]), `src/index.ts` 공개 이름이 spec §3.1 표와 같은지 타입 테스트로 확인 | P-02, P-30, F.extensions.plan E10 | S | M1 |
 
 순서 요약: P-01 → P-02 → (P-03, P-04, P-05, P-07 병렬) → P-06 → P-08 → P-09 → P-12 → P-10 → P-11 → P-13 → P-29 → P-14 → P-20 (M0 끝) → P-15~P-19, P-21, P-30 (M1) → P-22~P-28 (M2 이후).
 
@@ -123,7 +123,7 @@ xeon/packages/ext-host/
 |---|---|---|
 | Cordis core (`xeon/vendor/cordis`, 패키지 이름 `@xeon/vendor-cordis`) | upstream `cordiverse/cordis` 커밋 `df4431eb43086bd1f8263a0e8c03e9b7c5233b68`, `UPSTREAM.json` 표기 "4.0.0-rc.11" | 그대로. 수정 금지(`UPSTREAM.json` `modifications: none`). `Context`, `ctx.plugin`, `fiber.effect`, `fiber.dispose`, `ctx.provide`, `inject`만 쓴다. `emit`·`parallel`·`serial`·`bail`·`waterfall`과 `Config` 스키마는 쓰지 않는다 |
 | `cosmokit`, `@standard-schema/spec` | 1.8.1, 1.1.0 (`xeon/package.json` catalog) | Cordis 런타임 의존. ext-host가 직접 import하지 않는다 |
-| `typebox` | 1.4.2 (`xeon/package.json` catalog `"typebox": "1.4.2"`) | 그대로. `Value.Check`로 결정·패치·상태·페이로드 검사 |
+| `typebox` | 1.3.27 (`xeon/package.json` catalog `"typebox": "1.3.27"`) | 그대로. `Value.Check`로 결정·패치·상태·페이로드 검사 |
 | `@xeon/contracts` | 워크스페이스 | `extensions`, `capabilities`, `records`, `conversation`, `settings` 서브패스에서 타입과 상수 import |
 | Bun | 1.4.3 (`packageManager: bun@1.4.3`) | `bun:test`, `node:async_hooks`의 `AsyncLocalStorage` |
 | pi coding-agent 확장 러너 | 소스 1.1.0 `~/projects/_ref/pi-src/packages/coding-agent/src/core/extensions/runner.ts` | 읽기 자료. 복사하지 않는다. 참고 위치: 스냅샷 `snapshotEventHandlers` 269-271, 일반 `emit` 1089-1119, `emitToolCall` 1242-1260, `emitBoundary` 1029-1087 |
@@ -207,6 +207,6 @@ xeon/packages/ext-host/
 | 경계 정의가 L1.loop 구현과 어긋남(`step_end`·`turn_settled`·`idle` 호출 시점, `whenIdle` 의미, `finalize` 호출) | 토글이 늦거나 turn 중간에 적용된다 | `runPortContract`(P-19)를 L1 구현의 테스트에서 돌리게 한다. M1 스모크가 경계 적용을 끝단에서 확인한다 |
 | `post.when = next` 의미 미확정 | L1 큐 구현과 pi 어댑터 매핑이 바뀐다 | X는 `when` 값을 포트로 넘기기만 하므로 X 코드는 영향이 작다. 큐 위치 결정은 L1.tasks 쪽 변경이다. 결정 전에는 spec §4.7 [제안](시작하지 않음)으로 테스트를 둔다 |
 | Bun `AsyncLocalStorage`가 일부 비동기 경계에서 값을 잃음 | `state()`·`commit()`·`post`가 `no_thread`로 실패 | `ambient.contract.test.ts`로 먼저 확인한다. 실패하면 F에 thread 인자 추가(spec §10 미결)를 앞당겨 요청한다 |
-| F `ports.ts`의 포트 이름이나 시그니처가 바뀜([결정(잠정): review.decisions-2 U-14, D-04]로 정본은 F다) | L1 구현과 X의 import가 함께 바뀐다 | X는 정의를 두지 않고 `ports.ts`·`resources.ts`에서 재export만 하므로 바뀐 이름은 타입 검사에서 바로 드러난다(P-31) |
+| F `ports.ts`의 포트 이름이나 시그니처가 바뀜([결정: review.decisions-2 U-14, D-04]로 정본은 F다) | L1 구현과 X의 import가 함께 바뀐다 | X는 정의를 두지 않고 `ports.ts`·`resources.ts`에서 재export만 하므로 바뀐 이름은 타입 검사에서 바로 드러난다(P-31) |
 | 공급자 재시작 연쇄로 setup이 경계 밖에서 다시 실행됨 | 그룹이 turn 중간에 핸들러 집합을 바꾼다 | 세대 단위 교체라 진행 중 디스패치에는 영향이 없다. 제품 동작으로 받아들일지는 spec §10 미결이다 |
 | `ext-host/src/index.ts`를 다른 작업자가 먼저 채움 | 공개 이름 충돌 | P-13에서 spec §3.1 목록과 대조하고 충돌을 spec §10에 적는다 |

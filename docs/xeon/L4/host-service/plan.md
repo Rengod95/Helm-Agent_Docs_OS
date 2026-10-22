@@ -49,7 +49,7 @@ binds: [xeon/apps/host/**]
 
 ### 1.5 M3 이후
 
-- [결정(잠정): review.decisions-2 U-11] 원격 사용(M3)은 로컬 서비스 소켓을 SSH 터널·사설망으로 연결하므로 새 전송 파일이 없다. 내장 TLS + 토큰 WebSocket(`transport/websocket.ts`)은 2차다.
+- [결정: review.decisions-2 U-11] 원격 사용(M3)은 로컬 서비스 소켓을 SSH 터널·사설망으로 연결하므로 새 전송 파일이 없다. 내장 TLS + 토큰 WebSocket(`transport/websocket.ts`)은 2차다.
 - 2차: `xeon service install`/`uninstall`(launchd, systemd 사용자 단위). 이 패키지가 아닌 `L0.os`·`L4.cli` 작업으로 둔다.
 
 ## 2. 패키지와 파일 배치
@@ -144,7 +144,7 @@ xeon/apps/host/
 
 | id | 내용 | 선행 | 규모 | 마일스톤 |
 |---|---|---|---|---|
-| H1 | 조립 위치 결정 반영([결정(잠정): review.decisions-2 U-15]). 허용 목록 `DR-10/cli-host`, `eng.dependency-rules.guide` DR-10·DR-14 문구, `architecture.layers.spec` §3.2 L4 부분을 같은 커밋에서 고친다. `check-layers.ts`가 허용 목록을 읽도록 고치는 작업은 툴체인 작업자 몫(`eng.dependency-rules.guide` §5 현재 상태와의 차이) | review.decisions-2 U-15 | S | M1 |
+| H1 | 조립 위치 결정 반영([결정: review.decisions-2 U-15]). 허용 목록 `DR-10/cli-host`, `eng.dependency-rules.guide` DR-10·DR-14 문구, `architecture.layers.spec` §3.2 L4 부분을 같은 커밋에서 고친다. `check-layers.ts`가 허용 목록을 읽도록 고치는 작업은 툴체인 작업자 몫(`eng.dependency-rules.guide` §5 현재 상태와의 차이) | review.decisions-2 U-15 | S | M1 |
 | H2 | `assemble` 최소형. 루트 컨텍스트, M1 플러그인 등록, 포트 어댑터, 서비스 확인, `Engine.close` 역순 정리, `AssembleError`. `package.json`·`tsconfig.json`·`bunfig.toml` 정비 | M0 전부, `X.loading-trust.plan`의 루트 생성 API | M | M1 |
 | H3 | in-process 전송 쌍과 `createHostConnection`(`./client`). 순서 보장, `devChecks` JSON 왕복, 요청 id `r1`… , 시한, `signal` → `$/cancelRequest` | `F.wire-settings.plan` W12 | S | M1 |
 | H4 | 연결 허브와 처리기 M1 5개. 상태 기계(HS-01~HS-05), 처리 순서와 예외 정제(HS-06~HS-09), 취소(HS-21~HS-22), `notImplemented`, `thread.create`의 소유 획득과 `turn.start`의 암묵 획득(HS-28, M1 `--continue` 재개에 필요). 구독은 H7에서 채우고 여기서는 `from: "head"`만 | H2, H3, M0 `platform-store` 세션 잠금 | M | M1 |
@@ -155,7 +155,7 @@ xeon/apps/host/
 | H9 | `thread.open` 잠금과 `thread.locked` 대안(HS-23~HS-29), `LeaseToken` 전달(`openForWrite`), `keepAlive` 실패 처리, 관찰 폴링(HS-16), 해제 조건 | H7, `L0.process.plan` OS 잠금, `L0.store.plan` `LeaseService`, `L1.persistence.plan` `openForWrite` | M | M2 |
 | H16 | 나머지 M2 처리기: `thread.list/fork/revert/delete/close`, `turn.interrupt`, `events.unsubscribe`, `host.status` | H9 | M | M2 |
 | H17 | 설정 쓰기 처리기: `settings.set/reset/list`, `checkSettingWrite`, 비밀 값 거부와 details 정제 | H8, `L1.persistence.plan` 설정 쓰기 | S | M2 |
-| H18 | `approval.respond`([가정] F wire §4.6 A안) | H16, `L1.tools.plan` 승인 프로토콜 | S | M2 |
+| H18 | `approval.respond`(F wire §4.6 A안, [결정: review.decisions-2 U-02]). bash 도구 env 주입의 실행마다 승인 증거(`ApprovalEvidence`)를 `xeon.secrets` `withEnv`까지 전달하는 경로를 함께 완성한다. M1 코드는 증거를 `null`로 넘긴다(review.decisions-2 U-19) | H16, `L1.tools.plan` 승인 프로토콜 | S | M2 |
 | H19 | stdio 종료 절차: HS-31~HS-36, `stopAtSafeBoundary` 연결, 신호 처리 | H5, `L1.loop.plan` 안전 경계 정지 | M | M2 |
 | H15 | spike: `bun build --compile` 바이너리에서 (a) `process.execPath`·`Bun.main` 값, (b) `Bun.listen({ unix })` 서버와 `Bun.connect`, (c) stdin EOF 감지, (d) detached self-exec를 macOS arm64와 Linux x64에서 확인한다. 결과를 spec §3.2·§5와 `_research/notes/`에 남긴다 | H5 | S | M2(H19 전) |
 | H10 | 서비스 등록과 `ensure`: `registration.ts`(SV-01), `listenServiceSocket`과 활성화 잠금(SV-02), `ensureService`(SV-03), `connectServiceTransport`, `startService` 시작 순서(§4.9.1), detached 자기 실행(SV-06) | H15, H19, `L0.process.plan` detached spawn·활성화 잠금 | L | M3 |
@@ -163,9 +163,10 @@ xeon/apps/host/
 | H12 | 인증: 소켓 디렉터리 0700·파일 0600 생성과 시작 시 검사(SV-05). 토큰 처리는 F wire §10 미결 4가 정해지면 더한다 | H10 | S | M3 |
 | H13 | 예약 틱: 서비스 시작·종료에 틱 연결, `scheduler` 실행권, in-process·stdio에서 `l0.process.service.enabled=false`일 때만 틱(HS-39~HS-41) | H11, `L2.schedule.plan` 틱 API | S | M3 |
 | H14 | 알림: 연결 유무에 따른 라우팅(HS-42), `UserNotifyPort` 어댑터 | H13, `L0.os.plan` 알림 | S | M3 |
+| H21 | 상태 디렉터리 API `resolveHostStatePaths`(spec §3.3.6): `OsDirs.state` 아래 `cli/state.json`, 0700 디렉터리 생성, 오류 값 `HostStatePathError`, 테스트 덮어쓰기 인자. CLI `connectEngine`이 이 값으로 `paths.cliStateFile`을 채우고 `XEON_CLI_STATE_FILE`은 덮어쓰기로만 쓴다(review.decisions-2 B-07) | H2 | S | M1 |
 | H20 | 클라이언트 전송 선택: `resolveLaunchMode`(HS-37), `xeon service ensure --json`(HS-38), `xeon service launch-mode --json`(spec §3.2, 데스크톱 셸의 진입 판정) | H10 | S | M3 |
 
-순서 요약: M1은 H1 → H2 → H3 → H4 → (H5 → H6), (H7), (H8). M2는 H9 → H16 → H17·H18, H19 → H15. M3는 H10 → H11 → H12·H13 → H14, H20.
+순서 요약: M1은 H1 → H2 → H3 → H4 → (H5 → H6), (H7), (H8), (H21). M2는 H9 → H16 → H17·H18, H19 → H15. M3는 H10 → H11 → H12·H13 → H14, H20.
 
 ## 4. 채택 코드
 
@@ -173,7 +174,7 @@ xeon/apps/host/
 
 | 패키지 | 버전 | 쓰는 것 | 근거 |
 |---|---|---|---|
-| `typebox` | 1.4.2(catalog 정확 고정, 1.4.x) | `ServiceRegistrationSchema`, `Value.Check`(등록 파일 읽기). 버전 통일은 F wire §10 미결 6 | `xeon/package.json` catalog, `_research/foundation-plan.md` §2 |
+| `typebox` | 1.3.27(catalog 정확 고정, 1.4.x) | `ServiceRegistrationSchema`, `Value.Check`(등록 파일 읽기). 버전 통일은 F wire §10 미결 6 | `xeon/package.json` catalog, `_research/foundation-plan.md` §2 |
 | Bun 내장 | Bun 1.4.3(`packageManager: bun@1.4.3`) | `Bun.listen({ unix })`, `Bun.connect({ unix })`(socket 전송), `Bun.stdin.stream()`·`Bun.stdout`(stdio 전송), `Bun.main`, `process.execPath`, `crypto.getRandomValues`(토큰) | ADR-0001. 컴파일 바이너리 동작은 H15에서 확인 |
 | `@types/bun` | 1.4.3(catalog) | 타입 | 현재 스캐폴드 |
 
@@ -274,7 +275,7 @@ SV-06의 서비스 쪽(부모가 끝나도 서비스가 남는다)은 `bind-race
 | `bun build --compile` 바이너리에서 Unix 소켓 서버, stdin EOF 감지, `process.execPath` 값이 확인되지 않았다(`_research/notes/L4-1.md` §7) | 사이드카와 서비스가 컴파일 바이너리에서만 실패한다 | H15 spike를 H19·H10 전에 둔다. 실패하면 대체 경로(예: Node `net` 호환 API, 별도 진입 스크립트)를 spec §5 표에 더한다 |
 | 단일 바이너리 self-exec 경로 | 개발 실행(`bun main.ts`)과 컴파일 실행의 인자 모양이 달라 `ensure`가 엉뚱한 명령을 실행한다 | 자기 실행 명령을 한 함수에 두고 두 경우를 `int` 테스트로 확인한다. 컴파일 판별 규칙은 H15 결과로 고정한다 |
 | 조립 코드 순환 의존 | `assemble.ts`가 모든 패키지를 import하므로, 아래 층이 실수로 `@xeon/host`를 import하면 순환이 생긴다 | DR-01(상향 import 금지)과 depcruise `DR-06-no-circular`가 막는다. 처리기와 `connection.ts`는 포트만 쓰게 해 `assemble.ts` 밖으로 패키지 import가 퍼지지 않게 한다 |
-| 세션 잠금 구현은 OS 잠금 + `sys_leases.epoch` 펜싱으로 잠정 결정했고(review.decisions-2 U-09) 사용자 확인 전이다 | 확인에서 바뀌면 `thread.open`과 크래시 직후 동작이 바뀐다 | `SessionLockPort` 뒤로 숨긴다. M2 H9는 L0.process·L0.store가 제공하는 수단으로 구현하고, 결정이 바뀌면 어댑터만 바꾼다. `thread-locked-alternatives`는 수단과 무관하게 같은 결과를 확인한다 |
+| 세션 잠금 구현은 OS 잠금 + `sys_leases.epoch` 펜싱으로 결정했다(review.decisions-2 U-09, 2026-10-22 확인). flock은 멈춘 소유자를 깨어나거나 죽을 때까지 잠근다(알려진 한계) | 번복되면 `thread.open`과 크래시 직후 동작이 바뀐다 | `SessionLockPort` 뒤로 숨긴다. M2 H9는 L0.process·L0.store가 제공하는 수단으로 구현하고, 결정이 바뀌면 어댑터만 바꾼다. `thread-locked-alternatives`는 수단과 무관하게 같은 결과를 확인한다 |
 | M1과 M3 사이 F 계약 변경(`shutdown`, 재개 후보, 인증 토큰, 확장 메서드) | 처리기 표와 적합성 케이스가 바뀐다 | F 생성물(TS 타입, JSON Schema)의 재생성 diff를 CI가 검사한다(ADR-0006 §3.2). F 변경은 부 버전 정책을 따르고, 호스트는 `notImplemented`로 새 메서드를 먼저 받아 둔다 |
 | 서비스 단일 장애점 | 서비스가 죽으면 연결된 모든 클라이언트가 멈춘다 | SV-08. 복구 표식과 다음 `ensure`의 재기동으로 피해를 줄인다. 재접속 정책은 CLI·데스크톱 spec |
 | 컴파일 바이너리 크기(Bun 런타임 포함, 수치 미확인) | 데스크톱 번들이 커진다 | 단일 바이너리로 런타임 1벌만 둔다. 크기 상한은 `L4.desktop.plan`이 측정 뒤 정한다(ADR-0008 §6) |

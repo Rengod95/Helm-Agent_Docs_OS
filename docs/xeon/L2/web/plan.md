@@ -47,7 +47,7 @@ binds: [xeon/packages/cap-web/**]
 | 선택 엔진 플러그인(Stagehand, moli) | 보류 | — | `_research/layer-plan-v2.json` L2-c |
 | Lightpanda | 제외 | AGPL이라 배포판에서 뺀다 | 같음 |
 
-- 플러그인 패키지는 `xeon/plugins/web-<이름>/`에 둔다. [결정(잠정): review.decisions-2 U-16] `plugins/*`는 L1 순위다. 각 패키지의 `package.json`은 `"xeon": { "layer": "L1", "domain": "web" }`이고 F(`@xeon/contracts`), X, L0, 외부 패키지만 import한다. `cap-web`과 `core-*`는 import하지 않는다(DR-02, DR-09). 확장 매니페스트의 `layer: "plugin"`(`F.extensions.spec` `ExtensionLayerSchema`)은 매니페스트 값이고 패키지 순위와 별개다. [제안] `_routing/routes.yaml` `layout.plugins`에 `{ path: "xeon/plugins/web-*/**", docs: [L2.web.spec] }` 행을 더하도록 요청한다.
+- 플러그인 패키지는 `xeon/plugins/web-<이름>/`에 둔다. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 각 패키지의 `package.json`은 `"xeon": { "layer": "L1", "domain": "web" }`이고 F(`@xeon/contracts`), X, L0, 외부 패키지만 import한다. `cap-web`과 `core-*`는 import하지 않는다(DR-02, DR-09). 확장 매니페스트의 `layer: "plugin"`(`F.extensions.spec` `ExtensionLayerSchema`)은 매니페스트 값이고 패키지 순위와 별개다. [제안] `_routing/routes.yaml` `layout.plugins`에 `{ path: "xeon/plugins/web-*/**", docs: [L2.web.spec] }` 행을 더하도록 요청한다.
 - 플러그인은 배포판에 기본 포함하되 기본 꺼짐으로 둘지, 별도 설치로 둘지는 [미결]이다(§7 위험 표, `L2.web.spec` §10).
 
 ## 2. 패키지와 파일 배치

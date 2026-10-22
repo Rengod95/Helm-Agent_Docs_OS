@@ -25,7 +25,7 @@ Xeon 전체 구조를 처음 읽는 사람과 에이전트를 위한 진입 문�
 4. 전송은 세 가지다. CLI 기본은 in-process, 데스크톱은 자식 프로세스 stdio JSON-RPC, 공유 서비스는 `xeon service`다. 전송을 바꿔도 호스트 계약과 DB 스키마는 바뀌지 않는다 [결정: ADR-0006, ADR-0008].
 5. 코드는 층 F → X → L0 → L1 → L2 → L3 → L4 순서로 쌓인다. 패키지는 자기보다 순위가 낮은 층만 import한다 [결정: `_research/foundation-plan.md` §3].
 6. 확장은 `on`(fold `tap`/`first`/`chain`), `post`, `drive`(배타 임대), `scope` 네 연산으로 루프에 붙는다. Helm과 학습 그룹은 이 연산을 쓰는 L3 기본 그룹이다 [결정: ADR-0007].
-7. 세션 기록은 SQLite 파일 하나에 저장한다. 불변 이벤트와 조회용 투영, 확장별 접두사 테이블을 단계 경계마다 한 트랜잭션으로 커밋한다 [결정: ADR-0004]. 도구 효과는 호출마다 의도·실행 시작·결과를 따로 커밋한다 [결정(잠정): review.decisions-2 U-10].
+7. 세션 기록은 SQLite 파일 하나에 저장한다. 불변 이벤트와 조회용 투영, 확장별 접두사 테이블을 단계 경계마다 한 트랜잭션으로 커밋한다 [결정: ADR-0004]. 도구 효과는 호출마다 의도·실행 시작·결과를 따로 커밋한다 [결정: review.decisions-2 U-10].
 8. 스택은 Bun 1.4, TypeScript 7, Cordis 단일 DI다 [결정: ADR-0001, ADR-0002].
 
 ## 2. 용어
@@ -54,14 +54,14 @@ Xeon 전체 구조를 처음 읽는 사람과 에이전트를 위한 진입 문�
 | in-process | CLI 기본(`xeon chat`) | CLI 프로세스 자신 | 메모리 채널 | 필요 없음 | 1차 |
 | 자식 프로세스 stdio | 데스크톱(Tauri 2) | `bun build --compile` 사이드카 | stdin/stdout JSON-RPC | 필요 없음(부모-자식 파이프) | 데스크톱 M2 이후 |
 | 서비스(로컬) | `xeon service`(자동 기동, 유휴 종료), CLI·앱이 함께 접속 | 공유 서비스 프로세스 | 로컬 Unix 소켓 | 파일 권한 | 1차, OS 서비스 등록은 2차 |
-| 서비스(원격) | 다른 기기의 원격 클라이언트 | 공유 서비스 프로세스 | 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결 | SSH·사설망 인증과 소켓 파일 권한 | 1차(M3) [결정(잠정): review.decisions-2 U-11] |
-| 서비스(원격, 내장) | 터널 없이 접속하는 원격 클라이언트 | 공유 서비스 프로세스 | TLS + WebSocket | 무작위 토큰, `initialize` 전에 검사. 비루프백 무인증 기동 금지 | 2차 [결정(잠정): review.decisions-2 U-11] |
+| 서비스(원격) | 다른 기기의 원격 클라이언트 | 공유 서비스 프로세스 | 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결 | SSH·사설망 인증과 소켓 파일 권한 | 1차(M3) [결정: review.decisions-2 U-11] |
+| 서비스(원격, 내장) | 터널 없이 접속하는 원격 클라이언트 | 공유 서비스 프로세스 | TLS + WebSocket | 무작위 토큰, `initialize` 전에 검사. 비루프백 무인증 기동 금지 | 2차 [결정: review.decisions-2 U-11] |
 
 - 근거: `_research/process.md` §6.1(구조 1안), §6.2(단계 도입 경로), §6.4(서비스 모드 체크리스트). 서비스 전송의 인증 규칙은 ADR-0006 3.3절과 3.7절 5번이다. 결정은 [ADR-0006](../../decisions/ADR-0006-process-service-mode.md), [ADR-0008](../../decisions/ADR-0008-desktop-tauri.md)에 있다.
 - process.md는 서비스 명령을 `helm service`로 적었다. 제품 명령은 `xeon service`다.
-- process.md §6.2는 공유 서비스를 단계 2(선택 모드)로 두었다. [결정: `_research/foundation-plan.md` §1 2번] 예약·원격·알림을 범위에 넣는 결정에 따라 공유 서비스 모드는 1차로 올라갔고, OS 서비스 등록은 2차다. 원격 사용은 1차(M3)에 넣되 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식으로 하고, 단계 3의 내장 원격 전송(TLS + 토큰 WebSocket)은 2차로 둔다 [결정(잠정): review.decisions-2 U-11].
+- process.md §6.2는 공유 서비스를 단계 2(선택 모드)로 두었다. [결정: `_research/foundation-plan.md` §1 2번] 예약·원격·알림을 범위에 넣는 결정에 따라 공유 서비스 모드는 1차로 올라갔고, OS 서비스 등록은 2차다. 원격 사용은 1차(M3)에 넣되 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식으로 하고, 단계 3의 내장 원격 전송(TLS + 토큰 WebSocket)은 2차로 둔다 [결정: review.decisions-2 U-11].
 - 불변식 [결정: ADR-0006]: 호스트 계약과 DB 스키마는 전송이 바뀌어도 변하지 않는다. 전송 전환으로 바뀌는 것은 "어느 프로세스가 엔진을 소유하는가" 하나다(`_research/process.md` §6.2 마지막 줄).
-- 같은 세션에 쓰는 프로세스는 세션 id 키 OS 잠금으로 하나만 둔다. 잠금을 얻은 프로세스는 `sys_leases.epoch` 펜싱으로 커밋마다 소유를 다시 확인한다 [결정(잠정): review.decisions-2 U-09]. 잠금을 얻지 못한 프로세스는 위임, 관찰, 분기 중 하나로 동작한다(`_research/process.md` §6.3, 흐름은 `architecture.runtime-flow.design` 4.4절).
+- 같은 세션에 쓰는 프로세스는 세션 id 키 OS 잠금으로 하나만 둔다. 잠금을 얻은 프로세스는 `sys_leases.epoch` 펜싱으로 커밋마다 소유를 다시 확인한다 [결정: review.decisions-2 U-09]. 잠금을 얻지 못한 프로세스는 위임, 관찰, 분기 중 하나로 동작한다(`_research/process.md` §6.3, 흐름은 `architecture.runtime-flow.design` 4.4절).
 
 호스트 계약의 모양은 다음과 같다 [제안]. 이름과 메서드 목록은 `F.wire-settings.spec`이 확정한다.
 
@@ -149,11 +149,11 @@ flowchart TB
 
 - `apps/host`는 엔진 진입점이다. 모든 층의 패키지를 Cordis 플러그인으로 조립하고, 호스트 계약을 세 전송 중 하나로 노출한다(`_research/foundation-plan.md` §3).
 - `apps/desktop`은 `apps/host`를 import하지 않는다. `bun build --compile`로 만든 엔진 바이너리를 사이드카로 실행한다(ADR-0008).
-- `apps/cli`의 in-process 전송은 같은 층(L4)인 `apps/host`의 코드를 같은 프로세스에서 쓴다. 같은 층 예외 `DR-10/cli-host`로 허용한다 [결정(잠정): review.decisions-2 U-15].
-- `group-helm`·`group-learning`이 `group-kit`을 import하는 간선도 같은 층 예외 `DR-02/group-kit-*`로 허용한다 [결정(잠정): review.decisions-2 U-15]. 예외 목록은 `architecture.layers.spec` 3.2절과 `eng.dependency-rules.guide` 허용 목록에 있다.
+- `apps/cli`의 in-process 전송은 같은 층(L4)인 `apps/host`의 코드를 같은 프로세스에서 쓴다. 같은 층 예외 `DR-10/cli-host`로 허용한다 [결정: review.decisions-2 U-15].
+- `group-helm`·`group-learning`이 `group-kit`을 import하는 간선도 같은 층 예외 `DR-02/group-kit-*`로 허용한다 [결정: review.decisions-2 U-15]. 예외 목록은 `architecture.layers.spec` 3.2절과 `eng.dependency-rules.guide` 허용 목록에 있다.
 - [결정: 계획 v2 '층 사이 규칙' 2, DR-14] L3 그룹은 `cap-*`를 import하지 않는다. L2 능력은 F3 정의와 Cordis 서비스로만 쓴다(`architecture.layers.spec` 3.1절 2행).
-- `cap --> exthost` 간선은 L2의 플러그인 등록 경로다. 하위 층은 `@xeon/ext-host`의 서비스 등록·주입 API만 import한다(DR-14 예외) [결정(잠정): review.decisions-2 U-17].
-- 서비스 주입 점선의 F 서비스 인터페이스(`TaskService`, `LoopService`, `ModelService`, `ToolService`, `ContextService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService` 등)와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정(잠정): review.decisions-2 §3 D-04].
+- `cap --> exthost` 간선은 L2의 플러그인 등록 경로다. 하위 층은 `@xeon/ext-host`의 서비스 등록·주입 API만 import한다(DR-14 예외) [결정: review.decisions-2 U-17].
+- 서비스 주입 점선의 F 서비스 인터페이스(`TaskService`, `LoopService`, `ModelService`, `ToolService`, `ContextService`, `ExecutionEnv`, `SandboxService`, `ProcessService`, `OsService` 등)와 서비스 이름 상수는 F `@xeon/contracts/services` 서브패스에 둔다 [결정: review.decisions-2 §3 D-04].
 
 ### 4.2 핵심 결정 요약
 

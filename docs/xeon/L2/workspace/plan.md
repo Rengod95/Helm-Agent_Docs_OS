@@ -67,7 +67,6 @@ xeon/packages/cap-workspace/
       upstream/index.ts  upstream/exif.ts  upstream/node.ts  upstream/node-worker.ts  # 2차
     truncate/
       paging.ts           # read 이어 읽기 계산과 TruncationInfo 조립
-      upstream/truncate.ts   # L1.tools.spec이 절단 함수를 소유하지 않을 때만(spec §4.5)
   test/
     fixtures/  tapes/
     *.test.ts
@@ -122,7 +121,7 @@ xeon/packages/cap-workspace/
 
 | 대상 | 버전 | 라이선스 | 쓰는 방식 |
 |---|---|---|---|
-| `typebox` | 1.4.2(워크스페이스 catalog) | MIT | 정의 스키마(F). durable 원본은 1.3.27이다. 포크 본문의 `Type.*` 호출은 두 버전에서 같다고 [가정]하고 W1·W2 타입체크로 확인한다(F 미결 7) |
+| `typebox` | 1.3.27(워크스페이스 catalog, review.decisions-2 U-24) | MIT | 정의 스키마(F). durable 원본도 1.3.27이라 포크 본문의 `Type.*` 호출이 그대로 맞는다 |
 | `diff` | 8.0.4 정확 고정(durable `package.json`과 같은 값) | BSD-3-Clause [가정, 레지스트리 확인] | `edit-diff.ts`의 diff 생성(`generateDiffString`, `generateUnifiedPatch`) |
 | `@silvia-odwyer/photon` | 0.3.3 정확 고정(durable `package.json`과 같은 값) | Apache-2.0 [가정, 레지스트리 확인] | 2차 이미지 처리기. wasm 파일 `photon_rs_bg.wasm` |
 | `@vscode/ripgrep` | 1.18.0 정확 고정 | MIT | `grep`, `find`의 rg 바이너리. postinstall 다운로드 없음(플랫폼 패키지) (`_research/packages.md` §5) |
@@ -218,10 +217,10 @@ M3 완료: spec §9 수용 기준 1~10 전부. 퍼지 규칙 표와 테스트 �
 |---|---|---|
 | photon wasm이 `bun build --compile` 산출물에서 로드되지 않음 | 2차 이미지 처리기가 배포 바이너리에서 동작하지 않는다 | 처리기를 2차로 두고 M2는 처리기 없는 최소형으로 간다. 2차 착수 때 첫 작업으로 임베드 로드를 확인하고, 실패하면 처리기 없음 상태를 기본으로 둔다(spec §4.6 대체 경로) |
 | 워커 스레드가 Bun에서 durable 원본과 다르게 동작 | 이미지 처리가 메인 스레드를 막거나 실패한다 | 2차 착수 때 Bun `Worker`로 원본 테스트(`test/tools-images.test.ts` 포크)를 돌려 확인한다. 안 되면 메인 스레드 처리로 바꾼다 |
-| 절단 함수 위치 미결 | W3이 import 경로를 정하지 못해 M1이 늦어진다 | L1.tools.plan과 M1 시작 전에 정한다. 정해지지 않으면 `cap-workspace/src/truncate/upstream/`에 두고, L1이 나중에 소유하면 그 시점에 한 번 옮긴다(복사본 두 개를 동시에 두지 않는다) |
+| 절단 함수 사본이 남음 | 두 구현이 서로 다른 한도로 자른다 | 위치는 `platform-exec`로 정했다(review.decisions-2 D-08). M1에 남은 `cap-workspace/src/truncate` 사본은 지우고 `xeon.exec`의 `truncateHead`·`formatSize`를 부른다(`L0.exec.plan` EX-21). `truncate/paging.ts`는 이어 읽기 계산만 둔다 |
 | 퍼지 편집 오적용 | 정규화된 공간에서 엉뚱한 구간이 바뀐다 | 모호 일치(`edit_ambiguous`)를 퍼지 공간에서도 센다(원본 규칙 E14). 바뀌지 않은 줄 원문 보존(E10). 설정으로 퍼지를 끌 수 있다(E17). `FileChange.diff`가 결과에 남아 리뷰할 수 있다 |
 | 포크 원본이 실험 API라 upstream이 예고 없이 바뀜 | 업그레이드 때 diff가 크다 | 커밋 `cdaf6c2`로 고정하고 `UPSTREAM.json`·`PATCHES.md`·`XEON-PATCH` 표지로 바꾼 점을 추적한다(ADR-0003 §3.4). upstream 변경은 필요할 때만 수동으로 가져온다 |
 | 도구 타입 추출 규모가 추정(100~200줄)보다 큼 | W2가 길어진다 | W2를 W1과 병렬로 먼저 시작하고, 추출 대상이 도구 본문이 실제로 쓰는 타입뿐인지 타입체크로 좁힌다(ADR-0003 §4.2) |
 | ripgrep 플랫폼 패키지가 compile 산출물에 들어가지 않음 | 배포판에서 `grep`, `find`가 `unavailable` | 사이드카 빌드에 rg 바이너리를 같이 넣는 방법을 `L4.desktop.plan`에 요청한다. 시스템 rg와 `l2.workspace.grep.rgPath`로 우회할 수 있다 |
-| `typebox` 1.3.27(원본)과 1.4.2(catalog) 차이 | 포크 본문의 스키마가 타입 오류를 낸다 | 포크 본문의 스키마는 F 정의로 대체되므로 남는 TypeBox 사용이 적다. W2 타입체크에서 확인한다 |
+| `typebox` 판 차이 | 해소했다. 원본과 catalog가 같은 1.3.27이다(review.decisions-2 U-24) | W2 타입체크로 확인한다 |
 | 경로 검사와 샌드박스 정책이 서로 다른 root를 씀 | 파일 도구와 bash의 허용 범위가 달라 사용자가 혼란스럽다 | 허용 root를 L1.tools 한 곳에서 받고 L0.sandbox 쓰기 경로와 같은 값을 쓰도록 L1.tools.plan에 요청한다 |

@@ -14,7 +14,7 @@ binds: [xeon/packages/platform-process/**]
 
 ## 1. 목표와 마일스톤 배치
 
-[결정] 공유 서비스 모드 `xeon service`는 제품 1차 범위다(`_research/foundation-plan.md §1` 결정 2, adr.0006 §1). 계획 v2 표가 '2차'로 적은 것은 이 결정으로 올라갔다. 구현은 M2 이후다(`L0.readme` §2.2). OS 서비스 등록은 2차다(review.decisions-2 S-01). 원격 사용은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이다. 내장 TLS + 토큰 WebSocket은 2차다 [결정(잠정): review.decisions-2 U-11].
+[결정] 공유 서비스 모드 `xeon service`는 제품 1차 범위다(`_research/foundation-plan.md §1` 결정 2, adr.0006 §1). 계획 v2 표가 '2차'로 적은 것은 이 결정으로 올라갔다. 구현은 M2 이후다(`L0.readme` §2.2). OS 서비스 등록은 2차다(review.decisions-2 S-01). 원격 사용은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이다. 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
 
 | 마일스톤 | 범위 | 작업 |
 |---|---|---|
@@ -126,7 +126,7 @@ xeon/packages/platform-process/
 | `Bun.listen`, `Bun.connect`(unix) | Bun 1.4.3 내장 | 그대로 쓴다 | 선언 `bun.d.ts:7401-7406`. 파일 소켓 실측(`_research/notes/L0-2.md §2.4`). 추상 소켓은 쓰지 않는다 |
 | `node:net` | Bun 1.4.3 node 호환 | `Bun.listen`이 맞지 않을 때의 대안 | - |
 | `node:child_process` | Bun 1.4.3 node 호환 | 서비스 detached 기동(`spawn` + `unref`), 테스트 자식 프로세스 | DR-07 소유 패키지 |
-| `typebox` | 1.4.2(catalog) | `ServiceRegistrationSchema`, 설정 스키마 | - |
+| `typebox` | 1.3.27(catalog) | `ServiceRegistrationSchema`, 설정 스키마 | - |
 | 외부 npm 패키지 | - | 없음 | - |
 
 참고 구현(코드는 가져오지 않는다, 읽기 자료만):

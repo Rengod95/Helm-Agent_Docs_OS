@@ -35,10 +35,10 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 
 | ID | 규칙 | 짝 안티패턴 |
 |---|---|---|
-| [BP-01](#bp-01) | 계약 먼저: F 타입·스키마부터 정한다 | AP-C-01, AP-A-02 |
+| [BP-01](#bp-01) | 계약 먼저: F 타입·스키마부터 정한다 | AP-C-01, AP-C-10, AP-A-02 |
 | [BP-02](#bp-02) | 작은 순수 함수 + 얇은 어댑터, 부수효과는 L0 인터페이스 뒤 | AP-C-04, AP-C-06, AP-S-05, AP-S-10 |
 | [BP-03](#bp-03) | 확장 지점은 선택 표로 고른다 | AP-A-03, AP-A-04, AP-A-07, AP-A-08, AP-A-09 |
-| [BP-04](#bp-04) | 예상 가능한 실패는 `Result`, 오류는 `kind` 판별 유니온 | AP-C-02, AP-C-03, AP-S-06 |
+| [BP-04](#bp-04) | 예상 가능한 실패는 `Result`, 오류는 `kind` 판별 유니온 | AP-C-02, AP-C-03, AP-C-10, AP-C-11, AP-S-06 |
 | [BP-05](#bp-05) | 의존은 Cordis 서비스로 주입, 시간·ID·난수·Logger도 주입 | AP-A-06, AP-C-04, AP-C-05 |
 | [BP-06](#bp-06) | 설정은 F `wire-settings` 스키마 키로 읽고 기본값은 스키마에 둔다 | AP-A-05 |
 | [BP-07](#bp-07) | 비밀은 참조로 쓰고 값을 출력·로그에 남기지 않는다 | AP-C-08 |
@@ -51,7 +51,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 <a id="bp-01"></a>
 ### BP-01 계약 먼저: F 타입·스키마부터 정한다
 
-- 규칙: 새 기능은 `xeon/packages/contracts`(F)에 TypeBox 스키마와 타입을 먼저 정한다. 구현 패키지는 그 타입을 import해서 쓴다. 경계에서 들어오는 값(도구 인자, 이벤트 `payload`, 설정)은 그 스키마로 검증한다. 그룹의 비공개 레코드(`grp.<그룹>.*`) 스키마는 F에 두지 않고 그 그룹이 소유한다([결정(잠정): review.decisions-2 D-10]).
+- 규칙: 새 기능은 `xeon/packages/contracts`(F)에 TypeBox 스키마와 타입을 먼저 정한다. 구현 패키지는 그 타입을 import해서 쓴다. 경계에서 들어오는 값(도구 인자, 이벤트 `payload`, 설정)은 그 스키마로 검증한다. 그룹의 비공개 레코드(`grp.<그룹>.*`) 스키마는 F에 두지 않고 그 그룹이 소유한다([결정: review.decisions-2 D-10]).
 - 이유:
   - 같은 층 협력은 F 정의를 통해서만 한다. 그룹 사이 정보는 L2 능력의 레코드와 서비스로 주고받는다(`_research/foundation-plan.md §3`, `architecture.layers.spec §3.1`). F에 타입이 없으면 같은 층 패키지가 서로를 import하게 된다.
   - 확장 지점 선언(이름, fold, 페이로드 타입)도 F4에 둔다(ADR-0007 §3.3). L1과 X가 같은 선언을 공유한다.
@@ -135,7 +135,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
   | 변형 | `on(point)`, fold `chain` | 앞 핸들러 결과를 받아 교체 값을 돌려준다. 오류는 그 핸들러만 건너뛴다 | ADR-0007 §3.2 |
   | 입력 주입 | `post(item, { when, requestId })` | `when`은 `steer`(다음 도구 라운드 뒤), `followUp`(정착 뒤), `next`(경계 뒤 정확히 한 요청). `requestId`는 필수이고 같은 값은 한 번만 들어간다 | ADR-0007 §3.1 |
   | 루프 구동 | `drive(fn, limits)` | 배타 임대, 그룹당 한 슬롯. `fn`은 마지막 커밋 상태로 다시 호출되어도 같은 진행을 낸다. 효과는 `loop.turn`, `loop.spawn`, `post`로만 낸다. 상한은 `{turns, tokens, spawns}` | ADR-0007 §3.1, §3.6, `_research/ext-points.md §5` 안 1 |
-  | 묶음과 토글 | `scope(id, { state })` | 위 등록을 한 단위로 묶는다. `enable`·`disable`은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용된다([결정(잠정): review.decisions-2 U-01]). 정리는 Cordis dispose | ADR-0007 §3.6 |
+  | 묶음과 토글 | `scope(id, { state })` | 위 등록을 한 단위로 묶는다. `enable`·`disable`은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용된다([결정: review.decisions-2 U-01]). 정리는 Cordis dispose | ADR-0007 §3.6 |
 
 - 그룹별 기본:
   - [결정] Helm은 `drive`를 쓸 수 있다. 학습 그룹은 `drive`를 쓰지 않고 `on`과 L1 백그라운드 위임으로 동작해 Helm과 함께 켤 수 있다(`_research/decisions-log.md` 계획 v2, ADR-0007 §3.6).
@@ -184,10 +184,11 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 ### BP-04 예상 가능한 실패는 `Result`, 오류는 `kind` 판별 유니온
 
 - 규칙:
-  - 호출자가 정상 흐름에서 처리해야 하는 실패(찾지 못함, 검증 실패, 중복 제출, 잠금 경합, 권한 거부)는 `Result<T, E>`로 돌려준다.
+  - 호출자가 정상 흐름에서 처리해야 하는 실패(찾지 못함, 검증 실패, 중복 제출, 잠금 경합(busy), 권한 거부, I/O 오류, 디스크 가득 참, 읽기 전용, 취소, 시간 초과, 소유권 상실)는 `Result<T, E>`로 돌려준다. 목록과 판정 질문은 `eng.typescript.guide` TY-24가 정한다.
   - `E`는 판별 필드 `kind`를 가진 오류 유니온이다(`eng.typescript.guide` TY-11, TY-12). 사용자에게 보일 수 있는 오류도 같다. `code`, `messageKey` 같은 별도 필드를 두지 않는다.
   - 표시 문구와 메시지 키는 L4가 `kind`와 필드로 만든다. 메시지 문장을 코드에 하드코딩하지 않는다. 유도 규칙은 `eng.typescript.guide` 6절 [미결]이다.
-  - 예외는 버그와 복구할 수 없는 상태에만 쓴다. 외부 라이브러리가 던지는 예외는 경계 어댑터에서 좁게 잡아 `Result`로 바꾼다.
+  - `throw`는 버그(`Bug`, `assertNever`)에만 쓴다. 복구할 수 없는 상태도 `kind`가 있는 오류 값으로 L4까지 돌려주고, L4가 세션 정지나 종료 코드를 고른다. 예상 가능한 실패를 `Bug`로 던지지 않는다(TY-24, [AP-C-11](../anti-patterns/guide.md#ap-c-11)).
+  - 외부 라이브러리가 던지는 예외는 경계 어댑터에서 실패할 수 있는 호출 하나만 감싸 잡고, 받은 값을 `cause`로 담아 `Result`로 바꾼다. `catch`는 오류를 조용히 삼키지 않는다(TY-25).
   - 저장소 오류는 그 세션만 멈추고 다른 세션과 서비스는 계속 돈다.
 - 이유:
   - 던진 예외는 시그니처에 보이지 않아 처리를 빠뜨리기 쉽고, `first` fold에서는 거부로 환산되어 의도와 다른 결과를 낸다(ADR-0007 §3.2).
@@ -222,7 +223,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
   }
   ```
 
-- 짝: [AP-C-02](../anti-patterns/guide.md#ap-c-02), [AP-C-03](../anti-patterns/guide.md#ap-c-03), [AP-S-06](../anti-patterns/guide.md#ap-s-06).
+- 짝: [AP-C-02](../anti-patterns/guide.md#ap-c-02), [AP-C-03](../anti-patterns/guide.md#ap-c-03), [AP-C-11](../anti-patterns/guide.md#ap-c-11), [AP-S-06](../anti-patterns/guide.md#ap-s-06).
 
 <a id="bp-05"></a>
 ### BP-05 의존은 Cordis 서비스로 주입, 시간·ID·난수·Logger도 주입
@@ -234,7 +235,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 - 이유:
   - [결정] DI는 Cordis 하나다(ADR-0002 §3). 현재 lint 설정도 `cordis` import를 `packages/ext-host` 밖에서 막는다(`xeon/.oxlintrc.json`).
   - 주입된 시계와 ID는 재생과 테스트를 결정적으로 만든다. 구동 프로그램에서 `Date.now()`·`Math.random()`을 금지해 결정적 재생으로 재개하는 선례가 있다(`_research/ref-synthesis.md` "확장 지점" 4번).
-  - `Clock`, `Scheduler`, `RandomSource`, `IdFactory`의 이름과 위치는 `eng.typescript.guide` 1.2절과 `eng.domain-types.guide` DT-06이 정했다. 운영 구현은 `Clock`·`Scheduler`·`RandomSource`가 L0 `platform-os`다. `IdFactory` 인터페이스는 `F.conversation.spec` §3.2에 있고, 구현(`createIdFactory`)은 `platform-os`다. 테스트 구현 `manualClock`, `seededRandom`, `fixedIdFactory`는 각 패키지 `test/` 안에 둔다(`eng.testing.guide` TS-03, [결정(잠정): review.decisions-2 U-03]).
+  - `Clock`, `Scheduler`, `RandomSource`, `IdFactory`의 이름과 위치는 `eng.typescript.guide` 1.2절과 `eng.domain-types.guide` DT-06이 정했다. 운영 구현은 `Clock`·`Scheduler`·`RandomSource`가 L0 `platform-os`다. `IdFactory` 인터페이스는 `F.conversation.spec` §3.2에 있고, 구현(`createIdFactory`)은 `platform-os`다. 테스트 구현 `manualClock`, `seededRandom`, `fixedIdFactory`는 각 패키지 `test/` 안에 둔다(`eng.testing.guide` TS-03, [결정: review.decisions-2 U-03]).
   - `Logger` 인터페이스는 F 루트 base에 둔다(`F.readme` §3). 메서드 모양은 `L0.os.spec`이 확정한다.
 - 좋은 예:
 
@@ -531,7 +532,7 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 | BP-01 | `just typecheck`(`isolatedDeclarations`), `check-layers.ts` | 새 경계 값의 스키마가 `contracts`에 있는가? |
 | BP-02 | 단위 테스트 커버리지(`bunfig.toml` `coverageThreshold`) | 판단 로직이 I/O 없이 테스트되는가? 소비자 코드에 OS 분기가 있는가? |
 | BP-03 | 재생 테스트, ext-host 런타임 검사(`requestId` 필수) | 선택 표의 위 행으로 해결되는가? `drive`가 꼭 필요한가? |
-| BP-04 | oxlint `typescript/only-throw-error`, `no-throw-literal`, 스캔 `xeon/error-discriminant`(TY-12) | 이 실패는 호출자가 처리해야 하는가? 오류 유니온의 판별자가 `kind`이고 표시 문구가 코드에 없는가? |
+| BP-04 | oxlint `typescript/only-throw-error`, `no-throw-literal`, `no-empty`, `preserve-caught-error`, 스캔 `xeon/error-discriminant`(TY-12), `xeon/bug-for-expected`(TY-24), `xeon/catch-swallow`(TY-25) | 이 실패는 호출자가 처리해야 하는가? 이 `Bug`는 코드와 설정이 올바라도 생길 수 있는가? 오류 유니온의 판별자가 `kind`이고 표시 문구가 코드에 없는가? |
 | BP-05 | oxlint `no-restricted-imports`(`cordis`), 금지 호출 검사 [제안] | 시간·ID·난수를 주입받는가? |
 | BP-06 | 설정 스키마 테스트 | 설정 키가 `wire-settings` 스키마에 있는가? 기본값이 한 곳에 있는가? |
 | BP-07 | gitleaks, Logger 마스킹 테스트 | 로그와 오류에 lease 값이 들어갈 수 있는가? |
@@ -554,6 +555,6 @@ Xeon 코드를 쓸 때 고민 없이 먼저 고르는 방식을 모은 구속 �
 ## 5. 미결 사항
 
 - [미결] 확장 지점 이름 목록. 예제의 `tool_call`, `tool_result`, `turn_end`, `before_agent_start`, `tool_execution_end`는 [가정]이며 `F.extensions.spec`이 확정한다. fold에 `collect`를 더할지도 같은 문서에서 정한다(`_research/notes/F-1.md §7`).
-- `Logger` 인터페이스는 F 루트 base(`F.readme` §3 루트 진입점)에 있고 운영 구현은 `platform-os`다. BP-05, BP-12 예제의 메서드 모양은 `L0.os.spec`이 확정한다. `Clock`, `Scheduler`, `IdFactory`, `RandomSource`는 `eng.typescript.guide` 1.2절과 `eng.domain-types.guide` DT-06이 정했다([결정(잠정): review.decisions-2 U-03]).
+- `Logger` 인터페이스는 F 루트 base(`F.readme` §3 루트 진입점)에 있고 운영 구현은 `platform-os`다. BP-05, BP-12 예제의 메서드 모양은 `L0.os.spec`이 확정한다. `Clock`, `Scheduler`, `IdFactory`, `RandomSource`는 `eng.typescript.guide` 1.2절과 `eng.domain-types.guide` DT-06이 정했다([결정: review.decisions-2 U-03]).
 - [미결] BP-12를 L2·L3까지 강제할지(현재 [제안]).
 - [미결] BP-11의 "한 PR"이 커밋 단위 로컬 작업(push 전)에도 적용되는지.

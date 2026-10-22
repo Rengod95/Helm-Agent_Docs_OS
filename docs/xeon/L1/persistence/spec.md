@@ -47,7 +47,7 @@ binds: [xeon/packages/core-persistence/**]
 - [결정] 세션 저장은 C안이다. SQLite 이벤트 소싱과 투영, DB 하나, 확장 접두사 테이블이다(`_research/decisions-log.md` 2026-10-21 결정 2차, adr.0004 §3.1).
 - [결정] 단계 경계 커밋은 `synchronous=FULL`이다(adr.0004 §3.2 5번, `_research/foundation-plan.md` §2 DB 행).
 - [결정] 쓰기 소유자는 세션마다 하나이고 세션 id 키 OS 잠금으로 판정한다. 잠금을 얻지 못하면 위임·관찰·분기 중 하나로 동작한다(adr.0006 §3.6 1~3번).
-- [결정(잠정): review.decisions-2 U-09] 커밋 트랜잭션 안의 소유 확인(펜싱)은 L0.store 임대 행 `sys_leases`의 epoch로 한다(`L0.store.spec` §3.1 `LeaseService.holds`, `eng.transactions.design` TX-10). OS 잠금은 생존 판정과 빠른 인수에 쓰고, 트랜잭션 안에서 확인할 수 없으므로 펜싱에는 쓰지 않는다. 별도 소유 테이블은 두지 않고 `sys_leases` 행이 소유 표시를 겸한다. adr.0004 §3.4와 adr.0006을 이에 맞게 개정한다.
+- [결정: review.decisions-2 U-09] 커밋 트랜잭션 안의 소유 확인(펜싱)은 L0.store 임대 행 `sys_leases`의 epoch로 한다(`L0.store.spec` §3.1 `LeaseService.holds`, `eng.transactions.design` TX-10). OS 잠금은 생존 판정과 빠른 인수에 쓰고, 트랜잭션 안에서 확인할 수 없으므로 펜싱에는 쓰지 않는다. 별도 소유 테이블은 두지 않고 `sys_leases` 행이 소유 표시를 겸한다. adr.0004 §3.4와 adr.0006을 이에 맞게 개정한다.
 - [결정] 결과 없는 의도는 저장된 정책과 현재 선언이 모두 `safe`일 때만 다시 실행한다(adr.0004 §3.2 3번, adr.0006 §3.6 6번).
 - [결정] 코드 포크 없이 자체 구현한다. pi durable은 설계 근거로만 인용한다(`_research/foundation-plan.md` §1 결정 1, adr.0003).
 - 줄 범위 근거(durable `~/projects/_ref/pi-src/packages/durable/docs/spec.md`, `_research/durable-and-search-facts.md` A-6): 결과 불명 1917-1927·2082-2108, requestId 2288-2301, 재생 3136-3170(3162-3163), 승인 대기 1898-1915, 소유 트리 1972-2200, 훅 표 2636-2660.
@@ -102,7 +102,7 @@ binds: [xeon/packages/core-persistence/**]
 | `decideRecovery`, `OpenIntent`, `RecoveryDecision` | `decideEffectRecovery`, `EffectRecovery` | 재실행 상한은 이 문서 §3.7 |
 | `outcome_uncertain` 합성 문장(eng §5.3) | `OUTCOME_UNKNOWN_TEXT`, `NOT_STARTED_TEXT` | F 문장을 쓴다 |
 | `StepCheckpointDraft { state }` | `StepCheckpoint`(이벤트 `checkpoint.step`) | 체크포인트는 이벤트이고 `step_checkpoints`는 그 투영이다 |
-| `LeaseToken`, `lease_lost`, `sys_leases` | `LeaseToken`(`L0.store.spec` §3.1, resource `session:<threadId>`), `ownership_lost` | 소유 판정은 OS 잠금(생존) + `sys_leases.epoch` 펜싱(TX-10) [결정(잠정): review.decisions-2 U-09] |
+| `LeaseToken`, `lease_lost`, `sys_leases` | `LeaseToken`(`L0.store.spec` §3.1, resource `session:<threadId>`), `ownership_lost` | 소유 판정은 OS 잠금(생존) + `sys_leases.epoch` 펜싱(TX-10) [결정: review.decisions-2 U-09] |
 | `p_sessions`, `p_messages`, `p_tool_calls` | `p_threads`, `p_items`, `p_effects` | §3.10 |
 
 ## 3. 인터페이스
@@ -368,7 +368,7 @@ export interface SessionService {
 }
 ```
 
-- [결정(잠정): review.decisions-2 D-04] `ext`를 하위 객체로 두는 이유: X `RecordCommitPort.commit(ExtCommitRequest): Promise<ExtCommitResult>`와 `SessionService.commit(CommitRequest)`의 이름이 겹친다. 같은 서비스 객체가 두 모양을 함께 만족할 수 없다. X는 `xeon.session`에서 `ext`를 `PortKey.member`로 꺼내 쓴다(`F.extensions.spec` §3.2.1 `RecordCommitPortKey`). `F.records.spec` §3.9도 `SessionService`의 `ext` 속성이 `RecordCommitPort`라고 정했다. `RecordCommitPort` 타입은 F `F.records.spec` §3.9 `session-service.ts`에 있고 `F.extensions.spec` §3.2.1이 다시 export한다.
+- [결정: review.decisions-2 D-04] `ext`를 하위 객체로 두는 이유: X `RecordCommitPort.commit(ExtCommitRequest): Promise<ExtCommitResult>`와 `SessionService.commit(CommitRequest)`의 이름이 겹친다. 같은 서비스 객체가 두 모양을 함께 만족할 수 없다. X는 `xeon.session`에서 `ext`를 `PortKey.member`로 꺼내 쓴다(`F.extensions.spec` §3.2.1 `RecordCommitPortKey`). `F.records.spec` §3.9도 `SessionService`의 `ext` 속성이 `RecordCommitPort`라고 정했다. `RecordCommitPort` 타입은 F `F.records.spec` §3.9 `session-service.ts`에 있고 `F.extensions.spec` §3.2.1이 다시 export한다.
 - `ext.commit`은 `ExtCommitRequest.drafts`를 `ext.<name>` 또는 `xh` 생산자로 낙인한 뒤 `commit`을 부른다. `expectStateRev`는 `build` 안에서 `view.scopeStateRev`와 비교해 다르면 `rejected("state_conflict")`이고 X 쪽 결과는 `{ status: "rejected", code: "state_conflict" }`다. `ownership_lost`는 `code: "lease_lost"`로 바꾼다(X 이름 유지).
 - `ext.loadThread`는 X 소유 투영 `x_<name의 '-'를 '_'로>_state`를 읽지 않는다. 켜진 scope, 열린 임대, 임대 차수, 상태 판을 모두 활성 가지(현재 leaf에서 `parentId`를 따라 올라간 사슬) 위 이벤트로 계산한다(`X.primitives.spec` §4.6.1 활성 가지 규칙). 상태 판은 `x|grp.<name>.state.committed` 이벤트를 `query.latestEvent(…, { onActiveBranch: true })`로 찾는다 [제안]. 이벤트 순서로 갱신되는 `p_scopes`는 버려진 가지의 값을 담을 수 있으므로 leaf 이동 뒤에는 쓰지 않는다. X 소유 테이블을 core-persistence가 읽지 않기 위해서다(CM-02).
 - `ext.commit` 결과 변환표 [제안]. `SessionService.commit` 결과와 오류를 X `ExtCommitResult`로 바꾼다(`X.primitives.spec` §4.6.1 "저장소 결과 변환"):
@@ -384,8 +384,8 @@ export interface SessionService {
 | `disk_full`, `read_only` | `{ status: "rejected", code: "storage" }` |
 
 - `ext.commit`의 지문: `ExtCommitRequest.fingerprintSource`가 있으면 그 값으로 지문을 만든다. 상태 커밋은 키의 신원 부분만 담으므로 정당한 재실행이 `key_reused`가 되지 않는다(`X.primitives.spec` §4.6.1 지문 규칙).
-- `ext.commit`의 공개 범위 [결정(잠정): review.decisions-2 T-21]: `ExtCommitRequest.visibility`가 `"private"`이면(X `ScopeApi.recordPrivate`, `X.primitives.spec` §4.6.5) 그 커밋의 이벤트 행 `events.private_owner`에 행의 소유 확장 이름을 넣는다. 소유 확장은 kind의 둘째 마디(`x.<name>.*`, `grp.<name>.*`의 `<name>`)이고, 낙인한 생산자 `ext.<name>`의 `<name>`과 같아야 한다. 다르면(다른 확장 접두 kind를 비공개로 커밋하면) `rejected(invalid)`다(`F.records.spec` §3.9 비공개 규칙 1). 생략하거나 `"public"`이면 NULL이다. 저장 위치는 `events` 행의 `private_owner` 열 하나이고, envelope 필드와 투영 열은 따로 두지 않는다 [제안]. `visibility`는 지문에 넣는다. 같은 `requestId`로 공개 범위만 바꿔 다시 커밋하면 `key_reused`다 [제안].
-- `ext.queryRecords` 조회 [결정(잠정): review.decisions-2 T-21]: 현재 thread의 활성 가지 위 그룹 레코드 중 `query.kind`(정확히 일치 또는 `.*` 접두 일치)와 `subject`에 맞는 행을 `seq` 순으로 돌려준다. `private_owner`가 NULL이 아닌 행은 `private_owner`가 조회한 확장(`reader`)과 같을 때만 돌려준다. `readsRecordKinds`가 `grp.<id>.*`처럼 넓어도 같다. X가 넘기는 `kinds` 허용 목록 검사(`read_kind_undeclared`)는 X 몫이고, 이 필터는 그 뒤 저장소에서 한 번 더 적용한다. 조회한 확장은 `RecordCommitPort.queryRecords(threadId, query, reader)`의 셋째 인자다(`F.records.spec` §3.9 비공개 규칙 3, FR-P11 반영). 시그니처의 `reader`는 `string`이고 값은 `ExtensionName`이다. 필터는 SQL 조건 `private_owner IS NULL OR private_owner = :reader`로 적용한다 [제안].
+- `ext.commit`의 공개 범위 [결정: review.decisions-2 T-21]: `ExtCommitRequest.visibility`가 `"private"`이면(X `ScopeApi.recordPrivate`, `X.primitives.spec` §4.6.5) 그 커밋의 이벤트 행 `events.private_owner`에 행의 소유 확장 이름을 넣는다. 소유 확장은 kind의 둘째 마디(`x.<name>.*`, `grp.<name>.*`의 `<name>`)이고, 낙인한 생산자 `ext.<name>`의 `<name>`과 같아야 한다. 다르면(다른 확장 접두 kind를 비공개로 커밋하면) `rejected(invalid)`다(`F.records.spec` §3.9 비공개 규칙 1). 생략하거나 `"public"`이면 NULL이다. 저장 위치는 `events` 행의 `private_owner` 열 하나이고, envelope 필드와 투영 열은 따로 두지 않는다 [제안]. `visibility`는 지문에 넣는다. 같은 `requestId`로 공개 범위만 바꿔 다시 커밋하면 `key_reused`다 [제안].
+- `ext.queryRecords` 조회 [결정: review.decisions-2 T-21]: 현재 thread의 활성 가지 위 그룹 레코드 중 `query.kind`(정확히 일치 또는 `.*` 접두 일치)와 `subject`에 맞는 행을 `seq` 순으로 돌려준다. `private_owner`가 NULL이 아닌 행은 `private_owner`가 조회한 확장(`reader`)과 같을 때만 돌려준다. `readsRecordKinds`가 `grp.<id>.*`처럼 넓어도 같다. X가 넘기는 `kinds` 허용 목록 검사(`read_kind_undeclared`)는 X 몫이고, 이 필터는 그 뒤 저장소에서 한 번 더 적용한다. 조회한 확장은 `RecordCommitPort.queryRecords(threadId, query, reader)`의 셋째 인자다(`F.records.spec` §3.9 비공개 규칙 3, FR-P11 반영). 시그니처의 `reader`는 `string`이고 값은 `ExtensionName`이다. 필터는 SQL 조건 `private_owner IS NULL OR private_owner = :reader`로 적용한다 [제안].
 - 확장 투영기는 비공개 행도 그대로 받는다. 투영기의 `kinds`에는 자기 접두만 둘 수 있으므로(`X.operations.spec` §4.4.4 `kind_not_owned`) 다른 확장의 비공개 행은 전달되지 않는다. 투영 계층에서 따로 거르지 않는다.
 
 ### 3.4 투영기
@@ -728,7 +728,7 @@ export interface ThreadLifecycle {
 | `checkpoint.step` | 예 | `commit`이 `CommitPlan.checkpoint`로 만든다 | 그 커밋의 키 |
 | `settings.changed` | 예 | `sessionSettings.set/reset` | `setting:<threadId>:<key>:<requestKey>` |
 | `thread.resumed` | 예 | `beginResume` | `resume:<turnId>:<attempt>` |
-| `effect.result`(합성), toolResult `item.recorded`(합성) | 예 | `recover` | `tool:<toolCallId>:result` |
+| `effect.result`(합성), toolResult `item.recorded`(합성) | 예 | `recover` | `tool:<commitKeyPart(toolCallId)>:result`(review.decisions-2 U-13) |
 
 - `checkpoint.step`의 producer는 `core.persistence`다. 체크포인트 내용(`StepCheckpointInput`)은 루프가 만들고, envelope는 저장소가 만든다.
 - 합성 결과 두 kind는 `core.tools`(`effect.*`)와 `core.loop`(`item.*`) 소유다. `recover`만 쓸 수 있는 kind 단위 예외로 `TYPE_PREFIX_OWNERS`에 둔다(`eng.context-map.design` §5.1의 `tool.args_delta` 예외와 같은 방식) [제안]. 조건: `effect.result.synthesized === true`이고 item kind가 `toolResult`, `isError: true`일 때만 허용한다.
@@ -917,7 +917,7 @@ export interface RewindPlan {
 - [제안] 컴팩션은 별도 커밋 지점 C7이다. 임계·수동 컴팩션(단계 사이)과 오버플로우 복구 컴팩션(단계 중간, 같은 단계 재요청 전, `L1.context.spec` §4.7)이 같은 지점을 쓴다. C5 `build` 안에 넣지 않는 이유는 오버플로우 복구가 단계 끝 전에 일어나 C5에 합칠 수 없고, 두 경로를 한 방식으로 두어야 크래시 뒤 상태가 하나로 정해지기 때문이다(§4.14). 키의 `stepId`는 같은 커밋의 `thread.compacted.details.xeon.stepId`이고 `L1.context.spec`의 `second_overflow` 판정과 같은 값이다. `stepId`가 없는 수동 컴팩션(유휴 thread)은 그 자리에 직전 leaf 이벤트 id를 쓴다. C7은 체크포인트를 쓰지 않는다. 이름을 K1로 두지 않은 이유는 K1~K6이 §4.14의 종료 지점 이름이기 때문이다.
 - [제안] 체크포인트는 단계 경계(C5)와 승인 대기(A1)에만 쓴다. `F.records.spec` §3.6은 "단계 경계마다 `step.completed`와 같은 커밋"으로 정했고, A1은 단계 중간이므로 `step.completed` 없이 체크포인트를 쓴다. 그래서 A1은 §4.1 8단계의 `store.checkpoint_without_step` 검사에서 예외다(`next: "tools"`이고 `pendingToolCalls`에 `waiting: "approval"`이 있을 때). 이 예외를 F에 적도록 요청한다(FR-P4).
 - C2에 체크포인트를 두지 않는 이유: turn 시작 직후 크래시는 마지막 체크포인트(이전 turn의 C5, 없으면 없음)와 그 뒤 이벤트로 복원된다. `next: "request"`는 리듀서가 `turn.started` 뒤 이벤트에서 얻는다.
-- 도구별 커밋(E1 의도, E2 실행 시작, E3 결과)은 ADR-0004 §3.2 3번의 보충이다. 단계당 커밋 수는 `3 + 3n`이다 [결정(잠정): review.decisions-2 U-10].
+- 도구별 커밋(E1 의도, E2 실행 시작, E3 결과)은 ADR-0004 §3.2 3번의 보충이다. 단계당 커밋 수는 `3 + 3n`이다 [결정: review.decisions-2 U-10].
 - 모든 커밋은 FULL이다(§4.3). 그래서 커밋 수가 그대로 fsync 수다. 한 단계의 fsync 수는 `1(S1) + 1(C3) + 3 × 도구 수 + 1(C5)` = `3 + 3 × 도구 수`다. turn마다 C2와 C6이 하나씩 더해지고, C2b는 `before_agent_start`가 메시지를 더할 때만, C1은 유휴 thread의 입력일 때 하나 더 있다. 취소 의도(X1), 승인 요청(A1), 컴팩션(C7)은 일어날 때만 더한다. 측정 항목은 `L1.persistence.plan` §6이다.
 
 지점 이름 대응표 [제안]. 이 문서의 C·S·E·A·X 이름을 L1 커밋 지점의 공통 이름으로 쓰고, 다른 문서의 이름은 아래처럼 읽는다. `eng.transactions.design` §4.1의 C4(도구 정착)는 도구별 E1~E3로 나눴으므로 쓰지 않는다.
@@ -952,7 +952,7 @@ export interface RewindPlan {
 - 같은 키·다른 지문은 `key_reused`다. 아무 행도 쓰지 않고 운영 로그에 남긴다.
 - `rejected`도 저장한다. 같은 키로 다시 오면 같은 거부를 `replayed: true`로 돌려준다.
 - 예상 실패(`busy`, `disk_full`, `ownership_lost`, `read_only`)와 Bug는 `requests`에 남지 않는다. 같은 키로 처음부터 다시 처리된다(TX-05).
-- 커밋 키 형식: `COMMIT_KEY_PATTERN`(1~200자)만 검사한다. 커밋 키 정본은 `eng.transactions.design` §4.7의 `COMMIT_KEY_PATTERN`이고, scope id의 `/`는 키에 넣을 때 `:`로 바꾼다 [결정(잠정): review.decisions-2 U-13]. 옛 `REQUEST_ID_PATTERN`(`<종류>:<부분>`)은 쓰지 않는다.
+- 커밋 키 형식: `COMMIT_KEY_PATTERN`(1~200자)만 검사한다. 커밋 키 정본은 `eng.transactions.design` §4.7의 `COMMIT_KEY_PATTERN`이고, scope id의 `/`는 키에 넣을 때 `:`로 바꾼다 [결정: review.decisions-2 U-13]. 옛 `REQUEST_ID_PATTERN`(`<종류>:<부분>`)은 쓰지 않는다.
 - payload의 `requestId`(사용자 입력, `post`, `turn.start`)는 F 규칙(브랜드 없는 1~64자)이다. 커밋 키는 그 값을 감싸 만든다(예: `in:user:<requestId>`). 이 감싸기 규칙은 각 생산 spec이 정한다.
 - 결과는 thread가 지워질 때까지 보관한다.
 
@@ -966,7 +966,7 @@ export interface RewindPlan {
 
 #### 4.5.2 확장 투영기와 같은 커밋 참여
 
-- [결정] 확장은 자기 접두 테이블만 소유한다(`_research/decisions-log.md` 2026-10-21 결정 2차 "확장 접두사 테이블", `eng.context-map.design` §3 규칙 3). 테이블 이름 형식은 `x_<확장 id의 '-'를 '_'로>_<지역 이름>`이다. 확장 id는 `^[a-z][a-z0-9-]{1,31}$`이고 지역 이름에는 밑줄을 쓰지 않는다 [결정(잠정): review.decisions-2 U-18](`X.operations.spec` §4.4.2).
+- [결정] 확장은 자기 접두 테이블만 소유한다(`_research/decisions-log.md` 2026-10-21 결정 2차 "확장 접두사 테이블", `eng.context-map.design` §3 규칙 3). 테이블 이름 형식은 `x_<확장 id의 '-'를 '_'로>_<지역 이름>`이다. 확장 id는 `^[a-z][a-z0-9-]{1,31}$`이고 지역 이름에는 밑줄을 쓰지 않는다 [결정: review.decisions-2 U-18](`X.operations.spec` §4.4.2).
 - [제안] 참여 방법: X가 `ExtProjection`을 `Projector`(`name: "ext.<이름>"`)로 바꾸어 `projectors.register`로 등록한다. 등록 메서드 이름은 이것으로 정한다(`X.operations.spec` §4.1, §4.4.4가 이 문서에 맡김). 커밋 7단계가 같은 트랜잭션의 `ProjectionTx`를 넘기고, X는 그 핸들을 `ExtWriters`로 감싼다.
 - 등록 검사(모든 빌드):
   1. `name`이 `"core"`면 `name_reserved`, 이미 있으면 `name_taken`.
@@ -1083,7 +1083,7 @@ export interface RewindPlan {
 
 - wire 오류는 `thread.locked`(3002, `details: { ownerKind, options }`)다(`F.wire-settings.spec` §3.5.2). `ownerKind`는 `leases.inspect("session:<threadId>")`의 `LeaseOwnerInfo.kind`이고 틀릴 수 있다.
 - 하트비트는 L0.store `leases.keepAlive`가 `l0.store.heartbeatMs`(기본 5초)마다 한다(`L0.store.spec` §4). 이 문서는 별도 주기를 두지 않는다. `L4.host-service.spec` HS-29가 이 문서에 맡긴 주기는 L0.store 설정을 가리키도록 요청한다(§8.4).
-- 펜싱은 `sys_leases` epoch다(§3.6, §4.1 2단계) [결정(잠정): review.decisions-2 U-09]. 프로세스가 정지했다 재개되어 임대를 인수당한 뒤 늦게 커밋하면 `leases.holds`가 거짓이라 `ownership_lost`이고 행 변화가 없다(`L0.store.spec` §5 "늦게 깨어난 이전 소유자의 커밋" 행). adr.0004 §3.4는 이 방식으로 개정한다.
+- 펜싱은 `sys_leases` epoch다(§3.6, §4.1 2단계) [결정: review.decisions-2 U-09]. 임대를 인수당한 이전 소유자(OS 잠금이 없는 후퇴안에서 멈췄다 깨어난 프로세스 등)가 늦게 커밋하면 `leases.holds`가 거짓이라 `ownership_lost`이고 행 변화가 없다(`L0.store.spec` §5 "늦게 깨어난 이전 소유자의 커밋" 행). adr.0004 §3.4는 이 방식으로 개정한다.
 
 ### 4.10 분기와 수명주기
 
@@ -1268,7 +1268,7 @@ export interface RewindPlan {
 | `l1.persistence.export.format` | string | `"pi-jsonl"` | enum `pi-jsonl`, `xeon-jsonl` | `live` | `managed`, `user`, `session` | `select` | 2차 | 내보내기 기본 형식 |
 
 - 보관 정리 규칙 [제안]: 정리는 엔진 열기 때 한 번 돈다. 대상에서 빼는 것: 표식이 남은 thread, 열린 turn이 있는 thread, 다른 thread가 포크로 가리키는 thread, 지금 쓰기 소유 중인 thread. 화면은 삭제 대상 수 미리보기와 복구 불가 경고를 보인다(`_research/settings.md` §2.8). 삭제는 `threads.remove`와 같은 경로다.
-- 자동 재개 키는 `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts` 둘만 둔다. L0.process·L4.host-service는 자기 자동 재개 키를 두지 않고 이 두 키를 읽는다 [결정(잠정): review.decisions-2 S-03].
+- 자동 재개 키는 `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts` 둘만 둔다. L0.process·L4.host-service는 자기 자동 재개 키를 두지 않고 이 두 키를 읽는다 [결정: review.decisions-2 S-03].
 - 화면: `sessions` 탭 "세션과 컨텍스트". 명령: `xeon config get/set/reset l1.persistence.<이름>`(`L4.cli.spec`). 파일: 사용자·관리 설정 파일.
 
 ### 6.2 세션 범위 값과 설정 파일
@@ -1314,7 +1314,7 @@ export interface SessionSettingsStore {
 ### 7.2 on, post, drive, scope와의 관계
 
 - on: 위 7개 지점을 발화한다. on 실행 자체는 기록하지 않는다(`F.records.spec` §7).
-- post: `post.accepted`와 `input.queued`의 관계는 `L1.tasks.spec` FR-T3이다. core-persistence는 어느 쪽이든 커밋 경로만 제공한다.
+- post: 확장 post의 기록은 `input.queued` 하나다(`post.accepted` retire, review.decisions-2 U-05). core-persistence는 커밋 경로와 커밋 키 멱등만 제공한다.
 - drive: 임대 획득·반납(`lease.acquired`, `lease.released`)은 X가 `ext.commit`으로 커밋한다. 재개 때 열린 임대는 `ext.loadThread`의 `openLease`로 X에 넘긴다. drive 함수 재호출은 X가 한다(`F.extensions.spec` §4.6).
 - scope: `scope.changed`와 상태 판(`x|grp.<name>.state.committed`)은 X가 커밋하고, 접두 테이블 투영은 §4.5.2로 같은 커밋에 들어간다.
 - [결정] Helm과 학습 그룹은 L3 기본 그룹이다. 학습 그룹은 drive를 쓰지 않는다(`_research/decisions-log.md` 2026-10-21 계획 v2 "Hermes 학습 정책은 L3 학습 그룹(drive 미사용, Helm과 공존)", `eng.context-map.design` §3 규칙 4). 두 그룹의 비공개 상태는 각각 `x_helm_*`, `x_learning_*`에 있고 이 문서의 등록 검사로 서로의 테이블을 쓰지 못한다.
@@ -1366,7 +1366,7 @@ export interface SessionSettingsStore {
 | FR-P7 | F.wire-settings.spec §3.3.1 (2차) | `thread.open` params에 `replayFrom?: "none" \| "all" \| StreamPosition` | §4.13.1 |
 | FR-P8 | F.records.spec §3.3 (2차) | `checkpoint.files`(durable, `{ turnId, files: FileSnapshotEntry[] }`) 추가 | 되감기 파일 스냅샷(§4.13.2) |
 | FR-P10 | F.conversation.spec §3.5.3 | (반영됨) `TurnStartedPayload.scopeId: string \| null` 추가(`L1.loop.spec` FR-L8과 같은 요청). `p_turns.scope_id`와 `(thread_id, scope_id, request_id)` 유일 색인이 이 값을 투영한다 | drive turn 멱등 키가 `(scopeId, requestId)`다(`X.primitives.spec` §3.6). `TxView.turnByRequestId` |
-| FR-P11 | F.records.spec §3.9 `session-service.ts` | (반영됨) `ExtCommitRequest.visibility?: "public" \| "private"`(X.primitives.spec §3.6, §4.6.5)를 더하고, `RecordCommitPort.queryRecords`에 조회한 확장 `reader` 인자(시그니처는 `string`, 값은 `ExtensionName`)를 더한다 | 비공개 기록 필터(§3.3)는 쓴 확장과 조회한 확장을 비교해야 한다. 요청 당시 포트에는 조회한 확장이 없었다 [결정(잠정): review.decisions-2 T-21] |
+| FR-P11 | F.records.spec §3.9 `session-service.ts` | (반영됨) `ExtCommitRequest.visibility?: "public" \| "private"`(X.primitives.spec §3.6, §4.6.5)를 더하고, `RecordCommitPort.queryRecords`에 조회한 확장 `reader` 인자(시그니처는 `string`, 값은 `ExtensionName`)를 더한다 | 비공개 기록 필터(§3.3)는 쓴 확장과 조회한 확장을 비교해야 한다. 요청 당시 포트에는 조회한 확장이 없었다 [결정: review.decisions-2 T-21] |
 | FR-P9 | F.records.spec §3.3 | (반영됨) `input.*`, `turn.abort_requested`(L1.tasks FR-T1·T2), `approval.*`(L1.tools §8.3 요청 3), `agent.spawned`·`agent.settled`·`agent.judged`(L1.agents §8.3 요청 3)를 함께 받는다. `p_inputs`, `p_approvals`, `p_turns`, `p_agents`가 이 kind를 투영한다 | 투영 이름과 kind를 맞춘다 |
 
 ### 8.4 다른 문서 수정 요청
@@ -1381,7 +1381,7 @@ export interface SessionSettingsStore {
 - `L4.host-service.spec` §3.3.2: `SettingsStorePort`의 파일 범위 구현을 호스트 자신으로 둔다(§6.2). 자동 재개는 `l1.persistence.autoResume`·`maxResumeAttempts`를 읽는다(review.decisions-2 S-03).
 - `L0.process.spec` §6: 자기 자동 재개 키 두 개를 지우고 `l1.persistence.autoResume`·`maxResumeAttempts`를 가리킨다(review.decisions-2 S-03).
 - `architecture.runtime-flow.design` §4.1: "복구 표식 running_since 커밋"을 C2 `turn.started` 커밋에 포함된 것으로 고친다.
-- adr.0004 §3.4, adr.0006 §3.6 4번: 쓰기 소유 판정을 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱으로 고치고, 별도 소유 테이블 없이 `sys_leases` 행이 소유 표시를 겸하게 한다 [결정(잠정): review.decisions-2 U-09].
+- adr.0004 §3.4, adr.0006 §3.6 4번: 쓰기 소유 판정을 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱으로 고치고, 별도 소유 테이블 없이 `sys_leases` 행이 소유 표시를 겸하게 한다 [결정: review.decisions-2 U-09].
 - `L4.host-service.spec` HS-29: 하트비트 주기를 L0.store `l0.store.heartbeatMs`로 가리킨다. `openForWrite`에 `LeaseToken`을 넘긴다.
 - `L2.schedule.spec` §4: 세션 생성 멱등은 `threads.create`의 `creationKey`로 한다. 고아 세션 정리는 `creationKey` 조회로 끝낸다.
 
@@ -1419,11 +1419,11 @@ export interface SessionSettingsStore {
 ## 10. 미결 사항
 
 1. (닫음) 커밋 API 정리안(§3.1)의 F 수용. `F.records.spec` §3.9가 FR-P1·FR-P2를 반영했다.
-2. [결정(잠정): review.decisions-2 U-10] 도구별 효과 커밋(E1~E3)을 ADR-0004 §3.2 3번의 보충으로 올린다. 단계당 커밋 수는 `3 + 3n`이다.
-3. [결정(잠정): review.decisions-2 U-09] 쓰기 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱(`LeaseToken`, TX-10)이다. 별도 소유 테이블은 두지 않는다. adr.0004 §3.4·adr.0006 §3.6 4번을 이에 맞게 개정한다.
+2. [결정: review.decisions-2 U-10] 도구별 효과 커밋(E1~E3)을 ADR-0004 §3.2 3번의 보충으로 올린다. 단계당 커밋 수는 `3 + 3n`이다.
+3. [결정: review.decisions-2 U-09] 쓰기 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱(`LeaseToken`, TX-10)이다. 별도 소유 테이블은 두지 않는다. adr.0004 §3.4·adr.0006 §3.6 4번을 이에 맞게 개정한다.
 4. [미결] 자동 재개 기본값(adr.0006 §6). 이 문서는 꺼짐을 [제안]으로 쓴다. 키는 `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts` 둘로 정했다(review.decisions-2 S-03).
 5. [미결] 설정 파일 범위의 위치·감시·병합·신뢰 전 제외 규칙의 소유를 `L4.host-service.spec`으로 옮기는 제안(§6.2). `F.wire-settings.spec` §1.2 [가정], `X.loading-trust.spec` §4.7.4, `L4.host-service.spec` `SettingsStorePort`가 함께 바뀐다.
-6. [결정(잠정): review.decisions-2 U-13] 커밋 키 정본은 `eng.transactions.design`의 `COMMIT_KEY_PATTERN`이다. scope id의 `/`는 키에 넣을 때 `:`로 바꾼다.
+6. [결정: review.decisions-2 U-13] 커밋 키 정본은 `eng.transactions.design`의 `COMMIT_KEY_PATTERN`이다. scope id의 `/`는 키에 넣을 때 `:`로 바꾼다. 복구 합성 키 `tool:<…>:result`의 toolCallId 부분은 core-tools와 같은 F `commitKeyPart`로 만든다(§3.9 표).
 7. [미결] 떠난 가지 요약(`thread.branch_summarized`)을 누가 만드는지(`L1.context.spec`). 이 문서는 받은 요약만 기록한다.
 8. (닫음) `agent.spawned`, `agent.settled`, `agent.judged`는 F 카탈로그 kind다(`F.records.spec` §3.3, `L1.agents.spec` §8.3 요청 3 반영). `p_agents`, `TxView.agentByRequestId`, `ResumePlan.openChildren`의 투영 원천은 이 kind다.
 9. [미결] fork가 출처 이벤트를 참조만 할지 복사할지. 참조안은 출처 thread 삭제를 막는다(`has_forks`). 복사안은 삭제가 독립이지만 저장량이 늘고 확장 상태 복사 규칙이 필요하다.

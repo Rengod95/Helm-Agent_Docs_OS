@@ -131,7 +131,7 @@ xeon/packages/cap-artifacts/
 
 | 패키지 | 버전 | 라이선스 | 쓰는 곳 | 비고 |
 |---|---|---|---|---|
-| `typebox` | 1.4.2 (워크스페이스 catalog) | MIT | 정의(F), 입력 검사 | 이미 catalog에 있다 |
+| `typebox` | 1.3.27 (워크스페이스 catalog) | MIT | 정의(F), 입력 검사 | 이미 catalog에 있다 |
 | `diff` (jsdiff) | `cap-workspace`와 같은 catalog 항목 [가정: pi durable 포크가 쓰는 버전. 2026-10-21 npm 최신은 9.0.0] | BSD-3-Clause | A5 체크포인트 기준 diff 계산(`structuredPatch`), A8 역패치 적용(`applyPatch`) | [제안] `cap-workspace`를 import하지 않고 같은 외부 패키지를 직접 의존한다. 같은 층 import 금지(DR-02)를 지키면서 줄 단위 diff 알고리즘을 다시 만들지 않기 위해서다. 버전은 catalog 한 줄로 두 패키지가 공유한다. 9.x가 자체 타입 선언을 싣는지 확인한다 [가정] |
 
 - 통합 diff 텍스트 해석(A5 `unified-diff.ts`)은 `diff`의 `parsePatch`를 쓸 수 있다. [제안] 그래도 hunk ID·정렬·`patchSha256` 규칙은 이 패키지의 순수 함수로 둔다. `parsePatch`의 결과 모양을 경계에서 로컬 타입으로 바꾼다(`eng.context-map.design` CM-03).

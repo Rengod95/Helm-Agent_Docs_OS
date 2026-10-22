@@ -125,7 +125,7 @@ export const helmManifest = defineManifest({
     { id: "work.tasks", range: "^1.0.0" },     // L2.work.spec §3.2
   ],
   recordKinds: HELM_RECORD_KINDS,              // §3.4
-  readsRecordKinds: [],                        // 다른 그룹의 레코드를 읽지 않는다 [결정(잠정): review.decisions-2 D-10]
+  readsRecordKinds: [],                        // 다른 그룹의 레코드를 읽지 않는다 [결정: review.decisions-2 D-10]
   components: { agents: ["./agents/explorer.md"] },        // [가정] L1.agents.spec 정의 파일 형식
   trust: { level: "builtin" },
 }) satisfies ExtensionManifest;
@@ -292,7 +292,7 @@ export function updateState(
 
 - [결정] 단계 순서는 발산, 다른 분야 탐색, 수렴, 현재 작업 적용이다(계획 v2 `_research/layer-plan-v2.json` L3-b "탐구 구동", `_research/decisions-log.md` 2026-10-21 계획 v2).
 - [제안] 단계 식별자 `diverge`, `explore`, `converge`, `apply`와 `idle`은 이 문서의 설계다. `diverge`는 사용자 의사코드(`_research/layer-plan-v2-notes.md` "Helm이 보이는 모양")의 이름을 따랐다. 식별자의 확정은 §10 미결 16이다.
-- 상태 저장: scope 상태 문서는 X가 `grp.helm.state.committed` 이벤트와 `x_helm_state` 투영 테이블에 둔다(X.primitives.spec §4.6.1, [결정(잠정): review.decisions-2 T-21]). 투영 열과 활성 가지 규칙은 X 정의를 따른다 [결정(잠정): review.decisions-2 §3 T-20](L3.group-kit.spec §3.6, §4.5 6번 멱등 reducer). 비공개 상태이고 다른 그룹은 읽지 않는다(F.extensions.spec §3.6).
+- 상태 저장: scope 상태 문서는 X가 `grp.helm.state.committed` 이벤트와 `x_helm_state` 투영 테이블에 둔다(X.primitives.spec §4.6.1, [결정: review.decisions-2 T-21]). 투영 열과 활성 가지 규칙은 X 정의를 따른다 [결정: review.decisions-2 §3 T-20](L3.group-kit.spec §3.6, §4.5 6번 멱등 reducer). 비공개 상태이고 다른 그룹은 읽지 않는다(F.extensions.spec §3.6).
 - 크기 상한 [제안]: 개수는 `lenses` 8개, `findings` 24개, `context` 8개, 발견 하나의 `sources` 4개다. 상한을 넘는 입력은 앞에서부터 자른다. 문자열은 스키마 길이(`claim` 1000자, `ref` 512자, `title` 80자)까지 자른다.
 - 바이트 상한 [제안]: 개수 상한만으로는 group-kit 상태 문서 상한(직렬화 UTF-8 64 KiB, L3.group-kit.spec §3.6, §4.5)을 지키지 못한다. 한국어 `claim` 1000자는 약 3 KB이고 발견 24개면 그것만으로 64 KiB를 넘는다. 그래서 `updateState`는 커밋 전 `fitState`로 직렬화 크기를 `HELM_STATE_BUDGET_BYTES`(60 KiB) 이하로 줄인다. 빈 탐구 필드의 상태는 예산 안이므로 이 절차는 항상 끝난다. 버린 발견은 `grp.helm.discovery.recorded`에도 쓰지 않는다. 초과 커밋은 group-kit이 거부하고(L3.group-kit.spec §5 9번) drive 예외와 임대 `error` 반납으로 이어지므로 이 검사는 커밋 앞에서 한다.
 - 긴 본문은 상태에 두지 않는다. explorer 답 원문은 상태에 넣지 않고(§4.5), 발견은 요약 주장과 출처 참조만 싣는다(L3.group-kit.spec §4.5 규칙 5).
@@ -421,7 +421,7 @@ export const HELM_RECORD_KINDS: readonly RecordKindDecl[] = [
 | `grp.helm.discovery.recorded` | `{ type: "turn", id: appliedTurnId }`. 적용 turn이 없으면 `{ type: "thread", id: threadId }` | 적용 단계 끝(§4.8) | L4 상태 표시. 다른 그룹은 읽지 않는다 |
 | `grp.helm.inquiry.finished` | `{ type: "thread", id: threadId }` | 탐구 종료 전이(§4.2) | L4 상태 표시 |
 
-- [결정(잠정): review.decisions-2 T-21] 공개 레코드와 비공개 상태 모두 `grp.helm.` 접두를 쓴다. 공개 레코드는 `g.record`, 비공개 상태는 상태 문서(`grp.helm.state.committed`, 투영 `x_helm_state`)다. 상한을 넘는 비공개 기록이 필요하면 `ScopeApi.recordPrivate`(kind `grp.helm.*`, X.primitives.spec §4.6.5)를 쓴다. 그 kind는 매니페스트 `recordKinds`(`HELM_RECORD_KINDS`)에 넣지 않고 공개 kind와 이름이 겹치지 않게 한다.
+- [결정: review.decisions-2 T-21] 공개 레코드와 비공개 상태 모두 `grp.helm.` 접두를 쓴다. 공개 레코드는 `g.record`, 비공개 상태는 상태 문서(`grp.helm.state.committed`, 투영 `x_helm_state`)다. 상한을 넘는 비공개 기록이 필요하면 `ScopeApi.recordPrivate`(kind `grp.helm.*`, X.primitives.spec §4.6.5)를 쓴다. 그 kind는 매니페스트 `recordKinds`(`HELM_RECORD_KINDS`)에 넣지 않고 공개 kind와 이름이 겹치지 않게 한다.
 
 ### 3.5 신호 (`src/signals.ts`)
 
@@ -806,7 +806,7 @@ export function helmDrive(g: GroupApi<HelmState>): DriveFn<HelmState> {
 
 - 답 원문(`SpawnOutcome.answer`)은 상태에 두지 않는다 [제안]. `explored` 전이가 렌즈별 답에 `parseExplorerAnswer`(순수 함수)를 실행해 `findings`를 채우고, `converge` 분기는 지식 요약과 정리(`dedupeFindings`: 같은 `claim` 정규화 문자열 제거, 상한 24개, 커밋 전 `fitState`)만 한다. 그래서 `converge`에서 재호출돼도 서브에이전트 결과를 다시 받을 필요가 없다.
 - 단계 하나를 처리할 때마다 커밋하고 반환하므로, 재호출된 함수는 커밋된 `phase`에 해당하는 분기 하나만 실행한다. 사용자 의사코드의 `while` 반복은 X의 재호출이 대신한다.
-- 상한: `DriveOptions.limits`는 `minLimits(x.primitives.driveLimits, l3.helm.driveLimits)`를 넘지 않는다. Helm은 `l3.helm.driveLimits`를 넘기고, X가 `x.primitives.driveLimits`로 다시 자른다(F.extensions.spec §3.2 `DriveOptions` 주석, §6). [가정] group-kit은 임대를 새로 받을 때 `DriveOptions`를 설정에서 다시 읽는다.
+- 상한: `DriveOptions.limits`는 `minLimits(x.primitives.driveLimits, l3.helm.driveLimits)`를 넘지 않는다. Helm은 `l3.helm.driveLimits`를 넘겨 X 일반 기본값 `x.primitives.driveDefaultLimits`를 덮어쓰고, X가 천장 `x.primitives.driveLimits`로 다시 자른다(review.decisions-2 U-12)(F.extensions.spec §3.2 `DriveOptions` 주석, §6). [가정] group-kit은 임대를 새로 받을 때 `DriveOptions`를 설정에서 다시 읽는다.
 - 상한 도달: `LeaseBudget`이 0이면 `loop.turn`·`loop.spawn`을 부르지 않고 `limitReached`로 끝낸다. X가 먼저 거부하면(F.extensions.spec §4.6) 그 거부를 `limitReached`로 바꾼다. 어느 경우든 `inquiry.finished`에 `outcome: "limit"`과 `limit`을 남기고 알림을 `post`한다(`display: true`). 임대는 X가 `releasing`으로 바꾼다.
 - 기본 requestId: `loop.turn`, `loop.spawn`의 requestId를 생략하면 X가 `${leaseId}:${순번}`으로 만든다(F.extensions.spec §4.6). Helm은 탐구 id에서 만든 requestId를 직접 넘긴다 [제안]. 끄고 다시 켜거나 프로세스를 재시작하면 새 임대를 받아 `leaseId`가 바뀔 수 있고(`lease.released` reason `restart`, F.records.spec §3.3), 그때 기본값은 이미 실행한 spawn을 다시 실행하기 때문이다. [미결 7] 재시작 뒤 `leaseId` 유지 여부는 X.primitives.spec 확인 대상이다.
 - 재개(UC-2): 커밋 전에 프로세스가 끝나면 drive는 마지막 커밋 상태로 다시 호출된다. `explore` 단계에서 커밋 전이던 spawn은 같은 requestId로 다시 호출된다. L1이 이미 결과를 커밋했으면 기록된 결과를 돌려받고, 커밋하지 않았으면 다시 실행해 결과를 다시 수집한다. 같은 렌즈에 서브에이전트가 두 개 이상 결과를 남기지 않는다.
@@ -841,7 +841,7 @@ export function guardWrite(g: GroupApi<HelmState>): Handler<"tool_call", HelmSta
 - 읽기 경로는 F 정의뿐이다. `g.capability(key)`만 쓴다. `group-learning`과 `cap-*` 패키지를 import하지 않는다(CM-06, F.extensions.spec §4.8, 층 사이 규칙 2).
 - `gatherContext` 순서 [제안]: 스킬 검색(`knowledge.search.query`, `kinds: ["skill"]`) → 메모리 읽기(`knowledge.memory.read`) → 과거 대화 검색(`knowledge.search.query`, `kinds: ["session"]`) → 웹 검색(`topic`, `limit: 5`, `content: "highlights"`). 본문 읽기(`web.fetch`)는 explorer가 도구로 하고 drive는 부르지 않는다.
 - 각 호출은 `CallOptions`에 `signal: loop.signal`과 requestId(`helm:<inquiryId>:cap:<용도>:<n>`)를 넘긴다.
-- 다른 그룹 레코드 [결정(잠정): review.decisions-2 D-10]: 그룹 사이 레코드는 F에 스키마가 없으므로 Helm은 학습 그룹을 비롯한 다른 그룹의 레코드(`g.readRecords`)를 읽지 않는다. 학습 그룹이 승인해 적용한 스킬과 메모리는 L2 지식 저장소에 있으므로 위 스킬 검색·메모리 읽기로 얻는다. 승인 전 후보는 L2에 없으므로 섞이지 않는다.
+- 다른 그룹 레코드 [결정: review.decisions-2 D-10]: 그룹 사이 레코드는 F에 스키마가 없으므로 Helm은 학습 그룹을 비롯한 다른 그룹의 레코드(`g.readRecords`)를 읽지 않는다. 학습 그룹이 승인해 적용한 스킬과 메모리는 L2 지식 저장소에 있으므로 위 스킬 검색·메모리 읽기로 얻는다. 승인 전 후보는 L2에 없으므로 섞이지 않는다.
 
 저하 동작 [제안]:
 
@@ -911,7 +911,7 @@ export function guardWrite(g: GroupApi<HelmState>): Handler<"tool_call", HelmSta
 | 키 | 타입 | 기본값 | 범위 | runtimeChange | allowedScopes | 위젯 |
 |---|---|---|---|---|---|---|
 | `l3.helm.autoStart` | `"off" \| "suggest" \| "auto"` | `"suggest"` [제안] | enum 3개 | `nextTurn` | managed, user, project, local, session | select |
-| `l3.helm.driveLimits` | `DriveLimits`(`{ maxTurns?, maxSpawns?, maxTokens? }`) | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정(잠정): review.decisions-2 U-12] | 각 필드 1 이상 | `nextTurn`(다음 임대 획득 때) [가정] | managed, user, project, local, session | table |
+| `l3.helm.driveLimits` | `DriveLimits`(`{ maxTurns?, maxSpawns?, maxTokens? }`) | `{ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 }` [결정: review.decisions-2 U-12] | 각 필드 1 이상 | `nextTurn`(다음 임대 획득 때) [가정] | managed, user, project, local, session | table |
 | `l3.helm.maxLenses` | integer | `3` [제안] | 1~8 | `nextTurn`(다음 탐구 시작 때) | managed, user, project, local, session | number |
 | `l3.helm.writeGuard` | boolean | `true` | | `nextTurn` | managed, user, project, local, session | toggle |
 
@@ -935,9 +935,9 @@ export interface HelmSettings {
 }
 ```
 
-- `driveLimits.maxTurns` 기본 4는 발산 1, 적용 1에 여유 2를 둔 값이다. `maxSpawns` 기본 8은 `maxLenses` 상한과 같다. 이 기본값은 pi 방식(기본 상한 없음)의 예외다 [결정(잠정): review.decisions-2 U-12]. drive는 사용자 입력 없이 턴을 만들기 때문에 상한이 없으면 끝나지 않을 수 있다. 일반 대화 턴에는 상한을 두지 않는다.
+- `driveLimits.maxTurns` 기본 4는 발산 1, 적용 1에 여유 2를 둔 값이다. `maxSpawns` 기본 8은 `maxLenses` 상한과 같다. 이 기본값은 pi 방식(기본 상한 없음)의 예외다 [결정: review.decisions-2 U-12]. drive는 사용자 입력 없이 턴을 만들기 때문에 상한이 없으면 끝나지 않을 수 있다. 사용자는 설정 화면 `plugins` 탭에서 이 값을 조정한다. 이 키가 X 일반 기본값 `x.primitives.driveDefaultLimits`를 Helm에 한해 덮어쓴다. 일반 대화 턴에는 상한을 두지 않는다.
 - `maxLenses`가 `driveLimits.maxSpawns`보다 크면 설정 저장 때 경고하고, 실행 때는 §4.2 explore 행 규칙으로 처리한다.
-- Helm 켜기·끄기 키는 X 로더 예약 키 `ext.helm.enabled` 하나다(F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3). 내장 그룹도 같은 키를 쓰고 Helm은 이 키를 `defineSettings`로 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`(§3.1)가 정한다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정(잠정): review.decisions-2 K-04].
+- Helm 켜기·끄기 키는 X 로더 예약 키 `ext.helm.enabled` 하나다(F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3). 내장 그룹도 같은 키를 쓰고 Helm은 이 키를 `defineSettings`로 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`(§3.1)가 정한다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정: review.decisions-2 K-04].
 - L4 노출: 설정 화면 "플러그인과 그룹" 탭의 Helm 항목, 설정 파일, `/helm` 명령(§3.9). `/group on|off|status`는 group-kit 소유다.
 - 비밀 설정은 없다.
 
@@ -981,7 +981,7 @@ export interface HelmSettings {
 | `web.search`, `web.fetch` 능력 정의와 `WebSearchKey`, `WebFetchKey` | L2.web.spec §3.2, §3.3, F.capabilities.spec §3.9 | 문서 있음 |
 | `knowledge.search`, `knowledge.skills`, `knowledge.memory` 능력 정의와 `KnowledgeSearchKey`, `KnowledgeSkillsKey`, `KnowledgeMemoryKey` | L2.knowledge.spec §1, §3.9 | 문서 있음 |
 | `work.tasks`의 `create`와 `WorkTasksKey`, requestId 멱등 | L2.work.spec §3.2, §3.6, §3.7 | 문서 있음 |
-| 비공개 상태 저장(`grp.helm.state.committed`, `x_helm_state`), 비공개 기록(`recordPrivate`) | X.primitives.spec §4.6.1, §4.6.5, review.decisions-2 T-20, T-21 | 확정(잠정) |
+| 비공개 상태 저장(`grp.helm.state.committed`, `x_helm_state`), 비공개 기록(`recordPrivate`) | X.primitives.spec §4.6.1, §4.6.5, review.decisions-2 T-20, T-21 | 확정 |
 
 ## 9. 수용 기준
 
@@ -1015,7 +1015,7 @@ export interface HelmSettings {
 6. [미결] `ScopeApi.commit`의 동시 커밋 규칙(CAS, 직렬화). 정해지면 `updateState`의 큐를 지운다(§4.1). X.primitives.spec.
 7. [미결] 재시작·재활성화 뒤 `leaseId` 유지 여부와 기본 requestId(`${leaseId}:${순번}`)의 재개 안전성(§4.5). X.primitives.spec.
 8. [미결] 쓰기 판정용 도구 메타 출처(§4.6). L1.tools.spec.
-9. [결정(잠정): review.decisions-2 D-10] 다른 그룹 레코드는 읽지 않는다. 학습 결과는 L2 지식 능력으로만 얻는다(§4.7).
+9. [결정: review.decisions-2 D-10] 다른 그룹 레코드는 읽지 않는다. 학습 결과는 L2 지식 능력으로만 얻는다(§4.7).
 10. [미결] `record`와 `commit`의 원자 묶음 API(§4.8).
 11. (닫힘) work 연결은 `work.tasks`의 `create({ content })`와 requestId 멱등으로 정했다(§4.8, L2.work.spec §3.2, §3.7).
 12. (닫힘) 켜기·끄기 키는 X 예약 키 `ext.helm.enabled` 하나다(§6, X.loading-trust.spec §4.5).
@@ -1026,7 +1026,7 @@ export interface HelmSettings {
 
 공통 모순(조정자 공통 목록, 최종 보고에도 올림):
 
-- [결정(잠정): review.decisions-2 T-21] C1 레코드 kind 접두: 공개·비공개 모두 F 형식 `grp.<그룹>.<영역>.<이름>`이다. eng 문서의 옛 밑줄 접두 표기는 그 문서 쪽에서 고친다.
+- [결정: review.decisions-2 T-21] C1 레코드 kind 접두: 공개·비공개 모두 F 형식 `grp.<그룹>.<영역>.<이름>`이다. eng 문서의 옛 밑줄 접두 표기는 그 문서 쪽에서 고친다.
 - [미결 C1] 서비스 키 체계(F `ServiceKey` 대 `xeon.<도메인>` Cordis 이름, §3.8).
 - [미결 C2] on 핸들러 외부 효과 금지(F.extensions.spec §4.3)와 requestId 멱등 예외. Helm은 on 핸들러에서 `record`, `commit`, 멱등 `post`만 쓰고 `loop.spawn`은 drive 안에서만 쓴다. drive 안의 능력 호출(`gatherContext`, `work.tasks.create`)은 F §4.6 효과 목록 밖이다. `loop.spawn`·`g.delegate`·능력 호출을 requestId 멱등 조건으로 허용하는 문장을 F에 둘지 정한다.
 - [미결 C3] `package.json`의 `xeon.domain`: DR-03 규칙(디렉터리 접두 제거)은 `group-kit`에 `kit`을, routes.yaml layout은 `group-kit`을 준다. Helm은 `group-helm` → `helm`이라 두 규칙의 값이 같다. group-kit 쪽 결정을 따른다.

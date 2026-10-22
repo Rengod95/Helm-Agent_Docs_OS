@@ -38,7 +38,7 @@ Xeon 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유 �
 
 1. [결정] 컨텍스트 사이 협력은 F 정의, Cordis 서비스, 이벤트로만 한다. 같은 층 협력은 F 정의와 Cordis 서비스로만 한다(`_research/foundation-plan.md §3`, DR-02). DI는 Cordis 하나다(`_research/decisions-log.md` 2026-10-21 결정 3차).
 2. [제안] 다른 컨텍스트의 구현 패키지를 import하지 않는다. 층 순위상 허용되는 하위 층 패키지(DR-01)라도, 컨텍스트가 다르면 F에 둔 서비스 타입으로 주입받는다. 규칙 본문과 예외(F, 조립 루트 `apps/host`와 `DR-10/cli-host`, 테스트 파일의 `testing` 서브패스, `@xeon/ext-host`의 서비스 등록·주입 API, `group-kit` 허용 목록)는 `eng.dependency-rules.guide` DR-14가 정본이다. 이 문서는 4.1절 표로 "다른 컨텍스트"를 정한다. 이 규칙은 OS·환경별 구현을 바꿔 끼울 수 있게 한다(`_research/decisions-log.md` 2026-10-19 설계 규칙: 공통 인터페이스, 구현만 교체).
-3. [결정] 세션 코어(L1 persistence, 컨텍스트 `session-core`)가 세션 테이블과 투영을 소유한다. 확장과 그룹은 `x_<extKey>_` 접두사 테이블만 소유한다(`_research/decisions-log.md` 2026-10-21 결정 2차 "확장 접두사 테이블", 층 구성 계획 v2 X-c "확장 전용 저장 영역"). `extKey`는 확장 id의 `-`를 `_`로 바꾼 값이다([결정(잠정): review.decisions-2 U-18], 5.2절).
+3. [결정] 세션 코어(L1 persistence, 컨텍스트 `session-core`)가 세션 테이블과 투영을 소유한다. 확장과 그룹은 `x_<extKey>_` 접두사 테이블만 소유한다(`_research/decisions-log.md` 2026-10-21 결정 2차 "확장 접두사 테이블", 층 구성 계획 v2 X-c "확장 전용 저장 영역"). `extKey`는 확장 id의 `-`를 `_`로 바꾼 값이다([결정: review.decisions-2 U-18], 5.2절).
 4. [결정] Helm은 L3 기본 그룹이다. 학습 그룹도 L3 기본 그룹이며 drive를 쓰지 않는다(on, post, scope만). 두 그룹은 공존한다(`_research/decisions-log.md` 2026-10-21 계획 v2, 층 구성 계획 v2 L3-c).
 5. [결정] 학습 그룹의 저장(스킬, 메모리, 세션 검색, 변경 원장)은 L2 knowledge가 소유한다. 학습 그룹은 정책(트리거, 검토 포크, 제안)만 가진다(층 구성 계획 v2 "Hermes 학습 루프를 별도 그룹으로": "저장소인 스킬, 메모리, 세션 검색, 변경 원장은 L2-d에 남깁니다").
 6. [결정] 웹 같은 능력은 L2 능력으로 두고 그룹이 서비스 API로 쓴다. 그룹 안에 능력을 두지 않는다(`_research/decisions-log.md` 2026-10-21 "웹 탐색 같은 능력을 그룹 안에 둘지 코어 층에 둘지(그룹 간 강결합 우려)", 층 구성 계획 v2 L3-a "그룹 안 도구가 두 번째 소비자를 얻으면 L2로 승격").
@@ -60,7 +60,7 @@ Xeon 코드를 바운디드 컨텍스트로 묶고, 컨텍스트마다 소유 �
 | `platform-os` | L0 | os | `platform-os` | 없음 | 없음 | `xeon.os` | 없음 |
 | `session-core` | L1 | persistence | `core-persistence` | `events`, `event_seq`, `thread_delete_guard`, `requests`, `step_checkpoints`, `consumer_cursors`, `projector_state`, `p_*` | `thread.`, `checkpoint.`, `settings.` | `xeon.session` | `xeon.store`(전체 핸들은 조립 루트가 넘김) |
 | `run-engine` | L1 | tasks, loop, context, agents | `core-tasks`, `core-loop`, `core-context`, `core-agents` | 없음(상태는 이벤트와 `p_*`) | `input.`, `turn.`, `step.`, `item.`, `part.`, `post.`, `agent.`, kind 단위 `thread.compacted` | `xeon.tasks`, `xeon.loop`, `xeon.context`, `xeon.agents` | `xeon.session`, `xeon.models`, `xeon.tools`, `xeon.ext` |
-| `model-gateway` | L1 | models | `core-models`, `plugins/provider-anthropic-oauth` | `core_models_*`(사용량, 계정 회전 상태. 설정 화면은 M3, [결정(잠정): review.decisions-2 U-21]) | `model.`(휘발만, 예약) | `xeon.models` | `xeon.secrets` |
+| `model-gateway` | L1 | models | `core-models`, `plugins/provider-anthropic-oauth` | `core_models_*`(사용량, 계정 회전 상태. 설정 화면은 M3, [결정: review.decisions-2 U-21]) | `model.`(휘발만, 예약) | `xeon.models` | `xeon.secrets` |
 | `tool-runtime` | L1 | tools | `core-tools` | `core_tools_*`(항상 허용 캐시) | `effect.`, `approval.`, `secret.` | `xeon.tools`, `xeon.approvals` | `xeon.session`, `xeon.exec`, `xeon.sandbox`, `xeon.secrets`, `xeon.ext` |
 | `workspace` | L2 | workspace | `cap-workspace` | 없음(예약 `cap_workspace_*`) | `workspace.`(예약) | `xeon.workspace` | `xeon.exec`, `xeon.os`, `xeon.tools` |
 | `mcp` | L2 | mcp | `cap-mcp` | `cap_mcp_*`(서버 상태) | `mcp.`(휘발, 예약) | `xeon.mcp` | `xeon.process`, `xeon.secrets`, `xeon.tools`, `xeon.store` |
@@ -191,7 +191,7 @@ flowchart TD
 | # | 위치 | 어긋남 | 처리 |
 |---|---|---|---|
 | 1 | `run-engine`(L1 tasks·loop·context·agents) | 컨텍스트 하나가 같은 층 패키지 넷에 걸친다. DR-02 때문에 컨텍스트 안에서도 import할 수 없다 | 컨텍스트 안 협력도 F 정의와 `xeon.tasks`·`xeon.loop`·`xeon.context`·`xeon.agents` 서비스로 한다. 컨텍스트는 이벤트 어휘와 데이터 소유를 묶는 단위다. import 허용 여부는 층 규칙(DR-01, DR-02)이 패키지 단위로 정한다 |
-| 2 | `extension-host`(X, 순위 1) | L3 그룹(순위 5)을 호스트하고, 세션 쓰기(L1 `session-core`)와 루프(L1 `run-engine`)를 써야 한다. 순위상 import할 수 없다 | F2 `SessionService`·`ProducerHandle`, F4 지점 선언과 포트를 F에 두고, 구현은 Cordis로 주입받는다. X 순위 유지와 세 조건은 [결정(잠정): review.decisions-2 U-14](`eng.dependency-rules.guide` 1.1절, `architecture.layers.spec` 4.3.3절) |
+| 2 | `extension-host`(X, 순위 1) | L3 그룹(순위 5)을 호스트하고, 세션 쓰기(L1 `session-core`)와 루프(L1 `run-engine`)를 써야 한다. 순위상 import할 수 없다 | F2 `SessionService`·`ProducerHandle`, F4 지점 선언과 포트를 F에 두고, 구현은 Cordis로 주입받는다. X 순위 유지와 세 조건은 [결정: review.decisions-2 U-14](`eng.dependency-rules.guide` 1.1절, `architecture.layers.spec` 4.3.3절) |
 | 3 | `approval.` 접두사(L1 `tool-runtime`) | 질문 도구(L2 dialog)와 계획 승인(L2 work)의 기능은 L2에 있으나 이벤트는 L1이 소유한다 | 결정 5(질문·계획 승인을 L1-d 승인 프로토콜 하나로)를 따른다. L2는 `xeon.approvals`로 요청하고 결과를 이벤트로 받는다 |
 | 4 | 세션 제목(L2 artifacts "세션 제목과 메타") | 기능은 L2, 이벤트 `thread.updated`(제목)는 L1 `session-core` 소유 | artifacts가 `xeon.session`의 제목 변경 API를 부르고, 이벤트는 session-core가 쓴다 |
 | 5 | 학습 그룹(L3)의 저장 | 그룹의 산출물이 아래 층 컨텍스트(L2 knowledge) 테이블에 있다 | 3절 결정 5. 학습 그룹은 `x_learning_*`에 트리거 카운터만 둔다 |
@@ -200,7 +200,7 @@ flowchart TD
 | 8 | `plugins/provider-anthropic-oauth` | L1 순위(`AGENTS.md`)이지만 layout 도메인 밖이고 배포판에서 빠진다 | `model-gateway` 컨텍스트에 속한다. layout `plugins` 항목이 `L1.models.spec`을 문서로 지정한다. import 규칙은 DR-09 |
 | 9 | F `records`의 이벤트 카탈로그 | L2 능력이 이벤트 type을 더할 때마다 F를 고친다 | 카탈로그 파일을 소유 컨텍스트별로 나눈다(`contracts/src/records/catalog/<컨텍스트>.ts`) [제안]. 소유는 5.1절 |
 | 10 | `sys_leases`(L0 store) | 임대 저장은 L0, 세션 임대의 뜻(자원 `session:<id>`)은 L1 session-core | L0은 일반 자원 임대만 제공하고, 자원 이름과 갱신 정책은 소유 컨텍스트가 정한다(`eng.transactions.design` 3.3절) |
-| 11 | `schedule`(L2) | 앱을 닫아도 도는 예약은 L0 process와 L4 host 서비스 모드가 필요하다 | 예약 처리는 `sys_leases`의 `scheduler` 자원을 쥔 프로세스 하나만 한다. 서비스 모드는 1차, OS 서비스 등록만 2차다([결정(잠정): review.decisions-2 S-01], 결정 2). 서비스 모드가 꺼져 있으면 예약 생성 때 자동 기동을 시도한다([결정(잠정): review.decisions-2 U-23]) |
+| 11 | `schedule`(L2) | 앱을 닫아도 도는 예약은 L0 process와 L4 host 서비스 모드가 필요하다 | 예약 처리는 `sys_leases`의 `scheduler` 자원을 쥔 프로세스 하나만 한다. 서비스 모드는 1차, OS 서비스 등록만 2차다([결정: review.decisions-2 S-01], 결정 2). 서비스 모드가 꺼져 있으면 예약 생성 때 자동 기동을 시도한다([결정: review.decisions-2 U-23]) |
 
 ### 4.5 하위 층 식별자와 layout 도메인 대응
 
@@ -260,7 +260,7 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `checkpoint.` | session-core | `core.persistence` | `step` | 없음 |
 | `settings.` | session-core | `core.persistence` | `changed` | 없음 |
 | `input.` | run-engine | `core.tasks` | `queued`, `placed`, `withdrawn` | 없음 |
-| `post.` | run-engine | `core.tasks` [제안] | `accepted` | 없음 |
+| `post.` | run-engine | `core.tasks` [제안] | `accepted`(retired, 새로 쓰지 않는다. review.decisions-2 U-05) | 없음 |
 | `turn.` | run-engine | `core.loop` | `started`, `completed`, `abort_requested` | `updated` |
 | `step.` | run-engine | `core.loop` | `started`, `completed` | `updated` |
 | `item.` | run-engine | `core.loop` | `recorded` | `started`, `updated`(도구 진행 조각은 `core.tools`가 발신) |
@@ -313,14 +313,14 @@ L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a 
 | `cap_<도메인>_` | 해당 L2 컨텍스트 | 세션 투영이면 `cap.<도메인>` 투영기, 세션 밖 상태면 `xeon.store.scoped` | 투영 테이블은 예, 나머지는 아니오 |
 | `x_<extKey>_` | 그 확장(`helm`, `learning`, 사용자 확장) | 확장 투영기 `ext.<extId>`만 | 예 |
 
-- [결정(잠정): review.decisions-2 U-18] `extId`는 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)다. 밑줄은 쓰지 않는다. 테이블 접두는 `x_<extKey>_`이고 `extKey`는 `extId`의 `-`를 `_`로 바꾼 값이다. 접두 뒤의 지역 테이블 이름에는 밑줄을 쓰지 않는다. 그래서 `x_<extKey>_<지역 이름>`에서 마지막 `_` 앞까지가 확장 키로 하나로 읽히고, 접두 일치로 다른 확장의 테이블을 지우는 일이 생기지 않는다. 예: `focus-lens`의 `notes` → `x_focus_lens_notes`.
+- [결정: review.decisions-2 U-18] `extId`는 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)다. 밑줄은 쓰지 않는다. 테이블 접두는 `x_<extKey>_`이고 `extKey`는 `extId`의 `-`를 `_`로 바꾼 값이다. 접두 뒤의 지역 테이블 이름에는 밑줄을 쓰지 않는다. 그래서 `x_<extKey>_<지역 이름>`에서 마지막 `_` 앞까지가 확장 키로 하나로 읽히고, 접두 일치로 다른 확장의 테이블을 지우는 일이 생기지 않는다. 예: `focus-lens`의 `notes` → `x_focus_lens_notes`.
 - `core`, `cap`, `xh`, `sys`, `ext`는 확장 id로 쓸 수 없다(예약).
 - 세션 투영 테이블(`p_`, 세션 투영 `cap_`, `x_`)은 `thread_id` 열을 두고, thread 삭제 때 session-core가 소유 투영기의 `tables`에 선언된 테이블에서 그 thread 행을 함께 지운다 [제안](`L1.persistence.spec` §3.10).
 - 확장을 제거하면 그 확장의 `x_<extKey>_*` 테이블을 DROP한다. 이벤트(`x.<extId>.*`, `grp.<groupId>.*`)는 남긴다(`eng.events.design` 8.3절).
 
 ### 5.3 서비스 이름 소유표
 
-[제안] 이름과 인터페이스는 F에 두고(`<Name>ServiceName`, `<Name>Service`), "등록" 열이 "예"인 서비스는 구현 패키지가 Cordis에 등록한다. 정확한 메서드는 각 소유 spec이 정한다. 괄호 안은 F 서브패스다. L1·L0 서비스 인터페이스와 이름 상수, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3)는 `@xeon/contracts/services`에 둔다([결정(잠정): review.decisions-2 D-04], `F.capabilities.spec` §3.12 규칙 7). [결정(잠정): review.decisions-2 D-04] L2 서비스 이름 중 Cordis에 등록되는 것은 `xeon.mcp`뿐이다. `xeon.workspace`, `xeon.web`, `xeon.knowledge`, `xeon.work`, `xeon.dialog`, `xeon.artifacts`, `xeon.schedule`은 같은 도메인 능력 API를 모은 TypeScript 묶음 타입의 이름이고 Cordis에 등록하지 않는다. 소비 쪽은 능력 단위 `ServiceKey`로 API를 얻는다(`F.capabilities.spec` §3.5, `L2.readme` §5.6). 비밀 서비스 인터페이스(`SecretService`, `SecretAdminService`)와 승인·에이전트 서비스 인터페이스(`ApprovalService`, `AgentService`)도 `services`에 둔다(`F.capabilities.spec` §3.12 규칙 7, `L0.secrets.spec` §8.3 R1-a·R2, `L1.tools.spec` §8.3, `L1.agents.spec` §8.3) [제안]. 비밀 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)은 `capabilities/secrets.ts`에 둔다([결정(잠정): review.decisions-2 U-08]). 표에서 위치가 `services`인 서비스 이름의 집합은 F `SERVICE_NAMES`(`F.capabilities.spec` §3.12)와 같다.
+[제안] 이름과 인터페이스는 F에 두고(`<Name>ServiceName`, `<Name>Service`), "등록" 열이 "예"인 서비스는 구현 패키지가 Cordis에 등록한다. 정확한 메서드는 각 소유 spec이 정한다. 괄호 안은 F 서브패스다. L1·L0 서비스 인터페이스와 이름 상수, X 포트를 확장하는 `McpService`(L2)와 `GroupService`(L3)는 `@xeon/contracts/services`에 둔다([결정: review.decisions-2 D-04], `F.capabilities.spec` §3.12 규칙 7). [결정: review.decisions-2 D-04] L2 서비스 이름 중 Cordis에 등록되는 것은 `xeon.mcp`뿐이다. `xeon.workspace`, `xeon.web`, `xeon.knowledge`, `xeon.work`, `xeon.dialog`, `xeon.artifacts`, `xeon.schedule`은 같은 도메인 능력 API를 모은 TypeScript 묶음 타입의 이름이고 Cordis에 등록하지 않는다. 소비 쪽은 능력 단위 `ServiceKey`로 API를 얻는다(`F.capabilities.spec` §3.5, `L2.readme` §5.6). 비밀 서비스 인터페이스(`SecretService`, `SecretAdminService`)와 승인·에이전트 서비스 인터페이스(`ApprovalService`, `AgentService`)도 `services`에 둔다(`F.capabilities.spec` §3.12 규칙 7, `L0.secrets.spec` §8.3 R1-a·R2, `L1.tools.spec` §8.3, `L1.agents.spec` §8.3) [제안]. 비밀 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)은 `capabilities/secrets.ts`에 둔다([결정: review.decisions-2 U-08]). 표에서 위치가 `services`인 서비스 이름의 집합은 F `SERVICE_NAMES`(`F.capabilities.spec` §3.12)와 같다.
 
 | 서비스 이름 | F 인터페이스(위치) | 제공 패키지 | 등록 | 주요 소비 컨텍스트 |
 |---|---|---|---|---|
@@ -560,7 +560,7 @@ const learned = ctx.get("learning").recentProposals();
 
 ### CM-07 확장 id와 접두사는 형식과 예약어를 지킨다
 
-이유: 테이블 접두사 `x_<extKey>_`와 kind 접두 `x.<extId>.`·`grp.<groupId>.`는 문자열 규칙으로 소유를 판정한다. 확장 id나 지역 테이블 이름에 밑줄이 들어가면 접두사 경계가 둘로 읽히고, 예약어가 들어가면 코어 접두사와 겹친다([결정(잠정): review.decisions-2 U-18]).
+이유: 테이블 접두사 `x_<extKey>_`와 kind 접두 `x.<extId>.`·`grp.<groupId>.`는 문자열 규칙으로 소유를 판정한다. 확장 id나 지역 테이블 이름에 밑줄이 들어가면 접두사 경계가 둘로 읽히고, 예약어가 들어가면 코어 접두사와 겹친다([결정: review.decisions-2 U-18]).
 
 강제: ext-host가 매니페스트를 읽을 때 `EXT_ID_PATTERN`과 `RESERVED_EXT_IDS`로 검사하고, 맞지 않으면 로드하지 않는다. 확장 저장 영역은 지역 테이블 이름에 밑줄이 있으면 거부한다(`X.operations.spec`, `L0.store.spec`의 `table_not_owned`).
 
@@ -591,5 +591,5 @@ const learned = ctx.get("learning").recentProposals();
 - [미결 C-1] 컨텍스트 이름과 식별자 정리. 층 구성 계획 v2·`_research/packages.md`의 하위 층 id(`L1-a`~`L1-g`, `L2-a`~`L2-h`)와 layout 도메인 이름이 다르게 읽히는 곳(L2-a "작업 도구" = `workspace`, L2-e "작업 관리" = `work`)과, 이 문서가 새로 붙인 컨텍스트 이름(`run-engine`, `session-core`, `tool-runtime`, `model-gateway`, `platform-execution`)을 문서 전체에서 어느 쪽으로 부를지 정한다. 이 문서는 코드·서비스·접두사에 layout 도메인 이름을, 묶음에 컨텍스트 이름을 쓴다.
 - [미결 C-2] `slots`의 위치. 코드가 없는 L3 도메인(그룹 템플릿 문서)을 `group-kit` 컨텍스트에 두었다. 템플릿이 `group-kit` 패키지의 스캐폴드 명령이 되면 그대로 두고, 독립 저장소 템플릿이 되면 layout에서 뺄지 정한다.
 - [미결 C-3] L2 능력 테이블 접두사. 이 문서는 L2에 `cap_<도메인>_`, 설치형 확장에 `x_<extKey>_`를 쓴다. 내장 L2 능력도 사용자가 교체할 수 있는 플러그인이므로 `x_`로 통일할지 정한다.
-- [결정(잠정): review.decisions-2 U-15] C-5 `group-kit` 런타임 도우미를 그룹이 import하는 방식. 허용 목록 `DR-02/group-kit-*`로 `group-*` → `group-kit` import를 허용한다(`eng.dependency-rules.guide` DR-02). 4.1절 `group-kit` 행의 서비스(`xeon.groups`)는 그대로 둔다.
-- [결정(잠정): review.decisions-2 U-18] C-6 확장 id 형식. `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이고 밑줄은 쓰지 않는다. 테이블 접두는 `x_<extKey>_`, 지역 테이블 이름에는 밑줄을 쓰지 않는다(5.2절, CM-07). adr.0004의 `[a-z0-9_]` 서술은 이 형식으로 고친다(decisions 문서 담당).
+- [결정: review.decisions-2 U-15] C-5 `group-kit` 런타임 도우미를 그룹이 import하는 방식. 허용 목록 `DR-02/group-kit-*`로 `group-*` → `group-kit` import를 허용한다(`eng.dependency-rules.guide` DR-02). 4.1절 `group-kit` 행의 서비스(`xeon.groups`)는 그대로 둔다.
+- [결정: review.decisions-2 U-18] C-6 확장 id 형식. `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이고 밑줄은 쓰지 않는다. 테이블 접두는 `x_<extKey>_`, 지역 테이블 이름에는 밑줄을 쓰지 않는다(5.2절, CM-07). adr.0004의 `[a-z0-9_]` 서술은 이 형식으로 고친다(decisions 문서 담당).

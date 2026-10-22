@@ -104,7 +104,7 @@ cap-<domain>/
 
 - L2는 drive를 쓰지 않는다. drive 임대는 L3 그룹만 갖는다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4). L2가 다음 턴을 시작해야 하는 경우(`work.goals`, `schedule.loops`)는 `post`나 `xeon.tasks` 경유 입력으로 한다(각 spec).
 - [제안] 한 스레드에서 다음 턴을 투입하는 L2 주체는 하나다. 목표(`work.goals`)를 가진 루프(`schedule.loops`의 `goalId`)에서는 루프가 반복마다 다음 턴을 투입하고 `work.goals`는 판정만 기록하며 post하지 않는다. 이를 위해 목표는 `continuation` 값을 갖는다. `"self"`(기본)면 `work.goals`가 미충족 판정 뒤 post하고, `"external"`이면 판정만 기록한다. `schedule.loops.start`는 `goalId`의 목표가 `continuation: "external"`이 아니면 `invalid_input`(`detail.reason: "goal_continuation_self"`)으로 거부한다. 루프와 목표를 함께 거는 호출자(L4 명령, 그룹)는 `work.goals.set({ continuation: "external" })` 뒤 `schedule.loops.start({ goalId })`를 부른다(`L2.work.spec` §4.3.5, `L2.schedule.spec` §4.1.4). 확정은 §10 미결 18이다.
-- L3 그룹 이름은 이 층 문서에 쓰지 않는다. L2 설정의 기본값은 일반 이름으로 두고, 특정 그룹이 필요한 값은 L3가 설정으로 채운다 [결정(잠정): review.decisions-2 D-11].
+- L3 그룹 이름은 이 층 문서에 쓰지 않는다. L2 설정의 기본값은 일반 이름으로 두고, 특정 그룹이 필요한 값은 L3가 설정으로 채운다 [결정: review.decisions-2 D-11].
 
 ## 5. 공통 provider 규약
 
@@ -169,7 +169,7 @@ cap-<domain>/
 
 ### 5.6 도메인 서비스와 `ServiceKey`의 대응 (f)
 
-Cordis 바인딩은 능력 단위다. X가 능력마다 `cap:<능력 id>` 바인딩 하나를 만든다(`F.capabilities.spec` §3.5, `X.primitives.spec` §3.7). 도메인 서비스 묶음 타입은 같은 도메인 능력 API를 모은 TypeScript 타입이고 Cordis 서비스로 등록하지 않는다(`F.capabilities.spec` §3.5). 예외는 `xeon.mcp` 하나다 [결정(잠정): review.decisions-2 D-04]. X가 확장의 MCP 서버 등록을 `McpPort`(`registerServer(owner, name, config)`, `F.extensions.spec` §3.2.1)로 넘기므로, `cap-mcp`는 `McpService extends McpPort`를 Cordis 서비스 `xeon.mcp`에 등록한다(`F.capabilities.spec` §3.5, `L2.mcp.spec` §3.2). `McpService`와 `McpServiceName`은 다른 묶음 타입과 달리 F `services/mcp.ts`에 있다(`F.capabilities.spec` §3.12 규칙 7). 능력 API(`mcp.client`)는 다른 도메인과 같이 `cap:mcp.client` 바인딩으로 얻는다.
+Cordis 바인딩은 능력 단위다. X가 능력마다 `cap:<능력 id>` 바인딩 하나를 만든다(`F.capabilities.spec` §3.5, `X.primitives.spec` §3.7). 도메인 서비스 묶음 타입은 같은 도메인 능력 API를 모은 TypeScript 타입이고 Cordis 서비스로 등록하지 않는다(`F.capabilities.spec` §3.5). 예외는 `xeon.mcp` 하나다 [결정: review.decisions-2 D-04]. X가 확장의 MCP 서버 등록을 `McpPort`(`registerServer(owner, name, config)`, `F.extensions.spec` §3.2.1)로 넘기므로, `cap-mcp`는 `McpService extends McpPort`를 Cordis 서비스 `xeon.mcp`에 등록한다(`F.capabilities.spec` §3.5, `L2.mcp.spec` §3.2). `McpService`와 `McpServiceName`은 다른 묶음 타입과 달리 F `services/mcp.ts`에 있다(`F.capabilities.spec` §3.12 규칙 7). 능력 API(`mcp.client`)는 다른 도메인과 같이 `cap:mcp.client` 바인딩으로 얻는다.
 
 ```ts
 // 예: 웹 도메인 묶음 타입. 정의 파일 defs/web.ts에 둔다
@@ -309,7 +309,7 @@ flowchart LR
 |---|---|
 | `tools` | workspace 한도, MCP 서버·승인 모드·허용·차단, 웹 provider 선택·도메인 정책, 스킬·메모리 켜기와 쓰기 승인, 명령·첨부·질문 시간 제한(dialog), 작업 목록(work), 리뷰·산출물 도구 켜기(artifacts), schedule 도구 켜기 |
 | `models` | L2가 고르는 모델 용도 이름(artifacts 자동 제목·핸드오프 용도). work 목표 판정은 `L1.models.spec` 역할 `judge`(`l1.models.routing.judge`)와 상한 `l1.agents.judge.maxRuns`를 쓰고 L2 키를 두지 않는다 |
-| `budgets` | 비용과 반복 횟수 정책(work 판정 실패 정책 `l2.work.goal.onJudgeError`). 판정 상한 키는 `l1.agents.judge.maxRuns` 하나이고 L1.agents 소유다 [결정(잠정): review.decisions-2 S-06] |
+| `budgets` | 비용과 반복 횟수 정책(work 판정 실패 정책 `l2.work.goal.onJudgeError`). 판정 상한 키는 `l1.agents.judge.maxRuns` 하나이고 L1.agents 소유다 [결정: review.decisions-2 S-06] |
 | `providers` | provider 플러그인 우선순위(`pluginOrder`)의 표시. 플러그인 자체 설정은 `plugins` 탭 |
 | `secrets` | L2 키가 참조하는 `secret://` 이름의 표시(예: `l2.schedule.remote.tokenRef`). 값 관리는 L0.secrets 소관 |
 | `sessions` | 세션 제목·메타, 핸드오프, 내보내기, 산출물 한도(artifacts), 메모리·세션 검색(knowledge) |
@@ -318,7 +318,7 @@ flowchart LR
 | `appearance` | 상태줄 세그먼트와 출력 스타일(`l2.dialog.status.segments`, `l2.dialog.styles.active`) |
 | `advanced` | 화면에 두지 않고 파일로만 바꾸는 세부 한도·간격(knowledge, work, artifacts, schedule) |
 
-- 이 표는 L2 키의 `ui.tab` 값이다. L4 탭 표는 각 키를 소유한 층 문서의 `ui.tab`을 따른다 [결정(잠정): review.decisions-2 S-11].
+- 이 표는 L2 키의 `ui.tab` 값이다. L4 탭 표는 각 키를 소유한 층 문서의 `ui.tab`을 따른다 [결정: review.decisions-2 S-11].
 
 ## 8. 상주 수준
 
@@ -331,8 +331,8 @@ flowchart LR
 | 2 | `schedule.timers`, `schedule.remote`, `schedule.jobs`의 분리 실행, `dialog.notify`의 모바일 푸시 | 앱을 닫아도 실행되어야 한다. 서비스 모드 전용이다 |
 
 - [제안] 알림 채널(OS 알림, 모바일 푸시)은 모두 `dialog.notify`가 소유한다. `schedule.remote`는 원격 클라이언트의 승인·질문 응답만 맡고, `schedule`은 알림 대상 이벤트를 낼 뿐이다. 알림 채널이 한 곳에 있어야 무엇을 어디로 받을지 정하는 사용자 설정이 하나로 모이기 때문이다(`L2.dialog.spec` §4.7.2, `L2.schedule.spec` §4.5.4). 확정은 §10 미결 15다.
-- 수준 2 기능을 서비스 모드가 꺼져 있을 때 요청하면 서비스 자동 기동을 시도한다. 기동에 실패하면 `unavailable` 오류를 내고 `detail.reason`에 `"service_mode_off"`와 조치 안내를 싣는다. 앱 프로세스 안에서 대신 실행하지 않는다 [결정(잠정): review.decisions-2 U-23]. 예약 생성의 기본값 이름은 `autoStart`다(`L2.schedule.spec` §6).
-- 서비스 모드는 1차(M3)이고 OS 서비스 등록(launchd, systemd)만 2차다 [결정(잠정): review.decisions-2 S-01]. 원격 사용은 1차(M3)이고, 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이다. 내장 TLS + 토큰 WebSocket은 2차다 [결정(잠정): review.decisions-2 U-11].
+- 수준 2 기능을 서비스 모드가 꺼져 있을 때 요청하면 서비스 자동 기동을 시도한다. 기동에 실패하면 `unavailable` 오류를 내고 `detail.reason`에 `"service_mode_off"`와 조치 안내를 싣는다. 앱 프로세스 안에서 대신 실행하지 않는다 [결정: review.decisions-2 U-23]. 예약 생성의 기본값 이름은 `autoStart`다(`L2.schedule.spec` §6).
+- 서비스 모드는 1차(M3)이고 OS 서비스 등록(launchd, systemd)만 2차다 [결정: review.decisions-2 S-01]. 원격 사용은 1차(M3)이고, 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결하는 방식이다. 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
 - `schedule.sessions`의 공유 관제(여러 클라이언트가 같은 목록을 보는 것)는 수준 2다(`_research/l2e.md` §6 D4).
 
 ## 9. 결정 근거
@@ -356,11 +356,11 @@ flowchart LR
 4. [미결] 명시 선택 provider의 실패 처리(§5.2). 명시 선택은 내려가지 않는다는 제안과 ADR-0005 §3.3 문구("앞 provider가 실패하면 내려간다")의 적용 범위가 같은지 확인한다.
 5. [미결] `artifacts.reviews` → `workspace.files` 선택 의존(§6). 리뷰가 도구 결과 `details`의 diff만으로 충분하면 간선을 없앤다(`L2.workspace.spec`, `L2.artifacts.spec`).
 6. [미결] dialog의 테이블 접두사. 공통 규약은 "없음"이고 `eng.context-map.design` §4.1은 "예약 `cap_dialog_*`"다. 예약을 둘지 정한다.
-7. [미결] `eng.context-map.design` 미결 C-1(하위 층 이름과 layout 이름)과 C-3(내장 L2 능력 테이블 접두사를 `cap_<도메인>_`으로 둘지 설치형 확장 접두 `x_<extKey>_`로 통일할지). 설치형 확장 접두 `x_<extKey>_`는 [결정(잠정): review.decisions-2 U-18]로 정해졌다(`eng.context-map.design` §5.2). 이 층은 C-1의 현재 방침(코드에 layout 이름)과 C-3의 현재 값(`cap_<도메인>_`)을 따른다.
+7. [미결] `eng.context-map.design` 미결 C-1(하위 층 이름과 layout 이름)과 C-3(내장 L2 능력 테이블 접두사를 `cap_<도메인>_`으로 둘지 설치형 확장 접두 `x_<extKey>_`로 통일할지). 설치형 확장 접두 `x_<extKey>_`는 [결정: review.decisions-2 U-18]로 정해졌다(`eng.context-map.design` §5.2). 이 층은 C-1의 현재 방침(코드에 layout 이름)과 C-3의 현재 값(`cap_<도메인>_`)을 따른다.
 8. [미결] 도구 없는 능력(`F.capabilities.spec` §4.4 [미결]). `workspace.images`처럼 그룹과 다른 능력만 쓰는 능력이 있다. 허용되지 않으면 해당 능력에 관리용 도구를 두어야 한다.
-9. [결정(잠정): review.decisions-2 U-23] 상주 수준 2 기능의 서비스 모드 꺼짐 처리(§8). 서비스 자동 기동을 시도하고, 실패하면 `unavailable` + `service_mode_off`와 조치 안내로 거부한다. 예약 생성의 기본값 이름은 `autoStart`다.
+9. [결정: review.decisions-2 U-23] 상주 수준 2 기능의 서비스 모드 꺼짐 처리(§8). 서비스 자동 기동을 시도하고, 실패하면 `unavailable` + `service_mode_off`와 조치 안내로 거부한다. 예약 생성의 기본값 이름은 `autoStart`다.
 10. [미결] `workspace.images` 최소형을 M2에 두는 배치(§2 각주 ws). JSON의 "이미지와 첨부 처리 2차"와 `dialog.attachments` 1차(M2) 사이의 차이를 사용자가 확인한다.
-11. [미결] 마일스톤 M2·M3 정의는 `product.scope.spec` §10 미결 1에 따라 [제안] 상태다. 이 문서의 마일스톤 칸도 같이 확정된다.
+11. [결정: 사용자 확인 2026-10-22] 마일스톤 M2·M3 정의가 확정됐다(`product.scope.spec` §4.3). 이 문서의 마일스톤 칸도 그 정의를 따른다.
 12. 닫힘. 호출 문맥(§5.8)은 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`로 들어갔다. 도메인 문서의 옛 요청(`L2.work.spec` W-1, `L2.dialog.spec` D-1, `L2.artifacts.spec` §10 미결 1, `L2.schedule.spec` §8, `L2.web.spec` §10 미결 2, `L2.knowledge.spec` §10 미결 2)도 이 정의를 따른다. `work.goals.judge`·`dialog.notify.emit`의 호출자 확인(`L2.work.spec` W-6, `L2.dialog.spec` D-4)은 `caller.extension`으로 한다.
 13. 닫힘. 이벤트 카탈로그 형식(§5.9)은 `F.records.spec` §3.3.2 도메인 소유 카탈로그(`records/catalog/<domain>.ts`, `<DOMAIN>_EVENT_CATALOG`, `TYPE_PREFIX_OWNERS` L2 행, 내장 패키지 접두 예외)로 들어갔다. `L2.work.spec` W-4, `L2.dialog.spec` §3.7, `L2.artifacts.spec` §3.6, `L2.schedule.spec` §3.7도 이 정의를 따른다.
 14. [미결] 승인 kind `review` 추가를 `L1.tools.spec`에 요청한다(§5.7). 비차단 요청(`blocking: false`)과 `answerSchema` 인자도 함께 요청한다. 받아들여지지 않으면 `artifacts.reviews`는 `question` + `answerSchema`로 대신한다(`L2.artifacts.spec` §10 미결 4, `L2.schedule.spec` §3.6 `PendingRequestSchema`).

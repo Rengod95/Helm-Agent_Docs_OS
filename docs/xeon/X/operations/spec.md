@@ -96,7 +96,7 @@ import type {
 import type { InstallSource, TrustLevel, LoadedExtensionInfo } from "../loading-trust/index.ts";
 ```
 
-- 시계와 타이머는 `ExtHostDeps`와 같은 모양(`now`, `setTimer`)으로 받는다(X.primitives.spec §3.2). 테스트는 패키지 `test/` 안의 `ManualClock`(F `Clock` 인터페이스, `eng.testing.guide`)으로 두 함수를 만든다([결정(잠정): review.decisions-2 U-03]).
+- 시계와 타이머는 `ExtHostDeps`와 같은 모양(`now`, `setTimer`)으로 받는다(X.primitives.spec §3.2). 테스트는 패키지 `test/` 안의 `ManualClock`(F `Clock` 인터페이스, `eng.testing.guide`)으로 두 함수를 만든다([결정: review.decisions-2 U-03]).
 
 ### 3.1 tier와 정렬 키 (`tier.ts`)
 
@@ -832,7 +832,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 디스패처는 `DispatchPolicy.run`이 있으면 자기 타이머 대신 그 함수로 핸들러를 실행한다(X.primitives.spec §3.4, §4.2). `OperationsPolicy.run`은 `runWithBudget`으로 실행하고, 그 `gate`를 핸들러의 UI 포트 래퍼에 넘긴다.
 - 멈춘 동안에도 `outer` 중단 신호와 대화상자 자체의 signal은 살아 있다. 예산 signal은 대화상자 signal과 `AbortSignal.any`로 합친다(omp `attachHandlerSignal`과 같은 방식).
 - 비대화 실행(CLI print 모드)에서는 대화상자가 바로 기본값으로 끝나므로 멈춤 시간이 0이다.
-- [결정(잠정): review.decisions-2 U-07] `HandlerContext.ui`는 M1에 넣지 않는다. M1에는 핸들러용 UI 포트가 없다. 예산 제외 장치(`BudgetGate`, `awaitUser`)는 M0에 만들고, UI 포트 래핑은 M2에 연결한다. 핸들러에 UI 포트를 주는 방법은 M2 계획에서 F `HandlerContext` 필드 추가와 X 공개 API의 별도 함수 중에서 고른다(§10 미결 5).
+- [결정: review.decisions-2 U-07] `HandlerContext.ui`는 M1에 넣지 않는다. M1에는 핸들러용 UI 포트가 없다. 예산 제외 장치(`BudgetGate`, `awaitUser`)는 M0에 만들고, UI 포트 래핑은 M2에 연결한다. 핸들러에 UI 포트를 주는 방법은 M2 계획에서 F `HandlerContext` 필드 추가와 X 공개 API의 별도 함수 중에서 고른다(§10 미결 5).
 
 #### 4.2.4 예산 초과 처리
 
@@ -922,7 +922,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 #### 4.4.2 테이블 이름
 
 - 형식: `x_<확장 이름의 하이픈을 밑줄로 바꾼 값>_<지역 이름>`. 예: 확장 `acme-notes`, 지역 이름 `pins` → `x_acme_notes_pins`.
-- [결정(잠정): review.decisions-2 U-18] 확장 이름(`ExtensionName`)은 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이고 밑줄을 쓰지 않는다. 테이블 접두는 `x_<확장 이름의 하이픈을 밑줄로>_`이고 지역 이름에는 밑줄을 쓰지 않는다. adr.0004 §3.3의 `[a-z0-9_]` 제한은 이 규칙으로 바뀐다.
+- [결정: review.decisions-2 U-18] 확장 이름(`ExtensionName`)은 `^[a-z][a-z0-9-]{1,31}$`(소문자, 숫자, 하이픈)이고 밑줄을 쓰지 않는다. 테이블 접두는 `x_<확장 이름의 하이픈을 밑줄로>_`이고 지역 이름에는 밑줄을 쓰지 않는다. adr.0004 §3.3의 `[a-z0-9_]` 제한은 이 규칙으로 바뀐다.
 - 지역 이름은 `^[a-z][a-z0-9]{0,31}$`이고 밑줄을 쓰지 않는다. 확장 이름에는 밑줄이 없으므로, 테이블 이름의 마지막 밑줄 뒤가 지역 이름이고 `x_`와 마지막 밑줄 사이가 확장 이름(밑줄 → 하이픈)이다. 그래서 확장 `a`의 지역 이름 `bc`(`x_a_bc`)와 확장 `a-b`의 지역 이름 `c`(`x_a_b_c`)가 겹치지 않는다(`parseExtTableName`).
 - 인덱스 이름은 `<테이블 이름>__i<번호>`다. 확장은 인덱스 이름을 지정하지 않는다.
 - `RESERVED_LOCAL_TABLES`(`state`, `meta`)는 X가 쓴다. `state`는 X.primitives.spec §4.6.1의 scope 상태 투영 테이블 `x_<name>_state`다. `meta`는 예비다.
@@ -940,7 +940,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
   | `Type.Integer` | `INTEGER` | 그대로 |
   | `Type.Number` | `REAL` | 그대로 |
   | `Type.Boolean` | `INTEGER` | 0·1 |
-  | `Type.Uint8Array` [가정: TypeBox 1.4 이름] | `BLOB` | 그대로 |
+  | `Type.Uint8Array` [가정: TypeBox 1.3.27에 있는 이름] | `BLOB` | 그대로 |
   | `Type.Object`, `Type.Array`, 그 밖 | `TEXT` | `JSON.stringify`, 읽을 때 행 스키마로 검사 |
   | `Type.Optional(…)`, `null` 포함 유니온 | 위 대응 + `NULL` 허용 | |
 
@@ -989,7 +989,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - scope 상태 문서(`ScopeApi.commit`)는 확장의 정본 상태다. 이벤트 kind로 커밋되고 kind 이름과 형식은 `X.primitives.spec`이 정한다.
 - 접두 테이블은 확장의 부가 데이터다. 상태 문서보다 크거나 질의가 필요한 자료(목록, 색인, 집계)를 둔다. 접두 테이블의 내용은 이벤트(상태 커밋, 그룹 레코드, boundary entries)에서 투영으로 만든다.
 - 상태 문서는 다른 그룹이 읽지 않는다. 접두 테이블도 다른 확장이 읽지 않는다. 공개할 정보는 그룹 레코드로 낸다(`F.extensions.spec` §3.6).
-- 확장 kind 접두는 F 규칙(`x.`/`grp.`, `F.records.spec` §3.2)이다. `eng.transactions.design`·`eng.events.design`도 같은 접두로 고쳤다([결정(잠정): review.decisions-2 T-21]).
+- 확장 kind 접두는 F 규칙(`x.`/`grp.`, `F.records.spec` §3.2)이다. `eng.transactions.design`·`eng.events.design`도 같은 접두로 고쳤다([결정: review.decisions-2 T-21]).
 
 ### 4.5 이름 충돌 (2차)
 
@@ -1204,7 +1204,7 @@ pi 어댑터에서의 처리:
   - 화면: 설정 화면 "플러그인과 그룹" 탭. 묶음은 "핸들러 시간 예산", "실패와 자동 끄기", "안전 모드", "외부 훅" 네 개 [제안]. 확장 목록에 실패 수, 자동 끄기 상태, 다시 켜기 버튼을 보인다.
   - 명령: `xeon config get|set x.operations.…`(`L4.cli.spec`), `xeon ext list`, `xeon ext enable <name>`, `xeon ext disable <name>`(X.primitives.spec §6과 같은 이름), `/safe-mode`, `xeon --safe-mode`, `xeon --disable-ext <name>`, `xeon doctor`의 훅·확장 점검 [제안: 명령 이름은 `L4.cli.spec`이 확정].
   - 파일: 범위별 설정 파일의 같은 키(`F.wire-settings.spec` §3.9, 경로는 `L4.host-service.spec`).
-- 확장 공통 키 `ext.<name>.enabled`, `ext.<name>.isolation`은 `X.loading-trust.spec`, `x.primitives.driveLimits`는 `X.primitives.spec` 소유다. 이 문서는 정의하지 않는다.
+- 확장 공통 키 `ext.<name>.enabled`, `ext.<name>.isolation`은 `X.loading-trust.spec`, `x.primitives.driveDefaultLimits`·`x.primitives.driveLimits`는 `X.primitives.spec` 소유다. 이 문서는 정의하지 않는다.
 
 ## 7. 확장 지점
 
@@ -1287,19 +1287,19 @@ pi 어댑터에서의 처리:
 ## 10. 미결 사항
 
 1. tier와 핸들러 시간 예산의 소유(F 부분 해소). `F.extensions.spec` §1 "다루지 않는 것"과 §4.2는 이미 `X.operations.spec`을 가리킨다(§1.1). 남은 곳은 `L3.readme`의 L3가 정하지 않는 것 표(4연산 실행 행, 핸들러 순서 행)로, tier 소유를 아직 `X.primitives.spec`으로 적는다(L3 문서 소관).
-2. [결정(잠정): review.decisions-2 U-07] F 매니페스트 필드 `storage`·`hooks`는 M1에 넣지 않는다. M1은 필드 없이 동작한다(테이블 선언의 정본은 코드의 `defineTables`). M2 이후 다시 요청할 후보는 다음과 같다(`F.extensions.spec` §3.1).
+2. [결정: review.decisions-2 U-07] F 매니페스트 필드 `storage`·`hooks`는 M1에 넣지 않는다. M1은 필드 없이 동작한다(테이블 선언의 정본은 코드의 `defineTables`). M2 이후 다시 요청할 후보는 다음과 같다(`F.extensions.spec` §3.1).
    - 확장 전용 테이블 선언: `storage?: { tables: string[] }`(지역 이름 목록). 설치 전 검토, 제거 확인 화면, `validateUsage` 대조(`storage_undeclared`)에 쓴다.
    - 확장이 함께 내는 외부 훅: `hooks?: HookDef[]`(2차).
    - M2 전에 설치 전 검토가 필요하면 확장 루트의 `.xeon-plugin/operations.json`에 같은 내용을 두고 X가 읽는다 [제안].
 3. 이름 정리(해소).
-   - extId 형식: [결정(잠정): review.decisions-2 U-18] `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두 `x_<하이픈을 밑줄로>_`(§4.4.2). `F.extensions.spec` `EXTENSION_NAME_PATTERN`, `eng.context-map.design` §5.2·CM-07, `eng.domain-types.guide` DT-08, `eng.events.design` §4.5, `L0.store.spec`, adr.0004 §3.3이 모두 이 정규식과 `x_` 접두로 고쳐졌다. `L3.readme`의 그룹 이름 제안(`^[a-z][a-z0-9]{1,31}$`)은 부분 집합이라 충돌하지 않는다.
-   - 확장 kind 접두: `x.`/`grp.`(`F.records.spec` §3.2). 옛 밑줄 접두 표기는 쓰지 않는다([결정(잠정): review.decisions-2 T-21]). scope 상태 커밋 kind 이름은 `X.primitives.spec`이 정한다.
+   - extId 형식: [결정: review.decisions-2 U-18] `^[a-z][a-z0-9-]{1,31}$`, 테이블 접두 `x_<하이픈을 밑줄로>_`(§4.4.2). `F.extensions.spec` `EXTENSION_NAME_PATTERN`, `eng.context-map.design` §5.2·CM-07, `eng.domain-types.guide` DT-08, `eng.events.design` §4.5, `L0.store.spec`, adr.0004 §3.3이 모두 이 정규식과 `x_` 접두로 고쳐졌다. `L3.readme`의 그룹 이름 제안(`^[a-z][a-z0-9]{1,31}$`)은 부분 집합이라 충돌하지 않는다.
+   - 확장 kind 접두: `x.`/`grp.`(`F.records.spec` §3.2). 옛 밑줄 접두 표기는 쓰지 않는다([결정: review.decisions-2 T-21]). scope 상태 커밋 kind 이름은 `X.primitives.spec`이 정한다.
    - 세션 열 이름: `eng.context-map.design` §5.2는 `session_id`, 이 문서는 F 용어(`ThreadId`)를 따라 `thread_id`를 쓴다.
 4. F.records 추가 요청(F 부분 해소).
    - `ScopeChangedPayload.reason?`(`"request" | "auto_disable" | "safe_mode" | "startup_disable"`)은 `F.records.spec` §3.3에 들어갔다. 값 정본은 이 문서의 `ScopeChangeReason`이다.
    - 휘발 kind `scope.handler_failed`는 `F.records.spec` §3.3 코어 카탈로그에 코어 영역 `scope`로 들어갔다(`ScopeHandlerFailedPayloadSchema`).
    - [미결] 남은 일: `ScopeHandle.enable`/`disable`에 사유 인자가 없어 `ScopeControl`의 사유를 `scope.changed`에 싣는 경로가 없다. `X.primitives.spec` §3.2에 사유 인자 추가를 요청한다.
-5. [결정(잠정): review.decisions-2 U-07] `HandlerContext.ui`는 M1에 넣지 않는다. 핸들러에 UI 포트를 주는 방법(F `HandlerContext` 필드 추가, X 공개 API의 별도 함수)은 M2 계획에서 `X.primitives.spec`과 정한다. 어느 쪽이든 X가 감싸서 예산을 멈춘다(§4.2.3).
+5. [결정: review.decisions-2 U-07] `HandlerContext.ui`는 M1에 넣지 않는다. 핸들러에 UI 포트를 주는 방법(F `HandlerContext` 필드 추가, X 공개 API의 별도 함수)은 M2 계획에서 `X.primitives.spec`과 정한다. 어느 쪽이든 X가 감싸서 예산을 멈춘다(§4.2.3).
 6. [미결] 확장 투영 `apply` 예외의 복구 경로(§5 6번). 투영기 해제와 확장 끄기 뒤 커밋을 다시 시도할지, 세션을 읽기 전용으로 열지. `L1.persistence.spec`, `eng.events.design` 투영 실패 규칙과 정한다.
 7. [미결] 자동 끄기의 영속 여부. 현재 [제안]은 프로세스 단위(재시작하면 다시 실림)다. 여러 번의 시작에서 반복해 꺼지는 확장을 `ext.<name>.enabled=false`로 기록할지, 사용자 확인을 받을지.
 8. [미결] 이벤트에서 다시 만들 수 없는 부가 데이터 테이블(보존 테이블)을 허용할지. 허용하면 `eng.context-map.design` §5.2의 "`x_`는 확장 투영기만 쓴다, 재생 가능"을 바꾸고, 직접 쓰기 경로(커밋 계획에 데이터 연산 목록을 싣는 F `CommitPlan` 확장)와 열 추가 마이그레이션(`storage/migrate.ts`)이 필요하다.
