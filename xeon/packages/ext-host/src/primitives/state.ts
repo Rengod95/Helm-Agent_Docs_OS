@@ -21,6 +21,7 @@ import { makeDraft } from "./drafts.ts";
 import { PrimitiveError } from "./errors.ts";
 import { deepFreeze } from "./freeze.ts";
 import { hash12, keyPart } from "./keys.ts";
+import { isKindReadable, ownKindPrefix } from "./read-scope.ts";
 
 const STATE_SLACK_BYTES = 4096;
 const RECORD_KIND_REGEX = new RegExp(RECORD_KIND_PATTERN);
@@ -433,10 +434,7 @@ export function createStateService(core: HostCore): StateService {
       const amb = ambient();
       const thread = threadOf(amb, record);
       if (amb === undefined) throw new Bug("state.recordPrivate: ambient vanished");
-      const prefix =
-        record.manifest.kind === "group"
-          ? `grp.${record.manifest.name}.`
-          : `x.${record.manifest.name}.`;
+      const prefix = ownKindPrefix(record.manifest);
       const area = kind.split(".")[2];
       const declaredPublic =
         record.manifest.recordKinds?.some((decl) => decl.kind === kind) === true;
@@ -473,7 +471,7 @@ export function createStateService(core: HostCore): StateService {
     async readRecords(record, generation, query) {
       assertGeneration(record, generation);
       generation.usage.readsRecordKinds.add(query.kind);
-      if (!isReadAllowed(record, query.kind)) {
+      if (!isKindReadable(record.manifest, query.kind)) {
         throw new PrimitiveError("read_kind_undeclared", `reading ${query.kind} is not declared`, {
           scopeId: record.id,
         });
@@ -592,16 +590,4 @@ function toRecordKindDecl(decl: {
 }): RecordKindDecl {
   // 매니페스트의 payload는 JSON Schema 객체이고 parse가 그대로 컴파일한다(F.extensions.spec §3.1)
   return { ...decl, payload: decl.payload };
-}
-
-/** 자기 접두 kind이거나 readsRecordKinds가 덮으면 읽을 수 있다(X.primitives.spec §4.6.4) */
-function isReadAllowed(record: ScopeRecord, kind: string): boolean {
-  const prefix =
-    record.manifest.kind === "group"
-      ? `grp.${record.manifest.name}.`
-      : `x.${record.manifest.name}.`;
-  if (kind.startsWith(prefix)) return true;
-  return (record.manifest.readsRecordKinds ?? []).some((declared) =>
-    declared.endsWith("*") ? kind.startsWith(declared.slice(0, -1)) : declared === kind,
-  );
 }

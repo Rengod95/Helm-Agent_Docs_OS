@@ -15,6 +15,7 @@ import type {
   Unsubscribe,
 } from "@xeon/contracts/extensions";
 import { createCapabilityBindings } from "./bindings.ts";
+import { createEventBus, type EventBus } from "./event-bus.ts";
 import { createBoundary, type BoundaryHooks } from "./boundary.ts";
 import type {
   ExtChange,
@@ -182,6 +183,8 @@ export interface LeaseInfo {
 /** 패키지 안(testing, loading-trust, operations)에서만 쓰는 호스트 내부 */
 export interface ExtHostInternals {
   readonly core: HostCore;
+  /** pi events 어댑터용 휘발 이벤트 버스(X.primitives.spec §4.9). 확장 코드에는 주지 않는다 */
+  readonly events: EventBus;
   /** 추적 중인 작업(drive 호출, 유휴 적용, 능력 바인딩)이 모두 끝나기를 기다린다 */
   whenSettled(): Promise<void>;
   /** 토글 요청을 사유와 함께 기록한다(X.operations ScopeControl의 바탕). threadId가 있으면 그 thread만의 요청이다 */
@@ -351,6 +354,10 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       strict: resolved.strict,
       report,
       stateOf: (threadId, scopeId) => services.state?.docOf(threadId, scopeId),
+      track: (task) => {
+        core.track(task);
+      },
+      threadSignal: (threadId) => core.threads.get(threadId)?.abort.signal,
     }),
     ports,
     scopes: new Map(),
@@ -650,6 +657,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
 
   internalsByHost.set(host, {
     core,
+    events: createEventBus(core),
     whenSettled: () => core.whenSettled(),
     requestScope(scopeId, enabled, reason, threadId) {
       const record = core.scopes.get(scopeId);

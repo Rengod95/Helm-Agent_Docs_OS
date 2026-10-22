@@ -785,7 +785,9 @@ tap:
 ```text
 tap(entries, payload):
   if decl.dispatch == "detached":
-    queueMicrotask(async () => for e in entries: r = await runOne(e, [payload]); r.ok && r.value !== undefined → report(value_from_tap))
+    // 완료를 기다리지 않는다. 핸들러는 이 호출이 돌아온 뒤 순서대로 실행한다. 호스트가 작업을 추적한다(whenSettled)
+    // 취소 신호는 thread 닫힘뿐이다(디스패치 옵션의 signal은 쓰지 않는다)
+    track(Promise.resolve().then(() => 위 순차 await tap을 그대로 실행))
     return { fold: "tap", detached: true, failures: [] }
   failures = []
   for e in entries:                     // 순차 await. F §4.2
@@ -1239,7 +1241,30 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 | C | 그룹마다 `ctx.isolate`나 thisArg 필터로 격리 | Cordis 기능을 쓴다 | 격리가 서비스 조회에도 걸려 능력 공유가 복잡해진다(`reflect.ts:211-212`). rc API 의존이 늘어난다 |
 | D | 확장에 범용 이벤트 버스를 주지 않는다. 확장 사이 통신은 그룹 레코드(내구, 스키마, 읽기 선언)와 능력 서비스로만 한다 | F §4.8과 그대로 맞는다. 재생과 감사가 된다. Cordis 이벤트 API를 감출 수 있다 | pi `pi.events` 예제(1단위, `_research/notes/X-3.md` §2.3)는 어댑터 없이 올라오지 않는다 |
 
-[제안] D를 채택한다. ext-host는 확장에 Cordis `Context`와 `emit`을 노출하지 않는다. 지점은 자체 레지스트리로 디스패치하므로 Cordis 이벤트 이름 공간을 쓰지 않는다. pi `pi.events` 호환이 필요하면 M2 이후 어댑터(X.loading-trust.spec)에 휘발 버스를 두고, 이름은 B의 접두 규칙, 구독은 `readsRecordKinds` 선언과 같은 검사를 거치게 한다. 서비스 이름은 §3.7 규칙으로 격리한다.
+[결정: P-26, M2] D를 채택한다. ext-host는 확장에 Cordis `Context`와 `emit`을 노출하지 않는다. 지점은 자체 레지스트리로 디스패치하므로 Cordis 이벤트 이름 공간을 쓰지 않는다. `g`, `hostOf(g)`, `PlatformContext`, `ExtHost`, `ResourceRegistry` 어디에도 `emit`, `parallel`, `serial`, `bail`, `waterfall`, `broadcast`, `ctx`, `root`, `reflect`, `fiber`, `plugin`이 없다는 것을 시험이 확인한다(`event-isolation.test.ts`). 서비스 이름은 §3.7 규칙으로 격리한다.
+
+pi `pi.events` 호환을 위해 어댑터(X.loading-trust)용 휘발 이벤트 버스를 둔다. 확장 코드에는 주지 않고 패키지 안에서만 쓴다(`hostInternalsOf(host).events`, 공개 목록에 없음).
+
+```ts
+// primitives/event-bus.ts (패키지 내부)
+export type EventBusError =
+  | { readonly kind: "name_invalid"; readonly name: string }
+  | { readonly kind: "prefix_not_owned"; readonly name: string; readonly owner: ExtensionName }
+  | { readonly kind: "read_undeclared"; readonly name: string }
+  | { readonly kind: "scope_inactive"; readonly scopeId: ScopeId };
+
+export interface BusEvent { readonly from: ExtensionName; readonly name: string; readonly data: JsonValue }
+
+export interface EventBus {
+  emit<S>(g: ScopeApi<S>, name: string, data: JsonValue): Result<void, EventBusError>;
+  on<S>(g: ScopeApi<S>, name: string, listener: (event: BusEvent) => void): Result<Unsubscribe, EventBusError>;
+}
+```
+
+- 발행 이름은 `RECORD_KIND_PATTERN` 형식이고 자기 접두(그룹 `grp.<이름>.`, 플러그인 `x.<이름>.`)여야 한다(`prefix_not_owned`). 형식 위반은 `name_invalid`다.
+- 구독 이름은 같은 형식에 끝의 `*`(접두 일치)를 허용하고, 자기 접두이거나 매니페스트 `readsRecordKinds`가 덮어야 한다(`read_undeclared`). 기록 읽기와 같은 검사(`isKindReadable`)다.
+- 휘발이다. 저장하지 않고, 발행 시점의 구독자만 받으며, 재시작 뒤에는 남지 않는다. 구독자는 발행이 돌아온 뒤 마이크로태스크에서 호출되고(호스트가 추적해 `whenSettled`가 기다린다) 발행 시점의 동결된 복사본(`structuredClone`)을 받는다. 구독자의 예외는 진단으로 남기고 다른 구독자에게 이어 간다.
+- 구독은 호출한 세대의 fiber effect라 scope를 끄면 자동으로 해제된다. 닫힌 세대의 `g`로 부르면 `scope_inactive`다. 발행과 전달 사이에 세대가 닫히면 전달하지 않는다.
 
 ## 5. 실패와 경계 사례
 
@@ -1249,7 +1274,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 4. chain 핸들러가 던지거나, 패치가 스키마를 어기거나, `merge`가 거부함: 그 핸들러의 패치만 버리고 다음 핸들러로 간다.
 5. chain `finalize` 지점인데 L1이 `finalize`를 넘기지 않음: L1 결함이다. `Bug("dispatch.finalize_missing: …")`를 던진다.
 6. 디스패치 도중 같은 지점에 등록·해제·토글: 진행 중 디스패치는 스냅샷대로 끝난다. 다음 디스패치부터 반영된다.
-7. detached tap 핸들러가 세션 종료 뒤 끝남: 결과를 버리고 실패만 보고한다.
+7. detached tap(`dispatch: "detached"`, 지점 5개)은 핸들러 완료를 기다리지 않고 `{ detached: true, failures: [] }`를 바로 돌려준다. 핸들러는 그 뒤 순서대로 실행되고 실패는 `policy.onHandlerFailure`와 진단으로만 보고된다. 시간 예산은 받는다(초과하면 signal을 abort하고 `timeout`으로 센다). thread가 닫히면(세션 종료, `ExtHost.dispose`) 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행하지 않으며, 늦게 끝난 값과 예외는 버린다(`aborted`는 실패로 세지 않는다). 디스패치 옵션의 `signal`은 detached에는 쓰지 않는다. 호출한 turn이 끝나도 계속 도는 것이 목적이기 때문이다.
 8. 같은 `requestId`로 두 번째 post: `duplicate: true`, 큐 변화 없음.
 9. `usesPost` 없이 post: `post_undeclared`로 거부. 확장은 계속 로드된 상태다(경고로 끝내지 않는다. X.loading-trust.spec이 로드 실패로 바꿀 수 있다).
 10. 두 그룹이 drive를 등록하고 기본 활성: 중재 규칙(§4.4.1)에 따라 하나에만 임대를 준다. 선택 설정이 없으면 아무에게도 주지 않고 `drive_conflict` 경고를 낸다. 다른 그룹의 drive 함수는 호출되지 않는다.
@@ -1381,6 +1406,8 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 41. (M2, X.2) 포트가 없으면 `port_unavailable`, 같은 scope의 같은 이름은 `resource_conflict`, 형식 위반은 `resource_name_invalid`다. 정책이 없을 때 다른 scope의 같은 이름도 `resource_conflict`다. 정책의 `rename`·`replace`·`reject`가 각각 그대로 반영된다.
 42. (M2, X.2) `exposeAll` 정책에서 외부 확장 둘이 같은 도구 이름을 등록하면 설치 순서와 관계없이 둘 다 정식 이름으로 노출되고, 한쪽을 끄면 남은 쪽이 짧은 이름으로 도구 포트에 다시 등록된다. 내장이 나중에 같은 이름을 등록하면 먼저 등록된 외부 도구가 정식 이름으로 바뀐다.
 43. (M2, X.2) 핸들러가 `hostOf(g).awaitUser`로 감싼 대기는 핸들러 시간 예산에 들어가지 않고, 감싸지 않은 같은 대기는 시간 초과다. `wait`가 받는 신호는 핸들러 신호와 호출자 신호를 합친 것이다.
+44. (M2, X.3) detached 지점(`session_info_changed` 등)에 디스패치하면 핸들러를 기다리지 않고 `detached: true`를 돌려주고, 핸들러는 그 뒤 등록 순서로 실행된다. 늦은 예외는 `policy.onHandlerFailure`로만 보고되고 결과의 `failures`는 비어 있다. 예산을 넘기면 `timeout`이다. thread를 닫으면 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행되지 않으며 실패로 세지 않는다.
+45. (M2, X.3) Cordis 이벤트·컨텍스트 API가 확장에 주는 객체에 없고, 이벤트 버스는 자기 접두 발행과 읽기 선언된 구독만 허용하며 구독자에게 동결된 복사본을 전달하고 scope를 끄면 구독이 사라진다.
 
 ## 10. 미결 사항
 

@@ -20,7 +20,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 | M1 | 걷는 골격: 테스트용 그룹이 `on`(`tool_call`, `turn_end`), `post`, `drive`를 쓰고, drive 그룹의 켜기·끄기가 단계 경계에서 적용됨을 모델 테이프 스모크로 확인한다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 실제 L1 포트(`xeon.loop`, `xeon.tasks`, `xeon.session`)와 연결, 포트 계약 스위트, `record`/`readRecords`, 능력 바인딩(공급자 하나), 설정 `x.primitives.driveLimits`, 재개(`openThread`의 열린 임대·상태 판 복원), 투영기 등록·접두 테이블·프로세스 포트 키(P-30) | M1 스모크(`apps/cli/test/chat.scenario.test.ts`, 저장소 1개), 포트 계약 스위트를 L1 구현이 통과 | L3 테스트 그룹, X.operations(O-14) |
 | M2 이후 | 임대 중재 설정(`x.primitives.activeDriveGroup`, `LeaseArbiterPort`, `revoked`), 상태 마이그레이션 훅, 리소스 등록 전체(도구·명령·키 조합·플래그·provider·MCP·렌더러, `ResourceRegistry`, `ResourcePolicy`), 진짜 detached tap, 그룹 간 이벤트 격리(pi `events` 어댑터용 휘발 버스), 공급자 여럿의 선택 설정(`x.primitives.capabilityProviders`), thread별 scope 켜짐 상태(서비스 모드) | §5의 M2 표시 항목 | L3 Helm·학습 그룹, X.loading-trust(pi 어댑터), L4 설정 화면 |
 
-- M0에서 `dispatch: "detached"` 지점(5개)은 await 방식으로 실행한다 [제안]. 결과와 실패 규칙은 같고 지연만 다르다. 진짜 detached 실행은 M2다.
+- M0에서 `dispatch: "detached"` 지점(5개)은 await 방식으로 실행했다 [제안]. 결과와 실패 규칙은 같고 지연만 다르다. 진짜 detached 실행은 M2(P-25)에서 구현했다.
 - M0의 경계 기여는 L1 경계 커밋에 넣지 않고 `RecordCommitPort.commit`으로 따로 커밋한다(spec §3.5 끝 항목). M1에서 L1이 `BoundaryContribution.drafts`를 C5 커밋에 넣는다.
 
 ## 2. 패키지와 파일 배치
@@ -225,3 +225,7 @@ xeon/packages/ext-host/
 | group-kit 요청 1 | 보류 | `LeaseCandidate.enabledAtSeq`는 F `ports.ts`와 `ExtThreadSnapshot`(scope.changed의 seq)이 먼저 바뀌어야 한다. F 레인 요청 |
 | N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`의 `Result`화(`ExtRowError`). 다른 패키지 호출처는 없다 |
 | P-24 | 완료 | `resources.ts`: `ResourceRegistry`(`list`·`subscribe`·`setFlag`), `ResourcePolicy` 결합(쌍 판정 + 집합 판정 `exposeAll`), 도구·provider·MCP 포트 위임, 명령·단축키·플래그·렌더러 보관, effect 자동 해제, `hostOf(g).register*`·`getFlag`. `resources.test.ts` |
+| P-25 | 완료 | detached tap은 완료를 기다리지 않고 `detached: true`를 돌려준다. 핸들러는 그 뒤 순서대로 실행되고 실패는 정책·진단으로만 보고된다. 예산은 받고 thread가 닫히면 중단·폐기한다. `dispatch-detached.test.ts` |
+| P-26 | 완료 | 확장에 Cordis 이벤트·컨텍스트 API가 없음을 시험으로 고정하고, pi events 어댑터용 휘발 버스(`event-bus.ts`, 패키지 내부)를 접두 강제·읽기 선언 검사와 함께 구현했다. 어댑터 자체(pi 확장 로딩)는 M3다. `event-isolation.test.ts` |
+| N-01 | 완료(X 쪽) | `openThread`가 이미 열린 세대를 그 thread의 켜짐 집합에 올리고(`seedThread`) 저장된 켜짐 기록과 같으면 `scope.changed`를 쓰지 않는다. 같은 프로세스 재열기·재시작 시험(`thread-scope.test.ts`). core-persistence가 `loadThread.enabled`를 비워 돌려주는 M1 대역(PS-16 전)에서는 중복이 남는다 |
+| N-02 | 완료 | 결정 D8(b): 공급자 재시작 뒤 Cordis가 apply를 다시 불러도 setup을 바로 다시 실행하지 않고 `stale` 표시 후 다음 단계 경계(유휴면 곧바로)에서 새 세대로 만든다. `provider-restart.test.ts` |

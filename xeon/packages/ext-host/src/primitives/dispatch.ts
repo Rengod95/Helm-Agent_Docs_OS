@@ -57,6 +57,10 @@ export interface DispatcherDeps {
   readonly report: (diagnostic: ExtDiagnostic) => void;
   /** 핸들러 ctx.state. 디스패치 시작 때의 마지막 커밋 상태 */
   readonly stateOf: (threadId: ThreadId, scopeId: ScopeId) => unknown;
+  /** detached tap의 작업을 호스트가 추적한다(whenSettled가 기다리고 거부는 진단으로 남긴다) */
+  readonly track: (task: Promise<unknown>) => void;
+  /** thread가 닫히면 중단되는 신호. 없으면(열지 않은 thread) undefined. detached tap은 세션 종료 뒤 실행하지 않고 결과를 버린다 */
+  readonly threadSignal: (threadId: ThreadId) => AbortSignal | undefined;
 }
 
 export interface Dispatcher {
@@ -299,8 +303,26 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         throw new Bug(`dispatch.finalize_missing: ${point} requires options.finalize`);
       }
       const entries = sortEntries(deps.registry.snapshot(point, options.threadId), policy);
-      const env = makeEnv(point, options);
       const fold = decl.fold;
+      if (fold === "tap" && decl.dispatch === "detached") {
+        // 완료를 기다리지 않는다. 핸들러는 이 호출이 돌아온 뒤에 순서대로 실행하고, 실패는 정책과 진단으로만 보고한다.
+        // 디스패치 전체의 취소 신호는 쓰지 않는다(호출한 turn이 끝나도 계속 돈다). thread가 닫히면 중단한다
+        const threadSignal = deps.threadSignal(options.threadId);
+        const detachedOptions: AnyDispatchOptions = {
+          threadId: options.threadId,
+          dispatchKey: options.dispatchKey,
+          ...(threadSignal === undefined ? {} : { signal: threadSignal }),
+        };
+        const env = makeEnv(point, detachedOptions);
+        deps.track(
+          Promise.resolve().then(async () => {
+            await foldTap(env, entries, payload);
+            return undefined;
+          }),
+        );
+        return { fold: "tap", detached: true, failures: [] };
+      }
+      const env = makeEnv(point, options);
       switch (fold) {
         case "tap":
           return foldTap(env, entries, payload);

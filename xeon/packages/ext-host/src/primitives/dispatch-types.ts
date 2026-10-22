@@ -64,7 +64,7 @@ export interface HandlerFailure {
 
 export interface TapOutcome {
   readonly fold: "tap";
-  /** detached 지점이면 참. M0에서 detached 지점도 await 방식으로 실행하므로 항상 거짓이다 [제안] */
+  /** detached 지점이면 참. 이때 핸들러는 디스패치가 돌려준 뒤에 실행되고 failures는 늘 비어 있다(실패는 policy.onHandlerFailure로만 보고) */
   readonly detached: boolean;
   readonly failures: readonly HandlerFailure[];
 }
