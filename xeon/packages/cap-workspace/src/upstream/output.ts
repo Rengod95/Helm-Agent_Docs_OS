@@ -1,7 +1,11 @@
 // XEON-PATCH: P2
 import type { ShellOutputSkip } from "@xeon/contracts/services";
-// XEON-PATCH: P2
-import { utf8ByteLength } from "../truncate/upstream/truncate.ts";
+
+// XEON-PATCH: P3
+/** UTF-8 byte length. The output buffer and the read/ls bounds count bytes the same way. */
+export function utf8ByteLength(content: string): number {
+  return Buffer.byteLength(content, "utf8");
+}
 
 /** Retention limits of one tool's output. */
 export type OutputLimits = {

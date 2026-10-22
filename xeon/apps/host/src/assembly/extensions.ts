@@ -20,7 +20,6 @@ import { createTasksEntry, TASKS_MANIFEST } from "@xeon/core-tasks";
 import { toolsPlugin } from "@xeon/core-tools";
 import type { BuiltinExtensionModule, ExtensionUnit, InstallResult } from "@xeon/ext-host";
 import type { HostMode } from "../types.ts";
-import { createHostTruncator } from "./truncator.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   loopSource,
@@ -132,7 +131,6 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ids: deps.ids,
           settings: toolsSource(settings),
           logger: deps.logger.child({ component: "core-tools" }),
-          truncator: createHostTruncator(),
           loadIndex,
         }),
     ],

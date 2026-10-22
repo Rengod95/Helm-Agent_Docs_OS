@@ -3,7 +3,11 @@ import type { CancelScope as Context, ExecutionEnv, FileKind } from "@xeon/contr
 // XEON-PATCH: P2
 import { getOrThrow } from "../../upstream/get-or-throw.ts";
 // XEON-PATCH: P2
-import { DEFAULT_MAX_BYTES, utf8ByteLength } from "../../truncate/upstream/truncate.ts";
+import { utf8ByteLength } from "../../upstream/output.ts";
+
+// XEON-PATCH: P7
+/** 목록 출력의 바이트 한도(50KB). 원본은 truncate.ts의 상수를 썼다. 절단 함수는 platform-exec로 옮겼고 이 상수만 남긴다 */
+const DEFAULT_MAX_BYTES: number = 50 * 1024;
 
 // XEON-PATCH: P7
 /**

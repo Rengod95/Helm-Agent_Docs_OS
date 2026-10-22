@@ -28,14 +28,6 @@ export interface EffectKit {
   readonly clock: Clock;
 }
 
-const COMMIT_KEY_PART = /^[A-Za-z0-9_.:-]{1,120}$/;
-
-/** 커밋 키에 넣을 toolCallId 부분. 키 문자 집합을 벗어나거나 길면 해시로 바꾼다(결정적) */
-export async function commitKeyPart(toolCallId: string): Promise<string> {
-  if (COMMIT_KEY_PART.test(toolCallId)) return toolCallId;
-  return `h_${(await sha256Hex(toolCallId)).slice(0, 40)}`;
-}
-
 /** ToolRunDrafts가 낸 초안이 ProducerHandle을 거친 것(StampedDraft)인가 */
 export function isStampedDraft(value: unknown): value is StampedDraft {
   if (typeof value !== "object" || value === null) return false;

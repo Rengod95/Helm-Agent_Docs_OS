@@ -17,6 +17,7 @@ function newHost() {
       return () => clock.clearTimeout(handle);
     },
     settings: {
+      driveDefaultLimits: () => ({}),
       driveLimits: () => ({}),
       activeDriveGroup: () => null,
       capabilityProviders: () => ({}),

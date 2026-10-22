@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { err, ok } from "@xeon/contracts";
 import { wireError, type JsonRpcMessage } from "@xeon/contracts/wire";
 import { AssembleError } from "@xeon/host";
 import { createHostConnection } from "../src/host-client.ts";
@@ -23,8 +24,21 @@ const OPTIONS: EngineConnectOptions = {
   devWireRoundTrip: false,
 };
 
-function api(start: HostApi["startInProcessHost"]): HostApi {
-  return { startInProcessHost: start, createHostConnection };
+function api(
+  start: HostApi["startInProcessHost"],
+  resolveStatePaths: HostApi["resolveHostStatePaths"] = (resolveOptions) =>
+    Promise.resolve(
+      ok({
+        stateDir: "/state",
+        cliStateFile: resolveOptions?.cliStateFileOverride ?? "/state/cli/state.json",
+      }),
+    ),
+): HostApi {
+  return {
+    startInProcessHost: start,
+    resolveHostStatePaths: resolveStatePaths,
+    createHostConnection,
+  };
 }
 
 function started(
@@ -171,11 +185,42 @@ test("a host that fails to close throws its cause instead of reporting a deadlin
   expect(connectionClosed).toBe(true);
 });
 
-test("the state file location is null unless the caller knows it", async () => {
+test("the state file location comes from the host unless the caller overrides it", async () => {
   const connect = createConnectEngine(api(() => Promise.resolve(started())));
   const result = await connect(OPTIONS);
   if (!result.ok) throw new Error("connect failed");
-  expect(result.value.paths.cliStateFile).toBeNull();
+  expect(result.value.paths.cliStateFile).toBe("/state/cli/state.json");
+  const nullOverride = await connect({ ...OPTIONS, stateFile: null });
+  if (!nullOverride.ok) throw new Error("connect failed");
+  expect(nullOverride.value.paths.cliStateFile).toBe("/state/cli/state.json");
+});
+
+test("a state directory failure is a dataDirPermission start error and no host is started", async () => {
+  let starts = 0;
+  const connect = createConnectEngine(
+    api(
+      () => {
+        starts += 1;
+        return Promise.resolve(started());
+      },
+      () =>
+        Promise.resolve(
+          err({ kind: "dirs_unavailable", message: "no home", reason: "env_missing" }),
+        ),
+    ),
+  );
+  const result = await connect(OPTIONS);
+  expect(result).toMatchObject({ ok: false, error: { kind: "dataDirPermission" } });
+  expect(starts).toBe(0);
+  const denied = createConnectEngine(
+    api(
+      () => Promise.resolve(started()),
+      () => Promise.resolve(err({ kind: "permission", path: "/state/cli", cause: new Error("x") })),
+    ),
+  );
+  const refused = await denied(OPTIONS);
+  expect(refused).toMatchObject({ ok: false, error: { kind: "dataDirPermission" } });
+  if (!refused.ok) expect(refused.error.message).toContain("/state/cli");
 });
 
 test("the observe tap sees every message sent and received, in order", async () => {

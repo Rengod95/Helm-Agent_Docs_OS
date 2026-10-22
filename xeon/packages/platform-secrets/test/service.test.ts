@@ -84,6 +84,34 @@ describe("lease flow (spec §4.1)", () => {
     });
   });
 
+  // 수용 기준 14: 모델 provider 키(runtime-http, 마일스톤 M1)
+  test("a model provider key leases in runtime-http mode and a wrong host never reaches the provider", async () => {
+    const { service, records, secret } = setup({
+      modes: ["runtime-http"],
+      tools: ["model.provider:*"],
+      hosts: ["api.example.test"],
+    });
+    const ctx = httpCtx({
+      purpose: "model.provider:example",
+      target: { kind: "host", host: "api.example.test", port: null },
+      approval: null,
+    });
+    const allowed = await service.lease(HANDLE, ctx);
+    expect(allowed.ok).toBe(true);
+    expect(service.providerLeaseCalls()).toBe(1);
+    const denied = await service.lease(HANDLE, {
+      ...ctx,
+      target: { kind: "host", host: "evil.example.test", port: null },
+    });
+    expect(denied.ok).toBe(false);
+    if (!denied.ok) {
+      expect(denied.error).toEqual({ kind: "denied", handle: HANDLE, reason: "host_mismatch" });
+    }
+    expect(service.providerLeaseCalls()).toBe(1);
+    expect(records.map((record) => record.type)).toEqual(["secret.used", "secret.denied"]);
+    expectNoValue(JSON.stringify(records), secret);
+  });
+
   test("unknown names and malformed handles are errors without audit records", async () => {
     const { service, records } = setup();
     const missing = await service.lease(handleOf("nope-token"), httpCtx());

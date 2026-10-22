@@ -54,6 +54,9 @@
     },
     {
       "path": "../../packages/platform-store"
+    },
+    {
+      "path": "../../packages/group-helm"
     }
   ]
 }

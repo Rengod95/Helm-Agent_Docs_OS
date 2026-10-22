@@ -18,7 +18,8 @@
     "typebox": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:"
+    "@types/bun": "catalog:",
+    "@xeon/platform-exec": "workspace:*"
   },
   "xeon": {
     "layer": "L2",

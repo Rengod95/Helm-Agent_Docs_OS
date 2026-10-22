@@ -3,6 +3,7 @@
 import type { Clock } from "@xeon/contracts";
 import type { EffectId, IdFactory, ItemId, ThreadId } from "@xeon/contracts/conversation";
 import {
+  commitKeyPart,
   decideEffectRecovery,
   MAX_REPLAY_ATTEMPTS,
   NOT_STARTED_TEXT,
@@ -17,6 +18,7 @@ import {
   type ReplayPolicy,
   type StampedDraft,
 } from "@xeon/contracts/records";
+import { sha256Hex } from "./hash.ts";
 import type { ProducerRegistry } from "./producers.ts";
 
 export interface OpenEffectInput {
@@ -92,13 +94,14 @@ export interface SynthesisDeps {
 
 /**
  * 합성 결과 커밋 요청. effect.result{synthesized: true}와 isError toolResult item.recorded를 한 커밋으로 쓴다.
- * 커밋 키는 처음 결과와 같은 tool:<toolCallId>:result라 효과마다 종결 기록은 하나다(eng.transactions.design §5.1)
+ * 커밋 키는 처음 결과와 같은 tool:<commitKeyPart(toolCallId)>:result라 효과마다 종결 기록은 하나다(eng.transactions.design §5.1)
  */
 export function synthesisRequest(deps: SynthesisDeps, input: SynthesisInput): CommitRequest {
   const { intent, intentEvent, threadId } = input;
   return {
     threadId,
-    requestId: `tool:${intent.toolCallId}:result`,
+    // 정상 결과와 같은 키여야 효과마다 종결 기록이 하나다. toolCallId 변환은 commitKeyPart 하나다(U-13)
+    requestId: `tool:${commitKeyPart(intent.toolCallId, sha256Hex)}:result`,
     // 생성 id와 시각은 넣지 않는다. 같은 효과의 같은 합성은 같은 지문이다
     fingerprintSource: { toolCallId: intent.toolCallId, synthesized: input.code },
     build(view): CommitPlan {

@@ -1,11 +1,6 @@
 import { Bug, assertNever, err, ok, type Logger, type Result } from "@xeon/contracts";
 import type { EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
-import type {
-  EnqueueRequest,
-  EnqueueResult,
-  PostWhen,
-  Unsubscribe,
-} from "@xeon/contracts/extensions";
+import type { EnqueueRequest, EnqueueResult, Unsubscribe } from "@xeon/contracts/extensions";
 import type {
   CommitPlan,
   CommitRequest,
@@ -50,11 +45,6 @@ export interface InputQueueImpl extends InputQueue {
   dispose(): void;
 }
 
-interface PostMeta {
-  readonly scopeId: string;
-  readonly when: PostWhen;
-}
-
 function reject(code: string): CommitPlan {
   return { kind: "reject", code, detail: null };
 }
@@ -91,10 +81,7 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
 
   // ── 쓰기 ──────────────────────────────────────────────────────────────
 
-  function enqueueNow(
-    draft: InputDraft,
-    post: PostMeta | null,
-  ): Result<EnqueueReceipt, InputQueueError> {
+  function enqueueNow(draft: InputDraft): Result<EnqueueReceipt, InputQueueError> {
     if (draft.mode === "next" || draft.mode === "aside") {
       return err({ kind: "mode_not_supported", mode: draft.mode });
     }
@@ -111,32 +98,11 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
         if (view.threadStatus === "absent") return reject("thread_not_found");
         if (view.threadStatus === "closed") return reject("thread_closed");
         const queued = draftQueued(view, draft);
-        const [first] = queued.drafts;
-        if (queued.existing !== undefined || first === undefined) return reject("duplicate_input");
-        const drafts =
-          post === null
-            ? queued.drafts
-            : [
-                ...queued.drafts,
-                // 확장 post의 영수증. 같은 커밋의 input.queued 이벤트 id를 가리킨다(U-05)
-                producer.draft({
-                  id: ids.next("evt"),
-                  kind: "post.accepted",
-                  threadId: draft.threadId,
-                  turnId: null,
-                  stepId: null,
-                  causationId: null,
-                  correlationId: null,
-                  payload: {
-                    requestId: draft.requestId,
-                    scopeId: post.scopeId,
-                    when: post.when,
-                    inputId: first.draft.id,
-                    itemId: null,
-                  },
-                }),
-              ];
-        return { kind: "append", drafts, checkpoint: null };
+        if (queued.existing !== undefined || queued.drafts.length === 0) {
+          return reject("duplicate_input");
+        }
+        // 확장 post의 기록도 input.queued 하나다. 멱등은 커밋 키가 맡는다(U-05)
+        return { kind: "append", drafts: queued.drafts, checkpoint: null };
       },
     };
 
@@ -352,7 +318,7 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
   return {
     enqueue(draft) {
       return new Promise((resolve) => {
-        resolve(enqueueNow(draft, null));
+        resolve(enqueueNow(draft));
       });
     },
     draftQueued,
@@ -371,16 +337,13 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
     },
     enqueuePost(request) {
       return new Promise<EnqueueResult>((resolve) => {
-        const result = enqueueNow(
-          {
-            threadId: request.threadId,
-            mode: request.when,
-            item: request.item,
-            requestId: request.requestId,
-            source: { type: "extension", scopeId: request.scopeId },
-          },
-          { scopeId: request.scopeId, when: request.when },
-        );
+        const result = enqueueNow({
+          threadId: request.threadId,
+          mode: request.when,
+          item: request.item,
+          requestId: request.requestId,
+          source: { type: "extension", scopeId: request.scopeId },
+        });
         // InputQueuePort.enqueue에는 오류 통로가 없다. 예상 실패도 거부로 알린다
         if (!result.ok) {
           throw new Bug(`tasks.enqueue_failed: ${result.error.kind}`, { cause: result.error });

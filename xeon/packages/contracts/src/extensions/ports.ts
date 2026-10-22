@@ -97,7 +97,7 @@ export interface EnqueueResult {
 }
 
 export interface InputQueuePort {
-  /** post.accepted와 입력 큐 항목을 한 커밋으로 남긴다(F.records.spec §3.3) */
+  /** 입력 큐 항목(input.queued) 하나를 커밋 키로 멱등하게 남긴다(F.records.spec §3.3, U-05) */
   enqueue(request: EnqueueRequest): Promise<EnqueueResult>;
 }
 export const InputQueuePortKey: PortKey<InputQueuePort> = { name: "xeon.tasks" };

@@ -4,6 +4,7 @@ import {
   isSemVerRange,
   type CapabilityId,
 } from "../capabilities/index.ts";
+import { RESERVED_SOURCE_KEYS } from "../records/commit.ts";
 import {
   isRecordKindOf,
   type GroupRecord,
@@ -87,6 +88,10 @@ export const RESERVED_EXTENSION_NAMES: readonly string[] = [
   "artifacts",
   "schedule",
 ];
+
+function isReservedSourceKey(name: string): boolean {
+  return RESERVED_SOURCE_KEYS.some((key) => key === name);
+}
 
 function issue(
   severity: ManifestIssue["severity"],
@@ -177,6 +182,16 @@ function checkSemantics(manifest: ExtensionManifest): readonly ManifestIssue[] {
   if (manifest.trust?.level !== "builtin" && RESERVED_EXTENSION_NAMES.includes(manifest.name)) {
     issues.push(
       issue("error", "name_reserved", "/name", `extension name "${manifest.name}" is reserved`),
+    );
+  } else if (isReservedSourceKey(manifest.name)) {
+    // 입력 출처 키는 신뢰 등급과 무관하게 모든 확장에 금지한다(U-13). 외부 확장의 이름 예약과 겹치면 한 번만 알린다
+    issues.push(
+      issue(
+        "error",
+        "name_reserved",
+        "/name",
+        `extension name "${manifest.name}" is an input source key and cannot be used`,
+      ),
     );
   }
 

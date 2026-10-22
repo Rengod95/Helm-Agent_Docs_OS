@@ -8,6 +8,7 @@ import {
   expectedDomain,
   expectedLayer,
   extractImports,
+  extractSpawns,
   extractSpecifiers,
   formatViolation,
   loadRouteDomains,
@@ -468,4 +469,79 @@ test("allowlist: a listed pair also passes when only package.json declares it", 
   expect(rules()).toEqual(["DR-10"]);
   allowlist([{ id: "DR-10/cli-host", rule: "DR-10", from: "apps/cli", to: "@xeon/host" }]);
   expect(rules()).toEqual([]);
+});
+
+// DR-07 process spawning (review.decisions-2 B-06)
+const SPAWN_SRC = 'const proc = Bun.spawn(["echo", "x"]);\n';
+const spawnEntry = (from: string): Partial<AllowEntry> => ({
+  id: `DR-07/${from.split("/")[1]}-test-spawn`,
+  rule: "DR-07",
+  from,
+  to: "Bun.spawn",
+  scope: "test",
+});
+
+test("extractSpawns finds Bun.spawn, Bun.spawnSync and node:child_process, ignoring comments", () => {
+  expect(extractSpawns(SPAWN_SRC)).toEqual([1]);
+  expect(extractSpawns('// Bun.spawn(x)\n/* Bun.spawnSync */\nBun.spawnSync(["a"]);')).toEqual([3]);
+  expect(extractSpawns('import { spawn } from "node:child_process";')).toEqual([1]);
+  expect(extractSpawns('const cp = require("child_process");')).toEqual([1]);
+  expect(extractSpawns('import { x } from "node:fs";')).toEqual([]);
+});
+
+test("DR-07: a source file outside the L0 owners fails even with a test-scope entry", () => {
+  pkg("packages/core-persistence", "L1", [], { files: { "src/run.ts": SPAWN_SRC } });
+  allowlist([spawnEntry("packages/core-persistence")]);
+  const found = checkLayers(root).violations;
+  expect(found.map((v) => `${v.file}:${v.line} ${v.rule}`)).toEqual([
+    "packages/core-persistence/src/run.ts:1 DR-07",
+  ]);
+  expect(found[0]?.message).toContain("sources");
+});
+
+test("DR-07: a test file needs a scope test entry of its own package", () => {
+  pkg("apps/cli", "L4", [], { files: { "test/chat.scenario.test.ts": SPAWN_SRC } });
+  expect(lines()).toHaveLength(1);
+  expect(lines()[0]).toContain("apps/cli/test/chat.scenario.test.ts:1 DR-07");
+  allowlist([spawnEntry("apps/cli")]);
+  expect(lines()).toEqual([]);
+  // an entry of another package does not cover it
+  allowlist([spawnEntry("packages/core-persistence")]);
+  pkg("packages/core-persistence", "L1");
+  expect(rules()).toEqual(["DR-07"]);
+});
+
+test("DR-07: the owners spawn in sources, and any platform-* package spawns in tests", () => {
+  pkg("packages/platform-exec", "L0", [], { files: { "src/run.ts": SPAWN_SRC } });
+  pkg("packages/platform-store", "L0", [], {
+    files: { "test/support/child.ts": SPAWN_SRC },
+  });
+  expect(lines()).toEqual([]);
+});
+
+test("DR-07: platform-store sources are not an owner of process execution", () => {
+  pkg("packages/platform-store", "L0", [], { files: { "src/run.ts": SPAWN_SRC } });
+  expect(rules()).toEqual(["DR-07"]);
+});
+
+test("DR-07: a node:child_process import in a test is covered by the same entry", () => {
+  pkg("packages/cap-workspace", "L2", [], {
+    files: { "test/fork-records.test.ts": 'import { execFileSync } from "node:child_process";' },
+  });
+  expect(rules()).toEqual(["DR-07"]);
+  allowlist([spawnEntry("packages/cap-workspace")]);
+  expect(rules()).toEqual([]);
+});
+
+test("DR-07: allowlist entries need scope test and the Bun.spawn target", () => {
+  pkg("apps/cli", "L4");
+  allowlist([
+    { id: "DR-07/cli-all", rule: "DR-07", from: "apps/cli", to: "Bun.spawn" },
+    { id: "DR-07/cli-other", rule: "DR-07", from: "apps/cli", to: "bun:sqlite", scope: "test" },
+  ]);
+  const messages = checkLayers(root)
+    .violations.map((v) => v.message)
+    .join("\n");
+  expect(messages).toContain('need scope "test"');
+  expect(messages).toContain("cover Bun.spawn only");
 });

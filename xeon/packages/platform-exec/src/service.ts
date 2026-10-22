@@ -13,6 +13,7 @@ import type { ExecPlatformProvider } from "./provider.ts";
 import { forwardFileSystem } from "./forward.ts";
 import { acquireSecretEnv, type SecretEnvSource } from "./secret-env.ts";
 import { NodeExecutionEnv } from "./upstream/env/node.ts";
+import { formatSize, truncateHead, truncateHeadOf } from "./upstream/truncate.ts";
 
 // L0.exec.spec §3.8. 포크 NodeExecutionEnv와 provider, env 빌더, 비밀 주입을 묶는다.
 // Cordis 등록은 ext-host의 서비스 등록 API로 한다(조립 루트). 이 파일은 Cordis를 import하지 않는다(DR-11).
@@ -149,6 +150,10 @@ export function createExecService(options: ExecServiceOptions, deps: ExecService
     cleanup: (context: CancelScope) => service.cleanup(context),
     withCwd: (cwd) => createEnv(cwd),
     startBackground: startBackgroundNotImplemented,
+    // 출력 절단은 순수 계산이다. L1·L2가 사본 없이 xeon.exec로 부른다(review.decisions-2 D-08, B-04)
+    truncateHead,
+    truncateHeadOf,
+    formatSize,
   };
   return result;
 }

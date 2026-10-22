@@ -8,45 +8,16 @@
  * Never returns partial lines. Tool output streams are bounded by `src/harness/output.ts` instead.
  */
 
-// XEON-PATCH: P9
+// XEON-PATCH: P13
+import type { TruncationOptions, TruncationResult } from "@xeon/contracts/services";
+
+// XEON-PATCH: P12
 const DEFAULT_MAX_LINES: number = 2000;
-// XEON-PATCH: P9
-export const DEFAULT_MAX_BYTES: number = 50 * 1024; // 50KB
+// XEON-PATCH: P12
+const DEFAULT_MAX_BYTES: number = 50 * 1024; // 50KB
 
-export interface TruncationResult {
-  /** The truncated content */
-  content: string;
-  /** Whether truncation occurred */
-  truncated: boolean;
-  /** Which limit was hit: "lines", "bytes", or null if not truncated */
-  truncatedBy: "lines" | "bytes" | null;
-  /** Total number of lines in the original content */
-  totalLines: number;
-  /** Total number of bytes in the original content */
-  totalBytes: number;
-  /** Number of complete lines in the truncated output */
-  outputLines: number;
-  /** Number of bytes in the truncated output */
-  outputBytes: number;
-  /** Whether the last line was partially truncated (only for tail truncation edge case) */
-  lastLinePartial: boolean;
-  /** Whether the first line exceeded the byte limit (for head truncation) */
-  firstLineExceedsLimit: boolean;
-  /** The max lines limit that was applied */
-  maxLines: number;
-  /** The max bytes limit that was applied */
-  maxBytes: number;
-}
-
-export interface TruncationOptions {
-  /** Maximum number of lines (default: 2000) */
-  maxLines?: number;
-  /** Maximum number of bytes (default: 50KB) */
-  maxBytes?: number;
-}
-
-// XEON-PATCH: P3
-export function utf8ByteLength(content: string): number {
+// XEON-PATCH: P10
+function utf8ByteLength(content: string): number {
   return Buffer.byteLength(content, "utf8");
 }
 
@@ -55,6 +26,19 @@ function splitLinesForCounting(content: string): string[] {
   const lines = content.split("\n");
   if (content.endsWith("\n")) lines.pop();
   return lines;
+}
+
+/**
+ * Format bytes as human-readable size.
+ */
+export function formatSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes}B`;
+  } else if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)}KB`;
+  } else {
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  }
 }
 
 /**
@@ -107,7 +91,7 @@ export function truncateHeadOf(
   }
 
   // Check if first line alone exceeds byte limit
-  // XEON-PATCH: P4
+  // XEON-PATCH: P11
   const firstLineBytes = utf8ByteLength(lines[0] ?? "");
   if (firstLineBytes > maxBytes) {
     return {
@@ -131,7 +115,7 @@ export function truncateHeadOf(
   let truncatedBy: "lines" | "bytes" = "lines";
 
   for (let i = 0; i < lines.length && i < maxLines; i++) {
-    // XEON-PATCH: P4
+    // XEON-PATCH: P11
     const line = lines[i] ?? "";
     const lineBytes = utf8ByteLength(line) + (i > 0 ? 1 : 0); // +1 for newline
 

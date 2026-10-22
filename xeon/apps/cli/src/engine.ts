@@ -15,8 +15,12 @@ import {
   AssembleError,
   startInProcessHost,
   type AssembleIssue,
+  resolveHostStatePaths,
   type AssembleOptions,
   type HostPluginModule,
+  type HostStatePathError,
+  type HostStatePaths,
+  type ResolveHostStatePathsOptions,
 } from "@xeon/host";
 import { createHostConnection, type HostConnectionOptions } from "./host-client.ts";
 
@@ -57,8 +61,8 @@ export interface EngineConnectOptions {
   readonly observe?: (message: JsonRpcMessage) => void;
   readonly assemble?: EngineAssembleOverrides;
   /**
-   * CLI 상태 파일 위치. 경로 계산(OS 분기)은 CLI가 하지 않는다(DR-13). @xeon/host가 L0.os 상태 디렉터리를 알려 주는 API를
-   * 아직 내지 않아 호출자가 넘긴다. 없으면 null이고 상태 파일을 쓰지 않는다 [spec §10 1번 미결]
+   * 테스트 격리용 CLI 상태 파일 덮어쓰기(환경 변수 XEON_CLI_STATE_FILE). 경로 계산(OS 분기)은 CLI가 하지 않는다(DR-13).
+   * 없으면 `@xeon/host`의 `resolveHostStatePaths()`가 정한 `<OsDirs.state>/cli/state.json`을 쓴다 [결정: review.decisions-2 B-07]
    */
   readonly stateFile?: string | null;
 }
@@ -90,7 +94,7 @@ export interface EngineHandle {
   readonly transport: TransportKind;
   /** host.hello 결과의 storeId */
   readonly storeId: StoreId;
-  readonly paths: { readonly cliStateFile: string | null };
+  readonly paths: { readonly cliStateFile: string };
   /** 엔진의 시계. CLI는 전역 시각을 읽지 않는다(TY-21) [spec에 더한 필드] */
   readonly clock: Clock;
   /** turn.start의 requestId로 쓸 새 id. 엔진의 IdFactory가 낸다 [spec에 더한 필드] */
@@ -123,10 +127,18 @@ export interface StartedHost {
 /** @xeon/host 호출을 바꿔 끼울 수 있게 한 틈. 테스트가 가짜를 넣는다 */
 export interface HostApi {
   startInProcessHost(options?: Omit<AssembleOptions, "mode">): Promise<StartedHost>;
+  /** CLI 상태 파일 위치와 상태 디렉터리 준비(L4.host-service.spec §3.3.6) */
+  resolveHostStatePaths(
+    options?: ResolveHostStatePathsOptions,
+  ): Promise<Result<HostStatePaths, HostStatePathError>>;
   createHostConnection(transport: Transport, options?: HostConnectionOptions): HostConnection;
 }
 
-const REAL_HOST_API: HostApi = { startInProcessHost, createHostConnection };
+const REAL_HOST_API: HostApi = {
+  startInProcessHost,
+  resolveHostStatePaths,
+  createHostConnection,
+};
 
 /** 전송을 감싸 보내는 메시지와 받는 메시지를 모두 observe에 알린다 */
 export function tapTransport(
@@ -281,6 +293,26 @@ async function closeEngine(
   throw new AggregateError(failures, "engine shutdown failed: host and connection");
 }
 
+/** 상태 디렉터리를 정하거나 만들지 못한 오류를 시작 오류로 바꾼다(L4.cli.spec §4.10 표의 dataDirPermission) */
+function statePathError(error: HostStatePathError): EngineStartError {
+  switch (error.kind) {
+    case "dirs_unavailable":
+      return {
+        kind: "dataDirPermission",
+        message: "상태 디렉터리 위치를 정하지 못했다",
+        fix: "HOME(Windows는 USERPROFILE)과 XEON_HOME 설정을 확인한다",
+      };
+    case "permission":
+      return {
+        kind: "dataDirPermission",
+        message: `상태 디렉터리를 만들 수 없다 (${error.path})`,
+        fix: "디렉터리 권한과 소유자를 확인한다",
+      };
+    default:
+      return assertNever(error, "statePathError");
+  }
+}
+
 /** `connectEngine`을 만든다. api는 테스트가 바꿔 끼운다 */
 export function createConnectEngine(api: HostApi): ConnectEngine {
   return async (options) => {
@@ -291,6 +323,12 @@ export function createConnectEngine(api: HostApi): ConnectEngine {
         fix: "서비스 모드는 M3에서 제공한다. in-process로 실행한다",
       });
     }
+    const statePaths = await api.resolveHostStatePaths(
+      options.stateFile === undefined || options.stateFile === null
+        ? {}
+        : { cliStateFileOverride: options.stateFile },
+    );
+    if (!statePaths.ok) return err(statePathError(statePaths.error));
     let host: StartedHost;
     try {
       host = await api.startInProcessHost(assembleOptionsOf(options));
@@ -314,7 +352,7 @@ export function createConnectEngine(api: HostApi): ConnectEngine {
         connection,
         transport: hello.transport,
         storeId: hello.storeId,
-        paths: { cliStateFile: options.stateFile ?? null },
+        paths: { cliStateFile: statePaths.value.cliStateFile },
         clock,
         newRequestId: () => ids.next("evt"),
         shutdown(_reason) {

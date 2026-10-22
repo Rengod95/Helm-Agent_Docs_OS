@@ -14,28 +14,35 @@ import type {
   ThreadId,
   TurnId,
 } from "@xeon/contracts/conversation";
-import type {
-  CommitPlan,
-  CommitRequest,
-  CommitResult,
-  DraftInput,
-  FaultInjector,
-  LeaseToken,
-  ProducerHandle,
-  ReplayPolicy,
-  SessionService,
-  StepCheckpointInput,
-  StoreError,
-  StampedDraft,
-  TxView,
+import {
+  commitKeyPart,
+  type CommitPlan,
+  type CommitRequest,
+  type CommitResult,
+  type DraftInput,
+  type FaultInjector,
+  type LeaseToken,
+  type ProducerHandle,
+  type ReplayPolicy,
+  type SessionService,
+  type StepCheckpointInput,
+  type StoreError,
+  type StampedDraft,
+  type TxView,
 } from "@xeon/contracts/records";
 import {
   createSessionService,
   type PersistenceSettings,
   type SessionDeps,
 } from "../../src/index.ts";
+import { sha256Hex } from "../../src/hash.ts";
 import { manualClock, fixedIdFactory, type ManualClock } from "./clock.ts";
 import { openTestStore, TEST_HOLDER_A, type TestStore } from "./sqlite-store.ts";
+
+/** 도구 효과 커밋 키의 toolCallId 부분. 운영 생산자와 같은 F 함수를 쓴다(U-13) */
+function keyPart(toolCallId: string): string {
+  return commitKeyPart(toolCallId, sha256Hex);
+}
 
 /** 임시 디렉터리 안 DB 파일 경로. 호출자가 cleanup을 afterEach에 건다 */
 export function tempDbPath(): { readonly path: string; readonly cleanup: () => void } {
@@ -464,7 +471,7 @@ export function commitIntent(
 ): StepProgress["effects"][number] {
   const effectId = h.ids.next("efx");
   const itemId = h.ids.next("itm");
-  commitOrThrow(h, threadId, `tool:${call.toolCallId}:intent`, () => ({
+  commitOrThrow(h, threadId, `tool:${keyPart(call.toolCallId)}:intent`, () => ({
     kind: "append",
     drafts: [
       draftOf(
@@ -506,7 +513,9 @@ export function commitExec(
   commitOrThrow(
     h,
     threadId,
-    attempt === 0 ? `tool:${toolCallId}:exec` : `tool:${toolCallId}:exec:${attempt}`,
+    attempt === 0
+      ? `tool:${keyPart(toolCallId)}:exec`
+      : `tool:${keyPart(toolCallId)}:exec:${attempt}`,
     () => ({
       kind: "append",
       drafts: [
@@ -535,7 +544,7 @@ export function commitResultOf(
   effect: StepProgress["effects"][number],
 ): void {
   const scope: Scope = { turnId, stepId };
-  commitOrThrow(h, threadId, `tool:${effect.call.toolCallId}:result`, () => ({
+  commitOrThrow(h, threadId, `tool:${keyPart(effect.call.toolCallId)}:result`, () => ({
     kind: "append",
     drafts: [
       draftOf(h, h.tools, "effect.result", threadId, scope, {

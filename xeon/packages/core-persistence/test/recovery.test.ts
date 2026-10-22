@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { Bug } from "@xeon/contracts";
 import {
   MAX_REPLAY_ATTEMPTS,
+  commitKeyPart,
   NOT_STARTED_TEXT,
   OUTCOME_UNKNOWN_TEXT,
   type CommitPlan,
@@ -9,6 +10,7 @@ import {
   type RecoverDeps,
   type ReplayPolicy,
 } from "@xeon/contracts/records";
+import { sha256Hex } from "../src/hash.ts";
 import { decideOpenEffect } from "../src/index.ts";
 import { fixedIdFactory } from "./support/clock.ts";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
@@ -204,6 +206,24 @@ describe("recover", () => {
     expect(again.synthesized).toEqual([]);
     expect(restarted.service.query.openEffects(threadId)).toEqual([]);
     expectProjectionsRebuildable(restarted.store.db);
+  });
+
+  // U-13: 복구 합성 키는 정상 결과와 같은 commitKeyPart를 쓴다
+  test("the synthesis key uses commitKeyPart for an id outside the key alphabet", () => {
+    const h = openHarness();
+    const oddId = "call|odd id:with/chars";
+    const { threadId } = openStep(h, [{ toolCallId: oddId, toolName: "bash", replay: "unsafe" }]);
+    const restarted = reopenHarness(h);
+    expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
+    expectOk(restarted.service.recover(threadId, deps({ toolReplay: () => "unsafe" })));
+    const keys = restarted.store.raw
+      .query<{ request_id: string }, []>(
+        "SELECT request_id FROM requests WHERE request_id LIKE 'tool:%:result'",
+      )
+      .all()
+      .map((row) => row.request_id);
+    expect(keys).toEqual([`tool:${commitKeyPart(oddId, sha256Hex)}:result`]);
+    expect(keys[0]).toMatch(/^tool:h_[0-9a-f]{40}:result$/);
   });
 
   // spec §9.8

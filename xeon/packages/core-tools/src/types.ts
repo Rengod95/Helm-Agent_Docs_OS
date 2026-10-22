@@ -13,6 +13,7 @@ import type {
   Usage,
 } from "@xeon/contracts/conversation";
 import type {
+  ExecService,
   ExposureMode,
   OutputLimits,
   ToolClass,
@@ -81,28 +82,11 @@ export interface ToolEntry {
   readonly locks: LockDeclarer | undefined;
 }
 
-/** 출력 절단 결과. durable truncate 포크의 TruncationResult에서 이 패키지가 읽는 필드만 적었다 */
-export interface TruncationOutcome {
-  readonly content: string;
-  readonly truncated: boolean;
-  readonly truncatedBy: "lines" | "bytes" | null;
-  readonly totalLines: number;
-  readonly totalBytes: number;
-  readonly outputLines: number;
-  readonly outputBytes: number;
-}
-
 /**
- * 출력 절단 함수. 구현은 L0 platform-exec의 durable truncate 포크이고 `xeon.exec`로 받는다
- * (review.decisions-2 D-08, L1.tools.spec §3.7). 이 패키지에는 사본을 두지 않는다.
+ * 출력 절단 함수. 구현은 L0 platform-exec의 durable truncate 포크이고 F `ExecService`(`xeon.exec`)의 메서드로 받는다
+ * (review.decisions-2 D-08, B-04, L1.tools.spec §3.7). 이 패키지에는 사본을 두지 않는다.
  */
-export interface OutputTruncator {
-  truncateHead(
-    content: string,
-    options?: { readonly maxLines?: number; readonly maxBytes?: number },
-  ): TruncationOutcome;
-  formatSize(bytes: number): string;
-}
+export type OutputTruncator = Pick<ExecService, "truncateHead" | "formatSize">;
 
 /** 도구 호출 하나의 메모리 상태. 의도 표(intent table)를 포함한다 */
 export interface CallState {

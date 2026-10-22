@@ -8,6 +8,8 @@
 //   DR-03 package.json "xeon": {layer, domain} exists and matches the package location (domain also matches routes.yaml for L0-L2)
 //   DR-04 workspace imports are declared in package.json and tsconfig.json "references" equals the workspace dependency set
 //   DR-05 no src/dist deep import and no relative import that leaves the package
+//   DR-07 Bun.spawn, Bun.spawnSync and node:child_process: sources of the L0 owner packages only; test files of any platform-*
+//         package and of packages with a `scope: "test"` allowlist entry (review.decisions-2 B-06)
 // Rank: F(0) < X(1) < L0(2) < L1(3) < L2(4) < L3(5) < L4(6). plugins/* count as L1, apps/* as L4, vendor/* is excluded.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
@@ -32,6 +34,8 @@ export interface PackageInfo {
   /** Line in package.json of each declared dependency. */
   declaredLines: Record<string, number>;
   imports: { spec: string; file: string; line: number }[];
+  /** Process spawning: Bun.spawn(Sync) calls and node:child_process imports, with the file and line (DR-07). */
+  spawns: { file: string; line: number }[];
   /** tsconfig.json "references" (resolved to package-relative paths); undefined when there is no tsconfig.json. */
   references: { path: string; line: number }[] | undefined;
 }
@@ -59,6 +63,8 @@ export interface AllowEntry {
   reason: string;
   /** Approving document or ADR id. */
   approvedBy: string;
+  /** "test": the exception covers the test files of `from` only; the same use in `src/**` stays a violation. */
+  scope?: "test";
 }
 
 function isAllowList(data: unknown): data is AllowEntry[] {
@@ -71,6 +77,7 @@ function isAllowList(data: unknown): data is AllowEntry[] {
       entries: Type.Optional(Type.Array(Type.String())),
       reason: Type.String({ minLength: 10 }),
       approvedBy: Type.String(),
+      scope: Type.Optional(Type.Literal("test")),
     }),
   );
   return Check(schema, data);
@@ -135,9 +142,14 @@ function lineOfString(text: string, value: string): number {
 
 const blank = (match: string): string => match.replace(/[^\n]/g, " ");
 
+/** The text with block comments and whole-line comments blanked; offsets and lines are preserved. */
+function withoutComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, blank).replace(/^[ \t]*\/\/.*$/gm, blank);
+}
+
 /** Module specifiers with their 1-based line. Comments are ignored; offsets and lines are preserved. */
 export function extractImports(text: string): { spec: string; line: number }[] {
-  const code = text.replace(/\/\*[\s\S]*?\*\//g, blank).replace(/^[ \t]*\/\/.*$/gm, blank);
+  const code = withoutComments(text);
   const found: { spec: string; line: number }[] = [];
   const patterns = [
     /\b(?:import|export)\s+(?:type\s+)?(?:[^'";]*?\s+from\s+)?["']([^"']+)["']/dg,
@@ -154,6 +166,20 @@ export function extractImports(text: string): { spec: string; line: number }[] {
     }
   }
   return found.toSorted((a, b) => a.line - b.line);
+}
+
+const SPAWN_CALL = /\bBun\.spawn(?:Sync)?\b/g;
+const CHILD_PROCESS_SPEC = /^(?:node:)?child_process$/;
+
+/** Lines that spawn a process: Bun.spawn(Sync) calls and imports of node:child_process. Comments are ignored. */
+export function extractSpawns(text: string): number[] {
+  const code = withoutComments(text);
+  const lines = new Set<number>();
+  for (const match of code.matchAll(SPAWN_CALL)) lines.add(lineAt(code, match.index));
+  for (const { spec, line } of extractImports(text)) {
+    if (CHILD_PROCESS_SPEC.test(spec)) lines.add(line);
+  }
+  return [...lines].toSorted((a, b) => a - b);
 }
 
 /** Module specifiers found in source text. Comments are ignored. */
@@ -241,13 +267,16 @@ function readPackage(root: string, dir: string): PackageInfo {
   const layer = xeon["layer"];
   const domain = xeon["domain"];
   const imports: PackageInfo["imports"] = [];
+  const spawns: PackageInfo["spawns"] = [];
   for (const file of new Bun.Glob(SOURCE_GLOB).scanSync({ cwd: join(root, dir) })) {
     if (SKIP.test(file)) {
       continue;
     }
-    for (const found of extractImports(readText(join(root, dir, file)))) {
+    const source = readText(join(root, dir, file));
+    for (const found of extractImports(source)) {
       imports.push({ spec: found.spec, file, line: found.line });
     }
+    for (const line of extractSpawns(source)) spawns.push({ file, line });
   }
   return {
     dir,
@@ -258,6 +287,7 @@ function readPackage(root: string, dir: string): PackageInfo {
     declared,
     declaredLines,
     imports,
+    spawns,
     references: readReferences(root, dir),
   };
 }
@@ -587,7 +617,77 @@ export function checkAllowlist(
     if (!entry.rule.startsWith("DR-")) continue;
     if (!dirs.has(entry.from))
       add(entry, `from ${entry.from} is not a workspace package directory`);
+    if (entry.rule === "DR-07") {
+      if (entry.to !== SPAWN_ALLOW_TARGET) {
+        add(entry, `DR-07 entries cover ${SPAWN_ALLOW_TARGET} only, not ${entry.to}`);
+      }
+      if (entry.scope !== "test") {
+        add(entry, `DR-07 ${SPAWN_ALLOW_TARGET} entries need scope "test"; sources stay with L0`);
+      }
+      continue;
+    }
+    if (entry.scope !== undefined) add(entry, `scope "${entry.scope}" is only valid for DR-07`);
     if (!names.has(entry.to)) add(entry, `to ${entry.to} is not a workspace package`);
+  }
+  return violations;
+}
+
+/** `to` of a DR-07 allowlist entry; one entry covers Bun.spawn, Bun.spawnSync and node:child_process. */
+export const SPAWN_ALLOW_TARGET = "Bun.spawn";
+
+/** L0 packages whose sources may spawn processes (guide DR-07 table; processes stay behind L0 interfaces, DR-13). */
+const SPAWN_OWNERS: ReadonlySet<string> = new Set([
+  "packages/platform-exec",
+  "packages/platform-process",
+  "packages/platform-sandbox",
+  "packages/platform-secrets",
+  "packages/platform-os",
+]);
+
+/** Test files: anything under test/ or tests/, or named *.test.* / *.spec.*. */
+export function isTestFile(file: string): boolean {
+  return /(^|\/)tests?\//.test(file) || /\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file);
+}
+
+/**
+ * DR-07 process spawning. Sources of the owner packages may spawn. A test file may spawn in any platform-* package
+ * (the owners' test fixtures run real processes) and in a package with an allowlist entry
+ * `{ rule: "DR-07", to: "Bun.spawn", scope: "test" }` (review.decisions-2 B-06). Everything else is a violation.
+ */
+export function checkSpawns(
+  packages: readonly PackageInfo[],
+  allow: readonly AllowEntry[],
+): Violation[] {
+  const violations: Violation[] = [];
+  for (const pkg of packages) {
+    if (expectedLayer(pkg.dir) === "vendor" || SPAWN_OWNERS.has(pkg.dir)) continue;
+    const testAllowed =
+      pkg.dir.startsWith("packages/platform-") ||
+      allow.some(
+        (entry) =>
+          entry.rule === "DR-07" &&
+          entry.from === pkg.dir &&
+          entry.to === SPAWN_ALLOW_TARGET &&
+          entry.scope === "test",
+      );
+    for (const { file, line } of pkg.spawns) {
+      if (isTestFile(file)) {
+        if (testAllowed) continue;
+        violations.push({
+          rule: "DR-07",
+          file: `${pkg.dir}/${file}`,
+          line,
+          message: `${pkg.name} spawns a process in a test; add a scope "test" allowlist entry (DR-07/<name>) after approval`,
+        });
+      } else {
+        violations.push({
+          rule: "DR-07",
+          file: `${pkg.dir}/${file}`,
+          line,
+          message: `${pkg.name} spawns a process in its sources; process execution stays in the L0 owners (platform-exec, platform-process, platform-sandbox, platform-secrets, platform-os)`,
+        });
+      }
+    }
   }
   return violations;
 }
@@ -633,6 +733,7 @@ export function checkLayers(
       routeDomains === undefined ? { allow: entries } : { allow: entries, routeDomains },
     ),
     ...checkReferences(packages),
+    ...checkSpawns(packages, entries),
     ...relativeEscapes(root, packages),
   ];
   return {

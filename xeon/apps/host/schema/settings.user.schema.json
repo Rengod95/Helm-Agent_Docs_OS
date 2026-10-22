@@ -2001,6 +2001,49 @@
         }
       }
     },
+    "l3.helm.driveLimits": {
+      "additionalProperties": false,
+      "default": {
+        "maxSpawns": 8,
+        "maxTokens": 400000,
+        "maxTurns": 4
+      },
+      "properties": {
+        "maxSpawns": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxTokens": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxTurns": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L3",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Helm 탐구가 쓰는 턴, 하위 에이전트, 토큰 상한. x.primitives.driveDefaultLimits를 Helm에 한해 덮어쓰고 천장 x.primitives.driveLimits를 넘지 못한다.",
+          "label": "Helm drive 상한",
+          "order": 210,
+          "tab": "plugins",
+          "widget": "table"
+        }
+      }
+    },
     "l4.host-service.maxReplayEvents": {
       "default": 100000,
       "maximum": 1000000,
@@ -2479,6 +2522,48 @@
         }
       }
     },
+    "x.primitives.driveDefaultLimits": {
+      "additionalProperties": false,
+      "default": {
+        "maxSpawns": 8,
+        "maxTokens": 400000,
+        "maxTurns": 4
+      },
+      "properties": {
+        "maxSpawns": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "maxTokens": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxTurns": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "session"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "상한을 명시하지 않은 drive 임대에 쓴다. 그룹이 자기 상한을 넘기면 그 값이 우선한다. 필드를 지우면 그 필드의 기본 상한이 없어진다. 일반 대화 턴에는 상한이 없다.",
+          "label": "drive 기본 상한",
+          "order": 100,
+          "tab": "plugins",
+          "widget": "table"
+        }
+      }
+    },
     "x.primitives.driveLimits": {
       "additionalProperties": false,
       "default": {},
@@ -2499,6 +2584,7 @@
       "type": "object",
       "x-xeon": {
         "allowedScopes": [
+          "managed",
           "user",
           "project",
           "session"
@@ -2508,9 +2594,9 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "비어 있으면 상한이 없다(pi 방식). 값이 있으면 그룹이 요청한 상한과 비교해 작은 쪽을 쓴다.",
-          "label": "drive 임대 상한",
-          "order": 100,
+          "help": "어떤 drive 임대도 이 값을 넘지 못한다. 비어 있으면 천장이 없다.",
+          "label": "drive 상한 천장",
+          "order": 101,
           "tab": "plugins",
           "widget": "table"
         }

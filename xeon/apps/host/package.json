@@ -24,6 +24,7 @@
     "@xeon/core-tasks": "workspace:*",
     "@xeon/core-tools": "workspace:*",
     "@xeon/ext-host": "workspace:*",
+    "@xeon/group-helm": "workspace:*",
     "@xeon/platform-exec": "workspace:*",
     "@xeon/platform-os": "workspace:*",
     "@xeon/platform-process": "workspace:*",

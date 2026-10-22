@@ -1,5 +1,6 @@
 import { err, ok, type Result } from "@xeon/contracts";
 import { forwardFileSystem, type FileMethods } from "../forward.ts";
+import { formatSize, truncateHead, truncateHeadOf } from "../upstream/truncate.ts";
 import {
   ExecutionError,
   FileError,
@@ -143,5 +144,9 @@ export function fakeExec(table: FakeExecTable, options: FakeExecOptions = {}): F
     cleanup: (context) => base.cleanup(context),
     withCwd: (derivedCwd) => createEnv(derivedCwd),
     startBackground,
+    // 절단은 순수 계산이라 대역도 운영과 같은 함수를 쓴다
+    truncateHead,
+    truncateHeadOf,
+    formatSize,
   };
 }

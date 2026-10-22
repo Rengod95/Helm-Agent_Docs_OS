@@ -9,10 +9,12 @@ import {
   type ShellExecOptions,
   type ShellExecResult,
 } from "@xeon/contracts/services";
+import { fakeExec } from "@xeon/platform-exec/testing";
 import type { WorkspaceEnv } from "../../src/env.ts";
 
 // 시험용 ExecutionEnv 대역. 이 패키지가 쓰는 메서드(WorkspaceEnv)만 구현한다.
-// 운영 대역(@xeon/platform-exec/testing의 fakeExec, memoryFs)은 의존이 연결된 뒤(bun install) 바꾼다(plan §5).
+// 출력 절단(truncateHeadOf)은 운영과 같은 구현을 @xeon/platform-exec/testing의 fakeExec로 받는다(테스트 파일의 testing 서브패스 import, DR-08).
+// 파일·셸 대역은 이 파일이 직접 구현한다(운영 대역 memoryFs로의 교체는 plan §5).
 
 type Node = { kind: "file"; bytes: Uint8Array } | { kind: "directory" };
 
@@ -109,6 +111,7 @@ function scanBytes(bytes: Uint8Array, startLine: number, endLine: number | undef
 }
 
 export function memoryEnv(options: { readonly cwd?: string } = {}): MemoryEnv {
+  const exec = fakeExec({});
   const cwd = options.cwd ?? "/work";
   const nodes = new Map<string, Node>([["/", { kind: "directory" }]]);
   const links = new Map<string, string>();
@@ -287,6 +290,7 @@ export function memoryEnv(options: { readonly cwd?: string } = {}): MemoryEnv {
       );
     },
     cleanup: () => Promise.resolve(),
+    truncateHeadOf: (prefix, totals, truncation) => exec.truncateHeadOf(prefix, totals, truncation),
   };
   return env;
 }

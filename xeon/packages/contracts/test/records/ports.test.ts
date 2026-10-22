@@ -8,6 +8,8 @@ import {
 import {
   COMMIT_KEY_PATTERN,
   MAX_REPLAY_ATTEMPTS,
+  RESERVED_SOURCE_KEYS,
+  commitKeyPart,
   ownerOfKind,
   type DurableEventDraft,
   type ExtCommitRequest,
@@ -122,6 +124,40 @@ describe("commit keys and replay limits", () => {
       expect(pattern.test(key)).toBe(false);
     }
     expect(MAX_REPLAY_ATTEMPTS).toBe(2);
+  });
+});
+
+const fakeHash = (text: string): string =>
+  `${text.length.toString(16).padStart(2, "0")}${"ab".repeat(40)}`;
+
+describe("commitKeyPart (U-13)", () => {
+  test("a plain id is used as is", () => {
+    expect(commitKeyPart("call_1", fakeHash)).toBe("call_1");
+    expect(commitKeyPart("toolu_01A.b-c", fakeHash)).toBe("toolu_01A.b-c");
+  });
+
+  test("ids with the key separator, odd characters, empty or too long are hashed", () => {
+    for (const raw of ["a:b", "call|odd id/with space", "", "x".repeat(121), "한글"]) {
+      const part = commitKeyPart(raw, fakeHash);
+      expect(part.startsWith("h_")).toBe(true);
+      expect(part.length).toBe(42);
+      expect(new RegExp(COMMIT_KEY_PATTERN).test(`tool:${part}:result`)).toBe(true);
+    }
+  });
+
+  test("an id that starts with h_ is hashed so it cannot equal a hash result", () => {
+    const hashed = commitKeyPart("anything:else", fakeHash);
+    expect(commitKeyPart(hashed, fakeHash)).not.toBe(hashed);
+    expect(commitKeyPart("h_plain", fakeHash).startsWith("h_")).toBe(true);
+    expect(commitKeyPart("h_plain", fakeHash)).not.toBe("h_plain");
+  });
+
+  test("the part is deterministic", () => {
+    expect(commitKeyPart("a:b", fakeHash)).toBe(commitKeyPart("a:b", fakeHash));
+  });
+
+  test("reserved source keys are user, deleg, timer", () => {
+    expect([...RESERVED_SOURCE_KEYS]).toEqual(["user", "deleg", "timer"]);
   });
 });
 

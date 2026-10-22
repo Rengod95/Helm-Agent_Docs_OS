@@ -40,19 +40,22 @@ async function engineWith(values: Readonly<Record<string, unknown>>): Promise<Se
   return settings;
 }
 
-test("x.primitives.* are read into the primitives source, with empty defaults", async () => {
+test("x.primitives.* are read into the primitives source: default caps, no ceiling", async () => {
   const defaults = primitivesSource(await engineWith({}));
+  expect(defaults.driveDefaultLimits()).toEqual({ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 });
   expect(defaults.driveLimits()).toEqual({});
   expect(defaults.activeDriveGroup(THREAD)).toBeNull();
   expect(defaults.capabilityProviders()).toEqual({});
 
   const set = primitivesSource(
     await engineWith({
+      "x.primitives.driveDefaultLimits": { maxTurns: 6 },
       "x.primitives.driveLimits": { maxTurns: 3, maxSpawns: 0 },
       "x.primitives.activeDriveGroup": "smoke-group",
       "x.primitives.capabilityProviders": { "web.search": "web-exa" },
     }),
   );
+  expect(set.driveDefaultLimits()).toEqual({ maxTurns: 6 });
   expect(set.driveLimits()).toEqual({ maxTurns: 3, maxSpawns: 0 });
   expect(set.activeDriveGroup(THREAD)).toBe("smoke-group");
   expect(set.capabilityProviders()).toEqual({ "web.search": "web-exa" });

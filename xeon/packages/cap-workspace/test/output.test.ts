@@ -1,8 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { boundOutput, characterEnd, OutputBuffer, sanitizeOutput } from "../src/upstream/output.ts";
-import { truncateHead, truncateHeadOf, utf8ByteLength } from "../src/truncate/upstream/truncate.ts";
+import {
+  boundOutput,
+  characterEnd,
+  OutputBuffer,
+  sanitizeOutput,
+  utf8ByteLength,
+} from "../src/upstream/output.ts";
 
-// 포크한 harness/output.ts와 truncate.ts의 동작이 원본과 같은지 확인한다(plan W2·W3).
+// 포크한 harness/output.ts의 동작이 원본과 같은지 확인한다(plan W2·W3). 출력 절단(truncate.ts)은 platform-exec가 소유하고 거기서 시험한다(review.decisions-2 B-04).
 
 describe("OutputBuffer (tail retention)", () => {
   test("keeps the last lines within the limits and counts what was dropped", () => {
@@ -64,39 +69,5 @@ describe("output helpers", () => {
 
   test("sanitizeOutput drops control characters but keeps tabs and newlines", () => {
     expect(sanitizeOutput("a\u0000b\tc\nd\u001Be")).toBe("ab\tc\nde");
-  });
-});
-
-describe("truncateHead", () => {
-  test("keeps whole lines under both limits", () => {
-    const text = Array.from({ length: 10 }, (_, index) => `line ${index + 1}`).join("\n");
-    const byLines = truncateHead(text, { maxLines: 3, maxBytes: 1000 });
-    expect(byLines).toMatchObject({
-      content: "line 1\nline 2\nline 3",
-      truncatedBy: "lines",
-      outputLines: 3,
-    });
-    const byBytes = truncateHead(text, { maxLines: 1000, maxBytes: 14 });
-    expect(byBytes).toMatchObject({ content: "line 1\nline 2", truncatedBy: "bytes" });
-    expect(truncateHead("short", { maxLines: 5, maxBytes: 50 }).truncated).toBe(false);
-  });
-
-  test("a first line over the byte limit yields empty content and the flag", () => {
-    const result = truncateHead("x".repeat(40), { maxBytes: 10 });
-    expect(result).toMatchObject({
-      content: "",
-      firstLineExceedsLimit: true,
-      truncatedBy: "bytes",
-    });
-  });
-
-  test("truncateHeadOf equals truncateHead of the whole text for a long enough prefix", () => {
-    const whole = Array.from({ length: 50 }, (_, index) => `row ${index}`).join("\n");
-    const options = { maxLines: 5, maxBytes: 1000 };
-    const prefix = whole.split("\n").slice(0, 6).join("\n");
-    const totals = { lines: 50, bytes: utf8ByteLength(whole) };
-    expect(truncateHeadOf(prefix, totals, options).content).toBe(
-      truncateHead(whole, options).content,
-    );
   });
 });

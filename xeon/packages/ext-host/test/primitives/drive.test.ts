@@ -164,6 +164,50 @@ test("limits clamp to settings", async () => {
   expect(t.diagnostics.some((diagnostic) => diagnostic.code === "drive_limits_clamped")).toBe(true);
 });
 
+async function acquiredLimits(
+  settings: NonNullable<Parameters<typeof createTestHost>[0]>["settings"],
+  requested?: { maxTurns?: number; maxSpawns?: number; maxTokens?: number },
+): Promise<unknown> {
+  const { t, thread } = await setup(settings === undefined ? {} : { settings });
+  await t.host.install(
+    makeGroupUnit({ name: "drv-limits" }, (g) => {
+      g.drive(() => Promise.resolve(), requested === undefined ? undefined : { limits: requested });
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  return t.records.events(thread).find((event) => event.kind === "lease.acquired")?.payload;
+}
+
+// U-12: 상한을 명시하지 않은 임대는 일반 기본값(4/8/400000)을 받는다
+test("a lease without explicit limits gets the default caps", async () => {
+  expect(await acquiredLimits(undefined)).toMatchObject({
+    limits: { maxTurns: 4, maxSpawns: 8, maxTokens: 400000 },
+  });
+});
+
+test("a group request overrides the default per field and the others keep the default", async () => {
+  expect(await acquiredLimits(undefined, { maxTurns: 2 })).toMatchObject({
+    limits: { maxTurns: 2, maxSpawns: 8, maxTokens: 400000 },
+  });
+});
+
+test("the user-adjusted default replaces the built-in one; a removed field has no cap", async () => {
+  const payload = await acquiredLimits({ driveDefaultLimits: { maxTurns: 9 } });
+  expect(payload).toMatchObject({ limits: { maxTurns: 9 } });
+  expect(payload).not.toHaveProperty("limits.maxSpawns");
+  expect(payload).not.toHaveProperty("limits.maxTokens");
+});
+
+test("the ceiling cuts the default too, and it also caps a field that has no default", async () => {
+  expect(
+    await acquiredLimits({ driveDefaultLimits: { maxTurns: 9 }, driveLimits: { maxTurns: 3 } }),
+  ).toMatchObject({ limits: { maxTurns: 3 } });
+  expect(
+    await acquiredLimits({ driveDefaultLimits: {}, driveLimits: { maxTokens: 1000 } }),
+  ).toMatchObject({ limits: { maxTokens: 1000 } });
+});
+
 test("single lease among two groups", async () => {
   const { t, thread } = await setup({ settings: { activeDriveGroup: "drv-two" } });
   const calls: string[] = [];

@@ -9,7 +9,7 @@ export interface DriveLimits {
 }
 
 export interface DriveOptions {
-  /** 그룹이 요청하는 상한. 설정 `x.primitives.driveLimits`의 상한보다 클 수 없다 */
+  /** 그룹이 요청하는 상한. 없는 필드는 X 기본값 `x.primitives.driveDefaultLimits`를 쓰고, 천장 `x.primitives.driveLimits`보다 클 수 없다 */
   readonly limits?: DriveLimits;
 }
 

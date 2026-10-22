@@ -6,6 +6,7 @@ import {
   validateUsage,
   type ExtensionUsage,
 } from "../../src/extensions/index.ts";
+import { RESERVED_SOURCE_KEYS } from "../../src/records/index.ts";
 import { codesOf, groupJson, pluginJson, validManifest } from "./helpers.ts";
 
 const noUsage: ExtensionUsage = {
@@ -130,6 +131,15 @@ describe("validateManifest rules", () => {
     }
     const builtin = pluginJson({ name: "web", trust: { level: "builtin" } });
     expect(validateManifest(builtin).issues).toEqual([]);
+  });
+
+  test("input source keys are reserved for every trust level (U-13)", () => {
+    for (const name of RESERVED_SOURCE_KEYS) {
+      expect(codesOf(validateManifest(pluginJson({ name })).issues)).toEqual(["name_reserved"]);
+      const builtin = pluginJson({ name, trust: { level: "builtin" } });
+      expect(codesOf(validateManifest(builtin).issues)).toEqual(["name_reserved"]);
+      expect(codesOf(validateManifest(groupJson({ name })).issues)).toEqual(["name_reserved"]);
+    }
   });
 
   test("entry outside root", () => {

@@ -12,4 +12,4 @@ export {
   type ToolsSettingsSource,
 } from "./settings.ts";
 export type { CapabilityResolver } from "./entries.ts";
-export type { OutputTruncator, TruncationOutcome } from "./types.ts";
+export type { OutputTruncator } from "./types.ts";

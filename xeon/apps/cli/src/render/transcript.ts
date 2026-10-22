@@ -216,6 +216,6 @@ export function opsOfEvent(event: EventWire, ctx: EventContext): readonly Render
     ];
   }
   // thread.*, turn.started, step.*, part.recorded, effect.exec/result, checkpoint.step, lease.*, scope.changed,
-  // post.accepted, input.*, agent.*, secret.*, 확장 kind(x.*, grp.*)는 트랜스크립트에 그리지 않는다
+  // input.*, agent.*, secret.*, 확장 kind(x.*, grp.*)는 트랜스크립트에 그리지 않는다
   return [];
 }

@@ -331,7 +331,7 @@ describe("enqueue", () => {
 });
 
 describe("extension post", () => {
-  test("a post writes input.queued and post.accepted in one commit", async () => {
+  test("a post writes input.queued only", async () => {
     const world = createWorld();
     const result = await world.tasks.enqueue({
       threadId: world.threadId,
@@ -342,20 +342,13 @@ describe("extension post", () => {
     });
     expect(result).toEqual({ duplicate: false });
     expect(world.session.commitCalls).toBe(1);
-    const [queued, accepted, ...rest] = world.session.events;
+    const [queued, ...rest] = world.session.events;
     expect(rest).toEqual([]);
     expect(queued?.kind).toBe("input.queued");
-    expect(accepted?.kind).toBe("post.accepted");
     expect(queued?.payload).toMatchObject({
       mode: "followUp",
-      source: { type: "extension", scopeId: "helm/review" },
-    });
-    expect(accepted?.payload).toEqual({
       requestId: "post-1",
-      scopeId: "helm/review",
-      when: "followUp",
-      inputId: queued?.id,
-      itemId: null,
+      source: { type: "extension", scopeId: "helm/review" },
     });
     expect(world.tasks.inputs.peek(world.threadId)[0]?.inputId).toBe(queued?.id);
   });
@@ -377,7 +370,7 @@ describe("extension post", () => {
       },
     );
     expect(world.session.events.length).toBe(before);
-    expect(world.session.events.filter((event) => event.kind === "post.accepted").length).toBe(1);
+    expect(world.session.events.filter((event) => event.kind === "input.queued").length).toBe(1);
   });
 
   test("the same requestId from two scopes is two posts", async () => {

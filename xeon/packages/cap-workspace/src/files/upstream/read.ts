@@ -2,16 +2,15 @@
 import type {
   BinaryReader,
   CancelScope as Context,
+  ExecService,
   ExecutionEnv,
   FileInfo,
 } from "@xeon/contracts/services";
 // XEON-PATCH: P2
 import { getOrThrow } from "../../upstream/get-or-throw.ts";
 // XEON-PATCH: P2
-import { characterEnd } from "../../upstream/output.ts";
+import { characterEnd, utf8ByteLength } from "../../upstream/output.ts";
 import { WorkspaceFailure } from "../../errors.ts";
-// XEON-PATCH: P2
-import { truncateHeadOf, utf8ByteLength } from "../../truncate/upstream/truncate.ts";
 import { rangeDecoder, startsWithBom } from "./decode.ts";
 
 // XEON-PATCH: P5
@@ -87,7 +86,7 @@ async function readHead(
  * 이미지 분기)를 걷어 낸 본문이다. 이미지는 M2(`workspace.images`)에서 더한다. `offset`·`limit`은 1 이상의 정수다.
  */
 export async function readFileText(
-  env: Pick<ExecutionEnv, "openBinaryReader">,
+  env: Pick<ExecutionEnv, "openBinaryReader"> & Pick<ExecService, "truncateHeadOf">,
   absolutePath: string,
   offset: number | undefined,
   limit: number | undefined,
@@ -102,7 +101,7 @@ export async function readFileText(
       // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       const before = getOrThrow(await reader.info(context));
       // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      const result = await readText(reader, before, offset, limit, limits, context);
+      const result = await readText(env, reader, before, offset, limit, limits, context);
       // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       const after = getOrThrow(await reader.info(context));
       const unchanged = after.size === before.size && after.mtimeMs === before.mtimeMs;
@@ -123,6 +122,7 @@ export async function readFileText(
  * and bounding the selected lines with `truncateHead`, while reading only one scan's worth of the file plus the head.
  */
 async function readText(
+  env: Pick<ExecService, "truncateHeadOf">,
   reader: BinaryReader,
   info: FileInfo,
   offset: number | undefined,
@@ -167,7 +167,7 @@ async function readText(
   };
   const head = await readHead(reader, scan.start, scan.end, startsWithBom(probe), limits, context);
 
-  const { content: headText, ...truncation } = truncateHeadOf(head, totals, limits);
+  const { content: headText, ...truncation } = env.truncateHeadOf(head, totals, limits);
   if (truncation.firstLineExceedsLimit) {
     // Show the start of the line, cut at the byte limit on a character boundary.
     const lineBytes = new TextEncoder().encode(head.split("\n")[0] ?? "");

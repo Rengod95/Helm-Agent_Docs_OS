@@ -1,5 +1,5 @@
 import { mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { assertNever, Bug, parse, type Logger } from "@xeon/contracts";
 import type { PortKey } from "@xeon/contracts/extensions";
 import {
@@ -66,6 +66,7 @@ import {
   storeSettingsOf,
 } from "./assembly/settings-sources.ts";
 import { ownerKindOf } from "./handlers/owner.ts";
+import { hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { messageOf, sequentially } from "./util.ts";
 
@@ -294,8 +295,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       "platform-os",
       platformOsPlugin(
         {
-          // 앱과 함께 배포된 읽기 전용 자원 디렉터리: 실행 파일 옆. 릴리즈 배치가 정해지면 바뀐다 [미결]
-          resourceDir: dirname(process.execPath),
+          resourceDir: hostResourceDir(),
           logSink: logSink.sink,
           logRedact: (line) => redact.current(line),
         },

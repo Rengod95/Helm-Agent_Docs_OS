@@ -5,7 +5,7 @@ import { OsServiceName } from "@xeon/contracts/services";
 import type { PortKey } from "@xeon/contracts/extensions";
 import type { PlatformContext } from "@xeon/ext-host";
 import { platformOsPlugin } from "../src/index.ts";
-import { createOsService, type PlatformOsConfig } from "../src/service.ts";
+import { createOsService, resolveOsDirs, type PlatformOsConfig } from "../src/service.ts";
 import { readOsRuntime } from "../src/runtime.ts";
 import { withIsolatedEnv } from "../src/testing/index.ts";
 import { parseLine } from "./support/json.ts";
@@ -52,6 +52,39 @@ function fakeContext(): FakeContext {
   };
   return { ctx, provided, disposers };
 }
+
+describe("resolveOsDirs", () => {
+  test("같은 규칙으로 위치만 정하고 아무것도 만들지 않는다", () => {
+    const dirFs = fakeDirFs();
+    const resolved = resolveOsDirs({ resourceDir: "/opt/xeon/resources" }, fakeRuntime({ dirFs }));
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) throw new Bug("unreachable");
+    expect(resolved.value.state).toBe("/home/u/.local/state/xeon");
+    expect(resolved.value.resource).toBe("/opt/xeon/resources");
+    expect(dirFs.made).toEqual([]);
+  });
+
+  test("관리 범위 덮어쓰기와 지원 밖 플랫폼 오류는 서비스 시작과 같다", () => {
+    const root = resolveOsDirs(
+      { resourceDir: "/opt/xeon/resources", dirsOverride: "/srv/xeon" },
+      fakeRuntime(),
+    );
+    expect(root.ok && root.value.state).toBe("/srv/xeon/state");
+    const unsupported = resolveOsDirs(
+      { resourceDir: "/opt/xeon/resources" },
+      fakeRuntime({
+        probe: {
+          platform: "freebsd",
+          arch: "x64",
+          release: "",
+          wslDistro: undefined,
+          procVersion: undefined,
+        },
+      }),
+    );
+    expect(unsupported).toEqual(err({ kind: "unsupported_platform", platform: "freebsd" }));
+  });
+});
 
 describe("createOsService", () => {
   test("시작 순서: 플랫폼, 디렉터리 해석, 생성, 로거, 기계 식별자", async () => {

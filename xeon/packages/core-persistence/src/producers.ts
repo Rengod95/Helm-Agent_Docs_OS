@@ -57,6 +57,9 @@ export function createProducerRegistry(catalog: KindCatalog): ProducerRegistry {
     if (!entry.durable) {
       throw new Bug(`store.schema_invalid: ${input.kind} is volatile and cannot be committed`);
     }
+    if (entry.retired === true) {
+      throw new Bug(`store.kind_retired: ${input.kind} is retired and is not written any more`);
+    }
     return { ...input, durable: true, version: input.version ?? entry.version };
   };
 

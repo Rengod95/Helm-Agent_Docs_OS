@@ -86,6 +86,10 @@ test("bound_uses_exec_truncation: the injected truncation function decides the p
         totalBytes: 7,
         outputLines: 1,
         outputBytes: 7,
+        lastLinePartial: false,
+        firstLineExceedsLimit: false,
+        maxLines: options?.maxLines ?? 2000,
+        maxBytes: options?.maxBytes ?? 51_200,
       };
     },
     formatSize: (bytes) => `${bytes}-bytes`,

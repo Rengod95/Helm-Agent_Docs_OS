@@ -25,7 +25,6 @@ import {
 import type { ApprovalView } from "../render/ops.ts";
 import type { RenderSink } from "../render/text-sink.ts";
 import {
-  EMPTY_CLI_STATE,
   entryFor,
   readCliState,
   withEntry,
@@ -54,7 +53,7 @@ export interface PositionKeeper {
 }
 
 export function createPositionKeeper(options: {
-  readonly path: string | null;
+  readonly path: string;
   readonly workspace: string;
   readonly initial: CliState;
   readonly now: () => number;
@@ -68,7 +67,7 @@ export function createPositionKeeper(options: {
   } = { state: options.initial, threadId: null, storeId: null, seq: 0, failed: false };
 
   const write = (): void => {
-    if (options.path === null || keep.threadId === null || keep.storeId === null) return;
+    if (keep.threadId === null || keep.storeId === null) return;
     keep.state = withEntry(
       keep.state,
       options.workspace,
@@ -246,22 +245,14 @@ async function resolveTarget(
     });
   }
   const path = handle.paths.cliStateFile;
-  const loaded = path === null ? undefined : await readCliState(path);
+  const loaded = await readCliState(path);
   if (target.kind === "continue") {
-    if (path === null) {
-      return err(
-        fail(
-          "상태 파일 위치를 알 수 없어 --continue를 쓸 수 없다",
-          "xeon chat --resume <id>로 세션을 지정한다",
-        ),
-      );
-    }
-    const entry = loaded === undefined ? undefined : entryFor(loaded.state, options.workspace);
+    const entry = entryFor(loaded.state, options.workspace);
     const threadId = entry === undefined ? undefined : parse(ThreadIdSchema, entry.threadId);
     if (entry === undefined || threadId === undefined || !threadId.ok) {
       return err(
         fail(
-          loaded?.kind === "discarded"
+          loaded.kind === "discarded"
             ? `CLI 상태 파일을 읽지 못해 버렸다 (${loaded.reason}). 이어 열 세션이 없다`
             : "이어 열 세션이 없다",
           "xeon chat으로 새 세션을 시작한다",
@@ -274,10 +265,9 @@ async function resolveTarget(
     return ok({ threadId: threadId.value, from, saved, collapseUntil: saved.seq });
   }
   // resume: 상태 파일에 그 id의 위치가 있으면 그 위치부터, 없으면 { storeId, seq: 0 }부터(§4.4)
-  const known =
-    loaded === undefined
-      ? undefined
-      : Object.values(loaded.state.workspaces).find((entry) => entry.threadId === target.threadId);
+  const known = Object.values(loaded.state.workspaces).find(
+    (entry) => entry.threadId === target.threadId,
+  );
   const saved =
     known === undefined
       ? { storeId: handle.storeId, seq: 0 }
@@ -291,9 +281,8 @@ async function resolveTarget(
   });
 }
 
-/** 상태 파일을 읽는다. 위치를 모르면(null) 빈 상태다. 깨진 파일은 버렸다는 결과로 돌려준다 */
-export async function loadInitialState(path: string | null): Promise<StateReadOutcome> {
-  if (path === null) return { kind: "missing", state: EMPTY_CLI_STATE };
+/** 상태 파일을 읽는다. 없으면 빈 상태이고 깨진 파일은 버렸다는 결과로 돌려준다 */
+export function loadInitialState(path: string): Promise<StateReadOutcome> {
   return readCliState(path);
 }
 

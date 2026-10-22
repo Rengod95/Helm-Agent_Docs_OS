@@ -52,20 +52,27 @@ function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((item) => typeof item === "string");
 }
 
+/** DriveLimits 모양의 설정 값을 읽는다. 숫자가 아닌 필드는 없는 것으로 본다(검증은 설정 엔진이 이미 했다) */
+function driveLimitsOf(value: unknown): DriveLimits {
+  if (!isRecord(value)) return {};
+  const limits: { maxTurns?: number; maxSpawns?: number; maxTokens?: number } = {};
+  const turns = value["maxTurns"];
+  const spawns = value["maxSpawns"];
+  const tokens = value["maxTokens"];
+  if (typeof turns === "number") limits.maxTurns = turns;
+  if (typeof spawns === "number") limits.maxSpawns = spawns;
+  if (typeof tokens === "number") limits.maxTokens = tokens;
+  return limits;
+}
+
 /** x.primitives.* */
 export function primitivesSource(settings: SettingsEngine): ExtHostDeps["settings"] {
   return {
+    driveDefaultLimits(): DriveLimits {
+      return driveLimitsOf(settings.value("x.primitives.driveDefaultLimits"));
+    },
     driveLimits(): DriveLimits {
-      const value = settings.value("x.primitives.driveLimits");
-      if (!isRecord(value)) return {};
-      const limits: { maxTurns?: number; maxSpawns?: number; maxTokens?: number } = {};
-      const turns = value["maxTurns"];
-      const spawns = value["maxSpawns"];
-      const tokens = value["maxTokens"];
-      if (typeof turns === "number") limits.maxTurns = turns;
-      if (typeof spawns === "number") limits.maxSpawns = spawns;
-      if (typeof tokens === "number") limits.maxTokens = tokens;
-      return limits;
+      return driveLimitsOf(settings.value("x.primitives.driveLimits"));
     },
     activeDriveGroup(threadId) {
       const value = settings.value("x.primitives.activeDriveGroup", threadId);

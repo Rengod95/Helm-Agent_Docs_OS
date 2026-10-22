@@ -316,4 +316,47 @@ export interface ExecService extends ExecutionEnv {
     options: Omit<ShellExecOptions, "timeout" | "spill"> | undefined,
     context: CancelScope,
   ): Promise<Result<BackgroundExecHandle, ExecutionError>>;
+  /**
+   * 앞에서부터 남기는 출력 절단(포크 truncate.ts의 truncateHead). 순수 계산이고 cwd와 무관하다.
+   * L1(core-tools 결과 경계화)과 L2(cap-workspace)가 사본 없이 부른다 [결정: review.decisions-2 D-08, B-04]
+   */
+  truncateHead(content: string, options?: TruncationOptions): TruncationResult;
+  /**
+   * 앞부분(prefix)과 전체 합계(줄 수, 바이트 수)로 아는 텍스트의 truncateHead. 파일 전체를 읽지 않고 앞부분만 읽는 호출용이다.
+   * prefix가 전체이거나, `maxBytes + 1` 바이트보다 길거나, 개행을 `maxLines`개 이상 가지면 결과는 전체 텍스트의 truncateHead와 같다.
+   */
+  truncateHeadOf(
+    prefix: string,
+    totals: { readonly lines: number; readonly bytes: number },
+    options?: TruncationOptions,
+  ): TruncationResult;
+  /** 바이트 수를 읽기 쉬운 크기 문자열로 바꾼다(포크 truncate.ts의 formatSize) */
+  formatSize(bytes: number): string;
+}
+
+/** 출력 절단 한도. 생략하면 2000줄, 50KB(포크 truncate.ts와 같다) */
+export interface TruncationOptions {
+  readonly maxLines?: number;
+  readonly maxBytes?: number;
+}
+
+/** 포크 truncate.ts의 TruncationResult와 같은 모양 */
+export interface TruncationResult {
+  /** 남긴 내용 */
+  readonly content: string;
+  readonly truncated: boolean;
+  /** 먼저 걸린 한도. 자르지 않았으면 null */
+  readonly truncatedBy: "lines" | "bytes" | null;
+  readonly totalLines: number;
+  readonly totalBytes: number;
+  /** 남긴 온전한 줄 수 */
+  readonly outputLines: number;
+  readonly outputBytes: number;
+  /** 마지막 줄이 일부만 남았는가(꼬리 절단 전용 예외. 앞부분 절단은 항상 false) */
+  readonly lastLinePartial: boolean;
+  /** 첫 줄 하나가 바이트 한도를 넘었는가(이때 content는 빈 문자열) */
+  readonly firstLineExceedsLimit: boolean;
+  /** 적용한 한도 */
+  readonly maxLines: number;
+  readonly maxBytes: number;
 }

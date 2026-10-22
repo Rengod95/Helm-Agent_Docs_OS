@@ -30,7 +30,9 @@ import type { HandlerRegistry } from "./registry.ts";
 // ── 설정 읽기 (X.primitives.spec §3.2) ────────────────────────────────────
 
 export interface PrimitivesSettingsSource {
-  /** x.primitives.driveLimits */
+  /** x.primitives.driveDefaultLimits. 상한을 명시하지 않은 임대의 일반 기본값 */
+  driveDefaultLimits(): DriveLimits;
+  /** x.primitives.driveLimits. 어떤 임대도 넘지 못하는 천장 */
   driveLimits(): DriveLimits;
   /** x.primitives.activeDriveGroup */
   activeDriveGroup(threadId: ThreadId): ScopeId | null;

@@ -256,8 +256,9 @@ export interface SandboxStatusSummary {
 
 /**
  * 순수 함수. doctor·설정 화면·시작 로그가 쓴다. L4가 platform-sandbox를 import하지 않도록 F에 둔다.
- * 판정 기준 [제안]: 격리가 켜져 있으면 ok, 꺼졌거나 쓸 수 없으면 onUnavailable이 disable_execute일 때만
- * critical(셸 도구를 쓸 수 없다)이고 나머지는 warn이다. 자가 시험 실패는 항상 critical이다.
+ * 판정 기준 [제안]: 격리가 켜져 있으면 ok, 설정으로 껐으면(disabled) onUnavailable과 무관하게 warn이다.
+ * 쓸 수 없는 경우는 onUnavailable이 disable_execute일 때만 critical(셸 도구를 쓸 수 없다)이고 나머지는 warn이다.
+ * 자가 시험 실패는 항상 critical이다.
  */
 export function describeSandboxStatus(status: SandboxStatus): SandboxStatusSummary {
   if (status.available && status.level === "srt") {
@@ -298,9 +299,10 @@ export function describeSandboxStatus(status: SandboxStatus): SandboxStatusSumma
       };
     }
     case "disabled":
+      // 설정으로 끈 상태는 onUnavailable과 무관하게 격리 없이 실행한다(unsandboxedBy "disabled"). 항상 warn이다(L0.sandbox.spec §7)
       return {
-        severity,
-        summary: `Sandbox is turned off by setting. ${consequence}`,
+        severity: "warn",
+        summary: "Sandbox is turned off by setting. Shell commands run without isolation.",
         hints: ["Set l0.sandbox.enabled to true to isolate shell commands."],
       };
     case undefined:

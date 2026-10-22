@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
 
 /** JSON으로 직렬화되는 값인가. undefined, 함수, NaN·Infinity는 아니다 */
@@ -29,6 +30,11 @@ export function utf8Bytes(text: string): Uint8Array<ArrayBuffer> {
 export async function sha256Hex(text: string): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest("SHA-256", utf8Bytes(text));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/** 소문자 hex SHA-256, 동기. 커밋 키 부분(commitKeyPart)처럼 동기 해시가 필요한 곳에 쓴다 */
+export function sha256HexSync(text: string): string {
+  return createHash("sha256").update(text).digest("hex");
 }
 
 const REGEX_SPECIAL = /[.+^${}()|[\]\\]/g;

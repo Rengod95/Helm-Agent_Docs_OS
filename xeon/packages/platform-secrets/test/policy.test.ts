@@ -68,6 +68,15 @@ describe("command and tool patterns", () => {
   });
 });
 
+const providerCtx = (overrides: Partial<UseCtx> = {}): UseCtx =>
+  httpCtx({
+    purpose: "model.provider:example",
+    target: { kind: "host", host: "api.example.test", port: null },
+    actor: "runtime",
+    approval: null,
+    ...overrides,
+  });
+
 describe("policy order (spec §4.2)", () => {
   test("allows a matching http request", () => {
     expect(evaluatePolicy(metaOf(), httpCtx(), NOW)).toEqual({ kind: "allow", approval: null });
@@ -116,6 +125,59 @@ describe("policy order (spec §4.2)", () => {
     expect(evaluatePolicy(metaOf(), wrongKind, NOW)).toEqual({
       kind: "deny",
       reason: "mode_not_allowed",
+    });
+  });
+
+  // L0.secrets.spec 수용 기준 14, B-05: 모델 provider 키는 마일스톤 M1부터 runtime-http로 lease한다
+  describe("model provider key in runtime-http mode (milestone M1)", () => {
+    const providerMeta = metaOf({
+      modes: ["runtime-http"],
+      tools: ["model.provider:*"],
+      hosts: ["api.example.test"],
+      approval: "none",
+    });
+    test("is allowed without an approval when the host and purpose match", () => {
+      expect(evaluatePolicy(providerMeta, providerCtx(), NOW)).toEqual({
+        kind: "allow",
+        approval: null,
+      });
+    });
+
+    test("a different host is host_mismatch", () => {
+      const other = providerCtx({
+        target: { kind: "host", host: "evil.example.test", port: null },
+      });
+      expect(evaluatePolicy(providerMeta, other, NOW)).toEqual({
+        kind: "deny",
+        reason: "host_mismatch",
+      });
+    });
+
+    test("a secret whose modes lack runtime-http is mode_not_allowed", () => {
+      const envOnly = metaOf({
+        modes: ["env"],
+        tools: ["model.provider:*"],
+        commands: ["gh api *"],
+      });
+      expect(evaluatePolicy(envOnly, providerCtx(), NOW)).toEqual({
+        kind: "deny",
+        reason: "mode_not_allowed",
+      });
+    });
+
+    test("a command target is refused: the provider key never goes through env", () => {
+      const command = providerCtx({ target: { kind: "command", argv0: "gh", commandLine: "gh" } });
+      expect(evaluatePolicy(providerMeta, command, NOW)).toEqual({
+        kind: "deny",
+        reason: "mode_not_allowed",
+      });
+    });
+
+    test("a purpose of another tool is tool_not_allowed", () => {
+      expect(evaluatePolicy(providerMeta, providerCtx({ purpose: "bash:curl" }), NOW)).toEqual({
+        kind: "deny",
+        reason: "tool_not_allowed",
+      });
     });
   });
 

@@ -5,7 +5,7 @@ import { readOsRuntime, type OsRuntime } from "./runtime.ts";
 import { createOsService, type PlatformOsConfig } from "./service.ts";
 
 export type { PlatformOsConfig, OsServiceHandle, OsStartError } from "./service.ts";
-export { createOsService } from "./service.ts";
+export { createOsService, resolveOsDirs } from "./service.ts";
 export type { OsRuntime } from "./runtime.ts";
 export { readOsRuntime } from "./runtime.ts";
 export { OS_SETTING_DEFS } from "./settings.ts";

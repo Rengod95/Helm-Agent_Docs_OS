@@ -890,6 +890,49 @@
         }
       }
     },
+    "l3.helm.driveLimits": {
+      "additionalProperties": false,
+      "default": {
+        "maxSpawns": 8,
+        "maxTokens": 400000,
+        "maxTurns": 4
+      },
+      "properties": {
+        "maxSpawns": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxTokens": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxTurns": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L3",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Helm 탐구가 쓰는 턴, 하위 에이전트, 토큰 상한. x.primitives.driveDefaultLimits를 Helm에 한해 덮어쓰고 천장 x.primitives.driveLimits를 넘지 못한다.",
+          "label": "Helm drive 상한",
+          "order": 210,
+          "tab": "plugins",
+          "widget": "table"
+        }
+      }
+    },
     "x.operations.autoDisable.consecutive": {
       "default": 5,
       "maximum": 1000,

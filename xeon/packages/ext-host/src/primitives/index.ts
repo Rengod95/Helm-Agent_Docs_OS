@@ -50,7 +50,11 @@ export {
 } from "./host.ts";
 export { hostOf, type ScopeHostApi } from "./host-api.ts";
 export type { ScopeInfo, ScopeSetupOutcome } from "./scope.ts";
-export { createStaticPrimitivesSettings, primitivesSettings } from "./settings.ts";
+export {
+  DEFAULT_DRIVE_LIMITS,
+  createStaticPrimitivesSettings,
+  primitivesSettings,
+} from "./settings.ts";
 export {} from "./state.ts";
 export {} from "./lease.ts";
 export type {} from "./core.ts";

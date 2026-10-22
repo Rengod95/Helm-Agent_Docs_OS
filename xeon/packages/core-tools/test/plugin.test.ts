@@ -11,8 +11,9 @@ import {
   ToolServicePortKey,
   type Redactor,
 } from "@xeon/contracts/services";
+import type { OutputTruncator } from "../src/types.ts";
 import { createTestHost } from "@xeon/ext-host/testing";
-import { toolsManifest, toolsPlugin, truncatorOf } from "../src/plugin.ts";
+import { toolsManifest, toolsPlugin } from "../src/plugin.ts";
 import {
   fakeRedactor,
   fakeRunContext,
@@ -25,14 +26,14 @@ import {
 } from "../src/testing/index.ts";
 import { TOOLS_EXTENSION_NAME } from "../src/index.ts";
 import { fakeTasks, type FakeTasks } from "./support/fake-tasks.ts";
-import { callTool, directTool, errorText, NOW } from "./support/harness.ts";
+import { callTool, directTool, NOW } from "./support/harness.ts";
 
 interface FakeExec {
   readonly id: string;
   canonicalPath(path: string): Promise<{ ok: true; value: string }>;
   absolutePath(path: string): Promise<{ ok: true; value: string }>;
-  truncateHead?: (content: string, options?: { maxLines?: number; maxBytes?: number }) => unknown;
-  formatSize?: (bytes: number) => string;
+  truncateHead: OutputTruncator["truncateHead"];
+  formatSize: OutputTruncator["formatSize"];
 }
 
 const SessionKey: PortKey<FakeSession> = { name: "xeon.session" };
@@ -41,7 +42,7 @@ const TasksKey: PortKey<FakeTasks> = { name: "xeon.tasks" };
 const ExecKey: PortKey<FakeExec> = { name: "xeon.exec" };
 const SecretsKey: PortKey<{ readonly redactor: Redactor }> = { name: "xeon.secrets" };
 
-async function boot(options: { withTruncation: boolean; passTruncator?: boolean }) {
+async function boot() {
   // 테스트 호스트의 기록 포트(xeon.session의 ext 속성)는 빼고, 이 패키지가 쓰는 세션 대역을 올린다
   const t = await createTestHost({ without: ["records", "queue", "loop"] });
   const clock = { now: () => NOW };
@@ -53,13 +54,8 @@ async function boot(options: { withTruncation: boolean; passTruncator?: boolean 
     id: "env1",
     canonicalPath: (path) => Promise.resolve({ ok: true, value: path }),
     absolutePath: (path) => Promise.resolve({ ok: true, value: path }),
-    ...(options.withTruncation
-      ? {
-          truncateHead: (content: string, o?: { maxLines?: number; maxBytes?: number }) =>
-            truncator.truncateHead(content, o),
-          formatSize: (bytes: number) => truncator.formatSize(bytes),
-        }
-      : {}),
+    truncateHead: (content, o) => truncator.truncateHead(content, o),
+    formatSize: (bytes) => truncator.formatSize(bytes),
   };
   await t.host.registerPlatform({
     name: "fake-l0",
@@ -76,7 +72,6 @@ async function boot(options: { withTruncation: boolean; passTruncator?: boolean 
       clock,
       ids,
       settings: { layers: () => [] },
-      ...(options.passTruncator === true ? { truncator } : {}),
     }),
   );
   return { t, installed, session, tasks, ids };
@@ -102,7 +97,7 @@ test("the manifest passes validateManifest and the unit is a builtin L1 plugin",
 });
 
 test("installing provides xeon.tools and xeon.approvals ports and runs a call end to end", async () => {
-  const { t, installed, session, tasks, ids } = await boot({ withTruncation: true });
+  const { t, installed, session, tasks, ids } = await boot();
   expect(installed.setups[0]?.status).toBe("applied");
   expect(installed.issues.filter((issue) => issue.severity === "error")).toEqual([]);
   const tools = t.host.ports.get(ToolServicePortKey);
@@ -147,30 +142,8 @@ test("installing provides xeon.tools and xeon.approvals ports and runs a call en
   ]);
 });
 
-test("without an output truncator the setup fails loudly (D-08: no copy of truncate.ts here)", async () => {
-  const { installed, t } = await boot({ withTruncation: false });
-  expect(installed.setups[0]?.status).toBe("failed");
-  expect(errorText(installed.setups[0]?.failure?.error)).toContain("output truncator");
-  expect(t.host.ports.get(ToolServicePortKey)).toBeUndefined();
-});
-
-test("an explicit truncator option works without xeon.exec support", async () => {
-  const { installed, t } = await boot({ withTruncation: false, passTruncator: true });
+test("setup takes the truncation functions from xeon.exec and needs no truncator option (D-08)", async () => {
+  const { installed, t } = await boot();
   expect(installed.setups[0]?.status).toBe("applied");
   expect(t.host.ports.get(ToolServicePortKey)).toBeDefined();
-});
-
-test("truncatorOf wraps xeon.exec functions and rejects malformed results", () => {
-  expect(truncatorOf({})).toBeUndefined();
-  expect(truncatorOf(null)).toBeUndefined();
-  const real = fakeTruncator();
-  const wrapped = truncatorOf({
-    truncateHead: (content: string, o?: { maxLines?: number }) => real.truncateHead(content, o),
-    formatSize: (bytes: number) => real.formatSize(bytes),
-  });
-  expect(wrapped?.truncateHead("a\nb", { maxLines: 1 }).truncated).toBe(true);
-  expect(wrapped?.formatSize(2048)).toBe("2.0KB");
-  const broken = truncatorOf({ truncateHead: () => ({ nope: true }), formatSize: () => 12 });
-  expect(() => broken?.truncateHead("x")).toThrow("truncate_invalid");
-  expect(broken?.formatSize(5)).toBe("5 B");
 });

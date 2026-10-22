@@ -119,10 +119,12 @@ export function findForeignSecretSyntax(text: string): readonly SecretRefError[]
 export const SecretUseModeSchema: TUnion<
   [TLiteral<"env">, TLiteral<"sentinel">, TLiteral<"runtime-http">, TLiteral<"browser-input">]
 > = Type.Union([
-  Type.Literal("env"), // M1
-  Type.Literal("sentinel"), // M2
-  Type.Literal("runtime-http"), // M3
-  Type.Literal("browser-input"), // M4
+  // 주석의 "사용 모드 Mn"은 모드 번호이고 "마일스톤 Mn"은 구현 시기다(F.capabilities.spec §3.10, L0.secrets.spec §4.3)
+  Type.Literal("env"), // 사용 모드 M1. 마일스톤 M1: bash 도구 env 주입, 실행마다 승인(review.decisions-2 U-19)
+  Type.Literal("sentinel"), // 사용 모드 M2. 구현은 후속
+  // 사용 모드 M3. 마일스톤 M1: 모델 provider 키를 core-models의 프로세스 안 HTTP 클라이언트에 lease(review.decisions-2 B-05)
+  Type.Literal("runtime-http"),
+  Type.Literal("browser-input"), // 사용 모드 M4. 마일스톤 M2
 ]);
 export type SecretUseMode = Static<typeof SecretUseModeSchema>;
 

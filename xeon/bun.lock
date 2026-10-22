@@ -52,6 +52,7 @@
         "@xeon/core-tasks": "workspace:*",
         "@xeon/core-tools": "workspace:*",
         "@xeon/ext-host": "workspace:*",
+        "@xeon/group-helm": "workspace:*",
         "@xeon/platform-exec": "workspace:*",
         "@xeon/platform-os": "workspace:*",
         "@xeon/platform-process": "workspace:*",
@@ -123,6 +124,7 @@
       },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@xeon/platform-exec": "workspace:*",
       },
     },
     "packages/contracts": {
@@ -236,6 +238,10 @@
     "packages/group-helm": {
       "name": "@xeon/group-helm",
       "version": "0.0.0",
+      "dependencies": {
+        "@xeon/contracts": "workspace:*",
+        "typebox": "catalog:",
+      },
       "devDependencies": {
         "@types/bun": "catalog:",
       },

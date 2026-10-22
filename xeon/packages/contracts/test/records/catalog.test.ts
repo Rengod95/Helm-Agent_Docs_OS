@@ -130,7 +130,13 @@ describe("new payload rejections", () => {
     expect(parse(LeaseReleasedPayloadSchema, fixture("lease.released")).ok).toBe(true);
   });
 
-  test("PostAccepted requires inputId and a valid when", () => {
+  test("post.accepted is retired and is the only retired core kind", () => {
+    expect(CORE_EVENT_CATALOG.filter((e) => e.retired === true).map((e) => e.kind)).toEqual([
+      "post.accepted",
+    ]);
+  });
+
+  test("PostAccepted schema still reads old rows: inputId and a valid when", () => {
     const entry = catalogEntry("post.accepted");
     const { inputId: _inputId, ...withoutInput } = fixture("post.accepted");
     rejects(entry, withoutInput);

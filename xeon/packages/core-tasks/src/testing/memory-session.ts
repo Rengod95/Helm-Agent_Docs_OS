@@ -314,6 +314,7 @@ export function memorySession(options: MemorySessionOptions): MemorySession {
           }
           const entry = EVENT_CATALOG.find((candidate) => candidate.kind === input.kind);
           if (entry === undefined) throw new Bug(`store.kind_unregistered: ${input.kind}`);
+          if (entry.retired === true) throw new Bug(`store.kind_retired: ${input.kind}`);
           const verdict = parse(entry.payload, input.payload);
           if (!verdict.ok) {
             throw new Bug(`store.schema_invalid: ${input.kind}`, { cause: verdict.error });

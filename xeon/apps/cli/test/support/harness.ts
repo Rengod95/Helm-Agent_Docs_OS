@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { ok } from "@xeon/contracts";
 import type { JsonRpcMessage, StoreId } from "@xeon/contracts/wire";
 import type { AssembleOptions, CommandIo, HostCommand } from "@xeon/host";
 import { createHostConnection } from "../../src/host-client.ts";
@@ -44,8 +45,10 @@ export interface HarnessOptions {
   readonly stdin?: string;
   /** 대화형 입력 대본. 끝나면 EOF(null)다 */
   readonly lines?: readonly string[];
-  /** false면 상태 파일 위치를 알려 주지 않는다 */
+  /** false면 XEON_CLI_STATE_FILE 덮어쓰기를 주지 않아 호스트가 정한 기본 위치를 쓴다 */
   readonly stateFile?: boolean;
+  /** resolveHostStatePaths 가짜를 바꾼다(상태 디렉터리 오류 시험) */
+  readonly resolveStatePaths?: HostApi["resolveHostStatePaths"];
   /** n번째 stdout 쓰기부터 EPIPE로 거부한다 */
   readonly stdoutBreaksAfter?: number;
   readonly cwd?: string;
@@ -59,7 +62,10 @@ export interface HarnessOptions {
 
 export interface Harness {
   readonly dir: string;
+  /** 덮어쓰기로 넘기는 상태 파일. stateFile: false이면 호스트 기본 위치 {@link defaultStateFile}을 쓴다 */
   readonly stateFile: string;
+  /** 가짜 호스트가 덮어쓰기 없이 돌려주는 상태 파일 위치(<state>/cli/state.json) */
+  readonly defaultStateFile: string;
   readonly stdout: string[];
   readonly stderr: string[];
   readonly observed: JsonRpcMessage[];
@@ -96,6 +102,7 @@ export const TEST_STORE_ID: StoreId = storeId(1);
 export function createHarness(options: HarnessOptions = {}): Harness {
   const dir = mkdtempSync(join(tmpdir(), "xcli-"));
   const stateFile = join(dir, "state", "cli-state.json");
+  const defaultStateFile = join(dir, "host-state", "cli", "state.json");
   const stdout: string[] = [];
   const stderr: string[] = [];
   const observed: JsonRpcMessage[] = [];
@@ -153,6 +160,15 @@ export function createHarness(options: HarnessOptions = {}): Harness {
         },
       });
     },
+    resolveHostStatePaths:
+      options.resolveStatePaths ??
+      ((resolveOptions) =>
+        Promise.resolve(
+          ok({
+            stateDir: join(dir, "host-state"),
+            cliStateFile: resolveOptions?.cliStateFileOverride ?? defaultStateFile,
+          }),
+        )),
     createHostConnection,
   };
 
@@ -214,6 +230,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   return {
     dir,
     stateFile,
+    defaultStateFile,
     stdout,
     stderr,
     observed,

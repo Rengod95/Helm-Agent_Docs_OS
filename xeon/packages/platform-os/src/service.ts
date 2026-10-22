@@ -4,6 +4,7 @@ import type {
   DirsError,
   FsKind,
   FsKindError,
+  OsDirs,
   OsService,
   OsTelemetry,
   ResolveBinaryOptions,
@@ -21,7 +22,7 @@ import {
 } from "./fs-kind.ts";
 import { createFingerprintReader, readMachineId, readUserId } from "./identity.ts";
 import { createJsonLinesLogger, type LogRedact, type LogSink } from "./logger.ts";
-import type { OsRuntime } from "./runtime.ts";
+import { readOsRuntime, type OsRuntime } from "./runtime.ts";
 import { detectPlatform, selectProviders, type FsKindSource } from "./select.ts";
 
 export interface PlatformOsConfig {
@@ -69,6 +70,27 @@ function pickFsKindProvider(source: FsKindSource, runtime: OsRuntime): FsKindPro
 }
 
 /**
+ * 디렉터리 위치만 정한다. 파일 시스템을 건드리지 않고 서비스도 시작하지 않는다. `createOsService`가 쓰는 규칙과 같아서,
+ * 서비스를 띄우지 않는 쪽(예: CLI 상태 파일 위치를 묻는 호스트 API)이 같은 경로를 얻는다(L0.os.spec §3.2).
+ */
+export function resolveOsDirs(
+  config: Pick<PlatformOsConfig, "resourceDir" | "dirsOverride">,
+  runtime: OsRuntime = readOsRuntime(),
+): Result<OsDirs, OsStartError> {
+  const detected = detectPlatform(runtime.probe);
+  if (!detected.ok) return detected;
+  return resolveDirs({
+    info: detected.value,
+    env: runtime.env,
+    home: runtime.home,
+    systemTmp: runtime.systemTmp,
+    uid: runtime.getuid?.(),
+    resourceDir: config.resourceDir,
+    ...(config.dirsOverride === undefined ? {} : { managedOverride: config.dirsOverride }),
+  });
+}
+
+/**
  * OsService를 조립한다. 순서: 플랫폼 판별, 디렉터리 해석, 디렉터리 생성·검사, 로거, 기계 식별자(L0.os.spec §4 1번).
  * 바이너리 해석은 처음 쓸 때 한다. 알림(M3), 파일 감시와 텔레메트리(M2 이후)는 아직 없어 정해진 값을 돌려준다.
  */
@@ -80,16 +102,7 @@ export async function createOsService(
   if (!detected.ok) return detected;
   const info = detected.value;
 
-  const dirsInput = {
-    info,
-    env: runtime.env,
-    home: runtime.home,
-    systemTmp: runtime.systemTmp,
-    uid: runtime.getuid?.(),
-    resourceDir: config.resourceDir,
-    ...(config.dirsOverride === undefined ? {} : { managedOverride: config.dirsOverride }),
-  };
-  const resolved = resolveDirs(dirsInput);
+  const resolved = resolveOsDirs(config, runtime);
   if (!resolved.ok) return resolved;
   const dirs = resolved.value;
 

@@ -17,6 +17,26 @@ export type CommitKey = string;
 /** 형식 정본은 eng.transactions.design §4.7(review.decisions-2 U-13). L1·X는 이 상수 하나로 키를 검사한다 */
 export const COMMIT_KEY_PATTERN: string = "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$";
 
+const COMMIT_KEY_PART_PLAIN = /^[A-Za-z0-9_.-]{1,120}$/;
+const COMMIT_KEY_PART_HASH_PREFIX = "h_";
+const COMMIT_KEY_PART_HASH_LENGTH = 40;
+
+/**
+ * 밖에서 온 id(toolCallId)를 커밋 키 부분으로 바꾸는 유일한 함수다. 규칙 정본은 eng.transactions.design §4.7(review.decisions-2 U-13).
+ * 원문이 `^[A-Za-z0-9_.-]{1,120}$`에 맞고 `h_`로 시작하지 않으면 그대로, 아니면 `h_` + 원문 sha256 hex 앞 40자다.
+ * 모든 키 생산자(core-tools E1~E3, core-persistence 복구 합성)가 이 함수를 쓴다. F는 해시 구현이 없어 호출자가 동기 해시를 넘긴다.
+ */
+export function commitKeyPart(raw: string, sha256Hex: (text: string) => string): string {
+  if (COMMIT_KEY_PART_PLAIN.test(raw) && !raw.startsWith(COMMIT_KEY_PART_HASH_PREFIX)) return raw;
+  return `${COMMIT_KEY_PART_HASH_PREFIX}${sha256Hex(raw).slice(0, COMMIT_KEY_PART_HASH_LENGTH)}`;
+}
+
+/**
+ * 확장이 아닌 입력 출처 키(사용자, 위임, 예약). 확장 id로 쓸 수 없다(F.extensions.spec §4.7 name_reserved, review.decisions-2 U-13).
+ * 확장이 아닌 출처를 새로 더하면 이 목록에 먼저 더한다.
+ */
+export const RESERVED_SOURCE_KEYS: readonly ["user", "deleg", "timer"] = ["user", "deleg", "timer"];
+
 /** 생산자 id. 형식 정본은 eng.context-map.design §5.1 */
 export type ProducerId =
   | "core.persistence"

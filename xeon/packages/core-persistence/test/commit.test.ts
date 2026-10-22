@@ -86,6 +86,14 @@ describe("producers", () => {
     expect(() => h.service.producer("core.persistence")).toThrow("store.producer_claimed");
   });
 
+  test("a retired kind cannot be drafted (post.accepted, U-05)", () => {
+    const h = openHarness();
+    const { threadId } = newThread(h);
+    expect(() =>
+      draftOf(h, h.tasks, "post.accepted", threadId, { turnId: null, stepId: null }, {}),
+    ).toThrow("store.kind_retired");
+  });
+
   test("an unregistered extension kind cannot be drafted", () => {
     const h = openHarness();
     const alpha = h.service.producer("ext.alpha");

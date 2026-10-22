@@ -45,23 +45,29 @@ export interface LeaseBroker {
   release(lease: LeaseRuntime, reason: ReleaseReason): void;
 }
 
-/** 필드마다 min(설정, 요청). 한쪽만 있으면 그 값(X.primitives.spec §4.4.2) */
+/**
+ * 필드마다 base = 요청 ?? 일반 기본값, 실효 = min(base, 천장). 둘 다 없으면 그 필드는 상한 없음이다
+ * (X.primitives.spec §4.4.2, review.decisions-2 U-12). 요청이 천장보다 크면 clamped에 필드 이름을 담는다
+ */
 function effectiveLimits(
-  setting: DriveLimits,
+  defaults: DriveLimits,
+  ceiling: DriveLimits,
   requested: DriveLimits | undefined,
 ): { readonly limits: DriveLimits; readonly clamped: readonly string[] } {
   const clamped: string[] = [];
   const out: { maxTurns?: number; maxSpawns?: number; maxTokens?: number } = {};
   for (const key of ["maxTurns", "maxSpawns", "maxTokens"] as const) {
-    const fromSetting = setting[key];
     const fromRequest = requested?.[key];
-    if (fromSetting !== undefined && fromRequest !== undefined) {
-      if (fromRequest > fromSetting) clamped.push(key);
-      out[key] = Math.min(fromSetting, fromRequest);
-    } else if (fromSetting !== undefined) {
-      out[key] = fromSetting;
-    } else if (fromRequest !== undefined) {
-      out[key] = fromRequest;
+    const base = fromRequest ?? defaults[key];
+    const cap = ceiling[key];
+    if (base !== undefined && cap !== undefined) {
+      if (fromRequest !== undefined && fromRequest > cap) clamped.push(key);
+      out[key] = Math.min(base, cap);
+    } else if (base !== undefined) {
+      out[key] = base;
+    } else if (cap !== undefined) {
+      // 요청도 기본값도 없고 천장만 있으면 천장이 곧 상한이다
+      out[key] = cap;
     }
   }
   return { limits: out, clamped };
@@ -400,6 +406,7 @@ export function createLeaseBroker(
       const drive = generation.drive;
       if (drive === null) return;
       const { limits, clamped } = effectiveLimits(
+        core.deps.settings.driveDefaultLimits(),
         core.deps.settings.driveLimits(),
         drive.options.limits,
       );
@@ -409,7 +416,7 @@ export function createLeaseBroker(
           code: "drive_limits_clamped",
           scopeId: chosen.id,
           extension: chosen.extension,
-          message: `drive limits ${clamped.join(", ")} were clamped to x.primitives.driveLimits`,
+          message: `drive limits ${clamped.join(", ")} were clamped to the ceiling x.primitives.driveLimits`,
         });
       }
       const draft = makeDraft(core.deps.ids, {

@@ -12,6 +12,9 @@
     },
     {
       "path": "../ext-host"
+    },
+    {
+      "path": "../platform-exec"
     }
   ]
 }

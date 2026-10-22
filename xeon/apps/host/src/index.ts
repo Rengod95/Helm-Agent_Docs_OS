@@ -34,3 +34,9 @@ export {
   type StdioHostOptions,
 } from "./main.ts";
 export { renderSettingsSchema } from "./settings.ts";
+export {
+  resolveHostStatePaths,
+  type HostStatePathError,
+  type HostStatePaths,
+  type ResolveHostStatePathsOptions,
+} from "./state-paths.ts";

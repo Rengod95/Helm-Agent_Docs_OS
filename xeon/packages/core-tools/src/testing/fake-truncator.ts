@@ -20,6 +20,10 @@ export function fakeTruncator(): OutputTruncator {
           totalBytes,
           outputLines: lines.length,
           outputBytes: totalBytes,
+          lastLinePartial: false,
+          firstLineExceedsLimit: false,
+          maxLines,
+          maxBytes,
         };
       }
       const kept: string[] = [];
@@ -46,6 +50,10 @@ export function fakeTruncator(): OutputTruncator {
         totalBytes,
         outputLines: kept.length,
         outputBytes: bytes,
+        lastLinePartial: false,
+        firstLineExceedsLimit: false,
+        maxLines,
+        maxBytes,
       };
     },
     formatSize: (bytes) => (bytes < 1024 ? `${bytes}B` : `${(bytes / 1024).toFixed(1)}KB`),

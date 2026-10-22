@@ -74,6 +74,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "core-tasks",
     "core-tools",
     "ext-host",
+    "group-helm",
     "host",
     "platform-exec",
     "platform-os",
@@ -83,7 +84,9 @@ test("the core groups build one catalog with the keys of every package that decl
     "platform-store",
   ]);
   for (const key of [
+    "x.primitives.driveDefaultLimits",
     "x.primitives.driveLimits",
+    "l3.helm.driveLimits",
     "x.operations.budget.firstMs",
     "x.loading-trust.defaultProjectTrust",
     "l0.os.log.level",

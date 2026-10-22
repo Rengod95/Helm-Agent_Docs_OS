@@ -88,7 +88,7 @@ test("without xeon.session the setup fails with port_unavailable", async () => {
   expect(installed.setups[0]?.failure?.code).toBe("port_unavailable");
 });
 
-test("an extension post goes through ext-host into input.queued and post.accepted", async () => {
+test("an extension post goes through ext-host into a single input.queued", async () => {
   const { t, session, unit } = await setup();
   await t.host.install(unit);
   const receipts: PostReceipt[] = [];
@@ -122,7 +122,7 @@ test("an extension post goes through ext-host into input.queued and post.accepte
     { requestId: "rev-1", duplicate: false },
     { requestId: "rev-1", duplicate: true },
   ]);
-  expect(session.events.map((event) => event.kind)).toEqual(["input.queued", "post.accepted"]);
+  expect(session.events.map((event) => event.kind)).toEqual(["input.queued"]);
   expect(session.events[0]?.payload).toMatchObject({
     mode: "followUp",
     requestId: "rev-1",

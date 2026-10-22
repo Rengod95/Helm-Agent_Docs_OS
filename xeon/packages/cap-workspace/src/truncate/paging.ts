@@ -2,7 +2,7 @@ import type { TruncationInfo } from "@xeon/contracts/capabilities";
 import type { ReadSlice } from "../files/upstream/read.ts";
 
 // L2.workspace.spec §4.5. `read`의 이어 읽기 계산(offset, nextOffset, TruncationInfo 조립)만 둔다.
-// 절단 함수 자체는 truncate/upstream/truncate.ts에 있다(plan §7 대체 위치, review.decisions-2 D-08 미결).
+// 절단 함수 자체는 platform-exec가 소유하고 xeon.exec(ExecService)로 부른다(review.decisions-2 D-08, B-04).
 
 /** `ReadOutput`의 text 변형에서 `kind`를 뺀 값 */
 export interface ReadPage {

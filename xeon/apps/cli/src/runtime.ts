@@ -5,7 +5,10 @@ import type { CliDeps, CliIo, CliSignal } from "./io.ts";
 // L4.cli.spec §3.4 "최상위 코드". 실제 프로세스(process, Bun)에 닿는 코드는 이 파일에만 둔다. 테스트는 이 파일을 쓰지 않고
 // runCli에 가짜 io·deps를 넣는다(그래서 이 파일은 커버리지 대상에서 제외하는 편이 맞다).
 
-/** 상태 파일 위치를 알려 주는 환경 변수. @xeon/host가 L0.os의 상태 디렉터리를 내는 API를 두기 전까지의 임시 틈이다 [미결] */
+/**
+ * 테스트 격리용 상태 파일 덮어쓰기. 운영 경로는 @xeon/host의 resolveHostStatePaths()가 정한 `<OsDirs.state>/cli/state.json`이고
+ * 이 변수가 없을 때 그 경로를 쓴다 [결정: review.decisions-2 B-07]
+ */
 const STATE_FILE_ENV = "XEON_CLI_STATE_FILE";
 
 /** 터미널이 아니면 isTTY는 false가 아니라 undefined다 */

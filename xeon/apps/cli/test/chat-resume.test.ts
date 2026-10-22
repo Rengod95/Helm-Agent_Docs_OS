@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { afterEach, expect, test } from "bun:test";
+import { err } from "@xeon/contracts";
 import { EXIT } from "../src/exit-codes.ts";
 import {
   assistantItem,
@@ -90,10 +91,35 @@ test("--continue without a state entry exits 1 with a hint", async () => {
   expect(h.closed()).toBe(true);
 });
 
-test("--continue is unavailable when the state file location is unknown", async () => {
-  const h = harness({ stateFile: false });
-  expect(await h.run(["chat", "--continue", "-p", "x"])).toBe(EXIT.error);
-  expect(h.stderrText()).toContain("상태 파일 위치를 알 수 없어");
+// review.decisions-2 B-07: 환경 변수 덮어쓰기가 없어도 호스트가 정한 상태 파일 위치로 --continue가 동작한다
+test("without the XEON_CLI_STATE_FILE override the state file lives at the host-provided default and --continue works", async () => {
+  const h = harness({ stateFile: false, server: { onTurn: answer("first") } });
+  expect(await h.run(["chat", "-p", "q"])).toBe(0);
+  expect(readState(h.defaultStateFile)).toMatchObject({ version: 1 });
+  expect(JSON.stringify(readState(h.defaultStateFile))).toContain("thr_");
+  expect(existsSync(h.stateFile)).toBe(false);
+  h.stdout.length = 0;
+  h.useServer({
+    onTurn: (context) => {
+      context.server.commit(context.threadId, [
+        assistantItem(context.turnId, 21, { text: "second" }),
+        turnCompleted(context.turnId),
+      ]);
+    },
+  });
+  expect(await h.run(["chat", "--continue", "-p", "next"])).toBe(0);
+  expect(h.stderrText()).not.toContain("이어 열 세션이 없다");
+});
+
+test("a state directory that cannot be prepared is a start error, not a silent skip", async () => {
+  const h = harness({
+    stateFile: false,
+    resolveStatePaths: () =>
+      Promise.resolve(err({ kind: "permission", path: "/state/cli", cause: new Error("EACCES") })),
+  });
+  expect(await h.run(["chat", "-p", "x"])).toBe(EXIT.environment);
+  expect(h.stderrText()).toContain("상태 디렉터리를 만들 수 없다 (/state/cli)");
+  expect(h.methods()).toEqual([]);
 });
 
 test("a broken state file is discarded and --continue says so", async () => {

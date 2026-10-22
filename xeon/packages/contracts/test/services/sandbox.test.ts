@@ -157,6 +157,16 @@ describe("describeSandboxStatus", () => {
     expect(summary.hints[0]).toContain("l0.sandbox.enabled");
   });
 
+  test("disabled by setting is warn whatever onUnavailable says, and shell commands run unsandboxed", () => {
+    for (const onUnavailable of ["disable_execute", "ask", "run_unsandboxed"] as const) {
+      const summary = describeSandboxStatus(
+        status({ level: "none", available: false, reason: "disabled", onUnavailable }),
+      );
+      expect(summary.severity).toBe("warn");
+      expect(summary.summary).toContain("run without isolation");
+    }
+  });
+
   test("it only needs the status value and does not change it", () => {
     const value = status({ level: "none", available: false, reason: "disabled" });
     const before = JSON.stringify(value);

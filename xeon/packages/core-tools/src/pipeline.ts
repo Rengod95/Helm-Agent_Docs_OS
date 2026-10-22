@@ -4,6 +4,7 @@ import {
   BlobRefSchema,
   NOT_STARTED_TEXT,
   OUTCOME_UNKNOWN_TEXT,
+  commitKeyPart,
   type BlobRef,
   type EffectIntent,
   type EffectResult,
@@ -40,7 +41,6 @@ import type { ToolsDeps } from "./deps.ts";
 import { errorOutcome } from "./entries.ts";
 import {
   argsHashOf,
-  commitKeyPart,
   execRequest,
   fitForEvent,
   intentRequest,
@@ -61,6 +61,7 @@ import {
   isJsonValue,
   mergeSignals,
   messageOf,
+  sha256HexSync,
   utf8Bytes,
 } from "./util.ts";
 
@@ -488,7 +489,7 @@ export function createPipeline(
     };
     const itemId = deps.ids.next("itm");
     const draft = itemDraftOf({ run, itemId, effectId: null, message });
-    const key = await commitKeyPart(call.id);
+    const key = commitKeyPart(call.id, sha256HexSync);
     let recorded: ItemId | null = null;
     if (draft === undefined) {
       warn("tools.item_draft_unstamped", { toolCallId: call.id });
@@ -568,7 +569,7 @@ export function createPipeline(
     const state: CallState = {
       threadId: run.threadId,
       toolCallId: call.id,
-      key: await commitKeyPart(call.id),
+      key: commitKeyPart(call.id, sha256HexSync),
       run,
       entry,
       args: checked.value,
@@ -971,7 +972,7 @@ export function createPipeline(
     const state: CallState = {
       threadId: run.threadId,
       toolCallId: intent.toolCallId,
-      key: await commitKeyPart(intent.toolCallId),
+      key: commitKeyPart(intent.toolCallId, sha256HexSync),
       run,
       entry,
       args: args ?? {},

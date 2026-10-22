@@ -16,6 +16,7 @@ import {
   type SettingNamespace,
 } from "@xeon/contracts/settings";
 import { WORKSPACE_SETTING_DEFS } from "@xeon/cap-workspace";
+import { helmSettings } from "@xeon/group-helm";
 import { loadingTrustSettings, operationsSettings, primitivesSettings } from "@xeon/ext-host";
 import { EXEC_SETTING_DEFS } from "@xeon/platform-exec";
 import { OS_SETTING_DEFS } from "@xeon/platform-os";
@@ -65,6 +66,7 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofDefs("core-loop", "l1.loop", LOOP_SETTING_DEFS),
     ofGroup("core-tasks", tasksSettings),
     ofDefs("cap-workspace", "l2.workspace", WORKSPACE_SETTING_DEFS),
+    ofGroup("group-helm", helmSettings),
     ofGroup("host", hostSettings),
   ];
 }

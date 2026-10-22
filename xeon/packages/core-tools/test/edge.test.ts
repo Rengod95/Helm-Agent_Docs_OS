@@ -1,11 +1,11 @@
 import { expect, test } from "bun:test";
 import { err, ok, parse } from "@xeon/contracts";
 import { BashToolParams } from "@xeon/contracts/capabilities";
-import { EffectIntentSchema } from "@xeon/contracts/records";
+import { EffectIntentSchema, commitKeyPart } from "@xeon/contracts/records";
 import type { CommitRequest, CommitResult } from "@xeon/contracts/records";
 import { sequentialIds } from "../src/testing/index.ts";
 import { commitWithRetry, describeFailure } from "../src/commit.ts";
-import { commitKeyPart } from "../src/effects.ts";
+import { sha256HexSync } from "../src/util.ts";
 import { requestCommitKey, requestKeyFor } from "../src/approvals/protocol.ts";
 import {
   ASSISTANT,
@@ -64,10 +64,10 @@ test("commitWithRetry retries busy with the same request and reports every failu
 });
 
 test("tool call ids outside the commit key alphabet or too long are hashed deterministically", async () => {
-  expect(await commitKeyPart("call_1")).toBe("call_1");
-  const odd = await commitKeyPart("call|odd id/with space");
+  expect(commitKeyPart("call_1", sha256HexSync)).toBe("call_1");
+  const odd = commitKeyPart("call|odd id/with space", sha256HexSync);
   expect(odd).toMatch(/^h_[0-9a-f]{40}$/);
-  expect(await commitKeyPart("call|odd id/with space")).toBe(odd);
+  expect(commitKeyPart("call|odd id/with space", sha256HexSync)).toBe(odd);
   const long = "t".repeat(60);
   expect(await requestKeyFor(long)).toMatch(/^h_[0-9a-f]{40}$/);
   expect(await requestKeyFor("short")).toBe("short");
@@ -84,7 +84,9 @@ test("tool call ids outside the commit key alphabet or too long are hashed deter
     name: "read",
     args: { path: "a" },
   });
-  expect(h.session.commits[0]?.requestId).toBe(`tool:${await commitKeyPart("call|odd id")}:intent`);
+  expect(h.session.commits[0]?.requestId).toBe(
+    `tool:${commitKeyPart("call|odd id", sha256HexSync)}:intent`,
+  );
 });
 
 test("details and structuredContent over the event limit are replaced by their size in the record", async () => {

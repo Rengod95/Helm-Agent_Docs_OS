@@ -65,6 +65,11 @@ function core(kind: CoreEventKind, durable: boolean, payload: TSchema): CatalogE
   return { kind, version: 1, durable, payload };
 }
 
+/** 없앤 kind. 옛 행을 읽는 스키마만 남기고 새로 쓰지 않는다(F.records.spec §3.2 규칙 5) */
+function retiredCore(kind: CoreEventKind, durable: boolean, payload: TSchema): CatalogEntry {
+  return { kind, version: 1, durable, payload, retired: true };
+}
+
 /**
  * 코어 카탈로그 40종, 모두 version 1. F.records.spec §3.3 표와 같다(scripts/check-event-catalog.ts가 대조한다).
  * 휘발 kind: turn.updated, step.updated, item.started, item.updated, scope.handler_failed.
@@ -96,7 +101,7 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[] = [
   core("scope.handler_failed", false, ScopeHandlerFailedPayloadSchema),
   core("lease.acquired", true, LeaseAcquiredPayloadSchema),
   core("lease.released", true, LeaseReleasedPayloadSchema),
-  core("post.accepted", true, PostAcceptedPayloadSchema),
+  retiredCore("post.accepted", true, PostAcceptedPayloadSchema),
   core("settings.changed", true, SettingsChangedPayloadSchema),
   core("approval.requested", true, ApprovalRequestedPayloadSchema),
   core("approval.resolved", true, ApprovalResolvedPayloadSchema),

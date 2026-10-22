@@ -1,4 +1,4 @@
-import { Bug, type Clock, type Logger } from "@xeon/contracts";
+import type { Clock, Logger } from "@xeon/contracts";
 import {
   WorkspaceFiles,
   WorkspaceImages,
@@ -30,7 +30,6 @@ import type { CapabilityResolver } from "./entries.ts";
 import { collectRules } from "./policy/tiers.ts";
 import { createToolRuntime } from "./runtime.ts";
 import { readScalarConfig, type ToolsSettingsSource } from "./settings.ts";
-import type { OutputTruncator, TruncationOutcome } from "./types.ts";
 
 // L1.tools.plan TL-8 plugin.ts. ext-host의 내장 확장 단위로 xeon.tools, xeon.approvals를 제공한다.
 // 이 패키지는 Cordis를 import하지 않는다(DR-11). 서비스 등록은 hostOf(g).providePort로 한다.
@@ -54,11 +53,6 @@ export interface ToolsPluginOptions {
   /** 파일 범위(managed, user, project, local) 설정 층. 세션 범위는 xeon.session에서 읽는다 */
   readonly settings: ToolsSettingsSource;
   readonly logger?: Logger;
-  /**
-   * 출력 절단 함수. 생략하면 `xeon.exec`가 truncateHead·formatSize를 제공할 때 그것을 쓰고, 없으면 setup이 실패한다
-   * (review.decisions-2 D-08: 절단 함수는 platform-exec에 있고 core-tools에는 사본을 두지 않는다)
-   */
-  readonly truncator?: OutputTruncator;
   /** 매니페스트 optional에 더할 능력(워크스페이스 능력 밖의 L2 능력 도구를 쓸 때) */
   readonly capabilities?: readonly AnyCapabilityDef[];
   readonly loadIndex?: number;
@@ -90,51 +84,6 @@ export function toolsManifest(extra: readonly AnyCapabilityDef[] = []): Extensio
   });
 }
 
-function isTruncationOutcome(value: unknown): value is TruncationOutcome {
-  if (typeof value !== "object" || value === null) return false;
-  return (
-    "content" in value &&
-    typeof value.content === "string" &&
-    "truncated" in value &&
-    typeof value.truncated === "boolean" &&
-    "truncatedBy" in value &&
-    (value.truncatedBy === "lines" ||
-      value.truncatedBy === "bytes" ||
-      value.truncatedBy === null) &&
-    "totalLines" in value &&
-    typeof value.totalLines === "number" &&
-    "totalBytes" in value &&
-    typeof value.totalBytes === "number" &&
-    "outputLines" in value &&
-    typeof value.outputLines === "number" &&
-    "outputBytes" in value &&
-    typeof value.outputBytes === "number"
-  );
-}
-
-/** `xeon.exec`가 절단 함수를 제공하면 OutputTruncator로 감싼다. 메서드 이름은 L0.exec.spec이 정한다 [미결] */
-export function truncatorOf(exec: unknown): OutputTruncator | undefined {
-  if (typeof exec !== "object" || exec === null) return undefined;
-  const truncateHead: unknown = Reflect.get(exec, "truncateHead");
-  const formatSize: unknown = Reflect.get(exec, "formatSize");
-  if (typeof truncateHead !== "function" || typeof formatSize !== "function") return undefined;
-  return {
-    truncateHead(content, options) {
-      const cut: unknown = Reflect.apply(truncateHead, exec, [content, options]);
-      if (!isTruncationOutcome(cut)) {
-        throw new Bug(
-          "tools.truncate_invalid: xeon.exec truncateHead returned an unexpected shape",
-        );
-      }
-      return cut;
-    },
-    formatSize(bytes) {
-      const text: unknown = Reflect.apply(formatSize, exec, [bytes]);
-      return typeof text === "string" ? text : `${bytes} B`;
-    },
-  };
-}
-
 /** 파일 범위 층에 스레드의 세션 범위 층을 더해 현재 설정을 읽는다 */
 export function configReader(
   source: ToolsSettingsSource,
@@ -160,12 +109,6 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
       const exec = host.port(ExecPortKey);
       const secrets = host.port(SecretServicePortKey);
       const ext = host.port(ExtHostPortKey);
-      const truncator = options.truncator ?? truncatorOf(exec);
-      if (truncator === undefined) {
-        throw new Bug(
-          "core-tools needs an output truncator: pass options.truncator or let xeon.exec provide truncateHead/formatSize (L0.exec.spec, review.decisions-2 D-08)",
-        );
-      }
       const resolveCapability: CapabilityResolver = (key: ServiceKey<unknown>) => {
         try {
           return g.capability(key);
@@ -180,7 +123,8 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         store,
         tasks,
         lockEnv: exec,
-        truncator,
+        // 출력 절단은 xeon.exec가 제공한다. core-tools에는 사본을 두지 않는다(review.decisions-2 D-08, B-04)
+        truncator: exec,
         redactor: secrets.redactor,
         ext,
         resolveCapability,

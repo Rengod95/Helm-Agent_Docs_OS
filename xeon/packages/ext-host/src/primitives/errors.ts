@@ -59,7 +59,7 @@ export interface ExtDiagnostic {
     | PrimitiveErrorCode
     | ManifestIssue["code"]
     | "handler_failed"
-    /** DriveOptions.limits가 x.primitives.driveLimits보다 커서 설정 값으로 줄였다(X.primitives.spec §4.4.2) */
+    /** DriveOptions.limits가 x.primitives.driveLimits(천장)보다 커서 천장 값으로 줄였다(X.primitives.spec §4.4.2) */
     | "drive_limits_clamped"
     /** 시작 때 이미 열린 scope의 켜짐을 알리는 정보 진단 등 */
     | "scope_notice";

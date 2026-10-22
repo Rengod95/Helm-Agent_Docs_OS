@@ -11,6 +11,22 @@ import type { PrimitivesSettingsSource } from "./core.ts";
 
 export type { PrimitivesSettingsSource } from "./core.ts";
 
+/** 상한을 명시하지 않은 drive 임대의 일반 기본 상한(X.primitives.spec §4.4.2, review.decisions-2 U-12) */
+export const DEFAULT_DRIVE_LIMITS: Required<DriveLimits> = {
+  maxTurns: 4,
+  maxSpawns: 8,
+  maxTokens: 400_000,
+};
+
+const DriveLimitsSchema = Type.Object(
+  {
+    maxTurns: Type.Optional(Type.Integer({ minimum: 1 })),
+    maxSpawns: Type.Optional(Type.Integer({ minimum: 0 })),
+    maxTokens: Type.Optional(Type.Integer({ minimum: 1 })),
+  },
+  { additionalProperties: false },
+);
+
 /**
  * x.primitives.* 설정 키(X.primitives.spec §6).
  * activeDriveGroup의 위젯은 문서가 select로 적었지만 F의 D8 규칙이 select에 range.enum을 요구한다.
@@ -19,29 +35,37 @@ export type { PrimitivesSettingsSource } from "./core.ts";
 export const primitivesSettings: SettingGroup<
   "x.primitives",
   {
+    readonly driveDefaultLimits: SettingDefInput;
     readonly driveLimits: SettingDefInput;
     readonly activeDriveGroup: SettingDefInput;
     readonly capabilityProviders: SettingDefInput;
   }
 > = defineSettings("x.primitives", {
-  driveLimits: {
-    type: Type.Object(
-      {
-        maxTurns: Type.Optional(Type.Integer({ minimum: 1 })),
-        maxSpawns: Type.Optional(Type.Integer({ minimum: 0 })),
-        maxTokens: Type.Optional(Type.Integer({ minimum: 1 })),
-      },
-      { additionalProperties: false },
-    ),
-    default: {},
+  driveDefaultLimits: {
+    type: DriveLimitsSchema,
+    default: DEFAULT_DRIVE_LIMITS,
     runtimeChange: "nextTurn",
-    allowedScopes: ["user", "project", "session"],
+    allowedScopes: ["managed", "user", "project", "session"],
     ui: {
       tab: "plugins",
       widget: "table",
       order: 100,
-      label: "drive 임대 상한",
-      help: "비어 있으면 상한이 없다(pi 방식). 값이 있으면 그룹이 요청한 상한과 비교해 작은 쪽을 쓴다.",
+      label: "drive 기본 상한",
+      help: "상한을 명시하지 않은 drive 임대에 쓴다. 그룹이 자기 상한을 넘기면 그 값이 우선한다. 필드를 지우면 그 필드의 기본 상한이 없어진다. 일반 대화 턴에는 상한이 없다.",
+    },
+    since: "0.1.0",
+  },
+  driveLimits: {
+    type: DriveLimitsSchema,
+    default: {},
+    runtimeChange: "nextTurn",
+    allowedScopes: ["managed", "user", "project", "session"],
+    ui: {
+      tab: "plugins",
+      widget: "table",
+      order: 101,
+      label: "drive 상한 천장",
+      help: "어떤 drive 임대도 이 값을 넘지 못한다. 비어 있으면 천장이 없다.",
     },
     since: "0.1.0",
   },
@@ -76,16 +100,18 @@ export const primitivesSettings: SettingGroup<
 });
 
 export interface StaticPrimitivesSettings {
+  readonly driveDefaultLimits?: DriveLimits;
   readonly driveLimits?: DriveLimits;
   readonly activeDriveGroup?: ScopeId | null;
   readonly capabilityProviders?: Readonly<Record<string, ExtensionName>>;
 }
 
-/** 값이 정해진 설정 읽기. 값이 없으면 상한 없음, 구동 그룹 없음, 공급자 지정 없음이다 */
+/** 값이 정해진 설정 읽기. 값이 없으면 기본 상한은 DEFAULT_DRIVE_LIMITS, 천장 없음, 구동 그룹 없음, 공급자 지정 없음이다 */
 export function createStaticPrimitivesSettings(
   values: StaticPrimitivesSettings = {},
 ): PrimitivesSettingsSource {
   return {
+    driveDefaultLimits: () => values.driveDefaultLimits ?? DEFAULT_DRIVE_LIMITS,
     driveLimits: () => values.driveLimits ?? {},
     activeDriveGroup: (_threadId: ThreadId) => values.activeDriveGroup ?? null,
     capabilityProviders: () => values.capabilityProviders ?? {},
