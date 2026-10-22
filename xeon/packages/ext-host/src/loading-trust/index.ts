@@ -35,7 +35,12 @@ import type {
 } from "./pipeline.ts";
 import { satisfiesRange } from "./semver.ts";
 import { RESERVED_EXT_KEYS, reservedExtensionSettings } from "./settings-keys.ts";
-import { effectiveTrust, type InstallSource, type TrustLevel } from "./trust/levels.ts";
+import {
+  effectiveTrust,
+  type InstallSource,
+  type LoaderMode,
+  type TrustLevel,
+} from "./trust/levels.ts";
 
 export {
   BUILTIN_LAYER_ORDER,
@@ -69,9 +74,26 @@ export {
   reservedExtensionSettings,
 } from "./settings-keys.ts";
 export { satisfiesRange } from "./semver.ts";
+export {
+  findTrustRequiringResources,
+  TRUST_REQUIRING_PROJECT_RESOURCES,
+} from "./trust/resources.ts";
+export {
+  resolveProjectTrust,
+  type ProjectTrustResult,
+  type ResolveProjectTrustInput,
+  type TrustVia,
+} from "./trust/resolve.ts";
+export {
+  ProjectTrustStore,
+  trustOptions,
+  type TrustLookup,
+  type TrustStoreError,
+  type TrustVerdict,
+} from "./trust/store.ts";
 export { verdictOfInstall } from "./entry-loader.ts";
 
-export type LoaderMode = "interactive" | "headless";
+export type { LoaderMode } from "./trust/levels.ts";
 
 export interface LoadOptions {
   readonly builtins: readonly BuiltinExtensionModule[];

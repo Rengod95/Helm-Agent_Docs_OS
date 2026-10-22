@@ -45,7 +45,7 @@ xeon/packages/ext-host/
     trust/
       levels.ts                    # TrustLevel, TRUST_LEVELS, trustRank, InstallSource, SOURCE_TRUST,
                                    # TrustPermissions, TRUST_MATRIX
-      store.ts                     # (포크) ProjectTrustStore, TrustFileSchema, TrustLookup, TrustStoreCorruptError,
+      store.ts                     # (포크) ProjectTrustStore, TrustFileSchema(내부), TrustLookup, TrustStoreError,
                                    # trustOptions. F TrustStoreBackend·TrustUpdate·TrustOption 재export
       resolve.ts                   # (포크) resolveProjectTrust, ResolveProjectTrustInput, ProjectTrustResult.
                                    # F TrustPrompter·TrustPromptRequest·TrustChoice·TrustChoiceKind 재export
@@ -182,7 +182,7 @@ xeon/packages/ext-host/
 | | `provider failure cascades` | provider 확장이 9단계에서 실패하면 소비 확장도 `capability_provider_failed` | §4.3.2 |
 | `discover.test.ts` | `name conflict precedence` | 사용자·프로젝트 같은 이름 → 사용자 `active`, 프로젝트 `rejected`(`name_conflict`) | §9-13 |
 | | `one level only and symlink dedupe` | 두 단계 아래 매니페스트는 무시, 같은 실제 경로 심볼릭 링크는 후보 하나 | §4.2.1 |
-| `trust-store.test.ts` | `corrupt store treated as untrusted` | JSON이 아닌 파일 → `lookup`이 `corrupt`, `setMany`가 `TrustStoreCorruptError`, 파일 바이트 불변 | §9-11 |
+| `trust-store.test.ts` | `corrupt store treated as untrusted` | JSON이 아닌 파일 → `lookup`이 `corrupt`, `setMany`가 `err(corrupt)`, 파일 바이트 불변 | §9-11 |
 | | `nearest ancestor wins` | `/a` allow, `/a/b` deny → `/a/b/c` 조회는 deny, `/a/x`는 allow | §4.7.3 |
 | | `pi v0 format migrates` | `{ "/a": true }` 파일을 allow로 읽고 다음 쓰기에서 `version: 1` | §4.7.5 |
 | | `parent choice updates` | 상위 폴더 선택 → 상위 allow 저장, 프로젝트 루트 항목 삭제 | §4.7.3 |
@@ -248,3 +248,14 @@ xeon/packages/ext-host/
 | `Bun.plugin` 가상 모듈이 프로세스 전역이다 | Xeon 패키지가 같은 지정자를 import할 때 다른 모듈 인스턴스를 받을 수 있다 | L-01 (d)에서 인스턴스 동일성을 확인한다. 실체를 소유 패키지가 등록하므로 같은 인스턴스를 넘긴다. 다르면 pi 확장 import에만 적용되는 해석 경로(B안)로 바꾼다 |
 | X.primitives의 `ExtHost.install`(P-13)이나 X.operations의 `admit`(O-03)이 늦는다 | M0의 L-06, L-07이 막힌다 | 스펙 §4.4.3 표를 기준으로 가짜 `ExtHost`·가짜 정책으로 구현을 끝낸다. 연결은 두 산출물이 나온 뒤 한다 |
 | 프로젝트 설정 적용 제외 규칙(스펙 §4.7.4)을 L1.persistence가 구현하지 않는다 | 신뢰 전 프로젝트 `ext.*` 값이 적용되어 확장이 켜지거나 꺼진다 | 로더가 유효 값을 읽을 때 프로젝트·로컬 범위를 빼는 필터를 자기 쪽에도 둔다(이중 방어). 통합 테스트에 프로젝트 설정 파일을 넣어 확인한다 |
+
+## 8. M2 구현 현황 (X 레인, X.4)
+
+| 작업 | 상태 | 비고 |
+|---|---|---|
+| L-15 | 완료 | `trust/store.ts` 포크: `ProjectTrustStore`(`canonical`, `lookup`, `setMany`), 손상 → `corrupt`(쓰기 거부, `Result`로 돌려줌), pi 형식(v0) 읽기·다음 쓰기에서 버전 1, `trustOptions`(식별자 라벨 5개). `trust-store.test.ts` |
+| L-16 | 완료 | `trust/resources.ts` 포크: `TRUST_REQUIRING_PROJECT_RESOURCES`(스펙 §4.7.2 표와 대조 시험), `findTrustRequiringResources`(상위 `.agents/skills`는 상대 경로, 홈 제외, 존재만 확인). L-13(외부 탐색)에는 의존하지 않고 `LoaderFs`만 쓴다. `trust-resources.test.ts` |
+| L-17 | 완료 | `trust/resolve.ts` 포크: 판정 순서 1~8, `project_trust` 발화(발화가 던지면 불신), `sessionMemory`, 비대화형 불신, 손상 저장소 무프롬프트, 프롬프트 결과 저장, 저장 실패는 `storeError`. `trust-resolve.test.ts` |
+| 포크 기록 | 완료 | `LICENSE.pi`, `UPSTREAM.json`, `PATCHES.md`, 소스의 `// XEON-PATCH` 표지가 일치한다(`fork-records.test.ts`) |
+| L-18 | 보류 | 시작 순서 통합(신뢰 판정 뒤 프로젝트 탐색, `resources_discover`)은 결정 D9(X.5)에 따라 M3다. M2에서 MCP·프로젝트 스킬은 `resolveProjectTrust`와 `findTrustRequiringResources`를 직접 부른다(`@xeon/ext-host` 공개 이름) |
+| `project-trust.int.test.ts` | 보류 | 통합 시험은 L-18과 함께 한다 |

@@ -1,0 +1,43 @@
+{
+  "name": "pi project trust (trust-manager, project-trust)",
+  "upstream": "https://github.com/earendil-works/pi",
+  "package": "@earendil-works/pi-coding-agent",
+  "version": "1.1.0",
+  "commit": "cdaf6c227d4718a72b59ccd02152c9614df44cfc",
+  "license": "MIT",
+  "licenseFile": "LICENSE.pi",
+  "source": "packages/coding-agent/src/core/{trust-manager.ts,project-trust.ts}",
+  "decision": "docs/xeon/X/loading-trust/spec.md section 4.7.1",
+  "copiedPaths": [
+    "trust-manager.ts ProjectTrustStore, findNearestTrustEntry, readTrustFile, writeTrustFile, getProjectTrustOptions -> src/loading-trust/trust/store.ts",
+    "trust-manager.ts TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES, hasTrustRequiringProjectResources (186-208) -> src/loading-trust/trust/resources.ts",
+    "project-trust.ts resolveProjectTrusted (47-97) -> src/loading-trust/trust/resolve.ts"
+  ],
+  "notCopied": [
+    "trust-manager.ts acquireTrustLockSync, withTrustFileLock (138-177) and the proper-lockfile import (locking belongs to the TrustStoreBackend implementation)",
+    "trust-manager.ts getProjectTrustParentPath (inlined as parentOf in resolve.ts)",
+    "project-trust.ts formatProjectTrustPrompt, selectProjectTrustOption, saveProjectTrustPromptResult (display belongs to the L4 TrustPrompter)",
+    "project-trust.ts AppMode, ResolveProjectTrustedOptions.extensionsResult/projectTrustContext/onExtensionError (replaced by LoaderMode, TrustPrompter and the emitProjectTrust argument)"
+  ],
+  "modifications": [
+    "verdict-type: boolean | null decisions become the three-valued TrustVerdict (allow, deny, undecided) (store.ts)",
+    "trust-file-schema: the stored file is { version: 1, entries: { path: { verdict, decidedAt, via } } } checked by TrustFileSchema (store.ts)",
+    "store-errors: setMany returns Result<void, TrustStoreError> (corrupt, io) instead of throwing (store.ts)",
+    "strip-bom-local: stripBom from utils/text.ts becomes a local function (store.ts)",
+    "corrupt-as-value: a store that cannot be read or parsed is TrustLookup corrupt instead of a thrown error (store.ts)",
+    "pi-v0-format: a pi file (Record<path, boolean | null>) is read as version 0 and rewritten as version 1 on the next write (store.ts)",
+    "injected-normalize: canonicalizePath/resolvePath become the normalize constructor argument (store.ts)",
+    "async-backend: node:fs sync reads and writes become the async TrustStoreBackend port (store.ts)",
+    "no-lockfile: proper-lockfile and the busy-wait lock are removed; TrustStoreBackend.update does the locked read-modify-write (store.ts)",
+    "options-localized: getProjectTrustOptions returns five TrustOption values with label identifiers and no display text (store.ts)",
+    "config-dir-constant: CONFIG_DIR_NAME from config.ts becomes the local constant .xeon (resources.ts)",
+    "resource-list: the trust-requiring resource list uses the Xeon names of spec section 4.7.2 (resources.ts)",
+    "find-list: the boolean check returns the list of resources that were found (resources.ts)",
+    "injected-fs-home: existsSync/homedir/process.env.HOME become LoaderFs and the homeDir argument (resources.ts)",
+    "decision-order: the order keeps pi's and adds session memory, store corruption and headless denial; verdicts are allow, deny, undecided (resolve.ts)",
+    "point-fail-closed: an exception from the project_trust point denies instead of being reported and skipped (resolve.ts)",
+    "corrupt-store-no-prompt: a corrupt store denies without prompting so a saved answer cannot overwrite other folders' decisions (resolve.ts)",
+    "prompter-port: ctx.ui.select and hasUI become the TrustPrompter port and the headless mode (resolve.ts)"
+  ],
+  "tracking": "Not tracked. New pi releases are not followed. Record any hand-ported fix here with the upstream version and function."
+}

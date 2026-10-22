@@ -87,8 +87,13 @@ export {
 // loading-trust (X.loading-trust.spec §3.1~§3.9 중 M0·M1 몫)
 export {
   createExtensionLoader,
+  findTrustRequiringResources,
   LoadAbortError,
   loadingTrustSettings,
+  ProjectTrustStore,
+  resolveProjectTrust,
+  trustOptions,
+  TRUST_REQUIRING_PROJECT_RESOURCES,
   LoadDiagnosticSchema,
   RESERVED_EXT_KEYS,
   SOURCE_TRUST,
@@ -108,7 +113,13 @@ export {
   type LoadReport,
   type LoadStage,
   type LoadState,
+  type ProjectTrustResult,
+  type ResolveProjectTrustInput,
   type TrustLevel,
+  type TrustLookup,
+  type TrustStoreError,
+  type TrustVerdict,
+  type TrustVia,
   type TrustPermissions,
 } from "./loading-trust/index.ts";
 export type {

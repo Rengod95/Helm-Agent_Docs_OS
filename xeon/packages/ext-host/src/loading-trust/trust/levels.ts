@@ -3,6 +3,9 @@
 /** F.extensions.spec TrustRequestSchema의 값 집합을 확정한다 [제안] */
 export type TrustLevel = "builtin" | "user" | "project" | "untrusted";
 
+/** 프롬프트를 띄울 수 있는 실행인가. 전송 형태가 아니라 클라이언트가 대화형인지로 정한다 */
+export type LoaderMode = "interactive" | "headless";
+
 /** 높은 등급이 앞이다. 비교는 이 배열의 index로 한다 */
 export const TRUST_LEVELS: readonly ["builtin", "user", "project", "untrusted"] = [
   "builtin",

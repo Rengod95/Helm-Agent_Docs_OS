@@ -370,6 +370,7 @@ export declare const loadingTrustSettings: SettingGroup<"x.loading-trust", {
 ```ts
 // 신뢰 포트와 부속 타입은 F가 정본이다(F.extensions.spec §3.2.1 로더 포트). 여기서는 다시 export만 한다.
 // 구현: TrustStoreBackend는 L0.os, TrustPrompter는 대화형 클라이언트(L4)
+import type { Result } from "@xeon/contracts";
 import type {
   LoaderFs, TrustStoreBackend, TrustPrompter, TrustPromptRequest, TrustOption, TrustUpdate, TrustChoice, TrustChoiceKind,
 } from "@xeon/contracts/extensions";
@@ -379,8 +380,8 @@ export type {
 
 export type TrustVerdict = "allow" | "deny" | "undecided";
 
-/** 저장 파일 형식. pi trust.json(Record<path, boolean|null>)에 버전과 출처를 더했다 */
-export const TrustFileSchema = Type.Object({
+/** 저장 파일 형식. pi trust.json(Record<path, boolean|null>)에 버전과 출처를 더했다. 패키지 안에서만 쓴다(공개 이름이 아님) */
+const TrustFileSchema = Type.Object({
   version: Type.Literal(1),
   entries: Type.Record(
     Type.String({ minLength: 1, maxLength: 4096 }),
@@ -392,7 +393,7 @@ export const TrustFileSchema = Type.Object({
     }),
   ),
 });
-export type TrustFile = Static<typeof TrustFileSchema>;
+type TrustFile = Static<typeof TrustFileSchema>;
 
 export type TrustLookup =
   | { readonly kind: "found"; readonly verdict: "allow" | "deny"; readonly path: string }
@@ -401,17 +402,26 @@ export type TrustLookup =
 
 export declare class ProjectTrustStore {
   constructor(backend: TrustStoreBackend, normalize: (path: string) => Promise<string>, clock: { now(): number });
-  /** cwd에서 위로 올라가며 가장 가까운 항목 */
+  /** 저장소 키로 쓰는 정규 경로(normalize) */
+  canonical(path: string): Promise<string>;
+  /** cwd에서 위로 올라가며 가장 가까운 항목. 읽기·파싱·스키마 실패는 던지지 않고 corrupt다 */
   lookup(cwd: string): Promise<TrustLookup>;
-  /** 파일이 손상이면 TrustStoreCorruptError를 던지고 쓰지 않는다 */
-  setMany(updates: readonly TrustUpdate[]): Promise<void>;
+  /**
+   * 갱신을 하나의 읽기-수정-쓰기(TrustStoreBackend.update)로 적용한다. 파일이 손상이면 쓰지 않고 corrupt를,
+   * 백엔드 쓰기가 실패하면 io를 돌려준다(던지지 않는다, eng.typescript.guide TY-24)
+   */
+  setMany(updates: readonly TrustUpdate[]): Promise<Result<void, TrustStoreError>>;
 }
 
-export declare class TrustStoreCorruptError extends Error {
-  readonly reason: string;
-}
+export type TrustStoreError =
+  | { readonly kind: "corrupt"; readonly reason: string }
+  | { readonly kind: "io"; readonly cause: unknown };
 
-/** pi getProjectTrustOptions 포크. 선택지와 저장할 갱신(TrustOption은 F 타입) */
+/**
+ * pi getProjectTrustOptions 포크. §4.7.3 표의 선택지 다섯 개와 저장할 갱신(TrustOption은 F 타입). 상위 폴더가 없으면(parent가 null)
+ * 상위 선택지를 뺀다. label은 표시 문구가 아니라 L4가 현지화할 식별자다(trust-folder, trust-parent, trust-session, deny-folder,
+ * deny-session). 세션 선택지의 updates는 비어 있고 호출자가 sessionMemory에 둔다
+ */
 export function trustOptions(projectRoot: string, parent: string | null): readonly TrustOption[];
 
 /** pi hasTrustRequiringProjectResources 포크(§4.7.2) */
@@ -428,7 +438,10 @@ export interface ProjectTrustResult {
   readonly trusted: boolean;
   readonly verdict: TrustVerdict;
   readonly via: TrustVia;
+  /** 찾은 신뢰 필요 자원(프로젝트 루트 기준 상대 경로) */
   readonly resources: readonly string[];
+  /** 결정을 저장하려다 실패했다(손상된 저장 파일 등). 결정은 유효하다. 호출자가 trust_store_corrupt 진단을 남긴다 */
+  readonly storeError?: TrustStoreError;
 }
 
 export interface ResolveProjectTrustInput {
@@ -936,7 +949,7 @@ export interface VirtualModuleRegistry {
 
 - `TrustStoreBackend.read`가 실패하거나, JSON 파싱이 실패하거나, `TrustFileSchema` 검사가 실패하면 `lookup`은 `corrupt`다.
 - [제안] `corrupt`이면 판정은 불신(`via: "corruptStore"`, 결정 `undecided`)이다. `defaultProjectTrust: "always"`와 `trustOverride`는 여전히 적용한다(1번, 6번이 먼저다). 프롬프트는 띄우지 않는다. 띄워서 저장하면 손상 파일을 덮어써 다른 폴더의 결정을 잃기 때문이다.
-- 손상 상태에서 `setMany`는 `TrustStoreCorruptError`를 던진다. 진단 `trust_store_corrupt`를 남기고, L4는 파일 경로와 복구 방법(직접 수정, 초기화 명령)을 보인다.
+- 손상 상태에서 `setMany`는 쓰지 않고 `err({ kind: "corrupt", reason })`를 돌려준다. `resolveProjectTrust`는 저장에 실패해도 결정을 유지하고 결과의 `storeError`로 알린다. 진단 `trust_store_corrupt`를 남기고, L4는 파일 경로와 복구 방법(직접 수정, 초기화 명령)을 보인다.
 - pi 형식(`Record<path, boolean | null>`) 파일을 읽으면 [제안] 손상으로 보지 않고 버전 0으로 읽어 같은 의미로 변환한다. 다음 쓰기 때 버전 1로 바꾼다.
 
 ### 4.8 능력 요구 충족
