@@ -2,14 +2,18 @@ import { describe, expect, test } from "bun:test";
 import { parse } from "../../src/index.ts";
 import {
   JsonRpcErrorSchema,
+  WIRE_CAPABILITY_ERROR_CODE,
+  WIRE_CODE_RANGES,
   WIRE_ERRORS,
   WireError,
   WireErrorDataSchema,
   checkEnvelope,
+  codeRangeOf,
   internalJsonRpcError,
   toJsonRpcError,
   toRpcError,
   wireError,
+  wireErrorCodeMatchesKind,
 } from "../../src/wire-settings/wire/index.ts";
 
 const specs = Object.values(WIRE_ERRORS);
@@ -147,5 +151,57 @@ describe("WireError", () => {
       error: toJsonRpcError(wireError("turn.busy", { details: { turnId: "trn_x" } })),
     };
     expect(checkEnvelope(failure).ok).toBe(true);
+  });
+});
+
+const name = (code: number): string | null => codeRangeOf(code)?.name ?? null;
+
+describe("error code ranges (W16)", () => {
+  test("the table covers the spec ranges in order without overlap", () => {
+    expect(WIRE_CODE_RANGES.map((r) => [r.name, r.from, r.to])).toEqual([
+      ["jsonrpc", -32768, -32000],
+      ["wire.connection", 1000, 1999],
+      ["wire.events", 2000, 2999],
+      ["core", 3000, 3999],
+      ["capability", 4000, 4999],
+      ["host", 5000, 5999],
+      ["extension", 10000, 19999],
+    ]);
+  });
+
+  test("codeRangeOf maps edges and outsiders", () => {
+    expect(name(-32768)).toBe("jsonrpc");
+    expect(name(-32000)).toBe("jsonrpc");
+    expect(name(-31999)).toBeNull();
+    expect(name(999)).toBeNull();
+    expect(name(1000)).toBe("wire.connection");
+    expect(name(2999)).toBe("wire.events");
+    expect(name(3105)).toBe("core");
+    expect(name(WIRE_CAPABILITY_ERROR_CODE)).toBe("capability");
+    expect(name(5006)).toBe("host");
+    expect(name(6000)).toBeNull();
+    expect(name(9999)).toBeNull();
+    expect(name(10000)).toBe("extension");
+    expect(name(19999)).toBe("extension");
+    expect(name(20000)).toBeNull();
+    expect(name(1.5)).toBeNull();
+    expect(name(Number.NaN)).toBeNull();
+  });
+
+  test("every registered error code falls in a range that fits its kind", () => {
+    for (const spec of Object.values(WIRE_ERRORS)) {
+      expect({ kind: spec.kind, fits: wireErrorCodeMatchesKind(spec.code, spec.kind) }).toEqual({
+        kind: spec.kind,
+        fits: true,
+      });
+    }
+  });
+
+  test("capability and extension ranges require their kind prefix", () => {
+    expect(wireErrorCodeMatchesKind(4000, "cap.web.search.session_limit")).toBe(true);
+    expect(wireErrorCodeMatchesKind(4000, "web.session_limit")).toBe(false);
+    expect(wireErrorCodeMatchesKind(10001, "ext.helm.phase_invalid")).toBe(true);
+    expect(wireErrorCodeMatchesKind(10001, "helm.phase_invalid")).toBe(false);
+    expect(wireErrorCodeMatchesKind(7000, "ext.helm.x")).toBe(false);
   });
 });

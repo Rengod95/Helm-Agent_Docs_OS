@@ -44,6 +44,7 @@ export function createWireHandlers(
     "secret.remove": notImplemented("secret.remove"),
     "secret.test": notImplemented("secret.test"),
     "secret.beginEntry": notImplemented("secret.beginEntry"),
+    "secret.beginReveal": notImplemented("secret.beginReveal"),
   };
   return table;
 }

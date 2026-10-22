@@ -45,6 +45,7 @@ import {
   StoreIdSchema,
   StreamPositionSchema,
 } from "./cursor.ts";
+import { WireMetaSchema } from "./jsonrpc.ts";
 import { FeatureInfoSchema, FeatureNameSchema, type FeatureStatus } from "./version.ts";
 import {
   CancelRequestParamsSchema,
@@ -558,72 +559,144 @@ export const SecretBeginEntryResultSchema: TObject<{ started: TBoolean }> = Type
 );
 export type SecretBeginEntryResult = Static<typeof SecretBeginEntryResultSchema>;
 
+/** secret.beginReveal. 값 필드가 없다. 표시는 호스트 쪽 L0.secrets가 TTY나 OS 창에 한다(L4.cli.spec §4.7) */
+export const SecretBeginRevealResultSchema: TObject<{ started: TBoolean }> = Type.Object(
+  { started: Type.Boolean() },
+  { additionalProperties: false },
+);
+export type SecretBeginRevealResult = Static<typeof SecretBeginRevealResultSchema>;
+
+// ── 모든 요청 params의 _meta (§3.6) ──────────────────────────────────────
+
+/** params 스키마에 예약 키 `_meta?: WireMeta`를 더한 타입 */
+export type WithMeta<S extends TObject> = TObject<
+  S["properties"] & { _meta: TOptional<typeof WireMetaSchema> }
+>;
+
+/**
+ * 레지스트리가 모든 요청 메서드의 params 스키마에 자동으로 더하는 `_meta`(F.wire-settings.spec §3.6).
+ * 원래 스키마의 필드와 `additionalProperties: false`를 그대로 두고 `_meta`만 더한다. 순수 함수.
+ */
+export function withMeta<S extends TObject>(schema: S): WithMeta<S> {
+  return Type.Object(
+    { ...schema.properties, _meta: Type.Optional(WireMetaSchema) },
+    { additionalProperties: false },
+  );
+}
+
+/** host.status 요청 params. 키가 없는 객체에 `_meta`만 허용한다 */
+const HostStatusRequestSchema: WithMeta<TObject<{}>> = withMeta(
+  Type.Object({}, { additionalProperties: false }),
+);
+/** 같은 params를 쓰는 메서드가 한 스키마 객체를 나눠 쓰도록 한 번만 만든다 */
+const ThreadRefRequestSchema: WithMeta<typeof ThreadRefParamsSchema> =
+  withMeta(ThreadRefParamsSchema);
+const SecretNameRequestSchema: WithMeta<typeof SecretNameParamsSchema> =
+  withMeta(SecretNameParamsSchema);
+
 // ── 레지스트리 타입 ──────────────────────────────────────────────────────
 
 /** 메서드별 params·result 스키마. 타입 쪽(WireMethodMap)과 값 쪽(WIRE_METHODS)의 같은 원천이다 */
 interface WireSchemas {
-  "host.hello": { params: typeof HostHelloParamsSchema; result: typeof HostHelloResultSchema };
-  "host.status": { params: typeof HostStatusParamsSchema; result: typeof HostStatusResultSchema };
-  "thread.list": { params: typeof ThreadListParamsSchema; result: typeof ThreadListResultSchema };
+  "host.hello": {
+    params: WithMeta<typeof HostHelloParamsSchema>;
+    result: typeof HostHelloResultSchema;
+  };
+  "host.status": {
+    params: typeof HostStatusRequestSchema;
+    result: typeof HostStatusResultSchema;
+  };
+  "thread.list": {
+    params: WithMeta<typeof ThreadListParamsSchema>;
+    result: typeof ThreadListResultSchema;
+  };
   "thread.create": {
-    params: typeof ThreadCreateParamsSchema;
+    params: WithMeta<typeof ThreadCreateParamsSchema>;
     result: typeof ThreadCreateResultSchema;
   };
-  "thread.open": { params: typeof ThreadOpenParamsSchema; result: typeof ThreadOpenResultSchema };
-  "thread.close": { params: typeof ThreadRefParamsSchema; result: typeof EmptyResultSchema };
-  "thread.delete": { params: typeof ThreadRefParamsSchema; result: typeof EmptyResultSchema };
-  "thread.fork": { params: typeof ThreadForkParamsSchema; result: typeof ThreadForkResultSchema };
+  "thread.open": {
+    params: WithMeta<typeof ThreadOpenParamsSchema>;
+    result: typeof ThreadOpenResultSchema;
+  };
+  "thread.close": {
+    params: typeof ThreadRefRequestSchema;
+    result: typeof EmptyResultSchema;
+  };
+  "thread.delete": {
+    params: typeof ThreadRefRequestSchema;
+    result: typeof EmptyResultSchema;
+  };
+  "thread.fork": {
+    params: WithMeta<typeof ThreadForkParamsSchema>;
+    result: typeof ThreadForkResultSchema;
+  };
   "thread.revert": {
-    params: typeof ThreadRevertParamsSchema;
+    params: WithMeta<typeof ThreadRevertParamsSchema>;
     result: typeof ThreadRevertResultSchema;
   };
-  "turn.start": { params: typeof TurnStartParamsSchema; result: typeof TurnStartResultSchema };
+  "turn.start": {
+    params: WithMeta<typeof TurnStartParamsSchema>;
+    result: typeof TurnStartResultSchema;
+  };
   "turn.interrupt": {
-    params: typeof TurnInterruptParamsSchema;
+    params: WithMeta<typeof TurnInterruptParamsSchema>;
     result: typeof TurnInterruptResultSchema;
   };
   "events.subscribe": {
-    params: typeof EventsSubscribeParamsSchema;
+    params: WithMeta<typeof EventsSubscribeParamsSchema>;
     result: typeof EventsSubscribeResultSchema;
   };
   "events.unsubscribe": {
-    params: typeof EventsUnsubscribeParamsSchema;
+    params: WithMeta<typeof EventsUnsubscribeParamsSchema>;
     result: typeof EmptyResultSchema;
   };
   "approval.respond": {
-    params: typeof ApprovalRespondParamsSchema;
+    params: WithMeta<typeof ApprovalRespondParamsSchema>;
     result: typeof ApprovalRespondResultSchema;
   };
   "settings.get": {
-    params: typeof SettingsGetParamsSchema;
+    params: WithMeta<typeof SettingsGetParamsSchema>;
     result: typeof SettingsGetResultSchema;
   };
   "settings.set": {
-    params: typeof SettingsSetParamsSchema;
+    params: WithMeta<typeof SettingsSetParamsSchema>;
     result: typeof SettingsSetResultSchema;
   };
   "settings.reset": {
-    params: typeof SettingsResetParamsSchema;
+    params: WithMeta<typeof SettingsResetParamsSchema>;
     result: typeof SettingsSetResultSchema;
   };
   "settings.list": {
-    params: typeof SettingsListParamsSchema;
+    params: WithMeta<typeof SettingsListParamsSchema>;
     result: typeof SettingsListResultSchema;
   };
   "host.shutdown": {
-    params: typeof HostShutdownParamsSchema;
+    params: WithMeta<typeof HostShutdownParamsSchema>;
     result: typeof HostShutdownResultSchema;
   };
-  "secret.list": { params: typeof SecretListParamsSchema; result: typeof SecretListResultSchema };
-  "secret.meta": { params: typeof SecretMetaParamsSchema; result: typeof SecretMetaResultSchema };
+  "secret.list": {
+    params: WithMeta<typeof SecretListParamsSchema>;
+    result: typeof SecretListResultSchema;
+  };
+  "secret.meta": {
+    params: WithMeta<typeof SecretMetaParamsSchema>;
+    result: typeof SecretMetaResultSchema;
+  };
   "secret.remove": {
-    params: typeof SecretNameParamsSchema;
+    params: typeof SecretNameRequestSchema;
     result: typeof SecretRemoveResultSchema;
   };
-  "secret.test": { params: typeof SecretNameParamsSchema; result: typeof SecretTestResultSchema };
+  "secret.test": {
+    params: typeof SecretNameRequestSchema;
+    result: typeof SecretTestResultSchema;
+  };
   "secret.beginEntry": {
-    params: typeof SecretBeginEntryParamsSchema;
+    params: WithMeta<typeof SecretBeginEntryParamsSchema>;
     result: typeof SecretBeginEntryResultSchema;
+  };
+  "secret.beginReveal": {
+    params: typeof SecretNameRequestSchema;
+    result: typeof SecretBeginRevealResultSchema;
   };
 }
 
@@ -688,30 +761,43 @@ export const WIRE_METHODS: {
     readonly result: WireSchemas[M]["result"];
   };
 } = {
-  "host.hello": spec(HostHelloParamsSchema, HostHelloResultSchema, "M1"),
-  "host.status": spec(HostStatusParamsSchema, HostStatusResultSchema, "M2"),
-  "thread.list": spec(ThreadListParamsSchema, ThreadListResultSchema, "M2"),
-  "thread.create": spec(ThreadCreateParamsSchema, ThreadCreateResultSchema, "M1"),
-  "thread.open": spec(ThreadOpenParamsSchema, ThreadOpenResultSchema, "M2"),
-  "thread.close": spec(ThreadRefParamsSchema, EmptyResultSchema, "M2"),
-  "thread.delete": spec(ThreadRefParamsSchema, EmptyResultSchema, "M2"),
-  "thread.fork": spec(ThreadForkParamsSchema, ThreadForkResultSchema, "M2"),
-  "thread.revert": spec(ThreadRevertParamsSchema, ThreadRevertResultSchema, "M2"),
-  "turn.start": spec(TurnStartParamsSchema, TurnStartResultSchema, "M1"),
-  "turn.interrupt": spec(TurnInterruptParamsSchema, TurnInterruptResultSchema, "M2"),
-  "events.subscribe": spec(EventsSubscribeParamsSchema, EventsSubscribeResultSchema, "M1"),
-  "events.unsubscribe": spec(EventsUnsubscribeParamsSchema, EmptyResultSchema, "M2"),
-  "approval.respond": spec(ApprovalRespondParamsSchema, ApprovalRespondResultSchema, "M2"),
-  "settings.get": spec(SettingsGetParamsSchema, SettingsGetResultSchema, "M1"),
-  "settings.set": spec(SettingsSetParamsSchema, SettingsSetResultSchema, "M2"),
-  "settings.reset": spec(SettingsResetParamsSchema, SettingsSetResultSchema, "M2"),
-  "settings.list": spec(SettingsListParamsSchema, SettingsListResultSchema, "M2"),
-  "host.shutdown": spec(HostShutdownParamsSchema, HostShutdownResultSchema, "M2"),
-  "secret.list": spec(SecretListParamsSchema, SecretListResultSchema, "M2"),
-  "secret.meta": spec(SecretMetaParamsSchema, SecretMetaResultSchema, "M2"),
-  "secret.remove": spec(SecretNameParamsSchema, SecretRemoveResultSchema, "M2"),
-  "secret.test": spec(SecretNameParamsSchema, SecretTestResultSchema, "M2"),
-  "secret.beginEntry": spec(SecretBeginEntryParamsSchema, SecretBeginEntryResultSchema, "M2"),
+  "host.hello": spec(withMeta(HostHelloParamsSchema), HostHelloResultSchema, "M1"),
+  "host.status": spec(HostStatusRequestSchema, HostStatusResultSchema, "M2"),
+  "thread.list": spec(withMeta(ThreadListParamsSchema), ThreadListResultSchema, "M2"),
+  "thread.create": spec(withMeta(ThreadCreateParamsSchema), ThreadCreateResultSchema, "M1"),
+  "thread.open": spec(withMeta(ThreadOpenParamsSchema), ThreadOpenResultSchema, "M2"),
+  "thread.close": spec(ThreadRefRequestSchema, EmptyResultSchema, "M2"),
+  "thread.delete": spec(ThreadRefRequestSchema, EmptyResultSchema, "M2"),
+  "thread.fork": spec(withMeta(ThreadForkParamsSchema), ThreadForkResultSchema, "M2"),
+  "thread.revert": spec(withMeta(ThreadRevertParamsSchema), ThreadRevertResultSchema, "M2"),
+  "turn.start": spec(withMeta(TurnStartParamsSchema), TurnStartResultSchema, "M1"),
+  "turn.interrupt": spec(withMeta(TurnInterruptParamsSchema), TurnInterruptResultSchema, "M2"),
+  "events.subscribe": spec(
+    withMeta(EventsSubscribeParamsSchema),
+    EventsSubscribeResultSchema,
+    "M1",
+  ),
+  "events.unsubscribe": spec(withMeta(EventsUnsubscribeParamsSchema), EmptyResultSchema, "M2"),
+  "approval.respond": spec(
+    withMeta(ApprovalRespondParamsSchema),
+    ApprovalRespondResultSchema,
+    "M2",
+  ),
+  "settings.get": spec(withMeta(SettingsGetParamsSchema), SettingsGetResultSchema, "M1"),
+  "settings.set": spec(withMeta(SettingsSetParamsSchema), SettingsSetResultSchema, "M2"),
+  "settings.reset": spec(withMeta(SettingsResetParamsSchema), SettingsSetResultSchema, "M2"),
+  "settings.list": spec(withMeta(SettingsListParamsSchema), SettingsListResultSchema, "M2"),
+  "host.shutdown": spec(withMeta(HostShutdownParamsSchema), HostShutdownResultSchema, "M2"),
+  "secret.list": spec(withMeta(SecretListParamsSchema), SecretListResultSchema, "M2"),
+  "secret.meta": spec(withMeta(SecretMetaParamsSchema), SecretMetaResultSchema, "M2"),
+  "secret.remove": spec(SecretNameRequestSchema, SecretRemoveResultSchema, "M2"),
+  "secret.test": spec(SecretNameRequestSchema, SecretTestResultSchema, "M2"),
+  "secret.beginEntry": spec(
+    withMeta(SecretBeginEntryParamsSchema),
+    SecretBeginEntryResultSchema,
+    "M2",
+  ),
+  "secret.beginReveal": spec(SecretNameRequestSchema, SecretBeginRevealResultSchema, "M2"),
 };
 
 export const WIRE_NOTIFICATIONS: {

@@ -5,6 +5,7 @@ import type {
   SecretAuditRecord,
   SecretHandle,
   SecretMeta,
+  SecretName,
   SecretScope,
   SecretUsePolicy,
 } from "../capabilities/index.ts";
@@ -85,4 +86,40 @@ export interface SecretAdminService {
     reauth: HumanReauth,
     show: (value: SecretValueView) => Promise<void>,
   ): Promise<Result<void, SecretError>>;
+}
+
+// ── in-process 값 전달 통로 (L4.cli.spec §4.7, F.wire-settings.spec §3.3.1 secret.beginEntry·beginReveal) ──
+
+/** secret.beginEntry의 action과 같다 */
+export type SecretEntryAction = "add" | "set" | "rotate";
+
+/** wire 밖으로 맡기는 값 입력. 다음 secret.beginEntry { name, action } 한 번이 가져간다 */
+export interface SecretEntryOffer {
+  readonly name: SecretName;
+  readonly action: SecretEntryAction;
+  /** stdin 또는 가린 프롬프트 */
+  readonly source: SecretValueSource;
+}
+
+/** wire 밖으로 맡기는 값 열람. 다음 secret.beginReveal { name } 한 번이 가져간다 */
+export interface SecretRevealOffer {
+  readonly name: SecretName;
+  /** CLI가 TTY 확인이나 OS 인증으로 사람을 확인한 증거 */
+  readonly reauth: HumanReauth;
+  /** 호스트 쪽 L0.secrets가 값을 한 번 넘기는 곳. TTY에 쓰고 곧바로 잊는다 */
+  readonly show: (value: SecretValueView) => Promise<void>;
+}
+
+/**
+ * in-process 접속이 비밀 값 입력·열람 수단을 wire 밖으로 호스트에 맡기는 통로.
+ * wire 메서드 `secret.beginEntry`·`secret.beginReveal`은 값 필드 없이 시작만 알리고, 호스트 처리기가 같은 이름의
+ * 맡긴 수단 하나를 꺼내 L0.secrets(`SecretAdminService`)에 넘긴다. 맡긴 수단이 없으면 처리기는 `started: false`를 돌려준다.
+ * 서비스 접속에는 이 통로가 없고 호스트 쪽 L0.secrets가 OS 입력 창을 쓴다(L4.settings-ui.spec §4.6.4 C안).
+ * 값은 wire 프레임, 로그, 이벤트, 오류 details에 나타나지 않는다. 구현은 `@xeon/host`, 호출은 CLI다.
+ */
+export interface SecretOutOfBandPort {
+  /** 값 입력 수단을 맡긴다. 한 번 쓰이면 비워진다. 반환 함수로 쓰이지 않은 수단을 거둔다 */
+  offerEntry(offer: SecretEntryOffer): () => void;
+  /** 열람 수단을 맡긴다. 한 번 쓰이면 비워진다. 반환 함수로 쓰이지 않은 수단을 거둔다 */
+  offerReveal(offer: SecretRevealOffer): () => void;
 }

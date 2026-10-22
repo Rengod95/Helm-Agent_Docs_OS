@@ -290,12 +290,15 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | secret | `secret.remove` | `{ name: SecretName }` | `{ removed: boolean }` | M2 |
 | secret | `secret.test` | `{ name: SecretName }` | `{ state: "registered"\|"missing" }` | M2 |
 | secret | `secret.beginEntry` | `{ name: SecretName, action: "add"\|"set"\|"rotate" }` | `{ started: boolean }` | M2 |
+| secret | `secret.beginReveal` | `{ name: SecretName }` | `{ started: boolean }` | M2 |
 
 - [제안] M1 범위는 브리프의 최소 셋(`turn.start`, `events.subscribe`, `settings.get`)에 선행 조건 둘(`host.hello`, `thread.create`)을 더한다. 대화를 시작하려면 thread가 있어야 하고, 모든 연결은 hello로 시작하기 때문이다.
 - [제안] `thread.open`을 추가했다. `_research/process.md` §6.3의 세션 단위 쓰기 소유 규칙을 계약에 드러내기 위해서다. 소유 잠금을 얻지 못하면 `thread.locked`(§3.5.2) 오류에 대안(관찰, 분기, 위임)을 싣는다. in-process 단일 클라이언트인 M1에서는 `thread.create`가 소유를 함께 얻는다.
 - [제안] `turn.start`의 암묵 획득: 이 프로세스가 그 thread의 쓰기 소유를 쥐고 있지 않으면 `turn.start`가 획득을 한 번 시도한다. 실패하면 `thread.locked`(3002)를 돌려준다(`L4.host-service.spec` HS-28). `thread.open`은 관찰이나 분기 선택이 필요할 때 쓰는 명시 경로다.
 - [제안] `host.shutdown`은 협조 종료 요청이다. 응답은 참여자 처리가 끝난 뒤 보낸다(`L0.process.spec` FR-P1). 데스크톱 셸이 SIGKILL만 보낼 수 있어서 전송 메시지가 공통 경로다. 이 메서드를 모르는 엔진(-32601)에는 stdin 닫기(EOF)가 같은 종료를 일으킨다(`L4.desktop.spec` §4.3).
-- [제안] `secret.*` 다섯 메서드는 값 필드가 없다. 값 입력은 호스트 쪽 L0.secrets가 OS 입력 창이나 wire 밖 전달로 받는다(`L0.secrets.spec` §8.3 R4, `L4.readme` §8.1). `SecretName`은 `F.capabilities.spec` §3.10이다. `SecretListEntry`의 필드는 [가정] `L0.secrets.spec`의 값 없는 메타 모양을 따르고 M2 착수 때 정한다. `secret.beginReveal`은 받지 않았다(§10 미결 10).
+- [제안] `secret.*` 여섯 메서드는 값 필드가 없다. 값 입력과 열람은 호스트 쪽 L0.secrets가 OS 입력 창이나 wire 밖 전달로 받는다(`L0.secrets.spec` §8.3 R4, `L4.readme` §8.1). `SecretName`은 `F.capabilities.spec` §3.10이다. `SecretListEntry`의 필드는 [가정] `L0.secrets.spec`의 값 없는 메타 모양을 따르고 M2 착수 때 정한다.
+- [결정: m2-plan F.5] `secret.beginReveal { name }`을 M2 메서드로 받았다(`L4.cli.spec` §4.7, review.decisions-2 U-20). 결과 `started`가 거짓이면 호스트가 열람을 시작하지 못한 것이다(맡긴 열람 수단이 없거나 사람 확인이 끝나지 않음). 값은 요청·응답·이벤트·오류 `details` 어디에도 없다.
+- [결정: m2-plan F.5] in-process 접속의 wire 밖 값 전달은 `@xeon/contracts/services`의 `SecretOutOfBandPort`다(`services/secret-admin.ts`). CLI가 값 입력 수단(`SecretEntryOffer`)이나 열람 수단(`SecretRevealOffer`)을 이 포트에 맡긴 뒤 `secret.beginEntry`나 `secret.beginReveal`을 보내면, 호스트 처리기가 같은 이름의 맡긴 수단 하나를 꺼내 `SecretAdminService`에 넘긴다. 맡긴 수단은 한 번 쓰이면 비워진다. 서비스 접속에는 이 포트가 없다. 구현은 `@xeon/host`다.
 - [제안] `turn.start`의 `requestId`는 같은 연결 재시도의 중복 제출을 막는 멱등 키다. 같은 thread에서 같은 키가 오면 처음 발급한 `turnId`를 돌려준다. 의미 정본은 `F.conversation.spec` §3.5의 `requestId`다(`TurnStartedPayload.requestId`, 사용자 `ItemRecord.requestId`). 브랜드 없는 문자열이다.
 - `ThreadSummary`는 M2 메서드 `thread.list`의 결과 원소다. 필드는 정하지 않았다(§10 미결 9). M0의 `WIRE_METHODS`에는 `thread.list` 결과를 `Type.Unknown()` 원소 배열로 두고 M2에서 정한다 [제안].
 - `TurnStartInput` [제안]: pi `UserMessage["content"]`와 같은 모양이다. 스키마는 `F.conversation.spec`의 콘텐츠 스키마로 만든다. `F.extensions.spec`의 `TurnInput`(drive 함수의 `loop.turn()` 입력, `{ input: PostItem, requestId? }`)과 모양이 달라서 이름을 나눈다.
@@ -630,7 +633,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 5005 | `store.readOnly` | false | 저장소가 읽기 전용으로 열려 있어 쓸 수 없다 | `reason` |
 | 5006 | `store.io` | false | 저장 매체 입출력 실패. 코드는 OS나 SQLite가 준 값이다 | `code` |
 
-#### 3.5.3 오류 코드 구간 (2차) [제안]
+#### 3.5.3 오류 코드 구간 [제안]
 
 | 구간 | 소유 | 용도 |
 |---|---|---|
@@ -643,22 +646,34 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 10000 ~ 19999 | 확장(X 이후, 외부 확장) | 확장은 이 구간 안에서 자유롭게 쓰고 `kind`를 `ext.<확장id>.`로 시작한다. 코드가 겹치면 `kind`로 구분한다 |
 
 - [제안] 클라이언트는 분기 판단에 `code`보다 `kind`를 쓴다. 확장 구간은 코드가 겹칠 수 있기 때문이다.
+- [결정: m2-plan F.5] 구간 표는 코드 상수 `WIRE_CODE_RANGES`(`wire/errors.ts`)다. 순수 함수 `codeRangeOf(code)`는 코드가 속한 구간을 돌려주고, 어느 구간에도 속하지 않는 코드(0~999, 6000~9999, 20000 이상, 정수가 아닌 값)는 `null`이다. `wireErrorCodeMatchesKind(code, kind)`는 능력 구간의 `cap.`, 확장 구간의 `ext.` 접두를 `kind`가 지키는지 검사한다. 능력 오류 코드 4000은 `WIRE_CAPABILITY_ERROR_CODE`다. 등록된 `WIRE_ERRORS`의 모든 코드는 시험이 이 두 함수로 확인한다.
 - 근거: MCP `JSON_RPC_ERROR_CODES`(`_research/packages.md` §4.1 F5 "오류 코드 구간"), 19 §3.3.4.
 
-### 3.6 `_meta`와 추적 컨텍스트 (2차)
+### 3.6 `_meta`와 추적 컨텍스트
 
 ```ts
 // wire/jsonrpc.ts
-export const WireMeta = Type.Object({
-  traceparent: Type.Optional(Type.String({ pattern: "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$" })),
+export const TRACEPARENT_PATTERN = "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$";
+export const WIRE_META_NAMESPACED_KEY_PATTERN = "^[a-z][a-z0-9-]*/[A-Za-z][A-Za-z0-9._-]*$";
+export const WireMetaSchema = Type.Object({
+  traceparent: Type.Optional(Type.String({ pattern: TRACEPARENT_PATTERN })),
   tracestate: Type.Optional(Type.String({ maxLength: 512 })),
   baggage: Type.Optional(Type.String({ maxLength: 8192 })),
-}, { additionalProperties: Type.Unknown() });
+}, { additionalProperties: false, patternProperties: { [WIRE_META_NAMESPACED_KEY_PATTERN]: Type.Unknown() } });
+export type WireMeta = Static<typeof WireMetaSchema>;   // 정적 타입에는 세 W3C 키만 나타난다
+
+export interface TraceContext { readonly traceId: string; readonly spanId: string; readonly flags: number }
+export type TraceparentError =
+  | { readonly kind: "malformed" }
+  | { readonly kind: "unsupported_version"; readonly version: string }
+  | { readonly kind: "zero_id" };
+export declare function parseTraceparent(value: string): Result<TraceContext, TraceparentError>;
+export declare function formatTraceparent(context: TraceContext): Result<string, TraceparentError>;
 ```
 
-- [제안] `_meta`는 params 안의 예약 키다. 모든 메서드의 params 스키마는 `_meta?: WireMeta`를 받는다. 레지스트리가 메서드 스키마에 자동으로 더한다.
-- [제안] W3C Trace Context 세 키 말고는 `<네임스페이스>/<이름>` 형태만 허용한다(예: `xeon/clientTime`). 네임스페이스 없는 새 키는 이 문서에서만 더한다.
-- [결정] 추적 API는 `@opentelemetry/api` 1.10.0을 그대로 쓴다(`_research/packages.md` §4.1 F5 "_meta 키와 추적 컨텍스트"). F는 `import type`만 하고, `traceparent` 직렬화·역직렬화 함수(순수)를 `wire/jsonrpc.ts`에 둔다.
+- [결정: m2-plan F.5] `_meta`는 params 안의 예약 키다. 모든 요청 메서드의 params 스키마는 `_meta?: WireMeta`를 받는다. 레지스트리가 `withMeta(schema)`(`wire/methods.ts`)로 각 메서드 스키마에 자동으로 더한다. 원래 필드와 `additionalProperties: false`는 그대로이고 `WireParams<M>`에 `_meta?`가 들어간다. `host.status`처럼 params가 비어 있던 메서드도 `_meta`만 받는 객체가 된다. 알림 params에는 더하지 않는다.
+- [결정: m2-plan F.5] W3C Trace Context 세 키 말고는 `<네임스페이스>/<이름>` 형태만 허용한다(예: `xeon/clientTime`). 스키마는 `patternProperties`로 이 키를 받고 값은 검사하지 않는다. 네임스페이스 없는 새 키는 이 문서에서만 더한다.
+- [결정] 추적 API는 `@opentelemetry/api` 1.10.0을 그대로 쓴다(`_research/packages.md` §4.1 F5 "_meta 키와 추적 컨텍스트"). F는 `import type`만 하고, `traceparent` 직렬화·역직렬화 함수(순수)를 `wire/jsonrpc.ts`에 둔다. 현재 함수 둘(`parseTraceparent`, `formatTraceparent`)은 OpenTelemetry 타입을 쓰지 않아 F는 아직 `@opentelemetry/api`에 의존하지 않는다. 호스트(L4)가 `Tracer`와 이어 줄 때 그 패키지를 쓴다(`L0.os.spec`).
 
 ### 3.7 버전 정책과 기능 수명주기
 
@@ -1143,4 +1158,4 @@ settings:
     - 이어서 실행 후보 조회: `ThreadSummary` 필드 또는 전용 메서드(11번, 미결 9)
     - thread 오류 kind `thread.hasForks`, `thread.invalidTarget`, `thread.cancelledByExtension`(`L1.persistence.spec` FR-P6)
     - `turn.interrupt`를 M1으로 당기기(25번), `host.diagnose`(26번), 적합성 실행기의 `testing` 서브패스(19번. review.decisions-2 U-03으로 F에는 `testing` 서브패스를 두지 않는다. 실행기 틀은 각 패키지 `test/` 안에 둔다)
-    - `secret.beginReveal`(`L4.readme` §8.1)
+    - `secret.beginReveal`(`L4.readme` §8.1): [결정: m2-plan F.5] M2 메서드로 받았다(§3.3.1 표)

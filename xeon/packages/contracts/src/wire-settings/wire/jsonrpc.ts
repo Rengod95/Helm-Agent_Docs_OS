@@ -4,16 +4,17 @@ import {
   type TLiteral,
   type TNull,
   type TObject,
+  type TOptional,
   type TRecord,
   type TString,
   type TUnion,
   type TUnknown,
 } from "typebox";
-import { parse } from "../../base/index.ts";
+import { err, ok, parse, type Result } from "../../base/index.ts";
 import { JsonRpcErrorSchema } from "./errors.ts";
 import { classifyMethodName } from "./method-name.ts";
 
-// F.wire-settings.spec §3.2. `_meta`(WireMeta)와 traceparent 직렬화는 M2다(F.wire-settings.plan W17).
+// F.wire-settings.spec §3.2, §3.6(`_meta`와 traceparent, F.wire-settings.plan W17).
 
 export const WIRE_LIMITS: {
   readonly maxDepth: number;
@@ -182,4 +183,72 @@ export function checkEnvelope(value: unknown): EnvelopeCheck {
     return { ok: false, errorCode: -32600, issue: { code: "methodName", method: message.method } };
   }
   return { ok: true, message };
+}
+
+// ── _meta와 추적 컨텍스트 (§3.6) ────────────────────────────────────────
+
+/** W3C Trace Context traceparent. 버전 2자, trace-id 32자, parent-id 16자, 플래그 2자(소문자 hex) */
+export const TRACEPARENT_PATTERN: string = "^[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$";
+/** W3C 세 키 밖에서 `_meta`가 받는 키. `<네임스페이스>/<이름>` 형태다. 예: xeon/clientTime */
+export const WIRE_META_NAMESPACED_KEY_PATTERN: string = "^[a-z][a-z0-9-]*/[A-Za-z][A-Za-z0-9._-]*$";
+
+/**
+ * params 안의 예약 키 `_meta`의 값. 세 W3C 키(traceparent, tracestate, baggage)와 `<네임스페이스>/<이름>` 키만 받는다.
+ * 네임스페이스 키의 값은 검사하지 않으며(Unknown) 정적 타입에도 나타나지 않는다.
+ */
+export const WireMetaSchema: TObject<{
+  traceparent: TOptional<TString>;
+  tracestate: TOptional<TString>;
+  baggage: TOptional<TString>;
+}> = Type.Object(
+  {
+    traceparent: Type.Optional(Type.String({ pattern: TRACEPARENT_PATTERN })),
+    tracestate: Type.Optional(Type.String({ maxLength: 512 })),
+    baggage: Type.Optional(Type.String({ maxLength: 8192 })),
+  },
+  {
+    additionalProperties: false,
+    patternProperties: { [WIRE_META_NAMESPACED_KEY_PATTERN]: Type.Unknown() },
+  },
+);
+export type WireMeta = Static<typeof WireMetaSchema>;
+
+/** traceparent 한 줄을 푼 값. 버전은 항상 00이다 */
+export interface TraceContext {
+  /** 소문자 hex 32자. 전부 0이 아니다 */
+  readonly traceId: string;
+  /** 소문자 hex 16자. 전부 0이 아니다 */
+  readonly spanId: string;
+  /** trace-flags 한 바이트(0~255). 0x01이 sampled다 */
+  readonly flags: number;
+}
+
+export type TraceparentError =
+  | { readonly kind: "malformed" }
+  /** 버전 ff는 W3C가 금지한다 */
+  | { readonly kind: "unsupported_version"; readonly version: string }
+  /** trace-id나 parent-id가 전부 0이다 */
+  | { readonly kind: "zero_id" };
+
+const TRACEPARENT_REGEX = new RegExp(TRACEPARENT_PATTERN);
+const ALL_ZERO = /^0+$/;
+
+/** 순수 함수. traceparent 문자열을 푼다. 던지지 않는다 */
+export function parseTraceparent(value: string): Result<TraceContext, TraceparentError> {
+  if (!TRACEPARENT_REGEX.test(value)) return err({ kind: "malformed" });
+  const [version = "", traceId = "", spanId = "", flags = ""] = value.split("-");
+  if (version === "ff") return err({ kind: "unsupported_version", version });
+  if (ALL_ZERO.test(traceId) || ALL_ZERO.test(spanId)) return err({ kind: "zero_id" });
+  return ok({ traceId, spanId, flags: Number.parseInt(flags, 16) });
+}
+
+/** 순수 함수. 버전 00 traceparent 문자열을 만든다. 형식이 틀린 입력은 오류 값이다 */
+export function formatTraceparent(context: TraceContext): Result<string, TraceparentError> {
+  if (!Number.isInteger(context.flags) || context.flags < 0 || context.flags > 255) {
+    return err({ kind: "malformed" });
+  }
+  const flags = context.flags.toString(16).padStart(2, "0");
+  const text = `00-${context.traceId}-${context.spanId}-${flags}`;
+  const parsed = parseTraceparent(text);
+  return parsed.ok ? ok(text) : parsed;
 }

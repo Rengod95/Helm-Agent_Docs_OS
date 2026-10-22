@@ -14,14 +14,14 @@ const THREAD = rawId("thr", 1);
 const names = Object.keys(WIRE_METHODS);
 
 describe("WIRE_METHODS", () => {
-  test("has the 24 methods of the spec table with their stages", () => {
-    expect(names).toHaveLength(24);
+  test("has the 25 methods of the spec table with their stages", () => {
+    expect(names).toHaveLength(25);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
       ["events.subscribe", "host.hello", "settings.get", "thread.create", "turn.start"].toSorted(),
     );
-    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(19);
+    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(20);
   });
 
   test("every row carries both schemas, since and status", () => {
@@ -172,6 +172,7 @@ describe("M2 method schemas are written out", () => {
       "secret.remove",
       "secret.test",
       "secret.beginEntry",
+      "secret.beginReveal",
     ] as const) {
       const params = WIRE_METHODS[name].params;
       expect(parse(params, { name: "github-token", action: "add", value: "plain" }).ok).toBe(false);
@@ -181,6 +182,13 @@ describe("M2 method schemas are written out", () => {
         .ok,
     ).toBe(true);
     expect(parse(WIRE_METHODS["secret.test"].params, { name: "GitHub" }).ok).toBe(false);
+    expect(parse(WIRE_METHODS["secret.beginReveal"].params, { name: "github-token" }).ok).toBe(
+      true,
+    );
+    expect(parse(WIRE_METHODS["secret.beginReveal"].result, { started: true }).ok).toBe(true);
+    expect(parse(WIRE_METHODS["secret.beginReveal"].result, { started: true, value: "x" }).ok).toBe(
+      false,
+    );
     expect(parse(WIRE_METHODS["secret.list"].params, { meta: true, usage: false }).ok).toBe(true);
   });
 
