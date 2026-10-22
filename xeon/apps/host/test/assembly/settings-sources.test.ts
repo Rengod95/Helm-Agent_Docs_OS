@@ -1,4 +1,5 @@
 import { afterAll, expect, test } from "bun:test";
+import { Bug } from "@xeon/contracts";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -42,8 +43,12 @@ async function engineWith(values: Readonly<Record<string, unknown>>): Promise<Se
 
 test("x.primitives.* are read into the primitives source: default caps, no ceiling", async () => {
   const defaults = primitivesSource(await engineWith({}));
-  expect(defaults.driveDefaultLimits()).toEqual({ maxTurns: 4, maxSpawns: 8, maxTokens: 400000 });
-  expect(defaults.driveLimits()).toEqual({});
+  expect(defaults.driveDefaultLimits(THREAD)).toEqual({
+    maxTurns: 4,
+    maxSpawns: 8,
+    maxTokens: 400000,
+  });
+  expect(defaults.driveLimits(THREAD)).toEqual({});
   expect(defaults.activeDriveGroup(THREAD)).toBeNull();
   expect(defaults.capabilityProviders()).toEqual({});
 
@@ -55,10 +60,51 @@ test("x.primitives.* are read into the primitives source: default caps, no ceili
       "x.primitives.capabilityProviders": { "web.search": "web-exa" },
     }),
   );
-  expect(set.driveDefaultLimits()).toEqual({ maxTurns: 6 });
-  expect(set.driveLimits()).toEqual({ maxTurns: 3, maxSpawns: 0 });
+  // 일부 필드만 적은 기본 상한은 빠진 필드를 내장 기본값으로 채운다(U-12)
+  expect(set.driveDefaultLimits(THREAD)).toEqual({
+    maxTurns: 6,
+    maxSpawns: 8,
+    maxTokens: 400000,
+  });
+  expect(set.driveLimits(THREAD)).toEqual({ maxTurns: 3, maxSpawns: 0 });
   expect(set.activeDriveGroup(THREAD)).toBe("smoke-group");
   expect(set.capabilityProviders()).toEqual({ "web.search": "web-exa" });
+});
+
+test("the drive limits are read for the thread, so a session scope value applies to its lease", async () => {
+  const settings = await engineWith({ "x.primitives.driveDefaultLimits": { maxTurns: 6 } });
+  const other = fixedIdFactory(5).next("thr");
+  settings.bindSession({
+    layer: (threadId) => ({
+      scope: "session",
+      values:
+        threadId === THREAD
+          ? new Map<string, unknown>([
+              ["x.primitives.driveDefaultLimits", { maxSpawns: 2 }],
+              ["x.primitives.driveLimits", { maxTokens: 1000 }],
+            ])
+          : new Map<string, unknown>(),
+    }),
+    set: () => {
+      throw new Bug("not used");
+    },
+    reset: () => {
+      throw new Bug("not used");
+    },
+  });
+  const source = primitivesSource(settings);
+  expect(source.driveDefaultLimits(THREAD)).toEqual({
+    maxTurns: 4,
+    maxSpawns: 2,
+    maxTokens: 400000,
+  });
+  expect(source.driveLimits(THREAD)).toEqual({ maxTokens: 1000 });
+  expect(source.driveDefaultLimits(other)).toEqual({
+    maxTurns: 6,
+    maxSpawns: 8,
+    maxTokens: 400000,
+  });
+  expect(source.driveLimits(other)).toEqual({});
 });
 
 test("x.operations.* fill the budget table and the auto-disable policy", async () => {

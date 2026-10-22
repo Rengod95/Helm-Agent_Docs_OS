@@ -58,6 +58,7 @@ export {
   PrimitiveError,
   type PrimitiveErrorCode,
   primitivesSettings,
+  withDriveDefaults,
 } from "./primitives/index.ts";
 
 // loading-trust (X.loading-trust.spec §3.1~§3.9 중 M0·M1 몫)

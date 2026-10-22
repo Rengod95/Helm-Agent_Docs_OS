@@ -44,8 +44,9 @@ test("x.primitives keys pass the catalog check and carry the documented defaults
 
 test("a static settings source defaults to the default caps, no ceiling, no selection and no provider choice", () => {
   const source = createStaticPrimitivesSettings();
-  expect(source.driveDefaultLimits()).toEqual(DEFAULT_DRIVE_LIMITS);
-  expect(source.driveLimits()).toEqual({});
-  expect(source.activeDriveGroup(fixedIdFactory().next("thr"))).toBeNull();
+  const thread = fixedIdFactory().next("thr");
+  expect(source.driveDefaultLimits(thread)).toEqual(DEFAULT_DRIVE_LIMITS);
+  expect(source.driveLimits(thread)).toEqual({});
+  expect(source.activeDriveGroup(thread)).toBeNull();
   expect(source.capabilityProviders()).toEqual({});
 });

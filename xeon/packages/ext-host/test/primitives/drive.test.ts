@@ -192,11 +192,48 @@ test("a group request overrides the default per field and the others keep the de
   });
 });
 
-test("the user-adjusted default replaces the built-in one; a removed field has no cap", async () => {
-  const payload = await acquiredLimits({ driveDefaultLimits: { maxTurns: 9 } });
-  expect(payload).toMatchObject({ limits: { maxTurns: 9 } });
-  expect(payload).not.toHaveProperty("limits.maxSpawns");
-  expect(payload).not.toHaveProperty("limits.maxTokens");
+test("a partial user default replaces only its own fields; the others keep the built-in default (U-12)", async () => {
+  expect(await acquiredLimits({ driveDefaultLimits: { maxTurns: 9 } })).toMatchObject({
+    limits: { maxTurns: 9, maxSpawns: 8, maxTokens: 400000 },
+  });
+});
+
+test("the defaults and the ceiling are read for the thread that receives the lease", async () => {
+  const state: { quiet: string | undefined } = { quiet: undefined };
+  const asked: string[] = [];
+  const t = await createTestHost({
+    settingsSource: {
+      driveDefaultLimits(threadId) {
+        asked.push(`default:${threadId}`);
+        return threadId === state.quiet
+          ? { maxTurns: 1, maxSpawns: 0, maxTokens: 10 }
+          : { maxTurns: 4 };
+      },
+      driveLimits(threadId) {
+        asked.push(`ceiling:${threadId}`);
+        return threadId === state.quiet ? { maxTurns: 1 } : {};
+      },
+      activeDriveGroup: () => null,
+      capabilityProviders: () => ({}),
+    },
+  });
+  await t.host.install(
+    makeGroupUnit({ name: "drv-session-scope" }, (g) => {
+      g.drive(() => Promise.resolve());
+    }),
+  );
+  const other = t.newThread();
+  const quiet = t.newThread();
+  state.quiet = quiet;
+  await t.host.openThread(other);
+  await t.host.openThread(quiet);
+  await t.settled();
+  const payloadOf = (threadId: typeof quiet): unknown =>
+    t.records.events(threadId).find((event) => event.kind === "lease.acquired")?.payload;
+  expect(payloadOf(other)).toMatchObject({ limits: { maxTurns: 4 } });
+  expect(payloadOf(quiet)).toMatchObject({ limits: { maxTurns: 1, maxSpawns: 0, maxTokens: 10 } });
+  expect(asked).toContain(`default:${quiet}`);
+  expect(asked).toContain(`ceiling:${quiet}`);
 });
 
 test("the ceiling cuts the default too, and it also caps a field that has no default", async () => {

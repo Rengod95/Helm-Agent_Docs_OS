@@ -51,7 +51,7 @@ export const primitivesSettings: SettingGroup<
       widget: "table",
       order: 100,
       label: "drive 기본 상한",
-      help: "상한을 명시하지 않은 drive 임대에 쓴다. 그룹이 자기 상한을 넘기면 그 값이 우선한다. 필드를 지우면 그 필드의 기본 상한이 없어진다. 일반 대화 턴에는 상한이 없다.",
+      help: "상한을 명시하지 않은 drive 임대에 쓴다. 그룹이 자기 상한을 넘기면 그 값이 우선한다. 비운 필드는 기본 상한(4/8/400000)을 쓴다. 일반 대화 턴에는 상한이 없다.",
     },
     since: "0.1.0",
   },
@@ -106,13 +106,21 @@ export interface StaticPrimitivesSettings {
   readonly capabilityProviders?: Readonly<Record<string, ExtensionName>>;
 }
 
-/** 값이 정해진 설정 읽기. 값이 없으면 기본 상한은 DEFAULT_DRIVE_LIMITS, 천장 없음, 구동 그룹 없음, 공급자 지정 없음이다 */
+/**
+ * 사용자가 적은 일반 기본 상한에 내장 기본값을 필드마다 채운다. 일부 필드만 적은 값(`{ maxTurns: 6 }`)도
+ * 나머지 필드는 내장 기본 상한을 그대로 쓴다(X.primitives.spec §4.4.2, review.decisions-2 U-12)
+ */
+export function withDriveDefaults(value: DriveLimits): DriveLimits {
+  return { ...DEFAULT_DRIVE_LIMITS, ...value };
+}
+
+/** 값이 정해진 설정 읽기. 값이 없으면 기본 상한은 DEFAULT_DRIVE_LIMITS, 천장 없음, 구동 그룹 없음, 공급자 지정 없음이다. 일부 필드만 주면 나머지는 DEFAULT_DRIVE_LIMITS로 채운다 */
 export function createStaticPrimitivesSettings(
   values: StaticPrimitivesSettings = {},
 ): PrimitivesSettingsSource {
   return {
-    driveDefaultLimits: () => values.driveDefaultLimits ?? DEFAULT_DRIVE_LIMITS,
-    driveLimits: () => values.driveLimits ?? {},
+    driveDefaultLimits: (_threadId: ThreadId) => withDriveDefaults(values.driveDefaultLimits ?? {}),
+    driveLimits: (_threadId: ThreadId) => values.driveLimits ?? {},
     activeDriveGroup: (_threadId: ThreadId) => values.activeDriveGroup ?? null,
     capabilityProviders: () => values.capabilityProviders ?? {},
   };

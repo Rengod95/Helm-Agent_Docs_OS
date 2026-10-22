@@ -53,6 +53,7 @@ export { hostOf, type ScopeHostApi } from "./host-api.ts";
 export type { ScopeInfo, ScopeSetupOutcome } from "./scope.ts";
 export {
   DEFAULT_DRIVE_LIMITS,
+  withDriveDefaults,
   createStaticPrimitivesSettings,
   primitivesSettings,
 } from "./settings.ts";

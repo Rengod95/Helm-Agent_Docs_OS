@@ -30,10 +30,13 @@ import type { HandlerRegistry } from "./registry.ts";
 // ── 설정 읽기 (X.primitives.spec §3.2) ────────────────────────────────────
 
 export interface PrimitivesSettingsSource {
-  /** x.primitives.driveDefaultLimits. 상한을 명시하지 않은 임대의 일반 기본값 */
-  driveDefaultLimits(): DriveLimits;
-  /** x.primitives.driveLimits. 어떤 임대도 넘지 못하는 천장 */
-  driveLimits(): DriveLimits;
+  /**
+   * x.primitives.driveDefaultLimits. 상한을 명시하지 않은 임대의 일반 기본값. 두 상한 키는 session 범위도 받으므로
+   * 임대를 받는 thread로 읽는다(review.decisions-2 U-12). 사용자가 일부 필드만 적었으면 빠진 필드는 내장 기본값으로 채워 돌려준다
+   */
+  driveDefaultLimits(threadId: ThreadId): DriveLimits;
+  /** x.primitives.driveLimits. 어떤 임대도 넘지 못하는 천장. thread의 session 범위 값까지 합친 실효 값 */
+  driveLimits(threadId: ThreadId): DriveLimits;
   /** x.primitives.activeDriveGroup */
   activeDriveGroup(threadId: ThreadId): ScopeId | null;
   /** x.primitives.capabilityProviders */

@@ -9,6 +9,7 @@ import {
 import type { DispatchPolicy } from "../dispatch-types.ts";
 import type { ExtDiagnostic } from "../errors.ts";
 import { createExtHost, hostInternalsOf, type ExtHost } from "../host.ts";
+import type { PrimitivesSettingsSource } from "../core.ts";
 import { createStaticPrimitivesSettings, type StaticPrimitivesSettings } from "../settings.ts";
 import { fixedIdFactory } from "./ids.ts";
 import {
@@ -31,6 +32,8 @@ export interface TestHostOptions {
   /** setup 예산을 호출 때마다 읽는다. 정책(OperationsPolicy.setupBudgetMs)을 그대로 넘길 때 쓴다 */
   readonly setupBudget?: () => number | null;
   readonly settings?: StaticPrimitivesSettings;
+  /** thread마다 다른 값을 돌려주는 설정 읽기. 있으면 settings 대신 쓴다(session 범위 값을 시험한다) */
+  readonly settingsSource?: PrimitivesSettingsSource;
   readonly loop?: MemoryLoopOptions;
   /** 다른 호스트와 나눠 쓸 대역. 프로세스 재시작을 흉내 낼 때 같은 저장소를 새 호스트에 넘긴다 */
   readonly shared?: {
@@ -85,7 +88,7 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
     setTimer: timers.setTimer,
     ...(options.policy === undefined ? {} : { policy: options.policy }),
     setupBudgetMs: options.setupBudget ?? (() => options.setupBudgetMs ?? null),
-    settings: createStaticPrimitivesSettings(options.settings),
+    settings: options.settingsSource ?? createStaticPrimitivesSettings(options.settings),
     report: (diagnostic) => {
       diagnostics.push(diagnostic);
     },

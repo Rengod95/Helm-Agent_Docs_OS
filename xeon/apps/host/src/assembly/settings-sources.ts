@@ -12,7 +12,7 @@ import type { LoopSettingsSource } from "@xeon/core-loop";
 import { createLayeredTasksSettings, type TasksSettingsSource } from "@xeon/core-tasks";
 import type { ToolsSettingsSource } from "@xeon/core-tools";
 import type { WorkspaceSettingsSource } from "@xeon/cap-workspace";
-import type { ExtHostDeps, OperationsSettingsSource } from "@xeon/ext-host";
+import { withDriveDefaults, type ExtHostDeps, type OperationsSettingsSource } from "@xeon/ext-host";
 import {
   DEFAULT_STORE_SETTINGS,
   resolveStoreSettings,
@@ -68,11 +68,15 @@ function driveLimitsOf(value: unknown): DriveLimits {
 /** x.primitives.* */
 export function primitivesSource(settings: SettingsEngine): ExtHostDeps["settings"] {
   return {
-    driveDefaultLimits(): DriveLimits {
-      return driveLimitsOf(settings.value("x.primitives.driveDefaultLimits"));
+    // 두 상한 키는 session 범위도 받으므로 임대를 받는 thread로 읽는다(review.decisions-2 U-12).
+    // 일부 필드만 적은 값은 빠진 필드를 내장 기본 상한으로 채운다(X.primitives.spec §4.4.2)
+    driveDefaultLimits(threadId): DriveLimits {
+      return withDriveDefaults(
+        driveLimitsOf(settings.value("x.primitives.driveDefaultLimits", threadId)),
+      );
     },
-    driveLimits(): DriveLimits {
-      return driveLimitsOf(settings.value("x.primitives.driveLimits"));
+    driveLimits(threadId): DriveLimits {
+      return driveLimitsOf(settings.value("x.primitives.driveLimits", threadId));
     },
     activeDriveGroup(threadId) {
       const value = settings.value("x.primitives.activeDriveGroup", threadId);
