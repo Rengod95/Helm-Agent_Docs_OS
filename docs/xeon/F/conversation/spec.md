@@ -474,7 +474,16 @@ export interface LifecycleScope {
 export type Notification<K extends string, P> = { readonly type: K } & LifecycleScope & P;
 
 // thread
-export interface ThreadStartedPayload { title: string | null; forkedFrom: { threadId: ThreadId; eventId: EventId } | null }
+export interface ThreadStartedPayload {
+  title: string | null;
+  forkedFrom: { threadId: ThreadId; eventId: EventId } | null;
+  /**
+   * thread.create가 받은 작업 폴더(절대 경로, 1~4096자). 없거나 null이면 호스트 프로세스의 cwd를 쓴다.
+   * [결정: m2-plan F.6] 선택 필드로 더했다. M1이 쓴 옛 행에는 필드가 없고, 없는 값은 null과 같다. 그래서 version은 1 그대로이고 업캐스터가 없다(F.records.spec §3.2 규칙 5).
+   * cap-workspace의 root 계산과 thread.list의 workspace 필터가 이 값을 쓴다(open-issues M-06).
+   */
+  workspace?: string | null;
+}
 export interface ThreadUpdatedPayload { title?: string | null; status?: ThreadStatus; leafEventId?: EventId }
 export interface ThreadClosedPayload { reason: string | null }
 export type ThreadStarted = Notification<"thread.started", ThreadStartedPayload>;

@@ -128,6 +128,16 @@ describe("payload schemas round trip", () => {
     ],
     ["ThreadStarted null", ThreadStartedPayloadSchema, { title: null, forkedFrom: null }],
     [
+      "ThreadStarted with workspace",
+      ThreadStartedPayloadSchema,
+      { title: null, forkedFrom: null, workspace: "/work/app" },
+    ],
+    [
+      "ThreadStarted with null workspace",
+      ThreadStartedPayloadSchema,
+      { title: null, forkedFrom: null, workspace: null },
+    ],
+    [
       "ThreadUpdated",
       ThreadUpdatedPayloadSchema,
       { title: null, status: "running", leafEventId: EVENT },
@@ -219,6 +229,17 @@ describe("payload schemas round trip", () => {
     expect(parse(ItemUpdatedPayloadSchema, { itemId: ITEM, update: { kind: "other" } }).ok).toBe(
       false,
     );
+  });
+
+  test("ThreadStarted.workspace is optional so rows written before it still parse", () => {
+    // M1이 쓴 옛 행에는 workspace가 없다. 없는 값은 null과 같다
+    expect(parse(ThreadStartedPayloadSchema, { title: "t", forkedFrom: null }).ok).toBe(true);
+    const base = { title: null, forkedFrom: null };
+    expect(parse(ThreadStartedPayloadSchema, { ...base, workspace: "" }).ok).toBe(false);
+    expect(parse(ThreadStartedPayloadSchema, { ...base, workspace: "x".repeat(4097) }).ok).toBe(
+      false,
+    );
+    expect(parse(ThreadStartedPayloadSchema, { ...base, workspace: 5 }).ok).toBe(false);
   });
 });
 

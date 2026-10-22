@@ -192,9 +192,46 @@ describe("M2 method schemas are written out", () => {
     expect(parse(WIRE_METHODS["secret.list"].params, { meta: true, usage: false }).ok).toBe(true);
   });
 
-  test("thread.list leaves the summary open until M2", () => {
-    const { result } = WIRE_METHODS["thread.list"];
-    expect(parse(result, { threads: [{ anything: 1 }], nextCursor: null }).ok).toBe(true);
+  test("thread.list returns summaries with the ThreadSummaryRow fields", () => {
+    const { result, params } = WIRE_METHODS["thread.list"];
+    const summary = {
+      threadId: THREAD,
+      title: "hello",
+      status: "idle",
+      workspace: "/work/app",
+      createdAt: "2026-10-23T01:00:00Z",
+      updatedAt: "2026-10-23T01:05:00Z",
+      headSeq: 42,
+      forkedFrom: { threadId: rawId("thr", 2), eventId: rawId("evt", 3) },
+      resumable: {
+        turnId: rawId("trn", 1),
+        runningSince: "2026-10-23T01:04:00Z",
+        resumeAttempts: 1,
+      },
+      queuedInputs: 0,
+      pendingApprovals: 2,
+    };
+    expect(parse(result, { threads: [summary], nextCursor: null }).ok).toBe(true);
+    expect(parse(result, { threads: [], nextCursor: "c1" }).ok).toBe(true);
+    expect(
+      parse(result, {
+        threads: [{ ...summary, resumable: null, workspace: null, title: null, forkedFrom: null }],
+        nextCursor: null,
+      }).ok,
+    ).toBe(true);
+    // 열려 있던 원소는 더 이상 받지 않는다
+    expect(parse(result, { threads: [{ anything: 1 }], nextCursor: null }).ok).toBe(false);
+    expect(parse(result, { threads: [{ ...summary, headSeq: -1 }], nextCursor: null }).ok).toBe(
+      false,
+    );
+    expect(
+      parse(result, { threads: [{ ...summary, status: "paused" }], nextCursor: null }).ok,
+    ).toBe(false);
+    expect(
+      parse(result, { threads: [{ ...summary, updatedAt: 1_700_000_000 }], nextCursor: null }).ok,
+    ).toBe(false);
+    expect(parse(result, { threads: [{ ...summary, extra: 1 }], nextCursor: null }).ok).toBe(false);
+    expect(parse(params, { workspace: "/work/app", limit: 50 }).ok).toBe(true);
   });
 
   test("host.shutdown and host.status", () => {

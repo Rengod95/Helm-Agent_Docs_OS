@@ -50,6 +50,7 @@ export type Notification<K extends string, P> = { readonly type: K } & Lifecycle
 export const ThreadStartedPayloadSchema: TObject<{
   title: TUnion<[TString, TNull]>;
   forkedFrom: TUnion<[TObject<{ threadId: TUnsafe<ThreadId>; eventId: TUnsafe<EventId> }>, TNull]>;
+  workspace: TAddOptional<TUnion<[TString, TNull]>>;
 }> = Type.Object(
   {
     title: Nullable(Type.String({ maxLength: 200 })),
@@ -59,6 +60,11 @@ export const ThreadStartedPayloadSchema: TObject<{
         { additionalProperties: false },
       ),
     ),
+    /**
+     * thread.create가 받은 작업 폴더(절대 경로). 없거나 null이면 호스트 프로세스의 cwd를 쓴다.
+     * M1이 쓴 옛 행에는 필드가 없어 선택 필드로 더했다: 없는 값은 null과 같고 version 1 그대로 읽는다(F.records.spec §3.2 규칙 5).
+     */
+    workspace: Type.Optional(Nullable(Type.String({ minLength: 1, maxLength: 4096 }))),
   },
   { additionalProperties: false },
 );

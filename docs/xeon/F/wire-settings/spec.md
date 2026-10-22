@@ -300,7 +300,31 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 - [결정: m2-plan F.5] `secret.beginReveal { name }`을 M2 메서드로 받았다(`L4.cli.spec` §4.7, review.decisions-2 U-20). 결과 `started`가 거짓이면 호스트가 열람을 시작하지 못한 것이다(맡긴 열람 수단이 없거나 사람 확인이 끝나지 않음). 값은 요청·응답·이벤트·오류 `details` 어디에도 없다.
 - [결정: m2-plan F.5] in-process 접속의 wire 밖 값 전달은 `@xeon/contracts/services`의 `SecretOutOfBandPort`다(`services/secret-admin.ts`). CLI가 값 입력 수단(`SecretEntryOffer`)이나 열람 수단(`SecretRevealOffer`)을 이 포트에 맡긴 뒤 `secret.beginEntry`나 `secret.beginReveal`을 보내면, 호스트 처리기가 같은 이름의 맡긴 수단 하나를 꺼내 `SecretAdminService`에 넘긴다. 맡긴 수단은 한 번 쓰이면 비워진다. 서비스 접속에는 이 포트가 없다. 구현은 `@xeon/host`다.
 - [제안] `turn.start`의 `requestId`는 같은 연결 재시도의 중복 제출을 막는 멱등 키다. 같은 thread에서 같은 키가 오면 처음 발급한 `turnId`를 돌려준다. 의미 정본은 `F.conversation.spec` §3.5의 `requestId`다(`TurnStartedPayload.requestId`, 사용자 `ItemRecord.requestId`). 브랜드 없는 문자열이다.
-- `ThreadSummary`는 M2 메서드 `thread.list`의 결과 원소다. 필드는 정하지 않았다(§10 미결 9). M0의 `WIRE_METHODS`에는 `thread.list` 결과를 `Type.Unknown()` 원소 배열로 두고 M2에서 정한다 [제안].
+- [결정: m2-plan F.6] `ThreadSummary`는 `thread.list`의 결과 원소다(`wire/methods.ts` `ThreadSummarySchema`, §10 미결 9). 필드는 `L1.persistence.spec` §3.4 `ThreadSummaryRow`를 따르고 시각은 IsoTime 문자열이다.
+
+  ```ts
+  // wire/methods.ts
+  export const ThreadResumableSchema = Type.Object({
+    turnId: TurnIdSchema,
+    runningSince: IsoTimeSchema,          // 끊긴 turn의 turn.started 시각
+    resumeAttempts: Type.Integer({ minimum: 0 }),
+  }, { additionalProperties: false });
+  export const ThreadSummarySchema = Type.Object({
+    threadId: ThreadIdSchema,
+    title: Nullable(Type.String({ maxLength: 200 })),
+    status: ThreadStatusSchema,           // "idle" | "running" | "closed"
+    workspace: Nullable(Type.String({ minLength: 1, maxLength: 4096 })),
+    createdAt: IsoTimeSchema,
+    updatedAt: IsoTimeSchema,             // 마지막 이벤트 시각
+    headSeq: Type.Integer({ minimum: 0 }),
+    forkedFrom: Nullable(Type.Object({ threadId: ThreadIdSchema, eventId: EventIdSchema }, { additionalProperties: false })),
+    resumable: Nullable(ThreadResumableSchema),   // ThreadSummaryRow.marker. 이어서 실행 후보 표식(HS-30)
+    queuedInputs: Type.Integer({ minimum: 0 }),
+    pendingApprovals: Type.Integer({ minimum: 0 }),
+  }, { additionalProperties: false });
+  ```
+
+- [결정: m2-plan F.6] `thread.list`의 `workspace` 필터는 `thread.started.workspace`(`F.conversation.spec` §3.5.3)에 저장한 값과 정확히 같은 문자열을 찾는다. 호스트가 `thread.create`의 `workspace`를 정규 절대 경로로 바꿔 저장하는 규칙은 `L4.host-service.spec`이 정한다.
 - `TurnStartInput` [제안]: pi `UserMessage["content"]`와 같은 모양이다. 스키마는 `F.conversation.spec`의 콘텐츠 스키마로 만든다. `F.extensions.spec`의 `TurnInput`(drive 함수의 `loop.turn()` 입력, `{ input: PostItem, requestId? }`)과 모양이 달라서 이름을 나눈다.
 
   ```ts
@@ -621,6 +645,9 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3001 | `thread.notFound` | false | 없는 thread | `threadId` |
 | 3002 | `thread.locked` | true | 다른 프로세스가 쓰기 소유 중이다. `thread.open(mode write)`와 `turn.start`의 암묵 획득(§3.3.1)에서 난다 | `ownerKind`, `options: ("observe"\|"fork"\|"delegate")[]` |
 | 3003 | `turn.busy` | true | 진행 중 turn이 있어 새 turn을 받을 수 없다 | `turnId` |
+| 3004 | `thread.hasForks` | false | 이 thread를 `forkedFrom`으로 가리키는 thread가 있어 `thread.delete`를 거절했다 | `forks: ThreadId[]` |
+| 3005 | `thread.invalidTarget` | false | `thread.fork`·`thread.revert`의 대상이 맞지 않는다 | `reason: "item_not_found"\|"not_on_branch"\|"inside_turn"\|"open_tool_calls"` |
+| 3006 | `thread.cancelledByExtension` | false | 확장이 thread 전환·분기·되감기를 막았다 | `point: "session_before_fork"\|"session_before_tree"\|"session_before_switch"`, `reason: string \| null` |
 | 3101 | `settings.unknownKey` | false | 등록되지 않은 키 | `key` |
 | 3102 | `settings.invalidValue` | false | 값이 스키마나 range에 맞지 않는다 | `key`, `issues` |
 | 3103 | `settings.scopeNotAllowed` | false | 그 범위에 쓸 수 없는 키 | `key`, `scope`, `allowedScopes` |
@@ -1151,11 +1178,11 @@ settings:
 6. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 1.3.27을 정확 고정하므로 같은 판으로 맞춰 한 사본만 설치한다. 1.4로 올리는 시점은 pi가 올릴 때다.
 7. [미결] `Seq`·`StoreId`를 F.records로 옮길지. `sto` 접두는 `IdPrefix`에 넣지 않고 저장소 정체성 ID 부류로 둔다(`F.conversation.spec` §3.2.1 ①) [제안].
 8. [미결] `UserConfigEntry`에 값 스키마 필드(`type`, `default`, `range`, `runtimeChange`, `allowedScopes`)를 둘지(§3.8.3). 확장 설정 키 접두는 `ext.<name>.`로 맞췄다(`F.extensions.spec` §3.1, §6).
-9. [미결] `ThreadSummary`의 필드(`thread.list` 결과, M2). 후보는 `threadId`, `title`, `status`, `workspace`, 마지막 활동 시각이다.
+9. [결정: m2-plan F.6] `ThreadSummary`의 필드는 §3.3.1 아래 코드로 정했다. 이어서 실행 후보는 전용 메서드 없이 `resumable` 필드로 알린다.
 10. [결정: review.decisions-2 U-04] 판정하지 않은 아래 호스트 계약 요청은 M1에 넣지 않는다. M2 계획에서 하나씩 받을지 반려할지 정하고, 그때까지 이 항목에 미결로 남긴다. 정하기 전에는 소비 문서가 이 항목에 의존하지 않고 각자 대체 경로를 둔다.
     - `settings.invalidated` 알림(`L4.readme` §8 14번), `settings.list`의 `range` 병합(15번), `settings.readFile`·`settings.writeFile`(36번), `SettingsTab`·`SettingUi` 필드(37번), `EffectiveSetting`의 잠금 사유 문구(39번)
     - 사용량 wire 메서드(35번), 사용자 알림 wire 알림(13번)
-    - 이어서 실행 후보 조회: `ThreadSummary` 필드 또는 전용 메서드(11번, 미결 9)
-    - thread 오류 kind `thread.hasForks`, `thread.invalidTarget`, `thread.cancelledByExtension`(`L1.persistence.spec` FR-P6)
+    - 이어서 실행 후보 조회(11번): [결정: m2-plan F.6] `ThreadSummary.resumable` 필드로 받았다(미결 9)
+    - thread 오류 kind `thread.hasForks`, `thread.invalidTarget`, `thread.cancelledByExtension`(`L1.persistence.spec` FR-P6): [결정: m2-plan F.6] 3004~3006으로 받았다(§3.5.2)
     - `turn.interrupt`를 M1으로 당기기(25번), `host.diagnose`(26번), 적합성 실행기의 `testing` 서브패스(19번. review.decisions-2 U-03으로 F에는 `testing` 서브패스를 두지 않는다. 실행기 틀은 각 패키지 `test/` 안에 둔다)
     - `secret.beginReveal`(`L4.readme` §8.1): [결정: m2-plan F.5] M2 메서드로 받았다(§3.3.1 표)

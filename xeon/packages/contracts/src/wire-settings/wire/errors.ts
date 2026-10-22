@@ -90,6 +90,9 @@ export type WireErrorKind =
   | "thread.notFound"
   | "thread.locked"
   | "turn.busy"
+  | "thread.hasForks"
+  | "thread.invalidTarget"
+  | "thread.cancelledByExtension"
   | "settings.unknownKey"
   | "settings.invalidValue"
   | "settings.scopeNotAllowed"
@@ -215,6 +218,50 @@ export const WIRE_ERRORS: {
     retryable: true,
     details: Type.Object(
       { turnId: Type.String({ maxLength: 64 }) },
+      { additionalProperties: false },
+    ),
+  },
+  /** thread.delete가 이 thread를 forkedFrom으로 가리키는 thread가 있어 거절했다(L1.persistence FR-P6) */
+  "thread.hasForks": {
+    code: 3004,
+    kind: "thread.hasForks",
+    retryable: false,
+    details: Type.Object(
+      { forks: Type.Array(Type.String({ maxLength: 64 }), { maxItems: 200 }) },
+      { additionalProperties: false },
+    ),
+  },
+  /** thread.fork·thread.revert의 대상이 맞지 않는다 */
+  "thread.invalidTarget": {
+    code: 3005,
+    kind: "thread.invalidTarget",
+    retryable: false,
+    details: Type.Object(
+      {
+        reason: Type.Union([
+          Type.Literal("item_not_found"),
+          Type.Literal("not_on_branch"),
+          Type.Literal("inside_turn"),
+          Type.Literal("open_tool_calls"),
+        ]),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  /** 확장이 thread 전환·분기·되감기를 막았다 */
+  "thread.cancelledByExtension": {
+    code: 3006,
+    kind: "thread.cancelledByExtension",
+    retryable: false,
+    details: Type.Object(
+      {
+        point: Type.Union([
+          Type.Literal("session_before_fork"),
+          Type.Literal("session_before_tree"),
+          Type.Literal("session_before_switch"),
+        ]),
+        reason: Type.Union([Type.String({ maxLength: 512 }), Type.Null()]),
+      },
       { additionalProperties: false },
     ),
   },

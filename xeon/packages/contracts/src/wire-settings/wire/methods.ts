@@ -25,10 +25,12 @@ import {
   type SemVer,
 } from "../../capabilities/index.ts";
 import {
+  EventIdSchema,
   ImageContentSchema,
   ItemIdSchema,
   TextContentSchema,
   ThreadIdSchema,
+  ThreadStatusSchema,
   TurnIdSchema,
   type UserMessage,
 } from "../../conversation/index.ts";
@@ -195,13 +197,74 @@ export const ThreadListParamsSchema: TObject<{
 );
 export type ThreadListParams = Static<typeof ThreadListParamsSchema>;
 
-/** ThreadSummary의 필드는 정하지 않았다(F.wire-settings.spec §10 미결 9). M2에서 정한다 */
+/** 이어서 실행할 수 있는 thread의 표식. 열린 turn이 프로세스 종료로 끊겼을 때 있다(L1.persistence.spec RecoveryMarker) */
+export const ThreadResumableSchema: TObject<{
+  turnId: typeof TurnIdSchema;
+  runningSince: typeof IsoTimeSchema;
+  resumeAttempts: TInteger;
+}> = Type.Object(
+  {
+    turnId: TurnIdSchema,
+    /** 끊긴 turn의 turn.started 시각 */
+    runningSince: IsoTimeSchema,
+    /** 그 turn의 thread.resumed 횟수 */
+    resumeAttempts: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type ThreadResumable = Static<typeof ThreadResumableSchema>;
+
+/**
+ * thread.list의 결과 원소(F.wire-settings.spec §10 미결 9). 필드는 L1.persistence의 ThreadSummaryRow를 따르고
+ * 시각은 IsoTime 문자열로 바꾼다. 호스트가 행을 이 모양으로 옮긴다.
+ */
+export const ThreadSummarySchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  title: TUnion<[TString, TNull]>;
+  status: typeof ThreadStatusSchema;
+  workspace: TUnion<[TString, TNull]>;
+  createdAt: typeof IsoTimeSchema;
+  updatedAt: typeof IsoTimeSchema;
+  headSeq: TInteger;
+  forkedFrom: TUnion<
+    [TObject<{ threadId: typeof ThreadIdSchema; eventId: typeof EventIdSchema }>, TNull]
+  >;
+  resumable: TUnion<[typeof ThreadResumableSchema, TNull]>;
+  queuedInputs: TInteger;
+  pendingApprovals: TInteger;
+}> = Type.Object(
+  {
+    threadId: ThreadIdSchema,
+    title: Nullable(Type.String({ maxLength: 200 })),
+    status: ThreadStatusSchema,
+    /** thread.create가 받은 작업 폴더. 없으면 null */
+    workspace: Nullable(Type.String({ minLength: 1, maxLength: 4096 })),
+    createdAt: IsoTimeSchema,
+    /** 마지막 이벤트 시각 */
+    updatedAt: IsoTimeSchema,
+    /** 이 thread의 마지막 seq */
+    headSeq: Type.Integer({ minimum: 0 }),
+    forkedFrom: Nullable(
+      Type.Object(
+        { threadId: ThreadIdSchema, eventId: EventIdSchema },
+        { additionalProperties: false },
+      ),
+    ),
+    /** 이어서 실행 후보 표식. 후보가 아니면 null(HS-30) */
+    resumable: Nullable(ThreadResumableSchema),
+    queuedInputs: Type.Integer({ minimum: 0 }),
+    pendingApprovals: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type ThreadSummary = Static<typeof ThreadSummarySchema>;
+
 export const ThreadListResultSchema: TObject<{
-  threads: TArray<TUnknown>;
+  threads: TArray<typeof ThreadSummarySchema>;
   nextCursor: TUnion<[TString, TNull]>;
 }> = Type.Object(
   {
-    threads: Type.Array(Type.Unknown(), { maxItems: 200 }),
+    threads: Type.Array(ThreadSummarySchema, { maxItems: 200 }),
     nextCursor: Nullable(Type.String({ minLength: 1, maxLength: SHORT })),
   },
   { additionalProperties: false },

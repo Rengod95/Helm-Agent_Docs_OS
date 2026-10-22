@@ -7,3 +7,4 @@ export * from "./notifications.ts";
 export * from "./methods.ts";
 export * from "./transport.ts";
 export * from "./conformance.ts";
+export * from "./thread-summary.ts";

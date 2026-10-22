@@ -23,7 +23,13 @@ import type {
   TaskService,
   ToolService,
 } from "@xeon/contracts/services";
-import { StoreIdSchema, type StoreId } from "@xeon/contracts/wire";
+import {
+  StoreIdSchema,
+  threadSummaryOf,
+  wireError,
+  type StoreId,
+  type ThreadSummary,
+} from "@xeon/contracts/wire";
 import type { ExtHost } from "@xeon/ext-host";
 import type {
   ActivityPort,
@@ -154,7 +160,19 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         ...(params.cursor === undefined ? {} : { cursor: params.cursor }),
         ...(params.limit === undefined ? {} : { limit: params.limit }),
       });
-      return Promise.resolve({ threads: [...page.threads], nextCursor: page.nextCursor });
+      const summaries: ThreadSummary[] = [];
+      for (const row of page.threads) {
+        const summary = threadSummaryOf(row);
+        if (!summary.ok) {
+          return Promise.reject(
+            wireError("internal", {
+              message: `thread.list: ${summary.error.field} of ${row.threadId} is not a valid time`,
+            }),
+          );
+        }
+        summaries.push(summary.value);
+      }
+      return Promise.resolve({ threads: summaries, nextCursor: page.nextCursor });
     },
     fork: () => unsupported("thread.fork"),
     revert: () => unsupported("thread.revert"),
