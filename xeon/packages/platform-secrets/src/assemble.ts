@@ -43,8 +43,11 @@ export function createSecretService(deps: SecretsRuntimeDeps): SecretServiceRunt
   const redactor = createRedactor();
   const configDir = os.dirs.config;
 
+  /** 서비스 수명 신호. dispose하면 진행 중인 바이너리 해석과 sops 호출이 중단된다 */
+  const lifetime = new AbortController();
+
   async function resolveTool(name: "security" | "secret-tool"): Promise<string | null> {
-    const found = await os.resolveBinary(name, {}, new AbortController().signal);
+    const found = await os.resolveBinary(name, {}, lifetime.signal);
     return found.ok ? found.value.path : null;
   }
 
@@ -74,9 +77,10 @@ export function createSecretService(deps: SecretsRuntimeDeps): SecretServiceRunt
 
   const resolver = createSopsResolver({
     configured: () => deps.config().sops.binary,
-    resolveBinary: (options) =>
-      os.resolveBinary("sops", { minVersion: options.minVersion }, new AbortController().signal),
+    resolveBinary: (options, signal) =>
+      os.resolveBinary("sops", { minVersion: options.minVersion }, signal),
     runner,
+    signal: lifetime.signal,
     parentEnv: deps.env,
   });
 
@@ -86,6 +90,7 @@ export function createSecretService(deps: SecretsRuntimeDeps): SecretServiceRunt
     key: keyAccess,
     parentEnv: deps.env,
     runner,
+    signal: lifetime.signal,
     redactor,
     clock: os.time.clock,
     scheduler: os.time.scheduler,
@@ -112,7 +117,7 @@ export function createSecretService(deps: SecretsRuntimeDeps): SecretServiceRunt
     };
   }
 
-  return createSecretServiceCore({
+  const core = createSecretServiceCore({
     clock: os.time.clock,
     scheduler: os.time.scheduler,
     logger,
@@ -134,4 +139,11 @@ export function createSecretService(deps: SecretsRuntimeDeps): SecretServiceRunt
     },
     configuredProviders: () => deps.config().providers,
   });
+  return {
+    ...core,
+    [Symbol.dispose]() {
+      lifetime.abort();
+      core[Symbol.dispose]();
+    },
+  };
 }

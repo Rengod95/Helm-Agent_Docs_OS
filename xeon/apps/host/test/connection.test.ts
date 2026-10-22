@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { attemptAsync } from "@xeon/contracts";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { WireError, type HostConnection, type WireHandlers } from "@xeon/contracts/wire";
 import { HostClientError } from "../src/client.ts";
@@ -159,8 +160,10 @@ test("send-queue-overflow-closes: a queue over the limit closes the connection w
     // 아무것도 내보내지 못하는 느린 전송
     send: () => new Promise<void>(() => undefined),
   }));
-  connection.request("host.hello", HELLO_PARAMS).catch(() => undefined);
+  const hello = attemptAsync(() => connection.request("host.hello", HELLO_PARAMS));
   const info = await served.closed;
+  // 느린 전송이 닫히면 응답을 못 받은 요청은 오류로 끝난다
+  expect((await hello).ok).toBe(false);
   expect(info).toEqual({ reason: "error", message: "sendQueueOverflow" });
   expect(host.hub.size).toBe(0);
   expect(

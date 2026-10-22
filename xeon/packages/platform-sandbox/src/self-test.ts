@@ -1,6 +1,6 @@
 import { mkdir, mkdtemp, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { posix } from "node:path";
-import type { Clock, Logger, RandomSource } from "@xeon/contracts";
+import { attemptAsync, type Clock, type Logger, type RandomSource } from "@xeon/contracts";
 import {
   SENSITIVE_ENV_PATTERNS,
   type CancelScope,
@@ -51,12 +51,8 @@ interface RunOutcome {
 }
 
 async function exists(path: string): Promise<boolean> {
-  try {
-    await stat(path);
-    return true;
-  } catch {
-    return false;
-  }
+  const found = await attemptAsync(() => stat(path));
+  return found.ok;
 }
 
 /** SENSITIVE_ENV_PATTERNS의 패턴(앞 또는 끝의 *)이 env 이름과 맞는가 */

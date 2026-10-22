@@ -1,6 +1,7 @@
 // L1 포트 구현(core-loop, core-tasks, core-persistence)이 자기 테스트에서 돌리는 계약 시나리오(X.primitives.plan P-19).
 // 인메모리 대역도 같은 시나리오를 통과해야 한다(test/primitives/port-contract.test.ts).
 import { describe, expect, test } from "bun:test";
+import { attemptAsync, ok } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type {
   InputQueuePort,
@@ -48,13 +49,10 @@ export function runPortContract(name: string, factories: PortContractFactories):
       const loop = factories.loop();
       const threadId = ids.next("thr");
       await loop.runTurn(turnRequest(threadId, "turn-fence-1", 2));
-      let rejected = false;
-      try {
-        await loop.runTurn(turnRequest(threadId, "turn-fence-2", 1));
-      } catch {
-        rejected = true;
-      }
-      expect(rejected).toBe(true);
+      const second = await attemptAsync(() =>
+        loop.runTurn(turnRequest(threadId, "turn-fence-2", 1)),
+      );
+      expect(second.ok).toBe(false);
     });
 
     test("whenIdle holds back new turns while fn runs", async () => {
@@ -87,9 +85,11 @@ export function runPortContract(name: string, factories: PortContractFactories):
         when: "followUp" as const,
         item: { kind: "user" as const, content: "hello" },
       };
-      expect((await queue.enqueue(request)).duplicate).toBe(false);
-      expect((await queue.enqueue(request)).duplicate).toBe(true);
-      expect((await queue.enqueue({ ...request, scopeId: "other-group" })).duplicate).toBe(false);
+      expect(await queue.enqueue(request)).toEqual(ok({ duplicate: false }));
+      expect(await queue.enqueue(request)).toEqual(ok({ duplicate: true }));
+      expect(await queue.enqueue({ ...request, scopeId: "other-group" })).toEqual(
+        ok({ duplicate: false }),
+      );
     });
   });
 

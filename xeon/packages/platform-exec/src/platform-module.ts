@@ -1,6 +1,6 @@
 import type { PortKey } from "@xeon/contracts/extensions";
 import { ExecPortKey, SecretServiceName } from "@xeon/contracts/services";
-import type { Logger } from "@xeon/contracts";
+import { attempt, type Logger } from "@xeon/contracts";
 import type { PlatformModule } from "@xeon/ext-host";
 import type { ExecPlatformProvider } from "./provider.ts";
 import type { SecretEnvSource } from "./secret-env.ts";
@@ -29,13 +29,9 @@ export function createExecPlatformModule(config: ExecPlatformModuleConfig): Plat
   return {
     name: "platform-exec",
     setup(ctx) {
-      let secrets: SecretEnvSource | undefined;
-      try {
-        secrets = ctx.port(SecretsPortKey);
-      } catch {
-        // ctx.port는 포트가 없으면 던진다. 비밀 서비스가 없는 구성도 정상이다.
-        secrets = undefined;
-      }
+      // ctx.port는 포트가 없으면 던진다. 비밀 서비스가 없는 구성도 정상이라 값으로 받는다
+      const found = attempt((): SecretEnvSource => ctx.port(SecretsPortKey));
+      const secrets: SecretEnvSource | undefined = found.ok ? found.value : undefined;
       const service = createExecService(config.options, {
         platform: config.platform,
         secrets,

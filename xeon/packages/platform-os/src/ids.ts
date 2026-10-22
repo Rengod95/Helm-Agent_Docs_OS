@@ -91,7 +91,7 @@ export function createIdFactory(clock: Clock, random: RandomSource): IdFactory {
   const nextUlid = createUlidGenerator(clock, random);
   return {
     next<P extends IdPrefix>(prefix: P): IdByPrefix[P] {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 새 문자열에 브랜드를 붙이는 유일한 길 (eng.typescript.guide TY-06)
+      // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A2 브랜드 생성: createIdFactory가 만든 새 문자열 (eng.typescript.guide TY-06)
       return `${prefix}_${nextUlid()}` as IdByPrefix[P];
     },
   };

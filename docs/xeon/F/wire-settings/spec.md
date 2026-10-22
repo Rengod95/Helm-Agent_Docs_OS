@@ -315,6 +315,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 방향 | 알림 | params | 단계 |
 |---|---|---|---|
 | 서버 → 클라이언트 | `events.batch` | `{ sub: SubId, from: Seq, to: Seq, events: EventWire[], caughtUp: boolean }` | M1 |
+| 서버 → 클라이언트 | `events.ended` | `{ sub: SubId, reason: "replayFailed" }`. 서버가 구독을 끝냈다. 재전송 읽기가 실패해 구독을 지웠을 때 보낸다. 클라이언트는 같은 필터로 다시 구독하거나 오류로 처리한다 | M1 |
 | 서버 → 클라이언트 | `stream.chunk` | `{ event: VolatileEventWire }` (`n`, `afterSeq`를 담은 휘발 이벤트) | M1 |
 | 클라이언트 → 서버 | `$/cancelRequest` | `{ id: RpcId }` | M1 |
 | 클라이언트 → 서버 | `$/connectionReset` | `{}`. 클라이언트 화면이 다시 시작되어 이전 구독을 버린다(WebView 새로고침, `L4.desktop.spec` §10-2) | M2 |
@@ -357,6 +358,7 @@ export type WireResult<M extends WireMethodName> = WireMethodMap[M]["result"];
 
 export interface ServerNotificationMap {
   "events.batch": EventsBatchParams;
+  "events.ended": EventsEndedParams;
   "stream.chunk": StreamChunkParams;
 }
 export type ServerNotificationName = keyof ServerNotificationMap;
@@ -623,6 +625,10 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3105 | `settings.secretValue` | false | 비밀 키에 참조가 아닌 값을 넣었다 | `key` |
 | 5001 | `request.cancelled` | false | `$/cancelRequest`로 취소했다 | - |
 | 5002 | `host.shuttingDown` | true | 호스트가 종료 중이다 | `retryAfterMs` |
+| 5003 | `store.busy` | true | 저장소 쓰기 잠금 대기가 시간을 넘었다. 같은 요청을 다시 보내도 된다 | - |
+| 5004 | `store.diskFull` | false | 저장 매체가 가득 찼다. 공간을 비운 뒤 다시 보낸다 | - |
+| 5005 | `store.readOnly` | false | 저장소가 읽기 전용으로 열려 있어 쓸 수 없다 | `reason` |
+| 5006 | `store.io` | false | 저장 매체 입출력 실패. 코드는 OS나 SQLite가 준 값이다 | `code` |
 
 #### 3.5.3 오류 코드 구간 (2차) [제안]
 

@@ -79,7 +79,7 @@ export function defineSettings<
     if (issues.length > 0) throw new SettingDefError(key, issues);
     built[name] = def;
   }
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 키별 리터럴 타입은 입력 D에서 오고 위 루프가 모든 키를 채웠다 (선언 함수, F.readme §1 예외 4)
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A5 선언 함수: 키별 리터럴 타입은 입력 D에서 오고 위 루프가 모든 키를 채웠다 (eng.typescript.guide TY-06)
   return { namespace, defs: built } as SettingGroup<N, D>;
 }
 

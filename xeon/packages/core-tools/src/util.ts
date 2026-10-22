@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { attempt } from "@xeon/contracts";
 import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
 
 /** JSON으로 직렬화되는 값인가. undefined, 함수, NaN·Infinity는 아니다 */
@@ -56,11 +57,8 @@ export function globMatches(glob: string, text: string): boolean {
 
 /** 정규식 원문을 컴파일한다. 문법 오류면 undefined */
 export function tryRegExp(pattern: string): RegExp | undefined {
-  try {
-    return new RegExp(pattern);
-  } catch {
-    return undefined;
-  }
+  const compiled = attempt(() => new RegExp(pattern));
+  return compiled.ok ? compiled.value : undefined;
 }
 
 /** 순서대로 하나씩 실행한다. 앞 항목이 끝나야 다음 항목을 시작한다 */

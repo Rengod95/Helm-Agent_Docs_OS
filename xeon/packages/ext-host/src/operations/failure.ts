@@ -1,3 +1,4 @@
+import { attempt } from "@xeon/contracts";
 import { POINTS, type Fold } from "@xeon/contracts/extensions";
 import type { HandlerFailure, HandlerFailureReason } from "../primitives/dispatch-types.ts";
 import type { HandlerOwner, HandlerOwnerKey, Tier } from "./tier.ts";
@@ -49,12 +50,9 @@ const MESSAGE_LIMIT = 500;
 function textOf(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
-  try {
-    const json: unknown = JSON.stringify(error);
-    return typeof json === "string" ? json : "unknown error";
-  } catch {
-    return "unknown error";
-  }
+  // 순환 참조 등으로 직렬화하지 못하는 값은 고정 문구로 대신한다. 원인(cause)은 진단 메시지에 싣지 않는다
+  const json = attempt(() => JSON.stringify(error));
+  return json.ok && typeof json.value === "string" ? json.value : "unknown error";
 }
 
 function messageOf(error: unknown): string | undefined {

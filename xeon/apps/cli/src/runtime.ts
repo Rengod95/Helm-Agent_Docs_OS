@@ -2,7 +2,7 @@ import { createInterface, type Interface } from "node:readline";
 import { devWireRoundTripOf } from "./dev-mode.ts";
 import type { CliDeps, CliIo, CliSignal } from "./io.ts";
 
-// L4.cli.spec §3.4 "최상위 코드". 실제 프로세스(process, Bun)에 닿는 코드는 이 파일에만 둔다. 테스트는 이 파일을 쓰지 않고
+// L4.cli.spec §3.4 "최상위 코드". 실제 프로세스(process, Bun)를 직접 쓰는 코드는 이 파일에만 둔다. 테스트는 이 파일을 쓰지 않고
 // runCli에 가짜 io·deps를 넣는다(그래서 이 파일은 커버리지 대상에서 제외하는 편이 맞다).
 
 /**

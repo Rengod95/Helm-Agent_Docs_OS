@@ -1,4 +1,4 @@
-import { assertNever, err, ok, type Clock, type Result } from "@xeon/contracts";
+import { assertNever, attemptAsync, err, ok, type Clock, type Result } from "@xeon/contracts";
 import type { SettingDefInput, SettingGroup } from "@xeon/contracts/settings";
 import {
   checkEnvelope,
@@ -121,7 +121,8 @@ export interface StartedHost {
       readonly clock: Clock;
     };
   };
-  close(): Promise<void>;
+  /** 진행 중 turn이 시한 안에 멈추지 않았으면 "deadline"이다 */
+  close(): Promise<"clean" | "deadline">;
 }
 
 /** @xeon/host 호출을 바꿔 끼울 수 있게 한 틈. 테스트가 가짜를 넣는다 */
@@ -275,18 +276,12 @@ async function closeEngine(
   connection: HostConnection,
 ): Promise<"clean" | "deadline"> {
   const failures: unknown[] = [];
-  try {
-    await host.close();
-  } catch (caught) {
-    failures.push(caught);
-  }
-  try {
-    await connection.close();
-  } catch (caught) {
-    failures.push(caught);
-  }
+  const closedHost = await attemptAsync(() => host.close());
+  if (!closedHost.ok) failures.push(closedHost.error.cause);
+  const closedConnection = await attemptAsync(() => connection.close());
+  if (!closedConnection.ok) failures.push(closedConnection.error.cause);
   const [first] = failures;
-  if (failures.length === 0) return "clean";
+  if (failures.length === 0) return closedHost.ok ? closedHost.value : "clean";
   if (failures.length === 1) {
     throw new Error("engine shutdown failed", { cause: first });
   }
@@ -362,7 +357,8 @@ export function createConnectEngine(api: HostApi): ConnectEngine {
       };
       return ok(handle);
     } catch (caught) {
-      await host.close().catch(() => undefined);
+      // 시작 실패가 본 오류다. 정리 중 실패는 값으로 받고 본 오류를 가리지 않는다
+      await attemptAsync(() => host.close());
       if (caught instanceof WireError && caught.data.kind === "protocol.unsupported") {
         return err({
           kind: "protocolUnsupported",

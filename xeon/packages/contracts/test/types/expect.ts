@@ -1,8 +1,7 @@
 /** 컴파일 시점 타입 검사 도우미. tsc -b가 test/ 도 검사하므로 불일치는 typecheck에서 실패한다. */
-/* oxlint-disable typescript/no-unnecessary-type-parameters -- Equal의 표준 구현은 T를 한 번만 쓴다 */
 export type Equal<A, B> =
+  // oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- Equal의 표준 구현은 T를 한 번만 쓴다 (eng.typescript.guide TY-23 타입 테스트 도구)
   (<T>() => T extends A ? 1 : 2) extends <T>() => T extends B ? 1 : 2 ? true : false;
-/* oxlint-enable typescript/no-unnecessary-type-parameters */
 export type Expect<T extends true> = T;
 /** A가 B에 대입 가능한가 */
 export type Assignable<A, B> = [A] extends [B] ? true : false;

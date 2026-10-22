@@ -52,7 +52,7 @@ export function fakeRedactor(secrets: Readonly<Record<string, string>> = {}): Re
     maskDeep<T>(value: T) {
       const hits: RedactionHit[] = [];
       const masked = walk(known, value, hits);
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 테스트 대역: 구조를 유지한 채 문자열만 바꾼다 (eng.typescript.guide TY-06 테스트 대역)
+      // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A4 maskDeep: 구조를 유지한 채 문자열만 바꾼다 (eng.typescript.guide TY-06)
       return { value: masked as T, hits };
     },
     containsKnown: (text) => maskText(known, text).hits.length > 0,

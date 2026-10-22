@@ -5,7 +5,7 @@ import {
   type MutableModels,
   type RetryPolicy,
 } from "@earendil-works/pi-ai";
-import { Bug, err, ok, type Clock, type Logger, type Result } from "@xeon/contracts";
+import { attempt, Bug, err, ok, type Clock, type Logger, type Result } from "@xeon/contracts";
 import type { AssistantMessage, ModelThinkingLevel } from "@xeon/contracts/conversation";
 import {
   formatModelRef,
@@ -83,12 +83,11 @@ function modelError(kind: ModelError["kind"], message: string, ref?: string): Mo
 }
 
 function targetOfUrl(baseUrl: string): SecretTarget | null {
-  try {
-    const url = new URL(baseUrl);
-    return { host: url.hostname, port: url.port === "" ? null : Number(url.port) };
-  } catch {
-    return null;
-  }
+  const parsed = attempt(() => new URL(baseUrl));
+  // 해석할 수 없는 주소는 비밀 사용 대상을 정할 수 없다. 호출자가 null을 받아 비밀 없는 호출로 처리한다
+  if (!parsed.ok) return null;
+  const url = parsed.value;
+  return { host: url.hostname, port: url.port === "" ? null : Number(url.port) };
 }
 
 function callOf(request: ModelCallRequest, providerRetries: boolean): CallSpec {

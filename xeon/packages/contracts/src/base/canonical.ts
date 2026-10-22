@@ -16,7 +16,8 @@ function canonicalize(value: unknown, path: string): string {
   }
   if (Array.isArray(value)) {
     const items: string[] = [];
-    for (const [index, item] of (value as readonly unknown[]).entries()) {
+    const list: readonly unknown[] = value;
+    for (const [index, item] of list.entries()) {
       if (item === undefined) {
         throw new Bug(`canonicalJson: undefined array item at ${path}/${index}`);
       }

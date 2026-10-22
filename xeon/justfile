@@ -44,6 +44,11 @@ test:
 check-layers:
     {{bun}} run check-layers
 
+# TypeScript 작성 규칙 스캔 (scripts/check-ts-rules.ts)
+[group('local')]
+check-ts-rules:
+    {{bun}} run check-ts-rules
+
 # 의존 경계 검사
 [group('local')]
 depcruise:

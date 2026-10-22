@@ -1,5 +1,5 @@
 // 수명주기 API(L1.persistence.spec §3.8). M1은 create만 구현한다(PS-9). 나머지는 M2다.
-import { Bug, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, type Result } from "@xeon/contracts";
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import type {
   CommitPlan,
@@ -39,19 +39,20 @@ function notYet(member: string): never {
   throw new Bug(`session.not_implemented: threads.${member} arrives with M2 (PS-9, PS-10, PS-18)`);
 }
 
-function leaseFailure(error: LeaseError): LifecycleError {
+function leaseFailure(error: LeaseError, threadId: ThreadId): LifecycleError {
   switch (error.kind) {
     case "busy":
       return { kind: "busy" };
     case "disk_full":
       return { kind: "disk_full" };
+    case "lock_io":
+      return { kind: "io", code: error.code };
     case "lock_busy":
     case "lease_lost":
-    case "lock_io":
-      // 새로 만든 id의 임대는 경합이 없다. 실패하면 환경 문제라 Bug로 올린다
-      throw new Bug(`store.lease_failed: ${error.kind} while acquiring a child thread lease`);
+      // 새로 만든 id의 임대를 다른 소유자가 쥐고 있다. 소유권을 잃은 것과 같다
+      return { kind: "ownership_lost", threadId };
     default:
-      throw new Bug("store.lease_failed: unknown lease error");
+      return assertNever(error, "LeaseError");
   }
 }
 
@@ -95,7 +96,7 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
           throw new Bug("store.lease_failed: inheritOwnerFrom belongs to a different holder");
         }
         const acquired = leases.acquire(sessionResource(threadId), holder);
-        if (!acquired.ok) return err(leaseFailure(acquired.error));
+        if (!acquired.ok) return err(leaseFailure(acquired.error, threadId));
         token = acquired.value;
       }
       const giveBackLease = (): void => {

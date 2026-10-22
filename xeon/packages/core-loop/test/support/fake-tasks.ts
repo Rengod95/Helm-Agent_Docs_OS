@@ -1,4 +1,4 @@
-import { Bug, err, ok, parse, type Result } from "@xeon/contracts";
+import { Bug, detach, err, ok, parse, rethrow, type Result } from "@xeon/contracts";
 import {
   EventIdSchema,
   type EventId,
@@ -8,6 +8,7 @@ import {
 import {
   RecordKindSchema,
   type EnqueueRequest,
+  type EnqueueError,
   type EnqueueResult,
 } from "@xeon/contracts/extensions";
 import {
@@ -183,7 +184,11 @@ export function createFakeTasks(options: FakeTasksOptions): FakeTasks {
           () => undefined,
         );
         tracked.add(finished);
-        finished.then(() => tracked.delete(finished)).catch(() => {});
+        // finished는 거부하지 않는다. 정리 중 예기치 않은 오류는 그대로 다시 던져 시험이 실패하게 한다
+        detach(
+          finished.then(() => tracked.delete(finished)),
+          rethrow,
+        );
         return work;
       },
       settle() {
@@ -435,7 +440,7 @@ export function createFakeTasks(options: FakeTasksOptions): FakeTasks {
     activity: () => ({ liveTurns: 0, liveTasks: 0, queuedInputs: 0 }),
     onActivity: () => () => {},
     close: () => Promise.resolve(),
-    async enqueue(request: EnqueueRequest): Promise<EnqueueResult> {
+    async enqueue(request: EnqueueRequest): Promise<Result<EnqueueResult, EnqueueError>> {
       const mode: InputMode = request.when === "next" ? "followUp" : request.when;
       const result = await inputs.enqueue({
         threadId: request.threadId,
@@ -444,8 +449,7 @@ export function createFakeTasks(options: FakeTasksOptions): FakeTasks {
         requestId: request.requestId,
         source: { type: "extension", scopeId: request.scopeId },
       });
-      if (!result.ok) throw new Bug(`fake-tasks: enqueue failed ${result.error.kind}`);
-      return { duplicate: result.value.duplicate };
+      return result.ok ? ok({ duplicate: result.value.duplicate }) : err(result.error);
     },
   };
 

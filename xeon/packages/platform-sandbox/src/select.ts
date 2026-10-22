@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { attempt } from "@xeon/contracts";
 import type { SandboxProvider } from "./provider.ts";
 import { createDarwinProvider } from "./providers/darwin.ts";
 import { createLinuxProvider } from "./providers/linux.ts";
@@ -21,11 +22,9 @@ export interface PlatformInput {
 export function detectPlatformInput(): PlatformInput {
   let procVersion: string | undefined;
   if (process.platform === "linux") {
-    try {
-      procVersion = readFileSync("/proc/version", "utf8");
-    } catch {
-      procVersion = undefined;
-    }
+    const read = attempt(() => readFileSync("/proc/version", "utf8"));
+    // /proc/version을 읽지 못하면 WSL 판별 없이 진행한다
+    procVersion = read.ok ? read.value : undefined;
   }
   return { platform: process.platform, arch: process.arch, env: process.env, procVersion };
 }

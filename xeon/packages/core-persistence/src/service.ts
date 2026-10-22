@@ -42,7 +42,7 @@ function notYet(member: string, plan: string): never {
   throw new Bug(`session.not_implemented: ${member} arrives with ${plan}`);
 }
 
-/** 확장 투영기 등록(PS-4)은 M2다. list는 코어 투영기만 보여 준다 */
+/** 확장 투영기 등록(PS-4)은 M2다. list는 코어 투영기만 돌려준다 */
 function createProjectorRegistry(core: Projector): ProjectorRegistry {
   return {
     register: () => notYet("projectors.register", "M2 (PS-4)"),

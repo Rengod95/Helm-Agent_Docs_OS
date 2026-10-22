@@ -10,7 +10,7 @@ import {
   userItem,
 } from "./support/builders.ts";
 import { harness, installContextHandler, type Harness } from "./support/harness.ts";
-import { present, unsafeResult, valueOf } from "./support/result.ts";
+import { present, valueOf } from "./support/result.ts";
 
 function blockText(
   content: string | readonly { readonly type: string; readonly text?: string }[],
@@ -83,8 +83,8 @@ test("context_point_handler_error_drops_only_that_patch", async () => {
     throw new Error("boom");
   });
   await installContextHandler(h.host, "ctx-invalid", 1, () => {
-    // 스키마를 어긴 패치
-    return unsafeResult({ messages: "nope" });
+    // 타입은 맞지만 스키마를 어긴 패치: 시각이 유한한 수가 아니다
+    return { messages: [{ role: "user", content: "nope", timestamp: Number.NaN }] };
   });
   const result = valueOf(
     await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),

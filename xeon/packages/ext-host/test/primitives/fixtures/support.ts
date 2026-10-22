@@ -93,7 +93,7 @@ export function makeUnit<S = never>(input: UnitInput<S>, setup: ScopeSetup<S>): 
 
 /** 타입은 undefined지만 런타임에는 value를 돌려주는 핸들러. 스키마 위반 결정을 시험한다 */
 export function returning(value: unknown): () => undefined {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 시험 전용: 결정 스키마를 어긴 반환값을 흉내 낸다
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A6 시험의 계약 위반 주입: 결정 스키마를 어긴 반환값을 흉내 낸다 (eng.typescript.guide TY-06)
   return () => value as undefined;
 }
 
@@ -116,7 +116,7 @@ export function makeGroupUnit<S = never>(
 
 /** 시험 전용: 타입을 어긴 값을 흉내 낸다. 스키마·가드가 막는지 확인할 때만 쓴다 */
 export function unsafeInput(value: unknown): never {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 시험 전용: 타입 위반 입력을 만든다
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A6 시험의 계약 위반 주입: 타입 위반 입력을 만든다 (eng.typescript.guide TY-06)
   return value as never;
 }
 

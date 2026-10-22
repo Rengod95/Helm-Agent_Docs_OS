@@ -1,6 +1,6 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { assertNever, Bug, parse, type Logger } from "@xeon/contracts";
+import { assertNever, attemptAsync, Bug, parse, type Logger } from "@xeon/contracts";
 import type { PortKey } from "@xeon/contracts/extensions";
 import {
   SessionServiceName,
@@ -363,7 +363,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     await register("platform-secrets", secretsPlatform(secrets));
     redact.current = (line) => secrets.redactor.mask(line).text;
 
-    const platform = detectExecPlatform();
+    const platform = detectExecPlatform(os.logger("platform-exec"));
     if (!platform.ok) {
       throw new AssembleError([
         { code: "plugin", plugin: "platform-exec", message: platform.error.kind },
@@ -449,6 +449,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       ext,
       holder,
       settings,
+      signal: lifetime.signal,
     });
     const engine: Engine = {
       mode: options.mode,
@@ -460,8 +461,16 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     };
     return engine;
   } catch (caught) {
-    await shutdown().catch(() => undefined);
-    if (caught instanceof AssembleError) throw caught;
-    throw new AssembleError([pluginIssue("assemble", caught)], { cause: caught });
+    // 조립 실패가 본 오류다. 정리 중 실패는 이슈로 덧붙여 가리지 않는다
+    const cleaned = await attemptAsync(() => shutdown());
+    if (caught instanceof AssembleError) {
+      if (cleaned.ok) throw caught;
+      throw new AssembleError([...caught.issues, pluginIssue("shutdown", cleaned.error.cause)], {
+        cause: caught,
+      });
+    }
+    const issues = [pluginIssue("assemble", caught)];
+    if (!cleaned.ok) issues.push(pluginIssue("shutdown", cleaned.error.cause));
+    throw new AssembleError(issues, { cause: caught });
   }
 }

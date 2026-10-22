@@ -68,7 +68,8 @@ export type ExtensionTableError =
     }
   | { readonly kind: "table_not_owned"; readonly name: string; readonly table: string }
   | { readonly kind: "busy" }
-  | { readonly kind: "disk_full" };
+  | { readonly kind: "disk_full" }
+  | { readonly kind: "io"; readonly code: string };
 
 export interface ExtensionTables {
   /** name은 ExtensionName(하이픈 허용). sys_prefixes에 owner "ext.<name>"과 접두 x_<하이픈→밑줄>_를 등록한다. 이미 있으면 ok */

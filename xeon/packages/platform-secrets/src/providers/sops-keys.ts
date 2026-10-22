@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { attempt, err, ok, parseJson, type Result } from "@xeon/contracts";
 
 // L0.secrets.spec §4.6 2번. SOPS 파일의 키 이름을 평문으로 읽는다. 복호화하지 않고 sops를 부르지도 않는다.
 // YAML·JSON은 값이 `ENC[`로 시작하는 문자열인 항목, dotenv는 `KEY=ENC[...]` 줄이다.
@@ -80,12 +80,10 @@ export function parseSopsKeys(
   format: SopsFileFormat,
 ): Result<SopsKeyListing, SopsKeysError> {
   if (format === "dotenv") return ok(parseDotenv(content));
-  let doc: unknown;
-  try {
-    doc = format === "json" ? JSON.parse(content) : Bun.YAML.parse(content);
-  } catch {
-    return err({ kind: "unparseable" });
-  }
+  const decoded: Result<unknown, unknown> =
+    format === "json" ? parseJson(content) : attempt((): unknown => Bun.YAML.parse(content));
+  if (!decoded.ok) return err({ kind: "unparseable" });
+  const doc = decoded.value;
   if (!isRecord(doc)) return err({ kind: "unparseable" });
   const keys: string[] = [];
   collect(doc, [], keys);

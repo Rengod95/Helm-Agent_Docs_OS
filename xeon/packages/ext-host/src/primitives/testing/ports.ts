@@ -1,28 +1,30 @@
 // L0·L1을 import하지 않는 인메모리 포트 대역(review.decisions-2 D-05). F 인터페이스로만 만든다.
-import { canonicalJson, err, ok } from "@xeon/contracts";
+import { canonicalJson, err, ok, parse, type Result } from "@xeon/contracts";
 import { fixedIdFactory } from "./ids.ts";
-import type { EventId, ThreadId, Usage } from "@xeon/contracts/conversation";
-import type {
-  EnqueueRequest,
-  EnqueueResult,
-  ExtCommitRequest,
-  ExtCommitResult,
-  ExtRecordQuery,
-  ExtRecordRow,
-  ExtThreadSnapshot,
-  InputQueuePort,
-  LoopPort,
-  LoopSpawnRequest,
-  LoopSpawnResult,
-  LoopTurnRequest,
-  LoopTurnResult,
-  OpenLease,
-  ProjectorRegistryPort,
-  RecordCommitPort,
-  ScopedStorePort,
-  SpawnOutcome,
-  StoredScopeState,
-  TurnOutcome,
+import { toJsonValue, type EventId, type ThreadId, type Usage } from "@xeon/contracts/conversation";
+import {
+  GroupRecordSchema,
+  type EnqueueRequest,
+  type EnqueueError,
+  type EnqueueResult,
+  type ExtCommitRequest,
+  type ExtCommitResult,
+  type ExtRecordQuery,
+  type ExtRecordRow,
+  type ExtThreadSnapshot,
+  type InputQueuePort,
+  type LoopPort,
+  type LoopSpawnRequest,
+  type LoopSpawnResult,
+  type LoopTurnRequest,
+  type LoopTurnResult,
+  type OpenLease,
+  type ProjectorRegistryPort,
+  type RecordCommitPort,
+  type ScopedStorePort,
+  type SpawnOutcome,
+  type StoredScopeState,
+  type TurnOutcome,
 } from "@xeon/contracts/extensions";
 import type {
   DurableEventDraft,
@@ -206,12 +208,12 @@ export function memoryInputQueue(): MemoryInputQueue {
   const seen = new Set<string>();
   return {
     items,
-    enqueue(request): Promise<EnqueueResult> {
+    enqueue(request): Promise<Result<EnqueueResult, EnqueueError>> {
       const key = `${request.threadId}|${request.scopeId}|${request.requestId}`;
-      if (seen.has(key)) return Promise.resolve({ duplicate: true });
+      if (seen.has(key)) return Promise.resolve(ok({ duplicate: true }));
       seen.add(key);
       items.push(request);
-      return Promise.resolve({ duplicate: false });
+      return Promise.resolve(ok({ duplicate: false }));
     },
   };
 }
@@ -273,13 +275,15 @@ function stateOf(branch: readonly StoredEvent[], scopeId: string): StoredScopeSt
     if (!STATE_KIND.test(event.draft.kind)) continue;
     const payload = event.draft.payload;
     if (!isRecord(payload) || payload["scopeId"] !== scopeId) continue;
+    // 상태 이벤트의 doc은 X가 만든 JSON이다. JSON이 아니면 이 이벤트는 상태로 읽지 않는다
+    const doc = toJsonValue(payload["doc"]);
+    if (doc === undefined) continue;
     found = {
       scopeId,
       eventId: event.draft.id,
       rev: Number(payload["rev"]),
       version: Number(payload["version"]),
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 상태 이벤트의 doc은 X가 만든 JSON이다
-      doc: payload["doc"] as StoredScopeState["doc"],
+      doc,
     };
   }
   return found;
@@ -437,18 +441,27 @@ export function memoryRecordStore(): MemoryRecordStore {
         const payload = event.draft.payload;
         if (!isRecord(payload)) continue;
         if (event.visibility === "private") {
+          const privatePayload = toJsonValue(payload);
+          if (privatePayload === undefined) continue;
           rows.push({
             groupId: ownerOf(kind) ?? "",
             kind,
             version: event.draft.version,
             subject: { type: "thread", id: event.draft.threadId },
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 비공개 기록의 payload는 JSON이다
-            payload: payload as ExtRecordRow["payload"],
+            payload: privatePayload,
           });
           continue;
         }
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 공개 기록의 payload는 X가 만든 GroupRecord다
-        rows.push(payload as unknown as ExtRecordRow);
+        // 공개 기록의 payload는 X가 만든 GroupRecord다
+        const record = parse(GroupRecordSchema, payload);
+        if (!record.ok) continue;
+        rows.push({
+          groupId: record.value.groupId,
+          kind,
+          version: record.value.version,
+          subject: record.value.subject,
+          payload: record.value.payload,
+        });
       }
       const subject = query.subject;
       const filtered =

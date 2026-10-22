@@ -66,7 +66,8 @@ function mapStorageError(caught: unknown): StoreWriteError | undefined {
     case "io":
       return { kind: "io", code: code ?? "SQLITE_IOERR" };
     case "corrupt":
-      throw new Bug(`store.corrupt: ${code ?? "unknown"}`, { cause: caught });
+      // 손상된 파일은 코드나 설정이 올바라도 생긴다(수동 편집, 매체 오류). io 오류 값으로 돌려주고 code로 손상을 구분한다
+      return { kind: "io", code: code ?? "SQLITE_CORRUPT" };
     case "other":
       return undefined;
     default:

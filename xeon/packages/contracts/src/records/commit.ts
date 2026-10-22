@@ -126,6 +126,8 @@ export type ReadOnlyReason =
 export type StoreError =
   | { readonly kind: "busy" }
   | { readonly kind: "disk_full" }
+  /** 저장 매체 I/O 실패. code는 OS나 SQLite가 준 코드 */
+  | { readonly kind: "io"; readonly code: string }
   | { readonly kind: "ownership_lost"; readonly threadId: ThreadId }
   | { readonly kind: "read_only"; readonly reason: ReadOnlyReason }
   | { readonly kind: "thread_not_found"; readonly threadId: ThreadId };

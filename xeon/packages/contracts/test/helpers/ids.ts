@@ -38,7 +38,7 @@ export function fixedIdFactory(start = 0): {
     next<P extends IdPrefix>(prefix: P): IdByPrefix[P] {
       const raw = rawId(prefix, n);
       n += 1;
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 테스트 대역의 브랜드 생성 함수 (eng.typescript.guide TY-06)
+      // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A2 브랜드 생성: 테스트 대역 fixedIdFactory (eng.typescript.guide TY-06)
       return raw as IdByPrefix[P];
     },
   };

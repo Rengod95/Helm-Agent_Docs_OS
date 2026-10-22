@@ -9,6 +9,7 @@ import type { CancelScope } from "@xeon/contracts/services";
 import { registerExecConformance } from "../../src/testing/conformance.ts";
 import { getOrThrow, type WatchChange } from "../../src/upstream/env/index.ts";
 import { NodeExecutionEnv } from "../../src/upstream/env/node.ts";
+import { errnoCodeOf } from "../support/errno.ts";
 import { hostPlatform } from "../support/platform.ts";
 
 const windows = process.platform === "win32";
@@ -29,8 +30,8 @@ async function removeTempDir(dir: string): Promise<void> {
       rmSync(dir, { recursive: true, force: true });
       return;
     } catch (error) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      const code = (error as NodeJS.ErrnoException).code;
+      // XEON-PATCH: P14
+      const code = errnoCodeOf(error);
       if (attempt >= 80 || (code !== "EBUSY" && code !== "EPERM" && code !== "ENOTEMPTY"))
         throw error;
       // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)

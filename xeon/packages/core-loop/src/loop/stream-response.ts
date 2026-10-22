@@ -1,4 +1,5 @@
 // Derived from pi-agent-core 1.3.0 agent-loop.ts streamAssistantResponse (MIT, Copyright (c) 2025 Mario Zechner). See LICENSE.pi.
+import { assertNever } from "@xeon/contracts";
 import type { AssistantMessage, StreamFn } from "@xeon/contracts/conversation";
 import { abortedStream } from "../streams.ts";
 import type { RequestInput } from "./prepare-request.ts";
@@ -116,6 +117,8 @@ export async function streamResponse(
         if (!started) await emitMessageStart(run, { ...final });
         return final;
       }
+      default:
+        return assertNever(event, "AssistantMessageEvent");
     }
   }
   const final = await result();

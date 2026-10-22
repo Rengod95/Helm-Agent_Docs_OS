@@ -157,6 +157,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
         close: async () => {
           state.closed = true;
           await pair.server.close();
+          return "clean" as const;
         },
       });
     },

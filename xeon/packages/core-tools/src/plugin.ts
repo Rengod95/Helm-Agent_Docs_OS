@@ -1,4 +1,4 @@
-import type { Clock, Logger } from "@xeon/contracts";
+import { attempt, type Clock, type Logger } from "@xeon/contracts";
 import {
   WorkspaceFiles,
   WorkspaceImages,
@@ -110,12 +110,9 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
       const secrets = host.port(SecretServicePortKey);
       const ext = host.port(ExtHostPortKey);
       const resolveCapability: CapabilityResolver = (key: ServiceKey<unknown>) => {
-        try {
-          return g.capability(key);
-        } catch {
-          // 선언하지 않았거나 공급자가 없으면 도구 호출이 unavailable 결과가 된다
-          return undefined;
-        }
+        const resolved = attempt(() => g.capability(key));
+        // 선언하지 않았거나 공급자가 없으면 도구 호출이 unavailable 결과가 된다
+        return resolved.ok ? resolved.value : undefined;
       };
       const deps: ToolsDeps = {
         session,

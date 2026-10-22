@@ -48,6 +48,11 @@ test:
 check-layers:
     cd xeon && just check-layers
 
+# TypeScript 작성 규칙 스캔: 단언 위치, Bug 범위, 오류 삼킴, 억제 주석 (xeon/scripts/check-ts-rules.ts)
+[group('local')]
+check-ts-rules:
+    cd xeon && just check-ts-rules
+
 # 의존 경계 검사 (dependency-cruiser)
 [group('local')]
 depcruise:
@@ -70,5 +75,5 @@ ci-layer layer affected="false":
 
 # 완료 기준. 검사 전부와 ws check (ws help justfile)
 [group('quality')]
-verify: setup fmt-check lint typecheck check-layers depcruise knip (docs-route "--check") test
+verify: setup fmt-check lint typecheck check-layers check-ts-rules depcruise knip (docs-route "--check") test
     ws check

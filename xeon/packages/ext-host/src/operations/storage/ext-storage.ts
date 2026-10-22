@@ -18,11 +18,12 @@ import {
   type SqlTx,
   type SqlValue,
 } from "@xeon/contracts/records";
-import type { Static } from "typebox";
 import { scopeInternalsOf } from "../../primitives/host-api.ts";
 import type { DispatchPolicy } from "../../primitives/dispatch-types.ts";
+import { namesOf, readersOf, writersOf } from "../../erase.ts";
 import type { ExtStorageError } from "./errors.ts";
 import { checkStatement } from "./guard.ts";
+import type { ExtReaders, ExtWriters, ExtTableReader, ExtTableWriter } from "./table-types.ts";
 import {
   columnsOf,
   extTableName,
@@ -34,42 +35,7 @@ import {
   type ExtTableDefs,
 } from "./tables.ts";
 
-export type {} from "./errors.ts";
-
-type RowOf<D extends ExtTableDef> = Static<D["row"]>;
-
-export interface ExtQuery<R> {
-  /** 열 값 같음 조건의 AND. 범위 조건은 2차 */
-  readonly where?: Partial<R>;
-  readonly orderBy?: readonly {
-    readonly column: keyof R & string;
-    readonly dir?: "asc" | "desc";
-  }[];
-  /** 기본 100, 최대 1000 */
-  readonly limit?: number;
-  readonly offset?: number;
-}
-
-export interface ExtTableReader<R> {
-  /** key 열을 모두 준다 */
-  get(key: Partial<R>): R | undefined;
-  list(query?: ExtQuery<R>): readonly R[];
-  count(where?: Partial<R>): number;
-}
-
-export interface ExtTableWriter<R> extends ExtTableReader<R> {
-  insert(row: R): void;
-  upsert(row: R): void;
-  update(key: Partial<R>, patch: Partial<R>): number;
-  delete(key: Partial<R>): number;
-}
-
-type ExtReaders<D extends ExtTableDefs> = {
-  readonly [K in keyof D]: ExtTableReader<RowOf<D[K]>>;
-};
-type ExtWriters<D extends ExtTableDefs> = {
-  readonly [K in keyof D]: ExtTableWriter<RowOf<D[K]>>;
-};
+export type { ExtQuery, ExtTableReader, ExtTableWriter } from "./table-types.ts";
 
 /** 확장의 투영. 코어 커밋 트랜잭션 안에서 동기로 실행된다(eng.events.design §5.1 규칙 1·2) */
 export interface ExtProjection<D extends ExtTableDefs> {
@@ -143,7 +109,10 @@ function encode(type: ColumnType, value: unknown): SqlValue {
 function decode(type: ColumnType, value: SqlValue | undefined): unknown {
   if (value === null || value === undefined) return type.acceptsNull ? null : undefined;
   if (type.boolean) return value === 1 || value === 1n;
-  if (type.json && typeof value === "string") return JSON.parse(value) as unknown;
+  if (type.json && typeof value === "string") {
+    const decoded: unknown = JSON.parse(value);
+    return decoded;
+  }
   return value;
 }
 
@@ -318,17 +287,6 @@ function readerFor(
   };
 }
 
-/** 지역 이름 → 도구 묶음. 키별 행 타입은 정의 D가 정하고 런타임 구조는 같다 */
-function byLocal<D extends ExtTableDefs, T>(
-  defs: D,
-  make: (local: string) => T,
-): { readonly [K in keyof D]: T } {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 키 집합은 defs와 같고 값 타입은 정의에서 유도된다 (선언 함수)
-  return Object.fromEntries(Object.keys(defs).map((local) => [local, make(local)])) as {
-    readonly [K in keyof D]: T;
-  };
-}
-
 // ── 관리자 ────────────────────────────────────────────────────────────────
 
 export interface ExtStorageDeps {
@@ -428,13 +386,12 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
               get: (sql, params) => tx.get(sql, params),
               all: (sql, params) => tx.all(sql, params),
             };
-            const writers = byLocal(defs, (local) => {
+            const writers = writersOf(defs, (local) => {
               const codec = codecs.get(local);
               if (codec === undefined) throw new Bug(`ext_storage.unknown_table: ${local}`);
               return writerFor(codec, runner, event.threadId, guardFn);
             });
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 행 타입은 정의 D에서 유도되고 런타임 구조는 같다 (X.operations.spec §3.4)
-            projection.apply(event, writers as unknown as ExtWriters<D>);
+            projection.apply(event, writers);
           },
         };
         const registered = registry.register(projector);
@@ -473,23 +430,22 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
 
         const reader = store.scoped(`ext.${extension}`);
         return ok({
-          names: byLocal(defs, (local) => extTableName(extension, local)),
+          names: namesOf(defs, (local) => extTableName(extension, local)),
           read<T>(fn: (tables: ExtReaders<D>) => T, options?: ExtReadOptions) {
             const result = reader.read((tx: SqlTx) => {
               const runner: SqlRunner = {
                 run: () => {
-                  throw new Bug("ext_storage.read_only");
+                  throw new Bug("ext_storage.write_in_read_callback");
                 },
                 get: (sql, params) => tx.get(sql, params),
                 all: (sql, params) => tx.all(sql, params),
               };
-              const readers = byLocal(defs, (local) => {
+              const readers = readersOf(defs, (local) => {
                 const codec = codecs.get(local);
                 if (codec === undefined) throw new Bug(`ext_storage.unknown_table: ${local}`);
                 return readerFor(codec, runner, options?.threadId, guardFn);
               });
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 행 타입은 정의 D에서 유도되고 런타임 구조는 같다
-              return fn(readers as unknown as ExtReaders<D>);
+              return fn(readers);
             });
             return result.ok ? ok(result.value) : err({ kind: "busy" as const });
           },

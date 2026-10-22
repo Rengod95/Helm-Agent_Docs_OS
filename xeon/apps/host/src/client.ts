@@ -1,5 +1,8 @@
+import { detach, parse } from "@xeon/contracts";
 import {
   checkEnvelope,
+  WIRE_METHODS,
+  WIRE_NOTIFICATIONS,
   WireError,
   type CloseInfo,
   type HostConnection,
@@ -20,9 +23,17 @@ import {
 export interface HostConnectionOptions {
   /** 요청마다 따로 주지 않았을 때의 시한(ms). 없으면 시한 없음 */
   readonly defaultTimeoutMs?: number;
+  /** 응답을 기다리지 않는 전송(취소 알림)이 실패했을 때 부른다. 진단용이다 */
+  readonly onTransportError?: (cause: unknown) => void;
 }
 
-export type HostClientErrorKind = "closed" | "timeout" | "aborted" | "sendFailed";
+export type HostClientErrorKind =
+  | "closed"
+  | "timeout"
+  | "aborted"
+  | "sendFailed"
+  /** 서버 응답이 계약 스키마와 맞지 않는다 */
+  | "invalidResponse";
 
 /**
  * 서버가 응답하지 못한 요청의 끝. 서버가 오류로 응답한 경우는 WireError다.
@@ -51,16 +62,22 @@ function paramsRecord(params: object): Record<string, unknown> {
   return Object.fromEntries(Object.entries(params));
 }
 
-function toResult<M extends WireMethodName>(value: unknown): WireResult<M> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 서버가 개발 빌드에서 WIRE_METHODS[m].result로 결과를 검사한다(F.wire-settings.spec §4.3 7단계). 클라이언트는 새 부 버전 서버의 추가 필드를 거부하지 않으려고 다시 검사하지 않는다 (eng.typescript.guide TY-06)
-  return value as WireResult<M>;
+/** 서버 응답을 WIRE_METHODS[m].result로 검증해 도메인 타입으로 들인다. 프로세스 밖에서 온 값이라 타입을 믿지 않는다(TY-10) */
+function toResult<M extends WireMethodName>(method: M, value: unknown): WireResult<M> {
+  const checked = parse(WIRE_METHODS[method].result, value);
+  if (!checked.ok) {
+    throw new HostClientError("invalidResponse", `${method} result does not match its schema`);
+  }
+  return checked.value;
 }
 
+/** 알림 params를 WIRE_NOTIFICATIONS[n].params로 검증한다. 맞지 않으면 undefined라 핸들러를 부르지 않는다 */
 function toNotification<N extends ServerNotificationName>(
+  name: N,
   value: Record<string, unknown>,
-): ServerNotificationParams<N> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 위와 같다: 알림 params는 서버가 만든 값이고 부 버전 호환을 위해 추가 필드를 거부하지 않는다 (eng.typescript.guide TY-06)
-  return value as ServerNotificationParams<N>;
+): ServerNotificationParams<N> | undefined {
+  const checked = parse(WIRE_NOTIFICATIONS[name].params, value);
+  return checked.ok ? checked.value : undefined;
 }
 
 /** F의 HostConnection 구현. 요청 id는 연결마다 r1, r2, … 를 쓴다(F wire §3.1) */
@@ -122,9 +139,13 @@ export function createHostConnection(
   });
 
   function sendCancel(id: string): void {
-    transport
-      .send({ jsonrpc: "2.0", method: "$/cancelRequest", params: { id } })
-      .catch(() => undefined);
+    // 취소 알림을 못 보내도 요청은 시한이나 연결 닫힘으로 끝난다. 실패는 진단 훅으로 알린다
+    detach(
+      transport.send({ jsonrpc: "2.0", method: "$/cancelRequest", params: { id } }),
+      (cause) => {
+        options.onTransportError?.(cause);
+      },
+    );
   }
 
   return {
@@ -198,7 +219,7 @@ export function createHostConnection(
             ),
           );
         });
-      return waiter.promise.then((result) => toResult<M>(result));
+      return waiter.promise.then((result) => toResult(method, result));
     },
 
     onNotification<N extends ServerNotificationName>(
@@ -206,7 +227,8 @@ export function createHostConnection(
       handler: (params: ServerNotificationParams<N>) => void,
     ): Unsubscribe {
       const wrapper = (params: Record<string, unknown>): void => {
-        handler(toNotification<N>(params));
+        const checked = toNotification(name, params);
+        if (checked !== undefined) handler(checked);
       };
       const set =
         notificationHandlers.get(name) ?? new Set<(params: Record<string, unknown>) => void>();

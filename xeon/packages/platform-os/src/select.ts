@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { release } from "node:os";
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, attempt, err, ok, type Result } from "@xeon/contracts";
 import type { OsArch, OsInfo, OsPlatform, PlatformError } from "@xeon/contracts/services";
 
 // OS 분기 표현(process.platform, os.platform(), WSL 판정에 쓰는 환경 변수와 /proc 파일)은 이 패키지에서 이 파일에만
@@ -21,11 +21,9 @@ export interface PlatformProbe {
 }
 
 function readProcVersion(): string | undefined {
-  try {
-    return readFileSync("/proc/version", "utf8");
-  } catch {
-    return undefined;
-  }
+  const read = attempt(() => readFileSync("/proc/version", "utf8"));
+  // /proc이 없는 OS(또는 읽기 거부)는 WSL이 아닌 것으로 본다. 판정은 undefined 값으로 돌려준다
+  return read.ok ? read.value : undefined;
 }
 
 /** 운영에서 PlatformProbe를 채운다. 테스트는 이 함수를 쓰지 않고 probe를 직접 만든다 */

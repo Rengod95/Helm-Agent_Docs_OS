@@ -54,7 +54,7 @@ function idOf(match: RegExpExecArray): string {
   return match[1] ?? "";
 }
 
-/** PATCHES.md 패치 표의 행 id. `(예약)` 행은 쓰지 않은 번호라 따로 가른다 */
+/** PATCHES.md 패치 표의 행 id. `(예약)` 행은 쓰지 않은 번호라 따로 구분한다 */
 function patchTable(): { readonly used: string[]; readonly reserved: string[] } {
   const rows = readFileSync(join(PACKAGE, "PATCHES.md"), "utf8")
     .split("\n")

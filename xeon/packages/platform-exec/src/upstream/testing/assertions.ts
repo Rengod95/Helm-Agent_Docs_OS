@@ -1,6 +1,7 @@
 import type { StorageConformanceAssertions } from "./types.ts";
 
-export type ExpectLike = (actual: unknown, message?: string) => unknown;
+// XEON-PATCH: P14
+export type ExpectLike = (actual: unknown, message?: string) => ExpectResult;
 
 type ExpectResult = {
   toBe(expected: unknown): unknown;
@@ -15,9 +16,7 @@ type ExpectResult = {
 
 /** Adapts a Vitest/Jest-compatible `expect` function without importing either runner. */
 export function createExpectAssertions(expect: ExpectLike): StorageConformanceAssertions {
-  const result = (actual: unknown, message?: string): ExpectResult =>
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    expect(actual, message) as ExpectResult;
+  const result = (actual: unknown, message?: string): ExpectResult => expect(actual, message);
   return {
     ok(value, message) {
       result(value, message).toBeTruthy();

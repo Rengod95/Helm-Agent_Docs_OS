@@ -494,7 +494,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   }
 
   /** 6a~9단계 가운데 설치: admit → install → InstallResult 변환 */
-  async function install(record: ExtRecord): Promise<void> {
+  async function install(record: ExtRecord, signal: AbortSignal): Promise<void> {
     const module = record.candidate.builtin;
     const manifest = record.manifest;
     if (module === null || manifest === undefined || record.loadIndex === null) return;
@@ -530,6 +530,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     try {
       const result = await deps.host.install(
         unitOfBuiltin(module, manifest, record.loadIndex, enabledSettingOf(record)),
+        { signal },
       );
       const verdict = verdictOfInstall(result);
       for (const entry of verdict.diagnostics) {
@@ -647,7 +648,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       checkCapabilities(
         order.filter((candidate) => candidate.state === "resolved" || candidate.state === "active"),
       );
-      if (currentState(record) === "resolved") await install(record);
+      if (currentState(record) === "resolved") await install(record, signal);
     }
     assertNotEssentialFailure(record);
     return infoOf(record);
@@ -692,7 +693,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
         if (record.state !== "resolved" || !alive.includes(record)) return "continue";
         throwIfCancelled(options.signal, `installing ${record.name}`);
         // 활성이 되지 못한 provider가 이미 있으면 설치 전에 연쇄 실패로 둔다(§4.3.2)
-        await install(record);
+        await install(record, options.signal);
         assertNotEssentialFailure(record);
         return "continue";
       });

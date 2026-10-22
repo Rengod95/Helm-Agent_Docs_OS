@@ -1,6 +1,7 @@
 import { realpathSync } from "node:fs";
 import { posix } from "node:path";
 
+import { attempt } from "@xeon/contracts";
 // 경로 도우미. 이 패키지의 경로 문자열은 모두 POSIX 형식이다(Windows는 1차 범위 밖, L0.sandbox.spec §1).
 
 /** 끝의 "/"를 지운다. 루트는 그대로 둔다 */
@@ -17,15 +18,14 @@ export function canonicalizePath(absolutePath: string): string {
   let current = normalized;
   const rest: string[] = [];
   for (;;) {
-    try {
-      const real = realpathSync(current);
-      return rest.length === 0 ? real : posix.join(real, ...rest.toReversed());
-    } catch {
-      const parent = posix.dirname(current);
-      if (parent === current) return normalized;
-      rest.push(posix.basename(current));
-      current = parent;
-    }
+    const real = attempt(() => realpathSync(current));
+    if (real.ok)
+      return rest.length === 0 ? real.value : posix.join(real.value, ...rest.toReversed());
+    // 없는 경로는 존재하는 가장 가까운 상위를 실제 경로로 바꾸고 나머지를 붙인다
+    const parent = posix.dirname(current);
+    if (parent === current) return normalized;
+    rest.push(posix.basename(current));
+    current = parent;
   }
 }
 

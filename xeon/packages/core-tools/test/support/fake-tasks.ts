@@ -87,20 +87,18 @@ export function fakeTasks(): FakeTasks {
         const release = Promise.withResolvers<void>();
         for (const key of keys) tails.set(key, release.promise);
         // 대기 중 owner.signal이 켜지면 대기열에서 빠지고 signal.reason으로 거부한다
-        const cancelled = new Promise<never>((_resolve, reject) => {
+        const cancelled = new Promise<{ readonly error: Error }>((resolve) => {
           const fail = (): void => {
             const reason: unknown = owner.signal.reason;
-            reject(reason instanceof Error ? reason : new Error("aborted"));
+            resolve({ error: reason instanceof Error ? reason : new Error("aborted") });
           };
           if (owner.signal.aborted) fail();
           owner.signal.addEventListener("abort", fail, { once: true });
         });
-        cancelled.catch(() => undefined);
-        try {
-          await Promise.race([Promise.all(waits), cancelled]);
-        } catch (error) {
+        const first = await Promise.race([Promise.all(waits).then(() => undefined), cancelled]);
+        if (first !== undefined) {
           release.resolve();
-          throw error;
+          throw first.error;
         }
         const span: LockSpan = { keys, start: (tick += 1), end: 0 };
         spans.push(span);

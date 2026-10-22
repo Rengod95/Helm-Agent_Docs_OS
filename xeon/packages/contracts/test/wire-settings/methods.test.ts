@@ -34,7 +34,11 @@ describe("WIRE_METHODS", () => {
   });
 
   test("notification tables", () => {
-    expect(Object.keys(WIRE_NOTIFICATIONS)).toEqual(["events.batch", "stream.chunk"]);
+    expect(Object.keys(WIRE_NOTIFICATIONS)).toEqual([
+      "events.batch",
+      "events.ended",
+      "stream.chunk",
+    ]);
     expect(Object.keys(WIRE_CLIENT_NOTIFICATIONS)).toEqual([
       "$/cancelRequest",
       "$/connectionReset",

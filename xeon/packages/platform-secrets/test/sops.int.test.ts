@@ -55,6 +55,7 @@ function resolverFor(binary: string | null, runner: ProcessRunner = bunRunner): 
     resolveBinary: () =>
       Promise.resolve(err({ kind: "not_found", name: "sops", searched: [], hint: "" })),
     runner,
+    signal: new AbortController().signal,
     parentEnv: PARENT_ENV,
   });
 }
@@ -79,6 +80,7 @@ function providerFor(options: {
     key: () => Promise.resolve(ok(key)),
     parentEnv: PARENT_ENV,
     runner,
+    signal: new AbortController().signal,
     redactor: options.redactor ?? createRedactor(),
     clock,
     scheduler: clock,
@@ -157,6 +159,7 @@ describe("sops binary resolution", () => {
         ),
       runner: bunRunner,
       parentEnv: PARENT_ENV,
+      signal: new AbortController().signal,
     });
     expect(await resolver.resolve()).toEqual({
       ok: true,
@@ -171,6 +174,7 @@ describe("sops binary resolution", () => {
         ),
       runner: bunRunner,
       parentEnv: PARENT_ENV,
+      signal: new AbortController().signal,
     });
     expect(await tooOld.status()).toEqual({
       available: false,
@@ -306,6 +310,20 @@ describe("sops lease", () => {
     });
   });
 
+  test("an aborted service signal cancels the decrypt call and the runner kills the child", async () => {
+    const dir = await workdir();
+    const fake = await fakeSopsBinary(dir.path, { values: { GITHUB_TOKEN: "abcdefgh" } });
+    const controller = new AbortController();
+    controller.abort();
+    const aborted = await bunRunner({
+      argv: [fake.path, "--version"],
+      env: {},
+      timeoutMs: 5000,
+      signal: controller.signal,
+    });
+    expect(aborted).toEqual({ ok: false, error: { kind: "cancelled" } });
+  });
+
   test("a key access error is returned as is and sops is not run for decryption", async () => {
     const dir = await workdir();
     const fake = await fakeSopsBinary(dir.path, { values: { GITHUB_TOKEN: "abcdefgh" } });
@@ -319,6 +337,7 @@ describe("sops lease", () => {
           err({ kind: "key_unavailable", key: "file", reason: "file_mode" } as const),
         ),
       parentEnv: PARENT_ENV,
+      signal: new AbortController().signal,
       runner: bunRunner,
       redactor: createRedactor(),
       clock,
@@ -378,6 +397,7 @@ describe("sops list", () => {
       key: () => Promise.resolve(ok({ id: "file", env: {} } as const)),
       parentEnv: {},
       runner: bunRunner,
+      signal: new AbortController().signal,
       redactor: createRedactor(),
       clock,
       scheduler: clock,

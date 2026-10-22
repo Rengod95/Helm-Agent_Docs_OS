@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
+import { attempt } from "@xeon/contracts";
 import type { LeaseToken } from "@xeon/contracts/records";
 import { openStore } from "../../src/index.ts";
 import { DEFAULT_STORE_SETTINGS } from "../../src/settings.ts";
@@ -24,13 +25,10 @@ if (dbPath === undefined || native === undefined || ttl === undefined) process.e
 
 /** Linux /proc/<pid>/stat의 starttime. 프로세스가 없으면 null (OS 잠금이 없을 때의 생존 판정에 쓴다) */
 function startFingerprint(pid: number): number | null {
-  try {
-    const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
-    const fields = stat.slice(stat.lastIndexOf(")") + 2).split(" ");
-    return Number(fields[19]);
-  } catch {
-    return null;
-  }
+  const stat = attempt(() => readFileSync(`/proc/${pid}/stat`, "utf8"));
+  if (!stat.ok) return null;
+  const fields = stat.value.slice(stat.value.lastIndexOf(")") + 2).split(" ");
+  return Number(fields[19]);
 }
 
 const clock = { now: () => Date.now() };

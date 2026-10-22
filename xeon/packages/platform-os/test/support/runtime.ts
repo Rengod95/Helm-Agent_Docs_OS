@@ -8,7 +8,7 @@ export interface FakeDirFs extends DirFs {
   readonly made: string[];
 }
 
-/** 만든 경로를 기억하는 메모리 DirFs. 만든 디렉터리는 0700, 현재 uid 소유로 보인다 */
+/** 만든 경로를 보관하는 메모리 DirFs. 만든 디렉터리는 0700, 현재 uid 소유로 보인다 */
 export function fakeDirFs(uid: number | null = 1000): FakeDirFs {
   const made: string[] = [];
   const owner = uid ?? 0;

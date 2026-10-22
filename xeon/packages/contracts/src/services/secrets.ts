@@ -266,7 +266,9 @@ export type SecretError =
   | { readonly kind: "in_use"; readonly handle: SecretHandle; readonly activeLeases: number }
   | { readonly kind: "already_exists"; readonly handle: SecretHandle }
   | { readonly kind: "read_only_provider"; readonly provider: SecretProviderId }
-  | { readonly kind: "reauth_required" };
+  | { readonly kind: "reauth_required" }
+  /** 서비스가 닫히면서 진행 중이던 sops 호출이나 바이너리 해석이 중단됐다 */
+  | { readonly kind: "cancelled" };
 
 export interface SecretService {
   readonly redactor: Redactor;

@@ -259,7 +259,7 @@ describe("bash", () => {
     const codes: string[] = [];
     const details: unknown[] = [];
     for (let index = 0; index < 5; index++) {
-      // oxlint-disable-next-line no-await-in-loop -- 응답 표를 차례로 소비한다
+      // oxlint-disable-next-line no-await-in-loop -- 응답 표를 차례로 소비한다 (eng.typescript.guide TY-22)
       const error = await rejection(shell.run({ command: "x" }));
       codes.push(error.data.code);
       details.push(error.data.detail);

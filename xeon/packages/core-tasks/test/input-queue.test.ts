@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Bug, parse } from "@xeon/contracts";
+import { Bug, err, ok, parse } from "@xeon/contracts";
 import type { EventId, ItemId, TurnId } from "@xeon/contracts/conversation";
 import { InputQueuedPayloadSchema } from "@xeon/contracts/records";
 import type {
@@ -225,7 +225,7 @@ describe("enqueue", () => {
     });
     expect(world.session.events.filter((event) => event.kind === "input.queued").length).toBe(1);
 
-    // draftQueued도 같은 입력을 existing으로 알려 준다
+    // draftQueued도 같은 입력을 existing으로 돌려준다
     const check = world.session.commit({
       threadId: world.threadId,
       requestId: "probe",
@@ -340,7 +340,7 @@ describe("extension post", () => {
       when: "followUp",
       item: { kind: "user", content: "hello" },
     });
-    expect(result).toEqual({ duplicate: false });
+    expect(result).toEqual(ok({ duplicate: false }));
     expect(world.session.commitCalls).toBe(1);
     const [queued, ...rest] = world.session.events;
     expect(rest).toEqual([]);
@@ -365,9 +365,7 @@ describe("extension post", () => {
     await world.tasks.enqueue(request);
     const before = world.session.events.length;
     expect(await world.tasks.enqueue({ ...request, item: { kind: "user", content: "y" } })).toEqual(
-      {
-        duplicate: true,
-      },
+      ok({ duplicate: true }),
     );
     expect(world.session.events.length).toBe(before);
     expect(world.session.events.filter((event) => event.kind === "input.queued").length).toBe(1);
@@ -381,29 +379,27 @@ describe("extension post", () => {
       when: "steer" as const,
       item: { kind: "user" as const, content: "x" },
     };
-    expect(await world.tasks.enqueue({ ...base, scopeId: "helm" })).toEqual({ duplicate: false });
-    expect(await world.tasks.enqueue({ ...base, scopeId: "learning" })).toEqual({
-      duplicate: false,
-    });
-    expect(await world.tasks.enqueue({ ...base, scopeId: "helm" })).toEqual({ duplicate: true });
+    expect(await world.tasks.enqueue({ ...base, scopeId: "helm" })).toEqual(
+      ok({ duplicate: false }),
+    );
+    expect(await world.tasks.enqueue({ ...base, scopeId: "learning" })).toEqual(
+      ok({ duplicate: false }),
+    );
+    expect(await world.tasks.enqueue({ ...base, scopeId: "helm" })).toEqual(
+      ok({ duplicate: true }),
+    );
   });
 
-  test("next is refused in M1 and the port rejects instead of returning a result", async () => {
+  test("next is refused in M1 as a mode_not_supported error value", async () => {
     const world = createWorld();
-    const rejected = await world.tasks
-      .enqueue({
-        threadId: world.threadId,
-        scopeId: "helm",
-        requestId: "n",
-        when: "next",
-        item: { kind: "user", content: "x" },
-      })
-      .then(
-        () => null,
-        (caught: unknown) => caught,
-      );
-    expect(rejected).toBeInstanceOf(Bug);
-    expect(rejected instanceof Bug && rejected.message).toContain("mode_not_supported");
+    const refused = await world.tasks.enqueue({
+      threadId: world.threadId,
+      scopeId: "helm",
+      requestId: "n",
+      when: "next",
+      item: { kind: "user", content: "x" },
+    });
+    expect(refused).toEqual(err({ kind: "mode_not_supported", mode: "next" }));
     expect(world.session.events).toEqual([]);
   });
 });
@@ -426,7 +422,7 @@ describe("restart", () => {
     // 저장소는 그대로 두고 서비스만 새로 만든다
     const after = restart(before);
     expect(after.tasks.inputs.peek(after.threadId)).toEqual(expected);
-    // 복원된 입력은 스스로 turn을 열지 않는다. 다음 배치 지점에서 고른다
+    // 복원된 입력만으로는 turn이 열리지 않는다. 다음 배치 지점에서 고른다
     expect(after.session.commitCalls).toBe(before.session.commitCalls);
     expect(viewSelection(after, "turnStart").inputs.map((input) => input.requestId)).toEqual([
       "r-steer",

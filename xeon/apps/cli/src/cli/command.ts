@@ -225,7 +225,7 @@ function scanArgs(
   const values = new Map<string, string[]>();
   const bare = new Set<string>();
   const positionals: string[] = [];
-  // 첫 오류를 기억하고 끝까지 훑는다: 뒤에 --help가 있으면 오류보다 도움말이 먼저다
+  // 첫 오류를 보관하고 끝까지 훑는다: 뒤에 --help가 있으면 오류보다 도움말이 먼저다
   const problem: { current: UsageError | undefined } = { current: undefined };
   const fail = (error: UsageError): void => {
     problem.current ??= error;

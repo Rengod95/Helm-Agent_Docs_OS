@@ -297,7 +297,8 @@ test("an approval request in print mode is answered with deny and announced", as
   });
   expect(await h.run(["chat", "-p", "run it"])).toBe(0);
   expect(h.stderrText()).toContain("승인 요청: bash 실행");
-  expect(h.stderrText()).toContain("거부로 답했다");
+  // 가짜 서버에는 approval.respond가 없다: 거부 응답이 가지 못했음을 알림이 밝힌다
+  expect(h.stderrText()).toContain("거부로 답하려 했으나 host가 응답을 받지 못했다");
   expect(h.server().requests.some((request) => request.method === "approval.respond")).toBe(true);
 });
 

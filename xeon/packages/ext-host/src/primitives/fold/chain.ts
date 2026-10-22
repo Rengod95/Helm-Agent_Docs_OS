@@ -1,11 +1,6 @@
 import { parse } from "@xeon/contracts";
-import {
-  CHAIN_RULES,
-  POINTS,
-  type ChainPointName,
-  type ChainRule,
-  type PointName,
-} from "@xeon/contracts/extensions";
+import { POINTS, type ChainPointName, type PointName } from "@xeon/contracts/extensions";
+import { chainRuleOf } from "../../erase.ts";
 import type { ChainOutcome, HandlerFailure, HandlerRef } from "../dispatch-types.ts";
 import type { HandlerEntry } from "../registry.ts";
 import { eachInOrder } from "../sequence.ts";
@@ -20,12 +15,6 @@ const ALWAYS_CHECKED: ReadonlySet<PointName> = new Set([
   "context_with_system",
   "before_provider_request",
 ]);
-
-/** 지점 종류를 지운 병합 규칙. 지점 표(CHAIN_RULES)가 지점마다 타입이 달라 여기서 한 번만 넓힌다 */
-function ruleOf(point: ChainPointName): ChainRule<unknown, unknown> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 지점별 병합 규칙의 제네릭 인자를 지운다. 입력은 PointDecl.result 스키마 검사를 거친 값뿐이다 (X.primitives.spec §4.2)
-  return CHAIN_RULES[point] as unknown as ChainRule<unknown, unknown>;
-}
 
 export interface ChainOptions {
   readonly initial: unknown;
@@ -44,7 +33,7 @@ export async function foldChain(
   payload: unknown,
   options: ChainOptions,
 ): Promise<ChainOutcome<unknown>> {
-  const rule = ruleOf(point);
+  const rule = chainRuleOf(point);
   const schema = POINTS[point].result;
   const check = env.strict || ALWAYS_CHECKED.has(point);
   let value = options.initial;

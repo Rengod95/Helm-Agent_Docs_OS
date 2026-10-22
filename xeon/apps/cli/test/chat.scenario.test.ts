@@ -1,5 +1,5 @@
 import { afterEach, expect, test } from "bun:test";
-import { parse } from "@xeon/contracts";
+import { parse, parseJson } from "@xeon/contracts";
 import type { TurnId } from "@xeon/contracts/conversation";
 import type { ExtensionEntry, ScopeHandle } from "@xeon/contracts/extensions";
 import {
@@ -67,13 +67,9 @@ interface ScenarioChild {
 
 /** stdout 한 줄(--json이라 한 줄에 메시지 하나)이 담은 events.batch의 이벤트들 */
 function eventsIn(line: string): readonly EventWire[] {
-  let raw: unknown;
-  try {
-    raw = JSON.parse(line);
-  } catch {
-    return [];
-  }
-  const checked = checkEnvelope(raw);
+  const decoded = parseJson(line);
+  if (!decoded.ok) return [];
+  const checked = checkEnvelope(decoded.value);
   if (!checked.ok) return [];
   const message = checked.message;
   if (!("method" in message) || message.method !== "events.batch") return [];

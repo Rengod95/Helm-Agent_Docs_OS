@@ -87,7 +87,10 @@ export function createToolRuntime(deps: ToolsDeps): ToolRuntime {
         `mode:${threadId}:${deps.ids.next("evt")}`,
       );
       if (!written.ok) {
-        throw new Bug(`tools.commit_failed: settings.changed (${written.error.kind})`);
+        return Promise.resolve<ModeChangeResult>({
+          ok: false,
+          error: { kind: "tools.commit_failed", store: written.error },
+        });
       }
       return Promise.resolve<ModeChangeResult>({ ok: true, mode });
     },

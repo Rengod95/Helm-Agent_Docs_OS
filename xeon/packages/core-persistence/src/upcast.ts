@@ -65,7 +65,7 @@ export function readOnlyReasonFor(
       continue;
     }
     if (pair.version < versioning.current && versioning.upcasters.length < pair.version) {
-      // 확장 kind의 낮은 version은 업캐스터 목록을 모른다. 코어 카탈로그는 version 1뿐이라 여기 오지 않는다
+      // 확장 kind의 낮은 version은 업캐스터 목록에 없다. 코어 카탈로그는 version 1뿐이라 여기 오지 않는다
       if (isExtensionKind(pair.kind)) continue;
       throw new Bug(`store.schema_invalid: missing upcaster for ${pair.kind} v${pair.version}`);
     }

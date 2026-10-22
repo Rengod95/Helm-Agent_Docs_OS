@@ -70,7 +70,7 @@ describe("upcast_on_read_and_read_only_on_future_version", () => {
       role: "observer",
       readOnly: "observer",
     });
-    // 이미 쓰기 소유로 연 서비스는 읽기 전용 이유를 그대로 알려 준다
+    // 이미 쓰기 소유로 연 서비스는 읽기 전용 이유를 그대로 돌려준다
     expect(expectOk(restarted.service.openForRead(stale.threadId))).toMatchObject({
       role: "owner",
       readOnly: "unknown_event_kind",

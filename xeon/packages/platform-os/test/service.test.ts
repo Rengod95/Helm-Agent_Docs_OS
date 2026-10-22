@@ -342,7 +342,7 @@ describe("OsService (실제 OS, 격리된 환경)", () => {
       const lines: string[] = [];
       const started = await createOsService(
         { resourceDir: env.home, logSink: (line) => lines.push(line), logRedact: (line) => line },
-        // Bun의 os.homedir()는 처음 부른 값을 기억하므로 격리된 HOME을 직접 넘긴다
+        // Bun의 os.homedir()는 처음 부른 값을 캐시하므로 격리된 HOME을 직접 넘긴다
         { ...readOsRuntime(), home: env.home },
       );
       if (!started.ok) throw new Bug(`start failed: ${started.error.kind}`);

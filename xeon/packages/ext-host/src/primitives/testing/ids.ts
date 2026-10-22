@@ -22,7 +22,7 @@ export function fixedIdFactory(seed = 0): IdFactory {
   return {
     next<P extends IdPrefix>(prefix: P): IdByPrefix[P] {
       counter += 1;
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 브랜드 생성 함수. 새 문자열에 브랜드를 붙이는 유일한 길이다 (eng.typescript.guide TY-06)
+      // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A2 브랜드 생성: 테스트 대역 fixedIdFactory (eng.typescript.guide TY-06)
       return `${prefix}_${encode(counter)}` as IdByPrefix[P];
     },
   };

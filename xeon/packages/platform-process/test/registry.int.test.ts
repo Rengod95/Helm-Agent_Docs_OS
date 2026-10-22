@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { spawn, type ChildProcess } from "node:child_process";
+import { attempt } from "@xeon/contracts";
 import type { BackgroundStopper } from "@xeon/contracts/services";
 import { createBackgroundRegistry } from "../src/index.ts";
 import { manualClock } from "./support/clock.ts";
@@ -18,12 +19,7 @@ interface Tree {
 }
 
 function isAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
+  return attempt(() => process.kill(pid, 0)).ok;
 }
 
 /** 등록자 쪽 BackgroundStopper: 프로세스 그룹 전체에 시그널을 보낸다(spec §4.3, plan PR-06) */
@@ -55,11 +51,8 @@ async function startTree(...flags: readonly string[]): Promise<Tree> {
     stop(mode) {
       const signal = mode === "graceful" ? "SIGTERM" : "SIGKILL";
       signals.push(signal);
-      try {
-        process.kill(-pid, signal);
-      } catch {
-        // 이미 끝난 그룹
-      }
+      // 이미 끝난 그룹이면 보낼 곳이 없다. 실패는 값으로 받고 계속한다
+      attempt(() => process.kill(-pid, signal));
       return Promise.resolve();
     },
   };
@@ -70,11 +63,8 @@ const started: Tree[] = [];
 
 afterEach(() => {
   for (const tree of started.splice(0)) {
-    try {
-      process.kill(-tree.parentPid, "SIGKILL");
-    } catch {
-      // 이미 정리됨
-    }
+    // 이미 정리된 그룹이면 보낼 곳이 없다
+    attempt(() => process.kill(-tree.parentPid, "SIGKILL"));
   }
 });
 

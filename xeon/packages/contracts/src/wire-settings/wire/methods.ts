@@ -50,6 +50,7 @@ import {
   CancelRequestParamsSchema,
   EmptyParamsSchema,
   EventsBatchParamsSchema,
+  EventsEndedParamsSchema,
   IsoTimeSchema,
   StreamChunkParamsSchema,
   type EmptyParams,
@@ -638,13 +639,16 @@ export type WireResult<M extends WireMethodName> = WireMethodMap[M]["result"];
 /** 서버 → 클라이언트 알림별 params 스키마 */
 interface ServerNotificationSchemas {
   "events.batch": typeof EventsBatchParamsSchema;
+  "events.ended": typeof EventsEndedParamsSchema;
   "stream.chunk": typeof StreamChunkParamsSchema;
 }
 export type ServerNotificationMap = {
   readonly [N in keyof ServerNotificationSchemas]: Static<ServerNotificationSchemas[N]>;
 };
 export type ServerNotificationName = keyof ServerNotificationMap;
-export type ServerNotificationParams<N extends ServerNotificationName> = ServerNotificationMap[N];
+export type ServerNotificationParams<N extends ServerNotificationName> = Static<
+  ServerNotificationSchemas[N]
+>;
 
 /** 클라이언트 → 서버 알림별 params 스키마 */
 interface ClientNotificationSchemas {
@@ -716,6 +720,7 @@ export const WIRE_NOTIFICATIONS: {
   };
 } = {
   "events.batch": { params: EventsBatchParamsSchema, since: "0.1.0", stage: "M1" },
+  "events.ended": { params: EventsEndedParamsSchema, since: "0.1.0", stage: "M1" },
   "stream.chunk": { params: StreamChunkParamsSchema, since: "0.1.0", stage: "M1" },
 };
 

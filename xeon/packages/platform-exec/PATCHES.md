@@ -22,6 +22,7 @@
 | P11 | `truncate.ts:151, 174` | `noUncheckedIndexedAccess`에 맞춰 `lines[0]`, `lines[i]`에 `?? ""`를 붙인다. 동작은 같다 | `test/upstream/truncate.test.ts` |
 | P12 | `truncate.ts:11-12` | `isolatedDeclarations`가 요구하는 상수 타입 주석(`DEFAULT_MAX_LINES: number`)을 달고 export를 걷는다. 파일 안에서만 쓴다(knip). 한도 기본값은 `truncateHead` 결과의 `maxLines`·`maxBytes`로 노출된다 | `tsc -b`, `test/upstream/truncate.test.ts` |
 | P13 | `truncate.ts:14-50` | `TruncationResult`, `TruncationOptions` 선언을 지우고 F(`@xeon/contracts/services`, `services/exec.ts`)에서 가져온다. F 선언은 같은 필드에 `readonly`를 더한 모양이라 L1·L2가 같은 타입으로 받는다 | `tsc -b`, `exec-contract.contract.test.ts` |
+| P14 | `env/index.ts:18-45`, `env/node.ts`(`fileURLToPath`, `pathExists`, `runCommand`, `LineScanner` 생성, `close` 호출 12곳), `env/node-watch.ts`(`#deliver`, `lstat`·`statfs` 조회 5곳), `testing/assertions.ts:3-19`, 시험 파일(`env-node.int.test.ts`, `env-node-conformance.int.test.ts`, `env-node-spill.int.test.ts`) | `eng.typescript.guide` TY-06·TY-25 적용. 바인딩 없는 `catch {}`와 `.catch(() => undefined)`를 `attempt`/`attemptAsync`(F) 결과 값으로 바꾸고, 정리 단계의 `close`는 `closeBestEffort`, 조회 실패를 `undefined`로 보는 자리는 `valueOrUndefined`(둘 다 `env/index.ts`)로 모았다. `toFileError`의 `switch`에 `default`를 더하고, `ExpectLike`가 `ExpectResult`를 돌려주게 해 `as ExpectResult`를 지웠다. 시험의 `as` 단언은 타입 가드(`isFileHandle`, `errnoCodeOf`), `Object.defineProperty`, 결과 좁히기로 바꿨다. 동작은 같다 | `tsc -b`, `bun run lint`, 원본 시험 |
 
 ## 서식
 

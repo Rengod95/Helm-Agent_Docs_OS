@@ -253,7 +253,7 @@ const GROUP_OTHER_BITS = 0o077;
 /**
  * data, config, cache, state, runtime, tmp를 0o700으로 만들고(이미 있으면 소유자와 권한을 확인하고) 끝낸다.
  * home과 resource는 만들지도 검사하지도 않는다. 권한이 열려 있어도 고치지 않고 실패한다(L0.os.spec §5).
- * DirsError에 cancelled가 없어 중단은 io(code "ABORT_ERR")로 돌려준다.
+ * 중단 신호가 오면 cancelled로 돌려준다.
  */
 export function ensureDirs(
   dirs: OsDirs,
@@ -265,7 +265,7 @@ export function ensureDirs(
   const run = async (index: number): Promise<Result<void, DirsError>> => {
     const path = targets[index];
     if (path === undefined) return ok(undefined);
-    if (signal.aborted) return err({ kind: "io", path, code: "ABORT_ERR" });
+    if (signal.aborted) return err({ kind: "cancelled" });
     const checked = await ensureOne(path, fs);
     if (!checked.ok) return checked;
     return run(index + 1);

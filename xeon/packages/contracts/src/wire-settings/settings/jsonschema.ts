@@ -1,4 +1,4 @@
-import type { JsonObject, JsonValue } from "../../conversation/index.ts";
+import { toJsonValue, type JsonObject, type JsonValue } from "../../conversation/index.ts";
 import type { SettingDef, SettingScope } from "./def.ts";
 import type { SettingCatalog } from "./define.ts";
 import { effectiveSchemaJson } from "./validate-value.ts";
@@ -29,33 +29,11 @@ function sortObject(value: JsonObject): JsonObject {
 }
 
 function sortKeys(value: JsonValue): JsonValue {
-  if (Array.isArray(value)) return (value as readonly JsonValue[]).map(sortKeys);
-  return isObject(value) ? sortObject(value) : value;
-}
-
-/** unknown 값을 JSON 값으로 좁힌다. JSON으로 표현할 수 없으면 undefined. */
-function toJsonValue(value: unknown): JsonValue | undefined {
-  if (value === null || typeof value === "boolean" || typeof value === "string") return value;
-  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
   if (Array.isArray(value)) {
-    const items: JsonValue[] = [];
-    for (const item of value as readonly unknown[]) {
-      const converted = toJsonValue(item);
-      if (converted === undefined) return undefined;
-      items.push(converted);
-    }
-    return items;
+    const list: readonly JsonValue[] = value;
+    return list.map(sortKeys);
   }
-  if (typeof value === "object") {
-    const out: JsonObject = {};
-    for (const [key, member] of Object.entries(value)) {
-      const converted = toJsonValue(member);
-      if (converted === undefined) return undefined;
-      out[key] = converted;
-    }
-    return out;
-  }
-  return undefined;
+  return isObject(value) ? sortObject(value) : value;
 }
 
 function describeDeprecation(def: SettingDef): string {

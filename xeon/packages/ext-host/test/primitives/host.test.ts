@@ -206,3 +206,24 @@ test("uninstall removes definitions and handlers", async () => {
     { scopeId: "host-gone", status: "disabled" },
   ]);
 });
+
+test("install stops waiting for an entry when its signal aborts", async () => {
+  const t = await createTestHost();
+  const gate = holdOpen();
+  const controller = new AbortController();
+  const unit = makeUnit({ name: "host-cancel" }, () => {});
+  const slow = { ...unit, entry: async () => gate.promise };
+  const pending = t.host.install(slow, { signal: controller.signal });
+  await flushMicrotasks(20);
+  controller.abort();
+  const result = await pending;
+  expect(result.scopes).toEqual([]);
+  expect(result.entryError).toBeInstanceOf(PrimitiveError);
+  expect(result.entryError instanceof PrimitiveError && result.entryError.code).toBe(
+    "scope_setup_failed",
+  );
+  gate.open();
+  // 중단된 설치의 이름은 다시 쓸 수 있다
+  const again = await t.host.install(makeUnit({ name: "host-cancel" }, () => {}));
+  expect(again.entryError).toBeUndefined();
+});

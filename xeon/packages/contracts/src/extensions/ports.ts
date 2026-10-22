@@ -1,9 +1,11 @@
 import type { TSchema } from "typebox";
 import type { ToolName } from "../capabilities/index.ts";
 import type { JsonValue, ThreadId, Usage } from "../conversation/index.ts";
+import type { Result } from "../base/index.ts";
 import type {
   ProjectorRegistry,
   RecordCommitPort,
+  StoreError,
   StoreService,
   Unsubscribe,
 } from "../records/index.ts";
@@ -96,9 +98,16 @@ export interface EnqueueResult {
   readonly duplicate: boolean;
 }
 
+/** 입력 큐가 항목을 받지 않은 이유. 저장소 실패와 닫힌 thread는 예상 가능한 거부다(TY-24, review.open-issues N-05) */
+export type EnqueueError =
+  | StoreError
+  | { readonly kind: "invalid_request_id"; readonly requestId: string }
+  | { readonly kind: "mode_not_supported"; readonly mode: string }
+  | { readonly kind: "thread_closed"; readonly threadId: ThreadId };
+
 export interface InputQueuePort {
   /** 입력 큐 항목(input.queued) 하나를 커밋 키로 멱등하게 남긴다(F.records.spec §3.3, U-05) */
-  enqueue(request: EnqueueRequest): Promise<EnqueueResult>;
+  enqueue(request: EnqueueRequest): Promise<Result<EnqueueResult, EnqueueError>>;
 }
 export const InputQueuePortKey: PortKey<InputQueuePort> = { name: "xeon.tasks" };
 

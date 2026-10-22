@@ -221,7 +221,7 @@ export interface ExtHost {
   /** L0 플랫폼 패키지를 등록한다. 조립 루트가 확장 설치 전에 부른다. setup이 던지면 그대로 던진다(시작 실패) */
   registerPlatform(module: PlatformModule): Promise<void>;
   /** 엔트리를 실행해 scope 정의를 모으고, 기본 활성 scope의 켜기를 시작 적용한다(§4.5.6) */
-  install(unit: ExtensionUnit): Promise<InstallResult>;
+  install(unit: ExtensionUnit, options?: { readonly signal?: AbortSignal }): Promise<InstallResult>;   // signal이 중단되면 엔트리 실행을 기다리지 않고 entryError(scope_setup_failed)로 끝낸다
   /** 모든 scope를 끄기 요청하고, 적용이 끝나면 정의를 지운다 */
   uninstall(name: ExtensionName): Promise<void>;
   /** 포트 조회. 같은 패키지의 loading-trust·operations와 조립 루트가 쓴다. 확장 코드는 hostOf(g).port를 쓴다 */
@@ -1095,7 +1095,7 @@ recordPrivate(kind, payload):
 
 1. 첫 `post` 호출 때 `validateUsage`의 `post_undeclared` 검사를 한다. 매니페스트 `usesPost`가 참이 아니면 `PrimitiveError("post_undeclared")`로 거부한다. 플러그인과 그룹 모두 쓸 수 있다.
 2. `requestId`가 1~64자가 아니면 `TypeError`로 거부한다(F 타입 위반).
-3. `InputQueuePort.enqueue({ threadId, scopeId, requestId, when, item })`를 부른다. 같은 thread에서 같은 (scopeId, requestId)의 두 번째 post는 `{ duplicate: true }`를 받고 큐에 넣지 않는다. X는 `PostReceipt { requestId, duplicate }`로 돌려준다.
+3. `InputQueuePort.enqueue({ threadId, scopeId, requestId, when, item })`를 부른다. 같은 thread에서 같은 (scopeId, requestId)의 두 번째 post는 `ok({ duplicate: true })`를 받고 큐에 넣지 않는다. X는 `PostReceipt { requestId, duplicate }`로 돌려준다. 포트가 `err(EnqueueError)`를 돌려주면 확장에는 예외로 옮긴다: `invalid_request_id`·`mode_not_supported`는 `TypeError`, `thread_closed`·`thread_not_found`는 `PrimitiveError("no_thread")`, 저장소 실패(`busy`, `disk_full`, `io`, `read_only`, `ownership_lost`)는 `PrimitiveError("storage_unavailable")`이고 원인은 `cause`에 둔다. 포트는 `Bug`를 던지지 않는다.
 4. 멱등 범위는 thread와 scope다 [제안]. F.extensions.spec §4.4는 "같은 대화"만 적었다. scope를 더하면 다른 확장이 같은 문자열을 써도 서로의 post를 지우지 않는다. 커밋 키는 L1.tasks가 만들고, 키에 scope id를 넣을 때 `/`를 `:`로 바꾼다([결정: review.decisions-2 U-13]).
 5. `post`는 효과이므로 재실행되는 on 핸들러에서 써도 된다. 같은 `requestId`를 쓰는 한 중복되지 않는다(F.extensions.spec §4.3).
 6. [결정: review.decisions-2 U-05] `post.accepted`는 retire했다. post의 기록은 `input.queued`(`source.type: "extension"`) 하나이고, 재개 때 멱등 판정은 커밋 키 `in:<scopeId>:<requestId>`(`eng.transactions.design` §4.8)가 한다.

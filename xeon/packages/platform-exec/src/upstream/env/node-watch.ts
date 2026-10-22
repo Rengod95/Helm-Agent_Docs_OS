@@ -2,11 +2,19 @@ import { createHash } from "node:crypto";
 import { type FSWatcher, watch as fsWatch, type Stats } from "node:fs";
 import { lstat, readdir, readFile, stat, statfs } from "node:fs/promises";
 import { dirname, relative, sep } from "node:path";
+// XEON-PATCH: P14
+import { attempt } from "@xeon/contracts";
 // XEON-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
 // XEON-PATCH: P3
 import type { ExecPlatformProvider } from "../../provider.ts";
-import { FileError, type FileWatcher, type WatchChange, type WatchTarget } from "./index.ts";
+import {
+  FileError,
+  valueOrUndefined,
+  type FileWatcher,
+  type WatchChange,
+  type WatchTarget,
+} from "./index.ts";
 
 /** How `NodeExecutionEnv` watches. */
 export interface NodeWatchOptions {
@@ -233,11 +241,9 @@ export class NodeFileWatcher implements FileWatcher {
 
   #deliver(change: WatchChange): void {
     if (this.#closed) return;
-    try {
-      this.#onChange(change);
-    } catch {
-      // A throwing callback must not stop watching.
-    }
+    // XEON-PATCH: P14
+    // A throwing callback must not stop watching. The failure is received as a value and dropped.
+    attempt(() => this.#onChange(change));
   }
 
   #schedulePoll(): void {
@@ -394,7 +400,7 @@ export class NodeFileWatcher implements FileWatcher {
         let kind = listed.get(path);
         if (kind === undefined) {
           // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-          const stats = await lstat(path).catch(() => undefined);
+          const stats = await valueOrUndefined(() => lstat(path));
           if (stats === undefined) continue;
           kind = entryOf(stats).kind;
           listed.set(path, kind);
@@ -413,7 +419,7 @@ export class NodeFileWatcher implements FileWatcher {
       for (const ancestor of ancestorsOf(target.path)) {
         if (snapshot.has(ancestor)) continue;
         // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-        const stats = await lstat(ancestor).catch(() => undefined);
+        const stats = await valueOrUndefined(() => lstat(ancestor));
         // Identity only: an ancestor's own timestamps change with every unrelated sibling.
         if (stats !== undefined) snapshot.set(ancestor, { ...entryOf(stats), size: 0, mtimeMs: 0 });
       }
@@ -430,7 +436,7 @@ export class NodeFileWatcher implements FileWatcher {
       // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       await record(target.path, stats);
       // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      if (stats.isFile() && (await lstat(target.path).catch(() => undefined))?.isSymbolicLink()) {
+      if (stats.isFile() && (await valueOrUndefined(() => lstat(target.path)))?.isSymbolicLink()) {
         linkedFiles.add(target.path);
       }
       if (stats.isDirectory()) {
@@ -571,7 +577,7 @@ async function anyUnreliable(
   for (const path of paths) {
     for (const candidate of [path, ...ancestorsOf(path)]) {
       // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      const info = await statfs(candidate).catch(() => undefined);
+      const info = await valueOrUndefined(() => statfs(candidate));
       if (info === undefined) continue;
       if (UNRELIABLE_FILE_SYSTEMS.has(info.type)) return true;
       break;

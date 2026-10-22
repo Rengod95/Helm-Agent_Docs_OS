@@ -12,10 +12,10 @@ import {
   type ScopeStatus,
 } from "@xeon/contracts/extensions";
 import type { CapabilityId } from "@xeon/contracts/capabilities";
+import { eraseScope } from "../erase.ts";
 import { withoutAmbient } from "./ambient.ts";
 import {
   newUsage,
-  type AnyState,
   type BoundaryTxn,
   type Generation,
   type HostCore,
@@ -24,6 +24,7 @@ import {
   type ScopeToggleReason,
   type ThreadRuntime,
 } from "./core.ts";
+import type { AnyState } from "./erased-types.ts";
 import { PrimitiveError, type PrimitiveErrorCode } from "./errors.ts";
 import type { LeaseBroker } from "./lease.ts";
 import { eachInOrder } from "./sequence.ts";
@@ -351,16 +352,14 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
       const initial = isPrimary
         ? (def.defaultEnabled ?? unit.manifest.defaultEnabled ?? true)
         : (def.defaultEnabled ?? false);
+      const erased = eraseScope(def, setup);
       const record: ScopeRecord = {
         id,
         extension: unit.name,
         manifest: unit.manifest,
         loadIndex: unit.loadIndex,
         builtin: unit.builtin,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 상태 타입 S를 지운 보관용 정의. 문서는 StateDecl.schema 검사를 거친다
-        def: def as unknown as ScopeDef<AnyState>,
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- setup은 g: ScopeApi<S>를 받는다. 같은 정의에서 만든 g만 넘긴다
-        setup: setup as unknown as ScopeSetup<AnyState>,
+        ...erased,
         desired: initial,
         reason: undefined,
         status: initial ? "enabling" : "disabled",

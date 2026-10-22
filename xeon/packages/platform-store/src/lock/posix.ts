@@ -1,7 +1,7 @@
 import { dlopen, FFIType, read } from "bun:ffi";
 import { closeSync, openSync } from "node:fs";
 import { join } from "node:path";
-import { err, ok, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Result } from "@xeon/contracts";
 import { sha256Hex } from "../hash.ts";
 import type { LockAcquireError, LockHandle, LockProvider } from "./provider.ts";
 
@@ -40,26 +40,26 @@ interface Ffi {
 }
 
 function loadFfi(config: PosixLockConfig): Ffi | undefined {
-  try {
+  const loaded = attempt(() => {
     const lib = dlopen(config.libName, {
       flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
     });
     const errnoLib = dlopen(config.libName, {
       [config.errnoSymbol]: { args: [], returns: FFIType.ptr },
     });
-    const locate = errnoLib.symbols[config.errnoSymbol];
-    if (locate === undefined) return undefined;
-    return {
-      flock: (fd, operation): number => lib.symbols.flock(fd, operation),
-      errno: (): number | null => {
-        const pointer = locate();
-        return pointer === null ? null : read.i32(pointer);
-      },
-    };
-  } catch {
-    // bun:ffi 로드 실패는 예상 가능한 환경 문제다. 호출자(select.ts)가 none provider로 내려간다
-    return undefined;
-  }
+    return { lib, locate: errnoLib.symbols[config.errnoSymbol] };
+  });
+  // bun:ffi 로드 실패는 예상 가능한 환경 문제다. 호출자(select.ts)가 none provider로 내려간다
+  if (!loaded.ok) return undefined;
+  const { lib, locate } = loaded.value;
+  if (locate === undefined) return undefined;
+  return {
+    flock: (fd, operation): number => lib.symbols.flock(fd, operation),
+    errno: (): number | null => {
+      const pointer = locate();
+      return pointer === null ? null : read.i32(pointer);
+    },
+  };
 }
 
 /**

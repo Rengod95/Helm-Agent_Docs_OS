@@ -1,5 +1,6 @@
 import { readdirSync } from "node:fs";
 import { posix } from "node:path";
+import { attempt } from "@xeon/contracts";
 import {
   matchProtectedPath,
   type OsDirs,
@@ -188,13 +189,10 @@ export function expandBasenameEntries(
   if (patterns.length === 0) return [];
   const found = new Set<string>();
   const visit = (dir: string, remaining: number): void => {
-    let children;
-    try {
-      children = readdirSync(dir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const child of children) {
+    const listed = attempt(() => readdirSync(dir, { withFileTypes: true }));
+    // 읽을 수 없는 디렉터리는 탐색하지 않는다. 그 아래 basename 항목은 후보에 오르지 않는다
+    if (!listed.ok) return;
+    for (const child of listed.value) {
       const full = posix.join(dir, child.name);
       if (child.isDirectory()) {
         if (remaining > 1) visit(full, remaining - 1);

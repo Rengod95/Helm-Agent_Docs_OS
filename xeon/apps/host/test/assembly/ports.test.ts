@@ -31,16 +31,12 @@ import { createEnginePorts, type PortsDeps } from "../../src/assembly/ports.ts";
 import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { flushMicrotasks } from "../fixtures/clock.ts";
+import { partial } from "../fixtures/unsafe.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { sequentially } from "../../src/util.ts";
 
 // 어댑터(EnginePorts)가 F 서비스 인터페이스를 어떻게 감싸는지 가짜 서비스로 본다. 서비스 인터페이스는 크고 어댑터가 쓰는 멤버는
 // 일부라, 시험은 쓰는 멤버만 채운 가짜를 서비스 타입으로 다룬다.
-
-function partial<T>(value: Partial<T>): T {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 어댑터가 쓰는 멤버만 채운 시험용 가짜다. 쓰지 않는 멤버를 부르면 undefined라 시험이 바로 실패한다 (eng.typescript.guide TY-06)
-  return value as T;
-}
 
 const ids = fixedIdFactory(400);
 const STORE_ID = "sto_01ARZ3NDEKTSV4RRFFQ69G5FAV";
@@ -218,6 +214,7 @@ function harness(): Harness {
   return Object.assign(result, {
     deps: {
       mode: "stdio" as const,
+      signal: new AbortController().signal,
       os,
       clock: { now: () => 1 },
       ids,
@@ -246,9 +243,18 @@ describe("threads", () => {
     expect(h.calls[0]).toContain('"workspace":"/w"');
   });
 
-  test("a refused create becomes a Bug the pipeline turns into an internal error", async () => {
+  test("a refused create is a store.* wire error, not a Bug", async () => {
     const h = harness();
     h.state.threadsCreate = err({ kind: "busy" });
+    const { ports } = createEnginePorts(h.deps);
+    const thrown = await rejectionOf(ports.threads.create({}));
+    if (!(thrown instanceof WireError)) throw new Error("expected a WireError");
+    expect(thrown.data.kind).toBe("store.busy");
+  });
+
+  test("a lifecycle error that create cannot produce is a Bug", async () => {
+    const h = harness();
+    h.state.threadsCreate = err({ kind: "has_forks", forks: [] });
     const { ports } = createEnginePorts(h.deps);
     expect(await rejectionOf(ports.threads.create({}))).toBeInstanceOf(Bug);
   });
@@ -402,7 +408,8 @@ describe("locks", () => {
     const thrown = await rejectionOf(ports.locks.tryAcquire(THREAD, "cli"));
     if (!(thrown instanceof WireError)) throw new Error("expected a WireError");
     expect(thrown).not.toBeInstanceOf(Bug);
-    expect(thrown.message).toContain("lock_io");
+    expect(thrown.data.kind).toBe("store.io");
+    expect(thrown.data.details).toEqual({ code: "EIO" });
   });
 
   test("a failed recovery on open gives the lease back and is a wire error, not a Bug", async () => {
@@ -411,7 +418,8 @@ describe("locks", () => {
     const { ports } = createEnginePorts(h.deps);
     const thrown = await rejectionOf(ports.locks.tryAcquire(THREAD, "cli"));
     if (!(thrown instanceof WireError)) throw new Error("expected a WireError");
-    expect(thrown.message).toContain("session.recover failed: busy");
+    expect(thrown.data.kind).toBe("store.busy");
+    expect(thrown.message).toContain("session.recover failed");
     expect(h.calls).toContain("lease.release");
     expect(ports.locks.holds(THREAD)).toBe(false);
   });

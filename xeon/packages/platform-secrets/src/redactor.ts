@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Result } from "@xeon/contracts";
 import type { RedactionHit, SecretName } from "@xeon/contracts/capabilities";
 import type { RegisterKnownError, Redactor } from "@xeon/contracts/services";
 
@@ -15,11 +15,8 @@ const STRICT_DECODER = new TextDecoder("utf-8", { fatal: true });
 
 /** 유효한 UTF-8일 때만 문자열을 돌려준다. 아니면 문자열 변형(원문, URL, JSON)은 만들지 않는다 */
 function decodeStrict(bytes: Uint8Array): string | null {
-  try {
-    return STRICT_DECODER.decode(bytes);
-  } catch {
-    return null;
-  }
+  const decoded = attempt(() => STRICT_DECODER.decode(bytes));
+  return decoded.ok ? decoded.value : null;
 }
 
 function toHex(bytes: Uint8Array, upper: boolean): string {
@@ -245,7 +242,7 @@ export function createRedactor(): RedactorImpl {
     maskDeep<T>(value: T): { readonly value: T; readonly hits: readonly RedactionHit[] } {
       const hits = new Map<string, number>();
       const walked = walk(value, hits, new WeakSet<object>());
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- maskDeep은 문자열만 바꾸고 모양(키, 배열 길이, 비문자열 값)을 그대로 두므로 결과는 T와 같은 모양이다. 인터페이스 시그니처(F services/secrets.ts)가 T를 요구한다 (eng.typescript.guide TY-06 예외 요청은 openIssues)
+      // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A4 maskDeep: 문자열만 바꾸고 모양(키, 배열 길이, 비문자열 값)을 그대로 두므로 결과는 T와 같은 모양이다 (eng.typescript.guide TY-06)
       return { value: walked as T, hits: finishHits(hits) };
     },
     containsKnown(text: string): boolean {

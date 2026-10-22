@@ -96,7 +96,11 @@ export type WireErrorKind =
   | "settings.locked"
   | "settings.secretValue"
   | "request.cancelled"
-  | "host.shuttingDown";
+  | "host.shuttingDown"
+  | "store.busy"
+  | "store.diskFull"
+  | "store.readOnly"
+  | "store.io";
 
 /**
  * M1 오류 목록(F.wire-settings.spec §3.5.2): kind → 정의. 키와 kind가 같고 code와 kind는 1:1이다.
@@ -269,6 +273,27 @@ export const WIRE_ERRORS: {
       { retryAfterMs: Type.Integer({ minimum: 0 }) },
       { additionalProperties: false },
     ),
+  },
+  /** 저장소 쓰기 잠금 대기가 시간을 넘었다. 같은 요청을 다시 보내도 된다 */
+  "store.busy": { code: 5003, kind: "store.busy", retryable: true },
+  /** 저장 매체가 가득 찼다. 공간을 비운 뒤 다시 보내야 한다 */
+  "store.diskFull": { code: 5004, kind: "store.diskFull", retryable: false },
+  /** 저장소가 읽기 전용으로 열려 있어 쓸 수 없다 */
+  "store.readOnly": {
+    code: 5005,
+    kind: "store.readOnly",
+    retryable: false,
+    details: Type.Object(
+      { reason: Type.String({ maxLength: 64 }) },
+      { additionalProperties: false },
+    ),
+  },
+  /** 저장 매체 I/O 실패. 코드는 OS나 SQLite가 준 값이다 */
+  "store.io": {
+    code: 5006,
+    kind: "store.io",
+    retryable: false,
+    details: Type.Object({ code: Type.String({ maxLength: 64 }) }, { additionalProperties: false }),
   },
 };
 

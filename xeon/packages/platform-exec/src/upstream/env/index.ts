@@ -2,7 +2,7 @@
 // XEON-PATCH: P6
 import type { CancelScope as Context, ExecutionError, FileError } from "@xeon/contracts/services";
 // XEON-PATCH: P2
-import type { Result } from "@xeon/contracts";
+import { attempt, attemptAsync, type Result } from "@xeon/contracts";
 
 // XEON-PATCH: P2
 export { err, ok } from "@xeon/contracts";
@@ -18,11 +18,27 @@ export function getOrThrow<TValue, TError>(result: Result<TValue, TError>): TVal
 export function toError(error: unknown): Error {
   if (error instanceof Error) return error;
   if (typeof error === "string") return new Error(error);
-  try {
-    return new Error(JSON.stringify(error));
-  } catch {
-    return new Error(String(error));
-  }
+  // XEON-PATCH: P14
+  const serialized = attempt(() => JSON.stringify(error));
+  return new Error(serialized.ok ? serialized.value : String(error));
+}
+
+// XEON-PATCH: P14
+/** 던질 수 있는 비동기 조회 하나를 값으로 받는다. 실패하면 undefined(대상이 없거나 읽을 수 없다) */
+export async function valueOrUndefined<TValue>(
+  call: () => PromiseLike<TValue>,
+): Promise<TValue | undefined> {
+  const result = await attemptAsync(call);
+  return result.ok ? result.value : undefined;
+}
+
+// XEON-PATCH: P14
+/** 정리 단계의 close. 실패해도 원래 결과를 가리지 않도록 값으로 받아 버린다 */
+export async function closeBestEffort(
+  handle: { close(): Promise<void> } | undefined,
+): Promise<void> {
+  if (handle === undefined) return;
+  await attemptAsync(() => handle.close());
 }
 
 export type FileKind = "file" | "directory" | "symlink";

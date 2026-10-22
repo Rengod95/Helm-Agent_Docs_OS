@@ -194,6 +194,12 @@ export function createEventsSubscribeHandler(
         });
         conn.subs.delete(sub.id);
         sub.open = false;
+        // 클라이언트가 끝없이 기다리지 않도록 구독이 끝났음을 알린다
+        conn.sender.push({
+          jsonrpc: "2.0",
+          method: "events.ended",
+          params: toRecord({ sub: sub.id, reason: "replayFailed" }),
+        });
       });
     });
 

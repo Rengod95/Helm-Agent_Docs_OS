@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parse } from "@xeon/contracts";
+import { attempt, attemptAsync, parse } from "@xeon/contracts";
 import { SecretMetaSchema, type SecretMeta, type SecretName } from "@xeon/contracts/capabilities";
 import type { SecretError } from "@xeon/contracts/services";
 import { errorCode } from "./errors.ts";
@@ -42,15 +42,11 @@ async function readMetaFile(dir: string, stem: string): Promise<MetaEntry | null
     return invalid(stem, path, [`unreadable (${errorCode(error)})`]);
   }
 
-  let raw: unknown;
-  try {
-    raw = Bun.YAML.parse(text);
-  } catch {
-    // 파싱 오류 메시지에 파일 내용 조각이 들어갈 수 있어 싣지 않는다
-    return invalid(stem, path, ["not valid YAML"]);
-  }
+  const decoded = attempt((): unknown => Bun.YAML.parse(text));
+  // 파싱 오류 메시지에 파일 내용 조각이 들어갈 수 있어 cause를 싣지 않는다
+  if (!decoded.ok) return invalid(stem, path, ["not valid YAML"]);
 
-  const checked = parse(SecretMetaSchema, raw);
+  const checked = parse(SecretMetaSchema, decoded.value);
   if (!checked.ok) {
     return invalid(
       stem,
@@ -67,13 +63,14 @@ async function readMetaFile(dir: string, stem: string): Promise<MetaEntry | null
 export function createMetaStore(dir: string): MetaStore {
   return {
     async list(): Promise<readonly MetaEntry[]> {
-      let names: string[];
-      try {
-        names = await readdir(dir);
-      } catch {
-        return [];
+      const listed = await attemptAsync(() => readdir(dir));
+      if (!listed.ok) {
+        // 디렉터리가 없으면 메타가 없는 것이다. 그 밖의 실패는 읽을 수 없다는 항목으로 알린다
+        const code = errorCode(listed.error.cause);
+        if (code === "ENOENT" || code === "ENOTDIR") return [];
+        return [invalid(".", dir, [`unreadable (${code})`])];
       }
-      const stems = names
+      const stems = listed.value
         .filter((n) => n.endsWith(EXTENSION))
         .map((n) => n.slice(0, -EXTENSION.length))
         .toSorted();

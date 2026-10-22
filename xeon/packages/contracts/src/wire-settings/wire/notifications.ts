@@ -138,6 +138,16 @@ export const EventsBatchParamsSchema: TObject<{
 );
 export type EventsBatchParams = Static<typeof EventsBatchParamsSchema>;
 
+/** 서버가 구독을 끝냈다. 클라이언트는 같은 필터로 다시 구독하거나 오류로 처리한다 */
+export const EventsEndedParamsSchema: TObject<{
+  sub: typeof SubIdSchema;
+  reason: TLiteral<"replayFailed">;
+}> = Type.Object(
+  { sub: SubIdSchema, reason: Type.Literal("replayFailed") },
+  { additionalProperties: false },
+);
+export type EventsEndedParams = Static<typeof EventsEndedParamsSchema>;
+
 /** 휘발 조각은 seq가 없고 재전송하지 않는다 */
 export const StreamChunkParamsSchema: TObject<{ event: typeof VolatileEventWireSchema }> =
   Type.Object({ event: VolatileEventWireSchema }, { additionalProperties: false });

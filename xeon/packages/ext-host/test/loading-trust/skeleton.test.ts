@@ -2,6 +2,7 @@
 import { expect, test } from "bun:test";
 import { createSmokeGroup } from "../../src/testing/index.ts";
 import { createLoaderHarness } from "./support/harness.ts";
+import { unsafeInput } from "../primitives/fixtures/support.ts";
 
 test("skeleton: the loader loads the smoke group and its operations run", async () => {
   const harness = await createLoaderHarness();
@@ -76,8 +77,8 @@ test("skeleton: a missing dependency is a start failure", async () => {
   const harness = await createLoaderHarness();
   const { createExtensionLoader } = await import("../../src/loading-trust/index.ts");
   const loader = createExtensionLoader({
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 시험 전용: JS 호출자가 필수 항목을 빠뜨린 경우
-    host: undefined as never,
+    // JS 호출자가 필수 항목을 빠뜨린 경우
+    host: unsafeInput(undefined),
     policy: harness.policy,
     fs: {
       readText: () => Promise.resolve(null),

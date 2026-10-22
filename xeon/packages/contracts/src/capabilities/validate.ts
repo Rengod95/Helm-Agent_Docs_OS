@@ -3,6 +3,7 @@ import { Bug, canonicalJson } from "../base/index.ts";
 import type { JsonObject, JsonValue } from "../conversation/index.ts";
 import type { AnyCapabilityDef } from "./capability.ts";
 import { COMMON_ERROR_CODES } from "./errors.ts";
+
 import {
   EXTENSION_TOOL_NAME_PATTERN,
   RESERVED_CAPABILITY_PREFIXES,
@@ -12,6 +13,8 @@ import {
   isSemVer,
   type CapabilityId,
 } from "./ids.ts";
+
+const COMMON_CODE_SET: ReadonlySet<string> = new Set(COMMON_ERROR_CODES);
 
 export type IssueSeverity = "error" | "warning";
 
@@ -111,7 +114,8 @@ function normalizeValue(
   }
   if (Array.isArray(value)) {
     const items: JsonValue[] = [];
-    for (const item of value as readonly unknown[]) {
+    const list: readonly unknown[] = value;
+    for (const item of list) {
       const normalized = normalizeValue(item, state, depth + 1);
       if (normalized === DROPPED) continue;
       items.push(normalized);
@@ -231,13 +235,15 @@ function childSchemas(
     const member = node[key];
     if (isPlainRecord(member)) children.push(member);
     else if (Array.isArray(member)) {
-      for (const item of member as readonly unknown[]) if (isPlainRecord(item)) children.push(item);
+      const list: readonly unknown[] = member;
+      for (const item of list) if (isPlainRecord(item)) children.push(item);
     }
   }
   for (const key of SCHEMA_LIST_KEYS) {
     const list = node[key];
     if (!Array.isArray(list)) continue;
-    for (const item of list as readonly unknown[]) if (isPlainRecord(item)) children.push(item);
+    const items: readonly unknown[] = list;
+    for (const item of items) if (isPlainRecord(item)) children.push(item);
   }
   return children;
 }
@@ -421,7 +427,7 @@ export function validateCapability(def: AnyCapabilityDef): readonly CapabilityIs
       const codePath = `${base}/errors/${escapePointer(code)}`;
       if (!ERROR_CODE_REGEX.test(code)) {
         push("error", "error_code_invalid", codePath, `error code "${code}" is invalid`);
-      } else if ((COMMON_ERROR_CODES as readonly string[]).includes(code)) {
+      } else if (COMMON_CODE_SET.has(code)) {
         push("error", "error_code_shadow", codePath, `error code "${code}" shadows a common code`);
       }
     }

@@ -121,6 +121,30 @@ export function failureOfWire(error: WireError): Failure {
       };
     case "host.shuttingDown":
       return { message: "엔진이 종료 중이다", fix: "잠시 뒤 다시 실행한다", code: EXIT.error };
+    case "store.busy":
+      return {
+        message: "저장소가 다른 쓰기로 바쁘다",
+        fix: "잠시 뒤 다시 실행한다",
+        code: EXIT.error,
+      };
+    case "store.diskFull":
+      return {
+        message: "저장 공간이 가득 찼다",
+        fix: "디스크 공간을 비우고 다시 실행한다",
+        code: EXIT.environment,
+      };
+    case "store.readOnly":
+      return {
+        message: "저장소가 읽기 전용이라 쓸 수 없다",
+        fix: "다른 엔진이 쓰는 중인지 xeon service status로 확인한다",
+        code: EXIT.error,
+      };
+    case "store.io":
+      return {
+        message: "저장소 입출력에 실패했다",
+        fix: "데이터 디렉터리의 권한과 디스크 상태를 확인한다",
+        code: EXIT.environment,
+      };
     case "internal": {
       const traceId = error.data.traceId;
       return {

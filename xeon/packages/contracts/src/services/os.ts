@@ -77,7 +77,9 @@ export type DirsError =
   /** 남이 만든 디렉터리 */
   | { readonly kind: "not_owned"; readonly path: string }
   | { readonly kind: "permission_too_open"; readonly path: string; readonly mode: number }
-  | { readonly kind: "io"; readonly path: string; readonly code: string };
+  | { readonly kind: "io"; readonly path: string; readonly code: string }
+  /** 중단 신호로 멈췄다. 이미 만든 디렉터리는 그대로 둔다 */
+  | { readonly kind: "cancelled" };
 
 // ── 파일 시스템 종류 ─────────────────────────────────────────────────────
 

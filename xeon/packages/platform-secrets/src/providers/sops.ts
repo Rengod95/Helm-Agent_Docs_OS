@@ -31,6 +31,8 @@ export interface RunRequest {
   /** 자식 env 전체. 부모 env를 물려받지 않는다 */
   readonly env: Readonly<Record<string, string>>;
   readonly timeoutMs: number;
+  /** 서비스가 닫히면 중단된다. 실행 중인 자식 프로세스를 죽인다 */
+  readonly signal: AbortSignal;
 }
 
 export interface RunOutput {
@@ -39,7 +41,9 @@ export interface RunOutput {
   readonly stderr: string;
 }
 
-type RunFailure = { readonly kind: "spawn_failed"; readonly code: string };
+type RunFailure =
+  | { readonly kind: "spawn_failed"; readonly code: string }
+  | { readonly kind: "cancelled" };
 
 /** 주입 지점. 테스트는 가짜 실행기나 가짜 sops 실행 파일을 쓴다 */
 export type ProcessRunner = (request: RunRequest) => Promise<Result<RunOutput, RunFailure>>;
@@ -47,6 +51,9 @@ export type ProcessRunner = (request: RunRequest) => Promise<Result<RunOutput, R
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export const bunRunner: ProcessRunner = async (request) => {
+  // 신호는 await 사이에 중단될 수 있어 읽을 때마다 현재 값을 본다
+  const cancelled = (): boolean => request.signal.aborted;
+  if (cancelled()) return err({ kind: "cancelled" });
   try {
     const proc = Bun.spawn([...request.argv], {
       env: { ...request.env },
@@ -54,16 +61,18 @@ export const bunRunner: ProcessRunner = async (request) => {
       stdout: "pipe",
       stderr: "pipe",
       timeout: request.timeoutMs,
+      signal: request.signal,
     });
     const stdoutPending = new Response(proc.stdout).arrayBuffer();
     const stderrPending = new Response(proc.stderr).text();
     const exitCode = await proc.exited;
-    return ok({
-      exitCode,
-      stdout: new Uint8Array(await stdoutPending),
-      stderr: await stderrPending,
-    });
+    const stdout = new Uint8Array(await stdoutPending);
+    const stderr = await stderrPending;
+    // 중단 신호로 죽은 호출은 출력이 잘렸을 수 있어 결과로 쓰지 않는다
+    if (cancelled()) return err({ kind: "cancelled" });
+    return ok({ exitCode, stdout, stderr });
   } catch (error: unknown) {
+    if (cancelled()) return err({ kind: "cancelled" });
     return err({ kind: "spawn_failed", code: errorCode(error) });
   }
 };
@@ -98,10 +107,13 @@ export function versionAtLeast(found: string, required: string): boolean {
 export interface SopsResolverDeps {
   /** l0.secrets.sops.binary. null이면 xeon.os가 해석한다 */
   readonly configured: () => string | null;
-  readonly resolveBinary: (options: {
-    readonly minVersion: string;
-  }) => Promise<Result<ResolvedBinary, BinaryError>>;
+  readonly resolveBinary: (
+    options: { readonly minVersion: string },
+    signal: AbortSignal,
+  ) => Promise<Result<ResolvedBinary, BinaryError>>;
   readonly runner: ProcessRunner;
+  /** 서비스 수명 신호. 닫히면 해석과 호출이 cancelled로 끝난다 */
+  readonly signal: AbortSignal;
   readonly parentEnv: Readonly<Record<string, string | undefined>>;
 }
 
@@ -124,7 +136,9 @@ export function createSopsResolver(deps: SopsResolverDeps): SopsResolver {
       argv: [path, "--disable-version-check", "--version"],
       env: buildPlainEnv(deps.parentEnv),
       timeoutMs: DEFAULT_TIMEOUT_MS,
+      signal: deps.signal,
     });
+    if (!run.ok && run.error.kind === "cancelled") return err({ kind: "cancelled" });
     if (!run.ok || run.value.exitCode !== 0) return err(unavailable("binary_missing"));
     const stdout = new TextDecoder().decode(run.value.stdout);
     const parsed = parseVersion(stdout);
@@ -135,8 +149,9 @@ export function createSopsResolver(deps: SopsResolverDeps): SopsResolver {
   }
 
   async function resolveViaOs(): Promise<Result<SopsBinary, SecretError>> {
-    const found = await deps.resolveBinary({ minVersion: SOPS_MIN_VERSION });
+    const found = await deps.resolveBinary({ minVersion: SOPS_MIN_VERSION }, deps.signal);
     if (found.ok) return ok({ path: found.value.path, version: found.value.version });
+    if (found.error.kind === "cancelled") return err({ kind: "cancelled" });
     return err(
       unavailable(found.error.kind === "version_too_old" ? "version_too_old" : "binary_missing"),
     );
@@ -167,7 +182,7 @@ export function createSopsResolver(deps: SopsResolverDeps): SopsResolver {
 
 // ── 제공자 ───────────────────────────────────────────────────────────────
 
-/** 제공자 lease는 핸들을 모른다(F SecretProvider.lease에 핸들 인자가 없다). 서비스가 바깥 lease로 감싸 핸들을 채운다 */
+/** 제공자 lease에는 핸들이 없다(F SecretProvider.lease에 핸들 인자가 없다). 서비스가 바깥 lease로 감싸 핸들을 채운다 */
 export const PROVIDER_PLACEHOLDER_HANDLE: SecretHandle = secretRef("provider-lease");
 
 export interface SopsKeyAccess {
@@ -181,6 +196,8 @@ export interface SopsProviderDeps {
   readonly key: () => Promise<Result<SopsKeyAccess, SecretError>>;
   readonly parentEnv: Readonly<Record<string, string | undefined>>;
   readonly runner: ProcessRunner;
+  /** 서비스 수명 신호. 닫히면 진행 중인 sops 호출을 중단한다 */
+  readonly signal: AbortSignal;
   readonly redactor: Pick<Redactor, "mask">;
   readonly clock: Clock;
   readonly scheduler: Scheduler;
@@ -297,8 +314,13 @@ export function createSopsProvider(deps: SopsProviderDeps): SecretProvider {
         argv: [binary.value.path, "decrypt", "--extract", extract.value, file.path],
         env: buildSopsEnv(deps.parentEnv, key.value.env),
         timeoutMs: DEFAULT_TIMEOUT_MS,
+        signal: deps.signal,
       });
-      if (!run.ok) return err(unavailable("binary_missing"));
+      if (!run.ok) {
+        return err(
+          run.error.kind === "cancelled" ? { kind: "cancelled" } : unavailable("binary_missing"),
+        );
+      }
       if (run.value.exitCode !== 0) {
         return err(
           classifyFailure(run.value.stderr, key.value.id, run.value.exitCode, deps.redactor),

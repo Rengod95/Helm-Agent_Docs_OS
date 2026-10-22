@@ -1,4 +1,12 @@
-import { err, ok, type Clock, type Logger, type Result, type Scheduler } from "@xeon/contracts";
+import {
+  attempt,
+  err,
+  ok,
+  type Clock,
+  type Logger,
+  type Result,
+  type Scheduler,
+} from "@xeon/contracts";
 import type {
   RedactionHit,
   SecretAuditRecord,
@@ -101,12 +109,9 @@ interface HttpPlan {
 }
 
 function planHttp(template: HttpTemplate): Result<HttpPlan, SecretError> {
-  let url: URL;
-  try {
-    url = new URL(template.url);
-  } catch {
-    return err(invalidRef("scheme"));
-  }
+  const parsedUrl = attempt(() => new URL(template.url));
+  if (!parsedUrl.ok) return err(invalidRef("scheme"));
+  const url = parsedUrl.value;
   if ((url.protocol !== "https:" && url.protocol !== "http:") || template.url.includes("secret:")) {
     // URL에는 핸들을 넣을 수 없다(쿼리 문자열은 로그와 리퍼러로 새기 쉽다)
     return err(invalidRef("scheme"));
@@ -252,7 +257,7 @@ export function createSecretServiceCore(deps: SecretServiceCoreDeps): SecretServ
       maxUses: limits.maxUses + 1,
     });
     if (!opened.ok) {
-      // 제공자는 핸들을 모른다. 없는 항목 오류에는 서비스가 실제 핸들을 채운다
+      // 제공자에는 핸들이 전달되지 않는다. 없는 항목 오류에는 서비스가 실제 핸들을 채운다
       const error = opened.error;
       return error.kind === "secret_missing"
         ? err({ kind: "secret_missing", handle, where: error.where })

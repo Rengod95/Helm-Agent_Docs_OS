@@ -81,9 +81,18 @@ export interface MemorySession extends TasksSession {
   readonly listenerErrors: readonly unknown[];
 }
 
+/** 이 대역이 낙인한 초안. 브랜드 심볼은 선언뿐이라 실제 저장소처럼 WeakSet 등록으로 가드한다 */
+const stampRegistry = new WeakSet<object>();
+
+function isStamped(value: object): value is StampedDraft {
+  return stampRegistry.has(value);
+}
+
 function stamp(draft: DurableEventDraft, producer: ProducerId): StampedDraft {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- StampedDraft의 브랜드는 선언만 있는 unique symbol이라 대역이 만들 방법이 이것뿐이다 (ext-host 대역과 같다)
-  return { draft, producer } as StampedDraft;
+  const candidate = { draft, producer };
+  stampRegistry.add(candidate);
+  if (!isStamped(candidate)) throw new Bug("memorySession: stamp registry lost a draft");
+  return candidate;
 }
 
 function matchesFilter(event: DurableEventEnvelope, filter: FeedFilter | undefined): boolean {

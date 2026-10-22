@@ -116,14 +116,11 @@ describe("ensureDirs", () => {
     });
   });
 
-  test("중단 신호는 io(ABORT_ERR)로 끝낸다", async () => {
+  test("중단 신호는 cancelled로 끝낸다", async () => {
     const dirs = await makeDirs();
     const controller = new AbortController();
     controller.abort();
     const result = await ensureDirs(dirs, createNodeDirFs(uid), controller.signal);
-    expect(result).toEqual({
-      ok: false,
-      error: { kind: "io", path: dirs.data, code: "ABORT_ERR" },
-    });
+    expect(result).toEqual({ ok: false, error: { kind: "cancelled" } });
   });
 });

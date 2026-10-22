@@ -92,7 +92,7 @@ export function fixedIdFactory(clock: Pick<Clock, "now">, seed: string = "seed")
     next<P extends IdPrefix>(prefix: P): IdByPrefix[P] {
       counter += 1;
       const ulid = `${encode(clock.now(), 10)}${encode(seedValue, 8)}${encode(counter, 8)}`;
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 테스트 대역의 브랜드 생성 (eng.typescript.guide TY-06)
+      // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A2 브랜드 생성: 테스트 대역 fixedIdFactory (eng.typescript.guide TY-06)
       return `${prefix}_${ulid}` as IdByPrefix[P];
     },
   };

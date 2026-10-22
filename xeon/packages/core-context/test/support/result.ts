@@ -11,9 +11,3 @@ export function present<T>(value: T | undefined): T {
   if (value === undefined) throw new Bug("test.unexpected_undefined");
   return value;
 }
-
-/** 시험 전용: 타입을 어긴 값을 흉내 낸다. 핸들러 결과 스키마 검사가 막는지 확인할 때만 쓴다 */
-export function unsafeResult(value: unknown): never {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 시험 전용: 결과 스키마를 어긴 반환값을 흉내 낸다 (eng.testing.guide TS-04)
-  return value as never;
-}

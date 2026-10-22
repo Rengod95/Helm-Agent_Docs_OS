@@ -70,7 +70,8 @@ describe("orderProviderCandidates", () => {
   });
 
   test("same input, same output regardless of candidate order", () => {
-    const input = { settingProvider: "auto", pluginOrder: [] as readonly string[] };
+    const pluginOrder: readonly string[] = [];
+    const input = { settingProvider: "auto", pluginOrder };
     const a = orderProviderCandidates({ ...input, candidates: CANDIDATES });
     const b = orderProviderCandidates({ ...input, candidates: CANDIDATES.toReversed() });
     expect(a).toEqual(b);

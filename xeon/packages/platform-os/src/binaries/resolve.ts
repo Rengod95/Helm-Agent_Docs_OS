@@ -8,7 +8,16 @@ import {
   resolve as resolvePath,
   sep,
 } from "node:path";
-import { assertNever, Bug, err, ok, type Logger, type Result } from "@xeon/contracts";
+import {
+  assertNever,
+  attemptAsync,
+  Bug,
+  err,
+  ok,
+  parseJson,
+  type Logger,
+  type Result,
+} from "@xeon/contracts";
 import type {
   BinaryError,
   BinaryName,
@@ -66,17 +75,15 @@ function lockEntry(value: unknown): LockEntry | undefined {
 
 /** binaries.lock.json 본문을 읽는다. 모양: { "binaries": [ { name, platform, arch, path, sha256, version } ] } */
 export function parseBinariesLock(text: string): Result<readonly LockEntry[], LockParseError> {
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    return err({ kind: "lock_invalid" });
-  }
+  const decoded = parseJson(text);
+  if (!decoded.ok) return err({ kind: "lock_invalid" });
+  const json = decoded.value;
   if (!isRecord(json)) return err({ kind: "lock_invalid" });
   const list = json["binaries"];
   if (!Array.isArray(list)) return err({ kind: "lock_invalid" });
+  const items: readonly unknown[] = list;
   const entries: LockEntry[] = [];
-  for (const item of list as readonly unknown[]) {
+  for (const item of items) {
     const entry = lockEntry(item);
     if (entry === undefined) return err({ kind: "lock_invalid" });
     entries.push(entry);
@@ -108,13 +115,11 @@ export function createNodeBinaryFs(): BinaryFs {
       }
     },
     async isExecutableFile(path) {
-      try {
-        const st = await stat(path);
-        // 소유자, 그룹, 기타 중 하나라도 실행 비트가 있는 일반 파일
-        return st.isFile() && (st.mode & 0o111) !== 0;
-      } catch {
-        return false;
-      }
+      const st = await attemptAsync(() => stat(path));
+      // 없거나 읽을 수 없는 경로는 실행 파일이 아니다
+      if (!st.ok) return false;
+      // 소유자, 그룹, 기타 중 하나라도 실행 비트가 있는 일반 파일
+      return st.value.isFile() && (st.value.mode & 0o111) !== 0;
     },
   };
 }

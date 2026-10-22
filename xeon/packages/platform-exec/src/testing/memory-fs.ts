@@ -1,5 +1,5 @@
 import { posix } from "node:path";
-import { err, ok, type Clock, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Clock, type Result } from "@xeon/contracts";
 import {
   FileError,
   type BinaryReader,
@@ -182,13 +182,10 @@ export function memoryFs(options: MemoryFsOptions = {}): FileSystem {
         const stop = aborted(context, path);
         if (stop !== undefined) return Promise.resolve(stop);
         if (closed) return Promise.resolve(closedError());
-        try {
-          const scanner = new LineScanner(scanOptions.startLine, scanOptions.endLine);
-          scanner.push(snapshot);
-          return Promise.resolve(ok(scanner.finish()));
-        } catch {
-          return Promise.resolve(fail("invalid", "Invalid line range", path));
-        }
+        const created = attempt(() => new LineScanner(scanOptions.startLine, scanOptions.endLine));
+        if (!created.ok) return Promise.resolve(fail("invalid", "Invalid line range", path));
+        created.value.push(snapshot);
+        return Promise.resolve(ok(created.value.finish()));
       },
       close() {
         closed = true;

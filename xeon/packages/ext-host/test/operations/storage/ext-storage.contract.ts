@@ -12,6 +12,7 @@ import {
 import type { DurableEventEnvelope, ProjectorRegistry, StoreDb } from "@xeon/contracts/records";
 import { Type } from "typebox";
 import { fixedIdFactory } from "../../../src/testing/index.ts";
+import { portAs } from "../../../src/erase.ts";
 import { optionalTextOf, recordOf, textOf } from "../../support/guards.ts";
 import {
   createExtStorageManager,
@@ -52,12 +53,10 @@ function portsOf(session: ContractSession): PortLookup {
   return {
     get<Api>(key: PortKey<Api>): Api | undefined {
       if (key.name === ProjectorRegistryPortKey.name) {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 시험용 조회: 키 이름이 Api를 정한다
-        return session.registry as unknown as Api;
+        return portAs(key, session.registry);
       }
       if (key.name === ScopedStorePortKey.name) {
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 시험용 조회: 키 이름이 Api를 정한다
-        return session.store as unknown as Api;
+        return portAs(key, session.store);
       }
       return undefined;
     },

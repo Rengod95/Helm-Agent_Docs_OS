@@ -24,7 +24,7 @@ import type {
 // core-tools 내부 공용 타입.
 
 /**
- * 도구가 낸 결과. 기록 전이라 `details`가 JSON인지 아직 모른다(확인은 finishCall). AgentToolResult는 이 모양에 대입할 수 있다.
+ * 도구가 낸 결과. 기록 전이라 `details`가 JSON인지 아직 확인되지 않았다(확인은 finishCall). AgentToolResult는 이 모양에 대입할 수 있다.
  * 읽기 전용이라 마스킹·경계화가 새 값을 만든다.
  */
 export interface RawToolResult {

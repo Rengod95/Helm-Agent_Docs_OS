@@ -2,7 +2,6 @@ import type { ServiceKey } from "@xeon/contracts/capabilities";
 import { Bug } from "@xeon/contracts";
 import type { JsonValue } from "@xeon/contracts/conversation";
 import type {
-  DriveFn,
   DriveOptions,
   ExtensionName,
   Handler,
@@ -17,8 +16,10 @@ import type {
   ScopeId,
   Unsubscribe,
 } from "@xeon/contracts/extensions";
+import { eraseDrive, eraseHandler, serviceAs, stateAs } from "../erase.ts";
 import type { CapabilityBindings } from "./bindings.ts";
-import type { AnyState, DriveCall, Generation, HostCore, ScopeRecord } from "./core.ts";
+import type { Generation, HostCore, ScopeRecord } from "./core.ts";
+import type { AnyState } from "./erased-types.ts";
 import { PrimitiveError } from "./errors.ts";
 import { createPortProvider } from "./port-provider.ts";
 import type { PostQueue } from "./post.ts";
@@ -86,22 +87,6 @@ function fiberOf(generation: Generation): NonNullable<Generation["fiber"]> {
   return generation.fiber;
 }
 
-/** 지점 종류를 지운 핸들러 함수. 호출 쪽(디스패처)이 지점의 인자 모양을 맞춘다 */
-function erasedHandler<N extends PointName>(handler: Handler<N>): HandlerEntry["fn"] {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 핸들러 시그니처는 fold별 조건부 타입이다. 디스패처가 POINTS[point].fold에 맞는 인자로만 부른다 (X.primitives.spec §4.2)
-  return handler as unknown as HandlerEntry["fn"];
-}
-
-function erasedState(doc: unknown): AnyState {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 상태 타입 S가 지워진 g다. 문서는 StateDecl.schema 검사를 거친 값이다
-  return doc as AnyState;
-}
-
-function erasedDrive<S>(fn: DriveFn<S>): DriveCall {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 상태 타입 S를 지운다. 호출은 StateDecl.schema로 검증된 문서만 넘긴다 (X.primitives.spec §4.4.3)
-  return fn as unknown as DriveCall;
-}
-
 export function createScopeApi(
   deps: ScopeApiDeps,
   record: ScopeRecord,
@@ -140,7 +125,7 @@ export function createScopeApi(
         builtin: record.builtin,
         loadIndex: record.loadIndex,
         seq: core.registry.nextSeq(),
-        fn: erasedHandler(handler),
+        fn: eraseHandler(handler),
         isOpen: () => generation.open,
         signal: generation.abort.signal,
       };
@@ -176,7 +161,7 @@ export function createScopeApi(
         });
       }
       generation.usage.drive = true;
-      const registration = { fn: erasedDrive(fn), options: options ?? {} };
+      const registration = { fn: eraseDrive(fn), options: options ?? {} };
       generation.drive = registration;
       fiberOf(generation).effect(
         () => () => {
@@ -186,10 +171,10 @@ export function createScopeApi(
       );
     },
     state() {
-      return erasedState(deps.state.state(record, generation));
+      return stateAs(deps.state.state(record, generation));
     },
     async commit(next) {
-      return erasedState(await deps.state.commit(record, generation, next));
+      return stateAs(await deps.state.commit(record, generation, next));
     },
     record(kind: RecordKind, subject: RecordSubject, payload: JsonValue) {
       return deps.state.record(record, generation, kind, subject, payload);
@@ -224,8 +209,7 @@ export function createScopeApi(
           },
         );
       }
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ServiceKey<Api>의 Api는 팬텀 타입이다. 공급자가 같은 키로 provide했다 (F.capabilities.spec §3.5)
-      return service as Api;
+      return serviceAs(key, service);
     },
     onDispose(fn) {
       assertOpen(record, generation);

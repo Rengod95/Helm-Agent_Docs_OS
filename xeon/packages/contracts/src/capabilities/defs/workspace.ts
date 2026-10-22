@@ -13,6 +13,7 @@ import {
   type TString,
   type TUnion,
 } from "typebox";
+import { parseJson } from "../../base/index.ts";
 import type { CapabilityApi, CapabilityDef } from "../capability.ts";
 import type { MethodDef } from "../method.ts";
 import { defineCapability } from "../capability.ts";
@@ -452,15 +453,13 @@ function isReplacement(value: unknown): value is Static<typeof Replacement> {
 function toEditInput(p: Static<typeof EditToolParams>): Static<typeof EditInput> {
   let edits: unknown = p.edits;
   if (typeof edits === "string") {
-    try {
-      edits = JSON.parse(edits);
-    } catch {
-      edits = [];
-    }
+    const decoded = parseJson(edits);
+    // 모델이 보낸 문자열이 JSON이 아니면 edits가 없는 입력으로 보고 oldText/newText 쌍으로 대체한다
+    edits = decoded.ok ? decoded.value : [];
   }
   if (edits !== undefined && !Array.isArray(edits)) edits = [edits];
   const list: Static<typeof Replacement>[] = Array.isArray(edits)
-    ? (edits as readonly unknown[]).filter(isReplacement)
+    ? edits.filter(isReplacement)
     : [];
   if (list.length === 0 && typeof p.oldText === "string" && typeof p.newText === "string") {
     return { path: p.path, edits: [{ oldText: p.oldText, newText: p.newText }] };

@@ -20,6 +20,8 @@ import {
 import { homedir, constants as osConstants, tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+// XEON-PATCH: P14
+import { attempt, attemptAsync } from "@xeon/contracts";
 // XEON-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
 // XEON-PATCH: P3
@@ -43,6 +45,7 @@ import {
   type ShellOutputInfo,
   type TextLine,
   type TextLineReader,
+  closeBestEffort,
   toError,
   type WatchChange,
   type WatchTarget,
@@ -88,11 +91,10 @@ function resolvePath(cwd: string, path: string, platform: ExecPlatformProvider):
   ) {
     normalized = join(homedir(), normalized.slice(2));
   } else if (normalized.startsWith("file://")) {
-    try {
-      normalized = fileURLToPath(normalized);
-    } catch {
-      // Keep malformed URLs as ordinary paths so filesystem methods preserve their non-throwing contract.
-    }
+    // XEON-PATCH: P14
+    const filePath = attempt(() => fileURLToPath(normalized));
+    // Keep malformed URLs as ordinary paths so filesystem methods preserve their non-throwing contract.
+    if (filePath.ok) normalized = filePath.value;
   }
   return isAbsolute(normalized) ? resolve(normalized) : resolve(cwd, normalized);
 }
@@ -155,6 +157,9 @@ function toFileError(error: unknown, fallbackPath?: string): FileError {
         return new FileError("is_directory", message, path, cause);
       case "EINVAL":
         return new FileError("invalid", message, path, cause);
+      default:
+        // 그 밖의 errno는 아래 "unknown"으로 묶는다(열린 외부 값, eng.typescript.guide TY-14)
+        break;
     }
   }
   return new FileError("unknown", cause.message, path, cause);
@@ -169,12 +174,8 @@ function abortResult<TValue>(
 }
 
 async function pathExists(path: string): Promise<boolean> {
-  try {
-    await access(path, constants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
+  // XEON-PATCH: P14
+  return (await attemptAsync(() => access(path, constants.F_OK))).ok;
 }
 
 async function runCommand(
@@ -187,16 +188,18 @@ async function runCommand(
   // oxlint-disable-next-line no-shadow -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
   return await new Promise((resolve) => {
     let stdout = "";
-    let child: ReturnType<typeof spawn>;
-    try {
-      child = spawn(command, args, {
+    // XEON-PATCH: P14
+    const spawned = attempt(() =>
+      spawn(command, args, {
         stdio: ["ignore", "pipe", "ignore"],
         windowsHide: true,
-      });
-    } catch {
+      }),
+    );
+    if (!spawned.ok) {
       resolve({ stdout: "", status: null });
       return;
     }
+    const child: ReturnType<typeof spawn> = spawned.value;
     const timeout = setTimeout(() => {
       // XEON-PATCH: P3
       if (child.pid) platform.killProcessTree(child.pid);
@@ -429,11 +432,8 @@ class NodeTextLineReader implements TextLineReader {
     if (this.closed) return;
     this.closed = true;
     this.buffered = "";
-    try {
-      await this.file.close();
-    } catch {
-      // Closing is best-effort, including after cancellation or an earlier I/O failure.
-    }
+    // Closing is best-effort, including after cancellation or an earlier I/O failure.
+    await closeBestEffort(this.file);
   }
 }
 
@@ -514,12 +514,10 @@ class NodeBinaryReader implements BinaryReader {
     const aborted = abortResult<LineScan>(context.abortSignal, this.path);
     if (aborted) return aborted;
     if (this.closed) return closedResult("Binary reader", this.path);
-    let scanner: LineScanner;
-    try {
-      scanner = new LineScanner(options.startLine, options.endLine);
-    } catch {
-      return err(new FileError("invalid", "Invalid line range", this.path));
-    }
+    // XEON-PATCH: P14
+    const created = attempt(() => new LineScanner(options.startLine, options.endLine));
+    if (!created.ok) return err(new FileError("invalid", "Invalid line range", this.path));
+    const scanner = created.value;
     const chunk = new Uint8Array(64 * 1024);
     try {
       for (let position = 0; ;) {
@@ -539,7 +537,7 @@ class NodeBinaryReader implements BinaryReader {
   async close(_context: Context): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    await this.file.close().catch(() => undefined);
+    await closeBestEffort(this.file);
   }
 }
 
@@ -603,7 +601,7 @@ class NodeDirReader implements DirReader {
   async close(_context: Context): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    await this.dir.close().catch(() => undefined);
+    await closeBestEffort(this.dir);
   }
 }
 
@@ -946,7 +944,10 @@ export class NodeExecutionEnv implements ExecutionEnv {
           const exitCode = code ?? (exitSignal ? 128 + (osConstants.signals[exitSignal] ?? 0) : 1);
           settle(ok({ exitCode, ...(spillPath === undefined ? {} : { spillPath }) }));
         },
-        (error: Error) => settle(err(new ExecutionError("spawn_error", error.message, error))),
+        (error: unknown) => {
+          const cause = toError(error);
+          settle(err(new ExecutionError("spawn_error", cause.message, cause)));
+        },
       );
     });
   }
@@ -963,7 +964,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
       const file = await openFile(resolved, "r");
       const afterOpenAbort = abortResult<TextLineReader>(context.abortSignal, resolved);
       if (afterOpenAbort) {
-        await file.close().catch(() => undefined);
+        await closeBestEffort(file);
         return afterOpenAbort;
       }
       return ok(new NodeTextLineReader(file, resolved));
@@ -1048,7 +1049,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
       file = await openFile(resolved, flags);
       const stats = await file.stat();
       if (!stats.isFile()) {
-        await file.close().catch(() => undefined);
+        await closeBestEffort(file);
         return err(
           stats.isDirectory()
             ? new FileError(
@@ -1061,12 +1062,12 @@ export class NodeExecutionEnv implements ExecutionEnv {
       }
       const afterOpenAbort = abortResult<BinaryReader>(context.abortSignal, resolved);
       if (afterOpenAbort) {
-        await file.close().catch(() => undefined);
+        await closeBestEffort(file);
         return afterOpenAbort;
       }
       return ok(new NodeBinaryReader(file, resolved));
     } catch (error) {
-      await file?.close().catch(() => undefined);
+      await closeBestEffort(file);
       // O_NOFOLLOW reports a final-component symlink as ELOOP (EMLINK on some BSDs).
       if (noFollow && isNodeError(error) && (error.code === "ELOOP" || error.code === "EMLINK")) {
         return err(symlinkRefused(resolved, toError(error)));
@@ -1142,7 +1143,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     } catch (error) {
       return err(toFileError(error, resolved));
     } finally {
-      await file?.close().catch(() => undefined);
+      await closeBestEffort(file);
     }
   }
 
@@ -1164,7 +1165,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     } catch (error) {
       return err(toFileError(error, resolved));
     } finally {
-      await file?.close().catch(() => undefined);
+      await closeBestEffort(file);
     }
   }
 
@@ -1235,7 +1236,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
       const dir = await opendir(resolved);
       const afterOpenAbort = abortResult<DirReader>(context.abortSignal, resolved);
       if (afterOpenAbort) {
-        await dir.close().catch(() => undefined);
+        await closeBestEffort(dir);
         return afterOpenAbort;
       }
       return ok(new NodeDirReader(dir, resolved));

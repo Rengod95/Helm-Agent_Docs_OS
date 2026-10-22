@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { Bug } from "@xeon/contracts";
+import { Bug, parseJson } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { SessionSettingsStore } from "@xeon/contracts/records";
 import {
@@ -92,14 +92,13 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
         state.user = new Map();
         return;
       }
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(text);
-      } catch {
+      const decoded = parseJson(text);
+      if (!decoded.ok) {
         diagnostics.push("settings.user_invalid_json");
         state.user = new Map();
         return;
       }
+      const parsed = decoded.value;
       if (!isRecord(parsed)) {
         diagnostics.push("settings.user_not_object");
         state.user = new Map();

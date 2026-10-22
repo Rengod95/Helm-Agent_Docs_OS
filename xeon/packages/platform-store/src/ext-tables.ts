@@ -20,8 +20,7 @@ function mapWriteError(error: StoreWriteError): ExtensionTableError {
     case "disk_full":
       return { kind: "disk_full" };
     case "io":
-      // ExtensionTableError에는 io 변형이 없다. 환경 오류를 다른 오류로 속이지 않고 버그로 올린다(미결)
-      throw new Bug(`store.io_unmapped: extension table change failed with ${error.code}`);
+      return { kind: "io", code: error.code };
     default:
       throw new Bug("store.write_error_invalid");
   }

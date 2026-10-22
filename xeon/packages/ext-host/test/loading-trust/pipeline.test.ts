@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
+import { attempt, err, ok } from "@xeon/contracts";
 import {
   createExtensionLoader,
   LoadAbortError,
@@ -142,11 +142,9 @@ test("pipeline: late registration after timeout dropped", async () => {
     harness.options([
       moduleOf({ name: "pipe-slow", points: ["tool_call"] }, async (g) => {
         await gate.promise;
-        try {
-          g.on("tool_call", () => undefined);
-        } catch {
-          // 세대가 닫혀 있어 거부된다
-        }
+        // 세대가 닫혀 있어 거부된다. 거부는 값으로 받고 확인은 아래 단언이 한다
+        const late = attempt(() => g.on("tool_call", () => undefined));
+        expect(late.ok).toBe(false);
       }),
     ]),
   );

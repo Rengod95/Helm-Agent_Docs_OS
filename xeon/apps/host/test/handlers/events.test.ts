@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
+import { parse } from "@xeon/contracts";
 import {
+  EventsBatchParamsSchema,
   findBatchIssue,
+  StreamChunkParamsSchema,
   WireError,
   type EventsBatchParams,
   type StoreId,
@@ -74,9 +77,9 @@ function batchesOf(raw: ReturnType<typeof rawClient>): EventsBatchParams[] {
       message.method === "events.batch" &&
       "params" in message
     ) {
-      // 시험 안에서만 쓰는 좁힘: 서버가 보낸 events.batch의 params다
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 서버가 보낸 알림을 시험이 읽는다 (eng.typescript.guide TY-06)
-      out.push(message.params as EventsBatchParams);
+      // 서버가 보낸 events.batch의 params를 스키마로 검증해 읽는다
+      const params = parse(EventsBatchParamsSchema, message.params);
+      if (params.ok) out.push(params.value);
     }
   }
   return out;
@@ -92,8 +95,8 @@ function chunksOf(raw: ReturnType<typeof rawClient>): StreamChunkParams[] {
       message.method === "stream.chunk" &&
       "params" in message
     ) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 서버가 보낸 알림을 시험이 읽는다 (eng.typescript.guide TY-06)
-      out.push(message.params as StreamChunkParams);
+      const params = parse(StreamChunkParamsSchema, message.params);
+      if (params.ok) out.push(params.value);
     }
   }
   return out;

@@ -94,12 +94,16 @@ const SLASH_HELP = [
 export async function runInteractive(args: InteractiveArgs): Promise<ExitCode> {
   const { io, session, exit } = args;
   const abort = new AbortController();
-  exit.requested
-    .then((request) => {
+  // 종료 요청이 오면 입력 대기를 푼다. 요청 약속이 거부돼도 입력 대기는 풀어야 한다
+  exit.requested.then(
+    () => {
       abort.abort();
-      return request;
-    })
-    .catch(() => undefined);
+      return undefined;
+    },
+    () => {
+      abort.abort();
+    },
+  );
   await io.stdout(`xeon chat — 세션 ${session.threadId} (종료: /quit 또는 Ctrl+D)\n`);
   // 이전 기록을 다 그린 뒤에 입력을 받는다: 재전송과 새 turn의 그리기가 섞이지 않게 한다
   await Promise.race([session.caughtUp(), exit.requested]);

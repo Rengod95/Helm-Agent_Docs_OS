@@ -19,7 +19,7 @@ import type {
 } from "@xeon/contracts/services";
 import { Type } from "typebox";
 
-// 테스트 대역: core-tools의 파이프라인 중 루프와 맞닿는 부분만 흉내 낸다.
+// 테스트 대역: core-tools의 파이프라인 중 루프와 접하는 부분만 흉내 낸다.
 // prepare → effect.intent, execute → effect.exec + effect.result + toolResult item(한 커밋), 효과 없이 닫는 호출 → toolResult item 하나.
 
 export interface FakeToolDef {

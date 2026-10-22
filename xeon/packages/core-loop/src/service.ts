@@ -493,6 +493,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
           return err({ kind: "input_invalid", message: "thread is closed" });
         case "busy":
         case "disk_full":
+        case "io":
         case "ownership_lost":
         case "read_only":
         case "thread_not_found":

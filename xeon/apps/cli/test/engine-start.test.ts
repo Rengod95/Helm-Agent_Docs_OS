@@ -42,7 +42,7 @@ function api(
 }
 
 function started(
-  close: () => Promise<void> = () => Promise.resolve(),
+  close: () => Promise<"clean" | "deadline"> = () => Promise.resolve("clean"),
   failures: Parameters<typeof startFakeServer>[1]["failures"] = {},
 ): StartedHost {
   const pair = createTransportPair();
@@ -54,10 +54,10 @@ function started(
   };
 }
 
-function countClose(state: { closed: number }): () => Promise<void> {
+function countClose(state: { closed: number }): () => Promise<"clean" | "deadline"> {
   return () => {
     state.closed += 1;
-    return Promise.resolve();
+    return Promise.resolve("clean");
   };
 }
 
@@ -162,9 +162,22 @@ test("the handle reports the store id and transport from host.hello and shuts do
   expect(state.closed).toBe(1);
 });
 
+test("a host whose turn did not stop in time reports a deadline", async () => {
+  const state = { closed: 0 };
+  const host = started(() => {
+    state.closed += 1;
+    return Promise.resolve("deadline");
+  });
+  const connect = createConnectEngine(api(() => Promise.resolve(host)));
+  const result = await connect(OPTIONS);
+  if (!result.ok) throw new Error("connect failed");
+  expect(await result.value.shutdown("signal")).toBe("deadline");
+  expect(state.closed).toBe(1);
+});
+
 test("a host that fails to close throws its cause instead of reporting a deadline, and the connection is still closed", async () => {
   const stuck = new TypeError("stuck");
-  const failingClose = (): Promise<void> => Promise.reject(stuck);
+  const failingClose = (): Promise<"clean" | "deadline"> => Promise.reject(stuck);
   const host = started(failingClose);
   const connect = createConnectEngine(api(() => Promise.resolve(host)));
   const result = await connect(OPTIONS);

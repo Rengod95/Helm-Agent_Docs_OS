@@ -229,7 +229,7 @@ export function stepEndRequest(
 
   const build = (view: TxView): CommitPlan => {
     const drafts: StampedDraft[] = [drafter.make("step.completed", params.stepCompleted, step)];
-    // 핸들러는 turnId를 모른다(TurnEndPayload에 없다). null이면 이 turn으로 채운다
+    // 핸들러 입력에 turnId가 없다(TurnEndPayload에 없다). null이면 이 turn으로 채운다
     for (const entry of params.entries) {
       drafts.push(drafter.stamp(entry.turnId === null ? { ...entry, turnId: step.turnId } : entry));
     }

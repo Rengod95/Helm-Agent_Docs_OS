@@ -36,6 +36,7 @@ import type {
   EffectIntent,
   PendingToolCall,
   StampedDraft,
+  StoreError,
 } from "../records/index.ts";
 
 // L1.tools.spec §3. 구현은 core-tools다. 도구·정책의 공용 타입은 ToolService와 같은 파일에 둔다(F.capabilities.spec §3.12 규칙 3).
@@ -85,7 +86,7 @@ export interface ToolMeta extends Required<Pick<ToolPolicyMeta, "risk" | "classe
   /** 배치 스케줄에 쓴다. "sequential"인 도구가 하나라도 있으면 그 배치는 순차로 돈다(adr.0009 §3.3). 미선언은 생략 */
   readonly executionMode?: ToolExecutionMode;
   readonly exposure: ExposureMode;
-  /** "self": 도구가 스스로 경계화함 */
+  /** "self": 도구 구현이 경계를 직접 지킴 */
   readonly outputLimits: Required<OutputLimits> | "self";
 }
 
@@ -462,7 +463,10 @@ export type ModeChangeResult =
   | { readonly ok: true; readonly mode: PermissionMode }
   | {
       readonly ok: false;
-      readonly error: { readonly kind: "tools.mode_forbidden"; readonly mode: PermissionMode };
+      readonly error:
+        | { readonly kind: "tools.mode_forbidden"; readonly mode: PermissionMode }
+        /** 모드 변경을 세션 설정에 커밋하지 못했다. 저장소 실패는 예상 가능한 거부다 */
+        | { readonly kind: "tools.commit_failed"; readonly store: StoreError };
     };
 
 export interface RuleRegistration {

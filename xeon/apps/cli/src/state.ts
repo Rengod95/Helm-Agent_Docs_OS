@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import { parse } from "@xeon/contracts";
+import { parse, parseJson } from "@xeon/contracts";
 import {
   Type,
   type Static,
@@ -66,13 +66,11 @@ export async function readCliState(path: string): Promise<StateReadOutcome> {
     if (isMissing(caught)) return { kind: "missing", state: EMPTY_CLI_STATE };
     return { kind: "discarded", state: EMPTY_CLI_STATE, reason: "읽을 수 없다" };
   }
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
+  const decoded = parseJson(text);
+  if (!decoded.ok) {
     return { kind: "discarded", state: EMPTY_CLI_STATE, reason: "JSON이 아니다" };
   }
-  const parsed = parse(CliStateSchema, json);
+  const parsed = parse(CliStateSchema, decoded.value);
   if (!parsed.ok) {
     return { kind: "discarded", state: EMPTY_CLI_STATE, reason: "형식이 맞지 않다" };
   }

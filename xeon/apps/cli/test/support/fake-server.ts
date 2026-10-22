@@ -1,3 +1,4 @@
+import { detach, rethrow } from "@xeon/contracts";
 import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
 import {
   checkEnvelope,
@@ -102,7 +103,8 @@ export function startFakeServer(
   const subs = new Map<string, Sub>();
 
   const send = (message: JsonRpcMessage): void => {
-    transport.send(message).catch(() => undefined);
+    // 가짜 서버의 전송 실패는 시험 결함이다: 그대로 다시 던져 시험이 실패하게 한다
+    detach(transport.send(message), rethrow);
   };
 
   const batchFor = (sub: Sub, to: number): EventsBatchParams => {
@@ -284,12 +286,12 @@ export function startFakeServer(
         };
         if (options.respondBeforeTurn === true) {
           queueMicrotask(() => {
-            Promise.resolve(options.onTurn?.(context)).catch(() => undefined);
+            detach(Promise.resolve(options.onTurn?.(context)), rethrow);
           });
         } else {
           const result = options.onTurn?.(context);
           if (result instanceof Promise) {
-            result.catch(() => undefined);
+            detach(result, rethrow);
           }
         }
         return { turnId: turn };

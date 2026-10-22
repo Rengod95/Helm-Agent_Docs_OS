@@ -9,6 +9,7 @@ import {
   type SettingCatalog,
   type SettingDef,
 } from "../../src/wire-settings/settings/index.ts";
+import { parseJson } from "../../src/base/index.ts";
 import { boolDef, intDef, secretDef } from "./helpers.ts";
 
 const choice: SettingDef = intDef({
@@ -176,12 +177,8 @@ describe("same verdict as validateSettingValue (S6)", () => {
     const def = intDef();
     const raws = ["5", "10001", "-1", "abc", "true", "1.5", "[1]", '"5"', "null", "0"];
     for (const raw of raws) {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(raw);
-      } catch {
-        parsed = raw;
-      }
+      const decoded = parseJson(raw);
+      const parsed: unknown = decoded.ok ? decoded.value : raw;
       const write = checkSettingWrite(cat, [], def.key, "user", parsed);
       expect(write.ok).toBe(validateSettingValue(def, parsed).ok);
       const schema = Type.Unsafe(props[def.key] ?? {});

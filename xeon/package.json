@@ -20,6 +20,7 @@
     "fmt-check:root": "oxfmt --check -c .oxfmtrc.json scripts package.json tsconfig.json tsconfig.base.json turbo.json knip.json .oxlintrc.json .oxfmtrc.json .dependency-cruiser.cjs lefthook.yml",
     "fmt": "oxfmt -c .oxfmtrc.json .",
     "check-layers": "bun scripts/check-layers.ts",
+    "check-ts-rules": "bun scripts/check-ts-rules.ts",
     "docs-route": "bun scripts/docs-route.ts",
     "depcruise": "depcruise packages apps plugins --config .dependency-cruiser.cjs",
     "knip": "knip"

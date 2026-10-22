@@ -116,7 +116,7 @@ function assertBudget(lease: LeaseRuntime, kind: "turns" | "spawns"): void {
 }
 
 export interface LeaseBrokerHooks {
-  /** 함수가 스스로 반납을 정한 뒤(error, idle) 다음 경계를 기다리지 않고 유휴 적용을 예약한다 */
+  /** 함수 쪽 사유로 반납이 정해진 뒤(error, idle) 다음 경계를 기다리지 않고 유휴 적용을 예약한다 */
   requestApply(threadId: ThreadRuntime["threadId"]): void;
 }
 

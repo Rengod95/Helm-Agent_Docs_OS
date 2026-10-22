@@ -1,3 +1,4 @@
+import { attemptAsync, parseJson } from "@xeon/contracts";
 import {
   WIRE_LIMITS,
   type CloseInfo,
@@ -37,6 +38,8 @@ function concat(parts: readonly Uint8Array[], length: number): Uint8Array {
   return out;
 }
 
+function noop(): void {}
+
 function messageOf(caught: unknown): string {
   return caught instanceof Error ? caught.message : String(caught);
 }
@@ -66,10 +69,17 @@ export const createStdioTransport: StdioTransportFactory = (
     if (state.closed !== undefined) return Promise.reject(new Error("stdio transport is closed"));
     const bytes = encoder.encode(`${text}\n`);
     const next = tail.current.then(() => writer.write(bytes));
-    tail.current = next.catch(() => undefined);
-    return next.catch((caught: unknown) => {
+    // 쓰기 실패는 닫힘 알림으로 한 번 보고한다. 순서 꼬리는 실패해도 이어지게 값으로 받는다
+    tail.current = next.then(noop, (caught: unknown) => {
       emitClose({ reason: "error", message: messageOf(caught) });
-      throw caught;
+    });
+    return next;
+  }
+
+  /** 결과를 기다리지 않는 쓰기. 실패는 닫힘 알림으로 모은다(이미 닫혔으면 알림은 한 번뿐이다) */
+  function writeDetached(text: string): void {
+    writeLine(text).catch((caught: unknown) => {
+      emitClose({ reason: "error", message: messageOf(caught) });
     });
   }
 
@@ -80,14 +90,12 @@ export const createStdioTransport: StdioTransportFactory = (
         : bytes.length;
     if (end === 0) return;
     const text = decoder.decode(bytes.subarray(0, end));
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      writeLine(failureFrame(-32700, "Parse error", undefined)).catch(() => undefined);
+    const decoded = parseJson(text);
+    if (!decoded.ok) {
+      writeDetached(failureFrame(-32700, "Parse error", undefined));
       return;
     }
-    for (const handler of Array.from(messageHandlers)) handler(parsed);
+    for (const handler of Array.from(messageHandlers)) handler(decoded.value);
   }
 
   /** 줄 하나(또는 버린 줄의 끝)를 처리한다. 청크 경계를 넘는 줄은 reader 상태가 이어받는다 */
@@ -117,7 +125,7 @@ export const createStdioTransport: StdioTransportFactory = (
       // 줄 끝
       if (reading.discarding) {
         reading.discarding = false;
-        writeLine(failureFrame(-32600, "Invalid Request", "frameTooLarge")).catch(() => undefined);
+        writeDetached(failureFrame(-32600, "Invalid Request", "frameTooLarge"));
       } else {
         const only = reading.parts.length === 1 ? reading.parts[0] : undefined;
         const line = only ?? concat(reading.parts, reading.length);
@@ -184,9 +192,10 @@ export const createStdioTransport: StdioTransportFactory = (
     async close(reason) {
       if (state.closed !== undefined) return;
       emitClose({ reason: "local", ...(reason === undefined ? {} : { message: reason }) });
-      await reader.cancel().catch(() => undefined);
+      // 이미 오류로 끝난 스트림의 cancel·close 실패는 위 emitClose로 알렸다. 결과는 값으로 받고 쓰지 않는다
+      await attemptAsync(() => reader.cancel());
       await tail.current;
-      await writer.close().catch(() => undefined);
+      await attemptAsync(() => writer.close());
     },
   };
 };

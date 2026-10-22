@@ -1,6 +1,11 @@
 import { Bug, assertNever, err, ok, type Logger, type Result } from "@xeon/contracts";
 import type { EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
-import type { EnqueueRequest, EnqueueResult, Unsubscribe } from "@xeon/contracts/extensions";
+import type {
+  EnqueueError,
+  EnqueueRequest,
+  EnqueueResult,
+  Unsubscribe,
+} from "@xeon/contracts/extensions";
 import type {
   CommitPlan,
   CommitRequest,
@@ -41,7 +46,7 @@ export interface InputQueueDeps {
 
 export interface InputQueueImpl extends InputQueue {
   /** InputQueuePort.enqueue의 본체. 확장 post의 진입점 */
-  enqueuePost(request: EnqueueRequest): Promise<EnqueueResult>;
+  enqueuePost(request: EnqueueRequest): Promise<Result<EnqueueResult, EnqueueError>>;
   dispose(): void;
 }
 
@@ -336,7 +341,7 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
       };
     },
     enqueuePost(request) {
-      return new Promise<EnqueueResult>((resolve) => {
+      return new Promise<Result<EnqueueResult, EnqueueError>>((resolve) => {
         const result = enqueueNow({
           threadId: request.threadId,
           mode: request.when,
@@ -344,11 +349,7 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
           requestId: request.requestId,
           source: { type: "extension", scopeId: request.scopeId },
         });
-        // InputQueuePort.enqueue에는 오류 통로가 없다. 예상 실패도 거부로 알린다
-        if (!result.ok) {
-          throw new Bug(`tasks.enqueue_failed: ${result.error.kind}`, { cause: result.error });
-        }
-        resolve({ duplicate: result.value.duplicate });
+        resolve(result.ok ? ok({ duplicate: result.value.duplicate }) : err(result.error));
       });
     },
     dispose() {

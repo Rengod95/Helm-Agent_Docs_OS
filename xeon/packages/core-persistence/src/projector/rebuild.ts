@@ -117,6 +117,5 @@ export function ensureProjectors(
     return rebuilt;
   });
   if (written.ok) return ok(written.value);
-  if (written.error.kind === "io") throw new Bug(`store.io: ${written.error.code}`);
   return err(written.error);
 }

@@ -1,3 +1,4 @@
+import { attemptAsync } from "@xeon/contracts";
 import type { JsonRpcMessage } from "@xeon/contracts/wire";
 
 // L4.cli.spec §3.3 observe, §4.4 JSON 모드. 연결에서 오간 JSON-RPC 메시지를 순서대로 한 줄에 하나씩 쓴다.
@@ -20,15 +21,26 @@ export function createJsonTap(
   write: (line: string) => Promise<void>,
   initial: JsonTapMode,
 ): JsonTap {
-  const state: { mode: JsonTapMode; buffer: string[]; chain: Promise<void> } = {
+  const state: {
+    mode: JsonTapMode;
+    buffer: string[];
+    chain: Promise<void>;
+    failure: { readonly cause: unknown } | undefined;
+  } = {
     mode: initial,
     buffer: [],
     chain: Promise.resolve(),
+    failure: undefined,
   };
   const emit = (line: string): void => {
-    state.chain = state.chain.then(() => write(`${line}\n`));
-    // 거부를 여기서 소비하지 않는다: flush가 같은 약속을 기다린다. 처리되지 않은 거부 경고만 막는다
-    state.chain.catch(() => undefined);
+    // 쓰기가 한 번 실패하면 뒤 줄은 쓰지 않는다. 실패는 flush가 그 오류로 거부한다
+    state.chain = state.chain.then(() => {
+      if (state.failure !== undefined) return undefined;
+      return attemptAsync(() => write(`${line}\n`)).then((written) => {
+        if (!written.ok) state.failure = { cause: written.error.cause };
+        return undefined;
+      });
+    });
   };
   return {
     observe(message) {
@@ -45,8 +57,9 @@ export function createJsonTap(
     get mode() {
       return state.mode;
     },
-    flush() {
-      return state.chain;
+    async flush() {
+      await state.chain;
+      if (state.failure !== undefined) throw state.failure.cause;
     },
   };
 }

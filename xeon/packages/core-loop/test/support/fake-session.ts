@@ -74,6 +74,13 @@ function notImplemented(name: string): never {
   throw new Bug(`fake-session: ${name} is not implemented`);
 }
 
+/** 이 대역이 낙인한 초안. 브랜드 심볼은 선언뿐이라 실제 저장소처럼 WeakSet 등록으로 가드한다 */
+const stampRegistry = new WeakSet<object>();
+
+function isStamped(value: object): value is StampedDraft {
+  return stampRegistry.has(value);
+}
+
 function stamp(producer: ProducerId, input: DraftInput): StampedDraft {
   const owner = ownerOfKind(input.kind);
   const allowed =
@@ -85,8 +92,10 @@ function stamp(producer: ProducerId, input: DraftInput): StampedDraft {
     throw new Bug(`store.prefix_not_owned: ${producer} cannot draft ${input.kind}`);
   }
   const draft: DurableEventDraft = { ...input, version: input.version ?? 1, durable: true };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 테스트 대역: 낙인 브랜드는 저장소 구현만 붙인다
-  return { draft, producer } as unknown as StampedDraft;
+  const candidate = { draft, producer };
+  stampRegistry.add(candidate);
+  if (!isStamped(candidate)) throw new Bug("fakeSession: stamp registry lost a draft");
+  return candidate;
 }
 
 function validate(draft: DurableEventDraft): void {

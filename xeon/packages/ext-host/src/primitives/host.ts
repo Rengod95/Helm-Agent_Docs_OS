@@ -1,4 +1,5 @@
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import { portAs } from "../erase.ts";
 import type {
   ExtensionEntry,
   ExtensionManifest,
@@ -103,11 +104,19 @@ export interface PlatformContext {
   onDispose(fn: () => void | Promise<void>): void;
 }
 
+/** install의 선택 인자 */
+interface InstallOptions {
+  readonly signal?: AbortSignal;
+}
+
 export interface ExtHost {
   /** L0 플랫폼 패키지를 등록한다. 조립 루트가 확장 설치 전에 부른다. setup이 던지면 그대로 던진다(시작 실패) */
   registerPlatform(module: PlatformModule): Promise<void>;
-  /** 엔트리를 실행해 scope 정의를 모으고, 기본 활성 scope의 켜기를 시작 적용한다 */
-  install(unit: ExtensionUnit): Promise<InstallResult>;
+  /**
+   * 엔트리를 실행해 scope 정의를 모으고, 기본 활성 scope의 켜기를 시작 적용한다.
+   * signal이 중단되면 엔트리 실행을 기다리지 않고 entryError(scope_setup_failed)로 끝낸다
+   */
+  install(unit: ExtensionUnit, options?: InstallOptions): Promise<InstallResult>;
   /** 모든 scope를 내리고 정의를 지운다. 경계 없이 즉시 해제한다 */
   uninstall(name: ExtensionName): Promise<void>;
   /** 포트 조회. 같은 패키지의 loading-trust·operations와 조립 루트가 쓴다 */
@@ -199,20 +208,45 @@ async function withBudget<T>(
   task: Promise<T>,
   budgetMs: number | null,
   setTimer: ExtHostDeps["setTimer"],
+  signal: AbortSignal | undefined,
 ): Promise<T> {
-  if (budgetMs === null) return task;
+  if (budgetMs === null && signal === undefined) return task;
   let cancel = NOOP;
-  const timeout = new Promise<never>((_resolve, reject) => {
-    cancel = setTimer(budgetMs, () => {
-      reject(
-        new PrimitiveError("scope_setup_failed", `entry exceeded its time budget (${budgetMs}ms)`),
-      );
-    });
-  });
+  const contenders: Promise<T>[] = [task];
+  if (budgetMs !== null) {
+    contenders.push(
+      new Promise<never>((_resolve, reject) => {
+        cancel = setTimer(budgetMs, () => {
+          reject(
+            new PrimitiveError(
+              "scope_setup_failed",
+              `entry exceeded its time budget (${budgetMs}ms)`,
+            ),
+          );
+        });
+      }),
+    );
+  }
+  let unlisten = NOOP;
+  if (signal !== undefined) {
+    contenders.push(
+      new Promise<never>((_resolve, reject) => {
+        const onAbort = (): void => {
+          reject(new PrimitiveError("scope_setup_failed", "install was cancelled"));
+        };
+        if (signal.aborted) onAbort();
+        signal.addEventListener("abort", onAbort, { once: true });
+        unlisten = () => {
+          signal.removeEventListener("abort", onAbort);
+        };
+      }),
+    );
+  }
   try {
-    return await Promise.race([task, timeout]);
+    return await Promise.race(contenders);
   } finally {
     cancel();
+    unlisten();
   }
 }
 
@@ -242,8 +276,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       const value: unknown =
         key.member === undefined ? service : Reflect.get(Object(service), key.member);
       if (value === undefined) return undefined;
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- PortKey<Api>의 Api는 팬텀 타입이다. 공급자가 같은 키로 provide했다 (F.extensions.spec §3.2.1)
-      return value as Api;
+      return portAs(key, value);
     },
   };
 
@@ -327,7 +360,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   });
   const ready = selfFiber.settled;
 
-  async function install(unit: ExtensionUnit): Promise<InstallResult> {
+  async function install(unit: ExtensionUnit, options?: InstallOptions): Promise<InstallResult> {
     await ready;
     const name = unit.manifest.name;
     if (core.units.has(name)) {
@@ -355,6 +388,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
         ),
         resolved.setupBudgetMs(),
         resolved.setTimer,
+        options?.signal,
       );
     } catch (error) {
       entryFailed = true;

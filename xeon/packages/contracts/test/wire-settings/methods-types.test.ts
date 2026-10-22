@@ -61,14 +61,13 @@ export async function requestInference(connection: HostConnection): Promise<void
 /** 알림 이름은 서버 알림 표의 키다 */
 export function notificationInference(connection: HostConnection): void {
   connection.onNotification("events.batch", (params) => {
-    const caughtUp: boolean = params.caughtUp;
-    void caughtUp;
+    params.caughtUp satisfies boolean;
   });
   // @ts-expect-error -- 클라이언트 알림은 서버 알림 구독에 쓸 수 없다
   connection.onNotification("$/cancelRequest", () => {});
 }
 export type ServerNotificationNames = Expect<
-  Equal<keyof ServerNotificationMap, "events.batch" | "stream.chunk">
+  Equal<keyof ServerNotificationMap, "events.batch" | "events.ended" | "stream.chunk">
 >;
 
 /** handler table exhaustive: 처리기 하나를 빼면 WireHandlers 대입이 컴파일 오류다 */

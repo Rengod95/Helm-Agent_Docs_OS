@@ -1,5 +1,5 @@
 import { statSync } from "node:fs";
-import { err, ok, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Result } from "@xeon/contracts";
 import type { SecretError } from "@xeon/contracts/services";
 import type { KeyAvailability, KeyProvider, SopsKeyEnvName } from "./provider.ts";
 
@@ -15,12 +15,9 @@ interface KeyFileStat {
 export type StatKeyFile = (path: string) => KeyFileStat | null;
 
 const statKeyFile: StatKeyFile = (path) => {
-  try {
-    const stat = statSync(path);
-    return { mode: stat.mode, uid: stat.uid };
-  } catch {
-    return null;
-  }
+  const stat = attempt(() => statSync(path));
+  // 없거나 읽을 수 없는 키 파일은 item_missing으로 다룬다(호출자가 null을 그렇게 해석한다)
+  return stat.ok ? { mode: stat.value.mode, uid: stat.value.uid } : null;
 };
 
 export interface FileKeyDeps {

@@ -1,8 +1,11 @@
+import { assertNever } from "@xeon/contracts";
 import {
   InputQueuePortKey,
+  type EnqueueError,
   type PostItem,
   type PostOptions,
   type PostReceipt,
+  type ScopeId,
 } from "@xeon/contracts/extensions";
 import { ambient } from "./ambient.ts";
 import type { Generation, HostCore, ScopeRecord } from "./core.ts";
@@ -18,6 +21,33 @@ export interface PostQueue {
 }
 
 const MAX_REQUEST_ID = 64;
+
+/** 입력 큐가 받지 않은 이유를 확장이 받는 오류로 옮긴다. 저장소 실패는 storage_unavailable이다 */
+function postFailure(error: EnqueueError, scopeId: ScopeId): Error {
+  switch (error.kind) {
+    case "invalid_request_id":
+      return new TypeError(`post requestId is invalid: ${error.requestId}`);
+    case "mode_not_supported":
+      return new TypeError(`post when is not supported: ${error.mode}`);
+    case "thread_closed":
+    case "thread_not_found":
+      return new PrimitiveError("no_thread", `post target thread is not open: ${error.kind}`, {
+        scopeId,
+        cause: error,
+      });
+    case "busy":
+    case "disk_full":
+    case "io":
+    case "ownership_lost":
+    case "read_only":
+      return new PrimitiveError("storage_unavailable", `input queue rejected post: ${error.kind}`, {
+        scopeId,
+        cause: error,
+      });
+    default:
+      return assertNever(error, "EnqueueError");
+  }
+}
 
 /**
  * post(X.primitives.spec §4.7): usesPost 검사, requestId 길이 검사, InputQueuePort 위임.
@@ -63,8 +93,9 @@ export function createPostQueue(core: HostCore): PostQueue {
         when: options.when,
         item,
       });
-      if (!result.duplicate && amb.drive !== null) amb.drive.effects += 1;
-      return { requestId: options.requestId, duplicate: result.duplicate };
+      if (!result.ok) throw postFailure(result.error, record.id);
+      if (!result.value.duplicate && amb.drive !== null) amb.drive.effects += 1;
+      return { requestId: options.requestId, duplicate: result.value.duplicate };
     },
   };
 }

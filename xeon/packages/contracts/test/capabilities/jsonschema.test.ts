@@ -15,7 +15,10 @@ function rewrap(json: JsonValue): TSchema {
 }
 
 function hasTildeKey(value: unknown): boolean {
-  if (Array.isArray(value)) return (value as readonly unknown[]).some(hasTildeKey);
+  if (Array.isArray(value)) {
+    const list: readonly unknown[] = value;
+    return list.some(hasTildeKey);
+  }
   if (typeof value === "object" && value !== null) {
     return Object.entries(value).some(
       ([key, member]) => key.startsWith("~") || hasTildeKey(member),

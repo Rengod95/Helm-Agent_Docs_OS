@@ -1,4 +1,5 @@
-import type { JsonRpcMessage, Transport } from "@xeon/contracts/wire";
+import type { Transport } from "@xeon/contracts/wire";
+import { asFrame } from "./unsafe.ts";
 
 // 규칙을 어긴 프레임까지 보내고 받은 메시지를 도착 순서대로 모으는 시험용 클라이언트. HostConnection은 envelope를 검사해
 // 잘못된 프레임을 만들 수 없으므로 적합성 시험과 오류 시험은 이 클라이언트를 쓴다.
@@ -71,8 +72,7 @@ export function rawClient(transport: Transport): RawClient {
   return {
     received,
     send(frame) {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 규칙을 어긴 프레임을 일부러 보내는 시험 도구다. 서버가 envelope 검사로 거부해야 한다 (eng.testing.guide TS-04)
-      return transport.send(frame as JsonRpcMessage);
+      return transport.send(asFrame(frame));
     },
     response(id, timeoutMs = 10_000) {
       return waitFor(

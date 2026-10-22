@@ -81,7 +81,7 @@ describe("read", () => {
     let offset: number | undefined;
     for (let guard = 0; guard < 10; guard++) {
       const request = { path: "big.txt", ...(offset === undefined ? {} : { offset }) };
-      // oxlint-disable-next-line no-await-in-loop -- 이어 읽기는 앞 결과의 nextOffset에 의존한다
+      // oxlint-disable-next-line no-await-in-loop -- 이어 읽기는 앞 결과의 nextOffset에 의존한다 (eng.typescript.guide TY-22)
       const out = asText(await files.read(request));
       pieces.push(out.text);
       if (out.truncated?.nextOffset === undefined) break;

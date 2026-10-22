@@ -124,10 +124,11 @@ function mapBlobError(error: BlobError): StoreError {
     case "disk_full":
       return { kind: "disk_full" };
     case "io":
-      throw new Bug(`store.io: ${error.code}`);
+      return { kind: "io", code: error.code };
     case "blob_missing":
     case "blob_corrupt":
-      throw new Bug(`store.blob_unavailable: putBlob returned ${error.kind}`);
+      // putBlob은 읽기 쪽 오류 변형을 돌려주지 않는다. 돌려주면 포트 구현이 계약을 어긴 것이다
+      throw new Bug("store.blob_put_contract: putBlob returned a read-side error variant");
     default:
       return assertNever(error, "BlobError");
   }
@@ -140,8 +141,7 @@ function mapWriteError(error: StoreWriteError): StoreError {
     case "disk_full":
       return { kind: "disk_full" };
     case "io":
-      // StoreError에 io 변형이 없다(openIssues). 저장 매체 오류는 복구할 수 없어 Bug로 올린다
-      throw new Bug(`store.io: ${error.code}`);
+      return { kind: "io", code: error.code };
     default:
       throw new Bug("store.write_error_invalid");
   }

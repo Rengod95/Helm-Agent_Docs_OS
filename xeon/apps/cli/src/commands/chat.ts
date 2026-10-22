@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever, attemptAsync, detach } from "@xeon/contracts";
 import type { ChatCommand } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, renderFailure, type Failure } from "../errors.ts";
@@ -52,15 +52,11 @@ interface Holder {
 /** `l4.cli.outputMode`를 읽어 JSON 탭을 켜거나 끈다. --json 플래그가 이 값보다 앞선다(§6) */
 async function decideJsonTap(handle: EngineHandle, tap: JsonTap): Promise<void> {
   if (tap.mode !== "undecided") return;
-  try {
-    const result = await handle.connection.request("settings.get", {
-      keys: [CLI_SETTING_KEYS.outputMode],
-    });
-    tap.decide(result.settings[0]?.value === "json");
-  } catch {
-    // 설정을 읽지 못하면 기본 출력(text)이다. 연결 문제는 다음 요청이 같은 오류로 드러낸다
-    tap.decide(false);
-  }
+  const read = await attemptAsync(() =>
+    handle.connection.request("settings.get", { keys: [CLI_SETTING_KEYS.outputMode] }),
+  );
+  // 설정을 읽지 못하면 기본 출력(text)이다. 연결 문제는 다음 요청이 같은 오류로 드러낸다
+  tap.decide(read.ok && read.value.settings[0]?.value === "json");
 }
 
 async function runPrint(
@@ -155,15 +151,17 @@ async function chatWork(
         onApproval: interactive
           ? null
           : async (view) => {
-              try {
-                await handle.connection.request("approval.respond", {
+              const responded = await attemptAsync(() =>
+                handle.connection.request("approval.respond", {
                   approvalId: view.approvalId,
                   decision: "deny",
-                });
-              } catch {
-                // 응답 수단이 없는 host다. 아래 알림이 이유를 말해 준다
-              }
-              await io.stderr(`승인 요청 "${view.title}"에 비대화 모드라 거부로 답했다\n`);
+                }),
+              );
+              // 응답 수단이 없는 host면 거부 응답이 가지 않았음을 알림에 밝힌다
+              const outcome = responded.ok
+                ? "거부로 답했다"
+                : "거부로 답하려 했으나 host가 응답을 받지 못했다";
+              await io.stderr(`승인 요청 "${view.title}"에 비대화 모드라 ${outcome}\n`);
             },
         onOutputError: () => {
           wiring.exit.request(EXIT.ok);
@@ -221,7 +219,10 @@ export async function runChat(ctx: CommandContext, command: ChatCommand): Promis
     turnActive: () => holder.session?.turnActive ?? false,
     interruptTurn: () => undefined,
     hint: () => {
-      io.stdout(IDLE_CTRL_C_HINT).catch(() => undefined);
+      // stdout이 닫혔으면(EPIPE) 출력을 멈추고 종료 요청, 0 [제안]. tap의 쓰기 실패와 같은 처리다
+      detach(io.stdout(IDLE_CTRL_C_HINT), () => {
+        wiring.exit.request(EXIT.ok);
+      });
     },
   });
   const initialTap: JsonTapMode =
@@ -236,23 +237,25 @@ export async function runChat(ctx: CommandContext, command: ChatCommand): Promis
     }
   }, initialTap);
 
-  const work = chatWork(ctx, command, input, tap, wiring, holder);
+  // 작업의 실패를 값으로 받는다. 종료 요청으로 버려진 작업의 거부가 처리되지 않은 채 남지 않는다
+  const work = attemptAsync(() => chatWork(ctx, command, input, tap, wiring, holder));
   try {
     const first = await Promise.race([
-      work.then((code) => ({ exited: false as const, code })),
+      work.then((outcome) => ({ exited: false as const, outcome })),
       wiring.exit.requested.then((request) => ({ exited: true as const, request })),
     ]);
     if (!first.exited) {
-      await tap.flush().catch(() => undefined);
-      return first.code;
+      if (!first.outcome.ok) throw first.outcome.error.cause;
+      // tap의 쓰기 실패는 write 안에서 종료 요청(EXIT.ok)으로 이미 처리했다. flush 결과는 쓰지 않는다
+      await attemptAsync(() => tap.flush());
+      return first.outcome.value;
     }
     // 종료 요청: 하던 일을 버리고 엔진을 닫는다. 시한을 넘기거나 강제 요청이 오면 기다리지 않는다
-    work.catch(() => undefined);
     const { handle } = holder;
     if (handle !== undefined && !first.request.forced) {
       await Promise.race([handle.shutdown("signal"), wiring.exit.forced.then(() => undefined)]);
     }
-    await tap.flush().catch(() => undefined);
+    await attemptAsync(() => tap.flush());
     return first.request.code;
   } catch (caught) {
     const failure = failureOfCaught(caught);

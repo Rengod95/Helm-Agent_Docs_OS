@@ -52,11 +52,14 @@ Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 
 
 정본은 `../docs/xeon/engineering/typescript/guide.md`(eng.typescript.guide) 1.3절 체크리스트와 2절 규칙이다. 구현·리뷰 작업자는 코드를 쓰기 전에 읽는다.
 
-- `as` 단언 금지. `as unknown as T`, `<T>x`, `JSON.parse(s) as T`도 같다. `as const`만 허용. 예외는 TY-06 허용 목록 위치뿐이고, 줄마다 `// oxlint-disable-next-line typescript/consistent-type-assertions -- <허용 목록 ID와 이유> (eng.typescript.guide TY-06)`를 단다.
+- `as` 단언 금지. `as unknown as T`, `<T>x`, `JSON.parse(s) as T`도 같다. `as const`만 허용. 예외는 TY-06 허용 목록 위치뿐이고, 줄마다 `// oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 <행 ID> <이유> (eng.typescript.guide TY-06)`를 단다.
 - 비null 단언 `!`, `any`, `@ts-ignore`, `@ts-nocheck` 금지. `@ts-expect-error`는 테스트 파일의 타입 테스트에서만 이유를 달아 쓴다 (TY-02, TY-07, TY-08).
 - 단언 대신 `parse`(TypeBox), 타입 가드, `satisfies`, 브랜드 생성 함수, 판별 유니온 + `assertNever`를 쓴다. 타입은 런타임에 지워지므로 경계 값은 항상 `parse`로 검증한다 (TY-10, TY-23).
 - 예상 가능한 실패(I/O, busy, disk_full, read_only, cancelled, not_found, 검증 실패, ownership_lost, timeout, 저장 데이터 손상)는 `kind`가 있는 오류 값을 `Result`로 돌려준다. `throw`하지 않고 `Bug`로 던지지 않는다. `Bug`는 불변 조건 위반에만 쓴다 (TY-11, TY-24).
 - `catch`는 오류를 조용히 삼키지 않는다. `cause`를 담은 오류 값으로 바꾸거나, 근거 문서가 있는 자리에서 주입된 Logger로 기록하거나, 그대로 다시 던진다 (TY-25).
+- 던질 수 있는 외부 호출 하나는 `attempt`/`attemptAsync`, JSON 문자열은 `parseJson`, 기다리지 않는 비동기 호출은 `detach(work, onFailure)`로 받는다(`@xeon/contracts`, guide 1.2절). `try`/`catch`를 새로 쓰기 전에 먼저 이 도구를 쓸 수 있는지 본다. `catch`에서 받은 값을 `cause`로 담지 않으면 `preserve-caught-error`가 실패한다.
+- 단언 허용 위치는 guide TY-06 표의 A1~A6뿐이다(예: ext-host의 `src/erase.ts`, 시험의 `unsafe.ts`·`fixtures/support.ts`). 시험의 부분 대역과 어긴 입력은 이 파일의 함수를 거치고 시험 본문에 `as`를 쓰지 않는다. 행을 더하려면 guide 표를 먼저 고치고 승인을 받는다.
+- `just check-ts-rules`(`just verify`에 포함)가 단언 위치, `Bug` 메시지의 예상 가능한 실패 단어, 오류 삼킴, disable 주석 형식을 검사한다.
 - 지킬 수 없는 줄이 있으면 주석으로 넘기지 말고 작업 보고에 `[미결] TY-NN <파일:줄> <이유>`로 적는다.
 - 강제 lint 규칙 목록은 eng.typescript.guide 3.1.1절, 안티패턴 설명은 `eng.anti-patterns.guide` AP-C-01, AP-C-02, AP-C-10, AP-C-11이다.
 - `vendor/cordis`는 고치지 않는다. 갱신은 새 커밋을 다시 복사하고 `UPSTREAM.json`을 고친다.
@@ -65,17 +68,17 @@ Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 
 
 루트에서 `just <레시피>`로 부른다(`xeon/justfile`이 실제 명령).
 
-| 레시피                                             | 내용                                                        |
-| -------------------------------------------------- | ----------------------------------------------------------- |
-| `just setup`                                       | `bun install --frozen-lockfile`                             |
-| `just fmt` / `just fmt-check`                      | oxfmt 적용 / 검사                                           |
-| `just lint`                                        | oxlint type-aware, `--deny-warnings`                        |
-| `just typecheck`                                   | `tsc -b` (project references)                               |
-| `just test`                                        | `bun test` (scripts와 각 패키지)                            |
-| `just check-layers`, `just depcruise`, `just knip` | 층 순위, 의존 경계, 미사용 코드                             |
-| `just docs-route --check [--allow-missing]`        | 문서 프런트매터, id, depends_on, binds 검사                 |
-| `just ci-layer <F\|X\|L0\|L1\|L2\|L3\|L4> [true]`  | 한 층만 lint, typecheck, test (`true`는 turbo `--affected`) |
-| `just verify`                                      | 위 전부 + `ws check`. 끝내기 전에 통과시킨다                |
+| 레시피                                                                    | 내용                                                        |
+| ------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| `just setup`                                                              | `bun install --frozen-lockfile`                             |
+| `just fmt` / `just fmt-check`                                             | oxfmt 적용 / 검사                                           |
+| `just lint`                                                               | oxlint type-aware, `--deny-warnings`                        |
+| `just typecheck`                                                          | `tsc -b` (project references)                               |
+| `just test`                                                               | `bun test` (scripts와 각 패키지)                            |
+| `just check-layers`, `just check-ts-rules`, `just depcruise`, `just knip` | 층 순위, TS 작성 규칙 스캔, 의존 경계, 미사용 코드          |
+| `just docs-route --check [--allow-missing]`                               | 문서 프런트매터, id, depends_on, binds 검사                 |
+| `just ci-layer <F\|X\|L0\|L1\|L2\|L3\|L4> [true]`                         | 한 층만 lint, typecheck, test (`true`는 turbo `--affected`) |
+| `just verify`                                                             | 위 전부 + `ws check`. 끝내기 전에 통과시킨다                |
 
 종료코드 1은 고친다. 2는 환경 문제이므로 코드를 고치지 말고 보고한다. 3은 사람 확인 뒤 `--yes`.
 

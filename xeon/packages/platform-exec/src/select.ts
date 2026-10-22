@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { err, ok, type Result } from "@xeon/contracts";
+import { attempt, err, ok, type Logger, type Result } from "@xeon/contracts";
 import type { ExecPlatformProvider } from "./provider.ts";
 import { darwinProvider } from "./providers/darwin.ts";
 import { createLinuxProvider } from "./providers/linux.ts";
@@ -26,6 +26,8 @@ export function selectExecPlatform(input: {
   readonly env: Readonly<Record<string, string | undefined>>;
   /** linux만 /proc/version 내용 */
   readonly procVersion: string | undefined;
+  /** win32 provider의 종료 호출 실패 기록용 */
+  readonly logger?: Logger;
 }): Result<ExecPlatformProvider, ExecSelectError> {
   switch (input.platform) {
     case "darwin":
@@ -33,26 +35,30 @@ export function selectExecPlatform(input: {
     case "linux":
       return ok(createLinuxProvider({ wsl: isWsl(input.env, input.procVersion) }));
     case "win32":
-      return ok(createWin32Provider({ env: input.env }));
+      return ok(
+        createWin32Provider({
+          env: input.env,
+          ...(input.logger === undefined ? {} : { logger: input.logger }),
+        }),
+      );
     default:
       return err({ kind: "unsupported_platform", platform: input.platform });
   }
 }
 
 function readProcVersion(): string | undefined {
-  try {
-    return readFileSync("/proc/version", "utf8");
-  } catch {
-    return undefined;
-  }
+  const read = attempt(() => readFileSync("/proc/version", "utf8"));
+  // /proc이 없는 OS는 WSL이 아닌 것으로 본다
+  return read.ok ? read.value : undefined;
 }
 
 /** 실행 중인 OS의 provider. 프로세스의 OS 이름을 읽는 유일한 곳이다(L0.exec.spec §3.4) */
-export function detectExecPlatform(): Result<ExecPlatformProvider, ExecSelectError> {
+export function detectExecPlatform(logger?: Logger): Result<ExecPlatformProvider, ExecSelectError> {
   const platform = process.platform;
   return selectExecPlatform({
     platform,
     env: process.env,
     procVersion: platform === "linux" ? readProcVersion() : undefined,
+    ...(logger === undefined ? {} : { logger }),
   });
 }

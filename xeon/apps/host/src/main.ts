@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import { assertNever, Bug } from "@xeon/contracts";
+import { assertNever, attemptAsync, Bug } from "@xeon/contracts";
 import { resolveSetting } from "@xeon/contracts/settings";
 import type { StdioTransportOptions, Transport } from "@xeon/contracts/wire";
 import { AssembleError, assemble, ENGINE_VERSION } from "./assemble.ts";
@@ -29,8 +29,8 @@ export interface InProcessHost {
   /** kind "in-process". createHostConnection에 넘긴다 */
   readonly client: Transport;
   readonly engine: Engine;
-  /** 종료 절차(§4.8)를 거쳐 엔진을 닫는다 */
-  close(): Promise<void>;
+  /** 종료 절차(§4.8)를 거쳐 엔진을 닫는다. 진행 중 turn이 시한 안에 멈추지 않았으면 "deadline"이다 */
+  close(): Promise<"clean" | "deadline">;
 }
 
 export interface HostExit {
@@ -76,19 +76,24 @@ async function startHost(options: AssembleOptions): Promise<RunningHost> {
 }
 
 /** HS-31: 새 요청을 거절하고, 진행 중 turn을 안전 경계에서 멈추고, 연결을 닫고, 엔진을 닫는다 */
-async function stopHost(running: RunningHost): Promise<void> {
+async function stopHost(running: RunningHost): Promise<"clean" | "deadline"> {
   const { engine, hub } = running;
   hub.beginShutdown();
   const deadlineMs = shutdownTimeoutOf(settingReaderOf(engine));
-  try {
-    const stopped = await engine.ports.turns.stopAtSafeBoundary(deadlineMs);
-    if (!stopped) engine.ports.log.error("host.stop_timeout", { deadlineMs });
-  } catch (caught) {
-    engine.ports.log.error("host.stop_failed", { message: messageOf(caught) });
+  let outcome: "clean" | "deadline" = "clean";
+  const stopped = await attemptAsync(() => engine.ports.turns.stopAtSafeBoundary(deadlineMs));
+  if (!stopped.ok) {
+    // 멈추는 호출이 실패하면 turn이 멈췄는지 알 수 없다. 시한을 넘긴 것과 같이 다룬다
+    engine.ports.log.error("host.stop_failed", { message: messageOf(stopped.error.cause) });
+    outcome = "deadline";
+  } else if (!stopped.value) {
+    engine.ports.log.error("host.stop_timeout", { deadlineMs });
+    outcome = "deadline";
   }
   await hub.closeAll("shutdown");
   hub.dispose();
   await engine.close();
+  return outcome;
 }
 
 export async function startInProcessHost(
@@ -101,7 +106,7 @@ export async function startInProcessHost(
     limits: hostLimitsOf(settingReaderOf(running.engine)),
     devChecks,
   });
-  const state = { closing: undefined as Promise<void> | undefined };
+  const state: { closing: Promise<"clean" | "deadline"> | undefined } = { closing: undefined };
   return {
     client: pair.client,
     engine: running.engine,

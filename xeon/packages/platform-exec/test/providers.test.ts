@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { LogFields, Logger } from "@xeon/contracts";
 import { darwinProvider } from "../src/providers/darwin.ts";
 import { createLinuxProvider } from "../src/providers/linux.ts";
 import { createWin32Provider } from "../src/providers/win32.ts";
@@ -53,6 +54,26 @@ describe("providers", () => {
       run: (argv) => custom.push(argv),
     }).killProcessTree(7);
     expect(custom[0]).toEqual(["D:\\Win\\System32\\taskkill.exe", "/F", "/T", "/PID", "7"]);
+  });
+
+  test("win32 default run logs a taskkill that cannot be spawned", async () => {
+    const warnings: { readonly event: string; readonly fields: LogFields | undefined }[] = [];
+    const logger: Logger = {
+      debug: () => {},
+      info: () => {},
+      warn: (event, fields) => {
+        warnings.push({ event, fields });
+      },
+      error: () => {},
+      child: () => logger,
+    };
+    const win32 = createWin32Provider({ env: { SystemRoot: "/nonexistent-root" }, logger });
+    win32.killProcessTree(4321);
+    for (let i = 0; i < 100 && warnings.length === 0; i += 1) {
+      // oxlint-disable-next-line no-await-in-loop -- spawn의 error 이벤트는 비동기로 온다 (eng.typescript.guide TY-22)
+      await Bun.sleep(10);
+    }
+    expect(warnings.map((w) => w.event)).toEqual(["exec.kill_tree_spawn_failed"]);
   });
 
   test("win32 shell candidates come from ProgramFiles and ProgramFiles(x86)", () => {

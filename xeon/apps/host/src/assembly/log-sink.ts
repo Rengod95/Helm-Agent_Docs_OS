@@ -1,5 +1,6 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { attempt } from "@xeon/contracts";
 
 // 엔진 로그 줄을 받는 늦은 연결 싱크. L0.os가 시작되기 전에는 로그 파일 위치(OsDirs.state)를 모르므로 줄을 모아 두었다가
 // attach 때 파일에 쓴다. stdio 호스트의 stdout에는 계약 메시지 외의 바이트를 쓰지 않는다(HS-33).
@@ -20,11 +21,9 @@ export function createLateLogSink(): LateLogSink {
   };
 
   function write(path: string, line: string): void {
-    try {
-      appendFileSync(path, `${line}\n`, { mode: 0o600 });
-    } catch {
-      state.broken = true;
-    }
+    // 로그 파일 쓰기 실패는 기록할 곳이 없다. broken 표지를 세워 이후 줄을 버린다
+    const written = attempt(() => appendFileSync(path, `${line}\n`, { mode: 0o600 }));
+    if (!written.ok) state.broken = true;
   }
 
   return {
@@ -37,9 +36,8 @@ export function createLateLogSink(): LateLogSink {
       write(state.path, line);
     },
     attach(path) {
-      try {
-        mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-      } catch {
+      const made = attempt(() => mkdirSync(dirname(path), { recursive: true, mode: 0o700 }));
+      if (!made.ok) {
         state.broken = true;
         state.buffered = [];
         return;

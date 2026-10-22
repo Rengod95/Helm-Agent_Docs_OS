@@ -119,8 +119,24 @@ test("turn.start refused by the loop is a typed wire error, not a bare internal 
 
   host.fake.setRejection({ kind: "disk_full" });
   const full = await wireErrorOf(connection.request("turn.start", { threadId, input: "hi" }));
-  expect(full.code).toBe(-32603);
-  expect(full.message).toContain("disk_full");
+  expect(full.code).toBe(5004);
+  expect(full.data.kind).toBe("store.diskFull");
+  expect(full.data.retryable).toBe(false);
+
+  host.fake.setRejection({ kind: "busy" });
+  const busy = await wireErrorOf(connection.request("turn.start", { threadId, input: "hi" }));
+  expect(busy.code).toBe(5003);
+  expect(busy.data.retryable).toBe(true);
+
+  host.fake.setRejection({ kind: "io", code: "SQLITE_IOERR" });
+  const io = await wireErrorOf(connection.request("turn.start", { threadId, input: "hi" }));
+  expect(io.code).toBe(5006);
+  expect(io.data.details).toEqual({ code: "SQLITE_IOERR" });
+
+  host.fake.setRejection({ kind: "read_only", reason: "observer" });
+  const readOnly = await wireErrorOf(connection.request("turn.start", { threadId, input: "hi" }));
+  expect(readOnly.code).toBe(5005);
+  expect(readOnly.data.details).toEqual({ reason: "observer" });
   await connection.close();
 });
 

@@ -1,4 +1,4 @@
-import type { Clock, LogFields, Logger, LogLevel } from "@xeon/contracts";
+import { attempt, type Clock, type LogFields, type Logger, type LogLevel } from "@xeon/contracts";
 
 /**
  * 마스킹 함수. 조립 루트가 platform-secrets의 마스킹 기능을 이 자리에 연결한다. platform-os는 platform-secrets를
@@ -48,21 +48,20 @@ function makeLogger(
 ): LevelControlledLogger {
   const emit = (level: LogLevel, event: string, fields: LogFields | undefined): void => {
     if (LEVEL_RANK[level] < LEVEL_RANK[state.level]) return;
-    let line: string;
-    try {
-      line = JSON.stringify({ ts: opts.clock.now(), level, event, ...fixed, ...fields });
-    } catch {
+    // 실패한 원인(cause)에는 필드 값이 들어 있을 수 있어 싣지 않는다. 고정 줄이 실패를 알린다
+    const line = attempt(() =>
+      JSON.stringify({ ts: opts.clock.now(), level, event, ...fixed, ...fields }),
+    );
+    if (!line.ok) {
       opts.sink(SERIALIZE_FAILED_LINE);
       return;
     }
-    let masked: string;
-    try {
-      masked = opts.redact(line);
-    } catch {
+    const masked = attempt(() => opts.redact(line.value));
+    if (!masked.ok) {
       opts.sink(REDACT_FAILED_LINE);
       return;
     }
-    opts.sink(masked);
+    opts.sink(masked.value);
   };
   return {
     debug: (event, fields) => emit("debug", event, fields),

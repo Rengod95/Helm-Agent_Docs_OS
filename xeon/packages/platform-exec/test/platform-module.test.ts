@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { PortKey } from "@xeon/contracts/extensions";
 import { type ExecService, ExecPortKey, SecretServiceName } from "@xeon/contracts/services";
 import type { PlatformContext } from "@xeon/ext-host";
+import { portAs } from "@xeon/ext-host/testing";
 import { createExecPlatformModule } from "../src/platform-module.ts";
 import { darwinProvider } from "../src/providers/darwin.ts";
 import { fakeSecrets } from "./support/fake-secrets.ts";
@@ -22,8 +23,7 @@ function fakeContext(existing: ReadonlyMap<string, unknown>): FakeContext {
     },
     port<Api>(key: PortKey<Api>): Api {
       if (!existing.has(key.name)) throw new Error(`port_unavailable: ${key.name}`);
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 시험용 대역: 키 이름으로 고른 값의 타입을 TS가 증명하지 못한다 (eng.typescript.guide TY-06)
-      return existing.get(key.name) as Api;
+      return portAs(key, existing.get(key.name));
     },
     onDispose(fn) {
       disposers.push(fn);
@@ -59,8 +59,7 @@ const request = {
 function providedService(fake: FakeContext): ExecService {
   const service = fake.provided.get(ExecPortKey.name);
   if (service === undefined) throw new Error("xeon.exec was not provided");
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 시험용 대역: 제공된 포트는 ExecService다 (eng.typescript.guide TY-06)
-  return service as ExecService;
+  return portAs(ExecPortKey, service);
 }
 
 describe("createExecPlatformModule", () => {

@@ -47,16 +47,20 @@ export type KindError =
   /** 레지스트리 등록 충돌 */
   | { kind: "duplicate"; eventKind: string };
 
+const CORE_AREA_SET: ReadonlySet<string> = new Set(CORE_AREAS);
+const DOMAIN_AREA_SET: ReadonlySet<string> = new Set(DOMAIN_AREAS);
+const RESERVED_AREA_SET: ReadonlySet<string> = new Set(RESERVED_DOMAIN_AREAS);
+
 function isCoreArea(area: string): area is CoreArea {
-  return (CORE_AREAS as readonly string[]).includes(area);
+  return CORE_AREA_SET.has(area);
 }
 
 function isDomainArea(area: string): area is DomainArea {
-  return (DOMAIN_AREAS as readonly string[]).includes(area);
+  return DOMAIN_AREA_SET.has(area);
 }
 
 function isReservedArea(area: string): area is ReservedDomainArea {
-  return (RESERVED_DOMAIN_AREAS as readonly string[]).includes(area);
+  return RESERVED_AREA_SET.has(area);
 }
 
 const MERGED_KINDS: ReadonlySet<string> = new Set(EVENT_CATALOG.map((entry) => entry.kind));

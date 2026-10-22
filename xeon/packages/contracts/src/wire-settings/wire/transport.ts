@@ -57,7 +57,7 @@ export interface WireRequestOptions {
   readonly timeoutMs?: number;
 }
 
-/** 클라이언트가 쓰는 쪽. 전송 종류를 모른다. 요청 id는 연결마다 r1, r2, …로 발급한다 */
+/** 클라이언트가 쓰는 쪽. 전송 종류에 의존하지 않는다. 요청 id는 연결마다 r1, r2, …로 발급한다 */
 export interface HostConnection {
   request<M extends WireMethodName>(
     method: M,

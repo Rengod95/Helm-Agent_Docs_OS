@@ -1,5 +1,7 @@
 // L0.exec.spec §3.4. OS 분기 인터페이스. 소비자와 포크 코드는 OS를 직접 묻지 않고 이 값만 묻는다(eng.dependency-rules.guide DR-13).
 
+import { attempt } from "@xeon/contracts";
+
 export interface ShellConfig {
   readonly shell: string;
   readonly args: readonly string[];
@@ -57,15 +59,10 @@ export function bashShellConfig(shell: string): ShellConfig {
 
 /** POSIX 공통: 프로세스 그룹에 SIGKILL, 안 되면 그 프로세스에만 */
 export function killPosixProcessTree(pid: number): void {
-  try {
-    process.kill(-pid, "SIGKILL");
-  } catch {
-    try {
-      process.kill(pid, "SIGKILL");
-    } catch {
-      // 이미 끝난 프로세스다.
-    }
-  }
+  const group = attempt(() => process.kill(-pid, "SIGKILL"));
+  if (group.ok) return;
+  // 프로세스 그룹이 없으면 그 프로세스에만 보낸다. 이것도 실패하면 이미 끝난 프로세스다
+  attempt(() => process.kill(pid, "SIGKILL"));
 }
 
 export const POSIX_FALLBACK_SHELL: ShellConfig = { shell: "sh", args: ["-c"] };

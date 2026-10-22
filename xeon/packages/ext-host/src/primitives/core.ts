@@ -6,7 +6,6 @@ import type {
   DriveOptions,
   ExtensionManifest,
   ExtensionName,
-  LoopHandle,
   PointName,
   PortLookup,
   RecordKind,
@@ -23,6 +22,7 @@ import type {
 } from "@xeon/contracts/records";
 import type { CordisBridge, FiberHandle, OpenedFiber } from "./cordis-bridge.ts";
 import type { Dispatcher } from "./dispatch.ts";
+import type { AnyState, DriveCall } from "./erased-types.ts";
 import type { DispatchPolicy } from "./dispatch-types.ts";
 import type { ExtDiagnostic, PrimitiveErrorCode } from "./errors.ts";
 import type { HandlerRegistry } from "./registry.ts";
@@ -75,12 +75,6 @@ export interface UsageRecorder {
   readonly recordKinds: Set<RecordKind>;
   readonly readsRecordKinds: Set<string>;
 }
-
-/** 상태 타입 S를 지운 자리. 호스트 안에서만 쓴다. 문서는 StateDecl.schema 검사를 거친다 */
-export type AnyState = Readonly<Record<string, unknown>>;
-
-/** 등록된 drive 함수. 상태 타입을 지운 모양 */
-export type DriveCall = (loop: LoopHandle, state: unknown) => Promise<void>;
 
 export interface Generation {
   readonly scopeId: ScopeId;

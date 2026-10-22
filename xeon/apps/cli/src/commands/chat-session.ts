@@ -1,4 +1,4 @@
-import { Bug, err, ok, parse, type Result } from "@xeon/contracts";
+import { attempt, Bug, err, ok, parse, type Result } from "@xeon/contracts";
 import { ThreadIdSchema, TurnCompletedPayloadSchema } from "@xeon/contracts/conversation";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
@@ -75,11 +75,9 @@ export function createPositionKeeper(options: {
       { storeId: keep.storeId, seq: keep.seq },
       new Date(options.now()).toISOString(),
     );
-    try {
-      writeCliStateSync(options.path, keep.state);
-    } catch {
-      keep.failed = true;
-    }
+    // 쓰기에 실패하면 failed 표시만 남기고 대화는 계속한다. 표시는 종료 때 사용자에게 알린다
+    const written = attempt(() => writeCliStateSync(options.path, keep.state));
+    if (!written.ok) keep.failed = true;
   };
 
   return {
@@ -145,7 +143,7 @@ export interface ChatSession {
   caughtUp(): Promise<void>;
 }
 
-/** 구간을 collapseUntil에서 둘로 가른다. 앞쪽은 접어 그리고 뒤쪽은 전체를 그린다 */
+/** 구간을 collapseUntil에서 둘로 나눈다. 앞쪽은 접어 그리고 뒤쪽은 전체를 그린다 */
 export function splitBatchAt(
   batch: EventsBatchParams,
   collapseUntil: number,
@@ -458,9 +456,9 @@ export async function openChatSession(
   connection.closed
     .then((info) => {
       pipelineFailed(new HostClientError("closed", "engine connection closed", info));
-      return info;
+      return undefined;
     })
-    .catch(() => undefined);
+    .catch(pipelineFailed);
 
   connection.onNotification("events.batch", (params) => {
     live.inbox.push(params);

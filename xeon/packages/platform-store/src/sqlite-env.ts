@@ -1,5 +1,5 @@
 import { Database, SQLiteError } from "bun:sqlite";
-import { Bug, err, ok, type Result } from "@xeon/contracts";
+import { attempt, Bug, err, ok, type Result } from "@xeon/contracts";
 
 /**
  * SQLite 로드 상태(L0.store.spec §4.1 2번). Database.setCustomSQLite는 프로세스에서 첫 Database를 만들기 전에
@@ -69,17 +69,14 @@ function hasCountOfOne(row: unknown): boolean {
  * count(*)는 일치가 0건이어도 한 행(n = 0)을 돌려주므로 n === 1을 본다(eng.toolchain.guide TC-11).
  */
 export function probeFts5(driver: ProbeDriver): Result<void, Fts5ProbeError> {
-  try {
+  const probed = attempt(() => {
     driver.run("CREATE VIRTUAL TABLE temp.fts5_probe USING fts5(x)");
     driver.run("INSERT INTO temp.fts5_probe(x) VALUES ('xeon')");
-    const row = driver.query(
-      "SELECT count(*) AS n FROM temp.fts5_probe WHERE fts5_probe MATCH 'xeon'",
-    );
-    return hasCountOfOne(row) ? ok(undefined) : err({ kind: "fts5_missing" });
-  } catch {
-    // no such module: fts5 등 어떤 SQLite 오류든 능력 없음으로 본다. 판정은 예외가 아니라 값으로 돌려준다
-    return err({ kind: "fts5_missing" });
-  }
+    return driver.query("SELECT count(*) AS n FROM temp.fts5_probe WHERE fts5_probe MATCH 'xeon'");
+  });
+  // no such module: fts5 등 어떤 SQLite 오류든 능력 없음으로 본다. 판정은 예외가 아니라 값으로 돌려준다
+  if (!probed.ok) return err({ kind: "fts5_missing" });
+  return hasCountOfOne(probed.value) ? ok(undefined) : err({ kind: "fts5_missing" });
 }
 
 export interface SqliteProbe {

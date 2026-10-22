@@ -50,13 +50,14 @@ mock.module("node:fs", () => {
         };
       }
       const write = stream.write.bind(stream);
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      stream.write = ((...args: Parameters<Fs.WriteStream["write"]>) => {
-        // oxlint-disable-next-line typescript/no-unnecessary-type-assertion -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-        const accepted = Reflect.apply(write, stream, args) as boolean;
-        if (!accepted) spill.rejectedWrites++;
-        return accepted;
-      }) as Fs.WriteStream["write"];
+      // XEON-PATCH: P14
+      Object.defineProperty(stream, "write", {
+        value: (...args: Parameters<Fs.WriteStream["write"]>): boolean => {
+          const accepted: unknown = Reflect.apply(write, stream, args);
+          if (accepted !== true) spill.rejectedWrites++;
+          return accepted === true;
+        },
+      });
       return stream;
     },
   };

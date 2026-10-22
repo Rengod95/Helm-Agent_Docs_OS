@@ -7,6 +7,7 @@ import {
   type PointName,
   type ScopeId,
 } from "@xeon/contracts/extensions";
+import { eraseDispatchOptions, restoreOutcome } from "../erase.ts";
 import { withAmbient } from "./ambient.ts";
 import type {
   AnyDispatchOptions,
@@ -324,8 +325,5 @@ export function typedDispatch<N extends PointName>(
   payload: PayloadOf<N>,
   options: DispatchOptions<N>,
 ): Promise<DispatchOutcome<N>> {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 지점 이름 N이 옵션과 결과의 조건부 타입을 정한다. 런타임 구조는 같다 (X.primitives.spec §3.3)
-  const anyOptions = options as unknown as AnyDispatchOptions;
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- 위와 같다. 결과의 fold는 POINTS[N].fold와 항상 일치한다
-  return dispatcher.dispatch(point, payload, anyOptions) as unknown as Promise<DispatchOutcome<N>>;
+  return restoreOutcome(dispatcher.dispatch(point, payload, eraseDispatchOptions(options)), point);
 }

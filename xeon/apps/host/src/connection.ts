@@ -1,4 +1,4 @@
-import { parse } from "@xeon/contracts";
+import { detach, parse } from "@xeon/contracts";
 import {
   checkEnvelope,
   internalJsonRpcError,
@@ -272,7 +272,9 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
 
     function closeWith(info: CloseInfo, reason: string | undefined): void {
       if (closing.override === undefined) closing.override = info;
-      transport.close(reason).catch(() => undefined);
+      detach(transport.close(reason), (caught) => {
+        log.error("connection.close_failed", { connectionId, message: messageOf(caught) });
+      });
     }
 
     function teardown(info: CloseInfo): void {

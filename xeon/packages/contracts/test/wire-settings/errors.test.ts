@@ -50,12 +50,22 @@ describe("WIRE_ERRORS", () => {
       "settings.secretValue": 3105,
       "request.cancelled": 5001,
       "host.shuttingDown": 5002,
+      "store.busy": 5003,
+      "store.diskFull": 5004,
+      "store.readOnly": 5005,
+      "store.io": 5006,
     });
   });
 
   test("retryable flags follow the table", () => {
     const retryable = specs.filter((s) => s.retryable).map((s) => s.kind);
-    expect(retryable).toEqual(["internal", "thread.locked", "turn.busy", "host.shuttingDown"]);
+    expect(retryable).toEqual([
+      "internal",
+      "thread.locked",
+      "turn.busy",
+      "host.shuttingDown",
+      "store.busy",
+    ]);
   });
 
   test("code ranges stay in the wire-owned blocks", () => {
