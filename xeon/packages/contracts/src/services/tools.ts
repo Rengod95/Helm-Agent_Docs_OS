@@ -1,5 +1,5 @@
 import { Type, type TUnsafe } from "typebox";
-import type { Result } from "../base/index.ts";
+import type { Result, SchemaProof } from "../base/index.ts";
 import type {
   AnyCapabilityDef,
   CapabilityId,
@@ -309,72 +309,76 @@ export interface PolicyIssue {
 }
 
 /** 설정 l1.tools.rules 원소 스키마 */
-export const PolicyRuleSchema: TUnsafe<PolicyRule> = Type.Unsafe<PolicyRule>(
-  Type.Object(
-    {
-      id: Type.String({ minLength: 1, maxLength: 128 }),
-      action: Type.Literal("tool.call"),
-      resource: Type.Object(
-        {
-          tool: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
-          capability: Type.Optional(Type.String({ minLength: 1, maxLength: 96 })),
-          mcpServer: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
-          classes: Type.Optional(
-            Type.Array(
-              Type.Union([
-                Type.Literal("spawn"),
-                Type.Literal("user_interaction"),
-                Type.Literal("shared_state_write"),
-                Type.Literal("external_send"),
-              ]),
-              { maxItems: 4 },
-            ),
+const policyRuleShape = Type.Object(
+  {
+    id: Type.String({ minLength: 1, maxLength: 128 }),
+    action: Type.Literal("tool.call"),
+    resource: Type.Object(
+      {
+        tool: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+        capability: Type.Optional(Type.String({ minLength: 1, maxLength: 96 })),
+        mcpServer: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+        classes: Type.Optional(
+          Type.Array(
+            Type.Union([
+              Type.Literal("spawn"),
+              Type.Literal("user_interaction"),
+              Type.Literal("shared_state_write"),
+              Type.Literal("external_send"),
+            ]),
+            { maxItems: 4 },
           ),
-          risk: Type.Optional(
-            Type.Array(
-              Type.Union([Type.Literal("read"), Type.Literal("write"), Type.Literal("exec")]),
-              { maxItems: 3 },
-            ),
+        ),
+        risk: Type.Optional(
+          Type.Array(
+            Type.Union([Type.Literal("read"), Type.Literal("write"), Type.Literal("exec")]),
+            { maxItems: 3 },
           ),
-          args: Type.Optional(
-            Type.Array(
-              Type.Object(
-                {
-                  pointer: Type.String({ pattern: "^(?:|/.*)$", maxLength: 256 }),
-                  pattern: Type.String({ maxLength: 1024 }),
-                },
-                { additionalProperties: false },
-              ),
-              { maxItems: 16 },
+        ),
+        args: Type.Optional(
+          Type.Array(
+            Type.Object(
+              {
+                pointer: Type.String({ pattern: "^(?:|/.*)$", maxLength: 256 }),
+                pattern: Type.String({ maxLength: 1024 }),
+              },
+              { additionalProperties: false },
             ),
+            { maxItems: 16 },
           ),
-          caller: Type.Optional(
+        ),
+        caller: Type.Optional(
+          Type.Unsafe<NonNullable<PolicyResource["caller"]>>(
             Type.String({
               pattern: "^(main|subagent|subagent:[a-z][a-z0-9-]{1,47})$",
               maxLength: 64,
             }),
           ),
-          minDepth: Type.Optional(Type.Integer({ minimum: 0 })),
-          mode: Type.Optional(
-            Type.Array(
-              Type.Union([
-                Type.Literal("default"),
-                Type.Literal("acceptEdits"),
-                Type.Literal("plan"),
-                Type.Literal("bypass"),
-              ]),
-              { maxItems: 4 },
-            ),
+        ),
+        minDepth: Type.Optional(Type.Integer({ minimum: 0 })),
+        mode: Type.Optional(
+          Type.Array(
+            Type.Union([
+              Type.Literal("default"),
+              Type.Literal("acceptEdits"),
+              Type.Literal("plan"),
+              Type.Literal("bypass"),
+            ]),
+            { maxItems: 4 },
           ),
-        },
-        { additionalProperties: false },
-      ),
-      effect: Type.Union([Type.Literal("allow"), Type.Literal("ask"), Type.Literal("deny")]),
-      priority: Type.Optional(Type.Integer({ minimum: 0, maximum: 999 })),
-      description: Type.Optional(Type.String({ maxLength: 500 })),
-    },
-    { additionalProperties: false },
-  ),
+        ),
+      },
+      { additionalProperties: false },
+    ),
+    effect: Type.Union([Type.Literal("allow"), Type.Literal("ask"), Type.Literal("deny")]),
+    priority: Type.Optional(Type.Integer({ minimum: 0, maximum: 999 })),
+    description: Type.Optional(Type.String({ maxLength: 500 })),
+  },
+  { additionalProperties: false },
+);
+
+export const PolicyRuleSchema: TUnsafe<PolicyRule> = Type.Unsafe<PolicyRule>(
+  policyRuleShape satisfies SchemaProof<PolicyRule, typeof policyRuleShape>,
 );
 
 // ── 결과 경계화 ──────────────────────────────────────────────────────────

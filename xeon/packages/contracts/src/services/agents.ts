@@ -1,4 +1,5 @@
 import { Type, type TUnsafe } from "typebox";
+import type { SchemaProof } from "../base/index.ts";
 import type { EventId, ItemId, ThreadId, TurnId, Usage } from "../conversation/index.ts";
 import type {
   LeaseId,
@@ -47,37 +48,42 @@ export interface AgentDefinition {
 }
 
 /** 정의 파일 프런트매터 검증(출처는 파일 위치가 정하므로 스키마에 없다) */
+const agentDefinitionShape = Type.Object(
+  {
+    name: Type.String({ pattern: AGENT_NAME_PATTERN, maxLength: 48 }),
+    description: Type.String({ minLength: 1, maxLength: 1000 }),
+    prompt: Type.String({ minLength: 1, maxLength: 200_000 }),
+    tools: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { maxItems: 256 }),
+    ),
+    model: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
+    permissions: Type.Optional(
+      Type.Object(
+        {
+          mode: Type.Optional(
+            Type.Union([
+              Type.Literal("default"),
+              Type.Literal("acceptEdits"),
+              Type.Literal("plan"),
+              Type.Literal("bypass"),
+            ]),
+          ),
+          rules: Type.Optional(Type.Array(PolicyRuleSchema, { maxItems: 128 })),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+
 export const AgentDefinitionSchema: TUnsafe<Omit<AgentDefinition, "source">> = Type.Unsafe<
   Omit<AgentDefinition, "source">
 >(
-  Type.Object(
-    {
-      name: Type.String({ pattern: AGENT_NAME_PATTERN, maxLength: 48 }),
-      description: Type.String({ minLength: 1, maxLength: 1000 }),
-      prompt: Type.String({ minLength: 1, maxLength: 200_000 }),
-      tools: Type.Optional(
-        Type.Array(Type.String({ minLength: 1, maxLength: 128 }), { maxItems: 256 }),
-      ),
-      model: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
-      permissions: Type.Optional(
-        Type.Object(
-          {
-            mode: Type.Optional(
-              Type.Union([
-                Type.Literal("default"),
-                Type.Literal("acceptEdits"),
-                Type.Literal("plan"),
-                Type.Literal("bypass"),
-              ]),
-            ),
-            rules: Type.Optional(Type.Array(PolicyRuleSchema, { maxItems: 128 })),
-          },
-          { additionalProperties: false },
-        ),
-      ),
-    },
-    { additionalProperties: false },
-  ),
+  agentDefinitionShape satisfies SchemaProof<
+    Omit<AgentDefinition, "source">,
+    typeof agentDefinitionShape
+  >,
 );
 
 // ── 생성 입력과 결과 ─────────────────────────────────────────────────────

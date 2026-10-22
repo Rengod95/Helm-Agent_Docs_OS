@@ -1150,11 +1150,58 @@ void flush().catch(() => undefined);
 - `void caught`와 빈 화살표 `.catch` 콜백은 위 린트를 통과한다(프로브로 확인). 스캔 `xeon/catch-swallow`가 `void <식별자>`와 `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)`를 실패시킨다.
 - 도구: 던질 수 있는 호출 하나는 `attempt`/`attemptAsync`(1.2절)로 받아 `ok`를 본다. 호출 쪽에 `try`가 남지 않고 받은 값이 `cause`로 남는다. 기다리지 않는 비동기 호출은 `detach(work, onFailure)`로 두고 `onFailure`가 기록, 알림, 상태 표시를 한다. 정리 단계의 `close`처럼 실패를 버리는 자리는 결과를 받아 버린다고 주석에 쓴다(Logger가 없는 포크 코드는 `[미결]`, 6절).
 
+### TY-26 `Type.Unsafe`는 정해진 모양과 이름 붙인 허용 행에서만 쓴다
+
+`Type.Unsafe<T>(schema)`는 스키마에 정적 타입 `T`를 얹을 뿐 검사를 더하지 않는다. 스키마가 `T`보다 느슨하면 `parse`를 통과한 값이 `T`가 아니다. 그래서 `parse`가 `T`를 돌려준다는 약속(TY-10)이 거짓이 된다. 사용을 아래 다섯 모양으로 제한한다.
+
+| ID | 모양 | 런타임 검사가 `T`와 같은 이유 | 위치 |
+|---|---|---|---|
+| U1 | 브랜드·리터럴 유니온: `Type.Unsafe<Brand>(Type.String({ ... }))` | 검사는 문자열 패턴이고 `T`는 같은 문자열에 이름표만 붙인 타입이다. 모양 검사가 이미 전부다 | 어디서나. 스캔이 인자가 `Type.String(`으로 시작하는지 본다 |
+| U3 | JSON 통과: `Type.Unsafe<JsonValue>(Type.Unknown())`, `Type.Unsafe<JsonObject>(Type.Record(Type.String(), Type.Unknown()))`, 타입 인자 없는 `Type.Unsafe(json)` | JSON 왕복을 거친 값은 깊은 검사를 하지 않기로 했다(`F.conversation.spec` §3.3). 타입 인자 없는 호출은 `T`를 주장하지 않는다 | 어디서나 모양으로, 타입 인자 없는 호출은 `wire-settings/settings/validate-value.ts` |
+| U5 | 컴파일 시점 증명: `Type.Unsafe<T>(shape satisfies SchemaProof<T, typeof shape>)`(객체 `T`) 또는 `SchemaSound<T, typeof shape>`(유니온·배열 `T`) | 컴파일러가 `Static<typeof shape>`가 `T`에 대입되는지, `T`의 모든 최상위 키(선택 필드 포함)를 스키마가 가졌는지 확인한다. 어긋나면 `satisfies never` 오류다 | 어디서나. 타입은 `@xeon/contracts`의 `SchemaProof`, `SchemaSound`(값 import 없음) |
+| U2 | 외부(pi-ai) 타입을 거울처럼 비춘 스키마 | pi가 타입을 소유하고 선택 필드가 많다. 스키마는 판별 필드와 필수 최상위 필드만 검사하고 열린 객체라 pi가 필드를 더해도 옛 기록이 통과한다. 이 얕음은 알고 쓴다: 정적 타입이 약속하는 선택 필드는 런타임에 검사하지 않는다 | `conversation/message-schema.ts`(pi 메시지, 내용 블록, 이벤트), `conversation/agent-schema.ts`(`AgentToolResult`, `details` 키 하나가 정적 타입과 다르다) |
+| U4 | 시험 코드와 시험 지원 코드 | 시험이 스키마를 만드는 도우미를 시험한다 | `test/`, `*.test.ts`, `testing/`, `scripts/` |
+
+- 객체로 된 Xeon 소유 타입(`SandboxPolicy`, `AgentDefinition`, `PolicyRule`, `CapabilityErrorData`, `ModelBinding` 등)은 U5를 쓴다. U5 도입 때 증명이 실제 불일치를 네 곳에서 잡았다: `CapabilityErrorData.capability`와 `ModelBinding.thinkingLevel`이 평범한 문자열을 받았고, `PolicyRule.resource.caller`가 템플릿 리터럴 타입에 평범한 문자열을 받았으며, `CapabilityErrorData.detail`이 `JsonValue` 대신 `unknown`을 받았다.
+- `SchemaProof`는 중첩 객체의 키 누락을 확인하지 않는다(최상위 키만). 중첩 선택 필드를 빠뜨리지 않는 일은 스키마를 쓰는 사람의 몫이다.
+- U2 행에 새 파일을 더하려면 이 표를 먼저 고치고 리뷰어 승인을 받는다. 구현 작업 중에는 행을 더하지 않고 `[미결] TY-26 <위치> <이유>`로 보고한다. 목록은 줄어드는 방향으로만 관리한다.
+- 위 모양에 맞지 않는 호출은 실제 `Type.Object` 스키마로 바꾼다. 어렵다면 줄 위에 `// xeon-disable-next-line xeon/type-unsafe -- <이유> (eng.typescript.guide TY-26)`를 단다.
+
+이유: 정적 타입이 런타임 검사보다 많이 약속하면 타입 소거(1.1절)의 피해가 `parse` 뒤에도 남는다. 경계 값이 도메인 타입 이름을 달고 깊은 곳까지 들어간다.
+
+좋은 예:
+
+```ts
+// U5: 스키마가 T를 증명한다
+const policyShape = Type.Object({ writeRoots: Type.Array(Type.String()), allowEscape: Type.Boolean() });
+export const SandboxPolicySchema: TUnsafe<SandboxPolicy> = Type.Unsafe<SandboxPolicy>(
+  policyShape satisfies SchemaProof<SandboxPolicy, typeof policyShape>,
+);
+
+// U1: 브랜드. 검사는 패턴이 전부다
+export const ThreadIdSchema: TUnsafe<ThreadId> = Type.Unsafe<ThreadId>(
+  Type.String({ pattern: THREAD_ID_PATTERN }),
+);
+```
+
+나쁜 예:
+
+```ts
+// 스캔 xeon/type-unsafe 실패: 객체 스키마에 T를 얹었는데 증명이 없다. role만 맞아도 통과한다
+export const AgentToolResultSchema: TUnsafe<AgentToolResult> = Type.Unsafe<AgentToolResult>(
+  Type.Object({ content: Type.Array(Type.Unknown()) }),
+);
+
+// 컴파일 오류: 스키마가 string을 받는데 T는 템플릿 리터럴 타입이다
+const shape = Type.Object({ capability: Type.String() });
+Type.Unsafe<{ capability: `${string}.${string}` }>(shape satisfies SchemaProof<{ capability: `${string}.${string}` }, typeof shape>);
+```
+
 ## 3. 강제 수단
 
 ### 3.1 규칙별 강제 수단
 
-oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부는 oxlint 1.89.0 규칙 목록 871개로 확인했다(`_research/notes/eng-1.md §2`, 같은 조사의 규칙 목록 JSON). "추가"는 `xeon/.oxlintrc.json`에 아직 없는 규칙이고 "적용"은 2026-10-23에 넣은 규칙이다. 스캔은 `scripts/check-ts-rules.ts`이고 `just check-ts-rules`로 부르며 `just verify`에 들어 있다. 구현한 스캔 규칙은 `xeon/as-location`, `xeon/bug-for-expected`, `xeon/catch-swallow`, `xeon/directive-format`, `xeon/switch-default-never` 다섯 가지이고 표의 나머지 스캔 규칙은 [제안]이다.
+oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부는 oxlint 1.89.0 규칙 목록 871개로 확인했다(`_research/notes/eng-1.md §2`, 같은 조사의 규칙 목록 JSON). "추가"는 `xeon/.oxlintrc.json`에 아직 없는 규칙이고 "적용"은 2026-10-23에 넣은 규칙이다. 스캔은 `scripts/check-ts-rules.ts`이고 `just check-ts-rules`로 부르며 `just verify`에 들어 있다. 구현한 스캔 규칙은 `xeon/as-location`, `xeon/bug-for-expected`, `xeon/catch-swallow`, `xeon/directive-format`, `xeon/switch-default-never`, `xeon/type-unsafe` 여섯 가지이고 표의 나머지 스캔 규칙은 [제안]이다.
 
 | 규칙 | tsconfig | oxlint | 스캔 | 리뷰 |
 |---|---|---|---|---|
@@ -1182,6 +1229,7 @@ oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부
 | TY-22 Promise | — | `typescript/no-floating-promises`, `typescript/no-misused-promises`, `typescript/await-thenable`, `typescript/require-await` | `xeon/no-void-promise`: `void <호출식>` 검출 | signal 전파 |
 | TY-23 좁히기 수단 | `strict` | TY-06 규칙, `typescript/no-unnecessary-type-parameters`(적용), `typescript/no-unsafe-function-type`(적용), `typescript/no-wrapper-object-types`(correctness 범주로 켜져 있음) | — | 타입 가드가 술어 타입의 필드를 실제로 검사하는가 |
 | TY-24 Bug 범위 | — | — | `xeon/bug-for-expected`(구현): `new Bug(` 메시지에 예상 가능한 실패 단어나 `Result` 오류 보간, 운영 코드의 `if (!x.ok) throw new Bug(` | 이 Bug는 코드와 설정이 올바라도 생길 수 있는가 |
+| TY-26 `Type.Unsafe` | — | — | `xeon/type-unsafe`(구현): `Type.Unsafe<T>(` 인자가 `Type.String(`로 시작하지 않고, JSON 통과 모양도 아니고, `satisfies SchemaProof<`·`SchemaSound<`도 없고, 허용 파일(`message-schema.ts`, `agent-schema.ts`, `validate-value.ts`)과 시험 경로도 아니면 실패 | 스키마가 `T`보다 느슨하면 허용 행에 이유가 있는가 |
 | TY-25 catch 처리 | — | `no-empty` `{ "allowEmptyCatch": false }`(적용), `preserve-caught-error` `{ "requireCatchParameter": true }`(적용), `no-useless-catch`(correctness 범주로 켜져 있음), `no-unused-vars`(correctness), `typescript/use-unknown-in-catch-callback-variable`(적용) | `xeon/catch-swallow`(구현): `void <식별자>`, `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)` | 기록 후 계속하는 catch에 근거 문서가 있는가 |
 
 `.oxlintrc.json`에 넣을 항목. 아래 항목 가운데 `typescript/explicit-module-boundary-types`, `typescript/prefer-readonly`, `unicorn/no-static-only-class`, `no-restricted-properties`(TY-21)는 아직 넣지 않았다(코드 정리가 먼저다, 6절). 나머지는 2026-10-23에 `xeon/.oxlintrc.json`에 넣었고 위반은 모두 고쳤다. 설정 파일은 `eng.toolchain.guide`가 소유한다.
@@ -1274,7 +1322,7 @@ typed programming 안티패턴을 막는 규칙 전체다. `xeon/.oxlintrc.json`
 `scripts/check-ts-rules.ts`가 있다(2026-10-23). 시험은 `scripts/check-ts-rules.test.ts`다.
 
 - 실행: `just check-ts-rules`(= `bun scripts/check-ts-rules.ts [--exceptions] [루트]`). `just verify`에 포함한다. `--exceptions`는 예외 주석 전체를 표로 찍는다. 실행할 때마다 예외 개수를 종류와 규칙별로 한 줄씩 찍는다.
-- 구현한 규칙: `xeon/as-location`(허용 행마다 허용 파일을 코드에 적었다), `xeon/bug-for-expected`(시험 파일 제외), `xeon/catch-swallow`, `xeon/switch-default-never`(`default` 블록에 `assertNever`가 없으면 실패. 주석·문자열·정규식 리터럴을 가리고 중괄호를 센다), `xeon/directive-format`(블록 disable, 이유와 `(<이슈 또는 문서 id>)`가 없는 disable, `ts-ignore`, `ts-nocheck`, 운영 코드의 `ts-expect-error`). 스캔 자신의 파일(`check-ts-rules*.ts`)은 대상에서 뺀다. 규칙 이름과 정규식을 파일에 적기 때문이다.
+- 구현한 규칙: `xeon/as-location`(허용 행마다 허용 파일을 코드에 적었다), `xeon/bug-for-expected`(시험 파일 제외), `xeon/catch-swallow`, `xeon/type-unsafe`(`Type.Unsafe<T>` 호출의 인자 모양을 TY-26 허용 행과 비교한다), `xeon/switch-default-never`(`default` 블록에 `assertNever`가 없으면 실패. 주석·문자열·정규식 리터럴을 가리고 중괄호를 센다), `xeon/directive-format`(블록 disable, 이유와 `(<이슈 또는 문서 id>)`가 없는 disable, `ts-ignore`, `ts-nocheck`, 운영 코드의 `ts-expect-error`). 스캔 자신의 파일(`check-ts-rules*.ts`)은 대상에서 뺀다. 규칙 이름과 정규식을 파일에 적기 때문이다.
 - 대상: `packages/**`, `apps/**`, `plugins/**`, `scripts/**`의 `.ts`, `.tsx`. `vendor/**`, `dist/**`, `node_modules/**` 제외.
 - 파서: TS 7.0에는 안정 programmatic API가 없다(`_research/stack-status.md §2`). 줄 단위 정규식 검출로 시작했고 `new Bug(` 인자만 괄호 짝을 센다. 오탐이 문제가 되면 별도 파서로 바꾼다 [미결].
 - 별도 파일로 둔다. 층 검사(`check-layers.ts`)와 구문 검사는 실패 원인이 다르다.
@@ -1289,6 +1337,7 @@ PR 리뷰에서 확인한다. 자동 검사가 없는 항목만 적는다.
 - [ ] 새 `throw`가 버그인가. 예상 가능한 실패(I/O, busy, disk_full, read_only, cancelled, not_found, 검증 실패, 소유권 상실, timeout)는 `kind`가 있는 `Result`인가 (TY-11, TY-24)
 - [ ] 새 `Bug`가 "코드와 설정이 올바라도 생길 수 있는가" 질문에 "아니다"인가 (TY-24)
 - [ ] 새 `catch`가 변환, 근거 있는 기록 후 계속, 다시 던지기 중 하나인가 (TY-25)
+- [ ] 새 `Type.Unsafe<T>`가 TY-26 허용 모양(브랜드 문자열, JSON 통과, `SchemaProof` 증명)인가. 객체 `T`는 `satisfies SchemaProof<T, typeof shape>`를 붙였는가 (TY-26)
 - [ ] 새 타입 가드가 술어 타입의 필드를 실제로 검사하는가. 경계 값 전체를 손 가드로 검사하지 않는가 (TY-23)
 - [ ] 새 disable 주석이 TY-06 허용 목록 위치이거나 이슈가 있는 예외인가. 허용 목록 행이 늘었으면 리뷰어가 따로 승인했는가 (TY-06)
 - [ ] `switch`의 `default`가 새 변형을 조용히 흡수하지 않는가 (TY-14)
@@ -1361,7 +1410,7 @@ flushLater();
 ## 5. 수용 기준
 
 - 2절의 나쁜 예 각각을 `xeon/scripts/fixtures/ts-rules/bad/TY-NN-<이름>.ts`로 두고, 같은 규칙의 좋은 예를 `good/`에 둔다 [제안]. 픽스처 디렉터리는 일반 `tsc -b`와 lint 대상에서 제외하고 테스트에서만 검사한다. 지금은 oxlint 프로브(2026-10-23)와 `scripts/check-ts-rules.test.ts`의 문자열 시험이 이 자리를 맡는다. 픽스처 파일은 아직 없다 [미결].
-- `scripts/check-ts-rules.test.ts`가 스캔 다섯 규칙의 통과와 실패, 예외 주석 면제, 예외 개수 요약을 시험한다. 이 테스트는 `just test`(`bun test scripts`)에 포함되므로 `just verify`가 실패를 보고한다.
+- `scripts/check-ts-rules.test.ts`가 스캔 여섯 규칙의 통과와 실패, 예외 주석 면제, 예외 개수 요약을 시험한다. 이 테스트는 `just test`(`bun test scripts`)에 포함되므로 `just verify`가 실패를 보고한다.
 - 자동 검사 수단이 "리뷰"뿐인 나쁜 예는 이 기준에서 빠진다. 해당 규칙: TY-14 두 번째 나쁜 예(조건부, tsgolint 확인 전), TY-15 첫 번째 나쁜 예, TY-22 세 번째 나쁜 예, TY-23 세 번째 나쁜 예(손 타입 가드). 이 목록이 줄어드는 방향으로 스캔을 늘린다. TY-24 나쁜 예는 `xeon/bug-for-expected`가 맡는다.
 - 4.1절 형식에 맞지 않는 disable 주석이 하나라도 있으면 `just verify`가 실패한다(`xeon/directive-format`).
 - `bun scripts/check-ts-rules.ts --exceptions`가 저장소의 모든 예외 주석을 출력한다.

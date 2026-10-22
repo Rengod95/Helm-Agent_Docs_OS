@@ -10,6 +10,9 @@
 //                         not_found, corrupt, ownership_lost, lease_lost, row_invalid, row_corrupt, read_failed, commit_failed,
 //                         name_conflict, setup_failed) or interpolates a Result error (`${x.error.kind}`), or sits directly
 //                         under `if (!x.ok)` in non-test code: a Result failure converted to a Bug (TY-24)
+//   xeon/type-unsafe     `Type.Unsafe` call outside the TY-26 allowlist: not wrapping `Type.String(...)` (brand), not wrapping
+//                         `Type.Unknown()`/`Type.Record(Type.String(), Type.Unknown())` (JSON passthrough), without
+//                         `satisfies SchemaProof<...>`/`SchemaSound<...>` (compile-time proof), and not in a row-U2/U3/U4 file
 //   xeon/switch-default-never a `switch` whose `default` block has no `assertNever` call (TY-14)
 //   xeon/catch-swallow    `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)` or `void <caught>` (TY-25)
 //   xeon/directive-format block disable comments, disable comments without ` -- <reason>`, ts-ignore, ts-nocheck and
@@ -49,6 +52,18 @@ const ALLOWLIST: Readonly<Record<string, (path: string) => boolean>> = {
     path === "packages/core-tools/src/testing/fake-secrets.ts",
   A5: (path) => path === "packages/contracts/src/wire-settings/settings/define.ts",
   A6: (path) => isTestPath(path),
+};
+
+/** TY-26 `Type.Unsafe` 허용 파일. 파일 밖의 호출은 인자 모양(브랜드, JSON 통과, 증명)으로만 허용한다. 가이드 표와 같이 고친다 */
+const TYPE_UNSAFE_FILES: Readonly<Record<string, (path: string) => boolean>> = {
+  // U2: 외부(pi-ai) 타입을 얕은 형상으로 거울처럼 비춘 스키마
+  U2: (path) =>
+    path === "packages/contracts/src/conversation/message-schema.ts" ||
+    path === "packages/contracts/src/conversation/agent-schema.ts",
+  // U3: 정적 타입 없이 JSON 스키마를 그대로 통과시키는 호출
+  U3: (path) => path === "packages/contracts/src/wire-settings/settings/validate-value.ts",
+  // U4: 시험 코드와 시험 지원 코드
+  U4: (path) => isTestPath(path),
 };
 
 const EXPECTED_WORDS =
@@ -237,6 +252,53 @@ function switchBody(code: string, switchAt: number): { start: number; end: numbe
   return undefined;
 }
 
+const JSON_PASSTHROUGH =
+  /^(?:Type\.Unknown\(\)|Type\.Record\(\s*Type\.String\(\)\s*,\s*Type\.Unknown\(\)\s*\))$/;
+
+/**
+ * TY-26: `Type.Unsafe`는 정적 타입을 스키마에 얹을 뿐 검사를 더하지 않는다. 허용하는 모양은 넷이다.
+ * 브랜드(`Type.String(...)`을 감싼다), JSON 통과(`Type.Unknown()` 등), 컴파일 시점 증명(`satisfies SchemaProof<...>`·`SchemaSound<...>`),
+ * 허용 파일(U2~U4). 그 밖은 실제 `Type.Object` 스키마를 쓰거나 이유를 단 예외 주석을 단다
+ */
+function scanTypeUnsafe(
+  text: string,
+  path: string,
+  add: (rule: string, line: number, message: string) => void,
+): void {
+  if (Object.values(TYPE_UNSAFE_FILES).some((covers) => covers(path))) return;
+  const code = maskCode(text);
+  for (const match of code.matchAll(/\bType\.Unsafe\b/g)) {
+    let at = match.index + match[0].length;
+    if (code.charAt(at) === "<") {
+      let depth = 0;
+      for (; at < code.length; at += 1) {
+        const ch = code.charAt(at);
+        if (ch === "<") depth += 1;
+        else if (ch === ">") {
+          depth -= 1;
+          if (depth === 0) {
+            at += 1;
+            break;
+          }
+        }
+      }
+    }
+    if (code.charAt(at) !== "(") continue;
+    const args = callArguments(text, at).trim().replace(/,$/, "").trim();
+    const allowed =
+      args.startsWith("Type.String(") ||
+      JSON_PASSTHROUGH.test(args) ||
+      /\bsatisfies\s+Schema(?:Proof|Sound)</.test(args);
+    if (!allowed) {
+      add(
+        "xeon/type-unsafe",
+        lineOf(text, match.index),
+        "Type.Unsafe needs a brand (Type.String), a JSON passthrough, a `satisfies SchemaProof<...>` proof or a TY-26 allowlist row",
+      );
+    }
+  }
+}
+
 /**
  * TY-14: 모든 switch의 default 블록은 assertNever를 부른다. default 블록은 default 절부터 같은 switch의
  * 다음 case(또는 switch의 끝)까지다. 예외는 default 줄 위나 default 블록 안의 `xeon-disable-next-line xeon/switch-default-never` 주석이다
@@ -405,6 +467,7 @@ export function scanSource(file: SourceFile): {
       }
     }
   }
+  scanTypeUnsafe(file.text, file.path, add);
   scanSwitchDefaults(file.text, add, (from, to) => {
     for (let at = from; at <= to; at += 1) {
       if (exempt.get(at)?.has("xeon/switch-default-never") === true) return true;

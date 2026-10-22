@@ -1,4 +1,5 @@
 import { Type, type TUnsafe } from "typebox";
+import type { SchemaProof } from "../base/index.ts";
 import type { CancelScope, Shell } from "./exec.ts";
 
 // L0.sandbox.spec §3.1. 구현은 platform-sandbox다. exec와 sandbox는 서로 import하지 않고 F의 Shell 인터페이스로만 만난다.
@@ -51,47 +52,49 @@ const SELF_TEST_IDS = [
 
 const SelfTestIdSchema = Type.Union(SELF_TEST_IDS.map((id) => Type.Literal(id)));
 
+const sandboxStatusShape = Type.Object(
+  {
+    level: Type.Union([Type.Literal("srt"), Type.Literal("none")]),
+    platform: Type.Union([
+      Type.Literal("darwin"),
+      Type.Literal("linux"),
+      Type.Literal("wsl2"),
+      Type.Literal("wsl1"),
+      Type.Literal("win32"),
+      Type.Literal("other"),
+    ]),
+    available: Type.Boolean(),
+    reason: Type.Optional(
+      Type.Union([
+        Type.Literal("missing_dependency"),
+        Type.Literal("unsupported_os"),
+        Type.Literal("self_test_failed"),
+        Type.Literal("disabled"),
+      ]),
+    ),
+    missing: Type.Optional(Type.Array(Type.String({ maxLength: 64 }), { maxItems: 16 })),
+    installHints: Type.Optional(Type.Array(Type.String({ maxLength: 500 }), { maxItems: 16 })),
+    onUnavailable: Type.Union([
+      Type.Literal("disable_execute"),
+      Type.Literal("ask"),
+      Type.Literal("run_unsandboxed"),
+    ]),
+    lastSelfTest: Type.Optional(
+      Type.Object(
+        {
+          at: Type.Integer({ minimum: 0 }),
+          passed: Type.Boolean(),
+          failed: Type.Array(SelfTestIdSchema, { maxItems: 6 }),
+        },
+        { additionalProperties: false },
+      ),
+    ),
+  },
+  { additionalProperties: false },
+);
+
 export const SandboxStatusSchema: TUnsafe<SandboxStatus> = Type.Unsafe<SandboxStatus>(
-  Type.Object(
-    {
-      level: Type.Union([Type.Literal("srt"), Type.Literal("none")]),
-      platform: Type.Union([
-        Type.Literal("darwin"),
-        Type.Literal("linux"),
-        Type.Literal("wsl2"),
-        Type.Literal("wsl1"),
-        Type.Literal("win32"),
-        Type.Literal("other"),
-      ]),
-      available: Type.Boolean(),
-      reason: Type.Optional(
-        Type.Union([
-          Type.Literal("missing_dependency"),
-          Type.Literal("unsupported_os"),
-          Type.Literal("self_test_failed"),
-          Type.Literal("disabled"),
-        ]),
-      ),
-      missing: Type.Optional(Type.Array(Type.String({ maxLength: 64 }), { maxItems: 16 })),
-      installHints: Type.Optional(Type.Array(Type.String({ maxLength: 500 }), { maxItems: 16 })),
-      onUnavailable: Type.Union([
-        Type.Literal("disable_execute"),
-        Type.Literal("ask"),
-        Type.Literal("run_unsandboxed"),
-      ]),
-      lastSelfTest: Type.Optional(
-        Type.Object(
-          {
-            at: Type.Integer({ minimum: 0 }),
-            passed: Type.Boolean(),
-            failed: Type.Array(SelfTestIdSchema, { maxItems: 6 }),
-          },
-          { additionalProperties: false },
-        ),
-      ),
-    },
-    { additionalProperties: false },
-  ),
+  sandboxStatusShape satisfies SchemaProof<SandboxStatus, typeof sandboxStatusShape>,
 );
 
 export interface SandboxNetworkPolicy {
@@ -113,27 +116,29 @@ export interface SandboxPolicy {
   allowEscape: boolean;
 }
 
+const sandboxPolicyShape = Type.Object(
+  {
+    writeRoots: Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 256 }),
+    readDeny: Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 1024 }),
+    writeDeny: Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 1024 }),
+    network: Type.Object(
+      {
+        allowedDomains: Type.Array(Type.String({ minLength: 1, maxLength: 253 }), {
+          maxItems: 256,
+        }),
+        deniedDomains: Type.Array(Type.String({ minLength: 1, maxLength: 253 }), {
+          maxItems: 256,
+        }),
+      },
+      { additionalProperties: false },
+    ),
+    allowEscape: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+
 export const SandboxPolicySchema: TUnsafe<SandboxPolicy> = Type.Unsafe<SandboxPolicy>(
-  Type.Object(
-    {
-      writeRoots: Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 256 }),
-      readDeny: Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 1024 }),
-      writeDeny: Type.Array(Type.String({ minLength: 1, maxLength: 4096 }), { maxItems: 1024 }),
-      network: Type.Object(
-        {
-          allowedDomains: Type.Array(Type.String({ minLength: 1, maxLength: 253 }), {
-            maxItems: 256,
-          }),
-          deniedDomains: Type.Array(Type.String({ minLength: 1, maxLength: 253 }), {
-            maxItems: 256,
-          }),
-        },
-        { additionalProperties: false },
-      ),
-      allowEscape: Type.Boolean(),
-    },
-    { additionalProperties: false },
-  ),
+  sandboxPolicyShape satisfies SchemaProof<SandboxPolicy, typeof sandboxPolicyShape>,
 );
 
 export type ProtectedAccess = "read_write" | "write";
@@ -228,26 +233,28 @@ export interface SelfTestReport {
   items: SelfTestItem[];
 }
 
-export const SelfTestReportSchema: TUnsafe<SelfTestReport> = Type.Unsafe<SelfTestReport>(
-  Type.Object(
-    {
-      at: Type.Integer({ minimum: 0 }),
-      durationMs: Type.Integer({ minimum: 0 }),
-      passed: Type.Boolean(),
-      items: Type.Array(
-        Type.Object(
-          {
-            id: SelfTestIdSchema,
-            passed: Type.Boolean(),
-            detail: Type.Optional(Type.String({ maxLength: 500 })),
-          },
-          { additionalProperties: false },
-        ),
-        { maxItems: 6 },
+const selfTestReportShape = Type.Object(
+  {
+    at: Type.Integer({ minimum: 0 }),
+    durationMs: Type.Integer({ minimum: 0 }),
+    passed: Type.Boolean(),
+    items: Type.Array(
+      Type.Object(
+        {
+          id: SelfTestIdSchema,
+          passed: Type.Boolean(),
+          detail: Type.Optional(Type.String({ maxLength: 500 })),
+        },
+        { additionalProperties: false },
       ),
-    },
-    { additionalProperties: false },
-  ),
+      { maxItems: 6 },
+    ),
+  },
+  { additionalProperties: false },
+);
+
+export const SelfTestReportSchema: TUnsafe<SelfTestReport> = Type.Unsafe<SelfTestReport>(
+  selfTestReportShape satisfies SchemaProof<SelfTestReport, typeof selfTestReportShape>,
 );
 
 export interface SandboxStatusSummary {

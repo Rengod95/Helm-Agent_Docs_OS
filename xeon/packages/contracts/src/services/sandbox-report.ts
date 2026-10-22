@@ -1,4 +1,5 @@
 import { Type, type TUnsafe } from "typebox";
+import type { SchemaProof } from "../base/index.ts";
 
 // L0.sandbox.spec §3.1. 아무것도 import하지 않는다(exec.ts와 sandbox.ts가 함께 쓴다, F.capabilities.spec §3.12 규칙 4).
 
@@ -21,41 +22,43 @@ export interface SandboxRunReport {
   violationsTruncated: boolean;
 }
 
+const sandboxRunReportShape = Type.Object(
+  {
+    sandboxed: Type.Boolean(),
+    level: Type.Union([Type.Literal("srt"), Type.Literal("none")]),
+    unsandboxedBy: Type.Optional(
+      Type.Union([
+        Type.Literal("escape"),
+        Type.Literal("run_unsandboxed"),
+        Type.Literal("disabled"),
+      ]),
+    ),
+    violations: Type.Array(
+      Type.Object(
+        {
+          source: Type.Union([
+            Type.Literal("proxy"),
+            Type.Literal("seatbelt"),
+            Type.Literal("seccomp"),
+          ]),
+          operation: Type.Union([
+            Type.Literal("file_read"),
+            Type.Literal("file_write"),
+            Type.Literal("network"),
+            Type.Literal("other"),
+          ]),
+          target: Type.Optional(Type.String({ maxLength: 200 })),
+          count: Type.Integer({ minimum: 1 }),
+        },
+        { additionalProperties: false },
+      ),
+      { maxItems: 256 },
+    ),
+    violationsTruncated: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+
 export const SandboxRunReportSchema: TUnsafe<SandboxRunReport> = Type.Unsafe<SandboxRunReport>(
-  Type.Object(
-    {
-      sandboxed: Type.Boolean(),
-      level: Type.Union([Type.Literal("srt"), Type.Literal("none")]),
-      unsandboxedBy: Type.Optional(
-        Type.Union([
-          Type.Literal("escape"),
-          Type.Literal("run_unsandboxed"),
-          Type.Literal("disabled"),
-        ]),
-      ),
-      violations: Type.Array(
-        Type.Object(
-          {
-            source: Type.Union([
-              Type.Literal("proxy"),
-              Type.Literal("seatbelt"),
-              Type.Literal("seccomp"),
-            ]),
-            operation: Type.Union([
-              Type.Literal("file_read"),
-              Type.Literal("file_write"),
-              Type.Literal("network"),
-              Type.Literal("other"),
-            ]),
-            target: Type.Optional(Type.String({ maxLength: 200 })),
-            count: Type.Integer({ minimum: 1 }),
-          },
-          { additionalProperties: false },
-        ),
-        { maxItems: 256 },
-      ),
-      violationsTruncated: Type.Boolean(),
-    },
-    { additionalProperties: false },
-  ),
+  sandboxRunReportShape satisfies SchemaProof<SandboxRunReport, typeof sandboxRunReportShape>,
 );

@@ -324,7 +324,7 @@ export const AssistantMessageEventSchema: TUnsafe<AssistantMessageEvent>;
 한계:
 
 1. 깊은 필드(예: `AssistantMessage.diagnostics`, `SystemMessage.toolsAdded`의 `Tool.parameters`, `DeferredHandle`)는 검사하지 않는다.
-2. `Type.Unsafe`는 정적 타입과 스키마의 일치를 컴파일러가 보장하지 않는다. 일치는 픽스처 왕복 테스트와 판별 값 목록 테스트로만 확인한다(§9 수용 기준 2, 6).
+2. `Type.Unsafe`는 정적 타입과 스키마의 일치를 컴파일러가 보장하지 않는다. pi 타입을 비춘 이 파일들(`message-schema.ts`, `agent-schema.ts`)은 `eng.typescript.guide` TY-26의 허용 행 U2이고, 일치는 픽스처 왕복 테스트와 판별 값 목록 테스트로만 확인한다(§9 수용 기준 2, 6). Xeon이 소유한 객체 타입은 `SchemaProof`로 컴파일 시점에 증명한다(U5). `AgentToolResultSchema`는 `additionalProperties: false`이고 여섯 필드를 모두 가진다.
 3. `ToolResultMessage<TDetails>`는 `TDetails`가 JSON 호환일 때만 성립하는 조건부 타입이다(`_research/notes/F-2.md` §5.1). 스키마는 기본 인자 `JsonValue`만 다룬다.
 4. TypeBox 1.x의 `Value.Check`가 `Unsafe`로 감싼 객체 스키마의 키워드를 그대로 검사한다고 본다 [가정]. C3 작업의 첫 테스트가 이를 확인한다(`F.conversation.plan`).
 

@@ -1,5 +1,5 @@
 import { Type, type TString, type TUnsafe } from "typebox";
-import type { Result } from "../base/index.ts";
+import type { Result, SchemaProof } from "../base/index.ts";
 import type {
   Api,
   AssistantMessage,
@@ -139,16 +139,20 @@ export interface ModelBinding {
   readonly modelId: string;
   readonly thinkingLevel: ModelThinkingLevel;
 }
+const modelBindingShape = Type.Object(
+  {
+    role: ModelRoleSchema,
+    provider: Type.String({ pattern: "^[a-z0-9][a-z0-9._-]{0,63}$", maxLength: 64 }),
+    modelId: Type.String({ minLength: 1, maxLength: 200 }),
+    thinkingLevel: Type.Unsafe<ModelThinkingLevel>(
+      Type.String({ enum: THINKING_LEVELS, minLength: 3, maxLength: 7 }),
+    ),
+  },
+  { additionalProperties: false },
+);
+
 export const ModelBindingSchema: TUnsafe<ModelBinding> = Type.Unsafe<ModelBinding>(
-  Type.Object(
-    {
-      role: ModelRoleSchema,
-      provider: Type.String({ pattern: "^[a-z0-9][a-z0-9._-]{0,63}$", maxLength: 64 }),
-      modelId: Type.String({ minLength: 1, maxLength: 200 }),
-      thinkingLevel: Type.String({ enum: THINKING_LEVELS, minLength: 3, maxLength: 7 }),
-    },
-    { additionalProperties: false },
-  ),
+  modelBindingShape satisfies SchemaProof<ModelBinding, typeof modelBindingShape>,
 );
 
 // ── 캐시 정책 ────────────────────────────────────────────────────────────
@@ -399,21 +403,23 @@ const ModelDefSchema = Type.Object(
 );
 
 /** registerProvider(포트 경로)가 config를 검사하는 스키마. 키는 비밀 참조만 받는다 */
+const providerConfigDefShape = Type.Object(
+  {
+    kind: Type.Literal("config"),
+    name: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    baseUrl: Type.Optional(Type.String({ minLength: 1, maxLength: 2048 })),
+    api: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    apiKey: Type.Optional(
+      Type.String({ pattern: "^secret://[a-z][a-z0-9-]{1,63}$", maxLength: 75 }),
+    ),
+    headers: Type.Optional(Type.Record(Type.String(), Type.String({ maxLength: 4096 }))),
+    models: Type.Optional(Type.Array(ModelDefSchema, { maxItems: 512 })),
+  },
+  { additionalProperties: false },
+);
+
 export const ProviderConfigDefSchema: TUnsafe<ProviderConfigDef> = Type.Unsafe<ProviderConfigDef>(
-  Type.Object(
-    {
-      kind: Type.Literal("config"),
-      name: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
-      baseUrl: Type.Optional(Type.String({ minLength: 1, maxLength: 2048 })),
-      api: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
-      apiKey: Type.Optional(
-        Type.String({ pattern: "^secret://[a-z][a-z0-9-]{1,63}$", maxLength: 75 }),
-      ),
-      headers: Type.Optional(Type.Record(Type.String(), Type.String({ maxLength: 4096 }))),
-      models: Type.Optional(Type.Array(ModelDefSchema, { maxItems: 512 })),
-    },
-    { additionalProperties: false },
-  ),
+  providerConfigDefShape satisfies SchemaProof<ProviderConfigDef, typeof providerConfigDefShape>,
 );
 
 // ── 오류 ─────────────────────────────────────────────────────────────────

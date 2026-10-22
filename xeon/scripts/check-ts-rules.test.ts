@@ -167,6 +167,55 @@ test("an exemption above the default line or inside its block silences the switc
   expect(scan("packages/a/src/x.ts", inside)).toEqual([]);
 });
 
+test("Type.Unsafe is limited to brands, JSON passthrough, proofs and the TY-26 allowlist", () => {
+  const path = "packages/contracts/src/services/x.ts";
+  // 브랜드: 문자열 스키마를 감싼다
+  expect(scan(path, 'const A = Type.Unsafe<Id>(Type.String({ pattern: "^a$" }));')).toEqual([]);
+  // JSON 통과
+  expect(scan(path, "const B = Type.Unsafe<JsonValue>(Type.Unknown());")).toEqual([]);
+  expect(
+    scan(path, "const C = Type.Unsafe<JsonObject>(Type.Record(Type.String(), Type.Unknown()));"),
+  ).toEqual([]);
+  // 컴파일 시점 증명
+  expect(
+    scan(path, "const D = Type.Unsafe<Foo>(shape satisfies SchemaProof<Foo, typeof shape>);"),
+  ).toEqual([]);
+  expect(
+    scan(path, "const E = Type.Unsafe<Foo>(shape satisfies SchemaSound<Foo, typeof shape>);"),
+  ).toEqual([]);
+  // 증명 없는 객체 스키마는 정적 타입만 얹는다
+  expect(scan(path, "const F = Type.Unsafe<Foo>(Type.Object({ a: Type.String() }));")).toEqual([
+    "1 xeon/type-unsafe",
+  ]);
+  expect(scan(path, "const G = Type.Unsafe<Foo>(shape);")).toEqual(["1 xeon/type-unsafe"]);
+  // 제네릭 안의 꺾쇠를 건너뛴다
+  expect(scan(path, "const H = Type.Unsafe<Omit<Foo, 'a'>>(Type.Object({}));")).toEqual([
+    "1 xeon/type-unsafe",
+  ]);
+  // 허용 파일(U2 pi 거울, U3 JSON 스키마 통과, U4 시험)
+  expect(
+    scan(
+      "packages/contracts/src/conversation/message-schema.ts",
+      "const I = Type.Unsafe<M>(shape);",
+    ),
+  ).toEqual([]);
+  expect(scan("packages/contracts/test/x.test.ts", "const J = Type.Unsafe(json);")).toEqual([]);
+  expect(
+    scan("packages/core-models/src/testing/tape.ts", "const K = Type.Unsafe<T>(shape);"),
+  ).toEqual([]);
+  // 주석과 문자열 안은 세지 않는다
+  expect(scan(path, "// Type.Unsafe<Foo>(shape)\nconst L = 'Type.Unsafe<Foo>(shape)';")).toEqual(
+    [],
+  );
+  // 예외 주석
+  expect(
+    scan(
+      path,
+      "// xeon-disable-next-line xeon/type-unsafe -- 외부 타입 거울 (eng.typescript.guide TY-26)\nconst M = Type.Unsafe<Foo>(shape);",
+    ),
+  ).toEqual([]);
+});
+
 test("an exemption comment above the line silences a scan rule", () => {
   const text =
     '// xeon-disable-next-line xeon/bug-for-expected -- 질의어가 아니다 (eng.typescript.guide TY-24)\nthrow new Bug("x.io");';

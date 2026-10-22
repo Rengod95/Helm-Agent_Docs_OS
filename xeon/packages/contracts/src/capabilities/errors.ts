@@ -1,6 +1,7 @@
 import { Type, type TUnsafe } from "typebox";
+import type { SchemaProof } from "../base/index.ts";
 import type { JsonValue } from "../conversation/index.ts";
-import { CapabilityIdSchema, type CapabilityId } from "./ids.ts";
+import { CapabilityIdTypedSchema, type CapabilityId } from "./ids.ts";
 
 export const COMMON_ERROR_CODES: readonly [
   "invalid_input",
@@ -42,21 +43,26 @@ export interface CapabilityErrorData {
 }
 
 /** 와이어(격리 프로세스, 도구 결과 details)로 오갈 때 쓰는 스키마 */
+const capabilityErrorDataShape = Type.Object(
+  {
+    capability: CapabilityIdTypedSchema,
+    method: Type.String({ minLength: 1, maxLength: 48 }),
+    code: Type.String({ pattern: "^[a-z][a-z0-9_]{0,47}$" }),
+    message: Type.String({ maxLength: 8192 }),
+    retryable: Type.Boolean(),
+    retryAfterMs: Type.Optional(Type.Integer({ minimum: 0 })),
+    provider: Type.Optional(Type.String({ maxLength: 128 })),
+    detail: Type.Optional(Type.Unsafe<JsonValue>(Type.Unknown())),
+  },
+  { additionalProperties: false },
+);
+
 export const CapabilityErrorDataSchema: TUnsafe<CapabilityErrorData> =
   Type.Unsafe<CapabilityErrorData>(
-    Type.Object(
-      {
-        capability: CapabilityIdSchema,
-        method: Type.String({ minLength: 1, maxLength: 48 }),
-        code: Type.String({ pattern: "^[a-z][a-z0-9_]{0,47}$" }),
-        message: Type.String({ maxLength: 8192 }),
-        retryable: Type.Boolean(),
-        retryAfterMs: Type.Optional(Type.Integer({ minimum: 0 })),
-        provider: Type.Optional(Type.String({ maxLength: 128 })),
-        detail: Type.Optional(Type.Unknown()),
-      },
-      { additionalProperties: false },
-    ),
+    capabilityErrorDataShape satisfies SchemaProof<
+      CapabilityErrorData,
+      typeof capabilityErrorDataShape
+    >,
   );
 
 /** 서비스 메서드는 실패 시 이 오류로 거부(reject)한다. pi AgentTool.execute와 같은 예외 기반 규약이다. */

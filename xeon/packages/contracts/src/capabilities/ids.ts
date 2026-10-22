@@ -1,4 +1,4 @@
-import { Type, type TString } from "typebox";
+import { Type, type TString, type TUnsafe } from "typebox";
 
 /** 능력 ID. 점으로 이은 소문자 세그먼트 2~4개. 예: "web.search", "knowledge.memory.read" */
 export type CapabilityId = `${string}.${string}`;
@@ -7,6 +7,10 @@ export const CapabilityIdSchema: TString = Type.String({
   pattern: CAPABILITY_ID_PATTERN,
   maxLength: 96,
 });
+/** 같은 패턴을 검사하고 정적 타입을 CapabilityId로 좁힌 스키마. 템플릿 리터럴 타입에 평범한 string이 대입되지 않게 한다 */
+export const CapabilityIdTypedSchema: TUnsafe<CapabilityId> = Type.Unsafe<CapabilityId>(
+  Type.String({ pattern: CAPABILITY_ID_PATTERN, maxLength: 96 }),
+);
 
 /** 예약된 첫 세그먼트. 외부 능력 ID가 쓸 수 없다. */
 export const RESERVED_CAPABILITY_PREFIXES: readonly string[] = ["core", "ext", "grp", "x"];

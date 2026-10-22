@@ -11,9 +11,8 @@ import {
   type TString,
   type TUnion,
   type TUnknown,
-  type TUnsafe,
 } from "typebox";
-import { CapabilityIdSchema, ToolNameSchema, type CapabilityId } from "../../capabilities/index.ts";
+import { CapabilityIdTypedSchema, ToolNameSchema } from "../../capabilities/index.ts";
 import {
   ImageContentSchema,
   JsonValueSchema,
@@ -21,14 +20,12 @@ import {
   UsageSchema,
 } from "../../conversation/index.ts";
 
-const CapabilityIdUnsafe: TUnsafe<CapabilityId> = Type.Unsafe<CapabilityId>(CapabilityIdSchema);
-
 /** 능力 도구 호출이 대응하는 능력과 메서드(F.capabilities.spec §7) */
 export const CapabilityRefSchema: TObject<{
-  id: typeof CapabilityIdUnsafe;
+  id: typeof CapabilityIdTypedSchema;
   method: TString;
 }> = Type.Object(
-  { id: CapabilityIdUnsafe, method: Type.String({ minLength: 1, maxLength: 48 }) },
+  { id: CapabilityIdTypedSchema, method: Type.String({ minLength: 1, maxLength: 48 }) },
   { additionalProperties: false },
 );
 export type CapabilityRef = Static<typeof CapabilityRefSchema>;

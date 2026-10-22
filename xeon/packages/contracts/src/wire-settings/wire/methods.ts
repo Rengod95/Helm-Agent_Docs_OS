@@ -14,7 +14,7 @@ import {
   type TUnknown,
   type TUnsafe,
 } from "typebox";
-import { Nullable } from "../../base/index.ts";
+import { Nullable, type SchemaSound } from "../../base/index.ts";
 import {
   SecretApprovalSchema,
   SecretMetaSchema,
@@ -293,11 +293,13 @@ export type ThreadRevertResult = Static<typeof ThreadRevertResultSchema>;
 
 /** pi UserMessage["content"]와 같은 모양: 문자열 또는 텍스트·이미지 블록 목록 */
 export type TurnStartInput = UserMessage["content"];
+const turnStartInputShape = Type.Union([
+  Type.String({ maxLength: 4_000_000 }),
+  Type.Array(Type.Union([TextContentSchema, ImageContentSchema]), { maxItems: 64 }),
+]);
+
 export const TurnStartInputSchema: TUnsafe<TurnStartInput> = Type.Unsafe<TurnStartInput>(
-  Type.Union([
-    Type.String({ maxLength: 4_000_000 }),
-    Type.Array(Type.Union([TextContentSchema, ImageContentSchema]), { maxItems: 64 }),
-  ]),
+  turnStartInputShape satisfies SchemaSound<TurnStartInput, typeof turnStartInputShape>,
 );
 
 export const TurnStartParamsSchema: TObject<{

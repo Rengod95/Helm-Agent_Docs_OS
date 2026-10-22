@@ -1,5 +1,5 @@
 import { Type, type TUnsafe } from "typebox";
-import type { Clock, Logger, RandomSource, Result, Scheduler } from "../base/index.ts";
+import type { Clock, Logger, RandomSource, Result, Scheduler, SchemaProof } from "../base/index.ts";
 import type { ThreadId } from "../conversation/index.ts";
 import type { PortKey } from "../extensions/index.ts";
 
@@ -25,16 +25,18 @@ export interface OsInfo {
   readonly release: string;
 }
 
+const osInfoShape = Type.Object(
+  {
+    platform: Type.Union([Type.Literal("darwin"), Type.Literal("linux"), Type.Literal("win32")]),
+    arch: Type.Union([Type.Literal("x64"), Type.Literal("arm64")]),
+    isWsl: Type.Boolean(),
+    release: Type.String({ maxLength: 256 }),
+  },
+  { additionalProperties: false },
+);
+
 export const OsInfoSchema: TUnsafe<OsInfo> = Type.Unsafe<OsInfo>(
-  Type.Object(
-    {
-      platform: Type.Union([Type.Literal("darwin"), Type.Literal("linux"), Type.Literal("win32")]),
-      arch: Type.Union([Type.Literal("x64"), Type.Literal("arm64")]),
-      isWsl: Type.Boolean(),
-      release: Type.String({ maxLength: 256 }),
-    },
-    { additionalProperties: false },
-  ),
+  osInfoShape satisfies SchemaProof<OsInfo, typeof osInfoShape>,
 );
 
 export type PlatformError =

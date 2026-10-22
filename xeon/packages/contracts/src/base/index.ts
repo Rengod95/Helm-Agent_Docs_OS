@@ -1,4 +1,5 @@
 export type { Brand } from "./brand.ts";
+export type { SchemaProof, SchemaSound } from "./schema-proof.ts";
 export { type Result, ok, err } from "./result.ts";
 export { Bug, assertNever } from "./bug.ts";
 export {
