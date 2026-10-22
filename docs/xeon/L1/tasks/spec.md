@@ -440,7 +440,7 @@ abort(target, reason, { background }):
 
 ### 4.4 병렬 도구와 키 큐
 
-[결정] agent-core의 `toolExecution: "parallel"`(기본)과 도구별 `executionMode`를 그대로 쓴다(`_research/packages.md` §4.3 "병렬 도구 실행: 그대로"). agent-core는 한 배치의 준비(검증, `beforeToolCall`)를 순서대로 끝낸 뒤 실행만 동시에 한다. 도구 하나라도 `executionMode: "sequential"`이면 배치 전체가 순차다(`~/projects/_ref/pi-src/packages/agent/src/agent-loop.ts:508-523`, 586-660).
+[결정] 도구 배치는 기본 병렬이고 도구별 `executionMode`(`ToolMeta.executionMode`)를 따른다. pi-agent-core 1.3.0의 배치 규칙을 core-loop `loop/tool-batch.ts`로 옮겼다(adr.0009 §3.3, `_research/packages.md` §4.3 "병렬 도구 실행: 그대로"). 루프는 한 배치의 준비(`tools.prepare`: 검증, `tool_call` 지점, 정책·승인)를 순서대로 끝낸 뒤 실행만 동시에 한다. 도구 하나라도 `executionMode: "sequential"`이면 배치 전체가 순차다(원본 `~/projects/_ref/pi-src/packages/agent/src/agent-loop.ts:508-523`, 586-660).
 
 같은 파일을 쓰는 호출은 키 큐로 직렬화한다. 경계 [제안]:
 
@@ -488,7 +488,7 @@ abort(target, reason, { background }):
 
 모드의 뜻 [제안]. `steer`, `followUp`, `next`는 `F.extensions.spec` §4.4와 adr.0007 §3.1을 따른다.
 
-| 모드 | 실행 중 thread | 유휴 thread | agent-core 대응 |
+| 모드 | 실행 중 thread | 유휴 thread | pi-agent-core 대응(참고) |
 |---|---|---|---|
 | `steer` | 다음 `stepEnd`에서 배치한다. 배치되면 다음 모델 요청이 반드시 나간다 | 새 turn을 연다 | `getSteeringMessages`(`types.ts:293`), `PendingMessageQueue`(`agent.ts:143-174`) |
 | `followUp` | turn이 정착한 뒤 새 turn의 입력이 된다 | 새 turn을 연다 | `getFollowUpMessages`의 큐를 쓰지 않는다. 새 turn으로 연다(`L1.loop.spec` §4.4) |

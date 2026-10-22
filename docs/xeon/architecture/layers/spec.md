@@ -267,7 +267,7 @@ flowchart TB
 
 #### 4.3.1 현재 순위가 성립하는 이유
 
-- F(0)가 맨 아래다. F에는 타입, TypeBox 스키마, 규약만 있어 다른 층에 의존할 것이 없다. pi-ai·agent-core 타입의 재노출과 TypeBox만 외부 의존으로 둔다.
+- F(0)가 맨 아래다. F에는 타입, TypeBox 스키마, 규약만 있어 다른 층에 의존할 것이 없다. pi-ai 타입의 재노출(`import type`·`export type`)과 TypeBox만 외부 의존으로 둔다. 에이전트 루프 타입은 F가 직접 정의하고 pi-agent-core에는 의존하지 않는다(adr.0009).
 - X(1)가 L0 아래다. `ext-host`는 Cordis 위에서 `on`/`post`/`drive`/`scope`와 로딩·신뢰를 제공한다. L0~L3의 모든 패키지는 Cordis 플러그인으로 로드되어 서비스를 제공하고(`ctx.provide`), 지점을 구독하며, `dispose`로 정리된다. 그래서 L0 이상은 X의 플러그인 정의 API를 import한다. Cordis는 `ext-host` 뒤에 숨긴다 [결정: ADR-0002 3번]. Cordis를 직접 import하는 경로는 `ext-host` 하나로 제한한다 [제안: ADR-0002 4번].
 - 지점 선언(지점 이름, fold, 페이로드 타입)은 F4에 있다. L1 루프는 F4 선언으로 지점을 디스패치하고, X는 F4 선언으로 fold를 적용한다. 두 층이 같은 선언을 공유하므로 X는 L1을 import하지 않는다 [결정: `_research/foundation-plan.md` §3].
 - L4는 엔진을 조립하는 최상위다. `apps/host`가 모든 층의 플러그인을 Cordis에 등록하고 전송을 연다.

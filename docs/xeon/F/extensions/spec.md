@@ -68,7 +68,7 @@ binds: [xeon/packages/contracts/src/extensions/**]
 
 다른 F 도메인에서 가져오는 이름:
 
-- F.conversation.spec: `ThreadId`, `TurnId`, `StepId`, `ItemId`(§3.2), `AgentMessage`, `Message`, `ToolResultMessage`, `TextContent`, `ImageContent`, `JsonValue`, `Usage`(§3.1 pi-ai·agent-core 재노출).
+- F.conversation.spec: `ThreadId`, `TurnId`, `StepId`, `ItemId`(§3.2), `AgentMessage`, `Message`, `ToolResultMessage`, `TextContent`, `ImageContent`, `JsonValue`, `Usage`(§3.1 pi-ai 재노출, `AgentMessage`는 §3.1.1 F 정의).
 - F.records.spec: `EventKind`, `ExtensionEventKind`, `EXTENSION_KIND_PATTERN`(§3.2), `EventEnvelope`, `DurableEventDraft`(§3.1).
 - 멱등 키 `requestId`는 브랜드 없는 문자열(1~64자)이다 [제안]. F.conversation.spec의 `TurnStartedPayload.requestId`, `ItemRecord(kind: "user").requestId`와 같은 뜻이고 `RequestId` 타입 이름은 두지 않는다(F.capabilities.spec §2, F.wire-settings.spec §3.0과 같다).
 
@@ -838,7 +838,7 @@ export interface ToolCallPayload {
 export interface ToolCallDecision {
   readonly block: true;
   readonly reason: string;
-  /** 이 배치의 모든 결과가 terminate면 배치 뒤 멈춘다(agent-core 의미) */
+  /** 이 배치의 모든 결과가 terminate면 배치 뒤 멈춘다(pi-agent-core 1.3.0 규칙을 옮긴 core-loop tool-batch.ts, adr.0009 §3.3) */
   readonly terminate?: boolean;
 }
 // FIRST_DENY.tool_call = { block: true, reason: "extension handler failed", terminate: false }

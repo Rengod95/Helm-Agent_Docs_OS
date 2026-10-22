@@ -79,7 +79,7 @@ export interface ContextService {
   shouldCompact(threadId: ThreadId, leaf: EventId, binding: ModelBinding): Promise<CompactCheck>;
   /** 메시지 배열의 토큰 추정. xeon.models TokenEstimator에 위임한다 */
   estimate(messages: readonly Message[]): ContextUsageEstimate;
-  /** agent-core AgentLoopConfig.convertToLlm에 넣는 변환. §4.1 3번 규칙과 같다. 던지지 않는다(agent types.ts:203 계약) */
+  /** core-loop가 스트림을 열 때 부르는 변환(adr.0009). §4.1 3번 규칙과 같다. 던지지 않는다 */
   convertToLlm(messages: readonly AgentMessage[]): Message[];
   /** 오버플로우 종결 메시지를 받아 단계당 한 번 컴팩션한다(§4.7) */
   recoverOverflow(threadId: ThreadId, stepId: StepId, failed: AssistantMessage, binding: ModelBinding): Promise<OverflowRecovery>;
@@ -272,7 +272,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 - 고정 접두는 thread에서 처음 조립할 때 만들고 `pendingItems`(`purpose: "prefix"`)로 돌려준다. core-loop가 첫 단계 커밋에 `item.recorded`(kind `system`)로 넣는다.
 - 이후 조립은 접두를 다시 만들지 않고 기록된 system item을 그대로 쓴다. 재개 뒤에도 같은 바이트다.
 - `before_agent_start`가 바꾼 절(`sections`)도 접두 system item 또는 `purpose: "sections"` item에 남는다. 그래서 재개 뒤 같은 지점을 다시 발화하지 않아도 같은 접두를 얻는다. `L1.loop.spec` §10의 "`before_agent_start` 시스템 프롬프트 변경 기록 위치" 미결에 대한 이 문서의 답이다 [제안].
-- 호출 순서: core-loop는 `prepareRequest` 훅에서 `assemble`을 부르고 결과 `messages`를 agent-core 컨텍스트로 넣는다(`L1.loop.spec` §3.2 표).
+- 호출 순서: core-loop는 요청마다 요청 준비 단계(`loop/prepare-request.ts`)에서 `assemble`을 부르고, 스트림을 열 때 결과 `messages`를 `convertToLlm`으로 바꿔 streamFn에 넘긴다(`L1.loop.spec` §3.2 표).
 - 접두는 컴팩션 때만 다시 만든다. `compact`가 `thread.compacted`와 같은 커밋에 새 접두 system item을 넣는다(§4.6 5번). pi `CompactionEntry.systemMessage`("compaction 경계의 프롬프트와 도구 상태")에 해당하는 값을 F 필드 추가 없이 별도 item으로 남기는 방식이다 [제안](`_research/notes/L1-3.md` §12 미결 (c)).
 - 근거: 접두 3계층(her, cc), 세션당 한 번 조립하고 컴팩션 때만 다시 만든다(`_research/item-catalog.md` L1-e 프롬프트 계층 행).
 

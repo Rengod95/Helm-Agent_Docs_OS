@@ -1124,7 +1124,7 @@ export interface RecordCommitPort {
 1. [미결] 해시 체인: 09 §3.2.2의 `prevHash`/`hash` 체인을 유지할지. [제안] M0에서는 두지 않고, 필요하면 열 추가 마이그레이션으로 더한다. 개인 런타임에서 변조 탐지 요구가 확인되지 않았다.
 2. [미결] 휘발 이벤트 seq 부여 여부: 현재 [제안]은 seq 없음 + `n` + `afterSeq`다. 여러 클라이언트가 휘발 조각 순서를 seq 기준으로 맞춰야 하는 요구가 생기면 다시 본다.
 3. [미결] ULID 단조성 소유처(`F.conversation.spec` §10 미결 3과 같은 항목).
-4. [미결] 재생 정책 이름 통일: `ReplayPolicy = "safe" | "unsafe"`(pi durable) 채택과 agent-core `"never"` → `"unsafe"` 매핑을 확정할지(정의 위치는 `F.conversation.spec` §3.6). Xeon 도구 선언에서 `"never"`를 계속 허용할지.
+4. [미결] 재생 정책 이름 통일: `ReplayPolicy = "safe" | "unsafe"`(pi durable) 채택과 F `AgentTool.replay`(pi-agent-core에서 온 `"never" | "safe"`)의 `"never"` → `"unsafe"` 매핑을 확정할지(정의 위치는 `F.conversation.spec` §3.6). Xeon 도구 선언에서 `"never"`를 계속 허용할지.
 5. [미결] 등록 해제된 확장 kind를 투영 재생에서 건너뛸지, 시작을 거부할지.
 6. [미결] 효과 결과 코드 집합: `ok`, `error`, `interrupted`, `abandoned` 네 값으로 충분한지(`_research/notes/F-3.md` §8.3 미결 3).
 7. [미결] 모델 요청 재전송: 재개 시 `next: "request"` 체크포인트에서 요청을 다시 보내는 것을 기본으로 할지, 요청마다 멱등 키를 둘지(`_research/notes/F-3.md` §8.3 미결 2).

@@ -452,7 +452,7 @@ export const WorkspaceShellKey = serviceKey(WorkspaceShell);
 
 - 모델 도구의 0 아닌 종료 코드: pi durable `bash`는 0이 아닌 종료를 출력이 담긴 오류 결과로 낸다(`packages/durable/src/tools/bash.ts` `runCommand`). [제안] 같은 동작을 F 환원 규칙 안에서 내기 위해 도구 `toInput`이 `failOnNonZero: true`를 넣고, 메서드가 `exit_nonzero` `CapabilityError`를 낸다. `message`는 `"exit code <n>\n<출력 꼬리>"`이고 `detail`은 `RunOutput`이다. 그래서 모델은 `isError: true` 결과에서 출력을 그대로 본다. 그룹 코드는 `failOnNonZero`를 생략하고 `exitCode`를 직접 읽는다.
 - `secretEnv`는 모델 도구 파라미터에 없다. M1의 비밀 참조 검증(`product.scope.spec` §4.4 M1)은 `env` 주입 모드(bash 도구, 실행마다 승인)로 `xeon.exec`와 `xeon.secrets`가 처리한다 [결정: review.decisions-2 U-19]. 비밀 메타 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`)과 `SECRET_REF_PATTERN`의 정본은 F `capabilities/secrets.ts`다(U-08). 출력 마스킹은 저장 전에 L0.secrets·L1.tools가 한다.
-- `bash`를 `sequential`로 둔 이유 [제안]: 명령의 부수 효과 순서를 모델이 적은 순서와 같게 한다. agent-core는 한 라운드에 `sequential` 도구가 하나라도 있으면 그 라운드를 순차로 돈다(`_research/refs/pi-durable.md` 도구 라운드 병렬/순차). `write`, `edit`는 `parallel`로 두고 같은 경로의 변경은 포크한 `file-mutation-queue.ts`가 경로별로 줄 세운다.
+- `bash`를 `sequential`로 둔 이유 [제안]: 명령의 부수 효과 순서를 모델이 적은 순서와 같게 한다. core-loop(pi-agent-core 1.3.0 배치 규칙을 옮긴 `loop/tool-batch.ts`, adr.0009)는 한 배치에 `sequential` 도구가 하나라도 있으면 그 배치를 순차로 돈다(`_research/refs/pi-durable.md` 도구 라운드 병렬/순차). `write`, `edit`는 `parallel`로 두고 같은 경로의 변경은 포크한 `file-mutation-queue.ts`가 경로별로 줄 세운다.
 
 ### 3.4 `workspace.images`
 

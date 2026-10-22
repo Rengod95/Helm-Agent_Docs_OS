@@ -128,7 +128,7 @@ xeon/apps/cli/
 | `marked` | 18.0.11 | pi-tui 전이 의존 | Markdown 렌더 | 직접 import하지 않는다 |
 | `@xeon/host` | `workspace:*` | `apps/cli/package.json`(허용 목록 `DR-10/cli-host`) | `resolveLaunchMode`, `startInProcessHost`, `startStdioHost`, `ensureService`, `runHostCommand`(`.`), `createHostConnection`, `connectServiceTransport`(`./client`) | `L4.host-service.spec` §3.3, §3.3.5. 선행 작업은 `L4.host-service.plan` H2~H5, H8, H10, H20 |
 
-- 버전 고정 방식: 모든 외부 패키지는 루트 catalog에 정확 버전으로 둔다(`eng.toolchain.guide` TC-01, TC-02). pi-tui는 pi-ai·agent-core를 올릴 때 같은 묶음 버전으로 함께 올린다 [제안].
+- 버전 고정 방식: 모든 외부 패키지는 루트 catalog에 정확 버전으로 둔다(`eng.toolchain.guide` TC-01, TC-02). pi-tui는 pi-ai를 올릴 때 같은 묶음 버전으로 함께 올린다 [제안]. pi-agent-core는 adr.0009로 의존하지 않는다.
 - 인자 파서, 프롬프트, 진행 줄은 외부 패키지 없이 쓴다 [제안](spec §3.2).
 
 ### 4.2 구조만 참고하는 원본
@@ -221,7 +221,7 @@ xeon/apps/cli/
 |---|---|---|
 | pi-tui 네이티브 애드온이 compile 바이너리에서 로드되지 않는다 | Shift+Enter(Apple Terminal), 네이티브 클립보드가 빠진다 | 애드온은 선택 기능이고 폴백이 있다(`_research/notes/L4-1.md` §3). 1차 배포는 애드온 없이 낸다. 필요해지면 사이드카 `native/` 디렉터리(pi 방식)를 쓴다. 단일 파일이 필수면 로더 후보 경로 한 곳만 바꾸는 얇은 포크(같은 문서 §5.3 B1) |
 | pi-tui 자체가 Bun 1.4.3 `--compile`에서 동작하지 않는다 | 대화형 TUI 지연 | M1은 pi-tui 없이 통과한다(최소 renderer). C8 실패 시 최소 renderer를 유지하고 라이브러리 선택을 [미결]로 둔다 |
-| pi-tui 버전 어긋남 | 참조 트리 1.1.0과 npm 1.3.0의 차이, CHANGELOG 없음 | 1.3.0을 정확 고정하고 pi-ai·agent-core와 같은 묶음으로만 올린다. 소스 확인은 1.3.0 tarball 기준 |
+| pi-tui 버전 어긋남 | 참조 트리 1.1.0과 npm 1.3.0의 차이, CHANGELOG 없음 | 1.3.0을 정확 고정하고 pi-ai와 같은 묶음으로만 올린다. 소스 확인은 1.3.0 tarball 기준 |
 | CJK 폭 계산과 IME 후보 창 위치 | 한글 줄바꿈 깨짐, 입력 위치 어긋남 | C8에서 macOS·Linux·WSL 터미널로 확인. `Focusable`과 `showHardwareCursor` 설정. 최소 renderer는 터미널 줄 편집을 그대로 쓴다 |
 | `--bytecode`와의 호환 | 기동 실패나 스택 정보 손실 | C14에서 켠 것과 끈 것을 비교하고, 문제가 있으면 끈다 |
 | M1 대화형 범위가 커진다 | M1 지연 | print 모드를 먼저 끝내고(C2·C3·C4), 대화형은 C6 범위(한 줄 입력, 진행 줄)로 제한한다. 화면 기능은 M2 C8로 넘긴다 |

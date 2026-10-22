@@ -131,7 +131,6 @@ flowchart LR
   CORDIS -->|"ACL: on·post·drive·scope 래퍼"| XH
   PIAI -->|"순응자: F1 메시지 타입 재노출"| F
   PIAI -->|"ACL: provider·스트림"| MG
-  PIAI -->|"순응자: 루프 훅 래핑"| RE
   MCPSDK -->|"ACL: F3 도구로 번역"| MCP
   TAURI -->|"ACL: F5 wire"| CL
 
@@ -164,7 +163,7 @@ flowchart LR
 |---|---|---|
 | 공유 커널 | `contracts`(F) | 모든 컨텍스트가 같은 타입과 카탈로그를 쓴다. 바꿀 때 모든 소비자를 함께 확인한다 |
 | 고객-공급자 | 위 그림의 대부분 | 하류가 F의 서비스 인터페이스로 상류를 쓴다. 인터페이스 변경은 F 문서와 함께 한다 |
-| 순응자 | pi-ai 메시지 타입 → F1, pi-agent-core 루프 → run-engine | 외부 모델을 바꾸지 않고 따른다. 정확 버전 고정 + 별칭 재노출(`_research/packages.md §4.1` F1 메시지 스키마 "그대로") |
+| 순응자 | pi-ai 메시지 타입 → F1. pi-agent-core 루프는 run-engine이 포크해 자체 코드로 가지므로(adr.0009) 순응 관계가 없다 | 외부 모델을 바꾸지 않고 따른다. 정확 버전 고정 + 별칭 재노출(`_research/packages.md §4.1` F1 메시지 스키마 "그대로") |
 | 부패 방지 계층 | `model-gateway`(pi-ai provider·스트림), `mcp`(MCP SDK), `clients`·`host`(Tauri IPC ↔ F5 wire), `extension-host`(Cordis), `platform-store`(bun:sqlite) | 외부 타입을 경계에서 F 타입으로 바꾼다. 경계 밖으로 외부 타입이 나가지 않는다(CM-03) |
 | 양방향(파트너) | `extension-host` ↔ `run-engine` | run-engine은 지점을 열고 ext-host는 핸들러를 실행한다. drive는 ext-host가 `xeon.loop`로 턴을 요청한다. 두 쪽 계약은 F4 지점 선언 하나다(DR-12) |
 

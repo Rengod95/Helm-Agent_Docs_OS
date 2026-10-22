@@ -595,7 +595,7 @@ export interface ResumePlan {
   readonly synthesized: readonly { readonly effectId: EffectId; readonly toolCallId: string; readonly code: "not_started" | "outcome_unknown" }[];
   /** 호출자(core-loop)가 ToolService.rerun으로 다시 실행할 효과 */
   readonly reruns: readonly EffectRerun[];
-  /** 의도가 없는 도구 호출. 승인 대기 포함. 호출자(core-loop)가 agent-core runToolCall로 다시 돌린다(L1.loop.spec §4.5) */
+  /** 의도가 없는 도구 호출. 승인 대기 포함. 호출자(core-loop)가 runTurn({ kind: "tools" })로 xeon.tools의 prepare·execute를 다시 거친다(L1.loop.spec §4.5) */
   readonly pendingToolCalls: readonly PendingToolCall[];
   /** 해결되지 않은 approval.requested id. 호출자가 ApprovalService.restore를 부른다 */
   readonly pendingApprovals: readonly EventId[];
@@ -1048,7 +1048,7 @@ export interface RewindPlan {
 #### 4.7.4 의도 없는 도구 호출
 
 - assistant item에 toolCall이 있고 그 `toolCallId`의 `effect.intent`가 없으면 효과는 일어나지 않았다(TX-02: 의도 없이 실행하지 않는다). 승인 대기 중이었거나, 정책 판정 전이었거나, 의도 커밋 직전에 끝난 호출이다.
-- `recover`는 이 호출들을 `ResumePlan.pendingToolCalls`에 넣는다. 재개 실행자(core-loop)는 agent-core `runToolCall`에 `xeon.tools`의 도구·훅을 넣어 정상 파이프라인을 다시 지난다(L1.tools.spec §3.3). 이때 `tool_call` 지점과 정책은 다시 실행된다. 의도 전이므로 다시 실행해도 된다(`F.extensions.spec` §4.3 재생 계약, durable spec 2636-2660 "a crash before the consuming commit may rerun them").
+- `recover`는 이 호출들을 `ResumePlan.pendingToolCalls`에 넣는다. 재개 실행자(core-loop)는 `runTurn({ kind: "tools" })`로 들어가 `xeon.tools`의 `prepare`·`execute` 단계 계약으로 정상 파이프라인을 다시 지난다(L1.tools.spec §3.3, adr.0009). 이때 `tool_call` 지점과 정책은 다시 실행된다. 의도 전이므로 다시 실행해도 된다(`F.extensions.spec` §4.3 재생 계약, durable spec 2636-2660 "a crash before the consuming commit may rerun them").
 
 ### 4.8 재개 절차
 

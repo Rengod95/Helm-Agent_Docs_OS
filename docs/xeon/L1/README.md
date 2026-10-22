@@ -25,7 +25,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | 도메인 | 하위 층 | 한 줄 요약 | 패키지 | 컨텍스트 | Cordis 서비스 | 문서 |
 |---|---|---|---|---|---|---|
 | tasks | L1-a 태스크 엔진 | 범위 트리, 취소 전파, 동시 상한, 키 큐, 내구 입력 큐 | `xeon/packages/core-tasks` | `run-engine` | `xeon.tasks` | `L1.tasks.spec`, `L1.tasks.plan` |
-| loop | L1-b 에이전트 루프 | agent-core 루프 래핑, 단계 커밋과 체크포인트, 예산(pi 방식), 완료 게이트 | `xeon/packages/core-loop` | `run-engine` | `xeon.loop` | `L1.loop.spec`, `L1.loop.plan` |
+| loop | L1-b 에이전트 루프 | 자체 루프(pi-agent-core 1.3.0 포크, adr.0009), 단계 커밋과 체크포인트, 예산(pi 방식), 완료 게이트 | `xeon/packages/core-loop` | `run-engine` | `xeon.loop` | `L1.loop.spec`, `L1.loop.plan` |
 | models | L1-c 모델 게이트웨이 | pi-ai provider, 역할 라우팅, 추론 예산, 캐시 정책, 사용량, 위장 provider 분리 | `xeon/packages/core-models` (+ `xeon/plugins/provider-anthropic-oauth`, 배포 제외) | `model-gateway` | `xeon.models` | `L1.models.spec`, `L1.models.plan` |
 | tools | L1-d 도구 실행과 권한 | 노출, 실행 파이프라인, 정책 엔진, 권한 모드, 승인 프로토콜, 결과 경계화 | `xeon/packages/core-tools` | `tool-runtime` | `xeon.tools`, `xeon.approvals` | `L1.tools.spec`, `L1.tools.plan` |
 | context | L1-e 컨텍스트와 컴팩션 | 접두 고정 조립, 도구 변경 메시지, 캐시 표식, 롤링 요약 컴팩션, 오버플로우 복구 | `xeon/packages/core-context` | `run-engine` | `xeon.context` | `L1.context.spec`, `L1.context.plan` |
@@ -65,7 +65,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | 호출하는 도메인 | 호출받는 서비스 | 용도 | 근거 |
 |---|---|---|---|
 | loop | `xeon.models` | 단계 바인딩 해석, `streamFn`, 사용량 | `L1.loop.spec` §3.2, `L1.models.spec` §3.3 |
-| loop | `xeon.tools` | 광고 목록, agent-core 도구 어댑터, 실행 관찰. 재개 때 대기 호출은 core-loop가 agent-core `runToolCall`에 이 도구·훅을 넣어 실행 | `L1.tools.spec` §3.3, §8.1 |
+| loop | `xeon.tools` | 광고 목록, 도구 단계 계약(`prepare`·`execute`·`settleRejected`), `meta`, `rerun`. 재개 때 대기 호출도 core-loop가 `runTurn({ kind: "tools" })`로 들어가 같은 단계 계약으로 실행(adr.0009 §3.4) | `L1.tools.spec` §3.3, §8.1 |
 | loop | `xeon.context` | 조립(`assemble`), `convertToLlm`, 임계 검사, 오버플로우 복구 | `L1.context.spec` §3.1 |
 | loop | `xeon.session` | T1~T6 커밋, 가지 읽기, 재개 | `L1.loop.spec` §3.5 |
 | loop | `xeon.tasks` | turn·step 노드, `modelCalls` 슬롯, 입력 큐 배치 | `L1.tasks.spec` §8 |
@@ -303,7 +303,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 
 | 결정 | 근거 |
 |---|---|
-| [결정] pi-ai·agent-core는 npm 1.3.0 정확 고정 + 훅 래핑. 소스 포크는 훅이 부족할 때만 | `_research/foundation-plan.md` §2 모델·루프 행, `_research/layer-plan-v2.json` L1 intro |
+| [결정] pi-ai는 npm 1.3.0 정확 고정 + 훅 래핑. 소스 포크는 훅이 부족할 때만. agent-core 몫은 adr.0009가 대체했다(의존 없음, 루프를 core-loop로 포크) | `_research/foundation-plan.md` §2 모델·루프 행, `_research/layer-plan-v2.json` L1 intro, adr.0009 |
 | [결정] pi-ai provider는 그대로 쓰고 부족분만 포크 커스텀(새로 만들지 않음) | `_research/decisions-log.md` 2026-10-21 결정 2차 |
 | [결정] 예산은 pi 방식(기본 상한 없음). 가드레일은 보류 | `_research/decisions-log.md` 2026-10-21 계획 v2 |
 | [결정] 위장 provider는 `plugins/provider-anthropic-oauth`로 분리, 배포 제외, 기본 꺼짐 | `_research/decisions-log.md` 2026-10-21 결정 2차, `product.scope.spec` N6 |
@@ -338,7 +338,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | (q) | `eng.testing.guide` TS-04 테이프 `role`은 "L1.models.spec이 정한다 [가정]" | `L1.models.spec` §3.4 | `ModelRole` 6종으로 확정. 가이드의 [가정]을 지운다 |
 | (r) | `eng.context-map.design` §4.1의 `approval.`·`input.`·`agent.` 접두는 F `CoreArea`에 없음 | `L1.tools.spec`, `L1.tasks.spec`, `L1.agents.spec` F 요청 | F `CoreArea`에 `approval`, `input`, `agent`를 더한다 |
 | (s) | `L1.persistence.spec` §4.2 C5는 `thread.compacted`를 단계 끝 커밋에 넣었으나 `L1.context.spec` §4.6은 컴팩션을 단계 사이의 별도 커밋(`thread.compacted` + 새 접두 item)으로 둔다. 오버플로우 복구 컴팩션은 단계 중간(재요청 전)에 일어난다 | `L1.context.spec` §4.6 5·6번, `L1.persistence.spec` §4.2·§4.14 | 고쳤다 [제안]: 모든 컴팩션을 별도 커밋 지점 C7(키 `compact:<threadId>:<stepId>:<reason>`, 체크포인트 없음)로 두고 C5에서 뺐다. `eng.transactions.design` §4.1 C5·§4.8·TX-08 수정은 `L1.persistence.spec` §8.4 요청에 있다 |
-| (t) | DR-07은 pi-agent-core를 core-loop만 import하게 하는데 `L1.tools.spec` §3이 F capabilities `tools.ts`와 core-tools에서 agent-core 타입을 직접 import했고, `resumePending`이 agent-core `runToolCall`을 core-tools에서 불렀다 | `L1.tools.spec` §3·§4.7, `L1.tools.plan` §2·§4, `eng.dependency-rules.guide` DR-07 | 고쳤다: agent-core 타입은 F conversation 재노출(`AgentLoopConfig`, `AgentToolCall` 추가 요청, `L1.tools.spec` §8.3 F 요청 7)만 쓰고, `resumePending`을 지워 재실행을 core-loop로 옮겼다. DR-07 소유 표는 그대로다 |
+| (t) | DR-07은 pi-agent-core를 core-loop만 import하게 하는데 `L1.tools.spec` §3이 F capabilities `tools.ts`와 core-tools에서 agent-core 타입을 직접 import했고, `resumePending`이 agent-core `runToolCall`을 core-tools에서 불렀다 | `L1.tools.spec` §3·§4.7, `L1.tools.plan` §2·§4, `eng.dependency-rules.guide` DR-07 | 고쳤다: agent-core 타입은 F conversation 재노출(`AgentLoopConfig`, `AgentToolCall` 추가 요청, `L1.tools.spec` §8.3 F 요청 7)만 쓰고, `resumePending`을 지워 재실행을 core-loop로 옮겼다. DR-07 소유 표는 그대로다. 이후 adr.0009로 agent-core 의존 자체가 없어졌다. F 요청 7은 닫혔고 재실행은 `prepare`·`execute` 단계 계약이다 |
 | (u) | `L1.agents.spec`이 요청한 `LoopService.runChildTurn`이 `L1.loop.spec`과 plan에 없었다 | `L1.agents.spec` §4.1 5번·§8.4, `L1.loop.spec` §3.1 | 고쳤다: `L1.loop.spec` §3.1 `ChildTurnRequest`·`runChildTurn`, §4.13, `L1.loop.plan` LP15 |
 | (v) | 커밋 지점 이름과 목록이 문서마다 달랐다: loop는 T1~T6(T5 없음)에 T2 `step.started`·prestart 커밋을 두었고, persistence는 C1~C6(C4 없음)에 이 둘이 없어 fsync 식이 맞지 않았다 | `L1.loop.spec` §3.5, `L1.persistence.spec` §4.2, `L1.persistence.plan` §6 | 고쳤다: persistence §4.2에 S1·C2b 행과 대응표를 두고 fsync 식을 `3 + 3 × 도구 수`로 바꿨다. `eng.transactions.design` §4.1 C1~C6 표 수정은 `L1.persistence.spec` §8.4 요청에 포함된다 |
 | (w) | 같은 서비스 `xeon.loop`에 `X.primitives.spec` §3.6 `LoopPort`(`runTurn`, `status`: 문자열, `whenIdle`, `spawn`)와 `L1.loop.spec` `LoopService`(`runDriveTurn`, `status`: 객체)가 따로 있었다. 입력 큐도 X `InputQueuePort.enqueue`와 L1 `inputs.enqueue`가 달랐다 | `L1.loop.spec` §3·§3.1·§4.8, `L1.tasks.spec` §3.1·§7, `X.primitives.spec` §3.6 | 고쳤다 [제안]: `LoopService extends LoopPort`, L1 상세 상태는 `threadStatus`, drive turn은 `runTurn`(펜싱 `leaseEpoch`, T1 build 안 `turnByRequestId`). `TaskService extends InputQueuePort`. 포트 타입은 F.extensions `ports.ts`로 옮기도록 요청(`L1.loop.spec` FR-L1). 하위 객체는 최상위 이름이 겹칠 때만 쓴다(`SessionService.ext`) |
@@ -360,9 +360,9 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 8. [결정: review.decisions-2 S-14] agents 설정 탭은 더하지 않는다. `l1.agents.*`는 models 탭이다(§13 (e)).
 9. [미결] L1 서비스의 유효 설정 읽기 경로(§13 (p)).
 10. [미결] `post.when = next`의 시작 여부와 `aside` 위치(`L1.tasks.spec`, `L1.loop.spec` 미결).
-11. [미결] 재생 정책 이름(`safe|unsafe`와 agent-core `never|safe`, `F.readme` §8 미결 6). tools와 models가 함께 걸린다. TypeBox 버전은 1.3.27로 정했다(review.decisions-2 U-24).
+11. [미결] 재생 정책 이름(`safe|unsafe`와 F `AgentTool.replay`의 `never|safe`, `F.readme` §8 미결 6). tools와 models가 함께 걸린다. TypeBox 버전은 1.3.27로 정했다(review.decisions-2 U-24).
 12. [미결] 구조화 출력 최소형의 M3 배치(§13 (n)). 레이트 리밋·계정 회전은 M3로 정했다 [결정: review.decisions-2 U-21](§9 각주 3).
-13. [미결] 도구가 다른 도구를 부르는 중첩 호출의 진입점. agent-core `runToolCall`은 core-loop만 부를 수 있다(`L1.tools.spec` §4.2, §10).
+13. [미결] 도구가 다른 도구를 부르는 중첩 호출의 진입점. `xeon.tools`의 `prepare`·`execute`를 부르는 쪽은 지금 core-loop뿐이다(`L1.tools.spec` §4.2, §10).
 14. [미결] 비밀 lease를 부르는 쪽(L0.exec 대 L1.tools)과 `secretEnv` 전달 경로(`L1.tools.spec` §4.12). M1 비밀 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다 [결정: review.decisions-2 U-19].
 15. [결정: review.decisions-2 U-05] `post.accepted`는 retire한다(§13 (x)). 카탈로그 항목은 `retired: true`로 남는다(F.records.spec §3.3). 확장 post의 기록은 `input.queued`이고 멱등은 커밋 키 `in:<sourceKey>:<requestId>`가 맡는다. F.conversation.spec §3.5.3 `TurnStartedPayload.scopeId`는 그대로다(L1.tasks FR-T3, L1.loop FR-L8, L1.persistence FR-P10 닫음). core-tasks의 `post.accepted` 동봉 코드는 구현 후속에서 지운다.
 16. [결정: review.decisions-2 U-09] 쓰기 소유 판정은 OS 잠금(생존 판정) + `sys_leases.epoch` 펜싱이다. adr.0004 §3.4·adr.0006을 이에 맞게 개정한다(§13 (y), `eng.transactions.design` T-4).

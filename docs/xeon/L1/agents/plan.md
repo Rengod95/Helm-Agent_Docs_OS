@@ -92,7 +92,7 @@ xeon/packages/core-agents/
 
 | 대상 | 방식 | 버전·원본 | 바꿀 점 |
 |---|---|---|---|
-| `@earendil-works/pi-agent-core` | 그대로(정확 고정), core-loop 경유 | 1.3.0. 판정 원문은 `Agent` 클래스(`agent/src/agent.ts:188`)를 자식마다 생성 | core-agents는 어느 패키지도 import하지 않는 pi-agent-core를 쓰지 않는다(adr.0009). L1.loop.spec §3.2가 `Agent` 클래스 대신 turn마다 자체 루프 `runTurn`을 쓰므로 자식도 같은 루프로 돈다(L1.agents.spec §4.1 5번, [미결]) |
+| `@earendil-works/pi-agent-core` | 의존하지 않음(adr.0009) | 1.3.0. 판정 원문은 `Agent` 클래스(`agent/src/agent.ts:188`)를 자식마다 생성 | 어느 패키지도 pi-agent-core를 import하지 않는다(DR-07). L1.loop.spec §3.2가 `Agent` 클래스 대신 turn마다 자체 루프 `runTurn`을 쓰므로 자식도 같은 루프로 돈다(L1.agents.spec §4.1 5번, [미결]) |
 | pi `utils/frontmatter.ts` | 포크 | `~/projects/_ref/pi-src/packages/coding-agent/src/utils/frontmatter.ts`, pi 커밋 `cdaf6c2`, 40줄 | (1) `import { stripBom } from "./text.ts"`를 지우고 BOM 제거를 파일 안 한 줄로 옮긴다(`text.ts:7`의 `stripBom`). 원본은 pi 세션 타입에 결합되어 있지 않다. 결합은 이 import 하나뿐이다. (2) `yaml.parse` 예외를 잡아 `Result`로 돌려준다(eng.typescript.guide TY-11). (3) 반환 타입의 `frontmatter`를 `unknown`으로 두고 `AgentDefinitionSchema`로 검증한다. (4) `stripFrontmatter`는 쓰지 않으면 지운다(knip) |
 | `yaml` | 그대로(정확 고정) | 2.9.0(pi coding-agent `package.json`과 같은 값) | 없음 |
 | typebox | 그대로 | catalog 값 | 없음 |

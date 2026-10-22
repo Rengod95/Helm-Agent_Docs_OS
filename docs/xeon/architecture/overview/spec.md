@@ -180,10 +180,10 @@ ADR 본문은 `decisions/`에 있다. 각 행의 결정은 사용자 결정 기�
 |---|---|---|---|
 | `docs/design/18-security.md` §3.10, §3.11 | 비밀 저장·주입·마스킹, 도구 실행 격리와 권한 기준선 | 18은 데몬 시작 시 비밀을 메모리에 주입하는 설계(결정 45)이고, Xeon은 SOPS(age) 파일과 `secret://` 참조를 쓴다 | `L0.secrets.spec`, `L0.sandbox.spec` |
 | `docs/design/13-tools-and-execution.md` §3.5, §3.6 | 쓰기 범위 검사, bash 우회 방지, 격리 수준 표 | 13의 S0~S2는 bubblewrap을 직접 다루는 설계이고, Xeon은 `@anthropic-ai/sandbox-runtime`을 그대로 쓴다 | `L0.sandbox.spec`, `L1.tools.spec` |
-| `docs/design/12-runtime-engine.md` §3.4 | 루프 포크 `@helm/agent`와 커널 연결점(`beforeToolCall`, `afterToolCall`, `prepareRequest`, `finishTurn`) | 12는 커널 검사를 루프 훅에 거는 포크 설계이고, Xeon은 커널 없이 pi-agent-core 1.3.0 고정 + 훅 래핑과 `on` 지점(종류 5개는 [제안], ADR-0007 3.3)을 쓴다 | `L1.loop.spec`, `X.primitives.spec` |
+| `docs/design/12-runtime-engine.md` §3.4 | 루프 포크 `@helm/agent`와 커널 연결점(`beforeToolCall`, `afterToolCall`, `prepareRequest`, `finishTurn`) | 12는 커널 검사를 루프 훅에 거는 포크 설계이고, Xeon은 커널 없이 pi-agent-core 1.3.0 루프를 포크한 core-loop 자체 루프(ADR-0009)와 `on` 지점(종류 5개는 [제안], ADR-0007 3.3)을 쓴다 | `L1.loop.spec`, `X.primitives.spec` |
 | `docs/design/09-event-store.md` §3.2 | 이벤트 envelope, 카테고리, 이름 규칙 | 09는 해시 체인과 HMAC 체크포인트를 포함한 정본 이벤트 저장이고, Xeon은 C안(이벤트 + 투영 + 단계 체크포인트, 해시 체인 없음)이다 | `F.records.spec`, `eng.events.design` |
 | `docs/design/19-client-protocol.md` §3.3 | JSON-RPC 2.0 규칙(배치 거부, `<영역>.<동사>` 메서드, params 객체, 중첩 깊이 제한) | 19는 데몬과 WebSocket 하나를 전제로 한 핸드셰이크·재전송 설계이고, Xeon은 in-process·stdio·service 세 전송이 같은 계약을 쓴다 | `F.wire-settings.spec`, `L4.host-service.spec` |
-| `docs/design/07-pi-reuse-and-fork.md` §3.4, §3.5 | pi-agent-core 파일 계획, 수정 사항 A1~A7 | 07은 pi v1.1.0을 vendor 포크하는 설계이고, Xeon은 pi-agent-core 1.3.0 npm 정확 고정 + 훅 래핑, durable은 4개 영역만 포크한다(ADR-0003) | `L1.loop.spec`, `L0.exec.spec`, `L2.workspace.spec` |
+| `docs/design/07-pi-reuse-and-fork.md` §3.4, §3.5 | pi-agent-core 파일 계획, 수정 사항 A1~A7 | 07은 pi v1.1.0을 vendor 포크하는 설계이고, Xeon은 pi-agent-core에 의존하지 않고 그 1.3.0 루프를 core-loop로 포크해 다시 설계한다(ADR-0009). durable은 4개 영역만 포크한다(ADR-0003) | `L1.loop.spec`, `L0.exec.spec`, `L2.workspace.spec` |
 | `docs/design/22-testing-strategy.md` §3.5.4 | 모델 테이프(가짜 모델 재생) | 22는 Vitest와 커널 테스트 계층을 전제로 하고, Xeon은 `bun test`와 패키지 단위 테스트를 기본으로 한다 | `eng.testing.guide` |
 
 - `docs/design/00-README.md`의 설계 결정 23, 27, 28, 29, 30, 31은 Xeon의 결정과 영역이 겹친다. Xeon에서는 ADR-0001~0008이 우선한다.

@@ -579,7 +579,7 @@ export const WebBrowseKey = serviceKey(WebBrowse);
 ```
 
 - 모델 도구 `web_browse_open`은 `profile`과 `provider`를 받지 않는다. 로그인 프로필은 사용자 명시 승인이 필요하므로 모델이 고르지 않는다(§4.10.3).
-- `executionMode: "sequential"`은 같은 세션의 동작 순서를 지키기 위해서다. agent-core `ToolExecutionMode`는 `"sequential" | "parallel"`이다(`~/projects/_ref/pi-src/packages/agent/src/types.ts:47`).
+- `executionMode: "sequential"`은 같은 세션의 동작 순서를 지키기 위해서다. F `ToolExecutionMode`(F.conversation.spec §3.1.1)는 `"sequential" | "parallel"`이다.
 - `close` 출력은 웹 유래 텍스트가 없으므로 `meta`를 두지 않는다.
 
 ### 3.5 `web.research` (2차)

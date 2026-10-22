@@ -19,14 +19,14 @@ binds: [xeon/packages/core-tools/**]
 근거:
 
 - 층 구성 계획 v2 L1-d 구성요소 8개(`_research/layer-plan-v2.json` L1-d): 도구 노출 분리, 실행 파이프라인, 검증 오류 반환, 선언형 정책 엔진, 권한 모드, 승인과 질문 프로토콜, 결과 경계화, 항상 허용 캐시와 셸 규칙(2차).
-- 패키지 판정(`_research/packages.md` §4.3 L1-d 행): 노출 분리·파이프라인·검증 오류 반환은 agent-core 1.3.0 그대로, 정책 엔진·모드·승인 프로토콜은 설계, 결과 경계화는 포크.
+- 패키지 판정(`_research/packages.md` §4.3 L1-d 행): 노출 분리·파이프라인·검증 오류 반환은 agent-core 1.3.0 그대로, 정책 엔진·모드·승인 프로토콜은 설계, 결과 경계화는 포크. adr.0009 이후 파이프라인은 core-tools `prepare`·`execute`가, 인자 검증은 core-tools `validate.ts`가 옮겨 맡는다.
 - [결정] 질문 도구와 계획 승인은 L1-d 승인 프로토콜 하나로 합친다(`_research/foundation-plan.md` §1 결정 5, `_research/decisions-log.md` 2026-10-21 3차).
 - [결정] pi durable에서 truncate를 Chord 제거 포크로 가져온다(adr.0003, `_research/foundation-plan.md` §1 결정 1).
 
 정하는 것:
 
 - Cordis 서비스 `xeon.tools`(`ToolService`)와 `xeon.approvals`(`ApprovalService`). 두 서비스 모두 `core-tools`가 제공한다(eng.context-map.design §5.3).
-- 도구 등록 형식(`ToolRegistration`), 광고 목록 산출(`advertise`), `ToolSpec` → agent-core `AgentTool` 어댑터, 실행 파이프라인.
+- 도구 등록 형식(`ToolRegistration`), 광고 목록 산출(`advertise`), `ToolSpec`·`DirectToolRegistration` → 도구 항목(core-tools `ToolEntry`) 어댑터, 실행 파이프라인.
 - 선언형 정책 엔진의 규칙 어휘(`PolicyRule`, 티어, 호출 주체 조건)와 순수 평가기 `evaluatePolicy`. L1.agents.spec이 같은 어휘를 그대로 쓴다.
 - 권한 모드 4종과 비대화형 실행 규칙.
 - 승인 프로토콜: 단일 대기 형식 `ApprovalRequest`, wire 응답 `approval.respond`와의 대응, 대기 상태 내구화와 재개 복원.
@@ -147,7 +147,7 @@ export interface ToolRegisterError { readonly kind: "name_conflict"; readonly to
 ```
 
 - `ToolSpec`에는 `execute`가 없다(F.capabilities.spec §3.3). 능력 도구의 실행 함수는 §4.3의 어댑터가 서비스 키로 얻은 provider API에서 합성한다.
-- `DirectToolRegistration.tool`은 agent-core `AgentTool`이다. 실행 함수를 가진 도구(확장 `registerTool`, MCP 동적 도구, 내장 `tool_search`)가 이 경로를 쓴다. 이런 도구도 같은 파이프라인을 지난다. 파이프라인 밖 실행 경로는 없다.
+- `DirectToolRegistration.tool`은 F `AgentTool`(F.conversation.spec §3.1.1)이다. 실행 함수를 가진 도구(확장 `registerTool`, MCP 동적 도구, 내장 `tool_search`)가 이 경로를 쓴다. 이런 도구도 같은 파이프라인을 지난다. 파이프라인 밖 실행 경로는 없다.
 - `core.<L1 도메인>` 순서 키 [제안]: L1이 내장하는 도구(`tool_search`, L1.agents.spec의 `agent`)의 순서 키다. F.capabilities.spec §4.5는 `ext.`, `mcp.` 접두만 정했으므로 추가를 요청한다(§8.3 F 요청 2).
 
 ### 3.2 실행 맥락 (`tools.ts`)
@@ -192,7 +192,7 @@ export interface ToolRunDrafts {
 ### 3.3 `ToolService` (`tools.ts`)
 
 ```ts
-import type { AgentEvent, AgentLoopConfig, AgentTool } from "../conversation/pi.ts";   // F 재노출. AgentLoopConfig는 §8.3 F 요청 7
+import type { AgentTool, AgentToolCall, AgentToolUpdateCallback, AssistantMessage, JsonObject } from "../conversation/index.ts";   // F 정의(§3.1.1)와 pi-ai 재노출. pi-agent-core는 import하지 않는다(adr.0009)
 import type { EffectIntent } from "../records/index.ts";
 import type { ToolResultRecord } from "../conversation/index.ts";
 import type { ScopeId, ToolsPort, ToolResourceDef } from "../extensions/index.ts";   // ToolsPort·ToolResourceDef: F.extensions.spec §3.2.1 ports.ts
@@ -712,17 +712,17 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 
 ### 4.3 어댑터 환원
 
-능력 도구의 `ToolSpec` → agent-core `AgentTool` 변환은 F.capabilities.spec §3.3 대응표와 §4.2 환원 규칙 5단계를 그대로 따른다. 이 문서는 L1 쪽 결정만 더한다.
+능력 도구의 `ToolSpec` → 도구 항목(`ToolEntry`)과 실행 함수 변환(core-tools `entries.ts`)은 F.capabilities.spec §3.3 대응표와 §4.2 환원 규칙 5단계를 그대로 따른다. 이 문서는 L1 쪽 결정만 더한다.
 
 | F.capabilities §4.2 단계 | core-tools 구현 |
 |---|---|
-| 1. 인자 검증 | agent-core 단계 4가 한다. 어댑터는 다시 검증하지 않는다 |
+| 1. 인자 검증 | `prepare` 4단계(core-tools `validate.ts`, §4.2)가 한다. 어댑터는 다시 검증하지 않는다 |
 | 2. `toInput` | 어댑터 `execute` 안에서 부른다 |
-| 3. 메서드 호출 `api[method](input, { signal, requestId })` | `requestId`는 `tool:<toolCallId>`다 [제안]. `signal`은 agent-core가 넘긴 신호 |
+| 3. 메서드 호출 `api[method](input, { signal, requestId })` | `requestId`는 `tool:<toolCallId>`다 [제안]. `signal`은 `execute`가 합친 신호(루프가 넘긴 호출 신호, turn 신호, tool 노드 신호) |
 | 4. `toContent` 또는 기본 렌더링 | 결과를 `AgentToolResult`로 만든다. `structuredContent`는 `outputSchema`로 검증하고 위반은 `internal` 오류 결과로 바꾼다(F.capabilities.spec §5 사례 3) |
 | 5. `CapabilityError` → `isError: true` | `content`는 `"[<code>] <message>"`, `details`는 `CapabilityErrorData`. `code: "aborted"`는 중단 결과로 처리하고 `effect.result.status`를 `interrupted`로 둔다 |
 
-- `replay`: `"safe"` → agent-core `"safe"`, `"unsafe"`·미선언 → `"never"`(F.capabilities.spec §3.3 표). `effect.intent.replay`에는 F `ReplayPolicy` 값(`toReplayPolicy`)을 쓴다.
+- `replay`: 능력 도구는 `ToolSpec.replay`(F `ReplayPolicy`, 미선언은 `"unsafe"`)를 그대로 쓴다. `DirectToolRegistration`은 F `AgentTool.replay`(`"never" | "safe"`)를 `toReplayPolicy`로 바꾼다(`"never"`·미선언 → `"unsafe"`). `effect.intent.replay`에는 이 F `ReplayPolicy` 값을 쓴다.
 - `label`, `executionMode`, `outputSchema`는 그대로 옮긴다. `hints`는 `ToolMeta.hints`로 보관하고 위험 등급 유도(§4.6)에 쓴다.
 - `input_required` 출력 변형: 메서드 출력이 F.conversation.spec §3.6의 `InputRequiredInfo` 모양을 실은 변형이면 `ToolResultRecord.status: "input_required"`, `inputRequired`로 옮긴다. 변형의 판별 필드 이름은 [미결](§10)이다.
 
@@ -881,8 +881,8 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 ## 5. 실패와 경계 사례
 
-1. 모델이 광고하지 않은 도구를 부름(전역 deny로 뺀 도구 포함): 등록되어 있어도 agent-core 단계 2에서 그 실행의 `tools` 배열에 없으므로 `Tool <name> not found` 오류 결과다. 정책을 다시 평가하지 않는다.
-2. 인자 검증 실패: 예외를 던지지 않고 `isError: true` 도구 결과로 모델에 돌아간다. 효과 이벤트는 없다. 루프는 계속된다(agent-loop.ts:724-776).
+1. 모델이 광고하지 않은 도구를 부름(전역 deny로 뺀 도구 포함): `prepare` 2단계는 광고 목록을 다시 보지 않고 등록 표에서 이름을 찾는다. 등록되지 않은 이름이면 `[xeon:tool_unavailable]` 오류 결과(`settled`)다. 등록된 도구면 5a·5b를 지나므로 전역 deny 규칙이 그 호출을 거부한다.
+2. 인자 검증 실패: 예외를 던지지 않고 `isError: true` 도구 결과로 모델에 돌아간다. 효과 이벤트는 없다. 루프는 계속된다(§4.2 4단계, core-tools `validate.ts`).
 3. `tool_call` 핸들러 예외 또는 결정 스키마 위반: `FIRST_DENY.tool_call`(`{ block: true, reason: "extension handler failed" }`)로 거부한다(F.extensions.spec §3.5, §5 사례 2). ext-host 디스패치 호출 자체가 실패해도 같은 거부로 본다(fail-closed).
 4. 정책 규칙의 정규식이 잘못됨: 적재 때 그 규칙만 빼고 진단을 남긴다. 평가는 나머지 규칙으로 한다. managed 규칙이 빠지면 설정 화면에 오류 배지를 보인다(L4.settings-ui.spec).
 5. 승인 대기 중 턴 취소: §4.7 8번. 승인 대기 중 프로세스 강제 종료: §4.7 재개.
@@ -974,7 +974,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 4. F.extensions.spec §3.5: `ToolCallPayload`에 `caller: CallerId`, `risk: ToolRisk`, `hints?: ToolHints` 추가.
 5. F.wire-settings.spec §3.8.2: 범위별 값을 모으는 키 표시(예: `SettingDef.merge?: "replace" | "collect"`, 기본 replace) 추가. `l1.tools.rules`가 첫 사용처다.
 6. F: 서비스 인터페이스 `ToolService`, `ApprovalService`와 서비스 이름 상수를 `@xeon/contracts/services`에 둔다(review.decisions-2 D-04). 이 부분은 반영됨(`F.capabilities.spec` §3.12 `services/tools.ts`, `services/approvals.ts`). 정책·도구·승인 공용 타입(§3.1~§3.6)은 `capabilities/tools.ts`, `policy.ts`, `approvals.ts`로 이전한다(eng.context-map.design §5.3).
-7. F.conversation.spec §3.1 `pi.ts`: agent-core 타입 재노출에 `AgentLoopConfig`, `AgentToolCall`을 더한다. F capabilities `tools.ts`와 core-tools는 이 재노출만 쓴다(DR-07 소유 표는 바꾸지 않는다).
+7. (없앰) F.conversation.spec §3.1 `pi.ts`의 agent-core 재노출에 `AgentLoopConfig`, `AgentToolCall`을 더하는 요청. adr.0009로 F가 `AgentToolCall` 등을 `agent.ts`에서 직접 정의하고(F.conversation.spec §3.1.1) `AgentLoopConfig`는 두지 않는다.
 8. F.capabilities.spec §3.3: `ToolSpec.locks`(잠금 선언) 추가. L1.tasks.spec FR-T6과 같은 항목이고 core-tools가 키를 산출한다(§4.2 7b).
 9. F.capabilities.spec `policy.ts`: `childDecision`을 순수 함수로 둔다. L1.agents.spec §8.3 5와 같은 항목이고 §4.5 ceiling 단계가 쓴다.
 10. (반영됨) F.extensions.spec §3.2.1 `ports.ts`: X.primitives.spec §3.9의 `ToolsPort`, `ToolResourceDef`를 둔다(X.primitives.spec §10 요청과 같은 항목). §3.3 `ToolService extends ToolsPort`가 이 이름을 import한다.

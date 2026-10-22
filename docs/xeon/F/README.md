@@ -227,7 +227,7 @@ F가 정하지 않는 것:
 3. [미결] Cordis 선언 병합을 F, X 중 어디서 할지(`F.capabilities.spec` §3.5 A·B·C안).
 4. [미결] 설정 우선순위 표: 관리 > 세션 > 로컬 > 프로젝트 > 사용자 > 기본값 제안과 관리 기본값 여부(`F.wire-settings.spec` §4.7).
 5. [결정: review.decisions-2 U-02] 승인 요청 방향은 A안(내구 이벤트 `approval.requested` + 호스트 메서드 `approval.respond`)이다(`F.wire-settings.spec` §4.6). `F.records.spec` §3.3.1 코어 카탈로그의 승인 kind가 이 결정을 따른다. 사용자 확인 대상이다.
-6. [미결] 재생 정책 이름: `safe|unsafe`와 agent-core `never|safe`의 통일(`F.records.spec` §10 미결 4). 정의 위치는 `F.conversation.spec` §3.6이다.
+6. [미결] 재생 정책 이름: `safe|unsafe`와 F `AgentTool.replay`의 `never|safe` 통일(`F.records.spec` §10 미결 4). 정의 위치는 `F.conversation.spec` §3.6이다.
 7. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 고정한 판과 같다.
 8. [미결] ULID 단조성 소유처(`F.conversation.spec` §10 미결 3, `F.records.spec` §10 미결 3).
 9. [미결] `UserConfigEntry`에 값 스키마 필드를 둘지(`F.wire-settings.spec` §10 미결 8). 확장 설정 키 접두는 `ext.<name>.`로 맞췄다. 예전 제안 키 `extensions.<name>.enabled`, `extensions.<name>.isolation`, `groups.drive.limits`는 키 문법에 맞지 않아 `ext.<name>.enabled`, `ext.<name>.isolation`, `x.primitives.driveLimits`로 바꿨다(`F.extensions.spec` §6, `F.wire-settings.spec` §3.8.3).

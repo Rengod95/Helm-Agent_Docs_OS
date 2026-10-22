@@ -334,7 +334,7 @@ export type AgentJudgedPayload = JudgeRecord;
    - 다른 프로세스(CLI와 데스크톱)가 자식 thread를 쓰기로 열려 하면 임대가 이미 있으므로 잠금 실패 경로(위임·관찰·분기)로 간다(`L1.persistence.spec` §4.9).
 4. 소유 간선: `xeon.tasks.openScope(parent, { kind: "subagent", background })`로 자식 노드를 만든다. 포그라운드는 부모 `tool` 노드(모델 도구) 또는 `turn` 노드(drive) 아래 `background: false`, 백그라운드는 부모 `thread` 노드 아래 `background: true`다(L1.tasks.spec §3 노드 표 374행, eng.transactions.design §6.1). 자식을 기다리는 도구 호출은 `slot.suspendWhile(child.settle())`로 `tools` 슬롯을 내려놓는다(L1.tasks.spec §4.5 규칙 C2).
 5. 실행: `xeon.loop`에 자식 대화를 열고 첫 turn을 시작한다. 입력은 `task` 텍스트 하나(사용자 item, `requestId` = 자식 requestId)다. 시스템 프롬프트는 정의 `prompt`, 모델은 정의 `model` 역할이다.
-   - 패키지 판정은 "agent-core `Agent` 클래스(agent.ts:188)를 자식마다 생성"이다(`_research/packages.md` §4.3 L1-g). 그런데 L1.loop.spec §3.2는 `Agent` 클래스를 쓰지 않고 turn마다 `runAgentLoop`를 부른다(메모리 큐와 상태를 따로 갖기 때문). [제안] 자식 대화도 주 대화와 같은 루프 래퍼로 돈다. 자식마다 thread 구동기 하나를 두어 "자식마다 독립 실행 단위 하나"라는 판정의 뜻은 지킨다. 판정 문구의 정정은 [미결](§10)이다.
+   - 패키지 판정은 "agent-core `Agent` 클래스(agent.ts:188)를 자식마다 생성"이다(`_research/packages.md` §4.3 L1-g). 이 판정은 pi-agent-core 의존을 전제로 했다. adr.0009로 그 의존이 없어졌고, L1.loop.spec §3.2는 turn마다 core-loop 자체 루프 `runTurn(entry)`를 부른다. [제안] 자식 대화도 주 대화와 같은 자체 루프로 돈다. 자식마다 thread 구동기 하나를 두어 "자식마다 독립 실행 단위 하나"라는 판정의 뜻은 지킨다. 판정 문구의 정정은 [미결](§10)이다.
    - core-agents는 루프를 직접 만들지 않고 `xeon.loop`의 `runChildTurn(request: ChildTurnRequest)`로 자식 turn 실행을 요청한다(L1.loop.spec §3.1, §4.13). 요청 필드: `threadId`(자식), `input`(task), `requestId`(자식 requestId), `systemPrompt`, `model`(역할 또는 ref), `tools: { caller, depth, ceiling, surfaceThreadId, interactive, allow?, keepParentList? }`, `scope`(자식 `TaskScope`), `limits?`, `signal`. 결과는 `LoopTurnResult`(`X.primitives.spec` §3.6, F `ports.ts` 이전 요청)와 같은 모양(`outcome: TurnOutcome` + `usage` + `replayed`)이다.
    - 자식의 `ToolRunContext`는 `caller: "subagent:<agent>"`, `depth: 부모 + 1`, `surfaceThreadId: 소유 트리 루트`, `ceiling: 부모 관점`, `interactive: 부모와 같음`이다(L1.tools.spec §3.2).
 6. 정착: 자식 turn이 끝나면 최종 보고를 뽑아 결과 검사(§4.6)를 하고 부모 대화에 `agent.settled`를 커밋한다. 포그라운드는 결과를 호출자에게 돌려주고, 백그라운드는 보고 입력을 같은 커밋에 넣는다(§4.7).
@@ -574,6 +574,6 @@ export type AgentJudgedPayload = JudgeRecord;
 - [미결] 백그라운드 자식 정착 때 부모 대화가 삭제된 경우 보고 처리(§5 사례 7).
 - [미결] 자식 사용량의 부모 귀속 표시 방식(§3.5). 부모 합계에 더하는 화면 규칙은 L4와 함께 정한다.
 - [미결] `maxConcurrent` 기본값 8과 전체 풀(`l1.tasks.limits.subagents`)과의 관계.
-- [미결] 패키지 판정 문구 "`Agent` 클래스를 자식마다 생성"과 L1.loop.spec §3.2(`Agent` 클래스 미사용, `runAgentLoop`)의 정리(§4.1 5번). 이 문서는 L1.loop.spec을 따른다.
+- [미결] 패키지 판정 문구 "`Agent` 클래스를 자식마다 생성"과 L1.loop.spec §3.2(`Agent` 클래스 미사용, 자체 루프 `runTurn`, adr.0009)의 정리(§4.1 5번). 이 문서는 L1.loop.spec을 따른다.
 - [미결] `agent.judged`를 판정 호출의 자기 커밋으로 쓰는 정리(§4.8)와 L1.loop.spec §4.9 "확장 kind 엔트리로 T4에 기록"의 맞춤.
 - [미결] 그룹 위임(`scope` 소유자)의 caller를 `main`으로 볼지 그룹 이름을 싣는 별도 caller(`group:<이름>`)를 둘지. 지금은 `main`이다.

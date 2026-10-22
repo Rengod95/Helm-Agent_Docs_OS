@@ -96,7 +96,7 @@ import { Value } from "typebox/value";
 const valid = Value.Check(ThreadIdSchema, input);
 ```
 
-- [미결] pi-ai·pi-agent-core가 고정한 TypeBox 1.3.27과 Xeon catalog의 1.3.27가 한 트리에 함께 있을 때 스키마 값 호환(`Compile`이 다른 버전 스키마를 받는지). 1.3.27로 통일하면 pi 포크 코드의 호환을 따로 확인해야 한다(`_research/notes/eng-2.md §11`).
+- [미결] pi-ai가 고정한 TypeBox 1.3.27(pi-agent-core는 adr.0009로 의존하지 않는다)과 Xeon catalog의 1.3.27가 한 트리에 함께 있을 때 스키마 값 호환(`Compile`이 다른 버전 스키마를 받는지). 1.3.27로 통일하면 pi 포크 코드의 호환을 따로 확인해야 한다(`_research/notes/eng-2.md §11`).
 
 ### DT-02 스키마가 단일 진실 원천이다. 타입을 따로 손으로 쓰지 않는다
 

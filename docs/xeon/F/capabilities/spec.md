@@ -55,13 +55,13 @@ L2 능력(capability)의 정의 형식을 정한다. 능력 하나는 서비스 
 | 서비스 메서드 (method) | 능력의 서비스 API를 이루는 비동기 함수 하나. 입력과 출력이 TypeBox 스키마로 정의된다 |
 | 모델 도구 (tool) | 모델에게 광고되는 도구 하나. 서비스 메서드 하나에 대응한다 |
 | 기계 이름 (`name`) | 모델 provider 요청과 도구 호출에 쓰는 도구 이름. pi-ai `Tool.name` |
-| 표시 제목 (`label`) | UI에 보이는 도구 제목. pi-agent-core `AgentTool.label` |
+| 표시 제목 (`label`) | UI에 보이는 도구 제목. F `AgentTool.label`(pi-agent-core 1.3.0에서 온 필드) |
 | 도구 집합 (toolset) | 한 요청에서 모델에게 광고되는 도구 목록 |
 | fingerprint | 도구 집합의 모델 노출 내용에서 계산한 해시. 프롬프트 캐시 키에 쓴다 |
 
 이 문서는 F.conversation.spec의 다음 이름을 쓴다.
 
-- `ReplayPolicy = "safe" | "unsafe"`, 기본 `"unsafe"`(F.conversation.spec §3.6). 효과의 결과가 불명일 때 재실행해도 되는지를 뜻한다(`_research/notes/F-3.md` §5). F.records.spec은 같은 심볼을 다시 export한다. agent-core `AgentTool.replay`의 `"never" | "safe"`와 이름 통일은 F.records.spec §10 미결 4다. 이 문서의 어댑터 규칙은 `"unsafe"`를 agent-core `"never"`로 옮긴다.
+- `ReplayPolicy = "safe" | "unsafe"`, 기본 `"unsafe"`(F.conversation.spec §3.6). 효과의 결과가 불명일 때 재실행해도 되는지를 뜻한다(`_research/notes/F-3.md` §5). F.records.spec은 같은 심볼을 다시 export한다. F `AgentTool.replay`(pi-agent-core에서 온 필드)의 `"never" | "safe"`와 이름 통일은 F.records.spec §10 미결 4다. core-tools는 능력 도구의 `ReplayPolicy`를 그대로 쓰고, `DirectToolRegistration`의 `AgentTool.replay`만 `toReplayPolicy`로 바꾼다(`"never"`·미선언 → `"unsafe"`, L1.tools.spec §4.3).
 - `ResultStatus = "complete" | "input_required"`(F.conversation.spec §3.6). 오류는 `ToolResultRecord.isError`로 표현하고 상태 태그 값에는 넣지 않는다.
 - 멱등 키 `requestId`는 브랜드 없는 문자열(1~64자)이다 [제안]. F.conversation.spec의 `requestId: string | null` 필드(`TurnStartedPayload`, 사용자 `ItemRecord`)와 같은 뜻이고, `RequestId` 타입 이름은 두지 않는다(F.wire-settings.spec §3.0).
 - `JsonValue`, `TextContent`, `ImageContent`: F.conversation.spec §3.1이 pi-ai에서 재노출하는 이름.
@@ -202,7 +202,7 @@ export interface ToolHints {
   readonly openWorld?: boolean;     // 웹처럼 열린 외부 대상에 접근한다
 }
 
-/** 모델에게 돌려줄 도구 결과 내용. agent-core AgentToolResult의 부분 집합 */
+/** 모델에게 돌려줄 도구 결과 내용. F AgentToolResult(F.conversation.spec §3.1.1)의 부분 집합 */
 export interface ToolContent {
   readonly content: readonly (TextContent | ImageContent)[];
   readonly structuredContent?: JsonValue;
@@ -258,15 +258,15 @@ export interface OrderedTool extends ToolRef {
 }
 ```
 
-- 기계 이름과 표시 제목의 분리는 pi 형태를 그대로 쓴다. pi-ai `Tool.name`(`~/projects/_ref/pi-src/packages/ai/src/types.ts:749-754`)과 agent-core `AgentTool.label`(`~/projects/_ref/pi-src/packages/agent/src/types.ts:466-469`)이다. 계획 v2는 이 항목을 2차로 두었지만 pi에 이미 있으므로 M0에 같이 넣는다(F.capabilities.plan).
-- `ToolSpec`은 `execute`를 갖지 않는다. 실행 함수는 L1.tools가 `ToolSpec`과 provider 서비스로부터 만든다(§4.2). 그래서 `ToolSpec`은 agent-core `AgentTool`의 상위 형식이 아니다. 대응은 다음과 같다.
+- 기계 이름과 표시 제목의 분리는 pi 형태를 그대로 쓴다. pi-ai `Tool.name`(`~/projects/_ref/pi-src/packages/ai/src/types.ts:749-754`)과 F `AgentTool.label`(출처는 pi-agent-core `AgentTool.label`, `~/projects/_ref/pi-src/packages/agent/src/types.ts:466-469`)이다. 계획 v2는 이 항목을 2차로 두었지만 pi에 이미 있으므로 M0에 같이 넣는다(F.capabilities.plan).
+- `ToolSpec`은 `execute`를 갖지 않는다. 실행 함수는 L1.tools가 `ToolSpec`과 provider 서비스로부터 만든다(§4.2). 그래서 `ToolSpec`은 F `AgentTool`의 상위 형식이 아니다. core-tools는 `ToolSpec`을 `AgentTool`로 바꾸지 않고 내부 도구 항목(`ToolEntry`, `entries.ts`)으로 바꾼다. 필드 대응은 다음과 같다.
 
 | `ToolSpec` 필드 | `AgentTool` 필드 | 변환 |
 |---|---|---|
 | `name`, `description`, `parameters` | 같은 이름 | 그대로 |
 | `label` | `label` | 그대로 |
 | `outputSchema` 또는 메서드 `output` | `outputSchema` | §4.2 규칙 |
-| `replay` | `replay` | `"safe"` → `"safe"`, `"unsafe"` → `"never"` |
+| `replay` | `replay` | 도구 항목은 F `ReplayPolicy`를 그대로 쓴다. `AgentTool.replay`(`"never" \| "safe"`)에 대응시키면 `"unsafe"`는 `"never"`다 |
 | `executionMode` | `executionMode` | 그대로 |
 | `hints` | (pi coding-agent `ToolDefinition.annotations`) | `readOnly` → `readOnlyHint` 등 이름만 바꿈 |
 | `toInput`, `toContent`, `method` | `execute` | L1.tools 어댑터가 합성 |

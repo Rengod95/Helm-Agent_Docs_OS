@@ -60,7 +60,7 @@ xeon/packages/contracts/
 | id | 내용 | 선행 | 규모 |
 |---|---|---|---|
 | P1 | `ids.ts`: `CAPABILITY_ID_PATTERN`, `SEMVER_PATTERN`, `TOOL_NAME_PATTERN`, `TOOL_NAME_WIRE_PATTERN`, 각 TypeBox 스키마, `isCapabilityId`, `isSemVerRange`(스펙 §4.1 부분 집합 파서). 예약 접두 상수 `RESERVED_CAPABILITY_PREFIXES` | F.conversation.plan C2(`JsonValue` 재노출) | S |
-| P2 | `tool-spec.ts`: `ToolSpec`, `ToolSpecFor`, `ToolHints`, `ToolContent`, `ToolWire`, `ToolRef`, `OrderedTool`. pi-ai `Tool`·`ToolReference`, agent-core `ToolExecutionMode`는 `import type`만 쓴다. `ReplayPolicy`는 F.conversation(`tool-result.ts`)에서 import한다 | P1, F.conversation.plan C7(`ReplayPolicy`) | M |
+| P2 | `tool-spec.ts`: `ToolSpec`, `ToolSpecFor`, `ToolHints`, `ToolContent`, `ToolWire`, `ToolRef`, `OrderedTool`. pi-ai `Tool`·`ToolReference`는 `import type`만 쓰고, `ToolExecutionMode`는 F.conversation `agent.ts` 정의를 쓴다(adr.0009). `ReplayPolicy`는 F.conversation(`tool-result.ts`)에서 import한다 | P1, F.conversation.plan C7(`ReplayPolicy`) | M |
 | P3 | `capability.ts`, `service-key.ts`, `errors.ts`: `MethodDef`, `CapabilityDef`, `CapabilityApi`, `defineCapability`(항등), `ServiceKey`(팬텀 필드는 `declare const … : unique symbol`), `serviceKey`, 오류 타입과 클래스 | P2 | M |
 | P4 | `defineCapability` 추론 검증: `const` 타입 매개변수가 `method` 리터럴과 스키마 타입을 보존하는지 타입 테스트로 고정한다. 추론이 부족하면 `ToolSpecFor` 분배 형태를 조정한다 | P3 | S |
 | P5 | `validate.ts`: `toJsonSchema`(`~` 접두 키·비JSON 값 제거, 정규화), 스키마 순회(깊이, 크기, `$ref`, 순환, refine 탐지), `validateCapability`의 스펙 §4.6 규칙 전부, `validateCapabilitySet`. 순수 함수이며 입력을 복제 없이 읽기만 한다 | P3 | M |

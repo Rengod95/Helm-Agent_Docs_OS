@@ -112,7 +112,7 @@ sequenceDiagram
   PERS->>DB: 트랜잭션
 ```
 
-- 루프는 pi agent-core 1.3.0 정확 고정 버전을 훅으로 감싼 것이다(L1-b). 모델 호출은 pi-ai 게이트웨이(L1-c)가 맡는다.
+- 루프는 pi-agent-core 1.3.0 루프를 포크해 다시 설계한 core-loop 자체 루프다(L1-b, adr.0009). 단계 함수가 커밋 지점과 확장 지점을 순서대로 부른다. 모델 호출은 pi-ai 게이트웨이(L1-c)가 맡는다.
 - 그림의 C1~C6, E1~E3은 `L1.persistence.spec` §4.2 커밋 지점 이름이다. 그림에서 C2b, S1, A1, X1, C7은 생략했다.
 - `input` 지점은 L1.loop가 발화한다(`F.extensions.spec` §7). L1.tasks는 입력을 큐에 넣고(C1) 루프에 넘긴다.
 - 복구 표식(`p_threads.running_since`)은 별도 쓰기 없이 C2의 `turn.started`에서 나온다(`L1.persistence.spec` §4.8).

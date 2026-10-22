@@ -834,7 +834,7 @@ export interface ThinkingLevelSelectPayload {
 
 ### 8.3 F·X·엔지니어링 요청 사항
 
-1. (반영됨) `F.capabilities.spec`: §3.2의 값 타입(역할, 참조, 바인딩, `resolveRole`, `CachePolicy`)과 §3.3 `ModelService`, 서비스 이름 상수를 `@xeon/contracts/services`의 `services/models.ts`에 둔다(review.decisions-2 D-04, F.capabilities §3.12 규칙 3). pi-ai `Model`, `Api`, `Context`, `Provider`, `CacheRetention`, `ThinkingBudgets`, `AssistantMessageEventStream`, `SimpleStreamOptions`와 agent-core `StreamFn`을 타입 전용으로 재노출한다. `F.conversation.spec` §3.1은 `Context`를 "L1-c 몫"으로 남겼으나, 서비스 인터페이스가 F에 있으므로 타입 재노출은 F에 있어야 한다.
+1. (반영됨) `F.capabilities.spec`: §3.2의 값 타입(역할, 참조, 바인딩, `resolveRole`, `CachePolicy`)과 §3.3 `ModelService`, 서비스 이름 상수를 `@xeon/contracts/services`의 `services/models.ts`에 둔다(review.decisions-2 D-04, F.capabilities §3.12 규칙 3). pi-ai `Model`, `Api`, `Context`, `Provider`, `CacheRetention`, `ThinkingBudgets`, `AssistantMessageEventStream`, `SimpleStreamOptions`를 타입 전용으로 재노출한다. `StreamFn`은 F가 소비 계약으로 정의한다(adr.0009 §3.2). `F.conversation.spec` §3.1은 `Context`를 "L1-c 몫"으로 남겼으나, 서비스 인터페이스가 F에 있으므로 타입 재노출은 F에 있어야 한다.
 2. `F.extensions.spec`: §7.2 페이로드 필드. `BeforeProviderRequestPayload`에 `provider`, `modelId`, `role` 추가.
 3. (철회) `X.primitives.spec` `ProviderResourceDef`를 `ProviderDef`로 바꾸는 요청은 거둔다. 포트 경로는 JSON `kind: "config"`만 받고, `kind: "runtime"`은 `addProvider`로 받는다(§3.7).
 4. `eng.context-map.design` §4.1: `model-gateway`의 (d) 쓰는 서비스에 `xeon.ext`(지점 디스패치)를 더한다.
