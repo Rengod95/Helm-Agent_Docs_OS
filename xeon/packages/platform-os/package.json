@@ -14,6 +14,7 @@
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
+    "@vscode/ripgrep": "catalog:",
     "@xeon/contracts": "workspace:*",
     "@xeon/ext-host": "workspace:*",
     "typebox": "catalog:"

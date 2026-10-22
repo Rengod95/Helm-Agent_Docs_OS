@@ -10,7 +10,19 @@ export type { OsRuntime } from "./runtime.ts";
 export { readOsRuntime } from "./runtime.ts";
 export { OS_SETTING_DEFS } from "./settings.ts";
 export type { LogRedact, LogSink } from "./logger.ts";
-export type { BundledPath, BundledSource } from "./binaries/resolve.ts";
+export {
+  createNodeBinaryFs,
+  type BinaryFs,
+  type BundledPath,
+  type BundledSource,
+} from "./binaries/resolve.ts";
+export {
+  generateBinariesLock,
+  type LockGenerateError,
+  type LockInput,
+  type LockReadFs,
+} from "./binaries/lock.ts";
+export { createRipgrepSource, type RipgrepSourceDeps } from "./binaries/rg.ts";
 export { createIdFactory, createLocalIdFactory } from "./ids.ts";
 export { createJsonLinesLogger } from "./logger.ts";
 export { systemClock } from "./time/clock.ts";

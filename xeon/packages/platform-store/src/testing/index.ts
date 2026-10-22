@@ -3,7 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Bug, type Clock, type Scheduler } from "@xeon/contracts";
 import type { IdFactory } from "@xeon/contracts/conversation";
-import type { FaultInjector, StoreDb, StoreService } from "@xeon/contracts/records";
+import type {
+  FaultInjector,
+  LeaseHolder,
+  LeaseResource,
+  LeaseService,
+  LeaseToken,
+  StoreDb,
+  StoreService,
+} from "@xeon/contracts/records";
 import { sha256Hex } from "../hash.ts";
 import { openStore } from "../open.ts";
 import { toStorePlatform } from "../select.ts";
@@ -40,6 +48,23 @@ export interface TestStoreOptions {
   readonly engineVersion?: string;
 }
 
+/** 다른 엔진 인스턴스를 흉내 내는 임대 보유자 둘. core-persistence 등 소비자 시험이 쓴다 */
+export const TEST_HOLDER_A: LeaseHolder = {
+  holderId: "holder-a",
+  kind: "cli",
+  pid: 1001,
+  startedAt: 1_767_571_200_000,
+  host: "test-host",
+};
+
+export const TEST_HOLDER_B: LeaseHolder = {
+  holderId: "holder-b",
+  kind: "cli",
+  pid: 1002,
+  startedAt: 1_767_571_200_000,
+  host: "test-host",
+};
+
 /** 실제 저장소 핸들 + 시험용 조회(eng.testing.guide TS-07) */
 export interface TestStore extends AsyncDisposable {
   readonly path: string;
@@ -51,6 +76,18 @@ export interface TestStore extends AsyncDisposable {
   rowCounts(): Promise<Readonly<Record<string, number>>>;
   /** 테이블마다 행 내용의 해시(행 순서와 무관). 장애 주입 전후 비교에 쓴다 */
   rowDigests(): Promise<Readonly<Record<string, string>>>;
+  /**
+   * `service.leases`와 같은 동작이되 `keepAlive`의 `onLost`를 붙잡는다. `loseLease`가 부르려면 소비자가 이 핸들로 `keepAlive`를 건다.
+   * 나머지 메서드는 실제 구현 그대로다.
+   */
+  readonly leases: LeaseService;
+  /**
+   * 다른 엔진 인스턴스가 임대를 인수한 상황(epoch + 1)을 만든다. OS 잠금은 건드리지 않는다.
+   * 이전 토큰으로 하는 커밋은 ownership_lost여야 한다.
+   */
+  takeover(resource: LeaseResource, holder: LeaseHolder): LeaseToken;
+  /** `leases.keepAlive`로 건 `onLost`를 한 번 부른다. 하트비트가 임대를 잃었다고 알리는 상황 */
+  loseLease(resource: LeaseResource): void;
 }
 
 const INERT_SCHEDULER: Scheduler = {
@@ -103,6 +140,24 @@ export async function openTestStore(options: TestStoreOptions): Promise<TestStor
   }
   const store = opened.value;
 
+  // keepAlive의 onLost를 시험이 직접 부를 수 있게 붙잡는다. 나머지 임대 동작은 실제 구현 그대로다
+  const lostCallbacks = new Map<LeaseResource, () => void>();
+  const leases: LeaseService = {
+    ...store.service.leases,
+    keepAlive(token, onLost): Disposable {
+      lostCallbacks.set(token.resource, () => {
+        onLost(token.resource);
+      });
+      const inner = store.service.leases.keepAlive(token, onLost);
+      return {
+        [Symbol.dispose]: () => {
+          lostCallbacks.delete(token.resource);
+          inner[Symbol.dispose]();
+        },
+      };
+    },
+  };
+
   const tableNames = (): readonly string[] => {
     const rows = store.root.read((tx) =>
       tx.all(
@@ -117,6 +172,7 @@ export async function openTestStore(options: TestStoreOptions): Promise<TestStor
     path,
     opened: store,
     service: store.service,
+    leases,
     root: store.root,
     faults: store.faults,
     rowCounts(): Promise<Readonly<Record<string, number>>> {
@@ -143,6 +199,42 @@ export async function openTestStore(options: TestStoreOptions): Promise<TestStor
         digests[name] = sha256Hex(lines.join("\n"));
       }
       return Promise.resolve(digests);
+    },
+    takeover(resource, holder): LeaseToken {
+      const written = store.root.write((tx): number => {
+        const row = tx.get("SELECT epoch FROM sys_leases WHERE resource = ?", [resource]);
+        const epoch = row === undefined ? 1 : Number(row["epoch"]) + 1;
+        const now = options.clock.now();
+        const params = [
+          holder.holderId,
+          epoch,
+          holder.kind,
+          holder.pid,
+          holder.startedAt,
+          holder.host,
+          now,
+          now + 30_000,
+        ];
+        if (row === undefined) {
+          tx.run(
+            `INSERT INTO sys_leases (resource, holder_id, epoch, kind, pid, started_at, host, heartbeat_at, expires_at, released_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+            [resource, ...params],
+          );
+        } else {
+          tx.run(
+            `UPDATE sys_leases SET holder_id = ?, epoch = ?, kind = ?, pid = ?, started_at = ?, host = ?,
+               heartbeat_at = ?, expires_at = ?, released_at = NULL WHERE resource = ?`,
+            [...params, resource],
+          );
+        }
+        return epoch;
+      });
+      if (!written.ok) throw new Bug("store.testing: takeover failed", { cause: written.error });
+      return { resource, holderId: holder.holderId, epoch: written.value };
+    },
+    loseLease(resource): void {
+      lostCallbacks.get(resource)?.();
     },
     async [Symbol.asyncDispose](): Promise<void> {
       await store.close();

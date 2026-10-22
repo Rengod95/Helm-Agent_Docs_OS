@@ -1,13 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
-import {
-  delimiter as hostDelimiter,
-  isAbsolute,
-  join,
-  relative,
-  resolve as resolvePath,
-  sep,
-} from "node:path";
+import { delimiter as hostDelimiter, isAbsolute, join } from "node:path";
 import {
   assertNever,
   attemptAsync,
@@ -26,6 +19,7 @@ import type {
   ResolvedBinary,
 } from "@xeon/contracts/services";
 import type { RunCommand } from "../proc.ts";
+import { resolveInsideResource } from "./lock.ts";
 import { compareTriples, findVersion, parseTriple, requireTriple } from "./semver.ts";
 
 // 외부 바이너리 해석(OS-11, L0.os.spec §3.6). 순서: 번들 후보 > 시스템 후보 > not_found.
@@ -290,12 +284,8 @@ async function verifyLockEntry(
   name: BinaryName,
   entry: LockEntry,
 ): Promise<Result<ResolvedBinary, BinaryError>> {
-  const root = resolvePath(deps.resourceDir);
-  const full = resolvePath(root, entry.path);
-  const rel = relative(root, full);
-  if (isAbsolute(entry.path) || rel === "" || rel.startsWith(`..${sep}`) || rel === "..") {
-    return err({ kind: "extract_failed", name, code: "LOCK_PATH_ESCAPES" });
-  }
+  const full = resolveInsideResource(deps.resourceDir, entry.path);
+  if (full === undefined) return err({ kind: "extract_failed", name, code: "LOCK_PATH_ESCAPES" });
   const bytes = await deps.fs.readFile(full);
   if (!bytes.ok) return err({ kind: "extract_failed", name, code: bytes.error.code });
   const actual = sha256Hex(bytes.value);

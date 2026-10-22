@@ -96,7 +96,7 @@ xeon/packages/platform-store/
 | ST-06 | `migrations.ts` `apply`: 체크섬, 순서·빈칸 검사, 단계별 트랜잭션, 실패 롤백, 오류 종류 | ST-05 | M | M0 |
 | ST-07 | `prefix.ts`: 소유자 표(`TABLE_PREFIX_OWNERS` + `sys_prefixes`), 디버그 빌드 `EXPLAIN` 루트 페이지 대조와 캐시, 운영 빌드 DDL 어휘 검사, `scoped(owner)`. 비용 측정 스크립트(문장 1만 개) 결과를 미결 S-8에 남긴다 | ST-04, ST-05 | M | M0 |
 | ST-08 | `ext-tables.ts`: `register`(`ExtensionName` 패턴·예약어, 하이픈 → 밑줄 접두 변환), 지역 이름 규칙으로 하는 확장 테이블 소유 판정, `drop(name, tables)`(정확한 이름 목록만, 소유 아닌 이름이 있으면 전부 거부, FTS5 가상 테이블 포함) | ST-06, ST-07 | S | M1 |
-| ST-09 | `testing/index.ts` `openTestStore`(`:memory:` 또는 `tempDir()` 파일), `rowCounts()`, `testing/fault.ts`: F `FaultInjector`를 받아 저장소 경로에 연결, `StoreFaultPoint` 지점 호출, 참조 커밋 픽스처(`commit.fault.test.ts`) | ST-04, ST-05 | M | M0 |
+| ST-09 | `testing/index.ts` `openTestStore`(`:memory:` 또는 `tempDir()` 파일), `rowCounts()`, `leases`(keepAlive 콜백을 붙잡는 임대 핸들), `takeover`·`loseLease`와 `TEST_HOLDER_A`·`TEST_HOLDER_B`(소비자 시험이 다른 엔진 인스턴스의 임대 인수와 하트비트 상실을 흉내 낸다. M2 PLT.4, open-issues M-04), `testing/fault.ts`: F `FaultInjector`를 받아 저장소 경로에 연결, `StoreFaultPoint` 지점 호출, 참조 커밋 픽스처(`commit.fault.test.ts`) | ST-04, ST-05 | M | M0 |
 | ST-10 | `service.ts`, `settings.ts`: `StoreService` 조립, Cordis 플러그인으로 `xeon.store` 등록, `l0.store.*` 선언(`checkSettingDef` 통과) | ST-06, ST-07 | S | M0 |
 | ST-11 | `lock/provider.ts`, `lock/posix.ts`, `lock/none.ts`, `select.ts`: bun:ffi `flock(LOCK_EX\|LOCK_NB)`, 키 파일(삭제 금지), 디렉터리 0700·소유자 검사, 프로세스 안 보유 표, FD_CLOEXEC 확인 | FR-S2 | M | M0 |
 | ST-12 | `lease.ts`: `sys_leases` DDL(owner `sys` v2), `acquire`·`renew`·`release`·`holds`·`inspect`·`keepAlive`(주입 `Scheduler`), 후퇴안(`none`)의 pid·지문 판정(`StoreEnvironment.processStartedAt`) | ST-11, ST-05, L0.os.plan OS-18 | M | M0 |

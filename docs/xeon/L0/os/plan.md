@@ -47,7 +47,8 @@ xeon/packages/platform-os/
     ids.ts                  # createIdFactory, createLocalIdFactory (OS-19)
     binaries/
       resolve.ts            # resolveBinary, PATH 탐색, 버전 읽기
-      rg.ts                 # @vscode/ripgrep 경로 연결
+      rg.ts                 # createRipgrepSource: @vscode/ripgrep 경로 연결(소스 실행의 번들 rg). 서비스의 기본 bundledSource
+      lock.ts               # generateBinariesLock: binaries.lock.json 생성(빌드 스크립트가 부른다), resolveInsideResource
       extract.ts            # 컴파일 바이너리에서 cache/bin으로 추출, SHA-256 검사
     notify/
       provider.ts           # NotifierProvider, buildNotifyCommand, 디바운스
@@ -102,7 +103,7 @@ xeon/packages/platform-os/
 | OS-09 | `testing/`: `tempDir`, `withIsolatedEnv`(TS-03 변수 목록 + `XEON_HOME`), `exports "./testing"` | OS-02 | S | M0 |
 | OS-10 | `service.ts`, `index.ts`: `OsService` 조립, `platformOsPlugin` 등록, 시작 순서와 `dispose` 순서(`L0.os.spec` §4) | OS-01~OS-09, ext-host `registerPlatform` | M | M1 |
 | OS-11 | `binaries/resolve.ts`, `rg.ts`: `resolveBinary` 우선순위(번들 > 시스템), PATH 탐색, `--version` 파싱(`security`·`secret-tool`은 버전 확인 생략), 동시 호출 합치기, `@vscode/ripgrep` 연동 | OS-02, OS-10 | M | M1 |
-| OS-12 | 번들 추출 실측과 `extract.ts`: `bun build --compile` 단일 바이너리에서 rg를 내장·추출·해시 검사·실행. `binaries.lock.json` 생성 스크립트 | OS-11 | M | M2 이후 |
+| OS-12 | 번들 추출 실측과 `extract.ts`: `bun build --compile` 단일 바이너리에서 rg를 내장·추출·해시 검사·실행. `binaries.lock.json` 생성: 생성 함수 `generateBinariesLock`(`lock.ts`)는 M2 PLT.4에서 구현했고, 사이드카 빌드 스크립트(DESK.3)가 부른다. 추출·실측은 M2 이후 | OS-11 | M | M2 이후 |
 | OS-13 | `notify/`: `NotifierProvider`, `buildNotifyCommand`, darwin·linux provider, `none`, 디바운스, 본문 `redact`. 켜기·종류 설정은 두지 않는다(`L2.dialog` 소유). win32는 OS-17 | OS-10 | M | M3 |
 | OS-14 | `watch/`: `createFileWatcher`, parcel 백엔드, poll 백엔드, 앱 디렉터리 밖 거부, 한도 초과 시 폴링 전환 | OS-10 | M | M2 이후 |
 | OS-15 | `telemetry/`: SDK 지연 로드, exporter(file, otlp-http), 스팬 이름·속성 규칙, 속성 마스킹, pi-telemetry 어댑터 | OS-08, OS-10 | M | M2 이후 |

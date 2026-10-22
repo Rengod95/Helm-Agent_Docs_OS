@@ -392,8 +392,8 @@ export type BinaryError =
 
 해석 순서:
 
-1. 번들 후보: `resource` 디렉터리의 바이너리 목록 파일(`binaries.lock.json`, 빌드 때 생성. 이름, 플랫폼, 상대 경로, SHA-256, 버전)에 이름이 있으면 그 파일을 쓴다.
-   - 소스 실행(`bun run`): `@vscode/ripgrep`이 제공하는 경로를 그대로 쓴다. 설치 때 npm 락파일의 무결성 해시로 검증되므로 실행 시 해시 검사는 생략한다. postinstall 다운로드는 하지 않는다. pi tools-manager의 해시 없는 다운로드는 쓰지 않는다(`_research/packages.md` §4.2 L0-f).
+1. 번들 후보: `resource` 디렉터리의 바이너리 목록 파일(`binaries.lock.json`, 빌드 때 생성. 이름, 플랫폼, 상대 경로, SHA-256, 버전)에 이름이 있으면 그 파일을 쓴다. 목록은 `generateBinariesLock(resourceDir, inputs, fs)`가 만든다. 항목은 이름·플랫폼·아키텍처 순으로 정렬해 같은 입력이 같은 본문을 내고, resource 디렉터리 밖을 가리키는 경로와 중복 항목은 오류 값이다.
+   - 소스 실행(`bun run`): `@vscode/ripgrep`이 제공하는 경로를 그대로 쓴다. 서비스 설정에 `bundledSource`가 없으면 이 연결(`createRipgrepSource`)이 기본이다. 플랫폼 패키지가 없어 모듈이 던지면 번들 없음으로 보고 시스템 후보로 간다. 버전은 `rg --version`에서 읽고, 읽지 못하면 `version_unreadable`이다. 설치 때 npm 락파일의 무결성 해시로 검증되므로 실행 시 해시 검사는 생략한다. postinstall 다운로드는 하지 않는다. pi tools-manager의 해시 없는 다운로드는 쓰지 않는다(`_research/packages.md` §4.2 L0-f).
    - 컴파일 바이너리(`bun build --compile`)와 Tauri 사이드카 [가정]: 번들 파일은 실행 파일 안에 내장되어 바로 실행할 수 없다. 그래서 `cache/bin/<sha256 앞 16자>/<이름>`으로 꺼낸 뒤 SHA-256을 다시 계산해 목록 값과 비교하고, 같을 때만 실행 권한을 주고 경로를 돌려준다. 이미 꺼낸 파일이 있으면 해시만 다시 확인한다. 불일치하면 `integrity_mismatch`이고 그 파일을 실행하지 않는다. 내장과 추출 방식은 `L0.os.plan`의 실측 작업이 확정한다.
 2. 시스템 후보: `allowSystem`이 true이면 `PATH`를 앞에서부터 찾는다(Windows는 `PATHEXT` 확장자 포함). 찾으면 `<이름> --version`(age는 `--version`, bwrap은 `--version`)을 실행해 첫 줄에서 버전을 읽는다. 읽지 못하면 `version_unreadable`이다. `security`와 `secret-tool`은 버전 옵션이 없으므로 버전 확인을 건너뛰고 `version`을 빈 문자열로 둔다. 이 둘에는 `minVersion`을 줄 수 없다 [제안].
 3. 둘 다 없으면 `not_found`. `hint`는 OS별 설치 안내 문구다(예: Linux bwrap: "bubblewrap 패키지를 설치한다"). 이 실패는 사용자 환경 문제이고 호출자는 코드를 고칠 대상으로 다루지 않는다. CLI는 환경 문제 종료코드(2 계열)로 끝낸다 [제안: 종료코드 체계는 `L4.cli.spec`].

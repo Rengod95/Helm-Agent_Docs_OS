@@ -11,6 +11,7 @@ import type {
   ResolvedBinary,
   BinaryError,
 } from "@xeon/contracts/services";
+import { createRipgrepSource } from "./binaries/rg.ts";
 import { createBinaryResolver, type BundledSource } from "./binaries/resolve.ts";
 import { dirsWarnings, ensureDirs, resolveDirs } from "./dirs.ts";
 import {
@@ -35,7 +36,7 @@ export interface PlatformOsConfig {
   readonly logLevel?: LogLevel;
   /** 설정 l0.os.dirs.override(관리 범위). XEON_HOME보다 낮고 OS 기본보다 높다 */
   readonly dirsOverride?: string;
-  /** 소스 실행에서 번들 바이너리 경로를 주는 수단(예: @vscode/ripgrep 연결). 없으면 목록 파일과 시스템만 본다 */
+  /** 소스 실행에서 번들 바이너리 경로를 주는 수단. 없으면 `@vscode/ripgrep`이 주는 rg를 쓴다(목록 파일이 있으면 그쪽이 먼저다) */
   readonly bundledSource?: BundledSource;
 }
 
@@ -148,7 +149,8 @@ export async function createOsService(
     run: runtime.run,
     logger,
     lifetime: lifetime.signal,
-    ...(config.bundledSource === undefined ? {} : { bundledSource: config.bundledSource }),
+    // 소스 실행의 번들 rg는 @vscode/ripgrep이 준다. 조립 루트가 다른 수단을 넘기면 그것을 쓴다
+    bundledSource: config.bundledSource ?? createRipgrepSource({ run: runtime.run }),
   });
 
   const service: OsService = {
