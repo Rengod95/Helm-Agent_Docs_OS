@@ -220,12 +220,12 @@ export interface EnginePorts {
 
 export interface ThreadPort {
   create(input: { readonly workspace?: string; readonly title?: string }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
-  exists(threadId: ThreadId): boolean;
+  exists(threadId: ThreadId): Result<boolean, ReadFailure>;     // 읽기 실패는 값이다. 처리기가 store.* 와이어 오류로 옮긴다
   list(params: WireParams<"thread.list">): Promise<WireResult<"thread.list">>;
   fork(threadId: ThreadId, at: ItemId | undefined): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
   revert(threadId: ThreadId, to: ItemId): Promise<{ readonly position: StreamPosition }>;
   remove(threadId: ThreadId): Promise<void>;
-  position(threadId: ThreadId): StreamPosition;
+  position(threadId: ThreadId): Result<StreamPosition, ReadFailure>;
 }
 
 export type SubmitOutcome =
@@ -246,11 +246,11 @@ export interface CommitBatch {
 }
 
 export interface EventFeedPort {
-  headSeq(): number;
+  headSeq(): Result<number, ReadFailure>;
   oldestReplayableSeq(): number;
   /** seq > after AND seq ≤ upto, 필터 적용. 행이 limit만큼 차면 거기서 멈추고, 아니면 scanLimit 행까지 훑는다. */
   read(after: number, upto: number, filter: EventFilter | undefined, limit: number, scanLimit: number):
-    { readonly events: readonly DurableEventEnvelope[]; readonly scannedTo: number };
+    Result<{ readonly events: readonly DurableEventEnvelope[]; readonly scannedTo: number }, ReadFailure>;
   /** 커밋 직후 같은 JS 턴에서 동기로 부른다(eng.transactions.design §7, TX-09). */
   onCommit(listener: (batch: CommitBatch) => void): Unsubscribe;
   onVolatile(listener: (event: VolatileEventEnvelope) => void): Unsubscribe;
@@ -838,6 +838,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 | DB를 열 수 없다(권한, 손상, FTS5 없음) | `AssembleError { code: "store" }`. FTS5 검사는 L0.store(TC-11) |
 | 처리기가 알 수 없는 예외를 던진다 | `-32603 "Internal error"`, 원문은 로그에만(HS-08) |
 | 저장소 쓰기가 실패한다(`turn.start` 제출, 열 때 복구, thread 생성, 임대 획득) | `StoreError`·`LeaseError`는 `Bug`로 던지지 않고 `5003 store.busy`, `5004 store.diskFull`, `5005 store.readOnly`, `5006 store.io`로 옮긴다. `ownership_lost`·`lease_lost`는 3002, `thread_not_found`는 3001이다(`apps/host/src/store-error.ts`) |
+| 저장소 읽기가 실패한다(`ThreadPort.exists`·`position`, `EventFeedPort.headSeq`·`read`) | 포트는 `Result<_, ReadFailure>`로 돌려주고 처리기가 `5003 store.busy`나 `5006 store.io`로 옮긴다. 손상된 행(`row_invalid`)도 `5006 store.io`이고 `details.code`가 `"row_invalid"`다. 재전송 중 읽기가 실패하면 구독을 닫고 `events.ended { reason: "replayFailed" }`를 보낸다 |
 | 재전송 읽기가 실패한다 | 로그를 남기고 구독을 지운 뒤 `events.ended { sub, reason: "replayFailed" }` 알림을 보낸다. 클라이언트는 마지막 `to`부터 다시 구독한다 |
 | 서버 응답이 `WIRE_METHODS[m].result` 스키마와 맞지 않는다 | 클라이언트가 `HostClientError("invalidResponse")`로 거부한다. 알림 params가 스키마와 맞지 않으면 핸들러를 부르지 않는다 |
 | `host.hello` 전 `turn.start` | 1001(HS-01) |

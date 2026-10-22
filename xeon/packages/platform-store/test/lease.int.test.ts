@@ -126,7 +126,7 @@ describe("epoch fencing", () => {
     expect(b.epoch).toBe(a.epoch + 1);
     const holds = (t: LeaseToken): boolean => {
       const result = store.root.write((tx) => leases.holds(tx, t));
-      return result.ok && result.value;
+      return result.ok && result.value.ok && result.value.value;
     };
     expect(holds(a)).toBe(false);
     expect(holds(b)).toBe(true);
@@ -161,7 +161,7 @@ describe("epoch fencing", () => {
     const t = token(leases.acquire(SESSION, holder("h1")));
     expect(leases.release(t).ok).toBe(true);
     const holds = store.root.write((tx) => leases.holds(tx, t));
-    expect(holds).toEqual({ ok: true, value: false });
+    expect(holds).toEqual({ ok: true, value: { ok: true, value: false } });
     expect(leases.renew(t)).toEqual({
       ok: false,
       error: { kind: "lease_lost", resource: SESSION },
@@ -174,7 +174,39 @@ describe("epoch fencing", () => {
     const holds = store.root.write((tx) =>
       store.service.leases.holds(tx, { resource: SESSION, holderId: "x", epoch: 1 }),
     );
-    expect(holds).toEqual({ ok: true, value: false });
+    expect(holds).toEqual({ ok: true, value: { ok: true, value: false } });
+  });
+
+  test("a damaged lease row is reported as row_invalid, not thrown", async () => {
+    const fixture = own(await open({ none: true }));
+    const { store } = fixture;
+    const { leases } = store.service;
+    const t = token(leases.acquire(SESSION, holder("h1")));
+    // 제약(STRICT, CHECK)을 우회하는 두 번째 연결로 손상된 파일을 흉내 낸다
+    const damage = (sql: string): void => {
+      const other = new Database(store.path);
+      try {
+        other.run("PRAGMA ignore_check_constraints = ON");
+        other.run(sql);
+      } finally {
+        other.close();
+      }
+    };
+    damage(`UPDATE sys_leases SET kind = 'daemon' WHERE resource = '${SESSION}'`);
+    // 소유 판정(holds)은 holder_id, epoch, released_at만 읽으므로 kind 손상에 영향받지 않는다
+    expect(store.root.write((tx) => leases.holds(tx, t))).toEqual({
+      ok: true,
+      value: { ok: true, value: true },
+    });
+    expect(leases.inspect(SESSION)).toEqual({
+      ok: false,
+      error: { kind: "row_invalid", where: "sys_leases.kind" },
+    });
+    // 다른 holder의 획득은 소유 판정을 못 하므로 같은 오류로 끝난다
+    expect(leases.acquire(SESSION, holder("h2"))).toEqual({
+      ok: false,
+      error: { kind: "row_invalid", where: "sys_leases.kind" },
+    });
   });
 });
 

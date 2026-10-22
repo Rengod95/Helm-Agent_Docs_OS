@@ -274,3 +274,27 @@ test("a_provider_error_fails_the_turn", async () => {
   const completed = firstOfKind(h.fake.events(h.threadId), "turn.completed");
   expect(completed?.payload).toMatchObject({ status: "failed", error: "boom" });
 });
+
+test("resume_returns_a_read_failure_instead_of_throwing", async () => {
+  const h = await createHarness({ script: [text("hello")] });
+  h.fake.failNextRead({ kind: "busy" });
+  const resumed = await h.loop.resume(h.threadId);
+  expect(resumed).toEqual({ ok: false, error: { kind: "busy" } });
+  // 같은 요청을 다시 하면 읽을 수 있고 열린 turn이 없으니 할 일이 없다
+  const again = await h.loop.resume(h.threadId);
+  expect(again).toEqual({ ok: true, value: { status: "nothing" } });
+});
+
+test("a_failed_open_turn_read_keeps_the_input_queued_and_logs_the_start_failure", async () => {
+  const h = await createHarness({ script: [text("hello")] });
+  h.fake.failNextRead({ kind: "io", code: "SQLITE_IOERR" });
+  const admitted = await h.loop.admit({ threadId: h.threadId, content: "hi", via: "interactive" });
+  // 입력은 접수됐고 시작만 미뤄진다
+  expect(admitted.ok && admitted.value.status).toBe("queued");
+  expect(h.logs.records.some((record) => record.event === "loop.start_failed")).toBe(true);
+  expect(countKind(h.fake.events(h.threadId), "turn.started")).toBe(0);
+  // 다음 입력이 오면 큐에 남은 입력부터 시작한다
+  await h.loop.admit({ threadId: h.threadId, content: "again", via: "interactive" });
+  await h.settle();
+  expect(countKind(h.fake.events(h.threadId), "turn.started")).toBeGreaterThan(0);
+});

@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
+import { err, ok, type Logger } from "@xeon/contracts";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
 import type { LifecycleEvent } from "@xeon/contracts/conversation";
-import type { SessionService, VolatileEventEnvelope } from "@xeon/contracts/records";
+import type { ReadFailure, SessionService, VolatileEventEnvelope } from "@xeon/contracts/records";
 import {
   createVolatileEmitter,
   splitByBytes,
@@ -20,19 +21,34 @@ function setup() {
   const partId = ids.next("prt");
   const sent: VolatileEventEnvelope[] = [];
   let head = 7;
+  const faults: ReadFailure[] = [];
+  const logged: string[] = [];
+  const logger: Logger = {
+    debug: () => {},
+    info: () => {},
+    warn: (event, fields) => {
+      const reason = fields?.["reason"];
+      logged.push(`${event}:${typeof reason === "string" ? reason : "?"}`);
+    },
+    error: () => {},
+    child: () => logger,
+  };
   const session: Pick<SessionService, "emitVolatile" | "feed"> = {
     emitVolatile: (event) => {
       sent.push(event);
     },
     feed: {
-      headSeq: () => head,
+      headSeq() {
+        const fault = faults.shift();
+        return fault === undefined ? ok(head) : err(fault);
+      },
       oldestReplayableSeq: () => 0,
-      read: () => ({ events: [], scannedTo: 0 }),
+      read: () => ok({ events: [], scannedTo: 0 }),
       onCommit: () => () => {},
       onVolatile: () => () => {},
     },
   };
-  const emitter = createVolatileEmitter({ session, clock, ids, threadId, turnId });
+  const emitter = createVolatileEmitter({ session, clock, ids, threadId, turnId, logger });
   const delta = (text: string): LifecycleEvent => ({
     type: "item.updated",
     threadId,
@@ -60,6 +76,10 @@ function setup() {
     setHead: (value: number) => {
       head = value;
     },
+    failNextHeadSeq: (error: ReadFailure) => {
+      faults.push(error);
+    },
+    logged,
   };
 }
 
@@ -122,4 +142,15 @@ test("a_delta_is_cut_into_pieces_of_at_most_16_kib", () => {
 test("splitByBytes_keeps_code_points_whole", () => {
   expect(splitByBytes("", 4)).toEqual([""]);
   expect(splitByBytes("😀😀", 4)).toEqual(["😀", "😀"]);
+});
+
+test("a_notification_whose_head_seq_cannot_be_read_is_dropped_and_logged_without_skipping_n", () => {
+  const t = setup();
+  t.failNextHeadSeq({ kind: "busy" });
+  t.emitter.emit(asVolatile(t.status));
+  expect(t.sent).toHaveLength(0);
+  expect(t.logged).toEqual(["loop.volatile_dropped:busy"]);
+  // 다음 알림은 번호 0으로 나간다. 버린 알림이 번호를 쓰지 않는다
+  t.emitter.emit(asVolatile(t.status));
+  expect(t.sent.map((event) => event.n)).toEqual([0]);
 });

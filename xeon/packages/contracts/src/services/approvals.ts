@@ -1,7 +1,8 @@
 import type { CapabilityId, ToolName } from "../capabilities/index.ts";
 import type { JsonValue, StepId, ThreadId, TurnId } from "../conversation/index.ts";
+import type { Result } from "../base/index.ts";
 import type { PortKey } from "../extensions/index.ts";
-import type { BlobRef } from "../records/index.ts";
+import type { BlobRef, ReadFailure, StoreError } from "../records/index.ts";
 import type { CallerId, PermissionMode, ToolRisk } from "./tools.ts";
 
 // L1.tools.spec §3.6. 구현은 core-tools다. 승인 요청은 내구 이벤트 approval.requested로 나가고
@@ -113,15 +114,24 @@ export interface ApprovalResolution {
   readonly resolvedBy: ApprovalResolvedBy;
 }
 
+/** 요청 이벤트 커밋이 실패한 이유. 저장소 오류, 커밋 거부, 같은 키에 다른 내용(TY-24: 예상 가능한 실패라 값으로 돌려준다) */
+export type ApprovalRequestError =
+  | { readonly kind: "store"; readonly error: StoreError }
+  | { readonly kind: "rejected"; readonly code: string; readonly detail: string | null }
+  | { readonly kind: "key_reused"; readonly requestId: string };
+
 export interface ApprovalService {
-  /** 요청을 커밋하고 응답이 올 때까지 기다린다. signal이 끊기면 대기만 그만둔다(요청은 남는다) */
-  request(input: ApprovalRequestInput, signal: AbortSignal): Promise<ApprovalResolution>;
+  /** 요청을 커밋하고 응답이 올 때까지 기다린다. signal이 끊기면 대기만 그만둔다(요청은 남는다). 커밋 실패는 오류 값이다 */
+  request(
+    input: ApprovalRequestInput,
+    signal: AbortSignal,
+  ): Promise<Result<ApprovalResolution, ApprovalRequestError>>;
   /** wire approval.respond 처리. 이미 해결된 요청이면 applied: false */
   respond(approvalId: string, response: ApprovalResponse): Promise<{ readonly applied: boolean }>;
   /** 대화의 미해결 요청. 재개와 클라이언트 재접속 때 쓴다 */
   pending(threadId: ThreadId): readonly ApprovalRequest[];
-  /** 재개 때 이벤트에서 미해결 요청을 다시 읽어 메모리 대기 목록을 채운다 */
-  restore(threadId: ThreadId): Promise<readonly ApprovalRequest[]>;
+  /** 재개 때 이벤트에서 미해결 요청을 다시 읽어 메모리 대기 목록을 채운다. 읽기 실패는 오류 값이다 */
+  restore(threadId: ThreadId): Promise<Result<readonly ApprovalRequest[], ReadFailure>>;
   /** 턴 취소 등으로 요청을 닫는다. resolvedBy "cancelled" */
   cancel(approvalId: string, reason: string): Promise<{ readonly applied: boolean }>;
 }

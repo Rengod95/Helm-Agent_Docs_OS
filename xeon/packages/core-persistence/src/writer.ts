@@ -36,12 +36,11 @@ import { detachLarge, needsDetach, type PutBlob } from "./blob.ts";
 import { checkpointDraftInput, completeCheckpoint, isApprovalWait } from "./checkpoint.ts";
 import { insertEvent, headSeqOf } from "./events.ts";
 import { sha256Hex } from "./hash.ts";
-import { toEventId } from "./ids.ts";
 import type { GuardState, OpenSessions } from "./ownership.ts";
 import { toProjectionTx } from "./projector/tx.ts";
 import { PERSISTENCE_PRODUCER, producerOwnsKind, type ProducerRegistry } from "./producers.ts";
 import { findRequest, insertRequest, type StoredResult } from "./requests.ts";
-import { columnInt } from "./rows.ts";
+import { columns, type RowFault } from "./rows.ts";
 import { createTxView } from "./tx-view.ts";
 import type { KindCatalog } from "./upcast.ts";
 import { readThread } from "./views.ts";
@@ -58,7 +57,7 @@ type AppendPlan = Extract<CommitPlan, { readonly kind: "append" }>;
 
 export interface CommitHooks {
   /** build 전, 트랜잭션 안. thread id가 돌아오면 쓰기 없이 그 thread로 끝낸다(생성 멱등 키, §4.10.1) */
-  readonly existingThread?: (tx: SqlTx) => ThreadId | undefined;
+  readonly existingThread?: (tx: SqlTx) => Result<ThreadId | undefined, RowFault>;
   /** append가 성공한 뒤 같은 트랜잭션에서 */
   readonly afterAppend?: (tx: SqlTx) => void;
 }
@@ -109,14 +108,14 @@ function oversize(planned: PlannedDraft): boolean {
   return needsDetach(planned.stamped.draft);
 }
 
-function lastRecordedAt(tx: SqlTx): number {
+function lastRecordedAt(tx: SqlTx): Result<number, RowFault> {
   const row = tx.get("SELECT recorded_at FROM events ORDER BY seq DESC LIMIT 1");
-  return row === undefined ? 0 : columnInt(row, "recorded_at");
+  return row === undefined ? ok(0) : columns(row, "events").int("recorded_at");
 }
 
-function currentLeaf(tx: SqlTx, threadId: string): EventId | null {
-  const leaf = readThread(tx, threadId)?.leafEventId;
-  return leaf === undefined || leaf === null ? null : toEventId(leaf);
+function currentLeaf(tx: SqlTx, threadId: string): Result<EventId | null, RowFault> {
+  const thread = readThread(tx, threadId);
+  return thread.ok ? ok(thread.value?.leafEventId ?? null) : thread;
 }
 
 function mapBlobError(error: BlobError): StoreError {
@@ -178,7 +177,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
    * `checkSize`가 거짓이면 크기 검사를 건너뛴다(분리 전 검사용)
    */
   const completeEnvelope = (
-    tx: SqlTx,
+    leafOf: (threadId: ThreadId) => EventId | null,
     stamped: StampedDraft,
     seq: number,
     recordedAt: number,
@@ -196,26 +195,29 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
         `store.schema_invalid: ${draft.kind} v${draft.version} is newer than the catalog (v${entry.version})`,
       );
     }
-    const parentId =
-      draft.parentId !== undefined ? draft.parentId : currentLeaf(tx, draft.threadId);
+    const parentId = draft.parentId !== undefined ? draft.parentId : leafOf(draft.threadId);
     const envelope: DurableEventEnvelope = { ...draft, seq, recordedAt, parentId };
     const shape = parse(DurableEventEnvelopeSchema, envelope);
     if (!shape.ok) {
+      // xeon-disable-next-line xeon/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
       throw new Bug(`store.schema_invalid: ${draft.kind} envelope`, { cause: shape.error });
     }
     const upcasted = catalog.upcast(envelope);
     if (!upcasted.ok) {
+      // xeon-disable-next-line xeon/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
       throw new Bug(`store.schema_invalid: cannot upcast ${draft.kind}`, { cause: upcasted.error });
     }
     if (!prevalidated.has(draft)) {
       const payload = parse(entry.payload, upcasted.value.payload);
       if (!payload.ok) {
+        // xeon-disable-next-line xeon/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
         throw new Bug(`store.schema_invalid: ${draft.kind} payload`, { cause: payload.error });
       }
     }
     if (checkSize) {
       const size = checkEnvelopeSize(envelope);
       if (!size.ok) {
+        // xeon-disable-next-line xeon/bug-for-expected -- 초안은 생산자가 만든 값이고 커밋 전에 소유·스키마를 검사한다. 어긋나면 호출한 쪽의 코드 결함이다 (eng.typescript.guide TY-24)
         throw new Bug(
           `store.event_too_large: ${draft.kind} is ${size.error.bytes} bytes (limit ${size.error.limit})`,
         );
@@ -281,6 +283,9 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
       abort.error = error;
       throw ROLLBACK_MARKER;
     };
+    /** 읽기 도우미가 손상 행을 알리면 트랜잭션을 롤백하고 commit이 row_invalid를 돌려준다(TY-24) */
+    const must = <T>(read: Result<T, RowFault>): T =>
+      read.ok ? read.value : abortWith(read.error);
 
     // 소유 확인(§4.1 2단계, §4.10.1). 요청 thread의 토큰은 build 전에 이미 새로 읽어 대조했다.
     // 새 thread의 첫 이벤트 thread.started 하나만 소유 확인에서 빠진다: 아무도 모르는 id라 다른 소유자가 있을 수 없다.
@@ -288,7 +293,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
     const verifyThreads = (tx: SqlTx, drafts: readonly PlannedDraft[]): void => {
       const targets = new Set(drafts.map((planned) => planned.stamped.draft.threadId));
       for (const target of targets) {
-        const exists = readThread(tx, target) !== undefined;
+        const exists = must(readThread(tx, target)) !== undefined;
         const own = drafts.filter((planned) => planned.stamped.draft.threadId === target);
         if (!exists && own[0]?.stamped.draft.kind !== "thread.started") {
           abortWith({ kind: "thread_not_found", threadId: target });
@@ -297,7 +302,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
         if (state?.role === "observer") abortWith({ kind: "read_only", reason: "observer" });
         if (state?.role === "owner") {
           if (state.readOnly !== null) abortWith({ kind: "read_only", reason: state.readOnly });
-          if (target !== threadId && !leases.holds(tx, state.token)) {
+          if (target !== threadId && !must(leases.holds(tx, state.token))) {
             abortWith({ kind: "ownership_lost", threadId: target });
           }
         } else if (exists && target !== threadId) {
@@ -314,6 +319,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
       plan: AppendPlan,
       view: ReturnType<typeof createTxView>,
     ): CommitResult => {
+      const leafOf = (target: ThreadId): EventId | null => must(currentLeaf(tx, target));
       const drafts: PlannedDraft[] = plan.drafts.map((stamped) => ({
         stamped,
         isCheckpoint: false,
@@ -323,7 +329,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
       if (!detached && deps.putBlob !== undefined && drafts.some(oversize)) {
         // 분리 전 값으로 payload를 먼저 검사한다(F.records.spec §3.4 규칙 5). 크기는 분리 뒤에 본다
         for (const planned of drafts) {
-          if (oversize(planned)) completeEnvelope(tx, planned.stamped, 1, 1, false);
+          if (oversize(planned)) completeEnvelope(leafOf, planned.stamped, 1, 1, false);
         }
         pending.plan = plan;
         throw DETACH_MARKER;
@@ -353,13 +359,13 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
       }
       verifyThreads(tx, drafts);
 
-      let seq = headSeqOf(tx) + 1;
+      let seq = must(headSeqOf(tx)) + 1;
       const firstSeq = seq;
-      const recordedAt = Math.max(clock.now(), lastRecordedAt(tx));
+      const recordedAt = Math.max(clock.now(), must(lastRecordedAt(tx)));
       const out: DurableEventEnvelope[] = [];
       for (const [index, planned] of drafts.entries()) {
         if (planned.isCheckpoint) faults.hit("before_checkpoint");
-        const { envelope, upcasted } = completeEnvelope(tx, planned.stamped, seq, recordedAt);
+        const { envelope, upcasted } = completeEnvelope(leafOf, planned.stamped, seq, recordedAt);
         seq += 1;
         insertEvent(tx, envelope, request.requestId, null);
         faults.hit(`after_event_insert:${index}`);
@@ -368,7 +374,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
       }
       hooks.afterAppend?.(tx);
       const lastSeq = seq - 1;
-      const leaf = currentLeaf(tx, threadId);
+      const leaf = must(currentLeaf(tx, threadId));
       const committed: StoredResult = {
         status: "committed",
         firstSeq,
@@ -391,17 +397,17 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
     const inTransaction = (tx: SqlTx): AttemptOutcome => {
       faults.hit("after_begin");
       // 2. 소유 확인(TX-10): 토큰으로 sys_leases 행을 같은 트랜잭션에서 새로 읽는다
-      const threadExists = readThread(tx, threadId) !== undefined;
+      const threadExists = must(readThread(tx, threadId)) !== undefined;
       if (open?.role === "owner") {
-        if (!leases.holds(tx, open.token)) abortWith({ kind: "ownership_lost", threadId });
+        if (!must(leases.holds(tx, open.token))) abortWith({ kind: "ownership_lost", threadId });
       } else if (threadExists) {
         abortWith({ kind: "ownership_lost", threadId });
       }
       faults.hit("after_lease_check");
-      const existing = hooks.existingThread?.(tx);
+      const existing = must(hooks.existingThread?.(tx) ?? ok(undefined));
       if (existing !== undefined) return { kind: "preempted", threadId: existing };
       // 3. 커밋 키
-      const prior = findRequest(tx, threadId, request.requestId);
+      const prior = must(findRequest(tx, threadId, request.requestId));
       if (prior !== undefined) {
         if (prior.fingerprint !== fingerprint) {
           return { kind: "done", result: { status: "key_reused", requestId: request.requestId } };
@@ -410,11 +416,12 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
       }
       faults.hit("after_request_check");
       // 4. expectedLeaf 비교와 build
-      const view = createTxView(tx, threadId);
+      const view = createTxView(tx, threadId, (fault) => abortWith(fault));
       const leafConflict = request.expectedLeaf !== undefined && request.expectedLeaf !== view.leaf;
       const plan: CommitPlan = leafConflict
         ? { kind: "reject", code: "leaf_conflict", detail: null }
         : request.build(view);
+      if (plan.kind === "abort") return abortWith(plan.error);
       if (plan.kind === "reject") {
         if (!threadExists && open?.role !== "owner") {
           abortWith({ kind: "thread_not_found", threadId });

@@ -1,8 +1,9 @@
-import type { Clock } from "@xeon/contracts";
+import type { Clock, Result } from "@xeon/contracts";
 import type { IdFactory, ItemId, ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
   DurableEventEnvelope,
   LeaseToken,
+  ReadFailure,
   VolatileEventEnvelope,
 } from "@xeon/contracts/records";
 import type { LoopError } from "@xeon/contracts/services";
@@ -110,7 +111,8 @@ export interface ThreadPort {
     readonly workspace?: string;
     readonly title?: string;
   }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
-  exists(threadId: ThreadId): boolean;
+  /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
+  exists(threadId: ThreadId): Result<boolean, ReadFailure>;
   list(params: WireParams<"thread.list">): Promise<WireResult<"thread.list">>;
   fork(
     threadId: ThreadId,
@@ -118,7 +120,7 @@ export interface ThreadPort {
   ): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
   revert(threadId: ThreadId, to: ItemId): Promise<{ readonly position: StreamPosition }>;
   remove(threadId: ThreadId): Promise<void>;
-  position(threadId: ThreadId): StreamPosition;
+  position(threadId: ThreadId): Result<StreamPosition, ReadFailure>;
 }
 
 export type SubmitOutcome =
@@ -147,7 +149,7 @@ export interface CommitBatch {
 }
 
 export interface EventFeedPort {
-  headSeq(): number;
+  headSeq(): Result<number, ReadFailure>;
   oldestReplayableSeq(): number;
   /** seq > after AND seq ≤ upto, 필터 적용. 행이 limit만큼 차면 거기서 멈추고, 아니면 scanLimit 행까지 훑는다 */
   read(
@@ -156,7 +158,10 @@ export interface EventFeedPort {
     filter: EventFilter | undefined,
     limit: number,
     scanLimit: number,
-  ): { readonly events: readonly DurableEventEnvelope[]; readonly scannedTo: number };
+  ): Result<
+    { readonly events: readonly DurableEventEnvelope[]; readonly scannedTo: number },
+    ReadFailure
+  >;
   /** 커밋 직후 같은 JS 턴에서 동기로 부른다(eng.transactions.design §7, TX-09) */
   onCommit(listener: (batch: CommitBatch) => void): Unsubscribe;
   onVolatile(listener: (event: VolatileEventEnvelope) => void): Unsubscribe;

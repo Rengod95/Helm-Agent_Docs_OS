@@ -20,6 +20,7 @@ import type {
   InputView,
   ProducerHandle,
   ProducerId,
+  ReadFailure,
   ReadOnlyReason,
   StoreError,
   TurnView,
@@ -52,7 +53,7 @@ export interface FeedFilter {
 }
 
 export interface EventFeed {
-  headSeq(): number;
+  headSeq(): Result<number, ReadFailure>;
   /** 다시 보낼 수 있는 가장 오래된 seq - 1. 로그를 잘라 내지 않으므로 M1은 항상 0 */
   oldestReplayableSeq(): number;
   /** seq > after AND seq ≤ upto, 필터 적용. limit만큼 차면 멈추고, 아니면 scanLimit 행까지 훑는다 */
@@ -62,7 +63,10 @@ export interface EventFeed {
     filter: FeedFilter | undefined,
     limit: number,
     scanLimit: number,
-  ): { readonly events: readonly DurableEventEnvelope[]; readonly scannedTo: number };
+  ): Result<
+    { readonly events: readonly DurableEventEnvelope[]; readonly scannedTo: number },
+    ReadFailure
+  >;
   /** 커밋 직후 같은 JS 턴에서 동기로 부른다(TX-09) */
   onCommit(listener: CommitListener): Unsubscribe;
   onVolatile(listener: (event: VolatileEventEnvelope) => void): Unsubscribe;
@@ -96,41 +100,44 @@ export interface ItemRow {
   readonly status: "in_progress" | "completed" | "failed" | "interrupted";
 }
 
-/** 다른 컨텍스트가 p_*를 직접 읽지 않게 하는 질의 묶음(CM-02) */
+/**
+ * 다른 컨텍스트가 p_*를 직접 읽지 않게 하는 질의 묶음(CM-02).
+ * 읽기 연결의 busy·io와 손상 행은 예상 가능한 실패라 `Result<_, ReadFailure>`로 돌려준다(TY-24)
+ */
 export interface ProjectionQuery {
-  thread(threadId: ThreadId): ThreadSummaryRow | undefined;
-  turn(threadId: ThreadId, turnId: TurnId): TurnView | undefined;
-  openTurn(threadId: ThreadId): TurnView | undefined;
+  thread(threadId: ThreadId): Result<ThreadSummaryRow | undefined, ReadFailure>;
+  turn(threadId: ThreadId, turnId: TurnId): Result<TurnView | undefined, ReadFailure>;
+  openTurn(threadId: ThreadId): Result<TurnView | undefined, ReadFailure>;
   /** TxView.turnByRequestId와 같은 조회. 트랜잭션 밖 읽기 */
   turnByRequestId(
     threadId: ThreadId,
     scopeId: string | null,
     requestId: string,
-  ): TurnView | undefined;
-  openEffects(threadId: ThreadId): readonly EffectView[];
-  queuedInputs(threadId: ThreadId): readonly InputView[];
-  pendingApprovals(threadId: ThreadId): readonly ApprovalView[];
+  ): Result<TurnView | undefined, ReadFailure>;
+  openEffects(threadId: ThreadId): Result<readonly EffectView[], ReadFailure>;
+  queuedInputs(threadId: ThreadId): Result<readonly InputView[], ReadFailure>;
+  pendingApprovals(threadId: ThreadId): Result<readonly ApprovalView[], ReadFailure>;
   /** 부모 대화의 자식 thread 연결. unsettledOnly가 참이면 정착하지 않은 것만 */
   childAgents(
     parentThreadId: ThreadId,
     options?: { readonly unsettledOnly?: boolean },
-  ): readonly AgentView[];
+  ): Result<readonly AgentView[], ReadFailure>;
   /** 활성 가지의 item, 순서대로. 컨텍스트 조립과 화면이 쓴다 */
   branchItems(
     threadId: ThreadId,
     options?: { readonly afterItemId?: ItemId; readonly limit?: number },
-  ): readonly ItemRow[];
+  ): Result<readonly ItemRow[], ReadFailure>;
   /** item을 기록한 이벤트 id(fork, revert의 대상 해석) */
-  itemEvent(threadId: ThreadId, itemId: ItemId): EventId | undefined;
+  itemEvent(threadId: ThreadId, itemId: ItemId): Result<EventId | undefined, ReadFailure>;
   /** onActiveBranch가 참이면 활성 가지(현재 leaf에서 parentId 사슬) 위 이벤트만 본다 */
   latestEvent(
     threadId: ThreadId,
     kind: EventKind,
     match?: { readonly pointer: string; readonly equals: JsonValue },
     options?: { readonly onActiveBranch?: boolean },
-  ): DurableEventEnvelope | undefined;
+  ): Result<DurableEventEnvelope | undefined, ReadFailure>;
   /** 참조 중인 blob 해시. GC 뿌리 집합 */
-  liveBlobRefs(): readonly string[];
+  liveBlobRefs(): Result<readonly string[], ReadFailure>;
 }
 
 // ── 쓰기 소유와 열기 (L1.persistence.spec §3.6) ───────────────────────────
@@ -161,6 +168,10 @@ export interface OpenReport {
 export type OpenError =
   | { readonly kind: "thread_not_found"; readonly threadId: ThreadId }
   | { readonly kind: "busy" }
+  | { readonly kind: "disk_full" }
+  | { readonly kind: "io"; readonly code: string }
+  /** 읽은 행이 스키마와 다르다 */
+  | { readonly kind: "row_invalid"; readonly where: string }
   /** token.resource가 session:<threadId>가 아니거나 leases.holds가 거짓 */
   | { readonly kind: "guard_mismatch"; readonly threadId: ThreadId };
 
@@ -473,15 +484,23 @@ export interface SessionService {
   readonly query: ProjectionQuery;
 
   // ── 읽기와 구독. afterSeq는 배타 경계(그 seq보다 큰 것)다
+  // 스트림은 읽기 실패를 마지막 원소(err)로 알리고 끝난다. 호출자는 원소의 ok를 보고 멈춘다
   readFrom(
     afterSeq: number,
     options?: { readonly threadId?: ThreadId; readonly limit?: number },
-  ): AsyncIterable<DurableEventEnvelope>;
+  ): AsyncIterable<Result<DurableEventEnvelope, ReadFailure>>;
   /** leaf(생략하면 현재 leaf)에서 parentId를 따라 올라가 루트→leaf 순서로 */
-  readBranch(threadId: ThreadId, leaf?: EventId): AsyncIterable<DurableEventEnvelope>;
-  loadCheckpoint(threadId: ThreadId): Promise<StepCheckpoint | null>;
+  readBranch(
+    threadId: ThreadId,
+    leaf?: EventId,
+  ): AsyncIterable<Result<DurableEventEnvelope, ReadFailure>>;
+  loadCheckpoint(threadId: ThreadId): Promise<Result<StepCheckpoint | null, ReadFailure>>;
   /** afterSeq 이후 내구 이벤트를 커밋 순서로. 따라잡기와 실시간을 같은 동기 구간에서 잇는다 */
-  subscribe(afterSeq: number, listener: CommitListener, filter?: FeedFilter): Unsubscribe;
+  subscribe(
+    afterSeq: number,
+    listener: CommitListener,
+    filter?: FeedFilter,
+  ): Result<Unsubscribe, ReadFailure>;
   /** 호스트 재전송용 동기 읽기 */
   readonly feed: EventFeed;
   /** detached 필드를 blob에서 되돌린 사본 */

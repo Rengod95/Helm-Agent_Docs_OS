@@ -60,7 +60,12 @@ export function checkProjectionsRebuildable(
       const hashOf = (table: string): string =>
         sha256Hex(canonicalJson(tx.all(`SELECT * FROM ${table} ORDER BY 1`)));
       const before = new Map(CORE_PROJECTOR_TABLES.map((table) => [table, hashOf(table)] as const));
-      rebuildProjector(tx, core, catalog);
+      const rebuiltOk = rebuildProjector(tx, core, catalog);
+      if (!rebuiltOk.ok) {
+        throw new Bug("testing.rebuild_failed: stored events are unreadable", {
+          cause: rebuiltOk.error,
+        });
+      }
       for (const table of CORE_PROJECTOR_TABLES) {
         const live = before.get(table) ?? "";
         const rebuilt = hashOf(table);

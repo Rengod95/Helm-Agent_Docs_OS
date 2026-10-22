@@ -67,6 +67,47 @@ test("Bug messages that name an expected failure fail in sources, not in tests",
   ).toEqual([]);
 });
 
+test("Bug messages with the stored-row and commit failure words fail", () => {
+  for (const word of [
+    "row_invalid",
+    "row_corrupt",
+    "read_failed",
+    "commit_failed",
+    "name_conflict",
+  ]) {
+    expect(scan("packages/a/src/x.ts", `throw new Bug("store.${word}: x");`)).toEqual([
+      "1 xeon/bug-for-expected",
+    ]);
+  }
+  // 낱말이 아닌 이름은 통과한다
+  expect(scan("packages/a/src/x.ts", 'throw new Bug("tools.commit_failed_twice");')).toEqual([]);
+});
+
+test("a Bug message that interpolates a Result error fails outside test support", () => {
+  const text = "throw new Bug(`store failed: ${result.error.kind}`);";
+  expect(scan("packages/a/src/x.ts", text)).toEqual(["1 xeon/bug-for-expected"]);
+  expect(scan("packages/a/src/testing/x.ts", text)).toEqual([]);
+  expect(scan("packages/a/test/x.test.ts", text)).toEqual([]);
+});
+
+test("a Result failure converted to a Bug fails outside test support", () => {
+  const inline = 'if (!opened.ok) throw new Bug("store.x: invariant");';
+  expect(scan("packages/a/src/x.ts", inline)).toEqual(["1 xeon/bug-for-expected"]);
+  const braced = 'if (!opened.value.ok) {\n  throw new Bug("store.x: invariant");\n}';
+  expect(scan("packages/a/src/x.ts", braced)).toEqual(["2 xeon/bug-for-expected"]);
+  expect(scan("packages/a/src/testing/x.ts", inline)).toEqual([]);
+  expect(scan("packages/a/test/x.test.ts", inline)).toEqual([]);
+  // 다른 조건 뒤의 Bug는 이 모양이 아니다
+  expect(scan("packages/a/src/x.ts", 'if (!ready) throw new Bug("loop.not_ready");')).toEqual([]);
+  // 줄 위의 면제 주석이 있으면 통과한다
+  expect(
+    scan(
+      "packages/a/src/x.ts",
+      `// xeon-disable-next-line xeon/bug-for-expected -- 자기 값 검증 (eng.typescript.guide TY-24)\n${inline}`,
+    ),
+  ).toEqual([]);
+});
+
 test("an exemption comment above the line silences a scan rule", () => {
   const text =
     '// xeon-disable-next-line xeon/bug-for-expected -- 질의어가 아니다 (eng.typescript.guide TY-24)\nthrow new Bug("x.io");';

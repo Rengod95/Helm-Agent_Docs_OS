@@ -27,7 +27,7 @@ describe("threads.create", () => {
       request_id: `thread:${threadId}:start`,
       kind: "thread.started",
     });
-    expect(h.service.query.thread(threadId)).toMatchObject({
+    expect(expectOk(h.service.query.thread(threadId))).toMatchObject({
       title: "plan",
       status: "idle",
       forkedFrom: null,

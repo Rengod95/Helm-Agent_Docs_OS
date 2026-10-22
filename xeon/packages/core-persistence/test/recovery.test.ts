@@ -204,7 +204,7 @@ describe("recover", () => {
       restarted.service.recover(threadId, deps({ toolReplay: () => "unsafe" })),
     );
     expect(again.synthesized).toEqual([]);
-    expect(restarted.service.query.openEffects(threadId)).toEqual([]);
+    expect(expectOk(restarted.service.query.openEffects(threadId))).toEqual([]);
     expectProjectionsRebuildable(restarted.store.db);
   });
 
@@ -275,7 +275,7 @@ describe("recover", () => {
     ]);
     const restarted = reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
-    const before = restarted.service.feed.headSeq();
+    const before = expectOk(restarted.service.feed.headSeq());
     const plan = expectOk(
       restarted.service.recover(
         threadId,

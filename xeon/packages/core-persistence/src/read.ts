@@ -1,37 +1,32 @@
-import { Bug, type Logger } from "@xeon/contracts";
+import { Bug, type Logger, type Result } from "@xeon/contracts";
 import type { EventId, ThreadId } from "@xeon/contracts/conversation";
 import type {
   DetachedField,
   DurableEventEnvelope,
+  ReadFailure,
   SqlRow,
-  SqlTx,
   StepCheckpoint,
   StoreDb,
   StoreService,
 } from "@xeon/contracts/records";
 import { readCheckpoint } from "./checkpoint.ts";
-import { parseEnvelope } from "./events.ts";
-import { columnString } from "./rows.ts";
-import { upcastOrBug } from "./subscribe.ts";
-import type { KindCatalog } from "./upcast.ts";
+import { envelopeOfRow } from "./events.ts";
+import { readResult } from "./rows.ts";
+import { upcastStored, type KindCatalog } from "./upcast.ts";
 import { readThread } from "./views.ts";
 
-/** 읽기 연결 실패는 호출자가 복구할 수 없다. 같은 호출을 다시 하면 된다는 뜻으로 Bug 메시지에 이유를 싣는다 */
-export function readOrThrow<T>(db: StoreDb, fn: (tx: SqlTx) => T): T {
-  const result = db.read(fn);
-  if (!result.ok) throw new Bug(`store.read_failed: ${result.error.kind}`);
-  return result.value;
-}
-
 const PAGE = 500;
+
+/** 읽기 실패는 스트림의 마지막 원소(err)로 알리고 스트림을 닫는다 */
+type EventStream = AsyncIterable<Result<DurableEventEnvelope, ReadFailure>>;
 
 export interface Reader {
   readFrom(
     afterSeq: number,
     options?: { readonly threadId?: ThreadId; readonly limit?: number },
-  ): AsyncIterable<DurableEventEnvelope>;
-  readBranch(threadId: ThreadId, leaf?: EventId): AsyncIterable<DurableEventEnvelope>;
-  loadCheckpoint(threadId: ThreadId): Promise<StepCheckpoint | null>;
+  ): EventStream;
+  readBranch(threadId: ThreadId, leaf?: EventId): EventStream;
+  loadCheckpoint(threadId: ThreadId): Promise<Result<StepCheckpoint | null, ReadFailure>>;
   hydrate(event: DurableEventEnvelope): Promise<DurableEventEnvelope>;
 }
 
@@ -83,6 +78,15 @@ function fromSync<T>(source: Iterable<T>): AsyncIterable<T> {
   };
 }
 
+/** 저장된 행 하나를 현재 버전의 envelope로 되돌린다 */
+function decodeStored(
+  catalog: KindCatalog,
+  row: SqlRow,
+): Result<DurableEventEnvelope, ReadFailure> {
+  const envelope = envelopeOfRow(row);
+  return envelope.ok ? upcastStored(catalog, envelope.value) : envelope;
+}
+
 export function createReader(deps: ReaderDeps): Reader {
   const { db, catalog } = deps;
 
@@ -90,8 +94,8 @@ export function createReader(deps: ReaderDeps): Reader {
     afterSeq: number,
     threadId: ThreadId | undefined,
     limit: number,
-  ): readonly SqlRow[] =>
-    readOrThrow(db, (tx) =>
+  ): Result<readonly SqlRow[], ReadFailure> =>
+    db.read((tx) =>
       threadId === undefined
         ? tx.all("SELECT envelope FROM events WHERE seq > ? ORDER BY seq LIMIT ?", [
             afterSeq,
@@ -106,17 +110,22 @@ export function createReader(deps: ReaderDeps): Reader {
   function* readFromSync(
     afterSeq: number,
     options: { readonly threadId?: ThreadId; readonly limit?: number } | undefined,
-  ): Generator<DurableEventEnvelope> {
+  ): Generator<Result<DurableEventEnvelope, ReadFailure>> {
     let cursor = afterSeq;
     let remaining = options?.limit ?? Number.POSITIVE_INFINITY;
     while (remaining > 0) {
       const rows = page(cursor, options?.threadId, Math.min(PAGE, remaining));
-      if (rows.length === 0) return;
-      for (const row of rows) {
-        const event = upcastOrBug(catalog, parseEnvelope(columnString(row, "envelope")));
-        cursor = event.seq;
-        remaining -= 1;
+      if (!rows.ok) {
+        yield rows;
+        return;
+      }
+      if (rows.value.length === 0) return;
+      for (const row of rows.value) {
+        const event = decodeStored(catalog, row);
         yield event;
+        if (!event.ok) return;
+        cursor = event.value.seq;
+        remaining -= 1;
       }
     }
   }
@@ -124,12 +133,19 @@ export function createReader(deps: ReaderDeps): Reader {
   function* readBranchSync(
     threadId: ThreadId,
     leaf: EventId | undefined,
-  ): Generator<DurableEventEnvelope> {
+  ): Generator<Result<DurableEventEnvelope, ReadFailure>> {
     // 루트→leaf 순서. leaf에서 parent_id를 따라 올라간 사슬(활성 가지, F.records.spec §4.6)
-    const start =
-      leaf ?? readOrThrow(db, (tx) => readThread(tx, threadId)?.leafEventId ?? undefined);
+    let start = leaf;
+    if (start === undefined) {
+      const thread = readResult(db, (tx) => readThread(tx, threadId));
+      if (!thread.ok) {
+        yield thread;
+        return;
+      }
+      start = thread.value?.leafEventId ?? undefined;
+    }
     if (start === undefined) return;
-    const rows = readOrThrow(db, (tx) =>
+    const rows = db.read((tx) =>
       tx.all(
         `WITH RECURSIVE chain(id, depth) AS (
            SELECT id, 0 FROM events WHERE id = ? AND thread_id = ?
@@ -141,16 +157,22 @@ export function createReader(deps: ReaderDeps): Reader {
         [start, threadId],
       ),
     );
-    for (const row of rows) {
-      yield upcastOrBug(catalog, parseEnvelope(columnString(row, "envelope")));
+    if (!rows.ok) {
+      yield rows;
+      return;
+    }
+    for (const row of rows.value) {
+      const event = decodeStored(catalog, row);
+      yield event;
+      if (!event.ok) return;
     }
   }
 
   return {
     readFrom: (afterSeq, options) => fromSync(readFromSync(afterSeq, options)),
     readBranch: (threadId, leaf) => fromSync(readBranchSync(threadId, leaf)),
-    loadCheckpoint(threadId): Promise<StepCheckpoint | null> {
-      return Promise.resolve(readOrThrow(db, (tx) => readCheckpoint(tx, threadId)));
+    loadCheckpoint(threadId): Promise<Result<StepCheckpoint | null, ReadFailure>> {
+      return Promise.resolve(readResult(db, (tx) => readCheckpoint(tx, threadId)));
     },
     hydrate(event): Promise<DurableEventEnvelope> {
       const detached: readonly DetachedField[] = event.detached ?? [];

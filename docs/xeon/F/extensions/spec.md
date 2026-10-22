@@ -353,7 +353,17 @@ export interface ScopeApi<S> extends ExtensionOps<S> {
   onDispose(fn: () => void | Promise<void>): void;
 }
 
-export type ScopeSetup<S> = (g: ScopeApi<S>) => void | Promise<void>;
+/** setup이 시작할 수 없다고 알리는 값. 디렉터리 준비나 저장소 열기 같은 예상 가능한 시작 실패다(eng.typescript.guide TY-24) */
+export interface SetupRefusal {
+  /** 짧은 이유 이름. 예: 그 모듈 시작 오류의 kind */
+  readonly reason: string;
+  readonly cause: unknown;
+}
+
+/** setup은 시작할 수 없으면 err(SetupRefusal)을 돌려준다. X는 이 값을 던져 fiber를 닫고 setup 실패(failure.code scope_setup_failed)로 기록한다 */
+export type ScopeSetupResult = void | Result<void, SetupRefusal>;
+
+export type ScopeSetup<S> = (g: ScopeApi<S>) => ScopeSetupResult | Promise<ScopeSetupResult>;
 
 export type ScopeStatus = "enabled" | "enabling" | "disabled" | "disabling";
 
@@ -564,8 +574,10 @@ export interface ToolResourceDef {
 export type ProviderResourceDef = JsonValue;
 /** 모양은 L2.mcp.spec(McpServerDefSchema)이 정한다 */
 export type McpServerResourceDef = JsonValue;
-/** ToolService(xeon.tools)가 포함하는 등록 부분형 */
-export interface ToolsPort { register(owner: ScopeId, def: ToolResourceDef): Unsubscribe }
+/** 도구 등록 실패. 확장 조합이 같은 도구 이름을 내면 정상 운영 중에도 생긴다(eng.typescript.guide TY-24) */
+export interface ToolRegisterError { readonly kind: "name_conflict"; readonly toolName: string }
+/** ToolService(xeon.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 도구 표는 그대로다 */
+export interface ToolsPort { register(owner: ScopeId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError> }
 /** ModelService(xeon.models)가 포함하는 등록 부분형 */
 export interface ModelsPort { registerProvider(owner: ScopeId, name: string, config: ProviderResourceDef): Unsubscribe }
 /** McpService(xeon.mcp)가 포함하는 등록 부분형 */

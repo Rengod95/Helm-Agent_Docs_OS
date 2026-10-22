@@ -1,4 +1,4 @@
-import { assertNever, type Clock } from "@xeon/contracts";
+import { assertNever, type Clock, type Logger } from "@xeon/contracts";
 import type {
   IdFactory,
   ItemUpdate,
@@ -36,6 +36,8 @@ export interface VolatileEmitterDeps {
   readonly ids: IdFactory;
   readonly threadId: ThreadId;
   readonly turnId: TurnId;
+  /** 휘발 알림을 내지 못했을 때 남기는 로그. 없으면 기록 없이 버린다 */
+  readonly logger?: Logger | undefined;
 }
 
 export interface VolatileEmitter {
@@ -101,6 +103,18 @@ export function createVolatileEmitter(deps: VolatileEmitterDeps): VolatileEmitte
   let pending: Pending | null = null;
 
   function send(notification: VolatileNotification): void {
+    // afterSeq를 읽지 못하면 이 알림은 내지 않는다. 휘발 알림은 저장되지 않는 최선 노력이고(F.records.spec §4.3)
+    // 내구 이벤트와 다음 알림이 상태를 따라잡게 한다. 번호 n은 건너뛰지 않는다
+    const head = deps.session.feed.headSeq();
+    if (!head.ok) {
+      deps.logger?.warn("loop.volatile_dropped", {
+        threadId: notification.threadId,
+        turnId: notification.turnId,
+        type: notification.type,
+        reason: head.error.kind,
+      });
+      return;
+    }
     const key = String(notification.turnId);
     const n = counters.get(key) ?? 0;
     counters.set(key, n + 1);
@@ -117,7 +131,7 @@ export function createVolatileEmitter(deps: VolatileEmitterDeps): VolatileEmitte
       payload: payloadOf(notification),
       durable: false,
       n,
-      afterSeq: deps.session.feed.headSeq(),
+      afterSeq: head.value,
     };
     deps.session.emitVolatile(envelope);
   }

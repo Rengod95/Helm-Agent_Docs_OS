@@ -38,7 +38,8 @@ export async function prepareRequest(run: TurnRun): Promise<Result<RequestInput,
   }
 
   const leaf = await currentLeaf(run);
-  const assembled = await ctx.context.assemble(threadId, leaf, {
+  if (!leaf.ok) return leaf;
+  const assembled = await ctx.context.assemble(threadId, leaf.value, {
     binding: resolved.value.binding,
     contextWindow: resolved.value.model.contextWindow,
     cachePolicy: resolved.value.cachePolicy,

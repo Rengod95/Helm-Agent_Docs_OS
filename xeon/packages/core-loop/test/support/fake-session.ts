@@ -1,4 +1,4 @@
-import { Bug, canonicalJson, err, ok, parse, type Clock } from "@xeon/contracts";
+import { Bug, canonicalJson, err, ok, parse, type Clock, type Result } from "@xeon/contracts";
 import {
   EventIdSchema,
   type EffectId,
@@ -30,6 +30,7 @@ import {
   type SessionService,
   type StampedDraft,
   type StepCheckpoint,
+  type ReadFailure,
   type StoreError,
   type TurnView,
   type TxView,
@@ -128,6 +129,8 @@ export interface FakeSession {
   failNextWithBusy(count?: number): void;
   /** 조건에 맞는 커밋을 몇 번 busy로 거부한다(같은 커밋 키 재시도 시험) */
   failBusyFor(predicate: (requestId: string) => boolean, times: number): void;
+  /** 다음 읽기(query, readBranch, feed) n번을 ReadFailure로 실패시킨다 */
+  failNextRead(error: ReadFailure, times?: number): void;
   setLeaseEpoch(threadId: ThreadId, scopeId: string, epoch: number): void;
   /** 프로세스 재시작을 흉내 낸다: 구독과 생산자 점유와 장애 설정을 비우고 기록은 그대로 둔다 */
   restartProcess(): void;
@@ -156,6 +159,12 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
     busyFor: { predicate: (key: string) => boolean; left: number } | null;
   } = { before: null, after: null, busy: 0, dead: false, busyFor: null };
   const counters = { seq: 0, calls: 0 };
+  const readFaults: ReadFailure[] = [];
+  /** 읽기 하나의 결과. 주입된 실패가 있으면 그것을 돌려준다 */
+  function read<T>(value: T): Result<T, ReadFailure> {
+    const injected = readFaults.shift();
+    return injected === undefined ? ok(value) : err(injected);
+  }
   const recordStore = memoryRecordStore();
 
   const eventsOf = (threadId: ThreadId): DurableEventEnvelope[] =>
@@ -388,6 +397,7 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
       throw new CrashError(`crash before ${request.requestId}`);
     }
     const plan = request.build(viewOf(request.threadId));
+    if (plan.kind === "abort") return err(plan.error);
     if (plan.kind === "reject") {
       const result: CommitResult = {
         status: "rejected",
@@ -581,12 +591,13 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
   }
 
   const feed: SessionService["feed"] = {
-    headSeq: () => counters.seq,
+    headSeq: () => read(counters.seq),
     oldestReplayableSeq: () => 0,
-    read: (after, upto, _filter, limit) => ({
-      events: log.filter((event) => event.seq > after && event.seq <= upto).slice(0, limit),
-      scannedTo: Math.min(upto, counters.seq),
-    }),
+    read: (after, upto, _filter, limit) =>
+      read({
+        events: log.filter((event) => event.seq > after && event.seq <= upto).slice(0, limit),
+        scannedTo: Math.min(upto, counters.seq),
+      }),
     onCommit(listener) {
       listeners.add(listener);
       return () => {
@@ -615,21 +626,24 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
       onFailure: () => () => {},
     },
     query: {
-      thread: () => undefined,
-      turn: (threadId, turnId) => turnsOf(threadId).get(turnId),
-      openTurn: (threadId) => openTurnOf(threadId),
+      thread: () => ok(undefined),
+      turn: (threadId, turnId) => read(turnsOf(threadId).get(turnId)),
+      openTurn: (threadId) => read(openTurnOf(threadId)),
       turnByRequestId: (threadId, scopeId, requestId) =>
-        [...turnsOf(threadId).values()].find(
-          (turn) => turn.requestId === requestId && turn.scopeId === scopeId,
+        read(
+          [...turnsOf(threadId).values()].find(
+            (turn) => turn.requestId === requestId && turn.scopeId === scopeId,
+          ),
         ),
-      openEffects: () => [],
-      queuedInputs: (threadId) => inputsOf(threadId).filter((input) => input.state === "queued"),
-      pendingApprovals: () => [],
-      childAgents: () => [],
-      branchItems: () => [],
-      itemEvent: () => undefined,
-      latestEvent: () => undefined,
-      liveBlobRefs: () => [],
+      openEffects: () => ok([]),
+      queuedInputs: (threadId) =>
+        read(inputsOf(threadId).filter((input) => input.state === "queued")),
+      pendingApprovals: () => ok([]),
+      childAgents: () => ok([]),
+      branchItems: () => ok([]),
+      itemEvent: () => ok(undefined),
+      latestEvent: () => ok(undefined),
+      liveBlobRefs: () => ok([]),
     },
     readFrom: (afterSeq, readOptions) =>
       (async function* () {
@@ -638,20 +652,25 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
           if (event.seq <= afterSeq) continue;
           if (readOptions?.threadId !== undefined && event.threadId !== readOptions.threadId)
             continue;
-          yield event;
+          yield ok(event);
         }
       })(),
     readBranch: (threadId) =>
       (async function* () {
         await Promise.resolve();
-        for (const event of eventsOf(threadId)) yield event;
+        const injected = readFaults.shift();
+        if (injected !== undefined) {
+          yield err(injected);
+          return;
+        }
+        for (const event of eventsOf(threadId)) yield ok(event);
       })(),
-    loadCheckpoint: (threadId) => Promise.resolve(checkpointOf(threadId)),
+    loadCheckpoint: (threadId) => Promise.resolve(read(checkpointOf(threadId))),
     subscribe: (_afterSeq, listener) => {
       listeners.add(listener);
-      return () => {
+      return ok(() => {
         listeners.delete(listener);
-      };
+      });
     },
     feed,
     hydrate: (event) => Promise.resolve(event),
@@ -750,6 +769,9 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
     failBusyFor(predicate, times) {
       crash.busyFor = { predicate, left: times };
     },
+    failNextRead(error, times = 1) {
+      for (let count = 0; count < times; count += 1) readFaults.push(error);
+    },
     setLeaseEpoch(threadId, scopeId, epoch) {
       epochOverrides.set(`${threadId}|${scopeId}`, epoch);
     },
@@ -762,6 +784,7 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
       crash.busy = 0;
       crash.busyFor = null;
       crash.dead = false;
+      readFaults.length = 0;
     },
     get commitCalls() {
       return counters.calls;

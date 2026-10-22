@@ -114,6 +114,8 @@ export type PlacedMessage = Pick<PlacedInput, "itemId" | "message">;
 /** 루프 단계가 값으로 돌려주는 실패. 예외로 run을 멈추지 않는다(eng.typescript.guide TY-24) */
 export type LoopFailure =
   | { readonly kind: "commit_failed"; readonly detail: string }
+  /** 세션 읽기(읽기 연결의 busy, io, 손상 행)가 실패했다 */
+  | { readonly kind: "read_failed"; readonly detail: string }
   | { readonly kind: "model_unavailable"; readonly detail: string }
   | { readonly kind: "context_unavailable"; readonly detail: string }
   | { readonly kind: "tools_unavailable"; readonly detail: string };

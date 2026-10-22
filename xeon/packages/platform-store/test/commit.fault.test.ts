@@ -76,7 +76,8 @@ function referenceCommit(store: TestStore, token: LeaseToken): { replayed: boole
   const faults = store.faults;
   const written = store.root.write((tx) => {
     faults.hit("after_begin");
-    if (!store.service.leases.holds(tx, token)) throw new Bug("ownership_lost");
+    const held = store.service.leases.holds(tx, token);
+    if (!held.ok || !held.value) throw new Bug("ownership_lost");
     faults.hit("after_lease_check");
     if (tx.get("SELECT request_id FROM requests WHERE request_id = ?", [REQUEST]) !== undefined) {
       return { replayed: true };

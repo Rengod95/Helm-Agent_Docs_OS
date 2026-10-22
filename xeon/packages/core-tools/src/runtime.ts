@@ -1,6 +1,6 @@
-import { Bug } from "@xeon/contracts";
+import { Bug, type Result } from "@xeon/contracts";
 import type { ToolName } from "@xeon/contracts/capabilities";
-import type { ScopeId, ToolResourceDef } from "@xeon/contracts/extensions";
+import type { ScopeId, ToolRegisterError, ToolResourceDef } from "@xeon/contracts/extensions";
 import type {
   ApprovalService,
   ModeChangeResult,
@@ -40,7 +40,10 @@ export function createToolRuntime(deps: ToolsDeps): ToolRuntime {
   });
   const pipeline = createPipeline(deps, registry, calls, approvals);
 
-  function register(first: ToolRegistration | ScopeId, def?: ToolResourceDef): Unregister {
+  function register(
+    first: ToolRegistration | ScopeId,
+    def?: ToolResourceDef,
+  ): Result<Unregister, ToolRegisterError> {
     if (typeof first === "string") {
       if (def === undefined) throw new Bug("tools.register: a ToolResourceDef is required");
       return registry.add([resourceEntry(first, def)]);

@@ -6,12 +6,13 @@ import {
   type WorkspaceFiles,
   type WorkspaceShell,
 } from "@xeon/contracts/capabilities";
-import type { Logger, LogFields } from "@xeon/contracts";
+import { err, ok, type Logger, type LogFields, type Result } from "@xeon/contracts";
 import {
   defineManifest,
   validateManifest,
   type ExtensionEntry,
   type PortKey,
+  type ToolRegisterError,
 } from "@xeon/contracts/extensions";
 import type { ToolRegistration, Unregister } from "@xeon/contracts/services";
 import type { ExtensionUnit } from "@xeon/ext-host";
@@ -23,7 +24,7 @@ import { fakeSandbox } from "./support/fakes.ts";
 import { memoryEnv, type MemoryEnv } from "./support/memory-env.ts";
 
 interface FakeTools {
-  register(registration: ToolRegistration): Unregister;
+  register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
 }
 interface FakeOs {
   readonly dirs: { readonly tmp: string };
@@ -52,7 +53,7 @@ function recordingLogger(lines: LogLine[]): Logger {
   return logger;
 }
 
-async function boot(options: { sandbox?: boolean; tools?: boolean } = {}) {
+async function boot(options: { sandbox?: boolean; tools?: boolean; refuse?: string } = {}) {
   const t = await createTestHost();
   const env = memoryEnv({ cwd: "/work" });
   env.mkdir("/work");
@@ -74,9 +75,10 @@ async function boot(options: { sandbox?: boolean; tools?: boolean } = {}) {
           register: (registration) => {
             registered.push(registration);
             const label = registration.kind === "capability" ? registration.def.id : "direct";
-            return () => {
+            if (label === options.refuse) return err({ kind: "name_conflict", toolName: label });
+            return ok(() => {
               unregistered.push(label);
-            };
+            });
           },
         });
       }
@@ -187,6 +189,15 @@ describe("plugin", () => {
     const { t, unregistered } = await boot();
     await t.host.uninstall(WORKSPACE_EXTENSION_NAME);
     expect(unregistered.toSorted()).toEqual(["workspace.files", "workspace.shell"]);
+  });
+
+  test("a refused tool registration fails the setup by value and takes back the first one", async () => {
+    const { installed, unregistered } = await boot({ refuse: "workspace.shell" });
+    expect(installed.setups[0]).toMatchObject({
+      status: "failed",
+      failure: { kind: "threw", code: "scope_setup_failed" },
+    });
+    expect(unregistered).toEqual(["workspace.files"]);
   });
 
   test("without the sandbox service bash is rejected and a warning is logged", async () => {

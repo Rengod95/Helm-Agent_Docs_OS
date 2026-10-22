@@ -20,6 +20,12 @@ export function wireErrorOfStore(error: StoreError, where: string): WireError {
         message: `${where}: store io`,
         details: { code: error.code.slice(0, CODE_MAX) },
       });
+    case "row_invalid":
+      // 저장된 행이 모양과 다르다(손상, 수동 편집). 저장 매체 문제로 보이므로 store.io로 옮긴다(위치 이름은 메시지에만 싣는다)
+      return wireError("store.io", {
+        message: `${where}: stored row is invalid (${error.where.slice(0, CODE_MAX)})`,
+        details: { code: "row_invalid" },
+      });
     case "read_only":
       return wireError("store.readOnly", {
         message: `${where}: store read only`,
@@ -49,6 +55,11 @@ export function wireErrorOfLease(
         message: `${where}: lease io`,
         details: { code: error.code.slice(0, CODE_MAX) },
       });
+    case "row_invalid":
+      return wireError("store.io", {
+        message: `${where}: lease row is invalid (${error.where.slice(0, CODE_MAX)})`,
+        details: { code: "row_invalid" },
+      });
     case "lease_lost":
       return threadLocked(null);
     default:
@@ -63,6 +74,7 @@ export function wireErrorOfCreate(error: LifecycleError, where: string): WireErr
     case "disk_full":
     case "io":
     case "read_only":
+    case "row_invalid":
     case "ownership_lost":
     case "thread_not_found":
       return wireErrorOfStore(error, where);

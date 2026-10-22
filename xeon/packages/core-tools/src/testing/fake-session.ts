@@ -21,6 +21,7 @@ import {
   type StampedDraft,
   type StepCheckpoint,
   type StepCheckpointInput,
+  type ReadFailure,
   type StoreError,
   type TxView,
 } from "@xeon/contracts/records";
@@ -53,6 +54,8 @@ export interface FakeSession extends ToolsSession {
   producer(id: ProducerId): ProducerHandle;
   /** 장애 주입 함수를 바꾼다 */
   setFault(fault: FakeSessionOptions["fault"]): void;
+  /** 다음 읽기(query.openEffects, readBranch의 다음 원소) n번을 ReadFailure로 실패시킨다 */
+  failNextRead(error: ReadFailure, times?: number): void;
   sessionValues(threadId: ThreadId): ReadonlyMap<string, unknown>;
 }
 
@@ -78,6 +81,7 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
   const aborted = new Set<TurnId>();
   const settings = new Map<ThreadId, Map<string, unknown>>();
   let fault = options.fault;
+  const readFaults: ReadFailure[] = [];
   let leaf: EventId | null = null;
 
   function effectsOf(threadId: ThreadId): EffectView[] {
@@ -161,20 +165,29 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
     };
   }
 
+  /** 주입된 읽기 실패가 있으면 하나 꺼낸다 */
+  function injectedRead(): ReadFailure | undefined {
+    return readFaults.shift();
+  }
+
   const query: ProjectionQuery = {
-    thread: () => undefined,
-    turn: () => undefined,
-    openTurn: () => undefined,
-    turnByRequestId: () => undefined,
-    openEffects: (threadId) => effectsOf(threadId).filter((effect) => effect.result === null),
-    queuedInputs: () => [],
+    thread: () => ok(undefined),
+    turn: () => ok(undefined),
+    openTurn: () => ok(undefined),
+    turnByRequestId: () => ok(undefined),
+    openEffects(threadId) {
+      const injected = injectedRead();
+      if (injected !== undefined) return err(injected);
+      return ok(effectsOf(threadId).filter((effect) => effect.result === null));
+    },
+    queuedInputs: () => ok([]),
     pendingApprovals: (threadId) =>
-      [...approvals.values()].filter((view) => view.threadId === threadId && !view.resolved),
-    childAgents: () => [],
-    branchItems: () => [],
-    itemEvent: () => undefined,
-    latestEvent: () => undefined,
-    liveBlobRefs: () => [],
+      ok([...approvals.values()].filter((view) => view.threadId === threadId && !view.resolved)),
+    childAgents: () => ok([]),
+    branchItems: () => ok([]),
+    itemEvent: () => ok(undefined),
+    latestEvent: () => ok(undefined),
+    liveBlobRefs: () => ok([]),
   };
 
   /** 실제 저장소처럼 `CommitPlan.checkpoint`를 core.persistence가 만든 checkpoint.step으로 커밋 끝에 붙인다 */
@@ -248,6 +261,9 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
     abortTurn: (turnId) => {
       aborted.add(turnId);
     },
+    failNextRead: (error, times = 1) => {
+      for (let count = 0; count < times; count += 1) readFaults.push(error);
+    },
     setFault: (next) => {
       fault = next;
     },
@@ -267,6 +283,7 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
         );
       }
       const plan = request.build(viewFor(request.threadId));
+      if (plan.kind === "abort") return err(plan.error);
       const result: CommitResult =
         plan.kind === "reject"
           ? { status: "rejected", code: plan.code, detail: plan.detail, replayed: false }
@@ -304,14 +321,21 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
       return {
         [Symbol.asyncIterator]() {
           let index = 0;
+          let failed = false;
           return {
             next: () => {
+              if (failed) return Promise.resolve({ done: true as const, value: undefined });
+              const injected = injectedRead();
+              if (injected !== undefined) {
+                failed = true;
+                return Promise.resolve({ done: false as const, value: err(injected) });
+              }
               const value = mine[index];
               index += 1;
               return Promise.resolve(
                 value === undefined
                   ? { done: true as const, value: undefined }
-                  : { done: false as const, value },
+                  : { done: false as const, value: ok(value) },
               );
             },
           };

@@ -240,6 +240,7 @@ export type StepNext =
 /** 단계 함수가 값으로 돌려주는 실패. 예외로 run을 멈추지 않는다. 불변식 위반만 Bug다 */
 export type LoopFailure =
   | { readonly kind: "commit_failed"; readonly detail: string }
+  | { readonly kind: "read_failed"; readonly detail: string }          // 세션 읽기(활성 가지, 대기 steer 큐, 재실행할 효과 상태)가 실패했다
   | { readonly kind: "model_unavailable"; readonly detail: string }
   | { readonly kind: "context_unavailable"; readonly detail: string }
   | { readonly kind: "tools_unavailable"; readonly detail: string };

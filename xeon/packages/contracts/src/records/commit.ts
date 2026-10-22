@@ -83,7 +83,12 @@ export type CommitPlan =
       /** 있으면 drafts 끝에 checkpoint.step 이벤트를 더한다. drafts에 step.completed가 있어야 한다 */
       readonly checkpoint: StepCheckpointInput | null;
     }
-  | { readonly kind: "reject"; readonly code: string; readonly detail: string | null };
+  | { readonly kind: "reject"; readonly code: string; readonly detail: string | null }
+  /**
+   * build가 읽기에 실패해(예: 동기 읽기 연결의 busy, 손상 행) 계획을 세울 수 없다. 롤백하고 기록하지 않으며
+   * commit은 이 오류를 err로 돌려준다. reject와 달리 키에 결과가 남지 않아 같은 키로 다시 낼 수 있다
+   */
+  | { readonly kind: "abort"; readonly error: ReadFailure };
 
 export interface CommitRequest {
   /** 커밋 키의 범위가 되는 thread */
@@ -130,7 +135,12 @@ export type StoreError =
   | { readonly kind: "io"; readonly code: string }
   | { readonly kind: "ownership_lost"; readonly threadId: ThreadId }
   | { readonly kind: "read_only"; readonly reason: ReadOnlyReason }
-  | { readonly kind: "thread_not_found"; readonly threadId: ThreadId };
+  | { readonly kind: "thread_not_found"; readonly threadId: ThreadId }
+  /** 저장된 행이 스키마와 다르다(손상, 수동 편집, 이전 버전). where는 `<표>.<열>` 같은 위치 이름이다 */
+  | { readonly kind: "row_invalid"; readonly where: string };
+
+/** 읽기 API가 돌려주는 실패: 읽기 연결의 busy와 io, 손상 행(row_invalid) */
+export type ReadFailure = Extract<StoreError, { readonly kind: "busy" | "io" | "row_invalid" }>;
 
 /** 결함. Bug의 메시지 앞머리 코드. 트랜잭션은 롤백되고 호출자가 처리할 대상이 아니다 */
 export type StoreBugCode =

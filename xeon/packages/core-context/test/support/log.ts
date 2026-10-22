@@ -1,9 +1,10 @@
-import { Bug } from "@xeon/contracts";
+import { Bug, err, ok } from "@xeon/contracts";
 import type { EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import type {
   DetachedField,
   DurableEventEnvelope,
   EventKind,
+  ReadFailure,
   SessionService,
 } from "@xeon/contracts/records";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
@@ -29,6 +30,8 @@ export interface MemoryLog extends BranchReader {
   readonly reads: { count: number };
   /** hydrate에 넘어온 이벤트 id */
   readonly hydrated: EventId[];
+  /** 값이 있으면 readBranch가 앞쪽 이벤트를 준 뒤 이 읽기 실패로 끝난다 */
+  readonly readFault: { current: ReadFailure | undefined };
 }
 
 export function memoryLog(ids: IdFactory = fixedIdFactory()): MemoryLog {
@@ -36,6 +39,7 @@ export function memoryLog(ids: IdFactory = fixedIdFactory()): MemoryLog {
   const events: DurableEventEnvelope[] = [];
   const reads = { count: 0 };
   const hydrated: EventId[] = [];
+  const readFault: { current: ReadFailure | undefined } = { current: undefined };
 
   function byId(id: EventId): DurableEventEnvelope | undefined {
     return events.find((event) => event.id === id);
@@ -47,6 +51,7 @@ export function memoryLog(ids: IdFactory = fixedIdFactory()): MemoryLog {
     events,
     reads,
     hydrated,
+    readFault,
     leaf() {
       const last = events.at(-1);
       if (last === undefined) throw new Bug("test.empty_log");
@@ -83,7 +88,8 @@ export function memoryLog(ids: IdFactory = fixedIdFactory()): MemoryLog {
         chain.push(cursor);
         cursor = cursor.parentId === null ? undefined : byId(cursor.parentId);
       }
-      for (const event of chain.toReversed()) yield event;
+      for (const event of chain.toReversed()) yield ok(event);
+      if (readFault.current !== undefined) yield err(readFault.current);
     },
     hydrate(event) {
       hydrated.push(event.id);

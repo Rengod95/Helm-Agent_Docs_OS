@@ -11,6 +11,7 @@ import type {
   CommitRequest,
   InputView,
   StampedDraft,
+  ReadFailure,
   StoreError,
   TxView,
 } from "../records/index.ts";
@@ -198,15 +199,21 @@ export interface InputQueue {
     readonly drafts: readonly StampedDraft[];
     readonly existing: InputView | undefined;
   };
-  /** 투영 p_inputs의 queued 행. seq 순서 */
-  peek(threadId: ThreadId, modes?: readonly InputMode[]): readonly QueuedInput[];
-  /** 커밋 build 안에서 부르는 동기·순수 함수. 선택만 하고 커밋은 호출자(loop)가 한다 */
+  /** 투영 p_inputs의 queued 행. seq 순서. 읽기 실패는 오류 값이다 */
+  peek(
+    threadId: ThreadId,
+    modes?: readonly InputMode[],
+  ): Result<readonly QueuedInput[], ReadFailure>;
+  /**
+   * 커밋 build 안에서 부르는 동기 함수. 선택만 하고 커밋은 호출자(loop)가 한다.
+   * 입력 이벤트를 읽다 실패하면 err다. build는 그 오류로 `{ kind: "abort", error }` 계획을 돌려준다
+   */
   drain(
     view: TxView,
     threadId: ThreadId,
     at: PlacementPoint,
     options: DrainOptions,
-  ): PlacementSelection;
+  ): Result<PlacementSelection, ReadFailure>;
   /** queued 입력을 거둔다. 거둔 수를 돌려준다. 이미 placed인 입력은 세지 않는다 */
   withdraw(
     threadId: ThreadId,

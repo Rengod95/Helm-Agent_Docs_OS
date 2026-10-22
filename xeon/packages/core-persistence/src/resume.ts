@@ -29,19 +29,18 @@ import {
 } from "@xeon/contracts/records";
 import { readCheckpoint } from "./checkpoint.ts";
 import type { PersistenceSettings } from "./deps.ts";
-import { envelopeAtSeq, parseEnvelope } from "./events.ts";
-import { sessionResource, toEffectId } from "./ids.ts";
+import { envelopeAtSeq, envelopeOfRow } from "./events.ts";
+import { sessionResource } from "./ids.ts";
 import type { OpenSessions } from "./ownership.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
 import { ensureProjectors } from "./projector/rebuild.ts";
-import { readOrThrow } from "./read.ts";
 import {
   closeInsteadOfRerun,
   decideOpenEffect,
   synthesisRequest,
   type SynthesisDeps,
 } from "./recovery.ts";
-import { columnInt, columnNullableInt, columnString } from "./rows.ts";
+import { columns, readResult, rowInvalid, type RowFault } from "./rows.ts";
 import type { KindCatalog } from "./upcast.ts";
 import { readOnlyReasonFor } from "./upcast.ts";
 import {
@@ -99,34 +98,47 @@ interface RecoverSnapshot {
 }
 
 /** 열린 효과: effect.intent가 있고 effect.result가 없는 효과. 인자와 마지막 exec는 이벤트에서 읽는다 */
-function readOpenEffectRows(tx: SqlTx, threadId: string): readonly OpenEffectRow[] {
+function readOpenEffectRows(
+  tx: SqlTx,
+  threadId: string,
+): Result<readonly OpenEffectRow[], RowFault> {
   const rows = tx.all(
     `SELECT intent_seq, last_exec_seq, exec_count FROM p_effects
      WHERE thread_id = ? AND result_seq IS NULL ORDER BY intent_seq`,
     [threadId],
   );
-  return rows.map((row): OpenEffectRow => {
-    const intentSeq = columnInt(row, "intent_seq");
-    const intentEvent = envelopeAtSeq(tx, intentSeq);
-    if (intentEvent === undefined) throw new Bug(`store.row_invalid: no event at seq ${intentSeq}`);
-    const intent = parse(EffectIntentSchema, intentEvent.payload);
-    if (!intent.ok)
-      throw new Bug("store.row_invalid: effect.intent payload", { cause: intent.error });
-    const execSeq = columnNullableInt(row, "last_exec_seq");
+  const out: OpenEffectRow[] = [];
+  for (const row of rows) {
+    const c = columns(row, "p_effects");
+    const intentSeq = c.int("intent_seq");
+    if (!intentSeq.ok) return intentSeq;
+    const intentEvent = envelopeAtSeq(tx, intentSeq.value);
+    if (!intentEvent.ok) return intentEvent;
+    if (intentEvent.value === undefined) {
+      return err(rowInvalid(`p_effects.intent_seq ${intentSeq.value} has no event`));
+    }
+    const intent = parse(EffectIntentSchema, intentEvent.value.payload);
+    if (!intent.ok) return err(rowInvalid("effect.intent payload"));
+    const execSeq = c.nullableInt("last_exec_seq");
+    if (!execSeq.ok) return execSeq;
     let lastExec: EffectExec | null = null;
-    if (execSeq !== null) {
-      const execEvent = envelopeAtSeq(tx, execSeq);
-      const exec = parse(EffectExecSchema, execEvent?.payload);
-      if (!exec.ok) throw new Bug("store.row_invalid: effect.exec payload", { cause: exec.error });
+    if (execSeq.value !== null) {
+      const execEvent = envelopeAtSeq(tx, execSeq.value);
+      if (!execEvent.ok) return execEvent;
+      const exec = parse(EffectExecSchema, execEvent.value?.payload);
+      if (!exec.ok) return err(rowInvalid("effect.exec payload"));
       lastExec = exec.value;
     }
-    return {
+    const execCount = c.int("exec_count");
+    if (!execCount.ok) return execCount;
+    out.push({
       intent: intent.value,
-      intentEvent,
+      intentEvent: intentEvent.value,
       lastExec,
-      execCount: columnInt(row, "exec_count"),
-    };
-  });
+      execCount: execCount.value,
+    });
+  }
+  return ok(out);
 }
 
 /**
@@ -138,12 +150,17 @@ function readPendingToolCalls(
   threadId: string,
   turnId: string,
   checkpoint: StepCheckpoint | null,
-): readonly PendingToolCall[] {
+): Result<readonly PendingToolCall[], RowFault> {
   const stepRow = tx.get(
     "SELECT MAX(seq) AS seq FROM events WHERE thread_id = ? AND turn_id = ? AND kind = 'step.completed'",
     [threadId, turnId],
   );
-  const floor = (stepRow === undefined ? null : columnNullableInt(stepRow, "seq")) ?? 0;
+  let floor = 0;
+  if (stepRow !== undefined) {
+    const maxSeq = columns(stepRow, "events").nullableInt("seq");
+    if (!maxSeq.ok) return maxSeq;
+    floor = maxSeq.value ?? 0;
+  }
   const rows = tx.all(
     `SELECT envelope FROM events
      WHERE thread_id = ? AND turn_id = ? AND kind = 'item.recorded' AND seq > ? ORDER BY seq`,
@@ -152,10 +169,10 @@ function readPendingToolCalls(
   const calls: string[] = [];
   const answered = new Set<string>();
   for (const row of rows) {
-    const event = parseEnvelope(columnString(row, "envelope"));
-    const recorded = parse(ItemRecordedPayloadSchema, event.payload);
-    if (!recorded.ok)
-      throw new Bug("store.row_invalid: item.recorded payload", { cause: recorded.error });
+    const event = envelopeOfRow(row);
+    if (!event.ok) return event;
+    const recorded = parse(ItemRecordedPayloadSchema, event.value.payload);
+    if (!recorded.ok) return err(rowInvalid("item.recorded payload"));
     const { item } = recorded.value;
     if (item.kind === "assistant") {
       for (const block of item.message.content) {
@@ -178,7 +195,7 @@ function readPendingToolCalls(
     if (effect !== undefined) continue;
     pending.push({ toolCallId, effectId: null, waiting: waitingOf.get(toolCallId) ?? null });
   }
-  return pending;
+  return ok(pending);
 }
 
 function autoResumeVerdict(args: {
@@ -202,10 +219,19 @@ function autoResumeVerdict(args: {
 function threadPairs(
   tx: SqlTx,
   threadId: string,
-): readonly { readonly kind: string; readonly version: number }[] {
-  return tx
-    .all("SELECT DISTINCT kind, version FROM events WHERE thread_id = ?", [threadId])
-    .map((row) => ({ kind: columnString(row, "kind"), version: columnInt(row, "version") }));
+): Result<readonly { readonly kind: string; readonly version: number }[], RowFault> {
+  const pairs: { readonly kind: string; readonly version: number }[] = [];
+  for (const row of tx.all("SELECT DISTINCT kind, version FROM events WHERE thread_id = ?", [
+    threadId,
+  ])) {
+    const c = columns(row, "events");
+    const kind = c.string("kind");
+    if (!kind.ok) return kind;
+    const version = c.int("version");
+    if (!version.ok) return version;
+    pairs.push({ kind: kind.value, version: version.value });
+  }
+  return ok(pairs);
 }
 
 export function createResumer(deps: ResumeDeps): Resumer {
@@ -231,19 +257,23 @@ export function createResumer(deps: ResumeDeps): Resumer {
       if (token.resource !== sessionResource(threadId)) {
         return err({ kind: "guard_mismatch", threadId });
       }
-      const checked = db.read((tx) => ({
-        thread: readThread(tx, threadId),
-        holds: leases.holds(tx, token),
-        pairs: threadPairs(tx, threadId),
-      }));
-      if (!checked.ok) return err({ kind: "busy" });
+      const checked = readResult(db, (tx) => {
+        const thread = readThread(tx, threadId);
+        if (!thread.ok) return thread;
+        const holds = leases.holds(tx, token);
+        if (!holds.ok) return holds;
+        const pairs = threadPairs(tx, threadId);
+        if (!pairs.ok) return pairs;
+        return ok({ thread: thread.value, holds: holds.value, pairs: pairs.value });
+      });
+      if (!checked.ok) return checked;
       if (checked.value.thread === undefined) return err({ kind: "thread_not_found", threadId });
       if (!checked.value.holds) return err({ kind: "guard_mismatch", threadId });
       const readOnly = readOnlyReasonFor(checked.value.pairs, catalog);
       let rebuilt: readonly string[] = [];
       if (readOnly === null) {
         const ensured = ensureProjectors(db, deps.projectors(), catalog);
-        if (!ensured.ok) return err({ kind: "busy" });
+        if (!ensured.ok) return ensured;
         rebuilt = [...deps.takeStartupRebuilt(), ...ensured.value];
       }
       const prior = sessions.stateOf(threadId);
@@ -254,13 +284,14 @@ export function createResumer(deps: ResumeDeps): Resumer {
         selfAcquired: prior?.role === "owner" ? prior.selfAcquired : false,
         keepAlive: prior?.role === "owner" ? prior.keepAlive : null,
       });
-      const thread = readOrThrow(db, (tx) => readThread(tx, threadId));
-      if (thread === undefined) return err({ kind: "thread_not_found", threadId });
+      const thread = readResult(db, (tx) => readThread(tx, threadId));
+      if (!thread.ok) return thread;
+      if (thread.value === undefined) return err({ kind: "thread_not_found", threadId });
       return ok({
         threadId,
         role: "owner",
-        headSeq: thread.headSeq,
-        marker: markerOf(thread),
+        headSeq: thread.value.headSeq,
+        marker: markerOf(thread.value),
         readOnly,
         rebuilt,
         owner: ownerInfo(threadId),
@@ -268,11 +299,14 @@ export function createResumer(deps: ResumeDeps): Resumer {
     },
 
     openForRead(threadId): Result<OpenReport, OpenError> {
-      const checked = db.read((tx) => ({
-        thread: readThread(tx, threadId),
-        pairs: threadPairs(tx, threadId),
-      }));
-      if (!checked.ok) return err({ kind: "busy" });
+      const checked = readResult(db, (tx) => {
+        const thread = readThread(tx, threadId);
+        if (!thread.ok) return thread;
+        const pairs = threadPairs(tx, threadId);
+        if (!pairs.ok) return pairs;
+        return ok({ thread: thread.value, pairs: pairs.value });
+      });
+      if (!checked.ok) return checked;
       const { thread, pairs } = checked.value;
       if (thread === undefined) return err({ kind: "thread_not_found", threadId });
       // 관찰 열기는 버전 검사만 한다. 재생성은 쓰기 소유자가 한다
@@ -295,26 +329,37 @@ export function createResumer(deps: ResumeDeps): Resumer {
     recover(threadId, recoverDeps): Result<ResumePlan, StoreError> {
       const denied = requireOwner(threadId);
       if (denied !== null) return err(denied);
-      const snapshot = db.read((tx): RecoverSnapshot => {
+      const snapshot = readResult(db, (tx): Result<RecoverSnapshot, RowFault> => {
         const thread = readThread(tx, threadId);
+        if (!thread.ok) return thread;
         const checkpoint = readCheckpoint(tx, threadId);
+        if (!checkpoint.ok) return checkpoint;
         const openTurn = readOpenTurn(tx, threadId);
-        const openTurnId = thread?.openTurnId ?? null;
-        return {
-          thread,
-          checkpoint,
-          abortRequested: openTurn?.abortRequested ?? false,
+        if (!openTurn.ok) return openTurn;
+        const openTurnId = thread.value?.openTurnId ?? null;
+        const effects = readOpenEffectRows(tx, threadId);
+        if (!effects.ok) return effects;
+        let pendingToolCalls: readonly PendingToolCall[] = [];
+        let pendingApprovals: readonly EventId[] = [];
+        if (openTurnId !== null) {
+          const calls = readPendingToolCalls(tx, threadId, openTurnId, checkpoint.value);
+          if (!calls.ok) return calls;
+          pendingToolCalls = calls.value;
+          const approvals = readPendingApprovals(tx, threadId);
+          if (!approvals.ok) return approvals;
+          pendingApprovals = approvals.value.map((approval) => approval.approvalId);
+        }
+        return ok({
+          thread: thread.value,
+          checkpoint: checkpoint.value,
+          abortRequested: openTurn.value?.abortRequested ?? false,
           openTurnId,
-          effects: readOpenEffectRows(tx, threadId),
-          pendingToolCalls:
-            openTurnId === null ? [] : readPendingToolCalls(tx, threadId, openTurnId, checkpoint),
-          pendingApprovals:
-            openTurnId === null
-              ? []
-              : readPendingApprovals(tx, threadId).map((approval) => approval.approvalId),
-        };
+          effects: effects.value,
+          pendingToolCalls,
+          pendingApprovals,
+        });
       });
-      if (!snapshot.ok) return err({ kind: "busy" });
+      if (!snapshot.ok) return snapshot;
       const state = snapshot.value;
       if (state.thread === undefined) return err({ kind: "thread_not_found", threadId });
       // 5단계: 취소 의도(내구 turn.abort_requested 또는 소유 사슬 취소)가 6단계의 재실행 판정보다 앞선다
@@ -357,7 +402,7 @@ export function createResumer(deps: ResumeDeps): Resumer {
         // already_settled로 거부되면 다른 곳이 먼저 닫은 것이다. 합성 목록에 싣지 않는다
         if (result.status === "committed") {
           synthesized.push({
-            effectId: toEffectId(open.intent.effectId),
+            effectId: open.intent.effectId,
             toolCallId: open.intent.toolCallId,
             code: decision.code,
           });
@@ -365,7 +410,8 @@ export function createResumer(deps: ResumeDeps): Resumer {
       }
 
       const marker = markerOf(state.thread);
-      const queued = readOrThrow(db, (tx) => readQueuedInputs(tx, threadId));
+      const queued = readResult(db, (tx) => readQueuedInputs(tx, threadId));
+      if (!queued.ok) return queued;
       const checkpointOfOpenTurn =
         state.checkpoint !== null && state.checkpoint.turnId === state.openTurnId
           ? state.checkpoint
@@ -379,7 +425,7 @@ export function createResumer(deps: ResumeDeps): Resumer {
         pendingToolCalls: state.pendingToolCalls,
         // 자식 thread 복원은 M2(p_agents)에서 채운다
         pendingApprovals: state.pendingApprovals,
-        queuedInputs: queued,
+        queuedInputs: queued.value,
         openChildren: [],
         abortRequestedTurn: aborted ? state.openTurnId : null,
         next: state.openTurnId === null ? "idle" : (checkpointOfOpenTurn?.next ?? "request"),
@@ -395,11 +441,14 @@ export function createResumer(deps: ResumeDeps): Resumer {
     beginResume(threadId, mode): Result<{ readonly attempt: number }, ResumeError> {
       const denied = requireOwner(threadId);
       if (denied !== null) return err(denied);
-      const snapshot = db.read((tx) => ({
-        thread: readThread(tx, threadId),
-        checkpoint: readCheckpoint(tx, threadId),
-      }));
-      if (!snapshot.ok) return err({ kind: "busy" });
+      const snapshot = readResult(db, (tx) => {
+        const thread = readThread(tx, threadId);
+        if (!thread.ok) return thread;
+        const checkpoint = readCheckpoint(tx, threadId);
+        if (!checkpoint.ok) return checkpoint;
+        return ok({ thread: thread.value, checkpoint: checkpoint.value });
+      });
+      if (!snapshot.ok) return snapshot;
       const { thread, checkpoint } = snapshot.value;
       if (thread === undefined) return err({ kind: "thread_not_found", threadId });
       const marker = markerOf(thread);

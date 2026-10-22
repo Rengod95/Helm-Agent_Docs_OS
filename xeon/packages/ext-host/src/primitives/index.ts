@@ -46,6 +46,7 @@ export {
   type InstallResult,
   type PlatformContext,
   type PlatformModule,
+  type PlatformSetupError,
   type ScopeToggleSourceOf,
 } from "./host.ts";
 export { hostOf, type ScopeHostApi } from "./host-api.ts";

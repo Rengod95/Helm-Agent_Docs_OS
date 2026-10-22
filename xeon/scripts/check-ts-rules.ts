@@ -7,7 +7,9 @@
 //   xeon/as-location      an assertion exception comment (consistent-type-assertions, no-unsafe-type-assertion) sits outside
 //                         the TY-06 allowlist or does not name its row (A1..A6)
 //   xeon/bug-for-expected `new Bug(...)` message names an expected failure (io, busy, disk_full, read_only, timeout, cancelled,
-//                         not_found, corrupt, ownership_lost, lease_lost) instead of an invariant (TY-24)
+//                         not_found, corrupt, ownership_lost, lease_lost, row_invalid, row_corrupt, read_failed, commit_failed,
+//                         name_conflict, setup_failed) or interpolates a Result error (`${x.error.kind}`), or sits directly
+//                         under `if (!x.ok)` in non-test code: a Result failure converted to a Bug (TY-24)
 //   xeon/catch-swallow    `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)` or `void <caught>` (TY-25)
 //   xeon/directive-format block disable comments, disable comments without ` -- <reason>`, ts-ignore, ts-nocheck and
 //                         ts-expect-error comments outside tests (TY-08, guide 4.1)
@@ -49,7 +51,11 @@ const ALLOWLIST: Readonly<Record<string, (path: string) => boolean>> = {
 };
 
 const EXPECTED_WORDS =
-  /\b(io|busy|disk_full|read_only|timeout|cancelled|not_found|corrupt|ownership_lost|lease_lost)\b/;
+  /\b(io|busy|disk_full|read_only|timeout|cancelled|not_found|corrupt|ownership_lost|lease_lost|row_invalid|row_corrupt|read_failed|commit_failed|name_conflict|setup_failed)\b/;
+/** `${result.error.kind}` 같은 보간: Result의 오류 종류를 Bug 메시지에 싣는다 */
+const ERROR_INTERPOLATION = /\$\{[^}]*\.error(?:\.(?:kind|code))?\s*\}/;
+/** `if (!x.ok)` 바로 뒤의 `throw new Bug(`: Result 실패를 Bug로 바꾸는 모양 */
+const RESULT_TO_BUG = /if\s*\(\s*!\s*[\w.?]+\.ok\s*\)\s*\{?\s*throw\s+$/;
 const ASSERTION_RULES = /(?:consistent-type-assertions|no-unsafe-type-assertion)/;
 const SCAN_DISABLE = /\/\/ xeon-disable-next-line (xeon\/[a-z-]+) -- (.+)$/;
 
@@ -64,6 +70,11 @@ function isTestPath(path: string): boolean {
 
 function isTestFile(path: string): boolean {
   return /(^|\/)test\//.test(path) || path.endsWith(".test.ts");
+}
+
+/** 시험 지원 코드(`testing/`)와 시험 파일. Result→Bug 변환 검사는 운영 코드만 본다 */
+function isTestSupport(path: string): boolean {
+  return isTestFile(path) || /(^|\/)testing\//.test(path);
 }
 
 function lineOf(text: string, offset: number): number {
@@ -214,11 +225,28 @@ export function scanSource(file: SourceFile): {
       const open = match.index + "new Bug".length;
       const args = callArguments(file.text, open);
       const first = stringContents(args)[0] ?? "";
+      const line = lineOf(file.text, match.index);
       if (EXPECTED_WORDS.test(first)) {
         add(
           "xeon/bug-for-expected",
-          lineOf(file.text, match.index),
+          line,
           `Bug message names an expected failure (${first.slice(0, 60)}); return a typed error value (TY-24)`,
+        );
+      } else if (!isTestSupport(file.path) && ERROR_INTERPOLATION.test(args)) {
+        add(
+          "xeon/bug-for-expected",
+          line,
+          "Bug message interpolates a Result error; return a typed error value (TY-24)",
+        );
+      }
+      if (
+        !isTestSupport(file.path) &&
+        RESULT_TO_BUG.test(file.text.slice(Math.max(0, match.index - 200), match.index))
+      ) {
+        add(
+          "xeon/bug-for-expected",
+          line,
+          "a Result failure is converted to a Bug; return it or add a variant to your error union (TY-24)",
         );
       }
     }

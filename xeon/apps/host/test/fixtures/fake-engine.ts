@@ -1,7 +1,9 @@
+import { err, ok } from "@xeon/contracts";
 import type { IdFactory, ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
   DurableEventEnvelope,
   EventKind,
+  ReadFailure,
   VolatileEventEnvelope,
 } from "@xeon/contracts/records";
 import type { LoopError } from "@xeon/contracts/services";
@@ -45,6 +47,10 @@ export interface FakeEngineOptions {
   readonly oldestReplayable?: number;
   /** feed.read가 불릴 때마다(0부터 센 호출 번호) 먼저 부른다. 재전송 중 커밋을 끼워 넣을 때 쓴다 */
   readonly onRead?: (call: number) => void;
+  /** 값이 있으면 feed.read가 이 읽기 실패로 끝난다(호출 번호는 onRead와 같다) */
+  readonly readFault?: (call: number) => ReadFailure | undefined;
+  /** 값이 있으면 feed.headSeq가 이 읽기 실패로 끝난다 */
+  readonly headFault?: ReadFailure;
   /** settings.get이 보는 범위 층 */
   readonly layers?: ScopeStack;
 }
@@ -127,12 +133,12 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         commit([{ kind: "thread.started", threadId }]);
         return Promise.resolve({ threadId, position: position() });
       },
-      exists: (threadId) => threads.has(threadId),
+      exists: (threadId) => ok(threads.has(threadId)),
       list: () => Promise.resolve({ threads: [], nextCursor: null }),
       fork: () => Promise.reject(new Error("fork is not part of the fake")),
       revert: () => Promise.reject(new Error("revert is not part of the fake")),
       remove: () => Promise.reject(new Error("remove is not part of the fake")),
-      position,
+      position: () => ok(position()),
     },
     turns: {
       submit(threadId, _input, requestId): Promise<SubmitOutcome> {
@@ -151,11 +157,13 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       stopAtSafeBoundary: () => Promise.resolve(true),
     },
     feed: {
-      headSeq: () => events.length,
+      headSeq: () => (options.headFault === undefined ? ok(events.length) : err(options.headFault)),
       oldestReplayableSeq: () => options.oldestReplayable ?? 0,
       read(after, upto, filter, limit, scanLimit) {
         options.onRead?.(counters.reads);
+        const fault = options.readFault?.(counters.reads);
         counters.reads += 1;
+        if (fault !== undefined) return err(fault);
         const rows = events.filter((event) => event.seq > after && event.seq <= upto);
         const scanned = rows.slice(0, scanLimit);
         const matched: DurableEventEnvelope[] = [];
@@ -163,9 +171,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         for (const row of scanned) {
           scannedTo = row.seq;
           if (matchesFilter(row, filter)) matched.push(row);
-          if (matched.length >= limit) return { events: matched, scannedTo };
+          if (matched.length >= limit) return ok({ events: matched, scannedTo });
         }
-        return { events: matched, scannedTo: scanned.length < scanLimit ? upto : scannedTo };
+        return ok({ events: matched, scannedTo: scanned.length < scanLimit ? upto : scannedTo });
       },
       onCommit(listener) {
         commitListeners.add(listener);

@@ -1,25 +1,30 @@
-import { Bug, type Logger } from "@xeon/contracts";
+import { ok, type Logger, type Result } from "@xeon/contracts";
 import type {
   CommitBatch,
   CommitListener,
   DurableEventEnvelope,
   EventFeed,
   FeedFilter,
+  ReadFailure,
   StoreDb,
   Unsubscribe,
   VolatileEventEnvelope,
 } from "@xeon/contracts/records";
-import { headSeqOf, parseEnvelope } from "./events.ts";
+import { envelopeOfRow, headSeqOf } from "./events.ts";
 import type { GuardState } from "./ownership.ts";
-import { columnInt, columnString } from "./rows.ts";
-import type { KindCatalog } from "./upcast.ts";
+import { columns, readResult } from "./rows.ts";
+import { upcastStored, type KindCatalog } from "./upcast.ts";
 
 export interface FeedController {
   readonly feed: EventFeed;
   /** 커밋이 끝난 같은 JS 턴에서 동기로 부른다(TX-09). 리스너 안 commit은 Bug(store.nested_write) */
   publish(batch: CommitBatch): void;
   emitVolatile(event: VolatileEventEnvelope): void;
-  subscribe(afterSeq: number, listener: CommitListener, filter?: FeedFilter): Unsubscribe;
+  subscribe(
+    afterSeq: number,
+    listener: CommitListener,
+    filter?: FeedFilter,
+  ): Result<Unsubscribe, ReadFailure>;
 }
 
 export interface FeedDeps {
@@ -40,30 +45,12 @@ function matchesFilter(filter: FeedFilter | undefined, event: DurableEventEnvelo
   return true;
 }
 
-/** 저장된 envelope를 현재 버전으로 올린다. 못 올리면 저장된 데이터와 코드가 맞지 않는 것이다 */
-export function upcastOrBug(
-  catalog: KindCatalog,
-  event: DurableEventEnvelope,
-): DurableEventEnvelope {
-  const upcasted = catalog.upcast(event);
-  if (!upcasted.ok) {
-    throw new Bug(`store.schema_invalid: cannot upcast ${event.kind} v${event.version}`, {
-      cause: upcasted.error,
-    });
-  }
-  return upcasted.value;
-}
-
 export function createFeed(deps: FeedDeps): FeedController {
   const { db, catalog, guard, logger } = deps;
   const commitListeners = new Set<CommitListener>();
   const volatileListeners = new Set<(event: VolatileEventEnvelope) => void>();
 
-  const headSeq = (): number => {
-    const result = db.read((tx) => headSeqOf(tx));
-    if (!result.ok) throw new Bug(`store.read_failed: ${result.error.kind}`);
-    return result.value;
-  };
+  const headSeq = (): Result<number, ReadFailure> => readResult(db, (tx) => headSeqOf(tx));
 
   const feedRead = (
     after: number,
@@ -71,7 +58,10 @@ export function createFeed(deps: FeedDeps): FeedController {
     filter: FeedFilter | undefined,
     limit: number,
     scanLimit: number,
-  ): { readonly events: readonly DurableEventEnvelope[]; readonly scannedTo: number } => {
+  ): Result<
+    { readonly events: readonly DurableEventEnvelope[]; readonly scannedTo: number },
+    ReadFailure
+  > => {
     const result = db.read((tx) =>
       tx.all("SELECT seq, envelope FROM events WHERE seq > ? AND seq <= ? ORDER BY seq LIMIT ?", [
         after,
@@ -79,18 +69,23 @@ export function createFeed(deps: FeedDeps): FeedController {
         scanLimit,
       ]),
     );
-    if (!result.ok) throw new Bug(`store.read_failed: ${result.error.kind}`);
+    if (!result.ok) return result;
     const events: DurableEventEnvelope[] = [];
     let scannedTo = after;
     for (const row of result.value) {
-      scannedTo = columnInt(row, "seq");
-      const event = upcastOrBug(catalog, parseEnvelope(columnString(row, "envelope")));
-      if (matchesFilter(filter, event)) events.push(event);
+      const seq = columns(row, "events").int("seq");
+      if (!seq.ok) return seq;
+      scannedTo = seq.value;
+      const envelope = envelopeOfRow(row);
+      if (!envelope.ok) return envelope;
+      const event = upcastStored(catalog, envelope.value);
+      if (!event.ok) return event;
+      if (matchesFilter(filter, event.value)) events.push(event.value);
       // limit만큼 찼으면 거기서 멈춘다. 다음 읽기는 scannedTo부터 이어간다
-      if (events.length >= limit) return { events, scannedTo };
+      if (events.length >= limit) return ok({ events, scannedTo });
     }
     // 행이 scanLimit보다 적게 돌아왔으면 upto까지 모두 훑은 것이다
-    return { events, scannedTo: result.value.length < scanLimit ? upto : scannedTo };
+    return ok({ events, scannedTo: result.value.length < scanLimit ? upto : scannedTo });
   };
 
   const feed: EventFeed = {
@@ -145,21 +140,33 @@ export function createFeed(deps: FeedDeps): FeedController {
         }
       }
     },
-    subscribe(afterSeq: number, listener: CommitListener, filter?: FeedFilter): Unsubscribe {
+    subscribe(
+      afterSeq: number,
+      listener: CommitListener,
+      filter?: FeedFilter,
+    ): Result<Unsubscribe, ReadFailure> {
       // 따라잡기와 실시간 등록을 같은 동기 구간에서 한다. 사이에 커밋이 끼지 못하므로 빈칸과 중복이 없다
       const upto = headSeq();
+      if (!upto.ok) return upto;
       let cursor = afterSeq;
-      while (cursor < upto) {
-        const page = feedRead(cursor, upto, filter, 500, 2000);
-        if (page.events.length > 0) {
-          listener({ firstSeq: cursor + 1, lastSeq: page.scannedTo, events: page.events });
+      while (cursor < upto.value) {
+        const page = feedRead(cursor, upto.value, filter, 500, 2000);
+        if (!page.ok) return page;
+        if (page.value.events.length > 0) {
+          listener({
+            firstSeq: cursor + 1,
+            lastSeq: page.value.scannedTo,
+            events: page.value.events,
+          });
         }
-        cursor = page.scannedTo;
+        cursor = page.value.scannedTo;
       }
-      return feed.onCommit((batch) => {
-        const events = batch.events.filter((event) => matchesFilter(filter, event));
-        if (events.length > 0) listener({ ...batch, events });
-      });
+      return ok(
+        feed.onCommit((batch) => {
+          const events = batch.events.filter((event) => matchesFilter(filter, event));
+          if (events.length > 0) listener({ ...batch, events });
+        }),
+      );
     },
   };
 }

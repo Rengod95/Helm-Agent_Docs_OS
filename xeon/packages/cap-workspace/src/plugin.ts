@@ -1,3 +1,4 @@
+import { err, ok } from "@xeon/contracts";
 import {
   WorkspaceFiles,
   WorkspaceFilesKey,
@@ -12,6 +13,7 @@ import {
   SandboxServiceName,
   ToolServiceName,
   type SandboxService,
+  type ToolRegistration,
   type ToolService,
 } from "@xeon/contracts/services";
 import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
@@ -91,25 +93,36 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
       }
       if (tools === undefined) {
         logger.warn("workspace.tools_missing", { effect: "no tool is advertised" });
-        return;
+        return ok(undefined);
       }
-      const registrations = [
-        tools.register({
+      const registrations: readonly ToolRegistration[] = [
+        {
           kind: "capability",
           def: advertisedFilesDef(),
           key: WorkspaceFilesKey,
           policy: { read: { risk: "read" }, ls: { risk: "read" } },
-        }),
-        tools.register({
+        },
+        {
           kind: "capability",
           def: WorkspaceShell,
           key: WorkspaceShellKey,
           policy: { bash: { risk: "exec" } },
-        }),
+        },
       ];
+      // 이름 충돌은 확장 조합이 낼 수 있는 시작 실패다. 먼저 넣은 등록을 거두고 setup이 값으로 알린다
+      const unregisters: (() => void)[] = [];
+      for (const registration of registrations) {
+        const registered = tools.register(registration);
+        if (!registered.ok) {
+          for (const unregister of unregisters.toReversed()) unregister();
+          return err({ reason: registered.error.kind, cause: registered.error });
+        }
+        unregisters.push(registered.value);
+      }
       g.onDispose(() => {
-        for (const unregister of registrations) unregister();
+        for (const unregister of unregisters) unregister();
       });
+      return ok(undefined);
     });
   };
   return { manifest, entry, loadIndex: options.loadIndex ?? 0, builtin: true };

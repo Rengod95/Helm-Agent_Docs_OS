@@ -6,6 +6,7 @@ import type {
   AssistantMessage,
   ToolResultMessage,
 } from "@xeon/contracts/conversation";
+import type { ReadFailure } from "@xeon/contracts/records";
 import type { ToolCallOutcome, ToolRunContext } from "@xeon/contracts/services";
 import type { StepRef } from "../commits.ts";
 import { forEachSequential } from "../sequence.ts";
@@ -237,7 +238,9 @@ export async function runToolBatch(
 
   // 재개한 배치: 기록된 결과는 그대로 쓰고, 결과 불명 효과는 재실행하고, 나머지는 주 경로로 돌린다
   const resumeById = new Map((input.resume ?? []).map((entry) => [callIdOf(entry), entry]));
+  const rerunFault: { current: ReadFailure | undefined } = { current: undefined };
   await forEachSequential(input.calls, async (call) => {
+    if (rerunFault.current !== undefined) return;
     const resume = resumeById.get(call.id);
     if (resume === undefined || resume.kind === "run") {
       pending.push(call);
@@ -247,12 +250,21 @@ export async function runToolBatch(
       run.state.newMessages.push(outcome.message);
       resolved.set(call.id, outcome);
     } else {
-      const outcome = await ctx.tools.rerun(resume.intent, toolRun);
+      const rerun = await ctx.tools.rerun(resume.intent, toolRun);
+      if (!rerun.ok) {
+        rerunFault.current = rerun.error;
+        return;
+      }
+      const outcome = rerun.value;
       if (outcome.itemId !== null) run.mapper.bindItem({ toolCallId: call.id }, outcome.itemId);
       run.state.newMessages.push(outcome.message);
       resolved.set(call.id, outcome);
     }
   });
+  // 재실행 전에 효과 상태를 읽지 못했다. 이 단계를 멈추고 turn을 열어 둔 채 실패로 알린다(재개 후보로 남는다)
+  if (rerunFault.current !== undefined) {
+    return err({ kind: "read_failed", detail: `tool rerun: ${rerunFault.current.kind}` });
+  }
 
   let live: ToolCallOutcome[];
   if (input.assistant.stopReason === "length") {

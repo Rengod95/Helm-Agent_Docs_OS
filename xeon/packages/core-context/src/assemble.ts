@@ -105,8 +105,12 @@ async function readBranchEvents(
   signal: AbortSignal | undefined,
 ): Promise<Result<readonly DurableEventEnvelope[], ContextError>> {
   const events: DurableEventEnvelope[] = [];
-  for await (const event of deps.session.readBranch(threadId, leaf)) {
+  for await (const read of deps.session.readBranch(threadId, leaf)) {
     if (signal?.aborted === true) return err({ kind: "aborted", message: "assemble aborted" });
+    if (!read.ok) {
+      return err({ kind: "read_failed", message: `session read failed: ${read.error.kind}` });
+    }
+    const event = read.value;
     const detached = event.detached !== undefined && event.detached.length > 0;
     events.push(detached ? await deps.session.hydrate(event) : event);
   }

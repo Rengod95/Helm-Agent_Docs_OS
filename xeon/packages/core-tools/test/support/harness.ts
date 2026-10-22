@@ -5,7 +5,7 @@ import {
   WorkspaceShellKey,
   type ServiceKey,
 } from "@xeon/contracts/capabilities";
-import type { Clock } from "@xeon/contracts";
+import { Bug, type Clock, type Result } from "@xeon/contracts";
 import type {
   AgentTool,
   AgentToolResult,
@@ -147,6 +147,13 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
       return run;
     },
   };
+}
+
+/** 오류 값을 받지 않는 시험 호출의 결과를 꺼낸다 */
+export function expectOk<T>(result: Result<T, { readonly kind: string }>): T {
+  if (!result.ok)
+    throw new Bug(`unexpected failure: ${result.error.kind}`, { cause: result.error });
+  return result.value;
 }
 
 export function layer(

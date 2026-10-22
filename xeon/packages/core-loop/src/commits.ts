@@ -235,11 +235,15 @@ export function stepEndRequest(
     }
     for (const contribution of params.contributions) drafts.push(drafter.stamp(contribution));
 
-    const selection: PlacementSelection | null = params.drain
-      ? params.tasks.inputs.drain(view, step.threadId, "stepEnd", {
-          continuing: params.continuing,
-        })
-      : null;
+    let selection: PlacementSelection | null = null;
+    if (params.drain) {
+      const drained = params.tasks.inputs.drain(view, step.threadId, "stepEnd", {
+        continuing: params.continuing,
+      });
+      // 입력 이벤트를 읽지 못하면 계획을 세우지 않는다. 롤백하고 키에 결과를 남기지 않는다
+      if (!drained.ok) return { kind: "abort", error: drained.error };
+      selection = drained.value;
+    }
     const placed: PlacedInput[] = [];
     if (selection !== null) {
       for (const input of selection.inputs) {

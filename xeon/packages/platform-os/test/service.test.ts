@@ -305,7 +305,7 @@ describe("platformOsPlugin", () => {
     expect(events(lines).at(-1)).toBe("os.service.stopped");
   });
 
-  test("시작에 실패하면 setup이 던져 등록 실패가 된다(포트를 제공하지 않는다)", async () => {
+  test("시작에 실패하면 setup이 err를 돌려준다(포트를 제공하지 않는다)", async () => {
     const plugin = platformOsPlugin(
       config([]),
       fakeRuntime({
@@ -319,16 +319,13 @@ describe("platformOsPlugin", () => {
       }),
     );
     const { ctx, provided } = fakeContext();
-    const failure = await Promise.resolve()
-      .then(() => plugin.setup(ctx))
-      .then(
-        () => undefined,
-        (caught: unknown) => caught,
-      );
-    expect(failure).toBeInstanceOf(Bug);
-    expect(failure instanceof Bug ? failure.cause : undefined).toEqual({
-      kind: "unsupported_platform",
-      platform: "sunos",
+    const failure = await plugin.setup(ctx);
+    expect(failure).toEqual({
+      ok: false,
+      error: {
+        reason: "unsupported_platform",
+        cause: { kind: "unsupported_platform", platform: "sunos" },
+      },
     });
     expect(provided).toEqual([]);
   });

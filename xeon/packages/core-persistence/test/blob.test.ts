@@ -10,6 +10,7 @@ import {
   memoryBlobs,
   newThread,
   openHarness,
+  expectOk,
 } from "./support/harness.ts";
 
 // 큰 문자열 분리(L1.persistence.spec §4.11, PS-15)
@@ -51,14 +52,14 @@ describe("detachLarge", () => {
     expect(stored).not.toContain(BIG);
 
     // hydrate가 원문을 돌려준다
-    const all = await Array.fromAsync(h.service.readFrom(1, { threadId }));
+    const all = (await Array.fromAsync(h.service.readFrom(1, { threadId }))).map(expectOk);
     const event = all.find((candidate) => candidate.id === committed.eventIds[0]);
     if (event === undefined) throw new Error("the committed event is missing");
     const hydrated = await h.service.hydrate(event);
     expect(JSON.stringify(hydrated.payload)).toContain(BIG);
 
     // 참조 목록과 재생 가능성
-    const refs = h.service.query.liveBlobRefs();
+    const refs = expectOk(h.service.query.liveBlobRefs());
     expect(refs).toHaveLength(1);
     expect([...blobs.files.keys()]).toEqual([...refs]);
     expectProjectionsRebuildable(h.store.db);
@@ -75,7 +76,7 @@ describe("detachLarge", () => {
       checkpoint: null,
     }));
     expect(blobs.files.size).toBe(0);
-    expect(h.service.query.liveBlobRefs()).toEqual([]);
+    expect(expectOk(h.service.query.liveBlobRefs())).toEqual([]);
   });
 
   test("a retry of the same key after detaching is replayed and writes the event once", () => {
@@ -120,7 +121,7 @@ describe("detachLarge", () => {
   test("a full disk while writing the blob is a store error and nothing is committed", () => {
     const h = openHarness({ putBlob: () => err({ kind: "disk_full" }) });
     const { threadId } = newThread(h);
-    const before = h.service.feed.headSeq();
+    const before = expectOk(h.service.feed.headSeq());
     const scope = { turnId: h.ids.next("trn"), stepId: null };
     const result = commitResult(h, threadId, "blob:full", () => ({
       kind: "append",
@@ -129,7 +130,7 @@ describe("detachLarge", () => {
     }));
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error.kind).toBe("disk_full");
-    expect(h.service.feed.headSeq()).toBe(before);
+    expect(expectOk(h.service.feed.headSeq())).toBe(before);
   });
 
   test("pointers escape ~ and / and the largest strings go first", () => {

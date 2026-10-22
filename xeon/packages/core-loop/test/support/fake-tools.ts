@@ -1,4 +1,4 @@
-import { Bug, canonicalJson, type Clock } from "@xeon/contracts";
+import { Bug, canonicalJson, ok, type Clock, type Result } from "@xeon/contracts";
 import type {
   AgentToolCall,
   AgentToolResult,
@@ -6,7 +6,7 @@ import type {
   IdFactory,
   ToolResultMessage,
 } from "@xeon/contracts/conversation";
-import type { EffectIntent, SessionService } from "@xeon/contracts/records";
+import type { EffectIntent, ReadFailure, SessionService } from "@xeon/contracts/records";
 import type {
   AdvertisedToolset,
   CallPreparation,
@@ -297,7 +297,7 @@ export function createFakeTools(options: {
     execute: (prepared, _onUpdate, run) => execute(prepared.toolCall, prepared.args, run),
     settleRejected: (calls, reason, run) =>
       Promise.resolve(calls.map((call) => settleOne(call, reason, run))),
-    rerun(intent, run): Promise<ToolCallOutcome> {
+    rerun(intent, run): Promise<Result<ToolCallOutcome, ReadFailure>> {
       reran.push(intent.toolCallId);
       intents.set(intent.toolCallId, intent.effectId);
       const call: AgentToolCall = {
@@ -306,7 +306,7 @@ export function createFakeTools(options: {
         name: intent.toolName,
         arguments: {},
       };
-      return Promise.resolve(resultCommit(run, call, "executed", "rerun ok", false, false));
+      return Promise.resolve(ok(resultCommit(run, call, "executed", "rerun ok", false, false)));
     },
     registerRules: () => notImplemented("registerRules"),
     runUserShell: () => notImplemented("runUserShell"),

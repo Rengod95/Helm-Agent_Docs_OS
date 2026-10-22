@@ -1081,7 +1081,9 @@ if (code === "SQLITE_BUSY") throw new Bug("store.busy");
 expect(() => append(store, draft)).toThrow(Bug);
 ```
 
-- 스캔 `xeon/bug-for-expected`는 `new Bug(` 첫 문자열 인자에 위 표의 `kind` 단어(`io`, `busy`, `disk_full`, `read_only`, `timeout`, `cancelled`, `not_found`, `corrupt`, `ownership_lost`, `lease_lost`)가 낱말로 있으면 실패시킨다(`timeoutMs` 같은 이름은 낱말이 아니다). 오탐은 4.1절 형식의 예외 주석으로 넘기고 이유를 적는다.
+- 스캔 `xeon/bug-for-expected`는 세 모양을 실패시킨다. (1) `new Bug(` 첫 문자열 인자에 위 표의 `kind` 단어(`io`, `busy`, `disk_full`, `read_only`, `timeout`, `cancelled`, `not_found`, `corrupt`, `ownership_lost`, `lease_lost`, `row_invalid`, `row_corrupt`, `read_failed`, `commit_failed`, `name_conflict`, `setup_failed`)가 낱말로 있다(`timeoutMs` 같은 이름은 낱말이 아니다). (2) 메시지가 `${result.error.kind}`처럼 `Result`의 오류를 끼워 넣는다. (3) 운영 코드(`src/`, `testing/` 제외)에서 `if (!x.ok) throw new Bug(`처럼 `Result` 실패를 곧바로 `Bug`로 바꾼다. 오탐과, 자기 코드가 만든 값의 검증 실패처럼 불변 조건 위반이 맞는 자리는 4.1절 형식의 예외 주석으로 넘기고 이유를 적는다.
+- 읽기 API가 값을 바로 돌려주는 자리도 같다. 저장된 행이 스키마와 다르면(손상, 수동 편집, 이전 버전) `row_invalid`, 읽기 연결이 바쁘거나 실패하면 `busy`·`io`다. 읽기 함수는 `Result<T, ReadFailure>`로 돌려주고, 쓰기 트랜잭션 안의 동기 콜백(`build`)처럼 값을 바로 받아야 하는 자리는 계획 값(`{ kind: "abort", error }`)이나 트랜잭션 중단으로 같은 오류를 `commit` 밖으로 올린다(`L1.persistence.spec` §3.2).
+- 플랫폼 모듈과 scope의 `setup`은 시작할 수 없으면 던지지 않고 `err({ reason, cause })`(`SetupRefusal`)를 돌려준다. 호스트가 이를 `registerPlatform`의 `Result`나 `InstallResult.setups[].failure`로 올린다(`X.primitives.spec` §3.2). 조립 루트(L4)가 `kind`를 보고 종료 코드로 바꾼다.
 
 ### TY-25 `catch`는 오류를 조용히 삼키지 않는다
 
@@ -1179,7 +1181,7 @@ oxlint 규칙 이름은 `.oxlintrc.json`의 `rules` 키 표기다. 존재 여부
 | TY-21 시간·난수·ID 주입 | — | `no-restricted-properties`(추가): `Date.now`, `Math.random`, `crypto.randomUUID`, `crypto.getRandomValues`, `performance.now` | `xeon/no-ambient-time`: 인자 없는 `new Date()` | — |
 | TY-22 Promise | — | `typescript/no-floating-promises`, `typescript/no-misused-promises`, `typescript/await-thenable`, `typescript/require-await` | `xeon/no-void-promise`: `void <호출식>` 검출 | signal 전파 |
 | TY-23 좁히기 수단 | `strict` | TY-06 규칙, `typescript/no-unnecessary-type-parameters`(적용), `typescript/no-unsafe-function-type`(적용), `typescript/no-wrapper-object-types`(correctness 범주로 켜져 있음) | — | 타입 가드가 술어 타입의 필드를 실제로 검사하는가 |
-| TY-24 Bug 범위 | — | — | `xeon/bug-for-expected`(구현): `new Bug(` 메시지에 예상 가능한 실패 단어 | 이 Bug는 코드와 설정이 올바라도 생길 수 있는가 |
+| TY-24 Bug 범위 | — | — | `xeon/bug-for-expected`(구현): `new Bug(` 메시지에 예상 가능한 실패 단어나 `Result` 오류 보간, 운영 코드의 `if (!x.ok) throw new Bug(` | 이 Bug는 코드와 설정이 올바라도 생길 수 있는가 |
 | TY-25 catch 처리 | — | `no-empty` `{ "allowEmptyCatch": false }`(적용), `preserve-caught-error` `{ "requireCatchParameter": true }`(적용), `no-useless-catch`(correctness 범주로 켜져 있음), `no-unused-vars`(correctness), `typescript/use-unknown-in-catch-callback-variable`(적용) | `xeon/catch-swallow`(구현): `void <식별자>`, `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)` | 기록 후 계속하는 catch에 근거 문서가 있는가 |
 
 `.oxlintrc.json`에 넣을 항목. 아래 항목 가운데 `typescript/explicit-module-boundary-types`, `typescript/prefer-readonly`, `unicorn/no-static-only-class`, `no-restricted-properties`(TY-21)는 아직 넣지 않았다(코드 정리가 먼저다, 6절). 나머지는 2026-10-23에 `xeon/.oxlintrc.json`에 넣었고 위반은 모두 고쳤다. 설정 파일은 `eng.toolchain.guide`가 소유한다.
@@ -1373,7 +1375,8 @@ flushLater();
 - [미결] `no-restricted-properties` 옵션 형식. `consistent-type-assertions` `assertionStyle: "never"`의 `as const` 허용은 프로브로 확인했다.
 - [해결 2026-10-23] TY-06 허용 목록 A3 채택: `packages/ext-host/src/erase.ts` 한 파일로 정했다. 래퍼가 함수형 등록 API만 쓰므로 키와 클로저로 다시 짜지 않는다.
 - [해결 2026-10-23] TY-24 적용 전 코드의 `Bug` 정리: `core-persistence/src/writer.ts`의 `store.io`는 `StoreError{io}`, `platform-store/src/db.ts`의 `store.corrupt`는 `StoreWriteError{io, code: SQLITE_CORRUPT*}`로 돌려준다. 같은 방식으로 `DirsError{cancelled}`, `ExtensionTableError{io}`, `EnqueueError`(입력 큐), `ModeChangeResult{tools.commit_failed}`, `SecretError{cancelled}`, wire `store.busy`·`store.diskFull`·`store.readOnly`·`store.io`로 옮겼다.
-- [미결] TY-24 남은 곳. (1) 읽기 API가 값을 바로 돌려주는 자리: `core-persistence`의 `store.read_failed`(read.ts, subscribe.ts), `store.row_invalid`(views.ts, rows.ts, requests.ts 외), `platform-store`의 `store.row_invalid`. 읽기 연결의 `busy`와 손상 행이 `Bug`로 올라간다. 읽기 API를 `Result`로 바꾸는 설계가 필요하다. (2) `ext-host`의 `ext_storage.row_corrupt`(`ExtTableReader`가 행을 바로 돌려준다). (3) 플랫폼 모듈 시작 실패: `platformOsPlugin`의 `platform-os failed to start`와 `core-persistence`의 `could not start`가 `PlatformModule.setup`의 던지는 계약 때문에 `Bug`다. `setup`이 `Result`를 돌려주도록 `X.primitives.spec`의 `registerPlatform`을 고쳐야 한다.
+- [미결] TY-24 남은 곳: `ext-host`의 확장 테이블 읽기·쓰기 API(`ExtTableReader.get`·`list`, `ExtTableWriter.insert`)가 값을 바로 돌려줘 손상된 행(`ext_storage.row_corrupt`)과 선언과 다른 행(`ext_storage.row_invalid`)을 `Bug`로 던진다. 확장 공개 API를 `Result`로 바꾸는 일이라 `X.operations.spec` 개정과 함께 한다(`review.open-issues` N-08). 그 세 줄은 `xeon/bug-for-expected` 예외 주석으로 보고한다.
+- [해결 2026-10-23] TY-24 읽기 API와 시작 실패: `core-persistence`의 읽기(`query.*`, `readFrom`·`readBranch`·`loadCheckpoint`·`subscribe`, `feed.headSeq`·`read`)는 `Result<_, ReadFailure>`, 손상 행은 `row_invalid`로 돌려준다. `platform-store`의 `sys_leases` 행(`LeaseService.holds`·`inspect`)도 같다. 플랫폼 모듈과 scope `setup`의 시작 실패는 `SetupRefusal`이다. 승인 요청 커밋 실패는 `ApprovalRequestError`, 도구 이름 충돌은 `ToolRegisterError`다.
 - [미결] TY-25 포크 코드의 정리 단계 `close` 실패(`platform-exec/src/upstream/env/node.ts`의 `closeBestEffort`)와 감시 콜백 예외(`node-watch.ts`의 `#deliver`)는 결과를 받아 버린다. 포크 환경에 Logger를 넣어 기록해야 한다(`PATCHES.md` P14).
 - [미결] TY-24 `kind` 이름 표(`io`, `busy`, `disk_full`, `read_only`, `ownership_lost` 등)를 F 공용 오류 변형으로 둘지, 각 오류 유니온이 따로 정할지. 지금은 각 오류 유니온이 따로 둔다.
 - [미결] `declare enum`, `const enum`에 대한 `erasableSyntaxOnly` 동작(`_research/notes/eng-1.md §3`). `oxc/no-const-enum`은 적용했다. `declare enum`은 스캔 `xeon/no-declare-enum`으로 보완한다.

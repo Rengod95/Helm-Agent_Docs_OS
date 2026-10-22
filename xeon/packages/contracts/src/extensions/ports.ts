@@ -232,9 +232,15 @@ export type ProviderResourceDef = JsonValue;
 /** 모양은 L2.mcp.spec(McpServerDefSchema)이 정한다 */
 export type McpServerResourceDef = JsonValue;
 
-/** ToolService(xeon.tools)가 포함하는 등록 부분형 */
+/** 도구 등록 실패. 확장 조합이 같은 도구 이름을 내면 정상 운영 중에도 생긴다(TY-24) */
+export interface ToolRegisterError {
+  readonly kind: "name_conflict";
+  readonly toolName: string;
+}
+
+/** ToolService(xeon.tools)가 포함하는 등록 부분형. 이름이 겹치면 등록은 통째로 실패하고 표는 그대로다 */
 export interface ToolsPort {
-  register(owner: ScopeId, def: ToolResourceDef): Unsubscribe;
+  register(owner: ScopeId, def: ToolResourceDef): Result<Unsubscribe, ToolRegisterError>;
 }
 /** ModelService(xeon.models)가 포함하는 등록 부분형 */
 export interface ModelsPort {

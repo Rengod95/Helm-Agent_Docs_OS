@@ -104,12 +104,12 @@ describe("approvals", () => {
   test("the waiting commit stores the approval and the await_input checkpoint together", async () => {
     const h = openHarness();
     const requested = requestApproval(h);
-    const checkpoint = await h.service.loadCheckpoint(requested.threadId);
+    const checkpoint = expectOk(await h.service.loadCheckpoint(requested.threadId));
     expect(checkpoint?.next).toBe("await_input");
     expect(checkpoint?.pendingToolCalls).toEqual([
       { toolCallId: "tc1", effectId: null, waiting: "approval" },
     ]);
-    expect(h.service.query.pendingApprovals(requested.threadId)).toEqual([
+    expect(expectOk(h.service.query.pendingApprovals(requested.threadId))).toEqual([
       {
         approvalId: requested.approvalId,
         threadId: requested.threadId,
@@ -117,7 +117,7 @@ describe("approvals", () => {
         resolved: false,
       },
     ]);
-    expect(h.service.query.thread(requested.threadId)?.pendingApprovals).toBe(1);
+    expect(expectOk(h.service.query.thread(requested.threadId))?.pendingApprovals).toBe(1);
   });
 
   test("approval.resolved commits once: view.approval sees the request and a second response is rejected", () => {
@@ -125,7 +125,7 @@ describe("approvals", () => {
     const requested = requestApproval(h);
     const first = expectOk(resolve(h, requested));
     expect(first.status).toBe("committed");
-    expect(h.service.query.pendingApprovals(requested.threadId)).toEqual([]);
+    expect(expectOk(h.service.query.pendingApprovals(requested.threadId))).toEqual([]);
 
     // 같은 응답은 기록된 결과로 돌아오고, 다른 키의 두 번째 응답은 이미 해결됐다고 거부된다
     const replay = expectOk(resolve(h, requested));

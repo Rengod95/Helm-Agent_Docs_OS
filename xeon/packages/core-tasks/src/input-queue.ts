@@ -10,6 +10,7 @@ import type {
   CommitPlan,
   CommitRequest,
   InputView,
+  ReadFailure,
   ProducerHandle,
   StampedDraft,
   TxView,
@@ -124,7 +125,8 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
         }
         // 같은 키의 두 번째 enqueue. 기록된 결과의 첫 이벤트가 기존 입력이다
         const state = stateOfInput(session, draft.threadId, { inputId, seq: value.firstSeq });
-        return ok({ requestId: draft.requestId, duplicate: true, inputId, state });
+        if (!state.ok) return state;
+        return ok({ requestId: draft.requestId, duplicate: true, inputId, state: state.value });
       }
       case "rejected":
         return fromRejection(draft, sourceKey, value.code);
@@ -150,14 +152,17 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
       case "duplicate_input": {
         // 커밋 키가 달라 requests에는 없지만 투영에 같은 입력이 있다(draftQueued로 다른 커밋에 들어간 입력)
         const found = findQueuedEvent(session, draft.threadId, sourceKey, draft.requestId);
-        if (found === undefined) {
+        if (!found.ok) return found;
+        if (found.value === undefined) {
           throw new Bug("tasks.duplicate_without_input: projection has the input but no event");
         }
+        const state = stateOfInput(session, draft.threadId, found.value);
+        if (!state.ok) return state;
         return ok({
           requestId: draft.requestId,
           duplicate: true,
-          inputId: found.inputId,
-          state: stateOfInput(session, draft.threadId, found),
+          inputId: found.value.inputId,
+          state: state.value,
         });
       }
       default:
@@ -170,9 +175,9 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
     target: EventId | "all",
     reason: WithdrawReason,
   ): Result<number, InputQueueError> {
-    const targets = session.query
-      .queuedInputs(threadId)
-      .filter((view) => target === "all" || view.inputId === target);
+    const queuedNow = session.query.queuedInputs(threadId);
+    if (!queuedNow.ok) return queuedNow;
+    const targets = queuedNow.value.filter((view) => target === "all" || view.inputId === target);
     let count = 0;
     // 입력마다 커밋 하나. 키가 입력 id에 묶여 다시 불러도 한 번만 거둬진다
     for (const view of targets) {
@@ -212,15 +217,20 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
 
   // ── 읽기와 배치 선택 ──────────────────────────────────────────────────
 
-  function peek(threadId: ThreadId, modes?: readonly InputMode[]): readonly QueuedInput[] {
+  function peek(
+    threadId: ThreadId,
+    modes?: readonly InputMode[],
+  ): Result<readonly QueuedInput[], ReadFailure> {
     const out: QueuedInput[] = [];
-    const views = [...session.query.queuedInputs(threadId)].toSorted((a, b) => a.seq - b.seq);
-    for (const view of views) {
+    const queued = session.query.queuedInputs(threadId);
+    if (!queued.ok) return queued;
+    for (const view of queued.value.toSorted((a, b) => a.seq - b.seq)) {
       if (modes !== undefined && !modes.includes(view.mode)) continue;
       const loaded = loadQueuedInput(session, log, threadId, view);
-      if (loaded !== undefined) out.push(loaded);
+      if (!loaded.ok) return loaded;
+      if (loaded.value !== undefined) out.push(loaded.value);
     }
-    return out;
+    return ok(out);
   }
 
   /** 체크포인트의 소비 위치보다 앞선 queued 입력은 투영과 체크포인트가 어긋난 것이다. 이벤트가 정본이라 투영을 따르고 진단만 남긴다(§4.8 2번) */
@@ -264,16 +274,17 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
     at: PlacementPoint,
     // continuing은 next·aside를 고를 때 쓴다(M2). M1은 steer·followUp만 받는다
     _options: DrainOptions,
-  ): PlacementSelection {
+  ): Result<PlacementSelection, ReadFailure> {
     const queued = [...view.queuedInputs(threadId)].toSorted((a, b) => a.seq - b.seq);
     const consumedBefore = diagnoseCursor(view, threadId, queued);
     const startable = queued.filter((input) => input.mode === "steer" || input.mode === "followUp");
     const inputs: QueuedInput[] = [];
     for (const chosen of selectViews(startable, at)) {
       const loaded = loadQueuedInput(session, log, threadId, chosen);
-      if (loaded !== undefined) inputs.push(loaded);
+      if (!loaded.ok) return loaded;
+      if (loaded.value !== undefined) inputs.push(loaded.value);
     }
-    return {
+    return ok({
       inputs,
       // 선택한 입력 중 가장 큰 seq. 선택이 없으면 직전 값. 줄어들지 않는다
       consumedSeq: inputs.reduce((max, input) => Math.max(max, input.seq), consumedBefore),
@@ -294,7 +305,7 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
           });
         });
       },
-    };
+    });
   }
 
   // ── 커밋 후 알림 ──────────────────────────────────────────────────────

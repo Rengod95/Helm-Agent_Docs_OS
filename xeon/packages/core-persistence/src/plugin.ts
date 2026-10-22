@@ -1,6 +1,6 @@
 // 서비스 xeon.session의 등록 단위(L1.persistence.plan PS-16). ext-host의 내장 확장으로 올리고, 이 패키지는 Cordis를
 // import하지 않는다(DR-11). 서비스 등록은 hostOf(g).providePort로 한다.
-import { Bug, type Clock, type Logger } from "@xeon/contracts";
+import { err, ok, type Clock, type Logger } from "@xeon/contracts";
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import {
   defineManifest,
@@ -57,7 +57,7 @@ export function sessionManifest(): ExtensionManifest {
 
 /**
  * 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다. xeon.store 포트를 먼저 등록해 두어야 한다.
- * setup이 실패하면(마이그레이션 오류 등) 그대로 던진다: 시작 실패다(X.primitives.spec §3.2)
+ * setup이 실패하면(마이그레이션 오류 등) err(SetupRefusal)을 돌려준다: 시작 실패는 install 결과의 setups[].failure로 나온다(X.primitives.spec §3.2)
  */
 export function sessionPlugin(options: SessionPluginOptions): ExtensionUnit {
   const manifest = sessionManifest();
@@ -80,12 +80,9 @@ export function sessionPlugin(options: SessionPluginOptions): ExtensionUnit {
         ...(options.holder === undefined ? {} : { holder: options.holder }),
         ...(options.onLeaseLost === undefined ? {} : { onLeaseLost: options.onLeaseLost }),
       });
-      if (!created.ok) {
-        throw new Bug(`core-persistence could not start: ${created.error.kind}`, {
-          cause: created.error,
-        });
-      }
+      if (!created.ok) return err({ reason: created.error.kind, cause: created.error });
       host.providePort(SessionPortKey, created.value);
+      return ok(undefined);
     });
   };
   return { manifest, entry, loadIndex: options.loadIndex ?? 0, builtin: true };

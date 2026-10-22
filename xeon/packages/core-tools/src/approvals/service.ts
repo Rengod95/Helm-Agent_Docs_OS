@@ -4,6 +4,7 @@ import {
   StepCheckpointSchema,
   type PendingToolCall,
   type ProducerHandle,
+  type ReadFailure,
   type SessionService,
   type StampedDraft,
   type StepCheckpointInput,
@@ -81,6 +82,7 @@ function waitingCheckpointInput(draft: unknown): StepCheckpointInput {
     typeof draft === "object" && draft !== null && "payload" in draft ? draft.payload : undefined;
   const parsed = parse(StepCheckpointSchema, payload);
   if (!parsed.ok) {
+    // xeon-disable-next-line xeon/bug-for-expected -- 루프가 만든 대기 체크포인트가 StepCheckpoint가 아니면 L1 사이 계약 위반이다 (eng.typescript.guide TY-24)
     throw new Bug(
       "tools.waiting_checkpoint_invalid: the loop's waiting checkpoint is not a StepCheckpoint",
       {
@@ -268,16 +270,22 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       requestedAt,
     };
     const entry = add(eventId, request);
-    if (committed.result.replayed) await adoptStoredResolution(entry);
-    else await prompt(entry, "start");
+    if (committed.result.replayed) {
+      const adopted = await adoptStoredResolution(entry);
+      if (!adopted.ok) return err({ kind: "store", error: adopted.error });
+    } else {
+      await prompt(entry, "start");
+    }
     return ok(entry);
   }
 
   /** 같은 키의 요청이 이미 커밋되어 있었다면(재시작) 그 사이 응답이 커밋되었는지 이벤트에서 확인한다 */
-  async function adoptStoredResolution(entry: Entry): Promise<void> {
+  async function adoptStoredResolution(entry: Entry): Promise<Result<void, ReadFailure>> {
     const scanned = await scanApprovals(deps.session, entry.request.surfaceThreadId);
-    const stored = scanned.resolved.get(entry.request.approvalId);
+    if (!scanned.ok) return scanned;
+    const stored = scanned.value.resolved.get(entry.request.approvalId);
     if (stored !== undefined) settle(entry, stored);
+    return ok(undefined);
   }
 
   function waitFor(entry: Entry, signal: AbortSignal): Promise<ApprovalResolution> {
@@ -364,27 +372,22 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       .map((entry) => entry.request);
   }
 
-  async function restore(threadId: ThreadId): Promise<readonly ApprovalRequest[]> {
+  async function restore(
+    threadId: ThreadId,
+  ): Promise<Result<readonly ApprovalRequest[], ReadFailure>> {
     const scanned = await scanApprovals(deps.session, threadId);
-    for (const { eventId, request } of scanned.requests) {
+    if (!scanned.ok) return scanned;
+    for (const { eventId, request } of scanned.value.requests) {
       if (byId.has(request.approvalId)) continue;
       const entry = add(eventId, request);
-      const stored = scanned.resolved.get(request.approvalId);
+      const stored = scanned.value.resolved.get(request.approvalId);
       if (stored !== undefined) settle(entry, stored);
     }
-    return pending(threadId);
+    return ok(pending(threadId));
   }
 
   return {
-    async request(input, signal) {
-      const resolved = await requestTool(input, signal);
-      if (!resolved.ok) {
-        throw new Bug(`tools.commit_failed: approval request ${input.requestKey}`, {
-          cause: resolved.error,
-        });
-      }
-      return resolved.value;
-    },
+    request: requestTool,
     requestTool,
     respond,
     pending,

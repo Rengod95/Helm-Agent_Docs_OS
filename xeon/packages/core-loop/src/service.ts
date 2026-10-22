@@ -9,7 +9,7 @@ import type {
   Usage,
 } from "@xeon/contracts/conversation";
 import type { LoopTurnRequest, LoopTurnResult, PostItem } from "@xeon/contracts/extensions";
-import type { DurableEventEnvelope } from "@xeon/contracts/records";
+import type { DurableEventEnvelope, ReadFailure } from "@xeon/contracts/records";
 import type {
   AdmitRequest,
   AdmitResult,
@@ -163,10 +163,15 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     });
   }
 
-  async function readBranchEvents(threadId: ThreadId): Promise<DurableEventEnvelope[]> {
+  async function readBranchEvents(
+    threadId: ThreadId,
+  ): Promise<Result<DurableEventEnvelope[], ReadFailure>> {
     const events: DurableEventEnvelope[] = [];
-    for await (const event of deps.session.readBranch(threadId)) events.push(event);
-    return events;
+    for await (const read of deps.session.readBranch(threadId)) {
+      if (!read.ok) return read;
+      events.push(read.value);
+    }
+    return ok(events);
   }
 
   // ── turn 하나 (T1 → 실행 → T6) ──────────────────────────────────────
@@ -247,15 +252,29 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   function startFromQueue(thread: ThreadRuntime): Promise<StartOutcome | undefined> {
     if (thread.starting !== null) return thread.starting;
     if (thread.running !== null) return Promise.resolve(undefined);
-    if (deps.tasks.inputs.peek(thread.threadId, ["steer", "followUp"]).length === 0) {
+    const queued = deps.tasks.inputs.peek(thread.threadId, ["steer", "followUp"]);
+    if (!queued.ok) {
+      // 큐를 읽지 못하면 시작하지 않는다. 입력은 큐에 남아 있고 다음 알림이나 재개 때 다시 본다
+      deps.logger.warn("loop.start_failed", {
+        threadId: thread.threadId,
+        reason: queued.error.kind,
+      });
       return Promise.resolve(undefined);
     }
+    if (queued.value.length === 0) return Promise.resolve(undefined);
     const started = Promise.withResolvers<StartOutcome | undefined>();
     thread.starting = started.promise;
     const flags = { announced: false };
     const finished = thread.gate.run(0, async () => {
       try {
-        await closeStaleOpenTurn(thread);
+        const closed = await closeStaleOpenTurn(thread);
+        if (!closed.ok) {
+          deps.logger.warn("loop.start_failed", {
+            threadId: thread.threadId,
+            reason: closed.error.kind,
+          });
+          return;
+        }
         await runNewTurn(thread, { kind: "queue" }, (outcome) => {
           flags.announced = true;
           thread.starting = null;
@@ -276,10 +295,11 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   }
 
   /** 이전 프로세스가 남긴 열린 turn이 있으면 interrupted로 닫는다(새 입력이 오면 후보를 대신한다, L1.persistence.spec §4.8.3) */
-  async function closeStaleOpenTurn(thread: ThreadRuntime): Promise<void> {
+  async function closeStaleOpenTurn(thread: ThreadRuntime): Promise<Result<void, LoopError>> {
     const open = deps.session.query.openTurn(thread.threadId);
-    if (open === undefined || thread.running !== null) return;
-    await closeOpenTurn(thread, open.turnId, "owner_cancelled");
+    if (!open.ok) return open;
+    if (open.value === undefined || thread.running !== null) return ok(undefined);
+    return await closeOpenTurn(thread, open.value.turnId, "owner_cancelled");
   }
 
   // ── 재개 ────────────────────────────────────────────────────────────
@@ -289,9 +309,11 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     thread: ThreadRuntime,
     turnId: TurnId,
     reason: "abort_requested" | "owner_cancelled",
-  ): Promise<void> {
-    const opened = reduceOpenTurn(await readBranchEvents(thread.threadId), turnId);
-    if (opened === undefined || opened.completed) return;
+  ): Promise<Result<void, LoopError>> {
+    const before = await readBranchEvents(thread.threadId);
+    if (!before.ok) return before;
+    const opened = reduceOpenTurn(before.value, turnId);
+    if (opened === undefined || opened.completed) return ok(undefined);
     const scope = openTurnScope(thread, turnId);
     beginRunning(thread, turnId, scope);
     // 취소 신호를 켠다. 의도 커밋은 같은 키라 이미 있으면 다시 쓰지 않는다
@@ -306,12 +328,20 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       cancelledByOwner: deps.cancelledByOwner,
       hostMode: deps.hostMode,
     });
-    if (!recovered.ok) throw new LoopRejection(recovered.error);
+    if (!recovered.ok) {
+      thread.running = null;
+      return recovered;
+    }
     // 합성 결과가 들어갔으므로 다시 읽는다: 아직 결과가 없는 호출은 의도조차 없던 호출뿐이다
-    const reduction = reduceOpenTurn(await readBranchEvents(thread.threadId), turnId);
+    const after = await readBranchEvents(thread.threadId);
+    if (!after.ok) {
+      thread.running = null;
+      return after;
+    }
+    const reduction = reduceOpenTurn(after.value, turnId);
     if (reduction === undefined || reduction.completed) {
       thread.running = null;
-      return;
+      return ok(undefined);
     }
     const step = reduction.step;
     const unanswered = unansweredCalls(reduction);
@@ -344,6 +374,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       scopeRef: null,
     });
     await finishRun(thread, result);
+    return ok(undefined);
   }
 
   /**
@@ -365,12 +396,22 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       return undefined;
     }
     const plan = recovered.value;
-    const open = deps.session.query.openTurn(threadId);
+    const openRead = deps.session.query.openTurn(threadId);
+    if (!openRead.ok) {
+      onBegin(err(openRead.error));
+      return undefined;
+    }
+    const open = openRead.value;
     if (open === undefined) {
       onBegin(ok({ status: "nothing" }));
       return undefined;
     }
-    const reduction = reduceOpenTurn(await readBranchEvents(threadId), open.turnId);
+    const events = await readBranchEvents(threadId);
+    if (!events.ok) {
+      onBegin(err(events.error));
+      return undefined;
+    }
+    const reduction = reduceOpenTurn(events.value, open.turnId);
     if (reduction === undefined) {
       onBegin(ok({ status: "nothing" }));
       return undefined;
@@ -386,8 +427,20 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     }
     if (reentry.kind === "close") {
       onBegin(ok({ status: "closed", turnId: open.turnId, reason: reentry.reason }));
-      await closeOpenTurn(thread, open.turnId, reentry.reason);
+      const closed = await closeOpenTurn(thread, open.turnId, reentry.reason);
+      // 닫는 중 읽기·복구가 실패하면 turn은 열린 채 남아 다음 재개나 새 입력이 다시 닫는다
+      if (!closed.ok) {
+        deps.logger.warn("loop.close_failed", { threadId, reason: closed.error.kind });
+      }
       return undefined;
+    }
+    // 미해결 승인 요청을 메모리 대기로 되살린다. 읽지 못하면 재개를 시작하지 않는다(thread.resumed를 남기지 않는다)
+    if (reentry.from === "await_input" && deps.approvals !== undefined) {
+      const restored = await deps.approvals.restore(threadId);
+      if (!restored.ok) {
+        onBegin(err(restored.error));
+        return undefined;
+      }
     }
     const begun = deps.session.beginResume(threadId, "manual");
     if (!begun.ok) {
@@ -401,9 +454,6 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     }
     onBegin(ok({ status: "resumed", turnId: open.turnId, from: reentry.from }));
 
-    if (reentry.from === "await_input" && deps.approvals !== undefined) {
-      await deps.approvals.restore(threadId);
-    }
     const scope = openTurnScope(thread, open.turnId);
     beginRunning(thread, open.turnId, scope);
     const entry: TurnEntry = reentry.entry;
@@ -497,6 +547,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
         case "ownership_lost":
         case "read_only":
         case "thread_not_found":
+        case "row_invalid":
           return err(error);
         default:
           return assertNever(error, "InputQueueError");
@@ -507,8 +558,13 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       // 같은 requestId의 재제출(F wire turn.start, TX-05). turn이 이미 시작됐으면 그 turn을 돌려준다.
       // 입력만 접수되고 T1 전이면(진행 중 재시도, C1~C2 사이 크래시) 새 입력처럼 이어서 시작한다
       const existing = deps.session.query.turnByRequestId(request.threadId, null, requestId);
-      if (existing !== undefined) {
-        return ok({ status: "duplicate", inputId: receipt.inputId, turnId: existing.turnId });
+      if (!existing.ok) return err(existing.error);
+      if (existing.value !== undefined) {
+        return ok({
+          status: "duplicate",
+          inputId: receipt.inputId,
+          turnId: existing.value.turnId,
+        });
       }
     }
     if (wasBusy) {
@@ -594,10 +650,11 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
           request.scopeId,
           request.requestId,
         );
-        if (existing === undefined) {
+        if (!existing.ok) throw new LoopRejection(existing.error);
+        if (existing.value === undefined) {
           throw new LoopRejection({ kind: "input_invalid", message: "recorded turn is missing" });
         }
-        return await replayedResult(thread, existing.turnId, existing.status);
+        return await replayedResult(thread, existing.value.turnId, existing.value.status);
       }
       // xeon-disable-next-line xeon/switch-default-never -- 거부 코드(CommitFailure.code)는 문자열이라 열린 값이다. 모르는 코드는 예상 가능한 실패로 돌려준다 (eng.typescript.guide TY-14)
       default:
@@ -625,7 +682,9 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
         };
       }
     }
-    const reduction = reduceOpenTurn(await readBranchEvents(thread.threadId), turnId);
+    const events = await readBranchEvents(thread.threadId);
+    if (!events.ok) throw new LoopRejection(events.error);
+    const reduction = reduceOpenTurn(events.value, turnId);
     const finalItemId = reduction?.lastAssistantItemId;
     return {
       outcome: {

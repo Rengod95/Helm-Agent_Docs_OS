@@ -1,13 +1,14 @@
-import { assertNever, Bug, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, Bug, ok, type Result } from "@xeon/contracts";
 import type {
   DurableEventEnvelope,
   Projector,
   SqlTx,
   StoreDb,
-  StoreError,
+  StoreWriteError,
 } from "@xeon/contracts/records";
-import { headSeqOf, parseEnvelope } from "../events.ts";
-import { columnInt, columnNullableString, columnString } from "../rows.ts";
+import { envelopeOfRow, headSeqOf } from "../events.ts";
+import { columns, readResult, type RowFault } from "../rows.ts";
+import { writeResult } from "../tx-result.ts";
 import type { KindCatalog } from "../upcast.ts";
 import { toProjectionTx } from "./tx.ts";
 
@@ -52,9 +53,13 @@ function acceptsKind(projector: Projector, kind: string): boolean {
 
 /**
  * 투영기 하나를 다시 만든다: DROP → ddl → events를 seq 순으로 재생 → projector_state 갱신. 호출자의 한 트랜잭션 안이다.
- * 재생은 순수하다: 같은 이벤트 열이면 같은 행이 나온다(D0)
+ * 재생은 순수하다: 같은 이벤트 열이면 같은 행이 나온다(D0). 손상된 이벤트 행을 만나면 row_invalid로 멈춘다
  */
-export function rebuildProjector(tx: SqlTx, projector: Projector, catalog: KindCatalog): void {
+export function rebuildProjector(
+  tx: SqlTx,
+  projector: Projector,
+  catalog: KindCatalog,
+): Result<void, RowFault> {
   for (const table of [...projector.tables].toReversed()) tx.run(`DROP TABLE IF EXISTS ${table}`);
   for (const sql of projector.ddl) tx.run(sql);
   const projection = toProjectionTx(tx);
@@ -66,31 +71,42 @@ export function rebuildProjector(tx: SqlTx, projector: Projector, catalog: KindC
     ]);
     if (rows.length === 0) break;
     for (const row of rows) {
-      const stored = parseEnvelope(columnString(row, "envelope"));
-      after = stored.seq;
-      if (!acceptsKind(projector, stored.kind)) continue;
-      const projectable = upcastForProjection(catalog, stored);
+      const stored = envelopeOfRow(row);
+      if (!stored.ok) return stored;
+      after = stored.value.seq;
+      if (!acceptsKind(projector, stored.value.kind)) continue;
+      const projectable = upcastForProjection(catalog, stored.value);
       if (projectable !== undefined) projector.apply(projection, projectable);
     }
   }
+  const head = headSeqOf(tx);
+  if (!head.ok) return head;
   tx.run(
     `INSERT INTO projector_state (name, version, last_seq, rebuild_cursor) VALUES (?, ?, ?, NULL)
      ON CONFLICT(name) DO UPDATE SET version = excluded.version, last_seq = excluded.last_seq,
        rebuild_cursor = NULL`,
-    [projector.name, projector.version, headSeqOf(tx)],
+    [projector.name, projector.version, head.value],
   );
+  return ok(undefined);
 }
 
-function isStale(tx: SqlTx, projector: Projector): boolean {
+function isStale(tx: SqlTx, projector: Projector): Result<boolean, RowFault> {
   const row = tx.get(
     "SELECT version, last_seq, rebuild_cursor FROM projector_state WHERE name = ?",
     [projector.name],
   );
-  if (row === undefined) return true;
-  return (
-    columnInt(row, "version") !== projector.version ||
-    columnInt(row, "last_seq") !== headSeqOf(tx) ||
-    columnNullableString(row, "rebuild_cursor") !== null
+  if (row === undefined) return ok(true);
+  const c = columns(row, "projector_state");
+  const version = c.int("version");
+  if (!version.ok) return version;
+  const lastSeq = c.int("last_seq");
+  if (!lastSeq.ok) return lastSeq;
+  const cursor = c.nullableString("rebuild_cursor");
+  if (!cursor.ok) return cursor;
+  const head = headSeqOf(tx);
+  if (!head.ok) return head;
+  return ok(
+    version.value !== projector.version || lastSeq.value !== head.value || cursor.value !== null,
   );
 }
 
@@ -102,20 +118,29 @@ export function ensureProjectors(
   db: StoreDb,
   projectors: readonly Projector[],
   catalog: KindCatalog,
-): Result<readonly string[], StoreError> {
-  const probe = db.read((tx) => projectors.filter((projector) => isStale(tx, projector)));
-  if (!probe.ok) return err({ kind: "busy" });
+): Result<readonly string[], StoreWriteError | RowFault> {
+  const probe = readResult(db, (tx) => {
+    const stale: Projector[] = [];
+    for (const projector of projectors) {
+      const check = isStale(tx, projector);
+      if (!check.ok) return check;
+      if (check.value) stale.push(projector);
+    }
+    return ok(stale);
+  });
+  if (!probe.ok) return probe;
   if (probe.value.length === 0) return ok([]);
-  const written = db.write((tx): readonly string[] => {
+  return writeResult(db, (tx): Result<readonly string[], RowFault> => {
     const rebuilt: string[] = [];
     for (const projector of projectors) {
       // 다른 프로세스가 먼저 다시 만들었을 수 있어 트랜잭션 안에서 한 번 더 본다
-      if (!isStale(tx, projector)) continue;
-      rebuildProjector(tx, projector, catalog);
+      const check = isStale(tx, projector);
+      if (!check.ok) return check;
+      if (!check.value) continue;
+      const done = rebuildProjector(tx, projector, catalog);
+      if (!done.ok) return done;
       rebuilt.push(projector.name);
     }
-    return rebuilt;
+    return ok(rebuilt);
   });
-  if (written.ok) return ok(written.value);
-  return err(written.error);
 }

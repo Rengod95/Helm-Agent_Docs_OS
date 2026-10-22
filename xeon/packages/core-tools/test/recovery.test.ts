@@ -12,6 +12,7 @@ import {
   registerWorkspace,
   textOf,
   type Harness,
+  expectOk,
 } from "./support/harness.ts";
 
 /** prepare만 돌려 effect.intent를 커밋한다(실행 전 상태) */
@@ -51,7 +52,7 @@ test("rerun_skips_tool_call_hook: stored args run again without the tool_call ha
   await commitIntentOnly(h, run, "call_1");
   expect(handlerCalls).toBe(1);
 
-  const record = await h.runtime.tools.rerun(intentOf(h, "call_1"), run);
+  const record = expectOk(await h.runtime.tools.rerun(intentOf(h, "call_1"), run));
   expect(handlerCalls).toBe(1);
   expect(probe.calls).toEqual([{ method: "read", input: { path: "a.txt" } }]);
   expect(record.isError).toBe(false);
@@ -63,6 +64,18 @@ test("rerun_skips_tool_call_hook: stored args run again without the tool_call ha
     "tool:call_1:exec",
     "tool:call_1:result",
   ]);
+});
+
+test("a rerun whose effect state cannot be read is a read failure and runs nothing", async () => {
+  const h = await createHarness();
+  const probe = registerWorkspace(h);
+  const run = h.run();
+  await commitIntentOnly(h, run, "call_rf");
+  h.session.failNextRead({ kind: "busy" });
+  const result = await h.runtime.tools.rerun(intentOf(h, "call_rf"), run);
+  expect(result).toEqual({ ok: false, error: { kind: "busy" } });
+  expect(probe.calls).toEqual([]);
+  expect(h.session.events.map((event) => event.kind)).toEqual(["effect.intent"]);
 });
 
 test("a rerun after an unrecorded result commits exec with the attempt number", async () => {
@@ -84,7 +97,7 @@ test("a rerun after an unrecorded result commits exec with the attempt number", 
   expect(h.session.events.map((event) => event.kind)).toEqual(["effect.intent", "effect.exec"]);
 
   h.session.setFault(undefined);
-  const record = await h.runtime.tools.rerun(intentOf(h, "call_2"), run);
+  const record = expectOk(await h.runtime.tools.rerun(intentOf(h, "call_2"), run));
   expect(record.isError).toBe(false);
   expect(probe.calls).toHaveLength(2);
   expect(h.session.commits.map((commit) => commit.requestId)).toEqual([

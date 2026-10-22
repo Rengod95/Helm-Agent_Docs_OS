@@ -110,6 +110,7 @@ export function createTurnRun(ctx: LoopContext, spec: TurnRunSpec): TurnRun {
     ids: ctx.ids,
     threadId,
     turnId,
+    logger: ctx.logger,
   });
   const state: RunState = {
     stepIndex: firstStepIndex,
@@ -216,14 +217,17 @@ export function emitNotifications(
 }
 
 /** 활성 가지의 마지막 이벤트. 피드가 알려 준 값이 없으면 가지를 읽는다 */
-export async function currentLeaf(run: TurnRun): Promise<EventId> {
+export async function currentLeaf(run: TurnRun): Promise<Result<EventId, LoopFailure>> {
   const { thread, ctx, threadId } = run;
-  if (thread.leaf !== null) return thread.leaf;
+  if (thread.leaf !== null) return ok(thread.leaf);
   let last: EventId | null = null;
-  for await (const event of ctx.session.readBranch(threadId)) last = event.id;
+  for await (const read of ctx.session.readBranch(threadId)) {
+    if (!read.ok) return err({ kind: "read_failed", detail: `active branch: ${read.error.kind}` });
+    last = read.value.id;
+  }
   if (last === null) throw new Bug("loop.thread_has_no_events");
   thread.leaf = last;
-  return last;
+  return ok(last);
 }
 
 // ── 모델 ─────────────────────────────────────────────────────────────

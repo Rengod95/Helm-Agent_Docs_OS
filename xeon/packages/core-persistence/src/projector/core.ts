@@ -164,6 +164,7 @@ type Reducer = (tx: ProjectionTx, event: DurableEventEnvelope) => void;
 /** 이벤트 payload를 카탈로그 스키마로 다시 좁힌다. 커밋 경로가 이미 검사했으므로 실패하면 코드 결함이다 */
 function expectPayload<T>(result: Result<T, ParseError>, event: DurableEventEnvelope): T {
   if (!result.ok) {
+    // xeon-disable-next-line xeon/bug-for-expected -- 커밋 경로가 같은 payload를 이미 검증했다. 투영기가 다시 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
     throw new Bug(`store.projection_failed: invalid ${event.kind} payload at seq ${event.seq}`, {
       cause: result.error,
     });

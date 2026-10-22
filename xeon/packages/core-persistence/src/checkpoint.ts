@@ -1,4 +1,4 @@
-import { Bug, parse } from "@xeon/contracts";
+import { err, ok, parse, parseJson, type Result } from "@xeon/contracts";
 import type { EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import {
   STEP_CHECKPOINT_SCHEMA_VERSION,
@@ -8,8 +8,7 @@ import {
   type StepCheckpoint,
   type StepCheckpointInput,
 } from "@xeon/contracts/records";
-import { parseJson } from "./events.ts";
-import { columnInt, columnString } from "./rows.ts";
+import { columns, rowInvalid, type RowFault } from "./rows.ts";
 
 /**
  * 승인 대기 커밋(A1)은 step.completed 없이 체크포인트를 쓴다(L1.persistence.spec §4.2, FR-P4).
@@ -58,17 +57,24 @@ export function checkpointDraftInput(
 
 /**
  * thread의 마지막 체크포인트. schemaVersion이 현재와 다르면 버린다(이벤트에서 복원해야 한다, eng.events.design §5.1 7번).
- * 저장된 record가 스키마와 다르면 코드 결함이다
+ * 저장된 record가 스키마와 다르면 손상된 행이라 row_invalid다
  */
-export function readCheckpoint(tx: SqlTx, threadId: string): StepCheckpoint | null {
+export function readCheckpoint(
+  tx: SqlTx,
+  threadId: string,
+): Result<StepCheckpoint | null, RowFault> {
   const row = tx.get("SELECT schema_version, record FROM step_checkpoints WHERE thread_id = ?", [
     threadId,
   ]);
-  if (row === undefined) return null;
-  if (columnInt(row, "schema_version") !== STEP_CHECKPOINT_SCHEMA_VERSION) return null;
-  const parsed = parse(StepCheckpointSchema, parseJson(columnString(row, "record")));
-  if (!parsed.ok) {
-    throw new Bug("store.row_invalid: step_checkpoints.record", { cause: parsed.error });
-  }
-  return parsed.value;
+  if (row === undefined) return ok(null);
+  const c = columns(row, "step_checkpoints");
+  const version = c.int("schema_version");
+  if (!version.ok) return version;
+  if (version.value !== STEP_CHECKPOINT_SCHEMA_VERSION) return ok(null);
+  const text = c.string("record");
+  if (!text.ok) return text;
+  const json = parseJson(text.value);
+  if (!json.ok) return err(rowInvalid("step_checkpoints.record"));
+  const parsed = parse(StepCheckpointSchema, json.value);
+  return parsed.ok ? ok(parsed.value) : err(rowInvalid("step_checkpoints.record"));
 }

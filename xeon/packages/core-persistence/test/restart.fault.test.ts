@@ -97,12 +97,12 @@ describe("restart_invariants_k1_to_k6 (SIGKILL of a child process)", () => {
     });
     expect(plan.marker).not.toBeNull();
     expect(h.store.rowCounts()["p_items"]).toBe(1);
-    const maxSeq = h.service.feed.headSeq();
+    const maxSeq = expectOk(h.service.feed.headSeq());
     const turnId = plan.marker?.turnId;
     if (turnId === undefined) throw new Bug("no marker");
     expectOk(h.service.beginResume(threadId, "manual"));
     endTurn(h, { threadId, turnId }, "interrupted");
-    expect(h.service.feed.headSeq()).toBeGreaterThan(maxSeq);
+    expect(expectOk(h.service.feed.headSeq())).toBeGreaterThan(maxSeq);
     assertCommonInvariants(h);
   });
 
@@ -159,10 +159,10 @@ describe("restart_invariants_k1_to_k6 (SIGKILL of a child process)", () => {
     const plan = expectOk(h.service.recover(threadId, DEPS("unsafe")));
     expect(plan.synthesized).toEqual([]);
     expect(plan.reruns).toEqual([]);
-    expect(h.service.query.openEffects(threadId)).toEqual([]);
+    expect(expectOk(h.service.query.openEffects(threadId))).toEqual([]);
     // 구독자는 readFrom으로 따라잡는다
     const seen: string[] = [];
-    for await (const event of h.service.readFrom(0, { threadId })) seen.push(event.kind);
+    for await (const event of h.service.readFrom(0, { threadId })) seen.push(expectOk(event).kind);
     expect(seen).toContain("effect.result");
     assertCommonInvariants(h);
   });
@@ -170,7 +170,7 @@ describe("restart_invariants_k1_to_k6 (SIGKILL of a child process)", () => {
   test("K6: killed after every effect closed but before C6: marker stays, seq continues", async () => {
     const { dbPath, threadId } = await crashAt("K6");
     const h = restart(dbPath, threadId);
-    const maxSeq = h.service.feed.headSeq();
+    const maxSeq = expectOk(h.service.feed.headSeq());
     const plan = expectOk(h.service.recover(threadId, DEPS("unsafe")));
     expect(plan.marker).not.toBeNull();
     expect(plan.next).toBe("request");
@@ -180,9 +180,9 @@ describe("restart_invariants_k1_to_k6 (SIGKILL of a child process)", () => {
     if (turnId === undefined) throw new Bug("no marker");
     expectOk(h.service.beginResume(threadId, "manual"));
     endTurn(h, { threadId, turnId });
-    expect(h.service.feed.headSeq()).toBeGreaterThan(maxSeq);
+    expect(expectOk(h.service.feed.headSeq())).toBeGreaterThan(maxSeq);
     assertCommonInvariants(h);
-    expect(h.service.query.thread(threadId)?.marker).toBeNull();
+    expect(expectOk(h.service.query.thread(threadId))?.marker).toBeNull();
   });
 });
 

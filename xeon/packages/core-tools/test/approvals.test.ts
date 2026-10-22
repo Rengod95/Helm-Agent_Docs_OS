@@ -13,6 +13,7 @@ import {
   textOf,
   until,
   type Harness,
+  expectOk,
 } from "./support/harness.ts";
 
 function kinds(h: Harness): string[] {
@@ -223,7 +224,7 @@ test("approval_pending_restored_after_restart: restore returns the same request 
 
   const restarted = createToolRuntime(h.deps);
   const probeAfter = registerWorkspace({ ...h, runtime: restarted });
-  const restored = await restarted.approvals.restore(h.thread);
+  const restored = expectOk(await restarted.approvals.restore(h.thread));
   expect(restored).toHaveLength(1);
   expect(restored[0]?.approvalId).toBe(before?.approvalId);
   expect(restarted.approvals.pending(h.thread)[0]?.approvalId).toBe(before?.approvalId);
@@ -273,12 +274,54 @@ test("a request whose answer was committed before the restart is answered immedi
   await until(() => h.runtime.approvals.pending(h.thread).length === 1);
   const [request] = h.runtime.approvals.pending(h.thread);
   await h.runtime.approvals.respond(request?.approvalId ?? "", { decision: "allow" });
-  expect((await waiting).decision).toBe("allow");
+  expect(await waiting).toMatchObject({ ok: true, value: { decision: "allow" } });
 
   const restarted = createToolRuntime(h.deps);
   const again = await restarted.approvals.request(input, controller.signal);
-  expect(again).toMatchObject({ decision: "allow", resolvedBy: "user" });
+  expect(again).toMatchObject({ ok: true, value: { decision: "allow", resolvedBy: "user" } });
   expect(h.session.events.filter((event) => event.kind === "approval.requested")).toHaveLength(1);
+});
+
+test("a failed request commit comes back as an error value, not a Bug", async () => {
+  const h = await createHarness();
+  h.session.setFault(() => ({ kind: "disk_full" }));
+  const result = await h.runtime.approvals.request(
+    {
+      origin: {
+        threadId: h.thread,
+        turnId: h.run().turnId,
+        stepId: null,
+        toolCallId: "call_fail",
+        caller: "main",
+      },
+      requestKey: "call_fail",
+      title: "Allow?",
+      body: {
+        kind: "tool",
+        tool: {
+          toolName: "bash",
+          risk: "exec",
+          args: { command: "ls" },
+          argsHash: "0".repeat(64),
+          ruleId: null,
+        },
+      },
+      remember: ["once"],
+    },
+    new AbortController().signal,
+  );
+  expect(result).toEqual({ ok: false, error: { kind: "store", error: { kind: "disk_full" } } });
+  expect(h.session.events).toHaveLength(0);
+});
+
+test("restore reports a failed event read instead of throwing", async () => {
+  const h = await createHarness();
+  h.session.failNextRead({ kind: "row_invalid", where: "events.envelope" });
+  expect(await h.runtime.approvals.restore(h.thread)).toEqual({
+    ok: false,
+    error: { kind: "row_invalid", where: "events.envelope" },
+  });
+  expect(expectOk(await h.runtime.approvals.restore(h.thread))).toEqual([]);
 });
 
 test("plan and question requests are not accepted in M1", async () => {

@@ -96,9 +96,11 @@ export function turnStartRequest(
       const priorConsumed = previous?.inputCursor.consumedSeq ?? 0;
 
       if (source.kind === "queue") {
-        const selection = deps.tasks.inputs.drain(view, threadId, "turnStart", {
+        const drained = deps.tasks.inputs.drain(view, threadId, "turnStart", {
           continuing: false,
         });
+        if (!drained.ok) return { kind: "abort", error: drained.error };
+        const selection = drained.value;
         const first = selection.inputs[0];
         if (first === undefined) return { kind: "reject", code: "no_input", detail: null };
         const itemIds: ItemId[] = [];

@@ -282,10 +282,18 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     name: string,
     module: Parameters<ExtHost["registerPlatform"]>[0],
   ): Promise<void> {
+    let registered: Awaited<ReturnType<ExtHost["registerPlatform"]>>;
     try {
-      await ext.registerPlatform(module);
+      registered = await ext.registerPlatform(module);
     } catch (caught) {
       throw new AssembleError([pluginIssue(name, caught)], { cause: caught });
+    }
+    if (!registered.ok) {
+      const { reason, cause } = registered.error;
+      throw new AssembleError(
+        [{ code: "plugin", plugin: name, message: `${name} failed to start (${reason})` }],
+        { cause },
+      );
     }
   }
 
@@ -433,6 +441,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     settings.bindSession(session.sessionSettings);
 
     const storeId = parse(StoreIdSchema, storeService.storeId);
+    // xeon-disable-next-line xeon/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
     if (!storeId.ok) throw new Bug(`store.invalid_store_id: ${storeService.storeId}`);
     portsHandle = createEnginePorts({
       mode: options.mode,

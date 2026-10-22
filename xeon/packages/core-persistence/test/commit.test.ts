@@ -32,7 +32,7 @@ test("commit_seq_is_global_and_gapless", () => {
     .all()
     .map((row) => row.seq);
   expect(seqs).toEqual(seqs.map((_, index) => index + 1));
-  expect(h.service.feed.headSeq()).toBe(seqs.length);
+  expect(expectOk(h.service.feed.headSeq())).toBe(seqs.length);
   expectProjectionsRebuildable(h.store.db);
 });
 
@@ -219,7 +219,7 @@ describe("checkpoints", () => {
       step_index: 0,
       next: "turn_end",
     });
-    const loaded = await h.service.loadCheckpoint(threadId);
+    const loaded = expectOk(await h.service.loadCheckpoint(threadId));
     // leafEventId는 같은 커밋의 step.completed 이벤트다
     expect(String(loaded?.leafEventId)).toBe(rows[stepEnd]?.id ?? "");
     expect(String(loaded?.threadId)).toBe(threadId);

@@ -193,12 +193,19 @@ export interface LockBusy {
   readonly owner: LeaseOwnerInfo | null;
 }
 
+/** sys_leases 행을 읽을 수 없다(손상, 수동 편집). where는 `sys_leases.<열>`이다. 예상 가능한 실패라 값으로 돌려준다(eng.typescript.guide TY-24) */
+export interface LeaseRowInvalid {
+  readonly kind: "row_invalid";
+  readonly where: string;
+}
+
 export type LeaseError =
   | LockBusy
   | { readonly kind: "lease_lost"; readonly resource: LeaseResource }
   | { readonly kind: "busy" }
   | { readonly kind: "disk_full" }
-  | { readonly kind: "lock_io"; readonly code: string };
+  | { readonly kind: "lock_io"; readonly code: string }
+  | LeaseRowInvalid;
 
 export interface LeaseService {
   acquire(resource: LeaseResource, holder: LeaseHolder): Result<LeaseToken, LeaseError>;
@@ -207,9 +214,11 @@ export interface LeaseService {
   /** 행을 반납 상태로 두고 OS 잠금을 푼다. 이미 잃었으면 ok(아무 일 없음) */
   release(token: LeaseToken): Result<void, LeaseError>;
   /** 쓰기 트랜잭션 안에서 행을 새로 읽어 대조한다(TX-10). 캐시를 쓰지 않는다 */
-  holds(tx: SqlTx, token: LeaseToken): boolean;
+  holds(tx: SqlTx, token: LeaseToken): Result<boolean, LeaseRowInvalid>;
   /** 읽기 연결로 현재 소유 정보를 본다. 표시용 */
-  inspect(resource: LeaseResource): Result<LeaseOwnerInfo | null, { readonly kind: "busy" }>;
+  inspect(
+    resource: LeaseResource,
+  ): Result<LeaseOwnerInfo | null, { readonly kind: "busy" } | LeaseRowInvalid>;
   /** heartbeatMs마다 renew. 실패가 lease_lost면 onLost를 한 번 부르고 멈춘다 */
   keepAlive(token: LeaseToken, onLost: (resource: LeaseResource) => void): Disposable;
 }

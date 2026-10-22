@@ -85,11 +85,12 @@ for await (const line of createInterface({ input: process.stdin })) {
   } else if (command === "holds" && token !== undefined) {
     const current = token;
     const held = store.root.write((tx) => store.service.leases.holds(tx, current));
-    say({ holds: held.ok && held.value });
+    say({ holds: held.ok && held.value.ok && held.value.value });
   } else if (command === "commit" && token !== undefined) {
     const current = token;
     const written = store.root.write((tx) => {
-      if (!store.service.leases.holds(tx, current)) return false;
+      const held = store.service.leases.holds(tx, current);
+      if (!held.ok || !held.value) return false;
       tx.run("INSERT INTO t_commit (writer) VALUES (?)", [current.holderId]);
       return true;
     });

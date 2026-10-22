@@ -1,4 +1,4 @@
-import { parse, type Logger } from "@xeon/contracts";
+import { ok, parse, type Logger, type Result } from "@xeon/contracts";
 import type { EventId, ImageContent, TextContent, ThreadId } from "@xeon/contracts/conversation";
 import {
   EXTENSION_KIND_PATTERN,
@@ -8,6 +8,7 @@ import {
   type DurableEventEnvelope,
   type InputQueuedPayload,
   type InputView,
+  type ReadFailure,
 } from "@xeon/contracts/records";
 import type { PostContent, PostItem, RecordKind } from "@xeon/contracts/extensions";
 import type { InputDraft, QueuedInput } from "@xeon/contracts/services";
@@ -83,34 +84,42 @@ function readThreadEvents(
   threadId: ThreadId,
   afterSeq: number,
   kindPrefixes: readonly string[],
-): readonly DurableEventEnvelope[] {
+): Result<readonly DurableEventEnvelope[], ReadFailure> {
   const upto = session.feed.headSeq();
+  if (!upto.ok) return upto;
   const out: DurableEventEnvelope[] = [];
   let cursor = afterSeq;
-  while (cursor < upto) {
+  while (cursor < upto.value) {
     const page = session.feed.read(
       cursor,
-      upto,
+      upto.value,
       { threadIds: [threadId], kindPrefixes },
       PAGE_LIMIT,
       SCAN_LIMIT,
     );
-    out.push(...page.events);
-    const last = page.events.at(-1);
-    const next = page.events.length >= PAGE_LIMIT && last !== undefined ? last.seq : page.scannedTo;
+    if (!page.ok) return page;
+    out.push(...page.value.events);
+    const last = page.value.events.at(-1);
+    const next =
+      page.value.events.length >= PAGE_LIMIT && last !== undefined
+        ? last.seq
+        : page.value.scannedTo;
     if (next <= cursor) break;
     cursor = next;
   }
-  return out;
+  return ok(out);
 }
 
-/** 투영 행(InputView) 하나에 대응하는 input.queued 이벤트를 읽어 QueuedInput으로 만든다 */
+/**
+ * 투영 행(InputView) 하나에 대응하는 input.queued 이벤트를 읽어 QueuedInput으로 만든다.
+ * 이벤트를 읽을 수 없거나 모양이 틀린 입력은 건너뛰고(undefined) 기록한다. 읽기 연결의 실패는 오류 값이다
+ */
 export function loadQueuedInput(
   session: Pick<TasksSession, "feed">,
   log: Logger,
   threadId: ThreadId,
   view: InputView,
-): QueuedInput | undefined {
+): Result<QueuedInput | undefined, ReadFailure> {
   const page = session.feed.read(
     view.seq - 1,
     view.seq,
@@ -118,27 +127,28 @@ export function loadQueuedInput(
     1,
     1,
   );
-  const event = page.events.find((candidate) => candidate.id === view.inputId);
+  if (!page.ok) return page;
+  const event = page.value.events.find((candidate) => candidate.id === view.inputId);
   if (event === undefined) {
     log.error("tasks.queued_event_missing", { threadId, inputId: view.inputId, seq: view.seq });
-    return undefined;
+    return ok(undefined);
   }
   if (event.detached !== undefined && event.detached.length > 0) {
     // 큰 문자열(이미지 data 등)이 blob 자리표시로 바뀐 입력은 동기 읽기로 되돌릴 수 없다. 자리표시를 모델에 보내지 않는다
     log.error("tasks.queued_input_detached", { threadId, inputId: view.inputId });
-    return undefined;
+    return ok(undefined);
   }
   const parsed = parse(InputQueuedPayloadSchema, event.payload);
   if (!parsed.ok) {
     log.error("tasks.queued_payload_invalid", { threadId, inputId: view.inputId });
-    return undefined;
+    return ok(undefined);
   }
   const draft = draftOfPayload(threadId, parsed.value);
   if (draft === undefined) {
     log.error("tasks.queued_item_invalid", { threadId, inputId: view.inputId });
-    return undefined;
+    return ok(undefined);
   }
-  return { ...draft, inputId: event.id, seq: event.seq };
+  return ok({ ...draft, inputId: event.id, seq: event.seq });
 }
 
 export interface FoundInput {
@@ -152,15 +162,17 @@ export function findQueuedEvent(
   threadId: ThreadId,
   sourceKey: string,
   requestId: string,
-): FoundInput | undefined {
-  for (const event of readThreadEvents(session, threadId, 0, ["input.queued"])) {
+): Result<FoundInput | undefined, ReadFailure> {
+  const events = readThreadEvents(session, threadId, 0, ["input.queued"]);
+  if (!events.ok) return events;
+  for (const event of events.value) {
     const parsed = parse(InputQueuedPayloadSchema, event.payload);
     if (!parsed.ok) continue;
     if (parsed.value.requestId === requestId && sourceKeyOf(parsed.value.source) === sourceKey) {
-      return { inputId: event.id, seq: event.seq };
+      return ok({ inputId: event.id, seq: event.seq });
     }
   }
-  return undefined;
+  return ok(undefined);
 }
 
 /** 입력의 현재 상태. queued 이후의 input.placed·input.withdrawn을 본다 */
@@ -168,18 +180,20 @@ export function stateOfInput(
   session: Pick<TasksSession, "feed">,
   threadId: ThreadId,
   found: FoundInput,
-): "queued" | "placed" | "withdrawn" {
-  for (const event of readThreadEvents(session, threadId, found.seq, [
+): Result<"queued" | "placed" | "withdrawn", ReadFailure> {
+  const events = readThreadEvents(session, threadId, found.seq, [
     "input.placed",
     "input.withdrawn",
-  ])) {
+  ]);
+  if (!events.ok) return events;
+  for (const event of events.value) {
     if (event.kind === "input.placed") {
       const parsed = parse(InputPlacedPayloadSchema, event.payload);
-      if (parsed.ok && parsed.value.inputId === found.inputId) return "placed";
+      if (parsed.ok && parsed.value.inputId === found.inputId) return ok("placed");
     } else {
       const parsed = parse(InputWithdrawnPayloadSchema, event.payload);
-      if (parsed.ok && parsed.value.inputId === found.inputId) return "withdrawn";
+      if (parsed.ok && parsed.value.inputId === found.inputId) return ok("withdrawn");
     }
   }
-  return "queued";
+  return ok("queued");
 }

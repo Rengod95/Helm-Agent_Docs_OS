@@ -1,4 +1,5 @@
 import { Type, type TUnsafe } from "typebox";
+import type { Result } from "../base/index.ts";
 import type {
   AnyCapabilityDef,
   CapabilityId,
@@ -29,12 +30,19 @@ import type {
   ToolResultRecord,
   TurnId,
 } from "../conversation/index.ts";
-import type { PortKey, ScopeId, ToolResourceDef, ToolsPort } from "../extensions/index.ts";
+import type {
+  PortKey,
+  ScopeId,
+  ToolRegisterError,
+  ToolResourceDef,
+  ToolsPort,
+} from "../extensions/index.ts";
 import type {
   BlobRef,
   DurableEventDraft,
   EffectIntent,
   PendingToolCall,
+  ReadFailure,
   StampedDraft,
   StoreError,
 } from "../records/index.ts";
@@ -478,13 +486,13 @@ export interface RuleRegistration {
 
 /** ToolsPort(F.extensions.spec §3.2.1)를 확장한다. 확장의 hostOf(g).registerTool은 register(owner, def) 오버로드로 들어온다 */
 export interface ToolService extends ToolsPort {
-  /** L1·L2 코드 등록. 같은 순서 키·이름이 이미 있으면 ToolsError(tools.name_conflict)를 던진다 */
-  register(registration: ToolRegistration): Unregister;
+  /** L1·L2 코드 등록. 같은 이름이 이미 있으면 name_conflict를 돌려주고 표는 바뀌지 않는다 */
+  register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
   /**
    * X ToolsPort 등록. orderKey는 `ext.<owner의 확장 이름>`, tool은 def의 name·description·parameters와 def.execute를 감싼 AgentTool,
    * 재생 정책은 def.replay다. hints·policy·exposure·outputLimits는 생략하고 유도 규칙을 따른다
    */
-  register(owner: ScopeId, def: ToolResourceDef): Unregister;
+  register(owner: ScopeId, def: ToolResourceDef): Result<Unregister, ToolRegisterError>;
 
   /** 메타 조회. 동기, 순수 조회. 확장 핸들러가 쓰기 판정에 쓴다 */
   meta(name: ToolName): ToolMeta | undefined;
@@ -527,7 +535,7 @@ export interface ToolService extends ToolsPort {
    * 재개 때 재실행. decideEffectRecovery가 rerun을 낸 효과만 받는다. tool_call 지점과 정책을 다시 거치지 않는다.
    * 결과는 `effect.result`와 같은 커밋에 기록되어 돌아온다.
    */
-  rerun(intent: EffectIntent, run: ToolRunContext): Promise<ToolCallOutcome>;
+  rerun(intent: EffectIntent, run: ToolRunContext): Promise<Result<ToolCallOutcome, ReadFailure>>;
 
   /** 코어 규칙 등록(default 티어). source는 "core:<L1 도메인>". 같은 source로 다시 부르면 그 source의 규칙을 통째로 바꾼다 */
   registerRules(source: `core:${string}`, rules: readonly PolicyRule[]): RuleRegistration;

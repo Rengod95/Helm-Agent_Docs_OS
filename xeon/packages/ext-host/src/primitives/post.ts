@@ -40,6 +40,7 @@ function postFailure(error: EnqueueError, scopeId: ScopeId): Error {
     case "io":
     case "ownership_lost":
     case "read_only":
+    case "row_invalid":
       return new PrimitiveError("storage_unavailable", `input queue rejected post: ${error.kind}`, {
         scopeId,
         cause: error,

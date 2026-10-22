@@ -181,7 +181,7 @@ export interface BranchSummaryDraft {
 }
 
 export type ContextErrorKind =
-  | "branch_not_found" | "projection_failed" | "summary_failed" | "summary_has_tool_call"
+  | "branch_not_found" | "read_failed" | "projection_failed" | "summary_failed" | "summary_has_tool_call"
   | "summary_truncated" | "commit_failed" | "aborted";
 export interface ContextError { readonly kind: ContextErrorKind; readonly message: string }
 ```

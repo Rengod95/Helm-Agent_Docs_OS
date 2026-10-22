@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { err, ok } from "@xeon/contracts";
+import { err, ok, type Result } from "@xeon/contracts";
 import type {
   CommitBatch,
   DurableEventEnvelope,
+  ReadFailure,
   VolatileEventEnvelope,
 } from "@xeon/contracts/records";
 import { faultAt } from "../src/testing/index.ts";
@@ -23,10 +24,10 @@ function blobRef(sha256: string) {
 }
 
 async function collect(
-  source: AsyncIterable<DurableEventEnvelope>,
+  source: AsyncIterable<Result<DurableEventEnvelope, ReadFailure>>,
 ): Promise<DurableEventEnvelope[]> {
   const out: DurableEventEnvelope[] = [];
-  for await (const event of source) out.push(event);
+  for await (const event of source) out.push(expectOk(event));
   return out;
 }
 
@@ -160,13 +161,15 @@ describe("subscribe catch-up", () => {
     fullStep(h, turn, 0, [{ toolCallId: "tc1", toolName: "read", replay: "safe" }]);
     const afterSeq = 3;
     const seqs: number[] = [];
-    const off = h.service.subscribe(afterSeq, (batch) => {
-      for (const event of batch.events) seqs.push(event.seq);
-    });
+    const off = expectOk(
+      h.service.subscribe(afterSeq, (batch) => {
+        for (const event of batch.events) seqs.push(event.seq);
+      }),
+    );
     endTurn(h, turn);
     startTurn(h, threadId);
     off();
-    const head = h.service.feed.headSeq();
+    const head = expectOk(h.service.feed.headSeq());
     expect(seqs).toEqual(
       Array.from({ length: head - afterSeq }, (_, index) => afterSeq + 1 + index),
     );
@@ -179,13 +182,15 @@ describe("subscribe catch-up", () => {
     startTurn(h, a.threadId);
     startTurn(h, b.threadId);
     const got: string[] = [];
-    h.service.subscribe(
-      0,
-      (batch) => {
-        for (const event of batch.events)
-          got.push(`${event.threadId === a.threadId ? "a" : "b"}:${event.kind}`);
-      },
-      { threadIds: [a.threadId], excludeKindPrefixes: ["item."] },
+    expectOk(
+      h.service.subscribe(
+        0,
+        (batch) => {
+          for (const event of batch.events)
+            got.push(`${event.threadId === a.threadId ? "a" : "b"}:${event.kind}`);
+        },
+        { threadIds: [a.threadId], excludeKindPrefixes: ["item."] },
+      ),
     );
     startTurn(h, b.threadId);
     startTurn(h, a.threadId);
@@ -199,14 +204,14 @@ describe("reads", () => {
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     fullStep(h, turn, 0, []);
-    const head = h.service.feed.headSeq();
-    const firstPage = h.service.feed.read(0, head, undefined, 2, 100);
+    const head = expectOk(h.service.feed.headSeq());
+    const firstPage = expectOk(h.service.feed.read(0, head, undefined, 2, 100));
     expect(firstPage.events.map((event) => event.seq)).toEqual([1, 2]);
     expect(firstPage.scannedTo).toBe(2);
-    const filtered = h.service.feed.read(0, head, { kindPrefixes: ["step."] }, 10, 3);
+    const filtered = expectOk(h.service.feed.read(0, head, { kindPrefixes: ["step."] }, 10, 3));
     expect(filtered.events).toEqual([]);
     expect(filtered.scannedTo).toBe(3);
-    const rest = h.service.feed.read(3, head, { kindPrefixes: ["step."] }, 10, 100);
+    const rest = expectOk(h.service.feed.read(3, head, { kindPrefixes: ["step."] }, 10, 100));
     expect(rest.events.map((event) => event.kind)).toEqual(["step.started", "step.completed"]);
     expect(rest.scannedTo).toBe(head);
     expect(h.service.feed.oldestReplayableSeq()).toBe(0);

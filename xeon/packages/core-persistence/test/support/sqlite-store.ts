@@ -4,6 +4,7 @@ import { Database } from "bun:sqlite";
 import { Bug, canonicalJson, err, ok, type Result } from "@xeon/contracts";
 import type {
   LeaseError,
+  LeaseRowInvalid,
   LeaseHolder,
   LeaseOwnerInfo,
   LeaseResource,
@@ -222,16 +223,16 @@ export function openTestStore(options: TestStoreOptions): TestStore {
       );
       return ok(undefined);
     },
-    holds(inTx, token): boolean {
+    holds(inTx, token): Result<boolean, LeaseRowInvalid> {
       const row = inTx.get(
         "SELECT holder_id, epoch, released_at FROM sys_leases WHERE resource = ?",
         [token.resource],
       );
-      return (
+      return ok(
         row !== undefined &&
-        row["holder_id"] === token.holderId &&
-        row["epoch"] === token.epoch &&
-        row["released_at"] === null
+          row["holder_id"] === token.holderId &&
+          row["epoch"] === token.epoch &&
+          row["released_at"] === null,
       );
     },
     inspect(resource) {

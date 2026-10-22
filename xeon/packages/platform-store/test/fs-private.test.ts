@@ -72,9 +72,9 @@ describe("row helpers", () => {
       d: 2n,
       e: new Uint8Array([1]),
     });
-    expect(() => toSqlRow(null)).toThrow("store.row_invalid");
-    expect(() => toSqlRow([1])).toThrow("store.row_invalid");
-    expect(() => toSqlRow({ a: true })).toThrow("store.row_invalid");
+    expect(() => toSqlRow(null)).toThrow("store.engine_shape");
+    expect(() => toSqlRow([1])).toThrow("store.engine_shape");
+    expect(() => toSqlRow({ a: true })).toThrow("store.engine_shape");
   });
 
   test("column readers check the cell type", () => {
@@ -84,8 +84,8 @@ describe("row helpers", () => {
     expect(columnInt(row, "b")).toBe(4);
     expect(columnNullableInt(row, "n")).toBeNull();
     expect(columnNullableInt(row, "i")).toBe(3);
-    expect(() => columnString(row, "i")).toThrow("store.row_invalid");
-    expect(() => columnInt(row, "s")).toThrow("store.row_invalid");
-    expect(() => columnInt(row, "missing")).toThrow("store.row_invalid");
+    expect(() => columnString(row, "i")).toThrow("store.engine_shape");
+    expect(() => columnInt(row, "s")).toThrow("store.engine_shape");
+    expect(() => columnInt(row, "missing")).toThrow("store.engine_shape");
   });
 });

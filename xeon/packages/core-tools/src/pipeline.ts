@@ -1,4 +1,4 @@
-import { Bug, canonicalJson, parse } from "@xeon/contracts";
+import { Bug, canonicalJson, ok, parse, type Result } from "@xeon/contracts";
 import { FIRST_DENY, type CapabilityRef, type ToolResultValue } from "@xeon/contracts/extensions";
 import {
   BlobRefSchema,
@@ -9,6 +9,7 @@ import {
   type EffectIntent,
   type EffectResult,
   type EffectStatus,
+  type ReadFailure,
   type StampedDraft,
 } from "@xeon/contracts/records";
 import type {
@@ -86,7 +87,7 @@ export interface Pipeline {
     reason: RejectReason,
     run: ToolRunContext,
   ): Promise<readonly ToolCallOutcome[]>;
-  rerun(intent: EffectIntent, run: ToolRunContext): Promise<ToolCallOutcome>;
+  rerun(intent: EffectIntent, run: ToolRunContext): Promise<Result<ToolCallOutcome, ReadFailure>>;
 }
 
 /**
@@ -447,9 +448,11 @@ export function createPipeline(
       return undefined;
     }
     // 같은 키의 의도가 이미 커밋되어 있었다. 저장된 효과의 id를 이어 쓴다
-    const stored = deps.session.query
-      .openEffects(run.threadId)
-      .find((effect) => effect.toolCallId === toolCallId);
+    const open = deps.session.query.openEffects(run.threadId);
+    if (!open.ok) {
+      return denied(`[xeon:tools.commit_failed] session read failed: ${open.error.kind}`);
+    }
+    const stored = open.value.find((effect) => effect.toolCallId === toolCallId);
     if (stored === undefined) {
       return denied("[xeon:tools.commit_failed] the stored effect.intent is already settled");
     }
@@ -953,7 +956,10 @@ export function createPipeline(
     }
   }
 
-  async function rerun(intent: EffectIntent, run: ToolRunContext): Promise<ToolCallOutcome> {
+  async function rerun(
+    intent: EffectIntent,
+    run: ToolRunContext,
+  ): Promise<Result<ToolCallOutcome, ReadFailure>> {
     const entry = registry.get(intent.toolName);
     if (entry === undefined) {
       throw new Bug(`tools.rerun_tool_missing: ${intent.toolName} is no longer registered`);
@@ -965,10 +971,11 @@ export function createPipeline(
       name: intent.toolName,
       arguments: args ?? {},
     };
+    // 실행 횟수를 읽지 못하면 다시 실행하지 않는다. 호출자(재개)가 오류 값으로 받아 run을 멈춘다
+    const open = deps.session.query.openEffects(run.threadId);
+    if (!open.ok) return open;
     const execCount =
-      deps.session.query
-        .openEffects(run.threadId)
-        .find((effect) => effect.effectId === intent.effectId)?.execCount ?? 0;
+      open.value.find((effect) => effect.effectId === intent.effectId)?.execCount ?? 0;
     const state: CallState = {
       threadId: run.threadId,
       toolCallId: intent.toolCallId,
@@ -997,14 +1004,14 @@ export function createPipeline(
           signal: undefined,
           skipChain: true,
         });
-        return outcomeOf(call, "executed", finished);
+        return ok(outcomeOf(call, "executed", finished));
       }
       const outcome = await runCall(state, args, undefined, () => {});
       const finished = await finishCall(state, outcome.result, outcome.result.isError === true, {
         signal: undefined,
         skipChain: false,
       });
-      return outcomeOf(call, "executed", finished);
+      return ok(outcomeOf(call, "executed", finished));
     } finally {
       forget(state);
     }

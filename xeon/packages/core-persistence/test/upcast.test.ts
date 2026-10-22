@@ -11,7 +11,7 @@ function foreignEvent(
   kind: string,
   version: number,
 ): void {
-  const seq = h.service.feed.headSeq() + 1;
+  const seq = expectOk(h.service.feed.headSeq()) + 1;
   const id = h.ids.next("evt");
   const envelope = {
     id,
@@ -103,8 +103,8 @@ describe("upcast_on_read_and_read_only_on_future_version", () => {
     const restarted = reopenHarness(h);
     const report = expectOk(restarted.service.openForWrite(threadId, tokenOf(h, threadId)));
     expect(report.readOnly).toBeNull();
-    const head = restarted.service.feed.headSeq();
-    expect(restarted.service.query.thread(threadId)?.headSeq).toBe(head);
+    const head = expectOk(restarted.service.feed.headSeq());
+    expect(expectOk(restarted.service.query.thread(threadId))?.headSeq).toBe(head);
     expectProjectionsRebuildable(restarted.store.db);
   });
 
@@ -112,7 +112,9 @@ describe("upcast_on_read_and_read_only_on_future_version", () => {
     const h = openHarness();
     const { threadId } = newThread(h);
     const events: number[] = [];
-    for await (const event of h.service.readFrom(0, { threadId })) events.push(event.version);
+    for await (const event of h.service.readFrom(0, { threadId })) {
+      events.push(expectOk(event).version);
+    }
     expect(events).toEqual([1]);
   });
 });

@@ -43,28 +43,31 @@ describe("ExtHost.registerPlatform", () => {
     expect(lines.map(eventOf).at(-1)).toBe("os.service.stopped");
   });
 
-  test("지원 밖 플랫폼이면 registerPlatform이 던지고 포트가 없다", async () => {
+  test("지원 밖 플랫폼이면 registerPlatform이 시작 실패 값을 돌려주고 포트가 없다", async () => {
     const host = newHost();
-    const failure = await host
-      .registerPlatform(
-        platformOsPlugin(
-          { resourceDir: "/opt/x", logSink: () => {}, logRedact: (l) => l },
-          fakeRuntime({
-            probe: {
-              platform: "aix",
-              arch: "x64",
-              release: "",
-              wslDistro: undefined,
-              procVersion: undefined,
-            },
-          }),
-        ),
-      )
-      .then(
-        () => undefined,
-        (caught: unknown) => caught,
-      );
-    expect(failure).toBeDefined();
+    const failure = await host.registerPlatform(
+      platformOsPlugin(
+        { resourceDir: "/opt/x", logSink: () => {}, logRedact: (l) => l },
+        fakeRuntime({
+          probe: {
+            platform: "aix",
+            arch: "x64",
+            release: "",
+            wslDistro: undefined,
+            procVersion: undefined,
+          },
+        }),
+      ),
+    );
+    expect(failure).toEqual({
+      ok: false,
+      error: {
+        kind: "setup_failed",
+        module: "platform-os",
+        reason: "unsupported_platform",
+        cause: { kind: "unsupported_platform", platform: "aix" },
+      },
+    });
     expect(host.ports.get(OsPortKey)).toBeUndefined();
     await host.dispose();
   });

@@ -1,4 +1,4 @@
-import { assertNever, parse } from "@xeon/contracts";
+import { assertNever, ok, parse, type Result } from "@xeon/contracts";
 import { isCapabilityId, type CapabilityId } from "@xeon/contracts/capabilities";
 import type { EventId, ThreadId } from "@xeon/contracts/conversation";
 import {
@@ -7,6 +7,7 @@ import {
   type ApprovalRequestedPayload,
   type ApprovalResolvedPayload,
   type DurableEventEnvelope,
+  type ReadFailure,
   type SessionService,
 } from "@xeon/contracts/records";
 import {
@@ -114,10 +115,12 @@ export interface ScannedApprovals {
 export async function scanApprovals(
   session: Pick<SessionService, "readBranch">,
   threadId: ThreadId,
-): Promise<ScannedApprovals> {
+): Promise<Result<ScannedApprovals, ReadFailure>> {
   const requests: ScannedRequest[] = [];
   const resolved = new Map<string, ApprovalResolvedPayload>();
-  for await (const event of session.readBranch(threadId)) {
+  for await (const read of session.readBranch(threadId)) {
+    if (!read.ok) return read;
+    const event = read.value;
     if (event.kind === "approval.requested") {
       const request = requestOf(event);
       if (request !== undefined) requests.push({ eventId: event.id, request });
@@ -126,5 +129,5 @@ export async function scanApprovals(
       if (parsed.ok) resolved.set(parsed.value.approvalId, parsed.value);
     }
   }
-  return { requests, resolved };
+  return ok({ requests, resolved });
 }

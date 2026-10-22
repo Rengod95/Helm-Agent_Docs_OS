@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { err, ok } from "@xeon/contracts";
 import type { PlatformModule } from "@xeon/ext-host";
 import { OsPortKey } from "@xeon/contracts/services";
 import { readOsRuntime, type OsRuntime } from "./runtime.ts";
@@ -19,7 +19,7 @@ export { systemScheduler, type SystemScheduler } from "./time/scheduler.ts";
 
 /**
  * L0 등록 단위. 조립 루트가 ExtHost.registerPlatform으로 등록한다. 플랫폼 판별이나 디렉터리 준비가 실패하면
- * setup이 던지고 registerPlatform이 그대로 던진다(시작 실패, L0.os.spec §3.10).
+ * setup이 err를 돌려주고 registerPlatform이 그 오류를 값으로 돌려준다(시작 실패, L0.os.spec §3.10).
  */
 export function platformOsPlugin(
   config: PlatformOsConfig,
@@ -29,13 +29,10 @@ export function platformOsPlugin(
     name: "platform-os",
     async setup(ctx) {
       const started = await createOsService(config, runtime);
-      if (!started.ok) {
-        throw new Bug(`platform-os failed to start: ${started.error.kind}`, {
-          cause: started.error,
-        });
-      }
+      if (!started.ok) return err({ reason: started.error.kind, cause: started.error });
       ctx.providePort(OsPortKey, started.value.service);
       ctx.onDispose(() => started.value.dispose());
+      return ok(undefined);
     },
   };
 }

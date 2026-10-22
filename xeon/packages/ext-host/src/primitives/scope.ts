@@ -212,7 +212,14 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
         const api = deps.makeApi(record, generation);
         generation.api = api;
         try {
-          await withoutAmbient(() => record.setup(api));
+          const returned = await withoutAmbient(() => record.setup(api));
+          if (typeof returned === "object" && !returned.ok) {
+            // setup이 시작할 수 없다고 값으로 알렸다. fiber는 던져야 닫히므로 같은 실패 경로로 보낸다
+            throw new PrimitiveError("scope_setup_failed", returned.error.reason, {
+              scopeId: record.id,
+              cause: returned.error.cause,
+            });
+          }
         } catch (error) {
           captured.error = error;
           captured.set = true;

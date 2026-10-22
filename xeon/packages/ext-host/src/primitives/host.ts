@@ -1,6 +1,8 @@
+import { err, ok, type Result } from "@xeon/contracts";
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import { portAs } from "../erase.ts";
 import type {
+  SetupRefusal,
   ExtensionEntry,
   ExtensionManifest,
   ExtensionName,
@@ -87,11 +89,22 @@ export interface InstallResult {
   readonly issues: readonly ManifestIssue[];
 }
 
+/** registerPlatform이 돌려주는 시작 실패. module은 PlatformModule.name이다 */
+export interface PlatformSetupError {
+  readonly kind: "setup_failed";
+  readonly module: string;
+  readonly reason: string;
+  readonly cause: unknown;
+}
+
 /** L0 플랫폼 패키지(platform-*)의 등록 단위. 매니페스트가 없고 on·post·drive·scope를 쓰지 않는다 */
 export interface PlatformModule {
   /** 패키지 매니페스트 이름. 예: "platform-store" */
   readonly name: string;
-  setup(ctx: PlatformContext): void | Promise<void>;
+  /** 실패할 수 있는 시작은 err를 돌려준다. 던지면 버그다(포트 조회 실패 같은 호출 계약 위반) */
+  setup(
+    ctx: PlatformContext,
+  ): void | Result<void, SetupRefusal> | Promise<void | Result<void, SetupRefusal>>;
 }
 
 /** L0 setup이 받는 좁은 객체. Cordis Context는 넘기지 않는다 */
@@ -110,8 +123,8 @@ interface InstallOptions {
 }
 
 export interface ExtHost {
-  /** L0 플랫폼 패키지를 등록한다. 조립 루트가 확장 설치 전에 부른다. setup이 던지면 그대로 던진다(시작 실패) */
-  registerPlatform(module: PlatformModule): Promise<void>;
+  /** L0 플랫폼 패키지를 등록한다. 조립 루트가 확장 설치 전에 부른다. setup이 err를 돌려주면 등록을 거두고 그 오류를 돌려준다(시작 실패). 던지면 그대로 던진다(버그) */
+  registerPlatform(module: PlatformModule): Promise<Result<void, PlatformSetupError>>;
   /**
    * 엔트리를 실행해 scope 정의를 모으고, 기본 활성 scope의 켜기를 시작 적용한다.
    * signal이 중단되면 엔트리 실행을 기다리지 않고 entryError(scope_setup_failed)로 끝낸다
@@ -424,6 +437,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       await ready;
       const disposers: (() => void | Promise<void>)[] = [];
       const captured: { error?: unknown; set: boolean } = { set: false };
+      const started: { failure: SetupRefusal | undefined } = { failure: undefined };
       const opened = bridge.openFiber({
         name: `platform:${module.name}`,
         inject: [],
@@ -447,7 +461,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
             "platform.onDispose",
           );
           try {
-            await module.setup({
+            const returned = await module.setup({
               providePort: (key, impl) => {
                 provider.provide(key, impl);
               },
@@ -462,6 +476,11 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
                 disposers.push(fn);
               },
             });
+            if (typeof returned === "object" && !returned.ok) {
+              // Cordis는 apply가 던져야 fiber를 실패로 닫는다. 던진 값은 아래에서 start.failure로 바꾼다
+              started.failure = returned.error;
+              throw new PrimitiveError("scope_setup_failed", `${module.name} did not start`);
+            }
           } catch (error) {
             captured.error = error;
             captured.set = true;
@@ -472,8 +491,18 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       const settled = await opened.settled;
       if (!settled.ok) {
         await opened.dispose();
+        const failure = started.failure;
+        if (failure !== undefined) {
+          return err({
+            kind: "setup_failed",
+            module: module.name,
+            reason: failure.reason,
+            cause: failure.cause,
+          });
+        }
         throw captured.set ? captured.error : settled.error;
       }
+      return ok(undefined);
     },
     install,
     async uninstall(name) {

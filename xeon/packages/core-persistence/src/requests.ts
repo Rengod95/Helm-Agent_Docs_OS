@@ -1,8 +1,7 @@
-import { Bug } from "@xeon/contracts";
-import type { CommitResult, EventId, SqlRow, SqlTx } from "@xeon/contracts/records";
-import { toEventId } from "./ids.ts";
-import { parseJson } from "./events.ts";
-import { columnString } from "./rows.ts";
+import { err, ok, parseJson, type Result } from "@xeon/contracts";
+import { isId, type EventId } from "@xeon/contracts/conversation";
+import type { CommitResult, SqlRow, SqlTx } from "@xeon/contracts/records";
+import { columns, rowInvalid, type RowFault } from "./rows.ts";
 
 /** 저장 결과. replayed는 저장하지 않는다(L1.persistence.spec §3.10) */
 export type StoredResult = Exclude<CommitResult, { readonly status: "key_reused" }>;
@@ -16,61 +15,64 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseStoredResult(text: string): StoredResult {
-  const raw = parseJson(text);
-  if (!isRecord(raw)) throw new Bug("store.row_invalid: requests.result is not an object");
+function fault(what: string): Result<never, RowFault> {
+  return err(rowInvalid(`requests.result ${what}`));
+}
+
+function parseStoredResult(text: string): Result<StoredResult, RowFault> {
+  const json = parseJson(text);
+  if (!json.ok) return fault("is not JSON");
+  const raw = json.value;
+  if (!isRecord(raw)) return fault("is not an object");
   if (raw["status"] === "committed") {
     const { firstSeq, lastSeq, leaf, eventIds } = raw;
     if (
       typeof firstSeq !== "number" ||
       typeof lastSeq !== "number" ||
-      !(leaf === null || typeof leaf === "string") ||
+      !(leaf === null || isId("evt", leaf)) ||
       !Array.isArray(eventIds)
     ) {
-      throw new Bug("store.row_invalid: requests.result committed shape");
+      return fault("committed shape");
     }
     const items: readonly unknown[] = eventIds;
     const ids: EventId[] = [];
     for (const id of items) {
-      if (typeof id !== "string") throw new Bug("store.row_invalid: requests.result eventIds");
-      ids.push(toEventId(id));
+      if (!isId("evt", id)) return fault("eventIds");
+      ids.push(id);
     }
-    return {
-      status: "committed",
-      firstSeq,
-      lastSeq,
-      leaf: leaf === null ? null : toEventId(leaf),
-      eventIds: ids,
-      replayed: false,
-    };
+    return ok({ status: "committed", firstSeq, lastSeq, leaf, eventIds: ids, replayed: false });
   }
   if (raw["status"] === "rejected") {
     const { code, detail } = raw;
     if (typeof code !== "string" || !(detail === null || typeof detail === "string")) {
-      throw new Bug("store.row_invalid: requests.result rejected shape");
+      return fault("rejected shape");
     }
-    return { status: "rejected", code, detail, replayed: false };
+    return ok({ status: "rejected", code, detail, replayed: false });
   }
-  throw new Bug("store.row_invalid: requests.result status");
+  return fault("status");
 }
 
-function storedFrom(row: SqlRow): StoredRequest {
-  return {
-    fingerprint: columnString(row, "fingerprint"),
-    result: parseStoredResult(columnString(row, "result")),
-  };
+function storedFrom(row: SqlRow): Result<StoredRequest, RowFault> {
+  const c = columns(row, "requests");
+  const fingerprint = c.string("fingerprint");
+  if (!fingerprint.ok) return fingerprint;
+  const text = c.string("result");
+  if (!text.ok) return text;
+  const result = parseStoredResult(text.value);
+  if (!result.ok) return result;
+  return ok({ fingerprint: fingerprint.value, result: result.value });
 }
 
 export function findRequest(
   tx: SqlTx,
   threadId: string,
   requestId: string,
-): StoredRequest | undefined {
+): Result<StoredRequest | undefined, RowFault> {
   const row = tx.get(
     "SELECT fingerprint, result FROM requests WHERE thread_id = ? AND request_id = ?",
     [threadId, requestId],
   );
-  return row === undefined ? undefined : storedFrom(row);
+  return row === undefined ? ok(undefined) : storedFrom(row);
 }
 
 export function insertRequest(

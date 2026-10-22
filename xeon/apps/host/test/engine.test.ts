@@ -29,7 +29,8 @@ describe("real engine", () => {
     const engine = await assemble({ mode: "in-process", devChecks: true });
     expect(engine.storeId.startsWith("sto_")).toBe(true);
     expect(engine.catalog.has("l4.host-service.maxReplayEvents")).toBe(true);
-    expect(engine.ports.feed.headSeq()).toBeGreaterThanOrEqual(0);
+    const head = engine.ports.feed.headSeq();
+    expect(head.ok && head.value).toBeGreaterThanOrEqual(0);
     await engine.close();
     // 두 번 닫아도 된다
     await engine.close();

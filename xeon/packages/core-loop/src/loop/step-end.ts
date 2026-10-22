@@ -103,7 +103,12 @@ export async function endStep(
   const stepLimit = stepLimitReached({ maxSteps: state.maxSteps }, totals.stepCount);
   const externalStop = spec.driveSignal?.aborted === true;
   const stopping = thread.stopRequested;
-  const steerQueued = ctx.tasks.inputs.peek(threadId, ["steer"]);
+  const steerRead = ctx.tasks.inputs.peek(threadId, ["steer"]);
+  if (!steerRead.ok) {
+    // 대기 중인 steer를 읽지 못하면 이 단계 끝을 정할 수 없다. 단계 끝 커밋 전이라 turn은 열린 채 실패로 알린다
+    return err({ kind: "read_failed", detail: `steer queue: ${steerRead.error.kind}` });
+  }
+  const steerQueued = steerRead.value;
   const hasMore = calls.length > 0 && !input.terminate;
   const steerPending = steerQueued.length > 0;
   const candidate = hardStop || deferred || (!hasMore && !steerPending);

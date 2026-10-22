@@ -149,6 +149,8 @@ export interface BranchSummaryDraft {
 
 export type ContextErrorKind =
   | "branch_not_found"
+  /** 세션 읽기 실패(읽기 연결의 busy, io, 손상 행) */
+  | "read_failed"
   | "projection_failed"
   | "summary_failed"
   | "summary_has_tool_call"

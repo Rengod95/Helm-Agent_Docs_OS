@@ -17,6 +17,7 @@ import {
   registerWorkspace,
   textOf,
   until,
+  expectOk,
 } from "./support/harness.ts";
 
 const ALLOW_BASH = layer("user", {
@@ -166,7 +167,7 @@ test("arguments over 256 KiB go to a blob in the intent and a rerun reads them b
     type: "blob",
     size: 300_000 + '{"command":""}'.length,
   });
-  const record = await h.runtime.tools.rerun(intent.value, run);
+  const record = expectOk(await h.runtime.tools.rerun(intent.value, run));
   expect(record.isError).toBe(false);
   expect(seen).toEqual([big]);
 });

@@ -57,15 +57,15 @@ describe("p_threads", () => {
   test("the recovery marker is set by turn.started and cleared by turn.completed", () => {
     const h = openHarness();
     const { threadId } = newThread(h);
-    expect(h.service.query.thread(threadId)?.marker).toBeNull();
+    expect(expectOk(h.service.query.thread(threadId))?.marker).toBeNull();
     const turn = startTurn(h, threadId);
-    expect(h.service.query.thread(threadId)?.marker).toEqual({
+    expect(expectOk(h.service.query.thread(threadId))?.marker).toEqual({
       turnId: turn.turnId,
       runningSince: h.clock.now(),
       resumeAttempts: 0,
     });
     endTurn(h, turn, "interrupted");
-    const done = h.service.query.thread(threadId);
+    const done = expectOk(h.service.query.thread(threadId));
     expect(done?.marker).toBeNull();
     expect(done?.status).toBe("idle");
     expect(done?.updatedAt).toBe(h.clock.now());
@@ -88,7 +88,7 @@ describe("p_turns", () => {
     const h = openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId, { requestId: "r1" });
-    const running = h.service.query.turn(threadId, turn.turnId);
+    const running = expectOk(h.service.query.turn(threadId, turn.turnId));
     expect(running).toEqual({
       turnId: turn.turnId,
       status: "running",
@@ -96,10 +96,10 @@ describe("p_turns", () => {
       stepCount: 0,
     });
     fullStep(h, turn, 0, []);
-    expect(h.service.query.openTurn(threadId)?.stepCount).toBe(1);
+    expect(expectOk(h.service.query.openTurn(threadId))?.stepCount).toBe(1);
     endTurn(h, turn, "failed");
-    expect(h.service.query.turn(threadId, turn.turnId)?.status).toBe("failed");
-    expect(h.service.query.openTurn(threadId)).toBeUndefined();
+    expect(expectOk(h.service.query.turn(threadId, turn.turnId))?.status).toBe("failed");
+    expect(expectOk(h.service.query.openTurn(threadId))).toBeUndefined();
     const row = h.store.raw
       .query<{ started_seq: number; completed_seq: number; request_id: string }, [string]>(
         "SELECT started_seq, completed_seq, request_id FROM p_turns WHERE turn_id = ?",
@@ -123,8 +123,10 @@ describe("p_turns", () => {
     expect(seen?.turnByRequestId(threadId, null, "r")?.turnId).toBe(plain.turnId);
     expect(seen?.turnByRequestId(threadId, "helm/review", "r")?.turnId).toBe(scoped.turnId);
     expect(seen?.turnByRequestId(threadId, "other", "r")).toBeUndefined();
-    expect(h.service.query.turnByRequestId(threadId, null, "r")?.turnId).toBe(plain.turnId);
-    expect(h.service.query.turnByRequestId(threadId, "helm/review", "r")?.turnId).toBe(
+    expect(expectOk(h.service.query.turnByRequestId(threadId, null, "r"))?.turnId).toBe(
+      plain.turnId,
+    );
+    expect(expectOk(h.service.query.turnByRequestId(threadId, "helm/review", "r"))?.turnId).toBe(
       scoped.turnId,
     );
   });
@@ -162,7 +164,7 @@ describe("p_turns", () => {
         checkpoint: null,
       }));
     }
-    expect(h.service.query.turn(threadId, turn.turnId)?.abortRequested).toBe(true);
+    expect(expectOk(h.service.query.turn(threadId, turn.turnId))?.abortRequested).toBe(true);
     const seqs = h.store.raw
       .query<{ abort_requested_seq: number }, [string]>(
         "SELECT abort_requested_seq FROM p_turns WHERE turn_id = ?",
@@ -187,15 +189,14 @@ describe("p_effects and p_inputs", () => {
       { toolCallId: "tc1", toolName: "read", replay: "safe" },
       { toolCallId: "tc2", toolName: "bash", replay: "unsafe" },
     ]);
-    expect(h.service.query.openEffects(threadId).map((effect) => effect.toolCallId)).toEqual([
-      "tc1",
-      "tc2",
-    ]);
+    expect(
+      expectOk(h.service.query.openEffects(threadId)).map((effect) => effect.toolCallId),
+    ).toEqual(["tc1", "tc2"]);
     const [first] = progress.effects;
     if (first === undefined) throw new Error("missing effect");
     commitExec(h, turn, stepId, first.effectId, "tc1");
     commitExec(h, turn, stepId, first.effectId, "tc1", 1);
-    const open = h.service.query.openEffects(threadId)[0];
+    const open = expectOk(h.service.query.openEffects(threadId))[0];
     expect(open).toMatchObject({ toolCallId: "tc1", replay: "safe", execCount: 2, result: null });
     endStep(h, turn, 0, stepId, "tools");
     expectProjectionsRebuildable(h.store.db);
@@ -229,7 +230,7 @@ describe("p_effects and p_inputs", () => {
       }));
     const a = queue("in:user:r1", "r1", null);
     const b = queue("in:helm:review:r2", "r2", "helm/review");
-    const queued = h.service.query.queuedInputs(threadId);
+    const queued = expectOk(h.service.query.queuedInputs(threadId));
     expect(queued.map((input) => input.sourceKey)).toEqual(["user", "helm:review"]);
     expect(queued.map((input) => input.seq)).toEqual([a.firstSeq, b.firstSeq]);
     let probe: TxView | undefined;
@@ -268,8 +269,8 @@ describe("p_effects and p_inputs", () => {
       ],
       checkpoint: null,
     }));
-    expect(h.service.query.queuedInputs(threadId)).toEqual([]);
-    expect(h.service.query.thread(threadId)?.queuedInputs).toBe(0);
+    expect(expectOk(h.service.query.queuedInputs(threadId))).toEqual([]);
+    expect(expectOk(h.service.query.thread(threadId))?.queuedInputs).toBe(0);
     expectProjectionsRebuildable(h.store.db);
   });
 });
@@ -331,7 +332,7 @@ describe("rebuild", () => {
       )
       .get();
     expect(state?.version).toBe(CORE_PROJECTOR_VERSION);
-    expect(state?.last_seq).toBe(restarted.service.feed.headSeq());
+    expect(state?.last_seq).toBe(expectOk(restarted.service.feed.headSeq()));
   });
 
   test("a projector_state behind the head rebuilds as well", () => {
@@ -380,7 +381,7 @@ describe("TxView", () => {
     });
     expectOk(result);
     expect(seen?.threadStatus).toBe("running");
-    expect(seen?.headSeq).toBe(h.service.feed.headSeq());
+    expect(seen?.headSeq).toBe(expectOk(h.service.feed.headSeq()));
     expect(seen?.effectByToolCall(threadId, "tc9")?.result).toEqual({
       status: "ok",
       synthesized: false,

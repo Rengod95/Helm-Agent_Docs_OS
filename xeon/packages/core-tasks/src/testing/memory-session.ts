@@ -25,6 +25,7 @@ import {
   type ProducerId,
   type StampedDraft,
   type StepCheckpoint,
+  type ReadFailure,
   type StoreError,
   type ThreadSummaryRow,
   type TxView,
@@ -77,6 +78,8 @@ export interface MemorySession extends TasksSession {
   setConsumedSeq(threadId: ThreadId, consumedSeq: number): void;
   /** 다음 commit n번을 StoreError로 실패시킨다 */
   failNext(error: StoreError, times?: number): void;
+  /** 다음 읽기(query.queuedInputs, feed.headSeq, feed.read) n번을 ReadFailure로 실패시킨다 */
+  failNextRead(error: ReadFailure, times?: number): void;
   /** 커밋 후 알림에서 리스너가 던진 값 */
   readonly listenerErrors: readonly unknown[];
 }
@@ -116,12 +119,18 @@ export function memorySession(options: MemorySessionOptions): MemorySession {
   const consumed = new Map<ThreadId, number>();
   const listeners = new Set<CommitListener>();
   const failures: StoreError[] = [];
+  const readFailures: ReadFailure[] = [];
   const listenerErrors: unknown[] = [];
   let headSeq = 0;
   let calls = 0;
 
   function hit(point: FaultPoint): void {
     faults?.hit(point);
+  }
+
+  /** 주입된 읽기 실패가 있으면 하나 꺼낸다 */
+  function injectedRead(): ReadFailure | undefined {
+    return readFailures.shift();
   }
 
   function queuedViews(threadId: ThreadId): readonly InputView[] {
@@ -280,6 +289,7 @@ export function memorySession(options: MemorySessionOptions): MemorySession {
     }
     hit("after_request_check");
     const plan = request.build(viewFor(request.threadId));
+    if (plan.kind === "abort") return err(plan.error);
     if (plan.kind === "reject") {
       const rejected: CommitResult = {
         status: "rejected",
@@ -347,10 +357,23 @@ export function memorySession(options: MemorySessionOptions): MemorySession {
     failNext(error, times = 1) {
       for (let count = 0; count < times; count += 1) failures.push(error);
     },
-    query: { queuedInputs: queuedViews },
+    failNextRead(error, times = 1) {
+      for (let count = 0; count < times; count += 1) readFailures.push(error);
+    },
+    query: {
+      queuedInputs(threadId) {
+        const injected = injectedRead();
+        return injected === undefined ? ok(queuedViews(threadId)) : err(injected);
+      },
+    },
     feed: {
-      headSeq: () => headSeq,
+      headSeq() {
+        const injected = injectedRead();
+        return injected === undefined ? ok(headSeq) : err(injected);
+      },
       read(after, upto, filter, limit, scanLimit) {
+        const injected = injectedRead();
+        if (injected !== undefined) return err(injected);
         const out: DurableEventEnvelope[] = [];
         const end = Math.min(upto, headSeq, after + scanLimit);
         let scannedTo = after;
@@ -359,9 +382,9 @@ export function memorySession(options: MemorySessionOptions): MemorySession {
           if (event.seq > end) break;
           scannedTo = event.seq;
           if (matchesFilter(event, filter)) out.push(event);
-          if (out.length >= limit) return { events: out, scannedTo };
+          if (out.length >= limit) return ok({ events: out, scannedTo });
         }
-        return { events: out, scannedTo: Math.max(scannedTo, end) };
+        return ok({ events: out, scannedTo: Math.max(scannedTo, end) });
       },
       onCommit(listener) {
         listeners.add(listener);

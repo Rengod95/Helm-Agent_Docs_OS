@@ -57,7 +57,7 @@ describe("openForWrite", () => {
     const report = expectOk(restarted.service.openForWrite(threadId, tokenOf(h, threadId)));
     expect(report.role).toBe("owner");
     expect(report.readOnly).toBeNull();
-    expect(report.headSeq).toBe(restarted.service.feed.headSeq());
+    expect(report.headSeq).toBe(expectOk(restarted.service.feed.headSeq()));
     expect(report.marker?.turnId).toBe(turn.turnId);
     expect(report.owner?.holderId).toBe(TEST_HOLDER_A.holderId);
   });
@@ -111,12 +111,12 @@ describe("resume marker and attempts", () => {
   test("resume_marker_comes_from_events", () => {
     const h = fileHarness();
     const { threadId } = newThread(h);
-    expect(h.service.query.thread(threadId)?.marker).toBeNull();
+    expect(expectOk(h.service.query.thread(threadId))?.marker).toBeNull();
     const turn = startTurn(h, threadId);
-    expect(h.service.query.thread(threadId)?.marker?.resumeAttempts).toBe(0);
+    expect(expectOk(h.service.query.thread(threadId))?.marker?.resumeAttempts).toBe(0);
     expect(expectOk(h.service.beginResume(threadId, "manual"))).toEqual({ attempt: 1 });
     expect(expectOk(h.service.beginResume(threadId, "auto"))).toEqual({ attempt: 2 });
-    expect(h.service.query.thread(threadId)?.marker?.resumeAttempts).toBe(2);
+    expect(expectOk(h.service.query.thread(threadId))?.marker?.resumeAttempts).toBe(2);
     const resumed = h.store.raw
       .query<{ request_id: string; payload: string }, []>(
         "SELECT request_id, json_extract(envelope, '$.payload') AS payload FROM events WHERE kind = 'thread.resumed' ORDER BY seq",
@@ -132,10 +132,10 @@ describe("resume marker and attempts", () => {
       mode: "auto",
     });
     endTurn(h, turn, "interrupted");
-    expect(h.service.query.thread(threadId)?.marker).toBeNull();
+    expect(expectOk(h.service.query.thread(threadId))?.marker).toBeNull();
     // 새 turn은 시도 수를 0에서 센다
     startTurn(h, threadId);
-    expect(h.service.query.thread(threadId)?.marker?.resumeAttempts).toBe(0);
+    expect(expectOk(h.service.query.thread(threadId))?.marker?.resumeAttempts).toBe(0);
     expectProjectionsRebuildable(h.store.db);
   });
 
@@ -258,7 +258,7 @@ describe("restart invariants", () => {
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     fullStep(h, turn, 0, [{ toolCallId: "tc1", toolName: "read", replay: "safe" }]);
-    const maxBefore = h.service.feed.headSeq();
+    const maxBefore = expectOk(h.service.feed.headSeq());
     const restarted = reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, tokenOf(h, threadId)));
     expectOk(restarted.service.recover(threadId, DEPS));

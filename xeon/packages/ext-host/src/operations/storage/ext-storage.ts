@@ -119,6 +119,7 @@ function decode(type: ColumnType, value: SqlValue | undefined): unknown {
 function codecOf(extension: ExtensionName, local: string, def: ExtTableDef): Codec {
   const table = extTableName(extension, local);
   const columns = columnsOf(def, table);
+  // xeon-disable-next-line xeon/bug-for-expected -- ExtTableDef 선언 오류는 defineTables 호출자의 결함이다. 확장 테이블 읽기·쓰기 API의 Result 전환은 review.open-issues N-08 (eng.typescript.guide TY-24)
   if (!columns.ok) throw new Bug(`ext_storage.codec: ${columns.error.kind}`);
   return {
     table,
@@ -170,6 +171,7 @@ function writerFor(
     readonly values: SqlValue[];
   } {
     if (!parse(codec.def.row, row).ok) {
+      // xeon-disable-next-line xeon/bug-for-expected -- 확장이 넘긴 행이 선언과 다르다. 쓰기 API가 값을 돌려주지 않아 던진다. Result 전환은 review.open-issues N-08 (eng.typescript.guide TY-24)
       throw new Bug(`ext_storage.row_invalid: ${codec.table}`);
     }
     const names: string[] = [];
@@ -246,6 +248,7 @@ function readerFor(
       const value = decode(column.type, row[column.name]);
       if (value !== undefined) out[column.name] = value;
     }
+    // xeon-disable-next-line xeon/bug-for-expected -- 저장된 확장 테이블 행이 선언과 다르다. 읽기 API가 값을 돌려주지 않아 던진다. Result 전환은 review.open-issues N-08 (eng.typescript.guide TY-24)
     if (!parse(codec.def.row, out).ok) throw new Bug(`ext_storage.row_corrupt: ${codec.table}`);
     return out;
   }

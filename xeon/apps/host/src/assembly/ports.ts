@@ -2,6 +2,7 @@ import {
   assertNever,
   attempt,
   Bug,
+  ok,
   parse,
   type Clock,
   type LogFields,
@@ -101,6 +102,7 @@ function isNotImplemented(caught: unknown): boolean {
 
 function storeIdOf(raw: string): StoreId {
   const parsed = parse(StoreIdSchema, raw);
+  // xeon-disable-next-line xeon/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
   if (!parsed.ok) throw new Bug(`store.invalid_store_id: ${raw}`, { cause: parsed.error });
   return parsed.value;
 }
@@ -135,12 +137,17 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       if (!created.ok) {
         return Promise.reject(wireErrorOfCreate(created.error, "threads.create failed"));
       }
+      const head = session.feed.headSeq();
+      if (!head.ok) return Promise.reject(wireErrorOfStore(head.error, "threads.create position"));
       return Promise.resolve({
         threadId: created.value.threadId,
-        position: { storeId, seq: session.feed.headSeq() },
+        position: { storeId, seq: head.value },
       });
     },
-    exists: (threadId) => session.query.thread(threadId) !== undefined,
+    exists(threadId) {
+      const found = session.query.thread(threadId);
+      return found.ok ? ok(found.value !== undefined) : found;
+    },
     list(params) {
       const page = session.threads.list({
         ...(params.workspace === undefined ? {} : { workspace: params.workspace }),
@@ -152,7 +159,10 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     fork: () => unsupported("thread.fork"),
     revert: () => unsupported("thread.revert"),
     remove: () => unsupported("thread.delete"),
-    position: () => ({ storeId, seq: session.feed.headSeq() }),
+    position() {
+      const head = session.feed.headSeq();
+      return head.ok ? ok({ storeId, seq: head.value }) : head;
+    },
   };
 
   const turns: TurnPort = {
@@ -160,7 +170,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       // 같은 requestId의 재제출은 처음 turnId를 돌려준다(HS-22, F wire turn.start)
       if (requestId !== undefined) {
         const existing = session.query.turnByRequestId(threadId, null, requestId);
-        if (existing !== undefined) return { ok: true, turnId: existing.turnId };
+        if (!existing.ok) return { ok: false, reason: "rejected", error: existing.error };
+        if (existing.value !== undefined) return { ok: true, turnId: existing.value.turnId };
       }
       const running = loop.threadStatus(threadId).runningTurnId;
       if (running !== null) return { ok: false, reason: "busy", turnId: running };

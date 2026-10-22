@@ -1,5 +1,4 @@
 import { expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
 import type { ExposureMode } from "@xeon/contracts/services";
 import {
   createHarness,
@@ -9,6 +8,7 @@ import {
   rejectionOf,
   registerWorkspace,
   type Harness,
+  expectOk,
 } from "./support/harness.ts";
 
 function add(
@@ -17,13 +17,15 @@ function add(
   orderKey: string,
   extra: { exposure?: ExposureMode; risk?: "read" | "write" | "exec" } = {},
 ): () => void {
-  return h.runtime.tools.register({
-    kind: "direct",
-    orderKey,
-    tool: directTool(name, () => Promise.resolve({ content: [], details: null })),
-    policy: { risk: extra.risk ?? "read" },
-    ...(extra.exposure === undefined ? {} : { exposure: extra.exposure }),
-  });
+  return expectOk(
+    h.runtime.tools.register({
+      kind: "direct",
+      orderKey,
+      tool: directTool(name, () => Promise.resolve({ content: [], details: null })),
+      policy: { risk: extra.risk ?? "read" },
+      ...(extra.exposure === undefined ? {} : { exposure: extra.exposure }),
+    }),
+  );
 }
 
 function advertised(h: Harness) {
@@ -117,22 +119,39 @@ test("exposure_caps_at_128: 129 always tools fail, auto tools fill the remaining
   expect(toolset.tools.map((tool) => tool.name)).toContain("m_027");
 });
 
-test("registering the same tool name twice is a bug and leaves the table unchanged", async () => {
+test("registering the same tool name twice is a name_conflict value and leaves the table unchanged", async () => {
   const h = await createHarness();
   const unregister = add(h, "one", "ext.a");
-  let thrown: unknown;
-  try {
-    h.runtime.tools.register({
-      kind: "direct",
-      orderKey: "ext.b",
-      tool: directTool("fresh", () => Promise.resolve({ content: [], details: null })),
-    });
-    add(h, "one", "ext.b");
-  } catch (error) {
-    thrown = error;
-  }
-  expect(thrown).toBeInstanceOf(Bug);
-  expect(errorText(thrown)).toContain("tools.name_conflict");
+  // 확장 조합이 같은 이름을 내는 것은 정상 운영 중에도 생긴다. 던지지 않고 오류 값으로 알린다
+  const fresh = h.runtime.tools.register({
+    kind: "direct",
+    orderKey: "ext.b",
+    tool: directTool("fresh", () => Promise.resolve({ content: [], details: null })),
+  });
+  expect(fresh.ok).toBe(true);
+  const clash = h.runtime.tools.register({
+    kind: "direct",
+    orderKey: "ext.b",
+    tool: directTool("one", () => Promise.resolve({ content: [], details: null })),
+  });
+  expect(clash).toEqual({ ok: false, error: { kind: "name_conflict", toolName: "one" } });
+  // ToolsPort 등록(확장) 사이의 충돌도 같은 값이다
+  const twice = h.runtime.tools.register("ext-twice/main", {
+    name: "twin",
+    description: "d",
+    parameters: directTool("x", () => Promise.resolve({ content: [], details: null })).parameters,
+    replay: "safe",
+    execute: () => Promise.resolve("a"),
+  });
+  expect(twice.ok).toBe(true);
+  const again = h.runtime.tools.register("ext-twice2/main", {
+    name: "twin",
+    description: "d",
+    parameters: directTool("x", () => Promise.resolve({ content: [], details: null })).parameters,
+    replay: "safe",
+    execute: () => Promise.resolve("b"),
+  });
+  expect(again).toEqual({ ok: false, error: { kind: "name_conflict", toolName: "twin" } });
   expect(h.runtime.tools.meta("fresh")).toBeDefined();
   unregister();
   expect(h.runtime.tools.meta("one")).toBeUndefined();
@@ -169,13 +188,15 @@ test("mcp server tools default to auto exposure and keep the server name for pol
 
 test("the extension ToolsPort overload registers under ext.<name> with undeclared risk and unsafe replay", async () => {
   const h = await createHarness();
-  const unregister = h.runtime.tools.register("acme-notes/main", {
-    name: "note_add",
-    description: "add a note",
-    parameters: directTool("x", () => Promise.resolve({ content: [], details: null })).parameters,
-    replay: "safe",
-    execute: () => Promise.resolve("added"),
-  });
+  const unregister = expectOk(
+    h.runtime.tools.register("acme-notes/main", {
+      name: "note_add",
+      description: "add a note",
+      parameters: directTool("x", () => Promise.resolve({ content: [], details: null })).parameters,
+      replay: "safe",
+      execute: () => Promise.resolve("added"),
+    }),
+  );
   expect(h.runtime.tools.meta("note_add")).toMatchObject({
     ref: { capability: "ext.acme-notes", name: "note_add" },
     risk: "exec",

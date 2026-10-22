@@ -14,6 +14,7 @@ import type {
   LeaseKind,
   LeaseOwnerInfo,
   LeaseResource,
+  LeaseRowInvalid,
   LeaseService,
   LeaseToken,
   SqlRow,
@@ -23,7 +24,7 @@ import type {
 import { assertNotInWrite, createStoreDb, type StoreConnections } from "./db.ts";
 import type { StoreFaultInjector } from "./fault-points.ts";
 import type { LockHandle, LockProvider } from "./lock/provider.ts";
-import { columnInt, columnNullableInt, columnString } from "./rows.ts";
+import { leaseColumns } from "./rows.ts";
 
 interface LeaseSettings {
   readonly heartbeatMs: number;
@@ -57,24 +58,51 @@ interface Owned {
 
 type Decision =
   | { readonly kind: "granted"; readonly epoch: number }
-  | { readonly kind: "active"; readonly owner: LeaseOwnerInfo };
+  | { readonly kind: "active"; readonly owner: LeaseOwnerInfo }
+  | { readonly kind: "row_invalid"; readonly fault: LeaseRowInvalid };
 
-function leaseKind(raw: string): LeaseKind {
-  if (raw === "cli" || raw === "app" || raw === "service") return raw;
-  throw new Bug(`store.row_invalid: sys_leases.kind ${raw}`);
+function leaseKindOf(raw: string): Result<LeaseKind, LeaseRowInvalid> {
+  if (raw === "cli" || raw === "app" || raw === "service") return ok(raw);
+  return err({ kind: "row_invalid", where: "sys_leases.kind" });
 }
 
-function ownerInfoOf(row: SqlRow): LeaseOwnerInfo {
-  return {
-    holderId: columnString(row, "holder_id"),
-    kind: leaseKind(columnString(row, "kind")),
-    pid: columnInt(row, "pid"),
-    startedAt: columnInt(row, "started_at"),
-    host: columnString(row, "host"),
-    epoch: columnInt(row, "epoch"),
-    heartbeatAt: columnInt(row, "heartbeat_at"),
-    expiresAt: columnInt(row, "expires_at"),
-  };
+function ownerInfoOf(row: SqlRow): Result<LeaseOwnerInfo, LeaseRowInvalid> {
+  const c = leaseColumns(row);
+  const holderId = c.string("holder_id");
+  if (!holderId.ok) return holderId;
+  const rawKind = c.string("kind");
+  if (!rawKind.ok) return rawKind;
+  const kind = leaseKindOf(rawKind.value);
+  if (!kind.ok) return kind;
+  const pid = c.int("pid");
+  if (!pid.ok) return pid;
+  const startedAt = c.int("started_at");
+  if (!startedAt.ok) return startedAt;
+  const host = c.string("host");
+  if (!host.ok) return host;
+  const epoch = c.int("epoch");
+  if (!epoch.ok) return epoch;
+  const heartbeatAt = c.int("heartbeat_at");
+  if (!heartbeatAt.ok) return heartbeatAt;
+  const expiresAt = c.int("expires_at");
+  if (!expiresAt.ok) return expiresAt;
+  return ok({
+    holderId: holderId.value,
+    kind: kind.value,
+    pid: pid.value,
+    startedAt: startedAt.value,
+    host: host.value,
+    epoch: epoch.value,
+    heartbeatAt: heartbeatAt.value,
+    expiresAt: expiresAt.value,
+  });
+}
+
+/** 반납되지 않은 행의 소유 정보. 반납된 행은 null이다 */
+function liveOwnerOf(row: SqlRow): Result<LeaseOwnerInfo | null, LeaseRowInvalid> {
+  const released = leaseColumns(row).nullableInt("released_at");
+  if (!released.ok) return released;
+  return released.value === null ? ownerInfoOf(row) : ok(null);
 }
 
 function mapWriteError(error: StoreWriteError): LeaseError {
@@ -112,10 +140,12 @@ export function createLeaseService(deps: LeaseDeps): LeaseController {
     entry.handle.release();
   };
 
+  /** 표시용 소유 정보. 읽지 못하거나 행을 해석하지 못하면 null이다(판정에 쓰지 않는다) */
   const readOwner = (resource: LeaseResource): LeaseOwnerInfo | null => {
     const read = db.read((tx) => tx.get(SELECT_LEASE, [resource]));
     if (!read.ok || read.value === undefined) return null;
-    return columnNullableInt(read.value, "released_at") === null ? ownerInfoOf(read.value) : null;
+    const owner = liveOwnerOf(read.value);
+    return owner.ok ? owner.value : null;
   };
 
   const decide = (
@@ -155,8 +185,12 @@ export function createLeaseService(deps: LeaseDeps): LeaseController {
       write(1, false);
       return { kind: "granted", epoch: 1 };
     }
-    const info = ownerInfoOf(row);
-    const released = columnNullableInt(row, "released_at") !== null;
+    const parsedInfo = ownerInfoOf(row);
+    if (!parsedInfo.ok) return { kind: "row_invalid", fault: parsedInfo.error };
+    const info = parsedInfo.value;
+    const releasedAt = leaseColumns(row).nullableInt("released_at");
+    if (!releasedAt.ok) return { kind: "row_invalid", fault: releasedAt.error };
+    const released = releasedAt.value !== null;
     // 같은 holder의 보유 중 행: epoch를 유지하고 만료만 늘린다
     if (!released && info.holderId === holder.holderId) {
       write(info.epoch, true);
@@ -271,6 +305,10 @@ export function createLeaseService(deps: LeaseDeps): LeaseController {
           return err(mapWriteError(written.error));
         }
         const decision = written.value;
+        if (decision.kind === "row_invalid") {
+          if (fresh) handle.release();
+          return err(decision.fault);
+        }
         if (decision.kind === "active") {
           if (fresh) handle.release();
           return err({
@@ -297,26 +335,33 @@ export function createLeaseService(deps: LeaseDeps): LeaseController {
       assertOpen();
       return releaseNow(token);
     },
-    holds(tx: SqlTx, token: LeaseToken): boolean {
+    holds(tx: SqlTx, token: LeaseToken): Result<boolean, LeaseRowInvalid> {
       // 캐시를 쓰지 않고 같은 트랜잭션에서 행을 새로 읽는다. 시각을 비교하지 않는다(TX-10)
       const row = tx.get(
         "SELECT holder_id, epoch, released_at FROM sys_leases WHERE resource = ?",
         [token.resource],
       );
-      return (
-        row !== undefined &&
-        columnString(row, "holder_id") === token.holderId &&
-        columnInt(row, "epoch") === token.epoch &&
-        columnNullableInt(row, "released_at") === null
+      if (row === undefined) return ok(false);
+      const c = leaseColumns(row);
+      const holderId = c.string("holder_id");
+      if (!holderId.ok) return holderId;
+      const epoch = c.int("epoch");
+      if (!epoch.ok) return epoch;
+      const releasedAt = c.nullableInt("released_at");
+      if (!releasedAt.ok) return releasedAt;
+      return ok(
+        holderId.value === token.holderId &&
+          epoch.value === token.epoch &&
+          releasedAt.value === null,
       );
     },
-    inspect(resource: LeaseResource): Result<LeaseOwnerInfo | null, { readonly kind: "busy" }> {
+    inspect(
+      resource: LeaseResource,
+    ): Result<LeaseOwnerInfo | null, { readonly kind: "busy" } | LeaseRowInvalid> {
       const read = db.read((tx) => tx.get(SELECT_LEASE, [resource]));
       if (!read.ok) return err({ kind: "busy" });
       if (read.value === undefined) return ok(null);
-      return ok(
-        columnNullableInt(read.value, "released_at") === null ? ownerInfoOf(read.value) : null,
-      );
+      return liveOwnerOf(read.value);
     },
     keepAlive(token: LeaseToken, onLost: (resource: LeaseResource) => void): Disposable {
       let timer: TimerHandle | undefined;

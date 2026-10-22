@@ -829,7 +829,9 @@ export interface ProducerHandle {
 export type StepCheckpointInput = Omit<StepCheckpoint, "checkpointId" | "schemaVersion" | "threadId" | "leafEventId">;
 export type CommitPlan =
   | { readonly kind: "append"; readonly drafts: readonly StampedDraft[]; readonly checkpoint: StepCheckpointInput | null }
-  | { readonly kind: "reject"; readonly code: string; readonly detail: string | null };
+  | { readonly kind: "reject"; readonly code: string; readonly detail: string | null }
+  /** build가 읽기에 실패해(동기 읽기 연결의 busy, 손상 행) 계획을 세울 수 없다. 롤백하고 기록하지 않는다. commit은 err(error)를 돌려주고, reject와 달리 키에 결과가 남지 않아 같은 키로 다시 낼 수 있다 */
+  | { readonly kind: "abort"; readonly error: ReadFailure };
 export interface CommitRequest {
   readonly threadId: ThreadId;
   readonly requestId: CommitKey;
@@ -851,7 +853,10 @@ export type StoreError =
   | { readonly kind: "io"; readonly code: string }                           // 저장 매체 I/O 실패. code는 OS·SQLite 코드(손상은 SQLITE_CORRUPT*)
   | { readonly kind: "ownership_lost"; readonly threadId: ThreadId }
   | { readonly kind: "read_only"; readonly reason: ReadOnlyReason }
-  | { readonly kind: "thread_not_found"; readonly threadId: ThreadId };
+  | { readonly kind: "thread_not_found"; readonly threadId: ThreadId }
+  | { readonly kind: "row_invalid"; readonly where: string };                // 저장된 행이 스키마와 다르다(손상, 수동 편집, 이전 버전). where는 `<표>.<열>` 같은 위치 이름
+/** 읽기 API가 돌려주는 실패: 읽기 연결의 busy와 io, 손상 행 */
+export type ReadFailure = Extract<StoreError, { readonly kind: "busy" | "io" | "row_invalid" }>;
 export type StoreBugCode =
   | "store.nested_write" | "store.prefix_not_owned" | "store.producer_claimed" | "store.schema_invalid"
   | "store.kind_unregistered" | "store.event_too_large" | "store.checkpoint_without_step"
@@ -885,10 +890,11 @@ export interface SessionService {
   producer(id: ProducerId): ProducerHandle;
   readonly projectors: ProjectorRegistry;
   readonly query: ProjectionQuery;
-  readFrom(afterSeq: number, options?: { readonly threadId?: ThreadId; readonly limit?: number }): AsyncIterable<DurableEventEnvelope>;
-  readBranch(threadId: ThreadId, leaf?: EventId): AsyncIterable<DurableEventEnvelope>;
-  loadCheckpoint(threadId: ThreadId): Promise<StepCheckpoint | null>;
-  subscribe(afterSeq: number, listener: CommitListener, filter?: FeedFilter): Unsubscribe;
+  // 읽기 실패는 예상 가능한 실패라 Result로 돌려준다. 스트림은 실패를 마지막 원소(err)로 알리고 닫는다
+  readFrom(afterSeq: number, options?: { readonly threadId?: ThreadId; readonly limit?: number }): AsyncIterable<Result<DurableEventEnvelope, ReadFailure>>;
+  readBranch(threadId: ThreadId, leaf?: EventId): AsyncIterable<Result<DurableEventEnvelope, ReadFailure>>;
+  loadCheckpoint(threadId: ThreadId): Promise<Result<StepCheckpoint | null, ReadFailure>>;
+  subscribe(afterSeq: number, listener: CommitListener, filter?: FeedFilter): Result<Unsubscribe, ReadFailure>;
   readonly feed: EventFeed;
   hydrate(event: DurableEventEnvelope): Promise<DurableEventEnvelope>;
   emitVolatile(event: VolatileEventEnvelope): void;
@@ -996,14 +1002,14 @@ export interface RecordCommitPort {
 
 - [제안] `SqlValue`·`SqlRow`는 `sql.ts` 한 곳에 둔다. `ProjectionTx`는 `run`의 반환만 다른 별도 인터페이스다.
 - [제안] `SessionService.readFrom`·`subscribe`의 첫 인자는 배타 경계 `afterSeq`다. §3.8 `SessionStore`의 `fromSeq`와 이름이 다르며, 정리는 §10 미결 9다.
-- [제안] 복구 표식은 records에 두지 않는다. 복구 표식의 정본은 `L1.persistence.spec` §4.8.1의 `p_threads` 열이고, 읽는 경로는 `xeon.session`의 `RecoveryMarker`(`OpenReport.marker`, `ProjectionQuery.thread(threadId).marker`)다.
+- [제안] 복구 표식은 records에 두지 않는다. 복구 표식의 정본은 `L1.persistence.spec` §4.8.1의 `p_threads` 열이고, 읽는 경로는 `xeon.session`의 `RecoveryMarker`(`OpenReport.marker`, `ProjectionQuery.thread(threadId)`가 돌려주는 값의 `marker`)다.
 - 같은 절에 옮길 이름 [제안]. 아래 이름은 이 절의 파일에 두기로 하고, 필드는 오른쪽 소유 문서의 현재 블록을 옮긴다. 옮기는 작업은 `F.records.plan`이 맡고, 옮기기 전에는 소유 문서 블록이 필드의 후보 정본이다.
 
 | 파일 | 이름 | 필드 후보 정본 |
 |---|---|---|
-| `lease.ts` | `LeaseResource`, `LEASE_RESOURCE_PATTERN`, `LeaseKind`, `LeaseHolder`, `LeaseToken`, `LeaseOwnerInfo`, `LockBusy`, `LeaseError`, `LeaseService` | `L0.store.spec` §3.1(FR-S2) |
+| `lease.ts` | `LeaseResource`, `LEASE_RESOURCE_PATTERN`, `LeaseKind`, `LeaseHolder`, `LeaseToken`, `LeaseOwnerInfo`, `LockBusy`, `LeaseRowInvalid`, `LeaseError`, `LeaseService` | `L0.store.spec` §3.1(FR-S2) |
 | `migrations.ts` | `MigrationStep`, `MigrationSet`, `MigrationError`, `MigrationReport`, `MigrationRunner`, `ExtensionTables`, `ExtensionTableError`. `ChunkMigration`은 §3.7에 둔다 | `L0.store.spec` §3.1(FR-S4) |
-| `commit.ts` | `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
+| `commit.ts` | `ReadFailure`, `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
 | `projector.ts` | `ProjectorRegisterError`, `ProjectorFailure`, `ProjectorRegistry`, `ProjectionQuery` | `L1.persistence.spec` §3.4 |
 | `session-service.ts` | `CommitListener`, `CommitBatch`, `FeedFilter`, `EventFeed`, `OwnershipGuard`, `OwnerInfo`, `OpenReport`, `OpenError`, `ResumePlan`, `ResumeError`, `RecoverDeps`, `SessionShutdownReason`, `ThreadLifecycle`, `SessionSettingsStore` | `L1.persistence.spec` §3.3~§3.8, §6.2 |
 | `session-service.ts` | `RecordCommitPort`, `ExtCommitRequest`, `ExtCommitRejectCode`, `ExtCommitResult`, `StoredScopeState`, `OpenLease`, `ExtThreadSnapshot`, `ExtRecordQuery`, `ExtRecordRow` | 위 블록이 정본이다(옮김 끝남). `F.extensions.spec` §3.2.1 `ports.ts`가 다시 export한다 |

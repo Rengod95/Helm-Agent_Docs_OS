@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { err } from "@xeon/contracts";
 import {
   InputQueuePortKey,
   ProjectorRegistryPortKey,
@@ -9,6 +10,7 @@ import { ExtHostPortKey, hostOf, PrimitiveError } from "../../src/primitives/ind
 import {
   createTestHost,
   flushMicrotasks,
+  memoryInputQueue,
   memoryProjectorRegistry,
   memoryRecordStore,
   memoryScopedStore,
@@ -62,6 +64,17 @@ test("install maps setup outcomes", async () => {
     }),
   );
   expect(threw.setups[0]).toMatchObject({ status: "failed", failure: { kind: "threw" } });
+
+  // setup이 시작할 수 없다고 값으로 알리면 같은 failed 결과이고 원인이 남는다
+  const refusedCause = { kind: "busy" };
+  const refused = await t.host.install(
+    makeUnit({ name: "host-refused" }, () => err({ reason: "busy", cause: refusedCause })),
+  );
+  expect(refused.setups[0]).toMatchObject({
+    status: "failed",
+    failure: { kind: "threw", code: "scope_setup_failed" },
+  });
+  expect(t.host.scope("host-refused")?.status).toBe("disabled");
 
   // 실행 중 thread가 있으면 deferred
   t.loop.setRunning(thread, true);
@@ -138,6 +151,21 @@ test("registerPlatform provides ports and surfaces setup errors", async () => {
     }),
   );
   expect(broken instanceof Error && broken.message).toBe("platform failed");
+
+  // 예상 가능한 시작 실패는 던지지 않고 값으로 돌아오고, 그 모듈이 제공한 포트는 남지 않는다
+  const cause = { kind: "io", code: "EACCES" };
+  const refused = await t.host.registerPlatform({
+    name: "platform-refused",
+    setup(ctx) {
+      ctx.providePort(InputQueuePortKey, memoryInputQueue());
+      return err({ reason: "io", cause });
+    },
+  });
+  expect(refused).toEqual({
+    ok: false,
+    error: { kind: "setup_failed", module: "platform-refused", reason: "io", cause },
+  });
+  expect(t.host.ports.get(InputQueuePortKey)).toBeUndefined();
 
   await t.host.dispose();
   expect(disposed).toEqual(["two", "one"]);

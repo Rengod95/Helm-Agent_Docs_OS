@@ -1,4 +1,5 @@
 import type { TSchema } from "typebox";
+import type { Result } from "../base/index.ts";
 import type { ServiceKey } from "../capabilities/index.ts";
 import type { JsonValue } from "../conversation/index.ts";
 import type { GroupRecord, RecordKind, RecordSubject } from "./group-record.ts";
@@ -45,7 +46,17 @@ export interface ScopeApi<S> extends ExtensionOps<S> {
   onDispose(fn: () => void | Promise<void>): void;
 }
 
-export type ScopeSetup<S> = (g: ScopeApi<S>) => void | Promise<void>;
+/** setup이 시작할 수 없다고 알리는 값. 디렉터리 준비 실패나 저장소 열기 실패 같은 예상 가능한 시작 실패다(TY-24) */
+export interface SetupRefusal {
+  /** 짧은 이유 이름. 예: 그 모듈 시작 오류의 kind */
+  readonly reason: string;
+  readonly cause: unknown;
+}
+
+/** 시작할 수 없으면 err(SetupRefusal)을 돌려준다. 던지면 버그나 확장 코드의 실패로 기록된다 */
+export type ScopeSetupResult = void | Result<void, SetupRefusal>;
+
+export type ScopeSetup<S> = (g: ScopeApi<S>) => ScopeSetupResult | Promise<ScopeSetupResult>;
 
 export type ScopeStatus = "enabled" | "enabling" | "disabled" | "disabling";
 

@@ -296,12 +296,12 @@ export interface InputQueue {
    */
   draftQueued(view: TxView, draft: InputDraft): { readonly drafts: readonly StampedDraft[]; readonly existing: InputView | undefined };
   /** 투영 p_inputs의 queued 행. seq 순서 */
-  peek(threadId: ThreadId, modes?: readonly InputMode[]): readonly QueuedInput[];
+  peek(threadId: ThreadId, modes?: readonly InputMode[]): Result<readonly QueuedInput[], ReadFailure>;
   /**
    * 커밋 build 안에서 부르는 동기·순수 함수. 선택만 하고 커밋은 호출자(loop)가 한다.
    * 선택 규칙은 §4.6 표. steer·followUp의 drain 모드는 설정 l1.tasks.queue.*를 그때 읽는다.
    */
-  drain(view: TxView, threadId: ThreadId, at: PlacementPoint, options: DrainOptions): PlacementSelection;
+  drain(view: TxView, threadId: ThreadId, at: PlacementPoint, options: DrainOptions): Result<PlacementSelection, ReadFailure>;
   /** queued 입력을 거둔다. 거둔 수를 돌려준다. 이미 placed인 입력은 세지 않는다 */
   withdraw(threadId: ThreadId, target: EventId | "all", reason: WithdrawReason): Promise<Result<number, InputQueueError>>;
   /** input.queued 커밋 뒤 동기로 부른다. 쓰기가 필요하면 queueMicrotask로 미룬다(TX-09) */
@@ -309,6 +309,7 @@ export interface InputQueue {
 }
 ```
 
+- `peek`와 `drain`은 입력 이벤트를 읽는다. 읽기 연결의 busy·io와 손상 행은 `err(ReadFailure)`로 돌려준다(eng.typescript.guide TY-24). 호출자의 `build`는 `drain`의 `err`를 `{ kind: "abort", error }` 계획으로 돌려준다. 롤백하고 요청 키에 결과를 남기지 않으므로 같은 키로 다시 낼 수 있다(`L1.persistence.spec` §3.2).
 - `drain`은 호출자의 커밋 안에서 고르는 일로 정한다 [제안]. 큐에서 실제로 빠지는 시점은 호출자의 커밋에 든 `input.placed`가 투영에 반영되는 때다. 이렇게 하면 배치 기록과 item 기록과 단계 체크포인트가 한 커밋에 들어간다(TX-08).
 - 출처 키 [제안]: `user`는 `"user"`, `extension`은 `scopeId`, `delegation`은 `"deleg"`, `schedule`은 `"timer"`다. 서로 다른 출처가 같은 문자열의 `requestId`를 써도 충돌하지 않게 한다. `user`·`deleg`·`timer`는 확장 id로 예약해 확장의 `scopeId`와 겹치지 않는다(F `RESERVED_SOURCE_KEYS`, [결정: review.decisions-2 U-13]).
 

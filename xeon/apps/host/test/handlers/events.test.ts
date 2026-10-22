@@ -172,6 +172,43 @@ test("subscribe-replay-no-dup: commits during a replay arrive once, in order, an
   await connection.close();
 });
 
+test("a head read failure on subscribe is a store.* wire error, not a thrown Bug", async () => {
+  const host = createFakeHost({ headFault: { kind: "busy" } });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const error = await wireErrorOf(connection.request("events.subscribe", { from: "head" }));
+  expect(error.data.kind).toBe("store.busy");
+  await connection.close();
+});
+
+test("a failed replay read ends the subscription with events.ended replayFailed", async () => {
+  const host = createFakeHost({
+    readFault: (call) =>
+      call === 0 ? { kind: "row_invalid", where: "events.envelope" } : undefined,
+  });
+  const thread = seedThread(host);
+  seedEvents(host.fake, thread, 3);
+  const { client, connection } = host.connect();
+  const raw = rawClient(client);
+  await connection.request("host.hello", HELLO_PARAMS);
+  const subscribed = await connection.request("events.subscribe", {
+    from: { storeId: FAKE_STORE_ID, seq: 1 },
+  });
+  expect(subscribed.mode).toBe("replaying");
+  await settleUntil(() =>
+    raw.received.some(
+      ({ message }) =>
+        typeof message === "object" &&
+        message !== null &&
+        "method" in message &&
+        message.method === "events.ended",
+    ),
+  );
+  expect(batchesOf(raw)).toEqual([]);
+  expect(host.fake.log.errors.map((entry) => entry.message)).toContain("events.replay_failed");
+  await connection.close();
+});
+
 test("replay-out-of-range-reasons: each failure is 2001 with the bounds in details", async () => {
   const host = createFakeHost({ oldestReplayable: 3, limits: { maxReplayEvents: 1000 } });
   const thread = seedThread(host);

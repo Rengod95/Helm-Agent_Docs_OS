@@ -142,6 +142,8 @@ export interface DirectToolRegistration {
 export type ToolRegistration = CapabilityToolsRegistration | DirectToolRegistration;
 
 export type Unregister = () => void;
+/** 도구 이름이 이미 등록되어 있다. F.extensions.spec §3.2.1의 ToolRegisterError와 같다 */
+export interface ToolRegisterError { readonly kind: "name_conflict"; readonly toolName: string }
 ```
 
 - `ToolSpec`에는 `execute`가 없다(F.capabilities.spec §3.3). 능력 도구의 실행 함수는 §4.3의 어댑터가 서비스 키로 얻은 provider API에서 합성한다.
@@ -199,9 +201,9 @@ export const ToolServiceName = "xeon.tools" as const;
 
 export interface ToolService extends ToolsPort {
   /** L1·L2 코드 등록. 같은 순서 키·이름이 이미 있으면 ToolsError(tools.name_conflict)를 던진다 */
-  register(registration: ToolRegistration): Unregister;
+  register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
   /** X ToolsPort 등록(확장 hostOf(g).registerTool). 아래 규칙으로 DirectToolRegistration을 만들어 위 메서드와 같은 경로로 등록한다 */
-  register(owner: ScopeId, def: ToolResourceDef): Unregister;
+  register(owner: ScopeId, def: ToolResourceDef): Result<Unregister, ToolRegisterError>;
 
   /** 메타 조회. 동기, 순수 조회. 확장 핸들러가 쓰기 판정에 쓴다 */
   meta(name: ToolName): ToolMeta | undefined;
@@ -222,7 +224,7 @@ export interface ToolService extends ToolsPort {
   settleRejected(calls: readonly AgentToolCall[], reason: RejectReason, run: ToolRunContext): Promise<readonly ToolCallOutcome[]>;
 
   /** 재개 때 재실행. decideEffectRecovery가 rerun을 낸 효과만 받는다. tool_call 지점과 정책을 다시 거치지 않는다(§4.9). 결과는 effect.result와 같은 커밋에 기록되어 돌아온다 */
-  rerun(intent: EffectIntent, run: ToolRunContext): Promise<ToolCallOutcome>;
+  rerun(intent: EffectIntent, run: ToolRunContext): Promise<Result<ToolCallOutcome, ReadFailure>>;
 
   /** 코어 규칙 등록(default 티어). source는 "core:<L1 도메인>". 같은 source로 다시 부르면 그 source의 규칙을 통째로 바꾼다(§4.5) */
   registerRules(source: `core:${string}`, rules: readonly PolicyRule[]): RuleRegistration;
@@ -531,15 +533,21 @@ export interface ApprovalResolution {
   readonly resolvedBy: ApprovalResolvedBy;
 }
 
+/** 요청 이벤트 커밋이 실패한 이유 */
+export type ApprovalRequestError =
+  | { readonly kind: "store"; readonly error: StoreError }
+  | { readonly kind: "rejected"; readonly code: string; readonly detail: string | null }
+  | { readonly kind: "key_reused"; readonly requestId: string };
+
 export interface ApprovalService {
   /** 요청을 커밋하고 응답이 올 때까지 기다린다. signal이 끊기면 대기만 그만둔다(요청은 남는다) */
-  request(input: ApprovalRequestInput, signal: AbortSignal): Promise<ApprovalResolution>;
+  request(input: ApprovalRequestInput, signal: AbortSignal): Promise<Result<ApprovalResolution, ApprovalRequestError>>;
   /** wire approval.respond 처리. 이미 해결된 요청이면 applied: false */
   respond(approvalId: string, response: ApprovalResponse): Promise<{ readonly applied: boolean }>;
   /** 대화의 미해결 요청. 재개와 클라이언트 재접속 때 쓴다 */
   pending(threadId: ThreadId): readonly ApprovalRequest[];
   /** 재개 때 이벤트에서 미해결 요청을 다시 읽어 메모리 대기 목록을 채운다(§4.7) */
-  restore(threadId: ThreadId): Promise<readonly ApprovalRequest[]>;
+  restore(threadId: ThreadId): Promise<Result<readonly ApprovalRequest[], ReadFailure>>;
   /** 턴 취소 등으로 요청을 닫는다. resolvedBy "cancelled" */
   cancel(approvalId: string, reason: string): Promise<{ readonly applied: boolean }>;
 }
@@ -605,7 +613,8 @@ export type ToolsErrorCode =
 export interface ToolsError { readonly kind: ToolsErrorCode; readonly message: string; readonly detail?: JsonValue }
 ```
 
-- 등록 충돌과 `tools.intent_missing`은 버그로 보고 예외를 던진다(eng.typescript.guide TY-11). 나머지는 값으로 돌려준다.
+- `tools.intent_missing`은 버그로 보고 예외를 던진다(eng.typescript.guide TY-11). 등록 충돌은 `register`가 `ToolRegisterError { kind: "name_conflict", toolName }` 값으로 돌려준다. 나머지도 값으로 돌려준다.
+- 승인 요청 이벤트의 커밋 실패는 `ApprovalService.request`가 `ApprovalRequestError`(`store` | `rejected` | `key_reused`) 값으로 돌려준다. 파이프라인 안에서는 호출을 `tools.commit_failed`로 거부한다. 이벤트 읽기 실패(`restore`, `rerun`의 효과 상태 읽기)는 `ReadFailure` 값이다.
 - 모델에 보이는 거부·오류 문장은 영어로 둔다. 형식은 `"[xeon:<code>] <message>"`이고 F.capabilities.spec §4.2 규칙 5의 `"[<code>] <message>"`와 같은 꼴이다.
 
 ### 3.9 이벤트
@@ -882,7 +891,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 9. 승인 요청 이후 도구 등록이 사라짐(확장 비활성화): 응답이 allow여도 실행 단계 진입 전에 도구 해석을 다시 확인하고 `tool_unavailable` 오류 결과로 닫는다. 요청은 `resolvedBy: "superseded"`로 닫는다.
 10. blob 쓰기 실패: 경계화 미리보기만 모델에 보내고 `blobRef: null`, `details.truncation.blobError`를 남긴다. 원문은 잃는다. 이 경우를 경고 이벤트로 남길지는 L0.store.spec의 blob 실패 정책을 따른다.
 11. `bypass` 모드인데 managed가 금지함: `setMode`는 `tools.mode_forbidden`을 돌려준다. 이미 세션 값이 `bypass`인 채 managed 금지가 생기면 평가기가 `default`로 본다(§4.5 4단계).
-12. 같은 이름의 도구를 두 출처가 등록함: `register`가 `tools.name_conflict`를 던진다. 해소 규칙은 F.capabilities.spec §10 [미결](도구 이름 네임스페이스)을 따른다.
+12. 같은 이름의 도구를 두 출처가 등록함: `register`가 `err({ kind: "name_conflict", toolName })`을 돌려주고 도구 표는 바뀌지 않는다. 확장 조합이 낼 수 있는 정상 운영 중의 실패라 던지지 않는다(eng.typescript.guide TY-24). 해소 규칙은 F.capabilities.spec §10 [미결](도구 이름 네임스페이스)을 따른다.
 
 ## 6. 설정 노출
 

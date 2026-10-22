@@ -43,7 +43,9 @@ export function createFakeContext(options: {
   ): Promise<ReturnType<typeof ok<AssembledContext>>> {
     const messages: AgentMessage[] = [];
     let prefix: SystemMessage | null = null;
-    for await (const event of options.session.readBranch(threadId)) {
+    for await (const read of options.session.readBranch(threadId)) {
+      if (!read.ok) throw new Bug(`fake context: read failed: ${read.error.kind}`);
+      const event = read.value;
       if (event.kind === "item.recorded") {
         const payload = parse(ItemRecordedPayloadSchema, event.payload);
         if (!payload.ok) continue;

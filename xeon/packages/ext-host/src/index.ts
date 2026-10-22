@@ -9,6 +9,7 @@ export {
   type InstallResult,
   type ScopeSetupOutcome,
   type PlatformModule,
+  type PlatformSetupError,
   type PlatformContext,
   type ExtDiagnostic,
   // primitives §3.3~§3.5

@@ -91,6 +91,7 @@ export function parseSecretRef(
 /** 순수 함수. secretRef("exa-key") → "secret://exa-key". 이름 규칙 위반은 호출 결함이므로 Bug를 던진다 */
 export function secretRef(name: string): SecretHandle {
   const parsed = parseSecretRef(`${SECRET_PREFIX}${name}`);
+  // xeon-disable-next-line xeon/bug-for-expected -- secretRef 호출자가 이름 규칙을 어긴 호출 결함이다. 입력 검증은 parseSecretRef가 값으로 돌려준다 (eng.typescript.guide TY-24)
   if (!parsed.ok) throw new Bug(`secretRef: "${name}" is not a valid secret name`);
   return parsed.value.handle;
 }

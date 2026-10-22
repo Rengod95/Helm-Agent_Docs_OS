@@ -18,7 +18,7 @@ import { insertCreationKey, lookupCreationKey } from "./creation-keys.ts";
 import { sessionResource } from "./ids.ts";
 import type { OpenSessions } from "./ownership.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
-import { readOrThrow } from "./read.ts";
+import { readResult } from "./rows.ts";
 import { readThread } from "./views.ts";
 import type { CommitHooks, SessionWriter } from "./writer.ts";
 
@@ -47,6 +47,8 @@ function leaseFailure(error: LeaseError, threadId: ThreadId): LifecycleError {
       return { kind: "disk_full" };
     case "lock_io":
       return { kind: "io", code: error.code };
+    case "row_invalid":
+      return error;
     case "lock_busy":
     case "lease_lost":
       // 새로 만든 id의 임대를 다른 소유자가 쥐고 있다. 소유권을 잃은 것과 같다
@@ -63,10 +65,12 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
     threadId: ThreadId,
     replayed: boolean,
     token: LeaseToken | null,
-  ): ThreadCreated => {
-    const thread = readOrThrow(db, (tx) => readThread(tx, threadId));
-    if (thread === undefined) throw new Bug(`store.row_invalid: thread ${threadId} vanished`);
-    return { threadId, headSeq: thread.headSeq, replayed, token };
+  ): Result<ThreadCreated, LifecycleError> => {
+    const read = readResult(db, (tx) => readThread(tx, threadId));
+    if (!read.ok) return read;
+    // 생성 키로 찾은 thread가 그 사이 지워졌을 수 있다(경합)
+    if (read.value === undefined) return err({ kind: "thread_not_found", threadId });
+    return ok({ threadId, headSeq: read.value.headSeq, replayed, token });
   };
 
   return {
@@ -80,9 +84,9 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
       }
       // 이미 쓴 생성 키면 임대도 얻지 않고 처음 thread를 돌려준다. 트랜잭션 안에서 한 번 더 본다(경합)
       if (creationKey !== undefined) {
-        const found = db.read((tx) => lookupCreationKey(tx, creationKey));
-        if (!found.ok) return err({ kind: "busy" });
-        if (found.value !== undefined) return ok(created(found.value, true, null));
+        const found = readResult(db, (tx) => lookupCreationKey(tx, creationKey));
+        if (!found.ok) return err(found.error);
+        if (found.value !== undefined) return created(found.value, true, null);
       }
       let token: LeaseToken | null = null;
       if (input.inheritOwnerFrom !== undefined) {
@@ -156,7 +160,7 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
       const value = outcome.value;
       if (value.kind === "preempted") {
         giveBackLease();
-        return ok(created(value.threadId, true, null));
+        return created(value.threadId, true, null);
       }
       const { result } = value;
       if (result.status !== "committed") {

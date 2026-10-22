@@ -281,6 +281,17 @@ test("unknown_leaf_is_branch_not_found", async () => {
   }
 });
 
+test("a_session_read_failure_is_read_failed_not_a_throw", async () => {
+  const { h } = await conversation();
+  h.log.readFault.current = { kind: "row_invalid", where: "events.envelope" };
+  const result = await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids));
+  expect(result.ok).toBe(false);
+  if (!result.ok) {
+    expect(result.error.kind).toBe("read_failed");
+    expect(result.error.message).toContain("row_invalid");
+  }
+});
+
 test("malformed_item_payload_is_projection_failed", async () => {
   const { h } = await conversation();
   h.log.append("item.recorded", { item: { kind: "user" } });

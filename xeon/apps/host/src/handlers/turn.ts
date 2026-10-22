@@ -26,6 +26,7 @@ function admitRejection(error: LoopError): WireError {
     case "disk_full":
     case "io":
     case "read_only":
+    case "row_invalid":
       return wireErrorOfStore(error, "turn.start rejected");
     default:
       return assertNever(error, "LoopError");
@@ -39,9 +40,9 @@ export function createTurnStartHandler(
   const { ports } = engine;
   return async (params, context) => {
     const { threadId } = params;
-    if (!ports.threads.exists(threadId)) {
-      throw wireError("thread.notFound", { details: { threadId } });
-    }
+    const exists = ports.threads.exists(threadId);
+    if (!exists.ok) throw wireErrorOfStore(exists.error, "turn.start thread lookup");
+    if (!exists.value) throw wireError("thread.notFound", { details: { threadId } });
     if (!ports.locks.holds(threadId)) {
       const lock = await ports.locks.tryAcquire(threadId, ownerKindOf(engine.mode));
       if (!lock.ok) throw threadLocked(lock.ownerKind);

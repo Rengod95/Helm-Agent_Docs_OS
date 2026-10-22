@@ -1,3 +1,4 @@
+import { detach, err, ok, type Result } from "@xeon/contracts";
 import {
   toEventWire,
   toVolatileEventWire,
@@ -6,8 +7,9 @@ import {
   type Unsubscribe,
   type WireHandler,
 } from "@xeon/contracts/wire";
-import type { DurableEventEnvelope } from "@xeon/contracts/records";
+import type { DurableEventEnvelope, ReadFailure } from "@xeon/contracts/records";
 import type { ConnectionHub, ConnectionState, Subscription } from "../connection-types.ts";
+import { wireErrorOfStore } from "../store-error.ts";
 import type { CommitBatch, Engine } from "../types.ts";
 import { messageOf, toRecord } from "../util.ts";
 
@@ -97,18 +99,20 @@ async function replayStep(
   conn: ConnectionState,
   sub: Subscription,
   upto: number,
-): Promise<void> {
-  if (!isOpen(sub)) return;
+): Promise<Result<void, ReadFailure>> {
+  if (!isOpen(sub)) return ok(undefined);
   if (sub.pos >= upto) {
     // 재전송할 것이 없다(또는 끝났다). 응답 전에 쌓인 커밋을 비우고 실시간으로 넘어간다
     flushPending(conn, sub, sub.pending.splice(0));
     sub.state = "live";
-    return;
+    return ok(undefined);
   }
   const waited = await conn.sender.waitBelowLowWater();
-  if (waited !== "ready" || !isOpen(sub)) return;
+  if (waited !== "ready" || !isOpen(sub)) return ok(undefined);
   const limit = conn.limits.replayBatchMaxEvents;
-  const read = engine.ports.feed.read(sub.pos, upto, sub.filter, limit, conn.limits.scanLimit);
+  const page = engine.ports.feed.read(sub.pos, upto, sub.filter, limit, conn.limits.scanLimit);
+  if (!page.ok) return err(page.error);
+  const read = page.value;
   const lastEvent = read.events[read.events.length - 1];
   let to = read.events.length >= limit && lastEvent !== undefined ? lastEvent.seq : read.scannedTo;
   // 읽기가 앞으로 가지 않는 비정상을 막는다: 진행이 보장되어야 재전송이 끝난다
@@ -121,11 +125,11 @@ async function replayStep(
     sub.pos = to;
     flushPending(conn, sub, rest);
     sub.state = "live";
-    return;
+    return ok(undefined);
   }
   sendBatch(conn, sub, sub.pos, to, events, false);
   sub.pos = to;
-  await replayStep(engine, conn, sub, upto);
+  return await replayStep(engine, conn, sub, upto);
 }
 
 function driveReplay(
@@ -133,16 +137,33 @@ function driveReplay(
   conn: ConnectionState,
   sub: Subscription,
   upto: number,
-): Promise<void> {
+): Promise<Result<void, ReadFailure>> {
   sub.state = "replaying";
   return replayStep(engine, conn, sub, upto);
+}
+
+/** 재전송이 끝까지 가지 못했다. 구독을 닫고 클라이언트가 끝없이 기다리지 않도록 끝났음을 알린다 */
+function endReplayFailed(
+  engine: Engine,
+  conn: ConnectionState,
+  sub: Subscription,
+  message: string,
+): void {
+  engine.ports.log.error("events.replay_failed", { connectionId: conn.id, sub: sub.id, message });
+  conn.subs.delete(sub.id);
+  sub.open = false;
+  conn.sender.push({
+    jsonrpc: "2.0",
+    method: "events.ended",
+    params: toRecord({ sub: sub.id, reason: "replayFailed" }),
+  });
 }
 
 export function createEventsSubscribeHandler(
   engine: Engine,
   hub: () => ConnectionHub,
 ): WireHandler<"events.subscribe"> {
-  const { feed, log } = engine.ports;
+  const { feed } = engine.ports;
   return async (params, context) => {
     const conn = hub().state(context.connectionId);
     if (conn === undefined) throw wireError("request.cancelled");
@@ -154,7 +175,9 @@ export function createEventsSubscribeHandler(
     }
 
     // F wire §3.4.3 3단계: head 읽기와 구독 등록은 같은 JS 턴에서, awaits 없이 한다(HS-10)
-    const head = feed.headSeq();
+    const headRead = feed.headSeq();
+    if (!headRead.ok) throw wireErrorOfStore(headRead.error, "events.subscribe head");
+    const head = headRead.value;
     const from = params.from;
     let start = head;
     if (from !== "head") {
@@ -186,21 +209,17 @@ export function createEventsSubscribeHandler(
     };
     conn.subs.set(sub.id, sub);
     conn.afterResponse(context.rpcId, () => {
-      driveReplay(engine, conn, sub, head).catch((caught: unknown) => {
-        log.error("events.replay_failed", {
-          connectionId: conn.id,
-          sub: sub.id,
-          message: messageOf(caught),
-        });
-        conn.subs.delete(sub.id);
-        sub.open = false;
-        // 클라이언트가 끝없이 기다리지 않도록 구독이 끝났음을 알린다
-        conn.sender.push({
-          jsonrpc: "2.0",
-          method: "events.ended",
-          params: toRecord({ sub: sub.id, reason: "replayFailed" }),
-        });
-      });
+      detach(
+        driveReplay(engine, conn, sub, head).then((replayed) => {
+          if (!replayed.ok) {
+            endReplayFailed(engine, conn, sub, `read failed: ${replayed.error.kind}`);
+          }
+          return replayed;
+        }),
+        (caught) => {
+          endReplayFailed(engine, conn, sub, messageOf(caught));
+        },
+      );
     });
 
     // 응답이 나가기 전의 취소 창: 송신 큐가 가득 차 있으면 거기서 기다리고, 그동안 $/cancelRequest가 오면 구독을 되돌린다

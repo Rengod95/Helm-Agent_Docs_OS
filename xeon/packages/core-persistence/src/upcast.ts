@@ -1,4 +1,5 @@
-import { Bug } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, type Result } from "@xeon/contracts";
+import { rowInvalid, type RowFault } from "./rows.ts";
 import {
   EVENT_CATALOG,
   upcastEvent,
@@ -37,6 +38,29 @@ export function createKindCatalog(eventKinds?: EventKindRegistry): KindCatalog {
       return upcastEvent(event, registry);
     },
   };
+}
+
+/**
+ * 저장된 envelope를 현재 버전으로 올린다. 모르는 kind나 더 새 version은 다른 버전이 쓴 데이터라 row_invalid로 돌려준다.
+ * 업캐스터가 빠진 경우는 코드 결함이다(Bug)
+ */
+export function upcastStored(
+  catalog: KindCatalog,
+  event: DurableEventEnvelope,
+): Result<DurableEventEnvelope, RowFault> {
+  const upcasted = catalog.upcast(event);
+  if (upcasted.ok) return ok(upcasted.value);
+  switch (upcasted.error.kind) {
+    case "unknown_kind":
+    case "future_version":
+      return err(rowInvalid(`events.envelope ${event.kind} v${event.version}`));
+    case "missing_upcaster":
+      throw new Bug(`store.schema_invalid: missing upcaster for ${event.kind} v${event.version}`, {
+        cause: upcasted.error,
+      });
+    default:
+      return assertNever(upcasted.error, "upcastStored");
+  }
 }
 
 function isExtensionKind(kind: string): boolean {

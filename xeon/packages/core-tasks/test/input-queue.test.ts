@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Bug, err, ok, parse } from "@xeon/contracts";
+import { Bug, err, ok, parse, type Result } from "@xeon/contracts";
 import type { EventId, ItemId, TurnId } from "@xeon/contracts/conversation";
 import { InputQueuedPayloadSchema } from "@xeon/contracts/records";
 import type {
@@ -10,6 +10,12 @@ import type {
   PlacementSelection,
 } from "@xeon/contracts/services";
 import { createWorld, restart, userDraft, type World } from "./support/world.ts";
+
+/** 시험에서 오류 값을 받지 않는 호출의 결과를 꺼낸다 */
+function unwrapped<T>(result: Result<T, { readonly kind: string }>): T {
+  if (!result.ok) throw new Bug(`unexpected failure: ${result.error.kind}`);
+  return result.value;
+}
 
 /** requestId로 input.queued 이벤트를 찾아 입력 id를 돌려준다 */
 function enqueued(world: World, draft: InputDraft): EventId {
@@ -66,7 +72,9 @@ function placeAt(world: World, at: PlacementPoint, key: string, continuing = fal
     requestId: key,
     fingerprintSource: { key },
     build: (view) => {
-      const selection = world.tasks.inputs.drain(view, world.threadId, at, { continuing });
+      const selection = unwrapped(
+        world.tasks.inputs.drain(view, world.threadId, at, { continuing }),
+      );
       holder.selection = selection;
       const placements = selection.inputs.map((input) => {
         const itemId = world.ids.next("itm");
@@ -88,7 +96,9 @@ function viewSelection(world: World, at: PlacementPoint, continuing = false): Pl
     requestId: `peek:${world.session.commitCalls}`,
     fingerprintSource: { n: world.session.commitCalls },
     build: (view) => {
-      holder.selection = world.tasks.inputs.drain(view, world.threadId, at, { continuing });
+      holder.selection = unwrapped(
+        world.tasks.inputs.drain(view, world.threadId, at, { continuing }),
+      );
       return { kind: "reject", code: "view_only", detail: null };
     },
   });
@@ -121,10 +131,9 @@ describe("enqueue", () => {
       source: { type: "user", via: "interactive" },
     });
     expect(world.session.events[0]?.turnId).toBeNull();
-    expect(world.tasks.inputs.peek(world.threadId).map((input) => input.requestId)).toEqual([
-      "r-steer",
-      "r-follow",
-    ]);
+    expect(
+      unwrapped(world.tasks.inputs.peek(world.threadId)).map((input) => input.requestId),
+    ).toEqual(["r-steer", "r-follow"]);
   });
 
   test("post_duplicate_request_id_enqueues_once", async () => {
@@ -144,7 +153,7 @@ describe("enqueue", () => {
     expect(second.value.state).toBe("queued");
     expect(world.session.events.filter((event) => event.kind === "input.queued").length).toBe(1);
     // 첫 입력의 내용이 남는다
-    expect(world.tasks.inputs.peek(world.threadId)[0]).toMatchObject({
+    expect(unwrapped(world.tasks.inputs.peek(world.threadId))[0]).toMatchObject({
       mode: "steer",
       item: { kind: "user", content: "text same" },
     });
@@ -194,7 +203,7 @@ describe("enqueue", () => {
     const world = createWorld();
     await mustEnqueue(world, userDraft(world.threadId, "a"));
     await mustEnqueue(world, userDraft(world.threadId, "b"));
-    expect(world.tasks.inputs.peek(world.threadId).length).toBe(2);
+    expect(unwrapped(world.tasks.inputs.peek(world.threadId)).length).toBe(2);
   });
 
   test("an input already queued by another commit is reported as a duplicate", async () => {
@@ -312,14 +321,14 @@ describe("enqueue", () => {
       source: { type: "extension", scopeId: "helm" },
     });
     const inputId = await mustEnqueue(world, draft);
-    const [stored] = world.tasks.inputs.peek(world.threadId);
+    const [stored] = unwrapped(world.tasks.inputs.peek(world.threadId));
     expect(stored).toEqual({ ...draft, inputId, seq: 1 });
 
     const bare = userDraft(world.threadId, "ctx2", {
       item: { kind: "context", customType: "x.note.log.line", content: "plain", display: false },
     });
     await mustEnqueue(world, bare);
-    const loaded = world.tasks.inputs.peek(world.threadId)[1];
+    const loaded = unwrapped(world.tasks.inputs.peek(world.threadId))[1];
     expect(loaded?.item).toEqual({
       kind: "context",
       customType: "x.note.log.line",
@@ -350,7 +359,7 @@ describe("extension post", () => {
       requestId: "post-1",
       source: { type: "extension", scopeId: "helm/review" },
     });
-    expect(world.tasks.inputs.peek(world.threadId)[0]?.inputId).toBe(queued?.id);
+    expect(unwrapped(world.tasks.inputs.peek(world.threadId))[0]?.inputId).toBe(queued?.id);
   });
 
   test("a second post with the same requestId is a duplicate and writes nothing", async () => {
@@ -415,13 +424,13 @@ describe("restart", () => {
         source: { type: "schedule", timerId: "tmr_1" },
       }),
     );
-    const expected = before.tasks.inputs.peek(before.threadId);
+    const expected = unwrapped(before.tasks.inputs.peek(before.threadId));
     expect(expected.map((input) => input.mode)).toEqual(["steer", "followUp"]);
     await before.tasks.close();
 
     // 저장소는 그대로 두고 서비스만 새로 만든다
     const after = restart(before);
-    expect(after.tasks.inputs.peek(after.threadId)).toEqual(expected);
+    expect(unwrapped(after.tasks.inputs.peek(after.threadId))).toEqual(expected);
     // 복원된 입력만으로는 turn이 열리지 않는다. 다음 배치 지점에서 고른다
     expect(after.session.commitCalls).toBe(before.session.commitCalls);
     expect(viewSelection(after, "turnStart").inputs.map((input) => input.requestId)).toEqual([
@@ -448,13 +457,16 @@ describe("peek", () => {
       userDraft(world.threadId, "c", { mode: "followUp" }),
     ]);
     const { inputs } = world.tasks;
-    expect(inputs.peek(world.threadId).map((input) => input.requestId)).toEqual(["a", "b", "c"]);
-    expect(inputs.peek(world.threadId, ["followUp"]).map((input) => input.requestId)).toEqual([
+    expect(unwrapped(inputs.peek(world.threadId)).map((input) => input.requestId)).toEqual([
       "a",
+      "b",
       "c",
     ]);
-    expect(inputs.peek(world.threadId, ["next"])).toEqual([]);
-    const seqs = inputs.peek(world.threadId).map((input) => input.seq);
+    expect(
+      unwrapped(inputs.peek(world.threadId, ["followUp"])).map((input) => input.requestId),
+    ).toEqual(["a", "c"]);
+    expect(unwrapped(inputs.peek(world.threadId, ["next"]))).toEqual([]);
+    const seqs = unwrapped(inputs.peek(world.threadId)).map((input) => input.seq);
     expect(seqs).toEqual([...seqs].toSorted((x, y) => x - y));
   });
 
@@ -464,7 +476,7 @@ describe("peek", () => {
     const [event] = world.session.events;
     if (event === undefined) throw new Bug("missing event");
     Reflect.set(event, "payload", { mode: "steer" });
-    expect(world.tasks.inputs.peek(world.threadId)).toEqual([]);
+    expect(unwrapped(world.tasks.inputs.peek(world.threadId))).toEqual([]);
     expect(world.log.records.map((record) => record.event)).toEqual([
       "tasks.queued_payload_invalid",
     ]);
@@ -483,7 +495,7 @@ describe("detached payloads", () => {
         ref: { type: "blob", sha256: "a".repeat(64), size: 10, mediaType: null },
       },
     ]);
-    expect(world.tasks.inputs.peek(world.threadId)).toEqual([]);
+    expect(unwrapped(world.tasks.inputs.peek(world.threadId))).toEqual([]);
     expect(viewSelection(world, "stepEnd").inputs).toEqual([]);
     expect(world.log.records.map((record) => record.event)).toEqual([
       "tasks.queued_input_detached",
@@ -560,7 +572,7 @@ describe("drain", () => {
     viewSelection(world, "stepEnd");
     viewSelection(world, "turnStart");
     expect(world.session.events.length).toBe(before);
-    expect(world.tasks.inputs.peek(world.threadId).length).toBe(4);
+    expect(unwrapped(world.tasks.inputs.peek(world.threadId)).length).toBe(4);
   });
 
   test("placing the selection removes it from the queue and writes input.placed", async () => {
@@ -574,11 +586,9 @@ describe("drain", () => {
     });
     expect(events[0]?.turnId).toBe(placed.turnId);
     expect(events[0]?.causationId).toBe(placed.selection.inputs[0]?.inputId);
-    expect(world.tasks.inputs.peek(world.threadId).map((input) => input.requestId)).toEqual([
-      "f1",
-      "s2",
-      "f2",
-    ]);
+    expect(
+      unwrapped(world.tasks.inputs.peek(world.threadId)).map((input) => input.requestId),
+    ).toEqual(["f1", "s2", "f2"]);
   });
 
   test("drafts refuses a placement for an input that was not selected", async () => {
@@ -617,7 +627,7 @@ describe("withdraw", () => {
     const result = await world.tasks.inputs.withdraw(world.threadId, "all", "user");
     // 배치된 입력은 거두지 않고 수에도 세지 않는다
     expect(result).toEqual({ ok: true, value: 2 });
-    expect(world.tasks.inputs.peek(world.threadId)).toEqual([]);
+    expect(unwrapped(world.tasks.inputs.peek(world.threadId))).toEqual([]);
     const withdrawn = world.session.events.filter((event) => event.kind === "input.withdrawn");
     expect(withdrawn.map((event) => event.payload)).toEqual([
       { inputId: enqueued(world, userDraft(world.threadId, "b")), reason: "user" },
@@ -633,7 +643,9 @@ describe("withdraw", () => {
       ok: true,
       value: 1,
     });
-    expect(world.tasks.inputs.peek(world.threadId).map((input) => input.inputId)).toEqual([a]);
+    expect(
+      unwrapped(world.tasks.inputs.peek(world.threadId)).map((input) => input.inputId),
+    ).toEqual([a]);
     // 이미 거둔 입력과 모르는 id는 0
     expect(await world.tasks.inputs.withdraw(world.threadId, b, "user")).toEqual({
       ok: true,
@@ -652,7 +664,7 @@ describe("withdraw", () => {
     world.session.failNext({ kind: "read_only", reason: "observer" });
     const result = await world.tasks.inputs.withdraw(world.threadId, "all", "aborted");
     expect(result).toEqual({ ok: false, error: { kind: "read_only", reason: "observer" } });
-    expect(world.tasks.inputs.peek(world.threadId).length).toBe(1);
+    expect(unwrapped(world.tasks.inputs.peek(world.threadId)).length).toBe(1);
   });
 });
 
@@ -712,5 +724,71 @@ describe("notifications", () => {
     await world.tasks.close();
     await mustEnqueue(world, userDraft(world.threadId, "a"));
     expect(seen).toEqual([]);
+  });
+});
+
+describe("read failures", () => {
+  test("peek and withdraw return the read failure instead of throwing", async () => {
+    const world = await seeded();
+    world.session.failNextRead({ kind: "busy" });
+    expect(world.tasks.inputs.peek(world.threadId)).toEqual({
+      ok: false,
+      error: { kind: "busy" },
+    });
+    // 실패는 한 번뿐이다. 다음 읽기는 입력을 돌려준다
+    expect(unwrapped(world.tasks.inputs.peek(world.threadId)).length).toBe(4);
+
+    world.session.failNextRead({ kind: "io", code: "SQLITE_IOERR" });
+    expect(await world.tasks.inputs.withdraw(world.threadId, "all", "user")).toEqual({
+      ok: false,
+      error: { kind: "io", code: "SQLITE_IOERR" },
+    });
+    expect(unwrapped(world.tasks.inputs.peek(world.threadId)).length).toBe(4);
+  });
+
+  test("drain reports a failed event read and the commit aborts without recording a result", async () => {
+    const world = await seeded();
+    world.session.failNextRead({ kind: "row_invalid", where: "events.envelope" });
+    const before = world.session.events.length;
+    const request = {
+      threadId: world.threadId,
+      requestId: "place:read-fault",
+      fingerprintSource: { key: "place:read-fault" },
+      build: (view: Parameters<typeof world.tasks.inputs.drain>[0]) => {
+        const drained = world.tasks.inputs.drain(view, world.threadId, "turnStart", {
+          continuing: false,
+        });
+        if (!drained.ok) return { kind: "abort", error: drained.error } as const;
+        return { kind: "reject", code: "unexpected", detail: null } as const;
+      },
+    };
+    expect(world.session.commit(request)).toEqual({
+      ok: false,
+      error: { kind: "row_invalid", where: "events.envelope" },
+    });
+    expect(world.session.events.length).toBe(before);
+    // 결과가 남지 않았으므로 같은 키로 다시 낼 수 있다
+    const retried = world.session.commit({
+      ...request,
+      build: (view) => {
+        const drained = world.tasks.inputs.drain(view, world.threadId, "turnStart", {
+          continuing: false,
+        });
+        return drained.ok
+          ? { kind: "reject", code: "viewed", detail: String(drained.value.inputs.length) }
+          : { kind: "abort", error: drained.error };
+      },
+    });
+    expect(retried).toMatchObject({ ok: true, value: { status: "rejected", code: "viewed" } });
+  });
+
+  test("a duplicate enqueue reports a read failure while resolving the stored input", async () => {
+    const world = createWorld();
+    await mustEnqueue(world, userDraft(world.threadId, "dup"));
+    world.session.failNextRead({ kind: "busy" });
+    const again = await world.tasks.inputs.enqueue(userDraft(world.threadId, "dup"));
+    expect(again).toEqual({ ok: false, error: { kind: "busy" } });
+    const third = await world.tasks.inputs.enqueue(userDraft(world.threadId, "dup"));
+    expect(third).toMatchObject({ ok: true, value: { duplicate: true, state: "queued" } });
   });
 });

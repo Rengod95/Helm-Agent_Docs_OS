@@ -1,17 +1,16 @@
-import { Bug } from "@xeon/contracts";
+import { Bug, ok, type Result } from "@xeon/contracts";
 import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
   AgentView,
-  ApprovalView,
   EffectView,
   InputView,
   ProjectionQuery,
+  ReadFailure,
   StoreDb,
   ThreadSummaryRow,
   TurnView,
 } from "@xeon/contracts/records";
-import { readOrThrow } from "./read.ts";
-import { columnString } from "./rows.ts";
+import { columns, readResult } from "./rows.ts";
 import {
   markerOf,
   readPendingApprovals,
@@ -22,7 +21,6 @@ import {
   readTurn,
   readTurnByRequest,
 } from "./views.ts";
-import { toEventId } from "./ids.ts";
 
 function notYet(member: string, plan: string): never {
   throw new Bug(`session.not_implemented: query.${member} arrives with ${plan}`);
@@ -35,61 +33,68 @@ function notYet(member: string, plan: string): never {
  */
 export function createProjectionQuery(db: StoreDb): ProjectionQuery {
   return {
-    thread(threadId: ThreadId): ThreadSummaryRow | undefined {
-      return readOrThrow(db, (tx) => {
+    thread(threadId: ThreadId): Result<ThreadSummaryRow | undefined, ReadFailure> {
+      return readResult(db, (tx) => {
         const row = readThread(tx, threadId);
-        if (row === undefined) return undefined;
-        return {
-          threadId: row.threadId,
-          title: row.title,
-          status: row.status,
-          workspace: row.workspace,
-          createdAt: row.createdAt,
-          updatedAt: row.updatedAt,
-          headSeq: row.headSeq,
-          forkedFrom:
-            row.forkedFrom === null
-              ? null
-              : { threadId: row.forkedFrom.threadId, eventId: toEventId(row.forkedFrom.eventId) },
-          marker: markerOf(row),
-          queuedInputs: readQueuedInputs(tx, threadId).length,
-          pendingApprovals: readPendingApprovals(tx, threadId).length,
-        };
+        if (!row.ok) return row;
+        const thread = row.value;
+        if (thread === undefined) return ok(undefined);
+        const queued = readQueuedInputs(tx, threadId);
+        if (!queued.ok) return queued;
+        const approvals = readPendingApprovals(tx, threadId);
+        if (!approvals.ok) return approvals;
+        return ok({
+          threadId: thread.threadId,
+          title: thread.title,
+          status: thread.status,
+          workspace: thread.workspace,
+          createdAt: thread.createdAt,
+          updatedAt: thread.updatedAt,
+          headSeq: thread.headSeq,
+          forkedFrom: thread.forkedFrom,
+          marker: markerOf(thread),
+          queuedInputs: queued.value.length,
+          pendingApprovals: approvals.value.length,
+        });
       });
     },
-    turn(_threadId: ThreadId, turnId: TurnId): TurnView | undefined {
-      return readOrThrow(db, (tx) => readTurn(tx, turnId));
+    turn(_threadId: ThreadId, turnId: TurnId): Result<TurnView | undefined, ReadFailure> {
+      return readResult(db, (tx) => readTurn(tx, turnId));
     },
-    openTurn(threadId: ThreadId): TurnView | undefined {
-      return readOrThrow(db, (tx) => readOpenTurn(tx, threadId));
+    openTurn(threadId: ThreadId): Result<TurnView | undefined, ReadFailure> {
+      return readResult(db, (tx) => readOpenTurn(tx, threadId));
     },
     turnByRequestId(
       threadId: ThreadId,
       scopeId: string | null,
       requestId: string,
-    ): TurnView | undefined {
-      return readOrThrow(db, (tx) => readTurnByRequest(tx, threadId, scopeId, requestId));
+    ): Result<TurnView | undefined, ReadFailure> {
+      return readResult(db, (tx) => readTurnByRequest(tx, threadId, scopeId, requestId));
     },
-    openEffects(threadId: ThreadId): readonly EffectView[] {
-      return readOrThrow(db, (tx) => readOpenEffects(tx, threadId));
+    openEffects(threadId: ThreadId): Result<readonly EffectView[], ReadFailure> {
+      return readResult(db, (tx) => readOpenEffects(tx, threadId));
     },
-    queuedInputs(threadId: ThreadId): readonly InputView[] {
-      return readOrThrow(db, (tx) => readQueuedInputs(tx, threadId));
+    queuedInputs(threadId: ThreadId): Result<readonly InputView[], ReadFailure> {
+      return readResult(db, (tx) => readQueuedInputs(tx, threadId));
     },
-    pendingApprovals(threadId: ThreadId): readonly ApprovalView[] {
-      return readOrThrow(db, (tx) => readPendingApprovals(tx, threadId));
+    pendingApprovals(threadId: ThreadId) {
+      return readResult(db, (tx) => readPendingApprovals(tx, threadId));
     },
-    childAgents(): readonly AgentView[] {
+    childAgents(): Result<readonly AgentView[], ReadFailure> {
       return notYet("childAgents", "p_agents (PS-23, M2)");
     },
     branchItems: () => notYet("branchItems", "branch queries (PS-10, M2)"),
     itemEvent: () => notYet("itemEvent", "branch queries (PS-10, M2)"),
     latestEvent: () => notYet("latestEvent", "branch queries (PS-10, M2)"),
     liveBlobRefs: () =>
-      readOrThrow(db, (tx) =>
-        tx
-          .all("SELECT DISTINCT sha256 FROM p_blob_refs ORDER BY sha256")
-          .map((row) => columnString(row, "sha256")),
-      ),
+      readResult(db, (tx) => {
+        const hashes: string[] = [];
+        for (const row of tx.all("SELECT DISTINCT sha256 FROM p_blob_refs ORDER BY sha256")) {
+          const sha256 = columns(row, "p_blob_refs").string("sha256");
+          if (!sha256.ok) return sha256;
+          hashes.push(sha256.value);
+        }
+        return ok(hashes);
+      }),
   };
 }

@@ -132,12 +132,12 @@ function harness(): Harness {
       list: () => ({ threads: [], nextCursor: "next" }),
     }),
     query: partial<SessionService["query"]>({
-      thread: () => (state.threadExists ? partial<ThreadSummaryRow>({}) : undefined),
+      thread: () => ok(state.threadExists ? partial<ThreadSummaryRow>({}) : undefined),
       turnByRequestId: () =>
-        state.existingTurn === undefined ? undefined : partial<TurnView>(state.existingTurn),
+        ok(state.existingTurn === undefined ? undefined : partial<TurnView>(state.existingTurn)),
     }),
     feed: partial<SessionService["feed"]>({
-      headSeq: () => 5,
+      headSeq: () => ok(5),
       oldestReplayableSeq: () => 0,
     }),
     openForWrite: () => state.openForWrite,
@@ -262,10 +262,13 @@ describe("threads", () => {
   test("exists, position and list read the session projection and feed", async () => {
     const h = harness();
     const { ports } = createEnginePorts(h.deps);
-    expect(ports.threads.exists(THREAD)).toBe(true);
+    expect(ports.threads.exists(THREAD)).toEqual({ ok: true, value: true });
     h.state.threadExists = false;
-    expect(ports.threads.exists(THREAD)).toBe(false);
-    expect(ports.threads.position(THREAD)).toEqual({ storeId: STORE_ID, seq: 5 });
+    expect(ports.threads.exists(THREAD)).toEqual({ ok: true, value: false });
+    expect(ports.threads.position(THREAD)).toEqual({
+      ok: true,
+      value: { storeId: STORE_ID, seq: 5 },
+    });
     expect(await ports.threads.list({})).toEqual({ threads: [], nextCursor: "next" });
   });
 

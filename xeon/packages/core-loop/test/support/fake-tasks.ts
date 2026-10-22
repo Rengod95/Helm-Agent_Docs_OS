@@ -383,16 +383,18 @@ export function createFakeTasks(options: FakeTasksOptions): FakeTasks {
       throw new Bug("fake-tasks: draftQueued is not implemented");
     },
     peek: (threadId, modes) =>
-      [...queued.values()]
-        .filter(
-          (input) =>
-            input.threadId === threadId &&
-            input.state === "queued" &&
-            (modes === undefined || modes.includes(input.mode)),
-        )
-        .toSorted((a, b) => a.seq - b.seq),
+      ok(
+        [...queued.values()]
+          .filter(
+            (input) =>
+              input.threadId === threadId &&
+              input.state === "queued" &&
+              (modes === undefined || modes.includes(input.mode)),
+          )
+          .toSorted((a, b) => a.seq - b.seq),
+      ),
     drain: (_view, threadId, at, drainOptions) =>
-      selectionOf(threadId, at, drainOptions.continuing),
+      ok(selectionOf(threadId, at, drainOptions.continuing)),
     withdraw: () => Promise.resolve(ok(0)),
     onQueued(listener) {
       queuedListeners.add(listener);
