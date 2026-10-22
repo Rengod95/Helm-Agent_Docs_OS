@@ -5,6 +5,7 @@ import {
   ApprovalResolvedPayloadSchema,
   EffectIntentSchema,
   EffectResultSchema,
+  COMMIT_KEY_PATTERN,
   ownerOfKind,
   STEP_CHECKPOINT_SCHEMA_VERSION,
   type ApprovalView,
@@ -30,6 +31,8 @@ import type { ToolsSession } from "../deps.ts";
 
 // 커밋 기록용 세션 대역(L1.tools.plan §2 testing/fakeSession). 저장소를 흉내 내지 않고 커밋 요청과 이벤트 열을 기록한다.
 // 키 멱등(replayed, key_reused), build의 TxView, 생산자 소유 검사만 실제 저장소와 같게 한다.
+
+const COMMIT_KEY = new RegExp(COMMIT_KEY_PATTERN);
 
 export interface RecordedCommit {
   readonly threadId: ThreadId;
@@ -269,6 +272,10 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
     },
     sessionValues: (threadId) => settings.get(threadId) ?? new Map(),
     commit(request) {
+      // 실제 저장소처럼 커밋 키 형식을 검사한다. 어기면 호출한 쪽의 결함이다(L1.persistence.spec §4.1)
+      if (!COMMIT_KEY.test(request.requestId)) {
+        throw new Bug(`store.schema_invalid: commit key ${request.requestId} is not a COMMIT_KEY`);
+      }
       const injected = fault?.(request);
       if (injected !== undefined) return err(injected);
       const key = `${request.threadId}\0${request.requestId}`;

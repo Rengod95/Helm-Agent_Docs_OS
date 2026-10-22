@@ -390,7 +390,7 @@ export function createPipeline(
     };
     const request: ApprovalRequestInput = {
       origin,
-      requestKey: await requestKeyFor(toolCallId),
+      requestKey: requestKeyFor(toolCallId),
       title: `Allow tool "${entry.name}"?`.slice(0, 120),
       body: {
         kind: "tool",

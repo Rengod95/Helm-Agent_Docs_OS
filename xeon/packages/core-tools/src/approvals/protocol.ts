@@ -1,4 +1,5 @@
 import { err, ok, type Result } from "@xeon/contracts";
+import { commitKeyPart } from "@xeon/contracts/records";
 import type {
   ApprovalDecision,
   ApprovalRemember,
@@ -7,27 +8,37 @@ import type {
   ApprovalResponse,
 } from "@xeon/contracts/services";
 import type { JsonValue } from "@xeon/contracts/conversation";
-import { isJsonObject, sha256Hex } from "../util.ts";
+import { isJsonObject, sha256HexSync } from "../util.ts";
 
 // L1.tools.spec §3.6 응답 규칙, §3.9 requestId 규칙, §4.7 기억 범위. M1은 kind "tool"만 응답을 받는다.
 
 const REQUEST_KEY_MAX = 48;
 const REQUEST_ID_MAX = 64;
+/** requestKeyFor가 길이나 문자 때문에 해시로 바꾼 키. 커밋 키 부분으로 다시 바꾸지 않는다 */
+const HASHED_REQUEST_KEY = /^h_[0-9a-f]{40}$/;
 
-/** 승인 요청의 멱등 키(1~48자). 도구 승인은 toolCallId이고, 길면 해시로 줄인다(결정적) */
-export async function requestKeyFor(toolCallId: string): Promise<string> {
-  if (toolCallId.length >= 1 && toolCallId.length <= REQUEST_KEY_MAX) return toolCallId;
-  return `h_${(await sha256Hex(toolCallId)).slice(0, 40)}`;
+/**
+ * 승인 요청의 멱등 키(1~48자). 도구 승인은 toolCallId에서 만든다. toolCallId는 모델 provider가 정하는 밖의 값이라
+ * 커밋 키 알파벳 밖의 문자를 가질 수 있다. 그래서 커밋 키 부분 변환(`commitKeyPart`, eng.transactions.design §4.7, U-13)을
+ * 거치고, 48자를 넘으면 원문의 해시로 줄인다(결정적)
+ */
+export function requestKeyFor(toolCallId: string): string {
+  const part = commitKeyPart(toolCallId, sha256HexSync);
+  if (part.length <= REQUEST_KEY_MAX) return part;
+  return `h_${sha256HexSync(toolCallId).slice(0, 40)}`;
 }
 
-/** approval.requested의 커밋 키. 64자를 넘으면 해시로 바꾼다 */
-export async function requestCommitKey(
-  surfaceThreadId: string,
-  requestKey: string,
-): Promise<string> {
-  const plain = `approval:${surfaceThreadId}:${requestKey}:request`;
+/**
+ * approval.requested의 커밋 키. requestKey는 호출자가 넘기는 밖의 값이라 커밋 키 부분 변환(`commitKeyPart`)을 거쳐 넣는다
+ * (`requestKeyFor`가 이미 해시로 줄인 키는 그대로). 전체가 64자를 넘으면 해시로 바꾼다
+ */
+export function requestCommitKey(surfaceThreadId: string, requestKey: string): string {
+  const part = HASHED_REQUEST_KEY.test(requestKey)
+    ? requestKey
+    : commitKeyPart(requestKey, sha256HexSync);
+  const plain = `approval:${surfaceThreadId}:${part}:request`;
   if (plain.length <= REQUEST_ID_MAX) return plain;
-  const hash = await sha256Hex(`${surfaceThreadId}:${requestKey}`);
+  const hash = sha256HexSync(`${surfaceThreadId}:${part}`);
   return `approval:${hash.slice(0, 32)}:request`;
 }
 

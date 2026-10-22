@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { parse } from "@xeon/contracts";
-import { ApprovalResolvedPayloadSchema } from "@xeon/contracts/records";
+import { ApprovalResolvedPayloadSchema, COMMIT_KEY_PATTERN } from "@xeon/contracts/records";
 import type { ApprovalRequestInput } from "@xeon/contracts/services";
 import { createToolRuntime } from "../src/runtime.ts";
 import {
@@ -279,6 +279,22 @@ test("a request whose answer was committed before the restart is answered immedi
   const restarted = createToolRuntime(h.deps);
   const again = await restarted.approvals.request(input, controller.signal);
   expect(again).toMatchObject({ ok: true, value: { decision: "allow", resolvedBy: "user" } });
+  expect(h.session.events.filter((event) => event.kind === "approval.requested")).toHaveLength(1);
+});
+
+test("a tool call id outside the commit key alphabet still gets a valid approval.requested commit key", async () => {
+  const h = await createHarness();
+  const probe = registerWorkspace(h);
+  const { done } = await startBash(h, "call|odd id/with space");
+  const requested = h.session.commits.find((commit) => commit.kinds.includes("approval.requested"));
+  expect(requested?.requestId).toMatch(new RegExp(COMMIT_KEY_PATTERN));
+  expect(requested?.requestId).not.toContain("|");
+  const [request] = h.runtime.approvals.pending(h.thread);
+  await h.runtime.approvals.respond(request?.approvalId ?? "", { decision: "allow" });
+  const outcome = await done;
+  expect(outcome.isError).toBe(false);
+  expect(probe.calls).toHaveLength(1);
+  // 재시작 뒤 같은 요청은 같은 키로 이어진다(키가 결정적이다)
   expect(h.session.events.filter((event) => event.kind === "approval.requested")).toHaveLength(1);
 });
 

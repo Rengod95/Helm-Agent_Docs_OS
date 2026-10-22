@@ -250,7 +250,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     }
     const committed = commitWithRetry(deps.session, {
       threadId: surfaceThreadId,
-      requestId: await requestCommitKey(surfaceThreadId, input.requestKey),
+      requestId: requestCommitKey(surfaceThreadId, input.requestKey),
       fingerprintSource: {
         kind: "approval.requested",
         requestKey: input.requestKey,

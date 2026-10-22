@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { err, ok, parse } from "@xeon/contracts";
 import { BashToolParams } from "@xeon/contracts/capabilities";
-import { EffectIntentSchema, commitKeyPart } from "@xeon/contracts/records";
+import { COMMIT_KEY_PATTERN, EffectIntentSchema, commitKeyPart } from "@xeon/contracts/records";
 import type { CommitRequest, CommitResult } from "@xeon/contracts/records";
 import { sequentialIds } from "../src/testing/index.ts";
 import { commitWithRetry, describeFailure } from "../src/commit.ts";
@@ -70,13 +70,29 @@ test("tool call ids outside the commit key alphabet or too long are hashed deter
   expect(odd).toMatch(/^h_[0-9a-f]{40}$/);
   expect(commitKeyPart("call|odd id/with space", sha256HexSync)).toBe(odd);
   const long = "t".repeat(60);
-  expect(await requestKeyFor(long)).toMatch(/^h_[0-9a-f]{40}$/);
-  expect(await requestKeyFor("short")).toBe("short");
+  expect(requestKeyFor(long)).toMatch(/^h_[0-9a-f]{40}$/);
+  expect(requestKeyFor("short")).toBe("short");
   const thread = "thr_00000000000000000000000001";
-  expect(await requestCommitKey(thread, "call_1")).toBe(`approval:${thread}:call_1:request`);
-  const hashed = await requestCommitKey(thread, "k".repeat(48));
+  expect(requestCommitKey(thread, "call_1")).toBe(`approval:${thread}:call_1:request`);
+  const hashed = requestCommitKey(thread, "k".repeat(48));
   expect(hashed).toMatch(/^approval:[0-9a-f]{32}:request$/);
   expect(hashed.length).toBeLessThanOrEqual(64);
+
+  // 승인 요청의 키도 같은 변환을 거친다. toolCallId가 알파벳 밖이어도 커밋 키 형식을 지킨다(U-13)
+  const oddKey = requestKeyFor("call|odd id/with space");
+  expect(oddKey).toMatch(/^h_[0-9a-f]{40}$/);
+  expect(requestKeyFor("call|odd id/with space")).toBe(oddKey);
+  const oddCommit = requestCommitKey(thread, oddKey);
+  expect(oddCommit).toMatch(new RegExp(COMMIT_KEY_PATTERN));
+  // 64자를 넘는 키는 해시로 줄이므로 형식과 결정성만 본다
+  expect(requestCommitKey(thread, oddKey)).toBe(oddCommit);
+  // 호출자가 알파벳 밖 requestKey를 직접 넘겨도 커밋 키는 형식을 지킨다
+  const direct = requestCommitKey(thread, "key with|bar");
+  expect(direct).toMatch(new RegExp(COMMIT_KEY_PATTERN));
+  expect(requestCommitKey(thread, "key with|bar")).toBe(direct);
+  // 원문이 h_로 시작하면 해시 키와 겹치지 않게 다시 해시한다
+  const reserved = `h_${"a".repeat(40)}`;
+  expect(requestKeyFor(reserved)).not.toBe(reserved);
 
   const h = await createHarness();
   registerWorkspace(h);
