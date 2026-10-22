@@ -12,6 +12,7 @@ function context() {
     dispatchKey: "key",
     counter: 0,
     drive: null,
+    handler: null,
   };
 }
 

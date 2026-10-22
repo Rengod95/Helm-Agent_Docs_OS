@@ -10,6 +10,7 @@ import {
   createScopeControl,
   createStaticOperationsSettings,
   type OperationsNotifier,
+  type ReservedNames,
   type OperationsPolicy,
   type ScopeControl,
   type StaticOperationsSettings,
@@ -42,6 +43,7 @@ export interface HarnessOptions {
   readonly settings?: StaticOperationsSettings;
   readonly host?: Omit<TestHostOptions, "timers" | "policy" | "setupBudget">;
   readonly guardStatements?: boolean;
+  readonly reservedNames?: ReservedNames;
 }
 
 /** 정책이 ExtHost보다 먼저 만들어지므로 ScopeControl·포트를 늦게 연결한다(조립 순서, X.operations.spec §3.8) */
@@ -84,11 +86,13 @@ export async function createOperationsHarness(
     notifier,
     ports,
     ...(options.guardStatements === undefined ? {} : { guardStatements: options.guardStatements }),
+    ...(options.reservedNames === undefined ? {} : { reservedNames: options.reservedNames }),
   });
   const t = await createTestHost({
     ...options.host,
     timers,
     policy,
+    resourcePolicy: policy.resources,
     setupBudget: () => policy.setupBudgetMs(),
   });
   late.host = t.host;

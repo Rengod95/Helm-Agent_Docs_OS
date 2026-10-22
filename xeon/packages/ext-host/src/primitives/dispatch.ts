@@ -217,7 +217,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
       const info = infoOf(entry);
       const outer = combineSignals(options.signal, entry.signal);
       const state = deps.stateOf(options.threadId, entry.scopeId);
-      const work = (signal: AbortSignal, _gate: HandlerGate): Promise<unknown> =>
+      const work = (signal: AbortSignal, gate: HandlerGate): Promise<unknown> =>
         Promise.resolve().then(() =>
           withAmbient(
             {
@@ -226,6 +226,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
               dispatchKey: options.dispatchKey,
               counter: 0,
               drive: null,
+              handler: { signal, gate },
             },
             () =>
               entry.fn(...args, {

@@ -7,6 +7,7 @@ import {
   type ExtCommitResult,
 } from "@xeon/contracts/extensions";
 import type { DispatchPolicy } from "../dispatch-types.ts";
+import type { ResourcePolicy } from "../resources.ts";
 import type { ExtDiagnostic } from "../errors.ts";
 import { createExtHost, hostInternalsOf, type ExtHost } from "../host.ts";
 import type { PrimitivesSettingsSource } from "../core.ts";
@@ -28,6 +29,8 @@ export interface TestHostOptions {
   readonly timers?: FakeTimers;
   readonly strict?: boolean;
   readonly policy?: DispatchPolicy;
+  /** 리소스 이름 충돌 판정(`ExtHostDeps.resourcePolicy`) */
+  readonly resourcePolicy?: ResourcePolicy;
   readonly setupBudgetMs?: number | null;
   /** setup 예산을 호출 때마다 읽는다. 정책(OperationsPolicy.setupBudgetMs)을 그대로 넘길 때 쓴다 */
   readonly setupBudget?: () => number | null;
@@ -93,6 +96,7 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
     now: timers.now,
     setTimer: timers.setTimer,
     ...(options.policy === undefined ? {} : { policy: options.policy }),
+    ...(options.resourcePolicy === undefined ? {} : { resourcePolicy: options.resourcePolicy }),
     setupBudgetMs: options.setupBudget ?? (() => options.setupBudgetMs ?? null),
     settings: options.settingsSource ?? createStaticPrimitivesSettings(options.settings),
     report: (diagnostic) => {

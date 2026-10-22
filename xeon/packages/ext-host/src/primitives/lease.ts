@@ -245,6 +245,7 @@ export function createLeaseBroker(
           dispatchKey: null,
           counter: 0,
           drive: invocation,
+          handler: null,
         },
         () => drive.fn(handle, stateService.docOf(thread.threadId, lease.scopeId)),
       );

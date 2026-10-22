@@ -41,6 +41,7 @@ import { createPortProvider } from "./port-provider.ts";
 import { eachInOrder } from "./sequence.ts";
 import { createPostQueue } from "./post.ts";
 import { createHandlerRegistry } from "./registry.ts";
+import { createResourceStore, type ResourcePolicy, type ResourceRegistry } from "./resources.ts";
 import { createScopeRuntime, type ScopeInfo, type ScopeSetupOutcome } from "./scope.ts";
 import { createStateService } from "./state.ts";
 
@@ -60,6 +61,8 @@ export interface ExtHostDeps {
   readonly setTimer: (ms: number, fn: () => void) => () => void;
   /** 순서 키·시간 예산·실패 보고. 기본값 DEFAULT_DISPATCH_POLICY. X.operations가 구현을 넘긴다 */
   readonly policy?: DispatchPolicy;
+  /** 리소스(도구, 명령, 단축키, 플래그) 이름 충돌 판정. X.operations가 구현을 넘긴다. 없으면 같은 이름은 거부한다 */
+  readonly resourcePolicy?: ResourcePolicy;
   /** scope setup 하나의 시간 예산(ms). 없으면 무제한 */
   readonly setupBudgetMs?: () => number | null;
   /** x.primitives.* 설정 값 읽기 */
@@ -161,6 +164,8 @@ export interface ExtHost {
    * 구독자의 예외는 진단으로 남기고 다른 구독자에게 전달을 이어 간다
    */
   onChange(listener: (change: ExtChange) => void): Unsubscribe;
+  /** L4가 읽는 명령·키 조합·플래그·렌더러 표(X.primitives.spec §3.9) */
+  readonly resources: ResourceRegistry;
   /** 모든 scope를 즉시 끄고 Cordis 루트를 해제한다. 프로세스 종료용 */
   dispose(): Promise<void>;
 }
@@ -399,6 +404,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     await settleAll(rounds - 1);
   }
 
+  const resources = createResourceStore({ ports, policy: deps.resourcePolicy, report });
   const state = createStateService(core);
   services.state = state;
   const post = createPostQueue(core);
@@ -407,7 +413,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   const lease = createLeaseBroker(core, state, { requestApply: (id) => late.requestApply(id) });
   const scope = createScopeRuntime(core, {
     makeApi: (record, generation) =>
-      createScopeApi({ core, state, post, bindings }, record, generation),
+      createScopeApi({ core, state, post, bindings, resources }, record, generation),
     state,
     lease,
     requestApply: (threadId) => {
@@ -577,6 +583,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       boundary.requestApply();
     },
     ports,
+    resources,
     scope(id) {
       const record = core.scopes.get(id);
       return record === undefined ? undefined : scope.handleOf(record);

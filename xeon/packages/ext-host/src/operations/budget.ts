@@ -160,12 +160,4 @@ export function runWithBudget<T>(
   });
 }
 
-/** wait 동안 gate를 멈춘다. ctx.ui 대화상자와 승인 대기를 감싸는 데 쓴다 */
-export async function awaitUser<T>(gate: HandlerGate, wait: () => Promise<T>): Promise<T> {
-  gate.pause();
-  try {
-    return await wait();
-  } finally {
-    gate.resume();
-  }
-}
+export { awaitUser } from "../primitives/user-wait.ts";

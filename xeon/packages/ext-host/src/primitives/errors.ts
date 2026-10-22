@@ -36,7 +36,8 @@ export type PrimitiveErrorCode =
   | "capability_unavailable"
   | "capability_ambiguous"
   | "service_reserved"
-  | "resource_conflict";
+  | "resource_conflict"
+  | "resource_name_invalid";
 
 export interface PrimitiveErrorOptions {
   readonly scopeId?: ScopeId;

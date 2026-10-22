@@ -51,6 +51,27 @@ export {
   type ScopeToggleSourceOf,
 } from "./host.ts";
 export { hostOf, type ScopeHostApi, type StateMigration } from "./host-api.ts";
+export {
+  McpPortKey,
+  ModelsPortKey,
+  ToolsPortKey,
+  type CommandResourceDef,
+  type FlagResourceDef,
+  type FlagValueError,
+  type McpPort,
+  type McpServerResourceDef,
+  type ModelsPort,
+  type ProviderResourceDef,
+  type RendererResourceDef,
+  type ResourceExposure,
+  type ResourceKind,
+  type ResourcePolicy,
+  type ResourceRecord,
+  type ResourceRegistry,
+  type ShortcutResourceDef,
+  type ToolResourceDef,
+  type ToolsPort,
+} from "./resources.ts";
 export type { ExtChange } from "./core.ts";
 export type { ScopeInfo, ScopeSetupOutcome } from "./scope.ts";
 export {

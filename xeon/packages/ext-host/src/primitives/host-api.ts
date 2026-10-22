@@ -4,6 +4,9 @@ import type { JsonValue } from "@xeon/contracts/conversation";
 import type {
   DriveOptions,
   ExtensionName,
+  McpServerResourceDef,
+  ProviderResourceDef,
+  ToolResourceDef,
   Handler,
   PointName,
   PortKey,
@@ -25,7 +28,18 @@ import { createPortProvider } from "./port-provider.ts";
 import type { PostQueue } from "./post.ts";
 import type { HandlerEntry } from "./registry.ts";
 import { capabilityServiceName, providerServiceName } from "./services.ts";
+import { ambient } from "./ambient.ts";
+import type {
+  CommandResourceDef,
+  FlagResourceDef,
+  RendererResourceDef,
+  ResourceKind,
+  ResourceSpec,
+  ResourceStore,
+  ShortcutResourceDef,
+} from "./resources.ts";
 import type { StateMigration } from "./state-migration.ts";
+import { awaitUser } from "./user-wait.ts";
 import type { StateService } from "./state.ts";
 
 export type { StateMigration } from "./state-migration.ts";
@@ -45,6 +59,26 @@ export interface ScopeHostApi {
    * 이 함수로 옮기고 스키마를 검사한 뒤 새 판으로 커밋한다(P-23)
    */
   migrateState(fn: StateMigration): void;
+  // 리소스 등록(X.primitives.spec §4.8). 모두 fiber effect로 추적되어 scope가 꺼지면 자동 해제된다.
+  // 이름 충돌은 resource_conflict, 이름 형식 위반은 resource_name_invalid, 대상 포트가 없으면 port_unavailable이다
+  registerTool(def: ToolResourceDef): void;
+  registerCommand(name: string, def: CommandResourceDef): void;
+  registerShortcut(key: string, def: ShortcutResourceDef): void;
+  registerFlag(name: string, def: FlagResourceDef): void;
+  /** 이 scope가 등록한 flag의 현재 값. L4가 정한 값이 없으면 선언의 기본값, 선언이 없으면 undefined */
+  getFlag(name: string): boolean | string | undefined;
+  registerProvider(name: string, config: ProviderResourceDef): void;
+  registerMcpServer(name: string, config: McpServerResourceDef): void;
+  registerMessageRenderer(customType: RecordKind, renderer: RendererResourceDef): void;
+  /**
+   * 사용자 응답(대화상자, 승인) 대기를 감싼다. 핸들러 안에서 부르면 wait 동안 핸들러 시간 예산 시계를 멈추고,
+   * wait에는 핸들러의 취소 신호(예산 초과, 세션 종료로 abort)를 `options.signal`과 합쳐 넘긴다.
+   * 핸들러 밖(drive 함수, setup)에서는 예산이 없으므로 그대로 실행한다(O-07, X.operations.spec §4.2.3)
+   */
+  awaitUser<T>(
+    wait: (signal: AbortSignal) => Promise<T>,
+    options?: { readonly signal?: AbortSignal },
+  ): Promise<T>;
 }
 
 /** 같은 패키지의 operations가 쓰는 g의 내부 정보 */
@@ -80,6 +114,7 @@ export interface ScopeApiDeps {
   readonly state: StateService;
   readonly post: PostQueue;
   readonly bindings: CapabilityBindings;
+  readonly resources: ResourceStore;
 }
 
 function assertOpen(record: ScopeRecord, generation: Generation): void {
@@ -270,6 +305,45 @@ export function createScopeApi(
       }
       generation.migration = fn;
     },
+    registerTool(def: ToolResourceDef): void {
+      register("tool", def.name, def);
+    },
+    registerCommand(name: string, def: CommandResourceDef): void {
+      register("command", name, def);
+    },
+    registerShortcut(key: string, def: ShortcutResourceDef): void {
+      register("shortcut", key, def);
+    },
+    registerFlag(name: string, def: FlagResourceDef): void {
+      register("flag", name, def);
+    },
+    getFlag(name: string): boolean | string | undefined {
+      assertOpen(record, generation);
+      return deps.resources.flagValue(record.id, name);
+    },
+    registerProvider(name: string, config: ProviderResourceDef): void {
+      register("provider", name, config);
+    },
+    registerMcpServer(name: string, config: McpServerResourceDef): void {
+      register("mcp_server", name, config);
+    },
+    registerMessageRenderer(customType: RecordKind, renderer: RendererResourceDef): void {
+      register("message_renderer", customType, renderer);
+    },
+    awaitUser<T>(
+      wait: (signal: AbortSignal) => Promise<T>,
+      options?: { readonly signal?: AbortSignal },
+    ): Promise<T> {
+      assertOpen(record, generation);
+      const handler = ambient()?.handler ?? null;
+      const extra = options?.signal;
+      if (handler === null) {
+        return wait(extra ?? generation.abort.signal);
+      }
+      const signal =
+        extra === undefined ? handler.signal : AbortSignal.any([handler.signal, extra]);
+      return awaitUser(handler.gate, () => wait(signal));
+    },
     providePort<Api>(key: PortKey<Api>, impl: Api): void {
       assertOpen(record, generation);
       requirePortAccess();
@@ -287,6 +361,23 @@ export function createScopeApi(
       return port;
     },
   };
+
+  /** 리소스를 등록하고 해제를 이 세대의 fiber effect로 묶는다. 실패는 PrimitiveError로 던진다 */
+  function register(kind: ResourceKind, name: string, def: unknown): void {
+    assertOpen(record, generation);
+    const spec: ResourceSpec = {
+      kind,
+      name,
+      scopeId: record.id,
+      extension: record.extension,
+      builtin: record.builtin,
+      def,
+    };
+    const added = deps.resources.add(spec);
+    if (!added.ok) throw added.error;
+    const release = added.value;
+    fiberOf(generation).effect(() => release, `resource(${kind}:${name})`);
+  }
 
   let provider: ReturnType<typeof createPortProvider> | undefined;
   function portProvider(): ReturnType<typeof createPortProvider> {

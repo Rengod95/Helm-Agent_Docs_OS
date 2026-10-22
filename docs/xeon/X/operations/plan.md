@@ -194,3 +194,12 @@ xeon/packages/ext-host/
 | primitives의 `DispatchPolicy`(X.primitives.spec §3.4) 모양이 구현 중에 바뀐다 | O-03, O-06 연결을 다시 쓴다 | `createOperationsPolicy` 내부를 `orderKey`, `run`, `report` 세 함수로 나눠 두어 모양이 바뀌어도 어댑터만 고친다. P-06·P-20과 같은 M0에서 함께 확인한다 |
 | 투영 `apply` 예외가 세션 커밋을 계속 막는다 | 확장 하나의 결함으로 세션이 진행되지 않는다 | 스펙 §5 6번의 복구 경로(투영기 해제와 확장 끄기 뒤 재시도)를 L1.persistence.plan과 정한다(스펙 §10 미결 6). 그 전에는 M1 테스트 그룹 투영을 단순한 삽입 하나로 제한한다 |
 | 확장 이름 규칙(`^[a-z][a-z0-9-]{1,31}$`, 접두 `x_`, [결정: review.decisions-2 U-18])이 번복된다 | 테이블 이름 규칙과 역변환이 달라진다 | 이름 변환을 `extTablePrefix`·`parseExtTableName` 두 함수에 모은다. 규칙이 바뀌면 두 함수와 `doc-constants.test.ts`만 고친다 |
+
+## 8. M2 구현 현황 (X 레인)
+
+| 작업 | 상태 | 비고 |
+|---|---|---|
+| O-07 | 완료 | 핸들러용 UI 포트는 F 타입에 넣지 않고 `hostOf(g).awaitUser(wait, { signal? })`로 연결했다. 핸들러의 `gate`·신호를 `withAmbient`로 싣고 `awaitUser`가 예산 시계를 멈춘다. `user-wait.test.ts` |
+| O-18 | 완료 | `naming.ts`: `qualifiedName`, `resolveNames`(순서 무관, 예약, 충돌, 64자), `createResourcePolicy`(집합 판정 `exposeAll`과 쌍 판정 `resolve`), `NO_RESERVED_NAMES`. `naming.test.ts` |
+| O-19 | 부분 | `ExtHostDeps.resourcePolicy` 연결(`OperationsPolicy.resources`)과 집합 판정 메서드(`ResourcePolicy.exposeAll`) 합의는 끝났다. pi 어댑터의 `registerTool`·`registerCommand`·`registerShortcut`·`registerFlag` 매핑 확인은 어댑터(L-19, M3)가 생길 때 한다. 조립 루트(apps/host)가 `resourcePolicy: policy.resources`를 넘기는 일은 HOST 트랙 몫이다 |
+| 저장 영역 N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`가 `Result<_, ExtRowError>`를 돌려준다(spec §3.4, §4.4.4) |

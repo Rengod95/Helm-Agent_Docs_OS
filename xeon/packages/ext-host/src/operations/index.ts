@@ -7,6 +7,7 @@ import {
   type PortLookup,
 } from "@xeon/contracts/extensions";
 import type { ProjectorFailure } from "@xeon/contracts/records";
+import type { ResourcePolicy } from "../primitives/resources.ts";
 import type {
   DispatchPolicy,
   HandlerEntryInfo,
@@ -28,6 +29,7 @@ import {
   type BudgetOutcome,
 } from "./budget.ts";
 import { createFailureLedger, fromHandlerFailure, type FailureLedger } from "./failure.ts";
+import { createResourcePolicy, NO_RESERVED_NAMES, type ReservedNames } from "./naming.ts";
 import type { OperationsSettingsSource } from "./settings-keys.ts";
 import { createExtStorageManager, type ExtStorageManager } from "./storage/ext-storage.ts";
 import {
@@ -57,6 +59,16 @@ export {
   runWithBudget,
   STREAM_TAP_POINTS,
 } from "./budget.ts";
+export {
+  createResourcePolicy,
+  NO_RESERVED_NAMES,
+  qualifiedName,
+  resolveNames,
+  type NamedResourceKind,
+  type ReservedNames,
+  type ResolvedName,
+  type ResourceClaim,
+} from "./naming.ts";
 export {
   createFailureLedger,
   fromHandlerFailure,
@@ -122,6 +134,8 @@ export interface OperationsDeps {
   readonly log?: (line: string) => void;
   /** 저장 영역이 생성한 모든 SQL 문장에 checkStatement를 적용한다. 테스트·디버그 빌드용 */
   readonly guardStatements?: boolean;
+  /** 외부 확장이 짧은 이름으로 쓸 수 없는 내장 이름. 기본은 없음(내장 패키지의 등록만 짧은 이름을 지킨다) */
+  readonly reservedNames?: ReservedNames;
 }
 
 /** admit이 받는 확장 정보. LoadedExtensionInfo의 부분형이다(타입 순환을 피하려고 구조로 적는다) */
@@ -146,6 +160,8 @@ export interface OperationsPolicy extends DispatchPolicy {
   readonly autoDisabler: AutoDisabler;
   /** 확장 전용 저장 영역 관리자. storageOf(g)가 쓴다 */
   readonly storage: ExtStorageManager;
+  /** 리소스 이름 충돌 판정. 조립 루트가 `ExtHostDeps.resourcePolicy`에 넘긴다(O-19) */
+  readonly resources: ResourcePolicy;
   /** 로더가 확장을 설치하기 전(6a단계)에 부른다. assignTier 결과를 표에 넣고 면제 여부(essential)를 기억한다 */
   admit(info: AdmitInfo, layer: ExtensionManifest["layer"]): Result<Tier, TierError>;
   /** 확장 제거나 설치 실패 때 표와 장부에서 뺀다 */
@@ -214,6 +230,7 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
     ledger,
     autoDisabler,
     storage,
+    resources: createResourcePolicy(deps.reservedNames ?? NO_RESERVED_NAMES),
     admit(info, layer): Result<Tier, TierError> {
       const assigned = assignTier({
         name: info.name,

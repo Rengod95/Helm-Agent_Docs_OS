@@ -224,3 +224,4 @@ xeon/packages/ext-host/
 | group-kit 요청 2·3·4 | 완료 | `ExtHost.leaseOf`, `ExtHost.onChange`, `TestHost.restart` |
 | group-kit 요청 1 | 보류 | `LeaseCandidate.enabledAtSeq`는 F `ports.ts`와 `ExtThreadSnapshot`(scope.changed의 seq)이 먼저 바뀌어야 한다. F 레인 요청 |
 | N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`의 `Result`화(`ExtRowError`). 다른 패키지 호출처는 없다 |
+| P-24 | 완료 | `resources.ts`: `ResourceRegistry`(`list`·`subscribe`·`setFlag`), `ResourcePolicy` 결합(쌍 판정 + 집합 판정 `exposeAll`), 도구·provider·MCP 포트 위임, 명령·단축키·플래그·렌더러 보관, effect 자동 해제, `hostOf(g).register*`·`getFlag`. `resources.test.ts` |

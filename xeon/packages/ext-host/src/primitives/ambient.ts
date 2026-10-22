@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { ScopeId } from "@xeon/contracts/extensions";
 import type { ThreadId } from "@xeon/contracts/conversation";
+import type { HandlerGate } from "./dispatch-types.ts";
 
 /** drive 호출 하나의 멱등 키 재료(X.primitives.spec §4.4.3, §4.6.1) */
 export interface DriveInvocation {
@@ -22,6 +23,8 @@ export interface Ambient {
   /** 핸들러 안 멱등 키 카운터 */
   counter: number;
   readonly drive: DriveInvocation | null;
+  /** 핸들러 실행 중이면 그 호출의 취소 신호와 예산 시계 장치. 사용자 응답 대기를 예산에서 뺀다(O-07) */
+  readonly handler: { readonly signal: AbortSignal; readonly gate: HandlerGate } | null;
 }
 
 const storage = new AsyncLocalStorage<Ambient>();

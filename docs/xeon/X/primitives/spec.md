@@ -97,8 +97,8 @@ import type {
 | `ExtHostPortKey` | 상수 | 이 문서 §3.6 |
 | `capabilityServiceName`, `providerServiceName`, `isReservedServiceName` | 함수 | 이 문서 §3.7 |
 | `hostOf`, `ScopeHostApi`, `StateMigration` | 함수, 인터페이스 | 이 문서 §3.8 |
-| `ScopeInfo`, `ResourceRegistry`, `ResourceKind`, `ResourceRecord`, `ResourcePolicy`, `CommandResourceDef`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef` | 인터페이스 | 이 문서 §3.9 |
-| `ToolsPort`, `ModelsPort`, `McpPort`와 각 키, `ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef` | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.9) |
+| `ScopeInfo`, `ResourceRegistry`, `ResourceKind`, `ResourceRecord`, `ResourceExposure`, `ResourcePolicy`, `FlagValueError`, `CommandResourceDef`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef` | 인터페이스 | 이 문서 §3.9 |
+| `ToolsPort`, `ModelsPort`, `McpPort`, `ToolsPortKey`, `ModelsPortKey`, `McpPortKey`, `ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef` | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.9) |
 | `PrimitiveError`, `PrimitiveErrorCode` | 클래스, 타입 | 이 문서 §3.10 |
 | `primitivesSettings`, `withDriveDefaults` | `defineSettings` 결과, 함수 | 이 문서 §6, §4.4.2 |
 | `TrustLevel`, `TRUST_LEVELS`, `InstallSource`, `SOURCE_TRUST`, `TrustPermissions`, `TRUST_MATRIX` | 타입, 상수 | X.loading-trust.spec §3.1 |
@@ -571,6 +571,12 @@ export interface ScopeHostApi {
   port<Api>(key: PortKey<Api>): Api;
   /** 상태 문서 마이그레이션. setup 안에서 한 번만 부른다 */
   migrateState(fn: StateMigration): void;
+  /**
+   * 사용자 응답(대화상자, 승인) 대기를 감싼다. 핸들러 안에서 부르면 wait 동안 핸들러 시간 예산 시계를 멈추고,
+   * wait에는 핸들러의 취소 신호와 options.signal을 AbortSignal.any로 합쳐 넘긴다. 핸들러 밖에서는 그대로 실행한다
+   * (X.operations.spec §4.2.3, M2 O-07)
+   */
+  awaitUser<T>(wait: (signal: AbortSignal) => Promise<T>, options?: { readonly signal?: AbortSignal }): Promise<T>;
   // 리소스 등록(§4.8). 모두 fiber effect로 추적되어 scope가 꺼지면 자동 해제된다
   registerTool(def: ToolResourceDef): void;
   registerCommand(name: string, def: CommandResourceDef): void;
@@ -610,9 +616,14 @@ export type ResourceKind = "tool" | "command" | "shortcut" | "flag" | "provider"
 
 export interface ResourceRecord {
   readonly kind: ResourceKind;
+  /** 등록을 요청한 이름 */
   readonly name: string;
+  /** 사용자·모델에 보이는 이름. ResourcePolicy가 정하고 정책이 없으면 name이다. L4와 모델은 이 이름을 쓴다 */
+  readonly exposed: string;
   readonly scopeId: ScopeId;
   readonly extension: ExtensionName;
+  /** 내장 패키지의 등록인가. 이름 예약 판정에 쓴다 */
+  readonly builtin: boolean;
   readonly def: unknown;              // kind별 *ResourceDef
 }
 
@@ -620,14 +631,35 @@ export interface ResourceRecord {
 export interface ResourceRegistry {
   list(kind?: ResourceKind): readonly ResourceRecord[];
   subscribe(listener: (change: { readonly type: "added" | "removed"; readonly record: ResourceRecord }) => void): Unsubscribe;
+  /** L4가 CLI 인자 해석 결과를 넘긴다 [제안]. exposed는 ResourceRecord.exposed다. 값이 선언한 type과 다르면 type_mismatch */
+  setFlag(exposed: string, value: boolean | string | undefined): Result<void, FlagValueError>;
 }
 
-/** X.operations가 구현한다. 같은 kind·name이 이미 있을 때 판정 */
+export type FlagValueError =
+  | { readonly kind: "unknown_flag"; readonly name: string }
+  | { readonly kind: "type_mismatch"; readonly name: string; readonly expected: "boolean" | "string" };
+
+/** X.operations가 구현한다. 같은 kind·노출 이름이 이미 있을 때의 쌍 판정과, 같은 kind 전체의 집합 판정 */
 export interface ResourcePolicy {
   resolve(incoming: ResourceRecord, existing: ResourceRecord):
     | { readonly action: "reject" }
     | { readonly action: "replace" }
     | { readonly action: "rename"; readonly name: string };
+  /**
+   * 선택. 같은 kind 전체 레코드에서 노출 이름을 다시 정한다. 있으면 레지스트리는 도구·명령·단축키·플래그에 대해
+   * 쌍 판정 대신 이것을 쓴다. 결과는 입력 순서와 무관하다(X.operations.spec §4.5 규칙 3)
+   */
+  exposeAll?(records: readonly ResourceRecord[]): readonly ResourceExposure[];
+}
+
+/** exposeAll이 레코드마다 돌려준다. 레코드는 (kind, scopeId, name)으로 가리킨다 */
+export interface ResourceExposure {
+  readonly kind: ResourceKind;
+  readonly scopeId: ScopeId;
+  readonly name: string;
+  readonly exposed: string;
+  /** 짧은 이름을 받지 못한 이유. too_long이면 등록을 거부한다 */
+  readonly reason?: "reserved" | "conflict" | "too_long";
 }
 
 export interface CommandResourceDef { readonly description?: string; handler(args: string, ctx: { readonly threadId: ThreadId | null }): Promise<void> }
@@ -667,7 +699,7 @@ export type PrimitiveErrorCode =
   | "storage_unavailable"
   | "record_kind_undeclared" | "record_invalid" | "read_kind_undeclared" | "record_private_invalid"
   | "capability_undeclared" | "capability_unavailable" | "capability_ambiguous"
-  | "service_reserved" | "resource_conflict";
+  | "service_reserved" | "resource_conflict" | "resource_name_invalid";
 
 export class PrimitiveError extends Error {
   readonly code: PrimitiveErrorCode;
@@ -1189,9 +1221,12 @@ recordPrivate(kind, payload):
 
 1. 모든 등록은 호출한 scope 세대의 fiber effect다. `fiber.effect(() => { const off = port.register(...); return off })` 형태다. scope가 꺼지면(§4.5.3 4단계) 해제기가 자동으로 실행된다. pi는 확장을 내릴 때 자동 해제가 없고, 도구와 명령은 해제 API 자체가 없다(`docs/extensions.md:160` "hidden으로 재등록").
 2. 대상 포트가 없으면 `port_unavailable`이다. X가 보관하는 종류(command, shortcut, flag, message_renderer)는 포트 없이 등록된다.
-3. 같은 종류·이름이 이미 있으면 `ResourcePolicy.resolve`가 판정한다. 정책이 없으면 `resource_conflict`로 거부한다. 이름 충돌 규칙 자체는 X.operations.spec 소유다.
-4. 등록과 해제는 `ResourceRegistry.subscribe` 구독자에게 알린다. L4는 이 표를 읽어 명령 목록과 키 조합를 갱신한다.
-5. 도구 등록은 setup 안이나 세대가 열린 동안 할 수 있다. 등록한 도구가 모델에 보이는 시점(다음 요청)은 L1.tools.spec이 정한다.
+3. 이름 충돌은 노출 이름(`ResourceRecord.exposed`) 기준이다. 정책이 `exposeAll`을 가지면(도구, 명령, 단축키, 플래그) 등록과 해제마다 그 kind 전체 레코드로 부르고, 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`의 등록을 해제하고 새 이름으로 다시 등록한다). 그래서 먼저 등록된 쪽도 나중에 정식 이름이 되고, 한쪽이 해제되면 남은 쪽이 짧은 이름을 되찾는다. `exposeAll`이 없으면 같은 노출 이름이 이미 있을 때 `ResourcePolicy.resolve`가 판정하고(reject, replace, rename), 정책이 없으면 `resource_conflict`로 거부한다. provider, MCP 서버, 메시지 렌더러는 같은 이름이면 정책이 reject로 답한다. 같은 scope가 같은 kind·이름을 두 번 등록하는 것은 정책 없이 `resource_conflict`다. 이름 충돌 규칙 자체는 X.operations.spec 소유다.
+4. 등록과 해제는 `ResourceRegistry.subscribe` 구독자에게 알린다. 노출 이름이 바뀌면 `removed`(옛 이름) 뒤에 `added`(새 이름)를 알린다. 구독자의 예외는 `report`로 남기고 다음 구독자에게 이어 간다. L4는 이 표를 읽어 명령 목록과 키 조합를 갱신한다.
+5. 도구 등록은 setup 안이나 세대가 열린 동안 할 수 있다. 등록한 도구가 모델에 보이는 시점(다음 요청)은 L1.tools.spec이 정한다. 도구 포트에는 노출 이름을 정의의 `name`으로 넘긴다(`execute`는 원본 정의를 그대로 부른다). 포트가 이름을 거부하면(`ToolRegisterError.name_conflict`) `resource_conflict`다.
+6. 이름 형식: 1~64자, 공백·제어 문자 없음. 도구는 `TOOL_NAME_WIRE_PATTERN`(`^[a-zA-Z0-9_-]{1,64}$`)을 따른다. 어기면 `resource_name_invalid`다. 정식 이름이 64자를 넘는 외부 도구는 `exposeAll`의 `too_long`으로 `resource_name_invalid`이다.
+7. 플래그 값: `ResourceRegistry.setFlag(exposed, value)`로 L4가 넘긴 값을 `hostOf(g).getFlag(name)`이 돌려준다. 값이 없으면 선언의 `default`, 선언도 없으면 `undefined`다. 값의 타입이 선언한 `type`과 다르면 `type_mismatch`, 등록되지 않은 노출 이름이면 `unknown_flag`다. 플래그가 해제되면 값도 지운다.
+8. 세대가 닫히면(scope를 끄거나 공급자 재시작으로 세대를 다시 만들 때) 그 세대가 등록한 리소스는 모두 해제된다. 새 세대의 setup이 다시 등록한다.
 
 ### 4.9 그룹 간 이벤트 이름 격리
 
@@ -1342,6 +1377,10 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 37. (M2, X.1) `ExtHost.leaseOf(threadId)`가 커밋된 현재 임대를 돌려주고, `onChange`가 토글 요청, 적용, 임대 부여·반납을 알린다. 구독자가 던져도 다른 구독자는 호출된다.
 38. (M2, X.3) 공급자가 내려갔다 올라와도 소비자 setup은 즉시 다시 실행되지 않는다. 다음 단계 경계(유휴면 곧바로)에서 새 세대로 한 번 다시 실행되고 새 `scope.changed`는 남지 않는다.
 39. (M2, X.3) 저장된 켜짐 기록이 있는 thread를 다시 열면(같은 프로세스와 재시작 모두) 이미 기록된 scope의 `scope.changed`를 다시 쓰지 않는다.
+40. (M2, X.2) `hostOf(g).registerTool`·`registerProvider`·`registerMcpServer`는 각 포트(`xeon.tools`, `xeon.models`, `xeon.mcp`)의 등록 함수를 부르고, `registerCommand`·`registerShortcut`·`registerFlag`·`registerMessageRenderer`는 포트 없이 `ExtHost.resources`에 기록된다. scope를 끄면 포트의 등록과 레지스트리 기록이 모두 해제되고 구독자가 `removed`를 받는다.
+41. (M2, X.2) 포트가 없으면 `port_unavailable`, 같은 scope의 같은 이름은 `resource_conflict`, 형식 위반은 `resource_name_invalid`다. 정책이 없을 때 다른 scope의 같은 이름도 `resource_conflict`다. 정책의 `rename`·`replace`·`reject`가 각각 그대로 반영된다.
+42. (M2, X.2) `exposeAll` 정책에서 외부 확장 둘이 같은 도구 이름을 등록하면 설치 순서와 관계없이 둘 다 정식 이름으로 노출되고, 한쪽을 끄면 남은 쪽이 짧은 이름으로 도구 포트에 다시 등록된다. 내장이 나중에 같은 이름을 등록하면 먼저 등록된 외부 도구가 정식 이름으로 바뀐다.
+43. (M2, X.2) 핸들러가 `hostOf(g).awaitUser`로 감싼 대기는 핸들러 시간 예산에 들어가지 않고, 감싸지 않은 같은 대기는 시간 초과다. `wait`가 받는 신호는 핸들러 신호와 호출자 신호를 합친 것이다.
 
 ## 10. 미결 사항
 

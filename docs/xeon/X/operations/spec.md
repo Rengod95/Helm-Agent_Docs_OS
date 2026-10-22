@@ -550,10 +550,15 @@ export interface ReservedNames {
 export function resolveNames(claims: readonly ResourceClaim[], reserved: ReservedNames): readonly ResolvedName[];
 
 /**
- * X.primitives.spec §3.9 ResourcePolicy 구현. 쌍 판정 resolve는 들어오는 쪽만 정식 이름으로 바꾼다(rename).
- * 집합 판정(먼저 등록된 쪽도 정식 이름으로 바꾸기)은 primitives에 추가를 요청한다(§4.5 규칙 3, §10 미결 17)
+ * X.primitives.spec §3.9 ResourcePolicy 구현. 집합 판정 exposeAll이 레지스트리가 쓰는 주 경로다. 같은 kind의 전체 레코드로
+ * resolveNames를 부르고 레코드마다 노출 이름과 사유를 돌려준다. 그래서 먼저 등록된 쪽도 나중에 정식 이름으로 바뀐다(§4.5 규칙 3).
+ * 쌍 판정 resolve는 집합 판정을 못 쓰는 호출자를 위해 들어오는 쪽만 정식 이름으로 바꾼다(rename). 같은 확장의 중복이나
+ * 규칙 밖 kind는 reject다
  */
 export function createResourcePolicy(reserved: ReservedNames): ResourcePolicy;
+
+/** 예약 이름이 없는 값. 내장 패키지의 등록만 짧은 이름을 지킨다 */
+export const NO_RESERVED_NAMES: ReservedNames;
 ```
 
 ### 3.6 안전 모드 (`safe-mode.ts`, 2차)
@@ -741,6 +746,8 @@ export interface OperationsPolicy extends DispatchPolicy {
   readonly tiers: TierTable;
   readonly ledger: FailureLedger;
   readonly autoDisabler: AutoDisabler;
+  /** 리소스 이름 충돌 판정(`createResourcePolicy(deps.reservedNames ?? NO_RESERVED_NAMES)`). 조립 루트가 ExtHostDeps.resourcePolicy에 넘긴다 */
+  readonly resources: ResourcePolicy;
   /** 로더가 확장을 설치하기 전(X.loading-trust.spec §4.3.1 6a단계)에 부른다. assignTier 결과를 표에 넣고 면제 여부(essential)를 기억한다 */
   admit(info: Pick<LoadedExtensionInfo, "name" | "source" | "trust" | "essential">, layer: ExtensionManifest["layer"]): Result<Tier, TierError>;
   /** 확장 제거나 설치 실패 때 표와 장부에서 뺀다 */
@@ -761,7 +768,7 @@ export interface OperationsPolicy extends DispatchPolicy {
 export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy;
 ```
 
-- 조립 순서 [제안]: L4 host가 `createOperationsPolicy`를 먼저 만들고, 그 결과를 `ExtHostDeps.policy`, `ExtHostDeps.setupBudgetMs`(`() => policy.setupBudgetMs()`), `ExtHostDeps.resourcePolicy`(`createResourcePolicy`)에 넣어 `createExtHost`를 부른다. 이어 `OperationsDeps.ports`와 `ScopeControl`의 늦은 연결을 그 `ExtHost`에 잇고, `createExtensionLoader({ host, policy, … })`로 로더를 만들어 `loadAll`을 부른다(`X.loading-trust.spec` §3.5). 로더는 확장마다 6a단계(설치 전)에서 `admit`을 부른다.
+- 조립 순서 [제안]: L4 host가 `createOperationsPolicy`를 먼저 만들고, 그 결과를 `ExtHostDeps.policy`, `ExtHostDeps.setupBudgetMs`(`() => policy.setupBudgetMs()`), `ExtHostDeps.resourcePolicy`(`policy.resources`)에 넣어 `createExtHost`를 부른다. 이어 `OperationsDeps.ports`와 `ScopeControl`의 늦은 연결을 그 `ExtHost`에 잇고, `createExtensionLoader({ host, policy, … })`로 로더를 만들어 `loadAll`을 부른다(`X.loading-trust.spec` §3.5). 로더는 확장마다 6a단계(설치 전)에서 `admit`을 부른다.
 - `admit`이 `TierError`를 내면 로더는 그 확장을 설치하지 않는다(`tier_rejected`). 로더의 신뢰 판정(4단계)이 이미 같은 경우를 걸러내므로 이 오류는 방어 검사다.
 
 ## 4. 동작 규칙
@@ -847,7 +854,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - 디스패처는 `DispatchPolicy.run`이 있으면 자기 타이머 대신 그 함수로 핸들러를 실행한다(X.primitives.spec §3.4, §4.2). `OperationsPolicy.run`은 `runWithBudget`으로 실행하고, 그 `gate`를 핸들러의 UI 포트 래퍼에 넘긴다.
 - 멈춘 동안에도 `outer` 중단 신호와 대화상자 자체의 signal은 살아 있다. 예산 signal은 대화상자 signal과 `AbortSignal.any`로 합친다(omp `attachHandlerSignal`과 같은 방식).
 - 비대화 실행(CLI print 모드)에서는 대화상자가 바로 기본값으로 끝나므로 멈춤 시간이 0이다.
-- [결정: review.decisions-2 U-07] `HandlerContext.ui`는 M1에 넣지 않는다. M1에는 핸들러용 UI 포트가 없다. 예산 제외 장치(`BudgetGate`, `awaitUser`)는 M0에 만들고, UI 포트 래핑은 M2에 연결한다. 핸들러에 UI 포트를 주는 방법은 M2 계획에서 F `HandlerContext` 필드 추가와 X 공개 API의 별도 함수 중에서 고른다(§10 미결 5).
+- [결정: review.decisions-2 U-07] `HandlerContext.ui`는 두지 않는다. 핸들러용 UI 포트는 F 타입이 아니라 X 공개 API의 별도 함수로 연결한다(M2, O-07). 핸들러(와 그 핸들러가 부르는 UI·승인 포트 래퍼)는 `hostOf(g).awaitUser(wait, { signal? })`로 사용자 응답 대기를 감싼다. 이 함수는 호출한 핸들러의 `gate`와 취소 신호를 비동기 맥락에서 찾아(X.primitives.spec §4.2 `withAmbient`) `gate.pause()`·`resume()`으로 예산 시계를 멈추고, `wait`에는 핸들러 신호와 호출자의 신호를 `AbortSignal.any`로 합쳐 넘긴다. 핸들러 밖(drive 함수, setup)에서는 예산이 없으므로 그대로 실행한다. 승인 대기(`xeon.approvals`)를 부르는 L2 포트 래퍼도 같은 함수를 쓴다. 게이트 쪽 함수 `awaitUser(gate, wait)`는 패키지 안에서 `hostOf(g).awaitUser`가 쓴다.
 
 #### 4.2.4 예산 초과 처리
 
@@ -1020,7 +1027,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 8. 플래그(확장이 등록하는 CLI 플래그)는 정식 형식 `--<확장 이름>:<이름>`을 항상 받고, 충돌이 없으면 `--<이름>`도 받는다. CLI 파서는 확장 로드 뒤에 확장 플래그를 해석한다(`L4.cli.spec` [가정]).
 9. primitives `ResourceKind`의 나머지 셋(`provider`, `mcp_server`, `message_renderer`)은 이 규칙 밖이다. 같은 이름이면 `reject`다. provider 이름 충돌의 선택 규칙은 `x.primitives.capabilityProviders`와 `L1.models.spec`이 정한다.
 
-primitives 연결: 리소스 레지스트리는 같은 kind·name이 이미 있을 때 `ResourcePolicy.resolve(incoming, existing)`를 부른다(X.primitives.spec §3.9, §4.8). `createResourcePolicy`는 들어오는 쪽에 `{ action: "rename", name: <정식 이름> }`을 돌려준다. 이 쌍 판정만으로는 먼저 등록된 쪽이 짧은 이름을 유지해 규칙 3(로드 순서 무관)을 지키지 못한다. 그래서 [제안] 레지스트리가 리소스 집합이 바뀔 때 `resolveNames`로 전체 노출 이름을 다시 계산하는 집합 판정 메서드를 primitives에 추가 요청한다(§10 미결 17). 추가 전까지(M2 초기)는 쌍 판정으로 동작하고 차이를 진단에 남긴다.
+primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `exposeAll`을 더했다(M2). 리소스 레지스트리는 같은 kind(도구, 명령, 단축키, 플래그)의 리소스가 등록되거나 해제될 때마다 그 kind 전체 레코드로 `exposeAll`을 불러 노출 이름을 다시 계산한다. 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`에서 등록을 해제하고 새 이름으로 다시 등록한다). 들어오는 레코드의 노출 이름이 `too_long`이면 기존 레코드를 건드리지 않고 등록을 거부한다(`resource_name_invalid`). 그래서 규칙 3(로드 순서 무관)이 지켜지고, 확장 하나를 끄면 남은 확장이 짧은 이름을 되찾는다. 쌍 판정 `resolve`는 `exposeAll`이 없는 정책을 위해 남겼고 들어오는 쪽에 `{ action: "rename", name: <정식 이름> }`을 돌려준다.
 
 pi 어댑터에서의 처리:
 
@@ -1274,7 +1281,7 @@ pi 어댑터에서의 처리:
 4. `assignTier`는 `GUARD_EXTENSIONS`에 없는 확장에 `guard`를 주지 않는다. `project` 설치 위치에 `builtin` 신뢰가 오면 `source_trust_mismatch`다.
 5. 가짜 시계에서 `first` 지점 핸들러가 30,000ms까지 끝나지 않으면 결정은 `FIRST_DENY[point]`이고 핸들러 signal은 `TimeoutError`로 abort된다. 29,999ms에 끝나면 그 값을 쓴다.
 6. `chain` 지점 핸들러가 예산을 넘으면 그 패치만 버려지고 다음 핸들러는 이전 `current`를 받는다.
-7. 핸들러가 `awaitUser`로 60,000ms 동안 대화상자를 기다리고 그 앞뒤로 20,000ms씩 실행하면(`first`, 예산 30,000ms) 예산 초과가 아니다. 대기 없이 같은 40,000ms를 실행하면 예산 초과다.
+7. 핸들러가 `hostOf(g).awaitUser`로 60,000ms 동안 대화상자를 기다리고 그 앞뒤로 20,000ms씩 실행하면(`first`, 예산 30,000ms) 예산 초과가 아니다. 대기 없이 같은 40,000ms를 실행하면 예산 초과다.
 8. 예산 초과 뒤 핸들러가 값을 반환해도 결정·패치에 반영되지 않는다.
 9. `session_shutdown` 핸들러는 2,000ms에서 끊긴다.
 10. drive 함수는 가짜 시계로 600,000ms가 지나도 시간 예산으로 abort되지 않는다.
@@ -1287,7 +1294,7 @@ pi 어댑터에서의 처리:
 17. 장애 주입으로 `after_ext_projection:0` 지점에서 코어 커밋이 롤백되면 확장 테이블의 행 수와 행 해시는 시도 전과 같다.
 18. 확장 `a`의 `bc`와 확장 `a-b`의 `c`는 다른 테이블이 되고 `parseExtTableName`이 각각의 소유 확장을 돌려준다. `dropExtension("a", true)`는 `x_a_b_c`를 지우지 않는다.
 19. `dropExtension(name, false)`는 아무것도 지우지 않고 대상 목록만 돌려준다. `true`로 부른 뒤에도 그 확장의 이벤트 행 수는 같다.
-20. 외부 확장 둘이 같은 도구 이름 `search`를 등록하면 둘 다 `<확장>__search`로 노출되고 `search`는 노출되지 않는다. 입력 순서를 바꿔도 결과가 같다. 내장 도구 이름 `read`를 외부 확장이 등록하면 `<확장>__read`로만 노출된다.
+20. 외부 확장 둘이 같은 도구 이름 `search`를 등록하면 둘 다 `<확장>__search`로 노출되고 `search`는 노출되지 않는다. 입력 순서를 바꿔도 결과가 같다. 내장 도구 이름 `read`를 외부 확장이 등록하면 `<확장>__read`로만 노출된다. 한 확장을 끄면 남은 확장이 짧은 이름을 되찾고 도구 포트에는 해제 뒤 새 이름으로 다시 등록된다(집합 판정 `exposeAll`).
 21. 안전 모드로 시작하면 `user`·`project` tier 확장, L3 내장 그룹([제안], §10 미결 19), 외부 훅이 실리지 않고 `guard`·`core`·L0~L2 내장 패키지는 실린다.
 22. `--disable-ext acme-notes`로 시작하면 그 확장만 실리지 않고 `ext.acme-notes.enabled` 설정 값은 바뀌지 않는다.
 23. 연속 시작 실패 수가 3이면 `shouldSuggestSafeMode`가 참이다.
@@ -1314,7 +1321,7 @@ pi 어댑터에서의 처리:
    - `ScopeChangedPayload.reason?`(`"request" | "auto_disable" | "safe_mode" | "startup_disable"`)은 `F.records.spec` §3.3에 들어갔다. 값 정본은 이 문서의 `ScopeChangeReason`이다.
    - 휘발 kind `scope.handler_failed`는 `F.records.spec` §3.3 코어 카탈로그에 코어 영역 `scope`로 들어갔다(`ScopeHandlerFailedPayloadSchema`).
    - [미결] 남은 일: `ScopeHandle.enable`/`disable`에 사유 인자가 없어 `ScopeControl`의 사유를 `scope.changed`에 싣는 경로가 없다. `X.primitives.spec` §3.2에 사유 인자 추가를 요청한다.
-5. [결정: review.decisions-2 U-07] `HandlerContext.ui`는 M1에 넣지 않는다. 핸들러에 UI 포트를 주는 방법(F `HandlerContext` 필드 추가, X 공개 API의 별도 함수)은 M2 계획에서 `X.primitives.spec`과 정한다. 어느 쪽이든 X가 감싸서 예산을 멈춘다(§4.2.3).
+5. (해소, M2 O-07) [결정: review.decisions-2 U-07] `HandlerContext.ui`는 두지 않고 X 공개 API의 별도 함수 `hostOf(g).awaitUser`로 연결했다(§4.2.3). 핸들러에 UI 포트 자체를 주는 일은 L2.dialog가 정한다.
 6. [미결] 확장 투영 `apply` 예외의 복구 경로(§5 6번). 투영기 해제와 확장 끄기 뒤 커밋을 다시 시도할지, 세션을 읽기 전용으로 열지. `L1.persistence.spec`, `eng.events.design` 투영 실패 규칙과 정한다.
 7. [미결] 자동 끄기의 영속 여부. 현재 [제안]은 프로세스 단위(재시작하면 다시 실림)다. 여러 번의 시작에서 반복해 꺼지는 확장을 `ext.<name>.enabled=false`로 기록할지, 사용자 확인을 받을지.
 8. [미결] 이벤트에서 다시 만들 수 없는 부가 데이터 테이블(보존 테이블)을 허용할지. 허용하면 `eng.context-map.design` §5.2의 "`x_`는 확장 투영기만 쓴다, 재생 가능"을 바꾸고, 직접 쓰기 경로(커밋 계획에 데이터 연산 목록을 싣는 F `CommitPlan` 확장)와 열 추가 마이그레이션(`storage/migrate.ts`)이 필요하다.
@@ -1326,7 +1333,7 @@ pi 어댑터에서의 처리:
 14. [미결] 기본 예산 값(30초·10초·5초·1초·2초)과 자동 끄기 기준(연속 5회, 창 50회 중 10회 이상이고 50% 이상)은 실측 전 값이다. M1 스모크와 pi 예제 확장 이식 뒤 조정한다.
 15. [미결] first 지점의 fail-closed를 `session_before_*`, `project_trust`에도 적용하는 `F.extensions.spec` §10 미결과 연결된다. 그 결정이 fail-open으로 바뀌면 §4.2.4의 예산 초과 처리와 §4.7.3 표의 first 열을 그 지점에서 바꾼다.
 16. (해소) X.primitives.spec `DispatchPolicy`(§3.4)에 선택 메서드 `onHandlerSettled(entry, activeMs)`와 `run(entry, work, outer)`를 넣었다 [제안]. 이 문서의 `DispatchPolicyExtension`은 지웠고 `OperationsPolicy`가 두 메서드를 구현한다(§3.8, §4.2.3, §4.3.2).
-17. [미결] X.primitives.spec `ResourcePolicy`(§3.9) 추가 요청: 쌍 판정 `resolve`에 더해 리소스 집합 전체의 노출 이름을 다시 계산하는 집합 판정 메서드. 없으면 이름 충돌 결과가 로드 순서에 의존한다(§4.5).
+17. (해소, M2 O-19) `ResourcePolicy.exposeAll`(집합 판정)을 X.primitives.spec §3.9에 더했고 `createResourcePolicy`가 구현한다(§4.5).
 18. (해소) setup 시간 예산 키는 `x.operations.budget.setupMs`다. X.loading-trust.spec §4.3.1도 같은 이름을 쓴다. 값은 `OperationsPolicy.setupBudgetMs` → `ExtHostDeps.setupBudgetMs` 경로로 primitives의 scope setup에 걸린다.
 19. [미결] 안전 모드에서 L3 내장 그룹(Helm, 학습 그룹)을 끌지(§4.6.2). [제안] 끈다. 근거는 계획 v2 X-c "모든 확장을 끈 채 시작"의 해석뿐이고, Helm이 L3 기본 그룹이므로 사용자 확인이 필요하다. 남기기로 하면 drive 그룹만 임대 없이 싣는 안도 있다.
 20. [미결] 샌드박스 강제를 on 핸들러(`tool_call` first)로 둘지, L0 실행 경로에서만 할지(§3.1, §4.1.2). [제안] L0 실행 경로에서 하고 on 핸들러는 두지 않는다. on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다. `L0.sandbox.spec`, `L1.tools.spec`과 정한다.
