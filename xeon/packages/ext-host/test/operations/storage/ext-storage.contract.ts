@@ -314,6 +314,49 @@ export function runExtStorageContract(label: string, makeSession: () => Contract
       expect(failures[0]).toContain("row_invalid");
     });
 
+    test("a rejected row rolls the commit back even when apply ignores the Result", () => {
+      const session = makeSession();
+      const thread = ids.next("thr");
+      const failures: string[] = [];
+      const manager = createExtStorageManager({
+        ports: portsOf(session),
+        now: () => 1_767_571_200_000,
+        guard: true,
+        onProjectionFailure: (_extension, failure) => {
+          failures.push(failure.message);
+        },
+      });
+      const defs = {
+        rows: {
+          row: Type.Object({ id: Type.String(), text: Type.String({ minLength: 1 }) }),
+          key: ["id"],
+          perThread: false,
+        },
+      } as const;
+      const projection: ExtProjection<typeof defs> = {
+        version: 1,
+        kinds: ["x.notes.pin.added"],
+        apply(event, tables) {
+          const payload = recordOf(event.payload);
+          // 결과를 버리고 성공을 돌려주는 투영: 거절된 행이 조용히 사라지면 안 된다
+          tables.rows.insert({ id: textOf(payload.id), text: textOf(payload.text) });
+          return ok(undefined);
+        },
+      };
+      const defined = manager
+        .storageFor("notes", { isolated: false })
+        .defineTables(defs, projection);
+      expect(defined.ok).toBe(true);
+      const before = session.hashOf("x_notes_rows");
+      const rejected = session.commit([
+        session.event(thread, "x.notes.pin.added", { id: "bad", text: "" }),
+      ]);
+      expect(rejected.committed).toBe(false);
+      expect(session.hashOf("x_notes_rows")).toBe(before);
+      expect(failures).toHaveLength(1);
+      expect(failures[0]).toContain("row_invalid");
+    });
+
     test("a stored row that no longer matches the declaration is row_corrupt, not a throw", () => {
       const session = makeSession();
       const thread = ids.next("thr");

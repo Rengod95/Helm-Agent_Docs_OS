@@ -57,12 +57,18 @@ test("only existence is checked, file contents are never read", async () => {
   expect(reads).toBe(0);
 });
 
+test("a project-root .mcp.json alone requires trust", async () => {
+  // 루트 .mcp.json은 stdio 서버 실행 명령을 담는다. .xeon 없이 이 파일만 있어도 신뢰 판정이 필요하다
+  const fs = memoryFs(["/work/proj/.mcp.json"]);
+  expect(await findTrustRequiringResources(fs, "/work/proj", HOME)).toEqual([".mcp.json"]);
+});
+
 test("docs: the resource list matches the spec table", async () => {
   const spec = await readDoc("X/loading-trust/spec.md");
   const rows = tableRowsAfter(spec, "#### 4.7.2 신뢰 필요 자원");
   const documented = rows
     .flatMap((cells) => [...(cells[0] ?? "").matchAll(/`([^`]+)`/g)].map((match) => match[1] ?? ""))
     .map((path) => path.replace(/\/$/, ""))
-    .filter((path) => path.startsWith(".xeon/"));
+    .filter((path) => path.startsWith(".xeon/") || path === ".mcp.json");
   expect(documented.toSorted()).toEqual([...TRUST_REQUIRING_PROJECT_RESOURCES].toSorted());
 });

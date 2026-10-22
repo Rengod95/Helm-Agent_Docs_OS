@@ -45,7 +45,7 @@ xeon/packages/ext-host/
     trust/
       levels.ts                    # TrustLevel, TRUST_LEVELS, trustRank, InstallSource, SOURCE_TRUST,
                                    # TrustPermissions, TRUST_MATRIX
-      store.ts                     # (포크) ProjectTrustStore, TrustFileSchema(내부), TrustLookup, TrustStoreError,
+      store.ts                     # (포크) ProjectTrustStore(인터페이스), createProjectTrustStore, TrustFileSchema(내부), TrustLookup, TrustStoreError,
                                    # trustOptions. F TrustStoreBackend·TrustUpdate·TrustOption 재export
       resolve.ts                   # (포크) resolveProjectTrust, ResolveProjectTrustInput, ProjectTrustResult.
                                    # F TrustPrompter·TrustPromptRequest·TrustChoice·TrustChoiceKind 재export
@@ -253,7 +253,7 @@ xeon/packages/ext-host/
 
 | 작업 | 상태 | 비고 |
 |---|---|---|
-| L-15 | 완료 | `trust/store.ts` 포크: `ProjectTrustStore`(`canonical`, `lookup`, `setMany`), 손상 → `corrupt`(쓰기 거부, `Result`로 돌려줌), pi 형식(v0) 읽기·다음 쓰기에서 버전 1, `trustOptions`(식별자 라벨 5개). `trust-store.test.ts` |
+| L-15 | 완료 | `trust/store.ts` 포크: `ProjectTrustStore`(`canonical`, `lookup`, `setMany`)와 팩토리 `createProjectTrustStore`(클래스 없음, TY-16), 손상 → `corrupt`(쓰기 거부, `Result`로 돌려줌), pi 형식(v0) 읽기·다음 쓰기에서 버전 1, `trustOptions`(식별자 라벨 5개). `trust-store.test.ts` |
 | L-16 | 완료 | `trust/resources.ts` 포크: `TRUST_REQUIRING_PROJECT_RESOURCES`(스펙 §4.7.2 표와 대조 시험), `findTrustRequiringResources`(상위 `.agents/skills`는 상대 경로, 홈 제외, 존재만 확인). L-13(외부 탐색)에는 의존하지 않고 `LoaderFs`만 쓴다. `trust-resources.test.ts` |
 | L-17 | 완료 | `trust/resolve.ts` 포크: 판정 순서 1~8, `project_trust` 발화(발화가 던지면 불신), `sessionMemory`, 비대화형 불신, 손상 저장소 무프롬프트, 프롬프트 결과 저장, 저장 실패는 `storeError`. `trust-resolve.test.ts` |
 | 포크 기록 | 완료 | `LICENSE.pi`, `UPSTREAM.json`, `PATCHES.md`, 소스의 `// XEON-PATCH` 표지가 일치한다(`fork-records.test.ts`) |

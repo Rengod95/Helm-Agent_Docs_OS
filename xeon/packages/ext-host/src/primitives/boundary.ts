@@ -4,6 +4,8 @@ import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   LoopPortKey,
   RecordCommitPortKey,
+  type ExtCommitResult,
+  type RecordCommitPort,
   type ExtThreadSnapshot,
   type ScopeId,
 } from "@xeon/contracts/extensions";
@@ -41,6 +43,9 @@ const EMPTY_SNAPSHOT: ExtThreadSnapshot = {
   openLease: null,
   leaseEpochs: {},
 };
+
+/** 낡은 키 충돌을 피해 전이 횟수를 올려 다시 시도하는 최대 횟수 */
+const MAX_KEY_PROBES = 64;
 
 /** 키에 넣는 scope id의 `/`는 `:`로 바꾼다(X.primitives.spec §4.5.5, COMMIT_KEY_PATTERN에 `/`가 없다) */
 function keyScopeId(scopeId: string): string {
@@ -84,6 +89,48 @@ function commitPlanOf(
       ? only
       : `xb:${createHash("sha256").update(parts.join(",")).digest("hex").slice(0, 24)}`;
   return { requestId, fingerprintSource: parts };
+}
+
+/** 저장된 켜짐 기록이 이 경계의 scope 전이와 어긋나면, replayed는 이전 실행의 같은 키에 걸린 것이다 */
+async function replayIsStaleScopeKey(
+  port: RecordCommitPort,
+  thread: ThreadRuntime,
+  txn: BoundaryTxn,
+): Promise<boolean> {
+  if (txn.recordEnabled.length === 0 && txn.recordDisabled.length === 0) return false;
+  const stored = new Set((await port.loadThread(thread.threadId)).enabled);
+  return (
+    txn.recordEnabled.some((id) => !stored.has(id)) ||
+    txn.recordDisabled.some((id) => stored.has(id))
+  );
+}
+
+/**
+ * 유휴 경계 커밋 하나. 재시작 뒤에는 thread.flips와 세대 번호가 처음부터 다시 세어져, 이전 실행이 이미 쓴 키와 같은 키가 나올 수 있다.
+ * `replayed`인데 저장된 켜짐 기록이 이 경계가 원하는 상태와 다르면 낡은 키에 걸린 것이므로 전이 횟수를 올려 새 키로 다시 커밋한다.
+ * 근본 해결은 ExtThreadSnapshot이 전이 횟수를 싣는 F 변경이다(X.primitives.spec 열린 항목)
+ */
+async function commitIdleTxn(
+  core: HostCore,
+  port: RecordCommitPort,
+  thread: ThreadRuntime,
+  txn: BoundaryTxn,
+  drafts: readonly DurableEventDraft[],
+  probes = 0,
+): Promise<ExtCommitResult> {
+  const plan = commitPlanOf(core, txn);
+  const result = await port.commit({
+    threadId: thread.threadId,
+    requestId: plan.requestId,
+    fingerprintSource: plan.fingerprintSource,
+    drafts,
+  });
+  if (result.status !== "replayed" || probes >= MAX_KEY_PROBES) return result;
+  if (!(await replayIsStaleScopeKey(port, thread, txn))) return result;
+  for (const id of [...txn.recordEnabled, ...txn.recordDisabled]) {
+    thread.flips.set(id, (thread.flips.get(id) ?? 0) + 1);
+  }
+  return commitIdleTxn(core, port, thread, txn, drafts, probes + 1);
 }
 
 export function createBoundary(
@@ -202,13 +249,7 @@ export function createBoundary(
       } else {
         const txn = thread.txn;
         if (txn === null) throw new Bug("boundary.txn_missing_after_prepare");
-        const plan = commitPlanOf(core, txn);
-        const result = await port.commit({
-          threadId: thread.threadId,
-          requestId: plan.requestId,
-          fingerprintSource: plan.fingerprintSource,
-          drafts: contribution.drafts,
-        });
+        const result = await commitIdleTxn(core, port, thread, txn, contribution.drafts);
         if (result.status === "rejected") {
           committed = false;
           core.deps.report({

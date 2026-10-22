@@ -180,6 +180,7 @@ function writerFor(
   runner: SqlRunner,
   threadId: ThreadId | undefined,
   guard: ((sql: string) => void) | undefined,
+  onRowError: (error: ExtRowError) => void,
 ): ExtTableWriter<Readonly<Record<string, unknown>>> {
   const exec = (sql: string, params: readonly SqlValue[]): void => {
     guard?.(sql);
@@ -214,7 +215,11 @@ function writerFor(
     row: Readonly<Record<string, unknown>>,
   ): Result<void, ExtRowError> {
     const prepared = rowValues(row);
-    if (!prepared.ok) return prepared;
+    if (!prepared.ok) {
+      // 확장이 돌려받은 Result를 버려도 행 손실이 조용히 지나가지 않도록 apply 쪽에 알린다
+      onRowError(prepared.error);
+      return prepared;
+    }
     const { names, values } = prepared.value;
     exec(
       `${verb} INTO ${quote(codec.table)} (${names.map(quote).join(", ")}) VALUES (${names.map(() => "?").join(", ")})`,
@@ -418,13 +423,18 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
               get: (sql, params) => tx.get(sql, params),
               all: (sql, params) => tx.all(sql, params),
             };
+            let firstRowError: ExtRowError | undefined;
             const writers = writersOf(defs, (local) => {
               const codec = codecs.get(local);
               if (codec === undefined) throw new Bug(`ext_storage.unknown_table: ${local}`);
-              return writerFor(codec, runner, event.threadId, guardFn);
+              return writerFor(codec, runner, event.threadId, guardFn, (error) => {
+                firstRowError ??= error;
+              });
             });
             const applied = projection.apply(event, writers);
-            // Projector.apply는 던져서 코어 커밋을 롤백하고 투영기 실패로 보고된다(F.records.spec §3.9). 값 오류를 그 통로로 옮긴다
+            // Projector.apply는 던져서 코어 커밋을 롤백하고 투영기 실패로 보고된다(F.records.spec §3.9). 값 오류를 그 통로로 옮긴다.
+            // 쓰기 도중 거절된 행이 있으면 apply가 무엇을 돌려줬든 롤백한다(Result를 무시한 투영이 행을 잃지 않게 한다)
+            if (firstRowError !== undefined) throw new ProjectionRollback(firstRowError);
             if (!applied.ok) throw new ProjectionRollback(applied.error);
           },
         };

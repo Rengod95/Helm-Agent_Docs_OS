@@ -1,5 +1,8 @@
 import type { LoaderFs, TrustStoreBackend } from "@xeon/contracts/extensions";
-import { ProjectTrustStore } from "../../../src/loading-trust/index.ts";
+import {
+  createProjectTrustStore,
+  type ProjectTrustStore,
+} from "../../../src/loading-trust/index.ts";
 import { recordOf } from "../../support/guards.ts";
 
 export interface MemoryTrustBackend extends TrustStoreBackend {
@@ -74,7 +77,7 @@ export function storeOf(
   backend: MemoryTrustBackend,
   fs: LoaderFs = memoryFs([]),
 ): ProjectTrustStore {
-  return new ProjectTrustStore(backend, (path) => fs.realpath(path), { now: () => FIXED_NOW });
+  return createProjectTrustStore(backend, (path) => fs.realpath(path), { now: () => FIXED_NOW });
 }
 
 export function entriesOf(text: string | null): unknown {

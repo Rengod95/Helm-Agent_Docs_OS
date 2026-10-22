@@ -400,8 +400,7 @@ export type TrustLookup =
   | { readonly kind: "none" }
   | { readonly kind: "corrupt"; readonly reason: string };
 
-export declare class ProjectTrustStore {
-  constructor(backend: TrustStoreBackend, normalize: (path: string) => Promise<string>, clock: { now(): number });
+export interface ProjectTrustStore {
   /** 저장소 키로 쓰는 정규 경로(normalize) */
   canonical(path: string): Promise<string>;
   /** cwd에서 위로 올라가며 가장 가까운 항목. 읽기·파싱·스키마 실패는 던지지 않고 corrupt다 */
@@ -413,13 +412,16 @@ export declare class ProjectTrustStore {
   setMany(updates: readonly TrustUpdate[]): Promise<Result<void, TrustStoreError>>;
 }
 
+/** normalize는 심볼릭 링크를 푼 정규 경로를 돌려준다. clock은 decidedAt에 쓴다. 클래스를 두지 않는다(eng.typescript.guide TY-16) */
+export function createProjectTrustStore(backend: TrustStoreBackend, normalize: (path: string) => Promise<string>, clock: { now(): number }): ProjectTrustStore;
+
 export type TrustStoreError =
   | { readonly kind: "corrupt"; readonly reason: string }
   | { readonly kind: "io"; readonly cause: unknown };
 
 /**
  * pi getProjectTrustOptions 포크. §4.7.3 표의 선택지 다섯 개와 저장할 갱신(TrustOption은 F 타입). 상위 폴더가 없으면(parent가 null)
- * 상위 선택지를 뺀다. label은 표시 문구가 아니라 L4가 현지화할 식별자다(trust-folder, trust-parent, trust-session, deny-folder,
+ * 상위 선택지를 뺀다. label은 L4가 현지화할 식별자이고 표시 문구는 담지 않는다(trust-folder, trust-parent, trust-session, deny-folder,
  * deny-session). 세션 선택지의 updates는 비어 있고 호출자가 sessionMemory에 둔다
  */
 export function trustOptions(projectRoot: string, parent: string | null): readonly TrustOption[];
@@ -884,7 +886,7 @@ export interface VirtualModuleRegistry {
 | `.xeon/extensions/` | 프로젝트 확장 |
 | `.xeon/pi-extensions/` | 프로젝트 pi 확장 |
 | `.xeon/settings.json`, `.xeon/settings.local.json` [가정: 파일 이름은 L1.persistence.spec] | 프로젝트·로컬 설정 |
-| `.xeon/mcp.json` | 프로젝트 MCP 서버 |
+| `.xeon/mcp.json`, `.mcp.json` | 프로젝트 MCP 서버(`.mcp.json`은 프로젝트 루트의 Claude Code 형식 파일, L2.mcp.spec §4.2) |
 | `.xeon/hooks/` [가정: 외부 훅 위치는 X.operations.spec] | 외부 훅 |
 | `.xeon/skills/`, `.xeon/prompts/`, `.xeon/agents/` | 프로젝트 자원 |
 | `.xeon/SYSTEM.md`, `.xeon/APPEND_SYSTEM.md` | 시스템 프롬프트 파일 |
@@ -939,7 +941,7 @@ export interface VirtualModuleRegistry {
 | 프로젝트 pi 확장 | import하지 않는다 | 이 문서 |
 | 프로젝트 훅(외부 훅 프로토콜) | 실행하지 않는다 | X.operations.spec |
 | 프로젝트·로컬 설정 파일의 `ext.*` 키와 `x.loading-trust.*` 키 | 유효 값 계산에서 뺀다. 파일에서 지우지 않는다 | 이 문서(규칙), L1.persistence.spec(적용) |
-| 프로젝트 MCP 서버(`.xeon/mcp.json`) | 기동하지 않는다 | L2.mcp.spec |
+| 프로젝트 MCP 서버(`.xeon/mcp.json`, `.mcp.json`) | 기동하지 않는다 | L2.mcp.spec |
 | 프로젝트 스킬·프롬프트·에이전트·시스템 프롬프트 파일 | 자원 목록에 넣지 않는다 | L2.knowledge.spec, L1.context.spec |
 
 - 불신(`deny`, `undecided`)이면 위 표의 대상은 이 실행 동안 계속 제외된다. 프로젝트 후보는 `rejected`(`trust_denied` 또는 `trust_undecided`)로 진단에 남는다. 탐색은 존재 확인만 한 상태이므로 후보 이름은 디렉터리 이름으로 적는다.

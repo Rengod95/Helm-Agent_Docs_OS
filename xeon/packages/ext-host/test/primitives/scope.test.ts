@@ -278,3 +278,41 @@ test("idle application commits under a key derived from committed values, so a r
   expect(keys[0]).toBe("scope:scp-key:1:enabled");
   expect(t.host.scope("scp-key")?.status).toBe("enabled");
 });
+
+const restartUnitOf = () =>
+  makeUnit({ name: "scp-restart", points: ["tool_call"], initialEnabled: false }, (g) => {
+    g.on("tool_call", () => undefined);
+  });
+
+test("re-enabling a scope after a restart is not swallowed by a commit key an earlier run already used", async () => {
+  const unitOf = restartUnitOf;
+  const first = await createTestHost();
+  const thread = first.newThread();
+  await first.host.install(unitOf());
+  await first.host.openThread(thread);
+  await first.settled();
+  first.host.scope("scp-restart")?.enable();
+  await first.settled();
+  first.host.scope("scp-restart")?.disable();
+  await first.settled();
+
+  // 재시작: 전이 횟수와 세대 번호가 다시 센다. 같은 키 scope:scp-restart:1:enabled가 다시 나온다
+  const second = await createTestHost({
+    shared: { records: first.records, loop: first.loop, queue: first.queue },
+  });
+  await second.host.install(unitOf());
+  await second.host.openThread(thread);
+  await second.settled();
+  second.host.scope("scp-restart")?.enable();
+  await second.settled();
+  const changed = second.records
+    .events(thread)
+    .filter((event) => event.kind === "scope.changed")
+    .map((event) => event.payload);
+  expect(changed).toEqual([
+    { scopeId: "scp-restart", status: "enabled" },
+    { scopeId: "scp-restart", status: "disabled" },
+    { scopeId: "scp-restart", status: "enabled" },
+  ]);
+  expect((await second.records.loadThread(thread)).enabled).toEqual(["scp-restart"]);
+});

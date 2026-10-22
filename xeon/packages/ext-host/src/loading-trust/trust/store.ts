@@ -116,76 +116,75 @@ function serialize(entries: ReadonlyMap<string, TrustEntries[string]>): string {
   return `${JSON.stringify({ version: 1, entries: sorted }, null, 2)}\n`;
 }
 
-export class ProjectTrustStore {
-  readonly #backend: TrustStoreBackend;
-  readonly #normalize: (path: string) => Promise<string>;
-  readonly #clock: { now(): number };
-
-  // XEON-PATCH: injected-normalize
-  /** normalize는 심볼릭 링크를 푼 정규 경로를 돌려준다(`LoaderFs.realpath` 기반). 클록은 `decidedAt`에 쓴다 */
-  constructor(
-    backend: TrustStoreBackend,
-    normalize: (path: string) => Promise<string>,
-    clock: { now(): number },
-  ) {
-    this.#backend = backend;
-    this.#normalize = normalize;
-    this.#clock = clock;
-  }
-
+/** 프로젝트 신뢰 저장소. 생성은 `createProjectTrustStore`다(TY-16) */
+export interface ProjectTrustStore {
   /** 저장소 키로 쓰는 정규 경로 */
-  canonical(path: string): Promise<string> {
-    return this.#normalize(path);
-  }
-
-  // XEON-PATCH: async-backend
+  canonical(path: string): Promise<string>;
   /** cwd에서 위로 올라가며 가장 가까운 항목을 찾는다(pi `findNearestTrustEntry`) */
-  async lookup(cwd: string): Promise<TrustLookup> {
-    const read = await this.#backend.read();
-    if (!read.ok) return { kind: "corrupt", reason: read.reason };
-    const entries = readEntries(read.text, new Date(this.#clock.now()).toISOString());
-    if (!entries.ok) return { kind: "corrupt", reason: entries.error };
-    let current = await this.#normalize(cwd);
-    for (;;) {
-      const entry = entries.value[current];
-      if (entry !== undefined) return { kind: "found", verdict: entry.verdict, path: current };
-      const parent = dirname(current);
-      if (parent === current) return { kind: "none" };
-      current = parent;
-    }
-  }
-
+  lookup(cwd: string): Promise<TrustLookup>;
   /**
    * 갱신을 하나의 읽기-수정-쓰기로 적용한다. 잠금과 원자 교체는 백엔드가 맡는다(pi `proper-lockfile` 삭제).
    * 파일이 손상이면 쓰지 않고 `corrupt`를 돌려준다
    */
-  // XEON-PATCH: no-lockfile
-  async setMany(updates: readonly TrustUpdate[]): Promise<Result<void, TrustStoreError>> {
-    // 경로 정규화는 잠금 밖에서 먼저 한다(비동기 포트이고 잠금 안 콜백은 동기 함수여야 한다)
-    const normalized = await Promise.all(
-      updates.map(async (update) => ({ path: await this.#normalize(update.path), update })),
-    );
-    const decidedAt = new Date(this.#clock.now()).toISOString();
-    const outcome = await attemptAsync(() =>
-      this.#backend.update((current) => {
-        const entries = readEntries(current, decidedAt);
-        if (!entries.ok) throw new CorruptDuringUpdate(entries.error);
-        const next = new Map(Object.entries(entries.value));
-        for (const { path, update } of normalized) {
-          if (update.verdict === null) {
-            next.delete(path);
-          } else {
-            next.set(path, { verdict: update.verdict, decidedAt, via: update.via });
+  setMany(updates: readonly TrustUpdate[]): Promise<Result<void, TrustStoreError>>;
+}
+
+// XEON-PATCH: injected-normalize
+/** normalize는 심볼릭 링크를 푼 정규 경로를 돌려준다(`LoaderFs.realpath` 기반). 클록은 `decidedAt`에 쓴다 */
+export function createProjectTrustStore(
+  backend: TrustStoreBackend,
+  normalize: (path: string) => Promise<string>,
+  clock: { now(): number },
+): ProjectTrustStore {
+  return {
+    canonical: (path) => normalize(path),
+
+    // XEON-PATCH: async-backend
+    async lookup(cwd) {
+      const read = await backend.read();
+      if (!read.ok) return { kind: "corrupt", reason: read.reason };
+      const entries = readEntries(read.text, new Date(clock.now()).toISOString());
+      if (!entries.ok) return { kind: "corrupt", reason: entries.error };
+      let current = await normalize(cwd);
+      for (;;) {
+        const entry = entries.value[current];
+        if (entry !== undefined) return { kind: "found", verdict: entry.verdict, path: current };
+        const parent = dirname(current);
+        if (parent === current) return { kind: "none" };
+        current = parent;
+      }
+    },
+
+    // XEON-PATCH: no-lockfile
+    async setMany(updates) {
+      // 경로 정규화는 잠금 밖에서 먼저 한다(비동기 포트이고 잠금 안 콜백은 동기 함수여야 한다)
+      const normalized = await Promise.all(
+        updates.map(async (update) => ({ path: await normalize(update.path), update })),
+      );
+      const decidedAt = new Date(clock.now()).toISOString();
+      const outcome = await attemptAsync(() =>
+        backend.update((current) => {
+          const entries = readEntries(current, decidedAt);
+          if (!entries.ok) throw new CorruptDuringUpdate(entries.error);
+          const next = new Map(Object.entries(entries.value));
+          for (const { path, update } of normalized) {
+            if (update.verdict === null) {
+              next.delete(path);
+            } else {
+              next.set(path, { verdict: update.verdict, decidedAt, via: update.via });
+            }
           }
-        }
-        return serialize(next);
-      }),
-    );
-    if (outcome.ok) return ok(undefined);
-    const cause = outcome.error.cause;
-    if (cause instanceof CorruptDuringUpdate) return err({ kind: "corrupt", reason: cause.reason });
-    return err({ kind: "io", cause });
-  }
+          return serialize(next);
+        }),
+      );
+      if (outcome.ok) return ok(undefined);
+      const cause = outcome.error.cause;
+      if (cause instanceof CorruptDuringUpdate) {
+        return err({ kind: "corrupt", reason: cause.reason });
+      }
+      return err({ kind: "io", cause });
+    },
+  };
 }
 
 const folder = (verdict: "allow" | "deny"): TrustChoice => ({ kind: "folder", verdict });
@@ -194,7 +193,7 @@ const session = (verdict: "allow" | "deny"): TrustChoice => ({ kind: "session", 
 // XEON-PATCH: options-localized
 /**
  * pi `getProjectTrustOptions` 포크. 선택지 다섯 개와 저장할 갱신을 돌려준다(X.loading-trust.spec §4.7.3 표).
- * `label`은 표시 문구가 아니라 L4가 현지화할 식별자다. 상위 폴더(`parent`)가 없으면 그 선택지를 뺀다.
+ * `label`은 L4가 현지화할 식별자이고 표시 문구는 담지 않는다. 상위 폴더(`parent`)가 없으면 그 선택지를 뺀다.
  * 세션 선택지는 저장하지 않는다(`updates` 비어 있음, 호출자가 `sessionMemory`에 둔다)
  */
 export function trustOptions(projectRoot: string, parent: string | null): readonly TrustOption[] {

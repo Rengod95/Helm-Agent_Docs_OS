@@ -85,8 +85,9 @@ export {
   type TrustVia,
 } from "./trust/resolve.ts";
 export {
-  ProjectTrustStore,
+  createProjectTrustStore,
   trustOptions,
+  type ProjectTrustStore,
   type TrustLookup,
   type TrustStoreError,
   type TrustVerdict,
