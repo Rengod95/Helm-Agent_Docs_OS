@@ -13,3 +13,4 @@ export * from "./defs/workspace.ts";
 export * from "./defs/web.ts";
 export * from "./defs/web-provider.ts";
 export * from "./defs/mcp.ts";
+export * from "./defs/knowledge.ts";
