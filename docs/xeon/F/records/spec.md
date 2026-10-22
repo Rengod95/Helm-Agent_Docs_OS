@@ -506,8 +506,9 @@ export interface SecretMaskedPayload {
 2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 40종만 담고 `check-event-catalog.ts`는 코어 표(§3.3)와 각 도메인 문서의 카탈로그 표를 따로 대조한다.
 3. 접두 표기: 이벤트 영역은 단수 `artifact`다. 능력 id·서비스·테이블의 복수 `artifacts`(`cap.artifacts`, `L2.artifacts.spec`)는 그대로 두고 둘의 대응은 위 표가 정한다(`L2.readme` §2 표 주석).
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
-5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다.
+5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
 6. 외부 확장이 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓰면 `reserved_area`다. 외부 확장이 L2 도메인 이름을 확장 이름으로 쓰는 경우는 `F.extensions.spec` §4.7 `name_reserved`가 막는다.
+7. [결정: m2-plan F.3] M2 현재 `WORK_EVENT_CATALOG`(10종, 모두 내구)와 `DIALOG_EVENT_CATALOG`(`dialog.status` 휘발, `dialog.notified` 내구)가 `EVENT_CATALOG`에 병합되어 있다. `artifact`, `schedule`은 M3에서 더한다. `CatalogEntry` 타입은 `catalog/entry.ts`에 있고 `catalog/index.ts`가 재노출한다(도메인 카탈로그 파일이 `index.ts`를 import하면 순환이라서다).
 
 ### 3.4 내구/휘발과 큰 값 분리
 
@@ -1009,9 +1010,9 @@ export interface RecordCommitPort {
 |---|---|---|
 | `lease.ts` | `LeaseResource`, `LEASE_RESOURCE_PATTERN`, `LeaseKind`, `LeaseHolder`, `LeaseToken`, `LeaseOwnerInfo`, `LockBusy`, `LeaseRowInvalid`, `LeaseError`, `LeaseService` | `L0.store.spec` §3.1(FR-S2) |
 | `migrations.ts` | `MigrationStep`, `MigrationSet`, `MigrationError`, `MigrationReport`, `MigrationRunner`, `ExtensionTables`, `ExtensionTableError`. `ChunkMigration`은 §3.7에 둔다 | `L0.store.spec` §3.1(FR-S4) |
-| `commit.ts` | `ReadFailure`, `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
-| `projector.ts` | `ProjectorRegisterError`, `ProjectorFailure`, `ProjectorRegistry`, `ProjectionQuery` | `L1.persistence.spec` §3.4 |
-| `session-service.ts` | `CommitListener`, `CommitBatch`, `FeedFilter`, `EventFeed`, `OwnershipGuard`, `OwnerInfo`, `OpenReport`, `OpenError`, `ResumePlan`, `ResumeError`, `RecoverDeps`, `SessionShutdownReason`, `ThreadLifecycle`, `SessionSettingsStore` | `L1.persistence.spec` §3.3~§3.8, §6.2 |
+| `commit.ts` | `CommitKey`, `COMMIT_KEY_PATTERN`, `commitKeyPart`, `RESERVED_SOURCE_KEYS`, `ProducerId`, `StampedDraft`, `DraftInput`, `ProducerHandle`, `StepCheckpointInput`, `CommitPlan`, `CommitRequest`, `CommitResult`, `ReadOnlyReason`, `StoreError`, `ReadFailure`, `StoreBugCode`, `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
+| `projector.ts` | `ProjectionTx`, `Projector`, `ProjectorRegisterError`, `ProjectorFailure`, `ProjectorRegistry`. `ProjectionQuery`는 `session-service.ts`에 있다 | `L1.persistence.spec` §3.4 |
+| `session-service.ts` | `SessionServiceName`, `CommitListener`, `CommitBatch`, `FeedFilter`, `EventFeed`, `ThreadSummaryRow`, `ItemRow`, `ProjectionQuery`, `RecoveryMarker`, `OpenReport`, `OpenError`, `MAX_REPLAY_ATTEMPTS`, `EffectRerun`, `AutoResumeVerdict`, `ResumePlan`, `ResumeError`, `RecoverDeps`, `ThreadCreated`, `ThreadCreateInput`, `ThreadListQuery`, `ThreadPage`, `BranchSummaryInput`, `SessionShutdownReason`, `LifecycleError`, `ThreadLifecycle`, `SessionSettingsLayer`, `SessionSettingsStore`, `SessionService`. 쓰기 소유 판정은 `lease.ts`의 `LeaseToken`(epoch 펜싱)과 `LeaseOwnerInfo`(표시용), 열기 결과의 `OpenLease`가 맡는다. 옛 이름 `OwnershipGuard`·`OwnerInfo`는 없다 [결정: review.decisions-2 U-09, open-issues D-04] | `L1.persistence.spec` §3.3~§3.8, §6.2 |
 | `session-service.ts` | `RecordCommitPort`, `ExtCommitRequest`, `ExtCommitRejectCode`, `ExtCommitResult`, `StoredScopeState`, `OpenLease`, `ExtThreadSnapshot`, `ExtRecordQuery`, `ExtRecordRow` | 위 블록이 정본이다(옮김 끝남). `F.extensions.spec` §3.2.1 `ports.ts`가 다시 export한다 |
 
 ## 4. 동작 규칙

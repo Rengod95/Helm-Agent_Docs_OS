@@ -37,9 +37,9 @@ binds: []
 |---|---|---|---|---|
 | D-01 | TypeBox 버전이 1.4.2와 1.3.27로 갈립니다. | F README, L0.exec.plan §4.2, L1.models.plan §4·§7, ADR-0001, eng.toolchain, eng.domain-types 외 plan의 의존 표 | 모두 1.3.27(U-24)로 고치고 버전 [미결]을 닫았습니다. | 이번 정리에서 처리 |
 | D-02 | srt 버전이 0.0.81과 0.0.79로 갈립니다. | L0.sandbox.spec §1, L0.sandbox.plan §4·SB-01 | 0.0.79로 고쳤습니다. L0.secrets의 0.0.81 기능 조사 문장에는 고정 판에서 다시 확인하라고 적었습니다. | 이번 정리에서 처리 |
-| D-03 | SENSITIVE_ENV_PATTERNS 위치가 문서마다 다릅니다. | L0.secrets.spec §4.5·§9, plan SC-11, F.capabilities §3.12, L0.exec | 모두 `@xeon/contracts/services`(services/exec.ts)로 통일합니다. | 열림 |
-| D-04 | F 스펙이 코드와 다릅니다. | F.records.spec §3.9 표, L1.persistence §6.2, F.capabilities §3.3·§3.10, L2.readme §5.1 | §3.9 표를 U-09(LeaseToken)에 맞춥니다. §6.2의 records → settings import 문장을 지웁니다. `ToolSpecFor`는 메서드 문법, `SecretNameSchema`는 `TUnsafe<SecretName>`. L2.readme `defs/web`은 capabilities 인덱스 재노출로 바꿉니다. | 열림 |
-| D-05 | 서비스 파일 사이 import 금지와 L1이 요구하는 공용 타입이 부딪칩니다. | F.capabilities §3.12 규칙 3·4, L1.tools·L1.agents | 규칙 4에 공용 값 타입의 허용 방향을 적고 L1 문서의 위치 요청을 고칩니다. | 열림 |
+| D-03 | SENSITIVE_ENV_PATTERNS 위치가 문서마다 다릅니다. | L0.secrets.spec §4.5·§9, plan SC-11, F.capabilities §3.12, L0.exec | 모두 `@xeon/contracts/services`(services/exec.ts)로 통일합니다. F 쪽은 F.capabilities §3.12 규칙 10으로 위치를 못박았습니다(m2/f F.7). 남은 것: L0.secrets.spec §9 1번이 `@xeon/contracts/capabilities`로 적은 문장은 SEC 레인이 고칩니다. | 일부 해결(F 쪽, m2/f) |
+| D-04 | F 스펙이 코드와 다릅니다. | F.records.spec §3.9 표, L1.persistence §6.2, F.capabilities §3.3·§3.10, L2.readme §5.1 | §3.9 표를 U-09(LeaseToken)에 맞춥니다. §6.2의 records → settings import 문장을 지웁니다. `ToolSpecFor`는 메서드 문법, `SecretNameSchema`는 `TUnsafe<SecretName>`. L2.readme `defs/web`은 capabilities 인덱스 재노출로 바꿉니다. F 쪽(F.records §3.9 표, F.capabilities §3.3·§3.10·§3.9)은 m2/f F.7에서 고쳤습니다. 남은 것: L1.persistence §6.2(L1B 레인), L2.readme §5.1·§5.6의 `defs/web` 깊은 경로 예시(`@xeon/contracts/capabilities`로 바꿉니다, L2 문서 소유자). | 일부 해결(F 쪽, m2/f) |
+| D-05 | 서비스 파일 사이 import 금지와 L1이 요구하는 공용 타입이 부딪칩니다. | F.capabilities §3.12 규칙 3·4, L1.tools·L1.agents | 규칙 4에 공용 값 타입의 허용 방향을 적고 L1 문서의 위치 요청을 고칩니다. F.capabilities §3.12 규칙 4에 허용 방향 표를 적었습니다(m2/f F.7). 남은 것: L1.tools.spec §3.1·§8.3 6번, L1.agents.spec §8.3이 `capabilities/tools.ts`·`policy.ts`·`approvals.ts`로 적은 위치 요청을 `services/`로 고치는 일(L1 레인). | 일부 해결(F 쪽, m2/f) |
 | D-06 | 승인 대기 체크포인트의 `next` 값이 다릅니다. | L1.persistence §4.2(`tools`), L1.tools §4.7·L1.loop §4.5(`await_input`) | `await_input`으로 통일하고 `isApprovalWait`를 하나로 줄입니다. | 열림 |
 | D-07 | 소유 문서가 코드와 다릅니다. | `turn.abort_requested` 생산자, eng.context-map §4.1·§5.2 | tasks 문서를 core.loop 기준으로 고치고 context-map에 `thread_creation_keys`를 더합니다. | 열림 |
 | D-08 | domain과 규칙 ID가 어긋납니다. | guide DR-03·1.2절, routes.yaml, vendor/cordis, group-kit plan G-02 | routes.yaml과 G-02를 `kit`, `host`에 맞추고 DR-10 행을 더합니다. | 열림 |
@@ -61,7 +61,7 @@ binds: []
 | V-05 | 낮은 등급 리뷰 지적이 남았습니다. | ext-host state.ts:301, core-loop commits.ts:59 대 core-tools effects.ts:34, core-persistence emitVolatile, core-tools pipeline.ts:296, core-loop agent-wrapper.ts:650(ADR-0009 이행으로 이 파일은 없어졌습니다) | toolResult 키 통일은 U-13 보완 1(F `commitKeyPart` 하나)로 문서를 정했습니다. toolResult 키 통일은 `commitKeyPart` 구현으로 닫았습니다(1ef0764). 나머지(fingerprintSource, emitVolatile 검사, `itemId`, `committed`)는 열려 있습니다. | 일부 해결(1ef0764) |
 | V-06 | 주석이 사물을 사람처럼 씁니다. | apps/cli commands/chat.ts:164 외 | 서술형으로 바꿨습니다(chat.ts 외 17곳. 코드나 자료에 "스스로", "모른다", "알려 준다" 같은 서술을 쓰던 주석). | 해결(9ae5807) |
 | V-07 | F `describeSandboxStatus`가 spec과 다릅니다(disabled일 때 warn 대 critical). | contracts/src/services/sandbox.ts, L0.sandbox.spec §4.6·§9-6 | 코드를 spec대로 warn으로 고쳤습니다. 설정으로 끈 상태는 `onUnavailable`과 무관하게 warn입니다. | 해결(1ef0764) |
-| V-08 | M1에 계획보다 많이 넣었거나 바꿨습니다. | p_approvals·p_blob_refs 투영, print 모드 approval deny, ToolRunDrafts, args 192 KiB | L1.persistence.plan, L4.cli.spec C11, F.capabilities, L1.tools §4.4에 반영합니다. | 열림 |
+| V-08 | M1에 계획보다 많이 넣었거나 바꿨습니다. | p_approvals·p_blob_refs 투영, print 모드 approval deny, ToolRunDrafts, args 192 KiB | L1.persistence.plan, L4.cli.spec C11, F.capabilities, L1.tools §4.4에 반영합니다. F.capabilities §3.12 `services/tools.ts` 행에 `ToolRunDrafts`와 192 KiB blob 한도의 위치(core-tools 상수, F는 `BlobRef` 허용만)를 적었습니다(m2/f F.7). 남은 것: L1.persistence.plan, L4.cli.spec C11, L1.tools §4.4. | 일부 해결(F 쪽, m2/f) |
 | V-09 | host가 X 로더를 쓰지 않고 `ExtHost.install`을 직접 부릅니다. | apps/host/src/assembly/extensions.ts, X.loading-trust | 로더 의존 순서 지원 또는 `reservedExtensionSettings` 공개, 동명 extraPlugin 규칙을 정합니다. | 열림 |
 | V-10 | 복구 뒤 로그에 `loop.run_rejected`(tasks.scope_settled)가 남습니다. 결과는 정상입니다. | core-loop 재개 경로, apps/cli chat.scenario 시험 2 | N-03으로 옮겨 추적합니다. | 열림(N-03) |
 
@@ -84,9 +84,9 @@ binds: []
 | M-03 | host 메서드가 `notImplemented`입니다. | H9, H16, H17, H19, stdio 자식 프로세스 시험 | M2 계획대로 구현합니다. | 열림 |
 | M-04 | 의존과 번들이 미연결입니다. | `age-encryption` 0.3.1, `@vscode/ripgrep`, binaries.lock.json, platform-store/testing | catalog 고정과 연결, `openTestStore` 교체를 합니다. | 열림 |
 | M-05 | exec, process, secrets, group의 M1 스텁입니다. | startBackground, ProcessPort.run, spill 위치, sandbox allow-list, withBrowserInput, workspace.images, defineGroup | 각 M2 항목으로 구현합니다. spill 위치를 먼저 정합니다. | 열림 |
-| M-06 | 작업 폴더가 `process.cwd()` 하나입니다. | cap-workspace root, ThreadStartedPayload.workspace, 허용 root 조회 API | thread.create의 workspace를 저장하고 root 계산에 씁니다. | 열림 |
+| M-06 | 작업 폴더가 `process.cwd()` 하나입니다. | cap-workspace root, ThreadStartedPayload.workspace, 허용 root 조회 API | thread.create의 workspace를 저장하고 root 계산에 씁니다. F 계약은 m2/f F.6에서 끝났습니다: `thread.started` payload의 선택 필드 `workspace`(옛 행은 필드 없음 = null, version 1 유지)와 wire `ThreadSummary.workspace`. 남은 것: core-persistence가 `thread.create`의 값을 payload에 싣는 일(L1B)과 cap-workspace의 root 계산(DG.4). | 일부 해결(F 계약, m2/f) |
 | M-07 | 컨텍스트와 모델의 M1 고정값입니다. | core-context, core-models 토큰 예산, core-tasks limiter, BlobRef 생산자, detached 필드 | 설정 `l1.context.*`와 함께 구현합니다. | 열림 |
-| M-08 | 컴파일 바이너리와 F 계약 확정이 남았습니다. | apps/host/src/main.ts 최상위 await, L4.cli.plan §4.3, ThreadSummary 등 | await를 없애고 측정값을 plan에 적습니다. F 계약 모양은 M2 시작 때 확정합니다. | 열림 |
+| M-08 | 컴파일 바이너리와 F 계약 확정이 남았습니다. | apps/host/src/main.ts 최상위 await, L4.cli.plan §4.3, ThreadSummary 등 | await를 없애고 측정값을 plan에 적습니다. F 계약 모양은 M2 시작 때 확정합니다. F 계약은 m2/f F.6에서 확정했습니다: `ThreadSummary`(`resumable` 포함)와 thread 오류 kind 3종(`thread.hasForks` 3004, `thread.invalidTarget` 3005, `thread.cancelledByExtension` 3006), 변환 함수 `threadSummaryOf`. 남은 것: main.ts await 제거와 측정값 기록(HOST.5). | 일부 해결(F 계약, m2/f) |
 
 ## 7. 새 항목 (2026-10-22 추가)
 
