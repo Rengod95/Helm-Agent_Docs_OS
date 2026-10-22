@@ -22,9 +22,23 @@ const spill = { rejectedWrites: 0 };
 // Make the spill stream deterministically slow and immediately backpressured.
 // XEON-PATCH: P4
 const actual: typeof Fs = { ...Fs };
+// XEON-PATCH: P15
+/** Delays a stream's internal write hook. Node documents `_write`/`_writev` as the hooks a stream implementation provides. */
+function delayHook(stream: Fs.WriteStream, name: "_write" | "_writev"): void {
+  const original: unknown = Reflect.get(stream, name);
+  if (typeof original !== "function") return;
+  Object.defineProperty(stream, name, {
+    value: (...args: unknown[]): void => {
+      setTimeout(() => {
+        Reflect.apply(original, stream, args);
+      }, SPILL_WRITE_DELAY_MS);
+    },
+  });
+}
+
 // XEON-PATCH: P4
-// oxlint-disable-next-line typescript/no-floating-promises -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-mock.module("node:fs", () => {
+// XEON-PATCH: P15
+await mock.module("node:fs", () => {
   return {
     ...actual,
     createWriteStream: (
@@ -35,20 +49,8 @@ mock.module("node:fs", () => {
         path,
         typeof options === "object" ? { ...options, highWaterMark: 1 } : { highWaterMark: 1 },
       );
-      // oxlint-disable-next-line no-underscore-dangle -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      const writeChunk = stream._write.bind(stream);
-      // oxlint-disable-next-line no-underscore-dangle -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      stream._write = (chunk, encoding, callback) => {
-        setTimeout(() => writeChunk(chunk, encoding, callback), SPILL_WRITE_DELAY_MS);
-      };
-      // oxlint-disable-next-line no-underscore-dangle -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      const writeChunks = stream._writev?.bind(stream);
-      if (writeChunks !== undefined) {
-        // oxlint-disable-next-line no-underscore-dangle -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-        stream._writev = (chunks, callback) => {
-          setTimeout(() => writeChunks(chunks, callback), SPILL_WRITE_DELAY_MS);
-        };
-      }
+      delayHook(stream, "_write");
+      delayHook(stream, "_writev");
       const write = stream.write.bind(stream);
       // XEON-PATCH: P14
       Object.defineProperty(stream, "write", {
@@ -64,9 +66,9 @@ mock.module("node:fs", () => {
 });
 
 // XEON-PATCH: P4
-afterAll(() => {
-  // oxlint-disable-next-line typescript/no-floating-promises -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-  mock.module("node:fs", () => actual);
+afterAll(async () => {
+  // XEON-PATCH: P15
+  await mock.module("node:fs", () => actual);
 });
 
 const tempDirs: string[] = [];

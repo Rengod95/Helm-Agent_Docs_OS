@@ -3,7 +3,7 @@ import { type FSWatcher, watch as fsWatch, type Stats } from "node:fs";
 import { lstat, readdir, readFile, stat, statfs } from "node:fs/promises";
 import { dirname, relative, sep } from "node:path";
 // XEON-PATCH: P14
-import { attempt } from "@xeon/contracts";
+import { attempt, eachAsync, repeatAsync } from "@xeon/contracts";
 // XEON-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
 // XEON-PATCH: P3
@@ -278,17 +278,14 @@ export class NodeFileWatcher implements FileWatcher {
     }
     this.#running = (async () => {
       try {
-        do {
-          this.#dirty = false;
-          const events = [...this.#events];
-          this.#events.clear();
-          // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+        // XEON-PATCH: P15
+        await repeatAsync(async () => {
+          const events = this.#takeEvents();
           const changed = await this.#sync(true);
           for (const path of events) changed.add(path);
-          // oxlint-disable-next-line unicorn/no-array-sort -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-          if (changed.size > 0) this.#deliver({ paths: [...changed].sort() });
-          // oxlint-disable-next-line typescript/no-unnecessary-condition -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-        } while (this.#dirty && !this.#closed);
+          if (changed.size > 0) this.#deliver({ paths: [...changed].toSorted() });
+          return this.#dirty && !this.#closed ? undefined : { value: undefined };
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const fileError =
@@ -304,25 +301,44 @@ export class NodeFileWatcher implements FileWatcher {
     return this.#running;
   }
 
+  // XEON-PATCH: P15
+  /** Start a flush round: events seen so far belong to it, and anything arriving later marks the watcher dirty again. */
+  #takeEvents(): string[] {
+    this.#dirty = false;
+    const events = [...this.#events];
+    this.#events.clear();
+    return events;
+  }
+
+  // XEON-PATCH: P15
+  /** The closed flag as it is now; it may change while a scan awaits. */
+  #isClosed(): boolean {
+    return this.#closed;
+  }
+
   /** Rescan, report differences, and install watchers for new directories, rescanning until none are new. */
   async #sync(report: boolean): Promise<Set<string>> {
     const changed = new Set<string>();
-    for (let round = 0; round < 10 && !this.#closed; round++) {
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+    // XEON-PATCH: P15
+    let reporting = report;
+    let round = 0;
+    // XEON-PATCH: P15
+    await repeatAsync(async () => {
+      if (round >= 10 || this.#isClosed()) return { value: undefined };
+      round += 1;
       const scan = await this.#scan();
       // Closed during the scan: installing watchers now would leak them.
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      if (this.#closed) break;
+      if (this.#isClosed()) return { value: undefined };
       const next = scan.snapshot;
-      if (report) for (const path of this.#diff(this.#snapshot, next)) changed.add(path);
+      if (reporting) for (const path of this.#diff(this.#snapshot, next)) changed.add(path);
       this.#snapshot = next;
-      if (this.#mode === "polling" || !this.#reconcileWatchers(scan)) break;
+      if (this.#mode === "polling" || !this.#reconcileWatchers(scan)) return { value: undefined };
       // XEON-PATCH: P3
       if (this.#platform.fsEventsSettleRescan) this.#scheduleSettle();
       // Something written into a new directory before its watcher existed shows up in the next round.
-      // oxlint-disable-next-line no-param-reassign -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      report = true;
-    }
+      reporting = true;
+      return undefined;
+    });
     return changed;
   }
 
@@ -394,57 +410,55 @@ export class NodeFileWatcher implements FileWatcher {
           return;
         throw error;
       }
-      for (const name of names) {
-        if (excluded(target, name)) continue;
+      // XEON-PATCH: P15
+      await eachAsync(names, async (name) => {
+        if (excluded(target, name)) return undefined;
         const path = `${directory.endsWith(sep) ? directory : directory + sep}${name}`;
         let kind = listed.get(path);
         if (kind === undefined) {
-          // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
           const stats = await valueOrUndefined(() => lstat(path));
-          if (stats === undefined) continue;
+          if (stats === undefined) return undefined;
           kind = entryOf(stats).kind;
           listed.set(path, kind);
           // A target's own entry (following links) wins over its listing by another target.
-          // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
           if (!snapshot.has(path)) await record(path, stats);
         }
         if (target.recursive && kind === "directory") {
           countDirectory(path);
-          // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
           await scanDirectory(index, target, path);
         }
-      }
+        return undefined;
+      });
     };
-    for (const [index, target] of this.#targets.entries()) {
-      for (const ancestor of ancestorsOf(target.path)) {
-        if (snapshot.has(ancestor)) continue;
-        // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+    // XEON-PATCH: P15
+    await eachAsync(this.#targets.entries(), async ([index, target]) => {
+      // XEON-PATCH: P15
+      await eachAsync(ancestorsOf(target.path), async (ancestor) => {
+        if (snapshot.has(ancestor)) return undefined;
         const stats = await valueOrUndefined(() => lstat(ancestor));
         // Identity only: an ancestor's own timestamps change with every unrelated sibling.
         if (stats !== undefined) snapshot.set(ancestor, { ...entryOf(stats), size: 0, mtimeMs: 0 });
-      }
+        return undefined;
+      });
       // The target itself may be a symbolic link to what is watched; follow it. A missing target is watched for its
       // creation; one that cannot be reached for lack of permission fails.
       let stats: Stats;
       try {
-        // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
         stats = await stat(target.path);
       } catch (error) {
         if (isDenied(error)) throw error;
-        continue;
+        return undefined;
       }
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       await record(target.path, stats);
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       if (stats.isFile() && (await valueOrUndefined(() => lstat(target.path)))?.isSymbolicLink()) {
         linkedFiles.add(target.path);
       }
       if (stats.isDirectory()) {
         countDirectory(target.path);
-        // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
         await scanDirectory(index, target, target.path);
       }
-    }
+      return undefined;
+    });
     return { snapshot, linkedFiles };
   }
 
@@ -493,11 +507,9 @@ export class NodeFileWatcher implements FileWatcher {
       if (this.#watchers.has(path) || entry === undefined) continue;
       const linked = linkedFiles.has(path);
       try {
+        // XEON-PATCH: P15
         const watcher = fsWatch(path, { recursive, persistent: false }, (_event, filename) =>
-          linked
-            ? this.#onLinkedFileEvent(path)
-            : // oxlint-disable-next-line typescript/no-unnecessary-type-conversion -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-              this.#onEvent(path, filename === null ? undefined : String(filename)),
+          linked ? this.#onLinkedFileEvent(path) : this.#onEvent(path, filename ?? undefined),
         );
         // A watched directory that disappears or fails: rescan, which also replaces the watcher.
         watcher.on("error", () => {
@@ -574,14 +586,14 @@ async function anyUnreliable(
 ): Promise<boolean> {
   // XEON-PATCH: P3
   if (!platform.statfsUnreliableCheck) return false;
-  for (const path of paths) {
-    for (const candidate of [path, ...ancestorsOf(path)]) {
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+  // XEON-PATCH: P15
+  const unreliable = await eachAsync(paths, async (path) => {
+    // The nearest existing ancestor decides: the first candidate that can be queried.
+    const nearest = await eachAsync([path, ...ancestorsOf(path)], async (candidate) => {
       const info = await valueOrUndefined(() => statfs(candidate));
-      if (info === undefined) continue;
-      if (UNRELIABLE_FILE_SYSTEMS.has(info.type)) return true;
-      break;
-    }
-  }
-  return false;
+      return info === undefined ? undefined : { value: UNRELIABLE_FILE_SYSTEMS.has(info.type) };
+    });
+    return nearest?.value === true ? { value: true } : undefined;
+  });
+  return unreliable !== undefined;
 }

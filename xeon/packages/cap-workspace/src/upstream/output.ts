@@ -30,15 +30,24 @@ export type OutputSlice = {
 };
 
 const NEWLINE = 0x0a;
-// oxlint-disable-next-line no-control-regex -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-const INVALID_OUTPUT = /[\x00-\x08\x0b-\x1f\ufff9-\ufffb]/g;
+
+// XEON-PATCH: P10
+/** C0 controls except tab and newline, and the interlinear annotation marks U+FFF9..U+FFFB. */
+function isInvalidOutputUnit(unit: number): boolean {
+  return unit <= 0x08 || (unit >= 0x0b && unit <= 0x1f) || (unit >= 0xfff9 && unit <= 0xfffb);
+}
 const encoder = new TextEncoder();
 /** Slices decode exactly: a U+FEFF at a slice's start is text, not a byte-order mark. */
 const decoder = new TextDecoder("utf-8", { ignoreBOM: true });
 
 /** Remove control characters that break display and transcripts; tabs and newlines stay. */
 export function sanitizeOutput(text: string): string {
-  return text.replace(INVALID_OUTPUT, "");
+  // XEON-PATCH: P10
+  let kept = "";
+  for (let index = 0; index < text.length; index++) {
+    if (!isInvalidOutputUnit(text.charCodeAt(index))) kept += text.charAt(index);
+  }
+  return kept;
 }
 
 /**

@@ -3,7 +3,8 @@ import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { access, chmod, type FileHandle, open, realpath, symlink } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
-import { attempt, attemptAsync } from "@xeon/contracts";
+// XEON-PATCH: P15
+import { attempt, attemptAsync, repeatAsync } from "@xeon/contracts";
 import { pathToFileURL } from "node:url";
 // XEON-PATCH: P4
 import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
@@ -11,7 +12,12 @@ import { afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import type { CancelScope } from "@xeon/contracts/services";
 // XEON-PATCH: P3
 import { createWin32Provider } from "../../src/providers/win32.ts";
-import { FileError, getOrThrow, type ShellExecOptions } from "../../src/upstream/env/index.ts";
+import {
+  FileError,
+  getOrThrow,
+  type ShellExecOptions,
+  type TextLine,
+} from "../../src/upstream/env/index.ts";
 import { NodeExecutionEnv } from "../../src/upstream/env/node.ts";
 import { errnoCodeOf } from "../support/errno.ts";
 import { hostPlatform } from "../support/platform.ts";
@@ -37,19 +43,22 @@ function createTempDir(): string {
  * exit.
  */
 async function removeTempDir(dir: string): Promise<void> {
-  for (let attempt = 0; ; attempt++) {
+  let attempt = 0;
+  // XEON-PATCH: P15
+  await repeatAsync<undefined>(async () => {
     try {
       rmSync(dir, { recursive: true, force: true });
-      return;
+      return { value: undefined };
     } catch (error) {
       // XEON-PATCH: P14
       const code = errnoCodeOf(error);
       if (attempt >= 80 || (code !== "EBUSY" && code !== "EPERM" && code !== "ENOTEMPTY"))
         throw error;
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+      attempt += 1;
       await new Promise((resolve) => setTimeout(resolve, 100));
+      return undefined;
     }
-  }
+  });
 }
 
 function abortedContext() {
@@ -82,12 +91,13 @@ async function fileHandlePrototype(path: string): Promise<FileHandle> {
 
 async function waitFor(condition: () => Promise<boolean>, timeoutMs: number): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-  while (!(await condition())) {
+  // XEON-PATCH: P15
+  await repeatAsync<undefined>(async () => {
+    if (await condition()) return { value: undefined };
     if (Date.now() > deadline) throw new Error(`Condition not met within ${timeoutMs}ms`);
-    // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
     await new Promise((resolve) => setTimeout(resolve, 10));
-  }
+    return undefined;
+  });
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void): Promise<T> {
@@ -96,18 +106,8 @@ function withTimeout<T>(promise: Promise<T>, ms: number, onTimeout?: () => void)
       onTimeout?.();
       reject(new Error(`Timed out after ${ms}ms`));
     }, ms);
-    promise.then(
-      // oxlint-disable-next-line promise/always-return -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      (value) => {
-        clearTimeout(timeoutId);
-        resolve(value);
-      },
-      (error: unknown) => {
-        clearTimeout(timeoutId);
-        // oxlint-disable-next-line typescript/prefer-promise-reject-errors -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-        reject(error);
-      },
-    );
+    // XEON-PATCH: P15
+    promise.finally(() => clearTimeout(timeoutId)).then(resolve, reject);
   });
 }
 
@@ -172,16 +172,18 @@ class FailingSpillExecutionEnv extends NodeExecutionEnv {
 afterEach(async () => {
   // XEON-PATCH: P4
   mock.restore();
-  for (const path of chmodRestorePaths.splice(0)) {
-    // XEON-PATCH: P14
-    // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    await attemptAsync(async () => {
-      await access(path);
-      await chmod(path, 0o700);
-    });
-  }
-  // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-  for (const dir of tempDirs.splice(0)) await removeTempDir(dir);
+  // XEON-PATCH: P15
+  await Promise.all(
+    chmodRestorePaths.splice(0).map(async (path) => {
+      // XEON-PATCH: P14
+      await attemptAsync(async () => {
+        await access(path);
+        await chmod(path, 0o700);
+      });
+    }),
+  );
+  // XEON-PATCH: P15
+  await Promise.all(tempDirs.splice(0).map((dir) => removeTempDir(dir)));
 }, 15_000);
 
 describe("NodeExecutionEnv filesystem", () => {
@@ -282,8 +284,7 @@ describe("NodeExecutionEnv filesystem", () => {
     expect(
       entries
         .map((entry) => ({ name: entry.name, kind: entry.kind }))
-        // oxlint-disable-next-line unicorn/no-array-sort -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-        .sort((a, b) => a.name.localeCompare(b.name)),
+        .toSorted((a, b) => a.name.localeCompare(b.name)),
     ).toEqual([
       { name: "link.txt", kind: "symlink" },
       { name: "target.txt", kind: "file" },
@@ -379,14 +380,13 @@ describe("NodeExecutionEnv filesystem", () => {
     tempDirs.push(tempDir);
     // XEON-PATCH: P4
     // Bun's access() resolves with null where Node resolves with undefined.
-    // oxlint-disable-next-line typescript/await-thenable -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    await expect(access(tempDir)).resolves.toBeFalsy();
+    // XEON-PATCH: P15
+    expect((await attemptAsync(() => access(tempDir))).ok).toBe(true);
     const tempFile = getOrThrow(
       await env.createTempFile({ prefix: "prefix-", suffix: ".txt" }, BACKGROUND_CONTEXT),
     );
     tempDirs.push(join(tempFile, ".."));
-    // oxlint-disable-next-line typescript/await-thenable -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    await expect(access(tempFile)).resolves.toBeFalsy();
+    expect((await attemptAsync(() => access(tempFile))).ok).toBe(true);
     expect(tempFile.endsWith(".txt")).toBe(true);
     expect(getOrThrow(await env.readTextFile(tempFile, BACKGROUND_CONTEXT))).toBe("");
   });
@@ -472,15 +472,13 @@ describe("NodeExecutionEnv filesystem", () => {
     const root = createTempDir();
     const env = new NodeExecutionEnv({ platform, cwd: root });
     getOrThrow(await env.writeFile("file.txt", "hello", BACKGROUND_CONTEXT));
-    for (const size of [
-      -1,
-      1.5,
-      Number.NaN,
-      Number.POSITIVE_INFINITY,
-      Number.MAX_SAFE_INTEGER + 1,
-    ]) {
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      expect(await env.truncateFile("file.txt", size, BACKGROUND_CONTEXT)).toMatchObject({
+    const sizes = [-1, 1.5, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1];
+    // XEON-PATCH: P15
+    const truncations = await Promise.all(
+      sizes.map((size) => env.truncateFile("file.txt", size, BACKGROUND_CONTEXT)),
+    );
+    for (const truncation of truncations) {
+      expect(truncation).toMatchObject({
         ok: false,
         error: { code: "invalid", path: join(root, "file.txt") },
       });
@@ -519,12 +517,13 @@ describe("NodeExecutionEnv filesystem", () => {
     const env = new NodeExecutionEnv({ platform, cwd: root });
     getOrThrow(await env.writeFile("file.txt", "durable", BACKGROUND_CONTEXT));
     const prototype = await fileHandlePrototype(join(root, "file.txt"));
-    // oxlint-disable-next-line typescript/unbound-method -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    const originalSync = prototype.sync;
+    // XEON-PATCH: P15
+    const originalSync: unknown = Reflect.get(prototype, "sync");
+    if (typeof originalSync !== "function") throw new Error("FileHandle prototype has no sync");
     const synced: FileHandle[] = [];
-    const sync = spyOn(prototype, "sync").mockImplementation(function (this: FileHandle) {
+    const sync = spyOn(prototype, "sync").mockImplementation(async function (this: FileHandle) {
       synced.push(this);
-      return Reflect.apply(originalSync, this, []);
+      await Reflect.apply(originalSync, this, []);
     });
 
     getOrThrow(await env.flushFile("file.txt", BACKGROUND_CONTEXT));
@@ -546,8 +545,7 @@ describe("NodeExecutionEnv filesystem", () => {
   it("cleanup is best-effort", async () => {
     const root = createTempDir();
     const env = new NodeExecutionEnv({ platform, cwd: root });
-    // oxlint-disable-next-line typescript/await-thenable -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    await expect(env.cleanup(BACKGROUND_CONTEXT)).resolves.toBeUndefined();
+    expect(await env.cleanup(BACKGROUND_CONTEXT)).toBeUndefined();
   });
 });
 
@@ -558,12 +556,14 @@ describe("NodeExecutionEnv text line reader", () => {
     getOrThrow(await env.writeFile("lines.txt", "one\r\n\ntwo\npartial", BACKGROUND_CONTEXT));
     const reader = getOrThrow(await env.openTextLineReader("lines.txt", BACKGROUND_CONTEXT));
     try {
-      const lines = [];
-      for (let line = getOrThrow(await reader.readLine(BACKGROUND_CONTEXT)); line !== undefined;) {
+      const lines: TextLine[] = [];
+      // XEON-PATCH: P15
+      await repeatAsync<undefined>(async () => {
+        const line = getOrThrow(await reader.readLine(BACKGROUND_CONTEXT));
+        if (line === undefined) return { value: undefined };
         lines.push(line);
-        // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-        line = getOrThrow(await reader.readLine(BACKGROUND_CONTEXT));
-      }
+        return undefined;
+      });
       expect(lines).toEqual([
         { text: "one\r", terminated: true },
         { text: "", terminated: true },
@@ -623,18 +623,11 @@ describe("NodeExecutionEnv text line reader", () => {
     const env = new NodeExecutionEnv({ platform, cwd: root });
     getOrThrow(await env.writeFile("lines.txt", "one\ntwo\n", BACKGROUND_CONTEXT));
     const prototype = await fileHandlePrototype(join(root, "lines.txt"));
-    // oxlint-disable-next-line typescript/unbound-method -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    const read = prototype.read;
-    // oxlint-disable-next-line unicorn/consistent-function-scoping -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    let markStarted: () => void = () => {};
-    const started = new Promise<void>((resolve) => {
-      markStarted = resolve;
-    });
-    // oxlint-disable-next-line unicorn/consistent-function-scoping -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    let release: () => void = () => {};
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
-    });
+    // XEON-PATCH: P15
+    const read: unknown = Reflect.get(prototype, "read");
+    if (typeof read !== "function") throw new Error("FileHandle prototype has no read");
+    const started = Promise.withResolvers<void>();
+    const gate = Promise.withResolvers<void>();
     // XEON-PATCH: P14
     // spyOn은 FileHandle.read의 오버로드 전체 타입을 요구한다. 첫 호출만 붙잡는 대체 구현을 직접 끼우고 끝나면 되돌린다
     let armed = true;
@@ -644,8 +637,8 @@ describe("NodeExecutionEnv text line reader", () => {
       value: async function (this: FileHandle, ...args: unknown[]): Promise<unknown> {
         if (armed) {
           armed = false;
-          markStarted();
-          await gate;
+          started.resolve();
+          await gate.promise;
         }
         return Reflect.apply(read, this, args);
       },
@@ -655,9 +648,9 @@ describe("NodeExecutionEnv text line reader", () => {
       try {
         const controller = new AbortController();
         const pending = reader.readLine({ abortSignal: controller.signal });
-        await started;
+        await started.promise;
         controller.abort();
-        release();
+        gate.resolve();
         expect(await pending).toMatchObject({ ok: false, error: { code: "aborted" } });
         expect(getOrThrow(await reader.readLine(BACKGROUND_CONTEXT))).toEqual({
           text: "one",
@@ -682,8 +675,7 @@ describe("NodeExecutionEnv text line reader", () => {
     getOrThrow(await env.writeFile("lines.txt", "one\n", BACKGROUND_CONTEXT));
     const reader = getOrThrow(await env.openTextLineReader("lines.txt", BACKGROUND_CONTEXT));
     await reader.close(BACKGROUND_CONTEXT);
-    // oxlint-disable-next-line typescript/await-thenable -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    await expect(reader.close(BACKGROUND_CONTEXT)).resolves.toBeUndefined();
+    expect(await reader.close(BACKGROUND_CONTEXT)).toBeUndefined();
     expect(await reader.readLine(BACKGROUND_CONTEXT)).toMatchObject({
       ok: false,
       error: { code: "invalid", path: join(root, "lines.txt") },
@@ -803,8 +795,7 @@ describe("NodeExecutionEnv shell", () => {
         cwd: root,
         shellPath,
       });
-      // oxlint-disable-next-line no-useless-concat -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      const nameExpansion = "$" + "{name}";
+      const nameExpansion = "${name}";
       const collected = await collectShellOutput(
         wslEnv,
         `name='World'; echo "Hello, ${nameExpansion}!"`,
@@ -857,8 +848,7 @@ describe("NodeExecutionEnv shell", () => {
     } finally {
       await env.cleanup(BACKGROUND_CONTEXT);
     }
-    // oxlint-disable-next-line typescript/await-thenable -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    await expect(withTimeout(execution, 3000)).resolves.toMatchObject({ ok: true });
+    expect(await withTimeout(execution, 3000)).toMatchObject({ ok: true });
   }, 20_000);
 
   it("streams combined stdout and stderr", async () => {
@@ -932,9 +922,13 @@ describe("NodeExecutionEnv shell", () => {
   it("rejects invalid timeouts before spawning", async () => {
     const root = createTempDir();
     const env = new NodeExecutionEnv({ platform, cwd: root });
-    for (const timeout of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 2_147_484]) {
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      expect(await env.exec("touch spawned", { timeout }, BACKGROUND_CONTEXT)).toMatchObject({
+    const timeouts = [0, -1, Number.NaN, Number.POSITIVE_INFINITY, 2_147_484];
+    // XEON-PATCH: P15
+    const results = await Promise.all(
+      timeouts.map((timeout) => env.exec("touch spawned", { timeout }, BACKGROUND_CONTEXT)),
+    );
+    for (const result of results) {
+      expect(result).toMatchObject({
         ok: false,
         error: { code: "timeout", message: expect.stringContaining("Invalid timeout") },
       });
@@ -1016,10 +1010,14 @@ describe("NodeExecutionEnv shell", () => {
           undefined,
           { abortSignal: controller.signal },
         );
-        for (let attempt = 0; attempt < 100 && !existsSync(pidFile); attempt++) {
-          // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+        let pidChecks = 0;
+        // XEON-PATCH: P15
+        await repeatAsync<undefined>(async () => {
+          if (pidChecks >= 100 || existsSync(pidFile)) return { value: undefined };
+          pidChecks += 1;
           await new Promise((resolve) => setTimeout(resolve, 10));
-        }
+          return undefined;
+        });
         expect(existsSync(pidFile)).toBe(true);
 
         controller.abort();

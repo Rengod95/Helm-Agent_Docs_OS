@@ -21,7 +21,6 @@ export function registerEnvConformance(
     withEnv,
   });
   runner.describe(name, () => {
-    // oxlint-disable-next-line typescript/unbound-method -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
     for (const testCase of cases) runner.it(testCase.name, testCase.run, testCase.timeoutMs);
   });
 }

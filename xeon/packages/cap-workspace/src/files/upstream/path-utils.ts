@@ -1,3 +1,5 @@
+// XEON-PATCH: P10
+import { eachAsync } from "@xeon/contracts";
 // XEON-PATCH: P1
 import type { CancelScope as Context, ExecutionEnv } from "@xeon/contracts/services";
 // XEON-PATCH: P2
@@ -37,9 +39,9 @@ export async function resolveReadToolPath(
     resolved.normalize("NFD").replace(/'/g, "’"),
   ];
 
-  for (const variant of new Set(variants)) {
-    // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    if (getOrThrow(await env.exists(variant, context))) return variant;
-  }
-  return resolved;
+  // XEON-PATCH: P10
+  const found = await eachAsync(new Set(variants), async (variant) =>
+    getOrThrow(await env.exists(variant, context)) ? { value: variant } : undefined,
+  );
+  return found?.value ?? resolved;
 }

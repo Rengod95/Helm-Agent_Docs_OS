@@ -27,5 +27,6 @@ export interface EnvConformanceCase {
   readonly name: string;
   /** Cases that wait for an environment's watch latency need longer than a test runner's default timeout. */
   readonly timeoutMs?: number;
-  run(): Promise<void>;
+  // XEON-PATCH: P15
+  readonly run: () => Promise<void>;
 }

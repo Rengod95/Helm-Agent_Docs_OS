@@ -16,7 +16,7 @@ Xeon의 모든 TypeScript 코드에 적용하는 언어 차원 규칙이다. 금
 
 - 대상 코드: `xeon/` 아래 모든 `.ts`, `.tsx` 파일. `packages/*`, `apps/*`, `plugins/*`, `scripts/*`를 포함한다.
 - 제외: `xeon/vendor/**`(Cordis 커밋 고정본, `.oxlintrc.json` `ignorePatterns`에 있다), 생성 산출물(`dist/**`).
-- 포크 코드: pi durable 포크(`platform-exec`, `cap-workspace`의 `upstream/`)와 pi agent-core에서 가져온 코드도 이 규칙을 그대로 따른다. 업스트림 병합 비용은 단언·`!`·억제 주석의 예외 사유가 아니다. 지킬 수 없는 줄은 우회하지 않고 `[미결] TY-NN <위치> <이유>`로 보고한다. 에이전트 루프는 pi agent-core를 참고 자료로만 쓰고 Xeon 코드로 다시 쓴다(`adr.0009`).
+- 포크 코드: pi durable 포크(`platform-exec`, `cap-workspace`의 `upstream/`)와 pi agent-core에서 가져온 코드도 이 규칙을 그대로 따른다. 업스트림 병합 비용은 단언·`!`·억제 주석의 예외 사유가 아니다. 지킬 수 없는 줄은 우회하지 않고 `[미결] TY-NN <위치> <이유>`로 보고한다. 스캔 `xeon/directive-format`이 "업스트림 모양", "원본 포크 코드의 모양", "병합 비용" 같은 이유를 단 억제 주석(oxlint, 스캔 모두)을 실패시킨다. 순차 `await`가 함수의 목적이면 `@xeon/contracts`의 `repeatAsync`·`eachAsync`(1.2절)로 옮긴다. 에이전트 루프는 pi agent-core를 참고 자료로만 쓰고 Xeon 코드로 다시 쓴다(`adr.0009`).
 - 테스트 코드: 규칙은 같다. 경로 단위로 완화한 항목은 4.3절 표에 적힌 것만 허용한다.
 - 근거 자료:
   - 스택과 tsconfig 옵션: `_research/foundation-plan.md §2` 언어·타입 검사 행 [결정], `decisions/ADR-0001-stack.md`
@@ -99,9 +99,14 @@ export function parseJson(text: string): Result<unknown, JsonParseError>;
 export function detach(work: PromiseLike<unknown>, onFailure: (cause: unknown) => void): void;
 /** 받은 값을 그대로 다시 던진다(TY-25 3). 시험 대역의 detach 처리기로 쓴다. */
 export function rethrow(cause: unknown): never;
+
+/** 앞 반복이 끝나야 다음을 시작하는 비동기 반복. step이 { value }를 돌려주면 끝나고 undefined면 한 번 더 부른다. 순차 await가 목적인 곳에 쓴다(no-await-in-loop 예외는 이 함수 한 곳이다). */
+export function repeatAsync<T>(step: () => Promise<{ readonly value: T } | undefined>): Promise<T>;
+/** 항목을 앞에서부터 하나씩 step에 넘긴다. step이 { value }를 돌려주면 거기서 멈춘다. 끝까지 undefined면 undefined. */
+export function eachAsync<I, T>(items: Iterable<I>, step: (item: I) => Promise<{ readonly value: T } | undefined>): Promise<{ readonly value: T } | undefined>;
 ```
 
-- `attempt`, `attemptAsync`, `parseJson`, `detach`, `rethrow`는 `packages/contracts/src/base/attempt.ts`에 있다. `toJsonValue(value: unknown): JsonValue | undefined`는 `@xeon/contracts/conversation`에 있으며 JSON 값으로 좁히는 가드 대신 쓴다. 단언 대신 이 도구로 좁힌다(TY-23).
+- `attempt`, `attemptAsync`, `parseJson`, `detach`, `rethrow`는 `packages/contracts/src/base/attempt.ts`에, `repeatAsync`, `eachAsync`는 `base/repeat.ts`에 있다. `toJsonValue(value: unknown): JsonValue | undefined`는 `@xeon/contracts/conversation`에 있으며 JSON 값으로 좁히는 가드 대신 쓴다. 단언 대신 이 도구로 좁힌다(TY-23).
 
 - `ThreadId`, `EventId`, `TurnId`, `ItemId`, `EffectId` 같은 브랜드 ID 타입과 `IdFactory`는 `F.conversation.spec` §3.2가 정의하고 `@xeon/contracts/conversation`에 둔다. `parse`, `ParseError`는 `eng.domain-types.guide` DT-05가 정의한다. 멱등 키(`requestId`, 커밋 키)에는 브랜드가 없다(DT-06).
 - 구현 위치 [결정: review.decisions-2 U-03]: F에는 `Clock`·`Scheduler`·`RandomSource`·`IdFactory` 인터페이스만 둔다. `Clock`, `RandomSource`, `Scheduler`의 운영 구현과 `IdFactory` 구현 `createIdFactory(clock, random)`은 L0 `platform-os`에 두고 Cordis 서비스로 주입한다. `createIdFactory`는 주입받은 `Clock`·`RandomSource`로 ID를 만든다(TY-06 허용 목록 A2). F에는 `./testing` 서브패스가 없고, 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다(`F.readme` §1, `eng.domain-types.guide` DT-06).
@@ -1322,7 +1327,7 @@ typed programming 안티패턴을 막는 규칙 전체다. `xeon/.oxlintrc.json`
 `scripts/check-ts-rules.ts`가 있다(2026-10-23). 시험은 `scripts/check-ts-rules.test.ts`다.
 
 - 실행: `just check-ts-rules`(= `bun scripts/check-ts-rules.ts [--exceptions] [루트]`). `just verify`에 포함한다. `--exceptions`는 예외 주석 전체를 표로 찍는다. 실행할 때마다 예외 개수를 종류와 규칙별로 한 줄씩 찍는다.
-- 구현한 규칙: `xeon/as-location`(허용 행마다 허용 파일을 코드에 적었다), `xeon/bug-for-expected`(시험 파일 제외), `xeon/catch-swallow`, `xeon/type-unsafe`(`Type.Unsafe<T>` 호출의 인자 모양을 TY-26 허용 행과 비교한다), `xeon/switch-default-never`(`default` 블록에 `assertNever`가 없으면 실패. 주석·문자열·정규식 리터럴을 가리고 중괄호를 센다), `xeon/directive-format`(블록 disable, 이유와 `(<이슈 또는 문서 id>)`가 없는 disable, `ts-ignore`, `ts-nocheck`, 운영 코드의 `ts-expect-error`). 스캔 자신의 파일(`check-ts-rules*.ts`)은 대상에서 뺀다. 규칙 이름과 정규식을 파일에 적기 때문이다.
+- 구현한 규칙: `xeon/as-location`(허용 행마다 허용 파일을 코드에 적었다), `xeon/bug-for-expected`(시험 파일 제외), `xeon/catch-swallow`, `xeon/type-unsafe`(`Type.Unsafe<T>` 호출의 인자 모양을 TY-26 허용 행과 비교한다), `xeon/switch-default-never`(`default` 블록에 `assertNever`가 없으면 실패. 주석·문자열·정규식 리터럴을 가리고 중괄호를 센다), `xeon/directive-format`(블록 disable, 이유와 `(<이슈 또는 문서 id>)`가 없는 disable, 업스트림 병합 비용을 이유로 든 disable, `ts-ignore`, `ts-nocheck`, 운영 코드의 `ts-expect-error`). 스캔 자신의 파일(`check-ts-rules*.ts`)은 대상에서 뺀다. 규칙 이름과 정규식을 파일에 적기 때문이다.
 - 대상: `packages/**`, `apps/**`, `plugins/**`, `scripts/**`의 `.ts`, `.tsx`. `vendor/**`, `dist/**`, `node_modules/**` 제외.
 - 파서: TS 7.0에는 안정 programmatic API가 없다(`_research/stack-status.md §2`). 줄 단위 정규식 검출로 시작했고 `new Bug(` 인자만 괄호 짝을 센다. 오탐이 문제가 되면 별도 파서로 바꾼다 [미결].
 - 별도 파일로 둔다. 층 검사(`check-layers.ts`)와 구문 검사는 실패 원인이 다르다.

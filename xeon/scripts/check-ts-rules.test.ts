@@ -49,6 +49,34 @@ test("block disable comments and reasonless disables fail", () => {
   ).toEqual([]);
 });
 
+test("keeping the upstream shape is not a reason for an exception", () => {
+  const fork = "packages/platform-exec/src/upstream/env/node.ts";
+  expect(
+    scan(
+      fork,
+      "// oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)\nx",
+    ),
+  ).toEqual(["1 xeon/directive-format"]);
+  expect(
+    scan(
+      fork,
+      "// oxlint-disable-next-line no-await-in-loop -- keep upstream shape (eng.typescript.guide TY-22)\nx",
+    ),
+  ).toEqual(["1 xeon/directive-format"]);
+  expect(
+    scan(
+      fork,
+      "// xeon-disable-next-line xeon/bug-for-expected -- 업스트림 병합을 쉽게 하려고 (eng.typescript.guide TY-24)\nx",
+    ),
+  ).toEqual(["1 xeon/directive-format"]);
+  expect(
+    scan(
+      "packages/a/src/x.ts",
+      "// oxlint-disable-next-line no-await-in-loop -- 순차 await가 이 함수의 목적이다 (eng.typescript.guide TY-22)\nx",
+    ),
+  ).toEqual([]);
+});
+
 test("ts suppression comments are limited to tests", () => {
   expect(scan("packages/a/src/x.ts", "// @ts-ignore")).toEqual(["1 xeon/directive-format"]);
   expect(scan("packages/a/src/x.ts", "// @ts-expect-error -- 이유가 있다")).toEqual([

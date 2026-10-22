@@ -23,6 +23,7 @@
 | P12 | `truncate.ts:11-12` | `isolatedDeclarations`가 요구하는 상수 타입 주석(`DEFAULT_MAX_LINES: number`)을 달고 export를 걷는다. 파일 안에서만 쓴다(knip). 한도 기본값은 `truncateHead` 결과의 `maxLines`·`maxBytes`로 노출된다 | `tsc -b`, `test/upstream/truncate.test.ts` |
 | P13 | `truncate.ts:14-50` | `TruncationResult`, `TruncationOptions` 선언을 지우고 F(`@xeon/contracts/services`, `services/exec.ts`)에서 가져온다. F 선언은 같은 필드에 `readonly`를 더한 모양이라 L1·L2가 같은 타입으로 받는다 | `tsc -b`, `exec-contract.contract.test.ts` |
 | P14 | `env/index.ts:18-45`, `env/node.ts`(`fileURLToPath`, `pathExists`, `runCommand`, `LineScanner` 생성, `close` 호출 12곳), `env/node-watch.ts`(`#deliver`, `lstat`·`statfs` 조회 5곳), `testing/assertions.ts:3-19`, 시험 파일(`env-node.int.test.ts`, `env-node-conformance.int.test.ts`, `env-node-spill.int.test.ts`) | `eng.typescript.guide` TY-06·TY-25 적용. 바인딩 없는 `catch {}`와 `.catch(() => undefined)`를 `attempt`/`attemptAsync`(F) 결과 값으로 바꾸고, 정리 단계의 `close`는 `closeBestEffort`, 조회 실패를 `undefined`로 보는 자리는 `valueOrUndefined`(둘 다 `env/index.ts`)로 모았다. `toFileError`의 `switch`에 `default`를 더하고, `ExpectLike`가 `ExpectResult`를 돌려주게 해 `as ExpectResult`를 지웠다. 시험의 `as` 단언은 타입 가드(`isFileHandle`, `errnoCodeOf`), `Object.defineProperty`, 결과 좁히기로 바꿨다. 동작은 같다 | `tsc -b`, `bun run lint`, 원본 시험 |
+| P15 | `env/node.ts`(`abortResult`, `getShellConfig`, `waitForChildProcess`, `exec`, 읽기 도구 `NodeTextLineReader`·`NodeBinaryReader`·`NodeDirReader`, `readTextLines`, `listDir`, `createTempDir`, `absolutePath`, `joinPath`, `cleanup`), `env/node-watch.ts`(`#flush`, `#sync`, `#scan`, `anyUnreliable`, `fsWatch` 콜백), `env/line-scan.ts`(`push`, `#feed`), `env/index.ts`(`getOrThrow`), `testing/types.ts`(`run`), `testing/env-conformance.ts`, 시험 파일 3개(`env-node.int.test.ts`, `env-node-conformance.int.test.ts`, `env-node-spill.int.test.ts`) | `eng.typescript.guide` §1 포크 코드 절과 TY-22를 적용해 린트 억제 주석을 모두 걷는다. 포크 코드에 `oxlint-disable`이 남지 않는다. (1) `no-await-in-loop` 반복문(파일 조각 읽기, 디렉터리 항목 읽기, 감시 스냅샷, 셸 후보 확인)은 `@xeon/contracts`의 `repeatAsync`·`eachAsync`로 옮긴다. 반복 한 번이 `{ value }`로 끝을 알리고, 순차 await는 그 두 함수 안의 예외 한 곳에 모았다. (2) `abortResult<T>`는 `Result<never, FileError>`를 돌려주어 타입 인자를 지운다. (3) `async`인데 await가 없던 `absolutePath`, `joinPath`, `cleanup`은 `Promise.resolve`로 돌려준다. (4) `resolve` 이름 충돌은 `node:path`의 `resolve`를 `resolveAbsolute`로 바꾸고 Promise 매개변수를 `resolve`로 통일한다. `finishSpill`의 `Promise`는 `waitForStreamFinish`로 뺀다. (5) 매개변수 재대입(`chunk`, `from`, `report`, `prefix`)은 지역 변수로 받는다. (6) 비null 단언(`chunks[0]!`), `switch (nodeError.code)`의 `undefined`, `prefer-const`(`armTimeout`), `.then()` 반환(`onChildExit`), `??`가 불필요한 `osConstants.signals`(`signalNumber`)를 고친다. (7) 시험 지원 코드: `run`을 속성 시그니처로, `expectChange`·`absolute`도 같게 하고(`unbound-method`), `getOrThrow`의 오류 타입을 `Error`로 좁히며(`only-throw-error`), `execCollect`를 모듈 함수로 옮기고 `.sort()`를 `.toSorted()`로 바꾼다. (8) 시험에서 `await expect(...).resolves`는 값을 직접 await하고, `stream._write` 접근은 `Reflect.get`·`Object.defineProperty`로 하며(Node가 구현자에게 여는 훅), `mock.module`은 await한다. 동작은 같다 | `tsc -b`, `bun run lint`, 원본 시험과 적합성 스위트 |
 
 ## 서식
 
@@ -38,9 +39,9 @@ EX-01의 '첫 커밋은 복사만 담는다' 규칙은 지키지 못했다. 이 
 
 ## 린트 예외 주석
 
-포크 코드는 `.oxlintrc.json`의 type-aware 규칙 일부를 지킬 수 없다. 규칙을 끄지 않고 `eng.typescript.guide` 4.1절의 줄 단위 주석으로 표시한다.
-형식: `// oxlint-disable-next-line <규칙> -- <이유> (eng.typescript.guide §1 포크 코드)`. 패치가 아니므로 `XEON-PATCH` 표지는 달지 않는다.
-업스트림을 갱신할 때는 이 주석을 `oxlint` 출력에 맞춰 다시 만든다(`bun run lint`가 쓰이지 않은 주석도 실패시킨다).
+포크 코드에는 `oxlint-disable` 주석을 두지 않는다. `eng.typescript.guide` §1은 업스트림 병합 비용을 억제 주석의 사유로 인정하지 않는다. 린트가 걸리는 줄은 P15처럼 고쳐 쓰고 `XEON-PATCH` 표지를 단다.
+고칠 수 없는 줄이 생기면 주석으로 넘기지 말고 `[미결] TY-NN <파일:줄> <이유>`로 `review.open-issues`에 적는다. `just check-ts-rules`의 `xeon/directive-format`이 "업스트림 모양"·"포크 모양"을 이유로 든 억제 주석을 실패시킨다.
+업스트림을 갱신하면 새 원본에서 같은 린트 오류가 다시 생긴다. `bun run lint` 출력에 맞춰 P15를 다시 적용한다.
 
 ## 확인 기록
 

@@ -18,10 +18,11 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { homedir, constants as osConstants, tmpdir } from "node:os";
-import { basename, isAbsolute, join, resolve } from "node:path";
+// XEON-PATCH: P15
+import { basename, isAbsolute, join, resolve as resolveAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 // XEON-PATCH: P14
-import { attempt, attemptAsync } from "@xeon/contracts";
+import { attempt, attemptAsync, eachAsync, repeatAsync } from "@xeon/contracts";
 // XEON-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
 // XEON-PATCH: P3
@@ -96,7 +97,7 @@ function resolvePath(cwd: string, path: string, platform: ExecPlatformProvider):
     // Keep malformed URLs as ordinary paths so filesystem methods preserve their non-throwing contract.
     if (filePath.ok) normalized = filePath.value;
   }
-  return isAbsolute(normalized) ? resolve(normalized) : resolve(cwd, normalized);
+  return isAbsolute(normalized) ? resolveAbsolute(normalized) : resolveAbsolute(cwd, normalized);
 }
 
 function fileKindFromStats(stats: {
@@ -142,8 +143,8 @@ function toFileError(error: unknown, fallbackPath?: string): FileError {
   const path = typeof nodeError?.path === "string" ? nodeError.path : fallbackPath;
   if (nodeError) {
     const message = nodeError.message;
-    // oxlint-disable-next-line typescript/switch-exhaustiveness-check -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    switch (nodeError.code) {
+    // XEON-PATCH: P15
+    switch (nodeError.code ?? "") {
       case "ABORT_ERR":
         return new FileError("aborted", message, path, cause);
       case "ENOENT":
@@ -166,11 +167,11 @@ function toFileError(error: unknown, fallbackPath?: string): FileError {
   return new FileError("unknown", cause.message, path, cause);
 }
 
-// oxlint-disable-next-line typescript/no-unnecessary-type-parameters -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-function abortResult<TValue>(
+// XEON-PATCH: P15
+function abortResult(
   signal: AbortSignal | undefined,
   path?: string,
-): Result<TValue, FileError> | undefined {
+): Result<never, FileError> | undefined {
   return signal?.aborted ? err(new FileError("aborted", "aborted", path)) : undefined;
 }
 
@@ -186,7 +187,6 @@ async function runCommand(
   // XEON-PATCH: P3
   platform: ExecPlatformProvider,
 ): Promise<{ stdout: string; status: number | null }> {
-  // oxlint-disable-next-line no-shadow -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
   return await new Promise((resolve) => {
     let stdout = "";
     // XEON-PATCH: P14
@@ -247,12 +247,13 @@ async function getShellConfig(
   }
   // XEON-PATCH: P3
   const candidates = platform.shellCandidates();
-  for (const candidate of candidates) {
-    // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    if (await pathExists(candidate)) {
-      // XEON-PATCH: P3
-      return ok(platform.bashConfig(candidate));
-    }
+  // XEON-PATCH: P15
+  const found = await eachAsync(candidates, async (candidate) =>
+    (await pathExists(candidate)) ? { value: candidate } : undefined,
+  );
+  if (found !== undefined) {
+    // XEON-PATCH: P3
+    return ok(platform.bashConfig(found.value));
   }
   // XEON-PATCH: P3
   const bashOnPath = await findBashOnPath(platform);
@@ -287,12 +288,26 @@ function getShellEnv(
   };
 }
 
+// XEON-PATCH: P15
+function signalNumber(signal: NodeJS.Signals): number | undefined {
+  return osConstants.signals[signal];
+}
+
+// XEON-PATCH: P15
+function waitForStreamFinish(stream: WriteStream): Promise<void> {
+  return new Promise<void>((resolve) => {
+    stream.once("error", () => resolve());
+    stream.once("finish", resolve);
+    stream.end();
+  });
+}
+
 function waitForChildProcess(
   child: ChildProcess,
   spillIsDraining: () => boolean,
 ): Promise<{ code: number | null; signal: NodeJS.Signals | null }> {
-  // oxlint-disable-next-line promise/param-names -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-  return new Promise((resolvePromise, reject) => {
+  // XEON-PATCH: P15
+  return new Promise((resolve, reject) => {
     let settled = false;
     let exited = false;
     let exitCode: number | null = null;
@@ -317,7 +332,7 @@ function waitForChildProcess(
       cleanup();
       child.stdout?.destroy();
       child.stderr?.destroy();
-      resolvePromise({ code: exitCode, signal: exitSignal });
+      resolve({ code: exitCode, signal: exitSignal });
     };
     const maybeFinalizeAfterExit = (): void => {
       if (exited && stdoutEnded && stderrEnded) finalize();
@@ -386,36 +401,35 @@ class NodeTextLineReader implements TextLineReader {
   }
 
   async readLine(context: Context): Promise<Result<TextLine | undefined, FileError>> {
-    const aborted = abortResult<TextLine | undefined>(context.abortSignal, this.path);
+    const aborted = abortResult(context.abortSignal, this.path);
     if (aborted) return aborted;
     if (this.closed) return err(new FileError("invalid", "Text line reader is closed", this.path));
 
     try {
-      // oxlint-disable-next-line typescript/no-unnecessary-condition -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      while (true) {
+      // XEON-PATCH: P15
+      return await repeatAsync<Result<TextLine | undefined, FileError>>(async () => {
         const newline = this.buffered.indexOf("\n");
         if (newline !== -1) {
           const text = this.buffered.slice(0, newline);
           this.buffered = this.buffered.slice(newline + 1);
-          return ok({ text, terminated: true });
+          return { value: ok({ text, terminated: true }) };
         }
         if (this.ended) {
-          if (this.buffered.length === 0) return ok(undefined);
+          if (this.buffered.length === 0) return { value: ok(undefined) };
           const text = this.buffered;
           this.buffered = "";
-          return ok({ text, terminated: false });
+          return { value: ok({ text, terminated: false }) };
         }
 
         // Explicit positions allow an aborted read to be retried without skipping bytes.
-        // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
         const { bytesRead } = await this.file.read(
           this.chunk,
           0,
           this.chunk.length,
           this.byteOffset,
         );
-        const afterReadAbort = abortResult<TextLine | undefined>(context.abortSignal, this.path);
-        if (afterReadAbort) return afterReadAbort;
+        const afterReadAbort = abortResult(context.abortSignal, this.path);
+        if (afterReadAbort) return { value: afterReadAbort };
         this.byteOffset += bytesRead;
         if (bytesRead === 0) {
           this.buffered += this.decoder.decode();
@@ -423,7 +437,8 @@ class NodeTextLineReader implements TextLineReader {
         } else {
           this.buffered += this.decoder.decode(this.chunk.subarray(0, bytesRead));
         }
-      }
+        return undefined;
+      });
     } catch (error) {
       return err(toFileError(error, this.path));
     }
@@ -453,7 +468,7 @@ class NodeBinaryReader implements BinaryReader {
   }
 
   async info(context: Context): Promise<Result<FileInfo, FileError>> {
-    const aborted = abortResult<FileInfo>(context.abortSignal, this.path);
+    const aborted = abortResult(context.abortSignal, this.path);
     if (aborted) return aborted;
     if (this.closed) return closedResult("Binary reader", this.path);
     try {
@@ -468,7 +483,7 @@ class NodeBinaryReader implements BinaryReader {
     length: number,
     context: Context,
   ): Promise<Result<Uint8Array, FileError>> {
-    const aborted = abortResult<Uint8Array>(context.abortSignal, this.path);
+    const aborted = abortResult(context.abortSignal, this.path);
     if (aborted) return aborted;
     if (this.closed) return closedResult("Binary reader", this.path);
     if (
@@ -484,21 +499,25 @@ class NodeBinaryReader implements BinaryReader {
     const chunks: Uint8Array[] = [];
     let total = 0;
     try {
-      while (total < length) {
+      // XEON-PATCH: P15
+      const interrupted = await repeatAsync<Result<never, FileError> | undefined>(async () => {
+        if (total >= length) return { value: undefined };
         const chunk = new Uint8Array(Math.min(length - total, BINARY_READ_CHUNK));
-        // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
         const { bytesRead } = await this.file.read(chunk, 0, chunk.length, offset + total);
-        const afterReadAbort = abortResult<Uint8Array>(context.abortSignal, this.path);
-        if (afterReadAbort) return afterReadAbort;
-        if (bytesRead === 0) break;
+        const afterReadAbort = abortResult(context.abortSignal, this.path);
+        if (afterReadAbort) return { value: afterReadAbort };
+        if (bytesRead === 0) return { value: undefined };
         chunks.push(bytesRead === chunk.length ? chunk : chunk.subarray(0, bytesRead));
         total += bytesRead;
-      }
+        return undefined;
+      });
+      if (interrupted) return interrupted;
     } catch (error) {
       return err(toFileError(error, this.path));
     }
-    // oxlint-disable-next-line typescript/no-non-null-assertion -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    if (chunks.length === 1) return ok(chunks[0]!);
+    // XEON-PATCH: P15
+    const [onlyChunk] = chunks;
+    if (onlyChunk !== undefined && chunks.length === 1) return ok(onlyChunk);
     const bytes = new Uint8Array(total);
     let position = 0;
     for (const chunk of chunks) {
@@ -512,7 +531,7 @@ class NodeBinaryReader implements BinaryReader {
     options: { startLine: number; endLine?: number },
     context: Context,
   ): Promise<Result<LineScan, FileError>> {
-    const aborted = abortResult<LineScan>(context.abortSignal, this.path);
+    const aborted = abortResult(context.abortSignal, this.path);
     if (aborted) return aborted;
     if (this.closed) return closedResult("Binary reader", this.path);
     // XEON-PATCH: P14
@@ -520,16 +539,18 @@ class NodeBinaryReader implements BinaryReader {
     if (!created.ok) return err(new FileError("invalid", "Invalid line range", this.path));
     const scanner = created.value;
     const chunk = new Uint8Array(64 * 1024);
+    let position = 0;
     try {
-      for (let position = 0; ;) {
-        // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+      // XEON-PATCH: P15
+      return await repeatAsync<Result<LineScan, FileError>>(async () => {
         const { bytesRead } = await this.file.read(chunk, 0, chunk.length, position);
-        const afterReadAbort = abortResult<LineScan>(context.abortSignal, this.path);
-        if (afterReadAbort) return afterReadAbort;
-        if (bytesRead === 0) return ok(scanner.finish());
+        const afterReadAbort = abortResult(context.abortSignal, this.path);
+        if (afterReadAbort) return { value: afterReadAbort };
+        if (bytesRead === 0) return { value: ok(scanner.finish()) };
         scanner.push(chunk.subarray(0, bytesRead));
         position += bytesRead;
-      }
+        return undefined;
+      });
     } catch (error) {
       return err(toFileError(error, this.path));
     }
@@ -557,10 +578,7 @@ class NodeDirReader implements DirReader {
     maxEntries: number,
     context: Context,
   ): Promise<Result<{ entries: FileInfo[]; done: boolean }, FileError>> {
-    const aborted = abortResult<{ entries: FileInfo[]; done: boolean }>(
-      context.abortSignal,
-      this.path,
-    );
+    const aborted = abortResult(context.abortSignal, this.path);
     if (aborted) return aborted;
     if (this.closed) return closedResult("Directory reader", this.path);
     if (!Number.isSafeInteger(maxEntries) || maxEntries <= 0) {
@@ -568,31 +586,30 @@ class NodeDirReader implements DirReader {
     }
     const entries: FileInfo[] = [];
     try {
-      while (!this.done && entries.length < maxEntries) {
-        // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+      // XEON-PATCH: P15
+      const interrupted = await repeatAsync<Result<never, FileError> | undefined>(async () => {
+        if (this.done || entries.length >= maxEntries) return { value: undefined };
         const entry = await this.dir.read();
         if (entry === null) {
           this.done = true;
-          break;
+          return { value: undefined };
         }
-        const loopAbort = abortResult<{ entries: FileInfo[]; done: boolean }>(
-          context.abortSignal,
-          this.path,
-        );
-        if (loopAbort) return loopAbort;
-        const entryPath = resolve(this.path, entry.name);
+        const loopAbort = abortResult(context.abortSignal, this.path);
+        if (loopAbort) return { value: loopAbort };
+        const entryPath = resolveAbsolute(this.path, entry.name);
         let stats: Stats;
         try {
-          // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
           stats = await lstat(entryPath);
         } catch (error) {
           // Removed between enumeration and lstat: not part of the listing any more.
-          if (isNodeError(error) && error.code === "ENOENT") continue;
-          return err(toFileError(error, entryPath));
+          if (isNodeError(error) && error.code === "ENOENT") return undefined;
+          return { value: err(toFileError(error, entryPath)) };
         }
         const info = fileInfoFromStats(entryPath, stats);
         if (info.ok) entries.push(info.value);
-      }
+        return undefined;
+      });
+      if (interrupted) return interrupted;
       return ok({ entries, done: this.done });
     } catch (error) {
       return err(toFileError(error, this.path));
@@ -645,7 +662,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     onChange: (change: WatchChange) => void,
     context: Context,
   ): Promise<Result<FileWatcher, FileError>> {
-    const aborted = abortResult<FileWatcher>(context.abortSignal);
+    const aborted = abortResult(context.abortSignal);
     if (aborted) return aborted;
     try {
       const watcher = await NodeFileWatcher.open(
@@ -655,7 +672,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
         onChange,
         this.watchOptions,
       );
-      const afterOpenAbort = abortResult<FileWatcher>(context.abortSignal);
+      const afterOpenAbort = abortResult(context.abortSignal);
       if (afterOpenAbort) {
         await watcher.close(context);
         return afterOpenAbort;
@@ -666,15 +683,15 @@ export class NodeExecutionEnv implements ExecutionEnv {
     }
   }
 
-  // oxlint-disable-next-line typescript/require-await -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-  async absolutePath(path: string, _context: Context): Promise<Result<string, FileError>> {
+  // XEON-PATCH: P15
+  absolutePath(path: string, _context: Context): Promise<Result<string, FileError>> {
     // XEON-PATCH: P3
-    return ok(resolvePath(this.cwd, path, this.platform));
+    return Promise.resolve(ok(resolvePath(this.cwd, path, this.platform)));
   }
 
-  // oxlint-disable-next-line typescript/require-await -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-  async joinPath(parts: string[], _context: Context): Promise<Result<string, FileError>> {
-    return ok(join(...parts));
+  // XEON-PATCH: P15
+  joinPath(parts: string[], _context: Context): Promise<Result<string, FileError>> {
+    return Promise.resolve(ok(join(...parts)));
   }
 
   async exec(
@@ -722,14 +739,13 @@ export class NodeExecutionEnv implements ExecutionEnv {
       );
     }
 
-    // oxlint-disable-next-line promise/param-names -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    return await new Promise((resolvePromise) => {
+    // XEON-PATCH: P15
+    return await new Promise((resolve) => {
       let settled = false;
       let timedOut = false;
       let callbackError: ExecutionError | undefined;
       let spillError: ExecutionError | undefined;
       let child: ReturnType<typeof spawn> | undefined;
-      // oxlint-disable-next-line prefer-const -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       let timeoutId: ReturnType<typeof setTimeout> | undefined;
       const spillPrefix: SpillChunk[] = [];
       let spillPath: string | undefined;
@@ -776,7 +792,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
         if (timeoutId) clearTimeout(timeoutId);
         if (signal) signal.removeEventListener("abort", onAbort);
         if (child?.pid) this.activeChildPids.delete(child.pid);
-        resolvePromise(result);
+        resolve(result);
       };
       const pauseOutput = () => {
         child?.stdout?.pause();
@@ -839,12 +855,8 @@ export class NodeExecutionEnv implements ExecutionEnv {
         await spillStart;
         const stream = spillStream;
         if (stream === undefined || spillError !== undefined || stream.destroyed) return;
-        // oxlint-disable-next-line promise/param-names -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-        await new Promise<void>((resolveFinish) => {
-          stream.once("error", () => resolveFinish());
-          stream.once("finish", resolveFinish);
-          stream.end();
-        });
+        // XEON-PATCH: P15
+        await waitForStreamFinish(stream);
       };
 
       try {
@@ -867,13 +879,15 @@ export class NodeExecutionEnv implements ExecutionEnv {
         return;
       }
 
-      timeoutId =
-        timeoutMs === undefined
-          ? undefined
-          : setTimeout(() => {
-              timedOut = true;
-              onAbort();
-            }, timeoutMs);
+      // XEON-PATCH: P15
+      const armTimeout = (): void => {
+        if (timeoutMs === undefined) return;
+        timeoutId = setTimeout(() => {
+          timedOut = true;
+          onAbort();
+        }, timeoutMs);
+      };
+      armTimeout();
 
       if (signal) {
         if (signal.aborted) onAbort();
@@ -908,48 +922,51 @@ export class NodeExecutionEnv implements ExecutionEnv {
       child.stdout?.on("data", feed("stdout", stdoutDecoder));
       child.stderr?.on("data", feed("stderr", stderrDecoder));
 
+      // XEON-PATCH: P15
+      const onChildExit = async ({
+        code,
+        signal: exitSignal,
+      }: {
+        code: number | null;
+        signal: NodeJS.Signals | null;
+      }): Promise<void> => {
+        await finishSpill();
+        emit(stdoutDecoder.decode(), "stdout");
+        emit(stderrDecoder.decode(), "stderr");
+        if (callbackError) {
+          settle(err(callbackError));
+          return;
+        }
+        const interrupted = timedOut
+          ? new ExecutionError("timeout", `timeout:${options?.timeout}`)
+          : signal?.aborted
+            ? new ExecutionError("aborted", "aborted")
+            : undefined;
+        if (interrupted !== undefined) {
+          if (spillPath !== undefined) interrupted.spillPath = spillPath;
+          settle(err(interrupted));
+          return;
+        }
+        if (spillError) {
+          settle(err(spillError));
+          return;
+        }
+        // A process killed by a signal (e.g. OOM killer) has no exit code; map it
+        // to the conventional 128 + signal number so callers do not mistake it
+        // for a successful exit.
+        const exitCode = code ?? (exitSignal ? 128 + (signalNumber(exitSignal) ?? 0) : 1);
+        settle(ok({ exitCode, ...(spillPath === undefined ? {} : { spillPath }) }));
+      };
       void waitForChildProcess(
         child,
         () =>
           spillError === undefined &&
           spillStart !== undefined &&
           (spillStream === undefined || spillBackpressured),
-      ).then(
-        // oxlint-disable-next-line promise/always-return -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-        async ({ code, signal: exitSignal }) => {
-          await finishSpill();
-          emit(stdoutDecoder.decode(), "stdout");
-          emit(stderrDecoder.decode(), "stderr");
-          if (callbackError) {
-            settle(err(callbackError));
-            return;
-          }
-          const interrupted = timedOut
-            ? new ExecutionError("timeout", `timeout:${options?.timeout}`)
-            : signal?.aborted
-              ? new ExecutionError("aborted", "aborted")
-              : undefined;
-          if (interrupted !== undefined) {
-            if (spillPath !== undefined) interrupted.spillPath = spillPath;
-            settle(err(interrupted));
-            return;
-          }
-          if (spillError) {
-            settle(err(spillError));
-            return;
-          }
-          // A process killed by a signal (e.g. OOM killer) has no exit code; map it
-          // to the conventional 128 + signal number so callers do not mistake it
-          // for a successful exit.
-          // oxlint-disable-next-line typescript/no-unnecessary-condition -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-          const exitCode = code ?? (exitSignal ? 128 + (osConstants.signals[exitSignal] ?? 0) : 1);
-          settle(ok({ exitCode, ...(spillPath === undefined ? {} : { spillPath }) }));
-        },
-        (error: unknown) => {
-          const cause = toError(error);
-          settle(err(new ExecutionError("spawn_error", cause.message, cause)));
-        },
-      );
+      ).then(onChildExit, (error: unknown) => {
+        const cause = toError(error);
+        settle(err(new ExecutionError("spawn_error", cause.message, cause)));
+      });
     });
   }
 
@@ -959,11 +976,11 @@ export class NodeExecutionEnv implements ExecutionEnv {
   ): Promise<Result<TextLineReader, FileError>> {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
-    const aborted = abortResult<TextLineReader>(context.abortSignal, resolved);
+    const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
     try {
       const file = await openFile(resolved, "r");
-      const afterOpenAbort = abortResult<TextLineReader>(context.abortSignal, resolved);
+      const afterOpenAbort = abortResult(context.abortSignal, resolved);
       if (afterOpenAbort) {
         await closeBestEffort(file);
         return afterOpenAbort;
@@ -978,7 +995,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
-    const aborted = abortResult<string>(signal, resolved);
+    const aborted = abortResult(signal, resolved);
     if (aborted) return aborted;
     try {
       return ok(await readFile(resolved, { encoding: "utf8", signal }));
@@ -996,16 +1013,18 @@ export class NodeExecutionEnv implements ExecutionEnv {
     const opened = await this.openTextLineReader(path, context);
     if (!opened.ok) return opened;
     const lines: string[] = [];
+    const maxLines = options?.maxLines;
     try {
-      // oxlint-disable-next-line no-unmodified-loop-condition -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      while (options?.maxLines === undefined || lines.length < options.maxLines) {
-        // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+      // XEON-PATCH: P15
+      const failed = await repeatAsync<Result<never, FileError> | undefined>(async () => {
+        if (maxLines !== undefined && lines.length >= maxLines) return { value: undefined };
         const line = await opened.value.readLine(context);
-        if (!line.ok) return line;
-        if (line.value === undefined) break;
+        if (!line.ok) return { value: line };
+        if (line.value === undefined) return { value: undefined };
         lines.push(line.value.text);
-      }
-      return ok(lines);
+        return undefined;
+      });
+      return failed ?? ok(lines);
     } finally {
       await opened.value.close(context);
     }
@@ -1015,7 +1034,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
-    const aborted = abortResult<Uint8Array>(signal, resolved);
+    const aborted = abortResult(signal, resolved);
     if (aborted) return aborted;
     try {
       return ok(await readFile(resolved, { signal }));
@@ -1031,7 +1050,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   ): Promise<Result<BinaryReader, FileError>> {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
-    const aborted = abortResult<BinaryReader>(context.abortSignal, resolved);
+    const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
     const noFollow = options?.noFollow === true;
     let file: FileHandle | undefined;
@@ -1061,7 +1080,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
             : new FileError("invalid", "Not a regular file", resolved),
         );
       }
-      const afterOpenAbort = abortResult<BinaryReader>(context.abortSignal, resolved);
+      const afterOpenAbort = abortResult(context.abortSignal, resolved);
       if (afterOpenAbort) {
         await closeBestEffort(file);
         return afterOpenAbort;
@@ -1085,11 +1104,11 @@ export class NodeExecutionEnv implements ExecutionEnv {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
-    const aborted = abortResult<void>(signal, resolved);
+    const aborted = abortResult(signal, resolved);
     if (aborted) return aborted;
     try {
-      await mkdir(resolve(resolved, ".."), { recursive: true });
-      const afterMkdirAbort = abortResult<void>(signal, resolved);
+      await mkdir(resolveAbsolute(resolved, ".."), { recursive: true });
+      const afterMkdirAbort = abortResult(signal, resolved);
       if (afterMkdirAbort) return afterMkdirAbort;
       await writeFile(resolved, content, { signal });
       return ok(undefined);
@@ -1106,14 +1125,14 @@ export class NodeExecutionEnv implements ExecutionEnv {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
-    const aborted = abortResult<void>(signal, resolved);
+    const aborted = abortResult(signal, resolved);
     if (aborted) return aborted;
     try {
-      await mkdir(resolve(resolved, ".."), { recursive: true });
-      const afterMkdirAbort = abortResult<void>(signal, resolved);
+      await mkdir(resolveAbsolute(resolved, ".."), { recursive: true });
+      const afterMkdirAbort = abortResult(signal, resolved);
       if (afterMkdirAbort) return afterMkdirAbort;
       await appendFile(resolved, content);
-      const afterAppendAbort = abortResult<void>(signal, resolved);
+      const afterAppendAbort = abortResult(signal, resolved);
       return afterAppendAbort ?? ok(undefined);
     } catch (error) {
       return err(toFileError(error, resolved));
@@ -1128,7 +1147,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
-    const aborted = abortResult<void>(signal, resolved);
+    const aborted = abortResult(signal, resolved);
     if (aborted) return aborted;
     if (!Number.isSafeInteger(size) || size < 0) {
       return err(
@@ -1139,7 +1158,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     try {
       file = await openFile(resolved, "r+");
       await file.truncate(size);
-      const afterTruncateAbort = abortResult<void>(signal, resolved);
+      const afterTruncateAbort = abortResult(signal, resolved);
       return afterTruncateAbort ?? ok(undefined);
     } catch (error) {
       return err(toFileError(error, resolved));
@@ -1152,7 +1171,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
-    const aborted = abortResult<void>(signal, resolved);
+    const aborted = abortResult(signal, resolved);
     if (aborted) return aborted;
     let file: Awaited<ReturnType<typeof openFile>> | undefined;
     try {
@@ -1161,7 +1180,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
       if ((await file.stat()).isDirectory())
         return err(new FileError("is_directory", "Is a directory", resolved));
       await file.sync();
-      const afterSyncAbort = abortResult<void>(signal, resolved);
+      const afterSyncAbort = abortResult(signal, resolved);
       return afterSyncAbort ?? ok(undefined);
     } catch (error) {
       return err(toFileError(error, resolved));
@@ -1179,7 +1198,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     const source = resolvePath(this.cwd, sourcePath, this.platform);
     // XEON-PATCH: P3
     const destination = resolvePath(this.cwd, destinationPath, this.platform);
-    const aborted = abortResult<void>(context.abortSignal, destination);
+    const aborted = abortResult(context.abortSignal, destination);
     if (aborted) return aborted;
     try {
       await rename(source, destination);
@@ -1192,7 +1211,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   async fileInfo(path: string, context: Context): Promise<Result<FileInfo, FileError>> {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
-    const aborted = abortResult<FileInfo>(context.abortSignal, resolved);
+    const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
     try {
       return fileInfoFromStats(resolved, await lstat(resolved));
@@ -1205,23 +1224,25 @@ export class NodeExecutionEnv implements ExecutionEnv {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
     const signal = context.abortSignal;
-    const aborted = abortResult<FileInfo[]>(signal, resolved);
+    const aborted = abortResult(signal, resolved);
     if (aborted) return aborted;
     try {
       const entries = await readdir(resolved, { withFileTypes: true });
       const infos: FileInfo[] = [];
-      for (const entry of entries) {
-        const loopAbort = abortResult<FileInfo[]>(signal, resolved);
-        if (loopAbort) return loopAbort;
-        const entryPath = resolve(resolved, entry.name);
+      // XEON-PATCH: P15
+      const failure = await eachAsync(entries, async (entry) => {
+        const loopAbort = abortResult(signal, resolved);
+        if (loopAbort) return { value: loopAbort };
+        const entryPath = resolveAbsolute(resolved, entry.name);
         try {
-          // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
           const info = fileInfoFromStats(entryPath, await lstat(entryPath));
           if (info.ok) infos.push(info.value);
         } catch (error) {
-          return err(toFileError(error, entryPath));
+          return { value: err(toFileError(error, entryPath)) };
         }
-      }
+        return undefined;
+      });
+      if (failure !== undefined) return failure.value;
       return ok(infos);
     } catch (error) {
       return err(toFileError(error, resolved));
@@ -1231,11 +1252,11 @@ export class NodeExecutionEnv implements ExecutionEnv {
   async openDirReader(path: string, context: Context): Promise<Result<DirReader, FileError>> {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
-    const aborted = abortResult<DirReader>(context.abortSignal, resolved);
+    const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
     try {
       const dir = await opendir(resolved);
-      const afterOpenAbort = abortResult<DirReader>(context.abortSignal, resolved);
+      const afterOpenAbort = abortResult(context.abortSignal, resolved);
       if (afterOpenAbort) {
         await closeBestEffort(dir);
         return afterOpenAbort;
@@ -1249,7 +1270,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   async canonicalPath(path: string, context: Context): Promise<Result<string, FileError>> {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
-    const aborted = abortResult<string>(context.abortSignal, resolved);
+    const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
     try {
       return ok(await realpath(resolved));
@@ -1272,7 +1293,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   ): Promise<Result<void, FileError>> {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
-    const aborted = abortResult<void>(context.abortSignal, resolved);
+    const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
     try {
       await mkdir(resolved, { recursive: options?.recursive ?? true });
@@ -1289,7 +1310,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
   ): Promise<Result<void, FileError>> {
     // XEON-PATCH: P3
     const resolved = resolvePath(this.cwd, path, this.platform);
-    const aborted = abortResult<void>(context.abortSignal, resolved);
+    const aborted = abortResult(context.abortSignal, resolved);
     if (aborted) return aborted;
     try {
       await rm(resolved, {
@@ -1306,12 +1327,12 @@ export class NodeExecutionEnv implements ExecutionEnv {
     prefix: string | undefined,
     context: Context,
   ): Promise<Result<string, FileError>> {
-    const aborted = abortResult<string>(context.abortSignal);
+    const aborted = abortResult(context.abortSignal);
     if (aborted) return aborted;
     try {
-      // oxlint-disable-next-line no-param-reassign -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      prefix ??= "tmp-";
-      return ok(await mkdtemp(join(tmpdir(), prefix)));
+      // XEON-PATCH: P15
+      const dirPrefix = prefix ?? "tmp-";
+      return ok(await mkdtemp(join(tmpdir(), dirPrefix)));
     } catch (error) {
       return err(toFileError(error));
     }
@@ -1335,11 +1356,12 @@ export class NodeExecutionEnv implements ExecutionEnv {
     }
   }
 
-  // oxlint-disable-next-line typescript/require-await -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-  async cleanup(_context: Context): Promise<void> {
+  // XEON-PATCH: P15
+  cleanup(_context: Context): Promise<void> {
     // XEON-PATCH: P3
     for (const pid of this.activeChildPids) this.platform.killProcessTree(pid);
     this.activeChildPids.clear();
+    return Promise.resolve();
   }
 }
 export type { NodeWatchOptions } from "./node-watch.ts";

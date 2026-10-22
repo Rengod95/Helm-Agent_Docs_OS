@@ -39,6 +39,6 @@
     "packages/durable/src/harness/types.ts, define.ts (도구 껍데기를 걷어 내 추출할 타입이 없다. PATCHES.md 'W2와의 차이')",
     "packages/durable/src/truncate.ts (platform-exec로 옮겼다. review.decisions-2 D-08, B-04. 이 패키지는 xeon.exec의 truncateHeadOf를 부른다)"
   ],
-  "modifications": ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9"],
+  "modifications": ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10"],
   "usedBy": "xeon/packages/cap-workspace only (adr.0003, L2.workspace.plan §2)"
 }

@@ -1,3 +1,5 @@
+// XEON-PATCH: P10
+import { repeatAsync } from "@xeon/contracts";
 // XEON-PATCH: P1
 import type {
   BinaryReader,
@@ -64,20 +66,24 @@ async function readHead(
   const decoder = rangeDecoder();
   let text = "";
   let newlines = 0;
-  for (let position = skipBom && start === 0 ? 3 : start; position < end;) {
+  let position = skipBom && start === 0 ? 3 : start;
+  // XEON-PATCH: P10
+  const early = await repeatAsync<string | undefined>(async () => {
+    if (position >= end) return { value: undefined };
     const length = Math.min(READ_CHUNK, end - position);
-    // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
     const chunk = await reader.read(position, length, context);
     const bytes = getOrThrow(chunk);
-    if (bytes.length === 0) break;
+    if (bytes.length === 0) return { value: undefined };
     position += bytes.length;
     const decoded = decoder.decode(bytes, { stream: true });
     text += decoded;
     for (let index = decoded.indexOf("\n"); index !== -1; index = decoded.indexOf("\n", index + 1))
       newlines++;
-    if (newlines >= limits.maxLines || utf8ByteLength(text) > limits.maxBytes + 1) return text;
-  }
-  return text + decoder.decode();
+    if (newlines >= limits.maxLines || utf8ByteLength(text) > limits.maxBytes + 1)
+      return { value: text };
+    return undefined;
+  });
+  return early ?? text + decoder.decode();
 }
 
 // XEON-PATCH: P5
@@ -97,21 +103,22 @@ export async function readFileText(
   try {
     // A concurrent writer can change the file between the scan and the reads. Appending (a growing log) leaves
     // the scanned text as it was. Otherwise the file is read again once.
-    for (let attempt = 0; ; attempt++) {
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+    let attempt = 0;
+    // XEON-PATCH: P10
+    return await repeatAsync<ReadFileOutcome>(async () => {
       const before = getOrThrow(await reader.info(context));
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       const result = await readText(env, reader, before, offset, limit, limits, context);
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       const after = getOrThrow(await reader.info(context));
       const unchanged = after.size === before.size && after.mtimeMs === before.mtimeMs;
-      if (unchanged || after.size > before.size) return result;
+      if (unchanged || after.size > before.size) return { value: result };
       if (attempt === 1) {
         throw new WorkspaceFailure("unavailable", `${absolutePath} changed while it was read`, {
           retryable: true,
         });
       }
-    }
+      attempt += 1;
+      return undefined;
+    });
   } finally {
     await reader.close(context);
   }

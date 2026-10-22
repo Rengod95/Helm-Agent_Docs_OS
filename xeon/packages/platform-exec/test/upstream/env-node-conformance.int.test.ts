@@ -4,6 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 // XEON-PATCH: P4
 import { afterEach, describe, expect, it } from "bun:test";
+// XEON-PATCH: P15
+import { repeatAsync } from "@xeon/contracts";
 // XEON-PATCH: P5
 import type { CancelScope } from "@xeon/contracts/services";
 import { registerExecConformance } from "../../src/testing/conformance.ts";
@@ -25,19 +27,22 @@ const platform = hostPlatform();
  * exit.
  */
 async function removeTempDir(dir: string): Promise<void> {
-  for (let attempt = 0; ; attempt++) {
+  let attempt = 0;
+  // XEON-PATCH: P15
+  await repeatAsync<undefined>(async () => {
     try {
       rmSync(dir, { recursive: true, force: true });
-      return;
+      return { value: undefined };
     } catch (error) {
       // XEON-PATCH: P14
       const code = errnoCodeOf(error);
       if (attempt >= 80 || (code !== "EBUSY" && code !== "EPERM" && code !== "ENOTEMPTY"))
         throw error;
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+      attempt += 1;
       await new Promise((resolve) => setTimeout(resolve, 100));
+      return undefined;
     }
-  }
+  });
 }
 
 registerExecConformance(
@@ -94,10 +99,14 @@ describe("NodeExecutionEnv watch limits", () => {
       );
       getOrThrow(await env.createDir("tree/d", undefined, context));
       const deadline = Date.now() + 3000;
-      while (!changes.some((change) => "error" in change) && Date.now() < deadline) {
-        // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+      // XEON-PATCH: P15
+      await repeatAsync<undefined>(async () => {
+        if (changes.some((change) => "error" in change) || Date.now() >= deadline) {
+          return { value: undefined };
+        }
         await new Promise((resolve) => setTimeout(resolve, 20));
-      }
+        return undefined;
+      });
       expect(changes.at(-1)).toMatchObject({ error: { code: "invalid" } });
       await watcher.close(context);
     } finally {
@@ -114,8 +123,8 @@ describe("NodeExecutionEnv readers", () => {
     return dir;
   };
   afterEach(async () => {
-    // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    for (const dir of dirs.splice(0)) await removeTempDir(dir);
+    // XEON-PATCH: P15
+    await Promise.all(dirs.splice(0).map((dir) => removeTempDir(dir)));
   }, 15_000);
 
   it("reads ranges spanning several internal chunks exactly", async () => {

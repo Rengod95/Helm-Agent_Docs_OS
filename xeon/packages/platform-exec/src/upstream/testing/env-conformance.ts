@@ -1,10 +1,14 @@
+// XEON-PATCH: P15
+import { eachAsync, repeatAsync } from "@xeon/contracts";
 // XEON-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
 import {
   type ExecutionEnv,
+  type ExecutionError,
   type FileInfo,
   getOrThrow,
   type Result,
+  type ShellExecResult,
   type ShellOutputInfo,
   type WatchChange,
   type WatchTarget,
@@ -37,13 +41,13 @@ async function readAll(
   const reader = getOrThrow(await env.openDirReader(path, context));
   const pages: FileInfo[][] = [];
   try {
-    for (let page = 0; page < 1000; page++) {
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+    // XEON-PATCH: P15
+    return await repeatAsync<{ pages: FileInfo[][]; done: boolean }>(async () => {
+      if (pages.length >= 1000) return { value: { pages, done: false } };
       const next = getOrThrow(await reader.next(maxEntries, context));
       pages.push(next.entries);
-      if (next.done) return { pages, done: true };
-    }
-    return { pages, done: false };
+      return next.done ? { value: { pages, done: true } } : undefined;
+    });
   } finally {
     await reader.close(context);
   }
@@ -66,8 +70,8 @@ async function watching(
   run: (helpers: {
     readonly changes: WatchChange[];
     /** Wait up to three seconds for a change, after the call, that reports `path`. */
-    expectChange(path: string, change: () => Promise<void>): Promise<void>;
-    absolute(path: string): Promise<string>;
+    readonly expectChange: (path: string, change: () => Promise<void>) => Promise<void>;
+    readonly absolute: (path: string) => Promise<string>;
   }) => Promise<void>,
 ): Promise<void> {
   const changes: WatchChange[] = [];
@@ -82,20 +86,61 @@ async function watching(
         const from = changes.length;
         await change();
         const deadline = Date.now() + 3000;
-        while (!changes.slice(from).some((entry) => covers(entry, target))) {
+        // XEON-PATCH: P15
+        await repeatAsync<undefined>(async () => {
+          if (changes.slice(from).some((entry) => covers(entry, target)))
+            return { value: undefined };
           if (Date.now() > deadline) {
             throw new Error(
               `No change reported ${target}; got ${JSON.stringify(changes.slice(from))}`,
             );
           }
-          // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
           await new Promise((resolve) => setTimeout(resolve, 20));
-        }
+          return undefined;
+        });
       },
     });
   } finally {
     await watcher.close(context);
   }
+}
+
+// XEON-PATCH: P15
+async function execCollect(
+  env: ExecutionEnv,
+  command: string | readonly string[],
+  cwd?: string,
+): Promise<{
+  result: Result<ShellExecResult, ExecutionError>;
+  stdout: string;
+  stderr: string;
+}> {
+  const output: Record<ShellOutputInfo["stream"], string> = { stdout: "", stderr: "" };
+  const result = await env.exec(
+    command,
+    {
+      ...(cwd === undefined ? {} : { cwd }),
+      onOutput: (text, _context, info) => {
+        output[info.stream] += text;
+      },
+    },
+    context,
+  );
+  return { result, ...output };
+}
+
+// XEON-PATCH: P15
+/** Runs `fn` for each item in order, one at a time. */
+async function inOrder<T>(items: Iterable<T>, fn: (item: T) => Promise<void>): Promise<void> {
+  await eachAsync(items, async (item) => {
+    await fn(item);
+    return undefined;
+  });
+}
+
+// XEON-PATCH: P15
+function isWatchMode(mode: string): boolean {
+  return mode === "native" || mode === "polling";
 }
 
 /**
@@ -116,25 +161,6 @@ export function createEnvConformance(
   // Watch cases wait up to three seconds per step, longer than test runners allow by default.
   const watchCase = (name: string, test: EnvTest): EnvConformanceCase =>
     createCase(name, test, 30_000);
-  // oxlint-disable-next-line unicorn/consistent-function-scoping -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-  const execCollect = async (
-    env: ExecutionEnv,
-    command: string | readonly string[],
-    cwd?: string,
-  ) => {
-    const output: Record<ShellOutputInfo["stream"], string> = { stdout: "", stderr: "" };
-    const result = await env.exec(
-      command,
-      {
-        ...(cwd === undefined ? {} : { cwd }),
-        onOutput: (text, _context, info) => {
-          output[info.stream] += text;
-        },
-      },
-      context,
-    );
-    return { result, ...output };
-  };
 
   const cases: EnvConformanceCase[] = [
     createCase("binary reader reads byte ranges of the opened file", async (env) => {
@@ -174,23 +200,23 @@ export function createEnvConformance(
           [3, undefined],
           [4, 9],
         ];
-        for (const [startLine, endLine] of ranges) {
+        const range = (from: number, to: number) =>
+          new TextDecoder("utf-8", { ignoreBOM: from > 0 }).decode(bytes.subarray(from, to));
+        // XEON-PATCH: P15
+        await inOrder(ranges, async ([startLine, endLine]) => {
           const scan = getOrThrow(
-            // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
             await reader.scanLines(
               { startLine, ...(endLine === undefined ? {} : { endLine }) },
               context,
             ),
           );
           const selected = lines.slice(startLine, endLine);
-          const range = (from: number, to: number) =>
-            new TextDecoder("utf-8", { ignoreBOM: from > 0 }).decode(bytes.subarray(from, to));
           assert.strictEqual(scan.newlines, lines.length - 1);
           assert.strictEqual(range(scan.start, scan.end), selected.join("\n"));
           assert.strictEqual(scan.selectedBytes, encoder.encode(selected.join("\n")).length);
           assert.strictEqual(range(scan.start, scan.firstLineEnd), lines[startLine]);
           assert.strictEqual(scan.firstLineBytes, encoder.encode(lines[startLine]).length);
-        }
+        });
         assert.partialDeepEqual(getOrThrow(await reader.scanLines({ startLine: 9 }, context)), {
           start: bytes.length,
           end: bytes.length,
@@ -239,15 +265,16 @@ export function createEnvConformance(
 
     createCase("directory reader pages every entry exactly once", async (env) => {
       const names = ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt"];
-      // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      for (const name of names) getOrThrow(await env.writeFile(name, name, context));
+      // XEON-PATCH: P15
+      await inOrder(names, async (name) => {
+        getOrThrow(await env.writeFile(name, name, context));
+      });
       getOrThrow(await env.createDir("sub", undefined, context));
       const { pages, done } = await readAll(env, ".", 2);
       assert.ok(done, "directory reader reached the end");
       for (const page of pages) assert.ok(page.length <= 2, "page within maxEntries");
       const entries = pages.flat();
-      // oxlint-disable-next-line unicorn/no-array-sort -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      assert.deepEqual(entries.map((entry) => entry.name).sort(), [...names, "sub"].sort());
+      assert.deepEqual(entries.map((entry) => entry.name).toSorted(), [...names, "sub"].toSorted());
       assert.strictEqual(entries.find((entry) => entry.name === "sub")?.kind, "directory");
       assert.partialDeepEqual(
         entries.find((entry) => entry.name === "a.txt"),
@@ -277,21 +304,26 @@ export function createEnvConformance(
 
     createCase("directory reader skips entries removed during enumeration", async (env) => {
       getOrThrow(await env.createDir("dir", undefined, context));
-      for (const name of ["x", "y", "z"])
-        // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+      // XEON-PATCH: P15
+      await inOrder(["x", "y", "z"], async (name) => {
         getOrThrow(await env.writeFile(`dir/${name}`, name, context));
+      });
       const reader = getOrThrow(await env.openDirReader("dir", context));
       try {
-        for (const name of ["x", "y", "z"])
-          // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+        // XEON-PATCH: P15
+        await inOrder(["x", "y", "z"], async (name) => {
           getOrThrow(await env.remove(`dir/${name}`, undefined, context));
+        });
         const entries: FileInfo[] = [];
-        for (let page = 0; page < 10; page++) {
-          // oxlint-disable-next-line no-await-in-loop -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
+        let pagesRead = 0;
+        // XEON-PATCH: P15
+        await repeatAsync<undefined>(async () => {
+          if (pagesRead >= 10) return { value: undefined };
+          pagesRead += 1;
           const next = getOrThrow(await reader.next(10, context));
           entries.push(...next.entries);
-          if (next.done) break;
-        }
+          return next.done ? { value: undefined } : undefined;
+        });
         assert.deepEqual(entries, []);
       } finally {
         await reader.close(context);
@@ -301,7 +333,6 @@ export function createEnvConformance(
     watchCase(
       "watch reports a missing file's creation, changes, replacement and removal",
       async (env) => {
-        // oxlint-disable-next-line typescript/unbound-method -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
         await watching(env, [{ path: "AGENTS.md" }], async ({ expectChange }) => {
           await expectChange("AGENTS.md", async () => {
             getOrThrow(await env.writeFile("AGENTS.md", "one", context));
@@ -325,7 +356,6 @@ export function createEnvConformance(
     ),
 
     watchCase("watch reports a missing target whose ancestors are created", async (env) => {
-      // oxlint-disable-next-line typescript/unbound-method -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       await watching(env, [{ path: "a/b/c/AGENTS.md" }], async ({ expectChange }) => {
         await expectChange("a/b/c/AGENTS.md", async () => {
           getOrThrow(await env.writeFile("a/b/c/AGENTS.md", "x", context));
@@ -335,7 +365,6 @@ export function createEnvConformance(
 
     watchCase("watch follows directories created together with their contents", async (env) => {
       getOrThrow(await env.createDir("skills", undefined, context));
-      // oxlint-disable-next-line typescript/unbound-method -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       await watching(env, [{ path: "skills", recursive: true }], async ({ expectChange }) => {
         // Written before any watcher on the new directories can exist.
         await expectChange("skills/a/b/SKILL.md", async () => {
@@ -355,7 +384,6 @@ export function createEnvConformance(
       await watching(
         env,
         [{ path: "proj/.pi/skills", recursive: true }],
-        // oxlint-disable-next-line typescript/unbound-method -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
         async ({ expectChange }) => {
           await expectChange("proj/.pi/skills", async () => {
             getOrThrow(await env.renameFile("proj/.pi", "proj/old", context));
@@ -375,7 +403,6 @@ export function createEnvConformance(
       const targets: WatchTarget[] = [
         { path: "skills", recursive: true, exclude: { hidden: true, names: ["node_modules"] } },
       ];
-      // oxlint-disable-next-line typescript/unbound-method -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       await watching(env, targets, async ({ changes, expectChange, absolute }) => {
         getOrThrow(await env.writeFile("skills/node_modules/dep/SKILL.md", "dep", context));
         getOrThrow(await env.writeFile("skills/.SKILL.md.tmp", "draft", context));
@@ -403,7 +430,6 @@ export function createEnvConformance(
       async (env) => {
         getOrThrow(await env.writeFile("skills/a/one.md", "one", context));
         const targets: WatchTarget[] = [{ path: "skills" }, { path: "skills", recursive: true }];
-        // oxlint-disable-next-line typescript/unbound-method -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
         await watching(env, targets, async ({ expectChange }) => {
           await expectChange("skills/a/two.md", async () => {
             getOrThrow(await env.writeFile("skills/a/two.md", "two", context));
@@ -414,7 +440,6 @@ export function createEnvConformance(
 
     watchCase("watch follows a directory replaced at the same path", async (env) => {
       getOrThrow(await env.writeFile("skills/a/x.md", "x", context));
-      // oxlint-disable-next-line typescript/unbound-method -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
       await watching(env, [{ path: "skills", recursive: true }], async ({ expectChange }) => {
         await expectChange("skills/a", async () => {
           getOrThrow(await env.renameFile("skills/a", "skills-old", context));
@@ -434,11 +459,7 @@ export function createEnvConformance(
       const watcher = getOrThrow(
         await env.watch([{ path: "file.txt" }], (change) => changes.push(change), context),
       );
-      assert.ok(
-        // oxlint-disable-next-line typescript/no-unnecessary-condition -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-        watcher.mode === "native" || watcher.mode === "polling",
-        "watcher reports its mode",
-      );
+      assert.ok(isWatchMode(watcher.mode), "watcher reports its mode");
       await watcher.close(context);
       await watcher.close(context);
       getOrThrow(await env.writeFile("file.txt", "x", context));
@@ -591,7 +612,6 @@ export function createEnvConformance(
             context,
           );
           assert.strictEqual(getOrThrow(linked).exitCode, 0);
-          // oxlint-disable-next-line typescript/unbound-method -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
           await watching(env, [{ path: "config/AGENTS.md" }], async ({ expectChange }) => {
             await expectChange("config/AGENTS.md", async () => {
               getOrThrow(await env.writeFile("data/real.md", "two!", context));

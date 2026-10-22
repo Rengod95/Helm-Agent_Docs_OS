@@ -74,6 +74,9 @@ const ERROR_INTERPOLATION = /\$\{[^}]*\.error(?:\.(?:kind|code))?\s*\}/;
 const RESULT_TO_BUG = /if\s*\(\s*!\s*[\w.?]+\.ok\s*\)\s*\{?\s*throw\s+$/;
 const ASSERTION_RULES = /(?:consistent-type-assertions|no-unsafe-type-assertion)/;
 const SCAN_DISABLE = /\/\/ xeon-disable-next-line (xeon\/[a-z-]+) -- (.+)$/;
+/** 포크 코드의 억제 사유로 인정하지 않는 말. 업스트림 병합 비용은 예외 사유가 아니다(eng.typescript.guide 1절 포크 코드). */
+const MERGE_COST_REASON =
+  /upstream shape|keep upstream|merge cost|업스트림[^.]*(?:모양|병합)|원본[^.]*(?:모양|병합)|포크 코드의 모양|병합 비용/i;
 
 function isTestPath(path: string): boolean {
   return (
@@ -363,6 +366,13 @@ export function scanSource(file: SourceFile): {
 
     const scanDisable = SCAN_DISABLE.exec(trimmed);
     if (scanDisable !== null) {
+      if (MERGE_COST_REASON.test(scanDisable[2] ?? "")) {
+        add(
+          "xeon/directive-format",
+          line,
+          "upstream merge cost is not a reason for an exception (guide section 1, fork code)",
+        );
+      }
       exceptions.push({
         file: file.path,
         line,
@@ -383,6 +393,13 @@ export function scanSource(file: SourceFile): {
       const rules = (oxlint[1] ?? "").trim();
       const reason = (oxlint[2] ?? "").trim();
       exceptions.push({ file: file.path, line, kind: "oxlint", rule: rules, reason });
+      if (MERGE_COST_REASON.test(reason)) {
+        add(
+          "xeon/directive-format",
+          line,
+          "upstream merge cost is not a reason for an exception (guide section 1, fork code)",
+        );
+      }
       if (reason === "") {
         add(
           "xeon/directive-format",

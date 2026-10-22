@@ -18,6 +18,7 @@
 | P7 | `ls.ts` 전체 | `createLsToolDefinition`에서 도구 껍데기(`ToolDefinition`, 렌더러, `LsOperations`)와 `node:fs` 직접 호출을 걷어 내 `listDirectory(env, absolutePath, limit, context)`로 만든다. `ExecutionEnv.listDir`를 쓰고 종류는 `FileInfo.kind`(심볼릭 링크는 `symlink`)다. 정렬은 `localeCompare`(대소문자 무시)가 아니라 UTF-8 바이트 순이다(plan §2). 항목 수 한도 뒤 바이트 한도(50KB, `truncate.ts`의 `DEFAULT_MAX_BYTES`를 쓰던 자리라 파일 안 상수 `DEFAULT_MAX_BYTES: number`로 둔다)를 적용하고 어느 쪽이 걸렸는지 돌려준다. 빈 디렉터리 문구와 안내 문장은 서비스 출력(`ListOutput`)과 `renderList`가 맡는다 | `list.test.ts` |
 | P8 | `tools/path-utils.ts:7`, `tools/path-utils.ts:12` | `normalizeToolPath`를 export하고(`src/roots.ts`가 `..` 마디 검사에 쓴다), 함수가 받는 env를 `Pick<ExecutionEnv, "absolutePath" \| "exists">`로 좁힌다. 탈출 검사는 넣지 않는다(plan §2 표) | `roots.test.ts` |
 | P9 | `harness/output.ts:261` | `isolatedDeclarations`가 요구하는 export 상수 타입 주석을 단다 | `tsc -b` |
+| P10 | `files/upstream/path-utils.ts`(`resolveReadToolPath`), `files/upstream/read.ts`(`readHead`, `readFileText`), `upstream/output.ts`(`sanitizeOutput`) | `eng.typescript.guide` §1 포크 코드 절과 TY-22를 적용해 린트 억제 주석을 모두 걷는다. `no-await-in-loop` 반복문 세 곳(읽기 경로 후보 확인, 머리 조각 읽기, 읽는 동안 파일이 바뀌었는지 보는 재시도)은 `@xeon/contracts`의 `eachAsync`·`repeatAsync`로 옮긴다. `no-control-regex`가 걸린 `INVALID_OUTPUT` 정규식은 UTF-16 코드 단위를 검사하는 `isInvalidOutputUnit`으로 바꾼다. 검사 범위는 같다: U+0000..U+0008, U+000B..U+001F, U+FFF9..U+FFFB. 동작은 같다 | `tsc -b`, `bun run lint`, `test/output.test.ts`, `test/read.test.ts` |
 
 ## W2와의 차이
 
@@ -38,9 +39,8 @@ Harness 확장 객체(`defineTool`)에 기대는 쪽이 원본 병합이 쉬워�
 
 ## 린트 예외 주석
 
-포크 코드는 `.oxlintrc.json`의 규칙 일부(`no-await-in-loop`, `no-control-regex`)를 지킬 수 없다. 규칙을 끄지 않고 줄 단위 주석으로 표시한다.
-형식: `// oxlint-disable-next-line <규칙> -- <이유> (eng.typescript.guide §1 포크 코드)`. 패치가 아니므로 `XEON-PATCH` 표지는 달지 않는다.
-업스트림을 갱신할 때는 이 주석을 `oxlint` 출력에 맞춰 다시 만든다(`bun run lint`가 쓰이지 않은 주석도 실패시킨다).
+포크 코드에는 `oxlint-disable` 주석을 두지 않는다. `eng.typescript.guide` §1은 업스트림 병합 비용을 억제 주석의 사유로 인정하지 않는다. 린트가 걸리는 줄은 P10처럼 고쳐 쓰고 `XEON-PATCH` 표지를 단다.
+고칠 수 없는 줄이 생기면 주석으로 넘기지 말고 `[미결] TY-NN <파일:줄> <이유>`로 `review.open-issues`에 적는다. 업스트림을 갱신하면 새 원본에서 같은 린트 오류가 다시 생기므로 `bun run lint` 출력에 맞춰 P10을 다시 적용한다.
 
 ## 확인 기록
 

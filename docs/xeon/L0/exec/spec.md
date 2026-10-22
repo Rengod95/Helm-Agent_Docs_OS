@@ -314,11 +314,11 @@ export const ExecServiceName = "xeon.exec" as const;
 | P6 | `env/index.ts:34-74` | `FileError`, `ExecutionError` 클래스와 코드 유니온 선언을 지우고 F에서 다시 export한다 | F 계약(3.1절)과 포크가 같은 클래스를 써야 `instanceof`(`node.ts:119`, `node-watch.ts:271`)와 L2 도구 본문의 판정이 한 클래스로 맞는다 [제안] | 타입체크, `instanceof` 경로 시험(`env-node.int.test.ts`) |
 
 - 원본 인터페이스 선언(`index.ts:76-324`)은 지우지 않는다. 업스트림 diff를 작게 두기 위해서다. 대신 계약 시험 `test/exec-contract.contract.test.ts`가 포크 선언과 F 선언이 서로 대입 가능함을 타입 수준에서 확인한다 [제안].
-- 포크 코드가 TS 규칙을 지킬 수 없는 줄은 `eng.typescript.guide` §1 "포크 코드"와 §4.1 형식으로 표시한다. 예상되는 예외(줄 단위 주석, 이유 `(eng.typescript.guide §1 포크 코드)`):
+- 포크 코드에는 린트 억제 주석을 두지 않는다. 린트가 걸리는 줄은 고쳐 쓰고 `XEON-PATCH: P15` 표지를 단다(`eng.typescript.guide` §1 "포크 코드", `PATCHES.md` P15). 아래는 규칙과 다르지만 억제 주석 없이 남는 설계 차이다:
 
 | 규칙 | 위치 | 이유 |
 |---|---|---|
-| TY-11(`throw`는 `Bug`만) | `index.ts:14-17` `getOrThrow` | 원본 시험 110여 곳이 쓴다. 시험 도우미로만 쓰고 운영 코드에서는 쓰지 않는다 |
+| TY-11(`throw`는 `Bug`만) | `index.ts` `getOrThrow` | 원본 시험 110여 곳이 쓴다. 오류 타입을 `Error`로 좁혀 `Error`만 던진다. 시험 도우미로만 쓰고 운영 코드에서는 쓰지 않는다 |
 | TY-12(판별 필드 `kind`) | `FileError.code`, `ExecutionError.code` | L2 도구 본문과 적합성 스위트가 `.code`로 분기한다. 이름을 바꾸면 포크 diff가 커진다 |
 | TY-16(클래스) | `NodeExecutionEnv`, reader 클래스들 | 원본 구조 |
 | TY-21(난수 주입) | `node.ts:1212` `randomUUID()` | 임시 파일 이름의 충돌 방지용이고 도메인 ID가 아니다 |

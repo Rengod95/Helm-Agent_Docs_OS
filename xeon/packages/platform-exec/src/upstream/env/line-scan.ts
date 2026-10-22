@@ -46,15 +46,16 @@ export class LineScanner {
   }
 
   push(chunk: Uint8Array): void {
+    // XEON-PATCH: P15
+    let rest = chunk;
     if (this.#head !== undefined) {
       const take = Math.min(3 - this.#head.length, chunk.length);
       this.#head.push(...chunk.subarray(0, take));
       if (this.#head.length < 3) return;
       this.#releaseHead();
-      // oxlint-disable-next-line no-param-reassign -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-      chunk = chunk.subarray(take);
+      rest = chunk.subarray(take);
     }
-    this.#process(chunk);
+    this.#process(rest);
   }
 
   #releaseHead(): void {
@@ -139,10 +140,10 @@ export class LineScanner {
   }
 
   /** Feed `chunk[from, to)`, which starts at file offset `base`, to the decoders of the ranges still open. */
-  #feed(chunk: Uint8Array, base: number, from: number, to: number): void {
+  #feed(chunk: Uint8Array, base: number, fromOffset: number, to: number): void {
     // Decoding the whole file drops a leading byte-order mark.
-    // oxlint-disable-next-line no-param-reassign -- 원본 포크 코드의 모양을 유지한다 (eng.typescript.guide §1 포크 코드)
-    if (this.#bom && base + from < 3) from = Math.min(to, 3 - base);
+    // XEON-PATCH: P15
+    const from = this.#bom && base + fromOffset < 3 ? Math.min(to, 3 - base) : fromOffset;
     if (to <= from) return;
     const bytes = chunk.subarray(from, to);
     if (this.#selection !== undefined) {

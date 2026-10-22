@@ -11,6 +11,7 @@ export {
   type JsonParseError,
   type Thrown,
 } from "./attempt.ts";
+export { repeatAsync, eachAsync, type RepeatDone } from "./repeat.ts";
 export { parse, type ParseError, type ParseIssue } from "./parse.ts";
 export type { Clock, Scheduler, TimerHandle, RandomSource } from "./clock.ts";
 export type { Logger, LogLevel, LogValue, LogFields } from "./log.ts";

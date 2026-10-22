@@ -9,8 +9,8 @@ export { err, ok } from "@xeon/contracts";
 // XEON-PATCH: P2
 export type { Result };
 
-export function getOrThrow<TValue, TError>(result: Result<TValue, TError>): TValue {
-  // oxlint-disable-next-line typescript/only-throw-error -- 원본 시험 110여 곳이 쓰는 시험 도우미다 (eng.typescript.guide §1 포크 코드)
+// XEON-PATCH: P15
+export function getOrThrow<TValue, TError extends Error>(result: Result<TValue, TError>): TValue {
   if (!result.ok) throw result.error;
   return result.value;
 }
