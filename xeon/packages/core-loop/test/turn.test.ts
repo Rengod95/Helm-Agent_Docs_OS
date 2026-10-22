@@ -298,3 +298,54 @@ test("a_failed_open_turn_read_keeps_the_input_queued_and_logs_the_start_failure"
   await h.settle();
   expect(countKind(h.fake.events(h.threadId), "turn.started")).toBeGreaterThan(0);
 });
+
+// L1.loop.spec §4.2: 한 단계는 커밋 3개(S1 step.started, C3 응답, C5 단계 끝)와 도구 호출마다 3개(E1 의도, E2 실행 표시, E3 결과)다.
+// 진짜 core-loop를 대역 저장소 위에서 돌리고 커밋 키로 센다. 같은 커밋의 이벤트는 같은 키를 쓴다
+function callMany(count: number): ScriptedResponse {
+  return {
+    kind: "message",
+    content: Array.from({ length: count }, (_unused, index) => ({
+      type: "toolCall" as const,
+      id: `c${index + 1}`,
+      name: "read",
+      arguments: { path: `${index + 1}.txt` },
+    })),
+    stopReason: "toolUse",
+  };
+}
+
+async function expectStepCommits(count: number): Promise<void> {
+  const h = await createHarness({
+    tools: [{ name: "read" }],
+    script: count === 0 ? [text("done")] : [callMany(count), text("done")],
+  });
+  await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
+  await h.settle();
+  const turnId = firstOfKind(h.fake.events(h.threadId), "turn.started")?.turnId;
+  expect(turnId).toBeDefined();
+  const commits = new Set(h.fake.commitKeys(h.threadId));
+  const ofStep = (index: number): string[] =>
+    [...commits].filter(
+      (key) =>
+        key.startsWith(`step:${turnId}:${index}:`) ||
+        key === `resp:${turnId}:${index}` ||
+        (index === 0 && key.startsWith("tool:")),
+    );
+  const first = ofStep(0);
+  // 단계 0: S1 + C3 + C5, 그리고 도구 호출 n개의 E1·E2·E3
+  expect({ count, commits: first.length }).toEqual({ count, commits: 3 + 3 * count });
+  expect(first.filter((key) => key.startsWith("tool:"))).toHaveLength(3 * count);
+  if (count > 0) {
+    // 도구 결과를 받은 두 번째 단계에는 도구 호출이 없으니 커밋 3개다
+    expect(ofStep(1)).toHaveLength(3);
+  }
+  // 단계 커밋은 위 둘뿐이다. 그 밖의 커밋은 입력 접수, thread 시작, T1, T6이다
+  const stepKeys = [...commits].filter((key) => key.startsWith("step:") || key.startsWith("resp:"));
+  expect(stepKeys.toSorted()).toEqual(
+    [...ofStep(0), ...ofStep(1)].filter((key) => !key.startsWith("tool:")).toSorted(),
+  );
+}
+
+test("each_step_commits_three_plus_three_per_tool_call", async () => {
+  await Promise.all([0, 1, 2, 3].map(expectStepCommits));
+});

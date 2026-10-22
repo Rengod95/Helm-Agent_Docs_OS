@@ -72,3 +72,71 @@ test("a_model_that_cannot_be_resolved_fails_the_turn_with_a_logged_reason", asyn
     ),
   ).toBe(true);
 });
+
+// L1.loop.plan §5 resume_entries_use_main_path_step_functions (spec §9-16)
+const textDone: ScriptedResponse = {
+  kind: "message",
+  content: [{ type: "text", text: "done" }],
+  stopReason: "stop",
+};
+const callRead: ScriptedResponse = {
+  kind: "message",
+  content: [{ type: "toolCall", id: "c1", name: "read", arguments: {} }],
+  stopReason: "toolUse",
+};
+
+interface Scenario {
+  readonly entry: "request" | "tools" | "turn_end";
+  readonly crash: (key: string) => boolean;
+  readonly mode: "before" | "after";
+}
+
+function kindsWithoutResume(events: readonly { readonly kind: string }[]): string[] {
+  return events.map((event) => event.kind).filter((kind) => kind !== "thread.resumed");
+}
+
+async function uninterruptedKinds(
+  tools: Parameters<typeof createHarness>[0] & object,
+  script: readonly ScriptedResponse[],
+): Promise<string[]> {
+  const h = await createHarness({ ...tools, script });
+  await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
+  await h.settle();
+  return kindsWithoutResume(h.fake.events(h.threadId));
+}
+
+test("resume_entries_use_main_path_step_functions", async () => {
+  const tools = { tools: [{ name: "read" }] };
+  const baseline = await uninterruptedKinds(tools, [callRead, textDone]);
+  expect(baseline.at(-1)).toBe("turn.completed");
+
+  const cases: readonly Scenario[] = [
+    // T4 뒤 끊김: 다음 요청부터 이어간다
+    { entry: "request", crash: (key) => /^step:.*:0:end$/.test(key), mode: "after" },
+    // 도구 결과 커밋 전 끊김: 의도 없는 호출을 이어서 실행한다
+    { entry: "tools", crash: (key) => key === "tool:c1:result", mode: "before" },
+    // 마지막 단계 T4 뒤 T6 전 끊김: 요청 없이 turn_end부터 닫는다
+    { entry: "turn_end", crash: (key) => /^turn:.*:end$/.test(key), mode: "before" },
+  ];
+  const checkScenario = async (scenario: Scenario): Promise<void> => {
+    const h = await createHarness({ ...tools, script: [callRead, textDone] });
+    if (scenario.mode === "before") h.fake.crashBefore(scenario.crash);
+    else h.fake.crashAfter(scenario.crash);
+    await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
+    await h.settle();
+    expect(countKind(h.fake.events(h.threadId), "turn.completed")).toBe(0);
+
+    const h2 = await h.restart({ ...tools, script: [textDone] });
+    const resumed = await h2.loop.resume(h2.threadId);
+    expect(resumed.ok && resumed.value).toMatchObject({ status: "resumed", from: scenario.entry });
+    await h2.settle();
+    // 재개한 열은 끊기지 않은 열과 kind 순서가 같다(thread.resumed 하나만 더 있다)
+    const events = h2.fake.events(h2.threadId);
+    expect(countKind(events, "thread.resumed")).toBe(1);
+    expect({ entry: scenario.entry, kinds: kindsWithoutResume(events) }).toEqual({
+      entry: scenario.entry,
+      kinds: baseline,
+    });
+  };
+  await Promise.all(cases.map(checkScenario));
+});

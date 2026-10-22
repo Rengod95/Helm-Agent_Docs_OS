@@ -197,6 +197,36 @@ test("abort_before_the_batch_settles_every_call_as_not_executed_in_the_same_batc
   expect(result.value.outcomes.every((outcome) => outcome.itemId !== null)).toBe(true);
 });
 
+test("abort_mid_batch_settles_rest_as_not_executed", async () => {
+  const state: { abort: (() => Promise<unknown>) | null } = { abort: null };
+  const { h, rig } = await openRig([
+    {
+      name: "read",
+      executionMode: "sequential",
+      run: async () => {
+        // 첫 호출이 끝나기 전에 turn을 취소한다
+        await state.abort?.();
+        return { text: "A" };
+      },
+    },
+    { name: "write", executionMode: "sequential" },
+  ]);
+  state.abort = () => h.tasks.service.abort(rig.turnScope, { code: "user", message: null });
+  const result = await batch(rig, [call("a", "read"), call("b", "write"), call("c", "write")]);
+  expect(result.ok).toBe(true);
+  if (!result.ok) return;
+  // 첫 호출은 실행됐고 남은 호출은 같은 배치 안에서 실행하지 않고 not_executed로 닫힌다
+  expect(h.tools.executed).toEqual(["a"]);
+  expect(h.tools.closed).toEqual(["b", "c"]);
+  expect(result.value.outcomes.map((outcome) => outcome.state)).toEqual([
+    "executed",
+    "not_executed",
+    "not_executed",
+  ]);
+  // 단계 끝(C5) 전에 결과 없는 toolCall이 0개다
+  expect(result.value.outcomes.every((outcome) => outcome.itemId !== null)).toBe(true);
+});
+
 test("terminate_only_when_every_result_terminates", async () => {
   const { rig } = await openRig([
     { name: "stop", run: () => Promise.resolve({ text: "bye", terminate: true }) },

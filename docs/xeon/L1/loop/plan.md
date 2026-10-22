@@ -150,39 +150,41 @@ xeon/packages/core-loop/
 | `mapper_maps_full_turn_event_sequence` | `event-mapper.test.ts` | 도구 호출 2개가 있는 turn의 `AgentEvent` 열 전체가 F.conversation §3.5.4 표 순서대로 알림으로 바뀐다(골든 파일) | M1 |
 | `mapper_deterministic_given_ids` | `event-mapper.test.ts` | 같은 `init.ids`와 이벤트 열이면 출력 열이 같다. `startStepIndex`부터 센다 | M1 |
 | `mapper_uses_bound_item_ids` | `event-mapper.test.ts` | `bindItem`으로 알린 steer 메시지·toolResult에는 새 id를 만들지 않는다 | M1 |
-| `volatile_after_seq_not_behind_durable` | `event-mapper.test.ts` | 각 휘발 envelope의 `afterSeq` ≥ 그 step의 `step.started` seq, `n`이 turn마다 0부터 1씩 | M1 |
+| `volatile_after_seq_not_behind_durable` | `turn.test.ts` | 각 휘발 envelope의 `afterSeq` ≥ 그 step의 `step.started` seq, `n`이 turn마다 0부터 1씩 | M1 |
 | `step_commit_includes_checkpoint_same_transaction` | `checkpoint.fault.test.ts` | T4 커밋에 `step.completed`와 `checkpoint.step`이 함께 있고, 커밋 전 장애 주입이면 둘 다 없다(spec §9-6) | M1 |
-| `turn_start_records_input_before_turn_started` | `checkpoint.test.ts` | T1에서 입력 `item.recorded` seq < `turn.started` seq(spec §9-7) | M1 |
+| `turn_start_records_input_before_turn_started` | `turn.test.ts` | T1에서 입력 `item.recorded` seq < `turn.started` seq(spec §9-7) | M1 |
 | `resume_request_phase_resends_request` | `resume.int.test.ts` | T4 뒤 끊고 재개하면 다음 단계 요청의 `contextHash`가 끊기지 않은 실행과 같다. T3 전(스트리밍 중)에 끊으면 같은 단계 요청을 다시 보낸다(spec §9-2) | M1 |
-| `resume_tools_phase_uses_pending_tool_calls` | `resume.int.test.ts` | T3 체크포인트(`next: "tools"`)에서 재개하면 결과가 있는 호출은 다시 실행하지 않고 intent 없는 호출만 실행한 뒤 T4를 커밋한다 | M1 |
-| `resume_abort_requested_closes_turn` | `resume.int.test.ts` | `turn.abort_requested`가 있는 열린 turn은 재개하지 않고 `turn.completed{interrupted}`로 닫힌다 | M1 |
+| `resume_tools_phase_uses_pending_tool_calls` | `resume.test.ts` | T3 체크포인트(`next: "tools"`)에서 재개하면 결과가 있는 호출은 다시 실행하지 않고 intent 없는 호출만 실행한 뒤 T4를 커밋한다 | M1 |
+| `resume_abort_requested_closes_turn` | `resume.test.ts` | `turn.abort_requested`가 있는 열린 turn은 재개하지 않고 `turn.completed{interrupted}`로 닫힌다 | M1 |
 | `default_has_no_step_cap` | `budget.test.ts` | 기본 설정에서 60단계 테이프가 끝까지 실행된다(spec §9-3) | M1 |
 | `max_steps_ends_turn_as_interrupted` | `budget.test.ts` | `maxSteps = 3`이면 3단계 뒤 결정 `end`, `turn.completed{interrupted, error:"step_limit"}` | M1 |
 | `drive_budget_stops_at_turns_cap` | `drive.int.test.ts` | 임대 turn 상한 2인 가짜 drive 함수가 세 번째 `loop.turn`에서 거부되고 임대가 `releasing`이 된다. 토큰 예산은 X가 `loop.turn` 호출 사이에서 검사하므로 실행 중인 turn은 끝까지 간다 | M2 |
-| `drive_turn_same_request_id_replays` | `drive.int.test.ts` | 같은 `requestId`로 두 번 부르면 두 번째 `replayed: true`, `turn.started` 하나(spec §9-8) | M1 |
+| `drive_turn_same_request_id_replays` | `drive.test.ts` | 같은 `requestId`로 두 번 부르면 두 번째 `replayed: true`, `turn.started` 하나(spec §9-8) | M1 |
 | `gate_stops_after_max_continues` | `completion-gate.test.ts` | `agent_before_settle`이 계속 `continue: true`여도 게이트 계속이 `maxContinues` 회를 넘지 않고 정착한다(spec §9-4) | M2 |
 | `gate_ignores_continue_on_non_final_step` | `completion-gate.test.ts` | 도구 호출이 있는 단계의 `continue`는 세지 않는다 | M2 |
 | `boundary_finalize_rejects_invalid_entries` | `checkpoint.test.ts` | 접두 없는 kind, `step.completed` 엔트리, 스키마 위반, 중복 id 각각에서 `{ entries: [], continue: false }`(spec §9-5) | M1 |
-| `aborted_partial_stream_saved_as_aborted` | `resume.int.test.ts` | 스트리밍 중 `interrupt`면 부분 assistant item이 `stopReason: "aborted"`로 기록되고 `turn.completed{interrupted}`(spec §9-9) | M1 |
+| `aborted_partial_stream_saved_as_aborted` | `resume.test.ts` | 스트리밍 중 `interrupt`면 부분 assistant item이 `stopReason: "aborted"`로 기록되고 `turn.completed{interrupted}`(spec §9-9) | M1 |
 | `admit_fires_input_before_enqueue` | `loop.contract.test.ts` | `input` chain이 `handled`면 `input.queued`가 없고, `transform`이면 바뀐 내용이 큐에 들어간다 | M1 |
 | `workspace_has_no_pi_agent_core_dependency` | `loop.contract.test.ts` | core-loop·contracts 소스와 모든 `package.json`에 `@earendil-works/pi-agent-core`가 없다(spec §9-10, adr.0009) | 이행 |
-| `stop_at_safe_boundary_leaves_turn_open` | `checkpoint.test.ts` | T4 뒤 멈추고 `turn.completed`가 없으며 재개 후보에 남는다 | M1 |
+| `stop_at_safe_boundary_leaves_turn_open` | `checkpoint.fault.test.ts` | T4 뒤 멈추고 `turn.completed`가 없으며 재개 후보에 남는다 | M1 |
 | `thinking_budgets_passed_through` | `loop.contract.test.ts` | `xeon.models`가 준 단계 바인딩의 `thinkingBudgets`와 추론 레벨이 streamFn 요청에 그대로 들어가고 loop가 값을 바꾸지 않는다(LP6) | M2 |
 | `user_bash_first_deny_skips_shell` | `user-bash.test.ts` | `user_bash`(first)가 거부면 `runUserShell` 호출 0회, 허용이면 1회이고 결과 기록 방식이 `includeInContext`를 따른다(LP12) | M2 |
 | `await_input_resumes_after_approval_response` | `resume.int.test.ts` | `await_input` 체크포인트에서 재개하면 모델 요청 0회, 승인 응답이 커밋된 뒤 같은 호출이 `runTurn({ kind: "tools" })`의 `tools.prepare`·`execute`로 실행되고 T4가 커밋된다(LP12) | M2 |
 | `child_turn_uses_request_prompt_model_and_tool_context` | `child-turn.int.test.ts` | `runChildTurn`의 요청 본문 기본 프롬프트가 `systemPrompt`, 바인딩이 `model` 해석 결과이고, 도구 호출의 `ToolRunContext`가 요청 값과 같다(spec §9-12, LP15) | M2 |
 | `child_turn_same_request_id_replays` | `child-turn.int.test.ts` | 같은 `requestId`로 두 번 부르면 두 번째 `replayed: true`, 자식 thread의 `turn.started` 하나(spec §9-11, LP15) | M2 |
 | `judge_consumption_recorded_and_not_rerun` | `completion-gate.test.ts` | 가짜 판정 핸들러가 `agent_before_settle`에서 낸 확장 kind 엔트리가 T4에 기록되고, 재개 뒤 같은 단계에서 핸들러가 판정 API를 다시 부르지 않는다(LP13) | M3 |
-| `stream_response_replaces_partial_and_returns_final` | `loop/stream-response.test.ts` | `start` 뒤 델타마다 부분 메시지가 바뀌고 `done`·`error`에서 `result()`의 최종 메시지를 낸다. `start` 없이 끝난 스트림도 `message_start`·`message_end`를 한 번씩 낸다(원본 381-476 사례) | 이행 |
-| `stream_response_keeps_no_context_array` | `loop/stream-response.test.ts` | 스트리밍 동안 루프가 넘긴 컨텍스트 값을 바꾸지 않는다(`Object.freeze`한 입력으로 실행) | 이행 |
+| `stream_response_emits_start_updates_and_one_message_end_for_a_normal_stream` | `loop/stream-response.test.ts` | `start` 뒤 델타마다 부분 메시지가 바뀌고 `done`·`error`에서 `result()`의 최종 메시지를 낸다(원본 381-476 사례) | 이행 |
+| `stream_response_handles_a_stream_that_ends_without_a_start_event` | `loop/stream-response.test.ts` | `start` 없이 끝난 스트림도 `message_start`·`message_end`를 한 번씩 낸다(원본 381-476 사례) | 이행 |
+| `stream_response_keeps_no_context_array_between_requests` | `loop/stream-response.test.ts` | 스트리밍 동안 루프가 넘긴 컨텍스트 값을 바꾸지 않는다(`Object.freeze`한 입력으로 실행) | 이행 |
 | `parallel_batch_end_events_in_completion_order_results_in_source_order` | `loop/tool-batch.test.ts` | 늦게 끝나는 첫 호출과 빨리 끝나는 둘째 호출: `tool_execution_end`는 둘째·첫째 순, toolResult 메시지는 첫째·둘째 순(원본 586-660) | 이행 |
 | `sequential_mode_when_any_tool_is_sequential` | `loop/tool-batch.test.ts` | 호출 중 하나의 `executionMode`가 `"sequential"`이면 실행이 겹치지 않는다 | 이행 |
 | `abort_mid_batch_settles_rest_as_not_executed` | `loop/tool-batch.test.ts` | 첫 호출 뒤 취소하면 남은 호출이 같은 배치 안에서 `settleRejected(…, "not_executed")`로 닫히고 C5 전 결과 없는 toolCall이 0개다(spec §9-15) | 이행 |
 | `length_stop_settles_all_calls_as_truncated` | `loop/tool-batch.test.ts` | `stopReason: "length"` 응답의 도구 호출은 `execute`가 0회이고 모두 `truncated`로 닫힌다 | 이행 |
 | `terminate_only_when_every_result_terminates` | `loop/tool-batch.test.ts` | 결과 둘 중 하나만 `terminate`면 다음 요청, 둘 다면 정착 후보 | 이행 |
 | `step_end_returns_placed_steer_without_callback` | `loop/step-end.test.ts` | C5의 `drain`이 고른 steer가 `StepNext.placed`로 돌아오고 다음 요청 컨텍스트에 들어간다. 정착 후보 판정은 steer가 있으면 거짓 | 이행 |
-| `commit_failure_returns_result_not_throw` | `loop/run-turn.test.ts` | 가짜 세션이 T3에서 `err`를 내면 `runTurn`이 거부(reject)되지 않고 T6 `failed{loop_rejected}`를 시도하며 도구 `execute`는 0회다 | 이행 |
+| `a_failed_step_commit_ends_the_turn_as_failed_without_throwing` | `loop/run-turn.test.ts` | 가짜 세션이 T3에서 `err`를 내면 `runTurn`이 거부(reject)되지 않고 T6 `failed{loop_rejected}`를 시도하며 도구 `execute`는 0회다 | 이행 |
 | `resume_entries_use_main_path_step_functions` | `loop/run-turn.test.ts` | `tools`·`request`·`turn_end` 진입에서 같은 테이프의 끊기지 않은 실행과 내구 이벤트 열이 같다(spec §9-16) | 이행 |
+| `each_step_commits_three_plus_three_per_tool_call` | `turn.test.ts` | 진짜 core-loop를 대역 저장소 위에서 돌려 한 단계가 커밋 3개(S1, C3, C5)와 도구 호출마다 3개(E1, E2, E3)를 쓰는지 커밋 키로 센다. 도구 호출 0~3개(spec §4.2) | 이행 |
 | `upstream_event_order_cases` | `loop/upstream-parity.test.ts` | 원본 `packages/agent/test/agent-loop.test.ts`에서 고른 사례(도구 없는 응답, 도구 1개, 병렬 2개, steer 주입, 오류 응답, 중단)의 `AgentEvent` 순서가 같다. 사례는 옮겨 적고 원본 코드는 실행하지 않는다 | 이행 |
 
 ## 6. 완료 기준

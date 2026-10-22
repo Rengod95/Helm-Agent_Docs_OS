@@ -13,6 +13,7 @@ import {
   STEP_CHECKPOINT_SCHEMA_VERSION,
   type CommitRequest,
   type DurableEventDraft,
+  type ItemRecordedPayload,
   type StepCheckpoint,
 } from "@xeon/contracts/records";
 import type {
@@ -267,11 +268,17 @@ export function nextBinding(run: TurnRun): Result<ModelBinding, LoopFailure> {
 
 // ── 도구 실행 맥락 ───────────────────────────────────────────────────
 
-function rawDraft(
+/** 이 파일이 낙인 없이 만드는 초안의 kind별 payload. kind와 payload가 어긋나면 컴파일 오류다 */
+interface RawDraftPayloads {
+  readonly "item.recorded": ItemRecordedPayload;
+  readonly "checkpoint.step": StepCheckpoint;
+}
+
+function rawDraft<K extends keyof RawDraftPayloads>(
   run: TurnRun,
-  kind: DurableEventDraft["kind"],
+  kind: K,
   step: StepRef,
-  payload: unknown,
+  payload: RawDraftPayloads[K],
 ): DurableEventDraft {
   return {
     id: run.ctx.ids.next("evt"),
@@ -307,7 +314,10 @@ export function toolRunContext(run: TurnRun, step: StepRef): ToolRunContext {
       ),
     waitingCheckpoint: (pending) => {
       if (thread.leaf === null) throw new Bug("loop.waiting_checkpoint_without_leaf");
+      // 도구 배치는 요청 단계(모델 해석)나 도구 단계 재개(resolveModel) 뒤에만 시작한다. 바인딩이 없으면 루프 불변식 위반이고,
+      // 내구 체크포인트에 빈 provider·modelId 같은 자리표시를 쓰지 않는다
       const binding = state.binding;
+      if (binding === null) throw new Bug("loop.waiting_checkpoint_without_binding");
       const checkpoint: StepCheckpoint = {
         checkpointId: ctx.ids.next("ckp"),
         schemaVersion: STEP_CHECKPOINT_SCHEMA_VERSION,
@@ -319,14 +329,11 @@ export function toolRunContext(run: TurnRun, step: StepRef): ToolRunContext {
         next: "await_input",
         pendingToolCalls: [...pending],
         inputCursor: { consumedSeq: state.consumedSeq },
-        model:
-          binding === null
-            ? { provider: "", modelId: "", thinkingLevel: "off" }
-            : {
-                provider: binding.provider,
-                modelId: binding.modelId,
-                thinkingLevel: binding.thinkingLevel,
-              },
+        model: {
+          provider: binding.provider,
+          modelId: binding.modelId,
+          thinkingLevel: binding.thinkingLevel,
+        },
         leaseRefs: [...state.leaseRefs],
         scopeRef: state.scopeRef,
       };

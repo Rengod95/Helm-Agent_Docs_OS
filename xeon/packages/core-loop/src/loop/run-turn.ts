@@ -4,6 +4,7 @@ import type { AgentToolCall, AssistantMessage } from "@xeon/contracts/conversati
 import type {
   PlacedMessage,
   LoopFailure,
+  StepNext,
   TurnRunResult,
   TurnRunSpec,
   ToolsResume,
@@ -36,14 +37,11 @@ function toolCallsOf(message: AssistantMessage): AgentToolCall[] {
   return message.content.filter((block): block is AgentToolCall => block.type === "toolCall");
 }
 
-/**
- * 요청 단계 하나를 돌고, 다음 행동이 `request`이면 이어서 다음 단계를 돈다. 단계는 앞 단계의 커밋이 끝나야 시작하므로
- * 꼬리 호출로 이어 간다(반복문 안의 await를 쓰지 않는다).
- */
-export async function requestLoop(
+/** 요청 단계 하나: 단계 열기 → 요청 → 응답 커밋 → 도구 배치 → 단계 끝. 다음 행동을 돌려준다 */
+async function requestStep(
   run: TurnRun,
   placed: readonly PlacedMessage[],
-): Promise<Result<void, LoopFailure>> {
+): Promise<Result<StepNext, LoopFailure>> {
   const opened = await openStep(run, placed);
   if (!opened.ok) return opened;
   const request = await prepareRequest(run);
@@ -66,7 +64,7 @@ export async function requestLoop(
     if (!ran.ok) return ran;
     batch = ran.value;
   }
-  const next = await endStep(run, {
+  return endStep(run, {
     message,
     outcomes: batch?.outcomes ?? [],
     terminate: batch?.terminate ?? false,
@@ -76,9 +74,29 @@ export async function requestLoop(
       ...resultMessagesOf(batch?.outcomes ?? []),
     ],
   });
-  if (!next.ok) return next;
-  if (next.value.kind !== "request") return ok(undefined);
-  return requestLoop(run, next.value.placed);
+}
+
+/** 단계 끝이 다음 요청 단계를 열라고 했고 멈출 이유(상한, 외부 중단 등)가 기록되지 않았으면 그 단계에 넘길 배치 입력을 돌려준다 */
+function nextPlaced(run: TurnRun, next: StepNext): readonly PlacedMessage[] | undefined {
+  return next.kind === "request" && run.state.endReason === null ? next.placed : undefined;
+}
+
+/**
+ * 요청 단계를 반복한다. 단계는 앞 단계의 커밋이 끝나야 시작하므로 차례대로 기다린다.
+ * 단계마다 await를 이어 붙이는 재귀 대신 반복문을 쓴다
+ */
+export async function requestLoop(
+  run: TurnRun,
+  first: readonly PlacedMessage[],
+): Promise<Result<void, LoopFailure>> {
+  let placed: readonly PlacedMessage[] | undefined = first;
+  while (placed !== undefined) {
+    // oxlint-disable-next-line no-await-in-loop -- 다음 단계는 앞 단계의 커밋과 단계 끝 결정을 기다려야 시작할 수 있다 (L1.loop.spec §4.5)
+    const next = await requestStep(run, placed);
+    if (!next.ok) return next;
+    placed = nextPlaced(run, next.value);
+  }
+  return ok(undefined);
 }
 
 /** 도구 단계 중간에서 재개한다. 주 경로와 같은 도구 배치·단계 끝 함수를 쓴다(L1.loop.spec §4.5 tools 행) */
@@ -109,10 +127,8 @@ async function resumeTools(run: TurnRun, resume: ToolsResume): Promise<Result<vo
     contextMessages: [],
   });
   if (!next.ok) return next;
-  if (next.value.kind === "request" && state.endReason === null) {
-    return requestLoop(run, next.value.placed);
-  }
-  return ok(undefined);
+  const placed = nextPlaced(run, next.value);
+  return placed === undefined ? ok(undefined) : requestLoop(run, placed);
 }
 
 async function runEntry(run: TurnRun): Promise<Result<void, LoopFailure>> {

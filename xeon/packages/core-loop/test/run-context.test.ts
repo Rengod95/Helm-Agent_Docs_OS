@@ -3,7 +3,9 @@ import { parse } from "@xeon/contracts";
 import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
 import { StepCheckpointSchema } from "@xeon/contracts/records";
 import type { ExtensionUnit } from "@xeon/ext-host";
+import { resolveModel, toolRunContext } from "../src/loop/turn-run.ts";
 import { createHarness } from "./support/harness.ts";
+import { createRig } from "./support/loop-rig.ts";
 import { countKind, firstOfKind, kindsOf } from "./support/inspect.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";
 
@@ -84,6 +86,30 @@ test("tool_run_drafts_build_scoped_drafts_for_the_tool_result_and_the_waiting_ch
   expect(checkpoint.ok ? checkpoint.value.leafEventId : null).toBe(
     h.fake.events(h.threadId).at(-1)?.id ?? null,
   );
+});
+
+test("the_waiting_checkpoint_never_records_a_placeholder_model", async () => {
+  const h = await createHarness({ script: [], withoutLoop: true });
+  const rig = createRig(h);
+  const { run } = rig;
+  run.thread.leaf = run.ctx.ids.next("evt");
+  const step = {
+    threadId: rig.threadId,
+    turnId: rig.turnId,
+    stepId: run.ctx.ids.next("stp"),
+    stepIndex: 0,
+  };
+  const pending = [{ toolCallId: "c9", effectId: null, waiting: "approval" } as const];
+  // 모델을 해석하기 전에는 도구 배치가 시작될 수 없다. 바인딩이 없으면 빈 provider·modelId를 쓰지 않고 불변식 위반으로 멈춘다
+  expect(() => toolRunContext(run, step).drafts.waitingCheckpoint(pending)).toThrow(
+    "loop.waiting_checkpoint_without_binding",
+  );
+  const resolved = resolveModel(run);
+  expect(resolved.ok).toBe(true);
+  const waiting = toolRunContext(run, step).drafts.waitingCheckpoint(pending);
+  const checkpoint = parse(StepCheckpointSchema, waiting.payload);
+  expect(checkpoint.ok && checkpoint.value.model.provider).not.toBe("");
+  expect(checkpoint.ok && checkpoint.value.model.modelId).not.toBe("");
 });
 
 const promptEntry: ExtensionEntry = ({ manifest, scope }) => {
