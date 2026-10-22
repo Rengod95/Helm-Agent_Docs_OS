@@ -1,13 +1,22 @@
 import { chmod, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { ok, type Clock, type Logger, type Scheduler } from "@xeon/contracts";
-import type { SecretMeta } from "@xeon/contracts/capabilities";
+import { err, ok, type Clock, type Logger, type Result, type Scheduler } from "@xeon/contracts";
+import type { SecretAuditRecord, SecretHandle, SecretMeta } from "@xeon/contracts/capabilities";
 import type { LocalIdFactory } from "@xeon/contracts/conversation";
-import type { ProviderEntry, SecretLease, SecretProvider } from "@xeon/contracts/services";
+import type {
+  ProviderEntry,
+  SecretAdminService,
+  SecretError,
+  SecretLease,
+  SecretProvider,
+} from "@xeon/contracts/services";
+import { bunInheritRunner, createSecretAdminService, type ChildRunner } from "../admin.ts";
+import type { AuditLog } from "../audit-file.ts";
 import { DEFAULT_SECRETS_CONFIG } from "../config.ts";
 import { createLease } from "../lease.ts";
 import type { MetaEntry, MetaStore } from "../meta.ts";
 import { PROVIDER_PLACEHOLDER_HANDLE } from "../providers/sops.ts";
+import { handleForName } from "../ref.ts";
 import { createRedactor } from "../redactor.ts";
 import { createSecretServiceCore, type SecretServiceRuntime } from "../service.ts";
 
@@ -100,8 +109,8 @@ export async function fakeSopsBinary(
 
 export interface MemorySecretEntry {
   readonly meta: SecretMeta;
-  /** 가짜 값. 테스트가 만든 것만 넣는다 */
-  readonly value: string;
+  /** 가짜 값. 테스트가 만든 것만 넣는다. null이면 메타만 있고 제공자에 항목이 없는 상태(missing)다 */
+  readonly value: string | null;
 }
 
 export interface MemorySecretsOptions {
@@ -109,12 +118,30 @@ export interface MemorySecretsOptions {
   readonly scheduler: Scheduler;
   readonly ids: LocalIdFactory;
   readonly secrets: readonly MemorySecretEntry[];
+  /** 메타 없이 제공자에만 있는 항목(orphaned). ref → 가짜 값 */
+  readonly orphans?: Readonly<Record<string, string>>;
   readonly logger?: Logger;
+  /** 메모리 제공자가 put을 지원하는가. 기본 true */
+  readonly putSupported?: boolean;
+  /** reveal이 os-auth만 받게 하는가. 기본 false(tty-confirm만 받는다) */
+  readonly osAuthAvailable?: boolean;
+  /** 핸들을 값으로 가진 설정 키 */
+  readonly settingKeysFor?: (handle: SecretHandle) => Promise<readonly string[]>;
+  /** secret run의 자식 실행기. 기본은 실제 Bun.spawn이므로 시험은 가짜를 넘긴다 */
+  readonly childRunner?: ChildRunner;
+  /** 부모 env. secret run 자식 env의 재료 */
+  readonly parentEnv?: Readonly<Record<string, string | undefined>>;
 }
 
 export interface MemorySecrets extends SecretServiceRuntime {
   /** 제공자 lease가 불린 횟수. 정책 거부 때 제공자를 부르지 않았는지 확인한다 */
   providerLeaseCalls(): number;
+  /** 관리 서비스. 정책 판정·lease·Redactor는 같은 운영 구현이고 값 저장소와 감사 파일만 메모리다 */
+  readonly admin: SecretAdminService;
+  /** 감사 파일에 쓰였을 레코드 */
+  auditRecords(): readonly SecretAuditRecord[];
+  /** 감사 파일 쓰기를 실패시킨다(reveal이 값을 보이지 않는지 확인하는 시험용) */
+  failAuditWrites(failing: boolean): void;
 }
 
 const NOOP_LOGGER: Logger = {
@@ -127,23 +154,71 @@ const NOOP_LOGGER: Logger = {
   },
 };
 
+function memoryAuditLog(): {
+  readonly log: AuditLog;
+  readonly records: SecretAuditRecord[];
+  setFailing(failing: boolean): void;
+} {
+  const records: SecretAuditRecord[] = [];
+  let failing = false;
+  const log: AuditLog = {
+    record(record) {
+      if (!failing) records.push(record);
+    },
+    appendDurable(record) {
+      if (failing) {
+        return Promise.resolve(
+          err({ kind: "audit_io" as const, code: "EIO", path: "memory://audit.log" }),
+        );
+      }
+      records.push(record);
+      return Promise.resolve(ok(undefined));
+    },
+    read() {
+      return Promise.resolve(ok(records.slice()));
+    },
+    flush() {
+      return Promise.resolve();
+    },
+  };
+  return {
+    log,
+    records,
+    setFailing(next) {
+      failing = next;
+    },
+  };
+}
+
 /**
- * SecretService를 구현하는 메모리 가짜. 정책 판정, lease, Redactor는 운영 구현을 그대로 쓰고 값 저장소만 메모리다.
- * 관리 서비스(SecretAdminService)는 마일스톤 M2에서 더한다.
+ * SecretService와 SecretAdminService를 구현하는 메모리 가짜. 정책 판정, lease, Redactor, 관리 동작은 운영 구현을
+ * 그대로 쓰고 값 저장소, 메타 저장소, 감사 파일만 메모리다.
  */
 export function memorySecrets(options: MemorySecretsOptions): MemorySecrets {
   const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
   const values = new Map<string, string>();
-  for (const entry of options.secrets) values.set(entry.meta.ref, entry.value);
+  const metas = new Map<string, SecretMeta>();
+  for (const entry of options.secrets) {
+    if (entry.value !== null) values.set(entry.meta.ref, entry.value);
+    metas.set(entry.meta.name, entry.meta);
+  }
+  for (const [ref, value] of Object.entries(options.orphans ?? {})) values.set(ref, value);
   let leaseCalls = 0;
+  const audit = memoryAuditLog();
 
   const provider: SecretProvider = {
     id: "sops",
-    capabilities: () => ({ list: true, put: false, remove: false, usage: false }),
+    capabilities: () => ({
+      list: true,
+      put: options.putSupported ?? true,
+      remove: true,
+      usage: false,
+    }),
     list() {
-      const entries: ProviderEntry[] = options.secrets.map((s) => ({
+      const entries: ProviderEntry[] = [...values.keys()].map((ref) => ({
         provider: "sops",
-        ref: s.meta.ref,
+        ref,
         updatedAt: null,
       }));
       return Promise.resolve(ok(entries));
@@ -173,28 +248,51 @@ export function memorySecrets(options: MemorySecretsOptions): MemorySecrets {
       });
       return Promise.resolve(ok(lease));
     },
+    put(ref, value) {
+      values.set(ref, decoder.decode(value));
+      return Promise.resolve(ok(undefined));
+    },
+    remove(ref) {
+      values.delete(ref);
+      return Promise.resolve(ok(undefined));
+    },
   };
 
   const metaStore: MetaStore = {
     list(): Promise<readonly MetaEntry[]> {
       return Promise.resolve(
-        options.secrets.map((s): MetaEntry => ({ kind: "ok", name: s.meta.name, meta: s.meta })),
+        [...metas.values()].map((meta): MetaEntry => ({ kind: "ok", name: meta.name, meta })),
       );
     },
     get(name): Promise<MetaEntry | null> {
-      const found = options.secrets.find((s) => s.meta.name === name);
+      const found = metas.get(name);
       return Promise.resolve(
-        found === undefined ? null : { kind: "ok", name: found.meta.name, meta: found.meta },
+        found === undefined ? null : { kind: "ok", name: found.name, meta: found },
       );
+    },
+    write(meta, writeOptions): Promise<Result<void, SecretError>> {
+      if (!writeOptions.overwrite && metas.has(meta.name)) {
+        const named = handleForName(meta.name);
+        return Promise.resolve(
+          named.ok ? err({ kind: "already_exists", handle: named.value.handle }) : err(named.error),
+        );
+      }
+      metas.set(meta.name, meta);
+      return Promise.resolve(ok(undefined));
+    },
+    remove(name): Promise<Result<boolean, SecretError>> {
+      return Promise.resolve(ok(metas.delete(name)));
     },
   };
 
+  const logger = options.logger ?? NOOP_LOGGER;
   const runtime = createSecretServiceCore({
     clock: options.clock,
     scheduler: options.scheduler,
-    logger: options.logger ?? NOOP_LOGGER,
+    logger,
     limits: () => DEFAULT_SECRETS_CONFIG.lease,
     meta: metaStore,
+    auditLog: audit.log,
     providers: [provider],
     redactor: createRedactor(),
     protectedPaths: () => [],
@@ -207,5 +305,23 @@ export function memorySecrets(options: MemorySecretsOptions): MemorySecrets {
       }),
     configuredProviders: () => ["sops"],
   });
-  return Object.assign(runtime, { providerLeaseCalls: () => leaseCalls });
+  const admin = createSecretAdminService({
+    service: runtime,
+    meta: metaStore,
+    auditLog: audit.log,
+    clock: options.clock,
+    logger,
+    osAuthAvailable: () => options.osAuthAvailable ?? false,
+    settingKeysFor: options.settingKeysFor ?? (() => Promise.resolve([])),
+    runChild: options.childRunner ?? bunInheritRunner,
+    parentEnv: options.parentEnv ?? {},
+  });
+  return Object.assign(runtime, {
+    providerLeaseCalls: () => leaseCalls,
+    admin,
+    auditRecords: () => audit.records.slice(),
+    failAuditWrites: (failing: boolean): void => {
+      audit.setFailing(failing);
+    },
+  });
 }

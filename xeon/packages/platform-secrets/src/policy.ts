@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever, attempt } from "@xeon/contracts";
 import type { SecretDenyReason, SecretMeta } from "@xeon/contracts/capabilities";
 import type { ApprovalEvidence, UseCtx } from "@xeon/contracts/services";
 
@@ -86,6 +86,28 @@ export function matchHost(entry: string, host: string, port: number | null): boo
   return want.host === have.host;
 }
 
+// ── origin 일치 ──────────────────────────────────────────────────────────
+
+/** `https://host[:port]` 하나를 정규형(소문자 호스트, 기본 포트 생략)으로 바꾼다. https 밖이거나 경로·계정이 있으면 null */
+function canonicalOrigin(text: string): string | null {
+  const parsed = attempt(() => new URL(text));
+  if (!parsed.ok) return null;
+  const url = parsed.value;
+  if (url.protocol !== "https:" || url.username !== "" || url.password !== "") return null;
+  if (url.pathname !== "/" || url.search !== "" || url.hash !== "") return null;
+  return url.origin;
+}
+
+/**
+ * origin(스킴, 호스트, 포트) 정확 일치(spec §4.3 M4 규칙 1). 대소문자와 기본 포트 표기(`:443`)만 같은 것으로 본다.
+ * 와일드카드와 하위 도메인은 맞지 않는다. 해석할 수 없는 쪽이 하나라도 있으면 맞지 않는다.
+ */
+export function matchOrigin(entry: string, origin: string): boolean {
+  const want = canonicalOrigin(entry);
+  const have = canonicalOrigin(origin);
+  return want !== null && have !== null && want === have;
+}
+
 // ── 명령 일치 ────────────────────────────────────────────────────────────
 
 const REGEX_SPECIALS = /[.+?^${}()|[\]\\]/g;
@@ -133,7 +155,7 @@ function targetDenial(meta: SecretMeta, ctx: UseCtx): SecretDenyReason | null {
     }
     case "browser-input": {
       if (target.kind !== "origin") return "mode_not_allowed";
-      const matched = (meta.use.origins ?? []).includes(target.origin);
+      const matched = (meta.use.origins ?? []).some((entry) => matchOrigin(entry, target.origin));
       return matched ? null : "origin_mismatch";
     }
     case "env": {

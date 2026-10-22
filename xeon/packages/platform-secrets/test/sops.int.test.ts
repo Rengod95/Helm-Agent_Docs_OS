@@ -366,10 +366,11 @@ describe("sops list", () => {
     expect(listed.ok && listed.value[0]?.updatedAt).toBe(Date.parse("2026-01-04T10:00:00Z"));
     expect(await fake.calls()).toEqual([]);
     expect(logger.lines).toEqual([]);
+    // put은 refreshCapabilities가 `set --value-stdin` 지원을 확인한 뒤에만 켜진다. remove(`sops unset`)는 값을 받지 않는다
     expect(provider.capabilities()).toEqual({
       list: true,
       put: false,
-      remove: false,
+      remove: true,
       usage: false,
     });
   });

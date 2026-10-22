@@ -25,7 +25,7 @@ export interface KeyProvider {
   probe(): Promise<KeyAvailability>;
   /** sops 자식 env에 넣을 변수. SOPS_AGE_KEY_CMD 또는 SOPS_AGE_KEY_FILE 하나 */
   sopsKeyEnv(): Result<Readonly<Partial<Record<SopsKeyEnvName, string>>>, SecretError>;
-  /** 첫 실행 설정: identity를 만들어 저장하고 수신자(공개키)만 돌려준다. age-encryption 의존이 연결되기 전에는 없다 */
+  /** 첫 실행 설정: identity를 만들어 저장하고 수신자(공개키)만 돌려준다. 파일 폴백만 구현한다 */
   provision?(): Promise<Result<{ readonly recipient: string }, SecretError>>;
 }
 

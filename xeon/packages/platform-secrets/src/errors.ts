@@ -22,3 +22,11 @@ export function errorCode(error: unknown): string {
   }
   return "unknown";
 }
+
+/**
+ * 감사 파일을 쓸 수 없다. SecretError에 전용 변형이 없어(F 요청 대기) 파일 문제를 뜻하는 meta_invalid로 돌려준다.
+ * 열람처럼 기록 없이는 진행하면 안 되는 동작이 이 오류로 멈춘다.
+ */
+export function auditUnavailable(path: string, code: string): SecretError {
+  return { kind: "meta_invalid", name: "audit.log", path, errors: [`unwritable (${code})`] };
+}

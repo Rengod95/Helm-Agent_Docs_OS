@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@xeon/contracts": "workspace:*",
+    "age-encryption": "catalog:",
     "typebox": "catalog:"
   },
   "devDependencies": {

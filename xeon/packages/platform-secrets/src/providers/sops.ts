@@ -21,6 +21,9 @@ import { errorCode, maskStderr } from "../errors.ts";
 import { createLease } from "../lease.ts";
 import { extractArgument, formatOfPath, parseSopsKeys, type SopsKeyListing } from "./sops-keys.ts";
 
+/** `sops set --help`에 이 옵션이 있으면 값을 stdin으로 받을 수 있다(spec §4.6 6번) */
+const VALUE_STDIN_FLAG = "--value-stdin";
+
 // L0.secrets.spec §4.6. sops 바이너리 호출 래퍼. `sops`, `age` 바이너리 호출은 이 패키지만 한다(DR-07).
 // 값은 sops의 stdout을 부모 프로세스 메모리로 받아 lease에 넘긴다. 디스크에 쓰지 않고 argv에 올리지 않는다.
 
@@ -31,6 +34,8 @@ export interface RunRequest {
   /** 자식 env 전체. 부모 env를 물려받지 않는다 */
   readonly env: Readonly<Record<string, string>>;
   readonly timeoutMs: number;
+  /** 자식 stdin으로 보낼 바이트. 없으면 stdin을 닫는다. 호출자가 끝난 뒤 0으로 덮는다 */
+  readonly stdin?: Uint8Array;
   /** 서비스가 닫히면 중단된다. 실행 중인 자식 프로세스를 죽인다 */
   readonly signal: AbortSignal;
 }
@@ -57,7 +62,7 @@ export const bunRunner: ProcessRunner = async (request) => {
   try {
     const proc = Bun.spawn([...request.argv], {
       env: { ...request.env },
-      stdin: "ignore",
+      stdin: request.stdin ?? "ignore",
       stdout: "pipe",
       stderr: "pipe",
       timeout: request.timeoutMs,
@@ -205,13 +210,27 @@ export interface SopsProviderDeps {
   readonly logger: Logger;
 }
 
-const CAPABILITIES: SecretProviderCapabilities = {
-  list: true,
-  // put/remove는 sops set의 stdin 입력 지원 확인 뒤에만 켠다(spec §4.6 6번, 마일스톤 M2)
-  put: false,
-  remove: false,
-  usage: false,
-};
+/** sops 제공자. put은 `sops set --value-stdin` 지원을 확인한 뒤에만 켜진다(refreshCapabilities) */
+export interface SopsProvider extends SecretProvider {
+  /** 바이너리의 `set --help`를 읽어 put 지원을 다시 판정하고 현재 능력을 돌려준다 */
+  refreshCapabilities(): Promise<SecretProviderCapabilities>;
+}
+
+/**
+ * 값 바이트를 JSON 문자열 리터럴 바이트로 바꾼다(`sops set`의 값은 JSON 인코딩 문자열이어야 한다).
+ * JS 문자열을 거치지 않고 바이트에서 바로 만든다. 입력이 UTF-8이면 결과도 UTF-8이다.
+ */
+export function jsonStringBytes(value: Uint8Array): Uint8Array {
+  const out: number[] = [0x22];
+  for (const byte of value) {
+    if (byte === 0x22 || byte === 0x5c) out.push(0x5c, byte);
+    else if (byte < 0x20)
+      out.push(...new TextEncoder().encode(`\\u${byte.toString(16).padStart(4, "0")}`));
+    else out.push(byte);
+  }
+  out.push(0x22);
+  return Uint8Array.from(out);
+}
 
 function missing(): SecretError {
   return { kind: "secret_missing", handle: PROVIDER_PLACEHOLDER_HANDLE, where: "provider" };
@@ -251,7 +270,9 @@ function classifyFailure(
   };
 }
 
-export function createSopsProvider(deps: SopsProviderDeps): SecretProvider {
+export function createSopsProvider(deps: SopsProviderDeps): SopsProvider {
+  let putSupported = false;
+
   async function readListing(file: SecretsSopsFile): Promise<SopsKeyListing | null> {
     let content: string;
     try {
@@ -268,10 +289,128 @@ export function createSopsProvider(deps: SopsProviderDeps): SecretProvider {
     return parsed.value;
   }
 
+  /** ref("<env>/<KEY>")를 설정된 파일과 sops 인덱스 인자로 풀고, 키가 이미 있는지 본다 */
+  async function locate(
+    ref: string,
+  ): Promise<
+    Result<
+      { readonly file: SecretsSopsFile; readonly index: string; readonly exists: boolean },
+      SecretError
+    >
+  > {
+    const parts = splitRef(ref);
+    if (parts === null) return err(missing());
+    const file = deps.files().find((f) => f.env === parts.env);
+    if (file === undefined) return err(missing());
+    const index = extractArgument(parts.keyPath);
+    if (!index.ok) return err(missing());
+    const listing = await readListing(file);
+    const exists = listing !== null && listing.keys.includes(parts.keyPath);
+    return ok({ file, index: index.value, exists });
+  }
+
+  async function prepare(): Promise<
+    Result<
+      {
+        readonly binary: string;
+        readonly env: Record<string, string>;
+        readonly keyId: KeyProviderIdPublic;
+      },
+      SecretError
+    >
+  > {
+    const binary = await deps.binary();
+    if (!binary.ok) return binary;
+    const key = await deps.key();
+    if (!key.ok) return key;
+    return ok({
+      binary: binary.value.path,
+      env: buildSopsEnv(deps.parentEnv, key.value.env),
+      keyId: key.value.id,
+    });
+  }
+
+  function settle(
+    run: Awaited<ReturnType<ProcessRunner>>,
+    keyId: KeyProviderIdPublic,
+  ): Result<void, SecretError> {
+    if (!run.ok) {
+      return err(
+        run.error.kind === "cancelled" ? { kind: "cancelled" } : unavailable("binary_missing"),
+      );
+    }
+    if (run.value.exitCode !== 0) {
+      return err(classifyFailure(run.value.stderr, keyId, run.value.exitCode, deps.redactor));
+    }
+    return ok(undefined);
+  }
+
+  async function refresh(): Promise<SecretProviderCapabilities> {
+    const binary = await deps.binary();
+    if (binary.ok) {
+      const help = await deps.runner({
+        argv: [binary.value.path, "set", "--help"],
+        env: buildPlainEnv(deps.parentEnv),
+        timeoutMs: DEFAULT_TIMEOUT_MS,
+        signal: deps.signal,
+      });
+      const text = help.ok
+        ? `${new TextDecoder().decode(help.value.stdout)}${help.value.stderr}`
+        : "";
+      putSupported = text.includes(VALUE_STDIN_FLAG);
+    } else {
+      putSupported = false;
+    }
+    return { list: true, put: putSupported, remove: true, usage: false };
+  }
+
   return {
     id: "sops",
     capabilities(): SecretProviderCapabilities {
-      return CAPABILITIES;
+      return { list: true, put: putSupported, remove: true, usage: false };
+    },
+    refreshCapabilities: refresh,
+    async put(ref: string, value: Uint8Array): Promise<Result<void, SecretError>> {
+      const target = await locate(ref);
+      if (!target.ok) return target;
+      const caps = await refresh();
+      if (!caps.put) return err({ kind: "read_only_provider", provider: "sops" });
+      const prepared = await prepare();
+      if (!prepared.ok) return prepared;
+      const stdin = jsonStringBytes(value);
+      try {
+        // 값은 stdin으로만 보낸다. argv에는 파일 경로와 키 이름만 들어간다
+        const run = await deps.runner({
+          argv: [
+            prepared.value.binary,
+            "set",
+            VALUE_STDIN_FLAG,
+            target.value.file.path,
+            target.value.index,
+          ],
+          env: prepared.value.env,
+          timeoutMs: DEFAULT_TIMEOUT_MS,
+          signal: deps.signal,
+          stdin,
+        });
+        return settle(run, prepared.value.keyId);
+      } finally {
+        stdin.fill(0);
+      }
+    },
+    async remove(ref: string): Promise<Result<void, SecretError>> {
+      const target = await locate(ref);
+      if (!target.ok) return target;
+      if (!target.value.exists) return err(missing());
+      const prepared = await prepare();
+      if (!prepared.ok) return prepared;
+      const run = await deps.runner({
+        argv: [prepared.value.binary, "unset", target.value.file.path, target.value.index],
+        env: prepared.value.env,
+        timeoutMs: DEFAULT_TIMEOUT_MS,
+        signal: deps.signal,
+      });
+      return settle(run, prepared.value.keyId);
     },
     async list(): Promise<Result<readonly ProviderEntry[], SecretError>> {
       const files = deps.files();

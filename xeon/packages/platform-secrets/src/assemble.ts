@@ -1,9 +1,17 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { LocalIdFactory } from "@xeon/contracts/conversation";
-import type { OsService, SecretDiagnostics, SecretError } from "@xeon/contracts/services";
+import type {
+  OsService,
+  SecretAdminService,
+  SecretDiagnostics,
+  SecretError,
+} from "@xeon/contracts/services";
+import type { SecretHandle } from "@xeon/contracts/capabilities";
 import { err, ok, type Result } from "@xeon/contracts";
 import { META_SUBDIR, SECRETS_SUBDIR, type SecretsConfig } from "./config.ts";
+import { bunInheritRunner, createSecretAdminService, type ChildRunner } from "./admin.ts";
+import { createAuditLog } from "./audit-file.ts";
 import { createMetaStore } from "./meta.ts";
 import { computeProtectedPaths, defaultAgeKeyPath } from "./protected-paths.ts";
 import { createRedactor } from "./redactor.ts";
@@ -34,9 +42,25 @@ export interface SecretsRuntimeDeps {
   readonly env: Readonly<Record<string, string | undefined>>;
   /** 주입 실행기. 없으면 Bun.spawn을 쓴다 */
   readonly runner?: ProcessRunner;
+  /** secret run 자식 실행기. 없으면 stdio를 터미널에 잇는 Bun.spawn을 쓴다 */
+  readonly childRunner?: ChildRunner;
+  /** OS 인증 재확인을 쓸 수 있는가(reveal). L4·L0.os 연결 전에는 없음(false)이라 tty-confirm만 받는다 */
+  readonly osAuthAvailable?: () => boolean;
+  /** 핸들을 값으로 가진 설정 키 조회. 설정 저장소는 이 층 밖이라 조립 루트가 넘긴다 */
+  readonly settingKeysFor?: (handle: SecretHandle) => Promise<readonly string[]>;
+}
+
+export interface SecretsRuntime {
+  readonly service: SecretServiceRuntime;
+  /** 사람 전용. 조립 루트가 L4 진입점에만 넘기고 확장과 모델 도구에는 주지 않는다 */
+  readonly admin: SecretAdminService;
 }
 
 export function createSecretService(deps: SecretsRuntimeDeps): SecretServiceRuntime {
+  return createSecretsRuntime(deps).service;
+}
+
+export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
   const { os } = deps;
   const logger = os.logger("secrets");
   const runner = deps.runner ?? bunRunner;
@@ -117,12 +141,21 @@ export function createSecretService(deps: SecretsRuntimeDeps): SecretServiceRunt
     };
   }
 
+  const metaStore = createMetaStore(join(configDir, SECRETS_SUBDIR, META_SUBDIR));
+  const auditLog = createAuditLog({
+    configDir,
+    clock: os.time.clock,
+    logger,
+    retentionDays: () => deps.config().audit.retentionDays,
+  });
+
   const core = createSecretServiceCore({
     clock: os.time.clock,
     scheduler: os.time.scheduler,
     logger,
     limits: () => deps.config().lease,
-    meta: createMetaStore(join(configDir, SECRETS_SUBDIR, META_SUBDIR)),
+    meta: metaStore,
+    auditLog,
     providers: [sops],
     redactor,
     protectedPaths: () => {
@@ -139,11 +172,23 @@ export function createSecretService(deps: SecretsRuntimeDeps): SecretServiceRunt
     },
     configuredProviders: () => deps.config().providers,
   });
-  return {
+  const service: SecretServiceRuntime = {
     ...core,
     [Symbol.dispose]() {
       lifetime.abort();
       core[Symbol.dispose]();
     },
   };
+  const admin = createSecretAdminService({
+    service,
+    meta: metaStore,
+    auditLog,
+    clock: os.time.clock,
+    logger,
+    osAuthAvailable: deps.osAuthAvailable ?? (() => false),
+    settingKeysFor: deps.settingKeysFor ?? (() => Promise.resolve([])),
+    runChild: deps.childRunner ?? bunInheritRunner,
+    parentEnv: deps.env,
+  });
+  return { service, admin };
 }

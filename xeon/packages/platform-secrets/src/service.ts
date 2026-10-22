@@ -34,8 +34,9 @@ import type {
   UseDecision,
 } from "@xeon/contracts/services";
 import { approvedRecord, createAuditBus, deniedRecord, maskedRecord, usedRecord } from "./audit.ts";
+import type { AuditLog } from "./audit-file.ts";
 import { assembleDiagnostics, providerRow } from "./diagnose.ts";
-import { deniedError } from "./errors.ts";
+import { auditUnavailable, deniedError } from "./errors.ts";
 import { wrapLease } from "./lease.ts";
 import type { MetaStore } from "./meta.ts";
 import { evaluatePolicy, isMetaExpired, isMetaExpiring, type PolicyOutcome } from "./policy.ts";
@@ -65,12 +66,23 @@ export interface SecretServiceCoreDeps {
   readonly diagnoseParts: () => Promise<DiagnoseParts>;
   /** l0.secrets.providers */
   readonly configuredProviders: () => readonly SecretProviderId[];
+  /** 감사 파일(마일스톤 M2). 없으면 onAudit 배포만 한다 */
+  readonly auditLog?: AuditLog;
 }
 
 export interface SecretServiceRuntime extends SecretService, Disposable {
   /** 핸들의 활성 lease를 모두 닫고 개수를 돌려준다(rotate·rm, 마일스톤 M2 관리 서비스가 쓴다) */
   revokeLeases(handle: SecretHandle): number;
   activeLeaseCount(handle: SecretHandle): number;
+  /** 등록된 제공자(내장 + registerProvider). 관리 서비스가 put·remove·lease에 쓴다 */
+  providerFor(id: SecretProviderId): SecretProvider | undefined;
+  /**
+   * 사람이 직접 하는 사용(`secret run`)의 lease. 사용 정책(모드, 도구, 대상, 승인)은 사람이 명령을 입력한 것으로 대신하고
+   * 만료만 본다. 값 등록과 `secret.used` 감사는 일반 lease와 같다.
+   */
+  leaseAsHuman(handle: SecretHandle, ctx: UseCtx): Promise<Result<SecretLease, SecretError>>;
+  /** 관리 레코드를 onAudit 수신자에게 배포하고 감사 파일에 fsync한다. 파일에 못 쓰면 오류다 */
+  recordAdmin(record: SecretAuditRecord): Promise<Result<void, SecretError>>;
 }
 
 interface Authorized {
@@ -164,6 +176,7 @@ export function createSecretServiceCore(deps: SecretServiceCoreDeps): SecretServ
   function emit(record: SecretAuditRecord): void {
     if (record.type === "secret.used") usedAt.set(record.handle, record.at);
     bus.emit(record);
+    deps.auditLog?.record(record);
   }
 
   function activeLeases(handle: SecretHandle): SecretLease[] {
@@ -494,25 +507,22 @@ export function createSecretServiceCore(deps: SecretServiceCoreDeps): SecretServ
       return ok({ response, echoed });
     },
 
-    withBrowserInput<T>(
+    async withBrowserInput<T>(
       handle: SecretHandle,
       origin: string,
       ctx: Omit<UseCtx, "mode" | "target">,
       fill: (value: SecretValueView) => Promise<T>,
     ): Promise<Result<T, SecretError>> {
-      // 사용 모드 browser-input은 마일스톤 M2다(SC-17). 그때까지는 모든 요청을 거부한다
-      void origin;
-      void fill;
-      emit(
-        deniedRecord({
-          handle,
-          mode: "browser-input",
-          reason: "mode_not_allowed",
-          ctx,
-          at: clock.now(),
-        }),
-      );
-      return Promise.resolve(err(deniedError(handle, "mode_not_allowed")));
+      // 사용 모드 M4(spec §4.3): origin이 use.origins와 정확히 같을 때만 fill 콜백에 값을 준다.
+      // 값은 콜백 안에서만 보이고 콜백이 끝나면 0으로 덮인다. lease는 이 호출 하나에 쓰고 닫는다
+      const full: UseCtx = { ...ctx, mode: "browser-input", target: { kind: "origin", origin } };
+      const opened = await service.lease(handle, full);
+      if (!opened.ok) return opened;
+      try {
+        return await opened.value.use(fill);
+      } finally {
+        opened.value.dispose();
+      }
     },
 
     protectedPaths: deps.protectedPaths,
@@ -557,6 +567,30 @@ export function createSecretServiceCore(deps: SecretServiceCoreDeps): SecretServ
 
     activeLeaseCount(handle) {
       return activeLeases(handle).length;
+    },
+
+    providerFor(id) {
+      return providers.get(id);
+    },
+
+    async leaseAsHuman(handle, ctx) {
+      const loaded = await loadMeta(handle);
+      if (!loaded.ok) return loaded;
+      const { name, meta } = loaded.value;
+      if (isMetaExpired(meta, clock.now())) {
+        emit(deniedRecord({ handle, mode: ctx.mode, reason: "expired", ctx, at: clock.now() }));
+        return err(deniedError(handle, "expired"));
+      }
+      return openLease({ handle, name, meta, evidence: null }, ctx);
+    },
+
+    async recordAdmin(record) {
+      if (record.type === "secret.used") usedAt.set(record.handle, record.at);
+      bus.emit(record);
+      if (deps.auditLog === undefined) return ok(undefined);
+      const written = await deps.auditLog.appendDurable(record);
+      if (written.ok) return written;
+      return err(auditUnavailable(written.error.path, written.error.code));
     },
 
     [Symbol.dispose]() {
