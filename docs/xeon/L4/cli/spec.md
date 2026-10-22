@@ -265,7 +265,7 @@ export interface EngineHandle {
   readonly transport: TransportKind;                            // "in-process" | "socket"
   readonly storeId: string;                                     // host.hello 결과의 storeId
   readonly paths: { readonly cliStateFile: string };            // CLI 상태 파일 위치. @xeon/host resolveHostStatePaths(L4.host-service.spec §3.3.6)
-  /** in-process면 InProcessHost.close()(HS-31), socket이면 HostConnection.close()만 한다.
+  /** in-process면 InProcessHost.close()(HS-31), socket이면 HostConnection.close()만 한다. in-process에서는 close()가 돌려준 "clean" | "deadline"을 그대로 돌려준다.
    *  체크포인트 시한은 l0.process.shutdown.timeoutMs다(L0.process.spec §6, L4.host-service.spec §3.3.5). */
   shutdown(reason: "user" | "signal"): Promise<"clean" | "deadline">;
 }

@@ -384,8 +384,11 @@ export function selectExecPlatform(input: {
   readonly platform: string;                                     // process.platform
   readonly env: Readonly<Record<string, string | undefined>>;     // process.env 읽기 전용 사본(WSL_DISTRO_NAME)
   readonly procVersion: string | undefined;                       // linux만 /proc/version 내용
+  readonly logger?: Logger;                                       // win32 provider가 taskkill을 띄우지 못했을 때 기록한다(exec.kill_tree_spawn_failed)
 }): Result<ExecPlatformProvider, ExecSelectError>;
 ```
+
+- win32 provider의 `killProcessTree`는 `taskkill`을 분리 실행하고 기다리지 않는다. 실행 자체가 실패하면(`spawn`이 던지거나 `error` 이벤트가 오면) 삼키지 않고 `logger`가 있으면 `warn("exec.kill_tree_spawn_failed")`로 남긴다(`eng.typescript.guide` TY-25). `detectExecPlatform(logger?)`가 조립 루트의 로거를 넘긴다.
 
 - 구현 파일: `src/providers/darwin.ts`, `src/providers/linux.ts`(WSL은 `wsl: true` 변종), `src/providers/win32.ts`.
 - `select.ts`는 `"darwin" | "linux" | "win32"` 밖의 값(`freebsd`, `android` 등)을 `err({ kind: "unsupported_platform" })`로 돌려준다(DR-13 열린 외부 값 규칙, TY-14). 원본은 `android`를 linux처럼 다룬다(`node-watch.ts:415, 512`). Xeon은 android를 지원 목록에 넣지 않는다 [제안].

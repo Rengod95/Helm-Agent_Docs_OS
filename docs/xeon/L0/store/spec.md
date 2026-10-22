@@ -263,7 +263,8 @@ export type ExtensionTableError =
   | { readonly kind: "ext_id_invalid"; readonly name: string; readonly reason: "pattern" | "reserved" }
   | { readonly kind: "table_not_owned"; readonly name: string; readonly table: string }
   | { readonly kind: "busy" }
-  | { readonly kind: "disk_full" };
+  | { readonly kind: "disk_full" }
+  | { readonly kind: "io"; readonly code: string };
 
 export interface ExtensionTables {
   /** name은 F ExtensionName(하이픈 허용). sys_prefixes에 owner "ext.<name>"과 접두 x_<하이픈→밑줄>_를 등록한다. 이미 있으면 ok */
@@ -581,7 +582,7 @@ macOS `fullfsync` [제안]:
 | `SQLITE_BUSY`, `SQLITE_BUSY_*`, `SQLITE_LOCKED` | `err({ kind: "busy" })` |
 | `SQLITE_FULL` | `err({ kind: "disk_full" })` |
 | `SQLITE_IOERR*`, `SQLITE_READONLY*`, `SQLITE_CANTOPEN` | `err({ kind: "io", code })` |
-| `SQLITE_CORRUPT`, `SQLITE_NOTADB` | `Bug(store.corrupt)`. 열기 중이면 `StoreOpenError` `corrupt` |
+| `SQLITE_CORRUPT*`, `SQLITE_NOTADB` | `err({ kind: "io", code })`. 손상은 코드나 설정이 올바라도 생기는 예상 가능한 실패라 `Bug`가 아니다(`eng.typescript.guide` TY-24). 열기 중이면 `StoreOpenError` `corrupt` |
 | `SQLITE_CONSTRAINT*`, `SQLITE_ERROR`(SQL 오류) | 콜백 예외로 보고 그대로 다시 던진다(호출자 버그) |
 | 콜백이 던진 값 | 롤백 후 그대로 다시 던진다 |
 

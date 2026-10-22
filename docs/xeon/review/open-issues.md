@@ -54,12 +54,12 @@ binds: []
 
 | 번호 | 항목 | 어디 | 제안 처리 | 상태 |
 |---|---|---|---|---|
-| V-01 | `as` 단언이 TY-06 허용 위치 밖에 있고 주석 형식도 다릅니다. 린트 규칙이 없습니다. | contracts validate.ts·kinds.ts·jsonschema.ts·defs/workspace.ts, platform-os binaries/resolve.ts, apps/host main.ts, secrets redactor.ts | 주석 형식을 맞추고 `.oxlintrc.json`에 `consistent-type-assertions`를 더합니다. `maskDeep` 예외는 TY-06에 적습니다. | 열림 |
+| V-01 | `as` 단언이 TY-06 허용 위치 밖에 있고 주석 형식도 다릅니다. 린트 규칙이 없습니다. | contracts validate.ts·kinds.ts·jsonschema.ts·defs/workspace.ts, platform-os binaries/resolve.ts, apps/host main.ts, secrets redactor.ts | `.oxlintrc.json`에 `consistent-type-assertions`(never), `no-unsafe-type-assertion` 외 3.1.1절 규칙 전부를 넣고 위반 64곳을 고쳤습니다. 남은 단언 26줄은 TY-06 허용 목록 A2~A6 위치뿐이고 스캔 `xeon/as-location`이 검사합니다. `maskDeep`은 A4입니다. | 해결(9ae5807) |
 | V-02 | 전역 시각과 sleep을 직접 씁니다. | apps/cli/src/runtime.ts:147, apps/cli/test/chat.scenario.test.ts:294 | 시계는 platform-os 값으로 받고, 테스트는 settle 알림을 기다립니다. | 열림 |
-| V-03 | 예상 가능한 실패를 Bug로 던집니다. | core-persistence writer.ts, platform-os dirs.ts, core-tasks enqueue, F wire 오류 kind | StoreError `io`, DirsError `cancelled`, wire 오류 kind를 더합니다. | 열림 |
-| V-04 | 오류를 삼키거나 취소 신호가 전달되지 않습니다. | platform-exec win32.ts:19, host handlers/events.ts:189, platform-secrets sops runner, ExtHost.install, InProcessHost.close | 실패 로그, 구독 종료 알림, 취소 신호 전달, close 시한 결과를 정합니다. | 열림 |
+| V-03 | 예상 가능한 실패를 Bug로 던집니다. | core-persistence writer.ts, platform-os dirs.ts, core-tasks enqueue, F wire 오류 kind | `StoreError{io}`, `DirsError{cancelled}`, `ExtensionTableError{io}`, `EnqueueError`, `ModeChangeResult{tools.commit_failed}`, `SecretError{cancelled}`, wire `store.busy`·`store.diskFull`·`store.readOnly`·`store.io`(5003~5006)를 더하고 해당 `Bug`를 오류 값으로 바꿨습니다. platform-store의 손상(`SQLITE_CORRUPT*`)은 `io`로 돌려줍니다. 읽기 API와 플랫폼 시작 실패는 N-08, N-09입니다. | 일부 해결(9ae5807) |
+| V-04 | 오류를 삼키거나 취소 신호가 전달되지 않습니다. | platform-exec win32.ts:19, host handlers/events.ts:189, platform-secrets sops runner, ExtHost.install, InProcessHost.close | win32 `taskkill` 실행 실패를 Logger로 기록하고, 재전송 실패 때 `events.ended` 알림을 보내며, sops 호출과 바이너리 해석이 서비스 수명 신호를 받고(`SecretError{cancelled}`), `ExtHost.install(unit, { signal })`이 엔트리 대기를 중단하고, `InProcessHost.close()`가 `"clean" \| "deadline"`을 돌려줍니다. 남은 `.catch(() => undefined)` 35곳은 `attempt`/`detach`로 바꿨고 스캔 `xeon/catch-swallow`가 막습니다. 포크 코드의 정리 단계는 N-10입니다. | 해결(9ae5807) |
 | V-05 | 낮은 등급 리뷰 지적이 남았습니다. | ext-host state.ts:301, core-loop commits.ts:59 대 core-tools effects.ts:34, core-persistence emitVolatile, core-tools pipeline.ts:296, core-loop agent-wrapper.ts:650 | toolResult 키 통일은 U-13 보완 1(F `commitKeyPart` 하나)로 문서를 정했습니다. toolResult 키 통일은 `commitKeyPart` 구현으로 닫았습니다(1ef0764). 나머지(fingerprintSource, emitVolatile 검사, `itemId`, `committed`)는 열려 있습니다. | 일부 해결(1ef0764) |
-| V-06 | 주석이 사물을 사람처럼 씁니다. | apps/cli commands/chat.ts:164 외 | 서술형으로 바꿔 씁니다. | 열림 |
+| V-06 | 주석이 사물을 사람처럼 씁니다. | apps/cli commands/chat.ts:164 외 | 서술형으로 바꿨습니다(chat.ts 외 17곳. 코드나 자료에 "스스로", "모른다", "알려 준다" 같은 서술을 쓰던 주석). | 해결(9ae5807) |
 | V-07 | F `describeSandboxStatus`가 spec과 다릅니다(disabled일 때 warn 대 critical). | contracts/src/services/sandbox.ts, L0.sandbox.spec §4.6·§9-6 | 코드를 spec대로 warn으로 고쳤습니다. 설정으로 끈 상태는 `onUnavailable`과 무관하게 warn입니다. | 해결(1ef0764) |
 | V-08 | M1에 계획보다 많이 넣었거나 바꿨습니다. | p_approvals·p_blob_refs 투영, print 모드 approval deny, ToolRunDrafts, args 192 KiB | L1.persistence.plan, L4.cli.spec C11, F.capabilities, L1.tools §4.4에 반영합니다. | 열림 |
 | V-09 | host가 X 로더를 쓰지 않고 `ExtHost.install`을 직접 부릅니다. | apps/host/src/assembly/extensions.ts, X.loading-trust | 로더 의존 순서 지원 또는 `reservedExtensionSettings` 공개, 동명 extraPlugin 규칙을 정합니다. | 열림 |
@@ -96,13 +96,17 @@ binds: []
 | N-02 | Cordis provider가 재시작되면 scope를 곧바로 다시 적용합니다. 적용 시점은 단계 경계여야 합니다(U-01). | ext-host Cordis 연결, X.primitives §10 | U-01의 예외로 둘지, 재적용 요청만 기록하고 다음 경계에서 적용할지 정합니다. X.primitives §10의 같은 미결에 이 항목을 연결했습니다. | 열림 |
 | N-03 | 복구 뒤 `loop.run_rejected`(tasks.scope_settled)가 로그에 남습니다(V-10). | core-loop 재개 경로 | 닫힌 turn을 다시 돌리는 호출을 찾아 막고 로그에서 사라지는지 확인합니다. 자체 루프 작업(ADR-0009)과 함께 봅니다. | 열림 |
 | N-04 | DR-07 소유 표의 `Bun.spawn` 소유 패키지는 다섯 곳(platform-exec, process, sandbox, secrets, os)인데 `platform-store`의 테스트 보조 파일(`test/support/child.ts`, `spawn.ts`)도 자식 프로세스를 띄웁니다. | eng.dependency-rules DR-07 표와 4절 | 문서 4절 문장("platform-* 패키지는 원래 소유자")을 따라 `check-layers`는 모든 `platform-*`의 테스트 파일을 허용합니다. 표와 문장을 하나로 맞춥니다. | 열림 |
-| N-05 | `InputQueuePort.enqueue`에 오류 통로가 없어 닫힌 thread 같은 예상 가능한 거부를 `Bug`로 던집니다(TY-24). | core-tasks `enqueuePost`, contracts `extensions/ports.ts` | 포트가 `Result`를 돌려주게 하고 ext-host `post`가 그 오류를 `PrimitiveError`로 옮깁니다. | 열림 |
+| N-05 | `InputQueuePort.enqueue`에 오류 통로가 없어 닫힌 thread 같은 예상 가능한 거부를 `Bug`로 던집니다(TY-24). | core-tasks `enqueuePost`, contracts `extensions/ports.ts` | 포트가 `Result<EnqueueResult, EnqueueError>`를 돌려주게 하고 ext-host `post`가 그 오류를 `TypeError`·`PrimitiveError`로 옮깁니다(`X.primitives.spec` §4.7). | 해결(9ae5807) |
 | N-06 | `l3.helm.*` 가운데 `driveLimits`만 선언했습니다. `autoStart`, `maxLenses`, `writeGuard`는 Helm 구현(L3.helm.plan)에서 더합니다. | group-helm/src/settings.ts, L3.helm.spec §6 | Helm 탐구 구현 작업에서 나머지 세 키와 `HelmSettings` 읽기 타입을 더합니다. | 열림 |
 | N-07 | 승인 키(`requestKeyFor`)와 서비스 호출 멱등 키(`requestIdFor`)가 toolCallId를 따로 줄입니다. 커밋 키가 아니라 `commitKeyPart` 대상은 아닙니다. | core-tools approvals/protocol.ts, entries.ts | 두 키의 길이 한도(48자, 64자)가 달라 그대로 둡니다. 한 함수로 합칠지 M2 승인 프로토콜 작업(H18)에서 정합니다. | 열림 |
+| N-08 | 읽기 API가 값을 바로 돌려줘 읽기 연결의 `busy`와 손상 행이 `Bug`로 올라갑니다(TY-24). | core-persistence `store.read_failed`(read.ts, subscribe.ts), `store.row_invalid`(views.ts, rows.ts, requests.ts 외), platform-store `store.row_invalid`, ext-host `ext_storage.row_corrupt` | 읽기 API를 `Result`로 바꾸는 설계를 정합니다. 호출 쪽이 많아 M2 persistence 작업(PS-16)과 함께 봅니다. | 열림 |
+| N-09 | 플랫폼 모듈 시작 실패(`platform-os failed to start`, `core-persistence could not start`)가 `PlatformModule.setup`의 던지는 계약 때문에 `Bug`입니다. | platform-os `platformOsPlugin`, core-persistence plugin.ts, X.primitives.spec `registerPlatform` | `setup`이 `Result`를 돌려주게 하거나 시작 실패 전용 오류 클래스를 정합니다. | 열림 |
+| N-10 | 포크 코드의 정리 단계 `close` 실패와 감시 콜백 예외가 Logger 없이 결과만 받고 버려집니다(TY-25). | platform-exec `src/upstream/env/node.ts`(`closeBestEffort`), `node-watch.ts`(`#deliver`), PATCHES.md P14 | 포크 환경 옵션에 Logger를 더해 기록합니다. | 열림 |
+| N-11 | `.oxlintrc.json`에 아직 넣지 않은 TY 규칙입니다: `typescript/explicit-module-boundary-types`, `typescript/prefer-readonly`, `unicorn/no-static-only-class`, TY-21의 `no-restricted-properties`. | eng.typescript.guide 3.1절 | 위반 수를 세고 고친 뒤 켭니다. V-02(전역 시각, sleep)가 TY-21 위반의 일부입니다. | 열림 |
 
 ## 8. 처리 순서 제안
 
 1. `review.decisions-2` §5 구현 후속(U-05, U-12, U-13, B-04~B-07)은 1ef0764에서 처리했습니다(U-19는 M2 H18). 자체 루프(ADR-0009)와 겹치는 core-loop 변경은 그 작업과 순서를 맞춥니다.
 2. 문서 정정 D-03~D-14를 처리합니다.
-3. 편차 중 린트로 잡을 수 있는 것(V-01, V-02, V-06)은 규칙을 더한 뒤 고칩니다.
+3. 편차 중 린트로 잡을 수 있는 것은 규칙을 더한 뒤 고칩니다. V-01, V-06은 끝났고 V-02는 N-11(TY-21 규칙)과 함께 남았습니다.
 4. 환경 E-03(depcruise 동작)을 확인한 뒤 M2의 M-01(PS-16)부터 시작합니다.

@@ -386,6 +386,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | 2 | 린트 | `just lint` | `oxlint --type-aware --deny-warnings -c .oxlintrc.json` (scripts + 패키지별 turbo) | `파일:행:열`과 규칙 이름이 나온다. 그 줄을 고친다. 메시지가 `DR-NN`으로 시작하면 `eng.dependency-rules.guide`의 해당 규칙을 본다 | 30초 | 1: 위반, 2: tsgolint 시작 실패 |
 | 3 | 타입 | `just typecheck` | `tsc -b scripts` + 패키지별 `tsc -b`(turbo, `dependsOn: ["^typecheck"]`) | `파일(행,열): error TSnnnn`이 나온다. 참조 순환 오류는 DR-06, 해석 실패는 DR-04·DR-05 | 60초(첫 실행), 15초(증분) | 1 |
 | 4 | 층 | `just check-layers` | `bun scripts/check-layers.ts` | `파일:행 DR-NN 설명`. 규칙 ID의 좋은 예를 따른다 | 3초 | 1: 위반, 2: 파일을 읽을 수 없음 |
+| 4a | TS 규칙 | `just check-ts-rules` | `bun scripts/check-ts-rules.ts` | `파일:행 xeon/규칙 설명`. 단언은 허용 목록 위치로 옮기거나 `attempt` 같은 도구로 바꾸고, `Bug`는 오류 값으로 바꾼다(`eng.typescript.guide` 3.2절) | 2초 | 1: 위반, 2: 소스 트리를 읽을 수 없음 |
 | 5 | 경계 | `just depcruise` | `depcruise packages apps plugins --config .dependency-cruiser.cjs` | 규칙 이름 `DR-NN-...`과 `from → to` 경로가 나온다 | 20초 | 1 |
 | 6 | 미사용 | `just knip` | `knip` | 미사용 파일·export·의존 목록. 지우거나 `knip.json`의 `entry`가 빠졌는지 본다 | 20초 | 1 |
 | 7 | 문서 | `just docs-route --check --allow-missing` | `bun scripts/docs-route.ts --check --allow-missing` | `문서경로: 오류`. 프런트매터, `depends_on`, `binds`를 고친다 | 3초 | 1 |

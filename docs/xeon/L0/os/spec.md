@@ -144,7 +144,8 @@ export type DirsError =
   | { readonly kind: "runtime_path_too_long"; readonly path: string; readonly bytes: number; readonly limit: number }
   | { readonly kind: "not_owned"; readonly path: string }                    // 남이 만든 디렉터리
   | { readonly kind: "permission_too_open"; readonly path: string; readonly mode: number }
-  | { readonly kind: "io"; readonly path: string; readonly code: string };
+  | { readonly kind: "io"; readonly path: string; readonly code: string }
+  | { readonly kind: "cancelled" };                                          // ensureDirs의 signal이 중단됐다. 이미 만든 디렉터리는 그대로 둔다
 ```
 
 ```ts

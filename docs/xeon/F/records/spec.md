@@ -848,6 +848,7 @@ export type ReadOnlyReason = "observer" | "unknown_event_kind" | "newer_event_ve
 export type StoreError =
   | { readonly kind: "busy" }
   | { readonly kind: "disk_full" }
+  | { readonly kind: "io"; readonly code: string }                           // 저장 매체 I/O 실패. code는 OS·SQLite 코드(손상은 SQLITE_CORRUPT*)
   | { readonly kind: "ownership_lost"; readonly threadId: ThreadId }
   | { readonly kind: "read_only"; readonly reason: ReadOnlyReason }
   | { readonly kind: "thread_not_found"; readonly threadId: ThreadId };

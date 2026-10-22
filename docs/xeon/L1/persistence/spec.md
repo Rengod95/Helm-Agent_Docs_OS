@@ -219,6 +219,7 @@ export type CommitResult =
 export type StoreError =
   | { readonly kind: "busy" }
   | { readonly kind: "disk_full" }
+  | { readonly kind: "io"; readonly code: string }                           // 저장 매체 I/O 실패. code는 OS·SQLite 코드(손상은 SQLITE_CORRUPT*)
   | { readonly kind: "ownership_lost"; readonly threadId: ThreadId }
   | { readonly kind: "read_only"; readonly reason: ReadOnlyReason }
   | { readonly kind: "thread_not_found"; readonly threadId: ThreadId };
@@ -381,7 +382,7 @@ export interface SessionService {
 | `ownership_lost` | `{ status: "rejected", code: "lease_lost" }` |
 | `key_reused`, 초안 검증 실패 | `{ status: "rejected", code: "invalid" }`. X 쪽에서는 결함(`Bug`)이다 |
 | `busy` | `{ status: "rejected", code: "busy" }` |
-| `disk_full`, `read_only` | `{ status: "rejected", code: "storage" }` |
+| `disk_full`, `read_only`, `io` | `{ status: "rejected", code: "storage" }` |
 
 - `ext.commit`의 지문: `ExtCommitRequest.fingerprintSource`가 있으면 그 값으로 지문을 만든다. 상태 커밋은 키의 신원 부분만 담으므로 정당한 재실행이 `key_reused`가 되지 않는다(`X.primitives.spec` §4.6.1 지문 규칙).
 - `ext.commit`의 공개 범위 [결정: review.decisions-2 T-21]: `ExtCommitRequest.visibility`가 `"private"`이면(X `ScopeApi.recordPrivate`, `X.primitives.spec` §4.6.5) 그 커밋의 이벤트 행 `events.private_owner`에 행의 소유 확장 이름을 넣는다. 소유 확장은 kind의 둘째 마디(`x.<name>.*`, `grp.<name>.*`의 `<name>`)이고, 낙인한 생산자 `ext.<name>`의 `<name>`과 같아야 한다. 다르면(다른 확장 접두 kind를 비공개로 커밋하면) `rejected(invalid)`다(`F.records.spec` §3.9 비공개 규칙 1). 생략하거나 `"public"`이면 NULL이다. 저장 위치는 `events` 행의 `private_owner` 열 하나이고, envelope 필드와 투영 열은 따로 두지 않는다 [제안]. `visibility`는 지문에 넣는다. 같은 `requestId`로 공개 범위만 바꿔 다시 커밋하면 `key_reused`다 [제안].
@@ -951,7 +952,7 @@ export interface RewindPlan {
 - 같은 키·같은 지문의 재시도는 저장된 `CommitResult`에 `replayed: true`를 붙여 돌려준다. `committed`면 `eventIds`, `firstSeq`, `lastSeq`가 처음과 같다. 이벤트 수는 늘지 않는다.
 - 같은 키·다른 지문은 `key_reused`다. 아무 행도 쓰지 않고 운영 로그에 남긴다.
 - `rejected`도 저장한다. 같은 키로 다시 오면 같은 거부를 `replayed: true`로 돌려준다.
-- 예상 실패(`busy`, `disk_full`, `ownership_lost`, `read_only`)와 Bug는 `requests`에 남지 않는다. 같은 키로 처음부터 다시 처리된다(TX-05).
+- 예상 실패(`busy`, `disk_full`, `io`, `ownership_lost`, `read_only`)와 Bug는 `requests`에 남지 않는다. 같은 키로 처음부터 다시 처리된다(TX-05).
 - 커밋 키 형식: `COMMIT_KEY_PATTERN`(1~200자)만 검사한다. 커밋 키 정본은 `eng.transactions.design` §4.7의 `COMMIT_KEY_PATTERN`이고, scope id의 `/`는 키에 넣을 때 `:`로 바꾼다 [결정: review.decisions-2 U-13]. 옛 `REQUEST_ID_PATTERN`(`<종류>:<부분>`)은 쓰지 않는다.
 - payload의 `requestId`(사용자 입력, `post`, `turn.start`)는 F 규칙(브랜드 없는 1~64자)이다. 커밋 키는 그 값을 감싸 만든다(예: `in:user:<requestId>`). 이 감싸기 규칙은 각 생산 spec이 정한다.
 - 결과는 thread가 지워질 때까지 보관한다.

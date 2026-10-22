@@ -385,7 +385,8 @@ export type ExtensionEntry = (host: {
 import type { TSchema } from "typebox";
 import type { ThreadId, JsonValue, Usage } from "../conversation/index.ts";
 import type { ToolName } from "../capabilities/index.ts";
-import type { ProjectorRegistry, StoreService, RecordCommitPort } from "../records/index.ts";
+import type { ProjectorRegistry, StoreService, RecordCommitPort, StoreError } from "../records/index.ts";
+import type { Result } from "../base/index.ts";
 import type { Unsubscribe, PostItem, PostWhen } from "./ops.ts";
 import type { LeaseId, TurnOutcome, SpawnSpec, SpawnOutcome } from "./drive.ts";
 import type { ScopeId } from "./scope.ts";
@@ -460,9 +461,15 @@ export interface EnqueueRequest {
 export interface EnqueueResult {
   readonly duplicate: boolean;
 }
+/** 입력 큐가 항목을 받지 않은 이유. 저장소 실패와 닫힌 thread는 예상 가능한 거부다(eng.typescript.guide TY-24, review.open-issues N-05) */
+export type EnqueueError =
+  | StoreError
+  | { readonly kind: "invalid_request_id"; readonly requestId: string }
+  | { readonly kind: "mode_not_supported"; readonly mode: string }
+  | { readonly kind: "thread_closed"; readonly threadId: ThreadId };
 export interface InputQueuePort {
-  /** 입력 큐 항목(input.queued, source.type "extension")을 커밋한다. 멱등은 커밋 키가 맡는다(review.decisions-2 U-05) */
-  enqueue(request: EnqueueRequest): Promise<EnqueueResult>;
+  /** 입력 큐 항목(input.queued, source.type "extension")을 커밋한다. 멱등은 커밋 키가 맡는다(review.decisions-2 U-05). 거부는 EnqueueError 값으로 돌려주고 Bug를 던지지 않는다 */
+  enqueue(request: EnqueueRequest): Promise<Result<EnqueueResult, EnqueueError>>;
 }
 export const InputQueuePortKey: PortKey<InputQueuePort>;           // { name: "xeon.tasks" }
 

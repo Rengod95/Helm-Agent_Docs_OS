@@ -460,7 +460,8 @@ export type SecretError =
   | { readonly kind: "in_use"; readonly handle: SecretHandle; readonly activeLeases: number }
   | { readonly kind: "already_exists"; readonly handle: SecretHandle }
   | { readonly kind: "read_only_provider"; readonly provider: SecretProviderId }
-  | { readonly kind: "reauth_required" };
+  | { readonly kind: "reauth_required" }
+  | { readonly kind: "cancelled" };                                  // 서비스가 닫혀 진행 중인 sops 호출·바이너리 해석이 중단됐다
 export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "win32-credential" | "file";
 ```
 
@@ -558,6 +559,8 @@ M2 설계(후속 구현):
 ### 4.6 SOPS 제공자
 
 [결정] sops 바이너리와 age, `SOPS_AGE_KEY_CMD`로 OS 키체인을 쓴다(`_research/foundation-plan.md` §2 비밀 행).
+
+[결정] 취소: `sops`와 바이너리 해석 호출은 서비스 수명 신호를 받는다. 서비스가 닫히면(`Symbol.dispose`) 신호가 중단되어 실행 중인 자식 프로세스를 죽이고 `err({ kind: "cancelled" })`를 돌려준다. `ProcessRunner`의 `RunRequest`가 `signal`을 가지며, 중단으로 끝난 호출의 잘린 출력은 결과로 쓰지 않는다(`eng.typescript.guide` TY-22).
 
 1. 바이너리 해석: `xeon.os`의 `resolveBinary("sops", …)`(`L0.os.spec` §3.6)로 `sops` 경로를 받는다. `l0.secrets.sops.binary`가 있으면 그 경로를 쓴다. 시작 때 `sops --version`으로 버전을 읽고 3.10.0 미만이면 `provider_unavailable`(`version_too_old`)이다. 권장은 3.12.0 이상이다 [미결 §10]. 3.10.x에서는 키 명령이 실패하면 `SOPS_AGE_KEY_FILE`이 유효해도 복호화가 바로 실패한다(`_research/notes/L0-3.md` §2.4).
 2. 목록: 설정 `l0.secrets.sops.files`의 각 파일을 읽어 키 이름을 평문으로 파싱한다. 복호화하지 않고 sops를 부르지도 않는다. YAML·JSON은 최상위 키 가운데 값이 `ENC[` 로 시작하는 문자열인 것, dotenv는 `KEY=ENC[...]` 줄이다. `sops` 메타데이터 블록은 건너뛴다. 중첩 키는 `a.b` 형식 경로로 내보낸다 [제안]. 키 이름이 평문이라는 사실은 2차 자료로만 확인했다 [가정, `_research/secrets.md` §3.1].

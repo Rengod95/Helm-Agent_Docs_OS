@@ -271,7 +271,12 @@ export interface UserShellRequest {
 
 export type ModeChangeResult =
   | { readonly ok: true; readonly mode: PermissionMode }
-  | { readonly ok: false; readonly error: { readonly kind: "tools.mode_forbidden"; readonly mode: PermissionMode } };
+  | {
+      readonly ok: false;
+      readonly error:
+        | { readonly kind: "tools.mode_forbidden"; readonly mode: PermissionMode }
+        | { readonly kind: "tools.commit_failed"; readonly store: StoreError };   // 모드 변경을 세션 설정에 커밋하지 못했다. Bug가 아니다
+    };
 
 export interface RuleRegistration {
   /** validateRules가 찾은 문제. 문제가 있는 규칙은 적재하지 않는다 */

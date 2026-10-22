@@ -357,7 +357,7 @@ import type { StdioTransportOptions, Transport } from "@xeon/contracts/wire";
 export interface InProcessHost {
   readonly client: Transport;                    // kind "in-process". createHostConnection에 넘긴다
   readonly engine: Engine;
-  close(): Promise<void>;                        // 종료 절차(§4.8)를 거쳐 엔진을 닫는다
+  close(): Promise<"clean" | "deadline">;       // 종료 절차(§4.8)를 거쳐 엔진을 닫는다. 진행 중 turn이 시한 안에 멈추지 않았거나 멈추는 호출이 실패했으면 "deadline"
 }
 export declare function startInProcessHost(options?: Omit<AssembleOptions, "mode">): Promise<InProcessHost>;
 
@@ -433,6 +433,7 @@ import type { HostConnection, SocketTransportFactory, Transport } from "@xeon/co
 
 export interface HostConnectionOptions {
   readonly defaultTimeoutMs?: number;            // 없으면 시한 없음
+  readonly onTransportError?: (cause: unknown) => void;   // 응답을 기다리지 않는 전송(취소 알림)이 실패했을 때. 진단용
 }
 /** F의 HostConnection 구현. 요청 id는 연결마다 r1, r2, … 를 쓴다(F wire §3.1). */
 export declare function createHostConnection(transport: Transport, options?: HostConnectionOptions): HostConnection;
@@ -836,6 +837,9 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 | 포트가 요구하는 서비스가 없다(플러그인 누락) | `AssembleError { code: "missingService" }`. 종료코드 1. CLI in-process 경로는 `missingService`, 1이다 |
 | DB를 열 수 없다(권한, 손상, FTS5 없음) | `AssembleError { code: "store" }`. FTS5 검사는 L0.store(TC-11) |
 | 처리기가 알 수 없는 예외를 던진다 | `-32603 "Internal error"`, 원문은 로그에만(HS-08) |
+| 저장소 쓰기가 실패한다(`turn.start` 제출, 열 때 복구, thread 생성, 임대 획득) | `StoreError`·`LeaseError`는 `Bug`로 던지지 않고 `5003 store.busy`, `5004 store.diskFull`, `5005 store.readOnly`, `5006 store.io`로 옮긴다. `ownership_lost`·`lease_lost`는 3002, `thread_not_found`는 3001이다(`apps/host/src/store-error.ts`) |
+| 재전송 읽기가 실패한다 | 로그를 남기고 구독을 지운 뒤 `events.ended { sub, reason: "replayFailed" }` 알림을 보낸다. 클라이언트는 마지막 `to`부터 다시 구독한다 |
+| 서버 응답이 `WIRE_METHODS[m].result` 스키마와 맞지 않는다 | 클라이언트가 `HostClientError("invalidResponse")`로 거부한다. 알림 params가 스키마와 맞지 않으면 핸들러를 부르지 않는다 |
 | `host.hello` 전 `turn.start` | 1001(HS-01) |
 | 재전송 중 커밋 | `pending`에 넣고 재전송 뒤 한 번만 보낸다(HS-11) |
 | 재전송 중 연결 종료 | 읽기를 멈추고 구독을 지운다(HS-04). 클라이언트는 마지막 `to`부터 재구독한다 |

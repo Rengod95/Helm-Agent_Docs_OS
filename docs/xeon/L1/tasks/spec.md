@@ -82,7 +82,7 @@ export const TaskServiceName: "xeon.tasks" = "xeon.tasks";
 
 /**
  * InputQueuePort(X.primitives.spec §3.6)에서 받는 것:
- * - enqueue(request: EnqueueRequest): Promise<EnqueueResult>  확장 post의 진입점(§7). 내부에서 inputs.enqueue를 부른다
+ * - enqueue(request: EnqueueRequest): Promise<Result<EnqueueResult, EnqueueError>>  확장 post의 진입점(§7). 내부에서 inputs.enqueue를 부르고 InputQueueError를 EnqueueError 값으로 그대로 돌려준다
  * 최상위 이름이 겹치지 않으므로 하위 객체로 나누지 않는다(L1.loop.spec §3 머리말의 규칙)
  */
 export interface TaskService extends InputQueuePort {
