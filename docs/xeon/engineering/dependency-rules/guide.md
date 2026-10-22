@@ -297,7 +297,8 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 | `@opentelemetry/api`, `@opentelemetry/sdk-trace-node`, `pi-telemetry` | `platform-os`. F는 `@opentelemetry/api`를 `import type`으로만 쓴다 | packages.md §4.2 L0-f, `L0.os.plan` §4, `F.readme` §1 [결정: review.decisions-2 U-17] |
 | `@modelcontextprotocol/client` | `cap-mcp` | packages.md §4.4 L2-b |
 | `playwright-core` | `cap-web` | packages.md §4.4 L2-c web.browse |
-| `guarded-fetch`, `defuddle`, `turndown` | `cap-web` | packages.md §4.4 L2-c web.fetch |
+| `guarded-fetch`, `defuddle`, `turndown`, `@mozilla/readability`, `linkedom` | `cap-web` | packages.md §4.4 L2-c web.fetch, `L2.web.spec` §4.9.3(변환 모듈이 쓰는 라이브러리). `fetch/convert/**`는 WEB-R16이 추가로 제한한다 |
+| `age-encryption` | `platform-secrets` | `L0.secrets.plan` SC-13(파일 폴백 키 생성) |
 | `cordis`, `@cordisjs/*`, `vendor/cordis` | `ext-host` | DR-11 |
 | `@tauri-apps/*` | `apps/desktop` | foundation-plan §2 데스크톱 행 |
 | `node:*`, `bun:*`, Bun 전역 | F(`contracts`)에서 금지 | 06 R4를 F에 한정해 옮긴다. F는 데스크톱 WebView에서도 import되므로 런타임 중립이어야 한다 [제안] |
@@ -617,10 +618,12 @@ export const MODULE_OWNERS: readonly ModuleOwner[] = [
 export interface SourcePattern {
   readonly pattern: RegExp;
   readonly owners: readonly string[];   // 접두사 일치하는 패키지 디렉터리
-  readonly rule: "DR-07" | "DR-13";
+  readonly rule: "DR-07" | "DR-13" | "WEB-R16";
   readonly message: string;
 }
 ```
+
+- 구현된 `SourcePattern`(`check-layers.ts`)은 `owners` 대신 검사 대상 디렉터리 `dir`을 가진다. 지금 등록된 규칙은 WEB-R16 하나이고 대상은 `packages/cap-web/src/fetch/convert`다. 이 디렉터리의 소스(테스트 제외)에서 `fetch(`·`WebSocket(`·`EventSource(`·`XMLHttpRequest(` 호출, `Bun.` 접근, `new WebSocket`·`new EventSource`·`new XMLHttpRequest`를 찾으면 `WEB-R16`으로 실패한다. import 금지는 oxlint override가 맡는다.
 
 ### 3.2 규칙과 도구 행렬
 
@@ -667,7 +670,7 @@ export interface SourcePattern {
 | R13 | 이벤트 append는 엔진만 | 대체 | DR-07(`bun:sqlite` 소유) + `eng.transactions.design` | 쓰기 경로 규칙은 트랜잭션 문서가 소유한다 |
 | R14 | 데스크톱 앱 안 층(`import/no-restricted-paths`) | 대체 | `L4.desktop.spec`에서 정한다 | oxlint에 `no-restricted-paths`가 없다. 필요하면 `check-layers.ts`에 앱 내부 경로 규칙을 더한다 |
 | R15 | 관찰 프로세스 fs 감싸개 | 폐기 | — | 관찰 프로세스가 없다 |
-| R16 | 웹 변환 작업자 네트워크 금지 | 대체 | `L2.web.spec`에서 정한다 | oxlint `overrides` + `no-restricted-imports`·`no-restricted-globals`(1.89에 있음)로 같은 방식이 가능하다 |
+| R16 | 웹 변환 작업자 네트워크 금지 | 대체 | WEB-R16(`L2.web.spec` §4.9.3) | `.oxlintrc.json`의 `packages/cap-web/src/fetch/convert/**` override(`no-restricted-imports`, `no-restricted-globals`)와 `check-layers.ts`의 `SOURCE_PATTERNS`(`rule: "WEB-R16"`)가 함께 강제한다 |
 
 도구 전제의 번역:
 

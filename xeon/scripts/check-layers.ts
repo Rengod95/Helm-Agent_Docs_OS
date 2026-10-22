@@ -10,6 +10,7 @@
 //   DR-05 no src/dist deep import and no relative import that leaves the package
 //   DR-07 Bun.spawn, Bun.spawnSync and node:child_process: sources of the L0 owner packages only; test files of any platform-*
 //         package and of packages with a `scope: "test"` allowlist entry (review.decisions-2 B-06)
+//   WEB-R16 no network calls, `Bun.` access or socket construction in packages/cap-web/src/fetch/convert (L2.web.spec 4.9.3)
 // Rank: F(0) < X(1) < L0(2) < L1(3) < L2(4) < L3(5) < L4(6). plugins/* count as L1, apps/* as L4, vendor/* is excluded.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
@@ -632,6 +633,71 @@ export function checkAllowlist(
   return violations;
 }
 
+/** A source text pattern that is forbidden inside the files of one directory. */
+export interface SourcePattern {
+  readonly rule: "WEB-R16";
+  /** Directory relative to the xeon root; every source file below it is scanned (tests under test/ are not). */
+  readonly dir: string;
+  readonly pattern: RegExp;
+  readonly message: string;
+}
+
+/** WEB-R16 (L2.web.spec 4.9.3): the conversion modules of cap-web are pure functions without network or runtime access. */
+export const WEB_R16_DIR = "packages/cap-web/src/fetch/convert";
+
+export const SOURCE_PATTERNS: readonly SourcePattern[] = [
+  {
+    rule: "WEB-R16",
+    dir: WEB_R16_DIR,
+    pattern: /\b(?:fetch|WebSocket|EventSource|XMLHttpRequest)\s*\(/g,
+    message:
+      "conversion modules never call the network (fetch, WebSocket, EventSource, XMLHttpRequest)",
+  },
+  {
+    rule: "WEB-R16",
+    dir: WEB_R16_DIR,
+    pattern: /\bBun\./g,
+    message: "conversion modules are pure functions and never touch the Bun runtime API",
+  },
+  {
+    rule: "WEB-R16",
+    dir: WEB_R16_DIR,
+    pattern: /\bnew\s+(?:WebSocket|EventSource|XMLHttpRequest)\b/g,
+    message: "conversion modules never construct network objects",
+  },
+];
+
+/** Lines of `text` that match `pattern`. Comments are ignored; the pattern needs the `g` flag. */
+export function patternLines(text: string, pattern: RegExp): number[] {
+  const code = withoutComments(text);
+  const lines = new Set<number>();
+  for (const match of code.matchAll(pattern)) lines.add(lineAt(code, match.index));
+  return [...lines].toSorted((a, b) => a - b);
+}
+
+/** Source text patterns (WEB-R16). Files under a test directory or named *.test.* are skipped; the lint override covers imports. */
+export function checkSourcePatterns(
+  root: string,
+  patterns: readonly SourcePattern[] = SOURCE_PATTERNS,
+): Violation[] {
+  const violations: Violation[] = [];
+  for (const dir of new Set(patterns.map((item) => item.dir))) {
+    const base = join(root, dir);
+    if (!existsSync(base)) continue;
+    for (const file of new Bun.Glob(SOURCE_GLOB).scanSync({ cwd: base })) {
+      if (SKIP.test(file) || isTestFile(file)) continue;
+      const text = readText(join(base, file));
+      for (const item of patterns) {
+        if (item.dir !== dir) continue;
+        for (const line of patternLines(text, item.pattern)) {
+          violations.push({ rule: item.rule, file: `${dir}/${file}`, line, message: item.message });
+        }
+      }
+    }
+  }
+  return violations;
+}
+
 /** `to` of a DR-07 allowlist entry; one entry covers Bun.spawn, Bun.spawnSync and node:child_process. */
 export const SPAWN_ALLOW_TARGET = "Bun.spawn";
 
@@ -735,6 +801,7 @@ export function checkLayers(
     ...checkReferences(packages),
     ...checkSpawns(packages, entries),
     ...relativeEscapes(root, packages),
+    ...checkSourcePatterns(root),
   ];
   return {
     packages: packages.length,

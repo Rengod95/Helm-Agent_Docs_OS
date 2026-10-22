@@ -12,6 +12,7 @@ import {
   extractSpecifiers,
   formatViolation,
   loadRouteDomains,
+  patternLines,
 } from "./check-layers.ts";
 
 let root = "";
@@ -544,4 +545,39 @@ test("DR-07: allowlist entries need scope test and the Bun.spawn target", () => 
     .join("\n");
   expect(messages).toContain('need scope "test"');
   expect(messages).toContain("cover Bun.spawn only");
+});
+
+const CONVERT = "src/fetch/convert";
+
+test("WEB-R16: network calls, Bun access and socket construction in the convert directory fail", () => {
+  pkg("packages/cap-web", "L2", [], {
+    files: {
+      [`${CONVERT}/a.ts`]: "export const a = await fetch(url);",
+      [`${CONVERT}/nested/b.ts`]: "export const b = Bun.version;",
+      [`${CONVERT}/c.ts`]: "export const c = new WebSocket(url);",
+    },
+  });
+  expect(lines()).toEqual([
+    "packages/cap-web/src/fetch/convert/a.ts:1 WEB-R16 conversion modules never call the network (fetch, WebSocket, EventSource, XMLHttpRequest)",
+    "packages/cap-web/src/fetch/convert/c.ts:1 WEB-R16 conversion modules never call the network (fetch, WebSocket, EventSource, XMLHttpRequest)",
+    "packages/cap-web/src/fetch/convert/c.ts:1 WEB-R16 conversion modules never construct network objects",
+    "packages/cap-web/src/fetch/convert/nested/b.ts:1 WEB-R16 conversion modules are pure functions and never touch the Bun runtime API",
+  ]);
+});
+
+test("WEB-R16: other cap-web directories, comments and test files are not scanned", () => {
+  pkg("packages/cap-web", "L2", [], {
+    files: {
+      "src/fetch/pipeline.ts": "export const a = await fetch(url);",
+      [`${CONVERT}/ok.ts`]: "// fetch(url) is not allowed here\nexport const ok = 1;",
+      [`${CONVERT}/ok.test.ts`]: "export const t = Bun.version;",
+    },
+  });
+  expect(lines()).toEqual([]);
+});
+
+test("patternLines reports each matching line once", () => {
+  expect(
+    patternLines("a\nfetch(x); fetch(y)\n/* fetch(z) */\nrefetch(q)", /\bfetch\s*\(/g),
+  ).toEqual([2]);
 });

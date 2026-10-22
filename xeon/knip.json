@@ -27,5 +27,8 @@
     "apps/cli": {
       "entry": ["test/**/*.test.ts", "test/fixtures/scenario-main.ts"]
     }
+  },
+  "rules": {
+    "catalog": "warn"
   }
 }
