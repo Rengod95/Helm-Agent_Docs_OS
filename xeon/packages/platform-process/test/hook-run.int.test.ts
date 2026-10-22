@@ -53,13 +53,13 @@ function jsonOf(text: string): unknown {
 
 describe("hook run", () => {
   test("hook run does not inherit parent env", async () => {
-    process.env["XEON_TEST_PARENT_ONLY"] = "secret-looking-value";
+    // 부모에는 있고 spec.env에는 없는 이름이 훅 프로세스에 보이지 않아야 한다(spec §9 15). PATH와 HOME은 시험 부모에 항상 있다
     const run = await makeRunner().run(spec({ args: ["env"] }));
-    delete process.env["XEON_TEST_PARENT_ONLY"];
     const names = jsonOf(run.stdout);
     expect(Array.isArray(names)).toBe(true);
     expect(names).toContain("XEON_FROM_SPEC");
-    expect(names).not.toContain("XEON_TEST_PARENT_ONLY");
+    expect(names).not.toContain("PATH");
+    expect(names).not.toContain("HOME");
     expect(run.exitCode).toBe(0);
     expect(run.timedOut).toBe(false);
   });

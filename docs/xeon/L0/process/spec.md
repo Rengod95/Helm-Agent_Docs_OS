@@ -741,7 +741,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 12. 서비스를 SIGKILL하면 접속 중 클라이언트가 정지 상태로 가고, 다음 `ensure`가 재개 후보를 돌려준다.
 13. `platform-process`가 다른 `@xeon/platform-*` 패키지를 import하지 않는다(DR-02).
 14. `ProcessService` 구현 객체가 `ProcessPort`에 대입된다(타입 테스트). `run`은 없는 실행 파일에 대해 거부하지 않고 `spawnError`를 채운 `HookRawRun`을 돌려주고, `maxStdoutChars`보다 긴 출력은 잘리고 `stdoutTruncated: true`이며, `signal` 중단 뒤 프로세스 트리가 남지 않고 `timedOut: true`다(실제 자식 프로세스).
-15. `run`에 넘긴 `env`에 없는 부모 env 변수(예: `XEON_TEST_PARENT_ONLY`)가 훅 프로세스 env에 없다.
+15. `run`에 넘긴 `env`에 없는 부모 env 변수(예: 시험 부모의 `PATH`, `HOME`)가 훅 프로세스 env에 없다.
 
 ## 10. 미결 사항
 

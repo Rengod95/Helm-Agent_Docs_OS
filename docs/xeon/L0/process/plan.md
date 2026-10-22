@@ -174,7 +174,7 @@ xeon/packages/platform-process/
 | `process service satisfies ProcessPort` | `src/service.test.ts` | `ProcessService` 구현 객체가 `ProcessPort`에 대입된다(타입 테스트, spec §9 14) |
 | `hook run reports spawn errors without rejecting` | `hook-run.int.test.ts` | 없는 실행 파일 → `exitCode: null`, `spawnError: "ENOENT"`, Promise 이행 |
 | `hook run truncates output and stops on abort` | `hook-run.int.test.ts` | 상한보다 긴 stdout은 잘리고 `stdoutTruncated: true`. `signal` 중단 뒤 자식·손자가 남지 않고 `timedOut: true` |
-| `hook run does not inherit parent env` | `hook-run.int.test.ts` | 부모에만 있는 `XEON_TEST_PARENT_ONLY`가 훅 env에 없다(spec §9 15) |
+| `hook run does not inherit parent env` | `hook-run.int.test.ts` | 부모에는 있고 `env`에는 없는 `PATH`·`HOME`이 훅 env에 없다(spec §9 15). 시험이 새 환경 변수 이름을 읽으면 `ws check`가 `.env.example` 등록을 요구하므로 부모에 이미 있는 변수를 쓴다 |
 | `lock fallback chooses delegate, observe, fork` | `lock-fallback.test.ts` | 서비스 소유 → `act(delegate)`, 대화형 → `ask[observe, fork]`, 비대화 + 기본 `fork` → `act(fork)`, 명시 `delegate`인데 서비스 없음 → `ask` |
 | `auto resume is off by default and bounded` | `resume-offer.test.ts` | 기본값 `offer`, 서비스 모드 + 켬 → `auto_resume`, 시도 수 상한 도달 → `exhausted`, 다른 프로세스 보유 → `heldBy` 채움 |
 | `settings definitions pass checkSettingDef` | `src/settings.test.ts` | `l0.process.*` 일곱 키 통과 |
