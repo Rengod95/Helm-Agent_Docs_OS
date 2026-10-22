@@ -753,7 +753,7 @@ export const AllowList = Type.Array(AllowEntry);
 ```
 
 - 위 세 항목(DR-02 둘, DR-10 하나)과 테스트 한정 `DR-07/*-test-spawn` 항목이 이 문서가 미리 승인하는 예외의 전부다. `plugins/*`의 같은 층 예외는 두지 않는다([결정: review.decisions-2 U-16]).
-- 테스트 한정 프로세스 실행 [결정: review.decisions-2 B-06]: `scope: "test"`, `rule: "DR-07"`, `to: "Bun.spawn"`(같은 항목이 `Bun.spawnSync`, `node:child_process`도 덮는다) 항목을 미리 승인한다. 대상 패키지는 `apps/cli`(`DR-07/cli-test-spawn`), `packages/core-persistence`(`DR-07/persistence-test-spawn`), `packages/cap-workspace`(`DR-07/workspace-test-spawn`, `test/fork-records.test.ts`), `apps/desktop`(`DR-07/desktop-test-spawn`, `L4.desktop.plan` D1)이다. 위 JSON은 그중 하나만 보인다. L0 소유 패키지(`platform-*`)는 원래 소유자라 항목이 필요 없다. `check-layers.ts`는 `scope: "test"` 항목을 테스트 파일에만 적용하고, 같은 패키지의 `src/**`에서 쓰면 `DR-07`로 실패한다.
+- 테스트 한정 프로세스 실행 [결정: review.decisions-2 B-06]: `scope: "test"`, `rule: "DR-07"`, `to: "Bun.spawn"`(같은 항목이 `Bun.spawnSync`, `node:child_process`도 덮는다) 항목을 미리 승인한다. 대상 패키지는 `apps/cli`(`DR-07/cli-test-spawn`), `packages/core-persistence`(`DR-07/persistence-test-spawn`), `packages/cap-workspace`(`DR-07/workspace-test-spawn`, `test/fork-records.test.ts`), `apps/desktop`(`DR-07/desktop-test-spawn`, `L4.desktop.plan` D1)이다. 위 JSON은 그중 하나만 보인다. L0 소유 패키지(`platform-*`)는 원래 소유자라 항목이 필요 없다. `check-layers.ts`는 `scope: "test"` 항목을 테스트 파일에만 적용하고, 같은 패키지의 `src/**`에서 쓰면 `DR-07`로 실패한다. 검사는 `Bun.spawn`·`Bun.spawnSync` 호출과 `node:child_process` import를 주석을 뺀 소스에서 찾는다. 운영 소스는 소유 표의 다섯 패키지(`platform-exec`, `platform-process`, `platform-sandbox`, `platform-secrets`, `platform-os`)만 쓴다. 테스트 파일은 모든 `platform-*` 패키지와 항목이 있는 패키지만 쓴다(`platform-store` 테스트 보조 파일이 자식 프로세스로 잠금을 시험하기 때문이다) [구현: review.decisions-2 B-06].
 - `TS-NN` 항목은 `eng.testing.guide` TS-05의 `mock.module` 예외를 같은 파일에 기록하는 형식이다. `from`은 테스트 파일이 있는 패키지 디렉터리, `to`는 바꾸는 외부 npm 모듈 지정자다. 미리 승인한 `TS-05` 항목은 없다.
 - 새 항목을 더하는 절차:
   1. 작업자는 항목을 더하지 않고 `[미결]`로 보고한다.
@@ -779,7 +779,6 @@ export const AllowList = Type.Array(AllowEntry);
   - `check-layers.ts`의 출력이 1.2절 형식(DR ID, 행 번호)이 아니다.
   - depcruise 규칙 이름과 oxlint 메시지에 DR ID가 없다.
   - `MODULE_OWNERS`, 허용 목록, `domain` 검사, `references` 검사가 없다.
-  - `Bun.spawn`·`node:child_process` 호출 패턴 검사와 허용 목록 `scope: "test"` 적용이 없다(review.decisions-2 B-06).
   - 컨텍스트 사이 import 검사(DR-14)가 없다. M1에서 `CONTEXTS` 상수와 함께 더한다(`eng.context-map.design` 6절 마일스톤).
 
 ## 6. 미결 사항

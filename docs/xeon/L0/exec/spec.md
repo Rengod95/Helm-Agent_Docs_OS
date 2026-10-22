@@ -226,6 +226,8 @@ export interface ExecService extends ExecutionEnv {
   startBackground(command: string | readonly string[], options: Omit<ShellExecOptions, "timeout" | "spill"> | undefined, context: CancelScope): Promise<Result<BackgroundExecHandle, ExecutionError>>;
   /** 앞에서부터 남기는 출력 절단(포크 truncate.ts의 truncateHead). 순수 계산이고 cwd와 무관하다 [결정: review.decisions-2 D-08] */
   truncateHead(content: string, options?: TruncationOptions): TruncationResult;
+  /** 앞부분(prefix)과 전체 합계로 아는 텍스트의 truncateHead(포크 truncate.ts의 truncateHeadOf). cap-workspace `read`가 파일 전체를 읽지 않고 앞부분만 읽을 때 쓴다 [결정: review.decisions-2 B-04] */
+  truncateHeadOf(prefix: string, totals: { readonly lines: number; readonly bytes: number }, options?: TruncationOptions): TruncationResult;
   /** 바이트 수를 읽기 쉬운 크기 문자열로 바꾼다(포크 truncate.ts의 formatSize) */
   formatSize(bytes: number): string;
 }
@@ -250,7 +252,7 @@ export const ExecServiceName = "xeon.exec" as const;
 - `SandboxRunReport`는 `L0.sandbox.spec` §3.1의 초안이고 F 위치는 `services/sandbox-report.ts`다(`F.capabilities.spec` §3.12). `ShellExecResult`가 그 이름을 참조하므로 두 블록은 같은 F 변경(`F.capabilities.plan` P9)으로 옮긴다.
 - import 방향 [제안]: `sandbox.ts`는 `exec.ts`(`CancelScope`, `Shell`)를 import한다. 그래서 `exec.ts`가 `sandbox.ts`를 import하면 `import/no-cycle`(타입 import 포함)에 걸린다. `SandboxRunReport`와 `SandboxViolation`은 아무것도 import하지 않는 `services/sandbox-report.ts`에 두고, `exec.ts`와 `sandbox.ts`가 둘 다 이 파일을 import한다. 방향은 `sandbox-report.ts` ← `exec.ts` ← `sandbox.ts` 한 방향이다(`L0.store.spec` §3.1의 `sql.ts` 분리와 같은 방식).
 - `SecretRef`는 F `capabilities/secrets.ts`가 정본이고(`F.capabilities.spec` §3.10) settings가 다시 export한다. services(순서 4)는 capabilities를 `import type`으로 쓸 수 있다(`F.readme` §3). `UseCtx`는 같은 서브패스의 `services/secrets.ts`에 있고, 그 파일은 같은 서브패스의 다른 파일을 import하지 않으므로 순환이 없다(`F.capabilities.spec` §3.12 규칙 4).
-- 출력 절단 [결정: review.decisions-2 D-08]: 절단 함수의 유일한 구현은 이 패키지의 포크(`src/upstream/truncate.ts`)다. L1(core-tools 결과 경계화)과 L2(cap-workspace `read`·`bash`)는 `xeon.exec`의 `truncateHead`·`formatSize`로 부르고 사본을 두지 않는다. M1 코드에 남은 사본 두 곳(`cap-workspace/src/truncate`, `apps/host/src/assembly/truncator.ts`)과 core-tools의 `truncator` 주입 옵션은 이 메서드로 바꾸고 지운다. `TruncationResult` 필드는 포크 원본을 옮길 때 원문과 대조해 확정한다.
+- 출력 절단 [결정: review.decisions-2 D-08]: 절단 함수의 유일한 구현은 이 패키지의 포크(`src/upstream/truncate.ts`)다. L1(core-tools 결과 경계화)과 L2(cap-workspace `read`·`bash`)는 `xeon.exec`의 `truncateHead`·`truncateHeadOf`·`formatSize`로 부르고 사본을 두지 않는다. M1 코드에 있던 사본 두 곳(`cap-workspace/src/truncate/upstream`, `apps/host/src/assembly/truncator.ts`)과 core-tools의 `truncator` 주입 옵션은 이 메서드로 바꾸고 지웠다 [결정: review.decisions-2 B-04]. 파생 env(`withCwd`)는 `ExecutionEnv`라 절단 메서드를 갖지 않는다. 절단은 cwd와 무관한 순수 계산이어서 서비스 값에서만 부른다. 포크 패치는 `platform-exec/PATCHES.md` P10~P13이다. `TruncationResult` 필드는 포크 원본을 옮길 때 원문과 대조해 확정한다.
 - [결정: review.decisions-2 D-04] `xeon.exec`의 F 인터페이스는 `ExecService`(`ExecService extends ExecutionEnv`)다. 세션마다 cwd가 다른 공유 서비스 모드(`L0.process.spec`, ADR-0006)에서 파생 env가 필요해 `withCwd`와 `startBackground`를 더했다. `F.capabilities.spec` §3.12 표와 `eng.context-map.design` §5.3 표가 이 이름을 쓴다.
 - [제안] 원본 `Result`, `ok`, `err`는 F 루트(`eng.typescript.guide` §1.2)의 것으로 바꾼다(3.3절 P2). F 계약의 `Result`는 F 루트 타입이다.
 - [제안] `CancelScope`는 원본 모양대로 `AbortSignal | undefined`를 받는다. `eng.typescript.guide` §1.2·TY-22 예시는 `AbortSignal`(undefined 없음)이다. 원본 테스트와 적합성 스위트가 취소 없는 호출을 `{ abortSignal: undefined }`로 표현하므로(`D/src/testing/env-conformance.ts`, `BACKGROUND_CONTEXT`) undefined를 허용한다. 10절 [미결] 1과 함께 정한다.

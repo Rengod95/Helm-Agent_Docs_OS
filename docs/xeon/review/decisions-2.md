@@ -83,7 +83,7 @@ binds: []
 
 ## 5. 구현 후속
 
-문서는 위 결정에 맞췄다. 다음 코드 변경은 구현 작업이 한다.
+문서는 위 결정에 맞췄다. 아래 코드 변경은 커밋 1ef0764에서 처리했다(U-19만 M2 H18로 남는다). U-13의 core-loop 차단 결과 키는 ADR-0009 이후 core-tools가 toolResult를 기록하므로 core-loop에는 없다.
 
 - U-05: core-tasks `input-queue.ts`의 `post.accepted` 동봉을 지우고, contracts 카탈로그 항목에 `retired: true`를 단다. 관련 시험을 고친다.
 - U-12: ext-host `PrimitivesSettingsSource.driveDefaultLimits`와 설정 선언 `x.primitives.driveDefaultLimits`를 더하고 실효 상한 계산을 §4.4.2 규칙으로 바꾼다.

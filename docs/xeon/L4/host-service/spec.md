@@ -492,7 +492,7 @@ export interface HostStatePaths {
 }
 export type HostStatePathError =
   | { readonly kind: "dirs_unavailable"; readonly message: string }     // OsDirs를 정할 수 없음(홈 없음 등)
-  | { readonly kind: "permission"; readonly path: string };            // 디렉터리를 만들거나 쓸 수 없음
+  | { readonly kind: "permission"; readonly path: string; readonly cause: unknown };   // 디렉터리를 만들거나 쓸 수 없음. cause는 원래 오류(삼키지 않는다, TY-25)
 /** 디렉터리를 만들고(0700) 경로를 돌려준다. 예상 가능한 실패는 Result로 돌려준다 */
 export declare function resolveHostStatePaths(options?: {
   /** 테스트 격리용 덮어쓰기. 값이 있으면 cliStateFile로 그대로 쓴다. 운영 경로는 이 값을 넘기지 않는다 */
@@ -500,6 +500,7 @@ export declare function resolveHostStatePaths(options?: {
 }): Promise<Result<HostStatePaths, HostStatePathError>>;
 ```
 
+- 위치 규칙은 L0.os가 정한다: 이 함수는 `@xeon/platform-os`의 `resolveOsDirs`(`L0.os.spec` §3.2)로 `OsDirs.state`를 구하고 `<state>/cli`만 만든다. 자원 디렉터리 인자는 `assemble`과 같은 `hostResourceDir()`(실행 파일 옆)다.
 - `connectEngine`은 이 함수의 결과로 `EngineHandle.paths.cliStateFile`을 채운다. 서비스 모드에서도 CLI 프로세스 쪽에서 부른다. 상태 파일은 CLI 프로세스의 파일이기 때문이다.
 - 환경 변수 `XEON_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남긴다. CLI가 이 값을 읽어 `cliStateFileOverride`로 넘기고, 값이 없으면 기본 경로를 쓴다. M1 코드처럼 환경 변수가 없을 때 상태 파일을 쓰지 않는 동작은 없앤다.
 

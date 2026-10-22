@@ -26,10 +26,10 @@ binds: []
 | B-01 | typebox를 import하는데 package.json에 선언이 없습니다. 설정 선언을 못 만든 패키지도 있습니다. | platform-process, platform-sandbox, core-loop, core-tasks의 package.json. 설정 선언은 platform-store, platform-exec, platform-secrets, core-persistence, core-tools, core-context, core-agents, platform-os | `typebox: catalog:` 선언, `defineSettings` 선언과 호스트 카탈로그 반영. core-agents에 `yaml` 2.9.0과 `./testing` export | 해결(5c59450, 0da6f94) |
 | B-02 | pi 의존이 연결되지 않았고 F가 pi 타입을 복사해 둡니다. | contracts/src/conversation/pi.ts, core-loop, core-models | 5c59450에서 `export type` 재노출과 항등 타입 테스트로 처리했습니다. 이후 사용자 결정으로 pi-agent-core 의존 자체를 없애고 자체 루프로 바꿉니다(`review.decisions-2` B-02, ADR-0009). 그 작업은 다른 정리가 맡습니다. | 해결(5c59450), 후속은 ADR-0009 |
 | B-03 | 서비스 PortKey 상수가 F에 없어 패키지마다 따로 만듭니다. | platform-exec, platform-os, core-context, core-models, core-persistence, core-tools, core-tasks | contracts/services로 모으고 지역 정의를 지웠습니다. | 해결(5c59450, 0da6f94) |
-| B-04 | 출력 절단 함수 위치가 문서마다 다르고 구현 사본이 3곳입니다. | L0.exec.spec §1, L2.workspace.plan, cap-workspace/src/truncate, apps/host/src/assembly/truncator.ts, core-tools `truncator` 옵션 | D-08대로 `platform-exec`에 둡니다. `ExecService.truncateHead`·`formatSize`를 L0.exec.spec에 적고 사본 삭제를 `L0.exec.plan` EX-21로 두었습니다(`review.decisions-2` B-04). | 이번 정리에서 처리(코드 후속) |
-| B-05 | 모델 키를 `runtime-http`로 lease하는데 F 주석과 U-19가 서로 다른 단계를 가리킵니다. | core-models, contracts `SecretUseModeSchema`, L0.secrets.spec §8.3, decisions-2 U-19 | M1부터 모델 provider 키는 `runtime-http`, bash 도구는 `env`입니다. F 주석을 사용 모드 번호와 마일스톤으로 나눠 적고, L0.secrets §8.3 R6과 수용 기준 14번(`policy.test.ts`)을 더했습니다(`review.decisions-2` B-05). | 이번 정리에서 처리(시험 후속) |
-| B-06 | 테스트가 `Bun.spawn`을 쓰는데 허용 결정이 없고 check-layers도 잡지 못합니다. | eng.dependency-rules DR-07, L4.desktop.plan R10, apps/cli/test, core-persistence·cap-workspace 시험 | DR-07에 테스트 한정 행, 허용 목록 `scope: "test"` 필드와 항목을 정했습니다. check-layers 검사는 구현 후속입니다(`review.decisions-2` B-06). | 이번 정리에서 처리(코드 후속) |
-| B-07 | `xeon chat --continue`가 상태 파일 위치를 모릅니다. 지금은 `XEON_CLI_STATE_FILE`만 됩니다. | L4.cli.spec §10-1, apps/host, apps/cli/src/runtime.ts | `@xeon/host` `resolveHostStatePaths()`를 L4.host-service.spec §3.3.6에 두고 H21로 계획했습니다. 환경 변수는 테스트 덮어쓰기로만 남습니다(`review.decisions-2` B-07). | 이번 정리에서 처리(코드 후속) |
+| B-04 | 출력 절단 함수 위치가 문서마다 다르고 구현 사본이 3곳입니다. | L0.exec.spec §1, L2.workspace.plan, cap-workspace/src/truncate, apps/host/src/assembly/truncator.ts, core-tools `truncator` 옵션 | D-08대로 `platform-exec`에 둡니다. `ExecService.truncateHead`·`formatSize`를 L0.exec.spec에 적고 사본 삭제를 `L0.exec.plan` EX-21로 두었습니다(`review.decisions-2` B-04). | 해결(1ef0764) |
+| B-05 | 모델 키를 `runtime-http`로 lease하는데 F 주석과 U-19가 서로 다른 단계를 가리킵니다. | core-models, contracts `SecretUseModeSchema`, L0.secrets.spec §8.3, decisions-2 U-19 | M1부터 모델 provider 키는 `runtime-http`, bash 도구는 `env`입니다. F 주석을 사용 모드 번호와 마일스톤으로 나눠 적고, L0.secrets §8.3 R6과 수용 기준 14번(`policy.test.ts`)을 더했습니다(`review.decisions-2` B-05). 코드 쪽 주석과 정책 시험(`policy.test.ts`, `service.test.ts`)을 더했습니다. | 해결(1ef0764) |
+| B-06 | 테스트가 `Bun.spawn`을 쓰는데 허용 결정이 없고 check-layers도 잡지 못합니다. | eng.dependency-rules DR-07, L4.desktop.plan R10, apps/cli/test, core-persistence·cap-workspace 시험 | DR-07에 테스트 한정 행, 허용 목록 `scope: "test"` 필드와 항목을 정했습니다. check-layers가 `Bun.spawn`, `Bun.spawnSync`, `node:child_process`를 검사하고 허용 목록 네 항목을 적용합니다(`review.decisions-2` B-06). | 해결(1ef0764) |
+| B-07 | `xeon chat --continue`가 상태 파일 위치를 모릅니다. 지금은 `XEON_CLI_STATE_FILE`만 됩니다. | L4.cli.spec §10-1, apps/host, apps/cli/src/runtime.ts | `@xeon/host` `resolveHostStatePaths()`를 L4.host-service.spec §3.3.6에 두고 H21로 계획했습니다. 환경 변수는 테스트 덮어쓰기로만 남습니다(`review.decisions-2` B-07). 구현은 `platform-os` `resolveOsDirs`와 `apps/host/src/state-paths.ts`입니다. | 해결(1ef0764) |
 
 ## 3. 문서 정정 (문서끼리 어긋남)
 
@@ -58,9 +58,9 @@ binds: []
 | V-02 | 전역 시각과 sleep을 직접 씁니다. | apps/cli/src/runtime.ts:147, apps/cli/test/chat.scenario.test.ts:294 | 시계는 platform-os 값으로 받고, 테스트는 settle 알림을 기다립니다. | 열림 |
 | V-03 | 예상 가능한 실패를 Bug로 던집니다. | core-persistence writer.ts, platform-os dirs.ts, core-tasks enqueue, F wire 오류 kind | StoreError `io`, DirsError `cancelled`, wire 오류 kind를 더합니다. | 열림 |
 | V-04 | 오류를 삼키거나 취소 신호가 전달되지 않습니다. | platform-exec win32.ts:19, host handlers/events.ts:189, platform-secrets sops runner, ExtHost.install, InProcessHost.close | 실패 로그, 구독 종료 알림, 취소 신호 전달, close 시한 결과를 정합니다. | 열림 |
-| V-05 | 낮은 등급 리뷰 지적이 남았습니다. | ext-host state.ts:301, core-loop commits.ts:59 대 core-tools effects.ts:34, core-persistence emitVolatile, core-tools pipeline.ts:296, core-loop agent-wrapper.ts:650 | toolResult 키 통일은 U-13 보완 1(F `commitKeyPart` 하나)로 문서를 정했습니다. 나머지(fingerprintSource, emitVolatile 검사, `itemId`, `committed`)는 열려 있습니다. | 일부 이번 정리에서 처리 |
+| V-05 | 낮은 등급 리뷰 지적이 남았습니다. | ext-host state.ts:301, core-loop commits.ts:59 대 core-tools effects.ts:34, core-persistence emitVolatile, core-tools pipeline.ts:296, core-loop agent-wrapper.ts:650 | toolResult 키 통일은 U-13 보완 1(F `commitKeyPart` 하나)로 문서를 정했습니다. toolResult 키 통일은 `commitKeyPart` 구현으로 닫았습니다(1ef0764). 나머지(fingerprintSource, emitVolatile 검사, `itemId`, `committed`)는 열려 있습니다. | 일부 해결(1ef0764) |
 | V-06 | 주석이 사물을 사람처럼 씁니다. | apps/cli commands/chat.ts:164 외 | 서술형으로 바꿔 씁니다. | 열림 |
-| V-07 | F `describeSandboxStatus`가 spec과 다릅니다(disabled일 때 warn 대 critical). | contracts/src/services/sandbox.ts, L0.sandbox.spec §4.6·§9-6 | 코드를 spec대로 warn으로 고칩니다. | 열림 |
+| V-07 | F `describeSandboxStatus`가 spec과 다릅니다(disabled일 때 warn 대 critical). | contracts/src/services/sandbox.ts, L0.sandbox.spec §4.6·§9-6 | 코드를 spec대로 warn으로 고쳤습니다. 설정으로 끈 상태는 `onUnavailable`과 무관하게 warn입니다. | 해결(1ef0764) |
 | V-08 | M1에 계획보다 많이 넣었거나 바꿨습니다. | p_approvals·p_blob_refs 투영, print 모드 approval deny, ToolRunDrafts, args 192 KiB | L1.persistence.plan, L4.cli.spec C11, F.capabilities, L1.tools §4.4에 반영합니다. | 열림 |
 | V-09 | host가 X 로더를 쓰지 않고 `ExtHost.install`을 직접 부릅니다. | apps/host/src/assembly/extensions.ts, X.loading-trust | 로더 의존 순서 지원 또는 `reservedExtensionSettings` 공개, 동명 extraPlugin 규칙을 정합니다. | 열림 |
 | V-10 | 복구 뒤 로그에 `loop.run_rejected`(tasks.scope_settled)가 남습니다. 결과는 정상입니다. | core-loop 재개 경로, apps/cli chat.scenario 시험 2 | N-03으로 옮겨 추적합니다. | 열림(N-03) |
@@ -73,7 +73,7 @@ binds: []
 | E-02 | bwrap, socat, macOS 실기가 없어 일부가 검증되지 않았습니다. | platform-sandbox, platform-store, platform-os, platform-exec, platform-secrets | `bubblewrap socat` 설치 뒤 int 시험, macOS는 CI나 실기로 확인합니다. | 열림 |
 | E-03 | depcruise가 'TypeScript 7 미지원' 안내만 내는 때가 있습니다. | .dependency-cruiser.cjs | 순환을 일부러 만들어 잡히는지 확인합니다. | 열림 |
 | E-04 | 전체 `just fmt`가 생성물을 다시 서식합니다. 자식 프로세스가 turbo를 멈춘 적이 있고 오래된 심볼릭 링크가 있습니다. | apps/host/schema/*.json, .oxfmtrc.json, platform-process test/fixtures/tree.ts, core-loop/node_modules | ignorePatterns, 자손 정리, 링크 정리를 합니다. | 열림 |
-| E-05 | check-layers가 TS-NN 항목을 형식만 검증합니다. `node:fs` 모킹과 `Bun.spawn`을 잡지 못합니다. test-preload.ts와 bunfig가 없습니다. | scripts/check-layers.ts, dependency-allowlist.json | TS-NN 적용과 DR-07 검사를 더합니다. `Bun.spawn` 검사 범위는 B-06으로 정했습니다. | 열림 |
+| E-05 | check-layers가 TS-NN 항목을 형식만 검증합니다. `node:fs` 모킹과 `Bun.spawn`을 잡지 못합니다. test-preload.ts와 bunfig가 없습니다. | scripts/check-layers.ts, dependency-allowlist.json | `Bun.spawn` 검사는 B-06으로 구현했습니다(1ef0764). TS-NN 적용과 `node:fs` 모킹 검사, test-preload.ts와 bunfig는 남았습니다. | 일부 해결(1ef0764) |
 
 ## 6. M2로 넘길 것
 
@@ -95,10 +95,14 @@ binds: []
 | N-01 | 세션을 다시 열면 builtin scope에 `scope.changed{enabled}`가 다시 기록됩니다. `X.primitives.spec` §4.5.6은 `ExtThreadSnapshot.enabled`와 현재 켜짐이 다를 때만 첫 경계 기여에 넣는다고 적었습니다. | ext-host 시작 적용·스냅샷 비교, X.primitives §4.5.6 | 스냅샷 비교 결과가 같으면 기록하지 않게 고치고, 다시 열기 시험에서 `scope.changed` 수를 확인합니다. | 열림 |
 | N-02 | Cordis provider가 재시작되면 scope를 곧바로 다시 적용합니다. 적용 시점은 단계 경계여야 합니다(U-01). | ext-host Cordis 연결, X.primitives §10 | U-01의 예외로 둘지, 재적용 요청만 기록하고 다음 경계에서 적용할지 정합니다. X.primitives §10의 같은 미결에 이 항목을 연결했습니다. | 열림 |
 | N-03 | 복구 뒤 `loop.run_rejected`(tasks.scope_settled)가 로그에 남습니다(V-10). | core-loop 재개 경로 | 닫힌 turn을 다시 돌리는 호출을 찾아 막고 로그에서 사라지는지 확인합니다. 자체 루프 작업(ADR-0009)과 함께 봅니다. | 열림 |
+| N-04 | DR-07 소유 표의 `Bun.spawn` 소유 패키지는 다섯 곳(platform-exec, process, sandbox, secrets, os)인데 `platform-store`의 테스트 보조 파일(`test/support/child.ts`, `spawn.ts`)도 자식 프로세스를 띄웁니다. | eng.dependency-rules DR-07 표와 4절 | 문서 4절 문장("platform-* 패키지는 원래 소유자")을 따라 `check-layers`는 모든 `platform-*`의 테스트 파일을 허용합니다. 표와 문장을 하나로 맞춥니다. | 열림 |
+| N-05 | `InputQueuePort.enqueue`에 오류 통로가 없어 닫힌 thread 같은 예상 가능한 거부를 `Bug`로 던집니다(TY-24). | core-tasks `enqueuePost`, contracts `extensions/ports.ts` | 포트가 `Result`를 돌려주게 하고 ext-host `post`가 그 오류를 `PrimitiveError`로 옮깁니다. | 열림 |
+| N-06 | `l3.helm.*` 가운데 `driveLimits`만 선언했습니다. `autoStart`, `maxLenses`, `writeGuard`는 Helm 구현(L3.helm.plan)에서 더합니다. | group-helm/src/settings.ts, L3.helm.spec §6 | Helm 탐구 구현 작업에서 나머지 세 키와 `HelmSettings` 읽기 타입을 더합니다. | 열림 |
+| N-07 | 승인 키(`requestKeyFor`)와 서비스 호출 멱등 키(`requestIdFor`)가 toolCallId를 따로 줄입니다. 커밋 키가 아니라 `commitKeyPart` 대상은 아닙니다. | core-tools approvals/protocol.ts, entries.ts | 두 키의 길이 한도(48자, 64자)가 달라 그대로 둡니다. 한 함수로 합칠지 M2 승인 프로토콜 작업(H18)에서 정합니다. | 열림 |
 
 ## 8. 처리 순서 제안
 
-1. `review.decisions-2` §5 구현 후속(U-05, U-12, U-13, B-04~B-07)을 처리합니다. 자체 루프(ADR-0009)와 겹치는 core-loop 변경은 그 작업과 순서를 맞춥니다.
+1. `review.decisions-2` §5 구현 후속(U-05, U-12, U-13, B-04~B-07)은 1ef0764에서 처리했습니다(U-19는 M2 H18). 자체 루프(ADR-0009)와 겹치는 core-loop 변경은 그 작업과 순서를 맞춥니다.
 2. 문서 정정 D-03~D-14를 처리합니다.
 3. 편차 중 린트로 잡을 수 있는 것(V-01, V-02, V-06)은 규칙을 더한 뒤 고칩니다.
 4. 환경 E-03(depcruise 동작)을 확인한 뒤 M2의 M-01(PS-16)부터 시작합니다.

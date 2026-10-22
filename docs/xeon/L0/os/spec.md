@@ -164,6 +164,12 @@ export interface DirsInput {
 /** 순수 함수. 파일 시스템을 건드리지 않는다 */
 export function resolveDirs(input: DirsInput): Result<OsDirs, DirsError>;
 
+/**
+ * 위치만 정한다: 플랫폼 판별과 resolveDirs를 이어 부르고 파일 시스템도 서비스도 건드리지 않는다. createOsService가 쓰는 규칙과 같다.
+ * 서비스를 띄우지 않는 쪽이 같은 경로를 얻는다(L4 host의 resolveHostStatePaths, L4.host-service.spec §3.3.6) [결정: review.decisions-2 B-07]
+ */
+export function resolveOsDirs(config: { resourceDir: string; dirsOverride?: string }, runtime?: OsRuntime): Result<OsDirs, DirsError>;
+
 /** 디렉터리를 만들고 권한·소유자를 확인한다. resource는 만들지 않는다 */
 export function ensureDirs(dirs: OsDirs, fs: DirFs, signal: AbortSignal): Promise<Result<void, DirsError>>;
 ```
