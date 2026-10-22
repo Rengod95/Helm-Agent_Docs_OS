@@ -60,6 +60,14 @@ export function createWin32Provider(deps: Win32ProviderDeps): ExecPlatformProvid
         String(pid),
       ]);
     },
+    terminateProcessTree: (pid) => {
+      run([
+        winPath.join(deps.env["SystemRoot"] ?? "C:\\Windows", "System32", "taskkill.exe"),
+        "/T",
+        "/PID",
+        String(pid),
+      ]);
+    },
     detachedSpawn: false,
     noFollow: "lstat_precheck",
     forcePollingWatch: true,

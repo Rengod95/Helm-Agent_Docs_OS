@@ -3,7 +3,8 @@ import { type FSWatcher, watch as fsWatch, type Stats } from "node:fs";
 import { lstat, readdir, readFile, stat, statfs } from "node:fs/promises";
 import { dirname, relative, sep } from "node:path";
 // XEON-PATCH: P14
-import { attempt, eachAsync, repeatAsync } from "@xeon/contracts";
+// XEON-PATCH: P16
+import { attempt, eachAsync, repeatAsync, type Logger } from "@xeon/contracts";
 // XEON-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
 // XEON-PATCH: P3
@@ -30,6 +31,9 @@ export interface NodeWatchOptions {
   // XEON-PATCH: P3
   /** Which operating system's watching rules apply. */
   platform: ExecPlatformProvider;
+  // XEON-PATCH: P16
+  /** Receives the failures that watching survives: a throwing change callback. */
+  logger?: Logger;
 }
 
 type ResolvedTarget = {
@@ -157,6 +161,8 @@ export class NodeFileWatcher implements FileWatcher {
   readonly #maxDirectories: number;
   // XEON-PATCH: P3
   readonly #platform: ExecPlatformProvider;
+  // XEON-PATCH: P16
+  readonly #logger: Logger | undefined;
   readonly #watchers = new Map<string, Installed>();
   readonly #events = new Set<string>();
   #mode: "native" | "polling";
@@ -180,6 +186,8 @@ export class NodeFileWatcher implements FileWatcher {
     this.#maxDirectories = options.maxDirectories ?? DEFAULT_MAX_DIRECTORIES;
     // XEON-PATCH: P3
     this.#platform = options.platform;
+    // XEON-PATCH: P16
+    this.#logger = options.logger;
   }
 
   /** Establish coverage: watchers first, then the snapshot later changes are compared with. */
@@ -242,8 +250,17 @@ export class NodeFileWatcher implements FileWatcher {
   #deliver(change: WatchChange): void {
     if (this.#closed) return;
     // XEON-PATCH: P14
-    // A throwing callback must not stop watching. The failure is received as a value and dropped.
-    attempt(() => this.#onChange(change));
+    // XEON-PATCH: P16
+    // A throwing callback must not stop watching. The failure is received as a value and logged.
+    const delivered = attempt(() => this.#onChange(change));
+    if (!delivered.ok) {
+      this.#logger?.error("exec.watch_callback_failed", {
+        error:
+          delivered.error.cause instanceof Error
+            ? delivered.error.cause.message
+            : "non_error_thrown",
+      });
+    }
   }
 
   #schedulePoll(): void {

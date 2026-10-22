@@ -1,6 +1,7 @@
 import {
   bashShellConfig,
   killPosixProcessTree,
+  terminatePosixProcessTree,
   POSIX_FALLBACK_SHELL,
   type ExecPlatformProvider,
 } from "../provider.ts";
@@ -14,6 +15,7 @@ export const darwinProvider: ExecPlatformProvider = {
   fallbackShell: POSIX_FALLBACK_SHELL,
   bashConfig: bashShellConfig,
   killProcessTree: killPosixProcessTree,
+  terminateProcessTree: terminatePosixProcessTree,
   detachedSpawn: true,
   noFollow: "open_flag",
   forcePollingWatch: false,

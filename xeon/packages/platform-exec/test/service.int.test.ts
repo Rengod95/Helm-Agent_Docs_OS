@@ -255,11 +255,6 @@ describe("files", () => {
     service.cwd = join(root, "a");
     expect(await service.readTextFile("b.txt", none)).toEqual({ ok: true, value: "hi" });
   });
-
-  test("startBackground is not implemented before M2", async () => {
-    const result = await create(tempDir()).startBackground("sleep 1", undefined, none);
-    expect(!result.ok && result.error.code).toBe("unknown");
-  });
 });
 
 describe("withCwd", () => {

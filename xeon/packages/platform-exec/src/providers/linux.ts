@@ -1,6 +1,7 @@
 import {
   bashShellConfig,
   killPosixProcessTree,
+  terminatePosixProcessTree,
   POSIX_FALLBACK_SHELL,
   type ExecPlatformProvider,
 } from "../provider.ts";
@@ -15,6 +16,7 @@ export function createLinuxProvider(options: { readonly wsl: boolean }): ExecPla
     fallbackShell: POSIX_FALLBACK_SHELL,
     bashConfig: bashShellConfig,
     killProcessTree: killPosixProcessTree,
+    terminateProcessTree: terminatePosixProcessTree,
     detachedSpawn: true,
     noFollow: "open_flag",
     forcePollingWatch: false,

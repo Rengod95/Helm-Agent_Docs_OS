@@ -28,6 +28,8 @@ export interface ExecPlatformProvider {
   bashConfig(path: string): ShellConfig;
   /** 프로세스 트리 종료. POSIX kill(-pid, SIGKILL) 후 kill(pid), win32 taskkill /F /T */
   killProcessTree(pid: number): void;
+  /** 프로세스 트리에 정중한 종료 요청(startBackground의 graceful). POSIX kill(-pid, SIGTERM) 후 kill(pid), win32 taskkill /T (강제 아님) */
+  terminateProcessTree(pid: number): void;
   /** spawn detached 값. POSIX true(새 프로세스 그룹), win32 false */
   readonly detachedSpawn: boolean;
   /** noFollow 구현. POSIX "open_flag"(O_NOFOLLOW), win32 "lstat_precheck"(경합 가능) */
@@ -63,6 +65,13 @@ export function killPosixProcessTree(pid: number): void {
   if (group.ok) return;
   // 프로세스 그룹이 없으면 그 프로세스에만 보낸다. 이것도 실패하면 이미 끝난 프로세스다
   attempt(() => process.kill(pid, "SIGKILL"));
+}
+
+/** POSIX 공통: 프로세스 그룹에 SIGTERM, 안 되면 그 프로세스에만 */
+export function terminatePosixProcessTree(pid: number): void {
+  const group = attempt(() => process.kill(-pid, "SIGTERM"));
+  if (group.ok) return;
+  attempt(() => process.kill(pid, "SIGTERM"));
 }
 
 export const POSIX_FALLBACK_SHELL: ShellConfig = { shell: "sh", args: ["-c"] };

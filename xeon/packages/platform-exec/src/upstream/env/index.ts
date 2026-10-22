@@ -2,7 +2,7 @@
 // XEON-PATCH: P6
 import type { CancelScope as Context, ExecutionError, FileError } from "@xeon/contracts/services";
 // XEON-PATCH: P2
-import { attempt, attemptAsync, type Result } from "@xeon/contracts";
+import { attempt, attemptAsync, type Logger, type Result } from "@xeon/contracts";
 
 // XEON-PATCH: P2
 export { err, ok } from "@xeon/contracts";
@@ -33,12 +33,15 @@ export async function valueOrUndefined<TValue>(
 }
 
 // XEON-PATCH: P14
-/** 정리 단계의 close. 실패해도 원래 결과를 가리지 않도록 값으로 받아 버린다 */
+// XEON-PATCH: P16
+/** 정리 단계의 close. 실패해도 원래 결과를 가리지 않도록 값으로 받고, 원인은 Logger에 남긴다(Logger가 없으면 버린다) */
 export async function closeBestEffort(
   handle: { close(): Promise<void> } | undefined,
+  logger?: Logger,
 ): Promise<void> {
   if (handle === undefined) return;
-  await attemptAsync(() => handle.close());
+  const closed = await attemptAsync(() => handle.close());
+  if (!closed.ok) logger?.warn("exec.close_failed", { error: toError(closed.error.cause).message });
 }
 
 export type FileKind = "file" | "directory" | "symlink";

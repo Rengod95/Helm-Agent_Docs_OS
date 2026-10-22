@@ -56,6 +56,12 @@ describe("providers", () => {
     expect(custom[0]).toEqual(["D:\\Win\\System32\\taskkill.exe", "/F", "/T", "/PID", "7"]);
   });
 
+  test("win32 graceful termination asks taskkill for the tree without force", () => {
+    const runs: (readonly string[])[] = [];
+    createWin32Provider({ env: {}, run: (argv) => runs.push(argv) }).terminateProcessTree(55);
+    expect(runs).toEqual([["C:\\Windows\\System32\\taskkill.exe", "/T", "/PID", "55"]]);
+  });
+
   test("win32 default run logs a taskkill that cannot be spawned", async () => {
     const warnings: { readonly event: string; readonly fields: LogFields | undefined }[] = [];
     const logger: Logger = {

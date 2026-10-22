@@ -22,7 +22,8 @@ import { homedir, constants as osConstants, tmpdir } from "node:os";
 import { basename, isAbsolute, join, resolve as resolveAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 // XEON-PATCH: P14
-import { attempt, attemptAsync, eachAsync, repeatAsync } from "@xeon/contracts";
+// XEON-PATCH: P16
+import { attempt, attemptAsync, eachAsync, repeatAsync, type Logger } from "@xeon/contracts";
 // XEON-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
 // XEON-PATCH: P3
@@ -81,7 +82,8 @@ function resolveTimeoutMs(timeout: number | undefined): Result<number | undefine
 }
 
 // XEON-PATCH: P3
-function resolvePath(cwd: string, path: string, platform: ExecPlatformProvider): string {
+// XEON-PATCH: P17
+export function resolvePath(cwd: string, path: string, platform: ExecPlatformProvider): string {
   let normalized = path;
   if (normalized === "~") {
     normalized = homedir();
@@ -232,7 +234,8 @@ async function findBashOnPath(platform: ExecPlatformProvider): Promise<string | 
 }
 
 // XEON-PATCH: P3
-async function getShellConfig(
+// XEON-PATCH: P17
+export async function getShellConfig(
   customShellPath: string | undefined,
   platform: ExecPlatformProvider,
 ): Promise<Result<ShellConfig, ExecutionError>> {
@@ -394,10 +397,14 @@ class NodeTextLineReader implements TextLineReader {
   private buffered = "";
   private ended = false;
   private closed = false;
+  // XEON-PATCH: P16
+  private readonly logger: Logger | undefined;
 
-  constructor(file: Awaited<ReturnType<typeof openFile>>, path: string) {
+  // XEON-PATCH: P16
+  constructor(file: Awaited<ReturnType<typeof openFile>>, path: string, logger?: Logger) {
     this.file = file;
     this.path = path;
+    this.logger = logger;
   }
 
   async readLine(context: Context): Promise<Result<TextLine | undefined, FileError>> {
@@ -449,7 +456,7 @@ class NodeTextLineReader implements TextLineReader {
     this.closed = true;
     this.buffered = "";
     // Closing is best-effort, including after cancellation or an earlier I/O failure.
-    await closeBestEffort(this.file);
+    await closeBestEffort(this.file, this.logger);
   }
 }
 
@@ -461,10 +468,14 @@ class NodeBinaryReader implements BinaryReader {
   private readonly file: FileHandle;
   private readonly path: string;
   private closed = false;
+  // XEON-PATCH: P16
+  private readonly logger: Logger | undefined;
 
-  constructor(file: FileHandle, path: string) {
+  // XEON-PATCH: P16
+  constructor(file: FileHandle, path: string, logger?: Logger) {
     this.file = file;
     this.path = path;
+    this.logger = logger;
   }
 
   async info(context: Context): Promise<Result<FileInfo, FileError>> {
@@ -559,7 +570,7 @@ class NodeBinaryReader implements BinaryReader {
   async close(_context: Context): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    await closeBestEffort(this.file);
+    await closeBestEffort(this.file, this.logger);
   }
 }
 
@@ -568,10 +579,14 @@ class NodeDirReader implements DirReader {
   private readonly path: string;
   private done = false;
   private closed = false;
+  // XEON-PATCH: P16
+  private readonly logger: Logger | undefined;
 
-  constructor(dir: Dir, path: string) {
+  // XEON-PATCH: P16
+  constructor(dir: Dir, path: string, logger?: Logger) {
     this.dir = dir;
     this.path = path;
+    this.logger = logger;
   }
 
   async next(
@@ -619,7 +634,7 @@ class NodeDirReader implements DirReader {
   async close(_context: Context): Promise<void> {
     if (this.closed) return;
     this.closed = true;
-    await closeBestEffort(this.dir);
+    await closeBestEffort(this.dir, this.logger);
   }
 }
 
@@ -638,6 +653,8 @@ export class NodeExecutionEnv implements ExecutionEnv {
   private watchOptions: NodeWatchOptions;
   // XEON-PATCH: P3
   private platform: ExecPlatformProvider;
+  // XEON-PATCH: P16
+  private logger: Logger | undefined;
   private activeChildPids = new Set<number>();
 
   // XEON-PATCH: P3
@@ -646,7 +663,9 @@ export class NodeExecutionEnv implements ExecutionEnv {
     platform: ExecPlatformProvider;
     shellPath?: string;
     shellEnv?: NodeJS.ProcessEnv;
-    watch?: Omit<NodeWatchOptions, "platform">;
+    watch?: Omit<NodeWatchOptions, "platform" | "logger">;
+    // XEON-PATCH: P16
+    logger?: Logger;
   }) {
     this.cwd = options.cwd;
     // XEON-PATCH: P3
@@ -654,7 +673,13 @@ export class NodeExecutionEnv implements ExecutionEnv {
     this.shellPath = options.shellPath;
     this.shellEnv = options.shellEnv;
     // XEON-PATCH: P3
-    this.watchOptions = { ...options.watch, platform: options.platform };
+    this.watchOptions = {
+      ...options.watch,
+      platform: options.platform,
+      ...(options.logger === undefined ? {} : { logger: options.logger }),
+    };
+    // XEON-PATCH: P16
+    this.logger = options.logger;
   }
 
   async watch(
@@ -982,10 +1007,10 @@ export class NodeExecutionEnv implements ExecutionEnv {
       const file = await openFile(resolved, "r");
       const afterOpenAbort = abortResult(context.abortSignal, resolved);
       if (afterOpenAbort) {
-        await closeBestEffort(file);
+        await closeBestEffort(file, this.logger);
         return afterOpenAbort;
       }
-      return ok(new NodeTextLineReader(file, resolved));
+      return ok(new NodeTextLineReader(file, resolved, this.logger));
     } catch (error) {
       return err(toFileError(error, resolved));
     }
@@ -1069,7 +1094,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
       file = await openFile(resolved, flags);
       const stats = await file.stat();
       if (!stats.isFile()) {
-        await closeBestEffort(file);
+        await closeBestEffort(file, this.logger);
         return err(
           stats.isDirectory()
             ? new FileError(
@@ -1082,12 +1107,12 @@ export class NodeExecutionEnv implements ExecutionEnv {
       }
       const afterOpenAbort = abortResult(context.abortSignal, resolved);
       if (afterOpenAbort) {
-        await closeBestEffort(file);
+        await closeBestEffort(file, this.logger);
         return afterOpenAbort;
       }
-      return ok(new NodeBinaryReader(file, resolved));
+      return ok(new NodeBinaryReader(file, resolved, this.logger));
     } catch (error) {
-      await closeBestEffort(file);
+      await closeBestEffort(file, this.logger);
       // O_NOFOLLOW reports a final-component symlink as ELOOP (EMLINK on some BSDs).
       if (noFollow && isNodeError(error) && (error.code === "ELOOP" || error.code === "EMLINK")) {
         return err(symlinkRefused(resolved, toError(error)));
@@ -1163,7 +1188,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     } catch (error) {
       return err(toFileError(error, resolved));
     } finally {
-      await closeBestEffort(file);
+      await closeBestEffort(file, this.logger);
     }
   }
 
@@ -1185,7 +1210,7 @@ export class NodeExecutionEnv implements ExecutionEnv {
     } catch (error) {
       return err(toFileError(error, resolved));
     } finally {
-      await closeBestEffort(file);
+      await closeBestEffort(file, this.logger);
     }
   }
 
@@ -1258,10 +1283,10 @@ export class NodeExecutionEnv implements ExecutionEnv {
       const dir = await opendir(resolved);
       const afterOpenAbort = abortResult(context.abortSignal, resolved);
       if (afterOpenAbort) {
-        await closeBestEffort(dir);
+        await closeBestEffort(dir, this.logger);
         return afterOpenAbort;
       }
-      return ok(new NodeDirReader(dir, resolved));
+      return ok(new NodeDirReader(dir, resolved, this.logger));
     } catch (error) {
       return err(toFileError(error, resolved));
     }

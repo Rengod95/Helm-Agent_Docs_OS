@@ -41,7 +41,7 @@ binds: [xeon/packages/platform-exec/**]
 |---|---|---|
 | 로컬 `NodeExecutionEnv`(포크) + Xeon 연결 코드 | 1차, M0(포크·적합성), M1(env 빌더·서비스 등록) | [결정: `_research/foundation-plan.md` §5 P4 M0 `platform-exec`] |
 | 비밀 주입 지점 `secretEnv`(에이전트 env 모드) | 1차, M1. M1 비밀 검증 경로다(3.6절) | [결정: review.decisions-2 U-19] |
-| 백그라운드 실행 `startBackground` | 1차, 구현은 M2 이후(소비자 L1 tools 백그라운드 셸, L2 mcp가 M2 이후다) | [제안] |
+| 백그라운드 실행 `startBackground` | 1차, 구현은 M2(소비자 L1 tools 백그라운드 셸, L2 mcp) | [제안] |
 | Docker 어댑터(`ExecutionEnv`의 컨테이너 구현) | 1차 목표, 구현은 M2 이후 | [제안, `_research/layer-plan-v2.json` L0-a "Docker만 어댑터"] |
 | SSH 원격 워크스페이스 | 보류. `@earendil-works/pi-env` 1.3.0을 채택 후보로 둔다 | [결정: 계획 v2 L0-a "보류"], `_research/packages.md` §4.2 158행 |
 | git worktree 작업 트리 격리(서브에이전트 병렬 수정) | 2차. 100줄 안팎의 래퍼 | [제안, `_research/packages.md` §4.2 157행] |
@@ -514,12 +514,13 @@ export function createExecService(
 - `withCwd` 파생 env의 `cleanup`으로는 대신하지 않는다. `cleanup`은 그 env의 모든 명령을 SIGKILL로 끝내는 소유자 종료용이고(B-18), pid를 주지 않으며 graceful과 force를 나누지 않는다.
 - `startBackground(command, options, context)`는 포크 `exec`를 쓰지 않고 연결 코드 `src/background.ts`가 직접 spawn한다. 실행 형태(문자열은 셸, argv는 직접 실행), 자식 env 구성(3.5절), `onOutput`·`window` 전달, `detachedSpawn`(새 프로세스 그룹)은 `exec`와 같다. `timeout`과 `spill`은 받지 않는다. 출력 보관은 호출자가 `onOutput`으로 한다.
 - spawn이 성공하면 `ok(BackgroundExecHandle)`이다. 실패는 `exec`와 같은 `ExecutionError` 코드(`spawn_error`, `shell_unavailable`, `env_denied`)다.
-- `stop("graceful")`은 POSIX에서 프로세스 그룹에 SIGTERM, win32에서 `taskkill /T /PID`(강제 아님)다. `stop("force")`는 `ExecPlatformProvider.killProcessTree`다. 이미 끝난 프로세스면 아무것도 하지 않고 이행한다. graceful 뒤 기다리는 시한은 레지스트리(`BackgroundRegistry.stop`의 `graceMs`)가 정한다.
+- `stop("graceful")`은 POSIX에서 프로세스 그룹에 SIGTERM, win32에서 `taskkill /T /PID`(강제 아님)다. `stop("force")`는 `ExecPlatformProvider.killProcessTree`다. 이미 끝난 프로세스면 아무것도 하지 않고 이행한다. 정지를 요청받은 프로세스가 끝나면 신호를 무시한 손자가 남지 않도록 같은 그룹에 force를 한 번 더 보낸다. graceful은 `ExecPlatformProvider.terminateProcessTree`(POSIX 그룹 SIGTERM, win32 `taskkill /T`)로 보낸다. graceful 뒤 기다리는 시한은 레지스트리(`BackgroundRegistry.stop`의 `graceMs`)가 정한다.
 - `exited`는 프로세스가 끝나면 종료 코드와 신호 이름으로 이행한다.
 - `context.abortSignal`이 취소되면 `stop("force")`와 같다.
 - 결과 모양이 `BackgroundStopper`(`L0.process.spec` §3.1)와 같으므로 등록자(L1 tools, L2 mcp)는 `{ label, owner, pid: handle.pid, stopper: handle }`로 `BackgroundRegistry.register`를 부른다. `platform-exec`는 레지스트리를 부르지 않는다(DR-02).
 - 서비스 dispose 때 서비스 `cleanup`이 아직 살아 있는 백그라운드 프로세스도 끝낸다. 파생 env의 `cleanup`은 그 env로 시작한 백그라운드 프로세스만 끝낸다.
-- 단계: 1차 계약, 구현은 M2 이후(`L0.exec.plan` EX-20). stdin 파이프가 필요한 MCP stdio 서버를 이 계약으로 띄울지는 10절 9번이다.
+- `secretEnv`는 `exec`와 같은 규칙으로 받는다. 비밀 lease는 spawn이 끝난 직후 폐기하고(값은 spawn 인자로 이미 복사됐다) 프로세스가 사는 동안 쥐지 않는다. `onOutput`이 던지면 전달만 멈추고 프로세스는 계속 둔다(원인은 Logger `exec.background_output_failed`). `window`는 포크 `exec`와 같이 이 계층에서 쓰지 않는다.
+- 단계: 1차 계약, M2(PLT.3)에 구현했다(`L0.exec.plan` EX-20). stdin 파이프가 필요한 MCP stdio 서버를 이 계약으로 띄울지는 10절 9번이다.
 
 ## 4. 동작 규칙
 
@@ -691,7 +692,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 9. chord 패키지가 설치되지 않은 상태에서 `tsc -b`가 통과하고 `platform-exec`의 `src`·`test`에 chord import가 0건이다.
 10. Windows provider 단위 시험에서 `killProcessTree`는 `taskkill.exe /F /T /PID <pid>`를 만들고, `noFollow`는 `lstat_precheck`, `detachedSpawn`은 거짓이다. Windows 네이티브 적합성은 5.2절 표에 적은 사례만 통과 대상이다.
 11. 포크 선언(`src/upstream/env/index.ts`)과 F 선언(`exec.ts`)이 서로 대입 가능하다(`exec-contract.contract.test.ts`의 타입 수준 검사).
-12. (M2 이후) `startBackground(["sh", "-c", "trap '' TERM; sleep 30 & sleep 30; wait"], …)`의 핸들에서 `pid`가 양수이고, `stop("graceful")` 뒤에도 남은 프로세스가 `stop("force")` 뒤 1초 안에 그룹째 0개이며, `exited`가 이행한다.
+12. `startBackground(["sh", "-c", "trap '' TERM; sleep 30 & sleep 30; wait"], …)`의 핸들에서 `pid`가 양수이고, `stop("graceful")` 뒤에도 남은 프로세스가 `stop("force")` 뒤 1초 안에 그룹째 0개이며, `exited`가 이행한다.
 
 근거 위치: adr.0003 §3.1·§3.4·§4.2, `_research/durable-and-search-facts.md` §A-1~A-4, `_research/packages.md` §2.2·§4.2 L0-a, `eng.typescript.guide` §1(포크 코드)·§4.1, `docs/design/18-security.md` §3.11.1 R-2.
 
@@ -700,7 +701,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 1. [미결] `abortSignal`의 `undefined` 허용 여부와 `eng.typescript.guide` §1.2·TY-22 문구 정정. 위치는 F `services/exec.ts`로 정해졌다([결정: review.decisions-2 D-04], 3.2절).
 2. [미결] `ExecService.withCwd` 추가와 `eng.context-map.design` §5.3 표 정정(3.1절). 공유 서비스 모드에서 세션별 cwd를 어떻게 줄지 `L0.process.spec`과 함께 정한다.
 3. [미결] 포크 업그레이드 정책(정기 diff 또는 보안·버그 수정 때만). adr.0003 §6을 이어받는다.
-4. [미결] spill 파일 위치와 삭제 시점. 원본은 OS 임시 디렉터리에 남긴다. env 모드 비밀이 출력에 섞이면 원문이 디스크에 남으므로 위치(`xeon.os`의 임시 디렉터리, 권한 0600)와 세션 종료 시 삭제를 `L0.secrets.spec`, `L2.workspace.spec`과 함께 정한다.
+4. [제안 적용: M2 PLT.3, 결정 없음] spill 파일 위치와 삭제 시점. 원본은 OS 임시 디렉터리(`tmp-*` 디렉터리, 0700)에 남긴다. env 모드 비밀이 출력에 섞이면 원문이 디스크에 남으므로 `secretEnv`가 있는 호출은 호출자가 준 `spill`도 기본 spill도 끈다(`service.int.test.ts`의 "secret value never appears in results or spill files"). `startBackground`는 `spill` 자체를 받지 않는다. 비밀이 없는 호출의 spill 위치(`xeon.os`의 임시 디렉터리)와 세션 종료 시 삭제는 `L0.secrets.spec`, `L2.workspace.spec`과 함께 정할 때까지 원본 동작을 유지한다.
 5. [미결] 적합성 스위트의 watch 사례(사례당 최대 30초)를 `int` 파일 10초 상한(`eng.testing.guide` TS-01)에 맞추는 방법: 파일 분할, 별도 태그, 상한 예외 중 하나.
 6. [미결] `l0.exec.defaultTimeoutMs` 기본값. 0(제한 없음)과 안전 상한(예: 2시간) 중 고른다. `l2.workspace.shell.defaultTimeoutSec`과의 우선순위는 호출자 값이 앞선다.
 7. [미결] Windows 네이티브 적합성 기대 표(5.2절)는 실행하지 않은 [가정]이다. M2 이후 Windows CI에서 확인한다.
