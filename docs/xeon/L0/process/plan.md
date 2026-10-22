@@ -39,10 +39,11 @@ xeon/packages/platform-process/
       in-process.ts               # createInProcessPair (개발 빌드 JSON 왕복)
       framing.ts                  # JSON Lines 분할·결합, maxFrameBytes, -32600/-32700 응답 생성
       stdio.ts                    # createStdioTransport
+      process-stdio.ts            # openProcessStdio (Bun.stdin/stdout → 스트림), writableFromSink
       socket.ts                   # listenSocket, connectSocket (Bun.listen/Bun.connect unix)
       index.ts
     lease/
-      child-lease.ts              # watchChildLease (stdin EOF)
+      child-lease.ts              # watchChildLease (전송 onClose eof), createHostShutdownHandler (host.shutdown 처리기 본체)
       shutdown.ts                 # createProcessShutdown (참여자, 시한, exit 주입)
     registry.ts                   # BackgroundRegistry (메모리)
     port/
@@ -66,7 +67,8 @@ xeon/packages/platform-process/
     service.ts                    # ProcessService 조립, Cordis 플러그인 (xeon.process)
     testing/
       index.ts                    # 가짜 자식 엔진 실행기, 전송 적합성 하네스 연결
-      fake-engine.ts              # 자식 프로세스 진입점: stdio 전송 + watchChildLease + 지연 가능한 참여자
+      fake-engine.ts              # 자식 프로세스 진입점이자 모듈: runFakeEngine, spawnFakeEngine. stdio 전송 + watchChildLease + host.shutdown + 지연 가능한 참여자
+      conformance-host.ts         # 적합성 케이스가 도는 최소 서버(serveConformanceHost). apps/host를 import할 수 없어 L0 안에 둔다
       idle-clock.ts               # 수동 시계 연동 유휴 타이머 도우미
   test/
     transport-conformance.int.test.ts
@@ -147,7 +149,7 @@ xeon/packages/platform-process/
 | 테스트 | 파일 | 확인할 동작 |
 |---|---|---|
 | `frames split across chunks are joined` | `src/transport/framing.test.ts` | 한 메시지를 1바이트씩 넣어도, 한 청크에 세 메시지를 넣어도 같은 메시지열. 다바이트 UTF-8 문자가 청크 경계에서 깨지지 않음 |
-| `oversized frame is dropped with -32600` | `src/transport/framing.test.ts` | `maxFrameBytes + 1` 프레임은 버려지고 `-32600`(`issue: frame_too_large`) 응답 하나, 다음 프레임 정상 |
+| `oversized frame is dropped with -32600` | `src/transport/framing.test.ts` | `maxFrameBytes + 1` 프레임은 버려지고 `-32600`(`details.issue: "frameTooLarge"`) 응답 하나, 다음 프레임 정상 |
 | `invalid json yields -32700 and keeps the connection` | `src/transport/framing.test.ts` | 깨진 줄 다음 정상 줄이 처리됨 |
 | `in-process and stdio pass the same conformance cases` | `transport-conformance.int.test.ts` | A10 케이스 전부가 두 전송에서 같은 결과 |
 | `in-process rejects non-serializable values in dev builds` | `transport-conformance.int.test.ts` | `undefined` 필드·`Date`·함수가 JSON 왕복으로 사라지거나 바뀌어 params 검사에서 걸림 |

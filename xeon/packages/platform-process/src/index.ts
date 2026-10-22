@@ -1,9 +1,30 @@
 export {
   createInProcessPair,
   createInProcessPairWith,
+  createLineFramer,
+  createStdioTransport,
+  createStdioTransportWith,
+  encodeFrame,
+  openProcessStdio,
+  rejectionFrame,
+  writableFromSink,
+  type ByteSink,
+  type ByteStreams,
+  type EncodeError,
+  type FrameEvent,
+  type FrameProblem,
   type InProcessMode,
   type InProcessPairOptions,
+  type LineFramer,
+  type LineFramerOptions,
+  type StdioTransportDeps,
 } from "./transport/index.ts";
+export {
+  createHostShutdownHandler,
+  watchChildLease,
+  type ChildLeaseOptions,
+  type HostShutdownHandlerOptions,
+} from "./lease/child-lease.ts";
 export {
   createProcessShutdown,
   type ProcessShutdown,

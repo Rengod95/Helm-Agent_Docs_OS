@@ -209,12 +209,23 @@ import type { Clock, Scheduler } from "@xeon/contracts";              // F 루�
 import type { ShutdownCoordinator, ShutdownReason } from "@xeon/contracts/services";
 
 export interface ChildLeaseOptions {
-  readonly stdin: ReadableStream<Uint8Array>;                      // 자식 엔진의 stdin (stdio 전송과 같은 스트림)
-  readonly shutdownTimeoutMs: number;                              // l0.process.shutdown.timeoutMs
-  readonly exit: (code: number) => never;                          // 테스트에서 주입
+  /** 자식 엔진의 stdio 전송. stdin은 전송이 읽는 스트림 하나뿐이라 EOF는 전송의 onClose로 받는다 */
+  readonly transport: Pick<Transport, "onClose">;
+  readonly exit: (code: number) => never;                          // 협조 종료가 시한 안에 끝나면 0으로 부른다. 테스트에서 주입
+  readonly logger?: Logger;
 }
-/** stdin EOF를 수명 임대 해제로 보고 종료 협조를 시작한다. stdio 전송의 onClose(reason "eof")와 같은 사건이다 */
+/** stdin EOF(전송 onClose reason "eof")나 읽기 오류("error")를 수명 임대 해제로 보고 종료 협조를 시작한다 */
 export declare function watchChildLease(coordinator: ProcessShutdown, options: ChildLeaseOptions): Disposable;
+
+export interface HostShutdownHandlerOptions {
+  readonly coordinator: ProcessShutdown;
+  readonly transport: Pick<Transport, "close">;                    // 응답이 나간 뒤 닫아 쓰기 큐를 비운다
+  readonly scheduler: Scheduler;
+  readonly exit: (code: number) => never;
+  readonly logger?: Logger;
+}
+/** host.shutdown 처리기 본체(FR-P1). 참여자가 끝난 뒤 { accepted: true }를 돌려주고, 다음 매크로 태스크에서 전송을 닫은 뒤 exit(0) */
+export declare function createHostShutdownHandler(options: HostShutdownHandlerOptions): (params: HostShutdownParams) => Promise<HostShutdownResult>;
 
 /** ShutdownCoordinator의 소유자 쪽 */
 export interface ProcessShutdown extends ShutdownCoordinator {
@@ -419,10 +430,11 @@ stdio(`createStdioTransport`):
 
 - JSON Lines, UTF-8, `\n` 구분. 송신 메시지 안의 줄바꿈은 `JSON.stringify`가 이스케이프하므로 한 줄이다.
 - 수신은 `TextDecoder`(stream 모드)로 조각을 이어 붙이고 `\n`마다 자른다. `\r\n`의 `\r`은 지운다.
-- 한 프레임이 `maxFrameBytes`(기본 `WIRE_LIMITS.maxFrameBytes` 1 MiB)를 넘으면 그 프레임을 다음 `\n`까지 버리고, 전송이 상대에게 `{"jsonrpc":"2.0","id":null,"error":{"code":-32600,…,"data":{"kind":"jsonrpc.invalidRequest","issue":"frame_too_large"}}}`를 보낸다. 연결은 유지한다.
+- 한 프레임이 `maxFrameBytes`(기본 `WIRE_LIMITS.maxFrameBytes` 1 MiB)를 넘으면 그 프레임을 다음 `\n`까지 버리고, 전송이 상대에게 `{"jsonrpc":"2.0","id":null,"error":{"code":-32600,…,"data":{"kind":"jsonrpc.invalidRequest","details":{"issue":"frameTooLarge"}}}}`를 보낸다(이름은 `F.wire-settings.spec` §5가 정본이다). 연결은 유지한다.
 - JSON 해석 실패는 `-32700`(`id: null`)을 보낸다(`F.wire-settings.spec` §4.3 2번).
 - 빈 줄은 무시한다.
 - readable이 끝나면(EOF) `onClose({ reason: "eof" })`. 끝에 줄바꿈 없이 남은 조각은 버리고 진단에 남긴다.
+- 읽기는 첫 구독(`onMessage` 또는 `onClose`)에서 시작한다. 처리기가 없을 때 도착한 메시지는 쌓아 두었다가 첫 `onMessage`가 붙을 때 도착 순서대로 비운다. 처리기가 던지면 읽기 루프를 죽이지 않고 전송을 `reason: "error"`로 닫는다.
 - writable 쓰기는 백프레셔를 따른다(`writer.ready`를 기다린다).
 - 자식 엔진 쪽 stdout은 이 전송 전용이다. 로그는 stderr로 보낸다(`L4.host-service.spec`이 로그 설정을 정한다).
 
@@ -438,7 +450,7 @@ socket(`listenSocket`, `connectSocket`):
 
 [결정] 데스크톱이 엔진 사이드카를 띄우고 stdin EOF를 임대 해제 신호로 쓴다(adr.0008 §3.3, adr.0006 §3.7 6번, opencode `standalone.ts:23-27`).
 
-1. 자식 엔진(`xeon host --stdio`)은 시작 때 `watchChildLease`를 건다. stdin은 stdio 전송과 같은 스트림이다.
+1. 자식 엔진(`xeon host --stdio`)은 시작 때 `watchChildLease`를 건다. stdin은 stdio 전송이 읽는 스트림 하나뿐이라(reader를 둘 붙일 수 없다) 감시는 전송의 `onClose`(`eof` 또는 `error`)를 듣는다.
 2. 종료 요청은 두 경로로 온다.
    - `host.shutdown` 요청(§8.1 FR-P1): 데스크톱은 SIGKILL만 보내는 Tauri 셸 플러그인 제약 때문에 신호 전에 이 요청을 먼저 보낸다(adr.0006 §3.7 7번, adr.0008 §3.3 [제안] 3번). 응답을 받은 뒤 데스크톱이 프로세스를 정리한다.
    - stdin EOF: 데스크톱이 비정상 종료해도 OS가 파이프 쓰기 끝을 닫는다.
@@ -613,7 +625,7 @@ ensureService():
 
 | 경우 | 동작 |
 |---|---|
-| stdio 프레임이 1 MiB 초과 | 그 프레임 버림, `-32600`(`issue: frame_too_large`) 송신, 연결 유지 |
+| stdio 프레임이 1 MiB 초과 | 그 프레임 버림, `-32600`(`details.issue: "frameTooLarge"`) 송신, 연결 유지 |
 | JSON 아닌 줄 | `-32700` 송신, 연결 유지 |
 | 자식 엔진 stdout에 로그가 섞임 | 클라이언트 쪽 `-32700`이 반복된다. 엔진 로그는 stderr 전용(§4.1) |
 | `host.shutdown` 응답 전에 stdin EOF | 같은 종료 요청으로 합친다(두 번째 `request`는 첫 Promise) |
@@ -685,7 +697,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 | `buildResumeOffers`, `ResumeOffer`, `ResumeCandidate` | L4.host-service.spec. L4.desktop.spec은 wire(`thread.list`)로 받는다 |
 | `OsServiceRegistrar`(2차) | L4.host-service.spec(`xeon service install`) |
 | 설정 `l0.process.*` | L4.settings-ui.spec |
-| `@xeon/platform-process/testing`: `fakeEngine`(stdio 전송 + `watchChildLease` + 지연 가능한 종료 참여자를 가진 자식 진입점과 실행기), `idleClock`(수동 시계와 `Scheduler`를 묶은 유휴 타이머 도우미), 전송 적합성 하네스 연결 | L4.host-service.plan, L4.desktop.plan(사이드카 시험), `L0.process.plan` |
+| `@xeon/platform-process/testing`: `runFakeEngine`·`spawnFakeEngine`(stdio 전송 + `watchChildLease` + `host.shutdown` 처리기 + 지연 가능한 종료 참여자를 가진 자식 진입점과 실행기), `serveConformanceHost`(적합성 케이스가 도는 최소 서버), `idleClock`(수동 시계와 `Scheduler`를 묶은 유휴 타이머 도우미, 서비스 모드 때 추가) | L4.host-service.plan, L4.desktop.plan(사이드카 시험), `L0.process.plan` |
 
 요구:
 
