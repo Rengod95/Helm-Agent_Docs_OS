@@ -18,6 +18,7 @@ import {
 import { WORKSPACE_SETTING_DEFS } from "@xeon/cap-workspace";
 import { loadingTrustSettings, operationsSettings, primitivesSettings } from "@xeon/ext-host";
 import { EXEC_SETTING_DEFS } from "@xeon/platform-exec";
+import { OS_SETTING_DEFS } from "@xeon/platform-os";
 import { PROCESS_SETTING_DEFS } from "@xeon/platform-process";
 import { SANDBOX_SETTING_DEFS } from "@xeon/platform-sandbox";
 import { SECRETS_SETTING_DEFS } from "@xeon/platform-secrets";
@@ -43,13 +44,14 @@ function ofDefs(
 
 /**
  * 외부 확장과 앱 설정을 뺀, 코어 패키지가 선언한 설정 그룹. `xeon config schema --core-only`와 schema/ 커밋본의 원천이다.
- * 선언을 아직 내놓지 않은 패키지(platform-os 등)의 키는 없다.
+ * 선언을 아직 내놓지 않은 패키지의 키는 없다.
  */
 export function coreSettingGroups(): readonly CatalogGroupInput[] {
   return [
     ofGroup("ext-host", primitivesSettings),
     ofGroup("ext-host", operationsSettings),
     ofGroup("ext-host", loadingTrustSettings),
+    ofDefs("platform-os", "l0.os", OS_SETTING_DEFS),
     ofDefs("platform-store", "l0.store", STORE_SETTING_DEFS),
     ofDefs("platform-exec", "l0.exec", EXEC_SETTING_DEFS),
     ofDefs("platform-secrets", "l0.secrets", SECRETS_SETTING_DEFS),

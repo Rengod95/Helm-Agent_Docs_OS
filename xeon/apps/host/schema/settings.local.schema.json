@@ -2,6 +2,35 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "l0.os.log.level": {
+      "default": "info",
+      "enum": [
+        "debug",
+        "info",
+        "warn",
+        "error"
+      ],
+      "maxLength": 8,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "local",
+          "session"
+        ],
+        "layer": "L0",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "로그 수준",
+          "order": 130,
+          "tab": "advanced",
+          "widget": "select"
+        }
+      }
+    },
     "l1.agents.judge.maxRuns": {
       "default": 3,
       "maximum": 20,

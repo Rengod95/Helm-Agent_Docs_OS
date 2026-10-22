@@ -6,24 +6,17 @@ import {
   defineManifest,
   type ExtensionEntry,
   type ExtensionManifest,
-  type PortKey,
 } from "@xeon/contracts/extensions";
-import {
-  SessionServiceName,
-  StoreServiceName,
-  type EventKindRegistry,
-  type FaultInjector,
-  type LeaseHolder,
-  type SessionService,
-  type StoreDb,
-  type StoreService,
+import type {
+  EventKindRegistry,
+  FaultInjector,
+  LeaseHolder,
+  StoreDb,
 } from "@xeon/contracts/records";
+import { SessionPortKey, StoreServicePortKey } from "@xeon/contracts/services";
 import { hostOf, type ExtensionUnit } from "@xeon/ext-host";
 import type { PersistenceSettings } from "./deps.ts";
 import { createSessionService } from "./service.ts";
-
-const SessionPortKey: PortKey<SessionService> = { name: SessionServiceName };
-const StorePortKey: PortKey<StoreService> = { name: StoreServiceName };
 
 export const SESSION_EXTENSION_NAME = "core-persistence";
 
@@ -71,7 +64,7 @@ export function sessionPlugin(options: SessionPluginOptions): ExtensionUnit {
   const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
     scope(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
-      const store = host.port(StorePortKey);
+      const store = host.port(StoreServicePortKey);
       const created = createSessionService({
         db: options.db,
         leases: store.leases,

@@ -12,20 +12,16 @@ import {
   type CapabilityRequirement,
   type ExtensionEntry,
   type ExtensionManifest,
-  type PortKey,
 } from "@xeon/contracts/extensions";
-import { StoreServiceName, type SessionService, type StoreService } from "@xeon/contracts/records";
+import type { SessionService } from "@xeon/contracts/records";
 import {
-  ApprovalServiceName,
+  ApprovalServicePortKey,
   ExecPortKey,
-  SecretServiceName,
+  SecretServicePortKey,
   SessionPortKey,
-  TaskServiceName,
-  ToolServiceName,
-  type ApprovalService,
-  type SecretService,
-  type TaskService,
-  type ToolService,
+  StoreServicePortKey,
+  TaskServicePortKey,
+  ToolServicePortKey,
 } from "@xeon/contracts/services";
 import type { ScopeStack } from "@xeon/contracts/settings";
 import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@xeon/ext-host";
@@ -38,12 +34,6 @@ import type { OutputTruncator, TruncationOutcome } from "./types.ts";
 
 // L1.tools.plan TL-8 plugin.ts. ext-host의 내장 확장 단위로 xeon.tools, xeon.approvals를 제공한다.
 // 이 패키지는 Cordis를 import하지 않는다(DR-11). 서비스 등록은 hostOf(g).providePort로 한다.
-
-const StorePortKey: PortKey<StoreService> = { name: StoreServiceName };
-const TasksPortKey: PortKey<TaskService> = { name: TaskServiceName };
-const SecretsPortKey: PortKey<SecretService> = { name: SecretServiceName };
-export const ToolsServicePortKey: PortKey<ToolService> = { name: ToolServiceName };
-export const ApprovalsServicePortKey: PortKey<ApprovalService> = { name: ApprovalServiceName };
 
 /** 도구 어댑터가 서비스 API를 얻도록 매니페스트 optional에 올리는 내장 능력(L2.workspace) */
 const BUILTIN_CAPABILITIES: readonly AnyCapabilityDef[] = [
@@ -165,10 +155,10 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
     scope(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
       const session = host.port(SessionPortKey);
-      const store = host.port(StorePortKey);
-      const tasks = host.port(TasksPortKey);
+      const store = host.port(StoreServicePortKey);
+      const tasks = host.port(TaskServicePortKey);
       const exec = host.port(ExecPortKey);
-      const secrets = host.port(SecretsPortKey);
+      const secrets = host.port(SecretServicePortKey);
       const ext = host.port(ExtHostPortKey);
       const truncator = options.truncator ?? truncatorOf(exec);
       if (truncator === undefined) {
@@ -200,8 +190,8 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         logger: options.logger,
       };
       const runtime = createToolRuntime(deps);
-      host.providePort(ToolsServicePortKey, runtime.tools);
-      host.providePort(ApprovalsServicePortKey, runtime.approvals);
+      host.providePort(ToolServicePortKey, runtime.tools);
+      host.providePort(ApprovalServicePortKey, runtime.approvals);
     });
   };
   return {

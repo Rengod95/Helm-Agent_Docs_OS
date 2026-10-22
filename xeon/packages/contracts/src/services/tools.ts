@@ -25,7 +25,7 @@ import type {
   ToolResultRecord,
   TurnId,
 } from "../conversation/index.ts";
-import type { ScopeId, ToolResourceDef, ToolsPort } from "../extensions/index.ts";
+import type { PortKey, ScopeId, ToolResourceDef, ToolsPort } from "../extensions/index.ts";
 import type {
   BlobRef,
   DurableEventDraft,
@@ -38,6 +38,9 @@ import type {
 // 정책 평가 함수(evaluatePolicy, ruleMatches, stricter, validateRules)는 core-tools가 구현한다. F에는 타입과 데이터 상수만 둔다.
 
 export const ToolServiceName = "xeon.tools" as const;
+
+/** `xeon.tools` 전체 모양(ToolService)의 포트 키. 제공 core-tools. 등록 부분형(ToolsPort)의 키는 extensions의 `ToolsPortKey`다 */
+export const ToolServicePortKey: PortKey<ToolService> = { name: ToolServiceName };
 
 // ── 도구 메타 ────────────────────────────────────────────────────────────
 

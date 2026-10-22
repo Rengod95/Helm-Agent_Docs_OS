@@ -11,12 +11,16 @@ import type {
   SecretUseMode,
 } from "../capabilities/index.ts";
 import type { LocalId } from "../conversation/index.ts";
+import type { PortKey } from "../extensions/index.ts";
 
 // L0.secrets.spec §3.3~§3.6, §3.10. 구현은 platform-secrets다. 참조 형식·메타·감사 레코드는 capabilities/secrets.ts가 정본이다
 // (F.capabilities.spec §3.10, review.decisions-2 U-08). 이 파일은 서비스 인터페이스와 그 부속 타입이다.
 // KeyProvider와 Redactor 구현, SOPS 래퍼는 platform-secrets 내부다.
 
 export const SecretServiceName = "xeon.secrets" as const;
+
+/** `xeon.secrets` 전체 모양(SecretService)의 포트 키. 제공 platform-secrets */
+export const SecretServicePortKey: PortKey<SecretService> = { name: SecretServiceName };
 
 // ── 사용 맥락과 lease ────────────────────────────────────────────────────
 

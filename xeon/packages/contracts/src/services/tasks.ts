@@ -1,6 +1,12 @@
 import type { Result } from "../base/index.ts";
 import type { EventId, ItemId, ThreadId, TurnId } from "../conversation/index.ts";
-import type { InputQueuePort, PostItem, PostReceipt, Unsubscribe } from "../extensions/index.ts";
+import type {
+  InputQueuePort,
+  PortKey,
+  PostItem,
+  PostReceipt,
+  Unsubscribe,
+} from "../extensions/index.ts";
 import type {
   CommitRequest,
   InputView,
@@ -12,6 +18,9 @@ import type {
 // L1.tasks.spec §3. 구현은 core-tasks다. 인터페이스의 정본은 이 파일이다(F.capabilities.spec §3.12 규칙 1).
 
 export const TaskServiceName = "xeon.tasks" as const;
+
+/** `xeon.tasks` 전체 모양(TaskService)의 포트 키. 제공 core-tasks. 등록 부분형(InputQueuePort)의 키는 extensions의 `InputQueuePortKey`다 */
+export const TaskServicePortKey: PortKey<TaskService> = { name: TaskServiceName };
 
 // ── 범위 트리 ────────────────────────────────────────────────────────────
 

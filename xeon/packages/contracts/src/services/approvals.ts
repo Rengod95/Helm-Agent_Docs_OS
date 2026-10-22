@@ -1,5 +1,6 @@
 import type { CapabilityId, ToolName } from "../capabilities/index.ts";
 import type { JsonValue, StepId, ThreadId, TurnId } from "../conversation/index.ts";
+import type { PortKey } from "../extensions/index.ts";
 import type { BlobRef } from "../records/index.ts";
 import type { CallerId, PermissionMode, ToolRisk } from "./tools.ts";
 
@@ -7,6 +8,9 @@ import type { CallerId, PermissionMode, ToolRisk } from "./tools.ts";
 // 응답은 호스트 메서드 approval.respond로 들어온다(review.decisions-2 U-02).
 
 export const ApprovalServiceName = "xeon.approvals" as const;
+
+/** `xeon.approvals` 전체 모양(ApprovalService)의 포트 키. 제공 core-tools */
+export const ApprovalServicePortKey: PortKey<ApprovalService> = { name: ApprovalServiceName };
 
 export type ApprovalKind = "tool" | "plan" | "question";
 export type ApprovalDecision = "allow" | "deny" | "answer";

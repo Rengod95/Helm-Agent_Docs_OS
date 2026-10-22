@@ -7,6 +7,7 @@ export * from "./approvals.ts";
 export * from "./agents.ts";
 export * from "./context.ts";
 export * from "./session.ts";
+export * from "./store.ts";
 export * from "./sandbox-report.ts";
 export * from "./exec.ts";
 export * from "./sandbox.ts";

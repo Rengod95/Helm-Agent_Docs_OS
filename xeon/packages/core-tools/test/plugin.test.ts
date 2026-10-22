@@ -6,15 +6,13 @@ import {
   WorkspaceShell,
   WorkspaceShellKey,
 } from "@xeon/contracts/capabilities";
-import type { Redactor } from "@xeon/contracts/services";
-import { createTestHost } from "@xeon/ext-host/testing";
 import {
-  ApprovalsServicePortKey,
-  toolsManifest,
-  toolsPlugin,
-  ToolsServicePortKey,
-  truncatorOf,
-} from "../src/plugin.ts";
+  ApprovalServicePortKey,
+  ToolServicePortKey,
+  type Redactor,
+} from "@xeon/contracts/services";
+import { createTestHost } from "@xeon/ext-host/testing";
+import { toolsManifest, toolsPlugin, truncatorOf } from "../src/plugin.ts";
 import {
   fakeRedactor,
   fakeRunContext,
@@ -107,8 +105,8 @@ test("installing provides xeon.tools and xeon.approvals ports and runs a call en
   const { t, installed, session, tasks, ids } = await boot({ withTruncation: true });
   expect(installed.setups[0]?.status).toBe("applied");
   expect(installed.issues.filter((issue) => issue.severity === "error")).toEqual([]);
-  const tools = t.host.ports.get(ToolsServicePortKey);
-  const approvals = t.host.ports.get(ApprovalsServicePortKey);
+  const tools = t.host.ports.get(ToolServicePortKey);
+  const approvals = t.host.ports.get(ApprovalServicePortKey);
   expect(tools).toBeDefined();
   expect(approvals).toBeDefined();
   if (tools === undefined) return;
@@ -152,13 +150,13 @@ test("without an output truncator the setup fails loudly (D-08: no copy of trunc
   const { installed, t } = await boot({ withTruncation: false });
   expect(installed.setups[0]?.status).toBe("failed");
   expect(errorText(installed.setups[0]?.failure?.error)).toContain("output truncator");
-  expect(t.host.ports.get(ToolsServicePortKey)).toBeUndefined();
+  expect(t.host.ports.get(ToolServicePortKey)).toBeUndefined();
 });
 
 test("an explicit truncator option works without xeon.exec support", async () => {
   const { installed, t } = await boot({ withTruncation: false, passTruncator: true });
   expect(installed.setups[0]?.status).toBe("applied");
-  expect(t.host.ports.get(ToolsServicePortKey)).toBeDefined();
+  expect(t.host.ports.get(ToolServicePortKey)).toBeDefined();
 });
 
 test("truncatorOf wraps xeon.exec functions and rejects malformed results", () => {

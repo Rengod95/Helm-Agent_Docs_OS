@@ -92,6 +92,102 @@
         }
       }
     },
+    "l0.os.log.level": {
+      "default": "info",
+      "enum": [
+        "debug",
+        "info",
+        "warn",
+        "error"
+      ],
+      "maxLength": 8,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "local",
+          "session"
+        ],
+        "layer": "L0",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "로그 수준",
+          "order": 130,
+          "tab": "advanced",
+          "widget": "select"
+        }
+      }
+    },
+    "l0.os.telemetry.enabled": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "텔레메트리 내보내기",
+          "order": 100,
+          "tab": "advanced",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l0.os.telemetry.endpoint": {
+      "default": "http://localhost:4318/v1/traces",
+      "maxLength": 2048,
+      "minLength": 1,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "OTLP 수집 주소",
+          "order": 120,
+          "tab": "advanced",
+          "widget": "text"
+        }
+      }
+    },
+    "l0.os.telemetry.exporter": {
+      "default": "file",
+      "enum": [
+        "file",
+        "otlp-http"
+      ],
+      "maxLength": 16,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "L0",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "텔레메트리 내보내기 방식",
+          "order": 110,
+          "tab": "advanced",
+          "widget": "select"
+        }
+      }
+    },
     "l0.process.lockFallback.default": {
       "default": "ask",
       "enum": [

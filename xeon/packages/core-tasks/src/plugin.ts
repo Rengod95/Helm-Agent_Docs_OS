@@ -4,9 +4,8 @@ import {
   defineManifest,
   type ExtensionEntry,
   type ExtensionManifest,
-  type PortKey,
 } from "@xeon/contracts/extensions";
-import { SessionPortKey, TaskServiceName, type TaskService } from "@xeon/contracts/services";
+import { SessionPortKey, TaskServicePortKey } from "@xeon/contracts/services";
 import { hostOf } from "@xeon/ext-host";
 import { createTaskService } from "./service.ts";
 import type { TasksSettingsSource } from "./settings-source.ts";
@@ -26,8 +25,6 @@ export const TASKS_MANIFEST: ExtensionManifest = defineManifest({
   usesDrive: false,
   trust: { level: "builtin" },
 });
-
-const TaskServicePortKey: PortKey<TaskService> = { name: TaskServiceName };
 
 /** 조립 루트(L4)가 넘기는 것. 세션 서비스는 ext-host 포트(xeon.session)에서 받는다 */
 export interface TasksPluginDeps {

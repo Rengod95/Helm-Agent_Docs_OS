@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   AgentServiceName,
   ApprovalServiceName,
+  ApprovalServicePortKey,
   ContextPortKey,
   ContextServiceName,
   ExecPortKey,
@@ -20,9 +21,13 @@ import {
   SandboxServiceName,
   SecretAdminServiceName,
   SecretServiceName,
+  SecretServicePortKey,
   SessionPortKey,
+  StoreServicePortKey,
   TaskServiceName,
+  TaskServicePortKey,
   ToolServiceName,
+  ToolServicePortKey,
 } from "../../src/services/index.ts";
 import {
   LoopPortKey,
@@ -91,6 +96,13 @@ describe("SERVICE_NAMES", () => {
     expect(ModelServicePortKey.name).toBe(ModelsPortKey.name);
     // SessionService는 records가 소유해 services/session.ts가 이름을 리터럴로 적는다. 두 값이 어긋나면 여기서 잡는다
     expect(SessionPortKey).toEqual({ name: SessionServiceName });
+    expect(StoreServicePortKey).toEqual({ name: StoreServiceName });
+    expect(TaskServicePortKey).toEqual({ name: SERVICE_NAMES.tasks });
+    expect(TaskServicePortKey.name).toBe(InputQueuePortKey.name);
+    expect(ToolServicePortKey).toEqual({ name: SERVICE_NAMES.tools });
+    expect(ToolServicePortKey.name).toBe(ToolsPortKey.name);
+    expect(ApprovalServicePortKey).toEqual({ name: SERVICE_NAMES.approvals });
+    expect(SecretServicePortKey).toEqual({ name: SERVICE_NAMES.secrets });
   });
 
   test("services that records and capabilities own keep their own names", () => {
