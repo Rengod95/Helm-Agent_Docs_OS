@@ -16,7 +16,12 @@ export {
   type SecretsSopsFile,
 } from "./config.ts";
 export { SECRETS_SETTING_DEFS } from "./settings.ts";
-export { createSecretServiceCore, type SecretServiceRuntime } from "./service.ts";
+export {
+  createSecretServiceCore,
+  type SecretServiceCore,
+  type SecretServiceInternal,
+  type SecretServiceRuntime,
+} from "./service.ts";
 export {
   bunRunner,
   type ProcessRunner,

@@ -1,4 +1,4 @@
-import { chmod, writeFile } from "node:fs/promises";
+import { chmod, mkdir, writeFile } from "node:fs/promises";
 import { generateIdentity, identityToRecipient } from "age-encryption";
 import { err, ok } from "@xeon/contracts";
 import { createRedactor } from "../../src/redactor.ts";
@@ -24,12 +24,16 @@ export interface RealSopsFixture {
   readonly keyFile: string;
   readonly identity: string;
   readonly yaml: string;
+  /** sops에 주는 HOME. 개발자의 홈 설정이 시험에 섞이지 않도록 임시 디렉터리 안의 빈 디렉터리다 */
+  readonly home: string;
 }
 
-const PLAIN_ENV = { PATH: Bun.env["PATH"] ?? "/usr/bin:/bin", HOME: Bun.env["HOME"] ?? "/tmp" };
+function plainEnv(home: string): Record<string, string> {
+  return { PATH: Bun.env["PATH"] ?? "/usr/bin:/bin", HOME: home };
+}
 
-async function runPlain(argv: readonly string[]): Promise<number> {
-  const proc = Bun.spawn([...argv], { env: PLAIN_ENV, stdout: "ignore", stderr: "ignore" });
+async function runPlain(argv: readonly string[], home: string): Promise<number> {
+  const proc = Bun.spawn([...argv], { env: plainEnv(home), stdout: "ignore", stderr: "ignore" });
   return proc.exited;
 }
 
@@ -41,6 +45,8 @@ export async function realSopsFixture(
 ): Promise<RealSopsFixture> {
   const identity = await generateIdentity();
   const recipient = await identityToRecipient(identity);
+  const home = dir.join("home");
+  await mkdir(home, { recursive: true });
   const keyFile = dir.join("age-keys.txt");
   await writeFile(keyFile, `# public key: ${recipient}\n${identity}\n`, { mode: 0o600 });
   await chmod(keyFile, 0o600);
@@ -49,9 +55,9 @@ export async function realSopsFixture(
     .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
     .join("\n");
   await writeFile(yaml, `${plain}\n`);
-  const code = await runPlain([sops, "encrypt", "--age", recipient, "--in-place", yaml]);
+  const code = await runPlain([sops, "encrypt", "--age", recipient, "--in-place", yaml], home);
   if (code !== 0) throw new Error("fixture: sops encrypt failed");
-  return { sops, keyFile, identity, yaml };
+  return { sops, keyFile, identity, yaml, home };
 }
 
 export interface RealProviderOptions {
@@ -69,7 +75,7 @@ export function realProvider(fx: RealSopsFixture, options: RealProviderOptions =
       Promise.resolve(err({ kind: "not_found", name: "sops", searched: [], hint: "" })),
     runner,
     signal,
-    parentEnv: PLAIN_ENV,
+    parentEnv: plainEnv(fx.home),
   });
   const key: SopsKeyAccess = options.key ?? {
     id: "file",
@@ -79,7 +85,7 @@ export function realProvider(fx: RealSopsFixture, options: RealProviderOptions =
     files: () => [{ env: "dev", path: fx.yaml }],
     binary: () => resolver.resolve(),
     key: () => Promise.resolve(ok(key)),
-    parentEnv: PLAIN_ENV,
+    parentEnv: plainEnv(fx.home),
     runner,
     signal,
     redactor: createRedactor(),

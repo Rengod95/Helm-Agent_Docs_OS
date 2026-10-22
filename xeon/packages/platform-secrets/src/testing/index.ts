@@ -18,7 +18,11 @@ import type { MetaEntry, MetaStore } from "../meta.ts";
 import { PROVIDER_PLACEHOLDER_HANDLE } from "../providers/sops.ts";
 import { handleForName } from "../ref.ts";
 import { createRedactor } from "../redactor.ts";
-import { createSecretServiceCore, type SecretServiceRuntime } from "../service.ts";
+import {
+  createSecretServiceCore,
+  type SecretServiceInternal,
+  type SecretServiceRuntime,
+} from "../service.ts";
 
 // eng.testing.guide TS-05, L0.secrets.plan §2. 다른 패키지의 테스트가 쓰는 가짜들이다(`./testing` 서브패스).
 // 정책 판정·lease·Redactor는 운영 구현을 그대로 쓴다. 진짜 sops와 age 키를 쓰지 않는다.
@@ -133,7 +137,8 @@ export interface MemorySecretsOptions {
   readonly parentEnv?: Readonly<Record<string, string | undefined>>;
 }
 
-export interface MemorySecrets extends SecretServiceRuntime {
+/** 시험은 공개 서비스와 사람 전용 통로를 한 객체로 본다(운영에서는 서로 다른 객체다) */
+export interface MemorySecrets extends SecretServiceRuntime, SecretServiceInternal {
   /** 제공자 lease가 불린 횟수. 정책 거부 때 제공자를 부르지 않았는지 확인한다 */
   providerLeaseCalls(): number;
   /** 관리 서비스. 정책 판정·lease·Redactor는 같은 운영 구현이고 값 저장소와 감사 파일만 메모리다 */
@@ -286,7 +291,7 @@ export function memorySecrets(options: MemorySecretsOptions): MemorySecrets {
   };
 
   const logger = options.logger ?? NOOP_LOGGER;
-  const runtime = createSecretServiceCore({
+  const core = createSecretServiceCore({
     clock: options.clock,
     scheduler: options.scheduler,
     logger,
@@ -306,7 +311,7 @@ export function memorySecrets(options: MemorySecretsOptions): MemorySecrets {
     configuredProviders: () => ["sops"],
   });
   const admin = createSecretAdminService({
-    service: runtime,
+    service: { ...core.service, ...core.internal },
     meta: metaStore,
     auditLog: audit.log,
     clock: options.clock,
@@ -316,7 +321,7 @@ export function memorySecrets(options: MemorySecretsOptions): MemorySecrets {
     runChild: options.childRunner ?? bunInheritRunner,
     parentEnv: options.parentEnv ?? {},
   });
-  return Object.assign(runtime, {
+  return Object.assign(core.service, core.internal, {
     providerLeaseCalls: () => leaseCalls,
     admin,
     auditRecords: () => audit.records.slice(),

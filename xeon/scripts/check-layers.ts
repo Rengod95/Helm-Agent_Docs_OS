@@ -665,6 +665,20 @@ export const SOURCE_PATTERNS: readonly SourcePattern[] = [
     pattern: /\bnew\s+(?:WebSocket|EventSource|XMLHttpRequest)\b/g,
     message: "conversion modules never construct network objects",
   },
+  {
+    rule: "WEB-R16",
+    dir: WEB_R16_DIR,
+    pattern: /\bimport\s*\(/g,
+    message:
+      "conversion modules use static imports only (a dynamic import escapes the no-network import lint)",
+  },
+  {
+    rule: "WEB-R16",
+    dir: WEB_R16_DIR,
+    pattern: /\bglobalThis\b/g,
+    message:
+      'conversion modules never reach globals through globalThis (globalThis["fetch"] escapes the call check)',
+  },
 ];
 
 /** Lines of `text` that match `pattern`. Comments are ignored; the pattern needs the `g` flag. */

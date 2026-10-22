@@ -239,6 +239,19 @@ describe("createSecretService with the SOPS provider", () => {
     expect((await h.service.lease(HANDLE, httpCtx())).ok).toBe(true);
   });
 
+  test("the registered service carries no human-only or admin methods", async () => {
+    const h = await harness();
+    for (const name of [
+      "leaseAsHuman",
+      "recordAdmin",
+      "providerFor",
+      "revokeLeases",
+      "activeLeaseCount",
+    ]) {
+      expect(name in h.service).toBe(false);
+    }
+  });
+
   test("ignores project-scoped meta locations", async () => {
     const h = await harness();
     const project = h.dir.join("project");

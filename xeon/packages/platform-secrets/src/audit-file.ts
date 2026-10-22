@@ -193,6 +193,10 @@ export function auditFilePath(configDir: string): string {
   return join(configDir, SECRETS_SUBDIR, AUDIT_FILE_NAME);
 }
 
+function ignore(): void {
+  // 쓰기 순서 꼬리를 값으로 잇는 용도다. 실패는 task를 기다린 호출자에게 간다.
+}
+
 export function createAuditLog(deps: AuditLogDeps): AuditLog {
   const path = auditFilePath(deps.configDir);
   const ioError = (error: unknown): AuditWriteError => ({
@@ -206,7 +210,8 @@ export function createAuditLog(deps: AuditLogDeps): AuditLog {
 
   function enqueue<T>(task: () => Promise<T>): Promise<T> {
     const next = tail.then(task);
-    tail = next;
+    // task가 reject해도 꼬리는 풀린 채로 이어 가야 이후 쓰기가 건너뛰어지지 않는다
+    tail = next.then(ignore, ignore);
     return next;
   }
 

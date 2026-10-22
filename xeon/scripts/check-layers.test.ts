@@ -565,6 +565,19 @@ test("WEB-R16: network calls, Bun access and socket construction in the convert 
   ]);
 });
 
+test("WEB-R16: dynamic imports and globalThis access in the convert directory fail", () => {
+  pkg("packages/cap-web", "L2", [], {
+    files: {
+      [`${CONVERT}/d.ts`]: 'export const d = await import("node:https");',
+      [`${CONVERT}/e.ts`]: 'export const e = globalThis["fetch"];',
+    },
+  });
+  expect(lines()).toEqual([
+    "packages/cap-web/src/fetch/convert/d.ts:1 WEB-R16 conversion modules use static imports only (a dynamic import escapes the no-network import lint)",
+    'packages/cap-web/src/fetch/convert/e.ts:1 WEB-R16 conversion modules never reach globals through globalThis (globalThis["fetch"] escapes the call check)',
+  ]);
+});
+
 test("WEB-R16: other cap-web directories, comments and test files are not scanned", () => {
   pkg("packages/cap-web", "L2", [], {
     files: {

@@ -199,7 +199,7 @@ binds: []
 | DESK.3 | 사이드카 빌드 스크립트 `scripts/build-sidecar.ts`와 대응 시험 | D3 | HOST.5 |
 | DESK.4 | UI 셸(ipc, 스레드 목록, 트랜스크립트, 입력창, 상태 표시줄), 승인 대기열 | D6, D7 | 결정 D2, HOST.4 |
 | DESK.5 | macOS FTS5 SQLite 번들 규칙, e2e(한 턴 → 종료 → 잔존 프로세스, CLI 메시지 열 비교) | D8, D11 | DESK.2, DESK.4 |
-| Z.1 | 트랙이 요청한 공유 파일 변경 일괄(just 레시피, CI `desktop-build` job D9) | 각 트랙 요청, L4.desktop D9 | 다른 트랙 병합 |
+| Z.1 | 트랙이 요청한 공유 파일 변경 일괄(just 레시피, CI `desktop-build` job D9). `xeon/knip.json`의 `ignoreIssues["package.json"]`(F.1이 미리 넣은 catalog 항목의 미사용 보고 제외)를 M2 끝에 지우고 `knip`이 catalog 오류 0건인지 확인 | 각 트랙 요청, L4.desktop D9 | 다른 트랙 병합 |
 | Z.2 | M2 종료 조건 전체 실행, `review.open-issues` 상태 갱신, M2 결과 기록 | 이 문서 §5 | Z.1 |
 
 ## 5. 트랙별 시험과 종료 기준

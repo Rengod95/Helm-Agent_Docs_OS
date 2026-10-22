@@ -221,16 +221,33 @@ export interface SopsProvider extends SecretProvider {
  * JS 문자열을 거치지 않고 바이트에서 바로 만든다. 입력이 UTF-8이면 결과도 UTF-8이다.
  */
 export function jsonStringBytes(value: Uint8Array): Uint8Array {
-  const out: number[] = [0x22];
+  // 값이 일반 배열에 남지 않도록 최악의 크기(제어 문자마다 6바이트)를 미리 잡고, 쓴 뒤 남은 버퍼를 지운다
+  const scratch = new Uint8Array(value.length * 6 + 2);
+  let length = 0;
+  scratch[length++] = 0x22;
   for (const byte of value) {
-    if (byte === 0x22 || byte === 0x5c) out.push(0x5c, byte);
-    else if (byte < 0x20)
-      out.push(...new TextEncoder().encode(`\\u${byte.toString(16).padStart(4, "0")}`));
-    else out.push(byte);
+    if (byte === 0x22 || byte === 0x5c) {
+      scratch[length++] = 0x5c;
+      scratch[length++] = byte;
+    } else if (byte < 0x20) {
+      // \u00XX
+      scratch.set(
+        [0x5c, 0x75, 0x30, 0x30, HEX[byte >> 4] ?? 0x30, HEX[byte & 0xf] ?? 0x30],
+        length,
+      );
+      length += 6;
+    } else {
+      scratch[length++] = byte;
+    }
   }
-  out.push(0x22);
-  return Uint8Array.from(out);
+  scratch[length++] = 0x22;
+  const out = scratch.slice(0, length);
+  scratch.fill(0);
+  return out;
 }
+
+/** 소문자 16진 숫자의 ASCII 코드 */
+const HEX: readonly number[] = Array.from("0123456789abcdef", (digit) => digit.charCodeAt(0));
 
 function missing(): SecretError {
   return { kind: "secret_missing", handle: PROVIDER_PLACEHOLDER_HANDLE, where: "provider" };

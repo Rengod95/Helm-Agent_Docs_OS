@@ -78,22 +78,22 @@ ci-layer layer affected="false":
 verify: setup fmt-check lint typecheck check-layers check-ts-rules depcruise knip (docs-route "--check") test
     ws check
 
-# 웹 가격표 asOf 90일 검사 (자리: m2-plan WEB.3 구현 전까지 실패로 끝남)
+# 웹 가격표 asOf 90일 검사 (자리: m2-plan WEB.3 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
 [group('local')]
 web-pricing:
     cd xeon && just web-pricing
 
-# 데스크톱 사이드카 빌드 <triple> (자리: m2-plan DESK.3 구현 전까지 실패로 끝남)
+# 데스크톱 사이드카 빌드 <triple> (자리: m2-plan DESK.3 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
 [group('local')]
 desktop-sidecar triple:
     cd xeon && just desktop-sidecar {{triple}}
 
-# 데스크톱 개발 실행 (자리: m2-plan DESK.2 구현 전까지 실패로 끝남)
+# 데스크톱 개발 실행 (자리: m2-plan DESK.2 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
 [group('local')]
 desktop-run:
     cd xeon && just desktop-run
 
-# 데스크톱 앱 빌드 (자리: m2-plan DESK.2 구현 전까지 실패로 끝남)
+# 데스크톱 앱 빌드 (자리: m2-plan DESK.2 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
 [group('local')]
 desktop-build:
     cd xeon && just desktop-build

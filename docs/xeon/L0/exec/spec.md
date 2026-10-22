@@ -518,7 +518,7 @@ export function createExecService(
 - `exited`는 프로세스가 끝나면 종료 코드와 신호 이름으로 이행한다.
 - `context.abortSignal`이 취소되면 `stop("force")`와 같다.
 - 결과 모양이 `BackgroundStopper`(`L0.process.spec` §3.1)와 같으므로 등록자(L1 tools, L2 mcp)는 `{ label, owner, pid: handle.pid, stopper: handle }`로 `BackgroundRegistry.register`를 부른다. `platform-exec`는 레지스트리를 부르지 않는다(DR-02).
-- 서비스 dispose 때 서비스 `cleanup`이 아직 살아 있는 백그라운드 프로세스도 끝낸다. 파생 env의 `cleanup`은 그 env로 시작한 백그라운드 프로세스만 끝낸다.
+- 서비스 dispose 때 서비스 `cleanup`이 아직 살아 있는 백그라운드 프로세스도 끝낸다. 파생 env(`withCwd`)에는 `startBackground`가 없다.
 - `secretEnv`는 `exec`와 같은 규칙으로 받는다. 비밀 lease는 spawn이 끝난 직후 폐기하고(값은 spawn 인자로 이미 복사됐다) 프로세스가 사는 동안 쥐지 않는다. `onOutput`이 던지면 전달만 멈추고 프로세스는 계속 둔다(원인은 Logger `exec.background_output_failed`). `window`는 포크 `exec`와 같이 이 계층에서 쓰지 않는다.
 - 단계: 1차 계약, M2(PLT.3)에 구현했다(`L0.exec.plan` EX-20). stdin 파이프가 필요한 MCP stdio 서버를 이 계약으로 띄울지는 10절 9번이다.
 

@@ -173,14 +173,14 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
     configuredProviders: () => deps.config().providers,
   });
   const service: SecretServiceRuntime = {
-    ...core,
+    ...core.service,
     [Symbol.dispose]() {
       lifetime.abort();
-      core[Symbol.dispose]();
+      core.service[Symbol.dispose]();
     },
   };
   const admin = createSecretAdminService({
-    service,
+    service: { ...core.service, ...core.internal },
     meta: metaStore,
     auditLog,
     clock: os.time.clock,
