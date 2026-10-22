@@ -1,5 +1,9 @@
-import { Type } from "typebox";
-import type { AnyCapabilityDef, CapabilityId } from "../../src/capabilities/index.ts";
+import { Type, type TSchema } from "typebox";
+import {
+  toJsonSchema,
+  type AnyCapabilityDef,
+  type CapabilityId,
+} from "../../src/capabilities/index.ts";
 
 /** 메서드 하나(run)와 지정한 이름의 도구들을 가진 최소 능력 정의 */
 export function makeDef(id: CapabilityId, toolNames: readonly string[]): AnyCapabilityDef {
@@ -42,4 +46,13 @@ export function loose(
 ): AnyCapabilityDef {
   const copy: AnyCapabilityDef = JSON.parse(JSON.stringify({ ...def, ...patch }));
   return copy;
+}
+
+/** 객체 스키마의 최상위 속성 이름. 스키마가 Type.Unsafe로 감싸여 있어도 JSON Schema 쪽을 읽는다 */
+export function propertyNames(schema: TSchema): readonly string[] {
+  const json: unknown = toJsonSchema(schema);
+  if (typeof json !== "object" || json === null) return [];
+  const properties: unknown = Reflect.get(json, "properties");
+  if (typeof properties !== "object" || properties === null) return [];
+  return Object.keys(properties);
 }
