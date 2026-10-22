@@ -217,3 +217,51 @@ xeon/packages/platform-secrets/
 | 마스킹을 보장으로 오해하는 사용자 문구 | 문서·화면·`diagnose()` 문구에 "보조"를 쓴다. 설정 키는 읽기 전용 표시 | `L4.settings-ui` 문구 검토와 이 패키지 문자열에 "보장"이 없는지 정적 검사로 본다 |
 | JS 문자열로 바뀐 값이 힙에 남음(`text()`) | `text()` 호출을 M1 env 주입, M3 헤더 치환, M4 입력으로 제한하고 나머지는 `bytes`만 쓴다 | `static-checks.test.ts`에서 `text()` 호출 위치를 허용 목록과 대조한다 |
 | 세션 이벤트 기록이 L1 작업에 묶여 늦어짐 | 이 패키지는 M1에 `onAudit` 훅과 레코드 타입까지만 만든다. 세션 이벤트 `secret.*` 기록은 (a)안(`F.records.spec` §3.3.1, 생산자 `core.tools`)대로 `L1.tools.plan`이 붙인다 | M1 스모크가 `onAudit` 수신 레코드로 `secret.used`·`secret.denied`를 확인하는지 본다 |
+
+## 8. M2 구현 기록 (m2-plan SEC.1~SEC.5)
+
+구현은 브랜치 `m2/sec`에서 했다. 시험 환경은 WSL2(sops 3.13.3, age 1.3.2, Secret Service 없음, macOS·Windows 없음)다. 시험 값은 모두 `seededRandom`이나 일회용 age 키로 만든 가짜이고, 값 비교는 불리언으로만 해서 실패 메시지에 값이 찍히지 않게 했다.
+
+### 8.1 작업별 상태
+
+| m2-plan ID | plan ID | 상태 | 내용과 시험 |
+|---|---|---|---|
+| SEC.1 | SC-02(쓰기), SC-09(감사 파일) | 구현 | `meta.ts`의 `write`·`remove`(0600 임시 파일 → fsync → 이름 바꿈, 새로 만들 때는 hard link로 덮어쓰기 경쟁 차단). `audit-file.ts`(추가 전용, 기록마다 fsync, 0600, 보관 기간 정리는 프로세스당 첫 쓰기 전 한 번). `meta-write.test.ts`, `audit-file.test.ts` |
+| SEC.2 | SC-14 | 구현 | `admin.ts`의 `ls`, `usage`, `add`, `set`, `meta`, `rotate`, `references`, `rm`, `test`, `run`. `admin.test.ts`(메모리), `admin.int.test.ts`(조립한 서비스와 실제 파일, 실제 sops) |
+| SEC.3 | SC-23 | 구현 | `reveal`. 재인증 60초 이내, `os-auth` 우선, OS 인증을 쓸 수 있는 환경에서는 `tty-confirm` 거부, `passphrase`는 M2에 경로가 없어 거부. 감사 기록이 디스크에 남은 뒤에만 `show`를 부르고 호출 뒤 값을 0으로 덮는다. `reveal.test.ts` |
+| SEC.4 | SC-17 | 구현 | `withBrowserInput`. origin 정확 일치(대소문자와 기본 포트 표기만 같게 본다), `fill` 콜백에서만 값을 주고 호출 뒤 lease를 닫는다. `browser-input.test.ts` |
+| SEC.4 | SC-18 | 구현 | SOPS `put`은 `sops set --value-stdin`일 때만 켠다(`refreshCapabilities`가 `set --help`로 판정). 값은 JSON 문자열 바이트로 stdin에만 보내고 호출 뒤 버퍼를 0으로 덮는다. `remove`는 `sops unset`(값을 받지 않는다)이라 `put` 지원과 따로 켠다. `sops-real.int.test.ts` |
+| SEC.5 | SC-13, open-issues M-04 | 구현 | `age-encryption` 0.3.1을 `platform-secrets/package.json`에 연결(`bun.lock`의 워크스페이스 항목과 전이 의존 5개가 따라 들어왔다). `key/file-fallback.ts`의 `provision()`이 identity를 만들어 0600 파일로 쓰고 수신자만 돌려준다. `key-provision.test.ts` |
+| SEC.5 | SC-19(Linux) | 부분 | `secret-tool` 대역과 실제 sops로 `SOPS_AGE_KEY_CMD` 구성(공백·작은따옴표가 든 경로의 shlex 인용 포함)과 복호화를 확인했다. 진짜 Secret Service 조회는 이 기기에 없어 확인하지 못했다 |
+
+### 8.2 확인하지 못한 항목 (미확인)
+
+| 항목 | 이유 | 확인 방법 |
+|---|---|---|
+| `reveal`의 `os-auth` 경로 | 이 기기에 OS 인증 수단이 없다. `osAuthAvailable`은 조립 루트가 넘기는 값이고 기본은 `false`다. 서비스는 `os-auth` 증거의 시각만 검사하고, 인증이 실제로 일어났는지는 L4·L0.os가 책임진다. 시험은 `tty-confirm` 경로와 "OS 인증 가능 환경에서 `tty-confirm` 거부" 규칙까지 확인했다 | macOS·Windows·Linux 데스크톱 실기에서 L4의 OS 인증 연결 뒤 `xeon secret reveal` |
+| macOS Keychain | macOS 기기 없음. 명령 구성(`security find-generic-password -s xeon.age -a default -w`)만 단위 시험이 있다. 접근 승인 대화상자 횟수(위험 표 1행)도 기록하지 못했다 | macOS 실기에서 lease 5회에 뜬 대화상자 수를 세어 기록 |
+| Windows 자격 증명 관리자 | 스텁(`not_implemented`)이다. 읽기 수단은 [미결](spec §10 7번)이다 | Windows 네이티브 착수 때 |
+| Linux Secret Service 실기 | `secret-tool`과 D-Bus 서비스가 없다. 대역으로 명령 인용과 sops 연동만 확인했다 | GNOME Keyring나 KWallet이 있는 Linux 데스크톱 |
+| 감사 파일의 프로세스 간 동시 정리 | 정리(prune)가 파일을 다시 쓰므로, 같은 시각에 다른 프로세스가 붙인 줄이 사라질 수 있다. 같은 사용자의 CLI와 호스트가 동시에 첫 쓰기를 하는 경우에만 생긴다 | 파일 잠금을 넣을지 M3 운영 로그 설계 때 정한다 |
+
+### 8.3 문서와 다르게 정한 점
+
+- `add`: 제공자에 `meta.ref` 항목이 이미 있으면(예: `just secret-add`가 만든 SOPS 키) 값을 읽지 않고 메타만 붙인다(`secret.created`의 `fields`는 `["meta"]`). 계약에 "항목에 메타 붙이기" 메서드가 없어 `add`에 넣었다. 값 통로(`SecretValueSource`)는 호출되지 않는다.
+- `rm`: 제공자가 지울 수 있으면 값까지 지우고(`fields`가 `["meta","value"]`), 지울 수 없으면 메타만 지운다. 항목은 `orphaned`로 남는다.
+- `meta`: `use`, `approval`, `scope`, `expiresAt`가 바뀌면 활성 lease를 닫는다. 좁힌 정책이 이미 열린 lease에 적용되지 않는 틈을 없애기 위해서다. `ttlSeconds`와 `maxUses` 변경은 새 lease에만 적용한다.
+- `run`: 사람이 명령을 입력한 것을 승인으로 보아 사용 정책(모드, 도구, 대상, 승인)을 건너뛰고 만료만 검사한다. `secret.used`(`mode: "env"`, `threadId: null`)는 남긴다. 자식 프로세스를 띄우지 못하면 종료 코드 127을 돌려준다. 환경 변수 이름 규칙 위반은 `invalid_ref`(`name_pattern`)로 돌려준다.
+- `ls --usage`: 감사 파일에서 마지막 사용 시각만 채운다. 결정별 개수를 실을 필드가 `SecretListing`에 없어 `usage()`로 따로 센다.
+- 감사 파일의 `secret.used`·`secret.denied`·`secret.approved`·`secret.masked`도 같은 파일에 쓴다(spec §3.9 제안). 이 쓰기는 대기열에 넣고 실패를 로그에만 남겨 비밀 사용 경로를 막지 않는다. `reveal`만 기록이 실패하면 값을 보이지 않는다.
+- 문체: 이 문서와 `_templates/README.md`가 한다체이므로 같은 문체로 적었다.
+
+### 8.4 다른 레인에 요청 (F 계약)
+
+소유 경로 밖이라 고치지 않았다. 지금은 아래 대체 값으로 돌려준다.
+
+| 요청 | 지금 대체 | 원천 |
+|---|---|---|
+| `SecretError`에 `audit_unavailable` 변형(감사 파일을 쓸 수 없음) | `meta_invalid`(`name: "audit.log"`, `path`는 감사 파일, `errors: ["unwritable (<코드>)"]`) | spec §3.10, §3.9 |
+| `SecretError`에 "키 파일을 만들 수 없음 또는 덮어쓰기 거부" 변형, 환경 변수 이름 오류 변형 | `key_unavailable`(`file`, `access_denied`), `invalid_ref`(`name_pattern`) | spec §3.10, §4.7 |
+| `SecretListing`에 결정별 사용 개수(`--usage`) | 없음. `usage()`로 센다 | spec §4.9 `ls` |
+| 설정 저장소의 비밀 참조 조회(`references`의 `settingKeys`) | `settingKeysFor` 주입(기본은 빈 목록) | spec §3.8 |
+| 조립 루트(HOST.3)에 `createSecretsRuntime`의 `osAuthAvailable`, `settingKeysFor` 연결 | 기본값 `false`와 빈 목록 | m2-plan HOST.3 |
