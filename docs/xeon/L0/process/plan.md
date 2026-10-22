@@ -62,7 +62,7 @@ xeon/packages/platform-process/
       launchd.ts
       systemd.ts
       none.ts
-    select.ts                     # OS provider 선택 지점 하나 (registrar, 소켓 경로 한도, 분리 옵션)
+    select.ts                     # OS provider 선택 지점 하나 (프로세스 트리 종료·분리 옵션은 M2 구현, registrar·소켓 경로 한도는 서비스 모드 때)
     settings.ts                   # defineSettings("l0.process", …)
     service.ts                    # ProcessService 조립, Cordis 플러그인 (xeon.process)
     testing/

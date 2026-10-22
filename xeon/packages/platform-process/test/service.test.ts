@@ -48,29 +48,39 @@ describe("process service", () => {
     expect(handle.service.background).toBe(handle.background);
   });
 
-  test("run and spawn reject before M2 instead of starting anything", async () => {
+  test("spawn rejects in the first release instead of starting anything", async () => {
     const { handle } = build();
-    const controller = new AbortController();
-    const runRejection = await rejectionOf(
-      handle.service.run({
-        argv: ["true"],
-        cwd: "/",
-        env: {},
-        stdin: "",
-        maxStdoutChars: 10,
-        maxStderrChars: 10,
-        signal: controller.signal,
-      }),
-    );
     const spawnRejection = await rejectionOf(
       handle.service.spawn({ main: "/x.ts", args: [], cwd: "/", env: {}, label: "ext:a:1" }),
     );
-    expect(runRejection).toBeInstanceOf(Bug);
     expect(spawnRejection).toBeInstanceOf(Bug);
-    if (runRejection instanceof Error) expect(runRejection.message).toContain("not available");
     if (spawnRejection instanceof Error) {
       expect(spawnRejection.message).toContain("isolation_unavailable");
     }
+  });
+
+  test("run reports an unsupported platform as a spawn error instead of rejecting", async () => {
+    const clock = manualClock();
+    const exits = exitRecorder();
+    const handle = createProcessService({
+      clock,
+      scheduler: clock,
+      ids: sequentialLocalIds(),
+      logger: memoryLogger(),
+      settings: { shutdownTimeoutMs: 3000 },
+      exit: (code) => exits.exit(code),
+      platform: null,
+    });
+    const run = await handle.service.run({
+      argv: ["true"],
+      cwd: "/",
+      env: {},
+      stdin: "",
+      maxStdoutChars: 10,
+      maxStderrChars: 10,
+      signal: new AbortController().signal,
+    });
+    expect(run).toMatchObject({ exitCode: null, spawnError: "unsupported_platform" });
   });
 
   test("shutdown stops every background process through the registry", async () => {

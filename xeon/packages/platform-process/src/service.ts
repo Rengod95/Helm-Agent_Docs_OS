@@ -12,10 +12,12 @@ import {
 import { OsServiceName, type OsService, type ProcessService } from "@xeon/contracts/services";
 import { createProcessShutdown, type ProcessShutdown } from "./lease/shutdown.ts";
 import { createBackgroundRegistry, type BackgroundRegistryController } from "./registry.ts";
+import { createHookRunner } from "./port/hook-run.ts";
+import { detectProcessPlatform, type ProcessPlatformProvider } from "./select.ts";
 import type { ProcessServiceSettings } from "./settings.ts";
 
 // L0.process.spec §3.1·§4.8, L0.process.plan PR-08. ProcessService를 조립하고 xeon.process 포트로 내놓는다.
-// M1의 run·spawn은 타입을 맞춘 거부 구현이다(plan §1: 매니페스트 hooks가 M1에 없다, review.decisions-2 U-07).
+// run(외부 훅, PR-21)은 M2에서 구현했다. spawn(격리 확장 자식, PR-22)은 2차라 거부 구현이다(spec §4.8 spawn 4번).
 
 export interface ProcessServiceDeps {
   readonly clock: Clock;
@@ -28,6 +30,11 @@ export interface ProcessServiceDeps {
   readonly exit: (code: number) => never;
   /** 조립 루트가 직접 쥐고 request를 부르려면 미리 만들어 넘긴다. 없으면 settings로 만든다 */
   readonly shutdown?: ProcessShutdown;
+  /**
+   * 외부 훅의 프로세스 트리 종료 수단. 생략하면 실행 중인 OS에서 고른다(select.ts).
+   * `null`이면 지원하지 않는 OS로 보고 모든 훅 실행이 spawnError `unsupported_platform`이다.
+   */
+  readonly platform?: ProcessPlatformProvider | null;
 }
 
 /** ProcessService와, 조립 루트가 종료를 요청하고 레지스트리를 닫는 데 쓰는 소유자 쪽 객체 */
@@ -35,6 +42,13 @@ export interface ProcessServiceHandle {
   readonly service: ProcessService;
   readonly shutdown: ProcessShutdown;
   readonly background: BackgroundRegistryController;
+}
+
+function selectedPlatform(logger: Logger): ProcessPlatformProvider | null {
+  const selected = detectProcessPlatform(logger);
+  if (selected.ok) return selected.value;
+  logger.warn("process.os_unsupported", { platform: selected.error.platform });
+  return null;
 }
 
 export function createProcessService(deps: ProcessServiceDeps): ProcessServiceHandle {
@@ -57,13 +71,23 @@ export function createProcessService(deps: ProcessServiceDeps): ProcessServiceHa
   shutdown.onShutdown("background-registry", async () => {
     await background.close();
   });
+  const platform = deps.platform === undefined ? selectedPlatform(deps.logger) : deps.platform;
+  const hooks = createHookRunner({
+    platform: platform ?? undefined,
+    scheduler: deps.scheduler,
+    graceMs: deps.settings.shutdownTimeoutMs,
+    shutdownSignal: shutdown.signal,
+    logger: deps.logger,
+  });
+  // 종료 협조가 시작되면 실행 중인 훅은 shutdown.signal로 이미 중단 요청을 받았다. 끝나기를 기다린다(spec §4.8 run 5번)
+  shutdown.onShutdown("hook-runs", async () => {
+    await hooks.drain();
+  });
   const service: ProcessService = {
     background,
     shutdown,
-    run(_spec: HookRunSpec): Promise<HookRawRun> {
-      return Promise.reject(
-        new Bug("ProcessPort.run is not available before M2 (L0.process.plan PR-21)"),
-      );
+    run(spec: HookRunSpec): Promise<HookRawRun> {
+      return hooks.run(spec);
     },
     spawn(_spec: IsolationSpawnSpec): Promise<IsolatedChild> {
       return Promise.reject(

@@ -566,7 +566,7 @@ ensureService():
 - `decide(context)` 규칙 [제안]:
   1. `requested`가 있으면 그 선택을 `act`로 돌려준다. 단 `delegate`인데 `serviceOwnsSession`이 거짓이면 `ask`로 바꾼다.
   2. `serviceOwnsSession`이면 `act(delegate)`(서비스가 있으면 위임이 기본, adr.0006 §3.6 3번).
-  3. `interactive`이면 `ask`, 선택지 `[observe, fork]`(서비스가 있으면 `delegate` 포함), 제안값은 설정 `l0.process.lockFallback.default`가 `ask`가 아니면 그 값, `ask`면 `observe`.
+  3. `interactive`이면 `ask`, 선택지 `[observe, fork]`(서비스가 소유자이면 규칙 2가 묻지 않고 위임하므로 `delegate`는 목록에 없다), 제안값은 설정 `l0.process.lockFallback.default`가 `ask`가 아니면 그 값, `ask`면 `observe`.
   4. 비대화(스크립트 실행, 예약)면 설정 기본값을 쓰고, 기본값이 `ask`면 `observe`.
 - 세 선택의 동작(실행은 L4·L1):
   - 위임: 서비스 전송으로 소유자에게 입력을 보낸다(`turn.start`를 서비스가 처리).
@@ -583,7 +583,7 @@ ensureService():
   - `serviceMode && autoResumeEnabled` → `auto_resume`.
   - 그 밖 → `offer`.
 - 자동 재개 설정은 `l1.persistence.autoResume`(기본 꺼짐)과 `l1.persistence.maxResumeAttempts` 둘이고 L1.persistence가 소유한다. 이 패키지는 설정 키를 두지 않고 호스트가 읽은 값을 `ResumePolicyInput`으로 받는다 [결정: review.decisions-2 S-03]. 자동 재개는 서비스 모드에서만 켠다(adr.0006 §3.6 5번). CLI·데스크톱 단독 모드에서는 설정이 켜져 있어도 `offer`다. 사용자가 없는 동안 비용과 부작용이 나는 일을 서비스 모드로 한정하기 위해서다.
-- 다른 프로세스가 그 세션 임대를 쥐고 있으면(`heldBy`) 후보에 표시만 하고 재개 버튼 대신 §4.5 선택지를 보인다.
+- 다른 프로세스가 그 세션 임대를 쥐고 있으면(`heldBy`) 후보에 표시만 하고 재개 버튼 대신 §4.5 선택지를 보인다. 이 후보는 자동 재개 조건을 채워도 `offer`로 내리고, 시도 횟수 상한(`exhausted`)은 그대로 둔다.
 - 재개 실행은 L1(`L1.persistence.spec` 재개 절차, `eng.events.design` §7.2)이 한다. 재개 시작 때 `thread.resumed`를 커밋하고, 투영 `p_threads.resume_attempts`가 그 커밋에서 오른다(`L1.persistence.spec` §4.8.1).
 - 경계: 결과 불명 도구 호출은 자동 재실행하지 않고, 저장된 정책과 현재 선언이 모두 `replay: safe`인 도구만 재실행한다(adr.0006 §3.6 6번). 이 판정은 L1 몫이고 이 패키지는 관여하지 않는다.
 
@@ -611,7 +611,7 @@ ensureService():
 1. `argv[0]`을 셸 없이 직접 실행한다. `cwd`와 `env`는 받은 값만 쓰고 부모 env를 상속하지 않는다. env 허용 목록 구성은 호출자(`hookEnv`, `X.operations.spec` §3.7)의 일이다.
 2. `stdin` 문자열을 쓰고 닫는다. stdout·stderr는 각각 `maxStdoutChars`·`maxStderrChars`에서 자르고, stdout을 잘랐으면 `stdoutTruncated: true`다.
 3. `signal`이 중단되면 프로세스 트리를 graceful로 멈추고 `l0.process.shutdown.timeoutMs` 뒤 force로 멈춘다. 결과는 `timedOut: true`다. 시간 예산은 호출자가 `signal`로 정한다.
-4. 실행 파일이 없거나 권한이 없어 기동하지 못하면 거부(reject)하지 않고 `exitCode: null`, `spawnError: <코드>`(`"ENOENT"` 등)로 돌려준다. 해석은 `interpretHookRun`(X)이 한다.
+4. 실행 파일이 없거나 권한이 없어 기동하지 못하면 거부(reject)하지 않고 `exitCode: null`, `spawnError: <코드>`(`"ENOENT"` 등)로 돌려준다. 해석은 `interpretHookRun`(X)이 한다. `argv`가 비었으면 `"EINVAL"`, 트리 종료 수단이 없는 OS면 `"unsupported_platform"`이다. 호출 시점에 `signal`이 이미 중단되어 있으면 띄우지 않고 `timedOut: true`로 돌려준다. 중단된 실행은 자식이 끝난 뒤에도 트리에 force를 한 번 더 보내 손자를 남기지 않는다.
 5. 훅 프로세스는 레지스트리에 등록하지 않는다. 짧은 실행이므로 `signal`과 종료 협조(§4.2) 참여로 정리한다. 종료 협조가 시작되면 실행 중인 훅을 3번 규칙대로 멈춘다.
 
 `spawn(spec: IsolationSpawnSpec): Promise<IsolatedChild>`(격리 확장 자식, `X.loading-trust.spec` §3.8, 2차):

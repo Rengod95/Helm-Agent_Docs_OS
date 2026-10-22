@@ -55,3 +55,28 @@ export {
   type ProcessServiceDeps,
   type ProcessServiceHandle,
 } from "./service.ts";
+export {
+  buildResumeOffers,
+  type ResumeAction,
+  type ResumeCandidate,
+  type ResumeOffer,
+  type ResumePolicyInput,
+} from "./resume-offer.ts";
+export {
+  createLockFallbackPolicy,
+  threadLockedDetails,
+  type LockFallbackChoice,
+  type LockFallbackContext,
+  type LockFallbackDecision,
+  type LockFallbackDefault,
+  type LockFallbackPolicy,
+  type ThreadLockedDetails,
+} from "./lock-fallback.ts";
+export { createHookRunner, type HookRunner, type HookRunnerDeps } from "./port/hook-run.ts";
+export {
+  detectProcessPlatform,
+  selectProcessPlatform,
+  type ProcessPlatformProvider,
+  type ProcessSelectError,
+  type TreeSignal,
+} from "./select.ts";
