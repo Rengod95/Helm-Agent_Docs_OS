@@ -9,7 +9,7 @@ import {
   writeSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import { Bug, err, ok, type Clock, type Result } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, type Clock, type Result } from "@xeon/contracts";
 import type { IdFactory } from "@xeon/contracts/conversation";
 import type { BlobError, BlobRef, SqlTx, StoreWriteError } from "@xeon/contracts/records";
 import { assertNotInWrite, createStoreDb, type StoreConnections } from "./db.ts";
@@ -65,7 +65,7 @@ function mapWriteError(error: StoreWriteError): BlobError {
     case "io":
       return { kind: "io", code: error.code };
     default:
-      throw new Bug("store.write_error_invalid");
+      return assertNever(error, "StoreWriteError");
   }
 }
 

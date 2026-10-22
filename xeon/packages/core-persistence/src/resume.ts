@@ -1,6 +1,15 @@
 // 열기, 열 때 복구, 재개(L1.persistence.spec §3.6, §3.7, §4.8). 이 파일은 아무것도 실행하지 않는다:
 // recover는 합성 결과를 커밋하고 남은 일을 ResumePlan으로 돌려줄 뿐이다(adr.0006 §3.1).
-import { Bug, err, ok, parse, type Clock, type Logger, type Result } from "@xeon/contracts";
+import {
+  assertNever,
+  Bug,
+  err,
+  ok,
+  parse,
+  type Clock,
+  type Logger,
+  type Result,
+} from "@xeon/contracts";
 import type { EventId, IdFactory, ThreadId, TurnId } from "@xeon/contracts/conversation";
 import {
   EffectExecSchema,
@@ -499,7 +508,7 @@ export function createResumer(deps: ResumeDeps): Resumer {
         case "key_reused":
           throw new Bug(`store.schema_invalid: resume key reused (${result.requestId})`);
         default:
-          throw new Bug("store.schema_invalid: unknown commit status");
+          return assertNever(result, "CommitResult");
       }
     },
 

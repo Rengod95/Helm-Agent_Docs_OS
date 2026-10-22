@@ -150,6 +150,7 @@ function sampleValue(next: () => number): unknown {
       return 10_000 + Math.floor(next() * 3) - 1;
     case 10:
       return -1 + Math.floor(next() * 3);
+    // xeon-disable-next-line xeon/switch-default-never -- 난수로 고른 번호 범위 밖은 마지막 변형으로 모은다 (eng.typescript.guide TY-14)
     default:
       return String(Math.floor(next() * 10));
   }

@@ -1,4 +1,4 @@
-import { parse } from "@xeon/contracts";
+import { assertNever, parse } from "@xeon/contracts";
 import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
 import {
   EventsBatchParamsSchema,
@@ -210,7 +210,7 @@ async function runStep(
       return;
     }
     default:
-      throw new Error("unknown conformance step");
+      return assertNever(step, "ConformanceStep");
   }
 }
 

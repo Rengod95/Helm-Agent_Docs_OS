@@ -142,7 +142,7 @@ function mapWriteError(error: StoreWriteError): StoreError {
     case "io":
       return { kind: "io", code: error.code };
     default:
-      throw new Bug("store.write_error_invalid");
+      return assertNever(error, "StoreWriteError");
   }
 }
 

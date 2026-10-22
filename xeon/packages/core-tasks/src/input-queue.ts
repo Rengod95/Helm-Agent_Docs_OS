@@ -165,6 +165,7 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
           state: state.value,
         });
       }
+      // xeon-disable-next-line xeon/switch-default-never -- 거부 코드는 문자열이다. 이 모듈의 build가 정하지 않은 코드는 호출 결함이다 (eng.typescript.guide TY-14)
       default:
         throw new Bug(`tasks.enqueue_rejected: unexpected reject code ${code}`);
     }

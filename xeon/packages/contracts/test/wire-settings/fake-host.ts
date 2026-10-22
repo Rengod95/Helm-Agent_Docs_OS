@@ -186,6 +186,7 @@ export function createFakeHost(): ConformanceLink {
           mode: replaying ? "replaying" : "live",
         };
       }
+      // xeon-disable-next-line xeon/switch-default-never -- 메서드 이름은 문자열이다. 모르는 메서드는 와이어 오류로 돌려준다 (eng.typescript.guide TY-14)
       default:
         return fail("jsonrpc.methodNotFound", { method });
     }

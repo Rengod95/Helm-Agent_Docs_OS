@@ -1,4 +1,4 @@
-import { Bug, detach, err, ok, parse, rethrow, type Result } from "@xeon/contracts";
+import { assertNever, Bug, detach, err, ok, parse, rethrow, type Result } from "@xeon/contracts";
 import {
   EventIdSchema,
   type EventId,
@@ -60,7 +60,7 @@ function sourceKeyOf(draft: InputDraft): string {
     case "schedule":
       return "timer";
     default:
-      throw new Bug("fake-tasks: unknown source");
+      return assertNever(draft.source, "InputDraft.source");
   }
 }
 

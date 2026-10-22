@@ -1,4 +1,4 @@
-import { Bug, parse } from "@xeon/contracts";
+import { assertNever, Bug, parse } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   POINTS,
@@ -256,7 +256,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
         case "aborted":
           return { kind: "aborted" };
         default:
-          throw new Bug(`dispatch.unknown_outcome: ${String(outcome)}`);
+          return assertNever(outcome, "RunOutcome");
       }
     }
     return {
@@ -299,7 +299,8 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
       }
       const entries = sortEntries(deps.registry.snapshot(point), policy);
       const env = makeEnv(point, options);
-      switch (decl.fold) {
+      const fold = decl.fold;
+      switch (fold) {
         case "tap":
           return foldTap(env, entries, payload);
         case "first":
@@ -312,7 +313,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
             finalize: options.finalize,
           });
         default:
-          throw new Bug(`dispatch.unknown_fold: ${point}`);
+          return assertNever(fold, "PointDecl.fold");
       }
     },
   };

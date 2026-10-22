@@ -153,6 +153,7 @@ export function failureOfWire(error: WireError): Failure {
         code: EXIT.error,
       };
     }
+    // xeon-disable-next-line xeon/switch-default-never -- 서버가 더 새로우면 모르는 와이어 오류 kind가 온다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return {
         message: `엔진이 요청을 처리하지 못했다 (${kind})`,

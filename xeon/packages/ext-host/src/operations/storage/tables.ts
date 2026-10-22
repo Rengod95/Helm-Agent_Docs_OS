@@ -114,6 +114,7 @@ export function columnTypeOf(schema: TSchema): ColumnType | undefined {
     case "array":
       return { sql: "TEXT", acceptsNull: false, json: true, boolean: false, nullable: false };
     case undefined:
+    // xeon-disable-next-line xeon/switch-default-never -- TypeBox type 이름은 열린 문자열이다. 지원 밖 타입은 undefined로 돌려주고 호출자가 선언 오류로 바꾼다 (eng.typescript.guide TY-14)
     default:
       return undefined;
   }

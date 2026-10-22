@@ -193,6 +193,7 @@ function storeError(message: string): EngineStartError {
         message: "데이터 디렉터리에 쓸 수 없다",
         fix: "디렉터리 권한과 파일 시스템 종류를 확인한다",
       };
+    // xeon-disable-next-line xeon/switch-default-never -- AssembleIssue 메시지 키는 문자열이다. 모르는 키는 일반 저장소 오류로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return {
         kind: "storeUnavailable",

@@ -1,4 +1,4 @@
-import { Bug, parse } from "@xeon/contracts";
+import { assertNever, Bug, parse } from "@xeon/contracts";
 import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
 import {
   RECORD_KIND_PATTERN,
@@ -262,10 +262,10 @@ export function createStateService(core: HostCore): StateService {
               // 초안과 키는 X가 만든다. 저장소가 거부하면 X의 결함이다
               throw new Bug("commit.invalid: state commit draft or key was rejected");
             default:
-              throw new Bug(`state.commit: unknown rejection ${String(result.code)}`);
+              return assertNever(result.code, "ExtCommitRejectCode");
           }
         default:
-          throw new Bug("state.commit: unknown result status");
+          return assertNever(result, "ExtCommitResult");
       }
     },
     async record(record, generation, kind, subject, payload) {

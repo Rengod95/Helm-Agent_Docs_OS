@@ -182,8 +182,10 @@ function entryMatches(entry: ProtectedPathEntry, canonicalPath: string): boolean
       const name = basenameOf(canonicalPath);
       return nameMatches(entry.path, name) && !(entry.except ?? []).includes(name);
     }
+    // xeon-disable-next-line xeon/switch-default-never -- services는 다른 F 디렉터리에서 값을 가져오지 않아(test/services/imports.test.ts) assertNever를 못 쓴다. never 확인으로 완전성을 컴파일 시점에 검사하고, 런타임에 모르는 값이면 보호하는 쪽으로 닫는다 (eng.typescript.guide TY-14)
     default:
-      return false;
+      entry.match satisfies never;
+      return true;
   }
 }
 
@@ -307,7 +309,9 @@ export function describeSandboxStatus(status: SandboxStatus): SandboxStatusSumma
       };
     case undefined:
       return { severity, summary: `Sandbox is unavailable. ${consequence}`, hints: [] };
+    // xeon-disable-next-line xeon/switch-default-never -- services는 다른 F 디렉터리에서 값을 가져오지 않아(test/services/imports.test.ts) assertNever를 못 쓴다. never 확인으로 완전성을 컴파일 시점에 검사한다 (eng.typescript.guide TY-14)
     default:
+      status.reason satisfies never;
       return { severity, summary: `Sandbox is unavailable. ${consequence}`, hints: [] };
   }
 }

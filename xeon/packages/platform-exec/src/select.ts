@@ -41,6 +41,7 @@ export function selectExecPlatform(input: {
           ...(input.logger === undefined ? {} : { logger: input.logger }),
         }),
       );
+    // xeon-disable-next-line xeon/switch-default-never -- process.platform은 지원 목록보다 넓은 외부 값이다. 지원 밖 OS는 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err({ kind: "unsupported_platform", platform: input.platform });
   }

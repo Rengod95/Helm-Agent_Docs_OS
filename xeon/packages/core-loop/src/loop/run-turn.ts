@@ -1,5 +1,5 @@
 // Derived from pi-agent-core 1.3.0 agent-loop.ts runLoop inner iteration (MIT, Copyright (c) 2025 Mario Zechner). See LICENSE.pi.
-import { Bug, ok, type Result } from "@xeon/contracts";
+import { assertNever, ok, type Result } from "@xeon/contracts";
 import type { AgentToolCall, AssistantMessage } from "@xeon/contracts/conversation";
 import type {
   PlacedMessage,
@@ -141,7 +141,7 @@ async function runEntry(run: TurnRun): Promise<Result<void, LoopFailure>> {
       return ok(undefined);
     }
     default:
-      throw new Bug("loop.unknown_entry");
+      return assertNever(entry, "TurnEntry");
   }
 }
 

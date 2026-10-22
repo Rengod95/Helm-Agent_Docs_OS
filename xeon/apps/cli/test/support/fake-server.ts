@@ -296,6 +296,7 @@ export function startFakeServer(
         }
         return { turnId: turn };
       }
+      // xeon-disable-next-line xeon/switch-default-never -- 메서드 이름은 문자열이다. 모르는 메서드는 와이어 오류로 돌려준다 (eng.typescript.guide TY-14)
       default:
         throw wireError("jsonrpc.methodNotFound", { details: { method } });
     }

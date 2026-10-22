@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { assertNever, Bug } from "@xeon/contracts";
 import {
   CONTEXTS,
   EXT_ID_PATTERN,
@@ -67,7 +67,7 @@ export function ownsTable(spec: OwnerSpec, table: string): boolean {
         return EXT_LOCAL_NAME.test(table.slice(prefix.length));
       });
     default:
-      throw new Bug(`store.owner_kind_invalid: ${String(spec.kind)}`);
+      return assertNever(spec.kind, "OwnerSpec.kind");
   }
 }
 
@@ -199,6 +199,7 @@ function ddlObjectOf(word: string): DdlObject | null {
     case "VIEW":
     case "TRIGGER":
       return word;
+    // xeon-disable-next-line xeon/switch-default-never -- SQL 낱말은 열린 문자열이다. 해당 없는 낱말은 null이다 (eng.typescript.guide TY-14)
     default:
       return null;
   }
@@ -292,6 +293,7 @@ export function classifyStatement(sql: string): StatementClass {
       return { kind: "attach" };
     case "PRAGMA":
       return classifyPragma(tokens);
+    // xeon-disable-next-line xeon/switch-default-never -- SQL 문장의 첫 낱말은 열린 문자열이다. 모르는 낱말은 other로 분류한다 (eng.typescript.guide TY-14)
     default:
       return { kind: "other" };
   }
@@ -453,7 +455,7 @@ export function createStatementGuard(options: GuardOptions): StatementGuard {
           if (strict) explainCheck(sql, db);
           break;
         default:
-          throw new Bug("store.statement_class_invalid");
+          return assertNever(cls, "StatementClass");
       }
       verified.add(sql);
     },

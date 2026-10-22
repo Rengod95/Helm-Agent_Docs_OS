@@ -1,4 +1,4 @@
-import { Bug, parse } from "../../src/index.ts";
+import { assertNever, Bug, parse } from "../../src/index.ts";
 import type { JsonObject, JsonValue } from "../../src/conversation/index.ts";
 import {
   WIRE_METHODS,
@@ -252,7 +252,7 @@ async function runStep(
       return;
     }
     default:
-      throw new Bug("unknown conformance step");
+      return assertNever(step, "ConformanceStep");
   }
 }
 

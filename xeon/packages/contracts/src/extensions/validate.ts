@@ -137,6 +137,7 @@ function codeForSchemaPath(path: string): ManifestIssueCode {
       return "isolation_invalid";
     case "trust":
       return "trust_invalid";
+    // xeon-disable-next-line xeon/switch-default-never -- 검증 경로의 첫 마디는 스키마가 정하는 열린 문자열이다. 모르는 마디는 일반 schema 코드로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return "schema";
   }

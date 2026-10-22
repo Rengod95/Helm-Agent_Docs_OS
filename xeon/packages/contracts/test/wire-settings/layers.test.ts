@@ -35,6 +35,7 @@ function namespaceOf(def: SettingDef): SettingNamespace {
     case "l3":
     case "l4":
       return `${prefix}.${domain}`;
+    // xeon-disable-next-line xeon/switch-default-never -- 설정 키 접두는 문자열이다. 모르는 접두는 시험 자료 결함이다 (eng.typescript.guide TY-14)
     default:
       throw new Error(`bad key ${def.key}`);
   }

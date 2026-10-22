@@ -1,5 +1,5 @@
 import { SQLiteError, type Database } from "bun:sqlite";
-import { Bug, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, type Result } from "@xeon/contracts";
 import type {
   SqlRow,
   SqlTx,
@@ -58,7 +58,8 @@ export function classifySqliteCode(code: string | undefined): SqliteClass {
 function mapStorageError(caught: unknown): StoreWriteError | undefined {
   if (!(caught instanceof SQLiteError)) return undefined;
   const code = caught.code;
-  switch (classifySqliteCode(code)) {
+  const classified = classifySqliteCode(code);
+  switch (classified) {
     case "busy":
       return { kind: "busy" };
     case "disk_full":
@@ -71,7 +72,7 @@ function mapStorageError(caught: unknown): StoreWriteError | undefined {
     case "other":
       return undefined;
     default:
-      return undefined;
+      return assertNever(classified, "SqliteCodeClass");
   }
 }
 

@@ -1,4 +1,5 @@
 import {
+  assertNever,
   Bug,
   err,
   ok,
@@ -114,7 +115,7 @@ function mapWriteError(error: StoreWriteError): LeaseError {
     case "io":
       return { kind: "lock_io", code: error.code };
     default:
-      throw new Bug("store.write_error_invalid");
+      return assertNever(error, "StoreWriteError");
   }
 }
 
@@ -286,7 +287,7 @@ export function createLeaseService(deps: LeaseDeps): LeaseController {
             case "io":
               return err({ kind: "lock_io", code: got.error.code });
             default:
-              throw new Bug("store.lock_error_invalid");
+              return assertNever(got.error, "LockError");
           }
         }
         handle = got.value;

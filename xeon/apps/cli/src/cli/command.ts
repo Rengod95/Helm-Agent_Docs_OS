@@ -618,6 +618,7 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
           "get, set, reset, list, schema 중 하나를 쓴다",
         ),
       );
+    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage(
@@ -752,6 +753,7 @@ function parseSessions(
           "ls, show, fork, rm 중 하나를 쓴다",
         ),
       );
+    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage(
@@ -973,6 +975,7 @@ function parseSecret(
           "ls, add, set, meta, rotate, rm, test, reveal 중 하나를 쓴다",
         ),
       );
+    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage(
@@ -1096,6 +1099,7 @@ function commandOf(
       return parseJsonOnly(acc, "version", rest);
     case "help":
       return ok({ kind: "help", topic: rest[0] ?? null });
+    // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return err(
         usage("unknownCommand", `모르는 명령 ${word}`, "xeon --help로 명령 목록을 확인한다"),

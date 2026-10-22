@@ -108,6 +108,65 @@ test("a Result failure converted to a Bug fails outside test support", () => {
   ).toEqual([]);
 });
 
+test("a switch default must call assertNever", () => {
+  const good =
+    "switch (kind) {\n  case 'a':\n    return 1;\n  default:\n    return assertNever(kind, 'K');\n}";
+  expect(scan("packages/a/src/x.ts", good)).toEqual([]);
+  const bad = "switch (kind) {\n  case 'a':\n    return 1;\n  default:\n    return 0;\n}";
+  expect(scan("packages/a/src/x.ts", bad)).toEqual(["4 xeon/switch-default-never"]);
+  // 시험 파일에도 같다
+  expect(scan("packages/a/test/x.test.ts", bad)).toEqual(["4 xeon/switch-default-never"]);
+  // default가 없는 switch는 oxlint default-case의 일이다
+  expect(scan("packages/a/src/x.ts", "switch (kind) {\n  case 'a':\n    return 1;\n}")).toEqual([]);
+});
+
+test("the default block ends at the next case and only the switch's own default counts", () => {
+  const text = [
+    "switch (a) {",
+    "  default:",
+    "    return assertNever(a, 'A');",
+    "  case 'x':",
+    "    return switchInner(b);",
+    "}",
+    "switch (outer) {",
+    "  case 1:",
+    "    switch (inner) {",
+    "      default:",
+    "        return 2;",
+    "    }",
+    "    return 1;",
+    "  default:",
+    "    return assertNever(outer, 'O');",
+    "}",
+  ].join("\n");
+  // 바깥 default는 assertNever가 있고, 안쪽 switch의 default만 실패한다
+  expect(scan("packages/a/src/x.ts", text)).toEqual(["10 xeon/switch-default-never"]);
+});
+
+test("strings, comments and regex literals do not confuse the switch scan", () => {
+  const text = [
+    'const a = "switch (x) { default: return 1; }";',
+    "// switch (y) { default: return 2; }",
+    "const b = /[{}]\\/default:/;",
+    "switch (k) {",
+    "  case 'a':",
+    "    return `}${k}{`;",
+    "  default:",
+    "    return assertNever(k, 'K');",
+    "}",
+  ].join("\n");
+  expect(scan("packages/a/src/x.ts", text)).toEqual([]);
+});
+
+test("an exemption above the default line or inside its block silences the switch rule", () => {
+  const above =
+    "switch (s) {\n  case 'a':\n    return 1;\n  // xeon-disable-next-line xeon/switch-default-never -- 열린 외부 값 (eng.typescript.guide TY-14)\n  default:\n    return 0;\n}";
+  expect(scan("packages/a/src/x.ts", above)).toEqual([]);
+  const inside =
+    "switch (s) {\n  case 'a':\n    return 1;\n  default:\n    // xeon-disable-next-line xeon/switch-default-never -- 열린 외부 값 (eng.typescript.guide TY-14)\n    return 0;\n}";
+  expect(scan("packages/a/src/x.ts", inside)).toEqual([]);
+});
+
 test("an exemption comment above the line silences a scan rule", () => {
   const text =
     '// xeon-disable-next-line xeon/bug-for-expected -- 질의어가 아니다 (eng.typescript.guide TY-24)\nthrow new Bug("x.io");';

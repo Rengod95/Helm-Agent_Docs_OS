@@ -1,4 +1,4 @@
-import { Bug, err, ok, type Clock, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, type Clock, type Result } from "@xeon/contracts";
 import { extTablePrefix } from "@xeon/contracts/records";
 import type {
   ExtensionTableError,
@@ -22,7 +22,7 @@ function mapWriteError(error: StoreWriteError): ExtensionTableError {
     case "io":
       return { kind: "io", code: error.code };
     default:
-      throw new Bug("store.write_error_invalid");
+      return assertNever(error, "StoreWriteError");
   }
 }
 

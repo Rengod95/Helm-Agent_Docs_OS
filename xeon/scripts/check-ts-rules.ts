@@ -10,6 +10,7 @@
 //                         not_found, corrupt, ownership_lost, lease_lost, row_invalid, row_corrupt, read_failed, commit_failed,
 //                         name_conflict, setup_failed) or interpolates a Result error (`${x.error.kind}`), or sits directly
 //                         under `if (!x.ok)` in non-test code: a Result failure converted to a Bug (TY-24)
+//   xeon/switch-default-never a `switch` whose `default` block has no `assertNever` call (TY-14)
 //   xeon/catch-swallow    `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)` or `void <caught>` (TY-25)
 //   xeon/directive-format block disable comments, disable comments without ` -- <reason>`, ts-ignore, ts-nocheck and
 //                         ts-expect-error comments outside tests (TY-08, guide 4.1)
@@ -125,6 +126,159 @@ function exemptLines(lines: readonly string[]): Map<number, Set<string>> {
     exempt.set(target, rules);
   });
   return exempt;
+}
+
+/**
+ * 주석, 문자열, 템플릿, 정규식 리터럴의 내용을 공백으로 바꾼 사본. 줄 번호와 글자 위치는 그대로다.
+ * 괄호 짝 맞추기가 문자열 안의 `{`나 `"`에 속지 않게 한다
+ */
+function blank(ch: string): string {
+  return ch === "\n" ? "\n" : " ";
+}
+
+function maskCode(text: string): string {
+  const out: string[] = [];
+  let index = 0;
+  let previous = "";
+  while (index < text.length) {
+    const ch = text.charAt(index);
+    const next = text.charAt(index + 1);
+    if (ch === "/" && next === "/") {
+      while (index < text.length && text.charAt(index) !== "\n") {
+        out.push(" ");
+        index += 1;
+      }
+      continue;
+    }
+    if (ch === "/" && next === "*") {
+      out.push("  ");
+      index += 2;
+      while (
+        index < text.length &&
+        !(text.charAt(index) === "*" && text.charAt(index + 1) === "/")
+      ) {
+        out.push(blank(text.charAt(index)));
+        index += 1;
+      }
+      out.push("  ");
+      index += 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      out.push(ch);
+      index += 1;
+      while (index < text.length && text.charAt(index) !== ch) {
+        if (text.charAt(index) === "\\") {
+          out.push(" ");
+          index += 1;
+        }
+        out.push(blank(text.charAt(index)));
+        index += 1;
+      }
+      out.push(ch);
+      index += 1;
+      previous = ch;
+      continue;
+    }
+    if (ch === "/" && /[(,=:[!&|?{};]|^$/.test(previous)) {
+      // 정규식 리터럴: 닫는 /까지(문자 클래스 안의 /는 건너뛴다)
+      out.push("/");
+      index += 1;
+      let inClass = false;
+      while (index < text.length && text.charAt(index) !== "\n") {
+        const c = text.charAt(index);
+        if (c === "\\") {
+          out.push("  ");
+          index += 2;
+          continue;
+        }
+        if (c === "[") inClass = true;
+        else if (c === "]") inClass = false;
+        else if (c === "/" && !inClass) break;
+        out.push(" ");
+        index += 1;
+      }
+      out.push("/");
+      index += 1;
+      previous = "/";
+      continue;
+    }
+    out.push(ch);
+    if (!/\s/.test(ch)) previous = ch;
+    index += 1;
+  }
+  return out.join("");
+}
+
+/** `switch` 하나의 본문 범위(여는 중괄호 다음부터 닫는 중괄호 앞). 괄호가 맞지 않으면 undefined */
+function switchBody(code: string, switchAt: number): { start: number; end: number } | undefined {
+  let index = code.indexOf("(", switchAt);
+  if (index < 0) return undefined;
+  let depth = 0;
+  for (; index < code.length; index += 1) {
+    const ch = code.charAt(index);
+    if (ch === "(") depth += 1;
+    else if (ch === ")") {
+      depth -= 1;
+      if (depth === 0) break;
+    }
+  }
+  const open = code.indexOf("{", index);
+  if (open < 0) return undefined;
+  depth = 0;
+  for (let at = open; at < code.length; at += 1) {
+    const ch = code.charAt(at);
+    if (ch === "{") depth += 1;
+    else if (ch === "}") {
+      depth -= 1;
+      if (depth === 0) return { start: open + 1, end: at };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * TY-14: 모든 switch의 default 블록은 assertNever를 부른다. default 블록은 default 절부터 같은 switch의
+ * 다음 case(또는 switch의 끝)까지다. 예외는 default 줄 위나 default 블록 안의 `xeon-disable-next-line xeon/switch-default-never` 주석이다
+ */
+function scanSwitchDefaults(
+  text: string,
+  add: (rule: string, line: number, message: string) => void,
+  exemptedIn: (from: number, to: number) => boolean,
+): void {
+  const code = maskCode(text);
+  for (const match of code.matchAll(/\bswitch\s*\(/g)) {
+    const body = switchBody(code, match.index);
+    if (body === undefined) continue;
+    let depth = 0;
+    let defaultAt = -1;
+    let blockEnd = body.end;
+    for (let at = body.start; at < body.end; at += 1) {
+      const ch = code.charAt(at);
+      if (ch === "{" || ch === "(" || ch === "[") depth += 1;
+      else if (ch === "}" || ch === ")" || ch === "]") depth -= 1;
+      else if (depth === 0 && /[a-z]/.test(ch) && !/\w/.test(code.charAt(at - 1))) {
+        const word = /^(?:default|case)\b/.exec(code.slice(at, at + 8))?.[0];
+        if (word === "default" && defaultAt < 0) {
+          defaultAt = at;
+        } else if (word === "case" && defaultAt >= 0) {
+          blockEnd = at;
+          break;
+        }
+      }
+    }
+    if (defaultAt < 0) continue;
+    if (
+      !/\bassertNever\s*\(/.test(code.slice(defaultAt, blockEnd)) &&
+      !exemptedIn(lineOf(text, defaultAt), lineOf(text, blockEnd))
+    ) {
+      add(
+        "xeon/switch-default-never",
+        lineOf(text, defaultAt),
+        "the default block of a switch must call assertNever (TY-14)",
+      );
+    }
+  }
 }
 
 export function scanSource(file: SourceFile): {
@@ -251,6 +405,12 @@ export function scanSource(file: SourceFile): {
       }
     }
   }
+  scanSwitchDefaults(file.text, add, (from, to) => {
+    for (let at = from; at <= to; at += 1) {
+      if (exempt.get(at)?.has("xeon/switch-default-never") === true) return true;
+    }
+    return false;
+  });
   return { violations, exceptions };
 }
 

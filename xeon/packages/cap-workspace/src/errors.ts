@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { assertNever, Bug } from "@xeon/contracts";
 import {
   CapabilityError,
   DEFAULT_RETRYABLE,
@@ -62,7 +62,7 @@ export function fileErrorCode(code: FileErrorCode): CommonErrorCode {
     case "unknown":
       return "internal";
     default:
-      return neverCode(code);
+      return assertNever(code, "FileErrorCode");
   }
 }
 
@@ -88,12 +88,8 @@ export function executionErrorCode(code: ExecutionErrorCode): CommonErrorCode {
     case "sandbox_unavailable":
       return "denied";
     default:
-      return neverCode(code);
+      return assertNever(code, "ExecutionErrorCode");
   }
-}
-
-function neverCode(value: never): never {
-  throw new Bug(`workspace.errors: unmapped error code ${String(value)}`);
 }
 
 /** denied의 `detail.by`. 어느 층이 막았는지 */
@@ -114,7 +110,7 @@ function deniedBy(code: ExecutionErrorCode): JsonValue | undefined {
     case "unknown":
       return undefined;
     default:
-      return neverCode(code);
+      return assertNever(code, "ExecutionErrorCode");
   }
 }
 

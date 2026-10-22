@@ -1,6 +1,6 @@
 import { existsSync, closeSync, openSync, realpathSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join } from "node:path";
-import { err, ok, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, type Result } from "@xeon/contracts";
 import type { FaultInjector, StoreCapabilities } from "@xeon/contracts/records";
 import { createBlobStore } from "./blob.ts";
 import {
@@ -52,7 +52,8 @@ function openErrorOf(caught: unknown): StoreOpenError | undefined {
   const failure = asSqliteFailure(caught);
   if (failure === undefined) return undefined;
   const code = failure.code ?? "SQLITE_ERROR";
-  switch (classifySqliteCode(failure.code)) {
+  const classified = classifySqliteCode(failure.code);
+  switch (classified) {
     case "busy":
       return { kind: "busy" };
     case "disk_full":
@@ -64,7 +65,7 @@ function openErrorOf(caught: unknown): StoreOpenError | undefined {
     case "other":
       return undefined;
     default:
-      return undefined;
+      return assertNever(classified, "SqliteCodeClass");
   }
 }
 

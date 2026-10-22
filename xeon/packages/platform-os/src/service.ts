@@ -1,4 +1,4 @@
-import { err, ok, type LogLevel, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, type LogLevel, type Result } from "@xeon/contracts";
 import type {
   BinaryName,
   DirsError,
@@ -65,7 +65,7 @@ function pickFsKindProvider(source: FsKindSource, runtime: OsRuntime): FsKindPro
     case "none":
       return createNoopFsKindProvider();
     default:
-      return createNoopFsKindProvider();
+      return assertNever(source, "FsKindSource");
   }
 }
 
