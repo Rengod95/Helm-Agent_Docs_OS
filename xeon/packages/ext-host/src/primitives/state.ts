@@ -1,8 +1,9 @@
 import { assertNever, Bug, parse } from "@xeon/contracts";
-import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
+import { toJsonValue, type JsonValue, type ThreadId } from "@xeon/contracts/conversation";
 import {
   RECORD_KIND_PATTERN,
   RecordCommitPortKey,
+  type ExtCommitRejectCode,
   type ExtRecordRow,
   type GroupRecord,
   type RecordKind,
@@ -49,8 +50,16 @@ export interface StateService {
     generation: Generation,
     query: RecordQuery,
   ): Promise<readonly GroupRecord[]>;
-  /** 켜기 준비: 저장된 상태가 선언 버전·스키마와 맞는지 본다. 맞지 않으면 오류를 돌려준다 */
-  checkStored(record: ScopeRecord, thread: ThreadRuntime): PrimitiveError | undefined;
+  /**
+   * 한 thread에서 켜기 전에 저장된 상태 문서를 준비한다(X.primitives.spec §4.5.3 4번, §4.6.1 3번). 저장된 판이 없으면 할 일이 없다.
+   * 버전이 낮으면 setup이 등록한 마이그레이션 훅으로 옮겨 새 판으로 커밋한다. 훅이 없거나 결과가 스키마를 어기면,
+   * 저장된 버전이 선언보다 높으면 오류를 돌려준다
+   */
+  prepareStored(
+    record: ScopeRecord,
+    generation: Generation,
+    thread: ThreadRuntime,
+  ): Promise<PrimitiveError | undefined>;
 }
 
 /** scope 상태 커밋의 이벤트 kind: <x|grp>.<이름>.state.committed (X.primitives.spec §4.6.1) */
@@ -141,6 +150,117 @@ export function createStateService(core: HostCore): StateService {
       );
     }
     return port;
+  }
+
+  /** 낮은 버전의 저장 상태를 훅으로 옮기고 새 판으로 커밋한다. 같은 판을 다시 옮기면 같은 키라 replayed다 */
+  async function migrateStored(
+    record: ScopeRecord,
+    generation: Generation,
+    thread: ThreadRuntime,
+    stored: StateCacheEntry,
+    decl: NonNullable<ScopeRecord["def"]["state"]>,
+  ): Promise<PrimitiveError | undefined> {
+    const migrate = generation.migration;
+    if (migrate === null) {
+      return new PrimitiveError(
+        "state_migration_missing",
+        `stored state of ${record.id} is version ${stored.version} but setup did not register migrateState (needs ${decl.version})`,
+        { scopeId: record.id },
+      );
+    }
+    const storedDoc = toJsonValue(stored.doc);
+    if (storedDoc === undefined) {
+      return new PrimitiveError("state_schema", `stored state of ${record.id} is not JSON`, {
+        scopeId: record.id,
+      });
+    }
+    let migrated: JsonValue;
+    try {
+      migrated = migrate(storedDoc, stored.version);
+    } catch (cause) {
+      return new PrimitiveError(
+        "state_migration_failed",
+        `migrateState of ${record.id} threw while moving version ${stored.version} to ${decl.version}`,
+        { scopeId: record.id, cause },
+      );
+    }
+    if (!parse(decl.schema, migrated).ok) {
+      return new PrimitiveError(
+        "state_schema",
+        `migrated state of ${record.id} does not match its schema`,
+        { scopeId: record.id },
+      );
+    }
+    if (jsonBytes(migrated) > ENVELOPE_MAX_BYTES - STATE_SLACK_BYTES) {
+      return new PrimitiveError("state_too_large", `migrated state of ${record.id} is too large`, {
+        scopeId: record.id,
+      });
+    }
+    const port = core.ports.get(RecordCommitPortKey);
+    if (port === undefined) {
+      return new PrimitiveError(
+        "port_unavailable",
+        "xeon.session (RecordCommitPort) is not provided, so the state cannot be migrated",
+        { scopeId: record.id },
+      );
+    }
+    const draft = makeDraft(core.deps.ids, {
+      threadId: thread.threadId,
+      kind: stateKindOf(record.manifest),
+      payload: {
+        scopeId: record.id,
+        rev: stored.rev + 1,
+        prevEventId: stored.eventId,
+        version: decl.version,
+        doc: migrated,
+      },
+    });
+    const result = await port.commit({
+      threadId: thread.threadId,
+      requestId: `mig:${hash12(record.id)}:${stored.version}-${decl.version}:${stored.rev}`,
+      fingerprintSource: {
+        scopeId: record.id,
+        from: stored.version,
+        to: decl.version,
+        rev: stored.rev,
+      },
+      expectStateRev: { scopeId: record.id, rev: stored.rev },
+      drafts: [draft],
+    });
+    switch (result.status) {
+      case "committed":
+        thread.states.set(record.id, {
+          eventId: draft.id,
+          rev: stored.rev + 1,
+          version: decl.version,
+          doc: deepFreeze(migrated),
+        });
+        return undefined;
+      case "replayed": {
+        const after = result.stored;
+        thread.states.set(
+          record.id,
+          after === undefined
+            ? {
+                eventId: draft.id,
+                rev: stored.rev + 1,
+                version: decl.version,
+                doc: deepFreeze(migrated),
+              }
+            : {
+                eventId: after.eventId,
+                rev: after.rev,
+                version: after.version,
+                doc: deepFreeze(after.doc),
+              },
+        );
+        return undefined;
+      }
+      case "rejected":
+        return rejectionError(record, result.code);
+      default:
+        return assertNever(result, "ExtCommitResult");
+    }
   }
 
   return {
@@ -387,37 +507,52 @@ export function createStateService(core: HostCore): StateService {
       }
       return rows.map(toGroupRecord);
     },
-    checkStored(record, thread) {
+    async prepareStored(record, generation, thread) {
       const decl = record.def.state;
       if (decl === undefined) return undefined;
       const stored = thread.states.get(record.id);
       if (stored === undefined) return undefined;
       if (stored.version > decl.version) {
         return new PrimitiveError(
-          "state_schema",
+          "state_future_version",
           `stored state of ${record.id} is version ${stored.version}, newer than ${decl.version}`,
           { scopeId: record.id },
         );
       }
-      if (stored.version < decl.version) {
-        return new PrimitiveError(
-          "state_migration_missing",
-          `stored state of ${record.id} is version ${stored.version} and no migration exists (M2)`,
-          { scopeId: record.id },
-        );
+      if (stored.version === decl.version) {
+        return parse(decl.schema, stored.doc).ok
+          ? undefined
+          : new PrimitiveError("state_schema", `stored state of ${record.id} breaks its schema`, {
+              scopeId: record.id,
+            });
       }
-      if (!parse(decl.schema, stored.doc).ok) {
-        return new PrimitiveError(
-          "state_schema",
-          `stored state of ${record.id} breaks its schema`,
-          {
-            scopeId: record.id,
-          },
-        );
-      }
-      return undefined;
+      return migrateStored(record, generation, thread, stored, decl);
     },
   };
+}
+
+/** 거부된 커밋 코드를 확장이 받는 오류로 옮긴다. invalid는 X 결함이라 Bug다 */
+function rejectionError(record: ScopeRecord, code: ExtCommitRejectCode): PrimitiveError {
+  switch (code) {
+    case "state_conflict":
+      return new PrimitiveError("state_conflict", `state of ${record.id} changed; read it again`, {
+        scopeId: record.id,
+      });
+    case "lease_lost":
+      return new PrimitiveError("lease_revoked", "session write ownership was lost", {
+        scopeId: record.id,
+      });
+    case "busy":
+    case "storage":
+      return new PrimitiveError("storage_unavailable", `state commit failed: ${code}`, {
+        scopeId: record.id,
+      });
+    case "invalid":
+      // 초안과 키는 X가 만든다. 저장소가 거부하면 X의 결함이다
+      throw new Bug("commit.invalid: state migration draft or key was rejected");
+    default:
+      return assertNever(code, "ExtCommitRejectCode");
+  }
 }
 
 function throwIfRejected(

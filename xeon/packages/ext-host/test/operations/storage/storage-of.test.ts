@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import { ok } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { DurableEventDraft } from "@xeon/contracts/records";
 import { Type } from "typebox";
@@ -25,7 +26,7 @@ function projection(extension = "stor-ext"): ExtProjection<typeof NOTE_DEFS> {
     kinds: [`x.${extension}.note.added`],
     apply(event, tables) {
       const payload = recordOf(event.payload);
-      tables.notes.upsert({ id: textOf(payload.id), text: textOf(payload.text) });
+      return tables.notes.upsert({ id: textOf(payload.id), text: textOf(payload.text) });
     },
   };
 }
@@ -81,7 +82,7 @@ test("storage: defineTables through storageOf(g) is projected by the core commit
     tables !== undefined && "read" in tables
       ? tables.read((reader) => reader.notes.list())
       : undefined;
-  expect(read).toEqual({ ok: true, value: [{ id: "n1", text: "hello" }] });
+  expect(read).toEqual({ ok: true, value: ok([{ id: "n1", text: "hello" }]) });
 });
 
 test("storage: errors from defineTables", async () => {
@@ -97,7 +98,11 @@ test("storage: errors from defineTables", async () => {
       });
       results.foreignKind = foreign.ok ? "ok" : foreign.error.kind;
       const reservedDefs = { state: { row: NoteRow, key: ["id"], perThread: false } } as const;
-      const reserved = storage.defineTables(reservedDefs, { version: 1, kinds: [], apply() {} });
+      const reserved = storage.defineTables(reservedDefs, {
+        version: 1,
+        kinds: [],
+        apply: () => ok(undefined),
+      });
       results.reserved = reserved.ok ? "ok" : reserved.error.kind;
       const first = storage.defineTables(NOTE_DEFS, projection("stor-err"));
       results.first = first.ok ? "ok" : first.error.kind;
@@ -200,7 +205,7 @@ function noteProjection(version: number): ExtProjection<typeof NOTE_TABLE> {
     kinds: ["grp.smoke-group.note.recorded"],
     apply(event, tables) {
       const record = recordOf(event.payload);
-      tables.notes.upsert({
+      return tables.notes.upsert({
         step_id: textOf(recordOf(record.subject).id),
         text: textOf(recordOf(record.payload).text),
       });

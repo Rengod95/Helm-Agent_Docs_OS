@@ -297,7 +297,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
       if (decl.finalize === "boundary" && options.finalize === undefined) {
         throw new Bug(`dispatch.finalize_missing: ${point} requires options.finalize`);
       }
-      const entries = sortEntries(deps.registry.snapshot(point), policy);
+      const entries = sortEntries(deps.registry.snapshot(point, options.threadId), policy);
       const env = makeEnv(point, options);
       const fold = decl.fold;
       switch (fold) {

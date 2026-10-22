@@ -92,7 +92,7 @@ export {
   type ExtTables,
   type ExtTableWriter,
 } from "./storage/ext-storage.ts";
-export type { ExtStorageError } from "./storage/errors.ts";
+export type { ExtRowError, ExtStorageError } from "./storage/errors.ts";
 export {
   columnsOf,
   columnTypeOf,

@@ -185,3 +185,97 @@ test("a disabled provider takes its capability away", async () => {
   );
   expect(second.setups[0]?.status).toBe("failed");
 });
+
+async function installTwoProviders(t: Awaited<ReturnType<typeof createTestHost>>): Promise<void> {
+  await eachInOrder(
+    [
+      ["demo-p1", 0],
+      ["demo-p2", 1],
+    ] as const,
+    async ([name, loadIndex]) => {
+      await t.host.install(
+        makeUnit({ name, loadIndex, provides: [{ id: "demo.echo", version: "1.0.0" }] }, (g) => {
+          hostOf(g).provide(echoKey, echoNamed(name));
+        }),
+      );
+      return "continue";
+    },
+  );
+  await t.settled();
+}
+
+async function answerOf(
+  t: Awaited<ReturnType<typeof createTestHost>>,
+  name: string,
+): Promise<string | undefined> {
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  const answers: string[] = [];
+  const outcome = await t.host.install(
+    makeUnit(
+      {
+        name,
+        loadIndex: 9,
+        points: ["agent_settled"],
+        requires: [{ id: "demo.echo", range: "^1.0.0" }],
+      },
+      (g) => {
+        g.on("agent_settled", () => {
+          answers.push(g.capability(echoKey).echo("x"));
+        });
+      },
+    ),
+  );
+  if (outcome.setups[0]?.status !== "applied") return undefined;
+  await t.host.dispatch(
+    "agent_settled",
+    { turnId: t.ids.next("trn"), aborted: false },
+    { threadId: thread, dispatchKey: "k" },
+  );
+  return answers[0];
+}
+
+test("capabilityProviders picks one of several providers", async () => {
+  const t = await createTestHost({ settings: { capabilityProviders: { "demo.echo": "demo-p2" } } });
+  await installTwoProviders(t);
+  expect(t.diagnostics.some((diagnostic) => diagnostic.code === "capability_ambiguous")).toBe(
+    false,
+  );
+  expect(await answerOf(t, "demo-picked")).toBe("demo-p2");
+});
+
+test("capabilityProviders naming an absent provider keeps the capability ambiguous", async () => {
+  const t = await createTestHost({ settings: { capabilityProviders: { "demo.echo": "demo-p3" } } });
+  await installTwoProviders(t);
+  const ambiguous = t.diagnostics.filter(
+    (diagnostic) => diagnostic.code === "capability_ambiguous",
+  );
+  expect(ambiguous.at(-1)?.message).toContain("demo-p3");
+  expect(await answerOf(t, "demo-unpicked")).toBeUndefined();
+});
+
+test("the selection moves to the other provider when the chosen one is disabled", async () => {
+  const t = await createTestHost({ settings: { capabilityProviders: { "demo.echo": "demo-p2" } } });
+  await installTwoProviders(t);
+  expect(await answerOf(t, "demo-before")).toBe("demo-p2");
+  // 고른 공급자가 내려가면 남은 하나가 후보다. 선택이 없는 공급자 하나는 그대로 바인딩된다
+  t.host.scope("demo-p2")?.disable();
+  await t.settled();
+  expect(await answerOf(t, "demo-after")).toBe("demo-p1");
+});
+
+test("a provider of another major version is reported and excluded", async () => {
+  const t = await createTestHost();
+  await t.host.install(
+    makeUnit({ name: "demo-v2", provides: [{ id: "demo.echo", version: "2.0.0" }] }, (g) => {
+      hostOf(g).provide(echoKey, { echo: () => "v2" });
+    }),
+  );
+  await t.settled();
+  expect(
+    t.diagnostics.some(
+      (diagnostic) =>
+        diagnostic.code === "capability_unavailable" && diagnostic.extension === "demo-v2",
+    ),
+  ).toBe(true);
+});

@@ -44,12 +44,14 @@ export {
   type ExtHostDeps,
   type ExtensionUnit,
   type InstallResult,
+  type LeaseInfo,
   type PlatformContext,
   type PlatformModule,
   type PlatformSetupError,
   type ScopeToggleSourceOf,
 } from "./host.ts";
-export { hostOf, type ScopeHostApi } from "./host-api.ts";
+export { hostOf, type ScopeHostApi, type StateMigration } from "./host-api.ts";
+export type { ExtChange } from "./core.ts";
 export type { ScopeInfo, ScopeSetupOutcome } from "./scope.ts";
 export {
   DEFAULT_DRIVE_LIMITS,

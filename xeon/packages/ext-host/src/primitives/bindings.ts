@@ -33,6 +33,8 @@ function majorOf(version: string): string {
 export function createCapabilityBindings(
   bridge: CordisBridge,
   report: (diagnostic: ExtDiagnostic) => void,
+  /** x.primitives.capabilityProviders. 공급자가 여럿일 때 능력마다 고른 확장을 읽는다(P-27) */
+  selection: () => Readonly<Record<string, ExtensionName>> = () => ({}),
 ): CapabilityBindings {
   const providers = new Map<CapabilityId, ProviderInfo[]>();
   const bound = new Map<
@@ -54,22 +56,41 @@ export function createCapabilityBindings(
 
   async function reconcile(id: CapabilityId): Promise<void> {
     // major가 다른 공급자는 후보에서 뺀다(F.capabilities.spec §5 1번)
-    const eligible = (providers.get(id) ?? []).filter(
-      (info) => majorOf(info.version) === majorOf(info.keyVersion),
-    );
+    const all = providers.get(id) ?? [];
+    const eligible = all.filter((info) => majorOf(info.version) === majorOf(info.keyVersion));
+    for (const info of all) {
+      if (!eligible.includes(info)) {
+        report({
+          level: "warning",
+          code: "capability_unavailable",
+          extension: info.provider,
+          message: `provider ${info.provider} of ${id} is version ${info.version}, a different major than the key ${info.keyVersion}; it is excluded`,
+        });
+      }
+    }
     const current = bound.get(id);
     const [only] = eligible;
-    const wanted = eligible.length === 1 && only !== undefined ? only.provider : undefined;
+    const chosen = selection()[id];
+    const picked = eligible.find((info) => info.provider === chosen);
+    const wanted =
+      eligible.length === 1 && only !== undefined
+        ? only.provider
+        : eligible.length > 1
+          ? picked?.provider
+          : undefined;
     if (current !== undefined && current.provider === wanted) return;
     if (current !== undefined) {
       bound.delete(id);
       await current.fiber.dispose();
     }
-    if (eligible.length > 1) {
+    if (eligible.length > 1 && wanted === undefined) {
       report({
         level: "warning",
         code: "capability_ambiguous",
-        message: `capability ${id} has providers ${eligible.map((info) => info.provider).join(", ")}; set x.primitives.capabilityProviders`,
+        message:
+          chosen === undefined
+            ? `capability ${id} has providers ${eligible.map((info) => info.provider).join(", ")}; set x.primitives.capabilityProviders`
+            : `x.primitives.capabilityProviders names ${chosen} for ${id}, which is not one of ${eligible.map((info) => info.provider).join(", ")}`,
       });
       return;
     }

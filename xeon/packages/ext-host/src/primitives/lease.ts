@@ -33,6 +33,8 @@ export interface LeaseBroker {
   restore(thread: ThreadRuntime, open: OpenLease | null): void;
   /** scope가 꺼지면 모든 thread에서 그 scope의 임대를 반납 예정(disabled)으로 바꾼다 */
   releaseForScope(scopeId: ScopeId, reason: ReleaseReason): void;
+  /** 한 thread에서만 scope가 꺼질 때 그 thread의 임대를 반납 예정으로 바꾼다(P-28) */
+  releaseForScopeIn(thread: ThreadRuntime, scopeId: ScopeId, reason: ReleaseReason): void;
   /** prepare: 반납 예정 임대의 lease.released 초안 */
   collectReleases(thread: ThreadRuntime, txn: BoundaryTxn): void;
   /** prepare: 후보 계산과 lease.acquired 초안 */
@@ -219,6 +221,12 @@ export function createLeaseBroker(
       lease.running = false;
       return;
     }
+    if (generation.stale) {
+      // 공급자 재시작으로 세대를 다시 만드는 중이다. 임대는 두고 다음 경계에서 새 drive 함수로 이어 간다
+      lease.running = false;
+      lease.wantInvoke = true;
+      return;
+    }
     const drive = generation.drive;
     if (drive === null) {
       release(lease, "disabled");
@@ -299,11 +307,12 @@ export function createLeaseBroker(
   function candidatesFor(thread: ThreadRuntime, txn: BoundaryTxn): ScopeRecord[] {
     const out: ScopeRecord[] = [];
     for (const record of core.scopes.values()) {
-      if (!record.desired || record.driveError) continue;
-      const opening = txn.opening.includes(record);
+      if (record.driveError) continue;
+      const activeHere = thread.active.has(record.id) || txn.activating.includes(record);
+      if (!activeHere) continue;
       const generation = record.generation;
-      if (generation === null) continue;
-      if (!opening && !generation.open) continue;
+      if (generation === null || generation.stale) continue;
+      if (!generation.open && !txn.opening.includes(record)) continue;
       if (generation.drive === null) continue;
       const cooled = thread.cooldown.get(record.id);
       if (cooled !== undefined && cooled === stateService.revOf(thread.threadId, record.id)) {
@@ -341,7 +350,11 @@ export function createLeaseBroker(
         open.scopeId,
         Math.max(open.leaseEpoch, thread.leaseEpochs.get(open.scopeId) ?? 0),
       );
-      const alive = record !== undefined && record.desired && record.generation?.open === true;
+      const alive =
+        record !== undefined &&
+        thread.active.has(open.scopeId) &&
+        record.generation?.open === true &&
+        !record.generation.stale;
       if (!alive) release(lease, "restart");
     },
     releaseForScope(scopeId, reason) {
@@ -349,9 +362,20 @@ export function createLeaseBroker(
         if (thread.lease?.scopeId === scopeId) release(thread.lease, reason);
       }
     },
+    releaseForScopeIn(thread, scopeId, reason) {
+      if (thread.lease?.scopeId === scopeId) release(thread.lease, reason);
+    },
     release,
     collectReleases(thread, txn) {
       const lease = thread.lease;
+      if (lease !== null && lease.status === "active" && lease.committed) {
+        // 사용자가 다른 그룹을 구동 그룹으로 골랐고 그 그룹이 후보이면 현재 임대를 회수한다(P-22 revoked)
+        const named = core.deps.settings.activeDriveGroup(thread.threadId);
+        if (named !== null && named !== lease.scopeId) {
+          const target = candidatesFor(thread, txn).find((record) => record.id === named);
+          if (target !== undefined) release(lease, "revoked");
+        }
+      }
       if (lease === null || lease.status !== "releasing" || !lease.committed) return;
       if (lease.reason === undefined) throw new Bug("lease.releasing_without_reason");
       txn.drafts.push(
@@ -455,13 +479,17 @@ export function createLeaseBroker(
         if (lease.reason === "idle" || lease.reason === "budget") {
           thread.cooldown.set(lease.scopeId, stateService.revOf(thread.threadId, lease.scopeId));
         }
+        core.notify({ kind: "lease", scopeId: lease.scopeId, threadId: thread.threadId });
       }
       const grant = txn.grant;
       if (grant !== null) {
         grant.committed = true;
         thread.lease = grant;
         thread.leaseEpochs.set(grant.scopeId, grant.leaseEpoch);
+        core.notify({ kind: "lease", scopeId: grant.scopeId, threadId: thread.threadId });
       }
+      // 반납이 커밋되면 같은 경계에서 못 한 다음 후보의 부여를 이어서 판단한다
+      if (txn.releasing.length > 0) hooks.requestApply(thread.threadId);
     },
     onBoundary(thread, signal) {
       if (signal.kind === "turn_settled") thread.cooldown.clear();

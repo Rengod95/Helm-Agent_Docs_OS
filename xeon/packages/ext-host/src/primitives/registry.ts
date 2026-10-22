@@ -1,3 +1,4 @@
+import type { ThreadId } from "@xeon/contracts/conversation";
 import type {
   ExtensionManifest,
   ExtensionName,
@@ -21,8 +22,11 @@ export interface HandlerEntryInfo {
 export interface HandlerEntry extends HandlerEntryInfo {
   /** 핸들러 함수. 인자는 지점 fold가 정한다 */
   readonly fn: (...args: readonly unknown[]) => unknown;
-  /** 이 항목이 속한 scope 세대가 열려 있는가. 닫힌 세대의 항목은 스냅샷에서 빠진다 */
-  readonly isOpen: () => boolean;
+  /**
+   * 이 항목이 속한 scope 세대가 열려 있고 그 thread에서 켜져 있는가(P-28). 닫힌 세대와 꺼진 thread의 항목은
+   * 스냅샷에서 빠진다
+   */
+  readonly isOpen: (threadId: ThreadId) => boolean;
   /** 세대가 닫히면 중단되는 신호. 핸들러 ctx.signal의 부모다 */
   readonly signal: AbortSignal;
 }
@@ -33,10 +37,10 @@ export interface HandlerRegistry {
   /** 등록 순번을 하나 발급한다 */
   nextSeq(): number;
   /**
-   * 디스패치 시작 때 부른다. 세대가 열린 항목만 복사해 고정한다.
+   * 디스패치 시작 때 부른다. 세대가 열리고 그 thread에서 켜진 scope의 항목만 복사해 고정한다.
    * 디스패치 도중의 add·remove·세대 변화는 이 배열에 반영되지 않는다.
    */
-  snapshot(point: PointName): readonly HandlerEntry[];
+  snapshot(point: PointName, threadId: ThreadId): readonly HandlerEntry[];
   /** 항목 수. 테스트와 진단용 */
   size(point?: PointName): number;
 }
@@ -64,8 +68,8 @@ export function createHandlerRegistry(): HandlerRegistry {
         if (current.length === 0) byPoint.delete(entry.point);
       };
     },
-    snapshot(point) {
-      return (byPoint.get(point) ?? []).filter((entry) => entry.isOpen());
+    snapshot(point, threadId) {
+      return (byPoint.get(point) ?? []).filter((entry) => entry.isOpen(threadId));
     },
     size(point) {
       if (point !== undefined) return byPoint.get(point)?.length ?? 0;

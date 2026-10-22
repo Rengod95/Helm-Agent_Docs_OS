@@ -72,6 +72,12 @@ export interface TestHost {
   boundary(threadId: ThreadId): TestBoundary;
   /** 백그라운드 작업(drive 호출, 유휴 적용, 능력 바인딩)이 모두 끝나기를 기다린다 */
   settled(): Promise<void>;
+  /**
+   * 프로세스 재시작을 흉내 낸다(L3.group-kit.spec §3.13 요청 4). 같은 기록 저장소·루프·큐를 쓰는 새 호스트를 만든다.
+   * 옛 호스트는 해제하지 않고 그대로 둔다. 재시작 뒤에 확장을 다시 install하고 thread를 다시 열어야 한다.
+   * 인자로 옵션을 덮어쓸 수 있다(예: 설정, 정책)
+   */
+  restart(overrides?: Omit<TestHostOptions, "shared">): Promise<TestHost>;
 }
 
 /** M0 인메모리 포트로 동작하는 ExtHost와 도우미 묶음(X.primitives.plan P-14) */
@@ -132,7 +138,7 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
     return contribution.drafts;
   }
 
-  return {
+  const self: TestHost = {
     host,
     timers,
     ids,
@@ -151,5 +157,8 @@ export async function createTestHost(options: TestHostOptions = {}): Promise<Tes
       await hostInternalsOf(host).whenSettled();
       await flushMicrotasks();
     },
+    restart: (overrides = {}) =>
+      createTestHost({ ...options, ...overrides, shared: { records, loop, queue } }),
   };
+  return self;
 }

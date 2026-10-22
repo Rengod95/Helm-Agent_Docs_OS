@@ -12,6 +12,8 @@ export {
   type PlatformSetupError,
   type PlatformContext,
   type ExtDiagnostic,
+  type ExtChange,
+  type LeaseInfo,
   // primitives §3.3~§3.5
   type PayloadOf,
   type DispatchOptions,
@@ -53,6 +55,7 @@ export {
   isReservedServiceName,
   hostOf,
   type ScopeHostApi,
+  type StateMigration,
   // primitives §3.9, §3.10, §6
   type ScopeInfo,
   PrimitiveError,
@@ -108,6 +111,7 @@ export {
   TIERS,
   type ExtProjection,
   type ExtQuery,
+  type ExtRowError,
   type ExtStorage,
   type ExtStorageError,
   type ExtTableDef,

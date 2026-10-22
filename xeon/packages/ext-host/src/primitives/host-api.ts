@@ -25,9 +25,12 @@ import { createPortProvider } from "./port-provider.ts";
 import type { PostQueue } from "./post.ts";
 import type { HandlerEntry } from "./registry.ts";
 import { capabilityServiceName, providerServiceName } from "./services.ts";
+import type { StateMigration } from "./state-migration.ts";
 import type { StateService } from "./state.ts";
 
-/** setup이 받은 g에 붙는 부가 API(X.primitives.spec §3.8). M2 항목(리소스 등록, migrateState)은 아직 없다 */
+export type { StateMigration } from "./state-migration.ts";
+
+/** setup이 받은 g에 붙는 부가 API(X.primitives.spec §3.8) */
 export interface ScopeHostApi {
   readonly scopeId: ScopeId;
   readonly extension: ExtensionName;
@@ -37,6 +40,11 @@ export interface ScopeHostApi {
   providePort<Api>(key: PortKey<Api>, impl: Api): void;
   /** 포트 조회. builtin 확장만. 없으면 port_unavailable */
   port<Api>(key: PortKey<Api>): Api;
+  /**
+   * 상태 문서 마이그레이션. setup 안에서 한 번만 부른다. 저장된 상태의 `version`이 `StateDecl.version`보다 낮은 thread를 켤 때
+   * 이 함수로 옮기고 스키마를 검사한 뒤 새 판으로 커밋한다(P-23)
+   */
+  migrateState(fn: StateMigration): void;
 }
 
 /** 같은 패키지의 operations가 쓰는 g의 내부 정보 */
@@ -126,7 +134,7 @@ export function createScopeApi(
         loadIndex: record.loadIndex,
         seq: core.registry.nextSeq(),
         fn: eraseHandler(handler),
-        isOpen: () => generation.open,
+        isOpen: (threadId) => generation.open && core.activeIn(threadId, record.id),
         signal: generation.abort.signal,
       };
       return fiberOf(generation).effect(() => core.registry.add(entry), `on(${point})`);
@@ -238,6 +246,29 @@ export function createScopeApi(
         () => deps.bindings.addProvider(id, record.extension, provision.version, key.version),
         `provider(${id})`,
       );
+    },
+    migrateState(fn: StateMigration): void {
+      assertOpen(record, generation);
+      if (!generation.setupPhase) {
+        throw new PrimitiveError(
+          "state_migration_outside_setup",
+          "migrateState can only be registered inside setup",
+          { scopeId: record.id },
+        );
+      }
+      if (record.def.state === undefined) {
+        throw new PrimitiveError("state_undeclared", `scope ${record.id} has no state`, {
+          scopeId: record.id,
+        });
+      }
+      if (generation.migration !== null) {
+        throw new PrimitiveError(
+          "state_migration_duplicate",
+          "migrateState can be registered once per scope",
+          { scopeId: record.id },
+        );
+      }
+      generation.migration = fn;
     },
     providePort<Api>(key: PortKey<Api>, impl: Api): void {
       assertOpen(record, generation);

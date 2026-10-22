@@ -12,10 +12,17 @@ import type {
   PortLookup,
   ScopeHandle,
   ScopeId,
+  Unsubscribe,
 } from "@xeon/contracts/extensions";
 import { createCapabilityBindings } from "./bindings.ts";
 import { createBoundary, type BoundaryHooks } from "./boundary.ts";
-import type { HostCore, InstalledUnit, PrimitivesSettingsSource, ResolvedDeps } from "./core.ts";
+import type {
+  ExtChange,
+  HostCore,
+  InstalledUnit,
+  PrimitivesSettingsSource,
+  ResolvedDeps,
+} from "./core.ts";
 import { createCordisBridge } from "./cordis-bridge.ts";
 import {
   createDispatcher,
@@ -147,8 +154,24 @@ export interface ExtHost {
   /** thread를 열 때(새로 만들거나 재개할 때, 되감기 뒤) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다 */
   openThread(threadId: ThreadId): Promise<void>;
   closeThread(threadId: ThreadId): Promise<void>;
+  /** thread의 현재 임대. 없거나 반납이 커밋되었으면 null(L3.group-kit.spec §3.13 요청 2) */
+  leaseOf(threadId: ThreadId): LeaseInfo | null;
+  /**
+   * scope 토글 요청, 적용, 임대 부여·반납이 일어나면 알린다(L3.group-kit.spec §3.13 요청 3). 적용과 임대 변화는 경계 커밋 뒤에 부른다.
+   * 구독자의 예외는 진단으로 남기고 다른 구독자에게 전달을 이어 간다
+   */
+  onChange(listener: (change: ExtChange) => void): Unsubscribe;
   /** 모든 scope를 즉시 끄고 Cordis 루트를 해제한다. 프로세스 종료용 */
   dispose(): Promise<void>;
+}
+
+/** thread 하나의 임대 정보 */
+export interface LeaseInfo {
+  readonly leaseId: string;
+  readonly scopeId: ScopeId;
+  readonly leaseEpoch: number;
+  /** active: 사용 중. releasing: 반납이 정해졌고 다음 경계에서 커밋된다 */
+  readonly status: "active" | "releasing";
 }
 
 /** 패키지 안(testing, loading-trust, operations)에서만 쓰는 호스트 내부 */
@@ -156,8 +179,13 @@ export interface ExtHostInternals {
   readonly core: HostCore;
   /** 추적 중인 작업(drive 호출, 유휴 적용, 능력 바인딩)이 모두 끝나기를 기다린다 */
   whenSettled(): Promise<void>;
-  /** 토글 요청을 사유와 함께 기록한다(X.operations ScopeControl의 바탕) */
-  requestScope(scopeId: ScopeId, enabled: boolean, reason?: ScopeToggleRequestReason): void;
+  /** 토글 요청을 사유와 함께 기록한다(X.operations ScopeControl의 바탕). threadId가 있으면 그 thread만의 요청이다 */
+  requestScope(
+    scopeId: ScopeId,
+    enabled: boolean,
+    reason?: ScopeToggleRequestReason,
+    threadId?: ThreadId,
+  ): void;
 }
 
 type ScopeToggleRequestReason = "request" | "auto_disable" | "safe_mode" | "startup_disable";
@@ -165,7 +193,12 @@ type ScopeToggleRequestReason = "request" | "auto_disable" | "safe_mode" | "star
 /** X.operations ScopeControl의 재료. 조립 루트가 createScopeControl에 넘긴다 */
 export interface ScopeToggleSourceOf {
   scopes(): readonly { readonly id: ScopeId; readonly extension: ExtensionName }[];
-  request(scopeId: ScopeId, enabled: boolean, reason: ScopeToggleRequestReason): void;
+  request(
+    scopeId: ScopeId,
+    enabled: boolean,
+    reason: ScopeToggleRequestReason,
+    threadId?: ThreadId,
+  ): void;
 }
 
 const internalsByHost = new WeakMap<ExtHost, ExtHostInternals>();
@@ -187,8 +220,8 @@ export function scopeToggleSourceOf(host: ExtHost): ScopeToggleSourceOf {
   const internals = hostInternalsOf(host);
   return {
     scopes: () => host.scopes().map((info) => ({ id: info.id, extension: info.extension })),
-    request: (scopeId, enabled, reason) => {
-      internals.requestScope(scopeId, enabled, reason);
+    request: (scopeId, enabled, reason, threadId) => {
+      internals.requestScope(scopeId, enabled, reason, threadId);
     },
   };
 }
@@ -280,7 +313,10 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   });
   const registry = createHandlerRegistry();
   const pending = new Set<Promise<unknown>>();
-  const bindings = createCapabilityBindings(bridge, report);
+  const listeners = new Set<(change: ExtChange) => void>();
+  const bindings = createCapabilityBindings(bridge, report, () =>
+    deps.settings.capabilityProviders(),
+  );
 
   const ports: PortLookup = {
     get<Api>(key: PortKey<Api>): Api | undefined {
@@ -333,6 +369,25 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     },
     whenSettled: () => settleAll(64),
     flushBindings: () => bindings.settled(),
+    activeIn(threadId, scopeId) {
+      const thread = core.threads.get(threadId);
+      return thread === undefined ? true : thread.active.has(scopeId);
+    },
+    notify(change) {
+      for (const listener of listeners) {
+        try {
+          listener(change);
+        } catch (cause) {
+          report({
+            level: "error",
+            code: "handler_failed",
+            scopeId: change.scopeId,
+            message: "an ExtHost.onChange listener threw",
+            cause,
+          });
+        }
+      }
+    },
   };
 
   async function settleAll(rounds: number): Promise<void> {
@@ -355,7 +410,10 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       createScopeApi({ core, state, post, bindings }, record, generation),
     state,
     lease,
-    requestApply: () => boundary.requestApply(),
+    requestApply: (threadId) => {
+      if (threadId === undefined) boundary.requestApply();
+      else if (core.threads.has(threadId)) boundary.requestApply(threadId);
+    },
   });
   const boundary = createBoundary(core, scope, lease);
   late.requestApply = (id) => {
@@ -535,6 +593,23 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
     },
     openThread: (threadId) => boundary.openThread(threadId),
     closeThread: (threadId) => boundary.closeThread(threadId),
+    leaseOf(threadId) {
+      const held = core.threads.get(threadId)?.lease;
+      if (held === null || held === undefined || held.status === "released") return null;
+      if (!held.committed) return null;
+      return {
+        leaseId: held.leaseId,
+        scopeId: held.scopeId,
+        leaseEpoch: held.leaseEpoch,
+        status: held.status,
+      };
+    },
+    onChange(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
     async dispose() {
       await eachInOrder([...core.threads.keys()], async (threadId) => {
         await boundary.closeThread(threadId);
@@ -569,10 +644,10 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   internalsByHost.set(host, {
     core,
     whenSettled: () => core.whenSettled(),
-    requestScope(scopeId, enabled, reason) {
+    requestScope(scopeId, enabled, reason, threadId) {
       const record = core.scopes.get(scopeId);
       if (record === undefined) return;
-      scope.request(record, enabled, reason === "request" ? undefined : reason);
+      scope.request(record, enabled, reason === "request" ? undefined : reason, threadId);
     },
   });
   return host;

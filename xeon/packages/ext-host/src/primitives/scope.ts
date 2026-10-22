@@ -1,4 +1,3 @@
-import { assertNever } from "@xeon/contracts";
 import {
   LoopPortKey,
   validateUsage,
@@ -12,6 +11,7 @@ import {
   type ScopeStatus,
 } from "@xeon/contracts/extensions";
 import type { CapabilityId } from "@xeon/contracts/capabilities";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import { eraseScope } from "../erase.ts";
 import { withoutAmbient } from "./ambient.ts";
 import {
@@ -77,8 +77,16 @@ export interface ScopeRuntime {
   handleOf(record: ScopeRecord): ScopeHandle;
   /** install의 ScopeFn 구현 */
   define<S>(unit: InstalledUnit, id: ScopeId, def: ScopeDef<S>, setup: ScopeSetup<S>): ScopeHandle;
-  /** 토글 요청을 기록한다. 적용은 단계 경계나 유휴 적용에서 한다 */
-  request(record: ScopeRecord, enabled: boolean, reason?: ScopeToggleReason): void;
+  /**
+   * 토글 요청을 기록한다. 적용은 단계 경계나 유휴 적용에서 한다. threadId가 있으면 그 thread만의 요청이고,
+   * 없으면 전체 요청이다(전체 기본값을 바꾸고 thread별 요청을 지운다)
+   */
+  request(
+    record: ScopeRecord,
+    enabled: boolean,
+    reason?: ScopeToggleReason,
+    threadId?: ThreadId,
+  ): void;
   /** install: 초기 켜기 요청을 정한다. 설정 값이 있으면 매니페스트·정의 기본값을 덮는다 */
   setInitial(record: ScopeRecord, enabled: boolean): void;
   /** install: 초기 요청이 참이면 바로 켜기를 적용한다(실행 중 thread가 없을 때) */
@@ -89,6 +97,15 @@ export interface ScopeRuntime {
   settle(thread: ThreadRuntime, txn: BoundaryTxn, result: "committed" | "failed"): Promise<void>;
   /** 경계 없이 즉시 내린다(uninstall, dispose). 열린 임대는 disabled 반납 예정이 된다 */
   teardown(record: ScopeRecord): Promise<void>;
+  /**
+   * thread를 열 때 이미 세대가 열린 scope를 그 thread의 켜짐 집합에 올린다(상태 문서 준비 포함).
+   * 상태 문서가 맞지 않으면 올리지 않고 진단한다
+   */
+  seedThread(thread: ThreadRuntime): Promise<void>;
+  /** 공급자 재시작으로 apply가 다시 불렸다. 새 세대로 다시 만들 것을 기록하고 적용을 예약한다(N-02) */
+  markStale(record: ScopeRecord, generation: Generation): void;
+  /** 한 scope의 status를 요청·세대·thread 켜짐에서 다시 계산한다 */
+  refreshStatus(record: ScopeRecord): void;
   info(record: ScopeRecord): ScopeInfo;
   /** 실행 중인 thread가 있는가 */
   anyRunning(): boolean;
@@ -98,8 +115,8 @@ export interface ScopeRuntimeDeps {
   readonly makeApi: (record: ScopeRecord, generation: Generation) => ScopeApi<AnyState>;
   readonly state: StateService;
   readonly lease: LeaseBroker;
-  /** 토글 요청이 들어왔을 때 유휴 적용을 예약한다 */
-  readonly requestApply: () => void;
+  /** 토글 요청이 들어왔을 때 유휴 적용을 예약한다. threadId가 있으면 그 thread만 */
+  readonly requestApply: (threadId?: ThreadId) => void;
 }
 
 function codeOf(error: unknown): PrimitiveErrorCode | undefined {
@@ -110,6 +127,11 @@ const NOOP = (): void => {};
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : "setup failed";
+}
+
+/** 이 thread가 scope를 켜 두기를 바라는가: thread별 요청이 있으면 그것, 없으면 전체 기본값 */
+function wantedBy(thread: ThreadRuntime, record: ScopeRecord): boolean {
+  return thread.want.get(record.id)?.enabled ?? record.desired;
 }
 
 export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): ScopeRuntime {
@@ -185,6 +207,9 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
       drive: null,
       disposers: [],
       api: null,
+      migration: null,
+      stale: false,
+      closing: false,
     };
     // 공급자 연쇄가 끝나기를 기다린 뒤 의존 능력이 있는지 본다
     await core.flushBindings();
@@ -206,6 +231,12 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
         capabilityServiceName,
       ),
       apply: async (fiber) => {
+        if (generation.fiber !== null) {
+          // 공급자가 내려갔다 올라와 Cordis가 apply를 다시 불렀다. setup을 바로 다시 실행하지 않고 다음 단계 경계에서
+          // 새 세대로 만든다(review.open-issues N-02, 결정 D8). 이 fiber의 등록은 공급자가 내려갈 때 이미 해제되었다
+          markStale(record, generation);
+          return;
+        }
         generation.fiber = fiber;
         // onDispose 묶음 effect: 등록 역순으로 차례로 실행한다(Cordis는 effect를 동시에 해제한다)
         fiber.effect(() => () => runDisposers(record, generation), "scope.onDispose");
@@ -290,9 +321,13 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
     result: Extract<SetupResult, { ok: false }>,
     error?: PrimitiveError,
   ): void {
-    record.status = "disabled";
     record.desired = false;
+    for (const thread of core.threads.values()) {
+      thread.want.delete(record.id);
+      thread.active.delete(record.id);
+    }
     record.generation = null;
+    record.status = "disabled";
     record.waiting = result.waiting;
     const code: PrimitiveErrorCode = error?.code ?? result.failure.code ?? "scope_setup_failed";
     record.lastError = {
@@ -322,6 +357,50 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
     return false;
   }
 
+  /** 어느 thread라도 켜 두기를 바라는가. 열린 thread가 없으면 전체 기본값이다 */
+  function wantedAnywhere(record: ScopeRecord): boolean {
+    if (core.threads.size === 0) return record.desired;
+    return [...core.threads.values()].some((thread) => wantedBy(thread, record));
+  }
+
+  /** 세대를 계속 열어 둘 이유가 있는가: 켜 두기를 바라거나 이미 켜져 있는 thread가 있다 */
+  function neededAnywhere(record: ScopeRecord): boolean {
+    if (core.threads.size === 0) return record.desired;
+    return [...core.threads.values()].some(
+      (thread) => thread.active.has(record.id) || wantedBy(thread, record),
+    );
+  }
+
+  function refreshStatus(record: ScopeRecord): void {
+    const generation = record.generation;
+    const live = generation !== null && generation.open && !generation.stale;
+    const wanted = wantedAnywhere(record);
+    if (live) {
+      record.status = wanted ? "enabled" : "disabling";
+    } else if (generation !== null && generation.closing) {
+      record.status = "disabling";
+    } else {
+      record.status = wanted ? "enabling" : "disabled";
+    }
+  }
+
+  /** 공급자 재시작으로 Cordis가 apply를 다시 불렀다. 새 세대로 다시 만들 것을 기록하고 적용을 예약한다(N-02, 결정 D8) */
+  function markStale(record: ScopeRecord, generation: Generation): void {
+    if (generation.stale || generation.closed) return;
+    generation.stale = true;
+    generation.open = false;
+    core.deps.report({
+      level: "info",
+      code: "scope_notice",
+      scopeId: record.id,
+      extension: record.extension,
+      message: `a provider of ${record.id} restarted; setup runs again at the next step boundary`,
+    });
+    refreshStatus(record);
+    core.notify({ kind: "scope", scopeId: record.id, threadId: null });
+    deps.requestApply();
+  }
+
   const handles = new WeakMap<ScopeRecord, ScopeHandle>();
 
   function handleOf(record: ScopeRecord): ScopeHandle {
@@ -332,15 +411,67 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
       get status(): ScopeStatus {
         return record.status;
       },
-      enable: () => toggle(record, true, undefined),
-      disable: () => toggle(record, false, undefined),
+      enable: () => toggle(record, true, undefined, undefined),
+      disable: () => toggle(record, false, undefined, undefined),
     };
     handles.set(record, handle);
     return handle;
   }
 
+  function refuse(record: ScopeRecord, thread: ThreadRuntime, error: PrimitiveError): void {
+    thread.refused.add(record.id);
+    record.lastError = { code: error.code, message: error.message };
+    core.deps.report({
+      level: "error",
+      code: error.code,
+      scopeId: record.id,
+      extension: record.extension,
+      message: `scope ${record.id} was not enabled in thread ${thread.threadId}: ${error.message}`,
+      cause: error,
+    });
+    core.notify({ kind: "scope", scopeId: record.id, threadId: thread.threadId });
+  }
+
+  /** stale 세대를 정리하고 새 세대를 만들 수 있게 record.generation을 비운다 */
+  async function discardStale(record: ScopeRecord): Promise<void> {
+    const generation = record.generation;
+    if (generation === null || !generation.stale) return;
+    record.generation = null;
+    await disposeGeneration(record, generation);
+  }
+
+  function toggle(
+    record: ScopeRecord,
+    enabled: boolean,
+    reason: ScopeToggleReason | undefined,
+    threadId: ThreadId | undefined,
+  ): void {
+    if (threadId === undefined) {
+      record.desired = enabled;
+      record.reason = reason;
+      for (const thread of core.threads.values()) {
+        thread.want.delete(record.id);
+        thread.refused.delete(record.id);
+      }
+      if (enabled && record.status === "disabled") {
+        record.driveError = false;
+        record.lastError = undefined;
+      }
+    } else {
+      const thread = core.threads.get(threadId);
+      if (thread === undefined) return;
+      thread.want.set(record.id, { enabled, reason });
+      thread.refused.delete(record.id);
+      if (enabled) record.driveError = false;
+    }
+    refreshStatus(record);
+    core.notify({ kind: "scope", scopeId: record.id, threadId: threadId ?? null });
+    deps.requestApply(threadId);
+  }
+
   return {
     anyRunning,
+    refreshStatus,
     define(unit, id, def, setup) {
       const existing = core.scopes.get(id);
       if (existing !== undefined) {
@@ -386,9 +517,10 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
       record.desired = enabled;
       record.status = enabled ? "enabling" : "disabled";
     },
-    request(record, enabled, reason) {
-      toggle(record, enabled, reason);
+    request(record, enabled, reason, threadId) {
+      toggle(record, enabled, reason, threadId);
     },
+    markStale,
     async startupApply(record) {
       if (!record.desired) return { scopeId: record.id, status: "skipped", issues: [] };
       if (anyRunning() || record.busy)
@@ -403,41 +535,82 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
           issues: result.issues,
         };
       }
-      result.generation.open = true;
       record.generation = result.generation;
-      record.status = "enabled";
       record.waiting = [];
       record.lastError = undefined;
+      // 이미 열린 thread는 바로 켠다. scope.changed 기록은 다음 유휴 적용이 남긴다
+      await eachInOrder([...core.threads.values()], async (thread) => {
+        if (!wantedBy(thread, record)) return "continue";
+        const refused = await deps.state.prepareStored(record, result.generation, thread);
+        if (refused !== undefined) {
+          refuse(record, thread, refused);
+          return "continue";
+        }
+        thread.active.add(record.id);
+        return "continue";
+      });
+      result.generation.open = true;
+      refreshStatus(record);
       return { scopeId: record.id, status: "applied", issues: result.issues };
+    },
+    async seedThread(thread) {
+      const records = [...core.scopes.values()].toSorted(
+        (a, b) => a.loadIndex - b.loadIndex || a.id.localeCompare(b.id),
+      );
+      await eachInOrder(records, async (record) => {
+        const generation = record.generation;
+        if (generation === null || !generation.open || generation.stale) return "continue";
+        if (!wantedBy(thread, record) || thread.active.has(record.id)) return "continue";
+        const refused = await deps.state.prepareStored(record, generation, thread);
+        if (refused !== undefined) {
+          refuse(record, thread, refused);
+          return "continue";
+        }
+        thread.active.add(record.id);
+        return "continue";
+      });
     },
     async applyToggles(thread, txn) {
       const records = [...core.scopes.values()].toSorted(
         (a, b) => a.loadIndex - b.loadIndex || a.id.localeCompare(b.id),
       );
-      // 끄기를 먼저: 핸들러 제외 → 임대 반납 예정
+      // 공급자 재시작으로 낡은 세대는 먼저 치운다. 새 세대는 아래 켜기 단계에서 만든다
+      await eachInOrder(records, async (record) => {
+        if (record.generation?.stale === true && !record.busy) await discardStale(record);
+        return "continue";
+      });
+      // 끄기를 먼저: 이 thread의 핸들러 제외 → 임대 반납 예정
+      for (const record of records) {
+        if (!thread.active.has(record.id) || wantedBy(thread, record)) continue;
+        thread.active.delete(record.id);
+        txn.deactivating.push(record);
+        deps.lease.releaseForScopeIn(thread, record.id, "disabled");
+      }
+      // 어느 thread도 쓰지 않는 세대는 닫는다
       for (const record of records) {
         const generation = record.generation;
-        if (!record.desired && generation !== null && generation.open) {
-          generation.open = false;
-          txn.closing.push(record);
-          deps.lease.releaseForScope(record.id, "disabled");
-        }
+        if (generation === null || !generation.open || generation.closing) continue;
+        if (neededAnywhere(record)) continue;
+        generation.open = false;
+        generation.closing = true;
+        txn.closing.push(record);
       }
       // 켜기는 로드 순서대로 하나씩: 공급자가 먼저 켜져야 소비자의 능력 의존이 채워진다
       await eachInOrder(records, async (record) => {
-        if (!record.desired || record.generation !== null || record.busy) return "continue";
-        const stored = deps.state.checkStored(record, thread);
-        if (stored !== undefined) {
-          markFailed(
-            record,
-            {
-              ok: false,
-              failure: { kind: "threw", code: stored.code },
-              issues: [],
-              waiting: [],
-            },
-            stored,
-          );
+        if (!wantedBy(thread, record)) return "continue";
+        const existing = record.generation;
+        // 켜짐 집합에 있어도 세대가 없으면(낡은 세대를 치운 뒤) 다시 만든다
+        if (thread.active.has(record.id) && existing !== null) return "continue";
+        if (thread.refused.has(record.id) || record.busy) return "continue";
+        if (existing !== null) {
+          // 다른 thread가 쓰는 열린 세대에는 setup 없이 이 thread만 더한다. 닫히는 중이면 다음 적용에서 다시 만든다
+          if (!existing.open || existing.closing) return "continue";
+          const refused = await deps.state.prepareStored(record, existing, thread);
+          if (refused !== undefined) {
+            refuse(record, thread, refused);
+            return "continue";
+          }
+          txn.activating.push(record);
           return "continue";
         }
         const result = await runSetup(record);
@@ -445,29 +618,53 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
           markFailed(record, result);
           return "continue";
         }
+        const refused = await deps.state.prepareStored(record, result.generation, thread);
+        if (refused !== undefined) {
+          await disposeGeneration(record, result.generation);
+          if (result.generation.number === record.generationCount) record.generationCount -= 1;
+          markFailed(
+            record,
+            { ok: false, failure: { kind: "threw", code: refused.code }, issues: [], waiting: [] },
+            refused,
+          );
+          return "continue";
+        }
         record.generation = result.generation;
         record.waiting = [];
         txn.opening.push(record);
+        txn.activating.push(record);
         return "continue";
       });
+      for (const record of records) refreshStatus(record);
     },
-    async settle(_thread, txn, result) {
+    async settle(thread, txn, result) {
       if (result === "committed") {
         for (const record of txn.opening) {
           const generation = record.generation;
           if (generation === null) continue;
           generation.open = true;
-          // 커밋하는 동안 끄기 요청이 들어왔으면 다음 경계에서 닫는다
-          record.status = record.desired ? "enabled" : "disabling";
+          record.lastError = undefined;
+        }
+        for (const record of txn.activating) {
+          thread.active.add(record.id);
           record.lastError = undefined;
         }
         await eachInOrder(txn.closing, async (record) => {
           const generation = record.generation;
-          if (generation !== null) await disposeGeneration(record, generation);
-          record.generation = null;
-          record.status = record.desired ? "enabling" : "disabled";
+          // 커밋하는 동안 다시 필요해진 세대는 닫지 않는다
+          if (generation !== null && !neededAnywhere(record)) {
+            record.generation = null;
+            await disposeGeneration(record, generation);
+          } else if (generation !== null) {
+            generation.closing = false;
+            generation.open = true;
+          }
           return "continue";
         });
+        for (const record of core.scopes.values()) refreshStatus(record);
+        for (const record of [...txn.activating, ...txn.deactivating, ...txn.closing]) {
+          core.notify({ kind: "scope", scopeId: record.id, threadId: thread.threadId });
+        }
         return;
       }
       await eachInOrder(txn.opening, async (record) => {
@@ -478,20 +675,31 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
           if (generation.number === record.generationCount) record.generationCount -= 1;
         }
         record.generation = null;
-        record.status = "enabling";
         return "continue";
       });
       for (const record of txn.closing) {
         const generation = record.generation;
-        if (generation !== null && !generation.closed) generation.open = true;
+        if (generation !== null && !generation.closed) {
+          generation.closing = false;
+          generation.open = true;
+        }
       }
+      for (const record of txn.deactivating) {
+        const generation = record.generation;
+        if (generation !== null && !generation.closed) thread.active.add(record.id);
+      }
+      for (const record of core.scopes.values()) refreshStatus(record);
     },
     async teardown(record) {
       const generation = record.generation;
       record.desired = false;
+      for (const thread of core.threads.values()) {
+        thread.want.delete(record.id);
+        thread.active.delete(record.id);
+      }
       deps.lease.releaseForScope(record.id, "disabled");
-      if (generation !== null) await disposeGeneration(record, generation);
       record.generation = null;
+      if (generation !== null) await disposeGeneration(record, generation);
       record.status = "disabled";
     },
     info(record) {
@@ -516,34 +724,4 @@ export function createScopeRuntime(core: HostCore, deps: ScopeRuntimeDeps): Scop
       };
     },
   };
-
-  function toggle(
-    record: ScopeRecord,
-    enabled: boolean,
-    reason: ScopeToggleReason | undefined,
-  ): void {
-    record.desired = enabled;
-    record.reason = reason;
-    switch (record.status) {
-      case "enabled":
-        if (!enabled) record.status = "disabling";
-        break;
-      case "disabling":
-        if (enabled) record.status = "enabled";
-        break;
-      case "disabled":
-        if (enabled) {
-          record.status = "enabling";
-          record.driveError = false;
-          record.lastError = undefined;
-        }
-        break;
-      case "enabling":
-        if (!enabled) record.status = "disabled";
-        break;
-      default:
-        assertNever(record.status, "ScopeStatus");
-    }
-    deps.requestApply();
-  }
 }

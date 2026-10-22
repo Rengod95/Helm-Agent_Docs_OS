@@ -1,4 +1,4 @@
-import { assertNever, Bug, err, ok, parse, type Result } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, parse, parseJson, type Result } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   ProjectorRegistryPortKey,
@@ -21,7 +21,7 @@ import {
 import { scopeInternalsOf } from "../../primitives/host-api.ts";
 import type { DispatchPolicy } from "../../primitives/dispatch-types.ts";
 import { namesOf, readersOf, writersOf } from "../../erase.ts";
-import type { ExtStorageError } from "./errors.ts";
+import type { ExtRowError, ExtStorageError } from "./errors.ts";
 import { checkStatement } from "./guard.ts";
 import type { ExtReaders, ExtWriters, ExtTableReader, ExtTableWriter } from "./table-types.ts";
 import {
@@ -43,8 +43,11 @@ export interface ExtProjection<D extends ExtTableDefs> {
   readonly version: number;
   /** 관심 kind. 자기 접두 kind와 코어 kind만 쓸 수 있다 */
   readonly kinds: readonly EventKind[];
-  /** 순수 함수. 시계·난수·입출력을 쓰지 않는다. 예외는 커밋 전체를 롤백한다 */
-  apply(event: DurableEventEnvelope, tables: ExtWriters<D>): void;
+  /**
+   * 순수 함수. 시계·난수·입출력을 쓰지 않는다. 쓰기 오류(`ExtRowError`)는 그대로 돌려준다. 오류를 돌려주거나
+   * 예외를 던지면 코어 커밋 전체가 롤백되고 투영기 실패로 보고된다(자동 끄기의 `projection_failed`)
+   */
+  apply(event: DurableEventEnvelope, tables: ExtWriters<D>): Result<void, ExtRowError>;
 }
 
 interface ExtReadOptions {
@@ -68,6 +71,20 @@ export interface ExtStorage {
     defs: D,
     projection: ExtProjection<D>,
   ): Result<ExtTables<D>, ExtStorageError>;
+}
+
+/**
+ * `ExtProjection.apply`가 오류를 돌려줬을 때 투영기 `apply`가 던지는 값. 코어 커밋을 롤백하고 `ProjectorFailure`로 보고된다.
+ * 확장 코드의 결함이 아니라 투영 데이터의 문제를 알리는 통로다
+ */
+class ProjectionRollback extends Error {
+  override readonly name: string = "ProjectionRollback";
+  readonly rowError: ExtRowError;
+
+  constructor(rowError: ExtRowError) {
+    super(`extension projection rejected a row: ${rowError.kind} in ${rowError.table}`);
+    this.rowError = rowError;
+  }
 }
 
 // ── SQL 생성 ──────────────────────────────────────────────────────────────
@@ -106,27 +123,31 @@ function encode(type: ColumnType, value: unknown): SqlValue {
   throw new Bug(`ext_storage.unsupported_value: ${typeof value}`);
 }
 
-function decode(type: ColumnType, value: SqlValue | undefined): unknown {
-  if (value === null || value === undefined) return type.acceptsNull ? null : undefined;
-  if (type.boolean) return value === 1 || value === 1n;
+/** 저장된 열 값을 행 값으로 되살린다. JSON 열이 JSON이 아니면 err(손상) */
+function decode(type: ColumnType, value: SqlValue | undefined): Result<unknown, "corrupt"> {
+  if (value === null || value === undefined) return ok(type.acceptsNull ? null : undefined);
+  if (type.boolean) return ok(value === 1 || value === 1n);
   if (type.json && typeof value === "string") {
-    const decoded: unknown = JSON.parse(value);
-    return decoded;
+    const decoded = parseJson(value);
+    return decoded.ok ? ok(decoded.value) : err("corrupt");
   }
-  return value;
+  return ok(value);
 }
 
-function codecOf(extension: ExtensionName, local: string, def: ExtTableDef): Codec {
+function codecOf(
+  extension: ExtensionName,
+  local: string,
+  def: ExtTableDef,
+): Result<Codec, ExtStorageError> {
   const table = extTableName(extension, local);
   const columns = columnsOf(def, table);
-  // xeon-disable-next-line xeon/bug-for-expected -- ExtTableDef 선언 오류는 defineTables 호출자의 결함이다. 확장 테이블 읽기·쓰기 API의 Result 전환은 review.open-issues N-08 (eng.typescript.guide TY-24)
-  if (!columns.ok) throw new Bug(`ext_storage.codec: ${columns.error.kind}`);
-  return {
+  if (!columns.ok) return columns;
+  return ok({
     table,
     def,
     columns: columns.value,
     byName: new Map(columns.value.map((column) => [column.name, column.type])),
-  };
+  });
 }
 
 function whereClause(
@@ -166,14 +187,14 @@ function writerFor(
   };
   const reader = readerFor(codec, runner, threadId, guard);
 
-  function rowValues(row: Readonly<Record<string, unknown>>): {
-    readonly names: string[];
-    readonly values: SqlValue[];
-  } {
-    if (!parse(codec.def.row, row).ok) {
-      // xeon-disable-next-line xeon/bug-for-expected -- 확장이 넘긴 행이 선언과 다르다. 쓰기 API가 값을 돌려주지 않아 던진다. Result 전환은 review.open-issues N-08 (eng.typescript.guide TY-24)
-      throw new Bug(`ext_storage.row_invalid: ${codec.table}`);
-    }
+  function rowValues(row: Readonly<Record<string, unknown>>): Result<
+    {
+      readonly names: string[];
+      readonly values: SqlValue[];
+    },
+    ExtRowError
+  > {
+    if (!parse(codec.def.row, row).ok) return err({ kind: "row_invalid", table: codec.table });
     const names: string[] = [];
     const values: SqlValue[] = [];
     if (codec.def.perThread) {
@@ -185,28 +206,27 @@ function writerFor(
       names.push(column.name);
       values.push(encode(column.type, row[column.name]));
     }
-    return { names, values };
+    return ok({ names, values });
   }
 
   function write(
     verb: "INSERT" | "INSERT OR REPLACE",
     row: Readonly<Record<string, unknown>>,
-  ): void {
-    const { names, values } = rowValues(row);
+  ): Result<void, ExtRowError> {
+    const prepared = rowValues(row);
+    if (!prepared.ok) return prepared;
+    const { names, values } = prepared.value;
     exec(
       `${verb} INTO ${quote(codec.table)} (${names.map(quote).join(", ")}) VALUES (${names.map(() => "?").join(", ")})`,
       values,
     );
+    return ok(undefined);
   }
 
   return {
     ...reader,
-    insert: (row) => {
-      write("INSERT", row);
-    },
-    upsert: (row) => {
-      write("INSERT OR REPLACE", row);
-    },
+    insert: (row) => write("INSERT", row),
+    upsert: (row) => write("INSERT OR REPLACE", row),
     update(key, patch) {
       const target = whereClause(codec, key, threadId);
       const matched = reader.count(key);
@@ -242,15 +262,16 @@ function readerFor(
   threadId: ThreadId | undefined,
   guard: ((sql: string) => void) | undefined,
 ): ExtTableReader<Readonly<Record<string, unknown>>> {
-  function decodeRow(row: SqlRow): Readonly<Record<string, unknown>> {
+  function decodeRow(row: SqlRow): Result<Readonly<Record<string, unknown>>, ExtRowError> {
     const out: Record<string, unknown> = {};
     for (const column of codec.columns) {
-      const value = decode(column.type, row[column.name]);
-      if (value !== undefined) out[column.name] = value;
+      const decoded = decode(column.type, row[column.name]);
+      // 손상된 JSON 열도 선언과 다른 행이다
+      if (!decoded.ok) return err({ kind: "row_corrupt", table: codec.table });
+      if (decoded.value !== undefined) out[column.name] = decoded.value;
     }
-    // xeon-disable-next-line xeon/bug-for-expected -- 저장된 확장 테이블 행이 선언과 다르다. 읽기 API가 값을 돌려주지 않아 던진다. Result 전환은 review.open-issues N-08 (eng.typescript.guide TY-24)
-    if (!parse(codec.def.row, out).ok) throw new Bug(`ext_storage.row_corrupt: ${codec.table}`);
-    return out;
+    if (!parse(codec.def.row, out).ok) return err({ kind: "row_corrupt", table: codec.table });
+    return ok(out);
   }
 
   const select = (sql: string, params: readonly SqlValue[]): readonly SqlRow[] => {
@@ -262,7 +283,7 @@ function readerFor(
     get(key) {
       const where = whereClause(codec, key, threadId);
       const [row] = select(`SELECT * FROM ${quote(codec.table)}${where.sql} LIMIT 1`, where.params);
-      return row === undefined ? undefined : decodeRow(row);
+      return row === undefined ? ok(undefined) : decodeRow(row);
     },
     list(query) {
       const where = whereClause(codec, query?.where, threadId);
@@ -276,7 +297,13 @@ function readerFor(
       const sql =
         `SELECT * FROM ${quote(codec.table)}${where.sql}` +
         `${order.length === 0 ? "" : ` ORDER BY ${order.join(", ")}`} LIMIT ? OFFSET ?`;
-      return select(sql, [...where.params, limit, offset]).map(decodeRow);
+      const rows: Readonly<Record<string, unknown>>[] = [];
+      for (const raw of select(sql, [...where.params, limit, offset])) {
+        const decoded = decodeRow(raw);
+        if (!decoded.ok) return decoded;
+        rows.push(decoded.value);
+      }
+      return ok(rows);
     },
     count(where) {
       const clause = whereClause(codec, where, threadId);
@@ -348,7 +375,9 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
           const statements = tableDdl(extension, local, def);
           if (!statements.ok) return statements;
           ddl.push(...statements.value);
-          codecs.set(local, codecOf(extension, local, def));
+          const codec = codecOf(extension, local, def);
+          if (!codec.ok) return codec;
+          codecs.set(local, codec.value);
         }
         for (const eventKind of projection.kinds) {
           const owner = ownerOfKind(eventKind);
@@ -394,7 +423,9 @@ export function createExtStorageManager(deps: ExtStorageDeps): ExtStorageManager
               if (codec === undefined) throw new Bug(`ext_storage.unknown_table: ${local}`);
               return writerFor(codec, runner, event.threadId, guardFn);
             });
-            projection.apply(event, writers);
+            const applied = projection.apply(event, writers);
+            // Projector.apply는 던져서 코어 커밋을 롤백하고 투영기 실패로 보고된다(F.records.spec §3.9). 값 오류를 그 통로로 옮긴다
+            if (!applied.ok) throw new ProjectionRollback(applied.error);
           },
         };
         const registered = registry.register(projector);

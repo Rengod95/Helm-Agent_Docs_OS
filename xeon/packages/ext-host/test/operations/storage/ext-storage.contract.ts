@@ -2,6 +2,7 @@
 // X 테스트는 자체 인메모리 대역(support/fake-session.ts)으로 돌리고, 실제 bun:sqlite 저장소로 같은 시나리오를
 // 돌리는 일은 L0.store.plan ST-23이 한다(테스트 파일 교차 import, review.decisions-2 U-17).
 import { describe, expect, test } from "bun:test";
+import { err, ok } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   ProjectorRegistryPortKey,
@@ -83,10 +84,10 @@ function projectionOf(
       const payload = recordOf(event.payload);
       const id = textOf(payload.id);
       if (event.kind === "x.notes.pin.added") {
-        tables.pins.upsert({ id, title: titleOf(optionalTextOf(payload.title) ?? "") });
-      } else {
-        tables.pins.delete({ id });
+        return tables.pins.upsert({ id, title: titleOf(optionalTextOf(payload.title) ?? "") });
       }
+      tables.pins.delete({ id });
+      return ok(undefined);
     },
   };
 }
@@ -115,10 +116,13 @@ export function runExtStorageContract(label: string, makeSession: () => Contract
       );
       expect(listed).toEqual({
         ok: true,
-        value: [
-          { id: "a", title: "first" },
-          { id: "b", title: "second" },
-        ],
+        value: {
+          ok: true,
+          value: [
+            { id: "a", title: "first" },
+            { id: "b", title: "second" },
+          ],
+        },
       });
       const one = defined.value.read((tables) => ({
         got: tables.pins.get({ id: "b" }),
@@ -128,7 +132,12 @@ export function runExtStorageContract(label: string, makeSession: () => Contract
       }));
       expect(one).toEqual({
         ok: true,
-        value: { got: { id: "b", title: "second" }, missing: undefined, count: 2, byTitle: 1 },
+        value: {
+          got: ok({ id: "b", title: "second" }),
+          missing: ok(undefined),
+          count: 2,
+          byTitle: 1,
+        },
       });
       session.commit([session.event(thread, "x.notes.pin.removed", { id: "a" })]);
       const after = defined.value.read((tables) => tables.pins.count());
@@ -175,7 +184,7 @@ export function runExtStorageContract(label: string, makeSession: () => Contract
       if (!redefined.ok) return;
       expect(redefined.value.read((tables) => tables.pins.list())).toEqual({
         ok: true,
-        value: [{ id: "a", title: "LOWER" }],
+        value: { ok: true, value: [{ id: "a", title: "LOWER" }] },
       });
     });
 
@@ -200,12 +209,15 @@ export function runExtStorageContract(label: string, makeSession: () => Contract
         version: 1,
         kinds: ["x.notes.pin.added"],
         apply(_event, tables) {
-          tables.pins.insert({ id: "a", done: false, tags: ["x", "y"], note: null });
-          tables.pins.insert({ id: "b", done: true, tags: [], note: "n", score: 1.5 });
+          const a = tables.pins.insert({ id: "a", done: false, tags: ["x", "y"], note: null });
+          if (!a.ok) return a;
+          const b = tables.pins.insert({ id: "b", done: true, tags: [], note: "n", score: 1.5 });
+          if (!b.ok) return b;
           results.push(tables.pins.update({ id: "a" }, { done: true, note: "set" }));
           results.push(tables.pins.update({ id: "none" }, { done: true }));
           results.push(tables.pins.delete({ id: "b" }));
           results.push(tables.pins.delete({ id: "b" }));
+          return ok(undefined);
         },
       };
       const defined = managerOf(session)
@@ -217,7 +229,7 @@ export function runExtStorageContract(label: string, makeSession: () => Contract
       expect(results).toEqual([1, 0, 1, 0]);
       expect(defined.value.read((tables) => tables.pins.list())).toEqual({
         ok: true,
-        value: [{ id: "a", done: true, tags: ["x", "y"], note: "set" }],
+        value: { ok: true, value: [{ id: "a", done: true, tags: ["x", "y"], note: "set" }] },
       });
     });
 
@@ -236,7 +248,7 @@ export function runExtStorageContract(label: string, makeSession: () => Contract
         version: 1,
         kinds: ["x.notes.pin.added"],
         apply(event, tables) {
-          tables.marks.insert({ id: "m", label: String(event.threadId).slice(-3) });
+          return tables.marks.insert({ id: "m", label: String(event.threadId).slice(-3) });
         },
       };
       const defined = managerOf(session)
@@ -251,6 +263,109 @@ export function runExtStorageContract(label: string, makeSession: () => Contract
         value: 1,
       });
       expect(defined.value.read((tables) => tables.marks.count())).toEqual({ ok: true, value: 2 });
+    });
+
+    test("a row that breaks the declared schema is row_invalid and rolls the commit back", () => {
+      const session = makeSession();
+      const thread = ids.next("thr");
+      const failures: string[] = [];
+      const manager = createExtStorageManager({
+        ports: portsOf(session),
+        now: () => 1_767_571_200_000,
+        guard: true,
+        onProjectionFailure: (_extension, failure) => {
+          failures.push(failure.message);
+        },
+      });
+      const defs = {
+        rows: {
+          row: Type.Object({ id: Type.String(), text: Type.String({ minLength: 1 }) }),
+          key: ["id"],
+          perThread: false,
+        },
+      } as const;
+      const seen: unknown[] = [];
+      const projection: ExtProjection<typeof defs> = {
+        version: 1,
+        kinds: ["x.notes.pin.added"],
+        apply(event, tables) {
+          const payload = recordOf(event.payload);
+          const written = tables.rows.insert({
+            id: textOf(payload.id),
+            text: textOf(payload.text),
+          });
+          seen.push(written);
+          return written;
+        },
+      };
+      const defined = manager
+        .storageFor("notes", { isolated: false })
+        .defineTables(defs, projection);
+      expect(defined.ok).toBe(true);
+      session.commit([session.event(thread, "x.notes.pin.added", { id: "ok", text: "fine" })]);
+      const before = session.hashOf("x_notes_rows");
+      const rejected = session.commit([
+        session.event(thread, "x.notes.pin.added", { id: "bad", text: "" }),
+      ]);
+      expect(rejected.committed).toBe(false);
+      expect(seen[1]).toEqual(err({ kind: "row_invalid", table: "x_notes_rows" }));
+      expect(session.hashOf("x_notes_rows")).toBe(before);
+      expect(failures).toHaveLength(1);
+      expect(failures[0]).toContain("row_invalid");
+    });
+
+    test("a stored row that no longer matches the declaration is row_corrupt, not a throw", () => {
+      const session = makeSession();
+      const thread = ids.next("thr");
+      const defs = {
+        rows: {
+          row: Type.Object({
+            id: Type.String(),
+            n: Type.Integer({ minimum: 0 }),
+            data: Type.Array(Type.String()),
+          }),
+          key: ["id"],
+          perThread: false,
+        },
+      } as const;
+      const projection: ExtProjection<typeof defs> = {
+        version: 1,
+        kinds: ["x.notes.pin.added"],
+        apply(event, tables) {
+          const payload = recordOf(event.payload);
+          return tables.rows.insert({ id: textOf(payload.id), n: 1, data: ["x"] });
+        },
+      };
+      const defined = managerOf(session)
+        .storageFor("notes", { isolated: false })
+        .defineTables(defs, projection);
+      expect(defined.ok).toBe(true);
+      if (!defined.ok) return;
+      session.commit([
+        session.event(thread, "x.notes.pin.added", { id: "a" }),
+        session.event(thread, "x.notes.pin.added", { id: "b" }),
+      ]);
+      // 수동 편집을 흉내 낸다: 범위를 어기는 값과 JSON이 아닌 값
+      const edited = session.store.scoped("ext.notes").write((tx) => {
+        tx.run('UPDATE "x_notes_rows" SET "n" = ? WHERE "id" = ?', [-3, "a"]);
+        tx.run('UPDATE "x_notes_rows" SET "data" = ? WHERE "id" = ?', ["{not json", "b"]);
+      });
+      expect(edited.ok).toBe(true);
+      const corrupt = err({ kind: "row_corrupt", table: "x_notes_rows" } as const);
+      expect(defined.value.read((tables) => tables.rows.get({ id: "a" }))).toEqual({
+        ok: true,
+        value: corrupt,
+      });
+      expect(defined.value.read((tables) => tables.rows.get({ id: "b" }))).toEqual({
+        ok: true,
+        value: corrupt,
+      });
+      expect(defined.value.read((tables) => tables.rows.list())).toEqual({
+        ok: true,
+        value: corrupt,
+      });
+      // 세는 일은 행 내용을 해석하지 않는다
+      expect(defined.value.read((tables) => tables.rows.count())).toEqual({ ok: true, value: 2 });
     });
   });
 }

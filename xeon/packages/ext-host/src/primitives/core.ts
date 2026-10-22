@@ -21,6 +21,7 @@ import type {
   ScopeChangedPayload,
 } from "@xeon/contracts/records";
 import type { CordisBridge, FiberHandle, OpenedFiber } from "./cordis-bridge.ts";
+import type { StateMigration } from "./state-migration.ts";
 import type { Dispatcher } from "./dispatch.ts";
 import type { AnyState, DriveCall } from "./erased-types.ts";
 import type { DispatchPolicy } from "./dispatch-types.ts";
@@ -95,6 +96,15 @@ export interface Generation {
   drive: { readonly fn: DriveCall; readonly options: DriveOptions } | null;
   readonly disposers: (() => void | Promise<void>)[];
   api: ScopeApi<AnyState> | null;
+  /** 상태 마이그레이션 훅(`hostOf(g).migrateState`). setup 안에서 한 번만 등록한다 */
+  migration: StateMigration | null;
+  /**
+   * 공급자 재시작으로 Cordis가 apply를 다시 불렀다(N-02, 결정 D8). setup은 바로 다시 실행하지 않고 이 표시만 남긴다.
+   * 다음 단계 경계(유휴면 곧바로 이어지는 유휴 적용)에서 새 세대로 다시 만든다
+   */
+  stale: boolean;
+  /** 어느 thread도 쓰지 않아 닫기로 정해졌고 커밋을 기다린다. 이 동안 다른 thread는 이 세대를 켜지 않는다 */
+  closing: boolean;
 }
 
 interface ScopeLastError {
@@ -103,6 +113,12 @@ interface ScopeLastError {
 }
 
 export type ScopeToggleReason = NonNullable<ScopeChangedPayload["reason"]>;
+
+/** thread 하나의 켜기·끄기 요청. 없으면 ScopeRecord.desired(전체 기본값)를 따른다(P-28) */
+interface ThreadWant {
+  readonly enabled: boolean;
+  readonly reason: ScopeToggleReason | undefined;
+}
 
 export interface ScopeRecord {
   readonly id: ScopeId;
@@ -168,6 +184,10 @@ export interface BoundaryTxn {
   readonly drafts: DurableEventDraft[];
   /** setup을 마치고 settle에서 세대를 열 scope */
   readonly opening: ScopeRecord[];
+  /** settle에서 이 thread의 켜짐 집합에 더할 scope. opening을 포함한다 */
+  readonly activating: ScopeRecord[];
+  /** prepare에서 이 thread의 켜짐 집합에서 뺀 scope. 커밋이 실패하면 되돌린다 */
+  readonly deactivating: ScopeRecord[];
   /** prepare에서 세대를 닫고 settle에서 정리할 scope */
   readonly closing: ScopeRecord[];
   /** 이 커밋이 반영되면 기록된 켜짐 집합에 더하거나 뺄 scope */
@@ -184,7 +204,16 @@ export interface ThreadRuntime {
   /** closeThread에서 abort. drive의 loop.turn에 넘기는 thread 취소 신호 */
   readonly abort: AbortController;
   states: Map<ScopeId, StateCacheEntry>;
+  /** 저장소에 기록된 켜짐 집합(활성 가지 기준). scope.changed 초안은 이 집합과 active의 차이로 만든다 */
   recordedEnabled: Set<ScopeId>;
+  /** 이 thread에서 핸들러가 디스패치되는 scope. 세대가 열려 있고 이 thread가 켜 둔 scope다(P-28) */
+  active: Set<ScopeId>;
+  /** thread별 켜기·끄기 요청 */
+  want: Map<ScopeId, ThreadWant>;
+  /** 상태 문서가 맞지 않아 이 thread에서 켜지 못한 scope. 이 thread가 다시 토글하기 전까지 다시 시도하지 않는다 */
+  refused: Set<ScopeId>;
+  /** scope별로 이 프로세스에서 기록한 scope.changed 수. 커밋 키를 전이마다 구분한다 */
+  flips: Map<ScopeId, number>;
   leaseEpochs: Map<ScopeId, number>;
   lease: LeaseRuntime | null;
   /** 임대를 반납한 scope가 다음 turn_settled 또는 상태 판 변화 전까지 후보에서 빠지는 표(반납 때의 판) */
@@ -226,6 +255,19 @@ export interface HostCore {
   whenSettled(): Promise<void>;
   /** 능력 바인딩 변경이 끝나기를 기다린다 */
   flushBindings(): Promise<void>;
+  /** thread에서 scope의 핸들러가 디스패치되는가. 열지 않은 thread(M0 시험)는 세대가 열려 있으면 참이다 */
+  activeIn(threadId: ThreadId, scopeId: ScopeId): boolean;
+  /** 변경 구독자에게 알린다(ExtHost.onChange). 구독자의 예외는 기록하고 넘어간다 */
+  notify(change: ExtChange): void;
+}
+
+/** ExtHost.onChange가 알리는 변경(group-kit 요청 3) */
+export interface ExtChange {
+  /** scope: 토글 요청·적용·오류 표시가 바뀜. lease: 임대 부여·반납이 커밋됨 */
+  readonly kind: "scope" | "lease";
+  readonly scopeId: ScopeId;
+  /** thread 단위 변경이면 그 thread, 전체 변경이면 null */
+  readonly threadId: ThreadId | null;
 }
 
 export function newUsage(): UsageRecorder {

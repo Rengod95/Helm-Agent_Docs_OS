@@ -61,9 +61,18 @@ function commitPlanOf(
     const record = core.scopes.get(id);
     return record?.generation?.number ?? record?.generationCount ?? 0;
   };
+  // 한 세대가 여러 thread에서 켜졌다 꺼졌다 할 수 있어 같은 thread의 전이 횟수를 키에 더한다(P-28)
+  const flipOf = (id: ScopeId): string => {
+    const flips = core.threads.get(txn.signal.threadId)?.flips.get(id) ?? 0;
+    return flips === 0 ? "" : `.${flips}`;
+  };
   const parts = [
-    ...txn.recordEnabled.map((id) => `scope:${keyScopeId(id)}:${generationOf(id)}:enabled`),
-    ...txn.recordDisabled.map((id) => `scope:${keyScopeId(id)}:${generationOf(id)}:disabled`),
+    ...txn.recordEnabled.map(
+      (id) => `scope:${keyScopeId(id)}:${generationOf(id)}${flipOf(id)}:enabled`,
+    ),
+    ...txn.recordDisabled.map(
+      (id) => `scope:${keyScopeId(id)}:${generationOf(id)}${flipOf(id)}:disabled`,
+    ),
     ...txn.releasing.map((lease) => `lease:${keyPart(lease.leaseId)}:released`),
     ...(txn.grant === null
       ? []
@@ -83,13 +92,13 @@ export function createBoundary(
   lease: LeaseBroker,
 ): BoundaryService {
   function reconcile(thread: ThreadRuntime, txn: BoundaryTxn): void {
-    const future = new Set<ScopeId>();
-    for (const record of core.scopes.values()) {
-      if (record.generation !== null && !txn.closing.includes(record)) future.add(record.id);
-    }
+    // 이 경계가 끝난 뒤 이 thread에서 켜져 있을 scope
+    const future = new Set<ScopeId>(thread.active);
+    for (const record of txn.activating) future.add(record.id);
+    for (const record of txn.deactivating) future.delete(record.id);
     const disabled = [...thread.recordedEnabled].filter((id) => !future.has(id)).toSorted();
     for (const id of disabled) {
-      const reason = core.scopes.get(id)?.reason;
+      const reason = thread.want.get(id)?.reason ?? core.scopes.get(id)?.reason;
       txn.drafts.push(
         makeDraft(core.deps.ids, {
           threadId: thread.threadId,
@@ -137,6 +146,8 @@ export function createBoundary(
       signal,
       drafts: [],
       opening: [],
+      activating: [],
+      deactivating: [],
       closing: [],
       recordEnabled: [],
       recordDisabled: [],
@@ -158,8 +169,14 @@ export function createBoundary(
     thread.txn = null;
     await scope.settle(thread, txn, result);
     if (result === "committed") {
-      for (const id of txn.recordEnabled) thread.recordedEnabled.add(id);
-      for (const id of txn.recordDisabled) thread.recordedEnabled.delete(id);
+      for (const id of txn.recordEnabled) {
+        thread.recordedEnabled.add(id);
+        thread.flips.set(id, (thread.flips.get(id) ?? 0) + 1);
+      }
+      for (const id of txn.recordDisabled) {
+        thread.recordedEnabled.delete(id);
+        thread.flips.set(id, (thread.flips.get(id) ?? 0) + 1);
+      }
       lease.applyCommitted(thread, txn);
       lease.onBoundary(thread, signal);
     } else {
@@ -266,6 +283,10 @@ export function createBoundary(
           ]),
         ),
         recordedEnabled: new Set(snapshot.enabled),
+        active: new Set(),
+        want: new Map(),
+        refused: new Set(),
+        flips: new Map(),
         leaseEpochs: new Map(Object.entries(snapshot.leaseEpochs)),
         lease: null,
         cooldown: new Map(),
@@ -275,6 +296,8 @@ export function createBoundary(
         applyAgain: false,
       };
       core.threads.set(threadId, thread);
+      // 이미 세대가 열린 scope를 이 thread에서 켠다. 저장된 켜짐 기록과 같으면 scope.changed를 다시 남기지 않는다(N-01)
+      await scope.seedThread(thread);
       lease.restore(thread, snapshot.openLease);
       requestApply(threadId);
     },

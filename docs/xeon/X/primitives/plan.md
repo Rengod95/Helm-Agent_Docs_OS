@@ -208,5 +208,19 @@ xeon/packages/ext-host/
 | `post.when = next` 의미 미확정 | L1 큐 구현과 pi 어댑터 매핑이 바뀐다 | X는 `when` 값을 포트로 넘기기만 하므로 X 코드는 영향이 작다. 큐 위치 결정은 L1.tasks 쪽 변경이다. 결정 전에는 spec §4.7 [제안](시작하지 않음)으로 테스트를 둔다 |
 | Bun `AsyncLocalStorage`가 일부 비동기 경계에서 값을 잃음 | `state()`·`commit()`·`post`가 `no_thread`로 실패 | `ambient.contract.test.ts`로 먼저 확인한다. 실패하면 F에 thread 인자 추가(spec §10 미결)를 앞당겨 요청한다 |
 | F `ports.ts`의 포트 이름이나 시그니처가 바뀜([결정: review.decisions-2 U-14, D-04]로 정본은 F다) | L1 구현과 X의 import가 함께 바뀐다 | X는 정의를 두지 않고 `ports.ts`·`resources.ts`에서 재export만 하므로 바뀐 이름은 타입 검사에서 바로 드러난다(P-31) |
-| 공급자 재시작 연쇄로 setup이 경계 밖에서 다시 실행됨 | 그룹이 turn 중간에 핸들러 집합을 바꾼다 | 세대 단위 교체라 진행 중 디스패치에는 영향이 없다. 제품 동작으로 받아들일지는 spec §10 미결이다 |
+| 공급자 재시작 연쇄로 setup이 경계 밖에서 다시 실행됨 | 그룹이 turn 중간에 핸들러 집합을 바꾼다 | [해소, 결정 D8] 재적용 요청만 기록하고 다음 단계 경계에서 새 세대로 setup을 다시 실행한다(spec §4.5.4). 그 사이 소비자의 핸들러는 스냅샷에 없다 |
 | `ext-host/src/index.ts`를 다른 작업자가 먼저 채움 | 공개 이름 충돌 | P-13에서 spec §3.1 목록과 대조하고 충돌을 spec §10에 적는다 |
+
+## 8. M2 구현 현황 (X 레인)
+
+`review.m2-plan` 4.3절의 X 레인 작업이 끝난 항목을 적는다. 한 줄은 작업 ID 하나다.
+
+| 작업 | 상태 | 비고 |
+|---|---|---|
+| P-22 | 완료 | `LeaseArbiterPort` 주입, `activeDriveGroup` 중재, `drive_conflict`, `revoked` 반납(이름 지정 그룹이 후보일 때, spec §4.4.1 5번), `idle`·`budget` 반납 뒤 재후보 조건. `lease.test.ts` |
+| P-23 | 완료 | `hostOf(g).migrateState`, 버전 비교, 새 판 커밋(`mig:` 키), `state_future_version` 거부. thread에서 켤 때 준비한다. `migration.test.ts` |
+| P-27 | 완료 | `capabilityProviders` 선택, major 불일치 제외 진단, `capability_ambiguous`. `services.test.ts` |
+| P-28 | 완료 | thread별 켜짐 집합·요청, 세대 공유와 마지막 thread에서 해제, thread별 임대. 재시작을 넘는 전이 횟수는 F 변경이 필요(spec §10). `thread-scope.test.ts` |
+| group-kit 요청 2·3·4 | 완료 | `ExtHost.leaseOf`, `ExtHost.onChange`, `TestHost.restart` |
+| group-kit 요청 1 | 보류 | `LeaseCandidate.enabledAtSeq`는 F `ports.ts`와 `ExtThreadSnapshot`(scope.changed의 seq)이 먼저 바뀌어야 한다. F 레인 요청 |
+| N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`의 `Result`화(`ExtRowError`). 다른 패키지 호출처는 없다 |

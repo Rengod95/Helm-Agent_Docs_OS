@@ -398,18 +398,30 @@ export interface ExtQuery<R> {
 }
 
 export interface ExtTableReader<R> {
-  /** key 열을 모두 준다 */
-  get(key: Partial<R>): R | undefined;
-  list(query?: ExtQuery<R>): readonly R[];
+  /** key 열을 모두 준다. 저장된 행이 선언한 스키마와 다르면 row_corrupt다 */
+  get(key: Partial<R>): Result<R | undefined, ExtRowError>;
+  /** 저장된 행 하나라도 선언한 스키마와 다르면 row_corrupt다 */
+  list(query?: ExtQuery<R>): Result<readonly R[], ExtRowError>;
   count(where?: Partial<R>): number;
 }
 
 export interface ExtTableWriter<R> extends ExtTableReader<R> {
-  insert(row: R): void;
-  upsert(row: R): void;
+  /** 넘긴 행이 선언한 스키마와 다르면 row_invalid이고 아무것도 쓰지 않는다 */
+  insert(row: R): Result<void, ExtRowError>;
+  upsert(row: R): Result<void, ExtRowError>;
   update(key: Partial<R>, patch: Partial<R>): number;
   delete(key: Partial<R>): number;
 }
+
+/**
+ * 행 값이 선언과 다른 경우는 확장 코드 결함이 아니라 데이터 문제라 값으로 돌려준다(eng.typescript.guide TY-24, review.open-issues N-08).
+ * 존재하지 않는 열 이름 같은 호출 계약 위반(타입으로 막힌 입력)은 Bug다
+ */
+export type ExtRowError =
+  /** 쓰려는 행이 ExtTableDef.row와 다르다(범위, 패턴 같은 형 검사 밖의 제약 포함) */
+  | { readonly kind: "row_invalid"; readonly table: string }
+  /** 저장된 행이 ExtTableDef.row와 다르다(손상, 수동 편집, 이전 버전, JSON이 아닌 JSON 열) */
+  | { readonly kind: "row_corrupt"; readonly table: string };
 
 export type ExtReaders<D extends ExtTableDefs> = { readonly [K in keyof D]: ExtTableReader<RowOf<D[K]>> };
 export type ExtWriters<D extends ExtTableDefs> = { readonly [K in keyof D]: ExtTableWriter<RowOf<D[K]>> };
@@ -420,8 +432,11 @@ export interface ExtProjection<D extends ExtTableDefs> {
   readonly version: number;
   /** 관심 kind. 자기 접두 kind(x.<name>.…, grp.<name>.…)와 코어 kind만 쓸 수 있다 */
   readonly kinds: readonly EventKind[];
-  /** 순수 함수. 시계·난수·입출력을 쓰지 않는다. 예외는 커밋 전체를 롤백한다 */
-  apply(event: DurableEventEnvelope, tables: ExtWriters<D>): void;
+  /**
+   * 순수 함수. 시계·난수·입출력을 쓰지 않는다. 쓰기 오류(ExtRowError)는 그대로 돌려준다.
+   * 오류를 돌려주거나 예외를 던지면 코어 커밋 전체가 롤백되고 투영기 실패로 보고된다
+   */
+  apply(event: DurableEventEnvelope, tables: ExtWriters<D>): Result<void, ExtRowError>;
 }
 
 export interface ExtTables<D extends ExtTableDefs> {
@@ -953,14 +968,14 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 - [제안] 확장 테이블 쓰기는 확장 투영(`ExtProjection.apply`)으로만 한다. 투영기는 코어 커밋 트랜잭션 안에서 이벤트마다 실행되므로(`eng.transactions.design` §4.3 "cap·ext 투영", §4.4 4단계), 확장 쓰기는 코어 커밋과 같은 트랜잭션에 들어간다. 코어 커밋이 롤백되면 확장 쓰기도 롤백된다.
 - 확장이 커밋에 이벤트를 넣는 경로는 기존 셋이다. boundary chain 결과의 `entries`, `ScopeApi.commit`(scope 상태), `ScopeApi.record`(그룹 레코드)(`F.extensions.spec` §3.2, §3.5). 확장 투영은 이 이벤트를 받아 자기 테이블을 고친다.
 - L0 트랜잭션 핸들은 X가 직접 쥐지 않는다. X는 투영기를 `xeon.session`에 등록하고, `SessionWriter.commit`이 트랜잭션 안에서 `ProjectionTx`를 투영기에 넘긴다. X는 그 `ProjectionTx`를 `ExtWriters`로 감싼다. 이것이 "L0.store 트랜잭션 핸들을 SessionWriter 경유로 받는 방식"이고, `F.records.spec` §3.8의 [제안](확장 테이블 쓰기를 같은 트랜잭션에 넣는 방법은 `L0.store.spec`과 X가 정한다)에 대한 X 쪽 답이다.
-- `apply`는 동기 순수 함수다. 시계, 난수, 네트워크, 파일을 쓰지 않는다(`eng.events.design` §5.1 규칙 1, TX-01). 예외는 커밋 전체를 롤백하고 `Bug`로 보고된다. 이 예외는 핸들러 실패 장부에 넣지 않는다(커밋 경로의 결함이다).
+- `apply`는 동기 순수 함수다. 시계, 난수, 네트워크, 파일을 쓰지 않는다(`eng.events.design` §5.1 규칙 1, TX-01). 쓰기 메서드가 돌려준 `ExtRowError`는 `apply`의 반환값으로 올린다(`return tables.pins.upsert(…)`). `apply`가 오류를 돌려주면 X가 투영기 `apply` 안에서 `ProjectionRollback`을 던져 커밋 전체를 롤백하고, 저장소는 `ProjectorFailure`로 알린다(`F.records.spec` §3.9). `apply`가 예외를 던져도 같다. 이 실패는 핸들러 실패 장부에 넣지 않는다(커밋 경로의 문제이고 `projection_failed`로 자동 끄기에 쓴다).
 - `kinds`에는 자기 접두 kind와 코어 kind만 둘 수 있다. 다른 확장의 kind를 넣으면 `kind_not_owned`다. 다른 그룹의 공개 정보는 `ScopeApi.readRecords`로 읽는다(`F.extensions.spec` §4.8).
 - 재생: 투영 테이블은 이벤트에서 다시 만들 수 있다. `ExtProjection.version`을 올리면 그 확장 테이블만 지우고 이벤트 전체를 재생해 다시 만든다. 이것이 1차의 스키마 마이그레이션 방식이다.
 - 이벤트에서 다시 만들 수 없는 부가 데이터(캐시, 외부에서 가져온 자료)를 둘 테이블과 그 마이그레이션(열 추가 등)은 2차다(§10 미결 8).
 
 #### 4.4.5 읽기
 
-- `ExtTables.read(fn)`은 읽기 연결의 트랜잭션에서 동기로 실행한다. 핸들러, drive 함수, 리소스(도구) 실행 함수에서 부를 수 있다. 투영 `apply` 안에서는 `ExtWriters`의 읽기 메서드를 쓴다(같은 트랜잭션의 쓰기 결과가 보인다).
+- `ExtTables.read(fn)`은 읽기 연결의 트랜잭션에서 동기로 실행한다. `fn`이 `get`·`list`로 얻은 `Result`는 `read`의 결과 안에 그대로 담긴다(`Result<Result<행, ExtRowError>, ExtStorageError>`). 연결이 바쁜 오류(`busy`)와 행 오류(`row_corrupt`)가 층으로 나뉜다. 핸들러, drive 함수, 리소스(도구) 실행 함수에서 부를 수 있다. 투영 `apply` 안에서는 `ExtWriters`의 읽기 메서드를 쓴다(같은 트랜잭션의 쓰기 결과가 보인다).
 - `list`의 `limit` 기본값은 100, 최대 1000이다. 더 큰 값은 1000으로 줄인다.
 
 #### 4.4.6 접두 밖 접근 차단
@@ -1165,7 +1180,7 @@ pi 어댑터에서의 처리:
 3. 대화상자를 연 채로 사용자가 응답하지 않음: 예산은 멈춰 있다. 사용자 중단(`outer` abort)이나 대화상자 자체 시간 제한이 끝낸다. 이 경우는 `aborted`이고 실패가 아니다.
 4. 가드 핸들러가 계속 실패함: 자동 끄기 대상이 아니다. first 지점은 거부가 계속되어 도구 호출이 막힌다. 알림이 계속 나가므로 사용자가 원인을 고친다. 가드를 끄는 설정은 두지 않는다.
 5. 자동 끄기 요청 뒤 경계 전에 같은 확장이 drive 임대를 받으려 함: 끄기 요청이 있는 scope에는 임대를 주지 않는다 [제안]. 중재는 `X.primitives.spec`이다.
-6. 확장 투영 `apply`가 예외를 던짐: 코어 커밋 전체가 롤백되고 `Bug`가 된다. 같은 이벤트로 다시 커밋해도 같은 결과이므로 세션 진행이 막힌다. [제안] X는 그 확장 투영기를 해제하고 확장을 끈 뒤(`reason: "auto_disable"`) 커밋을 다시 시도하는 복구 경로를 둔다. 세부는 `L1.persistence.spec`과 정한다(§10 미결 6).
+6. 확장 투영 `apply`가 오류를 돌려주거나 예외를 던짐: 코어 커밋 전체가 롤백되고 투영기 실패로 보고된다. 쓰려는 행이 선언과 다르면(`row_invalid`) `apply`가 그 오류를 돌려준다. 같은 이벤트로 다시 커밋해도 같은 결과이므로 세션 진행이 막힌다. [제안] X는 그 확장 투영기를 해제하고 확장을 끈 뒤(`reason: "auto_disable"`) 커밋을 다시 시도하는 복구 경로를 둔다. 세부는 `L1.persistence.spec`과 정한다(§10 미결 6).
 7. 두 확장의 변환 이름이 같은 테이블 이름을 만듦: §4.4.2 규칙상 생기지 않는다. 소유 장부가 마지막 방어로 `table_owned`를 낸다.
 8. `xh_ext_tables`에 없는 `x_` 테이블이 DB에 있음: 이전 버전이나 수동 생성의 흔적이다. 건드리지 않고 진단에 보인다.
 9. 안전 모드에서 사용자가 외부 확장을 켬: 설정 값은 저장하되 이번 실행에는 적용하지 않고 "안전 모드라 다음 정상 시작에 적용"을 알린다.
