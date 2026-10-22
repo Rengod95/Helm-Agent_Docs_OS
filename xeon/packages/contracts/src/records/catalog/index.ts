@@ -15,12 +15,15 @@ import {
 } from "../../conversation/index.ts";
 import { StepCheckpointSchema } from "../checkpoint.ts";
 import { EffectExecSchema, EffectIntentSchema, EffectResultSchema } from "../effects.ts";
-import type { CoreEventKind, EventKind } from "../kind-names.ts";
+import type { CoreEventKind } from "../kind-names.ts";
 import {
   AgentJudgedPayloadSchema,
   AgentSettledEventPayloadSchema,
   AgentSpawnedPayloadSchema,
 } from "./agent.ts";
+import { DIALOG_EVENT_CATALOG } from "./dialog.ts";
+import type { CatalogEntry } from "./entry.ts";
+import { WORK_EVENT_CATALOG } from "./work.ts";
 import { ApprovalRequestedPayloadSchema, ApprovalResolvedPayloadSchema } from "./approval.ts";
 import { ItemRecordedPayloadSchema, PartRecordedPayloadSchema } from "./content.ts";
 import {
@@ -49,17 +52,6 @@ import {
   ThreadResumedPayloadSchema,
 } from "./thread.ts";
 import { TurnAbortRequestedPayloadSchema } from "./turn.ts";
-
-export interface CatalogEntry {
-  kind: EventKind;
-  /** 현재 버전 */
-  version: number;
-  durable: boolean;
-  /** 현재 버전 payload 스키마 */
-  payload: TSchema;
-  /** 없앤 kind는 카탈로그에 남긴다 */
-  retired?: true;
-}
 
 function core(kind: CoreEventKind, durable: boolean, payload: TSchema): CatalogEntry {
   return { kind, version: 1, durable, payload };
@@ -135,9 +127,13 @@ export function mergeCatalogs(
 
 /**
  * 코어 카탈로그와 내장 L2 도메인 카탈로그를 이은 병합 카탈로그.
- * 도메인 카탈로그(work, dialog, artifact, schedule)는 M2에서 각 L2 plan이 채우므로 지금은 코어만 담는다.
+ * 도메인 카탈로그는 work, dialog가 채워져 있다. artifact, schedule은 각 L2 plan이 M3에서 더한다.
  */
-export const EVENT_CATALOG: readonly CatalogEntry[] = mergeCatalogs(CORE_EVENT_CATALOG);
+export const EVENT_CATALOG: readonly CatalogEntry[] = mergeCatalogs(
+  CORE_EVENT_CATALOG,
+  WORK_EVENT_CATALOG,
+  DIALOG_EVENT_CATALOG,
+);
 
 const CORE_BY_KIND: ReadonlyMap<string, CatalogEntry> = new Map(
   CORE_EVENT_CATALOG.map((entry) => [entry.kind, entry]),
@@ -149,12 +145,15 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry {
   return entry;
 }
 
+export type { CatalogEntry } from "./entry.ts";
 export * from "./agent.ts";
 export * from "./approval.ts";
 export * from "./content.ts";
+export * from "./dialog.ts";
 export * from "./extension-ops.ts";
 export * from "./input.ts";
 export * from "./secret.ts";
 export * from "./settings.ts";
 export * from "./thread.ts";
 export * from "./turn.ts";
+export * from "./work.ts";

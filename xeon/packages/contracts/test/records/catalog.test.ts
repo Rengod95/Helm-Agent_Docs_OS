@@ -3,7 +3,9 @@ import { Bug, parse } from "../../src/index.ts";
 import {
   CORE_EVENT_CATALOG,
   CORE_EVENT_KINDS,
+  DIALOG_EVENT_CATALOG,
   EVENT_CATALOG,
+  WORK_EVENT_CATALOG,
   ItemRecordedPayloadSchema,
   PostAcceptedPayloadSchema,
   ScopeChangedPayloadSchema,
@@ -37,7 +39,10 @@ describe("core catalog", () => {
 
   test("kinds are unique and the merged catalog adds no duplicates", () => {
     expect(new Set(CORE_EVENT_CATALOG.map((e) => e.kind)).size).toBe(40);
-    expect(EVENT_CATALOG.length).toBe(40);
+    // 코어 40종에 내장 L2 도메인 카탈로그(work 10종, dialog 2종)가 이어 붙는다
+    expect(EVENT_CATALOG.length).toBe(40 + WORK_EVENT_CATALOG.length + DIALOG_EVENT_CATALOG.length);
+    expect(new Set(EVENT_CATALOG.map((e) => e.kind)).size).toBe(EVENT_CATALOG.length);
+    expect(EVENT_CATALOG.slice(0, 40)).toEqual([...CORE_EVENT_CATALOG]);
     const entry = CORE_EVENT_CATALOG[0];
     expect(entry).toBeDefined();
     if (entry !== undefined) {

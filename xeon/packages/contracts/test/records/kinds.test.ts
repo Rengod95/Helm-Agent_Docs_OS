@@ -31,16 +31,29 @@ describe("core kinds", () => {
 });
 
 describe("domain areas", () => {
-  test("registered-name rule: nothing is registered until M2, so work.* is reserved", () => {
+  test("registered-name rule: only kinds in the merged catalog pass, the rest of a domain area is reserved", () => {
     for (const kind of [
       "work.unknown_name",
-      "dialog.status",
+      "dialog.unknown_name",
       "artifact.created",
       "schedule.fired",
     ]) {
       const result = parseEventKind(kind);
       expect(result.ok).toBe(false);
       if (!result.ok) expect(result.error.kind).toBe("reserved_area");
+    }
+  });
+
+  test("work and dialog kinds registered by their domain catalogs parse as domain kinds", () => {
+    for (const [kind, area, name] of [
+      ["work.task_created", "work", "task_created"],
+      ["work.report_built", "work", "report_built"],
+      ["dialog.status", "dialog", "status"],
+      ["dialog.notified", "dialog", "notified"],
+    ] as const) {
+      const result = parseEventKind(kind);
+      expect(result.ok).toBe(true);
+      if (result.ok) expect(result.value).toEqual({ origin: "domain", area, name });
     }
   });
 
