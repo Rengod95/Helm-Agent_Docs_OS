@@ -168,12 +168,20 @@ F에서 가져오는 이름은 `F.wire-settings.spec` 그대로다: `Transport`,
 import type { StoreId, WireResult } from "@xeon/contracts/wire";
 import type { SettingCatalog, CatalogIssue, SettingDefInput, SettingGroup, SettingNamespace } from "@xeon/contracts/settings";
 import type { Clock, IdFactory } from "@xeon/contracts";            // F 루트 주입 인터페이스. 구현은 platform-os(review.decisions-2 U-03)
+import type { AgentDefinition, ShutdownCoordinator, ShutdownReason } from "@xeon/contracts/services";
+import type { ModelsExtensionOptions } from "@xeon/core-models";
+import type { DnsResolver, HttpTransport } from "@xeon/cap-web";
 
 /** host.status.mode와 같은 값 집합: "in-process" | "stdio" | "service" */
 export type HostMode = WireResult<"host.status">["mode"];
 
-/** ext-host가 받는 플러그인 모듈. 이름 정본은 X.loading-trust.spec이다 [가정]. */
-export type HostPluginModule = import("@xeon/ext-host").PluginModule;
+/** ext-host가 받는 플러그인 모듈. X.loading-trust.spec의 `BuiltinExtensionModule`(manifest + extension 엔트리)이다. */
+export type HostPluginModule = import("@xeon/ext-host").BuiltinExtensionModule;
+
+/** 종료 협조 창구(L0.process.spec §4.2). 참여자를 등록 역순으로 `l0.process.shutdown.timeoutMs` 안에서 기다리고, 시한을 넘기면 `AssembleOptions.exit(1)`을 부른다. */
+interface EngineShutdown extends ShutdownCoordinator {
+  request(reason: ShutdownReason): Promise<{ readonly completed: boolean; readonly elapsedMs: number }>;
+}
 
 export interface AssembleOptions {
   readonly mode: HostMode;
@@ -185,6 +193,12 @@ export interface AssembleOptions {
   readonly devChecks?: boolean;                           // 결과 스키마 검사, in-process JSON 왕복. 개발 빌드만 true
   readonly clock?: Clock;                                 // 테스트 주입(eng.testing.guide TS-03)
   readonly ids?: IdFactory;
+  // 아래는 코드가 더한 선택 필드다(deviation). 시험이 쓴다
+  readonly exit?: (code: number) => never;                // 종료 협조 시한을 넘겼을 때 프로세스를 끝내는 함수. 기본 process.exit
+  readonly buildModels?: ModelsExtensionOptions["buildModels"];  // pi-ai 모델 모음을 만드는 함수(모델 테이프 provider를 더한 것). core-models가 먼저 올라 xeon.models를 내므로 extraPlugins로는 바꿀 수 없다
+  readonly agentDefinitions?: readonly AgentDefinition[]; // 서브에이전트 정의. 정의 파일 탐색(사용자·프로젝트 디렉터리)은 L1.agents 2차라 M2에는 이 경로뿐이다
+  readonly webPorts?: { readonly resolver?: DnsResolver; readonly transport?: HttpTransport };
+                                                          // 웹 능력의 DNS 해석기와 HTTP 전송. 루프백은 정책이 항상 거부하므로 시험이 공개 주소로 풀리는 이름과 가짜 전송을 넣는다
 }
 
 export interface Engine {
@@ -193,13 +207,15 @@ export interface Engine {
   readonly catalog: SettingCatalog;
   readonly startedAt: number;                             // ms. host.status.startedAt의 원천
   readonly ports: EnginePorts;                            // §3.3.2
+  readonly shutdown: EngineShutdown;                      // 종료 협조 창구(deviation). EOF, 신호, host.shutdown이 request(reason)을 부른다(HS-31)
   close(): Promise<void>;                                 // task 결과를 쓰지 않는다(ADR-0006 §3.1)
 }
 
 export type AssembleIssue =
   | { readonly code: "catalog"; readonly issues: readonly CatalogIssue[] }
   | { readonly code: "store"; readonly message: string }
-  | { readonly code: "missingService"; readonly service: string };
+  | { readonly code: "missingService"; readonly service: string }
+  | { readonly code: "plugin"; readonly plugin: string; readonly message: string };  // 기본 플러그인이나 extraPlugins 하나의 설치 실패(deviation)
 
 /** 조립 결함. 선언 결함은 Result 대신 예외로 알린다(eng.typescript.guide TY-11). */
 export declare class AssembleError extends Error {
@@ -218,7 +234,8 @@ export declare function assemble(options: AssembleOptions): Promise<Engine>;
 // src/assemble.ts (계속)
 import type { ThreadId, TurnId, ItemId } from "@xeon/contracts/conversation";
 import type { DurableEventEnvelope, VolatileEventEnvelope } from "@xeon/contracts/records";
-import type { LeaseToken } from "@xeon/contracts/records";       // F records lease.ts(L0.store.spec FR-S2) [가정]
+import type { LeaseToken, LifecycleError, ReadFailure, StoreError } from "@xeon/contracts/records";       // F records lease.ts(L0.store.spec FR-S2) [가정]
+import type { LoopError, ResumeResult } from "@xeon/contracts/services";
 import type { EventFilter, StreamPosition, TurnStartInput, Unsubscribe, WireParams, WireResult } from "@xeon/contracts/wire";
 import type { ScopeStack, SettingKey, SettingScope } from "@xeon/contracts/settings";
 
@@ -227,32 +244,48 @@ export interface EnginePorts {
   readonly turns: TurnPort;            // L1.tasks, L1.loop
   readonly feed: EventFeedPort;        // L1.persistence(L0.store 읽기 API와 커밋 후 알림)
   readonly locks: SessionLockPort;     // L0.process(OS 잠금), L0.store(sys_leases epoch 펜싱과 소유 표시)
-  readonly settings: SettingsStorePort;// L1.persistence(설정 파일 범위와 세션 범위)
+  readonly settings: SettingsStorePort;// L1.persistence(세션 범위)와 설정 파일 범위(호스트 소유)
   readonly approvals: ApprovalPort;    // L1.tools
   readonly activity: ActivityPort;     // L1.tasks, L1.tools, L2.schedule
   readonly notify: UserNotifyPort;     // L0.os
   readonly log: HostLogPort;           // L0.os
   readonly secrets: SecretsPort;       // L0.secrets 관리 서비스(`xeon.secretAdmin`)와 wire 밖 값 전달 통로 [결정: m2-plan HOST.3]
+  readonly ids: IdFactory;             // 새 id 발급(traceId, 연결 id). 엔진의 IdFactory(deviation)
+  readonly clock: Clock;               // 엔진의 시계. 송신 큐 같은 호스트 자신의 시각에 쓴다(deviation)
   readonly scheduler: Scheduler;       // L0.os 타이머. 관찰 폴링(HS-16)이 쓴다. 시험은 수동 스케줄러를 넣는다
 }
+
+/** `thread.read`가 결과를 만들지 못한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.4.6 3항) */
+export type ThreadReadFailure =
+  | ReadFailure
+  | { readonly kind: "thread_not_found"; readonly threadId: ThreadId }
+  | { readonly kind: "invalid_target"; readonly reason: "item_not_found" | "not_on_branch" };
 
 export interface ThreadPort {
   create(input: { readonly workspace?: string; readonly title?: string }): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;     // 읽기 실패는 값이다. 처리기가 store.* 와이어 오류로 옮긴다
   list(params: WireParams<"thread.list">): Promise<WireResult<"thread.list">>;
-  fork(threadId: ThreadId, at: ItemId | undefined): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
-  revert(threadId: ThreadId, to: ItemId): Promise<{ readonly position: StreamPosition }>;
-  remove(threadId: ThreadId): Promise<void>;
+  /** 새 thread를 만든다. 쓰기 소유는 얻지 않는다(처리기가 SessionLockPort로 얻는다). 실패는 수명 주기 오류 값이다 */
+  fork(threadId: ThreadId, at: ItemId | undefined): Promise<Result<{ readonly threadId: ThreadId; readonly position: StreamPosition }, LifecycleError>>;
+  /** 쓰기 소유자만. 열린 turn이 있으면 turn_running이다. 호출마다 새 요청 키를 만든다 */
+  revert(threadId: ThreadId, to: ItemId): Promise<Result<{ readonly position: StreamPosition }, LifecycleError>>;
+  /** 쓰기 소유자만. 지운 뒤 이 프로세스가 쥔 그 thread의 임대와 확장 상태를 거둔다 */
+  remove(threadId: ThreadId): Promise<Result<void, LifecycleError>>;
+  /** 현재 가지의 내구 item을 오래된 것부터 limit개(§4.13) */
+  read(params: WireParams<"thread.read">): Promise<Result<WireResult<"thread.read">, ThreadReadFailure>>;
   position(threadId: ThreadId): Result<StreamPosition, ReadFailure>;
 }
 
 export type SubmitOutcome =
   | { readonly ok: true; readonly turnId: TurnId }                 // 같은 requestId 재제출이면 처음 turnId
-  | { readonly ok: false; readonly reason: "busy"; readonly turnId: TurnId };
+  | { readonly ok: false; readonly reason: "busy"; readonly turnId: TurnId }
+  | { readonly ok: false; readonly reason: "rejected"; readonly error: LoopError };  // 루프가 입력을 받지 않았다(저장소 부족, 소유 상실, 잘못된 입력). 와이어 오류로 옮기는 것은 처리기 몫(deviation)
 
 export interface TurnPort {
   submit(threadId: ThreadId, input: TurnStartInput, requestId: string | undefined): Promise<SubmitOutcome>;
   interrupt(threadId: ThreadId, turnId: TurnId | undefined): Promise<boolean>;
+  /** 열린 turn을 재개한다(자동 재개는 하지 않는다, L1.loop.spec §4.6). wire에 재개 메서드가 없어 지금은 시험과 서비스 모드 자동 재개(M3)가 쓴다(§10 미결 21) */
+  resume(threadId: ThreadId): Promise<Result<ResumeResult, LoopError>>;
   /** 진행 중 turn을 다음 안전 경계에서 멈추고 체크포인트를 커밋한다. 시한 안에 끝나면 true. */
   stopAtSafeBoundary(deadlineMs: number): Promise<boolean>;
   /** 그 thread에 진행 중인 turn이 있는가. 서비스 모드의 잠금 해제 판정(HS-27)이 쓴다. */
@@ -289,15 +322,32 @@ export interface SessionLockPort {
   release(threadId: ThreadId): Promise<void>;                              // 쥔 잠금을 놓는다. 쥐지 않았으면 아무 일도 하지 않는다
 }
 
+/** 설정 쓰기가 실패한 이유. 처리기가 와이어 오류로 옮긴다(§4.14) */
+export type SettingsWriteFailure =
+  | { readonly kind: "thread_required"; readonly scope: SettingScope }   // session·project·local인데 threadId가 없다
+  | { readonly kind: "not_owner"; readonly threadId: ThreadId }          // session 범위는 이 프로세스가 쓰기 소유를 쥔 thread에만 쓴다
+  | { readonly kind: "workspace_required"; readonly scope: SettingScope }
+  | { readonly kind: "untrusted_project"; readonly workspace: string }
+  | { readonly kind: "managed_read_only" }
+  | { readonly kind: "file_invalid"; readonly path: string }             // 기존 파일이 JSON 객체가 아니다
+  | { readonly kind: "file_unwritable"; readonly path: string; readonly code: string }
+  | StoreError;                                                          // thread_not_found 포함
+
 export interface SettingsStorePort {
   layers(threadId: ThreadId | undefined): ScopeStack;
-  write(scope: SettingScope, key: SettingKey, value: unknown, threadId: ThreadId | undefined): Promise<void>;
-  reset(scope: SettingScope, key: SettingKey, threadId: ThreadId | undefined): Promise<void>;
+  /** thread의 작업 폴더가 신뢰되었으면 그 폴더의 project·local 설정 파일을 읽어 layers가 쓰게 한다(layers가 동기라서 신뢰 판정은 thread를 여는 곳에서 먼저 한다) */
+  prepare(threadId: ThreadId): Promise<void>;
+  write(scope: SettingScope, key: SettingKey, value: unknown, threadId: ThreadId | undefined): Promise<Result<void, SettingsWriteFailure>>;
+  reset(scope: SettingScope, key: SettingKey, threadId: ThreadId | undefined): Promise<Result<void, SettingsWriteFailure>>;
   onChange(listener: () => void): Unsubscribe;
 }
 
 export interface ApprovalPort {
+  /** 응답이 속한 표면 thread. 메모리 대기 목록에 없으면 쥔 thread마다 restore한 뒤 다시 찾고, 그래도 없으면 저장소의 미해결 요청을 훑는다. 없으면 undefined */
+  locate(approvalId: string): Promise<Result<ThreadId | undefined, ReadFailure>>;
   respond(params: WireParams<"approval.respond">): Promise<WireResult<"approval.respond">>;
+  /** thread의 미해결 요청과 그 시점의 위치(F wire §3.4.6 5항). 이 프로세스가 쥐지 않은 thread도 읽는다 */
+  list(threadId: ThreadId): Promise<Result<WireResult<"approval.list">, ReadFailure | { readonly kind: "thread_not_found"; readonly threadId: ThreadId }>>;
 }
 
 export interface ActivitySnapshot {
@@ -341,6 +391,7 @@ export interface HostLimits {
   readonly replayBatchMaxEvents: number;         // 상수 500 (F wire §3.4.3)
   readonly scanLimit: number;                    // 상수 10,000
   readonly sendLowWaterBytes: number;            // 상수 1 MiB
+  readonly sendQueueMaxBytes?: number;           // 송신 큐 상한(바이트). 없으면 64 MiB(HS-05). 시험이 작은 값을 넘긴다(deviation)
 }
 
 export interface ServeOptions {
@@ -377,11 +428,16 @@ export interface HostInfo {
   readonly serverVersion: string;                // 엔진 빌드 버전. 등록 파일 version과 같은 값
   readonly pid: number;
 }
+/** 호스트 프로세스의 수명 신호. host.shutdown이 협조 종료를 마치고 응답이 나간 뒤 부른다(HS-31). 없으면 host.shutdown을 열지 않는다(in-process) */
+export interface HostLifecycle {
+  stopRequested(reason: "shutdown_request" | "version_replace"): void;
+}
 /** 전송과 무관한 처리기 표 하나. in-process, stdio, socket이 같은 표를 쓴다. */
-export declare function createWireHandlers(engine: Engine, hub: () => ConnectionHub, info: HostInfo): WireHandlers;
+export declare function createWireHandlers(engine: Engine, hub: () => ConnectionHub, info: HostInfo, lifecycle?: HostLifecycle): WireHandlers;
 ```
 
 - `WireHandlers`는 모든 `WireMethodName`에 처리기를 요구한다(`F.wire-settings.spec` §3.1). 아직 구현하지 않은 메서드는 `notImplemented(method)` 처리기로 채운다. 이 처리기는 `-32601`(`jsonrpc.methodNotFound`)을 돌려주고, 그 메서드는 `host.hello`의 `features`에서 빠진다 [제안]. 그래서 M1 호스트도 타입상 완전한 표를 갖는다.
+- M2(HOST.2·HOST.4)에서 메서드 표가 모두 구현되었다. 지금 `notImplemented`로 남는 것은 수명 신호(`lifecycle`)가 없는 호스트(in-process)의 `host.shutdown` 하나다.
 
 #### 3.3.4 호스트 시작 함수
 
@@ -571,18 +627,20 @@ M2:
 | 메서드 | 처리 | 서비스 | 오류 |
 |---|---|---|---|
 | `thread.open` | `mode: "write"`이면 세션 잠금을 얻고(이미 쥐었으면 그대로) 결과 `role`은 `owner`다. 실패하면 `thread.locked`에 대안(§4.7). `mode: "observe"`이면 잠금 없이 열고 `role`은 `observer`다. 둘 다 그 thread의 `stream.chunk`를 이 연결에 보낸다(HS-17) | `SessionLockPort`(L0.process, L0.store), `ThreadPort.position`(L1.persistence) | 3001, 3002 |
-| `thread.close` | 그 연결의 열기 기록을 지운다. §4.7 해제 조건이 맞으면 잠금을 푼다 | `SessionLockPort` | 3001 |
-| `thread.list` | 투영 목록을 돌려준다 | `ThreadPort.list`(L1.persistence) | - |
-| `thread.fork` | `parentId` 분기로 새 thread를 만들고 쓰기 소유를 얻는다 | `ThreadPort.fork`, `SessionLockPort` | 3001 |
-| `thread.revert` | 쓰기 소유자만. 진행 중 turn이 있으면 거부 | `ThreadPort.revert`(L1.persistence) | 3001, 3002, 3003 |
-| `thread.delete` | 쓰기 소유자만. 잠금을 얻을 수 없으면 거부 | `ThreadPort.remove`, `SessionLockPort` | 3001, 3002 |
-| `turn.interrupt` | 쓰기 소유자만 | `TurnPort.interrupt`(L1.loop) | 3001, 3002 |
+| `thread.close` | 그 연결의 열기 기록(`openThreads`, `writeThreads`, `observedThreads`)을 지운다. 열려 있지 않아도 오류가 아니다. §4.7 해제 조건이 맞으면 잠금을 푼다(서비스 모드만, HS-27) | 연결 허브 | 3001 |
+| `thread.list` | 투영 목록을 돌려준다. 종결(`closed`)된 thread는 뺀다 | `ThreadPort.list`(L1.persistence) | - |
+| `thread.read` | 현재 가지의 내구 item을 오래된 것부터 `limit`개(기본 200). 소유를 얻지 않고 닫힌 thread도 읽는다. §4.13의 스냅샷 규칙 | `ThreadPort.read`(L1.persistence) | 3001, 3005 |
+| `thread.fork` | 원본의 쓰기 소유 없이 새 thread를 만들고(`forkedFrom`), 이 연결이 새 thread의 쓰기 소유를 얻는다. 확장이 막으면(`session_before_fork`) 3006 | `ThreadPort.fork`, `SessionLockPort` | 3001, 3002, 3005, 3006 |
+| `thread.revert` | 쓰기 소유자만(HS-28: 암묵 획득 없음). 진행 중 turn이 있으면 3003. 호출마다 새 요청 키를 만든다 | `ThreadPort.revert`(L1.persistence) | 3001, 3002, 3003, 3005, 3006 |
+| `thread.delete` | 쓰기 소유자만 지운다. 소유를 쥐지 않았으면 한 번 얻어 본다(`xeon sessions rm`처럼 열지 않고 지우는 클라이언트를 위해 HS-28의 암묵 획득을 따른다). 얻지 못하면 3002. 지우지 못하면 이 호출이 얻은 잠금은 놓는다. 이 thread를 `forkedFrom`으로 가리키는 thread가 있으면 3004 | `ThreadPort.remove`, `SessionLockPort` | 3001, 3002, 3004 |
+| `turn.interrupt` | 쓰기 소유자만(HS-28). `interrupted`는 중단할 turn이 있었는가 | `TurnPort.interrupt`(L1.loop) | 3001, 3002 |
 | `events.unsubscribe` | 구독을 지운다 | 연결 허브 | 2002 `events.subscriptionNotFound` |
-| `approval.respond` | [가정: F wire §4.6 A안] 승인 응답을 L1.tools에 넘긴다. 이미 해결됐거나 모르는 `approvalId`이면 `applied: false` | `ApprovalPort.respond`(L1.tools) | 3002(그 승인의 thread를 이 프로세스가 소유하지 않을 때) |
-| `settings.set` | `checkSettingWrite(catalog, layers, key, scope, value)` 통과 뒤 저장, 결과는 `resolveSetting`. `project`·`local` 범위는 `threadId`의 workspace가 있어야 한다. 없으면 3103에 `details.reason: "workspaceRequired"` [제안] | `SettingsStorePort.write`(L1.persistence) | 3101, 3102, 3103, 3104, 3105 |
-| `settings.reset` | 범위·잠금 검사 뒤 그 범위 값을 지운다 | `SettingsStorePort.reset` | 3101, 3103, 3104 |
-| `settings.list` | 카탈로그를 `SettingDefWire`로 바꿔 돌려준다. `type`은 `toJsonSchema(def.type)`이고 `range`는 따로 싣는다 | 카탈로그 | - |
-| `host.status` | 모드, pid, 시작 시각, 연결 수, `liveTurns`, 유휴 종료 예정 시각(서비스만, 아니면 `null`) | 연결 허브, `ActivityPort`, 수명 관리 | - |
+| `approval.respond` | [가정: F wire §4.6 A안] 요청이 속한 thread를 찾아(§4.13) 이 프로세스가 그 thread의 쓰기 소유를 쥐고 있으면 응답을 L1.tools에 넘긴다. 이미 해결됐거나 모르는 `approvalId`이면 `applied: false`. 쥐지 않았으면 3002(잠금을 얻으려 하지 않는다) | `ApprovalPort.locate`·`respond`(L1.tools) | 3002 |
+| `approval.list` | thread의 미해결 요청과 그 시점의 위치. 소유를 쥐지 않은 thread도 읽는다. §4.13 | `ApprovalPort.list`(L1.persistence) | 3001 |
+| `settings.set` | `checkSettingWrite(catalog, layers, key, scope, value)` 통과 뒤 §4.14의 범위별 저장, 결과는 `resolveSetting`. `session`·`project`·`local` 범위는 `threadId`가 필요하고 `project`·`local`은 그 thread의 workspace가 신뢰되어 있어야 한다. 없으면 3103에 `details.reason` `workspaceRequired`·`untrustedProject`, `managed`는 `managedReadOnly` | `SettingsStorePort.write` | 3001, 3002, 3101, 3102, 3103, 3104, 3105 |
+| `settings.reset` | 키·범위·잠금 검사 뒤 그 범위 값을 지운다(`checkSettingWrite`의 값 검사는 건너뛴다). 저장은 `settings.set`과 같다 | `SettingsStorePort.reset` | 3001, 3002, 3101, 3103, 3104 |
+| `settings.list` | 카탈로그를 `SettingDefWire`(`toSettingDefWire`)로 바꿔 키 순으로 돌려준다. `prefix`로 거르고 폐기된 키는 `includeDeprecated`일 때만 싣는다. `type`은 `toJsonSchema(def.type)`이고 `range`는 따로 싣는다 | 카탈로그 | - |
+| `host.status` | 모드, pid, 시작 시각(ISO), 연결 수, `liveTurns`, 유휴 종료 예정 시각(서비스만, 아니면 `null`) | 연결 허브, `ActivityPort`, 수명 관리 | - |
 | `secret.list` | 관리 서비스 목록을 값 없는 `SecretListEntry`로 바꾼다. `meta: true`일 때만 메타를 싣고, `usage: true`면 마지막 사용 시각을 감사 파일에서 채운다 | `SecretsPort.admin.ls`(L0.secrets) | - |
 | `secret.meta` | 준 필드만 메타에 적용하고 바뀐 항목을 상태와 함께 돌려준다 | `SecretsPort.admin.meta`, `ls` | -32602(메타 검사 실패), §4.12의 비밀 오류 |
 | `secret.remove` | 확인을 거친 삭제로 본다. 이미 없는 이름은 `removed: false`다 | `SecretsPort.admin.rm` | §4.12의 비밀 오류(활성 lease가 있으면 `in_use`) |
@@ -667,7 +725,7 @@ export declare function resolveLaunchMode(options?: { readonly dataDir?: string 
 
 1. 경로: `dataDir`가 없으면 L0.os에서 기본 데이터 디렉터리를 받는다.
 2. 루트 컨텍스트: ext-host가 제공하는 루트 생성 API로 Cordis 루트 컨텍스트를 만든다. `apps/host`는 Cordis를 직접 import하지 않는다(DR-11). L4는 Cordis 서비스를 제공하지 않는다(`architecture.layers.spec` §4.4).
-3. 플러그인 등록: 층 순위 순서(L0 → L1 → L2 → L3)로 기본 플러그인을 싣고, 이어서 `extraPlugins`를 싣는다. `defaultGroups`가 `false`면 L3 기본 그룹(Helm, 학습 그룹)을 빼고 싣는다. 그룹의 켜기·끄기는 각 그룹 설정(`l3.helm.*`, `l3.learning.*`)이 정한다. 외부 확장 로딩과 신뢰 판정은 X(`X.loading-trust.spec`)가 한다.
+3. 플러그인 등록: 기본 플러그인을 의존 순서로 싣고(§4.15), 이어서 `extraPlugins`를 싣는다. `defaultGroups`가 `false`면 L3 기본 그룹(Helm, 학습 그룹)을 빼고 싣는다. 그룹의 켜기·끄기는 각 그룹 설정(`l3.helm.*`, `l3.learning.*`)이 정한다. 외부 확장 로딩과 신뢰 판정은 X(`X.loading-trust.spec`)가 한다.
 4. 서비스 확인: 포트가 요구하는 서비스(§3.3.2)가 모두 주입됐는지 확인한다. 없으면 `missingService`.
 5. 카탈로그: 모든 패키지의 설정 그룹과 확장 매니페스트에서 나온 정의를 `buildCatalog`에 넣는다. 결과가 `{ ok: false }`이면 기동을 거부한다(`catalog`). 단, F wire §5 규칙대로 확장 키 문제(`foreignNamespace`, 확장 사이 `duplicateKey`)는 X 로더가 그 확장의 설정을 빼고 다시 조립하므로 여기까지 오는 문제는 코어 키 문제다 [가정: 재조립 절차는 `X.loading-trust.spec`이 정한다].
 6. 설정 범위: `SettingsStorePort.layers(undefined)`로 파일 범위를 읽는다. 값 검사 실패는 진단으로 남기고 시작을 막지 않는다(F wire §4.8).
@@ -721,13 +779,14 @@ F wire §4.3의 1~7단계를 그대로 구현한다. 1단계(프레임 크기)�
 ### 4.5 휘발 스트림
 
 - HS-17. `EventFeedPort.onVolatile`로 받은 휘발 이벤트는 그 thread를 이 프로세스가 소유하고, 그 thread를 `thread.create`·`thread.open`(write 또는 observe)으로 연 연결에 `stream.chunk`로 보낸다. 구독은 필요 없다(F wire §3.4.4 [제안]).
-- HS-18. `n`은 `(threadId, turnId)`마다 0부터 센다. `afterSeq`는 보내는 시점의 `EventFeedPort.headSeq()`다.
+- HS-18. [결정: m2-plan HOST.7, open-issues D-12] `n`과 `afterSeq`는 발신자(core-loop)가 채운다(`F.records.spec` §4.3 1번). 호스트는 `toVolatileEventWire`로 바꿔 그대로 보낸다. `n`은 `(threadId, turnId)`마다 0부터 세는 값이고 `afterSeq`는 휘발 이벤트를 만든 시점의 head다. 이전 문구(호스트가 센다, 보내는 시점의 `headSeq()`)는 폐기한다: 호스트가 다시 세면 발신자의 값과 어긋나고 재접속한 연결의 `n`이 끊긴다.
 - HS-19. 휘발 이벤트는 송신 큐가 lowWater를 넘으면 버린다. 재전송하지 않는다. 완성 기록은 `events.batch`로 다시 온다.
 - HS-20. 다른 프로세스가 소유한 thread의 관찰자는 `stream.chunk`를 받지 못한다. 휘발 이벤트는 소유 프로세스의 메모리에만 있다. 관찰자에게 토큰 단위 표시가 필요하면 위임(서비스 경유)으로 접속해야 한다.
 
 ### 4.6 취소
 
 - HS-21. `$/cancelRequest { id }`를 받으면 그 요청의 `AbortController`를 중단한다. 처리기가 `signal` 때문에 거부하면 5001 `request.cancelled`로 응답한다. 처리기가 취소와 무관하게 결과를 내면 그 결과를 보낸다. 이미 응답한 id, 모르는 id는 무시한다.
+  - [결정: m2-plan HOST.7, open-issues D-12] `events.subscribe`의 순서 규칙: F wire §3.4.3은 구독 등록(3), 응답(4), 재전송(5) 순서다. 호스트는 구독을 등록한 뒤 응답 전에 송신 큐가 lowWater 아래일 때까지 기다리며 `signal`을 본다(취소 창). 이 창에서 취소되면 구독을 지우고 5001로 끝낸다(AH-07). 응답이 송신 큐에 들어간 직후(`afterResponse`) 재전송을 시작하고, 그 뒤의 취소는 재전송을 멈추지 않는다(HS-21의 "응답 뒤 취소는 무시"). F wire §3.4.3의 4·5단계 사이에는 이 규칙이 들어간다.
 - HS-21a. `$/connectionReset {}`(m2 F.8, `F.wire-settings.spec` §4.1 5~7번). 연결이 `ready`일 때 받으면 (a) 진행 중 요청의 `AbortController`를 모두 중단하고 응답을 내지 않는다(새 화면의 요청 id와 겹치므로 5001도 보내지 않는다. 처리기가 늦게 끝나도 응답을 버린다), (b) 구독을 지우고(`SubId` 카운터는 이어간다), (c) `openThreads`·`observedThreads`를 비우고, (d) `phase`를 `awaitingHello`로, `experimental`을 빈 목록으로 돌린다. `writeThreads`(쓰기 소유)와 진행 중 turn은 건드리지 않는다. `awaitingHello`에서는 무시한다. `host.hello`의 `features`에 알림으로 올라간다.
 - HS-22. `turn.start`는 접수만 처리하므로 취소가 turn을 멈추지 않는다. 접수 뒤 취소가 오면 turn은 계속 돌고 응답만 5001일 수 있다. 클라이언트는 이벤트로 접수 여부를 확인한다(F wire §5 "응답 전에 연결이 닫힌다" 행과 같은 처리).
 
@@ -752,7 +811,7 @@ F wire §4.3의 1~7단계를 그대로 구현한다. 1단계(프레임 크기)�
   - 구현(`ConnectionHub.releaseUnused`): 연결이 닫힐 때 그 연결이 쓰기로 연 thread마다 판정하고, 서비스 모드만 `SessionLockPort.release`를 부른다. live 작업은 `TurnPort.isLive`(진행 중 turn)로 본다. 연결이 떠난 뒤 turn이 끝나는 시점에 다시 판정하지 않으므로, live 작업 때문에 쥔 잠금은 서비스가 닫힐 때까지 남는다 [미결 §10 20번].
   - 잠금을 기다리는 동안 연결이 닫혔으면 처리기는 `request.cancelled`로 끝나고 얻은 잠금은 같은 판정으로 놓는다.
   - `thread.close`(HOST.2)도 같은 판정을 쓴다.
-- HS-28. `turn.start`는 이 프로세스가 그 thread의 잠금을 쥐고 있지 않으면 먼저 `tryAcquire`를 한 번 시도한다(암묵 획득) [제안]. 성공하면 HS-24 4단계처럼 토큰으로 쓰기를 열고 제출한다. 실패하면 3002와 HS-25의 `options`다. 그래서 M1에서도 기존 thread의 재개(`xeon chat --continue`, `L4.cli.spec` §4.3)가 `thread.open` 없이 동작한다. `turn.interrupt`, `thread.revert`, `thread.delete`는 암묵 획득을 하지 않고 `SessionLockPort.holds(threadId)`가 거짓이면 3002다.
+- HS-28. `turn.start`는 이 프로세스가 그 thread의 잠금을 쥐고 있지 않으면 먼저 `tryAcquire`를 한 번 시도한다(암묵 획득) [제안]. 성공하면 HS-24 4단계처럼 토큰으로 쓰기를 열고 제출한다. 실패하면 3002와 HS-25의 `options`다. 그래서 M1에서도 기존 thread의 재개(`xeon chat --continue`, `L4.cli.spec` §4.3)가 `thread.open` 없이 동작한다. `turn.interrupt`, `thread.revert`는 암묵 획득을 하지 않고 `SessionLockPort.holds(threadId)`가 거짓이면 3002다. `thread.delete`는 한 번 얻어 본다: 열지 않고 지우는 클라이언트(`xeon sessions rm`)가 있고, 지우려면 쓰기 소유가 필요하기 때문이다(§3.4 표). `approval.respond`는 잠금을 얻으려 하지 않는다(§4.13).
 - HS-29. `sys_leases.heartbeat_at` 갱신은 `LeaseService.keepAlive`가 한다. 갱신이 `lease_lost`로 실패하면 호스트는 그 thread의 쓰기를 멈추고 소유를 잃은 것으로 다룬다. 주기는 L0.store가 정한다.
 - HS-30. 비정상 종료 표식의 "이어서 실행" 후보를 클라이언트에 알리는 wire 수단이 F에 없다(`thread.list`의 `ThreadSummary` 필드 미정, 전용 메서드 없음). F 변경 요청으로 §10 미결 8에 올린다. 그 전까지 후보는 `L1.persistence`의 투영에만 있다.
 
@@ -890,6 +949,36 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 
 - 원격 전송도 F의 `Transport`를 구현하고 같은 `WireHandlers` 표를 쓴다.
 - 비루프백 리스너는 토큰 없이 기동하지 않는다. 인증은 `host.hello` 전에 끝낸다. 실패한 연결은 hello 전에 닫는다(`product.scope.spec` §4.4 M3 조건).
+
+### 4.13 읽기 스냅샷과 승인 응답 [결정: m2-plan HOST.2·HOST.4]
+
+- HS-49. `thread.read`는 `headSeq()` 읽기와 현재 가지 읽기의 시작을 같은 동기 구간에서 한다. 가지는 첫 읽기에서 한 번에 가져오므로 `position.seq`가 items와 같은 저장소 상태를 가리킨다(F wire §3.4.6 1항). `item.recorded`의 item만 골라 detached 필드를 blob에서 되돌린다. 쪽 크기는 `limit`(기본 200)과 응답 한 개의 직렬화 예산(프레임 한도에서 64 KiB 여유를 뺀 값) 가운데 작은 쪽이다. 예산을 넘으면 오래된 쪽부터 줄이되 item 하나는 담고, `hasMore`는 줄인 뒤에도 정확하다. `before`가 없는 item은 3005다: thread에 아예 없으면 `item_not_found`, thread에는 있으나 현재 가지에 없으면 `not_on_branch`. 가지 전체를 읽고 자르는 구현이라 긴 thread에서는 비용이 크다(§10 미결 22).
+- HS-50. `approval.list`는 미해결 요청의 id를 투영(`pendingApprovals`)에서 읽는다. 하나도 없으면 거기서 끝난다(승인이 대기 중인 thread에만 요청하는 것이 보통이다, F wire §3.4.6 5항). 있으면 그 thread의 이벤트를 앞에서부터 읽어 `approval.requested`의 payload와 `seq`를 모은다. head 읽기와 투영 조회는 같은 동기 구간이다. 쓰기 소유와 무관하다.
+- HS-51. `approval.respond`는 요청이 속한 표면 thread를 쥔 호스트만 처리한다. 순서는 이렇다. (1) L1.tools의 메모리 대기 목록에서 `approvalId`를 찾는다. (2) 없으면 이 프로세스가 쥔 thread마다 `restore(threadId)`로 저장소의 미해결 요청을 되살린 뒤 다시 찾는다. (3) 그래도 없으면 저장소에서 미해결 요청을 가진 thread를 훑어 찾는다. 어디에도 없으면 `applied: false`다. 찾았는데 이 프로세스가 그 thread를 쥐지 않았으면 3002다: 응답은 그 thread의 `approval.resolved` 커밋이라 쓰기 소유가 필요하고, 응답을 위해 잠금을 얻지는 않는다. 쥐었으면 L1.tools의 `respond`로 넘긴다. 요청 kind와 맞지 않는 `decision`·`answer`는 `applied: false`다.
+- HS-52. 쓰기 소유를 얻을 때(`SessionLockPort.tryAcquire`) `restore(threadId)`를 한다. 재시작 뒤 같은 thread를 `thread.open`·`turn.start`로 다시 쥐면 미해결 요청이 메모리 대기로 되살아나 `approval.respond`가 찾는다. `restore`가 읽지 못하면 획득을 실패로 돌린다(store.*). 열린 turn의 재개(`TurnPort.resume`)는 따로다: 재개해야 응답을 기다리던 turn이 이어진다(§10 미결 21).
+- HS-53. A1 시험(m2-plan HOST.4, open-issues M-02)은 한 저장소 위에서 이렇게 이어진다. 승인 요청 → 호스트 프로세스 SIGKILL → 새 호스트가 같은 저장소를 열어 목록을 본다(`approval.list`, `ThreadSummary.pendingApprovals`, `resumable`) → 소유 없이 응답하면 3002 → 쓰기로 열기 → 재개 → 응답이 같은 도구 호출을 이어 turn이 끝난다. 구현은 `test/int/approval-restart.int.test.ts`이고 첫 호스트는 실제 자식 프로세스(stdio)다.
+
+### 4.14 설정 쓰기 [결정: m2-plan HOST.2]
+
+- HS-54. 값 검사는 F의 `checkSettingWrite`가 한다(`settings.set`과 CLI `config set`이 같은 함수). 저장은 범위마다 다르다.
+  - `user`: `<config>/settings.json`. 읽기-수정-쓰기를 임시 파일과 rename으로 한다(0600). 다른 키와 카탈로그에 없는 키는 보존한다(F wire §4.8). 같은 파일에 대한 쓰기는 프로세스 안에서 차례로 한다. 기존 파일이 JSON 객체가 아니면 쓰지 않고 `store.io`(`details.code: settings_file_invalid`)다.
+  - `session`: `sessionSettings.set`·`reset`(`settings.changed` 커밋). `threadId`가 필요하고 이 프로세스가 그 thread의 쓰기 소유를 쥐어야 한다(없으면 3002).
+  - `project`·`local`: 신뢰한 작업 폴더의 `.xeon/settings.json`·`.xeon/settings.local.json`(X.loading-trust.spec §4.7.2). `threadId`와 그 thread의 workspace가 필요하다. 프로젝트 신뢰 판정(§4.15 HS-58)이 `allow`여야 쓴다. 신뢰 필요 자원이 없어 판정을 건너뛴 폴더(`notRequired`)는 사람이 정한 결정(저장 파일 또는 기본 정책 `always`)이 있을 때만 쓴다: 파일을 쓰는 순간 그 폴더가 판정 대상이 되므로 결정 없이 쓰면 다음 시작에 파일이 무시된다.
+  - `managed`: 쓰지 않는다(읽기 전용 관리 정책 파일). 3103 `reason: managedReadOnly`.
+- HS-55. `layers(threadId)`는 동기라서 project·local 파일은 thread를 쥘 때와 `settings.get`·`set`·`reset`을 받을 때(`prepare`) 신뢰한 작업 폴더의 것을 읽어 둔다. 한 번 읽은 파일은 이 프로세스가 쓸 때까지 다시 읽지 않는다(사용자 파일도 시작 때 한 번만 읽는다). 신뢰하지 않은 폴더는 층이 없고, 다음 `prepare`가 판정을 다시 한다.
+- HS-56. 오류 `details`에 값과 파일 경로를 싣지 않는다. 경로는 로그에만 둔다.
+
+### 4.15 M2 조립 [결정: m2-plan HOST.6]
+
+- HS-57. 기본 플러그인 순서는 이렇다: core-persistence → core-tasks → core-models → core-context → core-tools → core-loop → host-groups → core-agents → cap-workspace → cap-dialog → host-dialog-bridge → cap-work → cap-mcp → cap-web → cap-knowledge. 뒤 단위의 setup이 앞 서비스를 동기로 찾으므로 순서가 곧 의존이다. 조립 루트가 만든 단위(`host-groups`, `host-dialog-bridge`, cap-web·cap-mcp의 엔트리)는 해당 패키지가 확장 엔트리를 내놓지 않아서 이 패키지에 있다.
+- HS-58. 프로젝트 신뢰(X.loading-trust.spec §4.7, 결정 D6): 저장 파일은 `<config>/trust.json`(프로세스 안 직렬 갱신, 프로세스 사이 잠금은 L0.os에 없다)이고 모드는 `headless`다. 프롬프트를 띄울 클라이언트가 없어 결정이 없는 프로젝트는 `undecided`이고 불신으로 다룬다(fail-closed). 기본 정책은 `x.loading-trust.defaultProjectTrust`다. `project_trust` 지점은 thread 없이 발화할 수 없고 그 지점에 핸들러를 거는 확장이 M2에 없어 발화하지 않는다. 이 판정을 쓰는 곳은 셋이다: project·local 설정 파일(HS-54), cap-knowledge의 프로젝트 스킬(`.xeon/skills`), cap-mcp의 `.mcp.json`·`.xeon/mcp.json`.
+- HS-59. L2 승인 포트: cap-*는 F `L2ApprovalsPort` 모양으로 승인을 쓰고(L2.readme §5.7), 조립 루트가 F `ApprovalService`(`open`·`wait`·`get`) 위에 어댑터를 얹는다(`assembly/l2-approvals.ts`). 질문(`dialog.ask`)은 호출 문맥에서 출처를 만든다: 도구 호출 안이면 `origin.toolCallId`가 있어 L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다. 계획 승인은 호출마다 출처를 받는 공장이고, 웹 도메인 질문은 대화만 아는 출처 없는 포트다(체크포인트 없음).
+- HS-60. core-tools는 도구 호출에서 능력 공급자를 `ScopeHostApi.capability`로 찾으므로 그 능력이 core-tools 매니페스트 `optional`에 있어야 한다. 조립 루트가 도구를 올리는 L2 능력(web.search, web.fetch, knowledge.skills, work.tasks, work.plans, dialog.ask, mcp.client)을 `toolsPlugin({ capabilities })`로 넘긴다. 빠지면 도구 호출이 "공급자 없음"으로 끝난다.
+- HS-61. 자식 thread: core-agents가 자식 thread를 만들고 `runChildTurn`을 부르는 사이에 열 틈이 없어, 조립 루트가 `agentsPlugin({ loop })`에 감싸개를 넘긴다. 감싸개는 `ExtHost.openThread(child)`를 하고 자식 turn을 돌린 뒤 `closeThread`한다. 열지 못하면(`storage_unavailable`) 자식 turn을 시작하지 않고 `io` 오류 값으로 돌려준다. 부모의 세션 쓰기 토큰은 이 프로세스가 쥔 thread의 임대 토큰이고(`parentToken`), 자식은 같은 holder로 소유를 이어받는다.
+- HS-62. 보관 정리: 엔진을 열 때 한 번 `retention.prune()`을 부른다(L1.persistence.spec §6.1). `l1.persistence.retention.maxAgeDays`·`maxCount`가 둘 다 0(기본)이면 아무것도 지우지 않는다. 실패는 시작을 막지 않고 로그만 남긴다.
+- HS-63. 그룹 서비스: `host-groups`가 `createGroupService`를 X의 임대 중재 포트(`xeon.groups`)와 같은 객체로 올린다. 그룹 목록은 설치한 단위 가운데 L3 매니페스트, 구동 그룹 설정은 `x.primitives.activeDriveGroup`(설정 엔진으로 읽고 `SettingsStorePort`로 쓴다. 쓸 수 없으면 `locked`), 그룹 설정 읽기(`xeon.settings`)는 설정 엔진의 유효 값이다. 서비스가 상태를 보이는 thread는 이 엔진이 가장 최근에 쓰기 소유를 쥔 thread다. `/group` 명령은 등록하지 않는다: 처리기가 출력을 돌려줄 길이 F `CommandResourceDef`에 없다(§10 미결 26).
+- HS-64. cap-mcp: HTTP·SSE 서버는 연결되고 서버 도구는 도구 표에 오른다. 서버 변화는 turn 시작(`before_agent_start`)과 단계마다 모델 요청 앞(`before_provider_request`)에서 반영한다. stdio 서버는 스트림을 주는 프로세스 포트를 L0가 아직 내놓지 않아 연결에 실패한다(§10 미결 25). `mcp_servers_change` 지점은 thread 없이 발화할 수 없어 발화하지 않는다.
+- HS-65. 실제 엔진 시험은 엔진이 서지 못하면 건너뛰지 않고 시험 파일이 실패한다(`test/fixtures/real-engine.ts`). 건너뛰면 조립 실패가 모든 실제 엔진 시험을 가려 검증이 통과한 것처럼 보인다.
 
 ## 5. 실패와 경계 사례
 
@@ -1030,3 +1119,10 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 18. [미결] 패키지 도메인 이름: `package.json`의 `xeon.domain`은 `host`이고 routes.yaml 도메인은 `host-service`다(`architecture.layers.spec` §10 첫 항목). 작성자 결정 사항이며 이 문서는 디렉터리와 패키지 이름 `host`를 유지한다.
 19. [미결] F 요청, 비밀 관리 wire 보강(HOST.3). (a) `WIRE_ERRORS`에 비밀 관리 전용 kind가 없어 HS-47의 `internal` 대용을 쓴다. 3200번대 `secret.*` kind 요청. (b) `SecretTestResult`가 `registered`/`missing`뿐이라 `L4.cli.spec` §4.7이 요구하는 복호화 가능 여부, 길이, SHA-256 앞 8자를 싣지 못한다. 필드 추가 요청. (c) `SecretEntryOffer`에 `add`용 메타 일부(`desc`, `provider`, 사용 정책)를 싣는 선택 필드가 없어 HS-45의 기본 메타를 쓴다. (d) `secret.references`에 해당하는 wire 메서드가 없어 CLI `secret rm`이 삭제 전에 참조(설정 키, 활성 lease, 세션)를 보일 수 없다.
 20. [미결] HS-27 후속: 서비스 모드에서 live 작업 때문에 쥔 잠금을 작업이 끝난 뒤에 놓는 시점. `ActivityPort.onChange`와 thread별 활성 판정이 필요하다. M3 서비스 모드(H10~H11)에서 정한다.
+21. [미결] F 요청, 열린 turn의 재개 메서드. 재시작 뒤 승인을 기다리던 turn은 `TurnPort.resume`으로 재개해야 응답을 받아 이어지는데 wire에는 재개 메서드가 없다(HS-30과 같은 뿌리). 지금은 시험과 서비스 모드 자동 재개(M3)만 `resume`을 부른다. `thread.open` 결과나 전용 메서드(`turn.resume`)로 낼지 F가 정한다.
+22. [미결] `thread.read`는 가지 전체를 읽고 자른다(HS-49). 긴 thread를 위해 L1.persistence에 `before`·`limit` 질의(`branchItemRecords`)가 필요하다. 또 fork가 만든 thread의 가지는 원본의 history를 잇지 않는다: `thread.started{forkedFrom}`의 `parentId`가 비어 있어 `readBranch`가 원본 item을 포함하지 않는다(`L1.persistence.spec` §4.10.3 확인 필요). L1B 요청.
+23. [미결] 종결된 thread에 대한 수명 주기 호출(`thread_closed`)을 옮길 와이어 오류가 없어 `thread.notFound`로 알린다(F 요청: `thread.closed` kind).
+24. [미결] 프로젝트 신뢰 저장 파일은 프로세스 사이 잠금이 없다(호스트 둘이 동시에 결정을 저장하면 나중 쓰기가 앞 쓰기를 덮을 수 있다). L0.os의 파일 잠금 API가 필요하다. `project_trust` 지점 발화는 thread 없는 발화 경로가 생긴 뒤에 연결한다.
+25. [미결] PLT 요청, `McpProcessPort`: 표준 입출력 스트림을 주는 자식 실행(`secret://` env 주입, 종료는 stdin 닫기 → SIGTERM → SIGKILL, `BackgroundRegistry` 등록). 호스트는 `Bun.spawn`을 직접 쓸 수 없다(DR-07).
+26. [미결] F 요청, 명령 처리기의 출력. `CommandResourceDef.handler`가 `void`를 돌려줘 `/group status` 같은 명령이 보일 텍스트를 낼 길이 없다.
+27. [미결] 문서 정정 요청 D-12의 F 쪽: `F.wire-settings.spec` §3.4.3의 4·5단계 사이에 취소 창이 있다(HS-21), `F.records.spec` §4.3과 §3.4.4의 `n`·`afterSeq`는 발신자 값이다(HS-18). F 작성자가 반영한다.

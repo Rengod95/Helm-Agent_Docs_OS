@@ -283,9 +283,9 @@ SV-06의 서비스 쪽(부모가 끝나도 서비스가 남는다)은 `bind-race
 | 테스트의 `Bun.spawn`이 DR-07과 충돌한다(§5 `int`·`fault`) | `just verify`의 check-layers에서 막힌다 | `L4.desktop.plan` R10과 같은 결정 하나로 푼다(허용 목록 항목 또는 `platform-process/testing` 도우미). 사람 확인이 필요하고, 결정 전까지 M1 완료를 막는 항목으로 보고한다 |
 | 테스트용 그룹과 모델 테이프의 위치가 정해지지 않았다 | M1 scenario와 host 테스트가 같은 고정 자료를 공유하지 못한다 | 테스트용 그룹의 위치와 이름은 `L3.group-kit.plan`이 정한다. 그 전까지 host 테스트는 `test/fixtures/`에 자기 것을 둔다 |
 
-## 8. M2 구현 기록 (m2-plan HOST.1·HOST.3·HOST.5)
+## 8. M2 구현 기록 (m2-plan HOST.1·HOST.2·HOST.3·HOST.4·HOST.5·HOST.6·HOST.7)
 
-구현은 브랜치 `m2/host`에서 했다. 다른 트랙(L1A.4 승인 프로토콜, L1B.2 thread 수명 주기)이 아직 병합되지 않아 HOST.2·HOST.4·HOST.6은 하지 않았다. 시험은 `cd xeon && just test apps/host`로만 돌렸다.
+HOST.1·HOST.3·HOST.5는 브랜치 `m2/host`에서 했다. 다른 트랙(L1A.4 승인 프로토콜, L1B.2 thread 수명 주기, L2·L3 능력)이 병합된 뒤 브랜치 `m2/host2`에서 HOST.2·HOST.4·HOST.6·HOST.7을 했다(§8.4). 시험은 `cd xeon && just test apps/host`와 CLI 테이프 스모크 `just test apps/cli`로 돌렸다.
 
 ### 8.1 작업별 상태
 
@@ -315,3 +315,42 @@ SV-06의 서비스 쪽(부모가 끝나도 서비스가 남는다)은 `bind-race
 - F: `WIRE_ERRORS`에 비밀 관리 전용 kind, `SecretTestResult` 확장, `SecretEntryOffer`의 `add`용 메타, `secret.references` 메서드(spec §10 19번).
 - 허용 목록 담당: `DR-07/host-test-spawn` 항목(§8.2 첫 행).
 - PLT: `platform-process`의 stdio 전송(`createStdioTransport`, `openProcessStdio`)과 이 패키지의 `transport/stdio.ts`가 같은 일을 한다. 통합 때 호스트가 L0 구현으로 갈아탈지 정한다. 이번 작업에서는 바꾸지 않았다.
+
+### 8.4 HOST.2·HOST.4·HOST.6·HOST.7 (브랜치 m2/host2)
+
+| m2-plan ID | plan ID | 상태 | 내용과 시험 |
+|---|---|---|---|
+| HOST.2 | H16 | 구현 | `thread.list·read·close·fork·revert·delete`, `turn.interrupt`, `events.unsubscribe`, `host.status`. `thread.delete`는 소유를 쥐지 않았으면 한 번 얻어 본다(spec HS-28). `thread.fork`는 새 thread의 소유를 얻는다. 수명 주기 오류는 `wireErrorOfLifecycle`이 3001~3006으로 옮긴다. `test/handlers/thread-lifecycle.test.ts`(가짜 엔진), `test/int/lifecycle.int.test.ts`(실제 저장소) |
+| HOST.2 | H17 | 구현 | `settings.set·reset·list`. user 파일 원자 교체, session 커밋, 신뢰한 작업 폴더의 project·local 파일(spec §4.14). 프로젝트 신뢰 조립(`assembly/trust.ts`). `test/handlers/settings.test.ts`, `test/int/settings-write.int.test.ts` |
+| HOST.4 | H18 | 구현 | `approval.respond`(restore → 응답, 소유 검사 3002), `approval.list`(spec §4.13), 쓰기 소유를 얻을 때 `restore`. A1 시험 `test/int/approval-restart.int.test.ts`(실제 자식 호스트 SIGKILL → 새 호스트 목록·열기·재개·응답), `test/int/approval.int.test.ts`, `test/handlers/approval.test.ts`. 허용 목록에 `DR-07/host-test-spawn`을 더했다 |
+| HOST.4 | H18 U-19 | 확인만 | env 주입 승인 증거는 F의 `CallContext.approval`(F 요청 13)과 L1.tools `RawCall.secretApproval`, cap-workspace의 `SecretEnvRequest.ctx.approval` 복사로 `withEnv`까지 이어져 있고 호스트가 더한 코드는 없다. 호스트 수준 종단 시험은 없다(§8.5 둘째 행) |
+| HOST.6 | (신규) | 구현 | core-agents(`parentToken`, 자식 thread 열고 닫는 감싸개), core-context(`createContextExtension`), cap-web, cap-knowledge(`projectTrust`), cap-mcp, cap-work, cap-dialog, group-kit(`xeon.groups`). 각 등록 뒤 CLI 테이프 스모크를 돌렸다. 능력마다 실제 엔진 시험이 있다(`test/int/agents·cap-web·cap-knowledge·cap-dialog·cap-work·cap-mcp·groups·retention.int.test.ts`) |
+| HOST.7 | D-12 | 구현 | spec §3.3.1~§3.3.3을 코드에 맞췄다(`AssembleOptions`, `Engine.shutdown`, `AssembleIssue.plugin`, `EnginePorts`, `ConnectionHub`, `createWireHandlers`). 순서 규칙 정합: HS-18(`n`·`afterSeq`는 발신자 값), HS-21(구독 취소 창) |
+
+HOST.6에서 실제 엔진에 올리자 드러난 오류와 처리:
+
+- cap-work의 투영 표 `cap_work_task_edges`가 실제 투영기 등록부의 이름 규칙(접두 뒤 지역 이름에 밑줄 금지, F.records §3.4)에 걸려 엔진이 서지 못했다. cap-work 시험의 등록부 대역은 이 규칙을 보지 않아 드러나지 않았다. 표 이름을 `cap_work_edges`로 바꿨다.
+- core-tools 매니페스트 `optional`에 L2 도구 능력이 없으면 도구 호출이 "공급자 없음"이다(spec HS-60).
+- 엔진이 서지 못할 때 실제 엔진 시험이 건너뛰어져 검증이 통과한 것처럼 보였다. 이제 시험 파일이 실패한다(HS-65).
+
+### 8.5 확인하지 못한 항목 (HOST.2·4·6)
+
+| 항목 | 이유 | 확인 방법 |
+|---|---|---|
+| stdio MCP 서버 | L0가 스트림을 주는 프로세스 포트(`McpProcessPort`)를 내놓지 않았다(spec §10 25) | PLT 구현 뒤 실제 MCP 서버(예: 공식 filesystem 서버)로 연결·종료·크래시 재기동 |
+| 비밀을 쓰는 bash 호출의 종단 시험 | sops 제공자와 키 접근을 가짜로 바꿀 주입점이 조립 옵션에 없다 | `AssembleOptions`에 `ProcessRunner` 주입을 더하거나 platform-secrets 시험 제공자를 조립 옵션으로 연다 |
+| 서버 주도 입력 요청(MRTR) 종단 | 동적 도구 등록 경로(`ToolService.register` 직접 등록)는 호출 연속 정보를 싣지 못한다(L2.mcp.plan §8.5) | L1.tools의 동적 도구 연속 정보 경로 뒤 |
+| `runUserBash`를 쓰는 셸 주입 명령 | core-loop의 `runUserBash`가 아직 `input_invalid`를 돌려준다. 사용자 셸 포트는 연결되어 있다 | L1.loop 구현 뒤 |
+| 컴팩션이 실제로 도는지 | core-loop가 `shouldCompact`·`recoverOverflow`를 부르지 않는다(L1C 요청). 설정 연결만 확인했다 | L1A 구현 뒤 긴 대화 시험 |
+| 프로젝트 신뢰 프롬프트 | 대화형 클라이언트(CLI.2, DESK)가 `TrustPrompter`를 아직 내놓지 않는다 | CLI.2·DESK 뒤 |
+| `/group` 명령 | 처리기가 출력을 돌려줄 길이 없다(spec §10 26) | F 요청 처리 뒤 |
+
+### 8.6 다른 레인에 요청한 것 (HOST.2·4·6)
+
+- F: 열린 turn 재개 메서드(spec §10 21), `thread.closed` 오류 kind(§10 23), 명령 처리기 출력(§10 26).
+- L1B: fork thread의 가지가 원본 history를 잇는지와 `thread.read`용 `before`·`limit` 질의(§10 22).
+- PLT: `McpProcessPort` 구현, 파일 잠금 API(§10 24·25).
+- WK(cap-work): 표 이름을 바꿨다(위). `submit_plan` 승인 결과 문구는 한국어다.
+- DG(cap-dialog): `ask_user` 도구 등록은 조립 루트(`host-dialog-bridge`)가 했다. 플러그인이 등록하도록 옮길지 정한다.
+- core-agents: `agentsPlugin`에 `loop` 감싸개 선택 옵션을 더했다(자식 thread 열기). L1B가 같은 일을 플러그인 안에서 하면 옵션을 지운다.
+- L1A: core-tools에 정식 `L2ApprovalsPort` 팩토리가 생기면 `assembly/l2-approvals.ts`를 지운다. 동적 도구에 호출 연속 정보를 싣는 경로.
