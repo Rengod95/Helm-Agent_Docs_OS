@@ -14,26 +14,24 @@ import {
   type WorkTaskId,
   type WorkTaskView,
 } from "@xeon/contracts/capabilities";
-import { toJsonValue, ThreadIdSchema, type ThreadId } from "@xeon/contracts/conversation";
+import { toJsonValue, type ThreadId } from "@xeon/contracts/conversation";
 import {
-  commitKeyPart,
   WorkTaskCreatedSchema,
   type CommitPlan,
   type CommitResult,
-  type DraftInput,
   type ReadFailure,
   type StampedDraft,
   type StoreError,
 } from "@xeon/contracts/records";
 import type { WorkTasksDeps } from "../deps.ts";
+import { internalError, invalidInput, storeRejection, taskRejection } from "../errors.ts";
 import {
-  abortedError,
-  internalError,
-  invalidInput,
-  storeRejection,
-  taskRejection,
-} from "../errors.ts";
-import { sha256Hex } from "../hash.ts";
+  commitKeyOf,
+  orThrow as orThrowIn,
+  requestIdOf,
+  scopeOf,
+  type CallScope,
+} from "../call.ts";
 import { readTasks } from "../projection/read.ts";
 import { decodeOpFailure, encodeOpFailure, type OpFailure } from "./failure.ts";
 import { toViews } from "./model.ts";
@@ -48,42 +46,12 @@ const CAPABILITY = WorkTasks.id;
 /** 거부 레코드의 code. 연산이 모두 효과가 없어 커밋할 이벤트가 없을 때 쓴다 */
 const NOOP_CODE = "noop";
 
-/** 쓰기 메서드의 멱등 키 접두. 이벤트 카탈로그의 키 열(spec §3.7)과 같다 */
-function commitKeyOf(requestId: string): string {
-  return `work:tasks:${commitKeyPart(requestId, sha256Hex)}`;
-}
-
-interface CallScope {
-  readonly threadId: ThreadId;
-  readonly turnId: DraftInput["turnId"];
-}
-
-function scopeOf(method: string, options: CallOptions | undefined): CallScope {
-  if (options?.signal?.aborted === true) throw abortedError(CAPABILITY, method);
-  const raw = options?.context?.threadId;
-  if (raw === undefined) {
-    throw invalidInput(CAPABILITY, method, "The call has no thread context.");
-  }
-  const threadId = parse(ThreadIdSchema, raw);
-  if (!threadId.ok) throw invalidInput(CAPABILITY, method, "The thread id is malformed.");
-  return { threadId: threadId.value, turnId: options?.context?.turnId ?? null };
-}
-
-function requestIdOf(method: string, options: CallOptions | undefined): string {
-  const requestId = options?.requestId;
-  if (requestId === undefined || requestId === "") {
-    throw invalidInput(CAPABILITY, method, "Write methods need a requestId.");
-  }
-  return requestId;
-}
-
 function nextOrdOf(tasks: readonly WorkTask[]): number {
   return tasks.reduce((max, task) => Math.max(max, Number(task.id.slice(1))), 0) + 1;
 }
 
 function orThrow<T>(method: string, read: Result<T, ReadFailure | StoreError>): T {
-  if (read.ok) return read.value;
-  throw storeRejection(CAPABILITY, method, read.error);
+  return orThrowIn(CAPABILITY, method, read);
 }
 
 function viewOf(method: string, views: readonly WorkTaskView[], id: WorkTaskId): WorkTaskView {
@@ -172,7 +140,7 @@ export function createTasksApi(deps: WorkTasksDeps): CapabilityApi<typeof WorkTa
     };
     const committed = deps.session.commit({
       threadId: scope.threadId,
-      requestId: commitKeyOf(requestId),
+      requestId: commitKeyOf("tasks", requestId),
       fingerprintSource: { method, ops: fingerprint },
       build,
     });
@@ -209,8 +177,8 @@ export function createTasksApi(deps: WorkTasksDeps): CapabilityApi<typeof WorkTa
     ops: readonly TaskOp[],
     options: CallOptions | undefined,
   ): Promise<{ readonly views: WorkTaskView[]; readonly created: readonly CreatedEntry[] }> {
-    const scope = scopeOf(method, options);
-    const requestId = requestIdOf(method, options);
+    const scope = scopeOf(CAPABILITY, method, options);
+    const requestId = requestIdOf(CAPABILITY, method, options);
     const settled = await queue.run(scope.threadId, () =>
       applyInQueue(method, scope, requestId, ops),
     );
@@ -244,7 +212,7 @@ export function createTasksApi(deps: WorkTasksDeps): CapabilityApi<typeof WorkTa
       return { task: viewOf("link", views, input.id) };
     },
     async list(input: TaskListInputValue, options) {
-      const scope = scopeOf("list", options);
+      const scope = scopeOf(CAPABILITY, "list", options);
       // 쓰기와 같은 큐를 지나므로 먼저 부른 쓰기가 끝난 뒤의 목록을 본다
       return await queue.run(scope.threadId, () => {
         const tasks = orThrow("list", readTasks(deps.reader, scope.threadId));

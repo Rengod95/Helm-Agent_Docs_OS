@@ -39,7 +39,14 @@ describe("work event catalog", () => {
     expect(projector.name).toBe(WORK_PROJECTOR_NAME);
     expect(projector.name).toBe(WORK_PRODUCER);
     const kinds = projector.kinds === "all" ? [] : projector.kinds;
-    const known = new Set<string>([...SPEC_KINDS, "turn.completed"]);
+    // 다른 컨텍스트의 이벤트 중 투영기가 읽는 것(spec §3.8 관심 type)
+    const known = new Set<string>([
+      ...SPEC_KINDS,
+      "approval.requested",
+      "approval.resolved",
+      "settings.changed",
+      "turn.completed",
+    ]);
     for (const kind of kinds) expect(known.has(kind)).toBe(true);
   });
 

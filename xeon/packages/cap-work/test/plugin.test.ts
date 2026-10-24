@@ -1,6 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { err, ok, type Logger, type LogFields, type Result } from "@xeon/contracts";
-import { WorkTasksKey, type CapabilityApi, type WorkTasks } from "@xeon/contracts/capabilities";
+import { Bug, err, ok, type Logger, type LogFields, type Result } from "@xeon/contracts";
+import {
+  WorkPlansKey,
+  WorkTasksKey,
+  type CapabilityApi,
+  type CommandActionRegistry,
+  type WorkPlans,
+  type WorkTasks,
+} from "@xeon/contracts/capabilities";
 import {
   defineManifest,
   validateManifest,
@@ -12,8 +19,9 @@ import {
 import { SessionPortKey, type ToolRegistration, type Unregister } from "@xeon/contracts/services";
 import type { ScopeLayer } from "@xeon/contracts/settings";
 import type { ExtensionUnit } from "@xeon/ext-host";
-import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
+import { createTestHost, flushMicrotasks, type TestHost } from "@xeon/ext-host/testing";
 import { workManifest, WORK_EXTENSION_NAME } from "../src/manifest.ts";
+import { createFakeApprovals, createFakePermissionMode } from "../src/testing/index.ts";
 import { workPlugin } from "../src/plugin.ts";
 import { rejection } from "./support/assertions.ts";
 import { openBase, type Base } from "./support/harness.ts";
@@ -61,6 +69,7 @@ async function boot(
     tools?: boolean;
     refuse?: string;
     settings?: Record<string, unknown>;
+    commands?: CommandActionRegistry;
   } = {},
 ) {
   const opened = await openBase();
@@ -90,21 +99,32 @@ async function boot(
       }
     },
   });
+  const mode = createFakePermissionMode({ writer: opened.writer });
+  const approvals = createFakeApprovals({
+    writer: opened.writer,
+    ids: opened.ids,
+    now: () => opened.clock.now(),
+  });
   const installed = await t.host.install(
     workPlugin({
       ids: opened.ids,
       settings: { layers: () => [userLayer(options.settings ?? {})] },
+      mode,
+      approvals: approvals.factory,
+      ...(options.commands === undefined ? {} : { commands: options.commands }),
     }),
   );
-  return { t, opened, installed, registered, unregistered, lines };
+  return { t, opened, installed, registered, unregistered, lines, mode, approvals };
 }
 
 /** work.tasks를 requires로 쓰는 소비자(L3 그룹 경로: 서비스를 직접 부른다) */
 function consumer() {
-  const apis: { tasks?: CapabilityApi<typeof WorkTasks> } = {};
+  const apis: { tasks?: CapabilityApi<typeof WorkTasks>; plans?: CapabilityApi<typeof WorkPlans> } =
+    {};
   const entry: ExtensionEntry = ({ manifest, scope }) => {
     scope(manifest.name, {}, (g) => {
       apis.tasks = g.capability(WorkTasksKey);
+      apis.plans = g.capability(WorkPlansKey);
     });
   };
   const unit: ExtensionUnit = {
@@ -115,7 +135,10 @@ function consumer() {
       layer: "L3",
       kind: "plugin",
       entry: "./src/index.ts",
-      requires: [{ id: "work.tasks", range: "^1.0.0" }],
+      requires: [
+        { id: "work.tasks", range: "^1.0.0" },
+        { id: "work.plans", range: "^1.0.0" },
+      ],
       points: [],
       usesDrive: false,
     }),
@@ -133,8 +156,11 @@ describe("manifest", () => {
     expect(checked.manifest?.name).toBe(WORK_EXTENSION_NAME);
     expect(checked.manifest?.layer).toBe("L2");
     expect(checked.manifest?.kind).toBe("plugin");
-    expect(checked.manifest?.provides).toEqual([{ id: "work.tasks", version: "1.0.0" }]);
-    expect(checked.manifest?.points).toEqual(["before_agent_start"]);
+    expect(checked.manifest?.provides).toEqual([
+      { id: "work.tasks", version: "1.0.0" },
+      { id: "work.plans", version: "1.0.0" },
+    ]);
+    expect(checked.manifest?.points).toEqual(["before_agent_start", "session_start"]);
     expect(checked.manifest?.usesDrive).toBe(false);
   });
 });
@@ -161,8 +187,8 @@ describe("plugin", () => {
 
   test("task_write reaches L1.tools with read risk so plan mode can keep the list", async () => {
     const { registered } = await boot();
-    expect(registered).toHaveLength(1);
-    const [registration] = registered;
+    expect(registered).toHaveLength(2);
+    const [registration, plansRegistration] = registered;
     expect(registration?.kind === "capability" ? registration.def.id : undefined).toBe(
       "work.tasks",
     );
@@ -175,12 +201,27 @@ describe("plugin", () => {
     expect(registration?.kind === "capability" ? registration.policy : undefined).toEqual({
       task_write: { risk: "read" },
     });
+    expect(
+      plansRegistration?.kind === "capability"
+        ? plansRegistration.def.tools.map((tool) => tool.name)
+        : [],
+    ).toEqual(["enter_plan_mode", "exit_plan_mode", "submit_plan"]);
+    expect(plansRegistration?.kind === "capability" ? plansRegistration.key : undefined).toEqual(
+      WorkPlansKey,
+    );
+    expect(plansRegistration?.kind === "capability" ? plansRegistration.policy : undefined).toEqual(
+      {
+        enter_plan_mode: { risk: "read" },
+        exit_plan_mode: { risk: "read" },
+        submit_plan: { risk: "read", classes: ["user_interaction"] },
+      },
+    );
   });
 
   test("uninstalling takes back the tool registration", async () => {
     const { t, unregistered } = await boot();
     await t.host.uninstall(WORK_EXTENSION_NAME);
-    expect(unregistered).toEqual(["work.tasks"]);
+    expect(unregistered.toSorted()).toEqual(["work.plans", "work.tasks"]);
   });
 
   test("a refused tool registration fails the setup by value", async () => {
@@ -223,6 +264,93 @@ async function dispatch(t: TestHost, threadId: ReturnType<TestHost["newThread"]>
     },
   );
 }
+
+describe("work.plans through the plugin", () => {
+  test("a group enters plan mode, submits, gets approved and the mode is restored by the feed listener", async () => {
+    const { t, opened, mode, approvals } = await boot();
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    mode.set(opened.threadId, "acceptEdits");
+    expect(await apis.plans?.enterMode({}, opened.opts("e1"))).toEqual({
+      mode: "plan",
+      previousMode: "acceptEdits",
+    });
+    const submitted = await apis.plans?.submit({ title: "t", body: "b" }, opened.opts("c1"));
+    expect(submitted).toMatchObject({ status: "input_required", planId: "p1" });
+    const request = approvals.requests[0];
+    if (request === undefined) throw new Bug("no approval request");
+    await approvals.respond(request.approvalId, "allow");
+    await flushMicrotasks();
+    expect(mode.current(opened.threadId)).toBe("acceptEdits");
+    expect(await apis.plans?.submit({ title: "t", body: "b" }, opened.opts("c1"))).toMatchObject({
+      status: "decided",
+      decision: "approved",
+    });
+  });
+
+  test("session_start repairs a plan whose approval request never went out", async () => {
+    const { t, opened, approvals } = await boot();
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.host.openThread(opened.threadId);
+    await t.settled();
+    approvals.failRequests(1);
+    await rejection(
+      apis.plans?.submit({ title: "t", body: "b" }, opened.opts("c1")) ?? Promise.resolve(),
+    );
+    expect(approvals.requests).toHaveLength(0);
+    await t.host.dispatch(
+      "session_start",
+      { reason: "resume", threadId: opened.threadId },
+      { threadId: opened.threadId, dispatchKey: "start-1" },
+    );
+    await flushMicrotasks();
+    expect(approvals.requests).toHaveLength(1);
+  });
+
+  test("a command registry from the assembly gets /plan and /tasks and loses them on uninstall", async () => {
+    const calls: string[] = [];
+    const commands: CommandActionRegistry = {
+      registerAction(decl) {
+        calls.push(`add:${decl.name}`);
+        return () => {
+          calls.push(`remove:${decl.name}`);
+        };
+      },
+    };
+    const { t } = await boot({ commands });
+    expect(calls).toEqual(["add:plan", "add:tasks"]);
+    await t.host.uninstall(WORK_EXTENSION_NAME);
+    expect(calls.toSorted()).toEqual(["add:plan", "add:tasks", "remove:plan", "remove:tasks"]);
+  });
+
+  test("a plugin without approvals reports submit_plan as unavailable and says so at startup", async () => {
+    const opened = await openBase();
+    base = opened;
+    const t: TestHost = await createTestHost({ without: ["records"] });
+    const lines: LogLine[] = [];
+    await t.host.registerPlatform({
+      name: "fake-l0",
+      setup(ctx) {
+        ctx.providePort(SessionPortKey, opened.session);
+        ctx.providePort(ScopedStorePortKey, opened.store.service);
+        ctx.providePort(OsKey, { logger: () => recordingLogger(lines) });
+      },
+    });
+    await t.host.install(workPlugin({ ids: opened.ids, settings: { layers: () => [] } }));
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    const events = lines.map((line) => line.event);
+    expect(events).toContain("work.approvals_missing");
+    expect(events).toContain("work.mode_missing");
+    const error = await rejection(
+      apis.plans?.submit({ title: "t", body: "b" }, opened.opts("c1")) ?? Promise.resolve(),
+    );
+    expect(error.data.code).toBe("unavailable");
+  });
+});
 
 describe("before_agent_start reminder", () => {
   test("an idle list is reported once the setting turns it on and writes nothing", async () => {
