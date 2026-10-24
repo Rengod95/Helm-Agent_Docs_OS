@@ -29,16 +29,34 @@ needs_sidecar() {
   fi
 }
 
+# 화면 번들(src-tauri/ui)은 tauri.conf의 frontendDist다. run은 개발 번들, build는 릴리스 번들을 만든다.
+# test, check는 번들 없이 컴파일되도록 자리 표시 파일만 둔다(없을 때).
+ensure_ui() {
+  case "$1" in
+    run) rm -rf ui; (cd "$here/../.." && mise exec -- bun run --cwd apps/desktop build:ui:dev) ;;
+    build) rm -rf ui; (cd "$here/../.." && mise exec -- bun run --cwd apps/desktop build:ui) ;;
+    *)
+      if [[ ! -f ui/index.html ]]; then
+        mkdir -p ui
+        printf '<!doctype html><title>Xeon</title>\n' > ui/index.html
+      fi ;;
+  esac
+}
+
 case "$mode" in
   test)
+    ensure_ui test
     TAURI_CONFIG='{"bundle":{"externalBin":[]}}' exec cargo test ;;
   check)
+    ensure_ui check
     TAURI_CONFIG='{"bundle":{"externalBin":[]}}' exec cargo check --all-targets ;;
   run)
     needs_sidecar
+    ensure_ui run
     exec cargo run ;;
   build)
     needs_sidecar
+    ensure_ui build
     exec cargo build --release ;;
   *)
     echo "usage: cargo.sh <test|check|run|build>" >&2

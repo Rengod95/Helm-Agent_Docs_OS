@@ -351,6 +351,34 @@ D2(Tauri 프로젝트), D3(빌드 스크립트), D4(`engine.rs`), D5(`relay.rs`)
 - 줄 끝 없이 2 MiB를 넘는 줄은 셸이 버린다(메모리 상한). spec §5가 적은 "셸은 크기를 검사하지 않는다"는 1 MiB 한도의 판정에 대한 것이고, 판정은 여전히 WebView가 한다.
 - `rust-toolchain.toml`은 만들지 않았다(§4 표).
 
+### 3.2.2 M2 DESK.4 구현 기록 (2026-10-24, `m2/desk-ui`)
+
+D6(UI 셸)과 D7(승인 대기열)의 구현 결과다. 상태 설계는 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`를 따른다.
+
+| 부분 | 파일 | 내용 |
+|---|---|---|
+| ipc | `src/transport/ipc.ts` | `DesktopIpc`(attach, write, ack, restart, detach), `EngineState` 스키마(`parseEngineState`), `createTauriIpc`. `@tauri-apps/api`를 import하는 유일한 파일(W2). 실패는 `Result<_, IpcError>` |
+| 전송 | `src/transport/tauri-stdio.ts`, `json-lines.ts`, `connection.ts` | `attachRelay`(Channel 바이트 → `ReadableStream`, 256 KiB마다 `engine_ack`, 프레임 하나가 `engine_write` 한 번), `openEngineConnection`(`host.hello`, `client.kind "desktop"`). `json-lines.ts`와 `connection.ts`는 F가 구현을 가져갈 때까지 둔 복사본이다(`apps/host/src/client.ts`, `platform-process`의 stdio 전송. DR-10과 W7 때문에 import할 수 없다) |
+| 상태 | `src/state/{shared,engine,ui}/` | design 12절 골격을 옮기고 구현 중 바뀐 점을 design 12.9에 적었다 |
+| 연결 수명 | `src/app/session.ts` | 셸 상태가 `running`이면 attach → hello → `startLink`, 내려가면 닫고 올라오면 새 attach로 다시 연다. 연결 시도 실패는 UI 스토어 `connectError`에 고정 코드로 남기고 사용자가 "다시 연결"을 고를 때까지 쉰다 |
+| 명령 | `src/app/commands.ts`, `src/views/commands.ts` | `selectThread`, `createThread`, `sendTurn`(입력마다 `requestId`, 실패하면 같은 값으로 재시도), `interrupt`, `respondApproval`, 목록·대화 다시 읽기, 엔진 다시 시작, 진단 복사. 거울을 바꾸지 않는다(FS-02) |
+| 화면 | `src/views/` | 스레드 목록, 트랜스크립트(`virtual-list.tsx` 가상 스크롤: 마운트된 행만 `ResizeObserver`로 재고, 바닥에 붙어 있을 때만 따라 내려감), 입력창(한글 조합 중 Enter는 보내지 않음), 승인 대기열, 상태 표시줄 |
+| 번들 | `index.html`, `src/main.tsx`, `src/styles.css`, `just desktop-ui` | `bun build index.html --outdir src-tauri/ui`. 릴리스 0.74 MB(minify), 개발 1.75 MB. `__XEON_CHECKS__`를 `--define`으로 넣어 개발 빌드에서만 불변식 단계를 켠다(design 14절 6번). `src-tauri/ui/`는 산출물이라 추적하지 않는다(자리 표시 파일 삭제, `cargo.sh`가 test·check 때 빈 자리 표시를 둔다) |
+
+시험(`just test apps/desktop`, 103개, DOM 없음): reducer·단계·스토어·링크·선택자(design 13절 표), 전송(`ipc`, `json-lines`, `tauri-stdio`: 가짜 `DesktopIpc`), `thread.read` 스냅샷 포트, 그리고 `test/app/app.test.ts`가 가짜 셸과 가짜 엔진으로 attach → hello → 구독 → 목록 → 스냅샷 → `turn.start` → 엔진 재기동 → 재연결을 끝까지 돌린다.
+
+실제 창 확인(WSLg, 디버그, 가짜 엔진 `XEON_DESKTOP_ENGINE_BIN`): WebKitGTK 창에서 연결됨, 목록 읽기, 승인 복원(`approval.list`), 대화 열기(`thread.read`), 입력 → 토큰 스트리밍 → 확정, 승인 응답 → 대기열에서 사라짐, 새 대화 만들기가 끝까지 동작했다. CSP 위반은 없었다. 마우스·키보드 입력은 DOM 이벤트로 흉내 냈고 한글 IME 조합은 확인하지 못했다. macOS와 Windows는 확인하지 못했다.
+
+구현하면서 spec과 달라진 점:
+
+- 새 페이지의 `$/connectionReset`은 F에 아직 없어 보내지 않는다. 새로고침 뒤 `host.hello`가 중복(1002)이면 상태 표시줄에 `연결 실패: hello:1002`가 보이고 "다시 연결"만 가능하다. M1 정책(새로고침 = 엔진 재기동)에 맞춰 셸이 처리해야 한다 [미결].
+- `CursorStore`와 `resubscribe`(spec 3.4)는 만들지 않았다. design 13절이 새 페이지를 head + 스냅샷으로 정했기 때문이다.
+- `thread.open`은 부르지 않는다. 읽기는 `thread.read`가, 쓰기 소유는 `turn.start`의 암묵 획득이 맡는다.
+- `.oxlintrc.json`에 FS-06 import 제한과 `react/rules-of-hooks`를 더했다(guide 3.1). W8·W9(앱 내부 경계)는 `check-layers.ts`에 아직 없다.
+- 트랜스크립트는 최신 1,000개까지만 읽는다(`MAX_SNAPSHOT_ITEMS`). 더 오래된 item을 위로 스크롤하며 읽는 일은 하지 않았다.
+- 마크다운과 코드 하이라이트는 넣지 않았다(FS-21 [제안]). 확정 item도 평문이다.
+- 설정 진입점(spec 4.13)은 settings-ui 소관이라 만들지 않았다.
+
 ### 3.3 CI 매트릭스 (D9)
 
 [결정: review.m2-plan §8 D1] `.github/workflows/xeon-ci.yml`에 Linux `desktop-build` job(Z.1)과 macOS `desktop-macos` job을 더한다. `desktop-macos`는 `workflow_dispatch`나 PR 라벨 `ci:macos`가 있을 때만 돈다. 개발 반복은 WSL에 설치한 Rust 툴체인(rustc·cargo 1.99.1)과 WebKitGTK 4.1로 로컬에서 한다. 공식 사이드카 스크립트는 호스트 아키텍처에서만 동작한다고 경고하므로(`_research/stack-status.md §7-F` 3개 플랫폼 빌드 행) triple마다 같은 아키텍처의 러너를 쓴다.

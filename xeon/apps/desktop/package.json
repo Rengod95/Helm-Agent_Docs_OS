@@ -15,10 +15,22 @@
     "spike:s2": "bash spike/s2-size.sh",
     "spike:s4": "bun spike/tests/s4.ts spike/out 20",
     "spike:stub": "bun spike/tests/parent-stub.ts",
-    "spike:engine-dev": "bun spike/tests/engine.ts"
+    "spike:engine-dev": "bun spike/tests/engine.ts",
+    "build:ui": "bun build index.html --outdir src-tauri/ui --minify --define __XEON_CHECKS__=false",
+    "build:ui:dev": "bun build index.html --outdir src-tauri/ui --define __XEON_CHECKS__=true"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "catalog:",
+    "@xeon/contracts": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typebox": "catalog:",
+    "zustand": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:"
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:"
   },
   "xeon": {
     "layer": "L4",

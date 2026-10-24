@@ -1700,6 +1700,20 @@ const link = startLink({ connection: conn.connection, store: engine, transcripts
 root.render(<App engine={engine.read} ui={ui} link={link} />);
 ```
 
+### 12.9 구현 기록 (DESK.4)
+
+위 골격을 `xeon/apps/desktop/src/state/`로 옮기면서 바뀐 점이다. 나머지는 골격 그대로다.
+
+- `Threads`에 `status`(`loading | ready | error`)를 더하고 입력 `threads_failed`를 더했다(14절 12번). 새 거울과 `subscribed(head)` 뒤는 `loading`, `thread.list` 응답을 적용하면 빈 목록이어도 `ready`, 가진 목록이 없을 때 실패하면 `error`다. 이미 `ready`면 실패는 `stale`로 두고 목록을 지키지 않는다. `thread.list`는 `nextCursor`가 `null`일 때까지(최대 10쪽) 읽은 뒤 적용한다(`F.wire-settings.spec` §3.4.6 6번).
+- `Transcript`에 `error` 상태와 입력 `transcript_failed`를 더했다. 스냅샷 읽기가 실패하거나 오래된 스냅샷을 세 번 받으면 `error`가 되고, 화면의 "다시 읽기"가 `transcript_opening`으로 되돌린다.
+- `TranscriptPort.load`는 `Result<{ asOfSeq, items }, { kind }>`를 돌려준다. 구현은 `thread-reader.ts`로 `thread.read`(F.2)의 첫 쪽 `position.seq`를 `asOfSeq`로 쓰고, `hasMore`이면 `before = items[0].itemId`로 오래된 쪽을 이어 읽는다(최대 `MAX_SNAPSHOT_ITEMS` 1,000개). `position.storeId`가 거울의 `cursor.storeId`와 다르면 `unavailable`이다.
+- 대기 승인 복원(14절 2번, 13번): 입력 `approvals`(`approval.list` 결과)를 더했다. `Approvals.resolved`(최근 해결된 승인 id, `SETTLED_CAP`개까지)가 `approval.resolved`를 먼저 받은 뒤 오는 낡은 목록이 해결된 승인을 되살리지 못하게 한다. 연결 컨트롤러는 head 재구독 뒤 `pendingApprovals > 0`인 thread에만 요청한다. 실패하면 로그만 남고 화면의 "승인 대기 중, 목록을 불러오지 못함"이 그대로 보인다.
+- `EngineLink`에 `closeThread`와 `reloadThreads`를 더했다.
+- UI 스토어에 `connectError`(연결을 열지 못한 이유의 고정 코드)와 `pruneApprovalSends`를 더했다.
+- `diagnostics.ts`의 `buildDiagnostics`는 고정 필드만 복사한다. 내보내기는 클립보드 복사다(파일 저장 셸 명령이 아직 없다, 14절 3번).
+- Logger(`src/app/logger.ts`)는 메모리 링과 개발자 도구 콘솔(warn 이상)에만 쓴다. 앱 로그 파일 명령(14절 3번)이 생기면 싱크를 바꾼다.
+- 서버 렌더(`renderToString`)는 `getInitialState`를 읽으므로 화면 시험은 초기 거울만 확인한다. 상태에 따른 화면은 선택자·스토어 시험과 실제 창 확인으로 본다.
+
 ## 13. 결과로 생기는 제약
 
 - 화면은 `state/*/index.ts`만 import한다. [제안] `L4.desktop.spec` §4.9에 W8 "`src/state/**`는 `src/views/**`, `src/settings/**`를 import하지 않는다", W9 "`src/views/**`는 `src/state/*/index.ts`만 import한다"를 더한다(§14 4번).

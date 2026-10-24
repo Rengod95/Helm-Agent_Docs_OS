@@ -93,6 +93,11 @@ web-pricing:
 desktop-sidecar triple *flags:
     cd xeon && just desktop-sidecar {{triple}} {{flags}}
 
+# 데스크톱 화면 번들 (bun build → apps/desktop/src-tauri/ui). 인자 dev는 불변식 검사를 켠 개발 빌드. just verify 밖
+[group('local')]
+desktop-ui mode="release":
+    cd xeon && just desktop-ui {{mode}}
+
 # 데스크톱 개발 실행 (cargo run, 사이드카 필요: 없으면 종료코드 2). just verify 밖
 [group('local')]
 desktop-run:

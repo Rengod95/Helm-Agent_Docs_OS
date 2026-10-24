@@ -24,6 +24,9 @@
     "packages/platform-process": {
       "entry": ["test/**/*.test.ts", "test/fixtures/*.ts"]
     },
+    "apps/desktop": {
+      "entry": ["test/**/*.test.ts", "src/main.tsx"]
+    },
     "apps/cli": {
       "entry": ["test/**/*.test.ts", "test/fixtures/scenario-main.ts"]
     }
