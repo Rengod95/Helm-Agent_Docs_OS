@@ -21,15 +21,15 @@ binds: [xeon/packages/cap-web/**]
 | M0 | 없음. `cap-web` 스캐폴드(`package.json`의 `xeon` 필드, 빈 `src/index.ts`)는 이미 있다 | `_research/foundation-plan.md` §5 P4 M0 |
 | M1 | 없음. 웹은 M1 걸어 다니는 골격 범위 밖이다 | `product.scope.spec` §4.3 M1, `_research/foundation-plan.md` §5 P4 "L2 웹·MCP는 스캐폴드까지만" |
 | M2 전반 | 공통 웹 계약(B2~B5), `web.fetch`(B6), `web.search` 단계 구성(B7~B9), 설정 키(B11) | `product.scope.spec` §4.1 I10, §4.4 M2 종료 조건 |
-| M2 후반 ~ M3 초입 [제안] | `web.browse` playwright-core provider(B10) | 아래 1.2 |
+| M3 초입 [결정] | `web.browse` playwright-core provider(B10) | 아래 1.2, review.m2-plan §8 D4 |
 
 ### 1.2 `web.browse`의 배치 근거
 
-[제안] B10은 M2 후반에 시작하고, Bun 호환 스모크 결과에 따라 M3 초입까지 끝낸다.
+[결정: review.m2-plan §8 D4] B10은 M3 초입에 둔다. M2에서는 시작하지 않는다. 결정 전 근거는 아래와 같다.
 
 - `_research/layer-plan-v2.json` L2-c는 `web.browse` 기본(playwright-core)을 1차로 둔다. 1차는 첫 사용 버전(M3 종료)에 들어가야 한다(`product.scope.spec` §2). 그래서 M3 끝을 넘길 수 없다.
 - M2 종료 조건에는 browse 항목이 없다(`product.scope.spec` §4.4 M2). M2의 웹 필수 항목은 검색 단계 구성이고, fetch의 승격 경로는 browse 없이도 플러그인 provider나 `empty_content` 경고로 동작한다(`L2.web.spec` §4.9.1 6단계). 그래서 B10을 M2 앞쪽에 둘 이유가 없다.
-- playwright-core의 Bun 1.4 동작은 실행 확인이 없다(`_research/notes/L2-2.md` §1). Bun 경로가 실패하면 Node 자식 우회(B10의 두 번째 절반)가 필요하고 `xeon.process`(L0.process)에 의존한다. 이 위험(`product.scope.spec` R3, M2)을 M2 안에서 판정하되, 우회 구현이 길어지면 M3 초입으로 넘기는 여유를 둔다.
+- playwright-core의 Bun 1.4 동작은 실행 확인이 없다(`_research/notes/L2-2.md` §1). Bun 경로가 실패하면 Node 자식 우회(B10의 두 번째 절반)가 필요하고 `xeon.process`(L0.process)에 의존한다. 이 위험(`product.scope.spec` R3)은 M3 초입 B10 착수 때 판정한다.
 - Helm(M2)은 `web.search`, `web.fetch`만 `requires`로 쓴다(`L3.helm.spec` §3.8). browse가 늦어도 Helm M2 종료 조건에 영향이 없다.
 
 ### 1.3 M3 이후
@@ -151,7 +151,7 @@ xeon/plugins/web-exa/  web-brave/      # M3 (§1.3)
 | B7 | search provider 레지스트리와 선택 체인: X 후보 조회, `orderProviderCandidates`, 탐침 캐시, fallback 기록, 명시 선택 규칙, 쿼리 지시어 파서와 후처리 필터, `relaxed`, `decideModelSearchTool` | B3, B4, B5, X.primitives.plan의 후보 등록 API | M | M2 |
 | B8 | SearXNG 감지와 provider: 주소 후보, `format=json` 탐침, 403 → `json-disabled`, 결과 정규화, endpoint 예외 | B7 | S | M2 |
 | B9 | 내장 검색 래퍼: `HostedSearchPort` 사용, `pause_turn` 재요청 루프(상한 3), 결과 정규화(`encrypted_content` 제외), `unsupported-model`·`org-disabled` 탐침, 비용 계산, 모델 테이프 테스트. `normalizeHostedSearch` | B7, L1.models.plan의 `HostedSearchPort` | M | M2 |
-| B10 | browse playwright provider: 세션 관리와 상한, 필터 프록시, 이동 재검사, 사람 확인, 기본 비활성 동작, ref 부여, `code` 출력. Bun 호환 스모크(launch → goto → ariaSnapshot → close, connectOverCDP)와 Node 24 자식 우회(`runtime: node`). fetch 승격의 브라우저 경로 연결 | B3, B5, B6, L0.process.plan의 자식 프로세스 API | L | M2 후반~M3 초입 |
+| B10 | browse playwright provider: 세션 관리와 상한, 필터 프록시, 이동 재검사, 사람 확인, 기본 비활성 동작, ref 부여, `code` 출력. Bun 호환 스모크(launch → goto → ariaSnapshot → close, connectOverCDP)와 Node 24 자식 우회(`runtime: node`). fetch 승격의 브라우저 경로 연결 | B3, B5, B6, L0.process.plan의 자식 프로세스 API | L | M3 초입 (결정 D4) |
 | B11 | 설정 키 `l2.web.*` 전체(`L2.web.spec` §6), 도메인 목록 범위 합집합 읽기, `checkSettingDef` 통과 테스트 | B1 | S | M2 |
 | B12 | agent-browser provider(2차): 바이너리 경로 설정, `--json`·`--session`·`--allowed-domains` 호출, delta 스냅샷 적용, ref 맵, 응답 TypeBox 정규화, 버전 고정 픽스처 | B10 | M | 2차 |
 | B13 | web.research(2차): native 루프(`xeon.agents`), 예산, 인용 검증 패스, 상태 머신, `run`/`start`/`get`/`cancel`, `web.research_progress` 휘발 이벤트 | B6, B7, B9, L1.agents.plan | L | 2차 |

@@ -29,7 +29,7 @@ binds: [xeon/apps/desktop/**]
 ### 1.3 M2 (데스크톱 본체)
 
 - Tauri 프로젝트 생성, Rust 릴레이와 엔진 수명 관리(`engine.rs`, `relay.rs`), UI 셸(스레드 목록, 트랜스크립트, 입력창, 상태 표시줄), 승인 대기열.
-- 사이드카 빌드 파이프라인(triple 5종), 3플랫폼 CI, 서명(macOS 공증 포함, Windows 서명 준비).
+- 사이드카 빌드 파이프라인(triple 5종), CI(Linux `desktop-build`, 요청 시 실행하는 `desktop-macos`), ad hoc 서명(Windows 서명 준비). Developer ID 서명과 공증은 M3 릴리즈 후보로 옮겼다 [결정: review.m2-plan §8 D3].
 - 종료 조건은 `product.scope.spec` M2의 데스크톱 항목(정상 종료 시 사이드카 없음, CLI와 메시지 열 동일)이다.
 
 ### 1.4 M3 이후
@@ -41,7 +41,7 @@ binds: [xeon/apps/desktop/**]
 
 ```
 xeon/apps/desktop/
-  package.json                    # @xeon/desktop. 의존: @xeon/contracts(workspace:*), typebox, preact·@preact/signals([미결] 프레임워크)
+  package.json                    # @xeon/desktop. 의존: @xeon/contracts(workspace:*), typebox, react·react-dom 19(review.m2-plan D2), 상태 관리 라이브러리([미결])
   tsconfig.json                   # src: DOM lib, types []. test: bun 타입(별도 tsconfig.test.json) [제안]
   bunfig.toml                     # [test] coverageThreshold lines 0.5, functions 0.5 (eng.testing.guide TS-10 L4 행)
   sidecar.json                    # 사이드카 이름·인자·triple 표의 단일 원천 [제안]
@@ -88,7 +88,7 @@ xeon/scripts/
 ```
 
 - `xeon/scripts/build-sidecar.ts`는 패키지를 import하지 않는다(`eng.dependency-rules.guide` 1절 제외 항목). 그래서 공유 값은 코드 상수 대신 데이터 파일 `sidecar.json`에 둔다. 이 계획의 `binds`는 `xeon/apps/desktop/**`이므로 스크립트 파일 위치는 `eng.toolchain.guide`와 함께 확인한다 [미결: 스크립트 위치].
-- `xeon/justfile`에 레시피 `desktop-sidecar <triple>`, `desktop-dev`, `desktop-build`, `desktop-measure`를 더한다(TC-09). M1에는 `desktop-sidecar`만 둔다 [제안].
+- `xeon/justfile`에 레시피 `desktop-sidecar <triple>`, `desktop-run`, `desktop-build`, `desktop-measure`를 더한다(TC-09). M1에는 `desktop-sidecar`만 둔다 [제안].
 
 ### 2.1 `sidecar.json`
 
@@ -191,11 +191,11 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 | D3 | 사이드카 빌드 스크립트 `xeon/scripts/build-sidecar.ts`와 just 레시피. `sidecar.json`의 `entry`(`apps/cli/src/main.ts`, S2와 같은 진입 파일)를 triple 5종 → bun target 대응으로 컴파일해 `binaries/xeon-<triple>`을 만든다. 크기 상한 검사(S2 결과) | S2, D1(`sidecar.json`) | S | M2 (스크립트 골격과 대응 단위 테스트는 M1에 둘 수 있다) |
 | D4 | `engine.rs`: spawn(E1, E3, E6, E7), 앱 상태 보관(E2), 정상 종료 순서(spec §4.3), 재기동 정책(spec §4.4), Unix 신호 처리기, stderr 로그(E10, E11) | D2, S1, S4 | L | M2 |
 | D5 | `relay.rs`: `EnginePipe`, 셸 명령 `engine_*`, 세대 관리와 줄 경계 버림, 송신 버퍼 한도 | D4, S3 | M | M2 |
-| D6 | UI 셸: `transport/ipc.ts`·`tauri-stdio.ts`, 스레드 목록, 트랜스크립트(가상 스크롤, 조각 합치기), 입력창, 상태 표시줄, 설정 진입점 | D5, 프레임워크 결정(spec §10 미결 11) | L | M2 |
+| D6 | UI 셸: `transport/ipc.ts`·`tauri-stdio.ts`, 스레드 목록, 트랜스크립트(가상 스크롤, 조각 합치기), 입력창, 상태 표시줄, 설정 진입점 | D5, 상태 관리 결정(spec §10 미결 11). 프레임워크는 React 19 [결정: review.m2-plan §8 D2] | L | M2 |
 | D7 | 승인 대기열 화면. A안 [가정] 기준 | D6, F 승인 방향 결정(`F.wire-settings.spec` §10 미결 1) | M | M2 |
 | D8 | macOS 커스텀 SQLite(FTS5) dylib을 `bundle.macOS.frameworks`로 번들하고 서명 대상에 넣는다(`eng.toolchain.guide` TC-11). 엔진이 `setCustomSQLite`에 넘길 절대 경로를 사이드카 실행 파일 기준으로 계산하는 규칙을 `L0.store.spec`과 맞춘다 | D2, D3 | M | M2 |
-| D9 | CI 3플랫폼 매트릭스(§3.3). 러너별 호스트 아키텍처 제약 반영 | D3, D2 | M | M2 |
-| D10 | 서명·배포(§3.4): macOS codesign·공증, Windows 서명 준비, Linux 패키지(AppImage, deb)와 WebKitGTK 의존 선언 | D9, D8 | L | M2 (Windows 정식 배포는 M3 이후) |
+| D9 | CI(§3.3): Linux `desktop-build` job(review.m2-plan Z.1), macOS `desktop-macos` job은 `workflow_dispatch`나 PR 라벨 `ci:macos`로만 실행 [결정: review.m2-plan §8 D1]. 러너별 호스트 아키텍처 제약 반영 | D3, D2 | M | M2 |
+| D10 | 서명·배포(§3.4): macOS ad hoc 서명, Windows 서명 준비, Linux 패키지(AppImage, deb)와 WebKitGTK 의존 선언 | D9, D8 | L | M2 (Developer ID 서명·공증은 M3 릴리즈 후보 [결정: review.m2-plan §8 D3], Windows 정식 배포는 M3 이후) |
 | D11 | e2e: 앱 실행 → 한 턴 → 종료 → 프로세스 잔존 확인, CLI와 메시지 열 비교. `*.e2e.test.ts` | D6, D10 | M | M2 |
 | D12 | 서비스 모드 연동: `SocketPipe`, `ensure` 호출, 서비스 소실 처리 | D5, `L4.host-service.plan` 서비스 모드 | M | M3 |
 | D13 | 알림: `tauri-plugin-notification` 연결. 켜기·종류는 `l2.dialog.notify.*`를 따른다(review.decisions-2 S-04) | D12, 내구 이벤트 kind 기반 대상 선택(spec §4.8), 알림 전용 wire는 M2 계획에서 정한다(spec §10 미결 5) | S | M3 |
@@ -207,17 +207,17 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 
 ### 3.3 CI 매트릭스 (D9)
 
-[제안] `.github/workflows/xeon-ci.yml`에 `desktop-build` job을 더한다. 공식 사이드카 스크립트는 호스트 아키텍처에서만 동작한다고 경고하므로(`_research/stack-status.md §7-F` 3개 플랫폼 빌드 행) triple마다 같은 아키텍처의 러너를 쓴다.
+[결정: review.m2-plan §8 D1] `.github/workflows/xeon-ci.yml`에 Linux `desktop-build` job(Z.1)과 macOS `desktop-macos` job을 더한다. `desktop-macos`는 `workflow_dispatch`나 PR 라벨 `ci:macos`가 있을 때만 돈다. 개발 반복은 WSL에 설치한 Rust 툴체인(rustc·cargo 1.99.1)과 WebKitGTK 4.1로 로컬에서 한다. 공식 사이드카 스크립트는 호스트 아키텍처에서만 동작한다고 경고하므로(`_research/stack-status.md §7-F` 3개 플랫폼 빌드 행) triple마다 같은 아키텍처의 러너를 쓴다.
 
 | triple | 러너 [가정] | 비고 |
 |---|---|---|
-| `aarch64-apple-darwin` | `macos-14` 또는 이후 arm64 러너 | 서명·공증 job도 여기서 돈다 |
+| `aarch64-apple-darwin` | `macos-14` 또는 이후 arm64 러너 | `desktop-macos` job. M3 서명·공증 job도 여기서 돈다 |
 | `x86_64-apple-darwin` | Intel macOS 러너 | Intel 러너 제공이 줄면 arm64 러너에서 교차 빌드로 바꾼다. 그때는 Rust triple을 명시하고 `bun-darwin-x64` 타깃으로 만든다 [미결] |
 | `x86_64-unknown-linux-gnu` | `ubuntu-24.04` | WebKitGTK 개발 패키지 설치 |
 | `aarch64-unknown-linux-gnu` | arm64 Linux 러너 | 러너 제공 여부 [미확인] |
 | `x86_64-pc-windows-msvc` | `windows-latest` | Windows 서명 기본 구현이 동작한다(§3.4) |
 
-- `desktop-build`는 PR에서 수동 실행, `main`에서 야간 실행으로 둔다. `just verify` 시간 목표(`eng.toolchain.guide` 3.1)에 넣지 않는다.
+- `desktop-build`는 PR에서 수동 실행, `main`에서 야간 실행으로 둔다 [제안]. `desktop-macos`는 위 두 조건에서만 돈다. `just verify` 시간 목표(`eng.toolchain.guide` 3.1)에 넣지 않는다.
 - 산출물 검사: 각 산출물이 자기 triple의 `xeon-<triple>`만 포함하는지(spec D-06), macOS `.app`의 `Contents/Resources` 아래 Mach-O가 없는지(`_research/notes/L4-2.md §11` 1번).
 - Windows 메타데이터 플래그(`--windows-icon`, `hideConsole` 등)는 교차 컴파일에서 쓸 수 없다는 기록이 있다(`_research/stack-status.md §7-C` 제한 행. arch-2 §4.2는 원문 문장을 찾지 못해 [미확인]). Windows 사이드카는 Windows 러너에서만 만든다.
 
@@ -321,7 +321,7 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 - `product.scope.spec` M2 종료 조건 중 데스크톱 항목을 만족한다: 앱 정상 종료 시 사이드카와 손자가 남지 않고(D-01), 같은 테이프에서 CLI와 데스크톱의 호스트 메시지 열이 같다(D-03).
 - spec 수용 기준 D-02, D-04~D-06, D-08~D-12를 통과한다.
 - `desktop-build` CI가 triple 5종 중 러너가 있는 것 전부에서 산출물을 만들고, 각 산출물이 자기 triple의 사이드카를 포함한다.
-- macOS 산출물이 공증을 통과하고 `stapler validate`가 성공한다(인증서 확보를 전제로 한다. 확보 전이면 ad hoc 서명 산출물과 미결 기록으로 대신한다).
+- macOS 산출물이 ad hoc 서명으로 실행된다. 공증과 `stapler validate`는 M3 릴리즈 후보 기준이다 [결정: review.m2-plan §8 D3].
 - 사이드카 크기가 S2에서 정한 상한 이하다.
 - S1~S5 결과가 spec의 [가정]·[미결]에 반영되어 있다.
 
@@ -350,11 +350,11 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 ## 미결 사항
 
 - [미결] 사이드카 크기 상한(S2 뒤 사용자 확인).
-- [미결] macOS 서명 방식(Tauri 자동 서명과 수동 파이프라인 중 선택), Developer ID 인증서와 공증 계정 보유 여부.
+- [미결] macOS 서명 방식(Tauri 자동 서명과 수동 파이프라인 중 선택), Developer ID 인증서와 공증 계정 보유 여부. M3 릴리즈 후보에서 정한다(review.m2-plan D3).
 - [미결] Windows code signing 인증서 종류(OV, Azure Artifact Signing)와 비용.
 - [결정: review.decisions-2 B-06] D1의 `Bun.spawn`은 DR-07 테스트 한정 행과 허용 목록 `DR-07/desktop-test-spawn`으로 푼다.
 - [미결] `xeon/scripts/build-sidecar.ts` 위치(이 문서 `binds` 밖).
 - [미결] Intel macOS, arm64 Linux CI 러너 확보.
 - [미결] 자동 업데이트 채택(M3 이후).
-- [미결] 프런트엔드 프레임워크(`L4.desktop.spec` §10 미결 11).
+- [미결] 상태 관리 라이브러리(`L4.desktop.spec` §10 미결 11). 프레임워크는 React 19 [결정: review.m2-plan §8 D2].
 - [가정] `tauri` crate `=2.12.4`, `tauri-plugin-shell` 2.5.0 기준, triple 대응표, CI 러너 이름, Linux WebKitGTK 4.1 의존은 실행으로 확인하지 않았다.

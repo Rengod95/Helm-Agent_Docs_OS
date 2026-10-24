@@ -86,7 +86,7 @@ xeon/packages/cap-workspace/
 | `D/tools/file-mutation-queue.ts` | 55 | `src/files/upstream/file-mutation-queue.ts` | M3 | `Context` 치환 |
 | `D/tools/edit.ts` | 144 | `src/edit/upstream/edit.ts` | M3 | 도구 타입 치환. `prepareEditArguments`는 F 정의의 `toEditInput`으로 옮겼으므로 지운다. 오류 메시지 문자열 대신 고유 코드로 던진다(`edit_not_found` 등) |
 | `D/tools/edit-diff.ts` | 500 | `src/edit/upstream/edit-diff.ts` | M3 | 오류 생성 함수 5개(`getNotFoundError` 등)가 코드 달린 오류를 만들도록 고친다. 정규화 규칙은 바꾸지 않는다 |
-| `CA/grep.ts` | 323 | `src/files/upstream/grep.ts` | M3 | `ensureTool` 내려받기 제거, `@vscode/ripgrep` 경로 또는 `l2.workspace.grep.rgPath`. 실행은 `ExecutionEnv.exec`. 출력 파싱은 `rg --json`으로 고정 |
+| `CA/grep.ts` | 323 | `src/files/upstream/grep.ts` | M3 | `ensureTool` 내려받기 제거, `xeon.os`가 제공하는 `rg` 경로(`platform-os`의 `@vscode/ripgrep` 연결) 또는 `l2.workspace.grep.rgPath`. 실행은 `ExecutionEnv.exec`. 출력 파싱은 `rg --json`으로 고정 |
 | `CA/find.ts` | 318 | `src/files/upstream/find.ts` | M3 | `fd` 대신 `rg --files --glob`(spec §10 미결 6). 실행은 `ExecutionEnv.exec` |
 | `D/truncate.ts` | 205 | 이 패키지에 두지 않는다. `platform-exec`(L0.exec.plan)가 포크한다 | M1 | spec §4.5 D-08. 이 패키지는 `xeon.exec`(F `ExecutionEnv`)로 호출한다 |
 | `D/harness/types.ts` | 786 중 100~200 | `src/upstream/tool-types.ts` | M1 | `ToolRegistration`, `ToolExecutionApi`, `ToolExecutionResult`, `ToolDiagnostic`과 이들이 참조하는 타입만 추출 |
@@ -124,12 +124,12 @@ xeon/packages/cap-workspace/
 | `typebox` | 1.3.27(워크스페이스 catalog, review.decisions-2 U-24) | MIT | 정의 스키마(F). durable 원본도 1.3.27이라 포크 본문의 `Type.*` 호출이 그대로 맞는다 |
 | `diff` | 8.0.4 정확 고정(durable `package.json`과 같은 값) | BSD-3-Clause [가정, 레지스트리 확인] | `edit-diff.ts`의 diff 생성(`generateDiffString`, `generateUnifiedPatch`) |
 | `@silvia-odwyer/photon` | 0.3.3 정확 고정(durable `package.json`과 같은 값) | Apache-2.0 [가정, 레지스트리 확인] | 2차 이미지 처리기. wasm 파일 `photon_rs_bg.wasm` |
-| `@vscode/ripgrep` | 1.18.0 정확 고정 | MIT | `grep`, `find`의 rg 바이너리. postinstall 다운로드 없음(플랫폼 패키지) (`_research/packages.md` §5) |
+| `@vscode/ripgrep` | 1.18.0 정확 고정 | MIT | `grep`, `find`의 rg 바이너리. `platform-os`가 import하고 경로를 제공한다. 이 패키지는 그 경로로 실행만 하고 의존 선언에 넣지 않는다 [결정: review.m2-plan §8]. postinstall 다운로드 없음(플랫폼 패키지) (`_research/packages.md` §5) |
 | pi durable `tools/`, `images/`, `truncate.ts`, `harness/` 일부 | 커밋 `cdaf6c2` | MIT | 포크(§2 표) |
 | pi coding-agent `core/tools/{grep,find,ls}.ts` | 커밋 `cdaf6c2` | MIT | 포크(§2 표) |
 | omp `crates/pi-edit` hashline | — | [가정] MIT | 2차. 코드 복사 없이 알고리즘만 참고 |
 
-- 외부 모듈 소유: `diff`, `@silvia-odwyer/photon`, `@vscode/ripgrep`은 이 패키지만 import한다(`eng.dependency-rules.guide` DR-07).
+- 외부 모듈 소유: `diff`, `@silvia-odwyer/photon`은 이 패키지만 import한다. `@vscode/ripgrep`의 소유는 `platform-os`다(`eng.dependency-rules.guide` DR-07).
 - 라이선스 고지: 배포물 서드파티 고지 파일에 pi(MIT), diff, photon, ripgrep을 넣는다(ADR-0003 §3.4).
 
 Chord 값 import 0건 확인 절차(ADR-0003 §4.2 검증 방법을 이 패키지에 적용):

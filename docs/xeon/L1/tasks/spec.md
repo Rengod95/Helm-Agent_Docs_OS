@@ -545,18 +545,18 @@ abort(target, reason, { background }):
 | 안 | 동작 | 장점 | 단점 |
 |---|---|---|---|
 | A. 시작한다 | 실행 중이면 `stepEnd`(continuing 여부와 무관)에 배치하고 요청 한 번을 보장한다. 유휴면 turn을 연다 | adr.0007 §3.1 표의 "경계 지점의 `continue`" 대응과 같다 | `agent_before_settle`의 `continue`, drive의 `loop.turn`과 기능이 겹친다(`_research/ext-points.md` §5 안 1 단점 3) |
-| B. 붙기만 한다 [제안] | 실행 중이면 `continuing: true`인 `stepEnd`에서만, 유휴면 다음 `turnStart`에서 배치한다. 요청을 만들지 않는다 | 요청을 만드는 경로가 `continue`와 drive로 정리된다. pi `nextTurn`과 같은 뜻으로 읽힌다 [가정: pi `nextTurn` 동작 미확인] | 유휴 thread에 넣은 `next`는 사용자 입력이 올 때까지 머문다 |
+| B. 붙기만 한다 [결정] | 실행 중이면 `continuing: true`인 `stepEnd`에서만, 유휴면 다음 `turnStart`에서 배치한다. 요청을 만들지 않는다 | 요청을 만드는 경로가 `continue`와 drive로 정리된다. pi `nextTurn`과 같은 뜻으로 읽힌다 [가정: pi `nextTurn` 동작 미확인] | 유휴 thread에 넣은 `next`는 사용자 입력이 올 때까지 머문다 |
 
 - B안이면 `next`와 `aside`의 배치 규칙이 같아진다. 두 모드의 차이는 출처뿐이다. `aside`는 사용자·CLI 입력이고, `next`는 확장 `post`다.
 
-`aside`를 어디에 둘지 [미결]:
+`aside`를 어디에 둘지 [결정: review.m2-plan §8 D7]:
 
 | 안 | 내용 |
 |---|---|
-| 1. L1 입력 모드로만 둔다 [제안] | `InputMode`에 `aside`를 두고 사용자·CLI(`InputSource.type: "user"`)만 쓴다. F `PostWhen`(`steer \| followUp \| next`)은 그대로다. 확장이 같은 동작을 원하면 B안의 `next`를 쓴다 |
+| 1. L1 입력 모드로만 둔다 [결정] | `InputMode`에 `aside`를 두고 사용자·CLI(`InputSource.type: "user"`)만 쓴다. F `PostWhen`(`steer \| followUp \| next`)은 그대로다. 확장이 같은 동작을 원하면 B안의 `next`를 쓴다 |
 | 2. F 변경 요청 | `PostWhen`에 `"aside"`를 더한다(FR-T4). 확장도 aside를 쓴다 |
 
-M1은 두 모드 모두 구현하지 않는다(`mode_not_supported`). M2에서 결정에 맞춰 구현한다(`L1.tasks.plan`).
+M1은 두 모드 모두 구현하지 않는다(`mode_not_supported`). M2에서 B안·1안으로 구현한다(`L1.tasks.plan`).
 
 ### 4.10 수락과 완료 분리 (2차)
 
@@ -673,7 +673,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 | FR-T1 | F.records.spec §3.2, §3.3 | (반영됨) `CoreArea`에 `"input"`을 더하고, 카탈로그에 `input.queued`, `input.placed`, `input.withdrawn`(모두 durable, version 1)과 §3.8 payload 스키마를 더한다 | F에 입력 큐 kind가 `post.accepted`뿐이었다. 사용자 입력·위임 완료·예약 입력도 같은 큐를 쓴다 |
 | FR-T2 | F.records.spec §3.2, §3.3 | (반영됨) `CoreEventKind`에 `turn.abort_requested`(durable, version 1)와 `TurnAbortRequestedPayloadSchema`를 더한다 | `turn.updated`는 휘발이라 취소 의도를 남길 수 없다(§3.8). transactions §6.2 2·7항 |
 | FR-T3 | F.records.spec §3.3 | (반영됨, 바뀜) `post.accepted`를 retire한다. 카탈로그 항목은 `retired: true`로 남긴다. 확장 post는 `input.queued` 하나를 쓰고 멱등은 커밋 키가 맡는다 | `input.queued`가 `scopeId`·`requestId`를 이미 싣고 `input.placed`가 item을 적어 영수증 kind가 중복이다. retire안은 [결정: review.decisions-2 U-05]이다(2026-10-22 사용자 확인에서 유지안을 바꿈) |
-| FR-T4 | F.extensions.spec §3.2 | [미결] `PostWhen`에 `"aside"`를 더할지(§4.9 표 2안) | 1안을 고르면 요청을 철회한다 |
+| FR-T4 | F.extensions.spec §3.2 | 철회. 1안으로 정해 `PostWhen`을 바꾸지 않는다(§4.9, review.m2-plan §8 D7) | 요청 없음 |
 | FR-T5 | F `@xeon/contracts/services` | (반영됨: `F.capabilities.spec` §3.12 `services/tasks.ts`) §3.1~§3.7의 타입과 `TaskServiceName`을 F `services` 서브패스에 둔다(review.decisions-2 D-04) | 같은 층 import 금지(DR-14) |
 | FR-T6 | F.capabilities.spec §3.3 | `ToolSpec`에 잠금 선언 필드를 더한다. [제안] `readonly locks?: (params: Static<P>) => readonly { readonly path: string; readonly access: "read" \| "write" }[]`. 순수 함수 | 키 산출 입력을 도구 정의가 내야 L1.tools가 realpath 키를 만든다(§4.4) |
 | FR-T7 | F.records.spec(L1.agents.spec 경유) | (반영됨: `F.records.spec` §3.3 `agent.spawned`·`agent.settled`, `L1.agents.spec` §8.3 3번) 자식 thread 연결 kind `agent.spawned`, `agent.settled` 후보를 F 형식으로 둔다. 소유 간선(부모 turn·tool, background)을 payload에 싣는다 | 소유 트리 복원(§4.1 규칙 1). 정의는 L1.agents.spec이 낸다 |

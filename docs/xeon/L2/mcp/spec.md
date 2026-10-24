@@ -518,7 +518,7 @@ CREATE TABLE cap_mcp_servers (
 - `env`의 `secret://` 값은 `cap-mcp`가 풀지 않는다. 참조 그대로 `xeon.process`에 넘기고 L0.secrets가 실행 직전에 주입한다(`_research/secrets.md` §6, `L0.secrets.spec`).
 - HTTP·SSE: SDK의 `StreamableHTTPClientTransport`, `SSEClientTransport`를 쓴다(공개 export, `_research/notes/L2-1.md` §2). `headers`의 `secret://` 값은 요청 직전에 `xeon.secrets`로 풀어 붙이는 fetch 감싸기를 전송 옵션으로 넘긴다 [가정: 전송이 fetch 주입 옵션을 받는다].
 - 비밀 값은 `cap-mcp`의 로그, 이벤트, 오류 `message`, `cap_mcp_servers`, 모델 요청에 나타나지 않는다. 서버 stderr와 오류 메시지는 L0.secrets 마스킹을 거친 뒤 저장한다.
-- 샌드박스: stdio 서버를 L0 샌드박스 안에서 띄울지는 [미결 5]다. 기본은 사용자가 등록한 명령을 사용자 권한으로 실행한다.
+- 샌드박스: M2는 사용자가 등록한 명령을 사용자 권한으로 실행한다 [결정: review.m2-plan §8 D6]. L0 샌드박스 적용은 [미결 5]다.
 
 ### 4.4 허용, 차단, 도구 노출, 승인
 
@@ -736,10 +736,10 @@ sequenceDiagram
 ## 10. 미결 사항
 
 1. [미결] 서버 도구 기계 이름 형식(`F.capabilities.spec` §10의 a/b/c). 이 문서는 정하지 않고 `mcpToolName` 한 곳에 모은다. `eng.context-map.design` CM-03 예시의 `mcp:<서버>:<도구>`는 `TOOL_NAME_WIRE_PATTERN`과 맞지 않으므로 예시를 고치도록 요청한다.
-2. [미결] `input_required` 흐름의 책임 나눔(§4.6). 이 문서는 L1.tools가 승인 요청(kind `question`)을 올리고 `continuation`으로 재호출하는 안을 제안한다. `cap-mcp`가 `xeon.approvals`를 직접 부르는 안이면 포트 모양은 `L2.readme` §5.7의 L2 공통 `ApprovalsPort`다. 두 안을 비교해 `L1.tools.spec`과 함께 정한다.
+2. [결정: review.m2-plan §8 D5] `input_required` 흐름의 책임 나눔(§4.6). L1.tools가 승인 요청(kind `question`)을 올리고 `continuation`으로 재호출한다. `cap-mcp`는 `xeon.approvals`를 직접 부르지 않는다. 승인 기록 경로가 질문 도구·계획 승인과 같다.
 3. [미결] 서버 주도 요청의 승인 기록을 `cap_mcp_`에 둘지. 제안은 두지 않는 것이다.
 4. [미결] 서버 정의 `env`·`headers`에 비밀이 아닌 평문 값을 허용할지. 이 문서는 `secret://` 참조만 허용한다. 평문을 허용하면 `.mcp.json` 호환이 넓어지지만 비밀이 평문으로 들어올 위험이 있다.
-5. [미결] stdio 서버를 L0 샌드박스 안에서 띄울지와 그 범위(쓰기 경로, 네트워크).
+5. [결정: review.m2-plan §8 D6] M2에서 stdio 서버는 사용자 권한으로 실행한다. 서버 정의 파일(프로젝트 루트 `.mcp.json`과 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽는다. [미결] L0 샌드박스 적용 여부와 범위(쓰기 경로, 네트워크)는 bwrap 시험 환경이 생긴 뒤 정한다.
 6. [미결] sampling 허용. `ask`로 승인되었을 때 어떤 모델·예산으로 응답할지(L1.models 라우팅). 2026에서 deprecated이므로 2차 이후로 미룰 수 있다.
 7. [미결] Tasks 명세 본문의 필드와 `notifications/tasks` 존재 여부(`_research/notes/L2-1.md` §4.5, §10). 확인 전에는 Tasks 어댑터를 구현하지 않는다.
 8. [미결] `_research/packages.md` §4.4 L2-b "MCP Tasks: 그대로" 판정을 "자체 어댑터(명시 스키마 요청)"로 고칠지. 이 문서는 고친 판정을 따른다.

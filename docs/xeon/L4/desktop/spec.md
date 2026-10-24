@@ -481,7 +481,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 
 ### 4.12 프런트엔드
 
-[미결] 프레임워크는 결정되지 않았다(§10 미결 11). 비교 기준과 제안을 둔다.
+[결정: review.m2-plan §8 D2] 프레임워크는 React 19, 빌드는 `bun build`다. Preact는 사용자가 동작 예측성이 낮다고 판단해 채택하지 않았다. 아래 표는 결정 전 비교 기준과 후보다.
 
 | 기준 | 이유 |
 |---|---|
@@ -499,7 +499,8 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 | Vue 3 | 미지원 | 중간 | Vite 플러그인 | TS 7 에디터 미지원 |
 | 프레임워크 없음(웹 표준 요소) | 지원 | 최소 | `bun build` | 화면 수가 늘면 상태 관리 코드를 직접 써야 한다 |
 
-- [제안] Preact + `@preact/signals`, 빌드는 `bun build`. 새 빌드 도구 없이 TS 7 검사 경로가 하나로 유지되고, 런타임이 작으며, 신호로 스트리밍 조각을 item 단위로 갱신할 수 있다. 패키지 추가는 TC-04 절차를 따른다.
+- [결정: review.m2-plan §8 D2] React 19 + `bun build`. 새 빌드 도구 없이 TS 7 검사 경로가 하나로 유지된다. 패키지 추가는 TC-04 절차를 따른다.
+- [미결] 상태 관리 라이브러리는 정하지 않았다. 조사는 `_research/state-management.md`(추가 예정)에 둔다(§10 미결 11).
 - 런타임 크기 열은 공개 자료에서 흔히 인용되는 규모이고 이번 조사에서 재지 않았다 [가정].
 - `@tauri-apps/*`는 `apps/desktop`만 import한다(`eng.dependency-rules.guide` DR-07 표). `src-tauri/` 안 Rust 코드는 층 규칙 밖이다(DR-13 마지막 항목). TS 쪽은 층 규칙과 §4.9를 따른다.
 
@@ -612,7 +613,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 8. [미결] 메모리 예산 수치(§4.10 B1~B4). S5 측정 뒤 확정한다.
 9. [미결] WSL(WSLg)에서 데스크톱 앱의 지원 수준. 지원, 비공식 동작, 미지원 중 고른다.
 10. [미결] 최소 지원 macOS 버전과 Linux 배포판(WebKitGTK 버전). 빌드 타깃(V5)이 여기에 묶인다.
-11. [미결] 프런트엔드 프레임워크. 제안은 Preact + `@preact/signals` + `bun build`.
+11. [미결] 상태 관리 라이브러리. 프레임워크는 React 19 + `bun build`로 정했다([결정: review.m2-plan §8 D2], Preact는 채택하지 않음). 상태 관리 후보 조사는 `_research/state-management.md`(추가 예정)에 둔다.
 12. [미결] 자동 업데이트 채택(M3 이후). Tauri updater 플러그인과 서명 키 관리가 필요하다.
 13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). S3 spike 결과로 정한다. 이 문서는 stdio를 전제로 쓴다.
 14. [가정] Tauri `Channel`의 원시 바이트 전송, Rust API 사이드카의 capabilities 비적용, WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.

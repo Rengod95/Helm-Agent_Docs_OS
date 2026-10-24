@@ -34,13 +34,15 @@ binds: []
 
 | 항목 | 이유 |
 |---|---|
-| `web.browse` playwright provider(L2.web B10) | M2 종료 조건에 없습니다. 배치는 결정 D4입니다 |
+| `web.browse` playwright provider(L2.web B10) | M2 종료 조건에 없습니다. 결정 D4로 M3 초입에 둡니다 |
 | 첫 실행 권장 흐름(검색 ④), `web-exa`·`web-brave` 플러그인 | `product.scope.spec` §4.3이 M3에 둡니다 |
 | 목표 지속·완료 보고(L2.work T9~T12), 알림(L2.dialog D11) | 원천 plan이 M3에 둡니다 |
 | 위장 provider 플러그인(L1.models M-8~M-10) | L1.models.plan이 "별도 줄기"로 둡니다. M2 종료 조건과 무관합니다 |
 | MCP Tasks·구독·OAuth(MC8~MC10), X 격리 실행(L-22~L-25) | 원천 plan의 2차입니다 |
 | 서비스 모드, 예약, 원격(H10~H14, H20, PR-09~PR-14) | M3입니다 |
-| 외부 확장 탐색·훅·안전 모드(L-13, L-14, L-18, L-28, L-29, O-20~O-26) | 종료 조건 밖입니다. 배치는 결정 D9입니다 |
+| 외부 확장 탐색·로더·훅·안전 모드(X.5: L-13, L-14, L-18, L-28, L-29, O-20~O-26, V-09) | 종료 조건 밖입니다. 결정 D9로 M3에 둡니다. 프로젝트 신뢰(X.4)만 M2에 남습니다 |
+| 데스크톱 Developer ID 서명과 공증(L4.desktop D10의 macOS 공증 부분) | 결정 D3으로 M3 릴리즈 후보에 둡니다. M2는 ad hoc 서명입니다 |
+| pi 메시지 스키마 깊은 검증(F.conversation.spec §10 미결 2) | M2 종료 조건과 무관합니다. 사용자 결정으로 M3에 둡니다 |
 
 ## 3. 트랙 규칙 (worktree 병렬 실행)
 
@@ -73,7 +75,7 @@ binds: []
 | HM | `xeon/packages/group-helm/**` | GK 완료, L1A.6, L1B.4 | 18 |
 | HOST | `xeon/apps/host/**` | F 완료, PLT.1, L1A.4 | 17 |
 | CLI | `xeon/apps/cli/**` | F 완료, HOST.2·HOST.4 | 10 |
-| DESK | `xeon/apps/desktop/**`(`src-tauri/` 포함, `src/settings/` 제외), `xeon/scripts/build-sidecar.ts` | HOST.5, 결정 D1·D2 | 30(TS 부분 10) |
+| DESK | `xeon/apps/desktop/**`(`src-tauri/` 포함, `src/settings/` 제외), `xeon/scripts/build-sidecar.ts` | HOST.5, 상태 관리 결정 | 30(TS 부분 10) |
 | Z 통합 | 공유 파일(M2 끝), `docs/xeon/review/**` | 다른 트랙 병합 | 5 |
 
 - 주 경로(가장 긴 의존 사슬): F → X.1 → GK → HM(UC-2 통합 시험)입니다. 약 13 + 8 + 20 + 18 = 59일입니다. L1A·L1B가 이 기간 안에 HM.9 선행(LP15, AG-2)을 끝내야 합니다.
@@ -84,7 +86,7 @@ binds: []
 
 | ID | 내용 | 원천 | 선행 |
 |---|---|---|---|
-| F.1 | 공유 파일 일괄: catalog 정확 고정 추가(`@modelcontextprotocol/client` 2.3.1, `guarded-fetch` 0.1.6, `@mozilla/readability` 0.6.0, `linkedom` 0.18.13, `turndown` 7.2.4, `defuddle` 0.19.5, `age-encryption` 0.3.1, `@vscode/ripgrep`, `@opentelemetry/api` 1.10.0, 결정 D2에 따른 프런트엔드 패키지, `@tauri-apps/cli` 2.12.3), lockfile 갱신, 허용 목록 `DR-02/group-kit-helm`·`DR-02/group-kit-learning`, WEB-R16 lint override와 check-layers 패턴, DR-07 소유 표 행(`@mozilla/readability`, `linkedom`), just 레시피 자리(`web-pricing`, `desktop-sidecar`, `desktop-dev`, `desktop-build`) | open-issues M-04, L3.group-kit G-03, L2.web B6 비고, L4.desktop §2 | 없음 |
+| F.1 | 공유 파일 일괄: catalog 정확 고정 추가(`@modelcontextprotocol/client` 2.3.1, `guarded-fetch` 0.1.6, `@mozilla/readability` 0.6.0, `linkedom` 0.18.13, `turndown` 7.2.4, `defuddle` 0.19.5, `age-encryption` 0.3.1, `@vscode/ripgrep`, `@opentelemetry/api` 1.10.0, React 19 패키지(결정 D2, 상태 관리 패키지는 상태 관리 결정 뒤), `@tauri-apps/cli` 2.12.3), lockfile 갱신, 허용 목록 `DR-02/group-kit-helm`·`DR-02/group-kit-learning`, WEB-R16 lint override와 check-layers 패턴, DR-07 소유 표 행(`@mozilla/readability`, `linkedom`), just 레시피 자리(`web-pricing`, `desktop-sidecar`, `desktop-run`, `desktop-build`) | open-issues M-04, L3.group-kit G-03, L2.web B6 비고, L4.desktop §2 | 없음 |
 | F.2 | L2 능력 정의: `capabilities/defs/web.ts`·`web-provider.ts`, `mcp.ts`, `knowledge.ts`, `work.ts`, `dialog.ts`(1차 4개 + 2차 정의만, 순수 함수 `checkAskQuestions` 등) 와 `validateCapability` 이슈 0건 시험 | WEB B1, MCP MC1, KN K1, WK T1, DG D1 | F.1 |
 | F.3 | 기록 카탈로그 `records/catalog/work.ts`(10종), `dialog.ts`, 내장 L2 카탈로그 병합 | F.records R11, WK T1, DG D1 | F.2 |
 | F.4 | 서비스·포트 추가: `HostedSearchPort`(services/models), `childDecision`(policy, F 요청 9), `CommandInfoSchema`(dialog D-2), L2 공통 `ApprovalsPort` 모양 확정(L2.readme §5.7) | L1.models M2, L1.tools TL-13, L2.dialog §7, L2.work W-1·W-2·W-4 | F.2 |
@@ -100,9 +102,9 @@ binds: []
 |---|---|---|---|
 | X.1 | 그룹·MCP가 기다리는 항목: 임대 중재 설정(P-22), 상태 마이그레이션(P-23), 공급자 선택(P-27), thread별 scope 상태(P-28), group-kit 요청 4개(`LeaseCandidate.enabledAtSeq`, `leaseId` 조회, 변경 구독, 테스트 호스트 재시작), 확장 테이블 API `Result`화(N-08) | X.primitives P-22·P-23·P-27·P-28, L3.group-kit.spec §3.13, open-issues N-08 | F.2 |
 | X.2 | 리소스 레지스트리 전체(P-24)와 이름 정책(O-18, O-19), UI 포트 래핑(O-07) | X.primitives P-24, X.operations O-18·O-19·O-07 | X.1 |
-| X.3 | detached tap(P-25), 그룹 간 이벤트 격리(P-26), 재열기 `scope.changed` 중복(N-01), Cordis 재시작 재적용 시점(N-02, 결정 D8) | X.primitives P-25·P-26, open-issues N-01·N-02 | X.2 |
+| X.3 | detached tap(P-25), 그룹 간 이벤트 격리(P-26), 재열기 `scope.changed` 중복(N-01), Cordis 재시작 재적용 시점(N-02, 결정 D8 (b)로 구현됨) | X.primitives P-25·P-26, open-issues N-01·N-02 | X.2 |
 | X.4 | 프로젝트 신뢰: `trust/store.ts`·`resources.ts`·`resolve.ts` 포크(L-15~L-17). MCP `.mcp.json`과 프로젝트 스킬이 씁니다 | X.loading-trust L-15~L-17 | X.3 |
-| X.5 | (결정 D9가 M2면) 외부 탐색·로더·훅·안전 모드 L-13, L-14, L-18, L-28, L-29, O-20~O-26, host 로더 사용(V-09) | X.loading-trust, X.operations, open-issues V-09 | X.4 |
+| X.5 | M3로 옮김(결정 D9). 외부 탐색·로더·훅·안전 모드 L-13, L-14, L-18, L-28, L-29, O-20~O-26, host 로더 사용(V-09) | X.loading-trust, X.operations, open-issues V-09 | X.4 |
 
 ### 4.4 L0 트랙
 
@@ -194,12 +196,12 @@ binds: []
 | CLI.3 | `secret` 명령(`ls`, `add`, `rm`, `test`, `reveal` TTY 전용) | C9 | HOST.3 |
 | CLI.4 | `host --stdio` 컴파일 진입, `doctor`(검색 provider 상태 포함) | C16, C15 | HOST.5, WEB.6 |
 | CLI.5 | 전역 시각·sleep 제거(V-02), TUI 스파이크(결정 D10) | open-issues V-02, C8 | 없음 |
-| DESK.1 | spike S1~S4(종료 원인 4종, 바이너리 크기, stdio 처리량, stdin EOF) | S1~S4 | 결정 D1 |
+| DESK.1 | spike S1~S4(종료 원인 4종, 바이너리 크기, stdio 처리량, stdin EOF) | S1~S4 | 없음(결정 D1로 툴체인 설치됨) |
 | DESK.2 | Tauri 프로젝트, `engine.rs`, `relay.rs` | D2, D4, D5 | DESK.1 |
 | DESK.3 | 사이드카 빌드 스크립트 `scripts/build-sidecar.ts`와 대응 시험 | D3 | HOST.5 |
-| DESK.4 | UI 셸(ipc, 스레드 목록, 트랜스크립트, 입력창, 상태 표시줄), 승인 대기열 | D6, D7 | 결정 D2, HOST.4 |
+| DESK.4 | UI 셸(ipc, 스레드 목록, 트랜스크립트, 입력창, 상태 표시줄), 승인 대기열. React 19(결정 D2) | D6, D7 | 상태 관리 결정, HOST.4 |
 | DESK.5 | macOS FTS5 SQLite 번들 규칙, e2e(한 턴 → 종료 → 잔존 프로세스, CLI 메시지 열 비교) | D8, D11 | DESK.2, DESK.4 |
-| Z.1 | 트랙이 요청한 공유 파일 변경 일괄(just 레시피, CI `desktop-build` job D9). `xeon/knip.json`의 `ignoreIssues["package.json"]`(F.1이 미리 넣은 catalog 항목의 미사용 보고 제외)를 M2 끝에 지우고 `knip`이 catalog 오류 0건인지 확인 | 각 트랙 요청, L4.desktop D9 | 다른 트랙 병합 |
+| Z.1 | 트랙이 요청한 공유 파일 변경 일괄(just 레시피, CI Linux `desktop-build` job과 `desktop-macos` job(L4.desktop 작업 D9, 결정 D1)). `xeon/knip.json`의 `ignoreIssues["package.json"]`(F.1이 미리 넣은 catalog 항목의 미사용 보고 제외)를 M2 끝에 지우고 `knip`이 catalog 오류 0건인지 확인 | 각 트랙 요청, L4.desktop D9 | 다른 트랙 병합 |
 | Z.2 | M2 종료 조건 전체 실행, `review.open-issues` 상태 갱신, M2 결과 기록 | 이 문서 §5 | Z.1 |
 
 ## 5. 트랙별 시험과 종료 기준
@@ -240,12 +242,12 @@ M2 종료 조건 번호(`product.scope.spec` §4.4 M2 행과 §4.3 비밀 관리
 
 | 항목 | 상태 | 영향과 대응 |
 |---|---|---|
-| `which cargo rustc` | 둘 다 없음. `libwebkit2gtk` 개발 패키지도 없음 | Tauri 빌드 불가. DESK.1·DESK.2·DESK.5와 E2·E3의 Tauri 부분은 이 기기에서 실행할 수 없습니다. 결정 D1 전까지 DESK는 TS 부분(DESK.3, DESK.4의 화면 로직)만 진행합니다 |
+| `which cargo rustc` | 둘 다 1.99.1(rustup 사용자 영역 설치, 2026-10-24). `libwebkit2gtk-4.1`과 Tauri 시스템 패키지도 사용자가 설치함 | 결정 D1. DESK.1·DESK.2·DESK.5와 E2·E3의 Tauri 부분을 이 기기에서 실행합니다 |
 | bwrap, socat | 없음(open-issues E-02) | 샌드박스 int 시험은 건너뜁니다. MCP stdio 서버 샌드박스(결정 D6)도 시험할 수 없습니다 |
-| macOS | 없음 | 키체인(SC-19), macOS FTS5·trigram(KN 완료 기준 9), 공증, `aarch64-apple-darwin` 사이드카는 CI나 실기에서만 확인합니다 |
+| macOS | 이 기기에는 없음. 필요할 때만 씀 | 키체인(SC-19), macOS FTS5·trigram(KN 완료 기준 9), `aarch64-apple-darwin` 사이드카는 CI `desktop-macos` job(`workflow_dispatch`나 PR 라벨 `ci:macos`)이나 실기에서만 확인합니다. 공증은 M3입니다(결정 D3) |
 | WSL2 벽시계 | platform-exec watch 적합성 시험 불안정(E-01) | 실패하면 한 번 재실행으로 판단합니다 |
 | Secret Service(`secret-tool`) | 없음 | 키는 파일 폴백입니다. `reveal`의 `os-auth` 경로는 확인할 수 없고 `tty-confirm`만 시험합니다 |
-| 있는 도구 | bun 1.4.3(mise), node 24.19.0, sops 3.13.3, age 1.3.2, docker, google-chrome, playwright chromium-1243 캐시 | SearXNG 수동 확인은 docker로 할 수 있습니다. 자동 시험은 루프백 가짜 서버만 씁니다 |
+| 있는 도구 | bun 1.4.3(mise), node 24.19.0, rustc·cargo 1.99.1, sops 3.13.3, age 1.3.2, docker, google-chrome, playwright chromium-1243 캐시 | SearXNG 수동 확인은 docker로 할 수 있습니다. 자동 시험은 루프백 가짜 서버만 씁니다 |
 | `bun` 직접 실행 | mise 심이 전역 bun 버전을 몰라 실패 | `just docs-route`처럼 just 레시피로 실행합니다 |
 | 네트워크·유료 호출 | 시험은 루프백만 | 래퍼 비용 측정(`just web-wrapper-measure --yes`)과 실제 코퍼스 FTS 측정은 사람 확인 뒤 실행합니다(결정 D11) |
 
@@ -259,22 +261,35 @@ M2 종료 조건 번호(`product.scope.spec` §4.4 M2 행과 §4.3 비밀 관리
 | Helm의 코어 diff 0 조건 | HM 중 F·X·group-kit 변경이 필요하면 조건 위반 | HM 착수 전 GK를 끝내고, HM이 찾은 계약 부족은 F·X·GK 작업으로 먼저 병합한 뒤 HM을 이어 갑니다 |
 | 조립 통합이 끝에 몰림 | 트랙 단위 시험은 통과하고 실제 엔진에서 실패 | HOST.6에서 트랙 병합 직후 하나씩 등록하고 CLI 테이프 스모크를 돌립니다 |
 | MCP SDK 2.3.1의 Bun 동작, guarded-fetch 0.1.6 성숙도 | MCP.1, WEB.2 재작업 | 각 트랙 첫 작업에서 확인합니다. guarded-fetch가 부족하면 request-filtering-agent로 바꿉니다(L2.web.plan §7) |
-| Tauri를 이 기기에서 빌드할 수 없음 | E2·E3 확인 불가 | 결정 D1. 엔진 쪽 종료·EOF 동작은 HOST.5와 PLT.1 시험으로 먼저 확인합니다 |
+| Tauri 빌드가 이 기기와 CI에서 다르게 동작 | macOS에서만 생기는 E2·E3 실패를 늦게 발견 | 결정 D1. 로컬 WSL 빌드로 반복하고, macOS는 `desktop-macos` job을 PR 라벨 `ci:macos`로 돌립니다. 엔진 쪽 종료·EOF 동작은 HOST.5와 PLT.1 시험으로 먼저 확인합니다 |
 | 서브에이전트 병렬 비용 | Helm 시험·사용 비용 증가 | 시험은 테이프만 씁니다. 운영 기본값은 `maxLenses` 3과 drive 상한입니다 |
 | worktree 12개 동시 진행 | 병합 충돌, 설치 시간 | 소유 경로 규칙(§3)과 lockfile 고정. 트랙 병합은 하루 한 번 묶어 rebase합니다 |
 
-## 8. 사용자 결정이 필요한 항목
+## 8. 결정
 
-| # | 결정 | 선택지 | 권고 |
+사용자가 2026-10-23~24에 정했습니다. 각 층 문서는 이 표를 `[결정: review.m2-plan §8 D<번호>]`로 인용합니다.
+
+| # | 결정 | 고른 안 | 반영 |
 |---|---|---|---|
-| D1 | Tauri 빌드 환경 | (a) 이 WSL에 rustup(사용자 영역)과 `libwebkit2gtk-4.1-dev` 등(sudo apt) 설치 (b) CI 러너에서만 빌드 | (a)와 macOS CI를 함께 씁니다. 개발 반복(spike S1~S4, relay)을 로컬에서 해야 E3 원인 분석이 빠릅니다 |
-| D2 | 데스크톱 프런트엔드 프레임워크(L4.desktop.spec §10 미결 11) | Preact + `@preact/signals` + `bun build`, 다른 프레임워크 | spec 제안대로 Preact입니다. 번들이 작고 별도 빌드 도구가 없습니다 |
-| D3 | M2 데스크톱 서명 수준 | (a) Developer ID 서명·공증까지 (b) ad hoc 서명으로 M2 종료, 공증은 M3 릴리즈 후보 | (b)입니다. 인증서 확보 여부와 무관하게 M2 종료 조건(E2·E3)을 확인할 수 있습니다 |
-| D4 | `web.browse`(B10) 배치 | M2 후반, M3 초입 | M3 초입입니다. M2 종료 조건에 없고 Helm은 search·fetch만 씁니다 |
-| D5 | MCP `input_required`의 책임 나눔(L2.mcp.spec §10 미결 2) | (a) L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출 (b) cap-mcp가 `ApprovalsPort`를 직접 호출 | (a)입니다. 승인 기록 경로가 질문 도구·계획 승인과 하나로 모입니다(E5) |
-| D6 | MCP stdio 서버 샌드박스(L2.mcp.spec §10 미결 5) | M2에 샌드박스 적용, M2는 사용자 권한 실행 | M2는 사용자 권한 실행으로 두고 `.mcp.json`은 프로젝트 신뢰 뒤에만 읽습니다. 샌드박스는 bwrap 시험 환경이 생긴 뒤 정합니다 |
-| D7 | `post.when = next`와 `aside`(L1.tasks.spec §4.9) | B안(붙기만 함) + 1안(aside는 L1·CLI 전용), 다른 조합 | spec 제안대로 B안 + 1안입니다. F `PostWhen` 변경이 없습니다 |
-| D8 | Cordis provider 재시작 뒤 scope 재적용 시점(open-issues N-02) | (a) U-01 예외로 즉시 재적용 (b) 재적용 요청만 기록하고 다음 단계 경계에 적용 | (b)입니다. 단계 경계 규칙(U-01)에 예외를 두지 않습니다 |
-| D9 | X 외부 확장 탐색·로더·훅·안전 모드(X.5)의 마일스톤 | M2, M3 | M3입니다. M2 종료 조건에 없고 X 레인 길이를 약 15일 줄입니다. 프로젝트 신뢰(X.4)만 M2에 둡니다 |
-| D10 | pi-tui 채택(L4.cli C8, 스택 추가) | 스파이크 통과 시 1.3.0 채택, 최소 renderer 유지 | 스파이크를 M2에 돌리고 한글 IME·CJK 폭이 통과할 때만 채택합니다. M2 종료 조건에는 넣지 않습니다 |
-| D11 | 사람 확인이 필요한 측정 실행 | 실제 키 래퍼 측정 약 20회(약 $0.22 추정), 개발자 세션 DB 사본 FTS 측정 | 둘 다 WEB.6, KN.4 뒤 한 번씩 승인합니다. 측정 전까지 비용·크기 값은 [가정]으로 둡니다 |
+| D1 | Tauri 빌드 환경 | 이 WSL에 툴체인을 설치합니다(rustc·cargo 1.99.1 rustup 사용자 영역, `libwebkit2gtk-4.1`과 Tauri 시스템 패키지는 사용자가 설치). macOS는 필요할 때만 씁니다. CI `desktop-macos` job은 `workflow_dispatch`나 PR 라벨 `ci:macos`로만 돌고, Linux `desktop-build` job은 Z.1에서 더합니다 | §6, L4.desktop.plan D9·§3.3 |
+| D2 | 데스크톱 프런트엔드 | React 19입니다. Preact는 사용자가 동작 예측성이 낮다고 판단해 채택하지 않습니다. 상태 관리 라이브러리는 [미결]이고 조사 중입니다(`docs/xeon/L4/desktop/_research/state-management.md` 추가 예정) | L4.desktop.spec §4.12·§10 미결 11, DESK 선행 "상태 관리 결정" |
+| D3 | M2 데스크톱 서명 수준 | (b) M2는 ad hoc 서명입니다. Developer ID 서명과 공증은 M3 릴리즈 후보로 옮깁니다 | §2.2, L4.desktop.plan D10·§6 |
+| D4 | `web.browse`(B10) 배치 | M3 초입입니다 | §2.2, L2.web.plan B10 |
+| D5 | MCP `input_required`의 책임 나눔 | (a) L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출합니다 | MCP.4, L2.mcp.spec §10 |
+| D6 | MCP stdio 서버 샌드박스 | M2는 사용자 권한으로 실행합니다. `.mcp.json`(루트와 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽습니다. 샌드박스는 bwrap 시험 환경이 생긴 뒤 정합니다 | L2.mcp.spec §10 |
+| D7 | `post.when = next`와 `aside` | B안(붙기만 하고 스스로 시작하지 않음) + 1안(aside는 L1·CLI 전용)입니다. F `PostWhen` 변경은 없습니다 | L1B.5, L1.tasks.spec §4.9 |
+| D8 | Cordis provider 재시작 뒤 scope 재적용 시점 | (b) 재적용 요청을 기록하고 다음 단계 경계에 적용합니다. X.3에서 구현했습니다 | X.3, open-issues N-02 |
+| D9 | X 외부 확장 탐색·로더·훅·안전 모드(X.5) | M3입니다. 프로젝트 신뢰(X.4)만 M2에 둡니다 | §2.2, X.5, X.loading-trust.plan |
+| D10 | pi-tui 채택 | 스파이크를 M2에 돌리고 한글 IME·CJK 폭 확인을 통과할 때만 1.3.0을 채택합니다. M2 종료 조건에 넣지 않습니다 | CLI.5, L4.cli.plan C8 |
+| D11 | 사람 확인이 필요한 측정 | 실제 키 검색 래퍼 측정(약 20회)과 개발자 세션 DB 사본 FTS 측정은 각각 WEB.6, KN.4 뒤에 사용자 승인을 한 번씩 받습니다. 측정 전까지 비용·크기 값은 [가정]입니다 | §6 |
+
+같은 시기에 정한 나머지 항목입니다.
+
+| 항목 | 결정 | 반영 |
+|---|---|---|
+| `@vscode/ripgrep` 소유 | `platform-os`가 바이너리 경로를 제공하고 `cap-workspace`가 실행합니다 | eng.dependency-rules.guide DR-07, L2.workspace.plan |
+| knip catalog 예외 | `xeon/knip.json`의 catalog 예외는 Z.1까지 둡니다 | Z.1 |
+| pi 메시지 스키마 깊은 검증 | M3로 옮깁니다 | §2.2, F.conversation.spec §10 미결 2 |
+| `getOrThrow` | 테스트 전용 도우미로 둡니다 | 없음 |
+| env-node-spill 스트림 훅 교체 | `Reflect.get`을 쓰는 현재 방식을 유지합니다 | 없음 |
+| 테스트 실행 | `just test`(`xeon/scripts/test-capped.sh`, cgroup 메모리 상한 아래에서 패키지 하나씩)로 돌립니다 | eng.toolchain.guide, eng.testing.guide |

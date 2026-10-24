@@ -602,9 +602,9 @@ export type CliState = Static<typeof CliStateSchema>;
 
 #### 4.9.2 선택
 
-- [제안] 대화형 TUI는 pi-tui 1.3.0(정확 고정)을 쓴다. 조건은 둘이다.
+- [결정: review.m2-plan §8 D10] 스파이크를 M2에 돌리고, 아래 조건을 통과할 때만 대화형 TUI에 pi-tui 1.3.0(정확 고정)을 쓴다. M2 종료 조건에는 넣지 않는다. 조건은 둘이다.
   1. 스파이크 통과: `_research/notes/L4-1.md` §7의 1번(애드온 없이 Bun 1.4.3 `--compile` 바이너리 시작·종료)과 6번(`process.execPath` 값)을 확인하고, 한글 입력(IME)과 CJK 폭을 macOS·Linux 터미널에서 확인한다(`L4.cli.plan` C8).
-  2. 스택 표에 pi-tui 행을 더하는 사용자 승인(`eng.toolchain.guide` TC-04). 현재 `_research/foundation-plan.md` §2 스택 표에 TUI 행이 없다 [미결 §10 6번].
+  2. 스택 표에 pi-tui 행을 더한다(`eng.toolchain.guide` TC-04). 사용자는 1번 통과를 조건으로 채택을 정했다(D10). 현재 `_research/foundation-plan.md` §2 스택 표에 TUI 행이 없다.
 - [제안] 네이티브 애드온은 1차 배포에 넣지 않는다. 빠지는 기능은 Apple Terminal·Windows의 Shift+Enter 판별, Windows Shift+Tab 판별, 네이티브 클립보드뿐이다(`_research/notes/L4-1.md` §3.3). 사이드카 `native/` 디렉터리 배포 여부는 릴리즈 형태와 함께 정한다 [미결 §10 7번].
 - [제안] 후퇴 경로: M1은 pi-tui 없이 통과한다. print 모드와 JSON 모드는 어떤 TUI 라이브러리도 쓰지 않는다. M1 대화형은 최소 renderer(`node:readline` 입력 + 줄 출력 + 진행 줄 한 줄 덮어쓰기)로 만든다. 스파이크가 실패하면 M2도 최소 renderer를 유지하고 TUI 라이브러리 선택을 [미결]로 둔다.
 - 렌더러 교체가 쉽도록 화면 코드는 `RenderSink` 뒤에 둔다. `TranscriptState`와 `RenderOp`는 라이브러리와 무관하다.
@@ -749,7 +749,7 @@ export type CliState = Static<typeof CliStateSchema>;
 3. [미결] 비밀 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `xeon secret reveal`로 정했다 [결정: review.decisions-2 U-20]. 남은 것: `secret.beginReveal`의 F 추가(review.decisions-2 U-04에 따라 M2 계획에서 정한다), in-process에서 CLI가 읽은 값을 wire 밖으로 L0.secrets에 넘기는 `@xeon/host` API(§4.7), `secret run -- <cmd>`를 둘지.
 4. [미결] `type`에 `range`를 병합하는 함수를 F에 공통으로 둘지(`_research/notes/L4-3.md`). `config schema`는 wire 없이 로컬 명령(`L4.host-service.spec` §6.2)으로 정해져 F 변경 요청에서 뺐다.
 5. [미결] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. [제안] 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더한다.
-6. [미결] pi-tui 채택. 스택 표에 행이 없다. 조건은 §4.9.2. 실패하면 최소 renderer로 유지한다.
+6. [결정: review.m2-plan §8 D10] pi-tui 채택은 M2 스파이크의 한글 IME·CJK 폭 확인 통과를 조건으로 한다. 실패하면 최소 renderer로 유지한다. M2 종료 조건이 아니다. 스파이크 결과는 이 항목에 적는다.
 7. [미결] 릴리즈 형태: 단일 파일만 배포할지, pi처럼 `native/` 사이드카 디렉터리를 함께 둘지(`_research/notes/L4-1.md` §5). macOS 공증 때 사이드카 `.node`와 FTS5 dylib의 서명 위치는 `_research/notes/L4-2.md`가 다룬다.
 8. [미결] print 모드에서 승인 요청이 오면 거부하는 기본값, 비대화 자동 승인 플래그를 둘지.
 9. [결정: review.decisions-2 U-02] 승인 요청은 A안(내구 이벤트 `approval.requested`/`approval.resolved` + `approval.respond`)이다. kind는 F.records 카탈로그에 있다(`F.records.spec` §3.2).

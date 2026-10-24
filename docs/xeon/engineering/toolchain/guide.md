@@ -31,7 +31,7 @@ Xeon 워크스페이스의 런타임, 패키지 관리, 타입 검사, 린트, �
 | 린트 | oxlint | 1.89.0 | catalog `oxlint` | `--type-aware` |
 | 린트 타입 인식 | oxlint-tsgolint | 7.0.2004 | catalog `oxlint-tsgolint` | TS 7.0.2 대응(TC-03) |
 | 포맷 | oxfmt | 0.74.0 | catalog `oxfmt` | 0.x라 정확 고정 |
-| 테스트 | `bun test` | Bun과 같음 | — | 패키지별 실행, `--coverage` |
+| 테스트 | `bun test` | Bun과 같음 | — | 패키지별 실행, `--coverage`. 실행은 `just test`(`scripts/test-capped.sh`)로 한다 |
 | 태스크 러너 | Turborepo | 2.11.10 | catalog `turbo` | `--affected`, 로컬 캐시 |
 | 의존 경계 | dependency-cruiser | 18.7.0 | catalog `dependency-cruiser` | 파서 `@swc/core` 1.16.18 |
 | 미사용 코드 | knip | 6.42.1 | catalog `knip` | |
@@ -390,7 +390,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | 5 | 경계 | `just depcruise` | `depcruise packages apps plugins --config .dependency-cruiser.cjs` | 규칙 이름 `DR-NN-...`과 `from → to` 경로가 나온다 | 20초 | 1 |
 | 6 | 미사용 | `just knip` | `knip` | 미사용 파일·export·의존 목록. 지우거나 `knip.json`의 `entry`가 빠졌는지 본다 | 20초 | 1 |
 | 7 | 문서 | `just docs-route --check --allow-missing` | `bun scripts/docs-route.ts --check --allow-missing` | `문서경로: 오류`. 프런트매터, `depends_on`, `binds`를 고친다 | 3초 | 1 |
-| 8 | 테스트 | `just test` | `bun test scripts` + `turbo run test --affected` (각 패키지 cwd에서 `bun test`) | 실패한 테스트 파일과 기대·실제 값. 커버리지 임계 미달은 메시지 없이 1로 끝난다(`_research/notes/eng-3.md §3.2`) | 60초(영향 범위) | 1 |
+| 8 | 테스트 | `just test` | `scripts/test-capped.sh`: `scripts`와 `test` 스크립트가 있는 패키지를 하나씩, cgroup 메모리 상한(`systemd-run --user`, 기본 `XEON_TEST_MEMORY_MAX=1500M`) 아래에서 각 패키지 cwd의 `bun test`로 돈다. 인자로 패키지 디렉터리를 주면 그것만 돈다 | 실패한 테스트 파일과 기대·실제 값. 커버리지 임계 미달은 메시지 없이 1로 끝난다(`_research/notes/eng-3.md §3.2`) | 60초(영향 범위) | 1 |
 | 9 | 환경 | `ws check` | 사용자 환경 검사 | `ws help`를 본다 | — | 2 |
 
 - 소요 목표 열은 실측 전 추정이다 [가정].

@@ -93,7 +93,7 @@ binds: []
 | 번호 | 항목 | 어디 | 제안 처리 | 상태 |
 |---|---|---|---|---|
 | N-01 | 세션을 다시 열면 builtin scope에 `scope.changed{enabled}`가 다시 기록됩니다. `X.primitives.spec` §4.5.6은 `ExtThreadSnapshot.enabled`와 현재 켜짐이 다를 때만 첫 경계 기여에 넣는다고 적었습니다. | ext-host 시작 적용·스냅샷 비교, X.primitives §4.5.6 | 스냅샷 비교 결과가 같으면 기록하지 않게 고치고, 다시 열기 시험에서 `scope.changed` 수를 확인합니다. 8981bc8에서 `openThread`가 저장된 켜짐 기록과 비교하게 했고, 이번 F 변경으로 `ExtThreadSnapshot.disabled`·`scopeTransitions`가 생겨 끈 기본 켜짐 scope도 다시 열 때 꺼진 채 두며 재시작 뒤 커밋 키도 겹치지 않습니다(`thread-scope.test.ts`, `scope.test.ts`). | 해결(8981bc8, 4af35ee) |
-| N-02 | Cordis provider가 재시작되면 scope를 곧바로 다시 적용합니다. 적용 시점은 단계 경계여야 합니다(U-01). | ext-host Cordis 연결, X.primitives §10 | U-01의 예외로 둘지, 재적용 요청만 기록하고 다음 경계에서 적용할지 정합니다. X.primitives §10의 같은 미결에 이 항목을 연결했습니다. 결정 D8(b)대로 재적용 요청만 기록하고 다음 단계 경계에서 새 세대로 적용합니다(`provider-restart.test.ts`). | 해결(8981bc8) |
+| N-02 | Cordis provider가 재시작되면 scope를 곧바로 다시 적용합니다. 적용 시점은 단계 경계여야 합니다(U-01). | ext-host Cordis 연결, X.primitives §10 | U-01의 예외로 둘지, 재적용 요청만 기록하고 다음 경계에서 적용할지 정합니다. X.primitives §10의 같은 미결에 이 항목을 연결했습니다. [결정: review.m2-plan §8 D8] (b)대로 재적용 요청만 기록하고 다음 단계 경계에서 새 세대로 적용합니다(`provider-restart.test.ts`). | 해결(8981bc8) |
 | N-03 | 복구 뒤 `loop.run_rejected`(tasks.scope_settled)가 로그에 남습니다(V-10). | core-loop 재개 경로 | 닫힌 turn을 다시 돌리는 호출을 찾아 막고 로그에서 사라지는지 확인합니다. 자체 루프 작업(ADR-0009)과 함께 봅니다. | 열림 |
 | N-04 | DR-07 소유 표의 `Bun.spawn` 소유 패키지는 다섯 곳(platform-exec, process, sandbox, secrets, os)인데 `platform-store`의 테스트 보조 파일(`test/support/child.ts`, `spawn.ts`)도 자식 프로세스를 띄웁니다. | eng.dependency-rules DR-07 표와 4절 | 문서 4절 문장("platform-* 패키지는 원래 소유자")을 따라 `check-layers`는 모든 `platform-*`의 테스트 파일을 허용합니다. 표와 문장을 하나로 맞춥니다. | 열림 |
 | N-05 | `InputQueuePort.enqueue`에 오류 통로가 없어 닫힌 thread 같은 예상 가능한 거부를 `Bug`로 던집니다(TY-24). | core-tasks `enqueuePost`, contracts `extensions/ports.ts` | 포트가 `Result<EnqueueResult, EnqueueError>`를 돌려주게 하고 ext-host `post`가 그 오류를 `TypeError`·`PrimitiveError`로 옮깁니다(`X.primitives.spec` §4.7). | 해결(9ae5807) |
@@ -110,3 +110,27 @@ binds: []
 2. 문서 정정 D-03~D-14를 처리합니다.
 3. 편차 중 린트로 잡을 수 있는 것은 규칙을 더한 뒤 고칩니다. V-01, V-06은 끝났고 V-02는 N-11(TY-21 규칙)과 함께 남았습니다.
 4. 환경 E-03(depcruise 동작)을 확인한 뒤 M2의 M-01(PS-16)부터 시작합니다.
+
+## 9. M2 계획 결정 반영 (2026-10-23~24)
+
+- `review.m2-plan` §8의 사용자 결정 가운데 이 목록의 항목과 이어지는 것을 적습니다. 결정 본문은 `review.m2-plan` §8이 정본입니다.
+
+| 결정 | 이어지는 항목 | 반영 | 상태 |
+|---|---|---|---|
+| D1 Tauri 빌드 환경 | E-02(macOS 실기 없음) | 이 WSL에 rustc·cargo 1.99.1(rustup 사용자 영역)과 `libwebkit2gtk-4.1`·Tauri 시스템 패키지를 설치했습니다. macOS는 CI `desktop-macos` job(`workflow_dispatch`나 PR 라벨 `ci:macos`)으로만 확인합니다. Linux `desktop-build` job은 Z.1입니다. E-02의 macOS 부분은 그대로 열려 있습니다 | 결정됨 |
+| D2 데스크톱 프런트엔드 | L4.desktop.spec §10 미결 11 | React 19로 정했습니다. 상태 관리 라이브러리는 조사 중입니다 | 일부 결정(상태 관리 열림) |
+| D3 데스크톱 서명 | L4.desktop.plan D10 | M2는 ad hoc 서명, Developer ID 서명과 공증은 M3 릴리즈 후보입니다 | 결정됨 |
+| D4 `web.browse` | L2.web.plan B10 | M3 초입으로 옮겼습니다 | 결정됨 |
+| D5 MCP `input_required` | L2.mcp.spec §10 미결 2 | L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출합니다 | 결정됨 |
+| D6 MCP stdio 서버 실행 권한 | E-02(bwrap 없음), L2.mcp.spec §10 미결 5 | M2는 사용자 권한 실행입니다. `.mcp.json`(루트와 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽습니다. 샌드박스는 bwrap 시험 환경이 생긴 뒤 정합니다 | 일부 결정(샌드박스 열림) |
+| D7 `post.when = next`와 `aside` | L1.tasks.spec §4.9, FR-T4 | B안 + 1안입니다. F `PostWhen`은 바꾸지 않고 FR-T4는 철회합니다 | 결정됨 |
+| D8 Cordis 재시작 재적용 시점 | N-02 | (b) 다음 단계 경계에 적용합니다. X.3에서 구현했습니다 | 결정됨, 해결(8981bc8) |
+| D9 X 외부 확장 탐색·로더·훅·안전 모드 | V-09, X.loading-trust.plan L-13·L-14·L-18·L-28·L-29 | M3로 옮겼습니다. 프로젝트 신뢰(X.4)만 M2입니다. V-09(host의 X 로더 사용)도 M3에서 봅니다 | 결정됨 |
+| D10 pi-tui | L4.cli.spec §10 미결 6 | M2에 스파이크를 돌리고 한글 IME·CJK 폭 확인을 통과할 때만 1.3.0을 채택합니다. 종료 조건이 아닙니다 | 결정됨(스파이크 열림) |
+| D11 사람 확인 측정 | 없음 | 실제 키 검색 래퍼 측정(약 20회)과 개발자 세션 DB 사본 FTS 측정은 WEB.6, KN.4 뒤 각각 사용자 승인을 한 번 받습니다 | 결정됨 |
+| `@vscode/ripgrep` 소유 | M-04, DR-07 대 L2.workspace.plan 어긋남 | `platform-os`가 바이너리 경로를 제공하고 `cap-workspace`가 실행합니다. 두 문서를 맞췄습니다 | 결정됨 |
+| knip catalog 예외 | M-04 | `xeon/knip.json`의 catalog 예외를 Z.1까지 둡니다 | 결정됨 |
+| pi 메시지 스키마 깊은 검증 | F.conversation.spec §10 미결 2 | M3로 옮겼습니다. M2는 얕은 검증입니다 | 결정됨 |
+| `getOrThrow` | 없음 | 테스트 전용 도우미로 둡니다 | 결정됨 |
+| env-node-spill 스트림 훅 교체 | N-10과 같은 포크 파일 | `Reflect.get`을 쓰는 현재 방식을 유지합니다 | 결정됨 |
+| 테스트 실행 | E-01, E-04 | `just test`(`xeon/scripts/test-capped.sh`)가 cgroup 메모리 상한 아래에서 패키지 하나씩 돌립니다 | 결정됨 |
