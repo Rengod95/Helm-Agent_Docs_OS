@@ -220,9 +220,9 @@ xeon/packages/ext-host/
 | P-22 | 완료 | `LeaseArbiterPort` 주입, `activeDriveGroup` 중재, `drive_conflict`, `revoked` 반납(이름 지정 그룹이 후보일 때, spec §4.4.1 5번), `idle`·`budget` 반납 뒤 재후보 조건. `lease.test.ts` |
 | P-23 | 완료 | `hostOf(g).migrateState`, 버전 비교, 새 판 커밋(`mig:` 키), `state_future_version` 거부. thread에서 켤 때 준비한다. `migration.test.ts` |
 | P-27 | 완료 | `capabilityProviders` 선택, major 불일치 제외 진단, `capability_ambiguous`. `services.test.ts` |
-| P-28 | 완료 | thread별 켜짐 집합·요청, 세대 공유와 마지막 thread에서 해제, thread별 임대. 재시작을 넘는 전이 횟수는 F 변경이 필요(spec §10). `thread-scope.test.ts` |
+| P-28 | 완료 | thread별 켜짐 집합·요청, 세대 공유와 마지막 thread에서 해제, thread별 임대. 재시작을 넘는 전이 횟수와 끈 scope 복원은 `ExtThreadSnapshot.scopeTransitions`·`disabled`로 해소(spec §10). `thread-scope.test.ts` |
 | group-kit 요청 2·3·4 | 완료 | `ExtHost.leaseOf`, `ExtHost.onChange`, `TestHost.restart` |
-| group-kit 요청 1 | 보류 | `LeaseCandidate.enabledAtSeq`는 F `ports.ts`와 `ExtThreadSnapshot`(scope.changed의 seq)이 먼저 바뀌어야 한다. F 레인 요청 |
+| group-kit 요청 1 | 완료 | `LeaseCandidate.enabledAtSeq`(F `ports.ts`)와 `ExtThreadSnapshot.enabledAtSeq`. ext-host는 열 때 스냅샷에서, 켠 경계를 커밋한 뒤 `loadThread`에서 채운다. `lease.test.ts` |
 | N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`의 `Result`화(`ExtRowError`). 다른 패키지 호출처는 없다 |
 | P-24 | 완료 | `resources.ts`: `ResourceRegistry`(`list`·`subscribe`·`setFlag`), `ResourcePolicy` 결합(쌍 판정 + 집합 판정 `exposeAll`), 도구·provider·MCP 포트 위임, 명령·단축키·플래그·렌더러 보관, effect 자동 해제, `hostOf(g).register*`·`getFlag`. `resources.test.ts` |
 | P-25 | 완료 | detached tap은 완료를 기다리지 않고 `detached: true`를 돌려준다. 핸들러는 그 뒤 순서대로 실행되고 실패는 정책·진단으로만 보고된다. 예산은 받고 thread가 닫히면 중단·폐기한다. `dispatch-detached.test.ts` |

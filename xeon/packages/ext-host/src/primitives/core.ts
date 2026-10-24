@@ -212,8 +212,10 @@ export interface ThreadRuntime {
   want: Map<ScopeId, ThreadWant>;
   /** 상태 문서가 맞지 않아 이 thread에서 켜지 못한 scope. 이 thread가 다시 토글하기 전까지 다시 시도하지 않는다 */
   refused: Set<ScopeId>;
-  /** scope별로 이 프로세스에서 기록한 scope.changed 수. 커밋 키를 전이마다 구분한다 */
+  /** scope별 활성 가지 위 scope.changed 수(열 때 스냅샷에서 시작해 커밋마다 오른다). 커밋 키를 전이마다 구분한다 */
   flips: Map<ScopeId, number>;
+  /** 켜진 scope의 마지막 scope.changed{enabled} seq. 임대 후보의 enabledAtSeq가 된다 */
+  enabledAtSeq: Map<ScopeId, number>;
   leaseEpochs: Map<ScopeId, number>;
   lease: LeaseRuntime | null;
   /** 임대를 반납한 scope가 다음 turn_settled 또는 상태 판 변화 전까지 후보에서 빠지는 표(반납 때의 판) */

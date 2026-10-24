@@ -142,7 +142,12 @@ describe("reveal reauth (spec §4.9, U-20)", () => {
       show,
     );
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toMatchObject({ kind: "meta_invalid", name: "audit.log" });
+    if (!result.ok)
+      expect(result.error).toEqual({
+        kind: "audit_unwritable",
+        path: "memory://audit.log",
+        code: "EIO",
+      });
     expect(shown.calls).toBe(0);
     expect(mem.activeLeaseCount(HANDLE)).toBe(0);
   });

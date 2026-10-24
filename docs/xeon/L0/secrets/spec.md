@@ -461,12 +461,15 @@ export type SecretError =
   | { readonly kind: "already_exists"; readonly handle: SecretHandle }
   | { readonly kind: "read_only_provider"; readonly provider: SecretProviderId }
   | { readonly kind: "reauth_required" }
+  | { readonly kind: "audit_unwritable"; readonly path: string; readonly code: string }       // 감사 파일을 쓸 수 없다. 열람처럼 기록 없이는 진행하면 안 되는 동작이 멈춘다
+  | { readonly kind: "write_failed"; readonly target: "key_file"; readonly path: string; readonly code: string }  // 파일 쓰기 실패. 덮어쓰기 거부는 code가 EEXIST
   | { readonly kind: "cancelled" };                                  // 서비스가 닫혀 진행 중인 sops 호출·바이너리 해석이 중단됐다
 export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "win32-credential" | "file";
 ```
 
 - 예상 가능한 실패는 모두 `Result`로 돌려준다. throw는 `Bug`(호출 결함, 불변식 위반)에만 쓴다(`eng.typescript.guide` TY-11).
 - 오류 객체와 `message`에 값을 넣지 않는다. `stderrMasked`는 sops stderr를 `Redactor.mask`로 지나게 한 뒤 앞 500자만 둔다.
+- `audit_unwritable`과 `write_failed`의 `code`는 OS 오류 코드나 오류 이름만 싣는다. 값과 오류 메시지는 싣지 않는다. 키 파일 `provision`은 쓰기 실패의 원인을 `code`에 담아 돌려주며(TY-25) 원인을 버리지 않는다.
 - `secret_missing`은 `L2.mcp.spec` §5 표 10행의 `lastError.code = "secret_missing"`과 같은 이름이다.
 
 ## 4. 동작 규칙
@@ -551,7 +554,7 @@ M2 설계(후속 구현):
 
 ### 4.5 자식 env 필터
 
-1. 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/capabilities`, `L0.exec.spec` §3.5) 하나다. 이 서비스는 별도 목록(`childEnvPolicy`)을 두지 않는다 [제안]. `L0.exec.spec`은 도구 자식 프로세스 env를 만들 때 이 상수에 맞는 이름을 모두 지운다. 그래서 부모 env에 우연히 있던 `SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `XEON_SECRET_*`(상수의 `XEON_*`), 제공자 토큰(`*_TOKEN`)이 `xeon.secrets` 유무와 관계없이 도구로 넘어가지 않는다.
+1. 자식 env 거부 목록의 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/services`, `L0.exec.spec` §3.5) 하나다. 이 서비스는 별도 목록(`childEnvPolicy`)을 두지 않는다 [제안]. `L0.exec.spec`은 도구 자식 프로세스 env를 만들 때 이 상수에 맞는 이름을 모두 지운다. 그래서 부모 env에 우연히 있던 `SOPS_*`, `AGE_*`, `OP_*`, `BWS_*`, `BW_SESSION`, `XEON_SECRET_*`(상수의 `XEON_*`), 제공자 토큰(`*_TOKEN`)이 `xeon.secrets` 유무와 관계없이 도구로 넘어가지 않는다.
 2. `platform-secrets`가 sops를 부를 때도 같은 상수로 거른 env에 `KeyProvider.sopsKeyEnv()`의 변수 하나만 더한다.
 3. 거부 목록은 허용 목록 기반 env 구성(`L0.exec.spec` §3.5)을 대신하지 않는다. 허용 목록 위에 거는 거부 목록이다.
 4. 비밀 제공자가 새 env 이름을 쓰게 되면(2차 플러그인 제공자 등) `SENSITIVE_ENV_PATTERNS`에 패턴을 더하는 F 변경으로 반영한다. 이 문서에는 따로 목록을 두지 않는다.
@@ -745,7 +748,7 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 
 ## 9. 수용 기준
 
-1. 도구 자식 env: F 상수 `SENSITIVE_ENV_PATTERNS`가 `SOPS_AGE_KEY_CMD`, `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY`, `AGE_X`, `OP_SERVICE_ACCOUNT_TOKEN`, `BWS_ACCESS_TOKEN`, `BW_SESSION`, `XEON_SECRET_X`에 모두 맞는다. 부모 env에 이 이름들을 넣고 `L0.exec`로 띄운 도구 자식 프로세스의 env를 덤프하면 그중 어느 것도 없다(실제 자식 프로세스, `L0.secrets.plan` SC-15). 이 패키지가 sops를 부를 때의 env에도 없다.
+1. 도구 자식 env: F 상수 `SENSITIVE_ENV_PATTERNS`(`@xeon/contracts/services`)가 `SOPS_AGE_KEY_CMD`, `SOPS_AGE_KEY_FILE`, `SOPS_AGE_KEY`, `AGE_X`, `OP_SERVICE_ACCOUNT_TOKEN`, `BWS_ACCESS_TOKEN`, `BW_SESSION`, `XEON_SECRET_X`에 모두 맞는다. 부모 env에 이 이름들을 넣고 `L0.exec`로 띄운 도구 자식 프로세스의 env를 덤프하면 그중 어느 것도 없다(실제 자식 프로세스, `L0.secrets.plan` SC-15). 이 패키지가 sops를 부를 때의 env에도 없다.
 2. 호스트 바인딩: `use.hosts: ["api.example.test"]`인 비밀로 `withHttp`를 `https://other.example.test`에 부르면 `denied`(`host_mismatch`)가 돌아오고, `send`와 제공자 `lease`가 한 번도 불리지 않으며, `secret.denied` 레코드가 정확히 하나 나온다.
 3. 값 비노출(5계층 각각): 가짜 값 `S`(무작위 24바이트)를 `memorySecrets`에 넣고 각 계층 입력에 `S`, base64(`S`), base64url(`S`), URL 인코딩(`S`), hex(`S`), JSON 이스케이프(`S`), Basic 인증 형태 base64(`"user:" + S`)를 넣으면 계층 출력에 어느 형태도 남지 않는다. 계층 다섯 개를 테스트 다섯 개로 따로 확인한다.
 4. 감사 기록·오류·직렬화: `SecretLease`를 `JSON.stringify`, `Bun.inspect`, 템플릿 문자열, `Error` cause에 넣은 결과와 모든 `SecretAuditRecord`, 모든 `SecretError`에 `S`와 변형이 없다. 감사 레코드에 `S`의 SHA-256 hex의 어떤 16자 이상 부분 문자열도 없다.

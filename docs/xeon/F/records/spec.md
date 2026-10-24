@@ -963,6 +963,12 @@ export interface OpenLease {
 /** 모든 필드는 활성 가지(현재 leaf에서 parentId를 따라 올라간 사슬) 위 이벤트만으로 계산한다 */
 export interface ExtThreadSnapshot {
   readonly enabled: readonly string[];
+  /** 마지막 scope.changed가 disabled인 scope. 기본 켜짐 scope를 끈 뒤 다시 열어도 끈 상태를 되살리는 데 쓴다 */
+  readonly disabled: readonly string[];
+  /** scope마다 활성 가지 위 scope.changed 개수(enabled와 disabled 합). 재시작 뒤 커밋 키 구분에 쓴다 */
+  readonly scopeTransitions: Readonly<Record<string, number>>;
+  /** 켜진 scope마다 마지막 scope.changed{status:"enabled"}의 seq. 켜진 scope만 키를 갖는다 */
+  readonly enabledAtSeq: Readonly<Record<string, number>>;
   readonly states: readonly StoredScopeState[];
   /** lease.acquired 뒤 lease.released가 없는 임대. 최대 1개 */
   readonly openLease: OpenLease | null;

@@ -86,7 +86,15 @@ function fakePort(committer: string): RecordCommitPort {
       return Promise.resolve({ status: "committed" });
     },
     loadThread(): Promise<ExtThreadSnapshot> {
-      return Promise.resolve({ enabled: [], states: [], openLease: null, leaseEpochs: {} });
+      return Promise.resolve({
+        enabled: [],
+        disabled: [],
+        scopeTransitions: {},
+        enabledAtSeq: {},
+        states: [],
+        openLease: null,
+        leaseEpochs: {},
+      });
     },
     queryRecords(_threadId: ThreadId, query: ExtRecordQuery, reader: string) {
       const wildcard = query.kind.endsWith(".*");
@@ -202,5 +210,27 @@ describe("private records (acceptance 13)", () => {
       status: "replayed",
     });
     expect((await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(1);
+  });
+});
+
+describe("ExtThreadSnapshot scope history", () => {
+  test("a snapshot carries disabled scopes, transition counts and enable seqs", async () => {
+    const snapshot: ExtThreadSnapshot = {
+      enabled: ["alpha"],
+      disabled: ["beta"],
+      scopeTransitions: { alpha: 1, beta: 2 },
+      enabledAtSeq: { alpha: 7 },
+      states: [],
+      openLease: null,
+      leaseEpochs: {},
+    };
+    const port: Pick<RecordCommitPort, "loadThread"> = {
+      loadThread: () => Promise.resolve(snapshot),
+    };
+    const loaded = await port.loadThread(THREAD_ID);
+    expect(loaded.disabled).toEqual(["beta"]);
+    expect(loaded.scopeTransitions["beta"]).toBe(2);
+    // 켜진 scope만 enabledAtSeq 키를 갖는다
+    expect(Object.keys(loaded.enabledAtSeq)).toEqual([...loaded.enabled]);
   });
 });

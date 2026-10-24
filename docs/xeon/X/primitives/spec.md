@@ -1006,7 +1006,7 @@ stateDiagram-v2
   - 디스패치 스냅샷은 그 thread에서 켜진 scope의 핸들러만 고른다. 켜진 scope는 세대가 열려 있고 그 thread가 켠 상태(`ThreadRuntime.active`)인 것이다. 열어 두지 않은 thread(M0 시험)는 세대가 열려 있으면 켜진 것으로 본다.
   - 세대와 fiber는 scope마다 하나이고 한 thread라도 켜 두거나 켜기를 바라는 동안 살아 있다. 어느 thread도 쓰지 않으면 다음 경계 적용에서 닫는다. 다른 thread가 이미 연 세대를 켜는 thread는 setup을 다시 실행하지 않고 그 thread의 켜짐 집합과 상태 문서 준비(§4.6.1 3번)만 한다. `onDispose`는 세대를 닫을 때 한 번 실행된다.
   - 임대, 상태 판, `scope.changed`는 thread마다 따로다. 한 thread에서 scope를 끄면 그 thread의 임대만 `disabled`로 반납한다.
-  - 같은 thread에서 같은 세대가 켜졌다 꺼졌다 반복되면 유휴 적용의 커밋 키에 전이 횟수를 붙인다(`scope:<scopeId>:<세대>.<횟수>:enabled`, 횟수가 0이면 생략). 프로세스를 다시 시작하면 횟수는 0부터 다시 센다 [제안]. 재시작을 넘는 구분은 `ExtThreadSnapshot`이 전이 횟수를 주는 F 변경이 있어야 한다(§10 미결).
+  - 같은 thread에서 같은 세대가 켜졌다 꺼졌다 반복되면 유휴 적용의 커밋 키에 전이 횟수를 붙인다(`scope:<scopeId>:<세대>.<횟수>:enabled`, 횟수가 0이면 생략). thread를 열 때 횟수는 `ExtThreadSnapshot.scopeTransitions`(활성 가지 위 `scope.changed` 개수)에서 시작하므로 프로세스를 다시 시작해도 이전 실행이 쓴 키와 겹치지 않는다 [제안].
 
 #### 4.5.3 적용 순서
 
@@ -1424,7 +1424,7 @@ export interface EventBus {
 - F.extensions.spec §4.3 문구 보강(해소): 소비 커밋 전 재실행된 핸들러는 같은 페이로드를 받지만 `ctx.state`는 이미 커밋된 판일 수 있다는 규칙이 F.extensions.spec §4.3에 들어갔다(§4.6.1 재실행 규칙).
 - 고칠 문서 반영(해소, §4.6.1): L1.persistence.spec §3.3의 `ExtCommitResult` 변환표(`key_reused`·`busy`·`disk_full`·`read_only`), `fingerprintSource` 지문 규칙, `replayed`의 `stored`, `ext.loadThread`의 활성 가지 조회(`latestEvent`의 `onActiveBranch`)가 이 문서와 같다. L3.group-kit.spec §3.6 `StateProjectionRow` 열 이름과 §4.5 6번 멱등 reducer 예제도 반영됐다.
 - [미결] thread 맥락 밖 post 허용과 F `PostOptions.threadId?` 추가(§4.6.3).
-- 서비스 모드의 thread별 켜짐 상태(해소, M2 X.1): thread마다 켜짐 집합과 요청을 두고 세대는 scope마다 하나를 공유한다(§4.5.2, P-28). 재시작을 넘는 전이 횟수 구분(커밋 키 충돌 방지)과, thread에서 끈 scope를 다시 열 때 "끈 상태"를 되살리는 일은 `ExtThreadSnapshot`이 전이 횟수와 꺼진 목록을 주는 F 변경이 필요하다. 그 변경 전까지 키 충돌은 유휴 적용에서 막는다. 커밋이 `replayed`로 돌아왔는데 `loadThread`의 켜짐 목록이 이 경계가 기록하려던 전이와 어긋나면 이전 실행이 쓴 같은 키로 보고, 전이 횟수를 올려 새 키로 다시 커밋한다(최대 64번). 끈 scope의 "꺼짐" 복원은 이 방법으로 해결되지 않는다. 지금 스냅샷은 켜진 목록만 있어 끈 scope가 기본 켜짐이면 다시 열 때 켜진다.
+- 서비스 모드의 thread별 켜짐 상태(해소, M2 X.1·F): thread마다 켜짐 집합과 요청을 두고 세대는 scope마다 하나를 공유한다(§4.5.2, P-28). `ExtThreadSnapshot`이 `scopeTransitions`(전이 횟수), `disabled`(끈 scope), `enabledAtSeq`(켜진 scope의 마지막 켜짐 seq)를 준다. `openThread`는 `flips`를 `scopeTransitions`로, `want`를 `disabled`의 꺼짐 요청으로 시작한다. 그래서 재시작 뒤에도 커밋 키가 겹치지 않고, 기본 켜짐 scope를 끈 thread는 다시 열어도 꺼진 채이며 `scope.changed`도 다시 쓰지 않는다. `replayed`를 보고 전이 횟수를 올려 다시 커밋하던 임시 방편(최대 64번 재시도)은 없앴다.
 - 공급자 재시작 뒤 소비자 setup 재실행(해소, [결정: D8]): 재적용 요청만 기록하고 다음 단계 경계에서 적용한다(§4.5.4). U-01의 예외를 두지 않는다.
 - [미결] 능력 공급자 선택 규칙(설정 `x.primitives.capabilityProviders`)이 F.capabilities.spec §5 1번의 "provider 선택은 X와 각 L2 spec"과 맞는지, L2 spec별 기본 선택이 필요한지(§3.7).
 - [미결] `registerVirtualModel`과 명령 전용 세션 제어의 지원 여부(§4.8, `_research/notes/X-3.md` §5).

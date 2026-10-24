@@ -52,9 +52,23 @@ describe("file fallback provision (spec §4.7)", () => {
     const result = await provider.provision?.();
     expect(result).toEqual({
       ok: false,
-      error: { kind: "key_unavailable", key: "file", reason: "access_denied" },
+      error: { kind: "write_failed", target: "key_file", path, code: "EEXIST" },
     });
     expect(await readFile(path, "utf8")).toBe("existing key file marker\n");
+  });
+
+  test("a write failure keeps the OS code and leaves no key file", async () => {
+    const dir = await workdir();
+    // 부모 자리에 일반 파일을 둬서 디렉터리를 만들 수 없게 한다
+    await writeFile(dir.join("blocker"), "not a directory");
+    const path = dir.join("blocker", "keys.txt");
+    const result = await createFileKeyProvider({ path, uid: null }).provision?.();
+    // 부모가 일반 파일일 때 runtime마다 ENOTDIR이나 EEXIST를 준다. 코드 이름이 그대로 실리는지만 본다
+    expect(result?.ok).toBe(false);
+    if (result === undefined || result.ok) return;
+    expect(result.error).toMatchObject({ kind: "write_failed", target: "key_file", path });
+    expect(result.error.kind === "write_failed" ? result.error.code : "").toMatch(/^E[A-Z]+$/);
+    expect((await stat(dir.join("blocker"))).isFile()).toBe(true);
   });
 
   test("two provisions create different identities", async () => {

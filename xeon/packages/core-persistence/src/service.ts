@@ -70,7 +70,15 @@ const EXT_PORT_M2: SessionService["ext"] = {
   // 확장 상태를 기록하는 길(commit)이 M2까지 없으므로 활성 가지 위의 확장 상태는 늘 비어 있다. 던지면 ExtHost.openThread가
   // thread를 열지 못해 모든 경계 처리가 thread_not_open으로 실패한다
   loadThread: (): Promise<ExtThreadSnapshot> =>
-    Promise.resolve({ enabled: [], states: [], openLease: null, leaseEpochs: {} }),
+    Promise.resolve({
+      enabled: [],
+      disabled: [],
+      scopeTransitions: {},
+      enabledAtSeq: {},
+      states: [],
+      openLease: null,
+      leaseEpochs: {},
+    }),
   queryRecords: () =>
     Promise.reject(new Bug("session.not_implemented: ext.queryRecords arrives with M2 (PS-16)")),
 };

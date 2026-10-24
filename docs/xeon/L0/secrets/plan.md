@@ -260,8 +260,9 @@ xeon/packages/platform-secrets/
 
 | 요청 | 지금 대체 | 원천 |
 |---|---|---|
-| `SecretError`에 `audit_unavailable` 변형(감사 파일을 쓸 수 없음) | `meta_invalid`(`name: "audit.log"`, `path`는 감사 파일, `errors: ["unwritable (<코드>)"]`) | spec §3.10, §3.9 |
-| `SecretError`에 "키 파일을 만들 수 없음 또는 덮어쓰기 거부" 변형, 환경 변수 이름 오류 변형 | `key_unavailable`(`file`, `access_denied`), `invalid_ref`(`name_pattern`) | spec §3.10, §4.7 |
+| (해소, M2 F 레인) `SecretError`에 `audit_unwritable` 변형(감사 파일을 쓸 수 없음) | 반영됨. `auditUnavailable`이 `audit_unwritable{path, code}`를 돌려준다 | spec §3.10, §3.9 |
+| (해소, M2 F 레인) `SecretError`에 "키 파일을 만들 수 없음 또는 덮어쓰기 거부" 변형 | 반영됨. `provision`이 `write_failed{target:"key_file", path, code}`를 돌려주고 덮어쓰기 거부는 `code: "EEXIST"`다 | spec §3.10, §4.7 |
+| `SecretError`에 환경 변수 이름 오류 변형 | `invalid_ref`(`name_pattern`) | spec §3.10, §4.7 |
 | `SecretListing`에 결정별 사용 개수(`--usage`) | 없음. `usage()`로 센다 | spec §4.9 `ls` |
 | 설정 저장소의 비밀 참조 조회(`references`의 `settingKeys`) | `settingKeysFor` 주입(기본은 빈 목록) | spec §3.8 |
 | 조립 루트(HOST.3)에 `createSecretsRuntime`의 `osAuthAvailable`, `settingKeysFor` 연결 | 기본값 `false`와 빈 목록 | m2-plan HOST.3 |

@@ -10,8 +10,14 @@ import {
   RecordCommitPortKey,
   ScopedStorePortKey,
   ToolsPortKey,
+  type LeaseArbiterPort,
+  type LeaseCandidate,
   type PortKey,
 } from "../../src/extensions/index.ts";
+import { ThreadIdSchema } from "../../src/conversation/index.ts";
+import { must, rawId } from "../helpers/ids.ts";
+
+const THREAD = must(ThreadIdSchema, rawId("thr", 1));
 
 // F.extensions.spec §3.2.1 표: 서비스 이름과 member
 const KEYS: ReadonlyArray<
@@ -54,5 +60,32 @@ describe("port keys", () => {
     };
     expect(lookup.get(LoopPortKey)).toBeDefined();
     expect(lookup.get(McpPortKey)).toBeUndefined();
+  });
+});
+
+const candidate = (scopeId: string, enabledAtSeq: number | null): LeaseCandidate => ({
+  scopeId,
+  extension: scopeId,
+  loadIndex: 0,
+  defaultEnabled: true,
+  enabledAtSeq,
+});
+
+describe("LeaseCandidate", () => {
+  test("enabledAtSeq is a seq or null and an arbiter can order by it", () => {
+    const arbiter: LeaseArbiterPort = {
+      choose: (_threadId, candidates) =>
+        candidates.toSorted(
+          (a, b) =>
+            (a.enabledAtSeq ?? Number.MAX_SAFE_INTEGER) -
+            (b.enabledAtSeq ?? Number.MAX_SAFE_INTEGER),
+        )[0]?.scopeId ?? null,
+    };
+    const picked = arbiter.choose(THREAD, [
+      candidate("late", 9),
+      candidate("none", null),
+      candidate("early", 3),
+    ]);
+    expect(picked).toBe("early");
   });
 });
