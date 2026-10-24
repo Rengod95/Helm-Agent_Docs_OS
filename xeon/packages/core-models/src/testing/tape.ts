@@ -66,6 +66,11 @@ export interface ModelTapeTurn {
   /** matching = "context-hash"일 때 필수 */
   readonly match?: { readonly contextHash?: string };
   readonly response: TapeResponse;
+  /**
+   * 어댑터가 낸 원시 provider 스트림 이벤트(녹화). 있으면 테이프 provider가 응답 앞에 `onProviderStreamEvent`로 흘린다.
+   * pi-ai가 AssistantMessage에 싣지 않는 서버 도구 블록(hosted 검색)을 시험하는 데 쓴다
+   */
+  readonly rawEvents?: readonly unknown[];
   /** 사람용 설명. 비교하지 않는다 */
   readonly label?: string;
 }
@@ -95,9 +100,14 @@ export interface TapeRequest {
   readonly target?: TapeTarget;
 }
 
+/** 재생 결과: 이벤트 열과 그 차례의 원시 provider 이벤트 */
+export interface TapeStream extends AsyncIterable<AssistantMessageEvent> {
+  readonly rawEvents: readonly unknown[];
+}
+
 export interface TapePlayer {
   /** 차례의 응답을 pi-ai AssistantMessageEvent 열로 낸다. 짝이 없으면 TapeMismatchError를 던진다 */
-  stream(req: TapeRequest): AsyncIterable<AssistantMessageEvent>;
+  stream(req: TapeRequest): TapeStream;
   remaining(): number;
   consumed(): readonly ModelTapeTurn[];
   /** 남은 응답이 있으면 TapeLeftoverError. allowLeftover면 통과 */
@@ -260,6 +270,7 @@ const TurnSchema = Type.Unsafe<ModelTapeTurn>(
         Type.Object({ contextHash: Type.Optional(Type.String()) }, { additionalProperties: false }),
       ),
       response: ResponseSchema,
+      rawEvents: Type.Optional(Type.Array(Type.Unknown())),
       label: Type.Optional(Type.String()),
     },
     { additionalProperties: false },
@@ -496,8 +507,12 @@ async function* stalled(
 }
 
 /** 배열을 비동기 이터러블로 낸다. 소비자는 실제 스트림처럼 이벤트를 하나씩 비동기로 받는다 */
-function replay(events: readonly AssistantMessageEvent[]): AsyncIterable<AssistantMessageEvent> {
+function replay(
+  events: readonly AssistantMessageEvent[],
+  rawEvents: readonly unknown[],
+): TapeStream {
   return {
+    rawEvents,
     [Symbol.asyncIterator](): AsyncIterator<AssistantMessageEvent> {
       let index = 0;
       return {
@@ -542,8 +557,12 @@ export function tapePlayer(source: ModelTape, opts: { readonly clock: TapeClock 
       }
       const target = req.target ?? DEFAULT_TARGET;
       const timestamp = opts.clock.now();
-      if (next.response.type === "stall") return stalled(target, timestamp, req.signal);
-      return replay(responseEvents(next.response, target, timestamp));
+      const raw = next.rawEvents ?? [];
+      if (next.response.type === "stall") {
+        const pending = stalled(target, timestamp, req.signal);
+        return { rawEvents: raw, [Symbol.asyncIterator]: () => pending };
+      }
+      return replay(responseEvents(next.response, target, timestamp), raw);
     },
     remaining: () => [...queues.values()].reduce((sum, queue) => sum + queue.length, 0),
     consumed: () => [...used],

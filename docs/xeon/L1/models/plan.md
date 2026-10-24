@@ -104,7 +104,7 @@ xeon/plugins/provider-anthropic-oauth/
 | M-13 | 레이트 리밋·계정 회전: 별도 설계 문서 먼저(§7 위험 4), `core_models_*` 테이블, 계정 선택, 대기·전환, M3 설정 화면 키(`accounts`, `rateLimit`) | M-6, 설계 문서 | 대 | M3 |
 | M-14 | 폴백 체인: `overloaded`·`provider_unavailable`에서만, 콘텐츠 전 요청만 | M-1, M-2 | 중 | 2차 |
 
-- 구현 상태(M2, m2/l1c): M-2(역할 표 해석기, 허용·차단 목록), M-4(provider 등록부), M-5(캐시 정책 객체와 표식 적용), M-6의 `sk-ant-oat` 가드, M-7의 M2 키 11개를 구현했다. 설정 읽기는 `modelsSettingsOf`가 조립 루트의 `ModelsSettingsSource`를 대신한다. 나머지 지점 5개와 비밀 헤더 가림, 바인딩 변경 감지(M-11)도 구현했다. `HostedSearchPort`는 이어서 구현한다.
+- 구현 상태(M2, m2/l1c): M-2(역할 표 해석기, 허용·차단 목록), M-4(provider 등록부), M-5(캐시 정책 객체와 표식 적용), M-6의 `sk-ant-oat` 가드, M-7의 M2 키 11개를 구현했다. 설정 읽기는 `modelsSettingsOf`가 조립 루트의 `ModelsSettingsSource`를 대신한다. 나머지 지점 5개와 비밀 헤더 가림, 바인딩 변경 감지(M-11)도 구현했다. `HostedSearchPort`는 L1C.3에서 구현했다(spec §3.12).
 - 선행 외부 작업: contracts(F 요청 타입), platform-secrets 서비스 인터페이스(`L0.secrets.spec`), X 지점 디스패치(`X.primitives.plan`), core-loop의 `streamFn` 사용(`L1.loop.plan`).
 - M-2는 순수 함수라 M1에서 먼저 만들어도 된다. M1 경로는 `main` 역할과 `l1.models.default`만 쓴다.
 
@@ -149,6 +149,9 @@ xeon/plugins/provider-anthropic-oauth/
 | `headers_point_payload_masks_secret_values` | `test/pipeline.test.ts` | unit | `before_provider_headers` 페이로드의 인증 헤더 값은 `"[secret]"`이고, 핸들러가 인증 헤더를 패치하지 않으면 실제 요청에는 해석한 값이 그대로 나간다. 지점 페이로드와 로그에 가짜 키 문자열이 없다(M-11, spec §3.9, §7.2) | M2 |
 | `model_select_fires_on_binding_change` | `test/routing.test.ts` | unit | 단계 시작 바인딩이 이전 단계와 다르면 `model_select`가 한 번 발화하고, 레벨만 다르면 `thinking_level_select`만 발화한다. 바인딩이 같으면 둘 다 0회(M-11, spec §4.2 6번) | M2 |
 | `release_manifest_excludes_oauth_plugin` | `xeon/scripts/check-release.test.ts` | unit | 일부러 의존을 넣은 픽스처 `package.json`에서 검사가 실패하고, 실제 워크스페이스에서는 통과 | M2 |
+| `hosted_search_single_turn` | `test/hosted-search.test.ts` | unit | 서버 도구 하나만 단 단일 요청, 결과·인용·사용량 변환, `encrypted_content` 미노출, `search` 역할·캐시 없음, 요청 지점 미발화(L1C.3) | M2 |
+| `hosted_search_pause_continuation` | 같음 | unit | `pause_turn` 응답의 continuation이 다음 요청에 assistant 메시지로 되돌아가고 호출자에게는 불투명하다(L1C.3) | M2 |
+| `hosted_search_failures` | 같음 | unit | 조직 차단 400, 429, 도구 오류 블록, 스트림 오류, 중단, 가드 차단의 `HostedSearchError` 변환(L1C.3) | M2 |
 
 - 테스트는 실제 모델과 네트워크를 쓰지 않는다(`eng.testing.guide` 26행). 예외는 복사한 `anthropic-tool-name-normalization.test.ts`이고 키가 없으면 건너뛴다. CI에는 키를 두지 않는다.
 - 내려받은 테스트 파일은 복사 후 내용을 검토한 뒤 실행한다.

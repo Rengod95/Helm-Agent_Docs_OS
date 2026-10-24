@@ -18,6 +18,7 @@ export {
   type TapePlayer,
   type TapeRequest,
   type TapeResponse,
+  type TapeStream,
   type TapeTarget,
 } from "./tape.ts";
 export {

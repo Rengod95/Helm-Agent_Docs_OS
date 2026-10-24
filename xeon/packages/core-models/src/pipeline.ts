@@ -68,6 +68,8 @@ export interface CallSpec {
   readonly cachePolicy: CachePolicy;
   readonly context: Context;
   readonly options?: ModelCallOptions;
+  /** core-models 안에서만 쓰는 호출 변형. hosted 검색이 쓴다 */
+  readonly internal?: CallInternals;
   /** model_select 지점의 source. 체크포인트로 다시 묶은 호출이면 restore, 아니면 route */
   readonly selectSource: ModelSelectSource;
   /** 호출 시점의 레벨별 토큰 예산 설정. pi-ai에는 minimal~high만 넘어간다 */
@@ -76,6 +78,16 @@ export interface CallSpec {
   readonly apiKey?: string;
   /** 참이면 pi-ai provider 요청 단계의 재시도(maxRetries)를 켠다. complete는 거짓이다(이중 재시도 방지) */
   readonly providerRetries: boolean;
+}
+
+/** 호출 하나에 덧붙이는 내부 훅. 대화 호출은 쓰지 않는다 */
+export interface CallInternals {
+  /** 캐시 표식 적용 뒤, before_provider_request 앞에서 페이로드를 바꾼다. 같은 입력에 같은 결과여야 한다 */
+  readonly payloadHook?: (payload: unknown) => unknown;
+  /** 어댑터가 낸 원시 스트림 이벤트를 받는다 */
+  readonly rawEventSink?: (data: unknown) => void;
+  /** 참이면 요청 지점(before_provider_request 등)을 발화하지 않는다. thread에 속하지 않는 호출이다 */
+  readonly skipPoints?: boolean;
 }
 
 export interface Pipeline {
@@ -172,6 +184,11 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
     return Object.fromEntries(values);
   }
 
+  /** 이 호출이 쓰는 지점 발화기. thread에 속하지 않는 내부 호출은 지점을 발화하지 않는다 */
+  function dispatcherOf(spec: CallSpec): ProviderDispatcher | null {
+    return spec.internal?.skipPoints === true ? null : deps.dispatcher;
+  }
+
   /** 비밀 참조에서 푼 헤더 이름(소문자). before_provider_headers에서 값을 가린다 */
   function secretHeaderNames(provider: string): ReadonlySet<string> {
     const declared = deps.overlay(provider)?.headers ?? {};
@@ -191,7 +208,9 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
     const retry = deps.retry();
     const retention = spec.options?.cacheRetention ?? spec.cachePolicy.retention;
     const useSession = retention !== "none" && spec.cachePolicy.sessionKey === "thread";
-    const dispatcher = deps.dispatcher;
+    const dispatcher = dispatcherOf(spec);
+    const hook = spec.internal?.payloadHook;
+    const rawSink = spec.internal?.rawEventSink;
     const marks: CacheMarks | undefined =
       api === "anthropic-messages" && retention !== "none" ? spec.options?.cacheMarks : undefined;
     const hasOverlayHeaders = Object.keys(deps.overlay(spec.provider)?.headers ?? {}).length > 0;
@@ -250,18 +269,19 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
           }
         : {}),
       // 5: 페이로드 확정 뒤 캐시 표식 적용 → before_provider_request. 재시도 때 다시 불려도 같은 입력이면 같은 결과다
-      ...(dispatcher === null && marks === undefined
+      ...(dispatcher === null && marks === undefined && hook === undefined
         ? {}
         : {
             onPayload: async (payload: unknown): Promise<unknown> => {
               const marked =
                 marks === undefined ? payload : applyCacheMarks(payload, marks, spec.context);
-              if (dispatcher === null) return marked;
+              const hooked = hook === undefined ? marked : hook(marked);
+              if (dispatcher === null) return hooked;
               return await dispatcher.beforeProviderRequest({
                 ...base,
                 ...target,
                 dispatchKey: keyOf("before_provider_request"),
-                payload: marked,
+                payload: hooked,
               });
             },
           }),
@@ -280,10 +300,12 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
             },
           }),
       // 9: 원시 스트림 이벤트. 지원하는 어댑터만 부른다
-      ...(dispatcher === null || !hasStreamPoint
+      ...((dispatcher === null || !hasStreamPoint) && rawSink === undefined
         ? {}
         : {
             onProviderStreamEvent: async (data: unknown) => {
+              rawSink?.(data);
+              if (dispatcher === null || !hasStreamPoint) return;
               streamEvents += 1;
               await dispatcher.providerStreamEvent?.({
                 ...base,
@@ -304,6 +326,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
    * (처음이거나 프로세스를 다시 띄운 뒤) previous가 null인 model_select를 한 번 낸다
    */
   async function fireSelectPoints(spec: CallSpec, keyOf: (point: string) => string): Promise<void> {
+    if (spec.internal?.skipPoints === true) return;
     const dispatcher = deps.dispatcher;
     const { ctx } = spec;
     const key = `${ctx.threadId}|${ctx.role}|${ctx.scopeId ?? ""}`;

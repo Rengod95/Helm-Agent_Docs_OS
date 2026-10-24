@@ -25,6 +25,7 @@ import {
 } from "@xeon/contracts/services";
 import { buildCachePolicy, withRetention } from "./cache-policy.ts";
 import { classifyMessage } from "./classify.ts";
+import { createHostedSearch } from "./hosted-search.ts";
 import { createFailureLog } from "./failure-log.ts";
 import { createPipeline, type CallSpec } from "./pipeline.ts";
 import type { ProviderDispatcher } from "./request-points.ts";
@@ -295,6 +296,13 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     return infos;
   }
 
+  const hostedSearch = createHostedSearch({
+    resolve: (model) => resolveWith("search", model === "auto" ? {} : { ref: model }),
+    start: (spec) => pipeline.start(spec),
+    budgets: () => deps.settings().thinkingBudgets,
+    ...(deps.logger === undefined ? {} : { logger: deps.logger }),
+  });
+
   return {
     resolve: (role, overrides = {}) => resolveWith(role, overrides),
     rebind(binding: ModelBinding): Result<ResolvedModel, ModelError> {
@@ -336,5 +344,6 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     usage,
     tokens,
     classify: (message, contextWindow) => classifyMessage(message, contextWindow),
+    hostedSearch,
   };
 }

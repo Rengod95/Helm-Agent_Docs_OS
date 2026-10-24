@@ -514,6 +514,21 @@ export function setup(g: ScopeApi<unknown>): void;
 - 등록 경로: 플러그인 → F provider 인터페이스(`ProviderDef`) → `xeon.models`(core-models 서비스)의 `addProvider`. 서비스는 X가 주입한다. 플러그인은 X `ModelsPort`(`hostOf(g).registerProvider`)를 쓰지 않는다(`X.primitives.spec` §3.9). 플러그인은 core-models를 import하지 않는다.
 - 이 경로는 import 자체를 없애므로 `plugins/*`를 L1에 두어도 같은 층 import가 생기지 않는다. 고칠 구속 문서: `eng.dependency-rules.guide` DR-07(pi-ai 소유 패키지에 `plugins/provider-anthropic-oauth`를 더한다)과 DR-09(플러그인 허용 목록을 F, X, L0, pi-ai·Anthropic SDK로 바꾸고 `DR-02/provider-anthropic-oauth` 항목을 지운다).
 
+### 3.12 hosted 검색 포트
+
+내장 검색 래퍼(`L2.web.spec` §4.8.4)가 쓰는 `ModelService.hostedSearch`(F `HostedSearchPort`, `@xeon/contracts/services`)의 구현이다 [구현: M2, L1C.3]. 타입은 F가 정했고 이 절은 구현 규칙만 적는다.
+
+- 모델: `HostedSearchRequest.model`이 `auto`이면 역할 `search`의 해석 결과(`l1.models.routing.search` → `summary` → `main` → default)이고, 아니면 그 모델 참조를 역할 `search`로 해석한다(허용·차단 목록을 거친다). 해석에 실패하면 `support`는 `no_model`, `search`는 `unsupported_model`(provider·모델 null)이다.
+- 지원 판정(`support`): 모델 API가 `anthropic-messages`이고 provider가 `anthropic`이거나 기본 주소의 호스트가 `anthropic.com`이면 지원한다. 같은 API를 쓰는 타사 호환 서버는 지원하지 않는다(`no_hosted_search`). 판정은 모델 호출도 비밀 해석도 하지 않는다.
+- 요청: 기존 호출 파이프라인을 지난다(비밀 참조 해석, `sk-ant-oat` 가드, 재시도, 사용량). 추가로 `onPayload` 훅이 페이로드에 서버 도구 `{ type: "web_search_20250305", name: "web_search", max_uses: 1 }`을 넣는다. 시스템 프롬프트는 `request.system`, 사용자 메시지는 `request.query` 한 줄, 출력 상한은 `maxOutputTokens`, 추론은 끈다. 캐시는 역할 `search`라 보존 없음이다.
+- 도메인: `allow`가 있으면 `allowed_domains`만, 없고 `deny`가 있으면 `blocked_domains`만 넘긴다(Anthropic은 둘을 함께 받지 않는다). 둘 다 있으면 `deny`는 넘기지 않고 로그 `hosted_search.deny_not_sent`를 남긴다. 호출자가 결과를 다시 거른다.
+- 응답: pi-ai anthropic 어댑터는 서버 도구 블록을 `AssistantMessage`에 싣지 않으므로 어댑터가 `onProviderStreamEvent`로 넘기는 원시 SSE 이벤트를 `anthropic-stream.ts`가 다시 모은다. `web_search_tool_result`의 `url`, `title`, `page_age`가 `results`, 텍스트 블록의 `web_search_result_location`이 `citations`, 텍스트가 `text`다. `encrypted_content`, `encrypted_index`는 응답에 담지 않는다. 사용량은 입력·출력 토큰과 `server_tool_use.web_search_requests`다.
+- 종료 사유: `message_delta`의 `stop_reason`을 `end_turn`, `pause_turn`, `max_tokens`, `refusal`로 옮기고 그 밖의 값은 `end_turn`이다. 종료 사유를 받았으면 `refusal`처럼 pi-ai가 오류로 끝낸 경우도 정상 응답이다.
+- 이어 요청: `pause_turn`이면 직전 응답의 content 블록 전체(`encrypted_content` 포함)를 JSON으로 직렬화해 `hs1:<base64url>` 문자열로 `continuation`에 담는다. 호출자는 읽거나 저장하지 않는다. 다음 요청의 `continuation`은 페이로드 `messages` 끝에 assistant 메시지로 되돌려 보낸다. 해석할 수 없는 문자열은 `upstream`(`status: null`)이고 요청을 보내지 않는다.
+- 오류(`HostedSearchError`): 신호가 중단됐으면 `cancelled`. HTTP 400이고 메시지에 web search와 organization·admin·disabled·not enabled 계열 단어가 함께 있으면 `org_disabled` [가정: 오류 문구는 실제 응답으로 확인하지 못했다]. 429나 도구 결과의 `too_many_requests`는 `rate_limited`(`retryAfterMs: null`). provider·모델 없음은 `unsupported_model`. 그 밖은 `upstream`이고 `status`는 메시지에서 읽은 HTTP 상태, `message`는 비밀 마스킹을 거친 문자열이다. 결과가 없고 도구 결과가 `web_search_tool_result_error`면 `upstream`이다.
+- thread에 속하지 않는 호출이다. 요청 지점(`before_provider_request` 등)과 `model_select`는 발화하지 않는다. 사용량은 예약 thread id(`HOSTED_SEARCH_THREAD`)에 역할 `search`로 쌓인다.
+- 시험: 어댑터 원시 이벤트를 테이프 차례의 `rawEvents`로 재생한다(`@xeon/core-models/testing`의 테이프 provider). 네트워크 호출은 없다.
+
 ## 4. 동작 규칙
 
 ### 4.1 역할 해석

@@ -13,7 +13,7 @@ import {
 } from "@earendil-works/pi-ai";
 import { eachAsync } from "@xeon/contracts";
 import type { ModelRole } from "@xeon/contracts/services";
-import { TapeMismatchError, type TapePlayer } from "./tape.ts";
+import { TapeMismatchError, type TapePlayer, type TapeStream } from "./tape.ts";
 
 // 테이프 재생기를 pi-ai Provider로 감싼다. core-models의 ModelService, 다른 L1·L2 패키지 테스트가 실제 모델 대신
 // 이 provider를 `createModels({ credentials }).setProvider(...)`에 더해 쓴다(eng.testing.guide TS-04, plan §2).
@@ -165,7 +165,7 @@ export function tapeProvider(
       await streamOptions?.onProviderStreamEvent?.(raw, model);
       return undefined;
     });
-    let events: AsyncIterable<AssistantMessageEvent>;
+    let events: TapeStream;
     try {
       events = player.stream({
         role,
@@ -177,6 +177,10 @@ export function tapeProvider(
       if (error instanceof TapeMismatchError) mismatches.push(error);
       throw error;
     }
+    await eachAsync([...events.rawEvents], async (raw) => {
+      await streamOptions?.onProviderStreamEvent?.(raw, model);
+      return undefined;
+    });
     for await (const event of events) yield withCost(model, event);
   }
 
