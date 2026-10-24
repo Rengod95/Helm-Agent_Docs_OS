@@ -53,3 +53,38 @@ export {
 } from "./state.ts";
 export { checkRecordKind, checkPostItem, kindVisibleTo, type RecordCheck } from "./records.ts";
 export { groupKitSettings } from "./settings.ts";
+export {
+  GROUP_USAGE,
+  groupCommand,
+  parseGroupCommand,
+  runGroupCommand,
+  type CommandOutput,
+  type GroupCommand,
+  type GroupCommandParse,
+  type GroupCommandRegistration,
+  type GroupServiceWithSetting,
+} from "./commands.ts";
+export { displayWidth, formatGroupStatusLine, type StatusLineOptions } from "./status-line.ts";
+export {
+  GroupServiceName,
+  createGroupService,
+  type GroupHostView,
+  type GroupServiceDeps,
+} from "./service.ts";
+export type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
+export type {
+  DriveHolderSettingsPort,
+  HolderSettingScope,
+  HolderWriteError,
+} from "./ports/holder.ts";
+export type {
+  DriveHolderSetting,
+  DriveRole,
+  GroupCommandError,
+  GroupError,
+  GroupResult,
+  GroupService,
+  GroupStatus,
+  HolderReceipt,
+  ToggleReceipt,
+} from "@xeon/contracts/services";
