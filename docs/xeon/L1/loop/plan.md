@@ -109,7 +109,7 @@ xeon/packages/core-loop/
 | LP9 | `input` 지점 발화 위치 확정: `admit`의 input chain → `inputs.enqueue` 순서, 확장 post 비경유. runtime-flow 그림 수정 요청(FR-L7)과 L1.tasks.spec §7 일치 확인 | LP1, L1.tasks.plan TK-5 | S | M1 |
 | LP10 | drive 연동: `runTurn`의 T1 build 안 `turnByRequestId` 조회와 `leaseEpoch` 펜싱, 열린 turn 이어 끝내기, thread 취소 신호 처리, `LoopTurnResult.usage` | LP5, LP6, M0: ext-host drive 최소형 | M | M1(최소), M2(정식 테스트) |
 | LP11 | `stopAtSafeBoundary`: T4 뒤 결정 `end`, T6 생략, 시한 처리 | LP4 | S | M1 |
-| LP12 | `user_bash` 진입점과 `await_input` 재진입의 승인 응답 연결 | LP5, L1.tools 승인 프로토콜 | M | M2 |
+| LP12 | `user_bash` 진입점과 `await_input` 재진입의 승인 응답 연결 (`await_input` 재진입 완료 2026-10-24: 시험 `await_input_resumes_after_approval_response`, 열린 turn을 닫을 때 그 turn의 미해결 승인 취소. `user_bash`는 L1A.5) | LP5, L1.tools 승인 프로토콜 | M | M2 |
 | LP13 | 목표 판정 소비 지점 계약 시험(가짜 판정 핸들러) | LP7, L1.agents 판정 API | S | M3 |
 | LP14 | 반복 감지 | LP7, FR-L5 | M | 2차 |
 | LP15 | 자식 thread turn `runChildTurn`(spec §4.13): requestId 멱등 조회, 자식 turn 노드(`openScope` 부모 subagent), `systemPrompt`·`model`·`ToolRunContext` 값 전달, 자식 한도(`child_limit`) | LP5, LP10, L1.agents.plan AG-2 | M | M2 |

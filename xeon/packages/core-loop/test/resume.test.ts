@@ -406,3 +406,96 @@ test("an_interrupt_during_a_tool_closes_the_calls_that_never_ran", async () => {
   const keys = h.fake.commitKeys(h.threadId);
   expect(keys.filter((key) => key === "tool:c2:result").length).toBeGreaterThan(0);
 });
+
+// L1A.4 (LP12): 승인 대기 중 끊긴 turn은 await_input으로 재개하고, 응답이 기록되면 같은 호출이 주 경로로 실행된다
+test("await_input_resumes_after_approval_response", async () => {
+  const bash: ScriptedResponse = {
+    kind: "message",
+    content: [{ type: "toolCall", id: "call_a", name: "bash", arguments: {} }],
+    stopReason: "toolUse",
+  };
+  const tools = [{ name: "bash", requiresApproval: true }];
+  const h = await createHarness({ tools, script: [bash], withApprovals: true });
+  // 승인 요청과 대기 체크포인트가 커밋된 직후 끊긴다
+  h.fake.crashAfter((key) => key === "approval:call_a:request");
+  await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
+  await h.settle();
+  const before = h.fake.events(h.threadId);
+  expect(countKind(before, "approval.requested")).toBe(1);
+  expect(countKind(before, "effect.intent")).toBe(0);
+  const waiting = before.findLast((event) => event.kind === "checkpoint.step");
+  expect(waiting?.payload).toMatchObject({
+    next: "await_input",
+    pendingToolCalls: [{ toolCallId: "call_a", effectId: null, waiting: "approval" }],
+  });
+
+  const h2 = await h.restart({ tools, script: [text("all done")], withApprovals: true });
+  const resumed = await h2.loop.resume(h2.threadId);
+  expect(resumed.ok && resumed.value).toMatchObject({ status: "resumed", from: "await_input" });
+  await h2.tick();
+  // 승인 대기를 되살렸고 응답이 오기 전에는 모델도 도구도 부르지 않는다
+  expect(h2.restored).toEqual([h2.threadId]);
+  expect(h2.models.requests).toHaveLength(0);
+  expect(h2.tools.executed).toEqual([]);
+  expect(h2.tools.waitingApproval).toEqual(["call_a"]);
+  expect(countKind(h2.fake.events(h2.threadId), "approval.requested")).toBe(1);
+
+  // 응답이 기록되면 같은 호출이 prepare·execute로 실행되고 단계가 마감된다
+  expect(await h2.tools.respondApproval("call_a")).toBe(true);
+  await h2.settle();
+  expect(h2.tools.executed).toEqual(["call_a"]);
+  const events = h2.fake.events(h2.threadId);
+  expect(countKind(events, "approval.requested")).toBe(1);
+  expect(countKind(events, "approval.resolved")).toBe(1);
+  expect(countKind(events, "effect.result")).toBe(1);
+  expect(countKind(events, "turn.completed")).toBe(1);
+  expect(h2.models.requests).toHaveLength(1);
+  expect(events.find((event) => event.kind === "step.completed")?.payload).toMatchObject({
+    stepIndex: 0,
+    stopReason: "toolUse",
+  });
+});
+
+test("a turn without a pending approval does not call restore on resume", async () => {
+  const h = await createHarness({
+    tools: [{ name: "read" }],
+    script: [read("c1"), text("never used")],
+    withApprovals: true,
+  });
+  await startAndCrash(h, (key) => /^step:.*:0:end$/.test(key), "after");
+  const h2 = await h.restart({
+    tools: [{ name: "read" }],
+    script: [text("done")],
+    withApprovals: true,
+  });
+  await h2.loop.resume(h2.threadId);
+  await h2.settle();
+  expect(h2.restored).toEqual([]);
+});
+
+test("closing a stale turn cancels the approval requests it left behind", async () => {
+  const bash: ScriptedResponse = {
+    kind: "message",
+    content: [{ type: "toolCall", id: "call_a", name: "bash", arguments: {} }],
+    stopReason: "toolUse",
+  };
+  const tools = [{ name: "bash", requiresApproval: true }];
+  const h = await createHarness({ tools, script: [bash], withApprovals: true });
+  h.fake.crashAfter((key) => key === "approval:call_a:request");
+  await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
+  await h.settle();
+  const requested = h.fake.events(h.threadId).find((event) => event.kind === "approval.requested");
+
+  // 재개 없이 새 입력이 온다: 열린 turn을 닫으면서 그 turn의 미해결 승인 요청도 취소한다
+  const h2 = await h.restart({ tools, script: [text("fresh")], withApprovals: true });
+  const admitted = await h2.loop.admit({
+    threadId: h2.threadId,
+    content: "new",
+    via: "interactive",
+  });
+  expect(admitted.ok && admitted.value.status).toBe("started");
+  await h2.settle();
+  expect(h2.restored).toEqual([h2.threadId]);
+  expect(h2.cancelledApprovals).toEqual([requested?.id ?? "missing"]);
+  expect(h2.tools.executed).toEqual([]);
+});

@@ -1,4 +1,4 @@
-import { Bug, type Logger, type LogFields } from "@xeon/contracts";
+import { Bug, ok, type Logger, type LogFields } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import { InputQueuePortKey, LoopPortKey, RecordCommitPortKey } from "@xeon/contracts/extensions";
 import { EVENT_CATALOG, type CatalogEntry } from "@xeon/contracts/records";
@@ -53,6 +53,8 @@ export interface HarnessOptions {
   readonly modelCallsCapacity?: number;
   readonly maxResumeAttempts?: number;
   readonly cancelledByOwner?: () => boolean;
+  /** 승인 서비스 대역(`restore`만)을 루프에 건다. 재개 때 `await_input`이면 restore를 부르는지 본다 */
+  readonly withApprovals?: boolean;
   /** 루프 서비스를 만들지 않는다. 단계 함수를 직접 부르는 시험(loop-rig)이 `core.loop` 생산자를 쓰려고 한다 */
   readonly withoutLoop?: boolean;
 }
@@ -62,6 +64,10 @@ export interface Harness {
   readonly fake: FakeSession;
   readonly tasks: FakeTasks;
   readonly tools: FakeTools;
+  /** `restore`가 불린 thread. withApprovals가 아니면 비어 있다 */
+  readonly restored: readonly ThreadId[];
+  /** `cancel`로 닫은 승인 id */
+  readonly cancelledApprovals: readonly string[];
   readonly models: FakeModels;
   readonly context: FakeContext;
   readonly host: TestHost;
@@ -138,6 +144,8 @@ async function build(
   const models = createFakeModels({ clock, script: options.script ?? [] });
   const context = createFakeContext({ session: fake.session, clock });
   const logs = capturedLogger();
+  const restored: ThreadId[] = [];
+  const cancelledApprovals: string[] = [];
   const loop =
     options.withoutLoop === true
       ? disabledLoop()
@@ -152,6 +160,20 @@ async function build(
           context: context.service,
           models: models.service,
           ext: host.host,
+          ...(options.withApprovals === true
+            ? {
+                approvals: {
+                  restore: async (restoring: ThreadId) => {
+                    restored.push(restoring);
+                    return ok(await tools.pendingApprovals(restoring));
+                  },
+                  cancel: (approvalId: string) => {
+                    cancelledApprovals.push(approvalId);
+                    return Promise.resolve({ applied: true });
+                  },
+                },
+              }
+            : {}),
           settings: { maxSteps: () => options.maxSteps ?? 0 },
           basePrompt: "You are a test assistant.",
           hostMode: "in-process",
@@ -173,6 +195,8 @@ async function build(
     fake,
     tasks,
     tools,
+    restored,
+    cancelledApprovals,
     models,
     context,
     host,

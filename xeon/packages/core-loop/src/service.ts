@@ -24,6 +24,7 @@ import { abortIntentRequest } from "./commits.ts";
 import { commitWithRetry, describeCommitFailure, type CommitFailure } from "./commit.ts";
 import { createDrafter } from "./drafts.ts";
 import { LoopRejection } from "./errors.ts";
+import { forEachSequential } from "./sequence.ts";
 import { planReentry, reduceOpenTurn, type OpenTurnReduction } from "./resume.ts";
 import { runTurn as runLoopTurn } from "./loop/run-turn.ts";
 import type { TurnEntry, TurnRunResult } from "./loop/types.ts";
@@ -305,6 +306,33 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   // ── 재개 ────────────────────────────────────────────────────────────
 
   /** 열린 turn을 interrupted로 닫는다: 결과 없는 호출을 닫고 T6를 쓴다 */
+  /** 닫는 turn이 올린 미해결 승인 요청을 취소로 닫는다. 읽기나 취소가 실패해도 turn 닫기는 계속한다 */
+  async function cancelTurnApprovals(
+    threadId: ThreadId,
+    turnId: TurnId,
+    reason: string,
+  ): Promise<void> {
+    const approvals = deps.approvals;
+    if (approvals === undefined) return;
+    const restored = await approvals.restore(threadId);
+    if (!restored.ok) {
+      deps.logger.warn("loop.approvals_restore_failed", { threadId, reason: restored.error.kind });
+      return;
+    }
+    const stale = restored.value.filter(
+      (request) => request.origin.threadId === threadId && request.origin.turnId === turnId,
+    );
+    await forEachSequential(stale, async (request) => {
+      const closed = await approvals.cancel(request.approvalId, `turn closed: ${reason}`);
+      if (!closed.applied) {
+        deps.logger.warn("loop.approval_cancel_not_applied", {
+          threadId,
+          approvalId: request.approvalId,
+        });
+      }
+    });
+  }
+
   async function closeOpenTurn(
     thread: ThreadRuntime,
     turnId: TurnId,
@@ -314,6 +342,8 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     if (!before.ok) return before;
     const opened = reduceOpenTurn(before.value, turnId);
     if (opened === undefined || opened.completed) return ok(undefined);
+    // 이 turn이 남긴 미해결 승인 요청은 답을 받을 호출이 없다. 닫는 turn에 커밋이 막히기 전에 취소로 닫는다(L1.tools.spec §4.7 8번)
+    await cancelTurnApprovals(thread.threadId, turnId, reason);
     const scope = openTurnScope(thread, turnId);
     beginRunning(thread, turnId, scope);
     // 취소 신호를 켠다. 의도 커밋은 같은 키라 이미 있으면 다시 쓰지 않는다

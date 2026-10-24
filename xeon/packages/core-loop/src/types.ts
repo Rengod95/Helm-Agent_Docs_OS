@@ -43,7 +43,7 @@ export interface LoopDeps {
   /** 소유 사슬 취소 판정(`RecoverDeps.cancelledByOwner`, L1.tasks.spec §4.8 3번) */
   readonly cancelledByOwner: (threadId: ThreadId, turnId: TurnId) => boolean;
   /** 있으면 `await_input` 재진입 전에 미해결 승인 요청을 메모리 대기로 되살린다 */
-  readonly approvals?: Pick<ApprovalService, "restore">;
+  readonly approvals?: Pick<ApprovalService, "restore" | "cancel">;
 }
 
 /** turn 시작(T1) 결과. 큐 입력 시작과 drive 시작이 함께 쓴다 */
