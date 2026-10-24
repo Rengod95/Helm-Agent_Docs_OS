@@ -115,8 +115,10 @@ test("state.restore-on-resume", async () => {
   await first.settled();
   await first.boundary(thread).turnSettled();
   await first.settled();
-  const snapshot = await first.records.loadThread(thread);
-  expect(snapshot.states.map((state) => state.doc)).toEqual([{ n: 2 }]);
+  const loaded = await first.records.loadThread(thread);
+  expect(loaded.ok).toBe(true);
+  if (!loaded.ok) return;
+  expect(loaded.value.states.map((state) => state.doc)).toEqual([{ n: 2 }]);
 
   // 프로세스 재시작을 흉내 낸다: 같은 저장소를 새 호스트에 넘긴다
   const second = await first.restart();
@@ -192,8 +194,10 @@ test("state.migration-upgrades-a-lower-stored-version", async () => {
   await install(second, v2);
   await second.host.openThread(thread);
   await second.settled();
-  const snapshot = await second.records.loadThread(thread);
-  expect(snapshot.states).toMatchObject([
+  const loaded = await second.records.loadThread(thread);
+  expect(loaded.ok).toBe(true);
+  if (!loaded.ok) return;
+  expect(loaded.value.states).toMatchObject([
     { scopeId: "migrating", version: 2, doc: { n: 2, label: "migrated" } },
   ]);
   // GroupModule은 같은 마이그레이션을 F Upcaster로도 내놓는다
