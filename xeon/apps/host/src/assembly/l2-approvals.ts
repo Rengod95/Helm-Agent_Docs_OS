@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { assertNever, Bug, err, ok, parse, type Result } from "@xeon/contracts";
-import { isCapabilityId } from "@xeon/contracts/capabilities";
+import { isCapabilityId, type CallContext } from "@xeon/contracts/capabilities";
 import { ApprovalIdSchema, type ApprovalId, type ThreadId } from "@xeon/contracts/conversation";
 import {
   ApprovalBodyJsonSchema,
@@ -15,6 +15,7 @@ import {
   type ApprovalRequestError,
   type ApprovalResolution,
   type ApprovalService,
+  type CallerId,
   type L2ApprovalRequest,
   type L2ApprovalSnapshot,
   type L2ApprovalsPort,
@@ -201,5 +202,46 @@ export function createBareL2ApprovalsPort(
   return createL2ApprovalsPort(approvals, {
     origin: (request) => bareOrigin(request.threadId),
     ...(title === undefined ? {} : { title }),
+  });
+}
+
+/** 호출 문맥의 호출 주체를 승인 출처의 `CallerId`로 옮긴다. 서브에이전트 정의 이름은 문맥에 없다 */
+function callerIdOf(context: CallContext): CallerId {
+  return context.caller.kind === "model" && context.caller.agent === "subagent"
+    ? "subagent:agent"
+    : "main";
+}
+
+/** 호출 문맥에서 만든 출처. 문맥에 대화가 없으면(호스트 밖 호출) undefined */
+function originOfCall(context: CallContext | undefined): ApprovalOrigin | undefined {
+  if (context?.threadId === undefined) return undefined;
+  return {
+    threadId: context.threadId,
+    turnId: context.turnId ?? null,
+    stepId: null,
+    toolCallId: context.toolCallId ?? null,
+    caller: callerIdOf(context),
+  };
+}
+
+/** 호출 문맥으로 만드는 포트(질문·계획 도구). 문맥에 대화가 없으면 요청의 대화로 출처 없는 포트를 쓴다 */
+export function createCallL2ApprovalsPort(
+  approvals: ApprovalService,
+  context: CallContext | undefined,
+): L2ApprovalsPort {
+  const fixed = originOfCall(context);
+  return createL2ApprovalsPort(approvals, {
+    origin: (request) =>
+      fixed === undefined ? bareOrigin(request.threadId) : { ...fixed, threadId: request.threadId },
+  });
+}
+
+/** 출처가 정해진 포트(계획 승인: 호출마다 출처가 달라 공장이 출처를 받아 만든다). 요청의 대화로 출처의 대화를 덮는다 */
+export function createOriginL2ApprovalsPort(
+  approvals: ApprovalService,
+  origin: ApprovalOrigin,
+): L2ApprovalsPort {
+  return createL2ApprovalsPort(approvals, {
+    origin: (request) => ({ ...origin, threadId: request.threadId }),
   });
 }

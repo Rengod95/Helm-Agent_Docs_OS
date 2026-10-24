@@ -93,7 +93,7 @@ xeon/packages/cap-work/
 |---|---|---|---|---|
 | T1 | F `capabilities/defs/work.ts`(네 정의, 스키마, `WorkService`, `PlanApprovalSubject`·`PlanApprovalAnswer`)와 `records/catalog/work.ts`(`WORK_EVENT_CATALOG` 10종, `CatalogEntry` 형식) 추가. `work` 영역과 `owners.ts`의 `work.` 행(F.records §3.3.2), `CallOptions.context`(F.capabilities §3.2)는 F에 있으므로 확인만 한다. 선행 작업: F.capabilities.plan의 `defineCapability`·`validateCapability`, F.records.plan의 카탈로그 형식 | F.capabilities.plan 정의 형식 완료, F.records.plan 카탈로그 완료 | M | M2 |
 | T2 | 작업 모델: 상태 전이 표(§4.1.2), 막힘 계산, 순환 검사(DFS, 경로 반환), `write` 연산 적용(임시 참조 해석, 전부 또는 전무) | T1 | M | M2 |
-| T3 | `task_write` 도구와 `work.tasks` 서비스(create/update/link/list/write), 스레드별 쓰기 큐, 순번 ID 발급, 투영기 `cap.work`의 작업 부분(`cap_work_tasks`, `cap_work_task_edges`, `cap_work_meta`), 자동 시작, 방치 알림 핸들러 | T2, L1.persistence(커밋·투영기 등록) | L | M2 |
+| T3 | `task_write` 도구와 `work.tasks` 서비스(create/update/link/list/write), 스레드별 쓰기 큐, 순번 ID 발급, 투영기 `cap.work`의 작업 부분(`cap_work_tasks`, `cap_work_edges`, `cap_work_meta`), 자동 시작, 방치 알림 핸들러 | T2, L1.persistence(커밋·투영기 등록) | L | M2 |
 | T4 | 계획 객체와 버전: 상태 모델, `work.plan_submitted`·`work.plan_withdrawn` 커밋, 투영(`cap_work_plans`)의 `approval.requested`·`approval.resolved` 반영, `versions` | T3(투영기 골격) | M | M2 |
 | T5 | `enterMode`/`exitMode`와 `PermissionModePort`(L1.tools 권한 모드 연결). `requireApproval` 검사, 대기 버전 철회 | T4, L1.tools 권한 모드 API | M | M2 |
 | T6 | `submit_plan` → `xeon.approvals`(kind `plan`) 연결: `ApprovalsPort`, 제출 흐름(§4.2.4), `input_required`/`decided` 출력, `approve`/`reject`/`revise` 편의 메서드, 승인 해결 뒤 모드 복원 리스너, 재개 절차의 계획 부분 | T4, T5, L1.tools 승인 프로토콜 | L | M2 |

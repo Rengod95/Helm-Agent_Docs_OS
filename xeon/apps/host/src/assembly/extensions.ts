@@ -18,12 +18,17 @@ import {
   type StoreDb,
 } from "@xeon/contracts/records";
 import {
+  DialogAsk,
   KnowledgeSkills,
   WebFetch,
   WebSearch,
+  WorkPlans,
+  WorkTasks,
   type AnyCapabilityDef,
 } from "@xeon/contracts/capabilities";
+import { dialogPlugin } from "@xeon/cap-dialog";
 import { knowledgePlugin } from "@xeon/cap-knowledge";
+import { workPlugin } from "@xeon/cap-work";
 import { workspacePlugin } from "@xeon/cap-workspace";
 import type { AgentDefinition } from "@xeon/contracts/services";
 import { agentsPlugin } from "@xeon/core-agents";
@@ -37,11 +42,19 @@ import type { BuiltinExtensionModule, ExtHost, ExtensionUnit, InstallResult } fr
 import type { AssembleOptions, HostMode } from "../types.ts";
 import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
+import {
+  dialogApprovalsFactory,
+  dialogBridgePlugin,
+  type CommandRegistryHolder,
+  lazyCommandRegistry,
+  planApprovalsFactory,
+  userShellPort,
+} from "./l2-units.ts";
 import type { ProjectTrust } from "./trust.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   agentsSource,
-  knowledgeSource,
+  layersSource,
   loopSource,
   modelsSource,
   persistenceSource,
@@ -69,8 +82,8 @@ export interface ExtensionDeps {
   readonly db: StoreDb;
   readonly faults: FaultInjector;
   readonly holder: LeaseHolder;
-  /** 확장 호스트. 자식 thread를 열고 닫는 데 쓴다(core-agents) */
-  readonly ext: Pick<ExtHost, "openThread" | "closeThread">;
+  /** 확장 호스트. 자식 thread를 열고 닫고(core-agents), 호출 때 서비스 포트를 찾는다(cap-dialog, cap-work) */
+  readonly ext: Pick<ExtHost, "openThread" | "closeThread" | "ports">;
   /** 이 엔진이 쥔 thread의 세션 쓰기 토큰. 엔진 포트가 만들어진 뒤에 채워진다(core-agents가 자식 thread의 소유를 부모에게서 이어받는다) */
   readonly parentToken: (threadId: ThreadId) => LeaseToken | undefined;
   readonly onLeaseLost: (threadId: ThreadId) => void;
@@ -109,11 +122,20 @@ function kindLookup(kind: string): CatalogEntry | undefined {
 }
 
 /** 도구를 올리는 L2 능력. core-tools가 호출 때 공급자를 찾으려면 이 능력이 매니페스트에 선언되어 있어야 한다 */
-const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [WebSearch, WebFetch, KnowledgeSkills];
+const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
+  WebSearch,
+  WebFetch,
+  KnowledgeSkills,
+  WorkTasks,
+  WorkPlans,
+  DialogAsk,
+];
 
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
 export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   const { settings } = deps;
+  // cap-dialog의 동작 명령 등록부. 브리지 확장이 채우고 cap-work가 읽는다
+  const commandRegistry: CommandRegistryHolder = { current: undefined };
   const modules: readonly (readonly [ExtensionName, (loadIndex: number) => ExtensionUnit])[] = [
     [
       "core-persistence",
@@ -213,6 +235,31 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
       (loadIndex) => workspacePlugin({ settings: workspaceSource(settings), loadIndex }),
     ],
     [
+      "cap-dialog",
+      (loadIndex) =>
+        dialogPlugin({
+          settings: layersSource(settings),
+          ids: deps.ids,
+          approvals: dialogApprovalsFactory(deps.ext),
+          shell: userShellPort(deps.ext),
+          // 호출 문맥이 사람이 없다고 밝힌 호출(백그라운드, 비대화형 서브에이전트)에는 묻지 않는다. 생략은 대화형이다
+          interactive: (context) => context.interactive !== false,
+          loadIndex,
+        }),
+    ],
+    ["host-dialog-bridge", (loadIndex) => dialogBridgePlugin(commandRegistry, loadIndex)],
+    [
+      "cap-work",
+      (loadIndex) =>
+        workPlugin({
+          ids: deps.ids,
+          settings: layersSource(settings),
+          approvals: planApprovalsFactory(deps.ext),
+          commands: lazyCommandRegistry(commandRegistry),
+          loadIndex,
+        }),
+    ],
+    [
       "cap-web",
       (loadIndex) =>
         hostWebPlugin({
@@ -227,7 +274,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
       "cap-knowledge",
       (loadIndex) =>
         knowledgePlugin({
-          settings: knowledgeSource(settings),
+          settings: layersSource(settings),
           ids: deps.localIds,
           // 프로젝트 스킬(.xeon/skills)은 신뢰한 프로젝트에서만 싣는다(결정 D6, X.loading-trust §4.7)
           projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),

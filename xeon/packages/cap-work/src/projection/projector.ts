@@ -70,7 +70,7 @@ function applyCreated(tx: ProjectionTx, event: DurableEventEnvelope): void {
     ],
   );
   for (const blocker of task.blockedBy) {
-    tx.run(`INSERT INTO cap_work_task_edges (session_id, task_id, blocked_by) VALUES (?, ?, ?)`, [
+    tx.run(`INSERT INTO cap_work_edges (session_id, task_id, blocked_by) VALUES (?, ?, ?)`, [
       sessionId,
       task.id,
       blocker,
@@ -112,7 +112,7 @@ function applyLinked(tx: ProjectionTx, event: DurableEventEnvelope): void {
   const { taskId, blockedBy } = payloadOf(WorkTaskLinkSchema, event);
   for (const blocker of blockedBy) {
     tx.run(
-      `INSERT OR IGNORE INTO cap_work_task_edges (session_id, task_id, blocked_by) VALUES (?, ?, ?)`,
+      `INSERT OR IGNORE INTO cap_work_edges (session_id, task_id, blocked_by) VALUES (?, ?, ?)`,
       [event.threadId, taskId, blocker],
     );
   }
@@ -127,10 +127,11 @@ function applyLinked(tx: ProjectionTx, event: DurableEventEnvelope): void {
 function applyUnlinked(tx: ProjectionTx, event: DurableEventEnvelope): void {
   const { taskId, blockedBy } = payloadOf(WorkTaskLinkSchema, event);
   for (const blocker of blockedBy) {
-    tx.run(
-      `DELETE FROM cap_work_task_edges WHERE session_id = ? AND task_id = ? AND blocked_by = ?`,
-      [event.threadId, taskId, blocker],
-    );
+    tx.run(`DELETE FROM cap_work_edges WHERE session_id = ? AND task_id = ? AND blocked_by = ?`, [
+      event.threadId,
+      taskId,
+      blocker,
+    ]);
   }
   tx.run(`UPDATE cap_work_tasks SET updated_seq = ? WHERE session_id = ? AND task_id = ?`, [
     event.seq,

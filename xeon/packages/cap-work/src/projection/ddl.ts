@@ -6,7 +6,7 @@ export const WORK_PROJECTOR_VERSION = 2;
 
 export const WORK_PROJECTOR_TABLES: readonly string[] = [
   "cap_work_tasks",
-  "cap_work_task_edges",
+  "cap_work_edges",
   "cap_work_plans",
   "cap_work_meta",
 ];
@@ -24,7 +24,7 @@ export const WORK_PROJECTOR_DDL: readonly string[] = [
   updated_seq  INTEGER NOT NULL,
   PRIMARY KEY (session_id, task_id)
 ) STRICT`,
-  `CREATE TABLE cap_work_task_edges (
+  `CREATE TABLE cap_work_edges (
   session_id   TEXT NOT NULL,
   task_id      TEXT NOT NULL,
   blocked_by   TEXT NOT NULL,

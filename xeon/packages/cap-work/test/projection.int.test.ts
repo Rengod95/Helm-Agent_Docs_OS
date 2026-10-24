@@ -109,9 +109,9 @@ describe("cap.work projection", () => {
 
       const before = await h.workDigests();
       expect(Object.keys(before).toSorted()).toEqual([
+        "cap_work_edges",
         "cap_work_meta",
         "cap_work_plans",
-        "cap_work_task_edges",
         "cap_work_tasks",
       ]);
       await h.rebuild();

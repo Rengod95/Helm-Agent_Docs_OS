@@ -27,7 +27,7 @@ export function readTasks(reader: WorkReader, threadId: ThreadId): Result<WorkTa
       [threadId],
     ),
     edges: tx.all(
-      `SELECT task_id, blocked_by FROM cap_work_task_edges WHERE session_id = ? ORDER BY rowid`,
+      `SELECT task_id, blocked_by FROM cap_work_edges WHERE session_id = ? ORDER BY rowid`,
       [threadId],
     ),
   }));
@@ -37,7 +37,7 @@ export function readTasks(reader: WorkReader, threadId: ThreadId): Result<WorkTa
     const task = edge["task_id"];
     const blocker = edge["blocked_by"];
     if (typeof task !== "string" || typeof blocker !== "string") {
-      return err(rowInvalid("cap_work_task_edges"));
+      return err(rowInvalid("cap_work_edges"));
     }
     const list = blockedBy.get(task) ?? [];
     list.push(blocker);

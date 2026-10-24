@@ -796,7 +796,7 @@ CREATE TABLE cap_work_tasks (
   updated_seq  INTEGER NOT NULL,
   PRIMARY KEY (session_id, task_id)
 ) STRICT;
-CREATE TABLE cap_work_task_edges (
+CREATE TABLE cap_work_edges (
   session_id   TEXT NOT NULL,
   task_id      TEXT NOT NULL,
   blocked_by   TEXT NOT NULL,
@@ -857,7 +857,7 @@ CREATE TABLE cap_work_meta (
 
 | 입력 이벤트 | 갱신 |
 |---|---|
-| `work.task_created` | `cap_work_tasks` 행 추가, `blockedBy`마다 `cap_work_task_edges` 행. `last_task_change_turn = turns_completed` |
+| `work.task_created` | `cap_work_tasks` 행 추가, `blockedBy`마다 `cap_work_edges` 행. `last_task_change_turn = turns_completed` |
 | `work.task_changed` | 해당 행 갱신, `updated_seq`. `cap_work_meta.last_task_change_turn = turns_completed` |
 | `work.task_linked` / `work.task_unlinked` | 간선 행 추가·삭제, 해당 작업 행의 `updated_seq`. `last_task_change_turn = turns_completed` |
 | `work.plan_submitted` | 버전 행 추가(`status = submitted`). `supersedes`가 있고 그 버전이 아직 `submitted`이면 `superseded`로 바꾼다(결정이 난 판의 상태는 지키므로 보통은 바뀌지 않는다) |
@@ -874,7 +874,7 @@ CREATE TABLE cap_work_meta (
 - 순번 ID 발급(§4.1.1)에 필요한 최댓값은 이 테이블에서 계산한다.
 - [결정: WK.1] 방치 알림(§4.1.6)의 기준 턴은 작업 이벤트 네 종류(`task_created`, `task_changed`, `task_linked`, `task_unlinked`)가 모두 갱신한다. 목록을 처음 만든 호출도 목록을 쓴 것으로 센다. `cap_work_meta` 행은 첫 작업 이벤트나 첫 `turn.completed`에서 만든다.
 - [결정: WK.1] 간선 행의 읽기 순서는 삽입 순서(`rowid`)다. `blockedBy` 배열의 순서가 재생성 뒤에도 같다.
-- 투영기 `cap.work` 버전 2는 `cap_work_tasks`, `cap_work_task_edges`, `cap_work_plans`, `cap_work_meta` 넷을 만든다(버전 1은 `cap_work_plans` 없이 작업 셋). 목표·보고 테이블은 해당 작업(T9~T12)이 더하면서 투영 버전을 올린다.
+- 투영기 `cap.work` 버전 2는 `cap_work_tasks`, `cap_work_edges`, `cap_work_plans`, `cap_work_meta` 넷을 만든다(버전 1은 `cap_work_plans` 없이 작업 셋). 목표·보고 테이블은 해당 작업(T9~T12)이 더하면서 투영 버전을 올린다.
 - [결정: WK.2] 권한 모드 추적은 `settings.changed`가 세션 범위에서 나온 변경만 본다. 파일 설정(사용자·프로젝트 범위)이 정한 모드는 이벤트가 없으므로 `mode_before_plan`은 세션 범위 이력의 직전 값이고, 그런 이력이 없으면 default다. 이 프로세스가 직접 계획 모드에 넣은 스레드는 메모리에 실제 직전 모드를 두고 우선한다(재시작 뒤에는 투영 값). L1.tools가 직전 모드를 이벤트로 남기면 이 한계가 사라진다(§10 W-16).
 - `approval.resolved` payload의 결정 필드 이름은 L1.tools.spec이 정한다. 투영기는 F에 있는 그 payload 스키마만 import한다(§10 W-2).
 

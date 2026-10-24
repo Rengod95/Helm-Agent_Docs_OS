@@ -1,4 +1,5 @@
 import { isId } from "@xeon/contracts/conversation";
+import type { ScopeStack } from "@xeon/contracts/settings";
 import type { AgentsSettingsSource } from "@xeon/core-agents";
 import type { DriveLimits } from "@xeon/contracts/extensions";
 import {
@@ -10,7 +11,6 @@ import { DEFAULT_PERSISTENCE_SETTINGS, resolvePersistenceSettings } from "@xeon/
 import type { LoopSettingsSource } from "@xeon/core-loop";
 import { createLayeredTasksSettings, type TasksSettingsSource } from "@xeon/core-tasks";
 import type { ToolsSettingsSource } from "@xeon/core-tools";
-import type { KnowledgeSettingsSource } from "@xeon/cap-knowledge";
 import type { WorkspaceSettingsSource } from "@xeon/cap-workspace";
 import { withDriveDefaults, type ExtHostDeps, type OperationsSettingsSource } from "@xeon/ext-host";
 import {
@@ -147,8 +147,13 @@ export function agentsSource(settings: SettingsEngine): AgentsSettingsSource {
   };
 }
 
-/** l2.knowledge.* 를 읽는 설정 층. 호출마다 읽는다 */
-export function knowledgeSource(settings: SettingsEngine): KnowledgeSettingsSource {
+/**
+ * 설정 층 스택을 호출마다 돌려주는 읽기. cap-knowledge, cap-work, cap-dialog가 같은 모양(`layers(threadId)`)으로 받는다.
+ * 파일 범위와 세션 범위를 합친 스택이라 변경이 다음 호출부터 적용된다
+ */
+export function layersSource(settings: SettingsEngine): {
+  layers(threadId: string | undefined): ScopeStack;
+} {
   return { layers: (threadId) => settings.layers(isId("thr", threadId) ? threadId : undefined) };
 }
 
