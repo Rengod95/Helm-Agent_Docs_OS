@@ -6,6 +6,7 @@ import {
   type ScopeStack,
 } from "@xeon/contracts/settings";
 import { createAskService } from "../src/ask/service.ts";
+import { realApprovals } from "./support/real-approvals.ts";
 import {
   DEFAULT_DIALOG_SETTINGS,
   DIALOG_SETTING_DEFS,
@@ -117,7 +118,7 @@ describe("설정 키 13개", () => {
 
   test("변경은 다음 호출부터 적용된다", async () => {
     let layers: ScopeStack = [layer("user", { "l2.dialog.ask.timeoutSec": 10 })];
-    const h = harness();
+    const h = harness({ approvals: await realApprovals() });
     const deps = { ...h.deps, settings: () => readDialogSettings(layers) };
     const { api } = createAskService(deps);
     const thread = newThread();

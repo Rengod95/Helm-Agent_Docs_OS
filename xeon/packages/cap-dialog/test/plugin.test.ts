@@ -13,7 +13,7 @@ import {
   type DialogStatus,
 } from "@xeon/contracts/capabilities";
 import type { ThreadId } from "@xeon/contracts/conversation";
-import type { OsTime } from "@xeon/contracts/services";
+import { ApprovalServicePortKey, type OsTime } from "@xeon/contracts/services";
 import { defineManifest, validateManifest, type PortKey } from "@xeon/contracts/extensions";
 import type {
   CommitBatch,
@@ -26,7 +26,7 @@ import { createTestHost, fixedIdFactory } from "@xeon/ext-host/testing";
 import { DIALOG_EXTENSION_NAME, dialogManifest } from "../src/manifest.ts";
 import { dialogPlugin } from "../src/plugin.ts";
 import { DIALOG_SETTING_DEFS } from "../src/settings.ts";
-import { fakeApprovals } from "./support/fake-approvals.ts";
+import { realApprovals } from "./support/real-approvals.ts";
 import {
   callOptions,
   fakeShell,
@@ -92,7 +92,7 @@ async function boot(options: { session?: boolean; store?: boolean; approvals?: b
   });
   const files = memoryFiles();
   const blobs = memoryBlobs();
-  const approvals = fakeApprovals();
+  const approvals = await realApprovals();
   const collected: Collected = { volatile: [], subscribed: [], listener: undefined };
   const exec: FakeExec = { ...commandFiles, ...files, cwd: "/work" };
   const workspace: Record<string, string> = {};
@@ -107,6 +107,9 @@ async function boot(options: { session?: boolean; store?: boolean; approvals?: b
         logger: () => recordingLogger(lines),
       });
       if (options.store !== false) ctx.providePort(StoreKey, blobs);
+      // 승인은 실제 core-tools 서비스다. 플러그인이 이 포트를 `questionApprovalsOver`로 감싸 쓴다
+      if (options.approvals !== false)
+        ctx.providePort(ApprovalServicePortKey, approvals.l1.approvals);
       if (options.session !== false) {
         ctx.providePort(FeedKey, {
           headSeq: () => ok(10),
@@ -166,7 +169,6 @@ async function boot(options: { session?: boolean; store?: boolean; approvals?: b
     dialogPlugin({
       settings: { layers: () => [] },
       ids,
-      ...(options.approvals === false ? {} : { approvals: approvals.factory }),
       shell,
       loadIndex: 1,
     }),

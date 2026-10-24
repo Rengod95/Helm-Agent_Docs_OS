@@ -1,8 +1,12 @@
 import { describe, expect, test } from "bun:test";
+import { err, ok, type Result } from "@xeon/contracts";
 import { CapabilityError } from "@xeon/contracts/capabilities";
+import type { LoopError, UserBashOutcome, UserBashRequest } from "@xeon/contracts/services";
 import { createCommandsService } from "../src/commands/service.ts";
 import { callOptions, fakeShell, harness, newThread } from "./support/harness.ts";
 import { memoryCommandFiles } from "./support/memory-command-files.ts";
+import { realUserBash } from "./support/user-bash.ts";
+import { shellPortOver } from "../src/ports/shell.ts";
 
 const PROJECT = "/work/.xeon/commands";
 
@@ -160,5 +164,141 @@ describe("셸 주입 확인 게이트", () => {
       signal: new AbortController().signal,
     });
     expect(ran).toEqual({ ok: true, value: { output: "" } });
+  });
+});
+
+async function wired(template: string) {
+  const user = await realUserBash();
+  const commandFiles = memoryCommandFiles({ [`${PROJECT}/log.md`]: template });
+  const h = harness({ commandFiles, shell: null });
+  const service = createCommandsService({ ...h.deps, shell: shellPortOver(user.loop) });
+  return { user, h, ...service };
+}
+
+describe("실제 runUserShell 위의 셸 포트", () => {
+  test("확인한 명령은 정책을 지나 실제 셸 도구로 실행되고 효과 3단이 남는다", async () => {
+    const { user, api } = await wired("A=!{echo a} B=!{echo b}");
+    user.reply("out\n");
+    const out = await api.run(
+      { text: "/log", confirmShell: true },
+      callOptions(newThread(), { requestId: "r1" }),
+    );
+    expect(out).toEqual({ status: "expanded", name: "log", text: "A=out B=out" });
+    expect(user.commands).toEqual(["echo a", "echo b"]);
+    // 명령마다 effect.intent, effect.exec, effect.result 세 이벤트. toolResult item은 없다
+    const kinds: string[] = user.session.events.map((event) => event.kind);
+    expect(kinds).toEqual([
+      "effect.intent",
+      "effect.exec",
+      "effect.result",
+      "effect.intent",
+      "effect.exec",
+      "effect.result",
+    ]);
+  });
+
+  test("정책 deny 규칙은 사용자 명령도 막는다: 실행 0회, 효과 없음, denied", async () => {
+    const { user, api } = await wired("!{rm -rf /}");
+    user.setLayers([
+      {
+        scope: "managed",
+        values: new Map([
+          [
+            "l1.tools.rules",
+            [{ id: "m.no-bash", action: "tool.call", resource: { tool: "bash" }, effect: "deny" }],
+          ],
+        ]),
+      },
+    ]);
+    const error = await rejection(
+      api.run({ text: "/log", confirmShell: true }, callOptions(newThread(), { requestId: "r1" })),
+    );
+    expect(error.data).toMatchObject({ code: "denied", detail: { index: 0, command: "rm -rf /" } });
+    expect(user.commands).toEqual([]);
+    expect(user.session.events).toEqual([]);
+  });
+
+  test("0이 아닌 종료는 [셸 오류: 코드]로 치환하고 뒤 명령을 이어 실행한다", async () => {
+    const { user, api } = await wired("!{false}|!{echo ok}");
+    user.reply("boom", 2);
+    const out = await api.run(
+      { text: "/log", confirmShell: true },
+      callOptions(newThread(), { requestId: "r1" }),
+    );
+    expect(out.status).toBe("expanded");
+    expect(user.commands).toEqual(["false", "echo ok"]);
+  });
+});
+
+function portReturning(outcome: Result<UserBashOutcome, LoopError>) {
+  const seen: UserBashRequest[] = [];
+  const port = shellPortOver({
+    runUserBash: (request) => {
+      seen.push(request);
+      return Promise.resolve(outcome);
+    },
+  });
+  return { port, seen };
+}
+
+describe("shellPortOver(LoopService.runUserBash) 대응", () => {
+  const context = {
+    threadId: newThread(),
+    requestId: "r1:sh0",
+    signal: new AbortController().signal,
+  };
+  test("완료는 출력, 거부는 denied, 0 아닌 종료와 중단은 failed다", async () => {
+    const done = portReturning(
+      ok({
+        status: "completed",
+        replaced: false,
+        result: { output: "x", exitCode: 0, cancelled: false, truncated: false },
+      }),
+    );
+    expect(await done.port.run("echo x", context)).toEqual(ok({ output: "x" }));
+    expect(done.seen[0]).toMatchObject({
+      command: "echo x",
+      excludeFromContext: true,
+      requestId: "r1:sh0",
+    });
+
+    const denied = portReturning(ok({ status: "denied", reason: "no" }));
+    expect(await denied.port.run("x", context)).toEqual(err({ kind: "denied", message: "no" }));
+
+    const failed = portReturning(
+      ok({
+        status: "completed",
+        replaced: false,
+        result: { output: "", exitCode: 3, cancelled: false, truncated: false },
+      }),
+    );
+    expect(await failed.port.run("x", context)).toMatchObject({
+      ok: false,
+      error: { kind: "failed", code: "3" },
+    });
+
+    const cancelled = portReturning(
+      ok({
+        status: "completed",
+        replaced: false,
+        result: { output: "", cancelled: true, truncated: false },
+      }),
+    );
+    expect(await cancelled.port.run("x", context)).toMatchObject({
+      ok: false,
+      error: { kind: "failed", code: "cancelled" },
+    });
+
+    const loopError = portReturning(err({ kind: "input_invalid", message: "not implemented" }));
+    expect(await loopError.port.run("x", context)).toMatchObject({
+      ok: false,
+      error: { kind: "failed", code: "input_invalid" },
+    });
+  });
+
+  test("64자를 넘는 호출 키는 줄여서 보낸다", async () => {
+    const { port, seen } = portReturning(ok({ status: "denied", reason: "x" }));
+    await port.run("x", { ...context, requestId: `${"k".repeat(70)}:sh0` });
+    expect(seen[0]?.requestId?.length).toBeLessThanOrEqual(64);
   });
 });

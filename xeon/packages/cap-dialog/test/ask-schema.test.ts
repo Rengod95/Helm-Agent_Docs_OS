@@ -10,6 +10,11 @@ import {
   type AskAnswerIssue,
   type AskQuestion,
 } from "@xeon/contracts/capabilities";
+import {
+  ApprovalAnswerSchema,
+  ApprovalBodyJsonSchema,
+  QuestionAnswerSchema,
+} from "@xeon/contracts/records";
 import { Value } from "typebox/value";
 import { fromQuestionAnswer, toQuestionAnswer, toQuestionBody } from "../src/ask/mapping.ts";
 
@@ -134,7 +139,7 @@ describe("L1.tools 승인 레코드와의 변환", () => {
           id: "scope",
           text: "범위는?",
           options: [
-            { id: "small", label: "작게" },
+            { id: "small", label: "작게", recommended: true },
             { id: "large", label: "크게" },
           ],
           multiSelect: false,
@@ -143,6 +148,22 @@ describe("L1.tools 승인 레코드와의 변환", () => {
         { id: "name", text: "이름은?", options: [], multiSelect: false, allowFreeText: true },
       ],
     });
+  });
+
+  test("header와 recommended도 레코드가 싣고 L1 body 스키마와 wire 답 스키마를 통과한다", () => {
+    const withHeader: AskQuestion = { ...SCOPE, header: "범위" };
+    const body = toQuestionBody([withHeader, NAME]);
+    expect(body).toMatchObject({ questions: [{ header: "범위" }, {}] });
+    expect(parse(ApprovalBodyJsonSchema, { kind: "question", question: body }).ok).toBe(true);
+    // 클라이언트가 이 body를 보고 보내는 정본 답(QuestionAnswer)은 AskAnswer와 서로 옮겨진다
+    const answer: AskAnswer = {
+      answers: [
+        { questionId: "scope", selected: ["small"], text: null },
+        { questionId: "name", selected: [], text: "xeon" },
+      ],
+    };
+    expect(parse(QuestionAnswerSchema, toQuestionAnswer(answer)).ok).toBe(true);
+    expect(parse(ApprovalAnswerSchema, toQuestionAnswer(answer)).ok).toBe(true);
   });
 
   test("선택지가 없는 질문은 allowFreeText를 막아도 참으로 올린다", () => {

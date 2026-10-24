@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { defaultAskAnswer, type AskQuestion } from "@xeon/contracts/capabilities";
 import { createAskService } from "../src/ask/service.ts";
 import { callOptions, harness, newThread } from "./support/harness.ts";
+import { realApprovals } from "./support/real-approvals.ts";
 
 const SCOPE: AskQuestion = {
   id: "scope",
@@ -45,6 +46,7 @@ describe("선택지 추천과 시간 제한 기본값", () => {
     const thread = newThread();
     // 설정 10초
     const withSetting = harness({
+      approvals: await realApprovals(),
       layers: [{ scope: "user", values: new Map([["l2.dialog.ask.timeoutSec", 10]]) }],
     });
     const asked = createAskService(withSetting.deps);
@@ -60,7 +62,7 @@ describe("선택지 추천과 시간 제한 기본값", () => {
     expect(withSetting.timers.pending()).toBe(1);
 
     // 설정 기본값 0
-    const plain = harness();
+    const plain = harness({ approvals: await realApprovals() });
     const none = createAskService(plain.deps);
     await none.api.ask({ questions: [SCOPE] }, callOptions(thread, { requestId: "r3" }));
     expect(plain.timers.pending()).toBe(0);

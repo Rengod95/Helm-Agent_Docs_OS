@@ -10,7 +10,7 @@ import type { AttachmentFiles } from "../../src/ports/files.ts";
 import type { ShellFailure, ShellPort } from "../../src/ports/shell.ts";
 import type { StatusPublisher } from "../../src/ports/session.ts";
 import { readDialogSettings } from "../../src/settings.ts";
-import { fakeApprovals, type FakeApprovals } from "./fake-approvals.ts";
+import type { RealApprovals } from "./real-approvals.ts";
 import { memoryCommandFiles, type MemoryCommandFiles } from "./memory-command-files.ts";
 import { manualTimers, type ManualTimers } from "./timers.ts";
 
@@ -130,7 +130,8 @@ export function memoryFiles(): MemoryFiles {
 
 export interface Harness {
   readonly deps: DialogDeps;
-  readonly approvals: FakeApprovals;
+  /** `harness({ approvals })`로 실제 승인 서비스를 붙였을 때만 있다 */
+  readonly approvals: RealApprovals | undefined;
   readonly timers: ManualTimers;
   readonly shell: FakeShell;
   readonly status: FakeStatus;
@@ -141,7 +142,7 @@ export interface Harness {
 
 export interface HarnessOptions {
   readonly layers?: ScopeStack;
-  readonly approvals?: FakeApprovals | null;
+  readonly approvals?: RealApprovals | null;
   readonly shell?: FakeShell | null;
   readonly commandFiles?: MemoryCommandFiles;
   readonly blobs?: BlobSink | null;
@@ -151,9 +152,18 @@ export interface HarnessOptions {
   readonly timers?: ManualTimers;
 }
 
-/** 대역으로 서비스 의존을 만든다 */
+/** 실제 승인 서비스를 붙인 조립 */
+export interface ApprovingHarness extends Harness {
+  readonly approvals: RealApprovals;
+}
+
+/** 대역으로 서비스 의존을 만든다. 승인은 `realApprovals()`를 넘길 때만 붙는다(생략하거나 null이면 없다) */
+export function harness(
+  options: HarnessOptions & { readonly approvals: RealApprovals },
+): ApprovingHarness;
+export function harness(options?: HarnessOptions): Harness;
 export function harness(options: HarnessOptions = {}): Harness {
-  const approvals = options.approvals === null ? undefined : (options.approvals ?? fakeApprovals());
+  const approvals = options.approvals ?? undefined;
   const shell = options.shell === null ? undefined : (options.shell ?? fakeShell());
   const timers = options.timers ?? manualTimers();
   const status = fakeStatus();
@@ -182,7 +192,7 @@ export function harness(options: HarnessOptions = {}): Harness {
   };
   return {
     deps,
-    approvals: approvals ?? fakeApprovals(),
+    approvals,
     timers,
     shell: shell ?? fakeShell(),
     status,
@@ -190,4 +200,9 @@ export function harness(options: HarnessOptions = {}): Harness {
     files,
     lines,
   };
+}
+
+/** 진행 중인 비동기 호출이 다음 대기점에 이를 때까지 기다린다(실제 승인 서비스는 요청 하나에 대기점이 여럿이다). 가짜 타이머와 무관한 실제 한 틱이다 */
+export async function flushTicks(): Promise<void> {
+  await Bun.sleep(0);
 }

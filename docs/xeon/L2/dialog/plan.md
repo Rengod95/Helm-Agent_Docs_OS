@@ -134,7 +134,7 @@ xeon/packages/cap-dialog/
 
 ## 5. 단위 테스트 목록
 
-승인 프로토콜은 L1.tools 가짜 서비스(`src/testing/fake-approvals.ts`)로 대신한다. 이 가짜는 요청 멱등, 수동 응답, 주입한 시계(`manualClock`)로 만료 해결을 흉내 낸다. 시계와 ID는 주입한다(eng.testing.guide TS-03).
+승인 프로토콜은 M2 통합 뒤 core-tools의 실제 `ApprovalService`로 시험한다(§8). 시계와 ID는 주입한다(eng.testing.guide TS-03). 이 절의 파일 배치(`src/testing/fake-approvals.ts`)는 설계 시점의 계획이고 구현은 §8을 따른다.
 
 | 테스트 파일 | 테스트 이름 | 확인할 동작 |
 |---|---|---|
@@ -204,8 +204,8 @@ M3:
 | 작업 | 상태 | 비고 |
 |---|---|---|
 | D1 | F 쪽 완료 | `defs/dialog.ts`, `records/catalog/dialog.ts`가 F.2·F.3에서 들어왔다. `defs.contract.test.ts`, `catalog.contract.test.ts`가 확인한다 |
-| D2·D3 (DG.1) | 부분 | `ask`와 승인 연결, 출력 대응, 메모리 대기, 답 검증은 끝났다. 시간 제한은 프로세스 안 타이머의 잠정 구현이다(spec §4.1.3). 비대화형 오류는 조립 루트의 판정 함수로 낸다(spec §3.1). 실제 승인 팩토리는 HOST 조립 몫이다 |
-| D4·D5 (DG.2) | 부분 | 포크, 등록·목록·치환·실행, 동작 명령, 셸 확인 게이트, `input` 지점, 광고는 끝났다. 셸 실행은 `ShellPort` 가짜 위이고 실제 어댑터(`ToolService.runUserShell`을 `ToolRunContext`로 부르는 것)는 HOST 조립 몫이다 |
+| D2·D3 (DG.1) | 부분 | `ask`와 승인 연결, 출력 대응, 메모리 대기, 답 검증은 끝났고 core-tools의 실제 `ApprovalService` 위에서 시험한다(`questionApprovalsOver`). 시간 제한은 프로세스 안 타이머의 잠정 구현이다(spec §4.1.3). 비대화형 오류는 `CallContext.interactive`로 낸다 |
+| D4·D5 (DG.2) | 부분 | 포크, 등록·목록·치환·실행, 동작 명령, 셸 확인 게이트, `input` 지점, 광고는 끝났다. 셸 포트의 기본 구현 `shellPortOver`(`LoopService.runUserBash` 위)를 만들었고, 실제 `ToolService.runUserShell`과 cap-workspace의 셸 서비스 위에서 시험한다. core-loop의 `runUserBash`는 아직 오류 값을 돌려줘서 loop 한 겹은 시험용 얇은 껍데기다 |
 | D6 (DG.3) | 완료 | 상태 세그먼트, 100 ms 묶음, 휘발 발행, 내장 세그먼트 셋. 피드 따라잡기 정책은 [미결] |
 | D7 (DG.3) | 완료 | 첨부 `add`와 `workspace.images` 연결, 원본 직접 등록 대체 경로 |
 | D8 (DG.3) | 완료 | 설정 키 13개. 읽는 기능이 M2에 있는 것은 `ask.timeoutSec`, `commands.*`, `status.segments`, `attachments.maxBytes`다 |
@@ -213,21 +213,21 @@ M3:
 
 파일 배치는 §2의 계획에서 다음이 달라졌다.
 
-- 테스트 대역은 `src/testing/` 대신 `test/support/`에 둔다(`fake-approvals.ts`, `memory-command-files.ts`, `harness.ts`, `images.ts`, `timers.ts`). 다른 패키지가 쓰는 대역은 core-tools가 `testing` 서브패스로 내보낸다.
+- 테스트 대역은 `src/testing/` 대신 `test/support/`에 둔다(`real-approvals.ts`, `user-bash.ts`, `memory-command-files.ts`, `harness.ts`, `images.ts`, `timers.ts`). 승인은 대역이 없다: `real-approvals.ts`가 core-tools `testing`의 `realTools`로 실제 `ApprovalService`를 세우고 관찰 창과 장애 주입만 더한다. 다른 패키지가 쓰는 대역은 core-tools가 `testing` 서브패스로 내보낸다.
 - `ports/`는 `approvals.ts`(`ApprovalsPortFactory`), `shell.ts`, `files.ts`(첨부 원천), `command-files.ts`(명령 파일과 `CommandRoots`), `images.ts`, `blobs.ts`, `session.ts`(피드 구독과 상태 발행), `timers.ts`로 나눈다. `os.ts`는 M3 알림에서 더한다.
 - `session-adapter.ts`가 `xeon.session`을 `session.ts`의 두 포트로 감싼다. `plugin.ts`가 포트를 모아 `DialogDeps`를 만든다.
 - `ask/`에 `keys.ts`(요청 키 줄이기), `mapping.ts`(`AskQuestion`·`AskAnswer`와 `QuestionBody`·`QuestionAnswer`), `expiry.ts`(잠정 시간 제한)를 더했다. `commands/`에 `action-args.ts`를 더했다.
 - 지점 핸들러는 `input`, `tool_execution_start`, `tool_execution_end`, `before_agent_start`이다. 알림용 지점은 없다.
 
-테스트 대응(§5)은 파일 이름이 같다. 추가로 `plugin.test.ts`(실제 ExtHost에 올려 능력, 지점, 구독 정리 확인), `session-adapter.test.ts`(휘발 봉투), `status-core.test.ts`, `settings.test.ts`, `fork-records.test.ts`를 두었다. `ask-restart.fault.test.ts`는 새 서비스 인스턴스가 같은 가짜 승인 기록을 받는 것으로 재시작을 흉내 낸다. 도구 결과 완료 커밋 1건(`tool:<toolCallId>:result`)과 SIGKILL 재개는 통합 단계(HOST.4)에서 확인한다.
+테스트 대응(§5)은 파일 이름이 같다. 추가로 `plugin.test.ts`(실제 ExtHost에 올려 능력, 지점, 구독 정리 확인), `session-adapter.test.ts`(휘발 봉투), `status-core.test.ts`, `settings.test.ts`, `fork-records.test.ts`를 두었다. `ask-restart.fault.test.ts`는 같은 이벤트 로그 위에 새 `ApprovalService`(메모리 대기 목록이 빈 것)와 새 ask 서비스를 세우는 것으로 재시작을 흉내 낸다. 도구 결과 완료 커밋 1건(`tool:<toolCallId>:result`)과 SIGKILL 재개는 통합 단계(HOST.4)에서 확인한다.
 
 통합 단계(HOST.6)에서 실제 구현으로 바꿀 포트:
 
 | 포트 | 지금 | 실제 |
 |---|---|---|
-| `ApprovalsPortFactory` | 옵션(`dialogPlugin({ approvals })`)으로 받는다. 시험은 `fake-approvals.ts` | core-tools `ApprovalsInternal`의 `open`·`wait`·`get`을 호출 문맥의 `origin`으로 감싼 `L2ApprovalsPort`. 정식 팩토리는 L1A 요청 |
-| `ShellPort` | 옵션(`dialogPlugin({ shell })`)으로 받는다. 시험은 `fakeShell` | `ToolService.runUserShell({ command, includeInContext: false }, run)`을 `ToolRunContext`와 함께 부르는 어댑터 |
-| `interactive(context)` | 옵션. 기본은 항상 대화형 | 호출 문맥의 대화형 여부(F 요청) |
+| `ApprovalsPortFactory` | 옵션(`dialogPlugin({ approvals })`)이 없으면 `xeon.approvals`를 `questionApprovalsOver`로 감싼다. 시험은 실제 서비스 | 그대로 |
+| `ShellPort` | 옵션(`dialogPlugin({ shell })`)이 없으면 `xeon.loop`를 `shellPortOver`로 감싼다. 시험은 `fakeShell`과 실제 `runUserShell` 위의 얇은 loop 껍데기 | core-loop가 `runUserBash`를 구현하면 껍데기 없이 그대로 |
+| `interactive(context)` | 옵션. 기본은 항상 대화형 | `CallContext.interactive`(F.8에서 들어왔다)를 읽는 판정 함수. 조립이 넘긴다 |
 | `DialogFeed`·`StatusPublisher` | `xeon.session`이 있으면 `session-adapter.ts`가 만든다 | 그대로. 구독 따라잡기 정책만 정한다 |
 | `ImagesPort` | `g.capability(WorkspaceImagesKey)`, 없으면 원본 직접 등록 | 그대로 |
 | 시간 제한 | `ask/expiry.ts`의 프로세스 안 타이머 | F의 만료 필드와 L1.tools의 내구 만료. 오르면 `expiry.ts`를 지운다 |

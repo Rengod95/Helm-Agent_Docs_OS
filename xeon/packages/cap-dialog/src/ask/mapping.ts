@@ -3,17 +3,21 @@ import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
 import { isJsonObject } from "../util.ts";
 
 // 질문 도메인 모양(AskQuestion, AskAnswer)과 L1.tools 승인 레코드 모양(QuestionBody, QuestionAnswer)을 서로 옮긴다.
-// 레코드 모양이 정본이다(L1.tools.spec §3.6): L1.tools가 응답을 QuestionBody에 비춰 검사하므로 승인 요청의 대상은
-// QuestionBody여야 한다. 레코드에 없는 header와 recommended는 이 패키지가 입력(AskInput)에서 다시 읽는다.
+// 레코드 모양이 정본이다(L1.tools.spec §3.6, wire `approval.respond`의 answer): L1.tools가 응답을 QuestionBody에 비춰 검사하므로
+// 승인 요청의 대상은 QuestionBody여야 한다. `header`와 `recommended`도 레코드가 싣는다(F.8). `AskAnswer`는 wire를 지나지 않는다:
+// 클라이언트는 QuestionBody를 그려 `QuestionAnswer`로 답하고 이 파일이 `AskAnswer`로 옮긴다.
 
 function objectOf(value: JsonValue | null | undefined): JsonObject | undefined {
   return isJsonObject(value) ? value : undefined;
 }
 
 function optionBody(option: NonNullable<AskQuestion["options"]>[number]): JsonObject {
-  return option.description === undefined
-    ? { id: option.id, label: option.label }
-    : { id: option.id, label: option.label, description: option.description };
+  return {
+    id: option.id,
+    label: option.label,
+    ...(option.description === undefined ? {} : { description: option.description }),
+    ...(option.recommended === undefined ? {} : { recommended: option.recommended }),
+  };
 }
 
 /** 질문 묶음을 `approval.requested`의 `question` body로 옮긴다 */
@@ -23,6 +27,7 @@ export function toQuestionBody(questions: readonly AskQuestion[]): JsonObject {
       const options = question.options ?? [];
       return {
         id: question.id,
+        ...(question.header === undefined ? {} : { header: question.header }),
         text: question.question,
         options: options.map(optionBody),
         multiSelect: question.multiSelect ?? false,
