@@ -1,6 +1,6 @@
 // X 기록 포트 `SessionService.ext`(L1.persistence.spec §3.3, PS-16). 확장 레코드·상태·scope·임대 이벤트를 SessionWriter 한 트랜잭션으로
 // 커밋하고, 활성 가지 기준 스냅샷과 기록 조회를 돌려준다. 결과는 스펙 §3.3 변환표를 따른다.
-import { assertNever, parse } from "@xeon/contracts";
+import { assertNever, parse, type Result } from "@xeon/contracts";
 import { toJsonValue, type JsonValue, type ThreadId } from "@xeon/contracts/conversation";
 import {
   checkEnvelopeSize,
@@ -12,6 +12,7 @@ import {
   type DurableEventDraft,
   type ExtCommitRequest,
   type ExtCommitResult,
+  type ReadFailure,
   type ExtensionEventKind,
   type ExtRecordQuery,
   type ExtRecordRow,
@@ -191,19 +192,17 @@ export function createExtPort(deps: ExtPortDeps): RecordCommitPort {
   return {
     // 커밋은 동기 SQLite 호출이다. 던진 것(투영기 예외 등)은 거부된 Promise로 올린다
     commit: (request) => Promise.resolve().then(() => commitSync(request)),
-    loadThread(threadId): Promise<ExtThreadSnapshot> {
-      return Promise.resolve().then(() => {
-        const snapshot = readResult(db, (tx) => loadSnapshot(tx, threadId));
-        if (!snapshot.ok) throw new Error(`session.ext_load_failed: ${snapshot.error.kind}`);
-        return snapshot.value;
-      });
+    loadThread(threadId): Promise<Result<ExtThreadSnapshot, ReadFailure>> {
+      return Promise.resolve().then(() => readResult(db, (tx) => loadSnapshot(tx, threadId)));
     },
-    queryRecords(threadId, query: ExtRecordQuery, reader): Promise<readonly ExtRecordRow[]> {
-      return Promise.resolve().then(() => {
-        const rows = readResult(db, (tx) => queryActiveRecords(tx, threadId, query, reader));
-        if (!rows.ok) throw new Error(`session.ext_query_failed: ${rows.error.kind}`);
-        return rows.value;
-      });
+    queryRecords(
+      threadId,
+      query: ExtRecordQuery,
+      reader,
+    ): Promise<Result<readonly ExtRecordRow[], ReadFailure>> {
+      return Promise.resolve().then(() =>
+        readResult(db, (tx) => queryActiveRecords(tx, threadId, query, reader)),
+      );
     },
   };
 }

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { ok, type Result } from "../../src/base/index.ts";
 import {
   EventIdSchema,
   ThreadIdSchema,
@@ -16,6 +17,7 @@ import {
   type ExtCommitResult,
   type ExtRecordQuery,
   type ExtRecordRow,
+  type ReadFailure,
   type ExtThreadSnapshot,
   type ExtensionEventKind,
   type RecordCommitPort,
@@ -85,28 +87,37 @@ function fakePort(committer: string): RecordCommitPort {
       }
       return Promise.resolve({ status: "committed" });
     },
-    loadThread(): Promise<ExtThreadSnapshot> {
-      return Promise.resolve({
-        enabled: [],
-        disabled: [],
-        scopeTransitions: {},
-        enabledAtSeq: {},
-        states: [],
-        openLease: null,
-        leaseEpochs: {},
-      });
+    loadThread(): Promise<Result<ExtThreadSnapshot, ReadFailure>> {
+      return Promise.resolve(
+        ok({
+          enabled: [],
+          disabled: [],
+          scopeTransitions: {},
+          enabledAtSeq: {},
+          states: [],
+          openLease: null,
+          leaseEpochs: {},
+        }),
+      );
     },
     queryRecords(_threadId: ThreadId, query: ExtRecordQuery, reader: string) {
       const wildcard = query.kind.endsWith(".*");
       const prefix = wildcard ? query.kind.slice(0, -1) : query.kind;
       return Promise.resolve(
-        rows
-          .filter((r) => (wildcard ? r.row.kind.startsWith(prefix) : r.row.kind === prefix))
-          .filter((r) => r.privateOwner === null || r.privateOwner === reader)
-          .map((r) => r.row),
+        ok(
+          rows
+            .filter((r) => (wildcard ? r.row.kind.startsWith(prefix) : r.row.kind === prefix))
+            .filter((r) => r.privateOwner === null || r.privateOwner === reader)
+            .map((r) => r.row),
+        ),
       );
     },
   };
+}
+
+function rowsOf(result: Result<readonly ExtRecordRow[], ReadFailure>): readonly ExtRecordRow[] {
+  if (!result.ok) throw new Error(`unexpected read failure: ${result.error.kind}`);
+  return result.value;
 }
 
 function request(
@@ -177,16 +188,16 @@ describe("private records (acceptance 13)", () => {
     expect(await port.commit(request("k1", ["x.alpha.note.added"], "private"))).toEqual({
       status: "committed",
     });
-    expect((await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(1);
-    expect((await port.queryRecords(THREAD_ID, query, "beta")).length).toBe(0);
+    expect(rowsOf(await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(1);
+    expect(rowsOf(await port.queryRecords(THREAD_ID, query, "beta")).length).toBe(0);
   });
 
   test("rows committed without visibility are visible to everyone", async () => {
     const port = fakePort("alpha");
     await port.commit(request("k1", ["x.alpha.note.added"]));
     await port.commit(request("k2", ["x.alpha.note.added"], "public"));
-    expect((await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(2);
-    expect((await port.queryRecords(THREAD_ID, query, "beta")).length).toBe(2);
+    expect(rowsOf(await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(2);
+    expect(rowsOf(await port.queryRecords(THREAD_ID, query, "beta")).length).toBe(2);
   });
 
   test("a private commit of another extension's kind is rejected as invalid", async () => {
@@ -209,7 +220,7 @@ describe("private records (acceptance 13)", () => {
     expect(await port.commit(request("same", ["x.alpha.note.added"]))).toEqual({
       status: "replayed",
     });
-    expect((await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(1);
+    expect(rowsOf(await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(1);
   });
 });
 
@@ -225,9 +236,12 @@ describe("ExtThreadSnapshot scope history", () => {
       leaseEpochs: {},
     };
     const port: Pick<RecordCommitPort, "loadThread"> = {
-      loadThread: () => Promise.resolve(snapshot),
+      loadThread: () => Promise.resolve(ok(snapshot)),
     };
-    const loaded = await port.loadThread(THREAD_ID);
+    const loadedResult = await port.loadThread(THREAD_ID);
+    expect(loadedResult.ok).toBe(true);
+    if (!loadedResult.ok) return;
+    const loaded = loadedResult.value;
     expect(loaded.disabled).toEqual(["beta"]);
     expect(loaded.scopeTransitions["beta"]).toBe(2);
     // 켜진 scope만 enabledAtSeq 키를 갖는다

@@ -10,7 +10,7 @@ import {
   type TurnId,
 } from "@xeon/contracts/conversation";
 import type { DirectToolRegistration, SpawnResult, TaskScope } from "@xeon/contracts/services";
-import type { AgentsTasks } from "./deps.ts";
+import type { AgentsTasks, AgentsTools } from "./deps.ts";
 import { derivedRequestId } from "./request-id.ts";
 import type { AgentServiceImpl } from "./service.ts";
 
@@ -79,6 +79,7 @@ function failed(message: string): AgentToolResult {
 function createAgentTool(
   service: AgentServiceImpl,
   tasks: AgentsTasks,
+  tools: Pick<AgentsTools, "suspendWhile">,
 ): AgentTool<typeof AgentToolParameters> {
   return {
     name: AGENT_TOOL_NAME,
@@ -96,20 +97,26 @@ function createAgentTool(
       }
       const parent = service.contextOf(owner.threadId);
       const ownerRequestId = `tool:${toolCallId}`;
-      const outcome = await service.spawn(
-        {
-          agent: params.agent,
-          task: params.task,
-          requestId: derivedRequestId(ownerRequestId, 0),
-        },
-        {
-          parentThreadId: owner.threadId,
-          owner: { kind: "tool", turnId: owner.turnId, toolCallId },
-          caller: parent.caller,
-          depth: parent.depth,
-          ownerRequestId,
-          signal,
-        },
+      // 자식의 도구 호출도 `tools` 슬롯이 필요하다. 이 호출이 슬롯을 쥔 채 자식을 기다리면 슬롯 수만큼의 `agent` 호출이 교착한다
+      // (규칙 C2). 기다리는 동안 슬롯을 내려놓는다
+      const outcome = await tools.suspendWhile(
+        owner.threadId,
+        toolCallId,
+        service.spawn(
+          {
+            agent: params.agent,
+            task: params.task,
+            requestId: derivedRequestId(ownerRequestId, 0),
+          },
+          {
+            parentThreadId: owner.threadId,
+            owner: { kind: "tool", turnId: owner.turnId, toolCallId },
+            caller: parent.caller,
+            depth: parent.depth,
+            ownerRequestId,
+            signal,
+          },
+        ),
       );
       return toResult(outcome);
     },
@@ -120,11 +127,12 @@ function createAgentTool(
 export function agentToolRegistration(
   service: AgentServiceImpl,
   tasks: AgentsTasks,
+  tools: Pick<AgentsTools, "suspendWhile">,
 ): DirectToolRegistration {
   return {
     kind: "direct",
     orderKey: "core.agents",
-    tool: createAgentTool(service, tasks),
+    tool: createAgentTool(service, tasks, tools),
     policy: { risk: "exec", classes: ["spawn"] },
   };
 }

@@ -12,3 +12,4 @@ export { fakeTruncator } from "./fake-truncator.ts";
 export { fakeRunContext, type FakeRunOptions } from "./run-context.ts";
 export { l2ApprovalsPort, type L2PortOptions } from "./l2-port.ts";
 export { fakeSecretChecker, type FakeSecretChecker } from "./fake-secret-check.ts";
+export { fakeApprovals, type FakeApprovals, type FakeApprovalsOptions } from "./fake-approvals.ts";

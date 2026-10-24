@@ -702,6 +702,7 @@ export type LifecycleError =
   | StoreError
   | { readonly kind: "not_owner"; readonly threadId: ThreadId }
   | { readonly kind: "thread_closed"; readonly threadId: ThreadId }
+  | { readonly kind: "key_reused"; readonly requestKey: string }
   | { readonly kind: "turn_running"; readonly turnId: TurnId }
   | { readonly kind: "has_forks"; readonly forks: readonly ThreadId[] }
   | { readonly kind: "invalid_target"; readonly reason: "item_not_found" | "not_on_branch" | "inside_turn" | "open_tool_calls" }
@@ -1117,7 +1118,7 @@ export interface RewindPlan {
 #### 4.10.2 leaf 이동과 떠난 가지 요약
 
 - `moveLeaf`는 `thread.leaf_moved { leafEventId: target, reason }`을 커밋한다. 기존 가지는 지우지 않는다(`F.records.spec` §4.6 3번). 다음 이벤트의 `parentId`는 `target`이다.
-- 대상 검사: `target`이 이 thread의 이벤트가 아니면 `invalid_target{item_not_found}`. 열린 turn이 있으면 `turn_running`. 닫힌 thread는 `thread_closed`, 쓰기 소유자가 아니면 `not_owner`다. 옛 가지의 이벤트로 `restore`할 수 있으므로 활성 가지 위일 필요는 없다. 요약이 없고 target이 이미 leaf면 커밋하지 않는다. 커밋 키는 `leaf:<requestKey>`다.
+- 대상 검사: `target`이 이 thread의 이벤트가 아니면 `invalid_target{item_not_found}`. 열린 turn이 있으면 `turn_running`. 닫힌 thread는 `thread_closed`, 쓰기 소유자가 아니면 `not_owner`다. 옛 가지의 이벤트로 `restore`할 수 있으므로 활성 가지 위일 필요는 없다. 요약이 없고 target이 이미 leaf면 커밋하지 않는다. 커밋 키는 `leaf:<commitKeyPart(requestKey)>`다(밖에서 온 키는 U-13의 `commitKeyPart`를 거친다). 같은 키로 다른 대상·이유·요약을 내면 `key_reused{requestKey}` 값이다.
 - [제안] 커밋 전에 `session_before_tree`(first)를 발화한다. 결정이 거부면 `cancelled_by_extension`이다. 커밋 뒤 `session_tree`(tap)를 발화한다.
 - 요약 순서와 leaf: 같은 커밋의 초안은 `[thread.leaf_moved, thread.branch_summarized]`다. 요약 이벤트의 `parentId`는 target이라 새 가지에 놓이고, 커밋 뒤 leaf는 요약 이벤트다(요약이 없으면 target). `thread.leaf_moved` 자신은 옛 가지에 남는다. `session_before_tree`의 결정이 요약을 주고 호출자가 요약을 주지 않았으면 결정의 요약을 쓴다(`usage`는 null). `session_tree`(tap)의 `fromExtension`은 null이다 [제안: 결정을 낸 확장 이름은 디스패처가 알려주지 않는다].
 - 떠난 가지 요약: `options.summary`가 있으면 `thread.branch_summarized { fromEventId: 이전 leaf, summary, details, usage }`를 같은 커밋에 넣는다(`F.records.spec` §4.6 5번). 요약을 누가 만드는지(모델 호출, 확장 결정의 `summary`)는 `L1.context.spec`의 [미결]이다. 이 문서는 받은 요약을 기록만 한다.
@@ -1131,7 +1132,7 @@ export interface RewindPlan {
 
 #### 4.10.4 revert
 
-- `revert(threadId, to, requestKey)`: `to` item을 기록한 이벤트로 leaf를 옮긴다(`thread.leaf_moved{reason: "rewind"}`). `to`는 남는 마지막 item이다 [제안]. 검사 순서: 소유자, 닫힘, 열린 turn, item 존재, 활성 가지 소속, 열린 효과, turn 안 위치. 이미 그 leaf면 커밋하지 않는다. 커밋 키는 `revert:<requestKey>`다.
+- `revert(threadId, to, requestKey)`: `to` item을 기록한 이벤트로 leaf를 옮긴다(`thread.leaf_moved{reason: "rewind"}`). `to`는 남는 마지막 item이다 [제안]. 검사 순서: 소유자, 닫힘, 열린 turn, item 존재, 활성 가지 소속, 열린 효과, turn 안 위치. 이미 그 leaf면 커밋하지 않는다. 커밋 키는 `revert:<commitKeyPart(requestKey)>`다.
 - 대상 제한: `to`가 user item, toolCall이 없는 assistant item(`stop_reason`이 `toolUse`가 아님), 또는 turn의 마지막 item이어야 한다. 그 밖이면 `invalid_target{inside_turn}`. 열린 효과가 있으면 `open_tool_calls`, 진행 중 turn이 있으면 `turn_running`(wire 3003)이다.
 - 커밋 전후 발화는 `moveLeaf`와 같다(`session_before_tree`, `session_tree`).
 - 파일은 되돌리지 않는다. 파일 복원은 2차 되감기(§4.13.2)다.
@@ -1140,7 +1141,7 @@ export interface RewindPlan {
 
 - `close`: `thread.closed { reason }`을 커밋한다. 커밋 키는 `thread:<id>:close`, 지문은 이유와 무관해 두 번째 호출은 처음 결과를 돌려준다(이벤트 1개). 쓰기 소유자만 부르고(`not_owner`), 열린 turn이 있으면 `turn_running`이다. 이후 그 thread의 커밋은 `build`의 `view.threadStatus === "closed"` 검사로 생산 spec이 거부한다(`reject("thread_closed")`). wire `thread.close`는 연결의 열기 기록을 지우는 일이라 이 API와 다르다(`L4.host-service.spec` §3.4). thread 종결을 wire로 노출할지는 [미결]이다.
 - `remove`: 쓰기 소유자만 한다. 한 트랜잭션에서 `thread_delete_guard`에 행을 넣고, `events`, `requests`, 모든 투영기 테이블의 그 thread 행, 그 thread를 가리키는 `thread_creation_keys` 행을 지우고, 표지 행을 지운다. 세션 임대 행은 L0.store 소유라 지우지 않고 `release`로 반납한다. `consumer_cursors`는 건드리지 않는다. 다른 thread의 `forked_from_thread`가 이 thread면 `has_forks`로 거부한다 [제안]. 지운 seq는 다시 쓰지 않는다(`event_seq`). 지운 뒤 커밋 뒤 방출은 없다. 화면 갱신은 wire `thread.delete` 응답으로 한다.
-- `setTitle`: 커밋 키는 `title:<requestKey>`다. L2 artifacts가 `xeon.session`의 이 API를 부르고, 이벤트 `thread.updated { title }`은 core-persistence가 쓴다(`eng.context-map.design` §4.4 4번). 커밋 뒤 `session_info_changed`(tap, detached)를 발화한다.
+- `setTitle`: 커밋 키는 `title:<commitKeyPart(requestKey)>`다. 같은 키로 다른 제목을 내면 `key_reused{requestKey}` 값이다. L2 artifacts가 `xeon.session`의 이 API를 부르고, 이벤트 `thread.updated { title }`은 core-persistence가 쓴다(`eng.context-map.design` §4.4 4번). 커밋 뒤 `session_info_changed`(tap, detached)를 발화한다.
 
 #### 4.10.6 wire 메서드와 L1 구현 책임
 
@@ -1308,7 +1309,7 @@ export interface SessionSettingsStore {
 ```
 
 - session 범위 값은 `settings.changed{scope:"session"}` 이벤트로 남고, `layer(threadId)`가 활성 가지 위 이벤트를 seq 순으로 접어 돌려준다. 분기·되감기·재개를 따라간다. 이벤트 순서로 쌓는 투영 테이블(`p_settings`)은 버려진 가지의 값을 담을 수 있어 두지 않는다 [결정: L1B.2]. 도구 호출마다 읽으므로 thread별 캐시를 두고(leaf가 앞으로만 나아갔으면 새 이벤트만 접고, 되감기·가지 이동이면 처음부터 다시 접는다) thread를 지우면 버린다.
-- `set`·`reset`의 커밋 키는 `settings:<requestKey>`다. 같은 키에 다른 값을 내면 호출자 결함이라 `Bug("store.schema_invalid")`다. 쓰기 소유자가 아니면 `ownership_lost`다. `layer`는 오류 통로가 없다(F 계약): 읽을 수 없으면 비어 있는 층을 돌려주고 Logger에 남긴다 [제안: F에 `Result` 요청].
+- `set`·`reset`의 커밋 키는 `settings:<commitKeyPart(requestKey)>`다. 공백이나 비ASCII 문자, 긴 키도 해시로 줄여 커밋 키 형식에 맞춘다. 같은 키에 다른 값을 내는 일은 호출자가 키를 만들 때 지킬 계약이라 `Bug("store.schema_invalid")`다 [미결: 이 인터페이스의 오류 합집합에 `key_reused`를 더하는 F 변경은 호출자(core-tools `setMode`)가 호출마다 새 키를 만들어 아직 쓸 데가 없어 미룬다]. 쓰기 소유자가 아니면 `ownership_lost`다. `layer`는 오류 통로가 없다(F 계약): 읽을 수 없으면 비어 있는 층을 돌려주고 Logger에 남긴다 [제안: F에 `Result` 요청].
 - [제안] 설정 파일 범위(`managed`, `user`, `project`, `local`)의 파일 위치, 읽기, 감시, 쓰기, 병합 실행은 `L4.host-service.spec`이 소유한다. `F.wire-settings.spec` §1.2는 이 일을 `L1.persistence.spec`과 `L4.host-service.spec`에 [가정]으로 넘겼다. session-core 컨텍스트는 `xeon.store`만 부르므로(§4.8.2) 파일 시스템과 OS 디렉터리(L0.os)를 쓸 수 없다. 그래서 이 문서는 session 범위만 맡는다. 프로젝트 설정의 신뢰 전 적용 제외 규칙(`X.loading-trust.spec` §4.7.4)과 파일 이름(`.xeon/settings.json`, `.xeon/settings.local.json`)도 파일 범위 소유자의 일이다. `L4.host-service.spec`의 `SettingsStorePort` 대응([가정])과 `X.loading-trust.spec`의 기대를 바꾸는 요청이므로 [미결]로 둔다(§10).
 
 ## 7. 확장 지점

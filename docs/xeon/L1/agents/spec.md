@@ -349,7 +349,7 @@ export type AgentJudgedPayload = JudgeRecord;
   - 자식 모드는 `ToolService.mode`로 부모 모드를 읽고 `childMode`(엄격한 쪽)를 구해 `ToolService.setMode(자식, 모드, "user")`로 자식 thread의 세션 설정에 남긴다. 자식 turn 요청의 `ceiling`은 부모 관점(`caller`, `depth`, 부모 모드)과 정의 `tools`·호출자 `allow`의 글롭 교집합이다. 부분만 겹치는 글롭은 교집합이 비어 막는 쪽으로만 틀린다.
   - `tools.deny`는 `ChildTurnRequest`에 실을 자리가 없어 `agents.invalid_request`로 거부한다(조용히 무시하면 권한이 넓어진다) [미결: F 요청]. `tools.keepParentList`는 부모 광고 목록을 `ToolService.advertise`로 얻어 싣는다.
   - 정의 `permissions.rules`는 호출 주체를 `subagent:<이름>`으로 좁히고 id에 `agent.<이름>.`을 붙여 `core:agents` 출처(default 티어)로 등록한다. 명세의 extension 티어로 등록하는 길이 core-tools에 없다 [미결]. 정의나 `maxDepth`가 바뀌면 같은 출처로 다시 등록한다. `maxDepth: 0`이면 주 대화도 막는 `subagent.disabled`를 더한다.
-  - 풀 `subagents` 슬롯은 자식 노드를 owner로 얻는다. 호출 도구가 쥔 `tools` 슬롯을 `suspendWhile`로 내려놓는 일(C2)은 core-tools가 그 슬롯을 쥐고 있어 이 패키지가 할 수 없다: `Limiter`에 owner로 슬롯을 찾는 길이 없다 [미결: F 요청 또는 core-tools가 spawn 부류 도구는 `tools` 슬롯을 쥐지 않기]. `tools` 풀 상한이 1이고 자식이 도구를 쓰면 교착한다.
+  - 풀 `subagents` 슬롯은 자식 노드를 owner로 얻는다. 호출 도구가 쥔 `tools` 슬롯은 `ToolService.suspendWhile(threadId, toolCallId, wait)`로 내려놓는다(C2) [결정: M2 검토 3, F 승격 완료]. `agent` 도구는 `service.spawn`을 그 안에서 기다린다. `tools` 풀 상한이 1이고 `agent` 호출이 하나여도 자식의 도구 호출이 슬롯을 얻는다.
   - `agent.settled.report.text`는 65,536자 상한 때문에 `resultMaxChars`와 60,000자 중 작은 값까지만 싣는다.
   - `delegate`(백그라운드)와 `judge`는 M3다. M2는 `agents.unavailable`/`failed` 값을 돌려준다.
 

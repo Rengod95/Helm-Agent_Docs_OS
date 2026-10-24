@@ -1,18 +1,19 @@
 // 수명주기 가운데 분기 쪽(L1.persistence.spec §4.10.2~§4.10.4, PS-9·PS-10): moveLeaf, revert, fork, prepareSwitch.
 // first 지점(session_before_*)은 커밋 전, 트랜잭션 밖에서 await하고 거부면 아무것도 커밋하지 않는다.
-import { assertNever, Bug, detach, err, ok, type Logger, type Result } from "@xeon/contracts";
+import { assertNever, detach, err, ok, type Logger, type Result } from "@xeon/contracts";
 import type { EventId, IdFactory, ItemId, ThreadId } from "@xeon/contracts/conversation";
-import type {
-  BranchSummaryInput,
-  CommitPlan,
-  CommitResult,
-  LifecycleError,
-  SqlTx,
-  StoreDb,
-  StoreError,
-  ThreadCreateInput,
-  ThreadCreated,
-  ThreadLifecycle,
+import {
+  commitKeyPart,
+  type BranchSummaryInput,
+  type CommitPlan,
+  type CommitResult,
+  type LifecycleError,
+  type SqlTx,
+  type StoreDb,
+  type StoreError,
+  type ThreadCreateInput,
+  type ThreadCreated,
+  type ThreadLifecycle,
 } from "@xeon/contracts/records";
 import {
   commonAncestor,
@@ -21,6 +22,7 @@ import {
   itemEvent,
   type BranchEventRef,
 } from "./branch.ts";
+import { sha256Hex } from "./hash.ts";
 import { ownerError } from "./lifecycle-admin.ts";
 import type { OpenSessions } from "./ownership.ts";
 import type { SessionPoints } from "./points.ts";
@@ -159,7 +161,9 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
     readonly threadId: ThreadId;
     readonly target: EventId;
     readonly reason: "branch" | "rewind" | "restore";
-    readonly requestId: string;
+    /** 호출자가 넘긴 키 원문. 커밋 키는 `keyPrefix` + `commitKeyPart(requestKey)`다(U-13) */
+    readonly requestKey: string;
+    readonly keyPrefix: "leaf" | "revert";
     readonly summary: BranchSummaryInput | undefined;
     readonly fingerprintSummary: string | null;
   }): Result<
@@ -173,7 +177,7 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
     let oldLeaf: EventId | null = null;
     const committed = writer.commit({
       threadId,
-      requestId: args.requestId,
+      requestId: `${args.keyPrefix}:${commitKeyPart(args.requestKey, sha256Hex)}`,
       fingerprintSource: { target, reason, summary: args.fingerprintSummary },
       build(view): CommitPlan {
         if (view.threadStatus === "closed") {
@@ -231,8 +235,8 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
         }
         return err({ kind: "thread_closed", threadId });
       case "key_reused":
-        // 같은 키에 다른 대상·이유·요약: 호출자가 키를 잘못 쓴 것이다
-        throw new Bug(`store.schema_invalid: leaf key reused (${args.requestId})`);
+        // 같은 키에 다른 대상·이유·요약: 호출자가 키를 잘못 쓴 것이라 값으로 돌려준다
+        return err({ kind: "key_reused", requestKey: args.requestKey });
       default:
         return assertNever(result, "CommitResult");
     }
@@ -301,7 +305,8 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
         threadId,
         target,
         reason: options.reason,
-        requestId: `leaf:${options.requestKey}`,
+        requestKey: options.requestKey,
+        keyPrefix: "leaf",
         summary,
         fingerprintSummary: options.summary?.summary ?? null,
       });
@@ -383,7 +388,8 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
         threadId,
         target,
         reason: "rewind",
-        requestId: `revert:${requestKey}`,
+        requestKey,
+        keyPrefix: "revert",
         summary: undefined,
         fingerprintSummary: null,
       });

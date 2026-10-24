@@ -80,6 +80,7 @@ export function wireErrorOfCreate(error: LifecycleError, where: string): WireErr
       return wireErrorOfStore(error, where);
     case "not_owner":
     case "thread_closed":
+    case "key_reused":
     case "turn_running":
     case "has_forks":
     case "invalid_target":

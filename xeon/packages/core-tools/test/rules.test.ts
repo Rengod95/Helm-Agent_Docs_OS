@@ -114,7 +114,7 @@ test("a registered global deny removes the tool from advertise with the default 
   const h = await createHarness();
   registerWorkspace(h);
   h.runtime.tools.registerRules("core:agents", [deny("agents.no-bash", "bash")]);
-  const toolset = await h.runtime.tools.advertise({ run: h.run(), activated: new Set() });
+  const toolset = expectOk(await h.runtime.tools.advertise({ run: h.run(), activated: new Set() }));
   expect(toolset.tools.map((tool) => tool.wire.name)).not.toContain("bash");
   expect(toolset.removed.map((entry) => [entry.ruleId, entry.tier])).toEqual([
     ["agents.no-bash", "default"],
@@ -125,9 +125,9 @@ test("plan_mode_blocks_write_tools: write and exec tools are denied, reads pass,
   const h = await createHarness();
   const writer = addWriteTool(h, "write_file", "write");
   const reader = addWriteTool(h, "peek", "read");
-  const before = await h.runtime.tools.advertise({ run: h.run(), activated: new Set() });
+  const before = expectOk(await h.runtime.tools.advertise({ run: h.run(), activated: new Set() }));
   expect(await h.runtime.tools.setMode(h.thread, "plan", "user")).toMatchObject({ ok: true });
-  const after = await h.runtime.tools.advertise({ run: h.run(), activated: new Set() });
+  const after = expectOk(await h.runtime.tools.advertise({ run: h.run(), activated: new Set() }));
   expect(after.fingerprint).toBe(before.fingerprint);
 
   const blocked = await callTool(h.runtime.tools, h.run(), {

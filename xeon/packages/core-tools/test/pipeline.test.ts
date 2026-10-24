@@ -14,6 +14,7 @@ import {
   createHarness,
   directTool,
   errorText,
+  expectOk,
   installHandlers,
   layer,
   registerWorkspace,
@@ -384,7 +385,7 @@ test("policy denies from settings never reach the provider", async () => {
   const probe = registerWorkspace(h);
   const run = h.run();
   // 전역 deny는 광고 목록에서 빠지므로 광고하지 않은 도구를 직접 부르는 경로를 시험한다
-  const toolset = await h.runtime.tools.advertise({ run, activated: new Set() });
+  const toolset = expectOk(await h.runtime.tools.advertise({ run, activated: new Set() }));
   expect(toolset.tools.map((tool) => tool.name)).not.toContain("read");
   expect(toolset.removed.map((entry) => entry.ruleId)).toEqual(["m.no-read"]);
   const prepared = await h.runtime.tools.prepare(
@@ -416,7 +417,7 @@ test("a call from a child conversation passes through the ceiling stage and runs
   });
   expect(out.blocked).toBeUndefined();
   expect(probe.calls.map((call) => call.method)).toEqual(["read"]);
-  const listed = await h.runtime.tools.advertise({ run, activated: new Set() });
+  const listed = expectOk(await h.runtime.tools.advertise({ run, activated: new Set() }));
   expect(listed.tools.map((tool) => tool.name)).toContain("read");
 });
 

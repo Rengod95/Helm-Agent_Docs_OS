@@ -6,7 +6,7 @@ import type {
 } from "@xeon/contracts/conversation";
 import type { ResolvedModel } from "@xeon/contracts/services";
 import { activatedTools } from "./activation.ts";
-import { currentLeaf, currentStep, failureText, resolveModel, type TurnRun } from "./turn-run.ts";
+import { currentLeaf, currentStep, resolveModel, type TurnRun } from "./turn-run.ts";
 import type { LoopFailure } from "./types.ts";
 
 // L1.loop.spec §3.2 단계 2 `prepareRequest`. 모델 바인딩을 정하고, 도구를 광고하고, 커밋된 이벤트로 컨텍스트를 다시 만든다.
@@ -50,29 +50,31 @@ export async function prepareRequest(run: TurnRun): Promise<Result<RequestInput,
 
   const activated = await activatedTools(run);
   if (!activated.ok) return err(activated.error);
-  let toolset;
-  try {
-    const child = run.spec.child;
-    toolset = await ctx.tools.advertise({
-      run:
-        child === null
-          ? { threadId, caller: "main", depth: 0 }
-          : {
-              threadId,
-              caller: child.tools.caller,
-              depth: child.tools.depth,
-              ceiling: child.tools.ceiling,
-            },
-      activated: activated.value,
-      ...(child?.tools.allow === undefined ? {} : { allow: child.tools.allow }),
-      ...(child?.tools.keepParentList === undefined
-        ? {}
-        : { keepParentList: child.tools.keepParentList }),
+  const child = run.spec.child;
+  const advertised = await ctx.tools.advertise({
+    run:
+      child === null
+        ? { threadId, caller: "main", depth: 0 }
+        : {
+            threadId,
+            caller: child.tools.caller,
+            depth: child.tools.depth,
+            ceiling: child.tools.ceiling,
+          },
+    activated: activated.value,
+    ...(child?.tools.allow === undefined ? {} : { allow: child.tools.allow }),
+    ...(child?.tools.keepParentList === undefined
+      ? {}
+      : { keepParentList: child.tools.keepParentList }),
+  });
+  // 도구 수 초과는 설정(확장이 정하는 always 도구)이 만드는 예상 가능한 실패다. 값으로 받아 이 단계의 모델 요청을 보내지 않는다
+  if (!advertised.ok) {
+    return err({
+      kind: "tools_unavailable",
+      detail: `tools.${advertised.error.kind}: ${String(advertised.error.always)} always-exposed tools${advertised.error.withToolSearch ? " and tool_search" : ""} exceed the limit of ${String(advertised.error.limit)}`,
     });
-  } catch (error) {
-    // 광고 실패(도구 수 초과 등)는 ToolService가 던지는 예상 가능한 실패다. 값으로 바꾼다
-    return err({ kind: "tools_unavailable", detail: failureText(error) });
   }
+  const toolset = advertised.value;
 
   const leaf = await currentLeaf(run);
   if (!leaf.ok) return leaf;

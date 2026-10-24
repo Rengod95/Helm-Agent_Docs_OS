@@ -226,7 +226,7 @@ describe("ext.loadThread", () => {
     const stateCommit = stateRequest(h, threadId, "st-1", 1, null, { n: 1 });
     expect((await h.service.ext.commit(stateCommit)).status).toBe("committed");
 
-    const snapshot = await h.service.ext.loadThread(threadId);
+    const snapshot = expectOk(await h.service.ext.loadThread(threadId));
     expect(snapshot.enabled).toEqual(["alpha"]);
     expect(snapshot.disabled).toEqual(["beta"]);
     expect(snapshot.scopeTransitions).toEqual({ alpha: 1, beta: 2 });
@@ -248,8 +248,11 @@ describe("ext.loadThread", () => {
       reason: "idle",
     });
     await h.service.ext.commit({ threadId, requestId: "ls2", drafts: [released] });
-    expect((await h.service.ext.loadThread(threadId)).openLease).toBeNull();
-    expect(h.service.ext.loadThread(h.ids.next("thr"))).resolves.toMatchObject({ enabled: [] });
+    expect(expectOk(await h.service.ext.loadThread(threadId)).openLease).toBeNull();
+    expect(h.service.ext.loadThread(h.ids.next("thr"))).resolves.toMatchObject({
+      ok: true,
+      value: { enabled: [] },
+    });
   });
 
   test("open lease usage counts turns of the lease scope and its drive spawns", async () => {
@@ -271,7 +274,7 @@ describe("ext.loadThread", () => {
     const theirs = startTurn(h, threadId, { requestId: "r2", scopeId: "other" });
     endTurn(h, theirs);
     startTurn(h, threadId);
-    const snapshot = await h.service.ext.loadThread(threadId);
+    const snapshot = expectOk(await h.service.ext.loadThread(threadId));
     expect(snapshot.openLease?.used).toEqual({ turns: 1, spawns: 0, tokens: 0 });
   });
 
@@ -283,7 +286,7 @@ describe("ext.loadThread", () => {
     const firstId = firstDraftId(first);
     const second = stateRequest(h, threadId, "st-2", 2, firstId, { n: 2 });
     await h.service.ext.commit(second);
-    expect((await h.service.ext.loadThread(threadId)).states[0]?.rev).toBe(2);
+    expect(expectOk(await h.service.ext.loadThread(threadId)).states[0]?.rev).toBe(2);
     // 첫 판 위에서 갈라진 새 가지: 둘째 판은 버려진 가지에 남는다
     const branched = stateRequest(
       h,
@@ -299,7 +302,7 @@ describe("ext.loadThread", () => {
     ).toEqual({
       status: "committed",
     });
-    const state = (await h.service.ext.loadThread(threadId)).states[0];
+    const state = expectOk(await h.service.ext.loadThread(threadId)).states[0];
     expect(state).toMatchObject({ rev: 2, doc: { n: "b" } });
     expect(state?.eventId).toBe(firstDraftId(branched));
     // 버려진 가지의 판 2가 아니라 활성 가지의 판 2와 비교한다
@@ -339,25 +342,29 @@ describe("ext.queryRecords", () => {
 
     const all = { kind: "grp.alpha.*" as const };
     expect(
-      (await h.service.ext.queryRecords(threadId, all, "alpha")).map((row) => row.kind),
+      expectOk(await h.service.ext.queryRecords(threadId, all, "alpha")).map((row) => row.kind),
     ).toEqual([publicKind, privateKind]);
     expect(
-      (await h.service.ext.queryRecords(threadId, all, "beta")).map((row) => row.kind),
+      expectOk(await h.service.ext.queryRecords(threadId, all, "beta")).map((row) => row.kind),
     ).toEqual([publicKind]);
-    const exact = await h.service.ext.queryRecords(threadId, { kind: privateKind }, "alpha");
+    const exact = expectOk(
+      await h.service.ext.queryRecords(threadId, { kind: privateKind }, "alpha"),
+    );
     expect(exact[0]).toMatchObject({ groupId: "alpha", payload: { hits: 3 } });
-    const bySubject = await h.service.ext.queryRecords(
-      threadId,
-      { kind: "grp.alpha.*", subject: { type: "step", id: "s2" } },
-      "alpha",
+    const bySubject = expectOk(
+      await h.service.ext.queryRecords(
+        threadId,
+        { kind: "grp.alpha.*", subject: { type: "step", id: "s2" } },
+        "alpha",
+      ),
     );
     expect(bySubject).toEqual([]);
-    expect(await h.service.ext.queryRecords(threadId, { ...all, limit: 1 }, "alpha")).toHaveLength(
-      1,
-    );
+    expect(
+      expectOk(await h.service.ext.queryRecords(threadId, { ...all, limit: 1 }, "alpha")),
+    ).toHaveLength(1);
     // 상태 이벤트는 기록 조회에 나오지 않는다
     await h.service.ext.commit(stateRequest(h, threadId, "st-1", 1, null, { n: 1 }));
-    expect(await h.service.ext.queryRecords(threadId, all, "alpha")).toHaveLength(2);
+    expect(expectOk(await h.service.ext.queryRecords(threadId, all, "alpha"))).toHaveLength(2);
   });
 
   test("private commits of core kinds are invalid; private rows stay hidden after restart", async () => {
@@ -403,10 +410,8 @@ describe("extension kinds after restart", () => {
       seen.push(expectOk(read).kind);
     }
     expect(seen).toEqual(["thread.started", "grp.alpha.note.recorded"]);
-    const rows = await restarted.service.ext.queryRecords(
-      threadId,
-      { kind: "grp.alpha.*" },
-      "alpha",
+    const rows = expectOk(
+      await restarted.service.ext.queryRecords(threadId, { kind: "grp.alpha.*" }, "alpha"),
     );
     expect(rows).toHaveLength(1);
   });

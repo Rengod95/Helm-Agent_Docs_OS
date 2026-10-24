@@ -173,4 +173,25 @@ describe("threads.setTitle", () => {
     expect(expectOk(h.service.query.thread(threadId))?.title).toBeNull();
     expect(branchItemsOf(h, threadId)).toEqual([]);
   });
+
+  // U-13: 밖에서 온 requestKey는 commitKeyPart를 거쳐 커밋 키가 된다
+  test("a request key with spaces, non-ASCII or a long length still commits and replays", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h, "before");
+    for (const key of ["has space", "한글 키", "x".repeat(400), "h_looks-like-a-hash"]) {
+      expectOk(h.service.threads.setTitle(threadId, `t-${key.length}`, key));
+      expectOk(h.service.threads.setTitle(threadId, `t-${key.length}`, key));
+    }
+    expect(expectOk(h.service.query.thread(threadId))?.title).toBe("t-19");
+  });
+
+  test("the same key with another title is a typed key_reused error, not a Bug", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h, "before");
+    expectOk(h.service.threads.setTitle(threadId, "one", "same"));
+    expect(h.service.threads.setTitle(threadId, "two", "same")).toEqual({
+      ok: false,
+      error: { kind: "key_reused", requestKey: "same" },
+    });
+  });
 });

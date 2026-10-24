@@ -30,7 +30,7 @@ import {
   type StoreId,
   type ThreadSummary,
 } from "@xeon/contracts/wire";
-import type { ExtHost } from "@xeon/ext-host";
+import { PrimitiveError, type ExtHost } from "@xeon/ext-host";
 import type {
   ActivityPort,
   ApprovalPort,
@@ -310,6 +310,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         } else {
           alive[Symbol.dispose]();
           store.leases.release(token);
+          // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 저장소 오류로 알린다. 빈 상태로 열면 켜짐과 상태 판을 잃는다
+          if (caught instanceof PrimitiveError && caught.code === "storage_unavailable") {
+            throw wireError("store.io", {
+              message: `ext.openThread failed: ${caught.message}`.slice(0, 200),
+              details: { code: "ext_state_unreadable" },
+            });
+          }
           throw caught;
         }
       }

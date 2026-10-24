@@ -1114,7 +1114,7 @@ commit(next):
 
 #### 4.6.2 상태 캐시
 
-- `openThread`가 `RecordCommitPort.loadThread`로 활성 가지 기준 판(이벤트 id 포함), 켜짐 상태, 열린 임대, 임대 차수를 읽어 메모리에 둔다. 커밋 성공마다 캐시를 갱신한다. `replayed`이면 저장된 상태로 갱신한다(§4.6.1).
+- `openThread`가 `RecordCommitPort.loadThread`로 활성 가지 기준 판(이벤트 id 포함), 켜짐 상태, 열린 임대, 임대 차수를 읽어 메모리에 둔다. `loadThread`와 `queryRecords`는 읽기 실패(busy, io, 손상 행)를 `Result<…, ReadFailure>` 값으로 돌려준다. 읽지 못하면 `openThread`는 빈 상태로 열지 않고 `PrimitiveError("storage_unavailable")`로 실패하며, `readRecords`도 같은 오류를 확장에 던진다. 커밋 성공마다 캐시를 갱신한다. `replayed`이면 저장된 상태로 갱신한다(§4.6.1).
 - leaf 이동(분기, 되감기, 복원) 뒤에는 캐시를 버리고 다시 읽는다. [제안] L1이 leaf 이동을 커밋한 뒤 `openThread`를 다시 부른다. 다시 읽기 전에는 그 thread의 `commit`을 받지 않는다.
 - 캐시 값은 동결된 객체다. 핸들러가 값을 고쳐도 원본이 바뀌지 않는다.
 

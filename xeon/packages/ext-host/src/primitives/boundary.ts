@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { Bug, attemptAsync } from "@xeon/contracts";
+import { Bug } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   LoopPortKey,
@@ -12,6 +12,7 @@ import {
 import type { DurableEventDraft } from "@xeon/contracts/records";
 import type { BoundarySignal, BoundaryTxn, HostCore, ThreadRuntime } from "./core.ts";
 import { makeDraft } from "./drafts.ts";
+import { PrimitiveError } from "./errors.ts";
 import { keyPart } from "./keys.ts";
 import type { LeaseBroker } from "./lease.ts";
 import type { ScopeRuntime } from "./scope.ts";
@@ -194,7 +195,7 @@ export function createBoundary(
   ): Promise<void> {
     const port = core.ports.get(RecordCommitPortKey);
     if (port === undefined) return;
-    const loaded = await attemptAsync(() => port.loadThread(thread.threadId));
+    const loaded = await port.loadThread(thread.threadId);
     if (!loaded.ok) {
       core.deps.report({
         level: "warning",
@@ -315,7 +316,18 @@ export function createBoundary(
     async openThread(threadId) {
       if (core.threads.has(threadId)) await this.closeThread(threadId);
       const port = core.ports.get(RecordCommitPortKey);
-      const snapshot = port === undefined ? EMPTY_SNAPSHOT : await port.loadThread(threadId);
+      let snapshot = EMPTY_SNAPSHOT;
+      if (port !== undefined) {
+        // 읽기 연결의 busy·io·손상 행은 예상 가능한 실패다. 빈 스냅샷으로 열면 켜짐과 상태 판을 잃은 채 이어 쓰게 되므로 열지 않는다
+        const loaded = await port.loadThread(threadId);
+        if (!loaded.ok) {
+          throw new PrimitiveError(
+            "storage_unavailable",
+            `the thread's extension state could not be read: ${loaded.error.kind}`,
+          );
+        }
+        snapshot = loaded.value;
+      }
       const thread: ThreadRuntime = {
         threadId,
         abort: new AbortController(),

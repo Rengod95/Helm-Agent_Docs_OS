@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { makeDraft } from "../../src/primitives/drafts.ts";
 import { hostInternalsOf, scopeToggleSourceOf } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { makeGroupUnit, makeUnit } from "./fixtures/support.ts";
+import { makeGroupUnit, makeUnit, snapshotOf } from "./fixtures/support.ts";
 
 type Host = Awaited<ReturnType<typeof createTestHost>>;
 
@@ -194,8 +194,8 @@ test("a default-enabled scope turned off in a thread stays off after reopening a
   await first.settled();
   scopeToggleSourceOf(first.host).request("ts-off", false, "request", a);
   await first.settled();
-  expect((await first.records.loadThread(a)).disabled).toEqual(["ts-off"]);
-  expect((await first.records.loadThread(a)).enabled).toEqual([]);
+  expect((await snapshotOf(first.records, a)).disabled).toEqual(["ts-off"]);
+  expect((await snapshotOf(first.records, a)).enabled).toEqual([]);
 
   // 같은 호스트에서 닫았다 다시 연다
   await first.host.closeThread(a);
@@ -225,7 +225,7 @@ test("a default-enabled scope turned off in a thread stays off after reopening a
   scopeToggleSourceOf(second.host).request("ts-off", true, "request", a);
   await second.settled();
   expect(changes(second, a).at(-1)).toEqual({ scopeId: "ts-off", status: "enabled" });
-  expect((await second.records.loadThread(a)).scopeTransitions["ts-off"]).toBe(3);
+  expect((await snapshotOf(second.records, a)).scopeTransitions["ts-off"]).toBe(3);
   // 재시작한 호스트가 낸 이벤트 id는 이전 호스트의 것과 겹치지 않는다
   const eventIds = second.records.events(a).map((draft) => draft.id);
   expect(new Set(eventIds).size).toBe(eventIds.length);
@@ -243,7 +243,7 @@ test("the in-memory record store rejects a draft whose id is already stored inst
   expect(first.status).toBe("committed");
   const second = await t.records.commit({ threadId: thread, requestId: "dup-2", drafts: [draft] });
   expect(second).toEqual({ status: "rejected", code: "invalid" });
-  expect((await t.records.loadThread(thread)).enabled).toEqual(["dup"]);
+  expect((await snapshotOf(t.records, thread)).enabled).toEqual(["dup"]);
 });
 
 test("onChange reports toggle requests, their application and lease changes; a throwing listener does not stop the others", async () => {

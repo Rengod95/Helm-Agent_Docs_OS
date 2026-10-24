@@ -5,9 +5,34 @@ import { agentToolRegistration } from "../src/tool.ts";
 import { openHarness } from "./support/harness.ts";
 
 describe("the agent tool", () => {
+  test("it waits for the child inside suspendWhile so the tools slot is not held meanwhile", async () => {
+    let suspendedDuringChild = -1;
+    const holder: { tools?: ReturnType<typeof openHarness>["tools"] } = {};
+    const h = openHarness({
+      run: (request, session) => {
+        suspendedDuringChild = holder.tools?.suspended() ?? -1;
+        const finalItemId = session.seedAssistantItem(request.threadId, "found it");
+        return Promise.resolve({ status: "completed", finalItemId });
+      },
+    });
+    holder.tools = h.tools;
+    const registration = agentToolRegistration(h.service, h.tasks, h.tools);
+    h.openToolCall("tc-slot");
+    const result = await registration.tool.execute(
+      "tc-slot",
+      { agent: "explorer", task: "look" },
+      new AbortController().signal,
+      () => {},
+    );
+    expect(result.isError).toBe(false);
+    expect(suspendedDuringChild).toBe(1);
+    expect(h.tools.suspensions).toEqual([{ threadId: h.parentThreadId, toolCallId: "tc-slot" }]);
+    expect(h.tools.suspended()).toBe(0);
+  });
+
   test("it is registered as a direct tool of the spawn class with replay safe", () => {
     const h = openHarness();
-    const registration = agentToolRegistration(h.service, h.tasks);
+    const registration = agentToolRegistration(h.service, h.tasks, h.tools);
     expect(registration).toMatchObject({
       kind: "direct",
       orderKey: "core.agents",
@@ -19,7 +44,7 @@ describe("the agent tool", () => {
 
   test("execute finds the parent thread through the task tree and returns the guarded report", async () => {
     const h = openHarness();
-    const registration = agentToolRegistration(h.service, h.tasks);
+    const registration = agentToolRegistration(h.service, h.tasks, h.tools);
     h.openToolCall("tc-9");
     const result = await registration.tool.execute(
       "tc-9",
@@ -50,7 +75,7 @@ describe("the agent tool", () => {
 
   test("errors come back as isError results; no task scope and background are refused", async () => {
     const h = openHarness();
-    const registration = agentToolRegistration(h.service, h.tasks);
+    const registration = agentToolRegistration(h.service, h.tasks, h.tools);
     h.openToolCall("tc-1");
     const unknown = await registration.tool.execute(
       "tc-1",
@@ -79,7 +104,7 @@ describe("the agent tool", () => {
 
   test("the parameter schema requires agent and task", () => {
     const h = openHarness();
-    const registration = agentToolRegistration(h.service, h.tasks);
+    const registration = agentToolRegistration(h.service, h.tasks, h.tools);
     expect(parse(registration.tool.parameters, { agent: "x", task: "y" }).ok).toBe(true);
     expect(parse(registration.tool.parameters, { agent: "x" }).ok).toBe(false);
     expect(parse(registration.tool.parameters, { agent: "x", task: "y", extra: 1 }).ok).toBe(false);

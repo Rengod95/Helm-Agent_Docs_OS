@@ -3,9 +3,7 @@ import type { ExposureMode } from "@xeon/contracts/services";
 import {
   createHarness,
   directTool,
-  errorText,
   layer,
-  rejectionOf,
   registerWorkspace,
   type Harness,
   expectOk,
@@ -28,8 +26,8 @@ function add(
   );
 }
 
-function advertised(h: Harness) {
-  return h.runtime.tools.advertise({ run: h.run(), activated: new Set() });
+async function advertised(h: Harness) {
+  return expectOk(await h.runtime.tools.advertise({ run: h.run(), activated: new Set() }));
 }
 
 test("exposure_removes_denied_tools: a global deny removes the tool, an args or mode condition does not", async () => {
@@ -103,7 +101,11 @@ test("exposure_order_deterministic: any registration order gives the same list a
 test("exposure_caps_at_128: 129 always tools fail, auto tools fill the remaining room and the rest are deferred", async () => {
   const over = await createHarness();
   for (let i = 0; i < 129; i += 1) add(over, `tool_${String(i).padStart(3, "0")}`, "ext.many");
-  expect(errorText(await rejectionOf(() => advertised(over)))).toContain("tools.too_many");
+  // 설정이 만드는 상한 초과는 던지지 않고 오류 값으로 돌아온다
+  expect(await over.runtime.tools.advertise({ run: over.run(), activated: new Set() })).toEqual({
+    ok: false,
+    error: { kind: "too_many", always: 130, limit: 128, withToolSearch: true },
+  });
 
   // 광고 후보(always 101 = 100 + read_tool_output, auto 50)가 임계 128을 넘으므로 auto는 모두 지연 도구가 된다
   const h = await createHarness({

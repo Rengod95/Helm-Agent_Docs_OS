@@ -103,7 +103,7 @@ xeon/packages/core-agents/
 | AG-8 | M3 | `judge`는 `failed` |
 | AG-9 | 완료(M2 범위) | `definitions/loader.ts`, `definitions/registry.ts`(우선순위 등록부) |
 | AG-10 | 완료 | `plugin.ts`, `tool.ts`, `settings.ts`, `ports.ts`(F에 키가 없어 `AgentServicePortKey`·`LoopServicePortKey`를 이 패키지가 만든다) |
-| AG-11 | 일부 | `gate.ts`(루트별 `maxConcurrent`), 전체 풀 `limiter("subagents")`. `tools` 슬롯 `suspendWhile`(C2)은 미결 |
+| AG-11 | 일부 | `gate.ts`(루트별 `maxConcurrent`), 전체 풀 `limiter("subagents")`. `tools` 슬롯 `suspendWhile`(C2)은 `agent` 도구가 `ToolService.suspendWhile` 안에서 `spawn`을 기다려 해소(M2 검토 3) |
 | AG-12 | 완료 | `testing/index.ts`(`spawnRecorder`, `settleAll`, `fakeChildLoop`) |
 
 시험 대역(`test/support/`의 세션, 태스크, 도구)은 DR-02 때문에 이 패키지 안에 따로 있다.

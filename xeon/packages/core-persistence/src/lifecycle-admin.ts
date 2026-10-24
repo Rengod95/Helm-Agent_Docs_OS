@@ -1,19 +1,21 @@
 // 수명주기 가운데 조회·종결·삭제·제목(L1.persistence.spec §4.10.5, PS-9): list, close, remove, setTitle.
 import { Bug, detach, err, ok, type Logger, type Result } from "@xeon/contracts";
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
-import type {
-  CommitPlan,
-  LeaseService,
-  LifecycleError,
-  ReadFailure,
-  SqlTx,
-  StoreDb,
-  StoreError,
-  ThreadLifecycle,
-  ThreadListQuery,
-  ThreadPage,
-  ThreadSummaryRow,
+import {
+  commitKeyPart,
+  type CommitPlan,
+  type LeaseService,
+  type LifecycleError,
+  type ReadFailure,
+  type SqlTx,
+  type StoreDb,
+  type StoreError,
+  type ThreadLifecycle,
+  type ThreadListQuery,
+  type ThreadPage,
+  type ThreadSummaryRow,
 } from "@xeon/contracts/records";
+import { sha256Hex } from "./hash.ts";
 import { releaseOpenSession, type GuardState, type OpenSessions } from "./ownership.ts";
 import type { SessionPoints } from "./points.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
@@ -235,7 +237,7 @@ export function createAdminOps(
       if (denied !== null) return err(denied);
       const committed = writer.commit({
         threadId,
-        requestId: `title:${requestKey}`,
+        requestId: `title:${commitKeyPart(requestKey, sha256Hex)}`,
         fingerprintSource: { title },
         build(view): CommitPlan {
           if (view.threadStatus === "closed") {
@@ -262,7 +264,7 @@ export function createAdminOps(
       if (!committed.ok) return err(committed.error);
       const result = committed.value;
       if (result.status === "key_reused") {
-        throw new Bug(`store.schema_invalid: title key reused (${requestKey})`);
+        return err({ kind: "key_reused", requestKey });
       }
       if (result.status === "rejected") return err({ kind: "thread_closed", threadId });
       // 재전송(replayed)이면 이미 알렸다

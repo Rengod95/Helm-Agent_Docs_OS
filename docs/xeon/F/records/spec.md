@@ -992,12 +992,16 @@ export interface RecordCommitPort {
   /** SessionService.commit 한 트랜잭션. 확장 투영(x_<name>_*)도 같은 트랜잭션에서 갱신된다 */
   commit(request: ExtCommitRequest): Promise<ExtCommitResult>;
   /** 활성 가지 기준 스냅샷. 버려진 가지의 이벤트는 보지 않는다 */
-  loadThread(threadId: ThreadId): Promise<ExtThreadSnapshot>;
+  loadThread(threadId: ThreadId): Promise<Result<ExtThreadSnapshot, ReadFailure>>;
   /**
    * 그룹 레코드 조회. reader는 조회하는 확장의 이름(ExtensionName, F.extensions.spec §3.1)이다.
    * private 행은 reader가 그 행의 소유 확장일 때만 돌려준다(아래 규칙)
    */
-  queryRecords(threadId: ThreadId, query: ExtRecordQuery, reader: string): Promise<readonly ExtRecordRow[]>;
+  queryRecords(
+    threadId: ThreadId,
+    query: ExtRecordQuery,
+    reader: string,
+  ): Promise<Result<readonly ExtRecordRow[], ReadFailure>>;
 }
 ```
 

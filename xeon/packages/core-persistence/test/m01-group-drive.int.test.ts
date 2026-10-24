@@ -64,7 +64,9 @@ async function snapshotAfterDrive(records: MemoryRecordStore): Promise<unknown> 
   await t.host.install(unit);
   await t.host.openThread(thread);
   await t.settled();
-  const snapshot = await records.loadThread(thread);
+  const loaded = await records.loadThread(thread);
+  if (!loaded.ok) throw new Error(`loadThread failed: ${loaded.error.kind}`);
+  const snapshot = loaded.value;
   return {
     enabled: snapshot.enabled,
     disabled: snapshot.disabled,
@@ -108,7 +110,7 @@ describe("M-01 group drive on the real session store", () => {
     expect(t.diagnostics.filter((entry) => entry.level === "error")).toEqual([]);
 
     // 재시작: 활성 가지의 상태와 켜짐을 되살려 같은 임대를 새로 받지 않는다
-    const snapshot = await h.service.ext.loadThread(thread);
+    const snapshot = expectOk(await h.service.ext.loadThread(thread));
     expect(snapshot.states[0]).toMatchObject({ scopeId: "smoke-group", rev: 1 });
     expect(snapshot.openLease).toBeNull();
     expectProjectionsRebuildable(h.store.db);

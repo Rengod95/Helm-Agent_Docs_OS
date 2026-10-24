@@ -24,7 +24,7 @@ export type AgentsTasks = Pick<TaskService, "openScope" | "find" | "abort" | "li
 
 export type AgentsTools = Pick<
   ToolService,
-  "mode" | "setMode" | "advertise" | "register" | "registerRules"
+  "mode" | "setMode" | "advertise" | "register" | "registerRules" | "suspendWhile"
 >;
 
 /** `l1.agents.*` 설정 읽기. 값을 정하는 쪽(효과 값 계산)은 조립 루트가 넘긴다. 호출 때마다 읽는다(nextTurn 키) */

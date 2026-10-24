@@ -4,7 +4,7 @@ import { TOOL_SEARCH_NAME } from "@xeon/contracts/services";
 import { Type } from "typebox";
 import type { ToolsDeps } from "../deps.ts";
 import { errorOutcome } from "../entries.ts";
-import { planExposure } from "../expose.ts";
+import { advertiseErrorText, planExposure } from "../expose.ts";
 import type { RawCall, RawOutcome, ToolEntry } from "../types.ts";
 import { activatedTools } from "./activation.ts";
 
@@ -73,10 +73,16 @@ async function search(deps: SearchDeps, call: RawCall): Promise<RawOutcome> {
     });
   }
   const config = deps.config(threadId);
-  const plan = planExposure(
+  // 서브에이전트의 천장(허용 목록 포함)을 그대로 적용한다. 빠뜨리면 허용 목록 밖 지연 도구의 이름과 설명이 목록에 실린다
+  const planned = planExposure(
     deps.entries(),
     {
-      run: { threadId, caller: call.run.caller, depth: call.run.depth },
+      run: {
+        threadId,
+        caller: call.run.caller,
+        depth: call.run.depth,
+        ...(call.run.ceiling === undefined ? {} : { ceiling: call.run.ceiling }),
+      },
       activated: activated.value,
     },
     {
@@ -85,6 +91,12 @@ async function search(deps: SearchDeps, call: RawCall): Promise<RawOutcome> {
       deferThreshold: config.deferThreshold,
     },
   );
+  if (!planned.ok) {
+    return errorOutcome(`[xeon:tools.too_many] ${advertiseErrorText(planned.error)}`, {
+      code: "tools.too_many",
+    });
+  }
+  const plan = planned.value;
   const tokens = tokensOf(query);
   const found = plan.deferred
     .map((entry) => ({ entry, score: scoreOf(entry, tokens) }))

@@ -16,6 +16,10 @@ export interface FakeTools extends AgentsTools {
   readonly registered: ToolRegistration[];
   readonly modeChanges: { readonly threadId: ThreadId; readonly mode: PermissionMode }[];
   setParentMode(threadId: ThreadId, mode: PermissionMode): void;
+  /** `suspendWhile` 호출 기록 */
+  readonly suspensions: { readonly threadId: ThreadId; readonly toolCallId: string }[];
+  /** 지금 `suspendWhile` 안에서 기다리는 호출 수(슬롯을 내려놓은 호출) */
+  suspended(): number;
   /** 등록된 direct 도구 하나 */
   directTool(name: string): DirectToolRegistration | undefined;
 }
@@ -25,6 +29,8 @@ export function fakeTools(): FakeTools {
   const rules = new Map<string, readonly PolicyRule[]>();
   const registered: ToolRegistration[] = [];
   const modeChanges: { readonly threadId: ThreadId; readonly mode: PermissionMode }[] = [];
+  const suspensions: { readonly threadId: ThreadId; readonly toolCallId: string }[] = [];
+  let suspendedNow = 0;
   function register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
   function register(owner: ScopeId, def: ToolResourceDef): Result<Unregister, ToolRegisterError>;
   function register(
@@ -42,6 +48,17 @@ export function fakeTools(): FakeTools {
     rules,
     registered,
     modeChanges,
+    suspensions,
+    suspended: () => suspendedNow,
+    async suspendWhile(threadId, toolCallId, wait) {
+      suspensions.push({ threadId, toolCallId });
+      suspendedNow += 1;
+      try {
+        return await wait;
+      } finally {
+        suspendedNow -= 1;
+      }
+    },
     setParentMode(threadId, mode) {
       modes.set(threadId, mode);
     },
@@ -58,12 +75,14 @@ export function fakeTools(): FakeTools {
       return Promise.resolve({ ok: true, mode });
     },
     advertise: () =>
-      Promise.resolve({
-        tools: [],
-        deferred: [],
-        removed: [],
-        fingerprint: "sha256:0",
-      }),
+      Promise.resolve(
+        ok({
+          tools: [],
+          deferred: [],
+          removed: [],
+          fingerprint: "sha256:0",
+        }),
+      ),
     register: register,
     registerRules(source, next) {
       rules.set(source, next);

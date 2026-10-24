@@ -3,7 +3,7 @@ import { parse } from "@xeon/contracts";
 import { Type } from "typebox";
 import { hostOf, PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { makeUnit } from "./fixtures/support.ts";
+import { makeUnit, snapshotOf } from "./fixtures/support.ts";
 
 const V1 = Type.Object({ n: Type.Integer({ minimum: 0 }) });
 const V2 = Type.Object({ count: Type.Integer({ minimum: 0 }), label: Type.String() });
@@ -36,7 +36,7 @@ async function storedV1(
     { turnId: first.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "seed" },
   );
-  expect((await first.records.loadThread(thread)).states).toMatchObject([
+  expect((await snapshotOf(first.records, thread)).states).toMatchObject([
     { version: 1, rev: 1, doc: { n: 4 } },
   ]);
   return { first, thread };
@@ -80,7 +80,7 @@ test("a lower stored version is migrated and committed as a new revision", async
   await second.settled();
   expect(calls).toEqual([[{ n: 4 }, 1]]);
   expect(second.host.scopes()[0]).toMatchObject({ status: "enabled" });
-  const snapshot = await second.records.loadThread(thread);
+  const snapshot = await snapshotOf(second.records, thread);
   expect(snapshot.states).toMatchObject([
     { version: 2, rev: 2, doc: { count: 4, label: "migrated" } },
   ]);
@@ -130,7 +130,7 @@ test("a lower stored version without a hook keeps the scope off", async () => {
     { threadId: thread, dispatchKey: "k" },
   );
   expect(ran).toEqual([]);
-  expect((await second.records.loadThread(thread)).states).toMatchObject([{ version: 1, rev: 1 }]);
+  expect((await snapshotOf(second.records, thread)).states).toMatchObject([{ version: 1, rev: 1 }]);
   // 이 thread에서 켜지지 못했으므로 켜짐 기록은 꺼짐으로 정리된다
   expect(
     second.records

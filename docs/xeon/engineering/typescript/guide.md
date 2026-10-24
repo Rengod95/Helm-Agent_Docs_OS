@@ -1327,7 +1327,7 @@ typed programming 안티패턴을 막는 규칙 전체다. `xeon/.oxlintrc.json`
 `scripts/check-ts-rules.ts`가 있다(2026-10-23). 시험은 `scripts/check-ts-rules.test.ts`다.
 
 - 실행: `just check-ts-rules`(= `bun scripts/check-ts-rules.ts [--exceptions] [루트]`). `just verify`에 포함한다. `--exceptions`는 예외 주석 전체를 표로 찍는다. 실행할 때마다 예외 개수를 종류와 규칙별로 한 줄씩 찍는다.
-- 구현한 규칙: `xeon/as-location`(허용 행마다 허용 파일을 코드에 적었다), `xeon/bug-for-expected`(시험 파일 제외), `xeon/catch-swallow`, `xeon/type-unsafe`(`Type.Unsafe<T>` 호출의 인자 모양을 TY-26 허용 행과 비교한다), `xeon/switch-default-never`(`default` 블록에 `assertNever`가 없으면 실패. 주석·문자열·정규식 리터럴을 가리고 중괄호를 센다), `xeon/directive-format`(블록 disable, 이유와 `(<이슈 또는 문서 id>)`가 없는 disable, 업스트림 병합 비용을 이유로 든 disable, `ts-ignore`, `ts-nocheck`, 운영 코드의 `ts-expect-error`). 스캔 자신의 파일(`check-ts-rules*.ts`)은 대상에서 뺀다. 규칙 이름과 정규식을 파일에 적기 때문이다.
+- 구현한 규칙: `xeon/as-location`(허용 행마다 허용 파일을 코드에 적었다), `xeon/bug-for-expected`(시험 파일 제외), `xeon/catch-swallow`, `xeon/type-unsafe`(`Type.Unsafe<T>` 호출의 인자 모양을 TY-26 허용 행과 비교한다), `xeon/switch-default-never`(`default` 블록에 `assertNever`가 없으면 실패. 주석·문자열·정규식 리터럴을 가리고 중괄호를 센다), `xeon/no-void-promise`(운영 코드의 `void <호출식>`과 `void (async …)`. 시험 파일과 `testing/`은 제외한다. 대신 `detach(promise, onFailure)`를 쓴다), `xeon/directive-format`(블록 disable, 이유와 `(<이슈 또는 문서 id>)`가 없는 disable, 업스트림 병합 비용을 이유로 든 disable, `ts-ignore`, `ts-nocheck`, 운영 코드의 `ts-expect-error`). 스캔 자신의 파일(`check-ts-rules*.ts`)은 대상에서 뺀다. 규칙 이름과 정규식을 파일에 적기 때문이다.
 - 대상: `packages/**`, `apps/**`, `plugins/**`, `scripts/**`의 `.ts`, `.tsx`. `vendor/**`, `dist/**`, `node_modules/**` 제외.
 - 파서: TS 7.0에는 안정 programmatic API가 없다(`_research/stack-status.md §2`). 줄 단위 정규식 검출로 시작했고 `new Bug(` 인자만 괄호 짝을 센다. 오탐이 문제가 되면 별도 파서로 바꾼다 [미결].
 - 별도 파일로 둔다. 층 검사(`check-layers.ts`)와 구문 검사는 실패 원인이 다르다.

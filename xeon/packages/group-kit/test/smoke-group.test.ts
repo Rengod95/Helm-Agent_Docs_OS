@@ -173,8 +173,10 @@ test("smoke.resume-reads-committed-state", async () => {
   await install(second, smokeGroup());
   await second.host.openThread(thread);
   await second.settled();
-  const snapshot = await second.records.loadThread(thread);
-  expect(snapshot.states.map((state) => state.doc)).toEqual([{ count: 1 }]);
+  const loaded = await second.records.loadThread(thread);
+  expect(loaded.ok).toBe(true);
+  if (!loaded.ok) return;
+  expect(loaded.value.states.map((state) => state.doc)).toEqual([{ count: 1 }]);
   // 커밋된 count가 1이라 drive는 새 turn을 만들지 않고, 임대도 새로 만들지 않는다
   expect(second.loop.turns).toHaveLength(1);
   const acquired = second.records.events(thread).filter((e) => e.kind === "lease.acquired");

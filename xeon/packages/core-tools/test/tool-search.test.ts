@@ -34,7 +34,7 @@ function threshold(value: number) {
 }
 
 async function advertise(h: Harness, activated: string[] = []) {
-  return h.runtime.tools.advertise({ run: h.run(), activated: new Set(activated) });
+  return expectOk(await h.runtime.tools.advertise({ run: h.run(), activated: new Set(activated) }));
 }
 
 test("auto tools stay in the list up to the threshold; above it they are all deferred behind tool_search", async () => {
@@ -138,7 +138,7 @@ test("tool_search_activates_for_next_step: the matches are recorded as activated
   }
   const again = expectOk(await activatedTools(h.session, h.thread));
   expect([...again].toSorted()).toEqual([...activated].toSorted());
-  const relisted = await restarted.tools.advertise({ run: h.run(), activated: again });
+  const relisted = expectOk(await restarted.tools.advertise({ run: h.run(), activated: again }));
   expect(relisted.tools.map((tool) => tool.name)).toEqual(after.tools.map((tool) => tool.name));
 });
 
@@ -186,6 +186,30 @@ test("tool_search does not reveal tools a global deny rule removed", async () =>
   });
   expect(textOf(found.result)).toContain("open_issue");
   expect(textOf(found.result)).not.toContain("secret_issue");
+});
+
+test("a subagent's tool_search lists only deferred tools inside its allow list", async () => {
+  const h = await createHarness({ layers: [threshold(0)] });
+  addMcp(h, "open_issue", "open an issue");
+  addMcp(h, "close_issue", "close an issue outside the allow list");
+  const run = {
+    ...h.run(),
+    caller: "subagent:worker" as const,
+    depth: 1,
+    ceiling: {
+      caller: "main" as const,
+      depth: 0,
+      mode: "default" as const,
+      allow: ["open_*", "tool_search"],
+    },
+  };
+  const found = await callTool(h.runtime.tools, run, {
+    id: "search_ceiling",
+    name: "tool_search",
+    args: { query: "issue" },
+  });
+  expect(textOf(found.result)).toContain("open_issue");
+  expect(textOf(found.result)).not.toContain("close_issue");
 });
 
 test("activation beyond the request limit is reported and not recorded", async () => {

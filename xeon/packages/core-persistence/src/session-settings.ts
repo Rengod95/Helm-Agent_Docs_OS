@@ -5,6 +5,7 @@
 import { Bug, err, ok, parse, type Logger, type Result } from "@xeon/contracts";
 import type { EventId, IdFactory, JsonValue, ThreadId } from "@xeon/contracts/conversation";
 import {
+  commitKeyPart,
   SettingsChangedPayloadSchema,
   type CommitPlan,
   type SessionSettingsLayer,
@@ -13,6 +14,7 @@ import {
   type StoreDb,
   type StoreError,
 } from "@xeon/contracts/records";
+import { sha256Hex } from "./hash.ts";
 import { branchEvents, isOnBranch, kindIn, leafOf } from "./branch.ts";
 import { envelopeOfRow } from "./events.ts";
 import { columns, readResult, rowInvalid, type RowFault } from "./rows.ts";
@@ -113,7 +115,7 @@ export function createSessionSettings(deps: SessionSettingsDeps): SessionSetting
   ): Result<void, StoreError> => {
     const committed = writer.commit({
       threadId,
-      requestId: `settings:${requestKey}`,
+      requestId: `settings:${commitKeyPart(requestKey, sha256Hex)}`,
       fingerprintSource: { key, scope: "session", value },
       build(): CommitPlan {
         return {

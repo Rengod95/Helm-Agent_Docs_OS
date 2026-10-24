@@ -322,9 +322,11 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       );
     }
 
-    // 비대화형 실행의 질문·계획 요청은 사람이 없다. 요청과 거부 해결을 한 커밋에 남기고 바로 거부한다(§4.7 7번, 감사 기록).
-    // 도구 승인은 정책이 이미 deny로 바꿔 요청이 나오지 않는다. 턴 밖의 요청(call 없음)은 대화형으로 본다
-    const silent = input.body.kind !== "tool" && call !== undefined && !call.run.interactive;
+    // 비대화형 실행의 요청은 사람이 없다. 요청과 거부 해결을 한 커밋에 남기고 바로 거부한다(§4.7 7번, 감사 기록).
+    // 정책의 ask는 비대화형에서 deny로 바뀌어 도구 승인이 나오지 않는 것이 보통이지만, 정책이 허용한 뒤에 파이프라인이 다시 묻는
+    // 비밀 사용 승인과 능력 서비스가 올리는 도구 승인(도메인 승인 등)은 정책을 지나지 않는다. 그래서 kind를 가리지 않는다.
+    // 턴 밖의 요청(call 없음)은 대화형으로 본다
+    const silent = call !== undefined && !call.run.interactive;
     const requestedId = deps.ids.next("evt");
     const requestedDraft = deps.producer.draft({
       id: requestedId,

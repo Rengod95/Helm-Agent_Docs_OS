@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { attemptAsync } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { SpawnOrigin } from "@xeon/contracts/services";
 import { spawnRecorder } from "../src/testing/index.ts";
@@ -15,6 +16,21 @@ function deferred<T>(): { promise: Promise<T>; resolve: (value: T) => void } {
 }
 
 describe("spawn", () => {
+  test("an unexpected failure inside the child run is not recorded as aborted and releases the slot", async () => {
+    const h = openHarness({
+      run: () => Promise.reject(new TypeError("loop exploded")),
+    });
+    const { origin } = h.openToolCall("tc-boom");
+    const spawned = await attemptAsync(() =>
+      h.service.spawn({ agent: "explorer", task: "look" }, origin),
+    );
+    expect(spawned.ok).toBe(false);
+    if (!spawned.ok) expect(spawned.error.cause).toMatchObject({ message: "loop exploded" });
+    expect(kinds(h, h.parentThreadId)).not.toContain("agent.settled");
+    expect(h.tasks.limiter("subagents").inUse()).toBe(0);
+    expect(h.service.liveCount()).toBe(0);
+  });
+
   test("a foreground spawn creates the child, links it, runs one turn and settles with a guarded report", async () => {
     const h = openHarness();
     const { origin } = h.openToolCall("tc-1");

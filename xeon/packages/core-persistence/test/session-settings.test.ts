@@ -62,6 +62,14 @@ describe("session settings", () => {
     expect(layerOf(restarted, threadId).values.get(KEY)).toBe(3);
   });
 
+  test("a request key outside the commit key alphabet is hashed instead of failing the commit", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    expectOk(h.service.sessionSettings.set(threadId, KEY, 7, "설정 키 with space"));
+    expectOk(h.service.sessionSettings.set(threadId, KEY, 8, "k".repeat(500)));
+    expect(layerOf(h, threadId).values.get(KEY)).toBe(8);
+  });
+
   test("a non-owner cannot write and an unknown thread has an empty layer", async () => {
     const h = await openHarness();
     const { threadId } = newThread(h);

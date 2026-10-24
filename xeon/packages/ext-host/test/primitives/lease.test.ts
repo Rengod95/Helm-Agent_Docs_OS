@@ -8,7 +8,7 @@ import {
 } from "../../src/primitives/settings.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeGroupUnit, snapshotOf } from "./fixtures/support.ts";
 
 type Host = Awaited<ReturnType<typeof createTestHost>>;
 
@@ -192,7 +192,7 @@ test("candidates carry the seq of the last scope.changed enabled, from the snaps
   await t.settled();
   // 처음 켜지는 경계에서는 scope.changed가 아직 커밋 전이라 seq가 없다
   expect(seen[0]?.map((candidate) => candidate.enabledAtSeq)).toEqual([null, null]);
-  const stored = (await t.records.loadThread(thread)).enabledAtSeq;
+  const stored = (await snapshotOf(t.records, thread)).enabledAtSeq;
   expect(typeof stored["sq-a"]).toBe("number");
   expect(typeof stored["sq-b"]).toBe("number");
   await t.boundary(thread).turnSettled();

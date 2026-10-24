@@ -104,6 +104,36 @@ describe("moveLeaf", () => {
     ).toEqual({ ok: false, error: { kind: "invalid_target", reason: "item_not_found" } });
   });
 
+  test("keys outside the commit key alphabet are hashed; reusing a key for another target is key_reused", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    completeTurn(h, threadId);
+    completeTurn(h, threadId);
+    const first = itemAt(h, threadId, 0).eventId;
+    const second = itemAt(h, threadId, 1).eventId;
+    const key = "이동 키 with spaces";
+    expectOk(
+      await h.service.threads.moveLeaf(threadId, first, { reason: "restore", requestKey: key }),
+    );
+    expect(
+      await h.service.threads.moveLeaf(threadId, second, { reason: "restore", requestKey: key }),
+    ).toEqual({ ok: false, error: { kind: "key_reused", requestKey: key } });
+  });
+
+  test("revert accepts a long non-ASCII request key", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    completeTurn(h, threadId);
+    completeTurn(h, threadId);
+    expectOk(
+      await h.service.threads.revert(
+        threadId,
+        itemAt(h, threadId, 1).itemId,
+        "되감기 키 ".repeat(40),
+      ),
+    );
+  });
+
   test("an open turn refuses the move, a closed thread too, a non-owner is not_owner", async () => {
     const h = await openHarness();
     const { threadId } = newThread(h);

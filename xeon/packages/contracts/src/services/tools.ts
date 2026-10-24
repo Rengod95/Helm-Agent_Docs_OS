@@ -182,6 +182,20 @@ export interface RemovedTool {
   readonly tier: PolicyTier;
 }
 
+/**
+ * 광고 목록을 만들 수 없는 경우. always 도구(확장이 정한다)만으로 한 요청의 도구 상한을 넘는 것은 설정이 만들 수 있는
+ * 예상 가능한 실패다. 결함(Bug)이 아니므로 값으로 돌려준다
+ */
+export type AdvertiseError = {
+  readonly kind: "too_many";
+  /** 상한을 넘긴 always 도구 수 */
+  readonly always: number;
+  /** `tool_search` 자리를 함께 센 한도 안의 자리 수 */
+  readonly limit: number;
+  /** `tool_search` 자리를 더해야 상한을 넘는가 */
+  readonly withToolSearch: boolean;
+};
+
 export interface AdvertisedToolset {
   /** orderTools 순서. 전역 deny 제거, 지연 도구 제외 */
   readonly tools: readonly OrderedTool[];
@@ -502,7 +516,7 @@ export interface ToolService extends ToolsPort {
   meta(name: ToolName): ToolMeta | undefined;
 
   /** 광고 목록 산출. 같은 입력과 같은 등록·규칙 상태면 같은 결과 */
-  advertise(input: AdvertiseInput): Promise<AdvertisedToolset>;
+  advertise(input: AdvertiseInput): Promise<Result<AdvertisedToolset, AdvertiseError>>;
 
   /**
    * 도구 호출 하나의 준비(adr.0009 §3.4). 도구 조회, 인자 검증, `tool_call` 지점, 정책·승인, E1(`effect.intent`) 커밋을 차례로 한다.
@@ -554,4 +568,11 @@ export interface ToolService extends ToolsPort {
     mode: PermissionMode,
     source: "user" | "plan_approval",
   ): Promise<ModeChangeResult>;
+
+  /**
+   * 슬롯을 쥔 호출이 다른 노드(자식 대화)를 기다리는 동안 `tools` 풀 슬롯을 내려놓고, 기다림이 끝나면 다시 얻는다.
+   * 슬롯을 쥐지 않은 호출이면 그냥 기다린다. 자식을 만드는 도구(`agent`)는 반드시 이 안에서 자식을 기다린다:
+   * 자식의 도구 호출도 같은 풀의 슬롯이 필요해 부모가 슬롯을 쥔 채 기다리면 교착한다(L1.tasks.spec 규칙 C2, L1.agents.spec).
+   */
+  suspendWhile<T>(threadId: ThreadId, toolCallId: string, wait: Promise<T>): Promise<T>;
 }

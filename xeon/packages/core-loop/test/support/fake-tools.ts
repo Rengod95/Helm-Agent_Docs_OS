@@ -516,7 +516,7 @@ export function createFakeTools(options: {
     advertise: (input) => {
       advertiseInputs.push(input);
       advertisedActivated.push([...input.activated]);
-      return Promise.resolve(toolsetOf());
+      return Promise.resolve(ok(toolsetOf()));
     },
     prepare: (call, _assistant, run) => prepare(call, run),
     execute: (prepared, _onUpdate, run) => execute(prepared.toolCall, prepared.args, run),
@@ -537,6 +537,7 @@ export function createFakeTools(options: {
     runUserShell: () => notImplemented("runUserShell"),
     mode: () => "default",
     setMode: () => notImplemented("setMode"),
+    suspendWhile: (_threadId, _toolCallId, wait) => wait,
   };
 
   return {

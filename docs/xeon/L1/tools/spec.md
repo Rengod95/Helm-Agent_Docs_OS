@@ -209,7 +209,7 @@ export interface ToolService extends ToolsPort {
   meta(name: ToolName): ToolMeta | undefined;
 
   /** 광고 목록 산출(§4.1). 같은 입력과 같은 등록·규칙 상태면 같은 결과 */
-  advertise(input: AdvertiseInput): Promise<AdvertisedToolset>;
+  advertise(input: AdvertiseInput): Promise<Result<AdvertisedToolset, AdvertiseError>>;
 
   /**
    * 도구 호출 하나의 준비(adr.0009 §3.4). 도구 조회, 인자 검증, `tool_call` 지점, 정책·승인, E1(`effect.intent`) 커밋을 차례로 한다(§4.2).
@@ -294,7 +294,7 @@ export interface RuleRegistration {
 - 재개 때 승인 대기 중이던 호출과 의도 없는 호출은 core-loop가 `runTurn({ kind: "tools" })`에서 주 경로와 같은 `prepare`·`execute`로 실행한다(L1.loop.spec §4.5 `tools`·`await_input` 행). 결과 불명 효과의 재실행만 `rerun`이다. 그래서 재실행도 같은 기록 경로를 지난다.
 - `registerRules`의 첫 사용처는 core-agents의 자식 차단 규칙(`source: "core:agents"`, L1.agents.spec §4.3)이다. 확장 티어 규칙 등록은 2차다(§4.11).
 - `runUserShell` [결정: L1A.5]: 사용자가 `!명령`으로 직접 친 셸 명령을 `bash` 도구로 같은 파이프라인에 넣는다. 정책은 caller `main`, `depth` 0, `interactive: true`로 평가하고 `ceiling`은 쓰지 않는다. deny 규칙과 `tool_call` 지점의 거부는 막는다. ask는 사용자 본인이 낸 명령이라 승인 요청 없이 허용으로 본다. 효과는 3단(`effect.intent`, `effect.exec`, `effect.result`)으로 남기고 `effect.result.resultItemId`는 null이다. toolResult item은 기록하지 않는다. 결과를 컨텍스트에 어떻게 넣을지는 호출한 쪽(L1.loop의 `runUserBash`)이 `includeInContext`로 정한다. `bash` 도구가 없거나 막히면 던지지 않고 `isError` 결과 레코드를 돌려준다.
-- `suspendWhile(threadId, toolCallId, wait)` [제안]: 구현(`ToolServiceInternal`)이 `ToolService`에 더한 메서드다. `tools` 풀 슬롯을 쥔 호출이 자식 대화를 기다리는 동안 슬롯을 내려놓고(`Slot.suspendWhile`), 기다림이 끝나면 같은 풀에서 다시 얻는다. 슬롯을 쥔 호출이 아니면 그냥 기다린다. core-agents의 `agent` 도구가 쓴다. F `ToolService`에 승격을 요청한다(§8.3 F 요청 14).
+- `suspendWhile(threadId, toolCallId, wait)` [결정: M2 검토 3]: F `ToolService`의 메서드다(승격 완료, §8.3 F 요청 14). `tools` 풀 슬롯을 쥔 호출이 자식 대화를 기다리는 동안 슬롯을 내려놓고(`Slot.suspendWhile`), 기다림이 끝나면 같은 풀에서 다시 얻는다. 슬롯을 쥔 호출이 아니면 그냥 기다린다. core-agents의 `agent` 도구는 자식을 기다리는 `service.spawn`을 이 안에서 기다린다. 슬롯을 쥔 채 기다리면 `tools` 상한만큼의 `agent` 호출이 자식의 도구 호출 슬롯을 막아 교착한다.
 
 ### 3.4 노출 (`tools.ts`)
 
@@ -677,7 +677,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
    - `tool_search` 광고: 지연 도구가 있거나 상한 때문에 지연이 생길 때 광고한다. 한 번 광고하면 지연 도구를 모두 활성화해도 목록에 남겨 캐시 접두를 흔들지 않는다(같은 등록 상태에서). 자리는 하나를 쓴다.
 6. 도구 수 상한: 광고 목록(내장 `tool_search` 포함)은 `MAX_TOOLS_PER_REQUEST = 128`(F.capabilities.spec §4.3) 이하다. core-tools가 집행한다.
    - always + auto 후보가 128을 넘으면 auto 도구를 순서 뒤쪽부터 지연 도구로 돌린다.
-   - always 도구만으로 128을 넘으면 `advertise`가 `tools.too_many` 오류를 돌려주고 루프는 그 단계의 모델 요청을 보내지 않는다.
+   - always 도구만으로 128을 넘으면 `advertise`가 `AdvertiseError { kind: "too_many" }` 값을 돌려주고(던지지 않는다. 확장이 정하는 always 도구 수가 만드는 예상 가능한 실패다) 루프는 그 단계의 모델 요청을 보내지 않고 `tools_unavailable`로 닫는다.
    - `tool_search`의 활성화가 상한을 넘기면 넘는 도구는 활성화하지 않고 결과 문장에 그 사실을 적는다.
 7. 서브에이전트 대화의 광고 목록은 L1.agents.spec의 권한 상한을 따른다. `allow` 밖 도구와 자식 기준 전역 deny 도구를 뺀다. `keepParentList`를 주면 부모 광고 목록을 그대로 쓰고 실행 시점에만 거른다(캐시 접두 공유).
    - 구현 [결정: L1A.6]: 자식 관점(caller·depth)과 부모 관점(`ceiling`의 caller·depth) 중 어느 쪽에서든 전역 deny인 도구를 `removed`에 둔다. 도구 제한은 `AdvertiseInput.allow`(없으면 `ceiling.allow`)의 `matchToolGlob`으로 거른다. `tool_search`는 제한 밖이어도 제한 안의 지연 도구가 있으면 광고한다. `keepParentList`는 부모 `AdvertisedToolset`의 `tools`·`deferred`·`removed`·`fingerprint`를 그대로 돌려준다. 부모 목록에 있는 도구도 자식이 부르면 실행 시점의 ceiling 단계가 거부한다.
@@ -834,7 +834,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
    - `once`: 이번 호출만.
    - `thread`: 같은 소유 트리 루트 대화가 끝날 때까지 같은 도구·같은 `ruleId`(규칙이 낸 ask) 또는 같은 도구(모드가 낸 ask)의 ask를 allow로 본다. 저장은 `approval.resolved` 이벤트 자체다. core-tools는 재개 때 이 이벤트에서 세션 허용 목록을 다시 만든다.
    - `always`: 2차 항상 허용 캐시(§4.11)가 들어오기 전에는 `thread`로 낮춰 적용하고 `requestedRemember: "always"`를 남긴다 [제안].
-7. 비대화형: 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 7단계). question·plan 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다. 이 커밋에는 대기 체크포인트와 `ui_prompt` 발화가 없다. 비대화형인지는 요청의 `origin`으로 찾은 활성 호출의 `ToolRunContext.interactive`로 본다. 활성 호출이 없는 요청(턴 밖의 그룹 코드)은 대화형으로 본다.
+7. 비대화형: 정책이 낸 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 7단계). 정책을 지나지 않는 요청은 kind와 관계없이 사람이 없다: 정책이 허용한 뒤 파이프라인이 다시 묻는 비밀 사용 승인(§4.12)과 능력 서비스가 올리는 도구 승인(웹 도메인 승인 등)이 그렇다. 이 요청과 question·plan 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다. 이 커밋에는 대기 체크포인트와 `ui_prompt` 발화가 없다. 비대화형인지는 요청의 `origin`으로 찾은 활성 호출의 `ToolRunContext.interactive`로 본다. 활성 호출이 없는 요청(턴 밖의 그룹 코드)은 대화형으로 본다.
 8. 취소: 턴 취소(eng.transactions.design §6.2)는 그 턴의 미해결 요청을 `resolvedBy: "cancelled"`로 닫는다. 대기 중이던 도구 호출은 의도가 없으므로 실행되지 않고, 루프는 `not_executed` 합성 결과로 닫는다.
    - 살아 있는 호출이 기다리는 요청은 파이프라인(`decide`)과 어댑터(`input_required` 대기)가 신호가 끊길 때 닫는다. 프로세스가 끊긴 뒤 남은 요청은 호출이 없다. core-loop가 열린 turn을 닫을 때(`closeOpenTurn`) `ApprovalService.restore`로 미해결 요청을 읽어 그 turn의 것을 `cancel`로 닫는다.
 9. 계획 승인의 모드 변경 [결정: L1A.4]: `allow`의 `answer.mode`가 현재 모드와 다르면 `setMode(origin.threadId, mode, "plan_approval")`을 부른다. `approval.resolved` 커밋 뒤, 대기를 풀기 전에 한다. 그래서 계획 도구가 이어갈 때 모드가 이미 바뀌어 있다. 모드를 바꾸지 못해도(`tools.mode_forbidden`, 저장소 실패) 해결은 그대로이고 경고를 남긴다. 해결 커밋 뒤 모드 쓰기 전에 끊기면, 재시작 뒤 계획 도구가 같은 `requestKey`로 다시 요청할 때 저장된 해결을 읽는 자리에서 같은 규칙으로 이어서 적용한다(이미 같은 모드면 쓰지 않는다).
@@ -1009,7 +1009,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 11. F `services/approvals.ts`: `ApprovalService`에 비차단 `open`, `wait`, `get`을 더한다(§3.6 비차단 요청). cap-*의 `L2ApprovalsPort` 어댑터가 `request` 하나만으로는 `request`(즉시 상태)와 `wait`(메모리 대기)를 나눌 수 없다. core-tools는 `ApprovalsInternal`에 이미 구현했다.
 12. F `CallOptions`(F.capabilities.spec §3.2): 연속 정보 필드(`continuation`)와, MCP `McpQuestion`을 `QuestionBody`(또는 확장 body)로 옮기는 규칙. D5(a)의 L1.tools 쪽 재호출에 필요하다(§4.3 `approvalId`가 없는 변형).
 13. F `CallContext`(F.capabilities.spec §3.2): 비밀 사용 승인 증거 `approval?: ApprovalEvidence`. core-tools가 채우고 cap-workspace의 shell `run`이 `SecretEnvRequest.ctx.approval`에 옮긴다(§4.12).
-14. F `ToolService`(F.capabilities.spec §3.12 `services/tools.ts`): `suspendWhile(threadId, toolCallId, wait)`를 더한다(§3.3). core-agents의 `agent` 도구가 `tools` 슬롯을 내려놓고 자식을 기다리는 데 필요하다. `AgentTool.execute`와 `ToolRunContext`에는 슬롯을 실을 자리가 없다.
+14. [해소: M2 검토 3] F `ToolService`(F.capabilities.spec §3.12 `services/tools.ts`)에 `suspendWhile(threadId, toolCallId, wait)`를 더했다(§3.3). core-agents의 `agent` 도구가 `tools` 슬롯을 내려놓고 자식을 기다리는 데 필요하다. `AgentTool.execute`와 `ToolRunContext`에는 슬롯을 실을 자리가 없다.
 
 ### 8.4 다른 문서 수정 요청
 

@@ -81,7 +81,7 @@ export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
       });
       for (const definition of options.builtinDefinitions ?? []) service.define(definition);
       service.syncRules();
-      const registered = tools.register(agentToolRegistration(service, tasks));
+      const registered = tools.register(agentToolRegistration(service, tasks, tools));
       if (!registered.ok) {
         options.log.warn("agents.tool_not_registered", { reason: registered.error.kind });
       }

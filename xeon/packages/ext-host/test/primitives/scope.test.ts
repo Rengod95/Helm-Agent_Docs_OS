@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import type { ScopeApi } from "@xeon/contracts/extensions";
 import { hostInternalsOf, PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost, memoryRecordStore } from "../../src/testing/index.ts";
-import { makeGroupUnit, makeUnit } from "./fixtures/support.ts";
+import { makeGroupUnit, makeUnit, snapshotOf } from "./fixtures/support.ts";
 
 const toolCall = { toolCallId: "call_1", toolName: "read", input: { path: "a" } };
 
@@ -314,7 +314,7 @@ test("re-enabling a scope after a restart is not swallowed by a commit key an ea
     { scopeId: "scp-restart", status: "disabled" },
     { scopeId: "scp-restart", status: "enabled" },
   ]);
-  const snapshot = await second.records.loadThread(thread);
+  const snapshot = await snapshotOf(second.records, thread);
   expect(snapshot.enabled).toEqual(["scp-restart"]);
   expect(snapshot.scopeTransitions).toEqual({ "scp-restart": 3 });
   // 이전 실행이 이미 쓴 키를 다시 만나 재생으로 돌려받는 일(재시도)이 없다: 커밋은 한 번에 통과했다

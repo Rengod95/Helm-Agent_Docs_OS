@@ -1,6 +1,6 @@
 // AgentService 구현(L1.agents.spec §3.3, §4.1~§4.6, AG-1·2·3·6·11). M2는 포그라운드 spawn까지다.
 // delegate(백그라운드, AG-7)와 judge(AG-8)는 M3이고 지금은 `agents.unavailable` 값을 돌려준다.
-import { assertNever, attemptAsync, parse } from "@xeon/contracts";
+import { assertNever, attemptAsync, detach, parse } from "@xeon/contracts";
 import {
   AgentSettledEventPayloadSchema,
   commitKeyPart,
@@ -11,6 +11,7 @@ import {
 import type { ItemId, ThreadId } from "@xeon/contracts/conversation";
 import type {
   AgentDefinition,
+  AdvertisedToolset,
   AgentService,
   AgentsErrorCode,
   CancelTarget,
@@ -360,27 +361,43 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       interactive: prepared.interactive,
     });
     // 드라이브 임대 신호처럼 소유 트리 밖에서 오는 취소도 이 노드로 잇는다
+    const abortChild = async (): Promise<void> => {
+      const aborted = await tasks.abort(scope, { code: "parent", message: null });
+      // 취소 의도 커밋이 실패하면 자식이 계속 돌 수 있다. 조용히 넘기지 않고 기록한다
+      if (!aborted.ok) {
+        log.warn("agents.abort_not_committed", { childThreadId, reason: aborted.error.kind });
+      }
+    };
     const onOriginAbort = (): void => {
-      void tasks.abort(scope, { code: "parent", message: null });
+      detach(abortChild(), (cause) =>
+        log.error("agents.abort_failed", {
+          childThreadId,
+          message: cause instanceof Error ? cause.message : "non_error_thrown",
+        }),
+      );
     };
     origin.signal.addEventListener("abort", onOriginAbort, { once: true });
 
     const phase: LiveChild["phase"] = { state: "queued" };
     const work = (async (): Promise<SpawnResult> => {
-      const gate = gateOf(prepared.surfaceThreadId);
-      let releaseGate: (() => void) | undefined;
-      let slot: { release(): void } | undefined;
+      // 기다리는 동안의 취소만 aborted 정착으로 바꾼다. 그 밖의 오류(Bug, 정착 커밋 실패)는 삼키지 않고 호출자에게 전한다
+      const gated = await attemptAsync(() =>
+        gateOf(prepared.surfaceThreadId).acquire(scope.signal),
+      );
+      if (!gated.ok) return await settleAborted(origin, prepared, childThreadId, gated.error.cause);
       try {
-        releaseGate = await gate.acquire(scope.signal);
-        slot = await tasks.limiter("subagents").acquire(scope);
-        phase.state = "running";
-        return await settle(origin, prepared, request, childThreadId, scope);
-      } catch (cause) {
-        // 풀이나 동시 상한을 기다리는 동안 취소되면 실행하지 않고 aborted로 정착한다(§5 사례 10)
-        return await settleAborted(origin, prepared, childThreadId, cause);
+        const slotted = await attemptAsync(() => tasks.limiter("subagents").acquire(scope));
+        if (!slotted.ok) {
+          return await settleAborted(origin, prepared, childThreadId, slotted.error.cause);
+        }
+        try {
+          phase.state = "running";
+          return await settle(origin, prepared, request, childThreadId, scope);
+        } finally {
+          slotted.value.release();
+        }
       } finally {
-        slot?.release();
-        releaseGate?.();
+        gated.value();
       }
     })();
     const tracked = scope.track(work);
@@ -426,13 +443,24 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       definitionTools: definition.tools,
       requestAllow: request.tools?.allow,
     });
-    const parentList =
-      request.tools?.keepParentList === true
-        ? await tools.advertise({
-            run: { threadId: origin.parentThreadId, caller: origin.caller, depth: origin.depth },
-            activated: new Set(),
-          })
-        : undefined;
+    let parentList: AdvertisedToolset | undefined;
+    if (request.tools?.keepParentList === true) {
+      const advertised = await tools.advertise({
+        run: { threadId: origin.parentThreadId, caller: origin.caller, depth: origin.depth },
+        activated: new Set(),
+      });
+      if (!advertised.ok) {
+        // 부모의 광고 목록을 만들 수 없으면 같은 목록을 공유할 수 없다. 자식을 돌리지 않고 오류로 정착한다
+        return await recordSettled(origin, prepared, childThreadId, {
+          status: "error",
+          text: null,
+          reason: `agents.denied: tools.${advertised.error.kind}`,
+          usage: null,
+          answerItemId: null,
+        });
+      }
+      parentList = advertised.value;
+    }
     const ran = await loopTurn(prepared, request, childThreadId, scope, ceiling, parentList);
     return await recordSettled(origin, prepared, childThreadId, ran);
   };
@@ -451,7 +479,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     childThreadId: ThreadId,
     scope: TaskScope,
     ceiling: ReturnType<typeof ceilingOf>,
-    parentList: Awaited<ReturnType<AgentsDeps["tools"]["advertise"]>> | undefined,
+    parentList: AdvertisedToolset | undefined,
   ): Promise<RanTurn> => {
     const { definition } = prepared;
     const outcome = await deps.loop().runChildTurn({

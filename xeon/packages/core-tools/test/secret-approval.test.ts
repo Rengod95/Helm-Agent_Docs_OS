@@ -10,7 +10,9 @@ import { fakeSecretChecker } from "../src/testing/index.ts";
 import type { ToolEntry } from "../src/types.ts";
 import {
   ASSISTANT,
+  callTool,
   createHarness,
+  directTool,
   expectOk,
   layer,
   textOf,
@@ -142,6 +144,40 @@ test("when a rule already allows the call, the secret use is asked separately wi
   await h.runtime.approvals.respond(request?.approvalId ?? "", { decision: "allow" });
   expect((await done).blocked).toBeUndefined();
   expect(probe.runs[0]?.evidence?.approvalId).toBe(request?.approvalId);
+});
+
+test("a non-interactive run denies the secret-use ask at once: the request and a noninteractive resolution are recorded in one commit", async () => {
+  const checker = fakeSecretChecker({ [TOKEN]: NEEDS });
+  const h = await createHarness({ secretChecker: checker, layers: [ALLOW_BASH] });
+  // 승인 서비스가 활성 호출 표에서 호출을 찾으므로 `pipelineFor`의 따로 만든 파이프라인이 아니라 런타임의 도구 경로를 쓴다
+  const ran: string[] = [];
+  h.runtime.tools.register({
+    kind: "direct",
+    orderKey: "ext.test",
+    tool: directTool("bash", (toolCallId) => {
+      ran.push(toolCallId);
+      return Promise.resolve({ content: [{ type: "text", text: "ran" }], details: null });
+    }),
+    policy: { risk: "exec" },
+  });
+  const out = await callTool(h.runtime.tools, h.run({ interactive: false }), {
+    id: "sec_ni",
+    name: "bash",
+    args: ARGS,
+  });
+  expect(out.blocked).toContain("noninteractive_ask_denied");
+  expect(ran).toEqual([]);
+  expect(h.runtime.approvals.pending(h.thread)).toEqual([]);
+  const approvals = h.session.events.filter((event) => event.kind.startsWith("approval."));
+  expect(approvals.map((event) => event.kind)).toEqual(["approval.requested", "approval.resolved"]);
+  expect(approvals[1]?.payload).toMatchObject({ decision: "deny", resolvedBy: "noninteractive" });
+  const requestCommits = h.session.commits.filter((commit) =>
+    commit.kinds.includes("approval.requested"),
+  );
+  expect(requestCommits.map((commit) => commit.kinds)).toEqual([
+    ["approval.requested", "approval.resolved"],
+  ]);
+  expect(h.session.events.some((event) => event.kind === "effect.intent")).toBe(false);
 });
 
 test("a denied secret use blocks the call with the fixed sentence and writes no effect", async () => {

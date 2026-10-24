@@ -183,33 +183,41 @@ test("child_advertise_respects_allow_and_keep_parent_list", async () => {
     ],
   });
   for (const name of ["tool_a", "tool_b", "tool_c", "tool_d"]) addTool(h, name);
-  const parentSet = await h.runtime.tools.advertise({ run: h.run(), activated: new Set() });
+  const parentSet = expectOk(
+    await h.runtime.tools.advertise({ run: h.run(), activated: new Set() }),
+  );
   expect(parentSet.tools.map((tool) => tool.name)).toContain("tool_b");
   expect(parentSet.tools.map((tool) => tool.name)).not.toContain("tool_c");
 
   const run = { threadId: h.thread, caller: "subagent:worker" as const, depth: 1, ceiling: PARENT };
   // 자식 관점 deny(tool_b)와 부모 관점 deny(tool_c)가 빠진다
-  const child = await h.runtime.tools.advertise({ run, activated: new Set() });
+  const child = expectOk(await h.runtime.tools.advertise({ run, activated: new Set() }));
   expect(child.tools.map((tool) => tool.name)).toEqual(["read_tool_output", "tool_a", "tool_d"]);
   expect(child.removed.map((entry) => entry.ruleId).toSorted()).toEqual([
     "m.child-no-b",
     "m.main-no-c",
   ]);
   // allow 밖 도구도 빠진다
-  const limited = await h.runtime.tools.advertise({
-    run,
-    activated: new Set(),
-    allow: ["tool_a", "tool_?"],
-  });
+  const limited = expectOk(
+    await h.runtime.tools.advertise({
+      run,
+      activated: new Set(),
+      allow: ["tool_a", "tool_?"],
+    }),
+  );
   expect(limited.tools.map((tool) => tool.name)).toEqual(["tool_a", "tool_d"]);
-  const onlyA = await h.runtime.tools.advertise({ run, activated: new Set(), allow: ["tool_a"] });
+  const onlyA = expectOk(
+    await h.runtime.tools.advertise({ run, activated: new Set(), allow: ["tool_a"] }),
+  );
   expect(onlyA.tools.map((tool) => tool.name)).toEqual(["tool_a"]);
   // keepParentList는 부모 목록과 같고 캐시 접두(fingerprint)도 같다
-  const kept = await h.runtime.tools.advertise({
-    run,
-    activated: new Set(),
-    keepParentList: { parent: parentSet },
-  });
+  const kept = expectOk(
+    await h.runtime.tools.advertise({
+      run,
+      activated: new Set(),
+      keepParentList: { parent: parentSet },
+    }),
+  );
   expect(kept.tools).toEqual(parentSet.tools);
   expect(kept.fingerprint).toBe(parentSet.fingerprint);
   // 제한은 실행 시점에 건다: 부모 목록에 있는 tool_b를 자식이 부르면 거부된다

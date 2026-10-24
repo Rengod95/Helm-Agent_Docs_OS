@@ -31,6 +31,7 @@ import type {
   ExtensionEventKind,
   Projector,
   ProjectorFailure,
+  ReadFailure,
   StoreDb,
 } from "@xeon/contracts/records";
 
@@ -453,9 +454,9 @@ export function memoryRecordStore(): MemoryRecordStore {
       return Promise.resolve(result);
     },
     loadThread(threadId) {
-      return Promise.resolve(snapshotOf(threadOf(threadId)));
+      return Promise.resolve(ok(snapshotOf(threadOf(threadId))));
     },
-    queryRecords(threadId, query, reader): Promise<readonly ExtRecordRow[]> {
+    queryRecords(threadId, query, reader): Promise<Result<readonly ExtRecordRow[], ReadFailure>> {
       const thread = threadOf(threadId);
       const rows: ExtRecordRow[] = [];
       for (const event of branchOf(thread)) {
@@ -494,7 +495,9 @@ export function memoryRecordStore(): MemoryRecordStore {
           : rows.filter(
               (row) => row.subject.type === subject.type && row.subject.id === subject.id,
             );
-      return Promise.resolve(query.limit === undefined ? filtered : filtered.slice(0, query.limit));
+      return Promise.resolve(
+        ok(query.limit === undefined ? filtered : filtered.slice(0, query.limit)),
+      );
     },
   };
 }

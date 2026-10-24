@@ -1,6 +1,5 @@
 import { Bug, type Result } from "@xeon/contracts";
 import type { ToolName } from "@xeon/contracts/capabilities";
-import type { ThreadId } from "@xeon/contracts/conversation";
 import type { ScopeId, ToolRegisterError, ToolResourceDef } from "@xeon/contracts/extensions";
 import type {
   ModeChangeResult,
@@ -23,14 +22,8 @@ import { TOOLS_SETTING_KEYS } from "./settings.ts";
 
 // ToolService(xeon.tools)와 ApprovalService(xeon.approvals) 조립(L1.tools.plan TL-8). Cordis는 쓰지 않는다.
 
-/** 구현이 F `ToolService`에 더한 메서드. `suspendWhile`은 F 승격 요청이다(L1.tools.spec §8.3 F 요청 14) */
-interface ToolServiceInternal extends ToolService {
-  /** 슬롯을 쥔 호출이 다른 노드(자식 대화)를 기다리는 동안 `tools` 슬롯을 내려놓는다. 슬롯이 없으면 그냥 기다린다 */
-  suspendWhile<T>(threadId: ThreadId, toolCallId: string, wait: Promise<T>): Promise<T>;
-}
-
 export interface ToolRuntime {
-  readonly tools: ToolServiceInternal;
+  readonly tools: ToolService;
   readonly approvals: ApprovalsInternal;
 }
 
@@ -91,7 +84,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     return registry.add(entriesOf(first, deps.resolveCapability, waitInput));
   }
 
-  const tools: ToolServiceInternal = {
+  const tools: ToolService = {
     register,
     meta(name: ToolName): ToolMeta | undefined {
       const entry = registry.get(name);

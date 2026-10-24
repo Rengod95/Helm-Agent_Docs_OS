@@ -473,7 +473,7 @@ abort(target, reason, { background }):
 - 대기열은 풀마다 FIFO다. 대기 중 owner가 취소되면 대기열에서 지운다.
 - 상한 값은 설정 `l1.tasks.limits.*`다(§6). 값이 줄면 이미 쥔 슬롯은 그대로 두고 새 획득부터 적용한다. 값이 늘어난 것은 다음 반납이나 획득에서 대기자에게 닿는다(설정 변경 알림을 받지 않는다) [구현: `limiter.ts`].
 - 구현 메모 [결정: L1B.5]: 대기 중 취소는 `signal.throwIfAborted()`로 `AbortReason`을 던져 거부한다. `suspendWhile`은 슬롯을 놓고 기다린 뒤 노드가 정착하지 않았으면 같은 풀의 FIFO 끝에서 다시 얻는다(대기 중 새로 온 작업 뒤에 선다). 노드가 정착하면 쥔 슬롯을 자동 반납한다.
-- [미결] C2의 `tools` 슬롯 쪽은 슬롯을 쥔 core-tools가 `suspendWhile`을 불러야 한다. `agent` 도구(`L1.agents`)는 자기 `execute` 안에서 호출 도구의 슬롯을 알 수 없다(`Limiter`에 owner로 슬롯을 찾는 길이 없다). core-tools가 `spawn` 부류 도구 실행 동안 `tools` 슬롯을 쥐지 않거나, F가 `Limiter`에 슬롯 조회를 더해야 한다. `tools` 풀 상한이 1이고 자식이 도구를 쓰면 이 틈에서 교착한다.
+- [해소: M2 검토 3] C2의 `tools` 슬롯 쪽은 슬롯을 쥔 core-tools가 `ToolService.suspendWhile(threadId, toolCallId, wait)`로 내려놓는다. `agent` 도구(`L1.agents`)는 `execute` 안에서 자식을 기다리는 `spawn`을 이 메서드로 감싼다.
 
 교착 방지 규칙:
 

@@ -1,4 +1,4 @@
-import { Bug } from "@xeon/contracts";
+import { err, ok, type Result } from "@xeon/contracts";
 import {
   MAX_TOOLS_PER_REQUEST,
   toolOrderKey,
@@ -10,6 +10,7 @@ import {
   TOOL_SEARCH_NAME,
   matchToolGlob,
   type AdvertisedToolset,
+  type AdvertiseError,
   type AdvertiseInput,
   type PolicyInput,
   type RemovedTool,
@@ -112,14 +113,14 @@ function refOrder(a: ToolEntry, b: ToolEntry): number {
  *
  * 1. 전역 deny 도구를 뺀다. 2. `always`는 항상 싣는다. `deferred`는 지연이다. `auto`는 광고 후보(always + auto)가
  * 임계를 넘으면 모두 지연이고, 아니면 싣는다. 3. 지연 도구가 하나라도 있으면 `tool_search`를 싣는다(자리 하나).
- * 4. 상한 128을 넘는 auto 도구는 순서 뒤쪽부터 지연이 된다. always와 `tool_search`만으로 넘으면 `tools.too_many`다.
+ * 4. 상한 128을 넘는 auto 도구는 순서 뒤쪽부터 지연이 된다. always와 `tool_search`만으로 넘으면 `too_many` 오류 값이다.
  * 5. `activated`에 든 지연 도구는 상한이 남는 만큼 싣는다.
  */
 export function planExposure(
   entries: readonly ToolEntry[],
   input: AdvertiseInput,
   context: ExposeContext,
-): ExposurePlan {
+): Result<ExposurePlan, AdvertiseError> {
   const ordered = [...entries].toSorted(refOrder);
   const search = ordered.find(isToolSearch);
   // 서브에이전트 정의의 도구 제한(glob). 없으면 제한이 없다. `tool_search`는 제한 밖이어도 지연 도구를 찾는 데 필요해 아래에서 따로 다룬다
@@ -147,9 +148,12 @@ export function planExposure(
   const reserved = anyDeferral && search !== undefined ? 1 : 0;
   const room = MAX_TOOLS_PER_REQUEST - always.length - reserved;
   if (room < 0) {
-    throw new Bug(
-      `tools.too_many: ${always.length} always-exposed tools${reserved === 1 ? " and tool_search" : ""} exceed the limit of ${MAX_TOOLS_PER_REQUEST}`,
-    );
+    return err({
+      kind: "too_many",
+      always: always.length,
+      limit: MAX_TOOLS_PER_REQUEST,
+      withToolSearch: reserved === 1,
+    });
   }
   const advertisedAutos = autosOffered.slice(0, room);
   const overflow = autosOffered.slice(room);
@@ -167,31 +171,38 @@ export function planExposure(
     }
   }
   if (search !== undefined && anyDeferral) advertised.push(search);
-  return { advertised: advertised.toSorted(refOrder), deferred: stillDeferred, removed };
+  return ok({ advertised: advertised.toSorted(refOrder), deferred: stillDeferred, removed });
+}
+
+/** 사람이 읽는 광고 실패 문장. 메시지 앞머리는 `tools.too_many`(ToolsErrorCode)다 */
+export function advertiseErrorText(error: AdvertiseError): string {
+  return `tools.too_many: ${String(error.always)} always-exposed tools${error.withToolSearch ? " and tool_search" : ""} exceed the limit of ${String(error.limit)}`;
 }
 
 export async function advertiseTools(
   entries: readonly ToolEntry[],
   input: AdvertiseInput,
   context: ExposeContext,
-): Promise<AdvertisedToolset> {
+): Promise<Result<AdvertisedToolset, AdvertiseError>> {
   if (input.keepParentList !== undefined) {
     // 캐시 접두를 부모와 나누려고 부모 광고 목록을 그대로 쓴다. 제한은 실행 시점의 ceiling 단계가 건다(L1.tools.spec §4.1 규칙 7)
     const { parent } = input.keepParentList;
-    return {
+    return ok({
       tools: parent.tools,
       deferred: parent.deferred,
       removed: parent.removed,
       fingerprint: parent.fingerprint,
-    };
+    });
   }
-  const plan = planExposure(entries, input, context);
+  const planned = planExposure(entries, input, context);
+  if (!planned.ok) return planned;
+  const plan = planned.value;
   const tools = plan.advertised.map(wireOf);
   const deferred: ToolRef[] = plan.deferred.map((entry) => entry.ref);
-  return {
+  return ok({
     tools,
     deferred,
     removed: plan.removed,
     fingerprint: await toolsetFingerprint(tools),
-  };
+  });
 }

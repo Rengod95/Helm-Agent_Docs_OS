@@ -287,6 +287,8 @@ export type LifecycleError =
   | StoreError
   | { readonly kind: "not_owner"; readonly threadId: ThreadId }
   | { readonly kind: "thread_closed"; readonly threadId: ThreadId }
+  /** 같은 requestKey를 다른 내용(제목, 이동 대상·이유·요약)으로 다시 썼다. 호출자가 키를 잘못 쓴 것이다 */
+  | { readonly kind: "key_reused"; readonly requestKey: string }
   | { readonly kind: "turn_running"; readonly turnId: TurnId }
   | { readonly kind: "has_forks"; readonly forks: readonly ThreadId[] }
   | {
@@ -465,8 +467,11 @@ export interface ExtRecordRow {
 export interface RecordCommitPort {
   /** SessionService.commit 한 트랜잭션. 확장 투영(x_<name>_*)도 같은 트랜잭션에서 갱신된다 */
   commit(request: ExtCommitRequest): Promise<ExtCommitResult>;
-  /** 활성 가지 기준 스냅샷. 버려진 가지의 이벤트는 보지 않는다 */
-  loadThread(threadId: ThreadId): Promise<ExtThreadSnapshot>;
+  /**
+   * 활성 가지 기준 스냅샷. 버려진 가지의 이벤트는 보지 않는다. 읽기 연결의 busy, io와 손상 행(row_invalid)은
+   * 예상 가능한 실패라 던지지 않고 값으로 돌려준다
+   */
+  loadThread(threadId: ThreadId): Promise<Result<ExtThreadSnapshot, ReadFailure>>;
   /**
    * 그룹 레코드 조회. reader는 조회하는 확장의 이름(ExtensionName)이다.
    * private 행은 reader가 그 행의 소유 확장일 때만 돌려준다
@@ -475,7 +480,7 @@ export interface RecordCommitPort {
     threadId: ThreadId,
     query: ExtRecordQuery,
     reader: string,
-  ): Promise<readonly ExtRecordRow[]>;
+  ): Promise<Result<readonly ExtRecordRow[], ReadFailure>>;
 }
 
 export interface SessionService {

@@ -23,7 +23,14 @@ import { basename, isAbsolute, join, resolve as resolveAbsolute } from "node:pat
 import { fileURLToPath } from "node:url";
 // XEON-PATCH: P14
 // XEON-PATCH: P16
-import { attempt, attemptAsync, eachAsync, repeatAsync, type Logger } from "@xeon/contracts";
+import {
+  attempt,
+  attemptAsync,
+  detach,
+  eachAsync,
+  repeatAsync,
+  type Logger,
+} from "@xeon/contracts";
 // XEON-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
 // XEON-PATCH: P3
@@ -982,16 +989,25 @@ export class NodeExecutionEnv implements ExecutionEnv {
         const exitCode = code ?? (exitSignal ? 128 + (signalNumber(exitSignal) ?? 0) : 1);
         settle(ok({ exitCode, ...(spillPath === undefined ? {} : { spillPath }) }));
       };
-      void waitForChildProcess(
-        child,
-        () =>
-          spillError === undefined &&
-          spillStart !== undefined &&
-          (spillStream === undefined || spillBackpressured),
-      ).then(onChildExit, (error: unknown) => {
-        const cause = toError(error);
-        settle(err(new ExecutionError("spawn_error", cause.message, cause)));
-      });
+      // XEON-PATCH: P18
+      detach(
+        waitForChildProcess(
+          child,
+          () =>
+            spillError === undefined &&
+            spillStart !== undefined &&
+            (spillStream === undefined || spillBackpressured),
+        ).then(onChildExit, (error: unknown) => {
+          const cause = toError(error);
+          settle(err(new ExecutionError("spawn_error", cause.message, cause)));
+        }),
+        (error) => {
+          // onChildExit threw: record it and settle so the caller does not wait forever
+          const cause = toError(error);
+          this.logger?.error("exec.child_exit_failed", { error: cause.message });
+          settle(err(new ExecutionError("spawn_error", cause.message, cause)));
+        },
+      );
     });
   }
 

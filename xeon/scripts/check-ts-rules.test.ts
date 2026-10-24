@@ -276,3 +276,26 @@ test("exceptions are summarized per rule", () => {
     "exceptions oxlint:typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion 2",
   ]);
 });
+
+test("void <call> in production code fails and tests, types and void 0 pass", () => {
+  expect(scan("packages/a/src/x.ts", "  void tasks.abort(scope, reason);")).toEqual([
+    "1 xeon/no-void-promise",
+  ]);
+  expect(scan("packages/a/src/x.ts", "setTimeout(() => {\n  void this.#flush();\n}, 1);")).toEqual([
+    "2 xeon/no-void-promise",
+  ]);
+  expect(scan("packages/a/src/x.ts", "void (async () => { await go(); })();")).toEqual([
+    "1 xeon/no-void-promise",
+  ]);
+  expect(scan("packages/a/test/x.test.ts", "void callTool(h, run);")).toEqual([]);
+  expect(scan("packages/a/src/testing/x.ts", "void callTool(h, run);")).toEqual([]);
+  expect(
+    scan(
+      "packages/a/src/x.ts",
+      "type Cb = () => void;\nconst a: Promise<void> = go();\nconst b = void 0;\n// void tasks.abort(x)\nconst s = 'void run()';",
+    ),
+  ).toEqual([]);
+  const exempt =
+    "// xeon-disable-next-line xeon/no-void-promise -- 시작 신호만 보낸다 (eng.typescript.guide TY-22)\nvoid ping();";
+  expect(scan("packages/a/src/x.ts", exempt)).toEqual([]);
+});
