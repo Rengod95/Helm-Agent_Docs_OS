@@ -140,16 +140,21 @@ describe("observe-poll-follows-commits", () => {
       const started = await observed.waitFor((event) => event.kind === "turn.started");
       expect(started.threadId).toBe(created.threadId);
       // 소유자가 본 마지막 seq까지 관찰자도 받는다
-      const lastOwned = Math.max(...owned.events.map((event) => event.seq));
+      const ownedSeqs = owned.events.map((event) => event.seq);
+      const firstOwned = Math.min(...ownedSeqs);
+      const lastOwned = Math.max(...ownedSeqs);
       await observed.waitFor((event) => event.seq >= lastOwned);
 
-      // 받은 seq는 소유자가 본 것과 같고, 빠짐없이 한 번씩이며 오름차순이다
-      const seen = observed.events.map((event) => event.seq).filter((seq) => seq <= lastOwned);
-      expect(seen).toEqual(
-        owned.events.map((event) => event.seq).filter((seq) => seq <= lastOwned),
-      );
+      // 구독 시점이 달라 관찰자만 본 앞쪽 이벤트(thread 생성 직후 켜기 적용)는 뺀다.
+      // 같은 구간에서는 받은 seq가 소유자가 본 것과 같고, 빠짐없이 한 번씩이며 오름차순이다
+      const seen = observed.events
+        .map((event) => event.seq)
+        .filter((seq) => seq >= firstOwned && seq <= lastOwned);
+      expect(seen).toEqual(ownedSeqs.filter((seq) => seq <= lastOwned));
       expect(seen).toEqual(seen.toSorted((x, y) => x - y));
       expect(new Set(seen).size).toBe(seen.length);
+      const allSeen = observed.events.map((event) => event.seq);
+      expect(new Set(allSeen).size).toBe(allSeen.length);
 
       await a.close();
       await b.close();
