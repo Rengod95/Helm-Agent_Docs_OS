@@ -33,11 +33,10 @@ typecheck:
     {{bun}} run typecheck:root
     {{bun}} run typecheck
 
-# 단위 테스트: scripts, 각 패키지
+# 단위 테스트: scripts, 각 패키지를 하나씩 메모리 상한 아래에서 (scripts/test-capped.sh)
 [group('quality')]
-test:
-    {{bun}} test scripts
-    {{bun}} run test
+test *targets:
+    scripts/test-capped.sh {{targets}}
 
 # 층 순위 검사
 [group('local')]
