@@ -25,6 +25,7 @@ import type {
   ToolRunDrafts,
 } from "@xeon/contracts/services";
 import type { BoundarySignal } from "@xeon/ext-host";
+import type { ToolName } from "@xeon/contracts/capabilities";
 import { commitWithRetry, describeCommitFailure, type CommitOutcome } from "../commit.ts";
 import type { PreludeItem, StepRef } from "../commits.ts";
 import { createAgentEventMapper, type BoundAgentEventMapper } from "../event-mapper.ts";
@@ -66,6 +67,8 @@ interface RunState {
   pointSeq: number;
   /** 첫 단계를 열 때 `agent_start`를 낸다 */
   agentStarted: boolean;
+  /** `tool_search`가 활성화한 지연 도구. 처음 필요할 때 활성 가지에서 읽는다(`loop/activation.ts`) */
+  activated: Set<ToolName> | null;
 }
 
 export interface TurnRun {
@@ -137,6 +140,7 @@ export function createTurnRun(ctx: LoopContext, spec: TurnRunSpec): TurnRun {
     basePrompt: ctx.basePrompt,
     pointSeq: 0,
     agentStarted: false,
+    activated: null,
   };
   return { ctx, spec, thread, running, scope, threadId, turnId, mapper, emitter, state };
 }

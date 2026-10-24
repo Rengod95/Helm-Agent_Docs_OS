@@ -17,6 +17,7 @@ import type {
   ExecService,
   ExposureMode,
   OutputLimits,
+  Slot,
   ToolClass,
   ToolRisk,
   ToolRunContext,
@@ -112,6 +113,10 @@ export interface CallState {
   startedAt: number | undefined;
   /** 중단으로 끝났는가(effect.result.status = interrupted) */
   interrupted: boolean;
+  /** 사용자가 직접 친 셸 명령(`runUserShell`)인가. 정책 ask는 사용자 본인이 낸 명령이라 허용으로 보고, toolResult item은 기록하지 않는다 */
+  readonly userShell: boolean;
+  /** 실행 중 쥔 `tools` 풀 슬롯. 실행이 끝나면 놓는다. 자식을 기다리는 도구는 이 슬롯을 내려놓고 기다린다(`suspendWhile`) */
+  slot: Slot | undefined;
   /** 이 호출의 정책 승인을 사용자가 방금 허용했으면 그 approvalId. 비밀 사용 증거로 쓴다(U-19) */
   userApprovalId: string | undefined;
   /** 비밀 사용 승인 증거. 비밀을 쓰지 않거나 재실행이면 null */

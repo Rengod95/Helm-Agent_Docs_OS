@@ -1,5 +1,6 @@
 import { Bug, type Result } from "@xeon/contracts";
 import type { ToolName } from "@xeon/contracts/capabilities";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import type { ScopeId, ToolRegisterError, ToolResourceDef } from "@xeon/contracts/extensions";
 import type {
   ModeChangeResult,
@@ -14,14 +15,22 @@ import type { ToolsDeps } from "./deps.ts";
 import { entriesOf, resourceEntry, toToolMeta, type InputWaitResult } from "./entries.ts";
 import { advertiseTools } from "./expose.ts";
 import { createPipeline } from "./pipeline.ts";
+import { readToolOutputEntry } from "./builtin/read-tool-output.ts";
+import { toolSearchEntry } from "./builtin/tool-search.ts";
 import { createCoreRules } from "./policy/core-rules.ts";
 import { createRegistry } from "./registry.ts";
 import { TOOLS_SETTING_KEYS } from "./settings.ts";
 
 // ToolService(xeon.tools)와 ApprovalService(xeon.approvals) 조립(L1.tools.plan TL-8). Cordis는 쓰지 않는다.
 
+/** 구현이 F `ToolService`에 더한 메서드. `suspendWhile`은 F 승격 요청이다(L1.tools.spec §8.3 F 요청 14) */
+interface ToolServiceInternal extends ToolService {
+  /** 슬롯을 쥔 호출이 다른 노드(자식 대화)를 기다리는 동안 `tools` 슬롯을 내려놓는다. 슬롯이 없으면 그냥 기다린다 */
+  suspendWhile<T>(threadId: ThreadId, toolCallId: string, wait: Promise<T>): Promise<T>;
+}
+
 export interface ToolRuntime {
-  readonly tools: ToolService;
+  readonly tools: ToolServiceInternal;
   readonly approvals: ApprovalsInternal;
 }
 
@@ -56,6 +65,11 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     setMode: (threadId, mode) => tools.setMode(threadId, mode, "plan_approval"),
   });
   const pipeline = createPipeline(deps, registry, calls, approvals);
+  // 내장 도구 `tool_search`, `read_tool_output`(순서 키 core.tools). 같은 파이프라인을 지난다
+  registry.seed([
+    toolSearchEntry({ session: deps.session, config: deps.config, entries: () => registry.all() }),
+    readToolOutputEntry({ session: deps.session, store: deps.store, config: deps.config }),
+  ]);
 
   /** 도구가 올린 승인의 해결을 기다린다. 턴 취소로 끊기면 그 승인을 닫는다(L1.tools.spec §4.7 8번) */
   async function waitInput(approvalId: string, signal: AbortSignal): Promise<InputWaitResult> {
@@ -77,7 +91,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     return registry.add(entriesOf(first, deps.resolveCapability, waitInput));
   }
 
-  const tools: ToolService = {
+  const tools: ToolServiceInternal = {
     register,
     meta(name: ToolName): ToolMeta | undefined {
       const entry = registry.get(name);
@@ -88,6 +102,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
       return advertiseTools(registry.all(), input, {
         rules: config.rules,
         bypassAllowed: config.bypassAllowed,
+        deferThreshold: config.deferThreshold,
       });
     },
     prepare: (call, assistant, run) => pipeline.prepare(call, assistant, run),
@@ -95,9 +110,8 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     settleRejected: (toClose, reason, run) => pipeline.settleRejected(toClose, reason, run),
     rerun: (intent, run) => pipeline.rerun(intent, run),
     registerRules: (source, rules) => coreRules.register(source, rules),
-    runUserShell() {
-      throw new Bug("tools.runUserShell arrives in M2 (L1.tools.plan TL-16)");
-    },
+    runUserShell: (request, run) => pipeline.runUserShell(request, run),
+    suspendWhile: (threadId, toolCallId, wait) => pipeline.suspendWhile(threadId, toolCallId, wait),
     mode: (threadId) => deps.config(threadId).mode,
     setMode(threadId, mode) {
       // managed가 bypass를 금지했으면 모드를 바꾸지 않는다(L1.tools.spec §5 사례 11). 이미 세션 값이 bypass인 채 금지가 생기면 평가기가 default로 본다

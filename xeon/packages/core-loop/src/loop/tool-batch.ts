@@ -10,6 +10,7 @@ import type { ReadFailure } from "@xeon/contracts/records";
 import type { ToolCallOutcome, ToolRunContext } from "@xeon/contracts/services";
 import type { StepRef } from "../commits.ts";
 import { forEachSequential } from "../sequence.ts";
+import { noteActivations } from "./activation.ts";
 import { emitEvent, emitMessageStart } from "./sink.ts";
 import { toolRunContext, type TurnRun } from "./turn-run.ts";
 import type { LoopFailure, ToolCallResume } from "./types.ts";
@@ -288,6 +289,7 @@ export async function runToolBatch(
     const outcome = resolved.get(call.id) ?? liveById.get(call.id);
     if (outcome !== undefined) outcomes.push(outcome);
   }
+  noteActivations(run, outcomes);
   const unrecorded = outcomes.find((outcome) => outcome.itemId === null);
   if (unrecorded !== undefined) {
     return err({

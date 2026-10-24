@@ -5,6 +5,7 @@ import type {
   EffectId,
   IdFactory,
   ThreadId,
+  JsonValue,
   ToolResultMessage,
 } from "@xeon/contracts/conversation";
 import {
@@ -32,13 +33,20 @@ import { Type } from "typebox";
 // 테스트 대역: core-tools의 파이프라인 중 루프와 접하는 부분만 흉내 낸다.
 // prepare → effect.intent, execute → effect.exec + effect.result + toolResult item(한 커밋), 효과 없이 닫는 호출 → toolResult item 하나.
 
+interface FakeToolOutput {
+  readonly text: string;
+  readonly terminate?: boolean;
+  /** 효과 결과의 structuredContent(예: tool_search의 activated) */
+  readonly structuredContent?: JsonValue;
+}
+
 export interface FakeToolDef {
   readonly name: string;
   /** 실행. 기본은 "ok"를 돌려준다 */
   readonly run?: (
     args: Readonly<Record<string, unknown>>,
     signal: AbortSignal | undefined,
-  ) => Promise<{ readonly text: string; readonly terminate?: boolean }>;
+  ) => Promise<FakeToolOutput>;
   readonly replay?: "safe" | "never";
   /** "sequential"이면 한 배치가 순서대로 준비·실행된다 */
   readonly executionMode?: "sequential" | "parallel";
@@ -56,6 +64,8 @@ export interface FakeTools {
   /** `prepare`가 받은 실행 맥락 */
   readonly runs: readonly ToolRunContext[];
   readonly executed: readonly string[];
+  /** `advertise`가 받은 활성화 집합(호출 순서대로) */
+  readonly advertisedActivated: readonly (readonly string[])[];
   /** `settleRejected`가 닫은 호출 id */
   readonly closed: readonly string[];
   readonly reran: readonly string[];
@@ -79,12 +89,14 @@ function outcomeOf(
   message: ToolResultMessage,
   itemId: ToolCallOutcome["itemId"],
   terminate: boolean,
+  structuredContent: JsonValue | null = null,
 ): ToolCallOutcome {
   const result: AgentToolResult = {
     content: [...message.content],
     details: {},
     isError: message.isError,
     ...(terminate ? { terminate: true } : {}),
+    ...(structuredContent === null ? {} : { structuredContent }),
   };
   return { toolCall: call, state, result, isError: message.isError, message, itemId };
 }
@@ -117,6 +129,7 @@ export function createFakeTools(options: {
   const closed: string[] = [];
   const reran: string[] = [];
   const runs: ToolRunContext[] = [];
+  const advertisedActivated: string[][] = [];
   const intents = new Map<string, EffectId>();
   const hooks: { onExecute: ((toolCallId: string) => void) | null } = { onExecute: null };
 
@@ -190,6 +203,7 @@ export function createFakeTools(options: {
     isError: boolean,
     synthesized: boolean,
     terminate: boolean = false,
+    structuredContent: JsonValue | null = null,
   ): ToolCallOutcome {
     const itemId = ids.next("itm");
     const effectId = intents.get(call.id) ?? ids.next("efx");
@@ -202,7 +216,7 @@ export function createFakeTools(options: {
           effectId,
           status: isError ? "error" : "ok",
           resultItemId: itemId,
-          output: { structuredContent: null, terminate },
+          output: { structuredContent, terminate },
           blobRef: null,
           durationMs: 0,
           synthesized,
@@ -210,7 +224,7 @@ export function createFakeTools(options: {
       },
       { kind: "item.recorded", payload: item.draft.payload },
     ]);
-    return outcomeOf(call, state, message, itemId, terminate);
+    return outcomeOf(call, state, message, itemId, terminate, structuredContent);
   }
 
   // ── 승인 대기 흉내 ──────────────────────────────────────────────────
@@ -446,10 +460,9 @@ export function createFakeTools(options: {
         { kind: "effect.exec", payload: { effectId, startedAt: clock.now() } },
       ]);
     }
-    const outcome: { readonly text: string; readonly terminate?: boolean } = await (def?.run?.(
-      args,
-      run.signal,
-    ) ?? Promise.resolve({ text: "ok" }));
+    const fallback: FakeToolOutput = { text: "ok" };
+    const outcome: FakeToolOutput = await (def?.run?.(args, run.signal) ??
+      Promise.resolve(fallback));
     return resultCommit(
       run,
       call,
@@ -458,6 +471,7 @@ export function createFakeTools(options: {
       false,
       false,
       outcome.terminate === true,
+      outcome.structuredContent ?? null,
     );
   }
 
@@ -495,7 +509,10 @@ export function createFakeTools(options: {
         outputLimits: "self",
       };
     },
-    advertise: () => Promise.resolve(toolsetOf()),
+    advertise: (input) => {
+      advertisedActivated.push([...input.activated]);
+      return Promise.resolve(toolsetOf());
+    },
     prepare: (call, _assistant, run) => prepare(call, run),
     execute: (prepared, _onUpdate, run) => execute(prepared.toolCall, prepared.args, run),
     settleRejected: (calls, reason, run) =>
@@ -521,6 +538,7 @@ export function createFakeTools(options: {
     service,
     runs,
     executed,
+    advertisedActivated,
     closed,
     reran,
     get waitingApproval() {

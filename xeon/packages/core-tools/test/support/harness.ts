@@ -45,6 +45,8 @@ export interface HarnessOptions {
   readonly secrets?: Readonly<Record<string, string>>;
   readonly layers?: ScopeStack;
   readonly withTasks?: boolean;
+  /** `tools` 풀 슬롯 수. 생략하면 제한이 없다 */
+  readonly toolsCapacity?: number;
   /** `xeon.secrets.check` 대역. 없으면 secretEnv를 쓰는 호출은 거부된다 */
   readonly secretChecker?: SecretChecker;
 }
@@ -102,7 +104,9 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   const ids = sequentialIds(1000);
   const session = fakeSession({ clock, ids });
   const store = fakeStore();
-  const tasks = fakeTasks();
+  const tasks = fakeTasks(
+    options.toolsCapacity === undefined ? {} : { toolsCapacity: options.toolsCapacity },
+  );
   const host = await createTestHost();
   const apis = new Map<string, unknown>();
   let fileLayers: ScopeStack = options.layers ?? [];
@@ -295,7 +299,7 @@ export function textOf(result: AgentToolResult | undefined): string {
 }
 
 /** 조건이 참이 될 때까지 이벤트 루프를 양보한다. 고정 지연 대신 조건 대기(TS-03) */
-export async function until(condition: () => boolean, attempts: number = 500): Promise<void> {
+export async function until(condition: () => boolean, attempts: number = 5000): Promise<void> {
   if (condition()) return;
   if (attempts <= 0) throw new Error("condition was not met");
   await new Promise<void>((resolve) => {

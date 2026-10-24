@@ -99,10 +99,3 @@ test("a failed session write is a commit_failed value and leaves the mode unchan
   });
   expect(h.runtime.tools.mode(h.thread)).toBe("default");
 });
-
-test("M2 user shell still fails loudly until L1A.5", async () => {
-  const h = await createHarness();
-  expect(() =>
-    h.runtime.tools.runUserShell({ command: "ls", includeInContext: false }, h.run()),
-  ).toThrow("arrives in M2");
-});

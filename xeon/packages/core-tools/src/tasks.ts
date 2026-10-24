@@ -10,7 +10,7 @@ import type { LockDecl } from "./types.ts";
 
 // L1.tools.spec §4.2 7a~7c, §4.12. 태스크 엔진 연결: tool 범위 노드와 잠금 키 산출.
 
-export type ToolTasks = Pick<TaskService, "find" | "openScope" | "locks">;
+export type ToolTasks = Pick<TaskService, "find" | "openScope" | "locks" | "limiter">;
 export type LockEnv = Pick<ExecService, "id" | "canonicalPath" | "absolutePath">;
 
 export interface ToolScopeHandle {

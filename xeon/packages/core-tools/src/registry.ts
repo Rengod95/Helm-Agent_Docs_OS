@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { Bug, err, ok, type Result } from "@xeon/contracts";
 import type { ToolName } from "@xeon/contracts/capabilities";
 import type { ToolRegisterError } from "@xeon/contracts/extensions";
 import type { ToolEntry } from "./types.ts";
@@ -10,6 +10,8 @@ export interface ToolRegistry {
   add(entries: readonly ToolEntry[]): Result<() => void, ToolRegisterError>;
   get(name: ToolName): ToolEntry | undefined;
   all(): readonly ToolEntry[];
+  /** 내장 도구를 처음에 한 번 넣는다. 이름이 겹치면 코드 결함이다(Bug) */
+  seed(entries: readonly ToolEntry[]): void;
 }
 
 export function createRegistry(): ToolRegistry {
@@ -33,6 +35,12 @@ export function createRegistry(): ToolRegistry {
           if (table.get(entry.name) === entry) table.delete(entry.name);
         }
       });
+    },
+    seed(entries) {
+      for (const entry of entries) {
+        if (table.has(entry.name)) throw new Bug(`tools.builtin_conflict: ${entry.name}`);
+        table.set(entry.name, entry);
+      }
     },
     get: (name) => table.get(name),
     all: () => [...table.values()],

@@ -12,25 +12,31 @@ import {
   type ReadFailure,
   type StampedDraft,
 } from "@xeon/contracts/records";
-import type {
-  AgentToolCall,
-  AgentToolResult,
-  AgentToolUpdateCallback,
-  AssistantMessage,
-  ItemId,
-  JsonObject,
-  JsonValue,
-  ToolResultMessage,
+import {
+  toToolResultRecord,
+  type AgentToolCall,
+  type AgentToolResult,
+  type AgentToolUpdateCallback,
+  type AssistantMessage,
+  type ItemId,
+  type JsonObject,
+  type JsonValue,
+  type ThreadId,
+  type ToolResultMessage,
+  type ToolResultRecord,
 } from "@xeon/contracts/conversation";
 import type {
   ApprovalOrigin,
   ApprovalRequestInput,
   CallPreparation,
+  UserShellRequest,
   PolicyInput,
   PreparedCall,
   RejectReason,
   ToolCallOutcome,
   ToolCallState,
+  Slot,
+  TaskScope,
   ToolRunContext,
 } from "@xeon/contracts/services";
 import { requestKeyFor } from "./approvals/keys.ts";
@@ -90,6 +96,8 @@ export interface Pipeline {
     run: ToolRunContext,
   ): Promise<readonly ToolCallOutcome[]>;
   rerun(intent: EffectIntent, run: ToolRunContext): Promise<Result<ToolCallOutcome, ReadFailure>>;
+  runUserShell(request: UserShellRequest, run: ToolRunContext): Promise<ToolResultRecord>;
+  suspendWhile<T>(threadId: ThreadId, toolCallId: string, wait: Promise<T>): Promise<T>;
 }
 
 /**
@@ -102,6 +110,8 @@ const ARGS_INLINE_MAX_BYTES = 192 * 1024;
 const CLOSED_OUTCOME_LIMIT = 4096;
 /** 비밀 사용 승인 요청의 규칙 id. 정책 규칙이 아니라 비밀 사용 승인임을 화면과 기록에 보인다 */
 const SECRET_USE_RULE_ID = "secret.use";
+/** 사용자 셸(`!명령`)을 실행하는 도구 이름 */
+const USER_SHELL_TOOL = "bash";
 
 const TRUNCATED_TEXT = (name: string): string =>
   `Tool call "${name}" was not executed: the response hit the output token limit, so its arguments may be truncated. Re-issue the tool call with complete arguments.`;
@@ -128,6 +138,14 @@ interface Denied {
 
 function denied(reason: string, terminate: boolean = false): Denied {
   return { reason, terminate };
+}
+
+function userShellFailure(text: string, code: string): ToolResultRecord {
+  return toToolResultRecord({
+    content: [{ type: "text", text }],
+    details: { code },
+    isError: true,
+  });
 }
 
 function capabilityRefOf(entry: ToolEntry): CapabilityRef | undefined {
@@ -383,6 +401,8 @@ export function createPipeline(
       );
     }
     if (decision.effect === "allow") return undefined;
+    // 사용자가 직접 친 명령이다. deny 규칙은 막지만 ask는 사용자 본인이 낸 명령이라 허용으로 본다
+    if (state.userShell) return undefined;
     if (approvals.isRemembered(run.surfaceThreadId, entry.name, decision.ruleId)) return undefined;
 
     const asked = await askUser(
@@ -557,6 +577,8 @@ export function createPipeline(
     input: {
       readonly state: ToolCallState;
       readonly result: RawToolResult;
+      /** 참이면 toolResult item을 기록하지 않는다(사용자 셸) */
+      readonly silent?: boolean;
     },
   ): Promise<ToolCallOutcome> {
     const hits = new Map<string, number>();
@@ -579,7 +601,9 @@ export function createPipeline(
     const draft = itemDraftOf({ run, itemId, effectId: null, message });
     const key = commitKeyPart(call.id, sha256HexSync);
     let recorded: ItemId | null = null;
-    if (draft === undefined) {
+    if (input.silent === true) {
+      // 사용자 셸의 거부 결과는 기록하지 않고 호출자에게만 돌려준다
+    } else if (draft === undefined) {
       warn("tools.item_draft_unstamped", { toolCallId: call.id });
     } else {
       const extra: StampedDraft[] = [];
@@ -626,10 +650,19 @@ export function createPipeline(
 
   // ── prepare ──────────────────────────────────────────────────────────
 
-  async function prepare(
+  function prepare(
     call: AgentToolCall,
     _assistant: AssistantMessage,
     run: ToolRunContext,
+  ): Promise<CallPreparation> {
+    return prepareCall(call, run, false);
+  }
+
+  /** `user`가 참이면 사용자가 직접 친 셸 명령이다(runUserShell) */
+  async function prepareCall(
+    call: AgentToolCall,
+    run: ToolRunContext,
+    user: boolean,
   ): Promise<CallPreparation> {
     await tapStart(run, call);
     const settle = async (
@@ -640,6 +673,7 @@ export function createPipeline(
       outcome: await recordWithoutEffect(run, call, {
         state: "rejected",
         result: rejectedResult(reason, terminate),
+        silent: user,
       }),
     });
 
@@ -665,6 +699,8 @@ export function createPipeline(
       execCommitted: false,
       startedAt: undefined,
       interrupted: false,
+      userShell: user,
+      slot: undefined,
       userApprovalId: undefined,
       secretApproval: null,
       attempt: 0,
@@ -769,7 +805,40 @@ export function createPipeline(
     }
   }
 
-  /** 7a~8단계. tool 범위 노드를 열고 키를 잠근 뒤 실행한다 */
+  /** 7c: `tools` 풀 슬롯을 얻고 실행한 뒤 놓는다. 대기 중 취소는 effect.exec 전이므로 시작 전 중단이다 */
+  async function runInSlot(
+    state: CallState,
+    params: unknown,
+    signal: AbortSignal,
+    onUpdate: AgentToolUpdateCallback,
+    owner: TaskScope | undefined,
+  ): Promise<RawOutcome> {
+    const tasks = deps.tasks;
+    if (tasks === undefined || owner === undefined) {
+      return runBody(state, params, signal, onUpdate);
+    }
+    let slot: Slot;
+    try {
+      slot = await tasks.limiter("tools").acquire(owner);
+    } catch (error) {
+      if (signal.aborted && !state.execCommitted) {
+        return notExecuted(
+          "[aborted] The tool call was cancelled while waiting for a tool slot.",
+          "aborted",
+        );
+      }
+      throw error;
+    }
+    state.slot = slot;
+    try {
+      return await runBody(state, params, signal, onUpdate);
+    } finally {
+      state.slot = undefined;
+      slot.release();
+    }
+  }
+
+  /** 7a~8단계. tool 범위 노드를 열고 키를 잠근 뒤(C3: 키가 먼저) 슬롯을 얻어 실행한다 */
   async function runCall(
     state: CallState,
     params: unknown,
@@ -782,13 +851,14 @@ export function createPipeline(
     const signal = mergeSignals(callerSignal, run.signal, scope?.node.signal);
     const tasks = deps.tasks;
     const locksFor = entry.locks;
+    const body = (): Promise<RawOutcome> => runInSlot(state, params, signal, onUpdate, scope?.node);
     if (
       tasks === undefined ||
       scope === undefined ||
       deps.lockEnv === undefined ||
       locksFor === undefined
     ) {
-      return runBody(state, params, signal, onUpdate);
+      return body();
     }
     const requests = await lockRequests(deps.lockEnv, locksFor(state.args), signal);
     if (!requests.ok) {
@@ -797,11 +867,9 @@ export function createPipeline(
         "invalid_input",
       );
     }
-    if (requests.value.length === 0) return runBody(state, params, signal, onUpdate);
+    if (requests.value.length === 0) return body();
     try {
-      return await tasks.locks.run(requests.value, scope.node, () =>
-        runBody(state, params, signal, onUpdate),
-      );
+      return await tasks.locks.run(requests.value, scope.node, body);
     } catch (error) {
       // 잠금 대기 중 취소: effect.exec 전이므로 not_started로 닫힌다
       if (signal.aborted && !state.execCommitted) {
@@ -901,7 +969,7 @@ export function createPipeline(
     const effectResult: EffectResult = {
       effectId: intent.effectId,
       status,
-      resultItemId,
+      resultItemId: state.userShell ? null : resultItemId,
       output: {
         structuredContent: fitForEvent(current.structuredContent ?? null),
         terminate: terminate === true,
@@ -910,12 +978,10 @@ export function createPipeline(
       durationMs: state.startedAt === undefined ? null : Math.max(0, now - state.startedAt),
       synthesized: false,
     };
-    const itemDraft = itemDraftOf({
-      run,
-      itemId: resultItemId,
-      effectId: intent.effectId,
-      message,
-    });
+    // 사용자 셸의 결과는 toolResult item으로 기록하지 않는다(호출한 쪽이 기록 방식을 정한다)
+    const itemDraft = state.userShell
+      ? undefined
+      : itemDraftOf({ run, itemId: resultItemId, effectId: intent.effectId, message });
     const extra: StampedDraft[] = [];
     const hits = hitsPayload(state.maskedHits);
     if (hits.length > 0) {
@@ -1077,6 +1143,8 @@ export function createPipeline(
       execCommitted: false,
       startedAt: undefined,
       interrupted: false,
+      userShell: false,
+      slot: undefined,
       userApprovalId: undefined,
       secretApproval: null,
       attempt: execCount,
@@ -1159,10 +1227,50 @@ export function createPipeline(
     return outcomes;
   }
 
+  // ── 사용자 셸(L1.tools.spec §3.3 runUserShell) ────────────────────────
+
+  /**
+   * 사용자가 직접 친 셸 명령을 같은 파이프라인으로 실행한다: caller `main`, 대화형으로 평가한다. deny 규칙과 `tool_call` 거부는 막고,
+   * ask는 사용자 본인이 낸 명령이라 허용으로 본다. 효과는 3단(intent, exec, result)으로 남고 toolResult item은 기록하지 않는다
+   * (결과를 컨텍스트에 어떻게 넣을지는 호출한 쪽이 `includeInContext`로 정한다)
+   */
+  async function runUserShell(
+    request: UserShellRequest,
+    base: ToolRunContext,
+  ): Promise<ToolResultRecord> {
+    const entry = registry.get(USER_SHELL_TOOL);
+    if (entry === undefined) {
+      return userShellFailure(
+        `[xeon:tool_unavailable] Tool ${USER_SHELL_TOOL} is not available.`,
+        "tool_unavailable",
+      );
+    }
+    const { ceiling: _ceiling, ...rest } = base;
+    const run: ToolRunContext = { ...rest, caller: "main", depth: 0, interactive: true };
+    const call: AgentToolCall = {
+      type: "toolCall",
+      id: deps.ids.next("itm"),
+      name: USER_SHELL_TOOL,
+      arguments: { command: request.command },
+    };
+    const prepared = await prepareCall(call, run, true);
+    if (prepared.kind === "settled") return toToolResultRecord(prepared.outcome.result);
+    const outcome = await execute(prepared.call, () => {}, run);
+    return toToolResultRecord(outcome.result);
+  }
+
+  /** 슬롯을 쥔 호출이 다른 노드를 기다리는 동안 슬롯을 내려놓는다(L1.tasks.spec §4.5 C2). 슬롯이 없으면 그냥 기다린다 */
+  function suspendWhile<T>(threadId: ThreadId, toolCallId: string, wait: Promise<T>): Promise<T> {
+    const slot = calls.get(threadId, toolCallId)?.slot;
+    return slot === undefined ? wait : slot.suspendWhile(wait);
+  }
+
   return {
     prepare,
     execute,
     settleRejected,
     rerun,
+    runUserShell,
+    suspendWhile,
   };
 }
