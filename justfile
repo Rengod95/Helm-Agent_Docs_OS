@@ -78,7 +78,7 @@ ci-layer layer affected="false":
 verify: setup fmt-check lint typecheck check-layers check-ts-rules depcruise knip (docs-route "--check") test
     ws check
 
-# 웹 가격표 asOf 90일 검사 (자리: m2-plan WEB.3 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 웹 가격표 asOf 90일 검사: 오래된 항목을 출력만 하고 종료코드는 0 (xeon/packages/cap-web/src/cost/pricing-cli.ts)
 [group('local')]
 web-pricing:
     cd xeon && just web-pricing

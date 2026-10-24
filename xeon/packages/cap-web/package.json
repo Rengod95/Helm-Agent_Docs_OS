@@ -10,7 +10,8 @@
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
     "typecheck": "tsc -b",
     "test": "bun test",
-    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
+    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test",
+    "web-pricing": "bun src/cost/pricing-cli.ts"
   },
   "dependencies": {
     "@xeon/contracts": "workspace:*",
@@ -18,7 +19,8 @@
     "typebox": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:"
+    "@types/bun": "catalog:",
+    "@xeon/platform-store": "workspace:*"
   },
   "xeon": {
     "layer": "L2",

@@ -70,3 +70,30 @@ export type {
 } from "./ports/transport.ts";
 export { createHttpTransport } from "./transport/http-transport.ts";
 export { createSystemResolver } from "./transport/system-resolver.ts";
+export { cacheKeyOf, createFetchCache, rawRefOf } from "./cache/fetch-cache.ts";
+export type {
+  CacheError,
+  CachedPage,
+  FetchCache,
+  RawPage,
+  Retention,
+  SaveInput,
+} from "./cache/fetch-cache.ts";
+export { CAP_WEB_MIGRATIONS, WEB_STORE_OWNER } from "./cache/migrations.ts";
+export { createSearchMemo, limitBucket, searchMemoKey } from "./cache/search-memo.ts";
+export type { MemoHit, SearchMemo, SearchMemoKeyInput } from "./cache/search-memo.ts";
+export { createSingleFlight } from "./cache/single-flight.ts";
+export type { SingleFlight } from "./cache/single-flight.ts";
+export { createSessionLimits } from "./cost/limits.ts";
+export type { LimitedKind, SessionLimits } from "./cost/limits.ts";
+export { computeCost, createUsageMeter, monthKey } from "./cost/meter.ts";
+export type { CostInput, CostResult, MeterError, UsageMeter, UsageUnit } from "./cost/meter.ts";
+export {
+  auditPricing,
+  BUILTIN_PRICING,
+  BUILTIN_WRAPPER_PRICING,
+  isPricingStale,
+  PRICING_STALE_DAYS,
+} from "./cost/pricing.ts";
+export type { PricingAudit, ProviderPricing } from "./cost/pricing.ts";
+export type { WebStorePort } from "./ports/store.ts";

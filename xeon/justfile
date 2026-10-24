@@ -68,10 +68,10 @@ docs-route +args:
 ci-layer layer affected="false":
     bash scripts/ci-layer.sh {{layer}} {{affected}}
 
-# 웹 가격표 asOf 90일 검사 (자리: m2-plan WEB.3 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 웹 가격표 asOf 90일 검사: 오래된 항목을 출력만 하고 종료코드는 0 (L2.web.plan B5)
 [group('local')]
 web-pricing:
-    @echo "web-pricing: 아직 구현되지 않았습니다 (m2-plan WEB.3, L2.web.plan B5)" >&2; exit 2
+    cd packages/cap-web && {{bun}} run web-pricing
 
 # 데스크톱 사이드카 빌드 <triple> (자리: m2-plan DESK.3 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
 [group('local')]
