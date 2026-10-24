@@ -290,7 +290,7 @@ case "batch":
 | 순서 | 단계 | 하는 일 | 켜는 빌드 | 넣는 이유 |
 |---|---|---|---|---|
 | 1 | `journalStage` | 입력마다 이름, seq, `note`, 시각을 링 버퍼에 남긴다 | 전부 | 사용자 환경에서 재현할 수 없는 순서 문제를 진단 내보내기로 본다. 가장 바깥이라 guard가 바꾼 결과(`failed`)도 남는다 |
-| 2 | `guardStage` | reducer가 던지면 이전 상태를 `reset`(`reducer_failed`)으로 바꿔 돌려주고 Logger에 남긴다 | 전부 | Zustand는 updater 예외 때 상태를 바꾸지 않지만 그 입력은 사라지고 화면은 틀린 채 남는다. reset으로 엔진에서 다시 읽어 스스로 고친다. 같은 원인 4번째에는 `failed`로 멈춘다 |
+| 2 | `guardStage` | reducer가 던지면 이전 상태를 `reset`(`reducer_failed`)으로 바꿔 돌려주고 Logger에 남긴다 | 전부 | Zustand는 updater 예외 때 상태를 바꾸지 않지만 그 입력은 사라지고 화면은 틀린 채 남는다. reset으로 엔진에서 다시 읽어 스스로 고친다. reducer 실패가 60초 안에 4번째이면 `failed`로 멈춘다. 재구독이 성공하면 `link`의 시도 횟수가 지워져 `link`만으로는 반복 실패를 셀 수 없기 때문에 스토어가 시각을 따로 센다 |
 | 3 | `invariantStage` | 결과 상태의 불변식(id 중복, 목록과 레코드 불일치, 확정 item이 슬롯에 남음)을 검사하고 어기면 `Bug`를 던진다 | 개발·시험 | O(N) 검사라 운영에서 끈다. guard 안쪽이라 위반이 화면을 멈추지 않고 reset으로 이어진다. 시험은 `onReducerFailure: rethrow`로 위반을 실패로 드러낸다 |
 
 - 커밋 함수는 접은 결과가 이전 상태와 다른 참조일 때만 `setState(next, true)`를 부른다.
@@ -385,7 +385,7 @@ journal.record({ kind: "input", at, input: JSON.stringify(input), seq: null, not
 
 - `item.updated`(`part_delta`)는 `streaming.items[itemId].parts[i].text`만 바꾼다. 확정 item 레코드(`transcript.items`)는 델타 때 복사하지 않는다.
 - 슬롯을 비우는 때: 그 item의 `item.recorded`, 그 turn의 `turn.completed`, 엔진이 `running`이 아니게 됨, reset.
-- 이미 확정된 item의 늦은 조각은 `stale`로 버린다. 같은 (thread, turn)에서 `n`이 이전 이하인 조각은 `duplicate`로 버린다.
+- 이미 확정된 item의 늦은 조각은 `stale`로 버린다. 확정 여부는 열린 thread의 레코드와 최근 확정 표식(`settledItems`, `settledTurns`)으로 판단한다. 표식이 없으면 열기 전에 확정된 item이나 다른 thread의 item에 늦은 조각이 와서 슬롯을 되살리고, 확정 레코드와 겹쳐 그려진다. 같은 (thread, turn)에서 `n`이 이전 이하인 조각은 `duplicate`로 버린다.
 
 이유: 레코드 펼침 복사는 항목 수 N에 비례한다(V8 N=10,000에서 3.5 ms, `L4/desktop/_research/state-management.md §7.2`). 슬롯 방식은 델타 1건이 그 item의 파트 수에만 비례한다. 스파이크의 JavaScriptCore 측정에서 N=1,000~50,000 모두 델타당 0.5~1.3 µs였고, 같은 환경의 레코드 복사는 N=10,000에서 585 µs였다 [참고 측정]. 휘발 조각은 재전송되지 않고 완성 내용은 내구 이벤트로 다시 오므로(`F.wire-settings.spec` §3.4.4) 슬롯은 버려도 되는 값이다.
 
@@ -452,9 +452,10 @@ for (const fact of input.facts) next = applyFact(next, fact); // 리뷰: 재전�
 
 #### FS-17 재동기화는 상태 기계로 표현하고 부수효과는 컨트롤러가 실행한다
 
-- 연결 상태는 거울의 `link` 필드(`offline → connecting → syncing → live`, 어긋나면 `resync`나 `reset`, 같은 원인 3회 초과면 `failed`)다. 전이는 reducer가 정한다.
+- 연결 상태는 거울의 `link` 필드(`offline → connecting → syncing → live`, 어긋나면 `resync`나 `reset`, 같은 원인 3회 초과면 `failed`)다. 전이는 reducer가 정한다. `failed`는 흡수 상태이고 `connecting` 입력만 벗어난다.
 - 연결 컨트롤러는 `watch`로 `link`를 구독해, `resync`면 cursor부터, `reset`이면 head부터 다시 구독하고 스냅샷을 다시 읽는다.
 - 구독 요청이 진행 중일 때 도착한 batch는 컨트롤러가 모았다가 `subscribed` 입력 뒤에 넣는다.
+- 스냅샷이 `stale`로 거절돼 같은 thread가 loading으로 남으면 컨트롤러가 다시 읽는다(최대 3번).
 
 이유: reducer가 순수해야 FS-09가 성립한다. 상태 기계가 거울에 있으면 화면 배너, 시험, journal이 같은 값을 읽는다. 마지막 항목은 순서 문제다. 응답이 알림보다 먼저 오더라도(`F.wire-settings.spec` §3.4.2 규칙 4) `await` 뒤의 코드는 마이크로태스크라, 같은 읽기 묶음에서 처리된 알림 처리기보다 늦게 돌 수 있다.
 

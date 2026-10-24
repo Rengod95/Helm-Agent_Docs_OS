@@ -203,7 +203,14 @@ export type Streaming = {
   readonly items: Readonly<Record<string, StreamingItem>>;
   /** (threadId, turnId)별 마지막으로 적용한 조각 번호 n */
   readonly lastN: Readonly<Record<string, number>>;
+  /** 최근 확정된 item id. 늦게 온 조각을 걸러낸다. 가장 오래된 것부터 SETTLED_CAP개까지 */
+  readonly settledItems: readonly ItemId[];
+  /** 최근 끝난 (threadId, turnId) 키. turnId가 null인 조각은 넣지 않는다 */
+  readonly settledTurns: readonly string[];
 };
+
+/** 확정 표식을 남기는 개수 상한 */
+export const SETTLED_CAP = 256;
 
 export type PendingApproval = {
   readonly approvalId: EventId;
@@ -227,7 +234,7 @@ export type EngineMirror = {
   readonly approvals: Approvals;
 };
 
-export const EMPTY_STREAMING: Streaming = { itemIds: [], items: {}, lastN: {} };
+export const EMPTY_STREAMING: Streaming = { itemIds: [], items: {}, lastN: {}, settledItems: [], settledTurns: [] };
 
 export const INITIAL_MIRROR: EngineMirror = {
   engine: null,
@@ -243,6 +250,7 @@ export const INITIAL_MIRROR: EngineMirror = {
 - 정규화: 모든 모음은 순서 배열(`ids`, `itemIds`)과 레코드(`byId`, `items`) 쌍이다. 레코드 키는 `string`이고 값을 넣는 쪽은 언제나 브랜드 id다(FS-08).
 - `transcript`는 열린 thread 하나만 담는다. 다른 thread로 옮기면 이전 item을 버린다(`L4.desktop.spec` §4.10 수단 6).
 - `streaming`은 모든 thread의 진행 중 item을 담는다. 실행 중 thread로 옮겼을 때 처음부터 이어진 텍스트를 보이기 위해서다. 크기는 진행 중 item 수로 제한되고 turn이 끝나면 빈다.
+- `streaming.settledItems`, `streaming.settledTurns`는 최근 확정된 item id와 끝난 (thread, turn) 키를 `SETTLED_CAP`(256)개까지 먼저 들어온 것부터 버리며 남긴다. 슬롯을 지운 뒤 늦게 도착한 휘발 조각이 슬롯을 되살리지 못하게 하는 표식이다. 확정 여부를 열린 thread의 `items`에서만 찾으면 다른 thread의 item과 thread를 열기 전에 확정된 item을 놓친다.
 - `approvals`는 모든 thread의 대기 승인이다. 승인 대기열은 thread를 가로질러 보인다.
 - UI 스토어(§12.6)가 선택 thread, 사이드바, 보낸 승인 표시를 따로 가진다.
 
@@ -267,16 +275,19 @@ export const INITIAL_MIRROR: EngineMirror = {
 | `batch` | `link`가 `syncing`·`live`인데 `cursor`가 없음 | `Bug` 던짐 → guard가 `reset(reducer_failed)` | failed |
 | `chunk` | 7.3 표 | | |
 | `ended` | `sub`가 현재 구독 | `link = resync(ended)` | gap |
+| `ended` | 그 밖 | 없음 | foreign |
 | `out_of_range` | - | `link = reset(out_of_range)` | reset |
 | `subscribe_failed` | - | `link = resync(subscribe_failed)` | gap |
 | `threads` | - | `threads` 교체 | applied |
 | `transcript_opening` | - | `transcript = loading {threadId, sinceSeq: cursor.seq ?? 0, held: []}` | applied |
 | `transcript` | `transcript`가 같은 thread의 loading이 아님 | 없음 | foreign |
-| `transcript` | `asOfSeq < sinceSeq` | 없음(컨트롤러가 다시 읽는다) | stale |
-| `transcript` | 그 밖 | `ready {asOfSeq, itemIds, items}`로 바꾸고 `held` 중 `seq > asOfSeq`인 item 적용 | applied |
+| `transcript` | `asOfSeq < sinceSeq` | 없음(컨트롤러가 `flush()` 뒤에도 loading이면 최대 3번 다시 읽는다, 12.7) | stale |
+| `transcript` | 그 밖 | `ready {asOfSeq, itemIds, items}`로 바꾸고 `held` 중 `seq > asOfSeq`인 item 적용. 스냅샷에 든 item의 스트리밍 슬롯을 지우고 표식을 남긴다 | applied |
 | `transcript_closed` | - | `transcript = null` | applied |
 
 - `resync`·`reset`의 `attempt`는 같은 단계가 이어지면 1씩 오르고, `MAX_SYNC_ATTEMPTS`(3)를 넘으면 `failed`가 된다. `live`가 되면 시도 횟수는 사라진다.
+- `failed`는 흡수 상태다. `enterResync`와 `enterReset`은 `failed`에서 상태를 바꾸지 않고, `connecting` 입력만 `failed`를 벗어난다. 이 규칙이 없으면 `failed` 뒤에 `subscribe_failed`가 한 번 더 오는 순간 `resync(1)`로 돌아가 상한이 풀린다(시험 `failed is absorbing`).
+- `reducer_failed`는 `link`의 `attempt`로 세지 않는다. 재구독이 성공하면 `subscribed(head)`가 `link`를 새로 만들어 횟수가 사라지므로, 같은 입력이 계속 던질 때 `reset → live → reset`이 끝없이 이어진다. 스토어가 던진 시각을 따로 세어 `REDUCER_FAILURE_WINDOW_MS`(60초) 안에 4번째 실패가 나면 `failed`로 둔다(12.4, 시험 `repeated poison`).
 
 ### 7.2 내구 사실
 
@@ -286,8 +297,8 @@ export const INITIAL_MIRROR: EngineMirror = {
 | `thread.updated` | 그 thread의 `title`, `status`, `updatedAt` 갱신 |
 | `thread.closed` | `status = "closed"` |
 | `turn.started` | `status = "running"` |
-| `turn.completed` | `status = "idle"`, 그 (thread, turn)의 스트리밍 item과 `lastN` 삭제 |
-| `item.recorded` | 열린 thread가 ready이고 `seq > asOfSeq`면 item 추가 또는 교체. loading이면 `held`에 넣는다. 열렸는지와 무관하게 그 item의 스트리밍 슬롯 삭제 |
+| `turn.completed` | `status = "idle"`, 그 (thread, turn)의 스트리밍 item과 `lastN` 삭제. `turnId`가 있으면 그 키를 `settledTurns`에 남긴다 |
+| `item.recorded` | 열린 thread가 ready이고 `seq > asOfSeq`면 item 추가 또는 교체. loading이면 `held`에 넣는다. 열렸는지와 무관하게 그 item의 스트리밍 슬롯 삭제, `settledItems`에 id를 남긴다 |
 | `approval.requested` | 없으면 `approvals`에 추가, 그 thread의 `pendingApprovals + 1` |
 | `approval.resolved` | 있으면 삭제, 그 thread의 `pendingApprovals - 1`(0 아래로 내리지 않음) |
 | `other`, `unreadable` | 없음(위치만 넘어간다) |
@@ -296,10 +307,11 @@ export const INITIAL_MIRROR: EngineMirror = {
 
 | 사실 | 조건 | 상태 변화 | note |
 |---|---|---|---|
+| 모든 조각 | 그 (thread, turn)이 `settledTurns`에 있음(`turnId`가 있을 때) | 없음 | stale |
 | 모든 조각 | 같은 (thread, turn)의 `n ≤ lastN` | 없음 | duplicate |
-| `item.started` | 그 item이 ready transcript에 이미 있음 | `lastN`만 갱신 | stale |
+| `item.started` | 그 item이 `settledItems`에 있거나 ready transcript에 이미 있음 | `lastN`만 갱신 | stale |
 | `item.started` | 그 밖 | 스트리밍 item 생성(`kind`, `toolName`, 빈 파트) | applied |
-| `item.updated` `part_delta` | 그 item이 이미 확정됨 | `lastN`만 갱신 | stale |
+| `item.updated` `part_delta` | 그 item이 `settledItems`에 있거나 ready transcript에 이미 있음 | `lastN`만 갱신 | stale |
 | `item.updated` `part_delta` | 그 밖 | 파트(`contentIndex`)를 찾아 `start`면 빈 텍스트, `delta`면 덧붙임, `end`면 `done`. item이 없으면 `assistant` item을 새로 만든다 | applied |
 | `item.updated` `part_completed`, `tool_progress` | - | `lastN`만 갱신 | applied |
 | `other` | - | `lastN`만 갱신 | applied |
@@ -310,11 +322,11 @@ export const INITIAL_MIRROR: EngineMirror = {
 ## 8. 스트리밍 슬롯
 
 - 쓰기: `part_delta` 1건은 `streaming.items[itemId]`와 그 `parts` 배열 하나를 새로 만든다. `transcript.items`는 건드리지 않는다(FS-14).
-- 비우기: `item.recorded`(그 item), `turn.completed`(그 turn), 엔진 `running` 아님(전체), `subscribed(from: head)`(전체).
+- 비우기: `item.recorded`(그 item), `transcript` 스냅샷(스냅샷에 든 item), `turn.completed`(그 turn), 엔진 `running` 아님(전체), `subscribed(from: head)`(전체). 앞의 셋은 지운 자리에 표식(`settledItems`, `settledTurns`)을 남겨 늦은 조각이 슬롯을 되살리지 못하게 한다.
 - 커밋: 델타는 입력 큐에 쌓이고 프레임마다 한 번 커밋된다. 델타 100개가 한 프레임에 오면 `setState`는 1번, 재렌더는 바뀐 파트 부품 하나다(FS-15, FS-19).
 - 렌더: 확정 목록(`useTranscriptItemIds`) 뒤에 진행 목록(`useStreamingIds`)을 그린다. 진행 중 파트는 평문으로 그리고, 마크다운과 코드 하이라이트는 확정 item에서 한다(FS-21).
 - 화면 전환: thread를 옮기기 전에 `flush()`로 큐를 비운다. 이전 thread의 진행 조각이 새 thread 화면의 첫 커밋과 섞이지 않게 하기 위해서다.
-- 메모리: 슬롯 크기는 진행 중 item의 텍스트 합이다. 긴 도구 인자(JSON 조각)는 `toolCall` 파트로 쌓인다. [미결] 파트 텍스트 상한(예: 1 MiB를 넘으면 앞부분 생략 표시)은 S5 측정 뒤 정한다.
+- 메모리: 표식은 합쳐서 최대 512개 문자열이다. 슬롯 크기는 진행 중 item의 텍스트 합이다. 긴 도구 인자(JSON 조각)는 `toolCall` 파트로 쌓인다. [미결] 파트 텍스트 상한(예: 1 MiB를 넘으면 앞부분 생략 표시)은 S5 측정 뒤 정한다.
 
 ## 9. 승인 대기열
 
@@ -344,6 +356,7 @@ stateDiagram-v2
   reset --> live: subscribed(head, live)
   resync --> failed: 4번째 시도
   reset --> failed: 4번째 시도
+  live --> failed: 60초 안 reducer 실패 4번째
   syncing --> offline: 엔진 running 아님
   live --> offline: 엔진 running 아님
   failed --> connecting: 사용자 다시 연결
@@ -365,8 +378,8 @@ stateDiagram-v2
 2. 구독 요청이 진행 중일 때 도착한 batch는 컨트롤러가 모았다가 `subscribed` 입력 뒤에 넣는다. `await` 뒤 코드는 마이크로태스크라 같은 읽기 묶음의 알림 처리기보다 늦게 돌 수 있기 때문이다.
 3. 이전 구독의 batch는 `foreign`으로 버린다. [제안] 재구독에 성공하면 컨트롤러가 이전 `sub`에 `events.unsubscribe`를 보낸다.
 4. 새 페이지(WebView 새로고침, 창 다시 만들기)는 거울이 비어 있으므로 head부터 시작하고 스냅샷으로 채운다. 같은 페이지에서 엔진만 다시 뜬 경우(`engine` 입력이 `running`으로 돌아옴)는 거울의 cursor부터 잇는다. 같은 DB를 열므로 `storeId`가 같다(`L4.desktop.spec` §4.4).
-5. 열린 thread 스냅샷은 `transcript_opening`을 먼저 넣고 요청한다. reducer는 그 시점의 `cursor.seq`를 `sinceSeq`로 두고, 스냅샷이 오기 전 그 thread의 `item.recorded`를 `held`에 모은다. 스냅샷 `asOfSeq`가 `sinceSeq`보다 작으면 `stale`로 버리고 다시 읽는다.
-6. 시도 상한은 원인 종류(`resync`, `reset`)마다 3회다. 넘으면 `failed`에서 멈춘다. [가정] 재시도 사이 대기 시간은 두지 않는다. 연결이 끊긴 경우는 셸 `onState`가 `restarting`을 알려 `offline`으로 먼저 간다.
+5. 열린 thread 스냅샷은 `transcript_opening`을 먼저 넣고 요청한다. reducer는 그 시점의 `cursor.seq`를 `sinceSeq`로 두고, 스냅샷이 오기 전 그 thread의 `item.recorded`를 `held`에 모은다. 스냅샷 `asOfSeq`가 `sinceSeq`보다 작으면 `stale`로 버린다. 컨트롤러는 스냅샷을 넣고 `flush()`한 뒤에도 같은 thread가 loading이면 최대 `MAX_SYNC_ATTEMPTS`번 다시 읽는다. 이 재읽기가 없으면 loading이 그대로 남는다.
+6. 시도 상한은 원인 종류(`resync`, `reset`)마다 3회다. 넘으면 `failed`에서 멈추고 `connecting` 입력만 벗어난다. reducer 실패는 이 횟수로 세지 않고 스토어가 60초 창으로 센다(7.1). [가정] 재시도 사이 대기 시간은 두지 않는다. 연결이 끊긴 경우는 셸 `onState`가 `restarting`을 알려 `offline`으로 먼저 간다.
 
 ## 11. 미들웨어 단계와 로그 경로
 
@@ -377,7 +390,7 @@ stateDiagram-v2
 | 단계 | 운영 | 개발·시험 |
 |---|---|---|
 | journal | 켬 | 켬 |
-| guard | 켬. 실패는 Logger `error` + `reset(reducer_failed)` | 켬. 시험은 `onReducerFailure: rethrow` |
+| guard | 켬. 실패는 Logger `error` + `reset(reducer_failed)`, 60초 안 4번째는 `failed` | 켬. 시험은 `onReducerFailure: rethrow` |
 | invariants | 끔 | 켬(`checks: true`) |
 
 `checks`는 빌드 상수로 정한다. [제안] `bun build --define`으로 개발 빌드에서 `true`, 릴리스 빌드에서 `false`를 넣는다.
@@ -407,7 +420,9 @@ flowchart LR
 
 ## 12. 코드 골격
 
-아래 코드는 2026-10-24 스파이크에서 tsgo 7.0.2(저장소 `tsconfig.base.json` 옵션), 저장소 `.oxlintrc.json`(type-aware, `--deny-warnings`), oxfmt 0.74로 검사했고 오류가 없었다. `@xeon/contracts`는 이 저장소의 소스를 그대로 썼고, `EngineState`만 대역이었다. `as`, `!`, `any`가 없다.
+아래 코드는 2026-10-24 프로토타입(저장소 밖 임시 프로젝트, zustand 5.0.16, react 19.3.1, @types/react 19.3.0, tsgo 7.0.2)에서 파일로 옮겨 검사했다. tsconfig는 저장소 `tsconfig.base.json` 옵션에서 `composite`와 `declarationMap`만 뺐다(`@xeon/contracts` 소스를 `paths`로 가리키면 `composite`가 파일 목록 오류를 낸다). 저장소 `.oxlintrc.json`(type-aware, `--deny-warnings`)으로 `src`와 `test`를 검사했고 오류와 경고가 없었다. `as`, `!`, `any`가 없다. 같은 프로젝트의 `bun test` 56건이 통과한다. `@xeon/contracts`는 이 저장소의 소스를 그대로 썼고 `EngineState`만 대역이었다.
+
+처음 골격은 발췌여서 7.2 표의 함수, `invariants.ts`, `index.ts`, 나머지 decode 항목이 빠져 있었다. 이 판은 그 부분을 채워, 블록을 파일로 옮기면 그대로 컴파일된다. 프로토타입 시험이 드러낸 결함 네 건은 코드와 §7, §8, §10에 반영했다. (1) `failed`가 흡수 상태가 아니었다. (2) reducer 실패가 반복돼도 재구독이 성공하면 상한이 풀렸다. (3) 열린 thread 밖에서 확정된 item의 늦은 조각이 슬롯을 되살렸다. (4) `stale` 스냅샷을 다시 읽지 않아 loading이 남았다. 코드 블록은 문서 폭에 맞춰 줄을 접었으므로 `oxfmt --check`를 통과하지 못한다. 저장소로 옮길 때 `oxfmt`로 포맷한다.
 
 ### 12.1 입력과 decode
 
@@ -485,10 +500,15 @@ export type MirrorInput =
 ```
 
 ```ts
-// src/state/engine/decode.ts (발췌. 나머지 kind도 같은 모양이다)
+// src/state/engine/decode.ts
 import { parse } from "@xeon/contracts";
-import { ItemUpdatedPayloadSchema } from "@xeon/contracts/conversation";
-import { ItemRecordedPayloadSchema } from "@xeon/contracts/records";
+import {
+  ItemStartedPayloadSchema, ItemUpdatedPayloadSchema, ThreadStartedPayloadSchema,
+  ThreadUpdatedPayloadSchema, TurnCompletedPayloadSchema,
+} from "@xeon/contracts/conversation";
+import {
+  ApprovalRequestedPayloadSchema, ApprovalResolvedPayloadSchema, ItemRecordedPayloadSchema,
+} from "@xeon/contracts/records";
 import type { EventWire, VolatileEventWire } from "@xeon/contracts/wire";
 import type { DurableFact, VolatileFact } from "./input.ts";
 
@@ -504,7 +524,31 @@ const DURABLE: Readonly<Record<string, (base: DurableBase, payload: unknown) => 
       : { ...base, type: "unreadable" };
   },
   "turn.started": (base) => ({ ...base, type: "turn.started" }),
-  // thread.started, thread.updated, thread.closed, turn.completed, approval.requested, approval.resolved
+  "thread.started": (base, payload) => {
+    const p = parse(ThreadStartedPayloadSchema, payload);
+    return p.ok ? { ...base, type: "thread.started", payload: p.value } : { ...base, type: "unreadable" };
+  },
+  "thread.updated": (base, payload) => {
+    const p = parse(ThreadUpdatedPayloadSchema, payload);
+    return p.ok ? { ...base, type: "thread.updated", payload: p.value } : { ...base, type: "unreadable" };
+  },
+  "thread.closed": (base) => ({ ...base, type: "thread.closed" }),
+  "turn.completed": (base, payload) => {
+    const p = parse(TurnCompletedPayloadSchema, payload);
+    return p.ok ? { ...base, type: "turn.completed", payload: p.value } : { ...base, type: "unreadable" };
+  },
+  "approval.requested": (base, payload) => {
+    const p = parse(ApprovalRequestedPayloadSchema, payload);
+    return p.ok
+      ? { ...base, type: "approval.requested", request: p.value }
+      : { ...base, type: "unreadable" };
+  },
+  "approval.resolved": (base, payload) => {
+    const p = parse(ApprovalResolvedPayloadSchema, payload);
+    return p.ok
+      ? { ...base, type: "approval.resolved", approvalId: p.value.approvalId }
+      : { ...base, type: "unreadable" };
+  },
 };
 
 const VOLATILE: Readonly<Record<string, (base: VolatileBase, payload: unknown) => VolatileFact>> = {
@@ -512,7 +556,10 @@ const VOLATILE: Readonly<Record<string, (base: VolatileBase, payload: unknown) =
     const p = parse(ItemUpdatedPayloadSchema, payload);
     return p.ok ? { ...base, type: "item.updated", payload: p.value } : { ...base, type: "other" };
   },
-  // item.started
+  "item.started": (base, payload) => {
+    const p = parse(ItemStartedPayloadSchema, payload);
+    return p.ok ? { ...base, type: "item.started", payload: p.value } : { ...base, type: "other" };
+  },
 };
 
 /** 경계 함수(TY-10). 검증 실패는 unreadable 사실이고 위치는 넘긴다 */
@@ -540,13 +587,14 @@ export function decodeVolatile(event: VolatileEventWire): VolatileFact {
 ### 12.2 reducer
 
 ```ts
-// src/state/engine/reduce.ts (발췌. 7절 표의 나머지 분기도 같은 모양이다)
+// src/state/engine/reduce.ts
 import { assertNever, Bug } from "@xeon/contracts";
-import type { ItemId, PartDelta, ThreadId, TurnId } from "@xeon/contracts/conversation";
+import type { ItemId, ItemRecord, PartDelta, ThreadId, TurnId } from "@xeon/contracts/conversation";
+import type { ThreadSummary } from "@xeon/contracts/wire";
 import type { Reduced as SharedReduced } from "../shared/pipeline.ts";
-import type { MirrorInput, VolatileFact } from "./input.ts";
+import type { DurableFact, MirrorInput, VolatileFact } from "./input.ts";
 import { EMPTY_STREAMING, INITIAL_MIRROR, type EngineMirror, type Link, type ResetReason,
-  type ResyncReason, type Streaming, type StreamingItem, type StreamingPart } from "./state.ts";
+  type ResyncReason, type Streaming, type StreamingItem, type StreamingPart, type Transcript, SETTLED_CAP } from "./state.ts";
 
 /** 이 입력이 거울에 한 일. journal이 기록한다 */
 export type ApplyNote = "applied" | "duplicate" | "stale" | "foreign" | "gap" | "reset" | "failed";
@@ -559,6 +607,7 @@ const keep = (state: EngineMirror, note: ApplyNote): Reduced<EngineMirror> => ({
 const turnKey = (threadId: ThreadId, turnId: TurnId | null): string => `${threadId}:${turnId ?? ""}`;
 
 export function enterResync(state: EngineMirror, reason: ResyncReason): EngineMirror {
+  if (state.link.phase === "failed") return state; // failed는 connecting 입력으로만 벗어난다
   const attempt = state.link.phase === "resync" ? state.link.attempt + 1 : 1;
   const link: Link =
     attempt > MAX_SYNC_ATTEMPTS ? { phase: "failed", reason } : { phase: "resync", reason, attempt };
@@ -566,6 +615,7 @@ export function enterResync(state: EngineMirror, reason: ResyncReason): EngineMi
 }
 
 export function enterReset(state: EngineMirror, reason: ResetReason): EngineMirror {
+  if (state.link.phase === "failed") return state;
   const attempt = state.link.phase === "reset" ? state.link.attempt + 1 : 1;
   const link: Link =
     attempt > MAX_SYNC_ATTEMPTS ? { phase: "failed", reason } : { phase: "reset", reason, attempt };
@@ -603,7 +653,32 @@ export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<E
       return keep(enterReset(state, "out_of_range"), "reset");
     case "subscribe_failed":
       return keep(enterResync(state, "subscribe_failed"), "gap");
-    // connecting, ended, threads, transcript_opening, transcript, transcript_closed: 7.1 표
+    case "connecting":
+      return keep({ ...state, link: { phase: "connecting" } }, "applied");
+    case "ended": {
+      const link = state.link;
+      if ((link.phase !== "syncing" && link.phase !== "live") || link.sub !== input.sub) {
+        return keep(state, "foreign");
+      }
+      return keep(enterResync(state, "ended"), "gap");
+    }
+    case "threads": {
+      const byId: Record<string, ThreadSummary> = {};
+      for (const t of input.threads) byId[t.threadId] = t;
+      return keep({ ...state, threads: { ids: input.threads.map((t) => t.threadId), byId } }, "applied");
+    }
+    case "transcript_opening":
+      return keep(
+        {
+          ...state,
+          transcript: { status: "loading", threadId: input.threadId, sinceSeq: state.cursor?.seq ?? 0, held: [] },
+        },
+        "applied",
+      );
+    case "transcript":
+      return applySnapshot(state, input);
+    case "transcript_closed":
+      return keep({ ...state, transcript: null }, "applied");
     default:
       return assertNever(input, "reduceMirror");
   }
@@ -634,6 +709,7 @@ function applyBatch(
 
 function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirror> {
   const key = turnKey(fact.threadId, fact.turnId);
+  if (fact.turnId !== null && state.streaming.settledTurns.includes(key)) return keep(state, "stale");
   const last = state.streaming.lastN[key];
   if (last !== undefined && fact.n <= last) return keep(state, "duplicate");
   const counted: Streaming = { ...state.streaming, lastN: { ...state.streaming.lastN, [key]: fact.n } };
@@ -671,7 +747,7 @@ function applyChunk(state: EngineMirror, fact: VolatileFact): Reduced<EngineMirr
 
 function isRecorded(state: EngineMirror, itemId: ItemId): boolean {
   const t = state.transcript;
-  return t?.status === "ready" && t.items[itemId] !== undefined;
+  return state.streaming.settledItems.includes(itemId) || (t?.status === "ready" && t.items[itemId] !== undefined);
 }
 
 /** 델타 하나의 비용은 그 item의 파트 수에 비례한다. 확정 item 레코드는 복사하지 않는다 */
@@ -691,8 +767,160 @@ function applyDelta(item: StreamingItem, delta: PartDelta): StreamingItem {
       : item.parts.with(index, part);
   return { ...item, parts };
 }
-// applyFact, recordItem, applySnapshot, patchThread, bumpPending, putStreaming,
-// newAssistantItem, dropStreamingItem, dropStreamingTurn: 7.2 표
+// ---- 7.2, 7.3 표를 옮긴 함수 ----
+
+function patchThread(state: EngineMirror, id: ThreadId, patch: (t: ThreadSummary) => ThreadSummary): EngineMirror {
+  const current = state.threads.byId[id];
+  if (current === undefined) return state;
+  return { ...state, threads: { ...state.threads, byId: { ...state.threads.byId, [id]: patch(current) } } };
+}
+
+function bumpPending(state: EngineMirror, id: ThreadId, delta: 1 | -1): EngineMirror {
+  return patchThread(state, id, (t) => ({ ...t, pendingApprovals: Math.max(0, t.pendingApprovals + delta) }));
+}
+
+function putStreaming(streaming: Streaming, item: StreamingItem): Streaming {
+  const known = streaming.items[item.itemId] !== undefined;
+  return {
+    ...streaming,
+    itemIds: known ? streaming.itemIds : [...streaming.itemIds, item.itemId],
+    items: { ...streaming.items, [item.itemId]: item },
+  };
+}
+
+function newAssistantItem(fact: Extract<VolatileFact, { type: "item.updated" }>, delta: PartDelta): StreamingItem {
+  return {
+    itemId: delta.itemId, threadId: fact.threadId, turnId: fact.turnId,
+    kind: "assistant", toolName: null, parts: [],
+  };
+}
+
+const capped = <T>(list: readonly T[], value: T): readonly T[] =>
+  list.includes(value) ? list : [...list, value].slice(-SETTLED_CAP);
+
+/** 슬롯을 지우고 확정 표식을 남긴다. 늦게 온 조각이 슬롯을 되살리지 못한다 */
+function settleItem(streaming: Streaming, itemId: ItemId): Streaming {
+  const settledItems = capped(streaming.settledItems, itemId);
+  if (streaming.items[itemId] === undefined) return { ...streaming, settledItems };
+  const { [itemId]: _gone, ...items } = streaming.items;
+  return { ...streaming, settledItems, itemIds: streaming.itemIds.filter((id) => id !== itemId), items };
+}
+
+function dropStreamingTurn(streaming: Streaming, threadId: ThreadId, turnId: TurnId | null): Streaming {
+  const key = turnKey(threadId, turnId);
+  const itemIds = streaming.itemIds.filter((id) => {
+    const it = streaming.items[id];
+    return it === undefined || turnKey(it.threadId, it.turnId) !== key;
+  });
+  const items: Record<string, StreamingItem> = {};
+  for (const id of itemIds) {
+    const it = streaming.items[id];
+    if (it !== undefined) items[id] = it;
+  }
+  const { [key]: _n, ...lastN } = streaming.lastN;
+  const settledTurns = turnId === null ? streaming.settledTurns : capped(streaming.settledTurns, key);
+  return { ...streaming, itemIds, items, lastN, settledTurns };
+}
+
+function recordItem(t: Transcript | null, threadId: ThreadId, seq: number, item: ItemRecord): Transcript | null {
+  if (t === null || t.threadId !== threadId) return t;
+  if (t.status === "loading") return { ...t, held: [...t.held, { seq, item }] };
+  if (seq <= t.asOfSeq) return t;
+  const id = item.itemId;
+  const known = t.items[id] !== undefined;
+  return {
+    ...t,
+    itemIds: known ? t.itemIds : [...t.itemIds, id],
+    items: { ...t.items, [id]: item },
+  };
+}
+
+function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
+  switch (fact.type) {
+    case "thread.started": {
+      if (state.threads.byId[fact.threadId] !== undefined) return state;
+      const summary: ThreadSummary = {
+        threadId: fact.threadId, title: fact.payload.title, status: "idle",
+        workspace: fact.payload.workspace ?? null, createdAt: fact.at, updatedAt: fact.at,
+        headSeq: fact.seq, forkedFrom: fact.payload.forkedFrom, resumable: null,
+        queuedInputs: 0, pendingApprovals: 0,
+      };
+      return {
+        ...state,
+        threads: { ids: [fact.threadId, ...state.threads.ids], byId: { ...state.threads.byId, [fact.threadId]: summary } },
+      };
+    }
+    case "thread.updated":
+      return patchThread(state, fact.threadId, (t) => ({
+        ...t,
+        title: fact.payload.title !== undefined ? fact.payload.title : t.title,
+        status: fact.payload.status ?? t.status,
+        updatedAt: fact.at,
+      }));
+    case "thread.closed":
+      return patchThread(state, fact.threadId, (t) => ({ ...t, status: "closed" }));
+    case "turn.started":
+      return patchThread(state, fact.threadId, (t) => ({ ...t, status: "running" }));
+    case "turn.completed": {
+      const done = patchThread(state, fact.threadId, (t) => ({ ...t, status: "idle" }));
+      return { ...done, streaming: dropStreamingTurn(done.streaming, fact.threadId, fact.turnId) };
+    }
+    case "item.recorded":
+      return {
+        ...state,
+        transcript: recordItem(state.transcript, fact.threadId, fact.seq, fact.item),
+        streaming: settleItem(state.streaming, fact.item.itemId),
+      };
+    case "approval.requested": {
+      if (state.approvals.byId[fact.eventId] !== undefined) return state;
+      const pending = { approvalId: fact.eventId, threadId: fact.threadId, seq: fact.seq, request: fact.request };
+      const next: EngineMirror = {
+        ...state,
+        approvals: { ids: [...state.approvals.ids, fact.eventId], byId: { ...state.approvals.byId, [fact.eventId]: pending } },
+      };
+      return bumpPending(next, fact.threadId, 1);
+    }
+    case "approval.resolved": {
+      const found = state.approvals.byId[fact.approvalId];
+      if (found === undefined) return state;
+      const { [fact.approvalId]: _gone, ...byId } = state.approvals.byId;
+      const next: EngineMirror = {
+        ...state,
+        approvals: { ids: state.approvals.ids.filter((id) => id !== fact.approvalId), byId },
+      };
+      return bumpPending(next, found.threadId, -1);
+    }
+    case "other":
+    case "unreadable":
+      return state;
+    default:
+      return assertNever(fact, "applyFact");
+  }
+}
+
+function applySnapshot(
+  state: EngineMirror,
+  input: Extract<MirrorInput, { type: "transcript" }>,
+): Reduced<EngineMirror> {
+  const t = state.transcript;
+  if (t === null || t.status !== "loading" || t.threadId !== input.threadId) return keep(state, "foreign");
+  if (input.asOfSeq < t.sinceSeq) return keep(state, "stale");
+  const items: Record<string, ItemRecord> = {};
+  const itemIds: ItemId[] = [];
+  for (const item of input.items) {
+    if (items[item.itemId] === undefined) itemIds.push(item.itemId);
+    items[item.itemId] = item;
+  }
+  let ready: Transcript = { status: "ready", threadId: t.threadId, asOfSeq: input.asOfSeq, itemIds, items };
+  for (const h of t.held) {
+    if (h.seq > input.asOfSeq) {
+      ready = recordItem(ready, t.threadId, h.seq, h.item) ?? ready;
+    }
+  }
+  let streaming = state.streaming;
+  for (const id of itemIds) streaming = settleItem(streaming, id);
+  return keep({ ...state, transcript: ready, streaming }, "applied");
+}
 ```
 
 ### 12.3 단계와 journal
@@ -909,7 +1137,7 @@ import { readonlyView, type ReadonlyStore } from "../shared/readonly-store.ts";
 import { describeInput } from "./describe.ts";
 import type { MirrorInput } from "./input.ts";
 import { checkMirror } from "./invariants.ts";
-import { enterReset, reduceMirror, type ApplyNote } from "./reduce.ts";
+import { enterReset, MAX_SYNC_ATTEMPTS, reduceMirror, type ApplyNote } from "./reduce.ts";
 import { INITIAL_MIRROR, type EngineMirror } from "./state.ts";
 
 export type EngineStoreDeps = {
@@ -933,12 +1161,25 @@ export interface EngineStore {
   flush(): void;
 }
 
+/** 이 시간 안에 reducer가 MAX_SYNC_ATTEMPTS번을 넘어 던지면 재설정을 멈추고 failed로 둔다 */
+export const REDUCER_FAILURE_WINDOW_MS = 60_000;
+
 export function createEngineStore(deps: EngineStoreDeps): EngineStore {
   const api = createStore<EngineMirror>()(() => INITIAL_MIRROR);
+  // 재설정에 성공해도 같은 입력이 다시 던지면 link의 attempt가 사라진다. 그래서 던진 시각을 따로 센다
+  const failedAt: number[] = [];
+  const recover = (state: EngineMirror): { readonly state: EngineMirror; readonly note: ApplyNote } => {
+    const now = deps.clock.now();
+    failedAt.push(now);
+    while (failedAt.length > 0 && now - (failedAt[0] ?? now) > REDUCER_FAILURE_WINDOW_MS) failedAt.shift();
+    return failedAt.length > MAX_SYNC_ATTEMPTS
+      ? { state: { ...state, link: { phase: "failed", reason: "reducer_failed" } }, note: "failed" }
+      : { state: enterReset(state, "reducer_failed"), note: "failed" };
+  };
   const stages: Stage<EngineMirror, MirrorInput, ApplyNote>[] = [
     journalStage(deps.journal, deps.clock, describeInput),
     guardStage<EngineMirror, MirrorInput, ApplyNote>(
-      (state) => ({ state: enterReset(state, "reducer_failed"), note: "failed" }),
+      recover,
       (cause, input) => {
         deps.logger.error("desktop.mirror.reduce_failed", {
           input: describeInput(input).input,
@@ -982,7 +1223,40 @@ export function createEngineStore(deps: EngineStoreDeps): EngineStore {
 ```
 
 - `setState`는 이 파일의 `commit` 한 곳에서만 불린다. 상태 전체를 바꾸므로 `replace: true`다.
-- `checkMirror`(`invariants.ts`)는 transcript id 중복, `itemIds`와 `items` 크기 불일치, 확정 item이 스트리밍에 남음, 스트리밍과 승인 모음의 같은 불일치를 문자열 목록으로 돌려준다.
+- `checkMirror`는 transcript id 중복, `itemIds`와 `items` 크기 불일치, 확정 item이 스트리밍에 남음, 확정 표식 상한 초과, 스트리밍과 승인 모음의 같은 불일치를 문자열 목록으로 돌려준다.
+- `recover`는 던진 시각을 스토어 안에 모은다. `link`의 시도 횟수는 재구독이 성공하면 사라지므로 반복 실패를 셀 수 없다(7.1).
+
+```ts
+// src/state/engine/invariants.ts
+import { SETTLED_CAP, type EngineMirror } from "./state.ts";
+
+const unique = (ids: readonly string[]): boolean => new Set(ids).size === ids.length;
+
+/** O(N). 개발·시험 빌드의 invariantStage와 속성 시험이 부른다 */
+export function checkMirror(state: EngineMirror): readonly string[] {
+  const problems: string[] = [];
+  const t = state.transcript;
+  if (t?.status === "ready") {
+    if (!unique(t.itemIds)) problems.push("transcript.itemIds has duplicates");
+    if (t.itemIds.length !== Object.keys(t.items).length) problems.push("transcript.itemIds and items differ");
+    for (const id of state.streaming.itemIds) {
+      if (t.items[id] !== undefined) problems.push("recorded item still streaming");
+    }
+  }
+  if (!unique(state.streaming.itemIds)) problems.push("streaming.itemIds has duplicates");
+  if (state.streaming.itemIds.length !== Object.keys(state.streaming.items).length) {
+    problems.push("streaming.itemIds and items differ");
+  }
+  if (state.streaming.settledItems.length > SETTLED_CAP || state.streaming.settledTurns.length > SETTLED_CAP) {
+    problems.push("streaming settled markers exceed the cap");
+  }
+  if (!unique(state.approvals.ids)) problems.push("approvals.ids has duplicates");
+  if (state.approvals.ids.length !== Object.keys(state.approvals.byId).length) {
+    problems.push("approvals.ids and byId differ");
+  }
+  return problems;
+}
+```
 
 ### 12.5 선택자와 훅
 
@@ -1120,7 +1394,16 @@ export function Transcript(): ReactNode {
 ```
 
 - `StreamingRow`는 델타마다 다시 그려지지만 자식 `StreamingPartText`는 `memo`와 자기 구독 덕분에 바뀐 파트만 다시 그린다.
-- 스파이크는 `hooks.ts`를 직접 import했다. 실제 코드는 `state/engine/index.ts`가 도메인 훅, `EngineStoreContext`, 타입(`EngineMirror`, `ReadonlyStore` 재노출), `createEngineStore`, `startLink`만 내보낸다(FS-07).
+- 프로토타입의 `transcript.tsx`는 `state/engine/index.ts`만 import한다. 이 파일이 도메인 훅, `EngineStoreContext`, 타입(`EngineMirror`, `ReadonlyStore` 재노출), `createEngineStore`, `startLink`만 내보낸다(FS-07).
+
+```ts
+// src/state/engine/index.ts
+export * from "./hooks.ts";
+export { createEngineStore, type EngineStore, type EngineStoreDeps } from "./store.ts";
+export { startLink, type EngineLink, type LinkDeps, type TranscriptPort } from "./link.ts";
+export type { EngineMirror } from "./state.ts";
+export type { ReadonlyStore } from "../shared/readonly-store.ts";
+```
 
 ### 12.6 UI 스토어
 
@@ -1200,12 +1483,13 @@ export function watch<T, U>(
 
 ```ts
 // src/state/engine/link.ts
-import { attemptAsync, detach, type Logger } from "@xeon/contracts";
+import { attemptAsync, detach, repeatAsync, type Logger } from "@xeon/contracts";
 import type { ItemRecord, ThreadId } from "@xeon/contracts/conversation";
 import {
   WireError, type EventsBatchParams, type HostConnection, type StreamPosition, type SubId,
 } from "@xeon/contracts/wire";
 import { watch } from "../shared/watch.ts";
+import { MAX_SYNC_ATTEMPTS } from "./reduce.ts";
 import { decodeDurable, decodeVolatile } from "./decode.ts";
 import type { EngineStore } from "./store.ts";
 
@@ -1274,8 +1558,20 @@ export function startLink(deps: LinkDeps): EngineLink {
 
   const loadTranscript = async (threadId: ThreadId): Promise<void> => {
     deps.store.ingest({ type: "transcript_opening", threadId });
-    const snapshot = await deps.transcripts.load(threadId);
-    deps.store.ingest({ type: "transcript", threadId, ...snapshot });
+    let round = 0;
+    await repeatAsync<undefined>(async () => {
+      round += 1;
+      const snapshot = await deps.transcripts.load(threadId);
+      deps.store.ingest({ type: "transcript", threadId, ...snapshot });
+      deps.store.flush();
+      const t = deps.store.read.getState().transcript;
+      // 거울이 stale로 거절하면 같은 thread가 loading으로 남는다. 다른 thread로 옮겼거나 ready면 끝낸다
+      if (t === null || t.threadId !== threadId || t.status === "ready" || round >= MAX_SYNC_ATTEMPTS) {
+        return { value: undefined };
+      }
+      deps.logger.warn("desktop.link.snapshot_stale", { round });
+      return undefined;
+    });
   };
 
   const reload = async (sub: SubId): Promise<void> => {
@@ -1319,6 +1615,7 @@ export function startLink(deps: LinkDeps): EngineLink {
 }
 ```
 
+- 스냅샷을 넣은 뒤 `flush()`로 거울의 판정을 읽는다. `stale`이라 같은 thread가 loading으로 남으면 `MAX_SYNC_ATTEMPTS`번까지 다시 읽는다. 컨트롤러가 `flush()`를 부르는 곳은 이 한 곳이다.
 - `thread.list`나 스냅샷 요청이 던지면 `detach`의 `report`가 기록한다. [제안] 구현 때 이 두 실패를 `subscribe_failed`와 같은 입력으로 바꿔 상태 기계의 시도 상한 안에서 다시 시도하게 한다.
 - 셸 `onState`는 `transport/`의 연결 코드가 `engine.ingest({ type: "engine", state })`로 넣는다.
 
@@ -1357,6 +1654,10 @@ root.render(<App engine={engine.read} ui={ui} link={link} />);
 | store-frame-commit | `src/state/engine/store.test.ts` | unit | 한 프레임 입력 N개에 알림 1번, `flush` 즉시 커밋, 같은 상태면 알림 없음 | FS-15 |
 | selectors-stable | `src/state/engine/selectors.test.ts` | unit | 델타 뒤 `selectTranscriptItemIds` 참조 유지, 빈 값 상수 | FS-18 |
 | mirror-idempotent | `src/state/engine/reduce.prop.test.ts` | prop | 같은 batch 열에 중복·재전송을 섞어도 최종 상태가 같다(고정 시드) | FS-16 |
+| mirror-settled | `src/state/engine/reduce.test.ts`, `store.test.ts` | unit | 확정된 item과 끝난 turn의 늦은 조각은 stale이고 슬롯을 만들지 않음, 스냅샷에 든 슬롯 제거, 표식 상한 | FS-14 |
+| mirror-failed-absorbing | `src/state/engine/reduce.test.ts` | unit | `failed`에서 `subscribe_failed`가 와도 `failed`가 유지됨 | FS-17 |
+| store-reducer-failure-window | `src/state/engine/store.test.ts` | unit | 재구독이 성공한 뒤에도 같은 입력이 계속 던지면 4번째에 `failed` | FS-10, FS-17 |
+| link-stale-snapshot | `src/state/engine/link.test.ts` | unit | `stale` 스냅샷을 다시 읽어 `ready`가 됨, 구멍 batch가 재구독으로 메워짐, 응답보다 먼저 온 batch 보관 | §10 |
 | link-held-batches | `src/state/engine/link.test.ts` | unit | 구독 응답 전 도착한 batch가 subscribed 뒤에 들어간다(가짜 `HostConnection`) | §10 규칙 2 |
 | tape-transcript | `test/mirror-tape.contract.test.ts` | contract | CLI 테이프의 wire 메시지 열을 decode → reducer에 넣은 transcript가 CLI 결과와 같다 | D-03 |
 
@@ -1371,3 +1672,4 @@ root.render(<App engine={engine.read} ui={ui} link={link} />);
 7. [가정] `HostConnection` 구현은 같은 읽기 묶음의 알림을 동기로 처리한다. 그렇지 않더라도 §10 규칙 2의 보관은 해가 없다.
 8. [가정] 스파이크 측정(델타 0.5~1.3 µs)은 Bun 1.4.3의 JavaScriptCore 값이다. WKWebView, WebKitGTK에서는 S5에서 다시 잰다.
 9. [미결] 스트리밍 파트 텍스트 상한(§8).
+10. [미결] 휘발 조각의 `afterSeq`(발신 시점의 마지막 내구 seq, `F.wire-settings.spec` §3.4.4)를 `VolatileFact`가 버린다. 지금은 확정 표식으로 늦은 조각을 거르므로 쓰지 않는다. 표식 상한(256)을 넘는 지연이 실측에서 보이면 `afterSeq` 비교를 더한다.
