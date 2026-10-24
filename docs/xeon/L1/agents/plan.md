@@ -88,6 +88,26 @@ xeon/packages/core-agents/
 - core-models: 역할 `judge`, `subagent` 라우팅과 구조화 출력, 테이프(L1.models.plan).
 - ext-host: `loop.spawn` → `xeon.agents.spawn` 연결, 그룹 위임 래퍼에 서비스 주입(X.primitives.plan, L3.group-kit.plan).
 
+### 3.1 M2 구현 상태 (2026-10-24, 레인 L1B)
+
+| id | 상태 | 위치 |
+|---|---|---|
+| AG-0 | 완료 | 선행 확인. `runChildTurn`은 L1A.6(core-loop)이 구현한다: 이 패키지는 `LoopService` 부분형 `AgentsLoop`으로 받고 `testing/fakeChildLoop`로 시험했다. 실제 연결은 병합 뒤 HOST.6 조립에서 한다 |
+| AG-1 | 완료(두 커밋) | `service.ts`(`createChild`, `commitSpawned`). 한 커밋 합치기는 F 요청 |
+| AG-2 | 완료 | `service.ts`(`runChild`, `settle`, `recordSettled`): 소유 노드 `openScope`, 취소 전파, 정착 순서, `agent.settled`. 자식 노드의 내구 취소 의도는 자식 turn 노드(core-loop)가 쓴다 |
+| AG-3 | 완료 | `permission-ceiling.ts`(`childMode`, `intersectGlobs`, `ceilingOf`), 결정 합성은 F `childDecision` |
+| AG-4 | 완료 | `denylist.ts`, `service.ts`(`syncRules`) |
+| AG-5 | 완료 | `result-guard.ts`, `report-reader.ts` |
+| AG-6 | 완료 | `request-id.ts`, `service.ts`(`attach`: 정착, 진행 중, 끊김) |
+| AG-7 | M3 | `delegate`는 `agents.unavailable` |
+| AG-8 | M3 | `judge`는 `failed` |
+| AG-9 | 완료(M2 범위) | `definitions/loader.ts`, `definitions/registry.ts`(우선순위 등록부) |
+| AG-10 | 완료 | `plugin.ts`, `tool.ts`, `settings.ts`, `ports.ts`(F에 키가 없어 `AgentServicePortKey`·`LoopServicePortKey`를 이 패키지가 만든다) |
+| AG-11 | 일부 | `gate.ts`(루트별 `maxConcurrent`), 전체 풀 `limiter("subagents")`. `tools` 슬롯 `suspendWhile`(C2)은 미결 |
+| AG-12 | 완료 | `testing/index.ts`(`spawnRecorder`, `settleAll`, `fakeChildLoop`) |
+
+시험 대역(`test/support/`의 세션, 태스크, 도구)은 DR-02 때문에 이 패키지 안에 따로 있다.
+
 ## 4. 채택 코드
 
 | 대상 | 방식 | 버전·원본 | 바꿀 점 |

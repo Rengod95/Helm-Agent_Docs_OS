@@ -327,7 +327,8 @@ export type AgentJudgedPayload = JudgeRecord;
 
 1. 검사: 정의 존재, 깊이(§4.4), 부모 turn의 취소 의도(`agents.parent_aborting`, eng.transactions.design §6.2 규칙 3), 정책(부모 관점에서 `agent` 도구 호출은 이미 파이프라인을 지났다. drive·scope 경로는 §4.3의 생성 검사).
 2. 멱등 확인(§4.5): 같은 부모·같은 자식 requestId의 `agent.spawned`가 있으면 새로 만들지 않는다. 조회는 커밋 안의 `TxView.agentByRequestId`다(L1.persistence.spec §3.2).
-3. 커밋: 자식 대화의 `thread.started`(fork면 `forkedFrom`)와 부모 대화의 `agent.spawned`를 한 커밋에 쓴다 [제안]. 두 이벤트는 대화가 다르지만 같은 DB의 한 트랜잭션이다(adr.0004 단일 DB).
+3. 커밋 [결정: L1B.4]: F `ThreadCreateInput`에는 다른 대화의 초안을 같은 커밋에 싣는 자리가 없어 두 커밋으로 나눈다. (1) `threads.create({ creationKey: "spawn:" + sha256(부모 threadId, 자식 requestId) 앞 40자, inheritOwnerFrom })`로 자식을 만든다. (2) 부모 대화에 `agent.spawned`를 커밋한다(`build` 안에서 `TxView.agentByRequestId`로 같은 requestId를 먼저 보고, 있으면 `exists`로 그 연결을 따른다). 두 커밋 사이에 죽으면 같은 `creationKey`가 같은 자식을 돌려주므로(`replayed: true`) 중복 자식이 생기지 않는다. 이어서 자식 임대를 다시 얻고 쓰기로 연다. `L1.persistence.spec` §4.10.1이 같은 결정을 적는다. 한 커밋으로 합치려면 F에 부모 초안을 받는 자리가 필요하다 [미결: F 요청]. fork 지점이 `item`이면 `threads.fork`로 만들고 임대는 `ownership.leases`로 얻는다. `event` 지점은 세션에 이벤트 기준 fork가 없어 `agents.invalid_request`다.
+   - 부모 토큰 [미결]: `SpawnOrigin`에도 `SessionService`에도 부모의 `LeaseToken`이 없다. `AgentsOwnership.parentToken(threadId)`를 조립 루트가 넘긴다(F 요청: `SessionService`의 소유 토큰 조회 또는 `SpawnOrigin.parentToken`).
    - 자식 쓰기 소유 [제안]: 자식 thread의 쓰기 소유자는 부모 thread의 소유자(같은 엔진 인스턴스)다. 이 커밋 직전에 core-persistence가 부모 토큰의 holder로 `session:<childThreadId>` 임대를 `xeon.store.leases.acquire`로 얻는다(`L1.persistence.spec` §3.8 `ThreadCreateInput.inheritOwnerFrom`, §4.10.1). 새 id라 경합이 없고, 커밋이 실패하면 반납한다. 소유 확인 면제는 자식의 첫 이벤트 `thread.started` 하나뿐이다. 같은 커밋의 부모 `agent.spawned`와 이후 자식의 `turn.started`, 도구 효과, 부모의 `agent.settled`는 각 thread의 토큰으로 확인한다(`L1.persistence.spec` §4.1 2단계).
    - 하트비트는 core-persistence가 자식 토큰에 건다. 자식 임대는 자식 정착(6번) 뒤 `release`로 반납한다.
    - 부모 임대 상실(`lease_lost`, `ownership_lost`)은 소유 트리 취소로 자식 전체에 전파한다. 부모 thread 노드에 `abort(…, { code: "lease_lost" }, { background: true })`를 걸어 백그라운드 자식도 멈춘다(`eng.transactions.design` §3.3 규칙 2 "임대를 잃으면 메모리 작업을 모두 취소", `L1.tasks.spec` `AbortCode`). 자식 임대 상실도 그 자식 노드를 같은 사유로 취소한다.
@@ -341,6 +342,16 @@ export type AgentJudgedPayload = JudgeRecord;
 7. 중간 과정(자식의 도구 호출, 생각, 메시지)은 자식 대화에만 남는다. 부모 대화에는 `agent.spawned`, `agent.settled`, 결과(도구 결과 또는 post 항목)만 들어간다.
 
 자식 연결 kind(`agent.*`)는 F.records.spec §3.3 카탈로그에 있다(§8.3 F 요청 3 반영). `thread.started.spawnedBy` 대안은 쓰지 않는다.
+
+- 구현 메모 [결정: L1B.4]:
+  - 모델 도구 `agent`는 `execute(toolCallId, …)`에 실행 맥락이 없어 `TaskService.find("tool", toolCallId)`에서 부모 노드를 따라 올라가 부모 turn과 대화를 찾는다(tool > turn > thread|subagent). 부모의 호출 주체와 깊이는 core-agents가 기억하는 자식 문맥(`contextOf`)에서 읽고, 없으면 `main`, 깊이 0이다. 요청 id는 항상 `tool:<toolCallId>:spawn:0`이다(도구 호출 하나가 자식 하나).
+  - `interactive`는 `SpawnOrigin`에 없어 주 대화는 참, 중첩 자식은 부모와 같게 둔다.
+  - 자식 모드는 `ToolService.mode`로 부모 모드를 읽고 `childMode`(엄격한 쪽)를 구해 `ToolService.setMode(자식, 모드, "user")`로 자식 thread의 세션 설정에 남긴다. 자식 turn 요청의 `ceiling`은 부모 관점(`caller`, `depth`, 부모 모드)과 정의 `tools`·호출자 `allow`의 글롭 교집합이다. 부분만 겹치는 글롭은 교집합이 비어 막는 쪽으로만 틀린다.
+  - `tools.deny`는 `ChildTurnRequest`에 실을 자리가 없어 `agents.invalid_request`로 거부한다(조용히 무시하면 권한이 넓어진다) [미결: F 요청]. `tools.keepParentList`는 부모 광고 목록을 `ToolService.advertise`로 얻어 싣는다.
+  - 정의 `permissions.rules`는 호출 주체를 `subagent:<이름>`으로 좁히고 id에 `agent.<이름>.`을 붙여 `core:agents` 출처(default 티어)로 등록한다. 명세의 extension 티어로 등록하는 길이 core-tools에 없다 [미결]. 정의나 `maxDepth`가 바뀌면 같은 출처로 다시 등록한다. `maxDepth: 0`이면 주 대화도 막는 `subagent.disabled`를 더한다.
+  - 풀 `subagents` 슬롯은 자식 노드를 owner로 얻는다. 호출 도구가 쥔 `tools` 슬롯을 `suspendWhile`로 내려놓는 일(C2)은 core-tools가 그 슬롯을 쥐고 있어 이 패키지가 할 수 없다: `Limiter`에 owner로 슬롯을 찾는 길이 없다 [미결: F 요청 또는 core-tools가 spawn 부류 도구는 `tools` 슬롯을 쥐지 않기]. `tools` 풀 상한이 1이고 자식이 도구를 쓰면 교착한다.
+  - `agent.settled.report.text`는 65,536자 상한 때문에 `resultMaxChars`와 60,000자 중 작은 값까지만 싣는다.
+  - `delegate`(백그라운드)와 `judge`는 M3다. M2는 `agents.unavailable`/`failed` 값을 돌려준다.
 
 ### 4.2 결과 경로
 

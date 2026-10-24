@@ -143,6 +143,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@xeon/contracts": "workspace:*",
+        "@xeon/ext-host": "workspace:*",
         "typebox": "catalog:",
         "yaml": "catalog:",
       },
