@@ -573,7 +573,8 @@ export interface WorkspaceService {
 | bash 명령 문자열 안의 경로 | 검사하지 않는다(명령 해석은 불가) | 명령 패턴 규칙과 승인 | 커널 수준 강제(쓰기 root 밖 쓰기 거부, 보호 경로 읽기 거부, 네트워크 허용 목록) |
 | 보호 경로 목록 | 조회해 파일 도구에도 적용 | 관여 없음 | 소유 |
 
-- 허용 root를 얻는 API는 `L1.tools.spec`이 정한다 [가정]. 그 API가 생기기 전(M1)에는 읽기 root와 쓰기 root 모두 세션 cwd 하나로 둔다 [제안].
+- 허용 root를 얻는 API는 `L1.tools.spec`이 정한다 [가정]. 그 API가 생기기 전에는 읽기 root와 쓰기 root 모두 대화의 작업 폴더 하나로 둔다 [제안].
+- [결정: review.m2-plan DG.4, open-issues M-06] 대화의 작업 폴더는 `thread.started`의 `workspace`(`ThreadSummaryRow.workspace`)다. 호출 문맥(`CallOptions.context.threadId`)으로 `xeon.session`의 대화 투영을 읽고(`ThreadWorkspaces.workspaceOf`), 값이 있으면 그 폴더가 다음 셋의 기준이 된다. (1) 상대 경로를 푸는 cwd, (2) 읽기·쓰기 root 하나, (3) `bash`의 기본 cwd와 샌드박스 쓰기 root. 실행 환경은 `xeon.exec`의 `withCwd`로 만든다. 값이 없거나(옛 행) 대화 문맥이 없으면 엔진의 cwd를 쓴다(M1 동작). 작업 폴더가 없는 경로를 가리키면 `not_found`이고 엔진 cwd로 물러나지 않는다. 한 엔진이 여러 프로젝트의 대화를 동시에 열어도 대화마다 root가 다르다.
 - 같은 쓰기를 파일 도구는 L2에서 거부하고, bash는 L0 샌드박스가 거부한다. 파일 도구는 샌드박스를 거치지 않으므로 L2 검사가 유일한 경로 방어다.
 
 ### 4.4 편집 방식
@@ -636,6 +637,12 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
   3. 워커 스레드(`images/node-worker.ts`)가 Bun `Worker`에서 동작하지 않으면 메인 스레드에서 처리한다. 대신 큰 이미지 처리 중 이벤트 루프가 멈출 수 있다.
 - 첨부: `dialog.attachments`가 `workspace.images.register`(붙여넣기 데이터)와 `load`(파일 첨부)를 부른다(`L2.readme` §6). 첨부 입력 경로와 사용자 메시지 결합은 `L2.dialog.spec`이 정한다.
 - 이미지 입력 크기 상한: `register`의 base64 길이는 `l2.workspace.images.maxInputBytes`를 넘으면 처리 전에 `invalid_input`이다. 너무 큰 입력이 워커로 넘어가지 않게 한다.
+- [결정: review.m2-plan DG.3] M2 최소형 구현 규칙:
+  - 형식 판별은 pi `tools/image.ts`의 `detectSupportedImageMimeType`과 `imageDimensions`다(`PATCHES.md` P11). 선언한 `mimeType`보다 머리 바이트로 판별한 형식이 앞선다. 판별하지 못하면 `image_decode_failed`, bmp처럼 인라인 형식이 아니면 `image_unsupported`다. 애니메이션 PNG는 판별 대상이 아니라 `image_decode_failed`다.
+  - 한도 검사는 base64 길이 대 `maxBytes`뿐이다. 픽셀 한도(`maxWidth`, `maxHeight`)는 처리기 없이 맞출 수 없어 검사하지 않고 헤더에서 읽은 크기만 결과의 `size`에 싣는다.
+  - blob 등록은 `BlobSink.putBlob`(실제 구현은 `xeon.store`)이다. 저장소가 없으면 `unavailable`(`detail.reason: "blob_store_missing"`), 저장 실패는 `unavailable`(`detail.by: "store"`, 디스크 부족과 입출력 오류는 재시도 가능)이다.
+  - `load`는 §4.3 경로 해석(읽기 변형 포함)을 거치고, 파일 크기가 `maxInputBytes`를 넘으면 읽기 전에 `invalid_input`이다. `resize`는 처리기가 들어오는 2차까지 `unsupported`다.
+  - `read`가 이미지 파일을 만나면(blob 저장소가 있을 때만) 같은 경로로 준비해 `{ kind: "image", path, image }`를 돌려준다. 저장소가 없으면 이미지도 `read_binary`다.
 
 ### 4.7 재생과 결과 불명
 
@@ -691,7 +698,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 | `l2.workspace.grep.rgPath` | string | `""` | — | restart | managed, user | tools | false |
 
 - `shell.defaultTimeoutSec`의 0은 제한 없음이다(pi durable `bash`의 기본값과 같다).
-- `grep.rgPath`가 빈 문자열이면 `@vscode/ripgrep`이 설치한 바이너리를 쓴다. 범위를 관리·사용자로 제한한다. 프로젝트 설정 파일이 실행 파일 경로를 바꾸게 두면 저장소를 여는 것만으로 임의 바이너리가 실행될 수 있기 때문이다 [제안]. `find`도 같은 바이너리(`rg --files --glob`)를 쓴다(§10 미결 6).
+- `grep.rgPath`가 빈 문자열이면 `xeon.os`의 `resolveBinary("rg")`가 돌려주는 경로를 쓴다. `@vscode/ripgrep`은 `platform-os`가 번들하고 이 패키지는 그 경로로 `rg`를 실행만 한다(`ExecutionEnv.exec`) [결정: review.m2-plan §8]. 범위를 관리·사용자로 제한한다. 프로젝트 설정 파일이 실행 파일 경로를 바꾸게 두면 저장소를 여는 것만으로 임의 바이너리가 실행될 수 있기 때문이다 [제안]. `find`도 같은 바이너리(`rg --files --glob`)를 쓴다(§10 미결 6).
 - 이미지 한도의 기본값은 durable `DEFAULT_IMAGE_LIMITS`와 같다. 모델 provider별 한도가 더 작으면 L1.models가 요청 조립 때 다시 줄인다 [가정].
 - UI 위젯: integer 키는 `number`, boolean은 `toggle`, string은 `text`. `ui.label`은 한국어로 둔다(예: `read.maxLines` → "읽기 최대 줄 수").
 
@@ -743,12 +750,12 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 D-08] 절단 함수 위치. 포크 원본은 `platform-exec`에 두고 `cap-workspace`는 F 서비스(`ExecutionEnv`)로 호출한다(§4.5).
-2. [미결] `workspace.images` 최소형(처리기 없음)을 M2에 두는 배치. JSON은 "이미지와 첨부 처리" 2차이고 `dialog.attachments`(M2)는 이 능력을 필수로 쓴다(`L2.readme` §2 각주).
+2. [결정: review.m2-plan DG.3] `workspace.images` 최소형(처리기 없음)을 M2에 둔다. JSON은 "이미지와 첨부 처리" 2차이고 `dialog.attachments`(M2)는 이 능력을 필수로 쓴다(`L2.readme` §2 각주). 구현은 §4.6.
 3. [미결] `ImageBlobRefSchema`의 중복. F capabilities는 records를 import하지 않으므로 같은 모양을 적었다. `BlobRef`를 conversation이나 base로 내려 공유할지 F 문서가 정한다. 그 전까지는 두 스키마의 JSON이 같은지 테스트로 확인한다.
 4. [미결] 원자적 쓰기와 동시 변경 감지. 포크 원본의 `writeFile`이 직접 덮어쓰는지 확인하고, 임시 파일 + 이름 바꾸기와 읽은 시점 해시 비교(낙관적 동시성)를 넣을지 정한다.
 5. [미결] 도구 없는 능력(`workspace.images`) 허용(`F.capabilities.spec` §4.4).
 6. [미결] `find`의 엔진. pi coding-agent `find`는 `fd`를 내려받아 쓴다(`core/tools/find.ts` `ensureTool("fd")`). 내려받기를 피하려고 `rg --files --glob`로 바꾸는 것을 제안한다. glob 의미(기본 이름 일치 대 전체 경로 일치)가 `fd`와 달라질 수 있어 테스트로 고정한다.
-7. [미결] 허용 root 조회 API의 이름과 모양(`L1.tools.spec`). M1은 cwd 하나로 둔다.
+7. [미결] 허용 root 조회 API의 이름과 모양(`L1.tools.spec`). M1은 cwd 하나, M2는 대화의 작업 폴더 하나로 둔다(§4.3, open-issues M-06). 추가 디렉터리와 사용자가 승인해 넓힌 경로는 L1.tools의 API가 정해진 뒤에 더한다.
 8. [미결] `bash` `executionMode: "sequential"`의 비용. 같은 라운드의 읽기 도구까지 순차가 된다. 실측 뒤 `parallel`로 바꿀지 정한다.
 9. [미결] 0 아닌 종료 코드를 `exit_nonzero` 오류로 내는 방식(§3.3). F `ToolContent`에 `isError` 필드를 더해 정상 출력으로 `isError`를 표시하는 대안이 있다. F 문서의 판단이 필요하다.
 10. [미결] 모델용 도구 설명 문구의 언어. pi 원문은 영어다. 이 문서는 F 예시를 따라 한국어로 썼다. 모델 품질 비교 뒤 정한다.

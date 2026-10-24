@@ -229,10 +229,12 @@ export const DialogAskKey = serviceKey(DialogAsk);
 ```
 
 - 도구 이름은 `ask_user`다(`_research/l2e.md` §3.2 B1 제안 이름을 확정).
+- [결정: review.m2-plan DG.1] 승인 요청에 싣는 대상은 L1.tools의 `QuestionBody`다(§4.1.1). `AskApprovalSubjectSchema`와 `answerSchema` 필드는 전송에 쓰지 않는다. L1.tools가 `QuestionBody`로 응답을 검사하기 때문이다.
 - 질문 수 1~4개, 선택지 2~8개는 Claude Code AskUserQuestion의 범위(질문 1~4개)를 따르고 선택지 상한은 화면 폭을 고려한 [제안]이다.
 - `executionMode: "sequential"`: 같은 단계에서 질문 도구가 둘 나오면 순서대로 묻는다. Hermes는 질문 도구를 병렬 실행에서 뺀다(`_research/refs/hermes.md` L1d-7).
 - `hints.readOnly: true`: 질문은 환경을 바꾸지 않는다. L1.tools가 이 힌트로 계획 모드에서도 질문을 허용한다 [가정].
 - `ask_unavailable_headless`: `xeon -p` 같은 비대화형 실행에서는 답할 클라이언트가 없다. 이때 L1.tools가 승인 요청을 받지 않는다고 알려 주면(포트의 `interactive: false`) 즉시 이 오류를 낸다 [가정].
+  - [잠정: review.m2-plan DG.1] 호출 문맥(`CallContext`)에 대화형 여부가 없다. cap-dialog는 조립 루트가 넘기는 판정 함수 `interactive(context)`로 이 오류를 낸다(기본은 항상 대화형). 판정 함수가 없고 L1.tools가 비대화형 요청을 `approval.resolved{ deny, noninteractive }`로 끝내면 `ask`는 이를 `cancelled(dismissed)`로 읽는다. L2 스냅숏에 `resolvedBy`가 오르면 이 경우도 `ask_unavailable_headless`로 낼 수 있다(F 요청).
 
 ### 3.2 `dialog.commands`
 
@@ -683,7 +685,11 @@ export const DIALOG_EVENT_CATALOG: readonly CatalogEntry[] = [
 #### 4.1.1 승인 요청의 사용 방식
 
 - [결정] 질문은 `xeon.approvals`에 kind `question`으로 요청한다. 계획 승인(kind `plan`, `L2.work.spec` §4.2)과 같은 레코드 형식이다. 레코드 필드(`approvalId`, kind, 대상, 선택지, 결과)의 정의는 L1.tools.spec이 소유하고, 이 문서는 대상 내용(`AskApprovalSubjectSchema`)과 답 내용(`AskAnswerSchema`)만 정한다.
-- cap-dialog는 `xeon.approvals`를 포트 한 곳(`cap-dialog/src/ports/approvals.ts`)으로 감싼다. 포트 모양은 `L2.readme` §5.7의 L2 공통 `ApprovalsPort`이고 kind는 `"question"`, `answerSchema`는 `buildAskAnswerSchema` 결과다. 패키지끼리 import하지 않으므로 같은 모양을 각자 둔다.
+- cap-dialog는 `xeon.approvals`를 포트 한 곳(`cap-dialog/src/ports/approvals.ts`)으로 감싼다. 포트 모양은 F의 L2 공통 `L2ApprovalsPort`(`L2.readme` §5.7)이고 kind는 `"question"`이다. 요청이 낸 쪽(출처)은 호출마다 정해지므로 포트는 호출 문맥으로 포트를 만드는 팩토리(`ApprovalsPortFactory.forCall`)로 받는다. 도구 호출 안이면 문맥의 `toolCallId`가 요청의 `origin`이 되어 L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다. 정식 팩토리는 HOST 조립이 만든다(F `ApprovalService`에 비차단 `open`·`wait`·`get`이 오르기 전까지는 core-tools의 기준 구현 `l2ApprovalsPort`가 같은 일을 한다).
+- [결정: review.m2-plan DG.1] 레코드 모양은 L1.tools가 정한다. cap-dialog가 도메인 모양과 레코드 모양을 옮긴다(`ask/mapping.ts`).
+  - 대상: `AskQuestion[]`을 `QuestionBody`(`{ questions: [{ id, text, options: [{ id, label, description? }], multiSelect, allowFreeText }] }`)로 옮긴다. `question`은 `text`가 되고, 선택지가 없는 질문은 `options: []`와 `allowFreeText: true`다(L1.tools는 선택지 없는 질문의 `allowFreeText`가 참이어야 받는다). `header`와 `recommended`는 레코드에 실리지 않는다. 시간 제한의 추천 답은 입력(`AskInput`)에서 다시 읽는다. 화면이 추천 표시를 그리려면 F `QuestionItem`에 선택 필드 `header`, `QuestionOption`에 `recommended`가 필요하다(F 요청).
+  - 응답: `approval.respond`의 `answer`는 `QuestionAnswer`(질문 id → `{ selected, text? }`)다. cap-dialog가 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)로 옮기고 `validateAskAnswer`로 다시 검사한다. 이 변환으로 `L1.tools.spec` 미결 "QuestionAnswer와 AskAnswer의 모양 차이"를 닫는다.
+  - `answerSchema`는 요청에 싣지 않는다.
 
 | wire `approval.respond` | `answer` | `ask` 출력 |
 |---|---|---|
@@ -717,8 +723,8 @@ sequenceDiagram
 ```
 
 1. 질문 정의를 `checkAskQuestions`로 검사한다. 위반이면 `ask_invalid_questions`.
-2. `subject = { questions, answerSchema: buildAskAnswerSchema(questions) }`를 만든다.
-3. `ApprovalsPort.request`를 호출 `requestId`로 부른다. 같은 키로 다시 부르면 L1.tools는 새 요청을 만들지 않고 기존 요청의 현재 상태를 돌려준다 [가정, L1.tools.spec].
+2. 대상 `subject`를 `QuestionBody`로 만든다(§4.1.1).
+3. `L2ApprovalsPort.request`를 호출 `requestId`로 부른다. 승인 요청 키는 1~48자라 `requestId`가 48자를 넘으면 앞 24자와 해시 23자로 줄인다(앞이 같은 서로 다른 호출이 같은 키가 되지 않게 한다). 같은 키로 다시 부르면 L1.tools는 새 요청을 만들지 않고 기존 요청의 현재 상태를 돌려준다 [가정, L1.tools.spec].
 4. 상태가 `pending`이면 `{ status: "input_required", approvalId }`를 돌려준다. L1.tools 어댑터가 이를 `ToolResultRecord.status: "input_required"`와 `inputRequired: InputRequiredInfo`로 옮긴다(F.conversation.spec §3.6). [제안] `InputRequiredInfo.requestState`에는 `approvalId`를, `inputRequests`에는 `{ kind: "question", approvalId }`를 싣는다. 값 모양의 확정은 L1.tools.spec이 한다.
 5. 상태가 해결이면 §4.1.1 표로 완료 출력을 만든다. 저장된 답을 `validateAskAnswer`로 다시 검사하고, 위반이면(구버전 클라이언트 등) `cancelled(dismissed)`로 처리하고 운영 로그에 남긴다.
 6. [가정] L1.tools는 승인이 해결되면 `input_required` 결과를 낸 도구 호출을 같은 입력과 같은 `requestId`로 다시 불러 완료 결과를 얻는다(MCP client 2.3.1의 `input_required` 재시도와 같은 모양, `_research/notes/L2-1.md` 1항). 도구 결과 커밋 키는 `tool:<toolCallId>:result` 하나라 재시작 뒤 재시도가 여러 번 일어나도 완료 처리는 한 번이다(eng.transactions.design §4.8).
@@ -726,9 +732,11 @@ sequenceDiagram
 #### 4.1.3 시간 제한, 취소, 무응답
 
 - 시간 제한값: 입력 `timeoutSec`, 없으면 설정 `l2.dialog.ask.timeoutSec`. 0이면 제한이 없다.
-- 시간 제한이 있으면 승인 요청에 만료 시각과 만료 시 결과를 함께 넘긴다 [가정: L1.tools.spec이 만료를 내구적으로 관리한다. F.wire-settings.spec §4.6 A안 "대기 시간 제한을 엔진이 따로 관리한다"]. 만료 시 결과는 `defaultAskAnswer(questions)`가 있으면 그 답(`decision: "answer"`, 출처 표시 `expired`)이고, 없으면 거부(`decision: "deny"`, 출처 `expired`)다.
+- 시간 제한이 있으면 승인 요청에 만료 시각과 만료 시 결과를 함께 넘기는 것이 정본이다 [가정: L1.tools.spec이 만료를 내구적으로 관리한다. F.wire-settings.spec §4.6 A안 "대기 시간 제한을 엔진이 따로 관리한다"]. 만료 시 결과는 `defaultAskAnswer(questions)`가 있으면 그 답(`decision: "answer"`)이고, 없으면 취소(`cancel`)다.
+  - [잠정: review.m2-plan DG.1] F `ApprovalRequestInput`과 `L2ApprovalRequest`에 만료 필드가 없다(F 요청). 그동안 `ask/expiry.ts`가 프로세스 안 타이머(`xeon.os`의 `scheduler`)로 같은 일을 한다. 승인이 아직 대기이면 `ask`가 타이머를 걸고, 만료되면 추천 답으로 `respond`하거나 `cancel`한다. 사용자가 먼저 답했으면 `respond`의 `applied: false`로 끝난다.
+  - 잠정 구현의 한계: 프로세스가 끝나면 타이머가 사라지고, 재시작 뒤 같은 `requestId`로 `ask`를 다시 부르면 제한 시간을 처음부터 다시 잰다. `defaulted`와 `timeout` 표지는 메모리에만 있어 재시작 뒤에는 각각 `defaulted: false`와 `aborted`로 읽힌다. F에 만료 필드가 오르면 이 타이머를 지운다.
   - 모든 질문에 추천 항목이 있을 때만 자동 답을 만든다. 일부 질문만 추천이 있으면 나머지 답을 지어내야 하므로 만들지 않는다 [제안].
-  - 만료 시각은 요청 커밋 시각 + 제한이다. 프로세스가 없던 동안 시각이 지났으면 다음 실행 때 L1.tools가 해결한다. cap-dialog는 타이머를 갖지 않는다.
+  - 정본 설계에서 만료 시각은 요청 커밋 시각 + 제한이다. 프로세스가 없던 동안 시각이 지났으면 다음 실행 때 L1.tools가 해결하고 cap-dialog는 타이머를 갖지 않는다.
 - 취소: 사용자가 대화상자를 닫으면 클라이언트가 `decision: "deny"`로 응답한다(`cancelled(dismissed)`). 턴을 끊으면 L1이 승인 요청을 취소하고 도구 호출은 중단 결과가 된다(F.capabilities.spec §3.6 `aborted`). 이때는 재시도가 없다.
 - 무응답(시간 제한 0): 내구 대기가 계속된다. 세션을 닫았다가 다시 열어도 질문이 남아 있다(architecture.runtime-flow.design §4.5). 대기 중에 도는 프로세스는 없다.
 
@@ -769,8 +777,10 @@ args:
 $1에 대해 ${2:-quick} 수준으로 탐구하라. 참고 자료: !{git log --oneline -5}
 ```
 
-- `description`이 없으면 본문 첫 줄 앞 60자를 쓴다(pi 동작). `args`는 Xeon이 더한 필드다. 자동완성 정보이며 치환에는 영향이 없다.
-- 위치 [제안]: 사용자 `~/.xeon/commands/*.md`, 프로젝트 `<프로젝트>/.xeon/commands/*.md`, 설정 `l2.dialog.commands.dirs`의 추가 디렉터리, 확장 매니페스트 `components.commands`(F.extensions.spec §3.1). 디렉터리는 재귀하지 않는다. 기본 디렉터리 이름 `.xeon`은 [가정]이고 L4.host-service.spec이 정한다. pi는 `prompts/`를 쓰지만 Claude Code 관례(`commands/`)를 따른다.
+- `description`이 없으면 본문 첫 줄 앞 60자를 쓴다(pi 동작, 60자를 넘으면 `...`을 붙인다). `args`는 Xeon이 더한 필드다. 자동완성 정보이며 치환에는 영향이 없다. 선언이 `CommandArgSchema` 배열(최대 16개)에 맞지 않으면 그 필드만 무시하고 명령은 남긴다.
+- 파일 이름이 `COMMAND_NAME_PATTERN`에 맞지 않거나 셸 주입이 16개를 넘는 파일은 건너뛴다. 건너뛴 파일은 운영 로그 `dialog.command_file_skipped`(경로, 사유)에 남는다. 앞머리 YAML은 `Bun.YAML.parse`로 읽고, 앞머리가 매핑이 아니거나 해석되지 않으면 그 파일만 건너뛴다.
+- 디렉터리를 읽는 일은 호출마다 하되, 디렉터리 안 `.md` 파일의 이름·크기·수정 시각이 같으면 앞서 해석한 결과를 다시 쓴다.
+- 위치 [제안]: 사용자 `~/.xeon/commands/*.md`, 프로젝트 `<프로젝트>/.xeon/commands/*.md`(프로젝트는 대화의 작업 폴더, 모르면 엔진 cwd), 설정 `l2.dialog.commands.dirs`의 추가 디렉터리(`~/`는 홈, 상대 경로는 프로젝트 기준, 출처는 `user`이고 기본 사용자 디렉터리 뒤), 확장 매니페스트 `components.commands`(F.extensions.spec §3.1, 외부 확장 로더가 들어오는 M3에 붙인다). 디렉터리는 재귀하지 않는다. 기본 디렉터리 이름 `.xeon`은 [가정]이고 L4.host-service.spec이 정한다. pi는 `prompts/`를 쓰지만 Claude Code 관례(`commands/`)를 따른다.
 - 이름에 `:`을 한 번 쓸 수 있다(예: `review:start`). 하위 디렉터리 이름 공간은 2차다.
 
 #### 4.2.2 인자 치환
@@ -787,6 +797,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | `${@:N:L}` | n번째부터 L개 |
 
 - 치환은 템플릿 문자열에만 한 번 한다. 인자 값 안의 `$1` 같은 문자열은 다시 치환하지 않는다(pi 주석).
+- 셸 자리(`!{…}`)는 치환 전에 찾고, 글자 조각과 셸 명령 조각에 따로 치환한다. 인자 값 안의 `!{…}`는 셸 자리가 되지 않는다. 그래서 사용자가 넘긴 인자가 확인 없이 실행되는 명령을 만들 수 없다.
 - `$0`은 빈 문자열이다(pi 테스트 "should handle $0").
 
 #### 4.2.3 우선순위와 충돌
@@ -795,6 +806,8 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - pi는 사용자(전역) 파일을 먼저 읽고 첫 일치를 쓰므로 사용자가 프로젝트보다 앞선다(`prompt-templates.ts` 238-304행). Xeon은 설정 우선순위(프로젝트가 사용자보다 앞섬, F.wire-settings.spec §4.7)와 맞추려고 순서를 바꾼다.
 - `capability` 출처끼리 같은 이름을 등록하면 뒤 등록이 `command_name_taken`으로 거부된다. 그룹 명령은 `<그룹>:<이름>` 형식을 권한다.
 - 동작 명령(`registerAction`)은 `capability` 출처다. `L2.work.spec` §6.2의 `/goal`, `/plan`, `/tasks`가 여기에 들어간다.
+- `builtin` 출처는 클라이언트(L4)가 `declareBuiltin(명령 선언 목록)`으로 알린다(`dialog.commands` API 객체의 TS 메서드, 반환 함수로 해제). 이 패키지는 `builtin` 명령을 실행하지 않는다. `builtin`이 이긴 이름은 `expand`가 `matched: false`, `run`이 `not_command`를 돌려주고 실행은 클라이언트가 한다. 목록과 광고에는 보인다.
+- 같은 등급 안에서는 들어온 순서가 앞선 것이 이긴다(파일 명령은 프로젝트 디렉터리, 사용자 디렉터리, 설정 디렉터리 순). 템플릿 `register`로 올린 명령에는 해제 수단이 없다. 코드가 해제해야 하면 `registerAction`을 쓴다.
 
 #### 4.2.4 실행과 셸 주입
 
@@ -805,14 +818,16 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
   3. 템플릿에 셸 주입이 없으면 치환 결과를 `expanded`로 돌려준다. 클라이언트는 이 텍스트를 `turn.start` 입력으로 보낸다.
   4. 셸 주입이 있고 설정이 `off`면 `command_shell_disabled`.
   5. 셸 주입이 있고 `confirmShell`이 참이 아니면 `needs_confirmation`과 명령 목록을 돌려준다. 실행하지 않는다.
-  6. `confirmShell: true`면 각 `!{명령}`을 L1.tools의 셸 도구 실행 경로로 순서대로 실행한다 [가정: L1.tools.spec이 사용자 개시 셸 실행 API를 둔다. pi `user_bash` 지점(F.extensions.spec §3.4 2번)과 같은 경로]. 일반 도구 권한과 샌드박스 규칙이 그대로 적용된다. 출력은 자리에 치환하고 `expanded`를 돌려준다. 실패한 명령은 `[셸 오류: <코드>]`로 치환한다.
+  6. `confirmShell: true`면 각 `!{명령}`을 L1.tools의 셸 도구 실행 경로로 순서대로 실행한다. 실행 경로는 `ToolService.runUserShell`(L1.tools.spec, 정책은 caller `main` 대화형)이고, 이 패키지는 `ShellPort`(`ports/shell.ts`)로만 부른다. 일반 도구 권한과 샌드박스 규칙이 그대로 적용된다. 출력은 끝의 줄바꿈을 걷어 자리에 치환하고 `expanded`를 돌려준다. 실패한 명령(0 아닌 종료, 시간 초과)은 `[셸 오류: <코드>]`로 치환하고 이어서 실행한다.
+  - 명령마다 멱등 키 `<호출 requestId>:sh<순번>`을 넘긴다. 셸 실행과 동작 명령에는 `CallOptions.context.threadId`와 `requestId`가 필요하다. 없으면 `invalid_input`이다.
 - 셸 주입 문법 `!{…}`와 실행 전 확인은 Gemini CLI 사용자 명령을 참고했다(`_research/l2e.md` §3.4 D5). 중괄호 짝 맞추기는 Gemini 규칙처럼 중첩을 센다 [가정].
+- 설정 `l2.dialog.commands.shellInjection`이 `off`이면 셸 주입이 있는 템플릿은 확인 단계에 가기 전에 `command_shell_disabled`다. 셸 포트가 조립되지 않았으면 `unavailable`(`detail.reason: "shell_missing"`)이다.
 - 클라이언트가 `/`로 시작하는 입력을 `run`을 거치지 않고 `turn.start`로 보내면, cap-dialog의 `input` 지점 핸들러(chain)가 템플릿 명령만 치환한다(셸 주입이 없는 것만). 동작 명령과 셸 주입 명령은 이 경로에서 치환하지 않고 그대로 둔다. on 핸들러는 효과를 내지 않아야 하기 때문이다(F.extensions.spec §4.3).
 
 #### 4.2.5 모델에 대한 광고
 
 - 모델은 명령을 호출하지 않는다. 도구가 없다.
-- [제안] 설정 `l2.dialog.commands.advertise`가 참이면 명령 이름과 설명 목록(이름 바이트 순, 최대 50개)을 시스템 프롬프트 조각으로 붙인다. 모델이 사용자에게 명령을 권할 수 있게 하려는 것이다. 목록이 바뀔 때만 조각이 바뀌므로 프롬프트 캐시 접두는 명령 추가·제거 때만 바뀐다. 조각을 붙이는 API는 L1.context.spec이 정한다 [가정].
+- [제안] 설정 `l2.dialog.commands.advertise`가 참이면 명령 이름과 설명 목록(이름 바이트 순, 최대 50개)을 시스템 프롬프트 조각으로 붙인다. 모델이 사용자에게 명령을 권할 수 있게 하려는 것이다. 목록이 바뀔 때만 조각이 바뀌므로 프롬프트 캐시 접두는 명령 추가·제거 때만 바뀐다. [결정: review.m2-plan DG.2] M2는 `before_agent_start` 지점의 `systemPrompt` 교체 패치로 현재 시스템 프롬프트 뒤에 붙인다. 조각을 붙이는 전용 API가 L1.context.spec에 생기면 그쪽으로 옮긴다.
 
 #### 4.2.6 클라이언트 선언
 
@@ -835,7 +850,13 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 
 - 그룹 상태 세그먼트: 그룹은 `"<자기 이름>.<이름>"` 형식 id로 `setItem`을 부른다(예: `<그룹 이름>.phase`에 "2/3단계"). 다른 소유자의 id를 쓰는 것을 막을 호출자 확인 수단은 §10 D-4다.
 - 표시 순서는 `order`, 같으면 id 바이트 순이다. 설정 `l2.dialog.status.segments`는 표시할 id 목록이다. `"*"`로 끝나는 항목은 접두 일치다(예: `"<그룹 이름>.*"`). 항목 `"*"` 하나는 앞 항목이 고르지 않은 모든 세그먼트다. 같은 id는 한 번만 표시한다.
-- 변경은 휘발 이벤트 `dialog.status`(전체 스냅숏)로 나간다. 스냅숏은 스레드마다 마지막 상태 하나만 메모리에 둔다. 같은 단계 안의 변경은 100 ms 단위로 묶는다 [제안].
+- 변경은 휘발 이벤트 `dialog.status`(전체 스냅숏)로 나간다. 스냅숏은 스레드마다 마지막 상태 하나만 메모리에 둔다. 같은 단계 안의 변경은 100 ms 단위로 묶는다 [제안]. 첫 변경부터 100 ms 뒤에 마지막 상태를 한 이벤트로 내보낸다.
+- [결정: review.m2-plan DG.3] 구현 규칙:
+  - 설정 `status.segments`가 고른 세그먼트만 `list`와 이벤트에 나온다. 둘이 같은 목록을 쓰므로 재접속한 클라이언트가 이벤트와 같은 화면을 그린다. 이벤트는 앞 32개만 싣고, `list`는 선택된 전체를 돌려준다.
+  - 스레드마다 세그먼트는 256개까지다. 새 id가 넘으면 `invalid_input`이다.
+  - 내장 세그먼트는 내구 이벤트 피드(`turn.started`, `turn.completed`, `approval.requested`, `approval.resolved`)와 `tool_execution_start`·`tool_execution_end` 지점에서 계산한다. `core.turn`은 이벤트를 하나라도 본 스레드에서 보인다. `core.usage`는 `turn.completed.usage`의 `totalTokens`와 `cost.total`을 누적한다. 같은 `seq`의 이벤트는 한 번만 센다.
+  - 피드 구독은 구독한 뒤 커밋되는 이벤트만 받는다. 재시작 전 누적 사용량은 따라잡지 않는다 [미결: 재시작 뒤 `core.usage` 복원 정책].
+  - 세그먼트 id 소유자 확인(D-4)은 아직 하지 않는다. `setItem`은 어떤 id든 받는다.
 - 재생 대상이 아니다. 재접속한 클라이언트는 `list`로 다시 그린다. 상태줄 정보는 정본이 아니므로 놓쳐도 내구 이벤트만으로 같은 최종 화면을 만들 수 있어야 한다는 규칙(eng.events.design EV-10)을 어기지 않는다.
 - F.extensions.spec의 `ui_prompt_start`, `ui_prompt_end` 지점(41종 표 40·41번)과의 구분: 두 지점은 확장 UI 대화상자가 열리고 닫히는 것을 관찰하는 tap 지점이다. `dialog.status`는 표시 항목을 등록하는 서비스 API다. 질문 도구의 대기는 `approval.*` 이벤트로 드러나며 `ui_prompt_*`를 발화하지 않는다 [제안]. L1이 승인 대기에 `ui_prompt_*`를 발화할지는 L1.tools.spec이 정한다.
 
@@ -853,6 +874,13 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - 큰 바이너리는 `sys_blobs` 참조(`BlobRef`)로 저장한다(F.records.spec §3.4, `L2.readme` §5.4). 입력 파트의 이미지 base64는 사용자 입력 기록 때 records의 문자열 분리 규칙으로 같은 해시의 blob 자리표시로 바뀐다. 같은 바이트는 같은 해시라 blob이 두 번 저장되지 않는다.
 - `workspace.images`는 정의 `requires`다(`L2.readme` §6). 호출 시 `unavailable`이면 원본 바이트를 크기 한도만 검사해 직접 blob 등록하고 `image.resized: false`로 둔다 [제안]. 리사이즈는 `workspace.images`의 2차 기능이다(`L2.readme` 각주 ws).
 - 한도: 첨부 하나 `l2.dialog.attachments.maxBytes`(기본 20 MiB). 넘으면 `attachment_too_large`. 이미지는 모델 provider 한도(긴 변 픽셀 등)를 `workspace.images`가 맞춘다.
+- [결정: review.m2-plan DG.3] 구현 규칙:
+  - 이미지 판정: 머리 바이트(png, jpeg, gif, webp), 없으면 붙여넣기 때 알려 준 형식, 없으면 확장자(bmp 포함)로 본다. 이미지로 본 첨부는 항상 `workspace.images.register`로 보낸다. 파일은 이 패키지가 읽어 base64로 넘긴다(`load`는 작업 폴더 밖 경로를 막기 때문이다). `register`의 `image_unsupported`, `image_decode_failed`는 `attachment_type_unsupported`로, `image_too_large`는 `attachment_too_large`(`detail.limit`은 `register`가 알려 준 한도)로 옮긴다. `unavailable`이거나 `workspace.images`가 없으면 원본을 `maxBytes`만 검사해 직접 blob으로 등록하고 `image`는 크기를 모르므로 null이다.
+  - 입력 파트: 이미지 파트의 `data`는 `blob:sha256:<hex>` 자리표시다(`workspace.images`의 `read` 결과와 같은 형식). 이미지 파트 뒤에 파일 이름 텍스트 파트가 온다.
+  - 텍스트: 256 KiB 이하이고 UTF-8로 온전히 읽히며 NUL이 없으면 텍스트다. blob(`text/plain`)으로 등록하고 `<attachment name="…" path="…">` 본문 `</attachment>` 한 파트다. 속성 값의 따옴표와 줄바꿈은 공백으로 바꾼다.
+  - 큰 파일과 바이너리: `kind: "file"`, `blob: null`, 경로만 적은 한 파트다. 붙여넣은 데이터(경로 없음)가 이미지도 텍스트도 아니면 디스크에 다른 사본이 없으므로 `attachment_type_unsupported`다.
+  - 한도: 파일은 읽기 전에 `fileInfo`의 크기로, 붙여넣기는 디코드 전에 base64 길이로 `maxBytes`를 검사한다.
+  - URL: 이름은 경로 끝 마디(없으면 호스트)다. 네트워크 호출이 없다.
 - URL을 가져오지 않는 이유 [제안]: 가져오기는 `web.fetch`의 신뢰·정책(도메인 허용, 신뢰하지 않는 내용 표지)을 거쳐야 한다. 첨부 단계에서 가져오면 그 정책을 우회한다.
 - `path` 원천은 작업 폴더 밖 경로도 받는다. 사용자가 직접 붙인 파일이기 때문이다. 읽기는 `xeon.exec`의 `FileSystem.readBinaryFile`(`L0.exec.spec` §3.1)로 한다. `xeon.os`(`OsService`, `L0.os.spec` §3.10)에는 파일 읽기 API가 없다(확인함).
 
@@ -1036,12 +1064,12 @@ export const manifest = defineManifest({
 
 - D-1 닫힘. 호출 문맥은 `F.capabilities.spec` §3.2 `CallOptions.context`다(`L2.readme` §5.8).
 - D-2 [미결] wire 메서드 추가. `commands.list`, `commands.run`, `attachments.add`, `status.list`, `notify.list`, `aside.ask`를 F.wire-settings.spec 코어 표에 둘지, 확장 메서드(`ext.cap-dialog.*`)로 둘지. 클라이언트 명령 선언 형식이 F.wire-settings와 어긋날 위험이 여기서 생긴다.
-- D-3 [미결] L1.tools.spec과의 약속: 승인 요청 멱등(같은 `requestId`), 만료 시각과 만료 결과의 내구 관리, `input_required` 재시도, 질문에 `allow` 응답 거부, 비대화형 실행 표시. 포트 한 곳에서 맞춘다.
+- D-3 [일부 닫힘, review.m2-plan DG.1] L1.tools.spec과의 약속. 닫힌 것: 승인 요청 멱등(같은 `requestKey`, core-tools `open`), `input_required` 재시도(`status: "input_required"`에 `approvalId`, L1A.4), 질문에 `allow` 응답 거부(`applied: false`), 응답 모양(`QuestionAnswer`, §4.1.1). 남은 것(F 요청): (1) 만료 시각과 만료 결과의 내구 관리 필드(`ApprovalRequestInput`, `L2ApprovalRequest`), (2) 비대화형 판정(`CallContext` 또는 `L2ApprovalSnapshot.resolvedBy`), (3) `QuestionItem.header`, `QuestionOption.recommended`, (4) F `ApprovalService`의 비차단 `open`·`wait`·`get`(L1.tools.spec §8.3 F 요청 11)과 그것으로 만든 정식 `ApprovalsPortFactory`.
 - D-4 [미결] 상태줄 id와 `dialog.notify.emit`의 `origin` 확인. `CallOptions.context.caller.extension`(`L2.readme` §5.8)과 대조한다. X의 capability 래퍼가 채우는 값이 확장 이름인지 scope id인지 `X.primitives.spec`과 맞춘다(`L2.work.spec` W-6과 같은 문제).
 - D-5 [미결] 곁가지 질문의 기록 위치와 사용량 집계(2차).
 - D-6 [미결] 알림 소유 경계. 모바일 푸시를 포함한 알림 채널은 모두 `dialog.notify`가 소유하고, `schedule.remote`는 원격 클라이언트의 승인·질문 응답 중계만 맡으며 `schedule`은 알림 대상 이벤트를 낼 뿐이다 [제안]. 확정은 `L2.readme` §10 미결 15다. 창이 앞에 있을 때 알림을 생략하는 조건의 위치(클라이언트 대 엔진)도 함께 정한다.
 - D-7 [미결] 명령 우선순위(`builtin` > `capability` > `project` > `user` > `extension`)와 pi 순서(사용자 우선)의 차이.
-- D-8 [미결] 명령 파일 기본 디렉터리 이름(`.xeon/commands`)과 사용자 설정 디렉터리 위치. L4.host-service.spec과 정한다.
+- D-8 [미결] 명령 파일 기본 디렉터리 이름(`.xeon/commands`)과 사용자 설정 디렉터리 위치. L4.host-service.spec과 정한다. M2는 사용자 `<홈>/.xeon/commands`, 프로젝트 `<작업 폴더>/.xeon/commands`로 구현했고 `CommandRoots` 포트 한 곳에서 바꾼다.
 - D-9 [미결] `dialog.attachments`의 `workspace.images` 의존 종류. `L2.readme` §6은 `requires`, 브리프는 "없으면 원본"이다. 이 문서는 정의 `requires`를 두고 호출 시 `unavailable`이면 원본으로 계속한다.
 - D-10 [미결] 테이블 접두사 예약(`cap_dialog_`). 공통 규약은 "없음"이고 eng.context-map.design은 "예약"이다(`L2.readme` §10 미결 6). 이 문서의 M2·M3 범위는 테이블이 필요 없다.
 - D-11 [결정: review.decisions-2 S-04] 알림 마일스톤. 알림은 1차(M3)다. 켜기 기본값·종류 목록·탭은 이 문서가 정하고 L0.os는 전달 수단만 소유한다.

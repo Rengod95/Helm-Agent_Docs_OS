@@ -125,10 +125,11 @@ xeon/packages/cap-dialog/
 | 원본 경로 | 이식 위치 | 줄 수 | 그대로 두는 것 | 바꿀 점 |
 |---|---|---|---|---|
 | `packages/coding-agent/src/core/prompt-templates.ts` | `cap-dialog/src/upstream/pi/prompt-templates.ts` | 320 | `parseCommandArgs`, `substituteArgs`(치환 문법 전부), 파일 하나 = 명령 하나, `description` 기본값(첫 줄 60자), `argument-hint` | (1) `fs`의 `existsSync`, `readdirSync`, `readFileSync`, `statSync` 직접 호출 → 주입한 비동기 `CommandFileSource` 포트(구현은 `xeon.exec` `FileSystem` 읽기. `xeon.os`에는 파일 읽기 API가 없다). 함수가 `async`가 된다. (2) `../config.ts`의 `CONFIG_DIR_NAME`(pi `.pi`) → 인자로 받는 디렉터리 목록(`.xeon/commands` 기본은 [가정]). 디렉터리 이름 `prompts` → `commands`. (3) `../utils/frontmatter.ts`의 `parseFrontmatter`(`yaml` 패키지) → §4.1의 YAML 파서. BOM 제거·줄바꿈 정규화 로직은 같은 파일 안에 옮긴다. (4) `../utils/paths.ts`의 `resolvePath` → `node:path` `resolve` + `~` 확장 한 줄. (5) `./source-info.ts`의 `SourceInfo`, `createSyntheticSourceInfo`와 `./diagnostics.ts`의 `ResourceDiagnostic` → 로컬 타입 `CommandSource`(`CommandSourceSchema` 값 + 경로)와 `CommandDiagnostic`. (6) `expandPromptTemplate`의 첫 일치(전역 먼저) → 우선순위 표(L2.dialog.spec §4.2.3)로 고른 결과를 받는 함수로 바꾼다. (7) 앞머리 `args` 필드 읽기를 더한다. (8) 템플릿에 `!{…}` 셸 자리 찾기 함수를 더한다(치환 함수는 그대로 둔다) |
-| `packages/coding-agent/src/core/slash-commands.ts` | `cap-dialog/src/upstream/pi/slash-commands.ts` | 44 | `SlashCommandInfo`의 이름·설명 구조 | (1) `SlashCommandSource`(`extension`, `prompt`, `skill`) → `CommandSource`(`builtin`, `capability`, `project`, `user`, `extension`). (2) `../config.ts`의 `APP_NAME` import 삭제. (3) `BUILTIN_SLASH_COMMANDS` 목록은 지운다. 클라이언트 고유 명령은 L4.cli.spec·L4.desktop.spec이 `builtin` 출처로 선언한다. pi 목록은 참고로 `PATCHES.md`에만 남긴다 |
+| `packages/coding-agent/src/core/slash-commands.ts` | 복사하지 않음(§8 참고) | 44 | `SlashCommandInfo`의 이름·설명 구조 | (1) `SlashCommandSource`(`extension`, `prompt`, `skill`) → `CommandSource`(`builtin`, `capability`, `project`, `user`, `extension`). (2) `../config.ts`의 `APP_NAME` import 삭제. (3) `BUILTIN_SLASH_COMMANDS` 목록은 지운다. 클라이언트 고유 명령은 L4.cli.spec·L4.desktop.spec이 `builtin` 출처로 선언한다. pi 목록은 참고로 `PATCHES.md`에만 남긴다 |
 | `packages/coding-agent/test/prompt-templates.test.ts` | `cap-dialog/test/upstream/prompt-templates.test.ts` | 654 | `substituteArgs`, `substituteArgs - positional defaults` 등 치환 사례 전부 | `vitest` import → `bun:test`. 파일 시스템을 쓰는 로드 테스트는 `memory-command-files.ts` 가짜로 바꾼다. 우선순위가 바뀐 사례(전역 우선)는 기대값을 프로젝트 우선으로 고치고 주석으로 표시한다 |
 
 - 포크 파일은 `src/upstream/` 밖에서 직접 import하지 않는다. `commands/` 모듈이 감싼다(L2.readme §3).
+- 구현에서 두 번째 행(`slash-commands.ts`)은 복사하지 않았다: `SlashCommandInfo`와 `SlashCommandSource`는 F `CommandInfo`와 `CommandSourceSchema`가 같은 구조로 갖고 있어 복사할 코드가 타입 하나도 남지 않는다. 첫 행의 `parseFrontmatter`는 `utils/frontmatter.ts`에서 같은 파일로 합쳤다. 패치 7개는 `cap-dialog/PATCHES.md`에 있다.
 - pi npm 1.3.0과 로컬 1.1.0의 두 파일 차이는 D4 시작 때 확인한다 [가정: 치환 함수는 같다].
 
 ## 5. 단위 테스트 목록
@@ -195,3 +196,39 @@ M3:
 | pi 포크와 원본의 차이가 커짐 | 치환 함수(`parseCommandArgs`, `substituteArgs`)는 손대지 않고 pi 테스트를 그대로 옮겨 회귀를 잡는다. 바꾼 점은 `PATCHES.md`에 모은다 |
 | Bun 내장 YAML이 없거나 동작이 다름 | D4 첫 단계에서 확인하고, 안 되면 키 셋 한정 파서로 바꾼다. 외부 `yaml` 패키지는 쓰지 않는다 |
 | 첨부 이미지가 이벤트 크기를 키움 | 입력 기록 때 records 문자열 분리 규칙으로 blob 자리표시가 되고, 같은 해시는 한 번만 저장된다. 테스트로 envelope 크기를 확인한다 |
+
+## 8. M2 구현 기록 (DG.1~DG.4, 2026-10-24)
+
+`review.m2-plan` DG.3·DG.4는 `cap-workspace`와 함께 끝냈고, DG.1·DG.2는 L1A의 실제 구현이 병합되기 전이라 가짜 포트 위에서 끝냈다.
+
+| 작업 | 상태 | 비고 |
+|---|---|---|
+| D1 | F 쪽 완료 | `defs/dialog.ts`, `records/catalog/dialog.ts`가 F.2·F.3에서 들어왔다. `defs.contract.test.ts`, `catalog.contract.test.ts`가 확인한다 |
+| D2·D3 (DG.1) | 부분 | `ask`와 승인 연결, 출력 대응, 메모리 대기, 답 검증은 끝났다. 시간 제한은 프로세스 안 타이머의 잠정 구현이다(spec §4.1.3). 비대화형 오류는 조립 루트의 판정 함수로 낸다(spec §3.1). 실제 승인 팩토리는 HOST 조립 몫이다 |
+| D4·D5 (DG.2) | 부분 | 포크, 등록·목록·치환·실행, 동작 명령, 셸 확인 게이트, `input` 지점, 광고는 끝났다. 셸 실행은 `ShellPort` 가짜 위이고 실제 어댑터(`ToolService.runUserShell`을 `ToolRunContext`로 부르는 것)는 HOST 조립 몫이다 |
+| D6 (DG.3) | 완료 | 상태 세그먼트, 100 ms 묶음, 휘발 발행, 내장 세그먼트 셋. 피드 따라잡기 정책은 [미결] |
+| D7 (DG.3) | 완료 | 첨부 `add`와 `workspace.images` 연결, 원본 직접 등록 대체 경로 |
+| D8 (DG.3) | 완료 | 설정 키 13개. 읽는 기능이 M2에 있는 것은 `ask.timeoutSec`, `commands.*`, `status.segments`, `attachments.maxBytes`다 |
+| D9~D11 | 대기 | 2차(`aside`, `styles`)와 M3(`notify`) |
+
+파일 배치는 §2의 계획에서 다음이 달라졌다.
+
+- 테스트 대역은 `src/testing/` 대신 `test/support/`에 둔다(`fake-approvals.ts`, `memory-command-files.ts`, `harness.ts`, `images.ts`, `timers.ts`). 다른 패키지가 쓰는 대역은 core-tools가 `testing` 서브패스로 내보낸다.
+- `ports/`는 `approvals.ts`(`ApprovalsPortFactory`), `shell.ts`, `files.ts`(첨부 원천), `command-files.ts`(명령 파일과 `CommandRoots`), `images.ts`, `blobs.ts`, `session.ts`(피드 구독과 상태 발행), `timers.ts`로 나눈다. `os.ts`는 M3 알림에서 더한다.
+- `session-adapter.ts`가 `xeon.session`을 `session.ts`의 두 포트로 감싼다. `plugin.ts`가 포트를 모아 `DialogDeps`를 만든다.
+- `ask/`에 `keys.ts`(요청 키 줄이기), `mapping.ts`(`AskQuestion`·`AskAnswer`와 `QuestionBody`·`QuestionAnswer`), `expiry.ts`(잠정 시간 제한)를 더했다. `commands/`에 `action-args.ts`를 더했다.
+- 지점 핸들러는 `input`, `tool_execution_start`, `tool_execution_end`, `before_agent_start`이다. 알림용 지점은 없다.
+
+테스트 대응(§5)은 파일 이름이 같다. 추가로 `plugin.test.ts`(실제 ExtHost에 올려 능력, 지점, 구독 정리 확인), `session-adapter.test.ts`(휘발 봉투), `status-core.test.ts`, `settings.test.ts`, `fork-records.test.ts`를 두었다. `ask-restart.fault.test.ts`는 새 서비스 인스턴스가 같은 가짜 승인 기록을 받는 것으로 재시작을 흉내 낸다. 도구 결과 완료 커밋 1건(`tool:<toolCallId>:result`)과 SIGKILL 재개는 통합 단계(HOST.4)에서 확인한다.
+
+통합 단계(HOST.6)에서 실제 구현으로 바꿀 포트:
+
+| 포트 | 지금 | 실제 |
+|---|---|---|
+| `ApprovalsPortFactory` | 옵션(`dialogPlugin({ approvals })`)으로 받는다. 시험은 `fake-approvals.ts` | core-tools `ApprovalsInternal`의 `open`·`wait`·`get`을 호출 문맥의 `origin`으로 감싼 `L2ApprovalsPort`. 정식 팩토리는 L1A 요청 |
+| `ShellPort` | 옵션(`dialogPlugin({ shell })`)으로 받는다. 시험은 `fakeShell` | `ToolService.runUserShell({ command, includeInContext: false }, run)`을 `ToolRunContext`와 함께 부르는 어댑터 |
+| `interactive(context)` | 옵션. 기본은 항상 대화형 | 호출 문맥의 대화형 여부(F 요청) |
+| `DialogFeed`·`StatusPublisher` | `xeon.session`이 있으면 `session-adapter.ts`가 만든다 | 그대로. 구독 따라잡기 정책만 정한다 |
+| `ImagesPort` | `g.capability(WorkspaceImagesKey)`, 없으면 원본 직접 등록 | 그대로 |
+| 시간 제한 | `ask/expiry.ts`의 프로세스 안 타이머 | F의 만료 필드와 L1.tools의 내구 만료. 오르면 `expiry.ts`를 지운다 |
+
