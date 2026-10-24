@@ -19,6 +19,16 @@ export {
   type StateMigrations,
 } from "./define-group.ts";
 export {
+  defaultDriveArbiter,
+  leaseArbiterPort,
+  type ArbiterDecision,
+  type ArbiterInput,
+  type ArbiterReason,
+  type DriveArbiter,
+  type DriveCandidate,
+  type LeaseArbiterPortDeps,
+} from "./arbiter.ts";
+export {
   checkDelegateSpec,
   DELEGATE_REQUEST_ID_MAX,
   type DelegateError,
