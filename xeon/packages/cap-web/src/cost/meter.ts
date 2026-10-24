@@ -50,6 +50,10 @@ export function computeCost(input: CostInput, nowMs: number): CostResult {
     return { cost: { usd: 0, basis: "free", units: withContext }, warnings: [] };
   }
   const prices = input.pricing.units;
+  // 단가가 하나도 없거나 모두 0이면 무료 provider다(SearXNG)
+  if (!Object.values(prices).some((price) => price > 0)) {
+    return { cost: { usd: 0, basis: "free", units: withContext }, warnings: [] };
+  }
   let usd = 0;
   for (const unit of withContext) {
     const price = prices[unit.name];

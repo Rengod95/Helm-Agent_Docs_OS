@@ -73,6 +73,34 @@ describe("cost", () => {
     });
   });
 
+  test("a price table without prices is a free provider", () => {
+    const empty: PricingTable = {
+      asOf: PAID.asOf,
+      sourceUrl: PAID.sourceUrl,
+      currency: "USD",
+      units: {},
+    };
+    const free = computeCost(
+      {
+        provider: "searxng",
+        pricing: empty,
+        units: [{ name: "search", count: 1 }],
+        contextChars: 10,
+      },
+      NOW,
+    );
+    expect(free.cost.basis).toBe("free");
+    expect(free.cost.usd).toBe(0);
+    expect(free.warnings).toEqual([]);
+    const zero: PricingTable = { ...PAID, units: { search: 0 } };
+    expect(
+      computeCost(
+        { provider: "x", pricing: zero, units: [{ name: "search", count: 1 }], contextChars: 0 },
+        NOW,
+      ).cost.basis,
+    ).toBe("free");
+  });
+
   test("the builtin wrapper estimate follows the adr formula", () => {
     const wrapper = computeCost(
       {

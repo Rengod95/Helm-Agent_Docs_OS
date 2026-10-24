@@ -1101,6 +1101,7 @@ export const WEB_CAPABILITIES = [WebSearch, WebFetch, WebBrowse, WebResearch] as
 | (3) 디스크 fetch 캐시 | `cap_web_fetch_cache` + blob | sha256(정규화 URL, format, render, provider) | `l2.web.cache.fetchTtlMinutes`(기본 15분) | `fetch` 결과 중 `persist`인 것 |
 
 - 근거: `_research/web-tools.md` §4.7(hermes single-flight·20분, Claude Code 15분).
+- 메모에서 꺼낸 결과는 provider를 부르지 않았으므로 `meta.cost`는 `free`이고 `meta.fallbacks`는 비어 있다. 메모에는 세션 번호(sN)가 없는 provider 단계 결과를 두고, 호출마다 그 세션의 `SourceIdTable`로 번호를 붙인다. 그래서 다른 세션이 같은 질의를 해도 번호가 섞이지 않는다.
 - limit 버킷: 요청 `limit`이 10 이하면 10, 11~20이면 20으로 올려 provider에 요청하고 결과를 잘라 돌려준다. 같은 질의의 다른 limit이 같은 캐시 항목을 쓴다(hermes).
 - `freshness: "live"`는 (2)(3)을 건너뛰고 `meta.cache: "bypass"`다. `prefer-fresh`는 만료 절반이 지난 항목을 다시 가져온다(`stale-revalidated`).
 - 디스크 캐시 크기 상한은 `l2.web.cache.maxMegabytes`(기본 256)다. 넘으면 `expires_at` 오름차순으로 지운다. 지운 행이 가리키던 blob은 L0 blob GC가 처리한다 [가정: L0.store.spec].
@@ -1303,6 +1304,7 @@ ADR-0005 §3.3과 `L2.readme` §5.2를 따른다.
 - [제안] 3번(플러그인)을 4번(SearXNG)보다 앞에 둔다. 키 등록은 사용자의 명시 행위이고 감지는 환경 사실이기 때문이다. 이 순서는 `foundation-plan.md` §1 6번에 명시되어 있지 않으므로 ADR-0005 §6 [미결]을 그대로 승계한다(§10 미결 4).
 - 명시 선택(1, 2)은 다른 후보로 내려가지 않는다. 탐침이 실패하면 `unavailable` 오류이고 `detail.reason`에 사유를 싣는다(`L2.readme` §5.2).
 - auto 체인에서 탐침 실패는 다음 후보로 내려가고 `meta.fallbacks`에 `{ provider, stage: "probe", reason }`을 남긴다. `search`는 `replay: "safe"`이므로 호출 중 오류 `unavailable`, `rate_limited`, `upstream_error`도 다음 후보로 내려가며 `stage: "call"`로 남긴다.
+- 구현은 `timeout`도 다음 후보로 내려가는 호출 오류에 넣는다 [제안]. 응답하지 않는 provider 하나가 검색 전체를 막지 않게 하려는 것이다. 이 밖의 코드(`invalid_input`, `denied`, `query_rejected` 등)는 바로 실패한다.
 - 모든 후보가 실패하면 `unavailable` 오류이고 `detail.fallbacks`에 전체 기록을 싣는다.
 - 탐침 결과는 provider별로 5분 메모리 캐시한다. 실패 결과는 30초만 둔다 [제안]. 매 호출마다 탐침 요청을 보내지 않기 위해서다.
 - 키 없는 무료 MCP 층(Exa·Parallel 익명 MCP)은 체인에 넣지 않는다. 품질·한도·약관이 불명확하고 공개 릴리즈 기본값에서 뺀다(`_research/web-tools.md` §5.4).
@@ -1349,6 +1351,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 - 파서 `parseSearchQuery(query): { terms, directives }`(순수 함수, `search/query.ts`)가 `site:`, `-site:`, `after:YYYY-MM-DD`, `before:YYYY-MM-DD`, `filetype:`, `intitle:`, `"구절"`, `-제외어`를 뽑는다. `OR`와 나머지 단어는 `terms`에 남긴다.
 - 입력의 `domains.allow`는 `site`에, `domains.deny`는 `excludeSite`에 합친다. `recency`는 provider가 지원하지 않으면 `after`로 바꾼다(기준 시각은 주입한 `Clock`).
 - provider는 `appliedNatively`로 직접 적용한 차원을 알린다. 앞단은 나머지 차원을 결과에 다시 적용한다.
+- 호출 `domains`와 `l2.web.policy.deny`는 함께 도메인 deny 조건이 되어 결과에서 걸러진다. 완화로도 결과가 생기지 않으면 완화는 소용이 없었으므로 `relaxed`에 적지 않는다.
 - 후처리 필터가 결과를 모두 없애면 그 차원을 완화한 결과를 돌려주고 `relaxed`에 차원 이름을 넣는다. 완화 순서는 `exclude` → `phrase` → `intitle` → `filetype` → `date` → `recency` → `site`다. `domains`(정책·호출 deny에서 온 조건)는 완화하지 않는다 [제안].
 
 ### 4.9 `web.fetch`

@@ -110,3 +110,21 @@ export type { ProbeCache } from "./search/probe-cache.ts";
 export type { FetchCandidate, SearchCandidate, WebProviderCatalog } from "./ports/providers.ts";
 export type { WebDeps } from "./deps.ts";
 export { failureOfThrown } from "./provider-errors.ts";
+export { createWebRuntime } from "./runtime.ts";
+export type { WebRuntime, WebRuntimeOptions } from "./runtime.ts";
+export { createWebService } from "./service.ts";
+export { WEB_EXTENSION_NAME, webManifest } from "./manifest.ts";
+export { effectiveCachePolicy } from "./cache/policy.ts";
+export type { EffectiveCachePolicy } from "./cache/policy.ts";
+export { createProviderRegistry } from "./search/registry.ts";
+export type {
+  PluginRegistration,
+  ProviderRegistryDeps,
+  RegistrationSource,
+} from "./search/registry.ts";
+export { planChain } from "./search/chain.ts";
+export type { ChainPlan } from "./search/chain.ts";
+export { decideModelSearchTool } from "./search/model-tool.ts";
+export type { ModelSearchSetting, ModelSearchTool, ModelToolInput } from "./search/model-tool.ts";
+export { parseSearchQuery, recencyCutoff } from "./search/query.ts";
+export type { ParsedQuery } from "./search/query.ts";

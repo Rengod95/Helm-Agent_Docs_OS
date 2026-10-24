@@ -304,6 +304,7 @@ M3:
 | WEB.3 | B4 | 구현 | `cache/single-flight.ts`(결과 타입마다 인스턴스, 앞선 호출자가 취소하면 뒤 호출자가 다시 시작), `search-memo.ts`(LRU 500 + TTL, limit 버킷, 메모 키), `fetch-cache.ts`(`cap_web_fetch_cache`, `cap_web_raw`, 크기 상한 정리, 사라진 세션의 원문 정리), `migrations.ts`(TS 상수. `.sql` 파일 대신 `MigrationSet`을 쓴다). `cache.test.ts`, `fetch-cache.int.test.ts`(실제 SQLite 임시 파일) |
 | WEB.3 | B5 | 구현 | `cost/pricing.ts`(내장 가격표, asOf 90일 점검), `meter.ts`(reported·estimated·free 계산, 월 무료 한도 경고, `cap_web_usage` 누적), `limits.ts`(세션당 호출 상한), `pricing-cli.ts`. `just web-pricing`을 구현했다(출력만 하고 종료코드 0). `cost.test.ts` |
 | WEB.4 | B6 | 구현 | `fetch/convert/`(WEB-R16 영역: `convert.ts`, `sanitize.ts`, `readability.ts`, `defuddle.ts`, `turndown.ts`), `convert-worker.ts`(네트워크 전역을 지운 뒤 변환 모듈을 동적 import), `convert-runner.ts`(Worker 실행기와 직접 실행기), `local-provider.ts`, `promote.ts`(플러그인 후보 승격. 브라우저 승격은 비워 둠), `raw-read.ts`, `truncate.ts`, `robots-gate.ts`, `pipeline.ts`. `convert.test.ts`, `convert-worker.test.ts`, `fetch-pipeline.test.ts`, `fetch-cache-behavior.test.ts`. WEB-R16 확인(plan §6 4번): `convert/`에 `fetch(` 호출과 `node:http` import를 넣으면 `just check-layers`와 `just lint`가 각각 실패하는 것을 확인하고 되돌렸다 |
+| WEB.5 | B7 | 구현 | `search/chain.ts`(`planChain`, `runChain`: 탐침, fallback 기록, 명시 선택 규칙), `probe-cache.ts`(성공 5분, 실패 30초), `query.ts`(지시어 파서, 후처리 필터, `relaxed`), `model-tool.ts`(`decideModelSearchTool`), `registry.ts`(플러그인 등록을 provider로 만들고 내장 후보와 함께 `WebProviderCatalog`로 냄), `search-api.ts`(검색 서비스: 마스킹, 상한, 메모, single-flight, 정규화, 비용), `service.ts`와 `runtime.ts`(포트를 받아 `WebService` 조립), `manifest.ts`. `chain.test.ts`, `availability.test.ts`, `query.test.ts`, `model-tool.test.ts`, `registry.test.ts`, `search-api.test.ts` |
 
 ### 8.2 guarded-fetch 0.1.6 소스 확인 (WEB.2)
 
@@ -333,7 +334,7 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 | Bun 런타임에서 guarded-fetch 동작 | `undici`가 Bun에서 도는지, `connect.lookup`을 Bun의 소켓이 따르는지 실행으로 확인하지 못했다. 소스만 읽었다 | 사람이 임시 스모크로 `guardedFetch("http://127.0.0.1:<루프백 서버>")`가 `hostname_unsafe`로 거부되는지, `localhost`로 해석되는 이름이 막히는지 확인한다. 막히지 않으면 `dispatcher`에 자체 `Agent`를 넘기는 방식(undici 직접 의존)으로 바꾼다 |
 | `direct` 모드의 DNS 리바인딩 | 사전 검사에서 모든 주소를 판정한 뒤 `fetch`가 이름을 다시 푼다. 그 사이에 주소가 바뀌면 막지 못한다 | 영향 범위는 사설망 허용을 켠 사용자와 SearXNG 같은 사용자 설정 endpoint로 한정된다. `allowPrivateNetwork`는 project 범위를 허용하지 않는다. 막으려면 검증한 IP로 직접 연결하는 전송이 필요하다 |
 | `cap_web_usage` 가격 단위 | 래퍼 토큰 단가는 Haiku 5.5 값이고 사용할 모델에 따라 다르다. 토큰 수는 ADR-0005 §3.2의 추정이다 | WEB.6 뒤 실측(`just web-wrapper-measure`, 사람 확인 뒤) |
-| robots.txt 가져오기 연결 | `createRobotsChecker`는 가져오기 함수를 주입받는다. 파이프라인 연결은 WEB.4 | WEB.4 |
+| robots.txt 실제 사이트 동작 | `fetch/robots-gate.ts`는 정책 검사를 거친 같은 전송으로 가져오고 녹화 픽스처로만 시험했다. 리다이렉트로 다른 호스트에 가는 robots.txt는 따라가지 않아 연결 실패와 같게(전부 금지) 다룬다 | 실제 사이트 몇 곳에서 사람이 확인(`always` 설정으로 fetch) |
 
 ### 8.4 문서와 다르게 정한 점
 
@@ -343,4 +344,18 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 - tsconfig `lib`에 `dom`을 더했다(`cap-web`만). `@mozilla/readability`와 `linkedom`의 타입이 `Document`, `Node`를 전역으로 참조한다.
 - `GuardedHttp.request`는 거부할 때 `WebHttpError`를 던진다. 인터페이스가 Promise 거부로 정해져 있어서이고, 앞단 안쪽 호출은 같은 로직의 `Result` 판(`BoundProviderHttp.request`)을 쓴다.
 - 비밀 값 판정(`Redactor.containsKnown`), 사용자 승인(`L2ApprovalsPort`), 세션 이벤트 읽기, provider 후보 조회는 `cap-web/src/ports/*.ts`의 좁은 포트로 받는다. 실제 연결은 HOST 트랙의 조립이 한다(m2-plan §3 6번).
+- 검색 메모는 provider 단계 결과(`Shaped`)를 담고 호출마다 세션 번호와 메타를 붙인다. 메모에서 꺼낸 호출은 비용 `free`, `fallbacks` 빈 배열이다. 첫 후보가 응답했을 때만 메모에 넣는다(§4.3.2). 명시 선택은 후보가 하나라서 항상 첫 후보다.
+- `timeout`을 auto 체인의 fallback 대상 오류에 넣었다(스펙 §4.8.2는 `unavailable`, `rate_limited`, `upstream_error` 셋). 스펙에 [제안]으로 적었다.
+- 가격표에 단가가 없거나 모두 0이면 `basis: "free"`다. SearXNG 매니페스트는 `units: {}`로 이 규칙을 쓴다(`PricingTable`에 `free` 표지가 없어서다).
+- `recency`는 day 1, week 7, month 30, year 365일 전을 하한으로 삼아 후처리한다 [제안].
+
+### 8.5 다른 레인에 요청할 항목 (소유 경계 때문에 이 레인이 직접 못 한 것)
+
+| 대상 | 요청 | 근거 |
+|---|---|---|
+| X 레인 | 능력별 provider 후보를 등록·조회하는 API. 플러그인 엔트리가 `WebProviderRegistration` 목록을 넘기고 `cap-web`이 `RegistrationSource.list()`로 읽는 모양이면 된다. X.2 리소스 레지스트리(`tool`, `provider`, `mcp_server`)에는 웹 provider 종류가 없다 | `X.primitives.spec` [가정], 이 plan §8.3 |
+| HOST.6 | `createWebRuntime`에 실제 포트를 연결한다: `xeon.store`(`WebStorePort`), `L2ApprovalsPort`(`createAskAdapter`), `xeon.session` 이벤트 읽기(`WebSessionSourcesPort`: `tool.settled`의 `structuredContent.sources`), `Redactor.containsKnown`(`OutboundSecretGuard`), 설정 층(`readWebSettings`), `input`·`session_shutdown`·`turn_start` 지점 구독(`SeenUrls.noteText`, 브라우저·원문 정리, `decideModelSearchTool`) | m2-plan HOST.6, 스펙 §7 |
+| L1.tools | `redactForPersistence`를 `tool.settled` 영속 사본에 적용하는 경로. 이 패키지는 순수 함수만 낸다 | 스펙 §4.3.4, §8 요구 표 |
+| L0.secrets | `HeaderSecretResolver`(플러그인 provider 인증 값을 전송 직전에만 읽는 경로). M3 플러그인이 들어올 때 필요하다 | 스펙 §3.6.1 |
+| F 레인 | 없음. `defs/web.ts`, `web-provider.ts`는 그대로 썼다. 다만 `WebFetchPage.status`가 100~599만 받아, 일괄 호출에서 실패한 URL의 페이지는 합성 상태 값을 쓴다(스펙 §4.9.1) | 스펙 §4.9.1 |
 
