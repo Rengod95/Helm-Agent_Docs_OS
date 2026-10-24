@@ -70,9 +70,14 @@ describe("thread.read", () => {
       const read = await session.connection.request("thread.read", { threadId });
       expect(read.threadId).toBe(threadId);
       expect(read.hasMore).toBe(false);
-      // 시스템 프롬프트 item은 첫 단계 시작에 기록된다
-      expect(read.items.map((item) => item.kind)).toEqual(["user", "system", "assistant"]);
-      const [user, , assistant] = read.items;
+      // 시스템 프롬프트 item은 첫 단계 시작에 기록된다. 첫 turn에는 cap-knowledge의 첫 turn 문맥 custom item이 사용자 입력 뒤에 붙는다
+      expect(read.items.map((item) => item.kind)).toEqual([
+        "user",
+        "custom",
+        "system",
+        "assistant",
+      ]);
+      const [user, , , assistant] = read.items;
       expect(user).toMatchObject({ kind: "user", message: { content: "question" } });
       expect(JSON.stringify(assistant)).toContain("the answer");
       const subscribed = await session.connection.request("events.subscribe", { from: "head" });
@@ -104,7 +109,7 @@ describe("thread.read", () => {
       limit: 5,
       before: oldest.itemId,
     });
-    expect(head.items.map((item) => item.kind)).toEqual(["user"]);
+    expect(head.items.map((item) => item.kind)).toEqual(["user", "custom"]);
     expect(head.hasMore).toBe(false);
     await session.close();
   });
@@ -153,7 +158,7 @@ describe("thread.read", () => {
     await other.request("host.hello", HELLO_PARAMS);
     // 같은 저장소를 연 두 번째 호스트는 쓰기 소유를 얻지 못해도 읽는다
     const read = await other.request("thread.read", { threadId });
-    expect(read.items).toHaveLength(3);
+    expect(read.items).toHaveLength(4);
     await other.close();
     await reader.close();
     await session.close();
