@@ -15,7 +15,7 @@ import {
 import { workspacePlugin } from "@xeon/cap-workspace";
 import type { AgentDefinition } from "@xeon/contracts/services";
 import { agentsPlugin } from "@xeon/core-agents";
-import { extension as contextExtension, manifest as contextManifest } from "@xeon/core-context";
+import { contextSettingsOf, createContextExtension } from "@xeon/core-context";
 import { loopExtensionUnit } from "@xeon/core-loop";
 import { createModelsExtension, type ModelsExtensionOptions } from "@xeon/core-models";
 import { sessionPlugin } from "@xeon/core-persistence";
@@ -132,7 +132,14 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
     [
       "core-context",
       (loadIndex) =>
-        unitOfModule({ manifest: contextManifest, extension: contextExtension }, loadIndex),
+        unitOfModule(
+          // 설정과 id 발급기가 없으면 컴팩션이 꺼진 채 남는다(L1C.5 M-07)
+          createContextExtension({
+            ids: deps.ids,
+            settings: () => contextSettingsOf((key) => settings.value(key)),
+          }),
+          loadIndex,
+        ),
     ],
     [
       "core-tools",
