@@ -12,6 +12,7 @@ import type { StoreId, StreamPosition } from "@xeon/contracts/wire";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
+import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
 import type {
   CommitBatch,
   Engine,
@@ -73,6 +74,8 @@ export interface FakeEngine {
   setRunningTurn(turnId: TurnId | undefined): void;
   /** 다음 turn.start를 루프가 거부한 것으로 만든다 */
   setRejection(error: LoopError | undefined): void;
+  /** 비밀 관리 서비스 대역과 맡긴 수단 저장소 */
+  readonly secrets: FakeSecrets;
   readonly submitted: { readonly threadId: ThreadId; readonly requestId: string | undefined }[];
   readonly held: ReadonlySet<ThreadId>;
   /** tryAcquire가 불린 기록 */
@@ -98,6 +101,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     rejection: undefined,
   };
   const storeId = options.storeId ?? FAKE_STORE_ID;
+  const secrets = createFakeSecrets();
   const counters = { reads: 0 };
 
   function commit(
@@ -226,6 +230,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         log.infos.push({ message, fields });
       },
     },
+    secrets: secrets.port,
     ids,
     clock: { now: () => RECORDED_AT },
   };
@@ -275,6 +280,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     setRejection(error) {
       state.rejection = error;
     },
+    secrets,
     submitted,
     held,
     acquisitions,

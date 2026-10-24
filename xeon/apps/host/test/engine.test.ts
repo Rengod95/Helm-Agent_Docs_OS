@@ -1,4 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
+import { parse } from "@xeon/contracts";
+import { SecretNameSchema } from "@xeon/contracts/capabilities";
 import { defineManifest } from "@xeon/contracts/extensions";
 import { defineSettings } from "@xeon/contracts/settings";
 import { WireError } from "@xeon/contracts/wire";
@@ -121,6 +123,41 @@ describe("real engine", () => {
     await host.close();
     writeUserSettings(home, {});
   });
+
+  realTest(
+    "secret.* run on the real secret admin: an empty list, and a reveal offer through secretOutOfBand is consumed once",
+    async () => {
+      const host = await startInProcessHost({ devChecks: true });
+      const connection = createHostConnection(host.client);
+      await connection.request("host.hello", HELLO_PARAMS);
+      expect(await connection.request("secret.list", { meta: true })).toEqual({ secrets: [] });
+      const name = parse(SecretNameSchema, "exa-key");
+      if (!name.ok) throw new Error("test name must be valid");
+      // 맡긴 수단이 없으면 시작하지 않는다
+      expect(await connection.request("secret.beginReveal", { name: name.value })).toEqual({
+        started: false,
+      });
+      // 통로는 처리기가 읽는 저장소와 같다: 맡긴 수단은 꺼내져 쓰이고(없는 비밀이라 오류), 다시 꺼낼 수 없다
+      host.secretOutOfBand.offerReveal({
+        name: name.value,
+        reauth: { method: "tty-confirm", verifiedAt: Date.now() },
+        show: () => Promise.resolve(),
+      });
+      const failed = await connection.request("secret.beginReveal", { name: name.value }).then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+      expect(failed).toBeInstanceOf(WireError);
+      if (failed instanceof WireError) {
+        expect(failed.data.details).toEqual({ secret: { kind: "secret_missing", where: "meta" } });
+      }
+      expect(await connection.request("secret.beginReveal", { name: name.value })).toEqual({
+        started: false,
+      });
+      await connection.close();
+      await host.close();
+    },
+  );
 
   realTest(
     "the stdio host answers on the stream pair and exits 0 with eof when the input ends",

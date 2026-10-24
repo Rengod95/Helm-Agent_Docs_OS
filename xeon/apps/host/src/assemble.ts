@@ -43,7 +43,7 @@ import {
   type OsRuntime,
 } from "@xeon/platform-os";
 import { processPlugin } from "@xeon/platform-process";
-import { createSecretService } from "@xeon/platform-secrets";
+import { createSecretsRuntime } from "@xeon/platform-secrets";
 import {
   openStore,
   storePlugin,
@@ -55,6 +55,7 @@ import { builtinUnits, installFailureOf, unitOfModule } from "./assembly/extensi
 import { createLateLogSink } from "./assembly/log-sink.ts";
 import { sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
+import { createSecretsPort, settingKeysReferencing } from "./assembly/secrets.ts";
 import { createSettingsEngine } from "./assembly/settings-engine.ts";
 import {
   execOptionsOf,
@@ -362,14 +363,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     await register("platform-store", storePlugin(store.value));
     opened.registered = true;
 
-    const secrets = createSecretService({
+    const secrets = createSecretsRuntime({
       os,
       ids: localIds,
       config: secretsSource(settings),
       env: process.env,
+      settingKeysFor: (handle) => Promise.resolve(settingKeysReferencing(settings, handle)),
     });
-    await register("platform-secrets", secretsPlatform(secrets));
-    redact.current = (line) => secrets.redactor.mask(line).text;
+    await register("platform-secrets", secretsPlatform(secrets.service));
+    redact.current = (line) => secrets.service.redactor.mask(line).text;
 
     const platform = detectExecPlatform(os.logger("platform-exec"));
     if (!platform.ok) {
@@ -458,6 +460,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       ext,
       holder,
       settings,
+      secrets: createSecretsPort(secrets.admin, secretsSource(settings)),
       signal: lifetime.signal,
     });
     const engine: Engine = {

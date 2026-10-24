@@ -216,6 +216,7 @@ export interface EnginePorts {
   readonly activity: ActivityPort;     // L1.tasks, L1.tools, L2.schedule
   readonly notify: UserNotifyPort;     // L0.os
   readonly log: HostLogPort;           // L0.os
+  readonly secrets: SecretsPort;       // L0.secrets 관리 서비스(`xeon.secretAdmin`)와 wire 밖 값 전달 통로 [결정: m2-plan HOST.3]
 }
 
 export interface ThreadPort {
@@ -298,6 +299,14 @@ export interface HostLogPort {
   error(message: string, fields: Readonly<Record<string, unknown>>): void;
   info(message: string, fields: Readonly<Record<string, unknown>>): void;
 }
+
+/** `secret.*` 처리기가 쓰는 비밀 관리 포트. 관리 서비스는 사람 전용이라 L4 진입점인 이 포트에만 주고 확장과 모델 도구에는 주지 않는다. */
+export interface SecretsPort {
+  readonly admin: SecretAdminService;      // L0.secrets.spec §3.8, 구현 platform-secrets(createSecretsRuntime().admin)
+  readonly offers: SecretOfferStore;       // SecretOutOfBandPort(맡기는 쪽, CLI)와 꺼내는 쪽(처리기)이 한 저장소를 쓴다
+  /** `secret.beginEntry { action: "add" }`가 만들 비밀의 기본 메타. 값을 놓을 SOPS 파일이 설정에 없으면 undefined */
+  newMeta(name: SecretName): SecretMeta | undefined;
+}
 ```
 
 #### 3.3.3 처리기 표와 연결
@@ -357,6 +366,7 @@ import type { StdioTransportOptions, Transport } from "@xeon/contracts/wire";
 export interface InProcessHost {
   readonly client: Transport;                    // kind "in-process". createHostConnection에 넘긴다
   readonly engine: Engine;
+  readonly secretOutOfBand: SecretOutOfBandPort; // 값 입력·열람 수단을 wire 밖으로 맡기는 통로(§3.4 secret.*). CLI가 secret.beginEntry·beginReveal 전에 맡긴다
   close(): Promise<"clean" | "deadline">;       // 종료 절차(§4.8)를 거쳐 엔진을 닫는다. 진행 중 turn이 시한 안에 멈추지 않았거나 멈추는 호출이 실패했으면 "deadline"
 }
 export declare function startInProcessHost(options?: Omit<AssembleOptions, "mode">): Promise<InProcessHost>;
@@ -544,6 +554,12 @@ M2:
 | `settings.reset` | 범위·잠금 검사 뒤 그 범위 값을 지운다 | `SettingsStorePort.reset` | 3101, 3103, 3104 |
 | `settings.list` | 카탈로그를 `SettingDefWire`로 바꿔 돌려준다. `type`은 `toJsonSchema(def.type)`이고 `range`는 따로 싣는다 | 카탈로그 | - |
 | `host.status` | 모드, pid, 시작 시각, 연결 수, `liveTurns`, 유휴 종료 예정 시각(서비스만, 아니면 `null`) | 연결 허브, `ActivityPort`, 수명 관리 | - |
+| `secret.list` | 관리 서비스 목록을 값 없는 `SecretListEntry`로 바꾼다. `meta: true`일 때만 메타를 싣고, `usage: true`면 마지막 사용 시각을 감사 파일에서 채운다 | `SecretsPort.admin.ls`(L0.secrets) | - |
+| `secret.meta` | 준 필드만 메타에 적용하고 바뀐 항목을 상태와 함께 돌려준다 | `SecretsPort.admin.meta`, `ls` | -32602(메타 검사 실패), §4.12의 비밀 오류 |
+| `secret.remove` | 확인을 거친 삭제로 본다. 이미 없는 이름은 `removed: false`다 | `SecretsPort.admin.rm` | §4.12의 비밀 오류(활성 lease가 있으면 `in_use`) |
+| `secret.test` | 제공자에 값이 있으면 `registered`, 없으면 `missing` | `SecretsPort.admin.test` | §4.12의 비밀 오류 |
+| `secret.beginEntry` | CLI가 맡긴 값 입력 수단을 꺼내 `add`·`set`·`rotate`를 실행한다. 맡긴 수단이 없거나 사람이 입력을 취소했으면 `started: false`다 | `SecretsPort.offers`, `admin.add`·`set`·`rotate` | -32602(값이 8바이트 미만), §4.12의 비밀 오류 |
+| `secret.beginReveal` | CLI가 맡긴 열람 수단을 꺼내 `reveal`한다. 맡긴 수단이 없거나 사람 확인이 유효하지 않으면 `started: false`다 | `SecretsPort.offers`, `admin.reveal` | §4.12의 비밀 오류 |
 
 - `settings.set`의 `details`에는 값이 비밀이면 그 값을 넣지 않는다(F wire §4.9 비밀 값 비표시 규칙 4).
 - `settings.set`·`settings.reset`이 `session` 범위를 바꾸면 L1.persistence가 그 thread에 `settings.changed` 내구 이벤트를 커밋한다 [가정: `L1.persistence.spec`]. 파일 범위(`user`, `project`, `local`) 변경은 thread에 속하지 않아 같은 이벤트로 알릴 곳이 없다. 다른 클라이언트의 설정 화면이 이 변경을 알 수단은 §10 미결 17이다.
@@ -822,6 +838,17 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
   - 어떤 사건이 알림 대상인지는 사건을 낸 층(L1.tools, L2.schedule)의 이벤트 kind로 정하고, 호스트는 대상 kind 목록을 설정으로 받지 않는다 [가정].
 - HS-43. wire에는 "사용자 알림" 전용 알림이 없다(F wire §3.3.2는 `events.batch`, `stream.chunk`뿐). 클라이언트가 알림 대상 사건을 이벤트 kind로 구별해야 한다. 전용 알림이나 표시 힌트 필드가 필요한지는 F 변경 요청으로 §10 미결 13에 올린다.
 
+### 4.12 비밀 관리 처리기 [결정: m2-plan HOST.3]
+
+`secret.*` 여섯 메서드는 값 필드가 없다(F wire §3.3.1). 값은 요청, 응답, 이벤트, 로그, 오류 `details` 어디에도 나타나지 않는다.
+
+- HS-43. 처리기는 `EnginePorts.secrets`만 쓴다. 관리 서비스(`xeon.secretAdmin`)는 조립 루트가 `createSecretsRuntime().admin`으로 얻어 이 포트에만 넣는다. 확장과 모델 도구에는 `xeon.secrets`만 주어지고 관리 서비스는 주어지지 않는다.
+- HS-44. `secret.beginEntry`와 `secret.beginReveal`은 CLI가 `InProcessHost.secretOutOfBand`(F `SecretOutOfBandPort`)에 맡긴 수단 하나를 꺼낸다. 입력 수단은 이름과 동작(`add`·`set`·`rotate`)이 모두 같아야 꺼내고, 열람 수단은 이름이 같아야 꺼낸다. 꺼내면 비워진다. 맡긴 수단이 없으면 `{ started: false }`이다. stdio 호스트와 서비스에는 이 통로가 없으므로 항상 `started: false`다(서비스 쪽 OS 입력 창은 M3).
+- HS-45. `add`가 만드는 메타는 wire에 필드가 없어 호스트가 정한다(`SecretsPort.newMeta`): 제공자 `sops`, `ref`는 `l0.secrets.sops.files`의 첫 항목 `env`와 이름을 대문자·밑줄로 바꾼 키(`exa-key` → `dev/EXA_KEY`), 범위 `user`, 승인 `l0.secrets.approval.default`, `ttlSeconds`·`maxUses`는 `l0.secrets.lease.*`, 사용 정책은 비어 있다(사용 불가). 사람이 `secret.meta`로 모드·도구·호스트를 정해야 에이전트가 쓴다. 설정에 SOPS 파일이 없으면 `provider_unavailable`(`not_registered`)이다 [제안].
+- HS-46. 사람이 입력을 취소(`cancelled`)했거나 사람 확인이 유효하지 않으면(`reauth_required`) 오류로 다루지 않고 `{ started: false }`를 돌려준다. 이때 아무것도 저장하지 않는다. 값 길이 오류(`value_too_short`)와 메타 검사 오류는 `-32602`이고 `details`에 값이 없다.
+- HS-47. F 오류 표에는 비밀 관리 전용 kind가 없다. 그 밖의 `SecretError`는 `-32603` `internal` kind로 바꾸고 `message`에 `<메서드>: <SecretError.kind>`를, `details.secret`에 종류와 안전한 필드(제공자, 사유 코드, 활성 lease 수)만 싣는다. `decrypt_failed`의 `stderrMasked`는 싣지 않는다. 전용 kind는 F 요청이다(§10 미결 19).
+- HS-48. `secret.list`는 메타가 없는 제공자 항목(`orphaned`)의 이름을 `ref` 마지막 조각을 소문자·하이픈으로 바꿔 만든다(`dev/OLD_TOKEN` → `old-token`). 이름 규칙(`^[a-z][a-z0-9-]{1,63}$`)에 맞지 않으면 목록에서 빼고 로그에 상태만 남긴다. `secret.test`의 wire 결과는 `registered`/`missing` 둘뿐이라 복호화 가능 여부, 길이, SHA-256 앞 8자는 싣지 못한다(§10 미결 19).
+
 ### 4.11 원격 전송
 
 [결정: review.decisions-2 U-11] 원격 사용은 1차(M3)에 넣는다. 방식은 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 것이다. 호스트는 비루프백 리스너를 만들지 않고, 원격 클라이언트도 로컬 서비스 전송(`socket`)으로 붙는다. 내장 TLS + 토큰 WebSocket은 2차다. 2차 전송에 대한 불변식은 다음과 같다.
@@ -966,3 +993,4 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 16. [결정: review.decisions-2 U-03] 적합성 실행기 위치: F에는 `./testing` 서브패스를 두지 않는다. 실행기는 `apps/host/test/contract/conformance-runner.ts`에 둔다. F plan W14의 틀을 다른 패키지 테스트가 함께 쓰는 방법은 F 문서 쪽에서 정한다.
 17. [결정: review.decisions-2 U-04] F 변경 요청: 파일 범위 설정 변경을 접속 중인 다른 클라이언트에 알리는 수단(`settings.invalidated` 등). M1에 넣지 않고 M2 계획에서 정한다. `L4.settings-ui.spec` §10 미결 1과 같은 항목이다.
 18. [미결] 패키지 도메인 이름: `package.json`의 `xeon.domain`은 `host`이고 routes.yaml 도메인은 `host-service`다(`architecture.layers.spec` §10 첫 항목). 작성자 결정 사항이며 이 문서는 디렉터리와 패키지 이름 `host`를 유지한다.
+19. [미결] F 요청, 비밀 관리 wire 보강(HOST.3). (a) `WIRE_ERRORS`에 비밀 관리 전용 kind가 없어 HS-47의 `internal` 대용을 쓴다. 3200번대 `secret.*` kind 요청. (b) `SecretTestResult`가 `registered`/`missing`뿐이라 `L4.cli.spec` §4.7이 요구하는 복호화 가능 여부, 길이, SHA-256 앞 8자를 싣지 못한다. 필드 추가 요청. (c) `SecretEntryOffer`에 `add`용 메타 일부(`desc`, `provider`, 사용 정책)를 싣는 선택 필드가 없어 HS-45의 기본 메타를 쓴다. (d) `secret.references`에 해당하는 wire 메서드가 없어 CLI `secret rm`이 삭제 전에 참조(설정 키, 활성 lease, 세션)를 보일 수 없다.

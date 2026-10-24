@@ -1,4 +1,5 @@
 import type { Clock, Result } from "@xeon/contracts";
+import type { SecretMeta, SecretName } from "@xeon/contracts/capabilities";
 import type { IdFactory, ItemId, ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
   DurableEventEnvelope,
@@ -6,7 +7,7 @@ import type {
   ReadFailure,
   VolatileEventEnvelope,
 } from "@xeon/contracts/records";
-import type { LoopError } from "@xeon/contracts/services";
+import type { LoopError, SecretAdminService } from "@xeon/contracts/services";
 import type {
   CatalogIssue,
   ScopeStack,
@@ -28,6 +29,7 @@ import type {
 } from "@xeon/contracts/wire";
 import type { ModelsExtensionOptions } from "@xeon/core-models";
 import type { BuiltinExtensionModule } from "@xeon/ext-host";
+import type { SecretOfferStore } from "./secrets/offers.ts";
 
 // L4.host-service.spec §3.3.1~§3.3.2. 처리기와 연결 허브는 이 파일의 타입(EnginePorts)만 쓰고 아래 층 패키지를 import하지 않는다
 // (L4.host-service.plan §2). 포트 구현(어댑터)은 assemble.ts와 src/assembly/ 에 있다.
@@ -100,6 +102,8 @@ export interface EnginePorts {
   readonly notify: UserNotifyPort;
   /** L0.os */
   readonly log: HostLogPort;
+  /** L0.secrets 관리 서비스와 wire 밖 값 전달 통로 */
+  readonly secrets: SecretsPort;
   /** 새 id 발급(traceId, 연결 id). 엔진의 IdFactory다 */
   readonly ids: IdFactory;
   /** 엔진의 시계. 송신 큐 같은 호스트 자신의 시각에 쓴다 */
@@ -215,6 +219,21 @@ export interface UserNotifyPort {
     readonly body: string;
     readonly threadId?: ThreadId;
   }): Promise<void>;
+}
+
+/**
+ * `secret.*` 처리기가 쓰는 비밀 관리 포트(HOST.3). 관리 서비스(`xeon.secretAdmin`)는 사람 전용이라 L4 진입점인 이 포트에만 주고
+ * 확장과 모델 도구에는 주지 않는다(L0.secrets.spec §3.8).
+ */
+export interface SecretsPort {
+  readonly admin: SecretAdminService;
+  /** CLI가 맡긴 값 입력·열람 수단. 처리기가 꺼내 쓰고, 맡기는 쪽은 `InProcessHost.secretOutOfBand`다 */
+  readonly offers: SecretOfferStore;
+  /**
+   * `secret.beginEntry { action: "add" }`가 만들 비밀의 기본 메타. wire에 메타 필드가 없어 호스트가 설정에서 정한다.
+   * 사용 정책은 비어 있어(사용 불가) `secret.meta`로 정책을 정하기 전에는 에이전트가 쓸 수 없다. 제공자 파일이 설정되지 않았으면 undefined.
+   */
+  newMeta(name: SecretName): SecretMeta | undefined;
 }
 
 export interface HostLogPort {

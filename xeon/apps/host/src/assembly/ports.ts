@@ -45,6 +45,7 @@ import type {
   SubmitOutcome,
   ThreadPort,
   TurnPort,
+  SecretsPort,
   UserNotifyPort,
 } from "../types.ts";
 import { wireErrorOfCreate, wireErrorOfLease, wireErrorOfStore } from "../store-error.ts";
@@ -72,6 +73,7 @@ export interface PortsDeps {
   readonly ext: ExtHost;
   readonly holder: LeaseHolder;
   readonly settings: SettingsEngine;
+  readonly secrets: SecretsPort;
 }
 
 export interface PortsHandle {
@@ -384,6 +386,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     activity,
     notify,
     log,
+    secrets: deps.secrets,
     ids: deps.ids,
     clock: deps.clock,
   };

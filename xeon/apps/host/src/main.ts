@@ -1,6 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { assertNever, attemptAsync, Bug, detach } from "@xeon/contracts";
 import { resolveSetting } from "@xeon/contracts/settings";
+import type { SecretOutOfBandPort } from "@xeon/contracts/services";
 import type { StdioTransportOptions, Transport } from "@xeon/contracts/wire";
 import { AssembleError, assemble, ENGINE_VERSION } from "./assemble.ts";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
@@ -29,6 +30,11 @@ export interface InProcessHost {
   /** kind "in-process". createHostConnection에 넘긴다 */
   readonly client: Transport;
   readonly engine: Engine;
+  /**
+   * 값 입력·열람 수단을 wire 밖으로 맡기는 통로(F wire §3.3.1, `SecretOutOfBandPort`). CLI가 `secret.beginEntry`·`secret.beginReveal`을
+   * 보내기 전에 맡긴다. 서비스 접속에는 이 통로가 없다
+   */
+  readonly secretOutOfBand: SecretOutOfBandPort;
   /** 종료 절차(§4.8)를 거쳐 엔진을 닫는다. 진행 중 turn이 시한 안에 멈추지 않았으면 "deadline"이다 */
   close(): Promise<"clean" | "deadline">;
 }
@@ -110,6 +116,7 @@ export async function startInProcessHost(
   return {
     client: pair.client,
     engine: running.engine,
+    secretOutOfBand: running.engine.ports.secrets.offers,
     close() {
       state.closing ??= stopHost(running);
       return state.closing;
