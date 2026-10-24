@@ -53,7 +53,7 @@ if [[ -f "$log" ]] && [[ "$(stat -c %s "$log")" -gt 5000000 ]]; then mv "$log" "
 sampler=$!
 trap 'kill "$sampler" 2>/dev/null || true' EXIT
 
-if command -v systemd-run >/dev/null && systemctl --user is-system-running >/dev/null 2>&1; then
+if command -v systemd-run >/dev/null && [[ "$(systemctl --user is-system-running 2>/dev/null)" =~ ^(running|degraded)$ ]]; then
   systemd-run --user --scope --quiet --slice="${XEON_SLICE:-xeon-dev.slice}" -p MemoryMax="$mem" -p MemorySwapMax=0 -- "$@"
 else
   echo "verify-guarded: systemd user session not available, running without a memory cap" >&2

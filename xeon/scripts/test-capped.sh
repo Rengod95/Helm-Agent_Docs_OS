@@ -25,7 +25,7 @@ fi
 
 # systemd user scope gives a real cgroup cap; without it fall back to a plain run.
 capped=false
-if command -v systemd-run >/dev/null && systemctl --user is-system-running >/dev/null 2>&1; then
+if command -v systemd-run >/dev/null && [[ "$(systemctl --user is-system-running 2>/dev/null)" =~ ^(running|degraded)$ ]]; then
   capped=true
 else
   echo "test-capped: systemd user session not available, running without a memory cap" >&2
