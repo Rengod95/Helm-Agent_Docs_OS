@@ -126,6 +126,7 @@
       },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@xeon/core-tools": "workspace:*",
         "@xeon/platform-store": "workspace:*",
       },
     },
