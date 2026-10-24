@@ -11,8 +11,8 @@
   },
   "type": "module",
   "scripts": {
-    "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
+    "lint": "turbo run lint --concurrency=2",
+    "typecheck": "turbo run typecheck --concurrency=2",
     "test": "turbo run test --concurrency=2",
     "fmt-check": "turbo run fmt-check",
     "lint:root": "oxlint --type-aware --deny-warnings -c .oxlintrc.json scripts",

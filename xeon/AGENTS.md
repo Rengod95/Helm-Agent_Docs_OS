@@ -68,17 +68,17 @@ Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 
 
 루트에서 `just <레시피>`로 부른다(`xeon/justfile`이 실제 명령).
 
-| 레시피                                                                    | 내용                                                        |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `just setup`                                                              | `bun install --frozen-lockfile`                             |
-| `just fmt` / `just fmt-check`                                             | oxfmt 적용 / 검사                                           |
-| `just lint`                                                               | oxlint type-aware, `--deny-warnings`                        |
-| `just typecheck`                                                          | `tsc -b` (project references)                               |
-| `just test [패키지 경로…]`                                                | `bun test`를 scripts와 패키지마다 하나씩, 메모리 상한(1.5GB, 5분) 아래에서 |
-| `just check-layers`, `just check-ts-rules`, `just depcruise`, `just knip` | 층 순위, TS 작성 규칙 스캔, 의존 경계, 미사용 코드          |
-| `just docs-route --check [--allow-missing]`                               | 문서 프런트매터, id, depends_on, binds 검사                 |
-| `just ci-layer <F\|X\|L0\|L1\|L2\|L3\|L4> [true]`                         | 한 층만 lint, typecheck, test (`true`는 turbo `--affected`) |
-| `just verify`                                                             | 위 전부 + `ws check`. 끝내기 전에 통과시킨다                |
+| 레시피                                                                    | 내용                                                                               |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `just setup`                                                              | `bun install --frozen-lockfile`                                                    |
+| `just fmt` / `just fmt-check`                                             | oxfmt 적용 / 검사                                                                  |
+| `just lint`                                                               | oxlint type-aware, `--deny-warnings`                                               |
+| `just typecheck`                                                          | `tsc -b` (project references)                                                      |
+| `just test [패키지 경로…]`                                                | `bun test`를 scripts와 패키지마다 하나씩, 메모리 상한(1.5GB, 5분) 아래에서         |
+| `just check-layers`, `just check-ts-rules`, `just depcruise`, `just knip` | 층 순위, TS 작성 규칙 스캔, 의존 경계, 미사용 코드                                 |
+| `just docs-route --check [--allow-missing]`                               | 문서 프런트매터, id, depends_on, binds 검사                                        |
+| `just ci-layer <F\|X\|L0\|L1\|L2\|L3\|L4> [true]`                         | 한 층만 lint, typecheck, test (`true`는 turbo `--affected`)                        |
+| `just verify`                                                             | 위 전부 + `ws check`. 기기 전체 동시 2개, 검증당 메모리 3G. 끝내기 전에 통과시킨다 |
 
 종료코드 1은 고친다. 2는 환경 문제이므로 코드를 고치지 말고 보고한다. 3은 사람 확인 뒤 `--yes`.
 

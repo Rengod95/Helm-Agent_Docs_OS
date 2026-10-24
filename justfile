@@ -73,10 +73,15 @@ docs-route +args:
 ci-layer layer affected="false":
     cd xeon && just ci-layer {{layer}} {{affected}}
 
-# 완료 기준. 검사 전부와 ws check (ws help justfile)
+# 완료 기준. 검사 전부와 ws check (ws help justfile). 기기 전체 동시 검증 2개, 검증당 메모리 3G (xeon/scripts/verify-guarded.sh)
 [group('quality')]
-verify: setup fmt-check lint typecheck check-layers check-ts-rules depcruise knip (docs-route "--check") test
+verify:
+    xeon/scripts/verify-guarded.sh just _verify-steps
     ws check
+
+# verify 단계 묶음. verify가 슬롯과 메모리 상한 안에서 부른다
+[private]
+_verify-steps: setup fmt-check lint typecheck check-layers check-ts-rules depcruise knip (docs-route "--check") test
 
 # 웹 가격표 asOf 90일 검사: 오래된 항목을 출력만 하고 종료코드는 0 (xeon/packages/cap-web/src/cost/pricing-cli.ts)
 [group('local')]
