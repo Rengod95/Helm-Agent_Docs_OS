@@ -88,17 +88,22 @@ _verify-steps: setup fmt-check lint typecheck check-layers check-ts-rules depcru
 web-pricing:
     cd xeon && just web-pricing
 
-# 데스크톱 사이드카 빌드 <triple> (자리: m2-plan DESK.3 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 데스크톱 사이드카 빌드 <triple|host>: bun build --compile --minify --bytecode, 크기 상한 검사. 인자 --no-bytecode, --list
 [group('local')]
-desktop-sidecar triple:
-    cd xeon && just desktop-sidecar {{triple}}
+desktop-sidecar triple *flags:
+    cd xeon && just desktop-sidecar {{triple}} {{flags}}
 
-# 데스크톱 개발 실행 (자리: m2-plan DESK.2 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 데스크톱 개발 실행 (cargo run, 사이드카 필요: 없으면 종료코드 2). just verify 밖
 [group('local')]
 desktop-run:
     cd xeon && just desktop-run
 
-# 데스크톱 앱 빌드 (자리: m2-plan DESK.2 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 데스크톱 앱 릴리스 빌드 (cargo build --release, 사이드카 필요: 없으면 종료코드 2). just verify 밖
 [group('local')]
 desktop-build:
     cd xeon && just desktop-build
+
+# 데스크톱 Rust 셸 단위 시험 (cargo test: 릴레이, 엔진 수명). 사이드카 불필요. just verify 밖
+[group('local')]
+desktop-test:
+    cd xeon && just desktop-test

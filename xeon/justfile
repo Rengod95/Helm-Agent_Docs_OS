@@ -73,17 +73,22 @@ ci-layer layer affected="false":
 web-pricing:
     cd packages/cap-web && {{bun}} run web-pricing
 
-# 데스크톱 사이드카 빌드 <triple> (자리: m2-plan DESK.3 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 데스크톱 사이드카 빌드 <triple|host>: bun build --compile --minify --bytecode, 크기 상한 검사 (scripts/build-sidecar.ts). --no-bytecode, --list는 `just desktop-sidecar host --no-bytecode`처럼 붙인다
 [group('local')]
-desktop-sidecar triple:
-    @echo "desktop-sidecar {{triple}}: 아직 구현되지 않았습니다 (m2-plan DESK.3, L4.desktop.plan D3)" >&2; exit 2
+desktop-sidecar triple *flags:
+    {{bun}} scripts/build-sidecar.ts {{triple}} {{flags}}
 
-# 데스크톱 개발 실행 (자리: m2-plan DESK.2 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 데스크톱 개발 실행 (cargo run, 사이드카 필요: 없으면 종료코드 2). just verify 밖
 [group('local')]
 desktop-run:
-    @echo "desktop-run: 아직 구현되지 않았습니다 (m2-plan DESK.2, L4.desktop.plan D2)" >&2; exit 2
+    bash apps/desktop/scripts/cargo.sh run
 
-# 데스크톱 앱 빌드 (자리: m2-plan DESK.2 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 데스크톱 앱 릴리스 빌드 (cargo build --release, 사이드카 필요: 없으면 종료코드 2). 설치 파일 번들은 D10. just verify 밖
 [group('local')]
 desktop-build:
-    @echo "desktop-build: 아직 구현되지 않았습니다 (m2-plan DESK.2, L4.desktop.plan D2)" >&2; exit 2
+    bash apps/desktop/scripts/cargo.sh build
+
+# 데스크톱 Rust 셸 단위 시험 (cargo test: 릴레이, 엔진 수명). 사이드카 불필요, cargo 없으면 종료코드 2. just verify 밖
+[group('local')]
+desktop-test:
+    bash apps/desktop/scripts/cargo.sh test

@@ -1,0 +1,4 @@
+# 빌드 산출물(수 GB)이 xeon 작업 트리 검사(depcruise, knip, oxlint)에 걸리지 않도록 저장소 밖에 둔다.
+# 이 파일이 있는 디렉터리의 위쪽 다섯 단계(워크트리의 형제 디렉터리)다. 바꾸려면 CARGO_TARGET_DIR 환경 변수를 쓴다.
+[build]
+target-dir = "../../../../../target-helm-desktop"

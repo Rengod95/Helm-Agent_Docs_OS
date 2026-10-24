@@ -1,0 +1,14 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "WebView에는 셸 플러그인 권한을 주지 않는다. 엔진 spawn은 Rust 한 곳(engine.rs)이고 WebView는 engine_* 명령만 부른다 (L4.desktop.spec 3.5)",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "allow-engine-attach",
+    "allow-engine-write",
+    "allow-engine-ack",
+    "allow-engine-restart",
+    "allow-engine-detach"
+  ]
+}

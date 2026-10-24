@@ -102,16 +102,21 @@ flowchart LR
 
 ### 3.3 셸과 WebView 사이 IPC
 
-[제안] 셸은 아래 Tauri 명령 네 개만 WebView에 연다. 명령 이름은 Rust `#[tauri::command]` 함수 이름이다.
+[제안] 셸은 아래 Tauri 명령 다섯 개만 WebView에 연다. 명령 이름은 Rust `#[tauri::command]` 함수 이름이다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다.
 
 | 명령 | 인자 | 결과 | 뜻 |
 |---|---|---|---|
 | `engine_attach` | `onBytes: Channel<ArrayBuffer>`, `onState: Channel<EngineState>` | `AttachResult` | 현재 페이지에 릴레이를 붙인다. 이전 세대 릴레이는 끊는다 |
-| `engine_write` | 원시 바이트 본문(`Uint8Array`), 헤더 `x-xeon-epoch` | `null` | 엔진 stdin(또는 소켓)에 쓴다. 세대가 다르면 거부한다 |
-| `engine_restart` | 없음 | `null` | `failed` 상태에서 사용자가 수동 재기동을 고를 때 부른다 |
-| `engine_detach` | 없음 | `null` | 페이지가 내려갈 때 릴레이를 끊는다. 엔진은 끄지 않는다 |
+| `engine_write` | 원시 바이트 본문(`Uint8Array`), 헤더 `x-xeon-epoch` | `null` | 엔진 stdin(또는 소켓)에 쓴다. 세대가 다르면 거부한다. 본문은 줄(프레임) 단위이고 2 MiB 이하다 |
+| `engine_ack` | `epoch: number`, `bytes: number` | `null` | `onBytes`로 받은 바이트 중 처리를 끝낸 양을 알린다(신용 반환). 세대가 다르면 무시한다 |
+| `engine_restart` | 없음 | `null` | `failed` 상태에서 사용자가 수동 재기동을 고를 때 부른다. `failed`가 아니면 `not-failed`로 거부한다 |
+| `engine_detach` | `epoch: number` | `null` | 페이지가 내려갈 때 릴레이를 끊는다. 엔진은 끄지 않는다. `epoch`가 현재 연결일 때만 끊으므로 새로고침 뒤 늦게 온 이전 페이지의 호출이 새 연결을 끊지 못한다 |
 
-- [가정] Tauri 2.12의 `tauri::ipc::Channel`은 원시 바이트(`ArrayBuffer`)를 JSON 직렬화 없이 보내고, 명령은 원시 요청 본문(`tauri::ipc::Request`)을 받는다. S3 spike에서 확인한다. 안 되면 base64 문자열로 바꾸고 S5에서 비용을 잰다.
+- 오류 값은 kebab-case 문자열 코드다: `epoch-stale`, `engine-not-running`, `engine-stopping`, `not-failed`, `too-large`, `bad-request`.
+- `onBytes`의 메시지는 엔진 stdout 바이트 그대로이고 완성된 줄(`\n`으로 끝나는 바이트열)만 담는다. 종류 표지나 세대 접두사는 없다. attach마다 `Channel`이 따로이므로 세대는 `AttachResult.epoch`로 안다. 셸은 줄 끝이 오지 않은 꼬리를 쥐고 있다가 줄이 완성되면 보낸다.
+- 신용 기반 역압 [결정: `L4.desktop.plan` §3.1.1 S3 조건 1]: 셸은 보낸 바이트에서 `engine_ack`로 돌려받은 바이트를 뺀 값이 4 MiB를 넘으면 더 보내지 않는다. 이 동안 엔진 stdout 읽기가 멈추고 엔진의 stdout 쓰기가 막힌다. WebView는 처리한 바이트가 256 KiB 쌓일 때마다 `engine_ack(epoch, bytes)`를 부른다(창은 확인 단위의 16배라 확인이 늦어도 송신이 멎지 않는다). 미확인 바이트가 창 이하이면 다음 묶음을 보낸다(묶음 하나가 창을 넘을 수 있어 큰 프레임도 멈추지 않는다).
+- 쓰기 경로 [결정: S3 조건 2]: `engine_write`는 쓰기 전용 스레드의 대기열(16개)에 넣고 돌아온다. 대기열이 차면 그 호출만 비동기로 기다리고 다른 명령은 막히지 않는다. 막힌 쓰기는 앱 상태의 락을 쥐지 않는다.
+
 - `onState`의 값은 JSON이고 아래 스키마로 검사한다. 셸이 보낸 값도 WebView 입장에서는 프로세스 밖에서 온 값이기 때문이다.
 
 ```ts
@@ -296,7 +301,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 | # | 규칙 | 근거 | 표지 |
 |---|---|---|---|
 | E1 | 엔진 spawn은 `engine.rs`의 한 함수에서만 한다. WebView와 다른 Rust 모듈은 spawn하지 않는다 | adr.0008 §3.3 제안 1, arch-2 §5 5행 | [제안] |
-| E2 | `CommandChild`를 Tauri 앱 상태(`State<EngineSupervisor>`)에 보관하고 `RunEvent::Exit`에서 명시적으로 종료한다. Rust API로 띄운 사이드카는 플러그인이 추적하지 않는다 | arch-2 §3.2 맵 등록 경로 행 | [제안] |
+| E2 | 엔진 감독자(`State<Arc<Supervisor>>`)가 pid와 쓰기 손잡이를 앱 상태에 보관하고, `CommandChild`는 stdin 쓰기 전용 스레드가 쥔다. 종료는 pid로 프로세스 그룹에 신호를 보낸다(Unix `killpg`, Windows `taskkill /T`). 그래서 막힌 쓰기가 종료 경로를 막지 않는다. `RunEvent::Exit`에서도 남은 그룹을 종료한다. Rust API로 띄운 사이드카는 플러그인이 추적하지 않는다 | arch-2 §3.2 맵 등록 경로 행, `L4.desktop.plan` §3.1.1 S3 조건 2 | [제안] |
 | E3 | 프로세스 그룹을 켠다(`set_process_group`). 강제 종료는 그룹 전체에 보낸다 | arch-2 §3.2 그룹 범위 행, §5 3행 | [제안] |
 | E4 | 종료할 때는 신호 전에 stdin으로 `host.shutdown` 요청을 쓰고 stdin을 닫는다. `RunEvent::ExitRequested`에서 `prevent_exit()`로 종료를 미루고, 엔진 프로세스가 끝나거나 `l4.desktop.engine.shutdownGraceMs`가 지나면 다음 단계로 넘어간다(§4.3) | adr.0008 §3.3 제안 3, arch-2 §3.3, §5 1행 | [제안]. `host.shutdown`은 F 변경 요청(§10 미결 2) |
 | E5 | 엔진은 stdin EOF를 읽으면 안전 경계에서 체크포인트하고 종료한다(stdin EOF 임대). 앱이 어떻게 끝나든 OS가 파이프 쓰기 끝을 닫으므로 앱 SIGKILL에서도 엔진이 스스로 끝난다 | adr.0008 §3.3 [결정], adr.0006 §3.7 6번 | 엔진 쪽 구현은 `L4.host-service.spec` |
@@ -513,7 +518,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 | 사이드카 바이너리가 번들에 없거나 triple이 맞지 않음 | `failed`로 두고 진단 화면에 바이너리 경로와 triple을 보인다. 재기동하지 않는다 |
 | 엔진이 기동 직후 반복 종료 | §4.4 재기동 정책. 상한을 넘으면 `failed`, stderr 마지막 20줄을 진단 화면에 보인다(비밀 값 마스킹은 엔진 로그 규칙을 따른다) |
 | 프레임이 1 MiB를 넘음 | WebView의 `StdioTransportFactory` 구현이 그 줄을 버리고 `-32600`을 처리한다. 셸은 크기를 검사하지 않는다 |
-| 셸 → WebView 채널이 밀림(WebView가 느림) | [제안] 셸은 세대별 송신 버퍼를 16 MiB까지 두고, 넘으면 그 세대를 끊고 WebView에 재접속을 요구한다(§4.5). 엔진 stdout 읽기는 버퍼가 줄 때까지 멈춘다. 엔진 쪽 송신 큐 한도는 `F.wire-settings.spec` §3.4.3 lowWater를 따른다 |
+| 셸 → WebView 채널이 밀림(WebView가 느림) | 신용 창 4 MiB(§3.3)가 차면 셸은 더 보내지 않고 엔진 stdout 읽기가 멈춘다. 셸이 쥐는 데이터는 줄 하나의 꼬리뿐이다. 줄 끝 없이 2 MiB를 넘은 줄은 프레임 한도(1 MiB) 위반이라 버리고 다음 줄 끝에서 다시 맞춘다(바이트 수만 로그에 남긴다). 엔진 쪽 송신 큐 한도는 `F.wire-settings.spec` §3.4.3 lowWater를 따른다 |
 | `engine_write`의 세대가 현재와 다름 | 거부한다. 이전 페이지의 늦은 쓰기가 새 연결에 섞이지 않게 한다 |
 | 종료 중(`stopping`)에 사용자 입력 | 입력창을 잠그고 "종료 중"을 보인다. 엔진은 `host.shuttingDown`(5002)을 돌려줄 수 있다 |
 | 종료 시한 초과 | 그룹 SIGKILL. 진행 중 turn은 다음 실행 때 이어서 실행 후보가 된다 |
@@ -601,5 +606,5 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 10. [미결] 최소 지원 macOS 버전과 Linux 배포판(WebKitGTK 버전). 빌드 타깃(V5)이 여기에 묶인다.
 11. (닫힘) 프런트엔드 프레임워크와 상태 라이브러리는 React 19 + Zustand 5다(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`다.
 12. [미결] 자동 업데이트 채택(M3 이후). Tauri updater 플러그인과 서명 키 관리가 필요하다.
-13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). 이 문서는 stdio를 전제로 쓴다. S3 spike(`L4.desktop.plan` §3.1.1) 판정 [제안]: stdio를 유지하되 릴레이에 신용 기반 역압(Channel 무제어 송신은 지속 대용량에서 정지했다), 락 밖 비동기 stdin 쓰기, 세대별 줄 버퍼를 둔다. macOS·Windows 재측정 뒤 확정한다.
+13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). 이 문서는 stdio를 전제로 쓴다. S3 spike(`L4.desktop.plan` §3.1.1) 판정 [제안]: stdio를 유지하되 릴레이에 신용 기반 역압(Channel 무제어 송신은 지속 대용량에서 정지했다), 락 밖 비동기 stdin 쓰기, 세대별 줄 버퍼를 둔다. 세 조건은 M2 DESK.2에서 `relay.rs`에 구현됐고(`L4.desktop.plan` §3.2.1), Linux/WSL2에서 32 MB 연속 송신이 손실·중복 없이 지났다. macOS·Windows 재측정 뒤 확정한다.
 14. [가정] (Tauri `Channel`의 원시 바이트 전송과 Rust API 사이드카의 capabilities 비적용은 WSL2 WebKitGTK에서 S1·S3으로 확인했다. macOS, Windows는 미확인이다.) WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
