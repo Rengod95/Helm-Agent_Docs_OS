@@ -86,31 +86,62 @@ export interface PersistenceSettingIssue {
   readonly message: string;
 }
 
+function integerIn(
+  input: Readonly<Record<string, unknown>>,
+  name: string,
+  range: { readonly min: number; readonly max: number },
+  fallback: number,
+  issues: PersistenceSettingIssue[],
+): number {
+  const value = input[name];
+  if (value === undefined) return fallback;
+  if (typeof value !== "number" || !Number.isInteger(value)) {
+    issues.push({ name, message: "must be an integer" });
+    return fallback;
+  }
+  if (value < range.min || value > range.max) {
+    issues.push({ name, message: `must be between ${range.min} and ${range.max}` });
+    return fallback;
+  }
+  return value;
+}
+
 /**
  * 설정 계층이 합친 값(`l1.persistence.` 뒤 이름을 키로 한 객체)을 PersistenceSettings로 검증한다. 없는 키는 기본값이다.
- * 키 선언은 위 PERSISTENCE_SETTING_DEFS다. 이 함수가 읽는 키는 maxResumeAttempts(M1)와 autoResume(M3) 둘이다.
+ * 키 선언은 위 PERSISTENCE_SETTING_DEFS다. 이 함수가 읽는 키는 maxResumeAttempts, autoResume, retention.maxAgeDays,
+ * retention.maxCount다. export.format은 내보내기(2차)가 읽는다.
  */
 export function resolvePersistenceSettings(
   input: Readonly<Record<string, unknown>>,
 ): Result<PersistenceSettings, readonly PersistenceSettingIssue[]> {
   const issues: PersistenceSettingIssue[] = [];
-  let maxResumeAttempts = DEFAULT_PERSISTENCE_SETTINGS.maxResumeAttempts;
-  const attempts = input["maxResumeAttempts"];
-  if (attempts !== undefined) {
-    if (typeof attempts !== "number" || !Number.isInteger(attempts)) {
-      issues.push({ name: "maxResumeAttempts", message: "must be an integer" });
-    } else if (attempts < 1 || attempts > 20) {
-      issues.push({ name: "maxResumeAttempts", message: "must be between 1 and 20" });
-    } else {
-      maxResumeAttempts = attempts;
-    }
-  }
+  const maxResumeAttempts = integerIn(
+    input,
+    "maxResumeAttempts",
+    { min: 1, max: 20 },
+    DEFAULT_PERSISTENCE_SETTINGS.maxResumeAttempts,
+    issues,
+  );
   let autoResume = DEFAULT_PERSISTENCE_SETTINGS.autoResume;
   const auto = input["autoResume"];
   if (auto !== undefined) {
     if (typeof auto === "boolean") autoResume = auto;
     else issues.push({ name: "autoResume", message: "must be a boolean" });
   }
+  const retentionMaxAgeDays = integerIn(
+    input,
+    "retention.maxAgeDays",
+    { min: 0, max: 3650 },
+    DEFAULT_PERSISTENCE_SETTINGS.retentionMaxAgeDays,
+    issues,
+  );
+  const retentionMaxCount = integerIn(
+    input,
+    "retention.maxCount",
+    { min: 0, max: 100_000 },
+    DEFAULT_PERSISTENCE_SETTINGS.retentionMaxCount,
+    issues,
+  );
   if (issues.length > 0) return err(issues);
-  return ok({ maxResumeAttempts, autoResume });
+  return ok({ maxResumeAttempts, autoResume, retentionMaxAgeDays, retentionMaxCount });
 }

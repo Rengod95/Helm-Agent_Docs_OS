@@ -1,5 +1,6 @@
+import type { Logger } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
-import type { LeaseToken, ReadOnlyReason } from "@xeon/contracts/records";
+import type { LeaseService, LeaseToken, ReadOnlyReason } from "@xeon/contracts/records";
 
 /** 프로세스 안에서 thread를 연 방식. 쓰기 소유 증표(LeaseToken)는 열린 thread마다 보관한다(L1.persistence.spec §3.6) */
 type OpenState =
@@ -43,4 +44,22 @@ export interface GuardState {
 
 export function createGuardState(): GuardState {
   return { writing: false, notifying: false };
+}
+
+/**
+ * thread의 열기 상태를 놓는다: 하트비트를 멈추고, 이 서비스가 직접 얻은 임대(자식 thread)만 반납한다.
+ * 호스트가 준 토큰은 호스트가 반납한다
+ */
+export function releaseOpenSession(
+  sessions: OpenSessions,
+  leases: LeaseService,
+  logger: Logger | undefined,
+  threadId: ThreadId,
+): void {
+  const prior = sessions.forget(threadId);
+  if (prior?.role !== "owner") return;
+  prior.keepAlive?.[Symbol.dispose]();
+  if (!prior.selfAcquired) return;
+  const released = leases.release(prior.token);
+  if (!released.ok) logger?.warn("session.release_failed", { reason: released.error.kind });
 }

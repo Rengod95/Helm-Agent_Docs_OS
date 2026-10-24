@@ -16,6 +16,7 @@ import {
   type RecoveryMarker,
   type SqlRow,
   type SqlTx,
+  type ThreadSummaryRow,
   type TurnView,
 } from "@xeon/contracts/records";
 import { columns, rowInvalid, type RowFault } from "./rows.ts";
@@ -341,4 +342,28 @@ export function readPendingApprovals(
     ),
     approvalViewOf,
   );
+}
+
+/** thread.list·query.thread가 돌려주는 요약 행. 대기 입력 수와 해결되지 않은 승인 수를 같이 센다 */
+export function readThreadSummary(
+  tx: SqlTx,
+  thread: ThreadRow,
+): Result<ThreadSummaryRow, RowFault> {
+  const queued = readQueuedInputs(tx, thread.threadId);
+  if (!queued.ok) return queued;
+  const approvals = readPendingApprovals(tx, thread.threadId);
+  if (!approvals.ok) return approvals;
+  return ok({
+    threadId: thread.threadId,
+    title: thread.title,
+    status: thread.status,
+    workspace: thread.workspace,
+    createdAt: thread.createdAt,
+    updatedAt: thread.updatedAt,
+    headSeq: thread.headSeq,
+    forkedFrom: thread.forkedFrom,
+    marker: markerOf(thread),
+    queuedInputs: queued.value.length,
+    pendingApprovals: approvals.value.length,
+  });
 }

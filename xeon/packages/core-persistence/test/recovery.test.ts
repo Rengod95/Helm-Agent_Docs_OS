@@ -11,7 +11,7 @@ import {
   type ReplayPolicy,
 } from "@xeon/contracts/records";
 import { sha256Hex } from "../src/hash.ts";
-import { decideOpenEffect } from "../src/index.ts";
+import { DEFAULT_PERSISTENCE_SETTINGS, decideOpenEffect } from "../src/index.ts";
 import { fixedIdFactory } from "./support/clock.ts";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import {
@@ -592,7 +592,9 @@ describe("recover", () => {
   });
 
   test("the auto-resume verdict follows the setting, the host mode and the attempt cap", async () => {
-    const h = await openHarness({ settings: () => ({ autoResume: true, maxResumeAttempts: 2 }) });
+    const h = await openHarness({
+      settings: () => ({ ...DEFAULT_PERSISTENCE_SETTINGS, autoResume: true, maxResumeAttempts: 2 }),
+    });
     const { threadId } = openStep(h, []);
     const verdict = (hostMode: RecoverDeps["hostMode"]) =>
       expectOk(h.service.recover(threadId, deps({ hostMode }))).autoResume;

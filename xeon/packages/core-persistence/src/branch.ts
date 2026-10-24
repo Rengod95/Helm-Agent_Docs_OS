@@ -25,7 +25,10 @@ import { readThread } from "./views.ts";
 const CANDIDATE_PAGE = 64;
 
 /** 한 thread의 현재 leaf. thread가 없으면 undefined */
-function leafOf(tx: SqlTx, threadId: ThreadId): Result<EventId | null | undefined, RowFault> {
+export function leafOf(
+  tx: SqlTx,
+  threadId: ThreadId,
+): Result<EventId | null | undefined, RowFault> {
   const thread = readThread(tx, threadId);
   if (!thread.ok) return thread;
   return ok(thread.value === undefined ? undefined : thread.value.leafEventId);
@@ -35,7 +38,7 @@ function leafOf(tx: SqlTx, threadId: ThreadId): Result<EventId | null | undefine
  * candidate가 leaf에서 parent_id를 따라 올라간 사슬 위에 있는가. candidate보다 seq가 작아지면 더 올라가지 않는다
  * (부모는 항상 자식보다 seq가 작다)
  */
-function isOnBranch(
+export function isOnBranch(
   tx: SqlTx,
   leaf: EventId | null,
   candidate: { readonly id: string; readonly seq: number },
@@ -267,4 +270,58 @@ export function itemEvent(
   ]);
   if (row === undefined) return ok(undefined);
   return columns(row, "p_items").id("evt", "event_id");
+}
+
+export interface BranchEventRef {
+  readonly id: string;
+  readonly seq: number;
+}
+
+/** 두 이벤트의 사슬이 만나는 가장 가까운 공통 조상(자기 자신 포함). 없으면 null */
+export function commonAncestor(
+  tx: SqlTx,
+  left: EventId,
+  right: EventId,
+): Result<{ readonly id: EventId; readonly seq: number } | null, RowFault> {
+  const row = tx.get(
+    `WITH RECURSIVE
+       a(id, parent_id, seq) AS (
+         SELECT id, parent_id, seq FROM events WHERE id = ?
+         UNION ALL
+         SELECT e.id, e.parent_id, e.seq FROM events e JOIN a ON e.id = a.parent_id
+       ),
+       b(id, parent_id, seq) AS (
+         SELECT id, parent_id, seq FROM events WHERE id = ?
+         UNION ALL
+         SELECT e.id, e.parent_id, e.seq FROM events e JOIN b ON e.id = b.parent_id
+       )
+     SELECT a.id AS id, a.seq AS seq FROM a JOIN b ON a.id = b.id ORDER BY a.seq DESC LIMIT 1`,
+    [left, right],
+  );
+  if (row === undefined) return ok(null);
+  const c = columns(row, "events");
+  const id = c.id("evt", "id");
+  if (!id.ok) return id;
+  const seq = c.int("seq");
+  if (!seq.ok) return seq;
+  return ok({ id: id.value, seq: seq.value });
+}
+
+/** leaf 사슬 위 item 가운데 seq가 floor보다 큰 것의 수 */
+export function countBranchItemsAfter(
+  tx: SqlTx,
+  leaf: EventId,
+  floor: number,
+): Result<number, RowFault> {
+  const row = tx.get(
+    `WITH RECURSIVE chain(id) AS (
+       SELECT id FROM events WHERE id = ?
+       UNION ALL
+       SELECT e.parent_id FROM chain c JOIN events e ON e.id = c.id WHERE e.parent_id IS NOT NULL
+     )
+     SELECT COUNT(*) AS n FROM chain c JOIN p_items i ON i.event_id = c.id WHERE i.seq > ?`,
+    [leaf, floor],
+  );
+  if (row === undefined) return ok(0);
+  return columns(row, "p_items").int("n");
 }

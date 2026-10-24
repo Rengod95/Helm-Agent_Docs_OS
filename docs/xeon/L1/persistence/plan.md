@@ -154,6 +154,22 @@ xeon/packages/core-persistence/
 - 순서: PS-0 → PS-1 → PS-2 → (PS-3, PS-12, PS-13) → (PS-5, PS-7, PS-15, PS-11) → PS-6 → PS-8 → PS-16 → PS-17 → M1 스모크. M2는 PS-4, PS-10, PS-9, PS-14 나머지, PS-18, PS-23 순서다.
 - 선행 계약: contracts(F.records의 envelope·카탈로그·효과·체크포인트·업캐스터, FR-P1 타입), platform-store의 `StoreDb`·마이그레이션 실행기·blob API(`L0.store.plan`). 둘 다 없으면 PS-2를 시작하지 않는다.
 
+### 3.1 M2 구현 상태 (2026-10-24, 레인 L1B)
+
+| id | 상태 | 위치 |
+|---|---|---|
+| PS-4 | 완료 | `projector/registry.ts`, `projector/tx.ts`(소유 테이블 검사, `guardProjectors`), writer의 `onProjectorFailure` |
+| PS-8 | 완료(M2: 승인 대기 복원) | `p_approvals`는 M1에 있었고 `approvals.test.ts`의 `resume_restores_pending_approval`이 재시작 뒤 복원을 확인한다 |
+| PS-9 | 완료 | `lifecycle.ts`(create, workspace), `lifecycle-admin.ts`(list, close, remove, setTitle), `lifecycle-branch.ts`(fork, revert, moveLeaf, prepareSwitch) |
+| PS-10 | 완료 | `branch.ts`(활성 가지 질의, 공통 조상), `lifecycle-branch.ts`, `query.latestEvent·branchItems·itemEvent` |
+| PS-14 | 완료 | `settings.ts`(retention 키 읽기), `session-settings.ts`. `p_settings`는 두지 않는다(spec §6.2) |
+| PS-16 | 완료 | `ext-port.ts`, `ext-queries.ts`, `ext-state.ts`, `upcast.ts`(열린 확장 kind) |
+| PS-17 | 완료 | `points.ts`(7개), `resume.ts`(session_start·shutdown), `lifecycle*.ts` |
+| PS-18 | 완료 | `retention.ts`(`SessionServiceImpl.retention`) |
+| PS-23 | L1B.3 | 아래 별도 |
+
+시험 대역은 `platform-store/testing`의 실제 저장소다(`test/support/sqlite-store.ts`가 감싼다, open-issues M-04). `bunfig.toml`의 preload가 시험마다 저장소를 닫는다.
+
 ## 4. 채택 코드
 
 [결정] 코드 포크는 없다. 자체 구현한다(`_research/foundation-plan.md` §1 결정 1, `_research/packages.md` §4.3 L1-f 행 "자체", "설계").

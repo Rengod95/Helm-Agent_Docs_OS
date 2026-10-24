@@ -13,7 +13,7 @@ import type {
 import { branchItems, itemEvent, kindIn, latestEvent } from "./branch.ts";
 import { columns, readResult } from "./rows.ts";
 import {
-  markerOf,
+  readThreadSummary,
   readPendingApprovals,
   readOpenEffects,
   readOpenTurn,
@@ -38,25 +38,7 @@ export function createProjectionQuery(db: StoreDb): ProjectionQuery {
       return readResult(db, (tx) => {
         const row = readThread(tx, threadId);
         if (!row.ok) return row;
-        const thread = row.value;
-        if (thread === undefined) return ok(undefined);
-        const queued = readQueuedInputs(tx, threadId);
-        if (!queued.ok) return queued;
-        const approvals = readPendingApprovals(tx, threadId);
-        if (!approvals.ok) return approvals;
-        return ok({
-          threadId: thread.threadId,
-          title: thread.title,
-          status: thread.status,
-          workspace: thread.workspace,
-          createdAt: thread.createdAt,
-          updatedAt: thread.updatedAt,
-          headSeq: thread.headSeq,
-          forkedFrom: thread.forkedFrom,
-          marker: markerOf(thread),
-          queuedInputs: queued.value.length,
-          pendingApprovals: approvals.value.length,
-        });
+        return row.value === undefined ? ok(undefined) : readThreadSummary(tx, row.value);
       });
     },
     turn(_threadId: ThreadId, turnId: TurnId): Result<TurnView | undefined, ReadFailure> {

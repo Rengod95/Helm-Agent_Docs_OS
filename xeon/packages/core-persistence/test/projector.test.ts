@@ -75,12 +75,15 @@ describe("p_threads", () => {
   test("thread.closed marks the thread closed and keeps the reason", async () => {
     const h = await openHarness();
     const { threadId } = newThread(h);
-    // thread.closed는 core.persistence 소유라 threads.close(M2)로 낸다. 여기서는 투영만 본다
-    const row = h.store.raw
-      .query<{ n: number }, []>("SELECT COUNT(*) AS n FROM p_threads WHERE status = 'closed'")
-      .get();
-    expect(row?.n).toBe(0);
-    expect(() => h.service.threads.close(threadId, "done")).toThrow("not_implemented");
+    // thread.closed는 core.persistence 소유라 threads.close로 낸다
+    const closedCount = (): number | undefined =>
+      h.store.raw
+        .query<{ n: number }, []>("SELECT COUNT(*) AS n FROM p_threads WHERE status = 'closed'")
+        .get()?.n;
+    expect(closedCount()).toBe(0);
+    expectOk(h.service.threads.close(threadId, "done"));
+    expect(closedCount()).toBe(1);
+    expect(expectOk(h.service.query.thread(threadId))).toMatchObject({ status: "closed" });
   });
 });
 

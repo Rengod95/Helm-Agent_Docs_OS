@@ -33,6 +33,8 @@ import {
 import {
   createSessionService,
   type PersistenceSettings,
+  type RetentionApi,
+  type SessionPoints,
   type SessionDeps,
 } from "../../src/index.ts";
 import { sha256Hex } from "../../src/hash.ts";
@@ -60,6 +62,8 @@ export interface Harness {
   readonly ids: IdFactory;
   readonly store: TestStore;
   readonly service: SessionService;
+  /** 보관 정리(조립 루트가 엔진 열기 때 부른다) */
+  readonly retention: RetentionApi;
   readonly loop: ProducerHandle;
   readonly tools: ProducerHandle;
   readonly tasks: ProducerHandle;
@@ -75,6 +79,7 @@ export interface HarnessOptions {
   readonly faults?: FaultInjector;
   readonly settings?: () => PersistenceSettings;
   readonly guardProjectors?: boolean;
+  readonly points?: SessionPoints;
   readonly clock?: ManualClock;
   readonly ids?: IdFactory;
   readonly store?: TestStore;
@@ -119,6 +124,7 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
     ...(options.faults === undefined ? {} : { faults: options.faults }),
     ...(options.settings === undefined ? {} : { settings: options.settings }),
     ...(options.guardProjectors === undefined ? {} : { guardProjectors: options.guardProjectors }),
+    ...(options.points === undefined ? {} : { points: options.points }),
     ...(options.onLeaseLost === undefined ? {} : { onLeaseLost: options.onLeaseLost }),
   });
   if (!created.ok)
@@ -139,6 +145,7 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
     ids,
     store,
     service: counted,
+    retention: service.retention,
     loop: service.producer("core.loop"),
     tools: service.producer("core.tools"),
     tasks: service.producer("core.tasks"),

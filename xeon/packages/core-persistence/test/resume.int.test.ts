@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Bug } from "@xeon/contracts";
 import type { LeaseToken, RecoverDeps } from "@xeon/contracts/records";
+import { DEFAULT_PERSISTENCE_SETTINGS } from "../src/index.ts";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import {
   commitExec,
@@ -141,7 +142,13 @@ describe("resume marker and attempts", () => {
 
   // plan resume_attempts_capped
   test("resume_attempts_capped", async () => {
-    const h = await fileHarness({ settings: () => ({ autoResume: false, maxResumeAttempts: 2 }) });
+    const h = await fileHarness({
+      settings: () => ({
+        ...DEFAULT_PERSISTENCE_SETTINGS,
+        autoResume: false,
+        maxResumeAttempts: 2,
+      }),
+    });
     const { threadId } = newThread(h);
     startTurn(h, threadId);
     expectOk(h.service.beginResume(threadId, "manual"));

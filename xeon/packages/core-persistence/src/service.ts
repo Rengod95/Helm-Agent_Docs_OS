@@ -1,12 +1,10 @@
 // Cordis 서비스 xeon.session(SessionService)의 조립(L1.persistence.spec §3.3). 조립 루트가 deps를 넘긴다.
-import { Bug, err, ok, type Result } from "@xeon/contracts";
+import { err, ok, type Result } from "@xeon/contracts";
 import type {
   MigrationError,
   ProducerHandle,
   ProducerId,
   SessionService,
-  SessionSettingsLayer,
-  SessionSettingsStore,
   StoreError,
 } from "@xeon/contracts/records";
 import {
@@ -17,6 +15,8 @@ import {
 import { createExtPort } from "./ext-port.ts";
 import { createLifecycle } from "./lifecycle.ts";
 import { createGuardState, createOpenSessions } from "./ownership.ts";
+import { NO_SESSION_POINTS } from "./points.ts";
+import { createRetention, type RetentionApi } from "./retention.ts";
 import { createProducerRegistry } from "./producers.ts";
 import { createCoreProjector } from "./projector/core.ts";
 import { ensureProjectors } from "./projector/rebuild.ts";
@@ -24,6 +24,7 @@ import { createProjectorController } from "./projector/registry.ts";
 import { createProjectionQuery } from "./query.ts";
 import { createReader } from "./read.ts";
 import { createResumer } from "./resume.ts";
+import { createSessionSettings } from "./session-settings.ts";
 import { SESSION_MIGRATION_SET } from "./schema/migrations.ts";
 import { createFeed } from "./subscribe.ts";
 import { createKindCatalog } from "./upcast.ts";
@@ -34,26 +35,18 @@ export type SessionStartError =
   | { readonly kind: "migration"; readonly error: MigrationError }
   | { readonly kind: "store"; readonly error: StoreError };
 
-function notYet(member: string, plan: string): never {
-  throw new Bug(`session.not_implemented: ${member} arrives with ${plan}`);
-}
-
-/**
- * session 범위 설정 값 기록(PS-14의 session-settings)은 M2다. 값을 쓰는 길(set, reset)이 없으므로 M1의 session 층은 늘 비어 있다.
- * layer가 던지면 설정을 읽는 모든 소비자(core-tools 등)가 도구 호출마다 실패하므로 빈 층을 돌려준다
- */
-const EMPTY_SESSION_LAYER: SessionSettingsLayer = { scope: "session", values: new Map() };
-const SESSION_SETTINGS_M2: SessionSettingsStore = {
-  layer: (): SessionSettingsLayer => EMPTY_SESSION_LAYER,
-  set: () => notYet("sessionSettings.set", "M2 (PS-14)"),
-  reset: () => notYet("sessionSettings.reset", "M2 (PS-14)"),
-};
-
 /**
  * SessionService를 만든다. 시작할 때 비투영 테이블 마이그레이션을 적용하고, 코어 투영기가 없거나 버전이 다르면 다시 만든다.
  * 쓰기 열기에서 아무것도 실행하지 않는다는 규칙은 열기·복구 쪽에서 지킨다(resume.ts)
  */
-export function createSessionService(deps: SessionDeps): Result<SessionService, SessionStartError> {
+/** SessionService에 보관 정리(조립 루트가 엔진 열기 때 한 번 부른다)를 더한 구현 타입 */
+export interface SessionServiceImpl extends SessionService {
+  readonly retention: RetentionApi;
+}
+
+export function createSessionService(
+  deps: SessionDeps,
+): Result<SessionServiceImpl, SessionStartError> {
   const applied = deps.migrations.apply(SESSION_MIGRATION_SET);
   if (!applied.ok) return err({ kind: "migration", error: applied.error });
 
@@ -69,6 +62,9 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     logger: deps.logger,
   });
 
+  const projectorTables = (): readonly string[] =>
+    controller.all().flatMap((projector) => projector.tables);
+
   const ensured = ensureProjectors(deps.db, [core], catalog);
   if (!ensured.ok) return err({ kind: "store", error: ensured.error });
 
@@ -79,6 +75,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     return names;
   };
 
+  const points = deps.points ?? NO_SESSION_POINTS;
   const feedController = createFeed({ db: deps.db, catalog, guard, logger: deps.logger });
   const settings = (): PersistenceSettings => deps.settings?.() ?? DEFAULT_PERSISTENCE_SETTINGS;
   const writer = createSessionWriter({
@@ -101,6 +98,13 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
       feedController.publish(batch);
     },
   });
+  const sessionSettings = createSessionSettings({
+    db: deps.db,
+    writer,
+    producers,
+    ids: deps.ids,
+    logger: deps.logger,
+  });
   const reader = createReader({
     db: deps.db,
     catalog,
@@ -120,6 +124,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     ensureProjectors: () => controller.ensure(),
     takeStartupRebuilt,
     logger: deps.logger,
+    points,
   });
   const threads = createLifecycle({
     db: deps.db,
@@ -130,9 +135,31 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     ids: deps.ids,
     holder: deps.holder,
     onLeaseLost: deps.onLeaseLost,
+    guard,
+    points,
+    logger: deps.logger,
+    projectorTables,
+    onRemoved: (threadId) => {
+      sessionSettings.forget(threadId);
+    },
+  });
+
+  const retention = createRetention({
+    db: deps.db,
+    leases: deps.leases,
+    sessions,
+    guard,
+    clock: deps.clock,
+    settings,
+    projectorTables,
+    onRemoved: (threadId) => {
+      sessionSettings.forget(threadId);
+    },
+    logger: deps.logger,
   });
 
   return ok({
+    retention,
     commit: (request) => writer.commit(request),
     producer: (id: ProducerId): ProducerHandle => producers.claim(id),
     projectors: controller.registry,
@@ -152,7 +179,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     beginResume: (threadId, mode) => resumer.beginResume(threadId, mode),
     release: (threadId, reason) => resumer.release(threadId, reason),
     threads,
-    sessionSettings: SESSION_SETTINGS_M2,
+    sessionSettings,
     ext: createExtPort({
       db: deps.db,
       writer,

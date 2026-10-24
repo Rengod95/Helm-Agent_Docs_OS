@@ -844,12 +844,11 @@ CREATE TABLE thread_creation_keys (
 | `p_turns` | `turn_id` | `thread_id`, `status`, `started_seq`, `started_at`, `completed_seq`, `abort_requested_seq`, `step_count`, `request_id`, `scope_id`(drive turn의 scope, 그 밖은 NULL, FR-P10). 색인 `(thread_id, scope_id, request_id)` 유일 | `turn.started`, `turn.completed`, `turn.abort_requested`, `step.completed` |
 | `p_inputs` | `input_id` | `thread_id`, `seq`, `mode`, `state`, `source_key`, `request_id`, `placed_item_id`, `placed_turn_id` | `input.queued`, `input.placed`, `input.withdrawn` |
 | `p_approvals` | `approval_id` | `thread_id`, `origin_thread_id`, `tool_call_id`, `body_kind`, `requested_seq`, `resolved_seq`, `decision` | `approval.requested`, `approval.resolved` |
-| `p_settings` | `(thread_id, key)` | `value`, `seq` | `settings.changed` |
 | `p_blob_refs` | `(thread_id, sha256)` | `first_seq` | `detached`가 있는 모든 이벤트, `BlobRef` 필드가 있는 `effect.*` |
 | `step_checkpoints` | `thread_id` | `checkpoint_id`, `seq`, `turn_id`, `step_index`, `next`, `schema_version`, `record` | `checkpoint.step` |
 | `p_agents` | `child_thread_id` | `thread_id`(부모), `request_id`, `owner_kind`, `owner_turn_id`, `owner_tool_call_id`, `background`, `depth`, `agent`, `spawned_seq`, `settled_seq`, `settled_status`. 색인 `(thread_id, request_id)` 유일 | `agent.spawned`, `agent.settled`. F가 `agent.*`를 받지 않으면 `thread.started.spawnedBy`에서 투영한다(§10 8번) |
 
-- `p_scopes`는 만들지 않는다 [결정: L1B.1]. 켜짐·임대·상태 판은 활성 가지 이벤트로 계산하므로(§3.3 `ext.loadThread`) 이벤트 순서로 쌓이는 테이블이 버려진 가지의 값을 담을 일이 없다. `TxView.scopeStateRev`·`scopeLeaseEpoch`도 같은 계산이다.
+- `p_scopes`와 `p_settings`는 만들지 않는다 [결정: L1B.1, L1B.2]. session 범위 값(`settings.changed`)도 같은 이유로 활성 가지 이벤트에서 읽는다(§6.2). 켜짐·임대·상태 판은 활성 가지 이벤트로 계산하므로(§3.3 `ext.loadThread`) 이벤트 순서로 쌓이는 테이블이 버려진 가지의 값을 담을 일이 없다. `TxView.scopeStateRev`·`scopeLeaseEpoch`도 같은 계산이다.
 - 모든 투영 테이블은 `thread_id` 열을 둔다. thread 삭제 때 소유 투영기의 `tables`에서 그 thread 행을 함께 지운다(`eng.context-map.design` §5.2 [제안]).
 - `p_items`·`p_parts`는 모든 가지의 행을 갖는다. 활성 가지 조회는 `query.branchItems`가 `leaf_event_id`에서 `parent_event_id`를 따라 거른다(`eng.events.design` §6).
 - `p_inputs`의 열 이름은 `L1.tasks.spec` §3.6 `InputQueuedPayload`를 따른다. `L1.tasks.spec`이 투영 열을 바꾸면 이 표를 같은 변경에서 고친다.
@@ -1109,34 +1108,36 @@ export interface RewindPlan {
 - 생성 멱등 [제안]: `creationKey`가 있으면 쓰기 트랜잭션 안에서 `thread_creation_keys`를 먼저 읽는다. 행이 있으면 아무것도 쓰지 않고 그 `thread_id`로 `ThreadCreated{ replayed: true }`를 돌려준다(입력의 `threadId`는 버린다). 없으면 `thread.started` 커밋과 같은 트랜잭션에서 행을 쓴다. 그래서 호출자가 재시작 뒤 새 `threadId`로 다시 불러도 thread는 하나다. `requests`는 thread 범위(`(thread_id, request_id)`)라 이 일을 하지 못한다. 고아 thread 정리는 호출자가 `creationKey` 조회로 끝낸다(예: `L2.schedule.spec` 재시작 복구).
 - 자식 thread 생성 [제안]: `inheritOwnerFrom`이 있으면 core-persistence가 그 토큰의 holder(같은 엔진 인스턴스)로 `xeon.store.leases.acquire("session:<threadId>", holder)`를 부른 뒤 `thread.started` 커밋을 한다. 새 id라 임대 경합이 없다. 커밋이 실패하면 임대를 반납한다. 얻은 토큰은 `ThreadCreated.token`으로 돌려주고 보관해 이후 그 thread의 커밋 소유 확인에 쓴다. 하트비트(`leases.keepAlive`)도 core-persistence가 걸고, 잃으면(`onLost`) 부모와 같은 처리(그 thread의 메모리 작업 취소)를 호출자에게 알린다. 정착 때 반납은 `release(threadId, …)`다. 재개 때 자식 소유는 `openForWrite(child, token)`으로 다시 얻는다(`L1.agents.spec` §4.1, §4.5). 같은 holder가 엔진 인스턴스마다 하나이므로 holder 값은 조립 루트가 core-persistence에 넘긴다 [가정: 조립 루트 배선은 `L4.host-service.spec`이 정한다].
 - `workspace`: `ThreadCreateInput.workspace`는 `thread.started.workspace`(F가 선택 필드로 더했다, FR-P5 반영)에 실려 `p_threads.workspace`로 투영된다. 없으면 null이고 필드를 쓰지 않는다. 멱등 지문에는 workspace가 있을 때만 넣어, 필드가 없던 때의 같은 키 재시도가 `key_reused`가 되지 않게 한다. 투영 규칙이 바뀌어 `CORE_PROJECTOR_VERSION`을 올렸고 다음 열기에서 core가 다시 만들어진다.
-- 생성 뒤 `session_start{ reason: "new" }`를 발화한다.
+- 생성 뒤 `session_start{ reason: "new" }`를 발화한다(재전송이면 발화하지 않는다). `openForWrite`는 읽기 전용이 아닐 때 `session_start{ reason: "startup" }`을, 복구 표식이 남은 thread면 `resume`을 발화한다. 지점 발화는 모두 `SessionPoints`(`points.ts`)를 거치고, tap은 기다리지 않는다(`detach`, 실패는 Logger). `reload`는 엔진 재적재를 아는 호스트의 몫이다.
+- 오류 통로가 없는 `list`는 읽기 실패(busy, io, 손상 행)를 Logger에 남기고 빈 쪽을 돌려준다 [제안: F `ThreadLifecycle.list`를 `Result`로 바꾸는 요청]. 커서는 `<updatedAt>:<threadId>` 불투명 문자열이고 해석할 수 없으면 빈 쪽이다.
 
 #### 4.10.2 leaf 이동과 떠난 가지 요약
 
 - `moveLeaf`는 `thread.leaf_moved { leafEventId: target, reason }`을 커밋한다. 기존 가지는 지우지 않는다(`F.records.spec` §4.6 3번). 다음 이벤트의 `parentId`는 `target`이다.
-- 대상 검사: `target`이 이 thread의 이벤트가 아니면 `invalid_target{item_not_found}`. 열린 turn이 있으면 `turn_running`.
+- 대상 검사: `target`이 이 thread의 이벤트가 아니면 `invalid_target{item_not_found}`. 열린 turn이 있으면 `turn_running`. 닫힌 thread는 `thread_closed`, 쓰기 소유자가 아니면 `not_owner`다. 옛 가지의 이벤트로 `restore`할 수 있으므로 활성 가지 위일 필요는 없다. 요약이 없고 target이 이미 leaf면 커밋하지 않는다. 커밋 키는 `leaf:<requestKey>`다.
 - [제안] 커밋 전에 `session_before_tree`(first)를 발화한다. 결정이 거부면 `cancelled_by_extension`이다. 커밋 뒤 `session_tree`(tap)를 발화한다.
+- 요약 순서와 leaf: 같은 커밋의 초안은 `[thread.leaf_moved, thread.branch_summarized]`다. 요약 이벤트의 `parentId`는 target이라 새 가지에 놓이고, 커밋 뒤 leaf는 요약 이벤트다(요약이 없으면 target). `thread.leaf_moved` 자신은 옛 가지에 남는다. `session_before_tree`의 결정이 요약을 주고 호출자가 요약을 주지 않았으면 결정의 요약을 쓴다(`usage`는 null). `session_tree`(tap)의 `fromExtension`은 null이다 [제안: 결정을 낸 확장 이름은 디스패처가 알려주지 않는다].
 - 떠난 가지 요약: `options.summary`가 있으면 `thread.branch_summarized { fromEventId: 이전 leaf, summary, details, usage }`를 같은 커밋에 넣는다(`F.records.spec` §4.6 5번). 요약을 누가 만드는지(모델 호출, 확장 결정의 `summary`)는 `L1.context.spec`의 [미결]이다. 이 문서는 받은 요약을 기록만 한다.
 
 #### 4.10.3 fork
 
-- `fork(threadId, at, newThreadId)`: `at`이 있으면 `query.itemEvent(threadId, at)`, 없으면 현재 leaf를 출처 이벤트로 쓴다. 출처가 활성 가지에 없으면 `invalid_target{not_on_branch}`.
+- `fork(threadId, at, newThreadId)`: `at`이 있으면 `query.itemEvent(threadId, at)`, 없으면 현재 leaf를 출처 이벤트로 쓴다. 출처가 활성 가지에 없으면 `invalid_target{not_on_branch}`, item이 없으면 `item_not_found`다. `session_before_fork`의 `itemId`는 `at`, 없으면 활성 가지의 마지막 item이다(`position: "at"`). 쓰기 소유자가 아니어도(관찰 열기) 새 thread를 만들 수 있다. 새 thread에는 출처의 제목과 workspace를 옮긴다. 새 thread의 소유 잠금은 호출한 호스트가 얻는다.
 - 커밋 전 `session_before_fork`(first)를 발화하고, 거부면 `cancelled_by_extension`이다.
 - 새 thread의 첫 이벤트 `thread.started { title, forkedFrom: { threadId, eventId } }`를 커밋한다. 출처 이벤트를 복사하지 않는다. 컨텍스트 조립은 출처 thread의 `eventId`까지 활성 사슬을 앞에 잇는다(`eng.events.design` §6) [제안]. pi durable `session/forks.ts`(97줄)는 대화 문서를 fork 시점(`asOf`)과 현재(`current`) 정책으로 복사한다. Xeon의 문서 대응물은 scope 상태 이벤트이므로, 새 thread의 scope 상태는 X가 출처 thread의 `x|grp.<name>.state.committed`를 `at` 시점으로 읽어 새 thread에 다시 커밋한다 [가정: X.primitives.spec이 정한다].
 - 커밋 뒤 `session_start{ reason: "fork", previousThreadId: threadId }`를 새 thread에 발화한다.
 
 #### 4.10.4 revert
 
-- `revert(threadId, to, requestKey)`: `to` item을 기록한 이벤트로 leaf를 옮긴다(`thread.leaf_moved{reason: "rewind"}`). `to`는 남는 마지막 item이다 [제안].
-- 대상 제한: `to`가 user item, toolCall이 없는 assistant item, 또는 turn의 마지막 item이어야 한다. 그 밖이면 `invalid_target{inside_turn}`. 열린 효과가 있으면 `open_tool_calls`, 진행 중 turn이 있으면 `turn_running`(wire 3003)이다.
+- `revert(threadId, to, requestKey)`: `to` item을 기록한 이벤트로 leaf를 옮긴다(`thread.leaf_moved{reason: "rewind"}`). `to`는 남는 마지막 item이다 [제안]. 검사 순서: 소유자, 닫힘, 열린 turn, item 존재, 활성 가지 소속, 열린 효과, turn 안 위치. 이미 그 leaf면 커밋하지 않는다. 커밋 키는 `revert:<requestKey>`다.
+- 대상 제한: `to`가 user item, toolCall이 없는 assistant item(`stop_reason`이 `toolUse`가 아님), 또는 turn의 마지막 item이어야 한다. 그 밖이면 `invalid_target{inside_turn}`. 열린 효과가 있으면 `open_tool_calls`, 진행 중 turn이 있으면 `turn_running`(wire 3003)이다.
 - 커밋 전후 발화는 `moveLeaf`와 같다(`session_before_tree`, `session_tree`).
 - 파일은 되돌리지 않는다. 파일 복원은 2차 되감기(§4.13.2)다.
 
 #### 4.10.5 close, delete, 제목
 
-- `close`: `thread.closed { reason }`을 커밋한다. 이후 그 thread의 커밋은 `build`의 `view.threadStatus === "closed"` 검사로 생산 spec이 거부한다(`reject("thread_closed")`). wire `thread.close`는 연결의 열기 기록을 지우는 일이라 이 API와 다르다(`L4.host-service.spec` §3.4). thread 종결을 wire로 노출할지는 [미결]이다.
+- `close`: `thread.closed { reason }`을 커밋한다. 커밋 키는 `thread:<id>:close`, 지문은 이유와 무관해 두 번째 호출은 처음 결과를 돌려준다(이벤트 1개). 쓰기 소유자만 부르고(`not_owner`), 열린 turn이 있으면 `turn_running`이다. 이후 그 thread의 커밋은 `build`의 `view.threadStatus === "closed"` 검사로 생산 spec이 거부한다(`reject("thread_closed")`). wire `thread.close`는 연결의 열기 기록을 지우는 일이라 이 API와 다르다(`L4.host-service.spec` §3.4). thread 종결을 wire로 노출할지는 [미결]이다.
 - `remove`: 쓰기 소유자만 한다. 한 트랜잭션에서 `thread_delete_guard`에 행을 넣고, `events`, `requests`, 모든 투영기 테이블의 그 thread 행, 그 thread를 가리키는 `thread_creation_keys` 행을 지우고, 표지 행을 지운다. 세션 임대 행은 L0.store 소유라 지우지 않고 `release`로 반납한다. `consumer_cursors`는 건드리지 않는다. 다른 thread의 `forked_from_thread`가 이 thread면 `has_forks`로 거부한다 [제안]. 지운 seq는 다시 쓰지 않는다(`event_seq`). 지운 뒤 커밋 뒤 방출은 없다. 화면 갱신은 wire `thread.delete` 응답으로 한다.
-- `setTitle`: L2 artifacts가 `xeon.session`의 이 API를 부르고, 이벤트 `thread.updated { title }`은 core-persistence가 쓴다(`eng.context-map.design` §4.4 4번). 커밋 뒤 `session_info_changed`(tap, detached)를 발화한다.
+- `setTitle`: 커밋 키는 `title:<requestKey>`다. L2 artifacts가 `xeon.session`의 이 API를 부르고, 이벤트 `thread.updated { title }`은 core-persistence가 쓴다(`eng.context-map.design` §4.4 4번). 커밋 뒤 `session_info_changed`(tap, detached)를 발화한다.
 
 #### 4.10.6 wire 메서드와 L1 구현 책임
 
@@ -1283,7 +1284,7 @@ export interface RewindPlan {
 | `l1.persistence.maxResumeAttempts` | integer | `3` | min 1, max 20 | `live` | `managed`, `user` | `number`, unit "회" | M1 | 한 turn의 재개 시도 상한(수동·자동 공통) |
 | `l1.persistence.export.format` | string | `"pi-jsonl"` | enum `pi-jsonl`, `xeon-jsonl` | `live` | `managed`, `user`, `session` | `select` | 2차 | 내보내기 기본 형식 |
 
-- 보관 정리 규칙 [제안]: 정리는 엔진 열기 때 한 번 돈다. 대상에서 빼는 것: 표식이 남은 thread, 열린 turn이 있는 thread, 다른 thread가 포크로 가리키는 thread, 지금 쓰기 소유 중인 thread. 화면은 삭제 대상 수 미리보기와 복구 불가 경고를 보인다(`_research/settings.md` §2.8). 삭제는 `threads.remove`와 같은 경로다.
+- 보관 정리 규칙 [제안]: 정리는 엔진 열기 때 한 번 돈다(조립 루트가 `createSessionService`가 돌려주는 `SessionServiceImpl.retention.prune()`을 부른다. `preview()`는 지우지 않고 대상만 돌려준다). 기간(`maxAgeDays`)에 걸린 것을 먼저 고르고, 남은 수가 `maxCount`를 넘으면 오래된 것부터 더 고른다. 한 라운드에서 포크가 지워져도 그 원본은 계획 때 포크가 가리키고 있었으므로 다음 라운드에 지운다. 대상에서 빼는 것: 표식이 남은 thread, 열린 turn이 있는 thread, 다른 thread가 포크로 가리키는 thread, 지금 쓰기 소유 중인 thread. 화면은 삭제 대상 수 미리보기와 복구 불가 경고를 보인다(`_research/settings.md` §2.8). 삭제는 `threads.remove`와 같은 경로다.
 - 자동 재개 키는 `l1.persistence.autoResume`, `l1.persistence.maxResumeAttempts` 둘만 둔다. L0.process·L4.host-service는 자기 자동 재개 키를 두지 않고 이 두 키를 읽는다 [결정: review.decisions-2 S-03].
 - 화면: `sessions` 탭 "세션과 컨텍스트". 명령: `xeon config get/set/reset l1.persistence.<이름>`(`L4.cli.spec`). 파일: 사용자·관리 설정 파일.
 
@@ -1303,7 +1304,8 @@ export interface SessionSettingsStore {
 }
 ```
 
-- session 범위 값은 `settings.changed` 이벤트와 투영 `p_settings`로 남는다. 분기·재개를 따라간다.
+- session 범위 값은 `settings.changed{scope:"session"}` 이벤트로 남고, `layer(threadId)`가 활성 가지 위 이벤트를 seq 순으로 접어 돌려준다. 분기·되감기·재개를 따라간다. 이벤트 순서로 쌓는 투영 테이블(`p_settings`)은 버려진 가지의 값을 담을 수 있어 두지 않는다 [결정: L1B.2]. 도구 호출마다 읽으므로 thread별 캐시를 두고(leaf가 앞으로만 나아갔으면 새 이벤트만 접고, 되감기·가지 이동이면 처음부터 다시 접는다) thread를 지우면 버린다.
+- `set`·`reset`의 커밋 키는 `settings:<requestKey>`다. 같은 키에 다른 값을 내면 호출자 결함이라 `Bug("store.schema_invalid")`다. 쓰기 소유자가 아니면 `ownership_lost`다. `layer`는 오류 통로가 없다(F 계약): 읽을 수 없으면 비어 있는 층을 돌려주고 Logger에 남긴다 [제안: F에 `Result` 요청].
 - [제안] 설정 파일 범위(`managed`, `user`, `project`, `local`)의 파일 위치, 읽기, 감시, 쓰기, 병합 실행은 `L4.host-service.spec`이 소유한다. `F.wire-settings.spec` §1.2는 이 일을 `L1.persistence.spec`과 `L4.host-service.spec`에 [가정]으로 넘겼다. session-core 컨텍스트는 `xeon.store`만 부르므로(§4.8.2) 파일 시스템과 OS 디렉터리(L0.os)를 쓸 수 없다. 그래서 이 문서는 session 범위만 맡는다. 프로젝트 설정의 신뢰 전 적용 제외 규칙(`X.loading-trust.spec` §4.7.4)과 파일 이름(`.xeon/settings.json`, `.xeon/settings.local.json`)도 파일 범위 소유자의 일이다. `L4.host-service.spec`의 `SettingsStorePort` 대응([가정])과 `X.loading-trust.spec`의 기대를 바꾸는 요청이므로 [미결]로 둔다(§10).
 
 ## 7. 확장 지점

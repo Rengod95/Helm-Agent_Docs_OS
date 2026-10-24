@@ -10,6 +10,7 @@ import {
   expectOk,
   newThread,
   openHarness,
+  reopenHarness,
   startTurn,
   type Harness,
 } from "./support/harness.ts";
@@ -165,4 +166,57 @@ describe("approvals", () => {
     expect(plan.pendingApprovals).toEqual([requested.approvalId]);
     expect(plan.next).toBe("await_input");
   });
+
+  // spec plan resume_restores_pending_approval
+  test("resume_restores_pending_approval: after a restart the same approval comes back and nothing is requested again", async () => {
+    const h = await openHarness();
+    const requested = requestApproval(h);
+    const token = h.store.leases.inspect(`session:${requested.threadId}`);
+    if (!token.ok || token.value === null) throw new Error("no lease");
+    const restarted = await reopenHarness(h);
+    expectOk(
+      restarted.service.openForWrite(requested.threadId, {
+        resource: `session:${requested.threadId}`,
+        holderId: token.value.holderId,
+        epoch: token.value.epoch,
+      }),
+    );
+    const requestedCount = (): number | undefined =>
+      restarted.store.raw
+        .query<{ n: number }, []>(
+          "SELECT COUNT(*) AS n FROM events WHERE kind = 'approval.requested'",
+        )
+        .get()?.n;
+    const before = requestedCount();
+    const plan = expectOk(
+      restarted.service.recover(requested.threadId, {
+        toolReplay: () => "safe",
+        cancelledByOwner: () => false,
+        hostMode: "in-process",
+      }),
+    );
+    expect(plan.pendingApprovals).toEqual([requested.approvalId]);
+    expect(plan.checkpoint?.pendingToolCalls).toEqual([
+      { toolCallId: "tc1", effectId: null, waiting: "approval" },
+    ]);
+    expect(plan.next).toBe("await_input");
+    expect(plan.reruns).toEqual([]);
+    expect(requestedCount()).toBe(before);
+    // 다시 열어도 응답은 한 번만 받는다
+    expect((await resolveOn(restarted, requested)).status).toBe("committed");
+    const after = expectOk(
+      restarted.service.recover(requested.threadId, {
+        toolReplay: () => "safe",
+        cancelledByOwner: () => false,
+        hostMode: "in-process",
+      }),
+    );
+    expect(after.pendingApprovals).toEqual([]);
+  });
 });
+
+async function resolveOn(h: Harness, requested: Requested): Promise<{ status: string }> {
+  const result = resolve(h, requested);
+  await Promise.resolve();
+  return expectOk(result);
+}

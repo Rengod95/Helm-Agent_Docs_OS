@@ -3,6 +3,7 @@
 import {
   assertNever,
   Bug,
+  detach,
   err,
   ok,
   parse,
@@ -39,7 +40,8 @@ import { readCheckpoint } from "./checkpoint.ts";
 import type { PersistenceSettings } from "./deps.ts";
 import { envelopeAtSeq, envelopeOfRow } from "./events.ts";
 import { sessionResource } from "./ids.ts";
-import type { OpenSessions } from "./ownership.ts";
+import { releaseOpenSession, type OpenSessions } from "./ownership.ts";
+import type { SessionPoints } from "./points.ts";
 import type { ProjectorController } from "./projector/registry.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
 import {
@@ -76,6 +78,7 @@ export interface ResumeDeps {
   /** 서비스를 시작하며 다시 만든 투영기 이름. 처음 여는 thread의 OpenReport.rebuilt에 한 번 실린다 */
   readonly takeStartupRebuilt: () => readonly string[];
   readonly logger: Logger | undefined;
+  readonly points: SessionPoints;
 }
 
 export interface Resumer {
@@ -246,6 +249,7 @@ function threadPairs(
 export function createResumer(deps: ResumeDeps): Resumer {
   const { db, leases, catalog, producers, sessions, writer, clock, ids } = deps;
   const synthesisDeps: SynthesisDeps = { clock, ids, producers };
+  const { points } = deps;
 
   const ownerInfo = (threadId: ThreadId): OpenReport["owner"] => {
     const info = leases.inspect(sessionResource(threadId));
@@ -296,11 +300,25 @@ export function createResumer(deps: ResumeDeps): Resumer {
       const thread = readResult(db, (tx) => readThread(tx, threadId));
       if (!thread.ok) return thread;
       if (thread.value === undefined) return err({ kind: "thread_not_found", threadId });
+      const marker = markerOf(thread.value);
+      // 커밋도 복구도 하지 않은 열기 직후에 알린다. 표식이 남은 thread면 재개 후보라 resume이다(§7.1)
+      if (readOnly === null) {
+        detach(
+          points.start(
+            { reason: marker === null ? "startup" : "resume", threadId },
+            `${threadId}:session_start:${String(thread.value.headSeq)}`,
+          ),
+          (cause) => {
+            deps.logger?.warn("session.point_failed", { point: "session_start", threadId });
+            deps.logger?.debug("session.point_failure_cause", { cause: String(cause) });
+          },
+        );
+      }
       return ok({
         threadId,
         role: "owner",
         headSeq: thread.value.headSeq,
-        marker: markerOf(thread.value),
+        marker,
         readOnly,
         rebuilt,
         owner: ownerInfo(threadId),
@@ -512,20 +530,9 @@ export function createResumer(deps: ResumeDeps): Resumer {
       }
     },
 
-    release(threadId, _reason): Promise<void> {
-      // session_shutdown 지점 발화는 PS-17(ExtHost 연결)에서 더한다. 여기서는 소유 상태만 놓는다
-      const prior = sessions.forget(threadId);
-      if (prior?.role === "owner") {
-        prior.keepAlive?.[Symbol.dispose]();
-        // 호스트가 준 토큰은 호스트가 반납한다. 이 서비스가 직접 얻은 임대(자식 thread)만 반납한다
-        if (prior.selfAcquired) {
-          const released = leases.release(prior.token);
-          if (!released.ok) {
-            deps.logger?.warn("session.release_failed", { reason: released.error.kind });
-          }
-        }
-      }
-      return Promise.resolve();
+    async release(threadId, reason): Promise<void> {
+      await points.shutdown(threadId, { reason }, `${threadId}:session_shutdown`);
+      releaseOpenSession(sessions, leases, deps.logger, threadId);
     },
   };
 }

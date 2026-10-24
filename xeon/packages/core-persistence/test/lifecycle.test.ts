@@ -217,23 +217,6 @@ describe("child threads (inheritOwnerFrom)", () => {
   });
 });
 
-describe("M2 lifecycle members", () => {
-  test("they say so instead of pretending", async () => {
-    const h = await openHarness();
-    const { threadId } = newThread(h);
-    expect(() => h.service.threads.list({})).toThrow("session.not_implemented");
-    expect(() => h.service.threads.remove(threadId)).toThrow("session.not_implemented");
-    expect(() => h.service.threads.setTitle(threadId, "x", "k")).toThrow("session.not_implemented");
-    let rejected = "";
-    await h.service.threads
-      .fork(threadId, undefined, h.ids.next("thr"))
-      .catch((caught: unknown) => {
-        rejected = caught instanceof Error ? caught.message : "";
-      });
-    expect(rejected).toContain("session.not_implemented");
-  });
-});
-
 describe("threads.create workspace", () => {
   // FR-P5: thread.started가 workspace를 싣고 p_threads.workspace에 투영된다
   test("workspace is carried into thread.started and the summary row maps through threadSummaryOf", async () => {
