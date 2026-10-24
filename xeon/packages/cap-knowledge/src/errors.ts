@@ -22,7 +22,8 @@ export type KnowledgeFailureKind =
   | "read_only_scope"
   | "patch_mismatch"
   | "rollback_conflict"
-  | "rollback_unsafe";
+  | "rollback_unsafe"
+  | "proposal_closed";
 
 export interface KnowledgeFailure {
   readonly kind: KnowledgeFailureKind;
@@ -61,6 +62,7 @@ function retryableOf(kind: KnowledgeFailureKind): boolean {
     case "rollback_unsafe":
       return true;
     case "base_stale":
+    case "proposal_closed":
     case "name_conflict":
     case "limit_exceeded":
     case "scan_blocked":

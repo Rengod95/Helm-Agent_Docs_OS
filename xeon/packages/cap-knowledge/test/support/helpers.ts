@@ -1,4 +1,6 @@
+import { parse } from "@xeon/contracts";
 import { CapabilityError } from "@xeon/contracts/capabilities";
+import { ThreadIdSchema, type ThreadId } from "@xeon/contracts/conversation";
 import type { CallContext, CallOptions } from "@xeon/contracts/capabilities";
 import type { Tree } from "../../src/skills/tree.ts";
 import { treeOf } from "../../src/skills/tree.ts";
@@ -27,4 +29,19 @@ export const MODEL: CallContext = { caller: { kind: "model", agent: "main" } };
 
 export function asHost(options: CallOptions = {}): CallOptions {
   return { ...options, context: HOST };
+}
+
+const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+/** 시험용 ThreadId. n이 다르면 다른 ID */
+export function threadIdOf(n: number = 1): ThreadId {
+  const digits: string[] = [];
+  let rest = n;
+  for (let i = 0; i < 6; i += 1) {
+    digits.unshift(ALPHABET[rest % 32] ?? "0");
+    rest = Math.floor(rest / 32);
+  }
+  const parsed = parse(ThreadIdSchema, `thr_01ARZ3NDEKTSV4RRFFQ5${digits.join("")}`);
+  if (!parsed.ok) throw new Error("invalid test thread id");
+  return parsed.value;
 }

@@ -212,7 +212,7 @@ describe("ledger", () => {
     expect(again.data.code).toBe("invalid_input");
   });
 
-  test("only the user rolls back until the approval gate exists", async () => {
+  test("a model caller cannot roll back directly: the rollback is queued and the files stay", async () => {
     const world = await createWorld();
     const created = await world.executor.apply(
       spec({
@@ -222,13 +222,13 @@ describe("ledger", () => {
       }),
     );
     if (!created.ok) throw new Error(created.error.message);
-    const denied = await rejection(
-      world.runtime.ledgerApi.rollback(
-        { ledgerId: created.value.ledgerId ?? "" },
-        { context: MODEL },
-      ),
+    // 모델에는 롤백 도구가 없지만 서비스는 호출 문맥으로 행위자를 가린다. 세션이 없는 모델 호출은 대기열로 간다
+    const queued = await world.runtime.ledgerApi.rollback(
+      { ledgerId: created.value.ledgerId ?? "" },
+      { context: MODEL },
     );
-    expect(denied.data.code).toBe("denied");
+    expect(queued.status).toBe("queued");
+    expect(world.fs.has(SKILL_DIR)).toBe(true);
     const noContext = await rejection(
       world.runtime.ledgerApi.rollback({ ledgerId: created.value.ledgerId ?? "" }),
     );

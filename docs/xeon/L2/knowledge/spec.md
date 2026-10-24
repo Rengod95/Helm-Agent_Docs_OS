@@ -768,10 +768,12 @@ CREATE TABLE cap_knowledge_proposals (
   input        TEXT NOT NULL,             -- 메서드 입력 BlobRef JSON(본문이 클 수 있다)
   target_kind  TEXT NOT NULL,
   target_name  TEXT NOT NULL,
+  target_scope TEXT,                      -- 스킬이면 user 또는 project. KN.2가 더했다(목록의 target.scope)
   op           TEXT NOT NULL,
   base_hash    TEXT,
   status       TEXT NOT NULL CHECK (status IN ('pending','applied','rejected','stale','expired')),
   scan         TEXT NOT NULL,
+  preview      TEXT NOT NULL,             -- 제안할 때 만든 통합 diff(20,000자). KN.2가 더했다
   decided_at   INTEGER,
   ledger_id    TEXT,
   request_id   TEXT UNIQUE
@@ -1050,14 +1052,20 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - 백그라운드 포크의 파괴적 연산은 설정과 무관하게 대기열로 간다. Hermes가 포크의 메모리 파괴적 연산을 승인 큐로 보내는 장치를 스킬까지 넓힌 것이다(`_research/refs/hermes.md` §3.10.1 (라)).
 - `agent`(main)이고 `caller.afterUntrusted = true`이면 설정이 꺼져 있어도 승인을 요청한다 [제안]. 웹 결과를 읽은 turn의 쓰기는 인젝션 경로일 수 있기 때문이다(§4.6.3).
-- 승인 요청은 `xeon.approvals`로 낸다. 포트 모양은 `L2.readme` §5.7의 L2 공통 `ApprovalsPort`이고(`cap-knowledge/src/ports/approvals.ts`), kind는 `tool`, 멱등 키는 입력 `requestId`(쓰기 호출의 `CallOptions.requestId`)다. 대상은 `{ capability, op, target, preview, scan }`이다 [가정: payload 모양은 `L1.tools.spec`]. `preview`는 현재 내용 기준 통합 diff이고 20,000자에서 자른다.
+- 승인 요청은 `xeon.approvals`(`ApprovalService`)의 도구 승인(kind `tool`)으로 낸다 [결정: KN.2]. `ports/approvals.ts`의 `createWriteApprovals`가 `open`으로 요청을 커밋하고(같은 `requestKey`면 기존 요청과 현재 해결 상태를 돌려받는다) 해결이 없으면 `wait`로 기다린다. 요청 키는 호출의 `requestId`를 해시로 줄인 `kw_<sha256 앞 40자>`다(1~48자 제한). `requestId`가 없으면 `knp` ID를 키로 써서 멱등을 보장하지 않는다. 본문은 `{ toolName, capability: { id, method }, risk: "write", args, argsHash, ruleId: null }`이고 `toolName`은 스킬 쓰기면 `skill_manage`, 메모리 쓰기면 `memory_manage`, 롤백이면 `knowledge.ledger`다. `args`는 `{ op, target, baseHash, preview, scan, afterUntrusted }`이고 `preview`는 현재 내용 기준 통합 diff를 20,000자에서 자른 것, `scan`은 규칙 이름과 판정(`<규칙>:<block|warn>`)만 담는다. 사람이 한 허용(`resolvedBy: "user"`의 `allow`)만 허용으로 센다. 취소, 대체, 비대화형 해결은 거부다. 거부의 `answer.feedback`은 오류 `approval_denied`의 `detail.feedback`으로 돌려준다.
+- 묻지 못하는 경우 [제안: KN.2]: `ask` 판정이어도 승인 포트가 없거나, 호출 문맥에 `threadId`가 없거나, `interactive`가 `false`(크론·헤드리스)이면 묻지 않고 제안 대기열로 보낸다. 닫힌 쪽으로 실패하고 정본 파일은 바뀌지 않는다.
 - 승인 대기는 루프의 승인 대기 상태로 커밋되고 멈춘다. 재개 때 결과 이벤트로 이어진다(`L2.readme` §5.7). 승인 결과 "항상"은 이 능력에 적용하지 않는다 [제안]. 스킬·메모리 쓰기는 매번 내용이 달라서다.
 - `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 그룹 이름을 쓰지 않는다. 증거를 낼 L3 그룹의 source는 L3가 설정으로 채운다 [결정: review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다.
 
 #### 4.5.2 제안 대기열
 
 - 대기열은 `cap_knowledge_proposals`다. 제안은 메서드 이름과 입력 전체(blob), 대상, 연산, `baseHash`, 검사 결과, 미리보기를 갖는다.
-- `decide({ approve })`: 행위자 `user`(또는 증거가 있는 확장)일 때, 저장된 입력을 행위자 `user`로 쓰기 경로 2단계부터 다시 실행한다. 원장 행에 `proposal_id`를 남긴다. 그 사이 대상이 바뀌었으면 제안은 `stale`이 되고 `base_stale` 오류다.
+- `decide({ approve })`: 행위자 `user`일 때, 저장된 입력을 쓰기 경로 2단계부터 다시 실행한다. 원장 행에 `proposal_id`를 남긴다. 그 사이 대상이 바뀌었으면 제안은 `stale`이 되고 `base_stale` 오류다.
+  - [결정: KN.2] 호스트(사용자)만 결정한다. `DecideInput`에 증거(`approval`)를 실을 자리가 없어 확장의 결정은 `denied`다. 확장이 결정하려면 F가 `DecideInput.approval`을 더해야 한다(§8 요구).
+  - [결정: KN.2] 승인한 제안은 게이트를 다시 거치지 않는다(사람이 미리보기를 보고 승인했다). 원장 행의 행위자는 제안한 행위자이고(결정한 사용자는 원장에 남지 않는다), `approved_by`는 `approval`이며 `proposal_id`가 제안을 가리킨다. 스킬 `created_by`(§4.4.4)와 감사가 "누가 바꿨나"와 "누가 승인했나"를 구분하기 위해서다. 같은 결정을 두 번 실행해도 원장 `request_id`(`proposal:<제안 ID>`)가 막는다. `decide`의 `note`는 원장 `reason`이 된다.
+  - [결정: KN.2] 다시 실행이 `base_stale`, `name_conflict`, `patch_mismatch`, `rollback_conflict`로 실패하면 제안은 `stale`이다. 다른 실패(`scan_blocked`, `internal` 등)는 제안을 `pending`으로 두고 오류만 돌려준다.
+  - 같은 `requestId`로 같은 쓰기를 다시 부르면 대기열도 첫 결과(`status: "queued"`, 같은 `proposalId`)를 돌려준다. 제안이 적용된 뒤에도 첫 결과를 돌려준다.
+  - 목록은 최신순이다. 목록과 결정 앞에서 만료를 정리하고, 시작 때도 정리한다.
 - `decide({ reject })`: 상태를 `rejected`로 바꾸고 파일은 건드리지 않는다.
 - 만료: 생성 뒤 `l2.knowledge.write.proposalExpiryDays`(기본 14일)가 지난 `pending`은 시작 정리 때 `expired`가 된다.
 - 승인 전에는 파일이 바뀌지 않는다. `pending`, `rejected`, `stale`, `expired` 제안은 정본 파일에 아무 효과가 없다(수용 기준 1, `product.scope.spec` §4.4 M3 UC-3).
@@ -1114,7 +1122,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 1. 대상 항목의 `status`가 `applied`가 아니거나 이미 `rolled_back_by`가 있으면 `invalid_input`.
 2. 대상의 현재 해시가 그 항목의 `after_hash`와 같은지 확인한다. 다르면 `rollback_conflict`. 뒤에 다른 변경이 있으면 그 변경부터 차례로 되돌려야 한다.
-3. 쓰기 승인 게이트(§4.5.1). 롤백은 파괴적 연산이다. 게이트(K6)가 들어오기 전의 구현(KN.1)은 닫힌 실패로 행위자 `user`(호출자 종류 `host`)만 허용하고 그 밖에는 `denied`로 거부한다. 문맥이 없는 호출도 `denied`다.
+3. 쓰기 승인 게이트(§4.5.1). 롤백은 파괴적 연산이다. 구현(KN.2)은 롤백 내용을 계산한 뒤(`planRollback`) 다른 쓰기와 같은 게이트에 태운다: 사용자는 바로 적용하고, 세션 없는 확장 호출은 `ledger.rollback` 제안으로 대기열에 간다. 호출 문맥이 없는 호출은 행위자를 알 수 없어 `denied`다. 같은 `requestId`는 계산 앞에서 확인하므로 두 번째 호출은 "이미 되돌린 항목" 오류 없이 첫 결과를 돌려받는다.
 4. 안전 캡처: 현재 내용을 blob으로 저장한다. 실패하면 되돌리지 않고 `rollback_unsafe`로 실패한다(닫힌 실패, Hermes `skill_ledger.py`).
 5. `before_manifest`의 내용으로 파일을 되돌린다. 이전 내용을 담지 못한 항목(바깥 편집을 처음 본 항목, 삭제된 파일을 찾지 못한 경우)은 `unsupported`로 거부한다. `before_hash`가 null(생성 연산)이면 그 스킬을 보관함으로 옮긴다. 보관함 이동(`skill.archive`)의 되돌림은 보관함에서 원래 경로로 되돌린다.
 6. 새 원장 항목(`op: "rollback"`, `rollback_of`)을 남기고 원래 항목의 `rolled_back_by`를 채운다.
@@ -1289,7 +1297,8 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `pos` 커서 전역 이벤트 읽기와 커밋 후 알림 | `L1.persistence.spec`(`xeon.session`) | [가정] |
 | 투영기 선언 테이블을 같은 컨텍스트 소비자가 쓰는 것 | `L1.persistence.spec` | [가정] |
 | `session.created` payload의 세션 종류·부모·작업 디렉터리 | `L1.persistence.spec`, `L1.agents.spec` | [가정] |
-| `ApprovalService`(`xeon.approvals`) 요청 kind `tool`, 미리보기 payload | `L1.tools.spec` | [가정] |
+| `ApprovalService`(`xeon.approvals`) `open`·`wait`와 요청 kind `tool`, 미리보기 payload(`args.preview`) | `L1.tools.spec` §3.6, F `services/approvals.ts` | 있음(KN.2가 `createWriteApprovals`로 쓴다) |
+| `DecideInput.approval`(확장의 제안 결정에 실을 증거), `LedgerEntry.afterUntrusted` | `F.capabilities.spec` | 요청(KN.2, §10 미결 21·22) |
 | 쓰기 도구 둘의 일반 도구 승인 기본값 `allow` | `L1.tools.spec` | 요청 |
 | 첫 turn 기록 메시지로 스냅샷·인덱스를 넣는 경로, 컴팩션 뒤 다시 넣기 | `L1.context.spec` | 요청 |
 | 데이터 디렉터리 | `L0.os.spec`(`OsDirs.data`) | 있음 |
@@ -1338,3 +1347,5 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 18. [미결] 프로세스 사이 파일 락. `OsService`에 락 API가 없어 임대와 해시 재확인으로 대신한다(§4.3.3). 데이터 디렉터리를 엔진 밖의 도구가 쓰는 경우의 보장은 해시 재확인까지다.
 19. [미결] 재색인 비용. 모든 스킬 트리를 읽고 해시한다. 스킬 수와 크기가 커지면 mtime·크기로 후보를 줄인다(`cap_knowledge_files.mtime_ms`가 그 자리다).
 20. [미결] 쓰기 한도(파일 1 MiB, 500개)와 읽기 한도(파일 16 MiB, 전체 64 MiB, 500개)의 차이(§4.2.2). 읽기 한도를 넘는 스킬은 색인에서 빠진다.
+21. [미결] 원장 `afterUntrusted` 표시. §4.6.3 3번은 `afterUntrusted = true`인 쓰기를 원장에 표시하라고 하지만 F `LedgerEntry`에 필드가 없다. 구현(KN.2)은 승인 요청의 `args.afterUntrusted`로만 알린다. F가 `LedgerEntry.afterUntrusted?`를 더하면 원장 열을 더한다.
+22. [미결] 확장의 제안 결정. `DecideInput`에 `approval` 증거가 없어 `decide`는 호스트 전용이다(§4.5.2). 제안 대기열과 L3 그룹의 자기 대기열(미결 3)을 합칠 때 함께 정한다.

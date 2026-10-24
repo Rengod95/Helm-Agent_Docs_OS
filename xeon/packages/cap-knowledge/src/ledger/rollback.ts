@@ -1,27 +1,25 @@
-import { err, type Result } from "@xeon/contracts";
-import type { KnowledgeActor, WriteOutcome } from "@xeon/contracts/capabilities";
+import { err, ok, type Result } from "@xeon/contracts";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import { SCAN_RULESET_VERSION } from "../scan/rules.ts";
 import type { Tree } from "../skills/tree.ts";
-import type { ChangeExecutor, LedgerDeps } from "./change.ts";
+import type { WritePlan } from "../write/pipeline.ts";
+import type { LedgerDeps } from "./change.ts";
 import { readTree } from "./manifest.ts";
 import { findById } from "./rows.ts";
 import { hashOfTarget, readTarget, type ChangeTarget } from "./target.ts";
 
-// L2.knowledge.spec §4.7.2 롤백. 승인 게이트(3단계)는 호출자가 먼저 통과시킨다.
+// L2.knowledge.spec §4.7.2 롤백. 되돌릴 내용을 계산해 `WritePlan`으로 돌려준다. 롤백은 파괴적 연산이라 쓰기 승인 게이트
+// (3단계)와 안전 캡처 이후 단계는 쓰기 경로(`write/pipeline.ts`)가 맡는다.
 
 export interface RollbackRequest {
   readonly ledgerId: string;
   readonly reason: string | undefined;
-  readonly requestId: string | undefined;
-  readonly actor: KnowledgeActor;
 }
 
-export async function rollbackEntry(
+export async function planRollback(
   deps: LedgerDeps,
-  executor: ChangeExecutor,
   request: RollbackRequest,
-): Promise<Result<WriteOutcome, KnowledgeFailure>> {
+): Promise<Result<WritePlan, KnowledgeFailure>> {
   const found = deps.db.read((tx) => findById(tx, request.ledgerId));
   if (!found.ok) return err(fromStoreError(found.error, "ledger lookup"));
   if (!found.value.ok) return found.value;
@@ -82,19 +80,21 @@ export async function rollbackEntry(
     next = restored.value;
   }
 
-  return executor.apply({
-    actor: request.actor,
+  return ok({
+    method: "ledger.rollback",
+    input: {
+      ledgerId: request.ledgerId,
+      ...(request.reason === undefined ? {} : { reason: request.reason }),
+    },
     target,
     op: "rollback",
-    requestId: request.requestId,
+    destructive: true,
     baseHash: entry.afterHash,
+    current: current.value,
     next,
     removal: "archive",
     scan: { rulesetVersion: SCAN_RULESET_VERSION, findings: [] },
-    approvedBy: request.actor.kind === "user" ? "user" : undefined,
-    evidence: undefined,
     reason: request.reason,
-    proposalId: undefined,
     rollbackOf: entry.ledgerId,
     captureFailure: "rollback_unsafe",
   });

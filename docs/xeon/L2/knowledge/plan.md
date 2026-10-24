@@ -158,6 +158,33 @@ xeon/packages/cap-knowledge/
 - 원장 행을 읽을 때 열이 없거나 셀 타입이 다르면 `Bug`를 던지는 자리(`ledger/rows.ts` `textCell`, `intCell`)는 그대로다 [미결: 저장된 행 불일치는 `row_invalid` 값으로 돌려줘야 한다. `db.read` 콜백 안의 호출처가 많아 별도 작업으로 한다].
 - 지원 파일 경로 규칙은 F에 `SkillFilePathSchema` 좁히기를 요청했다(spec §3.1). 그 전까지 `skills/paths.ts`가 같은 규칙을 지킨다.
 
+### 3.2 구현 기록: KN.2 (K6)
+
+`m2/webkn` 브랜치의 구현이다. 스킬·메모리 쓰기 연산(K3, K4)은 뒤 작업이라 대기열이 다시 실행하는 메서드 가운데 지금 동작하는 것은 `ledger.rollback`이다. 나머지 아홉은 `unsupported`를 돌려주는 자리만 있다.
+
+| 작업 | 상태 | 구현 위치와 범위 |
+|---|---|---|
+| K6 게이트 | 완료 | `approval/gate.ts`(`decideGate` 순수 함수로 §4.5.1 표 전체, `isEvidenceValid`), `write/pipeline.ts`(`createWriter`: 멱등 확인 → 게이트 → 바로 적용·승인 요청·대기열 → 원장 실행기), `write/preview.ts`(미리보기 diff) |
+| K6 승인 요청 | 완료 | `ports/approvals.ts`(`createWriteApprovals(ApprovalService)`: `open` 뒤 `wait`, 사람의 허용만 허용으로 센다), `plugin.ts`가 `ApprovalServicePortKey`를 선택 포트로 받아 연결한다 |
+| K6 대기열 | 완료 | `approval/proposals.ts`(행 입출력, TY-24에 따라 맞지 않는 행은 `internal` 값), `approval/queue.ts`(`proposals`, `decide`, 만료), 마이그레이션 2단계 |
+| K6 롤백 게이트 | 완료 | `ledger/rollback.ts`가 `planRollback`으로 계산만 하고 `ledger/service.ts`가 쓰기 경로에 태운다. KN.1의 "사용자만" 닫힌 실패를 걷었다 |
+
+계획 §2 배치와 다른 점:
+
+- `approval/evidence.ts`는 만들지 않았다. 증거 유효성은 순수 함수 하나(`isEvidenceValid`)라 `gate.ts`에 있다. `approval/queue.ts`는 `proposals.ts`(행)와 `queue.ts`(결정)로 나눴고, 쓰기 경로 본체는 `write/pipeline.ts`다.
+- 승인 포트는 `ApprovalService`의 `open`·`wait`를 직접 쓰고 `L2ApprovalsPort`는 거치지 않는다. 쓰기 승인 하나는 kind `tool` 요청 하나이고 도메인 대상을 JSON으로 옮길 필요가 없어서다(spec §4.5.1). 같은 규칙의 기준 어댑터는 core-tools `testing/l2-port.ts`다.
+- 대기열 DDL에 `target_scope`와 `preview`를 더했다(spec §3.8). 목록(`Proposal`)이 대상 범위와 미리보기를 돌려주기 때문이다. 미리보기는 제안할 때 만든 것을 저장한다(현재 내용 기준이지만 그 시점의 현재다).
+- 승인한 제안은 제안한 행위자로 원장에 남고 `approved_by`는 `approval`이다(spec §4.5.2). `decide`는 호스트(사용자)만 부른다.
+- 새 오류 코드 `proposal_closed`(`decide`의 선언 오류)를 `KnowledgeFailureKind`에 더했다.
+
+시험:
+
+| 파일 | 내용 |
+|---|---|
+| `gate.test.ts` | 게이트 표(행위자 × 파괴적 여부 × 설정), 세션 없음, `afterUntrusted`, 증거 유효성 |
+| `approval.test.ts` | `files unchanged before approval`, 거부와 피드백, 승인 대기 중 바깥 편집은 `base_stale`, 같은 `requestId`는 한 번만 묻고 첫 결과를 돌려줌, `background destructive always queued`, 설정 끔, `after untrusted forces approval`, 비대화형·포트 없음은 대기열, 증거 유효성, 제안 생애(승인, 거절, `stale`, 만료, 닫힌 제안, 호스트만 결정) |
+| `approval-service.int.test.ts` | 실제 `ApprovalService`(core-tools `fakeApprovals`) 위에서 요청 본문 모양, 허용·거부(피드백), 같은 `requestId`는 승인 요청 이벤트 하나, 기다림 취소는 요청을 남김 |
+
 ## 4. 채택 코드
 
 ### 4.1 포크: pi `core/skills.ts`

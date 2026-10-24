@@ -9,6 +9,7 @@ import {
   type KnowledgeDeps,
   type KnowledgeRuntime,
 } from "../../src/service.ts";
+import type { WriteApprovals } from "../../src/ports/approvals.ts";
 import { readKnowledgeSettings } from "../../src/settings.ts";
 import { resolveSkillRoots } from "../../src/skills/roots.ts";
 import { fixedIdFactory, fixedLocalIds, manualClock, type ManualClock } from "./clock.ts";
@@ -62,6 +63,8 @@ export function userLayer(values: Record<string, unknown>): ScopeLayer {
 
 export interface WorldOptions {
   readonly containsKnown?: (text: string) => boolean;
+  /** 쓰기 승인 포트. 없으면 승인 대신 제안 대기열로 간다 */
+  readonly approvals?: WriteApprovals;
   readonly extensionRoots?: readonly { readonly dir: string; readonly extension: string }[];
 }
 
@@ -106,6 +109,7 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
       });
     },
     containsKnown: options.containsKnown,
+    approvals: options.approvals,
   };
   return {
     fs,

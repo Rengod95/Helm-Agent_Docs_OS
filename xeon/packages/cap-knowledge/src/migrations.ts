@@ -1,14 +1,14 @@
 import type { MigrationSet } from "@xeon/contracts/records";
 
 // L2.knowledge.spec §3.8 세션 밖 상태 테이블. 소유자 `cap.knowledge`, 테이블 접두 `cap_knowledge_`(F owners.ts).
-// 마이그레이션은 작업마다 단계를 더한다. 1단계(KN.1)는 파일 상태, 스킬 색인, 원장이다. 제안 대기열(KN.2)과 문서 FTS(KN.4)는
-// 그 작업이 2단계 이후로 더한다(체크섬이 적용된 단계를 바꾸지 못하게 한다).
+// 마이그레이션은 작업마다 단계를 더한다. 1단계(KN.1)는 파일 상태, 스킬 색인, 원장이다. 2단계(KN.2)는 제안 대기열이고,
+// 문서 FTS와 세션 검색 커서(KN.4)는 3단계 이후로 더한다(체크섬이 적용된 단계를 바꾸지 못하게 한다).
 
 export const KNOWLEDGE_OWNER = "cap.knowledge";
 
 export const KNOWLEDGE_MIGRATIONS: MigrationSet = {
   owner: KNOWLEDGE_OWNER,
-  version: 1,
+  version: 2,
   steps: [
     {
       version: 1,
@@ -62,6 +62,31 @@ export const KNOWLEDGE_MIGRATIONS: MigrationSet = {
   outcome         TEXT
 ) STRICT`,
         "CREATE INDEX cap_knowledge_ledger_target ON cap_knowledge_ledger(target_kind, target_name, seq)",
+      ],
+    },
+    {
+      version: 2,
+      sql: [
+        // spec §3.8 DDL에 `target_scope`와 `preview`를 더했다. 대기열 목록(`Proposal`)이 대상 범위와 사람이 볼 diff를 돌려주기 때문이다
+        `CREATE TABLE cap_knowledge_proposals (
+  proposal_id  TEXT PRIMARY KEY,
+  created_at   INTEGER NOT NULL,
+  actor        TEXT NOT NULL,
+  method       TEXT NOT NULL,
+  input        TEXT NOT NULL,
+  target_kind  TEXT NOT NULL,
+  target_name  TEXT NOT NULL,
+  target_scope TEXT,
+  op           TEXT NOT NULL,
+  base_hash    TEXT,
+  status       TEXT NOT NULL CHECK (status IN ('pending','applied','rejected','stale','expired')),
+  scan         TEXT NOT NULL,
+  preview      TEXT NOT NULL,
+  decided_at   INTEGER,
+  ledger_id    TEXT,
+  request_id   TEXT UNIQUE
+) STRICT`,
+        "CREATE INDEX cap_knowledge_proposals_status ON cap_knowledge_proposals(status, created_at)",
       ],
     },
   ],

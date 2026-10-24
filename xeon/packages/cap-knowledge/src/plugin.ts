@@ -8,6 +8,7 @@ import {
 import type { LocalIdFactory } from "@xeon/contracts/conversation";
 import type { ExtensionEntry, PortKey } from "@xeon/contracts/extensions";
 import {
+  ApprovalServicePortKey,
   ExecPortKey,
   OsPortKey,
   SecretServiceName,
@@ -21,6 +22,7 @@ import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@
 import { createNodeFs } from "./fs/node-fs.ts";
 import type { KnowledgeFs } from "./fs/port.ts";
 import { knowledgeManifest } from "./manifest.ts";
+import { createWriteApprovals } from "./ports/approvals.ts";
 import { KNOWLEDGE_MIGRATIONS, KNOWLEDGE_OWNER } from "./migrations.ts";
 import { createKnowledgeRuntime, type KnowledgeDeps } from "./service.ts";
 import { readKnowledgeSettings, type KnowledgeSettingsSource } from "./settings.ts";
@@ -103,6 +105,7 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
       const exec = optionalPort(host, ExecPortKey);
       const secrets = optionalPort(host, SecretsPortKey);
       const tools = optionalPort(host, ToolsPortKey);
+      const approvalService = optionalPort(host, ApprovalServicePortKey);
       const logger = os.logger("knowledge");
 
       const migrated = store.migrations.apply(KNOWLEDGE_MIGRATIONS);
@@ -149,6 +152,8 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
         },
         containsKnown:
           secrets === undefined ? undefined : (text) => secrets.redactor.containsKnown(text),
+        approvals:
+          approvalService === undefined ? undefined : createWriteApprovals(approvalService),
       };
       const runtime = createKnowledgeRuntime(deps);
       host.provide(KnowledgeSkillsKey, runtime.skillsApi);
