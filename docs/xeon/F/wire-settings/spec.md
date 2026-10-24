@@ -25,6 +25,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 
 - CLI, 데스크톱, 서비스가 함께 쓰는 호스트 계약 하나와, 그 계약을 나르는 전송(Transport) 인터페이스 3종의 시그니처.
 - JSON-RPC 2.0 envelope 규칙, 메서드 이름 규칙, 메서드·알림 레지스트리와 각 params/result 스키마.
+- 런타임 중립 `HostConnection` 구현(`createHostConnection`)과 JSON Lines stdio 전송(`createStdioTransport`, 줄 프레이밍). Bun·Node API 없이 웹 스트림만 쓰므로 CLI, 호스트, 데스크톱 WebView가 같은 코드를 쓴다 [결정: m2 F.8].
 - 이벤트 구독의 seq 커서, 재전송 계약, 휘발 스트림 규칙.
 - 오류 객체 모양과 오류 코드 구간, `_meta`와 추적 컨텍스트 전파 규약.
 - 계약 버전 정책과 기능 수명주기(Active, Deprecated, Removed, 실험 opt-in, 능력 탐지).
@@ -34,7 +35,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 
 ### 1.2 다루지 않는 것
 
-- 전송 구현(stdio 프레이밍 코드, 소켓 서버, 프로세스 기동): `L4.host-service.spec`, `L4.desktop.spec`, `L4.cli.spec`.
+- 전송 구현 가운데 stdio 줄 프레이밍과 `HostConnection` 구현은 F가 가진다(§3.1). 프로세스 기동, 소켓 서버, Tauri 릴레이는 `L0.process.spec`, `L4.host-service.spec`, `L4.desktop.spec`, `L4.cli.spec`가 맡는다.
 - 엔진 쪽 메서드 처리기 구현: `L4.host-service.spec`이 L1 서비스를 엮어 구현한다.
 - 세션 소유 잠금 구현: `L0.process.spec`, `L1.persistence.spec`.
 - 설정 파일 위치, 파일 감시, 병합 실행: `L1.persistence.spec`과 `L4.host-service.spec` [가정. 아래 §4.9 참조].
@@ -145,6 +146,8 @@ export interface WireRequestOptions {
 export interface HostConnection {
   request<M extends WireMethodName>(method: M, params: WireParams<M>, options?: WireRequestOptions): Promise<WireResult<M>>;
   onNotification<N extends ServerNotificationName>(name: N, handler: (params: ServerNotificationParams<N>) => void): Unsubscribe;
+  /** 클라이언트 알림($/cancelRequest, $/connectionReset)을 보낸다. 응답은 없다. 연결이 닫혔으면 거부한다 [결정: m2 F.8] */
+  notify<N extends ClientNotificationName>(name: N, params: ClientNotificationParams<N>): Promise<void>;
   close(): Promise<void>;
   readonly closed: Promise<CloseInfo>;
 }
@@ -160,6 +163,30 @@ export interface WireRequestContext {
 export type WireHandler<M extends WireMethodName> = (params: WireParams<M>, context: WireRequestContext) => Promise<WireResult<M>>;
 export type WireHandlers = { readonly [M in WireMethodName]: WireHandler<M> };
 ```
+
+[결정: m2 F.8] 클라이언트 쪽 구현은 F `wire/`에 있다. 소비 패키지가 복사본을 두지 않는다.
+
+```ts
+// wire/client.ts: 런타임 중립. import는 F 안의 base와 wire뿐이다
+export function createHostConnection(transport: Transport, options?: HostConnectionOptions): HostConnection;
+export interface HostConnectionOptions {
+  readonly defaultTimeoutMs?: number;                         // 요청마다 따로 주지 않았을 때의 시한. 없으면 시한 없음
+  readonly onTransportError?: (cause: unknown) => void;       // $/cancelRequest 송신 실패 같은, 응답을 기다리지 않는 전송의 실패(진단용)
+}
+export class HostClientError extends Error {                  // 서버가 응답하지 못한 요청의 끝. 서버가 오류로 응답한 경우는 WireError다
+  readonly kind: "closed" | "timeout" | "aborted" | "sendFailed" | "invalidResponse";
+  readonly closeInfo: CloseInfo | undefined;
+}
+
+// wire/stdio.ts, wire/framing.ts: JSON Lines. StdioTransportFactory의 구현
+export const createStdioTransport: StdioTransportFactory;
+export function createStdioTransportWith(options: StdioTransportOptions, deps?: { readonly logger?: Logger }): Transport;
+export function createLineFramer(options?: { readonly maxFrameBytes?: number }): LineFramer;  // 줄 프레이밍. 조각 경계, 한도 초과 줄 버리기
+```
+
+- 요청 id는 연결마다 `r1`, `r2`, …로 발급한다. 응답은 `WIRE_METHODS[m].result`로, 알림은 `WIRE_NOTIFICATIONS[n].params`로 검증한 뒤 넘긴다. 맞지 않는 응답은 `HostClientError("invalidResponse")`이고 맞지 않는 알림은 처리기를 부르지 않는다(TY-10).
+- 전송은 수신 순서를 지키고, 처리기가 붙기 전에 도착한 메시지는 첫 처리기가 붙을 때 비운다. 처리기 없이 EOF가 오면 쌓인 메시지를 먼저 비운 뒤 닫힘을 알린다. 송신은 직렬이다(앞 쓰기가 끝난 뒤 `writer.ready`를 기다려 다음을 쓴다).
+- `@xeon/platform-process`, `@xeon/host`(`./client`, `./transport/stdio`), `@xeon/cli`는 이 구현을 다시 내보내기만 한다. 데스크톱 WebView는 `@xeon/contracts/wire`에서 직접 가져온다(Node 모듈을 끌어오지 않는다).
 
 - [제안] `HostConnection`과 처리기 표는 전송 종류에 따라 바뀌지 않는다. 전송 적합성 스위트(§9 수용 기준 A10)가 in-process와 stdio에서 같은 케이스를 돌려 이를 확인한다.
 - [제안] in-process 전송도 envelope 검사, 메서드 이름 검사, params 검사를 똑같이 한다. 직렬화만 건너뛴다. 개발 빌드는 JSON 왕복(`JSON.parse(JSON.stringify(m))`) 검사를 켤 수 있다. 그래야 in-process에서만 통과하는 비직렬화 값(함수, `undefined`, `Date`, `bigint`)이 생기지 않는다.
@@ -281,7 +308,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | turn | `turn.interrupt` | `{ threadId: ThreadId, turnId?: TurnId }` | `{ interrupted: boolean }` | M2 |
 | events | `events.subscribe` | `{ from: StreamPosition \| "head", filter?: EventFilter }` | `{ sub: SubId, start: Seq, headSeq: Seq, storeId: StoreId, mode: "replaying"\|"live" }` | M1 |
 | events | `events.unsubscribe` | `{ sub: SubId }` | `{}` | M2 |
-| approval | `approval.respond` | `{ approvalId: string, decision: "allow"\|"deny"\|"answer", answer?: unknown, remember?: "once"\|"thread"\|"always" }` | `{ applied: boolean }` | M2 |
+| approval | `approval.respond` | `{ approvalId: string, decision: "allow"\|"deny"\|"answer", answer?: ApprovalAnswer, remember?: "once"\|"thread"\|"always" }` | `{ applied: boolean }` | M2 |
 | approval | `approval.list` | `{ threadId: ThreadId }` | `{ approvals: PendingApproval[], position: StreamPosition }` | M2 |
 | settings | `settings.get` | `{ keys?: SettingKey[], threadId?: ThreadId }` | `{ settings: EffectiveSetting[] }` | M1 |
 | settings | `settings.set` | `{ key: SettingKey, value: unknown, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
@@ -341,6 +368,18 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 
 - `settings.reset`은 브리프 목록에 없던 메서드다. [제안] 값 지우기를 `settings.set`의 특수 값으로 표현하면 `null`이 유효한 설정 값과 겹치므로 따로 둔다.
 
+- `approval.respond`의 `answer` [결정: m2 F.8]. 승인 body의 kind와 decision이 모양을 정하고, 스키마는 `F.records` `ApprovalAnswerSchema`다. L1.tools(`ApprovalResponse`)와 같은 모양이다.
+
+  | 요청 kind | decision | answer |
+  |---|---|---|
+  | `question` | `answer` | `QuestionAnswer`: 질문 id → `{ selected: string[], text?: string }`. 키는 `QuestionBody`의 질문 id, `selected`는 그 질문의 선택지 id다. 질문은 최대 4개다 |
+  | `plan` | `allow` | `{ mode?, note? }`(선택). `mode`는 승인 뒤에 쓸 다음 권한 모드로 `nextModes` 가운데 하나다. `note`는 계획 도구에 돌려줄 메모(최대 8192자)다 |
+  | `tool`, `plan`, `question` | `deny` | `{ feedback }`(선택). 모델에게 돌려줄 거부 이유(1~8192자) |
+  | `tool` | `allow` | 없음 |
+
+  - 그 밖의 조합(예: 도구 승인에 질문 답, 질문에 `allow`)은 모양이 스키마를 통과해도 승인 서비스가 `applied: false`로 돌려준다. 스키마에 맞지 않는 `answer`는 `-32602`다.
+  - L2.dialog의 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)는 wire에 나오지 않는다. 클라이언트는 `QuestionBody`를 그려서 답을 `QuestionAnswer`로 만들고, 능력 쪽 어댑터(cap-dialog)가 `AskAnswer`와 서로 옮긴다(`L2.dialog.spec` §4.1.1). 선택지가 없는 질문은 `selected: []`와 `text`로 답한다.
+
 #### 3.3.2 알림 표
 
 | 방향 | 알림 | params | 단계 |
@@ -349,7 +388,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 서버 → 클라이언트 | `events.ended` | `{ sub: SubId, reason: "replayFailed" }`. 서버가 구독을 끝냈다. 재전송 읽기가 실패해 구독을 지웠을 때 보낸다. 클라이언트는 같은 필터로 다시 구독하거나 오류로 처리한다 | M1 |
 | 서버 → 클라이언트 | `stream.chunk` | `{ event: VolatileEventWire }` (`n`, `afterSeq`를 담은 휘발 이벤트) | M1 |
 | 클라이언트 → 서버 | `$/cancelRequest` | `{ id: RpcId }` | M1 |
-| 클라이언트 → 서버 | `$/connectionReset` | `{}`. 클라이언트 화면이 다시 시작되어 이전 구독을 버린다(WebView 새로고침, `L4.desktop.spec` §10-2) | M2 |
+| 클라이언트 → 서버 | `$/connectionReset` | `{}`. 클라이언트 화면이 같은 연결 위에서 다시 시작되어 이전 화면의 상태를 버린다(WebView 새로고침, `L4.desktop.spec` §4.5). 동작은 §4.1 5~7번 | M2 |
 
 [제안] 19의 `events` 알림은 이름 규칙의 예외였다. Xeon은 예외를 두지 않으려고 `events.batch`로 바꾼다. 브리프와 19가 말하는 "`events` 알림"은 이 `events.batch`다.
 
@@ -990,6 +1029,9 @@ export declare function validateSettingValue(def: SettingDef, value: unknown):
 2. `host.hello`에서 `isCompatible(client, server)`가 거짓이면 `protocol.unsupported`(1003)를 돌려주고 연결은 유지한다. 클라이언트가 닫는다.
 3. hello 응답 뒤로 서버는 메서드를 받는다. 한 연결 안에서 서버가 보내는 응답과 알림은 보낸 순서대로 도착한다(전송이 순서를 보장한다).
 4. 연결이 닫히면 그 연결의 구독과 진행 중 요청의 `signal`이 중단된다. 진행 중 turn은 중단하지 않는다. turn 중단은 `turn.interrupt`나 소유 프로세스 종료만 한다.
+5. [결정: m2 F.8] 서버는 `$/connectionReset`을 hello 이후에 받으면 그 연결을 `host.hello` 이전 상태로 돌린다. stdio 연결은 엔진 프로세스 하나에 하나뿐이라, 클라이언트 화면(WebView 새로고침)이 다시 시작해도 연결은 그대로이고 클라이언트 쪽 상태(요청 id, 구독, hello 상태)만 사라지기 때문이다. 새 화면은 첫 메시지로 `$/connectionReset`을 보낸 뒤 `host.hello`를 다시 보낸다. 엔진이 막 시작해 hello 전이면 서버가 무시하므로 화면은 항상 먼저 보내도 된다.
+6. 재설정을 받은 서버가 하는 일은 넷이다. (a) 진행 중 요청의 `signal`을 중단하고 그 요청에는 응답을 내지 않는다. 이전 화면이 보낸 id가 새 화면의 id(`r1`, `r2`)와 겹치므로 `request.cancelled`(5001)도 보내지 않는다. (b) 이 연결의 구독을 지운다. 이전 구독의 `events.batch`는 더 보내지 않고 `SubId`는 다시 쓰지 않는다. (c) 이 연결이 연 thread 표시(`stream.chunk` 수신 대상, 관찰)를 지운다. (d) 연결 상태를 `awaitingHello`로 돌리고 실험 기능 opt-in을 지운다. 서버가 이미 송신 큐에 넣은 이전 화면의 메시지는 지우지 못할 수 있다. 클라이언트는 자기가 보낸 요청과 짝이 맞지 않는 응답과 모르는 `sub`의 알림을 무시한다(`createHostConnection`이 이미 그렇게 한다).
+7. 재설정은 진행 중인 turn을 중단하지 않고 thread 쓰기 소유(잠금)도 풀지 않는다. 새 화면은 `thread.list`, `thread.open`, `thread.read`, `approval.list`, `events.subscribe`를 다시 불러 상태를 되살린다(`L4.desktop.spec` §4.6).
 
 ### 4.2 메서드 이름과 확장 메서드
 
@@ -1172,7 +1214,7 @@ wire:
 - A4. `from.storeId`가 다르면 `2001`에 `reason: "storeMismatch"`, `from.seq > headSeq`이면 `reason: "aheadOfHead"`가 온다.
 - A5. 배열 메시지는 `-32600` 하나(`id: null`)를 받는다. 숫자 `id`는 `-32600`, 배열 `params`는 `-32602`, 깊이 65 메시지는 `-32600`이다.
 - A6. `classifyMethodName`은 `turn.start`를 `core`, `$/cancelRequest`를 `control`, `ext.web-exa.search`를 `extension`으로 분류하고 `Turn.start`, `turn`, `turn.start.now`, `turn_start`는 거부한다.
-- A7. `host.hello` 전의 `turn.start`는 1001을 받는다. opt-in하지 않은 `experimental` 메서드는 `-32601`을 받는다.
+- A7. `host.hello` 전의 `turn.start`는 1001을 받는다. opt-in하지 않은 `experimental` 메서드는 `-32601`을 받는다. hello 뒤에 `$/connectionReset`을 보내면 `host.hello`를 다시 보내도 성공하고(`host.helloDuplicate`가 아니다), hello 전의 `$/connectionReset`은 무시된다.
 - A8. `WireParams<"turn.start">`와 `Static<typeof WIRE_METHODS["turn.start"]["params"]>`가 같은 타입이다(타입 테스트). `WireMethodMap`과 `WIRE_METHODS`의 키 집합이 같다.
 - A9. 이 문서 §3.3.1 표의 메서드 이름·단계 집합과 `WIRE_METHODS`의 것이 같다(문서 검사).
 - A10. 전송 적합성 케이스 전부를 in-process 전송과 stdio 전송이 같은 결과로 통과한다.
@@ -1181,6 +1223,8 @@ wire:
 - A13. `thread.read`가 돌려준 `position.seq` 이하의 그 thread 이벤트는 `items`에 모두 반영되어 있고 그 seq를 넘는 이벤트는 하나도 반영되어 있지 않다. `before` 페이지를 끝까지 이어 붙이면 중복도 빠짐도 없는 item 열이 된다. 없는 `before`는 3005, 없는 thread는 3001이다.
 - A14. 구독(`from: "head"`) 뒤 `thread.read`를 보내고 `seq > position.seq`인 이벤트만 적용하면, 읽기와 겹치는 구간에 이벤트가 커밋되어도 최종 item 집합이 중단 없이 구독한 클라이언트의 것과 같다.
 - A15. `approval.list`의 `approvals`는 `position.seq` 시점에 `approval.resolved`가 없는 `approval.requested` 전부이고 각 항목의 `request`가 이벤트 payload와 같다. 응답한 뒤에는 목록에서 빠진다.
+- A16. `createHostConnection`과 `createStdioTransport`는 `@xeon/contracts/wire`의 같은 구현을 CLI, 호스트, 데스크톱이 쓴다. 이 구현의 소스는 Bun·Node 모듈을 import하지 않는다. `HostConnection.notify`는 `$/connectionReset`을 id 없는 알림으로 보낸다.
+- A17. `approval.respond`의 `answer`는 `QuestionAnswer`, `{ mode?, note? }`, `{ feedback }` 가운데 하나여야 한다. 질문 id 아래 문자열 하나만 둔 값이나 `AskAnswer` 배열 모양은 `-32602`다.
 
 settings:
 

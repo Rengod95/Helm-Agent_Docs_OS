@@ -47,7 +47,7 @@ export interface RawCall {
   readonly onUpdate: AgentToolUpdateCallback;
   /**
    * 호출이 비밀(`secretEnv`)을 쓸 때 사람이 승인한 증거(L1.tools.spec §4.12, U-19). 쓰지 않거나 증거를 얻지 못했으면 null.
-   * 도구 구현에 전달하는 길은 F `CallContext`에 이 필드가 생기면 `entries.ts` callContext 한 곳에서 연다(L1A.4 요청)
+   * 도구 구현에는 F `CallContext.approval`로 전달한다(`entries.ts` callContext)
    */
   readonly secretApproval: ApprovalEvidence | null;
 }

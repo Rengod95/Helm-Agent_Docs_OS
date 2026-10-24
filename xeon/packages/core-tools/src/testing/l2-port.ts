@@ -11,10 +11,11 @@ import {
   type L2ApprovalRespondInput,
   type L2ApprovalSnapshot,
   type L2ApprovalsPort,
+  type OpenedApproval,
 } from "@xeon/contracts/services";
 import { approvalBodyOf } from "../approvals/pending.ts";
 import { requestKeyFor } from "../approvals/keys.ts";
-import type { ApprovalsInternal, OpenedApproval } from "../approvals/service.ts";
+import type { ApprovalsInternal } from "../approvals/service.ts";
 
 // F `L2ApprovalsPort`(L2.readme §5.7)를 core-tools의 실제 `ApprovalService` 위에 얹은 기준 어댑터. 각 cap-*의 `src/ports/approvals.ts`가
 // 같은 일을 한다. 이 파일은 그 어댑터가 따라야 할 규칙을 실제 서비스로 확인하는 시험용 구현이다(다른 패키지 테스트용 `./testing`).

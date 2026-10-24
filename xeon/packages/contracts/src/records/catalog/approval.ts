@@ -8,6 +8,7 @@ import {
   type TNull,
   type TObject,
   type TOptional,
+  type TRecord,
   type TString,
   type TUnion,
   type TUnsafe,
@@ -95,17 +96,21 @@ const QuestionOption: TObject<{
   id: TString;
   label: TString;
   description: TOptional<TString>;
+  recommended: TOptional<TBoolean>;
 }> = Type.Object(
   {
     id: Type.String({ minLength: 1, maxLength: 64 }),
     label: Type.String({ minLength: 1, maxLength: 200 }),
     description: Type.Optional(Type.String({ maxLength: 1000 })),
+    /** 추천 표시. 화면이 강조만 한다 */
+    recommended: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
 
 const Question: TObject<{
   id: TString;
+  header: TOptional<TString>;
   text: TString;
   options: TArray<typeof QuestionOption>;
   multiSelect: TBoolean;
@@ -113,6 +118,8 @@ const Question: TObject<{
 }> = Type.Object(
   {
     id: Type.String({ minLength: 1, maxLength: 64 }),
+    /** 질문 위에 얹는 짧은 머리글 */
+    header: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
     text: Type.String({ minLength: 1, maxLength: 2000 }),
     options: Type.Array(QuestionOption, { maxItems: 32 }),
     multiSelect: Type.Boolean(),
@@ -204,3 +211,52 @@ export const ApprovalResolvedPayloadSchema: TObject<{
   { additionalProperties: false },
 );
 export type ApprovalResolvedPayload = Static<typeof ApprovalResolvedPayloadSchema>;
+
+// ── approval.respond의 answer 정본 모양 (L1.tools.spec §3.6, F.wire-settings.spec §3.3.1) ─────────────────
+// kind와 decision이 모양을 정한다: question + answer → QuestionAnswer, plan + allow → PlanAnswer, deny → DenyAnswer.
+// 어느 조합이 맞는지는 승인 서비스가 요청 body와 대조해 판단하고, 여기서는 JSON 모양만 검사한다.
+
+/** 질문 하나의 답. 선택지 id 목록과 자유 입력 */
+export const QuestionAnswerItemSchema: TObject<{
+  selected: TArray<TString>;
+  text: TOptional<TString>;
+}> = Type.Object(
+  {
+    selected: Type.Array(Type.String({ minLength: 1, maxLength: 64 }), { maxItems: 32 }),
+    text: Type.Optional(Type.String({ maxLength: 8192 })),
+  },
+  { additionalProperties: false },
+);
+
+/** 질문 id → 답. 질문은 최대 4개다 */
+export const QuestionAnswerSchema: TRecord<"^.*$", typeof QuestionAnswerItemSchema> = Type.Record(
+  Type.String(),
+  QuestionAnswerItemSchema,
+  { maxProperties: 4 },
+);
+export type QuestionAnswerJson = Static<typeof QuestionAnswerSchema>;
+
+/** 계획 승인 `allow`의 answer. 다음 권한 모드(요청의 `nextModes` 안)와 메모. 둘 다 선택이다 */
+export const PlanAnswerSchema: TObject<{
+  mode: TOptional<TString>;
+  note: TOptional<TString>;
+}> = Type.Object(
+  {
+    mode: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    note: Type.Optional(Type.String({ maxLength: 8192 })),
+  },
+  { additionalProperties: false },
+);
+export type PlanAnswerJson = Static<typeof PlanAnswerSchema>;
+
+/** `deny`의 answer. 모델에 돌려줄 거부 이유 */
+export const DenyAnswerSchema: TObject<{ feedback: TString }> = Type.Object(
+  { feedback: Type.String({ minLength: 1, maxLength: 8192 }) },
+  { additionalProperties: false },
+);
+export type DenyAnswerJson = Static<typeof DenyAnswerSchema>;
+
+export const ApprovalAnswerSchema: TUnion<
+  [typeof PlanAnswerSchema, typeof DenyAnswerSchema, typeof QuestionAnswerSchema]
+> = Type.Union([PlanAnswerSchema, DenyAnswerSchema, QuestionAnswerSchema]);
+export type ApprovalAnswerJson = Static<typeof ApprovalAnswerSchema>;

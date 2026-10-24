@@ -232,3 +232,24 @@ F가 정하지 않는 것:
 8. [미결] ULID 단조성 소유처(`F.conversation.spec` §10 미결 3, `F.records.spec` §10 미결 3).
 9. [미결] `UserConfigEntry`에 값 스키마 필드를 둘지(`F.wire-settings.spec` §10 미결 8). 확장 설정 키 접두는 `ext.<name>.`로 맞췄다. 예전 제안 키 `extensions.<name>.enabled`, `extensions.<name>.isolation`, `groups.drive.limits`는 키 문법에 맞지 않아 `ext.<name>.enabled`, `ext.<name>.isolation`, `x.primitives.driveLimits`로 바꿨다(`F.extensions.spec` §6, `F.wire-settings.spec` §3.8.3).
 10. [결정: review.decisions-2 U-03] 시계·난수·로그 인터페이스와 테스트 대역의 위치는 (a)안이다. `L0.os`, `L0.store`, `L0.process`, `L4.host-service`가 이미 루트 import를 전제하고, X는 순위상 L0를 import할 수 없어 (b)안은 성립하지 않는다. 루트 base(`src/base/`)에 `Clock`, `Scheduler`, `TimerHandle`, `RandomSource`, `Logger`, `LogLevel`, `LogValue`, `LogFields` 인터페이스만 둔다. 모양은 `eng.typescript.guide` §1.2와 `L0.os.spec` §3.5 초안을 따른다. `IdSource`·`Random`(`eng.best-practices.guide` BP-05)은 `IdFactory`·`RandomSource`로 읽는다. `IdFactory`는 루트가 아닌 `./conversation` 서브패스다. `./testing` 서브패스는 두지 않는다. `createIdFactory`는 F에 두지 않고 `platform-os`에 둔다. 테스트 대역(`manualClock`, `seededRandom`, `fixedIdFactory`)은 각 패키지 `test/` 안에 둔다(§1). 이 정리에 맞춰 고칠 소비 문서: `eng.typescript.guide` §1.2("createIdFactory는 contracts base"), `eng.testing.guide`의 import 경로, `L0.os.spec` §3, `L0.readme` §9 미결 3, `L4.host-service.spec` §3.1(`IdFactory` import 경로).
+
+## 9. M2 요청 창구 처리 기록
+
+`review.m2-plan` §4.2는 F.2~F.6이 병합된 뒤 F 레인을 요청 창구로 둔다. 병합 뒤 모인 요청을 한 묶음(F.8)으로 처리했고, 본문에는 `[결정: m2 F.8]`로 표시했다.
+
+| 처리한 요청 | 위치 |
+|---|---|
+| `ApprovalService.open`·`wait`·`get`(`L1.tools.spec` §8.3 11) | `F.capabilities.spec` §3.12 `services/approvals.ts` |
+| `CallOptions.continuation`과 `McpQuestion` → `QuestionBody` 규칙(§8.3 12) | `F.capabilities.spec` §3.2, §3.9 `defs/mcp-questions.ts` |
+| `CallContext.approval`(§8.3 13)과 `CallContext.interactive`(`L2.dialog.spec` D-3 2) | `F.capabilities.spec` §3.2 |
+| `ToolService.suspendWhile`(§8.3 14) | 이미 반영됨(`M2 검토 3`). 이번 묶음에서 바꾼 것 없음 |
+| `LoopService.runUserBash`, `TurnUpdatedPayload.notice`(`L1.loop.spec` FR-L5) | `F.capabilities.spec` §3.12 `services/loop.ts`, `F.conversation.spec` §3.5 |
+| `$/connectionReset` 동작과 `HostConnection.notify` | `F.wire-settings.spec` §3.1, §4.1 5~7번 |
+| `approval.respond`의 `answer` 정본 모양(`QuestionAnswer`, `{ mode?, note? }`, `{ feedback }`) | `F.wire-settings.spec` §3.3.1, `F.records.spec` §3.3.1 |
+| 런타임 중립 `createHostConnection`, JSON Lines stdio 전송 | `F.wire-settings.spec` §3.1 |
+| `QuestionItem.header`, `QuestionOption.recommended`(`L2.dialog.spec` D-3 3) | `F.records.spec` §3.3.1 |
+| `SkillFilePathSchema` 패턴 좁히기(`L2.knowledge.spec` KN.1) | `F.capabilities.spec` §3.9 |
+| `ModelService.hostedSearch` 필수화(`L2.web.plan` WEB.6) | `F.capabilities.spec` §3.12 `services/models.ts` |
+| `AgentServicePortKey`, `LoopServicePortKey` | `F.capabilities.spec` §3.12 규칙 9 |
+
+받지 않고 남긴 요청은 소유 문서에 [미결]로 남아 있다: 승인 만료 필드(`L2.dialog.spec` D-3 1), 동적 MCP 도구의 연속 정보와 `input_required` 질문 목록(`L2.mcp.plan` MCP.4), 부모 쓰기 토큰 조회(`L1.agents.spec` §4.1), `ChildTurnRequest`의 `tools.deny`, `ThreadLifecycle.list`·`SessionSettingsStore.layer`의 `Result`화, 투영 재구성 실패 변형, 설정 쓰기의 키 재사용 값 변환, 자식 생성 때 부모 초안을 같은 커밋에 싣는 자리.

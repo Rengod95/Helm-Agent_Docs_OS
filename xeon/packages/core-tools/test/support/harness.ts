@@ -4,6 +4,8 @@ import {
   WorkspaceShell,
   WorkspaceShellKey,
   type ServiceKey,
+  type CallContext,
+  type CallOptions,
 } from "@xeon/contracts/capabilities";
 import { Bug, type Clock, type Result } from "@xeon/contracts";
 import type {
@@ -178,18 +180,27 @@ export function layer(
 
 /** bash·read·ls 능력 도구를 올리고 API 호출 기록을 돌려준다 */
 export interface WorkspaceProbe {
-  readonly calls: { readonly method: string; readonly input: unknown }[];
+  readonly calls: {
+    readonly method: string;
+    readonly input: unknown;
+    /** 능력 메서드가 받은 `CallOptions.context` */
+    readonly context?: CallContext;
+  }[];
   /** run(bash) 응답을 바꾼다 */
   setShellOutput(output: string, exitCode?: number): void;
 }
 
 export function registerWorkspace(harness: Harness): WorkspaceProbe {
-  const calls: { method: string; input: unknown }[] = [];
+  const calls: { method: string; input: unknown; context?: CallContext }[] = [];
   let shellOutput = "ok\n";
   let shellExit = 0;
   harness.apis.set(WorkspaceShell.id, {
-    run: (input: unknown) => {
-      calls.push({ method: "run", input });
+    run: (input: unknown, options?: CallOptions) => {
+      calls.push({
+        method: "run",
+        input,
+        ...(options?.context === undefined ? {} : { context: options.context }),
+      });
       return Promise.resolve({
         exitCode: shellExit,
         output: shellOutput,

@@ -153,7 +153,9 @@ export interface EngineConnection {
 /**
  * running인 릴레이 위에 전송과 연결을 만들고 host.hello(client.kind "desktop")를 보낸다.
  * 릴레이의 스트림은 한 번만 쓸 수 있으므로, 엔진이 다시 뜨면 호출자가 새로 attach한 릴레이를 넘긴다(src/app/session.ts).
- * [미결] 새 페이지의 `$/connectionReset`은 F에 아직 없다(spec 4.5). 지금은 hello 중복(1002)이 hello 오류로 나온다.
+ * hello 전에 클라이언트 알림 `$/connectionReset`을 먼저 보낸다(spec 4.5, F.wire-settings.spec §4.1 7번): WebView 새로고침으로 같은
+ * 엔진 연결 위에서 새 페이지가 시작되어도 엔진이 이전 페이지의 hello·구독을 버리므로 hello 중복(1002)이 나오지 않는다.
+ * 엔진이 막 시작해 hello를 받기 전이면 엔진이 이 알림을 무시한다.
  */
 export async function openEngineConnection(
   deps: EngineConnectionDeps,
@@ -164,12 +166,13 @@ export async function openEngineConnection(
   }
   const transport = deps.stdioTransport({ readable: relay.readable, writable: relay.writable });
   const connection = deps.connect(transport);
-  const hello = await attemptAsync(() =>
-    connection.request("host.hello", {
+  const hello = await attemptAsync(async () => {
+    await connection.notify("$/connectionReset", {});
+    return await connection.request("host.hello", {
       protocolVersion: WIRE_PROTOCOL_VERSION,
       client: { name: deps.client.name, version: deps.client.version, kind: "desktop" },
-    }),
-  );
+    });
+  });
   if (hello.ok) return ok({ connection, hello: hello.value, relay });
   await connection.close();
   const cause = hello.error.cause;

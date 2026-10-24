@@ -6,6 +6,7 @@ import type {
   SecretHandle,
   SecretMeta,
   SecretName,
+  SecretApprovalEvidence,
   SecretProviderId,
   SecretRefError,
   SecretUseMode,
@@ -32,13 +33,8 @@ export type SecretUseTarget =
   /** env */
   | { readonly kind: "command"; readonly argv0: string; readonly commandLine: string };
 
-export interface ApprovalEvidence {
-  /** L1 ApprovalService가 발급한 id */
-  readonly approvalId: string;
-  readonly scope: "per-session" | "per-use";
-  readonly grantedAt: number;
-  readonly expiresAt: number | null;
-}
+/** 비밀 사용 승인 증거. 정본은 capabilities의 `SecretApprovalEvidence`다(`CallContext.approval`이 같은 타입을 쓴다) */
+export type ApprovalEvidence = SecretApprovalEvidence;
 
 export interface UseCtx {
   readonly mode: SecretUseMode;

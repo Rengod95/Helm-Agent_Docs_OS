@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { createHostConnection } from "../../src/transport/connection.ts";
-import { createStdioTransport } from "../../src/transport/json-lines.ts";
+import { createHostConnection, createStdioTransport } from "@xeon/contracts/wire";
 import {
   ACK_UNIT_BYTES,
   attachRelay,
@@ -85,6 +84,7 @@ describe("openEngineConnection", () => {
   test("sends host.hello with client.kind desktop and returns the server answer", async () => {
     const fake = fakeIpc({
       onWrite: (message, f) => {
+        if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없다
         f.emitLine({
           jsonrpc: "2.0",
           id: requestId(message),
@@ -104,13 +104,17 @@ describe("openEngineConnection", () => {
     const opened = await openEngineConnection(deps, attached.value);
     expect(opened.ok).toBe(true);
     expect(opened.ok && opened.value.hello.server.version).toBe("9.9.9");
-    const sent: unknown = JSON.parse(fake.written[0]?.text ?? "null");
+    // 새 페이지의 첫 메시지는 $/connectionReset이다. 이전 페이지의 hello가 남아 있어도 1002가 나오지 않게 한다
+    const first: unknown = JSON.parse(fake.written[0]?.text ?? "null");
+    expect(first).toMatchObject({ method: "$/connectionReset", params: {} });
+    const sent: unknown = JSON.parse(fake.written[1]?.text ?? "null");
     expect(sent).toMatchObject({ method: "host.hello", params: { client: { kind: "desktop" } } });
   });
 
   test("a hello error becomes a hello OpenError with the wire code", async () => {
     const fake = fakeIpc({
       onWrite: (message, f) => {
+        if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없다
         f.emitLine({
           jsonrpc: "2.0",
           id: requestId(message),

@@ -1,24 +1,28 @@
-import { detach, parse } from "@xeon/contracts";
+import { detach, parse } from "../../base/index.ts";
+import { WireError } from "./errors.ts";
+import { checkEnvelope, type JsonRpcMessage } from "./jsonrpc.ts";
 import {
-  checkEnvelope,
   WIRE_METHODS,
   WIRE_NOTIFICATIONS,
-  WireError,
-  type CloseInfo,
-  type HostConnection,
-  type JsonRpcMessage,
+  type ClientNotificationName,
+  type ClientNotificationParams,
   type ServerNotificationName,
   type ServerNotificationParams,
-  type Transport,
-  type Unsubscribe,
   type WireMethodName,
   type WireParams,
-  type WireRequestOptions,
   type WireResult,
-} from "@xeon/contracts/wire";
+} from "./methods.ts";
+import type {
+  CloseInfo,
+  HostConnection,
+  Transport,
+  Unsubscribe,
+  WireRequestOptions,
+} from "./transport.ts";
 
-// F `HostConnection`의 WebView 쪽 구현(L4.desktop.spec 3.4, 10 미결 3). apps/host/src/client.ts와 같은 동작이다.
-// apps는 서로 import하지 않으므로(DR-10, W6) 복사해 두었고, F가 구현을 가져가면 이 파일은 지운다. import는 @xeon/contracts뿐이다.
+// F.wire-settings.spec §3.1 `HostConnection`의 런타임 중립 구현(L4.desktop.spec §10 미결 3, L4.host-service.spec §3.3.4 client.ts).
+// Bun·Node API를 쓰지 않는다: CLI(Bun), 호스트의 in-process 클라이언트, 데스크톱 WebView가 같은 구현을 쓴다.
+// 이 파일이 import하는 것은 F 안의 base와 wire뿐이다. 서비스 모드 소켓 연결(`connectServiceTransport`)은 M3이고 L4 몫이다.
 
 export interface HostConnectionOptions {
   /** 요청마다 따로 주지 않았을 때의 시한(ms). 없으면 시한 없음 */
@@ -27,7 +31,7 @@ export interface HostConnectionOptions {
   readonly onTransportError?: (cause: unknown) => void;
 }
 
-type HostClientErrorKind =
+export type HostClientErrorKind =
   | "closed"
   | "timeout"
   | "aborted"
@@ -40,7 +44,7 @@ type HostClientErrorKind =
  * `closed`는 응답 전에 연결이 닫힌 것이고 closeInfo가 있다. 이때 `turn.start`는 접수됐을 수 있으므로
  * 재접속 뒤 이벤트로 확인해야 한다(F.wire-settings.spec §5).
  */
-class HostClientError extends Error {
+export class HostClientError extends Error {
   override readonly name: string = "HostClientError";
   readonly kind: HostClientErrorKind;
   readonly closeInfo: CloseInfo | undefined;
@@ -237,6 +241,16 @@ export function createHostConnection(
       return () => {
         set.delete(wrapper);
       };
+    },
+
+    notify<N extends ClientNotificationName>(
+      name: N,
+      params: ClientNotificationParams<N>,
+    ): Promise<void> {
+      if (state.closed !== undefined) {
+        return Promise.reject(new HostClientError("closed", "connection is closed", state.closed));
+      }
+      return transport.send({ jsonrpc: "2.0", method: name, params: paramsRecord(params) });
     },
 
     async close(): Promise<void> {

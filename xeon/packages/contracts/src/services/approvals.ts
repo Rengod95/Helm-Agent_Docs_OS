@@ -58,10 +58,14 @@ export interface QuestionOption {
   readonly id: string;
   readonly label: string;
   readonly description?: string;
+  /** 추천 선택지 표시(L2.dialog `AskOption.recommended`). 화면이 강조만 하고 응답 검사에는 쓰지 않는다 */
+  readonly recommended?: boolean;
 }
 
 export interface QuestionItem {
   readonly id: string;
+  /** 질문 위에 얹는 짧은 머리글(L2.dialog `AskQuestion.header`). 1~64자 */
+  readonly header?: string;
   readonly text: string;
   /** 빈 배열이면 자유 답 */
   readonly options: readonly QuestionOption[];
@@ -98,13 +102,32 @@ export interface ApprovalRequest extends ApprovalRequestInput {
   readonly requestedAt: number;
 }
 
+/**
+ * wire `approval.respond`의 정본 질문 응답 모양(kind `question`, decision `answer`). 질문 id → `{ selected, text? }`.
+ * 스키마는 records의 `QuestionAnswerSchema`다. L2.dialog의 `AskAnswer`는 cap-dialog 어댑터가 이 모양과 서로 옮긴다
+ * (`fromQuestionAnswer`·`toQuestionAnswer`). 클라이언트는 `QuestionBody`를 그리므로 이 모양으로 답한다.
+ */
 export type QuestionAnswer = Readonly<
   Record<string, { readonly selected: readonly string[]; readonly text?: string }>
 >;
 
+/** 계획 승인(kind `plan`) decision `allow`의 answer. 다음 권한 모드(요청의 `nextModes` 안)와 메모. 둘 다 선택이다 */
+export interface PlanAnswer {
+  readonly mode?: PermissionMode;
+  readonly note?: string;
+}
+
+/** decision `deny`의 answer. 거부 이유를 모델에 돌려줄 때 쓴다 */
+export interface DenyAnswer {
+  readonly feedback: string;
+}
+
 export interface ApprovalResponse {
   readonly decision: ApprovalDecision;
-  /** decision "answer"면 QuestionAnswer(question) 또는 { mode }(plan). decision "deny"면 { feedback } 허용 */
+  /**
+   * kind별 정본 모양(records `ApprovalAnswerSchema`): decision "answer"면 QuestionAnswer(question), decision "allow"면 PlanAnswer(plan, 선택),
+   * decision "deny"면 DenyAnswer(선택). 그 밖의 조합은 `applied: false`다
+   */
   readonly answer?: JsonValue;
   readonly remember?: ApprovalRemember;
 }
@@ -127,6 +150,20 @@ export type ApprovalRequestError =
   | { readonly kind: "rejected"; readonly code: string; readonly detail: string | null }
   | { readonly kind: "key_reused"; readonly requestId: string };
 
+/** 요청과 현재 해결 상태 */
+export interface OpenedApproval {
+  readonly request: ApprovalRequest;
+  /** 해결되었으면 기록된 해결, 아니면 null */
+  readonly resolution: ApprovalResolution | null;
+}
+
+/** `wait`가 해결을 받지 못한 이유 */
+export type ApprovalWaitFailure =
+  /** signal이 끊겨 기다림만 그만뒀다. 요청은 남는다 */
+  | { readonly kind: "aborted" }
+  /** 이 런타임의 대기 목록에 없는 approvalId */
+  | { readonly kind: "unknown" };
+
 export interface ApprovalService {
   /** 요청을 커밋하고 응답이 올 때까지 기다린다. signal이 끊기면 대기만 그만둔다(요청은 남는다). 커밋 실패는 오류 값이다 */
   request(
@@ -141,6 +178,18 @@ export interface ApprovalService {
   restore(threadId: ThreadId): Promise<Result<readonly ApprovalRequest[], ReadFailure>>;
   /** 턴 취소 등으로 요청을 닫는다. resolvedBy "cancelled" */
   cancel(approvalId: string, reason: string): Promise<{ readonly applied: boolean }>;
+  /**
+   * 비차단 요청(L1.tools.spec §3.6, §8.3 F 요청 11): 요청을 커밋만 하고 기다리지 않는다. `request`는 `open` + `wait`와 같다.
+   * 같은 대화에서 같은 `requestKey`의 요청이 있으면 새 이벤트 없이 그 요청과 현재 해결 상태를 돌려준다(재시작 뒤에도 같다).
+   */
+  open(input: ApprovalRequestInput): Promise<Result<OpenedApproval, ApprovalRequestError>>;
+  /** 응답이 기록되면 이행된다. 이미 해결된 요청이면 바로 이행한다. signal이 끊기면 기다림만 그만둔다(요청은 남는다) */
+  wait(
+    approvalId: string,
+    signal: AbortSignal,
+  ): Promise<Result<ApprovalResolution, ApprovalWaitFailure>>;
+  /** 메모리 대기 목록의 요청과 해결 상태. 동기 조회. 모르는 approvalId면 undefined(`restore` 전의 재시작 직후 포함) */
+  get(approvalId: string): OpenedApproval | undefined;
 }
 
 // approval.requested·approval.resolved payload 스키마는 records가 가진다(ApprovalRequestedPayloadSchema, ApprovalResolvedPayloadSchema,

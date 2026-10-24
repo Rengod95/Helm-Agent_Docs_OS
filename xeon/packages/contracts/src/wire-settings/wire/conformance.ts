@@ -138,6 +138,30 @@ export const WIRE_CONFORMANCE_CASES: readonly ConformanceCase[] = [
     ],
   },
   {
+    id: "connection-reset-rehello",
+    title: "$/connectionReset returns the connection to the state before host.hello",
+    covers: ["A7"],
+    steps: [
+      HELLO,
+      { type: "notify", method: "$/connectionReset", params: {} },
+      request(
+        "r2",
+        "host.hello",
+        {
+          protocolVersion: WIRE_PROTOCOL_VERSION,
+          client: { name: "conformance", version: "0.0.0", kind: "other" },
+        },
+        { outcome: "result", include: { protocolVersion: WIRE_PROTOCOL_VERSION } },
+      ),
+    ],
+  },
+  {
+    id: "connection-reset-before-hello-ignored",
+    title: "$/connectionReset before host.hello is ignored and host.hello still succeeds",
+    covers: ["A7"],
+    steps: [{ type: "notify", method: "$/connectionReset", params: {} }, HELLO],
+  },
+  {
     id: "hello-version-unsupported",
     title: "a different major version is refused",
     covers: ["A7"],

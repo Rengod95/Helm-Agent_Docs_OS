@@ -247,6 +247,28 @@ describe("bash", () => {
     expect(env.calls[1]?.options?.secretEnv).toBeUndefined();
   });
 
+  test("the approval evidence in CallContext reaches the secret request (F request 13)", async () => {
+    const { env, shell } = setup();
+    const evidence = {
+      approvalId: "evt_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+      scope: "per-use",
+      grantedAt: 10,
+      expiresAt: null,
+    } as const;
+    await shell.run(
+      { command: "/usr/bin/gh api user", secretEnv: { GH_TOKEN: "secret://gh-token" } },
+      {
+        context: {
+          threadId: fixedIdFactory().next("thr"),
+          toolCallId: "call_2",
+          caller: { kind: "model", agent: "main" },
+          approval: evidence,
+        },
+      },
+    );
+    expect(env.calls[0]?.options?.secretEnv?.ctx.approval).toEqual(evidence);
+  });
+
   test("execution failures map to capability codes", async () => {
     const { env, shell } = setup();
     env.reply(

@@ -111,6 +111,7 @@ function disabledLoop(): LoopServiceHandle {
     spawn: () => unavailable("spawn"),
     whenIdle: (_threadId, fn) => fn(),
     admit: () => unavailable("admit"),
+    runUserBash: () => unavailable("runUserBash"),
     runChildTurn: () => unavailable("runChildTurn"),
     interrupt: () => unavailable("interrupt"),
     resume: () => unavailable("resume"),

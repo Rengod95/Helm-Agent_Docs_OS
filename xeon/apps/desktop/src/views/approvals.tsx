@@ -53,7 +53,12 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
             disabled={busy}
             onClick={() => {
               detach(
-                commands.respondApproval(props.id, { decision: "answer", answer: answers }),
+                commands.respondApproval(props.id, {
+                  decision: "answer",
+                  answer: Object.fromEntries(
+                    Object.entries(answers).map(([id, text]) => [id, { selected: [], text }]),
+                  ),
+                }),
                 rethrow,
               );
             }}

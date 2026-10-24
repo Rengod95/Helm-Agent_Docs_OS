@@ -391,7 +391,8 @@ export type ApprovalBodyJson =
   | { kind: "tool"; tool: { toolName: string; capability?: { id: string; method: string }; risk: string;
                             args: JsonObject | BlobRef; argsHash: string; ruleId: string | null } }
   | { kind: "plan"; plan: { plan: string | BlobRef; planRef: string | null; nextModes: string[] } }
-  | { kind: "question"; question: { questions: { id: string; text: string; options: { id: string; label: string; description?: string }[];
+  | { kind: "question"; question: { questions: { id: string; header?: string; text: string;                    // header: 1~64자 머리글
+                                                 options: { id: string; label: string; description?: string; recommended?: boolean }[];
                                                  multiSelect: boolean; allowFreeText: boolean }[] } };   // questions 1~4개
 /** approvalId는 envelope id다. payload에 두지 않는다 */
 export interface ApprovalRequestedPayload {
@@ -411,6 +412,15 @@ export interface ApprovalResolvedPayload {
   requestedRemember: "once" | "thread" | "always" | null;
   resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded";
 }
+
+/**
+ * approval.respond의 answer 정본 모양이다. 승인 서비스는 검증한 응답의 answer를 approval.resolved의 answer(ApprovalResolvedPayload.answer)에 그대로 싣는다 [결정: m2 F.8].
+ * 스키마는 ApprovalAnswerSchema = PlanAnswerSchema | DenyAnswerSchema | QuestionAnswerSchema (records/catalog/approval.ts).
+ * 어느 kind·decision에 어느 모양이 맞는지는 F.wire-settings.spec §3.3.1이 정한다.
+ */
+export type QuestionAnswerJson = Record<string, { selected: string[]; text?: string }>;   // 질문 id → 답. 최대 4개
+export interface PlanAnswerJson { mode?: string; note?: string }       // plan allow. mode는 nextModes 안, note 최대 8192자
+export interface DenyAnswerJson { feedback: string }                                      // 1~8192자
 
 // src/records/catalog/input.ts   (L1.tasks.spec §3.8)
 export interface InputQueuedPayload {

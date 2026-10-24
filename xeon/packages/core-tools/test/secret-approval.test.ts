@@ -1,6 +1,12 @@
 import { expect, test } from "bun:test";
 import { Type } from "typebox";
-import { parseSecretRef } from "@xeon/contracts/capabilities";
+import {
+  defineCapability,
+  parseSecretRef,
+  serviceKey,
+  type CallContext,
+  type CallOptions,
+} from "@xeon/contracts/capabilities";
 import type { ApprovalEvidence, ToolRunContext } from "@xeon/contracts/services";
 import type { JsonObject } from "@xeon/contracts/conversation";
 import { createCallTable } from "../src/calls.ts";
@@ -15,6 +21,7 @@ import {
   directTool,
   expectOk,
   layer,
+  registerWorkspace,
   textOf,
   until,
   type Harness,
@@ -272,4 +279,76 @@ test("a per-session requirement is satisfied by the same per-use evidence", asyn
   await h.runtime.approvals.respond(request?.approvalId ?? "", { decision: "allow" });
   await done;
   expect(probe.runs[0]?.evidence).toMatchObject({ scope: "per-use", expiresAt: null });
+});
+
+/** secretEnv를 받는 시험용 셸 능력. 모델 도구 bash는 secretEnv를 광고하지 않으므로(L1.tools.spec §10) 그룹 코드가 쓰는 모양만 흉내 낸다 */
+const ProbeShellInput = Type.Object({
+  command: Type.String(),
+  secretEnv: Type.Optional(Type.Record(Type.String(), Type.String())),
+});
+const ProbeShell = defineCapability({
+  id: "test.probe-shell",
+  version: "1.0.0",
+  description: "secretEnv probe",
+  service: {
+    methods: {
+      run: {
+        description: "run",
+        input: ProbeShellInput,
+        output: Type.Object({ ok: Type.Boolean() }),
+      },
+    },
+  },
+  tools: [
+    {
+      name: "bash",
+      label: "bash",
+      description: "bash",
+      method: "run",
+      parameters: ProbeShellInput,
+    },
+  ],
+});
+
+test("a capability tool gets the evidence and the interactivity through CallContext (F request 13)", async () => {
+  const checker = fakeSecretChecker({ [TOKEN]: NEEDS });
+  const h = await createHarness({ secretChecker: checker, layers: [ALLOW_BASH] });
+  const seen: (CallContext | undefined)[] = [];
+  h.apis.set(ProbeShell.id, {
+    run: (_input: unknown, options?: CallOptions) => {
+      seen.push(options?.context);
+      return Promise.resolve({ ok: true });
+    },
+  });
+  h.runtime.tools.register({
+    kind: "capability",
+    def: ProbeShell,
+    key: serviceKey(ProbeShell),
+    policy: { bash: { risk: "exec" } },
+  });
+  const done = callTool(h.runtime.tools, h.run(), { id: "sec_cap", name: "bash", args: ARGS });
+  await until(() => h.runtime.approvals.pending(h.thread).length === 1);
+  const [request] = h.runtime.approvals.pending(h.thread);
+  await h.runtime.approvals.respond(request?.approvalId ?? "", { decision: "allow" });
+  expect((await done).blocked).toBeUndefined();
+  expect(seen).toHaveLength(1);
+  expect(seen[0]).toMatchObject({
+    toolCallId: "sec_cap",
+    interactive: true,
+    approval: { approvalId: request?.approvalId, scope: "per-use", expiresAt: null },
+  });
+});
+
+test("a call that uses no secret carries no evidence", async () => {
+  const h = await createHarness({ layers: [ALLOW_BASH] });
+  const workspace = registerWorkspace(h);
+  const out = await callTool(h.runtime.tools, h.run({ interactive: false }), {
+    id: "plain_1",
+    name: "bash",
+    args: { command: "ls" },
+  });
+  expect(out.blocked).toBeUndefined();
+  const run = workspace.calls.find((call) => call.method === "run");
+  expect(run?.context?.approval).toBeUndefined();
+  expect(run?.context?.interactive).toBe(false);
 });

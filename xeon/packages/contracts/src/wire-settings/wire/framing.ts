@@ -1,5 +1,6 @@
-import { attempt, parseJson } from "@xeon/contracts";
-import { toJsonRpcError, wireError, WIRE_LIMITS } from "@xeon/contracts/wire";
+import { attempt, parseJson } from "../../base/index.ts";
+import { toJsonRpcError, wireError } from "./errors.ts";
+import { WIRE_LIMITS } from "./jsonrpc.ts";
 
 // L0.process.spec §4.1, L0.process.plan PR-02. JSON Lines 프레이밍: 줄 하나가 메시지 하나다.
 // stdio와 socket 전송이 같은 구현을 쓴다. 바이트를 `\n`(0x0A)에서 먼저 자르고 줄 단위로 디코드한다.

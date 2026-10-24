@@ -24,7 +24,7 @@ import {
   SemVerSchema,
   type SemVer,
 } from "../../capabilities/index.ts";
-import { ApprovalRequestedPayloadSchema } from "../../records/index.ts";
+import { ApprovalAnswerSchema, ApprovalRequestedPayloadSchema } from "../../records/index.ts";
 import {
   EventIdSchema,
   ImageContentSchema,
@@ -455,14 +455,18 @@ export type TurnInterruptResult = Static<typeof TurnInterruptResultSchema>;
 export const ApprovalRespondParamsSchema: TObject<{
   approvalId: TString;
   decision: TUnion<[TLiteral<"allow">, TLiteral<"deny">, TLiteral<"answer">]>;
-  answer: TOptional<TUnknown>;
+  answer: TOptional<typeof ApprovalAnswerSchema>;
   remember: TOptional<TUnion<[TLiteral<"once">, TLiteral<"thread">, TLiteral<"always">]>>;
 }> = Type.Object(
   {
     /** 승인 요청 이벤트의 id(EventId) [가정] */
     approvalId: Type.String({ minLength: 1, maxLength: 64 }),
     decision: Type.Union([Type.Literal("allow"), Type.Literal("deny"), Type.Literal("answer")]),
-    answer: Type.Optional(Type.Unknown()),
+    /**
+     * kind별 정본 모양(F.wire-settings.spec §3.3.1): 질문 `answer`는 QuestionAnswer(질문 id → `{ selected, text? }`),
+     * 계획 `allow`는 `{ mode }`, `deny`는 `{ feedback }`. L2.dialog의 `AskAnswer`로 옮기는 일은 cap-dialog 어댑터가 한다
+     */
+    answer: Type.Optional(ApprovalAnswerSchema),
     remember: Type.Optional(
       Type.Union([Type.Literal("once"), Type.Literal("thread"), Type.Literal("always")]),
     ),

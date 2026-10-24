@@ -290,6 +290,8 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
     const closedWaiter = Promise.withResolvers<CloseInfo>();
     const closing: { override: CloseInfo | undefined } = { override: undefined };
     const inflight = new Map<RpcId, AbortController>();
+    /** `$/connectionReset`으로 끝낸 요청의 컨트롤러. 이전 화면이 보낸 요청이라 응답을 내지 않는다 */
+    const droppedByReset = new WeakSet<AbortController>();
     const afterResponse = new Map<RpcId, (() => void)[]>();
     const subCounter = { value: 0 };
 
@@ -386,6 +388,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
     ): Promise<void> {
       try {
         const outcome = await runHandler(method, rawParams, makeContext(rpcId, controller));
+        if (droppedByReset.has(controller)) return;
         if (outcome.kind === "invalidParams") {
           respondError(
             rpcId,
@@ -411,6 +414,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
         sender.push({ jsonrpc: "2.0", id: rpcId, result: toRecord(outcome.result) });
         runAfterResponse(rpcId);
       } catch (caught) {
+        if (droppedByReset.has(controller)) return;
         afterResponse.delete(rpcId);
         if (caught instanceof WireError) {
           respondError(rpcId, toJsonRpcError(caught));
@@ -473,11 +477,38 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       try {
         await invoke(method, request.params, id, controller);
       } finally {
-        inflight.delete(id);
+        // 재설정 뒤 새 화면이 같은 id로 다시 보냈다면 그 항목을 지우지 않는다
+        if (inflight.get(id) === controller) inflight.delete(id);
       }
     }
 
+    /**
+     * `$/connectionReset`(F.wire-settings.spec §4.1 7번): 클라이언트 화면이 다시 시작되어 이전 화면의 상태를 버린다.
+     * 진행 중 요청은 응답 없이 중단하고, 이 연결의 구독과 열린 thread 표시를 지우고, hello 이전 상태로 돌아간다.
+     * 진행 중인 turn과 thread 쓰기 잠금은 건드리지 않는다. 새 화면이 `host.hello`, `thread.open`, `events.subscribe`를 다시 보낸다
+     */
+    function resetConnection(): void {
+      if (state.phase !== "ready") return; // hello 전에는 지울 상태가 없다
+      for (const controller of inflight.values()) {
+        droppedByReset.add(controller);
+        controller.abort();
+      }
+      inflight.clear();
+      afterResponse.clear();
+      for (const sub of state.subs.values()) sub.open = false;
+      state.subs.clear();
+      state.openThreads.clear();
+      state.observedThreads.clear();
+      state.experimental = [];
+      state.phase = "awaitingHello";
+      log.info("connection.reset", { connectionId });
+    }
+
     function handleNotification(method: string, params: Record<string, unknown>): void {
+      if (method === "$/connectionReset") {
+        resetConnection();
+        return;
+      }
       if (method !== "$/cancelRequest") return;
       if (state.phase === "awaitingHello") return; // F wire §4.1 1: hello 전의 취소는 무시한다
       const parsed = parse(WIRE_CLIENT_NOTIFICATIONS["$/cancelRequest"].params, params);

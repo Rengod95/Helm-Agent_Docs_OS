@@ -1,13 +1,12 @@
-import type { Logger } from "@xeon/contracts";
-import { attemptAsync } from "@xeon/contracts";
+import { attemptAsync, type Logger } from "../../base/index.ts";
+import type { JsonRpcMessage } from "./jsonrpc.ts";
 import type {
   CloseInfo,
-  JsonRpcMessage,
   StdioTransportFactory,
   StdioTransportOptions,
   Transport,
   Unsubscribe,
-} from "@xeon/contracts/wire";
+} from "./transport.ts";
 import { createLineFramer, encodeFrame, encodeText, rejectionFrame } from "./framing.ts";
 
 // L0.process.spec §4.1 stdio, L0.process.plan PR-03. JSON Lines 위의 Transport.

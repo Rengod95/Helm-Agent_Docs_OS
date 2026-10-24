@@ -32,6 +32,7 @@ import {
   type CallOptions,
   type CapabilityApi,
   type McpClient,
+  type McpContinuation,
 } from "@xeon/contracts/capabilities";
 import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
 import type { McpServersChangePayload } from "@xeon/contracts/extensions";
@@ -163,6 +164,19 @@ function promptArgumentOf(
 interface CallEnv {
   readonly signal: AbortSignal;
   readonly threadId: string | undefined;
+}
+
+/**
+ * 재호출 연속 정보를 입력에 합친다. L1.tools가 `input_required` 뒤에 `CallOptions.continuation`으로 싣는 값이 입력의 `continuation`보다 앞선다
+ * (F.capabilities `CallContinuation`, L1.tools.spec §8.3 F 요청 12)
+ */
+function withContinuation<T extends { continuation?: McpContinuation }>(
+  input: T,
+  options: CallOptions | undefined,
+): T {
+  return options?.continuation === undefined
+    ? input
+    : { ...input, continuation: options.continuation };
 }
 
 function envOf(options: CallOptions | undefined): CallEnv {
@@ -645,12 +659,16 @@ export function createMcp(deps: McpDeps): McpRuntime {
         connectedOrThrow("listTools", server);
         return { tools: [...(exposure().get(server) ?? [])] };
       }),
-    callTool: (input, options) => callToolImpl(input, envOf(options), input.continuation),
+    callTool: (input, options) => {
+      const merged = withContinuation(input, options);
+      return callToolImpl(merged, envOf(options), merged.continuation);
+    },
     listPrompts: ({ server }) =>
       settle(() => ({ prompts: promptsOf(server, connectedOrThrow("listPrompts", server)) })),
-    getPrompt: (input, options) => getPromptImpl(input, envOf(options)),
+    getPrompt: (input, options) => getPromptImpl(withContinuation(input, options), envOf(options)),
     listResources: (input, options) => listResourcesImpl(input, envOf(options)),
-    readResource: (input, options) => readResourceImpl(input, envOf(options)),
+    readResource: (input, options) =>
+      readResourceImpl(withContinuation(input, options), envOf(options)),
   };
 
   async function listOneServer(

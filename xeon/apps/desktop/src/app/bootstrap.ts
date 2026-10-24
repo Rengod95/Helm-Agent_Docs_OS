@@ -1,10 +1,9 @@
 import type { Clock, Scheduler } from "@xeon/contracts";
+import { createHostConnection, createStdioTransport } from "@xeon/contracts/wire";
 import { createFrameClock, createJournal, watch } from "../state/shared/index.ts";
 import { createEngineStore, type ApplyNote, type EngineStore } from "../state/engine/index.ts";
 import { createUiStore, type UiStore } from "../state/ui/index.ts";
-import { createHostConnection } from "../transport/connection.ts";
 import type { DesktopIpc } from "../transport/ipc.ts";
-import { createStdioTransport } from "../transport/json-lines.ts";
 import { createCommands } from "./commands.ts";
 import { BUILD_CHECKS } from "./build.ts";
 import { createWebViewLogger, type LogLine, type LogRing } from "./logger.ts";

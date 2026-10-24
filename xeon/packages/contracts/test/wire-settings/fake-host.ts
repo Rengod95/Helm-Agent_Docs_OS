@@ -212,7 +212,14 @@ export function createFakeHost(): ConformanceLink {
       return;
     }
     const message = checked.message;
-    if ("method" in message && !("id" in message)) return; // 알림($/cancelRequest 포함)은 응답이 없다
+    if ("method" in message && !("id" in message)) {
+      // 알림은 응답이 없다. $/connectionReset은 구독을 지우고 hello 이전 상태로 돌린다(F.wire-settings.spec §4.1 7번)
+      if (message.method === "$/connectionReset") {
+        subs.length = 0;
+        helloDone = false;
+      }
+      return;
+    }
     if (!("method" in message) || !("id" in message)) return; // 클라이언트가 보낸 응답은 쓰지 않는다
     const { id, method, params } = message;
     try {

@@ -137,6 +137,37 @@ describe("input_required", () => {
     await w.runtime.shutdown();
   });
 
+  test("CallOptions.continuation carries the retry and wins over the input field (F request 12)", async () => {
+    const seen: StubCall[] = [];
+    const w = world(askingTool(seen));
+    await startWorld(w);
+    const first = inputRequired(
+      await w.runtime.service.client.callTool({ server: "stub", tool: "ask", arguments: {} }),
+    );
+    const responses = buildInputResponses(first.questions, [
+      { key: "q1", action: "accept", content: { name: "Grace" } },
+    ]);
+    if (!responses.ok) throw new Error("responses failed");
+    // L1.tools 어댑터는 입력을 건드리지 않고 옵션으로 연속 정보를 싣는다
+    const second = await w.runtime.service.client.callTool(
+      { server: "stub", tool: "ask", arguments: {} },
+      {
+        requestId: "call-opt",
+        continuation: {
+          round: 2,
+          inputResponses: responses.value,
+          requestState: first.requestState,
+        },
+      },
+    );
+    expect(seen[1]?.requestState).toBe(STATE);
+    expect(seen[1]?.inputResponses).toEqual({
+      q1: { action: "accept", content: { name: "Grace" } },
+    });
+    expect(second.status).toBe("complete");
+    await w.runtime.shutdown();
+  });
+
   test("completes after retry", async () => {
     const w = world(askingTool([]));
     await startWorld(w);

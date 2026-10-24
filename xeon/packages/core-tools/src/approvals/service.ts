@@ -13,6 +13,8 @@ import {
 import {
   PERMISSION_MODE_STRICTNESS,
   type ApprovalOrigin,
+  type ApprovalWaitFailure,
+  type OpenedApproval,
   type ApprovalRequest,
   type ApprovalRequestInput,
   type ApprovalResolution,
@@ -53,26 +55,11 @@ export interface ApprovalDeps {
   readonly modeOf: (threadId: ThreadId) => PermissionMode;
 }
 
-/** 요청과 현재 해결 상태 */
-export interface OpenedApproval {
-  readonly request: ApprovalRequest;
-  /** 해결되었으면 기록된 해결, 아니면 null */
-  readonly resolution: ApprovalResolution | null;
-}
-
-type WaitFailure = { readonly kind: "aborted" } | { readonly kind: "unknown" };
-
 /**
- * 파이프라인과 L2 어댑터가 쓰는 확장: 비차단 `open`과 `wait`, 조회 `get`, 세션 허용 목록 조회.
- * F `ApprovalService`의 `request`는 `open` + `wait`이다. `open`·`wait`·`get`은 F 인터페이스에 아직 없다(L1A.4 요청: F 승격)
+ * 파이프라인과 L2 어댑터가 쓰는 확장. 비차단 `open`·`wait`·`get`은 F `ApprovalService`로 올라갔다(L1.tools.spec §8.3 F 요청 11).
+ * 여기에 남은 것은 세션 허용 목록 조회뿐이다
  */
 export interface ApprovalsInternal extends ApprovalService {
-  /** 요청을 커밋만 하고 기다리지 않는다. 같은 requestKey의 요청이 있으면 그 요청의 현재 상태를 돌려준다 */
-  open(input: ApprovalRequestInput): Promise<Result<OpenedApproval, CommitFailure>>;
-  /** 응답이 기록되면 이행된다. signal이 끊기면 기다림만 그만둔다(요청은 남는다) */
-  wait(approvalId: string, signal: AbortSignal): Promise<Result<ApprovalResolution, WaitFailure>>;
-  /** 메모리 대기 목록의 요청. 모르는 id면 undefined */
-  get(approvalId: string): OpenedApproval | undefined;
   /** remember "thread"로 허용된 (도구, 규칙)인가 */
   isRemembered(surfaceThreadId: ThreadId, toolName: string, ruleId: string | null): boolean;
 }
@@ -458,7 +445,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   async function wait(
     approvalId: string,
     signal: AbortSignal,
-  ): Promise<Result<ApprovalResolution, WaitFailure>> {
+  ): Promise<Result<ApprovalResolution, ApprovalWaitFailure>> {
     const entry = byId.get(approvalId);
     if (entry === undefined) return err({ kind: "unknown" });
     const resolution = await waitFor(entry, signal);

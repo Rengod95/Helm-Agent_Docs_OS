@@ -13,6 +13,21 @@ import {
 } from "typebox";
 import { Bug, err, ok, parse, type Brand, type Result } from "../base/index.ts";
 
+// ── 사용 승인 증거 (L1.tools.spec §4.12, F 요청 13) ───────────────────────
+
+/**
+ * 사람이 비밀 사용을 승인한 증거. L1.tools가 `CallContext.approval`에 채우고, 도구 구현(L2.workspace shell `run`)이
+ * `SecretEnvRequest.ctx.approval`에 옮긴다. 값은 `xeon.secrets`가 `approvalId`·`scope`로 정책을 다시 검사한다.
+ * 서비스 쪽 이름은 `ApprovalEvidence`(services/secrets.ts)이고 같은 모양이다. L2.knowledge의 `ApprovalEvidence`(`defs/knowledge.ts`)와는 다른 타입이다.
+ */
+export interface SecretApprovalEvidence {
+  /** L1 ApprovalService가 발급한 id */
+  readonly approvalId: string;
+  readonly scope: "per-session" | "per-use";
+  readonly grantedAt: number;
+  readonly expiresAt: number | null;
+}
+
 // ── 참조 형식 (F.capabilities.spec §3.10) ───────────────────────────────
 
 /** 비밀 이름. 소문자로 시작, 소문자·숫자·하이픈 2~64자 */

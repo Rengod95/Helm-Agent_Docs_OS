@@ -52,23 +52,25 @@ export const MemoryEntryIdSchema: TString = Type.String({ pattern: "^[0-9a-f]{12
 /** 원장·제안 ID. LocalIdFactory.next("knl" | "knp")로 만든다 */
 export const LedgerIdSchema: TString = Type.String({ pattern: localIdPattern("knl") });
 export const ProposalIdSchema: TString = Type.String({ pattern: localIdPattern("knp") });
+/**
+ * 지원 파일 상대 경로의 패턴. 허용 하위 디렉터리 넷 중 하나로 시작하고, 마디는 영숫자·`_`·`-`로 시작하고 끝나며 가운데에 `.`을 둘 수 있다.
+ * 그래서 `.`·`..` 마디와 점으로 시작하는 마디(`.hidden`)는 스키마가 거른다. 트리 해시와 안전 캡처가 점 항목을 건너뛰므로
+ * 해시가 덮지 못하는 파일을 가리키는 경로를 받지 않으려는 것이다(L2.knowledge.spec §3.1, KN.1 결정).
+ */
+export const SKILL_FILE_PATH_PATTERN: string =
+  "^(references|templates|scripts|assets)/[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?(?:/[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?){0,4}$";
+
 /** 지원 파일 상대 경로. 허용 하위 디렉터리 넷 중 하나로 시작한다 */
 export const SkillFilePathSchema: TString = Type.String({
-  pattern: "^(references|templates|scripts|assets)/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+){0,4}$",
+  pattern: SKILL_FILE_PATH_PATTERN,
   maxLength: 256,
 });
 
-const SKILL_FILE_PATH_REGEX = new RegExp(
-  "^(references|templates|scripts|assets)/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+){0,4}$",
-);
+const SKILL_FILE_PATH_REGEX = new RegExp(SKILL_FILE_PATH_PATTERN);
 
-/**
- * 순수 함수. 스키마 패턴을 만족하고 "." 또는 ".." 마디가 없는 경로인가.
- * 스키마 패턴(L2.knowledge.spec §3.1)은 "references/../x"를 받아들이므로 서비스는 파일 시스템에 닿기 전에 이 함수로 다시 거른다.
- */
+/** 순수 함수. `SkillFilePathSchema`와 같은 규칙으로 경로가 올바른가. 서비스는 파일 시스템에 닿기 전에 이 함수로 다시 거른다 */
 export function isSkillFilePath(value: string): boolean {
-  if (value.length > 256 || !SKILL_FILE_PATH_REGEX.test(value)) return false;
-  return value.split("/").every((segment) => segment !== "." && segment !== "..");
+  return value.length <= 256 && SKILL_FILE_PATH_REGEX.test(value);
 }
 
 export type SkillCreatedBy = "user" | "agent" | "unknown";

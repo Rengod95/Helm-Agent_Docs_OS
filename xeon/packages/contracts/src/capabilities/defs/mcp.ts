@@ -253,7 +253,7 @@ const inputRequiredShape = Type.Object({
   requestState: Type.Union([Type.String(), Type.Null()]),
   questions: Type.Array(McpQuestionSchema),
 });
-const InputRequiredVariant: TUnsafe<McpInputRequired> = Type.Unsafe<McpInputRequired>(
+export const McpInputRequiredSchema: TUnsafe<McpInputRequired> = Type.Unsafe<McpInputRequired>(
   inputRequiredShape satisfies SchemaProof<McpInputRequired, typeof inputRequiredShape>,
 );
 
@@ -397,7 +397,7 @@ const callToolOutputShape = Type.Union([
       Type.Object({ shownBytes: Type.Integer(), totalBytes: Type.Integer() }),
     ),
   }),
-  InputRequiredVariant,
+  McpInputRequiredSchema,
 ]);
 export const CallToolOutput: TUnsafe<CallToolOutputValue> = Type.Unsafe<CallToolOutputValue>(
   callToolOutputShape satisfies SchemaSound<CallToolOutputValue, typeof callToolOutputShape>,
@@ -471,7 +471,7 @@ const getPromptOutputShape = Type.Union([
       }),
     ),
   }),
-  InputRequiredVariant,
+  McpInputRequiredSchema,
 ]);
 export const GetPromptOutput: TUnsafe<GetPromptOutputValue> = Type.Unsafe<GetPromptOutputValue>(
   getPromptOutputShape satisfies SchemaSound<GetPromptOutputValue, typeof getPromptOutputShape>,
@@ -555,7 +555,7 @@ export type ReadResourceOutputValue =
   | McpInputRequired;
 const readResourceOutputShape = Type.Union([
   Type.Object({ status: Type.Literal("complete"), contents: Type.Array(McpContentSchema) }),
-  InputRequiredVariant,
+  McpInputRequiredSchema,
 ]);
 export const ReadResourceOutput: TUnsafe<ReadResourceOutputValue> =
   Type.Unsafe<ReadResourceOutputValue>(

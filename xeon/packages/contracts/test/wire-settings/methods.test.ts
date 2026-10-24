@@ -163,8 +163,16 @@ describe("M2 method schemas are written out", () => {
       parse(params, { approvalId: rawId("evt", 1), decision: "allow", remember: "thread" }).ok,
     ).toBe(true);
     expect(
-      parse(params, { approvalId: rawId("evt", 1), decision: "answer", answer: { text: "x" } }).ok,
+      parse(params, {
+        approvalId: rawId("evt", 1),
+        decision: "answer",
+        answer: { q1: { selected: ["a"], text: "x" } },
+      }).ok,
     ).toBe(true);
+    // 질문 응답은 질문 id → { selected, text? }다. 문자열 하나나 AskAnswer 배열 모양은 받지 않는다
+    expect(
+      parse(params, { approvalId: rawId("evt", 1), decision: "answer", answer: { q1: "x" } }).ok,
+    ).toBe(false);
     expect(parse(params, { approvalId: rawId("evt", 1), decision: "maybe" }).ok).toBe(false);
   });
 

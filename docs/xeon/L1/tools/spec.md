@@ -479,9 +479,11 @@ export interface QuestionOption {
   readonly id: string;                 // 1~32자
   readonly label: string;
   readonly description?: string;
+  readonly recommended?: boolean;      // 추천 표시. 화면이 강조만 하고 응답 검사에는 쓰지 않는다(m2 F.8)
 }
 export interface QuestionItem {
   readonly id: string;
+  readonly header?: string;            // 질문 위의 짧은 머리글, 1~64자(m2 F.8)
   readonly text: string;
   readonly options: readonly QuestionOption[];   // 빈 배열이면 자유 답
   readonly multiSelect: boolean;
@@ -552,7 +554,17 @@ export interface ApprovalService {
   restore(threadId: ThreadId): Promise<Result<readonly ApprovalRequest[], ReadFailure>>;
   /** 턴 취소 등으로 요청을 닫는다. resolvedBy "cancelled" */
   cancel(approvalId: string, reason: string): Promise<{ readonly applied: boolean }>;
+  /** 비차단 요청(m2 F.8). 커밋만 하고 기다리지 않는다. 같은 requestKey면 새 이벤트 없이 기존 요청과 현재 해결 상태를 돌려준다 */
+  open(input: ApprovalRequestInput): Promise<Result<OpenedApproval, ApprovalRequestError>>;
+  /** 응답이 기록되면 이행된다. 이미 해결됐으면 바로 이행한다. signal이 끊기면 기다림만 그만둔다(요청은 남는다) */
+  wait(approvalId: string, signal: AbortSignal): Promise<Result<ApprovalResolution, ApprovalWaitFailure>>;
+  /** 메모리 대기 목록의 요청과 해결 상태. 모르는 approvalId면 undefined */
+  get(approvalId: string): OpenedApproval | undefined;
 }
+
+/** 요청과 현재 해결 상태 */
+export interface OpenedApproval { readonly request: ApprovalRequest; readonly resolution: ApprovalResolution | null }
+export type ApprovalWaitFailure = { readonly kind: "aborted" } | { readonly kind: "unknown" };
 
 export const ApprovalRequestSchema: TSchema;
 export const ApprovalResolutionSchema: TSchema;
@@ -565,7 +577,7 @@ export const ApprovalResolutionSchema: TSchema;
 | kind | 허용 decision | answer | remember |
 |---|---|---|---|
 | `tool` | `allow`, `deny` | deny일 때 `{ feedback: string }` 선택 | `once`, `thread`, `always` |
-| `plan` | `allow`, `deny` | allow일 때 `{ mode: PermissionMode }` 선택(`nextModes` 안), deny일 때 `{ feedback }` 선택 | `once` |
+| `plan` | `allow`, `deny` | allow일 때 `{ mode?, note? }` 선택(`mode`는 `nextModes` 안), deny일 때 `{ feedback }` 선택 | `once` |
 | `question` | `answer`, `deny` | answer일 때 `QuestionAnswer` 필수(질문 id마다) | `once` |
 
 - 응답 검사 규칙 [제안]: 모두 `respond`가 커밋 전에 한다. 어긋나면 `applied: false`이고 이벤트를 쓰지 않는다. 요청은 대기 상태로 남는다.
@@ -574,7 +586,7 @@ export const ApprovalResolutionSchema: TSchema;
   - `question`: `answer`의 `QuestionAnswer`는 질문마다 항목이 하나씩 있고(`{ selected: string[], text?: string }`, 그 밖의 필드 없음), `selected`의 id는 그 질문의 선택지 안에 있고 중복이 없고, `multiSelect`가 거짓이면 하나 이하다. `allowFreeText`가 거짓이면 `text`가 없다. 선택도 `text`도 비면 거부한다. `deny`의 `answer`는 `{ feedback }`만 받는다.
   - `remember`: `plan`과 `question`은 `once`만 낸다.
 - 요청 검사 [제안]: `request`와 `open`은 커밋 전에 입력을 본다. `requestKey` 1~48자, `remember`는 위 표대로, 질문은 1~4개이고 질문 id와 선택지 id(1~32자)가 각각 유일하고 선택지가 없는 질문은 `allowFreeText: true`여야 한다. `nextModes`는 모드 이름이고 중복이 없다. 어긋나면 `ApprovalRequestError { kind: "rejected", code: "approvals.request_invalid" }` 값이다. 이벤트 payload 스키마(`ApprovalRequestedPayloadSchema`)도 같은 시점에 확인해, 저장소가 Bug로 거부하기 전에 값으로 돌려준다(TY-24).
-- 비차단 요청 [제안]: `ApprovalService.request`는 `open`과 `wait`을 합친 것이다. L2 어댑터는 `open`(커밋만 하고 현재 상태를 돌려준다. 같은 `requestKey`면 기존 요청의 현재 상태)과 `wait(approvalId, signal)`(해결이 기록되면 이행. signal이 끊기면 기다림만 그만두고 요청은 남는다), `get(approvalId)`로 `L2ApprovalsPort`(`request`/`wait`/`get`)를 만든다. 세 메서드는 core-tools 구현(`ApprovalsInternal`)에 있고 F `ApprovalService`에는 아직 없다(§8.3 F 요청 11).
+- 비차단 요청 [제안]: `ApprovalService.request`는 `open`과 `wait`을 합친 것이다. L2 어댑터는 `open`(커밋만 하고 현재 상태를 돌려준다. 같은 `requestKey`면 기존 요청의 현재 상태)과 `wait(approvalId, signal)`(해결이 기록되면 이행. signal이 끊기면 기다림만 그만두고 요청은 남는다), `get(approvalId)`로 `L2ApprovalsPort`(`request`/`wait`/`get`)를 만든다. 세 메서드는 F `ApprovalService`에 올라갔다(§8.3 F 요청 11, m2 F.8). core-tools 구현은 `ApprovalsInternal`이고 `isRemembered`만 더한다.
 
 ### 3.7 결과 경계화 (`core-tools/src/bound.ts`)
 
@@ -1006,9 +1018,9 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 8. F.capabilities.spec §3.3: `ToolSpec.locks`(잠금 선언) 추가. L1.tasks.spec FR-T6과 같은 항목이고 core-tools가 키를 산출한다(§4.2 7b).
 9. F.capabilities.spec `policy.ts`: `childDecision`을 순수 함수로 둔다. L1.agents.spec §8.3 5와 같은 항목이고 §4.5 ceiling 단계가 쓴다.
 10. (반영됨) F.extensions.spec §3.2.1 `ports.ts`: X.primitives.spec §3.9의 `ToolsPort`, `ToolResourceDef`를 둔다(X.primitives.spec §10 요청과 같은 항목). §3.3 `ToolService extends ToolsPort`가 이 이름을 import한다.
-11. F `services/approvals.ts`: `ApprovalService`에 비차단 `open`, `wait`, `get`을 더한다(§3.6 비차단 요청). cap-*의 `L2ApprovalsPort` 어댑터가 `request` 하나만으로는 `request`(즉시 상태)와 `wait`(메모리 대기)를 나눌 수 없다. core-tools는 `ApprovalsInternal`에 이미 구현했다.
-12. F `CallOptions`(F.capabilities.spec §3.2): 연속 정보 필드(`continuation`)와, MCP `McpQuestion`을 `QuestionBody`(또는 확장 body)로 옮기는 규칙. D5(a)의 L1.tools 쪽 재호출에 필요하다(§4.3 `approvalId`가 없는 변형).
-13. F `CallContext`(F.capabilities.spec §3.2): 비밀 사용 승인 증거 `approval?: ApprovalEvidence`. core-tools가 채우고 cap-workspace의 shell `run`이 `SecretEnvRequest.ctx.approval`에 옮긴다(§4.12).
+11. (반영됨: m2 F.8) F `services/approvals.ts`: `ApprovalService`에 비차단 `open`, `wait`, `get`(`OpenedApproval`, `ApprovalWaitFailure`)을 올렸다(§3.6 비차단 요청). cap-*의 `L2ApprovalsPort` 어댑터가 `request` 하나만으로는 `request`(즉시 상태)와 `wait`(메모리 대기)를 나눌 수 없었다. core-tools의 `ApprovalsInternal`은 `isRemembered`만 더한다.
+12. (F 쪽 반영됨: m2 F.8, core-tools 연결은 남음) F `CallOptions.continuation`(`CallContinuation`: `round`, `inputResponses`, `requestState`)과 MCP `McpQuestion`을 `QuestionBody`로 옮기는 규칙(`planMcpQuestionBody`, `decodeMcpAnswer`, `uniformMcpAnswer`, F.capabilities.spec §3.9 `defs/mcp-questions.ts`)이 들어갔다. D5(a)의 L1.tools 쪽 재호출에 필요하다(§4.3 `approvalId`가 없는 변형). 남은 일은 §4.3 어댑터가 `McpInputRequiredSchema`로 변형을 알아보고 질문 승인(요청 키 `mcp:<toolCallId 해시>#r<round>`)을 올려 `continuation`으로 다시 부르는 것이다.
+13. (반영됨: m2 F.8) F `CallContext.approval?: SecretApprovalEvidence`(`services`의 `ApprovalEvidence`와 같은 타입)와 `CallContext.interactive?: boolean`. core-tools가 `entries.ts`의 `callContext`에서 채우고 cap-workspace의 shell `run`이 `SecretEnvRequest.ctx.approval`에 옮긴다(§4.12).
 14. [해소: M2 검토 3] F `ToolService`(F.capabilities.spec §3.12 `services/tools.ts`)에 `suspendWhile(threadId, toolCallId, wait)`를 더했다(§3.3). core-agents의 `agent` 도구가 `tools` 슬롯을 내려놓고 자식을 기다리는 데 필요하다. `AgentTool.execute`와 `ToolRunContext`에는 슬롯을 실을 자리가 없다.
 
 ### 8.4 다른 문서 수정 요청
@@ -1057,8 +1069,8 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 - [결정: review.decisions-2 U-06] `tool_call` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 별도 chain 지점을 더한다(§4.10).
 - [미결] 꼬리 보존 미리보기의 공통 모드(§4.8 7번).
 - [미결] 재실행 시도 횟수 기록 방식과 상한(§4.9). eng.transactions.design `MAX_REPLAY_ATTEMPTS`와 F.records.spec 결정표의 연결.
-- [결정: L1A.4] `input_required` 출력 변형의 판별 필드는 `status: "input_required"`이다(§4.3). `approvalId`가 없는 MCP 변형의 재호출은 F 요청 12가 닫히기 전까지 [미결]이다.
-- [미결] `QuestionAnswer`(§3.6)와 L2.dialog의 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)의 모양이 다르다. `approval.respond`의 `answer`는 클라이언트가 보내는 값이고 core-tools는 `QuestionAnswer`만 받는다. cap-dialog 어댑터가 `QuestionAnswer`와 `AskAnswer`를 서로 옮기거나 L2.dialog.spec §4.1.5를 `QuestionAnswer`로 맞춘다.
+- [결정: L1A.4] `input_required` 출력 변형의 판별 필드는 `status: "input_required"`이다(§4.3). `approvalId`가 없는 MCP 변형의 재호출은 F 요청 12의 F 쪽이 닫혔고(`CallOptions.continuation`, 질문 옮기기 규칙) core-tools 어댑터 연결이 [미결]이다.
+- [결정: m2 F.8] `approval.respond`의 `answer` 정본은 `QuestionAnswer`(질문 id → `{ selected, text? }`)다. 계획 `allow`는 `{ mode }`, `deny`는 `{ feedback }`이고 스키마는 F.records `ApprovalAnswerSchema`다(F.wire-settings.spec §3.3.1). L2.dialog의 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)는 wire에 나오지 않고 cap-dialog 어댑터가 `QuestionAnswer`와 서로 옮긴다(L2.dialog.spec §4.1.1). core-tools는 `QuestionAnswer`만 받는다.
 - [미결] 정책 규칙 수집 방식(범위별 수집 대 키 분리, §4.5). F 요청 5가 받아들여지지 않으면 `l1.tools.rules.managed`, `l1.tools.rules.user` 같은 범위별 키로 나눈다.
 - [미결] Anthropic 서버 쪽 tool search 사용 여부(§4.1 8번).
 - [미결] 확장(extension 티어) 규칙 등록 경로와 매니페스트 필드(2차).

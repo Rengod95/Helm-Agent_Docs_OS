@@ -12,7 +12,11 @@ export type CommandError =
 
 export type ApprovalDecision =
   | { readonly decision: "allow" | "deny"; readonly remember?: "once" | "thread" | "always" }
-  | { readonly decision: "answer"; readonly answer: Readonly<Record<string, string>> };
+  /** 질문 응답은 QuestionAnswer(질문 id → 선택지 id 목록과 자유 입력)다(F.wire-settings.spec §3.3.1) */
+  | {
+      readonly decision: "answer";
+      readonly answer: Readonly<Record<string, { selected: string[]; text?: string }>>;
+    };
 
 export interface Commands {
   selectThread(threadId: ThreadId): void;

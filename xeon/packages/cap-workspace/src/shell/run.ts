@@ -51,8 +51,8 @@ function actorOf(context: CallContext | undefined): "agent" | "runtime" | "human
 
 /**
  * `secretEnv` 요청. 값은 이 패키지를 지나지 않는다: 참조만 `xeon.exec`에 넘기고 값 주입은 spawn 직전에 한다.
- * 승인 증거(`approval`)는 이 호출 경로에 실려 오는 곳이 없어 null이다. 그래서 `xeon.secrets`가 `approval_missing`으로
- * 거부한다(fail-closed). 증거를 받는 경로는 L1.tools·L2.workspace 합의 전까지 [미결]이다(L1.tools.spec §10).
+ * 승인 증거(`approval`)는 `CallContext.approval`(L1.tools가 사람의 승인을 받았을 때 채운다, F 요청 13)을 그대로 옮긴다.
+ * 증거가 없으면 null이라 `xeon.secrets`가 `approval_missing`으로 거부한다(fail-closed).
  */
 function secretEnvOf(
   input: RunInput,
@@ -75,7 +75,7 @@ function secretEnvOf(
       threadId: context?.threadId ?? null,
       toolCallId: context?.toolCallId ?? null,
       projectId: null,
-      approval: null,
+      approval: context?.approval ?? null,
     },
   };
 }

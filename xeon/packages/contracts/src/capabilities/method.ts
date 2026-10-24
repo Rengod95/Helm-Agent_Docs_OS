@@ -1,5 +1,6 @@
 import type { Static, TSchema } from "typebox";
-import type { ReplayPolicy, ThreadId, TurnId } from "../conversation/index.ts";
+import type { JsonObject, ReplayPolicy, ThreadId, TurnId } from "../conversation/index.ts";
+import type { SecretApprovalEvidence } from "./secrets.ts";
 
 /** 메서드 고유 오류 선언. 공통 오류 코드(errors.ts)는 선언하지 않아도 된다 */
 export interface ErrorDecl {
@@ -45,6 +46,31 @@ export interface CallContext {
   /** 도구 경로면 있다 */
   readonly toolCallId?: string;
   readonly caller: CallerInfo;
+  /**
+   * 사람이 있는 실행인가(L2.dialog `ask_unavailable_headless`, L1.tools.spec §4.7). L1.tools가 `ToolRunContext.interactive`로 채운다.
+   * 생략하면 대화형으로 본다(그룹·확장 경로, 서비스 모드의 호스트 호출)
+   */
+  readonly interactive?: boolean;
+  /**
+   * 이 호출이 쓰는 비밀(`secretEnv`)을 사람이 승인한 증거(L1.tools.spec §4.12, U-19). L1.tools가 채운다.
+   * 비밀을 쓰지 않거나 증거를 얻지 못한 호출은 없다. 도구 구현은 `SecretEnvRequest.ctx.approval`에 그대로 옮긴다
+   */
+  readonly approval?: SecretApprovalEvidence;
+}
+
+/**
+ * 같은 호출을 이어서 다시 부를 때 싣는 연속 정보(MRTR, L1.tools.spec §4.3, 결정 D5 (a)). 첫 호출에는 두지 않는다.
+ * 도구 호출이 `status: "input_required"`로 돌아오고 승인 `approvalId`가 없으면(MCP `McpInputRequired`), L1.tools가 `questions`를
+ * 질문 승인(kind `question`)으로 올리고 답을 `inputResponses`로 옮긴 뒤 같은 `requestId`로 이 필드를 붙여 다시 부른다.
+ * 능력은 `input.continuation`이 아니라 이 필드를 먼저 읽는다(둘 다 있으면 이 필드가 이긴다).
+ */
+export interface CallContinuation {
+  /** 이번에 보낼 라운드 번호(2부터) */
+  readonly round: number;
+  /** 입력 요청 키 → 응답. 값 모양은 능력이 정한다(MCP는 사양을 따른다) */
+  readonly inputResponses: JsonObject;
+  /** 직전 라운드의 requestState. 바이트 그대로 돌려보낸다 */
+  readonly requestState: string | null;
 }
 
 /** 서비스 호출 옵션. consumer가 넘긴다 */
@@ -54,6 +80,8 @@ export interface CallOptions {
   readonly requestId?: string;
   /** L1.tools 어댑터(도구 경로)와 X의 capability 래퍼(그룹·확장 경로)가 덮어써서 채운다 */
   readonly context?: CallContext;
+  /** `input_required` 뒤의 재호출(2라운드부터). L1.tools 어댑터가 채운다. `CallContinuation` 참고 */
+  readonly continuation?: CallContinuation;
 }
 
 /** 메서드 하나의 서비스 함수 타입 */

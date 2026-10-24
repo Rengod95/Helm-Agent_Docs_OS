@@ -828,6 +828,14 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
         }),
       ),
     whenIdle: (threadId, fn) => runtimeOf(threadId).gate.run(1, fn),
+    // F 계약(LoopService.runUserBash)만 먼저 들어왔다. user_bash 발화와 xeon.tools.runUserShell 연결은 L1.loop 작업이다(L1.loop.spec §3.1)
+    runUserBash: () =>
+      Promise.resolve(
+        err({
+          kind: "input_invalid",
+          message: "loop.runUserBash is not implemented yet (L1.loop.spec §3.1)",
+        }),
+      ),
     admit,
     runChildTurn,
     async interrupt(threadId, turnId) {

@@ -368,7 +368,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 ### 4.5 WebView 새로고침과 연결 재설정
 
 - stdio 전송은 엔진 프로세스 하나에 연결 하나다. WebView가 새로고침되면 엔진은 계속 같은 연결을 쓰지만 클라이언트 상태(진행 중 요청 id, 구독, hello 상태)는 페이지와 함께 사라진다. 새 페이지가 `host.hello`를 다시 보내면 `host.helloDuplicate`(1002)가 된다(`F.wire-settings.spec` §3.5.2).
-- [제안] 새 페이지는 `engine_attach`로 새 세대를 받은 뒤, 첫 메시지로 클라이언트 알림 `$/connectionReset`을 보낸다. 엔진은 이 알림을 받으면 그 연결의 구독과 진행 중 요청의 `signal`을 중단하고(진행 중 turn은 중단하지 않는다, `F.wire-settings.spec` §4.1 4번) hello 이전 상태로 돌아간다. 이 알림은 F에 없으므로 F 변경 요청이다(§10 미결 2).
+- [제안] 새 페이지는 `engine_attach`로 새 세대를 받은 뒤, 첫 메시지로 클라이언트 알림 `$/connectionReset`을 보낸다. 엔진은 이 알림을 받으면 그 연결의 구독과 진행 중 요청의 `signal`을 중단하고(진행 중 turn은 중단하지 않는다, `F.wire-settings.spec` §4.1 4번) hello 이전 상태로 돌아간다. 이 알림은 F 표에 들어왔고(`F.wire-settings.spec` §3.3.2, §4.1 5~7번) 호스트가 구현했다(m2 F.8). 엔진이 hello 전이면 무시하므로 새 페이지는 첫 기동에도 같은 순서를 쓴다.
 - 셸은 세대가 바뀌면 이전 세대에 보내던 stdout 바이트를 다음 `\n`까지 버리고, 그 뒤 바이트부터 새 세대로 보낸다. 셸이 아는 것은 줄 경계뿐이고 JSON은 해석하지 않는다.
 - [제안] M2 전(M1)에는 새로고침을 엔진 재기동으로 처리한다. 셸이 §4.3 2~5단계로 엔진을 끄고 다시 띄운다. 진행 중 turn은 이어서 실행 후보가 된다.
 
@@ -595,8 +595,8 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 ## 10. 미결 사항
 
 1. [미결] 엔진 바이너리 이름과 서브커맨드. 이 문서는 `xeon`, `host --stdio`를 [제안]으로 쓴다. `L4.host-service.spec`이 확정하고, `xeon/apps/desktop/README.md`와 `eng.toolchain.guide` TC-10의 "apps/host 단독 사이드카" 서술과 맞춘다. 바꿀 곳은 `sidecar.json` 한 곳이다.
-2. (닫힘) F 변경 요청 두 건, `host.shutdown`과 클라이언트 알림 `$/connectionReset`은 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4, review.consistency-1 K-15). 이 문서의 params 예와 다르면 F 정의를 따른다. M2 전에는 새로고침을 엔진 재기동으로 처리한다(§4.5).
-3. [미결] `StdioTransportFactory` 구현(JSON Lines 프레이밍)과 `createHostConnection`(id 발급, 대기 요청 표, 취소)의 위치. CLI와 데스크톱이 함께 쓰므로 DR-10에 따라 아래 층에 있어야 한다. F `@xeon/contracts/wire`에 런타임 중립 구현을 두자고 요청한다. 정해지기 전에는 `apps/desktop/src/transport/`에 두고 같은 적합성 케이스로 검사한다.
+2. (닫힘) F 변경 요청 두 건, `host.shutdown`과 클라이언트 알림 `$/connectionReset`은 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4, review.consistency-1 K-15). 이 문서의 params 예와 다르면 F 정의를 따른다. 재설정 동작은 `F.wire-settings.spec` §4.1 5~7번이고 호스트가 구현했다(m2 F.8). 새 페이지는 `openEngineConnection`에서 hello 전에 `HostConnection.notify("$/connectionReset", {})`을 보낸다(§4.5).
+3. (닫힘, m2 F.8) `StdioTransportFactory` 구현(JSON Lines 프레이밍)과 `createHostConnection`(id 발급, 대기 요청 표, 취소)은 F `@xeon/contracts/wire`의 런타임 중립 구현으로 옮겼다(`F.wire-settings.spec` §3.1). 데스크톱은 복사본(`apps/desktop/src/transport/connection.ts`, `json-lines.ts`)을 지우고 거기서 가져온다. 호스트와 CLI는 같은 구현을 다시 내보낸다.
 4. [결정: review.decisions-2 U-04] 이어서 실행 후보를 wire로 알리는 방법(`ThreadSummary` 필드 또는 이벤트)은 M1에 넣지 않고 M2 계획에서 정한다.
 5. [결정: review.decisions-2 U-04] 사용자 알림 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다. 그 전에는 내구 이벤트 kind로 알림 대상을 고른다(§4.8).
 6. [미결] `l4.desktop.*` 값의 저장 위치. 제안은 데스크톱 로컬 파일(엔진 카탈로그 밖)이다. 대안은 F에 클라이언트 카탈로그 등록을 더해 엔진 설정 계층에 넣는 것이다. 관리 범위 잠금을 로컬 파일에서 어떻게 읽을지도 함께 정한다.

@@ -578,9 +578,6 @@ export interface ModelService extends ModelsPort {
   readonly tokens: TokenEstimator;
   /** 종결 메시지의 오류 분류. 오류가 아니면 null */
   classify(message: AssistantMessage, contextWindow?: number): ModelErrorKind | null;
-  /**
-   * hosted 검색 포트(내장 검색 래퍼용). core-models가 L1C.3에서 구현하면 필수로 올린다.
-   * 없는 동안 소비자는 "지원 안 함"(unsupported-model)으로 본다
-   */
-  readonly hostedSearch?: HostedSearchPort;
+  /** hosted 검색 포트(내장 검색 래퍼용). 구현은 core-models다(L1C.3). 모델이 지원하지 않으면 포트의 `support`가 이유를 돌려준다 */
+  readonly hostedSearch: HostedSearchPort;
 }

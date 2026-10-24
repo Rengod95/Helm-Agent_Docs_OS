@@ -471,7 +471,10 @@ export interface HostConnectionOptions {
   readonly defaultTimeoutMs?: number;            // 없으면 시한 없음
   readonly onTransportError?: (cause: unknown) => void;   // 응답을 기다리지 않는 전송(취소 알림)이 실패했을 때. 진단용
 }
-/** F의 HostConnection 구현. 요청 id는 연결마다 r1, r2, … 를 쓴다(F wire §3.1). */
+/**
+ * F의 HostConnection 구현. 요청 id는 연결마다 r1, r2, … 를 쓴다(F wire §3.1).
+ * 구현은 F `@xeon/contracts/wire`(`wire/client.ts`)로 옮겼고 이 파일은 같은 이름을 다시 내보낸다(m2 F.8)
+ */
 export declare function createHostConnection(transport: Transport, options?: HostConnectionOptions): HostConnection;
 
 /** F의 SocketTransportFactory 구현(Bun.connect, unix). */
@@ -483,7 +486,7 @@ export declare const connectServiceTransport: SocketTransportFactory;
 | 파일 | F 타입 | 구현 |
 |---|---|---|
 | `src/transport/in-process.ts` | `InProcessTransportFactory` | 메모리 큐 쌍. 전달은 `queueMicrotask`로 보낸 순서대로 한다. `devChecks`이면 `JSON.parse(JSON.stringify(m))` 왕복 |
-| `src/transport/stdio.ts` | `StdioTransportFactory` | JSON Lines. `maxFrameBytes` 초과 줄은 끝까지 읽고 버린다(F wire §5). 읽기 끝(EOF)에서 `onClose({ reason: "eof" })` |
+| `src/transport/stdio.ts` | `StdioTransportFactory` | 구현은 F `@xeon/contracts/wire`(`wire/stdio.ts`, `framing.ts`)로 옮겼고 이 파일은 다시 내보낸다(m2 F.8). JSON Lines. `maxFrameBytes` 초과 줄은 끝까지 읽고 버린다(F wire §5). 읽기 끝(EOF)에서 `onClose({ reason: "eof" })` |
 | `src/transport/socket.ts` | `SocketTransportFactory`(클라이언트), 서버 리스너는 아래 | `Bun.listen({ unix })`, `Bun.connect({ unix })`. 연결마다 JSON Lines |
 
 ```ts
@@ -725,6 +728,7 @@ F wire §4.3의 1~7단계를 그대로 구현한다. 1단계(프레임 크기)�
 ### 4.6 취소
 
 - HS-21. `$/cancelRequest { id }`를 받으면 그 요청의 `AbortController`를 중단한다. 처리기가 `signal` 때문에 거부하면 5001 `request.cancelled`로 응답한다. 처리기가 취소와 무관하게 결과를 내면 그 결과를 보낸다. 이미 응답한 id, 모르는 id는 무시한다.
+- HS-21a. `$/connectionReset {}`(m2 F.8, `F.wire-settings.spec` §4.1 5~7번). 연결이 `ready`일 때 받으면 (a) 진행 중 요청의 `AbortController`를 모두 중단하고 응답을 내지 않는다(새 화면의 요청 id와 겹치므로 5001도 보내지 않는다. 처리기가 늦게 끝나도 응답을 버린다), (b) 구독을 지우고(`SubId` 카운터는 이어간다), (c) `openThreads`·`observedThreads`를 비우고, (d) `phase`를 `awaitingHello`로, `experimental`을 빈 목록으로 돌린다. `writeThreads`(쓰기 소유)와 진행 중 turn은 건드리지 않는다. `awaitingHello`에서는 무시한다. `host.hello`의 `features`에 알림으로 올라간다.
 - HS-22. `turn.start`는 접수만 처리하므로 취소가 turn을 멈추지 않는다. 접수 뒤 취소가 오면 turn은 계속 돌고 응답만 5001일 수 있다. 클라이언트는 이벤트로 접수 여부를 확인한다(F wire §5 "응답 전에 연결이 닫힌다" 행과 같은 처리).
 
 ### 4.7 단일 소유

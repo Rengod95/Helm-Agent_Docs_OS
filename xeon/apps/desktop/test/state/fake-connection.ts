@@ -35,6 +35,7 @@ export function fakeConnection(table: Table): {
       handlers[name].add(handler);
       return () => void handlers[name].delete(handler);
     },
+    notify: () => Promise.resolve(),
     close: () => Promise.resolve(),
     closed: new Promise(() => {}),
   };

@@ -59,6 +59,8 @@ test("ask_user_waits_for_the_answer: input_required holds the call until the use
   // 같은 requestId로 두 번 불렀다: 처음 pending, 두 번째 저장된 답
   expect(dialog.calls.map((call) => call.requestId)).toEqual(["tool:ask_1", "tool:ask_1"]);
   expect(dialog.calls.every((call) => call.wait === false)).toBe(true);
+  // 호출 문맥이 대화형 여부를 싣는다(F CallContext.interactive, L2.dialog ask_unavailable_headless 판정에 쓴다)
+  expect(dialog.calls.every((call) => call.interactive === true)).toBe(true);
   expect(kindsOf(h, "effect.result")).toHaveLength(1);
   expect(kindsOf(h, "approval.requested")).toHaveLength(1);
   expect(kindsOf(h, "approval.resolved")).toHaveLength(1);

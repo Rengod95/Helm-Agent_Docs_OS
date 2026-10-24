@@ -498,7 +498,12 @@ export interface TurnStartedPayload {
   /** drive turn이면 임대한 scope id, 그 밖은 null. drive turn 멱등 키 (scopeId, requestId)의 근거(L1.loop.spec FR-L8, L1.persistence.spec FR-P10) */
   scopeId: string | null;
 }
-export interface TurnUpdatedPayload { status: TurnStatus }
+/** 사용자에게만 보이는 휘발 알림. 모델 컨텍스트에는 넣지 않는다 [결정: m2 F.8, L1.loop.spec FR-L5] */
+export interface TurnNotice {
+  code: "repeat_detected" | "gate_limit";   // 반복 감지(L1.loop.spec §4.10), 완료 게이트 계속 상한 도달(§4.9)
+  detail: JsonValue;                        // gate_limit: { limit: number }. repeat_detected: { kind: "action_observation" | "action_error", count: number }
+}
+export interface TurnUpdatedPayload { status: TurnStatus; notice?: TurnNotice }
 export interface TurnCompletedPayload {
   status: "completed" | "interrupted" | "failed";
   stepCount: number;

@@ -55,6 +55,7 @@ function engineFake(
     onWrite: (message, f) => {
       const method = methodOf(message);
       methods.push(method);
+      if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없다
       f.emitLine({ jsonrpc: "2.0", id: requestId(message), result: result(method) });
     },
   });
@@ -87,7 +88,13 @@ describe("app session over a fake shell and fake engine", () => {
     const app = makeApp(fake);
     await until(() => app.engine.read.getState().link.phase === "live", "live link");
     await until(() => app.engine.read.getState().threads.status === "ready", "threads ready");
-    expect(methods.slice(0, 3)).toEqual(["host.hello", "events.subscribe", "thread.list"]);
+    // 새 연결의 첫 메시지는 $/connectionReset이다(WebView 새로고침 뒤 hello 중복 방지, spec 4.5)
+    expect(methods.slice(0, 4)).toEqual([
+      "$/connectionReset",
+      "host.hello",
+      "events.subscribe",
+      "thread.list",
+    ]);
     expect(app.session.engineVersion()).toBe("1.2.3");
     expect(app.engine.read.getState().threads.ids).toEqual([thr(1)]);
     await app.stop();
@@ -153,6 +160,7 @@ describe("app session over a fake shell and fake engine", () => {
     let first = true;
     const fake = fakeIpc({
       onWrite: (message, f) => {
+        if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없다
         if (first) {
           first = false;
           f.emitLine({

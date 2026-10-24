@@ -334,6 +334,12 @@ export function createFakeModels(options: {
       fromUsage: (usage) => usage.totalTokens,
     },
     classify: () => null,
+    // hosted 검색은 루프가 쓰지 않는다: 지원하지 않는 모델처럼 답한다
+    hostedSearch: {
+      support: () => ({ supported: false, reason: "no_hosted_search" }),
+      search: () =>
+        Promise.resolve(err({ kind: "unsupported_model", provider: null, modelId: null })),
+    },
   };
 
   return {

@@ -92,6 +92,9 @@ function callContext(call: RawCall): CallContext {
     turnId: call.run.turnId,
     toolCallId: call.toolCallId,
     caller: { kind: "model", agent: call.run.caller === "main" ? "main" : "subagent" },
+    interactive: call.run.interactive,
+    // 비밀 사용 승인 증거는 도구 구현이 SecretEnvRequest.ctx.approval로 옮긴다(L1.tools.spec §4.12, F 요청 13)
+    ...(call.secretApproval === null ? {} : { approval: call.secretApproval }),
   };
 }
 

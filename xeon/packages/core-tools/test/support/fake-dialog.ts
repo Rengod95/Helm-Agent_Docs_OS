@@ -20,7 +20,12 @@ import type { Harness } from "./harness.ts";
 
 export interface FakeDialog {
   /** ask 메서드 호출 기록 */
-  readonly calls: { readonly requestId: string | undefined; readonly wait: boolean | undefined }[];
+  readonly calls: {
+    readonly requestId: string | undefined;
+    readonly wait: boolean | undefined;
+    /** `CallContext.interactive` */
+    readonly interactive: boolean | undefined;
+  }[];
 }
 
 /** 질문 묶음을 승인 요청의 대상(subject) JSON으로 옮긴다 */
@@ -58,7 +63,11 @@ export function installDialog(h: Harness, runtime: ToolRuntime = h.runtime): Fak
   const calls: FakeDialog["calls"][number][] = [];
   const api = {
     ask: async (input: AskInputValue, options?: CallOptions): Promise<AskResult> => {
-      calls.push({ requestId: options?.requestId, wait: input.wait });
+      calls.push({
+        requestId: options?.requestId,
+        wait: input.wait,
+        interactive: options?.context?.interactive,
+      });
       const context = options?.context;
       const requestId = options?.requestId;
       if (context?.threadId === undefined || requestId === undefined) {

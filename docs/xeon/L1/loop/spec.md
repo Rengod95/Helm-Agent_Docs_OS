@@ -86,7 +86,7 @@ import type { EventId, ImageContent, TextContent, ThreadId, TurnId } from "../co
 import type { StoreError } from "../records/commit.ts";
 import type { PostItem } from "./index.ts";
 // F.extensions.spec §3.2.1 ports.ts의 LoopPort와 요청·결과 타입(FR-L1 반영)
-import type { LoopPort, LoopTurnResult } from "../extensions/ports.ts";
+import type { LoopPort, LoopTurnResult, UserBashResult } from "../extensions/index.ts";
 import type { InputMode, TaskScope } from "./tasks-service.ts";
 // [가정] F 안에서 extensions가 capabilities 타입을 import할 수 있다(F 내부 순서는 F 문서가 정한다)
 import type { AdvertisedToolset, CallerId, ChildLimits, PolicyCeiling } from "../capabilities/index.ts";
@@ -142,6 +142,21 @@ export interface ChildTurnRequest {
   readonly signal: AbortSignal;
 }
 
+/** 사용자 셸(`!명령`, `!!명령`) 실행 요청 [결정: m2 F.8] */
+export interface UserBashRequest {
+  readonly threadId: ThreadId;
+  readonly command: string;                          // 접두 `!`·`!!`를 뗀 명령줄
+  readonly excludeFromContext: boolean;              // `!!` 접두. true면 결과를 모델 컨텍스트에 넣지 않는다(UserBashPayload.excludeFromContext)
+  readonly requestId?: string;                       // 대화 범위 멱등 키 1~64자. 같은 키로 다시 부르면 기록된 결과를 돌려준다
+  readonly signal?: AbortSignal;                     // 중단하면 명령을 끊고 result.cancelled가 참인 결과로 끝난다
+}
+
+export type UserBashOutcome =
+  /** 실행이 끝났다. replaced가 참이면 user_bash 핸들러가 결과를 대체해 명령을 실행하지 않았다. UserBashResult는 F.extensions의 것이다 */
+  | { readonly status: "completed"; readonly result: UserBashResult; readonly replaced: boolean }
+  /** user_bash 지점이나 정책 deny가 막았다. 명령을 실행하지 않았다. reason은 사용자에게 보이는 문장이다 */
+  | { readonly status: "denied"; readonly reason: string };
+
 export type ResumeFrom = "turn_start" | "request" | "tools" | "await_input" | "turn_end";
 
 export type ResumeResult =
@@ -177,6 +192,11 @@ export interface LoopService extends LoopPort {
   admit(request: AdmitRequest): Promise<Result<AdmitResult, LoopError>>;
   /** 자식 thread turn. 주 대화와 같은 루프로 돈다. 같은 requestId면 기록된 결과를 돌려주거나 열린 turn을 이어 끝낸다(§4.13) */
   runChildTurn(request: ChildTurnRequest): Promise<Result<LoopTurnResult, LoopError>>;
+  /**
+   * 사용자 셸 입력(`!명령`) [결정: m2 F.8]. `user_bash`(first)를 발화하고 거부가 아니면 `xeon.tools.runUserShell`로 실행한다(§3.1 끝).
+   * turn을 열지 않으므로 turn이 실행 중이어도 부를 수 있다. 실행 실패(명령 오류, 종료 코드)는 completed의 result로, LoopError는 실행 전의 실패(저장소, 없는 대화)다
+   */
+  runUserBash(request: UserBashRequest): Promise<Result<UserBashOutcome, LoopError>>;
   /** 사용자 중단(Esc). xeon.tasks.abort를 부른다. 중단할 turn이 있었으면 true */
   interrupt(threadId: ThreadId, turnId?: TurnId): Promise<boolean>;
   /** 열린 turn을 재개한다. 자동 재개는 하지 않는다(§4.6) */
@@ -191,7 +211,7 @@ export interface LoopService extends LoopPort {
 - `LoopPort.status`는 `threadStatus(threadId).phase`가 `"idle"`이면 `"idle"`, 아니면 `"running"`이다.
 - `TurnOutcome`은 `F.extensions.spec` §3.2의 것이다. `LoopTurnResult.outcome.status`는 `turn.completed.status`에서 `completed` → `"completed"`, `interrupted` → `"aborted"`, `failed` → `"error"`로 옮긴다.
 - L4 `TurnPort`(`L4.host-service.spec` §3.3)의 `submit`은 `admit`, `interrupt`는 `interrupt`, `stopAtSafeBoundary`는 같은 이름에 대응한다. `SubmitOutcome`의 `busy`는 `AdmitResult.status: "queued"`에 대응하고 그때 `turnId`는 `runningTurnId`다 [가정: host 어댑터가 옮긴다].
-- `user_bash` 지점(`!명령` 입력)의 진입점은 M2에서 더한다. [제안] 이름은 `runUserBash(request)`이고, `user_bash`(first)를 발화한 뒤 거부가 아니면 `xeon.tools`의 사용자 셸 경로로 실행한다(`L1.tools.spec` 요구).
+- `user_bash` 지점(`!명령` 입력)의 진입점은 `runUserBash(request)`다. [결정: m2 F.8] F `LoopService`에 시그니처가 들어갔다(`UserBashRequest`, `UserBashOutcome`). `user_bash`(first)를 발화한 뒤 거부가 아니면 `xeon.tools`의 사용자 셸 경로(`runUserShell`, `includeInContext = !excludeFromContext`)로 실행한다(`L1.tools.spec` 요구). 거부는 `denied`로 돌려주고 실행하지 않는다. core-loop 구현은 아직 없다. 그 전까지 `createLoopService`의 `runUserBash`는 `input_invalid` 오류 값을 돌려준다.
 
 ### 3.2 자체 루프 구조
 
@@ -566,7 +586,7 @@ runTurn(req: LoopTurnRequest):
 
 - 확장 경로: `agent_before_settle`(chain)과 `turn_end`(chain)의 `BoundaryValue.continue`다. 최종 검증은 `F.extensions.spec` §4.1 finalize와 이 문서 §3.6이다.
 - `endStep` 결정: 정착 후보 단계에서 검증을 통과한 `continue: true`면 `StepNext`를 `request`로 고른다(다음 요청 한 번). 원본 `finishTurn`의 `{ action: "continue" }` 의미(`types.ts:145-153`)와 같다. 정착 후보가 아닌 단계(도구 호출, steer)의 `continue`는 요청이 어차피 나가므로 무시하고 세지 않는다.
-- 상한: turn 안에서 게이트 계속의 누적 횟수가 `l1.loop.gate.maxContinues`(기본 8)에 이르면 그 뒤의 `continue`를 false로 바꾸고 휘발 알림으로 사용자에게 보인다. 사용자 입력이 새 turn을 열면 0부터 센다. 기본 8은 Claude Code Stop 훅 8회, omp `session_stop` 8회를 따른다(`_research/item-catalog.md` L1-b "완료 게이트" 행). 구현(L1A.6)은 상한을 turn 시작 때 한 번 읽고(`nextTurn`) 0이면 `continue`를 따르지 않는다. 알림 필드 `TurnUpdatedPayload.notice`(FR-L5)가 F에 없어 지금은 알림 없이 적용한다. 필드가 들어오면 같은 자리에서 낸다.
+- 상한: turn 안에서 게이트 계속의 누적 횟수가 `l1.loop.gate.maxContinues`(기본 8)에 이르면 그 뒤의 `continue`를 false로 바꾸고 휘발 알림으로 사용자에게 보인다. 사용자 입력이 새 turn을 열면 0부터 센다. 기본 8은 Claude Code Stop 훅 8회, omp `session_stop` 8회를 따른다(`_research/item-catalog.md` L1-b "완료 게이트" 행). 구현(L1A.6)은 상한을 turn 시작 때 한 번 읽고(`nextTurn`) 0이면 `continue`를 따르지 않는다. 알림 필드 `TurnUpdatedPayload.notice`(FR-L5)는 F에 들어왔다(m2 F.8). 상한에 이른 자리에서 휘발 `turn.updated { status, notice: { code: "gate_limit", detail: { limit } } }`를 낸다(core-loop 연결은 L1A 작업).
 - `canContinue`(§3.6): 다음이 하나라도 참이면 false다. 마지막 `stopReason`이 `error`·`aborted`, turn에 취소 의도, `maxSteps` 도달, drive 신호·토큰 소진, 게이트 상한 도달, `stopAtSafeBoundary` 진행 중.
 - 목표 판정의 소비 지점 [제안]: `agent_before_settle`이다. 목표 지속 기능(`L2.work.spec`)이 이 지점에 chain 핸들러를 걸고, 핸들러 안에서 판정 모델 호출을 `xeon.agents`의 판정 API로 한다(`L1.agents.spec`, 결정: 별도 판정 모델 + 실행 횟수 상한, `_research/foundation-plan.md` §1 4번). 판정 결과는 확장 kind 엔트리로 돌려주고 T4에 기록되므로 재개 때 다시 판정하지 않는다(`architecture.runtime-flow.design` §4.5). 미달이면 `continue: true`와 지시 custom item을 낸다. 게이트 상한은 판정 기능의 판정 횟수 상한과 따로 적용된다. M3.
 
@@ -716,7 +736,7 @@ runChildTurn(req):
 | FR-L2 | (철회) | drive 순번은 X가 `requestId`를 만들 때 쓰고 L1에 넘기지 않는다(`X.primitives.spec` §4.4.4) | `LoopTurnRequest`에 순번 필드가 없다 |
 | FR-L3 | F.records.spec §3.6 | 체크포인트를 T3(assistant 응답 확정 커밋)에도 `next: "tools"`로 쓸 수 있다고 적는다. `leafEventId` 규칙을 "같은 커밋의 마지막 이벤트"로 넓힌다 | 도구 단계 재진입(§4.5) |
 | FR-L4 | F.conversation.spec §3.5.4 | `turn.completed.status` 결정표에 §4.3 추가 행(취소 의도, 단계 상한, drive 예산·신호, 루프 run 실패)과 `error` 코드 값을 더한다 | `stopReason`만으로 정할 수 없는 경우 |
-| FR-L5 | F.conversation.spec §3.5.3 (2차) | `TurnUpdatedPayload`에 선택 필드 `notice?: { code: "repeat_detected" \| "gate_limit"; detail: JsonValue }`를 더한다 | 반복 감지·게이트 상한 알림(§4.9, §4.10) |
+| FR-L5 | F.conversation.spec §3.5.3 (반영됨: m2 F.8, `TurnNotice`) | `TurnUpdatedPayload`에 선택 필드 `notice?: { code: "repeat_detected" \| "gate_limit"; detail: JsonValue }`를 더한다 | 반복 감지·게이트 상한 알림(§4.9, §4.10) |
 | FR-L6 | eng.context-map.design §5.1 | 접두 소유표를 F 이름으로 고친다: `turn.`·`step.`·`part.`·`checkpoint.`·`item.`(toolResult 제외) `core.loop`, `input.` `core.tasks`, `effect.`·toolResult `item.recorded` `core.tools` | 옛 이름(`message.`, `session.`, `tool.`) 정리 |
 | FR-L7 | architecture.runtime-flow.design §4.1 | 그림의 `TASKS->>EXT: on input`을 `HOST->>LP: admit`, `LP->>EXT: on input`, `LP->>TASKS: enqueue`로 고친다 | F.extensions §7과 어긋남(§4.1). L1.tasks.spec §7과 같은 요청 |
 | FR-L8 | F.conversation.spec §3.5.3 | (반영됨) `TurnStartedPayload`에 `scopeId: string \| null`을 더한다. drive turn은 임대 scope, 그 밖은 null | drive turn 멱등 키 `(scopeId, requestId)`(`X.primitives.spec` §3.6)를 투영 `p_turns`에서 찾는다(`L1.persistence.spec` FR-P10) |
