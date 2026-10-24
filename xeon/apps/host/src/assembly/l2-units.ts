@@ -4,119 +4,15 @@ import {
   DialogAskKey,
   DialogCommands,
   DialogCommandsKey,
-  type CallContext,
   type CommandActionRegistry,
 } from "@xeon/contracts/capabilities";
 import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
-import {
-  ApprovalServicePortKey,
-  LoopServicePortKey,
-  OsPortKey,
-  ToolServicePortKey,
-  type ApprovalOrigin,
-  type ApprovalService,
-  type LoopService,
-  type ToolRegistration,
-} from "@xeon/contracts/services";
-import type { ApprovalsPortFactory, ShellPort } from "@xeon/cap-dialog";
-import type { PlanApprovalsFactory } from "@xeon/cap-work";
-import { hostOf, type ExtHost, type ExtensionUnit } from "@xeon/ext-host";
-import { createCallL2ApprovalsPort, createOriginL2ApprovalsPort } from "./l2-approvals.ts";
+import { OsPortKey, ToolServicePortKey, type ToolRegistration } from "@xeon/contracts/services";
+import { hostOf, type ExtensionUnit } from "@xeon/ext-host";
 
-// m2-plan HOST.6. cap-dialog와 cap-work가 옵션으로 받는 포트(승인 공장, 사용자 셸, 명령 등록부)를 실제 서비스로 이어 붙이는 조립 코드.
-// 서비스는 플러그인을 싣는 시점에는 아직 없을 수 있어(`xeon.approvals`는 core-tools, `xeon.loop`은 core-loop가 올린다) 호출 때마다 포트를 찾는다.
-// 조립 루트 코드(DR-14 예외 2).
-
-/** 확장 호스트의 포트 조회만 쓴다 */
-export type PortSource = Pick<ExtHost, "ports">;
-
-function approvalsOf(source: PortSource): ApprovalService | undefined {
-  return source.ports.get(ApprovalServicePortKey);
-}
-
-/**
- * 질문(`dialog.ask`)의 승인 공장. 호출 문맥으로 출처를 만들어 도구 호출 안이면 L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다.
- * 승인 서비스가 없으면 요청은 바로 거부 값이다
- */
-export function dialogApprovalsFactory(source: PortSource): ApprovalsPortFactory {
-  return {
-    forCall(context: CallContext | undefined) {
-      const approvals = approvalsOf(source);
-      return approvals === undefined
-        ? UNAVAILABLE_PORT
-        : createCallL2ApprovalsPort(approvals, context);
-    },
-  };
-}
-
-/** 계획 승인(`work.plans`)의 승인 공장. 호출마다 출처가 다르다 */
-export function planApprovalsFactory(source: PortSource): PlanApprovalsFactory {
-  return (origin: ApprovalOrigin) => {
-    const approvals = approvalsOf(source);
-    return approvals === undefined
-      ? UNAVAILABLE_PORT
-      : createOriginL2ApprovalsPort(approvals, origin);
-  };
-}
-
-/** `xeon.approvals`가 없을 때의 포트. 모든 요청이 거부 값이다 */
-const UNAVAILABLE_PORT: ReturnType<ApprovalsPortFactory["forCall"]> = {
-  request: () =>
-    Promise.resolve(
-      err({
-        kind: "rejected",
-        code: "approvals.unavailable",
-        detail: "xeon.approvals is not provided",
-      }),
-    ),
-  get: () => Promise.resolve(ok(null)),
-  respond: () => Promise.resolve({ applied: false }),
-  cancel: () => Promise.resolve({ applied: false }),
-  wait: () => Promise.resolve(err({ kind: "cancelled" as const })),
-};
-
-/**
- * 사용자 개시 셸(`dialog.commands`의 셸 주입). `xeon.loop`의 `runUserBash`를 부른다. 결과는 명령 치환에 쓰일 뿐 모델 컨텍스트에는
- * 넣지 않는다. core-loop가 아직 `runUserBash`를 구현하지 않으면 실행 전 실패(`input_invalid`)라 `failed`로 알린다
- */
-export function userShellPort(source: PortSource): ShellPort {
-  return {
-    async run(command, context) {
-      const loop: LoopService | undefined = source.ports.get(LoopServicePortKey);
-      if (loop === undefined) {
-        return err({ kind: "failed", code: "unavailable", message: "xeon.loop is not provided" });
-      }
-      const ran = await loop.runUserBash({
-        threadId: context.threadId,
-        command,
-        excludeFromContext: true,
-        requestId: context.requestId,
-        signal: context.signal,
-      });
-      if (!ran.ok) {
-        return err({
-          kind: "failed",
-          code: ran.error.kind,
-          message: `runUserBash: ${ran.error.kind}`,
-        });
-      }
-      const outcome = ran.value;
-      if (outcome.status === "denied") return err({ kind: "denied", message: outcome.reason });
-      const { result } = outcome;
-      if (result.cancelled) {
-        return err({ kind: "failed", code: "cancelled", message: "the command was cancelled" });
-      }
-      if (result.exitCode !== undefined && result.exitCode !== 0) {
-        return err({
-          kind: "failed",
-          code: String(result.exitCode),
-          message: result.output.slice(0, 400),
-        });
-      }
-      return ok({ output: result.output });
-    },
-  };
-}
+// m2-plan HOST.6. cap-dialog와 cap-work가 옵션으로 받는 명령 등록부, 그리고 질문 도구를 L1.tools에 올리는 브리지 확장.
+// 질문·계획 승인 포트와 사용자 셸은 두 패키지의 기본 구현(`questionApprovalsOver`, `planApprovalsOver`, `shellPortOver`)이 `xeon.approvals`와
+// `xeon.loop`를 감싸므로 조립 루트가 따로 잇지 않는다. 조립 루트 코드(DR-14 예외 2).
 
 /** 동작 명령 등록부를 나중에 채우는 자리. 브리지 확장이 채우고 cap-work가 등록 시점에 읽는다 */
 export interface CommandRegistryHolder {

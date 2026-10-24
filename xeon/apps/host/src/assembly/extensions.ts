@@ -45,14 +45,7 @@ import { hostMcpPlugin } from "./cap-mcp.ts";
 import { hostGroupsPlugin } from "./groups.ts";
 import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
-import {
-  dialogApprovalsFactory,
-  dialogBridgePlugin,
-  type CommandRegistryHolder,
-  lazyCommandRegistry,
-  planApprovalsFactory,
-  userShellPort,
-} from "./l2-units.ts";
+import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } from "./l2-units.ts";
 import type { ProjectTrust } from "./trust.ts";
 import type { GroupCatalogEntry } from "@xeon/group-kit";
 import type { SettingCatalog } from "@xeon/contracts/settings";
@@ -280,8 +273,6 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
         dialogPlugin({
           settings: layersSource(settings),
           ids: deps.ids,
-          approvals: dialogApprovalsFactory(deps.ext),
-          shell: userShellPort(deps.ext),
           // 호출 문맥이 사람이 없다고 밝힌 호출(백그라운드, 비대화형 서브에이전트)에는 묻지 않는다. 생략은 대화형이다
           interactive: (context) => context.interactive !== false,
           loadIndex,
@@ -294,7 +285,6 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
         workPlugin({
           ids: deps.ids,
           settings: layersSource(settings),
-          approvals: planApprovalsFactory(deps.ext),
           commands: lazyCommandRegistry(commandRegistry),
           loadIndex,
         }),

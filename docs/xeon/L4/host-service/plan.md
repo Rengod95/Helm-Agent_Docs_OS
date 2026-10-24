@@ -339,8 +339,6 @@ HOST.6에서 실제 엔진에 올리자 드러난 오류와 처리:
 |---|---|---|
 | stdio MCP 서버 | L0가 스트림을 주는 프로세스 포트(`McpProcessPort`)를 내놓지 않았다(spec §10 25) | PLT 구현 뒤 실제 MCP 서버(예: 공식 filesystem 서버)로 연결·종료·크래시 재기동 |
 | 비밀을 쓰는 bash 호출의 종단 시험 | sops 제공자와 키 접근을 가짜로 바꿀 주입점이 조립 옵션에 없다 | `AssembleOptions`에 `ProcessRunner` 주입을 더하거나 platform-secrets 시험 제공자를 조립 옵션으로 연다 |
-| 서버 주도 입력 요청(MRTR) 종단 | 동적 도구 등록 경로(`ToolService.register` 직접 등록)는 호출 연속 정보를 싣지 못한다(L2.mcp.plan §8.5) | L1.tools의 동적 도구 연속 정보 경로 뒤 |
-| `runUserBash`를 쓰는 셸 주입 명령 | core-loop의 `runUserBash`가 아직 `input_invalid`를 돌려준다. 사용자 셸 포트는 연결되어 있다 | L1.loop 구현 뒤 |
 | 컴팩션이 실제로 도는지 | core-loop가 `shouldCompact`·`recoverOverflow`를 부르지 않는다(L1C 요청). 설정 연결만 확인했다 | L1A 구현 뒤 긴 대화 시험 |
 | 프로젝트 신뢰 프롬프트 | 대화형 클라이언트(CLI.2, DESK)가 `TrustPrompter`를 아직 내놓지 않는다 | CLI.2·DESK 뒤 |
 | `/group` 명령 | 처리기가 출력을 돌려줄 길이 없다(spec §10 26) | F 요청 처리 뒤 |
@@ -353,4 +351,17 @@ HOST.6에서 실제 엔진에 올리자 드러난 오류와 처리:
 - WK(cap-work): 표 이름을 바꿨다(위). `submit_plan` 승인 결과 문구는 한국어다.
 - DG(cap-dialog): `ask_user` 도구 등록은 조립 루트(`host-dialog-bridge`)가 했다. 플러그인이 등록하도록 옮길지 정한다.
 - core-agents: `agentsPlugin`에 `loop` 감싸개 선택 옵션을 더했다(자식 thread 열기). L1B가 같은 일을 플러그인 안에서 하면 옵션을 지운다.
-- L1A: core-tools에 정식 `L2ApprovalsPort` 팩토리가 생기면 `assembly/l2-approvals.ts`를 지운다. 동적 도구에 호출 연속 정보를 싣는 경로.
+- L1A: core-tools에 정식 `L2ApprovalsPort` 팩토리가 생기면 `assembly/l2-approvals.ts`를 지운다. 동적 도구에 호출 연속 정보를 싣는 경로는 병합 때 닫았다(§8.7).
+
+### 8.7 병합 연결 (xeon/foundation 통합)
+
+m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결을 한 커밋씩 닫았다.
+
+| 항목 | 내용과 시험 |
+|---|---|
+| 설정 쓰기 실패 | L1F가 `SessionSettingsStore.set/reset`에 `key_reused`를 값으로 더했다. `SettingsWriteFailure`에 같은 kind를 더하고 처리기가 `store.io`(`settings_key_reused`)로 옮긴다. 호스트는 키를 호출마다 새로 만들므로 방어 경로다 |
+| AG-11 시험 | 조립 루트가 core-agents를 싣게 되었으므로 `agent-tools-slot.int.test.ts`가 플러그인을 직접 설치하지 않고 `agentDefinitions` 옵션만 넘긴다. 자식 thread 열기도 조립 루트의 감싸개가 한다 |
+| thread.read 시험 | cap-knowledge의 첫 turn 문맥이 사용자 입력 뒤에 custom item 하나를 더한다. `lifecycle.int.test.ts`의 기대 종류가 `user, custom, system, assistant`다 |
+| 질문·계획 승인, 사용자 셸 | cap-dialog와 cap-work의 기본 구현(`questionApprovalsOver`, `planApprovalsOver`, `shellPortOver`)이 `xeon.approvals`와 `xeon.loop`를 감싼다. 조립 루트의 같은 일을 하던 `dialogApprovalsFactory`, `planApprovalsFactory`, `userShellPort`와 `createCallL2ApprovalsPort`, `createOriginL2ApprovalsPort`를 지웠다. 기본 구현은 재시작 뒤 `restore`와 `key_reused` 거부를 더 한다. `l2-approvals.ts`에는 cap-web이 쓰는 출처 없는 포트만 남았다 |
+| 사용자 셸 종단 | core-loop `runUserBash`가 구현되어 `shell-injection.int.test.ts`가 슬래시 명령의 `!{...}`를 실제 셸로 실행하고 출력을 치환하며 효과 레코드를 확인한다 |
+| MCP 서버 주도 요청 종단 (D5 a) | F `DirectToolRegistration.executeWithContinuation`을 더했다. cap-mcp `createToolServiceRegistrar`가 채우고, core-tools `settleDirectInput`이 `input_required`를 질문 승인으로 올려 같은 `toolCallId`로 다시 부른다. `approval-shapes.int.test.ts`가 질문 도구, 계획 승인, MCP 질문의 `approval.requested` 레코드 모양이 같음(E5)과 종단 흐름을 확인한다 |
