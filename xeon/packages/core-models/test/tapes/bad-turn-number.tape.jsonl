@@ -1,0 +1,2 @@
+{"kind":"header","format":"xeon.model-tape.v1","tapeId":"core-models/bad-turn-number","origin":"authored","matching":"role-queue"}
+{"kind":"turn","n":2,"role":"main","response":{"type":"stall"}}

@@ -1,0 +1,78 @@
+name: Xeon CI
+
+on:
+  push:
+    paths:
+      - "xeon/**"
+      - "docs/xeon/**"
+      - ".github/workflows/xeon-ci.yml"
+  pull_request:
+    paths:
+      - "xeon/**"
+      - "docs/xeon/**"
+      - ".github/workflows/xeon-ci.yml"
+
+concurrency:
+  group: xeon-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # turbo --affected compares against this ref. Needs fetch-depth 0.
+  TURBO_SCM_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
+  TURBO_TELEMETRY_DISABLED: "1"
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/xeon
+
+jobs:
+  layer:
+    name: layer ${{ matrix.layer }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        layer: [F, X, L0, L1, L2, L3, L4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: xeon
+      - uses: extractions/setup-just@v2
+        with:
+          just-version: "1.58.0"
+      - run: just setup
+      # main runs everything; branches and PRs run only the packages turbo marks as affected.
+      - run: just ci-layer ${{ matrix.layer }} ${{ github.ref_name != 'main' }}
+
+  hygiene:
+    name: format, layers, boundaries, unused code
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: xeon
+      - uses: extractions/setup-just@v2
+        with:
+          just-version: "1.58.0"
+      - run: just setup
+      - run: just fmt-check
+      - run: just check-layers
+      - run: just depcruise
+      - run: just knip
+
+  docs:
+    name: docs routing
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: xeon
+      - uses: extractions/setup-just@v2
+        with:
+          just-version: "1.58.0"
+      - run: just docs-route --check

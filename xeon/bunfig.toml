@@ -1,0 +1,8 @@
+[install]
+# exact pins live in package.json "catalog"; never float.
+exact = true
+saveTextLockfile = true
+
+[test]
+# unit tests only run from package directories (bun test) and scripts/ (bun test scripts).
+coverageSkipTestFiles = true

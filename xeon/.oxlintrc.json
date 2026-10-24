@@ -1,0 +1,274 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc", "import", "promise", "node"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+  "options": {
+    "typeAware": true,
+    "reportUnusedDisableDirectives": "error"
+  },
+  "env": { "es2024": true },
+  "ignorePatterns": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/.turbo/**",
+    "**/coverage/**",
+    "vendor/**"
+  ],
+  "rules": {
+    "eqeqeq": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "no-console": "error",
+    "no-eval": "error",
+    "no-implied-eval": "error",
+    "no-param-reassign": "error",
+    "no-throw-literal": "error",
+    "no-shadow": "error",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-non-null-asserted-optional-chain": "error",
+    "typescript/no-extraneous-class": "error",
+    "typescript/ban-ts-comment": [
+      "error",
+      { "ts-expect-error": true, "ts-ignore": true, "ts-nocheck": true, "ts-check": false }
+    ],
+    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
+    "typescript/no-unsafe-type-assertion": "error",
+    "typescript/no-non-null-asserted-nullish-coalescing": "error",
+    "typescript/no-unnecessary-type-parameters": "error",
+    "typescript/no-unsafe-function-type": "error",
+    "typescript/use-unknown-in-catch-callback-variable": "error",
+    "typescript/no-namespace": "error",
+    "oxc/no-const-enum": "error",
+    "default-case": "error",
+    "no-empty": ["error", { "allowEmptyCatch": false }],
+    "preserve-caught-error": ["error", { "requireCatchParameter": true }],
+    "typescript/consistent-type-imports": ["error", { "fixStyle": "inline-type-imports" }],
+    "typescript/no-import-type-side-effects": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/require-await": "error",
+    "typescript/only-throw-error": "error",
+    "typescript/prefer-promise-reject-errors": "error",
+    "typescript/switch-exhaustiveness-check": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
+    "typescript/no-unnecessary-condition": "error",
+    "typescript/no-unsafe-argument": "error",
+    "typescript/no-unsafe-assignment": "error",
+    "typescript/no-unsafe-call": "error",
+    "typescript/no-unsafe-member-access": "error",
+    "typescript/no-unsafe-return": "error",
+    "typescript/no-base-to-string": "error",
+    "typescript/restrict-template-expressions": "error",
+    "typescript/no-deprecated": "error",
+    "import/no-cycle": "error",
+    "import/no-self-import": "error",
+    "import/no-duplicates": "error",
+    "import/no-default-export": "error",
+    "import/no-absolute-path": "error",
+    "import/no-mutable-exports": "error",
+    "import/first": "error",
+    "promise/no-return-wrap": "error",
+    "promise/param-names": "error",
+    "unicorn/no-null": "off",
+    "unicorn/require-module-specifiers": "off",
+    "unicorn/prefer-node-protocol": "error",
+    "unicorn/throw-new-error": "error",
+    "unicorn/no-new-array": "error",
+    "unicorn/no-thenable": "error",
+    "node/no-process-env": "off",
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": ["@xeon/*/src", "@xeon/*/src/*", "@xeon/*/dist", "@xeon/*/dist/*"],
+            "message": "Import a package only through its public exports, never its src or dist."
+          },
+          {
+            "group": ["**/../packages/*", "../../../*", "../../*/src", "../../*/src/*"],
+            "message": "Do not reach into another package by relative path; declare a workspace dependency and import @xeon/<name>."
+          },
+          { "group": ["vitest", "vitest/*", "jest", "@jest/*"], "message": "Tests use bun:test." },
+          {
+            "group": ["better-sqlite3", "node:sqlite", "sqlite3"],
+            "message": "SQLite access goes through bun:sqlite inside platform-store."
+          },
+          {
+            "group": ["cordis", "cordis/*", "@xeon/vendor-cordis", "@xeon/vendor-cordis/*"],
+            "message": "Cordis is reachable only from packages/ext-host."
+          },
+          {
+            "group": ["@sinclair/typebox", "@sinclair/typebox/*"],
+            "message": "Use typebox 1.x (package 'typebox')."
+          },
+          { "group": ["lodash", "lodash/*", "moment"], "message": "Banned dependency." }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["packages/ext-host/**"],
+      "rules": { "no-restricted-imports": "off" }
+    },
+    {
+      "files": ["packages/cap-web/src/fetch/convert/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "node:http",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "node:https",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "node:http2",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "node:net",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "node:tls",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "node:dgram",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "node:dns",
+                "message": "WEB-R16: conversion modules never use the network."
+              },
+              {
+                "name": "node:child_process",
+                "message": "WEB-R16: conversion modules never start processes."
+              },
+              {
+                "name": "node:worker_threads",
+                "message": "WEB-R16: conversion modules never start workers."
+              },
+              { "name": "http", "message": "WEB-R16: conversion modules never use the network." },
+              { "name": "https", "message": "WEB-R16: conversion modules never use the network." },
+              { "name": "http2", "message": "WEB-R16: conversion modules never use the network." },
+              { "name": "net", "message": "WEB-R16: conversion modules never use the network." },
+              { "name": "tls", "message": "WEB-R16: conversion modules never use the network." },
+              { "name": "dgram", "message": "WEB-R16: conversion modules never use the network." },
+              { "name": "dns", "message": "WEB-R16: conversion modules never use the network." },
+              {
+                "name": "child_process",
+                "message": "WEB-R16: conversion modules never start processes."
+              },
+              {
+                "name": "worker_threads",
+                "message": "WEB-R16: conversion modules never start workers."
+              },
+              { "name": "undici", "message": "WEB-R16: conversion modules never use the network." },
+              { "name": "ws", "message": "WEB-R16: conversion modules never use the network." },
+              {
+                "name": "guarded-fetch",
+                "message": "WEB-R16: fetching belongs to the pipeline, not to conversion."
+              },
+              {
+                "name": "request-filtering-agent",
+                "message": "WEB-R16: fetching belongs to the pipeline, not to conversion."
+              },
+              {
+                "name": "playwright-core",
+                "message": "WEB-R16: conversion modules never drive a browser."
+              }
+            ],
+            "patterns": [
+              {
+                "group": ["@xeon/*/src", "@xeon/*/src/*", "@xeon/*/dist", "@xeon/*/dist/*"],
+                "message": "Import a package only through its public exports, never its src or dist."
+              },
+              {
+                "group": ["**/../packages/*", "../../../*", "../../*/src", "../../*/src/*"],
+                "message": "Do not reach into another package by relative path; declare a workspace dependency and import @xeon/<name>."
+              },
+              {
+                "group": ["../**"],
+                "message": "WEB-R16: conversion modules import only files of their own directory."
+              },
+              {
+                "group": ["vitest", "vitest/*", "jest", "@jest/*"],
+                "message": "Tests use bun:test."
+              },
+              {
+                "group": ["better-sqlite3", "node:sqlite", "sqlite3"],
+                "message": "SQLite access goes through bun:sqlite inside platform-store."
+              },
+              {
+                "group": ["cordis", "cordis/*", "@xeon/vendor-cordis", "@xeon/vendor-cordis/*"],
+                "message": "Cordis is reachable only from packages/ext-host."
+              },
+              {
+                "group": ["@sinclair/typebox", "@sinclair/typebox/*"],
+                "message": "Use typebox 1.x (package 'typebox')."
+              },
+              { "group": ["lodash", "lodash/*", "moment"], "message": "Banned dependency." }
+            ]
+          }
+        ],
+        "no-restricted-globals": [
+          "error",
+          { "name": "fetch", "message": "WEB-R16: conversion modules never use the network." },
+          { "name": "WebSocket", "message": "WEB-R16: conversion modules never use the network." },
+          {
+            "name": "EventSource",
+            "message": "WEB-R16: conversion modules never use the network."
+          },
+          {
+            "name": "XMLHttpRequest",
+            "message": "WEB-R16: conversion modules never use the network."
+          },
+          {
+            "name": "Bun",
+            "message": "WEB-R16: conversion modules are pure functions without runtime APIs."
+          },
+          {
+            "name": "navigator",
+            "message": "WEB-R16: conversion modules are pure functions without runtime APIs."
+          }
+        ]
+      }
+    },
+    {
+      "files": ["scripts/**", "apps/cli/**", "apps/host/**"],
+      "rules": { "no-console": "off" }
+    },
+    {
+      "files": ["**/test/**", "**/*.test.ts", "scripts/**/*.test.ts"],
+      "rules": {
+        "typescript/ban-ts-comment": [
+          "error",
+          {
+            "ts-expect-error": "allow-with-description",
+            "ts-ignore": true,
+            "ts-nocheck": true,
+            "ts-check": false,
+            "minimumDescriptionLength": 10
+          }
+        ],
+        "typescript/no-non-null-assertion": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/require-await": "off",
+        "no-shadow": "off"
+      }
+    }
+  ]
+}

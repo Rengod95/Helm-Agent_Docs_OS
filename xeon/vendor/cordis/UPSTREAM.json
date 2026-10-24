@@ -1,0 +1,14 @@
+{
+  "name": "cordis",
+  "upstream": "https://github.com/cordiverse/cordis",
+  "commit": "df4431eb43086bd1f8263a0e8c03e9b7c5233b68",
+  "version": "4.0.0-rc.11",
+  "license": "MIT",
+  "licenseFile": "LICENSE",
+  "copiedFrom": "packages/core",
+  "copiedPaths": ["packages/core/src -> src", "packages/core/README.md -> README.md", "LICENSE -> LICENSE"],
+  "notCopied": ["packages/core/tests (vitest)", "packages/core/bin.js (needs optional plugin-loader)", "packages/core/package.json (replaced by this package.json)", "packages/core/tsconfig.json"],
+  "runtimeDependencies": { "@standard-schema/spec": "^1.1.0", "cosmokit": "^1.8.1" },
+  "modifications": "none. Source files are verbatim. Do not edit; update by re-copying from a new upstream commit and recording it here.",
+  "usedBy": "xeon/packages/ext-host only (see docs/xeon decisions, single DI)"
+}

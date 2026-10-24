@@ -1,0 +1,3 @@
+# Git hooks. Lefthook reads only this file; xeon's hooks live in xeon/lefthook.yml.
+extends:
+  - xeon/lefthook.yml

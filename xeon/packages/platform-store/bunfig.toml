@@ -1,0 +1,4 @@
+[test]
+coverageSkipTestFiles = true
+coveragePathIgnorePatterns = ["../contracts/**", "../ext-host/**", "test/**"]
+coverageThreshold = { lines = 0.9, functions = 0.9 }

@@ -1,0 +1,65 @@
+[
+  {
+    "id": "DR-10/cli-host",
+    "rule": "DR-10",
+    "from": "apps/cli",
+    "to": "@xeon/host",
+    "entries": [".", "./client"],
+    "reason": "The CLI reuses the single engine assembly code in apps/host (review.decisions-2 U-15).",
+    "approvedBy": "review.decisions-2"
+  },
+  {
+    "id": "DR-02/group-kit-helm",
+    "rule": "DR-02",
+    "from": "packages/group-helm",
+    "to": "@xeon/group-kit",
+    "entries": ["."],
+    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15).",
+    "approvedBy": "review.decisions-2"
+  },
+  {
+    "id": "DR-02/group-kit-learning",
+    "rule": "DR-02",
+    "from": "packages/group-learning",
+    "to": "@xeon/group-kit",
+    "entries": ["."],
+    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15).",
+    "approvedBy": "review.decisions-2"
+  },
+  {
+    "id": "DR-07/cli-test-spawn",
+    "rule": "DR-07",
+    "from": "apps/cli",
+    "to": "Bun.spawn",
+    "reason": "CLI scenario tests run the real xeon process and kill it to check resume (review.decisions-2 B-06).",
+    "approvedBy": "review.decisions-2",
+    "scope": "test"
+  },
+  {
+    "id": "DR-07/persistence-test-spawn",
+    "rule": "DR-07",
+    "from": "packages/core-persistence",
+    "to": "Bun.spawn",
+    "reason": "Restart fault tests kill a real child process at commit fault points to check resume (review.decisions-2 B-06).",
+    "approvedBy": "review.decisions-2",
+    "scope": "test"
+  },
+  {
+    "id": "DR-07/workspace-test-spawn",
+    "rule": "DR-07",
+    "from": "packages/cap-workspace",
+    "to": "Bun.spawn",
+    "reason": "Fork record checks read the fork sources for process use patterns in test/fork-records.test.ts (review.decisions-2 B-06).",
+    "approvedBy": "review.decisions-2",
+    "scope": "test"
+  },
+  {
+    "id": "DR-07/desktop-test-spawn",
+    "rule": "DR-07",
+    "from": "apps/desktop",
+    "to": "Bun.spawn",
+    "reason": "Desktop shell tests run the real sidecar process and talk to it over stdio (review.decisions-2 B-06, L4.desktop.plan D1).",
+    "approvedBy": "review.decisions-2",
+    "scope": "test"
+  }
+]

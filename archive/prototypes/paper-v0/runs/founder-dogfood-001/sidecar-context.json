@@ -1,0 +1,43 @@
+{
+  "concern": "helm-product-transition",
+  "purpose": "인간이 판단권과 상황 인식을 유지하면서 여러 에이전트와 더 높은 품질의 결과를 만드는 Helm의 최소 제품 루프를 검증한다.",
+  "lastAcknowledgedCursor": "gate-helm-next-step-001:open",
+  "currentCursor": "gate-helm-next-step-001:committed; founder-dogfood-001:active",
+  "selectedDecision": {
+    "id": "gate-helm-next-step-001",
+    "summary": "Paper/Wizard-of-Oz 검증을 수행한 뒤, 관찰에 근거한 최소 read-only sidecar를 실험한다.",
+    "rationale": "상호작용 가치와 실제 event 수집 한계를 낮은 피벗 비용으로 함께 검증한다.",
+    "decidedBy": "product owner",
+    "decidedAt": "2026-08-16T14:39:36+09:00",
+    "reference": "docs/prototypes/paper-v0/examples/helm-transition/decision-gate.md"
+  },
+  "epistemicChanges": [
+    {
+      "summary": "Git 관찰만으로는 목적, 결정, 믿음 변화, 수락을 복원할 수 없다는 가설을 sidecar 출력 비교로 시험한다.",
+      "confidence": "hypothesis-under-test",
+      "observedAt": "2026-08-16T14:39:36+09:00",
+      "reference": "docs/prototypes/paper-v0/experiment-protocol.md"
+    }
+  ],
+  "activeCommitments": [
+    {
+      "id": "contract-helm-pilot-001",
+      "summary": "Founder dogfood 001을 수행하고 측정·반증·다음 Gate를 기록한다.",
+      "status": "active",
+      "createdAt": "2026-08-16T14:39:36+09:00",
+      "reference": "docs/prototypes/paper-v0/examples/helm-transition/delegation-contract.md"
+    },
+    {
+      "id": "wu-helm-sidecar-pilot",
+      "summary": "기존 initializer를 변경하지 않는 dependency-free read-only collector를 구현·검증한다.",
+      "status": "active",
+      "createdAt": "2026-08-16T14:39:36+09:00",
+      "reference": "experiments/helm-sidecar/README.md"
+    }
+  ],
+  "nextActions": [
+    "Git-only capture와 human-context capture의 semantic coverage를 비교한다.",
+    "자동 테스트와 전후 Git 상태 비교로 입력 프로젝트 비파괴성을 검증한다.",
+    "관찰 결과로 stable kernel 착수 여부를 다시 결정한다."
+  ]
+}

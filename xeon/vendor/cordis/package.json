@@ -1,0 +1,19 @@
+{
+  "name": "@xeon/vendor-cordis",
+  "version": "4.0.0-rc.11",
+  "private": true,
+  "type": "module",
+  "description": "Vendored cordis (MIT) at df4431e. See UPSTREAM.json. Excluded from layer checks, lint and format.",
+  "exports": { ".": "./src/index.ts" },
+  "xeon": { "layer": "vendor", "domain": "cordis" },
+  "scripts": {
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "@standard-schema/spec": "catalog:",
+    "cosmokit": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  }
+}

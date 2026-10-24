@@ -1,0 +1,29 @@
+{
+  "name": "@xeon/platform-os",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/index.ts"
+  },
+  "scripts": {
+    "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
+    "typecheck": "tsc -b",
+    "test": "bun test",
+    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
+  },
+  "dependencies": {
+    "@vscode/ripgrep": "catalog:",
+    "@xeon/contracts": "workspace:*",
+    "@xeon/ext-host": "workspace:*",
+    "typebox": "catalog:"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
+  },
+  "xeon": {
+    "layer": "L0",
+    "domain": "os"
+  }
+}

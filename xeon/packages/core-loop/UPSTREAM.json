@@ -1,0 +1,39 @@
+{
+  "name": "pi-agent-core loop (Xeon own agent loop)",
+  "upstream": "https://github.com/earendil-works/pi",
+  "package": "@earendil-works/pi-agent-core",
+  "version": "1.3.0",
+  "tarballSha1": "aec4d26bf7cdab5bca2a129f6a6dffc606c892db",
+  "integrity": "sha512-2jvpxZs47PFD5mSQb/yK0pGHJ5yO7Nu22u9mFjHbSLRgu62vZ9rupimDSIp4arnqOadyv0AWvYHtCSpFoJV7ag==",
+  "license": "MIT",
+  "licenseFile": "LICENSE.pi",
+  "source": "packages/agent/src/{agent-loop.ts,types.ts}, read from dist/*.js.map sourcesContent (byte-identical to 1.1.0 sources)",
+  "decision": "docs/xeon/decisions/ADR-0009-own-agent-loop.md",
+  "copiedPaths": [
+    "agent-loop.ts runLoop inner iteration (163-321) -> src/loop/run-turn.ts",
+    "agent-loop.ts streamAssistantResponse (381-476) -> src/loop/stream-response.ts",
+    "agent-loop.ts executeToolCalls, executeToolCallsSequential, executeToolCallsParallel, failToolCallsFromTruncatedMessage, shouldTerminateToolBatch (478-692) -> src/loop/tool-batch.ts",
+    "types.ts AgentMessage, AgentEvent, AgentTool, AgentToolResult, AgentToolCall, AgentToolUpdateCallback, ToolExecutionMode, AgentContext (names and fields only, no any) -> packages/contracts/src/conversation/agent.ts"
+  ],
+  "notCopied": [
+    "agent.ts (Agent class)",
+    "proxy.ts",
+    "stream-fn.ts (global default streamFn)",
+    "agentLoop, agentLoopContinue (EventStream wrapping)",
+    "declareToolChanges (L1.context declares tools in the fixed prefix)",
+    "runToolCall, prepareToolCall, executePreparedToolCall, finalizeExecutedToolCall (core-tools prepare/execute/settleRejected)",
+    "beforeToolCall, afterToolCall, finishTurn, prepareRequest, prepareNextTurn, getSteeringMessages, getFollowUpMessages (callback hooks)"
+  ],
+  "modifications": [
+    "entry-points: runLoop's two entry points (new prompt, continue) become the four resume entries fresh, request, tools, turn_end (run-turn.ts)",
+    "no-outer-loop: the follow-up outer loop is removed; a follow-up starts a new turn (run-turn.ts)",
+    "step-functions: commit points and extension points are called by explicit step functions, not by callback hooks (run-turn.ts, open-step.ts, commit-response.ts, step-end.ts)",
+    "no-context-array: the loop keeps no message array; every request is rebuilt from committed events by xeon.context (stream-response.ts, prepare-request.ts)",
+    "no-api-key: getApiKey/apiKey resolution is removed; core-models leases the key (stream-response.ts)",
+    "model-slot: the streamFn is wrapped by the modelCalls limiter slot (stream-response.ts)",
+    "batch-cancel: on cancel the remaining calls are settled as not_executed inside the same batch instead of break (tool-batch.ts)",
+    "batch-length: a response cut by the output limit settles every call as truncated through tools.settleRejected (tool-batch.ts)",
+    "batch-record: per-call prepare/execute/result recording is done by xeon.tools; the loop turns the returned ToolCallOutcome into events (tool-batch.ts)"
+  ],
+  "tracking": "Not tracked. New pi-agent-core releases are not followed (adr.0009 section 3.7). Record any hand-ported fix here with the upstream version and function."
+}

@@ -1,0 +1,6 @@
+# 오탐: 문서 표의 패키지·서비스 이름 나열(비밀 값 없음)
+docs/xeon/L2/artifacts/plan.md:generic-api-key:114
+xeon/apps/cli/test/no-secret.test.ts:generic-api-key:23
+xeon/packages/contracts/test/wire-settings/layers.test.ts:generic-api-key:201
+xeon/packages/core-tools/test/secrets.test.ts:generic-api-key:6
+xeon/packages/platform-secrets/test/redactor.test.ts:generic-api-key:103

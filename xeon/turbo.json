@@ -1,0 +1,34 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "tasks": {
+    "lint": {
+      "inputs": [
+        "src/**",
+        "test/**",
+        "package.json",
+        "tsconfig.json",
+        "$TURBO_ROOT$/.oxlintrc.json"
+      ],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"],
+      "inputs": [
+        "src/**",
+        "test/**",
+        "package.json",
+        "tsconfig.json",
+        "$TURBO_ROOT$/tsconfig.base.json"
+      ],
+      "outputs": ["dist/**"]
+    },
+    "test": {
+      "inputs": ["src/**", "test/**", "package.json"],
+      "outputs": []
+    },
+    "fmt-check": {
+      "inputs": ["src/**", "test/**", "$TURBO_ROOT$/.oxfmtrc.json"],
+      "outputs": []
+    }
+  }
+}
