@@ -24,10 +24,12 @@ import {
   SemVerSchema,
   type SemVer,
 } from "../../capabilities/index.ts";
+import { ApprovalRequestedPayloadSchema } from "../../records/index.ts";
 import {
   EventIdSchema,
   ImageContentSchema,
   ItemIdSchema,
+  ItemRecordSchema,
   TextContentSchema,
   ThreadIdSchema,
   ThreadStatusSchema,
@@ -44,6 +46,7 @@ import {
   EventsSubscribeParamsSchema,
   EventsSubscribeResultSchema,
   EventsUnsubscribeParamsSchema,
+  SeqSchema,
   StoreIdSchema,
   StreamPositionSchema,
 } from "./cursor.ts";
@@ -318,6 +321,50 @@ export const ThreadOpenResultSchema: TObject<{
 );
 export type ThreadOpenResult = Static<typeof ThreadOpenResultSchema>;
 
+/** 한 번에 받을 item 수 상한. thread.read의 limit과 결과 items의 maxItems가 같다 */
+const THREAD_READ_MAX_ITEMS = 500;
+
+/**
+ * thread.read params. 소유를 얻지 않는 읽기다(thread.open과 다르다).
+ * `before`가 없으면 가장 새 item부터 `limit`개, 있으면 그 item 바로 앞부터 `limit`개를 돌려준다.
+ */
+export const ThreadReadParamsSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  limit: TOptional<TInteger>;
+  before: TOptional<typeof ItemIdSchema>;
+}> = Type.Object(
+  {
+    threadId: ThreadIdSchema,
+    /** 상한이다. 호스트는 프레임 한도 때문에 더 적게 돌려줄 수 있다(그때 hasMore는 참). 기본 200 */
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: THREAD_READ_MAX_ITEMS })),
+    /** 앞선 결과의 items[0].itemId. 이 item은 결과에 들어가지 않는다 */
+    before: Type.Optional(ItemIdSchema),
+  },
+  { additionalProperties: false },
+);
+export type ThreadReadParams = Static<typeof ThreadReadParamsSchema>;
+
+/**
+ * thread.read result(F.wire-settings.spec §3.4.6). items는 현재 가지(branch)의 내구 ItemRecord를 오래된 것부터 담는다.
+ * `position.seq`는 items와 같은 읽기 트랜잭션에서 잰 저장소 head이고, 그 seq까지의 이 thread 이벤트가 items에 반영되어 있다.
+ */
+export const ThreadReadResultSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  items: TArray<typeof ItemRecordSchema>;
+  position: typeof StreamPositionSchema;
+  hasMore: TBoolean;
+}> = Type.Object(
+  {
+    threadId: ThreadIdSchema,
+    items: Type.Array(ItemRecordSchema, { maxItems: THREAD_READ_MAX_ITEMS }),
+    position: StreamPositionSchema,
+    /** items[0]보다 앞선 item이 더 있다 */
+    hasMore: Type.Boolean(),
+  },
+  { additionalProperties: false },
+);
+export type ThreadReadResult = Static<typeof ThreadReadResultSchema>;
+
 /** thread.close, thread.delete */
 export const ThreadRefParamsSchema: TObject<{ threadId: typeof ThreadIdSchema }> = Type.Object(
   { threadId: ThreadIdSchema },
@@ -429,6 +476,45 @@ export const ApprovalRespondResultSchema: TObject<{ applied: TBoolean }> = Type.
   { additionalProperties: false },
 );
 export type ApprovalRespondResult = Static<typeof ApprovalRespondResultSchema>;
+
+/** approval.list가 돌려줄 대기 승인 수 상한(thread 하나) */
+const APPROVAL_LIST_MAX = 1000;
+
+export const ApprovalListParamsSchema: TObject<{ threadId: typeof ThreadIdSchema }> = Type.Object(
+  { threadId: ThreadIdSchema },
+  { additionalProperties: false },
+);
+export type ApprovalListParams = Static<typeof ApprovalListParamsSchema>;
+
+/**
+ * 대기 승인 하나. `request`는 approval.requested 이벤트 payload 그대로이고(`request.surfaceThreadId`가 이벤트를 기록한 thread),
+ * `approvalId`는 그 이벤트의 envelope id, `seq`는 그 이벤트의 seq다.
+ */
+export const PendingApprovalSchema: TObject<{
+  approvalId: typeof EventIdSchema;
+  seq: typeof SeqSchema;
+  request: typeof ApprovalRequestedPayloadSchema;
+}> = Type.Object(
+  { approvalId: EventIdSchema, seq: SeqSchema, request: ApprovalRequestedPayloadSchema },
+  { additionalProperties: false },
+);
+export type PendingApproval = Static<typeof PendingApprovalSchema>;
+
+/**
+ * approval.list result(F.wire-settings.spec §3.4.6). approvals는 seq 오름차순이다.
+ * `position.seq`까지의 approval.requested·approval.resolved 이벤트가 반영되어 있다.
+ */
+export const ApprovalListResultSchema: TObject<{
+  approvals: TArray<typeof PendingApprovalSchema>;
+  position: typeof StreamPositionSchema;
+}> = Type.Object(
+  {
+    approvals: Type.Array(PendingApprovalSchema, { maxItems: APPROVAL_LIST_MAX }),
+    position: StreamPositionSchema,
+  },
+  { additionalProperties: false },
+);
+export type ApprovalListResult = Static<typeof ApprovalListResultSchema>;
 
 // ── settings.* ───────────────────────────────────────────────────────────
 
@@ -681,6 +767,10 @@ interface WireSchemas {
     params: WithMeta<typeof ThreadOpenParamsSchema>;
     result: typeof ThreadOpenResultSchema;
   };
+  "thread.read": {
+    params: WithMeta<typeof ThreadReadParamsSchema>;
+    result: typeof ThreadReadResultSchema;
+  };
   "thread.close": {
     params: typeof ThreadRefRequestSchema;
     result: typeof EmptyResultSchema;
@@ -716,6 +806,10 @@ interface WireSchemas {
   "approval.respond": {
     params: WithMeta<typeof ApprovalRespondParamsSchema>;
     result: typeof ApprovalRespondResultSchema;
+  };
+  "approval.list": {
+    params: WithMeta<typeof ApprovalListParamsSchema>;
+    result: typeof ApprovalListResultSchema;
   };
   "settings.get": {
     params: WithMeta<typeof SettingsGetParamsSchema>;
@@ -829,6 +923,7 @@ export const WIRE_METHODS: {
   "thread.list": spec(withMeta(ThreadListParamsSchema), ThreadListResultSchema, "M2"),
   "thread.create": spec(withMeta(ThreadCreateParamsSchema), ThreadCreateResultSchema, "M1"),
   "thread.open": spec(withMeta(ThreadOpenParamsSchema), ThreadOpenResultSchema, "M2"),
+  "thread.read": spec(withMeta(ThreadReadParamsSchema), ThreadReadResultSchema, "M2"),
   "thread.close": spec(ThreadRefRequestSchema, EmptyResultSchema, "M2"),
   "thread.delete": spec(ThreadRefRequestSchema, EmptyResultSchema, "M2"),
   "thread.fork": spec(withMeta(ThreadForkParamsSchema), ThreadForkResultSchema, "M2"),
@@ -846,6 +941,7 @@ export const WIRE_METHODS: {
     ApprovalRespondResultSchema,
     "M2",
   ),
+  "approval.list": spec(withMeta(ApprovalListParamsSchema), ApprovalListResultSchema, "M2"),
   "settings.get": spec(withMeta(SettingsGetParamsSchema), SettingsGetResultSchema, "M1"),
   "settings.set": spec(withMeta(SettingsSetParamsSchema), SettingsSetResultSchema, "M2"),
   "settings.reset": spec(withMeta(SettingsResetParamsSchema), SettingsSetResultSchema, "M2"),

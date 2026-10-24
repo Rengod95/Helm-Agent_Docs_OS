@@ -7,6 +7,8 @@ import {
   WIRE_PROTOCOL_VERSION,
 } from "../../src/wire-settings/wire/index.ts";
 import { rawId } from "../helpers/ids.ts";
+import { userText } from "../conversation/fixtures/pi-messages.ts";
+import { PAYLOAD_FIXTURES } from "../records/fixtures/payloads.ts";
 
 const STORE = "sto_01ARZ3NDEKTSV4RRFFQ69G5FAV";
 const THREAD = rawId("thr", 1);
@@ -14,14 +16,14 @@ const THREAD = rawId("thr", 1);
 const names = Object.keys(WIRE_METHODS);
 
 describe("WIRE_METHODS", () => {
-  test("has the 25 methods of the spec table with their stages", () => {
-    expect(names).toHaveLength(25);
+  test("has the 27 methods of the spec table with their stages", () => {
+    expect(names).toHaveLength(27);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
       ["events.subscribe", "host.hello", "settings.get", "thread.create", "turn.start"].toSorted(),
     );
-    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(20);
+    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(22);
   });
 
   test("every row carries both schemas, since and status", () => {
@@ -164,6 +166,60 @@ describe("M2 method schemas are written out", () => {
       parse(params, { approvalId: rawId("evt", 1), decision: "answer", answer: { text: "x" } }).ok,
     ).toBe(true);
     expect(parse(params, { approvalId: rawId("evt", 1), decision: "maybe" }).ok).toBe(false);
+  });
+
+  test("thread.read returns items with the position they reflect", () => {
+    const { params, result } = WIRE_METHODS["thread.read"];
+    expect(parse(params, { threadId: THREAD }).ok).toBe(true);
+    expect(parse(params, { threadId: THREAD, limit: 500, before: rawId("itm", 9) }).ok).toBe(true);
+    expect(parse(params, { threadId: THREAD, limit: 0 }).ok).toBe(false);
+    expect(parse(params, { threadId: THREAD, limit: 501 }).ok).toBe(false);
+    expect(parse(params, { threadId: THREAD, before: "nope" }).ok).toBe(false);
+    expect(parse(params, { threadId: THREAD, mode: "write" }).ok).toBe(false);
+    const item = {
+      itemId: rawId("itm", 1),
+      status: "completed",
+      kind: "user",
+      message: userText,
+      requestId: null,
+    };
+    const position = { storeId: STORE, seq: 12 };
+    expect(parse(result, { threadId: THREAD, items: [item], position, hasMore: false }).ok).toBe(
+      true,
+    );
+    expect(parse(result, { threadId: THREAD, items: [], position, hasMore: true }).ok).toBe(true);
+    // position과 hasMore는 빠질 수 없다. 빠지면 UI가 이어 붙일 자리를 모른다
+    expect(parse(result, { threadId: THREAD, items: [item], hasMore: false }).ok).toBe(false);
+    expect(parse(result, { threadId: THREAD, items: [item], position }).ok).toBe(false);
+    expect(
+      parse(result, { threadId: THREAD, items: [item], position: { seq: 12 }, hasMore: false }).ok,
+    ).toBe(false);
+    expect(
+      parse(result, {
+        threadId: THREAD,
+        items: [{ ...item, kind: "assistant" }],
+        position,
+        hasMore: false,
+      }).ok,
+    ).toBe(false);
+  });
+
+  test("approval.list returns approval.requested payloads with the position they reflect", () => {
+    const { params, result } = WIRE_METHODS["approval.list"];
+    expect(parse(params, { threadId: THREAD }).ok).toBe(true);
+    expect(parse(params, {}).ok).toBe(false);
+    expect(parse(params, { threadId: THREAD, extra: 1 }).ok).toBe(false);
+    const request = PAYLOAD_FIXTURES["approval.requested"];
+    const position = { storeId: STORE, seq: 30 };
+    const entry = { approvalId: rawId("evt", 7), seq: 21, request };
+    expect(parse(result, { approvals: [entry], position }).ok).toBe(true);
+    expect(parse(result, { approvals: [], position }).ok).toBe(true);
+    expect(parse(result, { approvals: [entry] }).ok).toBe(false);
+    expect(parse(result, { approvals: [{ ...entry, seq: -1 }], position }).ok).toBe(false);
+    expect(parse(result, { approvals: [{ ...entry, request: {} }], position }).ok).toBe(false);
+    expect(
+      parse(result, { approvals: [{ approvalId: entry.approvalId, request }], position }).ok,
+    ).toBe(false);
   });
 
   test("secret methods carry no value field", () => {

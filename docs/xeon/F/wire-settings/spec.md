@@ -272,6 +272,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
 | thread | `thread.create` | `{ workspace?: string, title?: string }` | `{ threadId: ThreadId, position: StreamPosition }` | M1 |
 | thread | `thread.open` | `{ threadId: ThreadId, mode: "write"\|"observe" }` | `{ threadId: ThreadId, role: "owner"\|"observer", position: StreamPosition }` | M2 |
+| thread | `thread.read` | `{ threadId: ThreadId, limit?: integer(1..500), before?: ItemId }` | `{ threadId: ThreadId, items: ItemRecord[], position: StreamPosition, hasMore: boolean }` | M2 |
 | thread | `thread.close` | `{ threadId: ThreadId }` | `{}` | M2 |
 | thread | `thread.delete` | `{ threadId: ThreadId }` | `{}` | M2 |
 | thread | `thread.fork` | `{ threadId: ThreadId, at?: ItemId }` | `{ threadId: ThreadId, position: StreamPosition }` | M2 |
@@ -281,6 +282,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | events | `events.subscribe` | `{ from: StreamPosition \| "head", filter?: EventFilter }` | `{ sub: SubId, start: Seq, headSeq: Seq, storeId: StoreId, mode: "replaying"\|"live" }` | M1 |
 | events | `events.unsubscribe` | `{ sub: SubId }` | `{}` | M2 |
 | approval | `approval.respond` | `{ approvalId: string, decision: "allow"\|"deny"\|"answer", answer?: unknown, remember?: "once"\|"thread"\|"always" }` | `{ applied: boolean }` | M2 |
+| approval | `approval.list` | `{ threadId: ThreadId }` | `{ approvals: PendingApproval[], position: StreamPosition }` | M2 |
 | settings | `settings.get` | `{ keys?: SettingKey[], threadId?: ThreadId }` | `{ settings: EffectiveSetting[] }` | M1 |
 | settings | `settings.set` | `{ key: SettingKey, value: unknown, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
 | settings | `settings.reset` | `{ key: SettingKey, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
@@ -294,6 +296,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 
 - [제안] M1 범위는 브리프의 최소 셋(`turn.start`, `events.subscribe`, `settings.get`)에 선행 조건 둘(`host.hello`, `thread.create`)을 더한다. 대화를 시작하려면 thread가 있어야 하고, 모든 연결은 hello로 시작하기 때문이다.
 - [제안] `thread.open`을 추가했다. `_research/process.md` §6.3의 세션 단위 쓰기 소유 규칙을 계약에 드러내기 위해서다. 소유 잠금을 얻지 못하면 `thread.locked`(§3.5.2) 오류에 대안(관찰, 분기, 위임)을 싣는다. in-process 단일 클라이언트인 M1에서는 `thread.create`가 소유를 함께 얻는다.
+- [결정: m2 F.2] `thread.read`는 열린 thread의 스냅샷을 돌려주는 읽기 전용 메서드다(L4.desktop 상태 설계 §14 1번). `thread.open` 결과에 items를 싣지 않고 새 메서드를 둔 이유는 셋이다. 첫째, `thread.open`은 쓰기 소유 획득이라는 부작용이 있어서 소유 없이 관찰하는 thread나 재동기화 때마다 부르기에 맞지 않다. 둘째, 스냅샷은 재설정과 재구독마다 다시 읽는데 `thread.open`은 열 때 한 번 부르는 메서드다. 셋째, 긴 thread는 앞부분을 나눠 받아야 해서 `limit`과 `before`가 필요하다. `thread.read`는 소유를 얻지 않고 닫힌 thread도 읽는다. `items`는 현재 가지의 내구 `ItemRecord`를 오래된 것부터 담고, `position`은 그 items가 반영한 저장소 위치다. 이어 붙이는 규칙은 §3.4.6이다.
+- [결정: m2 F.2] `approval.list`는 thread의 대기 승인을 돌려준다(L4.desktop 상태 설계 §14 2번, 13번). 대기는 `approval.requested`가 있고 `approval.resolved`가 없는 것이다. `PendingApproval`은 `{ approvalId: EventId, seq: Seq, request: ApprovalRequestedPayload }`이고 `request`는 `approval.requested` 이벤트 payload 그대로다. `approvalId`와 `seq`는 그 이벤트의 envelope `id`와 `seq`이며, 이벤트를 기록한 thread는 `request.surfaceThreadId`다. 목록은 `seq` 오름차순이고 한 thread에 1,000개를 넘지 않는다. 없는 thread는 `thread.notFound`(3001)다. 클라이언트가 목록을 받을 곳은 재설정이나 재동기화 뒤다. 평소에는 `approval.requested`와 `approval.resolved` 이벤트가 같은 일을 한다(§4.6).
 - [제안] `turn.start`의 암묵 획득: 이 프로세스가 그 thread의 쓰기 소유를 쥐고 있지 않으면 `turn.start`가 획득을 한 번 시도한다. 실패하면 `thread.locked`(3002)를 돌려준다(`L4.host-service.spec` HS-28). `thread.open`은 관찰이나 분기 선택이 필요할 때 쓰는 명시 경로다.
 - [제안] `host.shutdown`은 협조 종료 요청이다. 응답은 참여자 처리가 끝난 뒤 보낸다(`L0.process.spec` FR-P1). 데스크톱 셸이 SIGKILL만 보낼 수 있어서 전송 메시지가 공통 경로다. 이 메서드를 모르는 엔진(-32601)에는 stdin 닫기(EOF)가 같은 종료를 일으킨다(`L4.desktop.spec` §4.3).
 - [제안] `secret.*` 여섯 메서드는 값 필드가 없다. 값 입력과 열람은 호스트 쪽 L0.secrets가 OS 입력 창이나 wire 밖 전달로 받는다(`L0.secrets.spec` §8.3 R4, `L4.readme` §8.1). `SecretName`은 `F.capabilities.spec` §3.10이다. `SecretListEntry`의 필드는 [가정] `L0.secrets.spec`의 값 없는 메타 모양을 따르고 M2 착수 때 정한다.
@@ -359,6 +363,7 @@ export interface WireMethodMap {
   "thread.list":       { params: ThreadListParams;       result: ThreadListResult };
   "thread.create":     { params: ThreadCreateParams;     result: ThreadCreateResult };
   "thread.open":       { params: ThreadOpenParams;       result: ThreadOpenResult };
+  "thread.read":       { params: ThreadReadParams;       result: ThreadReadResult };
   "thread.close":      { params: ThreadRefParams;        result: EmptyResult };
   "thread.delete":     { params: ThreadRefParams;        result: EmptyResult };
   "thread.fork":       { params: ThreadForkParams;       result: ThreadForkResult };
@@ -368,6 +373,7 @@ export interface WireMethodMap {
   "events.subscribe":  { params: EventsSubscribeParams;  result: EventsSubscribeResult };
   "events.unsubscribe":{ params: EventsUnsubscribeParams;result: EmptyResult };
   "approval.respond":  { params: ApprovalRespondParams;  result: ApprovalRespondResult };
+  "approval.list":     { params: ApprovalListParams;     result: ApprovalListResult };
   "settings.get":      { params: SettingsGetParams;      result: SettingsGetResult };
   "settings.set":      { params: SettingsSetParams;      result: SettingsSetResult };
   "settings.reset":    { params: SettingsResetParams;    result: SettingsSetResult };
@@ -514,7 +520,7 @@ on commit(batch: seq 구간 (a-1, b]), 커밋 직후 같은 턴에서:
 
 - 3단계의 head 읽기와 구독 등록은 같은 이벤트 루프 턴에서 한다. bun:sqlite는 동기 API이고 커밋 방송도 같은 스레드에서 하므로 그 사이에 커밋이 끼어들 수 없다. [가정] L0.store가 커밋을 다른 스레드로 옮기지 않는다. 옮기면 등록과 방송을 직렬화하는 잠금이 필요하다.
 - 한도 기본값 [제안]: `maxReplayEvents` 100,000, `replayBatchMaxEvents` 500, `scanLimit` 10,000, 연결당 구독 16. 값은 L4 host 설정 키로 노출할 수 있고 그 키는 `L4.host-service.spec`이 소유한다.
-- `replay.outOfRange`를 받은 클라이언트의 복구 절차는 19 §3.5.5의 1·2단계(위치 버림, `from: "head"`로 재구독)만 이식한다. 뷰 스냅샷(`view.get`)은 Xeon 계약에 없다. [제안] thread 상태 재조회 메서드는 M2에서 `thread.open` 결과로 대신한다.
+- `replay.outOfRange`를 받은 클라이언트의 복구 절차는 19 §3.5.5의 1·2단계(위치 버림, `from: "head"`로 재구독)만 이식한다. 뷰 스냅샷(`view.get`)은 Xeon 계약에 없다. [결정: m2 F.2] thread 상태 재조회는 `thread.read`가, 대기 승인 재조회는 `approval.list`가 맡는다(§3.4.6).
 
 #### 3.4.4 휘발 스트림
 
@@ -591,6 +597,23 @@ export declare function toEventWire(event: DurableEventEnvelope, redact?: (event
 export declare function toVolatileEventWire(event: VolatileEventEnvelope): VolatileEventWire;
 ```
 
+#### 3.4.6 스냅샷과 이벤트 이어 붙이기 [결정: m2 F.2]
+
+`thread.list`, `thread.read`, `approval.list`는 이벤트 구독과 별개의 읽기다. 클라이언트(L4 UI)가 재설정이나 재동기화 뒤 `from: "head"`로 다시 구독하면 그 이전 이벤트는 오지 않으므로, 이 읽기 결과 위에 구독 이벤트를 빠짐없이, 중복 없이 이어 붙이는 규칙을 계약으로 정한다.
+
+1. `position`의 뜻: `thread.read`와 `approval.list`는 대상을 읽는 일과 `headSeq()` 읽기를 같은 읽기 트랜잭션에서 한다(`L0.store`의 동기 읽기 한 번). `position.seq`는 그때의 저장소 head이고, 이 seq 이하의 그 thread 이벤트(`approval.list`는 `approval.requested`·`approval.resolved`)는 결과에 모두 반영되어 있으며 이 seq를 넘는 이벤트는 하나도 반영되어 있지 않다. `position.storeId`는 `events.subscribe` 응답의 `storeId`와 같다.
+2. 클라이언트 절차:
+   1. `events.subscribe({from: "head"})`의 응답을 받는다(`start`).
+   2. 그 응답 뒤에 `thread.read`나 `approval.list`를 보낸다. 읽기 시점의 head는 `start` 이상이므로 `(start, position.seq]` 구간의 이벤트는 구독으로도 오고 결과에도 들어 있다.
+   3. 결과를 적용한 뒤에는 `seq <= position.seq`인 이벤트를 적용하지 않고 `seq > position.seq`인 이벤트만 적용한다. 응답보다 먼저 도착한 `events.batch`의 이벤트는 응답을 적용할 때까지 보관했다가 같은 규칙으로 거른다.
+   4. `position.storeId`가 구독의 `storeId`와 다르면 결과를 버리고 처음부터 다시 한다.
+   5. 구독보다 먼저 읽었다면(`position.seq < start`) `(position.seq, start]` 구간이 비는 구멍이 생긴다. 그때는 다시 읽거나 `from: position`으로 구독한다.
+3. `thread.read` 페이지: `before`가 없으면 가장 새 item부터 `limit`개(기본 200)이고, 있으면 그 item 바로 앞부터 `limit`개다. `items`는 오래된 것부터 정렬하며 `items[0].itemId`가 다음 페이지의 `before`다. `hasMore`가 거짓이면 `items[0]`이 thread의 첫 item이다. 호스트는 프레임 한도 때문에 `limit`보다 적게 돌려줄 수 있고 그때도 `hasMore`는 정확해야 한다. 이어 붙이기 기준은 `before` 없는 첫 읽기의 `position`뿐이다. 이전 페이지의 item은 바뀌지 않으므로 뒤 페이지의 `position`은 쓰지 않는다. 이 thread에 없는 `before`는 `thread.invalidTarget`(3005, `reason: "item_not_found"`), 현재 가지에 없는 `before`는 `reason: "not_on_branch"`다. 없는 thread는 `thread.notFound`(3001)다.
+4. 스냅샷의 범위: `items`는 커밋된 `ItemRecord`만 담는다. 스트리밍 중인 item(`item.started` 이후 아직 `item.recorded`가 없는 것)은 휘발 사실이라 스냅샷에 없다. 그 item의 조각은 §3.4.4대로 다시 보내지 않고, 완성본은 `item.recorded`로 온다. 되감기(`thread.revert`)로 현재 가지가 바뀌면 클라이언트는 `thread.read`를 처음부터 다시 읽는다.
+5. 대기 승인: `approval.list`는 재설정이나 재동기화 뒤 승인 대기열을 다시 만드는 데 쓴다. 이어 붙이기는 `thread.read`와 같다. 목록에 반영된 `approval.requested`가 재전송으로 다시 와도 `seq <= position.seq`라 적용하지 않으므로, 이미 해결된 요청이 대기열에 되살아나지 않는다. 승인이 대기 중인 thread는 `ThreadSummary.pendingApprovals`가 0보다 큰 thread이므로 클라이언트는 그 thread에만 요청한다.
+6. "비어 있음"과 "읽는 중"의 구분: F는 `events.subscribe` 응답이나 `ThreadSummary`에 별도 신호를 더하지 않는다(L4.desktop 상태 설계 §14 12번). `thread.list`, `thread.read`, `approval.list`는 모두 요청과 응답이고, 응답이 곧 "읽기를 마쳤다"는 신호이기 때문이다. 클라이언트는 요청을 보낼 때 `loading`, 성공 응답을 적용할 때 `ready`(빈 목록이어도), 오류 응답을 받을 때 `failed`로 둔다. 목록 읽기는 JSON-RPC 오류로 실패하므로 실패와 빈 결과도 구분된다. `events.subscribe` 응답에 "비어 있음" 표시를 두지 않는 이유는, 구독은 이벤트만 책임지고 thread 목록과 스냅샷은 필터와 페이지가 있는 별도 읽기라서 호스트가 응답 시점에 비어 있음을 판정할 수 없기 때문이다. `thread.list` 목록은 모든 페이지(`nextCursor`가 `null`일 때까지)를 받은 뒤 `ready`다.
+7. [제안] `thread.list`에는 `position`을 더하지 않는다. 목록 원소의 `ThreadSummary.headSeq`가 그 thread의 마지막 seq이므로, 클라이언트는 같은 thread의 이벤트 중 `seq <= headSeq`인 것을 목록에 다시 적용하지 않는 것으로 이어 붙인다.
+
 ### 3.5 오류
 
 #### 3.5.1 오류 객체
@@ -646,7 +669,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3002 | `thread.locked` | true | 다른 프로세스가 쓰기 소유 중이다. `thread.open(mode write)`와 `turn.start`의 암묵 획득(§3.3.1)에서 난다 | `ownerKind`, `options: ("observe"\|"fork"\|"delegate")[]` |
 | 3003 | `turn.busy` | true | 진행 중 turn이 있어 새 turn을 받을 수 없다 | `turnId` |
 | 3004 | `thread.hasForks` | false | 이 thread를 `forkedFrom`으로 가리키는 thread가 있어 `thread.delete`를 거절했다 | `forks: ThreadId[]` |
-| 3005 | `thread.invalidTarget` | false | `thread.fork`·`thread.revert`의 대상이 맞지 않는다 | `reason: "item_not_found"\|"not_on_branch"\|"inside_turn"\|"open_tool_calls"` |
+| 3005 | `thread.invalidTarget` | false | `thread.fork`·`thread.revert`의 대상이 맞지 않는다. `thread.read`의 `before`가 이 thread에 없거나(`item_not_found`) 현재 가지에 없을 때(`not_on_branch`)도 이 오류다 | `reason: "item_not_found"\|"not_on_branch"\|"inside_turn"\|"open_tool_calls"` |
 | 3006 | `thread.cancelledByExtension` | false | 확장이 thread 전환·분기·되감기를 막았다 | `point: "session_before_fork"\|"session_before_tree"\|"session_before_switch"`, `reason: string \| null` |
 | 3101 | `settings.unknownKey` | false | 등록되지 않은 키 | `key` |
 | 3102 | `settings.invalidValue` | false | 값이 스키마나 range에 맞지 않는다 | `key`, `issues` |
@@ -1129,6 +1152,7 @@ export declare function settingsJsonSchema(catalog: SettingCatalog, options: Set
 | 요구 | `F.capabilities.spec` | `SemVer`, `SemVerSchema`, `CapabilityErrorData`, `toJsonSchema`, `SecretRef`·`SecretNameSchema`(§3.10) |
 | 요구 | `F.extensions.spec` | `ExtensionName` 문법, `ExtensionManifest.userConfig` 모양(설정 키 접두 `ext.<name>.`). 요청: `UserConfigEntry`에 값 스키마 필드 추가 |
 | 요구 | `eng.events.design` | 내구·휘발 이벤트 구분, 순서 보장, 재생 규칙 |
+| 요구 | `L1.persistence.spec`, `L0.store.spec` | `thread.read`: 현재 가지의 item을 `before`부터 거꾸로 `limit`개 읽고 같은 읽기 트랜잭션에서 `headSeq()`를 재는 조회. `approval.list`: thread의 미해결 `approval.requested` 조회(`ThreadSummary.pendingApprovals`와 같은 원천) |
 | 제공 | `L4.host-service.spec` | `WireHandlers`, `Transport`, `WIRE_ERRORS`, 재전송 알고리즘, `settingsJsonSchema` |
 | 제공 | `L4.cli.spec`, `L4.desktop.spec` | `HostConnection`, `WIRE_METHODS`, 알림 타입, `checkSettingWrite` |
 | 제공 | `L4.settings-ui.spec` | `SettingDef.ui`, `SettingsTab`, `EffectiveSetting` |
@@ -1154,6 +1178,9 @@ wire:
 - A10. 전송 적합성 케이스 전부를 in-process 전송과 stdio 전송이 같은 결과로 통과한다.
 - A11. `stream.chunk`는 재전송되지 않는다. 재구독 뒤에 이전 조각이 다시 오지 않는다.
 - A12. 처리기가 던진 알 수 없는 예외는 `-32603`, `message: "Internal error"`로 바뀌고 원래 메시지가 응답에 없다.
+- A13. `thread.read`가 돌려준 `position.seq` 이하의 그 thread 이벤트는 `items`에 모두 반영되어 있고 그 seq를 넘는 이벤트는 하나도 반영되어 있지 않다. `before` 페이지를 끝까지 이어 붙이면 중복도 빠짐도 없는 item 열이 된다. 없는 `before`는 3005, 없는 thread는 3001이다.
+- A14. 구독(`from: "head"`) 뒤 `thread.read`를 보내고 `seq > position.seq`인 이벤트만 적용하면, 읽기와 겹치는 구간에 이벤트가 커밋되어도 최종 item 집합이 중단 없이 구독한 클라이언트의 것과 같다.
+- A15. `approval.list`의 `approvals`는 `position.seq` 시점에 `approval.resolved`가 없는 `approval.requested` 전부이고 각 항목의 `request`가 이벤트 payload와 같다. 응답한 뒤에는 목록에서 빠진다.
 
 settings:
 
@@ -1186,3 +1213,4 @@ settings:
     - thread 오류 kind `thread.hasForks`, `thread.invalidTarget`, `thread.cancelledByExtension`(`L1.persistence.spec` FR-P6): [결정: m2-plan F.6] 3004~3006으로 받았다(§3.5.2)
     - `turn.interrupt`를 M1으로 당기기(25번), `host.diagnose`(26번), 적합성 실행기의 `testing` 서브패스(19번. review.decisions-2 U-03으로 F에는 `testing` 서브패스를 두지 않는다. 실행기 틀은 각 패키지 `test/` 안에 둔다)
     - `secret.beginReveal`(`L4.readme` §8.1): [결정: m2-plan F.5] M2 메서드로 받았다(§3.3.1 표)
+11. [결정: m2 F.2] L4.desktop 상태 설계 §14의 1번(스냅샷), 2번과 13번(대기 승인 목록)을 `thread.read`, `approval.list`로 받았다(§3.3.1, §3.4.6). 12번(로딩 신호)은 새 신호 없이 클라이언트가 요청 수명주기로 얻는다(§3.4.6 6항).

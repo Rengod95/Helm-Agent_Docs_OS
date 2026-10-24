@@ -231,7 +231,7 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
-  /** thread.fork·thread.revert의 대상이 맞지 않는다 */
+  /** thread.fork·thread.revert의 대상이 맞지 않는다. thread.read의 `before`가 없는 item이면 item_not_found, 현재 가지에 없으면 not_on_branch다 */
   "thread.invalidTarget": {
     code: 3005,
     kind: "thread.invalidTarget",

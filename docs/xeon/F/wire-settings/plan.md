@@ -129,6 +129,7 @@ xeon/packages/contracts/
 | W16 | 오류 코드 구간 표 반영, `codeRangeOf(code)` 순수 함수 | `wire/errors.ts` | W6 | S | M2 |
 | W17 | `WireMeta`, `traceparent` 직렬화·역직렬화, 레지스트리가 params에 `_meta`를 더하는 처리 | `wire/jsonrpc.ts`, `wire/methods.ts` | W11 | M | M2 |
 | W18 | 서비스 소켓 전송 옵션 확정(인증 필드) | `wire/transport.ts` | 스펙 미결 4 | S | M2 |
+| W19 | `thread.read`(스냅샷 읽기), `approval.list`(대기 승인 읽기)와 `position` 이어 붙이기 규칙(스펙 §3.4.6) | `wire/methods.ts`, `wire/errors.ts`(3005 설명) | W11, F.records.plan의 `ApprovalRequestedPayloadSchema`, F.conversation.plan의 `ItemRecordSchema` | S | M2 |
 
 병합 구현의 위치 [제안]:
 
@@ -214,6 +215,8 @@ xeon/packages/contracts/
 | | `cli parse same verdict` | CLI식 문자열 해석(JSON 우선, 실패 시 문자열) 뒤 `checkSettingWrite` 결과가 파일 검사와 같음 | S6 |
 | `conformance-runner.ts` | (틀) | `WIRE_CONFORMANCE_CASES`를 받아 주어진 `Transport` 쌍에 돌리는 실행기. F에서는 메모리 가짜 전송으로 자기 검사만 한다. in-process와 stdio 실제 구현은 `L4.host-service.plan`이 이 실행기로 검사한다 | A10 |
 | `WIRE_CONFORMANCE_CASES`(W14, M1) | `hello required`, `experimental not opted in` | hello 전 `turn.start` → 1001, opt-in하지 않은 실험 메서드 → `-32601`. 스펙 §4.1·§4.3 처리 순서는 L4 host 처리기가 구현하므로 F는 케이스와 기대값을 정의하고, 통과 확인은 `L4.host-service.plan`이 한다 | A7 |
+| `methods.test.ts` | `thread.read returns items with the position they reflect` | `limit` 1..500, `before`는 ItemId, `position`·`hasMore` 필수, kind와 message가 어긋난 item 거부 | A13 |
+| | `approval.list returns approval.requested payloads with the position they reflect` | `threadId` 필수, 항목은 `{approvalId, seq, request}`이고 `request`는 `approval.requested` payload, `position` 필수 | A15 |
 | W15 문서 검사(M1) | `method table matches registry` | 스펙 §3.3.1 표의 메서드 이름·단계 집합과 `WIRE_METHODS`가 같다 | A9 |
 
 JSON Schema 검사 도구 [제안]: `jsonschema.test.ts`는 출력 JSON을 `Type.Unsafe`로 다시 감싸 `Value.Check`로 검사하고 그 결과를 `validateSettingValue`와 비교한다. 별도 JSON Schema 검증기 의존을 더하지 않기 위해서다. 외부 검증기와의 교차 확인이 필요하면 [미결]로 올린다.

@@ -78,7 +78,11 @@ export interface ToggleReceipt {
 export interface HolderReceipt {
   readonly holder: DriveHolderSetting;
   readonly scope: HolderSettingScope;
-  /** 다른 그룹이 임대를 가지고 있으면 afterLeaseRelease. 임대가 없으면 X가 다음 판단 시점에 읽는다 */
+  /**
+   * auto, 또는 지정한 그룹이 이미 holder면 now(현재 holder 유지). 임대가 없으면 nextStepBoundary.
+   * 다른 그룹이 임대를 가졌고 지정한 그룹이 후보(켜짐, drive 등록, 오류 아님)이면 X가 다음 경계에서 회수하므로 nextStepBoundary,
+   * 후보가 아니면 현재 임대를 유지하므로 afterLeaseRelease(L3.group-kit.spec §3.8, X.primitives.spec P-22)
+   */
   readonly appliesAt: "nextStepBoundary" | "now" | "afterLeaseRelease";
 }
 
@@ -92,7 +96,8 @@ export interface GroupService extends LeaseArbiterPort {
   disable(id: string): GroupResult<ToggleReceipt>;
   /**
    * 설정 x.primitives.activeDriveGroup을 쓴다. holder "auto"는 null로 쓴다. scope 기본값 "session".
-   * 현재 임대는 회수하지 않는다
+   * 이름을 지정하면 X가 다음 경계에서 현재 임대를 회수한다. 지정한 그룹이 후보가 아니면 현재 임대를 유지한다.
+   * "auto"(null)로 바꿔도 회수하지 않는다(L3.group-kit.spec §3.8, X.primitives.spec P-22). 진행 중인 loop.turn은 끊지 않는다
    */
   setDriveHolder(
     holder: string,
