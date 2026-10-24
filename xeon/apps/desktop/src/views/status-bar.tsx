@@ -1,3 +1,4 @@
+import { detach, rethrow } from "@xeon/contracts";
 import { useState, type ReactNode } from "react";
 import {
   useApprovalCount,
@@ -63,7 +64,7 @@ export function StatusBar(): ReactNode {
         <button
           type="button"
           onClick={() => {
-            void commands.restartEngine();
+            detach(commands.restartEngine(), rethrow);
           }}
         >
           엔진 다시 시작
@@ -82,7 +83,7 @@ export function StatusBar(): ReactNode {
           <button
             type="button"
             onClick={() => {
-              void copy();
+              detach(copy(), rethrow);
             }}
           >
             진단 복사

@@ -78,7 +78,7 @@ const out = Bun.stdout.writer();
 const encoder = new TextEncoder();
 
 async function emit(text: string, flush: boolean): Promise<void> {
-  void out.write(encoder.encode(text));
+  await out.write(encoder.encode(text));
   if (flush) await out.flush();
 }
 

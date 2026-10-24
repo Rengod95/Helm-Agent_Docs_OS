@@ -1,3 +1,4 @@
+import { detach, rethrow } from "@xeon/contracts";
 import type { EventId } from "@xeon/contracts/conversation";
 import { memo, useState, type ReactNode } from "react";
 import { useApproval, useApprovalIds } from "../state/engine/index.ts";
@@ -51,7 +52,10 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
             type="button"
             disabled={busy}
             onClick={() => {
-              void commands.respondApproval(props.id, { decision: "answer", answer: answers });
+              detach(
+                commands.respondApproval(props.id, { decision: "answer", answer: answers }),
+                rethrow,
+              );
             }}
           >
             답하기
@@ -63,7 +67,10 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
               className="primary"
               disabled={busy}
               onClick={() => {
-                void commands.respondApproval(props.id, { decision: "allow", remember: "once" });
+                detach(
+                  commands.respondApproval(props.id, { decision: "allow", remember: "once" }),
+                  rethrow,
+                );
               }}
             >
               허용
@@ -72,7 +79,7 @@ const ApprovalCard = memo(function ApprovalCard(props: { readonly id: EventId })
               type="button"
               disabled={busy}
               onClick={() => {
-                void commands.respondApproval(props.id, { decision: "deny" });
+                detach(commands.respondApproval(props.id, { decision: "deny" }), rethrow);
               }}
             >
               거부

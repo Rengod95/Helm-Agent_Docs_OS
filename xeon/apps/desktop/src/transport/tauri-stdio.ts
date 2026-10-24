@@ -1,4 +1,4 @@
-import { attemptAsync, err, ok, type Result } from "@xeon/contracts";
+import { attemptAsync, detach, err, ok, rethrow, type Result } from "@xeon/contracts";
 import {
   WIRE_PROTOCOL_VERSION,
   WireError,
@@ -50,7 +50,7 @@ export async function attachRelay(
     const bytes = flow.unacked;
     flow.unacked = 0;
     // 신용 반환이 실패해도(세대 교체) 다음 attach가 새 신용 창을 연다. 읽기를 멈추지 않는다
-    void ipc.ack(flow.epoch, bytes);
+    detach(ipc.ack(flow.epoch, bytes), rethrow);
   };
 
   /** 다음 바이트 조각. 취소되면 null. 조각이 없으면 도착이나 취소를 기다린다 */

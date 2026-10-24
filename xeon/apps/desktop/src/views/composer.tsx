@@ -1,3 +1,4 @@
+import { detach, rethrow } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import {
@@ -58,7 +59,7 @@ function ComposerFor(props: {
     )
       return;
     event.preventDefault();
-    void send();
+    detach(send(), rethrow);
   };
 
   return (
@@ -66,7 +67,7 @@ function ComposerFor(props: {
       className="composer"
       onSubmit={(event) => {
         event.preventDefault();
-        void send();
+        detach(send(), rethrow);
       }}
     >
       <textarea
@@ -98,7 +99,7 @@ function ComposerFor(props: {
           <button
             type="button"
             onClick={() => {
-              void commands.interrupt(props.threadId);
+              detach(commands.interrupt(props.threadId), rethrow);
             }}
           >
             중단

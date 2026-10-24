@@ -1,3 +1,4 @@
+import { detach, rethrow } from "@xeon/contracts";
 import { createRoot } from "react-dom/client";
 import pkg from "../package.json" with { type: "json" };
 import { createApp } from "./app/bootstrap.ts";
@@ -37,7 +38,7 @@ if (container === null) {
   });
   // 창이 닫히면 릴레이만 끊는다. 엔진을 끄는 일은 셸이 한다(spec 4.3)
   window.addEventListener("pagehide", () => {
-    void app.stop();
+    detach(app.stop(), rethrow);
   });
   createRoot(container).render(
     <Providers engine={app.engine.read} ui={app.ui.read} commands={app.commands}>

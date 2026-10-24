@@ -1,3 +1,4 @@
+import { detach, rethrow } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import { memo, useState, type ReactNode } from "react";
 import {
@@ -57,7 +58,12 @@ export function ThreadList(): ReactNode {
 
   return (
     <nav className="threads" aria-label="대화 목록">
-      <button type="button" className="primary" onClick={() => void create()} disabled={creating}>
+      <button
+        type="button"
+        className="primary"
+        onClick={() => detach(create(), rethrow)}
+        disabled={creating}
+      >
         새 대화
       </button>
       {error === null ? null : (
