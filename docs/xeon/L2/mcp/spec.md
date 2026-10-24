@@ -127,7 +127,7 @@ export type McpServerDef = Static<typeof McpServerDefSchema>;
 ```
 
 - 서버 정의는 설정 키 `l2.mcp.servers`(서버 id → `McpServerDef`)에 둔다. F5 설정 스키마 하나에서 화면·파일·명령이 나오도록 하기 위해서다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 6).
-- `.mcp.json` 호환 [제안]: 프로젝트 루트의 `.mcp.json`(`{ "mcpServers": { "<이름>": { "command", "args", "env", "url", "type", "headers" } } }`, Claude Code 형식, `_research/settings.md` §2.10 MCP 서버 정의 행)을 읽기 전용으로 가져온다. 변환 규칙은 §4.2다. 사용자 범위 파일 위치는 L4가 정하는 설정 디렉터리 규칙을 따른다 [가정].
+- `.mcp.json` 호환 [제안]: 프로젝트 루트의 `.mcp.json`과 `.xeon/mcp.json`(`{ "mcpServers": { "<이름>": { "command", "args", "env", "url", "type", "headers" } } }`, Claude Code 형식, `_research/settings.md` §2.10 MCP 서버 정의 행)을 읽기 전용으로 가져온다. 변환 규칙은 §4.2다. 사용자 범위 파일 위치는 L4가 정하는 설정 디렉터리 규칙을 따른다 [가정].
 
 ### 3.2 능력 정의 `mcp.client`
 
@@ -443,7 +443,7 @@ export function mcpToolName(server: string, tool: string): string;
 ```
 
 - 순서 키: `mcp.<서버 id>`, 그다음 기계 이름(`F.capabilities.spec` §4.5).
-- 기계 이름 형식: 이 문서는 후보를 정하지 않는다. `F.capabilities.spec` §10 미결의 (a) 충돌 시 등록 거부, (b) `<확장>__<이름>` 이중 밑줄 접두, (c) 충돌한 쪽만 접두 중 결정을 `mcpToolName`에 반영한다. 결정 전 M2 구현은 F.capabilities.plan M0가 강제하는 범위(`TOOL_NAME_WIRE_PATTERN` 오류, 이름 충돌은 등록 거부)만 따른다.
+- 기계 이름 형식: 이 문서는 후보를 정하지 않는다. `F.capabilities.spec` §10 미결의 (a) 충돌 시 등록 거부, (b) `<확장>__<이름>` 이중 밑줄 접두, (c) 충돌한 쪽만 접두 중 결정을 `mcpToolName`에 반영한다. 결정 전 M2 구현은 서버가 광고한 이름을 그대로 쓰고 이름이 겹치면 서버 id 바이트 순으로 뒤쪽을 숨긴다(내장 도구 이름과 겹쳐도 같다). F.capabilities.plan M0가 강제하는 범위(`TOOL_NAME_WIRE_PATTERN` 오류, 이름 충돌은 등록 거부)만 따른다.
 - 서버 도구 이름에 `TOOL_NAME_WIRE_PATTERN`(`^[a-zA-Z0-9_-]{1,64}$`) 밖 문자가 있거나 길이가 넘으면 노출하지 않고 `hiddenReason: "name_invalid"`로 둔다. 문자를 임의로 바꾸지 않는다. 바꾸면 두 도구가 같은 이름이 될 수 있기 때문이다 [제안].
 - `inputSchema`는 MCP가 준 JSON Schema를 그대로 `parameters`로 쓴다. `$ref`가 외부를 가리키거나 크기·깊이 한도(`F.capabilities.spec` §4.3)를 넘으면 노출하지 않고 `hiddenReason: "schema_invalid"`로 둔다 [제안].
 - 인자 검증: L1.tools의 파라미터 검증(`F.capabilities.spec` §4.2 규칙 1)을 그대로 거친다. JSON Schema를 TypeBox 검증기에 넣는 방법은 L1.tools가 정한다. 서버도 다시 검증한다.
@@ -503,20 +503,20 @@ CREATE TABLE cap_mcp_servers (
 ### 4.2 서버 정의 로딩
 
 1. 설정 `l2.mcp.servers`의 유효 값(관리 > … > 사용자 범위 병합, `F.wire-settings.spec` §4.7)을 읽는다.
-2. `l2.mcp.importMcpJson`이 참이고 프로젝트가 신뢰된 상태면(`project_trust` 지점, `F.extensions.spec` §3.4 27번) 프로젝트 루트 `.mcp.json`을 읽는다.
+2. `l2.mcp.importMcpJson`이 참이고 프로젝트가 신뢰된 상태면(`project_trust` 지점, `F.extensions.spec` §3.4 27번, 판정은 X `resolveProjectTrust`) 프로젝트 루트 `.mcp.json`과 `.xeon/mcp.json`을 읽는다 [결정: review.m2-plan §8 D6]. 신뢰되지 않았으면 파일 내용을 읽지 않고 파일이 있다는 진단(`untrusted_project`)만 남긴다. 파일을 읽지 못하면 서버 이름을 알 수 없어 `blocked` 서버로 나열하지 못한다.
    - 이름 변환: 소문자로 바꾸고 `[a-z0-9-]` 밖 문자를 `-`로 바꾸고 32자로 자른다. 결과가 형식에 맞지 않거나 1번 목록의 id와 겹치면 그 항목을 건너뛰고 진단을 남긴다.
    - `type` 생략 + `command` 있음 → `stdio`, `type: "http"`·`"streamable-http"` → `http`, `type: "sse"` → `sse`.
    - `env`·`headers` 값이 `secret://`가 아니면 그 서버를 건너뛰고 "평문 비밀을 쓸 수 없음" 진단을 남긴다 [제안, §10 미결 4].
-   - 출처는 `mcpjson:project`다. 같은 id가 설정에 있으면 설정이 이긴다.
+   - 출처는 루트 `.mcp.json`이 `mcpjson:project`, `.xeon/mcp.json`이 `mcpjson:xeon`이다. 같은 id가 있으면 설정이 이기고, 두 파일 사이에서는 `.xeon/mcp.json`이 이긴다.
    - 확장이 `registerServer`로 등록한 서버(§3.2 `xeon.mcp` 등록)를 더한다. 출처는 `ext:<확장 이름>`이고, 설정·`.mcp.json`의 id와 겹치는 등록은 등록 시점에 거부되었으므로 여기서 다시 겹치지 않는다.
 3. 허용·차단(§4.4)을 적용해 `blocked` 서버를 표시한다.
 4. 변경 반영: 설정이나 `.mcp.json`이 바뀌면 다음 단계 경계에서 차이(추가·삭제·변경된 서버)만 연결·해제한다. 정의가 바뀐 서버는 다시 연결한다.
 
 ### 4.3 전송과 비밀
 
-- stdio [제안]: SDK의 stdio 전송(`./stdio` 서브패스, 내부에서 `cross-spawn`)을 쓰지 않고, `xeon.process`로 띄운 자식 프로세스의 표준 입출력을 SDK `Transport` 인터페이스로 감싼 `ProcessStdioTransport`를 둔다. 프로세스 레지스트리, 그룹 종료, 비밀 주입을 L0 한 곳에서 하기 위해서다(`eng.context-map.design` §4.1 mcp 행 `xeon.process`). SDK `Transport` 인터페이스의 정확한 메서드는 [가정]이고 구현 첫 작업에서 선언 파일로 확인한다.
+- stdio [제안]: SDK의 stdio 전송(`./stdio` 서브패스, 내부에서 `cross-spawn`)을 쓰지 않고, `xeon.process`로 띄운 자식 프로세스의 표준 입출력을 SDK `Transport` 인터페이스로 감싼 `ProcessStdioTransport`를 둔다. 프로세스 레지스트리, 그룹 종료, 비밀 주입을 L0 한 곳에서 하기 위해서다(`eng.context-map.design` §4.1 mcp 행 `xeon.process`). SDK `Transport` 인터페이스는 선언 파일로 확인했다: `start`, `send`, `close`와 콜백 속성 `onclose`, `onerror`, `onmessage`다(`L2.mcp.plan` §8.2). F `ProcessPort.spawn`은 격리 확장용이고 `ExecService.startBackground`는 스트림을 주지 않으므로, 스트림과 `secret://` env 주입을 주는 포트를 `McpProcessPort`(`src/ports/process.ts`)로 선언하고 L0 구현을 요청했다(`L2.mcp.plan` §8.5).
 - `env`의 `secret://` 값은 `cap-mcp`가 풀지 않는다. 참조 그대로 `xeon.process`에 넘기고 L0.secrets가 실행 직전에 주입한다(`_research/secrets.md` §6, `L0.secrets.spec`).
-- HTTP·SSE: SDK의 `StreamableHTTPClientTransport`, `SSEClientTransport`를 쓴다(공개 export, `_research/notes/L2-1.md` §2). `headers`의 `secret://` 값은 요청 직전에 `xeon.secrets`로 풀어 붙이는 fetch 감싸기를 전송 옵션으로 넘긴다 [가정: 전송이 fetch 주입 옵션을 받는다].
+- HTTP·SSE: SDK의 `StreamableHTTPClientTransport`, `SSEClientTransport`를 쓴다(공개 export, `_research/notes/L2-1.md` §2). `headers`의 `secret://` 값은 요청 직전에 `xeon.secrets`로 풀어 붙이는 fetch 감싸기를 전송 옵션으로 넘긴다 [확인: 두 전송의 옵션 모두 `fetch`를 받는다, `L2.mcp.plan` §8.2].
 - 비밀 값은 `cap-mcp`의 로그, 이벤트, 오류 `message`, `cap_mcp_servers`, 모델 요청에 나타나지 않는다. 서버 stderr와 오류 메시지는 L0.secrets 마스킹을 거친 뒤 저장한다.
 - 샌드박스: M2는 사용자가 등록한 명령을 사용자 권한으로 실행한다 [결정: review.m2-plan §8 D6]. L0 샌드박스 적용은 [미결 5]다.
 
@@ -531,7 +531,7 @@ CREATE TABLE cap_mcp_servers (
 - 도구 수준: 서버 정의의 `tools.deny` > `tools.allow` 순으로 거른다. 걸러진 도구는 `listTools` 결과에 `exposed: false`로 남고 모델 도구 집합에는 없다. 도구를 시야에서 빼는 방식이다(`_research/item-catalog.md` 진보된 설계 5번).
 - 승인 모드: `prompt`(매번 묻기), `auto`(묻지 않음), `deny`(호출 거부). 서버 정의 `tools.approval[도구]` > `l2.mcp.approvalMode` 순으로 정한다.
   - 승인 판정과 실행은 L1.tools가 한다. `cap-mcp`는 위 값을 L1.tools 권한 규칙으로 공급한다. 규칙 키 형식은 `mcp__<서버 id>`(서버 전체)와 `mcp__<서버 id>__<서버 도구 이름>`(도구 하나)이다(`_research/settings.md` §2.10 도구별 승인 행 omp `mcp__<이름>`) [제안]. 이 키는 권한 규칙 키이고 도구 기계 이름과 별개다.
-  - 규칙을 공급하는 API는 `L1.tools.spec`이 정한다 [가정].
+  - 규칙을 공급하는 API는 `L1.tools.spec`이 정한다 [가정]. `ToolService.registerRules`는 `core:` 출처만 받으므로 구현은 `McpRulesSink` 포트(`src/ports/rules.ts`)로 규칙을 내고 L1A 레인에 확장 티어 공급 API를 요청했다(`L2.mcp.plan` §8.5).
 
 ### 4.5 도구 호출
 
@@ -589,7 +589,7 @@ sequenceDiagram
 7. 재시작 뒤 재개: 대기 상태(질문, `inputRequests`, `requestState`, 라운드)는 승인 요청 이벤트와 도구 결과 레코드에 내구로 있으므로 `cap-mcp` 메모리 없이 4번을 다시 할 수 있다. 서버 연결은 재시작 뒤 새로 맺는다. 2026 무상태 서버는 `requestState`만으로 이어진다. 2025 세션 서버는 세션이 바뀌어 `requestState`가 무효일 수 있고, 그때 서버 오류가 그대로 도구 오류 결과가 된다.
 8. 멱등: 승인 해결 뒤의 재시도는 L1.tools가 의도를 먼저 커밋하고 보낸다. 보낸 뒤 결과가 기록되기 전에 프로세스가 죽으면 그 라운드는 결과 불명이고 `callTool`이 `unsafe`라 자동으로 다시 보내지 않는다(`F.records.spec` §3.5 판정 표). 승인 대기 중의 재시작은 아직 보내지 않은 상태라 재시도가 한 번만 일어난다.
 9. 같은 규칙을 `getPrompt`, `readResource`에도 쓴다. MRTR이 이 세 요청에만 `input_required`를 허용하기 때문이다(`_research/notes/L2-1.md` §3 사양 제약). 그룹 코드가 서비스로 부를 때는 `CallToolOutput`의 `input_required` 변형을 그룹이 직접 처리하고, 사람에게 물을 때는 `xeon.approvals`를 쓴다.
-10. elicitation 보안: 비밀번호, API 키, 토큰, 결제 정보는 form 모드로 받지 않는다(사양 규칙, `_research/notes/L2-1.md` §5). form 스키마 필드 이름이 비밀처럼 보이면(`password`, `token`, `apiKey`, `secret` 등) 질문에 경고를 붙이고 응답을 저장할 때 L0.secrets 마스킹을 거친다 [제안].
+10. elicitation 보안: 비밀번호, API 키, 토큰, 결제 정보는 form 모드로 받지 않는다(사양 규칙, `_research/notes/L2-1.md` §5). form 스키마 필드 이름이 비밀처럼 보이면(`password`, `token`, `apiKey`, `secret` 등) 질문에 경고를 붙이고(`McpQuestion`에 경고 필드가 없어 구현은 `message` 앞에 경고 문장을 붙인다) 응답을 저장할 때 L0.secrets 마스킹을 거친다 [제안].
 
 ### 4.7 sampling과 roots
 
@@ -650,7 +650,7 @@ sequenceDiagram
 | 10 | 비밀 참조 미등록 | 연결 실패, `lastError.code = "secret_missing"`(L0.secrets 오류 코드를 따른다). 값이나 참조 이름 외 정보는 남기지 않는다 |
 | 11 | `.mcp.json`에 평문 env 값 | 그 서버만 건너뛰고 진단 |
 | 12 | 신뢰하지 않는 프로젝트의 `.mcp.json` | 읽지 않는다. 상태 `blocked`(`untrusted_project`)로 목록에만 보인다 |
-| 13 | 서버가 2025 사양만 지원 | `auto` 협상으로 2025 연결. MRTR 대신 2025 서버 → 클라이언트 elicitation 요청이 올 수 있다. 2.3.1의 2025 경로 처리 방식은 [가정]이고, 수동 모드에서 처리기가 없으면 그 요청을 거절한다 |
+| 13 | 서버가 2025 사양만 지원 | `auto` 협상으로 2025 연결. MRTR 대신 2025 서버 → 클라이언트 elicitation 요청이 올 수 있다. 수동 모드에서 처리기를 두지 않아 SDK가 그 요청을 오류로 거절한다(`mrtr.test.ts`로 확인) |
 | 14 | 도구 `inputSchema`가 한도 초과 | 노출하지 않음(`schema_invalid`) |
 | 15 | 같은 도구 호출이 병렬로 여럿 | 모두 진행. 서버 쪽 동시성 한도는 서버 몫 |
 
@@ -730,20 +730,20 @@ sequenceDiagram
 7. 라운드가 `l2.mcp.inputRequired.maxRounds`를 넘으면 `input_rounds_exceeded` 오류 결과다.
 8. annotations `readOnlyHint: true`인 서버 도구는 `trustAnnotations: true`일 때만 `hints.readOnly: true`로 광고된다.
 9. 서버 텍스트 결과는 모두 `<untrusted_mcp_content server="<id>">`로 감싸여 모델에 간다.
-10. `cap-mcp`의 `src/` 중 `adapter.ts`와 `src/transport/`, `src/oauth/` 밖에서 `@modelcontextprotocol/*` import가 0건이다(`eng.context-map.design` CM-03).
+10. `cap-mcp`의 `src/` 중 `adapter.ts`와 `src/transport/`, `src/testing/`, `src/oauth/` 밖에서 `@modelcontextprotocol/*` import가 0건이다(`eng.context-map.design` CM-03). `testing/`는 스텁 서버가 SDK의 인메모리 전송을 쓰기 때문에 허용 목록에 있다.
 11. 가짜 확장이 `hostOf(g).registerMcpServer("stub", def)`로 스텁 서버를 등록하면 `listServers`에 `source: "ext:<확장 이름>"`으로 나타나고, 그 확장의 scope를 끄면 다음 단계 경계에서 서버와 동적 도구가 모두 사라진다. 설정의 서버 id와 같은 이름이면 `invalid_input`으로 거부된다.
 
 ## 10. 미결 사항
 
 1. [미결] 서버 도구 기계 이름 형식(`F.capabilities.spec` §10의 a/b/c). 이 문서는 정하지 않고 `mcpToolName` 한 곳에 모은다. `eng.context-map.design` CM-03 예시의 `mcp:<서버>:<도구>`는 `TOOL_NAME_WIRE_PATTERN`과 맞지 않으므로 예시를 고치도록 요청한다.
-2. [결정: review.m2-plan §8 D5] `input_required` 흐름의 책임 나눔(§4.6). L1.tools가 승인 요청(kind `question`)을 올리고 `continuation`으로 재호출한다. `cap-mcp`는 `xeon.approvals`를 직접 부르지 않는다. 승인 기록 경로가 질문 도구·계획 승인과 같다.
+2. [결정: review.m2-plan §8 D5] `input_required` 흐름의 책임 나눔(§4.6)은 L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출하는 (a)안이다. `cap-mcp`는 `askWithApprovals`(`L2ApprovalsPort`)로 같은 질문을 올리는 경로도 갖고 있어 그룹 코드가 쓴다. L1.tools 쪽 재호출 경로는 F 요청 12(`L1.tools.spec` §8.3)가 닫힐 때까지 [미결]이다.
 3. [미결] 서버 주도 요청의 승인 기록을 `cap_mcp_`에 둘지. 제안은 두지 않는 것이다.
 4. [미결] 서버 정의 `env`·`headers`에 비밀이 아닌 평문 값을 허용할지. 이 문서는 `secret://` 참조만 허용한다. 평문을 허용하면 `.mcp.json` 호환이 넓어지지만 비밀이 평문으로 들어올 위험이 있다.
-5. [결정: review.m2-plan §8 D6] M2에서 stdio 서버는 사용자 권한으로 실행한다. 서버 정의 파일(프로젝트 루트 `.mcp.json`과 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽는다. [미결] L0 샌드박스 적용 여부와 범위(쓰기 경로, 네트워크)는 bwrap 시험 환경이 생긴 뒤 정한다.
+5. [결정: review.m2-plan §8 D6] M2는 stdio 서버를 사용자 권한으로 실행하고 `.mcp.json`(루트와 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽는다. 샌드박스 적용 범위(쓰기 경로, 네트워크)는 bwrap 시험 환경이 생긴 뒤 정한다.
 6. [미결] sampling 허용. `ask`로 승인되었을 때 어떤 모델·예산으로 응답할지(L1.models 라우팅). 2026에서 deprecated이므로 2차 이후로 미룰 수 있다.
 7. [미결] Tasks 명세 본문의 필드와 `notifications/tasks` 존재 여부(`_research/notes/L2-1.md` §4.5, §10). 확인 전에는 Tasks 어댑터를 구현하지 않는다.
 8. [미결] `_research/packages.md` §4.4 L2-b "MCP Tasks: 그대로" 판정을 "자체 어댑터(명시 스키마 요청)"로 고칠지. 이 문서는 고친 판정을 따른다.
-9. [미결] 2025 사양 서버의 서버 → 클라이언트 elicitation 요청을 수동 모드에서 어떻게 받을지(§5 13번). SDK 2025 경로를 실행으로 확인한 뒤 정한다.
+9. [결정: L2.mcp.plan §8.2] 2025 사양 서버의 서버 → 클라이언트 elicitation 요청은 수동 모드에서 처리기가 없어 오류로 거절된다(§5 13번). 사람에게 묻는 2025 경로는 필요가 생기면 그 요청만 승인 프로토콜로 옮기는 처리기를 둔다.
 10. [미결] 동적 도구 지점 페이로드의 `capability` 값(§7). `{ id: "mcp.client", method: "callTool" }`을 싣는 제안을 `F.extensions.spec` §3.5와 맞춘다.
 11. [미결] `l2.mcp.servers`를 세션 범위에서 바꿀 수 있게 할지. 지금은 뺐다. 세션 한정 끄기는 `disable` 메서드로 한다.
 12. [미결] 사용자 범위 서버 정의 파일(설정 파일 밖의 별도 `mcp.json`)을 둘지. 이 문서는 설정 키 하나와 프로젝트 `.mcp.json` 가져오기만 둔다.
