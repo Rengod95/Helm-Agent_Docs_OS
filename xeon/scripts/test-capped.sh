@@ -2,7 +2,8 @@
 # Run `bun test` for scripts/ and every workspace package, one at a time, each under a memory cap.
 # A runaway test then ends only its own run (oom-kill) instead of exhausting the machine.
 # usage: test-capped.sh [package-dir ...]   (default: scripts and all packages with a "test" script)
-# env: XEON_TEST_MEMORY_MAX (default 1500M), XEON_TEST_TIMEOUT_SEC (default 300)
+# env: XEON_TEST_MEMORY_MAX (default 1500M), XEON_TEST_TIMEOUT_SEC (default 300), XEON_SLICE (default xeon-dev.slice:
+#      all tests and verifications share that slice's memory budget, see ~/.config/systemd/user/xeon-dev.slice)
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
@@ -38,7 +39,7 @@ for target in "${targets[@]}"; do
   echo "== $target"
   if [[ "$capped" == "true" ]]; then
     status=0
-    systemd-run --user --wait --pipe --collect --quiet \
+    systemd-run --user --wait --pipe --collect --quiet --slice="${XEON_SLICE:-xeon-dev.slice}" \
       -p MemoryMax="$mem" -p MemorySwapMax=0 -p RuntimeMaxSec="$timeout_sec" \
       -p WorkingDirectory="$dir" -E PATH="$PATH" -E HOME="$HOME" \
       -- mise exec -- bun "${args[@]}" || status=$?

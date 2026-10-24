@@ -4,7 +4,8 @@
 # 2. one memory cap for the whole run (systemd user scope): exceeding it ends only this run.
 # While it runs, the top memory users are sampled every 5 s to ~/.cache/xeon/verify-mem.log.
 # usage: verify-guarded.sh <command> [args...]
-# env: XEON_VERIFY_SLOTS (default 2), XEON_VERIFY_MEMORY_MAX (default 3G)
+# env: XEON_VERIFY_SLOTS (default 2), XEON_VERIFY_MEMORY_MAX (default 3G), XEON_SLICE (default xeon-dev.slice:
+#      shared budget for all tests and verifications, ~/.config/systemd/user/xeon-dev.slice)
 set -euo pipefail
 
 if [[ $# -eq 0 ]]; then
@@ -53,7 +54,7 @@ sampler=$!
 trap 'kill "$sampler" 2>/dev/null || true' EXIT
 
 if command -v systemd-run >/dev/null && systemctl --user is-system-running >/dev/null 2>&1; then
-  systemd-run --user --scope --quiet -p MemoryMax="$mem" -p MemorySwapMax=0 -- "$@"
+  systemd-run --user --scope --quiet --slice="${XEON_SLICE:-xeon-dev.slice}" -p MemoryMax="$mem" -p MemorySwapMax=0 -- "$@"
 else
   echo "verify-guarded: systemd user session not available, running without a memory cap" >&2
   "$@"
