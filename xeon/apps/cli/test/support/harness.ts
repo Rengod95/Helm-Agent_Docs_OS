@@ -2,13 +2,25 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ok } from "@xeon/contracts";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import type { JsonRpcMessage, StoreId } from "@xeon/contracts/wire";
-import type { AssembleOptions, CommandIo, HostCommand } from "@xeon/host";
+import type {
+  SecretEntryOffer,
+  SecretOutOfBandPort,
+  SecretRevealOffer,
+} from "@xeon/contracts/services";
+import type {
+  AssembleOptions,
+  CommandIo,
+  HostCommand,
+  HostExit,
+  StdioHostOptions,
+} from "@xeon/host";
 import { createHostConnection } from "../../src/host-client.ts";
 import type { TerminalFacts } from "../../src/cli/command.ts";
 import { createConnectEngine, type ConnectEngine, type HostApi } from "../../src/engine.ts";
 import type { ExitCode } from "../../src/exit-codes.ts";
-import type { CliDeps, CliIo, CliSignal } from "../../src/io.ts";
+import type { CliDeps, CliIo, CliSignal, DoctorProbes } from "../../src/io.ts";
 import { runCli } from "../../src/main.ts";
 import {
   createFakeStore,
@@ -16,6 +28,7 @@ import {
   type FakeServer,
   type FakeServerOptions,
 } from "./fake-server.ts";
+import { materialize, type EventDraft } from "./events.ts";
 import { storeId } from "./ids.ts";
 import { createTransportPair } from "./memory-transport.ts";
 
@@ -58,6 +71,42 @@ export interface HarnessOptions {
   /** runHostCommand 가짜(config schema, service, host) */
   readonly runHostCommand?: (command: HostCommand, io: CommandIo) => Promise<0 | 1 | 2>;
   readonly readLine?: (prompt: string, signal: AbortSignal) => Promise<string | null>;
+  /** 가려진 입력 대본. 한 번 부를 때마다 하나를 꺼낸다. 끝나면 null이다 */
+  readonly secretInputs?: readonly (string | null)[];
+  readonly startStdioHost?: (options: StdioHostOptions) => Promise<HostExit>;
+  readonly probes?: DoctorProbes;
+}
+
+/** 가짜 값 전달 통로. 맡긴 수단을 쌓아 두고 호스트 쪽 가짜 처리기가 꺼내 쓴다 */
+interface FakeOutOfBand extends SecretOutOfBandPort {
+  readonly entries: SecretEntryOffer[];
+  readonly reveals: SecretRevealOffer[];
+  /** 아직 쓰이지 않고 남은 맡긴 수단 수 */
+  pending(): number;
+}
+
+function createFakeOutOfBand(): FakeOutOfBand {
+  const entries: SecretEntryOffer[] = [];
+  const reveals: SecretRevealOffer[] = [];
+  return {
+    entries,
+    reveals,
+    offerEntry(offer) {
+      entries.push(offer);
+      return () => {
+        const at = entries.indexOf(offer);
+        if (at >= 0) entries.splice(at, 1);
+      };
+    },
+    offerReveal(offer) {
+      reveals.push(offer);
+      return () => {
+        const at = reveals.indexOf(offer);
+        if (at >= 0) reveals.splice(at, 1);
+      };
+    },
+    pending: () => entries.length + reveals.length,
+  };
 }
 
 export interface Harness {
@@ -68,10 +117,18 @@ export interface Harness {
   readonly defaultStateFile: string;
   readonly stdout: string[];
   readonly stderr: string[];
+  /** 바이트 stdout(host --stdio와 reveal)에 쓴 내용 */
+  readonly stdoutBytes: Uint8Array[];
+  /** 값 전달 통로. 시험의 가짜 처리기가 맡긴 수단을 꺼내 쓴다 */
+  readonly outOfBand: FakeOutOfBand;
   readonly observed: JsonRpcMessage[];
   readonly startOptions: Omit<AssembleOptions, "mode">[];
   readonly clock: ManualClock;
   server(): FakeServer;
+  /** 대화형이 등록한 Tab 완성기(없으면 undefined) */
+  completer(): ((line: string) => readonly string[]) | undefined;
+  /** 서버를 띄우기 전에 저장소 로그에 이벤트를 심는다(sessions show처럼 이미 있는 기록을 읽는 시험) */
+  seed(thread: ThreadId, drafts: readonly EventDraft[]): void;
   /** 지금까지 서버가 받은 요청의 메서드 이름 */
   methods(): readonly string[];
   /** 다음 실행부터 터미널 사실을 바꾼다 */
@@ -105,6 +162,12 @@ export function createHarness(options: HarnessOptions = {}): Harness {
   const defaultStateFile = join(dir, "host-state", "cli", "state.json");
   const stdout: string[] = [];
   const stderr: string[] = [];
+  const stdoutBytes: Uint8Array[] = [];
+  const outOfBand = createFakeOutOfBand();
+  const secretInputs = [...(options.secretInputs ?? [])];
+  const completerRef: { current: ((line: string) => readonly string[]) | undefined } = {
+    current: undefined,
+  };
   const observed: JsonRpcMessage[] = [];
   const startOptions: Omit<AssembleOptions, "mode">[] = [];
   const clock = manualClock();
@@ -143,6 +206,7 @@ export function createHarness(options: HarnessOptions = {}): Harness {
       );
       return Promise.resolve({
         client: pair.client,
+        secretOutOfBand: outOfBand,
         engine: {
           ports: {
             ids: {
@@ -208,6 +272,25 @@ export function createHarness(options: HarnessOptions = {}): Harness {
       };
     },
     readLine: options.readLine ?? (() => Promise.resolve(script.lines.shift() ?? null)),
+    setCompleter: (complete) => {
+      completerRef.current = complete;
+    },
+    readSecret: () => {
+      const next = secretInputs.shift();
+      return Promise.resolve(
+        next === undefined || next === null ? null : new TextEncoder().encode(next),
+      );
+    },
+    stdoutStream: new WritableStream<Uint8Array>({
+      write(chunk) {
+        stdoutBytes.push(chunk.slice());
+      },
+    }),
+    stderrStream: new WritableStream<Uint8Array>({
+      write(chunk) {
+        stderr.push(new TextDecoder().decode(chunk));
+      },
+    }),
   };
 
   const deps: CliDeps = {
@@ -222,6 +305,8 @@ export function createHarness(options: HarnessOptions = {}): Harness {
           },
         })),
     runHostCommand: options.runHostCommand ?? (() => Promise.resolve(0)),
+    startStdioHost: options.startStdioHost ?? (() => Promise.resolve({ code: 0, reason: "eof" })),
+    probes: options.probes ?? { probeSearxng: () => Promise.resolve("unreachable") },
     clock,
     devWireRoundTrip: options.devWireRoundTrip ?? false,
     bunVersion: "1.4.3",
@@ -234,9 +319,21 @@ export function createHarness(options: HarnessOptions = {}): Harness {
     defaultStateFile,
     stdout,
     stderr,
+    stdoutBytes,
+    outOfBand,
     observed,
     startOptions,
     clock,
+    completer: () => completerRef.current,
+    seed(thread, drafts) {
+      store.threads.add(thread);
+      for (const draft of drafts) {
+        store.counters.event += 1;
+        store.log.push(
+          materialize(draft, { seq: store.log.length + 1, id: store.counters.event, thread }),
+        );
+      }
+    },
     server() {
       if (state.server === undefined) throw new Error("the fake server has not started yet");
       return state.server;

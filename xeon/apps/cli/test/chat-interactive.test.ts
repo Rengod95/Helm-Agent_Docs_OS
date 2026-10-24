@@ -81,7 +81,7 @@ test("slash commands: /help prints help, an unknown one says so, /exit ends", as
   const h = harness({ lines: ["/help", "/frob", "/exit"] });
   expect(await h.run(["chat"])).toBe(0);
   expect(h.stdoutText()).toContain("/quit");
-  expect(h.stdoutText()).toContain("모르는 슬래시 명령: /frob");
+  expect(h.stderrText()).toContain("모르는 슬래시 명령: /frob");
   expect(h.methods()).not.toContain("turn.start");
 });
 

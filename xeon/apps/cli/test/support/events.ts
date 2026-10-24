@@ -228,3 +228,63 @@ export function materialize(
     redactions: [...(draft.redactions ?? [])],
   };
 }
+
+/** 승인 요청 이벤트의 payload(F 카탈로그 approval.requested). body로 kind를 고른다 */
+export function approvalRequested(
+  thread: ThreadId,
+  turn: TurnId,
+  options: {
+    readonly title?: string;
+    readonly body?: unknown;
+    readonly remember?: readonly ("once" | "thread" | "always")[];
+  } = {},
+): EventDraft {
+  return {
+    kind: "approval.requested",
+    turnId: turn,
+    payload: {
+      origin: {
+        threadId: thread,
+        turnId: turn,
+        stepId: null,
+        toolCallId: "call-1",
+        caller: "model",
+      },
+      requestKey: "k1",
+      title: options.title ?? "bash 실행",
+      body: options.body ?? {
+        kind: "tool",
+        tool: {
+          toolName: "bash",
+          risk: "high",
+          args: { command: "ls" },
+          argsHash: "h",
+          ruleId: null,
+        },
+      },
+      remember: options.remember ?? ["once", "thread", "always"],
+      surfaceThreadId: thread,
+      requestedAt: 1,
+    },
+  };
+}
+
+export function approvalResolved(
+  turn: TurnId,
+  approvalId: string,
+  decision: "allow" | "deny" | "answer" = "allow",
+  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" = "user",
+): EventDraft {
+  return {
+    kind: "approval.resolved",
+    turnId: turn,
+    payload: {
+      approvalId,
+      decision,
+      answer: null,
+      remember: "once",
+      requestedRemember: null,
+      resolvedBy,
+    },
+  };
+}

@@ -7,6 +7,7 @@ import {
 } from "@xeon/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
+  type ApprovalRequestedPayload,
   ApprovalResolvedPayloadSchema,
   EffectIntentSchema,
   ItemRecordedPayloadSchema,
@@ -134,36 +135,69 @@ function itemOps(item: ItemRecord, ctx: EventContext, synthesizedResult: boolean
   }
 }
 
-function approvalView(event: EventWire, payload: unknown): ApprovalView | undefined {
-  const parsed = parse(ApprovalRequestedPayloadSchema, payload);
-  if (!parsed.ok) return undefined;
-  const { body, title } = parsed.value;
+/** 승인 요청 payload를 프롬프트가 쓰는 보기로 바꾼다. 이벤트(approval.requested)와 approval.list의 항목이 같이 쓴다 */
+export function approvalViewOf(
+  approvalId: string,
+  payload: ApprovalRequestedPayload,
+): ApprovalView {
+  const { body, title, remember } = payload;
   switch (body.kind) {
     case "tool": {
       const args = isBlobRef(body.tool.args)
         ? "[큰 인자]"
         : summarize(JSON.stringify(body.tool.args));
       return {
-        approvalId: event.id,
+        approvalId,
         title,
         body: [`도구: ${body.tool.toolName} (위험: ${body.tool.risk})`, `인자: ${args}`],
         allowsAnswer: false,
+        remember,
+        form: { kind: "tool" },
       };
     }
     case "plan": {
       const plan = typeof body.plan.plan === "string" ? body.plan.plan : "[첨부된 계획]";
-      return { approvalId: event.id, title, body: plan.split("\n"), allowsAnswer: false };
+      return {
+        approvalId,
+        title,
+        body: plan.split("\n"),
+        allowsAnswer: false,
+        remember,
+        form: { kind: "plan", nextModes: body.plan.nextModes },
+      };
     }
     case "question":
       return {
-        approvalId: event.id,
+        approvalId,
         title,
         body: body.question.questions.map((question) => question.text),
         allowsAnswer: true,
+        remember,
+        form: {
+          kind: "question",
+          questions: body.question.questions.map((question) => ({
+            id: question.id,
+            header: question.header ?? null,
+            text: question.text,
+            options: question.options.map((option) => ({
+              id: option.id,
+              label: option.label,
+              description: option.description ?? null,
+              recommended: option.recommended === true,
+            })),
+            multiSelect: question.multiSelect,
+            allowFreeText: question.allowFreeText,
+          })),
+        },
       };
     default:
       return assertNever(body, "ApprovalBody");
   }
+}
+
+function approvalView(event: EventWire, payload: unknown): ApprovalView | undefined {
+  const parsed = parse(ApprovalRequestedPayloadSchema, payload);
+  return parsed.ok ? approvalViewOf(event.id, parsed.value) : undefined;
 }
 
 function unreadable(kind: string): RenderOp[] {

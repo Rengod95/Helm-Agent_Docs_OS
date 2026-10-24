@@ -13,16 +13,22 @@ const OVERVIEW = `xeon: 대화형 에이전트 런타임
   chat -p <입력> --json     JSON 모드: 연결에서 오간 JSON-RPC 메시지를 한 줄에 하나씩 쓴다
   chat --continue           현재 작업 폴더의 마지막 세션을 이어 연다
   chat --resume <id>        지정한 세션을 이어 연다
-  chat --set <키>=<값>      이 세션에만 설정을 덮어쓴다 (M2)
-  sessions ls|show|fork|rm  세션 관리 (M2)
+  chat --set <키>=<값>      이 세션에만 설정을 덮어쓴다 (여러 번 쓸 수 있다)
+  sessions ls [--all] [--limit n] [--json]
+  sessions show <id> [--json]
+  sessions fork <id> [--at <항목 id>]
+  sessions rm <id> [--yes]  세션 목록, 보기, 분기, 삭제
   config get [<키>…]        유효 값과 출처를 보인다
   config schema --scope <managed|user|project|local> [--out <경로>] [--core-only]
                             설정 파일 JSON Schema를 쓴다
-  config set|reset|list     설정 쓰기와 목록 (M2)
+  config set <키> <값> [--scope user|project|local]
+  config reset <키> [--scope user|project|local]
+  config list [--prefix <p>] [--deprecated] [--json]
+                            설정 쓰기, 지우기, 목록
   secret ls|add|set|meta|rotate|rm|test|reveal
-                            비밀 관리. 값은 프롬프트나 stdin으로만 받는다 (M2)
+                            비밀 관리. 값은 프롬프트나 stdin으로만 받는다. reveal은 터미널에서만 쓴다
   service start|status|stop|ensure  서비스 모드 (M3)
-  doctor                    진단 (M2)
+  doctor [--json]           진단: 엔진, 저장소, 비밀 저장소, 터미널, 검색 provider
   version [--json]          버전
 
 공통 플래그
@@ -42,11 +48,13 @@ const TOPICS: Readonly<Record<string, string>> = {
   --json                 print 모드에서 JSON-RPC 메시지를 한 줄에 하나씩 쓴다
   --continue             현재 작업 폴더의 마지막 세션을 이어 연다
   --resume <id>          지정한 세션을 이어 연다
-  --set <키>=<값>        이 세션에만 설정을 덮어쓴다 (M2)
+  --set <키>=<값>        이 세션에만 설정을 덮어쓴다 (여러 번 쓸 수 있다)
 `,
   config: `사용법: xeon config get [<키>…] [--json]
        xeon config schema --scope <managed|user|project|local> [--out <경로>] [--core-only]
-       xeon config set|reset|list (M2)
+       xeon config set <키> <값> [--scope user|project|local]
+       xeon config reset <키> [--scope user|project|local]
+       xeon config list [--prefix <p>] [--deprecated] [--json]
 `,
 };
 

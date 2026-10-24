@@ -24,11 +24,12 @@ export interface CtrlCCounter {
 }
 
 /**
- * 창 안의 Ctrl+C 횟수로 할 일을 정한다. interruptSupported는 turn.interrupt가 있는지다(M1은 없다: M1 host 처리기는 다섯뿐이다).
+ * 창 안의 Ctrl+C 횟수로 할 일을 정한다. interruptSupported는 호스트가 turn.interrupt를 제공하는지다
+ * (host.hello의 features에 있다. 이 처리기가 없는 호스트에서는 첫 Ctrl+C도 종료 요청이다).
  */
 export function createCtrlCCounter(
   clock: Clock,
-  options: { readonly interruptSupported: boolean },
+  options: { readonly interruptSupported: () => boolean },
 ): CtrlCCounter {
   const presses: number[] = [];
   return {
@@ -41,7 +42,7 @@ export function createCtrlCCounter(
       if (!context.interactive) return count === 1 ? "requestExit" : "forceExit";
       if (count >= 3) return "forceExit";
       if (context.turnActive) {
-        if (count === 1) return options.interruptSupported ? "interruptTurn" : "requestExit";
+        if (count === 1) return options.interruptSupported() ? "interruptTurn" : "requestExit";
         return "requestExit";
       }
       return count === 1 ? "hint" : "requestExit";
@@ -100,7 +101,8 @@ export interface SignalWiring {
 export interface SignalOptions {
   readonly clock: Clock;
   readonly interactive: boolean;
-  readonly interruptSupported: boolean;
+  /** 호스트가 turn.interrupt를 제공하는가. 연결 뒤에야 알 수 있어 눌린 때 묻는다 */
+  readonly interruptSupported: () => boolean;
   /** 지금 turn이 진행 중인가 */
   readonly turnActive: () => boolean;
   /** Ctrl+C로 turn.interrupt를 보낸다(M2) */

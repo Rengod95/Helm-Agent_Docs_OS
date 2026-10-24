@@ -49,6 +49,7 @@ function started(
   startFakeServer(pair.server, { storeId: storeId(1), failures });
   return {
     client: pair.client,
+    secretOutOfBand: { offerEntry: () => () => undefined, offerReveal: () => () => undefined },
     engine: { ports: { ids: { next: () => "evt_x" }, clock: { now: () => 1 } } },
     close,
   };

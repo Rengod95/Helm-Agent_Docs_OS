@@ -65,6 +65,78 @@ function allowedScopesText(error: WireError): string {
   return scopes.filter((scope): scope is string => typeof scope === "string").join(", ");
 }
 
+/** 비밀 관리 오류는 F 표에 전용 kind가 없어 `internal`의 details.secret에 실려 온다(HOST.3 wireErrorOfSecret). 값은 없다 */
+function secretFailure(error: WireError): Failure | undefined {
+  const raw = error.data.details?.["secret"];
+  if (typeof raw !== "object" || raw === null || !("kind" in raw)) return undefined;
+  const kind: unknown = raw.kind;
+  const field = (name: string): string | undefined => {
+    const value: unknown = Reflect.get(raw, name);
+    return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+  };
+  switch (kind) {
+    case "secret_missing":
+      return {
+        message: "그 이름의 비밀이 없다",
+        fix: "xeon secret ls로 이름을 확인하거나 xeon secret add <이름>으로 만든다",
+        code: EXIT.error,
+      };
+    case "already_exists":
+      return {
+        message: "이미 있는 이름이다",
+        fix: "값을 바꾸려면 xeon secret set <이름>을 쓴다",
+        code: EXIT.error,
+      };
+    case "in_use":
+      return {
+        message: `사용 중인 비밀이라 지울 수 없다 (활성 lease ${field("activeLeases") ?? "?"}개)`,
+        fix: "사용이 끝난 뒤 다시 지운다. 값만 바꾸려면 xeon secret rotate <이름>을 쓴다",
+        code: EXIT.error,
+      };
+    case "provider_unavailable":
+      return {
+        message: `비밀 제공자(${field("provider") ?? "sops"})를 쓸 수 없다${field("reason") === undefined ? "" : ` (${field("reason") ?? ""})`}`,
+        fix: "sops와 age를 설치하고 xeon doctor로 확인한다",
+        code: EXIT.environment,
+      };
+    case "key_unavailable":
+      return {
+        message: "복호화 키를 찾을 수 없다",
+        fix: "age 키 위치를 확인하고 xeon doctor로 진단한다",
+        code: EXIT.environment,
+      };
+    case "decrypt_failed":
+      return {
+        message: "비밀을 복호화하지 못했다",
+        fix: "age 키가 이 파일의 수신자인지 확인한다",
+        code: EXIT.error,
+      };
+    case "read_only_provider":
+      return {
+        message: "읽기 전용 제공자라 쓸 수 없다",
+        fix: "sops 제공자를 쓴다",
+        code: EXIT.error,
+      };
+    case "denied":
+    case "reauth_required":
+      return {
+        message: "사람 확인이 끝나지 않아 거부되었다",
+        fix: "다시 실행해 확인 문구를 입력한다",
+        code: EXIT.error,
+      };
+    case "write_failed":
+    case "audit_unwritable":
+      return {
+        message: "비밀 저장소에 쓰지 못했다",
+        fix: "데이터 디렉터리의 권한과 디스크 상태를 확인한다",
+        code: EXIT.environment,
+      };
+    // xeon-disable-next-line xeon/switch-default-never -- 비밀 오류 kind는 서버가 더 새로우면 늘어난다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
+    default:
+      return undefined;
+  }
+}
+
 /** wire 오류를 §4.10 표의 문구와 종료 코드로 바꾼다 */
 export function failureOfWire(error: WireError): Failure {
   const kind = error.data.kind;
@@ -80,6 +152,18 @@ export function failureOfWire(error: WireError): Failure {
         message: `다른 프로세스(${detailText(error, "ownerKind") ?? "알 수 없음"})가 이 세션을 쓰고 있다`,
         fix: "끝날 때까지 두거나 새 세션을 연다",
         code: EXIT.lockDenied,
+      };
+    case "thread.hasForks":
+      return {
+        message: "이 세션에서 분기한 세션이 있어 지울 수 없다",
+        fix: "분기한 세션을 먼저 지운다 (xeon sessions ls)",
+        code: EXIT.error,
+      };
+    case "thread.invalidTarget":
+      return {
+        message: `분기할 수 없는 위치다${detailText(error, "reason") === undefined ? "" : ` (${detailText(error, "reason") ?? ""})`}`,
+        fix: "xeon sessions show로 항목 id를 확인한다",
+        code: EXIT.error,
       };
     case "turn.busy":
       return { message: "진행 중인 turn이 있다", fix: "끝난 뒤 다시 보낸다", code: EXIT.error };
@@ -145,7 +229,21 @@ export function failureOfWire(error: WireError): Failure {
         fix: "데이터 디렉터리의 권한과 디스크 상태를 확인한다",
         code: EXIT.environment,
       };
+    case "jsonrpc.methodNotFound":
+      return {
+        message: `이 엔진은 아직 그 요청을 처리하지 않는다${detailText(error, "method") === undefined ? "" : ` (${detailText(error, "method") ?? ""})`}`,
+        fix: "같은 빌드의 엔진과 CLI를 쓴다 (xeon version으로 확인한다)",
+        code: EXIT.error,
+      };
+    case "jsonrpc.invalidParams":
+      return {
+        message: `요청 값이 맞지 않다${firstIssueText(error) === undefined ? "" : `: ${firstIssueText(error) ?? ""}`}`,
+        fix: "입력을 확인한다",
+        code: EXIT.usage,
+      };
     case "internal": {
+      const secret = secretFailure(error);
+      if (secret !== undefined) return secret;
       const traceId = error.data.traceId;
       return {
         message: `내부 오류${traceId === undefined ? "" : `(traceId ${traceId})`}`,

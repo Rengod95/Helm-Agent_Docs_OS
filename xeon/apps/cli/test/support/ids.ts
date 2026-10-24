@@ -9,6 +9,7 @@ import {
   type ThreadId,
   type TurnId,
 } from "@xeon/contracts/conversation";
+import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
 import { StoreIdSchema, type StoreId } from "@xeon/contracts/wire";
 
 // 시험용 ID. F의 ID 형식(접두 + ULID 26자, 첫 글자 0-7)을 지키는 결정적 값이다. 브랜드를 붙이는 단언은 F의 파서를 거친다:
@@ -46,4 +47,8 @@ export function eventId(n: number): EventId {
 }
 export function storeId(n: number): StoreId {
   return must(parse(StoreIdSchema, `sto_${ulid(n)}`));
+}
+
+export function secretName(text: string): SecretName {
+  return must(parse(SecretNameSchema, text));
 }

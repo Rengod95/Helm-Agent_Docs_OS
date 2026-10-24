@@ -210,13 +210,6 @@ test("stdout that closes mid-run stops the output and exits 0", async () => {
   expect(h.closed()).toBe(true);
 });
 
-test("--set is not available in M1 and never connects", async () => {
-  const h = harness();
-  expect(await h.run(["chat", "-p", "x", "--set", "l4.cli.theme=dark"])).toBe(EXIT.error);
-  expect(h.stderrText()).toContain("--set은 아직 제공하지 않는다");
-  expect(h.closed()).toBe(false);
-});
-
 test("ctrl+c in print mode asks to exit with 130 and closes the engine", async () => {
   const h = harness({
     server: {

@@ -1,14 +1,24 @@
-import { assertNever, attemptAsync, detach } from "@xeon/contracts";
-import type { ChatCommand } from "../cli/command.ts";
+import { assertNever, attemptAsync, detach, err, ok, type Result } from "@xeon/contracts";
+import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ChatCommand, ChatTarget } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import { failureOfCaught, renderFailure, type Failure } from "../errors.ts";
 import { EXIT, type ExitCode } from "../exit-codes.ts";
+import {
+  createApprovalPrompter,
+  createAutoDeny,
+  type ApprovalResponse,
+  type ApprovalSink,
+  type PromptIo,
+} from "../render/approval.ts";
 import { createJsonTap, type JsonTap, type JsonTapMode } from "../render/json-tap.ts";
+import { createLockPrompt } from "../render/lock.ts";
 import { createTextSink, type RenderSink } from "../render/text-sink.ts";
 import { CLI_SETTING_KEYS } from "../settings.ts";
 import { wireSignals, type SignalWiring } from "../signals.ts";
 import { createMinimalSink, runInteractive } from "../tui/minimal.ts";
 import { resolvePrintInput } from "./chat-input.ts";
+import { applyOverrides } from "./overrides.ts";
 import {
   createPositionKeeper,
   loadInitialState,
@@ -47,6 +57,8 @@ interface Holder {
   handle: EngineHandle | undefined;
   session: ChatSession | undefined;
   keeper: PositionKeeper | undefined;
+  /** 지금 세션의 승인 sink. 세션을 바꾸면(/resume) 새로 만든다 */
+  approvals: ApprovalSink | undefined;
 }
 
 /** `l4.cli.outputMode`를 읽어 JSON 탭을 켜거나 끈다. --json 플래그가 이 값보다 앞선다(§6) */
@@ -83,6 +95,13 @@ async function runPrint(
   return exitCodeOfTurn(end);
 }
 
+/** 승인 응답 한 건의 결과를 사람에게 알린다(print 모드의 자동 거부) */
+function denyNotice(view: { readonly title: string }, outcome: "denied" | "failed"): string {
+  const text =
+    outcome === "denied" ? "거부로 답했다" : "거부로 답하려 했으나 host가 응답을 받지 못했다";
+  return `승인 요청 "${view.title}"에 비대화 모드라 ${text}\n`;
+}
+
 async function chatWork(
   ctx: CommandContext,
   command: ChatCommand,
@@ -107,12 +126,13 @@ async function chatWork(
       // 깨진 상태 파일은 버린다. --continue는 이어 열 세션이 없다는 오류로 같은 이유를 알린다
       await io.stderr(`CLI 상태 파일을 읽지 못해 버렸다 (${stateRead.reason})\n`);
     }
-    holder.keeper = createPositionKeeper({
+    const keeper = createPositionKeeper({
       path: handle.paths.cliStateFile,
       workspace: ctx.workspace,
       initial: stateRead.state,
       now: () => handle.clock.now(),
     });
+    holder.keeper = keeper;
     if (!interactive) await decideJsonTap(handle, tap);
     const jsonMode = tap.mode === "on";
 
@@ -138,52 +158,118 @@ async function chatWork(
       });
     }
 
-    const opened = await openChatSession(
-      {
-        handle,
-        workspace: ctx.workspace,
-        sink,
-        width: io.terminal.columns ?? 80,
-        collapseHistory: interactive,
-        keeper: holder.keeper,
-        // print 모드는 승인 프롬프트를 열 수 없다: 거부로 답하고 알린다(§4.11 4번). M1 host에는 approval.respond가 없어
-        // 거부 응답이 실패할 수 있다: 그때는 알림만 남기고 계속한다
-        onApproval: interactive
-          ? null
-          : async (view) => {
-              const responded = await attemptAsync(() =>
-                handle.connection.request("approval.respond", {
-                  approvalId: view.approvalId,
-                  decision: "deny",
-                }),
-              );
-              // 응답 수단이 없는 host면 거부 응답이 가지 않았음을 알림에 밝힌다
-              const outcome = responded.ok
-                ? "거부로 답했다"
-                : "거부로 답하려 했으나 host가 응답을 받지 못했다";
-              await io.stderr(`승인 요청 "${view.title}"에 비대화 모드라 ${outcome}\n`);
+    const respond = (approvalId: string, response: ApprovalResponse) =>
+      handle.connection.request("approval.respond", { approvalId, ...response });
+    const promptIo: PromptIo = {
+      readLine: (prompt, signal) => io.readLine(prompt, signal),
+      stdout: (text) => io.stdout(text),
+    };
+    const makeApprovals = (): ApprovalSink =>
+      interactive
+        ? createApprovalPrompter({
+            io: promptIo,
+            respond,
+            onError: (_approvalId, caught) => {
+              const failure = failureOfCaught(caught);
+              if (failure === undefined) throw caught;
+              detach(io.stderr(renderFailure(failure)), () => {
+                wiring.exit.request(EXIT.ok);
+              });
             },
-        onOutputError: () => {
-          wiring.exit.request(EXIT.ok);
+            onSuperseded: () => {
+              detach(io.stdout("(다른 곳에서 이미 답한 승인이다)\n"), () => {
+                wiring.exit.request(EXIT.ok);
+              });
+            },
+          })
+        : createAutoDeny({
+            respond,
+            // 응답 수단이 없는 host면 거부 응답이 가지 않았음을 알림에 밝힌다
+            onResult: (view, outcome) => io.stderr(denyNotice(view, outcome)),
+          });
+
+    /** 세션을 연다. /resume은 같은 연결에서 새 세션을 열어 바꾼다 */
+    const openWith = async (target: ChatTarget): Promise<Result<ChatSession, Failure>> => {
+      const approvals = makeApprovals();
+      const opened = await openChatSession(
+        {
+          handle,
+          workspace: ctx.workspace,
+          sink,
+          width: io.terminal.columns ?? 80,
+          collapseHistory: interactive,
+          keeper,
+          approvals,
+          restoreApprovals: interactive,
+          lockPrompt: interactive ? createLockPrompt(promptIo) : null,
+          onOutputError: () => {
+            wiring.exit.request(EXIT.ok);
+          },
         },
-      },
-      command.target,
-    );
+        target,
+      );
+      if (!opened.ok) {
+        approvals.dispose();
+        return opened;
+      }
+      holder.approvals?.dispose();
+      holder.approvals = approvals;
+      holder.session = opened.value;
+      return opened;
+    };
+
+    const opened = await openWith(command.target);
     if (!opened.ok) {
       await printFailure(io, opened.error);
       await handle.shutdown("user");
       return opened.error.code;
     }
-    holder.session = opened.value;
+    const applied = await applyOverrides(
+      handle.connection,
+      opened.value.threadId,
+      command.overrides,
+    );
+    if (!applied.ok) {
+      await printFailure(io, applied.error);
+      await opened.value.close();
+      await handle.shutdown("user");
+      return applied.error.code;
+    }
+    const current = (): ChatSession => holder.session ?? opened.value;
     const code = interactive
-      ? await runInteractive({ io, session: opened.value, exit: wiring.exit })
+      ? await runInteractive({
+          io,
+          current,
+          exit: wiring.exit,
+          approvals: () => holder.approvals,
+          slash: {
+            connection: handle.connection,
+            workspace: ctx.workspace,
+            threadId: () => current().threadId,
+            switchTo: async (threadId: ThreadId) => {
+              const previous = current();
+              await previous.close();
+              const next = await openWith({ kind: "resume", threadId });
+              if (!next.ok) {
+                // 바꾸지 못했으면 이전 세션을 다시 연다. 입력 줄이 죽은 세션을 가리키면 안 된다
+                const reopened = await openWith({ kind: "resume", threadId: previous.threadId });
+                return reopened.ok ? err(next.error) : reopened;
+              }
+              await io.stdout(`세션 ${next.value.threadId}으로 바꿨다\n`);
+              await Promise.race([next.value.caughtUp(), wiring.exit.requested]);
+              return ok(undefined);
+            },
+          },
+        })
       : await runPrint(ctx, opened.value, input, jsonMode);
-    if (holder.keeper.writeFailed) {
+    holder.approvals?.dispose();
+    if (keeper.writeFailed) {
       // 상태 파일은 캐시라 대화는 계속했다. 다음 --continue가 이 세션을 못 찾을 수 있음을 알린다
       await io.stderr("CLI 상태 파일을 쓰지 못했다. --continue가 이 세션을 찾지 못할 수 있다\n");
     }
     return await closeEngine(handle, code);
   } catch (caught) {
+    holder.approvals?.dispose();
     await handle.shutdown("user");
     return reportCaught(io, caught);
   }
@@ -192,13 +278,6 @@ async function chatWork(
 /** `xeon chat`을 실행하고 종료 코드를 돌려준다 */
 export async function runChat(ctx: CommandContext, command: ChatCommand): Promise<ExitCode> {
   const { io, deps } = ctx;
-  if (command.overrides.length > 0) {
-    await printFailure(io, {
-      message: "--set은 아직 제공하지 않는다",
-      fix: "M2에서 제공한다. 지금은 설정 파일을 직접 고친다",
-    } satisfies Pick<Failure, "message" | "fix">);
-    return EXIT.error;
-  }
   const interactive = command.mode === "interactive";
   let input = "";
   if (!interactive) {
@@ -210,14 +289,26 @@ export async function runChat(ctx: CommandContext, command: ChatCommand): Promis
     input = resolved.value;
   }
 
-  const holder: Holder = { handle: undefined, session: undefined, keeper: undefined };
+  const holder: Holder = {
+    handle: undefined,
+    session: undefined,
+    keeper: undefined,
+    approvals: undefined,
+  };
   const wiring = wireSignals(io, {
     clock: deps.clock,
     interactive,
-    // turn.interrupt는 host M2 처리기다. M1에서는 Ctrl+C 1회가 종료 요청이다(§4.6)
-    interruptSupported: false,
+    // turn.interrupt는 host M2 처리기다. 이 처리기가 없는 호스트에서는 Ctrl+C 1회가 종료 요청이다(§4.6)
+    interruptSupported: () => holder.handle?.supports("turn.interrupt") ?? false,
     turnActive: () => holder.session?.turnActive ?? false,
-    interruptTurn: () => undefined,
+    interruptTurn: () => {
+      const session = holder.session;
+      if (session === undefined) return;
+      // 중단 요청이 실패하면 멈출 수 없는 것이므로 종료 요청으로 바꾼다
+      detach(session.interrupt(), () => {
+        wiring.exit.request(EXIT.interrupted);
+      });
+    },
     hint: () => {
       // stdout이 닫혔으면(EPIPE) 출력을 멈추고 종료 요청, 0 [제안]. tap의 쓰기 실패와 같은 처리다
       detach(io.stdout(IDLE_CTRL_C_HINT), () => {
@@ -251,6 +342,8 @@ export async function runChat(ctx: CommandContext, command: ChatCommand): Promis
       return first.outcome.value;
     }
     // 종료 요청: 하던 일을 버리고 엔진을 닫는다. 시한을 넘기거나 강제 요청이 오면 기다리지 않는다
+    // 열려 있는 승인 프롬프트는 입력 대기를 풀어 닫는다
+    holder.approvals?.dispose();
     const { handle } = holder;
     if (handle !== undefined && !first.request.forced) {
       await Promise.race([handle.shutdown("signal"), wiring.exit.forced.then(() => undefined)]);

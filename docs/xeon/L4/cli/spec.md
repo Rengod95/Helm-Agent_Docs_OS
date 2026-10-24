@@ -89,14 +89,14 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon secret meta <name> [--desc …] [--scope …] [--expires …] [--hosts …]` | 메타 수정. 값과 무관하다 | `secret.meta` | M2 |
 | `xeon secret rotate <name>` | 새 값으로 교체하고 기존 lease를 폐기한다. TTY 프롬프트로만 받는다 | `secret.beginEntry { name, action: "rotate" }`. 값 필드 없음 | M2 |
 | `xeon secret rm <name> [--yes]` | 삭제. 참조하는 정책을 보인 뒤 확인한다. 사용 중이면 거부된다 | `secret.remove` | M2 |
-| `xeon secret test <name>` | 존재와 복호화 가능 여부. 길이와 해시 앞 8자만 출력한다 | `secret.test` | M2 |
+| `xeon secret test <name>` | 존재와 복호화 가능 여부. 길이와 해시 앞 8자만 출력한다. 현재 wire 결과는 `state`(`registered`, `missing`)뿐이라 구현은 그 값만 보인다 [미결 §10 12번] | `secret.test` | M2 |
 | `xeon secret reveal <name>` | 값 열람. 사람 전용이고 TTY에서만 동작한다. OS 인증 재확인이 가능한 플랫폼에서는 재확인한다(§4.7) [결정: review.decisions-2 U-20] | `secret.beginReveal { name }`. 값 필드 없음. F 메서드 추가는 M2 계획에서 정한다(review.decisions-2 U-04) | M2 |
 | `xeon service start\|status\|stop` | 서비스 기동, 상태, 종료. `install`/`uninstall`은 2차 | 없음. `runHostCommand({ kind: "service-start" \| "service-status" \| "service-stop" })`(§3.3). status는 그 안에서 `host.status`를 부른다 | M3 |
 | `xeon service ensure --json` | `ensure`만 하고 소켓 경로를 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.host-service.spec` HS-38) | 없음. `runHostCommand({ kind: "service-ensure" })` | M3 |
 | `xeon service launch-mode --json` | 서비스 사용 설정을 엔진 없이 읽어 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.desktop.spec` §4.2). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-launch-mode" })` | M3 |
 | `xeon service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 자기 바이너리를 detached로 띄울 때 붙이는 인자다(`L4.host-service.spec` §3.2, SV-06). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-run" })` | M3 |
-| `xeon host --stdio` | 내부 진입. stdin/stdout JSON Lines로 엔진 서버를 연다. 데스크톱 사이드카가 쓴다. 도움말에 보이지 않는다 | 서버 쪽 전체. `runHostCommand({ kind: "host-stdio" })` | M2(컴파일 바이너리 서브커맨드) |
-| `xeon doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 서비스 도달, 터미널 능력, 검색 provider 상태(§4.7.1) 진단 [제안] | [미결] 진단 진입(§10 5번) | M2 |
+| `xeon host --stdio` | 내부 진입. stdin/stdout JSON Lines로 엔진 서버를 연다. 데스크톱 사이드카가 쓴다. 도움말에 보이지 않는다 | 서버 쪽 전체. `startStdioHost({ readable, writable, assemble: { settingGroups } })`(`l4.cli.*` 그룹을 카탈로그에 넣으려고 `runHostCommand`를 거치지 않는다, §3.3 표) | M2(컴파일 바이너리 서브커맨드, 구현됨) |
+| `xeon doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 서비스 도달, 터미널 능력, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `settings.get`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
 | `xeon version [--json]` | CLI 버전, 계약 버전(`WIRE_PROTOCOL_VERSION`), Bun 버전 | 없음 | M1 |
 
 - 근거: 명령 모양은 omp `config list/get/set/reset`(`_research/settings.md` §1, §3 [S36]), pi 모드 4종(TUI, print, JSON, RPC: `_research/refs/pi.md` "같은 AgentSession을 네 모드가 쓴다", `~/projects/_ref/pi-src/packages/coding-agent/src/modes/`), 비밀 명령은 `_research/secrets.md` §6.6, 서비스 명령은 adr.0006 §3.4다.
@@ -306,6 +306,13 @@ export interface CliDeps {
 export declare function runCli(argv: readonly string[], io: CliIo, deps: CliDeps): Promise<ExitCode>;
 ```
 
+- M2에서 더한 필드 [spec에 더한 필드]:
+  - `CliIo.readSecret(prompt, signal)`: 에코 없는 한 줄 입력을 바이트 배열로 돌려준다(§4.7). EOF·Ctrl+C는 null이다. TTY일 때만 부른다.
+  - `CliIo.setCompleter(complete)`: 대화형 입력의 Tab 완성기를 바꾼다(§4.12).
+  - `CliIo.stdoutStream`, `stderrStream`: 바이트 출력. `host --stdio`는 계약(JSON Lines) 전용으로 `stdoutStream`만 쓰고, `secret reveal`은 값을 이 스트림에 바이트로 쓴다.
+  - `CliDeps.startStdioHost`: `@xeon/host`의 `startStdioHost` 그대로(§3.3 표). `CliDeps.probes.probeSearxng`: doctor의 SearXNG 탐침(§4.7.1).
+  - `EngineHandle.secretOutOfBand`: in-process 접속에서 값 입력·열람 수단을 wire 밖으로 맡기는 통로(`SecretOutOfBandPort`, `InProcessHost.secretOutOfBand`). 서비스 접속은 null이다.
+  - `EngineHandle.supports(feature)`: `host.hello`의 `features`(active, experimental)에 그 이름이 있는지. 호스트가 아직 구현하지 않은 메서드(`turn.interrupt`, `thread.open`, `approval.list`, `events.unsubscribe`)를 쓰기 전에 거른다.
 - `main.ts`의 최상위 코드는 `process.argv.slice(2)`, 실제 `CliIo`, `CliDeps`(`connectEngine`과 `@xeon/host`의 `runHostCommand`)로 `runCli`를 부르고 `process.exit(code)`만 한다. 최상위 await를 쓰지 않는다(`bun build --compile --bytecode`). 실제 `CliIo`·`CliDeps`를 만드는 코드는 `runtime.ts`에 있고 `main.ts`가 필요할 때 읽는다.
 
 ### 3.5 렌더러
@@ -477,7 +484,7 @@ export type CliState = Static<typeof CliStateSchema>;
 | 대상 | M1 | M2 이후 |
 |---|---|---|
 | 새 세션 | `thread.create { workspace }` → `position`부터 구독 | 같음 |
-| `--continue` | CLI 상태 파일에서 작업 폴더의 항목을 찾는다. 없으면 "이어 열 세션이 없다" + 해결 한 줄, 1로 끝낸다 | `thread.list { workspace, limit: 1 }`의 첫 항목 → `thread.open { mode: "write" }` |
+| `--continue` | CLI 상태 파일에서 작업 폴더의 항목을 찾는다. 없으면 "이어 열 세션이 없다" + 해결 한 줄, 1로 끝낸다 | `thread.list { workspace, limit: 1 }`의 첫 항목 → `thread.open { mode: "write" }`. 호스트가 `thread.list`를 -32601로 거절하면(아직 구현하지 않은 호스트) 상태 파일로 대신하고, `thread.open`은 `features`에 없으면 건너뛰어 M1처럼 `turn.start`가 소유를 얻게 한다 |
 | `--resume <id>` | 상태 파일에 그 id의 위치가 있으면 그 위치부터, 없으면 `{ storeId, seq: 0 }`부터 구독 | `thread.open { threadId, mode: "write" }`의 `position` 사용 |
 
 - 재개 구독 [제안]:
@@ -524,7 +531,7 @@ export type CliState = Static<typeof CliStateSchema>;
 
 | 입력·신호 | 대화형 | print 모드 |
 |---|---|---|
-| Ctrl+C 1회(turn 진행 중) | M2: `turn.interrupt { threadId }`. M1: 종료 요청과 같다(아래) [제안] | 종료 요청. 끝나면 130 |
+| Ctrl+C 1회(turn 진행 중) | M2: `turn.interrupt { threadId }`를 한 번 보낸다. 호스트의 `features`에 `turn.interrupt`가 없거나 그 요청이 실패하면 종료 요청과 같다(아래) [제안] | 종료 요청. 끝나면 130 |
 | Ctrl+C 1회(turn 없음) | 입력 줄이 있으면 비운다. 비어 있으면 "한 번 더 누르면 끝낸다"를 보인다 | 해당 없음 |
 | Ctrl+C 2회(2초 안) | 종료 요청. turn이 진행 중이었으면 130, 아니면 0 | 강제 종료(체크포인트 없이) 130 |
 | Ctrl+C 3회 또는 종료 시한 초과 | 강제 종료 130. 다음 열기에서 엔진 복구 규칙이 처리한다(adr.0006 §3.6 규칙 5·6) | 같음 |
@@ -539,14 +546,22 @@ export type CliState = Static<typeof CliStateSchema>;
 ### 4.7 비밀 명령의 입력과 출력
 
 - 값은 stdin이나 프롬프트로만 받는다. argv로 받지 않는다(`_research/secrets.md` §6.6).
-  - [제안] 값은 wire 프레임에 싣지 않는다(`L4.readme` §4 비밀 행, `L0.secrets.spec` §8.3 R4). `add`·`set`·`rotate`는 값 필드가 없는 `secret.beginEntry { name, action }`으로 시작한다. 서비스 접속이면 서비스 쪽 L0.secrets가 OS 입력 창으로 값을 받는다(`L4.settings-ui.spec` §4.6.4 C안). in-process이면 CLI가 아래 규칙으로 읽은 값을 같은 프로세스의 L0.secrets에 wire 밖 경로로 넘긴다. 이 경로의 API는 `@xeon/host`에 아직 없다 [미결 §10 3번]. wire 메서드 `secret.list`·`meta`·`remove`·`test`·`beginEntry`는 F 표에 M2로 있다.
+  - [제안] 값은 wire 프레임에 싣지 않는다(`L4.readme` §4 비밀 행, `L0.secrets.spec` §8.3 R4). `add`·`set`·`rotate`는 값 필드가 없는 `secret.beginEntry { name, action }`으로 시작한다. 서비스 접속이면 서비스 쪽 L0.secrets가 OS 입력 창으로 값을 받는다(`L4.settings-ui.spec` §4.6.4 C안). in-process이면 CLI가 아래 규칙으로 읽은 값을 같은 프로세스의 L0.secrets에 wire 밖 경로로 넘긴다. 이 경로의 API는 `InProcessHost.secretOutOfBand`(`SecretOutOfBandPort`)다: CLI가 `offerEntry`·`offerReveal`로 수단을 맡기면 호스트 처리기가 다음 `beginEntry`·`beginReveal` 한 번에 그것을 꺼내 쓰고, CLI는 끝난 뒤 쓰이지 않은 수단을 거둔다. wire 메서드 `secret.list`·`meta`·`remove`·`test`·`beginEntry`는 F 표에 M2로 있다.
   - 파서는 `secret add|set|rotate`의 이름 뒤 위치 인자, `--value`, `<name>=<값>` 형식을 `secretValueInArgv` 사용법 오류(2)로 거부한다. 오류 메시지에 그 인자를 다시 쓰지 않는다.
   - TTY면 에코 없는 프롬프트로 두 번 받아 비교한다. TTY가 아니면 stdin을 EOF까지 읽고 끝의 줄바꿈 하나를 지운다.
   - `rotate`는 TTY 프롬프트만 받는다 [제안]. 사람이 직접 입력하는 동작으로 두기 위해서다(`_research/secrets.md` §6.6 "사람이 입력").
 - 값은 stdout, stderr, 이벤트, 로그, 오류 `details`, JSON 모드 출력 어디에도 없다.
   - [제안] 비밀 명령에는 `--json` 메시지 탭을 붙이지 않는다. `secret ls`, `secret test`의 `--json`은 결과 객체만 쓴다.
   - 값을 담은 바이트 배열은 L0.secrets에 넘긴 직후 0으로 덮는다. 문자열로 바꾸지 않는다 [제안].
-- `secret test`는 존재, 복호화 가능 여부, 길이, SHA-256 hex 앞 8자만 출력한다.
+- `secret test`는 존재, 복호화 가능 여부, 길이, SHA-256 hex 앞 8자만 출력한다. 현재 wire 결과는 `state`뿐이라 구현은 `registered`·`missing`만 보이고 `missing`이면 1로 끝낸다 [미결 §10 12번].
+- 입력 규칙 (구현):
+  - TTY가 아니면 stdin을 EOF까지 읽고 끝의 줄바꿈 하나(`\n`, `\r\n`)를 지운다. 빈 값은 2, 64 KiB를 넘으면 2다.
+  - TTY면 `readSecret`으로 두 번 받아 상수 시간으로 비교한다. 다르면 아무것도 저장하지 않고 1이다. Ctrl+C·Ctrl+D는 취소(1)다.
+  - 값을 읽는 때는 호스트가 맡긴 수단의 `read()`를 부르는 순간이다. 읽은 바이트 배열은 `secret.beginEntry`가 끝나면 성공·실패와 관계없이 0으로 덮는다.
+  - `add`의 `--desc`, `--scope`, `--expires`, `--hosts`는 값을 저장한 뒤 `secret.meta`로 적용한다. `--hosts`는 기존 사용 정책을 `secret.list { meta: true }`로 읽어 `hosts`만 바꾼다. 메타 적용이 실패하면 값은 저장된 상태라고 알린다. `--provider`는 `sops`만 받는다(wire에 제공자 선택이 없다). `secret meta`는 플래그가 하나도 없으면 2다.
+  - `rm`은 `secret.list { meta: true }`의 사용 정책(허용 도구·호스트)을 먼저 보이고 확인한다. `--yes` 없이 비TTY면 2다. 사용 중이면 호스트가 거부하고(`in_use`) CLI는 활성 lease 수를 보인다.
+  - 비밀 오류는 F 오류 표에 전용 kind가 없어 `internal`의 `details.secret.kind`로 온다. CLI는 이 kind를 두 줄 문구와 종료 코드(제공자·키 문제는 3, 나머지는 1)로 바꾼다.
+- `reveal` (구현): 확인 문구로 이름을 다시 입력받고(`tty-confirm`, `verifiedAt`은 엔진 시계) 열람 수단을 맡긴 뒤 `secret.beginReveal`을 보낸다. 값은 `show` 콜백에서 바이트 그대로 `stdoutStream`에 한 번 쓰고, 문자열로 바꾸지 않는다. `os-auth`는 L0.os가 제공하기 전까지 쓰지 않는다. 호스트가 `started: false`를 돌려주면(재확인 만료·취소) 값을 보이지 않고 1이다.
 - 값 열람 [결정: review.decisions-2 U-20]: 열람 경로는 M2 CLI `xeon secret reveal <name>`과 M3 데스크톱 화면(`L4.settings-ui.spec`) 둘이다. 에이전트 경로(모델 도구, 확장 API)에는 열람이 없다.
   - [제안] `reveal`은 stdin과 stdout이 모두 TTY일 때만 동작한다. 아니면 `revealRequiresTty` 사용법 오류(2)다. `--json`을 받지 않는다.
   - [제안] 시작은 값 필드가 없는 `secret.beginReveal { name }`이다. 값 표시는 호스트 쪽 L0.secrets가 맡는다. in-process면 같은 프로세스가 TTY에 직접 쓰고, 서비스 접속이면 서비스 쪽 L0.secrets가 OS 창으로 보인다(`L4.settings-ui.spec` §4.6.4 C안과 같은 경로). 값은 wire 프레임, 로그, 이벤트에 없다.
@@ -562,13 +577,31 @@ export type CliState = Static<typeof CliStateSchema>;
 - 줄 3: 등록되지 않은 무료 크레딧 API 플러그인 권장 목록(Exa, Brave)과 키 등록 명령 `xeon secret add <이름>`.
 - 값은 키 이름과 참조 문자열만 보인다. 비밀 값은 없다.
 - 키 이름과 provider 목록의 정본은 `L2.web.spec`이다. 이 출력은 그 값을 읽기만 한다.
+- 구현 (임시 경로, §10 5번): 설정 네 키(`l2.web.search.provider`, `searxng.url`, `searxng.detect`, `pluginOrder`)를 `settings.get`으로 읽는다. 엔진에 아직 없는 키는 기본값으로 판정하고 "엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다"를 덧붙인다. 줄 1은 L2.web.spec §4.8.2의 순서(명시 provider, 키 플러그인, 감지된 SearXNG, 내장 래퍼)를 따른다. SearXNG 감지는 L2.web.spec §4.8.3의 탐침(`GET <base>/search?q=xeon&format=json&pageno=1`, 1.5초, 64 KiB, 403이면 `json-disabled`)과 후보 순서를 CLI가 같은 값으로 가진다. L2.web의 provider 상태 조회가 조립 진입점으로 나오면 이 복제를 그쪽 조회로 바꾼다.
+- 출력 형식:
+
+  ```text
+  xeon doctor (xeon 0.0.0)
+  진단
+    [ok]   엔진을 열었다 (in-process). 세션 저장소와 FTS5를 쓸 수 있다
+    [ok]   상태 디렉터리: <경로>
+    [ok]   비밀 저장소: 사용할 수 있다 (등록 0개)
+    [참고] 서비스 모드: 사용 안 함 (in-process)
+    [ok]   터미널: stdin TTY, stdout TTY, 100열, 색 사용
+  검색 provider
+    검색 provider: auto → 내장 검색 래퍼 (builtin-wrapper)
+    SearXNG: 없음 — 해결: xeon config set l2.web.search.searxng.url <주소> (감지 후보 http://127.0.0.1:8888 등)
+    권장 키 플러그인: Exa, Brave — 키 등록: xeon secret add exa-api-key, xeon secret add brave-api-key
+  ```
+
+  엔진을 열지 못하면 첫 항목이 `[실패] 엔진을 열 수 없다: <message>`와 해결 줄이 되고 종료 코드는 `EngineStartError` 표(§4.10)를 따른다. 터미널 항목과 검색 세 줄은 엔진 없이도 낸다. `--json`은 같은 내용을 `{ version, checks, search }` 문서 하나로 쓴다. 키 플러그인 ID는 `plugin:web-exa`, `plugin:web-brave`(L2.web.spec §4.8)이고 `pluginOrder`에 있으면 등록된 것으로 본다.
 - 설정의 비밀 키(`secret: true`)는 `config get`이 참조 문자열(`secret://<name>`)이나 `null`만 보인다(F wire §4.9).
 
 ### 4.8 설정 명령과 세션 덮어쓰기
 
 - 값 해석(`config set`, `--set`, `/set`): `raw`를 먼저 JSON으로 해석하고, 실패하면 문자열로 본다(F wire §4.11).
 - 최종 판정은 host의 `settings.set`이다. host는 `checkSettingWrite`로 범위·잠금·값을 검사한다(F wire §3.9). CLI는 오류 `kind`를 §4.10 표의 문구로 바꾼다.
-- [제안] 미리 검사: `config set`은 `settings.list`의 `SettingDefWire`로 같은 값을 먼저 검사해 왕복 없이 범위 오류를 알린다. 이때 `type`에 `range`를 병합한 스키마(F wire §4.10 3번 규칙)를 `typebox/schema`의 `Check`로 검사한다(`_research/notes/L4-3.md`). 잠금과 비밀 값 거부는 host만 판정한다. 병합 함수는 F에 공통으로 두자는 제안을 따른다 [미결 §10 4번].
+- [제안] 미리 검사: `config set`은 `settings.list`의 `SettingDefWire`로 같은 값을 먼저 검사해 왕복 없이 범위 오류를 알린다. 이때 `type`에 `range`를 병합한 스키마(F wire §4.10 3번 규칙)를 `typebox/schema`의 `Check`로 검사한다(`_research/notes/L4-3.md`). 잠금과 비밀 값 거부는 host만 판정한다. 병합 함수는 F에 공통으로 두자는 제안을 따른다 [미결 §10 4번]. M2 구현은 이 사전 검사를 하지 않고 호스트의 `settings.set` 판정과 오류 문구(§4.10)만 쓴다 [미결 §10 13번].
 - `config get` 출력 형식(텍스트):
 
   ```text
@@ -647,20 +680,30 @@ export type CliState = Static<typeof CliStateSchema>;
   3. `approval.resolved` 이벤트가 오면 프롬프트를 닫는다. 다른 클라이언트가 먼저 답한 경우도 같다.
   4. print 모드는 프롬프트를 열 수 없으므로 `decision: "deny"`로 답하고 stderr에 한 줄 알린다 [제안]. 비대화 자동 승인 플래그를 둘지는 [미결 §10 8번].
   5. payload 모양은 `L1.tools.spec` 소관이다. CLI는 제목·본문·질문 여부만 읽는다.
+  6. 구현 (대화형 줄 입력): 요청 payload의 `remember`가 허용하는 범위만 보인다.
+     - 도구: `[y]` 이번만 허용, `[t]` 이 세션 동안 허용(`thread`가 있을 때), `[a]` 항상 허용(`always`가 있을 때), `[n]` 거부. `n` 뒤에 이유를 받아 있으면 `answer: { feedback }`으로 보낸다.
+     - 계획: `[y]` 승인이면 `nextModes` 중 하나(엔터는 지금 모드)와 메모를 받아 `answer: { mode?, note? }`로 보낸다. `[n]`은 도구와 같다.
+     - 질문: 질문마다 번호(여러 선택이면 쉼표)나 직접 입력(`allowFreeText`)을 받아 `decision: "answer"`와 `QuestionAnswer`(`{ [질문 id]: { selected, text? } }`)로 보낸다. `/deny`는 요청 전체를 거부한다.
+     - 프롬프트는 한 번에 하나다. 입력 줄이 읽는 중에 승인이 오면 입력 줄을 닫고 승인을 먼저 묻는다.
+     - 세션을 열 때 이전 기록을 다 그린 뒤 `approval.list { threadId }`로 아직 답하지 않은 승인을 되살려 묻는다(재시작 뒤 복원). 이벤트로 이미 받은 승인은 `approvalId`로 중복을 거른다.
+     - `approval.respond`가 `applied: false`이거나 `approval.resolved`가 먼저 오면 "다른 곳에서 이미 답한 승인이다"를 보이고 프롬프트를 닫는다.
 - 잠금(M2): `thread.locked` 오류의 `details.options`(`observe`, `fork`, `delegate`) 중 가능한 것만 보인다.
   - 관찰: `thread.open { mode: "observe" }` 뒤 구독만 한다. 입력란을 잠근다.
   - 분기: `thread.fork { threadId }`로 새 세션을 만들어 연다.
   - 위임: 서비스 전송일 때만 보인다. 소유자에게 입력을 보내는 클라이언트가 된다(adr.0006 §3.6 규칙 3).
   - 아무것도 고르지 않으면 4로 끝낸다. M1은 프롬프트 없이 4다.
+  - 구현: 열기(`thread.open { mode: "write" }`)에서 3002를 받으면 묻는다. 글자는 `[o]` 관찰, `[f]` 분기, `[d]` 위임, 엔터는 취소다. 위임은 전송이 `socket`일 때만 보이고 M2에는 서비스 접속이 없어 나오지 않는다. 관찰로 열면 입력 줄은 남아 있되 보낸 줄에는 "관찰 전용이라 입력을 보낼 수 없다"를 알린다. 분기하면 새 id를 `thread.open { mode: "write" }`로 열어 이어 간다. print 모드는 묻지 않고 4다.
 
 ### 4.12 슬래시 명령
 
 - 슬래시 명령은 설정 정의에서 만든다 [제안].
   - `/set <key> <value>`: `settings.list` 결과 중 `allowedScopes`에 `session`이 있는 키만 자동 완성에 넣는다. 실행은 `settings.set { scope: "session", threadId }`.
   - `/model [<값>]`: 모델 선택 키의 별칭이다. 값이 없으면 그 키의 `range.enum`으로 목록을 보인다. 키 이름은 `L1.models.spec`이 정한다 [가정: 아직 이름이 정해지지 않았다].
-  - `/resume`: `thread.list`로 목록을 보이고 고른 세션으로 바꾼다(M2).
+  - `/resume [<번호|id>]`: `thread.list`로 이 작업 폴더의 목록을 보이고 고른 세션으로 바꾼다(M2). 바꿀 때 이전 세션의 구독을 해제하고(`events.unsubscribe`) 새 세션을 같은 연결에서 연다. 잠금이면 §4.11의 프롬프트가 뜬다. 바꾸지 못하면 이전 세션을 다시 연다.
   - `/help`, `/quit`: CLI 내장.
-- 별칭 표는 `src/slash.ts`의 상수 하나에 둔다. 키 이름이 없는 별칭은 등록하지 않는다.
+- 별칭 표는 `src/slash.ts`의 상수 하나에 둔다. 키 이름이 없는 별칭은 등록하지 않는다. 현재 별칭은 `/model` → `l1.models.default` 하나다.
+- Tab 완성: `/set ` 뒤는 session 범위를 허용하는 키, 줄 첫 단어는 슬래시 이름이다. 키 목록은 대화형을 시작할 때 `settings.list`로 한 번 읽는다.
+- 실패한 슬래시 명령(없는 키, 허용되지 않은 범위)은 두 줄 오류를 stderr에 쓰고 입력을 이어 받는다.
 - 확장이 슬래시 명령을 더하는 경로(L2-e 프롬프트 템플릿)는 wire 메서드가 없어 이 문서에 두지 않는다.
 
 ## 5. 실패와 경계 사례
@@ -741,17 +784,22 @@ export type CliState = Static<typeof CliStateSchema>;
 - AC12. 사용법 오류 출력은 두 줄(무엇, 해결)이고 종료 코드는 2다.
 - AC13. stdout이 TTY가 아닐 때 `xeon secret reveal <name>`은 2로 끝나고, stdout·stderr·이벤트 DB 어디에도 그 비밀 값이 없다. TTY에서 열람하면 감사 기록이 한 건 늘고 그 기록에 값이 없다.
 - AC14. 키 플러그인이 없고 SearXNG가 감지되지 않은 설정에서 `xeon doctor`는 검색 provider 묶음 세 줄을 내고, 권장 목록에 Exa와 Brave가 있다.
+- AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 계획 승인은 `{ mode?, note? }`, 질문은 `QuestionAnswer`다. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
+- AC16. `host --stdio`의 stdout에는 JSON-RPC 메시지만 나오고(사람용 출력은 stderr), stdin EOF에서 0으로 끝난다. `l4.cli.*` 키가 그 호스트의 카탈로그에 있다. 컴파일(`--minify --bytecode`) 바이너리에서도 같다.
 
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-15] `apps/cli` → `@xeon/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1). 남은 [미결]: 엔진 바이너리 이름 `xeon`([제안], 같은 문서 §10 미결 2). `EngineHandle.paths.cliStateFile`의 원천은 정했다 [결정: review.decisions-2 B-07]: `@xeon/host`의 `resolveHostStatePaths()`가 L0.os `OsDirs.state` 아래 `cli/state.json`을 돌려준다(`L4.host-service.spec` §3.3.6). CLI는 경로를 계산하지 않는다(DR-13). 환경 변수 `XEON_CLI_STATE_FILE`은 테스트 격리용 덮어쓰기로만 남는다.
 2. [미결] M1 중단의 wire 지원. `turn.interrupt`가 M2라서 M1의 Ctrl+C 1회가 종료 요청이다(§4.6). M1에 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1으로 당기는 F 변경 요청이 필요하다. 기존 세션의 쓰기 소유를 `turn.start`가 얻는 동작은 `L4.host-service.spec` HS-28로 확정되어 이 항목에서 닫았다(§4.3).
-3. [미결] 비밀 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `xeon secret reveal`로 정했다 [결정: review.decisions-2 U-20]. 남은 것: `secret.beginReveal`의 F 추가(review.decisions-2 U-04에 따라 M2 계획에서 정한다), in-process에서 CLI가 읽은 값을 wire 밖으로 L0.secrets에 넘기는 `@xeon/host` API(§4.7), `secret run -- <cmd>`를 둘지.
+3. [미결] 비밀 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `xeon secret reveal`로 정했다 [결정: review.decisions-2 U-20]. F의 `secret.beginReveal`과 in-process 값 전달 통로(`InProcessHost.secretOutOfBand`)는 구현되어 CLI가 쓴다(§4.7). 남은 것: `secret run -- <cmd>`를 둘지.
 4. [미결] `type`에 `range`를 병합하는 함수를 F에 공통으로 둘지(`_research/notes/L4-3.md`). `config schema`는 wire 없이 로컬 명령(`L4.host-service.spec` §6.2)으로 정해져 F 변경 요청에서 뺐다.
-5. [미결] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. [제안] 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더한다.
+5. [결정: M2 임시] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. M2는 CLI가 `connectEngine`의 성공·실패(`EngineStartError`), `secret.list`, `settings.get`으로 판정한다(§4.7.1). 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더하면 그쪽으로 옮긴다. 비밀 저장소의 sops·age 판정은 `secret.list` 오류 kind(`provider_unavailable`, `key_unavailable`)에 기대므로 sops가 없어도 목록 조회가 오류 없이 끝나는 구성이면 항목이 `ok`로 나올 수 있다 [가정].
 6. [결정: review.m2-plan §8 D10] pi-tui 채택은 M2 스파이크의 한글 IME·CJK 폭 확인 통과를 조건으로 한다(§4.9.2). 실패하면 최소 renderer로 유지한다. M2 종료 조건이 아니다. 스파이크 결과(2026-10-24, `L4.cli.plan` §4.4): CJK 폭, IME 확정 입력, 하드웨어 커서 위치, 줄바꿈의 자동 확인은 모두 통과했다. 실제 터미널(macOS·Linux·WSL)의 한국어 IME 확인과 Bun 1.4.3 `--compile` 실행 확인이 남아 채택을 보류하고 최소 renderer를 유지한다. 최소 renderer의 진행 줄이 문자 수로 잘리던 문제는 칸 수 기준으로 고쳤다.
 7. [미결] 릴리즈 형태: 단일 파일만 배포할지, pi처럼 `native/` 사이드카 디렉터리를 함께 둘지(`_research/notes/L4-1.md` §5). macOS 공증 때 사이드카 `.node`와 FTS5 dylib의 서명 위치는 `_research/notes/L4-2.md`가 다룬다.
-8. [미결] print 모드에서 승인 요청이 오면 거부하는 기본값, 비대화 자동 승인 플래그를 둘지.
+8. [결정: M2] print 모드에서 승인 요청이 오면 거부로 답하고 stderr에 한 줄 알린다(§4.11 4번). [미결] 비대화 자동 승인 플래그를 둘지.
 9. [결정: review.decisions-2 U-02] 승인 요청은 A안(내구 이벤트 `approval.requested`/`approval.resolved` + `approval.respond`)이다. kind는 F.records 카탈로그에 있다(`F.records.spec` §3.2).
 10. [미결] TUI 설정 화면과 view-model 공유 위치(§4.9.4).
 11. [미결] stdout EPIPE의 종료 코드(0 제안)와 129·143 추가.
+12. [미결] `secret test`의 출력. 스펙은 복호화 가능 여부, 길이, 해시 앞 8자를 정하지만(`L0.secrets.spec`의 `SecretTestResult`) wire 결과 `secret.test`는 `state`(`registered`, `missing`)만 담는다. F 결과에 `decryptable`, `length`, `sha256Prefix`를 더하는 변경이 필요하다. 값 자체는 싣지 않는다.
+13. [미결] 설정 값 사전 검사(§4.8). `settings.list`의 `SettingDefWire`는 `type`이 JSON Schema 객체라 `validateSettingValue`(TSchema 입력)를 바로 부를 수 없고, CLI에서 `Type.Unsafe(json)`을 쓰면 TY-26을 어긴다. F가 `SettingDefWire`를 받는 검사 함수를 내면 `config set`이 왕복 전에 범위 오류를 알릴 수 있다. 그 전까지 값 판정은 호스트의 `settings.set`이 한다(오류 문구는 §4.10 표).
+14. [미결] 비밀 삭제 전 참조 표시. 스펙은 "참조하는 정책을 보인 뒤 확인한다"인데 wire에 `secret.references`가 없다. 현재는 `secret.list { meta: true }`의 사용 정책(도구·호스트)만 보인다. 설정 키·활성 lease·최근 세션을 보이려면 wire 메서드나 목록 항목 확장이 필요하다.

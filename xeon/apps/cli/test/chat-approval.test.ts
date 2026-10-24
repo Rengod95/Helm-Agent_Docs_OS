@@ -1,0 +1,297 @@
+import { afterEach, expect, test } from "bun:test";
+import { EXIT } from "../src/exit-codes.ts";
+import {
+  approvalRequested,
+  approvalResolved,
+  assistantItem,
+  turnCompleted,
+} from "./support/events.ts";
+import type { FakeServer, TurnContext } from "./support/fake-server.ts";
+import { createHarness, waitFor, type Harness } from "./support/harness.ts";
+import { BLOCK, scriptedInput, type Reply } from "./support/script.ts";
+
+const harnesses: Harness[] = [];
+afterEach(() => {
+  for (const harness of harnesses.splice(0)) harness.dispose();
+});
+
+const TTY = { stdinIsTty: true, stdoutIsTty: true, columns: 80 } as const;
+
+interface Scenario {
+  readonly h: Harness;
+  readonly responds: Record<string, unknown>[];
+  readonly input: ReturnType<typeof scriptedInput>;
+}
+
+/**
+ * 한 턴짜리 대화형 시나리오: 첫 입력 "go" → 서버가 승인 요청을 낸다 → 사람이 답한다 → 서버가 승인을 닫고 턴을 끝낸다.
+ * replies에는 "go" 이후의 답을 적는다. 마지막에 /quit를 자동으로 더한다
+ */
+function scenario(options: {
+  readonly body?: unknown;
+  readonly remember?: readonly ("once" | "thread" | "always")[];
+  readonly replies: readonly Reply[];
+  /** approval.respond가 돌려줄 applied */
+  readonly applied?: boolean;
+  /** 답을 받으면 서버가 승인을 닫고 턴을 끝낸다(기본 참) */
+  readonly closeOnRespond?: boolean;
+  /** 서버가 열린 승인을 먼저 닫는 시험: 요청 직후 호출된다 */
+  readonly afterRequest?: (server: FakeServer, context: TurnContext, approvalId: string) => void;
+}): Scenario {
+  const responds: Record<string, unknown>[] = [];
+  const input = scriptedInput(["go", ...options.replies, "/quit"]);
+  const open: { context?: TurnContext; approvalId?: string } = {};
+  const h = createHarness({
+    terminal: TTY,
+    env: { NO_COLOR: "1" },
+    readLine: (prompt, signal) => input.readLine(prompt, signal),
+    server: {
+      handlers: {
+        "approval.respond": (params, server) => {
+          responds.push({ ...params });
+          const { context, approvalId } = open;
+          if (
+            context !== undefined &&
+            approvalId !== undefined &&
+            options.closeOnRespond !== false
+          ) {
+            server.commit(context.threadId, [
+              approvalResolved(context.turnId, approvalId),
+              assistantItem(context.turnId, 3, { text: "done" }),
+              turnCompleted(context.turnId),
+            ]);
+          }
+          return { applied: options.applied ?? true };
+        },
+      },
+      onTurn: (context) => {
+        const [event] = context.server.commit(context.threadId, [
+          approvalRequested(context.threadId, context.turnId, {
+            ...(options.body === undefined ? {} : { body: options.body }),
+            ...(options.remember === undefined ? {} : { remember: options.remember }),
+          }),
+        ]);
+        if (event === undefined) return;
+        open.context = context;
+        open.approvalId = event.id;
+        options.afterRequest?.(context.server, context, event.id);
+      },
+    },
+  });
+  harnesses.push(h);
+  return { h, responds, input };
+}
+
+test("a tool approval is asked with the remember choices the request allows; y allows once", async () => {
+  const s = scenario({ replies: ["y"] });
+  expect(await s.h.run(["chat"])).toBe(EXIT.ok);
+  expect(s.input.prompts[1]).toBe(
+    "[y] 이번만 허용  [t] 이 세션 동안 허용  [a] 항상 허용  [n] 거부 > ",
+  );
+  expect(s.responds).toHaveLength(1);
+  expect(s.responds[0]).toMatchObject({ decision: "allow", remember: "once" });
+  expect(s.h.stdoutText()).toContain("done");
+});
+
+test("t and a pick the wider remember scopes only when the request offers them", async () => {
+  const thread = scenario({ replies: ["t"] });
+  await thread.h.run(["chat"]);
+  expect(thread.responds[0]).toMatchObject({ decision: "allow", remember: "thread" });
+
+  const always = scenario({ replies: ["a"] });
+  await always.h.run(["chat"]);
+  expect(always.responds[0]).toMatchObject({ decision: "allow", remember: "always" });
+
+  // once만 허용하는 요청에서는 a가 선택지가 아니다: 다시 묻는다
+  const narrow = scenario({ remember: ["once"], replies: ["a", "y"] });
+  await narrow.h.run(["chat"]);
+  expect(narrow.input.prompts[1]).toBe("[y] 이번만 허용  [n] 거부 > ");
+  expect(narrow.h.stdoutText()).toContain("y, t, a, n 중 하나를 입력한다");
+  expect(narrow.responds).toHaveLength(1);
+  expect(narrow.responds[0]).toMatchObject({ decision: "allow", remember: "once" });
+});
+
+test("n asks for a reason and sends it as the deny answer; an empty reason sends a plain deny", async () => {
+  const withReason = scenario({ replies: ["n", "너무 위험하다"] });
+  await withReason.h.run(["chat"]);
+  expect(withReason.responds[0]).toMatchObject({
+    decision: "deny",
+    answer: { feedback: "너무 위험하다" },
+  });
+
+  const plain = scenario({ replies: ["n", ""] });
+  await plain.h.run(["chat"]);
+  expect(plain.responds[0]).toEqual({ approvalId: expect.any(String), decision: "deny" });
+});
+
+test("a plan approval can pick the next mode and add a note", async () => {
+  const body = {
+    kind: "plan",
+    plan: { plan: "1. 읽는다\n2. 고친다", planRef: null, nextModes: ["default", "acceptEdits"] },
+  };
+  const s = scenario({ body, replies: ["y", "2", "진행해"] });
+  await s.h.run(["chat"]);
+  expect(s.responds[0]).toMatchObject({
+    decision: "allow",
+    answer: { mode: "acceptEdits", note: "진행해" },
+  });
+  expect(s.h.stderrText()).toContain("1. 읽는다");
+
+  const denied = scenario({ body, replies: ["n", "다시 계획해"] });
+  await denied.h.run(["chat"]);
+  expect(denied.responds[0]).toMatchObject({
+    decision: "deny",
+    answer: { feedback: "다시 계획해" },
+  });
+});
+
+test("a plan approval with no modes and no note allows with an empty answer", async () => {
+  const body = { kind: "plan", plan: { plan: "계획", planRef: null, nextModes: [] } };
+  const s = scenario({ body, replies: ["y", ""] });
+  await s.h.run(["chat"]);
+  expect(s.responds[0]).toMatchObject({ decision: "allow", answer: {} });
+});
+
+const QUESTION_BODY = {
+  kind: "question",
+  question: {
+    questions: [
+      {
+        id: "q1",
+        header: "범위",
+        text: "어느 쪽으로 할까?",
+        options: [
+          { id: "a", label: "작게", recommended: true },
+          { id: "b", label: "크게", description: "시간이 더 든다" },
+        ],
+        multiSelect: false,
+        allowFreeText: true,
+      },
+      {
+        id: "q2",
+        text: "함께 할 것",
+        options: [
+          { id: "x", label: "테스트" },
+          { id: "y", label: "문서" },
+        ],
+        multiSelect: true,
+        allowFreeText: false,
+      },
+    ],
+  },
+};
+
+test("a question approval is answered per question and sent as a QuestionAnswer", async () => {
+  const s = scenario({ body: QUESTION_BODY, replies: ["2", "1,2"] });
+  await s.h.run(["chat"]);
+  expect(s.responds[0]).toMatchObject({
+    decision: "answer",
+    answer: { q1: { selected: ["b"] }, q2: { selected: ["x", "y"] } },
+  });
+  const shown = s.h.stdoutText();
+  expect(shown).toContain("질문 1/2: [범위] 어느 쪽으로 할까?");
+  expect(shown).toContain("1) 작게 (추천)");
+  expect(shown).toContain("2) 크게 - 시간이 더 든다");
+});
+
+test("a question accepts free text when allowed, and re-asks on input it cannot read", async () => {
+  const s = scenario({ body: QUESTION_BODY, replies: ["9", "직접 쓴 답", "3", "1"] });
+  await s.h.run(["chat"]);
+  expect(s.responds[0]).toMatchObject({
+    decision: "answer",
+    answer: { q1: { selected: [], text: "직접 쓴 답" }, q2: { selected: ["x"] } },
+  });
+  expect(s.h.stdoutText().match(/읽을 수 없는 입력이다/g)).toHaveLength(2);
+});
+
+test("/deny on a question denies the whole request", async () => {
+  const s = scenario({ body: QUESTION_BODY, replies: ["/deny"] });
+  await s.h.run(["chat"]);
+  expect(s.responds[0]).toEqual({ approvalId: expect.any(String), decision: "deny" });
+});
+
+test("an approval another client answers first closes the open prompt", async () => {
+  const s = scenario({
+    replies: [BLOCK],
+    closeOnRespond: false,
+    afterRequest: (server, context, approvalId) => {
+      // 사람이 아직 답하지 않았는데 다른 클라이언트가 먼저 승인을 닫고 턴을 끝낸다
+      setTimeout(() => {
+        server.commit(context.threadId, [
+          approvalResolved(context.turnId, approvalId),
+          assistantItem(context.turnId, 3, { text: "done elsewhere" }),
+          turnCompleted(context.turnId),
+        ]);
+      }, 5);
+    },
+  });
+  expect(await s.h.run(["chat"])).toBe(EXIT.ok);
+  expect(s.responds).toEqual([]);
+  expect(s.h.stdoutText()).toContain("done elsewhere");
+  expect(s.h.stdoutText()).toContain("다른 곳에서 이미 답한 승인이다");
+});
+
+test("a reply the host says it did not apply is announced as already answered", async () => {
+  const s = scenario({ replies: ["y"], applied: false });
+  await s.h.run(["chat"]);
+  expect(s.h.stdoutText()).toContain("다른 곳에서 이미 답한 승인이다");
+});
+
+test("print mode answers every approval with deny and says so", async () => {
+  const responds: Record<string, unknown>[] = [];
+  const h = createHarness({
+    env: { NO_COLOR: "1" },
+    server: {
+      handlers: {
+        "approval.respond": (params) => (responds.push({ ...params }), { applied: true }),
+      },
+      onTurn: (context) => {
+        context.server.commit(context.threadId, [
+          approvalRequested(context.threadId, context.turnId),
+          turnCompleted(context.turnId),
+        ]);
+      },
+    },
+  });
+  harnesses.push(h);
+  expect(await h.run(["chat", "-p", "run it"])).toBe(EXIT.ok);
+  expect(responds).toEqual([{ approvalId: expect.any(String), decision: "deny" }]);
+  expect(h.stderrText()).toContain('승인 요청 "bash 실행"에 비대화 모드라 거부로 답했다');
+});
+
+test("pending approvals are asked again when a session is resumed (approval.list)", async () => {
+  const responds: Record<string, unknown>[] = [];
+  const input = scriptedInput(["y", "/quit"]);
+  const thread = (await import("./support/ids.ts")).threadId(1);
+  const turn = (await import("./support/ids.ts")).turnId(1);
+  const h = createHarness({
+    terminal: TTY,
+    env: { NO_COLOR: "1" },
+    readLine: (prompt, signal) => input.readLine(prompt, signal),
+    server: {
+      knownThreads: [thread],
+      handlers: {
+        "approval.list": () => ({
+          approvals: [
+            {
+              approvalId: "evt_00000000000000000000000077",
+              seq: 2,
+              request: approvalRequested(thread, turn).payload,
+            },
+          ],
+          position: { storeId: "sto_00000000000000000000000001", seq: 2 },
+        }),
+        "approval.respond": (params) => (responds.push({ ...params }), { applied: true }),
+      },
+    },
+  });
+  harnesses.push(h);
+  const run = h.run(["chat", "--resume", thread]);
+  await waitFor(() => responds.length === 1);
+  expect(await run).toBe(EXIT.ok);
+  expect(responds[0]).toMatchObject({
+    approvalId: "evt_00000000000000000000000077",
+    decision: "allow",
+    remember: "once",
+  });
+});

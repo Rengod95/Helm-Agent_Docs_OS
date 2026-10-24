@@ -33,6 +33,17 @@ export async function connectOrReport(
   ctx: CommandContext,
   observe?: (message: JsonRpcMessage) => void,
 ): Promise<Result<EngineHandle, ExitCode>> {
+  const connected = await connectOrReportQuiet(ctx, observe);
+  if (connected.ok) return ok(connected.value);
+  await printFailure(ctx.io, connected.error);
+  return err(connected.error.code);
+}
+
+/** 엔진에 연결한다. 실패는 출력하지 않고 값으로 돌려준다(doctor가 실패도 진단 항목으로 보인다) */
+export async function connectOrReportQuiet(
+  ctx: CommandContext,
+  observe?: (message: JsonRpcMessage) => void,
+): Promise<Result<EngineHandle, Failure>> {
   const connected = await ctx.deps.connect({
     workspace: ctx.workspace,
     preference: "auto",
@@ -44,9 +55,7 @@ export async function connectOrReport(
     ...(ctx.deps.stateFile === undefined ? {} : { stateFile: ctx.deps.stateFile }),
   });
   if (connected.ok) return ok(connected.value);
-  const failure = failureOfStart(connected.error);
-  await printFailure(ctx.io, failure);
-  return err(failure.code);
+  return err(failureOfStart(connected.error));
 }
 
 /**
@@ -63,4 +72,24 @@ export async function reportCaught(io: CliIo, caught: unknown): Promise<ExitCode
 export async function closeEngine(handle: EngineHandle, code: ExitCode): Promise<ExitCode> {
   await handle.shutdown("user");
   return code;
+}
+
+/**
+ * 엔진에 연결해 작업을 하고 끝나면 닫는다. 연결 실패는 두 줄 오류로 알리고, 작업 중 wire 오류와 연결 끊김도 같다.
+ * 작업이 종료 코드를 돌려주면 그대로 쓴다(§4.1 5번). 버그(그 밖의 예외)는 엔진을 닫은 뒤 다시 던진다.
+ */
+export async function withEngine(
+  ctx: CommandContext,
+  work: (handle: EngineHandle) => Promise<ExitCode>,
+): Promise<ExitCode> {
+  const connected = await connectOrReport(ctx);
+  if (!connected.ok) return connected.error;
+  const handle = connected.value;
+  try {
+    const code = await work(handle);
+    return await closeEngine(handle, code);
+  } catch (caught) {
+    await handle.shutdown("user");
+    return reportCaught(ctx.io, caught);
+  }
 }

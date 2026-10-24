@@ -18,7 +18,7 @@ export type ChatTarget =
   | { readonly kind: "continue" }
   | { readonly kind: "resume"; readonly threadId: ThreadId };
 
-interface SessionOverride {
+export interface SessionOverride {
   readonly key: SettingKey;
   /** 해석 전 값. §4.8 규칙(JSON 우선, 실패하면 문자열)으로 해석한다 */
   readonly raw: string;
@@ -34,7 +34,7 @@ export interface ChatCommand {
   readonly overrides: readonly SessionOverride[];
 }
 
-type SessionsCommand =
+export type SessionsCommand =
   | {
       readonly kind: "sessions.ls";
       readonly all: boolean;
@@ -75,7 +75,7 @@ export type ConfigCommand =
       readonly coreOnly: boolean;
     };
 
-interface SecretMetaFlags {
+export interface SecretMetaFlags {
   readonly provider?: "sops" | "op" | "bws" | "keychain";
   readonly desc?: string;
   readonly scope?: string;
@@ -84,7 +84,7 @@ interface SecretMetaFlags {
   readonly expires?: string;
 }
 
-type SecretCommand =
+export type SecretCommand =
   | {
       readonly kind: "secret.ls";
       readonly meta: boolean;
@@ -110,7 +110,7 @@ interface CliHostCommand {
   readonly kind: "host";
   readonly stdio: true;
 }
-interface DoctorCommand {
+export interface DoctorCommand {
   readonly kind: "doctor";
   readonly output: OutputMode;
 }

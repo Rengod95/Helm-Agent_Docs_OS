@@ -89,7 +89,14 @@ test("approvals are announced on stderr with the body indented", () => {
   const piece = pieceOf(
     {
       kind: "approval",
-      view: { approvalId: "a", title: "T", body: ["x", "y"], allowsAnswer: false },
+      view: {
+        approvalId: "a",
+        title: "T",
+        body: ["x", "y"],
+        allowsAnswer: false,
+        remember: ["once"],
+        form: { kind: "tool" },
+      },
     },
     "print",
     false,
