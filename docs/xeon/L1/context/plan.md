@@ -151,4 +151,5 @@ xeon/packages/core-context/
 
 - C-2(도구 변경 비교와 `append`·`defer`), C-3(캐시 표식 위치), C-4(컷 포인트), C-5(요약 호출과 롤링 갱신), C-6(임계), C-7(`thread.compacted`와 새 접두를 한 커밋으로, 떠난 가지 요약 초안), C-8(오버플로우 복구), C-9(지점 발화)를 구현했다. `cache_warming_decision`은 선언만 있고 발화하지 않는다.
 - 설정은 `contextSettingsOf`가 조립 루트의 `ContextSettingsSource`를 대신하고, 확장은 `createContextExtension({ settings, ids })`다. 기본 `extension`은 id 발급이 없어 컴팩션이 꺼져 있다. 호스트 조립이 `createContextExtension`에 설정과 `ids`를 넘겨야 컴팩션이 켜진다(HOST 트랙 요청).
+- M1 고정값(컴팩션 꺼짐, 임계·유지 토큰 상수)은 설정 `l1.context.autoCompact`, `reserveTokens`, `keepRecentTokens`, `compactionInstructions`를 읽는 코드로 바꿨다(`review.open-issues` M-07의 core-context 몫). 같은 항목의 core-tasks limiter, BlobRef 생산자(core-tools), detached 필드(core-persistence 쓰기 경로)는 이 패키지 밖이다.
 - 섹션 갱신 item, 모델 전환 경고, `near_window` 경고, `context_with_system`, volatile 계층도 이 단계에서 구현했다.
