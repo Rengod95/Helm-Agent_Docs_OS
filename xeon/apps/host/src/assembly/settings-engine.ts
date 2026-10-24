@@ -18,7 +18,7 @@ import {
 // layers가 동기라서 신뢰 판정과 파일 읽기는 설정 저장소(settings-store.ts)가 먼저 하고 결과를 `setWorkspaceFiles`로 넣는다.
 
 /** 신뢰한 작업 폴더의 project·local 설정 파일 내용. 파일이 없으면 빈 맵이다 */
-export interface WorkspaceSettingFiles {
+interface WorkspaceSettingFiles {
   readonly project: ReadonlyMap<string, unknown>;
   readonly projectPath: string;
   readonly local: ReadonlyMap<string, unknown>;

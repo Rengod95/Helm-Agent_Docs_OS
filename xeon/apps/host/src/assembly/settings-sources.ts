@@ -1,4 +1,5 @@
 import { isId } from "@xeon/contracts/conversation";
+import type { AgentsSettingsSource } from "@xeon/core-agents";
 import type { DriveLimits } from "@xeon/contracts/extensions";
 import {
   modelsSettingsOf,
@@ -133,6 +134,15 @@ export function loopSource(settings: SettingsEngine): LoopSettingsSource {
   return {
     maxSteps: (threadId) => intOr(settings.value("l1.loop.maxSteps", threadId), 0),
     gateMaxContinues: (threadId) => intOr(settings.value("l1.loop.gate.maxContinues", threadId), 8),
+  };
+}
+
+/** l1.agents.* . 호출 때마다 읽는다(nextTurn 키) */
+export function agentsSource(settings: SettingsEngine): AgentsSettingsSource {
+  return {
+    maxDepth: () => intOr(settings.value("l1.agents.maxDepth"), 1),
+    maxConcurrent: () => intOr(settings.value("l1.agents.maxConcurrent"), 8),
+    resultMaxChars: () => intOr(settings.value("l1.agents.resultMaxChars"), 24_000),
   };
 }
 

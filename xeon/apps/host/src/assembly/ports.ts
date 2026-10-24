@@ -88,6 +88,8 @@ export interface PortsDeps {
 
 export interface PortsHandle {
   readonly ports: EnginePorts;
+  /** 이 엔진이 쥔 thread의 세션 쓰기 토큰. 쥐지 않았으면 undefined */
+  tokenOf(threadId: ThreadId): LeaseToken | undefined;
   /** 쥔 세션 임대를 모두 반납한다(엔진을 닫기 전). 각 thread에 session_shutdown("quit")을 발화한다 */
   releaseAll(): Promise<void>;
 }
@@ -461,6 +463,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   return {
     ports,
+    tokenOf: (threadId) => held.get(threadId)?.token,
     releaseAll() {
       return sequentially(Array.from(held.keys()), async (threadId) => {
         try {

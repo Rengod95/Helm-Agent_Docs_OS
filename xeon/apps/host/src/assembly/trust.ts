@@ -13,7 +13,7 @@ import {
 // 판정 호출. 프롬프트는 대화형 클라이언트(CLI.2, DESK)가 생기면 `prompter`로 더한다. 그 전에는 결정이 없는 프로젝트가
 // `undecided`(불신)로 끝난다. 조립 루트 코드(DR-14 예외 2).
 
-export type DefaultProjectTrust = "ask" | "always" | "never";
+type DefaultProjectTrust = "ask" | "always" | "never";
 
 export interface ProjectTrustDeps {
   /** 신뢰 저장 파일이 있는 디렉터리(L0.os의 `dirs.config`) */
@@ -93,7 +93,7 @@ function fileBackend(path: string, tmpId: () => string): TrustStoreBackend {
   };
 }
 
-export function createLoaderFs(): LoaderFs {
+function createLoaderFs(): LoaderFs {
   return {
     readText: (path) => readTextOrNull(path),
     async listDir(path) {

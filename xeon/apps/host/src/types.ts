@@ -10,6 +10,7 @@ import type {
   VolatileEventEnvelope,
 } from "@xeon/contracts/records";
 import type {
+  AgentDefinition,
   LoopError,
   ResumeResult,
   SecretAdminService,
@@ -59,6 +60,11 @@ export interface AssembleOptions {
    * `extraPlugins`로는 모델 서비스를 바꿀 수 없다: core-models가 먼저 올라 xeon.models를 이미 냈기 때문이다(L4.host-service.plan §7).
    */
   readonly buildModels?: ModelsExtensionOptions["buildModels"];
+  /**
+   * 서브에이전트 정의(`agent` 도구가 이름으로 부른다). 정의 파일 탐색(사용자·프로젝트 디렉터리)은 L1.agents 2차라 M2에는 이 경로뿐이다.
+   * 앱이나 시험이 정의를 넘긴다
+   */
+  readonly agentDefinitions?: readonly AgentDefinition[];
   /** 기본 true. false면 Helm·학습 그룹을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** 조립 루트가 import할 수 없는 앱의 설정(예: l4.cli.*, L4.cli.spec §6) */

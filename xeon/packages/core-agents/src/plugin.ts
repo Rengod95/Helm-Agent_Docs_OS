@@ -16,7 +16,7 @@ import {
   type AgentDefinition,
 } from "@xeon/contracts/services";
 import { hostOf, type ExtensionUnit } from "@xeon/ext-host";
-import type { AgentsSettingsSource } from "./deps.ts";
+import type { AgentsLoop, AgentsSettingsSource } from "./deps.ts";
 import { AgentServicePortKey, LoopServicePortKey } from "./ports.ts";
 import { createAgentService } from "./service.ts";
 import { agentToolRegistration } from "./tool.ts";
@@ -31,6 +31,11 @@ export interface AgentsPluginOptions {
   readonly holder: LeaseHolder;
   /** 이 엔진이 쥔 thread의 세션 쓰기 토큰(조립 루트가 안다) */
   readonly parentToken: (threadId: ThreadId) => LeaseToken | undefined;
+  /**
+   * 자식 turn을 돌리는 루프를 얻는 방법. 생략하면 `xeon.loop` 포트를 호출 때마다 얻는다. 조립 루트가 자식 thread를 `ExtHost.openThread`로
+   * 연 뒤 `runChildTurn`을 부르는 감싸개를 넣을 때 쓴다(L1.loop.spec §4.6: 경계 지점이 열린 thread를 요구한다)
+   */
+  readonly loop?: (resolve: () => AgentsLoop) => AgentsLoop;
   /** 내장 정의(출처 builtin) */
   readonly builtinDefinitions?: readonly AgentDefinition[];
   readonly loadIndex?: number;
@@ -59,6 +64,7 @@ export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
   const entry: ExtensionEntry = ({ manifest: loaded, scope }) => {
     scope(loaded.name, { defaultEnabled: true }, (g) => {
       const host = hostOf(g);
+      const resolveLoop = (): AgentsLoop => host.port(LoopServicePortKey);
       const session = host.port(SessionPortKey);
       const tasks = host.port(TaskServicePortKey);
       const tools = host.port(ToolServicePortKey);
@@ -66,7 +72,7 @@ export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
       const service = createAgentService({
         session,
         // xeon.loop는 core-loop 플러그인이 올린다. 적재 순서에 묶이지 않게 자식 turn을 돌릴 때 얻는다
-        loop: () => host.port(LoopServicePortKey),
+        loop: () => (options.loop === undefined ? resolveLoop() : options.loop(resolveLoop)),
         tasks,
         tools,
         producer: session.producer("core.agents"),

@@ -13,13 +13,13 @@ import type { ThreadReadFailure } from "../types.ts";
 // 구현은 L1.persistence의 `readBranch`(루트 → leaf 순서의 이벤트)에서 `item.recorded`의 item만 골라 쪽을 자른다.
 
 /** `limit`을 생략했을 때의 쪽 크기(F wire §3.4.6 3항) */
-export const THREAD_READ_DEFAULT_LIMIT = 200;
+const THREAD_READ_DEFAULT_LIMIT = 200;
 
 /**
  * 한 응답의 item 직렬화 크기 예산. 프레임 한도(1 MiB)에서 응답 뼈대와 `position`이 쓸 여유를 뺀 값이다.
  * 예산을 넘으면 오래된 쪽부터 잘라 적게 돌려주고 `hasMore`를 참으로 둔다(§3.4.6 3항)
  */
-export const THREAD_READ_BUDGET_BYTES: number = WIRE_LIMITS.maxFrameBytes - 64 * 1024;
+const THREAD_READ_BUDGET_BYTES: number = WIRE_LIMITS.maxFrameBytes - 64 * 1024;
 
 const encoder = new TextEncoder();
 

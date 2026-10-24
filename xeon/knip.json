@@ -27,6 +27,9 @@
     "apps/desktop": {
       "entry": ["test/**/*.test.ts", "src/main.tsx"]
     },
+    "apps/host": {
+      "entry": ["test/**/*.test.ts", "test/fixtures/crash-host.ts"]
+    },
     "apps/cli": {
       "entry": ["test/**/*.test.ts", "test/fixtures/scenario-main.ts"]
     }

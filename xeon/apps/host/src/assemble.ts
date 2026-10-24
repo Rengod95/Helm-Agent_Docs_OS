@@ -433,11 +433,17 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         db: store.value.root,
         faults: store.value.faults,
         holder,
+        ext,
+        // 엔진 포트는 서비스가 모두 올라온 뒤에 만든다. 자식 thread는 그 뒤에 생기므로 그때는 채워져 있다
+        parentToken: (threadId) => portsHandle?.tokenOf(threadId),
         onLeaseLost: (threadId) => {
           logger.error("persistence.lease_lost", { threadId });
         },
         reportSetting,
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
+        ...(options.agentDefinitions === undefined
+          ? {}
+          : { agentDefinitions: options.agentDefinitions }),
       }),
     ];
     const extras = options.extraPlugins ?? [];

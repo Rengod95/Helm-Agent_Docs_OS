@@ -9,19 +9,24 @@ import {
   type ExtensionEventKind,
   type FaultInjector,
   type LeaseHolder,
+  type LeaseToken,
   type StoreDb,
 } from "@xeon/contracts/records";
 import { workspacePlugin } from "@xeon/cap-workspace";
+import type { AgentDefinition } from "@xeon/contracts/services";
+import { agentsPlugin } from "@xeon/core-agents";
 import { extension as contextExtension, manifest as contextManifest } from "@xeon/core-context";
 import { loopExtensionUnit } from "@xeon/core-loop";
 import { createModelsExtension, type ModelsExtensionOptions } from "@xeon/core-models";
 import { sessionPlugin } from "@xeon/core-persistence";
 import { createTasksEntry, TASKS_MANIFEST } from "@xeon/core-tasks";
 import { toolsPlugin } from "@xeon/core-tools";
-import type { BuiltinExtensionModule, ExtensionUnit, InstallResult } from "@xeon/ext-host";
+import type { BuiltinExtensionModule, ExtHost, ExtensionUnit, InstallResult } from "@xeon/ext-host";
 import type { HostMode } from "../types.ts";
+import { openingChildThreads } from "./child-threads.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
+  agentsSource,
   loopSource,
   modelsSource,
   persistenceSource,
@@ -30,7 +35,7 @@ import {
   workspaceSource,
 } from "./settings-sources.ts";
 
-// L4.host-service.spec §4.1 3단계. 기본 플러그인을 의존 순서로 싣는다: session → tasks → models → context → tools → loop → workspace.
+// L4.host-service.spec §4.1 3단계. 기본 플러그인을 의존 순서로 싣는다: session → tasks → models → context → tools → loop → agents → workspace.
 // 각 단위의 setup이 host.port(...)로 앞선 서비스를 동기로 찾으므로 순서가 곧 의존이다. X 로더의 내장 순서(층, 이름)는 이 의존을
 // 보장하지 않아(core-context가 core-persistence보다 앞선다) M1은 조립 루트가 순서를 정한다. 외부 확장 로딩은 M2다.
 
@@ -43,8 +48,14 @@ export interface ExtensionDeps {
   readonly db: StoreDb;
   readonly faults: FaultInjector;
   readonly holder: LeaseHolder;
+  /** 확장 호스트. 자식 thread를 열고 닫는 데 쓴다(core-agents) */
+  readonly ext: Pick<ExtHost, "openThread" | "closeThread">;
+  /** 이 엔진이 쥔 thread의 세션 쓰기 토큰. 엔진 포트가 만들어진 뒤에 채워진다(core-agents가 자식 thread의 소유를 부모에게서 이어받는다) */
+  readonly parentToken: (threadId: ThreadId) => LeaseToken | undefined;
   readonly onLeaseLost: (threadId: ThreadId) => void;
   readonly reportSetting: (message: string) => void;
+  /** AssembleOptions.agentDefinitions */
+  readonly agentDefinitions?: readonly AgentDefinition[];
   /** 테스트 주입(AssembleOptions.buildModels) */
   readonly buildModels?: ModelsExtensionOptions["buildModels"];
 }
@@ -142,6 +153,23 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           hostMode: deps.mode,
           settings: loopSource(settings),
           kindLookup,
+          loadIndex,
+        }),
+    ],
+    [
+      "core-agents",
+      (loadIndex) =>
+        agentsPlugin({
+          ids: deps.ids,
+          settings: agentsSource(settings),
+          log: deps.logger.child({ component: "core-agents" }),
+          holder: deps.holder,
+          parentToken: deps.parentToken,
+          ...(deps.agentDefinitions === undefined
+            ? {}
+            : { builtinDefinitions: deps.agentDefinitions }),
+          loop: (resolve) =>
+            openingChildThreads(resolve, deps.ext, deps.logger.child({ component: "core-agents" })),
           loadIndex,
         }),
     ],
