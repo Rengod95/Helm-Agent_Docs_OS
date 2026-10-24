@@ -1,0 +1,382 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>spike</title>
+  </head>
+  <body>
+    <pre id="out">spike</pre>
+    <script>
+// L4.desktop.plan §3.1 S3·S1 측정용 화면. 제품 코드가 아니다.
+// 엔진 stdout -> Rust 릴레이 -> Tauri Channel -> 이 화면. 줄 단위 프레임의 손실·중복·지연을 잰다.
+const { invoke, Channel } = window.__TAURI__.core;
+const enc = new TextEncoder();
+let CREDIT = 0;
+const out = document.getElementById("out");
+const show = (text) => {
+  out.textContent = text;
+};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const withTimeout = (promise, ms, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout ${label}`)), ms)),
+  ]);
+
+function concat(parts) {
+  let total = 0;
+  for (const part of parts) total += part.length;
+  const joined = new Uint8Array(total);
+  let at = 0;
+  for (const part of parts) {
+    joined.set(part, at);
+    at += part.length;
+  }
+  return joined;
+}
+
+function pct(sorted, q) {
+  if (sorted.length === 0) return null;
+  return sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+}
+const round = (n) => (n === null ? null : Math.round(n * 100) / 100);
+
+/** 엔진 하나(세대 하나)에 붙는 릴레이 수신기. 세대마다 줄 버퍼를 따로 둔다 */
+class Relay {
+  constructor(raw) {
+    this.raw = raw;
+    this.perGen = new Map();
+    this.naive = { lines: 0, corrupt: 0 };
+    this.droppingTail = { lines: 0, corrupt: 0, droppedBytes: 0, droppedPartials: 0 };
+    this.onFrame = () => undefined;
+    this.onTerminated = () => undefined;
+    this.bytes = 0;
+    this.messages = 0;
+    this.decoder = new TextDecoder();
+    this.naiveState = { parts: [], size: 0 };
+    this.countOnly = false;
+  }
+
+  async start(args) {
+    const channel = new Channel();
+    channel.onmessage = (message) => this.receive(message);
+    this.generation = await invoke("engine_start", { onEvent: channel, args, raw: this.raw, credit: CREDIT });
+    return this.generation;
+  }
+
+  /** 줄 경계는 새로 온 조각에서만 찾는다(조각마다 누적 문자열을 다시 훑으면 1 MiB 프레임에서 O(n^2)가 된다) */
+  receive(message) {
+    const recvAt = Date.now();
+    const bytes = this.raw ? new Uint8Array(message) : Uint8Array.from(message);
+    this.messages += 1;
+    this.bytes += bytes.length;
+    if (CREDIT > 0) {
+      this.pendingAck = (this.pendingAck ?? 0) + bytes.length;
+      if (this.pendingAck >= 262144 || bytes[0] === 1) {
+        const n = this.pendingAck;
+        this.pendingAck = 0;
+        invoke("engine_ack", { bytes: n });
+      }
+    }
+    const kind = bytes[0];
+    const generation = Number(new DataView(bytes.buffer, bytes.byteOffset + 1, 8).getBigUint64(0, true));
+    const body = bytes.subarray(9);
+    let state = this.perGen.get(generation);
+    if (state === undefined) {
+      state = { parts: [], size: 0 };
+      this.perGen.set(generation, state);
+    }
+    if (kind === 1) {
+      // 종료: 줄바꿈 없이 남은 꼬리는 버린다(세대 교체 규칙). 순진한 파서는 꼬리를 다음 세대에 이어 붙인다
+      if (state.size > 0) {
+        this.droppingTail.droppedPartials += 1;
+        this.droppingTail.droppedBytes += state.size;
+      }
+      state.parts = [];
+      state.size = 0;
+      this.onTerminated(generation, new TextDecoder().decode(body));
+      return;
+    }
+    if (this.countOnly) return;
+    this.split(state, body, recvAt, "drop");
+    this.split(this.naiveState, body, recvAt, "naive");
+  }
+
+  split(state, body, recvAt, which) {
+    let start = 0;
+    for (;;) {
+      const nl = body.indexOf(10, start);
+      if (nl < 0) {
+        if (start < body.length) {
+          const rest = body.subarray(start);
+          state.parts.push(rest);
+          state.size += rest.length;
+        }
+        return;
+      }
+      state.parts.push(body.subarray(start, nl));
+      const line = state.parts.length === 1 ? state.parts[0] : concat(state.parts);
+      state.parts = [];
+      state.size = 0;
+      start = nl + 1;
+      if (which === "drop") this.droppingTail.lines += 1;
+      else this.naive.lines += 1;
+      this.handleLine(line, recvAt, which);
+    }
+  }
+
+  handleLine(lineBytes, recvAt, which) {
+    let parsed;
+    try {
+      parsed = JSON.parse(this.decoder.decode(lineBytes));
+    } catch {
+      if (which === "drop") this.droppingTail.corrupt += 1;
+      else this.naive.corrupt += 1;
+      return;
+    }
+    if (which === "drop") this.onFrame(parsed, recvAt);
+  }
+
+  async write(text, command = "engine_write") {
+    const body = enc.encode(text);
+    await invoke(command, body);
+  }
+
+  async kill() {
+    await invoke("engine_kill");
+  }
+}
+
+/** done 사건까지 프레임을 모아 손실·중복·지연을 계산한다 */
+function collector(relay, tag) {
+  const seen = new Set();
+  const latencies = [];
+  const result = { frames: 0, dup: 0, bytes: 0, firstAt: 0, lastAt: 0 };
+  let expectedDone = null;
+  let resolveDone;
+  const done = new Promise((resolve) => {
+    resolveDone = resolve;
+  });
+  relay.onFrame = (frame, recvAt) => {
+    if (frame.ev === "done" && frame.tag === tag) {
+      expectedDone = frame.count;
+      resolveDone();
+      return;
+    }
+    if (frame.ev === "stats") {
+      result.stats = frame;
+      resolveDone();
+      return;
+    }
+    if (frame.ev !== "frame" || frame.tag !== tag) return;
+    if (result.frames === 0) result.firstAt = recvAt;
+    result.lastAt = recvAt;
+    result.frames += 1;
+    if (seen.has(frame.seq)) result.dup += 1;
+    seen.add(frame.seq);
+    latencies.push(recvAt - frame.t);
+  };
+  return {
+    done,
+    result,
+    summarize(sentAt, endAt, frameBytes) {
+      latencies.sort((a, b) => a - b);
+      const elapsed = (endAt - sentAt) / 1000;
+      const missing = expectedDone === null ? null : expectedDone - seen.size;
+      return {
+        frames: result.frames,
+        missing,
+        dup: result.dup,
+        seconds: round(elapsed),
+        framesPerSec: round(result.frames / elapsed),
+        mibPerSec: round((result.frames * frameBytes) / 1048576 / elapsed),
+        latencyMs: {
+          first: round(latencies.length ? latencies[0] : null),
+          p50: round(pct(latencies, 0.5)),
+          p99: round(pct(latencies, 0.99)),
+          max: round(latencies.length ? latencies[latencies.length - 1] : null),
+        },
+        relayMessages: relay.messages,
+        relayBytes: relay.bytes,
+      };
+    },
+  };
+}
+
+async function blastCase(raw, params, label) {
+  const relay = new Relay(raw);
+  progressRelay = relay;
+  await relay.start(["--grandchild=none"]);
+  const col = collector(relay, params.tag);
+  const sentAt = Date.now();
+  await relay.write(`${JSON.stringify({ cmd: "blast", ...params })}\n`);
+  try {
+    await withTimeout(col.done, 120000, label);
+  } catch (error) {
+    await relay.kill();
+    return { label, error: String(error), partial: col.summarize(sentAt, Date.now(), params.size + 60) };
+  }
+  const endAt = Date.now();
+  await relay.kill();
+  return { label, raw, params, ...col.summarize(sentAt, endAt, params.size + 60) };
+}
+
+/** 파싱 없이 바이트만 센다: 전송 경로 자체의 상한 */
+async function transportOnlyCase(raw, params, label) {
+  const relay = new Relay(raw);
+  relay.countOnly = true;
+  await relay.start(["--grandchild=none"]);
+  const total = params.count * (params.size + 60);
+  const sentAt = Date.now();
+  await relay.write(`${JSON.stringify({ cmd: "blast", ...params })}\n`);
+  const deadline = Date.now() + 60000;
+  while (relay.bytes < total && Date.now() < deadline) await sleep(5);
+  const seconds = (Date.now() - sentAt) / 1000;
+  const result = { label, raw, params, receivedBytes: relay.bytes, expectedAtLeast: total, seconds: round(seconds), mibPerSec: round(relay.bytes / 1048576 / seconds), relayMessages: relay.messages };
+  await relay.kill();
+  return result;
+}
+
+async function backpressureCase(command, stallMs, count) {
+  const relay = new Relay(true);
+  await relay.start(["--grandchild=none"]);
+  const col = collector(relay, "none");
+  const gaps = [];
+  let last = performance.now();
+  const beat = setInterval(() => {
+    const now = performance.now();
+    gaps.push(now - last);
+    last = now;
+  }, 20);
+  const pings = [];
+  const probe = setInterval(() => {
+    const sentAtPing = performance.now();
+    invoke("spike_ping").then(() => pings.push(performance.now() - sentAtPing));
+  }, 100);
+  const pad = "y".repeat(1048576);
+  await relay.write(`${JSON.stringify({ cmd: "stall", ms: stallMs })}\n`);
+  const startedAt = performance.now();
+  const resolvedAt = [];
+  const writes = [];
+  for (let seq = 0; seq < count; seq += 1) {
+    writes.push(
+      relay.write(`${JSON.stringify({ cmd: "rx", seq, pad })}\n`, command).then(() => {
+        resolvedAt.push(performance.now() - startedAt);
+      }),
+    );
+  }
+  await withTimeout(Promise.all(writes), 60000, `writes ${command}`);
+  const writesDoneMs = performance.now() - startedAt;
+  await relay.write(`${JSON.stringify({ cmd: "stats" })}\n`);
+  await withTimeout(col.done, 30000, "stats");
+  clearInterval(beat);
+  clearInterval(probe);
+  await relay.kill();
+  pings.sort((a, b) => a - b);
+  gaps.sort((a, b) => a - b);
+  return {
+    command,
+    stallMs,
+    sentFramesMiB: count,
+    writesDoneMs: round(writesDoneMs),
+    firstWriteResolvedMs: round(Math.min(...resolvedAt)),
+    heartbeatMaxGapMs: round(gaps[gaps.length - 1]),
+    heartbeatP99GapMs: round(pct(gaps, 0.99)),
+    mainThreadPingMs: { n: pings.length, p50: round(pct(pings, 0.5)), max: round(pings.length ? pings[pings.length - 1] : null) },
+    engineStats: col.result.stats === undefined ? null : col.result.stats,
+  };
+}
+
+async function generationCase() {
+  const relay = new Relay(true);
+  const terminated = new Promise((resolve) => {
+    relay.onTerminated = (generation) => resolve(generation);
+  });
+  const g1 = await relay.start(["--grandchild=none"]);
+  await relay.write(`${JSON.stringify({ cmd: "partial-and-die" })}\n`);
+  await withTimeout(terminated, 10000, "gen1 terminated");
+  const g2 = await relay.start(["--grandchild=none"]);
+  const col = collector(relay, "g2");
+  const sentAt = Date.now();
+  await relay.write(`${JSON.stringify({ cmd: "blast", count: 100, size: 64, tag: "g2" })}\n`);
+  await withTimeout(col.done, 30000, "gen2 done");
+  const summary = col.summarize(sentAt, Date.now(), 120);
+  await relay.kill();
+  return {
+    generations: [g1, g2],
+    expectedFramesFromGen2: 100,
+    withTailDrop: { ...relay.droppingTail, gen2Frames: summary.frames, gen2Missing: summary.missing },
+    naiveSingleBuffer: { ...relay.naive },
+  };
+}
+
+async function aclProbe() {
+  const probe = {};
+  try {
+    await invoke("plugin:shell|execute", {
+      program: "echo",
+      args: ["hi"],
+      options: {},
+      onEvent: new Channel(),
+    });
+    probe.jsApiExecute = "allowed (unexpected)";
+  } catch (error) {
+    probe.jsApiExecute = `denied: ${String(error).slice(0, 160)}`;
+  }
+  return probe;
+}
+
+let progressRelay = null;
+setInterval(() => {
+  if (progressRelay !== null) {
+    invoke("spike_log", { message: `js_recv messages=${progressRelay.messages} bytes=${progressRelay.bytes}` });
+  }
+}, 1000);
+
+async function main() {
+  const config = await invoke("spike_config");
+  CREDIT = config.credit;
+  const acl = await aclProbe();
+  await invoke("spike_log", { message: `acl ${JSON.stringify(acl)}` });
+  if (config.scenario !== "s3") {
+    show(`scenario=${config.scenario}`);
+    return;
+  }
+  const results = { acl, cases: {} };
+  const only = config.cases === "" ? null : config.cases.split(",");
+  const run = async (name, fn) => {
+    if (only !== null && !only.some((prefix) => name.startsWith(prefix))) return;
+    show(`running ${name}`);
+    try {
+      results.cases[name] = await fn();
+    } catch (error) {
+      results.cases[name] = { error: String(error) };
+    }
+    await invoke("spike_log", { message: `case ${name} done` });
+  };
+  await run("A_big_1MiB_x64_raw", () => blastCase(true, { count: 64, size: 1048576, tag: "big" }, "A"));
+  await run("A0_transport_only_1MiB_x64_raw", () => transportOnlyCase(true, { count: 64, size: 1048576, tag: "big" }, "A0"));
+  await run("A1_big_1MiB_x256_raw", () => blastCase(true, { count: 256, size: 1048576, tag: "big" }, "A1"));
+  await run("B_small_64B_x50000_burst_raw", () =>
+    blastCase(true, { count: 50000, size: 64, tag: "s" }, "B"),
+  );
+  await run("B2_small_64B_5000perSec_paced_raw", () =>
+    blastCase(true, { count: 25000, size: 64, tag: "p", paceMs: 10, batch: 50 }, "B2"),
+  );
+  await run("C_big_1MiB_x16_jsonArray", () => blastCase(false, { count: 16, size: 1048576, tag: "big" }, "C"));
+  await run("C2_small_64B_x50000_burst_jsonArray", () =>
+    blastCase(false, { count: 50000, size: 64, tag: "s" }, "C2"),
+  );
+  await run("D_backpressure_async_spawn_blocking", () => backpressureCase("engine_write", 3000, 32));
+  await run("D2_backpressure_sync_main_thread", () => backpressureCase("engine_write_main", 3000, 32));
+  await run("E_generation_switch", generationCase);
+  await invoke("spike_report", { json: JSON.stringify(results, null, 2) });
+}
+
+main().catch(async (error) => {
+  await invoke("spike_log", { message: `fatal ${String(error)}` });
+  await invoke("spike_report", { json: JSON.stringify({ fatal: String(error) }) });
+});
+</script>
+  </body>
+</html>

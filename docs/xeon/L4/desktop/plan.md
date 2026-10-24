@@ -182,6 +182,119 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 | S4 | stdin EOF 감시를 Linux와 WSL에서 확인한다. 부모가 SIGKILL될 때 Bun 컴파일 바이너리가 EOF를 읽고 끝나는지, 손자 프로세스가 어떻게 되는지 | - | S | 두 환경에서 EOF 뒤 종료까지 걸린 시간과 손자 잔존 여부가 기록된다. spec D-02의 시한(`l0.process.shutdown.timeoutMs` 기본 3000ms)이 충분한지 판정이 나온다 |
 | S5 | 메모리 측정 스크립트: spec §3.7 `MemorySample`을 남기는 측정기. 플랫폼별 프로세스 찾기(셸, WebView 보조 프로세스, 사이드카, 손자) | S1 | M | 3 플랫폼 중 가능한 것에서 B1~B4 시나리오 측정값이 JSON Lines로 남는다. 예산(spec §10 미결 8) 확정 제안이 나온다 |
 
+### 3.1.1 spike S1~S4 결과 (2026-10-24, Linux/WSL2)
+
+M2 DESK.1(`m2/desk` 브랜치)이 S1~S4를 실행한 결과다. 위 3.1의 "spike는 `xeon/` 밖에서 한다"는 제안과 달리 코드를 `xeon/apps/desktop/spike/`에 두었다. 워크트리 안에서 재실행할 수 있게 하려는 것이고, `spike/`는 lint 대상에서 빼고(typecheck, fmt-check, `check-ts-rules`, knip, check-layers는 적용) 제품 코드가 아니다. 프로세스를 띄우는 TS 하네스는 DR-07의 test 범위 허용(`DR-07/desktop-test-spawn`)이 `tests/` 경로 파일에만 적용되므로 `spike/tests/`에 둔다. Rust 셸은 `spike/shell/`(Cargo 프로젝트, `Cargo.lock` 포함, 빌드 산출물은 `.cargo/config.toml`이 저장소 밖(워크트리의 형제 디렉터리 `target-m2-desk-spike`)에 둔다)이다.
+
+**환경**
+
+| 항목 | 값 |
+|---|---|
+| OS | WSL2 Ubuntu, 커널 6.18.33.2-microsoft-standard-WSL2, 12 코어, 메모리 8 GB |
+| 창 | WSLg(`DISPLAY=:0`, XWayland) 위에서 실제 창이 열렸다. GL은 llvmpipe(소프트웨어) |
+| WebView | WebKitGTK 2.52.6(`webkit2gtk-4.1`) |
+| 도구 | Bun 1.4.3, Rust 1.99.1, `tauri` =2.12.3(CLI 고정 2.12.3과 같은 부 버전. 이 문서 끝의 [가정] =2.12.4와 다르다), `tauri-build` =2.7.4, `tauri-plugin-shell` =2.5.0 |
+| 빌드 | S1은 debug, S3 수치는 release(`cargo build --release`) |
+| 하지 않은 것 | macOS, Windows, 네이티브 Linux는 러너가 없어 실행하지 못했다. S1의 Windows 크래시 행도 그렇다. 창 닫기는 창 관리자의 X 단추 대신 같은 `CloseRequested` 경로를 타는 `Window::close()`를 Rust에서 불러 재현했다(`xdotool` 등이 없다) |
+
+실행 방법은 `apps/desktop/package.json`의 `spike:*` 스크립트와 `spike/s1-matrix.sh`, `spike/s2-size.sh`, `spike/tests/s4.ts`다. 엔진은 `spike/tests/engine.ts`를 `bun build --compile`한 가짜 엔진이고(손자 `sleep 600`을 같은 그룹 또는 새 세션으로 띄우고, EOF 정책을 `exit-clean`·`exit-noclean`·`ignore`로 고른다), 실제 호스트(`apps/host/src/main.ts host --stdio`를 컴파일한 것)는 S2와 S4에서만 썼다.
+
+#### S1 종료 원인별 잔존 프로세스 (종료 10초 뒤)
+
+가짜 엔진 4종(손자 위치 x EOF 처리)에 대해 셸 → 엔진 → 손자 트리를 남은 프로세스로 확인했다. 표는 "남은 것"이다. 엔진은 Rust API(`app.shell().command(..).set_process_group(true).spawn()`)로 띄웠고, 셸 capabilities에는 `core:default`만 있다.
+
+| 종료 원인 | 셸의 `Exit` 때 하는 일 | 손자 같은 그룹, EOF 종료 | 손자 같은 그룹, EOF 무시 | 손자 새 세션, EOF 종료 | 손자 새 세션, EOF 무시 |
+|---|---|---|---|---|---|
+| 창 닫기(`CloseRequested`, `ExitRequested`, `Exit` 발생) | 없음 | 없음 | 엔진, 손자 | 없음 | 엔진, 손자 |
+| 창 닫기 | 그룹 SIGKILL | 없음 | 없음 | 손자 | 손자 |
+| 앱 SIGKILL | 해당 없음 | 없음 | 엔진, 손자 | 없음 | 엔진, 손자 |
+| 앱 SIGTERM, 처리기 없음(`RunEvent`가 하나도 오지 않고 프로세스가 사라진다) | 실행되지 않음 | 없음 | 엔진, 손자 | 없음 | 엔진, 손자 |
+| 앱 SIGTERM, 처리기 있음(`signal-hook` → `app.exit(0)`, `ExitRequested code=Some(0)`, `Exit` 발생) | 없음 | 없음 | 엔진, 손자 | 없음 | 엔진, 손자 |
+| 앱 SIGTERM, 처리기 있음 | 그룹 SIGKILL | 없음 | 없음 | 손자 | 손자 |
+| Windows 앱 크래시 | - | 미실행 | 미실행 | 미실행 | 미실행 |
+
+- 프로세스 그룹을 끈 경우(`set_process_group(false)`)에 `Exit`에서 `CommandChild::kill`을 하면 엔진만 죽고 같은 그룹이던 손자가 남는다(창 닫기와 SIGTERM 처리기 모두, EOF 종료·무시 엔진 모두에서 확인).
+- 셸이 사라진 뒤 EOF를 읽은 엔진이 끝나기까지는 약 62 ms 안이었다(폴링 간격 포함, 정밀 수치는 S4). `Exit`에서 그룹 SIGKILL을 하면 엔진과 같은 그룹 손자는 9 ms 안에 사라졌다.
+- Rust API로 띄운 사이드카는 플러그인이 추적하지 않는다. 정책을 "아무것도 안 함"으로 둔 창 닫기에서 EOF를 무시하는 엔진이 그대로 남은 것이 이를 보인다.
+- capabilities 비적용: 셸 플러그인 권한이 하나도 없는 capabilities에서도 Rust API spawn은 동작했다. 같은 창에서 JS의 `plugin:shell|execute` 호출은 `Command plugin:shell|execute not allowed by ACL`(debug 빌드는 `shell.execute not allowed. Permissions associated with this command: shell:allow-execute`)로 거부됐다.
+
+S1에서 spec에 반영할 내용:
+
+1. SIGTERM에서 `RunEvent::Exit`는 처리기를 두지 않으면 오지 않는다(spec §4.3 [미확인] 해소). 처리기를 두면 `ExitRequested`(code `Some(0)`)와 `Exit`가 온다.
+2. 앱 SIGKILL과 처리기 없는 SIGTERM은 셸 코드가 돌지 않으므로 E5(stdin EOF 임대)만이 방어다. EOF를 무시하는 엔진은 어떤 종료 원인에서도 그대로 남는다.
+3. `Exit`에서 곧바로 그룹 SIGKILL을 하면 EOF 처리 기회를 빼앗아, 엔진이 새 세션으로 띄운 손자(E9가 금지하는 구성)를 정리하지 못한 채 남긴다. spec §4.3의 순서(EOF와 `host.shutdown` 먼저, 시한 뒤 그룹 SIGKILL)가 맞다.
+4. E3(프로세스 그룹)은 필수다. 끄면 그룹 SIGKILL이 손자에 미치지 않는다.
+
+#### S2 `bun build --compile` 크기
+
+호스트 실행 파일(Linux x64), 단위 MiB. 진입은 hello world, `apps/host/src/main.ts`(host), `apps/cli/src/main.ts`(cli, `sidecar.json`의 `entry`)다.
+
+| 진입 | 기본 | `--minify` | `--minify --sourcemap` | `--minify --bytecode` | `--minify --bytecode --sourcemap` |
+|---|---|---|---|---|---|
+| hello | 86.6 | 86.6 | 86.6 | 86.6 | 86.6 |
+| host | 93.3 | 90.3 | 95.1 | 102.2 (*) | 107.0 (*) |
+| cli | 93.6 | 90.4 | 95.4 | 102.6 (*) | 107.7 (*) |
+
+(*) `apps/host/src/main.ts` 끝의 최상위 `await`(`process.exit(await runFromProcess(..))`) 때문에 원래 코드로는 `--bytecode`가 `"await" can only be used inside an "async" function`으로 실패한다. cli도 host를 가져오므로 같다(`L4.cli.plan` §4.3은 최상위 await를 쓰지 말라고 적었다). 위 수치는 그 한 줄을 `.then()`으로 바꾼 임시 작업 사본에서 쟀고 저장소 코드는 바꾸지 않았다. host 담당 레인에 알려야 한다.
+
+다른 triple(교차 컴파일, `--minify`, 실행하지 않음):
+
+| triple | hello | host |
+|---|---|---|
+| aarch64-apple-darwin | 67.6 | 71.3 |
+| x86_64-apple-darwin | 75.1 | 78.7 |
+| x86_64-unknown-linux-gnu | 86.6 | 90.3 |
+| aarch64-unknown-linux-gnu | 86.2 | 89.8 |
+| x86_64-pc-windows-msvc | 91.9 | 95.6 |
+
+- 크기의 약 96%는 Bun 런타임이다(hello 86.6 MiB에 호스트 앱 코드가 `--minify`로 3.7 MiB 더해진다). 플래그로 줄일 수 있는 것은 `--minify`의 3 MiB 안팎이고, `--bytecode`는 12 MiB를 늘리는 대신 콜드 스타트를 반으로 줄인다(아래 S4).
+- 교차 컴파일은 5 triple 모두 성공했다. 크기 표 외 실제 동작은 러너가 있는 Linux x64에서만 확인했다.
+- [제안] 크기 상한: triple별로 `--minify` 기준 현재 최대(Windows 95.6 MiB)에 여유를 둔 100 MiB, 또는 `--bytecode`를 쓰는 경우 120 MiB. 값은 사용자 확인이 필요하다(아래 미결). `--bytecode`를 쓸지는 콜드 스타트 이득(약 150 ms)과 12 MiB 증가를 두고 정한다.
+
+#### S3 장수명 stdio 처리량과 역압
+
+경로: 엔진 stdout → 플러그인 읽기 스레드(청크 약 8 KiB, 용량 1인 채널) → `relay`(Tokio 작업) → Tauri `Channel`(원시 바이트, 앞에 종류 1바이트와 세대 8바이트) → WebView. 프레임은 줄 단위 JSON이고 번호(`seq`)로 손실·중복을 센다. release 빌드, 신용(credit) 4 MiB 사용:
+
+| 경우 | 결과 |
+|---|---|
+| A. 1 MiB 프레임 x 64 (원시 Channel) | 손실 0, 중복 0. 29.3 MiB/s, 프레임 지연 p50 160 ms, p99 233 ms |
+| A0. 같은 부하를 줄 해석 없이 바이트만 셈 | 30.9 MiB/s (신용 없음 39.8). 메시지 8255개, 평균 약 8 KiB. 전송 경로 자체의 상한 |
+| A1. 1 MiB 프레임 x 256 | 손실 0, 중복 0. 28.6 MiB/s, p50 168 ms, p99 261 ms |
+| B. 64 B 프레임 x 50,000 한꺼번에 | 손실 0, 중복 0. 115,000 프레임/s (13.6 MiB/s), 지연 p50 225 ms(대기열), p99 314 ms |
+| B2. 64 B 프레임 초당 약 5,000개를 5초 | 손실 0, 중복 0. 4,787 프레임/s 달성, 지연 p50 1 ms, p99 4 ms, 최대 10 ms |
+| C. 원시 대신 JSON 숫자 배열로 전송(비교군) | 1 MiB x 16은 17.0 MiB/s(원시 29.3), 64 B x 50,000은 102,000 프레임/s. 손실 0. 원시가 큰 프레임에서 1.7배 |
+| D. 셸 송신 버퍼가 참: 엔진이 stdin을 3초 읽지 않을 때 WebView가 1 MiB x 32를 씀(`spawn_blocking` 비동기 명령) | 쓰기는 엔진이 다시 읽기 시작한 3,009 ms에 풀리기 시작해 3,117 ms에 전부 끝났다. 엔진 수신 32줄, 누락 0, 중복 0. 그동안 메인 스레드 IPC 왕복 p50 1 ms, 최대 8 ms |
+| D2. 같은 부하를 동기 명령(Tauri 2에서는 메인 스레드 실행)으로 씀 | 데이터는 D와 같이 전부 도착했지만 메인 스레드 IPC 왕복이 p50 1,583 ms, 최대 3,019 ms로 멈췄다. WebView 안의 JS 타이머 간격(최대 170 ms 이내)은 영향이 없었다(WebKitGTK는 웹 프로세스가 따로다) |
+| E. 세대 교체: 엔진이 프레임 절반(줄바꿈 없음)을 쓰고 죽은 뒤 새 엔진이 100프레임 | 세대별 줄 버퍼 + 종료 때 꼬리 버림: 이전 세대 꼬리 49 B 1개를 버리고 새 세대 100/100 프레임 정상, 깨진 줄 0. 세대를 구분하지 않는 단일 버퍼는 새 세대 첫 프레임이 꼬리와 붙어 깨진 줄 1개가 생겨 그 프레임을 잃었다 |
+
+**정지 발견**: 신용 없이(Rust가 Channel로 즉시 흘림) 256 MiB를 한꺼번에 보내면 release 빌드에서 WebView가 약 36 MiB 시점에서 메시지를 더 받지 못하고 멈추는 일이 반복됐다(16회 중 8회). Rust는 그때 이미 29,000개 넘는 메시지를 보냈고 엔진은 쓰기를 끝내고 idle이었으며 JS 타이머는 계속 돌았다. 전송은 손실 쪽이 아니라 중간 어딘가에서 멈춘 것이다(debug 빌드 2회는 통과). JS가 처리한 양을 알리고(`engine_ack`, 256 KiB마다) Rust가 보낸 양과 처리한 양의 차가 4 MiB를 넘으면 보내지 않는 신용 기반 역압을 두자 48회 중 1회만 정지했다(원인 미분류. 하네스 25초 제한에 걸린 느린 실행일 수 있다). 신용이 차면 플러그인의 용량 1 채널이 차서 읽기 스레드가 멈추고 엔진의 stdout 쓰기가 막힌다. 즉 역압이 엔진까지 전달된다.
+
+판정 (spec §10 미결 13): [제안] stdio를 유지한다. 근거는 일반 부하 여유다(B2: 초당 5,000개 프레임에서 지연 p99 4 ms, 큰 프레임 1 MiB도 약 29 MiB/s, 모든 경우에서 손실·중복 0). 조건 세 가지:
+
+1. 릴레이는 신용 기반 역압을 둔다(위 정지 발견). `Channel`을 무제어로 쓰지 않는다. 정지의 상류 원인(Tauri `Channel`의 대용량 지속 송신)은 확인하지 못했다. 소켓 전환은 이 조건으로도 정지가 남을 때의 대안이다. macOS(WKWebView)와 Windows(WebView2)에서는 재측정이 필요하다.
+2. 엔진 stdin 쓰기는 비동기 명령이고, 막힌 쓰기가 앱 상태의 `CommandChild` 락을 쥐지 않는다. 이번 spike의 `engine_write`는 `Mutex<Option<CommandChild>>`를 쥔 채 블로킹 쓰기를 해서 같은 락이 필요한 `engine_kill`이 쓰기 뒤에 줄을 선다. 제품에서는 쓰기 전용 작업과 쓰기 대기열(한도 있음)로 나눈다. D2가 보였듯 동기 명령으로 쓰면 UI 프로세스 메인 스레드가 엔진이 읽을 때까지 멈춘다.
+3. 줄 버퍼는 세대별로 두고 종료 때 꼬리를 버린다(E). 줄 경계는 새로 온 조각에서만 찾는다(조각마다 누적 문자열을 다시 훑으면 1 MiB 프레임에서 처리량이 절반 이하로 떨어졌다. 이번 측정 중 실제로 겪었다).
+
+#### S4 stdin EOF 감시 (Linux/WSL2)
+
+부모(`parent-stub.ts`)를 SIGKILL하고, OS가 엔진의 stdin 파이프 쓰기 끝을 닫는 순간부터 엔진 프로세스가 사라질 때까지를 2 ms 간격으로 쟀다(변형마다 20회, 단위 ms). Linux와 WSL을 따로 쟀어야 하지만 이 기기는 WSL2뿐이라 한 열이다. 네이티브 Linux는 미측정이다.
+
+| 엔진(모두 `bun build --compile`) | EOF → 종료 중앙값 | 최대 | 종료 못함 | 종료 후 손자 잔존 |
+|---|---|---|---|---|
+| 가짜, 손자 없음, EOF 종료 | 4.2 | 40.1 | 0/20 | - |
+| 가짜, 손자 같은 그룹, EOF 때 손자 정리 | 4.1 | 4.5 | 0/20 | 0/20 |
+| 가짜, 손자 새 세션, EOF 때 손자 정리 | 4.2 | 4.7 | 0/20 | 0/20 |
+| 가짜, 손자 같은 그룹, EOF 종료만 하고 손자 정리 안 함 | 4.0 | 5.3 | 0/20 | 20/20 |
+| 가짜, 손자 새 세션, EOF 종료만 하고 손자 정리 안 함 | 4.5 | 19.0 | 0/20 | 20/20 |
+| 가짜, EOF 무시 | - | - | 20/20 | 20/20 |
+| 실제 호스트 `host --stdio`, 기본 | 28.8 | 61.2 | 0/20 | 손자 없음 |
+| 실제 호스트, `--minify` | 27.9 | 34.7 | 0/20 | 손자 없음 |
+| 실제 호스트, `--minify --bytecode`(임시 사본) | 21.9 | 32.4 | 0/20 | 손자 없음 |
+
+- 엔진이 EOF를 읽고 끝나는 것은 확인됐다. 손자는 엔진이 EOF 처리 때 직접 정리하지 않으면 남는다(같은 그룹이어도 부모가 없을 뿐 그룹이 알아서 죽지 않는다). 이것이 spec E9의 근거다.
+- 기동 시간(spawn → 빈 stdin으로 즉시 종료까지, 20회 중앙값): 호스트 기본 328 ms, `--minify` 285 ms, `--minify --bytecode` 131 ms. 가짜 엔진은 spawn에서 준비까지 14 ms.
+- 판정 (spec D-02): 기본 시한 `l0.process.shutdown.timeoutMs` 3000 ms는 EOF를 읽은 뒤의 종료 경로 자체에는 충분하다(최대 61 ms, 약 50배 여유). 다만 이 측정은 진행 중인 turn이 없는 호스트이고 체크포인트 커밋 시간은 포함하지 않는다. 부하가 있는 호스트의 체크포인트 시간은 [미확인]이고 DESK.5 e2e에서 잰다.
+
 ### 3.2 구현 작업
 
 | id | 내용 | 선행 | 규모 | 단계 |
@@ -350,7 +463,8 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 
 ## 미결 사항
 
-- [미결] 사이드카 크기 상한(S2 뒤 사용자 확인).
+- [미결] 사이드카 크기 상한(S2 결과 §3.1.1의 제안 100 MiB(`--minify`) 또는 120 MiB(`--bytecode`)에 대한 사용자 확인).
+- [미결] `apps/host/src/main.ts`의 최상위 `await`가 `--bytecode` 빌드를 막는다(§3.1.1 S2). host 레인이 고친다.
 - [미결] macOS 서명 방식(Tauri 자동 서명과 수동 파이프라인 중 선택), Developer ID 인증서와 공증 계정 보유 여부. M3 릴리즈 후보에서 정한다(review.m2-plan D3).
 - [미결] Windows code signing 인증서 종류(OV, Azure Artifact Signing)와 비용.
 - [결정: review.decisions-2 B-06] D1의 `Bun.spawn`은 DR-07 테스트 한정 행과 허용 목록 `DR-07/desktop-test-spawn`으로 푼다.

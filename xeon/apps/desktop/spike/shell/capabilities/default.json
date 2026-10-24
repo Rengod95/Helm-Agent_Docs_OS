@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "S1: 셸 플러그인 권한을 하나도 주지 않는다. Rust API spawn은 이 파일과 무관하게 동작하고 JS API spawn은 거부되는지 본다",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -307,7 +307,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 | E10 | stdout은 JSON Lines 전용이다. 엔진 로그는 stderr로 쓰고, 셸은 stderr를 줄 단위로 앱 로그 파일에 남긴다. stderr 줄 길이는 8 KiB에서 자른다 | `F.wire-settings.spec` §3.1 프레이밍 | [제안] |
 | E11 | 셸 로그와 릴레이는 프레임 내용을 기록하지 않는다. 바이트 수, 프레임 수, 세대 번호만 남긴다. 비밀 값은 프레임에 실리지 않지만(`L4.readme` §4 비밀 행) 다른 결함으로 실리더라도 셸 로그에 남지 않는다 | `F.wire-settings.spec` §4.9 비밀 값 비표시 규칙 2, §3.8.1 SecretRef, `L0.secrets.spec` §8.3 R4(값 없는 `secret.*`) | [제안] |
 
-- E5의 체크포인트 시한: 엔진은 EOF 뒤 `l0.process.shutdown.timeoutMs`(기본 3000ms) 안에 종료한다(`L0.process.spec` §6, `L4.host-service.spec` HS-31, HS-32). S1, S4 측정은 이 기본값이 충분한지 확인한다.
+- E5의 체크포인트 시한: 엔진은 EOF 뒤 `l0.process.shutdown.timeoutMs`(기본 3000ms) 안에 종료한다(`L0.process.spec` §6, `L4.host-service.spec` HS-31, HS-32). S4 측정(WSL2, 20회)에서 idle 호스트의 EOF → 종료는 중앙값 약 28 ms, 최대 61 ms였다. 기본값은 종료 경로에 충분하고, 진행 중 turn이 있을 때의 체크포인트 시간은 [미확인]이다(`L4.desktop.plan` §3.1.1 S4).
 - E8의 확인: `L0.os.spec`이 CLI와 엔진 사이드카에 같은 데이터 디렉터리를 돌려주는지는 그 문서의 수용 기준에 요구한다.
 
 ### 4.2 기동 순서
@@ -339,7 +339,8 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 - 불변식 [제안]: 셸 대기 `l4.desktop.engine.shutdownGraceMs`는 엔진 시한 `l0.process.shutdown.timeoutMs` + 2000 이상이어야 한다. 두 값의 단위는 모두 ms다. 셸 대기가 엔진 시한과 같거나 짧으면 엔진의 체크포인트 커밋과 그룹 SIGKILL이 경합한다. 셸은 엔진 카탈로그를 읽지 않으므로 이 관계는 기본값(7000 ≥ 3000 + 2000)으로 지킨다. 사용자가 `l0.process.shutdown.timeoutMs`를 5000 넘게 올리면 `shutdownGraceMs`도 함께 올려야 한다 [가정: 두 값을 자동으로 맞추는 수단은 없다].
 
-- [미확인] 앱이 SIGTERM·SIGINT를 받을 때 `RunEvent::Exit`가 발생하는지(arch-2 §3.3). [제안] Unix에서는 셸이 SIGTERM·SIGINT 처리기를 두고 `app.exit(0)`을 불러 같은 순서를 타게 한다. S1 spike에서 확인한다.
+- [확인: `L4.desktop.plan` §3.1.1 S1, WSL2 WebKitGTK] 앱이 SIGTERM을 받을 때 처리기를 두지 않으면 `RunEvent::ExitRequested`도 `Exit`도 오지 않고 프로세스가 바로 사라진다. `signal-hook` 처리기에서 `app.exit(0)`을 부르면 `ExitRequested`(code `Some(0)`)와 `Exit`가 와서 같은 순서를 탄다. 그러므로 Unix에서는 셸이 SIGTERM·SIGINT 처리기를 둔다 [제안 유지]. 처리기가 없는 경우와 앱 SIGKILL은 E5(EOF 임대)만이 방어다. macOS는 미측정이다.
+- [확인: S1] 5단계의 그룹 SIGKILL은 EOF 처리 시한 뒤에 한다. `Exit`에서 곧바로 그룹 SIGKILL을 하면 엔진이 새 세션으로 띄운 손자(E9 위반 구성)를 정리할 기회를 잃어 그 손자가 남았다. 프로세스 그룹을 끄면(E3 위반) 그룹 SIGKILL이 손자에 미치지 않았다.
 
 ### 4.4 비정상 종료와 재기동
 
@@ -596,9 +597,9 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 6. [미결] `l4.desktop.*` 값의 저장 위치. 제안은 데스크톱 로컬 파일(엔진 카탈로그 밖)이다. 대안은 F에 클라이언트 카탈로그 등록을 더해 엔진 설정 계층에 넣는 것이다. 관리 범위 잠금을 로컬 파일에서 어떻게 읽을지도 함께 정한다.
 7. [미결] Windows 크래시 때 엔진이 남는 문제. 셸이 kill-on-close job object를 직접 만들지, 플러그인 상류에 요청할지(adr.0008 §6, arch-2 §5 4행).
 8. [미결] 메모리 예산 수치(§4.10 B1~B4). S5 측정 뒤 확정한다.
-9. [미결] WSL(WSLg)에서 데스크톱 앱의 지원 수준. 지원, 비공식 동작, 미지원 중 고른다.
+9. [미결] WSL(WSLg)에서 데스크톱 앱의 지원 수준. 지원, 비공식 동작, 미지원 중 고른다. 참고: WSLg(XWayland, llvmpipe)에서 Tauri 창이 열리고 S1·S3이 돌았다(`L4.desktop.plan` §3.1.1).
 10. [미결] 최소 지원 macOS 버전과 Linux 배포판(WebKitGTK 버전). 빌드 타깃(V5)이 여기에 묶인다.
 11. (닫힘) 프런트엔드 프레임워크와 상태 라이브러리는 React 19 + Zustand 5다(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`다.
 12. [미결] 자동 업데이트 채택(M3 이후). Tauri updater 플러그인과 서명 키 관리가 필요하다.
-13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). S3 spike 결과로 정한다. 이 문서는 stdio를 전제로 쓴다.
-14. [가정] Tauri `Channel`의 원시 바이트 전송, Rust API 사이드카의 capabilities 비적용, WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
+13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). 이 문서는 stdio를 전제로 쓴다. S3 spike(`L4.desktop.plan` §3.1.1) 판정 [제안]: stdio를 유지하되 릴레이에 신용 기반 역압(Channel 무제어 송신은 지속 대용량에서 정지했다), 락 밖 비동기 stdin 쓰기, 세대별 줄 버퍼를 둔다. macOS·Windows 재측정 뒤 확정한다.
+14. [가정] (Tauri `Channel`의 원시 바이트 전송과 Rust API 사이드카의 capabilities 비적용은 WSL2 WebKitGTK에서 S1·S3으로 확인했다. macOS, Windows는 미확인이다.) WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
