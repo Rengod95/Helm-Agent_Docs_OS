@@ -31,7 +31,7 @@ const faults: FaultInjector = {
   },
 };
 
-const h = openHarness({
+const h = await openHarness({
   path: dbPath,
   clock: manualClock(),
   ids: fixedIdFactory(1),

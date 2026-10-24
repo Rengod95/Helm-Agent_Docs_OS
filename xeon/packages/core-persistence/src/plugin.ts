@@ -32,6 +32,8 @@ export interface SessionPluginOptions {
   readonly faults?: FaultInjector;
   readonly eventKinds?: EventKindRegistry;
   readonly settings?: () => PersistenceSettings;
+  /** 테스트·디버그 빌드: 확장 투영기의 소유 테이블 검사 */
+  readonly guardProjectors?: boolean;
   /** 이 엔진 인스턴스의 임대 홀더. 자식 thread 생성(`inheritOwnerFrom`)에 필요하다 */
   readonly holder?: LeaseHolder;
   readonly onLeaseLost?: (threadId: ThreadId) => void;
@@ -77,6 +79,9 @@ export function sessionPlugin(options: SessionPluginOptions): ExtensionUnit {
         ...(options.faults === undefined ? {} : { faults: options.faults }),
         ...(options.eventKinds === undefined ? {} : { eventKinds: options.eventKinds }),
         ...(options.settings === undefined ? {} : { settings: options.settings }),
+        ...(options.guardProjectors === undefined
+          ? {}
+          : { guardProjectors: options.guardProjectors }),
         ...(options.holder === undefined ? {} : { holder: options.holder }),
         ...(options.onLeaseLost === undefined ? {} : { onLeaseLost: options.onLeaseLost }),
       });

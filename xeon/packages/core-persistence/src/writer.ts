@@ -22,10 +22,12 @@ import {
   type CommitPlan,
   type CommitRequest,
   type CommitResult,
+  type DurableEventDraft,
   type DurableEventEnvelope,
   type FaultInjector,
   type LeaseService,
   type Projector,
+  type ProjectorFailure,
   type SqlTx,
   type StampedDraft,
   type StoreDb,
@@ -60,6 +62,8 @@ export interface CommitHooks {
   readonly existingThread?: (tx: SqlTx) => Result<ThreadId | undefined, RowFault>;
   /** append가 성공한 뒤 같은 트랜잭션에서 */
   readonly afterAppend?: (tx: SqlTx) => void;
+  /** 초안의 비공개 소유 확장(`events.private_owner`). 공개 초안은 null. ext.commit의 `visibility: "private"`가 쓴다 */
+  readonly privateOwnerOf?: (draft: DurableEventDraft) => string | null;
 }
 
 type CommitOutcome =
@@ -91,6 +95,10 @@ export interface WriterDeps {
   readonly putBlob?: PutBlob;
   /** 코어 투영기가 첫째, 그 뒤가 cap·ext 투영기(등록 순서). 커밋 7단계가 관심 kind만 적용한다 */
   readonly projectors: () => readonly Projector[];
+  /** 참이면 확장·능력 투영기의 문장이 소유 테이블 밖을 건드릴 때 Bug(store.prefix_not_owned)로 거부한다(테스트·디버그 빌드) */
+  readonly guardProjectors?: boolean;
+  /** 확장 투영기 apply 예외로 커밋이 롤백된 뒤 알린다(롤백이 끝난 다음 부른다) */
+  readonly onProjectorFailure?: (failure: ProjectorFailure) => void;
   /** 커밋이 끝난 뒤 동기 방출 */
   readonly publish: (batch: {
     readonly firstSeq: number;
@@ -230,13 +238,33 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
   };
 
   /** 적용할 투영기: core 먼저, 그 뒤 관심 kind가 맞는 투영기(등록 순서) */
-  const applyProjectors = (tx: SqlTx, event: DurableEventEnvelope, index: number): void => {
+  const applyProjectors = (
+    tx: SqlTx,
+    event: DurableEventEnvelope,
+    index: number,
+    requestId: string,
+    failed: { failure: ProjectorFailure | null },
+  ): void => {
     const [core, ...others] = deps.projectors();
     if (core === undefined) throw new Bug("store.projection_failed: no core projector");
     const run = (projector: Projector): void => {
       try {
-        projector.apply(toProjectionTx(tx), event);
+        projector.apply(
+          toProjectionTx(
+            tx,
+            deps.guardProjectors === true && projector !== core ? projector.tables : undefined,
+          ),
+          event,
+        );
       } catch (caught) {
+        if (projector !== core) {
+          failed.failure = {
+            projector: projector.name,
+            event: { id: event.id, kind: event.kind, seq: event.seq },
+            requestId,
+            message: caught instanceof Error ? caught.message : "projector apply failed",
+          };
+        }
         if (caught instanceof Bug && caught.message.startsWith("store.")) throw caught;
         throw new Bug(
           `store.projection_failed: ${projector.name} on ${event.kind} (seq ${event.seq})`,
@@ -278,6 +306,7 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
     let appended: readonly DurableEventEnvelope[] = [];
     const abort: { error: StoreError | null } = { error: null };
     const pending: { plan: AppendPlan | null } = { plan: null };
+    const projectorFailed: { failure: ProjectorFailure | null } = { failure: null };
 
     const abortWith = (error: StoreError): never => {
       abort.error = error;
@@ -367,9 +396,14 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
         if (planned.isCheckpoint) faults.hit("before_checkpoint");
         const { envelope, upcasted } = completeEnvelope(leafOf, planned.stamped, seq, recordedAt);
         seq += 1;
-        insertEvent(tx, envelope, request.requestId, null);
+        insertEvent(
+          tx,
+          envelope,
+          request.requestId,
+          hooks.privateOwnerOf?.(planned.stamped.draft) ?? null,
+        );
         faults.hit(`after_event_insert:${index}`);
-        applyProjectors(tx, upcasted, index);
+        applyProjectors(tx, upcasted, index, request.requestId, projectorFailed);
         out.push(envelope);
       }
       hooks.afterAppend?.(tx);
@@ -449,6 +483,8 @@ export function createSessionWriter(deps: WriterDeps): SessionWriter {
       if (caught === DETACH_MARKER && pending.plan !== null) {
         return ok({ kind: "needs_detach", plan: pending.plan });
       }
+      // 확장 투영기 예외: 트랜잭션은 롤백됐다. 알린 뒤 Bug를 그대로 올린다
+      if (projectorFailed.failure !== null) deps.onProjectorFailure?.(projectorFailed.failure);
       throw caught;
     } finally {
       guard.writing = false;

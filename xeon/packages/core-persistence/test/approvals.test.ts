@@ -102,7 +102,7 @@ function resolve(h: Harness, requested: Requested) {
 
 describe("approvals", () => {
   test("the waiting commit stores the approval and the await_input checkpoint together", async () => {
-    const h = openHarness();
+    const h = await openHarness();
     const requested = requestApproval(h);
     const checkpoint = expectOk(await h.service.loadCheckpoint(requested.threadId));
     expect(checkpoint?.next).toBe("await_input");
@@ -120,8 +120,8 @@ describe("approvals", () => {
     expect(expectOk(h.service.query.thread(requested.threadId))?.pendingApprovals).toBe(1);
   });
 
-  test("approval.resolved commits once: view.approval sees the request and a second response is rejected", () => {
-    const h = openHarness();
+  test("approval.resolved commits once: view.approval sees the request and a second response is rejected", async () => {
+    const h = await openHarness();
     const requested = requestApproval(h);
     const first = expectOk(resolve(h, requested));
     expect(first.status).toBe("committed");
@@ -142,8 +142,8 @@ describe("approvals", () => {
     expectProjectionsRebuildable(h.store.db);
   });
 
-  test("a response to an approval that was never requested is rejected by build, not committed", () => {
-    const h = openHarness();
+  test("a response to an approval that was never requested is rejected by build, not committed", async () => {
+    const h = await openHarness();
     const requested = requestApproval(h);
     const unknown = { ...requested, approvalId: h.ids.next("evt") };
     expect(expectOk(resolve(h, unknown))).toMatchObject({
@@ -152,8 +152,8 @@ describe("approvals", () => {
     });
   });
 
-  test("recover lists the unresolved approval of the open turn", () => {
-    const h = openHarness();
+  test("recover lists the unresolved approval of the open turn", async () => {
+    const h = await openHarness();
     const requested = requestApproval(h);
     const plan = expectOk(
       h.service.recover(requested.threadId, {

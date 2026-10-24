@@ -40,10 +40,10 @@ async function crashAt(
 }
 
 /** 죽은 프로세스의 DB 파일을 새 프로세스(새 서비스, 새 시계, 다른 seed의 ID 발급기)로 다시 연다 */
-function restart(dbPath: string, threadId: ThreadId): Harness {
+async function restart(dbPath: string, threadId: ThreadId): Promise<Harness> {
   const clock = manualClock(1_767_571_300_000);
-  const store = openTestStore({ path: dbPath, now: () => clock.now() });
-  const h = openHarness({ store, clock, ids: fixedIdFactory(2) });
+  const store = await openTestStore({ path: dbPath, clock });
+  const h = await openHarness({ store, clock, ids: fixedIdFactory(2) });
   // OS 잠금은 프로세스가 죽으면 풀린다. 새 소유자가 임대를 인수한다(epoch + 1)
   const token = store.leases.takeover(`session:${threadId}`, TEST_HOLDER_B);
   expectOk(h.service.openForWrite(threadId, token));
@@ -87,7 +87,7 @@ function synthesizedTexts(h: Harness): string[] {
 describe("restart_invariants_k1_to_k6 (SIGKILL of a child process)", () => {
   test("K1: killed while streaming (before C3) leaves no assistant item; the step request is sent again", async () => {
     const { dbPath, threadId } = await crashAt("K1");
-    const h = restart(dbPath, threadId);
+    const h = await restart(dbPath, threadId);
     const plan = expectOk(h.service.recover(threadId, DEPS("unsafe")));
     expect(plan).toMatchObject({
       next: "request",
@@ -108,7 +108,7 @@ describe("restart_invariants_k1_to_k6 (SIGKILL of a child process)", () => {
 
   test("K2: killed after E1 (intent only): unsafe is closed as not_started", async () => {
     const { dbPath, threadId } = await crashAt("K2:unsafe");
-    const h = restart(dbPath, threadId);
+    const h = await restart(dbPath, threadId);
     const plan = expectOk(h.service.recover(threadId, DEPS("unsafe")));
     expect(plan.synthesized.map((entry) => entry.code)).toEqual(["not_started"]);
     expect(plan.reruns).toEqual([]);
@@ -124,7 +124,7 @@ describe("restart_invariants_k1_to_k6 (SIGKILL of a child process)", () => {
 
   test("K2: killed after E1: a safe tool is planned for a rerun, nothing is written", async () => {
     const { dbPath, threadId } = await crashAt("K2:safe");
-    const h = restart(dbPath, threadId);
+    const h = await restart(dbPath, threadId);
     const before = h.store.rowCounts();
     const plan = expectOk(h.service.recover(threadId, DEPS("safe")));
     expect(plan.reruns.map((rerun) => rerun.attempt)).toEqual([1]);
@@ -136,7 +136,7 @@ describe("restart_invariants_k1_to_k6 (SIGKILL of a child process)", () => {
   for (const point of ["K3:unsafe", "K4:unsafe"]) {
     test(`${point.slice(0, 2)}: killed while the tool ran (intent + exec): unsafe is closed as outcome_unknown`, async () => {
       const { dbPath, threadId } = await crashAt(point);
-      const h = restart(dbPath, threadId);
+      const h = await restart(dbPath, threadId);
       const plan = expectOk(h.service.recover(threadId, DEPS("unsafe")));
       expect(plan.synthesized.map((entry) => entry.code)).toEqual(["outcome_unknown"]);
       expect(synthesizedTexts(h)).toEqual([OUTCOME_UNKNOWN_TEXT]);
@@ -146,7 +146,7 @@ describe("restart_invariants_k1_to_k6 (SIGKILL of a child process)", () => {
 
   test("K3: killed while a safe tool ran: the rerun is planned as attempt 1", async () => {
     const { dbPath, threadId } = await crashAt("K3:safe");
-    const h = restart(dbPath, threadId);
+    const h = await restart(dbPath, threadId);
     const plan = expectOk(h.service.recover(threadId, DEPS("safe")));
     expect(plan.reruns.map((rerun) => rerun.attempt)).toEqual([1]);
     expect(plan.synthesized).toEqual([]);
@@ -155,7 +155,7 @@ describe("restart_invariants_k1_to_k6 (SIGKILL of a child process)", () => {
 
   test("K5: killed after E3 was committed but before the listeners finished", async () => {
     const { dbPath, threadId } = await crashAt("K5");
-    const h = restart(dbPath, threadId);
+    const h = await restart(dbPath, threadId);
     const plan = expectOk(h.service.recover(threadId, DEPS("unsafe")));
     expect(plan.synthesized).toEqual([]);
     expect(plan.reruns).toEqual([]);
@@ -169,7 +169,7 @@ describe("restart_invariants_k1_to_k6 (SIGKILL of a child process)", () => {
 
   test("K6: killed after every effect closed but before C6: marker stays, seq continues", async () => {
     const { dbPath, threadId } = await crashAt("K6");
-    const h = restart(dbPath, threadId);
+    const h = await restart(dbPath, threadId);
     const maxSeq = expectOk(h.service.feed.headSeq());
     const plan = expectOk(h.service.recover(threadId, DEPS("unsafe")));
     expect(plan.marker).not.toBeNull();
@@ -199,7 +199,7 @@ describe("a kill inside a commit leaves no trace of that commit", () => {
   ]) {
     test(point, async () => {
       const { dbPath, threadId } = await crashAt(`TX:${point}`);
-      const h = restart(dbPath, threadId);
+      const h = await restart(dbPath, threadId);
       const kinds = h.store.raw
         .query<{ kind: string }, []>("SELECT kind FROM events ORDER BY seq")
         .all()
@@ -216,7 +216,7 @@ describe("a kill inside a commit leaves no trace of that commit", () => {
 
   test("after_commit: the commit survived, the retry is a replay", async () => {
     const { dbPath, threadId } = await crashAt("TX:after_commit");
-    const h = restart(dbPath, threadId);
+    const h = await restart(dbPath, threadId);
     const kinds = h.store.raw
       .query<{ kind: string }, []>("SELECT kind FROM events ORDER BY seq")
       .all()

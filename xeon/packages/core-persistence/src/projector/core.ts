@@ -38,7 +38,7 @@ import {
 } from "@xeon/contracts/records";
 
 /** 투영 규칙 버전. 테이블 모양이나 규칙이 바뀌면 올린다(다음 열기 때 core만 다시 만든다) */
-export const CORE_PROJECTOR_VERSION = 2;
+export const CORE_PROJECTOR_VERSION = 3;
 
 export const CORE_PROJECTOR_TABLES: readonly string[] = [
   "p_threads",
@@ -200,10 +200,11 @@ function reduceThreadStarted(tx: ProjectionTx, event: DurableEventEnvelope): voi
   tx.run(
     `INSERT INTO p_threads (thread_id, title, status, workspace, created_at, updated_at, first_seq, head_seq,
        leaf_event_id, forked_from_thread, forked_from_event, closed_reason, open_turn_id, running_since, resume_attempts)
-     VALUES (?, ?, 'idle', NULL, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0)`,
+     VALUES (?, ?, 'idle', ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL, 0)`,
     [
       event.threadId,
       payload.title,
+      payload.workspace ?? null,
       event.recordedAt,
       event.recordedAt,
       event.seq,

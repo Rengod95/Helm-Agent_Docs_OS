@@ -2,10 +2,17 @@ import { describe, expect, test } from "bun:test";
 import { Bug } from "@xeon/contracts";
 import type { CommitPlan, CommitRequest } from "@xeon/contracts/records";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
-import { draftOf, expectOk, newThread, openHarness, startTurn } from "./support/harness.ts";
+import {
+  draftOf,
+  expectOk,
+  newThread,
+  openHarness,
+  startTurn,
+  type Harness,
+} from "./support/harness.ts";
 
 function turnStartRequest(
-  h: ReturnType<typeof openHarness>,
+  h: Harness,
   threadId: ReturnType<typeof newThread>["threadId"],
   key: string,
   source: string,
@@ -37,8 +44,8 @@ function turnStartRequest(
 
 describe("idempotent commits", () => {
   // spec §9.3
-  test("commit_idempotent_same_request_id", () => {
-    const h = openHarness();
+  test("commit_idempotent_same_request_id", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const request = turnStartRequest(h, threadId, "turn:t1:start", "a");
     const first = expectOk(h.service.commit(request));
@@ -58,8 +65,8 @@ describe("idempotent commits", () => {
   });
 
   // spec §9.4
-  test("commit_key_reused_with_different_fingerprint_rejected", () => {
-    const h = openHarness();
+  test("commit_key_reused_with_different_fingerprint_rejected", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     expectOk(h.service.commit(turnStartRequest(h, threadId, "turn:t1:start", "a")));
     const before = h.store.tableHashes();
@@ -69,8 +76,8 @@ describe("idempotent commits", () => {
   });
 
   // spec §9.5
-  test("commit_rejected_plan_is_replayed_without_build", () => {
-    const h = openHarness();
+  test("commit_rejected_plan_is_replayed_without_build", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     let builds = 0;
     const request: CommitRequest = {
@@ -99,8 +106,8 @@ describe("idempotent commits", () => {
     expect(builds).toBe(1);
   });
 
-  test("a key is scoped to its thread", () => {
-    const h = openHarness();
+  test("a key is scoped to its thread", async () => {
+    const h = await openHarness();
     const a = newThread(h, "a");
     const b = newThread(h, "b");
     const first = expectOk(h.service.commit(turnStartRequest(h, a.threadId, "same:key", "x")));
@@ -109,8 +116,8 @@ describe("idempotent commits", () => {
     expect(second.status === "committed" && !second.replayed).toBe(true);
   });
 
-  test("expectedLeaf mismatch is a stored leaf_conflict rejection", () => {
-    const h = openHarness();
+  test("expectedLeaf mismatch is a stored leaf_conflict rejection", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     startTurn(h, threadId);
     const request: CommitRequest = {
@@ -127,8 +134,8 @@ describe("idempotent commits", () => {
     expectProjectionsRebuildable(h.store.db);
   });
 
-  test("storage failures are not recorded: the same key is processed again from scratch", () => {
-    const h = openHarness();
+  test("storage failures are not recorded: the same key is processed again from scratch", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     // 롤백된 시도(예: 장애 주입)는 requests에 남지 않는다. build가 던진 Bug도 같다
     let attempts = 0;

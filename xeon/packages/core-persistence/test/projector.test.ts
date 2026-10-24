@@ -17,9 +17,10 @@ import {
   reopenHarness,
   startTurn,
   stepUntilIntents,
+  type Harness,
 } from "./support/harness.ts";
 
-function threadRow(h: ReturnType<typeof openHarness>, threadId: string) {
+function threadRow(h: Harness, threadId: string) {
   return h.store.raw
     .query<Record<string, string | number | null>, [string]>(
       "SELECT * FROM p_threads WHERE thread_id = ?",
@@ -28,8 +29,8 @@ function threadRow(h: ReturnType<typeof openHarness>, threadId: string) {
 }
 
 describe("p_threads", () => {
-  test("thread.started creates an idle row whose head and leaf follow every event", () => {
-    const h = openHarness();
+  test("thread.started creates an idle row whose head and leaf follow every event", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h, "hello");
     const first = threadRow(h, threadId);
     expect(first).toMatchObject({
@@ -54,8 +55,8 @@ describe("p_threads", () => {
     expect(afterStart?.["leaf_event_id"]).toBe(lastEvent?.id ?? "");
   });
 
-  test("the recovery marker is set by turn.started and cleared by turn.completed", () => {
-    const h = openHarness();
+  test("the recovery marker is set by turn.started and cleared by turn.completed", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     expect(expectOk(h.service.query.thread(threadId))?.marker).toBeNull();
     const turn = startTurn(h, threadId);
@@ -71,8 +72,8 @@ describe("p_threads", () => {
     expect(done?.updatedAt).toBe(h.clock.now());
   });
 
-  test("thread.closed marks the thread closed and keeps the reason", () => {
-    const h = openHarness();
+  test("thread.closed marks the thread closed and keeps the reason", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     // thread.closed는 core.persistence 소유라 threads.close(M2)로 낸다. 여기서는 투영만 본다
     const row = h.store.raw
@@ -84,8 +85,8 @@ describe("p_threads", () => {
 });
 
 describe("p_turns", () => {
-  test("turn.started and turn.completed drive status, seqs and step_count", () => {
-    const h = openHarness();
+  test("turn.started and turn.completed drive status, seqs and step_count", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId, { requestId: "r1" });
     const running = expectOk(h.service.query.turn(threadId, turn.turnId));
@@ -110,8 +111,8 @@ describe("p_turns", () => {
   });
 
   // spec §9.26
-  test("turnByRequestId separates scope turns from scope-less turns", () => {
-    const h = openHarness();
+  test("turnByRequestId separates scope turns from scope-less turns", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const plain = startTurn(h, threadId, { requestId: "r" });
     const scoped = startTurn(h, threadId, { requestId: "r", scopeId: "helm/review" });
@@ -131,8 +132,8 @@ describe("p_turns", () => {
     );
   });
 
-  test("a duplicate (thread, scope, requestId) turn breaks the projection and rolls the commit back", () => {
-    const h = openHarness();
+  test("a duplicate (thread, scope, requestId) turn breaks the projection and rolls the commit back", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     startTurn(h, threadId, { requestId: "dup" });
     const before = h.store.tableHashes();
@@ -140,8 +141,8 @@ describe("p_turns", () => {
     expect(h.store.tableHashes()).toEqual(before);
   });
 
-  test("turn.abort_requested sets abortRequested once", () => {
-    const h = openHarness();
+  test("turn.abort_requested sets abortRequested once", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     for (const key of ["abort:one", "abort:two"]) {
@@ -180,8 +181,8 @@ describe("p_turns", () => {
 });
 
 describe("p_effects and p_inputs", () => {
-  test("effect rows follow intent, exec and result; open effects are the ones without a result", () => {
-    const h = openHarness();
+  test("effect rows follow intent, exec and result; open effects are the ones without a result", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     const stepId = h.ids.next("stp");
@@ -202,8 +203,8 @@ describe("p_effects and p_inputs", () => {
     expectProjectionsRebuildable(h.store.db);
   });
 
-  test("input.queued, placed and withdrawn keep the queue in seq order", () => {
-    const h = openHarness();
+  test("input.queued, placed and withdrawn keep the queue in seq order", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const queue = (key: string, requestId: string, scopeId: string | null) =>
       commitOrThrow(h, threadId, key, () => ({
@@ -277,8 +278,8 @@ describe("p_effects and p_inputs", () => {
 
 describe("rebuild", () => {
   // spec §9.10
-  test("projection_rebuild_equals_live", () => {
-    const h = openHarness();
+  test("projection_rebuild_equals_live", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     fullStep(h, turn, 0, [
@@ -292,8 +293,8 @@ describe("rebuild", () => {
     expect(checkProjectionsRebuildable(h.store.db).ok).toBe(true);
   });
 
-  test("a diverged live projection is reported with the table name", () => {
-    const h = openHarness();
+  test("a diverged live projection is reported with the table name", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     startTurn(h, threadId);
     h.store.raw.run("UPDATE p_threads SET title = 'tampered'");
@@ -308,8 +309,8 @@ describe("rebuild", () => {
   });
 
   // plan projection_version_bump_rebuilds_only_that_projector (이 패키지는 코어 투영기 하나다)
-  test("a stale projector_state version rebuilds the core projection on the next start", () => {
-    const h = openHarness();
+  test("a stale projector_state version rebuilds the core projection on the next start", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     fullStep(h, turn, 0, []);
@@ -317,7 +318,7 @@ describe("rebuild", () => {
     h.store.raw.run("UPDATE projector_state SET version = 0 WHERE name = 'core'");
     h.store.raw.run("DELETE FROM p_items");
     h.store.raw.run("UPDATE p_turns SET step_count = 99");
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expect(restarted.store.tableHashes()).toEqual({
       ...before,
       projector_state: expect.any(String),
@@ -335,42 +336,42 @@ describe("rebuild", () => {
     expect(state?.last_seq).toBe(expectOk(restarted.service.feed.headSeq()));
   });
 
-  test("a projector_state behind the head rebuilds as well", () => {
-    const h = openHarness();
+  test("a projector_state behind the head rebuilds as well", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     startTurn(h, threadId);
     h.store.raw.run("UPDATE projector_state SET last_seq = 1 WHERE name = 'core'");
     h.store.raw.run("DELETE FROM p_turns");
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expect(
       restarted.store.raw.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM p_turns").get()?.n,
     ).toBe(1);
   });
 
   // plan projector_has_no_io: 같은 이벤트 열을 두 번 재생한 결과가 바이트 동일하다(D0)
-  test("projector_has_no_io: replaying twice gives identical bytes", () => {
-    const h = openHarness();
+  test("projector_has_no_io: replaying twice gives identical bytes", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     fullStep(h, turn, 0, [{ toolCallId: "tc1", toolName: "read", replay: "safe" }]);
-    const force = (): Readonly<Record<string, string>> => {
+    const force = async (): Promise<Readonly<Record<string, string>>> => {
       h.store.raw.run("UPDATE projector_state SET version = 0 WHERE name = 'core'");
-      const restarted = reopenHarness(h);
+      const restarted = await reopenHarness(h);
       return restarted.store.tableHashes();
     };
     expect(force()).toEqual(force());
   });
 
-  test("an empty database rebuilds to empty tables", () => {
-    const h = openHarness();
+  test("an empty database rebuilds to empty tables", async () => {
+    const h = await openHarness();
     expect(h.store.rowCounts()["p_threads"]).toBe(0);
     expect(checkProjectionsRebuildable(h.store.db).ok).toBe(true);
   });
 });
 
 describe("TxView", () => {
-  test("exposes thread status, leaf, effects and the last checkpoint at build time", () => {
-    const h = openHarness();
+  test("exposes thread status, leaf, effects and the last checkpoint at build time", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     fullStep(h, turn, 0, [{ toolCallId: "tc9", toolName: "read", replay: "safe" }]);

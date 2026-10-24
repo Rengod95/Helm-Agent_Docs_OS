@@ -122,8 +122,12 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
           {
             threadId,
             requestId: `thread:${threadId}:start`,
-            // workspace는 ThreadStartedPayload에 필드가 없어 저장하지 않는다(FR-P5). 지문에도 넣지 않는다
-            fingerprintSource: { title: input.title ?? null, creationKey: creationKey ?? null },
+            // workspace는 있을 때만 지문에 넣는다: 필드가 없던 때의 같은 키 재시도가 key_reused가 되지 않게 한다
+            fingerprintSource: {
+              title: input.title ?? null,
+              creationKey: creationKey ?? null,
+              ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
+            },
             build(view): CommitPlan {
               if (view.threadStatus !== "absent") {
                 throw new Bug(`store.schema_invalid: thread ${threadId} already exists`);
@@ -139,7 +143,11 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
                     stepId: null,
                     causationId: null,
                     correlationId: null,
-                    payload: { title: input.title ?? null, forkedFrom: null },
+                    payload: {
+                      title: input.title ?? null,
+                      forkedFrom: null,
+                      ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
+                    },
                   }),
                 ],
                 checkpoint: null,

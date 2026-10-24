@@ -10,6 +10,7 @@ import type {
   ThreadSummaryRow,
   TurnView,
 } from "@xeon/contracts/records";
+import { branchItems, itemEvent, kindIn, latestEvent } from "./branch.ts";
 import { columns, readResult } from "./rows.ts";
 import {
   markerOf,
@@ -83,9 +84,15 @@ export function createProjectionQuery(db: StoreDb): ProjectionQuery {
     childAgents(): Result<readonly AgentView[], ReadFailure> {
       return notYet("childAgents", "p_agents (PS-23, M2)");
     },
-    branchItems: () => notYet("branchItems", "branch queries (PS-10, M2)"),
-    itemEvent: () => notYet("itemEvent", "branch queries (PS-10, M2)"),
-    latestEvent: () => notYet("latestEvent", "branch queries (PS-10, M2)"),
+    branchItems: (threadId, options) => readResult(db, (tx) => branchItems(tx, threadId, options)),
+    itemEvent: (threadId, itemId) => readResult(db, (tx) => itemEvent(tx, threadId, itemId)),
+    latestEvent: (threadId, kind, match, options) =>
+      readResult(db, (tx) =>
+        latestEvent(tx, threadId, kindIn([kind]), {
+          ...(match === undefined ? {} : { match }),
+          onActiveBranch: options?.onActiveBranch ?? false,
+        }),
+      ),
     liveBlobRefs: () =>
       readResult(db, (tx) => {
         const hashes: string[] = [];

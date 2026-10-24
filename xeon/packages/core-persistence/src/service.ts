@@ -1,30 +1,26 @@
 // Cordis 서비스 xeon.session(SessionService)의 조립(L1.persistence.spec §3.3). 조립 루트가 deps를 넘긴다.
 import { Bug, err, ok, type Result } from "@xeon/contracts";
 import type {
-  ExtCommitResult,
-  ExtThreadSnapshot,
   MigrationError,
   ProducerHandle,
   ProducerId,
-  Projector,
-  ProjectorFailure,
-  ProjectorRegistry,
   SessionService,
   SessionSettingsLayer,
   SessionSettingsStore,
   StoreError,
-  Unsubscribe,
 } from "@xeon/contracts/records";
 import {
   DEFAULT_PERSISTENCE_SETTINGS,
   type PersistenceSettings,
   type SessionDeps,
 } from "./deps.ts";
+import { createExtPort } from "./ext-port.ts";
 import { createLifecycle } from "./lifecycle.ts";
 import { createGuardState, createOpenSessions } from "./ownership.ts";
 import { createProducerRegistry } from "./producers.ts";
 import { createCoreProjector } from "./projector/core.ts";
 import { ensureProjectors } from "./projector/rebuild.ts";
+import { createProjectorController } from "./projector/registry.ts";
 import { createProjectionQuery } from "./query.ts";
 import { createReader } from "./read.ts";
 import { createResumer } from "./resume.ts";
@@ -42,16 +38,6 @@ function notYet(member: string, plan: string): never {
   throw new Bug(`session.not_implemented: ${member} arrives with ${plan}`);
 }
 
-/** 확장 투영기 등록(PS-4)은 M2다. list는 코어 투영기만 돌려준다 */
-function createProjectorRegistry(core: Projector): ProjectorRegistry {
-  return {
-    register: () => notYet("projectors.register", "M2 (PS-4)"),
-    list: () => [{ name: core.name, version: core.version, tables: core.tables }],
-    onFailure: (_listener: (failure: ProjectorFailure) => void): Unsubscribe =>
-      notYet("projectors.onFailure", "M2 (PS-4)"),
-  };
-}
-
 /**
  * session 범위 설정 값 기록(PS-14의 session-settings)은 M2다. 값을 쓰는 길(set, reset)이 없으므로 M1의 session 층은 늘 비어 있다.
  * layer가 던지면 설정을 읽는 모든 소비자(core-tools 등)가 도구 호출마다 실패하므로 빈 층을 돌려준다
@@ -61,26 +47,6 @@ const SESSION_SETTINGS_M2: SessionSettingsStore = {
   layer: (): SessionSettingsLayer => EMPTY_SESSION_LAYER,
   set: () => notYet("sessionSettings.set", "M2 (PS-14)"),
   reset: () => notYet("sessionSettings.reset", "M2 (PS-14)"),
-};
-
-/** X 기록 포트(ext)는 M2다(PS-16 ext-port.ts) */
-const EXT_PORT_M2: SessionService["ext"] = {
-  commit: (): Promise<ExtCommitResult> =>
-    Promise.reject(new Bug("session.not_implemented: ext.commit arrives with M2 (PS-16)")),
-  // 확장 상태를 기록하는 길(commit)이 M2까지 없으므로 활성 가지 위의 확장 상태는 늘 비어 있다. 던지면 ExtHost.openThread가
-  // thread를 열지 못해 모든 경계 처리가 thread_not_open으로 실패한다
-  loadThread: (): Promise<ExtThreadSnapshot> =>
-    Promise.resolve({
-      enabled: [],
-      disabled: [],
-      scopeTransitions: {},
-      enabledAtSeq: {},
-      states: [],
-      openLease: null,
-      leaseEpochs: {},
-    }),
-  queryRecords: () =>
-    Promise.reject(new Bug("session.not_implemented: ext.queryRecords arrives with M2 (PS-16)")),
 };
 
 /**
@@ -96,9 +62,14 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
   const catalog = createKindCatalog(deps.eventKinds);
   const producers = createProducerRegistry(catalog);
   const core = createCoreProjector();
-  const projectors = (): readonly Projector[] => [core];
+  const controller = createProjectorController({
+    db: deps.db,
+    catalog,
+    core,
+    logger: deps.logger,
+  });
 
-  const ensured = ensureProjectors(deps.db, projectors(), catalog);
+  const ensured = ensureProjectors(deps.db, [core], catalog);
   if (!ensured.ok) return err({ kind: "store", error: ensured.error });
 
   let startupRebuilt: readonly string[] = ensured.value;
@@ -120,7 +91,11 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     producers,
     sessions,
     guard,
-    projectors,
+    projectors: () => controller.active(),
+    ...(deps.guardProjectors === undefined ? {} : { guardProjectors: deps.guardProjectors }),
+    onProjectorFailure: (failure) => {
+      controller.notifyFailure(failure);
+    },
     ...(deps.putBlob === undefined ? {} : { putBlob: deps.putBlob }),
     publish: (batch) => {
       feedController.publish(batch);
@@ -142,7 +117,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     clock: deps.clock,
     ids: deps.ids,
     settings,
-    projectors,
+    ensureProjectors: () => controller.ensure(),
     takeStartupRebuilt,
     logger: deps.logger,
   });
@@ -160,7 +135,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
   return ok({
     commit: (request) => writer.commit(request),
     producer: (id: ProducerId): ProducerHandle => producers.claim(id),
-    projectors: createProjectorRegistry(core),
+    projectors: controller.registry,
     query: createProjectionQuery(deps.db),
     readFrom: (afterSeq, options) => reader.readFrom(afterSeq, options),
     readBranch: (threadId, leaf) => reader.readBranch(threadId, leaf),
@@ -178,6 +153,12 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     release: (threadId, reason) => resumer.release(threadId, reason),
     threads,
     sessionSettings: SESSION_SETTINGS_M2,
-    ext: EXT_PORT_M2,
+    ext: createExtPort({
+      db: deps.db,
+      writer,
+      producers,
+      catalog,
+      canDetach: deps.putBlob !== undefined,
+    }),
   });
 }

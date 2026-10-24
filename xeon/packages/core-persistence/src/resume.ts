@@ -26,7 +26,6 @@ import {
   type OpenError,
   type OpenReport,
   type PendingToolCall,
-  type Projector,
   type RecoverDeps,
   type ResumeError,
   type ResumePlan,
@@ -41,8 +40,8 @@ import type { PersistenceSettings } from "./deps.ts";
 import { envelopeAtSeq, envelopeOfRow } from "./events.ts";
 import { sessionResource } from "./ids.ts";
 import type { OpenSessions } from "./ownership.ts";
+import type { ProjectorController } from "./projector/registry.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
-import { ensureProjectors } from "./projector/rebuild.ts";
 import {
   closeInsteadOfRerun,
   decideOpenEffect,
@@ -72,7 +71,8 @@ export interface ResumeDeps {
   readonly clock: Clock;
   readonly ids: IdFactory;
   readonly settings: () => PersistenceSettings;
-  readonly projectors: () => readonly Projector[];
+  /** 투영 버전·last_seq가 어긋난 투영기를 다시 만든다(쓰기 열기). 다시 만든 이름을 돌려준다 */
+  readonly ensureProjectors: () => ReturnType<ProjectorController["ensure"]>;
   /** 서비스를 시작하며 다시 만든 투영기 이름. 처음 여는 thread의 OpenReport.rebuilt에 한 번 실린다 */
   readonly takeStartupRebuilt: () => readonly string[];
   readonly logger: Logger | undefined;
@@ -281,7 +281,7 @@ export function createResumer(deps: ResumeDeps): Resumer {
       const readOnly = readOnlyReasonFor(checked.value.pairs, catalog);
       let rebuilt: readonly string[] = [];
       if (readOnly === null) {
-        const ensured = ensureProjectors(db, deps.projectors(), catalog);
+        const ensured = deps.ensureProjectors();
         if (!ensured.ok) return ensured;
         rebuilt = [...deps.takeStartupRebuilt(), ...ensured.value];
       }
