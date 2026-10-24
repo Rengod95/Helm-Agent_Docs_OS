@@ -3,24 +3,25 @@
 # usage: cargo.sh <test|check|run|build>
 #   test, check  사이드카 바이너리 없이 돈다(externalBin을 비워 컴파일한다).
 #   run, build   src-tauri/binaries/xeon-<host triple>이 있어야 한다: just desktop-sidecar <triple>
-# 빌드 산출물은 src-tauri/.cargo/config.toml의 target-dir(저장소 밖)에 쌓인다.
-# env: CARGO_BUILD_JOBS (기본 2, .cargo/config.toml의 jobs와 같다)
-# 종료코드: 0 성공, 1 컴파일·시험 실패, 2 환경 문제(cargo 없음, 사이드카 없음, 시스템 패키지)
+# Rust는 mise.toml이 고정한 버전을 쓴다(mise exec). 빌드 산출물은 Syncthing 폴더(~/projects) 밖의 기기별 캐시에 쌓인다.
+# env: CARGO_TARGET_DIR (기본 ${XDG_CACHE_HOME:-$HOME/.cache}/xeon/cargo-target, spike/shell도 같은 값을 쓴다)
+#      CARGO_BUILD_JOBS (기본 2, .cargo/config.toml의 jobs와 같다)
+# 종료코드: 0 성공, 1 컴파일·시험 실패, 2 환경 문제(mise·cargo 없음, 사이드카 없음, 시스템 패키지)
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mode="${1:-}"
-export PATH="$HOME/.cargo/bin:$PATH"
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
+export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/xeon/cargo-target}"
 
-if ! command -v cargo >/dev/null; then
-  echo "cargo-sh: cargo가 없습니다(rustup으로 설치, ~/.cargo/bin). 환경 문제입니다" >&2
+if ! (cd "$here/.." && mise exec -- cargo --version >/dev/null 2>&1); then
+  echo "cargo-sh: mise exec -- cargo가 실패했습니다. xeon/에서 mise install로 mise.toml의 rust를 설치하세요. 환경 문제입니다" >&2
   exit 2
 fi
 cd "$here/src-tauri"
 
 needs_sidecar() {
   local triple
-  triple="$(rustc --print host-tuple)"
+  triple="$(mise exec -- rustc --print host-tuple)"
   local file="binaries/xeon-$triple"
   [[ "$triple" == *windows* ]] && file="$file.exe"
   if [[ ! -f "$file" ]]; then
@@ -46,18 +47,18 @@ ensure_ui() {
 case "$mode" in
   test)
     ensure_ui test
-    TAURI_CONFIG='{"bundle":{"externalBin":[]}}' exec cargo test ;;
+    TAURI_CONFIG='{"bundle":{"externalBin":[]}}' exec mise exec -- cargo test ;;
   check)
     ensure_ui check
-    TAURI_CONFIG='{"bundle":{"externalBin":[]}}' exec cargo check --all-targets ;;
+    TAURI_CONFIG='{"bundle":{"externalBin":[]}}' exec mise exec -- cargo check --all-targets ;;
   run)
     needs_sidecar
     ensure_ui run
-    exec cargo run ;;
+    exec mise exec -- cargo run ;;
   build)
     needs_sidecar
     ensure_ui build
-    exec cargo build --release ;;
+    exec mise exec -- cargo build --release ;;
   *)
     echo "usage: cargo.sh <test|check|run|build>" >&2
     exit 1 ;;

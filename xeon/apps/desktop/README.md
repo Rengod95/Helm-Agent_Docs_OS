@@ -14,6 +14,6 @@ L4 데스크톱 앱. Tauri 2 셸(`src-tauri/`)이 엔진 사이드카를 띄우�
 | `just desktop-run`                                    | `cargo run`(사이드카 필요)                                                           |
 | `just desktop-build`                                  | `cargo build --release`(사이드카 필요)                                               |
 
-- cargo는 `~/.cargo/bin`에서 찾는다. 없으면 종료코드 2다.
-- Rust 빌드 산출물은 저장소 밖(`src-tauri/.cargo/config.toml`의 `target-dir`)에 쌓인다.
+- cargo는 `mise exec -- cargo`로 부른다. 버전은 `xeon/mise.toml`의 `rust`(1.99.1)다. 설치는 `xeon/`에서 `mise install`이다. 실패하면 종료코드 2다.
+- Rust 빌드 산출물은 Syncthing 폴더 밖의 기기별 캐시 `${XDG_CACHE_HOME:-$HOME/.cache}/xeon/cargo-target`에 쌓인다(`scripts/cargo.sh`가 `CARGO_TARGET_DIR`로 정한다). cargo를 직접 부르면 `src-tauri/target`에 쌓이고 git과 Syncthing(`**/target`)이 제외한다.
 - `spike/`는 DESK.1 측정 코드다. 제품 코드가 아니다.

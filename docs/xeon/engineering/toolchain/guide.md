@@ -37,6 +37,7 @@ Xeon 워크스페이스의 런타임, 패키지 관리, 타입 검사, 린트, �
 | 미사용 코드 | knip | 6.42.1 | catalog `knip` | |
 | 공개 패키지 검사 | publint, @arethetypeswrong/cli(attw) | 0.3.25, 0.18.5 | 공개 패키지가 생길 때 catalog에 더한다 | 공개 패키지만 |
 | 공개 라이브러리 빌드 | tsdown | 0.23.1 | 공개 패키지가 생길 때 catalog에 더한다 | 공개 라이브러리만 |
+| Rust(데스크톱 셸) | rustc·cargo | 1.99.1 | `mise.toml` `rust = { version = "1.99.1", profile = "default" }` | mise가 rustup으로 설치한다(`mise install`). `Cargo.toml`의 `rust-version = "1.99"`보다 낮추지 않는다. 빌드 산출물은 `${XDG_CACHE_HOME:-$HOME/.cache}/xeon/cargo-target`(Syncthing 밖, 기기별)이고 `scripts/cargo.sh`가 `CARGO_TARGET_DIR`로 정한다 |
 | 바이너리 | `bun build --compile` | Bun과 같음 | — | `apps/cli`, `apps/host`(사이드카) |
 | 스키마 | typebox | 1.3.27 | catalog `typebox` | pi-ai 1.3.0이 고정한 판과 같다(review.decisions-2 U-24). pi가 올릴 때 함께 올린다 |
 | Bun 타입 | @types/bun | 1.4.3 | catalog `@types/bun` | Bun 버전과 같은 값 |
@@ -58,6 +59,7 @@ Xeon 워크스페이스의 런타임, 패키지 관리, 타입 검사, 린트, �
 - `bunfig.toml`의 `[install] exact = true`를 유지한다. `bun add`가 `^`를 붙이지 않게 한다.
 - 잠금 파일 `bun.lock`(텍스트, `saveTextLockfile = true`)을 커밋한다. 설치는 `just setup`(`bun install --frozen-lockfile`)으로만 한다.
 - 런타임 버전은 `mise.toml`과 `packageManager`가 같은 값이어야 한다.
+- Rust는 `rustup`을 직접 쓰지 않고 mise로 설치한다. `just desktop-*`는 `mise exec -- cargo`로 고정 버전을 쓴다. 기본 `RUSTUP_HOME`·`CARGO_HOME`(`~/.rustup`, `~/.cargo`)을 그대로 둔다.
 
 이유: 0.x 도구(oxfmt)와 버전 결합이 있는 도구(tsgolint ↔ TS)는 패치 업데이트에서도 출력이 바뀐다. 범위 버전이면 같은 커밋이 날짜에 따라 다르게 검사된다.
 

@@ -67,7 +67,7 @@ xeon/apps/desktop/
     Cargo.toml                    # rust-version 1.99. rust-toolchain.toml은 없다(§3.2.1)
     Cargo.lock
     build.rs                      # 앱 명령 권한(allow-engine-*) 생성
-    .cargo/config.toml            # target-dir을 저장소 밖(워크트리 형제 target-helm-desktop, spike/shell과 공용)에 두고 jobs = 2로 묶는다
+    .cargo/config.toml            # jobs = 2로 묶는다. target-dir은 두지 않는다: scripts/cargo.sh가 CARGO_TARGET_DIR을 ${XDG_CACHE_HOME:-$HOME/.cache}/xeon/cargo-target(Syncthing 밖, 기기별, spike/shell과 공용)으로 정한다
     tauri.conf.json
     capabilities/default.json
     ui/index.html                 # DESK.4 전까지의 자리 표시 화면(frontendDist)
@@ -339,7 +339,7 @@ D2(Tauri 프로젝트), D3(빌드 스크립트), D4(`engine.rs`), D5(`relay.rs`)
 
 실행과 검사:
 
-- `just desktop-test`: `cargo test`(54개). 사이드카 바이너리 없이 `TAURI_CONFIG`로 `externalBin`을 비워 컴파일한다. cargo는 `~/.cargo/bin`에서 찾고 없으면 종료코드 2다. `just verify`에는 들어 있지 않다.
+- `just desktop-test`: `cargo test`(54개). 사이드카 바이너리 없이 `TAURI_CONFIG`로 `externalBin`을 비워 컴파일한다. cargo는 `mise exec -- cargo`(`xeon/mise.toml`의 Rust 1.99.1)로 부르고 실패하면 종료코드 2다. `just verify`에는 들어 있지 않다.
 - `just desktop-sidecar <triple|host> [--no-bytecode]`로 사이드카를 만든 뒤 `just desktop-run`(cargo run)과 `just desktop-build`(cargo build --release)를 쓴다. 설치 파일 번들(`cargo tauri build`)은 `@tauri-apps/cli` 의존 추가(잠금 파일 변경, 종료코드 3 절차)가 필요해서 D10으로 미뤘다.
 - 디버그 빌드에서만 `XEON_DESKTOP_ENGINE_BIN`, `XEON_DESKTOP_ENGINE_ARGS`로 사이드카 대신 다른 실행 파일을 엔진으로 띄운다(가짜 엔진 시험용). 릴리스 빌드에는 이 경로가 없다.
 - 실제 앱 확인(WSLg, 디버그, S1 가짜 엔진): 페이지에서 `engine_attach`, 오래된 세대의 `engine_write` 거부(`epoch-stale`), 8 KB 프레임 4,000개(32.25 MB)를 손실·순서 어긋남 0으로 수신, SIGTERM 뒤 약 0.5초에 앱·엔진·손자가 모두 종료. EOF를 무시하는 엔진은 SIGTERM 뒤 7.04초(`shutdownGraceMs`)에 그룹 SIGKILL로 정리됐다. macOS와 Windows는 확인하지 못했다.
@@ -349,7 +349,7 @@ D2(Tauri 프로젝트), D3(빌드 스크립트), D4(`engine.rs`), D5(`relay.rs`)
 - `engine_ack` 명령이 더해져 명령이 다섯 개다. `engine_detach`는 `epoch` 인자를 받는다(§3.3).
 - 종료는 `CommandChild::kill`을 쓰지 않고 pid 기반 그룹 종료다. `CommandChild`는 쓰기 스레드가 쥐기 때문이다(E2). Windows는 `taskkill /T`로 대신하며, job object 방식은 spec §10 미결 7에 남는다. Windows 경로는 컴파일하지 못했다.
 - 줄 끝 없이 2 MiB를 넘는 줄은 셸이 버린다(메모리 상한). spec §5가 적은 "셸은 크기를 검사하지 않는다"는 1 MiB 한도의 판정에 대한 것이고, 판정은 여전히 WebView가 한다.
-- `rust-toolchain.toml`은 만들지 않았다(§4 표).
+- `rust-toolchain.toml`은 만들지 않았다. Rust 버전은 `xeon/mise.toml`이 고정하고 `scripts/cargo.sh`가 `mise exec -- cargo`로 부른다(§4 표).
 
 ### 3.2.2 M2 DESK.4 구현 기록 (2026-10-24, `m2/desk-ui`)
 
@@ -440,7 +440,7 @@ D6(UI 셸)과 D7(승인 대기열)의 구현 결과다. 상태 설계는 `L4.des
 | `@tauri-apps/plugin-shell` | 넣지 않는다 | - | (a)안에서 WebView는 spawn하지 않는다 |
 | `tauri-plugin-single-instance` | 2.x [미확인] | `main.rs` | spec §5 동시 실행 |
 | `tauri-plugin-notification` | 2.x [미확인] | `src/shell/**`, M3 | spec §4.8 |
-| Rust 툴체인 | 1.99.1에서 확인, `Cargo.toml`의 `rust-version = "1.99"` | `rust-toolchain.toml`은 만들지 않았다 | `rustc --print host-tuple`에 1.84+ 필요(adr.0008 §3.2). `rust-toolchain.toml`로 정확 버전을 고정하면 rustup이 그 이름의 툴체인을 따로 내려받으므로 CI 러너 구성(D9)에서 정한다 |
+| Rust 툴체인 | `1.99.1` 고정(2026-10-25 결정). `Cargo.toml`의 `rust-version = "1.99"` | `xeon/mise.toml`의 `rust = { version = "1.99.1", profile = "default" }`. `rust-toolchain.toml`은 만들지 않았다 | mise가 rustup으로 설치하고 `RUSTUP_TOOLCHAIN`을 정하므로 `rust-toolchain.toml`이 필요 없다. `profile = "default"`가 rustfmt·clippy를 포함한다. 1.99.0에는 회귀 3건(x86_64 FFI `bool` 반환 코드 생성 등)이 있어 1.99.1부터 쓴다. 다음 minor는 자동으로 채택하지 않는다. `rustc --print host-tuple`에 1.84+ 필요(adr.0008 §3.2). CI 러너의 설치 방법은 D9에서 정한다 |
 | `typebox` | 1.3.27 | IPC 스키마 | catalog. pi-ai와 같은 판(review.decisions-2 U-24) |
 | `react`, `react-dom` | 19.3.1(조사 시점) | `src/views/**`, `src/state/*/hooks.ts` | [결정] adr.0010. D6 착수 때 최신 19.x를 확인해 catalog에 정확히 고정한다. 타입은 `@types/react`, `@types/react-dom` |
 | `zustand` | 5.0.16(조사 시점) | `src/state/*/store.ts`, `src/state/*/hooks.ts`(`eng.frontend-state.guide` FS-06) | [결정] adr.0010. 같은 방식으로 고정한다 |
