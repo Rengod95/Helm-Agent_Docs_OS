@@ -290,9 +290,9 @@ M3:
 | oxlint `overrides`가 기본 금지 패턴을 대체 | 변환 영역에서 기본 금지 규칙이 빠짐 | override에 기본 패턴을 다시 적고, check-layers 패턴으로 이중 검사 | `eng.dependency-rules.guide` §3.2 |
 | 플러그인 배포 방식 미정 | 첫 실행 권장 흐름 구현 지연 | M3 전에 사용자 확인(§1.3) | `L2.web.spec` §10 |
 
-## 8. M2 구현 기록 (m2-plan WEB.1~WEB.5)
+## 8. M2 구현 기록 (m2-plan WEB.1~WEB.6)
 
-구현은 브랜치 `m2/web`에서 했다. 시험은 모두 주입한 가짜(시계, ID, DNS 해석기, 녹화 HTTP 전송, 승인 포트, 비밀 판정)로 돌고 네트워크를 쓰지 않는다. 시험 환경은 WSL2이고 브라우저·macOS는 없다.
+WEB.1~WEB.5는 브랜치 `m2/web`에서, WEB.6은 브랜치 `m2/webkn`에서 구현했다. 시험은 모두 주입한 가짜(시계, ID, DNS 해석기, 녹화 HTTP 전송, 승인 포트, 비밀 판정)로 돌고 네트워크를 쓰지 않는다. 시험 환경은 WSL2이고 브라우저·macOS는 없다.
 
 ### 8.1 작업별 상태
 
@@ -305,6 +305,10 @@ M3:
 | WEB.3 | B5 | 구현 | `cost/pricing.ts`(내장 가격표, asOf 90일 점검), `meter.ts`(reported·estimated·free 계산, 월 무료 한도 경고, `cap_web_usage` 누적), `limits.ts`(세션당 호출 상한), `pricing-cli.ts`. `just web-pricing`을 구현했다(출력만 하고 종료코드 0). `cost.test.ts` |
 | WEB.4 | B6 | 구현 | `fetch/convert/`(WEB-R16 영역: `convert.ts`, `sanitize.ts`, `readability.ts`, `defuddle.ts`, `turndown.ts`), `convert-worker.ts`(네트워크 전역을 지운 뒤 변환 모듈을 동적 import), `convert-runner.ts`(Worker 실행기와 직접 실행기), `local-provider.ts`, `promote.ts`(플러그인 후보 승격. 브라우저 승격은 비워 둠), `raw-read.ts`, `truncate.ts`, `robots-gate.ts`, `pipeline.ts`. `convert.test.ts`, `convert-worker.test.ts`, `fetch-pipeline.test.ts`, `fetch-cache-behavior.test.ts`. WEB-R16 확인(plan §6 4번): `convert/`에 `fetch(` 호출과 `node:http` import를 넣으면 `just check-layers`와 `just lint`가 각각 실패하는 것을 확인하고 되돌렸다 |
 | WEB.5 | B7 | 구현 | `search/chain.ts`(`planChain`, `runChain`: 탐침, fallback 기록, 명시 선택 규칙), `probe-cache.ts`(성공 5분, 실패 30초), `query.ts`(지시어 파서, 후처리 필터, `relaxed`), `model-tool.ts`(`decideModelSearchTool`), `registry.ts`(플러그인 등록을 provider로 만들고 내장 후보와 함께 `WebProviderCatalog`로 냄), `search-api.ts`(검색 서비스: 마스킹, 상한, 메모, single-flight, 정규화, 비용), `service.ts`와 `runtime.ts`(포트를 받아 `WebService` 조립), `manifest.ts`. `chain.test.ts`, `availability.test.ts`, `query.test.ts`, `model-tool.test.ts`, `registry.test.ts`, `search-api.test.ts` |
+
+| WEB.6 | B8 | 구현 | `search/providers/searxng.ts`(주소 감지, `format=json` 탐침, 403 `json-disabled`, 결과 정규화, endpoint 예외), `query-text.ts`(지시어를 검색어 연산자로 되돌림). 요청은 `createBoundProviderHttp`의 로컬 endpoint 예외로 나가며 `web.fetch` 콘텐츠 URL에는 열리지 않는다. `searxng.test.ts`(후보 순서, 설정 주소 단독, 감지 끔, 403, 비JSON, 메타데이터 주소 거부, 정규화, 연산자, 상태 코드별 오류, 서비스 통과, endpoint 예외는 provider 전용) |
+| WEB.6 | B9 | 구현 | `search/providers/builtin-wrapper.ts`(`HostedSearchPort` 호출, `pause_turn` 이어 요청 상한, 사용량 합산 비용, `unsupported-model`·`org-disabled` 탐침), `model-tool.ts`의 `normalizeHostedSearch`와 `publishedDateOfPageAge`, `providers/builtin.ts`(내장 후보 조립), `testing/fake-hosted-search.ts`(테이프 재생 포트), `test/fixtures/tapes/*.json`. `wrapper.test.ts`(이어 요청 상한, `encrypted_content` 없음, 비용 추정, 조직 차단 기억과 해제, 오류 변환, 도메인 필터 전달, 정규화) |
+| WEB.6 | E4 | 구현 | `e4-search-selection.int.test.ts`: 루프백 가짜 SearXNG를 운영 전송(`createHttpTransport`)으로 호출해 `meta.provider = "searxng"`, 닫힌 포트면 `builtin-wrapper`와 `fallbacks[0] = { provider: "searxng", stage: "probe", reason: "unreachable" }`, 403이면 `json-disabled`와 안내 한 번, 기본 후보 주소 감지(녹화 전송), 명시 선택은 내려가지 않음 |
 
 ### 8.2 guarded-fetch 0.1.6 소스 확인 (WEB.2)
 
@@ -334,7 +338,7 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 | Bun 런타임에서 guarded-fetch 동작 | `undici`가 Bun에서 도는지, `connect.lookup`을 Bun의 소켓이 따르는지 실행으로 확인하지 못했다. 소스만 읽었다 | 사람이 임시 스모크로 `guardedFetch("http://127.0.0.1:<루프백 서버>")`가 `hostname_unsafe`로 거부되는지, `localhost`로 해석되는 이름이 막히는지 확인한다. 막히지 않으면 `dispatcher`에 자체 `Agent`를 넘기는 방식(undici 직접 의존)으로 바꾼다 |
 | 변환 worker의 네트워크 차단 | `convert-worker.ts`는 전역 `fetch`, `WebSocket`, `EventSource`, `XMLHttpRequest`를 지우고 `Bun.connect`, `Bun.listen`, `Bun.udpSocket`, `Bun.serve`를 부르면 던지는 함수로 바꾼다(시험: probe가 `blocked`를 돌려준다). `Bun.fetch`는 쓰기 불가·설정 불가이고 `globalThis.Bun`도 설정 불가라 Bun 1.4.3에서 막을 길이 없다(M2 검토 11). `node:http` 같은 모듈 import는 워커 안에서도 열려 있다 | 변환 모듈(`convert/`)의 `Bun.` 접근과 네트워크 모듈 import는 WEB-R16 검사(`check-layers`)가 막는다. 워커 자체를 프로세스로 격리하면 닫히지만 M2 범위 밖이다 [미결] |
 | `direct` 모드의 DNS 리바인딩 | [해소: M2 검토 10] 전송이 이름을 다시 풀어 검사한 주소로 직접 연결한다. 루프백 서버와 가짜 해석기로 http의 주소 고정과 메타데이터 거부를 시험한다(`http-transport.int.test.ts`) | https의 `tls.serverName` 고정은 Bun에서 자체 서명 인증서 루프백 서버로 동작을 확인했지만(이름이 다르면 `ERR_TLS_CERT_ALTNAME_INVALID`) 저장소 시험에는 개인 키가 필요해 넣지 않았다. 실제 인터넷 호스트에 대한 https 접속과, public 모드에서 guarded-fetch가 `localhost` 이름을 거부하는 경로의 실사용 확인은 사람이 한다 |
-| `cap_web_usage` 가격 단위 | 래퍼 토큰 단가는 Haiku 5.5 값이고 사용할 모델에 따라 다르다. 토큰 수는 ADR-0005 §3.2의 추정이다 | WEB.6 뒤 실측(`just web-wrapper-measure`, 사람 확인 뒤) |
+| `cap_web_usage` 가격 단위 | 래퍼 토큰 단가는 Haiku 5.5 값이고 사용할 모델에 따라 다르다. 토큰 수는 ADR-0005 §3.2의 추정이다 | 실제 키 약 20회 측정은 사용자 승인 뒤에 한다(m2-plan 결정 D11). 측정 레시피 `just web-wrapper-measure --yes`는 아직 만들지 않았다(justfile은 이 레인의 소유 경로 밖이다). 측정 전까지 비용·지연은 [가정]이다 |
 | robots.txt 실제 사이트 동작 | `fetch/robots-gate.ts`는 정책 검사를 거친 같은 전송으로 가져오고 녹화 픽스처로만 시험했다. 리다이렉트로 다른 호스트에 가는 robots.txt는 따라가지 않아 연결 실패와 같게(전부 금지) 다룬다 | 실제 사이트 몇 곳에서 사람이 확인(`always` 설정으로 fetch) |
 
 ### 8.4 문서와 다르게 정한 점
@@ -360,3 +364,13 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 | L0.secrets | `HeaderSecretResolver`(플러그인 provider 인증 값을 전송 직전에만 읽는 경로). M3 플러그인이 들어올 때 필요하다 | 스펙 §3.6.1 |
 | F 레인 | 없음. `defs/web.ts`, `web-provider.ts`는 그대로 썼다. 다만 `WebFetchPage.status`가 100~599만 받아, 일괄 호출에서 실패한 URL의 페이지는 합성 상태 값을 쓴다(스펙 §4.9.1) | 스펙 §4.9.1 |
 
+### 8.6 WEB.6 구현 메모
+
+- 내장 후보는 `createWebRuntime`이 만든다. SearXNG는 항상 후보이고(origin `detected`, 캐시 `persist`), 내장 래퍼는 `hostedSearch`(`ModelService.hostedSearch`)를 받았을 때만 후보다(origin `builtin`, 캐시 `session`). 시험처럼 체인을 직접 짜려면 `builtinSearch: false`로 끈다. 두 provider의 설정(`l2.web.search.searxng.*`, `l2.web.search.wrapper.*`)은 스레드 범위가 없는 유효 값을 호출마다 읽는다.
+- SearXNG 탐침 응답 상한은 512 KiB다(spec §4.8.3에서 64 KiB에서 올렸다). 실제 인스턴스의 응답 크기는 재지 못했다 [가정]. 감지 후보 주소 네 개(`127.0.0.1`·`localhost`의 8888, 8080)도 실제 Docker 구성과 대조하지 못했다.
+- 탐침 실패는 `ProbeCache`가 30초 기억한다. 그래서 SearXNG를 새로 띄워도 최대 30초 동안은 이전 실패가 보인다. 설정 변경 때 `ProbeCache.forget`을 부르는 연결은 HOST.6이 한다.
+- `computeCost`는 provider가 `basis: "estimated"`로 알린 `cost`를 사용량으로만 읽고 가격표로 다시 계산한다(spec §4.4.1). 내장 래퍼가 이 경로를 쓴다. 플러그인 provider가 `estimated`를 알리면 금액이 가격표 값으로 바뀐다.
+- `GuardedHttp`의 로컬 endpoint 비교(`endpointMatches`)가 대괄호 IPv6(`[::1]:8888`)를 호스트와 포트로 나누어 비교하도록 고쳤다. 전에는 대괄호를 붙인 채 비교해 IPv6 로컬 endpoint가 항상 거부됐다(M2 검토 18). 시험: `guarded-http.test.ts`.
+- 모델 테이프는 포트 수준 JSON(`HostedSearchResponse`와 `HostedSearchError`의 나열)이다. 모델 provider의 원시 스트림 테이프는 core-models의 `hosted-search.test.ts`가 시험한다. 두 시험이 `HostedSearchPort` 계약에서 만난다.
+- 이 레인이 하지 않은 일: 확장 엔트리의 `input`·`session_shutdown`·`turn_start` 구독(HOST.6), `normalizeHostedSearch`를 쓰는 모델용 hosted 경로(`modelTool: hosted`)의 L1.models 연결, 실제 키 측정(D11).
+- 소유 경계 밖 수정 하나: `core-models/test/hosted-search.test.ts`의 `hostedSearch` 널 검사 세 줄. F.8이 `ModelService.hostedSearch`를 필수로 올린 뒤 `no-unnecessary-condition`이 실패했다(`just lint`). 동작 변경은 없다.

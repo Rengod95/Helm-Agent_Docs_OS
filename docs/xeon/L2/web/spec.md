@@ -1140,8 +1140,9 @@ export const WEB_CAPABILITIES = [WebSearch, WebFetch, WebBrowse, WebResearch] as
 
 - 모든 네트워크 메서드는 `meta.cost`를 채운다(`_research/web-tools.md` §4.8).
 - provider가 금액을 주면(`ProviderSearchResult.cost`, `basis: "reported"`) 그 값을 쓴다. 없으면 `manifest.pricing.units` × 사용 단위로 `basis: "estimated"`를 계산하고 `pricingAsOf`를 채운다. 무료 provider는 `basis: "free"`, `usd: 0`이다.
+- provider가 `basis: "estimated"`인 `cost`를 주면 그 금액은 믿지 않고 `units`(잰 사용량)만 받아 위와 같이 가격표로 다시 계산한다 [제안: WEB.6]. 모델 provider가 금액 없이 토큰·검색 수만 주는 내장 래퍼가 이 경로를 쓴다.
 - 단위에는 컨텍스트에 들어간 텍스트 길이 `context_chars`를 항상 넣는다. 본문 토큰이 검색 요금보다 클 수 있기 때문이다(`_research/web-tools.md` §5.3).
-- 래퍼는 L1.models가 돌려준 토큰 사용량과 검색 요청 수로 계산한다. 1회 약 $0.011은 ADR-0005 §3.2 산식이고 토큰 수는 측정하지 않은 [가정]이다. M2 이후 실측 값으로 바꾼다.
+- 래퍼는 L1.models가 돌려준 토큰 사용량(`tokens_in`, `tokens_out`)과 검색 요청 수(`search`)로 계산한다. 이어 요청(`pause_turn`)을 보냈으면 응답마다 사용량을 더한다. 1회 약 $0.011은 ADR-0005 §3.2 산식이고 토큰 수는 측정하지 않은 [가정]이다. 실제 키 측정은 사용자 승인 뒤에 한다(m2-plan 결정 D11).
 
 #### 4.4.2 가격표 기준일
 
@@ -1318,13 +1319,16 @@ ADR-0005 §6 미결 "SearXNG 자동 감지 대상(주소 목록, 탐침 요청 �
 - 대상 주소:
   1. `l2.web.search.searxng.url`이 있으면 그 주소 하나만 쓴다.
   2. 비어 있고 `l2.web.search.searxng.detect`가 참(기본)이면 후보를 순서대로 본다: `http://127.0.0.1:8888`, `http://127.0.0.1:8080`, `http://localhost:8888`, `http://localhost:8080` [가정: SearXNG Docker 예시의 흔한 포트. `_research/durable-and-search-facts.md` §B-2는 포트를 적지 않았다].
-- 탐침 요청: `GET <base>/search?q=xeon&format=json&pageno=1`, 제한 시간 1.5초, 응답 64 KiB 상한.
+- 탐침 요청: `GET <base>/search?q=xeon&format=json&pageno=1`, 제한 시간 1.5초, 응답 512 KiB 상한 [가정: WEB.6. 처음 제안한 64 KiB는 실제 응답 크기를 재지 않은 추측이었다. 결과 수십 건의 `format=json` 응답은 그보다 커서 64 KiB에서 잘리면 감지가 항상 실패한다. 실측 전까지 넉넉히 잡는다].
   - 200이고 JSON 본문에 `results` 배열과 `query` 문자열이 있으면 감지 성공.
   - 403이면 `json-disabled`. `settings.yml` `search.formats`에 `json`이 없을 때다(`_research/durable-and-search-facts.md` §B-2).
   - 연결 거부, 시간 초과, JSON이 아니거나 필드가 없으면 `unreachable`.
+- 후보는 순서대로 하나씩 탐침하고 첫 성공에서 멈춘다(병렬로 보내면 같은 서비스에 질의가 둘 나간다). 후보가 모두 실패했는데 하나라도 403이었으면 `json-disabled`, 아니면 `unreachable`이다. 감지에 성공한 주소는 다음 탐침에서 맨 앞에 두고, 검색 호출은 그 주소로 보낸다. 설정 주소에 경로가 있으면(`https://host/searx`) 경로를 유지하고 끝 슬래시만 뺀다.
 - 탐침은 상위 검색 엔진으로 질의 하나를 보낸다. 그래서 감지는 세션의 첫 검색 때 한 번 하고, 결과를 5분 캐시한다(§4.8.2). 앱 시작 때 미리 하지 않는다.
 - 감지된 주소는 그 SearXNG provider의 endpoint 예외가 된다(§4.6.5).
-- `json-disabled`이면 사용자에게 한 번 안내한다: "SearXNG가 감지됐지만 JSON 형식이 꺼져 있다. settings.yml의 search.formats에 json을 더한다." 안내는 `meta.warnings`와 L4 진단에 남긴다.
+- `json-disabled`이면 사용자에게 한 번 안내한다: "SearXNG가 감지됐지만 JSON 형식이 꺼져 있다. settings.yml의 search.formats에 json을 더한다." 안내는 `meta.warnings`와 L4 진단에 남긴다. 구현(WEB.6): provider가 프로세스당 한 번 `web.searxng_json_disabled`를 로그로 남기고, 서비스가 `meta.warnings`에 `"searxng_json_disabled: add json to search.formats in SearXNG settings.yml"`을 대화마다 한 번 싣는다.
+- 검색 호출(WEB.6): `GET <base>/search?q=<검색어>&format=json&pageno=1&categories=general`에 `recency`가 있으면 `time_range`(day, week, month, year)를 더한다. 검색어는 앞단이 푼 지시어를 엔진이 흔히 알아듣는 연산자(`"구절"`, `-제외어`, `site:`, `-site:`, `filetype:`, `intitle:`)로 되돌려 만든다. `site:`와 `filetype:`은 값이 하나일 때만 넣는다. 네이티브 적용으로 알리는 차원은 `recency`뿐이고 나머지는 앞단이 결과에 다시 적용한다.
+- 결과 정규화(WEB.6): `results[]`의 `url`(http·https만), `title`, `content`(`snippet` 구절), `publishedDate`(시간대가 없으면 UTC)를 `ProviderSearchItem`으로 옮긴다. 결과가 하나도 없는데 `unresponsive_engines`가 있으면 `upstream_error`로 내려가 체인이 다음 후보를 쓰게 한다. 결과가 있으면 응답하지 않은 엔진을 `searxng_engine_unresponsive:<엔진>` 경고로 싣는다(최대 4개). SearXNG의 `answers`, `infoboxes`, `suggestions`는 쓰지 않는다.
 - SearXNG 코드를 번들하거나 링크하지 않는다. AGPL-3.0 해석은 법률 확인 전 [가정]이다(ADR-0005 §3.1).
 
 #### 4.8.4 내장 검색 래퍼
@@ -1339,7 +1343,7 @@ ADR-0005 §3.1 ②, §3.2, §3.4 아래 항목을 구체화한다.
 6. 비용: 검색 요청 수와 입력·출력 토큰으로 계산한다(§4.4.1).
 7. 탐침 `isAvailable`:
    - 현재 모델 provider·모델에 hosted 검색이 없으면 `unsupported-model`.
-   - 이전 호출이 조직 차단 400을 받았으면 `org-disabled`. 이 판정은 프로세스 수명 동안 기억하고, 설정이 바뀌면 지운다.
+   - 이전 호출이 조직 차단 400을 받았으면 `org-disabled`. 이 판정은 프로세스 수명 동안 기억하고, 설정 `l2.web.search.wrapper.model`이 바뀌면 지운다(WEB.6).
    - 그 밖에는 `ok`. 탐침용 모델 호출은 보내지 않는다.
 8. 지연과 비용은 측정하지 않았다. 1회 약 $0.011은 [가정]이고 지연 수치는 없다(ADR-0005 §4.2, §6).
 
@@ -1708,7 +1712,7 @@ export const webSettings = defineSettings("l2.web", {
 | `ProviderIdSchema`, `ProviderSelectionMeta`, `ProviderFallback`, `orderProviderCandidates` | `F.capabilities.spec` §3.11(`provider.ts`) | 있음 |
 | `CallOptions.context`(`CallContext`, `CallerInfo`) | `F.capabilities.spec` §3.2 | 있음 |
 | `defineSettings`, `ScopeStack`, `SettingDef` | `F.wire-settings.spec` | 있음 |
-| `HostedSearchPort`: 모델 지정, hosted 검색 도구 하나만 단 단일 턴 요청, `stopReason`(`end_turn`·`pause_turn`·`max_tokens`·`refusal`), 이어 요청용 불투명 continuation, 결과 블록(url, title, page_age, cited_text), 토큰·검색 요청 사용량, 조직 차단 400 식별, 모델별 hosted 지원 여부 조회 | `L1.models.spec` | 요청 [가정] |
+| `HostedSearchPort`: 모델 지정, hosted 검색 도구 하나만 단 단일 턴 요청, `stopReason`(`end_turn`·`pause_turn`·`max_tokens`·`refusal`), 이어 요청용 불투명 continuation, 결과 블록(url, title, page_age, cited_text), 토큰·검색 요청 사용량, 조직 차단 400 식별, 모델별 hosted 지원 여부 조회 | `L1.models.spec` | 있음(F `services/models.ts`의 `HostedSearchPort`, 구현 `core-models`의 `createHostedSearch`, `ModelService.hostedSearch`) |
 | hosted 서버 도구를 모델 요청에 넣는 기능과 `encrypted_content` 반송(§4.8.1 A안) | `L1.models.spec` | 요청 [가정] |
 | `ApprovalService`(`xeon.approvals`) 요청 kind `tool`·`plan`, 기억 범위 | `L1.tools.spec` | [가정] |
 | `redactForPersistence` 적용 경로(영속 사본) | `L1.tools.spec`, `L1.persistence.spec` | 요청 [가정] |

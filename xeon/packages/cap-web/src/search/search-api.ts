@@ -34,6 +34,7 @@ import { guarded, invalidInput, type WebFailure } from "../errors.ts";
 import { buildSource } from "../fetch/source.ts";
 import type { SearchCandidate } from "../ports/providers.ts";
 import { planChain, runChain, type ChainPlan } from "./chain.ts";
+import { SEARXNG_JSON_DISABLED_WARNING } from "./providers/searxng.ts";
 import {
   applyPostFilters,
   mergeFilters,
@@ -155,6 +156,17 @@ export function createSearchApi(deps: WebDeps): {
 } {
   const memo: SearchMemo<Shaped> = createSearchMemo<Shaped>(deps.clock);
   const flight = createSingleFlight<Result<Shaped, WebFailure>>();
+  /** SearXNG JSON 꺼짐 안내를 이미 낸 대화(스레드가 없는 호출은 빈 문자열 하나). 대화마다 한 번만 안내한다(§4.8.3) */
+  const jsonDisabledNoticed = new Set<string>();
+
+  /** 이 호출에서만 붙는 안내. 체인에서 SearXNG가 `json-disabled`로 내려갔으면 대화마다 한 번 알린다 */
+  function noticesOf(shaped: Shaped, threadId: ThreadId | undefined): readonly string[] {
+    if (!shaped.fallbacks.some((fallback) => fallback.reason === "json-disabled")) return [];
+    const key = threadId ?? "";
+    if (jsonDisabledNoticed.has(key)) return [];
+    jsonDisabledNoticed.add(key);
+    return [SEARXNG_JSON_DISABLED_WARNING];
+  }
 
   /** provider 호출을 마치고 후처리 필터를 적용한 결과를 만든다 */
   async function execute(
@@ -221,6 +233,7 @@ export function createSearchApi(deps: WebDeps): {
     cache: CacheState,
     startedAt: number,
     fromMemo: boolean,
+    notices: readonly string[],
   ): Result<WebSearchOutput, WebFailure> {
     if (!table.ok) {
       return err({
@@ -317,8 +330,8 @@ export function createSearchApi(deps: WebDeps): {
         cache,
         cost,
         warnings: fromMemo
-          ? shaped.stableWarnings
-          : [...shaped.stableWarnings, ...shaped.callWarnings],
+          ? [...shaped.stableWarnings, ...notices]
+          : [...shaped.stableWarnings, ...shaped.callWarnings, ...notices],
       }),
     });
   }
@@ -389,6 +402,7 @@ export function createSearchApi(deps: WebDeps): {
           "hit",
           startedAt,
           true,
+          [],
         );
       }
     }
@@ -425,7 +439,17 @@ export function createSearchApi(deps: WebDeps): {
     if (freshness !== "live" && shaped.cachePolicy !== "none" && answeredFirst && ttlMs > 0) {
       memo.store(key, shaped, ttlMs);
     }
-    return assemble(shaped, limit, contentMode, threadId, table, state, startedAt, false);
+    return assemble(
+      shaped,
+      limit,
+      contentMode,
+      threadId,
+      table,
+      state,
+      startedAt,
+      false,
+      noticesOf(shaped, threadId),
+    );
   }
 
   return {

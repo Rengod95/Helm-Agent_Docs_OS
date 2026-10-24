@@ -28,6 +28,34 @@ const PAID: PricingTable = {
 };
 
 describe("cost", () => {
+  test("a provider that reports estimated usage is priced from the table", () => {
+    const priced = computeCost(
+      {
+        provider: "builtin-wrapper",
+        pricing: PAID,
+        reported: {
+          usd: 999,
+          basis: "estimated",
+          units: [
+            { name: "search", count: 2 },
+            { name: "page_content", count: 4 },
+          ],
+        },
+        units: [{ name: "search", count: 1 }],
+        contextChars: 0,
+      },
+      NOW,
+    );
+    // 알린 금액(999)은 믿지 않고 알린 사용량만 가격표로 계산한다
+    expect(priced.cost.basis).toBe("estimated");
+    expect(priced.cost.usd).toBeCloseTo(2 * 0.005 + 4 * 0.001, 10);
+    expect(priced.cost.pricingAsOf).toBe(PAID.asOf);
+    expect(priced.cost.units).toEqual([
+      { name: "search", count: 2 },
+      { name: "page_content", count: 4 },
+    ]);
+  });
+
   test("reported vs estimated vs free", () => {
     const reported = computeCost(
       {

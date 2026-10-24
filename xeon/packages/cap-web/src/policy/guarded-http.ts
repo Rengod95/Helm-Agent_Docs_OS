@@ -74,13 +74,24 @@ export interface BoundProviderHttp {
   ): Promise<Result<GuardedHttpResponse, WebFailure>>;
 }
 
-function endpointMatches(endpoint: string, host: string, port: string): boolean {
+/** `host[:port]` 형태의 endpoint를 나눈다. IPv6는 대괄호로 감싼 `[::1]:8888` 형태만 포트를 갖는다 */
+function splitEndpoint(endpoint: string): { readonly host: string; readonly port: string } {
   const lowered = endpoint.toLowerCase();
-  const cut = lowered.lastIndexOf(":");
-  const hasPort = cut !== -1 && !lowered.endsWith("]");
-  const endpointHost = hasPort ? lowered.slice(0, cut) : lowered;
-  const endpointPort = hasPort ? lowered.slice(cut + 1) : "";
-  return endpointHost === host && endpointPort === port;
+  if (lowered.startsWith("[")) {
+    const close = lowered.indexOf("]");
+    if (close === -1) return { host: lowered, port: "" };
+    const rest = lowered.slice(close + 1);
+    return { host: lowered.slice(1, close), port: rest.startsWith(":") ? rest.slice(1) : "" };
+  }
+  const first = lowered.indexOf(":");
+  // 콜론이 둘 이상이면 대괄호 없는 IPv6 주소이고 포트는 없다
+  if (first === -1 || first !== lowered.lastIndexOf(":")) return { host: lowered, port: "" };
+  return { host: lowered.slice(0, first), port: lowered.slice(first + 1) };
+}
+
+function endpointMatches(endpoint: string, host: string, port: string): boolean {
+  const parts = splitEndpoint(endpoint);
+  return parts.host === host && parts.port === port;
 }
 
 function lowerHeaders(

@@ -35,6 +35,19 @@ function mergeUnits(units: readonly UsageUnit[]): UsageUnit[] {
 
 /** 순수 함수. 가격표 단가 × 단위로 금액을 추정하거나 provider가 준 금액을 쓴다 */
 export function computeCost(input: CostInput, nowMs: number): CostResult {
+  if (input.reported?.basis === "estimated") {
+    // provider가 알린 값이 추정이면 금액은 믿지 않고 잰 사용량(units)만 받아 우리 가격표로 다시 계산한다.
+    // 모델 provider가 금액 없이 토큰·검색 수만 주는 내장 래퍼가 이 경로를 쓴다
+    return computeCost(
+      {
+        provider: input.provider,
+        pricing: input.pricing,
+        units: input.reported.units.filter((unit) => unit.name !== "context_chars"),
+        contextChars: input.contextChars,
+      },
+      nowMs,
+    );
+  }
   const withContext = mergeUnits([
     ...input.units,
     ...(input.contextChars > 0 ? [{ name: "context_chars", count: input.contextChars }] : []),

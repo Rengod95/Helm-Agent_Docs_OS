@@ -1,5 +1,6 @@
 import type { Clock, Logger } from "@xeon/contracts";
 import type { WebService } from "@xeon/contracts/capabilities";
+import type { HostedSearchPort } from "@xeon/contracts/services";
 import type { LocalIdFactory, ThreadId } from "@xeon/contracts/conversation";
 import { createFetchCache, type FetchCache } from "./cache/fetch-cache.ts";
 import { createSourceIdRegistry } from "./contract/source-ids.ts";
@@ -20,6 +21,7 @@ import type { WebSessionSourcesPort } from "./ports/session-sources.ts";
 import type { WebStorePort } from "./ports/store.ts";
 import type { HttpTransport } from "./ports/transport.ts";
 import { createProbeCache, type ProbeCache } from "./search/probe-cache.ts";
+import { createBuiltinSearchCandidates } from "./search/providers/builtin.ts";
 import { createProviderRegistry, type RegistrationSource } from "./search/registry.ts";
 import { createWebService } from "./service.ts";
 import type { WebSettings } from "./settings.ts";
@@ -48,7 +50,14 @@ export interface WebRuntimeOptions {
   readonly headerSecrets?: HeaderSecretResolver;
   /** 플러그인 provider 등록 목록(X가 넘긴다). 기본은 비어 있다 */
   readonly registrations?: RegistrationSource;
-  /** 내장 provider 후보(searxng, builtin-wrapper). 기본은 비어 있다 */
+  /**
+   * 모델 provider의 hosted 검색 포트(`ModelService.hostedSearch`). 있으면 내장 검색 래퍼가 후보에 들어간다(L2.web.spec §4.8.4).
+   * 없으면 래퍼 없이 SearXNG와 플러그인만 후보다
+   */
+  readonly hostedSearch?: HostedSearchPort;
+  /** false면 내장 검색 provider(searxng, builtin-wrapper)를 후보에 넣지 않는다. 기본 true. 체인을 직접 짜는 시험이 쓴다 */
+  readonly builtinSearch?: boolean;
+  /** 이 밖에 더하는 내장 provider 후보. 기본은 비어 있다 */
   readonly builtin?: {
     readonly search: readonly SearchCandidate[];
     readonly fetch: readonly FetchCandidate[];
@@ -104,9 +113,22 @@ export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
     secrets: options.headerSecrets,
     guard: options.guard,
   };
+  const builtinSearch =
+    options.builtinSearch === false
+      ? []
+      : createBuiltinSearchCandidates({
+          http: providerHttp,
+          settings: () => options.settings(undefined).search,
+          clock: options.clock,
+          logger: options.logger,
+          hosted: options.hostedSearch,
+        });
   const catalog = createProviderRegistry({
     source: options.registrations ?? EMPTY_SOURCE,
-    builtin: options.builtin ?? { search: [], fetch: [] },
+    builtin: {
+      search: [...builtinSearch, ...(options.builtin?.search ?? [])],
+      fetch: options.builtin?.fetch ?? [],
+    },
     http: providerHttp,
     clock: options.clock,
     logger: options.logger,

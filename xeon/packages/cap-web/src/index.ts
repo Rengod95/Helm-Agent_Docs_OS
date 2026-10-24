@@ -124,7 +124,31 @@ export type {
 } from "./search/registry.ts";
 export { planChain } from "./search/chain.ts";
 export type { ChainPlan } from "./search/chain.ts";
-export { decideModelSearchTool } from "./search/model-tool.ts";
+export {
+  decideModelSearchTool,
+  normalizeHostedSearch,
+  publishedDateOfPageAge,
+} from "./search/model-tool.ts";
 export type { ModelSearchSetting, ModelSearchTool, ModelToolInput } from "./search/model-tool.ts";
 export { parseSearchQuery, recencyCutoff } from "./search/query.ts";
 export type { ParsedQuery } from "./search/query.ts";
+export {
+  createSearxngProvider,
+  SEARXNG_DETECT_CANDIDATES,
+  SEARXNG_JSON_DISABLED_WARNING,
+  SEARXNG_PROVIDER_ID,
+  searxngManifest,
+} from "./search/providers/searxng.ts";
+export type { SearxngDeps } from "./search/providers/searxng.ts";
+export {
+  BUILTIN_WRAPPER_PROVIDER_ID,
+  createWrapperProvider,
+  WRAPPER_MAX_OUTPUT_TOKENS,
+  WRAPPER_SYSTEM_PROMPT,
+  wrapperManifest,
+} from "./search/providers/builtin-wrapper.ts";
+export type { WrapperDeps } from "./search/providers/builtin-wrapper.ts";
+export { createBuiltinSearchCandidates } from "./search/providers/builtin.ts";
+export type { BuiltinSearchDeps } from "./search/providers/builtin.ts";
+export { renderQueryText } from "./search/providers/query-text.ts";
+export type { QueryTextOptions } from "./search/providers/query-text.ts";

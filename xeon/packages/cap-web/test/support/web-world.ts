@@ -1,6 +1,7 @@
 import type { Logger, LogFields } from "@xeon/contracts";
 import type { CallOptions, WebService } from "@xeon/contracts/capabilities";
 import type { ThreadId } from "@xeon/contracts/conversation";
+import type { HostedSearchPort } from "@xeon/contracts/services";
 import type { WebDeps } from "../../src/deps.ts";
 import { directConvertRunner, type ConvertRunner } from "../../src/fetch/convert-runner.ts";
 import { createWebRuntime, type WebRuntime } from "../../src/runtime.ts";
@@ -49,6 +50,9 @@ export interface WebWorldOptions {
     readonly search: readonly SearchCandidate[];
     readonly fetch: readonly FetchCandidate[];
   };
+  /** true면 내장 검색 provider(searxng, builtin-wrapper)를 후보에 넣는다. 기본은 넣지 않는다 */
+  readonly builtinSearch?: boolean;
+  readonly hostedSearch?: HostedSearchPort;
   readonly asker?: FakeAsker;
   readonly headerSecrets?: HeaderSecretResolver;
   readonly extensionSetting?: (extension: string, key: string) => unknown;
@@ -133,6 +137,8 @@ export async function makeWebWorld(options: WebWorldOptions = {}): Promise<WebWo
     guard: fakeSecretGuard(options.secretValues ?? []),
     ...(options.registrations === undefined ? {} : { registrations: options.registrations }),
     builtin: options.builtin ?? { search: [], fetch: [] },
+    builtinSearch: options.builtinSearch === true,
+    ...(options.hostedSearch === undefined ? {} : { hostedSearch: options.hostedSearch }),
     ...(options.headerSecrets === undefined ? {} : { headerSecrets: options.headerSecrets }),
     ...(options.extensionSetting === undefined
       ? {}

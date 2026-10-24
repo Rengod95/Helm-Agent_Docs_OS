@@ -187,6 +187,20 @@ describe("provider http", () => {
     expect(transport.requests.length).toBe(1);
   });
 
+  test("a bracketed IPv6 local endpoint matches its host and port", async () => {
+    const resolver = fakeResolver();
+    const transport = fixtureTransport({ "http://[::1]:8888/ping": { body: "pong" } }, resolver);
+    const bound = createBoundProviderHttp(
+      { resolver, transport, secrets: undefined, guard: undefined },
+      { localEndpoints: ["[::1]:8888"] },
+    );
+    bound.bind(manifestOf({ endpoints: [], auth: { kind: "none", secrets: [] } }));
+    const ok = await bound.request({ method: "GET", url: "http://[::1]:8888/ping" }, SIGNAL);
+    expect(ok.ok).toBe(true);
+    const otherPort = await bound.request({ method: "GET", url: "http://[::1]:9999/ping" }, SIGNAL);
+    expect(otherPort.ok).toBe(false);
+  });
+
   test("a local endpoint on a private lan address uses the direct mode", async () => {
     const { bound, transport } = setup({ local: ["searx.lan:8080"] });
     const resolver = fakeResolver({ "searx.lan": ["10.1.2.3"] });
