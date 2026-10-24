@@ -14,6 +14,7 @@ import { indexVersion } from "../ledger/rows.ts";
 import { compareBytes, utf8DecodeStrict } from "../hash.ts";
 import type { KnowledgeSettings } from "../settings.ts";
 import type { SkillDiagnostic } from "../upstream/skills.ts";
+import type { IndexSnapshot } from "./delta.ts";
 import { describeSkill, mainFileOf } from "./document.ts";
 import { isAddressableSkillFile } from "./paths.ts";
 import { buildSkillIndexBlock, truncateDescription, type SkillIndexBlock } from "./prompt-block.ts";
@@ -46,6 +47,8 @@ export interface SkillsRuntime {
   reindex(): Promise<Result<ReindexResult, KnowledgeFailure>>;
   /** 세션 첫 turn에 넣는 인덱스 블록(spec §4.2.5) */
   indexBlock(threadId: string | undefined): Result<SkillIndexBlock, KnowledgeFailure>;
+  /** 모델이 보는 인덱스(이름과 잘린 설명)와 버전. 델타 알림의 기준이다(spec §4.2.6) */
+  indexSnapshot(threadId: string | undefined): Result<IndexSnapshot, KnowledgeFailure>;
 }
 
 /** 모델이 보는 순서: 프로젝트 → 사용자 → 확장 → 경로 */
@@ -124,6 +127,23 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
       .filter((row) => row.modelInvocable)
       .map((row) => entryOf(row, settings.indexDescriptionChars));
     return ok(buildSkillIndexBlock(visible, settings.indexBudgetChars, searchOptions));
+  };
+
+  const indexSnapshot: SkillsRuntime["indexSnapshot"] = (threadId) => {
+    const settings = deps.settings(threadId).skills;
+    if (!settings.enabled) return ok({ version: 0, descriptions: new Map() });
+    const read = readRows();
+    if (!read.ok) return read;
+    const descriptions = new Map<string, string>();
+    for (const row of winners(read.value.rows)) {
+      if (row.modelInvocable) {
+        descriptions.set(
+          row.name,
+          truncateDescription(row.description, settings.indexDescriptionChars),
+        );
+      }
+    }
+    return ok({ version: read.value.version, descriptions });
   };
 
   const list: SkillsRuntime["list"] = (input, options) => {
@@ -238,5 +258,5 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
     });
   };
 
-  return { list, view, reindex, indexBlock };
+  return { list, view, reindex, indexBlock, indexSnapshot };
 }

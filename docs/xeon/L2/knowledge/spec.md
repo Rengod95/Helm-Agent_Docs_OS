@@ -903,7 +903,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 #### 4.2.4 지연 로딩
 
 - `list`와 인덱스는 이름·설명·범위·해시만 담는다. 본문은 `view`를 부를 때 파일에서 읽는다.
-- `list`는 색인(DB)만 읽는다. 스킬 루트를 다시 훑는 일은 시작 시 재색인, `skills.reindex`, `view`의 해시 불일치 처리가 맡는다. 엔진이 도는 동안 바깥에서 새로 둔 스킬은 이 셋 중 하나가 있을 때까지 `list`에 나타나지 않는다(`session_start` 후크의 mtime 검사는 K11과 함께 한다).
+- `list`는 색인(DB)만 읽는다. 스킬 루트를 다시 훑는 일은 시작 시 재색인, `skills.reindex`, `view`의 해시 불일치 처리가 맡는다. 엔진이 도는 동안 바깥에서 새로 둔 스킬은 이 셋 중 하나나 새 세션의 `session_start`(§7)가 재색인할 때까지 `list`에 나타나지 않는다.
 - `view`는 매번 파일을 읽고 트리 해시를 다시 계산한다. 색인의 해시와 다르면 바깥 편집으로 보고 §4.3.5의 스킬 쪽 처리(원장 `external` 기록, 색인 갱신)를 한 뒤 결과를 돌려준다.
 - 지원 파일의 상대 경로는 스킬 디렉터리 기준이다. `view({ name, file })`로 읽는다. 모델 렌더링은 "상대 경로는 skill_view의 file로 읽는다"는 안내를 본문 앞에 붙인다(pi `formatSkillsForPrompt`의 상대 경로 안내를 우리 도구로 바꾼 것).
 
@@ -922,7 +922,9 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - 예산: `l2.knowledge.skills.indexBudgetChars`(기본 8,000자 [가정]). 항목 설명은 `l2.knowledge.skills.indexDescriptionChars`(기본 160자 [가정])에서 자르고 끝에 `…`을 붙인다. Hermes는 60자, Claude Code는 1,536자 상한이다(`_research/refs/hermes.md` §3.10.1 (라)·(바), `_research/item-catalog.md` L2 스킬 행). 기본값은 측정 뒤 정한다.
 - 예산을 넘으면 범위 순(프로젝트 → 사용자 → 확장 → 경로), 같은 범위 안에서는 이름 바이트 순으로 넣을 수 있는 만큼만 넣고 남은 개수를 적는다. 순서가 결정적이어야 같은 스킬 집합이 같은 블록을 만든다(프롬프트 캐시).
-- 블록 생성은 `skills/prompt-block.ts`의 순수 함수와 `SkillsRuntime.indexBlock(threadId)`로 구현했다(KN.1). `before_agent_start` 후크에 연결하는 일은 델타 알림(K11)과 `L1.context.spec`의 결정을 기다린다.
+- 블록 생성은 `skills/prompt-block.ts`의 순수 함수와 `SkillsRuntime.indexBlock(threadId)`로 구현했다(KN.1). 연결은 `turn-context.ts`가 한다(KN.5). `before_agent_start`에서 세션의 첫 turn이면 인덱스 블록과 메모리 스냅샷(§4.3.4)을 이어 붙여 `customType: "knowledge.context"`, `display: false`인 기록 메시지 하나로 더한다. 시스템 프롬프트는 건드리지 않는다. 더한 메시지가 세션 기록에 남는다는 것은 [가정]이다.
+- 첫 turn은 세션별 상태가 없는 turn이다. `session_start`의 `reason`이 `startup`·`new`면 상태를 비워 첫 turn으로 만들고, `resume`·`fork`·`reload`면 현재 인덱스를 기준으로 상태를 만든다. 이어받은 세션의 기록에 블록이 이미 있다고 보기 때문이다 [가정: `L1.context`가 기록 메시지를 컴팩션 뒤에 어떻게 다루는지에 따라 바뀐다].
+- 블록과 인덱스 스냅샷은 같은 시점의 색인에서 만든다. 스킬을 끄면(`l2.knowledge.skills.enabled`) 블록은 비고, 메모리를 끄면 스냅샷이 빈다. 둘 다 비면 메시지를 더하지 않는다.
 - 이 블록을 어디에 두는지(시스템 프롬프트 영역, 첫 turn 메시지)는 `L1.context.spec`이 정한다. [제안] 메모리 스냅샷(§4.3.4)과 같은 첫 turn 기록 메시지로 넣는다. 기록 메시지면 재개 때 같은 내용이 다시 쓰여 결정적이다.
 
 #### 4.2.6 인덱스 변경 알림
@@ -933,8 +935,11 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 스킬 인덱스 변경: 추가 deploy-rollback(롤백 절차 …), 변경 release-checklist, 삭제 old-notes
 ```
 
-- 세션마다 마지막으로 알린 `indexVersion`을 메모리에 둔다. 인덱스 버전은 원장 `seq` 중 인덱스를 바꾼 항목(`index_changed = 1`인 `applied` 행)의 최댓값이다. 이름·설명·모델 호출 여부가 바뀌거나 스킬이 생기고 사라진 변경만 센다. 프로세스 재시작 뒤에는 현재 버전으로 시작한다 [가정: 재시작 사이의 변경 알림 한 번을 놓칠 수 있다. 컴팩션 뒤에는 L1.context가 인덱스 블록을 다시 넣는다고 본다].
+- 세션마다 마지막으로 알린 인덱스 스냅샷(`indexVersion`과 모델에게 보이는 스킬의 이름 → 잘린 설명)을 메모리에 둔다. 인덱스 버전은 원장 `seq` 중 인덱스를 바꾼 항목(`index_changed = 1`인 `applied` 행)의 최댓값이다. 이름·설명·모델 호출 여부가 바뀌거나 스킬이 생기고 사라진 변경만 센다. 프로세스 재시작 뒤에는 현재 버전으로 시작한다 [가정: 재시작 사이의 변경 알림 한 번을 놓칠 수 있다. 컴팩션 뒤에는 L1.context가 인덱스 블록을 다시 넣는다고 본다].
 - 본문만 바뀐 변경은 알리지 않는다. 모델은 다음 `view`에서 새 본문을 읽는다.
+- 구현은 `before_agent_start`에서 현재 `indexVersion`을 상태의 버전과 비교한다. 같으면 아무것도 하지 않는다. 다르면 이름과 잘린 설명을 비교해(`skills/delta.ts`의 `diffIndex`) 추가·변경·삭제를 정하고, 상태를 현재로 올린 뒤 비어 있지 않을 때만 메모를 더한다. 모델 호출 여부가 바뀌어 목록에 나타나거나 사라지는 스킬은 추가·삭제로 센다. 같은 이름의 범위가 바뀌어도 설명이 같으면 알리지 않는다.
+- 메모는 `customType: "knowledge.index-delta"`, `display: false` 메시지 하나다. 목록은 이름 바이트 순이고 한 줄에 10개까지, 넘으면 `외 N개`로 줄인다. 추가한 스킬 옆 설명은 60자(코드 포인트)에서 `…`로 자른다. 예산을 넘어 첫 블록에 싣지 못한 스킬도 인덱스에 있으면 추가로 알린다.
+- 상태는 `session_shutdown`에서 지운다. 지운 세션의 다음 turn은 첫 turn으로 본다. 종료 후크 없이 사라진 세션의 항목은 프로세스가 끝날 때까지 남는다(항목 하나는 스킬 수만큼의 문자열이다).
 
 #### 4.2.7 `resources_discover` 지점과의 관계
 
@@ -985,7 +990,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 </memory>
 ```
 
-- 블록을 넣는 위치는 §4.2.5와 같이 `L1.context.spec`이 정한다. [제안] 인덱스 블록과 함께 첫 turn 기록 메시지 하나로 넣는다.
+- 블록을 넣는 위치는 §4.2.5와 같이 `L1.context.spec`이 정한다. 구현은 [제안]대로 인덱스 블록과 함께 첫 turn 기록 메시지 하나로 넣는다(§4.2.5). 같은 세션의 이후 turn에는 다시 넣지 않으므로 세션 중 메모리 쓰기는 이 세션의 스냅샷에 나타나지 않는다.
 - `l2.knowledge.memory.enabled`가 거짓이면 스냅샷을 넣지 않고 `memory_manage` 도구도 광고하지 않는다.
 
 #### 4.3.5 바깥 편집과 드리프트
@@ -1285,7 +1290,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 | 지점 | fold | 쓰임 |
 |---|---|---|
-| `session_start`(#30) | tap | 세션별 상태(마지막 인덱스 버전) 초기화, 스킬 루트의 mtime 검사로 바뀐 후보 재색인 |
+| `session_start`(#30) | tap | 세션별 상태(마지막 인덱스 스냅샷) 초기화. `startup` 말고는 스킬 루트를 다시 훑어 바깥 편집을 반영한다(전체 재색인이며 mtime 검사는 하지 않는다) |
 | `before_agent_start`(#3) | chain | 세션 첫 turn: 메모리 스냅샷 + 스킬 인덱스 블록을 메시지로 더한다. 이후 turn: 인덱스가 바뀌었으면 델타 메모를 더한다(§4.2.6). `before_agent_start.message`는 추가 병합이다(`F.extensions.spec` §4.1) [가정: 더한 메시지가 세션 기록에 남는다] |
 | `resources_discover`(#28) | chain | 패치를 돌려주지 않는다. 합성 결과의 스킬 경로를 받는 방법은 X가 정한다(§4.2.7) |
 | `session_shutdown`(#39) | tap | 세션별 메모리 상태 정리 |

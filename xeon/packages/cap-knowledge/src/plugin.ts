@@ -33,6 +33,7 @@ import { isKnowledgeSessionPort } from "./ports/session.ts";
 import { setupSearch } from "./search/setup.ts";
 import { KNOWLEDGE_MIGRATIONS, KNOWLEDGE_OWNER } from "./migrations.ts";
 import { createKnowledgeRuntime, type KnowledgeDeps } from "./service.ts";
+import { createTurnContext } from "./turn-context.ts";
 import { readKnowledgeSettings, type KnowledgeSettingsSource } from "./settings.ts";
 import type { SkillDiagnostic } from "./upstream/skills.ts";
 import { projectSkillsDir, resolveSkillRoots, type RootsResult } from "./skills/roots.ts";
@@ -198,6 +199,23 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
           message: started.error.message,
         });
       }
+
+      // 세션 맥락: 첫 turn 블록(스킬 인덱스, 메모리 스냅샷)과 인덱스 변경 델타(spec §4.2.5, §4.2.6, §7)
+      const turnContext = createTurnContext({
+        skills: runtime.skills,
+        memory: runtime.memory,
+        logger,
+      });
+      g.on("session_start", async (payload) => {
+        await turnContext.start(payload.threadId, payload.reason);
+      });
+      g.on("before_agent_start", async (_payload, _current, ctx) => {
+        const message = await turnContext.beforeAgentStart(ctx.threadId);
+        return message === undefined ? undefined : { message };
+      });
+      g.on("session_shutdown", (_payload, ctx) => {
+        turnContext.shutdown(ctx.threadId);
+      });
 
       if (tools === undefined) {
         logger.warn("knowledge.tools_missing", { effect: "no tool is advertised" });

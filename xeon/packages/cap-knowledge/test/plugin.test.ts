@@ -180,7 +180,11 @@ describe("manifest", () => {
     ]);
     const unit = knowledgePlugin({ settings: { layers: () => [] }, ids: fixedLocalIds() });
     expect(unit.builtin).toBe(true);
-    expect(unit.manifest.points).toEqual([]);
+    expect(unit.manifest.points).toEqual([
+      "session_start",
+      "before_agent_start",
+      "session_shutdown",
+    ]);
   });
 });
 
@@ -350,6 +354,56 @@ describe("plugin", () => {
     expect(installed.setups[0]?.status).toBe("applied");
     // 읽을 수 없는 스킬 루트는 경고 진단이다. 저장소 쓰기 실패와 달리 시작 오류가 아니다
     expect(lines.map((line) => line.event)).not.toContain("knowledge.startup_failed");
+  });
+});
+
+async function agentStart(
+  t: Awaited<ReturnType<typeof boot>>["t"],
+  thread: ReturnType<Awaited<ReturnType<typeof boot>>["t"]["newThread"]>,
+  key: string,
+) {
+  const out = await t.host.dispatch(
+    "before_agent_start",
+    { prompt: "hi", systemPrompt: "BASE", systemPromptOptions: {} },
+    { threadId: thread, dispatchKey: key, initial: { messages: [], systemPrompt: "BASE" } },
+  );
+  return out.value.messages;
+}
+
+describe("turn hooks", () => {
+  test("the first turn carries the index block, a later change one delta memo, and shutdown forgets", async () => {
+    const { t, fs } = await boot({ prepare: (memory) => putSkill(memory, USER_SKILLS, "deploy") });
+    const thread = t.newThread();
+    await t.host.openThread(thread);
+    await t.host.dispatch(
+      "session_start",
+      { reason: "new", threadId: thread },
+      { threadId: thread, dispatchKey: "start" },
+    );
+
+    const first = await agentStart(t, thread, "turn-1");
+    expect(first).toHaveLength(1);
+    expect(first[0]?.customType).toBe("knowledge.context");
+    expect(first[0]?.content).toContain("<name>deploy</name>");
+    expect(await agentStart(t, thread, "turn-2")).toEqual([]);
+
+    // 엔진 밖에서 스킬이 늘면 세션 시작이나 재색인 뒤 다음 turn에 델타 하나가 간다
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    putSkill(fs, USER_SKILLS, "rollback", { description: "Roll back." });
+    await apis.skills?.reindex({});
+    const third = await agentStart(t, thread, "turn-3");
+    expect(third.map((message) => message.customType)).toEqual(["knowledge.index-delta"]);
+    expect(third[0]?.content).toBe("스킬 인덱스 변경: 추가 rollback(Roll back.)");
+
+    await t.host.dispatch(
+      "session_shutdown",
+      { reason: "quit" },
+      { threadId: thread, dispatchKey: "stop" },
+    );
+    const again = await agentStart(t, thread, "turn-4");
+    expect(again[0]?.customType).toBe("knowledge.context");
   });
 });
 
