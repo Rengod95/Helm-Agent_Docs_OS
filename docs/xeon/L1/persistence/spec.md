@@ -846,7 +846,7 @@ CREATE TABLE thread_creation_keys (
 | `p_approvals` | `approval_id` | `thread_id`, `origin_thread_id`, `tool_call_id`, `body_kind`, `requested_seq`, `resolved_seq`, `decision` | `approval.requested`, `approval.resolved` |
 | `p_blob_refs` | `(thread_id, sha256)` | `first_seq` | `detached`가 있는 모든 이벤트, `BlobRef` 필드가 있는 `effect.*` |
 | `step_checkpoints` | `thread_id` | `checkpoint_id`, `seq`, `turn_id`, `step_index`, `next`, `schema_version`, `record` | `checkpoint.step` |
-| `p_agents` | `child_thread_id` | `thread_id`(부모), `request_id`, `owner_kind`, `owner_turn_id`, `owner_tool_call_id`, `background`, `depth`, `agent`, `spawned_seq`, `settled_seq`, `settled_status`. 색인 `(thread_id, request_id)` 유일 | `agent.spawned`, `agent.settled`. F가 `agent.*`를 받지 않으면 `thread.started.spawnedBy`에서 투영한다(§10 8번) |
+| `p_agents` | `child_thread_id` | `thread_id`(부모), `request_id`, `owner_kind`, `owner_turn_id`, `owner_tool_call_id`, `background`, `depth`, `agent`, `spawned_seq`, `settled_seq`, `settled_status`, `settled_event_id`. 색인 `(thread_id, request_id)` 유일, `(thread_id, owner_turn_id)` 부분 색인(정착하지 않은 행) | `agent.spawned`, `agent.settled`. F가 `agent.*`를 받지 않으면 `thread.started.spawnedBy`에서 투영한다(§10 8번) |
 
 - `p_scopes`와 `p_settings`는 만들지 않는다 [결정: L1B.1, L1B.2]. session 범위 값(`settings.changed`)도 같은 이유로 활성 가지 이벤트에서 읽는다(§6.2). 켜짐·임대·상태 판은 활성 가지 이벤트로 계산하므로(§3.3 `ext.loadThread`) 이벤트 순서로 쌓이는 테이블이 버려진 가지의 값을 담을 일이 없다. `TxView.scopeStateRev`·`scopeLeaseEpoch`도 같은 계산이다.
 - 모든 투영 테이블은 `thread_id` 열을 둔다. thread 삭제 때 소유 투영기의 `tables`에서 그 thread 행을 함께 지운다(`eng.context-map.design` §5.2 [제안]).
@@ -1106,6 +1106,9 @@ export interface RewindPlan {
 
 - `threads.create`는 `thread.started { title, forkedFrom: null }`을 커밋한다. 요청 thread가 `absent`이고 첫 초안이 `thread.started`인 커밋은 소유 확인을 건너뛴다. 아무도 모르는 id라 다른 쓰기 소유자가 있을 수 없다. 면제 범위는 그 thread의 첫 이벤트 `thread.started` 하나이고, 같은 커밋의 다른 thread 초안(예: 부모의 `agent.spawned`)은 그 thread의 토큰으로 확인한다.
 - 생성 멱등 [제안]: `creationKey`가 있으면 쓰기 트랜잭션 안에서 `thread_creation_keys`를 먼저 읽는다. 행이 있으면 아무것도 쓰지 않고 그 `thread_id`로 `ThreadCreated{ replayed: true }`를 돌려준다(입력의 `threadId`는 버린다). 없으면 `thread.started` 커밋과 같은 트랜잭션에서 행을 쓴다. 그래서 호출자가 재시작 뒤 새 `threadId`로 다시 불러도 thread는 하나다. `requests`는 thread 범위(`(thread_id, request_id)`)라 이 일을 하지 못한다. 고아 thread 정리는 호출자가 `creationKey` 조회로 끝낸다(예: `L2.schedule.spec` 재시작 복구).
+- 자식 생성과 부모 연결 [결정: L1B.3]. F `ThreadCreateInput`에는 다른 thread의 초안(부모의 `agent.spawned`)을 같은 커밋에 싣는 자리가 없다. 그래서 두 커밋으로 나눈다: (1) 호출자가 `threads.create({ threadId, creationKey: <부모와 자식 requestId에서 만든 키>, inheritOwnerFrom })`로 자식을 만든다. `creationKey`가 같으면 재시도가 같은 자식을 돌려주므로(`replayed: true`) 중복 자식이 생기지 않는다. (2) 부모 대화에 `agent.spawned`를 커밋한다(커밋 안에서 `TxView.agentByRequestId`로 같은 requestId를 먼저 본다). 두 커밋 사이에 죽으면 `p_agents` 행이 없는 자식이 남지만, 재시도가 같은 `creationKey`로 같은 자식을 찾아 (2)를 이어 한다. 한 커밋으로 합치려면 F `ThreadCreateInput`(또는 `ThreadLifecycle`)에 부모 초안을 받는 자리를 더해야 한다 [미결: F 요청]. 같은 (부모, 자식 requestId)의 두 번째 `agent.spawned`가 걸러지지 않고 커밋되면 `p_agents`의 유일 색인이 투영 실패로 커밋 전체를 되돌린다.
+- 자식 연결은 이력이다 [결정: L1B.3]. 자식 thread를 `remove`해도 부모의 `agent.spawned`·`p_agents` 행은 남는다(재생성이 같은 행을 다시 만들기 때문이다). 소비자는 죽은 자식의 `thread_not_found`를 처리해야 한다. 부모를 `remove`하면 그 부모의 연결 행은 함께 지워진다.
+- `ResumePlan.openChildren`은 열린 turn이 소유한(`owner_turn_id`) 정착하지 않은 자식이다. scope 소유와 소유 turn이 없는 백그라운드 자식은 포함하지 않는다. 열린 turn에 취소 의도가 있으면 비어 있다(§4.8.1 5단계).
 - 자식 thread 생성 [제안]: `inheritOwnerFrom`이 있으면 core-persistence가 그 토큰의 holder(같은 엔진 인스턴스)로 `xeon.store.leases.acquire("session:<threadId>", holder)`를 부른 뒤 `thread.started` 커밋을 한다. 새 id라 임대 경합이 없다. 커밋이 실패하면 임대를 반납한다. 얻은 토큰은 `ThreadCreated.token`으로 돌려주고 보관해 이후 그 thread의 커밋 소유 확인에 쓴다. 하트비트(`leases.keepAlive`)도 core-persistence가 걸고, 잃으면(`onLost`) 부모와 같은 처리(그 thread의 메모리 작업 취소)를 호출자에게 알린다. 정착 때 반납은 `release(threadId, …)`다. 재개 때 자식 소유는 `openForWrite(child, token)`으로 다시 얻는다(`L1.agents.spec` §4.1, §4.5). 같은 holder가 엔진 인스턴스마다 하나이므로 holder 값은 조립 루트가 core-persistence에 넘긴다 [가정: 조립 루트 배선은 `L4.host-service.spec`이 정한다].
 - `workspace`: `ThreadCreateInput.workspace`는 `thread.started.workspace`(F가 선택 필드로 더했다, FR-P5 반영)에 실려 `p_threads.workspace`로 투영된다. 없으면 null이고 필드를 쓰지 않는다. 멱등 지문에는 workspace가 있을 때만 넣어, 필드가 없던 때의 같은 키 재시도가 `key_reused`가 되지 않게 한다. 투영 규칙이 바뀌어 `CORE_PROJECTOR_VERSION`을 올렸고 다음 열기에서 core가 다시 만들어진다.
 - 생성 뒤 `session_start{ reason: "new" }`를 발화한다(재전송이면 발화하지 않는다). `openForWrite`는 읽기 전용이 아닐 때 `session_start{ reason: "startup" }`을, 복구 표식이 남은 thread면 `resume`을 발화한다. 지점 발화는 모두 `SessionPoints`(`points.ts`)를 거치고, tap은 기다리지 않는다(`detach`, 실패는 Logger). `reload`는 엔진 재적재를 아는 호스트의 몫이다.
@@ -1426,7 +1429,7 @@ export interface SessionSettingsStore {
 19. 모델 테이프로 한 turn을 돌리고 C5 뒤 SIGKILL, 재개, 다음 turn을 돌리면 이벤트 seq가 빈칸 없이 이어진다.
 20. 쓰기 연결의 `PRAGMA synchronous` 조회값은 2(FULL)다(L0.store와 공동 확인).
 21. `events`에 UPDATE를 시도하면 트리거가 막는다. `threads.remove` 밖의 DELETE도 막는다.
-22. 자식 생성 커밋(`thread.started` + 부모 `agent.spawned`) 뒤 SIGKILL하고 다시 열면 `TxView.agentByRequestId(부모, requestId)`가 그 자식을 돌려주고, 자식이 정착하지 않았으면 `ResumePlan.openChildren`에 있다. `agent.settled` 뒤에는 `openChildren`에 없다.
+22. 자식 생성(`threads.create`의 `creationKey` + 부모 `agent.spawned`, §4.10.1) 뒤 SIGKILL하고 다시 열면 `TxView.agentByRequestId(부모, requestId)`가 그 자식을 돌려주고, 자식이 정착하지 않았으면 `ResumePlan.openChildren`에 있다. `agent.settled` 뒤에는 `openChildren`에 없다.
 23. 한 단계(도구 n개)의 커밋 수는 `3 + 3n`이다(§4.2 fsync 식). 모델 테이프 스모크의 커밋 기록으로 확인한다.
 24. 프로세스 A의 임대를 B가 인수한 뒤(epoch 증가) A의 토큰으로 커밋하면 `ownership_lost`이고 `events` 행이 늘지 않는다.
 25. 같은 `creationKey`로 서로 다른 `threadId`를 주어 `threads.create`를 두 번 부르면 `thread.started`는 하나이고 두 번째 결과는 `replayed: true`, 첫 `threadId`다.

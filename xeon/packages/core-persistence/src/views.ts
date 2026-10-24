@@ -10,6 +10,7 @@ import {
 } from "@xeon/contracts/conversation";
 import {
   EffectStatusSchema,
+  type AgentView,
   type ApprovalView,
   type EffectView,
   type InputView,
@@ -20,6 +21,7 @@ import {
   type TurnView,
 } from "@xeon/contracts/records";
 import { columns, rowInvalid, type RowFault } from "./rows.ts";
+import { AgentSettledStatusSchema } from "./agent-status.ts";
 
 // 투영 테이블(p_*)을 읽는 질의 묶음. TxView(커밋 트랜잭션 안)와 ProjectionQuery(밖)가 같은 SQL을 쓴다.
 // 이 패키지 밖에서 p_* 이름이 나오지 않게 하는 것이 목적이다(CM-02, TX-07).
@@ -366,4 +368,87 @@ export function readThreadSummary(
     queuedInputs: queued.value.length,
     pendingApprovals: approvals.value.length,
   });
+}
+
+const AGENT_COLUMNS =
+  "child_thread_id, thread_id, request_id, owner_turn_id, background, depth, settled_seq, settled_status, settled_event_id";
+
+function agentViewOf(row: SqlRow): Result<AgentView, RowFault> {
+  const c = columns(row, "p_agents");
+  const childThreadId = c.id("thr", "child_thread_id");
+  if (!childThreadId.ok) return childThreadId;
+  const parentThreadId = c.id("thr", "thread_id");
+  if (!parentThreadId.ok) return parentThreadId;
+  const requestId = c.string("request_id");
+  if (!requestId.ok) return requestId;
+  const ownerTurnId = c.nullableId("trn", "owner_turn_id");
+  if (!ownerTurnId.ok) return ownerTurnId;
+  const background = c.bool("background");
+  if (!background.ok) return background;
+  const depth = c.int("depth");
+  if (!depth.ok) return depth;
+  const settledSeq = c.nullableInt("settled_seq");
+  if (!settledSeq.ok) return settledSeq;
+  let settled: AgentView["settled"] = null;
+  if (settledSeq.value !== null) {
+    const status = c.parsed(AgentSettledStatusSchema, "settled_status");
+    if (!status.ok) return status;
+    const eventId = c.id("evt", "settled_event_id");
+    if (!eventId.ok) return eventId;
+    settled = { status: status.value, eventId: eventId.value };
+  }
+  return ok({
+    childThreadId: childThreadId.value,
+    parentThreadId: parentThreadId.value,
+    requestId: requestId.value,
+    ownerTurnId: ownerTurnId.value,
+    background: background.value,
+    depth: depth.value,
+    settled,
+  });
+}
+
+/** 부모 대화의 agent.spawned 중 같은 자식 requestId (멱등 조회) */
+export function readAgentByRequest(
+  tx: SqlTx,
+  parentThreadId: string,
+  requestId: string,
+): Result<AgentView | undefined, RowFault> {
+  const row = tx.get(
+    `SELECT ${AGENT_COLUMNS} FROM p_agents WHERE thread_id = ? AND request_id = ?`,
+    [parentThreadId, requestId],
+  );
+  return row === undefined ? ok(undefined) : agentViewOf(row);
+}
+
+/** 부모의 자식 연결, 생성 순서. unsettledOnly면 정착하지 않은 것만 */
+export function readChildAgents(
+  tx: SqlTx,
+  parentThreadId: string,
+  unsettledOnly: boolean,
+): Result<readonly AgentView[], RowFault> {
+  return decodeAll(
+    tx.all(
+      `SELECT ${AGENT_COLUMNS} FROM p_agents
+       WHERE thread_id = ? ${unsettledOnly ? "AND settled_seq IS NULL" : ""} ORDER BY spawned_seq`,
+      [parentThreadId],
+    ),
+    agentViewOf,
+  );
+}
+
+/** 열린 turn이 소유한, 정착하지 않은 자식(재개 계획의 openChildren) */
+export function readOpenChildren(
+  tx: SqlTx,
+  parentThreadId: string,
+  turnId: string,
+): Result<readonly AgentView[], RowFault> {
+  return decodeAll(
+    tx.all(
+      `SELECT ${AGENT_COLUMNS} FROM p_agents
+       WHERE thread_id = ? AND owner_turn_id = ? AND settled_seq IS NULL ORDER BY spawned_seq`,
+      [parentThreadId, turnId],
+    ),
+    agentViewOf,
+  );
 }

@@ -68,6 +68,7 @@ export interface Harness {
   readonly tools: ProducerHandle;
   readonly tasks: ProducerHandle;
   readonly context: ProducerHandle;
+  readonly agents: ProducerHandle;
   /** 성공으로 끝난 새 커밋(재전송 제외) 수 */
   commits(): number;
   /** 로거에 남은 기록 */
@@ -150,6 +151,7 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
     tools: service.producer("core.tools"),
     tasks: service.producer("core.tasks"),
     context: service.producer("core.context"),
+    agents: service.producer("core.agents"),
     commits: () => commitCount,
     logs,
   };

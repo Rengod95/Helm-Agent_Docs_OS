@@ -17,6 +17,8 @@ import {
   TurnStartedPayloadSchema,
 } from "@xeon/contracts/conversation";
 import {
+  AgentSettledEventPayloadSchema,
+  AgentSpawnedPayloadSchema,
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
   BlobRefSchema,
@@ -38,7 +40,7 @@ import {
 } from "@xeon/contracts/records";
 
 /** 투영 규칙 버전. 테이블 모양이나 규칙이 바뀌면 올린다(다음 열기 때 core만 다시 만든다) */
-export const CORE_PROJECTOR_VERSION = 3;
+export const CORE_PROJECTOR_VERSION = 4;
 
 export const CORE_PROJECTOR_TABLES: readonly string[] = [
   "p_threads",
@@ -49,6 +51,7 @@ export const CORE_PROJECTOR_TABLES: readonly string[] = [
   "step_checkpoints",
   "p_blob_refs",
   "p_approvals",
+  "p_agents",
 ];
 
 const CORE_PROJECTOR_DDL: readonly string[] = [
@@ -140,6 +143,24 @@ const CORE_PROJECTOR_DDL: readonly string[] = [
   decision         TEXT
 ) STRICT`,
   "CREATE INDEX p_approvals_open ON p_approvals (thread_id, requested_seq) WHERE resolved_seq IS NULL",
+  // 부모 대화의 자식 thread 연결(L1.agents.spec §3.5). thread_id는 부모, 같은 (부모, 자식 requestId)는 하나다
+  `CREATE TABLE p_agents (
+  child_thread_id   TEXT PRIMARY KEY,
+  thread_id         TEXT NOT NULL,
+  request_id        TEXT NOT NULL,
+  agent             TEXT NOT NULL,
+  owner_kind        TEXT NOT NULL,
+  owner_turn_id     TEXT,
+  owner_tool_call_id TEXT,
+  background        INTEGER NOT NULL,
+  depth             INTEGER NOT NULL,
+  spawned_seq       INTEGER NOT NULL,
+  settled_seq       INTEGER,
+  settled_status    TEXT,
+  settled_event_id  TEXT
+) STRICT`,
+  "CREATE UNIQUE INDEX p_agents_request ON p_agents (thread_id, request_id)",
+  "CREATE INDEX p_agents_open ON p_agents (thread_id, owner_turn_id) WHERE settled_seq IS NULL",
   // thread가 참조하는 blob 해시(GC 뿌리). detached 필드와 effect.*의 BlobRef가 채운다
   `CREATE TABLE p_blob_refs (
   thread_id      TEXT NOT NULL,
@@ -462,6 +483,41 @@ const REDUCERS: ReadonlyMap<EventKind, Reducer> = new Map<EventKind, Reducer>([
       tx.run(
         "UPDATE p_approvals SET resolved_seq = ?, decision = ? WHERE approval_id = ? AND resolved_seq IS NULL",
         [event.seq, payload.decision, payload.approvalId],
+      );
+    },
+  ],
+  [
+    "agent.spawned",
+    (tx, event): void => {
+      const payload = expectPayload(parse(AgentSpawnedPayloadSchema, event.payload), event);
+      const { owner } = payload;
+      tx.run(
+        `INSERT INTO p_agents (child_thread_id, thread_id, request_id, agent, owner_kind, owner_turn_id,
+           owner_tool_call_id, background, depth, spawned_seq, settled_seq, settled_status, settled_event_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, NULL)`,
+        [
+          payload.childThreadId,
+          event.threadId,
+          payload.requestId,
+          payload.agent,
+          owner.kind,
+          owner.kind === "scope" ? null : owner.turnId,
+          owner.kind === "tool" ? owner.toolCallId : null,
+          payload.background ? 1 : 0,
+          payload.depth,
+          event.seq,
+        ],
+      );
+    },
+  ],
+  [
+    "agent.settled",
+    (tx, event): void => {
+      const payload = expectPayload(parse(AgentSettledEventPayloadSchema, event.payload), event);
+      tx.run(
+        `UPDATE p_agents SET settled_seq = ?, settled_status = ?, settled_event_id = ?
+         WHERE child_thread_id = ? AND settled_seq IS NULL`,
+        [event.seq, payload.status, event.id, payload.childThreadId],
       );
     },
   ],

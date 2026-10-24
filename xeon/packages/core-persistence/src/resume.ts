@@ -16,6 +16,7 @@ import {
   EffectExecSchema,
   EffectIntentSchema,
   ItemRecordedPayloadSchema,
+  type AgentView,
   type AutoResumeVerdict,
   type CommitPlan,
   type DurableEventEnvelope,
@@ -55,6 +56,7 @@ import type { KindCatalog } from "./upcast.ts";
 import { readOnlyReasonFor } from "./upcast.ts";
 import {
   markerOf,
+  readOpenChildren,
   readOpenTurn,
   readPendingApprovals,
   readQueuedInputs,
@@ -107,6 +109,7 @@ interface RecoverSnapshot {
   readonly effects: readonly OpenEffectRow[];
   readonly pendingToolCalls: readonly PendingToolCall[];
   readonly pendingApprovals: readonly EventId[];
+  readonly openChildren: readonly AgentView[];
 }
 
 /** 열린 효과: effect.intent가 있고 effect.result가 없는 효과. 인자와 마지막 exec는 이벤트에서 읽는다 */
@@ -368,7 +371,11 @@ export function createResumer(deps: ResumeDeps): Resumer {
         if (!effects.ok) return effects;
         let pendingToolCalls: readonly PendingToolCall[] = [];
         let pendingApprovals: readonly EventId[] = [];
+        let openChildren: readonly AgentView[] = [];
         if (openTurnId !== null) {
+          const children = readOpenChildren(tx, threadId, openTurnId);
+          if (!children.ok) return children;
+          openChildren = children.value;
           const calls = readPendingToolCalls(tx, threadId, openTurnId, checkpoint.value);
           if (!calls.ok) return calls;
           pendingToolCalls = calls.value;
@@ -384,6 +391,7 @@ export function createResumer(deps: ResumeDeps): Resumer {
           effects: effects.value,
           pendingToolCalls,
           pendingApprovals,
+          openChildren,
         });
       });
       if (!snapshot.ok) return snapshot;
@@ -450,10 +458,10 @@ export function createResumer(deps: ResumeDeps): Resumer {
         synthesized,
         reruns,
         pendingToolCalls: state.pendingToolCalls,
-        // 자식 thread 복원은 M2(p_agents)에서 채운다
         pendingApprovals: state.pendingApprovals,
         queuedInputs: queued.value,
-        openChildren: [],
+        // 취소 의도가 있는 turn의 자식은 재개하지 않는다(§4.8.1 5단계)
+        openChildren: aborted ? [] : state.openChildren,
         abortRequestedTurn: aborted ? state.openTurnId : null,
         next: state.openTurnId === null ? "idle" : (checkpointOfOpenTurn?.next ?? "request"),
         autoResume: autoResumeVerdict({

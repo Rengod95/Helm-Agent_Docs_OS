@@ -1,4 +1,4 @@
-import { Bug, ok, type Result } from "@xeon/contracts";
+import { ok, type Result } from "@xeon/contracts";
 import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
   AgentView,
@@ -13,6 +13,7 @@ import type {
 import { branchItems, itemEvent, kindIn, latestEvent } from "./branch.ts";
 import { columns, readResult } from "./rows.ts";
 import {
+  readChildAgents,
   readThreadSummary,
   readPendingApprovals,
   readOpenEffects,
@@ -23,15 +24,8 @@ import {
   readTurnByRequest,
 } from "./views.ts";
 
-function notYet(member: string, plan: string): never {
-  throw new Bug(`session.not_implemented: query.${member} arrives with ${plan}`);
-}
-
 /**
- * 다른 컨텍스트가 p_*를 직접 읽지 않게 하는 질의 묶음(CM-02). M1이 투영하는 표만 답한다.
- * 분기 조회(branchItems, itemEvent, latestEvent)와 자식 연결(childAgents)은
- * 해당 투영이 오는 때(PS-10, PS-23)에 더한다. 그때까지는 Bug로 알린다
- */
+ * 다른 컨텍스트가 p_*를 직접 읽지 않게 하는 질의 묶음(CM-02).  */
 export function createProjectionQuery(db: StoreDb): ProjectionQuery {
   return {
     thread(threadId: ThreadId): Result<ThreadSummaryRow | undefined, ReadFailure> {
@@ -63,8 +57,10 @@ export function createProjectionQuery(db: StoreDb): ProjectionQuery {
     pendingApprovals(threadId: ThreadId) {
       return readResult(db, (tx) => readPendingApprovals(tx, threadId));
     },
-    childAgents(): Result<readonly AgentView[], ReadFailure> {
-      return notYet("childAgents", "p_agents (PS-23, M2)");
+    childAgents(parentThreadId, options): Result<readonly AgentView[], ReadFailure> {
+      return readResult(db, (tx) =>
+        readChildAgents(tx, parentThreadId, options?.unsettledOnly === true),
+      );
     },
     branchItems: (threadId, options) => readResult(db, (tx) => branchItems(tx, threadId, options)),
     itemEvent: (threadId, itemId) => readResult(db, (tx) => itemEvent(tx, threadId, itemId)),

@@ -15,6 +15,7 @@ import { activeLeaseEpoch, activeStateOf } from "./ext-queries.ts";
 import { headSeqOf } from "./events.ts";
 import type { RowFault } from "./rows.ts";
 import {
+  readAgentByRequest,
   readApproval,
   readEffect,
   readEffectByCall,
@@ -77,8 +78,8 @@ export function createTxView(tx: SqlTx, threadId: ThreadId, abort: AbortCommit):
     approval(approvalId): ApprovalView | undefined {
       return unwrap(readApproval(tx, approvalId));
     },
-    agentByRequestId(): AgentView | undefined {
-      return undefined;
+    agentByRequestId(parent: ThreadId, requestId: string): AgentView | undefined {
+      return unwrap(readAgentByRequest(tx, parent, requestId));
     },
     scopeStateRev(target: ThreadId, scopeId: string): number {
       return unwrap(activeStateOf(tx, target, scopeId))?.rev ?? 0;
