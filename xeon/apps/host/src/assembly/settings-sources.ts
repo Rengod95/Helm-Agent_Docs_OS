@@ -10,6 +10,7 @@ import { DEFAULT_PERSISTENCE_SETTINGS, resolvePersistenceSettings } from "@xeon/
 import type { LoopSettingsSource } from "@xeon/core-loop";
 import { createLayeredTasksSettings, type TasksSettingsSource } from "@xeon/core-tasks";
 import type { ToolsSettingsSource } from "@xeon/core-tools";
+import type { KnowledgeSettingsSource } from "@xeon/cap-knowledge";
 import type { WorkspaceSettingsSource } from "@xeon/cap-workspace";
 import { withDriveDefaults, type ExtHostDeps, type OperationsSettingsSource } from "@xeon/ext-host";
 import {
@@ -144,6 +145,11 @@ export function agentsSource(settings: SettingsEngine): AgentsSettingsSource {
     maxConcurrent: () => intOr(settings.value("l1.agents.maxConcurrent"), 8),
     resultMaxChars: () => intOr(settings.value("l1.agents.resultMaxChars"), 24_000),
   };
+}
+
+/** l2.knowledge.* 를 읽는 설정 층. 호출마다 읽는다 */
+export function knowledgeSource(settings: SettingsEngine): KnowledgeSettingsSource {
+  return { layers: (threadId) => settings.layers(isId("thr", threadId) ? threadId : undefined) };
 }
 
 export function toolsSource(settings: SettingsEngine): ToolsSettingsSource {

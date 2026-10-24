@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
 import { ok, repeatAsync } from "@xeon/contracts";
-import type { EventWire } from "@xeon/contracts/wire";
 import type { DnsResolver, HttpTransport } from "@xeon/cap-web";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost } from "../../src/main.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
+import { toolResultTexts } from "../fixtures/tool-results.ts";
 import { fetchingModels } from "../fixtures/web-tape.ts";
 import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
@@ -15,21 +15,6 @@ import { collectEvents, HELLO_PARAMS } from "../fixtures/wire-client.ts";
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
-
-/** 도구 결과 item의 본문 텍스트 */
-function toolResultTexts(events: readonly EventWire[]): string[] {
-  const out: string[] = [];
-  for (const event of events) {
-    if (event.kind !== "item.recorded") continue;
-    const payload: unknown = event.payload;
-    if (typeof payload !== "object" || payload === null || !("item" in payload)) continue;
-    const item = payload.item;
-    if (typeof item !== "object" || item === null || !("kind" in item)) continue;
-    if (item.kind !== "toolResult" || !("message" in item)) continue;
-    out.push(JSON.stringify(item.message).slice(0, 1500));
-  }
-  return out;
-}
 
 /** 시험 이름을 공개 주소로 푼다(전송이 가짜라 실제로 접속하지 않는다) */
 const fixtureResolver: DnsResolver = {

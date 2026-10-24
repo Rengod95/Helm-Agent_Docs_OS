@@ -17,7 +17,13 @@ import {
   type LeaseToken,
   type StoreDb,
 } from "@xeon/contracts/records";
-import { WebFetch, WebSearch, type AnyCapabilityDef } from "@xeon/contracts/capabilities";
+import {
+  KnowledgeSkills,
+  WebFetch,
+  WebSearch,
+  type AnyCapabilityDef,
+} from "@xeon/contracts/capabilities";
+import { knowledgePlugin } from "@xeon/cap-knowledge";
 import { workspacePlugin } from "@xeon/cap-workspace";
 import type { AgentDefinition } from "@xeon/contracts/services";
 import { agentsPlugin } from "@xeon/core-agents";
@@ -35,6 +41,7 @@ import type { ProjectTrust } from "./trust.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   agentsSource,
+  knowledgeSource,
   loopSource,
   modelsSource,
   persistenceSource,
@@ -102,7 +109,7 @@ function kindLookup(kind: string): CatalogEntry | undefined {
 }
 
 /** 도구를 올리는 L2 능력. core-tools가 호출 때 공급자를 찾으려면 이 능력이 매니페스트에 선언되어 있어야 한다 */
-const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [WebSearch, WebFetch];
+const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [WebSearch, WebFetch, KnowledgeSkills];
 
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
 export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
@@ -213,6 +220,17 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           layers: (threadId) => settings.layers(isId("thr", threadId) ? threadId : undefined),
           ...(deps.webPorts?.resolver === undefined ? {} : { resolver: deps.webPorts.resolver }),
           ...(deps.webPorts?.transport === undefined ? {} : { transport: deps.webPorts.transport }),
+          loadIndex,
+        }),
+    ],
+    [
+      "cap-knowledge",
+      (loadIndex) =>
+        knowledgePlugin({
+          settings: knowledgeSource(settings),
+          ids: deps.localIds,
+          // 프로젝트 스킬(.xeon/skills)은 신뢰한 프로젝트에서만 싣는다(결정 D6, X.loading-trust §4.7)
+          projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
           loadIndex,
         }),
     ],
