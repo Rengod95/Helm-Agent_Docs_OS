@@ -82,8 +82,14 @@
     "packages/cap-knowledge": {
       "name": "@xeon/cap-knowledge",
       "version": "0.0.0",
+      "dependencies": {
+        "@xeon/contracts": "workspace:*",
+        "@xeon/ext-host": "workspace:*",
+        "typebox": "catalog:",
+      },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@xeon/platform-store": "workspace:*",
       },
     },
     "packages/cap-mcp": {
