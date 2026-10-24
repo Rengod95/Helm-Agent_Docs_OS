@@ -1337,6 +1337,81 @@
         }
       }
     },
+    "l2.workspace.images.maxBytes": {
+      "default": 4718592,
+      "maximum": 52428800,
+      "minimum": 1024,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "이미지 최대 크기(base64)",
+          "order": 208,
+          "tab": "tools",
+          "unit": "B",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.images.maxHeight": {
+      "default": 2000,
+      "maximum": 16384,
+      "minimum": 64,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "이미지 최대 높이",
+          "order": 207,
+          "tab": "tools",
+          "unit": "px",
+          "widget": "number"
+        }
+      }
+    },
+    "l2.workspace.images.maxWidth": {
+      "default": 2000,
+      "maximum": 16384,
+      "minimum": 64,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "이미지 최대 너비",
+          "order": 206,
+          "tab": "tools",
+          "unit": "px",
+          "widget": "number"
+        }
+      }
+    },
     "l2.workspace.list.maxEntries": {
       "default": 500,
       "maximum": 10000,
