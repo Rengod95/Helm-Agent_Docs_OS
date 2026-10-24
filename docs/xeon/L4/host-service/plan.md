@@ -282,3 +282,36 @@ SV-06의 서비스 쪽(부모가 끝나도 서비스가 남는다)은 `bind-race
 | 재전송 구현이 "등록과 head 읽기가 같은 JS 턴" 가정에 기댄다 | L0.store가 커밋을 워커 스레드로 옮기면 중복이나 누락이 생긴다 | `subscribe-replay-no-dup`를 커밋 위치별로 돌린다. L0.store 변경 때 이 가정을 리뷰 항목으로 둔다 |
 | 테스트의 `Bun.spawn`이 DR-07과 충돌한다(§5 `int`·`fault`) | `just verify`의 check-layers에서 막힌다 | `L4.desktop.plan` R10과 같은 결정 하나로 푼다(허용 목록 항목 또는 `platform-process/testing` 도우미). 사람 확인이 필요하고, 결정 전까지 M1 완료를 막는 항목으로 보고한다 |
 | 테스트용 그룹과 모델 테이프의 위치가 정해지지 않았다 | M1 scenario와 host 테스트가 같은 고정 자료를 공유하지 못한다 | 테스트용 그룹의 위치와 이름은 `L3.group-kit.plan`이 정한다. 그 전까지 host 테스트는 `test/fixtures/`에 자기 것을 둔다 |
+
+## 8. M2 구현 기록 (m2-plan HOST.1·HOST.3·HOST.5)
+
+구현은 브랜치 `m2/host`에서 했다. 다른 트랙(L1A.4 승인 프로토콜, L1B.2 thread 수명 주기)이 아직 병합되지 않아 HOST.2·HOST.4·HOST.6은 하지 않았다. 시험은 `cd xeon && just test apps/host`로만 돌렸다.
+
+### 8.1 작업별 상태
+
+| m2-plan ID | plan ID | 상태 | 내용과 시험 |
+|---|---|---|---|
+| HOST.1 | H9 | 구현 | `thread.open { write \| observe }`, 쓰기 소유 획득의 단일 경로(`claimWrite`: `thread.create`, `turn.start`, `thread.open`이 같이 쓴다), 같은 thread의 동시 획득 합치기, 쓰기·관찰 연결 기록(`writeThreads`, `observedThreads`), 서비스 모드의 잠금 해제 판정(`releaseUnused`, HS-27). 관찰 폴링(HS-16, `handlers/observe.ts`)과 다른 프로세스 커밋 구간 메우기(`fillGap`). `test/handlers/thread-open.test.ts`, `test/assembly/ports.test.ts`(동시 획득), `test/int/thread-locked.int.test.ts`(`thread-locked-alternatives`, `observe-poll-follows-commits`: 같은 저장소를 연 호스트 둘이 실제 OS 잠금과 `sys_leases` 위에서 다툰다) |
+| HOST.1 | H9 `LeaseToken` 전달 | 구현(M1 어댑터에 있었음) | `SessionLockPort.tryAcquire`가 임대 토큰으로 `openForWrite`를 열고 `keepAlive` 실패를 `onLeaseLost`로 처리한다. 이번 작업은 토큰 전달 경로의 동시 획득 합치기와 `release(threadId)`를 더했다 |
+| HOST.1 | H9 `delegate` 대안 | 보류 | 서비스 모드(M3)가 없어 `options`는 `["observe", "fork"]`다(HS-25) |
+| HOST.3 | H22(신규) | 구현 | `secret.list·meta·remove·test·beginEntry·beginReveal`, `EnginePorts.secrets`, `InProcessHost.secretOutOfBand`, 기본 메타, 설정 키 참조 조회(`settingKeysFor`). `test/handlers/secret.test.ts`, `test/assembly/secrets.test.ts`, `test/engine.test.ts`(실제 `platform-secrets` 관리 서비스) |
+| HOST.5 | H15 | 구현(Linux x64) | spec §3.2.1에 결과를 적었다. macOS arm64는 미확인이다 |
+| HOST.5 | 최상위 await 제거 | 구현 | `main.ts` 끝을 `detach(…then(process.exit))`로 바꿨다. `test/entry-bundle.test.ts`가 `--minify --bytecode`로 진입을 묶는다 |
+| HOST.5 | H19 | 구현 | stdio 호스트의 종료를 엔진의 협조 창구(`Engine.shutdown`, 실제 `ProcessShutdown`)로 통일했다. EOF(`stdin_eof`), SIGTERM·SIGINT(`signal`), `host.shutdown`(`shutdown_request`, `version_replace`)이 같은 절차를 밟고 시한을 넘기면 창구가 `exit(1)`한다. 호스트 참여자가 turn을 안전 경계에서 멈춘다. `closeAll`은 송신 큐가 빌 때까지(최대 1초) 기다린 뒤 닫아 마지막 응답이 나가게 한다. `test/handlers/host-shutdown.test.ts`, `test/int/stdio-shutdown.int.test.ts`(`stdio-eof-checkpoint-exit` 포함) |
+| HOST.5 | `transport-parity` | 부분 | 같은 모델 테이프와 요청 열로 in-process와 stdio(스트림 쌍)를 돌려 정규화한 응답·이벤트열이 같음을 확인한다(`test/contract/transport-parity.contract.test.ts`). 컴파일 바이너리 stdio는 자식 프로세스가 필요해 시험에 없다(§8.2 첫 행) |
+
+### 8.2 확인하지 못한 항목 (미확인)
+
+| 항목 | 이유 | 확인 방법 |
+|---|---|---|
+| 자식 프로세스를 띄우는 시험(`forced-kill-resume`, 컴파일 바이너리 `transport-parity`, 실제 SIGKILL 뒤 재개) | `apps/host`는 `Bun.spawn` 테스트 한정 허용 항목(`DR-07/host-test-spawn`)이 없다. 허용 목록은 사용자 승인이 필요한 공유 파일(`scripts/dependency-allowlist.json`)이다. 컴파일 바이너리의 EOF 종료, `host.shutdown`, SIGTERM은 이 작업에서 손으로 확인했다(spec §3.2.1) | 허용 항목을 승인하거나 `platform-process/testing`에 일반 자식 실행 도우미를 두는 결정(§7 마지막 행)을 받은 뒤 `test/fixtures/spawn-host.ts` 한 곳에 모아 더한다 |
+| 종료 뒤 복구 표식 조회(`thread.list`의 `resumable`) | `core-persistence`의 `threads.list`가 아직 `not_implemented`다(L1B.2). 지금 시험은 저장소 이벤트(`turn.abort_requested`, `turn.completed`)가 남았는지로 확인한다 | L1B.2 병합 뒤 `stdio-eof-checkpoint-exit`에 `resumable: null` 확인을 더한다 |
+| macOS arm64 spike(H15 a~d) | 이 기기에 macOS가 없다 | CI `desktop-macos` job 또는 실기 |
+| 서비스 모드에서 live 작업 때문에 쥔 잠금의 해제 시점 | 연결이 떠난 뒤 turn이 끝나는 시점에 다시 판정하지 않는다(spec §10 20번) | M3 H10~H11 |
+| `reveal`의 `os-auth`, 서비스 접속에서 비밀 값 입력 | 서비스 접속에는 값 전달 통로가 없고 OS 입력 창은 M3다. in-process 통로는 CLI가 `InProcessHost.secretOutOfBand`로 맡긴다 | CLI.3, M3 |
+
+### 8.3 다른 레인에 요청한 것
+
+- F: `WIRE_ERRORS`에 비밀 관리 전용 kind, `SecretTestResult` 확장, `SecretEntryOffer`의 `add`용 메타, `secret.references` 메서드(spec §10 19번).
+- 허용 목록 담당: `DR-07/host-test-spawn` 항목(§8.2 첫 행).
+- PLT: `platform-process`의 stdio 전송(`createStdioTransport`, `openProcessStdio`)과 이 패키지의 `transport/stdio.ts`가 같은 일을 한다. 통합 때 호스트가 L0 구현으로 갈아탈지 정한다. 이번 작업에서는 바꾸지 않았다.
