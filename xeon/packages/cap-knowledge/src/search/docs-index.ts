@@ -1,9 +1,9 @@
 import { join } from "node:path";
 import { err, ok, type Result } from "@xeon/contracts";
 import type { KnowledgeHit } from "@xeon/contracts/capabilities";
-import type { SqlTx } from "@xeon/contracts/records";
+import type { SqlTx, StoreDb } from "@xeon/contracts/records";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
-import type { LedgerDeps } from "../ledger/change.ts";
+import type { KnowledgeFs } from "../fs/port.ts";
 import { parseMemoryFile } from "../memory/format.ts";
 import { describeSkill, mainFileOf } from "../skills/document.ts";
 import { allSkills } from "../skills/store.ts";
@@ -99,7 +99,10 @@ export interface DocsIndex {
   rebuild(): Promise<Result<void, KnowledgeFailure>>;
 }
 
-export interface DocsIndexDeps extends LedgerDeps {
+export interface DocsIndexDeps {
+  readonly fs: KnowledgeFs;
+  /** `cap.knowledge` 소유자의 범위 핸들 */
+  readonly db: StoreDb;
   readonly memoryDir: string;
   /** `cap_knowledge_docsfts`가 있는가 */
   readonly docsFts: boolean;
