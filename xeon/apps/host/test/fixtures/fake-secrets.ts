@@ -26,7 +26,7 @@ export const FAKE_SECRETS_CONFIG: SecretsConfig = {
   sops: { files: [{ env: "dev", path: "/etc/xeon/dev.sops.json" }], binary: null },
 };
 
-export interface FakeSecretRecord {
+interface FakeSecretRecord {
   meta: SecretMeta;
   /** 제공자에 값이 있는가 */
   exists: boolean;

@@ -86,7 +86,7 @@ export type AssembleIssue =
  * 종료 협조(L0.process.spec §4.2). 참여자는 확장과 L0 서비스, 호스트 자신이다. `request`는 참여자를 등록 역순으로
  * `l0.process.shutdown.timeoutMs` 안에서 기다리고, 시한을 넘기면 기다리지 않고 `AssembleOptions.exit(1)`을 부른다.
  */
-export interface EngineShutdown extends ShutdownCoordinator {
+interface EngineShutdown extends ShutdownCoordinator {
   request(
     reason: ShutdownReason,
   ): Promise<{ readonly completed: boolean; readonly elapsedMs: number }>;

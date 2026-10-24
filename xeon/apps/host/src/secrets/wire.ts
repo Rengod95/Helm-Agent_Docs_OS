@@ -28,7 +28,7 @@ export function handleOf(name: SecretName): SecretHandle {
  * 목록 항목의 이름. 메타가 있으면 메타의 이름이다. 메타 없는 제공자 항목(orphaned)은 ref의 마지막 조각을 이름 규칙에 맞춰 옮긴다
  * (`dev/GITHUB_TOKEN` → `github-token`). 규칙에 맞지 않으면 undefined다.
  */
-export function listingName(listing: SecretListing): SecretName | undefined {
+function listingName(listing: SecretListing): SecretName | undefined {
   if (listing.meta !== null) return listing.meta.name;
   const ref = listing.entry?.ref;
   if (ref === undefined) return undefined;
@@ -44,7 +44,7 @@ function isoOf(ms: number): string | undefined {
 }
 
 /** 메타 → 와이어 모양. 서비스 타입은 읽기 전용 배열이고 와이어 타입은 가변 배열이라 복사한다 */
-export function wireMetaOf(meta: SecretMeta): NonNullable<SecretListEntry["meta"]> {
+function wireMetaOf(meta: SecretMeta): NonNullable<SecretListEntry["meta"]> {
   const { use } = meta;
   return {
     name: meta.name,

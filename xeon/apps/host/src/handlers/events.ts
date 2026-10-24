@@ -283,7 +283,7 @@ export function createEventsSubscribeHandler(
  * 커밋 하나를 구독 하나에 전한다. 이 프로세스의 커밋 알림과 관찰 폴링(observe.ts)이 같은 경로를 쓴다.
  * batch가 구독이 책임진 위치보다 앞서 시작하면 사이의 구간은 다른 프로세스의 커밋이므로 먼저 메운다(HS-16).
  */
-export function deliverCommit(
+function deliverCommit(
   engine: Engine,
   conn: ConnectionState,
   sub: Subscription,
