@@ -60,6 +60,9 @@ interface Harness {
     threadsCreate: ReturnType<SessionService["threads"]["create"]>;
     threadExists: boolean;
     release: "ok" | "throw";
+    fork: Awaited<ReturnType<SessionService["threads"]["fork"]>>;
+    revert: Awaited<ReturnType<SessionService["threads"]["revert"]>>;
+    remove: ReturnType<SessionService["threads"]["remove"]>;
   };
   lostCallback: (() => void) | undefined;
 }
@@ -103,6 +106,9 @@ function harness(): Harness {
     threadsCreate: ok({ threadId: THREAD, headSeq: 1, replayed: false, token: null }),
     threadExists: true,
     release: "ok",
+    fork: err({ kind: "thread_not_found", threadId: THREAD }),
+    revert: err({ kind: "thread_not_found", threadId: THREAD }),
+    remove: ok(undefined),
   };
   const result: Harness = {
     deps: partial<PortsDeps>({}),
@@ -131,6 +137,18 @@ function harness(): Harness {
         return state.threadsCreate;
       },
       list: () => ({ threads: [], nextCursor: "next" }),
+      fork: (threadId, _at, newThreadId) => {
+        calls.push(`threads.fork:${threadId}:${newThreadId}`);
+        return Promise.resolve(state.fork);
+      },
+      revert: (_threadId, _to, requestKey) => {
+        calls.push(`threads.revert:${requestKey}`);
+        return Promise.resolve(state.revert);
+      },
+      remove: () => {
+        calls.push("threads.remove");
+        return state.remove;
+      },
     }),
     query: partial<SessionService["query"]>({
       thread: () => ok(state.threadExists ? partial<ThreadSummaryRow>({}) : undefined),
@@ -225,11 +243,23 @@ function harness(): Harness {
       store,
       loop,
       tasks,
-      approvals: partial<ApprovalService>({}),
+      approvals: partial<ApprovalService>({
+        restore: (threadId) => {
+          calls.push(`approvals.restore:${threadId}`);
+          return Promise.resolve(ok([]));
+        },
+        pending: () => [],
+      }),
       tools: partial<ToolService>({ meta: () => partial<ToolMeta>({ replay: "unsafe" }) }),
       ext,
       holder: { holderId: "h", kind: "app" as const, pid: 1, startedAt: 1, host: "m" },
       settings: createSettingsEngine(built.catalog),
+      configDir: "/nonexistent-config",
+      trust: {
+        resolve: () => Promise.reject(new Error("trust is not used by these tests")),
+        isTrusted: () => Promise.resolve(false),
+        explicitVerdict: () => Promise.resolve("none"),
+      },
     },
   });
 }
@@ -274,11 +304,67 @@ describe("threads", () => {
     expect(await ports.threads.list({})).toEqual({ threads: [], nextCursor: "next" });
   });
 
-  test("fork, revert and delete are M2 and reject", async () => {
-    const { ports } = createEnginePorts(harness().deps);
-    expect(await rejectionOf(ports.threads.fork(THREAD, undefined))).toBeInstanceOf(Bug);
-    expect(await rejectionOf(ports.threads.revert(THREAD, ids.next("itm")))).toBeInstanceOf(Bug);
-    expect(await rejectionOf(ports.threads.remove(THREAD))).toBeInstanceOf(Bug);
+  test("fork makes a new thread id, passes it to the session and reports the new position", async () => {
+    const h = harness();
+    const newId = ids.next("thr");
+    h.state.fork = ok({ threadId: newId, headSeq: 9, replayed: false, token: null });
+    const { ports } = createEnginePorts(h.deps);
+    const forked = await ports.threads.fork(THREAD, undefined);
+    expect(forked).toEqual({
+      ok: true,
+      value: { threadId: newId, position: { storeId: STORE_ID, seq: 5 } },
+    });
+    expect(h.calls.some((call) => call.startsWith(`threads.fork:${THREAD}:`))).toBe(true);
+  });
+
+  test("a refused fork is a lifecycle error value, not a throw", async () => {
+    const h = harness();
+    h.state.fork = err({ kind: "invalid_target", reason: "not_on_branch" });
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.threads.fork(THREAD, ids.next("itm"))).toEqual({
+      ok: false,
+      error: { kind: "invalid_target", reason: "not_on_branch" },
+    });
+  });
+
+  test("revert uses a fresh request key for every call and reports the head the session committed", async () => {
+    const h = harness();
+    h.state.revert = ok({ leaf: ids.next("evt"), headSeq: 12 });
+    const { ports } = createEnginePorts(h.deps);
+    const to = ids.next("itm");
+    const first = await ports.threads.revert(THREAD, to);
+    await ports.threads.revert(THREAD, to);
+    expect(first).toEqual({ ok: true, value: { position: { storeId: STORE_ID, seq: 12 } } });
+    const keys = h.calls.filter((call) => call.startsWith("threads.revert:"));
+    expect(keys).toHaveLength(2);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  test("remove hands back the lease the host holds for the deleted thread", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    const lock = await ports.locks.tryAcquire(THREAD, "cli");
+    expect(lock.ok).toBe(true);
+    h.calls.length = 0;
+    const removed = await ports.threads.remove(THREAD);
+    expect(removed.ok).toBe(true);
+    expect(ports.locks.holds(THREAD)).toBe(false);
+    expect(h.calls).toEqual([
+      "threads.remove",
+      "keepAlive.dispose",
+      "ext.closeThread",
+      "lease.release",
+    ]);
+  });
+
+  test("a refused remove keeps the lease", async () => {
+    const h = harness();
+    h.state.remove = err({ kind: "has_forks", forks: [] });
+    const { ports } = createEnginePorts(h.deps);
+    await ports.locks.tryAcquire(THREAD, "cli");
+    const removed = await ports.threads.remove(THREAD);
+    expect(removed.ok).toBe(false);
+    expect(ports.locks.holds(THREAD)).toBe(true);
   });
 });
 
@@ -369,6 +455,7 @@ describe("locks", () => {
       `lease.acquire:session:${THREAD}:app`,
       `session.recover:${THREAD}:stdio:unsafe`,
       "ext.openThread",
+      `approvals.restore:${THREAD}`,
     ]);
     expect(ports.locks.holds(THREAD)).toBe(true);
     // 쥔 thread를 다시 요청하면 같은 증표를 돌려주고 다시 얻지 않는다
@@ -520,18 +607,9 @@ describe("the small ports", () => {
     ports.activity.onChange(() => undefined)();
   });
 
-  test("settings reads the engine layers; writes and approvals are M2 and reject", async () => {
+  test("settings reads the engine layers and the change subscription can be dropped", () => {
     const { ports } = createEnginePorts(harness().deps);
     expect(ports.settings.layers(undefined)).toHaveLength(1);
-    expect(
-      await rejectionOf(ports.settings.write("user", "l1.loop.maxSteps", 1, undefined)),
-    ).toBeInstanceOf(Bug);
-    expect(
-      await rejectionOf(ports.settings.reset("user", "l1.loop.maxSteps", undefined)),
-    ).toBeInstanceOf(Bug);
-    expect(
-      await rejectionOf(ports.approvals.respond({ approvalId: "a", decision: "allow" })),
-    ).toBeInstanceOf(Bug);
     const off = ports.settings.onChange(() => undefined);
     off();
   });

@@ -51,7 +51,11 @@ import type {
 } from "../types.ts";
 import { wireErrorOfCreate, wireErrorOfLease, wireErrorOfStore } from "../store-error.ts";
 import { messageOf, sequentially } from "../util.ts";
+import { createApprovalPort } from "./approvals.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
+import { createSettingsStore } from "./settings-store.ts";
+import { readThread } from "./thread-read.ts";
+import type { ProjectTrust } from "./trust.ts";
 
 // L4.host-service.spec §3.3.2. 아래 층 서비스(F 서비스 인터페이스)를 EnginePorts로 감싸는 어댑터. 어댑터가 이 폴더 한 곳에 모이므로
 // L1 서비스 이름이 바뀌어도 고칠 곳이 하나다(L4.host-service.plan §2). 조립 루트 코드(DR-14 예외 2).
@@ -77,6 +81,9 @@ export interface PortsDeps {
   readonly holder: LeaseHolder;
   readonly settings: SettingsEngine;
   readonly secrets: SecretsPort;
+  /** 사용자 설정 파일이 없을 때 새로 만들 디렉터리(L0.os의 `dirs.config`) */
+  readonly configDir: string;
+  readonly trust: ProjectTrust;
 }
 
 export interface PortsHandle {
@@ -98,12 +105,6 @@ function toLogValue(value: unknown): LogValue {
 
 function toLogFields(fields: Readonly<Record<string, unknown>>): LogFields {
   return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, toLogValue(value)]));
-}
-
-function unsupported(what: string): Promise<never> {
-  return Promise.reject(
-    new Bug(`${what} is not available before M2 (L4.host-service.plan H9, H16~H18)`),
-  );
 }
 
 /** 아직 구현되지 않은 하위 층 기능이 던지는 Bug("<영역>.not_implemented: …") */
@@ -179,9 +180,26 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       }
       return Promise.resolve({ threads: summaries, nextCursor: page.nextCursor });
     },
-    fork: () => unsupported("thread.fork"),
-    revert: () => unsupported("thread.revert"),
-    remove: () => unsupported("thread.delete"),
+    async fork(threadId, at) {
+      const forked = await session.threads.fork(threadId, at, deps.ids.next("thr"));
+      if (!forked.ok) return forked;
+      const head = session.feed.headSeq();
+      if (!head.ok) return head;
+      return ok({ threadId: forked.value.threadId, position: { storeId, seq: head.value } });
+    },
+    async revert(threadId, to) {
+      // 되감기마다 새 키다: 같은 키로 다시 부르면 처음 결과를 돌려주므로 호출 한 번이 한 번의 되감기다
+      const reverted = await session.threads.revert(threadId, to, deps.ids.next("evt"));
+      if (!reverted.ok) return reverted;
+      return ok({ position: { storeId, seq: reverted.value.headSeq } });
+    },
+    async remove(threadId) {
+      const removed = session.threads.remove(threadId);
+      if (!removed.ok) return removed;
+      await dropHeldThread(threadId);
+      return removed;
+    },
+    read: (params) => readThread(session, storeId, params),
     position() {
       const head = session.feed.headSeq();
       return head.ok ? ok({ storeId, seq: head.value }) : head;
@@ -226,6 +244,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       }
     },
     interrupt: (threadId, turnId) => loop.interrupt(threadId, turnId),
+    resume: (threadId) => loop.resume(threadId),
     stopAtSafeBoundary: (deadlineMs) => loop.stopAtSafeBoundary(deadlineMs),
     isLive: (threadId) => loop.threadStatus(threadId).runningTurnId !== null,
   };
@@ -253,6 +272,23 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     }
   }
 
+  /**
+   * 지운 thread의 임대를 거둔다. `session.threads.remove`는 호스트가 준 토큰을 반납하지 않는다(호스트가 반납한다, L1.persistence ownership).
+   * 이벤트가 없으므로 `session_shutdown`은 발화하지 않고 확장의 thread 상태만 닫는다
+   */
+  async function dropHeldThread(threadId: ThreadId): Promise<void> {
+    const lease = held.get(threadId);
+    if (lease === undefined) return;
+    held.delete(threadId);
+    lease.alive[Symbol.dispose]();
+    try {
+      await ext.closeThread(threadId);
+    } finally {
+      const released = store.leases.release(lease.token);
+      if (!released.ok) log.error("lease.release_failed", { threadId, kind: released.error.kind });
+    }
+  }
+
   async function releaseThread(threadId: ThreadId): Promise<void> {
     const lease = held.get(threadId);
     if (lease === undefined) return;
@@ -275,6 +311,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     if (current !== undefined) {
       return { ok: true, token: current.token, release: () => releaseThread(threadId) };
     }
+    // 신뢰한 작업 폴더의 project·local 설정을 읽어 둔다. 자원(임대)을 쥐기 전에 해서 실패해도 정리할 것이 없다
+    await settings.prepare(threadId);
     const acquired = store.leases.acquire(`session:${threadId}`, { ...deps.holder, kind });
     if (!acquired.ok) {
       const error = acquired.error;
@@ -328,6 +366,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
         throw caught;
       }
     }
+    // 이전 프로세스가 남긴 미해결 승인 요청을 메모리 대기 목록으로 되살린다. approval.respond가 재시작 뒤에도 그 요청을 찾는다(HOST.4)
+    const restored = await deps.approvals.restore(threadId);
+    if (!restored.ok) {
+      alive[Symbol.dispose]();
+      store.leases.release(token);
+      throw wireErrorOfStore(restored.error, "approvals.restore failed");
+    }
     held.set(threadId, { token, alive });
     return { ok: true, token, release: () => releaseThread(threadId) };
   }
@@ -346,22 +391,23 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     release: (threadId) => releaseThread(threadId),
   };
 
-  const changeListeners = new Set<() => void>();
-  const settings: SettingsStorePort = {
-    layers: (threadId) => deps.settings.layers(threadId),
-    write: () => unsupported("settings.set"),
-    reset: () => unsupported("settings.reset"),
-    onChange(listener) {
-      changeListeners.add(listener);
-      return () => {
-        changeListeners.delete(listener);
-      };
-    },
-  };
+  const settings: SettingsStorePort = createSettingsStore({
+    engine: deps.settings,
+    session,
+    configDir: deps.configDir,
+    trust: deps.trust,
+    ids: deps.ids,
+    logger: logger.child({ component: "settings" }),
+    signal: deps.signal,
+    holds: (threadId) => held.has(threadId),
+  });
 
-  const approvals: ApprovalPort = {
-    respond: () => unsupported("approval.respond"),
-  };
+  const approvals: ApprovalPort = createApprovalPort({
+    approvals: deps.approvals,
+    session,
+    storeId,
+    heldThreads: () => Array.from(held.keys()),
+  });
 
   const activity: ActivityPort = {
     snapshot() {
@@ -369,8 +415,11 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       return {
         liveTurns: snapshot.liveTurns,
         liveTasks: snapshot.liveTasks,
-        // 승인 대기와 대기 예약은 host.status·유휴 종료(M2·M3)가 쓴다
-        waitingApprovals: 0,
+        // 대기 예약은 유휴 종료(M3)가 쓴다. 승인 대기는 이 프로세스가 쥔 thread의 미해결 요청이다
+        waitingApprovals: Array.from(held.keys()).reduce(
+          (sum, threadId) => sum + deps.approvals.pending(threadId).length,
+          0,
+        ),
         pendingSchedules: 0,
       };
     },

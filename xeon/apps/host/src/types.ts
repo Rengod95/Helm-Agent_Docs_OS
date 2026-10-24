@@ -4,11 +4,14 @@ import type { IdFactory, ItemId, ThreadId, TurnId } from "@xeon/contracts/conver
 import type {
   DurableEventEnvelope,
   LeaseToken,
+  LifecycleError,
   ReadFailure,
+  StoreError,
   VolatileEventEnvelope,
 } from "@xeon/contracts/records";
 import type {
   LoopError,
+  ResumeResult,
   SecretAdminService,
   ShutdownCoordinator,
   ShutdownReason,
@@ -134,6 +137,12 @@ export interface EnginePorts {
   readonly scheduler: Scheduler;
 }
 
+/** `thread.read`가 결과를 만들지 못한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.4.6 3항) */
+export type ThreadReadFailure =
+  | ReadFailure
+  | Extract<StoreError, { readonly kind: "thread_not_found" }>
+  | { readonly kind: "invalid_target"; readonly reason: "item_not_found" | "not_on_branch" };
+
 export interface ThreadPort {
   create(input: {
     readonly workspace?: string;
@@ -142,12 +151,27 @@ export interface ThreadPort {
   /** 읽기 연결의 busy·io, 손상 행은 오류 값이다. 처리기가 store.* 와이어 오류로 옮긴다 */
   exists(threadId: ThreadId): Result<boolean, ReadFailure>;
   list(params: WireParams<"thread.list">): Promise<WireResult<"thread.list">>;
+  /** 새 thread를 만든다. 쓰기 소유는 얻지 않는다(처리기가 `SessionLockPort`로 얻는다). 실패는 수명 주기 오류 값이다 */
   fork(
     threadId: ThreadId,
     at: ItemId | undefined,
-  ): Promise<{ readonly threadId: ThreadId; readonly position: StreamPosition }>;
-  revert(threadId: ThreadId, to: ItemId): Promise<{ readonly position: StreamPosition }>;
-  remove(threadId: ThreadId): Promise<void>;
+  ): Promise<
+    Result<{ readonly threadId: ThreadId; readonly position: StreamPosition }, LifecycleError>
+  >;
+  /** 쓰기 소유자만. 열린 turn이 있으면 `turn_running`이다 */
+  revert(
+    threadId: ThreadId,
+    to: ItemId,
+  ): Promise<Result<{ readonly position: StreamPosition }, LifecycleError>>;
+  /** 쓰기 소유자만. 지운 뒤 이 프로세스가 쥔 그 thread의 임대와 확장 상태를 거둔다 */
+  remove(threadId: ThreadId): Promise<Result<void, LifecycleError>>;
+  /**
+   * 현재 가지의 내구 item을 오래된 것부터 `limit`개 읽는다(F wire §3.4.6). `position`은 item을 읽은 같은 동기 구간에서 잰 저장소 head다.
+   * 프레임 한도를 넘지 않게 오래된 쪽을 잘라 적게 돌려줄 수 있고 그때도 `hasMore`는 정확하다
+   */
+  read(
+    params: WireParams<"thread.read">,
+  ): Promise<Result<WireResult<"thread.read">, ThreadReadFailure>>;
   position(threadId: ThreadId): Result<StreamPosition, ReadFailure>;
 }
 
@@ -165,6 +189,11 @@ export interface TurnPort {
     requestId: string | undefined,
   ): Promise<SubmitOutcome>;
   interrupt(threadId: ThreadId, turnId: TurnId | undefined): Promise<boolean>;
+  /**
+   * 열린 turn을 재개한다(자동 재개는 하지 않는다, L1.loop.spec §4.6). 재시작 뒤 승인 대기 turn은 재개해야 응답을 받아 이어진다.
+   * wire에 재개 메서드가 없어 지금은 시험과 서비스 모드의 자동 재개(M3)가 쓴다 [미결: F wire 요청]
+   */
+  resume(threadId: ThreadId): Promise<Result<ResumeResult, LoopError>>;
   /** 진행 중 turn을 다음 안전 경계에서 멈추고 체크포인트를 커밋한다. 시한 안에 끝나면 true */
   stopAtSafeBoundary(deadlineMs: number): Promise<boolean>;
   /** 그 thread에 진행 중인 turn이 있는가. 서비스 모드의 잠금 해제 판정(HS-27)이 쓴다 */
@@ -213,20 +242,60 @@ export interface SessionLockPort {
   release(threadId: ThreadId): Promise<void>;
 }
 
+/** 설정 쓰기가 실패한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.5.2 settings.*, store.*) */
+export type SettingsWriteFailure =
+  /** session·project·local 범위인데 `threadId`가 없다 */
+  | { readonly kind: "thread_required"; readonly scope: SettingScope }
+  | Extract<StoreError, { readonly kind: "thread_not_found" }>
+  /** session 범위는 이 프로세스가 쓰기 소유를 쥔 thread에만 쓴다 */
+  | { readonly kind: "not_owner"; readonly threadId: ThreadId }
+  /** project·local 범위는 thread의 작업 폴더가 있어야 한다 */
+  | { readonly kind: "workspace_required"; readonly scope: SettingScope }
+  /** project·local 파일은 신뢰한 프로젝트에만 쓴다 */
+  | { readonly kind: "untrusted_project"; readonly workspace: string }
+  /** managed 범위는 사용자 앱이 쓰지 않는 읽기 전용 파일이다 */
+  | { readonly kind: "managed_read_only" }
+  /** 기존 파일이 JSON 객체가 아니다. 덮어쓰면 값을 잃으므로 쓰지 않는다 */
+  | { readonly kind: "file_invalid"; readonly path: string }
+  | { readonly kind: "file_unwritable"; readonly path: string; readonly code: string }
+  | StoreError;
+
 export interface SettingsStorePort {
   layers(threadId: ThreadId | undefined): ScopeStack;
+  /**
+   * thread의 작업 폴더가 신뢰되었으면 그 폴더의 project·local 설정 파일을 읽어 `layers`가 쓰도록 한다. `layers`가 동기라서
+   * 신뢰 판정(비동기)은 thread를 여는 곳에서 먼저 한다. 한 번 읽은 파일은 이 프로세스가 쓸 때까지 다시 읽지 않는다
+   */
+  prepare(threadId: ThreadId): Promise<void>;
+  /** 값 검사(`checkSettingWrite`)는 호출자가 마쳤다. 파일 범위는 원자 교체로, session 범위는 `settings.changed` 커밋으로 쓴다 */
   write(
     scope: SettingScope,
     key: SettingKey,
     value: unknown,
     threadId: ThreadId | undefined,
-  ): Promise<void>;
-  reset(scope: SettingScope, key: SettingKey, threadId: ThreadId | undefined): Promise<void>;
+  ): Promise<Result<void, SettingsWriteFailure>>;
+  reset(
+    scope: SettingScope,
+    key: SettingKey,
+    threadId: ThreadId | undefined,
+  ): Promise<Result<void, SettingsWriteFailure>>;
   onChange(listener: () => void): Unsubscribe;
 }
 
+/** `approval.list`가 목록을 만들지 못한 이유 */
+export type ApprovalListFailure =
+  | ReadFailure
+  | Extract<StoreError, { readonly kind: "thread_not_found" }>;
+
 export interface ApprovalPort {
+  /**
+   * 승인 요청이 기록된 표면 thread. 이 프로세스의 대기 목록에 없으면 쥔 thread마다 미해결 요청을 저장소에서 되살린(restore) 뒤 다시 찾고,
+   * 그래도 없으면 저장소의 미해결 요청을 훑는다. 어디에도 없으면 undefined다
+   */
+  locate(approvalId: string): Promise<Result<ThreadId | undefined, ReadFailure>>;
   respond(params: WireParams<"approval.respond">): Promise<WireResult<"approval.respond">>;
+  /** thread의 미해결 요청과 그 시점의 위치(F wire §3.4.6 5항). 이 프로세스가 쥐지 않은 thread도 읽는다 */
+  list(threadId: ThreadId): Promise<Result<WireResult<"approval.list">, ApprovalListFailure>>;
 }
 
 export interface ActivitySnapshot {

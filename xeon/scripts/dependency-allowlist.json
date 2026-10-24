@@ -70,5 +70,14 @@
     "reason": "Desktop shell tests run the real sidecar process and talk to it over stdio (review.decisions-2 B-06, L4.desktop.plan D1).",
     "approvedBy": "review.decisions-2",
     "scope": "test"
+  },
+  {
+    "id": "DR-07/host-test-spawn",
+    "rule": "DR-07",
+    "from": "apps/host",
+    "to": "Bun.spawn",
+    "reason": "The approval restart test runs a real stdio host process and kills it with SIGKILL while an approval waits, then resumes in a new host (m2-plan HOST.4 A1, review.decisions-2 B-06).",
+    "approvedBy": "review.decisions-2",
+    "scope": "test"
   }
 ]

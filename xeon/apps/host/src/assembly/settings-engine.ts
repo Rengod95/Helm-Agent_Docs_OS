@@ -14,6 +14,16 @@ import {
 // - managed: 위치가 OS별 관리 정책 파일이라 정해지지 않았다(F wire §3.9). M1은 읽지 않는다.
 // - project·local: 신뢰 판정(X.loading-trust §4.7.4)이 구현되기 전에는 프로젝트 파일을 적용하지 않는다. pi 방식이다.
 // 파일 형식은 평평한 객체이고 키는 전체 설정 키다(settingsJsonSchema의 파일 모양).
+// project·local은 신뢰한 작업 폴더의 `.xeon/settings.json`, `.xeon/settings.local.json`이다(X.loading-trust.spec §4.7.2).
+// layers가 동기라서 신뢰 판정과 파일 읽기는 설정 저장소(settings-store.ts)가 먼저 하고 결과를 `setWorkspaceFiles`로 넣는다.
+
+/** 신뢰한 작업 폴더의 project·local 설정 파일 내용. 파일이 없으면 빈 맵이다 */
+export interface WorkspaceSettingFiles {
+  readonly project: ReadonlyMap<string, unknown>;
+  readonly projectPath: string;
+  readonly local: ReadonlyMap<string, unknown>;
+  readonly localPath: string;
+}
 
 export interface SettingsEngine {
   readonly catalog: SettingCatalog;
@@ -21,7 +31,16 @@ export interface SettingsEngine {
   loadUserFile(path: string): Promise<void>;
   /** 세션 범위를 읽을 저장소. 세션 서비스가 올라온 뒤 연결한다 */
   bindSession(store: SessionSettingsStore): void;
+  /** thread의 작업 폴더를 찾는 함수. thread를 만들고 여는 세션 서비스가 올라온 뒤 연결한다 */
+  bindWorkspaces(lookup: (threadId: ThreadId) => string | undefined): void;
   layers(threadId: ThreadId | undefined): ScopeStack;
+  /** 사용자 설정 파일의 경로. `loadUserFile` 전에는 undefined */
+  userPath(): string | undefined;
+  /** 사용자 범위 값을 메모리에 반영한다(파일에 쓴 뒤 부른다). value가 undefined면 키를 지운다 */
+  setUserValue(key: string, value: unknown): void;
+  /** 작업 폴더의 project·local 층을 정한다. `undefined`는 층을 거둔다(신뢰하지 않는 폴더) */
+  setWorkspaceFiles(workspace: string, files: WorkspaceSettingFiles | undefined): void;
+  hasWorkspaceFiles(workspace: string): boolean;
   /** 카탈로그 키의 유효 값. 모르는 키는 undefined다 */
   value(key: string, threadId?: ThreadId): unknown;
   /**
@@ -51,7 +70,15 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
     userPath: string | undefined;
     session: SessionSettingsStore | undefined;
     sessionNoticeGiven: boolean;
-  } = { user: new Map(), userPath: undefined, session: undefined, sessionNoticeGiven: false };
+    workspaceOf: ((threadId: ThreadId) => string | undefined) | undefined;
+  } = {
+    user: new Map(),
+    userPath: undefined,
+    session: undefined,
+    sessionNoticeGiven: false,
+    workspaceOf: undefined,
+  };
+  const workspaceFiles = new Map<string, WorkspaceSettingFiles>();
   const diagnostics: string[] = [];
 
   function layers(threadId: ThreadId | undefined): ScopeStack {
@@ -62,6 +89,14 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
         ...(state.userPath === undefined ? {} : { path: state.userPath }),
       },
     ];
+    const workspace = threadId === undefined ? undefined : state.workspaceOf?.(threadId);
+    const files = workspace === undefined ? undefined : workspaceFiles.get(workspace);
+    if (files !== undefined) {
+      stack.push(
+        { scope: "project", values: files.project, path: files.projectPath },
+        { scope: "local", values: files.local, path: files.localPath },
+      );
+    }
     if (threadId !== undefined && state.session !== undefined) {
       try {
         stack.push(state.session.layer(threadId));
@@ -109,7 +144,22 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
     bindSession(store) {
       state.session = store;
     },
+    bindWorkspaces(lookup) {
+      state.workspaceOf = lookup;
+    },
     layers,
+    userPath: () => state.userPath,
+    setUserValue(key, value) {
+      const next = new Map(state.user);
+      if (value === undefined) next.delete(key);
+      else next.set(key, value);
+      state.user = next;
+    },
+    setWorkspaceFiles(workspace, files) {
+      if (files === undefined) workspaceFiles.delete(workspace);
+      else workspaceFiles.set(workspace, files);
+    },
+    hasWorkspaceFiles: (workspace) => workspaceFiles.has(workspace),
     value(key, threadId) {
       const def = catalog.get(key);
       if (def === undefined) return undefined;

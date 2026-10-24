@@ -19,10 +19,14 @@ import type {
   CommitBatch,
   Engine,
   EnginePorts,
+  ApprovalPort,
   HostMode,
   LockOutcome,
   OwnerKind,
+  SettingsStorePort,
   SubmitOutcome,
+  ThreadPort,
+  TurnPort,
 } from "../../src/types.ts";
 
 // 아래 층 패키지 없이 호스트의 연결·처리기·전송을 시험하려는 가짜 엔진. 이벤트 로그는 메모리이고 커밋 알림은 커밋 직후 같은 턴에서
@@ -58,6 +62,13 @@ export interface FakeEngineOptions {
   readonly acquireGate?: Promise<void>;
   /** settings.get이 보는 범위 층 */
   readonly layers?: ScopeStack;
+  /** 포트 일부를 바꿔 끼운다. 처리기가 오류를 어떻게 옮기는지, 어떤 순서로 부르는지 볼 때 쓴다 */
+  readonly overrides?: {
+    readonly threads?: Partial<ThreadPort>;
+    readonly turns?: Partial<TurnPort>;
+    readonly settings?: Partial<SettingsStorePort>;
+    readonly approvals?: Partial<ApprovalPort>;
+  };
 }
 
 export interface FakeEngine {
@@ -173,7 +184,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       fork: () => Promise.reject(new Error("fork is not part of the fake")),
       revert: () => Promise.reject(new Error("revert is not part of the fake")),
       remove: () => Promise.reject(new Error("remove is not part of the fake")),
+      read: () => Promise.reject(new Error("read is not part of the fake")),
       position: () => ok(position()),
+      ...options.overrides?.threads,
     },
     turns: {
       submit(threadId, _input, requestId): Promise<SubmitOutcome> {
@@ -189,8 +202,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         return Promise.resolve({ ok: true, turnId });
       },
       interrupt: () => Promise.resolve(false),
+      resume: () => Promise.reject(new Error("resume is not part of the fake")),
       stopAtSafeBoundary: () => Promise.resolve(true),
       isLive: () => state.running !== undefined,
+      ...options.overrides?.turns,
     },
     feed: {
       headSeq: () => (options.headFault === undefined ? ok(events.length) : err(options.headFault)),
@@ -250,11 +265,18 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     },
     settings: {
       layers: () => options.layers ?? [],
+      prepare: () => Promise.resolve(),
       write: () => Promise.reject(new Error("write is not part of the fake")),
       reset: () => Promise.reject(new Error("reset is not part of the fake")),
       onChange: () => () => undefined,
+      ...options.overrides?.settings,
     },
-    approvals: { respond: () => Promise.resolve({ applied: false }) },
+    approvals: {
+      locate: () => Promise.resolve(ok(undefined)),
+      respond: () => Promise.resolve({ applied: false }),
+      list: () => Promise.reject(new Error("list is not part of the fake")),
+      ...options.overrides?.approvals,
+    },
     activity: {
       snapshot: () => ({ liveTurns: 0, liveTasks: 0, waitingApprovals: 0, pendingSchedules: 0 }),
       onChange: () => () => undefined,

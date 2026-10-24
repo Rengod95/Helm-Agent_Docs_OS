@@ -5,7 +5,7 @@ import type { AssembleOptions } from "../../src/types.ts";
 // 모델 테이프로 엔진을 움직이는 시험의 도우미. 실제 시간으로 도는 시계(stall 응답이 abort를 기다릴 때 쓴다)와,
 // 첫 요청에 응답하지 않는(stall) 테이프 또는 정해진 답을 내는 테이프로 buildModels를 만든다.
 
-function realTapeClock(): Clock & Scheduler {
+export function realTapeClock(): Clock & Scheduler {
   const timers = new Map<TimerHandle, ReturnType<typeof setTimeout>>();
   const state = { next: 1 };
   return {

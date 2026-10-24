@@ -207,13 +207,15 @@ test("not-implemented-hidden: an unimplemented method is -32601 and is not in th
   expect(names).toContain("events.batch");
   expect(names).toContain("stream.chunk");
   expect(names).toContain("$/cancelRequest");
-  expect(names).not.toContain("thread.list");
-  expect(names).not.toContain("host.status");
+  // 모든 메서드가 구현된 지금, 열리지 않는 것은 수명 신호가 없는 호스트의 host.shutdown뿐이다
+  expect(names).toContain("thread.list");
+  expect(names).toContain("host.status");
+  expect(names).not.toContain("host.shutdown");
   expect(hello.features.every((feature) => feature.status === "active")).toBe(true);
 
-  const missing = await wireErrorOf(connection.request("thread.list", {}));
+  const missing = await wireErrorOf(connection.request("host.shutdown", { reason: "client_exit" }));
   expect(missing.code).toBe(-32601);
-  expect(missing.data.details).toEqual({ method: "thread.list" });
+  expect(missing.data.details).toEqual({ method: "host.shutdown" });
   await connection.close();
 });
 

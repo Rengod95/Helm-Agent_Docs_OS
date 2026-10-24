@@ -67,6 +67,42 @@ export function wireErrorOfLease(
   }
 }
 
+/**
+ * 수명 주기 호출(fork, revert, delete)의 오류. 예상 가능한 실패는 와이어 오류로 옮긴다(F wire §3.5.2).
+ * `key_reused`는 호출마다 새 요청 키를 만드는 호스트에서는 나올 수 없다(불변 조건 위반이라 Bug)
+ */
+export function wireErrorOfLifecycle(error: LifecycleError, where: string): WireError | Bug {
+  switch (error.kind) {
+    case "busy":
+    case "disk_full":
+    case "io":
+    case "read_only":
+    case "row_invalid":
+    case "ownership_lost":
+    case "thread_not_found":
+      return wireErrorOfStore(error, where);
+    case "not_owner":
+      return threadLocked(null);
+    case "thread_closed":
+      // 종결된 thread에는 쓸 수 없다. 와이어에 따로 둔 오류가 없어 없는 thread처럼 알린다 [미결: F wire 요청]
+      return wireError("thread.notFound", { details: { threadId: error.threadId } });
+    case "turn_running":
+      return wireError("turn.busy", { details: { turnId: error.turnId } });
+    case "has_forks":
+      return wireError("thread.hasForks", { details: { forks: [...error.forks] } });
+    case "invalid_target":
+      return wireError("thread.invalidTarget", { details: { reason: error.reason } });
+    case "cancelled_by_extension":
+      return wireError("thread.cancelledByExtension", {
+        details: { point: error.point, reason: error.reason },
+      });
+    case "key_reused":
+      return new Bug(`${where}: the host builds a fresh request key per call`, { cause: error });
+    default:
+      return assertNever(error, "LifecycleError");
+  }
+}
+
 /** thread 생성의 오류. 저장소 실패는 store.* kind이고, 생성에서 나올 수 없는 변형은 호출 결함이다 */
 export function wireErrorOfCreate(error: LifecycleError, where: string): WireError | Bug {
   switch (error.kind) {

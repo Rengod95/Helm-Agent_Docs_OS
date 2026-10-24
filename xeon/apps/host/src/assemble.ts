@@ -56,6 +56,7 @@ import { createLateLogSink } from "./assembly/log-sink.ts";
 import { sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
 import { createSecretsPort, settingKeysReferencing } from "./assembly/secrets.ts";
+import { createProjectTrust } from "./assembly/trust.ts";
 import { createSettingsEngine } from "./assembly/settings-engine.ts";
 import {
   execOptionsOf,
@@ -149,6 +150,10 @@ function storeMessageOf(error: StoreOpenError): string {
     default:
       return assertNever(error, "StoreOpenError");
   }
+}
+
+function defaultProjectTrustOf(value: unknown): "ask" | "always" | "never" {
+  return value === "always" || value === "never" ? value : "ask";
 }
 
 function causeKind(caught: unknown): string | undefined {
@@ -321,6 +326,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const reportSetting = (message: string): void => {
       logger.warn("settings.invalid", { message });
     };
+    // 프로젝트 신뢰: 프로젝트 설정 파일(settings-store), 프로젝트 스킬, MCP 서버 정의가 같은 판정을 쓴다(결정 D6, X.loading-trust §4.7)
+    const projectTrust = createProjectTrust({
+      configDir: os.dirs.config,
+      homeDir: os.dirs.home,
+      clock,
+      logger: os.logger("trust"),
+      defaultTrust: () =>
+        defaultProjectTrustOf(settings.value("x.loading-trust.defaultProjectTrust")),
+    });
 
     // 2. 나머지 L0 플랫폼
     const exit = options.exit ?? ((code: number): never => process.exit(code));
@@ -451,6 +465,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
     // 5~6. 카탈로그는 위에서 만들었다. 세션 범위 설정을 연결한다
     settings.bindSession(session.sessionSettings);
+    settings.bindWorkspaces((threadId) => {
+      const found = session.query.thread(threadId);
+      return found.ok ? (found.value?.workspace ?? undefined) : undefined;
+    });
 
     const storeId = parse(StoreIdSchema, storeService.storeId);
     // xeon-disable-next-line xeon/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
@@ -472,6 +490,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       holder,
       settings,
       secrets: createSecretsPort(secrets.admin, secretsSource(settings)),
+      configDir: os.dirs.config,
+      trust: projectTrust,
       signal: lifetime.signal,
     });
     const engine: Engine = {

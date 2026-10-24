@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { repeatAsync } from "@xeon/contracts";
 import type { EventWire, HostConnection, Transport } from "@xeon/contracts/wire";
 import { createHostConnection } from "../../src/client.ts";
 import { startInProcessHost, startStdioHost } from "../../src/main.ts";
@@ -49,6 +50,22 @@ interface Run {
   readonly events: unknown[];
 }
 
+/**
+ * thread를 열면 기본 켜짐 scope의 켜기가 비동기로 적용되어 scope.changed가 뒤따라 커밋된다(X.primitives, idle apply). 그 커밋이
+ * 입력(input.queued)보다 먼저 들어가는지는 전송이 얼마나 빠른가에 달려 있어 두 전송의 seq가 어긋난다. 새 이벤트가 `quietMs` 동안
+ * 없을 때까지 기다린 뒤 입력을 보낸다. 전송 차이를 보려는 시험이라 엔진의 이 경합은 여기서 비켜 간다.
+ */
+async function untilQuiet(collected: { readonly events: readonly EventWire[] }): Promise<void> {
+  const quietMs = 60;
+  const state = { seen: -1 };
+  await repeatAsync<void>(async () => {
+    if (state.seen === collected.events.length) return { value: undefined };
+    state.seen = collected.events.length;
+    await new Promise<void>((resolve) => setTimeout(resolve, quietMs));
+    return undefined;
+  });
+}
+
 async function drive(client: Transport): Promise<Run> {
   const connection: HostConnection = createHostConnection(client);
   const normalize = normalizer();
@@ -58,6 +75,7 @@ async function drive(client: Transport): Promise<Run> {
   responses.push(normalize(await connection.request("events.subscribe", { from: "head" })));
   const created = await connection.request("thread.create", { title: "parity" });
   responses.push(normalize(created));
+  await untilQuiet(collected);
   const started = await connection.request("turn.start", {
     threadId: created.threadId,
     input: "say hello",

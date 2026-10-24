@@ -365,3 +365,23 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
     },
   };
 }
+
+/** 구독을 지운다. 진행 중인 재전송은 `open`이 거짓이 된 것을 보고 멈춘다. 모르는 구독은 2002다 */
+export function createEventsUnsubscribeHandler(
+  hub: () => ConnectionHub,
+): WireHandler<"events.unsubscribe"> {
+  return (params, context) => {
+    const conn = hub().state(context.connectionId);
+    if (conn === undefined) return Promise.reject(wireError("request.cancelled"));
+    const sub = conn.subs.get(params.sub);
+    if (sub === undefined) {
+      return Promise.reject(
+        wireError("events.subscriptionNotFound", { details: { sub: params.sub } }),
+      );
+    }
+    sub.open = false;
+    sub.pending.length = 0;
+    conn.subs.delete(sub.id);
+    return Promise.resolve({});
+  };
+}

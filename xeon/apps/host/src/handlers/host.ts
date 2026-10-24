@@ -15,7 +15,7 @@ import type { Engine } from "../types.ts";
 import { isNotImplemented } from "./not-implemented.ts";
 
 // L4.host-service.spec §3.4 M1 표, HS-01~HS-03. host.hello: 호환 검사, 실험 기능 기록, 연결을 ready로 바꾼다.
-// host.status는 M2 나머지 처리기다(HOST.2). host.shutdown은 아래에 있다.
+// host.status와 host.shutdown은 아래에 있다.
 
 /** 호스트 프로세스의 수명 신호. `host.shutdown`이 협조 종료를 마치고 응답이 나간 뒤 부른다(HS-31) */
 export interface HostLifecycle {
@@ -117,4 +117,21 @@ export function createHostShutdownHandler(
       });
     return { accepted: true };
   };
+}
+
+/** 모드, pid, 시작 시각, 연결 수, 진행 중 turn 수. 유휴 종료 예정 시각은 서비스 모드(M3)가 채운다 */
+export function createHostStatusHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+  info: HostInfo,
+): WireHandler<"host.status"> {
+  return () =>
+    Promise.resolve({
+      mode: engine.mode,
+      pid: info.pid,
+      startedAt: new Date(engine.startedAt).toISOString(),
+      connections: hub().size,
+      liveTurns: engine.ports.activity.snapshot().liveTurns,
+      idleShutdownAt: null,
+    });
 }
