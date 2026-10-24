@@ -53,6 +53,7 @@ import {
 import { buildEngineCatalog } from "./assembly/catalog.ts";
 import { builtinUnits, installFailureOf, unitOfModule } from "./assembly/extensions.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
+import { pruneOnOpen } from "./assembly/retention.ts";
 import { sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
 import { createSecretsPort, settingKeysReferencing } from "./assembly/secrets.ts";
@@ -492,6 +493,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       const found = session.query.thread(threadId);
       return found.ok ? (found.value?.workspace ?? undefined) : undefined;
     });
+
+    // 보관 정리(L1.persistence.spec §6.1): 엔진 열기 때 한 번. 기본 설정은 아무것도 지우지 않는다
+    pruneOnOpen(session, logger);
 
     const storeId = parse(StoreIdSchema, storeService.storeId);
     // xeon-disable-next-line xeon/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
