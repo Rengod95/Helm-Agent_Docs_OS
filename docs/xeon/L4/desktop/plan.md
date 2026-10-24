@@ -249,7 +249,7 @@ S1에서 spec에 반영할 내용:
 
 - 크기의 약 96%는 Bun 런타임이다(hello 86.6 MiB에 호스트 앱 코드가 `--minify`로 3.7 MiB 더해진다). 플래그로 줄일 수 있는 것은 `--minify`의 3 MiB 안팎이고, `--bytecode`는 12 MiB를 늘리는 대신 콜드 스타트를 반으로 줄인다(아래 S4).
 - 교차 컴파일은 5 triple 모두 성공했다. 크기 표 외 실제 동작은 러너가 있는 Linux x64에서만 확인했다.
-- [제안] 크기 상한: triple별로 `--minify` 기준 현재 최대(Windows 95.6 MiB)에 여유를 둔 100 MiB, 또는 `--bytecode`를 쓰는 경우 120 MiB. 값은 사용자 확인이 필요하다(아래 미결). `--bytecode`를 쓸지는 콜드 스타트 이득(약 150 ms)과 12 MiB 증가를 두고 정한다.
+- [결정: 사용자 2026-10-24] 실행 체감 속도(빠른 시작과 종료, 끊김 없는 응답)를 앱 크기보다 우선한다. 사이드카는 `--minify --bytecode`로 빌드한다(콜드 스타트 약 285 ms → 131 ms, 크기 약 +12 MiB). 크기 상한은 triple별 500 MiB로 넉넉히 둔다. 상한 검사는 회귀를 잡는 장치이고 크기를 줄이는 목표가 아니다. `--bytecode` 전에 `apps/host/src/main.ts`와 `apps/cli/src/main.ts`의 최상위 `await`를 없앤다(HOST.5, L4.cli.plan §4.3).
 
 #### S3 장수명 stdio 처리량과 역압
 
@@ -463,7 +463,6 @@ S1에서 spec에 반영할 내용:
 
 ## 미결 사항
 
-- [미결] 사이드카 크기 상한(S2 결과 §3.1.1의 제안 100 MiB(`--minify`) 또는 120 MiB(`--bytecode`)에 대한 사용자 확인).
 - [미결] `apps/host/src/main.ts`의 최상위 `await`가 `--bytecode` 빌드를 막는다(§3.1.1 S2). host 레인이 고친다.
 - [미결] macOS 서명 방식(Tauri 자동 서명과 수동 파이프라인 중 선택), Developer ID 인증서와 공증 계정 보유 여부. M3 릴리즈 후보에서 정한다(review.m2-plan D3).
 - [미결] Windows code signing 인증서 종류(OV, Azure Artifact Signing)와 비용.
