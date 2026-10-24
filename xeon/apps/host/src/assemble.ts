@@ -432,6 +432,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         logger,
         trust: projectTrust,
         signal: lifetime.signal,
+        engineVersion: ENGINE_VERSION,
         settings,
         db: store.value.root,
         faults: store.value.faults,

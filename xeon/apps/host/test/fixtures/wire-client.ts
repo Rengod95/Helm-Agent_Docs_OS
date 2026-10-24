@@ -1,5 +1,8 @@
+import { attemptAsync, repeatAsync, rethrow } from "@xeon/contracts";
+import type { TurnId } from "@xeon/contracts/conversation";
 import {
   WIRE_PROTOCOL_VERSION,
+  WireError,
   type EventWire,
   type HostConnection,
   type WireParams,
@@ -60,4 +63,27 @@ export function collectEvents(connection: HostConnection): EventCollector {
       });
     },
   };
+}
+
+/**
+ * turn.completed 이벤트를 본 직후에는 호스트가 아직 turn을 정리하는 중일 수 있어 다음 turn.start가 turn.busy(재시도 가능)로 올 수 있다.
+ * 클라이언트는 retryable 오류를 다시 보낸다. 이 도우미는 turn.busy일 때 이벤트 루프를 한 바퀴 돌려 다시 보낸다
+ */
+export async function startTurnWhenIdle(
+  connection: HostConnection,
+  params: WireParams<"turn.start">,
+  attempts = 50,
+): Promise<{ readonly turnId: TurnId }> {
+  const state = { left: attempts };
+  return await repeatAsync<{ readonly turnId: TurnId }>(async () => {
+    const started = await attemptAsync(() => connection.request("turn.start", params));
+    if (started.ok) return { value: started.value };
+    const cause = started.error.cause;
+    if (cause instanceof WireError && cause.data.kind === "turn.busy" && state.left > 0) {
+      state.left -= 1;
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+      return undefined;
+    }
+    return rethrow(cause);
+  });
 }

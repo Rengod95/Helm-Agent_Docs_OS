@@ -10,15 +10,26 @@ export interface ToolStep {
   readonly args: JsonObject;
 }
 
+/** `lead`는 도구 호출 앞의 turn마다 한 마디씩 답하는 텍스트 응답이다(앞선 turn이 테이프를 소비한다) */
 export function callingModels(
   id: string,
   steps: readonly ToolStep[],
   final = "done.",
+  lead: readonly string[] = [],
 ): NonNullable<AssembleOptions["buildModels"]> {
   return tapeBuildModels(
     tapeProvider(
       tapePlayer(
         tape(id, [
+          ...lead.map((text, index) => ({
+            role: "main" as const,
+            label: `lead ${String(index + 1)}`,
+            response: {
+              type: "message" as const,
+              content: [t.text(text)],
+              stopReason: "stop" as const,
+            },
+          })),
           ...steps.map((step, index) => ({
             role: "main" as const,
             label: `step ${String(index + 1)}: ${step.name}`,

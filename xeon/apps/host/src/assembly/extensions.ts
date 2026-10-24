@@ -20,6 +20,7 @@ import {
 import {
   DialogAsk,
   KnowledgeSkills,
+  McpClient,
   WebFetch,
   WebSearch,
   WorkPlans,
@@ -40,6 +41,7 @@ import { createTasksEntry, TASKS_MANIFEST } from "@xeon/core-tasks";
 import { toolsPlugin } from "@xeon/core-tools";
 import type { BuiltinExtensionModule, ExtHost, ExtensionUnit, InstallResult } from "@xeon/ext-host";
 import type { AssembleOptions, HostMode } from "../types.ts";
+import { hostMcpPlugin } from "./cap-mcp.ts";
 import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
 import {
@@ -78,6 +80,8 @@ export interface ExtensionDeps {
   readonly trust: ProjectTrust;
   /** 엔진 수명 신호 */
   readonly signal: AbortSignal;
+  /** 엔진 빌드 버전(MCP 서버에 알리는 클라이언트 버전) */
+  readonly engineVersion: string;
   readonly settings: SettingsEngine;
   readonly db: StoreDb;
   readonly faults: FaultInjector;
@@ -129,7 +133,17 @@ const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [
   WorkTasks,
   WorkPlans,
   DialogAsk,
+  McpClient,
 ];
+
+/**
+ * MCP 서버 도구가 쓰면 안 되는 기계 이름: 도구를 올리는 L2 능력의 도구와 코어 내장 도구. 같은 이름을 낸 서버 도구는 `name_conflict`로 숨는다
+ */
+function reservedToolNames(): ReadonlySet<string> {
+  const names = new Set<string>(["read", "ls", "bash", "read_tool_output", "tool_search", "agent"]);
+  for (const def of L2_TOOL_CAPABILITIES) for (const tool of def.tools) names.add(tool.name);
+  return names;
+}
 
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
 export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
@@ -256,6 +270,18 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           settings: layersSource(settings),
           approvals: planApprovalsFactory(deps.ext),
           commands: lazyCommandRegistry(commandRegistry),
+          loadIndex,
+        }),
+    ],
+    [
+      "cap-mcp",
+      (loadIndex) =>
+        hostMcpPlugin({
+          layers: (threadId) => settings.layers(isId("thr", threadId) ? threadId : undefined),
+          trust: deps.trust,
+          signal: deps.signal,
+          version: deps.engineVersion,
+          reservedToolNames: reservedToolNames,
           loadIndex,
         }),
     ],

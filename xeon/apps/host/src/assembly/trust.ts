@@ -93,7 +93,7 @@ function fileBackend(path: string, tmpId: () => string): TrustStoreBackend {
   };
 }
 
-function createLoaderFs(): LoaderFs {
+export function createLoaderFs(): LoaderFs {
   return {
     readText: (path) => readTextOrNull(path),
     async listDir(path) {
