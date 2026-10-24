@@ -131,6 +131,29 @@ xeon/packages/cap-knowledge/
 
 순서: K1 → (K2, K5, K7, K10) → K6 → (K3, K4) → K8 → K9 → K11. 쓰기 도구 광고는 K3·K4 완료 시점에 켠다(그 전 커밋에서는 `tools` 배열에 정의가 있어도 `cap-knowledge` 매니페스트가 그 능력의 도구 노출을 끈 상태로 둔다 [가정: 능력 단위 도구 노출 끄기는 `L1.tools.spec`]).
 
+### 3.1 구현 기록: KN.1 (K2, K5, K7, K10)
+
+`m2/kn` 브랜치의 첫 구현(`m2-plan` KN.1)이다. 쓰기 승인 게이트와 제안 대기열(K6), 스킬·메모리 쓰기 연산(K3, K4), 검색(K8, K9), 델타 알림(K11)은 뒤 작업이다.
+
+| 작업 | 상태 | 구현 위치와 범위 |
+|---|---|---|
+| K2 | 부분(완료 기준 내 모두 구현, 후크 연결 제외) | `upstream/skills.ts`(포크, 패치 KN-01~KN-09), `fs/`(포트, node 구현, 키별 직렬화), `skills/`(`roots`, `tree`, `document`, `store`, `index-update`, `reindex`, `service`, `prompt-block`, `paths`). `list`, `view`(지연 로딩, 바깥 편집 감지), `reindex`, 인덱스 블록 순수 함수와 `SkillsRuntime.indexBlock`. `before_agent_start` 연결은 K11과 `L1.context`를 기다린다 |
+| K5 | 완료(게이트 제외) | `ledger/`(`change` 실행기, `rows`, `manifest`, `target`, `rollback`, `recover`, `show`, `diff`, `service`). `prepared` → `applied`/`aborted`, `requestId` 멱등, 시작 시 복구, `list`·`show`·`rollback`. 롤백은 게이트(K6) 전까지 행위자 `user`만 허용한다. `proposals`는 빈 목록, `decide`는 `unsupported`다 |
+| K7 | 완료 | `scan/rules.ts`(규칙 집합 `1.0.0`), `ledger.scan`, 마스킹 등록부(`Redactor.containsKnown`) 연결. 쓰기 경로에 거는 일은 K3, K4다 |
+| K10 | 완료 | `settings.ts`: spec §6의 16개 키 전부, `readKnowledgeSettings`, `KNOWLEDGE_SETTING_DEFS` |
+
+플러그인(`plugin.ts`, `manifest.ts`)은 `knowledge.skills`와 `knowledge.ledger`만 `provides`에 두고 `skill_view` 도구만 광고한다. `skill_manage`는 K3가 끝날 때까지 광고하지 않고 쓰기 메서드는 `unsupported`로 거부한다.
+
+계획 §2 배치와 다른 점:
+
+- 마이그레이션은 SQL 파일이 아니라 `src/migrations.ts`의 `MigrationSet`이다(`store.migrations.apply`가 SQL 배열을 받는다). 1단계는 `files`, `skills`, `ledger`이고 `proposals`(K6)와 문서 FTS(K8, K9)는 뒤 단계로 더한다.
+- 시험 가짜는 `src/testing/`이 아니라 `test/support/`에 둔다(`memory-fs.ts`, `world.ts`, `clock.ts`, `helpers.ts`). `cap-workspace`와 같은 배치이고 배포 소스에 시험 코드가 들어가지 않는다.
+- `skills/index.ts`와 `skills/validate.ts`는 만들지 않았다. 색인 읽기·쓰기는 `store.ts`와 `reindex.ts`, 구조 검증은 쓰기 연산(K3)과 함께 `validate.ts`로 온다.
+- 원장 실행기는 새 내용(`next`)을 호출자가 미리 계산해 넘기는 모양이다(spec §4.4.1 4단계가 순수 계산이므로). K3, K4, K6의 쓰기 메서드는 이 실행기를 부른다.
+- 테이블 DDL에 열을 더했다: `cap_knowledge_ledger.target_path`, `index_changed`, `cap_knowledge_skills.layout`(spec §3.8 반영).
+- 프로세스 사이 파일 락은 `OsService`에 없어 임대와 락 안 해시 재확인으로 대신한다(spec §4.3.3 [결정: KN.1]). 그래서 `node-fs.int.test.ts`의 락 시험은 두 프로세스가 아니라 같은 프로세스 안의 직렬화를 확인한다.
+- 지원 파일 경로 규칙은 F에 `SkillFilePathSchema` 좁히기를 요청했다(spec §3.1). 그 전까지 `skills/paths.ts`가 같은 규칙을 지킨다.
+
 ## 4. 채택 코드
 
 ### 4.1 포크: pi `core/skills.ts`
@@ -156,7 +179,7 @@ xeon/packages/cap-knowledge/
 | `KN-07 root order` | `loadSkills`의 사용자 → 프로젝트 순서 | 프로젝트 → 사용자 → 확장 → 경로 순으로 바꾼다(`L2.knowledge.spec` §4.2.1) |
 
 - `_research/packages.md` §4.4 L2-d는 결합을 "config·frontmatter·paths·ignore"로 적었다. 이 계획은 앞의 셋을 결합 해소(KN-01~03)로, `ignore`는 제거(KN-04)로 처리한다.
-- `UPSTREAM.json`: `upstream: "pi-mono"`, `commit`, `version: "1.1.0"`, `license: "MIT"`, `copiedPaths: { "packages/coding-agent/src/core/skills.ts": "src/upstream/skills.ts" }`, `notCopied: ["utils/frontmatter.ts", "utils/paths.ts", "config.ts", "diagnostics.ts", "source-info.ts"]`, `modifications: ["KN-01", …, "KN-07"]`(ADR-0003 §3.4 형식).
+- `UPSTREAM.json`: `upstream: "pi-mono"`, `commit`, `version: "1.1.0"`, `license: "MIT"`, `copiedPaths: { "packages/coding-agent/src/core/skills.ts": "src/upstream/skills.ts" }`, `notCopied: ["utils/frontmatter.ts", "utils/paths.ts", "config.ts", "diagnostics.ts", "source-info.ts"]`, `modifications: ["KN-01", …, "KN-09"]`(ADR-0003 §3.4 형식). 구현 중 KN-08(항목 순서 고정과 병렬 처리)과 KN-09(심볼릭 링크 순환·깊이 방어)를 더했다.
 
 ### 4.2 그대로 쓰는 것과 쓰지 않는 것
 

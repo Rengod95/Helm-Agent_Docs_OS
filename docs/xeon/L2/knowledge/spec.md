@@ -170,6 +170,8 @@ export const UNTRUSTED_SESSION_OPEN = "<untrusted_session_content";
 
 - 행위자는 입력 필드가 아니다. 서비스는 `CallOptions.context.caller`(`CallerInfo`, `L2.readme` §5.8의 L2 공통 `F.capabilities.spec` 변경 요청)에서 행위자를 만든다. 이 문서에서 `caller.kind`, `caller.afterUntrusted`로 짧게 쓴 것은 이 필드다. `caller.kind = "model"`이면 `agent`, `extension`이면 `extension`, `host`이면 `user`다. 호출자가 행위자를 꾸며 승인 게이트를 건너뛰지 못하게 하기 위해서다.
 - `approval`과 `overrideScan`은 호출자 종류가 맞지 않으면 무시하지 않고 `invalid_input`으로 거부한다. 모델 도구 파라미터에는 두 필드가 없다(§3.6).
+- 지원 파일 경로 [결정: KN.1]. `SkillFilePathSchema`의 패턴은 `references/../x`와 `references/.hidden`을 받아들인다. 서비스는 경로를 입력으로 받은 모든 메서드(`view`, `patch`, `writeFile`, `remove`)에서 파일을 열기 전에 F의 `isSkillFilePath`(패턴과 `.`·`..` 마디 거부)를 부른다. 이 패키지는 거기에 점으로 시작하거나 끝나는 마디의 거부를 더한다(`skills/paths.ts` `isAddressableSkillFile`). 트리 해시와 안전 캡처가 점 항목을 보지 않으므로(§4.2.3), 점으로 시작하는 지원 파일을 쓰면 `baseHash`가 그 파일의 변경을 가리지 못하기 때문이다. 끝에 점이 붙은 마디는 Windows가 점을 지워 다른 파일이 되는 것을 막는다.
+- 스키마를 좁힌다 [결정: KN.1]. F에 요청한다: `SkillFilePathSchema`의 패턴을 `^(references|templates|scripts|assets)/[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?(?:/[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?){0,4}$`로 바꾸고 `isSkillFilePath`는 이 패턴과 같은 규칙만 남긴다. 모델에 보이는 JSON Schema가 거부할 경로를 미리 거절하게 하는 것이 목적이다. F가 받아들이기 전까지 `isAddressableSkillFile`이 같은 규칙을 지키고, 받아들이면 그 함수는 `isSkillFilePath` 호출 한 줄이 된다. 이 패키지는 사용자 입력 경로를 디렉터리 경로에 이어 붙여 열지 않는다. `view`는 트리를 읽은 결과(메모리)에서 경로를 찾으므로 입력 경로가 파일 시스템 호출에 쓰이지 않는다.
 
 ### 3.2 `knowledge.skills`
 
@@ -700,9 +702,10 @@ export const KnowledgeServiceName = "xeon.knowledge";
 `eng.context-map.design` §5.2 `cap_knowledge_`. 세션 밖 상태(스킬 색인, 파일 상태, 원장, 대기열)와 세션 투영·색인(세션 목록, 세션 FTS)으로 나뉜다.
 
 ```sql
--- 세션 밖 상태: xeon.store.scoped("cap_knowledge_")로 쓴다. 재생 대상이 아니다.
+-- 세션 밖 상태: xeon.store.scoped("cap.knowledge")(소유자 id, 접두 cap_knowledge_)로 쓴다. 재생 대상이 아니다.
+-- 마이그레이션은 작업마다 단계를 더한다: 1단계(KN.1)는 files, skills, ledger, 2단계(KN.2)는 proposals, FTS 테이블은 KN.4가 더한다.
 CREATE TABLE cap_knowledge_files (
-  path        TEXT PRIMARY KEY,         -- 정본 파일 절대 경로
+  path        TEXT PRIMARY KEY,         -- 정본 경로. 스킬은 스킬 디렉터리, 메모리는 저장소 파일의 절대 경로
   kind        TEXT NOT NULL CHECK (kind IN ('skill','memory')),
   target      TEXT NOT NULL,            -- 스킬 이름 또는 메모리 저장소
   scope       TEXT NOT NULL,
@@ -715,7 +718,8 @@ CREATE TABLE cap_knowledge_files (
 CREATE TABLE cap_knowledge_skills (
   scope          TEXT NOT NULL,
   name           TEXT NOT NULL,
-  dir            TEXT NOT NULL,
+  dir            TEXT NOT NULL,           -- layout이 dir이면 스킬 디렉터리, file이면 그 .md 파일의 절대 경로
+  layout         TEXT NOT NULL CHECK (layout IN ('dir','file')),   -- file: 루트 바로 아래 단일 .md(읽기만)
   description    TEXT NOT NULL,
   model_invocable INTEGER NOT NULL,
   created_by     TEXT NOT NULL CHECK (created_by IN ('user','agent','unknown')),
@@ -736,13 +740,14 @@ CREATE TABLE cap_knowledge_ledger (
   target_kind    TEXT NOT NULL,
   target_name    TEXT NOT NULL,
   target_scope   TEXT,
+  target_path    TEXT NOT NULL,           -- 스킬 디렉터리 또는 메모리 파일의 절대 경로. 롤백이 이 경로로 되돌린다
   op             TEXT NOT NULL,
   status         TEXT NOT NULL CHECK (status IN ('prepared','applied','aborted')),
   before_hash    TEXT,
   after_hash     TEXT,
   before_manifest TEXT,                   -- BlobRef JSON: [{path, blob}] 목록 blob
   after_manifest  TEXT,
-  request_id     TEXT UNIQUE,             -- CallOptions.requestId. 멱등 키
+  request_id     TEXT UNIQUE,             -- CallOptions.requestId. 멱등 키. 중단(aborted)한 행은 NULL로 비워 같은 키로 다시 부를 수 있다
   approved_by    TEXT,
   evidence       TEXT,                    -- ApprovalEvidence JSON
   scan           TEXT NOT NULL,           -- ScanSummary JSON(규칙 이름만)
@@ -750,6 +755,7 @@ CREATE TABLE cap_knowledge_ledger (
   proposal_id    TEXT,
   rollback_of    TEXT,
   rolled_back_by TEXT,
+  index_changed  INTEGER NOT NULL DEFAULT 0,   -- 스킬 인덱스(이름, 설명, 모델 호출 여부, 있고 없음)를 바꾼 항목. 인덱스 버전의 근거
   outcome        TEXT                     -- WriteOutcome JSON(멱등 재응답용)
 ) STRICT;
 CREATE INDEX cap_knowledge_ledger_target ON cap_knowledge_ledger(target_kind, target_name, seq);
@@ -851,6 +857,12 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 루트 순서는 프로젝트 → 사용자 → 확장 제공 → 설정 경로(`l2.knowledge.skills.paths`)다 [제안]. 같은 이름이 두 루트에 있으면 앞 루트가 이기고 진단(`collision`)을 남긴다. pi는 사용자 → 프로젝트 순이지만, 프로젝트 규약이 사용자 일반 절차보다 구체적이라 앞에 둔다.
 - `.gitignore` 계열 무시 규칙은 1차에 적용하지 않는다 [제안]. 포크 원본의 `ignore` 패키지 결합을 풀기 위해서다(§10 미결 10).
 - 확장 제공 루트와 설정 경로 루트의 스킬은 읽기 전용(`extension`, `path` 범위)이다.
+- 구현(KN.1, 포크 패치 KN-01~KN-09, `cap-knowledge/PATCHES.md`):
+  - 파일 접근은 `KnowledgeFs` 비동기 포트로 한다. 같은 디렉터리의 항목은 이름 바이트 순으로 처리해 같은 스킬 집합이 같은 순서와 같은 인덱스 블록을 만든다.
+  - 설정 경로(`l2.knowledge.skills.paths`)는 절대 경로만 받는다. 상대 경로는 경고 진단이다. 디렉터리나 `.md` 파일을 줄 수 있다.
+  - 심볼릭 링크가 조상 디렉터리를 가리키는 순환은 경고 진단과 함께 건너뛴다. 재귀 깊이 상한은 16이다.
+  - 루트 바로 아래의 단일 `.md` 파일 스킬(`layout: "file"`)은 읽기만 한다. 쓰기 연산은 디렉터리 스킬(`layout: "dir"`)만 대상으로 한다.
+  - 프로젝트 스킬 색인은 엔진이 도는 프로젝트(`xeon.exec`의 cwd) 하나만 담는다. 재색인은 다른 프로젝트의 프로젝트 범위 행을 지운다. 프로젝트를 여럿 동시에 여는 구성은 [미결]이다(§10 미결 17).
 
 #### 4.2.2 형식과 구조 검증
 
@@ -863,18 +875,21 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 스킬당 파일 수 | 500개 이하 [제안] | |
 | `disable-model-invocation` | 참이면 모델 인덱스에서 뺀다. 이름으로 부르는 명령 경로는 L2.dialog가 쓴다 | pi `formatSkillsForPrompt`(skills.ts:358) |
 
-- 읽기(탐색)에서 규칙을 어긴 스킬은 pi처럼 경고 진단과 함께 싣는다. 설명이 없으면 싣지 않는다.
+- 읽기(탐색)에서 규칙을 어긴 스킬은 pi처럼 경고 진단과 함께 로드한다. 설명이 없으면 싣지 않는다. 이름 규칙을 어긴 스킬은 색인에 싣지 않는다 [결정: KN.1]. `SkillNameSchema`를 어기는 이름은 `skill_view`로 부를 수 없고 `SkillIndexEntry.name`에도 담을 수 없기 때문이다. 진단(`cannot be addressed`)은 `list`의 `diagnostics`에 남는다.
+- 읽기에서 트리가 한도(파일 500개, 파일 하나 16 MiB, 전체 64 MiB)를 넘으면 그 스킬은 색인에 싣지 않고 경고 진단을 남긴다. 한도가 쓰기 한도(§위 표)보다 넓은 이유는 바깥에서 둔 큰 자원 파일을 받아들이되 메모리를 지키기 위해서다.
 - 쓰기에서 규칙을 어기면 `limit_exceeded` 또는 `invalid_input`으로 거부한다. 쓰기는 항상 검증을 통과한 파일만 만든다.
 - `create`가 만드는 `SKILL.md`의 frontmatter는 `name`과 `description` 두 키다. `edit`·`patch`는 다른 frontmatter 키를 보존한다.
 
 #### 4.2.3 트리 해시
 
-- 스킬 디렉터리 안 모든 파일의 (상대 경로, 내용 sha256)을 경로 바이트 순으로 정렬해 `경로\0해시\n`을 이은 문자열의 sha256이다. 보관함(`.archive`)과 점 파일은 넣지 않는다.
+- 스킬 디렉터리 안 모든 파일의 (상대 경로, 내용 sha256)을 경로 바이트 순으로 정렬해 `경로\0해시\n`을 이은 문자열의 sha256이다. 보관함(`.archive`)과 점으로 시작하는 항목은 넣지 않는다. 일반 파일이 아닌 항목(심볼릭 링크 포함)도 넣지 않는다 [결정: KN.1]. 링크가 스킬 밖의 파일을 가리켜 해시와 캡처로 새어 나오는 길을 막는다. 단일 파일 스킬의 트리는 그 파일 하나(경로는 파일 이름)다.
+- 안전 캡처와 롤백도 같은 파일 집합을 쓴다. 그래서 점 항목과 링크는 롤백이 건드리지 않는다.
 - `view`, `list`가 돌려주는 `treeHash`를 쓰기의 `baseHash`로 쓴다. 다르면 `base_stale`이다. Hermes의 "패치 전 같은 검토 안에서 다시 읽기" 가드를 해시 비교로 옮긴 것이다(`_research/refs/hermes.md` §3.10.1 (다), `L3.learning.spec` §3.5).
 
 #### 4.2.4 지연 로딩
 
 - `list`와 인덱스는 이름·설명·범위·해시만 담는다. 본문은 `view`를 부를 때 파일에서 읽는다.
+- `list`는 색인(DB)만 읽는다. 스킬 루트를 다시 훑는 일은 시작 시 재색인, `skills.reindex`, `view`의 해시 불일치 처리가 맡는다. 엔진이 도는 동안 바깥에서 새로 둔 스킬은 이 셋 중 하나가 있을 때까지 `list`에 나타나지 않는다(`session_start` 후크의 mtime 검사는 K11과 함께 한다).
 - `view`는 매번 파일을 읽고 트리 해시를 다시 계산한다. 색인의 해시와 다르면 바깥 편집으로 보고 §4.3.5의 스킬 쪽 처리(원장 `external` 기록, 색인 갱신)를 한 뒤 결과를 돌려준다.
 - 지원 파일의 상대 경로는 스킬 디렉터리 기준이다. `view({ name, file })`로 읽는다. 모델 렌더링은 "상대 경로는 skill_view의 file로 읽는다"는 안내를 본문 앞에 붙인다(pi `formatSkillsForPrompt`의 상대 경로 안내를 우리 도구로 바꾼 것).
 
@@ -893,6 +908,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - 예산: `l2.knowledge.skills.indexBudgetChars`(기본 8,000자 [가정]). 항목 설명은 `l2.knowledge.skills.indexDescriptionChars`(기본 160자 [가정])에서 자르고 끝에 `…`을 붙인다. Hermes는 60자, Claude Code는 1,536자 상한이다(`_research/refs/hermes.md` §3.10.1 (라)·(바), `_research/item-catalog.md` L2 스킬 행). 기본값은 측정 뒤 정한다.
 - 예산을 넘으면 범위 순(프로젝트 → 사용자 → 확장 → 경로), 같은 범위 안에서는 이름 바이트 순으로 넣을 수 있는 만큼만 넣고 남은 개수를 적는다. 순서가 결정적이어야 같은 스킬 집합이 같은 블록을 만든다(프롬프트 캐시).
+- 블록 생성은 `skills/prompt-block.ts`의 순수 함수와 `SkillsRuntime.indexBlock(threadId)`로 구현했다(KN.1). `before_agent_start` 후크에 연결하는 일은 델타 알림(K11)과 `L1.context.spec`의 결정을 기다린다.
 - 이 블록을 어디에 두는지(시스템 프롬프트 영역, 첫 turn 메시지)는 `L1.context.spec`이 정한다. [제안] 메모리 스냅샷(§4.3.4)과 같은 첫 turn 기록 메시지로 넣는다. 기록 메시지면 재개 때 같은 내용이 다시 쓰여 결정적이다.
 
 #### 4.2.6 인덱스 변경 알림
@@ -903,7 +919,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 스킬 인덱스 변경: 추가 deploy-rollback(롤백 절차 …), 변경 release-checklist, 삭제 old-notes
 ```
 
-- 세션마다 마지막으로 알린 `indexVersion`을 메모리에 둔다. 인덱스 버전은 원장 `seq` 중 인덱스를 바꾼 항목의 최댓값이다. 프로세스 재시작 뒤에는 현재 버전으로 시작한다 [가정: 재시작 사이의 변경 알림 한 번을 놓칠 수 있다. 컴팩션 뒤에는 L1.context가 인덱스 블록을 다시 넣는다고 본다].
+- 세션마다 마지막으로 알린 `indexVersion`을 메모리에 둔다. 인덱스 버전은 원장 `seq` 중 인덱스를 바꾼 항목(`index_changed = 1`인 `applied` 행)의 최댓값이다. 이름·설명·모델 호출 여부가 바뀌거나 스킬이 생기고 사라진 변경만 센다. 프로세스 재시작 뒤에는 현재 버전으로 시작한다 [가정: 재시작 사이의 변경 알림 한 번을 놓칠 수 있다. 컴팩션 뒤에는 L1.context가 인덱스 블록을 다시 넣는다고 본다].
 - 본문만 바뀐 변경은 알리지 않는다. 모델은 다음 `view`에서 새 본문을 읽는다.
 
 #### 4.2.7 `resources_discover` 지점과의 관계
@@ -927,7 +943,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.3.3 락과 원자 쓰기
 
-- 쓰기는 저장소별 파일 락 안에서 한다. 락은 `xeon.os`의 파일 락 API로 잡는다 [가정: `L0.os.spec`이 프로세스 사이 파일 락을 제공한다. Hermes는 fcntl·msvcrt를 직접 쓰지만 Xeon은 OS 분기를 L0에 둔다(`eng.dependency-rules.guide` DR-13)].
+- 쓰기는 저장소별 락 안에서 한다. 프로세스 사이 배타 [결정: KN.1]: `xeon.os`(`OsService`)는 파일 락 API를 제공하지 않는다(Hermes는 fcntl·msvcrt를 직접 쓰지만 Xeon은 OS 분기를 L0에 둔다, `eng.dependency-rules.guide` DR-13). 그래서 `KnowledgeFs.withLock`은 같은 프로세스 안의 키별 직렬화만 한다. 프로세스 사이는 두 장치가 맡는다: 한 데이터 디렉터리에 엔진 하나만 쓰는 임대(ADR-0006)와 락 안에서 하는 해시 재확인(§4.4.1 9단계). 바깥 편집기나 다른 도구가 그 사이에 쓰면 `base_stale`로 거부하고 원장 행을 `aborted`로 한다. L0.os에 파일 락 API가 생기면 `node-fs.ts`가 그것을 부른다(§10 미결 18).
 - 같은 프로세스 안에서는 저장소별 메모리 뮤텍스로 먼저 직렬화한다.
 - 파일 쓰기는 같은 디렉터리의 임시 파일에 쓰고 fsync한 뒤 rename한다.
 - 스킬도 스킬 디렉터리별로 같은 방식의 락을 쓴다(Hermes 스킬별 락, `skill_manager_tool.py:84-106`).
@@ -1000,8 +1016,9 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.4.3 시작 시 복구
 
-- 시작할 때 `status = 'prepared'`인 원장 행을 찾는다. 대상 파일의 현재 해시가 `after_hash`와 같으면 `applied`로, `before_hash`와 같으면 `aborted`로 바꾼다. 둘 다 아니면 `aborted`로 두고 바깥 편집으로 처리한다(§4.3.5). 행위자 `system`.
-- 그 뒤 스킬 루트를 재색인한다(`skills.reindex`와 같은 동작). 파일 수가 많으면 mtime과 크기로 바뀐 후보만 해시한다.
+- 시작할 때 `status = 'prepared'`인 원장 행을 찾는다. 대상의 현재 해시가 `after_hash`와 같으면 `applied`로 마감하고(색인과 파일 상태도 같은 트랜잭션에서 맞춘다), 그 밖에는 `aborted`로 바꾼다. `before_hash`와 같으면 쓰기 전에 죽은 것이고, 둘 다 아니면 바깥 편집이라 이어지는 재색인이 `external` 항목으로 남긴다(§4.3.5). 행의 행위자는 원래 값을 유지한다. 복구는 새 행을 만들지 않는다.
+- 그 뒤 스킬 루트를 재색인한다(`skills.reindex`와 같은 동작). 재색인은 사용자·프로젝트 범위의 추가, 변경, 삭제를 행위자 `external`, 연산 `external`의 `applied` 항목으로 원장에 남긴다. 처음 본 스킬도 마찬가지다(`created_by`는 처음 만든 `skill.create` 항목이 있으면 그 행위자, 없으면 `unknown`). 변경 항목의 `before_manifest`는 그 해시를 `after_hash`로 가진 이전 항목의 목록 blob이다. 없으면 비어 있어 그 항목은 롤백할 수 없다. 확장·경로 범위는 읽기 전용이라 원장에 남기지 않는다.
+- 구현(KN.1)은 재색인마다 모든 스킬의 트리를 읽고 해시한다. mtime·크기로 후보를 줄이는 최적화는 하지 않았다(§10 미결 19).
 
 #### 4.4.4 행위자 표시
 
@@ -1060,6 +1077,8 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 숨은 지시 | HTML 주석 안의 지시형 문장, 접힌 `<details>` 안의 지시 | warn |
 | 안전 우회 권유 | "승인 없이", "--no-verify", "검사를 끄고" | warn |
 
+- 규칙 이름과 판정(규칙 집합 버전 `1.0.0`, `scan/rules.ts`). 지시 주입: `injection.ignore_previous`, `injection.ignore_previous_ko`, `injection.role_override`, `injection.role_marker`. 경계 표지: `boundary.untrusted_tag`(`<untrusted_…content` 계열 전부). 유출: `exfil.shell_secret_read`(같은 줄에 네트워크 명령과 비밀 위치), `exfil.url_secret_var`(비밀 변수를 질의에 단 URL), `exfil.data_url`(200자 넘는 base64 데이터 URL, "데이터 URL로 보내기"를 이 뜻으로 읽었다 [제안]). `scripts/` 엄격 범위에서만: `exfil.pipe_to_network`. 비밀 값: `secret.api_key`, `secret.github_token`, `secret.aws_access_key`, `secret.slack_token`, `secret.private_key`, `secret.jwt`, `secret.registered_value`(마스킹 등록부, 줄 번호 없음). 숨은 문자: `hidden.zero_width`, `hidden.bidi_control`, `hidden.tag_chars`(U+E0000~E007F 태그 문자). 경고: `hidden.html_comment_instruction`, `hidden.details_instruction`, `bypass.skip_approval`.
+- 파일 맨 앞의 U+FEFF(BOM)는 편집기가 붙이는 표지라 숨은 문자로 세지 않는다. 결과는 같은 (규칙, 줄) 쌍을 한 번만 싣고 64개를 넘으면 block을 먼저 남긴다.
 - 메모리 쓰기는 검사를 항상 한다. 메모리는 매 세션 컨텍스트에 상주하므로 오염된 항목이 계속 남는다(Hermes `memory_tool_store.py:28-31`, `_research/refs/hermes.md` §3.10.1 (라)). `l2.knowledge.write.scan`은 스킬 검사만 끌 수 있고 기본은 켬이다.
 - 스킬 검사 대상은 `SKILL.md` 전체와 지원 파일 중 텍스트 파일이다. `scripts/` 아래 파일은 유출 규칙을 엄격 범위로 적용한다 [제안].
 - 비밀 값 판정은 `xeon.secrets`의 마스킹 등록부를 쓴다 [가정: `L0.secrets.spec`이 값을 노출하지 않는 판정 함수를 제공한다].
@@ -1084,17 +1103,19 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.7.1 원장
 
+- 구현(KN.1) 보충. 안전 캡처는 변경 전 내용과 변경 후 내용을 모두 쓰기 전에 blob으로 저장한다(7단계). 그래서 `prepared` 행이 `before_hash`와 `after_hash`, 두 목록 blob을 이미 갖고, 시작 시 복구(§4.4.3)가 `after_hash`와 파일 해시를 비교할 수 있다. 파일 반영이 도중에 실패하면 같은 락 안에서 캡처해 둔 이전 내용으로 되돌리고 행을 `aborted`로 한다(되돌림이 실패하면 오류를 기록하고 행은 `aborted`로 두며, 다음 재색인이 어긋난 내용을 `external` 항목으로 남긴다). 10단계 커밋만 실패하면 파일은 이미 바뀐 상태이고 행은 `prepared`로 남아 시작 시 복구가 `applied`로 마감한다.
+- 보관함 이름은 `<스킬 디렉터리의 부모>/.archive/<이름>-<UTC 시각>`이다. 같은 초에 같은 이름을 두 번 보관하면 `-2`부터 번호를 붙인다. 중첩된 스킬(`<루트>/묶음/<이름>`)은 자기 부모 디렉터리 아래에 보관된다.
 - 모든 변경(스킬 다섯 연산, 메모리 네 연산, 바깥 편집, 되돌림)을 행위자와 함께 `cap_knowledge_ledger`에 남긴다. Hermes 원장(JSONL + 내용 주소 blob, `tools/skill_ledger.py:1-10`)의 설계를 `sys_blobs` 위로 옮긴 것이다(`_research/refs/hermes.md` §3.10.1 (라), §4.1). Hermes 코드는 Python이라 재작성한다.
 - 전후 내용은 파일별 blob(`xeon.store.putBlob`, 내용 주소)과 그 목록 blob(`before_manifest`, `after_manifest`)으로 둔다. 같은 내용은 한 번만 저장된다.
 - 원장 행은 지우지 않는다. 보존 기간과 오래된 blob 정리는 [미결]이다(§10 미결 6, `L2.knowledge.plan` §7 위험).
 
 #### 4.7.2 롤백
 
-1. 대상 항목의 `status`가 `applied`가 아니면 `invalid_input`.
+1. 대상 항목의 `status`가 `applied`가 아니거나 이미 `rolled_back_by`가 있으면 `invalid_input`.
 2. 대상의 현재 해시가 그 항목의 `after_hash`와 같은지 확인한다. 다르면 `rollback_conflict`. 뒤에 다른 변경이 있으면 그 변경부터 차례로 되돌려야 한다.
-3. 쓰기 승인 게이트(§4.5.1). 롤백은 파괴적 연산이다.
+3. 쓰기 승인 게이트(§4.5.1). 롤백은 파괴적 연산이다. 게이트(K6)가 들어오기 전의 구현(KN.1)은 닫힌 실패로 행위자 `user`(호출자 종류 `host`)만 허용하고 그 밖에는 `denied`로 거부한다. 문맥이 없는 호출도 `denied`다.
 4. 안전 캡처: 현재 내용을 blob으로 저장한다. 실패하면 되돌리지 않고 `rollback_unsafe`로 실패한다(닫힌 실패, Hermes `skill_ledger.py`).
-5. `before_manifest`의 내용으로 파일을 되돌린다. `before_hash`가 null(생성 연산)이면 그 스킬을 보관함으로 옮긴다. 보관함 이동(`skill.archive`)의 되돌림은 보관함에서 원래 경로로 되돌린다.
+5. `before_manifest`의 내용으로 파일을 되돌린다. 이전 내용을 담지 못한 항목(바깥 편집을 처음 본 항목, 삭제된 파일을 찾지 못한 경우)은 `unsupported`로 거부한다. `before_hash`가 null(생성 연산)이면 그 스킬을 보관함으로 옮긴다. 보관함 이동(`skill.archive`)의 되돌림은 보관함에서 원래 경로로 되돌린다.
 6. 새 원장 항목(`op: "rollback"`, `rollback_of`)을 남기고 원래 항목의 `rolled_back_by`를 채운다.
 
 - 되돌림의 되돌림도 같은 규칙이다.
@@ -1270,8 +1291,11 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `ApprovalService`(`xeon.approvals`) 요청 kind `tool`, 미리보기 payload | `L1.tools.spec` | [가정] |
 | 쓰기 도구 둘의 일반 도구 승인 기본값 `allow` | `L1.tools.spec` | 요청 |
 | 첫 turn 기록 메시지로 스냅샷·인덱스를 넣는 경로, 컴팩션 뒤 다시 넣기 | `L1.context.spec` | 요청 |
-| 데이터 디렉터리, 프로젝트 설정 디렉터리, 파일 락 | `L0.os.spec`(`xeon.os`) | [가정] |
-| 마스킹 등록부 판정(값 노출 없음) | `L0.secrets.spec` | [가정] |
+| 데이터 디렉터리 | `L0.os.spec`(`OsDirs.data`) | 있음 |
+| 프로젝트 디렉터리 | `xeon.exec`의 `cwd` | 있음(M2는 엔진 cwd 하나) |
+| 프로세스 사이 파일 락 | `L0.os.spec` | 없음. 임대와 해시 재확인으로 대신한다(§4.3.3, §10 미결 18) |
+| `SkillFilePathSchema`를 점으로 시작하거나 끝나는 마디를 거부하도록 좁히기, `isSkillFilePath`도 같은 규칙 | `F.capabilities.spec` §3.9 | 요청(KN.1, §3.1) |
+| 마스킹 등록부 판정(값 노출 없음) | `L0.secrets.spec`(`Redactor.containsKnown`) | 있음. `xeon.secrets`가 없으면 이 판정만 건너뛴다 |
 | `resources_discover` 합성 결과 전달 | `X.loading-trust.spec` | [가정] |
 | `Clock`, `IdFactory`, `LocalIdFactory`, `localIdPattern` | `F.readme`(주입 인터페이스, 구현은 `platform-os`), `F.conversation.spec` §3.2.1 | 있음 |
 
@@ -1309,3 +1333,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 14. [미결] 되감긴 가지의 메시지를 세션 검색에서 숨길지(§4.8.1).
 15. [가정] macOS 시스템 SQLite의 FTS5·trigram 포함(`_research/notes/L2-3.md` §2.2). 사용자 Mac에서 `pragma compile_options` 확인이 필요하다.
 16. [가정] Hermes 한도 1,375자·2,200자를 한국어 사용에 그대로 쓴다(§4.3.2).
+17. [미결] 프로젝트 스킬 색인의 범위. M2 구현은 엔진 cwd 하나의 프로젝트 스킬만 색인에 담고(`cap_knowledge_skills` 기본 키가 (범위, 이름)이다), 재색인이 다른 프로젝트의 프로젝트 범위 행을 지운다. 프로젝트를 여럿 동시에 여는 구성(데스크톱 다중 창)에서는 프로젝트 식별 열이 필요하다.
+18. [미결] 프로세스 사이 파일 락. `OsService`에 락 API가 없어 임대와 해시 재확인으로 대신한다(§4.3.3). 데이터 디렉터리를 엔진 밖의 도구가 쓰는 경우의 보장은 해시 재확인까지다.
+19. [미결] 재색인 비용. 모든 스킬 트리를 읽고 해시한다. 스킬 수와 크기가 커지면 mtime·크기로 후보를 줄인다(`cap_knowledge_files.mtime_ms`가 그 자리다).
+20. [미결] 쓰기 한도(파일 1 MiB, 500개)와 읽기 한도(파일 16 MiB, 전체 64 MiB, 500개)의 차이(§4.2.2). 읽기 한도를 넘는 스킬은 색인에서 빠진다.
