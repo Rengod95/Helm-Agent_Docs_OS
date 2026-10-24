@@ -97,3 +97,16 @@ export {
 } from "./cost/pricing.ts";
 export type { PricingAudit, ProviderPricing } from "./cost/pricing.ts";
 export type { WebStorePort } from "./ports/store.ts";
+export { createFetchApi } from "./fetch/pipeline.ts";
+export type { FetchInternalOptions } from "./fetch/pipeline.ts";
+export { createRobotsGate } from "./fetch/robots-gate.ts";
+export { createWorkerConvertRunner, directConvertRunner } from "./fetch/convert-runner.ts";
+export type { ConvertFailure, ConvertRunner } from "./fetch/convert-runner.ts";
+export { convert } from "./fetch/convert/convert.ts";
+export type { ConvertInput, ConvertResult, Extractor } from "./fetch/convert/convert.ts";
+export { markdownToPlainText, sliceText } from "./fetch/truncate.ts";
+export { createProbeCache } from "./search/probe-cache.ts";
+export type { ProbeCache } from "./search/probe-cache.ts";
+export type { FetchCandidate, SearchCandidate, WebProviderCatalog } from "./ports/providers.ts";
+export type { WebDeps } from "./deps.ts";
+export { failureOfThrown } from "./provider-errors.ts";

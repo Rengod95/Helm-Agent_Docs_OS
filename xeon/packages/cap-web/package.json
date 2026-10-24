@@ -14,12 +14,17 @@
     "web-pricing": "bun src/cost/pricing-cli.ts"
   },
   "dependencies": {
+    "@mozilla/readability": "catalog:",
     "@xeon/contracts": "workspace:*",
+    "defuddle": "catalog:",
     "guarded-fetch": "catalog:",
+    "linkedom": "catalog:",
+    "turndown": "catalog:",
     "typebox": "catalog:"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
+    "@types/turndown": "catalog:",
     "@xeon/platform-store": "workspace:*"
   },
   "xeon": {

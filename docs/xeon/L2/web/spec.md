@@ -989,7 +989,15 @@ CREATE TABLE cap_web_raw (
   raw_blob      TEXT NOT NULL,             -- BlobRef JSON(F.records.spec §3.4). 받은 바이트
   text_blob     TEXT NOT NULL,             -- BlobRef JSON. 변환한 Markdown/텍스트
   text_chars    INTEGER NOT NULL,
-  created_at    INTEGER NOT NULL
+  created_at    INTEGER NOT NULL,
+  url           TEXT NOT NULL,             -- 요청 URL 원문. rawRef 재조회가 Source를 다시 만든다(§4.9.2)
+  final_url     TEXT,
+  provider      TEXT NOT NULL,
+  status        INTEGER NOT NULL,
+  content_type  TEXT NOT NULL,
+  method        TEXT NOT NULL,
+  title         TEXT,
+  published_at  TEXT
 ) STRICT;
 
 CREATE TABLE cap_web_usage (
@@ -1002,6 +1010,7 @@ CREATE TABLE cap_web_usage (
 ) STRICT;
 ```
 
+- `cap_web_raw`의 `url`부터 `published_at`까지 열은 재조회 결과의 `Source`(sN 재사용, 제목, 게시일)를 만들려고 더했다. 같은 바이트의 원문은 `raw_ref`가 같아 처음 저장한 URL의 출처가 남는다.
 - `cap_web_raw`의 `retention='session'` 행은 세션 종료 후 첫 시작 정리 때 지운다. 세션 존재 여부는 `xeon.session`의 목록 API로 확인하고 세션 테이블을 직접 읽지 않는다(CM-02).
 - 이벤트: 내구 이벤트 type을 1차에 두지 않는다. 웹 호출의 기록은 도구 3단 기록(`tool.intended`, `tool.settled`)이 맡는다. 휘발 접두사 `web.`은 예약이고 2차에 `web.research_progress`를 더한다.
 
@@ -1253,6 +1262,7 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 
 - [제안] 자동 수집 경로는 robots.txt를 지킨다. 해당 경로: `web.research`의 하위 fetch, `urls` 일괄 fetch 중 사용자가 직접 적지 않은 URL, 앞으로 생길 crawl.
 - 사용자 대행 단건 fetch는 robots.txt 검사 대상이 아니다. 해당 경로: 사용자가 대화에 적은 URL의 fetch, 모델이 검색 결과 하나를 읽는 fetch, 그룹 코드의 단건 fetch. Anthropic web_fetch는 robots.txt를 차단 기준으로 쓰므로 이 선택은 공개 릴리즈 전에 다시 정한다(`_research/web-tools.md` §4.9, §10 미결 6).
+- 구현은 `auto`를 이렇게 읽는다: 자동 수집 경로(조사의 하위 fetch)이거나, 호출자가 호스트가 아닌 `urls` 일괄 fetch이면 적용한다. 일괄 호출의 URL이 사용자 입력에서 왔는지는 구분하지 않는다 [제안].
 - 설정 `l2.web.policy.robots`: `auto`(위 규칙), `always`(모든 fetch에 적용), `never`(적용 안 함, 관리 범위에서 잠글 수 있음).
 - 처리: 호스트별 `/robots.txt`를 24시간 메모리 캐시한다. 사용자 에이전트 토큰은 `Xeon`이다. 4xx는 전부 허용, 5xx·연결 실패는 전부 금지로 본다(RFC 9309 §2.3.1) [제안].
 - UA 문자열은 `Xeon/<버전> (+<프로젝트 URL>)`로 정직하게 밝힌다. Cloudflare 챌린지 같은 봇 차단을 우회하지 않는다(`_research/web-tools.md` §4.9, §5.1 크롤링 윤리 행).
@@ -1366,6 +1376,9 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
 7. 저장: 받은 원문 바이트와 변환 본문을 `xeon.store.putBlob`으로 저장하고(트랜잭션 밖, TX-04), `cap_web_raw`와 `cap_web_fetch_cache`에 행을 쓴다. `cachePolicy`가 `none`이면 저장하지 않는다.
 8. 절단: `format`에 맞춰 본문을 고르고 `maxChars`(기본 15,000, `_research/web-tools.md` §4.3 hermes 값)로 자른다. 절단은 줄 경계에서 하고 `truncated.nextOffset`에 다음 문자 위치를 둔다. 잘렸으면 렌더링에 "잘림: 전체 N자. rawRef와 range.offset으로 이어 읽는다" 안내를 경계 밖에 붙인다.
 
+- 오류 응답(상태 400 이상)의 본문도 페이지로 돌려주되 디스크 캐시 행은 쓰지 않고 `retention='session'`으로만 보관한다. 일괄 호출에서 실패한 URL의 페이지는 `status`를 오류 코드에 가까운 합성 값(`denied` 403, `not_found` 404, `timeout` 504, `upstream_error` 502, `too_large` 413, `robots_disallowed` 403, 그 밖 502)으로 채우고 `method`는 `plain`이다. `WebFetchPage.status`가 100~599만 받기 때문이다.
+- 협상 Markdown(`text/markdown`)은 변환 실행기를 거치지 않는다. 봇 챌린지에서 승격하지 못하면 본문을 돌려주고 `meta.warnings`에 `bot_challenge`를 남긴다.
+- `provider`를 지정한 호출: `local`이면 승격을 포함한 로컬 파이프라인을 쓰고, 플러그인 ID면 그 provider만 부르고 로컬 파이프라인을 건너뛴다. 모르는 ID나 탐침 실패는 `unavailable`이고 다른 provider로 내려가지 않는다.
 - `format: "html"`은 원문 HTML 문자열, `format: "raw"`는 원문 바이트를 UTF-8로 해석한 텍스트(해석 실패 시 `unsupported`)다. 두 형식도 `maxChars`로 자른다.
 - `links`는 HTML 본문에서 뽑은 절대 URL 앞 200개다. 같은 세션의 "나온 URL" 집합(§4.6.6)에 들어간다.
 

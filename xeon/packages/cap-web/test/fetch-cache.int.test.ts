@@ -19,6 +19,7 @@ function saveInput(overrides: Partial<SaveInput> = {}): SaveInput {
       render: "auto",
       provider: "local",
     }),
+    url: "https://a.example/?utm_source=x",
     urlNorm: "https://a.example/",
     finalUrl: "https://a.example/",
     provider: "local",
@@ -32,6 +33,7 @@ function saveInput(overrides: Partial<SaveInput> = {}): SaveInput {
     rawBytes: raw,
     text: "# Hello\n\nhello",
     ttlMs: 15 * MINUTE,
+    writeCacheRow: true,
     ...overrides,
   };
 }

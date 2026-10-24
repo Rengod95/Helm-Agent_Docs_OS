@@ -26,8 +26,10 @@ export type CacheError =
 export type Retention = "session" | "persist";
 
 export interface SaveInput {
-  /** persist일 때만 fetch 캐시 행을 쓴다 */
+  /** writeCacheRow일 때만 fetch 캐시 행의 키로 쓴다 */
   readonly cacheKey: string;
+  /** 요청 URL 원문(정규화 전) */
+  readonly url: string;
   readonly urlNorm: string;
   readonly finalUrl: string | undefined;
   readonly provider: string;
@@ -43,6 +45,8 @@ export interface SaveInput {
   /** 변환한 Markdown 또는 텍스트 */
   readonly text: string;
   readonly ttlMs: number;
+  /** persist이면서 캐시 재사용을 허용할 때만 참(`freshness: "live"`나 TTL 0이면 거짓) */
+  readonly writeCacheRow: boolean;
 }
 
 export interface CachedPage {
@@ -66,6 +70,15 @@ export interface RawPage {
   readonly rawRef: string;
   readonly retention: Retention;
   readonly text: string;
+  readonly url: string;
+  readonly finalUrl: string | undefined;
+  readonly provider: string;
+  readonly status: number;
+  readonly contentType: string;
+  readonly method: string;
+  readonly title: string | undefined;
+  readonly publishedAt: string | undefined;
+  readonly createdAt: number;
 }
 
 export interface FetchCache {
@@ -205,8 +218,10 @@ export function createFetchCache(deps: {
       const written = db().write((tx) => {
         // 같은 원문이 이미 persist로 있으면 retention을 낮추지 않는다
         tx.run(
-          `INSERT INTO cap_web_raw (raw_ref, retention, session_id, raw_blob, text_blob, text_chars, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO cap_web_raw
+             (raw_ref, retention, session_id, raw_blob, text_blob, text_chars, created_at,
+              url, final_url, provider, status, content_type, method, title, published_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON CONFLICT(raw_ref) DO UPDATE SET
              retention = CASE WHEN excluded.retention = 'persist' THEN 'persist' ELSE cap_web_raw.retention END,
              session_id = CASE WHEN excluded.retention = 'persist' THEN NULL ELSE cap_web_raw.session_id END,
@@ -220,9 +235,17 @@ export function createFetchCache(deps: {
             JSON.stringify(textBlob.value),
             input.text.length,
             now,
+            input.url,
+            input.finalUrl ?? null,
+            input.provider,
+            input.status,
+            input.contentType,
+            input.method,
+            input.title ?? null,
+            input.publishedAt ?? null,
           ],
         );
-        if (input.retention === "persist") {
+        if (input.writeCacheRow && input.retention === "persist") {
           tx.run(
             `INSERT OR REPLACE INTO cap_web_fetch_cache
                (cache_key, url_norm, final_url, provider, status, content_type, raw_ref, method, title, published_at, retrieved_at, expires_at)
@@ -250,9 +273,12 @@ export function createFetchCache(deps: {
 
     readRaw(rawRef, sessionId) {
       const read = db().read((tx) =>
-        tx.get("SELECT retention, session_id, text_blob FROM cap_web_raw WHERE raw_ref = ?", [
-          rawRef,
-        ]),
+        tx.get(
+          `SELECT retention, session_id, text_blob, created_at, url, final_url, provider, status,
+                  content_type, method, title, published_at
+             FROM cap_web_raw WHERE raw_ref = ?`,
+          [rawRef],
+        ),
       );
       if (!read.ok) return err({ kind: "read", error: read.error });
       const row = read.value;
@@ -260,9 +286,27 @@ export function createFetchCache(deps: {
       const retention = stringCell(row, "retention");
       const owner = nullableStringCell(row, "session_id");
       const textBlob = stringCell(row, "text_blob");
+      const createdAt = numberCell(row, "created_at");
+      const url = stringCell(row, "url");
+      const finalUrl = nullableStringCell(row, "final_url");
+      const provider = stringCell(row, "provider");
+      const status = numberCell(row, "status");
+      const contentType = stringCell(row, "content_type");
+      const method = stringCell(row, "method");
+      const title = nullableStringCell(row, "title");
+      const publishedAt = nullableStringCell(row, "published_at");
       if (!retention.ok) return err(invalid(retention.error));
       if (!owner.ok) return err(invalid(owner.error));
       if (!textBlob.ok) return err(invalid(textBlob.error));
+      if (!createdAt.ok) return err(invalid(createdAt.error));
+      if (!url.ok) return err(invalid(url.error));
+      if (!finalUrl.ok) return err(invalid(finalUrl.error));
+      if (!provider.ok) return err(invalid(provider.error));
+      if (!status.ok) return err(invalid(status.error));
+      if (!contentType.ok) return err(invalid(contentType.error));
+      if (!method.ok) return err(invalid(method.error));
+      if (!title.ok) return err(invalid(title.error));
+      if (!publishedAt.ok) return err(invalid(publishedAt.error));
       if (retention.value !== "session" && retention.value !== "persist") {
         return err({ kind: "row_invalid", column: "retention" });
       }
@@ -270,7 +314,20 @@ export function createFetchCache(deps: {
       if (retention.value === "session" && owner.value !== sessionId) return ok(undefined);
       const text = readText(textBlob.value);
       if (!text.ok) return text;
-      return ok({ rawRef, retention: retention.value, text: text.value });
+      return ok({
+        rawRef,
+        retention: retention.value,
+        text: text.value,
+        url: url.value,
+        finalUrl: finalUrl.value ?? undefined,
+        provider: provider.value,
+        status: status.value,
+        contentType: contentType.value,
+        method: method.value,
+        title: title.value ?? undefined,
+        publishedAt: publishedAt.value ?? undefined,
+        createdAt: createdAt.value,
+      });
     },
 
     sweep(maxBytes) {

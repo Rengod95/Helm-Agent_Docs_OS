@@ -303,6 +303,7 @@ M3:
 | WEB.2 | B3 | 구현 | `policy/address.ts`(IP 파싱·분류), `ssrf.ts`(URL 검사, 주소 판정), `domain.ts`, `access.ts`(§4.1 3~4단계: 비밀 값, 도메인, 대화에 나온 URL, 승인), `content-http.ts`(리다이렉트 hop 재검사), `robots.ts`, `seen-urls.ts`, `guarded-http.ts`(provider용 `GuardedHttp`), `transport/http-transport.ts`(guarded-fetch 연결), `transport/system-resolver.ts`, `ask-adapter.ts`. `address.test.ts`, `ssrf.test.ts`, `domain-policy.test.ts`, `access-unseen.test.ts`, `robots.test.ts`, `guarded-http.test.ts`, `ask-adapter.test.ts` |
 | WEB.3 | B4 | 구현 | `cache/single-flight.ts`(결과 타입마다 인스턴스, 앞선 호출자가 취소하면 뒤 호출자가 다시 시작), `search-memo.ts`(LRU 500 + TTL, limit 버킷, 메모 키), `fetch-cache.ts`(`cap_web_fetch_cache`, `cap_web_raw`, 크기 상한 정리, 사라진 세션의 원문 정리), `migrations.ts`(TS 상수. `.sql` 파일 대신 `MigrationSet`을 쓴다). `cache.test.ts`, `fetch-cache.int.test.ts`(실제 SQLite 임시 파일) |
 | WEB.3 | B5 | 구현 | `cost/pricing.ts`(내장 가격표, asOf 90일 점검), `meter.ts`(reported·estimated·free 계산, 월 무료 한도 경고, `cap_web_usage` 누적), `limits.ts`(세션당 호출 상한), `pricing-cli.ts`. `just web-pricing`을 구현했다(출력만 하고 종료코드 0). `cost.test.ts` |
+| WEB.4 | B6 | 구현 | `fetch/convert/`(WEB-R16 영역: `convert.ts`, `sanitize.ts`, `readability.ts`, `defuddle.ts`, `turndown.ts`), `convert-worker.ts`(네트워크 전역을 지운 뒤 변환 모듈을 동적 import), `convert-runner.ts`(Worker 실행기와 직접 실행기), `local-provider.ts`, `promote.ts`(플러그인 후보 승격. 브라우저 승격은 비워 둠), `raw-read.ts`, `truncate.ts`, `robots-gate.ts`, `pipeline.ts`. `convert.test.ts`, `convert-worker.test.ts`, `fetch-pipeline.test.ts`, `fetch-cache-behavior.test.ts`. WEB-R16 확인(plan §6 4번): `convert/`에 `fetch(` 호출과 `node:http` import를 넣으면 `just check-layers`와 `just lint`가 각각 실패하는 것을 확인하고 되돌렸다 |
 
 ### 8.2 guarded-fetch 0.1.6 소스 확인 (WEB.2)
 
@@ -330,7 +331,16 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 | 항목 | 이유 | 확인 방법 |
 |---|---|---|
 | Bun 런타임에서 guarded-fetch 동작 | `undici`가 Bun에서 도는지, `connect.lookup`을 Bun의 소켓이 따르는지 실행으로 확인하지 못했다. 소스만 읽었다 | 사람이 임시 스모크로 `guardedFetch("http://127.0.0.1:<루프백 서버>")`가 `hostname_unsafe`로 거부되는지, `localhost`로 해석되는 이름이 막히는지 확인한다. 막히지 않으면 `dispatcher`에 자체 `Agent`를 넘기는 방식(undici 직접 의존)으로 바꾼다 |
-| `direct` 모드의 DNS 리바인딩 | 사전 검사에서 모든 주소를 판정한 뒤 `fetch`가 이름을 다시 푼다. 그 사이에 주소가 바뀌면 막지 못한다 | 영향 범위는 사설망 허용을 켠 사용자와 SearXNG 같은 사용자 설정 endpoint로 한정된다. `allowPrivateNetwork`는 project 범위를 허용하지 않는다. 막으려면 이름이 아니라 검증한 IP로 연결하는 전송이 필요하다 |
+| `direct` 모드의 DNS 리바인딩 | 사전 검사에서 모든 주소를 판정한 뒤 `fetch`가 이름을 다시 푼다. 그 사이에 주소가 바뀌면 막지 못한다 | 영향 범위는 사설망 허용을 켠 사용자와 SearXNG 같은 사용자 설정 endpoint로 한정된다. `allowPrivateNetwork`는 project 범위를 허용하지 않는다. 막으려면 검증한 IP로 직접 연결하는 전송이 필요하다 |
 | `cap_web_usage` 가격 단위 | 래퍼 토큰 단가는 Haiku 5.5 값이고 사용할 모델에 따라 다르다. 토큰 수는 ADR-0005 §3.2의 추정이다 | WEB.6 뒤 실측(`just web-wrapper-measure`, 사람 확인 뒤) |
 | robots.txt 가져오기 연결 | `createRobotsChecker`는 가져오기 함수를 주입받는다. 파이프라인 연결은 WEB.4 | WEB.4 |
+
+### 8.4 문서와 다르게 정한 점
+
+- `cap_web_raw`에 출처 열 9개(`url`, `final_url`, `provider`, `status`, `content_type`, `method`, `title`, `published_at`)를 더했다. 스펙 §3.8의 열만으로는 rawRef 재조회가 `Source`를 만들 수 없다(원문 URL이 없다). 마이그레이션은 `.sql` 파일 대신 `cache/migrations.ts`의 `MigrationSet` 상수다.
+- `fetch/convert/`는 `ConvertResult`에 `spaSuspected`(`<noscript>`가 JavaScript를 요구하거나 루트 요소 하나뿐인 빈 페이지)를 더해 승격 판단을 돕는다. 승격 조건 "공백 제외 200자 미만"은 파이프라인이 판정한다.
+- `defuddle`은 동기 `parse()`만 쓴다. 이 패키지의 비동기 추출기(YouTube, Bilibili)는 제3자 API를 부르므로 WEB-R16과 맞지 않아 쓰지 않는다.
+- tsconfig `lib`에 `dom`을 더했다(`cap-web`만). `@mozilla/readability`와 `linkedom`의 타입이 `Document`, `Node`를 전역으로 참조한다.
+- `GuardedHttp.request`는 거부할 때 `WebHttpError`를 던진다. 인터페이스가 Promise 거부로 정해져 있어서이고, 앞단 안쪽 호출은 같은 로직의 `Result` 판(`BoundProviderHttp.request`)을 쓴다.
+- 비밀 값 판정(`Redactor.containsKnown`), 사용자 승인(`L2ApprovalsPort`), 세션 이벤트 읽기, provider 후보 조회는 `cap-web/src/ports/*.ts`의 좁은 포트로 받는다. 실제 연결은 HOST 트랙의 조립이 한다(m2-plan §3 6번).
 
