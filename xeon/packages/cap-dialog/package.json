@@ -12,6 +12,11 @@
     "test": "bun test",
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
+  "dependencies": {
+    "@xeon/contracts": "workspace:*",
+    "@xeon/ext-host": "workspace:*",
+    "typebox": "catalog:"
+  },
   "devDependencies": {
     "@types/bun": "catalog:"
   },
