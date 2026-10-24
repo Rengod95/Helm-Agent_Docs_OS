@@ -1,6 +1,8 @@
 import type { Clock } from "@xeon/contracts";
 import type { SandboxService } from "@xeon/contracts/services";
 import type { WorkspaceEnv } from "./env.ts";
+import type { BlobSink } from "./ports/blobs.ts";
+import type { ThreadWorkspaces } from "./ports/threads.ts";
 import type { RootsDeps } from "./roots.ts";
 import type { WorkspaceSettings } from "./settings.ts";
 
@@ -15,4 +17,8 @@ export interface WorkspaceDeps {
   readonly clock: Clock;
   /** 호출 한 번이 읽는 유효 설정. threadId가 있으면 세션 범위를 포함한다 */
   readonly settings: (threadId: string | undefined) => WorkspaceSettings;
+  /** 이미지 blob 저장소. 없으면 `workspace.images`는 unavailable이고 `read`는 이미지를 바이너리로 본다 */
+  readonly blobs?: BlobSink;
+  /** 대화별 작업 폴더. 없으면 모든 대화가 `env`의 cwd 하나를 쓴다(M1 동작) */
+  readonly threads?: ThreadWorkspaces;
 }

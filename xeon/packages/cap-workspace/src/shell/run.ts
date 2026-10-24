@@ -9,6 +9,7 @@ import type { CancelScope, SecretEnvRequest } from "@xeon/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure, guarded } from "../errors.ts";
 import { resolveWorkspacePath } from "../roots.ts";
+import { scopedDeps } from "../scope.ts";
 import { runBashCommand, type BashOutcome } from "./upstream/bash.ts";
 
 // L2.workspace.spec §3.3, §4.2. 샌드박스 래핑(xeon.sandbox)과 실행(xeon.exec)은 F 인터페이스로만 만난다.
@@ -90,10 +91,12 @@ function toRunOutput(outcome: BashOutcome, durationMs: number): RunResult {
   };
 }
 
-export function createShellApi(deps: WorkspaceDeps): ShellApi {
+// 호출마다 호출한 대화의 작업 폴더로 의존을 맞춘다(scopedDeps, open-issues M-06). 기본 cwd, 샌드박스 쓰기 root가 그 폴더가 된다.
+export function createShellApi(base: WorkspaceDeps): ShellApi {
   return {
     run(input, options) {
       return guarded(CAPABILITY, "run", async () => {
+        const deps = scopedDeps(base, options?.context?.threadId);
         const context: CancelScope = { abortSignal: options?.signal };
         if (options?.signal?.aborted === true) {
           throw new WorkspaceFailure("aborted", "The command was aborted before it started.");

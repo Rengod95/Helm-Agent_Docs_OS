@@ -3,22 +3,29 @@ import {
   WorkspaceFiles,
   WorkspaceFilesKey,
   WorkspaceShell,
+  WorkspaceImagesKey,
   WorkspaceShellKey,
   type AnyCapabilityDef,
 } from "@xeon/contracts/capabilities";
 import type { ExtensionEntry, PortKey } from "@xeon/contracts/extensions";
+import type { SessionService } from "@xeon/contracts/records";
 import {
   ExecPortKey,
   OsPortKey,
   SandboxServiceName,
+  SessionPortKey,
+  StoreServicePortKey,
   ToolServiceName,
+  type ExecService,
   type SandboxService,
   type ToolRegistration,
   type ToolService,
 } from "@xeon/contracts/services";
 import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
 import type { WorkspaceDeps } from "./deps.ts";
+import { envAtCwd } from "./env.ts";
 import { workspaceManifest } from "./manifest.ts";
+import type { ThreadWorkspaces } from "./ports/threads.ts";
 import { defaultRoots, type RootsDeps } from "./roots.ts";
 import { createWorkspaceService } from "./service.ts";
 import { readWorkspaceSettings, type WorkspaceSettingsSource } from "./settings.ts";
@@ -51,6 +58,23 @@ function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefin
   }
 }
 
+/**
+ * 대화별 작업 폴더. `xeon.session`이 대화 투영 행의 `workspace`를 주고, `xeon.exec`의 `withCwd`로 그 폴더의 env를 만든다.
+ * 행이 없거나 읽기에 실패하면 null이다(엔진의 cwd로 간다). 읽기 실패는 다음 호출이 다시 시도하므로 여기서 던지지 않는다.
+ */
+function threadWorkspaces(
+  session: Pick<SessionService, "query">,
+  exec: Pick<ExecService, "withCwd" | "truncateHeadOf">,
+): ThreadWorkspaces {
+  return {
+    workspaceOf: (threadId) => {
+      const row = session.query.thread(threadId);
+      return row.ok ? (row.value?.workspace ?? null) : null;
+    },
+    envAt: (cwd) => envAtCwd(exec, cwd),
+  };
+}
+
 /** 구현된 도구만 남긴 `workspace.files` 정의. 서비스 메서드와 키는 그대로다 */
 export function advertisedFilesDef(): AnyCapabilityDef {
   return {
@@ -69,6 +93,8 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
       const os = host.port(OsPortKey);
       const sandbox = optionalPort(host, SandboxPortKey);
       const tools = optionalPort(host, ToolsPortKey);
+      const session = optionalPort(host, SessionPortKey);
+      const store = optionalPort(host, StoreServicePortKey);
       const logger = os.logger("workspace");
 
       const roots: RootsDeps = {
@@ -83,13 +109,27 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
         tempDir: os.dirs.tmp,
         clock: os.time.clock,
         settings: (threadId) => readWorkspaceSettings(options.settings.layers(threadId)),
+        ...(store === undefined ? {} : { blobs: store }),
+        ...(session === undefined ? {} : { threads: threadWorkspaces(session, exec) }),
       };
       const service = createWorkspaceService(deps);
       host.provide(WorkspaceFilesKey, service.files);
       host.provide(WorkspaceShellKey, service.shell);
 
+      host.provide(WorkspaceImagesKey, service.images);
+
       if (sandbox === undefined) {
         logger.warn("workspace.sandbox_missing", { effect: "bash is rejected as unavailable" });
+      }
+      if (store === undefined) {
+        logger.warn("workspace.store_missing", {
+          effect: "workspace.images is unavailable and read treats images as binary files",
+        });
+      }
+      if (session === undefined) {
+        logger.warn("workspace.session_missing", {
+          effect: "every thread uses the engine working directory",
+        });
       }
       if (tools === undefined) {
         logger.warn("workspace.tools_missing", { effect: "no tool is advertised" });

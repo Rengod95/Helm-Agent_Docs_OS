@@ -1,6 +1,6 @@
 # cap-workspace 포크 패치 기록
 
-`src/**/upstream/`과 `src/upstream/`은 pi의 포크다(durable 도구 5개와 출력 한도 함수, coding-agent `ls`). 원본 저장소, 커밋, 복사 경로, 파일별 sha256은 `UPSTREAM.json`에 있다.
+`src/**/upstream/`과 `src/upstream/`은 pi의 포크다(durable 도구 5개와 출력 한도 함수, 이미지 형식 판별 2개, coding-agent `ls`). 원본 저장소, 커밋, 복사 경로, 파일별 sha256은 `UPSTREAM.json`에 있다.
 세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// XEON-PATCH: <id>` 표지.
 `test/fork-records.test.ts`가 이를 검사한다. 근거 문서는 `L2.workspace.plan` §2, `adr.0003` §3.4다.
 고친 줄 위에 표지를 단다. 줄 번호는 원본(커밋 `cdaf6c2`, `packages/durable/` 또는 `packages/coding-agent/`) 기준이다.
@@ -19,6 +19,8 @@
 | P8 | `tools/path-utils.ts:7`, `tools/path-utils.ts:12` | `normalizeToolPath`를 export하고(`src/roots.ts`가 `..` 마디 검사에 쓴다), 함수가 받는 env를 `Pick<ExecutionEnv, "absolutePath" \| "exists">`로 좁힌다. 탈출 검사는 넣지 않는다(plan §2 표) | `roots.test.ts` |
 | P9 | `harness/output.ts:261` | `isolatedDeclarations`가 요구하는 export 상수 타입 주석을 단다 | `tsc -b` |
 | P10 | `files/upstream/path-utils.ts`(`resolveReadToolPath`), `files/upstream/read.ts`(`readHead`, `readFileText`), `upstream/output.ts`(`sanitizeOutput`) | `eng.typescript.guide` §1 포크 코드 절과 TY-22를 적용해 린트 억제 주석을 모두 걷는다. `no-await-in-loop` 반복문 세 곳(읽기 경로 후보 확인, 머리 조각 읽기, 읽는 동안 파일이 바뀌었는지 보는 재시도)은 `@xeon/contracts`의 `eachAsync`·`repeatAsync`로 옮긴다. `no-control-regex`가 걸린 `INVALID_OUTPUT` 정규식은 UTF-16 코드 단위를 검사하는 `isInvalidOutputUnit`으로 바꾼다. 검사 범위는 같다: U+0000..U+0008, U+000B..U+001F, U+FFF9..U+FFFB. 동작은 같다 | `tsc -b`, `bun run lint`, `test/output.test.ts`, `test/read.test.ts` |
+| P11 | `tools/image.ts` 전체 | `eng.typescript.guide` TY-22와 비null 단언 금지에 맞춘다. `isAnimatedPngOf`의 `no-await-in-loop` 반복문을 `@xeon/contracts`의 `repeatAsync`로 옮긴다(조각 검사 순서와 반환값은 같다). `imageDimensions`의 JPEG 조각 표지 읽기 `bytes[offset + 1]!`를 `?? 0`으로 바꾼다. 표지 바이트가 0이면 SOF 범위(0xC0..0xCF) 밖이라 다음 조각으로 넘어가는 동작은 같다. 나머지는 원본 그대로다: `detectSupportedImageMimeType`, `detectSupportedImageMimeTypeOf`, `imageDimensions`, `ByteSource` | `images.test.ts`, `tsc -b` |
+| P12 | `tools/image-processor.ts` 전체 | 처리기 없는 최소형(plan W7 M2)에 필요한 것만 남긴다: `INLINE_IMAGE_TYPES`, `base64Length`, `DEFAULT_IMAGE_LIMITS`. `ImageLimits`는 F `@xeon/contracts/capabilities`의 것을 쓴다. `ImageProcessor`, `PreparedImage`, `toBase64`는 처리기가 들어오는 2차에 가져온다(쓰는 곳이 없으면 knip이 막는다) | `images.test.ts` |
 
 ## W2와의 차이
 

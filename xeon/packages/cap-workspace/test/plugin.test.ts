@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import {
   WorkspaceFilesKey,
+  WorkspaceImagesKey,
   WorkspaceShellKey,
   type CapabilityApi,
   type WorkspaceFiles,
+  type WorkspaceImages,
   type WorkspaceShell,
 } from "@xeon/contracts/capabilities";
 import { err, ok, type Logger, type LogFields, type Result } from "@xeon/contracts";
@@ -14,13 +16,15 @@ import {
   type PortKey,
   type ToolRegisterError,
 } from "@xeon/contracts/extensions";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import type { ToolRegistration, Unregister } from "@xeon/contracts/services";
 import type { ExtensionUnit } from "@xeon/ext-host";
-import { createTestHost } from "@xeon/ext-host/testing";
+import { createTestHost, fixedIdFactory } from "@xeon/ext-host/testing";
 import { IMPLEMENTED_FILES_TOOLS, workspacePlugin } from "../src/plugin.ts";
 import { WORKSPACE_EXTENSION_NAME, workspaceManifest } from "../src/manifest.ts";
 import { rejection } from "./support/assertions.ts";
 import { fakeSandbox } from "./support/fakes.ts";
+import { memoryBlobs, pngBytes, toBase64, type MemoryBlobs } from "./support/images.ts";
 import { memoryEnv, type MemoryEnv } from "./support/memory-env.ts";
 
 interface FakeTools {
@@ -53,8 +57,25 @@ function recordingLogger(lines: LogLine[]): Logger {
   return logger;
 }
 
-async function boot(options: { sandbox?: boolean; tools?: boolean; refuse?: string } = {}) {
-  const t = await createTestHost();
+interface FakeSession {
+  query: {
+    thread(threadId: ThreadId): Result<{ readonly workspace: string | null } | undefined, never>;
+  };
+}
+const SessionKey: PortKey<FakeSession> = { name: "xeon.session" };
+const StoreKey: PortKey<MemoryBlobs> = { name: "xeon.store" };
+
+async function boot(
+  options: {
+    sandbox?: boolean;
+    tools?: boolean;
+    refuse?: string;
+    workspaces?: Readonly<Record<string, string>>;
+    store?: boolean;
+  } = {},
+) {
+  // 시험 호스트가 기본으로 내는 xeon.session(ext 멤버만)이 이 시험의 session 포트와 겹치지 않게 뺀다
+  const t = await createTestHost({ without: ["records"] });
   const env = memoryEnv({ cwd: "/work" });
   env.mkdir("/work");
   const registered: ToolRegistration[] = [];
@@ -70,6 +91,15 @@ async function boot(options: { sandbox?: boolean; tools?: boolean; refuse?: stri
         logger: () => recordingLogger(lines),
       });
       if (options.sandbox !== false) ctx.providePort(SandboxKey, fakeSandbox());
+      const { workspaces } = options;
+      if (workspaces !== undefined) {
+        ctx.providePort(SessionKey, {
+          query: {
+            thread: (id) => ok({ workspace: workspaces[id] ?? null }),
+          },
+        });
+      }
+      if (options.store === true) ctx.providePort(StoreKey, memoryBlobs());
       if (options.tools !== false) {
         ctx.providePort(ToolsKey, {
           register: (registration) => {
@@ -93,11 +123,13 @@ function consumer() {
   const apis: {
     files?: CapabilityApi<typeof WorkspaceFiles>;
     shell?: CapabilityApi<typeof WorkspaceShell>;
+    images?: CapabilityApi<typeof WorkspaceImages>;
   } = {};
   const entry: ExtensionEntry = ({ manifest, scope }) => {
     scope(manifest.name, {}, (g) => {
       apis.files = g.capability(WorkspaceFilesKey);
       apis.shell = g.capability(WorkspaceShellKey);
+      apis.images = g.capability(WorkspaceImagesKey);
     });
   };
   const unit: ExtensionUnit = {
@@ -111,6 +143,7 @@ function consumer() {
       requires: [
         { id: "workspace.files", range: "^1.0.0" },
         { id: "workspace.shell", range: "^1.0.0" },
+        { id: "workspace.images", range: "^1.0.0" },
       ],
       points: [],
       usesDrive: false,
@@ -132,6 +165,7 @@ describe("manifest", () => {
     expect(checked.manifest?.provides).toEqual([
       { id: "workspace.files", version: "1.0.0" },
       { id: "workspace.shell", version: "1.0.0" },
+      { id: "workspace.images", version: "1.0.0" },
     ]);
     const unit = workspacePlugin({ settings: { layers: () => [] } });
     expect(unit.builtin).toBe(true);
@@ -219,5 +253,47 @@ describe("plugin", () => {
     await t.settled();
     env.put("/work/a.txt", "a\n");
     expect(await apis.files?.read({ path: "a.txt" })).toMatchObject({ kind: "text", text: "a\n" });
+  });
+});
+
+describe("session and store ports", () => {
+  test("thread workspaces and image blobs come from xeon.session and xeon.store", async () => {
+    const ids = fixedIdFactory();
+    const alpha = ids.next("thr");
+    const other = ids.next("thr");
+    const { t, env } = await boot({ workspaces: { [alpha]: "/projects/alpha" }, store: true });
+    env.mkdir("/projects/alpha");
+    env.put("/projects/alpha/a.txt", "alpha\n");
+    env.put("/projects/alpha/pic.png", pngBytes(4, 3, 64));
+    env.put("/work/a.txt", "engine\n");
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    const inAlpha = { context: { threadId: alpha, caller: { kind: "host" } } } as const;
+    const inOther = { context: { threadId: other, caller: { kind: "host" } } } as const;
+    expect(await apis.files?.read({ path: "a.txt" }, inAlpha)).toMatchObject({ text: "alpha\n" });
+    expect(await apis.files?.read({ path: "a.txt" }, inOther)).toMatchObject({ text: "engine\n" });
+    const image = await apis.images?.load({ path: "pic.png" }, inAlpha);
+    expect(image).toMatchObject({ mimeType: "image/png" });
+    const register = await apis.images?.register({
+      data: toBase64(pngBytes(4, 3, 64)),
+      mimeType: "image/png",
+    });
+    expect(register?.blob.sha256).toBe(image?.blob.sha256);
+  });
+
+  test("without the store or the session the gaps are logged and images are unavailable", async () => {
+    const { t, lines } = await boot();
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    const events = lines.map((line) => line.event);
+    expect(events).toContain("workspace.store_missing");
+    expect(events).toContain("workspace.session_missing");
+    const error = await rejection(
+      apis.images?.register({ data: toBase64(pngBytes()), mimeType: "image/png" }) ??
+        Promise.resolve(),
+    );
+    expect(error.data.code).toBe("unavailable");
   });
 });
