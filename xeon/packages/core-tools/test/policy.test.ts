@@ -67,6 +67,44 @@ test("policy_deny_in_lower_tier_still_denies: no allow overturns a deny", () => 
   expect(decision.ruleId).toBe("d.deny");
 });
 
+test("four tiers rank default < extension < user < managed: a higher tier decides, deny stays in any tier", () => {
+  const tiers = ["default", "extension", "user", "managed"] as const;
+  // 낮은 티어의 deny를 어느 티어의 allow도 뒤집지 못한다
+  for (const low of tiers) {
+    for (const high of tiers) {
+      const decision = evaluatePolicy(input(), [
+        rule("low.deny", "deny", low),
+        rule("high.allow", "allow", high),
+      ]);
+      expect(decision.effect).toBe("deny");
+    }
+  }
+  // 허용과 ask는 높은 티어가 이긴다
+  const ruleSet = (order: readonly (typeof tiers)[number][]): TieredRule[] =>
+    order.map((tier, index) => rule(`r.${tier}`, index % 2 === 0 ? "ask" : "allow", tier));
+  expect(evaluatePolicy(input(), ruleSet(["default", "extension"]))).toMatchObject({
+    effect: "allow",
+    tier: "extension",
+  });
+  expect(evaluatePolicy(input(), ruleSet(["extension", "user"]))).toMatchObject({
+    effect: "allow",
+    tier: "user",
+  });
+  expect(evaluatePolicy(input(), ruleSet(["user", "managed"]))).toMatchObject({
+    effect: "allow",
+    tier: "managed",
+  });
+  expect(
+    evaluatePolicy(input(), [
+      rule("x.ask", "ask", "extension"),
+      rule("d.allow", "allow", "default"),
+    ]),
+  ).toMatchObject({
+    effect: "ask",
+    tier: "extension",
+  });
+});
+
 test("policy_same_tier_priority: higher priority wins, equal priority asks", () => {
   const first = evaluatePolicy(input(), [
     rule("a", "allow", "user", { tool: "bash" }, 600),

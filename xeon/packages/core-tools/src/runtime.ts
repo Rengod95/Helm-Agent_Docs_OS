@@ -15,6 +15,7 @@ import type { ToolsDeps } from "./deps.ts";
 import { entriesOf, resourceEntry, toToolMeta } from "./entries.ts";
 import { advertiseTools } from "./expose.ts";
 import { createPipeline } from "./pipeline.ts";
+import { createCoreRules } from "./policy/core-rules.ts";
 import { createRegistry } from "./registry.ts";
 import { TOOLS_SETTING_KEYS } from "./settings.ts";
 
@@ -25,7 +26,17 @@ export interface ToolRuntime {
   readonly approvals: ApprovalService;
 }
 
-export function createToolRuntime(deps: ToolsDeps): ToolRuntime {
+export function createToolRuntime(base: ToolsDeps): ToolRuntime {
+  // 코어가 registerRules로 넣은 default 티어 규칙을 설정에서 모은 규칙 뒤에 붙인다. 규칙 변경은 다음 평가부터 적용된다
+  const coreRules = createCoreRules();
+  const deps: ToolsDeps = {
+    ...base,
+    config: (threadId) => {
+      const config = base.config(threadId);
+      const extra = coreRules.all();
+      return extra.length === 0 ? config : { ...config, rules: [...config.rules, ...extra] };
+    },
+  };
   const registry = createRegistry();
   const calls = createCallTable();
   const approvals = createApprovalService({
@@ -68,26 +79,25 @@ export function createToolRuntime(deps: ToolsDeps): ToolRuntime {
     execute: (call, onUpdate, run) => pipeline.execute(call, onUpdate, run),
     settleRejected: (toClose, reason, run) => pipeline.settleRejected(toClose, reason, run),
     rerun: (intent, run) => pipeline.rerun(intent, run),
-    registerRules() {
-      throw new Bug("tools.registerRules arrives in M2 (L1.tools.plan TL-3)");
-    },
+    registerRules: (source, rules) => coreRules.register(source, rules),
     runUserShell() {
       throw new Bug("tools.runUserShell arrives in M2 (L1.tools.plan TL-16)");
     },
     mode: (threadId) => deps.config(threadId).mode,
-    setMode(threadId, mode) {
-      // M1은 default 모드만 쓴다(L1.tools.plan §1 M1). 다른 모드는 M2(TL-4)에서 연다
-      if (mode !== "default") {
+    setMode(threadId, mode, source) {
+      // managed가 bypass를 금지했으면 모드를 바꾸지 않는다(L1.tools.spec §5 사례 11). 이미 세션 값이 bypass인 채 금지가 생기면 평가기가 default로 본다
+      if (mode === "bypass" && !deps.config(threadId).bypassAllowed) {
         return Promise.resolve<ModeChangeResult>({
           ok: false,
           error: { kind: "tools.mode_forbidden", mode },
         });
       }
+      // 모드를 되돌리는 변경도 정상이므로 호출마다 새 요청 키를 쓴다
       const written = deps.session.sessionSettings.set(
         threadId,
         TOOLS_SETTING_KEYS.permissionMode,
         mode,
-        `mode:${threadId}:${deps.ids.next("evt")}`,
+        `mode:${threadId}:${source}:${deps.ids.next("evt")}`,
       );
       if (!written.ok) {
         return Promise.resolve<ModeChangeResult>({
