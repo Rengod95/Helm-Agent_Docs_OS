@@ -423,6 +423,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       startedAt: fingerprint.ok && fingerprint.value !== null ? fingerprint.value : clock.now(),
       host: os.machineId,
     };
+    // 그룹 서비스가 보는 설치된 그룹(L3 매니페스트). 단위 목록이 만들어진 뒤에 채워진다
+    const unitList: { units: readonly ExtensionUnit[] } = { units: [] };
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         mode: options.mode,
@@ -438,6 +440,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         faults: store.value.faults,
         holder,
         ext,
+        groups: {
+          catalog: built.catalog,
+          store: () => portsHandle?.ports.settings,
+          currentThread: () => portsHandle?.activeThread() ?? null,
+          entries: () =>
+            unitList.units
+              .filter((unit) => unit.manifest.layer === "L3")
+              .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
+        },
         // 엔진 포트는 서비스가 모두 올라온 뒤에 만든다. 자식 thread는 그 뒤에 생기므로 그때는 채워져 있다
         parentToken: (threadId) => portsHandle?.tokenOf(threadId),
         onLeaseLost: (threadId) => {
@@ -455,6 +466,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     extras.forEach((module, index) => {
       units.push(unitOfModule(module, units.length + index));
     });
+    unitList.units = units;
     await sequentially(units, async (unit) => {
       const result = await ext.install(unit);
       const failure = installFailureOf(result);

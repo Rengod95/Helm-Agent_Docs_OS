@@ -40,8 +40,9 @@ import { sessionPlugin } from "@xeon/core-persistence";
 import { createTasksEntry, TASKS_MANIFEST } from "@xeon/core-tasks";
 import { toolsPlugin } from "@xeon/core-tools";
 import type { BuiltinExtensionModule, ExtHost, ExtensionUnit, InstallResult } from "@xeon/ext-host";
-import type { AssembleOptions, HostMode } from "../types.ts";
+import type { AssembleOptions, HostMode, SettingsStorePort } from "../types.ts";
 import { hostMcpPlugin } from "./cap-mcp.ts";
+import { hostGroupsPlugin } from "./groups.ts";
 import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
 import {
@@ -53,6 +54,8 @@ import {
   userShellPort,
 } from "./l2-units.ts";
 import type { ProjectTrust } from "./trust.ts";
+import type { GroupCatalogEntry } from "@xeon/group-kit";
+import type { SettingCatalog } from "@xeon/contracts/settings";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   agentsSource,
@@ -87,11 +90,18 @@ export interface ExtensionDeps {
   readonly faults: FaultInjector;
   readonly holder: LeaseHolder;
   /** 확장 호스트. 자식 thread를 열고 닫고(core-agents), 호출 때 서비스 포트를 찾는다(cap-dialog, cap-work) */
-  readonly ext: Pick<ExtHost, "openThread" | "closeThread" | "ports">;
+  readonly ext: ExtHost;
   /** 이 엔진이 쥔 thread의 세션 쓰기 토큰. 엔진 포트가 만들어진 뒤에 채워진다(core-agents가 자식 thread의 소유를 부모에게서 이어받는다) */
   readonly parentToken: (threadId: ThreadId) => LeaseToken | undefined;
   readonly onLeaseLost: (threadId: ThreadId) => void;
   readonly reportSetting: (message: string) => void;
+  /** 그룹 서비스(`xeon.groups`) 연결: 카탈로그, 설정 저장소, 현재 thread */
+  readonly groups: {
+    readonly catalog: SettingCatalog;
+    readonly store: () => SettingsStorePort | undefined;
+    readonly currentThread: () => ThreadId | null;
+    readonly entries: () => readonly GroupCatalogEntry[];
+  };
   /** AssembleOptions.webPorts */
   readonly webPorts?: AssembleOptions["webPorts"];
   /** AssembleOptions.agentDefinitions */
@@ -224,6 +234,22 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           hostMode: deps.mode,
           settings: loopSource(settings),
           kindLookup,
+          loadIndex,
+        }),
+    ],
+    [
+      "host-groups",
+      (loadIndex) =>
+        hostGroupsPlugin({
+          ext: deps.ext,
+          catalog: deps.groups.catalog,
+          settings,
+          store: deps.groups.store,
+          currentThread: deps.groups.currentThread,
+          groups: deps.groups.entries,
+          report: (cause) => {
+            deps.logger.error("groups.listener_failed", { message: messageOf(cause) });
+          },
           loadIndex,
         }),
     ],
