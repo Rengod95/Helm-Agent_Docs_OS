@@ -523,7 +523,7 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 |---|---|---|
 | 사용자 중단 | `interrupt` → `xeon.tasks.abort` → turn 신호 → 스트림 `aborted` | 항상 |
 | 컨텍스트 한도 | 루프 `prepareRequest` 단계에서 L1.context가 컴팩션·오버플로우 처리 | L1.context.spec |
-| 추론 레벨별 토큰 예산 | 단계 바인딩의 `thinkingBudgets`(pi-ai `SimpleStreamOptions`). xeon.models streamFn이 요청에 넣는다. 값은 `xeon.models`가 설정 `l1.models.*`에서 만든다 [가정: 키는 L1.models.spec 소유, L4 models 탭] | 레벨별 pi-ai 기본 |
+| 추론 레벨별 토큰 예산 | `ResolvedModel.thinkingBudgetTokens`(`xeon.models`가 설정 `l1.models.*`에서 만든 현재 레벨의 예산)를 pi-ai `SimpleStreamOptions.thinkingBudgets`의 그 레벨 항목 하나(`{ [레벨]: 토큰 }`)로 요청에 싣는다. 값은 바꾸지 않는다. 레벨이 `off`·`xhigh`·`max`이거나 예산이 null이면 싣지 않는다 [가정: 키는 L1.models.spec 소유, L4 models 탭] | 레벨별 pi-ai 기본 |
 | 단계 상한 | `l1.loop.maxSteps` | 0(무제한) |
 | drive turn 상한 | X가 `LeaseBudget.turns`로 센다 | 임대 설정 |
 | drive 토큰 상한 | X가 `LeaseBudget.tokens`로 센다. `loop.turn` 호출 사이에서 검사하고 실행 중인 turn은 끊지 않는다(`X.primitives.spec` §4.4.4) | 임대 설정 |
@@ -565,7 +565,7 @@ runTurn(req: LoopTurnRequest):
 
 - 확장 경로: `agent_before_settle`(chain)과 `turn_end`(chain)의 `BoundaryValue.continue`다. 최종 검증은 `F.extensions.spec` §4.1 finalize와 이 문서 §3.6이다.
 - `endStep` 결정: 정착 후보 단계에서 검증을 통과한 `continue: true`면 `StepNext`를 `request`로 고른다(다음 요청 한 번). 원본 `finishTurn`의 `{ action: "continue" }` 의미(`types.ts:145-153`)와 같다. 정착 후보가 아닌 단계(도구 호출, steer)의 `continue`는 요청이 어차피 나가므로 무시하고 세지 않는다.
-- 상한: turn 안에서 게이트 계속의 누적 횟수가 `l1.loop.gate.maxContinues`(기본 8)에 이르면 그 뒤의 `continue`를 false로 바꾸고 휘발 알림으로 사용자에게 보인다. 사용자 입력이 새 turn을 열면 0부터 센다. 기본 8은 Claude Code Stop 훅 8회, omp `session_stop` 8회를 따른다(`_research/item-catalog.md` L1-b "완료 게이트" 행).
+- 상한: turn 안에서 게이트 계속의 누적 횟수가 `l1.loop.gate.maxContinues`(기본 8)에 이르면 그 뒤의 `continue`를 false로 바꾸고 휘발 알림으로 사용자에게 보인다. 사용자 입력이 새 turn을 열면 0부터 센다. 기본 8은 Claude Code Stop 훅 8회, omp `session_stop` 8회를 따른다(`_research/item-catalog.md` L1-b "완료 게이트" 행). 구현(L1A.6)은 상한을 turn 시작 때 한 번 읽고(`nextTurn`) 0이면 `continue`를 따르지 않는다. 알림 필드 `TurnUpdatedPayload.notice`(FR-L5)가 F에 없어 지금은 알림 없이 적용한다. 필드가 들어오면 같은 자리에서 낸다.
 - `canContinue`(§3.6): 다음이 하나라도 참이면 false다. 마지막 `stopReason`이 `error`·`aborted`, turn에 취소 의도, `maxSteps` 도달, drive 신호·토큰 소진, 게이트 상한 도달, `stopAtSafeBoundary` 진행 중.
 - 목표 판정의 소비 지점 [제안]: `agent_before_settle`이다. 목표 지속 기능(`L2.work.spec`)이 이 지점에 chain 핸들러를 걸고, 핸들러 안에서 판정 모델 호출을 `xeon.agents`의 판정 API로 한다(`L1.agents.spec`, 결정: 별도 판정 모델 + 실행 횟수 상한, `_research/foundation-plan.md` §1 4번). 판정 결과는 확장 kind 엔트리로 돌려주고 T4에 기록되므로 재개 때 다시 판정하지 않는다(`architecture.runtime-flow.design` §4.5). 미달이면 `continue: true`와 지시 custom item을 낸다. 게이트 상한은 판정 기능의 판정 횟수 상한과 따로 적용된다. M3.
 
@@ -610,6 +610,13 @@ runChildTurn(req):
 - 취소: `req.signal`과 `req.scope`의 신호가 turn 노드에 전파된다. 부모 turn 취소는 소유 사슬로 자식 turn 노드에 이른다(L1.tasks.spec §4.2).
 - 자식 대화의 확장 지점은 주 대화와 같은 규칙으로 발화하고 `HandlerContext.threadId`는 자식 thread다(L1.agents.spec §7).
 - 결과의 `usage`는 자식 turn 합계다. 부모 `turn.completed`에는 더하지 않는다(L1.agents.spec §3.5 사용량 귀속).
+- 구현 [결정: L1A.6]:
+  - `model`이 `ModelRole` 이름(`main`, `review`, `summary`, `subagent`, `judge`, `search`)이면 그 역할로 `resolve`하고, 아니면 모델 참조(`provider/id[:레벨]`)로 `main` 역할의 `ref`를 덮어쓴다.
+  - 시스템 프롬프트는 `before_agent_start`의 초기 값이고 접두가 기록되기 전 조립의 기본 프롬프트다. turn 노드는 요청의 `scope`(subagent 노드) 아래에 열린다. `req.signal`이 켜지면 turn 노드를 취소한다(`parent` 사유).
+  - 단계 상한은 설정 `l1.loop.maxSteps`와 `limits.maxSteps` 중 작은 양수다. 자식 한도가 정한 상한이면 `error: "child_limit"`, 설정이 더 작으면 `step_limit`이다. `maxInputTokens`는 이 turn의 `usage.input` 합이 한도 이상이 되면 그 단계 뒤에 끝낸다.
+  - 열린 자식 turn을 같은 `requestId`로 다시 부르면 요청의 프롬프트·모델·도구 맥락으로 이어 끝낸다(재개 항목이 기록하지 않은 값이라 요청에서 다시 받는다).
+  - `ToolRunContext`의 `caller`, `depth`, `ceiling`, `surfaceThreadId`, `interactive`는 요청 값이고 광고는 `allow`·`keepParentList`를 함께 넘긴다.
+  - 호스트가 자식 thread를 `ExtHost.openThread`로 열어 두어야 한다(경계 지점이 열린 thread를 요구한다).
 
 ## 5. 실패와 경계 사례
 

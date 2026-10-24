@@ -167,6 +167,7 @@ export function modelsSource(settings: SettingsEngine): ModelsSettingsSource {
 export function loopSource(settings: SettingsEngine): LoopSettingsSource {
   return {
     maxSteps: (threadId) => intOr(settings.value("l1.loop.maxSteps", threadId), 0),
+    gateMaxContinues: (threadId) => intOr(settings.value("l1.loop.gate.maxContinues", threadId), 8),
   };
 }
 

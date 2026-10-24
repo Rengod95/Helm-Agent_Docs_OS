@@ -13,7 +13,7 @@ import type {
 } from "@xeon/contracts/extensions";
 import type { DurableEventDraft, PendingToolCall } from "@xeon/contracts/records";
 import type { ToolCallOutcome } from "@xeon/contracts/services";
-import { canContinue, GATE_CONTINUES_SAFETY_CAP, stepLimitReached } from "../budget.ts";
+import { canContinue, stepLimitReached } from "../budget.ts";
 import { finalizeBoundary } from "../checkpoint.ts";
 import { commitWithRetry } from "../commit.ts";
 import { stepEndRequest, type PlacedInput } from "../commits.ts";
@@ -102,6 +102,9 @@ export async function endStep(
   const abortRequested = scope.signal.aborted;
   const stepLimit = stepLimitReached({ maxSteps: state.maxSteps }, totals.stepCount);
   const externalStop = spec.driveSignal?.aborted === true;
+  // 자식 turn의 입력 토큰 한도: 이 turn이 보낸 입력 토큰 합이 한도에 이르면 다음 요청 대신 끝낸다(L1.loop.spec §4.13 6단계)
+  const childTokenLimit =
+    state.childMaxInputTokens !== null && (totals.usage?.input ?? 0) >= state.childMaxInputTokens;
   const stopping = thread.stopRequested;
   const steerRead = ctx.tasks.inputs.peek(threadId, ["steer"]);
   if (!steerRead.ok) {
@@ -112,11 +115,11 @@ export async function endStep(
   const hasMore = calls.length > 0 && !input.terminate;
   const steerPending = steerQueued.length > 0;
   const candidate = hardStop || deferred || (!hasMore && !steerPending);
-  const gateExhausted = state.gateContinues >= GATE_CONTINUES_SAFETY_CAP;
+  const gateExhausted = state.gateContinues >= state.gateMaxContinues;
   const canContinueNow = canContinue({
     hardStop: hardStop || deferred,
     abortRequested,
-    stepLimit,
+    stepLimit: stepLimit || childTokenLimit,
     externalStop,
     stopping,
     gateExhausted,
@@ -193,14 +196,19 @@ export async function endStep(
   const continuing = hasMore || gateContinue;
   const wouldContinue = continuing || steerPending;
   const forcedEnd = hardStop || abortRequested || deferred;
-  const limitEnd = wouldContinue && (stepLimit || externalStop);
+  const limitEnd = wouldContinue && (stepLimit || childTokenLimit || externalStop);
   const leaveOpen = !forcedEnd && !limitEnd && wouldContinue && stopping;
   const endNow = forcedEnd || limitEnd || leaveOpen || deferred;
   if (deferred) {
     state.endReason = "deferred";
     run.emitter.emit({ type: "turn.updated", threadId, turnId, stepId: null, status: "waiting" });
-  } else if (limitEnd) state.endReason = stepLimit ? "step_limit" : "external";
-  else if (leaveOpen) state.endReason = "stopped";
+  } else if (limitEnd) {
+    state.endReason = childTokenLimit
+      ? "child_limit"
+      : stepLimit
+        ? state.stepLimitReason
+        : "external";
+  } else if (leaveOpen) state.endReason = "stopped";
 
   // (g) T4: 경계 기여를 받아 한 커밋에 넣는다
   const signal = boundarySignal(run, "step_end", step.stepId);

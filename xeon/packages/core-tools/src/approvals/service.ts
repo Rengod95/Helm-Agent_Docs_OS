@@ -361,7 +361,9 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     }
 
     let checkpoint: StepCheckpointInput | null = null;
-    if (call !== undefined && input.origin.toolCallId !== null && !silent) {
+    // 서브에이전트 요청은 부모(표면) 대화에 기록되므로 대기 체크포인트를 같은 커밋에 넣을 수 없다(커밋은 한 대화의 것이다).
+    // 자식 대화는 재개 때 마지막 단계 체크포인트에서 도구 단계로 들어가 같은 requestKey로 요청하면 기록된 요청을 이어 받는다
+    if (call !== undefined && input.origin.toolCallId !== null && !silent && sameThread) {
       const waiting: PendingToolCall = {
         toolCallId: input.origin.toolCallId,
         // 도구 승인은 의도 전에 일어난다. 질문·계획은 도구 실행 안에서 일어나므로 의도가 이미 있다

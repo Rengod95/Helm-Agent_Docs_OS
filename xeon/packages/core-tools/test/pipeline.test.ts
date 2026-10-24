@@ -400,11 +400,13 @@ test("policy denies from settings never reach the provider", async () => {
   expect(kindsOf(h)).toEqual(["item.recorded"]);
 });
 
-test("a call from a child conversation is refused until the ceiling stage exists (M2)", async () => {
+test("a call from a child conversation passes through the ceiling stage and runs when both views allow it", async () => {
   const h = await createHarness();
   const probe = registerWorkspace(h);
   const run = {
     ...h.run(),
+    caller: "subagent:worker" as const,
+    depth: 1,
     ceiling: { caller: "main" as const, depth: 0, mode: "default" as const },
   };
   const out = await callTool(h.runtime.tools, run, {
@@ -412,11 +414,10 @@ test("a call from a child conversation is refused until the ceiling stage exists
     name: "read",
     args: { path: "a" },
   });
-  expect(out.blocked).toContain("ceiling_unsupported");
-  expect(probe.calls).toEqual([]);
-  expect(
-    errorText(await rejectionOf(() => h.runtime.tools.advertise({ run, activated: new Set() }))),
-  ).toContain("tools.advertise_child_unsupported");
+  expect(out.blocked).toBeUndefined();
+  expect(probe.calls.map((call) => call.method)).toEqual(["read"]);
+  const listed = await h.runtime.tools.advertise({ run, activated: new Set() });
+  expect(listed.tools.map((tool) => tool.name)).toContain("read");
 });
 
 test("waiting for approval is not needed when the user rule allows the command by args pattern", async () => {

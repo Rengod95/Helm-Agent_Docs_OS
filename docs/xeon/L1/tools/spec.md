@@ -680,6 +680,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
    - always 도구만으로 128을 넘으면 `advertise`가 `tools.too_many` 오류를 돌려주고 루프는 그 단계의 모델 요청을 보내지 않는다.
    - `tool_search`의 활성화가 상한을 넘기면 넘는 도구는 활성화하지 않고 결과 문장에 그 사실을 적는다.
 7. 서브에이전트 대화의 광고 목록은 L1.agents.spec의 권한 상한을 따른다. `allow` 밖 도구와 자식 기준 전역 deny 도구를 뺀다. `keepParentList`를 주면 부모 광고 목록을 그대로 쓰고 실행 시점에만 거른다(캐시 접두 공유).
+   - 구현 [결정: L1A.6]: 자식 관점(caller·depth)과 부모 관점(`ceiling`의 caller·depth) 중 어느 쪽에서든 전역 deny인 도구를 `removed`에 둔다. 도구 제한은 `AdvertiseInput.allow`(없으면 `ceiling.allow`)의 `matchToolGlob`으로 거른다. `tool_search`는 제한 밖이어도 제한 안의 지연 도구가 있으면 광고한다. `keepParentList`는 부모 `AdvertisedToolset`의 `tools`·`deferred`·`removed`·`fingerprint`를 그대로 돌려준다. 부모 목록에 있는 도구도 자식이 부르면 실행 시점의 ceiling 단계가 거부한다.
 8. [미결] Anthropic 서버 도구 `tool_search`(서버 쪽 지연 로딩)를 쓸지. pi-ai 1.3.0은 Anthropic에서 `defer_loading`을 자리표시 도구에만 쓴다(`ai/src/api/anthropic-messages.ts:208`). provider 독립인 내장 `tool_search`를 1차로 두고 서버 도구는 2차 검토로 둔다 [제안].
 
 ### 4.2 실행 파이프라인
@@ -776,6 +777,8 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 - `ToolRunContext.ceiling`이 있으면 5b의 결정은 `stricter(childDecision(call, parent, child, rules), evaluatePolicy(input, rules))`다. `parent`는 `ToolRunContext.ceiling`, `child`는 자식 관점 입력(caller, depth, 자식 모드)이다. `childDecision`은 부모 관점 평가, 자식 관점 평가, 정의 제한(`ceiling.allow`)을 `stricter`로 합치는 순수 함수다(L1.agents.spec §4.3 1번). F `policy.ts`에 두도록 요청한다(§8.3 F 요청 9, L1.agents.spec §8.3 5와 같은 항목).
 - `evaluatePolicy` 자체는 ceiling을 받지 않는다. ceiling 단계는 파이프라인이 평가기 바깥에서 적용한다. 그래서 위 1~7단계의 순수성과 번호는 그대로다.
 - 합친 결과가 ask이고 `interactive`가 거짓이면 deny(`reason: "noninteractive"`)다. 7단계와 같은 규칙이다.
+- 구현 [결정: L1A.6]: `prepare`는 `ceiling`이 있으면 `stricter(childDecision(evaluatePolicy, input, ceiling, { caller, depth, mode }, rules), evaluatePolicy(input, rules))`를 5b 결정으로 쓴다. `stricter`와 `childDecision`은 F `@xeon/contracts/services`의 순수 함수이고 core-tools는 사본을 두지 않는다. 자식 관점의 `mode`는 자식 대화의 유효 권한 모드(`l1.tools.permissionMode`, core-agents가 교집합으로 써 둔다)다. 정의의 도구 제한은 `ceiling.allow`가 실행 시점에 거부하고(`agent.<이름>.tools`), 정의가 더하는 규칙은 `registerRules("core:agents")`의 default 티어 규칙으로 들어온다.
+- 서브에이전트 승인 [결정: L1A.6]: 자식 호출의 승인 요청은 `surfaceThreadId`(소유 트리 루트 대화)에 기록하고 `origin`에 자식 대화·호출·caller를 남긴다. 한 커밋은 한 대화의 것이라 대기 체크포인트는 같은 커밋에 넣지 않는다. 이벤트의 `turnId`·`stepId`는 비운다. 자식 대화는 재개 때 마지막 단계 체크포인트의 `tools` 진입으로 같은 `requestKey` 요청을 다시 내고, 커밋이 `replayed`로 끝나 기록된 요청을 이어 받는다.
 - `childDecision`이 F에 들어가기 전에는 ceiling 단계를 켜지 않는다. 그 사이 자식 대화는 M2 착수 조건을 채우지 못한 것으로 본다(L1.tools.plan TL-13 선행).
 - `ruleMatches`의 glob은 `*`(구분자 없는 임의 문자열)와 `?`만 쓴다. 정규식은 규칙 적재 때 `validateRules`로 한 번 컴파일해 캐시하고, 잘못된 규칙은 적재하지 않고 진단으로 남긴다. 평가 중에 예외를 던지지 않는다.
 - 평가기는 순수 함수다. 시각, 난수, 파일, 설정 읽기를 하지 않는다. 규칙 목록과 모드는 호출자가 넘긴다. 같은 입력이면 같은 결과다(§9 수용 기준).

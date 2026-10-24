@@ -49,6 +49,8 @@ export interface HarnessOptions {
   readonly script?: readonly ScriptedResponse[];
   readonly tools?: readonly FakeToolDef[];
   readonly maxSteps?: number;
+  /** l1.loop.gate.maxContinues. 생략하면 기본 8 */
+  readonly gateMaxContinues?: number;
   readonly kindLookup?: (kind: string) => CatalogEntry | undefined;
   readonly modelCallsCapacity?: number;
   readonly maxResumeAttempts?: number;
@@ -174,7 +176,10 @@ async function build(
                 },
               }
             : {}),
-          settings: { maxSteps: () => options.maxSteps ?? 0 },
+          settings: {
+            maxSteps: () => options.maxSteps ?? 0,
+            gateMaxContinues: () => options.gateMaxContinues ?? 8,
+          },
           basePrompt: "You are a test assistant.",
           hostMode: "in-process",
           kindLookup: options.kindLookup ?? testKindLookup,

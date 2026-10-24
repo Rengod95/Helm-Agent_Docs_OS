@@ -18,6 +18,7 @@ import {
   type StepCheckpointInput,
 } from "@xeon/contracts/records";
 import type {
+  AdvertiseInput,
   AdvertisedToolset,
   ApprovalRequest,
   CallPreparation,
@@ -66,6 +67,8 @@ export interface FakeTools {
   readonly executed: readonly string[];
   /** `advertise`가 받은 활성화 집합(호출 순서대로) */
   readonly advertisedActivated: readonly (readonly string[])[];
+  /** `advertise`가 받은 입력 전체(호출 순서대로) */
+  readonly advertiseInputs: readonly AdvertiseInput[];
   /** `settleRejected`가 닫은 호출 id */
   readonly closed: readonly string[];
   readonly reran: readonly string[];
@@ -130,6 +133,7 @@ export function createFakeTools(options: {
   const reran: string[] = [];
   const runs: ToolRunContext[] = [];
   const advertisedActivated: string[][] = [];
+  const advertiseInputs: AdvertiseInput[] = [];
   const intents = new Map<string, EffectId>();
   const hooks: { onExecute: ((toolCallId: string) => void) | null } = { onExecute: null };
 
@@ -510,6 +514,7 @@ export function createFakeTools(options: {
       };
     },
     advertise: (input) => {
+      advertiseInputs.push(input);
       advertisedActivated.push([...input.activated]);
       return Promise.resolve(toolsetOf());
     },
@@ -539,6 +544,7 @@ export function createFakeTools(options: {
     runs,
     executed,
     advertisedActivated,
+    advertiseInputs,
     closed,
     reran,
     get waitingApproval() {

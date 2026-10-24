@@ -59,7 +59,7 @@ export function createRig(
     context: h.context.service,
     models: h.models.service,
     ext: h.host.host,
-    settings: { maxSteps: () => 0 },
+    settings: { maxSteps: () => 0, gateMaxContinues: () => 8 },
     basePrompt: "You are a test assistant.",
     hostMode: "in-process",
     kindLookup: () => undefined,
@@ -105,6 +105,7 @@ export function createRig(
     priorFinalItemId: null,
     priorLastStop: null,
     priorLastError: null,
+    child: null,
   };
   const base = createTurnRun(ctx, spec);
   const events: AgentEvent[] = [];

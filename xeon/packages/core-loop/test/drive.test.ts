@@ -134,7 +134,7 @@ test("a_drive_turn_is_not_interactive_and_user_input_still_starts_turns", async 
   expect(countKind(h.fake.events(h.threadId), "turn.completed")).toBe(2);
 });
 
-test("spawn_and_runChildTurn_are_not_available_before_m2", async () => {
+test("spawn_is_not_available_before_core_agents", async () => {
   const h = await createHarness();
   const spawn = await rejectionOf(
     h.loop.spawn({
@@ -148,24 +148,4 @@ test("spawn_and_runChildTurn_are_not_available_before_m2", async () => {
     }),
   );
   expect(spawn?.kind).toBe("input_invalid");
-  const child = await h.loop.runChildTurn({
-    threadId: h.threadId,
-    input: { kind: "user", content: "x" },
-    requestId: "r",
-    systemPrompt: "p",
-    model: "main",
-    tools: {
-      caller: "main",
-      depth: 0,
-      ceiling: { caller: "main", depth: 0, mode: "default" },
-      surfaceThreadId: h.threadId,
-      interactive: false,
-    },
-    scope:
-      h.loop.threadStatus(h.threadId).runningTurnId === null
-        ? h.tasks.service.root
-        : h.tasks.service.root,
-    signal: new AbortController().signal,
-  });
-  expect(child.ok).toBe(false);
 });

@@ -1,6 +1,11 @@
 import { expect, test } from "bun:test";
-import type { PolicyInput, PolicyRule, TieredRule } from "@xeon/contracts/services";
-import { evaluatePolicy, ruleMatches, stricter } from "../src/policy/engine.ts";
+import {
+  stricter,
+  type PolicyInput,
+  type PolicyRule,
+  type TieredRule,
+} from "@xeon/contracts/services";
+import { evaluatePolicy, ruleMatches } from "../src/policy/engine.ts";
 import { deriveRisk, modeDefault } from "../src/policy/modes.ts";
 import { builtinRules, loadableRules, validateRules } from "../src/policy/rules.ts";
 import { collectRules } from "../src/policy/tiers.ts";

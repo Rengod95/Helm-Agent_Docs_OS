@@ -103,16 +103,16 @@ xeon/packages/core-loop/
 | LP3 | 휘발 이벤트 발신자: `VolatileEventEnvelope` 구성, `(threadId, turnId)`별 `n`, `afterSeq = headSeq()`, 50 ms 묶음, 16 KiB 자르기 | LP2, M0: core-persistence `headSeq`·휘발 피드 | S | M1 |
 | LP4 | 단계 커밋 요청 구성: T1~T4·T6의 `CommitRequest`(persistence `commit` 인터페이스에 맞춤), 커밋 키 형식, 지문 원천, `StepCheckpoint` 채우기, `inputs.drain` 결합, `finalizeBoundary` | LP1, LP2, L1.tasks.plan TK-5 | M | M1 |
 | LP5 | `next`별 재진입: `turn_start`, `request`(K1 포함), `tools`, `await_input`(승인 대기 호출의 `restore` 뒤 `tools.prepare` 재실행), `turn_end`, 취소 의도 → `closed`. 열린 turn 표식. 자체 루프 이행 뒤에는 `resume.ts`가 `TurnEntry`만 만들고 실행은 `runTurn`이 한다(LP19) | LP4, M0: core-persistence 열 때 복구, core-tools 파이프라인 인터페이스 | L | M1 |
-| LP6 | 예산·상한 처리: `maxSteps`, drive turn 신호, `canContinue`, `l1.loop.*` 설정 정의, `thinkingBudgets` 전달(M2) | LP4 | S | M1(maxSteps), M2(추론 예산) |
-| LP7 | 완료 게이트: 정착 후보 판정, `agent_before_settle` 발화 위치(`endStep`), 게이트 계속 상한과 휘발 알림 | LP4, LP6 | M | M1(발화), M2(상한) |
+| LP6 | 예산·상한 처리: `maxSteps`, drive turn 신호, `canContinue`, `l1.loop.*` 설정 정의, `thinkingBudgets` 전달(M2) (M2 완료 2026-10-24: 시험 `thinking_budgets_passed_through`) | LP4 | S | M1(maxSteps), M2(추론 예산) |
+| LP7 | 완료 게이트: 정착 후보 판정, `agent_before_settle` 발화 위치(`endStep`), 게이트 계속 상한과 휘발 알림 (M2 완료 2026-10-24: 설정 `l1.loop.gate.maxContinues`, 시험 `completion-gate.test.ts`) | LP4, LP6 | M | M1(발화), M2(상한) |
 | LP8 | boundary 최종 검증: `finalizeBoundary` 규칙 1~5와 진단 로그 | LP4 | S | M1 |
 | LP9 | `input` 지점 발화 위치 확정: `admit`의 input chain → `inputs.enqueue` 순서, 확장 post 비경유. runtime-flow 그림 수정 요청(FR-L7)과 L1.tasks.spec §7 일치 확인 | LP1, L1.tasks.plan TK-5 | S | M1 |
-| LP10 | drive 연동: `runTurn`의 T1 build 안 `turnByRequestId` 조회와 `leaseEpoch` 펜싱, 열린 turn 이어 끝내기, thread 취소 신호 처리, `LoopTurnResult.usage` | LP5, LP6, M0: ext-host drive 최소형 | M | M1(최소), M2(정식 테스트) |
+| LP10 | drive 연동: `runTurn`의 T1 build 안 `turnByRequestId` 조회와 `leaseEpoch` 펜싱, 열린 turn 이어 끝내기, thread 취소 신호 처리, `LoopTurnResult.usage` (M2 완료 2026-10-24: 시험 `drive-budget.test.ts`. 횟수 상한은 X가 거부하고 토큰은 `loop.budget`으로 보고한다) | LP5, LP6, M0: ext-host drive 최소형 | M | M1(최소), M2(정식 테스트) |
 | LP11 | `stopAtSafeBoundary`: T4 뒤 결정 `end`, T6 생략, 시한 처리 | LP4 | S | M1 |
 | LP12 | `user_bash` 진입점과 `await_input` 재진입의 승인 응답 연결 (`await_input` 재진입 완료 2026-10-24: 시험 `await_input_resumes_after_approval_response`, 열린 turn을 닫을 때 그 turn의 미해결 승인 취소. `user_bash`는 L1A.5) | LP5, L1.tools 승인 프로토콜 | M | M2 |
 | LP13 | 목표 판정 소비 지점 계약 시험(가짜 판정 핸들러) | LP7, L1.agents 판정 API | S | M3 |
 | LP14 | 반복 감지 | LP7, FR-L5 | M | 2차 |
-| LP15 | 자식 thread turn `runChildTurn`(spec §4.13): requestId 멱등 조회, 자식 turn 노드(`openScope` 부모 subagent), `systemPrompt`·`model`·`ToolRunContext` 값 전달, 자식 한도(`child_limit`) | LP5, LP10, L1.agents.plan AG-2 | M | M2 |
+| LP15 | 자식 thread turn `runChildTurn`(spec §4.13): requestId 멱등 조회, 자식 turn 노드(`openScope` 부모 subagent), `systemPrompt`·`model`·`ToolRunContext` 값 전달, 자식 한도(`child_limit`) (M2 완료 2026-10-24: `runChildTurn`, 시험 `child-turn.int.test.ts`) | LP5, LP10, L1.agents.plan AG-2 | M | M2 |
 | LP16 | (완료 2026-10-23) F 타입 이행: `contracts/src/conversation/agent.ts`에 `AgentMessage`(닫힌 유니온), `AgentEvent`, `AgentTool`, `AgentToolResult`, `AgentToolCall`, `AgentToolUpdateCallback`, `ToolExecutionMode`, `AgentContext` 정의(`F.conversation.spec` §3.1.1). `pi.ts`에서 agent-core 재노출 제거, `hierarchy.ts` 선언 병합 제거, `AgentToolHooks` 제거. `pi-types.test.ts`의 agent-core 항등 검사를 F 정의 검사로 바꾼다 | — | M | 이행 1 |
 | LP17 | (완료 2026-10-23) 루프 본체 포크: `loop/stream-response.ts`, `loop/tool-batch.ts`, `loop/run-turn.ts`. 원본 `agent-loop.ts` 1.3.0의 해당 함수를 옮기고 spec §3.2·§3.3대로 고친다. `UPSTREAM.json`, `LICENSE.pi`, 출처 주석. pi-ai 값 함수 호출은 `xeon.models` 메서드로 바꾼다 | LP16, LP18 | L | 이행 2 |
 | LP18 | (완료 2026-10-23) 이웃 계약 바꾸기(다른 plan과 함께): `ToolService`의 `hooks`·`toAgentTools`·`observe`·`closeUnexecuted`를 `prepare`·`execute`·`settleRejected` 단계 계약으로(`L1.tools.plan`), `ModelService`에 도구 선언 차이 계산과 streamFn 안 정규화(`L1.models.plan`). 첫 테스트로 typebox 검증이 pi-ai `validateToolArguments`와 같은 결과를 내는지 확인(adr.0009 §6 [가정]) | LP16 | M | 이행 2 |

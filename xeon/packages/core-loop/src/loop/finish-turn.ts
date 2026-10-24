@@ -43,9 +43,9 @@ export async function finishTurn(run: TurnRun, rejection: RunRejection): Promise
   if (rejection !== null && abortCode === "error") {
     status = "failed";
     error = "loop_rejected";
-  } else if (state.endReason === "step_limit") {
+  } else if (state.endReason === "step_limit" || state.endReason === "child_limit") {
     status = "interrupted";
-    error = "step_limit";
+    error = state.endReason;
   } else if (state.endReason === "external") {
     status = "interrupted";
     error = abortCodeOf(spec.driveSignal) ?? "aborted";

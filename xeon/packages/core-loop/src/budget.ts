@@ -38,9 +38,3 @@ export function canContinue(inputs: ContinueInputs): boolean {
     inputs.gateExhausted
   );
 }
-
-/**
- * 완료 게이트 계속의 안전 상한. 설정 키 `l1.loop.gate.maxContinues`(기본 8)는 M2에서 열린다.
- * M1은 `agent_before_settle`·`turn_end`의 `continue`가 끝없이 이어지지 않도록 같은 기본값을 고정 상수로만 둔다.
- */
-export const GATE_CONTINUES_SAFETY_CAP: number = 8;

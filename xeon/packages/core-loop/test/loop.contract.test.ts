@@ -3,8 +3,15 @@ import { join } from "node:path";
 import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
 import type { ExtensionUnit } from "@xeon/ext-host";
 import { createHarness } from "./support/harness.ts";
+import type { ScriptedResponse } from "./support/fake-models.ts";
 import { createRecorder } from "./support/recorder.ts";
 import { countKind } from "./support/inspect.ts";
+
+const text = (value: string): ScriptedResponse => ({
+  kind: "message",
+  content: [{ type: "text", text: value }],
+  stopReason: "stop",
+});
 
 // 자체 루프(adr.0009) 계약: 확장 지점·커밋 순서, import 검사, 의존 제거(L1.loop.plan §5)
 
@@ -194,4 +201,38 @@ test("admit_input_transform_puts_the_changed_text_in_the_queue", async () => {
   const queued = h.fake.events(h.threadId).find((event) => event.kind === "input.queued");
   expect(queued?.payload).toMatchObject({ item: { kind: "user", content: "run it (expanded)" } });
   expect(h.models.requests[0]?.messages.at(-1)).toMatchObject({ content: "run it (expanded)" });
+});
+
+test("thinking_budgets_passed_through: the resolved level budget reaches the request unchanged and only for levels that use one", async () => {
+  const h = await createHarness({ script: [text("one"), text("two"), text("three")] });
+  h.models.setBinding({
+    role: "main",
+    provider: "fake",
+    modelId: "fake-1",
+    thinkingLevel: "medium",
+  });
+  h.models.setThinkingBudget(8192);
+  await h.loop.admit({ threadId: h.threadId, content: "a", via: "interactive" });
+  await h.settle();
+  expect(h.models.requests[0]).toMatchObject({
+    reasoning: "medium",
+    thinkingBudgets: { medium: 8192 },
+  });
+  // 추론이 꺼져 있으면 예산도 싣지 않는다
+  h.models.setBinding({ role: "main", provider: "fake", modelId: "fake-1", thinkingLevel: "off" });
+  await h.loop.admit({ threadId: h.threadId, content: "b", via: "interactive" });
+  await h.settle();
+  expect(h.models.requests[1]?.reasoning).toBeUndefined();
+  expect(h.models.requests[1]?.thinkingBudgets).toBeUndefined();
+  // xhigh는 토큰 예산을 쓰지 않는 레벨이다
+  h.models.setBinding({
+    role: "main",
+    provider: "fake",
+    modelId: "fake-1",
+    thinkingLevel: "xhigh",
+  });
+  await h.loop.admit({ threadId: h.threadId, content: "c", via: "interactive" });
+  await h.settle();
+  expect(h.models.requests[2]).toMatchObject({ reasoning: "xhigh" });
+  expect(h.models.requests[2]?.thinkingBudgets).toBeUndefined();
 });

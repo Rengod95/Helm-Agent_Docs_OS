@@ -8,6 +8,7 @@ import {
 } from "@xeon/contracts/capabilities";
 import {
   TOOL_SEARCH_NAME,
+  matchToolGlob,
   type AdvertisedToolset,
   type AdvertiseInput,
   type PolicyInput,
@@ -18,7 +19,7 @@ import { evaluatePolicy } from "./policy/engine.ts";
 import type { ToolEntry } from "./types.ts";
 
 // L1.tools.spec §4.1 노출: 결정적 순서, 전역 deny 제거, 지연 노출(deferred, auto 임계, 128 상한), `tool_search`와 활성화.
-// 서브에이전트 입력(allow, keepParentList, ceiling)은 L1A.6(TL-13)에서 더한다.
+// 서브에이전트 입력(allow, keepParentList, ceiling)은 TL-13: 자식 관점과 부모 관점의 전역 deny, 정의의 도구 제한(allow), 부모 목록 그대로(keepParentList).
 
 export interface ExposeContext {
   readonly rules: readonly TieredRule[];
@@ -83,6 +84,25 @@ function globalDeny(
   return { ref: entry.ref, ruleId: rule.id, tier: rule.tier };
 }
 
+/**
+ * 자식 대화면 부모 관점의 전역 deny도 뺀다(L1.tools.spec §4.1 규칙 7). 부모가 거부한 도구는 자식이 쓸 수 없기 때문이다
+ */
+function removedFor(
+  entry: ToolEntry,
+  input: AdvertiseInput,
+  context: ExposeContext,
+): RemovedTool | undefined {
+  const own = globalDeny(entry, input, context);
+  if (own !== undefined) return own;
+  const ceiling = input.run.ceiling;
+  if (ceiling === undefined) return undefined;
+  return globalDeny(
+    entry,
+    { ...input, run: { ...input.run, caller: ceiling.caller, depth: ceiling.depth } },
+    context,
+  );
+}
+
 function refOrder(a: ToolEntry, b: ToolEntry): number {
   return toolOrderKey(a.ref, b.ref);
 }
@@ -102,13 +122,17 @@ export function planExposure(
 ): ExposurePlan {
   const ordered = [...entries].toSorted(refOrder);
   const search = ordered.find(isToolSearch);
+  // 서브에이전트 정의의 도구 제한(glob). 없으면 제한이 없다. `tool_search`는 제한 밖이어도 지연 도구를 찾는 데 필요해 아래에서 따로 다룬다
+  const allow = input.allow ?? input.run.ceiling?.allow;
   const removed: RemovedTool[] = [];
   const visible: ToolEntry[] = [];
   for (const entry of ordered) {
     if (isToolSearch(entry)) continue;
-    const denied = globalDeny(entry, input, context);
-    if (denied === undefined) visible.push(entry);
-    else removed.push(denied);
+    const denied = removedFor(entry, input, context);
+    if (denied !== undefined) removed.push(denied);
+    else if (allow === undefined || allow.some((glob) => matchToolGlob(glob, entry.name))) {
+      visible.push(entry);
+    }
   }
   const always = visible.filter((entry) => entry.exposure === "always");
   const autos = visible.filter((entry) => entry.exposure === "auto");
@@ -151,13 +175,15 @@ export async function advertiseTools(
   input: AdvertiseInput,
   context: ExposeContext,
 ): Promise<AdvertisedToolset> {
-  if (
-    input.allow !== undefined ||
-    input.keepParentList !== undefined ||
-    input.run.ceiling !== undefined
-  ) {
-    // 서브에이전트 광고(allow, keepParentList, ceiling)는 L1A.6(L1.tools.plan TL-13)이다. 조용히 넓히지 않는다
-    throw new Bug("tools.advertise_child_unsupported: child toolsets arrive in M2 (TL-13)");
+  if (input.keepParentList !== undefined) {
+    // 캐시 접두를 부모와 나누려고 부모 광고 목록을 그대로 쓴다. 제한은 실행 시점의 ceiling 단계가 건다(L1.tools.spec §4.1 규칙 7)
+    const { parent } = input.keepParentList;
+    return {
+      tools: parent.tools,
+      deferred: parent.deferred,
+      removed: parent.removed,
+      fingerprint: parent.fingerprint,
+    };
   }
   const plan = planExposure(entries, input, context);
   const tools = plan.advertised.map(wireOf);

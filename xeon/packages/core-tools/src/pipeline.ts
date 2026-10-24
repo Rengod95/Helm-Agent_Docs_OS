@@ -25,19 +25,21 @@ import {
   type ToolResultMessage,
   type ToolResultRecord,
 } from "@xeon/contracts/conversation";
-import type {
-  ApprovalOrigin,
-  ApprovalRequestInput,
-  CallPreparation,
-  UserShellRequest,
-  PolicyInput,
-  PreparedCall,
-  RejectReason,
-  ToolCallOutcome,
-  ToolCallState,
-  Slot,
-  TaskScope,
-  ToolRunContext,
+import {
+  childDecision,
+  stricter,
+  type ApprovalOrigin,
+  type ApprovalRequestInput,
+  type CallPreparation,
+  type UserShellRequest,
+  type PolicyInput,
+  type PreparedCall,
+  type RejectReason,
+  type Slot,
+  type TaskScope,
+  type ToolCallOutcome,
+  type ToolCallState,
+  type ToolRunContext,
 } from "@xeon/contracts/services";
 import { requestKeyFor } from "./approvals/keys.ts";
 import { denialReason } from "./approvals/protocol.ts";
@@ -394,7 +396,21 @@ export function createPipeline(
       interactive: run.interactive,
       bypassAllowed: config.bypassAllowed,
     };
-    const decision = evaluatePolicy(input, config.rules);
+    const evaluated = evaluatePolicy(input, config.rules);
+    // 자식 대화는 부모 관점과 정의 제한을 합친 결정과 일반 평가 중 엄격한 쪽이다(L1.tools.spec §4.5 ceiling 단계, TL-13)
+    const decision =
+      run.ceiling === undefined
+        ? evaluated
+        : stricter(
+            childDecision(
+              evaluatePolicy,
+              input,
+              run.ceiling,
+              { caller: run.caller, depth: run.depth, mode: config.mode },
+              config.rules,
+            ),
+            evaluated,
+          );
     if (decision.effect === "deny") {
       return denied(
         decision.message ?? `[xeon:denied_by_policy] Tool call "${entry.name}" is denied.`,
@@ -680,10 +696,6 @@ export function createPipeline(
     const entry = registry.get(call.name);
     if (entry === undefined) {
       return settle(`[xeon:tool_unavailable] Tool ${call.name} is not available.`);
-    }
-    if (run.ceiling !== undefined) {
-      // 자식 대화의 권한 상한은 M2(TL-13)다. 상한을 적용하지 못하면 실행하지 않는다
-      return settle("[xeon:ceiling_unsupported] Child conversations cannot run tools yet.");
     }
     const checked = validateToolArguments(entry.parameters, call);
     if (!checked.ok) return settle(checked.error.message);

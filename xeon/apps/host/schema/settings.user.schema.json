@@ -1201,6 +1201,33 @@
         }
       }
     },
+    "l1.loop.gate.maxContinues": {
+      "default": 8,
+      "maximum": 100,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.2.0",
+        "ui": {
+          "help": "0이면 boundary 계속 지시를 따르지 않음",
+          "label": "완료 게이트 연속 계속 상한",
+          "order": 20,
+          "tab": "budgets",
+          "unit": "회",
+          "widget": "number"
+        }
+      }
+    },
     "l1.loop.maxSteps": {
       "default": 0,
       "maximum": 10000,

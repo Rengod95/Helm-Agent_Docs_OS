@@ -16,13 +16,16 @@ import {
   type ItemRecordedPayload,
   type StepCheckpoint,
 } from "@xeon/contracts/records";
-import type {
-  AbortReason,
-  ModelBinding,
-  ResolvedModel,
-  TaskScope,
-  ToolRunContext,
-  ToolRunDrafts,
+import {
+  MODEL_ROLES,
+  type AbortReason,
+  type ModelBinding,
+  type ModelRole,
+  type ResolvedModel,
+  type RoleOverrides,
+  type TaskScope,
+  type ToolRunContext,
+  type ToolRunDrafts,
 } from "@xeon/contracts/services";
 import type { BoundarySignal } from "@xeon/ext-host";
 import type { ToolName } from "@xeon/contracts/capabilities";
@@ -40,7 +43,7 @@ import type { LoopFailure, TurnRunSpec } from "./types.ts";
 // 한 turn 실행이 단계 함수들 사이에서 나눠 쓰는 상태와 도우미. 단계 함수는 이 값을 받아 순서대로 부른다(adr.0009 §3.3).
 
 /** turn을 열어 둔 채 멈추는 이유, 또는 한도 도달로 끝나는 이유(T6 status 결정에 쓴다) */
-type EndReason = "step_limit" | "external" | "stopped" | "deferred";
+type EndReason = "step_limit" | "child_limit" | "external" | "stopped" | "deferred";
 
 interface RunState {
   stepIndex: number;
@@ -55,12 +58,18 @@ interface RunState {
   leaseRefs: readonly EventId[];
   scopeRef: EventId | null;
   gateContinues: number;
+  /** 이 turn의 `l1.loop.gate.maxContinues`. turn 시작 때 한 번 읽는다 */
+  gateMaxContinues: number;
   endReason: EndReason | null;
   /** 재개로 같은 단계의 요청을 다시 보낸다: 그 단계의 `step.started`는 이미 기록됨 */
   adoptFirstStep: boolean;
   /** 이 실행이 낸 메시지(`agent_end` tap의 messages) */
   readonly newMessages: AgentMessage[];
   maxSteps: number;
+  /** 단계 상한에 이르렀을 때의 턴 종료 사유. 자식 한도가 정한 상한이면 `child_limit`다 */
+  stepLimitReason: "step_limit" | "child_limit";
+  /** 자식 turn의 입력 토큰 상한(`ChildTurnRequest.limits.maxInputTokens`). 없으면 null */
+  childMaxInputTokens: number | null;
   /** `before_agent_start`가 바꾼 기본 프롬프트(없으면 서비스 기본값). 접두가 기록된 뒤에는 조립이 기록본을 쓴다 */
   basePrompt: string;
   /** 단계 안에서 같은 지점이 여러 번 불릴 때 dispatchKey를 구별하는 순번 */
@@ -82,6 +91,18 @@ export interface TurnRun {
   readonly mapper: BoundAgentEventMapper;
   readonly emitter: VolatileEmitter;
   readonly state: RunState;
+}
+
+/** 설정 상한과 자식 한도 중 더 작은 양수가 단계 상한이다. 0이나 없음은 상한 없음이다 */
+function stepLimitOf(
+  configured: number,
+  childLimit: number | undefined,
+): { readonly maxSteps: number; readonly stepLimitReason: "step_limit" | "child_limit" } {
+  const child = childLimit !== undefined && childLimit > 0 ? childLimit : null;
+  if (child !== null && (configured <= 0 || child <= configured)) {
+    return { maxSteps: child, stepLimitReason: "child_limit" };
+  }
+  return { maxSteps: configured, stepLimitReason: "step_limit" };
 }
 
 export function createTurnRun(ctx: LoopContext, spec: TurnRunSpec): TurnRun {
@@ -133,11 +154,13 @@ export function createTurnRun(ctx: LoopContext, spec: TurnRunSpec): TurnRun {
     leaseRefs: spec.leaseRefs,
     scopeRef: spec.scopeRef,
     gateContinues: 0,
+    gateMaxContinues: ctx.settings.gateMaxContinues(threadId),
     endReason: null,
     adoptFirstStep: spec.entry.kind === "request" && spec.entry.adoptStepId !== null,
     newMessages: [],
-    maxSteps: ctx.settings.maxSteps(threadId),
-    basePrompt: ctx.basePrompt,
+    ...stepLimitOf(ctx.settings.maxSteps(threadId), spec.child?.limits?.maxSteps),
+    childMaxInputTokens: spec.child?.limits?.maxInputTokens ?? null,
+    basePrompt: spec.child?.systemPrompt ?? ctx.basePrompt,
     pointSeq: 0,
     agentStarted: false,
     activated: null,
@@ -189,6 +212,19 @@ export function messageIdentity(run: TurnRun, message: AgentMessage): string {
 
 export function overrides(run: TurnRun): { readonly scopeId?: string } {
   return run.spec.scopeId === null ? {} : { scopeId: run.spec.scopeId };
+}
+
+/**
+ * 이 turn이 모델을 해석할 역할과 덮어쓰기. 주 대화와 drive turn은 역할 `main`이다. 자식 turn은 요청의 `model`이
+ * 역할 이름이면 그 역할로, 아니면 모델 참조(`provider/id[:레벨]`)로 `main` 역할을 덮어쓴다(L1.loop.spec §4.13 4단계)
+ */
+function roleOf(run: TurnRun): { readonly role: ModelRole; readonly overrides: RoleOverrides } {
+  const child = run.spec.child;
+  const base = overrides(run);
+  if (child === null) return { role: "main", overrides: base };
+  const named = MODEL_ROLES.find((role) => role === child.model);
+  if (named !== undefined) return { role: named, overrides: base };
+  return { role: "main", overrides: { ...base, ref: child.model } };
 }
 
 export function tapOptions(
@@ -256,14 +292,16 @@ export function resolveModel(run: TurnRun): Result<ResolvedModel, LoopFailure> {
       kind: rebound.error.kind,
     });
   }
-  const resolved = ctx.models.resolve("main", overrides(run));
+  const { role, overrides: roleOverrides } = roleOf(run);
+  const resolved = ctx.models.resolve(role, roleOverrides);
   if (!resolved.ok) return err({ kind: "model_unavailable", detail: resolved.error.kind });
   return ok(remember(run, resolved.value));
 }
 
 /** 다음 단계에 쓸 바인딩(체크포인트 `model` 필드). 해석에 실패하면 지금 값을 이어 쓴다 */
 export function nextBinding(run: TurnRun): Result<ModelBinding, LoopFailure> {
-  const resolved = run.ctx.models.resolve("main", overrides(run));
+  const { role, overrides: roleOverrides } = roleOf(run);
+  const resolved = run.ctx.models.resolve(role, roleOverrides);
   if (resolved.ok) return ok(resolved.value.binding);
   const current = run.state.binding;
   if (current === null) return err({ kind: "model_unavailable", detail: resolved.error.kind });
@@ -344,14 +382,16 @@ export function toolRunContext(run: TurnRun, step: StepRef): ToolRunContext {
       return rawDraft(run, "checkpoint.step", step, checkpoint);
     },
   };
+  const child = run.spec.child;
   return {
     threadId,
     turnId,
     stepId: step.stepId,
-    caller: "main",
-    depth: 0,
+    caller: child === null ? "main" : child.tools.caller,
+    depth: child === null ? 0 : child.tools.depth,
     interactive: run.spec.interactive,
-    surfaceThreadId: threadId,
+    surfaceThreadId: child === null ? threadId : child.tools.surfaceThreadId,
+    ...(child === null ? {} : { ceiling: child.tools.ceiling }),
     signal: run.scope.signal,
     drafts,
   };

@@ -16,13 +16,13 @@ export async function beforeAgentStart(
   const payload: BeforeAgentStartPayload = {
     prompt: entry.prompt,
     ...(entry.images.length === 0 ? {} : { images: [...entry.images] }),
-    systemPrompt: ctx.basePrompt,
+    systemPrompt: state.basePrompt,
     systemPromptOptions: {},
   };
   const outcome = await ctx.ext.dispatch("before_agent_start", payload, {
     threadId,
     dispatchKey: `${turnId}:before_agent_start`,
-    initial: { messages: [], systemPrompt: ctx.basePrompt },
+    initial: { messages: [], systemPrompt: state.basePrompt },
     signal: scope.signal,
   });
   state.basePrompt = outcome.value.systemPrompt;

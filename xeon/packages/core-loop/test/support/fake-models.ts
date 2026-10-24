@@ -6,9 +6,11 @@ import type {
   AssistantMessageEventStream,
   Message,
   Model,
+  SimpleStreamOptions,
   StepId,
   StopReason,
   TextContent,
+  ThinkingBudgets,
   ThinkingContent,
   ToolCall,
   Usage,
@@ -18,6 +20,7 @@ import type {
   ModelError,
   ModelService,
   ResolvedModel,
+  RoleOverrides,
 } from "@xeon/contracts/services";
 import type { Clock } from "@xeon/contracts";
 
@@ -43,15 +46,25 @@ interface ModelRequest {
   readonly stepId: StepId | null;
   readonly messages: readonly Message[];
   readonly signal: AbortSignal | undefined;
+  /** 요청에 실린 추론 수준과 레벨별 토큰 예산 */
+  readonly reasoning: SimpleStreamOptions["reasoning"];
+  readonly thinkingBudgets: ThinkingBudgets | undefined;
 }
 
 export interface FakeModels {
   readonly service: ModelService;
   readonly requests: readonly ModelRequest[];
+  /** resolve가 받은 역할과 덮어쓰기(호출 순서대로) */
+  readonly resolves: readonly {
+    readonly role: string;
+    readonly overrides: RoleOverrides | undefined;
+  }[];
   remaining(): number;
   push(...responses: readonly ScriptedResponse[]): void;
   /** resolve가 돌려줄 바인딩을 바꾼다(모델 전환 시험) */
   setBinding(binding: ModelBinding): void;
+  /** resolve가 돌려줄 레벨별 토큰 예산을 바꾼다 */
+  setThinkingBudget(tokens: number | null): void;
   /** 이후 resolve·rebind가 이 종류로 실패한다(모델 해석 실패 시험) */
   failResolve(kind: ModelError["kind"]): void;
 }
@@ -172,6 +185,7 @@ export function createFakeModels(options: {
   const { clock } = options;
   const script: ScriptedResponse[] = [...(options.script ?? [])];
   const requests: ModelRequest[] = [];
+  const resolves: { role: string; overrides: RoleOverrides | undefined }[] = [];
   let binding: ModelBinding = {
     role: "main",
     provider: FAKE_MODEL.provider,
@@ -179,12 +193,14 @@ export function createFakeModels(options: {
     thinkingLevel: "off",
   };
 
+  const thinkingBudgetTokens: { value: number | null } = { value: null };
+
   const resolved = (): ResolvedModel => ({
     binding,
     source: "default",
     trace: [],
     model: FAKE_MODEL,
-    thinkingBudgetTokens: null,
+    thinkingBudgetTokens: thinkingBudgetTokens.value,
     cachePolicy: {
       retention: "none",
       sessionKey: null,
@@ -202,7 +218,10 @@ export function createFakeModels(options: {
   });
 
   const service: ModelService = {
-    resolve: () => (failing.kind === null ? ok(resolved()) : err(unavailable())),
+    resolve: (role, roleOverrides) => {
+      resolves.push({ role, overrides: roleOverrides });
+      return failing.kind === null ? ok(resolved()) : err(unavailable());
+    },
     rebind(next) {
       if (failing.kind !== null) return err(unavailable());
       binding = next;
@@ -215,6 +234,8 @@ export function createFakeModels(options: {
         stepId: ctx.stepId,
         messages: structuredClone(transcript.messages),
         signal: streamOptions?.signal,
+        reasoning: streamOptions?.reasoning,
+        thinkingBudgets: streamOptions?.thinkingBudgets,
       });
       const response = script.shift();
       if (response === undefined) {
@@ -318,12 +339,16 @@ export function createFakeModels(options: {
   return {
     service,
     requests,
+    resolves,
     remaining: () => script.length,
     push: (...responses) => {
       script.push(...responses);
     },
     setBinding: (next) => {
       binding = next;
+    },
+    setThinkingBudget: (tokens) => {
+      thinkingBudgetTokens.value = tokens;
     },
     failResolve: (kind) => {
       failing.kind = kind;

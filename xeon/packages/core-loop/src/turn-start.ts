@@ -11,7 +11,7 @@ import type {
 } from "@xeon/contracts/conversation";
 import type { LoopTurnRequest, PostContent } from "@xeon/contracts/extensions";
 import type { CommitRequest, StampedDraft } from "@xeon/contracts/records";
-import type { QueuedInput, TaskService } from "@xeon/contracts/services";
+import type { ChildTurnRequest, QueuedInput, TaskService } from "@xeon/contracts/services";
 import { commitKeys, placedMessageOf } from "./commits.ts";
 import type { Drafter } from "./drafts.ts";
 
@@ -19,7 +19,9 @@ import type { Drafter } from "./drafts.ts";
 
 export type TurnStartSource =
   | { readonly kind: "queue" }
-  | { readonly kind: "drive"; readonly request: LoopTurnRequest };
+  | { readonly kind: "drive"; readonly request: LoopTurnRequest }
+  /** 자식 thread turn(L1.loop.spec §4.13). 임대 펜싱은 없고 멱등 신원은 (자식 thread, null, requestId)다 */
+  | { readonly kind: "child"; readonly request: ChildTurnRequest };
 
 /** T1 `build`가 정한 값. 마지막 `build` 호출의 것을 돌려준다 */
 export interface TurnStartPlanned {
@@ -77,14 +79,22 @@ export function turnStartRequest(
     fingerprintSource:
       source.kind === "queue"
         ? { kind: "turn_start", threadId, turnId, source: "queue" }
-        : {
-            kind: "turn_start",
-            threadId,
-            turnId,
-            source: "drive",
-            scopeId: source.request.scopeId,
-            requestId: source.request.requestId,
-          },
+        : source.kind === "child"
+          ? {
+              kind: "turn_start",
+              threadId,
+              turnId,
+              source: "child",
+              requestId: source.request.requestId,
+            }
+          : {
+              kind: "turn_start",
+              threadId,
+              turnId,
+              source: "drive",
+              scopeId: source.request.scopeId,
+              requestId: source.request.requestId,
+            },
     build: (view) => {
       if (view.threadStatus === "absent") {
         return { kind: "reject", code: "thread_absent", detail: null };
@@ -139,6 +149,44 @@ export function turnStartRequest(
           scopeRef,
         };
         return { kind: "append", drafts, checkpoint: null };
+      }
+
+      if (source.kind === "child") {
+        const req = source.request;
+        // 멱등: (자식 thread, 범위 없음, requestId)의 turn이 이미 있으면 새 turn을 열지 않는다
+        const existingChild = view.turnByRequestId(threadId, null, req.requestId);
+        if (existingChild !== undefined) {
+          return { kind: "reject", code: "turn_exists", detail: existingChild.turnId };
+        }
+        const itemId = deps.ids.next("itm");
+        const placed = placedMessageOf(itemId, req.input, null, timestamp);
+        const { text, images } = textAndImages(req.input.content);
+        captured = {
+          turnId,
+          itemIds: [itemId],
+          messages: [placed.message],
+          inputs: [],
+          requestId: req.requestId,
+          scopeId: null,
+          interactive: req.tools.interactive,
+          prompt: text,
+          images,
+          consumedSeq: priorConsumed,
+          leaseRefs,
+          scopeRef,
+        };
+        return {
+          kind: "append",
+          drafts: [
+            deps.drafter.make("item.recorded", { item: placed.record }, scope),
+            deps.drafter.make(
+              "turn.started",
+              { inputItemIds: [itemId], requestId: req.requestId, scopeId: null },
+              scope,
+            ),
+          ],
+          checkpoint: null,
+        };
       }
 
       const req = source.request;
