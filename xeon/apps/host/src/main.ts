@@ -1,5 +1,5 @@
 import { writeFile } from "node:fs/promises";
-import { assertNever, attemptAsync, Bug } from "@xeon/contracts";
+import { assertNever, attemptAsync, Bug, detach } from "@xeon/contracts";
 import { resolveSetting } from "@xeon/contracts/settings";
 import type { StdioTransportOptions, Transport } from "@xeon/contracts/wire";
 import { AssembleError, assemble, ENGINE_VERSION } from "./assemble.ts";
@@ -235,6 +235,13 @@ async function runFromProcess(argv: readonly string[]): Promise<number> {
   });
 }
 
+// 최상위 await를 쓰지 않는다: `bun build --compile --bytecode`가 최상위 await를 거부한다(HOST.5, open-issues M-08)
 if (import.meta.main) {
-  process.exit(await runFromProcess(process.argv.slice(2)));
+  detach(
+    runFromProcess(process.argv.slice(2)).then((code) => process.exit(code)),
+    (caught) => {
+      process.stderr.write(`host failed: ${messageOf(caught)}\n`);
+      process.exit(1);
+    },
+  );
 }
