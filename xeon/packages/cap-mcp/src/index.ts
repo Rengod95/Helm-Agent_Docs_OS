@@ -28,7 +28,15 @@ export { loadDefinitions } from "./servers/definitions.ts";
 export { parseMcpJson, normalizeServerName } from "./servers/loader.ts";
 export { buildApprovalRules, evaluateServer, filterTool, toolRuleKey } from "./servers/policy.ts";
 export { buildQuestions } from "./elicitation/questions.ts";
+export { buildInputResponses, checkFormContent } from "./elicitation/responses.ts";
 export { roundRequestId } from "./elicitation/rounds.ts";
+export {
+  askWithApprovals,
+  decodeAnswer,
+  planQuestionBody,
+  uniformAnswer,
+} from "./elicitation/approval-adapter.ts";
+export type { AskError, AskInput, PlannedQuestions } from "./elicitation/approval-adapter.ts";
 export { createProjectTrust } from "./ports/trust.ts";
 export { createSecretServiceHeaders } from "./ports/secret-service.ts";
 export type { LeasingSecrets } from "./ports/secret-service.ts";
