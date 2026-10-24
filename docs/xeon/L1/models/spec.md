@@ -774,6 +774,13 @@ fold와 페이로드는 `F.extensions.spec` §3.4~§3.5를 인용만 한다. 이
 | `model_select` | request | tap | 단계 시작에 바인딩이 바뀔 때(§4.2 6번), 폴백 전환 | 없음 | |
 | `thinking_level_select` | request | tap(detached) | 레벨만 바뀔 때 | 없음 | `dispatch: detached` |
 
+- 발화 구현 [구현: M2, m2/l1c]:
+  - `model_select`와 `thinking_level_select`는 요청을 보내기 직전에 같은 thread·역할·scope의 직전 호출 바인딩과 비교해 발화한다. 요청을 보내지 못한 호출(provider 없음, 가드)은 비교도 발화도 하지 않는다. 직전 호출이 없으면(처음이거나 프로세스를 다시 띄운 뒤) `previous: null`인 `model_select`를 한 번 낸다. provider·모델이 다르면 `model_select`만, 레벨만 다르면 `thinking_level_select`만 낸다. `source`는 체크포인트로 다시 묶은 해석 결과면 `restore`, 그 밖은 `route`다. `set`(사용자 `/model`)과 `fallback`은 이 서비스가 구분하지 못하므로 쓰지 않는다.
+  - `before_provider_headers`는 pi-ai `transformHeaders`에서 발화한다. 핸들러에는 소문자 이름으로 바꾼 사본을 주고, 이름에 `authorization`, `api-key`, `token`, `secret`, `cookie`가 들어 있거나 비밀 참조에서 푼 헤더의 값은 `"[secret]"`로 가린다. 핸들러가 낸 최종 헤더 중 가린 헤더는 어떤 패치도 받지 않고 원래 값을 쓴다(바꾸거나 지우려 하면 로그 `model.auth_header_patch_ignored`에 이름만 남긴다). 새 인증 헤더를 만드는 패치도 같다. 가리지 않은 헤더는 패치대로 바뀌고, 최종 값에 없는 이름은 삭제된다.
+  - `after_provider_response`의 헤더에서는 `authorization`, `api-key`, `cookie`가 든 이름을 뺀다.
+  - `provider_stream_event`는 어댑터가 원시 이벤트를 넘길 때마다 발화한다. 디스패치 키는 호출 키에 이벤트 순번을 붙인다.
+  - 한 호출의 키는 `<stepId|turnId|threadId>:<지점>:<순번>`이고 순번은 호출마다 하나다. 같은 호출의 재시도는 같은 키를 쓴다.
+
 ### 7.2 페이로드 필드 제안 (F 요청)
 
 M1 밖 지점은 `F.extensions.spec` §3.3의 형태 규칙(pi 필드 이름 유지, pi 고유 타입은 F 타입으로)으로 아래를 제안한다.

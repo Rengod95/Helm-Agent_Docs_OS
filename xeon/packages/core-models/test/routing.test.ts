@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { t, tape } from "../src/testing/index.ts";
 import { DEFAULT_THINKING_BUDGETS } from "../src/index.ts";
+import { spyDispatcher } from "./support/dispatcher.ts";
 import { createHarness, unwrap } from "./support/harness.ts";
 
 const ONE = tape("core-models/routing", [
@@ -124,5 +125,91 @@ describe("settings take effect without a restart", () => {
     ]);
     h.setSettings({ deniedModels: ["tape/other"], allowedModels: ["tape/*"] });
     expect(h.service.list().map((info) => info.ref)).toEqual(["tape/plain", "tape/thinker"]);
+  });
+});
+
+describe("model_select_fires_on_binding_change", () => {
+  const TWO = tape("core-models/select", [
+    { role: "main", response: { type: "message", content: [t.text("1")], stopReason: "stop" } },
+    { role: "main", response: { type: "message", content: [t.text("2")], stopReason: "stop" } },
+    { role: "main", response: { type: "message", content: [t.text("3")], stopReason: "stop" } },
+    { role: "main", response: { type: "message", content: [t.text("4")], stopReason: "stop" } },
+  ]);
+
+  test("the first request announces the binding, an identical one stays silent", async () => {
+    const spy = spyDispatcher();
+    const h = createHarness({ tape: TWO, provider: MODELS, dispatcher: spy.dispatcher });
+    await h.service.stream(h.request("a")).result();
+    await h.service.stream(h.request("b")).result();
+    expect(spy.selects).toHaveLength(1);
+    expect(spy.selects[0]).toMatchObject({
+      previous: null,
+      source: "route",
+      binding: { role: "main", provider: "tape", modelId: "plain", thinkingLevel: "off" },
+    });
+    expect(spy.levels).toHaveLength(0);
+  });
+
+  test("a different model fires model_select with the previous binding", async () => {
+    const spy = spyDispatcher();
+    const h = createHarness({ tape: TWO, provider: MODELS, dispatcher: spy.dispatcher });
+    await h.service.stream(h.request("a")).result();
+    h.setSettings({ default: "tape/other" });
+    await h.service.stream(h.request("b")).result();
+    expect(spy.selects).toHaveLength(2);
+    expect(spy.selects[1]).toMatchObject({
+      binding: { modelId: "other" },
+      previous: { modelId: "plain" },
+    });
+    expect(spy.levels).toHaveLength(0);
+  });
+
+  test("a level-only change fires thinking_level_select and not model_select", async () => {
+    const spy = spyDispatcher();
+    const h = createHarness({ tape: TWO, provider: MODELS, dispatcher: spy.dispatcher });
+    h.setSettings({ default: "tape/thinker:low" });
+    await h.service.stream(h.request("a")).result();
+    h.setSettings({ default: "tape/thinker:high" });
+    await h.service.stream(h.request("b")).result();
+    expect(spy.selects).toHaveLength(1);
+    expect(spy.levels).toHaveLength(1);
+    expect(spy.levels[0]).toMatchObject({ role: "main", level: "high", previousLevel: "low" });
+  });
+
+  test("a request resumed from a checkpoint reports the restore source", async () => {
+    const spy = spyDispatcher();
+    const h = createHarness({ tape: TWO, provider: MODELS, dispatcher: spy.dispatcher });
+    const pinned = unwrap(
+      h.service.rebind({ role: "main", provider: "tape", modelId: "plain", thinkingLevel: "off" }),
+    );
+    await h.service.stream({ ...h.ctx(), resolved: pinned, context: h.context("a") }).result();
+    expect(spy.selects[0]).toMatchObject({ source: "restore" });
+  });
+
+  test("each role and scope is tracked on its own", async () => {
+    const spy = spyDispatcher();
+    const h = createHarness({ tape: TWO, provider: MODELS, dispatcher: spy.dispatcher });
+    h.setSettings({ routing: { summary: "tape/other" } });
+    await h.service.stream(h.request("a", "main")).result();
+    await h.service.stream(h.request("b", "summary")).result();
+    await h.service.stream(h.request("c", "main")).result();
+    // main 첫 호출과 summary 첫 호출만 알린다
+    expect(spy.selects.map((event) => event.binding.role)).toEqual(["main", "summary"]);
+  });
+
+  test("a request that is not sent fires nothing", async () => {
+    const spy = spyDispatcher();
+    const h = createHarness({ tape: TWO, provider: MODELS, dispatcher: spy.dispatcher });
+    const request = h.request("a");
+    await h.service
+      .stream({
+        ...request,
+        resolved: {
+          ...request.resolved,
+          binding: { ...request.resolved.binding, provider: "nowhere" },
+        },
+      })
+      .result();
+    expect(spy.selects).toHaveLength(0);
   });
 });

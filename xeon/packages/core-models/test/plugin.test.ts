@@ -144,4 +144,141 @@ describe("core-models builtin extension", () => {
     expect(th.host.ports.get(ModelServiceKey)).toBeUndefined();
     await th.host.dispose();
   });
+
+  test("handlers on the remaining five request points see the call and a header patch reaches the request", async () => {
+    const th = await createTestHost();
+    const secrets = memorySecrets({ "tape-key": FAKE_KEY });
+    await th.host.registerPlatform({
+      name: "test-secrets",
+      setup(ctx) {
+        ctx.providePort(SecretServiceKey, secrets.service);
+      },
+    });
+    const clock = manualClock();
+    const fake = tapeProvider(
+      tapePlayer(
+        tape("core-models/plugin-points", [
+          {
+            role: "main",
+            response: { type: "message", content: [t.text("ok")], stopReason: "stop" },
+          },
+          {
+            role: "main",
+            response: { type: "message", content: [t.text("again")], stopReason: "stop" },
+          },
+        ]),
+        { clock },
+      ),
+      {
+        response: { status: 200, headers: { "Retry-After": "0", "Set-Cookie": "sid=1" } },
+        rawEvents: [{ type: "raw" }],
+        models: [{ id: "tape-1", reasoning: true }],
+      },
+    );
+    const models = createModelsExtension({
+      clock,
+      settings: () => ({ ...SETTINGS, default: "tape/tape-1:low" }),
+      buildModels: (credentials) => {
+        const collection = createModels({ credentials });
+        collection.setProvider(fake.provider);
+        return collection;
+      },
+    });
+    await th.host.install({
+      manifest: models.manifest,
+      entry: models.extension,
+      loadIndex: 0,
+      builtin: true,
+    });
+    const seen: string[] = [];
+    const spyManifest = defineManifest({
+      schemaVersion: 1,
+      name: "point-spy",
+      version: "0.1.0",
+      layer: "L3",
+      kind: "group",
+      entry: "./src/index.ts",
+      points: [
+        "before_provider_headers",
+        "after_provider_response",
+        "provider_stream_event",
+        "model_select",
+        "thinking_level_select",
+      ],
+      usesDrive: false,
+      trust: { level: "builtin" },
+    });
+    await th.host.install({
+      manifest: spyManifest,
+      entry: ({ manifest: own, scope }) => {
+        scope(own.name, {}, (g) => {
+          g.on("before_provider_headers", (payload) => {
+            seen.push(`headers:${Object.keys(payload.headers).join(",")}`);
+            return { set: { "x-spy": "1" } };
+          });
+          g.on("after_provider_response", (payload) => {
+            seen.push(`response:${payload.status}:${Object.keys(payload.headers).join(",")}`);
+          });
+          g.on("provider_stream_event", (payload) => {
+            seen.push(`raw:${payload.model}`);
+          });
+          g.on("model_select", (payload) => {
+            seen.push(`select:${payload.binding.modelId}:${payload.previous === null}`);
+          });
+          g.on("thinking_level_select", (payload) => {
+            seen.push(`level:${payload.level}`);
+          });
+        });
+      },
+      loadIndex: 1,
+      builtin: true,
+    });
+    await th.settled();
+
+    const service = th.host.ports.get(ModelServiceKey);
+    expect(service).toBeDefined();
+    if (service === undefined) return;
+    const threadId = th.newThread();
+    await th.host.openThread(threadId);
+    const resolved = service.resolve("main");
+    expect(resolved.ok).toBe(true);
+    if (!resolved.ok) return;
+    const message = await service
+      .stream({
+        threadId,
+        turnId: null,
+        stepId: null,
+        role: "main",
+        resolved: resolved.value,
+        context: { messages: [{ role: "user", content: "hi", timestamp: clock.now() }] },
+      })
+      .result();
+    expect(message.stopReason).toBe("stop");
+    await th.settled();
+    expect(seen).toContain("select:tape-1:true");
+    expect(seen).toContain("response:200:retry-after");
+    expect(seen).toContain("raw:tape-1");
+    expect(seen.some((line) => line.startsWith("headers:"))).toBe(true);
+    expect(fake.calls()[0]?.headers).toMatchObject({ "x-spy": "1" });
+    expect(JSON.stringify(seen)).not.toContain(FAKE_KEY);
+
+    // 레벨만 바꾸면 thinking_level_select가 detached로 발화한다
+    const high = service.resolve("main", { thinkingLevel: "high" });
+    expect(high.ok).toBe(true);
+    if (!high.ok) return;
+    await service
+      .stream({
+        threadId,
+        turnId: null,
+        stepId: null,
+        role: "main",
+        resolved: high.value,
+        context: { messages: [{ role: "user", content: "again", timestamp: clock.now() }] },
+      })
+      .result();
+    await th.settled();
+    expect(seen).toContain("level:high");
+    expect(seen.filter((line) => line.startsWith("select:"))).toHaveLength(1);
+    await th.host.dispose();
+  });
 });

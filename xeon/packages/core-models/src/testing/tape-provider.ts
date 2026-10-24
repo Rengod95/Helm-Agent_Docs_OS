@@ -11,6 +11,7 @@ import {
   type SimpleStreamOptions,
   type TranscriptContext,
 } from "@earendil-works/pi-ai";
+import { eachAsync } from "@xeon/contracts";
 import type { ModelRole } from "@xeon/contracts/services";
 import { TapeMismatchError, type TapePlayer } from "./tape.ts";
 
@@ -43,6 +44,15 @@ export interface TapeProviderOptions {
    * 흉내 낼 때 2 이상으로 둔다(L1.models.spec §4.3 5번)
    */
   readonly payloadAttempts?: number;
+  /**
+   * 응답 수신을 흉내 낸다. 주면 payload 확정 뒤 pi-ai 어댑터처럼 `onResponse`를 부른다(after_provider_response)
+   */
+  readonly response?: {
+    readonly status: number;
+    readonly headers: Readonly<Record<string, string>>;
+  };
+  /** 어댑터가 낸 원시 스트림 이벤트를 흉내 낸다. 주면 `onProviderStreamEvent`를 이벤트마다 부른다(provider_stream_event) */
+  readonly rawEvents?: readonly unknown[];
   /** 참이면 키가 없는 요청을 "Provider is not configured"로 거부한다. 기본 거짓(키 없는 로컬 서버처럼) */
   readonly requireKey?: boolean;
 }
@@ -144,6 +154,16 @@ export function tapeProvider(
       thinkingBudgets: streamOptions?.thinkingBudgets,
       headers: streamOptions?.headers,
       payload: replaced ?? draft,
+    });
+    if (options.response !== undefined) {
+      await streamOptions?.onResponse?.(
+        { status: options.response.status, headers: { ...options.response.headers } },
+        model,
+      );
+    }
+    await eachAsync(options.rawEvents ?? [], async (raw) => {
+      await streamOptions?.onProviderStreamEvent?.(raw, model);
+      return undefined;
     });
     let events: AsyncIterable<AssistantMessageEvent>;
     try {

@@ -9,7 +9,18 @@ export {
 } from "./plugin.ts";
 export { createModelService, type ModelServiceDeps, type ModelsSettingsSource } from "./service.ts";
 export { ModelRegistrationError } from "./provider-registry.ts";
-export type { BeforeProviderRequestInput, ProviderDispatcher } from "./pipeline.ts";
+export type {
+  AfterProviderResponseInput,
+  BeforeProviderHeadersInput,
+  BeforeProviderRequestInput,
+  ModelSelectInput,
+  ModelSelectSource,
+  PointInput,
+  ProviderDispatcher,
+  ProviderStreamEventInput,
+  RequestPointInput,
+  ThinkingLevelSelectInput,
+} from "./request-points.ts";
 export {
   DEFAULT_MODELS_SETTINGS,
   DEFAULT_RETRY_SETTINGS,

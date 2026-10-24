@@ -26,7 +26,8 @@ import {
 import { buildCachePolicy, withRetention } from "./cache-policy.ts";
 import { classifyMessage } from "./classify.ts";
 import { createFailureLog } from "./failure-log.ts";
-import { createPipeline, type CallSpec, type ProviderDispatcher } from "./pipeline.ts";
+import { createPipeline, type CallSpec } from "./pipeline.ts";
+import type { ProviderDispatcher } from "./request-points.ts";
 import {
   createProviderRegistry,
   defaultApiStreams,
@@ -92,6 +93,7 @@ function callOf(
     cachePolicy,
     context: request.context,
     ...(request.options === undefined ? {} : { options: request.options }),
+    selectSource: request.resolved.source === "checkpoint" ? "restore" : "route",
     budgets,
     providerRetries,
   };
@@ -248,6 +250,7 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
                 ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
               },
             }),
+        selectSource: "route",
         budgets: settings.thinkingBudgets,
         ...(options?.apiKey === undefined ? {} : { apiKey: options.apiKey }),
         providerRetries: true,
