@@ -15,7 +15,7 @@ import type {
 import { CLOSE_ABORT_REASON, UNKNOWN_ABORT_REASON } from "./abort-reason.ts";
 import { createInputQueue } from "./input-queue.ts";
 import { createKeyedQueue } from "./keyed-queue.ts";
-import { createPassThroughLimiter } from "./limiter.ts";
+import { createLimiter } from "./limiter.ts";
 import { createScopeTree, type ScopeNode } from "./scope.ts";
 import { commitWithRetry, describeError, type TasksSession } from "./session-port.ts";
 import type { TasksSettingsSource } from "./settings-source.ts";
@@ -88,10 +88,12 @@ export function createTaskService(deps: TaskServiceDeps): TaskService {
     if (node === undefined) throw new Bug(`tasks.foreign_scope: ${owner.kind} ${owner.id}`);
     node.whenSettled(listener);
   }
+  const limiterOf = (pool: PoolName): Limiter =>
+    createLimiter({ pool, capacity: () => deps.settings.limit(pool), whenSettled });
   const limiters: Readonly<Record<PoolName, Limiter>> = {
-    tools: createPassThroughLimiter("tools", whenSettled),
-    subagents: createPassThroughLimiter("subagents", whenSettled),
-    modelCalls: createPassThroughLimiter("modelCalls", whenSettled),
+    tools: limiterOf("tools"),
+    subagents: limiterOf("subagents"),
+    modelCalls: limiterOf("modelCalls"),
   };
 
   /** 의도를 먼저 내구로 남기고 신호를 보낸다(§4.2) */

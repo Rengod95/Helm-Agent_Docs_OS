@@ -471,7 +471,9 @@ abort(target, reason, { background }):
 | `modelCalls` | core-loop의 streamFn 래퍼 | provider 스트림 하나가 열려 있는 동안 |
 
 - 대기열은 풀마다 FIFO다. 대기 중 owner가 취소되면 대기열에서 지운다.
-- 상한 값은 설정 `l1.tasks.limits.*`다(§6). 값이 줄면 이미 쥔 슬롯은 그대로 두고 새 획득부터 적용한다.
+- 상한 값은 설정 `l1.tasks.limits.*`다(§6). 값이 줄면 이미 쥔 슬롯은 그대로 두고 새 획득부터 적용한다. 값이 늘어난 것은 다음 반납이나 획득에서 대기자에게 닿는다(설정 변경 알림을 받지 않는다) [구현: `limiter.ts`].
+- 구현 메모 [결정: L1B.5]: 대기 중 취소는 `signal.throwIfAborted()`로 `AbortReason`을 던져 거부한다. `suspendWhile`은 슬롯을 놓고 기다린 뒤 노드가 정착하지 않았으면 같은 풀의 FIFO 끝에서 다시 얻는다(대기 중 새로 온 작업 뒤에 선다). 노드가 정착하면 쥔 슬롯을 자동 반납한다.
+- [미결] C2의 `tools` 슬롯 쪽은 슬롯을 쥔 core-tools가 `suspendWhile`을 불러야 한다. `agent` 도구(`L1.agents`)는 자기 `execute` 안에서 호출 도구의 슬롯을 알 수 없다(`Limiter`에 owner로 슬롯을 찾는 길이 없다). core-tools가 `spawn` 부류 도구 실행 동안 `tools` 슬롯을 쥐지 않거나, F가 `Limiter`에 슬롯 조회를 더해야 한다. `tools` 풀 상한이 1이고 자식이 도구를 쓰면 이 틈에서 교착한다.
 
 교착 방지 규칙:
 
@@ -492,14 +494,14 @@ abort(target, reason, { background }):
 |---|---|---|---|
 | `steer` | 다음 `stepEnd`에서 배치한다. 배치되면 다음 모델 요청이 반드시 나간다 | 새 turn을 연다 | `getSteeringMessages`(`types.ts:293`), `PendingMessageQueue`(`agent.ts:143-174`) |
 | `followUp` | turn이 정착한 뒤 새 turn의 입력이 된다 | 새 turn을 연다 | `getFollowUpMessages`의 큐를 쓰지 않는다. 새 turn으로 연다(`L1.loop.spec` §4.4) |
-| `next` | §4.9 선택지에 따른다. M1에서는 받지 않는다(`mode_not_supported`) | 같음 | pi `deliverAs: "nextTurn"` |
-| `aside` | 다음 모델 요청이 어차피 나갈 때만 `stepEnd`에서 함께 배치한다. 요청을 새로 만들지 않는다 | turn을 열지 않는다. 다음 turn의 `turnStart`에서 배치한다 | 없음. omp의 aside(조용한 삽입, `_research/item-catalog.md` L1-a "전달 모드 구분")를 따른다 |
+| `next` | 붙기만 한다(§4.9 B안). 다음 모델 요청이 나갈 `stepEnd`에서 함께 배치한다 | turn을 열지 않는다. 다음 turn의 `turnStart`에서 배치한다 | pi `deliverAs: "nextTurn"` |
+| `aside` | 다음 모델 요청이 어차피 나갈 때만 `stepEnd`에서 함께 배치한다. 요청을 새로 만들지 않는다. 사용자·CLI 출처만 | turn을 열지 않는다. 다음 turn의 `turnStart`에서 배치한다 | 없음. omp의 aside(조용한 삽입, `_research/item-catalog.md` L1-a "전달 모드 구분")를 따른다 |
 
 배치 지점별 선택 규칙(`drain`):
 
 | 지점 | steer | followUp | next·aside |
 |---|---|---|---|
-| `turnStart` | 가장 오래된 시작 가능 입력 하나(steer 또는 followUp, seq 순)를 turn 입력으로 고른다 | 같음 | 그 입력보다 seq가 작은 queued 항목 전부를 함께 배치한다 |
+| `turnStart` | 가장 오래된 시작 가능 입력 하나(steer 또는 followUp, seq 순)를 turn 입력으로 고른다. 시작 가능 입력이 없으면 아무것도 고르지 않는다 | 같음 | 고른 입력 중 가장 큰 seq보다 seq가 작은 queued 항목 전부를 함께 배치한다 |
 | `stepEnd`, `continuing: false` | `steeringMode`가 `one-at-a-time`이면 첫 항목, `all`이면 전부 | 고르지 않는다 | 고르지 않는다 |
 | `stepEnd`, `continuing: true` | 같음 | 고르지 않는다 | 전부 |
 
@@ -531,7 +533,14 @@ abort(target, reason, { background }):
 
 ### 4.9 `post.when = next`의 시작 여부
 
-[미결: adr.0007 §6] `next`가 경계 뒤 요청을 스스로 시작하는지, 다음 사용자 입력이 시작하는 요청에 붙기만 하는지 정해지지 않았다. L1 쪽 선택지:
+[결정: 사용자 결정 D7, 2026-10-23. B안 + `aside` 1안] 아래 표는 선택지로 남긴다. 구현은 B안(붙기만 한다)과 `aside` 1안(L1·CLI 사용자 입력 전용, F `PostWhen`은 그대로, FR-T4 철회)이다. 구현 규칙:
+
+- `InputQueue.enqueue`는 `aside`를 `source.type === "user"`만 받고 그 밖의 출처는 `mode_not_supported`다. `next`는 어떤 출처든 받는다(확장 `post`의 `when: "next"` 포함).
+- 시작할 수 있는 모드는 `steer`와 `followUp`뿐이다. `onQueued`는 이 둘이 커밋될 때만 부른다: `next`·`aside`가 들어왔다고 유휴 thread가 turn을 열면 안 된다. 입력이 늘었음을 알리는 활동 집계 알림(`onActivity`)은 모든 `input.*`에 대해 그대로 간다.
+- `drain(turnStart)`: 시작 가능 입력이 없으면 아무것도 고르지 않는다. 있으면 §4.6 표대로 turn 입력을 고르고, `next`·`aside`는 고른 입력 중 seq가 가장 큰 것보다 seq가 작은 것만 함께 배치한다(`followUpMode: "all"`이면 고른 followUp 전부 중 가장 늦은 것이 기준이다).
+- `drain(stepEnd)`: `continuing`이거나 방금 steer를 고르면 다음 모델 요청이 보장되므로 `next`·`aside`를 전부 함께 고른다. 아니면 남긴다. 선택은 seq 순으로 섞어 돌려준다.
+
+[이전 미결: adr.0007 §6] `next`가 경계 뒤 요청을 스스로 시작하는지, 다음 사용자 입력이 시작하는 요청에 붙기만 하는지 정해지지 않았다. L1 쪽 선택지:
 
 | 안 | 동작 | 장점 | 단점 |
 |---|---|---|---|
@@ -687,8 +696,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 
 ## 10. 미결 사항
 
-- [미결] `post.when = next`가 요청을 스스로 시작하는지(adr.0007 §6, §4.9). [제안] B안(붙기만 한다).
-- [미결] `aside`의 위치: L1 사용자·CLI 전용 모드(1안, [제안])인지 F `PostWhen` 변경(2안, FR-T4)인지(§4.9).
+- (닫음: D7) `post.when = next`는 붙기만 한다(B안, §4.9). `aside`는 L1·CLI 사용자 입력 전용이다(1안). FR-T4는 철회한다.
 - [결정: review.decisions-2 U-05] `post.accepted`는 retire한다(FR-T3). 멱등은 커밋 키, 기록은 `input.queued`다.
 - [미결] turn 취소 때 queued 입력을 거둘지. [제안] 거두지 않는다. durable은 대화 abort 때 거둔다(§4.6 끝).
 - [미결] 확장 `post`가 `input` 지점을 지나지 않는 규칙(§7). pi가 확장 메시지에 `input`을 발화하는지 [가정]으로 남아 있다.

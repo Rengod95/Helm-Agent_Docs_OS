@@ -1,4 +1,4 @@
-import { Bug, assertNever, err, ok, type Logger, type Result } from "@xeon/contracts";
+import { Bug, assertNever, err, ok, parse, type Logger, type Result } from "@xeon/contracts";
 import type { EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import type {
   EnqueueError,
@@ -6,14 +6,15 @@ import type {
   EnqueueResult,
   Unsubscribe,
 } from "@xeon/contracts/extensions";
-import type {
-  CommitPlan,
-  CommitRequest,
-  InputView,
-  ReadFailure,
-  ProducerHandle,
-  StampedDraft,
-  TxView,
+import {
+  InputQueuedPayloadSchema,
+  type CommitPlan,
+  type CommitRequest,
+  type InputView,
+  type ProducerHandle,
+  type ReadFailure,
+  type StampedDraft,
+  type TxView,
 } from "@xeon/contracts/records";
 import type {
   DrainOptions,
@@ -32,7 +33,8 @@ import { commitWithRetry, describeError, type TasksSession } from "./session-por
 import { inputCommitKey, sourceKeyOf } from "./source-key.ts";
 import type { TasksSettingsSource } from "./settings-source.ts";
 
-// L1.tasks.spec §3.6, §4.6~§4.8. M1은 steer·followUp만 받는다(next·aside는 mode_not_supported).
+// L1.tasks.spec §3.6, §4.6~§4.9. 결정 D7(2026-10-23): `next`는 붙기만 한다(요청을 스스로 만들지 않는다).
+// `aside`는 L1/CLI 사용자 입력 전용이다(F PostWhen은 그대로). 시작할 수 있는 모드는 steer·followUp뿐이다.
 
 export interface InputQueueDeps {
   readonly session: TasksSession;
@@ -53,6 +55,21 @@ export interface InputQueueImpl extends InputQueue {
 
 function reject(code: string): CommitPlan {
   return { kind: "reject", code, detail: null };
+}
+
+/** 새 요청이나 turn을 스스로 시작할 수 있는 모드. next·aside는 붙기만 한다(D7) */
+function startable(input: InputView): boolean {
+  return input.mode === "steer" || input.mode === "followUp";
+}
+
+function attachable(input: InputView): boolean {
+  return input.mode === "next" || input.mode === "aside";
+}
+
+/** input.queued payload의 모드가 steer·followUp인가. next·aside는 붙기만 하므로 onQueued로 알리지 않는다(D7) */
+function isStartableQueued(payload: unknown): boolean {
+  const parsed = parse(InputQueuedPayloadSchema, payload);
+  return parsed.ok && (parsed.value.mode === "steer" || parsed.value.mode === "followUp");
 }
 
 export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
@@ -88,7 +105,8 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
   // ── 쓰기 ──────────────────────────────────────────────────────────────
 
   function enqueueNow(draft: InputDraft): Result<EnqueueReceipt, InputQueueError> {
-    if (draft.mode === "next" || draft.mode === "aside") {
+    // aside는 사용자·CLI 입력만 쓴다. 확장이 같은 동작을 원하면 next를 쓴다(D7 1안)
+    if (draft.mode === "aside" && draft.source.type !== "user") {
       return err({ kind: "mode_not_supported", mode: draft.mode });
     }
     const sourceKey = sourceKeyOf(draft.source);
@@ -250,19 +268,35 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
     return consumed;
   }
 
-  function selectViews(startable: readonly InputView[], at: PlacementPoint): readonly InputView[] {
-    const [oldest] = startable;
-    if (oldest === undefined) return [];
+  function selectViews(
+    queued: readonly InputView[],
+    at: PlacementPoint,
+    continuing: boolean,
+  ): readonly InputView[] {
+    const starters = queued.filter(startable);
+    const attached = queued.filter(attachable);
     switch (at) {
-      case "turnStart":
-        // 가장 오래된 시작 가능 입력 하나. followUpMode가 all이면 followUp 전부가 한 turn의 입력이 된다
-        return oldest.mode === "followUp" && settings.followUpMode() === "all"
-          ? startable.filter((input) => input.mode === "followUp")
-          : [oldest];
+      case "turnStart": {
+        // 가장 오래된 시작 가능 입력 하나가 turn 입력이다. followUpMode가 all이면 followUp 전부가 한 turn의 입력이 된다.
+        // next·aside는 선택한 입력 중 가장 늦은 것보다 seq가 작은 것만 함께 붙는다. 시작 가능 입력이 없으면 아무것도 고르지 않는다
+        const [oldest] = starters;
+        if (oldest === undefined) return [];
+        const chosen =
+          oldest.mode === "followUp" && settings.followUpMode() === "all"
+            ? starters.filter((input) => input.mode === "followUp")
+            : [oldest];
+        const last = chosen.reduce((max, input) => Math.max(max, input.seq), 0);
+        return [...chosen, ...attached.filter((input) => input.seq < last)].toSorted(
+          (a, b) => a.seq - b.seq,
+        );
+      }
       case "stepEnd": {
-        // steer만 고른다. followUp은 turn이 정착한 뒤 새 turn의 입력이 된다
-        const steers = startable.filter((input) => input.mode === "steer");
-        return settings.steeringMode() === "all" ? steers : steers.slice(0, 1);
+        // steer만 고른다. followUp은 turn이 정착한 뒤 새 turn의 입력이 된다.
+        // 다음 모델 요청이 어차피 나갈 때(호출자가 알린 continuing, 또는 방금 고른 steer가 요청을 보장한다)에만 next·aside를 전부 함께 고른다
+        const steers = starters.filter((input) => input.mode === "steer");
+        const chosen = settings.steeringMode() === "all" ? steers : steers.slice(0, 1);
+        const requestFollows = continuing || chosen.length > 0;
+        return requestFollows ? [...chosen, ...attached].toSorted((a, b) => a.seq - b.seq) : chosen;
       }
       default:
         return assertNever(at, "selectViews");
@@ -273,14 +307,12 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
     view: TxView,
     threadId: ThreadId,
     at: PlacementPoint,
-    // continuing은 next·aside를 고를 때 쓴다(M2). M1은 steer·followUp만 받는다
-    _options: DrainOptions,
+    options: DrainOptions,
   ): Result<PlacementSelection, ReadFailure> {
     const queued = [...view.queuedInputs(threadId)].toSorted((a, b) => a.seq - b.seq);
     const consumedBefore = diagnoseCursor(view, threadId, queued);
-    const startable = queued.filter((input) => input.mode === "steer" || input.mode === "followUp");
     const inputs: QueuedInput[] = [];
-    for (const chosen of selectViews(startable, at)) {
+    for (const chosen of selectViews(queued, at, options.continuing)) {
       const loaded = loadQueuedInput(session, log, threadId, chosen);
       if (!loaded.ok) return loaded;
       if (loaded.value !== undefined) inputs.push(loaded.value);
@@ -318,7 +350,9 @@ export function createInputQueue(deps: InputQueueDeps): InputQueueImpl {
     for (const event of batch.events) {
       if (!event.kind.startsWith("input.")) continue;
       changed = true;
-      if (event.kind === "input.queued") queuedThreads.add(event.threadId);
+      if (event.kind === "input.queued" && isStartableQueued(event.payload)) {
+        queuedThreads.add(event.threadId);
+      }
     }
     for (const threadId of queuedThreads) {
       for (const listener of listeners) {
