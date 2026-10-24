@@ -6,6 +6,7 @@ import type { CliIo } from "../io.ts";
 import type { RenderOp } from "../render/model.ts";
 import { createTextSink, type RenderSink } from "../render/text-sink.ts";
 import type { ExitCoordinator } from "../signals.ts";
+import { displayWidth, truncateToWidth } from "../render/width.ts";
 import { sequentially } from "../util.ts";
 
 // L4.cli.spec §4.9.2 후퇴 경로, L4.cli.plan C6. 최소 renderer: 줄 입력 + 줄 출력 + 진행 줄 한 줄 덮어쓰기.
@@ -28,12 +29,12 @@ export interface MinimalSinkOptions {
   readonly hideUser?: () => boolean;
 }
 
-/** 진행 줄에 보일 텍스트: 마지막 줄을 터미널 폭에 맞춰 자른다. 순수 함수 */
+/** 진행 줄에 보일 텍스트: 마지막 줄을 터미널 칸 수(한글·한자는 2칸)에 맞춰 자른다. 마지막 칸은 비워 자동 줄바꿈을 막는다. 순수 함수 */
 export function progressLine(text: string, columns: number | null): string {
   const last = text.split("\n").findLast((line) => line.trim().length > 0) ?? "";
   const width = columns === null ? 80 : columns;
-  if (width < 4 || last.length < width) return last;
-  return `${last.slice(0, width - 2)}…`;
+  if (width < 4 || displayWidth(last) < width) return last;
+  return truncateToWidth(last, width - 1);
 }
 
 export function createMinimalSink(options: MinimalSinkOptions): RenderSink {

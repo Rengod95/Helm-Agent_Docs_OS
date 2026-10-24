@@ -5,6 +5,7 @@ import {
   contentLines,
   resultLines,
 } from "../src/render/tools.ts";
+import { displayWidth } from "../src/render/width.ts";
 
 const TEXT = (text: string): { type: "text"; text: string } => ({ type: "text", text });
 
@@ -79,5 +80,13 @@ test("long renderer lines are cut to the width", () => {
   const read = BUILTIN_TOOL_RENDERERS.find((renderer) => renderer.toolName === "read");
   const lines = read?.render({ path: "x".repeat(100), kind: "image" }, 20) ?? [];
   expect(lines[0]?.length).toBe(20);
+  expect(lines[0]?.endsWith("…")).toBe(true);
+});
+
+test("renderer lines with Hangul are cut by display columns", () => {
+  const read = BUILTIN_TOOL_RENDERERS.find((renderer) => renderer.toolName === "read");
+  const lines =
+    read?.render({ path: "가나다라마바사아자차카타파하".repeat(3), kind: "image" }, 20) ?? [];
+  expect(displayWidth(lines[0] ?? "")).toBeLessThanOrEqual(20);
   expect(lines[0]?.endsWith("…")).toBe(true);
 });

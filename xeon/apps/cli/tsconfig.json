@@ -18,6 +18,9 @@
     },
     {
       "path": "../../packages/group-kit"
+    },
+    {
+      "path": "../../packages/platform-os"
     }
   ]
 }

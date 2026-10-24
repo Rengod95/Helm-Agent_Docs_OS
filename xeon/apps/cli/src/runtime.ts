@@ -1,4 +1,5 @@
 import { createInterface, type Interface } from "node:readline";
+import { systemClock } from "@xeon/platform-os";
 import { devWireRoundTripOf } from "./dev-mode.ts";
 import type { CliDeps, CliIo, CliSignal } from "./io.ts";
 
@@ -146,8 +147,8 @@ export function createRealDeps(env: Readonly<Record<string, string | undefined>>
       const { runHostCommand } = await import("@xeon/host");
       return runHostCommand(command, io);
     },
-    // 합성 루트의 시계다. 엔진 안의 시각은 L0.os의 Clock이 낸다
-    clock: { now: () => Date.now() },
+    // 합성 루트의 시계는 L0.os의 운영 시계다(eng.typescript.guide TY-21). 엔진 안의 시각도 같은 구현이 낸다
+    clock: systemClock(),
     devWireRoundTrip: devWireRoundTripOf(env, Bun.main),
     bunVersion: Bun.version,
     stateFile: env[STATE_FILE_ENV] ?? null,

@@ -25,6 +25,8 @@
         "@xeon/core-models": "workspace:*",
         "@xeon/group-kit": "workspace:*",
         "@xeon/host": "workspace:*",
+        "@xeon/platform-os": "workspace:*",
+        "get-east-asian-width": "catalog:",
         "typebox": "catalog:",
       },
       "devDependencies": {
@@ -424,6 +426,7 @@
     "cosmokit": "1.8.1",
     "defuddle": "0.19.5",
     "dependency-cruiser": "18.7.0",
+    "get-east-asian-width": "1.6.0",
     "guarded-fetch": "0.1.6",
     "knip": "6.42.1",
     "linkedom": "0.18.13",
@@ -1001,6 +1004,8 @@
     "gaxios": ["gaxios@7.3.1", "", { "dependencies": { "extend": "^3.0.2", "https-proxy-agent": "^7.0.1", "node-fetch": "^3.3.2" } }, "sha512-kB3rzJV7d9juLZh8/56QTXCwQfxyhdOMdyYk1HdQKFtF8TJTDTZQJtixWIwXdE9Jji91mC41DUNpjleo4L4eAQ=="],
 
     "gcp-metadata": ["gcp-metadata@8.1.2", "", { "dependencies": { "gaxios": "^7.0.0", "google-logging-utils": "^1.0.0", "json-bigint": "^1.0.0" } }, "sha512-zV/5HKTfCeKWnxG0Dmrw51hEWFGfcF2xiXqcA3+J90WDuP0SvoiSO5ORvcBsifmx/FoIjgQN3oNOGaQ5PhLFkg=="],
+
+    "get-east-asian-width": ["get-east-asian-width@1.6.0", "", {}, "sha512-QRbvDIbx6YklUe6RxeTeleMR0yv3cYH6PsPZHcnVn7xv7zO1BHN8r0XETu8n6Ye3Q+ahtSarc3WgtNWmehIBfA=="],
 
     "get-tsconfig": ["get-tsconfig@4.14.3", "", { "dependencies": { "resolve-pkg-maps": "^1.0.0" } }, "sha512-++QEw4DIY7WGoukz+/+A/8dGYPT9l9yIadnmSgZ8Rjr3YVSVDipQSO9CdnJo9ePqFqUUqh+wk9uIaoiAwsiPkA=="],
 
