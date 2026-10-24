@@ -32,10 +32,18 @@ describe("convert worker", () => {
         ["WebSocket", "undefined"],
         ["EventSource", "undefined"],
         ["XMLHttpRequest", "undefined"],
+        // 소켓 API는 부르면 던지는 함수로 바꿨다. `Bun.fetch`는 쓰기 불가·설정 불가라 Bun 1.4.3에서 막을 길이 없다(알려진 틈, WEB-R16 검사가 변환 모듈의 `Bun.` 접근을 막는다)
+        ["Bun.connect", "blocked"],
+        ["Bun.listen", "blocked"],
+        ["Bun.udpSocket", "blocked"],
+        ["Bun.serve", "blocked"],
+        ["Bun.fetch", "Bun.fetch is read-only and non-configurable in Bun 1.4.3"],
       ],
     });
     // 이 프로세스의 전역은 그대로다
     expect(typeof Reflect.get(globalThis, "fetch")).toBe("function");
+    expect(typeof Bun.fetch).toBe("function");
+    expect(typeof Bun.connect).toBe("function");
   });
 
   test("a worker run gives the same result as the direct call", async () => {

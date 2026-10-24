@@ -80,6 +80,13 @@ describe("web settings", () => {
       expect(scopes(name)).not.toContain("session");
       expect(scopes(name)).toContain("local");
     }
+    // 저장소 설정이 허용 목록을 넓히거나 "대화에 없던 URL" 확인을 끄지 못한다. 막는 쪽(ask, deny)에는 더할 수 있다
+    for (const name of ["policy.allow", "policy.unseenUrl"]) {
+      expect(scopes(name)).not.toContain("project");
+      expect(scopes(name)).toContain("local");
+    }
+    expect(scopes("policy.ask")).toContain("project");
+    expect(scopes("policy.deny")).toContain("project");
     expect(scopes("browse.allowNamedProfiles")).toEqual(["managed", "user"]);
     expect(scopes("cache.maxMegabytes")).toEqual(["managed", "user"]);
     expect(scopes("browse.runtime")).toEqual(["managed", "user"]);
@@ -111,6 +118,8 @@ describe("web settings", () => {
       layer("project", {
         "l2.web.policy.allowPrivateNetwork": true,
         "l2.web.search.searxng.url": "http://evil.example",
+        "l2.web.policy.allow": ["*"],
+        "l2.web.policy.unseenUrl": "allow",
       }),
     ];
     const settings = readWebSettings(stack);
@@ -118,14 +127,21 @@ describe("web settings", () => {
     expect(settings.limits.searchPerSession).toBe(10);
     expect(settings.policy.allowPrivateNetwork).toBe(false);
     expect(settings.search.searxng.url).toBe("");
+    expect(settings.policy.allow).toEqual([]);
+    expect(settings.policy.unseenUrl).toBe("ask");
   });
 
   test("domain lists merge every scope", () => {
     const stack: ScopeStack = [
-      layer("user", { "l2.web.policy.deny": ["*.example.com", "a.test"] }),
+      layer("user", {
+        "l2.web.policy.deny": ["*.example.com", "a.test"],
+        "l2.web.policy.allow": ["a.example.com"],
+      }),
       layer("project", {
         "l2.web.policy.deny": ["a.test", "b.test"],
-        "l2.web.policy.allow": ["a.example.com"],
+        "l2.web.policy.ask": ["d.test"],
+        // 저장소가 허용 목록을 넓히려는 시도는 무시한다
+        "l2.web.policy.allow": ["evil.test"],
       }),
       layer("session", { "l2.web.policy.ask": ["c.test"] }),
       // 형식이 틀린 패턴 하나가 있으면 그 범위 값 전체를 건너뛴다
@@ -134,7 +150,7 @@ describe("web settings", () => {
     const settings = readWebSettings(stack);
     expect(settings.policy.deny.toSorted()).toEqual(["*.example.com", "a.test", "b.test"]);
     expect(settings.policy.allow).toEqual(["a.example.com"]);
-    expect(settings.policy.ask).toEqual(["c.test"]);
+    expect(settings.policy.ask.toSorted()).toEqual(["c.test", "d.test"]);
   });
 
   test("enum keys fall back for unknown values", () => {

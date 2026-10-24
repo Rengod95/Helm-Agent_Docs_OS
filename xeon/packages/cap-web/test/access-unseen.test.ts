@@ -33,6 +33,26 @@ describe("unseen urls and secret patterns", () => {
     expect(asker.requests[1]?.reasons).toEqual(["policy_ask", "unseen_url"]);
   });
 
+  test("a tracking parameter on a seen URL is a different URL and still asks", async () => {
+    const asker = fakeAsker("deny");
+    const world = makeWorld({ hosts: HOSTS, asker, policy: { allow: ["*"], unseenUrl: "ask" } });
+    const thread = threadIdOf(1);
+    world.seen.note(thread, ["https://known.example/p"]);
+    const sameUrl = await world.access.authorize(
+      "https://known.example/p#section",
+      world.context({ threadId: thread, caller: MODEL }),
+    );
+    expect(sameUrl.ok).toBe(true);
+    expect(asker.requests.length).toBe(0);
+
+    const carried = await world.access.authorize(
+      "https://known.example/p?utm_content=conversation-data",
+      world.context({ threadId: thread, caller: MODEL, askKey: "call-2" }),
+    );
+    expect(carried.ok).toBe(false);
+    expect(asker.requests[0]?.reasons).toContain("unseen_url");
+  });
+
   test("unseenUrl deny and allow", async () => {
     const thread = threadIdOf(1);
     const deny = makeWorld({ hosts: HOSTS, policy: { unseenUrl: "deny" } });

@@ -52,6 +52,7 @@ export function createContentHttp(access: Access, transport: HttpTransport): Con
           url,
           headers: request.headers,
           mode: target.mode,
+          addressPolicy: target.addressPolicy,
           timeoutMs: request.timeoutMs,
           maxBytes: request.maxBytes,
           signal: ctx.signal,

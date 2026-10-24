@@ -67,9 +67,11 @@ describe("ask adapter", () => {
       kind: "tool",
       requestId: "web-abc",
       subject: {
-        capability: "web.fetch",
-        host: "docs.example.com",
-        reasons: ["policy_ask", "unseen_url"],
+        toolName: "web.fetch",
+        capability: { id: "web.fetch", method: "fetch" },
+        risk: "read",
+        args: { host: "docs.example.com", reasons: ["policy_ask", "unseen_url"] },
+        ruleId: null,
       },
     });
   });

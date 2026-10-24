@@ -40,7 +40,7 @@ function entry(name: string, description: string) {
 describe("skill index block", () => {
   test("index budget", () => {
     const all = entries(30, "x".repeat(100));
-    const block = buildSkillIndexBlock(all, 2500);
+    const block = buildSkillIndexBlock(all, 2500, { searchTool: true });
     expect(block.usedChars).toBeLessThanOrEqual(2500);
     expect(block.included.length).toBeGreaterThan(0);
     expect(block.included.length).toBeLessThan(30);
@@ -52,7 +52,11 @@ describe("skill index block", () => {
     );
     expect(block.text).toContain("skill_view");
     // 같은 집합은 같은 바이트
-    expect(buildSkillIndexBlock(all, 2500).text).toBe(block.text);
+    expect(buildSkillIndexBlock(all, 2500, { searchTool: true }).text).toBe(block.text);
+    // 검색 도구가 광고되지 않으면 없는 도구를 안내하지 않는다
+    const withoutSearch = buildSkillIndexBlock(all, 2500);
+    expect(withoutSearch.text).not.toContain("knowledge_search");
+    expect(withoutSearch.text).toContain(`외 ${withoutSearch.omitted}개 스킬은 예산 때문에`);
     // 다 들어가면 안내 문구가 없다
     const roomy = buildSkillIndexBlock(entries(3), 8000);
     expect(roomy.omitted).toBe(0);

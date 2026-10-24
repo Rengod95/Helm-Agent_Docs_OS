@@ -74,7 +74,7 @@ const EMPTY_SOURCE: RegistrationSource = { list: () => [] };
 export function createWebRuntime(options: WebRuntimeOptions): WebRuntime {
   const userAgent = options.userAgent ?? "Xeon/0.1.0";
   const resolver = options.resolver ?? createSystemResolver();
-  const transport = options.transport ?? createHttpTransport();
+  const transport = options.transport ?? createHttpTransport({ resolver });
   const convert = options.convert ?? createWorkerConvertRunner();
   const seen = createSeenUrls(options.sessionSources);
   const access = createAccess({

@@ -857,6 +857,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 루트 순서는 프로젝트 → 사용자 → 확장 제공 → 설정 경로(`l2.knowledge.skills.paths`)다 [제안]. 같은 이름이 두 루트에 있으면 앞 루트가 이기고 진단(`collision`)을 남긴다. pi는 사용자 → 프로젝트 순이지만, 프로젝트 규약이 사용자 일반 절차보다 구체적이라 앞에 둔다.
 - `.gitignore` 계열 무시 규칙은 1차에 적용하지 않는다 [제안]. 포크 원본의 `ignore` 패키지 결합을 풀기 위해서다(§10 미결 10).
 - 확장 제공 루트와 설정 경로 루트의 스킬은 읽기 전용(`extension`, `path` 범위)이다.
+- 프로젝트 루트(`.xeon/skills`)는 프로젝트가 신뢰된 뒤에만 싣는다 [결정: M2 검토 4]. 저장소가 낸 스킬의 설명이 첫 turn 인덱스에 들어가고 `skill_view`가 본문을 돌려주므로, 신뢰하지 않은 저장소를 열기만 해도 모델 지시문을 쓸 수 있기 때문이다(`X.loading-trust.spec` §4.7.2 표가 `.xeon/skills`를 신뢰 필요 자원으로 든다). 신뢰 여부는 조립 루트가 `resolveProjectTrust`의 `trusted`로 넘기고(`projectTrust` 옵션), 없거나 거짓이거나 실패하면 싣지 않는다. 싣지 못한 `.xeon/skills`가 있으면 `skill_list`의 진단(`warning`)에 남긴다.
 - 구현(KN.1, 포크 패치 KN-01~KN-09, `cap-knowledge/PATCHES.md`):
   - 파일 접근은 `KnowledgeFs` 비동기 포트로 한다. 같은 디렉터리의 항목은 이름 바이트 순으로 처리해 같은 스킬 집합이 같은 순서와 같은 인덱스 블록을 만든다.
   - 설정 경로(`l2.knowledge.skills.paths`)는 절대 경로만 받는다. 상대 경로는 경고 진단이다. 디렉터리나 `.md` 파일을 줄 수 있다.

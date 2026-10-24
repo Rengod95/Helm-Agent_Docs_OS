@@ -20,7 +20,7 @@ export type {
 } from "./ports/session-sources.ts";
 export { deniedFailure, guarded, invalidInput, toCapabilityError } from "./errors.ts";
 export type { WebFailure } from "./errors.ts";
-export { createAskAdapter } from "./ask-adapter.ts";
+export { createAskAdapter, webApprovalTitle } from "./ask-adapter.ts";
 export { createAccess, hasSecretPattern } from "./policy/access.ts";
 export type { Access, AccessContext, AccessDeps, ApprovedTarget } from "./policy/access.ts";
 export { classifyAddress } from "./policy/address.ts";

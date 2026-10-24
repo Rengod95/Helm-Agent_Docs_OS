@@ -17,6 +17,8 @@ import {
 const ALL_SCOPES = ["managed", "user", "project", "local", "session"] as const;
 const NO_SESSION = ["managed", "user", "project", "local"] as const;
 const NO_PROJECT = ["managed", "user", "local"] as const;
+/** project만 뺀 범위. 저장소 설정이 방어를 푸는 키(허용 목록, 대화에 없던 URL)가 쓴다. 저장소는 `ask`·`deny`에는 더할 수 있다 */
+const NO_PROJECT_KEEP_SESSION = ["managed", "user", "local", "session"] as const;
 const USER_ONLY = ["managed", "user"] as const;
 
 /** 도메인 패턴: `example.com`, `*.example.com`, `*`. 끝이 `*`인 패턴(`example.*`)은 거부한다(§4.5.1) */
@@ -151,7 +153,7 @@ const webSettings = defineSettings("l2.web", {
     type: Type.Array(DomainPatternType, { maxItems: 500 }),
     default: [],
     runtimeChange: "nextTurn",
-    allowedScopes: ALL_SCOPES,
+    allowedScopes: NO_PROJECT_KEEP_SESSION,
     ui: { tab: "tools", widget: "list", order: 120, label: "허용 도메인" },
     since: "0.1.0",
   },
@@ -190,7 +192,7 @@ const webSettings = defineSettings("l2.web", {
     default: "ask",
     range: { enum: ["ask", "allow", "deny"] },
     runtimeChange: "nextTurn",
-    allowedScopes: ALL_SCOPES,
+    allowedScopes: NO_PROJECT_KEEP_SESSION,
     ui: { tab: "tools", widget: "select", order: 124, label: "대화에 없던 URL" },
     since: "0.1.0",
   },

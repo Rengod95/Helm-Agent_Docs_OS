@@ -14,6 +14,7 @@ import {
   addressVerdict,
   checkUrlSyntax,
   resolvedVerdict,
+  type AddressPolicy,
   type CheckedUrl,
   type UrlRejection,
 } from "./ssrf.ts";
@@ -46,6 +47,8 @@ export interface ApprovedTarget {
   readonly checked: CheckedUrl;
   /** 연결 시점 재검증이 있는 public 전송인지, 앞단이 주소를 검사한 direct 전송인지 */
   readonly mode: TransportMode;
+  /** direct 전송이 연결 시점에 주소를 다시 검사하는 정책 */
+  readonly addressPolicy: AddressPolicy;
 }
 
 export interface Access {
@@ -121,9 +124,13 @@ export function createAccess(deps: AccessDeps): Access {
           }),
         );
       }
-      return ok({ checked, mode: verdict.class === "public" ? "public" : "direct" });
+      return ok({
+        checked,
+        mode: verdict.class === "public" ? "public" : "direct",
+        addressPolicy: policy,
+      });
     }
-    if (!resolveDns) return ok({ checked, mode: "public" });
+    if (!resolveDns) return ok({ checked, mode: "public", addressPolicy: policy });
     const resolved = await deps.resolver.resolve(checked.host, ctx.signal);
     if (!resolved.ok) {
       return err({
@@ -146,7 +153,7 @@ export function createAccess(deps: AccessDeps): Access {
         ),
       );
     }
-    return ok({ checked, mode: verdict.mode });
+    return ok({ checked, mode: verdict.mode, addressPolicy: policy });
   }
 
   async function askUser(

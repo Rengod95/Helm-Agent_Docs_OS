@@ -93,12 +93,16 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
     settings: () => readKnowledgeSettings(layers),
     roots: () => {
       const settings = readKnowledgeSettings(layers);
-      return resolveSkillRoots({
-        dataDir: DATA_DIR,
-        projectDir: PROJECT_DIR,
-        projectSkills: settings.skills.projectSkills,
-        paths: settings.skills.paths,
-        extension: options.extensionRoots ?? [],
+      return Promise.resolve({
+        roots: resolveSkillRoots({
+          dataDir: DATA_DIR,
+          projectDir: PROJECT_DIR,
+          projectSkills: settings.skills.projectSkills,
+          projectTrusted: true,
+          paths: settings.skills.paths,
+          extension: options.extensionRoots ?? [],
+        }),
+        diagnostics: [],
       });
     },
     containsKnown: options.containsKnown,

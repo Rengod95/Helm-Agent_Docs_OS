@@ -13,20 +13,23 @@ import type { LedgerDeps } from "../ledger/change.ts";
 import { indexVersion } from "../ledger/rows.ts";
 import { compareBytes, utf8DecodeStrict } from "../hash.ts";
 import type { KnowledgeSettings } from "../settings.ts";
-import type { SkillDiagnostic, SkillRoots } from "../upstream/skills.ts";
+import type { SkillDiagnostic } from "../upstream/skills.ts";
 import { describeSkill, mainFileOf } from "./document.ts";
 import { isAddressableSkillFile } from "./paths.ts";
 import { buildSkillIndexBlock, truncateDescription, type SkillIndexBlock } from "./prompt-block.ts";
 import { reindexSkills, type ReindexResult } from "./reindex.ts";
+import type { RootsResult } from "./roots.ts";
 import { allSkills, type SkillRow } from "./store.ts";
 import { readDirTree, readSingleFileTree, treeHash, type Tree } from "./tree.ts";
 
 // L2.knowledge.plan K2: list, view(지연 로딩), reindex, 첫 turn 인덱스 블록.
 
 export interface SkillsDeps extends LedgerDeps {
-  readonly roots: () => SkillRoots;
+  readonly roots: () => Promise<RootsResult>;
   /** 호출 한 번이 읽는 유효 설정 */
   readonly settings: (threadId: string | undefined) => KnowledgeSettings;
+  /** `knowledge_search`를 광고하는가(KN.2 전에는 false). 인덱스 블록 끝 안내문이 이 값을 따른다 */
+  readonly searchToolAdvertised?: boolean;
 }
 
 export interface SkillsRuntime {
@@ -87,10 +90,12 @@ function entryOf(row: SkillRow, descriptionChars: number): SkillIndexEntry {
 
 export function createSkills(deps: SkillsDeps): SkillsRuntime {
   let lastDiagnostics: readonly SkillDiagnostic[] = [];
+  const searchOptions = { searchTool: deps.searchToolAdvertised === true };
 
   const reindex = async (): Promise<Result<ReindexResult, KnowledgeFailure>> => {
-    const result = await reindexSkills(deps, deps.roots());
-    if (result.ok) lastDiagnostics = result.value.diagnostics;
+    const resolved = await deps.roots();
+    const result = await reindexSkills(deps, resolved.roots);
+    if (result.ok) lastDiagnostics = [...resolved.diagnostics, ...result.value.diagnostics];
     return result;
   };
 
@@ -107,7 +112,7 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
     const visible = winners(read.value.rows)
       .filter((row) => row.modelInvocable)
       .map((row) => entryOf(row, settings.indexDescriptionChars));
-    return ok(buildSkillIndexBlock(visible, settings.indexBudgetChars));
+    return ok(buildSkillIndexBlock(visible, settings.indexBudgetChars, searchOptions));
   };
 
   const list: SkillsRuntime["list"] = (input, options) => {
@@ -132,6 +137,7 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
     const block = buildSkillIndexBlock(
       all.filter((entry) => entry.modelInvocable),
       settings.indexBudgetChars,
+      searchOptions,
     );
     return Promise.resolve(
       ok({

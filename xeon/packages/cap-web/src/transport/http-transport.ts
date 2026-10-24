@@ -1,15 +1,21 @@
-import { attemptAsync, err, ok, type Result } from "@xeon/contracts";
+import { attempt, attemptAsync, err, ok, type Result } from "@xeon/contracts";
 import { guardedFetch, isGuardedFetchError } from "guarded-fetch";
+import type { DnsResolver } from "../ports/resolver.ts";
 import type {
   HttpTransport,
   TransportFailure,
   TransportRequest,
   TransportResponse,
 } from "../ports/transport.ts";
+import { classifyAddress } from "../policy/address.ts";
+import { resolvedVerdict } from "../policy/ssrf.ts";
+import { createSystemResolver } from "./system-resolver.ts";
 
 // L2.web.plan B3, L2.web.spec §4.6.3. 운영 전송: public 모드는 guarded-fetch 0.1.6(연결 시점에 해석된 모든 IP를
-// 다시 검사하고 검사를 통과한 주소로 연결, 리다이렉트는 따르지 않음), direct 모드는 앞단이 주소를 이미 검사한
-// 요청을 전역 fetch로 보낸다(리다이렉트는 따르지 않음). guarded-fetch 소스 확인 결과는 L2.web.plan §7에 적었다.
+// 다시 검사하고 검사를 통과한 주소로 연결, 리다이렉트는 따르지 않음). direct 모드는 IP 리터럴이 아닌 호스트 이름을
+// 다시 풀어 모든 주소를 `addressPolicy`로 검사한 뒤, 검사를 통과한 주소 하나로 전역 fetch를 보낸다(Host 헤더와 TLS
+// 서버 이름은 원래 호스트, 리다이렉트는 따르지 않음). 전역 fetch가 이름을 다시 풀 때 앞단 검사와 다른 주소(메타데이터)가
+// 나오는 틈이 없다. guarded-fetch 소스 확인 결과는 L2.web.plan §7에 적었다.
 
 interface BoundedBody {
   readonly bytes: Uint8Array;
@@ -102,7 +108,64 @@ function bodyInitOf(body: string | Uint8Array): string | Uint8Array<ArrayBuffer>
   return typeof body === "string" ? body : new Uint8Array(body);
 }
 
-export function createHttpTransport(): HttpTransport {
+interface PinnedTarget {
+  readonly url: string;
+  readonly headers: Record<string, string>;
+  readonly tlsServerName: string | undefined;
+}
+
+/**
+ * direct 모드 대상. IP 리터럴이면 앞단이 이미 검사했으므로 그대로 보낸다. 이름이면 다시 풀어 전부 검사하고(메타데이터는 항상 거부)
+ * 통과한 첫 주소로 연결하도록 URL을 바꾼다
+ */
+async function pinDirect(
+  request: TransportRequest,
+  resolver: DnsResolver,
+): Promise<Result<PinnedTarget, TransportFailure>> {
+  const parsed = attempt(() => new URL(request.url));
+  if (!parsed.ok) {
+    return err({ kind: "blocked", message: "the request URL could not be parsed" });
+  }
+  const url = parsed.value;
+  const bareHost = url.hostname.replace(/^\[/, "").replace(/\]$/, "");
+  if (classifyAddress(bareHost) !== undefined) {
+    return ok({ url: request.url, headers: { ...request.headers }, tlsServerName: undefined });
+  }
+  const resolved = await resolver.resolve(bareHost, request.signal);
+  if (!resolved.ok) {
+    return err(
+      request.signal.aborted
+        ? { kind: "aborted" }
+        : { kind: "network", message: `the host could not be resolved: ${resolved.error.message}` },
+    );
+  }
+  const verdict = resolvedVerdict(
+    resolved.value,
+    request.addressPolicy ?? { allowPrivateNetwork: false, localEndpoint: false },
+  );
+  const first = resolved.value[0];
+  if (!verdict.ok || first === undefined) {
+    return err({
+      kind: "blocked",
+      message: `the host resolves to a blocked address at connect time (${verdict.ok ? "no address" : verdict.reason})`,
+    });
+  }
+  const pinned = new URL(url.href);
+  pinned.hostname = first.includes(":") && !first.startsWith("[") ? `[${first}]` : first;
+  return ok({
+    url: pinned.href,
+    headers: { ...request.headers, host: url.host },
+    tlsServerName: url.protocol === "https:" ? bareHost : undefined,
+  });
+}
+
+export interface HttpTransportOptions {
+  /** direct 모드가 호스트 이름을 다시 풀 때 쓴다. 기본은 OS 해석기 */
+  readonly resolver?: DnsResolver;
+}
+
+export function createHttpTransport(options: HttpTransportOptions = {}): HttpTransport {
+  const resolver = options.resolver ?? createSystemResolver();
   return {
     async send(request: TransportRequest) {
       const controller = new AbortController();
@@ -117,9 +180,21 @@ export function createHttpTransport(): HttpTransport {
       if (request.signal.aborted) onAbort();
       else request.signal.addEventListener("abort", onAbort, { once: true });
       try {
+        let target: PinnedTarget = {
+          url: request.url,
+          headers: { ...request.headers },
+          tlsServerName: undefined,
+        };
+        if (request.mode === "direct") {
+          const pinned = await pinDirect(request, resolver);
+          if (!pinned.ok) {
+            return err(state.timedOut ? { kind: "timeout" } : pinned.error);
+          }
+          target = pinned.value;
+        }
         const init = {
           method: request.method,
-          headers: { ...request.headers },
+          headers: target.headers,
           ...(request.body === undefined ? {} : { body: bodyInitOf(request.body) }),
           signal: controller.signal,
         };
@@ -130,7 +205,13 @@ export function createHttpTransport(): HttpTransport {
                 followRedirects: false,
                 timeoutMs: request.timeoutMs,
               })
-            : fetch(request.url, { ...init, redirect: "manual" }),
+            : fetch(target.url, {
+                ...init,
+                redirect: "manual",
+                ...(target.tlsServerName === undefined
+                  ? {}
+                  : { tls: { serverName: target.tlsServerName } }),
+              }),
         );
         if (!sent.ok)
           return err(failureOf(sent.error.cause, state.timedOut, request.signal.aborted));
@@ -147,7 +228,8 @@ export function createHttpTransport(): HttpTransport {
         }
         const result: TransportResponse = {
           status: response.status,
-          url: response.url === "" ? request.url : response.url,
+          // direct 모드는 주소로 바꾼 URL로 보냈으므로 응답 URL도 요청 URL로 돌려준다
+          url: request.mode === "direct" || response.url === "" ? request.url : response.url,
           headers: lowerCaseHeaders(response.headers),
           body: body.value.bytes,
         };

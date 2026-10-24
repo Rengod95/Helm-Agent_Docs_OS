@@ -1,12 +1,14 @@
 import type { Result } from "@xeon/contracts";
+import type { AddressPolicy } from "../policy/ssrf.ts";
 
 // 요청 하나를 보내고 응답 바이트를 상한까지 읽는다. 리다이렉트는 따르지 않는다(응답 3xx를 그대로 돌려준다).
 // 정책 검사(도메인, SSRF 사전 검사, robots)는 이 포트 앞에서 끝나 있다.
 
 /**
  * public: 연결 시점에 해석된 모든 주소를 다시 검사하고 검사를 통과한 주소로 직접 연결한다(DNS 리바인딩 방어).
- * direct: 앞단이 이미 주소를 검사한 요청이다. 사용자가 설정한 provider endpoint(SearXNG의 루프백 주소)와
- * 사설망 허용 설정에서만 쓴다. 연결 시점 재검증이 없다.
+ * direct: 사용자가 설정한 provider endpoint(SearXNG의 루프백 주소)와 사설망 허용 설정에서만 쓴다. 전송이 IP 리터럴이 아닌
+ * 호스트 이름을 다시 풀어 `addressPolicy`로 모든 주소를 검사하고(메타데이터는 항상 거부), 검사를 통과한 주소 하나로 직접
+ * 연결한다(Host 헤더와 TLS 서버 이름은 원래 호스트). 전역 fetch가 이름을 따로 다시 풀 틈을 주지 않는다.
  */
 export type TransportMode = "public" | "direct";
 
@@ -16,6 +18,8 @@ export interface TransportRequest {
   readonly headers: Readonly<Record<string, string>>;
   readonly body?: string | Uint8Array;
   readonly mode: TransportMode;
+  /** direct 모드에서 전송이 주소를 검사하는 정책. 없으면 공개 주소만 허용한다 */
+  readonly addressPolicy?: AddressPolicy;
   readonly timeoutMs: number;
   /** 내용 인코딩을 푼 뒤 본문 바이트 상한 */
   readonly maxBytes: number;

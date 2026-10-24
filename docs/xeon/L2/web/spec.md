@@ -1193,8 +1193,8 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 
 #### 4.5.3 ask 처리
 
-- `ask` 판정이면 `xeon.approvals`로 승인을 요청한다(`L2.readme` §5.7). 요청 kind는 `tool`이고 대상은 `{ capability, host }`다 [가정: payload 모양은 `L1.tools.spec`].
-- 승인 범위는 승인 프로토콜의 기억 범위(이번만, 이 세션, 항상)를 따른다(`L4.cli.spec` 승인 화면). "항상"이면 프로젝트 범위 `l2.web.policy.allow`에 그 호스트를 더한다 [제안].
+- `ask` 판정이면 `xeon.approvals`로 승인을 요청한다(`L2.readme` §5.7). 요청 kind는 `tool`이고 대상은 도구 승인 body(`ToolApprovalDetail`, `additionalProperties:false`)다: `toolName`은 능력 id(`web.fetch`), `capability`는 `{ id, method }`, `risk`는 `"read"`(`ToolRisk` 안의 값만 읽힌다), `args`는 `{ host, reasons }`, `argsHash`는 그 정규화 JSON의 sha256, `ruleId`는 `null`이다. 화면 제목은 호스트 이름을 넣어 만든다(`ask-adapter.ts`의 `webApprovalTitle`).
+- 승인 범위는 승인 프로토콜의 기억 범위(이번만, 이 세션, 항상)를 따른다(`L4.cli.spec` 승인 화면). "항상"이면 local 범위 `l2.web.policy.allow`에 그 호스트를 더한다. project 범위는 허용하지 않는다(§6) [제안].
 - 호출자가 확장이고 세션이 없으면 승인 창을 띄울 곳이 없다. 이때 `ask`는 `denied`(`detail.reason: "ask_without_session"`)다.
 - 백그라운드 포크(`caller.agent = "background"`)는 `ask`를 `denied`로 바꾼다. 사람이 없는 경로에서 승인 대기를 만들지 않는다 [제안].
 
@@ -1255,6 +1255,7 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 
 - 모델 도구 경로의 fetch·navigate URL이 그 세션 대화에 나온 적이 없으면 `l2.web.policy.unseenUrl`(기본 `ask`)을 적용한다(`_research/web-tools.md` §5.2 2번, Anthropic web_fetch의 "대화에 나온 URL만" 규칙).
   - "나온 URL" 집합은 이 세션에서 웹 능력이 돌려준 URL(검색 결과, fetch의 `links`, 리다이렉트 `to`)과 사용자 입력 텍스트에서 뽑은 URL이다.
+  - 비교 키는 실제로 나가는 요청의 모양이다: 스킴·호스트(소문자)·경로·전체 쿼리(이름 순 정렬)이고 프래그먼트만 뺀다. 추적 파라미터(`utm_*`, `gclid` 등)를 지우는 §4.3.3 정규화는 쓰지 않는다. 본 URL 뒤에 `?utm_content=<대화 내용>`을 붙이면 질문 없이 대화 내용이 나가기 때문이다.
   - [제안] 사용자 입력 URL은 `cap-web`이 `input` 지점(F.extensions.spec #1, chain)에서 패치 없이 읽어 세션별 메모리 집합에 넣는다. 재시작 뒤에는 §4.2.1과 같은 방식으로 세션 이벤트를 읽어 다시 채운다.
 - 쿼리 문자열이나 경로에 비밀 패턴(키 접두 `sk-`, `ghp_`, `AKIA`, JWT 형태 등)이 보이면 `ask`다. 등록된 비밀 값이면 §4.1 3단계에서 이미 거부된다.
 - `caller.afterUntrusted = true`인 모델 호출의 쓰기성 브라우저 동작(`act`의 `fill`, `type`, `upload`, 폼 제출)은 승인을 요구한다 [제안]. 웹 결과를 읽은 뒤의 위험 동작에 승인을 거는 plan-then-execute 완화다(`_research/web-tools.md` §5.2 3번).
@@ -1600,11 +1601,11 @@ stateDiagram-v2
 | `l2.web.fetch.timeoutSeconds` | integer | `30` | min 1, max 120 | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.fetch.promote` | string | `"auto"` | enum auto, never | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.fetch.pluginOrder` | string[](ProviderId) | `[]` | — | nextTurn | managed, user, project, local | tools | false |
-| `l2.web.policy.allow` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.policy.allow` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, local, session | tools | false |
 | `l2.web.policy.ask` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.policy.deny` | string[](도메인 패턴) | `[]` | — | nextTurn | managed, user, project, local, session | tools | false |
 | `l2.web.policy.allowPrivateNetwork` | boolean | `false` | — | nextTurn | managed, user, local | tools | false |
-| `l2.web.policy.unseenUrl` | string | `"ask"` | enum ask, allow, deny | nextTurn | managed, user, project, local, session | tools | false |
+| `l2.web.policy.unseenUrl` | string | `"ask"` | enum ask, allow, deny | nextTurn | managed, user, local, session | tools | false |
 | `l2.web.policy.robots` | string | `"auto"` | enum auto, always, never | nextTurn | managed, user, project, local | tools | false |
 | `l2.web.cache.searchTtlMinutes` | integer | `20` | min 0, max 1440 | live | managed, user, project, local | tools | false |
 | `l2.web.cache.fetchTtlMinutes` | integer | `15` | min 0, max 1440 | live | managed, user, project, local | tools | false |
@@ -1630,6 +1631,7 @@ stateDiagram-v2
 - `l2.web.search.provider`, `l2.web.browse.provider`, `pluginOrder`는 플러그인 설치 상태에 따라 값 목록이 바뀌므로 `range.enum`을 두지 않는다. 위젯은 `text`이고, L4는 `xeon.web` 앞단이 아는 후보 목록으로 고르기 화면을 만들 수 있다(§10 미결 11).
 - 도메인 목록 세 키는 범위별 값을 합친다(§4.5.2). 다른 키는 `F.wire-settings.spec` §3.9 일반 규칙(높은 범위 하나)을 따른다.
 - `l2.web.browse.allowNamedProfiles`는 관리·사용자 범위만 허용한다. 프로젝트 파일로 로그인 프로필을 켜는 경로를 막기 위해서다.
+- `l2.web.policy.allow`(허용 목록)와 `l2.web.policy.unseenUrl`(대화에 없던 URL 확인)은 project 범위를 허용하지 않는다 [제안]. 저장소 설정 파일이 `allow: ["*"]`와 `unseenUrl: "allow"`를 넣으면 기본 `ask`가 모든 도메인에서 꺼지고 대화 내용을 쿼리에 실어 내보내는 경로를 막는 검사도 꺼진다. project 범위는 `ask`와 `deny`처럼 막는 쪽 목록에만 더할 수 있다.
 - `l2.web.policy.allowPrivateNetwork`(사설망·루프백 방어 해제), `l2.web.search.searxng.url`(검색어를 받는 외부 호스트), `l2.web.browse.allowJavascriptExec`, `l2.web.browse.allowFileUpload`는 project 범위를 허용하지 않는다 [제안]. 저장소를 여는 것만으로 SSRF 방어가 풀리거나 검색어가 저장소가 정한 호스트로 가거나 브라우저 위험 동작이 켜지지 않게 하려는 것이다(`L2.readme` §7.1 범위 제한 규칙). 사용자가 직접 만드는 local 범위는 허용한다.
 - provider 체인 키의 기본값은 모두 `"auto"`다(`L2.readme` §5.2, §7.1). `browse`의 auto 체인은 등록 플러그인이 없으면 내장 `playwright-local`을, `research`(2차)는 내장 `native`를 고른다. fetch는 `l2.web.fetch.provider`를 두지 않는다. 로컬 파이프라인이 항상 먼저 돌고 플러그인 후보는 승격 경로(§4.9.1)에서 `pluginOrder` 순으로만 쓰기 때문이다(`L2.readme` §7.1 예외).
 - 첫 실행 권장 흐름(L4 "도구와 웹" 탭): 키 플러그인 등록 권장(Exa, Brave 등)과 SearXNG 주소 입력을 보여 준다(ADR-0005 §3.1 ④, `L2.web.plan` §1.3). 무료 크레딧 수치는 `_research/durable-and-search-facts.md` §B-4를 인용해 화면 문구로만 쓴다.

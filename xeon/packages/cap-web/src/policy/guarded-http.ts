@@ -185,10 +185,8 @@ export function createBoundProviderHttp(
         detail: { reason: "dns_unresolvable", host },
       });
     }
-    const verdict = resolvedVerdict(addresses.value, {
-      allowPrivateNetwork: false,
-      localEndpoint: isLocal,
-    });
+    const addressPolicy = { allowPrivateNetwork: false, localEndpoint: isLocal } as const;
+    const verdict = resolvedVerdict(addresses.value, addressPolicy);
     if (!verdict.ok) {
       return err(
         deniedFailure(verdict.reason, "The provider host resolves to a blocked address.", {
@@ -228,6 +226,7 @@ export function createBoundProviderHttp(
       headers,
       ...(req.body === undefined ? {} : { body: req.body }),
       mode,
+      addressPolicy,
       timeoutMs: req.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       maxBytes,
       signal,

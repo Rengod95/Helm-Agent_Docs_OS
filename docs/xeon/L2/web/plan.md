@@ -325,14 +325,15 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 1. `l2.web.policy.allowPrivateNetwork = true`일 때 사설 대역(10/8 등)을 여는 선택지가 없다.
 2. provider endpoint 예외(§4.6.5). SearXNG의 루프백 주소(`127.0.0.1:8888`)에 연결할 수 없다.
 
-대응(request-filtering-agent로 바꾸지 않고 두 갈래 전송): `policy/ssrf.ts`가 해석된 주소 전체를 스펙 표로 판정한다. 모두 공개 주소면 `public` 모드(guarded-fetch, 연결 시점 재검증 포함)로 보낸다. 사설망 허용이나 endpoint 예외로 열린 주소가 있을 때만 `direct` 모드(전역 `fetch`, `redirect: "manual"`)로 보낸다. `direct` 모드는 연결 시점 재검증이 없다. 그 틈은 아래 8.3에 적었다.
+대응(request-filtering-agent로 바꾸지 않고 두 갈래 전송): `policy/ssrf.ts`가 해석된 주소 전체를 스펙 표로 판정한다. 모두 공개 주소면 `public` 모드(guarded-fetch, 연결 시점 재검증 포함)로 보낸다. 사설망 허용이나 endpoint 예외로 열린 주소가 있을 때만 `direct` 모드(전역 `fetch`, `redirect: "manual"`)로 보낸다. `direct` 모드의 전송은 IP 리터럴이 아닌 호스트 이름을 다시 풀어 `addressPolicy`(사설망 허용, endpoint 예외)로 모든 주소를 검사하고(메타데이터는 항상 거부), 통과한 주소 하나로 연결한다. http는 URL의 호스트를 그 주소로 바꾸고 `Host` 헤더를 원래 호스트로 두며, https는 거기에 `tls.serverName`을 원래 호스트로 줘서 인증서 검증과 SNI를 지킨다. 전역 `fetch`가 이름을 다시 풀 틈이 없다(M2 검토 10).
 
 ### 8.3 확인하지 못한 항목과 [미결]
 
 | 항목 | 이유 | 확인 방법 |
 |---|---|---|
 | Bun 런타임에서 guarded-fetch 동작 | `undici`가 Bun에서 도는지, `connect.lookup`을 Bun의 소켓이 따르는지 실행으로 확인하지 못했다. 소스만 읽었다 | 사람이 임시 스모크로 `guardedFetch("http://127.0.0.1:<루프백 서버>")`가 `hostname_unsafe`로 거부되는지, `localhost`로 해석되는 이름이 막히는지 확인한다. 막히지 않으면 `dispatcher`에 자체 `Agent`를 넘기는 방식(undici 직접 의존)으로 바꾼다 |
-| `direct` 모드의 DNS 리바인딩 | 사전 검사에서 모든 주소를 판정한 뒤 `fetch`가 이름을 다시 푼다. 그 사이에 주소가 바뀌면 막지 못한다 | 영향 범위는 사설망 허용을 켠 사용자와 SearXNG 같은 사용자 설정 endpoint로 한정된다. `allowPrivateNetwork`는 project 범위를 허용하지 않는다. 막으려면 검증한 IP로 직접 연결하는 전송이 필요하다 |
+| 변환 worker의 네트워크 차단 | `convert-worker.ts`는 전역 `fetch`, `WebSocket`, `EventSource`, `XMLHttpRequest`를 지우고 `Bun.connect`, `Bun.listen`, `Bun.udpSocket`, `Bun.serve`를 부르면 던지는 함수로 바꾼다(시험: probe가 `blocked`를 돌려준다). `Bun.fetch`는 쓰기 불가·설정 불가이고 `globalThis.Bun`도 설정 불가라 Bun 1.4.3에서 막을 길이 없다(M2 검토 11). `node:http` 같은 모듈 import는 워커 안에서도 열려 있다 | 변환 모듈(`convert/`)의 `Bun.` 접근과 네트워크 모듈 import는 WEB-R16 검사(`check-layers`)가 막는다. 워커 자체를 프로세스로 격리하면 닫히지만 M2 범위 밖이다 [미결] |
+| `direct` 모드의 DNS 리바인딩 | [해소: M2 검토 10] 전송이 이름을 다시 풀어 검사한 주소로 직접 연결한다. 루프백 서버와 가짜 해석기로 http의 주소 고정과 메타데이터 거부를 시험한다(`http-transport.int.test.ts`) | https의 `tls.serverName` 고정은 Bun에서 자체 서명 인증서 루프백 서버로 동작을 확인했지만(이름이 다르면 `ERR_TLS_CERT_ALTNAME_INVALID`) 저장소 시험에는 개인 키가 필요해 넣지 않았다. 실제 인터넷 호스트에 대한 https 접속과, public 모드에서 guarded-fetch가 `localhost` 이름을 거부하는 경로의 실사용 확인은 사람이 한다 |
 | `cap_web_usage` 가격 단위 | 래퍼 토큰 단가는 Haiku 5.5 값이고 사용할 모델에 따라 다르다. 토큰 수는 ADR-0005 §3.2의 추정이다 | WEB.6 뒤 실측(`just web-wrapper-measure`, 사람 확인 뒤) |
 | robots.txt 실제 사이트 동작 | `fetch/robots-gate.ts`는 정책 검사를 거친 같은 전송으로 가져오고 녹화 픽스처로만 시험했다. 리다이렉트로 다른 호스트에 가는 robots.txt는 따라가지 않아 연결 실패와 같게(전부 금지) 다룬다 | 실제 사이트 몇 곳에서 사람이 확인(`always` 설정으로 fetch) |
 

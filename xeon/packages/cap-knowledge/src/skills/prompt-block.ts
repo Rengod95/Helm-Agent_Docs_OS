@@ -28,10 +28,16 @@ function entryLine(entry: SkillIndexEntry): string {
   return `  <skill><name>${escapeXml(entry.name)}</name><description>${escapeXml(entry.description)}</description></skill>`;
 }
 
-function footer(omitted: number): string {
-  return omitted === 0
-    ? ""
-    : `\n외 ${omitted}개 스킬은 knowledge_search(kinds: ["skill"])로 찾는다.`;
+export interface SkillIndexOptions {
+  /** `knowledge_search`가 이 세션에 광고되는가. 광고되지 않는 도구를 안내하면 모델이 없는 도구를 부른다 */
+  readonly searchTool: boolean;
+}
+
+function footer(omitted: number, options: SkillIndexOptions): string {
+  if (omitted === 0) return "";
+  return options.searchTool
+    ? `\n외 ${omitted}개 스킬은 knowledge_search(kinds: ["skill"])로 찾는다.`
+    : `\n외 ${omitted}개 스킬은 예산 때문에 이 목록에 싣지 못했다.`;
 }
 
 export interface SkillIndexBlock {
@@ -51,6 +57,7 @@ export interface SkillIndexBlock {
 export function buildSkillIndexBlock(
   entries: readonly SkillIndexEntry[],
   limitChars: number,
+  options: SkillIndexOptions = { searchTool: false },
 ): SkillIndexBlock {
   if (entries.length === 0) return { text: "", usedChars: 0, omitted: 0, included: [] };
   const open = `${HEADER}\n<available_skills>`;
@@ -60,11 +67,12 @@ export function buildSkillIndexBlock(
   for (const entry of entries) {
     const next = `${body}\n${entryLine(entry)}`;
     const remaining = entries.length - (included.length + 1);
-    if (open.length + next.length + close.length + footer(remaining).length > limitChars) break;
+    if (open.length + next.length + close.length + footer(remaining, options).length > limitChars)
+      break;
     body = next;
     included.push(entry.name);
   }
   const omitted = entries.length - included.length;
-  const text = `${open}${body}${close}${footer(omitted)}`;
+  const text = `${open}${body}${close}${footer(omitted, options)}`;
   return { text, usedChars: text.length, omitted, included };
 }

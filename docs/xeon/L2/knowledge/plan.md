@@ -152,6 +152,10 @@ xeon/packages/cap-knowledge/
 - 원장 실행기는 새 내용(`next`)을 호출자가 미리 계산해 넘기는 모양이다(spec §4.4.1 4단계가 순수 계산이므로). K3, K4, K6의 쓰기 메서드는 이 실행기를 부른다.
 - 테이블 DDL에 열을 더했다: `cap_knowledge_ledger.target_path`, `index_changed`, `cap_knowledge_skills.layout`(spec §3.8 반영).
 - 프로세스 사이 파일 락은 `OsService`에 없어 임대와 락 안 해시 재확인으로 대신한다(spec §4.3.3 [결정: KN.1]). 그래서 `node-fs.int.test.ts`의 락 시험은 두 프로세스가 아니라 같은 프로세스 안의 직렬화를 확인한다.
+- 프로젝트 스킬은 신뢰 판정 뒤에만 싣는다(M2 검토 4). `knowledgePlugin`의 `projectTrust(projectDir)` 옵션을 조립 루트가 `resolveProjectTrust`로 채운다. 아직 채우는 쪽이 없으므로 기본은 싣지 않음이다 [미결: 조립 루트(L4 host)가 옵션을 채울 때까지 프로젝트 스킬은 로드되지 않는다].
+- 인덱스 블록 끝 안내문은 `knowledge_search`가 광고될 때만 그 도구를 안내한다(`SkillsDeps.searchToolAdvertised`, KN.2에서 켠다). 광고하지 않으면 예산 때문에 싣지 못했다는 문장만 남는다.
+- `skill_view`의 에이전트 작성 스킬 경계(`<untrusted_session_content kind="skill" createdBy="agent">`)는 서비스의 `view`가 아니라 도구 렌더(`renderSkillView`, `toContent`)가 감싼다. `view`는 원문을 돌려준다.
+- 원장 행을 읽을 때 열이 없거나 셀 타입이 다르면 `Bug`를 던지는 자리(`ledger/rows.ts` `textCell`, `intCell`)는 그대로다 [미결: 저장된 행 불일치는 `row_invalid` 값으로 돌려줘야 한다. `db.read` 콜백 안의 호출처가 많아 별도 작업으로 한다].
 - 지원 파일 경로 규칙은 F에 `SkillFilePathSchema` 좁히기를 요청했다(spec §3.1). 그 전까지 `skills/paths.ts`가 같은 규칙을 지킨다.
 
 ## 4. 채택 코드

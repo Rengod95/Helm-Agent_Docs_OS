@@ -1,4 +1,4 @@
-import { err, ok } from "@xeon/contracts";
+import { attemptAsync, err, ok, type Logger } from "@xeon/contracts";
 import {
   KnowledgeLedgerKey,
   KnowledgeSkills,
@@ -24,7 +24,8 @@ import { knowledgeManifest } from "./manifest.ts";
 import { KNOWLEDGE_MIGRATIONS, KNOWLEDGE_OWNER } from "./migrations.ts";
 import { createKnowledgeRuntime, type KnowledgeDeps } from "./service.ts";
 import { readKnowledgeSettings, type KnowledgeSettingsSource } from "./settings.ts";
-import { resolveSkillRoots } from "./skills/roots.ts";
+import type { SkillDiagnostic } from "./upstream/skills.ts";
+import { projectSkillsDir, resolveSkillRoots, type RootsResult } from "./skills/roots.ts";
 
 // L2.knowledge.plan K2 조립. 구현 패키지(platform-store, platform-os, core-tools)를 import하지 않고 F 서비스 인터페이스를
 // 포트로만 받는다. Cordis는 import하지 않는다(DR-11).
@@ -50,6 +51,11 @@ export interface KnowledgePluginOptions {
     readonly dir: string;
     readonly extension: string;
   }[];
+  /**
+   * 프로젝트 디렉터리가 신뢰되었는가(X.loading-trust `resolveProjectTrust`의 `trusted`). 조립 루트가 신뢰 저장소와
+   * 프롬프터를 묶어 넘긴다. 없거나 거짓이거나 거부되면 프로젝트 스킬(`.xeon/skills`)을 싣지 않는다(fail-closed)
+   */
+  readonly projectTrust?: (projectDir: string) => Promise<boolean>;
   readonly loadIndex?: number;
 }
 
@@ -61,6 +67,21 @@ function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefin
     if (caught instanceof PrimitiveError && caught.code === "port_unavailable") return undefined;
     throw caught;
   }
+}
+
+/** 신뢰 판정 콜백을 부른다. 콜백이 없거나 거절하거나 실패하면 신뢰하지 않은 것으로 본다 */
+async function isProjectTrusted(
+  trust: KnowledgePluginOptions["projectTrust"],
+  projectDir: string,
+  logger: Logger,
+): Promise<boolean> {
+  if (trust === undefined) return false;
+  const decided = await attemptAsync(() => trust(projectDir));
+  if (!decided.ok) {
+    logger.warn("knowledge.project_trust_failed", { projectDir });
+    return false;
+  }
+  return decided.value;
 }
 
 /** 구현된 도구만 남긴 `knowledge.skills` 정의 */
@@ -87,23 +108,44 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
       const migrated = store.migrations.apply(KNOWLEDGE_MIGRATIONS);
       if (!migrated.ok) return err({ reason: migrated.error.kind, cause: migrated.error });
 
+      const fs = options.fs ?? createNodeFs();
       const deps: KnowledgeDeps = {
-        fs: options.fs ?? createNodeFs(),
+        fs,
         db: store.scoped(KNOWLEDGE_OWNER),
         blobs: store,
         clock: os.time.clock,
         ids: options.ids,
         logger,
         settings: (threadId) => readKnowledgeSettings(options.settings.layers(threadId)),
-        roots: () => {
+        roots: async (): Promise<RootsResult> => {
           const settings = readKnowledgeSettings(options.settings.layers(undefined));
-          return resolveSkillRoots({
-            dataDir: os.dirs.data,
-            projectDir: exec?.cwd,
-            projectSkills: settings.skills.projectSkills,
-            paths: settings.skills.paths,
-            extension: options.extensionSkillRoots?.() ?? [],
-          });
+          const projectDir = exec?.cwd;
+          const wantsProject = settings.skills.projectSkills && projectDir !== undefined;
+          const projectTrusted =
+            wantsProject && (await isProjectTrusted(options.projectTrust, projectDir, logger));
+          const diagnostics: SkillDiagnostic[] = [];
+          if (wantsProject && !projectTrusted) {
+            // 싣지 않은 스킬이 실제로 있을 때만 알린다
+            const skillsDir = projectSkillsDir(projectDir);
+            if ((await fs.stat(skillsDir)).ok) {
+              diagnostics.push({
+                type: "warning",
+                message: "project skills are not loaded: the project is not trusted",
+                path: skillsDir,
+              });
+            }
+          }
+          return {
+            roots: resolveSkillRoots({
+              dataDir: os.dirs.data,
+              projectDir,
+              projectSkills: settings.skills.projectSkills,
+              projectTrusted,
+              paths: settings.skills.paths,
+              extension: options.extensionSkillRoots?.() ?? [],
+            }),
+            diagnostics,
+          };
         },
         containsKnown:
           secrets === undefined ? undefined : (text) => secrets.redactor.containsKnown(text),

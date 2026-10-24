@@ -24,7 +24,7 @@ import { IMPLEMENTED_SKILL_TOOLS, knowledgePlugin } from "../src/plugin.ts";
 import { fixedIdFactory, fixedLocalIds, manualClock } from "./support/clock.ts";
 import { rejection } from "./support/helpers.ts";
 import { createMemoryFs, type MemoryFs } from "./support/memory-fs.ts";
-import { putSkill, USER_SKILLS } from "./support/world.ts";
+import { PROJECT_SKILLS, putSkill, USER_SKILLS } from "./support/world.ts";
 
 interface FakeTools {
   register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
@@ -62,7 +62,12 @@ afterEach(async () => {
 });
 
 async function boot(
-  options: { tools?: boolean; refuse?: boolean; prepare?: (fs: MemoryFs) => void } = {},
+  options: {
+    tools?: boolean;
+    refuse?: boolean;
+    prepare?: (fs: MemoryFs) => void;
+    projectTrust?: (projectDir: string) => Promise<boolean>;
+  } = {},
 ) {
   const clock = manualClock();
   const store = await openTestStore({ clock, ids: fixedIdFactory(clock) });
@@ -100,7 +105,12 @@ async function boot(
     },
   });
   const installed = await t.host.install(
-    knowledgePlugin({ settings: { layers: () => [] }, ids: fixedLocalIds(), fs }),
+    knowledgePlugin({
+      settings: { layers: () => [] },
+      ids: fixedLocalIds(),
+      fs,
+      ...(options.projectTrust === undefined ? {} : { projectTrust: options.projectTrust }),
+    }),
   );
   return { t, fs, store, installed, registered, unregistered, lines };
 }
@@ -248,5 +258,65 @@ describe("plugin", () => {
     expect(installed.setups[0]?.status).toBe("applied");
     // 읽을 수 없는 스킬 루트는 경고 진단이다. 저장소 쓰기 실패와 달리 시작 오류가 아니다
     expect(lines.map((line) => line.event)).not.toContain("knowledge.startup_failed");
+  });
+});
+
+function withProjectSkill(fs: MemoryFs): void {
+  putSkill(fs, USER_SKILLS, "deploy");
+  putSkill(fs, PROJECT_SKILLS, "repo-skill", { description: "From the repository" });
+}
+
+async function skillNames(options: Parameters<typeof boot>[0]) {
+  const { t } = await boot(options);
+  const { apis, unit } = consumer();
+  await t.host.install(unit);
+  await t.settled();
+  const listed = await apis.skills?.list({});
+  const names: string[] = listed?.skills.map((skill) => skill.name).toSorted() ?? [];
+  const diagnostics: { severity: string; message: string; path: string }[] =
+    listed?.diagnostics ?? [];
+  return { names, diagnostics };
+}
+
+describe("project skills and project trust", () => {
+  test("without a trust decision the repository's skills are not loaded and a diagnostic says so", async () => {
+    const { names, diagnostics } = await skillNames({ prepare: withProjectSkill });
+    expect(names).toEqual(["deploy"]);
+    expect(diagnostics.map((item) => [item.severity, item.path])).toEqual([
+      ["warning", PROJECT_SKILLS],
+    ]);
+  });
+
+  test("a refusing or failing trust check keeps the repository's skills out", async () => {
+    expect(
+      (await skillNames({ prepare: withProjectSkill, projectTrust: () => Promise.resolve(false) }))
+        .names,
+    ).toEqual(["deploy"]);
+    const failing = await skillNames({
+      prepare: withProjectSkill,
+      projectTrust: () => Promise.reject(new Error("store unreadable")),
+    });
+    expect(failing.names).toEqual(["deploy"]);
+  });
+
+  test("a trusted project contributes its skills", async () => {
+    const asked: string[] = [];
+    const { names, diagnostics } = await skillNames({
+      prepare: withProjectSkill,
+      projectTrust: (dir) => {
+        asked.push(dir);
+        return Promise.resolve(true);
+      },
+    });
+    expect(names).toEqual(["deploy", "repo-skill"]);
+    expect(diagnostics).toEqual([]);
+    expect(asked[0]).toBe("/proj");
+  });
+
+  test("no diagnostic when an untrusted project has no skills directory", async () => {
+    const { diagnostics } = await skillNames({
+      prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy"),
+    });
+    expect(diagnostics).toEqual([]);
   });
 });
