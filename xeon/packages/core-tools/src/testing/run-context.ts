@@ -3,13 +3,19 @@ import {
   STEP_CHECKPOINT_SCHEMA_VERSION,
   type DurableEventDraft,
   type PendingToolCall,
+  type ProducerHandle,
+  type ProducerId,
   type StepCheckpoint,
 } from "@xeon/contracts/records";
 import type { CallerId, ToolRunContext } from "@xeon/contracts/services";
-import type { FakeSession } from "./fake-session.ts";
+
+/** 루프 생산자(core.loop)의 초안 생성기만 있으면 된다. 대역 세션과 실제 세션이 모두 맞는다 */
+export interface RunContextSession {
+  producer(id: ProducerId): ProducerHandle;
+}
 
 export interface FakeRunOptions {
-  readonly session: FakeSession;
+  readonly session: RunContextSession;
   readonly ids: IdFactory;
   readonly threadId?: ThreadId;
   readonly turnId?: TurnId;

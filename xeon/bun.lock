@@ -100,6 +100,7 @@
       },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@xeon/core-tools": "workspace:*",
       },
     },
     "packages/cap-knowledge": {
@@ -169,6 +170,7 @@
       "devDependencies": {
         "@types/bun": "catalog:",
         "@xeon/core-persistence": "workspace:*",
+        "@xeon/core-tools": "workspace:*",
         "@xeon/platform-store": "workspace:*",
       },
     },
@@ -182,6 +184,7 @@
       },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@xeon/core-tools": "workspace:*",
         "@xeon/platform-exec": "workspace:*",
       },
     },

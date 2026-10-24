@@ -14,6 +14,9 @@
       "path": "../core-persistence"
     },
     {
+      "path": "../core-tools"
+    },
+    {
       "path": "../ext-host"
     },
     {

@@ -137,6 +137,8 @@ xeon/packages/core-tools/
 
 모델은 테이프(`@xeon/core-models/testing`, eng.testing.guide TS-04), 커밋은 `testing/fakeSession` 또는 core-persistence 테스트 대역, 시계·ID는 주입한다(TS-03).
 
+[결정: review.m2-plan WK·DG 통합] 다른 패키지의 통합 시험은 `testing/real-runtime.ts`의 `realTools({ session, ... })`로 실제 `ToolService`·`ApprovalService`를 caller가 준 세션(`fakeSession` 또는 core-persistence의 실제 세션) 위에 세운다. 같은 세션 위에서 서비스를 다시 세워 재시작을 흉내 낼 때는 처음 조립이 돌려준 `producer`를 넘긴다(세션 서비스 하나에서 `core.tools` 생산자는 한 번만 받을 수 있다).
+
 | 테스트 | 확인할 동작 | 작업 |
 |---|---|---|
 | `exposure_removes_denied_tools` | 인자·모드 조건 없는 deny 규칙의 도구가 `tools`에 없고 `removed`에 규칙 id와 함께 있다. 인자 조건 deny 도구는 남는다 | TL-7 |
