@@ -7,6 +7,7 @@ import type {
   LoopHandle,
   ScopeApi,
   SpawnSpec,
+  StateDecl,
   ToolResourceDef,
 } from "@xeon/contracts/extensions";
 import type { SettingDef, SettingGroup } from "@xeon/contracts/settings";
@@ -19,7 +20,8 @@ import {
 import { checkDelegateSpec, type DelegateResult, type DelegateSpec } from "./delegate.ts";
 import { createMetricsCounter, type MetricsCounter } from "./metrics/counter.ts";
 import { GroupSettingsSourceKey, type GroupSettingsSource } from "./ports/settings.ts";
-import { migrationChain, type StateMigrations } from "./state.ts";
+import { checkPostItem, checkRecordKind, type RecordCheck } from "./records.ts";
+import { checkStateCommit, migrationChain, type StateMigrations } from "./state.ts";
 import type {
   GroupApi,
   GroupSettingDefs,
@@ -65,14 +67,9 @@ export function realHostAccess<S>(api: ScopeApi<S>): GroupHostAccess {
 /** wrap이 읽는 GroupDef의 부분 */
 export interface WrapDef<S, D extends GroupSettingDefs> {
   readonly manifest: ExtensionManifest;
-  readonly state?: { readonly version: number } & ScopeStateShape<S>;
+  readonly state?: StateDecl<S>;
   readonly migrations?: StateMigrations;
   readonly settings?: SettingGroup<GroupSettingNamespace, D>;
-}
-
-/** StateDecl<S>와 같은 모양. wrap은 version만 읽지만 S를 타입에 남겨 GroupDef<S, D>를 그대로 받게 한다 */
-interface ScopeStateShape<S> {
-  readonly initial: S;
 }
 
 /** 설정 값 하나. 값이 있고 스키마를 통과하면 그 값, 아니면 기본값 */
@@ -143,6 +140,11 @@ function wrapLoop(loop: LoopHandle, counter: MetricsCounter): LoopHandle {
   };
 }
 
+/** 검사 실패를 X가 던지는 것과 같은 PrimitiveError로 바꿔 던진다 */
+function ensure(check: RecordCheck, scopeId: string): void {
+  if (!check.ok) throw new PrimitiveError(check.code, check.message, { scopeId });
+}
+
 /**
  * F ScopeApi<S>를 GroupApi<S, D>로 감싼다(L3.group-kit.spec §3.2). setup 안에서 한 번 부른다.
  * 감싼 연산은 원래 연산을 그대로 부르고 메모리 계측(§4.9)만 더한다.
@@ -161,6 +163,7 @@ export function wrap<S, D extends GroupSettingDefs>(
     id: api.id,
     on: (point, handler) => api.on(point, handler),
     post: async (item, options) => {
+      ensure(checkPostItem(def.manifest, item), api.id);
       const receipt = await api.post(item, options);
       if (!receipt.duplicate) counter.bump("posts");
       return receipt;
@@ -170,11 +173,26 @@ export function wrap<S, D extends GroupSettingDefs>(
     },
     state: () => api.state(),
     commit: async (next) => {
+      const decl = def.state;
+      if (decl === undefined) return api.commit(next); // X가 state_undeclared로 거부한다
+      const current = api.state();
+      const checked = checkStateCommit(decl, current, next);
+      if (!checked.ok) {
+        throw new PrimitiveError(
+          checked.kind === "state.schema" ? "state_schema" : "state_too_large",
+          checked.kind === "state.schema"
+            ? `state of ${api.id} does not match its schema: ${checked.issues.join("; ")}`
+            : `state of ${api.id} is ${checked.bytes} bytes, over the ${checked.limit} byte limit`,
+          { scopeId: api.id },
+        );
+      }
+      if (checked.unchanged) return current;
       const committed = await api.commit(next);
       counter.bump("commits");
       return committed;
     },
     record: async (kind, subject, payload) => {
+      ensure(checkRecordKind(def.manifest, kind), api.id);
       await api.record(kind, subject, payload);
       counter.bump("records");
     },

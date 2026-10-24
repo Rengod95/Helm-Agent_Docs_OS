@@ -42,4 +42,14 @@ export {
 } from "./delegate.ts";
 export type { GroupMetrics, GroupMetricsHandle, GroupMetricsSummary } from "./metrics/types.ts";
 export { GroupSettingsSourceKey, type GroupSettingsSource } from "./ports/settings.ts";
-export { stateUpcasters } from "./state.ts";
+export {
+  STATE_DOC_MAX_BYTES,
+  checkStateCommit,
+  migrationChain,
+  stateUpcasters,
+  type StateCheck,
+  type StateCommittedPayload,
+  type StateProjectionRow,
+} from "./state.ts";
+export { checkRecordKind, checkPostItem, kindVisibleTo, type RecordCheck } from "./records.ts";
+export { groupKitSettings } from "./settings.ts";
