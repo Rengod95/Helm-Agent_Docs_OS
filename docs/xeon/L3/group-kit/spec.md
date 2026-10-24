@@ -588,10 +588,15 @@ export interface GroupStatus {
   readonly metrics: GroupMetricsSummary | null;
 }
 
+export type GroupSettingUnwritableReason =
+  | "no_thread" | "ambiguous_thread" | "not_owner" | "project_unavailable" | "invalid_value" | "storage";
+
 export type GroupCommandError =
   | { readonly kind: "group.unknown"; readonly id: string; readonly known: readonly GroupId[] }
   | { readonly kind: "group.noDrive"; readonly id: GroupId }
-  | { readonly kind: "group.settingLocked"; readonly key: string };
+  | { readonly kind: "group.settingLocked"; readonly key: string }
+  /** 잠금은 아니지만 쓸 수 없었다. 쓸 thread를 정하지 못했거나(no_thread, ambiguous_thread), 소유가 없거나(not_owner), 프로젝트 파일을 쓸 수 없거나(project_unavailable), 값이 정의에 맞지 않거나(invalid_value), 저장소가 실패했다(storage) */
+  | { readonly kind: "group.settingUnwritable"; readonly key: string; readonly reason: GroupSettingUnwritableReason };
 
 export type GroupResult<T> =
   | { readonly ok: true; readonly value: T }
@@ -620,7 +625,7 @@ export interface GroupService extends LeaseArbiterPort {
   enable(id: string): GroupResult<ToggleReceipt>;
   disable(id: string): GroupResult<ToggleReceipt>;
   /** 설정 x.primitives.activeDriveGroup을 쓴다. holder "auto"는 null로 쓴다. scope 기본값 "session". 현재 임대는 회수하지 않는다(§3.5 규칙 4) */
-  setDriveHolder(holder: string, options?: { readonly scope?: HolderSettingScope }): Promise<GroupResult<HolderReceipt>>;
+  setDriveHolder(holder: string, options?: { readonly scope?: HolderSettingScope; readonly threadId?: ThreadId }): Promise<GroupResult<HolderReceipt>>;
   /** 상태가 바뀔 때 전체 목록을 넘긴다. 단계 경계마다 최대 한 번 */
   onChange(listener: (groups: readonly GroupStatus[]) => void): Unsubscribe;
 }
@@ -629,9 +634,9 @@ export interface GroupService extends LeaseArbiterPort {
 - 구현 [M2]: `createGroupService(deps)`가 `GroupServiceWithSetting`(`GroupService` + `driveHolderSetting()`)을 만든다. 의존은 `host`(`ExtHost`의 `scopes`·`scope`·`leaseOf`·`onChange`·`ports`), `catalog`(`GroupCatalogPort`: 설치된 그룹의 매니페스트와 로드 순서), `holder`(`DriveHolderSettingsPort`: 설정 `x.primitives.activeDriveGroup` 읽기·쓰기), `currentThread`, `report`다. `catalog`와 `holder`는 조립 루트가 로더 보고와 설정 서비스에 연결한다. 상태는 호출 때마다 `ExtHost`에서 새로 읽고 사본을 쌓지 않는다. `onChange`는 같은 동기 구간의 변경을 구독자에게 한 번만 알린다. `GroupStatus.metrics`는 `metrics` 의존이 없으면 null이다(계측 이벤트는 M3).
 - `setDriveHolder`의 `appliesAt` [M2]: `auto`는 `"now"`(현재 holder 유지). 지정한 그룹이 이미 holder면 `"now"`. 임대가 없으면 `"nextStepBoundary"`. 다른 그룹이 임대를 갖고 지정한 그룹이 후보(켜짐, drive 등록, 오류 아님)이면 X가 다음 경계에서 회수하므로 `"nextStepBoundary"`, 후보가 아니면 현재 임대를 유지하므로 `"afterLeaseRelease"`다. `contracts/services/groups.ts`의 `setDriveHolder` 주석 "현재 임대는 회수하지 않는다"는 이 규칙과 맞지 않아 F 레인에 고침을 요청한다.
 - 서비스 이름 `xeon.groups`와 인터페이스 이름 `GroupService`는 `eng.context-map.design` 5.3절 표와 같다. 소비자는 `helm`, `learning`, `host`, 그리고 `LeaseArbiterPort`로 주입받는 X다. `choose`는 `leaseArbiterPort(defaultDriveArbiter, …)`가 만든 함수다(§3.5).
-- [결정: review.decisions-2 D-04] 위 이름(`GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-kit은 `@xeon/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `GroupId`, `ScopeStatus`, `LeaseId`, `RecordKind`, `Unsubscribe`, `LeaseArbiterPort`, `ScopeId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
+- [결정: review.decisions-2 D-04] 위 이름(`GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupSettingUnwritableReason`, `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-kit은 `@xeon/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `GroupId`, `ScopeStatus`, `LeaseId`, `RecordKind`, `Unsubscribe`, `LeaseArbiterPort`, `ScopeId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
 - `enable`, `disable`의 지속: 이 메서드는 현재 엔진의 scope 상태만 바꾼다. 다음 실행에도 남기려면 X 예약 키 `ext.<이름>.enabled`를 L4 설정 경로로 쓴다(§6).
-- `setDriveHolder` 오류: 설치되지 않은 이름은 `group.unknown`, `usesDrive`가 false인 그룹은 `group.noDrive`, 관리 범위가 값을 잠갔으면 `group.settingLocked`. 오류면 설정을 바꾸지 않는다.
+- `setDriveHolder` 오류: 설치되지 않은 이름은 `group.unknown`, `usesDrive`가 false인 그룹은 `group.noDrive`, 관리 범위가 값을 잠갔으면 `group.settingLocked`, 잠기지는 않았지만 쓸 수 없었으면 `group.settingUnwritable`(이유는 `reason`). 오류면 설정을 바꾸지 않는다. `options.threadId`는 설정을 쓰고 `appliesAt`를 재는 thread다. 생략하면 `session`·`project`·`local` 범위는 쓰기 소유를 쥔 thread가 하나일 때 그 thread에 쓰고, 정할 수 없으면 대상이 없을 때 `no_thread`, 여럿일 때 `ambiguous_thread`다. "마지막으로 쥔 thread"를 고르지 않는다 [결정: 통합 검토 L8].
 - [가정] 서비스 한 인스턴스는 현재 활성 thread 하나의 그룹 상태를 보인다. scope 토글과 임대가 thread마다 따로인지는 X.primitives.spec이 정한다.
 
 ### 3.9 전환 명령과 상태줄
@@ -689,6 +694,7 @@ export function groupCommand(service: GroupService): GroupCommandRegistration;
 | 알 수 없는 이름 | `알 수 없는 그룹: xyz. 설치된 그룹: helm, learning` |
 | drive 미사용 그룹을 holder로 지정 | `learning 그룹은 drive를 쓰지 않아 구동 그룹으로 지정할 수 없다` |
 | 잠긴 설정 | `x.primitives.activeDriveGroup은 상위 범위 설정이 잠가 바꿀 수 없다` |
+| 쓸 수 없는 설정 | `x.primitives.activeDriveGroup을 쓸 수 없다: <이유>`. 이유 문구: `no_thread` 쓸 대화가 없다 / `ambiguous_thread` 열린 대화가 여럿이라 어느 대화에 쓸지 정할 수 없다 / `not_owner` 그 대화의 쓰기 소유를 이 프로세스가 쥐고 있지 않다 / `project_unavailable` 프로젝트 설정 파일을 쓸 수 없다(작업 폴더가 없거나 신뢰하지 않는다) / `invalid_value` 값이 설정 정의에 맞지 않는다 / `storage` 저장소나 설정 파일 쓰기에 실패했다 |
 | 켜기 요청(실행 중) | `helm 켜기 요청을 기록했다. 다음 단계 경계에 적용한다` |
 | 켜기 적용(유휴) | `helm 그룹을 켰다` |
 | 끄기 요청(실행 중) | `helm 끄기 요청을 기록했다. 다음 단계 경계에 적용한다` |

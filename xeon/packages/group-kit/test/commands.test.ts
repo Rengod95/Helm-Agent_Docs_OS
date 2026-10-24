@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import type { GroupService, GroupSettingUnwritableReason } from "@xeon/contracts/services";
 import {
   GROUP_USAGE,
   createGroupService,
@@ -155,6 +156,42 @@ test("command.drive-unknown-no-drive-locked-and-auto", async () => {
     text: "x.primitives.activeDriveGroup은 상위 범위 설정이 잠가 바꿀 수 없다",
     pending: false,
   });
+});
+
+test("command.drive-reports-each-unwritable-reason", async () => {
+  const { service } = await rig();
+  const cases: readonly (readonly [GroupSettingUnwritableReason, string])[] = [
+    ["no_thread", "쓸 대화가 없다"],
+    ["ambiguous_thread", "열린 대화가 여럿이라 어느 대화에 쓸지 정할 수 없다"],
+    ["not_owner", "그 대화의 쓰기 소유를 이 프로세스가 쥐고 있지 않다"],
+    ["project_unavailable", "프로젝트 설정 파일을 쓸 수 없다(작업 폴더가 없거나 신뢰하지 않는다)"],
+    ["invalid_value", "값이 설정 정의에 맞지 않는다"],
+    ["storage", "저장소나 설정 파일 쓰기에 실패했다"],
+  ];
+  const outputs = await Promise.all(
+    cases.map(([reason]) => {
+      const failing: GroupService = {
+        ...service,
+        setDriveHolder: () =>
+          Promise.resolve({
+            ok: false,
+            error: {
+              kind: "group.settingUnwritable",
+              key: "x.primitives.activeDriveGroup",
+              reason,
+            },
+          }),
+      };
+      return runGroupCommand(failing, { op: "drive", target: "review" });
+    }),
+  );
+  expect(outputs).toEqual(
+    cases.map(([, text]) => ({
+      ok: false,
+      text: `x.primitives.activeDriveGroup을 쓸 수 없다: ${text}`,
+      pending: false,
+    })),
+  );
 });
 
 test("command.status-prints-setting-and-one-line-per-group", async () => {
