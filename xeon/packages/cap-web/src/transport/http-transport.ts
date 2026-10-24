@@ -97,6 +97,11 @@ function failureOf(caught: unknown, timedOut: boolean, aborted: boolean): Transp
   return { kind: "network", message: describe(caught), cause: caught };
 }
 
+// Uint8Array<ArrayBufferLike>는 BodyInit이 아니다(SharedArrayBuffer 가능성). 복사해 ArrayBuffer 기반으로 만든다
+function bodyInitOf(body: string | Uint8Array): string | Uint8Array<ArrayBuffer> {
+  return typeof body === "string" ? body : new Uint8Array(body);
+}
+
 export function createHttpTransport(): HttpTransport {
   return {
     async send(request: TransportRequest) {
@@ -115,7 +120,7 @@ export function createHttpTransport(): HttpTransport {
         const init = {
           method: request.method,
           headers: { ...request.headers },
-          ...(request.body === undefined ? {} : { body: request.body }),
+          ...(request.body === undefined ? {} : { body: bodyInitOf(request.body) }),
           signal: controller.signal,
         };
         const sent = await attemptAsync(() =>
