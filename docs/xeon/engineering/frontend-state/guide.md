@@ -36,7 +36,7 @@ React 19와 Zustand 5(adr.0010)로 UI 전역 상태를 만들 때 따르는 구�
 
 - [결정] React 19 + Zustand 5(adr.0010).
 - Zustand 5.0.16 소스·타입·문서와 실제 제품 저장소 조사: `L4/desktop/_research/state-management.md`, 그리고 같은 날 조사한 Zustand 내부 구조, 제품 사례, 관측성 요약(이 문서 1.3절 표의 출처 열). 표의 사실은 그 조사가 읽은 소스 경로와 URL을 그대로 적는다.
-- 스파이크(2026-10-24, 저장소 밖): `L4.desktop.design` §12 골격을 tsgo 7.0.2, 저장소 `.oxlintrc.json`(oxlint 1.89 type-aware), `bun test`로 검사했다. 오류 0건이고 시험 3건이 통과했다.
+- 스파이크(2026-10-24, 저장소 밖): `L4.desktop.design` §12 골격을 tsgo 7.0.2, 저장소 `.oxlintrc.json`(oxlint 1.89 type-aware), `bun test`로 검사했다. 오류 0건이고 시험 62건이 통과했다. 검토에서 고친 결함 일곱 건은 `L4.desktop.design` §12 머리말에 있다.
 
 ### 1.3 제품 코드의 관행과 Xeon의 선택
 
@@ -289,12 +289,12 @@ case "batch":
 
 | 순서 | 단계 | 하는 일 | 켜는 빌드 | 넣는 이유 |
 |---|---|---|---|---|
-| 1 | `journalStage` | 입력마다 이름, seq, `note`, 시각을 링 버퍼에 남긴다 | 전부 | 사용자 환경에서 재현할 수 없는 순서 문제를 진단 내보내기로 본다. 가장 바깥이라 guard가 바꾼 결과(`failed`)도 남는다 |
+| 1 | `journalStage` | 입력마다 이름, seq, `note`, 시각을 링 버퍼에 남긴다. 정상 적용된 델타는 남기지 않는다(FS-13) | 전부 | 사용자 환경에서 재현할 수 없는 순서 문제를 진단 내보내기로 본다. 가장 바깥이라 guard가 바꾼 결과(`failed`)도 남는다 |
 | 2 | `guardStage` | reducer가 던지면 이전 상태를 `reset`(`reducer_failed`)으로 바꿔 돌려주고 Logger에 남긴다 | 전부 | Zustand는 updater 예외 때 상태를 바꾸지 않지만 그 입력은 사라지고 화면은 틀린 채 남는다. reset으로 엔진에서 다시 읽어 스스로 고친다. reducer 실패가 60초 안에 4번째이면 `failed`로 멈춘다. 재구독이 성공하면 `link`의 시도 횟수가 지워져 `link`만으로는 반복 실패를 셀 수 없기 때문에 스토어가 시각을 따로 센다 |
 | 3 | `invariantStage` | 결과 상태의 불변식(id 중복, 목록과 레코드 불일치, 확정 item이 슬롯에 남음)을 검사하고 어기면 `Bug`를 던진다 | 개발·시험 | O(N) 검사라 운영에서 끈다. guard 안쪽이라 위반이 화면을 멈추지 않고 reset으로 이어진다. 시험은 `onReducerFailure: rethrow`로 위반을 실패로 드러낸다 |
 
 - 커밋 함수는 접은 결과가 이전 상태와 다른 참조일 때만 `setState(next, true)`를 부른다.
-- 단계를 더하거나 순서를 바꾸려면 4절 절차를 거친다. 단계 후보였다가 뺀 것: 성능 측정(커밋 단위로 journal이 `flush` 항목에 함께 남긴다), 내용 가림(journal이 내용을 받지 않으므로 필요 없다), devtools 전달(FS-11).
+- 단계를 더하거나 순서를 바꾸려면 4절 절차를 거친다. 단계 후보였다가 뺀 것: 성능 측정(델타 외 입력이 있거나 8 ms를 넘긴 커밋을 journal이 `flush` 항목으로 남긴다), 내용 가림(journal이 내용을 받지 않으므로 필요 없다), devtools 전달(FS-11).
 
 이유: 모든 쓰기가 `ingest` → 커밋 하나로 모이므로 Zustand의 `set` 래핑 없이 reducer 함수 합성만으로 미들웨어가 된다. 단계 타입 `Stage<S, I, N> = (next: Reducer<S, I, N>) => Reducer<S, I, N>`은 제네릭 함수 합성이라 단언이 필요 없고, 단계 하나를 가짜 `next`로 따로 시험한다.
 
@@ -362,9 +362,11 @@ const item = event.payload.item; // TY-02·TY-10: unknown 멤버 접근(typescri
 
 - 항목은 입력 이름(고정 문자열), seq, `note`, 시각, 커밋 단위의 입력 수와 경과 ms뿐이다. 이름과 seq는 `describeInput` 허용 목록 함수가 고른다.
 - 대화 내용, 경로, 설정 값, 도구 인자, 승인 제목, 오류 메시지를 넣지 않는다. 오류는 `Error.name`만 남긴다.
-- 크기는 [제안] 1,000항목이다. 내보내기는 사용자가 진단 화면에서 고를 때만 한다(`L4.desktop.design` §11).
+- 입력 이름은 리터럴 유니온 `InputName`이다. `describeInput`의 반환 타입이 이를 요구하므로 내용 문자열을 이름에 넣으면 컴파일 오류가 된다. 템플릿 리터럴은 `subscribed:${"cursor" | "head"}`처럼 리터럴 유니온만 받는다.
+- 정상 적용된 휘발 조각(`chunk`, `note: applied`)은 기록하지 않고, 델타만 있는 빠른 커밋(8 ms 이하)은 `flush` 항목도 남기지 않는다. `stale`·`duplicate` 조각과 느린 커밋은 남긴다.
+- 크기는 [제안] 1,000항목이다. 내보내기는 사용자가 진단 화면에서 고를 때만 한다(`L4.desktop.design` §11). 진단 묶음(`buildDiagnostics`)은 고정 필드만 고르는 반환 타입을 쓰고 상태를 펼치지 않는다.
 
-이유: 기록 대상을 고정 필드로 정하면 가림(redaction) 단계가 필요 없고, 비밀이 섞일 경로가 없다(`L4.desktop.spec` E11, `eng.best-practices.guide` BP-07). 고정 크기라 오래 켜 둔 앱에서도 메모리가 늘지 않는다. Redux DevTools 확장의 기본 `maxAge`는 50인데 이는 상태 스냅샷 기준이고, 메타데이터 항목은 수십 바이트라 더 길게 둔다.
+이유: 기록 대상을 고정 필드로 정하면 가림(redaction) 단계가 필요 없고, 비밀이 섞일 경로가 없다(`L4.desktop.spec` E11, `eng.best-practices.guide` BP-07). 델타는 초당 수십 건이라 모두 남기면 1,000칸이 17~20초 안에 차서 구멍·재설정 항목이 밀려나고, 충돌 보고의 마지막 50항목이 델타로만 채워진다. 고정 크기라 오래 켜 둔 앱에서도 메모리가 늘지 않는다. Redux DevTools 확장의 기본 `maxAge`는 50인데 이는 상태 스냅샷 기준이고, 메타데이터 항목은 수십 바이트라 더 길게 둔다.
 
 좋은 예:
 
@@ -384,6 +386,7 @@ journal.record({ kind: "input", at, input: JSON.stringify(input), seq: null, not
 #### FS-14 토큰 델타는 스트리밍 슬롯에만 쓴다
 
 - `item.updated`(`part_delta`)는 `streaming.items[itemId].parts[i].text`만 바꾼다. 확정 item 레코드(`transcript.items`)는 델타 때 복사하지 않는다.
+- 확정은 batch 단위로 반영한다. 한 batch의 `item.recorded`는 `items`와 `itemIds`를 한 번만 복사한다. 하나씩 복사하면 따라잡기 K건이 O(K·N)이다(N=8,000, K=500에서 JavaScriptCore 320 ms, 한 번 복사하면 3.8 ms [참고 측정]).
 - 슬롯을 비우는 때: 그 item의 `item.recorded`, 그 turn의 `turn.completed`, 엔진이 `running`이 아니게 됨, reset.
 - 이미 확정된 item의 늦은 조각은 `stale`로 버린다. 확정 여부는 열린 thread의 레코드와 최근 확정 표식(`settledItems`, `settledTurns`)으로 판단한다. 표식이 없으면 열기 전에 확정된 item이나 다른 thread의 item에 늦은 조각이 와서 슬롯을 되살리고, 확정 레코드와 겹쳐 그려진다. 같은 (thread, turn)에서 `n`이 이전 이하인 조각은 `duplicate`로 버린다.
 
@@ -406,6 +409,7 @@ items: { ...t.items, [id]: { ...item, text: item.text + delta } }, // 리뷰: �
 - `ingest`는 입력을 큐에 넣고 다음 프레임 예약 하나를 건다. 예약 시점에 큐 전체를 접어 `setState`를 한 번 부른다.
 - 프레임 예약은 `requestAnimationFrame`과 타이머 중 먼저 오는 쪽이다. 타이머 상한은 [제안] 100 ms다. 시각과 타이머는 주입한다(`FrameClock`, `Scheduler`, TY-21).
 - 시험과 thread 전환 직전에는 `flush()`로 즉시 커밋한다.
+- 타이머 상한은 숨겨진 창에서 지켜지지 않을 수 있다 [가정]. WebView가 숨긴 창의 타이머를 늦춘다(WebKit 약 1초, Chromium은 오래 숨기면 분 단위). 큐는 그동안 쌓이고 복귀 때 한 번에 접힌다. 입력당 비용이 수 µs라 허용하고, 측정에서 문제가 되면 큐 길이 상한에서 동기 커밋을 건다(`L4.desktop.design` §14 11번).
 
 이유: Zustand는 set마다 리스너를 동기로 부르고 배칭이 없다. 델타 빈도가 60 Hz를 넘으면 화면이 그릴 수 없는 중간 상태마다 선택자와 렌더가 돈다. 숨긴 창에서는 rAF가 멈추므로 타이머가 없으면 큐가 쌓인다(MDN `requestAnimationFrame`). 외부 스토어 갱신은 Transition이 될 수 없어 빈도를 낮추는 일은 입력 쪽 책임이다.
 
@@ -456,6 +460,7 @@ for (const fact of input.facts) next = applyFact(next, fact); // 리뷰: 재전�
 - 연결 컨트롤러는 `watch`로 `link`를 구독해, `resync`면 cursor부터, `reset`이면 head부터 다시 구독하고 스냅샷을 다시 읽는다.
 - 구독 요청이 진행 중일 때 도착한 batch는 컨트롤러가 모았다가 `subscribed` 입력 뒤에 넣는다.
 - 스냅샷이 `stale`로 거절돼 같은 thread가 loading으로 남으면 컨트롤러가 다시 읽는다(최대 3번).
+- 재구독이 서면 컨트롤러가 이전 구독에 `events.unsubscribe`를 보내고, 겹친 요청은 가장 나중 응답만 쓴다. 엔진이 연결당 구독 수를 제한하므로(기본 16) 닫지 않으면 재동기화가 쌓일 때 재구독이 실패한다.
 
 이유: reducer가 순수해야 FS-09가 성립한다. 상태 기계가 거울에 있으면 화면 배너, 시험, journal이 같은 값을 읽는다. 마지막 항목은 순서 문제다. 응답이 알림보다 먼저 오더라도(`F.wire-settings.spec` §3.4.2 규칙 4) `await` 뒤의 코드는 마이크로태스크라, 같은 읽기 묶음에서 처리된 알림 처리기보다 늦게 돌 수 있다.
 
@@ -656,12 +661,12 @@ beforeEach(() => useEngineStore.setState(INITIAL_MIRROR)); // 리뷰: 모듈 싱
 5. 모듈 밖으로 `setState`나 `StoreApi`가 나가지 않는가(FS-07)?
 6. 상태에 함수, `Map`, 클래스 인스턴스, 핸들이 없는가(FS-08)?
 7. reducer에 부수효과, 시각 읽기, 난수가 없는가? `switch`가 `assertNever`로 끝나는가(FS-09)?
-8. 새 입력 종류가 `describeInput`에 고정 이름으로 들어갔고 내용 필드가 기록되지 않는가(FS-13)?
+8. 새 입력 종류가 `describeInput`에 `InputName` 리터럴로 들어갔고 내용 필드가 기록되지 않는가? 초당 수십 건 오는 입력을 journal에 모두 남기지 않는가(FS-13)?
 9. 새 엔진 kind의 payload를 decode 표에서 검증하는가(FS-12)?
-10. 델타 경로가 확정 레코드를 복사하지 않는가(FS-14)?
+10. 델타 경로가 확정 레코드를 복사하지 않는가? batch 경로가 확정 item을 하나씩 복사하지 않는가(FS-14)?
 11. `setState`가 커밋 함수 밖에서 불리지 않는가? 알림 처리기가 `ingest`만 부르는가(FS-15)?
 12. 내구 이벤트 적용이 `seq > cursor.seq`와 스냅샷 `asOfSeq`를 지키는가(FS-16)?
-13. 재시도와 재구독이 `link` 상태 기계를 거치는가(FS-17)?
+13. 재시도와 재구독이 `link` 상태 기계를 거치는가? 새 구독이 이전 구독을 닫는가(FS-17)?
 14. 새 선택자가 기존 참조나 원시값을 돌려주는가? 객체를 만들면 `useShallow`인가? 빈 값이 상수인가(FS-18)?
 15. 목록 부품이 id 배열만 구독하는가(FS-19)?
 16. 렌더 중 `getState()`나 쓰기가 없는가(FS-20)?

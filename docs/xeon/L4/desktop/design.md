@@ -298,7 +298,7 @@ export const INITIAL_MIRROR: EngineMirror = {
 | `thread.closed` | `status = "closed"` |
 | `turn.started` | `status = "running"` |
 | `turn.completed` | `status = "idle"`, 그 (thread, turn)의 스트리밍 item과 `lastN` 삭제. `turnId`가 있으면 그 키를 `settledTurns`에 남긴다 |
-| `item.recorded` | 열린 thread가 ready이고 `seq > asOfSeq`면 item 추가 또는 교체. loading이면 `held`에 넣는다. 열렸는지와 무관하게 그 item의 스트리밍 슬롯 삭제, `settledItems`에 id를 남긴다 |
+| `item.recorded` | 열린 thread가 ready이고 `seq > asOfSeq`면 item 추가 또는 교체. loading이면 `held`에 넣는다. 한 batch의 `item.recorded`는 transcript를 한 번만 복사해 모아 넣는다(`recordItems`). 열렸는지와 무관하게 그 item의 스트리밍 슬롯 삭제, `settledItems`에 id를 남긴다 |
 | `approval.requested` | 없으면 `approvals`에 추가, 그 thread의 `pendingApprovals + 1` |
 | `approval.resolved` | 있으면 삭제, 그 thread의 `pendingApprovals - 1`(0 아래로 내리지 않음) |
 | `other`, `unreadable` | 없음(위치만 넘어간다) |
@@ -326,6 +326,7 @@ export const INITIAL_MIRROR: EngineMirror = {
 - 커밋: 델타는 입력 큐에 쌓이고 프레임마다 한 번 커밋된다. 델타 100개가 한 프레임에 오면 `setState`는 1번, 재렌더는 바뀐 파트 부품 하나다(FS-15, FS-19).
 - 렌더: 확정 목록(`useTranscriptItemIds`) 뒤에 진행 목록(`useStreamingIds`)을 그린다. 진행 중 파트는 평문으로 그리고, 마크다운과 코드 하이라이트는 확정 item에서 한다(FS-21).
 - 화면 전환: thread를 옮기기 전에 `flush()`로 큐를 비운다. 이전 thread의 진행 조각이 새 thread 화면의 첫 커밋과 섞이지 않게 하기 위해서다.
+- 확정 쪽 비용: 델타는 N과 무관하지만 `item.recorded`는 `items`와 `itemIds`를 복사하므로 batch 하나에 O(N)이다. 재동기화 따라잡기는 batch 하나에 최대 500건(`replayBatchMaxEvents`)이라, item마다 복사하면 O(K·N)이 된다. 그래서 `applyBatch`는 한 batch의 확정 item을 `recordItems`로 모아 복사 한 번에 넣는다. 지역 변수를 바꾸는 코드지만 입력 상태는 건드리지 않아 reducer는 순수하다. 측정(Bun 1.4.3, JavaScriptCore, N=8,000): K=1 0.7 ms, K=100 1.0 ms, K=500 3.8 ms(변경 전 K=500은 320 ms) [참고 측정]. 교체만 있는 batch는 `itemIds` 참조를 유지한다(FS-18).
 - 메모리: 표식은 합쳐서 최대 512개 문자열이다. 슬롯 크기는 진행 중 item의 텍스트 합이다. 긴 도구 인자(JSON 조각)는 `toolCall` 파트로 쌓인다. [미결] 파트 텍스트 상한(예: 1 MiB를 넘으면 앞부분 생략 표시)은 S5 측정 뒤 정한다.
 
 ## 9. 승인 대기열
@@ -369,17 +370,17 @@ stateDiagram-v2
 | `syncing` | 캐시를 보이며 "따라잡는 중" | 없음 |
 | `live` | 평상시 | 없음 |
 | `resync` | 캐시를 보이며 "다시 맞추는 중" | cursor부터 다시 구독 |
-| `reset` | 캐시를 흐리게 보이며 "다시 읽는 중" | head부터 구독, `thread.list`, 선택 thread 스냅샷, [미결] 대기 승인 목록 |
+| `reset` | 캐시를 흐리게 보이며 "다시 읽는 중". `subscribed(head)`가 오면 캐시가 비고 `live`나 `syncing`으로 바뀐다 | head부터 구독, `thread.list`, 선택 thread 스냅샷, [미결] 대기 승인 목록 |
 | `failed` | "연결 복구 실패", 다시 연결 버튼, 진단 내보내기 | 사용자 동작 대기 |
 
 규칙:
 
 1. 전이는 reducer만 정한다. 컨트롤러는 `watch`로 `link`를 구독해 부수효과를 실행한다(FS-17).
 2. 구독 요청이 진행 중일 때 도착한 batch는 컨트롤러가 모았다가 `subscribed` 입력 뒤에 넣는다. `await` 뒤 코드는 마이크로태스크라 같은 읽기 묶음의 알림 처리기보다 늦게 돌 수 있기 때문이다.
-3. 이전 구독의 batch는 `foreign`으로 버린다. [제안] 재구독에 성공하면 컨트롤러가 이전 `sub`에 `events.unsubscribe`를 보낸다.
+3. 이전 구독의 batch는 `foreign`으로 버린다. 재구독에 성공하면 컨트롤러가 이전 `sub`에 `events.unsubscribe`를 보내고, `stop()`은 현재 구독을 닫는다. 엔진은 연결당 구독을 제한하므로(기본 16) 닫지 않으면 재동기화가 쌓일 때 `events.subscriptionLimit`로 실패한다. 구독 요청이 겹치면 가장 나중 요청의 응답만 쓰고, 앞선 요청의 응답이 오면 그 구독을 닫는다(`generation`).
 4. 새 페이지(WebView 새로고침, 창 다시 만들기)는 거울이 비어 있으므로 head부터 시작하고 스냅샷으로 채운다. 같은 페이지에서 엔진만 다시 뜬 경우(`engine` 입력이 `running`으로 돌아옴)는 거울의 cursor부터 잇는다. 같은 DB를 열므로 `storeId`가 같다(`L4.desktop.spec` §4.4).
 5. 열린 thread 스냅샷은 `transcript_opening`을 먼저 넣고 요청한다. reducer는 그 시점의 `cursor.seq`를 `sinceSeq`로 두고, 스냅샷이 오기 전 그 thread의 `item.recorded`를 `held`에 모은다. 스냅샷 `asOfSeq`가 `sinceSeq`보다 작으면 `stale`로 버린다. 컨트롤러는 스냅샷을 넣고 `flush()`한 뒤에도 같은 thread가 loading이면 최대 `MAX_SYNC_ATTEMPTS`번 다시 읽는다. 이 재읽기가 없으면 loading이 그대로 남는다.
-6. 시도 상한은 원인 종류(`resync`, `reset`)마다 3회다. 넘으면 `failed`에서 멈추고 `connecting` 입력만 벗어난다. reducer 실패는 이 횟수로 세지 않고 스토어가 60초 창으로 센다(7.1). [가정] 재시도 사이 대기 시간은 두지 않는다. 연결이 끊긴 경우는 셸 `onState`가 `restarting`을 알려 `offline`으로 먼저 간다.
+6. 시도 상한은 원인 종류(`resync`, `reset`)마다 3회다. 넘으면 `failed`에서 멈추고 `connecting` 입력만 벗어난다. reducer 실패는 이 횟수로 세지 않고 스토어가 60초 창으로 센다(7.1). [가정] 재시도 사이 대기 시간은 두지 않는다. 상한 3회가 끝나면 `failed`에서 멈춘다. 연결이 끊긴 경우는 셸 `onState`가 `restarting`을 알려 `offline`으로 먼저 간다.
 
 ## 11. 미들웨어 단계와 로그 경로
 
@@ -409,20 +410,23 @@ flowchart LR
 
 | 경로 | 언제 | 담는 것 | 담지 않는 것 |
 |---|---|---|---|
-| journal | 입력마다, 커밋마다 | 입력 이름, seq, note, 시각, 커밋 입력 수, 커밋 ms | 대화 내용, 경로, 설정 값, 도구 인자, 승인 제목 |
+| journal | 입력마다(정상 적용된 휘발 조각은 제외), 델타 외 입력이 있거나 8 ms를 넘긴 커밋마다 | 입력 이름(`InputName` 리터럴 유니온), seq, note, 시각, 커밋 입력 수, 커밋 ms | 대화 내용, 경로, 설정 값, 도구 인자, 승인 제목 |
 | Logger `error` | guard 실패, 컨트롤러 콜백 실패, 처리되지 않은 예외 | 고정 이벤트 이름(`desktop.mirror.reduce_failed` 등), 입력 이름, `Error.name` | 오류 메시지 본문, 스택의 사용자 경로 [제안] |
 | 충돌 보고 | Logger `error`가 남을 때 한 번 | journal 마지막 50항목, `link`, `cursor`, 모음 크기 | 위와 같음 |
 | 진단 내보내기 | 사용자가 진단 화면이나 `failed` 배너에서 고를 때 | journal 전체, `engine`, `link`, `cursor`, 모음 크기(`threads.ids.length` 등), 앱·엔진 버전 | 위와 같음 |
 
 - WebView의 `Logger` 구현은 셸 명령으로 앱 로그 파일에 쓴다. [미결] 이 명령(가칭 `desktop_log_write`)은 `L4.desktop.spec` §3.3의 명령 네 개 밖이다(§14 3번).
-- 진단 묶음 함수는 `diagnostics.ts`의 순수 함수 `buildDiagnostics(state, journal.entries(), versions)`다. 결과는 JSON 직렬화 가능한 값이다(FS-08).
+- 진단 묶음 함수는 `diagnostics.ts`의 순수 함수 `buildDiagnostics(state, journal.entries(), versions)`다. 결과는 JSON 직렬화 가능한 값이다(FS-08). 반환 타입은 고정 필드(`engine.kind`, `link.phase`와 `reason`, `cursor.seq`, 모음 크기, 버전)만 가진다. `state`나 `engine`을 통째로 펼치지 않는다. 지금의 `EngineState`는 숫자와 고정 문자열뿐이지만, 필드가 늘 때 진단 파일로 새로 나가지 않게 하려는 규칙이다.
+- journal은 입력 이름을 `InputName`(고정 이름과 템플릿 리터럴 유니온)으로 제한한다. 내용 문자열을 `describeInput`이 돌려주면 컴파일 오류다. 델타는 초당 수십 건이고 프레임마다 커밋이 생기므로, 정상 적용된 조각과 델타만 있는 빠른 커밋은 기록하지 않는다. `stale`·`duplicate` 조각과 8 ms를 넘긴 커밋은 이상 징후라 남긴다. 델타를 모두 남기면 1,000칸이 17~20초 안에 차서 충돌 보고의 "마지막 50항목"이 직전 1초의 델타로만 채워진다.
 - 셸 로그 규칙 E11(프레임 내용을 남기지 않음)과 같은 방향이다. 내용을 받지 않으므로 가림 단계가 없다(FS-13).
 
 ## 12. 코드 골격
 
-아래 코드는 2026-10-24 프로토타입(저장소 밖 임시 프로젝트, zustand 5.0.16, react 19.3.1, @types/react 19.3.0, tsgo 7.0.2)에서 파일로 옮겨 검사했다. tsconfig는 저장소 `tsconfig.base.json` 옵션에서 `composite`와 `declarationMap`만 뺐다(`@xeon/contracts` 소스를 `paths`로 가리키면 `composite`가 파일 목록 오류를 낸다). 저장소 `.oxlintrc.json`(type-aware, `--deny-warnings`)으로 `src`와 `test`를 검사했고 오류와 경고가 없었다. `as`, `!`, `any`가 없다. 같은 프로젝트의 `bun test` 56건이 통과한다. `@xeon/contracts`는 이 저장소의 소스를 그대로 썼고 `EngineState`만 대역이었다.
+아래 코드는 2026-10-24 프로토타입(저장소 밖 임시 프로젝트, zustand 5.0.16, react 19.3.1, @types/react 19.3.0, tsgo 7.0.2)에서 파일로 옮겨 검사했다. tsconfig는 저장소 `tsconfig.base.json` 옵션에서 `composite`와 `declarationMap`만 뺐다(`@xeon/contracts` 소스를 `paths`로 가리키면 `composite`가 파일 목록 오류를 낸다). 저장소 `.oxlintrc.json`(type-aware, `--deny-warnings`)으로 `src`와 `test`를 검사했고 오류와 경고가 없었다. `as`, `!`, `any`가 없다. 같은 프로젝트의 `bun test` 62건이 통과한다. `@xeon/contracts`는 이 저장소의 소스를 그대로 썼고 `EngineState`만 대역이었다.
 
-처음 골격은 발췌여서 7.2 표의 함수, `invariants.ts`, `index.ts`, 나머지 decode 항목이 빠져 있었다. 이 판은 그 부분을 채워, 블록을 파일로 옮기면 그대로 컴파일된다. 프로토타입 시험이 드러낸 결함 네 건은 코드와 §7, §8, §10에 반영했다. (1) `failed`가 흡수 상태가 아니었다. (2) reducer 실패가 반복돼도 재구독이 성공하면 상한이 풀렸다. (3) 열린 thread 밖에서 확정된 item의 늦은 조각이 슬롯을 되살렸다. (4) `stale` 스냅샷을 다시 읽지 않아 loading이 남았다. 코드 블록은 문서 폭에 맞춰 줄을 접었으므로 `oxfmt --check`를 통과하지 못한다. 저장소로 옮길 때 `oxfmt`로 포맷한다.
+처음 골격은 발췌여서 7.2 표의 함수, `invariants.ts`, `index.ts`, 나머지 decode 항목이 빠져 있었다. 이 판은 그 부분을 채워, 블록을 파일로 옮기면 그대로 컴파일된다. 프로토타입 시험이 드러낸 결함 네 건은 코드와 §7, §8, §10에 반영했다. (1) `failed`가 흡수 상태가 아니었다. (2) reducer 실패가 반복돼도 재구독이 성공하면 상한이 풀렸다. (3) 열린 thread 밖에서 확정된 item의 늦은 조각이 슬롯을 되살렸다. (4) `stale` 스냅샷을 다시 읽지 않아 loading이 남았다.
+
+이어진 검토에서 세 건을 더 고쳤다. (5) journal이 델타 입력과 프레임마다의 flush 항목을 모두 남겨, 스트리밍 중에는 1,000칸이 17초 안에 차고 구멍·재설정 항목이 밀려났다(§11). (6) 재구독마다 이전 구독을 닫지 않아, 엔진의 연결당 구독 상한(기본 16, `F.wire-settings.spec` §3.4.3)에 닿으면 재구독이 실패 루프로 들어갔다. 응답이 겹친 구독도 처리하지 않았다(§10 규칙 3). (7) batch 안의 `item.recorded`를 하나씩 transcript에 복사해, N=8,000에서 500건 따라잡기가 JavaScriptCore로 320 ms였다. 한 번의 복사로 3.8 ms가 된다(§8). 코드 블록은 문서 폭에 맞춰 줄을 접었으므로 `oxfmt --check`를 통과하지 못한다. 저장소로 옮길 때 `oxfmt`로 포맷한다.
 
 ### 12.1 입력과 decode
 
@@ -700,8 +704,16 @@ function applyBatch(
   if (input.to <= cursor.seq) return keep(state, "duplicate");
   if (input.from > cursor.seq) return keep(enterResync(state, "gap"), "gap");
   let next = state;
+  const recorded: (Recorded & { readonly threadId: ThreadId })[] = [];
   for (const fact of input.facts) {
-    if (fact.seq > cursor.seq) next = applyFact(next, fact); // 7.2 표
+    if (fact.seq <= cursor.seq) continue;
+    next = applyFact(next, fact); // 7.2 표
+    if (fact.type === "item.recorded") recorded.push({ seq: fact.seq, item: fact.item, threadId: fact.threadId });
+  }
+  const open = next.transcript;
+  if (open !== null) {
+    const mine = recorded.filter((e) => e.threadId === open.threadId);
+    if (mine.length > 0) next = { ...next, transcript: recordItems(open, mine) };
   }
   const nextLink: Link = input.caughtUp ? { phase: "live", sub: link.sub } : link;
   return keep({ ...next, cursor: { storeId: cursor.storeId, seq: input.to }, link: nextLink }, "applied");
@@ -822,17 +834,24 @@ function dropStreamingTurn(streaming: Streaming, threadId: ThreadId, turnId: Tur
   return { ...streaming, itemIds, items, lastN, settledTurns };
 }
 
-function recordItem(t: Transcript | null, threadId: ThreadId, seq: number, item: ItemRecord): Transcript | null {
-  if (t === null || t.threadId !== threadId) return t;
-  if (t.status === "loading") return { ...t, held: [...t.held, { seq, item }] };
-  if (seq <= t.asOfSeq) return t;
-  const id = item.itemId;
-  const known = t.items[id] !== undefined;
-  return {
-    ...t,
-    itemIds: known ? t.itemIds : [...t.itemIds, id],
-    items: { ...t.items, [id]: item },
-  };
+type Recorded = { readonly seq: number; readonly item: ItemRecord };
+
+/**
+ * 확정 item 여러 개를 transcript에 한 번의 복사로 넣는다. 하나씩 넣으면 K개에 O(K·N)이다
+ * (N=8,000, K=500에서 JavaScriptCore 320 ms). entries는 모두 t의 thread 것이다.
+ */
+function recordItems(t: Transcript, entries: readonly Recorded[]): Transcript {
+  if (t.status === "loading") return entries.length === 0 ? t : { ...t, held: [...t.held, ...entries] };
+  const fresh = entries.filter((e) => e.seq > t.asOfSeq);
+  if (fresh.length === 0) return t;
+  const items: Record<string, ItemRecord> = { ...t.items };
+  const added: ItemId[] = [];
+  for (const e of fresh) {
+    if (items[e.item.itemId] === undefined) added.push(e.item.itemId);
+    items[e.item.itemId] = e.item;
+  }
+  // 새 id가 없으면 itemIds 참조를 그대로 둔다(교체만 있는 batch가 목록 부품을 다시 그리지 않게)
+  return { ...t, itemIds: added.length === 0 ? t.itemIds : [...t.itemIds, ...added], items };
 }
 
 function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
@@ -866,11 +885,8 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
       return { ...done, streaming: dropStreamingTurn(done.streaming, fact.threadId, fact.turnId) };
     }
     case "item.recorded":
-      return {
-        ...state,
-        transcript: recordItem(state.transcript, fact.threadId, fact.seq, fact.item),
-        streaming: settleItem(state.streaming, fact.item.itemId),
-      };
+      // transcript 반영은 applyBatch가 batch 단위로 한 번에 한다
+      return { ...state, streaming: settleItem(state.streaming, fact.item.itemId) };
     case "approval.requested": {
       if (state.approvals.byId[fact.eventId] !== undefined) return state;
       const pending = { approvalId: fact.eventId, threadId: fact.threadId, seq: fact.seq, request: fact.request };
@@ -912,11 +928,7 @@ function applySnapshot(
     items[item.itemId] = item;
   }
   let ready: Transcript = { status: "ready", threadId: t.threadId, asOfSeq: input.asOfSeq, itemIds, items };
-  for (const h of t.held) {
-    if (h.seq > input.asOfSeq) {
-      ready = recordItem(ready, t.threadId, h.seq, h.item) ?? ready;
-    }
-  }
+  ready = recordItems(ready, t.held);
   let streaming = state.streaming;
   for (const id of itemIds) streaming = settleItem(streaming, id);
   return keep({ ...state, transcript: ready, streaming }, "applied");
@@ -943,15 +955,16 @@ export function pipeline<S, I, N extends string>(
   return stages.reduceRight<Reducer<S, I, N>>((next, stage) => stage(next), base);
 }
 
-/** 모든 입력과 결과를 메타데이터만 기록한다. 내용은 describe가 고른 필드만 들어간다 */
+/** 입력과 결과를 메타데이터만 기록한다. 내용은 describe가 고른 필드만 들어가고, null이면 기록하지 않는다 */
 export function journalStage<S, I, N extends string>(
   journal: Journal<N>,
   clock: Clock,
-  describe: (input: I) => JournalLabel,
+  describe: (input: I, note: N) => JournalLabel | null,
 ): Stage<S, I, N> {
   return (next) => (state, input) => {
     const reduced = next(state, input);
-    journal.record({ kind: "input", at: clock.now(), ...describe(input), note: reduced.note });
+    const label = describe(input, reduced.note);
+    if (label !== null) journal.record({ kind: "input", at: clock.now(), ...label, note: reduced.note });
     return reduced;
   };
 }
@@ -1027,11 +1040,21 @@ export function createJournal<N extends string>(capacity: number): Journal<N> {
 ```ts
 // src/state/engine/describe.ts
 import { assertNever } from "@xeon/contracts";
-import type { JournalLabel } from "../shared/journal.ts";
-import type { MirrorInput } from "./input.ts";
+import type { EngineState } from "../../transport/ipc.ts";
+import type { MirrorInput, VolatileFact } from "./input.ts";
+import type { ApplyNote } from "./reduce.ts";
+
+/** journal에 들어갈 수 있는 입력 이름. 내용 문자열은 이 유니온에 맞지 않아 컴파일 오류가 된다 */
+export type InputName =
+  | MirrorInput["type"]
+  | `subscribed:${"cursor" | "head"}`
+  | `chunk:${VolatileFact["type"]}`
+  | `engine:${EngineState["kind"]}`;
+
+export type InputLabel = { readonly input: InputName; readonly seq: number | null };
 
 /** journal에 남길 필드를 고르는 허용 목록. 새 입력 종류는 여기서 이름과 seq만 고른다 */
-export function describeInput(input: MirrorInput): JournalLabel {
+export function describeInput(input: MirrorInput): InputLabel {
   switch (input.type) {
     case "batch":
       return { input: "batch", seq: input.to };
@@ -1055,6 +1078,15 @@ export function describeInput(input: MirrorInput): JournalLabel {
       return assertNever(input, "describeInput");
   }
 }
+
+/**
+ * journalStage에 넘기는 기록 정책. 정상 적용된 휘발 조각은 기록하지 않는다.
+ * 델타가 초당 수십 건이라 1,000칸이 20초면 차고, 그러면 구멍·재설정 같은 중요한 항목이 밀려난다.
+ * 적용된 조각 수는 커밋 단위 flush 항목의 count가 센다. stale·duplicate 조각은 이상 징후라 남긴다.
+ */
+export function journalLabel(input: MirrorInput, note: ApplyNote): InputLabel | null {
+  return input.type === "chunk" && note === "applied" ? null : describeInput(input);
+}
 ```
 
 ### 12.4 프레임 시계와 스토어
@@ -1073,7 +1105,10 @@ type AnimationFrames = {
   cancelAnimationFrame(handle: number): void;
 };
 
-/** requestAnimationFrame과 타이머 중 먼저 오는 쪽으로 한 번 실행한다. 창이 숨겨져 rAF가 멈춰도 fallbackMs 안에 비운다 */
+/**
+ * requestAnimationFrame과 타이머 중 먼저 오는 쪽으로 한 번 실행한다. rAF가 멈춘 창에서도 타이머가 비운다.
+ * 숨겨진 창의 타이머는 WebView가 늦출 수 있다(WebKit은 약 1초, Chromium은 오래 숨기면 분 단위). fallbackMs는 상한 보장이 아니다
+ */
 export function createFrameClock(frames: AnimationFrames, scheduler: Scheduler, fallbackMs: number): FrameClock {
   return {
     request(run) {
@@ -1134,7 +1169,7 @@ import type { FrameClock } from "../shared/frame.ts";
 import type { Journal } from "../shared/journal.ts";
 import { guardStage, invariantStage, journalStage, pipeline, type Stage } from "../shared/pipeline.ts";
 import { readonlyView, type ReadonlyStore } from "../shared/readonly-store.ts";
-import { describeInput } from "./describe.ts";
+import { describeInput, journalLabel } from "./describe.ts";
 import type { MirrorInput } from "./input.ts";
 import { checkMirror } from "./invariants.ts";
 import { enterReset, MAX_SYNC_ATTEMPTS, reduceMirror, type ApplyNote } from "./reduce.ts";
@@ -1164,6 +1199,9 @@ export interface EngineStore {
 /** 이 시간 안에 reducer가 MAX_SYNC_ATTEMPTS번을 넘어 던지면 재설정을 멈추고 failed로 둔다 */
 export const REDUCER_FAILURE_WINDOW_MS = 60_000;
 
+/** 델타만 있던 커밋이 이 시간(ms)보다 오래 걸렸을 때만 journal에 flush 항목을 남긴다 */
+export const SLOW_COMMIT_MS = 8;
+
 export function createEngineStore(deps: EngineStoreDeps): EngineStore {
   const api = createStore<EngineMirror>()(() => INITIAL_MIRROR);
   // 재설정에 성공해도 같은 입력이 다시 던지면 link의 attempt가 사라진다. 그래서 던진 시각을 따로 센다
@@ -1177,7 +1215,7 @@ export function createEngineStore(deps: EngineStoreDeps): EngineStore {
       : { state: enterReset(state, "reducer_failed"), note: "failed" };
   };
   const stages: Stage<EngineMirror, MirrorInput, ApplyNote>[] = [
-    journalStage(deps.journal, deps.clock, describeInput),
+    journalStage(deps.journal, deps.clock, journalLabel),
     guardStage<EngineMirror, MirrorInput, ApplyNote>(
       recover,
       (cause, input) => {
@@ -1205,7 +1243,11 @@ export function createEngineStore(deps: EngineStoreDeps): EngineStore {
     let state = before;
     for (const input of inputs) state = reduce(state, input).state;
     if (state !== before) api.setState(state, true);
-    deps.journal.record({ kind: "flush", at: deps.clock.now(), count: inputs.length, ms: deps.monotonic() - started });
+    const ms = deps.monotonic() - started;
+    // 델타만 있는 빠른 커밋은 프레임마다 생긴다. 모두 남기면 17초 만에 1,000칸이 차서 중요한 항목이 밀려난다
+    if (ms > SLOW_COMMIT_MS || inputs.some((input) => input.type !== "chunk")) {
+      deps.journal.record({ kind: "flush", at: deps.clock.now(), count: inputs.length, ms });
+    }
   };
 
   return {
@@ -1521,6 +1563,18 @@ export function startLink(deps: LinkDeps): EngineLink {
   // 구독 응답보다 먼저 처리된 그 구독의 batch. 응답의 continuation은 마이크로태스크라 알림 처리기보다 늦을 수 있다
   let inFlight = false;
   let held: EventsBatchParams[] = [];
+  // 엔진은 연결당 구독 수를 제한한다(F.wire-settings.spec §3.4.3, 기본 16). 새 구독이 서면 이전 구독을 닫는다
+  let current: SubId | null = null;
+  let generation = 0;
+
+  const unsubscribe = async (sub: SubId): Promise<void> => {
+    const closed = await attemptAsync(() => deps.connection.request("events.unsubscribe", { sub }));
+    if (!closed.ok) {
+      deps.logger.warn("desktop.link.unsubscribe_failed", {
+        error: closed.error.cause instanceof Error ? closed.error.cause.name : "unknown",
+      });
+    }
+  };
 
   const ingestBatch = (p: EventsBatchParams): void => {
     deps.store.ingest({
@@ -1532,8 +1586,15 @@ export function startLink(deps: LinkDeps): EngineLink {
   const subscribe = async (from: "cursor" | "head"): Promise<void> => {
     const cursor = deps.store.read.getState().cursor;
     const position: StreamPosition | "head" = from === "cursor" && cursor !== null ? cursor : "head";
+    generation += 1;
+    const mine = generation;
     inFlight = true;
     const result = await attemptAsync(() => deps.connection.request("events.subscribe", { from: position }));
+    if (mine !== generation) {
+      // 더 새 요청이 이미 나갔다. 이 응답의 구독은 쓰지 않고 닫는다
+      if (result.ok) await unsubscribe(result.value.sub);
+      return;
+    }
     inFlight = false;
     const waiting = held;
     held = [];
@@ -1548,6 +1609,9 @@ export function startLink(deps: LinkDeps): EngineLink {
       return;
     }
     const r = result.value;
+    const previous = current;
+    current = r.sub;
+    if (previous !== null) detach(unsubscribe(previous), report);
     deps.store.ingest({
       type: "subscribed", sub: r.sub, storeId: r.storeId, start: r.start,
       live: r.mode === "live", from: position === "head" ? "head" : "cursor",
@@ -1610,6 +1674,8 @@ export function startLink(deps: LinkDeps): EngineLink {
     openThread: (threadId) => detach(loadTranscript(threadId), report),
     stop: () => {
       for (const off of offs) off();
+      if (current !== null) detach(unsubscribe(current), report);
+      current = null;
     },
   };
 }
@@ -1657,6 +1723,9 @@ root.render(<App engine={engine.read} ui={ui} link={link} />);
 | mirror-settled | `src/state/engine/reduce.test.ts`, `store.test.ts` | unit | 확정된 item과 끝난 turn의 늦은 조각은 stale이고 슬롯을 만들지 않음, 스냅샷에 든 슬롯 제거, 표식 상한 | FS-14 |
 | mirror-failed-absorbing | `src/state/engine/reduce.test.ts` | unit | `failed`에서 `subscribe_failed`가 와도 `failed`가 유지됨 | FS-17 |
 | store-reducer-failure-window | `src/state/engine/store.test.ts` | unit | 재구독이 성공한 뒤에도 같은 입력이 계속 던지면 4번째에 `failed` | FS-10, FS-17 |
+| journal-quiet-chunks | `src/state/engine/store.test.ts` | unit | 델타 3,000건을 넣어도 batch 항목이 밀려나지 않는다. `stale`·`duplicate` 조각은 남는다 | FS-13 |
+| mirror-bulk-recorded | `src/state/engine/reduce.test.ts` | unit | 한 batch의 `item.recorded` K건이 K개의 한 건짜리 batch와 같은 상태를 낸다(교체, 같은 id, 다른 thread, loading `held`). 교체만 있으면 `itemIds` 참조가 같다 | FS-14, FS-18 |
+| link-unsubscribe | `src/state/engine/link.test.ts` | unit | 새 구독이 서면 이전 구독을 닫는다. 겹친 요청의 낡은 응답은 닫고 무시한다. `stop()`이 현재 구독을 닫는다 | FS-17 |
 | link-stale-snapshot | `src/state/engine/link.test.ts` | unit | `stale` 스냅샷을 다시 읽어 `ready`가 됨, 구멍 batch가 재구독으로 메워짐, 응답보다 먼저 온 batch 보관 | §10 |
 | link-held-batches | `src/state/engine/link.test.ts` | unit | 구독 응답 전 도착한 batch가 subscribed 뒤에 들어간다(가짜 `HostConnection`) | §10 규칙 2 |
 | tape-transcript | `test/mirror-tape.contract.test.ts` | contract | CLI 테이프의 wire 메시지 열을 decode → reducer에 넣은 transcript가 CLI 결과와 같다 | D-03 |
@@ -1673,3 +1742,6 @@ root.render(<App engine={engine.read} ui={ui} link={link} />);
 8. [가정] 스파이크 측정(델타 0.5~1.3 µs)은 Bun 1.4.3의 JavaScriptCore 값이다. WKWebView, WebKitGTK에서는 S5에서 다시 잰다.
 9. [미결] 스트리밍 파트 텍스트 상한(§8).
 10. [미결] 휘발 조각의 `afterSeq`(발신 시점의 마지막 내구 seq, `F.wire-settings.spec` §3.4.4)를 `VolatileFact`가 버린다. 지금은 확정 표식으로 늦은 조각을 거르므로 쓰지 않는다. 표식 상한(256)을 넘는 지연이 실측에서 보이면 `afterSeq` 비교를 더한다.
+11. [가정] 숨겨진 창에서는 타이머도 늦춰진다(WebKit 약 1초, Chromium은 오래 숨기면 분 단위. MDN `setTimeout`의 지연 이유). 프레임 커밋 큐는 그동안 쌓인다. 델타 50건/초 × 60초 = 3,000개의 작은 입력이고 reducer 비용은 입력당 수 µs라 문제가 아니라고 본다. 복귀 때 큐 길이와 첫 커밋 ms를 S5에서 잰다. 길어지면 큐 길이 상한에서 동기 커밋을 건다.
+12. [미결] `subscribed(head)`가 `threads`, `transcript`, `approvals`를 비운 뒤 `thread.list`와 스냅샷이 올 때까지 `link`는 `live`이고 목록은 비어 있다. 화면이 "비어 있음"과 "아직 읽는 중"을 구분할 신호(`Threads`·`Transcript`의 loaded 표시, 또는 `link`의 `loading` 단계)가 없다. `thread.list` 실패는 로그만 남는다(12.7). 구현 때 `threads`에 `status: "loading" | "ready"`를 더하고 실패를 `subscribe_failed`와 같은 시도 상한에 태운다.
+13. [미결] 재설정(`reducer_failed`, `out_of_range`, `store_changed`)은 `approvals`를 비운다. `approval.list`(2번)가 생기기 전에는 대기 중이던 승인이 화면에서 사라지고 turn은 응답을 기다린다. `ThreadSummary.pendingApprovals`가 thread별 수만 보인다. 2번을 M2 F 요청의 필수 항목으로 올리고, 그 전까지 `pendingApprovals > 0`인 thread에 "승인 대기 중, 목록을 불러오지 못함" 표시를 둔다.
