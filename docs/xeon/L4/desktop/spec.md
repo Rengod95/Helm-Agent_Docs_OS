@@ -4,7 +4,7 @@ layer: L4
 domain: desktop
 kind: spec
 status: draft
-depends_on: [adr.0008, adr.0006, F.wire-settings.spec, L4.host-service.spec, eng.dependency-rules.guide, eng.toolchain.guide, eng.testing.guide, L0.os.spec, L0.process.spec]
+depends_on: [adr.0008, adr.0006, adr.0010, F.wire-settings.spec, L4.host-service.spec, eng.dependency-rules.guide, eng.toolchain.guide, eng.testing.guide, L0.os.spec, L0.process.spec]
 binds: [xeon/apps/desktop/**]
 ---
 
@@ -20,7 +20,7 @@ binds: [xeon/apps/desktop/**]
 - 서비스 모드(M3)에서 사이드카 대신 서비스 소켓에 접속하는 경로.
 - 메모리 예산의 측정 대상, 측정법, 줄이는 수단.
 - 플랫폼 지원 범위와 WebView 엔진 차이로 생기는 제약.
-- 프런트엔드 프레임워크 후보 비교 기준과 제안.
+- 프런트엔드 프레임워크(adr.0010)와 상태 모델의 위치(`L4.desktop.design`).
 - 화면 구성(스레드 목록, 트랜스크립트, 입력창, 승인 대기열, 상태 표시줄, 설정 진입).
 - `l4.desktop.*` 설정 키.
 - 앱 내부 모듈 경계(`eng.dependency-rules.guide` R14 위임분).
@@ -481,28 +481,13 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 
 ### 4.12 프런트엔드
 
-[결정: review.m2-plan §8 D2] 프레임워크는 React 19, 빌드는 `bun build`다. Preact는 사용자가 동작 예측성이 낮다고 판단해 채택하지 않았다. 아래 표는 결정 전 비교 기준과 후보다.
+[결정] 프레임워크는 React 19, 전역 상태는 Zustand 5다(adr.0010, 사용자 지시 2026-10-24). 빌드는 `bun build`를 유지하고 React Compiler는 M2에 넣지 않는다 [제안](adr.0010 §3.1).
 
-| 기준 | 이유 |
-|---|---|
-| TS 7 에디터 지원 | Vue, MDX, Astro, Svelte는 TS 7.0 에디터 미지원이다(`_research/stack-status.md §2` 에디터 미지원 행). TSX는 `tsc`(tsgo)가 직접 검사한다 |
-| 번들 크기·메모리 | 메모리 우선. 런타임 크기와 갱신 방식(세밀한 반응형 갱신, 가상 DOM)이 스트리밍 트랜스크립트의 메모리와 CPU에 영향을 준다 |
-| 빌드 도구 | `bun build`(HTML 진입점, JSX 내장 변환)만으로 되는지, Vite 8(Rolldown)이 필요한지. Vite를 들이면 새 도구라 `eng.toolchain.guide` TC-04 절차가 필요하다 |
-| 테스트 | `bun test`에서 컴포넌트 로직을 DOM 없이 시험할 수 있는지 |
-
-| 후보 | TS 7 에디터 | 런타임 크기 [가정] | 빌드 | 비고 |
-|---|---|---|---|---|
-| Preact + `@preact/signals` | TSX, 지원 | 작음(약 4 KB gzip 수준) | `bun build`로 충분(`jsxImportSource`) | 신호 기반 세밀 갱신 가능 |
-| Solid | TSX, 지원 | 작음 | JSX 변환에 Babel 플러그인이 필요해 사실상 Vite | 세밀 갱신이 기본 |
-| React 19 | TSX, 지원 | 큼 | `bun build` 가능 | 생태계가 가장 크다 |
-| Svelte 5 | 미지원 | 작음 | Vite 플러그인 | TS 7 에디터 미지원 |
-| Vue 3 | 미지원 | 중간 | Vite 플러그인 | TS 7 에디터 미지원 |
-| 프레임워크 없음(웹 표준 요소) | 지원 | 최소 | `bun build` | 화면 수가 늘면 상태 관리 코드를 직접 써야 한다 |
-
-- [결정: review.m2-plan §8 D2] React 19 + `bun build`. 새 빌드 도구 없이 TS 7 검사 경로가 하나로 유지된다. 패키지 추가는 TC-04 절차를 따른다.
-- [미결] 상태 관리 라이브러리는 정하지 않았다. 조사는 `_research/state-management.md`(추가 예정)에 둔다(§10 미결 11).
-- 런타임 크기 열은 공개 자료에서 흔히 인용되는 규모이고 이번 조사에서 재지 않았다 [가정].
-- `@tauri-apps/*`는 `apps/desktop`만 import한다(`eng.dependency-rules.guide` DR-07 표). `src-tauri/` 안 Rust 코드는 층 규칙 밖이다(DR-13 마지막 항목). TS 쪽은 층 규칙과 §4.9를 따른다.
+- 상태 모델(엔진 거울, 스트리밍 슬롯, 승인 대기열, 연결·재동기화 상태 기계, 로그 경로, 코드 골격)은 `L4.desktop.design`이 정한다.
+- 전역 상태 코드가 따르는 규칙은 `eng.frontend-state.guide`(FS-01~FS-23)다. 엔진 이벤트는 순수 reducer 하나로만 거울에 들어가고, 쓰기 미들웨어는 reducer 단계 세 개(journal → guard → invariants)이며, Zustand 미들웨어는 쓰지 않는다.
+- §4.10 줄이는 수단 4(`stream.chunk` 합치기)는 프레임마다 한 번 커밋하는 입력 큐로 구현한다(`L4.desktop.design` §8).
+- 비교 기준(TS 7 에디터 지원, 번들 크기·메모리, 빌드 도구, DOM 없는 시험)과 후보 비교는 `L4/desktop/_research/state-management.md`와 adr.0010 §5에 있다. 이전 판의 [제안](Preact + `@preact/signals`)은 adr.0010이 대체했다.
+- `react`, `react-dom`, `zustand`는 `apps/desktop`만 import한다(`eng.dependency-rules.guide` DR-07). `@tauri-apps/*`는 `apps/desktop`만 import한다(DR-07 표). `src-tauri/` 안 Rust 코드는 층 규칙 밖이다(DR-13 마지막 항목). TS 쪽은 층 규칙과 §4.9를 따른다.
 
 ### 4.13 화면 구성
 
@@ -613,7 +598,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 8. [미결] 메모리 예산 수치(§4.10 B1~B4). S5 측정 뒤 확정한다.
 9. [미결] WSL(WSLg)에서 데스크톱 앱의 지원 수준. 지원, 비공식 동작, 미지원 중 고른다.
 10. [미결] 최소 지원 macOS 버전과 Linux 배포판(WebKitGTK 버전). 빌드 타깃(V5)이 여기에 묶인다.
-11. [미결] 상태 관리 라이브러리. 프레임워크는 React 19 + `bun build`로 정했다([결정: review.m2-plan §8 D2], Preact는 채택하지 않음). 상태 관리 후보 조사는 `_research/state-management.md`(추가 예정)에 둔다.
+11. (닫힘) 프런트엔드 프레임워크와 상태 라이브러리는 React 19 + Zustand 5다(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`다.
 12. [미결] 자동 업데이트 채택(M3 이후). Tauri updater 플러그인과 서명 키 관리가 필요하다.
 13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). S3 spike 결과로 정한다. 이 문서는 stdio를 전제로 쓴다.
 14. [가정] Tauri `Channel`의 원시 바이트 전송, Rust API 사이드카의 capabilities 비적용, WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.

@@ -163,7 +163,7 @@ L4가 정하지 않는 것:
 | 2 | 단일 바이너리 `xeon` 대 `apps/host` 단독 사이드카. 확정 뒤 `eng.toolchain.guide` TC-10과 `xeon/apps/desktop/README.md` 문구 수정 | `L4.host-service.spec` §3.2, §10-2·3, `L4.desktop.spec` §10-1, `L4.cli.spec` §10-1 | 사용자 확인 |
 | 3 | `createHostConnection`·`StdioTransportFactory` 구현의 위치. host는 `@xeon/host/client`(desktop import는 DR-10 예외 추가), desktop은 F에 런타임 중립 구현 요청 | `L4.host-service.spec` §10-5, `L4.desktop.spec` §10-3 | 사용자 확인(DR-10 예외) 또는 F 변경 요청 |
 | 4 | TUI 선택(pi-tui 채택, 스택 표에 행 없음) | `L4.cli.spec` §10-6 | 사용자 확인 |
-| 5 | 데스크톱 프런트엔드 프레임워크(제안 Preact + `@preact/signals`) | `L4.desktop.spec` §10-11, `L4.settings-ui.spec` §10-16 | 사용자 확인 |
+| 5 | 닫음: 데스크톱 프런트엔드는 React 19 + Zustand 5(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`. `L4.settings-ui.spec` §10-16의 부품 형식과 `ui`·`visual` 시험 도입은 남는다 | `L4.desktop.spec` §10-11, `L4.settings-ui.spec` §10-16 | - |
 | 6 | Linux/WSL 데스크톱 지원 수준, 최소 macOS·WebKitGTK 버전 | `L4.desktop.spec` §10-9·10 | 사용자 확인 |
 | 7 | 비밀 입력·관리 wire 경로. 값 없는 `secret.*` 다섯은 F에 M2로 들어왔다. 열람은 M2 CLI `secret reveal`과 M3 화면(review.decisions-2 U-20). 남은 것: `secret.beginReveal` F 추가(U-04에 따라 M2 계획), in-process CLI가 읽은 값을 wire 밖으로 L0.secrets에 넘기는 `@xeon/host` API, C안 불가 OS의 대체 | `L4.cli.spec` §10-3, `L4.settings-ui.spec` §10-2, `L0.secrets.spec` §8.3 R4 | F 변경 요청(M2 계획), host-service 요청 |
 | 8 | 닫음: 원격은 M3에 로컬 소켓 터널로, 내장 TLS + 토큰 WebSocket은 2차(review.decisions-2 U-11) | `L4.host-service.spec` §4.11, §10-4 | - |

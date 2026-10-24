@@ -98,6 +98,7 @@ layout:
       - test-files
       - test-dirs
       - testing-dirs
+      - desktop-src
     paths:
       workspace: "xeon/**"
       packages: "xeon/packages/**"
@@ -120,6 +121,8 @@ layout:
       test-files: "xeon/**/*.test.ts"
       test-dirs: "xeon/**/test/**"
       testing-dirs: "xeon/packages/*/src/testing/**"
+      # 데스크톱 WebView TS 소스. eng.frontend-state.guide가 쓴다. 다른 UI 코드는 tsx-sources로 잡는다
+      desktop-src: "xeon/apps/desktop/src/**"
 
 # 산출 문서 목록 (작성 대상). id는 <층>.<도메인>.<종류>.
 manifest:
@@ -136,6 +139,7 @@ manifest:
     - eng.best-practices.guide
     - eng.testing.guide
     - eng.toolchain.guide
+    - eng.frontend-state.guide
   decisions:
     - adr.0001   # 스택(Bun, TS7, oxlint/oxfmt, bun test, turbo)
     - adr.0002   # DI는 Cordis 하나
@@ -146,4 +150,5 @@ manifest:
     - adr.0007   # 확장 지점 4연산(on/post/drive/scope)
     - adr.0008   # 데스크톱 Tauri 2 + 엔진 사이드카
     - adr.0009   # 자체 에이전트 루프(pi-agent-core 루프 포크, 의존 제거)
+    - adr.0010   # 데스크톱 프런트엔드 React 19 + Zustand 5
   layers: "각 층마다 <층>.readme 1개 + 도메인마다 spec, plan (layout.domains 참조)"

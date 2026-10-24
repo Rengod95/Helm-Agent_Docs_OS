@@ -41,7 +41,7 @@ binds: [xeon/apps/desktop/**]
 
 ```
 xeon/apps/desktop/
-  package.json                    # @xeon/desktop. 의존: @xeon/contracts(workspace:*), typebox, react·react-dom 19(review.m2-plan D2), 상태 관리 라이브러리([미결])
+  package.json                    # @xeon/desktop. 의존: @xeon/contracts(workspace:*), typebox, react·react-dom·zustand(adr.0010)
   tsconfig.json                   # src: DOM lib, types []. test: bun 타입(별도 tsconfig.test.json) [제안]
   bunfig.toml                     # [test] coverageThreshold lines 0.5, functions 0.5 (eng.testing.guide TS-10 L4 행)
   sidecar.json                    # 사이드카 이름·인자·triple 표의 단일 원천 [제안]
@@ -268,13 +268,14 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 | `tauri-plugin-notification` | 2.x [미확인] | `src/shell/**`, M3 | spec §4.8 |
 | Rust 툴체인 | 1.84 이상, 정확 버전 [미확인] | `rust-toolchain.toml` | `rustc --print host-tuple`에 1.84+ 필요(adr.0008 §3.2) |
 | `typebox` | 1.3.27 | IPC 스키마 | catalog. pi-ai와 같은 판(review.decisions-2 U-24) |
-| `preact`, `@preact/signals` | 정확 버전 [미확인] | `src/views/**` | 프레임워크 [미결]. 결정되면 TC-04 절차로 catalog에 더한다 |
+| `react`, `react-dom` | 19.3.1(조사 시점) | `src/views/**`, `src/state/*/hooks.ts` | [결정] adr.0010. D6 착수 때 최신 19.x를 확인해 catalog에 정확히 고정한다. 타입은 `@types/react`, `@types/react-dom` |
+| `zustand` | 5.0.16(조사 시점) | `src/state/*/store.ts`, `src/state/*/hooks.ts`(`eng.frontend-state.guide` FS-06) | [결정] adr.0010. 같은 방식으로 고정한다 |
 
 - 포크 원본: 없다.
 - 구조 참고(코드 복사 없음):
   - Tauri 사이드카 공식 문서 https://v2.tauri.app/develop/sidecar/ (externalBin, triple 규칙, capabilities).
   - opencode `standalone.ts`의 stdin EOF 임대(`_research/process.md §6.4`, adr.0006 §3.7 6번 근거 `standalone.ts:23-27`). 엔진 쪽 구현은 `L4.host-service.plan` 몫이고, 데스크톱은 그 동작을 전제로 테스트한다.
-- D2 착수 때 확정할 버전 목록(확정 전까지 [미확인]): `@tauri-apps/api`, `tauri-plugin-shell`, `tauri-plugin-single-instance`, `tauri-plugin-notification`, Rust 툴체인(`rust-toolchain.toml`), `preact`, `@preact/signals`(프레임워크 결정 뒤). D2 완료 조건에 이 목록의 정확 버전 기록을 넣는다.
+- D2 착수 때 확정할 버전 목록(확정 전까지 [미확인]): `@tauri-apps/api`, `tauri-plugin-shell`, `tauri-plugin-single-instance`, `tauri-plugin-notification`, Rust 툴체인(`rust-toolchain.toml`). `react`, `react-dom`, `zustand`는 D6 착수 때 같은 방식으로 기록한다. D2 완료 조건에 이 목록의 정확 버전 기록을 넣는다.
 - 모든 TS 의존은 `xeon/package.json` catalog에 정확 버전으로 둔다(TC-01, TC-02). Rust crate는 `Cargo.toml`에 `=` 버전으로 두고 `Cargo.lock`을 커밋한다 [제안].
 
 ## 5. 단위 테스트 목록
@@ -303,7 +304,7 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 
 - `e2e` 태그는 `just verify`에서 제외한다(`eng.testing.guide` TS-01 표). CI에서 수동 실행과 야간 실행으로 둔다.
 - `int` 테스트는 파일당 10초 이하, 실제 시간 대기는 조건 대기(폴링 + 상한)로만 한다(`eng.testing.guide` TS-01, 4절).
-- `ui` 부품 테스트는 계속 보류한다(`eng.testing.guide` TS-01 버린 계층 표). M2 D6에서 화면 로직은 신호·상태 함수로 떼어 `unit`으로 시험한다 [제안].
+- `ui` 부품 테스트는 계속 보류한다(`eng.testing.guide` TS-01 버린 계층 표). M2 D6에서 화면 로직은 상태 reducer·선택자로 떼어 `unit`으로 시험한다(`eng.frontend-state.guide` FS-23, `L4.desktop.design` §13 시험 목록).
 - Rust 테스트(`cargo test`)는 `just verify`에 넣지 않는다. Rust 툴체인이 없는 환경에서 verify가 종료코드 2로 끝나지 않게 하기 위해서다. `desktop-build` CI job에서 돈다 [제안].
 - 테스트 경로는 `import.meta.dir` 기준으로 만든다(`eng.testing.guide` TS-06).
 

@@ -82,8 +82,9 @@ binds: []
 | 0007 | 확장 지점 4연산 | [ADR-0007-ext-points.md](ADR-0007-ext-points.md) | accepted | on(fold tap/first/chain), post, drive(배타 임대, 기본 상한은 pi 방식의 예외), scope 4연산. 켜기·끄기와 임대 교대는 단계 경계. 지점 종류 5개와 지점 목록은 [제안](미합의) | decisions-log 2026-10-21 계획 v2 | F(extensions), X, L1, L3 |
 | 0008 | 데스크톱 Tauri 2 + 엔진 사이드카 | [ADR-0008-desktop-tauri.md](ADR-0008-desktop-tauri.md) | accepted | Tauri 2.12(시스템 WebView, 3플랫폼) + `bun build --compile` 엔진 사이드카 + stdio JSON-RPC | decisions-log 3차, foundation-plan §1 표 3번·§2 데스크톱 행 | L4(desktop, settings-ui) |
 | 0009 | 자체 에이전트 루프 | [ADR-0009-own-agent-loop.md](ADR-0009-own-agent-loop.md) | accepted | pi-agent-core 의존 제거. 1.3.0(MIT) 루프를 core-loop로 포크해 자체 루프로 재설계(진입점 `runTurn(entry)`, 단계 경계 커밋·확장 지점을 루프 코드가 직접 호출, 도구 단계는 core-tools 단계 계약). F가 `AgentMessage`·`AgentEvent`·`AgentTool`을 직접 정의. pi-ai는 유지 | 사용자 지시 2026-10-22, decisions-log 2026-10-21 첫 결정 | F(conversation), L1(loop, tools, models) |
+| 0010 | 데스크톱 프런트엔드 상태 | [ADR-0010-desktop-frontend-state.md](ADR-0010-desktop-frontend-state.md) | accepted | React 19 + Zustand 5. 엔진 거울 하나 + UI 스토어, 순수 reducer, 쓰기 미들웨어는 reducer 단계 3개(journal → guard → invariants), Zustand 미들웨어 미사용, 스트리밍 슬롯 + 프레임 커밋. Preact + signals 제외 | 사용자 지시 2026-10-24 | L4(desktop, settings-ui) |
 
-- 상태 열은 각 ADR 파일 프런트매터의 `status`와 같아야 한다. 이 색인을 쓴 시점(2026-10-21)에 0001~0008 여덟 파일 모두와 대조했다. 0009는 2026-10-22에 더했다.
+- 상태 열은 각 ADR 파일 프런트매터의 `status`와 같아야 한다. 이 색인을 쓴 시점(2026-10-21)에 0001~0008 여덟 파일 모두와 대조했다. 0009는 2026-10-22에, 0010은 2026-10-24에 더했다.
 - 0005~0008의 핵심 결정 열은 조정자가 전달한 요약이다. 정확한 문구는 각 ADR이 기준이다.
 
 ## 3. ADR 사이 의존
@@ -101,6 +102,7 @@ flowchart LR
   A7["0007 확장 지점<br/>4연산"]
   A8["0008 데스크톱<br/>Tauri 2 + 사이드카"]
   A9["0009 자체 루프<br/>pi-agent-core 포크"]
+  A10["0010 데스크톱 상태<br/>React 19 + Zustand 5"]
 
   A1 --> A2
   A2 --> A7
@@ -115,12 +117,15 @@ flowchart LR
   A3 --> A9
   A4 --> A9
   A7 --> A9
+  A1 --> A10
+  A8 --> A10
 ```
 
 - 0001 → 0008: 사이드카는 `bun build --compile`로 만든다.
 - 0002 → 0005: 검색 provider는 Cordis 서비스로 등록·교체한다(ADR-0005 `depends_on`).
 - 0006 → 0007: 확장 지점의 적용 시점(단계 경계)과 실행 위치가 프로세스 구조를 전제한다(ADR-0007 `depends_on`).
 - 0003·0004·0007 → 0009: 자체 루프는 커널 직접 구현(0003)을 이어받고, 단계 경계 커밋(0004)과 확장 지점 4연산(0007)을 루프 코드에서 직접 호출한다. 0009는 0003 §3.2 마지막 항목을 대체한다.
+- 0001·0008 → 0010: UI 코드는 0001의 TypeScript·`bun build`·`bun test` 스택을 따르고, 0008의 시스템 WebView와 stdio 릴레이 위에서 돈다.
 - 0003은 0004의 이벤트 소싱 결정과 맞물리지만 `depends_on`에는 0002만 둔다. 커널 저장 규칙은 0003 본문에서 0004를 참조한다.
 
 ## 4. 아직 ADR이 아닌 결정
@@ -157,7 +162,7 @@ flowchart LR
 | L2 `cap-web` | 0005 | `L2.web.spec` |
 | L3 그룹(`group-kit`, `group-helm`, `group-learning`) | 0007, 0002 | `L3.group-kit.spec`, `F.extensions.spec` |
 | L4 `apps/cli`, `apps/host` | 0006 | `L4.cli.spec`, `L4.host-service.spec` |
-| L4 `apps/desktop` | 0008, 0006 | `L4.desktop.spec` |
+| L4 `apps/desktop` | 0008, 0006, 0010 | `L4.desktop.spec`, `L4.desktop.design`, `eng.frontend-state.guide` |
 
 - ADR과 스펙이 어긋나면 ADR이 우선한다. 스펙을 고치거나, 결정 자체가 바뀌어야 하면 §1.4 번복 절차를 밟는다.
 - ADR의 `[가정]`과 `[미결]`은 구현 중 확인 대상이다. 확인 결과는 해당 ADR의 미결 사항 절이나 `_research/notes/`에 남긴다.

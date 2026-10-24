@@ -301,6 +301,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 | `age-encryption` | `platform-secrets` | `L0.secrets.plan` SC-13(파일 폴백 키 생성) |
 | `cordis`, `@cordisjs/*`, `vendor/cordis` | `ext-host` | DR-11 |
 | `@tauri-apps/*` | `apps/desktop` | foundation-plan §2 데스크톱 행 |
+| `react`, `react-dom`, `zustand` | `apps/desktop`. 앱 안 import 위치는 `eng.frontend-state.guide` FS-06이 더 좁힌다 | adr.0010 §3.3 [결정: 2026-10-24 사용자 지시] |
 | `node:*`, `bun:*`, Bun 전역 | F(`contracts`)에서 금지 | 06 R4를 F에 한정해 옮긴다. F는 데스크톱 WebView에서도 import되므로 런타임 중립이어야 한다 [제안] |
 
 - [결정: review.decisions-2 U-17] F의 pi 타입 재노출 예외: `contracts`는 `@earendil-works/pi-ai`를 `import type`과 `export type`으로만 쓸 수 있다. 값 import는 금지다. 근거는 `F.readme` §1 허용 외부 의존과 `F.conversation.spec` §3.1 규칙 1이다. `check-layers.ts`는 F에서 이 모듈의 값 import를 `DR-07`로 거부한다. `@earendil-works/pi-agent-core`는 F에서도 타입 import까지 금지다(adr.0009).
