@@ -1,12 +1,4 @@
 // XEON-PATCH: P12
-import type { ImageLimits } from "@xeon/contracts/capabilities";
-
-export const DEFAULT_IMAGE_LIMITS: ImageLimits = {
-  maxWidth: 2000,
-  maxHeight: 2000,
-  maxBytes: 4.5 * 1024 * 1024,
-};
-
 /** Formats every provider takes inline; others, such as BMP, need converting. */
 export const INLINE_IMAGE_TYPES: ReadonlySet<string> = new Set([
   "image/png",

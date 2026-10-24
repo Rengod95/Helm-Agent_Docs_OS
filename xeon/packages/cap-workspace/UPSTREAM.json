@@ -32,7 +32,7 @@
   "partialCopies": [
     "packages/durable/src/harness/output.ts -> src/upstream/output.ts (Progress와 PROGRESS_BYTES_PER_SECOND 외 나머지를 뺐다. 상수만 남겼다)",
     "packages/durable/src/env/decode.ts -> src/files/upstream/decode.ts (rangeDecoder, startsWithBom만. StreamDecoder를 뺐다)",
-    "packages/durable/src/tools/image-processor.ts -> src/images/upstream/image-processor.ts (ImageProcessor, PreparedImage, toBase64를 뺐다. 처리기는 2차. 상수 DEFAULT_IMAGE_LIMITS, INLINE_IMAGE_TYPES와 base64Length만 남겼다)"
+    "packages/durable/src/tools/image-processor.ts -> src/images/upstream/image-processor.ts (ImageProcessor, PreparedImage, toBase64를 뺐다. 처리기는 2차. 상수 INLINE_IMAGE_TYPES와 base64Length만 남겼다)"
   ],
   "notCopied": [
     "packages/durable/src/tools/env.ts (requireEnv는 서비스 주입으로 대체. L2.workspace.plan §2)",
