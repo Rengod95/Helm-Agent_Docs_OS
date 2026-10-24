@@ -103,6 +103,10 @@
     "packages/cap-web": {
       "name": "@xeon/cap-web",
       "version": "0.0.0",
+      "dependencies": {
+        "@xeon/contracts": "workspace:*",
+        "typebox": "catalog:",
+      },
       "devDependencies": {
         "@types/bun": "catalog:",
       },
