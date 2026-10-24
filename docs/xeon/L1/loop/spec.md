@@ -499,7 +499,7 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 | `step.started`는 있고 T3 없음(스트리밍 중 끊김, K1) | 앞 체크포인트 `next: "request"` 또는 체크포인트 없음 | 같은 단계의 모델 요청을 다시 보낸다. 컨텍스트는 커밋된 이벤트로만 만들므로 요청 본문이 같다. 매퍼 `startStepIndex`는 그 단계 번호, 단계 id는 기록된 `step.started`의 것 | `request` |
 | `next: "request"` | T4 체크포인트 | 다음 단계를 연다. `startStepIndex = stepIndex + 1`. `runTurn({ kind: "request" })` | `request` |
 | `next: "tools"` | T3 체크포인트 | `pendingToolCalls`마다: `effect.result`가 있으면 그 결과, intent만 있으면 L1.tools의 복구 판정 결과, intent가 없으면 L1.tools 파이프라인으로 새로 실행(`tool_call` 지점 발화 포함). 모든 결과가 모이면 T4를 커밋하고 `next`에 따라 계속한다. `runTurn({ kind: "tools" })`로 들어가 주 경로와 같은 `runToolBatch`·`endStep`을 쓴다. 새 실행은 `tools.prepare`·`execute` 단계 계약이다(L1.tools.spec §3.3) | `tools` |
-| `next: "await_input"` | T4 체크포인트, `pendingToolCalls[].waiting` | 모델을 부르지 않는다. 승인·`input_required` 응답을 기다리는 상태로 둔다. `waiting: "approval"` 호출은 `ApprovalService.restore` 뒤 `runTurn({ kind: "tools", awaitInput: true })`로 다시 `tools.prepare`를 거쳐 같은 승인 요청을 이어 기다린다(L1.tools.spec §4.7). 응답이 기록되면 `tools` 행처럼 이어간다 | `await_input` |
+| `next: "await_input"` | 승인 대기 커밋(A1)의 체크포인트(L1.tools.spec §4.7 2번)이거나 `deferred` 응답의 T4 체크포인트, `pendingToolCalls[].waiting`. 승인 대기 체크포인트의 `next`는 이 값 하나다(review.open-issues D-06) | 모델을 부르지 않는다. 승인·`input_required` 응답을 기다리는 상태로 둔다. `waiting: "approval"` 호출은 `ApprovalService.restore` 뒤 `runTurn({ kind: "tools", awaitInput: true })`로 다시 `tools.prepare`를 거쳐 같은 승인 요청을 이어 기다린다(L1.tools.spec §4.7). 응답이 기록되면 `tools` 행처럼 이어간다 | `await_input` |
 | `next: "turn_end"` | T4 체크포인트 | 요청을 보내지 않는다. T6가 없으면 소유 작업 정착을 확인하고 T6를 커밋한 뒤 `agent_end`, `agent_settled`를 발화한다 | `turn_end` |
 | `turn.abort_requested` 있음, 또는 소유 사슬에 취소 의도 | `L1.tasks.spec` §4.8 3항 | 재개하지 않는다. 열린 효과를 결과 불명·`not_executed`로 닫은 뒤 T6 `interrupted` | `closed` |
 

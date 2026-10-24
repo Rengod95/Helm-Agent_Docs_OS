@@ -240,8 +240,19 @@ describe("checkpoints", () => {
       })),
     ).toThrow("store.checkpoint_without_step");
     expect(h.store.tableHashes()).toEqual(before);
+    // D-06: 승인 대기 체크포인트의 next는 await_input 하나다. tools는 승인 대기가 아니다
+    expect(() =>
+      commitResult(h, threadId, "cp:approval-tools", (): CommitPlan => ({
+        kind: "append",
+        drafts: [draftOf(h, h.loop, "step.started", threadId, scope, { stepIndex: 0 })],
+        checkpoint: {
+          ...checkpointInput(turn.turnId, stepId, 0, "tools"),
+          pendingToolCalls: [{ toolCallId: "tc1", effectId: null, waiting: "approval" }],
+        },
+      })),
+    ).toThrow("store.checkpoint_without_step");
     const waiting: StepCheckpointInput = {
-      ...checkpointInput(turn.turnId, stepId, 0, "tools"),
+      ...checkpointInput(turn.turnId, stepId, 0, "await_input"),
       pendingToolCalls: [{ toolCallId: "tc1", effectId: null, waiting: "approval" }],
     };
     const ok = commitOrThrow(h, threadId, "cp:approval", () => ({
