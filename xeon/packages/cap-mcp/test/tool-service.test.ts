@@ -1,8 +1,14 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug } from "@xeon/contracts";
+import { Bug, repeatAsync } from "@xeon/contracts";
 import type { AssistantMessage } from "@xeon/contracts/conversation";
 import type { PortKey } from "@xeon/contracts/extensions";
-import { ToolServicePortKey, type Redactor, type ToolService } from "@xeon/contracts/services";
+import {
+  ApprovalServicePortKey,
+  ToolServicePortKey,
+  type ApprovalService,
+  type Redactor,
+  type ToolService,
+} from "@xeon/contracts/services";
 import { toolsPlugin } from "@xeon/core-tools";
 import {
   fakeRedactor,
@@ -15,6 +21,7 @@ import {
 import { createTestHost } from "@xeon/ext-host/testing";
 import { createToolServiceRegistrar } from "../src/client/register.ts";
 import { wrapUntrustedMcp } from "@xeon/contracts/capabilities";
+import type { StubCall, StubOutcome } from "../src/testing/stub-server.ts";
 import { buildWorld, startWorld, type World } from "./support/world.ts";
 
 // MCP.4 (E6): 연결된 서버의 도구가 실제 core-tools `ToolService`의 광고 목록에 단계 경계에서 나타난다.
@@ -66,9 +73,11 @@ async function bootTools() {
   await t.host.install(toolsPlugin({ clock, ids, settings: { layers: () => [] } }));
   const tools: ToolService | undefined = t.host.ports.get(ToolServicePortKey);
   if (tools === undefined) throw new Bug("test.tools_port_missing");
+  const approvals: ApprovalService | undefined = t.host.ports.get(ApprovalServicePortKey);
+  if (approvals === undefined) throw new Bug("test.approvals_port_missing");
   const thread = ids.next("thr");
   await t.host.openThread(thread);
-  return { tools, session, ids, thread };
+  return { tools, approvals, session, ids, thread };
 }
 
 const ASSISTANT: AssistantMessage = {
@@ -173,9 +182,85 @@ describe("MCP tools in the real ToolService", () => {
     expect(first?.type === "text" ? first.text : "").toBe(wrapUntrustedMcp("stub", "ok echo"));
   });
 
-  // 남은 연결(L2.mcp.plan §8.1 MCP.4, §8.5): ToolService가 `input_required` 결과를 알아보려면 F에 `AgentToolResult.status`와
-  // `AgentTool.execute`의 연속 정보 인자가 필요하고, core-tools 어댑터가 `McpInputRequiredSchema` 변형을 질문 승인으로 올려야 한다.
-  test.todo(
-    "an input_required result of a dynamic tool raises a kind question approval and the retry carries the continuation",
-  );
+  test("an input_required result of a dynamic tool raises a kind question approval and the retry carries the continuation", async () => {
+    const { tools, approvals, session, ids, thread } = await bootTools();
+    const seen: StubCall[] = [];
+    const world = buildWorld({
+      servers: {
+        stub: {
+          stub: {
+            era: "modern",
+            tools: [
+              {
+                name: "ask",
+                description: "Asks one question",
+                annotations: { readOnlyHint: true },
+                handle: (call: StubCall): StubOutcome => {
+                  seen.push(call);
+                  return call.inputResponses === undefined
+                    ? {
+                        kind: "input_required",
+                        inputRequests: {
+                          q1: {
+                            method: "elicitation/create",
+                            params: {
+                              mode: "form",
+                              message: "Who are you?",
+                              requestedSchema: {
+                                type: "object",
+                                properties: { name: { type: "string" } },
+                                required: ["name"],
+                              },
+                            },
+                          },
+                        },
+                        requestState: "state-1",
+                      }
+                    : {
+                        kind: "complete",
+                        content: [{ type: "text", text: JSON.stringify(call.inputResponses) }],
+                      };
+                },
+              },
+            ],
+          },
+          def: { trustAnnotations: true },
+        },
+      },
+      overrides: { tools: createToolServiceRegistrar(tools) },
+    });
+    worlds.push(world);
+    await startWorld(world);
+    await world.runtime.applyBoundary();
+
+    const run = fakeRunContext({ session, ids, threadId: thread });
+    const prepared = await tools.prepare(
+      { type: "toolCall", id: "mcp_ask", name: "ask", arguments: {} },
+      ASSISTANT,
+      run,
+    );
+    if (prepared.kind === "settled") throw new Bug("test.call_settled");
+    const executing = tools.execute(prepared.call, () => {}, run);
+    const request = await repeatAsync(() => {
+      const [first] = approvals.pending(thread);
+      return Promise.resolve(first === undefined ? undefined : { value: first });
+    });
+    expect(request.body.kind).toBe("question");
+    expect(request.origin.toolCallId).toBe("mcp_ask");
+    expect(
+      await approvals.respond(request.approvalId, {
+        decision: "answer",
+        answer: { q1: { selected: [], text: "Ada" } },
+      }),
+    ).toEqual({ applied: true });
+    const outcome = await executing;
+    expect(outcome.isError).toBe(false);
+    expect(seen.map((call) => call.inputResponses)).toEqual([
+      undefined,
+      { q1: { action: "accept", content: { name: "Ada" } } },
+    ]);
+    expect(seen[1]?.requestState).toBe("state-1");
+    const first = outcome.result.content[0];
+    expect(first?.type === "text" ? first.text : "").toContain("Ada");
+  });
 });

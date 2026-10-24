@@ -69,6 +69,31 @@ export function inputRequestOf(output: unknown): InputRequest | undefined {
       };
 }
 
+/**
+ * 직접 등록 도구(`DirectToolRegistration.executeWithContinuation`)의 결과를 `McpInputRequired`로 읽는다. 결과가 `input_required`가 아니면
+ * undefined, 그 모양이 어긋나면 invalid다. 라운드와 질문은 `details`, 요청 본문과 상태는 `inputRequired`에 있다
+ */
+export function inputRequestOfResult(result: {
+  readonly status?: "complete" | "input_required" | undefined;
+  readonly details?: unknown;
+  readonly inputRequired?:
+    | { readonly inputRequests: unknown; readonly requestState: unknown }
+    | undefined;
+}): InputRequest | undefined {
+  if (result.status !== "input_required") return undefined;
+  const details = isRecord(result.details) ? result.details : undefined;
+  const parsed = parse(McpInputRequiredSchema, {
+    status: "input_required",
+    round: details?.["round"],
+    inputRequests: result.inputRequired?.inputRequests,
+    requestState: result.inputRequired?.requestState,
+    questions: details?.["questions"],
+  });
+  return parsed.ok
+    ? { kind: "mcp", request: parsed.value }
+    : { kind: "invalid", detail: "the tool result is not an MCP input request" };
+}
+
 export type McpInputStep =
   /** 다시 부를 연속 정보 */
   | { readonly kind: "retry"; readonly continuation: CallContinuation }

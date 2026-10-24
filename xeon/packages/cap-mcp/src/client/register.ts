@@ -15,8 +15,9 @@ import type { McpDynamicTool } from "./dynamic-tools.ts";
 // - ToolService.register(DirectToolRegistration): 순서 키 `mcp.<서버>`, 힌트, 정책 메타(mcpServer)를 싣는다. 권장.
 // - ToolsPort.register(ToolResourceDef): X 리소스 등록 경로. 순서 키가 `ext.<확장>`이 되고 힌트를 싣지 못한다.
 //
-// 두 경로 모두 도구 실행 시그니처에 연속 정보(`continuation`) 자리가 없다. 서버 주도 요청(MCP.4)의 두 번째 라운드는
-// F의 `CallOptions` 확장(L1.tools.spec §8.3 F 요청 12)이 들어온 뒤에 이 어댑터가 넘긴다.
+// 서버 주도 요청(MCP.4)의 두 번째 라운드는 연속 정보(`continuation`)가 필요한데 `AgentTool.execute`와 `ToolResourceDef.execute`에는 자리가 없다.
+// 직접 등록 경로는 `executeWithContinuation`으로 이를 받고, L1.tools가 `input_required`를 질문 승인으로 올려 같은 호출을 다시 부른다(결정 D5 (a)).
+// 리소스 등록 경로에는 이 자리가 없어 서버 주도 요청이 오는 서버에는 직접 등록 경로를 써야 한다.
 
 export interface DirectToolHost {
   register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
@@ -40,12 +41,21 @@ export function createToolServiceRegistrar(host: DirectToolHost): McpToolRegistr
         execute: (toolCallId, params, signal) =>
           tool.execute(asJsonObject(params) ?? {}, { signal, requestId: toolCallId }),
       };
+      const executeWithContinuation: NonNullable<
+        Extract<ToolRegistration, { kind: "direct" }>["executeWithContinuation"]
+      > = (call) =>
+        tool.execute(asJsonObject(call.params) ?? {}, {
+          signal: call.signal,
+          requestId: call.toolCallId,
+          ...(call.continuation === undefined ? {} : { continuation: call.continuation }),
+        });
       const registered = host.register({
         kind: "direct",
         orderKey: tool.orderKey,
         tool: agentTool,
         hints: tool.hints,
         policy: { mcpServer: tool.server },
+        executeWithContinuation,
       });
       return registered.ok ? ok(registered.value) : err(conflict(registered.error));
     },

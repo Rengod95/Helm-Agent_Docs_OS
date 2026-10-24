@@ -2,6 +2,7 @@ import { Bug, canonicalJson, parse } from "@xeon/contracts";
 import { isCapabilityError } from "@xeon/contracts/capabilities";
 import type {
   CallContext,
+  CallContinuation,
   CallOptions,
   CapabilityErrorData,
   MethodDef,
@@ -10,7 +11,12 @@ import type {
   ToolSpec,
 } from "@xeon/contracts/capabilities";
 import { toReplayPolicy } from "@xeon/contracts/conversation";
-import type { JsonObject, JsonValue, TextContent } from "@xeon/contracts/conversation";
+import type {
+  AgentToolResult,
+  JsonObject,
+  JsonValue,
+  TextContent,
+} from "@xeon/contracts/conversation";
 import type { ScopeId, ToolResourceDef } from "@xeon/contracts/extensions";
 import type {
   CapabilityToolsRegistration,
@@ -18,7 +24,12 @@ import type {
   ToolMeta,
   ToolRegistration,
 } from "@xeon/contracts/services";
-import { inputRequestOf, answerMcpInput, type InputBridge } from "./mcp-input.ts";
+import {
+  inputRequestOf,
+  inputRequestOfResult,
+  answerMcpInput,
+  type InputBridge,
+} from "./mcp-input.ts";
 import { deriveRisk } from "./policy/modes.ts";
 import type { RawCall, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
 import { isJsonValue, messageOf, sha256Hex } from "./util.ts";
@@ -253,7 +264,69 @@ function capabilityEntries(
   });
 }
 
-function directEntry(registration: DirectToolRegistration): ToolEntry {
+type DirectStep =
+  | { readonly kind: "done"; readonly result: AgentToolResult }
+  | { readonly kind: "stopped"; readonly outcome: RawOutcome };
+
+/**
+ * 직접 등록 도구를 부른다. `executeWithContinuation`이 있고 결과가 `input_required`(MCP 서버 주도 요청)이면 질문 승인을 올려 답을 기다리고,
+ * 답을 연속 정보로 실어 같은 호출을 다시 부른다(결정 D5 (a)). 없으면 `tool.execute` 한 번이다
+ */
+async function settleDirectInput(
+  registration: DirectToolRegistration,
+  bridge: InputBridge,
+  call: RawCall,
+): Promise<DirectStep> {
+  const { tool, executeWithContinuation } = registration;
+  if (executeWithContinuation === undefined) {
+    return {
+      kind: "done",
+      result: await tool.execute(call.toolCallId, call.params, call.signal, call.onUpdate),
+    };
+  }
+  const stopped = (code: string, text: string, interrupted: boolean = false): DirectStep => ({
+    kind: "stopped",
+    outcome: errorOutcome(text, { code, tool: tool.name }, interrupted),
+  });
+  // 라운드마다 다시 부르므로 재귀로 잇는다(위 `settleInput`과 같다). 횟수 상한은 `MAX_INPUT_ROUNDS`다
+  const attempt = async (
+    round: number,
+    continuation: CallContinuation | undefined,
+  ): Promise<DirectStep> => {
+    const result = await executeWithContinuation({
+      toolCallId: call.toolCallId,
+      params: call.params,
+      signal: call.signal,
+      onUpdate: call.onUpdate,
+      continuation,
+    });
+    const request = inputRequestOfResult(result);
+    if (request === undefined) return { kind: "done", result };
+    if (request.kind !== "mcp") {
+      return stopped(
+        "input_required_invalid",
+        `[xeon:input_required_invalid] ${tool.name} returned an input request this runtime cannot read.`,
+      );
+    }
+    if (round >= MAX_INPUT_ROUNDS) {
+      return stopped(
+        "input_required_loop",
+        `[xeon:input_required_loop] ${tool.name} kept asking for input after ${MAX_INPUT_ROUNDS} rounds.`,
+      );
+    }
+    const step = await answerMcpInput({
+      toolName: tool.name,
+      request: request.request,
+      call,
+      bridge,
+    });
+    if (step.kind === "stopped") return stopped(step.code, step.text, step.interrupted);
+    return attempt(round + 1, step.continuation);
+  };
+  return attempt(1, undefined);
+}
+
+function directEntry(registration: DirectToolRegistration, bridge: InputBridge): ToolEntry {
   const { tool } = registration;
   const mcpServer = registration.policy?.mcpServer;
   return {
@@ -273,7 +346,9 @@ function directEntry(registration: DirectToolRegistration): ToolEntry {
     exposure: registration.exposure ?? (mcpServer === undefined ? "always" : "auto"),
     outputLimits: registration.outputLimits ?? {},
     raw: async (call) => {
-      const result = await tool.execute(call.toolCallId, call.params, call.signal, call.onUpdate);
+      const settled = await settleDirectInput(registration, bridge, call);
+      if (settled.kind === "stopped") return settled.outcome;
+      const { result } = settled;
       // structuredContent는 outputSchema로 검증하고 위반은 internal 오류 결과로 바꾼다(L1.tools.spec §4.3)
       if (tool.outputSchema !== undefined && result.structuredContent !== undefined) {
         if (!parse(tool.outputSchema, result.structuredContent).ok) {
@@ -358,7 +433,7 @@ export function entriesOf(
 ): readonly ToolEntry[] {
   return registration.kind === "capability"
     ? capabilityEntries(registration, resolve, bridge)
-    : [directEntry(registration)];
+    : [directEntry(registration, bridge)];
 }
 
 /** 항목 → 공개 메타. 도구별 한도가 없으면 호출 쪽이 넘긴 설정 한도를 쓴다 */

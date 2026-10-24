@@ -1,7 +1,9 @@
 import { expect, test } from "bun:test";
+import { Type } from "typebox";
 import {
   McpClient,
   McpClientKey,
+  type CallContinuation,
   type CallOptions,
   type McpInputRequired,
   type McpQuestion,
@@ -213,4 +215,60 @@ test("mcp_input_malformed: an input_required variant that is neither an approval
     args: ARGS,
   });
   expect(textOf(out.result)).toContain("input_required_invalid");
+});
+
+test("mcp_input_direct_tool: a directly registered server tool is retried with the continuation after the user answers", async () => {
+  const h = await createHarness();
+  const continuations: (CallContinuation | undefined)[] = [];
+  const registered = h.runtime.tools.register({
+    kind: "direct",
+    orderKey: "mcp.stub",
+    tool: {
+      name: "ask_tool",
+      label: "Ask",
+      description: "Asks once.",
+      parameters: Type.Object({}),
+      execute: () => Promise.reject(new Error("the continuation path must be used")),
+    },
+    hints: { readOnly: true },
+    policy: { risk: "read", mcpServer: "stub" },
+    exposure: "always",
+    executeWithContinuation: (call) => {
+      continuations.push(call.continuation);
+      if (call.continuation !== undefined) {
+        return Promise.resolve({
+          content: [{ type: "text", text: "direct done" }],
+          details: null,
+          isError: false,
+          status: "complete",
+        });
+      }
+      const pending = pendingOutput(1, "state-1");
+      return Promise.resolve({
+        content: [{ type: "text", text: "needs input" }],
+        details: { round: pending.round, questions: pending.questions.map((q) => ({ ...q })) },
+        status: "input_required",
+        inputRequired: {
+          inputRequests: pending.inputRequests,
+          requestState: pending.requestState,
+        },
+      });
+    },
+  });
+  expect(registered.ok).toBe(true);
+  const done = callTool(h.runtime.tools, h.run(), { id: "mcp_7", name: "ask_tool", args: {} });
+  await answerOpenQuestion(h, "Ada");
+  const out = await done;
+  expect(out.isError).toBe(false);
+  expect(textOf(out.result)).toContain("direct done");
+  expect(continuations).toEqual([
+    undefined,
+    {
+      round: 2,
+      inputResponses: { ask_name: { action: "accept", content: { name: "Ada" } } },
+      requestState: "state-1",
+    },
+  ]);
+  const [asked] = kindsOf(h, "approval.requested");
+  expect(asked?.payload).toMatchObject({ body: { kind: "question" } });
 });

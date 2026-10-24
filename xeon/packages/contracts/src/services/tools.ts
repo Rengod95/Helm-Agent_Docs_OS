@@ -2,6 +2,7 @@ import { Type, type TUnsafe } from "typebox";
 import type { Result, SchemaProof } from "../base/index.ts";
 import type {
   AnyCapabilityDef,
+  CallContinuation,
   CapabilityId,
   OrderedTool,
   ServiceKey,
@@ -119,6 +120,19 @@ export interface DirectToolRegistration {
   readonly policy?: ToolPolicyMeta;
   readonly exposure?: ExposureMode;
   readonly outputLimits?: OutputLimits | "self";
+  /**
+   * 서버 주도 입력 요청(MCP `input_required`)을 낼 수 있는 도구의 실행. 있으면 `tool.execute` 대신 이것으로 부른다.
+   * 결과가 `status: "input_required"`이면 L1.tools가 `details.round`·`details.questions`와 `inputRequired`로 질문 승인(kind `question`)을
+   * 올리고, 답을 `continuation`에 실어 같은 `toolCallId`로 다시 부른다(결정 D5 (a), 능력 도구의 `CallOptions.continuation`과 같은 규칙).
+   * 첫 호출에는 `continuation`이 없다
+   */
+  readonly executeWithContinuation?: (call: {
+    readonly toolCallId: string;
+    readonly params: unknown;
+    readonly signal: AbortSignal;
+    readonly onUpdate: AgentToolUpdateCallback;
+    readonly continuation: CallContinuation | undefined;
+  }) => Promise<AgentToolResult>;
 }
 
 export type ToolRegistration = CapabilityToolsRegistration | DirectToolRegistration;

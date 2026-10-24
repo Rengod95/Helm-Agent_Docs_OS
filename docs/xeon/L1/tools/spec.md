@@ -137,6 +137,14 @@ export interface DirectToolRegistration {
   readonly policy?: ToolPolicyMeta;
   readonly exposure?: ExposureMode;
   readonly outputLimits?: OutputLimits | "self";
+  /** 서버 주도 입력 요청(MCP `input_required`)을 낼 수 있는 도구의 실행. 있으면 `tool.execute` 대신 쓴다 (§4.3 `input_required`) */
+  readonly executeWithContinuation?: (call: {
+    readonly toolCallId: string;
+    readonly params: unknown;
+    readonly signal: AbortSignal;
+    readonly onUpdate: AgentToolUpdateCallback;
+    readonly continuation: CallContinuation | undefined;
+  }) => Promise<AgentToolResult>;
 }
 
 export type ToolRegistration = CapabilityToolsRegistration | DirectToolRegistration;
@@ -756,7 +764,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
   - 같은 호출에서 `input_required`를 이어 받는 횟수는 8번까지다. 해결된 승인을 되풀이해 가리키는 도구가 무한히 도는 것을 막고, 넘으면 `[xeon:input_required_loop]` 오류 결과다.
   - `approvalId`가 없는 변형(L2.mcp의 `inputRequests`와 `requestState`)은 D5(a)대로 어댑터가 질문 승인으로 올린다 [결정: L1F]. 출력이 F `McpInputRequiredSchema`에 맞으면 `planMcpQuestionBody`로 질문 묶음을 만들고 kind `question` 승인을 비차단으로 연다(`ApprovalService.open`). 요청 키는 `mcp:<toolCallId 해시 32자>#r<round>`를 `requestKeyFor`로 줄인 값이라 라운드마다 다른 요청이고, 재시작 뒤 같은 라운드는 기록된 요청을 이어 받는다. 승인과 대기 체크포인트는 한 커밋이다(비대화형이면 요청과 거부 해결이 한 커밋). 해결이 오면 `decodeMcpAnswer`(답)나 `uniformMcpAnswer`(거부는 `decline`, 취소는 `cancel`)로 `inputResponses`를 만들고, 같은 입력과 같은 `requestId`로 메서드를 다시 부르며 `CallOptions.continuation = { round: 이전 라운드 + 1, inputResponses, requestState }`를 싣는다. 구현은 `src/mcp-input.ts`다.
   - 질문이 4개를 넘거나, 사용자 답이 폼에 맞지 않거나(JSON 폼 파싱 실패 등), 승인 요청 커밋이 실패하면 호출은 `[xeon:input_questions_too_many]`, `[xeon:input_answer_invalid]`, `[xeon:input_request_failed]` 오류 결과로 끝난다. `approvalId`도 MCP 모양도 아닌 `status: "input_required"` 출력은 일반 결과로 흘려 보내지 않고 `[xeon:input_required_invalid]` 오류 결과다.
-  - 도구 실행 함수가 `CallOptions`를 받지 못하는 `DirectToolRegistration`(동적 MCP 서버 도구)은 이 길을 쓰지 못한다. 연속 정보를 실을 자리가 pi `AgentTool.execute` 시그니처에 없다. 그 경로의 재호출은 [미결]이다(§10).
+  - `DirectToolRegistration`(동적 MCP 서버 도구)은 pi `AgentTool.execute` 시그니처에 연속 정보를 실을 자리가 없어, 선택 필드 `executeWithContinuation`으로 같은 길을 쓴다 [결정: 병합 HOST.6]. 이 필드가 있으면 어댑터는 `tool.execute` 대신 이것을 부른다. 결과가 `status: "input_required"`이면 `details.round`, `details.questions`와 `inputRequired`(`inputRequests`, `requestState`)를 `McpInputRequired`로 읽고, 위와 같은 질문 승인과 재호출(`continuation` 인자)을 한다. 읽을 수 없는 모양은 `[xeon:input_required_invalid]` 오류 결과이고 8라운드 상한도 같다. 구현은 `src/entries.ts`의 `settleDirectInput`과 `src/mcp-input.ts`의 `inputRequestOfResult`다. 필드가 없는 직접 등록 도구는 한 번만 부른다.
   - 재시작 뒤: 대기 체크포인트(`waiting: "approval"`)와 열린 효과가 남는다. `ask_user`, `submit_plan`은 `replay: "safe"`라 `decideEffectRecovery`가 `rerun`을 내고, `rerun`이 같은 경로로 도구를 다시 부르면 도구는 같은 `requestId`로 기존 승인을 이어 받는다.
 
 ### 4.4 효과 기록
@@ -1074,7 +1082,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 - [미결] 꼬리 보존 미리보기의 공통 모드(§4.8 7번).
 - [미결] 재실행 시도 횟수 기록 방식과 상한(§4.9). eng.transactions.design `MAX_REPLAY_ATTEMPTS`와 F.records.spec 결정표의 연결.
 - [결정: L1A.4, L1F] `input_required` 출력 변형의 판별 필드는 `status: "input_required"`이다(§4.3). `approvalId`가 없는 MCP 변형의 재호출은 어댑터가 질문 승인을 올려 `CallOptions.continuation`으로 닫는다.
-- [미결] `DirectToolRegistration`으로 등록되는 동적 MCP 서버 도구(cap-mcp `createToolServiceRegistrar`)의 `input_required` 재호출. `AgentTool.execute(toolCallId, params, signal, onUpdate)`에 연속 정보를 실을 자리가 없어 어댑터가 `continuation`을 넘기지 못한다. 후보는 F `DirectToolRegistration`에 `CallOptions`를 받는 실행 함수를 더하거나, cap-mcp의 `McpContinuationSource`(requestId 키)를 L1.tools가 채우는 것이다. 둘 다 F 변경이 필요하다.
+- [결정: 병합 HOST.6] `DirectToolRegistration`으로 등록되는 동적 MCP 서버 도구의 `input_required` 재호출은 F `DirectToolRegistration.executeWithContinuation`(연속 정보를 인자로 받는 실행 함수)으로 닫는다. cap-mcp `createToolServiceRegistrar`가 이 필드를 채운다. 호스트 시험 `approval-shapes.int.test.ts`가 서버 질문, 질문 승인, 답, 재호출, 도구 완료를 한 엔진에서 확인한다.
 - [결정: m2 F.8] `approval.respond`의 `answer` 정본은 `QuestionAnswer`(질문 id → `{ selected, text? }`)다. 계획 `allow`는 `{ mode }`, `deny`는 `{ feedback }`이고 스키마는 F.records `ApprovalAnswerSchema`다(F.wire-settings.spec §3.3.1). L2.dialog의 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)는 wire에 나오지 않고 cap-dialog 어댑터가 `QuestionAnswer`와 서로 옮긴다(L2.dialog.spec §4.1.1). core-tools는 `QuestionAnswer`만 받는다.
 - [미결] 정책 규칙 수집 방식(범위별 수집 대 키 분리, §4.5). F 요청 5가 받아들여지지 않으면 `l1.tools.rules.managed`, `l1.tools.rules.user` 같은 범위별 키로 나눈다.
 - [미결] Anthropic 서버 쪽 tool search 사용 여부(§4.1 8번).
