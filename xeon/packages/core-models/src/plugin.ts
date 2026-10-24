@@ -21,12 +21,8 @@ import {
   type PortKey,
 } from "@xeon/ext-host";
 import type { ProviderDispatcher } from "./pipeline.ts";
-import {
-  createModelService,
-  DEFAULT_MODELS_SETTINGS,
-  type ModelServiceDeps,
-  type ModelsSettingsSource,
-} from "./service.ts";
+import { createModelService, type ModelServiceDeps, type ModelsSettingsSource } from "./service.ts";
+import { DEFAULT_MODELS_SETTINGS } from "./settings.ts";
 
 // L1.models.plan §2 plugin.ts. 내장 확장(builtin)으로 xeon.models를 제공한다. 쓰는 서비스는 xeon.secrets, xeon.ext,
 // xeon.os(시계)다. Cordis는 import하지 않고 ext-host의 hostOf 포트 API만 쓴다(DR-11, DR-14 예외 4).
@@ -99,6 +95,9 @@ export function createModelsExtension(
           clock,
           settings: options.settings ?? (() => DEFAULT_MODELS_SETTINGS),
           dispatcher: dispatcherOf(ext),
+          // 꺼진 그룹의 groupRouting 값은 쓰지 않는다(L1.models.spec §5)
+          scopeEnabled: (scopeId) =>
+            ext.scopes().some((info) => info.id === scopeId && info.status === "enabled"),
         }),
       );
     });

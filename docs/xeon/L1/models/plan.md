@@ -104,6 +104,7 @@ xeon/plugins/provider-anthropic-oauth/
 | M-13 | 레이트 리밋·계정 회전: 별도 설계 문서 먼저(§7 위험 4), `core_models_*` 테이블, 계정 선택, 대기·전환, M3 설정 화면 키(`accounts`, `rateLimit`) | M-6, 설계 문서 | 대 | M3 |
 | M-14 | 폴백 체인: `overloaded`·`provider_unavailable`에서만, 콘텐츠 전 요청만 | M-1, M-2 | 중 | 2차 |
 
+- 구현 상태(M2, m2/l1c): M-2(역할 표 해석기, 허용·차단 목록), M-4(provider 등록부), M-5(캐시 정책 객체와 표식 적용), M-6의 `sk-ant-oat` 가드, M-7의 M2 키 11개를 구현했다. 설정 읽기는 `modelsSettingsOf`가 조립 루트의 `ModelsSettingsSource`를 대신한다. 나머지 지점 5개(M-11)와 `HostedSearchPort`는 이어서 구현한다.
 - 선행 외부 작업: contracts(F 요청 타입), platform-secrets 서비스 인터페이스(`L0.secrets.spec`), X 지점 디스패치(`X.primitives.plan`), core-loop의 `streamFn` 사용(`L1.loop.plan`).
 - M-2는 순수 함수라 M1에서 먼저 만들어도 된다. M1 경로는 `main` 역할과 `l1.models.default`만 쓴다.
 

@@ -1,4 +1,5 @@
 import { ModelsError, type CredentialInfo, type CredentialStore } from "@earendil-works/pi-ai";
+import { err, ok, type Result } from "@xeon/contracts";
 import { parseSecretRef } from "@xeon/contracts/capabilities";
 import type { SecretRefString, SecretService, UseCtx } from "@xeon/contracts/services";
 
@@ -21,6 +22,8 @@ export interface SecretTarget {
 
 /** 해석 실패의 기록. 값은 없다 */
 export interface CredentialFailure {
+  /** 종결 메시지의 접두 kind. 해석 자체가 실패하면 secret_unresolved, 가드가 막으면 oauth_token_on_default_provider */
+  readonly kind: "secret_unresolved" | "oauth_token_on_default_provider";
   readonly providerId: string;
   /** 참조 구문이 틀렸으면 null */
   readonly secretName: string | null;
@@ -34,25 +37,45 @@ export interface SecretBridgeOptions {
   readonly onFailure?: (failure: CredentialFailure) => void;
 }
 
-/** pi-ai CredentialStore 구현. read()가 요청마다 참조를 해석한다. list()는 메타만, modify·delete는 거부 */
-export function secretBackedCredentialStore(
-  refs: ProviderCredentialRefs,
-  secrets: SecretService,
-  options: SecretBridgeOptions = {},
-): CredentialStore {
-  // CredentialStore 계약이 실패를 reject로 요구한다(eng.typescript.guide TY-11 허용 3). Models가 ModelsError("auth")로 감싼다.
-  function fail(failure: CredentialFailure): never {
-    options.onFailure?.(failure);
-    throw new ModelsError("auth", `secret_unresolved: ${failure.reason}`);
-  }
+/** L1.models.spec §3.9 위장 경로 가드: 기본 anthropic provider에서 해석한 값이 구독 OAuth 토큰 모양인지 */
+const DEFAULT_ANTHROPIC = "anthropic";
+const OAUTH_TOKEN_MARK = "sk-ant-oat";
 
+/** 기본 anthropic provider로 가는 구독 OAuth 토큰이면 참. pi-ai 기본 경로는 키 접두만으로 위장 분기에 들어간다 */
+export function isOauthTokenOnDefaultProvider(providerId: string, key: string): boolean {
+  return providerId === DEFAULT_ANTHROPIC && key.includes(OAUTH_TOKEN_MARK);
+}
+
+/** 가드에 걸렸을 때의 실패 기록 */
+export function oauthGuardFailure(providerId: string): CredentialFailure {
   return {
-    async read(providerId) {
-      const ref = refs.get(providerId);
-      if (ref === null) return undefined;
+    kind: "oauth_token_on_default_provider",
+    providerId,
+    secretName: null,
+    reason: `provider ${providerId} does not accept subscription OAuth tokens`,
+  };
+}
+
+/** 비밀 참조를 요청 직전에 해석한다. 값은 반환 값에만 있고 어디에도 남기지 않는다 */
+export interface SecretResolver {
+  /** purpose는 `model.provider:<id>` 같은 사용 목적, providerId는 목적지 조회에 쓴다 */
+  resolve(
+    ref: SecretRefString,
+    providerId: string,
+    purpose: string,
+  ): Promise<Result<string, CredentialFailure>>;
+}
+
+export function createSecretResolver(
+  secrets: SecretService,
+  options: Pick<SecretBridgeOptions, "targetOf">,
+): SecretResolver {
+  return {
+    async resolve(ref, providerId, purpose) {
       const parsed = parseSecretRef(ref);
       if (!parsed.ok) {
-        return fail({
+        return err({
+          kind: "secret_unresolved",
           providerId,
           secretName: null,
           reason: `reference for ${providerId} is malformed (${parsed.error.kind})`,
@@ -61,7 +84,7 @@ export function secretBackedCredentialStore(
       const target = options.targetOf?.(providerId) ?? null;
       const ctx: UseCtx = {
         mode: "runtime-http",
-        purpose: `model.provider:${providerId}`,
+        purpose,
         target: { kind: "host", host: target?.host ?? "", port: target?.port ?? null },
         actor: "runtime",
         threadId: null,
@@ -72,7 +95,8 @@ export function secretBackedCredentialStore(
       const name = parsed.value.name;
       const leased = await secrets.lease(parsed.value.handle, ctx);
       if (!leased.ok) {
-        return fail({
+        return err({
+          kind: "secret_unresolved",
           providerId,
           secretName: name,
           reason: `secret ${name} could not be leased (${leased.error.kind})`,
@@ -82,16 +106,44 @@ export function secretBackedCredentialStore(
       try {
         const used = await lease.use((view) => view.text());
         if (!used.ok) {
-          return fail({
+          return err({
+            kind: "secret_unresolved",
             providerId,
             secretName: name,
             reason: `secret ${name} could not be used (${used.error.kind})`,
           });
         }
-        return { type: "api_key", key: used.value };
+        return ok(used.value);
       } finally {
         lease.dispose();
       }
+    },
+  };
+}
+
+/** pi-ai CredentialStore 구현. read()가 요청마다 참조를 해석한다. list()는 메타만, modify·delete는 거부 */
+export function secretBackedCredentialStore(
+  refs: ProviderCredentialRefs,
+  secrets: SecretService,
+  options: SecretBridgeOptions = {},
+): CredentialStore {
+  const resolver = createSecretResolver(secrets, options);
+  // CredentialStore 계약이 실패를 reject로 요구한다(eng.typescript.guide TY-11 허용 3). Models가 ModelsError("auth")로 감싼다.
+  function fail(failure: CredentialFailure): never {
+    options.onFailure?.(failure);
+    throw new ModelsError("auth", `${failure.kind}: ${failure.reason}`);
+  }
+
+  return {
+    async read(providerId) {
+      const ref = refs.get(providerId);
+      if (ref === null) return undefined;
+      const resolved = await resolver.resolve(ref, providerId, `model.provider:${providerId}`);
+      if (!resolved.ok) return fail(resolved.error);
+      if (isOauthTokenOnDefaultProvider(providerId, resolved.value)) {
+        return fail(oauthGuardFailure(providerId));
+      }
+      return { type: "api_key", key: resolved.value };
     },
     list() {
       const infos: CredentialInfo[] = refs.ids().map((providerId) => ({

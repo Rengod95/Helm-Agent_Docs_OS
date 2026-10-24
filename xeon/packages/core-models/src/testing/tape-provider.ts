@@ -54,6 +54,10 @@ export interface TapeProviderCall {
   readonly apiKey: string | undefined;
   readonly sessionId: string | undefined;
   readonly reasoning: SimpleStreamOptions["reasoning"];
+  /** pi-ai가 받은 레벨별 토큰 예산 */
+  readonly thinkingBudgets: SimpleStreamOptions["thinkingBudgets"];
+  /** 요청 헤더 옵션(secret 참조를 푼 뒤의 값이 아니라 pi-ai로 넘어온 옵션 그대로) */
+  readonly headers: SimpleStreamOptions["headers"];
   /** onPayload가 돌려준 최종 페이로드 */
   readonly payload: unknown;
 }
@@ -129,7 +133,7 @@ export function tapeProvider(
   ): AsyncGenerator<AssistantMessageEvent> {
     const role = roleOf(model);
     // 실제 어댑터가 보낼 요청 본문을 흉내 낸다. before_provider_request 핸들러가 이 값을 본다
-    const draft: unknown = { model: model.id, messages: context.messages };
+    const draft: unknown = { model: model.id, messages: structuredClone(context.messages) };
     const replaced = await firePayload(streamOptions, model, draft, options.payloadAttempts ?? 1);
     calls.push({
       modelId: model.id,
@@ -137,6 +141,8 @@ export function tapeProvider(
       apiKey: streamOptions?.apiKey,
       sessionId: streamOptions?.sessionId,
       reasoning: streamOptions?.reasoning,
+      thinkingBudgets: streamOptions?.thinkingBudgets,
+      headers: streamOptions?.headers,
       payload: replaced ?? draft,
     });
     let events: AsyncIterable<AssistantMessageEvent>;

@@ -348,6 +348,9 @@ export interface CacheMarks {
 }
 ```
 
+- retention이 `none`인 정책(요약·판정·검색 역할, 설정 `none`)은 `sessionKey`가 `null`이고 `sites`가 빈 배열이다 [구현: M2]. 호출 단위 덮어쓰기(`ModelCallOptions.cacheRetention`, agent-core가 넘긴 값)도 이 세 역할에는 `none`을 유지한다.
+- 대화 중 system 메시지·도구 변경 지원은 `model.compat`의 `supportsMidConvoSystemMessages`와 `supportsMidConvoToolChanges`(anthropic) 또는 `supportsMidConvoToolAdditions`(그 밖)에서 읽는다. 도구 변경은 system 메시지 지원이 있을 때만 참이다 [구현: M2].
+- 표식 적용은 anthropic-messages 페이로드에 대해 `onPayload`에서 한다. `CacheMarks`의 `summary` 위치를 페이로드 `messages`의 마지막 블록에 달고(문자열 content는 text 블록으로 바꾼다), 페이로드에 달린 `cache_control` 수가 `maxBreakpoints`를 넘으면 `sites` 뒤쪽(`tail`, 그다음 `summary`)부터 지운다. 같은 입력에 같은 결과를 내서 pi-ai 재시도 때 다시 불려도 안전하다 [구현: M2].
 - 기본 `sites`는 `["system", "tools", "summary", "tail"]`다. pi-ai `anthropic-messages`는 retention이 `none`이 아니면 시스템 블록(`anthropic-messages.ts:1167-1190`), 마지막 도구(`1608`), 마지막 user·system 메시지(`1483-1504`)에 표식을 붙인다. Xeon이 더하는 위치는 `summary`(컴팩션 요약 메시지)뿐이다 [제안].
 - 다른 API(OpenAI 계열, Google)는 자동 접두 캐시를 쓰므로 `marks`를 무시하고 `retention`, `sessionKey`만 전달한다.
 - 정책은 해석 때 `ResolvedModel.cachePolicy`로 정해진다. 호출 단위 덮어쓰기는 `ModelCallOptions.cacheRetention`만 허용한다.
@@ -390,6 +393,10 @@ export type SecretRefString = string;   // F.wire-settings.spec §3.8.1 SecretRe
 export const ProviderConfigDefSchema: TUnsafe<ProviderConfigDef>;
 ```
 
+- 등록 이름은 `^[a-z0-9][a-z0-9._-]{0,63}$`이어야 하고 어기면 `invalid_provider`다. `kind: "runtime"`은 `provider.id`가 등록 이름과 같아야 한다 [구현: M2].
+- `kind: "config"`는 내장 provider 이름이면 `models` 없이 `baseUrl`, `headers`, `apiKey`만 덮어쓸 수 있고(해제하면 내장 값으로 돌아간다), 새 이름이면 `baseUrl`과 `models`가 필요하다. `api`는 pi-ai 내장 API 중 `anthropic-messages`, `openai-completions`, `openai-responses`, `google-generative-ai`, `mistral-conversations`만 쓸 수 있다. `headers` 값이 `secret://` 참조이면 요청 직전에 해석해 요청 헤더에만 싣는다 [구현: M2].
+- 자격 증명 참조는 설정 `l1.models.providers`의 `apiKeyRef`가 먼저이고 없으면 등록부의 `apiKey`(config)나 `credential`(runtime)이다. `list({ available: true })`는 참조가 있는 provider와 등록부로 들어온 provider를 포함한다 [구현: M2].
+- 포트 경로 `registerProvider`가 던지는 값은 `ModelRegistrationError`(`Error`를 확장하고 `kind`, `ref`, `message`로 `ModelError`를 구현한다)다 [구현: M2].
 - `addProvider`는 `name`이 이미 있으면 `provider_conflict` 오류를 낸다. 같은 owner가 다시 등록하는 경우도 먼저 해제해야 한다 [제안]. 해제는 반환된 `Unsubscribe`와 scope dispose(X)로 한다.
 - `registerProvider`(포트 경로)는 `Result`를 돌려주지 않는다. `config`가 `ProviderConfigDefSchema`를 통과하지 않으면 `kind: "invalid_provider"`, 이름이 겹치면 `provider_conflict`인 `ModelError`를 던진다 [제안]. X는 이 예외를 등록 실패로 확장에 돌려준다.
 - 내장 provider(pi-ai `providers/all.ts`)의 기본값을 바꾸는 등록(pi 예: baseUrl만 바꾸기)은 `kind: "config"`에 `models` 없이 `baseUrl`만 주는 형태로 허용한다.
@@ -453,7 +460,7 @@ export function secretBackedCredentialStore(refs: ProviderCredentialRefs, secret
 - `modify`, `delete`는 `ModelsError("auth")`를 던진다. 키 등록과 삭제는 비밀 관리 경로(`just secret-add`, 설정 화면 secrets 탭)로만 한다.
 - `list()`는 provider 이름과 참조 유무만 돌려준다(pi 계약: "must not execute configured API-key commands while listing").
 - 오류 문자열은 `xeon.secrets`의 마스킹 함수를 지난다 [가정: L0.secrets.spec이 마스킹 API를 서비스로 제공한다].
-- 위장 경로 가드 [제안]: 기본 `anthropic` provider에서 해석한 값이 `sk-ant-oat`를 포함하면 요청을 보내지 않고 `oauth_token_on_default_provider` 오류를 낸다. pi-ai 기본 경로는 키 접두만으로 위장 분기에 들어가기 때문이다(`anthropic-messages.ts:978-980`, `1014`, `_research/notes/L1-2.md` §3.1). [미결 M-1] 이 가드와 pi-ai 포크(분기 제거) 중 무엇으로 막을지.
+- 위장 경로 가드 [제안]: 기본 `anthropic` provider에서 해석한 값이 `sk-ant-oat`를 포함하면 요청을 보내지 않고 `oauth_token_on_default_provider` 오류를 낸다. pi-ai 기본 경로는 키 접두만으로 위장 분기에 들어가기 때문이다(`anthropic-messages.ts:978-980`, `1014`, `_research/notes/L1-2.md` §3.1). [결정 M-1: m2/l1c] 가드로 막는다. 설정 참조뿐 아니라 agent-core가 `apiKey` 옵션으로 넘긴 값도 같은 규칙으로 검사한다(기본 provider id `anthropic`만 대상이다). 가드에 걸리면 종결 메시지는 `oauth_token_on_default_provider: …`이고 요청은 나가지 않는다.
 
 ### 3.10 2차 타입
 
@@ -536,6 +543,7 @@ export function resolveRole(input: {
 
 해석 순서 [제안]:
 
+0. `trace`에는 거친 단계를 순서대로 싣고, 값이 없는 단계는 `ref: null`로 남긴다. 값이 있는 첫 단계에서 멈춘다. 그 값이 틀렸으면(`invalid_ref`, `model_not_found`, `model_denied`) 다음 단계로 넘어가지 않고 오류를 돌려준다 [구현: M2].
 1. `overrides.ref`가 있으면 그것을 쓴다. 출처 `explicit`.
 2. `overrides.scopeId`가 있고 `groupRouting[scopeId][role]`가 있으면 그것을 쓴다. 출처 `group:<scopeId>`.
 3. 역할이 `main`이 아니고 `routing[role]`이 있으면 그것을 쓴다. 출처 `role`.
@@ -550,6 +558,8 @@ export function resolveRole(input: {
 - `denied` 패턴에 맞거나, `allowed`가 비어 있지 않은데 맞지 않음 → `model_denied`. 패턴은 `provider/modelId` 전체 일치 또는 `provider/*`다.
 - 추론 레벨: `overrides.thinkingLevel` → 참조 접미 → `table.thinkingLevel` 순으로 정하고 pi-ai `clampThinkingLevel(model, level)`로 모델이 지원하는 값으로 맞춘다(`models.ts:1235`). `model.reasoning`이 false면 `off`다.
 - 토큰 예산: 레벨이 `off`가 아니면 `table.thinkingBudgets[level]`. 호출 때 pi-ai `thinkingBudgets`로 넘기는 것은 `minimal`~`high` 네 키뿐이다(§3.1 포크 판정).
+- 그룹 덮어쓰기가 꺼진 scope의 값인지는 서비스 의존 `scopeEnabled(scopeId)`로 판정한다. 플러그인은 `ext.scopes()`의 상태가 `enabled`인 scope만 켜진 것으로 연결한다. 의존이 없으면 모든 scope가 켜진 것으로 본다 [구현: M2].
+- `rebind`는 카탈로그 부재 외에 허용·차단 목록에 걸린 고정 모델도 `model_denied`로 거부한다. 고정 레벨은 clamp하지 않는다 [구현: M2].
 - 설정 스냅샷은 호출 시점의 유효 값(`F.wire-settings.spec` §3.9 `resolveSetting`)이다. 범위 우선순위(관리 > 세션 > 로컬 > 프로젝트 > 사용자)는 설정 계층이 처리하므로 이 순서에는 넣지 않는다. 세션 중 `/model` 변경은 `l1.models.default`의 세션 범위 값이다.
 
 ### 4.2 추론 레벨과 체크포인트 고정
@@ -858,7 +868,7 @@ export interface ThinkingLevelSelectPayload {
 
 ## 10. 미결 사항
 
-1. [미결 M-1] 기본 `anthropic-messages` 경로의 `sk-ant-oat` 자동 분기를 core-models 가드(§3.9)로 막을지, pi-ai를 포크해 분기를 지울지(`_research/notes/L1-2.md` §6).
+1. (닫음) 기본 `anthropic-messages` 경로의 `sk-ant-oat` 자동 분기는 core-models 가드(§3.9)로 막는다(m2/l1c). pi-ai 포크는 하지 않는다.
 2. [미결 M-2] 방안 A의 갈래: A1(새 Api id)과 A2(Api id 유지, provider id 분리). 제안은 A2.
 3. [미결] 위장 플러그인의 별도 배포 여부(`product.scope.spec` N6)와 서버 수용·이용 조건 확인 시점.
 4. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F provider 인터페이스로 `xeon.models`에 등록한다(§3.11). DR-07·DR-09를 고친다.

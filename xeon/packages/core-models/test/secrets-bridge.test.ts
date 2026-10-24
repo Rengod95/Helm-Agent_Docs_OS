@@ -197,3 +197,55 @@ describe("secretBackedCredentialStore", () => {
     expect(JSON.stringify(failures)).not.toContain(FAKE_KEY);
   });
 });
+
+describe("oauth_token_rejected_on_default_provider", () => {
+  const OAUTH_KEY = "sk-ant-oat01-fake-subscription-token";
+
+  test("a subscription token on the default anthropic provider sends no request", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      provider: { id: "anthropic", api: "anthropic-messages" },
+      secretValues: { "tape-key": OAUTH_KEY },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("error");
+    expect(message.errorMessage).toStartWith("oauth_token_on_default_provider:");
+    expect(h.service.classify(message)).toBe("oauth_token_on_default_provider");
+    expect(h.fake.calls()).toHaveLength(0);
+    expect(JSON.stringify(message)).not.toContain(OAUTH_KEY);
+  });
+
+  test("the same token under another provider id is not blocked here", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      provider: { id: "anthropic-oauth", api: "anthropic-messages" },
+      secretValues: { "tape-key": OAUTH_KEY },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("stop");
+    expect(h.fake.calls()).toHaveLength(1);
+  });
+
+  test("an ordinary api key on the default provider passes", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      provider: { id: "anthropic", api: "anthropic-messages" },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("stop");
+  });
+
+  test("a key passed by the caller (agent-core apiKey) is guarded too", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      provider: { id: "anthropic", api: "anthropic-messages" },
+    });
+    const resolved = h.resolve();
+    const stream = await h.service.streamFn(h.ctx())(resolved.model, h.context("hi"), {
+      apiKey: OAUTH_KEY,
+    });
+    const message = await stream.result();
+    expect(message.errorMessage).toStartWith("oauth_token_on_default_provider:");
+    expect(h.fake.calls()).toHaveLength(0);
+  });
+});

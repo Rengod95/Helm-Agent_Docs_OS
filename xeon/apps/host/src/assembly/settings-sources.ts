@@ -1,11 +1,9 @@
 import { isId } from "@xeon/contracts/conversation";
 import type { DriveLimits } from "@xeon/contracts/extensions";
 import {
-  DEFAULT_RETRY_SETTINGS,
+  modelsSettingsOf,
   type ModelsSettings,
   type ModelsSettingsSource,
-  type ProviderSetting,
-  type RetrySettings,
 } from "@xeon/core-models";
 import { DEFAULT_PERSISTENCE_SETTINGS, resolvePersistenceSettings } from "@xeon/core-persistence";
 import type { LoopSettingsSource } from "@xeon/core-loop";
@@ -126,42 +124,9 @@ export function tasksSource(settings: SettingsEngine): TasksSettingsSource {
   return createLayeredTasksSettings(() => settings.layers(undefined));
 }
 
-function isProviderSetting(value: unknown): value is ProviderSetting {
-  return (
-    isRecord(value) &&
-    typeof value["id"] === "string" &&
-    typeof value["enabled"] === "boolean" &&
-    (value["apiKeyRef"] === null || typeof value["apiKeyRef"] === "string") &&
-    (value["baseUrl"] === null || typeof value["baseUrl"] === "string")
-  );
-}
-
-function retryOf(value: unknown): RetrySettings {
-  if (
-    isRecord(value) &&
-    typeof value["maxRetries"] === "number" &&
-    typeof value["baseDelayMs"] === "number" &&
-    typeof value["maxDelayMs"] === "number"
-  ) {
-    return {
-      maxRetries: value["maxRetries"],
-      baseDelayMs: value["baseDelayMs"],
-      maxDelayMs: value["maxDelayMs"],
-    };
-  }
-  return DEFAULT_RETRY_SETTINGS;
-}
-
-/** l1.models.* . 검사는 resolveSetting이 이미 했고 여기서는 모양만 좁힌다 */
+/** l1.models.* . 검사는 core-models의 modelsSettingsOf가 선언한 스키마로 다시 한다 */
 export function modelsSource(settings: SettingsEngine): ModelsSettingsSource {
-  return (): ModelsSettings => {
-    const providers = settings.value("l1.models.providers");
-    return {
-      default: stringOrNull(settings.value("l1.models.default")),
-      providers: Array.isArray(providers) ? providers.filter(isProviderSetting) : [],
-      retry: retryOf(settings.value("l1.models.retry")),
-    };
-  };
+  return (): ModelsSettings => modelsSettingsOf((key) => settings.value(key));
 }
 
 export function loopSource(settings: SettingsEngine): LoopSettingsSource {

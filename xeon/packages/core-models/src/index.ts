@@ -7,17 +7,17 @@ export {
   manifest,
   type ModelsExtensionOptions,
 } from "./plugin.ts";
-export {
-  createModelService,
-  DEFAULT_MODELS_SETTINGS,
-  type ModelServiceDeps,
-  type ModelsSettings,
-  type ModelsSettingsSource,
-} from "./service.ts";
+export { createModelService, type ModelServiceDeps, type ModelsSettingsSource } from "./service.ts";
+export { ModelRegistrationError } from "./provider-registry.ts";
 export type { BeforeProviderRequestInput, ProviderDispatcher } from "./pipeline.ts";
 export {
+  DEFAULT_MODELS_SETTINGS,
   DEFAULT_RETRY_SETTINGS,
+  DEFAULT_THINKING_BUDGETS,
   MODELS_SETTING_DEFS,
+  modelsSettingsOf,
+  type ModelsSettingReader,
+  type ModelsSettings,
   type ProviderSetting,
   type RetrySettings,
 } from "./settings.ts";

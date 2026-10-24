@@ -341,6 +341,44 @@
         }
       }
     },
+    "l1.models.groupRouting": {
+      "additionalProperties": false,
+      "default": {},
+      "maxProperties": 64,
+      "patternProperties": {
+        "^[a-z][a-z0-9-]{0,63}$": {
+          "additionalProperties": false,
+          "patternProperties": {
+            "^(?:main|review|summary|subagent|judge|search)$": {
+              "maxLength": 265,
+              "pattern": "^[a-z0-9][a-z0-9._-]{0,63}/\\S{1,200}$",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "type": "object",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "scope id → 역할 → provider/modelId[:추론레벨]",
+          "label": "그룹별 모델",
+          "order": 30,
+          "tab": "models",
+          "widget": "table"
+        }
+      }
+    },
     "l1.models.providers": {
       "default": [],
       "items": {
@@ -406,6 +444,199 @@
           "order": 10,
           "tab": "providers",
           "widget": "table"
+        }
+      }
+    },
+    "l1.models.routing.judge": {
+      "anyOf": [
+        {
+          "maxLength": 265,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}/\\S{1,200}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "판정 모델",
+          "order": 23,
+          "tab": "models",
+          "widget": "table"
+        }
+      }
+    },
+    "l1.models.routing.review": {
+      "anyOf": [
+        {
+          "maxLength": 265,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}/\\S{1,200}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "검토 모델",
+          "order": 20,
+          "tab": "models",
+          "widget": "table"
+        }
+      }
+    },
+    "l1.models.routing.search": {
+      "anyOf": [
+        {
+          "maxLength": 265,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}/\\S{1,200}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "검색 모델",
+          "order": 24,
+          "tab": "models",
+          "widget": "table"
+        }
+      }
+    },
+    "l1.models.routing.subagent": {
+      "anyOf": [
+        {
+          "maxLength": 265,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}/\\S{1,200}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "서브에이전트 모델",
+          "order": 22,
+          "tab": "models",
+          "widget": "table"
+        }
+      }
+    },
+    "l1.models.routing.summary": {
+      "anyOf": [
+        {
+          "maxLength": 265,
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,63}/\\S{1,200}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "요약 모델",
+          "order": 21,
+          "tab": "models",
+          "widget": "table"
+        }
+      }
+    },
+    "l1.models.thinkingLevel": {
+      "default": "medium",
+      "enum": [
+        "off",
+        "minimal",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "maxLength": 8,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "추론 레벨",
+          "order": 40,
+          "tab": "models",
+          "widget": "select"
         }
       }
     },
