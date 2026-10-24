@@ -491,6 +491,17 @@ export interface RecordCommitPort {
   ): Promise<Result<readonly ExtRecordRow[], ReadFailure>>;
 }
 
+/**
+ * 보관 정리(L1.persistence.spec §6.1, PS-18). 조립 루트가 엔진을 열 때 한 번 `prune()`을 부른다.
+ * 기간(`retention.maxAgeDays`)과 수(`retention.maxCount`) 상한이 모두 0이면 아무것도 지우지 않는다
+ */
+export interface SessionRetention {
+  /** 지금 설정으로 지워질 thread. 지우지 않는다(설정 화면의 삭제 대상 수 미리보기) */
+  preview(): Result<readonly ThreadId[], ReadFailure>;
+  /** 지울 thread를 지우고 지운 목록을 돌려준다 */
+  prune(): Result<readonly ThreadId[], StoreError>;
+}
+
 export interface SessionService {
   // ── 쓰기
   /** M1 커밋 경로(동기) */
@@ -547,4 +558,7 @@ export interface SessionService {
 
   /** X 포트. commit 이름이 위 commit과 겹쳐 하위 객체로 둔다. PortKey.member = "ext" */
   readonly ext: RecordCommitPort;
+
+  /** 보관 정리. core-persistence의 `RetentionApi`가 이 모양을 채운다 */
+  readonly retention: SessionRetention;
 }

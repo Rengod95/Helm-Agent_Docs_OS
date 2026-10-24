@@ -744,6 +744,7 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
       reset: () => notImplemented("sessionSettings.reset"),
     },
     ext: recordStore,
+    retention: { preview: () => ok([]), prune: () => ok([]) },
   };
 
   return {

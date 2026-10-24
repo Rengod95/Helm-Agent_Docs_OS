@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ThreadId } from "@xeon/contracts/conversation";
+import type { SessionRetention } from "@xeon/contracts/records";
 import { DEFAULT_PERSISTENCE_SETTINGS, type PersistenceSettings } from "../src/index.ts";
 import { completeTurn, itemAt } from "./support/branching.ts";
 import {
@@ -86,6 +87,16 @@ describe("retention", () => {
     expect(expectOk(h.retention.preview())).toEqual([first.threadId, second.threadId]);
     expectOk(h.retention.prune());
     expect(threadIds(h).toSorted()).toEqual([third.threadId, fourth.threadId].toSorted());
+  });
+
+  test("SessionService.retention (contract type) previews and prunes the same threads as RetentionApi", async () => {
+    const h = await openHarness({ settings: withSettings({ retentionMaxCount: 1 }) });
+    const first = await aged(h, "first");
+    const second = await aged(h, "second");
+    const contract: SessionRetention = h.service.retention;
+    expect(expectOk(contract.preview())).toEqual([first.threadId]);
+    expect(expectOk(contract.prune())).toEqual([first.threadId]);
+    expect(threadIds(h)).toEqual([second.threadId]);
   });
 
   test("both limits off removes nothing", async () => {
