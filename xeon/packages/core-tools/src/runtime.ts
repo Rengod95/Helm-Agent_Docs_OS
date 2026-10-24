@@ -11,7 +11,8 @@ import type {
 import { createApprovalService, type ApprovalsInternal } from "./approvals/service.ts";
 import { createCallTable } from "./calls.ts";
 import type { ToolsDeps } from "./deps.ts";
-import { entriesOf, resourceEntry, toToolMeta, type InputWaitResult } from "./entries.ts";
+import { entriesOf, resourceEntry, toToolMeta } from "./entries.ts";
+import type { InputBridge, InputWaitResult } from "./mcp-input.ts";
 import { advertiseTools } from "./expose.ts";
 import { createPipeline } from "./pipeline.ts";
 import { readToolOutputEntry } from "./builtin/read-tool-output.ts";
@@ -73,6 +74,12 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     return "aborted";
   }
 
+  const bridge: InputBridge = {
+    wait: waitInput,
+    open: (input) => approvals.open(input),
+    get: (approvalId) => approvals.get(approvalId),
+  };
+
   function register(
     first: ToolRegistration | ScopeId,
     def?: ToolResourceDef,
@@ -81,7 +88,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
       if (def === undefined) throw new Bug("tools.register: a ToolResourceDef is required");
       return registry.add([resourceEntry(first, def)]);
     }
-    return registry.add(entriesOf(first, deps.resolveCapability, waitInput));
+    return registry.add(entriesOf(first, deps.resolveCapability, bridge));
   }
 
   const tools: ToolService = {
@@ -122,6 +129,11 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
         `mode:${threadId}:${deps.ids.next("evt")}`,
       );
       if (!written.ok) {
+        if (written.error.kind === "key_reused") {
+          // 요청 키를 이 호출이 새로 만들었으므로 재사용은 코드 결함이다
+          // xeon-disable-next-line xeon/bug-for-expected -- 호출마다 새 키를 만드는 자리라 키 재사용은 불변 조건 위반이다 (eng.typescript.guide TY-24)
+          throw new Bug("tools.mode_key_reused: a fresh settings request key was already used");
+        }
         return Promise.resolve<ModeChangeResult>({
           ok: false,
           error: { kind: "tools.commit_failed", store: written.error },

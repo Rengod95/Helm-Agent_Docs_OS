@@ -245,6 +245,7 @@ xeon/packages/core-persistence/
 | `set_title_writes_thread_updated_and_fires_info_changed` | `lifecycle.test.ts` | 제목 이벤트와 `session_info_changed` 1회 | PS-9 |
 | `lock_conflict_offers_delegate_observe_fork` | `resume.int.test.ts` | 가짜 잠금 실패 때 `openForRead`가 observer로 열리고 커밋은 `read_only{observer}`, `fork`는 새 thread를 만든다. 선택지 구성은 호스트 테스트가 확인 | PS-6, PS-9 |
 | `session_settings_follow_branch` | `lifecycle.test.ts` | `settings.changed`가 `p_settings`와 `layer(threadId)`에 반영 | PS-14 |
+| `session_settings_key_reused` | `session-settings.test.ts` | 같은 `requestKey`에 다른 값이면 `set`·`reset`이 `key_reused` 값을 돌려주고 행과 층이 그대로다 | PS-14 |
 | `ddl_matches_spec_table` | `ddl.test.ts` | DDL 열 목록과 스펙 §3.10 표 대조 | PS-1 |
 | `restart_invariants_k1_to_k6` | `restart.fault.test.ts` | 자식 프로세스를 K1~K6에서 SIGKILL, 다시 열어 `recover`, 스펙 §4.14 불변식 | PS-6, PS-7 |
 | `events_update_and_stray_delete_blocked_by_trigger` | `ddl.test.ts` | `events` UPDATE는 트리거가 막고, `threads.remove` 경로 밖의 DELETE도 막는다(스펙 §9-21) | PS-1 |

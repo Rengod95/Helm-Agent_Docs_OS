@@ -63,10 +63,8 @@ function harness(
   });
 }
 
-function hosted(h: Harness): NonNullable<Harness["service"]["hostedSearch"]> {
-  const port = h.service.hostedSearch;
-  if (port === undefined) throw new Error("hostedSearch is not provided");
-  return port;
+function hosted(h: Harness): Harness["service"]["hostedSearch"] {
+  return h.service.hostedSearch;
 }
 
 const SIGNAL = new AbortController().signal;
@@ -84,7 +82,7 @@ describe("support", () => {
 
   test("another api has no hosted search and an unknown model is no_model", () => {
     const other = createHarness({ tape: searchTape({}) });
-    expect(other.service.hostedSearch?.support("auto")).toEqual({
+    expect(other.service.hostedSearch.support("auto")).toEqual({
       supported: false,
       reason: "no_hosted_search",
     });
@@ -105,7 +103,7 @@ describe("support", () => {
         baseUrl: "https://api.kimi.example/anthropic",
       },
     });
-    expect(h.service.hostedSearch?.support("auto")).toEqual({
+    expect(h.service.hostedSearch.support("auto")).toEqual({
       supported: false,
       reason: "no_hosted_search",
     });

@@ -1266,7 +1266,10 @@ export function createPipeline(
       arguments: { command: request.command },
     };
     const prepared = await prepareCall(call, run, true);
-    if (prepared.kind === "settled") return toToolResultRecord(prepared.outcome.result);
+    if (prepared.kind === "settled") {
+      // 실행 전에 닫힌 호출(정책 deny, 확장 거부, 인자 오류)은 명령이 돌지 않았다는 표지를 달아 호출한 쪽이 거부로 알아보게 한다
+      return toToolResultRecord({ ...prepared.outcome.result, details: { code: "not_executed" } });
+    }
     const outcome = await execute(prepared.call, () => {}, run);
     return toToolResultRecord(outcome.result);
   }

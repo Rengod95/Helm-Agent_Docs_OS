@@ -1302,14 +1302,19 @@ export interface SessionSettingsStore {
   /** session 범위 층. resolveSetting의 ScopeStack에 넣는다(F.wire-settings.spec §3.9) */
   layer(threadId: ThreadId): ScopeLayer;
   /** checkSettingWrite 통과 뒤 settings.changed 커밋. 비밀 키는 SecretRef만 */
-  set(threadId: ThreadId, key: SettingKey, value: JsonValue, requestKey: string): Result<void, StoreError>;
+  set(threadId: ThreadId, key: SettingKey, value: JsonValue, requestKey: string): Result<void, SessionSettingsError>;
   /** settings.changed { value: null } 커밋 */
-  reset(threadId: ThreadId, key: SettingKey, requestKey: string): Result<void, StoreError>;
+  reset(threadId: ThreadId, key: SettingKey, requestKey: string): Result<void, SessionSettingsError>;
 }
+
+/** 저장소 오류에 같은 requestKey의 다른 값 재사용을 더한 합집합 [결정: L1F] */
+export type SessionSettingsError =
+  | StoreError
+  | { readonly kind: "key_reused"; readonly requestKey: string };
 ```
 
 - session 범위 값은 `settings.changed{scope:"session"}` 이벤트로 남고, `layer(threadId)`가 활성 가지 위 이벤트를 seq 순으로 접어 돌려준다. 분기·되감기·재개를 따라간다. 이벤트 순서로 쌓는 투영 테이블(`p_settings`)은 버려진 가지의 값을 담을 수 있어 두지 않는다 [결정: L1B.2]. 도구 호출마다 읽으므로 thread별 캐시를 두고(leaf가 앞으로만 나아갔으면 새 이벤트만 접고, 되감기·가지 이동이면 처음부터 다시 접는다) thread를 지우면 버린다.
-- `set`·`reset`의 커밋 키는 `settings:<commitKeyPart(requestKey)>`다. 공백이나 비ASCII 문자, 긴 키도 해시로 줄여 커밋 키 형식에 맞춘다. 같은 키에 다른 값을 내는 일은 호출자가 키를 만들 때 지킬 계약이라 `Bug("store.schema_invalid")`다 [미결: 이 인터페이스의 오류 합집합에 `key_reused`를 더하는 F 변경은 호출자(core-tools `setMode`)가 호출마다 새 키를 만들어 아직 쓸 데가 없어 미룬다]. 쓰기 소유자가 아니면 `ownership_lost`다. `layer`는 오류 통로가 없다(F 계약): 읽을 수 없으면 비어 있는 층을 돌려주고 Logger에 남긴다 [제안: F에 `Result` 요청].
+- `set`·`reset`의 커밋 키는 `settings:<commitKeyPart(requestKey)>`다. 공백이나 비ASCII 문자, 긴 키도 해시로 줄여 커밋 키 형식에 맞춘다. 같은 키에 다른 값을 내면 `{ kind: "key_reused", requestKey }` 오류 값이다 [결정: L1F]. 아무 행도 쓰지 않고 운영 로그에 남긴다. 호출마다 새 키를 만드는 호출자(core-tools `setMode`)에게는 일어나지 않으므로 그 자리에서는 불변 조건 위반(`Bug`)으로 다루고, wire에서 받은 키를 넘기는 호출자는 값으로 처리한다. 같은 키·같은 값은 기록된 결과를 그대로 돌려준다. 쓰기 소유자가 아니면 `ownership_lost`다. `layer`는 오류 통로가 없다(F 계약): 읽을 수 없으면 비어 있는 층을 돌려주고 Logger에 남긴다 [제안: F에 `Result` 요청].
 - [제안] 설정 파일 범위(`managed`, `user`, `project`, `local`)의 파일 위치, 읽기, 감시, 쓰기, 병합 실행은 `L4.host-service.spec`이 소유한다. `F.wire-settings.spec` §1.2는 이 일을 `L1.persistence.spec`과 `L4.host-service.spec`에 [가정]으로 넘겼다. session-core 컨텍스트는 `xeon.store`만 부르므로(§4.8.2) 파일 시스템과 OS 디렉터리(L0.os)를 쓸 수 없다. 그래서 이 문서는 session 범위만 맡는다. 프로젝트 설정의 신뢰 전 적용 제외 규칙(`X.loading-trust.spec` §4.7.4)과 파일 이름(`.xeon/settings.json`, `.xeon/settings.local.json`)도 파일 범위 소유자의 일이다. `L4.host-service.spec`의 `SettingsStorePort` 대응([가정])과 `X.loading-trust.spec`의 기대를 바꾸는 요청이므로 [미결]로 둔다(§10).
 
 ## 7. 확장 지점
@@ -1457,3 +1462,4 @@ export interface SessionSettingsStore {
 15. [미결] 청크 재생성으로 바꾸는 기준 이벤트 수(10만 건 [가정])와 재생성 중 쓰기 거부가 사용자에게 주는 지연.
 16. [미결] 확장 투영기 예외 뒤 복구 경로(X가 확장을 끄고 재시도)를 이 문서의 알림 방식으로 확정할지(`X.operations.spec` §10 미결 6).
 17. [미결] 승인 대기 커밋(A1)의 체크포인트 예외(FR-P4)를 F가 받지 않으면, 승인 대기를 단계 경계로 볼지(`step.completed{status}` 확장) 다시 정해야 한다.
+18. [미결] `thread.read`와 `approval.list`(F.wire-settings.spec §3.4.6)용 L1 전용 질의. 조립 루트(apps/host)가 `readBranch`·`readFrom`·`query.pendingApprovals`와 `feed.headSeq()`를 같은 동기 구간에서 불러 구현했고(읽기가 모두 동기 SQLite 호출이라 head와 내용이 같은 저장소 상태를 본다), L1이 해줄 일은 아직 없어 `ProjectionQuery`에 질의를 더하지 않았다. 비용은 남는다. `thread.read`는 쪽 하나를 위해 활성 가지 전체를 읽고 `approval.list`는 대화의 이벤트를 처음부터 훑는다. 긴 대화에서 문제가 되면 (a) 활성 가지의 `item.recorded`를 `before`·`limit`으로 자르고 head와 한 읽기 트랜잭션에서 돌려주는 질의, (b) 미해결 `approval.requested`를 seq와 함께 돌려주는 질의를 `ProjectionQuery`에 더한다. `ProjectionQuery`를 구현하는 모든 대역(core-tools·core-loop·cap-work의 가짜 세션)이 함께 바뀌는 F 변경이다.

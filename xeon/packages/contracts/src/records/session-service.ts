@@ -352,6 +352,14 @@ export interface SessionSettingsLayer {
   readonly values: ReadonlyMap<string, unknown>;
 }
 
+/**
+ * session 범위 설정 쓰기 실패. 저장소 오류에 더해, 같은 `requestKey`를 다른 값으로 다시 쓴 것은 호출자가 키를 잘못 쓴 예상 가능한 실패라
+ * 값으로 돌려준다(TY-24). 키를 호출마다 새로 만드는 호출자(`setMode`)에게는 일어나지 않는다
+ */
+export type SessionSettingsError =
+  | StoreError
+  | { readonly kind: "key_reused"; readonly requestKey: string };
+
 export interface SessionSettingsStore {
   /** session 범위 층. resolveSetting의 ScopeStack에 넣는다(F.wire-settings.spec §3.9) */
   layer(threadId: ThreadId): SessionSettingsLayer;
@@ -361,9 +369,9 @@ export interface SessionSettingsStore {
     key: string,
     value: JsonValue,
     requestKey: string,
-  ): Result<void, StoreError>;
+  ): Result<void, SessionSettingsError>;
   /** settings.changed { value: null } 커밋 */
-  reset(threadId: ThreadId, key: string, requestKey: string): Result<void, StoreError>;
+  reset(threadId: ThreadId, key: string, requestKey: string): Result<void, SessionSettingsError>;
 }
 
 // ── X 기록 포트 (X.primitives.spec §3.6) ──────────────────────────────────

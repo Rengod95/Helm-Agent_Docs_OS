@@ -8,11 +8,11 @@ import {
   commitKeyPart,
   SettingsChangedPayloadSchema,
   type CommitPlan,
+  type SessionSettingsError,
   type SessionSettingsLayer,
   type SessionSettingsStore,
   type SqlTx,
   type StoreDb,
-  type StoreError,
 } from "@xeon/contracts/records";
 import { sha256Hex } from "./hash.ts";
 import { branchEvents, isOnBranch, kindIn, leafOf } from "./branch.ts";
@@ -112,7 +112,7 @@ export function createSessionSettings(deps: SessionSettingsDeps): SessionSetting
     key: string,
     value: JsonValue,
     requestKey: string,
-  ): Result<void, StoreError> => {
+  ): Result<void, SessionSettingsError> => {
     const committed = writer.commit({
       threadId,
       requestId: `settings:${commitKeyPart(requestKey, sha256Hex)}`,
@@ -138,7 +138,9 @@ export function createSessionSettings(deps: SessionSettingsDeps): SessionSetting
     });
     if (!committed.ok) return committed;
     if (committed.value.status === "key_reused") {
-      throw new Bug(`store.schema_invalid: settings key reused (${requestKey})`);
+      // 같은 키에 다른 값: 호출자가 키를 잘못 썼다. 아무 행도 쓰지 않았다
+      logger?.warn("session.settings_key_reused", { threadId, key, requestKey });
+      return err({ kind: "key_reused", requestKey });
     }
     if (committed.value.status === "rejected") {
       throw new Bug(`store.schema_invalid: settings commit was rejected (${committed.value.code})`);

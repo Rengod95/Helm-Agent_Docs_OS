@@ -41,6 +41,24 @@ describe("session settings", () => {
     expect(layerOf(h, threadId).values.has(KEY)).toBe(false);
   });
 
+  test("a reused request key with another value is a key_reused value, not a Bug, and writes nothing", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    expectOk(h.service.sessionSettings.set(threadId, KEY, { mode: "fast" }, "reuse"));
+    const again = h.service.sessionSettings.set(threadId, KEY, { mode: "slow" }, "reuse");
+    expect(again).toEqual({ ok: false, error: { kind: "key_reused", requestKey: "reuse" } });
+    const reset = h.service.sessionSettings.reset(threadId, KEY, "reuse");
+    expect(reset).toEqual({ ok: false, error: { kind: "key_reused", requestKey: "reuse" } });
+    expect(layerOf(h, threadId).values.get(KEY)).toEqual({ mode: "fast" });
+    expect(
+      h.store.raw
+        .query<{ n: number }, []>(
+          "SELECT COUNT(*) AS n FROM events WHERE kind = 'settings.changed'",
+        )
+        .get()?.n,
+    ).toBe(1);
+  });
+
   // spec plan session_settings_follow_branch
   test("session_settings_follow_branch: a value set after the rewind point disappears with the rewind", async () => {
     const h = await openHarness();
