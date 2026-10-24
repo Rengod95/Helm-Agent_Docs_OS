@@ -3,6 +3,7 @@ import type { KnowledgeActor, LedgerOp, SkillCreatedBy } from "@xeon/contracts/c
 import type { SqlTx } from "@xeon/contracts/records";
 import type { ChangeTarget } from "../ledger/target.ts";
 import { createdByFromLedger } from "../ledger/rows.ts";
+import { updateDocsAfterChange } from "../search/docs-index.ts";
 import { describeSkill, mainFileOf } from "./document.ts";
 import {
   deleteFileState,
@@ -40,6 +41,8 @@ export interface IndexUpdate {
   readonly next: Tree | null;
   readonly afterHash: string | null;
   readonly now: number;
+  /** 스킬·메모리 검색 색인 표가 있으면 같은 트랜잭션에서 문서를 갱신한다 */
+  readonly docsFts: boolean;
 }
 
 /** 색인에 보이는 내용(이름, 설명, 모델 호출 여부, 있고 없음)이 바뀌었으면 true */
@@ -57,6 +60,14 @@ export function updateIndexAfterChange(tx: SqlTx, update: IndexUpdate): boolean 
       size: treeBytes(next),
       mtimeMs: now,
       checkedAt: now,
+    });
+  }
+  if (update.docsFts) {
+    updateDocsAfterChange(tx, {
+      kind: target.kind,
+      name: target.name,
+      scope: target.scope,
+      next,
     });
   }
   if (target.kind !== "skill" || target.scope === undefined) return false;

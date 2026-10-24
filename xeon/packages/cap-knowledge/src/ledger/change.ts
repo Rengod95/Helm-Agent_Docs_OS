@@ -41,6 +41,8 @@ export interface LedgerDeps {
   readonly clock: Clock;
   readonly ids: LocalIdFactory;
   readonly logger: Logger;
+  /** 스킬·메모리 검색 색인(`cap_knowledge_docsfts`)이 있는가. 있으면 쓰기와 같은 트랜잭션에서 문서를 갱신한다(spec §4.4.1 10단계) */
+  readonly docsFts?: boolean;
 }
 
 export interface ChangeSpec {
@@ -224,6 +226,7 @@ export function createChangeExecutor(deps: LedgerDeps): ChangeExecutor {
         next: spec.next,
         afterHash,
         now,
+        docsFts: deps.docsFts === true,
       });
       const outcome: WriteOutcome = {
         status: "applied",

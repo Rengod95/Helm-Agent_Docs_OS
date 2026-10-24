@@ -14,6 +14,8 @@ import { readKnowledgeSettings } from "../../src/settings.ts";
 import { resolveSkillRoots } from "../../src/skills/roots.ts";
 import { fixedIdFactory, fixedLocalIds, manualClock, type ManualClock } from "./clock.ts";
 import { createMemoryFs, type MemoryFs } from "./memory-fs.ts";
+import { createSessionKit, type SessionKit } from "./sessions.ts";
+import { setupSearch } from "../../src/search/setup.ts";
 
 const DATA_DIR = "/data";
 const PROJECT_DIR = "/proj";
@@ -37,6 +39,10 @@ export interface World {
   readonly logs: LogLine[];
   /** 안전 캡처(blob 저장)를 실패시키는 스위치 */
   readonly blobFault: { putFails: boolean };
+  /** `sessions: true`로 열었을 때의 세션 도우미 */
+  readonly sessions: SessionKit | undefined;
+  /** 색인 소비자가 받은 배치를 모두 처리하기를 기다린다 */
+  settleIndex(): Promise<void>;
   /** 설정 층을 바꾼다. 다음 호출부터 적용된다 */
   setLayers(layers: ScopeStack): void;
 }
@@ -67,13 +73,18 @@ export interface WorldOptions {
   /** 쓰기 승인 포트. 없으면 승인 대신 제안 대기열로 간다 */
   readonly approvals?: WriteApprovals;
   readonly extensionRoots?: readonly { readonly dir: string; readonly extension: string }[];
+  /** true면 실제 세션 서비스(투영기 등록부 포함)를 올리고 검색 표와 색인 소비자를 시작한다 */
+  readonly sessions?: boolean;
+  /** 저장소 능력 판정을 덮어쓴다(FTS5 없음, 낡은 SQLite 시험) */
+  readonly capabilities?: { readonly fts5: boolean; readonly sqliteVersion: string };
 }
 
 /** 메모리 파일 시스템 + 실제 SQLite 임시 저장소 + 마이그레이션 적용을 한 번에 만든다 */
 export async function createWorld(options: WorldOptions = {}): Promise<World> {
   const clock = manualClock();
   const fs = createMemoryFs();
-  const store = await openTestStore({ clock, ids: fixedIdFactory(clock) });
+  const ids = fixedIdFactory(clock);
+  const store = await openTestStore({ clock, ids });
   opened.push(store);
   const migrated = store.service.migrations.apply(KNOWLEDGE_MIGRATIONS);
   if (!migrated.ok) throw new Error(`migration failed: ${migrated.error.kind}`);
@@ -87,13 +98,24 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
     readBlob: (ref) => store.service.readBlob(ref),
   };
   let layers: ScopeStack = [];
+  const logger = recordingLogger(logs);
+  const kit =
+    options.sessions === true ? createSessionKit({ store, clock, ids, logger }) : undefined;
+  const db = store.service.scoped(KNOWLEDGE_OWNER);
+  const search = setupSearch({
+    capabilities: options.capabilities ?? store.service.capabilities,
+    session: kit?.session,
+    db,
+    logger,
+  });
   const deps: KnowledgeDeps = {
     fs,
-    db: store.service.scoped(KNOWLEDGE_OWNER),
+    db,
+    docsFts: search.availability.docs,
     blobs,
     clock,
     ids: fixedLocalIds(),
-    logger: recordingLogger(logs),
+    logger,
     settings: () => readKnowledgeSettings(layers),
     roots: () => {
       const settings = readKnowledgeSettings(layers);
@@ -112,16 +134,27 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
     containsKnown: options.containsKnown,
     approvals: options.approvals,
     memoryDir: MEMORY_DIR,
+    session: kit?.session,
+    searchAvailability: search.availability,
   };
+  const runtime = createKnowledgeRuntime(deps);
+  if (kit !== undefined) {
+    const started = await runtime.startup();
+    if (!started.ok) throw new Error(`startup failed: ${started.error.message}`);
+  }
   return {
     fs,
     store,
     clock,
     deps,
-    runtime: createKnowledgeRuntime(deps),
+    runtime,
     executor: createChangeExecutor(deps),
     logs,
     blobFault,
+    sessions: kit,
+    settleIndex: async () => {
+      await runtime.indexer()?.settled();
+    },
     setLayers(next) {
       layers = next;
     },

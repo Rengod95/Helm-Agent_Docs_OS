@@ -212,6 +212,38 @@ xeon/packages/cap-knowledge/
 | `memory.test.ts` | 빈 저장소, 구분 줄 형식과 ID, NFC 중복, 구분 줄 모양 항목 거부, `memory_full`과 `detail.entries`, replace·remove의 `baseHash`, batch 원자성, 바깥 편집 기록, 드리프트 `.bak`(한 번), UTF-8·NUL·크기 초과, 처음 보는 파일, 동시 쓰기, 스냅샷 결정성과 표지 무력화, 메모리 끔, 에이전트 승인·대기열, 원장 왕복(메모리 네 연산) |
 | `write-scan.test.ts` | 범주별 차단과 걸린 문자열 비노출, 경계 표지, 전체 파일 검사(경계에서 완성되는 구절), `scripts/` 엄격 규칙, 경고는 통과, 스킬 검사 설정은 메모리 검사에 영향 없음, `overrideScan`, 마스킹 등록부, 막힌 쓰기는 대기열에 들지 않음 |
 
+### 3.4 구현 기록: KN.4 (K8, K9)
+
+`m2/webkn` 브랜치의 구현이다. 실제 측정(개발자 세션 DB 사본의 trigram 인덱스 크기, 완료 기준 8)은 하지 않았다. 사용자 승인 뒤에 한다(m2-plan 결정 D11). 측정 전까지 인덱스 크기 값은 [가정]이다.
+
+| 작업 | 상태 | 구현 위치와 범위 |
+|---|---|---|
+| K8 프로브 | 완료(방식 변경) | `search/probe.ts`(능력 판정: FTS5 + SQLite 3.34.0 이상), `search/setup.ts`(투영기 등록과 표 접근 확인으로 가용성 결정). 범위 핸들이 DDL을 허용하지 않아 `temp` 표 프로브는 하지 않는다(spec §4.8.5) |
+| K8 투영기 | 완료 | `search/ddl.ts`(표 선언, FTS 가능 여부에 따라 버전 1 또는 1001), `search/projector.ts`(`thread.started`, `thread.updated`, `agent.spawned`, `item.recorded` → 세션 목록). 실제 `session.projectors.register`로 등록한다 |
+| K8 소비자 | 완료 | `search/indexer.ts`(`session.subscribe` 구독, 배치 500, `hydrate`, 이벤트 `seq` 커서와 행을 한 트랜잭션, 실패하면 멈춤) |
+| K9 질의 | 완료 | `search/query-model.ts`(정규화, 토큰, MATCH·LIKE 식, 스니펫; 순수), `search/service.ts`(`query`, `scroll`, `read`, `list`), `search/docs-index.ts`(스킬·메모리 문서 FTS: 쓰기와 같은 트랜잭션에서 갱신, 시작 때 재구성, FTS가 없으면 문서 목록을 LIKE로) |
+| 도구 광고 | 완료 | `plugin.ts`가 `knowledge_search`, `session_scroll`, `session_read`를 `risk: read`로 올린다(검색을 끄고 시작하면 올리지 않는다). 올리면 스킬 인덱스 블록 끝 안내문이 `knowledge_search`를 가리킨다 |
+
+계획 §2 배치와 다른 점:
+
+- `search/indexer.ts`가 `projector.ts`와 소비자를 나눈다. 계획의 `search/probe.ts`(trigram 프로브)는 능력 판정으로, `search/query.ts`는 `query-model.ts`(순수)와 `service.ts`로 나눴다. `docs-index.ts`는 계획 위치 그대로다.
+- 표 이름과 열은 spec §3.8 구현 메모를 따른다(`sessiondocs`, `sessionfts`, `docsfts`, `sessioncursor`, `thread_id`, `event_seq`).
+- 마이그레이션(`CAP_KNOWLEDGE` 세션 밖 상태)은 바꾸지 않았다. 검색 표는 모두 투영기가 선언한다.
+- 포트 파일 `ports/session.ts`는 `SessionService`의 필요한 부분과 운영 구현이 아닌 부분 구현(시험 호스트)을 구분하는 검사 `isKnowledgeSessionPort`를 함께 둔다.
+- 투영기 이벤트 kind와 세션 종류 추론은 spec §4.8.1·§4.8.2에 적었다.
+
+시험(모두 실제 SQLite와 실제 `core-persistence` 세션 서비스 위에서 돈다):
+
+| 파일 | 내용 |
+|---|---|
+| `fts-indexer.test.ts` | 세션 행(제목, 프로젝트 해시, 메시지 수), 숨김 종류(`agent.spawned` 순서 두 가지), 텍스트만 색인, 색인하지 않는 이벤트에도 커서가 감, `idempotent on redelivery`, `cursor and rows in one transaction`(쓰기 도중 예외 주입), 세션 삭제, blob으로 옮겨진 긴 메시지 |
+| `query.test.ts` | 질의 모델(토큰, 경로, MATCH·LIKE 식, 스니펫), `korean short query uses like`, `three char query uses fts`, `nfc normalization`, `bm25 then recency`, `fts special chars quoted`, LIKE 와일드카드 리터럴, 숨김·ID·시각·한도·프로젝트 범위, scroll·read·list, `kind order concatenation`, 쓰기와 같은 트랜잭션의 색인 갱신, 가려진 스킬 |
+| `probe.test.ts` | 능력 판정 표, `probe failure disables session search`(FTS5 없음), `degraded: ["session"]`와 스킬·메모리 LIKE 대체, 세션 서비스 없이 시작 |
+| `fts-trigram.int.test.ts` | 실제 `bun:sqlite`에서 3글자 MATCH, 2글자 0건, 대소문자 무시, 조사 앞뒤 일치, bm25 순서 |
+| `plugin.test.ts` | 세션 서비스가 있을 때 투영기 등록·색인·검색·목록이 플러그인 경로로 동작, 없을 때 `unavailable` |
+
+완료 기준 9(macOS FTS5·trigram 확인)는 이 기기에서 할 수 없다. `desktop-macos` CI job이나 실기에서 `fts-trigram.int.test.ts`를 한 번 돌려 기록한다.
+
 ## 4. 채택 코드
 
 ### 4.1 포크: pi `core/skills.ts`

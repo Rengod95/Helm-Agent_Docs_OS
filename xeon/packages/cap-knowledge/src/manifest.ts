@@ -1,11 +1,16 @@
-import { KnowledgeLedger, KnowledgeMemory, KnowledgeSkills } from "@xeon/contracts/capabilities";
+import {
+  KnowledgeLedger,
+  KnowledgeMemory,
+  KnowledgeSearch,
+  KnowledgeSkills,
+} from "@xeon/contracts/capabilities";
 import { defineManifest, type ExtensionManifest } from "@xeon/contracts/extensions";
 
 export const KNOWLEDGE_EXTENSION_NAME = "cap-knowledge";
 
 /**
- * 내장 L2 플러그인 매니페스트(L2.knowledge.plan §2 manifest.ts). KN.3까지 제공하는 능력은 `knowledge.skills`(읽기, 쓰기,
- * 재색인), `knowledge.memory`, `knowledge.ledger`다. `knowledge.search`는 K8·K9가 `provides`에 더한다.
+ * 내장 L2 플러그인 매니페스트(L2.knowledge.plan §2 manifest.ts). 제공하는 능력은 `knowledge.skills`(읽기, 쓰기, 재색인),
+ * `knowledge.memory`, `knowledge.search`(스킬·메모리·세션 전문 검색), `knowledge.ledger`다.
  */
 export function knowledgeManifest(): ExtensionManifest {
   return defineManifest({
@@ -21,6 +26,7 @@ export function knowledgeManifest(): ExtensionManifest {
     provides: [
       { id: KnowledgeSkills.id, version: KnowledgeSkills.version },
       { id: KnowledgeMemory.id, version: KnowledgeMemory.version },
+      { id: KnowledgeSearch.id, version: KnowledgeSearch.version },
       { id: KnowledgeLedger.id, version: KnowledgeLedger.version },
     ],
     points: [],

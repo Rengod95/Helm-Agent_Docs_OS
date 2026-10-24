@@ -48,6 +48,7 @@ async function recoverOne(
       next: current.value,
       afterHash: entry.afterHash,
       now,
+      docsFts: deps.docsFts === true,
     });
     const outcome: WriteOutcome = {
       status: "applied",

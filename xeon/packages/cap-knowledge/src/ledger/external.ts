@@ -3,6 +3,7 @@ import type { WriteOutcome } from "@xeon/contracts/capabilities";
 import type { BlobRef } from "@xeon/contracts/records";
 import { fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import { SCAN_RULESET_VERSION } from "../scan/rules.ts";
+import { updateDocsAfterChange } from "../search/docs-index.ts";
 import { upsertFileState } from "../skills/store.ts";
 import { treeBytes, type Tree } from "../skills/tree.ts";
 import type { LedgerDeps } from "./change.ts";
@@ -75,6 +76,14 @@ export function recordExternalChange(
       indexChanged: false,
       outcome,
     });
+    if (deps.docsFts === true) {
+      updateDocsAfterChange(tx, {
+        kind: target.kind,
+        name: target.name,
+        scope: target.scope,
+        next: current,
+      });
+    }
     if (current === null || afterHash === null) {
       tx.run("DELETE FROM cap_knowledge_files WHERE path = ?", [target.path]);
     } else {

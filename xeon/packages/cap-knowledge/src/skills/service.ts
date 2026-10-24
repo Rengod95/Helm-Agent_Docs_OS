@@ -30,6 +30,8 @@ export interface SkillsDeps extends LedgerDeps {
   readonly settings: (threadId: string | undefined) => KnowledgeSettings;
   /** `knowledge_search`를 광고하는가(KN.2 전에는 false). 인덱스 블록 끝 안내문이 이 값을 따른다 */
   readonly searchToolAdvertised?: boolean;
+  /** 재색인이 끝난 뒤 부른다. 스킬·메모리 검색 색인을 파일에서 다시 만드는 데 쓴다(spec §3.8). 실패는 기록만 하고 재색인 결과를 바꾸지 않는다 */
+  readonly afterReindex?: () => Promise<Result<void, KnowledgeFailure>>;
 }
 
 export interface SkillsRuntime {
@@ -95,7 +97,16 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
   const reindex = async (): Promise<Result<ReindexResult, KnowledgeFailure>> => {
     const resolved = await deps.roots();
     const result = await reindexSkills(deps, resolved.roots);
-    if (result.ok) lastDiagnostics = [...resolved.diagnostics, ...result.value.diagnostics];
+    if (result.ok) {
+      lastDiagnostics = [...resolved.diagnostics, ...result.value.diagnostics];
+      const refreshed = await deps.afterReindex?.();
+      if (refreshed !== undefined && !refreshed.ok) {
+        deps.logger.warn("knowledge.docs_index.rebuild_failed", {
+          kind: refreshed.error.kind,
+          message: refreshed.error.message,
+        });
+      }
+    }
     return result;
   };
 

@@ -4,6 +4,8 @@ import {
   KnowledgeLedgerKey,
   KnowledgeMemory,
   KnowledgeMemoryKey,
+  KnowledgeSearch,
+  KnowledgeSearchKey,
   KnowledgeSkills,
   KnowledgeSkillsKey,
   type AnyCapabilityDef,
@@ -15,6 +17,7 @@ import {
   ExecPortKey,
   OsPortKey,
   SecretServiceName,
+  SessionPortKey,
   StoreServicePortKey,
   ToolServiceName,
   type SecretService,
@@ -26,6 +29,8 @@ import { createNodeFs } from "./fs/node-fs.ts";
 import type { KnowledgeFs } from "./fs/port.ts";
 import { knowledgeManifest } from "./manifest.ts";
 import { createWriteApprovals } from "./ports/approvals.ts";
+import { isKnowledgeSessionPort } from "./ports/session.ts";
+import { setupSearch } from "./search/setup.ts";
 import { KNOWLEDGE_MIGRATIONS, KNOWLEDGE_OWNER } from "./migrations.ts";
 import { createKnowledgeRuntime, type KnowledgeDeps } from "./service.ts";
 import { readKnowledgeSettings, type KnowledgeSettingsSource } from "./settings.ts";
@@ -112,15 +117,29 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
       const secrets = optionalPort(host, SecretsPortKey);
       const tools = optionalPort(host, ToolsPortKey);
       const approvalService = optionalPort(host, ApprovalServicePortKey);
+      const sessionCandidate = optionalPort(host, SessionPortKey);
+      const session = isKnowledgeSessionPort(sessionCandidate) ? sessionCandidate : undefined;
       const logger = os.logger("knowledge");
 
       const migrated = store.migrations.apply(KNOWLEDGE_MIGRATIONS);
       if (!migrated.ok) return err({ reason: migrated.error.kind, cause: migrated.error });
 
       const fs = options.fs ?? createNodeFs();
+      const db = store.scoped(KNOWLEDGE_OWNER);
+      // 세션 투영기와 검색 표. 쓸 수 없으면 그 기능만 끄고 계속한다(spec §4.8.5)
+      const search = setupSearch({ capabilities: store.capabilities, session, db, logger });
+      g.onDispose(() => {
+        search.dispose();
+      });
+      const searchEnabled = readKnowledgeSettings(options.settings.layers(undefined)).search
+        .enabled;
       const deps: KnowledgeDeps = {
         fs,
-        db: store.scoped(KNOWLEDGE_OWNER),
+        db,
+        docsFts: search.availability.docs,
+        session,
+        searchAvailability: search.availability,
+        searchToolAdvertised: tools !== undefined && searchEnabled,
         blobs: store,
         clock: os.time.clock,
         ids: options.ids,
@@ -165,6 +184,10 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
       const runtime = createKnowledgeRuntime(deps);
       host.provide(KnowledgeSkillsKey, runtime.skillsApi);
       host.provide(KnowledgeMemoryKey, runtime.memoryApi);
+      host.provide(KnowledgeSearchKey, runtime.searchApi);
+      g.onDispose(() => {
+        runtime.dispose();
+      });
       host.provide(KnowledgeLedgerKey, runtime.ledgerApi);
 
       // 시작 시 복구와 재색인. 실패해도 시작을 막지 않는다(색인이 낡을 뿐이다). 원인은 기록한다
@@ -195,6 +218,19 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
           def: KnowledgeMemory,
           key: KnowledgeMemoryKey,
           policy: { memory_manage: WRITE_TOOL_POLICY },
+        });
+      }
+      // 검색 도구 셋(knowledge_search, session_scroll, session_read)은 읽기 전용이다. 검색을 끄고 시작하면 올리지 않는다
+      if (searchEnabled) {
+        registrations.push({
+          kind: "capability",
+          def: KnowledgeSearch,
+          key: KnowledgeSearchKey,
+          policy: {
+            knowledge_search: { risk: "read" },
+            session_scroll: { risk: "read" },
+            session_read: { risk: "read" },
+          },
         });
       }
       const unregisters: (() => void)[] = [];

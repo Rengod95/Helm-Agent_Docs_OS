@@ -45,6 +45,7 @@ describe("knowledge definitions", () => {
     expect(knowledgeManifest().provides?.map((entry) => entry.id)).toEqual([
       "knowledge.skills",
       "knowledge.memory",
+      "knowledge.search",
       "knowledge.ledger",
     ]);
   });

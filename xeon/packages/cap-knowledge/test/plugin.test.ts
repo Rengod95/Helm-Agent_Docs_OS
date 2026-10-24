@@ -2,9 +2,11 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { err, ok, type LogFields, type Logger, type Result } from "@xeon/contracts";
 import {
   KnowledgeLedgerKey,
+  KnowledgeSearchKey,
   KnowledgeSkillsKey,
   type CapabilityApi,
   type KnowledgeLedger,
+  type KnowledgeSearch,
   type KnowledgeSkills,
 } from "@xeon/contracts/capabilities";
 import {
@@ -14,7 +16,7 @@ import {
   type PortKey,
   type ToolRegisterError,
 } from "@xeon/contracts/extensions";
-import type { StoreService } from "@xeon/contracts/records";
+import type { SessionService, StoreService } from "@xeon/contracts/records";
 import type { ScopeStack } from "@xeon/contracts/settings";
 import type { ToolRegistration, Unregister } from "@xeon/contracts/services";
 import type { ExtensionUnit } from "@xeon/ext-host";
@@ -25,6 +27,7 @@ import { IMPLEMENTED_SKILL_TOOLS, knowledgePlugin } from "../src/plugin.ts";
 import { fixedIdFactory, fixedLocalIds, manualClock } from "./support/clock.ts";
 import { rejection } from "./support/helpers.ts";
 import { createMemoryFs, type MemoryFs } from "./support/memory-fs.ts";
+import { createSessionKit } from "./support/sessions.ts";
 import { PROJECT_SKILLS, putSkill, USER_SKILLS, userLayer } from "./support/world.ts";
 
 interface FakeTools {
@@ -40,6 +43,7 @@ const OsKey: PortKey<FakeOs> = { name: "xeon.os" };
 const StoreKey: PortKey<StoreService> = { name: "xeon.store" };
 const ExecKey: PortKey<{ readonly cwd: string }> = { name: "xeon.exec" };
 const ToolsKey: PortKey<FakeTools> = { name: "xeon.tools" };
+const SessionKey: PortKey<SessionService> = { name: "xeon.session" };
 
 interface LogLine {
   readonly event: string;
@@ -69,14 +73,22 @@ async function boot(
     prepare?: (fs: MemoryFs) => void;
     projectTrust?: (projectDir: string) => Promise<boolean>;
     layers?: ScopeStack;
+    /** true면 실제 세션 서비스를 `xeon.session`으로 제공한다 */
+    sessions?: boolean;
   } = {},
 ) {
   const clock = manualClock();
-  const store = await openTestStore({ clock, ids: fixedIdFactory(clock) });
+  const ids = fixedIdFactory(clock);
+  const store = await openTestStore({ clock, ids });
   stores.push(store);
   const fs = createMemoryFs();
   options.prepare?.(fs);
-  const t = await createTestHost();
+  const kit =
+    options.sessions === true
+      ? createSessionKit({ store, clock, ids, logger: recordingLogger([]) })
+      : undefined;
+  // 실제 세션 서비스는 `xeon.session` 전체이므로 시험 호스트의 부분 구현(records)을 뺀다
+  const t = await createTestHost(kit === undefined ? {} : { without: ["records"] });
   const registered: ToolRegistration[] = [];
   const unregistered: string[] = [];
   const lines: LogLine[] = [];
@@ -90,6 +102,7 @@ async function boot(
       });
       ctx.providePort(StoreKey, store.service);
       ctx.providePort(ExecKey, { cwd: "/proj" });
+      if (kit !== undefined) ctx.providePort(SessionKey, kit.session);
       if (options.tools !== false) {
         ctx.providePort(ToolsKey, {
           register: (registration) => {
@@ -114,18 +127,20 @@ async function boot(
       ...(options.projectTrust === undefined ? {} : { projectTrust: options.projectTrust }),
     }),
   );
-  return { t, fs, store, installed, registered, unregistered, lines };
+  return { t, fs, store, installed, registered, unregistered, lines, kit };
 }
 
 function consumer() {
   const apis: {
     skills?: CapabilityApi<typeof KnowledgeSkills>;
     ledger?: CapabilityApi<typeof KnowledgeLedger>;
+    search?: CapabilityApi<typeof KnowledgeSearch>;
   } = {};
   const entry: ExtensionEntry = ({ manifest, scope }) => {
     scope(manifest.name, {}, (g) => {
       apis.skills = g.capability(KnowledgeSkillsKey);
       apis.ledger = g.capability(KnowledgeLedgerKey);
+      apis.search = g.capability(KnowledgeSearchKey);
     });
   };
   const unit: ExtensionUnit = {
@@ -139,6 +154,7 @@ function consumer() {
       requires: [
         { id: "knowledge.skills", range: "^1.0.0" },
         { id: "knowledge.ledger", range: "^1.0.0" },
+        { id: "knowledge.search", range: "^1.0.0" },
       ],
       points: [],
       usesDrive: false,
@@ -159,6 +175,7 @@ describe("manifest", () => {
     expect(checked.manifest?.provides).toEqual([
       { id: "knowledge.skills", version: "1.0.0" },
       { id: "knowledge.memory", version: "1.0.0" },
+      { id: "knowledge.search", version: "1.0.0" },
       { id: "knowledge.ledger", version: "1.0.0" },
     ]);
     const unit = knowledgePlugin({ settings: { layers: () => [] }, ids: fixedLocalIds() });
@@ -191,6 +208,49 @@ describe("plugin", () => {
     expect(entries?.entries.map((entry) => entry.op)).toEqual(["external"]);
   });
 
+  test("with a session service the plugin registers the projector, indexes messages and serves search", async () => {
+    const { t, kit, store, lines } = await boot({
+      sessions: true,
+      prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy", { description: "Deploy steps." }),
+    });
+    if (kit === undefined) throw new Error("no sessions");
+    const threadId = kit.newThread({ title: "Plugin thread" });
+    kit.say(threadId, "user", "plugin wiring works end to end");
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    // 소비자가 커밋을 받아 색인할 시간을 준다
+    await Bun.sleep(50);
+    const tables = Object.keys(await store.rowCounts());
+    expect(tables).toContain("cap_knowledge_sessionfts");
+    expect(tables).toContain("cap_knowledge_docsfts");
+    expect(lines.map((line) => line.event)).not.toContain("knowledge.search_unavailable");
+    const found = await apis.search?.query({ query: "wiring works", kinds: ["session"] });
+    expect(found?.hits.map((hit) => hit.sessionId)).toEqual([threadId]);
+    // 시작 때 스킬·메모리 검색 색인도 다시 만들어졌다
+    const skill = await apis.search?.query({ query: "Deploy steps", kinds: ["skill"] });
+    expect(skill?.hits.map((hit) => hit.ref)).toEqual(["deploy"]);
+    const list = await apis.search?.list({});
+    expect(list?.sessions.map((session) => session.title)).toEqual(["Plugin thread"]);
+  });
+
+  test("without a session service search still starts and reports session search as unavailable", async () => {
+    const { t, lines } = await boot({
+      prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy", { description: "Deploy steps." }),
+    });
+    expect(lines.map((line) => line.event)).toContain("knowledge.search_unavailable");
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    const only = await apis.search?.query({ query: "anything", kinds: ["session"] }).then(
+      () => undefined,
+      (reason: unknown) => reason,
+    );
+    expect(only).toMatchObject({ data: { code: "unavailable" } });
+    const skill = await apis.search?.query({ query: "Deploy steps", kinds: ["skill"] });
+    expect(skill?.hits.map((hit) => hit.ref)).toEqual(["deploy"]);
+  });
+
   test("a consumer extension whose call carries no caller context cannot write", async () => {
     const { t } = await boot({
       prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy"),
@@ -211,10 +271,10 @@ describe("plugin", () => {
     expect((await apis.skills?.list({}))?.skills.map((skill) => skill.name)).toEqual(["deploy"]);
   });
 
-  test("the skill and memory tools reach L1.tools with a write risk", async () => {
+  test("the skill, memory and search tools reach L1.tools with their risk", async () => {
     const { registered } = await boot();
-    expect(registered).toHaveLength(2);
-    const [skills, memory] = registered;
+    expect(registered).toHaveLength(3);
+    const [skills, memory, search] = registered;
     expect(skills?.kind === "capability" ? skills.def.id : undefined).toBe("knowledge.skills");
     expect(skills?.kind === "capability" ? skills.def.tools.map((tool) => tool.name) : []).toEqual([
       ...IMPLEMENTED_SKILL_TOOLS,
@@ -231,6 +291,17 @@ describe("plugin", () => {
     expect(memory?.kind === "capability" ? memory.policy : undefined).toEqual({
       memory_manage: { risk: "write", classes: ["shared_state_write"] },
     });
+    expect(search?.kind === "capability" ? search.def.id : undefined).toBe("knowledge.search");
+    expect(search?.kind === "capability" ? search.def.tools.map((tool) => tool.name) : []).toEqual([
+      "knowledge_search",
+      "session_scroll",
+      "session_read",
+    ]);
+    expect(search?.kind === "capability" ? search.policy : undefined).toEqual({
+      knowledge_search: { risk: "read" },
+      session_scroll: { risk: "read" },
+      session_read: { risk: "read" },
+    });
   });
 
   test("a memory switched off at startup is not advertised", async () => {
@@ -238,14 +309,14 @@ describe("plugin", () => {
       layers: [userLayer({ "l2.knowledge.memory.enabled": false })],
     });
     expect(registered.map((item) => (item.kind === "capability" ? item.def.id : "direct"))).toEqual(
-      ["knowledge.skills"],
+      ["knowledge.skills", "knowledge.search"],
     );
   });
 
   test("uninstalling removes the tool registrations", async () => {
     const { t, unregistered } = await boot();
     await t.host.uninstall(KNOWLEDGE_EXTENSION_NAME);
-    expect(unregistered).toEqual(["knowledge.skills", "knowledge.memory"]);
+    expect(unregistered).toEqual(["knowledge.skills", "knowledge.memory", "knowledge.search"]);
   });
 
   test("a refused tool registration fails the setup by value", async () => {

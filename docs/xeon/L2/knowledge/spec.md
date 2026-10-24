@@ -808,8 +808,9 @@ CREATE VIRTUAL TABLE cap_knowledge_session_fts USING fts5(
 );
 ```
 
-- 투영기 `cap.knowledge`(`eng.events.design` §5.1 규칙 5): `tables`는 `cap_knowledge_sessions`, `cap_knowledge_session_docs`, `cap_knowledge_session_fts`이고 `types`는 `session.created`, `session.retitled`, `message.recorded`다. `apply`는 `cap_knowledge_sessions`만 갱신한다(커밋 안, 순수). 나머지 두 테이블은 소비자 `cap.knowledge.fts`가 쓴다. 두 테이블을 투영기 DDL에 선언하는 이유는 세션 삭제 정리(`eng.context-map.design` §5.2)와 재생성 때 함께 지우기 위해서다 [가정: `L1.persistence.spec`이 같은 컨텍스트 소비자가 투영기 선언 테이블에 쓰는 것을 허용한다].
-- 소비자 `cap.knowledge.fts`: `consumer_cursors`의 행 `consumer = 'cap.knowledge.fts'`를 쓴다(`eng.transactions.design` §7). 투영기 재생성으로 세 테이블이 다시 만들어지면 커서는 0이 된다.
+- 구현(KN.4) 이름과 열 [결정]: 투영기 등록부는 `cap_knowledge_` 뒤 지역 이름에 밑줄을 허용하지 않는다(F.records.spec §3.4, `core-persistence` `ownsTable`). 그래서 위 DDL의 `cap_knowledge_session_docs`·`cap_knowledge_session_fts`·`cap_knowledge_docs_fts`는 `cap_knowledge_sessiondocs`·`cap_knowledge_sessionfts`·`cap_knowledge_docsfts`로 쓴다. 세션 id 열은 `session_id` 대신 `thread_id`로 쓴다. 세션 삭제 정리(`core-persistence`의 `deleteThreadRows`)가 투영 표 가운데 `thread_id` 열이 있는 표의 행을 지우기 때문이다. `sessiondocs`는 `event_seq`(이벤트 전역 seq)를 더 갖고 `pos` 열은 없다. `seq`는 세션 안 메시지 번호(1부터)다. 소비자 커서는 투영 표 `cap_knowledge_sessioncursor(consumer, event_seq)`다. 스킬·메모리 문서 표 `docsfts`는 `scope UNINDEXED` 열을 더 갖는다(같은 이름의 스킬이 범위마다 있을 수 있다). `sessions`를 뺀 나머지 네 표(`sessiondocs`, `sessionfts`, `sessioncursor`, `docsfts`)는 FTS5와 trigram을 쓸 수 있을 때만 선언한다. 쓸 수 없으면 `sessions`만 선언하고 투영 버전이 `1001`이다.
+- 투영기 `cap.knowledge`(`eng.events.design` §5.1 규칙 5): `tables`는 `cap_knowledge_sessions`와 색인 표들이고 이벤트 kind는 `thread.started`, `thread.updated`, `agent.spawned`, `item.recorded`다(초안의 `session.created`·`session.retitled`·`message.recorded`는 실제 카탈로그에 없다). `apply`는 `cap_knowledge_sessions`만 갱신한다(커밋 안, 순수). 색인 표는 소비자 `cap.knowledge.fts`가 쓴다. 색인 표를 투영기 DDL에 선언하는 이유는 세션 삭제 정리(`eng.context-map.design` §5.2)와 재생성 때 함께 지우기 위해서다. 같은 컨텍스트의 범위 핸들(`scoped("cap.knowledge")`)이 투영 표에 쓰는 것을 저장소가 허용한다(KN.4가 확인했다).
+- 소비자 `cap.knowledge.fts`: 커서는 `consumer_cursors` 대신 투영 표 `cap_knowledge_sessioncursor`(`consumer = 'fts'`)에 둔다 [결정: KN.4]. `consumer_cursors`는 session-core 소유 표라 범위 핸들이 쓸 수 없고, 투영 표에 두면 투영기 재생성이 색인과 커서를 함께 지워 색인이 처음부터 다시 쌓인다.
 - FTS 테이블은 본문을 복사해 둔다. 외부 콘텐츠 테이블(`content=`)로 중복을 줄이는 안은 [미결]이다(`_research/notes/L2-3.md` §4 6번, §10 미결 9).
 - 내구 이벤트: `knowledge.` 접두사는 예약만 하고 1차에는 type을 두지 않는다(`eng.context-map.design` §5.1). 모델 경로의 쓰기는 도구 3단 기록(`tool.intended`, `tool.settled`)이 남기고, 모든 경로의 쓰기는 원장이 남긴다.
 
@@ -1017,7 +1018,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 7. 안전 캡처: 현재 내용(스킬 디렉터리 전체 또는 메모리 파일)을 `xeon.store.putBlob`으로 저장하고 `before_manifest`를 만든다. 실패하면 쓰지 않고 `internal`로 실패한다(닫힌 실패).
 8. 원장 `prepared` 행 기록(`StoreDb.write` 하나).
 9. 락 안에서 파일 쓰기(§4.3.3). 락을 잡은 뒤 3단계의 해시를 다시 확인한다. 다르면 원장 행을 `aborted`로 바꾸고 `base_stale`.
-10. 새 내용을 blob으로 저장해 `after_manifest`를 만든다. 원장 행을 `applied`로 바꾸고, 같은 트랜잭션에서 `cap_knowledge_files`, `cap_knowledge_skills`, `cap_knowledge_docs_fts`를 갱신한다.
+10. 새 내용을 blob으로 저장해 `after_manifest`를 만든다. 원장 행을 `applied`로 바꾸고, 같은 트랜잭션에서 `cap_knowledge_files`, `cap_knowledge_skills`, `cap_knowledge_docsfts`를 갱신한다.
 11. 인덱스가 바뀌었으면 인덱스 버전을 올린다(§4.2.6).
 
 - 트랜잭션 안에서는 파일 I/O와 승인 대기를 하지 않는다(`eng.transactions.design` TX-01, TX-04). 8단계와 10단계는 각각 짧은 쓰기 트랜잭션이다.
@@ -1153,19 +1154,20 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.8.1 색인 소비자
 
-- 소비자 `cap.knowledge.fts`는 모든 세션의 내구 이벤트를 저장 열 `pos` 순으로 받는다(`eng.events.design` §4.6). [가정: `L1.persistence.spec`이 `pos` 커서 기반 전역 읽기(`afterPos`, `limit`)와 커밋 후 알림을 제공한다.]
+- 소비자 `cap.knowledge.fts`는 내구 피드(`xeon.session`의 `subscribe(afterSeq, listener, { kindPrefixes: ["item.recorded"] })`)를 이벤트 `seq` 순으로 받는다 [결정: KN.4. 초안의 `pos` 커서 기반 읽기는 이 구독으로 대신한다. 구독은 커서 뒤의 따라잡기와 실시간을 같은 구간에서 잇는다].
 - 처리 단위는 배치(최대 500 이벤트)다. 한 배치마다:
-  1. 트랜잭션 밖에서 `message.recorded`의 사용자·어시스턴트 텍스트 파트를 뽑는다. blob 자리표시(`blob:sha256:`)가 있으면 blob을 읽는다. 도구 결과와 사고(thinking) 파트는 넣지 않는다 [제안].
+  1. 트랜잭션 밖에서 `item.recorded`의 사용자·어시스턴트 텍스트 파트를 뽑는다(초안의 `message.recorded`). `detached` 필드가 있으면 `session.hydrate`로 blob에서 되돌린 사본을 읽는다. 도구 결과, 사고(thinking), 도구 호출, 이미지는 넣지 않는다 [제안]. 텍스트가 없는 메시지는 건너뛴다.
   2. 텍스트를 NFC로 정규화한다.
-  3. `StoreDb.write` 하나 안에서 `cap_knowledge_session_docs`(`event_id` 유일)와 `cap_knowledge_session_fts`에 넣고, 같은 트랜잭션에서 `consumer_cursors`의 자기 행 `pos`를 배치 마지막 값으로 올린다(`eng.transactions.design` §7) [가정: `scoped("cap_knowledge_")` 핸들이 자기 소비자 행에 한해 `consumer_cursors` 쓰기를 허용한다].
-- 중복 방지: 커서보다 작거나 같은 `pos`는 건너뛰고, `event_id`가 이미 있으면 넣지 않는다. 같은 배치를 두 번 받아도 FTS 행이 늘지 않는다(수용 기준 3, `eng.events.design` EV-05).
+  3. `StoreDb.write` 하나 안에서 `cap_knowledge_sessiondocs`(`event_id` 유일)와 `cap_knowledge_sessionfts`에 넣고, 같은 트랜잭션에서 `cap_knowledge_sessioncursor`를 배치 마지막 `seq`로 올린다. 색인할 메시지가 없는 배치도 커서는 올린다.
+- 중복 방지: 커서보다 작거나 같은 이벤트 `seq`는 건너뛰고, `event_id`가 이미 있으면 넣지 않는다. 같은 배치를 두 번 받아도 FTS 행이 늘지 않고 세션 안 메시지 번호도 그대로다(수용 기준 3, `eng.events.design` EV-05).
+- 실패: 쓰기가 실패하거나 던지면 커서를 올리지 않고 소비자를 멈춘다(뒤 배치를 건너뛰어 틈이 생기지 않게 한다). 원인은 `knowledge.indexer.failed`로 기록한다. 다음 시작이 같은 배치부터 다시 받는다.
 - session-core의 투영(`p_*`)을 JOIN하지 않는다. 필요한 값은 이벤트에서 받아 자기 테이블에 둔다(`eng.context-map.design` CM-02 좋은 예).
-- 세션 삭제: 세 세션 테이블은 투영기 `cap.knowledge`의 DDL에 선언되어 있으므로 session-core가 그 세션 행을 함께 지운다(`eng.context-map.design` §5.2). FTS 테이블은 `session_id` UNINDEXED 열로 `DELETE … WHERE session_id = ?`가 된다.
+- 세션 삭제: 색인 표는 투영기 `cap.knowledge`의 DDL에 선언되어 있고 `thread_id` 열이 있으므로 session-core가 그 세션 행을 함께 지운다(`eng.context-map.design` §5.2). FTS 표도 `thread_id UNINDEXED` 열로 `DELETE … WHERE thread_id = ?`가 된다.
 - 되감기·분기: 이벤트는 불변이고 되감긴 가지의 메시지도 색인에 남는다. 검색 결과는 원문 기록이므로 가지와 무관하게 보인다 [제안]. 현재 가지만 보이려면 `parentId` 경로 정보가 필요하므로 2차에 정한다.
 
 #### 4.8.2 세션 종류와 숨김
 
-- 투영기 `cap.knowledge`가 `session.created`에서 세션 종류(`main`, `subagent`, `background`, `cron`)와 프로젝트를 기록한다 [가정: `session.created` payload에 종류(또는 부모 세션)와 작업 디렉터리가 있다. 없으면 `L1.persistence.spec`·`L1.agents.spec`에 요청한다].
+- 투영기 `cap.knowledge`가 세션 종류와 프로젝트를 기록한다 [결정: KN.4]. 프로젝트는 `thread.started.workspace`의 sha256 앞 16자다(워크스페이스가 없으면 null). 종류는 `thread.started` payload에 없어서 부모의 `agent.spawned`가 가리키는 자식 thread에 `background: true`면 `background`, 아니면 `subagent`를 쓰고 나머지는 `main`이다. 자식의 `thread.started`가 `agent.spawned`보다 늦게 와도 종류를 덮어쓰지 않는다. `cron`은 M3 `cap-schedule`부터다.
 - 크론·서브에이전트·백그라운드 세션은 기본 검색과 목록에서 숨긴다. 크론 잡의 반복 어휘가 사용자 대화를 밀어내는 "회상 맹점"을 막기 위해서다(`_research/refs/hermes.md` §3.10.2). 서비스 입력 `includeHidden: true`로 포함한다.
 - 크론 세션은 M3 `cap-schedule`부터 생긴다.
 
@@ -1182,20 +1184,21 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 2. 따옴표 구절과 공백으로 나눈 토큰을 만든다. FTS5 특수 문자(`"`, `*`, `^`, `:`, `(`, `)`)는 구절 안에서 그대로 쓰도록 각 토큰을 큰따옴표로 감싸고 내부 큰따옴표는 두 번 쓴다.
 3. 모든 토큰·구절이 3 코드 포인트 이상이면 FTS 경로: `MATCH`에 토큰 구절들을 AND로 묶어 넣는다. 정렬은 `bm25()` 오름차순, 같으면 `recorded_at` 내림차순(`_research/notes/L2-3.md` §4 5번). `path: "fts"`.
 4. 하나라도 3 코드 포인트 미만이면 LIKE 경로: `text LIKE '%' || ? || '%' ESCAPE '\'`로 모든 토큰을 AND한다. 최근 문서부터 `l2.knowledge.search.likeScanLimit`(기본 20,000)개 안에서만 찾는다. `path: "like"`. trigram MATCH는 3글자 미만에서 오류 없이 0건을 내므로 빈 결과를 그대로 돌려주지 않기 위한 경로다(`_research/notes/L2-3.md` §3.2, §6).
-5. `kinds` 기본은 셋 모두다. 스킬·메모리는 `cap_knowledge_docs_fts`에서, 세션은 `cap_knowledge_session_fts`에서 같은 규칙으로 찾고, 종류별 결과를 점수 순으로 섞지 않고 종류 순(skill → memory → session)으로 이어 붙인다 [제안]. 종류 사이 bm25 값은 비교할 수 없기 때문이다.
+5. `kinds` 기본은 셋 모두다. 스킬·메모리는 `cap_knowledge_docsfts`에서, 세션은 `cap_knowledge_sessionfts`에서 같은 규칙으로 찾고, 종류별 결과를 점수 순으로 섞지 않고 종류 순(skill → memory → session)으로 이어 붙인다 [제안]. 종류 사이 bm25 값은 비교할 수 없기 때문이다.
 6. 스니펫은 `snippet()` 함수로 만들고 600자에서 자른다. LIKE 경로는 첫 일치 위치 앞뒤 120자다.
-7. `scope: "project"`는 현재 세션의 프로젝트와 같은 세션만 찾는다. 기본은 `l2.knowledge.search.defaultScope`(`"all"`)다.
+7. `scope: "project"`는 현재 세션의 프로젝트와 같은 세션만 찾는다. 기본은 `l2.knowledge.search.defaultScope`(`"all"`)다. 현재 세션을 모르거나 그 세션에 프로젝트가 없으면 세션 결과는 비어 있다 [제안: 모를 때 전체로 넓히지 않는다].
 8. 결과는 원문이다. LLM 요약을 하지 않는다(`_research/refs/hermes.md` §3.10.2).
+9. 구현(KN.4): 한 호출의 `limit`는 종류 전체의 합이다. 앞 종류가 한도를 채우면 뒤 종류는 찾지 않는다. 스킬·메모리 검색에는 `includeHidden`이 `disable-model-invocation` 스킬을 포함할지를 뜻하고, 같은 이름의 스킬은 모델이 보는 이름 해석의 승자만 낸다. 스킬·메모리 FTS 표가 없으면 `path`는 `like`다. `scroll`·`read`는 세션 종류와 상관없이 ID로 읽고(숨긴 세션 포함) 메시지 하나가 100,000자를 넘으면 자르고 `truncated`를 켠다. `list`는 `last_at` 내림차순이고 `before`는 `last_at` 기준이다. LIKE 경로의 스캔 범위는 FTS 필터 조건(종류·프로젝트·시각)을 적용한 최근 문서 `likeScanLimit`개다.
 
 모델 렌더링: 세션 메시지는 `<untrusted_session_content session="…" seq="…" role="…">`로 감싼다. 지난 대화에도 웹 결과에서 옮겨 적은 지시문이 있을 수 있기 때문이다(`L2.readme` §5.3 표지 명명 규칙).
 
 #### 4.8.5 FTS5 시작 프로브
 
-- `platform-store`의 FTS5 프로브(ADR-0004 §3.5)와 별도로, 이 능력은 시작할 때 자기 범위 핸들에서 `CREATE VIRTUAL TABLE temp.cap_knowledge_probe USING fts5(x, tokenize='trigram')`를 실행하고 지운다. trigram은 FTS5 기본 포함과 별개로 SQLite 버전 조건이 있기 때문이다. `setCustomSQLite`의 반환값은 판정에 쓰지 않는다(`_research/notes/L2-3.md` §2.3).
+- 구현(KN.4, `search/probe.ts`, `search/setup.ts`) [결정]: 범위 핸들(`scoped`)은 DDL을 허용하지 않아 자기 범위에서 `CREATE VIRTUAL TABLE temp...`를 돌릴 수 없다. 대신 `StoreService.capabilities`의 FTS5 판정(`platform-store`의 시작 프로브)과 SQLite 버전(3.34.0 이상)으로 판정하고, 실제 `trigram` 표 생성은 투영기 등록의 DDL이 한다. 등록 뒤 표를 한 번씩 읽어 보아 읽히지 않으면 같은 실패로 취급한다. `setCustomSQLite`의 반환값은 판정에 쓰지 않는다(`_research/notes/L2-3.md` §2.3).
 - 프로브가 실패하면:
-  - 세션 색인 소비자를 시작하지 않는다. 커서는 그대로 둔다(나중에 FTS5가 생기면 이어서 색인).
+  - 세션 색인 소비자를 시작하지 않는다. FTS 표를 선언하지 않으므로 커서도 없다. 능력이 생기면 투영 버전이 바뀌어 투영이 다시 만들어지고 색인은 처음부터 쌓인다. 세션 목록(`list`)은 투영만 쓰므로 계속 동작한다.
   - `query`에서 `session` 종류는 빼고 `degraded: ["session"]`를 싣는다. 세션만 요청했으면 `unavailable`(`detail.reason: "fts5_unavailable"`).
-  - 스킬·메모리 검색은 `cap_knowledge_docs_fts` 대신 색인 테이블과 파일 내용에 대한 LIKE 경로로 한다(대상이 작다).
+  - 스킬·메모리 검색은 `cap_knowledge_docsfts` 대신 색인 테이블과 파일 내용에 대한 LIKE 경로로 한다(대상이 작다). 이때 `path`는 `like`다.
   - L4 진단에 원인(FTS5 없음, trigram 없음, SQLite 버전)을 남긴다. 시작을 막지 않는다 [제안]. ADR-0004 §6 [미결] "FTS5 없을 때 시작 중단 또는 기능만 끄기" 중 이 능력은 기능만 끈다.
 
 ### 4.9 재생 규칙
@@ -1239,7 +1242,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 20 | 사용자·프로젝트에 같은 이름 스킬 | 프로젝트가 이김, `collision` 진단 | — |
 | 21 | FTS5·trigram 프로브 실패 | 세션 검색 끔, 스킬·메모리는 LIKE | `unavailable`(세션만 요청 시) |
 | 22 | 2글자 한국어 질의 | LIKE 경로, `path: "like"` | — |
-| 23 | 같은 이벤트 배치가 두 번 전달됨 | `pos`·`event_id`로 건너뜀 | — |
+| 23 | 같은 이벤트 배치가 두 번 전달됨 | 이벤트 `seq`·`event_id`로 건너뜀 | — |
 | 24 | 세션 삭제 | 세션 목록·문서·FTS 행이 함께 지워짐 | — |
 | 25 | NFD로 저장된 텍스트를 NFC 질의 | 색인 때 NFC로 바꾸었으므로 찾음 | — |
 | 26 | 제안 승인 시점에 대상이 바뀜 | 제안 `stale` | `base_stale` |
@@ -1312,10 +1315,10 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `CallOptions.context.caller`(`CallerInfo`, `afterUntrusted` 포함) | `F.capabilities.spec` §3.2(`L2.readme` §5.8) | 있음 |
 | `BlobRef`, blob 자리표시 형식 | `F.records.spec` §3.4 | 있음 |
 | `StoreService.scoped`, `putBlob`, `readBlob`, temp 가상 테이블 생성 허용 | `L0.store.spec` | 있음(`eng.transactions.design` §4.2), temp 허용은 [가정] |
-| `consumer_cursors` 자기 행 쓰기를 범위 핸들에서 허용 | `L0.store.spec`, `L1.persistence.spec` | [가정] |
-| `pos` 커서 전역 이벤트 읽기와 커밋 후 알림 | `L1.persistence.spec`(`xeon.session`) | [가정] |
-| 투영기 선언 테이블을 같은 컨텍스트 소비자가 쓰는 것 | `L1.persistence.spec` | [가정] |
-| `session.created` payload의 세션 종류·부모·작업 디렉터리 | `L1.persistence.spec`, `L1.agents.spec` | [가정] |
+| `consumer_cursors` 자기 행 쓰기를 범위 핸들에서 허용 | `L0.store.spec`, `L1.persistence.spec` | 없음. 범위 핸들은 session-core 표에 쓸 수 없어 커서를 투영 표로 옮겼다(§4.8.1) |
+| 전역 이벤트 `seq` 구독(`subscribe(afterSeq, listener, filter)`, `kindPrefixes`)과 `hydrate` | `L1.persistence.spec`(`xeon.session`) | 있음 |
+| 투영기 등록(`projectors.register`)과 같은 컨텍스트 범위 핸들의 투영 표 쓰기 | `L1.persistence.spec`, `L0.store.spec` | 있음(표 이름은 `cap_knowledge_` + 밑줄 없는 지역 이름, 세션 삭제 정리는 `thread_id` 열) |
+| 세션 종류·부모·작업 디렉터리 | `thread.started.workspace`, `agent.spawned.background` | 있음. 종류 필드는 없어 `agent.spawned`로 추론한다(§4.8.2) |
 | `ApprovalService`(`xeon.approvals`) `open`·`wait`와 요청 kind `tool`, 미리보기 payload(`args.preview`) | `L1.tools.spec` §3.6, F `services/approvals.ts` | 있음(KN.2가 `createWriteApprovals`로 쓴다) |
 | `DecideInput.approval`(확장의 제안 결정에 실을 증거), `LedgerEntry.afterUntrusted` | `F.capabilities.spec` | 요청(KN.2, §10 미결 21·22) |
 | 쓰기 도구 둘의 일반 도구 승인 기본값 `allow` | `L1.tools.spec` | 요청 |
@@ -1332,7 +1335,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 1. 기본 설정에서 행위자 `agent`(main, subagent, background)와 증거 없는 `extension`의 쓰기는 승인이 나기 전이나 제안이 승인되기 전에는 스킬 디렉터리와 메모리 파일을 한 바이트도 바꾸지 않는다. 승인 거부, 제안 거절·만료·`stale` 뒤에도 파일이 그대로다(`product.scope.spec` §4.4 M3 UC-3 근거).
 2. 모든 쓰기(스킬 다섯 연산, 메모리 네 연산)는 원장에 행위자와 함께 `applied` 행을 남긴다. 각 행을 `rollback`하면 대상의 트리 해시나 파일 해시가 그 행의 `before_hash`로 돌아가고, 되돌림도 원장에 남는다. 생성의 되돌림은 보관함 이동이다.
-3. 같은 이벤트 배치를 소비자에 두 번 넣어도 `cap_knowledge_session_docs`와 `cap_knowledge_session_fts`의 행 수가 늘지 않는다. 커서 갱신과 행 삽입 사이에 고장을 주입하면 둘 다 반영되지 않는다(같은 트랜잭션).
+3. 같은 이벤트 배치를 소비자에 두 번 넣어도 `cap_knowledge_sessiondocs`와 `cap_knowledge_sessionfts`의 행 수가 늘지 않는다. 커서 갱신과 행 삽입 사이에 고장을 주입하면 둘 다 반영되지 않는다(같은 트랜잭션).
 4. 쓰기 뒤 크기가 한도를 넘는 메모리 쓰기는 `memory_full`로 거부되고 파일이 그대로이며, 오류 `detail`에 현재 항목 목록이 있다.
 5. `defs/knowledge.ts`의 네 정의는 각각 `validateCapability` 이슈 0건이고, 네 정의를 함께 넣은 `validateCapabilitySet`도 0건이다(도구 이름 충돌 없음). 도구 없는 능력이 허용되지 않으면 `knowledge.ledger`에 읽기 도구를 더한 뒤 같은 기준을 지킨다.
 6. L3 순위 패키지에 `@xeon/cap-knowledge` import가 0이고, L3 그룹은 `KnowledgeSkillsKey` 등 ServiceKey로만 호출한다(`check-layers.ts` DR-02·DR-14 검사와 테스트 그룹 호출 테스트).
@@ -1342,7 +1345,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 10. 안전 캡처가 실패하도록 고장을 넣으면 쓰기와 롤백 모두 파일을 바꾸지 않는다.
 11. 메모리 파일의 `§` 구조를 깨면 다음 쓰기가 `drift_detected`이고 `.bak/` 아래 사본이 하나 생긴다.
 12. 위협 패턴 규칙의 block 예시마다 스킬·메모리 쓰기가 `scan_blocked`이고, 결과에 걸린 문자열이 없다.
-13. 세션을 지우면 그 세션의 `cap_knowledge_sessions`, `cap_knowledge_session_docs`, `cap_knowledge_session_fts` 행이 남지 않는다.
+13. 세션을 지우면 그 세션의 `cap_knowledge_sessions`, `cap_knowledge_sessiondocs`, `cap_knowledge_sessionfts` 행이 남지 않는다.
 
 ## 10. 미결 사항
 
