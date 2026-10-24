@@ -18,8 +18,9 @@ function textField(answer: JsonValue | null, key: string): string | null {
 
 /**
  * wire 결정 한 건을 계획 결정으로 옮긴다.
- * allow는 approved, deny는 rejected(feedback은 answer.feedback, 없으면 answer.note), answer는 revision_requested.
- * cancelled나 superseded로 닫힌 요청은 withdrawn이다.
+ * allow는 approved, deny는 rejected(feedback은 `{ feedback }`, 없으면 `{ note }`)다. 수정 요청(`revise`)도 deny + feedback으로 기록되므로
+ * 기록에서는 rejected와 구별되지 않는다. answer는 계획 승인에서 승인 서비스가 받지 않는 결정이라 이 표에는 방어 분기만 둔다:
+ * 사용자의 글을 반려 사유로 남긴다. cancelled나 superseded로 닫힌 요청은 withdrawn이다.
  */
 export function outcomeOf(
   decision: "allow" | "deny" | "answer",
@@ -37,11 +38,7 @@ export function outcomeOf(
         feedback: textField(answer, "feedback") ?? textField(answer, "note"),
       };
     case "answer":
-      return {
-        kind: "decided",
-        decision: "revision_requested",
-        feedback: textField(answer, "feedback"),
-      };
+      return { kind: "decided", decision: "rejected", feedback: textField(answer, "feedback") };
     default:
       return assertNever(decision, "outcomeOf");
   }

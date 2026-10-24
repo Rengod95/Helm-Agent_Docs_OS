@@ -9,10 +9,12 @@ import {
 import type { IdFactory } from "@xeon/contracts/conversation";
 import { ScopedStorePortKey, type ExtensionEntry, type PortKey } from "@xeon/contracts/extensions";
 import {
+  ApprovalServicePortKey,
   OsPortKey,
   SessionPortKey,
   ToolServicePortKey,
   type ToolRegistration,
+  type ApprovalService,
   type ToolService,
 } from "@xeon/contracts/services";
 import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
@@ -23,7 +25,7 @@ import { createWorkProjector } from "./projection/projector.ts";
 import { readMeta, readTasks } from "./projection/read.ts";
 import { startPlanModeListener } from "./plans/listener.ts";
 import { createPlans } from "./plans/service.ts";
-import type { PlanApprovalsFactory } from "./ports/approvals.ts";
+import { planApprovalsOver, type PlanApprovalsFactory } from "./ports/approvals.ts";
 import type { PlanArtifactsPort } from "./ports/artifacts.ts";
 import { toolsPermissionMode, type PermissionModePort } from "./ports/permission-mode.ts";
 import { readWorkSettings, type WorkSettingsSource } from "./settings.ts";
@@ -41,8 +43,8 @@ export interface WorkPluginOptions {
   /** 설정 층. 파일 범위와 세션 범위를 합친 스택을 호출마다 돌려준다 */
   readonly settings: WorkSettingsSource;
   /**
-   * 계획 승인(F `L2ApprovalsPort`)을 출처별로 만드는 공장. 조립 루트가 core-tools의 승인 서비스를 감싸 넘긴다.
-   * 없으면 계획 제출과 결정 메서드는 `unavailable`로 거부한다
+   * 계획 승인(F `L2ApprovalsPort`)을 출처별로 만드는 공장. 생략하면 `xeon.approvals` 포트를 `planApprovalsOver`로 감싼 기본 구현을 쓴다.
+   * 둘 다 없으면 계획 제출과 결정 메서드는 `unavailable`로 거부한다
    */
   readonly approvals?: PlanApprovalsFactory;
   /** 권한 모드 포트. 생략하면 `xeon.tools`의 `mode`·`setMode`를 감싼 기본 구현을 쓴다 */
@@ -102,6 +104,7 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
       const reader = host.port(ScopedStorePortKey).scoped(WORK_PRODUCER);
       const logger = host.port(OsPortKey).logger("work");
       const tools = optionalPort<ToolService>(host, ToolServicePortKey);
+      const approvalService = optionalPort<ApprovalService>(host, ApprovalServicePortKey);
 
       const projector = session.projectors.register(createWorkProjector());
       if (!projector.ok) return err({ reason: projector.error.kind, cause: projector.error });
@@ -110,6 +113,9 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
       });
 
       const mode = options.mode ?? (tools === undefined ? undefined : toolsPermissionMode(tools));
+      const approvals =
+        options.approvals ??
+        (approvalService === undefined ? undefined : planApprovalsOver(approvalService));
       const deps: WorkPlansDeps = {
         session,
         reader,
@@ -118,14 +124,14 @@ export function workPlugin(options: WorkPluginOptions): ExtensionUnit {
         logger,
         settings: (threadId) => readWorkSettings(options.settings.layers(threadId)),
         mode,
-        approvals: options.approvals,
+        approvals,
         artifacts: options.artifacts,
       };
       const plans = createPlans(deps);
       host.provide(WorkPlansKey, plans.api);
       if (mode === undefined)
         logger.warn("work.mode_missing", { effect: "plan mode is unavailable" });
-      if (options.approvals === undefined) {
+      if (approvals === undefined) {
         logger.warn("work.approvals_missing", { effect: "submit_plan is unavailable" });
       }
       const tasksApi = createTasksApi(deps);

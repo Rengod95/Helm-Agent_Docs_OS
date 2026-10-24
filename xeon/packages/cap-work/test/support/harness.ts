@@ -9,27 +9,27 @@ import type {
 } from "@xeon/contracts/capabilities";
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import type { SessionService } from "@xeon/contracts/records";
+import type { ScopeStack } from "@xeon/contracts/settings";
 import { createSessionService } from "@xeon/core-persistence";
+import { realTools, type RealTools } from "@xeon/core-tools/testing";
 import { openTestStore, TEST_HOLDER_A, type TestStore } from "@xeon/platform-store/testing";
-import { withProjection, type ProjectingSession } from "./projecting-session.ts";
 import type { WorkPlansDeps } from "../../src/deps.ts";
 import { startPlanModeListener, type PlanModeListener } from "../../src/plans/listener.ts";
 import { createPlans, type PlansRuntime } from "../../src/plans/service.ts";
-import {
-  createFakeApprovals,
-  createFakeArtifacts,
-  createFakePermissionMode,
-  createFakeWriter,
-  type FakeApprovals,
-  type FakeArtifacts,
-  type FakePermissionMode,
-  type FakeWriter,
-} from "../../src/testing/index.ts";
+import { createFakeArtifacts, type FakeArtifacts } from "../../src/testing/index.ts";
 import { createTasksApi } from "../../src/tasks/service.ts";
 import { createWorkProjector } from "../../src/projection/projector.ts";
 import { DEFAULT_WORK_SETTINGS, type WorkSettings } from "../../src/settings.ts";
 import { flushMicrotasks } from "@xeon/ext-host/testing";
 import { fixedIdFactory, manualClock, type ManualClock } from "./clock.ts";
+import {
+  approvalsDriver,
+  modeDriver,
+  withRequestFaults,
+  type ApprovalsDriver,
+  type ModeDriver,
+  type RequestFaults,
+} from "./l1.ts";
 
 interface LogLine {
   readonly level: "debug" | "info" | "warn" | "error";
@@ -52,13 +52,16 @@ export interface Base extends AsyncDisposable {
   readonly clock: ManualClock;
   readonly ids: IdFactory;
   readonly store: TestStore;
+  /** 실제 core-persistence 세션 서비스. 투영기 등록부와 세션 범위 설정도 실제 구현이다 */
   readonly session: SessionService;
-  /** 투영 테이블을 지우고 이벤트에서 다시 만든다 */
-  rebuild(): Promise<void>;
+  /** 실제 core-tools(ToolService, ApprovalService)를 이 세션 위에 세운 것 */
+  readonly l1: RealTools;
+  /** L1.tools 파일 범위 설정 층(managed, user …)을 바꾼다. 호출마다 읽으므로 다음 호출부터 적용된다 */
+  setLayers(layers: ScopeStack): void;
+  /** 승인 요청 커밋 장애 주입 상태 */
+  readonly faults: RequestFaults;
   readonly threadId: ThreadId;
   readonly logs: LogLine[];
-  /** L1.tools 대역이 이벤트를 남기는 길(`core.tools` 생산자) */
-  readonly writer: FakeWriter;
   /** 쓰기 호출 옵션. requestId를 생략하면 호출마다 새 값을 만든다 */
   opts(requestId?: string, thread?: ThreadId): CallOptions;
   /** 새 스레드를 만들어 쓰기 모드로 연다 */
@@ -78,11 +81,13 @@ export interface Harness extends Base {
   setSettings(next: WorkSettings): void;
   readonly plans: CapabilityApi<typeof WorkPlans>;
   readonly runtime: PlansRuntime;
-  readonly mode: FakePermissionMode;
-  readonly approvals: FakeApprovals;
+  readonly mode: ModeDriver;
+  readonly approvals: ApprovalsDriver;
   /** artifacts: false로 열면 없다 */
   readonly artifacts: FakeArtifacts | undefined;
   readonly listener: PlanModeListener | undefined;
+  /** 투영 테이블을 지우고 이벤트에서 다시 만든다 */
+  rebuild(): Promise<void>;
   /** 프로세스 재시작을 흉내 낸다: 같은 저장소와 L1 대역 위에 새 계획 런타임을 만든다(메모리 상태가 없다) */
   restartPlans(overrides?: Partial<WorkPlansDeps>): PlansRuntime;
   /** 마이크로태스크와 구독 처리가 끝나기를 기다린다 */
@@ -122,18 +127,15 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
   });
   if (!created.ok)
     throw new Bug("harness could not create the session service", { cause: created.error });
-  const projecting: ProjectingSession = withProjection(created.value, store.root, ids, () =>
-    clock.now(),
-  );
-  const session = projecting.session;
+  const session = created.value;
   const loop = session.producer("core.loop");
-  const writer = createFakeWriter({
-    session,
-    tools: session.producer("core.tools"),
-    recordSetting: (threadId, payload) => {
-      projecting.recordSetting(threadId, payload);
-    },
+  let fileLayers: ScopeStack = [];
+  const faults: RequestFaults = { remaining: 0 };
+  const l1 = await realTools({
+    session: withRequestFaults(session, faults),
+    clock,
     ids,
+    layers: () => fileLayers,
   });
   let counter = 0;
   const newThread = (): ThreadId => {
@@ -152,10 +154,13 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
     ids,
     store,
     session,
-    rebuild: () => projecting.rebuild(),
+    l1,
+    setLayers(layers) {
+      fileLayers = layers;
+    },
+    faults,
     threadId,
     logs,
-    writer,
     opts(requestId, thread = threadId) {
       counter += 1;
       return {
@@ -221,20 +226,21 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
 /** 작업·계획 서비스를 직접 조립한다(플러그인을 거치지 않는다) */
 export async function openHarness(options: HarnessOptions = {}): Promise<Harness> {
   const base = await openBase(options);
-  const registered = base.session.projectors.register(createWorkProjector());
-  if (!registered.ok)
-    throw new Bug("harness could not register cap.work", { cause: registered.error });
+  const projector = createWorkProjector();
+  let registration = base.session.projectors.register(projector);
+  if (!registration.ok)
+    throw new Bug(`harness could not register cap.work: ${JSON.stringify(registration.error)}`, {
+      cause: registration.error,
+    });
   const settings = { current: options.settings ?? DEFAULT_WORK_SETTINGS };
   const logger = recordingLogger(base.logs);
-  const mode = createFakePermissionMode({ writer: base.writer });
-  const approvals = createFakeApprovals({
-    writer: base.writer,
-    ids: base.ids,
-    now: () => base.clock.now(),
+  // 권한 모드와 승인은 실제 L1.tools 서비스를 같은 세션 위에서 쓴다. cap-work는 plugin이 기본으로 만드는 어댑터를 그대로 쓴다
+  const mode = modeDriver(base.l1.tools);
+  const approvals = approvalsDriver({
+    session: base.session,
+    approvals: base.l1.approvals,
+    faults: base.faults,
   });
-  approvals.onPlanMode = (threadId, next) => {
-    mode.set(threadId, next);
-  };
   const artifacts = options.artifacts === false ? undefined : createFakeArtifacts();
   const deps: WorkPlansDeps = {
     session: base.session,
@@ -267,6 +273,20 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
       settings.current = next;
     },
     restartPlans: (overrides = {}) => createPlans({ ...deps, ...overrides }),
+    async rebuild(): Promise<void> {
+      // 등록을 풀고 투영 테이블을 지운 뒤 다시 등록한다: 등록부가 이벤트 전체에서 이 투영기를 다시 만든다
+      if (registration.ok) registration.value.dispose();
+      const cleared = base.store.root.write((tx) => {
+        for (const table of projector.tables) tx.run(`DELETE FROM ${table}`);
+        tx.run("UPDATE projector_state SET last_seq = -1 WHERE name = ?", [projector.name]);
+      });
+      if (!cleared.ok)
+        throw new Bug("harness: clearing the projection failed", { cause: cleared.error });
+      registration = base.session.projectors.register(projector);
+      if (!registration.ok)
+        throw new Bug("harness could not register cap.work again", { cause: registration.error });
+      await Promise.resolve();
+    },
     settle,
   });
 }

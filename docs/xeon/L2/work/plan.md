@@ -143,7 +143,7 @@ xeon/packages/cap-work/
 | `test/tasks-service.int.test.ts` | 자동 시작 | 설정 참이고 owner가 있으면 선행 완료 커밋에 `cause: "auto_start"` 변경이 함께 들어간다. owner가 null이면 들어가지 않는다 |
 | `test/projection.int.test.ts` | 재생성 동일성 | 무작위 연산열 뒤 `expectProjectionsRebuildable`(eng.events.design §5.4)이 통과한다 |
 | `test/reminder.test.ts` | 방치 알림 | `reminderTurns = 2`에서 변경 없이 2턴이 지나면 패치를 내고, 0이면 내지 않는다. 핸들러가 이벤트를 쓰지 않는다 |
-| `test/plans-versions.int.test.ts` | 계획 버전 보관 | v1 수정 요청 뒤 v2 제출 시 v1은 `revision_requested`로 남고 `versions`가 두 행을 돌려준다. 승인 대기 중 v2 제출은 `plan_pending` |
+| `test/plans-versions.int.test.ts` | 계획 버전 보관 | v1 수정 요청(피드백을 넣은 반려) 뒤 v2 제출 시 v1은 `rejected`로 남고 `versions`가 두 행을 돌려준다. 승인 대기 중 v2 제출은 `plan_pending` |
 | `test/plans-decision.int.test.ts` | 승인·반려·수정 분기 | 가짜 승인의 `allow`, `deny`, `answer(revise)` 각각에서 투영 상태와 `submit` 재호출 출력이 대응표(§4.2.3)와 같다 |
 | `test/plans-decision.int.test.ts` | 같은 레코드 형식 | `submit`이 만든 승인 요청이 kind `plan`이고 대상이 `PlanApprovalSubjectSchema`를 통과한다(`L2.dialog.plan`의 질문 테스트와 같은 payload 스키마 검사) |
 | `test/plans-mode.test.ts` | 승인 전 실행 단계 진입 금지 | `requireApproval = true`에서 승인 전 `exitMode`는 `plan_not_approved`이고 `restore` 호출이 없다. 승인 뒤 `exitOnApprove`면 `restore` 한 번 |
@@ -238,8 +238,8 @@ M3:
 
 미충족과 통합 때 바꿀 것:
 
-- **투영기 등록부 대역.** `core-persistence`의 `projectors.register`가 foundation에서는 `Bug("session.not_implemented")`다(L1B.1, PS-4가 m2/l1b에서 구현). `test/support/projecting-session.ts`가 같은 약속(DDL 적용, 커밋된 이벤트마다 `apply`)을 커밋 직후 별도 트랜잭션에서 지킨다. 통합 때 이 파일과 `harness.ts`의 `withProjection` 호출을 지우고 실제 `session.projectors`를 쓴다. 같은 트랜잭션 안의 원자성과 투영 실패 롤백은 그때 `core-persistence` 쪽 시험과 함께 확인한다.
-- **재생성 시간 기록.** 이벤트 10,000개 재생성 시간(§7)은 아직 재지 않았다. 통합 뒤 실제 등록부로 잰다.
+- **투영기 등록부.** WK.2·WK.3 통합 때 대역(`projecting-session.ts`)을 지우고 실제 `session.projectors`를 쓴다. 같은 커밋 트랜잭션 안의 투영과 커밋 리스너 알림이 실제 순서로 동작한다. 실제 등록부가 테이블 이름 규칙(접두 뒤 지역 이름에 밑줄 없음)을 검사해 `cap_work_task_edges`를 `cap_work_edges`로 바꿨다.
+- **재생성 시간 기록.** 이벤트 10,000개 재생성 시간(§7)은 아직 재지 않았다. 실제 등록부로 바꿨으니 잴 수 있다.
 - **W-5.** 되감기 뒤 활성 가지 재생성은 구현하지 않았다(spec §4.1.5).
 
 ### 8.2 WK.2 (T4, T5): 계획 객체와 버전, 모드 진입·이탈
@@ -247,32 +247,34 @@ M3:
 | 항목 | 상태 | 위치 |
 |---|---|---|
 | T4 계획 상태, `work.plan_submitted`·`work.plan_withdrawn` 커밋, 투영 `cap_work_plans`(승인 요청·해결 반영), `versions` | 완료 | `src/plans/service.ts`, `src/plans/model.ts`, `src/plans/decision.ts`, `src/projection/projector.ts` |
-| T5 `enterMode`·`exitMode`, `requireApproval` 검사, 대기 버전 철회 | 완료(F `ToolService.mode`·`setMode` 위, 시험은 대역) | `src/ports/permission-mode.ts`, `src/plans/service.ts` |
+| T5 `enterMode`·`exitMode`, `requireApproval` 검사, 대기 버전 철회 | 완료(F `ToolService.mode`·`setMode` 위. 시험은 core-tools의 실제 `ToolService`가 세션 설정 이벤트를 쓴다) | `src/ports/permission-mode.ts`, `src/plans/service.ts` |
 | T5 권한 모드 추적(직전 모드, 진입 시점) | 완료(세션 범위 `settings.changed`에서 투영) | `src/projection/projector.ts` |
 
 ### 8.3 WK.3 (T6, T7, T8): 계획 제출·승인, 산출물, 설정·명령
 
 | 항목 | 상태 | 남은 일 |
 |---|---|---|
-| T6 `submit_plan` → 승인(kind `plan`), `input_required`·`decided`, `approve`·`reject`·`revise`, 승인 해결 뒤 모드 복원 리스너, 재개 절차 | 부분: F `L2ApprovalsPort`에 맞춰 구현하고 시험은 L1.tools 대역으로 했다 | 실제 승인 어댑터 연결(spec §10 W-15), kind `plan`의 `answer` 결정 수용(W-2 (c)), `session_start` 재개의 통합 시험 |
+| T6 `submit_plan` → 승인(kind `plan`), `input_required`·`decided`, `approve`·`reject`·`revise`, 승인 해결 뒤 모드 복원 리스너, 재개 절차 | 완료: core-tools의 실제 `ApprovalService` 위에서 시험한다. 어댑터는 `planApprovalsOver`(W-15). 수정 요청은 `deny` + `{ feedback }`(W-2 (c)) | SIGKILL 재개는 HOST.4의 한 엔진 시험 |
 | T7 계획 산출물 등록(선택 의존) | 부분: `PlanArtifactsPort`와 사용 가능·불가 두 경로를 시험했다 | `artifacts.registry` 정의가 F에 들어온 뒤 어댑터(L2.artifacts M3) |
 | T8 설정 키 여섯 개 | 완료 | 없음 |
 | T8 명령 `/plan`, `/tasks` | 부분: 등록 함수와 시험 완료 | `dialog.commands` 선택 의존 확정(W-10) 뒤 매니페스트 `optional`로 연결. `/goal`은 M3 |
 
-대역은 `@xeon/cap-work/testing`(`src/testing/`)으로 낸다: `createFakeApprovals`(L1.tools 승인: 요청·해결을 실제 세션에 `approval.requested`·`approval.resolved`로 커밋), `createFakePermissionMode`, `createFakeArtifacts`, `createFakeWriter`. 다른 패키지(L3 그룹, L4)의 시험이 같은 대역을 쓸 수 있다.
+대역은 `@xeon/cap-work/testing`에 `createFakeArtifacts`(산출물 등록)만 둔다. 승인과 권한 모드는 대역이 없다: 시험은 core-tools의 `testing` 서브패스 `realTools`로 실제 `ToolService`·`ApprovalService`를 같은 실제 세션 위에 세우고(`test/support/l1.ts`가 요청 목록, 호출 기록, 요청 커밋 장애 주입의 관찰 창을 더한다), 플러그인이 기본으로 만드는 `planApprovalsOver`·`toolsPermissionMode`를 그대로 쓴다.
 
 시험 추가분:
 
 | 파일 | 확인하는 것(§5 대응) |
 |---|---|
 | `plans-versions.int.test.ts` | 계획 버전 보관, `plan_pending`, 같은 requestId 재호출 |
-| `plans-decision.int.test.ts` | 승인·반려·수정 분기와 `submit` 재호출 출력, 같은 레코드 형식(spec §9-1) |
-| `plans-mode.test.ts` | 승인 전 실행 단계 진입 금지(spec §9-5), 승인 뒤 복원 한 번, 승인자가 고른 모드, 정책 거부 |
-| `plans-resume.fault.test.ts` | 승인 요청 전 강제 종료 뒤 복구에서 요청이 한 번만 생김, 재시작 뒤 응답이 `decided`를 한 번 냄(spec §9-9) |
+| `plans-decision.int.test.ts` | 승인·반려(수정 요청 포함) 분기와 `submit` 재호출 출력, 계획 승인이 받지 않는 응답은 적용되지 않음, 같은 레코드 형식(E5, spec §9-1) |
+| `plans-mode.test.ts` | 승인 전 실행 단계 진입 금지(spec §9-5), 승인 뒤 복원 한 번, 승인자가 고른 모드, 정책이 그 사이 막은 모드로의 복원 거부 |
+| `plans-resume.fault.test.ts` | 승인 요청 전 강제 종료 뒤 복구에서 요청이 한 번만 생김, 재시작 뒤 응답이 `decided`를 한 번 냄(spec §9-9), L1.tools 서비스 재시작 뒤 빈 대기 목록을 이벤트에서 다시 채움 |
 | `plans-artifact.test.ts` | 산출물 선택 의존, 등록 멱등 |
 | `commands.test.ts`, `permission-mode.test.ts`, `plugin.test.ts` | 명령 등록, 권한 모드 어댑터, 플러그인 조립 |
 
-통합 때 바꿀 것(WK.1 항목에 더해):
+통합 결과(WK.2·WK.3, 2026-10-24):
 
-- `test/support/projecting-session.ts`의 `settings.changed` 대역(`recordSetting`)을 `core-persistence`의 `sessionSettings.set`(PS-14, m2/l1b)으로 바꾼다. 지금은 투영기에 직접 알리는 방식이라 이벤트 로그에는 없다.
-- `WorkPluginOptions.approvals`에 core-tools의 승인 어댑터를 넘긴다(W-15).
+- `settings.changed` 대역은 지웠다. 권한 모드 쓰기는 실제 `sessionSettings.set`이다.
+- `WorkPluginOptions.approvals`는 생략할 수 있다. 생략하면 `xeon.approvals` 포트를 `planApprovalsOver`로 감싼다(W-15).
+- W-2 (c)는 수정 요청을 `deny` + `{ feedback }`로 옮겨 닫았다. 기록에서 반려와 구별되지 않으므로 `revision_requested`는 이 경로에서 만들어지지 않는다. 구별이 필요하면 F가 `DenyAnswer`에 필드를 더해야 한다.
+- 실제 등록부가 드러낸 결함 둘을 고쳤다. 테이블 이름 `cap_work_task_edges`(밑줄 규칙 위반)와, 승인 해결 리스너가 커밋 리스너 안에서 모드를 커밋하다가 `store.nested_write`로 거부된 것(마이크로태스크로 미룬다).

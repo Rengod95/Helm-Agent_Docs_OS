@@ -17,7 +17,7 @@ export { planRefOf, PLAN_REF_PATTERN } from "./plans/refs.ts";
 export {
   approvalRequestId,
   nextModesFor,
-  PLAN_ANSWER_JSON_SCHEMA,
+  planApprovalsOver,
   planSubject,
   type PlanApprovalsFactory,
 } from "./ports/approvals.ts";

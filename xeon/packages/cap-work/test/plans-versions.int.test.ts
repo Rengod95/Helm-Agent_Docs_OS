@@ -24,7 +24,7 @@ function rows(h: Harness) {
 }
 
 describe("plan versions", () => {
-  test("a revision request keeps v1 and the next submit makes v2 of the same plan", async () => {
+  test("a revision request (a deny with feedback) keeps v1 and the next submit makes v2 of the same plan", async () => {
     const h = await harness();
     await h.plans.submit({ title: "Plan", body: "v1 body" }, h.opts("c1"));
     await h.plans.revise({ planId: PlanId("p1"), feedback: "add tests" }, h.opts("d1"));
@@ -33,10 +33,10 @@ describe("plan versions", () => {
       h.opts("c2"),
     );
     expect(second).toMatchObject({ status: "input_required", planId: "p1", version: 2 });
-    expect(rows(h)).toEqual(["p1v1:revision_requested", "p1v2:submitted"]);
+    expect(rows(h)).toEqual(["p1v1:rejected", "p1v2:submitted"]);
     const listed = await h.plans.versions({ planId: PlanId("p1") }, h.opts());
     expect(listed.versions.map((v) => [v.version, v.status, v.body, v.feedback].join("|"))).toEqual(
-      ["1|revision_requested|v1 body|add tests", "2|submitted|v2 body|"],
+      ["1|rejected|v1 body|add tests", "2|submitted|v2 body|"],
     );
   });
 

@@ -13,6 +13,16 @@ export interface PlanModeListener {
   settled(): Promise<void>;
 }
 
+/**
+ * 커밋 리스너 안에서는 새 커밋을 낼 수 없다(`store.nested_write`). 모드 복원은 `setMode`로 세션 설정을 커밋하므로 리스너가 돌아간 뒤
+ * 마이크로태스크로 미룬다. 승인 서비스가 해결 커밋 직후 같은 동기 구간에서 승인자가 고른 모드(`answer.mode`)를 먼저 적용하므로,
+ * 이 순서면 복원은 그 모드가 적용된 뒤의 상태를 보고 판단한다
+ */
+async function deferred(work: () => Promise<void>): Promise<void> {
+  await Promise.resolve();
+  await work();
+}
+
 /** 지금부터 커밋되는 approval.resolved를 받는다. 이미 커밋된 것은 스레드를 다시 열 때 resume이 마무리한다 */
 export function startPlanModeListener(
   session: Pick<WorkSessionPort, "feed" | "subscribe">,
@@ -30,7 +40,7 @@ export function startPlanModeListener(
     (batch) => {
       for (const event of batch.events) {
         if (event.kind !== "approval.resolved") continue;
-        const work = plans.onApprovalResolved(event);
+        const work = deferred(() => plans.onApprovalResolved(event));
         running.add(work);
         detach(
           work.finally(() => {

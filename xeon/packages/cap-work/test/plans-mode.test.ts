@@ -35,7 +35,7 @@ function statuses(h: Harness): string[] {
 describe("entering plan mode", () => {
   test("enterMode switches to plan and reports the previous mode, also on a retry", async () => {
     const h = await harness();
-    h.mode.set(h.threadId, "acceptEdits");
+    await h.mode.set(h.threadId, "acceptEdits");
     const out = await h.plans.enterMode({}, h.opts("e1"));
     expect(out).toEqual({ mode: "plan", previousMode: "acceptEdits" });
     expect(h.mode.current(h.threadId)).toBe("plan");
@@ -46,18 +46,22 @@ describe("entering plan mode", () => {
 
   test("the previous mode survives a restart through the session history", async () => {
     const h = await harness();
-    h.mode.set(h.threadId, "acceptEdits");
+    await h.mode.set(h.threadId, "acceptEdits");
     await h.plans.enterMode({}, h.opts("e1"));
     const restarted = h.restartPlans();
     const again = await restarted.api.enterMode({}, h.opts("e2"));
     expect(again.previousMode).toBe("acceptEdits");
   });
 
-  test("a mode the policy forbids is denied", async () => {
-    const h = await harness();
-    h.mode.forbid("plan");
-    const error = await rejection(h.plans.enterMode({}, h.opts("e1")));
+  test("restoring a mode that the policy has forbidden since is denied and keeps plan mode", async () => {
+    const h = await harness(false);
+    await h.mode.set(h.threadId, "bypass");
+    await h.plans.enterMode({}, h.opts("e1"));
+    // 조직 정책이 그 사이 bypass를 막았다(실제 ToolService.setMode가 거부한다)
+    h.setLayers([{ scope: "managed", values: new Map([["l1.tools.bypassAllowed", false]]) }]);
+    const error = await rejection(h.plans.exitMode({}, h.opts("x1")));
     expect(error.data.code).toBe("denied");
+    expect(h.mode.current(h.threadId)).toBe("plan");
   });
 
   test("without a mode service the call is unavailable", async () => {
@@ -89,7 +93,7 @@ describe("leaving plan mode", () => {
 
   test("an approval leaves plan mode once when exitOnApprove is on", async () => {
     const h = await harness();
-    h.mode.set(h.threadId, "acceptEdits");
+    await h.mode.set(h.threadId, "acceptEdits");
     await h.plans.enterMode({}, h.opts("e1"));
     await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
     await h.plans.approve({ planId: PlanId("p1") }, h.opts("d1"));
@@ -119,7 +123,7 @@ describe("leaving plan mode", () => {
 
   test("a mode the approver picks wins over the restore", async () => {
     const h = await harness();
-    h.mode.set(h.threadId, "acceptEdits");
+    await h.mode.set(h.threadId, "acceptEdits");
     await h.plans.enterMode({}, h.opts("e1"));
     const out = await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
     if (out.status !== "input_required") throw new Bug("expected input_required");
@@ -157,7 +161,9 @@ describe("leaving plan mode", () => {
 
   test("a configured plan mode with no entry event still counts every plan", async () => {
     const h = await harness();
-    h.mode.setConfigured(h.threadId, "plan");
+    // 파일 설정이 plan으로 시작시킨 대화: 모드 진입 이벤트가 없다
+    h.setLayers([{ scope: "user", values: new Map([["l1.tools.permissionMode", "plan"]]) }]);
+    expect(h.mode.current(h.threadId)).toBe("plan");
     await h.plans.submit({ title: "t", body: "b" }, h.opts("c1"));
     await h.plans.approve({ planId: PlanId("p1") }, h.opts("d1"));
     await h.settle();

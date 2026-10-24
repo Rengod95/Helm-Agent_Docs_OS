@@ -38,12 +38,7 @@ import {
 } from "../call.ts";
 import type { WorkPlansDeps } from "../deps.ts";
 import { internalError, planRejection, storeRejection } from "../errors.ts";
-import {
-  approvalRequestId,
-  nextModesFor,
-  PLAN_ANSWER_JSON_SCHEMA,
-  planSubject,
-} from "../ports/approvals.ts";
+import { approvalRequestId, nextModesFor, planSubject } from "../ports/approvals.ts";
 import type { ModeFailure, PermissionModePort } from "../ports/permission-mode.ts";
 import {
   readModeMeta,
@@ -319,7 +314,6 @@ export function createPlans(deps: WorkPlansDeps): PlansRuntime {
       threadId: scope.threadId,
       kind: "plan",
       subject: planSubject(row, nextModesFor(previousModeOf(scope.threadId, meta))),
-      answerSchema: PLAN_ANSWER_JSON_SCHEMA,
       requestId: planRefOf(row.planId, row.version),
     });
     if (requested.ok) return { port, snapshot: requested.value };
@@ -448,7 +442,7 @@ export function createPlans(deps: WorkPlansDeps): PlansRuntime {
     scope: CallScope,
     requestId: string,
     input: { planId: string; version?: number },
-    response: { decision: "allow" | "deny" | "answer"; answer?: JsonValue },
+    response: { decision: "allow" | "deny"; answer?: JsonValue },
   ): Promise<{ plan: PlanVersion }> {
     const plans = orThrow(method, readPlans(deps.reader, scope.threadId));
     const meta = orThrow(method, readModeMeta(deps.reader, scope.threadId));
@@ -572,8 +566,9 @@ export function createPlans(deps: WorkPlansDeps): PlansRuntime {
     async reject(input, options) {
       const scope = scopeOf(CAPABILITY, "reject", options);
       const requestId = requestIdOf(CAPABILITY, "reject", options);
+      // wire의 deny answer는 `{ feedback }`(1자 이상)뿐이다. 빈 사유는 보내지 않는다
       const answer: JsonValue | undefined =
-        input.reason === undefined ? undefined : { feedback: input.reason };
+        input.reason === undefined || input.reason === "" ? undefined : { feedback: input.reason };
       return await queue.run(scope.threadId, () =>
         decide("reject", scope, requestId, input, {
           decision: "deny",
@@ -586,9 +581,11 @@ export function createPlans(deps: WorkPlansDeps): PlansRuntime {
       const scope = scopeOf(CAPABILITY, "revise", options);
       const requestId = requestIdOf(CAPABILITY, "revise", options);
       return await queue.run(scope.threadId, () =>
+        // 수정 요청은 wire에서 deny + `{ feedback }`다. 계획 승인에 answer 결정이 없고 deny의 answer는 feedback뿐이라
+        // 기록에서는 반려와 구별되지 않는다(L2.work.spec §4.2.3, 통합 항목 W-2 (c))
         decide("revise", scope, requestId, input, {
-          decision: "answer",
-          answer: { action: "revise", feedback: input.feedback },
+          decision: "deny",
+          answer: { feedback: input.feedback },
         }),
       );
     },

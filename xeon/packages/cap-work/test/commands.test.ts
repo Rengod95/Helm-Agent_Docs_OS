@@ -100,7 +100,7 @@ describe("work commands", () => {
     );
     const versions = await h.plans.versions({ planId: PlanId("p1") }, h.opts());
     expect(versions.versions[0]).toMatchObject({
-      status: "revision_requested",
+      status: "rejected",
       feedback: "add tests",
     });
   });

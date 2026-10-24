@@ -16,15 +16,20 @@ import {
   type PortKey,
   type ToolRegisterError,
 } from "@xeon/contracts/extensions";
-import { SessionPortKey, type ToolRegistration, type Unregister } from "@xeon/contracts/services";
+import {
+  ApprovalServicePortKey,
+  SessionPortKey,
+  type ToolRegistration,
+  type Unregister,
+} from "@xeon/contracts/services";
 import type { ScopeLayer } from "@xeon/contracts/settings";
 import type { ExtensionUnit } from "@xeon/ext-host";
 import { createTestHost, flushMicrotasks, type TestHost } from "@xeon/ext-host/testing";
 import { workManifest, WORK_EXTENSION_NAME } from "../src/manifest.ts";
-import { createFakeApprovals, createFakePermissionMode } from "../src/testing/index.ts";
 import { workPlugin } from "../src/plugin.ts";
 import { rejection } from "./support/assertions.ts";
 import { openBase, type Base } from "./support/harness.ts";
+import { approvalsDriver, modeDriver } from "./support/l1.ts";
 import { tid } from "./support/tasks.ts";
 
 interface FakeTools {
@@ -85,6 +90,8 @@ async function boot(
       ctx.providePort(SessionPortKey, opened.session);
       ctx.providePort(ScopedStorePortKey, opened.store.service);
       ctx.providePort(OsKey, { logger: () => recordingLogger(lines) });
+      // 승인은 실제 core-tools 서비스다. 플러그인이 이 포트를 `planApprovalsOver`로 감싸 쓴다
+      ctx.providePort(ApprovalServicePortKey, opened.l1.approvals);
       if (options.tools !== false) {
         ctx.providePort(ToolsKey, {
           register: (registration) => {
@@ -99,18 +106,17 @@ async function boot(
       }
     },
   });
-  const mode = createFakePermissionMode({ writer: opened.writer });
-  const approvals = createFakeApprovals({
-    writer: opened.writer,
-    ids: opened.ids,
-    now: () => opened.clock.now(),
+  const mode = modeDriver(opened.l1.tools);
+  const approvals = approvalsDriver({
+    session: opened.session,
+    approvals: opened.l1.approvals,
+    faults: opened.faults,
   });
   const installed = await t.host.install(
     workPlugin({
       ids: opened.ids,
       settings: { layers: () => [userLayer(options.settings ?? {})] },
       mode,
-      approvals: approvals.factory,
       ...(options.commands === undefined ? {} : { commands: options.commands }),
     }),
   );
@@ -271,7 +277,7 @@ describe("work.plans through the plugin", () => {
     const { apis, unit } = consumer();
     await t.host.install(unit);
     await t.settled();
-    mode.set(opened.threadId, "acceptEdits");
+    await mode.set(opened.threadId, "acceptEdits");
     expect(await apis.plans?.enterMode({}, opened.opts("e1"))).toEqual({
       mode: "plan",
       previousMode: "acceptEdits",
