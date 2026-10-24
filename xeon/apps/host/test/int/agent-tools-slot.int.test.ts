@@ -13,7 +13,6 @@ import {
   type ToolService,
 } from "@xeon/contracts/services";
 import type { SessionService, StoreService } from "@xeon/contracts/records";
-import { agentsPlugin, createStaticAgentsSettings } from "@xeon/core-agents";
 import {
   t,
   tape,
@@ -34,7 +33,7 @@ import { writeUserSettings } from "../fixtures/user-settings.ts";
 //
 // 이 시험은 실제 core-persistence(SQLite), core-tasks(풀), core-tools(파이프라인), core-loop(`runChildTurn`), core-agents를 한 엔진에 올린다.
 // 같은 층(L1) 패키지끼리는 import할 수 없어(DR-02) 한 패키지의 시험으로는 이 조합을 만들 수 없고, 모든 L1을 import할 수 있는 조립 루트(L4)에 둔다.
-// 모델만 테이프다. 조립 루트가 아직 core-agents를 싣지 않아(HOST.6) 시험이 플러그인을 직접 설치한다.
+// 모델만 테이프다. core-agents와 자식 thread 열기는 조립 루트(HOST.6)가 싣고, 시험은 `agentDefinitions`로 정의 하나만 넘긴다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
@@ -197,6 +196,15 @@ realTest(
       dataDir: home.dataDir,
       buildModels: tapeModels(),
       extraPlugins: [captureModule(captured)],
+      agentDefinitions: [
+        {
+          name: "scout",
+          description: "Runs the probe.",
+          prompt: "Call the probe once, then report.",
+          tools: ["probe"],
+          source: { kind: "builtin" },
+        },
+      ],
     });
     try {
       const services = captured.current;
@@ -212,54 +220,6 @@ realTest(
       const opened = session.openForWrite(threadId, token);
       expect(opened.ok).toBe(true);
       await ext.openThread(threadId);
-      const holder = {
-        holderId: token.holderId,
-        kind: "cli" as const,
-        pid: process.pid,
-        startedAt: Date.now(),
-        host: "int-test",
-      };
-
-      // 자식 thread는 호스트가 `ExtHost.openThread`로 열어 두어야 경계 지점이 동작한다(L1.loop.spec §4.13, HOST.6 조립의 몫).
-      // 이 시험의 조립은 새 thread가 시작되는 커밋마다 연다
-      const opening: Promise<void>[] = [];
-      const unsubscribe = session.feed.onCommit((batch) => {
-        for (const event of batch.events) {
-          if (event.kind === "thread.started" && event.threadId !== threadId) {
-            opening.push(ext.openThread(event.threadId));
-          }
-        }
-      });
-
-      // 서브에이전트 플러그인과 시험 도구
-      const installed = await ext.install(
-        agentsPlugin({
-          ids: engine.ports.ids,
-          settings: createStaticAgentsSettings(),
-          log: {
-            debug: () => {},
-            info: () => {},
-            warn: () => {},
-            error: () => {},
-            child: () => {
-              throw new Error("unused");
-            },
-          },
-          holder,
-          parentToken: (id) => (id === threadId ? token : undefined),
-          builtinDefinitions: [
-            {
-              name: "scout",
-              description: "Runs the probe.",
-              prompt: "Call the probe once, then report.",
-              tools: ["probe"],
-              source: { kind: "builtin" },
-            },
-          ],
-          loadIndex: 100,
-        }),
-      );
-      expect(installed.entryError).toBeUndefined();
       const probeRuns: string[] = [];
       const registered = tools.register({
         kind: "direct",
@@ -306,8 +266,6 @@ realTest(
       expect(countOf(children, "turn.completed")).toBe(1);
       const settled = mine.find((event) => event.kind === "agent.settled");
       expect(settled?.payload).toMatchObject({ status: "completed", error: null });
-      unsubscribe();
-      await Promise.all(opening);
     } finally {
       await engine.close();
     }

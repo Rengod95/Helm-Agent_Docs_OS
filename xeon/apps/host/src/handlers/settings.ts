@@ -92,6 +92,11 @@ function writeFailure(
         message: "settings.write: the settings file cannot be written",
         details: { code: failure.code.slice(0, 64) },
       });
+    case "key_reused":
+      return wireError("store.io", {
+        message: "settings.write: the session request key was reused",
+        details: { code: "settings_key_reused" },
+      });
     case "busy":
     case "disk_full":
     case "io":

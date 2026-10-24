@@ -273,6 +273,8 @@ export type SettingsWriteFailure =
   /** 기존 파일이 JSON 객체가 아니다. 덮어쓰면 값을 잃으므로 쓰지 않는다 */
   | { readonly kind: "file_invalid"; readonly path: string }
   | { readonly kind: "file_unwritable"; readonly path: string; readonly code: string }
+  /** session 범위 쓰기 키가 다른 값으로 재사용되었다. 키를 호출마다 새로 만들므로 일어나지 않는 방어 경로다 */
+  | { readonly kind: "key_reused"; readonly requestKey: string }
   | StoreError;
 
 export interface SettingsStorePort {
