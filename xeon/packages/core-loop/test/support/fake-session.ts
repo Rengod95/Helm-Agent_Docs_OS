@@ -626,7 +626,24 @@ export function createFakeSession(options: FakeSessionOptions): FakeSession {
       onFailure: () => () => {},
     },
     query: {
-      thread: () => ok(undefined),
+      thread: (threadId) =>
+        ok(
+          eventsOf(threadId).length === 0
+            ? undefined
+            : {
+                threadId,
+                title: null,
+                status: "idle" as const,
+                workspace: null,
+                createdAt: 0,
+                updatedAt: 0,
+                headSeq: 0,
+                forkedFrom: null,
+                marker: null,
+                queuedInputs: 0,
+                pendingApprovals: 0,
+              },
+        ),
       turn: (threadId, turnId) => read(turnsOf(threadId).get(turnId)),
       openTurn: (threadId) => read(openTurnOf(threadId)),
       turnByRequestId: (threadId, scopeId, requestId) =>

@@ -116,14 +116,15 @@ export async function endStep(
   const steerPending = steerQueued.length > 0;
   const candidate = hardStop || deferred || (!hasMore && !steerPending);
   const gateExhausted = state.gateContinues >= state.gateMaxContinues;
-  const canContinueNow = canContinue({
+  const continueInputs = {
     hardStop: hardStop || deferred,
     abortRequested,
     stepLimit: stepLimit || childTokenLimit,
     externalStop,
     stopping,
     gateExhausted,
-  });
+  };
+  const canContinueNow = canContinue(continueInputs);
 
   const preview = {
     contextMessages: structuredClone([...input.contextMessages]),
@@ -141,7 +142,10 @@ export async function endStep(
     committed: () => false,
     canContinue: canContinueNow,
   };
+  // finalize는 계속할 수 없는 단계의 `continue`를 false로 바꾼다. 게이트 상한 알림은 핸들러가 원한 값이 필요해 여기서 기억한다
+  const boundary = { wantsContinue: false };
   const finalize = (value: BoundaryValue): BoundaryValue => {
+    if (value.continue) boundary.wantsContinue = true;
     const verdict = finalizeBoundary(value, verdictContext);
     if (!verdict.ok) {
       ctx.logger.warn("loop.boundary_invalid", { threadId, turnId, issues: [...verdict.issues] });
@@ -193,12 +197,28 @@ export async function endStep(
   const gateWant =
     candidate && !hardStop && !deferred && (turnEnd.value.continue || settleContinue);
   const gateContinue = gateWant && canContinueNow;
+  // 게이트 상한 때문에만 계속하지 못한 단계는 사용자에게 알린다. 모델 컨텍스트에는 넣지 않는 휘발 알림이다(L1.loop.spec §4.9, FR-L5)
+  const gateBlocked =
+    candidate &&
+    boundary.wantsContinue &&
+    gateExhausted &&
+    canContinue({ ...continueInputs, gateExhausted: false });
   const continuing = hasMore || gateContinue;
   const wouldContinue = continuing || steerPending;
   const forcedEnd = hardStop || abortRequested || deferred;
   const limitEnd = wouldContinue && (stepLimit || childTokenLimit || externalStop);
   const leaveOpen = !forcedEnd && !limitEnd && wouldContinue && stopping;
   const endNow = forcedEnd || limitEnd || leaveOpen || deferred;
+  if (gateBlocked) {
+    run.emitter.emit({
+      type: "turn.updated",
+      threadId,
+      turnId,
+      stepId: null,
+      status: "running",
+      notice: { code: "gate_limit", detail: { limit: state.gateMaxContinues } },
+    });
+  }
   if (deferred) {
     state.endReason = "deferred";
     run.emitter.emit({ type: "turn.updated", threadId, turnId, stepId: null, status: "waiting" });

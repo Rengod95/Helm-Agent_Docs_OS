@@ -42,6 +42,8 @@ export interface LoopDeps {
   readonly kindLookup: (kind: string) => CatalogEntry | undefined;
   /** 소유 사슬 취소 판정(`RecoverDeps.cancelledByOwner`, L1.tasks.spec §4.8 3번) */
   readonly cancelledByOwner: (threadId: ThreadId, turnId: TurnId) => boolean;
+  /** `user_bash` 지점 페이로드의 `cwd`. 조립 루트가 프로젝트 작업 디렉터리를 넘긴다. 생략하면 빈 문자열이다 */
+  readonly workingDirectory?: string;
   /** 있으면 `await_input` 재진입 전에 미해결 승인 요청을 메모리 대기로 되살린다 */
   readonly approvals?: Pick<ApprovalService, "restore" | "cancel">;
 }

@@ -30,6 +30,7 @@ import { planReentry, reduceOpenTurn, type OpenTurnReduction } from "./resume.ts
 import { runTurn as runLoopTurn } from "./loop/run-turn.ts";
 import type { TurnEntry, TurnRunResult } from "./loop/types.ts";
 import { createThreadGate } from "./thread-gate.ts";
+import { createUserBash } from "./user-bash.ts";
 import { textAndImages, turnStartRequest, type TurnStartSource } from "./turn-start.ts";
 import type { LoopContext, LoopDeps, StartOutcome, ThreadRuntime } from "./types.ts";
 
@@ -117,6 +118,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     ...deps,
     drafter: createDrafter({ session: deps.session, ids: deps.ids }),
   };
+  const userBash = createUserBash(ctx);
   const threads = new Map<ThreadId, ThreadRuntime>();
   const leaves = new Map<ThreadId, EventId>();
 
@@ -828,14 +830,8 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
         }),
       ),
     whenIdle: (threadId, fn) => runtimeOf(threadId).gate.run(1, fn),
-    // F 계약(LoopService.runUserBash)만 먼저 들어왔다. user_bash 발화와 xeon.tools.runUserShell 연결은 L1.loop 작업이다(L1.loop.spec §3.1)
-    runUserBash: () =>
-      Promise.resolve(
-        err({
-          kind: "input_invalid",
-          message: "loop.runUserBash is not implemented yet (L1.loop.spec §3.1)",
-        }),
-      ),
+    // user_bash 지점 발화, xeon.tools.runUserShell 실행, 컨텍스트 기록(L1.loop.spec §3.1, LP12)
+    runUserBash: (request) => userBash.run(request),
     admit,
     runChildTurn,
     async interrupt(threadId, turnId) {

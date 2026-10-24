@@ -7,6 +7,7 @@ import type {
   ThreadId,
   JsonValue,
   ToolResultMessage,
+  ToolResultRecord,
 } from "@xeon/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
@@ -28,6 +29,7 @@ import type {
   ToolMeta,
   ToolRunContext,
   ToolService,
+  UserShellRequest,
 } from "@xeon/contracts/services";
 import { Type } from "typebox";
 
@@ -72,6 +74,10 @@ export interface FakeTools {
   /** `settleRejected`가 닫은 호출 id */
   readonly closed: readonly string[];
   readonly reran: readonly string[];
+  /** `runUserShell`이 받은 요청과 실행 맥락 */
+  readonly userShells: { readonly request: UserShellRequest; readonly run: ToolRunContext }[];
+  /** `runUserShell`이 돌려줄 결과를 정한다. 기본은 종료 코드 0, 출력 "ok" */
+  userShellResult: ((request: UserShellRequest) => ToolResultRecord) | null;
   /** 한 호출이 실행되면 불린다(시작 직후, 결과 커밋 전). 크래시 시험에서 쓴다 */
   onExecute: ((toolCallId: string) => void) | null;
   /** 승인 응답을 기다리는 호출 id */
@@ -80,6 +86,17 @@ export interface FakeTools {
   pendingApprovals(threadId: ThreadId): Promise<ApprovalRequest[]>;
   /** 승인 응답을 기록한다(approval.resolved 커밋) 그리고 기다리던 prepare를 깨운다. 요청이 없으면 false */
   respondApproval(toolCallId: string): Promise<boolean>;
+}
+
+function defaultShellRecord(request: UserShellRequest): ToolResultRecord {
+  return {
+    content: [{ type: "text", text: `ran ${request.command}` }],
+    details: null,
+    structuredContent: { exitCode: 0, output: `ran ${request.command}`, truncated: false },
+    isError: false,
+    terminate: false,
+    usage: null,
+  };
 }
 
 function notImplemented(name: string): never {
@@ -136,6 +153,10 @@ export function createFakeTools(options: {
   const advertiseInputs: AdvertiseInput[] = [];
   const intents = new Map<string, EffectId>();
   const hooks: { onExecute: ((toolCallId: string) => void) | null } = { onExecute: null };
+  const userShells: { request: UserShellRequest; run: ToolRunContext }[] = [];
+  const shell: { result: ((request: UserShellRequest) => ToolResultRecord) | null } = {
+    result: null,
+  };
 
   function commitDrafts(
     run: ToolRunContext,
@@ -534,7 +555,10 @@ export function createFakeTools(options: {
       return Promise.resolve(ok(resultCommit(run, call, "executed", "rerun ok", false, false)));
     },
     registerRules: () => notImplemented("registerRules"),
-    runUserShell: () => notImplemented("runUserShell"),
+    runUserShell(request, run) {
+      userShells.push({ request, run });
+      return Promise.resolve(shell.result?.(request) ?? defaultShellRecord(request));
+    },
     mode: () => "default",
     setMode: () => notImplemented("setMode"),
     suspendWhile: (_threadId, _toolCallId, wait) => wait,
@@ -548,6 +572,13 @@ export function createFakeTools(options: {
     advertiseInputs,
     closed,
     reran,
+    userShells,
+    get userShellResult() {
+      return shell.result;
+    },
+    set userShellResult(value) {
+      shell.result = value;
+    },
     get waitingApproval() {
       return [...gates.keys()];
     },

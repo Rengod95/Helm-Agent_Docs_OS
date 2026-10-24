@@ -50,7 +50,10 @@ export interface VolatileEmitter {
 function payloadOf(notification: VolatileNotification): unknown {
   switch (notification.type) {
     case "turn.updated":
-      return { status: notification.status };
+      return {
+        status: notification.status,
+        ...(notification.notice === undefined ? {} : { notice: notification.notice }),
+      };
     case "step.updated":
       return { status: notification.status };
     case "item.started":

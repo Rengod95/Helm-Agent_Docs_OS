@@ -101,3 +101,32 @@ test("the count starts from 0 on every turn", async () => {
   await h.settle();
   expect(h.models.requests).toHaveLength(6);
 });
+
+test("gate_limit_notice: the step that hits the cap tells the user once and keeps it out of the record", async () => {
+  const h = await createHarness({
+    script: Array.from({ length: 6 }, (_value, index) => done(`answer ${index}`)),
+    gateMaxContinues: 2,
+  });
+  await start(h, continuing("agent_before_settle"));
+  const notices = h.fake
+    .volatile()
+    .filter((event) => event.kind === "turn.updated")
+    .map((event) => event.payload)
+    .filter((payload) => JSON.stringify(payload).includes("notice"));
+  expect(notices).toEqual([
+    { status: "running", notice: { code: "gate_limit", detail: { limit: 2 } } },
+  ]);
+  // 내구 기록에는 알림이 없다
+  expect(JSON.stringify(h.fake.events(h.threadId))).not.toContain("gate_limit");
+});
+
+test("no gate_limit notice when the boundary does not ask to continue", async () => {
+  const h = await createHarness({ script: [done("one")], gateMaxContinues: 0 });
+  await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
+  await h.settle();
+  const notices = h.fake
+    .volatile()
+    .filter((event) => event.kind === "turn.updated")
+    .filter((event) => JSON.stringify(event.payload).includes("notice"));
+  expect(notices).toEqual([]);
+});
