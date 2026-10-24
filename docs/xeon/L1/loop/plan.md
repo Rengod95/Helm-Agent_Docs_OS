@@ -171,6 +171,7 @@ xeon/packages/core-loop/
 | `user_bash_first_deny_skips_shell` | `user-bash.test.ts` | `user_bash`(first)가 거부면 `runUserShell` 호출 0회, 허용이면 1회이고 결과 기록 방식이 `includeInContext`를 따른다(LP12) | M2 |
 | `user_bash_runs_the_command_and_records_it_for_the_model` | `user-bash.test.ts` | `!명령`은 caller main·대화형 맥락으로 `runUserShell`을 한 번 부르고 `custom` item 하나(`core.loop.user_bash`)가 기록된다. `!!`는 item 없이 `includeInContext: false`다 | M2 |
 | `user_bash_replace_and_refusals` | `user-bash.test.ts` | 핸들러의 결과 대체는 실행 0회 `replaced: true`이고 item이 남는다. 도구 쪽이 실행 전에 닫은 명령(`not_executed`)은 `denied`다. 0이 아닌 종료는 `completed`이고 종료 코드·전체 출력 경로가 본문에 든다 | M2 |
+| `a command that ran but could not be recorded is not run again: the retry only records` | `user-bash.test.ts` | 기록 커밋이 busy로 모두 실패한 요청은 오류 값이고 `runUserShell`은 1회다. 같은 `requestId` 재호출은 셸을 다시 부르지 않고 `custom` item 하나를 기록하며, 그 뒤 호출은 같은 결과를 돌려준다 | M2 |
 | `user_bash_idempotent_and_concurrent_with_a_turn` | `user-bash.test.ts` | 같은 `requestId`는 한 번만 실행되고 같은 결과다. 없는 대화는 `thread_not_found`. turn이 도구를 기다리는 동안 불러도 turn이 정상 정착한다 | M2 |
 | `gate_limit_notice` | `completion-gate.test.ts` | 상한에 막힌 단계에서 휘발 `turn.updated`에 `notice{gate_limit, limit}`가 한 번 나가고 내구 기록에는 없다. 핸들러가 계속을 원하지 않으면 알림이 없다 | M2 |
 | `await_input_resumes_after_approval_response` | `resume.int.test.ts` | `await_input` 체크포인트에서 재개하면 모델 요청 0회, 승인 응답이 커밋된 뒤 같은 호출이 `runTurn({ kind: "tools" })`의 `tools.prepare`·`execute`로 실행되고 T4가 커밋된다(LP12) | M2 |

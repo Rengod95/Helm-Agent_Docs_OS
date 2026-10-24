@@ -216,6 +216,34 @@ test("a rejected request is not remembered: a retry with the same key starts ove
   expect(h.tools.userShells).toEqual([]);
 });
 
+test("a command that ran but could not be recorded is not run again: the retry only records", async () => {
+  const h = await withHistory();
+  const request = {
+    threadId: h.threadId,
+    command: "make deploy",
+    excludeFromContext: false,
+    requestId: "ubash-record-fails",
+  };
+  // 커밋 재시도(3회)를 모두 busy로 막아 기록 단계만 실패시킨다
+  h.fake.failBusyFor((key) => key.startsWith("ubash:"), 3);
+  const failed = await h.loop.runUserBash(request);
+  expect(failed).toEqual({ ok: false, error: { kind: "busy" } });
+  expect(h.tools.userShells).toHaveLength(1);
+  expect(customItems(h)).toEqual([]);
+
+  const retried = await h.loop.runUserBash(request);
+  expect(retried).toMatchObject({
+    ok: true,
+    value: { status: "completed", replaced: false, result: { exitCode: 0 } },
+  });
+  expect(h.tools.userShells).toHaveLength(1);
+  expect(customItems(h)).toHaveLength(1);
+  // 기록까지 끝난 요청은 처음 결과를 그대로 돌려준다
+  expect(await h.loop.runUserBash(request)).toEqual(retried);
+  expect(h.tools.userShells).toHaveLength(1);
+  expect(customItems(h)).toHaveLength(1);
+});
+
 test("invalid input is an error value: empty command, long requestId", async () => {
   const h = await withHistory();
   const empty = await h.loop.runUserBash({

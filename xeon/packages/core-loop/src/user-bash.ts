@@ -32,6 +32,9 @@ const USER_BASH_CUSTOM_TYPE = "core.loop.user_bash";
 /** 같은 requestId 재호출을 위해 프로세스 안에서 기억하는 완료 요청 수(대화 하나당) */
 const REMEMBERED_REQUESTS = 64;
 
+/** 명령은 돌았는데 컨텍스트 기록이 실패한 요청을 기억하는 수(대화 하나당). 같은 requestId 재호출이 기록만 다시 한다 */
+const RAN_WITHOUT_RECORD = 16;
+
 /** `runUserShell`이 실행 전에 닫은 경우 레코드 `details.code`. 이 값이면 명령은 돌지 않았다 */
 const NOT_RUN_CODES: ReadonlySet<string> = new Set(["not_executed", "tool_unavailable"]);
 
@@ -127,6 +130,46 @@ export function createUserBash(ctx: LoopContext): UserBashRunner {
     return created;
   }
 
+  /**
+   * 대화별 요청 id → 명령은 끝났지만 컨텍스트 기록(`item.recorded`)이 아직 안 된 결과.
+   * 기록 실패는 오류로 돌려주고 요청을 잊는다(같은 키로 다시 부르면 처음부터 한다). 그러나 명령은 이미 돌았으니 다시 돌리면 효과가 두 번이다.
+   * 그래서 돈 결과를 여기에 두고, 같은 requestId 재호출은 실행·`user_bash` 발화를 건너뛰고 기록만 다시 한다
+   */
+  const ranOnly = new Map<ThreadId, Map<string, { result: UserBashResult; replaced: boolean }>>();
+
+  function ranOnlyFor(
+    threadId: ThreadId,
+  ): Map<string, { result: UserBashResult; replaced: boolean }> {
+    const known = ranOnly.get(threadId);
+    if (known !== undefined) return known;
+    const created = new Map<string, { result: UserBashResult; replaced: boolean }>();
+    ranOnly.set(threadId, created);
+    return created;
+  }
+
+  /** 돈 결과를 기록한다. 실패하면 결과를 `ranOnly`에 남겨 재호출이 기록만 다시 하게 하고, 성공하면 지운다 */
+  function recordRan(
+    request: UserBashRequest,
+    requestId: string,
+    result: UserBashResult,
+    replaced: boolean,
+  ): Result<UserBashOutcome, LoopError> {
+    const pending = ranOnlyFor(request.threadId);
+    if (!request.excludeFromContext) {
+      const recorded = recordInContext(request, requestId, result, replaced);
+      if (!recorded.ok) {
+        pending.set(requestId, { result, replaced });
+        if (pending.size > RAN_WITHOUT_RECORD) {
+          const oldest = pending.keys().next();
+          if (!oldest.done) pending.delete(oldest.value);
+        }
+        return recorded;
+      }
+    }
+    pending.delete(requestId);
+    return ok({ status: "completed", result, replaced });
+  }
+
   function runContext(request: UserBashRequest): ToolRunContext {
     const signal = request.signal ?? new AbortController().signal;
     return {
@@ -209,7 +252,8 @@ export function createUserBash(ctx: LoopContext): UserBashRunner {
     if (summary.value.status === "closed") {
       return err({ kind: "input_invalid", message: "thread is closed" });
     }
-    const including = !request.excludeFromContext;
+    const ran = ranOnly.get(request.threadId)?.get(requestId);
+    if (ran !== undefined) return recordRan(request, requestId, ran.result, ran.replaced);
 
     // user_bash(first): 실패는 거부로 본다(fail-closed, 도구 호출의 tool_call 지점과 같다)
     const fired = await attemptAsync(() =>
@@ -241,24 +285,16 @@ export function createUserBash(ctx: LoopContext): UserBashRunner {
     const decision = fired.value.decision;
     if (decision?.type === "deny") return ok({ status: "denied", reason: decision.reason });
     if (decision?.type === "result") {
-      if (including) {
-        const recorded = recordInContext(request, requestId, decision.result, true);
-        if (!recorded.ok) return recorded;
-      }
-      return ok({ status: "completed", result: decision.result, replaced: true });
+      return recordRan(request, requestId, decision.result, true);
     }
 
     const record = await ctx.tools.runUserShell(
-      { command: request.command, includeInContext: including },
+      { command: request.command, includeInContext: !request.excludeFromContext },
       runContext(request),
     );
     const interpreted = interpretShellRecord(record);
     if (interpreted.kind === "not_run") return ok({ status: "denied", reason: interpreted.reason });
-    if (including) {
-      const recorded = recordInContext(request, requestId, interpreted.result, false);
-      if (!recorded.ok) return recorded;
-    }
-    return ok({ status: "completed", result: interpreted.result, replaced: false });
+    return recordRan(request, requestId, interpreted.result, false);
   }
 
   return {
