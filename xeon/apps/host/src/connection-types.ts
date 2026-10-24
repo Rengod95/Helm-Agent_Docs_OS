@@ -48,6 +48,8 @@ export interface SendQueue {
   push(message: JsonRpcMessage): void;
   /** 아직 전송이 끝나지 않은 바이트 */
   readonly bytes: number;
+  /** 큐가 완전히 비거나(전송이 모두 끝남) 닫힐 때까지 기다린다. 종료 때 마지막 응답이 나가게 한다 */
+  drained(): Promise<void>;
   /** 큐가 sendLowWaterBytes 아래로 내려갈 때까지 기다린다. signal이 중단되거나 연결이 닫히면 멈춘다 */
   waitBelowLowWater(signal?: AbortSignal): Promise<SendWaitOutcome>;
 }

@@ -42,7 +42,7 @@ import {
   readOsRuntime,
   type OsRuntime,
 } from "@xeon/platform-os";
-import { processPlugin } from "@xeon/platform-process";
+import { createProcessShutdown, processPlugin, type ProcessShutdown } from "@xeon/platform-process";
 import { createSecretsRuntime } from "@xeon/platform-secrets";
 import {
   openStore,
@@ -260,6 +260,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   late.scopes = createScopeControl(scopeToggleSourceOf(ext));
 
   let portsHandle: PortsHandle | undefined;
+  let shutdownCoordinator: ProcessShutdown | undefined;
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
 
   async function closeAll(): Promise<void> {
@@ -322,12 +323,21 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     };
 
     // 2. 나머지 L0 플랫폼
+    const exit = options.exit ?? ((code: number): never => process.exit(code));
+    shutdownCoordinator = createProcessShutdown({
+      timeoutMs: shutdownTimeoutMs(settings),
+      clock,
+      scheduler: os.time.scheduler,
+      exit,
+      logger: os.logger("shutdown"),
+    });
     await register(
       "platform-process",
       processPlugin({
         ids: localIds,
         settings: { shutdownTimeoutMs: shutdownTimeoutMs(settings) },
-        exit: (code) => process.exit(code),
+        exit,
+        shutdown: shutdownCoordinator,
       }),
     );
 
@@ -470,6 +480,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       catalog: built.catalog,
       startedAt,
       ports: portsHandle.ports,
+      shutdown: shutdownCoordinator,
       close: shutdown,
     };
     return engine;

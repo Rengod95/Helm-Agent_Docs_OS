@@ -13,6 +13,7 @@ import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
 import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
+import { createProcessShutdown } from "@xeon/platform-process";
 import { createManualScheduler, type ManualScheduler } from "./manual-scheduler.ts";
 import type {
   CommitBatch,
@@ -80,8 +81,10 @@ export interface FakeEngine {
       readonly payload?: unknown;
     }[],
   ): CommitBatch;
-  /** 호스트가 쓰는 스케줄러. 관찰 폴링이 여기에 타이머를 건다 */
+  /** 호스트가 쓰는 스케줄러. 관찰 폴링과 종료 시한이 여기에 타이머를 건다 */
   readonly scheduler: ManualScheduler;
+  /** 종료 협조 시한을 넘겨 불린 exit의 종료코드. 대역의 exit는 프로세스를 끝내지 않고 던진다 */
+  readonly exits: number[];
   emitVolatile(event: Pick<VolatileEventEnvelope, "threadId" | "turnId" | "n" | "afterSeq">): void;
   /** 다음 turn.start가 turn.busy가 되게 한다 */
   setRunningTurn(turnId: TurnId | undefined): void;
@@ -119,6 +122,16 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const storeId = options.storeId ?? FAKE_STORE_ID;
   const secrets = createFakeSecrets();
   const scheduler = createManualScheduler();
+  const exits: number[] = [];
+  const shutdown = createProcessShutdown({
+    timeoutMs: 3000,
+    clock: { now: () => RECORDED_AT },
+    scheduler,
+    exit: (code) => {
+      exits.push(code);
+      throw new Error(`exit(${String(code)})`);
+    },
+  });
   const counters = { reads: 0 };
 
   function commit(
@@ -273,6 +286,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     catalog: built.catalog,
     startedAt: RECORDED_AT,
     ports,
+    shutdown,
     close: () => Promise.resolve(),
   };
 
@@ -284,6 +298,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     commit: (entries) => commit(entries),
     commitForeign: (entries) => commit(entries, false),
     scheduler,
+    exits,
     released,
     emitVolatile(partial) {
       const event: VolatileEventEnvelope = {

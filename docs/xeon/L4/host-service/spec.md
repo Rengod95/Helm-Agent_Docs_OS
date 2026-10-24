@@ -127,12 +127,28 @@ M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio
 | 서비스 재기동 | `service start`와 `ensure`가 `process.execPath`로 자기 자신을 실행한다. 클라이언트와 서비스의 버전이 항상 같다 | CLI가 host 바이너리 경로를 찾아야 한다. 설치 위치가 다르면 버전이 어긋날 수 있다 |
 | 데스크톱 사이드카 인자 | `xeon host --stdio`(ADR-0008 §3.2 제안과 같다) | `xeon-host --stdio` |
 | 엔진 진입 코드 | 하나 | 둘. 같은 `assemble`을 부르지만 시작 경로가 둘이다 |
-| 위험 | 컴파일 바이너리의 `process.execPath` 값이 [미확인]이다(`_research/notes/L4-1.md` §5.2). TUI 모듈을 `host --stdio`에서 불러오지 않도록 `chat` 경로만 동적 import한다 | 위 위험 중 self-exec 부분은 없다. 대신 경로 탐색 코드가 생긴다 |
+| 위험 | 컴파일 바이너리의 `process.execPath` 값은 H15 spike로 확인했다(아래 표, Linux x64). macOS arm64는 [미확인]이다. TUI 모듈을 `host --stdio`에서 불러오지 않도록 `chat` 경로만 동적 import한다 | 위 위험 중 self-exec 부분은 없다. 대신 경로 탐색 코드가 생긴다 |
 
 - [제안] 근거: ADR-0008 §3.2 제안("사이드카 이름은 `xeon`, CLI와 같은 바이너리를 `host --stdio`로 실행"), `_research/process.md` §6.1 "같은 엔진 바이너리를 CLI도 쓴다".
 - 수정 요청 [미결 3]: `eng.toolchain.guide` TC-10 "배포 바이너리: `apps/cli`(CLI), `apps/host`(데스크톱 사이드카, 서비스 모드)를 `bun build --compile`로 만든다"를 "배포 바이너리는 `apps/cli/src/main.ts`를 진입점으로 하는 `xeon` 하나다. 데스크톱 사이드카와 서비스 모드는 같은 바이너리의 `host --stdio`, `service` 서브커맨드다"로 고친다. 같은 문서 §2 바이너리 행(`apps/cli`, `apps/host`(사이드카))도 맞춘다. `xeon/apps/desktop/README.md`의 "엔진은 `apps/host`를 `bun build --compile`로 묶은 사이드카"는 "엔진은 `xeon` 바이너리를 `host --stdio`로 실행한 사이드카"로 고친다.
 - 개발과 테스트에서는 컴파일하지 않고 `bun xeon/apps/host/src/main.ts host --stdio`처럼 실행한다. `main.ts`는 `import.meta.main`일 때 `process.argv`를 `HostCommand`로 바꿔 `runHostCommand`를 부른다. 이 경로는 테스트 전용이고 배포 진입점이 아니다.
-- 자기 실행 명령(§4.9.2): 컴파일 바이너리이면 `[process.execPath]`, 아니면 `[process.execPath, Bun.main]`이다. 판별은 `Bun.main`이 `/$bunfs/` 아래인지로 한다 [가정: 컴파일 바이너리의 `Bun.main` 경로 형식은 미확인. H15 spike에서 확인].
+- 자기 실행 명령(§4.9.2): 컴파일 바이너리이면 `[process.execPath]`, 아니면 `[process.execPath, Bun.main]`이다. 판별은 `Bun.main`이 `/$bunfs/` 아래인지로 한다 [결정: H15 spike, Linux x64에서 확인. macOS arm64는 미확인].
+- 컴파일 진입은 최상위 `await`를 쓸 수 없다. `bun build --compile --bytecode`가 거부하기 때문이다. `main.ts`는 `detach(runFromProcess(...).then(process.exit), …)`로 끝나고, `test/entry-bundle.test.ts`가 같은 옵션으로 진입을 번들해 최상위 `await`가 다시 생기면 깨진다 [결정: m2-plan HOST.5, open-issues M-08].
+
+#### 3.2.1 컴파일 바이너리 spike 결과 (H15) [결정: m2-plan HOST.5]
+
+측정 환경은 Linux x64(WSL2), Bun 1.4.3, `bun build --compile --minify --bytecode`다. 확인용 진입 파일과 실제 `apps/host/src/main.ts` 두 가지를 같은 옵션으로 묶어 실행했다. 데스크톱 사이드카 빌드(`--minify --bytecode`, 크기 상한 triple별 500 MiB)는 사용자 결정이다(`L4.desktop.plan` §3.1.1).
+
+| 항목 | 결과 |
+|---|---|
+| (a) 실행 경로 | `process.execPath`는 바이너리의 절대 경로다. `Bun.main`은 `/$bunfs/root/<바이너리 이름>`이다. `process.argv`는 `["bun", "/$bunfs/root/<이름>", …사용자 인자]`라 사용자 인자는 `slice(2)`부터다. `import.meta.main`은 진입 파일에서 참이다. `process.argv0`은 실행한 이름 그대로이고 `import.meta.path`는 빌드 때의 소스 경로다. `bun main.ts`로 실행하면 `Bun.main`은 소스 파일 경로이므로 `/$bunfs/` 접두로 판별한다 |
+| (b) Unix 소켓 | `Bun.listen({ unix })`와 `Bun.connect({ unix })`의 에코 왕복이 성공한다 |
+| (c) stdin EOF | `Bun.stdin.stream()`이 파이프를 닫으면 `done`이 된다(바이트가 있으면 읽고 난 뒤). 실제 호스트 `host --stdio`는 stdin을 닫으면 종료코드 0으로 끝난다. 기동부터 종료까지 5회 중 146~151 ms(첫 실행 243 ms) |
+| (d) 자기 실행 | `Bun.spawn([process.execPath, …])`로 띄운 자식이 같은 `Bun.main`을 본다. `detached: true`와 `unref()`로 띄운 자식은 부모가 끝난 뒤에도 실행을 이어 가고 부모는 init 계열로 바뀐다 |
+| 호스트 협조 종료 | 컴파일한 호스트에 `host.shutdown`을 보내면 `{ accepted: true }` 뒤 종료코드 0으로 끝난다(요청부터 종료까지 약 170 ms). 읽기를 열어 둔 채 SIGTERM을 보내면 30 ms 안에 종료코드 0으로 끝난다 |
+| 크기 | `apps/host/src/main.ts` 묶음은 107,243,488 바이트(약 102.3 MiB), 1,993 모듈이다 |
+
+macOS arm64에서의 (a)~(d)는 이 기기에 없어 확인하지 못했다. CI `desktop-macos` job이나 실기에서 같은 확인용 진입 파일로 다시 잰다.
 
 ### 3.3 공개 API
 
@@ -901,7 +917,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 | 대기 예약만 남았다 | 유휴 종료하지 않는다(SV-04) |
 | `settings.set`에 평문 비밀 | 3105, details에 값 없음 |
 | 설정 파일 값이 스키마에 맞지 않다 | 그 범위 값을 건너뛴다. 진단만 남긴다(F wire §4.8) |
-| 컴파일 바이너리에서 `process.execPath`가 바이너리 경로가 아니다 | 자기 실행 실패. `ensure`가 `spawnTimeout`을 돌려준다. H15 spike로 미리 확인한다 |
+| 컴파일 바이너리에서 `process.execPath`가 바이너리 경로가 아니다 | 자기 실행 실패. `ensure`가 `spawnTimeout`을 돌려준다. Linux x64 spike에서는 절대 경로였다(§3.2.1). macOS arm64는 미확인이다 |
 
 ## 6. 설정 노출
 

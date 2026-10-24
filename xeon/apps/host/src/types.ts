@@ -7,7 +7,12 @@ import type {
   ReadFailure,
   VolatileEventEnvelope,
 } from "@xeon/contracts/records";
-import type { LoopError, SecretAdminService } from "@xeon/contracts/services";
+import type {
+  LoopError,
+  SecretAdminService,
+  ShutdownCoordinator,
+  ShutdownReason,
+} from "@xeon/contracts/services";
 import type {
   CatalogIssue,
   ScopeStack,
@@ -58,6 +63,11 @@ export interface AssembleOptions {
     SettingNamespace,
     Readonly<Record<string, SettingDefInput>>
   >[];
+  /**
+   * 종료 협조 시한(`l0.process.shutdown.timeoutMs`)을 넘겼을 때 프로세스를 끝내는 함수. 기본은 `process.exit`.
+   * 시험은 프로세스를 끝내지 않는 대역을 넣는다
+   */
+  readonly exit?: (code: number) => never;
   /** 결과 스키마 검사, in-process JSON 왕복. 개발 빌드만 true */
   readonly devChecks?: boolean;
   /** 테스트 주입(eng.testing.guide TS-03) */
@@ -72,6 +82,16 @@ export type AssembleIssue =
   /** 내장 플러그인(또는 extraPlugins) 하나의 설치가 실패했다. spec이 정한 세 code에 더한 값이다(deviation) */
   | { readonly code: "plugin"; readonly plugin: string; readonly message: string };
 
+/**
+ * 종료 협조(L0.process.spec §4.2). 참여자는 확장과 L0 서비스, 호스트 자신이다. `request`는 참여자를 등록 역순으로
+ * `l0.process.shutdown.timeoutMs` 안에서 기다리고, 시한을 넘기면 기다리지 않고 `AssembleOptions.exit(1)`을 부른다.
+ */
+export interface EngineShutdown extends ShutdownCoordinator {
+  request(
+    reason: ShutdownReason,
+  ): Promise<{ readonly completed: boolean; readonly elapsedMs: number }>;
+}
+
 export interface Engine {
   readonly mode: HostMode;
   readonly storeId: StoreId;
@@ -79,6 +99,8 @@ export interface Engine {
   /** ms. host.status.startedAt의 원천 */
   readonly startedAt: number;
   readonly ports: EnginePorts;
+  /** 종료 협조 창구. stdio·서비스 호스트가 EOF, 신호, `host.shutdown`에서 요청한다(HS-31) */
+  readonly shutdown: EngineShutdown;
   /** task 결과를 쓰지 않는다(ADR-0006 §3.1) */
   close(): Promise<void>;
 }

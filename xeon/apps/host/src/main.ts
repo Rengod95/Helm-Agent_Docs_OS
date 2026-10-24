@@ -12,7 +12,7 @@ import {
 } from "./assembly/settings-sources.ts";
 import { createConnectionHub } from "./connection.ts";
 import type { ConnectionHub } from "./connection-types.ts";
-import { createWireHandlers } from "./handlers/index.ts";
+import { createWireHandlers, type HostLifecycle } from "./handlers/index.ts";
 import { parseHostArgv } from "./argv.ts";
 import type { CommandIo, HostCommand } from "./host-command.ts";
 import { renderSettingsSchema } from "./settings.ts";
@@ -65,7 +65,10 @@ function settingReaderOf(engine: Engine): SettingReader {
   };
 }
 
-async function startHost(options: AssembleOptions): Promise<RunningHost> {
+async function startHost(
+  options: AssembleOptions,
+  lifecycle?: HostLifecycle,
+): Promise<RunningHost> {
   const engine = await assemble(options);
   const slot: { hub: ConnectionHub | undefined } = { hub: undefined };
   const handlers = createWireHandlers(
@@ -75,30 +78,42 @@ async function startHost(options: AssembleOptions): Promise<RunningHost> {
       return slot.hub;
     },
     { serverName: "xeon", serverVersion: ENGINE_VERSION, pid: process.pid },
+    lifecycle,
   );
   const hub = createConnectionHub(engine, handlers);
   slot.hub = hub;
   return { engine, hub };
 }
 
-/** HS-31: 새 요청을 거절하고, 진행 중 turn을 안전 경계에서 멈추고, 연결을 닫고, 엔진을 닫는다 */
-async function stopHost(running: RunningHost): Promise<"clean" | "deadline"> {
+/** HS-31 1·2단계: 새 요청을 거절하고, 진행 중 turn을 안전 경계에서 멈추고 체크포인트를 커밋한다. 시한 안에 못 멈췄으면 "deadline" */
+async function stopTurns(running: RunningHost): Promise<"clean" | "deadline"> {
   const { engine, hub } = running;
   hub.beginShutdown();
   const deadlineMs = shutdownTimeoutOf(settingReaderOf(engine));
-  let outcome: "clean" | "deadline" = "clean";
   const stopped = await attemptAsync(() => engine.ports.turns.stopAtSafeBoundary(deadlineMs));
   if (!stopped.ok) {
     // 멈추는 호출이 실패하면 turn이 멈췄는지 알 수 없다. 시한을 넘긴 것과 같이 다룬다
     engine.ports.log.error("host.stop_failed", { message: messageOf(stopped.error.cause) });
-    outcome = "deadline";
-  } else if (!stopped.value) {
-    engine.ports.log.error("host.stop_timeout", { deadlineMs });
-    outcome = "deadline";
+    return "deadline";
   }
-  await hub.closeAll("shutdown");
-  hub.dispose();
-  await engine.close();
+  if (!stopped.value) {
+    engine.ports.log.error("host.stop_timeout", { deadlineMs });
+    return "deadline";
+  }
+  return "clean";
+}
+
+/** HS-31 3·4단계: 연결을 닫고 엔진을 닫는다 */
+async function closeHost(running: RunningHost): Promise<void> {
+  await running.hub.closeAll("shutdown");
+  running.hub.dispose();
+  await running.engine.close();
+}
+
+/** in-process 종료(HS-35): 협조 창구 없이 1~4단계를 차례로 한다 */
+async function stopHost(running: RunningHost): Promise<"clean" | "deadline"> {
+  const outcome = await stopTurns(running);
+  await closeHost(running);
   return outcome;
 }
 
@@ -124,24 +139,43 @@ export async function startInProcessHost(
   };
 }
 
-/** stdio 호스트 하나를 실행하고 끝날 때 resolve한다. 프로세스 종료(exit)는 호출자가 한다 */
+/**
+ * stdio 호스트 하나를 실행하고 끝날 때 resolve한다. 프로세스 종료(exit)는 호출자가 한다.
+ * 끝나는 길은 셋이고 모두 같은 종료 절차(HS-31)를 밟는다: 읽기 끝(stdin EOF, HS-32), SIGTERM·SIGINT(HS-36), `host.shutdown` 요청(HS-34).
+ * 절차는 엔진의 종료 협조 창구(`Engine.shutdown`)로 요청하므로 확장의 종료 참여자도 시한 안에서 불리고,
+ * 시한을 넘기면 창구가 `exit(1)`로 프로세스를 끝낸다(L0.process.spec §4.2).
+ */
 export async function startStdioHost(options: StdioHostOptions): Promise<HostExit> {
   const devChecks = options.assemble?.devChecks === true;
+  const stopRequested = Promise.withResolvers<"stop">();
   let running: RunningHost;
   try {
-    running = await startHost({ ...options.assemble, mode: "stdio" });
+    running = await startHost(
+      { ...options.assemble, mode: "stdio" },
+      {
+        stopRequested: () => {
+          stopRequested.resolve("stop");
+        },
+      },
+    );
   } catch (caught) {
     const message =
       caught instanceof AssembleError ? caught.message : `startup failed: ${messageOf(caught)}`;
     return { code: 1, reason: "startup", message };
   }
+  const { engine } = running;
+  // 호스트 자신의 참여자. 등록 역순이라 확장·L0 참여자보다 먼저 불려 turn을 멈춘다
+  const turnStop: { outcome: "clean" | "deadline" } = { outcome: "clean" };
+  engine.shutdown.onShutdown("host", async () => {
+    turnStop.outcome = await stopTurns(running);
+  });
   const transport = createStdioTransport({
     readable: options.readable,
     writable: options.writable,
     ...(options.maxFrameBytes === undefined ? {} : { maxFrameBytes: options.maxFrameBytes }),
   });
   const served = running.hub.serve(transport, {
-    limits: hostLimitsOf(settingReaderOf(running.engine)),
+    limits: hostLimitsOf(settingReaderOf(engine)),
     devChecks,
   });
   const signalWaiter = Promise.withResolvers<"signal">();
@@ -155,10 +189,24 @@ export async function startStdioHost(options: StdioHostOptions): Promise<HostExi
   }
   try {
     const first = await Promise.race([
-      served.closed.then((info) => (info.reason === "eof" ? ("eof" as const) : ("stop" as const))),
+      // 읽기 오류도 상대가 사라진 것으로 본다(L0.process.spec §4.2 stdin 임대)
+      served.closed.then((info) =>
+        info.reason === "eof" || info.reason === "error" ? ("eof" as const) : ("stop" as const),
+      ),
       signalWaiter.promise,
+      stopRequested.promise,
     ]);
-    await stopHost(running);
+    // host.shutdown 요청은 처리기가 협조 종료를 이미 마쳤다. 나머지는 여기서 요청한다. 같은 요청은 한 번만 실행된다
+    if (first === "eof") await engine.shutdown.request("stdin_eof");
+    else if (first === "signal") await engine.shutdown.request("signal");
+    await closeHost(running);
+    if (turnStop.outcome === "deadline") {
+      return {
+        code: 1,
+        reason: first,
+        message: "the running turn did not stop within the shutdown deadline",
+      };
+    }
     return { code: 0, reason: first };
   } finally {
     if (handleSignals) {

@@ -51,6 +51,8 @@ export const REPLAY_SCAN_LIMIT = 10_000;
 export const SEND_LOW_WATER_BYTES = 1_048_576;
 /** 송신 큐가 이 값을 넘으면 연결을 닫는다: WIRE_LIMITS.maxFrameBytes의 64배(HS-05) */
 const SEND_QUEUE_MAX_BYTES: number = WIRE_LIMITS.maxFrameBytes * 64;
+/** 종료 때 송신 큐가 비기를 기다리는 최대 시간(ms) */
+const CLOSE_FLUSH_MS = 1000;
 /** 종료 중 새 요청에 돌려주는 재시도 대기(HS-31) */
 const SHUTDOWN_RETRY_AFTER_MS = 1000;
 
@@ -92,6 +94,7 @@ function createSendQueue(
 ): SendQueue & { close(): void } {
   const queue: { readonly message: JsonRpcMessage; readonly bytes: number }[] = [];
   const waiters = new Set<{ readonly resolve: (outcome: SendWaitOutcome) => void }>();
+  const idleWaiters = new Set<() => void>();
   const state = { queued: 0, pumping: false, closed: false };
   const maxBytes = limits.sendQueueMaxBytes ?? SEND_QUEUE_MAX_BYTES;
 
@@ -103,12 +106,20 @@ function createSendQueue(
     }
   }
 
+  function settleIdle(): void {
+    for (const resolve of Array.from(idleWaiters)) {
+      idleWaiters.delete(resolve);
+      resolve();
+    }
+  }
+
   function dropAll(): void {
     state.closed = true;
     state.pumping = false;
     queue.length = 0;
     state.queued = 0;
     settleWaiters();
+    settleIdle();
   }
 
   function fail(caught: unknown): void {
@@ -136,6 +147,7 @@ function createSendQueue(
         queue.shift();
         state.queued -= head.bytes;
         settleWaiters();
+        if (queue.length === 0) settleIdle();
         drain();
         return undefined;
       },
@@ -162,6 +174,12 @@ function createSendQueue(
     },
     get bytes() {
       return state.queued;
+    },
+    drained() {
+      if (state.closed || queue.length === 0) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        idleWaiters.add(resolve);
+      });
     },
     waitBelowLowWater(signal) {
       if (state.closed) return Promise.resolve("closed");
@@ -194,6 +212,26 @@ interface HubInternals {
 }
 
 export function createConnectionHub(engine: Engine, handlers: WireHandlers): ConnectionHub {
+  const { scheduler } = engine.ports;
+
+  /** 송신 큐가 비거나 ms가 지날 때까지 기다린다 */
+  function flushWithin(sender: SendQueue, ms: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const timer = scheduler.setTimeout(resolve, ms);
+      detach(
+        sender.drained().then(() => {
+          scheduler.clearTimeout(timer);
+          resolve();
+          return undefined;
+        }),
+        () => {
+          scheduler.clearTimeout(timer);
+          resolve();
+        },
+      );
+    });
+  }
+
   const internals: HubInternals = {
     connections: new Map(),
     sizeListeners: new Set(),
@@ -509,6 +547,12 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       };
     },
     async closeAll(reason) {
+      // 마지막 응답(예: host.shutdown의 accepted)이 나간 뒤 닫는다. 상대가 읽지 않아 큐가 비지 않으면 시한까지만 기다린다
+      await Promise.all(
+        Array.from(internals.connections.values()).map((state) =>
+          flushWithin(state.sender, CLOSE_FLUSH_MS),
+        ),
+      );
       const all = Array.from(internals.served.values());
       await Promise.all(all.map((connection) => connection.close(reason)));
     },

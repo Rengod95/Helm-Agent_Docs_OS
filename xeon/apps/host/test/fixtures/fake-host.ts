@@ -5,7 +5,7 @@ import {
   type ServedConnection,
 } from "../../src/connection.ts";
 import type { ConnectionHub } from "../../src/connection-types.ts";
-import { createWireHandlers } from "../../src/handlers/index.ts";
+import { createWireHandlers, type HostLifecycle } from "../../src/handlers/index.ts";
 import { createInProcessTransportFactory } from "../../src/transport/in-process.ts";
 import { stdioPair } from "./stdio-pair.ts";
 import { createFakeEngine, type FakeEngine, type FakeEngineOptions } from "./fake-engine.ts";
@@ -26,6 +26,8 @@ function testLimits(overrides: Partial<HostLimits> = {}): HostLimits {
 
 export interface FakeHostOptions extends FakeEngineOptions {
   readonly limits?: Partial<HostLimits>;
+  /** 수명 신호. 있으면 host.shutdown 처리기가 열린다(stdio·서비스 호스트) */
+  readonly lifecycle?: HostLifecycle;
   /** 처리기 표를 바꾼다 */
   readonly override?: (table: WireHandlers) => WireHandlers;
 }
@@ -53,6 +55,7 @@ export function createFakeHost(options: FakeHostOptions = {}): FakeHost {
       return slot.hub;
     },
     { serverName: "xeon", serverVersion: "0.0.0-test", pid: 1 },
+    options.lifecycle,
   );
   const handlers = options.override === undefined ? base : options.override(base);
   const hub = createConnectionHub(fake.engine, handlers);

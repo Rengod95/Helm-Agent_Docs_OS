@@ -160,7 +160,7 @@ test("secret.meta on a name that has no metadata fails, and an invalid patch is 
     expect(invalid.code).toBe(-32602);
     expect(invalid.data.details).toEqual({ issues: [{ path: "", message: "/desc: pattern" }] });
   }
-  // 스키마가 허용하는 범위를 넘는 값은 처리기에 닿기 전에 -32602다
+  // 스키마가 허용하는 범위를 넘는 값은 처리기를 부르기 전에 -32602다
   const outOfRange = await rejectionOf(
     connection.request("secret.meta", { name: EXA, ttlSeconds: 100_000 }),
   );
