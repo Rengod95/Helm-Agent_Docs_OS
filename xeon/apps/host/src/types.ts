@@ -36,6 +36,7 @@ import type {
   WireParams,
   WireResult,
 } from "@xeon/contracts/wire";
+import type { DnsResolver, HttpTransport } from "@xeon/cap-web";
 import type { ModelsExtensionOptions } from "@xeon/core-models";
 import type { BuiltinExtensionModule } from "@xeon/ext-host";
 import type { SecretOfferStore } from "./secrets/offers.ts";
@@ -65,6 +66,14 @@ export interface AssembleOptions {
    * 앱이나 시험이 정의를 넘긴다
    */
   readonly agentDefinitions?: readonly AgentDefinition[];
+  /**
+   * 테스트 주입: 웹 능력의 DNS 해석기와 HTTP 전송. 운영은 생략한다(시스템 해석기와 guarded-fetch 전송).
+   * 루프백은 정책이 항상 거부하므로 시험이 공개 주소로 풀리는 이름과 가짜 전송을 넣는다
+   */
+  readonly webPorts?: {
+    readonly resolver?: DnsResolver;
+    readonly transport?: HttpTransport;
+  };
   /** 기본 true. false면 Helm·학습 그룹을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** 조립 루트가 import할 수 없는 앱의 설정(예: l4.cli.*, L4.cli.spec §6) */

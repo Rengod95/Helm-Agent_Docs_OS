@@ -65,6 +65,11 @@ test("the core groups build one catalog with the keys of every package that decl
   if (!built.ok) return;
   const owners = new Set(coreSettingGroups().map((group) => group.owner));
   expect([...owners].toSorted()).toEqual([
+    "cap-dialog",
+    "cap-knowledge",
+    "cap-mcp",
+    "cap-web",
+    "cap-work",
     "cap-workspace",
     "core-agents",
     "core-context",
@@ -75,6 +80,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "core-tools",
     "ext-host",
     "group-helm",
+    "group-kit",
     "host",
     "platform-exec",
     "platform-os",
@@ -103,6 +109,12 @@ test("the core groups build one catalog with the keys of every package that decl
     "l1.loop.maxSteps",
     "l1.tasks.queue.steeringMode",
     "l2.workspace.read.maxLines",
+    "l2.web.policy.allowPrivateNetwork",
+    "l2.knowledge.skills.projectSkills",
+    "l2.mcp.callTimeoutMs",
+    "l2.work.plans.requireApproval",
+    "l2.dialog.ask.timeoutSec",
+    "l3.group-kit.instrumentation",
     "l4.host-service.maxReplayEvents",
   ]) {
     expect(built.catalog.has(key)).toBe(true);

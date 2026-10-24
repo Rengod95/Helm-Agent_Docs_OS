@@ -1,6 +1,11 @@
 import { Type } from "typebox";
 import type { Clock, Logger } from "@xeon/contracts";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import {
+  isId,
+  type IdFactory,
+  type LocalIdFactory,
+  type ThreadId,
+} from "@xeon/contracts/conversation";
 import type { ExtensionName } from "@xeon/contracts/extensions";
 import {
   EVENT_CATALOG,
@@ -12,6 +17,7 @@ import {
   type LeaseToken,
   type StoreDb,
 } from "@xeon/contracts/records";
+import { WebFetch, WebSearch, type AnyCapabilityDef } from "@xeon/contracts/capabilities";
 import { workspacePlugin } from "@xeon/cap-workspace";
 import type { AgentDefinition } from "@xeon/contracts/services";
 import { agentsPlugin } from "@xeon/core-agents";
@@ -22,8 +28,10 @@ import { sessionPlugin } from "@xeon/core-persistence";
 import { createTasksEntry, TASKS_MANIFEST } from "@xeon/core-tasks";
 import { toolsPlugin } from "@xeon/core-tools";
 import type { BuiltinExtensionModule, ExtHost, ExtensionUnit, InstallResult } from "@xeon/ext-host";
-import type { HostMode } from "../types.ts";
+import type { AssembleOptions, HostMode } from "../types.ts";
+import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
+import type { ProjectTrust } from "./trust.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 import {
   agentsSource,
@@ -43,7 +51,13 @@ export interface ExtensionDeps {
   readonly mode: HostMode;
   readonly clock: Clock;
   readonly ids: IdFactory;
+  /** 로컬 id(원장, 캐시 행). L0.os의 createLocalIdFactory */
+  readonly localIds: LocalIdFactory;
   readonly logger: Logger;
+  /** 프로젝트 신뢰 판정(프로젝트 스킬, MCP 서버 정의). 결정 D6 */
+  readonly trust: ProjectTrust;
+  /** 엔진 수명 신호 */
+  readonly signal: AbortSignal;
   readonly settings: SettingsEngine;
   readonly db: StoreDb;
   readonly faults: FaultInjector;
@@ -54,6 +68,8 @@ export interface ExtensionDeps {
   readonly parentToken: (threadId: ThreadId) => LeaseToken | undefined;
   readonly onLeaseLost: (threadId: ThreadId) => void;
   readonly reportSetting: (message: string) => void;
+  /** AssembleOptions.webPorts */
+  readonly webPorts?: AssembleOptions["webPorts"];
   /** AssembleOptions.agentDefinitions */
   readonly agentDefinitions?: readonly AgentDefinition[];
   /** 테스트 주입(AssembleOptions.buildModels) */
@@ -84,6 +100,9 @@ function kindLookup(kind: string): CatalogEntry | undefined {
   }
   return undefined;
 }
+
+/** 도구를 올리는 L2 능력. core-tools가 호출 때 공급자를 찾으려면 이 능력이 매니페스트에 선언되어 있어야 한다 */
+const L2_TOOL_CAPABILITIES: readonly AnyCapabilityDef[] = [WebSearch, WebFetch];
 
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
 export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
@@ -149,6 +168,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ids: deps.ids,
           settings: toolsSource(settings),
           logger: deps.logger.child({ component: "core-tools" }),
+          // 이 능력들의 도구를 부르려면 core-tools가 매니페스트 optional로 선언해야 한다(ScopeHostApi.capability)
+          capabilities: L2_TOOL_CAPABILITIES,
           loadIndex,
         }),
     ],
@@ -183,6 +204,17 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
     [
       "cap-workspace",
       (loadIndex) => workspacePlugin({ settings: workspaceSource(settings), loadIndex }),
+    ],
+    [
+      "cap-web",
+      (loadIndex) =>
+        hostWebPlugin({
+          ids: deps.localIds,
+          layers: (threadId) => settings.layers(isId("thr", threadId) ? threadId : undefined),
+          ...(deps.webPorts?.resolver === undefined ? {} : { resolver: deps.webPorts.resolver }),
+          ...(deps.webPorts?.transport === undefined ? {} : { transport: deps.webPorts.transport }),
+          loadIndex,
+        }),
     ],
   ];
   return modules.map(([, make], index) => make(index));

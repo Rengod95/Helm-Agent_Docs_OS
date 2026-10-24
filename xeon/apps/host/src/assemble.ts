@@ -428,7 +428,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         mode: options.mode,
         clock,
         ids,
+        localIds,
         logger,
+        trust: projectTrust,
+        signal: lifetime.signal,
         settings,
         db: store.value.root,
         faults: store.value.faults,
@@ -441,6 +444,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
         reportSetting,
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
+        ...(options.webPorts === undefined ? {} : { webPorts: options.webPorts }),
         ...(options.agentDefinitions === undefined
           ? {}
           : { agentDefinitions: options.agentDefinitions }),
