@@ -18,3 +18,55 @@ export type {
   SessionSourcesError,
   WebSessionSourcesPort,
 } from "./ports/session-sources.ts";
+export { deniedFailure, guarded, invalidInput, toCapabilityError } from "./errors.ts";
+export type { WebFailure } from "./errors.ts";
+export { createAskAdapter } from "./ask-adapter.ts";
+export { createAccess, hasSecretPattern } from "./policy/access.ts";
+export type { Access, AccessContext, AccessDeps, ApprovedTarget } from "./policy/access.ts";
+export { classifyAddress } from "./policy/address.ts";
+export type { AddressClass } from "./policy/address.ts";
+export { createContentHttp } from "./policy/content-http.ts";
+export type { ContentHttp, ContentOutcome, ContentRequest } from "./policy/content-http.ts";
+export {
+  decideDomain,
+  isDomainPattern,
+  matchDomain,
+  mergeDomainRules,
+  normalizeHost,
+  resolveDomainPolicy,
+} from "./policy/domain.ts";
+export type { DomainRules, DomainVerdict } from "./policy/domain.ts";
+export { createBoundProviderHttp, WebHttpError } from "./policy/guarded-http.ts";
+export type {
+  BoundProviderHttp,
+  ProviderHttpDeps,
+  ProviderHttpOptions,
+} from "./policy/guarded-http.ts";
+export {
+  createRobotsChecker,
+  parseRobots,
+  robotsAllows,
+  ROBOTS_USER_AGENT_TOKEN,
+  rulesFromResponse,
+} from "./policy/robots.ts";
+export type { RobotsChecker, RobotsFetcher, RobotsRules } from "./policy/robots.ts";
+export { createSeenUrls, extractUrls } from "./policy/seen-urls.ts";
+export type { SeenUrls, SeenUrlsError } from "./policy/seen-urls.ts";
+export { addressVerdict, checkUrlSyntax, resolvedVerdict } from "./policy/ssrf.ts";
+export type { CheckedUrl, UrlRejection } from "./policy/ssrf.ts";
+export type { AskReason, WebAskError, WebAskPort, WebAskRequest } from "./ports/ask.ts";
+export type { DnsResolver, ResolveError } from "./ports/resolver.ts";
+export type {
+  HeaderSecretError,
+  HeaderSecretResolver,
+  OutboundSecretGuard,
+} from "./ports/secrets.ts";
+export type {
+  HttpTransport,
+  TransportFailure,
+  TransportMode,
+  TransportRequest,
+  TransportResponse,
+} from "./ports/transport.ts";
+export { createHttpTransport } from "./transport/http-transport.ts";
+export { createSystemResolver } from "./transport/system-resolver.ts";

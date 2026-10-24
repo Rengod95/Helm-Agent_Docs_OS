@@ -289,3 +289,45 @@ M3:
 | 필터 프록시가 WebRTC 등 일부 트래픽을 놓침 | 브라우저 도메인 제한 우회 | WebRTC 비활성 플래그, 단위·스모크 테스트에 WebSocket·이미지·워커 차단 사례 | `L2.web.spec` §4.10.2, §10 미결 8 |
 | oxlint `overrides`가 기본 금지 패턴을 대체 | 변환 영역에서 기본 금지 규칙이 빠짐 | override에 기본 패턴을 다시 적고, check-layers 패턴으로 이중 검사 | `eng.dependency-rules.guide` §3.2 |
 | 플러그인 배포 방식 미정 | 첫 실행 권장 흐름 구현 지연 | M3 전에 사용자 확인(§1.3) | `L2.web.spec` §10 |
+
+## 8. M2 구현 기록 (m2-plan WEB.1~WEB.5)
+
+구현은 브랜치 `m2/web`에서 했다. 시험은 모두 주입한 가짜(시계, ID, DNS 해석기, 녹화 HTTP 전송, 승인 포트, 비밀 판정)로 돌고 네트워크를 쓰지 않는다. 시험 환경은 WSL2이고 브라우저·macOS는 없다.
+
+### 8.1 작업별 상태
+
+| m2-plan ID | plan ID | 상태 | 내용과 시험 |
+|---|---|---|---|
+| WEB.1 | B2 | 구현 | `contract/url.ts`(정규화), `source-ids.ts`(세션별 `sN` 표, 이벤트 읽기 포트로 재시작 뒤 이어서 할당), `meta.ts`(`WebCallMeta` 조립), `redact.ts`(`redactForPersistence`). `renderSearch` 등 렌더러는 F `defs/web.ts`가 이미 가지고 있어 `contract/render.ts`를 따로 만들지 않았다. `url.test.ts`, `source-ids.test.ts`, `redact.test.ts`, `meta.test.ts`, `defs.test.ts` |
+| WEB.1 | B11 | 구현 | `settings.ts`가 `l2.web.*` 37개 키 전체를 선언한다(1차 `since: "0.1.0"`, 조사 키 `0.2.0` [가정]). 도메인 목록 세 키는 모든 범위의 값을 합쳐 읽는다. `settings.test.ts` |
+| WEB.2 | B3 | 구현 | `policy/address.ts`(IP 파싱·분류), `ssrf.ts`(URL 검사, 주소 판정), `domain.ts`, `access.ts`(§4.1 3~4단계: 비밀 값, 도메인, 대화에 나온 URL, 승인), `content-http.ts`(리다이렉트 hop 재검사), `robots.ts`, `seen-urls.ts`, `guarded-http.ts`(provider용 `GuardedHttp`), `transport/http-transport.ts`(guarded-fetch 연결), `transport/system-resolver.ts`, `ask-adapter.ts`. `address.test.ts`, `ssrf.test.ts`, `domain-policy.test.ts`, `access-unseen.test.ts`, `robots.test.ts`, `guarded-http.test.ts`, `ask-adapter.test.ts` |
+
+### 8.2 guarded-fetch 0.1.6 소스 확인 (WEB.2)
+
+npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index.mjs`(42 KB)와 README를 읽었다. 내려받은 코드는 실행하지 않았고 import만 한다. 시험은 이 패키지를 호출하지 않는다.
+
+| 확인 항목 | 결과 | 근거 |
+|---|---|---|
+| 연결 시점 IP 재검증 | 있음 | undici `Agent`의 `connect`에 `createGuardedLookup`을 넣는다. 해석된 모든 주소를 `isSafeIpAddress`로 검사하고 하나라도 안전하지 않으면 연결을 거부한다 |
+| 검증한 IP로 다이얼 | 있음 | 같은 `lookup` 호출이 돌려주는 주소를 소켓이 쓴다. 해석과 연결 사이에 다시 풀지 않는다 |
+| IP 리터럴 | 사전 검사와 연결 전 검사로 막음 | `net.isIP`가 참인 호스트는 `lookup`을 거치지 않으므로 `assertUrlIsSafeToFetch`와 커넥터가 따로 검사한다 |
+| 리다이렉트 훅 | `followRedirects: false`로 3xx를 그대로 받음 | hop마다 우리 정책을 거치려고 이 모드를 쓴다. 내장 추적은 5 hop, 같은 호스트 구분이 없다 |
+| 범위 표 | 스펙 §4.6.3 표보다 넓거나 같음 | 사설, CGNAT, 링크 로컬, 멀티캐스트, 예약, 문서용, 6to4, NAT64(로컬 용도 `64:ff9b:1::/48` 포함), IPv4 매핑을 막는다 |
+| 응답 크기 | 제한 없음(맨 `guardedFetch`) | 본문 읽기는 `http-transport.ts`가 상한까지만 읽는다 |
+| 헤더 | `Host`, `Cookie`, `X-Forwarded-*` 등을 조용히 버림 | provider의 인증 헤더(`Authorization`, `X-Api-Key`)는 남는다 |
+
+부족한 점 둘은 스펙이 요구하는 예외다. `guarded-fetch`는 둘을 표현하지 못한다.
+
+1. `l2.web.policy.allowPrivateNetwork = true`일 때 사설 대역(10/8 등)을 여는 선택지가 없다.
+2. provider endpoint 예외(§4.6.5). SearXNG의 루프백 주소(`127.0.0.1:8888`)에 연결할 수 없다.
+
+대응(request-filtering-agent로 바꾸지 않고 두 갈래 전송): `policy/ssrf.ts`가 해석된 주소 전체를 스펙 표로 판정한다. 모두 공개 주소면 `public` 모드(guarded-fetch, 연결 시점 재검증 포함)로 보낸다. 사설망 허용이나 endpoint 예외로 열린 주소가 있을 때만 `direct` 모드(전역 `fetch`, `redirect: "manual"`)로 보낸다. `direct` 모드는 연결 시점 재검증이 없다. 그 틈은 아래 8.3에 적었다.
+
+### 8.3 확인하지 못한 항목과 [미결]
+
+| 항목 | 이유 | 확인 방법 |
+|---|---|---|
+| Bun 런타임에서 guarded-fetch 동작 | `undici`가 Bun에서 도는지, `connect.lookup`을 Bun의 소켓이 따르는지 실행으로 확인하지 못했다. 소스만 읽었다 | 사람이 임시 스모크로 `guardedFetch("http://127.0.0.1:<루프백 서버>")`가 `hostname_unsafe`로 거부되는지, `localhost`로 해석되는 이름이 막히는지 확인한다. 막히지 않으면 `dispatcher`에 자체 `Agent`를 넘기는 방식(undici 직접 의존)으로 바꾼다 |
+| `direct` 모드의 DNS 리바인딩 | 사전 검사에서 모든 주소를 판정한 뒤 `fetch`가 이름을 다시 푼다. 그 사이에 주소가 바뀌면 막지 못한다 | 영향 범위는 사설망 허용을 켠 사용자와 SearXNG 같은 사용자 설정 endpoint로 한정된다. `allowPrivateNetwork`는 project 범위를 허용하지 않는다. 막으려면 이름이 아니라 검증한 IP로 연결하는 전송이 필요하다 |
+| robots.txt 가져오기 연결 | `createRobotsChecker`는 가져오기 함수를 주입받는다. 파이프라인 연결은 WEB.4 | WEB.4 |
+

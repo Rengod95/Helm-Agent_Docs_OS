@@ -1213,7 +1213,7 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 #### 4.6.3 해석된 IP 검사(연결 시점)
 
 - DNS 해석 결과의 모든 주소를 검사하고, 검사를 통과한 주소로 직접 연결한다. Host 헤더와 TLS SNI는 원래 호스트 이름을 유지한다. 해석과 연결 사이에 다른 주소로 바뀌는 DNS 리바인딩을 막기 위해서다(hermes `url_safety.py`, `_research/web-tools.md` §3.3).
-- 구현은 guarded-fetch 0.1.6의 연결 시점 검사를 쓴다 [가정: 0.1.6에 연결 시점 검사와 검증 IP 다이얼이 있다. `L2.web.plan` B3에서 소스로 확인하고, 없으면 request-filtering-agent로 바꾼다].
+- 구현은 guarded-fetch 0.1.6의 연결 시점 검사를 쓴다. 0.1.6에 연결 시점 검사와 검증 IP 다이얼이 있음을 소스로 확인했다(`L2.web.plan` §8.2). 이 패키지는 사설망 허용과 provider endpoint 예외를 표현하지 못하므로, 모든 주소가 공개 주소일 때만 이 전송(`public` 모드)을 쓰고 그 밖의 허용 주소는 앞단이 판정한 뒤 `direct` 모드로 보낸다. `direct` 모드에는 연결 시점 재검증이 없다 [미결].
 
 | 범위 | 기본 | `l2.web.policy.allowPrivateNetwork = true` |
 |---|---|---|
@@ -1739,4 +1739,4 @@ export const webSettings = defineSettings("l2.web", {
 14. [미결] Parallel을 첫 실행 권장 목록에 넣을지(ADR-0005 §6 승계).
 15. [가정] SearXNG를 수정 없이 별도 프로세스로 쓰면 AGPL 배포 의무가 없다. 법률 확인 전에는 번들하지 않는다(ADR-0005 §3.1).
 16. [가정] 래퍼 1회 약 $0.011, 지연 미측정(ADR-0005 §3.2, §6).
-17. [가정] guarded-fetch 0.1.6의 연결 시점 IP 검사. 0.1.x 신생 패키지이고 소스 확인은 `L2.web.plan` B3에서 한다.
+17. 소스는 확인함(`L2.web.plan` §8.2). 0.1.x 신생 패키지이고 Bun 런타임에서의 동작은 실행으로 확인하지 못했다 [미결](`L2.web.plan` §8.3).

@@ -1,5 +1,11 @@
 import { parse } from "@xeon/contracts";
-import { ThreadIdSchema, type LocalIdFactory, type ThreadId } from "@xeon/contracts/conversation";
+import {
+  ApprovalIdSchema,
+  ThreadIdSchema,
+  type ApprovalId,
+  type LocalIdFactory,
+  type ThreadId,
+} from "@xeon/contracts/conversation";
 
 const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
@@ -28,5 +34,12 @@ export function fixedLocalIds(): LocalIdFactory {
 export function threadIdOf(n: number = 1): ThreadId {
   const parsed = parse(ThreadIdSchema, `thr_${ulid(n)}`);
   if (!parsed.ok) throw new Error("invalid test thread id");
+  return parsed.value;
+}
+
+/** 시험용 ApprovalId(evt_ 접두) */
+export function approvalIdOf(n: number = 1): ApprovalId {
+  const parsed = parse(ApprovalIdSchema, `evt_${ulid(n)}`);
+  if (!parsed.ok) throw new Error("invalid test approval id");
   return parsed.value;
 }
