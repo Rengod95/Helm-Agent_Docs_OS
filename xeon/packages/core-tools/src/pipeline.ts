@@ -33,7 +33,8 @@ import type {
   ToolCallState,
   ToolRunContext,
 } from "@xeon/contracts/services";
-import { denialReason, requestKeyFor } from "./approvals/protocol.ts";
+import { requestKeyFor } from "./approvals/keys.ts";
+import { denialReason } from "./approvals/protocol.ts";
 import type { ApprovalsInternal } from "./approvals/service.ts";
 import { boundResult, selfBlobRef } from "./bound.ts";
 import type { CallTable } from "./calls.ts";
@@ -51,6 +52,7 @@ import {
   type EffectKit,
 } from "./effects.ts";
 import { evaluatePolicy } from "./policy/engine.ts";
+import { checkSecretUse } from "./secret-gate.ts";
 import type { ToolRegistry } from "./registry.ts";
 import { addHits, hitsPayload, maskResult } from "./secrets.ts";
 import { lockRequests, openToolScope } from "./tasks.ts";
@@ -98,6 +100,8 @@ export interface Pipeline {
 const ARGS_INLINE_MAX_BYTES = 192 * 1024;
 /** 닫은 결과를 기억할 호출 수. 같은 호출을 두 번 닫아도 같은 결과를 돌려준다 */
 const CLOSED_OUTCOME_LIMIT = 4096;
+/** 비밀 사용 승인 요청의 규칙 id. 정책 규칙이 아니라 비밀 사용 승인임을 화면과 기록에 보인다 */
+const SECRET_USE_RULE_ID = "secret.use";
 
 const TRUNCATED_TEXT = (name: string): string =>
   `Tool call "${name}" was not executed: the response hit the output token limit, so its arguments may be truncated. Re-issue the tool call with complete arguments.`;
@@ -381,6 +385,39 @@ export function createPipeline(
     if (decision.effect === "allow") return undefined;
     if (approvals.isRemembered(run.surfaceThreadId, entry.name, decision.ruleId)) return undefined;
 
+    const asked = await askUser(
+      state,
+      {
+        argsPayload,
+        argsHash,
+        ruleId: decision.ruleId,
+        title: `Allow tool "${entry.name}"?`,
+        requestKey: requestKeyFor(toolCallId),
+        remember: ["once", "thread", "always"],
+      },
+      signal,
+    );
+    if ("reason" in asked) return asked;
+    if (asked.byUser) state.userApprovalId = asked.approvalId;
+    return undefined;
+  }
+
+  interface AskInput {
+    readonly argsPayload: JsonObject | BlobRef;
+    readonly argsHash: string;
+    readonly ruleId: string | null;
+    readonly title: string;
+    readonly requestKey: string;
+    readonly remember: ApprovalRequestInput["remember"];
+  }
+
+  /** 도구 승인(kind tool) 요청을 올리고 답을 기다린다. 허용이면 승인 id를, 아니면 모델에 보일 거부 사유를 돌려준다 */
+  async function askUser(
+    state: CallState,
+    input: AskInput,
+    signal: AbortSignal,
+  ): Promise<Denied | { readonly approvalId: string; readonly byUser: boolean }> {
+    const { run, entry, toolCallId } = state;
     const origin: ApprovalOrigin = {
       threadId: run.threadId,
       turnId: run.turnId,
@@ -390,32 +427,80 @@ export function createPipeline(
     };
     const request: ApprovalRequestInput = {
       origin,
-      requestKey: requestKeyFor(toolCallId),
-      title: `Allow tool "${entry.name}"?`.slice(0, 120),
+      requestKey: input.requestKey,
+      title: input.title.slice(0, 120),
       body: {
         kind: "tool",
         tool: {
           toolName: entry.name,
           ...(entry.capability === undefined ? {} : { capability: entry.capability }),
           risk: entry.risk,
-          args: argsPayload,
-          argsHash,
-          ruleId: decision.ruleId,
+          args: input.argsPayload,
+          argsHash: input.argsHash,
+          ruleId: input.ruleId,
         },
       },
-      remember: ["once", "thread", "always"],
+      remember: input.remember,
     };
-    const answered = await approvals.requestTool(request, signal);
+    const answered = await approvals.request(request, signal);
     if (!answered.ok) {
       return denied(`[xeon:tools.commit_failed] ${describeFailure(answered.error)}`);
     }
     const resolution = answered.value;
-    if (resolution.decision === "allow") return undefined;
+    if (resolution.decision === "allow") {
+      return { approvalId: resolution.approvalId, byUser: resolution.resolvedBy === "user" };
+    }
     if (resolution.resolvedBy === "cancelled" && signal.aborted) {
       // 턴 취소는 대기 중인 요청을 cancelled로 닫는다(L1.tools.spec §4.7 8번)
       await approvals.cancel(resolution.approvalId, "turn aborted");
     }
     return denied(denialReason(resolution));
+  }
+
+  // ── 5c' 비밀 사용 승인(L1.tools.spec §4.12) ────────────────────────────
+
+  /**
+   * 호출이 `secretEnv`로 비밀을 쓰면 `xeon.secrets.check`가 `needs_approval`을 낼 때 승인 증거를 만든다. 이 호출의 정책 승인을 사용자가
+   * 방금 허용했으면 그 승인이 실행마다의 승인(U-19)이라 같은 승인을 증거로 쓴다. 아니면(규칙이 허용, 모드가 허용, thread 기억) 비밀 사용을 따로 묻는다
+   */
+  async function approveSecretUse(
+    state: CallState,
+    argsPayload: JsonObject | BlobRef,
+    argsHash: string,
+    signal: AbortSignal,
+  ): Promise<Denied | undefined> {
+    const verdict = await checkSecretUse(deps.secrets, {
+      toolName: state.entry.name,
+      args: state.args,
+      run: state.run,
+      toolCallId: state.toolCallId,
+    });
+    if (verdict.kind === "none") return undefined;
+    if (verdict.kind === "denied") return denied(verdict.reason);
+    let approvalId = state.userApprovalId;
+    if (approvalId === undefined) {
+      const asked = await askUser(
+        state,
+        {
+          argsPayload,
+          argsHash,
+          ruleId: SECRET_USE_RULE_ID,
+          title: `Allow "${state.entry.name}" to use ${verdict.handles.join(", ")}?`,
+          requestKey: requestKeyFor(`${state.toolCallId}:secret`),
+          remember: ["once"],
+        },
+        signal,
+      );
+      if ("reason" in asked) return asked;
+      approvalId = asked.approvalId;
+    }
+    state.secretApproval = {
+      approvalId,
+      scope: "per-use",
+      grantedAt: deps.clock.now(),
+      expiresAt: null,
+    };
+    return undefined;
   }
 
   // ── 6 effect.intent ──────────────────────────────────────────────────
@@ -580,6 +665,8 @@ export function createPipeline(
       execCommitted: false,
       startedAt: undefined,
       interrupted: false,
+      userApprovalId: undefined,
+      secretApproval: null,
       attempt: 0,
       updates: 0,
       maskedHits: new Map(),
@@ -617,6 +704,8 @@ export function createPipeline(
     const argsHash = await argsHashOf(state.args);
     const verdict = await decide(state, argsPayload, argsHash, signal);
     if (verdict !== undefined) return verdict;
+    const secretVerdict = await approveSecretUse(state, argsPayload, argsHash, signal);
+    if (secretVerdict !== undefined) return secretVerdict;
     // 의도를 쓰기 전에 중단을 확인한다. 의도가 있는 호출은 실행 전이라도 settleRejected가 효과 결과로 닫아야 한다
     if (signal.aborted) return denied("[xeon:aborted] Operation aborted");
     return commitIntent(state, argsPayload, argsHash);
@@ -665,6 +754,7 @@ export function createPipeline(
         params,
         signal,
         onUpdate: masking,
+        secretApproval: state.secretApproval,
       });
       state.interrupted = outcome.interrupted;
       return outcome;
@@ -987,6 +1077,8 @@ export function createPipeline(
       execCommitted: false,
       startedAt: undefined,
       interrupted: false,
+      userApprovalId: undefined,
+      secretApproval: null,
       attempt: execCount,
       updates: 0,
       maskedHits: new Map(),

@@ -1,6 +1,7 @@
 import { Bug, err, ok, parse, type Clock, type Logger, type Result } from "@xeon/contracts";
-import type { EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import type { EffectId, EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import {
+  ApprovalRequestedPayloadSchema,
   StepCheckpointSchema,
   type PendingToolCall,
   type ProducerHandle,
@@ -9,22 +10,34 @@ import {
   type StampedDraft,
   type StepCheckpointInput,
 } from "@xeon/contracts/records";
-import type {
-  ApprovalOrigin,
-  ApprovalRequest,
-  ApprovalRequestInput,
-  ApprovalResolution,
-  ApprovalResponse,
-  ApprovalService,
-  ToolRunContext,
+import {
+  PERMISSION_MODE_STRICTNESS,
+  type ApprovalOrigin,
+  type ApprovalRequest,
+  type ApprovalRequestInput,
+  type ApprovalResolution,
+  type ApprovalResponse,
+  type ApprovalService,
+  type ModeChangeResult,
+  type PermissionMode,
+  type ToolRunContext,
 } from "@xeon/contracts/services";
 import type { ExtHost } from "@xeon/ext-host";
 import { commitWithRetry, type CommitFailure } from "../commit.ts";
-import { messageOf } from "../util.ts";
+import { isJsonObject, messageOf } from "../util.ts";
+import { requestCommitKey, resolveCommitKey } from "./keys.ts";
 import { scanApprovals } from "./pending.ts";
-import { requestCommitKey, resolveCommitKey, validateResponse } from "./protocol.ts";
+import { requestIssue, validateResponse } from "./protocol.ts";
 
-// L1.tools.spec §3.6, §4.7 승인 대기. M1은 kind "tool"만 요청을 받는다(plan, question은 M2, TL-12).
+// L1.tools.spec §3.6, §4.7 승인 대기. 도구 승인(tool), 계획 승인(plan), 질문(question)이 하나의 대기 형식을 쓴다.
+// L2 능력은 자기 도구의 실행 안에서 `request`(또는 비차단 `open`+`wait`)를 부른다.
+
+/** 승인을 일으킨 도구 호출의 활성 상태. 대기 체크포인트 초안과 비대화형 판정에 쓴다 */
+interface ActiveCall {
+  readonly run: ToolRunContext;
+  /** 커밋된 effect.intent. 도구 실행 안에서 일어난 요청(질문, 계획)이면 있고, 정책 승인(실행 전)이면 없다 */
+  readonly effectId: EffectId | null;
+}
 
 export interface ApprovalDeps {
   readonly session: Pick<SessionService, "commit" | "readBranch">;
@@ -33,16 +46,33 @@ export interface ApprovalDeps {
   readonly clock: Clock;
   readonly ext: Pick<ExtHost, "dispatch">;
   readonly logger: Logger | undefined;
-  /** 활성 호출 표에서 origin의 실행 맥락을 찾는다. 대기 체크포인트 초안을 만들 때 쓴다 */
-  readonly runOf: (origin: ApprovalOrigin) => ToolRunContext | undefined;
+  /** 활성 호출 표에서 origin의 호출을 찾는다. 없으면 턴 밖의 요청(그룹 코드)이다 */
+  readonly callOf: (origin: ApprovalOrigin) => ActiveCall | undefined;
+  /** 계획 승인의 `{ mode }`를 적용한다(ToolService.setMode "plan_approval") */
+  readonly setMode: (threadId: ThreadId, mode: PermissionMode) => Promise<ModeChangeResult>;
+  readonly modeOf: (threadId: ThreadId) => PermissionMode;
 }
 
-/** 파이프라인이 쓰는 확장: 커밋 실패를 값으로 받고, 세션 허용 목록을 조회한다 */
+/** 요청과 현재 해결 상태 */
+export interface OpenedApproval {
+  readonly request: ApprovalRequest;
+  /** 해결되었으면 기록된 해결, 아니면 null */
+  readonly resolution: ApprovalResolution | null;
+}
+
+type WaitFailure = { readonly kind: "aborted" } | { readonly kind: "unknown" };
+
+/**
+ * 파이프라인과 L2 어댑터가 쓰는 확장: 비차단 `open`과 `wait`, 조회 `get`, 세션 허용 목록 조회.
+ * F `ApprovalService`의 `request`는 `open` + `wait`이다. `open`·`wait`·`get`은 F 인터페이스에 아직 없다(L1A.4 요청: F 승격)
+ */
 export interface ApprovalsInternal extends ApprovalService {
-  requestTool(
-    input: ApprovalRequestInput,
-    signal: AbortSignal,
-  ): Promise<Result<ApprovalResolution, CommitFailure>>;
+  /** 요청을 커밋만 하고 기다리지 않는다. 같은 requestKey의 요청이 있으면 그 요청의 현재 상태를 돌려준다 */
+  open(input: ApprovalRequestInput): Promise<Result<OpenedApproval, CommitFailure>>;
+  /** 응답이 기록되면 이행된다. signal이 끊기면 기다림만 그만둔다(요청은 남는다) */
+  wait(approvalId: string, signal: AbortSignal): Promise<Result<ApprovalResolution, WaitFailure>>;
+  /** 메모리 대기 목록의 요청. 모르는 id면 undefined */
+  get(approvalId: string): OpenedApproval | undefined;
   /** remember "thread"로 허용된 (도구, 규칙)인가 */
   isRemembered(surfaceThreadId: ThreadId, toolName: string, ruleId: string | null): boolean;
 }
@@ -114,6 +144,28 @@ function scopeIds(request: ApprovalRequest): {
     : { turnId: null, stepId: null };
 }
 
+function isMode(value: unknown): value is PermissionMode {
+  return PERMISSION_MODE_STRICTNESS.some((mode) => mode === value);
+}
+
+/** 계획 승인 해결의 `{ mode }`. 없거나 모드가 아니면 undefined */
+function planModeOf(
+  request: ApprovalRequest,
+  resolution: ApprovalResolution,
+): PermissionMode | undefined {
+  if (request.body.kind !== "plan" || resolution.decision !== "allow") return undefined;
+  const mode = isJsonObject(resolution.answer) ? resolution.answer["mode"] : undefined;
+  return isMode(mode) ? mode : undefined;
+}
+
+function promptKind(request: ApprovalRequest): "confirm" | "select" {
+  return request.body.kind === "question" ? "select" : "confirm";
+}
+
+function invalidRequest(detail: string): CommitFailure {
+  return { kind: "rejected", code: "approvals.request_invalid", detail };
+}
+
 export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   const byId = new Map<string, Entry>();
   const byKey = new Map<string, string>();
@@ -147,7 +199,11 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
 
   async function prompt(entry: Entry, phase: "start" | "end"): Promise<void> {
     const { request } = entry;
-    const payload = { reason: "ui_prompt", kind: "confirm", title: request.title } as const;
+    const payload = {
+      reason: "ui_prompt",
+      kind: promptKind(request),
+      title: request.title,
+    } as const;
     const options = {
       threadId: request.surfaceThreadId,
       dispatchKey: `approval:${request.approvalId}:ui_prompt_${phase}`,
@@ -169,7 +225,29 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     entry.waiters.clear();
   }
 
-  /** approval.resolved 커밋. 성공하면 entry를 해결 상태로 바꾼다 */
+  /**
+   * 계획 승인이 허용이고 `{ mode }`가 있으면 권한 모드를 바꾼다(L1.tools.spec §4.7 5번). 대기를 풀기 전에 하므로 계획 도구가 이어갈 때 모드가 이미 바뀌어 있다.
+   * 같은 모드면 쓰지 않는다: 해결이 이미 커밋된 뒤 재시작해 이 호출이 다시 올 때 중복 기록이 없다. 바꾸지 못해도 해결은 그대로다(경고만 남긴다)
+   */
+  async function applyPlanMode(
+    request: ApprovalRequest,
+    resolution: ApprovalResolution,
+  ): Promise<void> {
+    const mode = planModeOf(request, resolution);
+    if (mode === undefined) return;
+    const threadId = request.origin.threadId;
+    if (deps.modeOf(threadId) === mode) return;
+    const changed = await deps.setMode(threadId, mode);
+    if (!changed.ok) {
+      deps.logger?.warn("tools.plan_mode_not_applied", {
+        approvalId: request.approvalId,
+        mode,
+        reason: changed.error.kind,
+      });
+    }
+  }
+
+  /** approval.resolved 커밋. 성공하면 모드를 적용하고 entry를 해결 상태로 바꾼다 */
   async function commitResolution(
     entry: Entry,
     resolution: ApprovalResolution,
@@ -202,51 +280,96 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       },
     });
     if (!committed.ok) return err(committed.failure);
+    await applyPlanMode(request, resolution);
     settle(entry, resolution);
     await prompt(entry, "end");
     return ok(undefined);
   }
 
+  function opened(entry: Entry): OpenedApproval {
+    return { request: entry.request, resolution: entry.resolution ?? null };
+  }
+
   /** approval.requested(+ 대기 체크포인트) 한 커밋. 같은 requestKey는 기존 요청을 돌려준다 */
-  async function open(
-    input: ApprovalRequestInput,
-    surfaceThreadId: ThreadId,
-  ): Promise<Result<Entry, CommitFailure>> {
+  async function open(input: ApprovalRequestInput): Promise<Result<OpenedApproval, CommitFailure>> {
+    const issue = requestIssue(input);
+    if (issue !== undefined) return err(invalidRequest(issue));
+
+    const call = deps.callOf(input.origin);
+    const surfaceThreadId = call?.run.surfaceThreadId ?? input.origin.threadId;
     const knownId = byKey.get(keyOf(surfaceThreadId, input.requestKey));
     const known = knownId === undefined ? undefined : byId.get(knownId);
-    if (known !== undefined) return ok(known);
+    if (known !== undefined) return ok(opened(known));
 
     const requestedAt = deps.clock.now();
     const sameThread = input.origin.threadId === surfaceThreadId;
-    const draft = deps.producer.draft({
-      id: deps.ids.next("evt"),
+    const payload = {
+      origin: input.origin,
+      requestKey: input.requestKey,
+      title: input.title,
+      body: input.body,
+      remember: input.remember,
+      surfaceThreadId,
+      requestedAt,
+    };
+    const shape = parse(ApprovalRequestedPayloadSchema, payload);
+    if (!shape.ok) {
+      const first = shape.error.issues[0];
+      return err(
+        invalidRequest(
+          first === undefined ? "request payload is invalid" : `${first.path} ${first.message}`,
+        ),
+      );
+    }
+
+    // 비대화형 실행의 질문·계획 요청은 사람이 없다. 요청과 거부 해결을 한 커밋에 남기고 바로 거부한다(§4.7 7번, 감사 기록).
+    // 도구 승인은 정책이 이미 deny로 바꿔 요청이 나오지 않는다. 턴 밖의 요청(call 없음)은 대화형으로 본다
+    const silent = input.body.kind !== "tool" && call !== undefined && !call.run.interactive;
+    const requestedId = deps.ids.next("evt");
+    const requestedDraft = deps.producer.draft({
+      id: requestedId,
       kind: "approval.requested",
       threadId: surfaceThreadId,
       turnId: sameThread ? input.origin.turnId : null,
       stepId: sameThread ? input.origin.stepId : null,
       causationId: null,
       correlationId: null,
-      payload: {
-        origin: input.origin,
-        requestKey: input.requestKey,
-        title: input.title,
-        body: input.body,
-        remember: input.remember,
-        surfaceThreadId,
-        requestedAt,
-      },
+      payload,
     });
-    const drafts: StampedDraft[] = [draft];
-    const run = deps.runOf(input.origin);
+    const drafts: StampedDraft[] = [requestedDraft];
+    const silentResolution: ApprovalResolution = {
+      approvalId: requestedId,
+      decision: "deny",
+      answer: null,
+      remember: "once",
+      requestedRemember: null,
+      resolvedBy: "noninteractive",
+    };
+    if (silent) {
+      drafts.push(
+        deps.producer.draft({
+          id: deps.ids.next("evt"),
+          kind: "approval.resolved",
+          threadId: surfaceThreadId,
+          turnId: sameThread ? input.origin.turnId : null,
+          stepId: sameThread ? input.origin.stepId : null,
+          causationId: requestedId,
+          correlationId: null,
+          payload: silentResolution,
+        }),
+      );
+    }
+
     let checkpoint: StepCheckpointInput | null = null;
-    if (run !== undefined && input.origin.toolCallId !== null && input.body.kind === "tool") {
+    if (call !== undefined && input.origin.toolCallId !== null && !silent) {
       const waiting: PendingToolCall = {
         toolCallId: input.origin.toolCallId,
-        effectId: null,
+        // 도구 승인은 의도 전에 일어난다. 질문·계획은 도구 실행 안에서 일어나므로 의도가 이미 있다
+        effectId: input.body.kind === "tool" ? null : call.effectId,
         waiting: "approval",
       };
       // 대기 체크포인트 내용은 루프가 만든다. 저장소가 같은 커밋에 checkpoint.step으로 붙인다(A1)
-      checkpoint = waitingCheckpointInput(run.drafts.waitingCheckpoint([waiting]));
+      checkpoint = waitingCheckpointInput(call.run.drafts.waitingCheckpoint([waiting]));
     }
     const committed = commitWithRetry(deps.session, {
       threadId: surfaceThreadId,
@@ -263,6 +386,9 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
 
     const eventId = committed.result.eventIds[0];
     if (eventId === undefined) throw new Bug("tools.approval_event_missing");
+    if (!committed.result.replayed && eventId !== requestedId) {
+      throw new Bug("tools.approval_event_id_mismatch: the store did not keep the draft event id");
+    }
     const request: ApprovalRequest = {
       ...input,
       approvalId: eventId,
@@ -273,10 +399,12 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     if (committed.result.replayed) {
       const adopted = await adoptStoredResolution(entry);
       if (!adopted.ok) return err({ kind: "store", error: adopted.error });
+    } else if (silent) {
+      settle(entry, silentResolution);
     } else {
       await prompt(entry, "start");
     }
-    return ok(entry);
+    return ok(opened(entry));
   }
 
   /** 같은 키의 요청이 이미 커밋되어 있었다면(재시작) 그 사이 응답이 커밋되었는지 이벤트에서 확인한다 */
@@ -284,17 +412,22 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     const scanned = await scanApprovals(deps.session, entry.request.surfaceThreadId);
     if (!scanned.ok) return scanned;
     const stored = scanned.value.resolved.get(entry.request.approvalId);
-    if (stored !== undefined) settle(entry, stored);
+    if (stored !== undefined) {
+      // 해결은 커밋됐지만 모드 변경 전에 끊겼을 수 있다. 계획 도구가 다시 요청하는 이 자리에서 이어서 적용한다
+      await applyPlanMode(entry.request, stored);
+      settle(entry, stored);
+    }
     return ok(undefined);
   }
 
-  function waitFor(entry: Entry, signal: AbortSignal): Promise<ApprovalResolution> {
+  /** 해결이 오면 그 해결, signal이 끊기면 undefined */
+  function waitFor(entry: Entry, signal: AbortSignal): Promise<ApprovalResolution | undefined> {
     if (entry.resolution !== undefined) return Promise.resolve(entry.resolution);
-    if (signal.aborted) return Promise.resolve(cancelledResolution(entry.request));
-    return new Promise<ApprovalResolution>((resolve) => {
+    if (signal.aborted) return Promise.resolve(undefined);
+    return new Promise<ApprovalResolution | undefined>((resolve) => {
       const onAbort = (): void => {
         entry.waiters.delete(waiter);
-        resolve(cancelledResolution(entry.request));
+        resolve(undefined);
       };
       const waiter = (resolution: ApprovalResolution): void => {
         signal.removeEventListener("abort", onAbort);
@@ -305,17 +438,27 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     });
   }
 
-  async function requestTool(
+  async function requestAndWait(
     input: ApprovalRequestInput,
     signal: AbortSignal,
   ): Promise<Result<ApprovalResolution, CommitFailure>> {
-    if (input.body.kind !== "tool") {
-      throw new Bug(`approvals.unsupported_kind: ${input.body.kind} requests arrive in M2 (TL-12)`);
-    }
-    const run = deps.runOf(input.origin);
-    const opened = await open(input, run?.surfaceThreadId ?? input.origin.threadId);
-    if (!opened.ok) return opened;
-    return ok(await waitFor(opened.value, signal));
+    const created = await open(input);
+    if (!created.ok) return created;
+    const entry = byId.get(created.value.request.approvalId);
+    if (entry === undefined) throw new Bug("tools.approval_entry_missing");
+    // signal이 끊긴 대기는 취소 해결로 돌려주되 커밋하지 않는다. 요청을 닫는 일은 호출자의 몫이다(cancel)
+    const resolution = await waitFor(entry, signal);
+    return ok(resolution ?? cancelledResolution(entry.request));
+  }
+
+  async function wait(
+    approvalId: string,
+    signal: AbortSignal,
+  ): Promise<Result<ApprovalResolution, WaitFailure>> {
+    const entry = byId.get(approvalId);
+    if (entry === undefined) return err({ kind: "unknown" });
+    const resolution = await waitFor(entry, signal);
+    return resolution === undefined ? err({ kind: "aborted" }) : ok(resolution);
   }
 
   async function respond(
@@ -377,18 +520,23 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   ): Promise<Result<readonly ApprovalRequest[], ReadFailure>> {
     const scanned = await scanApprovals(deps.session, threadId);
     if (!scanned.ok) return scanned;
-    for (const { eventId, request } of scanned.value.requests) {
-      if (byId.has(request.approvalId)) continue;
-      const entry = add(eventId, request);
-      const stored = scanned.value.resolved.get(request.approvalId);
-      if (stored !== undefined) settle(entry, stored);
+    for (const { eventId, request: stored } of scanned.value.requests) {
+      if (byId.has(stored.approvalId)) continue;
+      const entry = add(eventId, stored);
+      const resolved = scanned.value.resolved.get(stored.approvalId);
+      if (resolved !== undefined) settle(entry, resolved);
     }
     return ok(pending(threadId));
   }
 
   return {
-    request: requestTool,
-    requestTool,
+    request: requestAndWait,
+    open,
+    wait,
+    get(approvalId) {
+      const entry = byId.get(approvalId);
+      return entry === undefined ? undefined : opened(entry);
+    },
     respond,
     pending,
     restore,

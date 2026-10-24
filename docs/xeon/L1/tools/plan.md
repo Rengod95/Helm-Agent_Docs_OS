@@ -84,20 +84,20 @@ xeon/packages/core-tools/
 | TL-2 | 파이프라인과 단계 계약(adr.0009 §3.4, 이전 판의 훅 연결을 L1.loop.plan LP18이 대체): `prepare`(`tool_execution_start` → 이름 해석 → 인자 검증 → `tool_call` 지점 → 정책 → 승인 → `effect.intent`), `execute`(`effect.exec` → 실행 → `tool_result` chain → 경계화 → `effect.result`+item 한 커밋 → `tool_execution_end`), 차단 결과의 toolResult item 기록, requestId 규칙(`tool:<id>:intent|exec|result`) | TL-1, TL-3, TL-9 | L | M1 |
 | TL-3 | 정책 평가기(순수): `evaluatePolicy` 7단계, `ruleMatches`(glob, JSON Pointer, 정규식), `stricter`, `validateRules`, 내장 기본 규칙. 코어 규칙 등록 `registerRules`(같은 출처 교체, `issues`, `dispose`)는 M2. M1은 티어 default·user와 `tool`·`args`만 (완료 2026-10-24: 티어 4종 순위 시험, `registerRules`는 `policy/core-rules.ts`, 확장 티어 규칙을 넣는 경로는 2차) | TL-0 | M | M1(부분), M2(전체) |
 | TL-4 | 권한 모드: 모드 표, 위험 등급 유도(`risk` → `hints.readOnly` → `exec`), `setMode`(세션 범위 설정 쓰기), managed `bypassAllowed`. M1은 `default`만 (완료 2026-10-24: 모드 4종, managed 금지 때 `tools.mode_forbidden`) | TL-3 | S | M1(default), M2 |
-| TL-5 | 승인 대기와 재개 복원: `ApprovalService`(`request`, `respond`, `pending`, `restore`, `cancel`), `approval.requested`+`checkpoint.step`(`next: "await_input"`) 한 커밋, `approval.resolved`, 기억 범위(`thread`, `always` → `thread`), 비대화형 처리. 재개 때 대기 호출은 core-loop가 `runTurn({ kind: "tools", awaitInput: true })`로 `prepare`를 다시 거쳐 같은 승인 요청을 이어 기다린다(L1.loop.spec §4.5) | TL-2 | L | M1(tool), M2(plan, question) |
+| TL-5 | 승인 대기와 재개 복원: `ApprovalService`(`request`, `respond`, `pending`, `restore`, `cancel`), `approval.requested`+`checkpoint.step`(`next: "await_input"`) 한 커밋, `approval.resolved`, 기억 범위(`thread`, `always` → `thread`), 비대화형 처리. 재개 때 대기 호출은 core-loop가 `runTurn({ kind: "tools", awaitInput: true })`로 `prepare`를 다시 거쳐 같은 승인 요청을 이어 기다린다(L1.loop.spec §4.5) (M2 완료 2026-10-24: kind 셋의 요청·응답 검사, 비대화형 감사 기록, 비차단 `open`·`wait`·`get`, 키 함수는 `approvals/keys.ts`) | TL-2 | L | M1(tool), M2(plan, question) |
 | TL-6 | 경계화와 blob 연결: `bound.ts`(한도 설정, `xeon.exec` 절단 호출, 원문 putBlob, 50 MiB 상한, 안내 문장, `"self"` 도구 처리). 절단 함수 포크는 L0.exec.plan 몫 | TL-0, L0.exec.plan의 절단 메서드 | S | M1 |
 | TL-7 | 노출 목록: `advertise`(orderTools 부분 수열, 전역 deny 제거, 지연 분리, 128 상한, `tools.too_many`, fingerprint), 활성화 집합 재계산 | TL-3 | M | M1(정렬·deny·상한), M2(지연) |
 | TL-8 | 서비스·설정 등록: `plugin.ts`, `service.ts`(등록 표, 이름 충돌), `settings.ts`(L1.tools.spec §6 키 6개), 범위별 규칙 수집(`tiers.ts`) | TL-1, TL-3 | M | M1 |
 | TL-9 | `tool_call` fail-closed: ext-host first 디스패치 결과 처리, 핸들러 예외·디스패처 예외·결정 스키마 위반을 모두 거부로, 거부 사유 문장 고정 | TL-0 | S | M1 |
 | TL-10 | `tool_search` 내장 도구와 지연 노출 | TL-7 | M | M2 |
 | TL-11 | `read_tool_output` 내장 도구 | TL-6 | S | M2 |
-| TL-12 | 질문·계획 승인 통합: `kind: plan`(`setMode` 연결), `kind: question`(`QuestionAnswer` 검사), 활성 호출 표로 L2 요청의 체크포인트 초안 생성, wire `approval.respond` 연결 확인(L4.host-service와 함께) | TL-5 | M | M2 |
+| TL-12 | 질문·계획 승인 통합: `kind: plan`(`setMode` 연결), `kind: question`(`QuestionAnswer` 검사), 활성 호출 표로 L2 요청의 체크포인트 초안 생성, wire `approval.respond` 연결 확인(L4.host-service와 함께) (완료 2026-10-24: `plan_approval`이 모드를 바꾸고, `input_required { approvalId }` 변형은 어댑터가 승인 해결을 기다려 재호출, 시험용 `L2ApprovalsPort` 어댑터는 `testing/l2-port.ts`. MCP 변형은 F 요청 12 뒤) | TL-5 | M | M2 |
 | TL-13 | 서브에이전트 ceiling 연결: `ToolRunContext.ceiling`이 있으면 5b 결정을 `stricter(childDecision(…), evaluatePolicy(…))`로 낸다(L1.tools.spec §4.5 ceiling 단계), 비대화형 ask → deny, 자식 광고 목록(`allow`, `keepParentList`), `registerRules("core:agents")` 수용 | TL-3, TL-7, F `policy.ts`의 `childDecision`(F 요청 9), L1.agents.plan AG-3 | S | M2 |
 | TL-14 | `rerun`: 저장된 `intent.args`로 단계 7a~11 실행(키 잠금·슬롯 재획득 포함), `tool_call`·정책 생략 | TL-2, TL-17 | S | M1 |
 | TL-15 | `settleRejected`: 중단으로 실행하지 않는 호출을 `not_executed`로, `length` 절단 응답의 호출을 `truncated`로 닫기(adr.0009 §3.4, 이전 이름 `closeUnexecuted`) | TL-2 | S | M1 |
 | TL-16 | `runUserShell`: 사용자 셸 경로(L1.loop.spec `runUserBash`가 부름), caller `main` 대화형 평가 | TL-2, TL-4 | S | M2 |
 | TL-17 | 태스크 엔진 연결: tool 범위 노드(`find("turn")`, `openScope` kind `tool`, `track`), 잠금 키 산출(`ToolSpec.locks` → `xeon.exec.canonicalPath` → `${env.id}\0${realpath}`, shared·exclusive), `locks.run` 획득(M1), `limiter("tools")` 슬롯과 C3 순서, 자식 대기 때 `suspendWhile`(M2), 대기 중 취소 처리 | TL-1, L1.tasks.plan TK-1·TK-3(M1)·TK-4(M2), L0.exec `canonicalPath` | M | M1(노드·키 큐), M2(풀) |
-| TL-18 | 비밀 경계(L1.tools.spec §4.12): 2계층 마스킹(`Redactor.maskDeep`, 8단계 뒤·9단계 전, 휘발 갱신 전, 경계화·blob 전), `secret.masked` 기록, `findForeignSecretSyntax` 호출, `check`의 `needs_approval` → 승인 요청 연결 | TL-2, L0.secrets 서비스 인터페이스 | S | M1(마스킹), M2(승인 연결) |
+| TL-18 | 비밀 경계(L1.tools.spec §4.12): 2계층 마스킹(`Redactor.maskDeep`, 8단계 뒤·9단계 전, 휘발 갱신 전, 경계화·blob 전), `secret.masked` 기록, `findForeignSecretSyntax` 호출, `check`의 `needs_approval` → 승인 요청 연결 (M2 완료 2026-10-24: `secret-gate.ts`, 증거를 도구 구현에 옮기는 길은 F 요청 13 뒤) | TL-2, L0.secrets 서비스 인터페이스 | S | M1(마스킹), M2(승인 연결) |
 
 선행 관계 요약: TL-0 → {TL-1, TL-3, TL-6, TL-9} → TL-2 → {TL-5, TL-14, TL-15} → TL-12. TL-1 → TL-17 → TL-14. TL-2 → TL-18. TL-2·TL-4 → TL-16. TL-3 → {TL-4, TL-7, TL-8}. TL-7 → TL-10.
 
@@ -161,6 +161,9 @@ xeon/packages/core-tools/
 | `approval_remember_thread_skips_next_ask` | `remember: "thread"` 뒤 같은 도구 ask가 승인 없이 allow. 재개 뒤에도 같다 | TL-5 |
 | `approval_turn_abort_cancels_pending` | 턴 취소가 대기 요청을 `resolvedBy: "cancelled"`로 닫고 도구는 실행되지 않는다 | TL-5 |
 | `question_and_plan_approval_share_request_shape` | 질문 요청과 계획 요청이 모두 `approval.requested`이고 `ApprovalRequestSchema`를 통과하며 `body.kind`만 다르다 | TL-12 |
+| `ask_user_waits_for_the_answer` | `input_required`를 낸 도구가 승인 해결까지 `effect.result` 없이 기다리고, 해결 뒤 같은 `requestId`로 다시 불려 결과를 한 번 기록한다 | TL-12 |
+| `ask_user_after_restart` | 재시작 뒤 `restore`와 `rerun`이 같은 승인 요청을 이어 받고 새 `approval.requested`가 없다 | TL-12 |
+| `secret_use_evidence_from_the_bash_approval` | `check`가 `needs_approval`인 `secretEnv` 호출이 정책 승인 하나로 증거를 얻고, 규칙이 허용한 호출은 `secret.use` 요청을 따로 올린다 | TL-18 |
 | `plan_approval_switches_mode` | 계획 승인 `answer: { mode: "acceptEdits" }`가 `settings.changed`(session 범위)를 남긴다 | TL-12 |
 | `truncate_spills_full_output_to_blob` | 60,000바이트 출력 → `putBlob` 1회, `effect.result.blobRef.sha256`가 원문 해시, 모델 내용은 51,200바이트 이하 미리보기 + 안내 문장 | TL-6 |
 | `bound_uses_exec_truncation` | `bound.ts`가 절단을 `xeon.exec` 대역으로 부르고 `truncateHead` 결과를 그대로 미리보기로 쓴다(core-tools 소스에 `truncate.ts`가 없다) | TL-6 |

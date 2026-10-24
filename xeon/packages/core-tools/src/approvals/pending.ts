@@ -4,7 +4,7 @@ import type { EventId, ThreadId } from "@xeon/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
-  type ApprovalRequestedPayload,
+  type ApprovalBodyJson,
   type ApprovalResolvedPayload,
   type DurableEventEnvelope,
   type ReadFailure,
@@ -34,8 +34,8 @@ function isMode(value: string): value is PermissionMode {
   return PERMISSION_MODE_STRICTNESS.some((mode) => mode === value);
 }
 
-function bodyOf(payload: ApprovalRequestedPayload): ApprovalBody | undefined {
-  const { body } = payload;
+/** 기록된 body(JSON 수준)를 서비스 타입의 ApprovalBody로 되돌린다. 모르는 등급·능력·모드가 있으면 undefined */
+export function approvalBodyOf(body: ApprovalBodyJson): ApprovalBody | undefined {
   switch (body.kind) {
     case "tool": {
       const tool = body.tool;
@@ -79,7 +79,7 @@ function requestOf(event: DurableEventEnvelope): ApprovalRequest | undefined {
   const payload = parsed.value;
   const caller = payload.origin.caller;
   if (!isCallerId(caller)) return undefined;
-  const body = bodyOf(payload);
+  const body = approvalBodyOf(payload.body);
   if (body === undefined) return undefined;
   return {
     approvalId: event.id,

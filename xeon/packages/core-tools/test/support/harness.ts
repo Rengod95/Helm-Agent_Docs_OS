@@ -23,6 +23,7 @@ import type { ExtensionUnit } from "@xeon/ext-host";
 import type { ToolsDeps } from "../../src/deps.ts";
 import { configReader } from "../../src/plugin.ts";
 import { createToolRuntime, type ToolRuntime } from "../../src/runtime.ts";
+import type { SecretChecker } from "../../src/secret-gate.ts";
 import type { ToolsSettingsSource } from "../../src/settings.ts";
 import {
   fakeRedactor,
@@ -44,6 +45,8 @@ export interface HarnessOptions {
   readonly secrets?: Readonly<Record<string, string>>;
   readonly layers?: ScopeStack;
   readonly withTasks?: boolean;
+  /** `xeon.secrets.check` 대역. 없으면 secretEnv를 쓰는 호출은 거부된다 */
+  readonly secretChecker?: SecretChecker;
 }
 
 export interface Harness {
@@ -114,6 +117,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     lockEnv: undefined,
     truncator: fakeTruncator(),
     redactor: fakeRedactor(options.secrets),
+    secrets: options.secretChecker,
     ext: host.host,
     resolveCapability: (key: ServiceKey<unknown>) => apis.get(key.capability),
     config: configReader(source, session),

@@ -1,87 +1,256 @@
-import { err, ok, type Result } from "@xeon/contracts";
-import { commitKeyPart } from "@xeon/contracts/records";
-import type {
-  ApprovalDecision,
-  ApprovalRemember,
-  ApprovalRequest,
-  ApprovalResolution,
-  ApprovalResponse,
+import { assertNever, err, ok, type Result } from "@xeon/contracts";
+import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
+import {
+  PERMISSION_MODE_STRICTNESS,
+  type ApprovalDecision,
+  type ApprovalRemember,
+  type ApprovalRequest,
+  type ApprovalRequestInput,
+  type ApprovalResolution,
+  type ApprovalResponse,
+  type PermissionMode,
+  type QuestionBody,
 } from "@xeon/contracts/services";
-import type { JsonValue } from "@xeon/contracts/conversation";
-import { isJsonObject, sha256HexSync } from "../util.ts";
+import { isJsonObject } from "../util.ts";
+import { isRequestKey } from "./keys.ts";
 
-// L1.tools.spec §3.6 응답 규칙, §3.9 requestId 규칙, §4.7 기억 범위. M1은 kind "tool"만 응답을 받는다.
+// L1.tools.spec §3.6 응답 규칙, §3.9 requestId 규칙, §4.7 기억 범위. kind 셋(tool, plan, question)의 요청 검사와 응답 검사.
 
-const REQUEST_KEY_MAX = 48;
-const REQUEST_ID_MAX = 64;
-/** requestKeyFor가 길이나 문자 때문에 해시로 바꾼 키. 커밋 키 부분으로 다시 바꾸지 않는다 */
-const HASHED_REQUEST_KEY = /^h_[0-9a-f]{40}$/;
+const OPTION_ID_MAX = 32;
+const QUESTION_MAX = 4;
+const FREE_TEXT_MAX = 8192;
+const FEEDBACK_MAX = 8192;
 
-/**
- * 승인 요청의 멱등 키(1~48자). 도구 승인은 toolCallId에서 만든다. toolCallId는 모델 provider가 정하는 밖의 값이라
- * 커밋 키 알파벳 밖의 문자를 가질 수 있다. 그래서 커밋 키 부분 변환(`commitKeyPart`, eng.transactions.design §4.7, U-13)을
- * 거치고, 48자를 넘으면 원문의 해시로 줄인다(결정적)
- */
-export function requestKeyFor(toolCallId: string): string {
-  const part = commitKeyPart(toolCallId, sha256HexSync);
-  if (part.length <= REQUEST_KEY_MAX) return part;
-  return `h_${sha256HexSync(toolCallId).slice(0, 40)}`;
+// ── 요청 검사 ────────────────────────────────────────────────────────────
+
+function isMode(value: unknown): value is PermissionMode {
+  return PERMISSION_MODE_STRICTNESS.some((mode) => mode === value);
+}
+
+function questionIssue(body: QuestionBody): string | undefined {
+  const { questions } = body;
+  if (questions.length < 1 || questions.length > QUESTION_MAX) {
+    return `a question request needs 1-${QUESTION_MAX} questions`;
+  }
+  const ids = new Set<string>();
+  for (const question of questions) {
+    if (ids.has(question.id)) return `question id "${question.id}" is used more than once`;
+    ids.add(question.id);
+    if (question.options.length === 0 && !question.allowFreeText) {
+      return `question "${question.id}" has no options and does not allow free text`;
+    }
+    const optionIds = new Set<string>();
+    for (const option of question.options) {
+      if (option.id.length < 1 || option.id.length > OPTION_ID_MAX) {
+        return `option id "${option.id}" of question "${question.id}" must be 1-${OPTION_ID_MAX} characters`;
+      }
+      if (optionIds.has(option.id)) {
+        return `option id "${option.id}" of question "${question.id}" is used more than once`;
+      }
+      optionIds.add(option.id);
+    }
+  }
+  return undefined;
+}
+
+function rememberIssue(input: ApprovalRequestInput): string | undefined {
+  const { remember } = input;
+  if (new Set(remember).size !== remember.length) return "remember lists a scope more than once";
+  if (input.body.kind === "tool") {
+    return remember.includes("once") ? undefined : 'remember must offer "once"';
+  }
+  // 질문과 계획은 매번 다르므로 기억 범위가 없다(§3.6 표)
+  return remember.length === 1 && remember[0] === "once"
+    ? undefined
+    : `${input.body.kind} requests offer only "once"`;
 }
 
 /**
- * approval.requested의 커밋 키. requestKey는 호출자가 넘기는 밖의 값이라 커밋 키 부분 변환(`commitKeyPart`)을 거쳐 넣는다
- * (`requestKeyFor`가 이미 해시로 줄인 키는 그대로). 전체가 64자를 넘으면 해시로 바꾼다
+ * 요청 입력의 의미 검사. 스키마(길이, 형식)는 approval.requested payload 검사가 하고 여기서는 스키마가 못 잡는 규칙을 본다.
+ * 문제가 있으면 첫 문제의 문장을, 없으면 undefined를 돌려준다. 순수 함수.
  */
-export function requestCommitKey(surfaceThreadId: string, requestKey: string): string {
-  const part = HASHED_REQUEST_KEY.test(requestKey)
-    ? requestKey
-    : commitKeyPart(requestKey, sha256HexSync);
-  const plain = `approval:${surfaceThreadId}:${part}:request`;
-  if (plain.length <= REQUEST_ID_MAX) return plain;
-  const hash = sha256HexSync(`${surfaceThreadId}:${part}`);
-  return `approval:${hash.slice(0, 32)}:request`;
+export function requestIssue(input: ApprovalRequestInput): string | undefined {
+  if (!isRequestKey(input.requestKey)) return "requestKey must be 1-48 characters";
+  const remember = rememberIssue(input);
+  if (remember !== undefined) return remember;
+  const { body } = input;
+  switch (body.kind) {
+    case "tool":
+      return undefined;
+    case "plan": {
+      const modes = new Set(body.plan.nextModes);
+      if (modes.size !== body.plan.nextModes.length) return "nextModes lists a mode more than once";
+      return body.plan.nextModes.every(isMode) ? undefined : "nextModes has an unknown mode";
+    }
+    case "question":
+      return questionIssue(body.question);
+    default:
+      return assertNever(body, "requestIssue");
+  }
 }
 
-export function resolveCommitKey(approvalId: string): string {
-  return `approval:${approvalId}:resolve`;
-}
+// ── 응답 검사 ────────────────────────────────────────────────────────────
 
 export type ResponseError =
   | { readonly kind: "decision_not_allowed"; readonly decision: ApprovalDecision }
   | { readonly kind: "remember_not_offered"; readonly remember: ApprovalRemember }
-  | { readonly kind: "unsupported_kind"; readonly requestKind: ApprovalRequest["body"]["kind"] };
+  | { readonly kind: "answer_invalid"; readonly message: string };
 
 export interface AppliedResponse {
-  readonly decision: "allow" | "deny";
+  readonly decision: ApprovalDecision;
   readonly answer: JsonValue | null;
   /** 실제 적용한 기억 범위. always는 2차 전까지 thread로 낮춘다 */
   readonly remember: ApprovalRemember;
   readonly requestedRemember: ApprovalRemember | null;
 }
 
-/** 요청 kind에 맞는 응답인지 검사한다. M1은 tool만 받는다 */
-export function validateResponse(
+function rememberOf(
   request: ApprovalRequest,
   response: ApprovalResponse,
-): Result<AppliedResponse, ResponseError> {
-  if (request.body.kind !== "tool") {
-    return err({ kind: "unsupported_kind", requestKind: request.body.kind });
-  }
-  const { decision } = response;
-  if (decision !== "allow" && decision !== "deny") {
-    return err({ kind: "decision_not_allowed", decision });
-  }
+): Result<ApprovalRemember, ResponseError> {
   const asked = response.remember ?? "once";
   if (!request.remember.includes(asked)) {
     return err({ kind: "remember_not_offered", remember: asked });
   }
-  return ok({
-    decision,
-    // deny일 때만 { feedback }을 받는다. 그 밖의 answer는 버린다
-    answer: decision === "deny" && isJsonObject(response.answer) ? response.answer : null,
-    remember: asked === "always" ? "thread" : asked,
-    requestedRemember: response.remember ?? null,
-  });
+  return ok(asked);
+}
+
+function invalid(message: string): Result<never, ResponseError> {
+  return err({ kind: "answer_invalid", message });
+}
+
+/** deny 응답의 answer. `{ feedback }` 문자열만 받고 그 밖은 버린다 */
+function feedbackOf(answer: JsonValue | undefined): Result<JsonObject | null, ResponseError> {
+  if (!isJsonObject(answer)) return ok(null);
+  const feedback = answer["feedback"];
+  if (feedback === undefined) return ok(null);
+  if (typeof feedback !== "string" || feedback.length > FEEDBACK_MAX) {
+    return invalid(`feedback must be a string of at most ${FEEDBACK_MAX} characters`);
+  }
+  return ok({ feedback });
+}
+
+/** plan allow 응답의 answer. `{ mode }`(nextModes 안)와 `{ note }`만 받는다 */
+function planAnswerOf(
+  request: ApprovalRequest,
+  answer: JsonValue | undefined,
+): Result<JsonObject | null, ResponseError> {
+  if (answer === undefined || answer === null) return ok(null);
+  if (!isJsonObject(answer)) return invalid("a plan answer must be an object");
+  const out: Record<string, JsonValue> = {};
+  const mode = answer["mode"];
+  if (mode !== undefined) {
+    const offered = request.body.kind === "plan" ? request.body.plan.nextModes : [];
+    if (!isMode(mode) || !offered.includes(mode)) {
+      return invalid("mode is not one of the offered next modes");
+    }
+    out["mode"] = mode;
+  }
+  const note = answer["note"];
+  if (note !== undefined) {
+    if (typeof note !== "string" || note.length > FEEDBACK_MAX) {
+      return invalid(`note must be a string of at most ${FEEDBACK_MAX} characters`);
+    }
+    out["note"] = note;
+  }
+  return ok(Object.keys(out).length === 0 ? null : out);
+}
+
+function isStringArray(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((item: unknown) => typeof item === "string");
+}
+
+/**
+ * 질문 응답(`QuestionAnswer`)을 질문 묶음에 대조한다. 모든 질문에 답이 하나씩 있고, 선택한 id는 그 질문의 선택지에 있고,
+ * 다중 선택이 아니면 하나만 고르고, 자유 입력이 허용되지 않으면 text가 없다. 답이 완전히 비면 거부한다.
+ */
+function checkQuestionAnswer(
+  body: QuestionBody,
+  answer: JsonValue | undefined,
+): Result<JsonObject, ResponseError> {
+  if (!isJsonObject(answer)) return invalid("a question answer must be an object");
+  const known = new Set(body.questions.map((question) => question.id));
+  for (const key of Object.keys(answer)) {
+    if (!known.has(key)) return invalid(`answer for unknown question "${key}"`);
+  }
+  const out: Record<string, JsonValue> = {};
+  for (const question of body.questions) {
+    const item = answer[question.id];
+    if (!isJsonObject(item)) return invalid(`question "${question.id}" has no answer`);
+    for (const key of Object.keys(item)) {
+      if (key !== "selected" && key !== "text") {
+        return invalid(`answer for "${question.id}" has an unknown field "${key}"`);
+      }
+    }
+    const selected = item["selected"];
+    if (!isStringArray(selected)) return invalid(`"${question.id}".selected must be a string list`);
+    const optionIds = new Set(question.options.map((option) => option.id));
+    if (new Set(selected).size !== selected.length) {
+      return invalid(`"${question.id}".selected lists an option more than once`);
+    }
+    for (const id of selected) {
+      if (!optionIds.has(id)) return invalid(`"${question.id}" has no option "${id}"`);
+    }
+    if (!question.multiSelect && selected.length > 1) {
+      return invalid(`"${question.id}" accepts a single selection`);
+    }
+    const text = item["text"];
+    if (text !== undefined && (typeof text !== "string" || text.length > FREE_TEXT_MAX)) {
+      return invalid(
+        `"${question.id}".text must be a string of at most ${FREE_TEXT_MAX} characters`,
+      );
+    }
+    const hasText = typeof text === "string" && text.length > 0;
+    if (hasText && !question.allowFreeText) {
+      return invalid(`"${question.id}" does not allow free text`);
+    }
+    if (selected.length === 0 && !hasText) return invalid(`"${question.id}" has an empty answer`);
+    out[question.id] = hasText ? { selected: [...selected], text } : { selected: [...selected] };
+  }
+  return ok(out);
+}
+
+/**
+ * 요청 kind에 맞는 응답인지 검사한다(L1.tools.spec §3.6 표).
+ * tool: allow·deny, 기억 범위 once·thread·always. plan: allow·deny(allow는 `{ mode }` 선택). question: answer·deny.
+ * deny의 answer는 `{ feedback }`만 받고 그 밖의 answer는 버린다.
+ */
+export function validateResponse(
+  request: ApprovalRequest,
+  response: ApprovalResponse,
+): Result<AppliedResponse, ResponseError> {
+  const { decision } = response;
+  const remembered = rememberOf(request, response);
+  if (!remembered.ok) return remembered;
+  const asked = remembered.value;
+  const applied = (answer: JsonValue | null): Result<AppliedResponse, ResponseError> =>
+    ok({
+      decision,
+      answer,
+      remember: asked === "always" ? "thread" : asked,
+      requestedRemember: response.remember ?? null,
+    });
+
+  if (decision === "deny") {
+    const feedback = feedbackOf(response.answer);
+    return feedback.ok ? applied(feedback.value) : feedback;
+  }
+  switch (request.body.kind) {
+    case "tool":
+      return decision === "allow" ? applied(null) : err({ kind: "decision_not_allowed", decision });
+    case "plan": {
+      if (decision !== "allow") return err({ kind: "decision_not_allowed", decision });
+      const answer = planAnswerOf(request, response.answer);
+      return answer.ok ? applied(answer.value) : answer;
+    }
+    case "question": {
+      if (decision !== "answer") return err({ kind: "decision_not_allowed", decision });
+      const answer = checkQuestionAnswer(request.body.question, response.answer);
+      return answer.ok ? applied(answer.value) : answer;
+    }
+    default:
+      return assertNever(request.body, "validateResponse");
+  }
 }
 
 const DENIED_BY_USER = "[xeon:denied_by_user] The user denied this tool call.";

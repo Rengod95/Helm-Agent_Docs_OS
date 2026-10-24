@@ -20,13 +20,32 @@ import type {
 } from "@xeon/contracts/services";
 import { deriveRisk } from "./policy/modes.ts";
 import type { RawCall, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
-import { isJsonValue, messageOf, sha256Hex } from "./util.ts";
+import { isJsonObject, isJsonValue, messageOf, sha256Hex } from "./util.ts";
 
 // 등록(ToolRegistration, ToolResourceDef)을 도구 단위 항목(ToolEntry)으로 바꾼다.
 // 능력 도구의 ToolSpec → 실행 함수는 F.capabilities.spec §4.2 환원 규칙 5단계를 따른다(L1.tools.spec §4.3).
 
 /** 능력의 서비스 API를 얻는다. 아직 공급자가 없으면 undefined */
 export type CapabilityResolver = (key: ServiceKey<unknown>) => unknown;
+
+/** 승인 해결을 기다린 결과. resolved면 도구를 같은 입력으로 다시 부른다 */
+export type InputWaitResult = "resolved" | "aborted" | "unknown";
+
+/** `input_required` 변형이 가리키는 승인(approvalId)의 해결을 기다린다. 어댑터가 도구 호출 안에서 부른다(L1.tools.spec §4.3) */
+export type InputWaiter = (approvalId: string, signal: AbortSignal) => Promise<InputWaitResult>;
+
+/** 같은 호출에서 `input_required`를 이어 받을 수 있는 횟수. 해결된 승인을 되풀이해 가리키는 도구로 무한히 도는 것을 막는다 */
+const MAX_INPUT_ROUNDS = 8;
+
+/**
+ * 출력이 승인을 기다리는 `input_required` 변형인가. 판별 필드는 `status: "input_required"`이고 L2 능력(dialog.ask, work.plans)은
+ * 자기가 올린 승인의 `approvalId`를 싣는다. approvalId가 없는 변형(MCP의 `inputRequests`)은 여기서 처리하지 않고 일반 결과로 기록한다
+ */
+function pendingApprovalOf(output: unknown): string | undefined {
+  if (!isJsonObject(output) || output["status"] !== "input_required") return undefined;
+  const approvalId = output["approvalId"];
+  return typeof approvalId === "string" && approvalId.length > 0 ? approvalId : undefined;
+}
 
 type MethodInvoker = (input: unknown, options: CallOptions) => Promise<unknown>;
 
@@ -96,6 +115,7 @@ async function invokeCapability(
   spec: ToolSpec,
   method: MethodDef,
   resolve: CapabilityResolver,
+  waitInput: InputWaiter,
   call: RawCall,
 ): Promise<RawOutcome> {
   const api = resolve(registration.key);
@@ -116,9 +136,50 @@ async function invokeCapability(
     requestId: await requestIdFor(call.toolCallId),
     context: callContext(call),
   };
+  type InputStep =
+    | { readonly kind: "done"; readonly output: unknown }
+    | { readonly kind: "stopped"; readonly outcome: RawOutcome };
+  // 도구가 승인을 올리고 `input_required`로 돌아오면 해결을 기다렸다가 같은 입력, 같은 requestId로 다시 부른다(L2.dialog.spec §4.1.2 6번).
+  // 도구는 같은 requestId의 재호출에서 저장된 답으로 완료 결과를 낸다
+  const settleInput = async (current: unknown, round: number): Promise<InputStep> => {
+    const approvalId = pendingApprovalOf(current);
+    if (approvalId === undefined) return { kind: "done", output: current };
+    if (round >= MAX_INPUT_ROUNDS) {
+      return {
+        kind: "stopped",
+        outcome: errorOutcome(
+          `[xeon:input_required_loop] ${spec.name} kept asking for input after ${MAX_INPUT_ROUNDS} rounds.`,
+          { code: "input_required_loop", tool: spec.name },
+        ),
+      };
+    }
+    const waited = await waitInput(approvalId, call.signal);
+    if (waited === "aborted") {
+      return {
+        kind: "stopped",
+        outcome: errorOutcome(
+          "[aborted] The tool call was cancelled while waiting for the user.",
+          { code: "aborted", tool: spec.name },
+          true,
+        ),
+      };
+    }
+    if (waited === "unknown") {
+      return {
+        kind: "stopped",
+        outcome: errorOutcome(
+          `[xeon:approval_unknown] ${spec.name} is waiting for an approval that this runtime does not know.`,
+          { code: "approval_unknown", tool: spec.name },
+        ),
+      };
+    }
+    return settleInput(await invoke.call(api, input, options), round + 1);
+  };
   let output: unknown;
   try {
-    output = await invoke.call(api, input, options);
+    const settled = await settleInput(await invoke.call(api, input, options), 1);
+    if (settled.kind === "stopped") return settled.outcome;
+    output = settled.output;
   } catch (error) {
     // CapabilityError만 isError 결과로 바꾼다. 그 밖의 예외는 호출자(파이프라인)가 처리한다
     if (!isCapabilityError(error)) throw error;
@@ -154,6 +215,7 @@ async function invokeCapability(
 function capabilityEntries(
   registration: CapabilityToolsRegistration,
   resolve: CapabilityResolver,
+  waitInput: InputWaiter,
 ): readonly ToolEntry[] {
   const { def } = registration;
   return def.tools.map((spec): ToolEntry => {
@@ -180,7 +242,7 @@ function capabilityEntries(
       replay: spec.replay ?? "unsafe",
       exposure: registration.exposure?.[spec.name] ?? "always",
       outputLimits: registration.outputLimits?.[spec.name] ?? {},
-      raw: (call) => invokeCapability(registration, spec, method, resolve, call),
+      raw: (call) => invokeCapability(registration, spec, method, resolve, waitInput, call),
       locks: undefined,
     };
   });
@@ -287,9 +349,10 @@ export function resourceEntry(owner: ScopeId, def: ToolResourceDef): ToolEntry {
 export function entriesOf(
   registration: ToolRegistration,
   resolve: CapabilityResolver,
+  waitInput: InputWaiter,
 ): readonly ToolEntry[] {
   return registration.kind === "capability"
-    ? capabilityEntries(registration, resolve)
+    ? capabilityEntries(registration, resolve, waitInput)
     : [directEntry(registration)];
 }
 

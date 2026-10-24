@@ -6,7 +6,7 @@ import type { CommitRequest, CommitResult } from "@xeon/contracts/records";
 import { sequentialIds } from "../src/testing/index.ts";
 import { commitWithRetry, describeFailure } from "../src/commit.ts";
 import { sha256HexSync } from "../src/util.ts";
-import { requestCommitKey, requestKeyFor } from "../src/approvals/protocol.ts";
+import { requestCommitKey, requestKeyFor } from "../src/approvals/keys.ts";
 import {
   ASSISTANT,
   callTool,

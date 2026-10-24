@@ -6,10 +6,8 @@ import { createToolRuntime } from "../src/runtime.ts";
 import {
   callTool,
   createHarness,
-  errorText,
   installHandlers,
   registerWorkspace,
-  rejectionOf,
   textOf,
   until,
   type Harness,
@@ -338,33 +336,6 @@ test("restore reports a failed event read instead of throwing", async () => {
     error: { kind: "row_invalid", where: "events.envelope" },
   });
   expect(expectOk(await h.runtime.approvals.restore(h.thread))).toEqual([]);
-});
-
-test("plan and question requests are not accepted in M1", async () => {
-  const h = await createHarness();
-  const base = {
-    origin: { threadId: h.thread, turnId: null, stepId: null, toolCallId: null, caller: "main" },
-    requestKey: "q1",
-    title: "Question",
-    remember: ["once"],
-  } as const;
-  const failure = await rejectionOf(() =>
-    h.runtime.approvals.request(
-      {
-        ...base,
-        body: {
-          kind: "question",
-          question: {
-            questions: [
-              { id: "a", text: "ok?", options: [], multiSelect: false, allowFreeText: true },
-            ],
-          },
-        },
-      },
-      new AbortController().signal,
-    ),
-  );
-  expect(errorText(failure)).toContain("approvals.unsupported_kind");
 });
 
 test("ui_prompt_start fires after the request commit and ui_prompt_end after the resolution", async () => {

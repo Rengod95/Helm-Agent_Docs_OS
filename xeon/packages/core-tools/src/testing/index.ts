@@ -10,3 +10,5 @@ export { fakeStore, type FakeStore } from "./fake-store.ts";
 export { fakeRedactor } from "./fake-secrets.ts";
 export { fakeTruncator } from "./fake-truncator.ts";
 export { fakeRunContext, type FakeRunOptions } from "./run-context.ts";
+export { l2ApprovalsPort, type L2PortOptions } from "./l2-port.ts";
+export { fakeSecretChecker, type FakeSecretChecker } from "./fake-secret-check.ts";

@@ -566,6 +566,14 @@ export const ApprovalResolutionSchema: TSchema;
 | `plan` | `allow`, `deny` | allow일 때 `{ mode: PermissionMode }` 선택(`nextModes` 안), deny일 때 `{ feedback }` 선택 | `once` |
 | `question` | `answer`, `deny` | answer일 때 `QuestionAnswer` 필수(질문 id마다) | `once` |
 
+- 응답 검사 규칙 [제안]: 모두 `respond`가 커밋 전에 한다. 어긋나면 `applied: false`이고 이벤트를 쓰지 않는다. 요청은 대기 상태로 남는다.
+  - `tool`: `allow` 또는 `deny`. `remember`는 요청이 낸 범위 안이어야 한다.
+  - `plan`: `allow`의 `answer`는 생략하거나 `{ mode?, note? }`다. `mode`는 요청 `nextModes` 안이어야 한다. `deny`의 `answer`는 `{ feedback }`만 받는다.
+  - `question`: `answer`의 `QuestionAnswer`는 질문마다 항목이 하나씩 있고(`{ selected: string[], text?: string }`, 그 밖의 필드 없음), `selected`의 id는 그 질문의 선택지 안에 있고 중복이 없고, `multiSelect`가 거짓이면 하나 이하다. `allowFreeText`가 거짓이면 `text`가 없다. 선택도 `text`도 비면 거부한다. `deny`의 `answer`는 `{ feedback }`만 받는다.
+  - `remember`: `plan`과 `question`은 `once`만 낸다.
+- 요청 검사 [제안]: `request`와 `open`은 커밋 전에 입력을 본다. `requestKey` 1~48자, `remember`는 위 표대로, 질문은 1~4개이고 질문 id와 선택지 id(1~32자)가 각각 유일하고 선택지가 없는 질문은 `allowFreeText: true`여야 한다. `nextModes`는 모드 이름이고 중복이 없다. 어긋나면 `ApprovalRequestError { kind: "rejected", code: "approvals.request_invalid" }` 값이다. 이벤트 payload 스키마(`ApprovalRequestedPayloadSchema`)도 같은 시점에 확인해, 저장소가 Bug로 거부하기 전에 값으로 돌려준다(TY-24).
+- 비차단 요청 [제안]: `ApprovalService.request`는 `open`과 `wait`을 합친 것이다. L2 어댑터는 `open`(커밋만 하고 현재 상태를 돌려준다. 같은 `requestKey`면 기존 요청의 현재 상태)과 `wait(approvalId, signal)`(해결이 기록되면 이행. signal이 끊기면 기다림만 그만두고 요청은 남는다), `get(approvalId)`로 `L2ApprovalsPort`(`request`/`wait`/`get`)를 만든다. 세 메서드는 core-tools 구현(`ApprovalsInternal`)에 있고 F `ApprovalService`에는 아직 없다(§8.3 F 요청 11).
+
 ### 3.7 결과 경계화 (`core-tools/src/bound.ts`)
 
 출력 절단 함수(pi durable `truncate.ts` 포크)는 L0 `platform-exec`에 둔다. core-tools와 L2는 그 함수를 F 서비스 `xeon.exec`로 부른다 [결정: review.decisions-2 D-08]. 아래는 core-tools가 쓰는 모양이다. 메서드 이름과 F 위치(`@xeon/contracts/services`)는 `L0.exec.spec`이 정한다.
@@ -724,7 +732,12 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 
 - `replay`: 능력 도구는 `ToolSpec.replay`(F `ReplayPolicy`, 미선언은 `"unsafe"`)를 그대로 쓴다. `DirectToolRegistration`은 F `AgentTool.replay`(`"never" | "safe"`)를 `toReplayPolicy`로 바꾼다(`"never"`·미선언 → `"unsafe"`). `effect.intent.replay`에는 이 F `ReplayPolicy` 값을 쓴다.
 - `label`, `executionMode`, `outputSchema`는 그대로 옮긴다. `hints`는 `ToolMeta.hints`로 보관하고 위험 등급 유도(§4.6)에 쓴다.
-- `input_required` 출력 변형: 메서드 출력이 F.conversation.spec §3.6의 `InputRequiredInfo` 모양을 실은 변형이면 `ToolResultRecord.status: "input_required"`, `inputRequired`로 옮긴다. 변형의 판별 필드 이름은 [미결](§10)이다.
+- `input_required` 출력 변형 [결정: L1A.4]: 판별 필드는 `status: "input_required"`다(L2.dialog `ask`, L2.work `submit`, L2.mcp `callTool`의 출력 변형이 모두 이 필드를 쓴다). 어댑터는 메서드 출력을 렌더링하기 전에 이 변형을 본다.
+  - `approvalId`가 있으면(도구가 자기 승인을 이미 올렸다. dialog, work) 어댑터는 그 승인의 해결을 기다린다. 해결이 기록되면 같은 입력, 같은 `requestId`로 메서드를 다시 부른다. 도구는 같은 `requestId`의 재호출에서 저장된 답으로 완료 결과를 낸다(L2.dialog.spec §4.1.2 6번). 대기하는 동안 호출의 `effect.intent`와 `effect.exec`는 커밋되어 있고 `effect.result`는 없다. 한 효과에 provider 호출이 여러 번 있는 셈이다.
+  - 대기는 호출 신호를 따른다. turn이 취소되면 그 승인을 `cancelled`로 닫고(§4.7 8번) 호출은 `[aborted]` 중단 결과가 된다. 승인이 이 프로세스의 메모리에 없으면 `[xeon:approval_unknown]` 오류 결과다.
+  - 같은 호출에서 `input_required`를 이어 받는 횟수는 8번까지다. 해결된 승인을 되풀이해 가리키는 도구가 무한히 도는 것을 막고, 넘으면 `[xeon:input_required_loop]` 오류 결과다.
+  - `approvalId`가 없는 변형(L2.mcp의 `inputRequests`와 `requestState`)은 아직 처리하지 않는다. 일반 결과로 기록한다. D5(a)대로 L1.tools가 `question` 승인을 올리고 `continuation`으로 다시 부르려면 F의 `CallOptions`에 연속 정보 필드와 MCP 질문을 `QuestionBody`로 옮기는 규칙이 필요하다(§8.3 F 요청 12).
+  - 재시작 뒤: 대기 체크포인트(`waiting: "approval"`)와 열린 효과가 남는다. `ask_user`, `submit_plan`은 `replay: "safe"`라 `decideEffectRecovery`가 `rerun`을 내고, `rerun`이 같은 경로로 도구를 다시 부르면 도구는 같은 `requestId`로 기존 승인을 이어 받는다.
 
 ### 4.4 효과 기록
 
@@ -802,7 +815,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 
 1. 요청자: 도구 승인은 core-tools 파이프라인(§4.2 5c)이 낸다. 질문과 계획 승인은 L2 dialog·work 능력이 자기 도구의 실행 안에서 `xeon.approvals.request`를 부른다(eng.context-map.design §4.4 표 3행).
 2. 커밋: `request`는 한 커밋에 `approval.requested`와 `checkpoint.step`(`ToolRunContext.drafts.waitingCheckpoint`, `next: "await_input"`(L1.loop.spec §4.5 재진입 표), 해당 호출의 `pendingToolCalls[].waiting = "approval"`)을 쓴다. requestId는 §3.9 표다. 커밋 뒤 `ui_prompt_start`를 발화한다.
-   - L2가 낸 요청은 `origin.toolCallId`로 core-tools의 활성 호출 표에서 그 호출의 `ToolRunContext`를 찾아 체크포인트 초안을 만든다. 활성 호출이 없는 요청(그룹 코드가 턴 밖에서 낸 요청)은 체크포인트 없이 이벤트만 쓴다.
+   - L2가 낸 요청은 `origin.toolCallId`로 core-tools의 활성 호출 표에서 그 호출의 `ToolRunContext`를 찾아 체크포인트 초안을 만든다. 도구 승인은 의도 전이라 `pendingToolCalls[].effectId`가 null이고, 도구 실행 안에서 낸 질문·계획 요청은 그 호출의 `effect.intent`의 `effectId`를 싣는다. `waiting`은 모두 `"approval"`이다(저장소의 A1 예외가 이 값만 받는다). 활성 호출이 없는 요청(그룹 코드가 턴 밖에서 낸 요청)은 체크포인트 없이 이벤트만 쓴다.
 3. 대기: 메모리 대기 목록에 넣고 응답을 기다린다. 대기 중에 도는 프로세스는 없다(architecture.runtime-flow.design §4.5).
 4. 응답: `respond`가 kind별 규칙(§3.6 표)을 검사하고 `approval.resolved`를 커밋한다. 커밋 뒤 대기를 풀고 `ui_prompt_end`를 발화한다. 같은 `approvalId`의 두 번째 응답은 `applied: false`다.
 5. 결과 반영:
@@ -813,8 +826,10 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
    - `once`: 이번 호출만.
    - `thread`: 같은 소유 트리 루트 대화가 끝날 때까지 같은 도구·같은 `ruleId`(규칙이 낸 ask) 또는 같은 도구(모드가 낸 ask)의 ask를 allow로 본다. 저장은 `approval.resolved` 이벤트 자체다. core-tools는 재개 때 이 이벤트에서 세션 허용 목록을 다시 만든다.
    - `always`: 2차 항상 허용 캐시(§4.11)가 들어오기 전에는 `thread`로 낮춰 적용하고 `requestedRemember: "always"`를 남긴다 [제안].
-7. 비대화형: 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 7단계). question·plan 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다.
+7. 비대화형: 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 7단계). question·plan 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다. 이 커밋에는 대기 체크포인트와 `ui_prompt` 발화가 없다. 비대화형인지는 요청의 `origin`으로 찾은 활성 호출의 `ToolRunContext.interactive`로 본다. 활성 호출이 없는 요청(턴 밖의 그룹 코드)은 대화형으로 본다.
 8. 취소: 턴 취소(eng.transactions.design §6.2)는 그 턴의 미해결 요청을 `resolvedBy: "cancelled"`로 닫는다. 대기 중이던 도구 호출은 의도가 없으므로 실행되지 않고, 루프는 `not_executed` 합성 결과로 닫는다.
+   - 살아 있는 호출이 기다리는 요청은 파이프라인(`decide`)과 어댑터(`input_required` 대기)가 신호가 끊길 때 닫는다. 프로세스가 끊긴 뒤 남은 요청은 호출이 없다. core-loop가 열린 turn을 닫을 때(`closeOpenTurn`) `ApprovalService.restore`로 미해결 요청을 읽어 그 turn의 것을 `cancel`로 닫는다.
+9. 계획 승인의 모드 변경 [결정: L1A.4]: `allow`의 `answer.mode`가 현재 모드와 다르면 `setMode(origin.threadId, mode, "plan_approval")`을 부른다. `approval.resolved` 커밋 뒤, 대기를 풀기 전에 한다. 그래서 계획 도구가 이어갈 때 모드가 이미 바뀌어 있다. 모드를 바꾸지 못해도(`tools.mode_forbidden`, 저장소 실패) 해결은 그대로이고 경고를 남긴다. 해결 커밋 뒤 모드 쓰기 전에 끊기면, 재시작 뒤 계획 도구가 같은 `requestKey`로 다시 요청할 때 저장된 해결을 읽는 자리에서 같은 규칙으로 이어서 적용한다(이미 같은 모드면 쓰지 않는다).
 
 내구화와 재개:
 
@@ -875,6 +890,11 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 | 도구 인자의 남의 비밀 구문 검사 | 4단계 검증 뒤 `findForeignSecretSyntax`를 부른다 [가정: L0.secrets.spec 103행] | 없음 | 검사 함수 |
 
 - M1 종료 조건의 비밀 항목(`product.scope.spec` §4.4 M1 행: SOPS 비밀 참조 1종을 쓰는 도구 호출에서 값이 이벤트 DB와 모델 요청 본문에 없다)은 위 표대로 나뉜다. L1.tools 몫은 승인·명령 패턴과 2계층 마스킹이다. 주입과 lease는 L0.exec·L0.secrets 몫이다. 세 몫을 한 번에 확인하는 것은 `apps/cli` M1 스모크 시나리오다(L1.tools.plan §6).
+- 비밀 사용 승인 [결정: L1A.4]: 5b 정책과 5c 승인 뒤, 의도 커밋 전에 한다. 도구 인자에 `secretEnv`(env 이름 → `secret://<name>`)가 있는 호출만 대상이다.
+  1. `secretEnv`의 값이 `secret://<name>` 형식이 아니면(`$VAR`, `{{secret:x}}` 같은 남의 구문 포함) `[xeon:invalid_secret_ref]` 거부다. 이 검사는 비밀 인자로 선언된 필드에만 한다(L0.secrets.spec §3.1). `command` 문자열이 없으면 묶을 명령이 없어 거부다.
+  2. 비밀마다 `xeon.secrets.check`를 모드 `env`, 목적 `bash:<명령 이름>`, 대상 `{ kind: "command", argv0, commandLine }`, 행위자 `agent`, 증거 없이 부른다. 목적 문자열은 cap-workspace의 shell `run`이 lease에 넘기는 값과 같은 규칙이다. `check`가 오류이거나 `deny`면 `[xeon:secret_denied]` 거부다. secrets 서비스가 없으면 `[xeon:secret_unavailable]` 거부다.
+  3. 하나라도 `needs_approval`이면 승인 증거(`ApprovalEvidence { approvalId, scope: "per-use", grantedAt, expiresAt: null }`)를 만든다. 이 호출의 정책 승인을 사용자가 방금 허용했으면(`resolvedBy: "user"`) 그 승인이 실행마다의 승인(U-19)이라 같은 `approvalId`를 증거로 쓴다. 규칙이나 모드가 허용했거나 `thread` 기억으로 건너뛴 호출은 사용자가 이 호출을 본 적이 없으므로 비밀 사용을 따로 묻는다: kind `tool`, 규칙 id `secret.use`, 제목에 비밀 참조, `remember: ["once"]`, `requestKey`는 `<toolCallId>:secret`을 `requestKeyFor`로 줄인 값이다. 거부·취소는 §4.7 5번과 같은 거부 문장이다.
+  4. 증거는 호출 상태(`RawCall.secretApproval`)에 실린다. 도구 구현에 전달하는 길은 F `CallContext`에 증거 필드가 생겨야 열린다(§8.3 F 요청 13). 그 전에는 `xeon.exec`의 `withEnv`가 `approval_missing`으로 거부한다(fail-closed). `rerun`은 증거를 만들지 않는다.
 - [미결] lease를 부르는 쪽이 문서마다 다르다. L0.exec.spec §3.6은 `xeon.exec`가 `secretEnv`마다 lease를 얻는다고 적었고, L0.secrets.spec §8.1 제공 표는 L1.tools가 `lease`를 쓴다고 적었다. 이 문서는 L0.exec 쪽을 따른다.
 - M1 비밀 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다 [결정: review.decisions-2 U-19]. L1.tools 몫은 실행마다의 승인(§4.7)과 2계층 마스킹이다.
 - [미결] M1에서 모델 도구 호출이 `secretEnv`를 받는 경로. L2.workspace.spec §3.3은 `secretEnv`를 모델 도구 파라미터에 두지 않는다. 참조를 bash 실행 옵션으로 넘기는 위치는 L2.workspace.spec과 정한다.
@@ -978,6 +998,9 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 8. F.capabilities.spec §3.3: `ToolSpec.locks`(잠금 선언) 추가. L1.tasks.spec FR-T6과 같은 항목이고 core-tools가 키를 산출한다(§4.2 7b).
 9. F.capabilities.spec `policy.ts`: `childDecision`을 순수 함수로 둔다. L1.agents.spec §8.3 5와 같은 항목이고 §4.5 ceiling 단계가 쓴다.
 10. (반영됨) F.extensions.spec §3.2.1 `ports.ts`: X.primitives.spec §3.9의 `ToolsPort`, `ToolResourceDef`를 둔다(X.primitives.spec §10 요청과 같은 항목). §3.3 `ToolService extends ToolsPort`가 이 이름을 import한다.
+11. F `services/approvals.ts`: `ApprovalService`에 비차단 `open`, `wait`, `get`을 더한다(§3.6 비차단 요청). cap-*의 `L2ApprovalsPort` 어댑터가 `request` 하나만으로는 `request`(즉시 상태)와 `wait`(메모리 대기)를 나눌 수 없다. core-tools는 `ApprovalsInternal`에 이미 구현했다.
+12. F `CallOptions`(F.capabilities.spec §3.2): 연속 정보 필드(`continuation`)와, MCP `McpQuestion`을 `QuestionBody`(또는 확장 body)로 옮기는 규칙. D5(a)의 L1.tools 쪽 재호출에 필요하다(§4.3 `approvalId`가 없는 변형).
+13. F `CallContext`(F.capabilities.spec §3.2): 비밀 사용 승인 증거 `approval?: ApprovalEvidence`. core-tools가 채우고 cap-workspace의 shell `run`이 `SecretEnvRequest.ctx.approval`에 옮긴다(§4.12).
 
 ### 8.4 다른 문서 수정 요청
 
@@ -1008,6 +1031,11 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 19. `registerRules("core:agents", …)`를 두 번 부르면 두 번째 규칙 집합만 평가에 쓰이고, 잘못된 규칙은 `issues`로 돌아오며 적재되지 않는다.
 20. 도구 결과에 알려진 비밀 값이 있으면 `effect.result`, toolResult `item.recorded`, blob 원문, `tool_result`·`tool_execution_update` 페이로드에 값 문자열이 없다.
 21. core-tools와 F capabilities 소스의 import 목록에 `@earendil-works/pi-agent-core`가 없다(check-layers, DR-07).
+22. 계획 승인 `allow { mode }`는 계획 도구가 이어가기 전에 세션 모드를 바꾼다. 해결이 커밋된 뒤 모드 쓰기 전에 끊겨도, 재시작 뒤 같은 `requestKey` 요청이 모드를 이어서 적용하고 모드 변경을 두 번 쓰지 않는다. 모드 밖의 `mode`, 질문용 decision은 `applied: false`다.
+23. 질문 응답은 질문 묶음에 맞지 않으면(모르는 id, 없는 선택지, 단일 선택에 둘, 자유 입력 불허에 text, 빈 답) `applied: false`이고 이벤트가 없다.
+24. 비대화형 실행의 질문·계획 요청은 `approval.requested`와 `approval.resolved{ deny, noninteractive }`가 한 커밋이고 대기 체크포인트가 없다.
+25. `input_required { approvalId }`를 낸 도구 호출은 승인 해결까지 `effect.result` 없이 기다리고, 해결 뒤 같은 `requestId`로 다시 불려 완료 결과를 한 번 기록한다. 대기 중 turn 취소는 그 승인을 `cancelled`로 닫는다.
+26. `secretEnv`를 쓰는 호출에서 `check`가 `needs_approval`이면, 정책 승인을 사용자가 방금 허용한 호출은 그 승인이 증거이고 그렇지 않은 호출은 규칙 id `secret.use` 요청을 따로 올린다. `check`가 거부하거나 참조 형식이 틀리면 승인 요청 없이 거부한다.
 
 ## 10. 미결 사항
 
@@ -1015,10 +1043,11 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 - [결정: review.decisions-2 U-06] `tool_call` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 별도 chain 지점을 더한다(§4.10).
 - [미결] 꼬리 보존 미리보기의 공통 모드(§4.8 7번).
 - [미결] 재실행 시도 횟수 기록 방식과 상한(§4.9). eng.transactions.design `MAX_REPLAY_ATTEMPTS`와 F.records.spec 결정표의 연결.
-- [미결] `input_required` 출력 변형의 판별 필드 이름(§4.3). F.capabilities.spec §3.6이 이 문서에 맡겼다.
+- [결정: L1A.4] `input_required` 출력 변형의 판별 필드는 `status: "input_required"`이다(§4.3). `approvalId`가 없는 MCP 변형의 재호출은 F 요청 12가 닫히기 전까지 [미결]이다.
+- [미결] `QuestionAnswer`(§3.6)와 L2.dialog의 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)의 모양이 다르다. `approval.respond`의 `answer`는 클라이언트가 보내는 값이고 core-tools는 `QuestionAnswer`만 받는다. cap-dialog 어댑터가 `QuestionAnswer`와 `AskAnswer`를 서로 옮기거나 L2.dialog.spec §4.1.5를 `QuestionAnswer`로 맞춘다.
 - [미결] 정책 규칙 수집 방식(범위별 수집 대 키 분리, §4.5). F 요청 5가 받아들여지지 않으면 `l1.tools.rules.managed`, `l1.tools.rules.user` 같은 범위별 키로 나눈다.
 - [미결] Anthropic 서버 쪽 tool search 사용 여부(§4.1 8번).
 - [미결] 확장(extension 티어) 규칙 등록 경로와 매니페스트 필드(2차).
 - [미결] `remember: "always"`를 2차 전까지 `thread`로 낮추는 처리(§4.7 6번)가 사용자 기대와 맞는지.
 - [미결] 도구가 다른 도구를 부르는 중첩 호출의 진입점(§4.2). `prepare`·`execute`를 부르는 쪽은 core-loop이므로 `LoopService`에 진입점을 둘지, 중첩 호출을 2차로 미룰지 L1.loop.spec과 정한다.
-- [미결] 비밀 lease를 부르는 쪽(L0.exec 대 L1.tools)과 M1의 `secretEnv` 전달 경로(§4.12). M1 검증 모드 자체는 `env`로 정했다(U-19).
+- [미결] 비밀 lease를 부르는 쪽(L0.exec 대 L1.tools)과 `secretEnv`가 모델 도구 인자로 들어오는 경로(§4.12). 증거를 도구 구현까지 옮기는 길은 F 요청 13이다. M1 검증 모드 자체는 `env`로 정했다(U-19).

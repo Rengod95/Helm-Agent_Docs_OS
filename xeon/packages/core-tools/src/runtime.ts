@@ -2,17 +2,16 @@ import { Bug, type Result } from "@xeon/contracts";
 import type { ToolName } from "@xeon/contracts/capabilities";
 import type { ScopeId, ToolRegisterError, ToolResourceDef } from "@xeon/contracts/extensions";
 import type {
-  ApprovalService,
   ModeChangeResult,
   ToolMeta,
   ToolRegistration,
   ToolService,
   Unregister,
 } from "@xeon/contracts/services";
-import { createApprovalService } from "./approvals/service.ts";
+import { createApprovalService, type ApprovalsInternal } from "./approvals/service.ts";
 import { createCallTable } from "./calls.ts";
 import type { ToolsDeps } from "./deps.ts";
-import { entriesOf, resourceEntry, toToolMeta } from "./entries.ts";
+import { entriesOf, resourceEntry, toToolMeta, type InputWaitResult } from "./entries.ts";
 import { advertiseTools } from "./expose.ts";
 import { createPipeline } from "./pipeline.ts";
 import { createCoreRules } from "./policy/core-rules.ts";
@@ -23,7 +22,7 @@ import { TOOLS_SETTING_KEYS } from "./settings.ts";
 
 export interface ToolRuntime {
   readonly tools: ToolService;
-  readonly approvals: ApprovalService;
+  readonly approvals: ApprovalsInternal;
 }
 
 export function createToolRuntime(base: ToolsDeps): ToolRuntime {
@@ -46,10 +45,26 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     clock: deps.clock,
     ext: deps.ext,
     logger: deps.logger,
-    runOf: (origin) =>
-      origin.toolCallId === null ? undefined : calls.get(origin.threadId, origin.toolCallId)?.run,
+    callOf: (origin) => {
+      if (origin.toolCallId === null) return undefined;
+      const state = calls.get(origin.threadId, origin.toolCallId);
+      return state === undefined
+        ? undefined
+        : { run: state.run, effectId: state.intent?.effectId ?? null };
+    },
+    modeOf: (threadId) => deps.config(threadId).mode,
+    setMode: (threadId, mode) => tools.setMode(threadId, mode, "plan_approval"),
   });
   const pipeline = createPipeline(deps, registry, calls, approvals);
+
+  /** 도구가 올린 승인의 해결을 기다린다. 턴 취소로 끊기면 그 승인을 닫는다(L1.tools.spec §4.7 8번) */
+  async function waitInput(approvalId: string, signal: AbortSignal): Promise<InputWaitResult> {
+    const waited = await approvals.wait(approvalId, signal);
+    if (waited.ok) return "resolved";
+    if (waited.error.kind === "unknown") return "unknown";
+    await approvals.cancel(approvalId, "turn aborted");
+    return "aborted";
+  }
 
   function register(
     first: ToolRegistration | ScopeId,
@@ -59,7 +74,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
       if (def === undefined) throw new Bug("tools.register: a ToolResourceDef is required");
       return registry.add([resourceEntry(first, def)]);
     }
-    return registry.add(entriesOf(first, deps.resolveCapability));
+    return registry.add(entriesOf(first, deps.resolveCapability, waitInput));
   }
 
   const tools: ToolService = {
@@ -84,7 +99,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
       throw new Bug("tools.runUserShell arrives in M2 (L1.tools.plan TL-16)");
     },
     mode: (threadId) => deps.config(threadId).mode,
-    setMode(threadId, mode, source) {
+    setMode(threadId, mode) {
       // managed가 bypass를 금지했으면 모드를 바꾸지 않는다(L1.tools.spec §5 사례 11). 이미 세션 값이 bypass인 채 금지가 생기면 평가기가 default로 본다
       if (mode === "bypass" && !deps.config(threadId).bypassAllowed) {
         return Promise.resolve<ModeChangeResult>({
@@ -97,7 +112,7 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
         threadId,
         TOOLS_SETTING_KEYS.permissionMode,
         mode,
-        `mode:${threadId}:${source}:${deps.ids.next("evt")}`,
+        `mode:${threadId}:${deps.ids.next("evt")}`,
       );
       if (!written.ok) {
         return Promise.resolve<ModeChangeResult>({

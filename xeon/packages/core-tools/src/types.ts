@@ -13,6 +13,7 @@ import type {
   Usage,
 } from "@xeon/contracts/conversation";
 import type {
+  ApprovalEvidence,
   ExecService,
   ExposureMode,
   OutputLimits,
@@ -43,6 +44,11 @@ export interface RawCall {
   readonly params: unknown;
   readonly signal: AbortSignal;
   readonly onUpdate: AgentToolUpdateCallback;
+  /**
+   * 호출이 비밀(`secretEnv`)을 쓸 때 사람이 승인한 증거(L1.tools.spec §4.12, U-19). 쓰지 않거나 증거를 얻지 못했으면 null.
+   * 도구 구현에 전달하는 길은 F `CallContext`에 이 필드가 생기면 `entries.ts` callContext 한 곳에서 연다(L1A.4 요청)
+   */
+  readonly secretApproval: ApprovalEvidence | null;
 }
 
 export interface RawOutcome {
@@ -106,6 +112,10 @@ export interface CallState {
   startedAt: number | undefined;
   /** 중단으로 끝났는가(effect.result.status = interrupted) */
   interrupted: boolean;
+  /** 이 호출의 정책 승인을 사용자가 방금 허용했으면 그 approvalId. 비밀 사용 증거로 쓴다(U-19) */
+  userApprovalId: string | undefined;
+  /** 비밀 사용 승인 증거. 비밀을 쓰지 않거나 재실행이면 null */
+  secretApproval: ApprovalEvidence | null;
   /** 재실행 시도 번호. 처음 실행은 0 */
   attempt: number;
   /** 진행 갱신 번호(dispatchKey용) */
