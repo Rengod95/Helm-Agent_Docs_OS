@@ -145,8 +145,15 @@
     "packages/cap-work": {
       "name": "@xeon/cap-work",
       "version": "0.0.0",
+      "dependencies": {
+        "@xeon/contracts": "workspace:*",
+        "@xeon/ext-host": "workspace:*",
+        "typebox": "catalog:",
+      },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@xeon/core-persistence": "workspace:*",
+        "@xeon/platform-store": "workspace:*",
       },
     },
     "packages/cap-workspace": {

@@ -301,6 +301,8 @@ export const WorkTasksKey = serviceKey(WorkTasks);
 - 상태 5종 [제안]: `pending`, `in_progress`, `completed`, `failed`, `cancelled`. omp todo의 5종 상태와 수가 같다(`_research/l2e.md` §3.1 A1). 막힘은 상태로 두지 않고 계산한다. 상태로 두면 선행 작업이 끝날 때마다 다른 작업의 상태를 고쳐야 하기 때문이다.
 - `executionMode: "sequential"`: 같은 단계에서 `task_write`가 두 번 호출되면 순서대로 적용해야 결과 목록이 결정적이다.
 - `MethodDef.errors`의 고유 코드는 `task_` 접두로 공통 코드와 겹치지 않는다(`L2.readme` §5.5).
+- [결정: WK.1] `task_write`는 L1.tools 등록에서 `risk: "read"`다. 작업 목록은 작업 영역의 파일을 바꾸지 않으므로 계획 모드(`write`·`exec` 거부)에서도 목록을 쓸 수 있어야 하고, 매번 승인을 묻지 않는다. 클래스 표지(`classes`)는 달지 않는다. 서브에이전트는 자기 스레드의 목록을 쓰기 때문이다.
+- [결정: WK.1] `list`도 스레드별 쓰기 큐(§4.1.1)를 지난다. 먼저 부른 쓰기가 끝난 뒤의 목록을 본다.
 
 ### 3.3 `work.plans`
 
@@ -852,9 +854,9 @@ CREATE TABLE cap_work_meta (
 
 | 입력 이벤트 | 갱신 |
 |---|---|
-| `work.task_created` | `cap_work_tasks` 행 추가, `blockedBy`마다 `cap_work_task_edges` 행 |
+| `work.task_created` | `cap_work_tasks` 행 추가, `blockedBy`마다 `cap_work_task_edges` 행. `last_task_change_turn = turns_completed` |
 | `work.task_changed` | 해당 행 갱신, `updated_seq`. `cap_work_meta.last_task_change_turn = turns_completed` |
-| `work.task_linked` / `work.task_unlinked` | 간선 행 추가·삭제 |
+| `work.task_linked` / `work.task_unlinked` | 간선 행 추가·삭제, 해당 작업 행의 `updated_seq`. `last_task_change_turn = turns_completed` |
 | `work.plan_submitted` | 버전 행 추가(`status = submitted`). `supersedes`가 있으면 그 버전 행 `superseded` |
 | `approval.requested`(kind `plan`) | 대상의 `planId`, `version` 행에 `approval_id` 기록 |
 | `approval.resolved` | `approval_id`가 일치하는 행이 있으면 결정에 따라 `status`, `feedback`, `decided_seq` 갱신(§4.2.3 대응표). 없으면 무시 |
@@ -866,6 +868,9 @@ CREATE TABLE cap_work_meta (
 | `turn.completed` | `cap_work_meta.turns_completed + 1` |
 
 - 순번 ID 발급(§4.1.1)에 필요한 최댓값은 이 테이블에서 계산한다.
+- [결정: WK.1] 방치 알림(§4.1.6)의 기준 턴은 작업 이벤트 네 종류(`task_created`, `task_changed`, `task_linked`, `task_unlinked`)가 모두 갱신한다. 목록을 처음 만든 호출도 목록을 쓴 것으로 센다. `cap_work_meta` 행은 첫 작업 이벤트나 첫 `turn.completed`에서 만든다.
+- [결정: WK.1] 간선 행의 읽기 순서는 삽입 순서(`rowid`)다. `blockedBy` 배열의 순서가 재생성 뒤에도 같다.
+- WK.1의 투영기 `cap.work` 버전 1은 `cap_work_tasks`, `cap_work_task_edges`, `cap_work_meta` 셋만 만든다. 계획·목표·보고 테이블은 해당 작업(WK.2 이후, T9~T12)이 더하면서 투영 버전을 올린다.
 - `approval.resolved` payload의 결정 필드 이름은 L1.tools.spec이 정한다. 투영기는 F에 있는 그 payload 스키마만 import한다(§10 W-2).
 
 ## 4. 동작 규칙
@@ -875,8 +880,10 @@ CREATE TABLE cap_work_meta (
 #### 4.1.1 ID 발급과 쓰기 순서
 
 - [제안] cap-work는 스레드마다 쓰기를 직렬화한다(스레드별 비동기 큐 하나). 한 스레드의 쓰기 소유자는 프로세스 하나다(eng.transactions.design §3.3). 그래서 메모리의 순번 카운터로 ID를 발급해도 충돌하지 않는다.
-- 카운터는 스레드를 처음 쓸 때 `cap_work_tasks`의 `MAX(ord)`로 채운다. 발급한 ID는 이벤트 payload에 기록되고, 재생은 기록된 ID를 읽는다(F.conversation.spec §4 규칙 1).
-- 쓰기 메서드의 처리 순서: (1) 입력 검사, (2) 같은 `requestId`의 커밋 결과가 있으면 그 결과로 출력을 만들어 반환, (3) 투영에서 현재 목록을 읽어 규칙 검사(§4.1.2~§4.1.3), (4) 이벤트 초안을 만들어 `SessionWriter.commit` 한 번, (5) 커밋 후 투영을 다시 읽어 출력을 만든다. 트랜잭션 안에서 await나 I/O를 하지 않는다(TX-01).
+- [결정: WK.1] 순번 카운터를 메모리에 두지 않는다. 쓰기 큐 안에서 투영의 현재 목록을 읽을 때마다 `max(ord) + 1`을 다음 순번으로 쓴다. 쓰기 소유자가 프로세스 하나이고 큐가 직렬이므로 충돌하지 않고, 재생성이나 프로세스 재시작 뒤에도 따로 채울 것이 없다. 발급한 ID는 이벤트 payload에 기록되고, 재생은 기록된 ID를 읽는다(F.conversation.spec §4 규칙 1).
+- 쓰기 메서드의 처리 순서: (1) 입력 검사(`requestId`, 호출 문맥의 `threadId`), (2) 쓰기 큐에서 투영의 현재 목록을 읽는다, (3) `SessionWriter.commit` 한 번. 규칙 검사(§4.1.2~§4.1.3)와 이벤트 초안 만들기는 이 커밋의 `build` 안에서 한다(순수 함수 `planWrite`). (4) 커밋 뒤 투영을 다시 읽어 출력을 만든다. 트랜잭션 안에서 await나 I/O를 하지 않는다(TX-01).
+- [결정: WK.1] 같은 `requestId`의 재호출은 저장소가 `build` 전에 처음 결과를 돌려주므로, 상태가 바뀐 뒤에도 규칙 검사를 다시 하지 않는다. 결과 해석: (a) 커밋됨 + 재전송이면 `created`를 그 커밋의 `work.task_created` 이벤트에서 복원하고 `tasks`는 현재 목록이다. (b) 규칙 거부는 커밋 거부(reject) 레코드로 같은 키에 남기고(`code`는 오류 코드, `detail`은 `{ opIndex, failure }` JSON) 재호출이 같은 `CapabilityError`를 되풀이한다. (c) 모든 연산이 효과 없이 끝나 이벤트가 0개인 호출은 거부 코드 `noop`을 남기고 성공으로 답한다(`created`는 빈 배열). 같은 키로 다른 입력은 `key_reused`이고 `internal`로 바꿔 운영 로그 `work.tasks.key_reused`에 남긴다(§5.2).
+- 커밋 키는 `work:tasks:<requestId>`이고 `requestId`가 커밋 키 형식(`COMMIT_KEY_PATTERN`)에 맞지 않거나 120자를 넘으면 F `commitKeyPart`가 해시 형태로 바꾼다. 이벤트 `turnId`는 호출 문맥의 `turnId`, 없으면 `null`이다. `stepId`, `causationId`, `correlationId`는 `null`이다.
 - `write`는 연산을 순서대로 메모리 사본에 적용해 검사한 뒤 모든 이벤트를 커밋 하나에 넣는다. 한 연산이라도 실패하면 아무것도 커밋하지 않고 첫 실패의 오류를 낸다. `detail`에 실패한 연산 번호 `opIndex`를 싣는다.
 
 #### 4.1.2 상태 전이
@@ -913,7 +920,7 @@ CREATE TABLE cap_work_meta (
 #### 4.1.5 턴 사이 유지와 재생성
 
 - 작업 목록의 정본은 `work.*` 내구 이벤트다. `cap_work_` 테이블은 재생으로 다시 만든다. 투영을 지우고 이벤트에서 재생성한 결과는 원래 테이블과 행 단위로 같아야 한다(eng.events.design §5.4 `expectProjectionsRebuildable`).
-- 되감기(L1.persistence)로 활성 가지가 바뀌면, 조회는 활성 가지의 이벤트로 만든 상태를 보여야 한다. [가정] 투영은 모든 가지의 행을 갖고 조회가 사슬로 거른다는 eng.events.design §6의 규칙을 cap 투영에 그대로 적용하면, 작업 행마다 마지막 갱신 이벤트의 가지를 알아야 한다. M2에서는 되감기 뒤 `cap.work` 투영을 활성 가지만으로 재생성하는 방식을 쓴다 [제안]. 조회 시점 필터링은 §10 W-5로 남긴다.
+- 되감기(L1.persistence)로 활성 가지가 바뀌면, 조회는 활성 가지의 이벤트로 만든 상태를 보여야 한다. [가정] 투영은 모든 가지의 행을 갖고 조회가 사슬로 거른다는 eng.events.design §6의 규칙을 cap 투영에 그대로 적용하면, 작업 행마다 마지막 갱신 이벤트의 가지를 알아야 한다. M2에서는 되감기 뒤 `cap.work` 투영을 활성 가지만으로 재생성하는 방식을 쓴다 [제안]. 조회 시점 필터링은 §10 W-5로 남긴다. WK.1 구현은 투영이 모든 가지의 행을 그대로 가지며, 되감기 뒤 활성 가지 기준 재생성은 구현하지 않았다(W-5가 닫힐 때까지 되감기를 한 스레드의 목록은 되감기 이전 이벤트를 포함한다).
 
 #### 4.1.6 방치 알림
 
@@ -1344,3 +1351,4 @@ export const manifest = defineManifest({
 - W-11 [미결] 작업 상태 5종의 확정(`failed` 포함 여부)과 `failed` 선행 작업이 막힘을 유지하는 규칙.
 - W-12 [결정: review.decisions-2 S-06] 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다. 이 능력은 판정 상한 키와 판정 역할 키를 두지 않는다(§6.1).
 - W-13 [미결] 목표의 `continuation` 필드와 루프 결합 규칙(§4.3.5). `L2.readme` §10 미결 18과 같은 항목이다.
+- W-14 [미결] 작업 오류의 `detail.opIndex`: `write`만 싣고 단일 연산 메서드(`create`, `update`, `link`)는 싣지 않는다(WK.1 구현). 정의 파일의 `TaskErrors.detail`은 `task_` 오류의 고유 필드만 선언하고, `opIndex`는 선언 밖의 덧붙임이다. F `defs/work.ts`가 `opIndex`를 선언에 넣을지 F 레인과 정한다.

@@ -201,3 +201,43 @@ M3:
 | 작업 이벤트 증가에 따른 투영 비용 | 작업 수 상한 500, `write` 연산 50개 상한. 투영은 행 단위 갱신만 한다. 재생성 비용은 `projection.int.test`에서 이벤트 10,000개 기준 시간을 기록해 둔다 |
 | 판정과 사용자 턴의 경합 | 판정 중 새 턴이 시작되면 post를 생략한다. post 키를 `goal:<goalId>:<n>`으로 고정해 중복 투입을 막는다 |
 | 도구 없는 능력이 F에서 거부됨(W-3) | `goal_status` 읽기 도구 하나를 두는 대안을 준비한다. 판정 결과를 쓰는 도구는 두지 않는다 |
+
+## 8. M2 구현 기록
+
+`m2-plan` 트랙 WK의 진행을 적는다. 작업 ID와 규모의 정본은 §3이다.
+
+### 8.1 WK.1 (T2, T3): 작업 모델, `task_write`, 투영기
+
+| 항목 | 상태 | 위치 |
+|---|---|---|
+| T2 전이 표, 막힘 계산 | 완료 | `src/tasks/model.ts` |
+| T2 순환 검사(깊이 우선, 경로 반환) | 완료 | `src/tasks/graph.ts` |
+| T2 `write` 연산 적용(임시 참조, 전부 또는 전무, 자동 시작) | 완료 | `src/tasks/write.ts` `planWrite` |
+| T3 `work.tasks` 서비스(create, update, link, list, write), 스레드별 쓰기 큐 | 완료 | `src/tasks/service.ts`, `src/tasks/queue.ts` |
+| T3 `task_write` 도구 등록(`risk: "read"`) | 완료 | `src/plugin.ts` |
+| T3 투영기 `cap.work` 버전 1(작업 부분) | 완료 | `src/projection/*` |
+| T3 방치 알림(`before_agent_start`) | 완료 | `src/tasks/reminder.ts`, `src/plugin.ts` |
+| T8 설정 키 여섯 개 선언과 읽기 | 완료(선언은 여섯 개 모두, 읽는 곳은 `tasks.*` 둘) | `src/settings.ts` |
+
+파일 배치는 §2와 두 곳이 다르다.
+
+- 서비스 쓰기 경계의 오류 변환은 `src/errors.ts`, 규칙 거부 값은 `src/tasks/failure.ts`다. `src/service.ts` 조립은 `src/tasks/service.ts`에 있고 `src/plugin.ts`가 조립 루트다.
+- 포트 파일은 `src/ports/session.ts` 하나다. `xeon.session`의 부분(`commit`, `feed`, `projectors`)과 `cap_work_*` 읽기 핸들(`xeon.store`의 `scoped("cap.work")`)을 이름 붙여 둔다. `PermissionModePort`, `ApprovalsPort`, `JudgePort`는 해당 작업(WK.2·WK.3, T10)이 추가한다.
+
+시험은 `test/`에 있다. 실제 SQLite(`@xeon/platform-store/testing`) 위에 `core-persistence`의 세션 서비스를 올려 쓰고, 저장소를 배열로 흉내 내지 않는다.
+
+| 파일 | 확인하는 것(§5 대응) |
+|---|---|
+| `tasks-graph.test.ts`, `tasks-graph.prop.test.ts` | 간선 순환 거부, 순환 없음 성질(고정 시드 8개 × 간선 1,000개) |
+| `tasks-model.test.ts` | 전이 표 25칸, 막힘 계산 |
+| `tasks-write.test.ts` | write 전부 또는 전무, 임시 참조, 자동 시작, 상한, 이벤트 payload가 카탈로그 스키마를 통과 |
+| `tasks-service.int.test.ts` | 같은 requestId 재호출, 거부의 되풀이, `key_reused`, 효과 없는 호출, 직렬 큐, 스레드 분리 |
+| `projection.int.test.ts` | 재생성 동일성(무작위 연산열 3개 시드), 투영 행과 계획 상태의 일치, `cap_work_meta` |
+| `reminder.test.ts`, `plugin.test.ts` | 방치 알림(질의만, 이벤트를 쓰지 않음), 능력 제공, 도구 등록, 등록 거부 |
+| `defs.contract.test.ts`, `catalog.contract.test.ts`, `settings.test.ts` | 정의·카탈로그·설정 선언 |
+
+미충족과 통합 때 바꿀 것:
+
+- **투영기 등록부 대역.** `core-persistence`의 `projectors.register`가 foundation에서는 `Bug("session.not_implemented")`다(L1B.1, PS-4가 m2/l1b에서 구현). `test/support/projecting-session.ts`가 같은 약속(DDL 적용, 커밋된 이벤트마다 `apply`)을 커밋 직후 별도 트랜잭션에서 지킨다. 통합 때 이 파일과 `harness.ts`의 `withProjection` 호출을 지우고 실제 `session.projectors`를 쓴다. 같은 트랜잭션 안의 원자성과 투영 실패 롤백은 그때 `core-persistence` 쪽 시험과 함께 확인한다.
+- **재생성 시간 기록.** 이벤트 10,000개 재생성 시간(§7)은 아직 재지 않았다. 통합 뒤 실제 등록부로 잰다.
+- **W-5.** 되감기 뒤 활성 가지 재생성은 구현하지 않았다(spec §4.1.5).

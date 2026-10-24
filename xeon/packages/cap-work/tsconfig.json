@@ -5,5 +5,19 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "test/**/*.json"],
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../core-persistence"
+    },
+    {
+      "path": "../ext-host"
+    },
+    {
+      "path": "../platform-store"
+    }
+  ]
 }
