@@ -1,17 +1,14 @@
-import {
-  defineManifest,
-  type ExtensionEntry,
-  type ExtensionManifest,
-  type ScopeApi,
-  type StateDecl,
-} from "@xeon/contracts/extensions";
+import { defineManifest, type ExtensionEntry, type StateDecl } from "@xeon/contracts/extensions";
+import { Type } from "typebox";
+import { defineGroup } from "../define-group.ts";
+import type { GroupApi, GroupManifest, GroupModule } from "../types.ts";
 
 /**
  * M1 테스트 그룹의 매니페스트(L3.group-kit.plan G-01). F.extensions.plan의
  * fixtures/smoke-group.manifest.json과 같은 이름·지점·선언을 쓴다.
- * 이 그룹은 defineGroup을 쓰지 않는다. defineGroup 이관은 M2(G-16)다.
+ * M2(G-16)부터 defineGroup으로 만든다.
  */
-export const SMOKE_GROUP_MANIFEST: ExtensionManifest = defineManifest({
+export const SMOKE_GROUP_MANIFEST: GroupManifest = defineManifest({
   schemaVersion: 1,
   name: "smoke-group",
   version: "0.1.0",
@@ -52,27 +49,23 @@ export interface SmokeGroupProbe {
 }
 
 export interface SmokeGroup {
-  readonly manifest: ExtensionManifest;
+  readonly manifest: GroupManifest;
   readonly entry: ExtensionEntry;
+  /** defineGroup이 만든 모듈. manifest와 entry는 이 모듈의 것이다 */
+  readonly module: GroupModule;
   readonly probe: SmokeGroupProbe;
 }
 
 const DEFAULT_DENY_TOOLS: readonly string[] = ["write", "edit"];
 
-/** JSON Schema 리터럴. 새 외부 패키지(typebox)를 이 패키지에 더하지 않으려고 직접 쓴다 */
 const SMOKE_STATE: StateDecl<SmokeGroupState> = {
-  schema: {
-    type: "object",
-    properties: { count: { type: "integer", minimum: 0 } },
-    required: ["count"],
-    additionalProperties: false,
-  },
+  schema: Type.Object({ count: Type.Integer({ minimum: 0 }) }, { additionalProperties: false }),
   initial: { count: 0 },
   version: 1,
 };
 
 function registerSmoke(
-  g: ScopeApi<SmokeGroupState>,
+  g: GroupApi<SmokeGroupState>,
   probe: SmokeGroupProbe,
   denyTools: ReadonlySet<string>,
   driveTurns: number,
@@ -101,16 +94,18 @@ function registerSmoke(
   );
 }
 
-/** M1 테스트 그룹. on(tool_call, turn_end), post, drive, scope를 한 번씩 쓴다 */
+/** M1 테스트 그룹. on(tool_call, turn_end), post, drive, scope를 한 번씩 쓴다. defineGroup으로 만든다 */
 export function smokeGroup(options: SmokeGroupOptions = {}): SmokeGroup {
   const denyTools = new Set(options.denyTools ?? DEFAULT_DENY_TOOLS);
   const driveTurns = options.driveTurns ?? 1;
   const followUps = options.followUps ?? Number.POSITIVE_INFINITY;
   const probe: SmokeGroupProbe = { deniedCalls: [], turnEndSteps: [], posts: [] };
-  const entry: ExtensionEntry = ({ manifest, scope }) => {
-    scope(manifest.name, { state: SMOKE_STATE }, (g) => {
+  const module = defineGroup<SmokeGroupState>({
+    manifest: SMOKE_GROUP_MANIFEST,
+    state: SMOKE_STATE,
+    setup(g) {
       registerSmoke(g, probe, denyTools, driveTurns, followUps);
-    });
-  };
-  return { manifest: SMOKE_GROUP_MANIFEST, entry, probe };
+    },
+  });
+  return { manifest: module.manifest, entry: module.entry, module, probe };
 }

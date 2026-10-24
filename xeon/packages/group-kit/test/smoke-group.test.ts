@@ -7,7 +7,7 @@ import type {
 import { validateManifest } from "@xeon/contracts/extensions";
 import { createTestHost, flushMicrotasks, type TestHost } from "@xeon/ext-host/testing";
 import * as entry from "../src/index.ts";
-import { SMOKE_GROUP_MANIFEST, smokeGroup } from "../src/testing/index.ts";
+import { SMOKE_GROUP_MANIFEST, checkGroup, smokeGroup } from "../src/testing/index.ts";
 
 const userText: UserMessage = { role: "user", content: "hello", timestamp: 1_700_000_000_002 };
 const assistantStop: AssistantMessage = {
@@ -181,4 +181,13 @@ test("smoke.resume-reads-committed-state", async () => {
   expect(second.loop.turns).toHaveLength(1);
   const acquired = second.records.events(thread).filter((e) => e.kind === "lease.acquired");
   expect(acquired).toHaveLength(1);
+});
+
+test("smoke.check-group-has-no-errors", async () => {
+  const group = smokeGroup();
+  // M1 테스트 그룹은 defineGroup으로 만든 모듈이다(G-16). 선언과 실제 등록이 맞는다
+  expect(group.module.stateVersion).toBe(1);
+  expect(group.module.entry).toBe(group.entry);
+  const issues = await checkGroup(group.module);
+  expect(issues.filter((found) => found.severity === "error")).toEqual([]);
 });

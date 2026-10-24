@@ -7,6 +7,13 @@ export {
   type MemoryDriveHolderSettingsOptions,
 } from "./fakes.ts";
 export {
+  replayDrive,
+  type ReplayCut,
+  type ReplayDriveOptions,
+  type ReplayDriveReport,
+  type ReplayHarness,
+} from "./replay/replay-drive.ts";
+export {
   SMOKE_GROUP_MANIFEST,
   smokeGroup,
   type SmokeGroup,
