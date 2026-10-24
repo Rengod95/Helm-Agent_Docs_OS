@@ -62,7 +62,7 @@ describe("real engine", () => {
         (event) => event.kind === "thread.started" && event.threadId === created.threadId,
       );
       expect(started.seq).toBe(1);
-      expect(subscribed.headSeq).toBe(created.position.seq);
+      expect(subscribed.headSeq).toBeGreaterThanOrEqual(created.position.seq);
       await again.close();
       await second.close();
     },

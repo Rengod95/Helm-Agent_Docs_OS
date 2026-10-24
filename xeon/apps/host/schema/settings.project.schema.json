@@ -908,6 +908,84 @@
         }
       }
     },
+    "l1.tasks.limits.modelCalls": {
+      "default": 16,
+      "maximum": 100,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "동시 모델 요청 수",
+          "order": 30,
+          "tab": "execution",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.tasks.limits.subagents": {
+      "default": 16,
+      "maximum": 100,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "동시 서브에이전트 수",
+          "order": 20,
+          "tab": "execution",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "l1.tasks.limits.tools": {
+      "default": 8,
+      "maximum": 64,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "동시 도구 실행 수",
+          "order": 10,
+          "tab": "execution",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
     "l1.tasks.queue.followUpMode": {
       "default": "one-at-a-time",
       "enum": [
