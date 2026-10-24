@@ -102,7 +102,7 @@ xeon/packages/core-loop/
 | LP2 | `AgentEventMapper` 구현과 골든 테스트: F.conversation §3.5.4 표 전 행, `bindItem`, 결정적 id 순서 | M0: contracts F.conversation 매퍼 타입 | M | M1 |
 | LP3 | 휘발 이벤트 발신자: `VolatileEventEnvelope` 구성, `(threadId, turnId)`별 `n`, `afterSeq = headSeq()`, 50 ms 묶음, 16 KiB 자르기 | LP2, M0: core-persistence `headSeq`·휘발 피드 | S | M1 |
 | LP4 | 단계 커밋 요청 구성: T1~T4·T6의 `CommitRequest`(persistence `commit` 인터페이스에 맞춤), 커밋 키 형식, 지문 원천, `StepCheckpoint` 채우기, `inputs.drain` 결합, `finalizeBoundary` | LP1, LP2, L1.tasks.plan TK-5 | M | M1 |
-| LP5 | `next`별 재진입: `turn_start`, `request`(K1 포함), `tools`, `await_input`(승인 대기 호출의 `restore` 뒤 `tools.prepare` 재실행), `turn_end`, 취소 의도 → `closed`. 열린 turn 표식. 자체 루프 이행 뒤에는 `resume.ts`가 `TurnEntry`만 만들고 실행은 `runTurn`이 한다(LP19) | LP4, M0: core-persistence 열 때 복구, core-tools 파이프라인 인터페이스 | L | M1 |
+| LP5 | `next`별 재진입: `turn_start`, `request`(K1 포함), `tools`, `await_input`(승인 대기 호출의 `restore` 뒤 `tools.prepare` 재실행), `turn_end`, 취소 의도 → `closed`. 열린 turn 표식. 자체 루프 이행 뒤에는 `resume.ts`가 `TurnEntry`만 만들고 실행은 `runTurn`이 한다(LP19) (N-03 완료 2026-10-24: 닫는 재진입이 정착한 turn 노드에 작업을 등록하지 않는다. 시험 `closing_an_open_turn_logs_no_run_rejection`) | LP4, M0: core-persistence 열 때 복구, core-tools 파이프라인 인터페이스 | L | M1 |
 | LP6 | 예산·상한 처리: `maxSteps`, drive turn 신호, `canContinue`, `l1.loop.*` 설정 정의, `thinkingBudgets` 전달(M2) (M2 완료 2026-10-24: 시험 `thinking_budgets_passed_through`) | LP4 | S | M1(maxSteps), M2(추론 예산) |
 | LP7 | 완료 게이트: 정착 후보 판정, `agent_before_settle` 발화 위치(`endStep`), 게이트 계속 상한과 휘발 알림 (M2 완료 2026-10-24: 설정 `l1.loop.gate.maxContinues`, 시험 `completion-gate.test.ts`) | LP4, LP6 | M | M1(발화), M2(상한) |
 | LP8 | boundary 최종 검증: `finalizeBoundary` 규칙 1~5와 진단 로그 | LP4 | S | M1 |

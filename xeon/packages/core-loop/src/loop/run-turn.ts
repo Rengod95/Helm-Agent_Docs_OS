@@ -166,7 +166,10 @@ export async function runTurn(ctx: LoopContext, spec: TurnRunSpec): Promise<Turn
   const run = createTurnRun(ctx, spec);
   let rejection: { readonly reason: string } | null = null;
   try {
-    const finished = await spec.scope.track(runEntry(run));
+    // 열린 turn을 닫는 재진입(`turn_end`)은 먼저 turn 노드를 취소하고, 소유 작업이 없던 노드는 그 자리에서 정착한다.
+    // 정착한 노드에는 작업을 등록할 수 없으므로 이 경우만 등록 없이 닫는 작업을 직접 기다린다(open-issues N-03)
+    const finished =
+      spec.scope.state === "settled" ? await runEntry(run) : await spec.scope.track(runEntry(run));
     if (!finished.ok) {
       // 단계 실패는 값으로 돌아온다. run을 멈추고 T6를 failed로 쓴다
       rejection = { reason: failureDetail(finished.error) };

@@ -506,6 +506,7 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 
 - `tool_call` 지점은 이미 결정된 호출(intent가 있는 호출)에 다시 발화하지 않는다(`architecture.runtime-flow.design` §4.2 "재생 시 도구 지점", durable spec 3162-3163).
 - 매퍼는 재개된 turn에서 `init.startStepIndex`부터 센다(`F.conversation.spec` §3.5.5 주석).
+- `closed` 행은 turn 노드를 먼저 취소하는데, 소유 작업이 없던 노드는 취소 직후 정착한다. 정착한 노드에는 작업을 등록할 수 없으므로(`tasks.scope_settled`) 닫는 작업(`turn_end` 재진입)은 노드가 이미 정착했으면 등록 없이 직접 기다린다(`loop/run-turn.ts`, open-issues N-03·V-10). 닫는 turn의 로그에 `loop.run_rejected`가 남지 않는다.
 - `closed` 행(취소 의도, 소유 사슬 취소, 새 입력이 오래 열린 turn을 닫는 경우)에서는 turn을 닫기 전에 `ApprovalService.restore`로 미해결 승인 요청을 읽어, `origin`이 그 turn인 요청을 `cancel`로 닫는다. 답을 받을 호출이 더는 없기 때문이다(`L1.tools.spec` §4.7 8번). 읽기나 취소가 실패해도 turn 닫기는 계속하고 경고만 남긴다.
 
 ### 4.6 재개 진입

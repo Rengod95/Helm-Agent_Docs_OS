@@ -170,6 +170,8 @@ test("resume_abort_requested_closes_turn", async () => {
     error: "user",
   });
   expect(h2.models.requests).toHaveLength(0);
+  // N-03: 취소해 정착한 turn 노드에 닫기 작업을 등록하려다 거부되는 일이 없다
+  expect(h2.logs.records.filter((record) => record.level === "error")).toEqual([]);
 });
 
 test("aborted_partial_stream_saved_as_aborted", async () => {
@@ -498,4 +500,27 @@ test("closing a stale turn cancels the approval requests it left behind", async 
   expect(h2.restored).toEqual([h2.threadId]);
   expect(h2.cancelledApprovals).toEqual([requested?.id ?? "missing"]);
   expect(h2.tools.executed).toEqual([]);
+});
+
+// N-03·V-10: 오래 열린 turn을 닫는 경로(새 입력, 취소 의도)는 이미 취소해 정착한 turn 노드에 작업을 더하지 않는다
+test("closing_an_open_turn_logs_no_run_rejection", async () => {
+  const tools = [{ name: "read" }];
+  const h = await createHarness({ tools, script: [read("c1")] });
+  await startAndCrash(h, (key) => key === "tool:c1:result", "before");
+  const h2 = await h.restart({ tools, script: [text("fresh answer")] });
+  const admitted = await h2.loop.admit({
+    threadId: h2.threadId,
+    content: "new",
+    via: "interactive",
+  });
+  expect(admitted.ok && admitted.value.status).toBe("started");
+  await h2.settle();
+  expect(h2.logs.records.filter((record) => record.level === "error")).toEqual([]);
+  const completions = h2.fake
+    .events(h2.threadId)
+    .filter((event) => event.kind === "turn.completed");
+  expect(completions.map((event) => event.payload)).toMatchObject([
+    { status: "interrupted" },
+    { status: "completed" },
+  ]);
 });
