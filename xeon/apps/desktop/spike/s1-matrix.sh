@@ -4,7 +4,7 @@
 # cause: close(창 닫기 경로), sigkill, sigterm. 결과는 TSV로 stdout에 낸다.
 set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-shell_bin="${SPIKE_SHELL_BIN:-$here/../../../../../target-m2-desk-spike/debug/spike-shell}"  # .cargo/config.toml의 target-dir
+shell_bin="${SPIKE_SHELL_BIN:-$here/../../../../../target-helm-desktop/debug/spike-shell}"  # .cargo/config.toml의 target-dir
 engine_bin="$here/out/engine"
 work="$(mktemp -d "${TMPDIR:-/tmp}/s1.XXXXXX")"
 wait_s="${S1_WAIT_S:-10}"

@@ -1,4 +1,6 @@
 # 빌드 산출물(수 GB, 생성된 .js 포함)이 xeon 작업 트리 검사(depcruise, knip, oxlint)에 걸리지 않도록 저장소 밖에 둔다.
-# 워크트리 디렉터리의 형제 경로다. 바꾸려면 CARGO_TARGET_DIR 환경 변수를 쓴다.
+# src-tauri와 같은 디렉터리(워크트리의 형제 target-helm-desktop)를 쓴다. 바꾸려면 CARGO_TARGET_DIR 환경 변수를 쓴다.
 [build]
-target-dir = "../../../../../../target-m2-desk-spike"
+target-dir = "../../../../../../target-helm-desktop"
+# 기기 메모리 예산(xeon-dev.slice 3G) 안에서 rustc가 몇 개씩 도는지를 묶는다. 바꾸려면 CARGO_BUILD_JOBS를 쓴다.
+jobs = 2

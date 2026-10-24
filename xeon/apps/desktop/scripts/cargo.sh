@@ -4,13 +4,13 @@
 #   test, check  사이드카 바이너리 없이 돈다(externalBin을 비워 컴파일한다).
 #   run, build   src-tauri/binaries/xeon-<host triple>이 있어야 한다: just desktop-sidecar <triple>
 # 빌드 산출물은 src-tauri/.cargo/config.toml의 target-dir(저장소 밖)에 쌓인다.
-# env: CARGO_BUILD_JOBS (기본 4)
+# env: CARGO_BUILD_JOBS (기본 2, .cargo/config.toml의 jobs와 같다)
 # 종료코드: 0 성공, 1 컴파일·시험 실패, 2 환경 문제(cargo 없음, 사이드카 없음, 시스템 패키지)
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mode="${1:-}"
 export PATH="$HOME/.cargo/bin:$PATH"
-export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-4}"
+export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
 
 if ! command -v cargo >/dev/null; then
   echo "cargo-sh: cargo가 없습니다(rustup으로 설치, ~/.cargo/bin). 환경 문제입니다" >&2

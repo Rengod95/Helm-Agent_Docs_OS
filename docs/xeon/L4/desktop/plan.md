@@ -67,7 +67,7 @@ xeon/apps/desktop/
     Cargo.toml                    # rust-version 1.99. rust-toolchain.toml은 없다(§3.2.1)
     Cargo.lock
     build.rs                      # 앱 명령 권한(allow-engine-*) 생성
-    .cargo/config.toml            # target-dir을 저장소 밖(워크트리 형제 target-helm-desktop)에 둔다
+    .cargo/config.toml            # target-dir을 저장소 밖(워크트리 형제 target-helm-desktop, spike/shell과 공용)에 두고 jobs = 2로 묶는다
     tauri.conf.json
     capabilities/default.json
     ui/index.html                 # DESK.4 전까지의 자리 표시 화면(frontendDist)
