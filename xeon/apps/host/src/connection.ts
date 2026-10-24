@@ -23,6 +23,7 @@ import {
   type WireRequestContext,
   type WireResult,
 } from "@xeon/contracts/wire";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import { startEventFanout } from "./handlers/events.ts";
 import { isNotImplemented } from "./handlers/not-implemented.ts";
 import type {
@@ -228,6 +229,23 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
     return { kind: "result", result };
   }
 
+  /**
+   * HS-27: 연결이 떠난 뒤 그 thread를 쓰기로 연 연결이 이 프로세스에 더 없고 진행 중인 turn이 없으면 잠금을 푼다.
+   * 서비스 모드만 이렇게 한다. in-process·stdio는 프로세스 종료 때 커널이 푼다.
+   */
+  function releaseUnused(threads: readonly ThreadId[]): void {
+    if (engine.mode !== "service") return;
+    for (const threadId of threads) {
+      const stillOpen = Array.from(internals.connections.values()).some((other) =>
+        other.writeThreads.has(threadId),
+      );
+      if (stillOpen || engine.ports.turns.isLive(threadId)) continue;
+      detach(engine.ports.locks.release(threadId), (caught) => {
+        log.error("lease.release_failed", { threadId, message: messageOf(caught) });
+      });
+    }
+  }
+
   function serve(transport: Transport, serveOptions: ServeOptions): ServedConnection {
     counter.connections += 1;
     const connectionId = `c${counter.connections}`;
@@ -255,6 +273,8 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       experimental: [],
       subs: new Map(),
       openThreads: new Set(),
+      writeThreads: new Set(),
+      observedThreads: new Set(),
       limits: serveOptions.limits,
       sender,
       afterResponse(rpcId, fn) {
@@ -287,8 +307,12 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       for (const sub of state.subs.values()) sub.open = false;
       state.subs.clear();
       state.openThreads.clear();
+      state.observedThreads.clear();
+      const written = Array.from(state.writeThreads);
+      state.writeThreads.clear();
       internals.connections.delete(connectionId);
       internals.served.delete(connectionId);
+      releaseUnused(written);
       emitSize();
       closedWaiter.resolve(closing.override ?? info);
     }
@@ -497,10 +521,14 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
     beginShutdown() {
       internals.shuttingDown = true;
     },
+    releaseUnused,
+    watchObserved() {
+      fanout.watchObserved();
+    },
     dispose() {
-      stopFanout();
+      fanout.stop();
     },
   };
-  const stopFanout = startEventFanout(engine, hub);
+  const fanout = startEventFanout(engine, hub);
   return hub;
 }

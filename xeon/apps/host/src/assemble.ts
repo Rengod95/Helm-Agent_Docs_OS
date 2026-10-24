@@ -449,6 +449,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       mode: options.mode,
       os,
       clock,
+      scheduler: os.time.scheduler,
       ids,
       logger,
       session,

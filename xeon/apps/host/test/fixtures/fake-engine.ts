@@ -13,6 +13,7 @@ import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { matchesFilter } from "../../src/handlers/events.ts";
 import { createFakeSecrets, type FakeSecrets } from "./fake-secrets.ts";
+import { createManualScheduler, type ManualScheduler } from "./manual-scheduler.ts";
 import type {
   CommitBatch,
   Engine,
@@ -52,6 +53,8 @@ export interface FakeEngineOptions {
   readonly readFault?: (call: number) => ReadFailure | undefined;
   /** 값이 있으면 feed.headSeq가 이 읽기 실패로 끝난다 */
   readonly headFault?: ReadFailure;
+  /** 값이 있으면 tryAcquire가 이 약속이 풀릴 때까지 기다린다. 획득을 기다리는 동안의 연결 종료를 만들 때 쓴다 */
+  readonly acquireGate?: Promise<void>;
   /** settings.get이 보는 범위 층 */
   readonly layers?: ScopeStack;
 }
@@ -69,6 +72,16 @@ export interface FakeEngine {
       readonly payload?: unknown;
     }[],
   ): CommitBatch;
+  /** 다른 프로세스의 커밋을 흉내 낸다: 저장소에는 들어가지만 이 프로세스의 커밋 알림은 오지 않는다 */
+  commitForeign(
+    entries: readonly {
+      readonly kind: EventKind;
+      readonly threadId: ThreadId;
+      readonly payload?: unknown;
+    }[],
+  ): CommitBatch;
+  /** 호스트가 쓰는 스케줄러. 관찰 폴링이 여기에 타이머를 건다 */
+  readonly scheduler: ManualScheduler;
   emitVolatile(event: Pick<VolatileEventEnvelope, "threadId" | "turnId" | "n" | "afterSeq">): void;
   /** 다음 turn.start가 turn.busy가 되게 한다 */
   setRunningTurn(turnId: TurnId | undefined): void;
@@ -78,6 +91,8 @@ export interface FakeEngine {
   readonly secrets: FakeSecrets;
   readonly submitted: { readonly threadId: ThreadId; readonly requestId: string | undefined }[];
   readonly held: ReadonlySet<ThreadId>;
+  /** release가 불린 thread */
+  readonly released: readonly ThreadId[];
   /** tryAcquire가 불린 기록 */
   readonly acquisitions: { readonly threadId: ThreadId; readonly kind: OwnerKind }[];
   /** 연결을 거치지 않고 thread를 만든다(다른 프로세스가 만든 thread를 흉내 낸다) */
@@ -95,6 +110,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const held = new Set<ThreadId>();
   const submitted: { threadId: ThreadId; requestId: string | undefined }[] = [];
   const acquisitions: { threadId: ThreadId; kind: OwnerKind }[] = [];
+  const released: ThreadId[] = [];
   const log: FakeLog = { errors: [], infos: [] };
   const state: { running: TurnId | undefined; rejection: LoopError | undefined } = {
     running: undefined,
@@ -102,10 +118,12 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   };
   const storeId = options.storeId ?? FAKE_STORE_ID;
   const secrets = createFakeSecrets();
+  const scheduler = createManualScheduler();
   const counters = { reads: 0 };
 
   function commit(
     entries: readonly { kind: EventKind; threadId: ThreadId; payload?: unknown }[],
+    notify = true,
   ): CommitBatch {
     const firstSeq = events.length + 1;
     const batch: DurableEventEnvelope[] = entries.map((entry, index) => ({
@@ -125,7 +143,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     }));
     events.push(...batch);
     const result: CommitBatch = { firstSeq, lastSeq: events.length, events: batch };
-    for (const listener of Array.from(commitListeners)) listener(result);
+    if (notify) for (const listener of Array.from(commitListeners)) listener(result);
     return result;
   }
 
@@ -159,6 +177,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       },
       interrupt: () => Promise.resolve(false),
       stopAtSafeBoundary: () => Promise.resolve(true),
+      isLive: () => state.running !== undefined,
     },
     feed: {
       headSeq: () => (options.headFault === undefined ? ok(events.length) : err(options.headFault)),
@@ -193,8 +212,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       },
     },
     locks: {
-      tryAcquire(threadId, kind): Promise<LockOutcome> {
+      async tryAcquire(threadId, kind): Promise<LockOutcome> {
         acquisitions.push({ threadId, kind });
+        await options.acquireGate;
         if (options.lockedBy !== undefined) {
           return Promise.resolve({ ok: false, ownerKind: options.lockedBy });
         }
@@ -209,6 +229,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         });
       },
       holds: (threadId) => held.has(threadId),
+      release(threadId) {
+        held.delete(threadId);
+        released.push(threadId);
+        return Promise.resolve();
+      },
     },
     settings: {
       layers: () => options.layers ?? [],
@@ -233,6 +258,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     secrets: secrets.port,
     ids,
     clock: { now: () => RECORDED_AT },
+    scheduler,
   };
 
   function position(): StreamPosition {
@@ -255,7 +281,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     ids,
     log,
     events,
-    commit,
+    commit: (entries) => commit(entries),
+    commitForeign: (entries) => commit(entries, false),
+    scheduler,
+    released,
     emitVolatile(partial) {
       const event: VolatileEventEnvelope = {
         id: ids.next("evt"),

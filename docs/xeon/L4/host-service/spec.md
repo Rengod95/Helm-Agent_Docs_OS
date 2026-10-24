@@ -217,6 +217,7 @@ export interface EnginePorts {
   readonly notify: UserNotifyPort;     // L0.os
   readonly log: HostLogPort;           // L0.os
   readonly secrets: SecretsPort;       // L0.secrets 관리 서비스(`xeon.secretAdmin`)와 wire 밖 값 전달 통로 [결정: m2-plan HOST.3]
+  readonly scheduler: Scheduler;       // L0.os 타이머. 관찰 폴링(HS-16)이 쓴다. 시험은 수동 스케줄러를 넣는다
 }
 
 export interface ThreadPort {
@@ -238,6 +239,8 @@ export interface TurnPort {
   interrupt(threadId: ThreadId, turnId: TurnId | undefined): Promise<boolean>;
   /** 진행 중 turn을 다음 안전 경계에서 멈추고 체크포인트를 커밋한다. 시한 안에 끝나면 true. */
   stopAtSafeBoundary(deadlineMs: number): Promise<boolean>;
+  /** 그 thread에 진행 중인 turn이 있는가. 서비스 모드의 잠금 해제 판정(HS-27)이 쓴다. */
+  isLive(threadId: ThreadId): boolean;
 }
 
 export interface CommitBatch {
@@ -265,8 +268,9 @@ export type LockOutcome =
   | { readonly ok: false; readonly ownerKind: OwnerKind | null };   // sys_leases 행의 kind. 표시값이라 틀릴 수 있다
 
 export interface SessionLockPort {
-  tryAcquire(threadId: ThreadId, kind: OwnerKind): Promise<LockOutcome>;
+  tryAcquire(threadId: ThreadId, kind: OwnerKind): Promise<LockOutcome>;   // 같은 thread의 획득이 진행 중이면 그 결과를 함께 기다린다(HS-23)
   holds(threadId: ThreadId): boolean;
+  release(threadId: ThreadId): Promise<void>;                              // 쥔 잠금을 놓는다. 쥐지 않았으면 아무 일도 하지 않는다
 }
 
 export interface SettingsStorePort {
@@ -341,6 +345,12 @@ export interface ConnectionHub {
   serve(transport: Transport, options: ServeOptions): ServedConnection;
   onSizeChange(listener: (size: number) => void): Unsubscribe;
   closeAll(reason: string): Promise<void>;
+  state(connectionId: string): ConnectionState | undefined;               // 처리기가 연결의 열기 기록(openThreads, writeThreads, observedThreads)과 구독을 다룬다
+  connections(): readonly ConnectionState[];
+  beginShutdown(): void;                                                   // HS-31 1단계
+  releaseUnused(threadIds: readonly ThreadId[]): void;                     // HS-27. 서비스 모드만 놓는다
+  watchObserved(): void;                                                   // HS-16. 관찰할 thread가 생겼으면 폴링을 시작한다
+  dispose(): void;
 }
 
 export declare function createConnectionHub(engine: Engine, handlers: WireHandlers): ConnectionHub;
@@ -541,7 +551,7 @@ M2:
 
 | 메서드 | 처리 | 서비스 | 오류 |
 |---|---|---|---|
-| `thread.open` | `mode: "write"`이면 세션 잠금을 얻는다. 실패하면 `thread.locked`에 대안(§4.7). `mode: "observe"`이면 잠금 없이 연다 | `SessionLockPort`(L0.process), `ThreadPort.position`(L1.persistence) | 3001, 3002 |
+| `thread.open` | `mode: "write"`이면 세션 잠금을 얻고(이미 쥐었으면 그대로) 결과 `role`은 `owner`다. 실패하면 `thread.locked`에 대안(§4.7). `mode: "observe"`이면 잠금 없이 열고 `role`은 `observer`다. 둘 다 그 thread의 `stream.chunk`를 이 연결에 보낸다(HS-17) | `SessionLockPort`(L0.process, L0.store), `ThreadPort.position`(L1.persistence) | 3001, 3002 |
 | `thread.close` | 그 연결의 열기 기록을 지운다. §4.7 해제 조건이 맞으면 잠금을 푼다 | `SessionLockPort` | 3001 |
 | `thread.list` | 투영 목록을 돌려준다 | `ThreadPort.list`(L1.persistence) | - |
 | `thread.fork` | `parentId` 분기로 새 thread를 만들고 쓰기 소유를 얻는다 | `ThreadPort.fork`, `SessionLockPort` | 3001 |
@@ -685,7 +695,9 @@ F wire §4.3의 1~7단계를 그대로 구현한다. 1단계(프레임 크기)�
 - HS-13. 경계 검사 값: `storeId`는 `Engine.storeId`, `oldestReplayable`은 `EventFeedPort.oldestReplayableSeq()`, `maxReplayEvents`는 설정 키 값. 오류 details는 F wire §3.5.2의 `reason`, `storeId`, `headSeq`, `oldestReplayableSeq`를 모두 채운다.
 - HS-14. 실시간 구독에서 필터에 맞는 이벤트가 없는 커밋은 같은 JS 턴에 보내지 않고, `queueMicrotask`로 모아 빈 `events.batch` 하나로 위치를 넘긴다. 한 턴에 커밋이 여럿이면 마지막 `to` 하나로 합친다 [제안].
 - HS-15. 이벤트 변환은 `toEventWire(event, redact)`다. `redact`는 L1.persistence가 제공하는 가리기 규칙(2차 방어)을 쓴다. 1차 방어는 payload에 비밀 값을 넣지 않는 기록 규칙이다(F wire §3.4.5).
-- HS-16. 관찰 모드의 다른 프로세스 커밋: 이 호스트 프로세스가 쓰기 소유자가 아닌 thread의 커밋은 같은 프로세스의 커밋 알림으로 오지 않는다. 그런 thread를 관찰하는 구독이 하나라도 있으면 호스트는 `OBSERVE_POLL_MS`(250ms) 간격으로 `headSeq()`를 읽고, 늘었으면 그 구간을 `CommitBatch`로 만들어 HS-11과 같은 경로로 처리한다 [제안]. 관찰 구독이 없으면 폴링하지 않는다.
+- HS-16. 관찰 모드의 다른 프로세스 커밋: 이 호스트 프로세스가 쓰기 소유자가 아닌 thread의 커밋은 같은 프로세스의 커밋 알림으로 오지 않는다. 그런 thread를 관찰하는 연결(`thread.open { mode: "observe" }`)이 하나라도 있으면 호스트는 `OBSERVE_POLL_MS`(250ms) 간격으로 `headSeq()`를 읽고, 늘었으면 그 구간을 `CommitBatch`로 만들어 HS-11과 같은 경로로 처리한다 [제안]. 관찰하는 연결이 없거나 관찰하는 thread를 이 프로세스가 쥐었으면 폴링하지 않는다. 구현은 `handlers/observe.ts`이고 `EnginePorts.scheduler`로 타이머를 건다.
+  - 폴링이 읽는 구간은 필터 없이 읽어 모든 구독에 같은 경로로 전한다. 그래서 필터는 구독마다 다시 적용된다.
+  - 이 프로세스의 커밋 알림은 자기 커밋만 싣는다. 알림의 `firstSeq`가 구독이 책임진 위치보다 앞서 시작하면 사이 구간은 다른 프로세스의 커밋이므로, 구독은 그 구간을 `EventFeedPort.read`로 먼저 읽어 보낸 뒤 알림을 처리한다(`fillGap`, 재전송 뒤 `pending`을 비울 때도 같다). 그래서 폴링이 오기 전에 이 프로세스가 커밋해도 이벤트가 빠지지 않는다.
 
 ### 4.5 휘발 스트림
 
@@ -717,6 +729,9 @@ F wire §4.3의 1~7단계를 그대로 구현한다. 1단계(프레임 크기)�
   - 순서는 `["delegate", "observe", "fork"]`에서 해당하는 것만 남긴다. 단계 2 이후 기본이 위임이기 때문이다(ADR-0006 §3.6 3번).
 - HS-26. `ownerKind`는 `LockBusy.owner`(`sys_leases` 행)의 `kind`다. 행이 없거나 반납·만료 상태면 `null`이다. 판정에 쓰지 않는다.
 - HS-27. 잠금 해제: 그 thread를 `write`로 연 연결이 이 프로세스에 없고, 그 thread에 live 작업이 없을 때 푼다. 서비스 모드에서는 연결이 모두 떠나도 live 작업이 있으면 쥔다. in-process·stdio는 프로세스 종료 때 커널이 푼다.
+  - 구현(`ConnectionHub.releaseUnused`): 연결이 닫힐 때 그 연결이 쓰기로 연 thread마다 판정하고, 서비스 모드만 `SessionLockPort.release`를 부른다. live 작업은 `TurnPort.isLive`(진행 중 turn)로 본다. 연결이 떠난 뒤 turn이 끝나는 시점에 다시 판정하지 않으므로, live 작업 때문에 쥔 잠금은 서비스가 닫힐 때까지 남는다 [미결 §10 20번].
+  - 잠금을 기다리는 동안 연결이 닫혔으면 처리기는 `request.cancelled`로 끝나고 얻은 잠금은 같은 판정으로 놓는다.
+  - `thread.close`(HOST.2)도 같은 판정을 쓴다.
 - HS-28. `turn.start`는 이 프로세스가 그 thread의 잠금을 쥐고 있지 않으면 먼저 `tryAcquire`를 한 번 시도한다(암묵 획득) [제안]. 성공하면 HS-24 4단계처럼 토큰으로 쓰기를 열고 제출한다. 실패하면 3002와 HS-25의 `options`다. 그래서 M1에서도 기존 thread의 재개(`xeon chat --continue`, `L4.cli.spec` §4.3)가 `thread.open` 없이 동작한다. `turn.interrupt`, `thread.revert`, `thread.delete`는 암묵 획득을 하지 않고 `SessionLockPort.holds(threadId)`가 거짓이면 3002다.
 - HS-29. `sys_leases.heartbeat_at` 갱신은 `LeaseService.keepAlive`가 한다. 갱신이 `lease_lost`로 실패하면 호스트는 그 thread의 쓰기를 멈추고 소유를 잃은 것으로 다룬다. 주기는 L0.store가 정한다.
 - HS-30. 비정상 종료 표식의 "이어서 실행" 후보를 클라이언트에 알리는 wire 수단이 F에 없다(`thread.list`의 `ThreadSummary` 필드 미정, 전용 메서드 없음). F 변경 요청으로 §10 미결 8에 올린다. 그 전까지 후보는 `L1.persistence`의 투영에만 있다.
@@ -994,3 +1009,4 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 17. [결정: review.decisions-2 U-04] F 변경 요청: 파일 범위 설정 변경을 접속 중인 다른 클라이언트에 알리는 수단(`settings.invalidated` 등). M1에 넣지 않고 M2 계획에서 정한다. `L4.settings-ui.spec` §10 미결 1과 같은 항목이다.
 18. [미결] 패키지 도메인 이름: `package.json`의 `xeon.domain`은 `host`이고 routes.yaml 도메인은 `host-service`다(`architecture.layers.spec` §10 첫 항목). 작성자 결정 사항이며 이 문서는 디렉터리와 패키지 이름 `host`를 유지한다.
 19. [미결] F 요청, 비밀 관리 wire 보강(HOST.3). (a) `WIRE_ERRORS`에 비밀 관리 전용 kind가 없어 HS-47의 `internal` 대용을 쓴다. 3200번대 `secret.*` kind 요청. (b) `SecretTestResult`가 `registered`/`missing`뿐이라 `L4.cli.spec` §4.7이 요구하는 복호화 가능 여부, 길이, SHA-256 앞 8자를 싣지 못한다. 필드 추가 요청. (c) `SecretEntryOffer`에 `add`용 메타 일부(`desc`, `provider`, 사용 정책)를 싣는 선택 필드가 없어 HS-45의 기본 메타를 쓴다. (d) `secret.references`에 해당하는 wire 메서드가 없어 CLI `secret rm`이 삭제 전에 참조(설정 키, 활성 lease, 세션)를 보일 수 없다.
+20. [미결] HS-27 후속: 서비스 모드에서 live 작업 때문에 쥔 잠금을 작업이 끝난 뒤에 놓는 시점. `ActivityPort.onChange`와 thread별 활성 판정이 필요하다. M3 서비스 모드(H10~H11)에서 정한다.

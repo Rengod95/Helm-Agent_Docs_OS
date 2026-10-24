@@ -31,6 +31,7 @@ import { createEnginePorts, type PortsDeps } from "../../src/assembly/ports.ts";
 import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { flushMicrotasks } from "../fixtures/clock.ts";
+import { createManualScheduler } from "../fixtures/manual-scheduler.ts";
 import { partial } from "../fixtures/unsafe.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { sequentially } from "../../src/util.ts";
@@ -217,6 +218,7 @@ function harness(): Harness {
       signal: new AbortController().signal,
       os,
       clock: { now: () => 1 },
+      scheduler: createManualScheduler(),
       ids,
       logger,
       session,
@@ -373,6 +375,34 @@ describe("locks", () => {
     const again = await ports.locks.tryAcquire(THREAD, "app");
     expect(again.ok && again.token).toEqual(TOKEN);
     expect(h.calls.filter((call) => call.startsWith("lease.acquire"))).toHaveLength(1);
+  });
+
+  test("two connections asking for the same thread at once share one acquisition (HS-23)", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    const [first, second] = await Promise.all([
+      ports.locks.tryAcquire(THREAD, "app"),
+      ports.locks.tryAcquire(THREAD, "app"),
+    ]);
+    expect(first.ok && second.ok).toBe(true);
+    expect(h.calls.filter((call) => call.startsWith("lease.acquire"))).toHaveLength(1);
+    // 실패한 획득은 기록을 남기지 않아 다음 요청이 다시 시도한다
+    const other = ids.next("thr");
+    h.state.acquire = busy(null);
+    expect(await ports.locks.tryAcquire(other, "app")).toEqual({ ok: false, ownerKind: null });
+    h.state.acquire = ok(TOKEN);
+    expect((await ports.locks.tryAcquire(other, "app")).ok).toBe(true);
+  });
+
+  test("release gives the lock back by thread id, and releasing a thread that is not held does nothing", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    await ports.locks.release(THREAD);
+    expect(h.calls).toEqual([]);
+    await ports.locks.tryAcquire(THREAD, "app");
+    await ports.locks.release(THREAD);
+    expect(ports.locks.holds(THREAD)).toBe(false);
+    expect(h.calls.at(-1)).toBe("lease.release");
   });
 
   test("releasing runs session_shutdown, closes the thread for extensions and returns the lease", async () => {

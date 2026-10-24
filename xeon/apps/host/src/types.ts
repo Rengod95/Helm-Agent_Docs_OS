@@ -1,4 +1,4 @@
-import type { Clock, Result } from "@xeon/contracts";
+import type { Clock, Result, Scheduler } from "@xeon/contracts";
 import type { SecretMeta, SecretName } from "@xeon/contracts/capabilities";
 import type { IdFactory, ItemId, ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
@@ -108,6 +108,8 @@ export interface EnginePorts {
   readonly ids: IdFactory;
   /** 엔진의 시계. 송신 큐 같은 호스트 자신의 시각에 쓴다 */
   readonly clock: Clock;
+  /** 호스트 자신의 타이머(관찰 폴링, HS-16). L0.os의 스케줄러이고 시험은 수동 스케줄러를 넣는다 */
+  readonly scheduler: Scheduler;
 }
 
 export interface ThreadPort {
@@ -143,6 +145,8 @@ export interface TurnPort {
   interrupt(threadId: ThreadId, turnId: TurnId | undefined): Promise<boolean>;
   /** 진행 중 turn을 다음 안전 경계에서 멈추고 체크포인트를 커밋한다. 시한 안에 끝나면 true */
   stopAtSafeBoundary(deadlineMs: number): Promise<boolean>;
+  /** 그 thread에 진행 중인 turn이 있는가. 서비스 모드의 잠금 해제 판정(HS-27)이 쓴다 */
+  isLive(threadId: ThreadId): boolean;
 }
 
 export interface CommitBatch {
@@ -183,6 +187,8 @@ export type LockOutcome =
 export interface SessionLockPort {
   tryAcquire(threadId: ThreadId, kind: OwnerKind): Promise<LockOutcome>;
   holds(threadId: ThreadId): boolean;
+  /** 쥔 잠금을 놓는다(`session_shutdown` 발화, 임대 반납). 쥐고 있지 않으면 아무 일도 하지 않는다 */
+  release(threadId: ThreadId): Promise<void>;
 }
 
 export interface SettingsStorePort {

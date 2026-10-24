@@ -6,7 +6,7 @@ import { createHostHelloHandler, type HostInfo } from "./host.ts";
 import { notImplemented } from "./not-implemented.ts";
 import { createSecretHandlers } from "./secret.ts";
 import { createSettingsGetHandler } from "./settings.ts";
-import { createThreadCreateHandler } from "./thread.ts";
+import { createThreadCreateHandler, createThreadOpenHandler } from "./thread.ts";
 import { createTurnStartHandler } from "./turn.ts";
 
 export type { HostInfo } from "./host.ts";
@@ -26,7 +26,7 @@ export function createWireHandlers(
     "host.shutdown": notImplemented("host.shutdown"),
     "thread.list": notImplemented("thread.list"),
     "thread.create": createThreadCreateHandler(engine, hub),
-    "thread.open": notImplemented("thread.open"),
+    "thread.open": createThreadOpenHandler(engine, hub),
     "thread.read": notImplemented("thread.read"),
     "thread.close": notImplemented("thread.close"),
     "thread.delete": notImplemented("thread.delete"),

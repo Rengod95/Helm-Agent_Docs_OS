@@ -5,6 +5,7 @@ import {
   ok,
   parse,
   type Clock,
+  type Scheduler,
   type LogFields,
   type LogValue,
   type Logger,
@@ -61,6 +62,8 @@ export interface PortsDeps {
   readonly mode: HostMode;
   readonly os: OsService;
   readonly clock: Clock;
+  /** 관찰 폴링 같은 호스트 자신의 타이머. L0.os의 스케줄러다 */
+  readonly scheduler: Scheduler;
   readonly ids: IdFactory;
   readonly logger: Logger;
   readonly session: SessionService;
@@ -224,6 +227,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     },
     interrupt: (threadId, turnId) => loop.interrupt(threadId, turnId),
     stopAtSafeBoundary: (deadlineMs) => loop.stopAtSafeBoundary(deadlineMs),
+    isLive: (threadId) => loop.threadStatus(threadId).runningTurnId !== null,
   };
 
   const feed: EventFeedPort = {
@@ -263,69 +267,83 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     }
   }
 
-  const locks: SessionLockPort = {
-    async tryAcquire(threadId, kind: OwnerKind): Promise<LockOutcome> {
-      const current = held.get(threadId);
-      if (current !== undefined) {
-        return { ok: true, token: current.token, release: () => releaseThread(threadId) };
+  /** 같은 thread의 획득이 진행 중이면 그 결과를 함께 기다린다: 같은 프로세스의 두 연결이 자기 자신과 잠금을 다투지 않게 한다(HS-23) */
+  const acquiring = new Map<ThreadId, Promise<LockOutcome>>();
+
+  async function acquireFresh(threadId: ThreadId, kind: OwnerKind): Promise<LockOutcome> {
+    const current = held.get(threadId);
+    if (current !== undefined) {
+      return { ok: true, token: current.token, release: () => releaseThread(threadId) };
+    }
+    const acquired = store.leases.acquire(`session:${threadId}`, { ...deps.holder, kind });
+    if (!acquired.ok) {
+      const error = acquired.error;
+      if (error.kind === "lock_busy") return { ok: false, ownerKind: error.owner?.kind ?? null };
+      // lock_io·busy·disk_full은 환경 문제다. 결함이 아니므로 store.* 와이어 오류로 알린다
+      throw wireErrorOfLease(error, "lease.acquire failed");
+    }
+    const token = acquired.value;
+    const opened = session.openForWrite(threadId, token);
+    if (!opened.ok) {
+      store.leases.release(token);
+      // guard_mismatch는 토큰과 thread가 맞지 않는 호출 결함이다. 나머지는 예상 가능한 실패다
+      if (opened.error.kind === "guard_mismatch") {
+        throw new Bug("session.openForWrite: lease token does not match the thread", {
+          cause: opened.error,
+        });
       }
-      const acquired = store.leases.acquire(`session:${threadId}`, { ...deps.holder, kind });
-      if (!acquired.ok) {
-        const error = acquired.error;
-        if (error.kind === "lock_busy") return { ok: false, ownerKind: error.owner?.kind ?? null };
-        // lock_io·busy·disk_full은 환경 문제다. 결함이 아니므로 store.* 와이어 오류로 알린다
-        throw wireErrorOfLease(error, "lease.acquire failed");
-      }
-      const token = acquired.value;
-      const opened = session.openForWrite(threadId, token);
-      if (!opened.ok) {
+      throw wireErrorOfStore(opened.error, "session.openForWrite failed");
+    }
+    // 열 때 복구(L4.host-service.spec §4.1 7단계, L1.persistence.spec §4.8.1): 이전 프로세스가 남긴 결과 불명 효과를 합성 결과로 닫는다.
+    // 실행은 시작하지 않는다. 재실행 후보와 열린 turn은 그대로 두고 재개·새 입력이 이어받는다
+    const recovered = session.recover(threadId, {
+      toolReplay: (name) => deps.tools.meta(name)?.replay ?? null,
+      cancelledByOwner: () => false,
+      hostMode: deps.mode,
+    });
+    if (!recovered.ok) {
+      store.leases.release(token);
+      throw wireErrorOfStore(recovered.error, "session.recover failed");
+    }
+    const alive = store.leases.keepAlive(token, () => {
+      onLeaseLost(threadId);
+    });
+    try {
+      await ext.openThread(threadId);
+    } catch (caught) {
+      if (isNotImplemented(caught)) {
+        // core-persistence의 ext.loadThread(PS-16)는 M2다. 그 전에는 확장의 thread 상태(켜짐, 상태 판, 임대)를 읽어 들이지 못하지만
+        // 기본 대화는 돌아간다. 구현되면 이 분기는 저절로 쓰이지 않는다 [미결]
+        log.info("thread.extension_state_unavailable", { threadId, message: messageOf(caught) });
+      } else {
+        alive[Symbol.dispose]();
         store.leases.release(token);
-        // guard_mismatch는 토큰과 thread가 맞지 않는 호출 결함이다. 나머지는 예상 가능한 실패다
-        if (opened.error.kind === "guard_mismatch") {
-          throw new Bug("session.openForWrite: lease token does not match the thread", {
-            cause: opened.error,
+        // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 저장소 오류로 알린다. 빈 상태로 열면 켜짐과 상태 판을 잃는다
+        if (caught instanceof PrimitiveError && caught.code === "storage_unavailable") {
+          throw wireError("store.io", {
+            message: `ext.openThread failed: ${caught.message}`.slice(0, 200),
+            details: { code: "ext_state_unreadable" },
           });
         }
-        throw wireErrorOfStore(opened.error, "session.openForWrite failed");
+        throw caught;
       }
-      // 열 때 복구(L4.host-service.spec §4.1 7단계, L1.persistence.spec §4.8.1): 이전 프로세스가 남긴 결과 불명 효과를 합성 결과로 닫는다.
-      // 실행은 시작하지 않는다. 재실행 후보와 열린 turn은 그대로 두고 재개·새 입력이 이어받는다
-      const recovered = session.recover(threadId, {
-        toolReplay: (name) => deps.tools.meta(name)?.replay ?? null,
-        cancelledByOwner: () => false,
-        hostMode: deps.mode,
+    }
+    held.set(threadId, { token, alive });
+    return { ok: true, token, release: () => releaseThread(threadId) };
+  }
+
+  const locks: SessionLockPort = {
+    tryAcquire(threadId, kind: OwnerKind): Promise<LockOutcome> {
+      const pending = acquiring.get(threadId);
+      if (pending !== undefined) return pending;
+      const started = acquireFresh(threadId, kind).finally(() => {
+        acquiring.delete(threadId);
       });
-      if (!recovered.ok) {
-        store.leases.release(token);
-        throw wireErrorOfStore(recovered.error, "session.recover failed");
-      }
-      const alive = store.leases.keepAlive(token, () => {
-        onLeaseLost(threadId);
-      });
-      try {
-        await ext.openThread(threadId);
-      } catch (caught) {
-        if (isNotImplemented(caught)) {
-          // core-persistence의 ext.loadThread(PS-16)는 M2다. 그 전에는 확장의 thread 상태(켜짐, 상태 판, 임대)를 읽어 들이지 못하지만
-          // 기본 대화는 돌아간다. 구현되면 이 분기는 저절로 쓰이지 않는다 [미결]
-          log.info("thread.extension_state_unavailable", { threadId, message: messageOf(caught) });
-        } else {
-          alive[Symbol.dispose]();
-          store.leases.release(token);
-          // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 저장소 오류로 알린다. 빈 상태로 열면 켜짐과 상태 판을 잃는다
-          if (caught instanceof PrimitiveError && caught.code === "storage_unavailable") {
-            throw wireError("store.io", {
-              message: `ext.openThread failed: ${caught.message}`.slice(0, 200),
-              details: { code: "ext_state_unreadable" },
-            });
-          }
-          throw caught;
-        }
-      }
-      held.set(threadId, { token, alive });
-      return { ok: true, token, release: () => releaseThread(threadId) };
+      acquiring.set(threadId, started);
+      return started;
     },
     holds: (threadId) => held.has(threadId),
+    release: (threadId) => releaseThread(threadId),
   };
 
   const changeListeners = new Set<() => void>();
@@ -389,6 +407,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     secrets: deps.secrets,
     ids: deps.ids,
     clock: deps.clock,
+    scheduler: deps.scheduler,
   };
 
   return {

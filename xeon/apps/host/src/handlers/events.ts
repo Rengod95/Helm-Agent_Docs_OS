@@ -4,13 +4,13 @@ import {
   toVolatileEventWire,
   wireError,
   type EventFilter,
-  type Unsubscribe,
   type WireHandler,
 } from "@xeon/contracts/wire";
 import type { DurableEventEnvelope, ReadFailure } from "@xeon/contracts/records";
 import type { ConnectionHub, ConnectionState, Subscription } from "../connection-types.ts";
 import { wireErrorOfStore } from "../store-error.ts";
 import type { CommitBatch, Engine } from "../types.ts";
+import { createObservePoller } from "./observe.ts";
 import { messageOf, toRecord } from "../util.ts";
 
 // L4.host-service.spec §4.4~§4.5, F.wire-settings.spec §3.4.3. 구독과 재전송, 실시간 전달, 휘발 스트림.
@@ -69,20 +69,62 @@ function sendBatch(
   });
 }
 
+/** 읽은 한 쪽이 책임지는 마지막 seq. 쪽이 가득 찼으면 마지막 이벤트까지, 아니면 훑은 곳까지다. 읽기가 앞으로 가지 않는 비정상은 upto로 막는다 */
+function pageEnd(
+  read: { readonly events: readonly DurableEventEnvelope[]; readonly scannedTo: number },
+  limit: number,
+  after: number,
+  upto: number,
+): number {
+  const lastEvent = read.events[read.events.length - 1];
+  const to =
+    read.events.length >= limit && lastEvent !== undefined ? lastEvent.seq : read.scannedTo;
+  return to <= after || to > upto ? upto : to;
+}
+
+/**
+ * 다른 프로세스가 커밋한 구간을 메운다. 이 프로세스의 커밋 알림은 자기 커밋만 싣고 batch의 (firstSeq - 1)까지 사이에
+ * 다른 프로세스의 이벤트가 끼어 있을 수 있다. 구독이 책임진 위치에서 upto까지 읽어 먼저 보낸다(HS-16).
+ * 읽기가 실패하면 구독을 닫고 거짓을 돌려준다. 동기로 끝난다.
+ */
+function fillGap(engine: Engine, conn: ConnectionState, sub: Subscription, upto: number): boolean {
+  while (sub.pos < upto) {
+    const limit = conn.limits.replayBatchMaxEvents;
+    const page = engine.ports.feed.read(sub.pos, upto, sub.filter, limit, conn.limits.scanLimit);
+    if (!page.ok) {
+      endReplayFailed(engine, conn, sub, `gap read failed: ${page.error.kind}`);
+      return false;
+    }
+    const to = pageEnd(page.value, limit, sub.pos, upto);
+    sendBatch(
+      conn,
+      sub,
+      sub.pos,
+      to,
+      page.value.events.filter((event) => event.seq <= to),
+      false,
+    );
+    sub.pos = to;
+  }
+  return true;
+}
+
 /** pending 커밋을 커밋 순서대로 내보낸다. 마지막 알림만 caughtUp이다. 같은 JS 턴 안에서 끝난다 */
 function flushPending(
+  engine: Engine,
   conn: ConnectionState,
   sub: Subscription,
   batches: readonly CommitBatch[],
 ): void {
   const effective = batches.filter((batch) => batch.lastSeq > sub.pos);
-  effective.forEach((batch, index) => {
+  for (const [index, batch] of effective.entries()) {
+    if (batch.firstSeq > sub.pos + 1 && !fillGap(engine, conn, sub, batch.firstSeq - 1)) return;
     const matching = batch.events.filter(
       (event) => event.seq > sub.pos && matchesFilter(event, sub.filter),
     );
     sendBatch(conn, sub, sub.pos, batch.lastSeq, matching, index === effective.length - 1);
     sub.pos = batch.lastSeq;
-  });
+  }
 }
 
 /** 구독이 아직 열려 있는가. 대기(await)를 건너면 바뀔 수 있어 속성 접근을 함수로 감싼다 */
@@ -103,7 +145,7 @@ async function replayStep(
   if (!isOpen(sub)) return ok(undefined);
   if (sub.pos >= upto) {
     // 재전송할 것이 없다(또는 끝났다). 응답 전에 쌓인 커밋을 비우고 실시간으로 넘어간다
-    flushPending(conn, sub, sub.pending.splice(0));
+    flushPending(engine, conn, sub, sub.pending.splice(0));
     sub.state = "live";
     return ok(undefined);
   }
@@ -113,17 +155,15 @@ async function replayStep(
   const page = engine.ports.feed.read(sub.pos, upto, sub.filter, limit, conn.limits.scanLimit);
   if (!page.ok) return err(page.error);
   const read = page.value;
-  const lastEvent = read.events[read.events.length - 1];
-  let to = read.events.length >= limit && lastEvent !== undefined ? lastEvent.seq : read.scannedTo;
   // 읽기가 앞으로 가지 않는 비정상을 막는다: 진행이 보장되어야 재전송이 끝난다
-  if (to <= sub.pos || to > upto) to = upto;
+  const to = pageEnd(read, limit, sub.pos, upto);
   const events = read.events.filter((event) => event.seq <= to);
   if (to >= upto) {
     // 마지막 묶음과 pending 비우기를 한 번에 한다: 여기까지 await가 없으므로 중간 커밋이 끼지 않는다
     const rest = sub.pending.splice(0);
     sendBatch(conn, sub, sub.pos, to, events, rest.length === 0);
     sub.pos = to;
-    flushPending(conn, sub, rest);
+    flushPending(engine, conn, sub, rest);
     sub.state = "live";
     return ok(undefined);
   }
@@ -239,19 +279,32 @@ export function createEventsSubscribeHandler(
   };
 }
 
-function onCommit(conn: ConnectionState, sub: Subscription, batch: CommitBatch): void {
+/**
+ * 커밋 하나를 구독 하나에 전한다. 이 프로세스의 커밋 알림과 관찰 폴링(observe.ts)이 같은 경로를 쓴다.
+ * batch가 구독이 책임진 위치보다 앞서 시작하면 사이의 구간은 다른 프로세스의 커밋이므로 먼저 메운다(HS-16).
+ */
+export function deliverCommit(
+  engine: Engine,
+  conn: ConnectionState,
+  sub: Subscription,
+  batch: CommitBatch,
+): void {
   if (!sub.open) return;
   if (sub.state !== "live") {
     sub.pending.push(batch);
     return;
   }
   if (batch.lastSeq <= sub.pos) return;
+  if (batch.firstSeq > Math.max(sub.pos, sub.seenTo) + 1) {
+    if (!fillGap(engine, conn, sub, batch.firstSeq - 1)) return;
+  }
   const matching = batch.events.filter(
     (event) => event.seq > sub.pos && matchesFilter(event, sub.filter),
   );
   if (matching.length > 0) {
     sendBatch(conn, sub, sub.pos, batch.lastSeq, matching, true);
     sub.pos = batch.lastSeq;
+    sub.seenTo = Math.max(sub.seenTo, batch.lastSeq);
     return;
   }
   // HS-14: 맞는 이벤트가 없는 커밋은 같은 JS 턴에 보내지 않고 모아 빈 알림 하나로 위치를 넘긴다
@@ -270,13 +323,25 @@ function onCommit(conn: ConnectionState, sub: Subscription, batch: CommitBatch):
  * 엔진의 커밋 알림과 휘발 이벤트를 연결에 나눈다. 커밋 알림은 커밋 직후 같은 JS 턴에서 동기로 오므로(TX-09)
  * 여기서는 쓰기를 하지 않고 송신 큐에 넣기만 한다. 휘발 이벤트는 그 thread를 연 연결에만 보내고,
  * 송신 큐가 저수위를 넘으면 버린다(HS-17, HS-19). n과 afterSeq는 발신자(core-loop)가 채운 값을 그대로 쓴다.
+ * 다른 프로세스가 쥔 thread를 관찰하는 연결이 있으면 폴링이 그 프로세스의 커밋을 같은 경로로 전한다(HS-16).
  */
-export function startEventFanout(engine: Engine, hub: ConnectionHub): Unsubscribe {
+export interface EventFanout {
+  /** 관찰 중인 thread가 생겼으면 폴링을 시작한다(HS-16) */
+  watchObserved(): void;
+  stop(): void;
+}
+
+export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanout {
   const { feed } = engine.ports;
-  const offCommit = feed.onCommit((batch) => {
+  const deliver = (batch: CommitBatch): void => {
     for (const conn of hub.connections()) {
-      for (const sub of Array.from(conn.subs.values())) onCommit(conn, sub, batch);
+      for (const sub of Array.from(conn.subs.values())) deliverCommit(engine, conn, sub, batch);
     }
+  };
+  const poller = createObservePoller(engine, hub, deliver);
+  const offCommit = feed.onCommit((batch) => {
+    poller.committed(batch.lastSeq);
+    deliver(batch);
   });
   const offVolatile = feed.onVolatile((event) => {
     for (const conn of hub.connections()) {
@@ -289,8 +354,14 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): Unsubscrib
       });
     }
   });
-  return () => {
-    offCommit();
-    offVolatile();
+  return {
+    watchObserved: () => {
+      poller.refresh();
+    },
+    stop() {
+      offCommit();
+      offVolatile();
+      poller.dispose();
+    },
   };
 }
