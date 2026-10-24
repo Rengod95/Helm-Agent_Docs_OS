@@ -299,14 +299,14 @@ export interface CliDeps {
   readonly connect: ConnectEngine;                      // §3.3. 실제 값은 connectEngine
   /** @xeon/host의 runHostCommand 그대로. host --stdio, service *, config schema가 쓴다(§3.3 표). */
   readonly runHostCommand: (command: HostCommand, io: CommandIo) => Promise<0 | 1 | 2>;
-  readonly clock: { now(): number };                    // Ctrl+C 2회 판정(§4.6). eng.typescript.guide의 Clock
+  readonly clock: { now(): number };                    // Ctrl+C 2회 판정(§4.6). eng.typescript.guide의 Clock. 실제 값은 @xeon/platform-os의 systemClock()
 }
 
 /** 프로세스 밖 효과는 io와 deps로만 한다. 테스트는 둘을 가짜로 넣는다. */
 export declare function runCli(argv: readonly string[], io: CliIo, deps: CliDeps): Promise<ExitCode>;
 ```
 
-- `main.ts`의 최상위 코드는 `process.argv.slice(2)`, 실제 `CliIo`, `CliDeps`(`connectEngine`과 `@xeon/host`의 `runHostCommand`)로 `runCli`를 부르고 `process.exit(code)`만 한다.
+- `main.ts`의 최상위 코드는 `process.argv.slice(2)`, 실제 `CliIo`, `CliDeps`(`connectEngine`과 `@xeon/host`의 `runHostCommand`)로 `runCli`를 부르고 `process.exit(code)`만 한다. 최상위 await를 쓰지 않는다(`bun build --compile --bytecode`). 실제 `CliIo`·`CliDeps`를 만드는 코드는 `runtime.ts`에 있고 `main.ts`가 필요할 때 읽는다.
 
 ### 3.5 렌더러
 
@@ -749,7 +749,7 @@ export type CliState = Static<typeof CliStateSchema>;
 3. [미결] 비밀 명령의 wire 경로. 값 없는 메서드 `secret.list`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`(add·set·rotate)는 F 표에 M2로 들어왔다. 값을 싣는 메서드는 두지 않는다(`L0.secrets.spec` §8.3 R4). 열람은 `xeon secret reveal`로 정했다 [결정: review.decisions-2 U-20]. 남은 것: `secret.beginReveal`의 F 추가(review.decisions-2 U-04에 따라 M2 계획에서 정한다), in-process에서 CLI가 읽은 값을 wire 밖으로 L0.secrets에 넘기는 `@xeon/host` API(§4.7), `secret run -- <cmd>`를 둘지.
 4. [미결] `type`에 `range`를 병합하는 함수를 F에 공통으로 둘지(`_research/notes/L4-3.md`). `config schema`는 wire 없이 로컬 명령(`L4.host-service.spec` §6.2)으로 정해져 F 변경 요청에서 뺐다.
 5. [미결] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. [제안] 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더한다.
-6. [결정: review.m2-plan §8 D10] pi-tui 채택은 M2 스파이크의 한글 IME·CJK 폭 확인 통과를 조건으로 한다. 실패하면 최소 renderer로 유지한다. M2 종료 조건이 아니다. 스파이크 결과는 이 항목에 적는다.
+6. [결정: review.m2-plan §8 D10] pi-tui 채택은 M2 스파이크의 한글 IME·CJK 폭 확인 통과를 조건으로 한다(§4.9.2). 실패하면 최소 renderer로 유지한다. M2 종료 조건이 아니다. 스파이크 결과(2026-10-24, `L4.cli.plan` §4.4): CJK 폭, IME 확정 입력, 하드웨어 커서 위치, 줄바꿈의 자동 확인은 모두 통과했다. 실제 터미널(macOS·Linux·WSL)의 한국어 IME 확인과 Bun 1.4.3 `--compile` 실행 확인이 남아 채택을 보류하고 최소 renderer를 유지한다. 최소 renderer의 진행 줄이 문자 수로 잘리던 문제는 칸 수 기준으로 고쳤다.
 7. [미결] 릴리즈 형태: 단일 파일만 배포할지, pi처럼 `native/` 사이드카 디렉터리를 함께 둘지(`_research/notes/L4-1.md` §5). macOS 공증 때 사이드카 `.node`와 FTS5 dylib의 서명 위치는 `_research/notes/L4-2.md`가 다룬다.
 8. [미결] print 모드에서 승인 요청이 오면 거부하는 기본값, 비대화 자동 승인 플래그를 둘지.
 9. [결정: review.decisions-2 U-02] 승인 요청은 A안(내구 이벤트 `approval.requested`/`approval.resolved` + `approval.respond`)이다. kind는 F.records 카탈로그에 있다(`F.records.spec` §3.2).

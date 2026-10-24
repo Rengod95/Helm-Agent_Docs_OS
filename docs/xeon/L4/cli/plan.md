@@ -79,7 +79,7 @@ xeon/apps/cli/
 | 항목 | 현재 | 목표 | 작업 |
 |---|---|---|---|
 | `package.json` `exports` | `".": "./src/index.ts"` | [제안] `".": "./src/main.ts"`. 다른 앱이 import하지 않으므로(DR-10) 테스트와 knip용이다 | C0 |
-| `package.json` 의존 | `devDependencies: { "@types/bun": "catalog:" }`만 | `dependencies`: `@xeon/contracts`(`workspace:*`), `typebox`(`catalog:`), `@xeon/host`(`workspace:*`, 허용 목록 `DR-10/cli-host`, review.decisions-2 U-15). pi-tui는 C8 뒤 | C0, C8 |
+| `package.json` 의존 | `devDependencies: { "@types/bun": "catalog:" }`만 | `dependencies`: `@xeon/contracts`(`workspace:*`), `typebox`(`catalog:`), `@xeon/host`(`workspace:*`, 허용 목록 `DR-10/cli-host`, review.decisions-2 U-15), `@xeon/platform-os`(`workspace:*`, 운영 `Clock`, CLI.5), `get-east-asian-width`(`catalog:`, 칸 수 계산). pi-tui는 C8 결과가 채택일 때만(§4.4) | C0, C8 |
 | `src/index.ts` | `export {};` | 지우고 `src/main.ts`로 바꾼다 | C0 |
 | `test/smoke.test.ts` | 진입 모듈 로드 확인 | `parse-chat-flags` 등 단위 테스트로 바꾼다 | C1 |
 | `tsconfig.json` `references` | `[]` | `../../packages/contracts`, `../host` | C0 |
@@ -103,7 +103,7 @@ xeon/apps/cli/
 | C5 | `config get`: 텍스트·JSON 출력, `source`·`shadowed`·`locked`·`pendingUntil` 표시. `config schema`: `--scope <managed\|user\|project\|local>`, `--out`, `--core-only` 파싱과 `runHostCommand({ kind: "config-schema" })` 호출 | C2, `L4.host-service.plan` H8 | S | M1 |
 | C6 | 최소 대화형: `node:readline` 입력, 진행 줄 한 줄 덮어쓰기, Ctrl+C 계수(`signals.ts`), SIGTERM·SIGHUP 종료 요청 | C3, C2 | M | M1 |
 | C7 | scenario 테스트와 테이프: `chat.scenario.test.ts`, `fixtures/scenario-main.ts`, 테이프 2개(§5.2) | C2, C4, `@xeon/core-models/testing` 테이프, 조립 진입점의 테스트용 모델 주입 | M | M1 |
-| C8 | TUI 채택 스파이크: `_research/notes/L4-1.md` §7의 1·6번, 한글 IME·CJK 폭 확인(macOS Terminal·iTerm2, Linux, WSL). 통과하면 `tui/pi-tui.ts` 화면과 키 바인딩 파일. 실패하면 결과를 spec §10 6번에 적고 최소 renderer 유지 | C6, 스택 추가(TC-04). 채택은 스파이크 통과 조건부 [결정: review.m2-plan §8 D10] | M(스파이크) + M(화면) | M2 스파이크(M1·M2 완료 조건 아님) |
+| C8 | TUI 채택 스파이크: `_research/notes/L4-1.md` §7의 1·6번, 한글 IME·CJK 폭 확인(macOS Terminal·iTerm2, Linux, WSL). 통과하면 `tui/pi-tui.ts` 화면과 키 바인딩 파일. 실패하면 결과를 spec §10 6번에 적고 최소 renderer 유지. 상태: 자동 확인 통과, 수동 확인 대기(§4.4) | C6, 스택 추가(TC-04). 채택은 스파이크 통과 조건부 [결정: review.m2-plan §8 D10] | M(스파이크) + M(화면) | M2(스파이크는 M1 말에 시작 가능, M1 완료 조건 아님) |
 | C9 | `secret` 명령: 프롬프트(에코 없음, 2회 비교), stdin 읽기, 바이트 배열 0 덮기, `secret test` 출력, `secret reveal`(TTY 전용, review.decisions-2 U-20), JSON 탭 해제. wire는 값 없는 `secret.*`만 쓴다(spec §4.7) | C1, F `secret.*`(M2), `secret.beginReveal` F 추가(spec §10 3번), in-process 값 전달 API(spec §10 3번), `L0.secrets.plan` | M | M2 |
 | C10 | `sessions ls/show/fork/rm` | C1, C3, host M2 처리기(`thread.list`, `thread.fork`, `thread.delete`, `events.unsubscribe`) | M | M2 |
 | C11 | 승인 프롬프트와 `thread.locked` 프롬프트, Ctrl+C 1회 `turn.interrupt` | C6(또는 C8), host M2 처리기(`approval.respond`, `thread.open`, `turn.interrupt`), F 승인 kind | M | M2 |
@@ -157,9 +157,84 @@ xeon/apps/cli/
 
 - 명령 [제안]: `bun build --compile --target=<타깃> --minify apps/cli/src/main.ts --outfile apps/cli/dist/<타깃 접미사>/xeon`. 레시피 이름은 `just build-cli [타깃]`으로 제안하고, justfile 변경은 툴체인 담당에 요청한다(TC-09).
 - `--bytecode`: 시작 속도 개선 사례가 있다(`_research/stack-status.md` §7-C). C14에서 켠 것과 끈 것을 함께 측정하고, 오류 스택·소스맵과의 호환을 확인한 뒤 정한다 [미결].
+- 최상위 await: `apps/cli/src` 안에는 없고 `test/no-top-level-await.test.ts`가 0열에서 시작하는 await 식을 막는다. `main.ts`는 `runFromProcess().catch(...)`로 부르고 `import.meta.main`일 때만 실행한다. CLI 바이너리는 `@xeon/host`의 `main.ts`를 번들에 넣으므로, `--bytecode` 빌드는 `apps/host/src/main.ts`의 최상위 await 제거(m2-plan HOST.5)가 끝나야 통과한다.
 - 산출물은 커밋하지 않는다(`eng.toolchain.guide` TC-05). `apps/*/dist/`를 `.gitignore`가 덮는지 C14에서 확인한다.
 - 엔진 바이너리 이름과 진입(`apps/cli/src/main.ts`)은 [제안]이다. `L4.host-service.spec`이 다른 진입을 정하면 이 표를 고친다.
 - 측정(C14): 공식 크기 수치가 없다(`_research/stack-status.md` §7-C "still way too big"). 타깃별 바이너리 크기, `xeon version` 기동 시간(20회 중앙값), `xeon config get` 기동 시간과 시작 RSS를 잰다. 측정 스크립트는 `xeon/scripts/`에 두고 새 도구를 들이지 않는다(TC-04). 결과는 이 문서 §4.3에 표로 더한다.
+
+### 4.4 TUI 스파이크 결과 (C8, 2026-10-24)
+
+[결정: m2-plan D10] pi-tui 1.3.0은 스파이크의 한글 IME·CJK 폭 확인이 통과할 때만 채택한다. 이 절은 자동으로 확인할 수 있는 부분의 결과와, 실제 터미널에서 사람이 확인할 목록을 적는다.
+
+판정: 보류. 최소 renderer를 유지하고 pi-tui는 catalog에 넣지 않았다. 자동 확인은 모두 통과했지만 채택 조건 가운데 실제 터미널 확인과 Bun 1.4.3 `--compile` 실행 확인이 남았다.
+
+#### 4.4.1 방법과 환경
+
+- 대상: `@earendil-works/pi-tui@1.3.0` tarball(npm 레지스트리의 sha512 일치 확인), 전이 의존 `marked@18.0.11`, `get-east-asian-width@1.6.0`.
+- 실행 환경: Node 24.19.0, Linux(WSL2). 스크립트는 작업 폴더 밖 임시 디렉터리에서 돌렸고 저장소에는 넣지 않았다. Bun으로는 돌리지 않았다(이 환경에서는 `just` 레시피로만 Bun을 실행하고, 스파이크용 레시피가 없다).
+- 가상 터미널: `@xterm/headless@5.5.0`(pi-tui 저장소 테스트가 쓰는 같은 에뮬레이터). `Terminal` 인터페이스를 구현해 `TuiMainScreen`에 연결하고, 렌더 결과의 버퍼 내용과 커서 위치를 읽었다.
+- 실제 PTY: `ProcessTerminal`을 PTY에서 띄우고(파이프 입력은 쓰지 않았다), 한글·한자·이모지 바이트열을 멀티바이트 문자 중간에서 끊어 나누어 보냈다.
+
+#### 4.4.2 CJK 폭 (pi-tui `visibleWidth`, `truncateToWidth`, `wrapTextWithAnsi`)
+
+기대 칸 수는 UAX #11과 UTS #51에서 정했다. 모두 통과했다.
+
+| 입력 | 칸 수 |
+|---|---|
+| 한글 음절 `한글` | 4 |
+| 조합형 자모 `한글`(NFD) | 4 |
+| 호환 자모 `ㅎㅏㄴ` | 6 |
+| 한자 `漢字`, 가나 8자, 전각 `ＡＢＣ` | 4, 16, 6 |
+| 반각 가타카나 `ｱｲｳ` | 3 |
+| 이모지 `😀`, ZWJ 가족, 국기, VS16 하트, 피부색 | 각 2 |
+| 결합 악센트 `é`(분해형) | 1 |
+| SGR·OSC 8 하이퍼링크로 감싼 한글 | 겉 시퀀스 제외 |
+| 모호 폭(`…`, `→`, `★`) | 1(좁게) |
+
+- `truncateToWidth`는 모든 경우에 한도를 넘지 않고 2칸 문자를 나누지 않았다.
+- `wrapTextWithAnsi`는 폭 10, 11, 16, 20, 33에서 한글·한자·이모지가 섞인 문장을 줄마다 폭 이내로 나누었고 내용이 보존됐다.
+
+#### 4.4.3 IME와 입력 모델
+
+터미널의 IME는 조합 중인 글자(preedit)를 터미널 에뮬레이터가 그리고, 앱에는 확정된 문자열만 보낸다. 그래서 앱이 보장할 것은 확정 문자열을 온전히 넣는 것, 칸 수가 맞는 줄바꿈과 커서 위치, 후보 창이 붙을 하드웨어 커서 위치다. 통과한 항목:
+
+- 음절을 하나씩 확정해 보낸 입력(`안녕하세요`)과, 한 덩어리로 온 입력(`한글 입력 테스트`)이 `Editor`에 그대로 들어간다.
+- `showHardwareCursor`를 켠 상태에서 렌더 뒤 에뮬레이터의 커서 열이 텍스트 끝의 칸 수와 같다(IME 후보 창 기준점). 포커스를 받은 `Editor`는 `CURSOR_MARKER`를 낸다.
+- Backspace는 한글 음절 하나(조합형은 자모 3개 묶음)를 한 번에 지운다. 커서 이동은 자소 클러스터 단위다(이모지, 한글).
+- 확정되지 않은 호환 자모(`ㅎ`, `ㅏ`, `ㄴ`)를 앱이 합치거나 지우지 않고 그대로 둔다. 조합은 IME의 일이다.
+- 폭 20칸 터미널에서 긴 한글 줄이 폭을 넘지 않고 줄바꿈되고, 에뮬레이터 버퍼에 글자가 모두 있다. 커서 열이 폭 안이다. `Input`의 가로 스크롤도 폭 12에서 폭을 넘지 않았다.
+- 괄호 붙여넣기(`ESC[200~ … ESC[201~`)에 든 한글과 줄바꿈이 보존된다.
+- PTY에서 `ProcessTerminal`로 받은 `한글 입력, 漢字 😀`이, 멀티바이트 문자 중간에서 끊긴 일곱 조각으로 보내도 온전히 제출됐다(Node에서 `process.stdin.setEncoding("utf8")`가 조각을 이어 붙인다).
+
+관찰:
+
+- `StdinBuffer.process()`에 `Buffer`를 멀티바이트 문자 중간에서 끊어 주면 대체 문자(U+FFFD)가 나온다. `ProcessTerminal`은 `setEncoding("utf8")`로 문자열만 넘기므로 Node에서는 드러나지 않는다. Bun의 `process.stdin`이 같은 이어 붙이기를 하는지는 확인하지 못했다. 수동 확인 6번의 항목이다.
+- 1.3.0 `TuiMainScreen`은 하드웨어 커서를 숨긴 상태에서도 위치는 맞춘다(README "Focusable Interface"). 후보 창이 보이지 않는 터미널이 있으면 `setShowHardwareCursor(true)`로 바꾼다.
+
+#### 4.4.4 최소 renderer에서 찾은 문제
+
+스파이크의 폭 확인을 현재 최소 renderer에 적용하다가 문제를 하나 찾아 고쳤다. `progressLine`과 도구 결과 줄 자르기(`render/tools.ts`)가 UTF-16 길이로 잘랐다. 한글·한자는 문자 하나가 2칸이라 40칸 터미널에서 한글 40자 진행 줄이 80칸이 되어 줄이 접히고, 한 줄 덮어쓰기(`\r ESC[2K`)가 윗줄의 잔상을 남겼다. `src/render/width.ts`(`displayWidth`, `truncateToWidth`)로 칸 수 기준으로 바꾸었다. `get-east-asian-width` 1.6.0을 catalog에 더했다(pi-tui 1.3.0의 의존과 같은 값). 규칙은 자소 클러스터 단위, 이모지 표현·국기·VS16 2칸, 제어 문자 0칸, 나머지는 첫 코드 포인트의 East Asian Width(모호 폭은 좁게)다. `test/width.test.ts`가 pi-tui 스파이크와 같은 입력을 확인한다.
+
+#### 4.4.5 채택 조건과 수동 확인 목록
+
+채택 조건(모두 충족할 때 `tui/pi-tui.ts` 화면과 키 바인딩 파일을 만들고 catalog에 `@earendil-works/pi-tui` 1.3.0을 정확 고정으로 더한다. 공유 파일 변경이므로 TC-04 승인을 함께 받는다):
+
+1. 아래 수동 확인 1~4번이 통과한다.
+2. 5~6번(Bun 1.4.3 `--compile` 바이너리)이 통과한다.
+3. 최소 renderer 대비 기동 시간과 시작 RSS 증가가 C14 측정표에서 받아들일 수준이다 [미결: 기준값].
+
+수동 확인(사람이 터미널에서, 스파이크 스크립트와 같은 최소 앱으로):
+
+| 번호 | 환경 | 확인 |
+|---|---|---|
+| 1 | macOS Terminal.app, iTerm2, Linux(GNOME Terminal 등), WSL(Windows Terminal) | 한국어 IME로 `안녕하세요`를 입력하는 동안 조합 글자가 입력 위치에 보이고 후보 창이 커서 근처에 붙는다. 확정 뒤 글자가 중복되거나 깨지지 않는다 |
+| 2 | 위와 같음 | Backspace가 확정 음절을 한 번에 지운다. 조합 중 Backspace는 조합 글자를 줄인다(IME 동작) |
+| 3 | 위와 같음 | 터미널 폭을 줄여 한글 줄이 줄바꿈될 때 줄 끝 글자가 겹치거나 잘리지 않는다. 폭을 바꾸는 중에도 같다 |
+| 4 | 위와 같음 | 한자, 이모지(ZWJ·피부색·국기)가 섞인 줄에서 커서 위치와 지우기가 어긋나지 않는다. 터미널마다 이모지 폭이 다를 수 있으므로 어긋나는 터미널과 문자를 기록한다 |
+| 5 | Linux x64, macOS arm64 | Bun 1.4.3 `bun build --compile`로 만든 최소 바이너리가 애드온 없이 시작·종료한다(`_research/notes/L4-1.md` §7 1번) |
+| 6 | 5번 바이너리 | `process.execPath` 값(같은 문서 §7 6번)과, 멀티바이트 문자 중간에서 끊긴 stdin 입력이 온전히 이어지는지 확인한다 |
+
+최소 renderer(`node:readline`)에서도 같은 1~4번 중 입력 줄에 해당하는 항목(1, 2)을 한 번 확인한다. 줄 편집은 Node `readline`이 하며, Bun 1.4.3의 `node:readline`이 CJK 폭을 같게 다루는지는 확인하지 못했다.
 
 ## 5. 단위 테스트 목록
 
@@ -185,6 +260,8 @@ xeon/apps/cli/
 
 추가 unit [제안]: `tool-renderers`(read·ls·bash의 `details` 표시, 렌더러가 없을 때 `content` 20줄), `state-file`(깨진 파일 버림, 원자 쓰기), `keybindings-conflict`(충돌 목록 출력). 이 셋은 위 목록의 이름 규칙을 따른다.
 
+추가 unit(M2 CLI.5): `width`(한글·한자·이모지의 칸 수와 폭 자르기, §4.4.4), `no-top-level-await`(`src` 안 최상위 await 금지, §4.3).
+
 ### 5.2 scenario
 
 - 파일: `apps/cli/test/chat.scenario.test.ts` 하나. 저장소 전체의 유일한 scenario다(`eng.testing.guide` TS-01).
@@ -198,6 +275,7 @@ xeon/apps/cli/
   2. 자식을 SIGKILL한다. 받은 마지막 seq를 기억한다.
   3. 같은 디렉터리로 `chat --continue -p "<입력>" --json`을 띄워 끝까지 받는다.
   4. 확인: 종료 코드 0, 같은 `threadId`, 새로 받은 seq가 모두 기억한 seq보다 크고 중복 없음, 새 turn `completed`(spec AC1·AC2). 이전 turn의 종결 상태는 엔진 복구 규칙에 따른다 [가정].
+- 전역 시각과 sleep을 쓰지 않는다(open-issues V-02, eng.typescript.guide TY-21). 운영 `Clock`은 `@xeon/platform-os`의 `systemClock()`이고, 테스트의 실시간 시계와 대기 한도 타이머는 `systemClock`·`systemScheduler`로 만든다. 세 번째 시험의 `turn.busy` 재시도는 이벤트 루프를 한 바퀴씩 넘기며 시도 횟수 상한(2000) 안에서 다시 시도한다. M1 엔진에는 루프 정착을 알리는 포트가 없어서다(`ActivityPort`는 task 그래프 변화만 알리고, M1에서 `snapshot()`은 던진다). 정착 알림이 생기면 그 알림을 기다리는 방식으로 바꾼다.
 - 결정성은 D1이다. 특정 이벤트열을 바이트로 비교하지 않는다(TS-08 3번).
 
 ## 6. 완료 기준
@@ -222,7 +300,7 @@ xeon/apps/cli/
 | pi-tui 네이티브 애드온이 compile 바이너리에서 로드되지 않는다 | Shift+Enter(Apple Terminal), 네이티브 클립보드가 빠진다 | 애드온은 선택 기능이고 폴백이 있다(`_research/notes/L4-1.md` §3). 1차 배포는 애드온 없이 낸다. 필요해지면 사이드카 `native/` 디렉터리(pi 방식)를 쓴다. 단일 파일이 필수면 로더 후보 경로 한 곳만 바꾸는 얇은 포크(같은 문서 §5.3 B1) |
 | pi-tui 자체가 Bun 1.4.3 `--compile`에서 동작하지 않는다 | 대화형 TUI 지연 | M1은 pi-tui 없이 통과한다(최소 renderer). C8 실패 시 최소 renderer를 유지하고 라이브러리 선택을 [미결]로 둔다 |
 | pi-tui 버전 어긋남 | 참조 트리 1.1.0과 npm 1.3.0의 차이, CHANGELOG 없음 | 1.3.0을 정확 고정하고 pi-ai와 같은 묶음으로만 올린다. 소스 확인은 1.3.0 tarball 기준 |
-| CJK 폭 계산과 IME 후보 창 위치 | 한글 줄바꿈 깨짐, 입력 위치 어긋남 | C8에서 macOS·Linux·WSL 터미널로 확인. `Focusable`과 `showHardwareCursor` 설정. 최소 renderer는 터미널 줄 편집을 그대로 쓴다 |
+| CJK 폭 계산과 IME 후보 창 위치 | 한글 줄바꿈 깨짐, 입력 위치 어긋남 | C8에서 macOS·Linux·WSL 터미널로 확인(§4.4.5). `Focusable`과 `showHardwareCursor` 설정. 최소 renderer는 터미널 줄 편집을 그대로 쓰고 진행 줄과 도구 결과 줄은 칸 수로 자른다(`render/width.ts`) |
 | `--bytecode`와의 호환 | 기동 실패나 스택 정보 손실 | C14에서 켠 것과 끈 것을 비교하고, 문제가 있으면 끈다 |
 | M1 대화형 범위가 커진다 | M1 지연 | print 모드를 먼저 끝내고(C2·C3·C4), 대화형은 C6 범위(한 줄 입력, 진행 줄)로 제한한다. 화면 기능은 M2 C8로 넘긴다 |
 | 승인 wire가 번복된다(A안은 review.decisions-2 U-02로 결정, 2026-10-22 확인) | C11 재작업 | C11을 M2에 둔다. `ApprovalView` 변환 함수 하나에 payload 의존을 모아 바뀌는 범위를 줄인다 |
