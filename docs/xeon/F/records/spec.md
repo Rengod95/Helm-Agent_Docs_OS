@@ -823,6 +823,11 @@ export const COMMIT_KEY_PATTERN: string = "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$";
 /** 밖에서 온 id(toolCallId)를 키 부분으로 바꾸는 유일한 함수. 규칙 정본은 eng.transactions.design §4.7(review.decisions-2 U-13).
  *  원문이 ^[A-Za-z0-9_.-]{1,120}$이고 "h_"로 시작하지 않으면 그대로, 아니면 "h_" + sha256Hex(원문) 앞 40자. 순수 */
 export function commitKeyPart(raw: string, sha256Hex: (text: string) => string): string;
+/** 승인 요청 키(`approval.requested`의 requestKey, `ApprovalRequestInput.requestKey`)의 길이 상한. `approval.requested` 스키마의 requestKey maxLength와 `L2_APPROVAL_REQUEST_ID_MAX`는 순환 import와 services의 값 import 금지 때문에 같은 값을 거울로 두고 시험이 일치를 지킨다 [결정: 통합 검토 L6] */
+export const APPROVAL_REQUEST_KEY_MAX: number = 48;
+/** 밖에서 온 id(toolCallId, L2 requestId)를 승인 요청 키(`^[A-Za-z0-9_.-]{1,48}$`)로 바꾸는 유일한 함수 [결정: 통합 검토 L6]. commitKeyPart(raw)가 48자 이하면 그대로,
+ *  넘으면 "h_" + sha256Hex(원문) 앞 40자. core-tools 파이프라인, 호스트 l2-approvals, cap-*가 자기 함수를 따로 두지 않고 이 함수를 쓴다. 순수 */
+export function requestKeyFor(raw: string, sha256Hex: (text: string) => string): string;
 /** 확장이 아닌 입력 출처 키. 확장 id로 쓸 수 없다(F.extensions.spec §4.7 name_reserved, review.decisions-2 U-13) */
 export const RESERVED_SOURCE_KEYS: readonly ["user", "deleg", "timer"];
 /** 생산자 id. 형식 정본은 eng.context-map.design §5.1 */
@@ -1036,7 +1041,7 @@ export interface RecordCommitPort {
 |---|---|---|
 | `lease.ts` | `LeaseResource`, `LEASE_RESOURCE_PATTERN`, `LeaseKind`, `LeaseHolder`, `LeaseToken`, `LeaseOwnerInfo`, `LockBusy`, `LeaseRowInvalid`, `LeaseError`, `LeaseService` | `L0.store.spec` §3.1(FR-S2) |
 | `migrations.ts` | `MigrationStep`, `MigrationSet`, `MigrationError`, `MigrationReport`, `MigrationRunner`, `ExtensionTables`, `ExtensionTableError`. `ChunkMigration`은 §3.7에 둔다 | `L0.store.spec` §3.1(FR-S4) |
-| `commit.ts` | `CommitKey`, `COMMIT_KEY_PATTERN`, `commitKeyPart`, `RESERVED_SOURCE_KEYS`, `ProducerId`, `StampedDraft`, `DraftInput`, `ProducerHandle`, `StepCheckpointInput`, `CommitPlan`, `CommitRequest`, `CommitResult`, `ReadOnlyReason`, `StoreError`, `ReadFailure`, `StoreBugCode`, `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
+| `commit.ts` | `CommitKey`, `COMMIT_KEY_PATTERN`, `commitKeyPart`, `APPROVAL_REQUEST_KEY_MAX`, `requestKeyFor`, `RESERVED_SOURCE_KEYS`, `ProducerId`, `StampedDraft`, `DraftInput`, `ProducerHandle`, `StepCheckpointInput`, `CommitPlan`, `CommitRequest`, `CommitResult`, `ReadOnlyReason`, `StoreError`, `ReadFailure`, `StoreBugCode`, `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
 | `projector.ts` | `ProjectionTx`, `Projector`, `ProjectorRegisterError`, `ProjectorFailure`, `ProjectorRegistry`. `ProjectionQuery`는 `session-service.ts`에 있다 | `L1.persistence.spec` §3.4 |
 | `session-service.ts` | `SessionServiceName`, `CommitListener`, `CommitBatch`, `FeedFilter`, `EventFeed`, `ThreadSummaryRow`, `ItemRow`, `ProjectionQuery`, `RecoveryMarker`, `OpenReport`, `OpenError`, `MAX_REPLAY_ATTEMPTS`, `EffectRerun`, `AutoResumeVerdict`, `ResumePlan`, `ResumeError`, `RecoverDeps`, `ThreadCreated`, `ThreadCreateInput`, `ThreadListQuery`, `ThreadPage`, `BranchSummaryInput`, `SessionShutdownReason`, `LifecycleError`, `ThreadLifecycle`, `SessionSettingsLayer`, `SessionSettingsError`, `SessionSettingsStore`, `SessionRetention`, `SessionService`. 쓰기 소유 판정은 `lease.ts`의 `LeaseToken`(epoch 펜싱)과 `LeaseOwnerInfo`(표시용), 열기 결과의 `OpenLease`가 맡는다. 옛 이름 `OwnershipGuard`·`OwnerInfo`는 없다 [결정: review.decisions-2 U-09, open-issues D-04] | `L1.persistence.spec` §3.3~§3.8, §6.2 |
 | `session-service.ts` | `RecordCommitPort`, `ExtCommitRequest`, `ExtCommitRejectCode`, `ExtCommitResult`, `StoredScopeState`, `OpenLease`, `ExtThreadSnapshot`, `ExtRecordQuery`, `ExtRecordRow` | 위 블록이 정본이다(옮김 끝남). `F.extensions.spec` §3.2.1 `ports.ts`가 다시 export한다 |

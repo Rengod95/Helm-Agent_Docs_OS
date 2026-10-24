@@ -32,6 +32,25 @@ export function commitKeyPart(raw: string, sha256Hex: (text: string) => string):
 }
 
 /**
+ * 승인 요청 키(`ApprovalRequestInput.requestKey`, `approval.requested` payload의 `requestKey`)의 길이 상한이다.
+ * `requestKeyFor`가 이 길이에 맞춘다. 레코드 스키마(`approval.requested`의 requestKey maxLength)는 순환 import를 피하려고 같은 값을 거울로 두고,
+ * L2 승인 포트의 `L2_APPROVAL_REQUEST_ID_MAX`도 같다. 일치는 test/records/ports.test.ts가 지킨다
+ */
+export const APPROVAL_REQUEST_KEY_MAX: number = 48;
+
+/**
+ * 밖에서 온 id(toolCallId, L2 requestId)를 승인 요청 키(1~`APPROVAL_REQUEST_KEY_MAX`자, `^[A-Za-z0-9_.-]+$`)로 바꾸는 유일한 함수다
+ * (U-13 `commitKeyPart` 위에 얹는다). `commitKeyPart(raw)`가 상한 이하면 그대로, 넘으면 `h_` + 원문 sha256 hex 앞 40자다.
+ * 같은 원문은 항상 같은 키다. 접두 `h_`로 시작하는 원문은 `commitKeyPart`가 해시하므로 해시 키와 겹치지 않는다.
+ * 호출자가 동기 해시를 넘긴다(F는 해시 구현이 없다). cap-*가 자기 함수를 따로 두지 않고 이 함수를 쓴다
+ */
+export function requestKeyFor(raw: string, sha256Hex: (text: string) => string): string {
+  const part = commitKeyPart(raw, sha256Hex);
+  if (part.length <= APPROVAL_REQUEST_KEY_MAX) return part;
+  return `${COMMIT_KEY_PART_HASH_PREFIX}${sha256Hex(raw).slice(0, COMMIT_KEY_PART_HASH_LENGTH)}`;
+}
+
+/**
  * 확장이 아닌 입력 출처 키(사용자, 위임, 예약). 확장 id로 쓸 수 없다(F.extensions.spec §4.7 name_reserved, review.decisions-2 U-13).
  * 확장이 아닌 출처를 새로 더하면 이 목록에 먼저 더한다.
  */

@@ -198,7 +198,11 @@ export interface ApprovalService {
 
 // ── L2 공통 승인 포트 (L2.readme §5.7) ────────────────────────────────────────
 
-/** 같은 대화에서 요청을 구분하는 키의 길이 상한. ApprovalRequestInput.requestKey와 같다(1~48자) */
+/**
+ * 같은 대화에서 요청을 구분하는 키의 길이 상한. ApprovalRequestInput.requestKey와 같다(1~48자).
+ * services는 다른 F 디렉터리를 값으로 import하지 않아(test/services/imports.test.ts) 값의 정의는 records의 `APPROVAL_REQUEST_KEY_MAX`가 맡고,
+ * 이 상수는 같은 값을 거울로 둔다. 같은 값인지는 test/records/ports.test.ts가 지킨다. 키 변환은 `requestKeyFor`(records) 하나다
+ */
 export const L2_APPROVAL_REQUEST_ID_MAX: number = 48;
 
 /**

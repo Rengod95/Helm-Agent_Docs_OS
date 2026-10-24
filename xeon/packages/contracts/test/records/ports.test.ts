@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { ok, type Result } from "../../src/base/index.ts";
+import { createHash } from "node:crypto";
+import { ok, parse, type Result } from "../../src/base/index.ts";
 import {
   EventIdSchema,
   ThreadIdSchema,
@@ -9,8 +10,11 @@ import {
 import {
   COMMIT_KEY_PATTERN,
   MAX_REPLAY_ATTEMPTS,
+  APPROVAL_REQUEST_KEY_MAX,
+  ApprovalRequestedPayloadSchema,
   RESERVED_SOURCE_KEYS,
   commitKeyPart,
+  requestKeyFor,
   ownerOfKind,
   type DurableEventDraft,
   type ExtCommitRequest,
@@ -22,7 +26,9 @@ import {
   type ExtensionEventKind,
   type RecordCommitPort,
 } from "../../src/records/index.ts";
+import { L2_APPROVAL_REQUEST_ID_MAX } from "../../src/services/index.ts";
 import { must, rawId } from "../helpers/ids.ts";
+import { PAYLOAD_FIXTURES } from "./fixtures/payloads.ts";
 
 const THREAD_ID = must(ThreadIdSchema, rawId("thr", 1));
 
@@ -148,6 +154,51 @@ describe("commit keys and replay limits", () => {
 
 const fakeHash = (text: string): string =>
   `${text.length.toString(16).padStart(2, "0")}${"ab".repeat(40)}`;
+
+const sha256Hex = (text: string): string => createHash("sha256").update(text).digest("hex");
+
+describe("requestKeyFor (U-13, approval request keys)", () => {
+  const KEY_SHAPE = /^[A-Za-z0-9_.-]{1,48}$/;
+
+  test("the limit equals the record schema's requestKey maxLength and the L2 port limit", () => {
+    expect(APPROVAL_REQUEST_KEY_MAX).toBe(48);
+    const base = PAYLOAD_FIXTURES["approval.requested"];
+    const withKey = (requestKey: string) =>
+      parse(ApprovalRequestedPayloadSchema, { ...base, requestKey }).ok;
+    expect(withKey("k".repeat(APPROVAL_REQUEST_KEY_MAX))).toBe(true);
+    expect(withKey("k".repeat(APPROVAL_REQUEST_KEY_MAX + 1))).toBe(false);
+    expect(L2_APPROVAL_REQUEST_ID_MAX).toBe(APPROVAL_REQUEST_KEY_MAX);
+  });
+
+  test("a plain id up to 48 characters is used as is", () => {
+    expect(requestKeyFor("call_1", sha256Hex)).toBe("call_1");
+    expect(requestKeyFor("x".repeat(48), sha256Hex)).toBe("x".repeat(48));
+  });
+
+  test("an id of 49 or more characters becomes h_ plus the first 40 hex of its sha256", () => {
+    const raw = "x".repeat(49);
+    expect(requestKeyFor(raw, sha256Hex)).toBe(`h_${sha256Hex(raw).slice(0, 40)}`);
+    const long = "y".repeat(500);
+    expect(requestKeyFor(long, sha256Hex)).toBe(`h_${sha256Hex(long).slice(0, 40)}`);
+  });
+
+  test("an id with characters outside the key alphabet is hashed to the same shape", () => {
+    for (const raw of ["a:b", "call|odd id/with space", "", "한글", "h_plain"]) {
+      const key = requestKeyFor(raw, sha256Hex);
+      expect(key).toBe(`h_${sha256Hex(raw).slice(0, 40)}`);
+      expect(KEY_SHAPE.test(key)).toBe(true);
+    }
+  });
+
+  test("different raw ids give different keys and the same raw id the same key", () => {
+    const a = requestKeyFor("x".repeat(60), sha256Hex);
+    const b = requestKeyFor(`${"x".repeat(59)}y`, sha256Hex);
+    expect(a).not.toBe(b);
+    expect(requestKeyFor("x".repeat(60), sha256Hex)).toBe(a);
+    // 해시 결과를 다시 넣어도 자기 자신이 되지 않는다(h_ 접두 원문은 해시된다)
+    expect(requestKeyFor(a, sha256Hex)).not.toBe(a);
+  });
+});
 
 describe("commitKeyPart (U-13)", () => {
   test("a plain id is used as is", () => {
