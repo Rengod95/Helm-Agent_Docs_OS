@@ -1,0 +1,75 @@
+import { err, ok, type Result } from "@xeon/contracts";
+import type { AgentTool, JsonValue } from "@xeon/contracts/conversation";
+import type {
+  ScopeId,
+  ToolRegisterError,
+  ToolResourceDef,
+  ToolsPort,
+} from "@xeon/contracts/extensions";
+import type { ToolRegistration, Unregister } from "@xeon/contracts/services";
+import { asJsonObject } from "../json.ts";
+import type { McpRegisterError, McpToolRegistrar } from "../ports/tools.ts";
+import type { McpDynamicTool } from "./dynamic-tools.ts";
+
+// 동적 도구를 도구 표에 올리는 어댑터(L2.mcp.spec §3.3). 조립(HOST.6)이 둘 중 하나를 고른다.
+// - ToolService.register(DirectToolRegistration): 순서 키 `mcp.<서버>`, 힌트, 정책 메타(mcpServer)를 싣는다. 권장.
+// - ToolsPort.register(ToolResourceDef): X 리소스 등록 경로. 순서 키가 `ext.<확장>`이 되고 힌트를 싣지 못한다.
+//
+// 두 경로 모두 도구 실행 시그니처에 연속 정보(`continuation`) 자리가 없다. 서버 주도 요청(MCP.4)의 두 번째 라운드는
+// F의 `CallOptions` 확장(L1.tools.spec §8.3 F 요청 12)이 들어온 뒤에 이 어댑터가 넘긴다.
+
+export interface DirectToolHost {
+  register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
+}
+
+function conflict(error: ToolRegisterError): McpRegisterError {
+  return { kind: "name_conflict", toolName: error.toolName };
+}
+
+/** `ToolService`의 직접 등록 경로 */
+export function createToolServiceRegistrar(host: DirectToolHost): McpToolRegistrar {
+  return {
+    register(tool: McpDynamicTool) {
+      const agentTool: AgentTool = {
+        name: tool.wire.name,
+        description: tool.wire.description,
+        parameters: tool.wire.parameters,
+        label: tool.label,
+        replay: "never",
+        executionMode: tool.executionMode,
+        execute: (toolCallId, params, signal) =>
+          tool.execute(asJsonObject(params) ?? {}, { signal, requestId: toolCallId }),
+      };
+      const registered = host.register({
+        kind: "direct",
+        orderKey: tool.orderKey,
+        tool: agentTool,
+        hints: tool.hints,
+        policy: { mcpServer: tool.server },
+      });
+      return registered.ok ? ok(registered.value) : err(conflict(registered.error));
+    },
+  };
+}
+
+/** X `ToolsPort`의 리소스 등록 경로 */
+export function createToolsPortRegistrar(port: ToolsPort, owner: ScopeId): McpToolRegistrar {
+  return {
+    register(tool: McpDynamicTool) {
+      const def: ToolResourceDef = {
+        name: tool.wire.name,
+        description: tool.wire.description,
+        parameters: tool.wire.parameters,
+        replay: "unsafe",
+        execute: (args: JsonValue, context) =>
+          tool.execute(asJsonObject(args) ?? {}, {
+            signal: context.signal,
+            requestId: `${tool.server}:${tool.wire.name}`,
+            threadId: context.threadId,
+          }),
+      };
+      const registered = port.register(owner, def);
+      return registered.ok ? ok(registered.value) : err(conflict(registered.error));
+    },
+  };
+}
