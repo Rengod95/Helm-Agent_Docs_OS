@@ -17,6 +17,7 @@ import { createMemoryFs, type MemoryFs } from "./memory-fs.ts";
 
 const DATA_DIR = "/data";
 const PROJECT_DIR = "/proj";
+export const MEMORY_DIR = "/data/memory";
 export const USER_SKILLS = "/data/skills";
 export const PROJECT_SKILLS = "/proj/.xeon/skills";
 
@@ -110,6 +111,7 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
     },
     containsKnown: options.containsKnown,
     approvals: options.approvals,
+    memoryDir: MEMORY_DIR,
   };
   return {
     fs,

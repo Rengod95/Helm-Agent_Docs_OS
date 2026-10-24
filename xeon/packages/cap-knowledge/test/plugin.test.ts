@@ -15,6 +15,7 @@ import {
   type ToolRegisterError,
 } from "@xeon/contracts/extensions";
 import type { StoreService } from "@xeon/contracts/records";
+import type { ScopeStack } from "@xeon/contracts/settings";
 import type { ToolRegistration, Unregister } from "@xeon/contracts/services";
 import type { ExtensionUnit } from "@xeon/ext-host";
 import { createTestHost } from "@xeon/ext-host/testing";
@@ -24,7 +25,7 @@ import { IMPLEMENTED_SKILL_TOOLS, knowledgePlugin } from "../src/plugin.ts";
 import { fixedIdFactory, fixedLocalIds, manualClock } from "./support/clock.ts";
 import { rejection } from "./support/helpers.ts";
 import { createMemoryFs, type MemoryFs } from "./support/memory-fs.ts";
-import { PROJECT_SKILLS, putSkill, USER_SKILLS } from "./support/world.ts";
+import { PROJECT_SKILLS, putSkill, USER_SKILLS, userLayer } from "./support/world.ts";
 
 interface FakeTools {
   register(registration: ToolRegistration): Result<Unregister, ToolRegisterError>;
@@ -67,6 +68,7 @@ async function boot(
     refuse?: boolean;
     prepare?: (fs: MemoryFs) => void;
     projectTrust?: (projectDir: string) => Promise<boolean>;
+    layers?: ScopeStack;
   } = {},
 ) {
   const clock = manualClock();
@@ -106,7 +108,7 @@ async function boot(
   });
   const installed = await t.host.install(
     knowledgePlugin({
-      settings: { layers: () => [] },
+      settings: { layers: () => options.layers ?? [] },
       ids: fixedLocalIds(),
       fs,
       ...(options.projectTrust === undefined ? {} : { projectTrust: options.projectTrust }),
@@ -156,6 +158,7 @@ describe("manifest", () => {
     expect(checked.manifest?.layer).toBe("L2");
     expect(checked.manifest?.provides).toEqual([
       { id: "knowledge.skills", version: "1.0.0" },
+      { id: "knowledge.memory", version: "1.0.0" },
       { id: "knowledge.ledger", version: "1.0.0" },
     ]);
     const unit = knowledgePlugin({ settings: { layers: () => [] }, ids: fixedLocalIds() });
@@ -188,7 +191,7 @@ describe("plugin", () => {
     expect(entries?.entries.map((entry) => entry.op)).toEqual(["external"]);
   });
 
-  test("a consumer extension cannot roll back until the approval gate exists", async () => {
+  test("a consumer extension whose call carries no caller context cannot write", async () => {
     const { t } = await boot({
       prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy"),
     });
@@ -196,21 +199,22 @@ describe("plugin", () => {
     await t.host.install(unit);
     await t.settled();
     const entries = await apis.ledger?.list({});
-    const error = await rejection(
+    // 시험용 호스트의 capability 래퍼는 호출 문맥을 채우지 않는다. 행위자를 알 수 없는 쓰기는 거부한다
+    const rollback = await rejection(
       apis.ledger?.rollback({ ledgerId: entries?.entries[0]?.ledgerId ?? "" }) ?? Promise.resolve(),
     );
-    expect(error.data.code).toBe("denied");
-    // 쓰기 메서드는 아직 열려 있지 않다
+    expect(rollback.data.code).toBe("denied");
     const write = await rejection(
       apis.skills?.create({ name: "x", description: "d", body: "b" }) ?? Promise.resolve(),
     );
-    expect(write.data.code).toBe("unsupported");
+    expect(write.data.code).toBe("denied");
+    expect((await apis.skills?.list({}))?.skills.map((skill) => skill.name)).toEqual(["deploy"]);
   });
 
-  test("only the read tool reaches L1.tools, with its risk", async () => {
+  test("the skill and memory tools reach L1.tools with a write risk", async () => {
     const { registered } = await boot();
-    expect(registered).toHaveLength(1);
-    const [skills] = registered;
+    expect(registered).toHaveLength(2);
+    const [skills, memory] = registered;
     expect(skills?.kind === "capability" ? skills.def.id : undefined).toBe("knowledge.skills");
     expect(skills?.kind === "capability" ? skills.def.tools.map((tool) => tool.name) : []).toEqual([
       ...IMPLEMENTED_SKILL_TOOLS,
@@ -218,13 +222,30 @@ describe("plugin", () => {
     expect(skills?.kind === "capability" ? skills.key : undefined).toEqual(KnowledgeSkillsKey);
     expect(skills?.kind === "capability" ? skills.policy : undefined).toEqual({
       skill_view: { risk: "read" },
+      skill_manage: { risk: "write", classes: ["shared_state_write"] },
     });
+    expect(memory?.kind === "capability" ? memory.def.id : undefined).toBe("knowledge.memory");
+    expect(memory?.kind === "capability" ? memory.def.tools.map((tool) => tool.name) : []).toEqual([
+      "memory_manage",
+    ]);
+    expect(memory?.kind === "capability" ? memory.policy : undefined).toEqual({
+      memory_manage: { risk: "write", classes: ["shared_state_write"] },
+    });
+  });
+
+  test("a memory switched off at startup is not advertised", async () => {
+    const { registered } = await boot({
+      layers: [userLayer({ "l2.knowledge.memory.enabled": false })],
+    });
+    expect(registered.map((item) => (item.kind === "capability" ? item.def.id : "direct"))).toEqual(
+      ["knowledge.skills"],
+    );
   });
 
   test("uninstalling removes the tool registrations", async () => {
     const { t, unregistered } = await boot();
     await t.host.uninstall(KNOWLEDGE_EXTENSION_NAME);
-    expect(unregistered).toEqual(["knowledge.skills"]);
+    expect(unregistered).toEqual(["knowledge.skills", "knowledge.memory"]);
   });
 
   test("a refused tool registration fails the setup by value", async () => {

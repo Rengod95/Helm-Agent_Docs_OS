@@ -23,7 +23,10 @@ export type KnowledgeFailureKind =
   | "patch_mismatch"
   | "rollback_conflict"
   | "rollback_unsafe"
-  | "proposal_closed";
+  | "proposal_closed"
+  | "memory_full"
+  | "drift_detected"
+  | "duplicate_entry";
 
 export interface KnowledgeFailure {
   readonly kind: KnowledgeFailureKind;
@@ -63,6 +66,9 @@ function retryableOf(kind: KnowledgeFailureKind): boolean {
       return true;
     case "base_stale":
     case "proposal_closed":
+    case "memory_full":
+    case "drift_detected":
+    case "duplicate_entry":
     case "name_conflict":
     case "limit_exceeded":
     case "scan_blocked":

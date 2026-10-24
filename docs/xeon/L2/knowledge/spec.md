@@ -676,6 +676,7 @@ export const KnowledgeLedgerKey = serviceKey(KnowledgeLedger);
 | `session_scroll` | `knowledge.search.scroll` | 예 | 아니오 | safe | 스크롤 형태 |
 | `session_read` | `knowledge.search.read` | 예 | 아니오 | safe | 읽기 형태 |
 
+- 구현(KN.3): 두 도구는 `risk: "write"`, `classes: ["shared_state_write"]`로 올린다. `memory_manage`는 `l2.knowledge.memory.enabled`가 꺼진 채 시작하면 올리지 않는다(도구 집합은 재시작 없이 바뀌지 않는다. 시작 뒤에 끄면 메서드가 `unavailable`을 돌려준다).
 - 쓰기 도구 둘은 L1.tools의 일반 도구 승인 규칙에서 기본 `allow`로 두고, 승인 판단은 이 능력의 쓰기 게이트(§4.5)가 한다 [제안]. 같은 호출에 승인 창이 두 번 뜨지 않게 하고, 승인 창에 diff와 검사 결과를 보이기 위해서다. 이 기본값은 `L1.tools.spec`에 요청한다(§8).
 - 서브에이전트와 백그라운드 포크에 쓰기 도구를 줄지는 L1.agents와 L3.learning이 정한다. 주어져도 이 능력의 게이트가 대기열로 보낸다(§4.5.1).
 
@@ -882,6 +883,15 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 읽기에서 트리가 한도(파일 500개, 파일 하나 16 MiB, 전체 64 MiB)를 넘으면 그 스킬은 색인에 싣지 않고 경고 진단을 남긴다. 한도가 쓰기 한도(§위 표)보다 넓은 이유는 바깥에서 둔 큰 자원 파일을 받아들이되 메모리를 지키기 위해서다.
 - 쓰기에서 규칙을 어기면 `limit_exceeded` 또는 `invalid_input`으로 거부한다. 쓰기는 항상 검증을 통과한 파일만 만든다.
 - `create`가 만드는 `SKILL.md`의 frontmatter는 `name`과 `description` 두 키다. `edit`·`patch`는 다른 frontmatter 키를 보존한다.
+- 구현(KN.3, `skills/write-model.ts`, `skills/write.ts`):
+  - `description`은 YAML 큰따옴표 스칼라(JSON 문자열)로 쓴다. 줄바꿈, 따옴표, 콜론, `#`이 든 설명도 그대로 다시 읽힌다. 쓴 뒤 `SKILL.md`를 다시 읽어 설명이 같은지 확인하고 다르면 `internal`로 실패한다.
+  - `edit`이 설명을 바꿀 때는 frontmatter 원문에서 최상위 `description` 키의 줄들만 바꾸고 다른 키와 주석은 글자 그대로 둔다. 설명 없이 본문만 바꾸면 frontmatter 원문을 건드리지 않는다. 읽을 수 없는 frontmatter나 frontmatter가 없는 `SKILL.md`는 `invalid_input`이다.
+  - `patch`는 `SKILL.md`의 본문(frontmatter 뒤)에만 적용하고 `file`을 주면 그 지원 파일 전체에 적용한다. 치환은 차례로 적용하며 각 `oldText`는 그 시점의 텍스트에서 정확히 한 번 나와야 한다(`patch_mismatch`, `detail: { edit, matches }`). 본문은 앞뒤 공백을 지워 읽으므로 쓸 때도 끝에 줄바꿈 하나로 맞춘다.
+  - 바뀌는 내용이 없는 `edit`과 같은 내용의 `writeFile`은 `invalid_input`이다. 원장에 빈 변경을 남기지 않는다.
+  - `writeFile`의 `baseHash`는 스킬의 트리 해시다(파일 하나의 해시가 아니다). 새 파일이면 생략할 수 있고 기존 파일을 덮어쓰면 필수다.
+  - `remove`에 `file`을 주면 그 지원 파일만 지운다(원장 연산 `skill.write_file`). `mode: "delete"`는 행위자가 `user`일 때만이다.
+  - 쓰기 대상 범위는 `scope`가 있으면 그 범위, 없으면 모델이 보는 이름 해석(프로젝트 → 사용자 → 확장 → 경로)의 승자다. 승자가 확장·경로 범위이거나 단일 파일 스킬이면 `read_only_scope`다. 프로젝트 범위 쓰기는 사용자나 유효한 증거를 가진 확장만 한다. 그 밖(에이전트, 증거 없는 확장)은 `denied`다. 승인된 제안을 다시 실행하는 경우는 사람이 이미 봤으므로 이 검사를 건너뛴다.
+  - 위협 검사(§4.6)는 바뀌거나 새로 쓰이는 파일의 전체 텍스트에 건다. 바뀐 조각만 검사하면 `Do not ignore…`에서 `Do not `을 지워 위험한 구절을 완성하는 치환을 놓친다. `scripts/` 아래 파일은 엄격 범위다. 설정 `l2.knowledge.write.scan`이 꺼져 있으면 검사하지 않는다(요약은 비어 있다).
 
 #### 4.2.3 트리 해시
 
@@ -938,6 +948,14 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 저장소 파일은 UTF-8 텍스트다. 항목 사이는 `§` 한 글자만 있는 줄로 나눈다. 직렬화는 `항목1\n§\n항목2\n`이다(Hermes `memory_tool_store.py:25`, `_research/refs/hermes.md` §3.10.1 (라)).
 - 항목 텍스트는 앞뒤 공백을 지우고 NFC로 정규화한다. 항목 ID는 그 텍스트 sha256의 앞 12자다. 같은 텍스트의 항목을 두 번 넣으면 `duplicate_entry`다.
 - 항목 안에 `§` 한 글자 줄이 있으면 쓰기를 거부한다(`invalid_input`).
+- 구현(KN.3, `memory/format.ts`, `memory/store.ts`):
+  - 구분 줄은 앞뒤 공백을 지운 뒤 정확히 `§`인 줄이다. 줄을 `§`로 시작하는 항목은 거부한다(`§ 제목`처럼 구분 줄과 헷갈리는 줄은 파일을 깨뜨린다) [제안]. 읽을 때 `§`로 시작하지만 `§` 한 글자가 아닌 줄(`§text`, `§§`)은 구조가 깨진 것으로 본다(§4.3.5).
+  - 항목은 20,000자 이하이고 NUL을 담지 못한다. 빈 항목(구분 줄이 연달아 있는 곳)은 읽을 때 건너뛴다. 쓸 때는 항목마다 NFC로 바꾸고 `\n§\n`으로 이어 끝에 줄바꿈 하나를 둔다.
+  - `fileHash`는 파일 바이트의 sha256이고 파일이 없으면 빈 내용의 sha256이다. `add`는 `baseHash`가 없으며, 읽은 해시를 실행기에 넘겨 락 안 재확인이 끼어든 쓰기를 잡는다. 호출자가 `baseHash`를 주지 않는 쓰기(`add`, `add`만 있는 `batch`)는 그 재확인이 `base_stale`을 내면 다시 읽고 계산해 최대 5번 다시 시도한다. 그래서 동시에 더한 항목이 모두 반영된다.
+  - `memory_full`은 쓴 뒤 크기가 한도를 넘고 지금보다 커질 때만 낸다 [제안]. 한도를 낮춘 뒤에도 항목을 줄이는 쓰기는 막지 않는다. `detail.entries[].preview`는 항목 앞 80자(공백 연속은 하나로)다.
+  - `batch`는 항목 ID를 시작 시점의 값으로 가리킨다. 연산은 차례로 적용하고 마지막 상태만 한도를 검사한다. 하나라도 틀리면 아무것도 쓰지 않는다. `replace`·`remove`가 있으면 `baseHash`가 필수다. 원장 연산은 `memory.batch`, 파괴적 여부는 `replace`·`remove` 포함 여부다. `manage`의 `add`·`replace`·`remove`는 같은 이름의 메서드와 같은 경로(원장 연산 `memory.add` 등)다.
+  - 위협 검사는 새로 쓰거나 바꾼 항목 텍스트에 건다(스킬과 달리 파일 전체가 아니다. 이미 기록된 항목을 나중에 늘어난 규칙이 막으면 모든 쓰기가 막히기 때문이다). 설정 `write.scan`과 상관없이 항상 한다.
+  - 스냅샷 블록(`snapshotBlock`)은 항목 안의 `</memory`를 `&lt;/memory`로 바꾼다. 구조가 깨진 저장소는 `writeBlocked="true"` 속성과 읽을 수 있는 항목만 싣는다.
 
 #### 4.3.2 한도
 
@@ -981,6 +999,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - 구조가 깨진 경우: UTF-8이 아님, NUL 문자 포함, 구분 줄 앞뒤에 다른 글자가 붙은 `§` 줄, 크기가 한도의 2배 초과(Hermes `memory_tool_store.py:49-57, 695`).
 - 드리프트 상태는 사람이 파일을 고치거나 L4 명령으로 "현재 파일을 받아들이기"를 해야 풀린다. 받아들이기는 행위자 `user`의 `external` 원장 기록이다.
+- 구현(KN.3): 읽기와 쓰기 앞에서 파일을 읽어 `cap_knowledge_files.hash`와 비교한다. 같으면 정상이다. 다르고 구조가 정상이면 `external` 항목을 남기고 파일 상태를 새 해시로 맞춘다. 처음 보는 파일(상태 행이 없음)과 지워진 파일(상태 행이 있고 파일이 없음)도 같은 길이다. 구조가 깨졌으면 `.bak/<파일>.<UTC 시각>`으로 복사하고 쓰기를 `drift_detected`로 거부하며 읽기는 가능한 만큼 항목을 돌려준다. 사본은 같은 내용마다 프로세스당 한 번만 만든다(재시작하면 한 번 더 만든다). "현재 파일 받아들이기" 메서드는 아직 없다(L4 명령 몫).
 - 스킬의 바깥 편집도 같은 표를 쓴다. 스킬의 "구조 깨짐"은 §4.2.2 읽기 검증에서 설명이 없어 실리지 않는 경우다. 이때는 `.bak`을 만들지 않고 진단만 남긴다(디렉터리는 사람이 고친다).
 
 ### 4.4 쓰기 경로

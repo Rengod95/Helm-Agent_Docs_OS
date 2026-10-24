@@ -401,14 +401,4 @@ describe("skills service", () => {
     expect(tight.budget.omitted).toBeGreaterThan(0);
     expect(Array.from(tight.skills[0]?.description ?? "")).toHaveLength(40);
   });
-
-  test("write methods are not available yet", async () => {
-    const world = await createWorld();
-    const error = await rejection(
-      world.runtime.skillsApi.create({ name: "x", description: "d", body: "b" }),
-    );
-    expect(error.data.code).toBe("unsupported");
-    const manage = await rejection(world.runtime.skillsApi.manage({ action: "create", name: "x" }));
-    expect(manage.data.code).toBe("unsupported");
-  });
 });

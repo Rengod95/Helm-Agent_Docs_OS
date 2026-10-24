@@ -34,16 +34,17 @@ describe("knowledge definitions", () => {
     }
   });
 
-  test("only the read tool is advertised before the write path exists", () => {
+  test("both skill tools are advertised once the gated write path exists", () => {
     const advertised = advertisedSkillsDef();
     expect(advertised.tools.map((tool) => tool.name)).toEqual([...IMPLEMENTED_SKILL_TOOLS]);
-    expect(advertised.tools.map((tool) => tool.name)).toEqual(["skill_view"]);
+    expect(advertised.tools.map((tool) => tool.name)).toEqual(["skill_view", "skill_manage"]);
     expect(validateCapability(advertised)).toEqual([]);
   });
 
   test("the manifest provides only what is implemented", () => {
     expect(knowledgeManifest().provides?.map((entry) => entry.id)).toEqual([
       "knowledge.skills",
+      "knowledge.memory",
       "knowledge.ledger",
     ]);
   });

@@ -1,6 +1,9 @@
+import { join } from "node:path";
 import { attemptAsync, err, ok, type Logger } from "@xeon/contracts";
 import {
   KnowledgeLedgerKey,
+  KnowledgeMemory,
+  KnowledgeMemoryKey,
   KnowledgeSkills,
   KnowledgeSkillsKey,
   type AnyCapabilityDef,
@@ -36,10 +39,10 @@ const SecretsPortKey: PortKey<SecretService> = { name: SecretServiceName };
 const ToolsPortKey: PortKey<ToolService> = { name: ToolServiceName };
 
 /**
- * KN.1이 L1.tools에 올리는 `knowledge.skills` 도구 이름. 쓰기 도구(skill_manage)는 K3의 쓰기 경로가 끝날 때까지 광고하지
- * 않는다(plan §1.1 순서 2, §3 순서 문단): 승인 없는 쓰기 경로가 한 번도 배포되지 않게 하기 위해서다.
+ * L1.tools에 올리는 `knowledge.skills` 도구 이름. 쓰기 도구(`skill_manage`)는 승인 게이트와 원장을 거친 쓰기 경로(K3)가 끝난 뒤에
+ * 광고한다(plan §1.1 순서 2): 승인 없는 쓰기 경로가 한 번도 배포되지 않게 하기 위해서다.
  */
-export const IMPLEMENTED_SKILL_TOOLS: readonly string[] = ["skill_view"];
+export const IMPLEMENTED_SKILL_TOOLS: readonly string[] = ["skill_view", "skill_manage"];
 
 export interface KnowledgePluginOptions {
   /** 설정 층. 파일 범위와 세션 범위를 합친 스택을 호출마다 돌려준다 */
@@ -85,6 +88,9 @@ async function isProjectTrusted(
   }
   return decided.value;
 }
+
+/** 쓰기 도구 둘이 쓰는 정책 메타: 효과는 쓰기이고 서브에이전트 차단 목록이 공유 상태 쓰기로 볼 수 있게 한다 */
+const WRITE_TOOL_POLICY = { risk: "write", classes: ["shared_state_write"] } as const;
 
 /** 구현된 도구만 남긴 `knowledge.skills` 정의 */
 export function advertisedSkillsDef(): AnyCapabilityDef {
@@ -154,9 +160,11 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
           secrets === undefined ? undefined : (text) => secrets.redactor.containsKnown(text),
         approvals:
           approvalService === undefined ? undefined : createWriteApprovals(approvalService),
+        memoryDir: join(os.dirs.data, "memory"),
       };
       const runtime = createKnowledgeRuntime(deps);
       host.provide(KnowledgeSkillsKey, runtime.skillsApi);
+      host.provide(KnowledgeMemoryKey, runtime.memoryApi);
       host.provide(KnowledgeLedgerKey, runtime.ledgerApi);
 
       // 시작 시 복구와 재색인. 실패해도 시작을 막지 않는다(색인이 낡을 뿐이다). 원인은 기록한다
@@ -172,14 +180,23 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
         logger.warn("knowledge.tools_missing", { effect: "no tool is advertised" });
         return ok(undefined);
       }
-      const registrations: readonly ToolRegistration[] = [
+      const registrations: ToolRegistration[] = [
         {
           kind: "capability",
           def: advertisedSkillsDef(),
           key: KnowledgeSkillsKey,
-          policy: { skill_view: { risk: "read" } },
+          policy: { skill_view: { risk: "read" }, skill_manage: WRITE_TOOL_POLICY },
         },
       ];
+      // 메모리를 끈 채 시작하면 `memory_manage`를 광고하지 않는다(`l2.knowledge.memory.enabled`는 재시작 없이는 도구 집합을 바꾸지 않는다)
+      if (readKnowledgeSettings(options.settings.layers(undefined)).memory.enabled) {
+        registrations.push({
+          kind: "capability",
+          def: KnowledgeMemory,
+          key: KnowledgeMemoryKey,
+          policy: { memory_manage: WRITE_TOOL_POLICY },
+        });
+      }
       const unregisters: (() => void)[] = [];
       for (const registration of registrations) {
         const registered = tools.register(registration);

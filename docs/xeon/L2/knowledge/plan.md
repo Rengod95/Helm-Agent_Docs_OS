@@ -185,6 +185,33 @@ xeon/packages/cap-knowledge/
 | `approval.test.ts` | `files unchanged before approval`, 거부와 피드백, 승인 대기 중 바깥 편집은 `base_stale`, 같은 `requestId`는 한 번만 묻고 첫 결과를 돌려줌, `background destructive always queued`, 설정 끔, `after untrusted forces approval`, 비대화형·포트 없음은 대기열, 증거 유효성, 제안 생애(승인, 거절, `stale`, 만료, 닫힌 제안, 호스트만 결정) |
 | `approval-service.int.test.ts` | 실제 `ApprovalService`(core-tools `fakeApprovals`) 위에서 요청 본문 모양, 허용·거부(피드백), 같은 `requestId`는 승인 요청 이벤트 하나, 기다림 취소는 요청을 남김 |
 
+### 3.3 구현 기록: KN.3 (K3, K4)
+
+`m2/webkn` 브랜치의 구현이다. 쓰기 도구 `skill_manage`와 `memory_manage`의 광고를 이 작업에서 켠다. 두 도구는 게이트와 원장을 거친 쓰기 경로(KN.2)가 있어야 켤 수 있으므로 KN.2 뒤에 둔다.
+
+| 작업 | 상태 | 구현 위치와 범위 |
+|---|---|---|
+| K3 스킬 쓰기 | 완료 | `skills/write-model.ts`(`SKILL.md` 조합·분해, frontmatter 키 치환, 정확 일치 치환; 순수), `skills/write.ts`(create, edit, patch, writeFile, remove, manage와 승인된 제안 재실행). 연산마다 새 내용 계산 → 위협 검사 → `Writer`(게이트, 원장 실행기) |
+| K3 구조 검증 | 완료 | 이름·설명·본문·지원 파일 1 MiB·파일 500개·허용 하위 디렉터리, 쓴 `SKILL.md`를 다시 읽어 설명이 같은지 확인 |
+| K4 메모리 스토어 | 완료 | `memory/format.ts`(§ 형식, 항목 ID, 구조 판정; 순수), `memory/store.ts`(read, add, replace, remove, manage·batch, 스냅샷 블록, 바깥 편집·드리프트), `ledger/external.ts`(`external` 항목 기록). 마이그레이션 변경 없음 |
+| 도구 광고 | 완료 | `plugin.ts`가 `skill_manage`와 `memory_manage`를 `risk: write`, `classes: [shared_state_write]`로 올린다. `knowledge.memory`를 `provides`와 서비스 키에 더했다 |
+
+계획 §2 배치와 다른 점:
+
+- `skills/validate.ts`는 `write-model.ts`(순수 계산)와 `write.ts`(검증과 흐름)로 나눴다. `memory/snapshot.ts`는 `store.ts`의 `snapshotBlock`이다. 첫 turn 기록 메시지로 넣는 연결(`before_agent_start`)은 K11(KN.5)에서 한다.
+- 쓰기 계산은 연산마다 `Built`(대상, 연산, 파괴적 여부, 현재·새 트리, 위협 검사 대상)를 내고, 공통 흐름이 검사와 `Writer`를 맡는다. 메모리는 같은 모양의 `Planned`(새 항목 목록)를 낸다.
+- 새 오류 코드 `memory_full`, `drift_detected`, `duplicate_entry`(spec §3.3 선언 오류)를 `KnowledgeFailureKind`에 더했다.
+- `KnowledgeDeps`에 `memoryDir`(`<사용자 데이터>/memory`)를 더했다. 조립은 `os.dirs.data`에서 만든다.
+- `LedgerDeps`용 `ledger/external.ts`는 메모리의 바깥 편집만 쓴다. 스킬 재색인(`reindex.ts`)은 자기 트랜잭션 안에서 같은 항목을 만들어 그대로 두었다.
+
+시험:
+
+| 파일 | 내용 |
+|---|---|
+| `skill-write.test.ts` | 만들기와 frontmatter 모양, 따옴표·콜론·줄바꿈이 든 설명, 이름 충돌(색인에 없는 디렉터리 포함), 구조 한도, 파일 500개, 다른 frontmatter 키 보존, `patch_mismatch`, 순서대로 치환, `base_stale`, `writeFile`의 `baseHash`, 보관함 이동과 삭제 권한, 지원 파일 하나 지우기, `read_only_scope`, `manage` 분배, 증거·`overrideScan`의 호출자 검사, 프로젝트 범위 규칙, 에이전트 승인·거부·대기열·제안 승인(에이전트 표시 유지)·`stale`, `requestId` 멱등, 원장 왕복(스킬 다섯 연산) |
+| `memory.test.ts` | 빈 저장소, 구분 줄 형식과 ID, NFC 중복, 구분 줄 모양 항목 거부, `memory_full`과 `detail.entries`, replace·remove의 `baseHash`, batch 원자성, 바깥 편집 기록, 드리프트 `.bak`(한 번), UTF-8·NUL·크기 초과, 처음 보는 파일, 동시 쓰기, 스냅샷 결정성과 표지 무력화, 메모리 끔, 에이전트 승인·대기열, 원장 왕복(메모리 네 연산) |
+| `write-scan.test.ts` | 범주별 차단과 걸린 문자열 비노출, 경계 표지, 전체 파일 검사(경계에서 완성되는 구절), `scripts/` 엄격 규칙, 경고는 통과, 스킬 검사 설정은 메모리 검사에 영향 없음, `overrideScan`, 마스킹 등록부, 막힌 쓰기는 대기열에 들지 않음 |
+
 ## 4. 채택 코드
 
 ### 4.1 포크: pi `core/skills.ts`

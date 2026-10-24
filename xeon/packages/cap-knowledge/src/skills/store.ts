@@ -95,6 +95,27 @@ export interface FileStateRow {
   readonly checkedAt: number;
 }
 
+function toFileState(row: SqlRow): FileStateRow | undefined {
+  const kind = textCell(row, "kind");
+  if (kind !== "skill" && kind !== "memory") return undefined;
+  return {
+    path: textCell(row, "path"),
+    kind,
+    target: textCell(row, "target"),
+    scope: textCell(row, "scope"),
+    hash: textCell(row, "hash"),
+    size: intCell(row, "size"),
+    mtimeMs: intCell(row, "mtime_ms"),
+    checkedAt: intCell(row, "checked_at"),
+  };
+}
+
+/** 이 능력이 마지막으로 확인한 파일 상태. 처음 보는 파일이면 undefined */
+export function getFileState(tx: SqlTx, path: string): FileStateRow | undefined {
+  const row = tx.get("SELECT * FROM cap_knowledge_files WHERE path = ?", [path]);
+  return row === undefined ? undefined : toFileState(row);
+}
+
 export function upsertFileState(tx: SqlTx, file: FileStateRow): void {
   tx.run(
     `INSERT INTO cap_knowledge_files (path, kind, target, scope, hash, size, mtime_ms, checked_at)
