@@ -1,4 +1,5 @@
-// @xeon/group-kit/testing. M1에는 테스트 그룹만 있다. checkGroup, replayDrive 등은 M2 이후다.
+// @xeon/group-kit/testing. 다른 패키지의 testing 서브패스를 import하지 않는다(DR-08).
+export { checkGroup } from "./check-group.ts";
 export {
   SMOKE_GROUP_MANIFEST,
   smokeGroup,
