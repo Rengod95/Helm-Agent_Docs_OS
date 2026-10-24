@@ -5,11 +5,20 @@ import {
   assembleOptions,
   assistantItem,
   compactedPayload,
+  binding,
   customItem,
+  grepTool,
+  noMidConversation,
+  sortedTools,
   systemItem,
   userItem,
 } from "./support/builders.ts";
-import { harness, installContextHandler, type Harness } from "./support/harness.ts";
+import {
+  harness,
+  installContextHandler,
+  installHandlers,
+  type Harness,
+} from "./support/harness.ts";
 import { present, valueOf } from "./support/result.ts";
 
 function blockText(
@@ -111,7 +120,13 @@ test("context_point_without_handlers_keeps_messages_as_assembled", async () => {
   expect(result.pendingItems).toHaveLength(0);
   expect(result.compactionHead).toBeNull();
   expect(result.warnings).toEqual([]);
-  expect(result.cacheMarks.marks).toEqual([]);
+  expect(result.toolChange).toBeNull();
+  // 컴팩션 요약이 없으니 summary 표식은 빠지고 system, tools, tail 셋이다
+  expect(result.cacheMarks.marks).toEqual([
+    { site: "system", messageIndex: null },
+    { site: "tools", messageIndex: null },
+    { site: "tail", messageIndex: 3 },
+  ]);
 });
 
 test("context_point_change_folds_later_system_messages_into_the_leading_one", async () => {
@@ -125,11 +140,15 @@ test("context_point_change_folds_later_system_messages_into_the_leading_one", as
   };
   h.log.append("item.recorded", systemItem(h.log, delta));
   h.log.append("item.recorded", userItem(h.log, "question three"));
+  // 기록된 광고 상태(bash, read, grep)와 같은 도구 집합으로 조립하면 도구 변경이 새로 생기지 않는다
+  const opts = assembleOptions(h.log.ids, {
+    tools: [sortedTools[0], sortedTools[2], grepTool].flatMap((tool) =>
+      tool === undefined ? [] : [tool],
+    ),
+  });
 
   // 핸들러가 없으면 도구 변경 메시지는 제자리에 남는다
-  const plain = valueOf(
-    await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
-  );
+  const plain = valueOf(await h.service.assemble(h.log.threadId, h.log.leaf(), opts));
   expect(plain.messages.map((message) => message.role)).toEqual([
     "system",
     "user",
@@ -143,9 +162,7 @@ test("context_point_change_folds_later_system_messages_into_the_leading_one", as
   await installContextHandler(h.host, "ctx-trim", 0, (payload) => ({
     messages: payload.messages.slice(-1),
   }));
-  const trimmed = valueOf(
-    await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
-  );
+  const trimmed = valueOf(await h.service.assemble(h.log.threadId, h.log.leaf(), opts));
   expect(trimmed.messages.map((message) => message.role)).toEqual(["system", "user"]);
   const lead = present(trimmed.messages[0]);
   expect(lead.role).toBe("system");
@@ -181,9 +198,8 @@ test("compaction_head_replaces_earlier_items_with_the_summary", async () => {
   const prefixEvent = h.log.append("item.recorded", systemItem(h.log, newPrefix));
   h.log.append("item.recorded", assistantItem(h.log, "answer three"));
 
-  const result = valueOf(
-    await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
-  );
+  const rebuilt = assembleOptions(h.log.ids, { tools: [], sections: {} });
+  const result = valueOf(await h.service.assemble(h.log.threadId, h.log.leaf(), rebuilt));
   const rendered = texts(result.messages);
   expect(rendered[0]).toBe("system:You are Xeon (rebuilt).");
   expect(rendered[1]).toContain("<summary>\nsummary of one\n</summary>");
@@ -334,18 +350,204 @@ test("detached_events_are_hydrated_before_projection", async () => {
   expect(h.log.hydrated).toEqual([big.id]);
 });
 
-test("volatile_layer_is_not_assembled_yet", async () => {
+test("volatile_layer_goes_after_the_cache_tail_and_is_not_recorded", async () => {
   const { h } = await conversation();
+  const base = valueOf(
+    await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
+  );
   const withVolatile = valueOf(
     await h.service.assemble(
       h.log.threadId,
       h.log.leaf(),
-      assembleOptions(h.log.ids, { volatile: { date: "2026-10-21" } }),
+      assembleOptions(h.log.ids, { volatile: { date: "2026-10-21", cwd: "/work" } }),
     ),
   );
-  const without = valueOf(
+  // midConversationSystem이 참이면 대화 끝의 system 메시지다. 표식은 volatile을 붙이기 전 배열 기준이다
+  expect(texts(withVolatile.messages).slice(0, -1)).toEqual(texts(base.messages));
+  const last = present(withVolatile.messages.at(-1));
+  expect(last.role).toBe("system");
+  expect(texts([last])[0]).toBe("system:<cwd>\n/work\n</cwd>\n<date>\n2026-10-21\n</date>");
+  expect(withVolatile.cacheMarks).toEqual(base.cacheMarks);
+  expect(withVolatile.pendingItems).toHaveLength(0);
+  // 같은 입력이면 같은 바이트다(재개 뒤 다시 만들어도 값이 같다)
+  const again = valueOf(
+    await h.service.assemble(
+      h.log.threadId,
+      h.log.leaf(),
+      assembleOptions(h.log.ids, { volatile: { cwd: "/work", date: "2026-10-21" } }),
+    ),
+  );
+  expect(texts(again.messages)).toEqual(texts(withVolatile.messages));
+});
+
+test("volatile_layer_is_a_user_message_when_the_model_has_no_mid_conversation_system", async () => {
+  const { h } = await conversation();
+  const result = valueOf(
+    await h.service.assemble(
+      h.log.threadId,
+      h.log.leaf(),
+      assembleOptions(h.log.ids, {
+        volatile: { date: "2026-10-21" },
+        cachePolicy: { ...noMidConversation, midConversationSystem: false },
+      }),
+    ),
+  );
+  const last = present(result.messages.at(-1));
+  expect(last.role).toBe("user");
+});
+
+function model(
+  provider: string,
+  modelId: string,
+  thinkingLevel: string,
+): { model: { provider: string; modelId: string; thinkingLevel: string } } {
+  return { model: { provider, modelId, thinkingLevel } };
+}
+
+test("model_switch_warning: a different provider or model resets the cache, a level change does not", async () => {
+  const { h } = await conversation();
+  h.log.append("checkpoint.step", model("anthropic", "claude-x", "off"));
+
+  const same = valueOf(
     await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
   );
-  expect(texts(withVolatile.messages)).toEqual(texts(without.messages));
-  expect(h.logged.map((call) => call.event)).toContain("context.volatile_ignored");
+  expect(same.warnings).toEqual([]);
+
+  const level = valueOf(
+    await h.service.assemble(
+      h.log.threadId,
+      h.log.leaf(),
+      assembleOptions(h.log.ids, { binding: { ...binding, thinkingLevel: "high" } }),
+    ),
+  );
+  expect(level.warnings).toEqual([]);
+
+  const other = { ...binding, provider: "openai", modelId: "gpt-x" };
+  const switched = valueOf(
+    await h.service.assemble(
+      h.log.threadId,
+      h.log.leaf(),
+      assembleOptions(h.log.ids, { binding: other }),
+    ),
+  );
+  expect(switched.warnings).toEqual([
+    {
+      code: "cache_reset_model_switch",
+      from: { role: "main", provider: "anthropic", modelId: "claude-x", thinkingLevel: "off" },
+      to: other,
+    },
+  ]);
+
+  // 같은 provider의 다른 모델도 접두 캐시가 깨진다
+  const sibling = valueOf(
+    await h.service.assemble(
+      h.log.threadId,
+      h.log.leaf(),
+      assembleOptions(h.log.ids, { binding: { ...binding, modelId: "claude-y" } }),
+    ),
+  );
+  expect(sibling.warnings.map((warning) => warning.code)).toEqual(["cache_reset_model_switch"]);
+});
+
+test("near_window: an estimate above window minus reserve warns", async () => {
+  const { h } = await conversation();
+  const ok = valueOf(
+    await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
+  );
+  expect(ok.warnings).toEqual([]);
+  const tokens = ok.estimate.tokens;
+  const near = valueOf(
+    await h.service.assemble(
+      h.log.threadId,
+      h.log.leaf(),
+      assembleOptions(h.log.ids, { contextWindow: tokens + 16_384 - 1 }),
+    ),
+  );
+  expect(near.warnings).toEqual([
+    { code: "near_window", tokens, contextWindow: tokens + 16_384 - 1 },
+  ]);
+  const edge = valueOf(
+    await h.service.assemble(
+      h.log.threadId,
+      h.log.leaf(),
+      assembleOptions(h.log.ids, { contextWindow: tokens + 16_384 }),
+    ),
+  );
+  expect(edge.warnings).toEqual([]);
+});
+
+test("context_with_system sees the whole array including the prefix and may replace it", async () => {
+  const { h } = await conversation();
+  const seen: string[] = [];
+  await installHandlers(h.host, "sys-view", 0, ["context_with_system"], (g) => {
+    g.on("context_with_system", (payload) => {
+      seen.push(payload.messages.map((message) => message.role).join(","));
+      return undefined;
+    });
+  });
+  const result = valueOf(
+    await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
+  );
+  expect(seen).toEqual(["system,user,assistant,user"]);
+  expect(result.warnings).toEqual([]);
+
+  await installHandlers(h.host, "sys-rewrite", 1, ["context_with_system"], (g) => {
+    g.on("context_with_system", (payload) => ({
+      messages: [
+        { role: "system" as const, content: "rewritten", timestamp: 1 },
+        ...payload.messages.slice(1),
+      ],
+    }));
+  });
+  const rewritten = valueOf(
+    await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
+  );
+  expect(texts(rewritten.messages)[0]).toBe("system:rewritten");
+  expect(rewritten.warnings).toEqual([{ code: "cache_prefix_reset", at: 0 }]);
+  // 접두 해시는 기록된 접두 기준이라 핸들러의 변경과 무관하다
+  expect(rewritten.prefix.prefixHash).toBe(result.prefix.prefixHash);
+});
+
+test("a changed section is appended as a section update when the model supports it, else deferred", async () => {
+  const { h } = await conversation();
+  const changed = { project: "Project notes v2", memory: "Memory notes" };
+  const appended = valueOf(
+    await h.service.assemble(
+      h.log.threadId,
+      h.log.leaf(),
+      assembleOptions(h.log.ids, { sections: changed }),
+    ),
+  );
+  expect(appended.pendingItems.map((item) => item.purpose)).toEqual(["sections"]);
+  const update = present(appended.pendingItems[0]).message;
+  expect(update.sections).toEqual({ project: "Project notes v2" });
+  expect(appended.messages.at(-1)).toEqual(update);
+
+  const deferred = valueOf(
+    await h.service.assemble(
+      h.log.threadId,
+      h.log.leaf(),
+      assembleOptions(h.log.ids, { sections: changed, cachePolicy: noMidConversation }),
+    ),
+  );
+  expect(deferred.pendingItems).toHaveLength(0);
+
+  // 절이 사라지면 null로 지운다
+  const removed = valueOf(
+    await h.service.assemble(
+      h.log.threadId,
+      h.log.leaf(),
+      assembleOptions(h.log.ids, { sections: { project: "Project notes" } }),
+    ),
+  );
+  expect(present(removed.pendingItems[0]).message.sections).toEqual({ memory: null });
+});
+
+test("cache marks follow the compaction summary and the last user message", async () => {
+  const { h } = await conversation();
+  const result = valueOf(
+    await h.service.assemble(h.log.threadId, h.log.leaf(), assembleOptions(h.log.ids)),
+  );
+  expect(result.cacheMarks.policy).toEqual(assembleOptions(h.log.ids).cachePolicy);
+  expect(result.cacheMarks.marks.map((mark) => mark.site)).toEqual(["system", "tools", "tail"]);
 });

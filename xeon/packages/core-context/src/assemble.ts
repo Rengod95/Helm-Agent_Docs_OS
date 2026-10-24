@@ -1,184 +1,125 @@
-import { err, ok, parse, type Logger, type ParseError, type Result } from "@xeon/contracts";
+import { canonicalJson, ok, type Logger, type Result } from "@xeon/contracts";
 import type {
   EventId,
-  ItemRecord,
   Message,
+  ModelThinkingLevel,
   SystemMessage,
   ThreadId,
+  UserMessage,
 } from "@xeon/contracts/conversation";
-import {
-  BranchSummarizedPayloadSchema,
-  CompactedPayloadSchema,
-  ItemRecordedPayloadSchema,
-  type BranchSummarizedPayload,
-  type CompactedPayload,
-  type DurableEventEnvelope,
-  type SessionService,
-} from "@xeon/contracts/records";
 import type {
   AssembleOptions,
   AssembledContext,
   ContextError,
+  ContextWarning,
+  ModelBinding,
   ModelService,
   PendingSystemItem,
   PrefixInfo,
   ToolChangeDecision,
 } from "@xeon/contracts/services";
+import type { DurableEventEnvelope } from "@xeon/contracts/records";
 import type { ExtHost } from "@xeon/ext-host";
 import {
-  branchSummaryMessage,
-  compactionSummaryMessage,
-  convertToLlm,
-  itemToMessage,
-} from "./convert.ts";
+  findHead,
+  effectiveMessages,
+  findPrefixIndex,
+  isSystem,
+  projectBranch,
+  readBranchEvents,
+  systemMessageOf,
+  type BranchReaderDeps,
+} from "./branch.ts";
+import { computeCacheMarks } from "./cache-marks.ts";
+import { convertToLlm } from "./convert.ts";
 import { buildPrefixMessage, prefixHash, prefixToolset, replaySystemMessages } from "./prefix.ts";
+import { DEFAULT_CONTEXT_SETTINGS, type ContextSettings } from "./settings.ts";
+import { decideToolChange } from "./toolset-diff.ts";
 
-// L1.context.spec §4.1 조립 순서(M1 몫): 가지 읽기 → 컴팩션 머리 → 메시지 변환 → context 지점 → 추정.
-// 도구 변경 메시지(§4.3), 캐시 표식(§4.5), 모델 전환 경고(§4.4), context_with_system 지점은 M2다.
+// L1.context.spec §4.1 조립 순서: 가지 읽기 → 컴팩션 머리 → 메시지 변환 → context 지점 → 도구·절 변경 →
+// context_with_system 지점 → 캐시 표식 → volatile → 추정(§4.2~§4.5). 커밋하지 않는다.
 
-export interface AssembleDeps {
-  readonly session: Pick<SessionService, "readBranch" | "hydrate">;
+export interface AssembleDeps extends BranchReaderDeps {
   readonly models: Pick<ModelService, "tokens">;
   readonly ext: Pick<ExtHost, "dispatch">;
+  /** 호출 시점의 유효 설정. 없으면 기본값이다 */
+  readonly settings?: () => ContextSettings;
   readonly logger?: Logger;
 }
 
-/** 가지 위 이벤트 하나를 조립에 쓰는 모양으로 읽은 것. 조립에 쓰지 않는 이벤트는 undefined */
-type Projected =
-  | { readonly type: "item"; readonly item: ItemRecord }
-  | { readonly type: "compacted"; readonly payload: CompactedPayload }
-  | { readonly type: "branch_summary"; readonly payload: BranchSummarizedPayload };
-
-interface CompactionHead {
-  /** 가지 위 thread.compacted 이벤트의 위치 */
-  readonly index: number;
-  readonly eventId: EventId;
-  readonly firstKeptEventId: EventId;
-  /** 가지 위 firstKeptEventId 이벤트의 위치 */
-  readonly firstKeptIndex: number;
-  readonly summary: string;
-  readonly recordedAt: number;
+interface PreviousModel {
+  readonly provider: string;
+  readonly modelId: string;
+  readonly thinkingLevel: ModelThinkingLevel | null;
 }
 
-function projectionFailed(event: DurableEventEnvelope, error: ParseError): ContextError {
-  const issue = error.issues[0];
-  const detail = issue === undefined ? "" : ` ${issue.path} ${issue.message}`;
-  return { kind: "projection_failed", message: `${event.kind} ${event.id}${detail}` };
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function projectEvent(event: DurableEventEnvelope): Result<Projected | undefined, ContextError> {
-  if (event.kind === "item.recorded") {
-    const parsed = parse(ItemRecordedPayloadSchema, event.payload);
-    if (!parsed.ok) return err(projectionFailed(event, parsed.error));
-    return ok({ type: "item", item: parsed.value.item });
-  }
-  if (event.kind === "thread.compacted") {
-    const parsed = parse(CompactedPayloadSchema, event.payload);
-    if (!parsed.ok) return err(projectionFailed(event, parsed.error));
-    return ok({ type: "compacted", payload: parsed.value });
-  }
-  if (event.kind === "thread.branch_summarized") {
-    const parsed = parse(BranchSummarizedPayloadSchema, event.payload);
-    if (!parsed.ok) return err(projectionFailed(event, parsed.error));
-    return ok({ type: "branch_summary", payload: parsed.value });
-  }
-  return ok(undefined);
+function recordOf(value: unknown): Readonly<Record<string, unknown>> | undefined {
+  return isRecord(value) ? value : undefined;
 }
 
-function projectBranch(
-  events: readonly DurableEventEnvelope[],
-): Result<readonly (Projected | undefined)[], ContextError> {
-  const projected: (Projected | undefined)[] = [];
-  for (const event of events) {
-    const one = projectEvent(event);
-    if (!one.ok) return one;
-    projected.push(one.value);
-  }
-  return ok(projected);
-}
-
-/** leaf에서 루트까지 거슬러 읽은 가지를 루트→leaf 순서로 돌려준다. detached 필드는 블롭에서 되돌린다 */
-async function readBranchEvents(
-  deps: AssembleDeps,
-  threadId: ThreadId,
-  leaf: EventId,
-  signal: AbortSignal | undefined,
-): Promise<Result<readonly DurableEventEnvelope[], ContextError>> {
-  const events: DurableEventEnvelope[] = [];
-  for await (const read of deps.session.readBranch(threadId, leaf)) {
-    if (signal?.aborted === true) return err({ kind: "aborted", message: "assemble aborted" });
-    if (!read.ok) {
-      return err({ kind: "read_failed", message: `session read failed: ${read.error.kind}` });
-    }
-    const event = read.value;
-    const detached = event.detached !== undefined && event.detached.length > 0;
-    events.push(detached ? await deps.session.hydrate(event) : event);
-  }
-  const last = events.at(-1);
-  if (last === undefined || last.id !== leaf) {
-    return err({ kind: "branch_not_found", message: `leaf ${leaf} is not on thread ${threadId}` });
-  }
-  return ok(events);
+/** 가지 위 마지막 checkpoint.step의 모델. 없거나 모양이 다르면 undefined */
+function previousModelOf(events: readonly DurableEventEnvelope[]): PreviousModel | undefined {
+  const last = events.findLast((event) => event.kind === "checkpoint.step");
+  const model = recordOf(recordOf(last?.payload)?.["model"]);
+  const provider = model?.["provider"];
+  const modelId = model?.["modelId"];
+  if (typeof provider !== "string" || typeof modelId !== "string") return undefined;
+  return { provider, modelId, thinkingLevel: null };
 }
 
 /**
- * 가지 위 마지막 thread.compacted가 머리다(§4.8). firstKeptEventId가 가지에 없거나 컴팩션보다 뒤면
- * 손상으로 보고 머리를 무시한다(§5). 투영 오류로 올리지 않고 로그만 남긴다
+ * 이전 단계 바인딩과 provider 또는 모델이 다르면 접두 캐시가 깨진다(§4.4). 레벨만 다르면 경고하지 않는다.
+ * 체크포인트에는 role이 없으므로 이번 바인딩의 role을 쓴다
  */
-function findHead(
-  deps: AssembleDeps,
+function modelSwitchWarning(
   events: readonly DurableEventEnvelope[],
-  projected: readonly (Projected | undefined)[],
-): CompactionHead | null {
-  for (let index = projected.length - 1; index >= 0; index -= 1) {
-    const entry = projected[index];
-    const event = events[index];
-    if (entry?.type !== "compacted" || event === undefined) continue;
-    const { firstKeptEventId, summary } = entry.payload;
-    const firstKeptIndex = events.findIndex((candidate) => candidate.id === firstKeptEventId);
-    if (firstKeptIndex < 0 || firstKeptIndex > index) {
-      deps.logger?.warn("context.compaction_head_invalid", {
-        eventId: event.id,
-        firstKeptEventId,
-      });
-      return null;
+  binding: ModelBinding,
+): ContextWarning | undefined {
+  const previous = previousModelOf(events);
+  if (previous === undefined) return undefined;
+  if (previous.provider === binding.provider && previous.modelId === binding.modelId) {
+    return undefined;
+  }
+  return {
+    code: "cache_reset_model_switch",
+    from: {
+      role: binding.role,
+      provider: previous.provider,
+      modelId: previous.modelId,
+      thinkingLevel: binding.thinkingLevel,
+    },
+    to: binding,
+  };
+}
+
+/** 이번 절 값과 접두가 가진 절의 차이. 바뀐 절만 담고 사라진 절은 null이다 */
+function sectionChanges(
+  current: Readonly<Record<string, string | null>>,
+  desired: Readonly<Record<string, string>>,
+): Record<string, string | null> {
+  const changes: Record<string, string | null> = {};
+  for (const name of Object.keys(desired).toSorted()) {
+    const value = desired[name];
+    if (value !== undefined && current[name] !== value) changes[name] = value;
+  }
+  for (const name of Object.keys(current).toSorted()) {
+    if (current[name] !== undefined && current[name] !== null && !(name in desired)) {
+      changes[name] = null;
     }
-    return {
-      index,
-      eventId: event.id,
-      firstKeptEventId,
-      firstKeptIndex,
-      summary,
-      recordedAt: event.recordedAt,
-    };
   }
-  return null;
+  return changes;
 }
 
-/** 완료된 system item의 메시지. 그 밖의 항목은 undefined */
-function systemMessageOf(entry: Projected | undefined): SystemMessage | undefined {
-  if (entry?.type !== "item" || entry.item.kind !== "system") return undefined;
-  return entry.item.status === "in_progress" ? undefined : entry.item.message;
-}
-
-/**
- * 기록된 접두의 위치. 머리가 있으면 머리 뒤 첫 system item(컴팩션이 같은 커밋에 새 접두를 넣는다, §4.6 5번),
- * 없으면 가지의 첫 system item이다. item.recorded의 system item에는 purpose가 남지 않으므로(F.conversation
- * ItemRecord) 위치로 알아본다. 접두 뒤의 system item은 도구 변경·절 갱신이다. 없으면 -1
- */
-function findPrefixIndex(
-  projected: readonly (Projected | undefined)[],
-  head: CompactionHead | null,
-): number {
-  const from = head === null ? 0 : head.index + 1;
-  for (let index = from; index < projected.length; index += 1) {
-    if (systemMessageOf(projected[index]) !== undefined) return index;
-  }
-  return -1;
-}
-
-function isSystem(message: Message): message is SystemMessage {
-  return message.role === "system";
+/** volatile 계층(날짜, 작업 디렉터리 상태). 이름순으로 한 덩어리 텍스트를 만든다 */
+function volatileText(volatile: Readonly<Record<string, string>>): string {
+  return Object.keys(volatile)
+    .toSorted()
+    .map((name) => `<${name}>\n${volatile[name] ?? ""}\n</${name}>`)
+    .join("\n");
 }
 
 /**
@@ -210,6 +151,27 @@ async function applyContextPoint(
   return systemState === undefined ? returned : [systemState, ...returned];
 }
 
+/** context_with_system 지점(chain)을 전체 배열로 발화한다(§4.1 5번). 결과가 최종 messages다 */
+async function applyContextWithSystemPoint(
+  deps: AssembleDeps,
+  threadId: ThreadId,
+  opts: AssembleOptions,
+  assembled: readonly Message[],
+): Promise<{ readonly messages: readonly Message[]; readonly changed: boolean }> {
+  const outcome = await deps.ext.dispatch(
+    "context_with_system",
+    { messages: structuredClone([...assembled]) },
+    {
+      threadId,
+      dispatchKey: `${opts.stepId}:context_with_system`,
+      initial: { messages: structuredClone([...assembled]) },
+      ...(opts.signal === undefined ? {} : { signal: opts.signal }),
+    },
+  );
+  if (outcome.applied.length === 0) return { messages: assembled, changed: false };
+  return { messages: convertToLlm(outcome.value.messages), changed: true };
+}
+
 /**
  * leaf까지의 가지로 모델 요청 컨텍스트를 만든다. 커밋하지 않는다. 접두가 아직 기록되지 않았으면
  * 이번에 만들어 pendingItems로 돌려준다(§4.2). 접두의 타임스탬프는 leaf 이벤트의 recordedAt이다
@@ -227,26 +189,61 @@ export async function assembleContext(
   const projectedResult = projectBranch(events);
   if (!projectedResult.ok) return projectedResult;
   const projected = projectedResult.value;
+  const settings = deps.settings?.() ?? DEFAULT_CONTEXT_SETTINGS;
 
   const head = findHead(deps, events, projected);
   const prefixIndex = findPrefixIndex(projected, head);
   const recordedPrefix = systemMessageOf(projected[prefixIndex]);
   const recordedPrefixEvent = events[prefixIndex];
+  const leafEvent = events.at(-1);
+  const timestamp = leafEvent === undefined ? 0 : leafEvent.recordedAt;
 
   const pendingItems: PendingSystemItem[] = [];
+  const warnings: ContextWarning[] = [];
+  /** 이번 조립에서 접두·기록된 메시지 뒤에 이어 붙일 도구 변경·절 갱신 메시지 */
+  const appended: SystemMessage[] = [];
   let toolChange: ToolChangeDecision | null = null;
   let prefixMessage: SystemMessage;
   let prefixEventId: EventId | null = null;
   if (recordedPrefix !== undefined && recordedPrefixEvent !== undefined) {
     prefixMessage = recordedPrefix;
     prefixEventId = recordedPrefixEvent.id;
+    // 기록된 접두 뒤의 도구 변경·절 갱신을 적용한 현재 광고 상태
+    const state = replaySystemMessages(
+      projected.slice(prefixIndex).flatMap((entry) => systemMessageOf(entry) ?? []),
+    );
+    const change = decideToolChange({
+      advertised: state?.toolsAdded,
+      next: opts.tools,
+      policy: opts.cachePolicy,
+      timestamp,
+    });
+    toolChange = change.decision;
+    warnings.push(...change.warnings);
+    if (change.pending !== null && change.message !== null) {
+      pendingItems.push(change.pending);
+      appended.push(change.message);
+    }
+    // 절 갱신은 대화 중 system 메시지를 지원할 때만 바로 넣고, 아니면 다음 컴팩션까지 미룬다(§4.1)
+    if (opts.cachePolicy.midConversationSystem) {
+      const changes = sectionChanges(state?.sections ?? {}, opts.sections);
+      if (Object.keys(changes).length > 0) {
+        const message: SystemMessage = {
+          role: "system",
+          content: "",
+          sections: changes,
+          timestamp,
+        };
+        pendingItems.push({ purpose: "sections", message });
+        appended.push(message);
+      }
+    }
   } else {
-    const leafEvent = events.at(-1);
     prefixMessage = buildPrefixMessage({
       basePrompt: opts.basePrompt,
       sections: opts.sections,
       tools: opts.tools,
-      timestamp: leafEvent === undefined ? 0 : leafEvent.recordedAt,
+      timestamp,
     });
     pendingItems.push({ purpose: "prefix", message: prefixMessage });
     toolChange = {
@@ -256,32 +253,44 @@ export async function assembleContext(
     };
   }
 
-  const messages: Message[] = [prefixMessage];
-  if (head !== null) messages.push(compactionSummaryMessage(head.summary, head.recordedAt));
-  const startIndex = head === null ? 0 : head.firstKeptIndex;
-  for (let index = startIndex; index < projected.length; index += 1) {
-    const entry = projected[index];
-    if (entry === undefined || entry.type === "compacted" || index === prefixIndex) continue;
-    if (entry.type === "branch_summary") {
-      const event = events[index];
-      if (event !== undefined) {
-        messages.push(branchSummaryMessage(entry.payload.summary, event.recordedAt));
-      }
-      continue;
+  const switched = modelSwitchWarning(events, opts.binding);
+  if (switched !== undefined) warnings.push(switched);
+
+  const messages = effectiveMessages(events, projected, head, prefixIndex, prefixMessage);
+  messages.push(...appended);
+
+  const afterContext = await applyContextPoint(deps, threadId, opts, messages);
+  const withSystem = await applyContextWithSystemPoint(deps, threadId, opts, afterContext);
+  const finalMessages: Message[] = [...withSystem.messages];
+  if (withSystem.changed) {
+    const first = finalMessages[0];
+    if (first === undefined || canonicalJson(first) !== canonicalJson(prefixMessage)) {
+      warnings.push({ code: "cache_prefix_reset", at: 0 });
     }
-    if (entry.item.status === "in_progress") continue;
-    // 머리 앞에 기록된 도구 변경·절 갱신은 새 접두가 이미 반영하고 있다
-    if (entry.item.kind === "system" && head !== null && index < head.index) continue;
-    messages.push(itemToMessage(entry.item));
   }
 
+  const cacheMarks = computeCacheMarks(opts.cachePolicy, finalMessages);
+
+  // volatile 계층은 표식 뒤, 대화 끝에 둔다. 커밋하지 않는 조립 전용 메시지다(§4.1)
   if (Object.keys(opts.volatile).length > 0) {
-    // volatile 계층의 위치 규칙은 문서가 서로 다르다(§4.1 표 "끝"과 본문 "마지막 사용자 메시지 앞", §10-8).
-    // 정해질 때까지 조립에 넣지 않는다
-    deps.logger?.warn("context.volatile_ignored", { keys: Object.keys(opts.volatile).length });
+    const text = volatileText(opts.volatile);
+    if (opts.cachePolicy.midConversationSystem) {
+      finalMessages.push({ role: "system", content: text, timestamp });
+    } else {
+      const note: UserMessage = { role: "user", content: text, timestamp };
+      finalMessages.push(note);
+    }
   }
 
-  const finalMessages = await applyContextPoint(deps, threadId, opts, messages);
+  const estimate = deps.models.tokens.estimateContext(finalMessages);
+  if (estimate.tokens > opts.contextWindow - settings.reserveTokens) {
+    warnings.push({
+      code: "near_window",
+      tokens: estimate.tokens,
+      contextWindow: opts.contextWindow,
+    });
+  }
+
   const prefix: PrefixInfo = {
     prefixHash: prefixHash(prefixMessage),
     toolset: await prefixToolset(prefixMessage),
@@ -291,12 +300,11 @@ export async function assembleContext(
     messages: finalMessages,
     prefix,
     toolChange,
-    // 캐시 표식 위치 계산(§4.5)은 M2다. 비어 있으면 표식을 두지 않는다는 뜻이므로 호출자는 provider 기본 위치를 쓴다
-    cacheMarks: { policy: opts.cachePolicy, marks: [] },
-    estimate: deps.models.tokens.estimateContext(finalMessages),
+    cacheMarks,
+    estimate,
     compactionHead:
       head === null ? null : { eventId: head.eventId, firstKeptEventId: head.firstKeptEventId },
     pendingItems,
-    warnings: [],
+    warnings,
   });
 }

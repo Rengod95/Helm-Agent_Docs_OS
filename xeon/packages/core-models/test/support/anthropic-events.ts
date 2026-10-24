@@ -1,6 +1,6 @@
 // 시험용 Anthropic 원시 SSE 이벤트 작성기. pi-ai 어댑터가 `onProviderStreamEvent`로 넘기는 모양과 같다.
 
-export interface SearchHitInput {
+interface SearchHitInput {
   readonly url: string;
   readonly title?: string;
   readonly pageAge?: string;

@@ -1,6 +1,6 @@
 import { Bug, err, ok, parse, parseJson, type Logger, type Result } from "@xeon/contracts";
 import type { AssistantMessage, ThreadId } from "@xeon/contracts/conversation";
-import { ThreadIdSchema } from "@xeon/contracts/conversation";
+import { isId } from "@xeon/contracts/conversation";
 import type {
   AssistantMessageEventStream,
   HostedSearchCitation,
@@ -29,12 +29,15 @@ import type { ThinkingBudgetSettings } from "./settings.ts";
 // HostedSearchPort 구현이다. 요청은 기존 호출 파이프라인(비밀 해석, 재시도, 사용량, 가드)을 지나고, pi-ai가 싣지 않는
 // 서버 도구 블록은 어댑터의 원시 스트림 이벤트에서 다시 모은다. 대화 기록에 남지 않고 요청 지점도 발화하지 않는다.
 
-const THREAD_SENTINEL = "thr_00000000000000000000000000";
-const sentinel = parse(ThreadIdSchema, THREAD_SENTINEL);
-if (!sentinel.ok) throw new Bug("hosted_search.thread_sentinel_invalid");
+const THREAD_SENTINEL: unknown = "thr_00000000000000000000000000";
+
+function sentinelThread(): ThreadId {
+  if (isId("thr", THREAD_SENTINEL)) return THREAD_SENTINEL;
+  throw new Bug("hosted_search.thread_sentinel");
+}
 
 /** thread에 속하지 않는 hosted 검색 호출의 사용량을 모으는 예약 id. UsageMeter.totals({ threadId })로 읽는다 */
-export const HOSTED_SEARCH_THREAD: ThreadId = sentinel.value;
+export const HOSTED_SEARCH_THREAD: ThreadId = sentinelThread();
 
 /** Anthropic 서버 도구 버전. 한 번 검색(max_uses 1)만 허용한다 */
 const WEB_SEARCH_TOOL = "web_search_20250305";
@@ -83,7 +86,7 @@ function toolOf(request: HostedSearchRequest): JsonRecord {
 }
 
 /** 페이로드에 서버 도구를 넣고, 이어 요청이면 직전 응답 블록을 assistant 메시지로 덧붙인다 */
-export function hostedSearchPayload(
+function hostedSearchPayload(
   payload: unknown,
   request: HostedSearchRequest,
   previous: readonly JsonRecord[] | null,
@@ -179,7 +182,7 @@ function errorOfMessage(message: AssistantMessage): HostedSearchError {
 }
 
 /** 원시 이벤트를 모은 결과와 pi-ai 종결 메시지를 HostedSearchResponse로 바꾼다 */
-export function mapHostedResult(
+function mapHostedResult(
   accumulated: AccumulatedMessage,
   message: AssistantMessage,
   resolved: Pick<ResolvedModel, "binding">,

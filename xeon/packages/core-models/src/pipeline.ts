@@ -81,7 +81,7 @@ export interface CallSpec {
 }
 
 /** 호출 하나에 덧붙이는 내부 훅. 대화 호출은 쓰지 않는다 */
-export interface CallInternals {
+interface CallInternals {
   /** 캐시 표식 적용 뒤, before_provider_request 앞에서 페이로드를 바꾼다. 같은 입력에 같은 결과여야 한다 */
   readonly payloadHook?: (payload: unknown) => unknown;
   /** 어댑터가 낸 원시 스트림 이벤트를 받는다 */

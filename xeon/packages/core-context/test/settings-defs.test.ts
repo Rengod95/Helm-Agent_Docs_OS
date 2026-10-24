@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { buildCatalog, checkSettingDef, validateSettingValue } from "@xeon/contracts/settings";
-import { CONTEXT_SETTING_DEFS } from "../src/index.ts";
+import { CONTEXT_SETTING_DEFS, contextSettingsOf, DEFAULT_CONTEXT_SETTINGS } from "../src/index.ts";
 
 function defOf(key: string) {
   const def = CONTEXT_SETTING_DEFS.find((candidate) => candidate.key === key);
@@ -56,5 +56,37 @@ describe("l1.context settings", () => {
   test("compactionInstructions does not accept the session scope", () => {
     expect(defOf("l1.context.compactionInstructions").allowedScopes).not.toContain("session");
     expect(defOf("l1.context.autoCompact").allowedScopes).toContain("session");
+  });
+});
+
+describe("contextSettingsOf", () => {
+  test("an empty reader gives the defaults", () => {
+    expect(contextSettingsOf(() => undefined)).toEqual(DEFAULT_CONTEXT_SETTINGS);
+  });
+
+  test("the defaults in the declaration come from the same constant", () => {
+    for (const def of CONTEXT_SETTING_DEFS) {
+      const name = def.key.replace("l1.context.", "");
+      expect(def.default).toEqual(Reflect.get(DEFAULT_CONTEXT_SETTINGS, name));
+    }
+  });
+
+  test("valid values are taken and out-of-range ones fall back per key", () => {
+    const values: Record<string, unknown> = {
+      "l1.context.autoCompact": false,
+      "l1.context.reserveTokens": 4096,
+      "l1.context.keepRecentTokens": 10,
+      "l1.context.compactionInstructions": "keep the todo list",
+      "l1.context.cacheWarming": "idle",
+      "l1.context.reinjectRecentFiles": 99,
+    };
+    expect(contextSettingsOf((key) => values[key])).toMatchObject({
+      autoCompact: false,
+      reserveTokens: 4096,
+      keepRecentTokens: DEFAULT_CONTEXT_SETTINGS.keepRecentTokens,
+      compactionInstructions: "keep the todo list",
+      cacheWarming: "idle",
+      reinjectRecentFiles: DEFAULT_CONTEXT_SETTINGS.reinjectRecentFiles,
+    });
   });
 });

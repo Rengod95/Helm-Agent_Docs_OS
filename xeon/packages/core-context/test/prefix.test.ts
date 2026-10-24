@@ -8,7 +8,6 @@ import {
   assistantItem,
   sortedTools,
   systemItem,
-  tokenEstimator,
   userItem,
 } from "./support/builders.ts";
 import { harness } from "./support/harness.ts";
@@ -80,14 +79,15 @@ test("prefix_recorded_once_and_reused", async () => {
       tools: sortedTools.slice(0, 1),
     }),
   );
-  expect(later.pendingItems).toHaveLength(0);
-  expect(later.toolChange).toBeNull();
+  // 접두는 그대로이고 달라진 도구와 절은 접두 뒤 변경 item으로 따로 나온다(§4.2, §4.3)
+  expect(later.pendingItems.map((item) => item.purpose)).toEqual(["tool_change", "sections"]);
+  expect(later.toolChange).toMatchObject({ action: "append" });
   expect(later.prefix.recordedAt).toBe(recorded.id);
   expect(later.prefix.prefixHash).toBe(assembled.prefix.prefixHash);
   expect(later.prefix.toolset).toBe(assembled.prefix.toolset);
   expect(canonicalJson(later.messages[0])).toBe(canonicalJson(assembled.messages[0]));
-  // 기록된 접두는 messages[0]으로 올리고 제자리에서는 빼므로 한 번만 나온다
-  expect(later.messages.filter((message) => message.role === "system")).toHaveLength(1);
+  // 접두는 messages[0] 한 번이고, 그 뒤 system 메시지는 이번 조립에서 덧붙인 변경 둘뿐이다
+  expect(later.messages.filter((message) => message.role === "system")).toHaveLength(3);
 });
 
 test("prefix_same_after_restart", async () => {
@@ -98,7 +98,7 @@ test("prefix_same_after_restart", async () => {
   // 프로세스를 다시 띄운 것처럼 서비스를 새로 만들어 같은 로그를 읽는다
   const restarted = createContextService({
     session: h.log,
-    models: { tokens: tokenEstimator },
+    models: h.fake.models,
     ext: h.host.host,
   });
   const replay = valueOf(await restarted.assemble(h.log.threadId, h.log.leaf(), opts));
