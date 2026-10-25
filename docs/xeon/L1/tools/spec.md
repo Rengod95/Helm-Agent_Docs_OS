@@ -1113,6 +1113,6 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 - [미결] 정책 규칙 수집 방식(범위별 수집 대 키 분리, §4.5). F 요청 5가 받아들여지지 않으면 `l1.tools.rules.managed`, `l1.tools.rules.user` 같은 범위별 키로 나눈다.
 - [미결] Anthropic 서버 쪽 tool search 사용 여부(§4.1 8번).
 - [미결] 확장(extension 티어) 규칙 등록 경로와 매니페스트 필드(2차).
-- [미결] `remember: "always"`를 2차 전까지 `thread`로 낮추는 처리(§4.7 6번)가 사용자 기대와 맞는지.
+- (닫음) `remember: "always"`: 도구 승인은 제안하지 않기로 했다(§4.7 6번, M2 마감 G2-10). 영구 허용은 사용자 규칙이고, 2차 항상 허용 캐시가 들어오면 제안을 되살린다.
 - [미결] 도구가 다른 도구를 부르는 중첩 호출의 진입점(§4.2). `prepare`·`execute`를 부르는 쪽은 core-loop이므로 `LoopService`에 진입점을 둘지, 중첩 호출을 2차로 미룰지 L1.loop.spec과 정한다.
 - [미결] 비밀 lease를 부르는 쪽(L0.exec 대 L1.tools)과 `secretEnv`가 모델 도구 인자로 들어오는 경로(§4.12). 증거를 도구 구현까지 옮기는 길은 F 요청 13으로 닫혔다(`CallContext.approval`). M1 검증 모드 자체는 `env`로 정했다(U-19).
