@@ -646,7 +646,7 @@ macOS `fullfsync` [제안]:
 - 보관: 같은 DB의 스냅샷은 최근 3개(`MIGRATION_SNAPSHOT_KEEP`)만 남기고, 새 스냅샷을 만든 뒤 오래된 것을 지운다. 지우지 못하면 경고 `snapshot_prune_failed`만 남기고 계속한다.
 - 알림: 만들 때마다 열기 경고 목록(`OpenedStore.warnings`)에 `migration_snapshot { path, owner, from, to }`를 더한다. 호스트가 이를 로그와 진단에 싣는다.
 - 실패: 스냅샷을 만들지 못하면 단계를 하나도 실행하지 않는다. `busy`는 `busy`, `disk_full`(SQLITE_FULL, ENOSPC)은 `disk_full`, 그 밖은 `migration_failed { version: 첫 남은 단계, code: "snapshot_failed:<코드>" }`다. 전용 오류 kind(`migration_snapshot_failed`)는 F 요청이다 [미결 S-12].
-- 같은 이름이 이미 있으면(같은 ms에 같은 owner·버전) `EEXIST`로 실패한다. 운영 시계에서는 일어나지 않는다.
+- 같은 이름이 이미 있으면(같은 ms에 같은 owner·버전) 다른 프로세스가 같은 전환의 스냅샷을 먼저 만든 것이므로 만든 것으로 본다(실패가 아니다). 동시에 처음 여는 프로세스들에서 일어난다(macOS 실측 2026-10-25: 4개 프로세스 첫 열기에서 `migration_failed snapshot_failed:EEXIST` 추정). 스냅샷 결정 직전에 적용 버전을 다시 읽어, 그 사이 다른 프로세스가 이미 올렸으면 만들지 않는다.
 
 ### 4.7 세션 소유 잠금
 

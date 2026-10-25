@@ -5,7 +5,7 @@ import { attempt } from "@xeon/contracts";
 import type { MigrationSet } from "@xeon/contracts/records";
 import { openTestStore } from "../src/testing/index.ts";
 import { newDatabase } from "../src/sqlite-env.ts";
-import { MIGRATION_SNAPSHOT_KEEP } from "../src/snapshot.ts";
+import { MIGRATION_SNAPSHOT_KEEP, snapshotBeforeMigration } from "../src/snapshot.ts";
 import { fixedIdFactory, manualClock } from "./support/clock.ts";
 import { own, releaseOwned } from "./support/own.ts";
 
@@ -161,5 +161,32 @@ describe("pre-migration snapshot", () => {
       tx.all("SELECT version FROM sys_migrations WHERE owner = 'cap.knowledge'"),
     );
     expect(applied).toEqual({ ok: true, value: [{ version: 1 }] });
+  });
+});
+
+describe("concurrent snapshot of the same transition", () => {
+  test("a snapshot that a peer already made for the same transition counts as made", async () => {
+    const { store, backups } = await open();
+    expect(store.service.migrations.apply(set(1)).ok).toBe(true);
+    const input = { owner: "cap.knowledge", from: 1, to: 2, at: 1_700_000_000_000 };
+    const config = {
+      dir: backups,
+      dbFileName: "xeon.db",
+      keep: MIGRATION_SNAPSHOT_KEEP,
+      posix: true,
+    };
+    const db = newDatabase(store.path);
+    try {
+      const first = snapshotBeforeMigration(db, config, input);
+      const second = snapshotBeforeMigration(db, config, input);
+      expect(first.ok && second.ok).toBe(true);
+      expect(second).toEqual({
+        ok: true,
+        value: { path: first.ok ? first.value.path : "", pruned: [], pruneFailed: [] },
+      });
+      expect(snapshots(backups)).toHaveLength(1);
+    } finally {
+      db.close();
+    }
   });
 });

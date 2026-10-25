@@ -188,7 +188,7 @@ export function createMigrationRunner(deps: MigrationDeps): MigrationRunner {
           });
         }
       }
-      const dbVersion = versions[versions.length - 1] ?? 0;
+      let dbVersion = versions[versions.length - 1] ?? 0;
       if (dbVersion > set.version) {
         return err({
           kind: "migration_future_version",
@@ -196,6 +196,11 @@ export function createMigrationRunner(deps: MigrationDeps): MigrationRunner {
           dbVersion,
           codeVersion: set.version,
         });
+      }
+      // 위 읽기와 이 지점 사이에 다른 프로세스가 단계를 적용했을 수 있다(동시에 처음 여는 프로세스들). 스냅샷 결정 직전에 다시 읽는다
+      if (deps.snapshots !== undefined && dbVersion > 0 && dbVersion < set.version) {
+        const fresh = [...appliedChecksums(conn, set.owner).keys()];
+        dbVersion = Math.max(dbVersion, ...fresh);
       }
       // 기존 스키마를 올릴 때만 스냅샷을 만든다. 처음 만드는 DB와 owner의 첫 등록은 잃을 데이터가 없다
       if (deps.snapshots !== undefined && dbVersion > 0 && dbVersion < set.version) {

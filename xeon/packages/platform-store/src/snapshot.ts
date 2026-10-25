@@ -77,7 +77,9 @@ export function snapshotBeforeMigration(
   const prefix = `${config.dbFileName}.pre-`;
   const name = `${prefix}${compactTimestamp(input.at)}-${safeOwner(input.owner)}-v${String(input.from)}-to-v${String(input.to)}.sqlite`;
   const path = join(config.dir, name);
-  if (existsSync(path)) return err({ kind: "io", code: "EEXIST" });
+  // 같은 이름이 이미 있으면 같은 ms에 같은 전환(owner, from, to)의 스냅샷을 다른 프로세스가 먼저 만든 것이다.
+  // 동시에 처음 열 때 일어난다(macOS 실측 2026-10-25). 그 파일이 이 전환의 스냅샷이므로 만든 것으로 본다
+  if (existsSync(path)) return ok({ path, pruned: [], pruneFailed: [] });
   try {
     db.run("VACUUM INTO ?", [path]);
     if (config.posix) chmodSync(path, 0o600);
