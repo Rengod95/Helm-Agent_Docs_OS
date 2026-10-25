@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Run `bun test` for scripts/ and every workspace package, one at a time, each under the machine guard
 # (../scripts/guard.sh run: a memory cap per run inside the shared ws-dev.slice budget). A runaway test then ends only
-# its own run (oom-kill) instead of exhausting the machine. Inside `just verify` the guard is already active, so each
-# run shares the verify cap and only the per-target time limit below applies.
+# its own run (oom-kill) instead of exhausting the machine. `just verify` does not wrap the test step (xeon/scripts/verify-steps.sh),
+# so the per-package cap below applies there too: WS_GUARD_ACTIVE must be unset when this script is called.
 # usage: test-capped.sh [package-dir ...]   (default: scripts and all packages with a "test" script)
 # env: XEON_TEST_TIMEOUT_SEC (default 300) seconds per target; WS_GUARD_RUN_MAX (default 1500M) memory cap per target
-#      outside verify (see ../scripts/guard.sh for the other WS_GUARD_* knobs).
+#      (see ../scripts/guard.sh for the other WS_GUARD_* knobs).
 # The summary line counts the tests bun reported as skipped, so a skip in CI is visible (just exit-tests fails on it).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

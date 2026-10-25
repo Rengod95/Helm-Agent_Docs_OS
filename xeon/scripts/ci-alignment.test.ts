@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// CI must run what `just verify` runs (M2 closing G4-07). The steps come from the root justfile's _verify-steps, the
+// CI must run what `just verify` runs (M2 closing G4-07). The steps come from xeon/scripts/verify-steps.sh (the list the root justfile's _verify-steps runs), the
 // commands from .github/workflows/xeon-ci.yml. lint, typecheck and test run per layer through `just ci-layer`, so the
 // matrix must hold every layer and root (xeon/scripts).
 
@@ -11,11 +11,14 @@ const LAYERS = ["root", "F", "X", "L0", "L1", "L2", "L3", "L4"];
 const BY_LAYER = new Set(["lint", "typecheck", "test"]);
 
 function verifySteps(): string[] {
-  const justfile = readFileSync(join(REPO, "justfile"), "utf8");
-  const line = justfile.split("\n").find((text) => text.startsWith("_verify-steps:"));
-  if (line === undefined) throw new Error("root justfile has no _verify-steps");
-  const body = line.slice("_verify-steps:".length).replaceAll(/\(([\w-]+)[^)]*\)/g, "$1");
-  return body.split(/\s+/).filter((step) => step !== "");
+  const script = readFileSync(join(REPO, "xeon", "scripts", "verify-steps.sh"), "utf8");
+  const found = /^steps=\((.*)\)$/m.exec(script);
+  if (found?.[1] === undefined) throw new Error("verify-steps.sh has no steps=(...) list");
+  // a step with arguments is quoted ("docs-route --check"); the recipe is its first word
+  const quoted = found[1].matchAll(/"([^"]+)"|(\S+)/g);
+  return Array.from(quoted, (match) => (match[1] ?? match[2] ?? "").split(" ")[0] ?? "").filter(
+    (step) => step !== "",
+  );
 }
 
 interface Workflow {

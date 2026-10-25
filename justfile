@@ -8,6 +8,8 @@
 # 7. 환경·비밀 동사(secret-add, dotenv …)는 ~/.config/ws/ws.just에서 온다. 여기서 다시 만들지 않는다.
 # 8. 고친 뒤 `just --list`, `just verify`.
 # 9. test·verify는 scripts/guard.sh(기기 슬롯, 공용 메모리 예산) 아래에서 돈다: `scripts/guard.sh run -- <명령>`, verify는 `scripts/guard.sh verify -- just _verify-steps`.
+# 이 저장소: verify는 기기에서 한 번에 하나(WS_GUARD_SLOTS=1)이고 _verify-steps(xeon/scripts/verify-steps.sh)가 단계마다 guard.sh run scope(2G, XEON_VERIFY_STEP_MAX)를 따로 만든다. test 단계는 패키지마다 1.5G.
+# 병렬 작업 중에는 `just check <패키지>`·`just test <패키지>`만 돌린다. 저장소 전체 verify·lint·typecheck는 마지막 병합 단계 한 곳에서만.
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set allow-duplicate-recipes
 import? '~/.config/ws/ws.just'
@@ -69,6 +71,11 @@ knip:
 docs-route +args:
     cd xeon && just docs-route {{args}}
 
+# 패키지 하나만 lint, typecheck, test: 각각 scripts/guard.sh run 1.5G 아래에서 차례로. 병렬 작업 중에는 이것과 just test <패키지>만 돌린다 (xeon/scripts/check-pkg.sh)
+[group('quality')]
+check pkg:
+    cd xeon && just check {{pkg}}
+
 # 한 층만 lint, typecheck, test: layer는 root F X L0 L1 L2 L3 L4(root는 xeon/scripts), affected=true면 turbo --affected
 [group('local')]
 ci-layer layer affected="false":
@@ -79,15 +86,16 @@ ci-layer layer affected="false":
 exit-tests:
     cd xeon && just exit-tests
 
-# 완료 기준. 검사 전부와 ws check (ws help justfile). 기기 전체 동시 검증 2개, 검증당 메모리 3G, 공용 예산 ws-dev.slice (scripts/guard.sh)
+# 완료 기준. 검사 전부와 ws check (ws help justfile). 마지막 병합 단계만 돌린다. 기기에서 한 번에 하나(슬롯 1), 단계마다 따로 메모리 상한 2G(XEON_VERIFY_STEP_MAX), 시험은 패키지마다 1.5G, 공용 예산 ws-dev.slice (scripts/guard.sh)
 [group('quality')]
 verify:
-    scripts/guard.sh verify -- just _verify-steps
+    WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps
     ws check
 
-# verify 단계 묶음. verify가 슬롯과 메모리 상한 안에서 부른다
+# verify 단계 묶음: setup fmt-check lint typecheck check-layers check-ts-rules depcruise knip docs-route test를 차례로, 단계마다 guard.sh run scope 하나. 처음 실패에서 멈추고 종료코드를 그대로 낸다 (xeon/scripts/verify-steps.sh)
 [private]
-_verify-steps: setup fmt-check lint typecheck check-layers check-ts-rules depcruise knip (docs-route "--check") test
+_verify-steps:
+    bash xeon/scripts/verify-steps.sh
 
 # 웹 가격표 asOf 90일 검사: 오래된 항목을 출력만 하고 종료코드는 0 (xeon/packages/cap-web/src/cost/pricing-cli.ts)
 [group('local')]

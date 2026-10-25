@@ -40,8 +40,8 @@ just setup          # bun install --frozen-lockfile
 just verify         # 검사 전부 + ws check. 끝내기 전에 통과시킨다
 ```
 
-- `just verify`는 `scripts/guard.sh verify -- just _verify-steps`로 돕니다. 기기 전체에서 검증은 2개까지 동시에 돌고, 하나는 메모리 3G 안에서 돕니다. 슬롯이 차 있으면 기다립니다(`eng.toolchain.guide` §3.1).
-- 마지막 단계 `ws check`는 저장소 주인 기기의 dotfiles 도구입니다. `ws`가 없는 기기에서는 `verify`의 마지막 줄이 실패합니다. 이때는 `scripts/guard.sh verify -- just _verify-steps`로 검사 단계만 돌리고, 작업 보고에 "ws check 미실행(환경)"을 적습니다. 코드를 고치지 않습니다(종료코드 2 규칙).
+- `just verify`는 기기에서 한 번에 하나만 돕니다(`WS_GUARD_SLOTS=1`). 단계를 차례로 돌고 단계마다 메모리 2G, 시험은 패키지마다 1.5G가 상한입니다. 슬롯이 차 있으면 기다립니다(`eng.toolchain.guide` §3.1). 작업 중에는 `just check <패키지>`만 돌리고 `just verify`는 마지막 병합 단계에서 돌립니다.
+- 마지막 단계 `ws check`는 저장소 주인 기기의 dotfiles 도구입니다. `ws`가 없는 기기에서는 `verify`의 마지막 줄이 실패합니다. 이때는 `just _verify-steps`로 검사 단계만 돌리고, 작업 보고에 "ws check 미실행(환경)"을 적습니다. 코드를 고치지 않습니다(종료코드 2 규칙).
 - CI(`.github/workflows/xeon-ci.yml`)는 `ws check`를 뺀 같은 단계를 돕니다.
 
 ### ON-03 시험은 패키지 하나씩 돌린다

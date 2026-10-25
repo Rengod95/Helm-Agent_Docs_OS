@@ -63,6 +63,11 @@ knip:
 docs-route +args:
     {{bun}} scripts/docs-route.ts {{args}}
 
+# 패키지 하나만 lint, typecheck, test: 각각 scripts/guard.sh run 1.5G 아래에서 차례로. 병렬 작업 중 에이전트는 이것만 돌린다 (scripts/check-pkg.sh)
+[group('quality')]
+check pkg:
+    bash scripts/check-pkg.sh {{pkg}}
+
 # 한 층만 lint, typecheck, test (scripts/ci-layer.sh). root는 scripts의 lint, typecheck, test
 [group('local')]
 ci-layer layer affected="false":

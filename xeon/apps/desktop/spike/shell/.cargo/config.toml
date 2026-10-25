@@ -1,5 +1,5 @@
 # 빌드 산출물 위치(target-dir)는 여기서 정하지 않는다. src-tauri와 같이 CARGO_TARGET_DIR(기본 ${XDG_CACHE_HOME:-$HOME/.cache}/xeon/cargo-target)을 쓴다.
 # cargo를 직접 부르면 spike/shell/target에 쌓이고, spike/shell/.gitignore가 git에서 뺀다. Syncthing은 **/target 패턴이 뺀다.
-# 기기 메모리 예산(xeon-dev.slice 3G) 안에서 rustc가 몇 개씩 도는지를 묶는다. 바꾸려면 CARGO_BUILD_JOBS를 쓴다.
+# 기기 메모리 예산(cargo.sh가 scripts/guard.sh run 2G scope로 돌린다, 공용 ws-dev.slice) 안에서 rustc가 몇 개씩 도는지를 묶는다. 바꾸려면 CARGO_BUILD_JOBS를 쓴다.
 [build]
 jobs = 2

@@ -24,7 +24,7 @@ permissions:
   contents: read
 
 env:
-  # The jobs together run the steps of `just verify` (root justfile _verify-steps); scripts/ci-alignment.test.ts checks it.
+  # The jobs together run the steps of `just verify` (xeon/scripts/verify-steps.sh); scripts/ci-alignment.test.ts checks it.
 # exit-tests runs the exit-condition tests with their binaries and fails on any skip (product.scope.spec 4.4.1).
 # turbo --affected compares against this ref. Needs fetch-depth 0.
   TURBO_SCM_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}

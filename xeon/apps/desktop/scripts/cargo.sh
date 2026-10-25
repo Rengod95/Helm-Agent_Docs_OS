@@ -6,8 +6,11 @@
 # Rust는 mise.toml이 고정한 버전을 쓴다(mise exec). 빌드 산출물은 Syncthing 폴더(~/projects) 밖의 기기별 캐시에 쌓인다.
 # env: CARGO_TARGET_DIR (기본 ${XDG_CACHE_HOME:-$HOME/.cache}/xeon/cargo-target, spike/shell도 같은 값을 쓴다)
 #      CARGO_BUILD_JOBS (기본 2, .cargo/config.toml의 jobs와 같다)
+#      XEON_CARGO_MAX (기본 2G) cargo 한 번의 메모리 상한. cargo는 ../../../../scripts/guard.sh run 아래에서 돈다(공용 예산 ws-dev.slice).
+#      WS_GUARD_TIMEOUT_SEC (기본 0, 시간 제한 없음). 다른 WS_GUARD_* 는 scripts/guard.sh 머리말 참고
 # 종료코드: 0 성공, 1 컴파일·시험 실패, 2 환경 문제(mise·cargo 없음, 사이드카 없음, 시스템 패키지)
 set -euo pipefail
+guard="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../../.." && pwd)/scripts/guard.sh"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mode="${1:-}"
 export CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-2}"
@@ -18,6 +21,17 @@ if ! (cd "$here/.." && mise exec -- cargo --version >/dev/null 2>&1); then
   exit 2
 fi
 cd "$here/src-tauri"
+
+# cargo under the machine guard (a fresh capped scope even when called from inside another guarded run)
+run_cargo() {
+  if [[ ! -x "$guard" ]]; then
+    echo "cargo-sh: $guard 가 없습니다. 환경 문제입니다" >&2
+    exit 2
+  fi
+  env -u WS_GUARD_ACTIVE WS_GUARD_RUN_MAX="${XEON_CARGO_MAX:-2G}" WS_GUARD_TIMEOUT_SEC="${WS_GUARD_TIMEOUT_SEC:-0}" \
+    "$guard" run -- mise exec -- cargo "$@"
+  exit $?
+}
 
 needs_sidecar() {
   local triple
@@ -47,18 +61,18 @@ ensure_ui() {
 case "$mode" in
   test)
     ensure_ui test
-    TAURI_CONFIG='{"bundle":{"externalBin":[]}}' exec mise exec -- cargo test ;;
+    TAURI_CONFIG='{"bundle":{"externalBin":[]}}' run_cargo test ;;
   check)
     ensure_ui check
-    TAURI_CONFIG='{"bundle":{"externalBin":[]}}' exec mise exec -- cargo check --all-targets ;;
+    TAURI_CONFIG='{"bundle":{"externalBin":[]}}' run_cargo check --all-targets ;;
   run)
     needs_sidecar
     ensure_ui run
-    exec mise exec -- cargo run ;;
+    run_cargo run ;;
   build)
     needs_sidecar
     ensure_ui build
-    exec mise exec -- cargo build --release ;;
+    run_cargo build --release ;;
   *)
     echo "usage: cargo.sh <test|check|run|build>" >&2
     exit 1 ;;
