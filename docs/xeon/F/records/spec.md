@@ -403,6 +403,8 @@ export interface ApprovalRequestedPayload {
   remember: ("once" | "thread" | "always")[];
   surfaceThreadId: ThreadId;      // 이벤트를 기록하는 대화
   requestedAt: number;            // ms
+  expiresAt?: number;             // 만료 시각(ms). 없으면 만료가 없다. 필드가 생기기 전의 기록에는 없다 [결정: m2c G1-11]
+  onExpire?: { decision: "deny" } | { decision: "answer"; answer: JsonValue };   // 생략하면 거부
 }
 export interface ApprovalResolvedPayload {
   approvalId: EventId;            // approval.requested 이벤트 id
@@ -410,8 +412,12 @@ export interface ApprovalResolvedPayload {
   answer: JsonValue | null;
   remember: "once" | "thread" | "always";
   requestedRemember: "once" | "thread" | "always" | null;
-  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded";
+  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired";   // expired: expiresAt이 지나 onExpire대로 해결 [결정: m2c G1-11]
 }
+
+- [결정: m2c G1-11] 승인 만료는 내구 필드 두 개와 해결자 하나다. `expiresAt`(요청 커밋 시각 + 제한, epoch ms)은 `approval.requested`에 기록되어 프로세스를 다시 시작해도 제한 시간이 처음부터 다시 재어지지 않는다. `onExpire`는 만료 때의 해결이고, 생략하면 `{ decision: "deny" }`다. `allow`는 쓸 수 없다. 응답이 없던 요청이 허용으로 끝나면 안 되기 때문이다. `answer`는 질문의 추천 답처럼 호출자가 정한 답이고 모양은 요청 kind가 정한다. 만료로 해결되면 `approval.resolved`의 `resolvedBy`가 `expired`이고 `decision`과 `answer`는 `onExpire`의 값이다. 두 필드는 선택이라 `version`을 올리지 않는다(옛 기록은 그대로 읽힌다). 서비스 쪽 입력은 `ApprovalRequestInput.expiresAt`·`onExpire`, L2 포트는 `L2ApprovalRequest`의 같은 이름 필드다(`F.capabilities.spec` §3.12).
+  - 구현 범위: M2는 필드를 기록하고 읽기만 한다. 만료를 해결하는 일(시작 때 지난 요청 해결, 타이머)은 M3의 L1.tools 구현이다. 그때까지 `cap-dialog`의 `ask/expiry.ts` 임시 타이머가 같은 일을 하고, F 필드를 쓰는 구현으로 바뀌면 지운다(`L2.dialog.spec` §4.1.1). `expiresAt`이 있는 요청이 M2 구현에서 만료 시각이 지나도 대기로 남는 것은 결함이 아니다.
+  - 클라이언트는 `approval.list`의 `request.expiresAt`으로 남은 시간을 보일 수 있다. 해결은 서버가 하므로 클라이언트 시계로 요청을 닫지 않는다.
 
 /**
  * approval.respond의 answer 정본 모양이다. 승인 서비스는 검증한 응답의 answer를 approval.resolved의 answer(ApprovalResolvedPayload.answer)에 그대로 싣는다 [결정: m2 F.8].

@@ -20,14 +20,16 @@ function textField(answer: JsonValue | null, key: string): string | null {
  * wire 결정 한 건을 계획 결정으로 옮긴다.
  * allow는 approved, deny는 rejected(feedback은 `{ feedback }`, 없으면 `{ note }`)다. 수정 요청(`revise`)도 deny + feedback으로 기록되므로
  * 기록에서는 rejected와 구별되지 않는다. answer는 계획 승인에서 승인 서비스가 받지 않는 결정이라 이 표에는 방어 분기만 둔다:
- * 사용자의 글을 반려 사유로 남긴다. cancelled나 superseded로 닫힌 요청은 withdrawn이다.
+ * 사용자의 글을 반려 사유로 남긴다. cancelled, superseded, expired로 닫힌 요청은 withdrawn이다(아무도 정하지 않았다).
  */
 export function outcomeOf(
   decision: "allow" | "deny" | "answer",
   answer: JsonValue | null,
-  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded",
+  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired",
 ): PlanOutcome {
-  if (resolvedBy === "cancelled" || resolvedBy === "superseded") return { kind: "withdrawn" };
+  if (resolvedBy === "cancelled" || resolvedBy === "superseded" || resolvedBy === "expired") {
+    return { kind: "withdrawn" };
+  }
   switch (decision) {
     case "allow":
       return { kind: "decided", decision: "approved", feedback: null };

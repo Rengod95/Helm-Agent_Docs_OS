@@ -165,6 +165,21 @@ const RememberScope: TUnion<[TLiteral<"once">, TLiteral<"thread">, TLiteral<"alw
   Type.Union([Type.Literal("once"), Type.Literal("thread"), Type.Literal("always")]);
 
 /** approvalId는 envelope id다. payload에 두지 않는다 */
+/** 만료 때의 해결(`ApprovalOnExpire`). `answer`의 모양은 요청 kind가 정한다 */
+export const ApprovalOnExpireJsonSchema: TUnion<
+  [
+    TObject<{ decision: TLiteral<"deny"> }>,
+    TObject<{ decision: TLiteral<"answer">; answer: TUnsafe<JsonValue> }>,
+  ]
+> = Type.Union([
+  Type.Object({ decision: Type.Literal("deny") }, { additionalProperties: false }),
+  Type.Object(
+    { decision: Type.Literal("answer"), answer: JsonValueSchema },
+    { additionalProperties: false },
+  ),
+]);
+export type ApprovalOnExpireJson = Static<typeof ApprovalOnExpireJsonSchema>;
+
 export const ApprovalRequestedPayloadSchema: TObject<{
   origin: typeof ApprovalOriginJsonSchema;
   requestKey: TString;
@@ -173,6 +188,8 @@ export const ApprovalRequestedPayloadSchema: TObject<{
   remember: TArray<typeof RememberScope>;
   surfaceThreadId: TUnsafe<ThreadId>;
   requestedAt: TInteger;
+  expiresAt: TOptional<TInteger>;
+  onExpire: TOptional<typeof ApprovalOnExpireJsonSchema>;
 }> = Type.Object(
   {
     origin: ApprovalOriginJsonSchema,
@@ -184,6 +201,10 @@ export const ApprovalRequestedPayloadSchema: TObject<{
     /** 이벤트를 기록하는 대화 */
     surfaceThreadId: ThreadIdSchema,
     requestedAt: Type.Integer({ minimum: 0 }),
+    /** 만료 시각(epoch ms). 없으면 만료가 없다. 이 필드가 생기기 전에 기록된 요청에는 없다 [결정: m2c G1-11] */
+    expiresAt: Type.Optional(Type.Integer({ minimum: 0 })),
+    /** 만료 때의 해결. 생략하면 거부 */
+    onExpire: Type.Optional(ApprovalOnExpireJsonSchema),
   },
   { additionalProperties: false },
 );
@@ -196,7 +217,13 @@ export const ApprovalResolvedPayloadSchema: TObject<{
   remember: typeof RememberScope;
   requestedRemember: TUnion<[typeof RememberScope, TNull]>;
   resolvedBy: TUnion<
-    [TLiteral<"user">, TLiteral<"noninteractive">, TLiteral<"cancelled">, TLiteral<"superseded">]
+    [
+      TLiteral<"user">,
+      TLiteral<"noninteractive">,
+      TLiteral<"cancelled">,
+      TLiteral<"superseded">,
+      TLiteral<"expired">,
+    ]
   >;
 }> = Type.Object(
   {
@@ -212,6 +239,7 @@ export const ApprovalResolvedPayloadSchema: TObject<{
       Type.Literal("noninteractive"),
       Type.Literal("cancelled"),
       Type.Literal("superseded"),
+      Type.Literal("expired"),
     ]),
   },
   { additionalProperties: false },

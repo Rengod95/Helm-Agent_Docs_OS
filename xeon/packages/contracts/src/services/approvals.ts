@@ -107,6 +107,14 @@ export type ApprovalBody =
   | { readonly kind: "plan"; readonly plan: PlanApprovalBody }
   | { readonly kind: "question"; readonly question: QuestionBody };
 
+/**
+ * 만료했을 때 요청이 어떻게 해결되는가 [결정: m2c G1-11]. `deny`는 거부(기본), `answer`는 정한 답으로 응답한 것으로 본다
+ * (질문의 추천 답처럼 `answer`가 있을 때만 쓴다). 해결에는 `resolvedBy: "expired"`가 붙는다
+ */
+export type ApprovalOnExpire =
+  | { readonly decision: "deny" }
+  | { readonly decision: "answer"; readonly answer: JsonValue };
+
 export interface ApprovalRequestInput {
   readonly origin: ApprovalOrigin;
   /** 요청 멱등 키(1~48자). 같은 대화에서 같은 키의 두 번째 요청은 처음 요청을 돌려준다. 도구 승인은 toolCallId */
@@ -116,6 +124,13 @@ export interface ApprovalRequestInput {
   readonly body: ApprovalBody;
   /** 이 요청에서 고를 수 있는 기억 범위. 질문은 ["once"]만 */
   readonly remember: readonly ApprovalRemember[];
+  /**
+   * 만료 시각(epoch ms, 요청 커밋 시각 + 제한). 없으면 만료가 없다. 내구 필드라 프로세스를 다시 시작해도 제한 시간을 처음부터 다시 재지 않는다.
+   * 이 필드는 M2에서 기록만 하고 만료 해결은 M3 구현이다(L1.tools가 시작 때와 타이머로 만료분을 해결한다)
+   */
+  readonly expiresAt?: number;
+  /** 만료 때의 해결. `expiresAt`이 있을 때만 뜻이 있다. 생략하면 `{ decision: "deny" }` */
+  readonly onExpire?: ApprovalOnExpire;
 }
 
 /** 단일 대기 형식. approval.requested payload와 같다 */
@@ -179,7 +194,13 @@ export interface ApprovalResponse {
   readonly remember?: ApprovalRemember;
 }
 
-export type ApprovalResolvedBy = "user" | "noninteractive" | "cancelled" | "superseded";
+export type ApprovalResolvedBy =
+  | "user"
+  | "noninteractive"
+  | "cancelled"
+  | "superseded"
+  /** `expiresAt`이 지나 `onExpire`대로 해결했다 [결정: m2c G1-11] */
+  | "expired";
 
 export interface ApprovalResolution {
   readonly approvalId: string;
@@ -269,6 +290,8 @@ export interface L2ApprovalSnapshot {
   readonly resolution: {
     readonly decision: ApprovalDecision;
     readonly answer: JsonValue | null;
+    /** 누가 해결했는가. `expired`면 만료로 해결됐다. 이유를 알리지 않는 구현(시험용 가짜)은 생략할 수 있다 [결정: m2c G1-11] */
+    readonly resolvedBy?: ApprovalResolvedBy;
   } | null;
 }
 
@@ -283,6 +306,9 @@ export interface L2ApprovalRequest {
   readonly blocking?: boolean;
   /** 멱등 키(1~L2_APPROVAL_REQUEST_ID_MAX자). 같은 키로 다시 부르면 새 요청을 만들지 않고 기존 요청의 현재 상태를 돌려준다 */
   readonly requestId: string;
+  /** 만료 시각(epoch ms)과 만료 때의 해결. `ApprovalRequestInput`의 같은 이름 필드로 옮긴다 [결정: m2c G1-11] */
+  readonly expiresAt?: number;
+  readonly onExpire?: ApprovalOnExpire;
 }
 
 export interface L2ApprovalRespondInput {
