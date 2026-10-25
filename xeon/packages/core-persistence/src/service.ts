@@ -13,6 +13,7 @@ import {
   type SessionDeps,
 } from "./deps.ts";
 import { createExtPort } from "./ext-port.ts";
+import { createItemPages, registerItemPages } from "./item-pages.ts";
 import { createLifecycle } from "./lifecycle.ts";
 import { createGuardState, createOpenSessions } from "./ownership.ts";
 import { NO_SESSION_POINTS } from "./points.ts";
@@ -151,7 +152,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
     logger: deps.logger,
   });
 
-  return ok({
+  const service: SessionService = {
     retention,
     commit: (request) => writer.commit(request),
     producer: (id: ProducerId): ProducerHandle => producers.claim(id),
@@ -180,5 +181,7 @@ export function createSessionService(deps: SessionDeps): Result<SessionService, 
       catalog,
       canDetach: deps.putBlob !== undefined,
     }),
-  });
+  };
+  registerItemPages(service, createItemPages({ db: deps.db, catalog, reader }));
+  return ok(service);
 }

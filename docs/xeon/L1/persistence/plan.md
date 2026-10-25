@@ -238,6 +238,8 @@ xeon/packages/core-persistence/
 | `resume_marker_comes_from_events` | `resume.int.test.ts` | `turn.started` 뒤 표식 생김, `turn.completed` 뒤 사라짐, `thread.resumed`로 시도 수 증가 | PS-6 |
 | `resume_attempts_capped` | `resume.int.test.ts` | `maxResumeAttempts` 도달 뒤 `beginResume` → `attempts_exhausted` | PS-6 |
 | `fork_creates_new_thread_with_forked_from` | `lifecycle.test.ts` | 새 thread 첫 이벤트 `thread.started{forkedFrom}`, 원본 이벤트 수 불변, `session_before_fork` 거부 시 커밋 없음 | PS-9 |
+| `fork_continuity` | `fork-continuity.test.ts` | fork thread의 활성 가지가 출처의 fork 지점까지의 item을 같은 `itemId`로 잇고, 출처의 이후 쓰기는 들어오지 않으며, fork의 fork도 이어지고, 상속한 item으로는 되감기가 안 된다 (M2 마감 G2-11) | PS-9 |
+| `branch_item_records_pages` | `item-pages.test.ts` | `before`·`limit` 쪽을 이어 붙이면 활성 가지 전체와 같고(fork 경계 포함), `hasMore` 정확, 오류 사유 구분, 쪽에 든 item의 blob만 읽는다 (M2 마감 G2-11) | PS-9 |
 | `leaf_move_keeps_old_branch` | `branch.test.ts` | `moveLeaf` 뒤 옛 가지가 `readFrom`에 남고 `readBranch`에는 새 가지만 | PS-10 |
 | `branch_summary_committed_with_leaf_move` | `branch.test.ts` | summary가 있으면 `thread.branch_summarized`가 같은 커밋 | PS-10 |
 | `revert_rejects_target_inside_turn` | `lifecycle.test.ts` | toolCall 있는 assistant item 대상 → `invalid_target{inside_turn}` | PS-9 |

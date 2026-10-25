@@ -155,6 +155,9 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
                   stepId: null,
                   causationId: null,
                   correlationId: null,
+                  // fork의 첫 이벤트는 출처 이벤트에 이어 붙는다. 활성 가지(parent_id 사슬)가 출처 thread의 fork 지점까지의 기록을
+                  // 그대로 지나므로 컨텍스트 조립과 `thread.read`가 원본 item을 복사 없이 잇는다(M2 마감 G2-11, F.wire-settings.spec §3.4.6 3.1)
+                  ...(forkedFrom === undefined ? {} : { parentId: forkedFrom.eventId }),
                   payload: {
                     title: input.title ?? null,
                     forkedFrom: forkedFrom ?? null,

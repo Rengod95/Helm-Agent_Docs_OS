@@ -502,6 +502,23 @@ export interface ItemRow {
 }
 ```
 
+`ProjectionQuery`에 없는 쪽 질의 `branchItemRecords`(M2 마감 G2-11)는 서비스 객체의 멤버가 아니라 `itemPagesOf(session)`(`@xeon/core-persistence`)로 꺼낸다. F의 `ProjectionQuery`를 구현하는 모든 대역을 함께 바꾸지 않으려는 선택이고, `createSessionService`가 만든 서비스가 아니면(시험 대역) `undefined`라서 호출자는 `readBranch` 경로로 되돌아간다. 서비스 객체를 펼쳐 복사해도 `query` 참조가 같아 찾아진다.
+
+```ts
+export interface ItemPageRequest { readonly threadId: ThreadId; readonly before?: ItemId; readonly limit: number }
+export interface ItemPage { readonly items: readonly ItemRecord[]; readonly headSeq: number; readonly hasMore: boolean }
+export type ItemPageFailure = ReadFailure
+  | { kind: "thread_not_found"; threadId: ThreadId }
+  | { kind: "invalid_target"; reason: "item_not_found" | "not_on_branch" };
+export interface ItemPages { branchItemRecords(request: ItemPageRequest): Promise<Result<ItemPage, ItemPageFailure>> }
+```
+
+- 활성 가지에서 `before` item 바로 앞(없으면 가장 새 item)부터 `limit`개를 오래된 것부터 돌려준다. `p_items`의 seq로 거르고 쪽에 든 item의 이벤트만 읽어 `detached` 본문을 blob에서 되돌린다. 가지 전체의 이벤트를 읽지 않는다.
+- `headSeq`는 `items`를 고른 읽기 트랜잭션과 같은 트랜잭션에서 잰 저장소 head다(F.wire-settings.spec §3.4.6 1항).
+- `hasMore`는 `limit+1`개를 읽어 판정하므로 남은 수가 `limit`과 같아도 거짓이다. fork thread는 출처의 fork 지점까지 이어서 돌려준다(§4.10.3).
+- 오류: 없는 thread는 `thread_not_found`, 어느 thread에도 없는 `before`와 다른 thread의 item은 `item_not_found`, 이 thread의 item인데 현재 가지에 없으면 `not_on_branch`다.
+- 응답 크기 예산(프레임 한도)에 맞춰 줄이는 일은 호출자(L4 host)가 한다. 줄이면 `hasMore`를 참으로 둔다.
+
 ### 3.5 읽기와 구독
 
 ```ts
@@ -1128,6 +1145,7 @@ export interface RewindPlan {
 - `fork(threadId, at, newThreadId)`: `at`이 있으면 `query.itemEvent(threadId, at)`, 없으면 현재 leaf를 출처 이벤트로 쓴다. 출처가 활성 가지에 없으면 `invalid_target{not_on_branch}`, item이 없으면 `item_not_found`다. `session_before_fork`의 `itemId`는 `at`, 없으면 활성 가지의 마지막 item이다(`position: "at"`). 쓰기 소유자가 아니어도(관찰 열기) 새 thread를 만들 수 있다. 새 thread에는 출처의 제목과 workspace를 옮긴다. 새 thread의 소유 잠금은 호출한 호스트가 얻는다.
 - 커밋 전 `session_before_fork`(first)를 발화하고, 거부면 `cancelled_by_extension`이다.
 - 새 thread의 첫 이벤트 `thread.started { title, forkedFrom: { threadId, eventId } }`를 커밋한다. 출처 이벤트를 복사하지 않는다. 컨텍스트 조립은 출처 thread의 `eventId`까지 활성 사슬을 앞에 잇는다(`eng.events.design` §6) [제안]. pi durable `session/forks.ts`(97줄)는 대화 문서를 fork 시점(`asOf`)과 현재(`current`) 정책으로 복사한다. Xeon의 문서 대응물은 scope 상태 이벤트이므로, 새 thread의 scope 상태는 X가 출처 thread의 `x|grp.<name>.state.committed`를 `at` 시점으로 읽어 새 thread에 다시 커밋한다 [가정: X.primitives.spec이 정한다].
+- fork 연속성 [결정: m2c G2-11]: 새 thread의 첫 이벤트 `thread.started`의 `parentId`는 출처 이벤트(`forkedFrom.eventId`)다. 활성 가지는 leaf에서 `parentId`를 따라 올라간 사슬이므로 fork thread의 `readBranch`, `query.branchItems`, `branchItemRecords`가 출처 thread의 fork 지점까지의 이벤트와 item을 같은 `itemId`로 잇는다. 출처가 다시 fork이면 사슬을 거슬러 올라간다. 이벤트를 복사하지 않고, 출처에 fork 뒤에 쓰인 이벤트는 사슬에 없다. 이벤트 읽기(`readFrom`/`subscribe`)와 `query.thread`, `p_items`는 이 thread의 것만 다룬다. 출처 쪽 item은 이 thread에서 `itemEvent`로 찾을 수 없어(`p_items`가 thread별이다) 되감기·fork·`moveLeaf`의 대상이 아니다. 출처 thread를 지우려면 fork가 없어야 한다(`has_forks`).
 - 커밋 뒤 `session_start{ reason: "fork", previousThreadId: threadId }`를 새 thread에 발화한다.
 
 #### 4.10.4 revert
@@ -1438,6 +1456,8 @@ export type SessionSettingsError =
 22. 자식 생성(`threads.create`의 `creationKey` + 부모 `agent.spawned`, §4.10.1) 뒤 SIGKILL하고 다시 열면 `TxView.agentByRequestId(부모, requestId)`가 그 자식을 돌려주고, 자식이 정착하지 않았으면 `ResumePlan.openChildren`에 있다. `agent.settled` 뒤에는 `openChildren`에 없다.
 23. 한 단계(도구 n개)의 커밋 수는 `3 + 3n`이다(§4.2 fsync 식). 모델 테이프 스모크의 커밋 기록으로 확인한다.
 24. 프로세스 A의 임대를 B가 인수한 뒤(epoch 증가) A의 토큰으로 커밋하면 `ownership_lost`이고 `events` 행이 늘지 않는다.
+25. fork thread의 `query.branchItems`와 `readBranch`는 출처 thread의 fork 지점까지의 item을 같은 `itemId`로 먼저 돌려주고 fork가 쓴 item이 뒤따른다. 출처에 fork 뒤 쓴 item은 들어오지 않는다. fork의 fork도 같다. `readFrom({ threadId })`는 fork thread의 이벤트만 돌려준다.
+26. `branchItemRecords`의 쪽을 `before`로 이어 붙이면 `readBranch`로 읽은 활성 가지의 item 전체와 같다. 쪽에 든 item의 blob만 읽는다. 없는 thread, 없는 item, 현재 가지에 없는 item은 이유가 다른 오류다.
 25. 같은 `creationKey`로 서로 다른 `threadId`를 주어 `threads.create`를 두 번 부르면 `thread.started`는 하나이고 두 번째 결과는 `replayed: true`, 첫 `threadId`다.
 26. `turn.started{scopeId: s, requestId: r}`가 커밋된 뒤 `TxView.turnByRequestId(thread, s, r)`가 그 turn을 돌려주고, `scopeId` null인 turn과 섞이지 않는다.
 27. 오버플로우 복구 컴팩션(C7) 직후 SIGKILL하고 재개하면 `next: "request"`로 같은 단계 요청이 컴팩션 뒤 가지로 나가고 `thread.compacted`는 하나다.
@@ -1462,4 +1482,4 @@ export type SessionSettingsError =
 15. [미결] 청크 재생성으로 바꾸는 기준 이벤트 수(10만 건 [가정])와 재생성 중 쓰기 거부가 사용자에게 주는 지연.
 16. [미결] 확장 투영기 예외 뒤 복구 경로(X가 확장을 끄고 재시도)를 이 문서의 알림 방식으로 확정할지(`X.operations.spec` §10 미결 6).
 17. [미결] 승인 대기 커밋(A1)의 체크포인트 예외(FR-P4)를 F가 받지 않으면, 승인 대기를 단계 경계로 볼지(`step.completed{status}` 확장) 다시 정해야 한다.
-18. [미결] `thread.read`와 `approval.list`(F.wire-settings.spec §3.4.6)용 L1 전용 질의. 조립 루트(apps/host)가 `readBranch`·`readFrom`·`query.pendingApprovals`와 `feed.headSeq()`를 같은 동기 구간에서 불러 구현했고(읽기가 모두 동기 SQLite 호출이라 head와 내용이 같은 저장소 상태를 본다), L1이 해줄 일은 아직 없어 `ProjectionQuery`에 질의를 더하지 않았다. 비용은 남는다. `thread.read`는 쪽 하나를 위해 활성 가지 전체를 읽고 `approval.list`는 대화의 이벤트를 처음부터 훑는다. 긴 대화에서 문제가 되면 (a) 활성 가지의 `item.recorded`를 `before`·`limit`으로 자르고 head와 한 읽기 트랜잭션에서 돌려주는 질의, (b) 미해결 `approval.requested`를 seq와 함께 돌려주는 질의를 `ProjectionQuery`에 더한다. `ProjectionQuery`를 구현하는 모든 대역(core-tools·core-loop·cap-work의 가짜 세션)이 함께 바뀌는 F 변경이다.
+18. [부분 해소: m2c G2-11] `thread.read`용 쪽 질의는 `branchItemRecords`(§3.4)로 구현했다. `approval.list`용 질의(미해결 `approval.requested`를 seq와 함께 돌려주는 질의)는 아직 없다. 조립 루트는 `readBranch`·`readFrom`·`query.pendingApprovals`와 `feed.headSeq()`를 같은 동기 구간에서 불러 쓰고, `approval.list`는 대화의 이벤트를 처음부터 훑는다. 긴 대화에서 문제가 되면 (b)를 같은 방식으로 더한다.
