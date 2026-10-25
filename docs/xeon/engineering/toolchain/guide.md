@@ -451,7 +451,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 - 기준 커밋: PR은 `origin/<base_ref>`, push는 `origin/main`(`TURBO_SCM_BASE`).
 - 각 job은 `jdx/mise-action`으로 `mise.toml`의 Bun 1.4.3을 설치하고 just 1.58.0을 쓴다.
 - 원격 캐시는 쓰지 않는다 [제안]. 필요해지면 TC-04 절차로 더한다.
-- macOS job: FTS5와 `setCustomSQLite` 검사(TC-11)를 위해 `macos-latest`에서 `platform-store` 테스트만 도는 job을 더한다 [제안]. 현재 없다.
+- macOS job: `.github/workflows/xeon-macos.yml`. `workflow_dispatch`나 PR 라벨 `ci:macos`로만 돈다(`review.m2-plan` §8 D1). `macos-15`에서 `platform-store`(FTS5와 `setCustomSQLite`, TC-11), `platform-os`, `platform-sandbox`(Seatbelt), `platform-secrets`, `cap-knowledge` 시험, `just exit-tests`, `aarch64-apple-darwin` 사이드카 빌드, `just desktop-test`를 돈다. 결과는 `review.macos-checklist`에 적는다.
 
 ### 3.5 규칙과 도구 행렬
 
@@ -467,7 +467,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | TC-08 tsconfig 기반 하나 | [제안] `check-layers.ts`: 패키지 tsconfig의 `compilerOptions` 키가 허용 목록 안인지 |
 | TC-09 just 레시피 | 리뷰, CI가 레시피만 부른다 |
 | TC-10 공개 패키지 도구 | 리뷰, 첫 공개 패키지 때 verify 단계 |
-| TC-11 FTS5 | `platform-store` 단위 테스트, macOS CI job [제안] |
+| TC-11 FTS5 | `platform-store` 단위 테스트, macOS 수동 CI job(`xeon-macos.yml`) |
 | TC-12 Playwright | `cap-web` 계획의 호환 확인 테스트 |
 
 ## 4. 예외와 승인 절차

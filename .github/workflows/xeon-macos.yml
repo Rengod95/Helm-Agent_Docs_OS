@@ -1,0 +1,60 @@
+name: Xeon macOS
+
+# Manual macOS run (M2 closing G4-02, review.m2-plan section 8 D1, decision D-d: macOS first). It runs only when asked:
+# workflow_dispatch, or a pull request that carries the label ci:macos. Results go to docs/xeon/review/macos-checklist.md.
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled, synchronize]
+
+concurrency:
+  group: xeon-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TURBO_TELEMETRY_DISABLED: "1"
+  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/xeon
+
+jobs:
+  macos:
+    name: macOS arm64 checks
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'ci:macos')
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: xeon
+      - run: mise use --global sops@3.13.3 age@1.3.2
+      - uses: extractions/setup-just@v2
+        with:
+          just-version: "1.58.0"
+      - run: just setup
+      # Checklist rows M-01 (FTS5, fullfsync, locks), M-02 (NFD paths), M-03 (Seatbelt), M-04 (secrets).
+      - name: platform-store (FTS5 trigram probe, fullfsync, locks)
+        run: just test packages/platform-store
+      - name: platform-os (paths, NFD)
+        if: always()
+        run: just test packages/platform-os
+      - name: platform-sandbox (Seatbelt)
+        if: always()
+        run: just test packages/platform-sandbox
+      - name: platform-secrets (sops, keychain fallback)
+        if: always()
+        run: just test packages/platform-secrets
+      - name: cap-knowledge (FTS5 search)
+        if: always()
+        run: just test packages/cap-knowledge
+      - name: exit-condition tests
+        if: always()
+        run: just exit-tests
+      # Checklist rows M-07 (sidecar build) and M-08 (Tauri shell tests).
+      - name: sidecar aarch64-apple-darwin
+        if: always()
+        run: just desktop-sidecar aarch64-apple-darwin
+      - name: desktop Rust shell tests
+        if: always()
+        run: just desktop-test
