@@ -10,6 +10,7 @@ import {
   type StoreError,
 } from "@xeon/contracts/records";
 import type {
+  ApprovalApplyOutcome,
   ApprovalDecision,
   L2ApprovalRequest,
   L2ApprovalSnapshot,
@@ -37,12 +38,12 @@ export interface RealApprovals {
   readonly l1: RealTools;
   /** 이벤트 로그의 승인 요청(멱등 재요청은 세지 않는다). `subject`는 body의 질문 묶음이다 */
   entries(): readonly { readonly approvalId: ApprovalId; readonly subject: JsonValue }[];
-  /** 클라이언트가 `approval.respond`를 보낸 것처럼 응답한다. 검사에 걸리면 applied: false다 */
+  /** 클라이언트가 `approval.respond`를 보낸 것처럼 응답한다. 검사에 걸리면 applied: false에 이유가 붙는다 */
   respond(
     approvalId: ApprovalId,
     decision: ApprovalDecision,
     answer?: JsonValue,
-  ): Promise<{ readonly applied: boolean }>;
+  ): Promise<ApprovalApplyOutcome>;
   /** 이 서비스 인스턴스가 아는 요청의 현재 상태. 재시작 직후에는 요청을 다시 불러야 보인다 */
   snapshotOf(approvalId: ApprovalId): L2ApprovalSnapshot | undefined;
   /**
