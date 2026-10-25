@@ -88,8 +88,8 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon secret set <name>` | 값 교체. 값은 stdin이나 프롬프트로만 받는다(§4.7) | `secret.beginEntry { name, action: "set" }`. 값 필드 없음 | M2 |
 | `xeon secret meta <name> [--desc …] [--scope …] [--expires …] [--hosts …]` | 메타 수정. 값과 무관하다 | `secret.meta` | M2 |
 | `xeon secret rotate <name>` | 새 값으로 교체하고 기존 lease를 폐기한다. TTY 프롬프트로만 받는다 | `secret.beginEntry { name, action: "rotate" }`. 값 필드 없음 | M2 |
-| `xeon secret rm <name> [--yes]` | 삭제. 참조하는 정책을 보인 뒤 확인한다. 사용 중이면 거부된다 | `secret.remove` | M2 |
-| `xeon secret test <name>` | 존재와 복호화 가능 여부. 길이와 해시 앞 8자만 출력한다. 현재 wire 결과는 `state`(`registered`, `missing`)뿐이라 구현은 그 값만 보인다 [미결 §10 12번] | `secret.test` | M2 |
+| `xeon secret rm <name> [--yes]` | 삭제. 참조하는 정책과 참조(설정 키, 활성 lease, 최근 사용한 세션)를 보인 뒤 확인한다. 활성 lease가 있으면 묻지 않고 거부한다 | `secret.references`, `secret.list { meta: true }`, `secret.remove` | M2 |
+| `xeon secret test <name>` | 존재와 복호화 가능 여부. 길이와 해시 앞 8자만 출력한다. 복호화할 수 없거나 없으면 1이다 | `secret.test` | M2 |
 | `xeon secret reveal <name>` | 값 열람. 사람 전용이고 TTY에서만 동작한다. OS 인증 재확인이 가능한 플랫폼에서는 재확인한다(§4.7) [결정: review.decisions-2 U-20] | `secret.beginReveal { name }`. 값 필드 없음. F 메서드 추가는 M2 계획에서 정한다(review.decisions-2 U-04) | M2 |
 | `xeon trust [status] [--json]` | 이 작업 폴더의 프로젝트 신뢰 상태(폴더, 불러오려는 자원, 판정과 출처, 선택지)를 보인다. 신뢰할 자원이 없으면 stderr에 한 줄이다 | `trust.get { workspace }` | M2 |
 | `xeon trust allow\|deny [--scope folder\|parent\|session]` | 선택지 하나를 host에 보낸다. 범위 기본값은 `folder`. host가 낸 선택지에 없는 조합이면 2다 | `trust.get`, `trust.decide { workspace, choice }` | M2 |
@@ -562,13 +562,17 @@ export type CliState = Static<typeof CliStateSchema>;
 - 값은 stdout, stderr, 이벤트, 로그, 오류 `details`, JSON 모드 출력 어디에도 없다.
   - [제안] 비밀 명령에는 `--json` 메시지 탭을 붙이지 않는다. `secret ls`, `secret test`의 `--json`은 결과 객체만 쓴다.
   - 값을 담은 바이트 배열은 L0.secrets에 넘긴 직후 0으로 덮는다. 문자열로 바꾸지 않는다 [제안].
-- `secret test`는 존재, 복호화 가능 여부, 길이, SHA-256 hex 앞 8자만 출력한다. 현재 wire 결과는 `state`뿐이라 구현은 `registered`·`missing`만 보이고 `missing`이면 1로 끝낸다 [미결 §10 12번].
+- `secret test`는 존재, 복호화 가능 여부, 길이, SHA-256 hex 앞 8자만 출력한다 [결정: m2c G1-07]. wire 결과는 `state`, `decryptable`, `length`, `sha256Prefix`다(`L0.secrets.spec`의 `SecretTestResult`). 글은 `<이름>: registered (복호화 가능, 길이 <n>바이트, sha256 앞 8자 <hex>)`이고, 복호화할 수 없으면 `registered (복호화할 수 없다)`, 없으면 `missing`이다. `registered`이면서 복호화할 수 있을 때만 0이고 나머지는 1이다. `--json`은 `{ name, state, decryptable, length, sha256Prefix }`를 한 줄로 쓴다. 앞 8자는 사람이 같은 값인지 견주는 데만 쓰고 기록하지 않는다.
 - 입력 규칙 (구현):
   - TTY가 아니면 stdin을 EOF까지 읽고 끝의 줄바꿈 하나(`\n`, `\r\n`)를 지운다. 빈 값은 2, 64 KiB를 넘으면 2다.
   - TTY면 `readSecret`으로 두 번 받아 상수 시간으로 비교한다. 다르면 아무것도 저장하지 않고 1이다. Ctrl+C·Ctrl+D는 취소(1)다.
   - 값을 읽는 때는 호스트가 맡긴 수단의 `read()`를 부르는 순간이다. 읽은 바이트 배열은 `secret.beginEntry`가 끝나면 성공·실패와 관계없이 0으로 덮는다.
   - `add`의 `--desc`, `--scope`, `--expires`, `--hosts`는 값을 저장한 뒤 `secret.meta`로 적용한다. `--hosts`는 기존 사용 정책을 `secret.list { meta: true }`로 읽어 `hosts`만 바꾼다. 메타 적용이 실패하면 값은 저장된 상태라고 알린다. `--provider`는 `sops`만 받는다(wire에 제공자 선택이 없다). `secret meta`는 플래그가 하나도 없으면 2다.
-  - `rm`은 `secret.list { meta: true }`의 사용 정책(허용 도구·호스트)을 먼저 보이고 확인한다. `--yes` 없이 비TTY면 2다. 사용 중이면 호스트가 거부하고(`in_use`) CLI는 활성 lease 수를 보인다.
+  - `rm`은 먼저 `secret.references { name }`로 이 비밀을 가리키는 곳을 읽는다 [결정: m2c G1-07]. `--yes` 없이 비TTY면 2다.
+    - `--yes`가 없으면 `secret.list { meta: true }`의 사용 정책(허용 도구·호스트)과 `<이름>: 참조하는 설정 키 <키…> / 활성 lease <n>개 / 최근 사용한 세션 <id…>` 한 줄(없으면 `없음`, 세션은 5개까지, 나머지는 `외 <n>개`)을 보인 뒤 `[y/N]`로 묻는다.
+    - 활성 lease가 하나라도 있으면 묻지 않고 "사용 중인 비밀이라 지울 수 없다 (활성 lease <n>개)"로 1로 끝낸다. `secret.remove`는 보내지 않는다.
+    - `--yes`는 묻지 않고 지우되, 참조가 하나라도 있으면 같은 한 줄을 stderr에 남긴다. 활성 lease는 호스트가 거부하고(`secret.inUse`) CLI는 활성 lease 수를 보인다.
+    - `host.hello`의 `features`에 `secret.references`가 없는 호스트에서는 사용 정책만 보인다.
   - 비밀 오류는 F 오류 표의 전용 kind(`secret.notFound`~`secret.writeFailed`, 3201~3212)로 온다. 전용 kind가 생기기 전의 호스트는 `internal`의 `details.secret.kind`에 실었으므로 CLI는 두 길을 같은 문구 표로 모은다. 문구와 종료 코드는 제공자·키 문제가 3, 나머지가 1이다.
 - `reveal` (구현): 확인 문구로 이름을 다시 입력받고(`tty-confirm`, `verifiedAt`은 엔진 시계) 열람 수단을 맡긴 뒤 `secret.beginReveal`을 보낸다. 값은 `show` 콜백에서 바이트 그대로 `stdoutStream`에 한 번 쓰고, 문자열로 바꾸지 않는다. `os-auth`는 L0.os가 제공하기 전까지 쓰지 않는다. 호스트가 `started: false`를 돌려주면(재확인 만료·취소) 값을 보이지 않고 1이다.
 - 값 열람 [결정: review.decisions-2 U-20]: 열람 경로는 M2 CLI `xeon secret reveal <name>`과 M3 데스크톱 화면(`L4.settings-ui.spec`) 둘이다. 에이전트 경로(모델 도구, 확장 API)에는 열람이 없다.
@@ -818,6 +822,7 @@ export type CliState = Static<typeof CliStateSchema>;
 - AC17. 대화형에서 엔진에 등록한 동작 명령(`/plan on`)을 치면 `command.run { threadId, text: "/plan on" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
 - AC18. 대화형으로 `thread.list`가 `resumable`을 알린 세션을 열면 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`가 한 번 가고, 그 turn의 나머지 이벤트가 그려진다. 새 세션과 print 모드는 묻지 않고 `turn.resume`을 보내지 않는다.
 - AC19. 결정이 없고 신뢰할 자원이 있는 폴더에서 대화형 `chat`을 시작하면 `thread.create`보다 앞서 카드를 묻고, 번호를 입력하면 그 선택지의 `choice`로 `trust.decide { workspace, choice }`가 한 번 간다. 엔터는 `trust.decide`를 보내지 않는다. `xeon trust allow --scope parent`는 host가 낸 선택지의 `{ kind: "parent", verdict: "allow" }`를 보낸다.
+- AC20. `xeon secret rm <name>`은 `secret.references`로 읽은 설정 키·활성 lease·최근 세션을 보인 뒤 묻고, 활성 lease가 있으면 `secret.remove`를 보내지 않는다. `xeon secret test <name>`의 출력에는 길이와 SHA-256 앞 8자가 있고 값, 값의 base64·hex는 stdout·stderr·요청 어디에도 없다.
 
 ## 10. 미결 사항
 
@@ -832,6 +837,6 @@ export type CliState = Static<typeof CliStateSchema>;
 9. [결정: review.decisions-2 U-02] 승인 요청은 A안(내구 이벤트 `approval.requested`/`approval.resolved` + `approval.respond`)이다. kind는 F.records 카탈로그에 있다(`F.records.spec` §3.2).
 10. [미결] TUI 설정 화면과 view-model 공유 위치(§4.9.4).
 11. [미결] stdout EPIPE의 종료 코드(0 제안)와 129·143 추가.
-12. [미결] `secret test`의 출력. 스펙은 복호화 가능 여부, 길이, 해시 앞 8자를 정하지만(`L0.secrets.spec`의 `SecretTestResult`) wire 결과 `secret.test`는 `state`(`registered`, `missing`)만 담는다. F 결과에 `decryptable`, `length`, `sha256Prefix`를 더하는 변경이 필요하다. 값 자체는 싣지 않는다.
+12. [결정: m2c G1-07] `secret test`의 출력. F 결과에 `decryptable`, `length`, `sha256Prefix`가 더해져서 §4.7대로 출력한다.
 13. [미결] 설정 값 사전 검사(§4.8). `settings.list`의 `SettingDefWire`는 `type`이 JSON Schema 객체라 `validateSettingValue`(TSchema 입력)를 바로 부를 수 없고, CLI에서 `Type.Unsafe(json)`을 쓰면 TY-26을 어긴다. F가 `SettingDefWire`를 받는 검사 함수를 내면 `config set`이 왕복 전에 범위 오류를 알릴 수 있다. 그 전까지 값 판정은 호스트의 `settings.set`이 한다(오류 문구는 §4.10 표).
-14. [미결] 비밀 삭제 전 참조 표시. 스펙은 "참조하는 정책을 보인 뒤 확인한다"인데 wire에 `secret.references`가 없다. 현재는 `secret.list { meta: true }`의 사용 정책(도구·호스트)만 보인다. 설정 키·활성 lease·최근 세션을 보이려면 wire 메서드나 목록 항목 확장이 필요하다.
+14. [결정: m2c G1-07] 비밀 삭제 전 참조 표시. `secret.references`로 설정 키, 활성 lease 수, 최근 사용한 세션을 보인다(§4.7 `rm`).

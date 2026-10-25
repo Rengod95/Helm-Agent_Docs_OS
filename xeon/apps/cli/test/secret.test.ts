@@ -1,7 +1,8 @@
+import { createHash } from "node:crypto";
 import { afterEach, expect, test } from "bun:test";
-import { wireError, type SecretListEntry } from "@xeon/contracts/wire";
+import { wireError, type SecretListEntry, type SecretReferencesResult } from "@xeon/contracts/wire";
 import { EXIT } from "../src/exit-codes.ts";
-import { secretName } from "./support/ids.ts";
+import { secretName, threadId } from "./support/ids.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { fakeSecrets, type FakeSecretStore } from "./support/secrets.ts";
 
@@ -41,6 +42,7 @@ function setup(
   options: Parameters<typeof createHarness>[0] = {},
   initial: readonly SecretListEntry[] = [],
   failures: Parameters<typeof fakeSecrets>[2] = {},
+  references: Readonly<Record<string, SecretReferencesResult>> = {},
 ): Setup {
   const ref: { h?: Harness } = {};
   const secrets = fakeSecrets(
@@ -50,6 +52,7 @@ function setup(
     },
     initial,
     failures,
+    references,
   );
   const h = createHarness({
     env: { NO_COLOR: "1" },
@@ -209,12 +212,52 @@ test("secret ls with nothing registered says so on stderr", async () => {
   expect(s.h.stderrText()).toContain("등록된 비밀이 없다");
 });
 
-test("secret test reports registered or missing; a missing secret exits 1", async () => {
+test("secret test shows decryptability, length and the first 8 hex of the SHA-256, never the value", async () => {
   const s = setup({}, [entry("api-key")]);
+  s.secrets.stored.set("api-key", new TextEncoder().encode(VALUE));
+  const prefix = createHash("sha256").update(VALUE).digest("hex").slice(0, 8);
   expect(await s.h.run(["secret", "test", "api-key"])).toBe(EXIT.ok);
-  expect(s.h.stdoutText()).toBe("api-key: registered\n");
+  expect(s.h.stdoutText()).toBe(
+    `api-key: registered (복호화 가능, 길이 ${String(VALUE.length)}바이트, sha256 앞 8자 ${prefix})\n`,
+  );
+  expect(await s.h.run(["secret", "test", "api-key", "--json"])).toBe(EXIT.ok);
+  expect(JSON.parse(s.h.stdoutText().split("\n")[1] ?? "")).toEqual({
+    name: "api-key",
+    state: "registered",
+    decryptable: true,
+    length: VALUE.length,
+    sha256Prefix: prefix,
+  });
+  expectNoValue(s);
+});
+
+test("secret test of a missing secret exits 1; a registered one that cannot be decrypted also exits 1", async () => {
+  const s = setup({}, [entry("api-key")]);
   expect(await s.h.run(["secret", "test", "nothing-here", "--json"])).toBe(EXIT.error);
-  expect(s.h.stdoutText()).toContain('{"name":"nothing-here","state":"missing"}');
+  expect(JSON.parse(s.h.stdoutText())).toEqual({
+    name: "nothing-here",
+    state: "missing",
+    decryptable: false,
+    length: null,
+    sha256Prefix: null,
+  });
+
+  const broken = createHarness({
+    env: { NO_COLOR: "1" },
+    server: {
+      handlers: {
+        "secret.test": () => ({
+          state: "registered",
+          decryptable: false,
+          length: null,
+          sha256Prefix: null,
+        }),
+      },
+    },
+  });
+  harnesses.push(broken);
+  expect(await broken.run(["secret", "test", "api-key"])).toBe(EXIT.error);
+  expect(broken.stdoutText()).toBe("api-key: registered (복호화할 수 없다)\n");
 });
 
 test("secret rm --yes removes; without --yes a pipe is refused; a terminal asks first", async () => {
@@ -237,6 +280,9 @@ test("secret rm --yes removes; without --yes a pipe is refused; a terminal asks 
   expect(await tty.h.run(["secret", "rm", "api-key"])).toBe(EXIT.ok);
   // 참조하는 정책을 먼저 보인 뒤 묻는다
   expect(tty.h.stdoutText()).toContain("허용 도구 http.request / 허용 호스트 api.example.com");
+  expect(tty.h.stdoutText()).toContain(
+    "api-key: 참조하는 설정 키 없음 / 활성 lease 0개 / 최근 사용한 세션 없음\n",
+  );
   expect(asked[0]).toContain("비밀 api-key을(를) 지울까요?");
 
   const declined = setup({ terminal: TTY, readLine: () => Promise.resolve("") }, [
@@ -244,6 +290,60 @@ test("secret rm --yes removes; without --yes a pipe is refused; a terminal asks 
   ]);
   expect(await declined.h.run(["secret", "rm", "api-key"])).toBe(EXIT.error);
   expect(declined.h.stderrText()).toContain("지우지 않았다");
+});
+
+test("secret rm shows what points at the secret from secret.references before it asks", async () => {
+  const asked: string[] = [];
+  const refs = {
+    "api-key": {
+      settingKeys: ["l2.web.search.apiKey", "l1.models.apiKey"],
+      activeLeases: 0,
+      sessions: [1, 2, 3, 4, 5, 6, 7].map((n) => threadId(n)),
+    },
+  };
+  const s = setup(
+    { terminal: TTY, readLine: (prompt) => (asked.push(prompt), Promise.resolve("n")) },
+    [entry("api-key")],
+    {},
+    refs,
+  );
+  expect(await s.h.run(["secret", "rm", "api-key"])).toBe(EXIT.error);
+  expect(s.secrets.referenceCalls).toEqual(["api-key"]);
+  expect(s.h.stdoutText()).toContain(
+    `api-key: 참조하는 설정 키 l2.web.search.apiKey, l1.models.apiKey / 활성 lease 0개 / 최근 사용한 세션 ${[1, 2, 3, 4, 5].map((n) => threadId(n)).join(", ")} 외 2개\n`,
+  );
+  expect(asked).toHaveLength(1);
+  expect(s.h.server().requests.some((r) => r.method === "secret.remove")).toBe(false);
+});
+
+test("secret rm with an active lease explains it and never asks or removes", async () => {
+  const asked: string[] = [];
+  const s = setup(
+    { terminal: TTY, readLine: (prompt) => (asked.push(prompt), Promise.resolve("y")) },
+    [entry("api-key")],
+    {},
+    { "api-key": { settingKeys: [], activeLeases: 2, sessions: [] } },
+  );
+  expect(await s.h.run(["secret", "rm", "api-key"])).toBe(EXIT.error);
+  expect(s.h.stderrText()).toContain("xeon: 사용 중인 비밀이라 지울 수 없다 (활성 lease 2개)");
+  expect(asked).toEqual([]);
+  expect(s.h.server().requests.some((r) => r.method === "secret.remove")).toBe(false);
+});
+
+test("secret rm --yes removes without asking and leaves the references on stderr", async () => {
+  const s = setup(
+    {},
+    [entry("api-key")],
+    {},
+    {
+      "api-key": { settingKeys: ["l2.web.search.apiKey"], activeLeases: 0, sessions: [] },
+    },
+  );
+  expect(await s.h.run(["secret", "rm", "api-key", "--yes"])).toBe(EXIT.ok);
+  expect(s.h.stdoutText()).toBe("api-key: 지웠다\n");
+  expect(s.h.stderrText()).toBe(
+    "api-key: 참조하는 설정 키 l2.web.search.apiKey / 활성 lease 0개 / 최근 사용한 세션 없음\n",
+  );
 });
 
 test("secret rm of a secret in use or a missing one maps to readable errors", async () => {

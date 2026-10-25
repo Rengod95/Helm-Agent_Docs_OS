@@ -240,7 +240,7 @@ xeon/apps/cli/
 
 | 작업 | 상태 | 구현 위치 |
 |---|---|---|
-| C9 `secret` 명령 | 구현: `ls`, `add`, `set`, `meta`, `rotate`, `rm`, `test`, `reveal`. 값은 `InProcessHost.secretOutOfBand`로 맡기고 가려진 입력은 `CliIo.readSecret`(raw 모드 바이트)이 받는다. `test`는 wire가 주는 `state`만 보인다(spec §10 12번) | `src/commands/secret.ts`, `src/runtime.ts` |
+| C9 `secret` 명령 | 구현: `ls`, `add`, `set`, `meta`, `rotate`, `rm`, `test`, `reveal`. 값은 `InProcessHost.secretOutOfBand`로 맡기고 가려진 입력은 `CliIo.readSecret`(raw 모드 바이트)이 받는다. `test`는 처음에 wire가 주는 `state`만 보였고 지금은 §4.6 표의 확장된 출력을 쓴다 | `src/commands/secret.ts`, `src/runtime.ts` |
 | C10 `sessions` | 구현: `ls`(쪽 단위, `--all`, `--limit`, `--json`), `show`(`events.subscribe` → 머리까지 → `events.unsubscribe`), `fork --at`, `rm`(`--yes`, 비TTY는 2) | `src/commands/sessions.ts` |
 | C11 승인·잠금·중단 | 구현: 도구·계획·질문 프롬프트(kind별 `answer` 모양), `approval.list` 복원, `approval.resolved`로 프롬프트 닫기, `thread.locked` 프롬프트(관찰·분기), Ctrl+C `turn.interrupt` | `src/render/approval.ts`, `src/render/lock.ts`, `src/commands/chat-session.ts`, `src/commands/chat.ts`, `src/signals.ts` |
 | C13 `config set/reset/list`, `--set`, 슬래시 | 구현. 사전 검사는 하지 않는다(spec §10 13번). 슬래시는 `/set`, `/model`, `/resume`, `/help`, `/quit`와 Tab 완성 | `src/commands/config.ts`, `src/commands/overrides.ts`, `src/slash.ts`, `src/tui/minimal.ts` |
@@ -259,6 +259,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 | 슬래시 명령 실행(G1-01) | 구현: 내장도 별칭도 아닌 이름을 `command.run`으로 보내 `done`(메시지·구조 값), `expanded`(turn으로 전송), `needs_confirmation`(`[y/N]` 뒤 `confirmShell`), `not_command`를 처리한다. `command.list`는 `/help`와 Tab 완성에 쓴다. 시험 `slash-commands.test.ts`는 가짜 호스트 처리기라서 실제 처리기와의 종단 시험은 wave 2 host 병합 뒤 다시 돌린다 | `src/slash.ts`, `src/tui/minimal.ts`, `test/slash-commands.test.ts` |
 | 끊긴 turn 이어 실행(G1-02) | 구현: 기존 세션을 연 대화형이 `thread.list`에서 요약을 찾아 `resumable`이 있으면 `[y/N]`을 묻고 `turn.resume`을 부른다. 결과 세 모양(`resumed`, `closed`, `nothing`)을 문구로 보이고 `resumed`는 turn이 끝날 때까지 기다린다. 시험 `turn-resume.test.ts`는 가짜 호스트라서 실제 처리기와의 종단 시험은 wave 2 host 병합 뒤 다시 돌린다 | `src/commands/resume-turn.ts`, `src/threads.ts`, `src/commands/chat-session.ts`(`resumeTurn`), `test/turn-resume.test.ts` |
 | 프로젝트 신뢰(G1-03) | 구현: `xeon trust [status\|allow\|deny]`(`trust.get`, `trust.decide`)와 대화형 `chat` 시작 카드. `m2/fx-apps`의 `trust.pending`·`projectRoot` 가정은 버리고 F의 `trust.get { workspace }`와 `TrustStatus`로 다시 썼다(포트 `TrustClient`는 없앴다). 시험 `trust.test.ts`는 가짜 처리기라서 실제 처리기(`trust.json` 쓰기, 잠금)와의 종단 시험은 wave 2 host 병합 뒤 다시 돌린다 | `src/commands/trust.ts`, `src/render/trust.ts`, `src/cli/command.ts`(`parseTrust`), `test/trust.test.ts` |
+| 비밀 참조·시험 출력(G1-07) | 구현: `secret rm`이 `secret.references`로 설정 키·활성 lease·최근 세션을 보인 뒤 묻고, 활성 lease가 있으면 지우기를 보내지 않는다. `secret test`는 `decryptable`, 길이, SHA-256 앞 8자를 보이고 복호화할 수 없으면 1이다(C9의 "`state`만 보인다"를 대체). 값은 어디에도 없다는 검사(`expectNoValue`)를 `test`에도 건다. 가짜 처리기라서 실제 처리기와의 종단 시험은 wave 2 host 병합 뒤 다시 돌린다 | `src/commands/secret.ts`, `test/secret.test.ts`, `test/support/secrets.ts` |
 | 오류 문구 | 구현: `secret.*` 전용 kind, `thread.closed`, `settings.reserved`, `store.corrupt`, 슬래시 명령 능력 오류(`cap.dialog.commands.*`). 시험은 값으로 비교한다 | `src/errors.ts`, `test/errors-wire.test.ts` |
 
 ## 5. 단위 테스트 목록

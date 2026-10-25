@@ -1,4 +1,5 @@
-import { wireError, type SecretListEntry } from "@xeon/contracts/wire";
+import { createHash } from "node:crypto";
+import { wireError, type SecretListEntry, type SecretReferencesResult } from "@xeon/contracts/wire";
 import { secretName } from "./ids.ts";
 import type { FakeHandlers } from "./fake-server.ts";
 import type { Harness } from "./harness.ts";
@@ -14,18 +15,22 @@ export interface FakeSecretStore {
   readonly received: Uint8Array[];
   readonly metaCalls: Record<string, unknown>[];
   readonly beginEntryCalls: Record<string, unknown>[];
+  /** secret.references가 받은 이름 */
+  readonly referenceCalls: string[];
 }
 
 export function fakeSecrets(
   harness: () => Harness,
   initial: readonly SecretListEntry[] = [],
   failures: { readonly remove?: Error } = {},
+  references: Readonly<Record<string, SecretReferencesResult>> = {},
 ): FakeSecretStore {
   const entries = new Map<string, SecretListEntry>(initial.map((entry) => [entry.name, entry]));
   const stored = new Map<string, Uint8Array>();
   const received: Uint8Array[] = [];
   const metaCalls: Record<string, unknown>[] = [];
   const beginEntryCalls: Record<string, unknown>[] = [];
+  const referenceCalls: string[] = [];
   const entryOf = (name: unknown): SecretListEntry => {
     const found = typeof name === "string" ? entries.get(name) : undefined;
     if (found === undefined) {
@@ -40,6 +45,7 @@ export function fakeSecrets(
     received,
     metaCalls,
     beginEntryCalls,
+    referenceCalls,
     handlers: {
       "secret.list": (params) => ({
         secrets: Array.from(entries.values()).map((entry) =>
@@ -56,13 +62,24 @@ export function fakeSecrets(
         const existed = entries.delete(String(params["name"]));
         return { removed: existed };
       },
+      "secret.references": (params) => {
+        const name = String(params["name"]);
+        referenceCalls.push(name);
+        return references[name] ?? { settingKeys: [], activeLeases: 0, sessions: [] };
+      },
       "secret.test": (params) => {
-        const registered = entries.has(String(params["name"]));
+        const name = String(params["name"]);
+        const registered = entries.has(name);
+        const value = stored.get(name);
+        // 값이 있으면 길이와 SHA-256 앞 8자만 알린다. 값 자체는 어디에도 싣지 않는다
         return {
           state: registered ? "registered" : "missing",
           decryptable: registered,
-          length: null,
-          sha256Prefix: null,
+          length: registered && value !== undefined ? value.length : null,
+          sha256Prefix:
+            registered && value !== undefined
+              ? createHash("sha256").update(value).digest("hex").slice(0, 8)
+              : null,
         };
       },
       "secret.beginEntry": async (params) => {

@@ -132,7 +132,7 @@ interface SentTurn {
 }
 
 /** turn.resume의 결과. 이어 실행을 접수했으면(resumed) 그 turn이 끝날 때 이행하는 done이 있다 */
-export type ResumedTurn =
+type ResumedTurn =
   | {
       readonly result: Extract<TurnResumeResult, { status: "resumed" }>;
       readonly done: Promise<TurnEnd>;

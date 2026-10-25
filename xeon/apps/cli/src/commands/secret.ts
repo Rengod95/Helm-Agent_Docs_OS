@@ -1,7 +1,11 @@
 import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
 import { SecretScopeSchema, type SecretName, type SecretScope } from "@xeon/contracts/capabilities";
 import type { SecretEntryAction, SecretValueSource } from "@xeon/contracts/services";
-import type { SecretListEntry } from "@xeon/contracts/wire";
+import type {
+  SecretListEntry,
+  SecretReferencesResult,
+  SecretTestResult,
+} from "@xeon/contracts/wire";
 import type { SecretCommand, SecretMetaFlags } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
 import { renderFailure, type Failure } from "../errors.ts";
@@ -364,6 +368,23 @@ async function confirmedByUser(ctx: CommandContext, question: string): Promise<b
   return text === "y" || text === "yes";
 }
 
+/** 참조 목록에서 보일 세션 수. 나머지는 개수로 줄인다 */
+const REFERENCE_SESSIONS_SHOWN = 5;
+
+/** 삭제 전에 보일 참조 요약 한 줄(L4.cli.spec §4.7 rm). 값은 없고 설정 키, 활성 lease 수, 최근 사용한 세션만 있다 */
+function referencesLine(name: string, found: SecretReferencesResult): string {
+  const keys = found.settingKeys.length === 0 ? "없음" : found.settingKeys.join(", ");
+  const shown = found.sessions.slice(0, REFERENCE_SESSIONS_SHOWN);
+  const more = found.sessions.length - shown.length;
+  const sessions =
+    shown.length === 0 ? "없음" : `${shown.join(", ")}${more > 0 ? ` 외 ${String(more)}개` : ""}`;
+  return `${name}: 참조하는 설정 키 ${keys} / 활성 lease ${String(found.activeLeases)}개 / 최근 사용한 세션 ${sessions}\n`;
+}
+
+function hasReferences(found: SecretReferencesResult): boolean {
+  return found.settingKeys.length > 0 || found.activeLeases > 0 || found.sessions.length > 0;
+}
+
 async function runRm(
   ctx: CommandContext,
   command: Extract<SecretCommand, { kind: "secret.rm" }>,
@@ -377,6 +398,10 @@ async function runRm(
     return EXIT.usage;
   }
   return withEngine(ctx, async (handle) => {
+    // 이 비밀을 가리키는 곳을 먼저 읽는다(secret.references). 이 메서드를 모르는 호스트는 사용 정책만 보인다
+    const references = handle.supports("secret.references")
+      ? await handle.connection.request("secret.references", { name: command.name })
+      : null;
     if (!command.yes) {
       // 참조하는 정책을 보인 뒤 확인한다(§3.1). 사용 중이면 호스트가 거부한다
       const listed = await handle.connection.request("secret.list", { meta: true });
@@ -387,10 +412,26 @@ async function runRm(
           `${command.name}: 허용 도구 ${use.tools.join(", ") || "없음"} / 허용 호스트 ${use.hosts.join(", ") || "없음"}\n`,
         );
       }
+      if (references !== null) {
+        await ctx.io.stdout(referencesLine(command.name, references));
+        if (references.activeLeases > 0) {
+          // 열려 있는 lease가 있으면 호스트가 어차피 거부한다. 묻지 않고 이유를 알린다
+          await ctx.io.stderr(
+            renderFailure({
+              message: `사용 중인 비밀이라 지울 수 없다 (활성 lease ${String(references.activeLeases)}개)`,
+              fix: "사용이 끝난 뒤 다시 지운다. 값만 바꾸려면 xeon secret rotate <이름>을 쓴다",
+            }),
+          );
+          return EXIT.error;
+        }
+      }
       if (!(await confirmedByUser(ctx, `비밀 ${command.name}을(를) 지울까요?`))) {
         await ctx.io.stderr("지우지 않았다\n");
         return EXIT.error;
       }
+    } else if (references !== null && hasReferences(references)) {
+      // --yes는 묻지 않고 지운다. 참조가 남는다는 사실은 stderr에 남긴다
+      await ctx.io.stderr(referencesLine(command.name, references));
     }
     const removed = await handle.connection.request("secret.remove", { name: command.name });
     if (!removed.removed) {
@@ -407,6 +448,15 @@ async function runRm(
   });
 }
 
+/** secret test의 한 줄. 길이와 SHA-256 앞 8자만 있고 값은 없다(L0.secrets.spec SecretTestResult) */
+function testLine(name: string, tested: SecretTestResult): string {
+  if (tested.state === "missing") return `${name}: missing\n`;
+  if (!tested.decryptable) return `${name}: registered (복호화할 수 없다)\n`;
+  const length = tested.length === null ? "" : `, 길이 ${String(tested.length)}바이트`;
+  const prefix = tested.sha256Prefix === null ? "" : `, sha256 앞 8자 ${tested.sha256Prefix}`;
+  return `${name}: registered (복호화 가능${length}${prefix})\n`;
+}
+
 async function runTest(
   ctx: CommandContext,
   command: Extract<SecretCommand, { kind: "secret.test" }>,
@@ -414,11 +464,11 @@ async function runTest(
   return withEngine(ctx, async (handle) => {
     const tested = await handle.connection.request("secret.test", { name: command.name });
     if (command.output === "json") {
-      await ctx.io.stdout(`${JSON.stringify({ name: command.name, state: tested.state })}\n`);
+      await ctx.io.stdout(`${JSON.stringify({ name: command.name, ...tested })}\n`);
     } else {
-      await ctx.io.stdout(`${command.name}: ${tested.state}\n`);
+      await ctx.io.stdout(testLine(command.name, tested));
     }
-    return tested.state === "registered" ? EXIT.ok : EXIT.error;
+    return tested.state === "registered" && tested.decryptable ? EXIT.ok : EXIT.error;
   });
 }
 
