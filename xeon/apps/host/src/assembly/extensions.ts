@@ -95,6 +95,7 @@ export interface ExtensionDeps {
     readonly catalog: SettingCatalog;
     readonly store: () => SettingsStorePort | undefined;
     readonly currentThread: () => ThreadId | null;
+    readonly heldThreads: () => readonly ThreadId[];
     readonly entries: () => readonly GroupCatalogEntry[];
   };
   /** AssembleOptions.webPorts */
@@ -242,6 +243,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           settings,
           store: deps.groups.store,
           currentThread: deps.groups.currentThread,
+          heldThreads: deps.groups.heldThreads,
           groups: deps.groups.entries,
           report: (cause) => {
             deps.logger.error("groups.listener_failed", { message: messageOf(cause) });

@@ -91,6 +91,8 @@ export interface PortsHandle {
   readonly ports: EnginePorts;
   /** 이 엔진이 쥔 thread의 세션 쓰기 토큰. 쥐지 않았으면 undefined */
   tokenOf(threadId: ThreadId): LeaseToken | undefined;
+  /** 이 엔진이 지금 쓰기 소유를 쥔 thread 전부(쥔 순서) */
+  heldThreads(): readonly ThreadId[];
   /** 가장 최근에 쓰기 소유를 쥔 thread(그룹 서비스가 상태를 보여 줄 thread). 쥔 thread가 없으면 null */
   activeThread(): ThreadId | null;
   /** 쥔 세션 임대를 모두 반납한다(엔진을 닫기 전). 각 thread에 session_shutdown("quit")을 발화한다 */
@@ -485,6 +487,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
   return {
     ports,
     tokenOf: (threadId) => held.get(threadId)?.token,
+    heldThreads: () => Array.from(held.keys()),
     activeThread: () => Array.from(held.keys()).at(-1) ?? null,
     releaseAll() {
       return sequentially(Array.from(held.keys()), async (threadId) => {

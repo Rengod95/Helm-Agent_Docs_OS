@@ -459,6 +459,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           catalog: built.catalog,
           store: () => portsHandle?.ports.settings,
           currentThread: () => portsHandle?.activeThread() ?? null,
+          heldThreads: () => portsHandle?.heldThreads() ?? [],
           entries: () =>
             unitList.units
               .filter((unit) => unit.manifest.layer === "L3")

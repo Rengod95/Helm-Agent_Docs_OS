@@ -1,4 +1,4 @@
-import { err, ok, type Result } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, type Result } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   defineManifest,
@@ -15,10 +15,11 @@ import {
   GroupSettingsSourceKey,
   type DriveHolderSettingsPort,
   type GroupCatalogEntry,
+  type HolderUnwritableReason,
   type HolderWriteError,
 } from "@xeon/group-kit";
 import { hostOf, type ExtHost, type ExtensionUnit } from "@xeon/ext-host";
-import type { SettingsStorePort } from "../types.ts";
+import type { SettingsStorePort, SettingsWriteFailure } from "../types.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 
 // m2-plan HOST.6, L3.group-kit.plan §8. group-kit은 서비스 팩토리(`createGroupService`)만 내놓고 확장 단위가 없다. 이 파일이 서비스를 올려
@@ -37,8 +38,10 @@ export interface HostGroupsOptions {
   readonly settings: SettingsEngine;
   /** 엔진 포트의 설정 저장소. 엔진 포트는 서비스가 모두 올라온 뒤에 만들어져 쓸 때 얻는다 */
   readonly store: () => SettingsStorePort | undefined;
-  /** 서비스가 상태를 보여 줄 thread: 이 엔진이 가장 최근에 쓰기 소유를 쥔 thread */
+  /** 서비스가 상태를 보여 줄 thread: 이 엔진이 가장 최근에 쓰기 소유를 쥔 thread. 설정 쓰기의 대상을 정하는 데는 쓰지 않는다 */
   readonly currentThread: () => ThreadId | null;
+  /** 이 엔진이 지금 쓰기 소유를 쥔 thread 전부. 요청이 thread를 가리키지 않은 session·project·local 쓰기가 대상을 정하는 데 쓴다 */
+  readonly heldThreads: () => readonly ThreadId[];
   /** 설치된 단위 가운데 그룹(L3)의 매니페스트와 로드 순서 */
   readonly groups: () => readonly GroupCatalogEntry[];
   readonly report: (cause: unknown) => void;
@@ -49,17 +52,75 @@ function locked(): HolderWriteError {
   return { kind: "locked", key: HOLDER_KEY };
 }
 
-/** 구동 그룹 설정 포트. 값 검사는 `checkSettingWrite`(settings.set과 같은 함수)가 한다. 쓰지 못하면 모두 잠금으로 알린다 */
+function unwritable(reason: HolderUnwritableReason): HolderWriteError {
+  return { kind: "unwritable", key: HOLDER_KEY, reason };
+}
+
+/** 이 범위의 쓰기가 thread를 필요로 하는가(settings.set과 같다: session은 thread, project·local은 thread의 작업 폴더) */
+function needsThread(scope: SettingScope): boolean {
+  return scope === "session" || scope === "project" || scope === "local";
+}
+
+/** 설정 쓰기 실패를 구동 그룹 쓰기 오류로 옮긴다. 관리 범위가 잠근 것만 `locked`이고 나머지는 이유를 가려서 알린다 */
+function holderFailureOf(failure: SettingsWriteFailure): HolderWriteError {
+  switch (failure.kind) {
+    case "managed_read_only":
+      return locked();
+    case "thread_required":
+    case "thread_not_found":
+      return unwritable("no_thread");
+    case "not_owner":
+      return unwritable("not_owner");
+    case "workspace_required":
+    case "untrusted_project":
+      return unwritable("project_unavailable");
+    case "file_invalid":
+    case "file_unwritable":
+    case "busy":
+    case "disk_full":
+    case "io":
+    case "ownership_lost":
+    case "read_only":
+    case "row_invalid":
+    case "key_reused":
+      return unwritable("storage");
+    default:
+      return assertNever(failure, "SettingsWriteFailure");
+  }
+}
+
+/**
+ * 쓸 thread를 정한다. 요청이 가리킨 thread가 있으면 그 thread이고, 없으면 이 엔진이 쓰기 소유를 쥔 thread가 하나일 때만 그 thread다.
+ * 없으면 `no_thread`, 여럿이면 `ambiguous_thread`다: 마지막에 쥔 thread에 조용히 쓰지 않는다
+ */
+function targetThread(
+  options: HostGroupsOptions,
+  requested: ThreadId | null,
+): Result<ThreadId, HolderWriteError> {
+  if (requested !== null) return ok(requested);
+  const held = options.heldThreads();
+  const only = held[0];
+  if (only === undefined) return err(unwritable("no_thread"));
+  if (held.length > 1) return err(unwritable("ambiguous_thread"));
+  return ok(only);
+}
+
+/** 구동 그룹 설정 포트. 값 검사는 `checkSettingWrite`(settings.set과 같은 함수)가 한다 */
 function holderSettings(options: HostGroupsOptions): DriveHolderSettingsPort {
   return {
     read(threadId) {
       const value = options.settings.value(HOLDER_KEY, threadId ?? undefined);
       return typeof value === "string" ? value : null;
     },
-    async write(holder, scope: SettingScope): Promise<Result<void, HolderWriteError>> {
+    async write(holder, scope, requested): Promise<Result<void, HolderWriteError>> {
       const store = options.store();
-      if (store === undefined) return err(locked());
-      const threadId = options.currentThread() ?? undefined;
+      if (store === undefined) return err(unwritable("storage"));
+      let threadId: ThreadId | undefined;
+      if (needsThread(scope)) {
+        const target = targetThread(options, requested);
+        if (!target.ok) return target;
+        threadId = target.value;
+      }
       const checked = checkSettingWrite(
         options.catalog,
         store.layers(threadId),
@@ -67,9 +128,23 @@ function holderSettings(options: HostGroupsOptions): DriveHolderSettingsPort {
         scope,
         holder,
       );
-      if (!checked.ok) return err(locked());
+      if (!checked.ok) {
+        switch (checked.kind) {
+          case "settings.locked":
+          case "settings.scopeNotAllowed":
+            return err(locked());
+          case "settings.unknownKey":
+            // 구동 그룹 키는 X 층 카탈로그가 정의한다. 없으면 조립이 잘못된 것이다
+            throw new Bug(`groups: ${HOLDER_KEY} is missing from the setting catalog`);
+          case "settings.invalidValue":
+          case "settings.secretValue":
+            return err(unwritable("invalid_value"));
+          default:
+            return assertNever(checked.kind, "WriteCheckKind");
+        }
+      }
       const written = await store.write(scope, HOLDER_KEY, holder, threadId);
-      return written.ok ? ok(undefined) : err(locked());
+      return written.ok ? ok(undefined) : err(holderFailureOf(written.error));
     },
   };
 }

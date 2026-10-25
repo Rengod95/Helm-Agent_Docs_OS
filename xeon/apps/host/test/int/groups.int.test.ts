@@ -1,3 +1,5 @@
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { defineManifest, type PortKey } from "@xeon/contracts/extensions";
 import { GroupServiceName, type GroupService } from "@xeon/contracts/services";
@@ -18,6 +20,7 @@ import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
 
+const HOLDER_KEY = "x.primitives.activeDriveGroup";
 const GROUP_SERVICE_KEY: PortKey<GroupService> = { name: GroupServiceName };
 
 interface Captured {
@@ -89,6 +92,112 @@ realTest(
     expect(unknown.ok).toBe(false);
     await connection.close();
     await host.close();
+    home.dispose();
+  },
+  30_000,
+);
+
+interface Started {
+  readonly service: GroupService;
+  readonly groupId: string;
+  readonly connection: ReturnType<typeof createHostConnection>;
+  close(): Promise<void>;
+}
+
+async function startWithGroup(seed: number, prepare?: () => void): Promise<Started> {
+  prepare?.();
+  const group = testGroup(fixedIdFactory(seed));
+  const captured: Captured = { service: undefined, settings: undefined };
+  const host = await startInProcessHost({
+    devChecks: true,
+    defaultGroups: false,
+    extraPlugins: [group.module, portProbe(captured)],
+  });
+  const connection = createHostConnection(host.client);
+  await connection.request("host.hello", HELLO_PARAMS);
+  const { service } = captured;
+  if (service === undefined) throw new Error("the group service was not provided");
+  return {
+    service,
+    groupId: group.module.manifest.name,
+    connection,
+    close: async () => {
+      await connection.close();
+      await host.close();
+    },
+  };
+}
+
+realTest(
+  "the drive holder is written to the thread the request names, never to the one held last; without a named thread it says why",
+  async () => {
+    const home = useEngineHome();
+    const started = await startWithGroup(19);
+    const { service, groupId, connection } = started;
+
+    // 쥔 thread가 없으면 session 범위에 쓸 곳이 없다
+    expect(await service.setDriveHolder(groupId)).toEqual({
+      ok: false,
+      error: { kind: "group.settingUnwritable", key: HOLDER_KEY, reason: "no_thread" },
+    });
+
+    const older = await connection.request("thread.create", {});
+    const newer = await connection.request("thread.create", {});
+    // 쥔 thread가 둘이면 마지막에 쥔 thread에 조용히 쓰지 않고 정할 수 없다고 알린다
+    expect(await service.setDriveHolder(groupId)).toEqual({
+      ok: false,
+      error: { kind: "group.settingUnwritable", key: HOLDER_KEY, reason: "ambiguous_thread" },
+    });
+
+    // 요청이 가리킨 thread에만 쓴다
+    const written = await service.setDriveHolder(groupId, { threadId: older.threadId });
+    expect(written.ok).toBe(true);
+    const read = await connection.request("settings.get", {
+      keys: [HOLDER_KEY],
+      threadId: older.threadId,
+    });
+    expect(read.settings[0]).toMatchObject({ value: groupId, source: { scope: "session" } });
+    const untouched = await connection.request("settings.get", {
+      keys: [HOLDER_KEY],
+      threadId: newer.threadId,
+    });
+    expect(untouched.settings[0]).toMatchObject({ source: { scope: "default" } });
+
+    await started.close();
+    home.dispose();
+  },
+  30_000,
+);
+
+realTest(
+  "a thread this process does not hold is not_owner, a managed scope is locked, and a user file that cannot be written is storage",
+  async () => {
+    const home = useEngineHome();
+    // 이전 프로세스가 만든 thread. 이 프로세스는 쥐지 않는다
+    const first = await startWithGroup(29);
+    const created = await first.connection.request("thread.create", {});
+    await first.close();
+
+    const started = await startWithGroup(39, () => {
+      // 사용자 설정 파일이 JSON 객체가 아니면 덮어쓰지 않는다(file_invalid)
+      mkdirSync(join(home.root, "config"), { recursive: true, mode: 0o700 });
+      writeFileSync(join(home.root, "config", "settings.json"), "[1]");
+    });
+    const { service, groupId } = started;
+
+    expect(await service.setDriveHolder(groupId, { threadId: created.threadId })).toEqual({
+      ok: false,
+      error: { kind: "group.settingUnwritable", key: HOLDER_KEY, reason: "not_owner" },
+    });
+    expect(await service.setDriveHolder(groupId, { scope: "managed" })).toEqual({
+      ok: false,
+      error: { kind: "group.settingLocked", key: HOLDER_KEY },
+    });
+    expect(await service.setDriveHolder(groupId, { scope: "user" })).toEqual({
+      ok: false,
+      error: { kind: "group.settingUnwritable", key: HOLDER_KEY, reason: "storage" },
+    });
+    await started.close();
     home.dispose();
   },
   30_000,
