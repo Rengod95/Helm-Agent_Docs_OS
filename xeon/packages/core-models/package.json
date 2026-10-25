@@ -8,10 +8,10 @@
     "./testing": "./src/testing/index.ts"
   },
   "scripts": {
-    "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
+    "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test scripts",
     "typecheck": "tsc -b",
     "test": "bun test",
-    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
+    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test scripts"
   },
   "dependencies": {
     "@earendil-works/pi-ai": "catalog:",
