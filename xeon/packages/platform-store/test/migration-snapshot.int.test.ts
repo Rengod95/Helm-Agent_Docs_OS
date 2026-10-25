@@ -3,11 +3,14 @@ import { basename, dirname, join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
 import { attempt } from "@xeon/contracts";
 import type { MigrationSet } from "@xeon/contracts/records";
+import { openStore } from "../src/index.ts";
 import { openTestStore } from "../src/testing/index.ts";
 import { newDatabase } from "../src/sqlite-env.ts";
 import { MIGRATION_SNAPSHOT_KEEP, snapshotBeforeMigration } from "../src/snapshot.ts";
 import { fixedIdFactory, manualClock } from "./support/clock.ts";
 import { own, releaseOwned } from "./support/own.ts";
+import { directOptions } from "./support/store.ts";
+import { tempDir } from "./support/tmp.ts";
 
 // L0.store.spec §4.6.1: 기존 스키마를 올리기 전에 VACUUM INTO 스냅샷을 만들고 최근 3개만 남긴다.
 
@@ -188,5 +191,60 @@ describe("concurrent snapshot of the same transition", () => {
     } finally {
       db.close();
     }
+  });
+});
+
+function unwrap<T>(result: { ok: true; value: T } | { ok: false; error: { kind: string } }): T {
+  if (!result.ok) throw new Error(`open failed: ${result.error.kind}`);
+  return result.value;
+}
+
+const failing: typeof snapshotBeforeMigration = () => ({
+  ok: false,
+  error: { kind: "io", code: "SQLITE_ERROR" },
+});
+
+describe("snapshot racing a peer process", () => {
+  test("a failed snapshot is not fatal when a peer advanced the schema in the meantime", async () => {
+    const dir = own(tempDir());
+    const path = dir.join("xeon.db");
+    const clock = manualClock();
+    const peerOpts = directOptions(path, {}, clock).options;
+    const peer = own(await openStore(peerOpts).then(unwrap));
+    expect(peer.service.migrations.apply(set(1)).ok).toBe(true);
+    let calls = 0;
+    const { options } = directOptions(
+      path,
+      {
+        takeSnapshot: () => {
+          calls += 1;
+          // 결정과 스냅샷 사이에 동료가 v2까지 올리고, 이 스냅샷은 그 때문에 실패한다
+          expect(peer.service.migrations.apply(set(2)).ok).toBe(true);
+          return { ok: false, error: { kind: "io", code: "SQLITE_ERROR" } };
+        },
+      },
+      clock,
+    );
+    const mine = own(await openStore(options).then(unwrap));
+    const result = mine.service.migrations.apply(set(2));
+    expect(result).toEqual({ ok: true, value: { owner: "cap.knowledge", from: 2, to: 2 } });
+    expect(calls).toBe(1);
+  });
+
+  test("a failed snapshot with no peer progress still stops the upgrade", async () => {
+    const dir = own(tempDir());
+    const clock = manualClock();
+    const { options } = directOptions(dir.join("xeon.db"), { takeSnapshot: failing }, clock);
+    const store = own(await openStore(options).then(unwrap));
+    expect(store.service.migrations.apply(set(1)).ok).toBe(true);
+    expect(store.service.migrations.apply(set(2))).toEqual({
+      ok: false,
+      error: {
+        kind: "migration_failed",
+        owner: "cap.knowledge",
+        version: 2,
+        code: "snapshot_failed:SQLITE_ERROR",
+      },
+    });
   });
 });

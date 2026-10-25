@@ -208,6 +208,7 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
         posix: policy.posixPermissions,
       },
       warnings,
+      ...(options.takeSnapshot === undefined ? {} : { takeSnapshot: options.takeSnapshot }),
     });
     const migrated = migrations.apply(SYS_MIGRATION_SET);
     if (!migrated.ok) {

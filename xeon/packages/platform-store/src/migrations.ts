@@ -32,6 +32,8 @@ export interface MigrationDeps {
   readonly faults: StoreFaultInjector;
   /** 있으면 기존 스키마를 올리기 전에 DB 스냅샷을 만든다. 없으면 만들지 않는다(시험용) */
   readonly snapshots?: SnapshotConfig;
+  /** 테스트 전용. 스냅샷 수단을 바꿔 동료 프로세스와의 끼어들기를 결정적으로 흉내 낸다 */
+  readonly takeSnapshot?: typeof snapshotBeforeMigration;
   /** 스냅샷 경고를 모으는 목록. 열기 때 모으는 경고 목록과 같은 것을 넘긴다 */
   readonly warnings?: StoreWarning[];
 }
@@ -197,30 +199,36 @@ export function createMigrationRunner(deps: MigrationDeps): MigrationRunner {
           codeVersion: set.version,
         });
       }
-      // 위 읽기와 이 지점 사이에 다른 프로세스가 단계를 적용했을 수 있다(동시에 처음 여는 프로세스들). 스냅샷 결정 직전에 다시 읽는다
-      if (deps.snapshots !== undefined && dbVersion > 0 && dbVersion < set.version) {
-        const fresh = [...appliedChecksums(conn, set.owner).keys()];
-        dbVersion = Math.max(dbVersion, ...fresh);
-      }
-      // 기존 스키마를 올릴 때만 스냅샷을 만든다. 처음 만드는 DB와 owner의 첫 등록은 잃을 데이터가 없다
-      if (deps.snapshots !== undefined && dbVersion > 0 && dbVersion < set.version) {
-        const taken = snapshotBeforeMigration(conn.write, deps.snapshots, {
+      // 스냅샷은 이 프로세스가 실제로 기존 스키마에 단계를 적용하려 할 때만 만든다. 결정과 스냅샷 사이에 다른 프로세스가
+      // 같은 DB를 올릴 수 있으므로(동시에 처음 여는 프로세스들) 매번 적용 버전을 다시 읽어 결정한다. 스냅샷이 실패했을 때도
+      // 다시 읽어, 동료가 그 사이 버전을 올렸으면(동료의 마이그레이션이 VACUUM INTO와 겹쳐 실패할 수 있다) 새 상태로 다시 정한다.
+      // 올리지 않았으면 실패 그대로다: 사용자의 기존 DB를 스냅샷 없이 올리지 않는다(spec §4.6.1)
+      const takeSnapshot = deps.takeSnapshot ?? snapshotBeforeMigration;
+      while (deps.snapshots !== undefined) {
+        dbVersion = Math.max(dbVersion, ...appliedChecksums(conn, set.owner).keys());
+        if (dbVersion === 0 || dbVersion >= set.version) break;
+        const taken = takeSnapshot(conn.write, deps.snapshots, {
           owner: set.owner,
           from: dbVersion,
           to: set.version,
           at: deps.clock.now(),
         });
-        if (!taken.ok) return err(snapshotFailure(taken.error, set.owner, dbVersion + 1));
-        deps.warnings?.push({
-          kind: "migration_snapshot",
-          path: taken.value.path,
-          owner: set.owner,
-          from: dbVersion,
-          to: set.version,
-        });
-        for (const failed of taken.value.pruneFailed) {
-          deps.warnings?.push({ kind: "snapshot_prune_failed", ...failed });
+        if (taken.ok) {
+          deps.warnings?.push({
+            kind: "migration_snapshot",
+            path: taken.value.path,
+            owner: set.owner,
+            from: dbVersion,
+            to: set.version,
+          });
+          for (const failed of taken.value.pruneFailed) {
+            deps.warnings?.push({ kind: "snapshot_prune_failed", ...failed });
+          }
+          break;
         }
+        const after = Math.max(dbVersion, ...appliedChecksums(conn, set.owner).keys());
+        if (after > dbVersion) continue;
+        return err(snapshotFailure(taken.error, set.owner, dbVersion + 1));
       }
       for (const step of set.steps) {
         if (step.version <= dbVersion) continue;
