@@ -7,7 +7,7 @@ import {
   type CallContinuation,
   type McpInputRequired,
 } from "@xeon/contracts/capabilities";
-import { QuestionAnswerSchema } from "@xeon/contracts/records";
+import { QuestionAnswerSchema, requestKeyFor } from "@xeon/contracts/records";
 import type {
   ApprovalOrigin,
   ApprovalRequestError,
@@ -16,7 +16,6 @@ import type {
 } from "@xeon/contracts/services";
 import type { Result } from "@xeon/contracts";
 import { describeFailure } from "./commit.ts";
-import { requestKeyFor } from "./approvals/keys.ts";
 import type { RawCall } from "./types.ts";
 import { sha256HexSync } from "./util.ts";
 
@@ -124,7 +123,7 @@ function titleOf(toolName: string, request: McpInputRequired): string {
  * 기록된 요청을 이어 받는다(L1.tools.spec §8.3 F 요청 12)
  */
 function mcpQuestionKey(toolCallId: string, round: number): string {
-  return requestKeyFor(`mcp:${sha256HexSync(toolCallId).slice(0, 32)}#r${round}`);
+  return requestKeyFor(`mcp:${sha256HexSync(toolCallId).slice(0, 32)}#r${round}`, sha256HexSync);
 }
 
 /**

@@ -5,6 +5,7 @@ import {
   NOT_STARTED_TEXT,
   OUTCOME_UNKNOWN_TEXT,
   commitKeyPart,
+  requestKeyFor,
   type BlobRef,
   type EffectIntent,
   type EffectResult,
@@ -41,7 +42,6 @@ import {
   type ToolCallState,
   type ToolRunContext,
 } from "@xeon/contracts/services";
-import { requestKeyFor } from "./approvals/keys.ts";
 import { denialReason } from "./approvals/protocol.ts";
 import type { ApprovalsInternal } from "./approvals/service.ts";
 import { boundResult, selfBlobRef } from "./bound.ts";
@@ -428,7 +428,7 @@ export function createPipeline(
         argsHash,
         ruleId: decision.ruleId,
         title: `Allow tool "${entry.name}"?`,
-        requestKey: requestKeyFor(toolCallId),
+        requestKey: requestKeyFor(toolCallId, sha256HexSync),
         remember: ["once", "thread", "always"],
       },
       signal,
@@ -522,7 +522,7 @@ export function createPipeline(
           argsHash,
           ruleId: SECRET_USE_RULE_ID,
           title: `Allow "${state.entry.name}" to use ${verdict.handles.join(", ")}?`,
-          requestKey: requestKeyFor(`${state.toolCallId}:secret`),
+          requestKey: requestKeyFor(`${state.toolCallId}:secret`, sha256HexSync),
           remember: ["once"],
         },
         signal,
