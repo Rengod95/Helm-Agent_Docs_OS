@@ -402,6 +402,26 @@ export type BinaryError =
 - 시스템 바이너리 버전 확인은 자식 프로세스 실행이 필요하다. DR-07 표의 `Bun.spawn` 소유 패키지에 `platform-os`가 있다 [결정: review.decisions-2 U-17].
 - 번들 정책: `rg`만 번들로 확정했다. `sops`, `age`, `bwrap`, `socat`의 번들 여부는 미결 3이다. 정해지기 전에는 시스템 바이너리를 요구하고 없으면 안내한다.
 
+#### 3.6.1 필수/선택 표와 점검
+
+외부 바이너리를 OS별로 어디에 쓰고 없으면 무엇이 안 되는지를 한 표로 둔다 [결정: m2 마감 G2-07]. 번들과 서명은 M3이고(미결 3), M2는 시스템 바이너리를 요구하고 없으면 안내한다.
+
+| 이름 | macOS | Linux·WSL | Windows | 쓰는 곳 | 없을 때 |
+|---|---|---|---|---|---|
+| `rg` | 필수(번들 우선) | 필수(번들 우선) | 필수 | sandbox(srt), 작업 공간 파일 검색 | 파일 검색과 샌드박스 시작이 동작하지 않는다 |
+| `sops` | 필수 | 필수 | 필수 | secrets 기본 provider (3.10.0 이상) | 비밀을 읽고 쓸 수 없다 |
+| `age` | 필수 | 필수 | 필수 | secrets 키 생성 | 새 비밀 키를 만들 수 없다 |
+| `git` | 선택 | 선택 | 선택 | 작업 공간 git 기능 | git 상태 표시와 작업 트리 기능만 빠진다 |
+| `bwrap` | 쓰지 않음(Seatbelt) | 필수(0.4.0 이상) | 쓰지 않음 | sandbox | 샌드박스를 쓸 수 없다. 설정 `onUnavailable`에 따라 bash가 거부되거나 격리 없이 돈다 |
+| `socat` | 쓰지 않음 | 필수 | 쓰지 않음 | sandbox 네트워크 중계 | 위와 같다 |
+| `security` | 필수(OS 내장) | 쓰지 않음 | 쓰지 않음 | secrets 키 보관(Keychain) | Keychain에 키를 둘 수 없다 |
+| `secret-tool` | 쓰지 않음 | 선택 | 쓰지 않음 | secrets 키 보관(Secret Service) | 키를 파일(0600)에 둔다 |
+
+- 표의 정본은 `src/binaries/requirements.ts`의 `binaryRequirements(platform)`다. 최소 버전은 소비 패키지의 상수(`platform-secrets`의 `SOPS_MIN_VERSION`, `platform-sandbox`의 bwrap 최소 버전)와 같아야 한다. L0끼리 import하지 않아 값을 복사해 두고 `requirements.test.ts`가 값을 비교한다.
+- 점검: `checkExternalBinaries({ platform, resolveBinary }, signal)`가 쓰지 않는 행을 빼고 나머지를 병렬로 `resolveBinary`에 묻는다. 서비스는 `OsServiceHandle.checkBinaries(signal)`로 같은 점검을 낸다. 결과는 `BinaryCheckReport`다: `items`(이름, 필수/선택, 쓰는 곳, 영향, 상태 `ok`·`missing`(안내 문구)·`too_old`·`unusable`), `ready`(쓸 수 없는 필수 바이너리가 없음), `blocking`(쓸 수 없는 필수 이름), `degraded`(쓸 수 없는 선택 이름). 중단되면 `cancelled`다.
+- 점검 실패는 코드를 고칠 대상이 아니라 사용자 환경 문제다. 호출자는 `ready: false`이면 환경 문제로 보고한다(CLI doctor는 종료코드 2 계열, 데스크톱 첫 실행 화면은 `hint`를 보여 준다). 두 곳을 잇는 일은 L4 작업이다.
+- 설치 안내 문구(`hint`)는 `BinaryError.not_found.hint`를 그대로 쓴다(3.6절 3번).
+
 ### 3.7 사용자 알림 (1차, M3)
 
 ```ts

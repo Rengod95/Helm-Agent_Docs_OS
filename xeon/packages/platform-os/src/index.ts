@@ -30,6 +30,16 @@ export {
   type LockInput,
   type LockReadFs,
 } from "./binaries/lock.ts";
+export {
+  binaryRequirements,
+  checkExternalBinaries,
+  type BinaryCheckDeps,
+  type BinaryCheckItem,
+  type BinaryCheckReport,
+  type BinaryCheckStatus,
+  type BinaryNeed,
+  type BinaryRequirement,
+} from "./binaries/requirements.ts";
 export { createRipgrepSource, type RipgrepSourceDeps } from "./binaries/rg.ts";
 export { createIdFactory, createLocalIdFactory } from "./ids.ts";
 export { createJsonLinesLogger } from "./logger.ts";

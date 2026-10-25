@@ -19,7 +19,7 @@ binds: [xeon/packages/platform-os/**]
 | M0 | `OsInfo`, `OsDirs`(3플랫폼 표, `home` 포함), `fsKind`, `Clock`·`Scheduler`·`RandomSource` 운영 구현, `Logger` 기본 구현과 마스킹 훅, ID 발급기 구현 `createIdFactory`·`createLocalIdFactory`, `testing` 서브패스(`tempDir`, `withIsolatedEnv`), 프로세스 지문·기계 식별자·uid(store 세션 잠금이 M0) | OS-01~OS-09, OS-18, OS-19 |
 | M1 | 바이너리 해석(`rg`, secrets 키 명령용 `security`·`secret-tool` 포함), 서비스 등록(`xeon.os`) | OS-10~OS-11 |
 | M3(1차) | 알림 전달 수단 `Notifier`(macOS·Linux 먼저) [결정: review.decisions-2 S-04] | OS-13 |
-| M2 | 프로세스 사이 파일 잠금 `fileLock`(`trust.json` 쓰기) | OS-20 |
+| M2 | 프로세스 사이 파일 잠금 `fileLock`(`trust.json` 쓰기), 외부 바이너리 필수/선택 표와 점검 | OS-20, OS-21 |
 | M2 이후(2차) | `FileWatcher`, 텔레메트리, Windows 보강, 번들 바이너리 추출 실측 | OS-12, OS-14~OS-17 |
 
 - [결정] M0 범위는 `contracts`, `ext-host`, `platform-store`, `platform-exec`다(`_research/foundation-plan.md` §5 P4). platform-os의 M0 작업은 store·exec 테스트가 `tempDir`과 시계 구현을 쓰기 때문에 넣는다 [제안].
@@ -52,6 +52,7 @@ xeon/packages/platform-os/
     binaries/
       resolve.ts            # resolveBinary, PATH 탐색, 버전 읽기
       rg.ts                 # createRipgrepSource: @vscode/ripgrep 경로 연결(소스 실행의 번들 rg). 서비스의 기본 bundledSource
+      requirements.ts       # binaryRequirements(OS별 필수/선택 표), checkExternalBinaries (OS-21)
       lock.ts               # generateBinariesLock: binaries.lock.json 생성(빌드 스크립트가 부른다), resolveInsideResource
       extract.ts            # 컴파일 바이너리에서 cache/bin으로 추출, SHA-256 검사
     notify/
@@ -114,6 +115,7 @@ xeon/packages/platform-os/
 | OS-16 | 검사: `process.platform` 등 OS 분기 표현이 `select.ts` 밖에 없음을 확인하는 패키지 테스트. `check-layers.ts`의 DR-13 검사(다른 작업자 소유)에 패키지 안 규칙을 더하자는 요청 | OS-01 | S | M0 |
 | OS-17 | Windows 보강: `%APPDATA%`·`%LOCALAPPDATA%` 실측, win32 알림 provider, 드라이브 종류 판정, `PATHEXT` 탐색 | OS-02, OS-11, OS-13 | L | M2 이후 |
 | OS-20 | `file-lock/`: `createFileLock`(`withLock`, `updateText`), `select.ts`의 `fileLock` 선택, bun:ffi `flock`. 같은 프로세스 직렬화, 자식 프로세스 SIGKILL 뒤 해제, 읽기-수정-쓰기 손실 없음을 실제 프로세스로 확인. `spec` §3.11 | OS-01, OS-10 | M | M2 |
+| OS-21 | `binaries/requirements.ts`: OS별 필수/선택 표, `checkExternalBinaries`(보고서 `ready`·`blocking`·`degraded`), `OsServiceHandle.checkBinaries`. `spec` §3.6.1 | OS-11 | S | M2 |
 | OS-19 | `ids.ts`: `createIdFactory`(브랜드 ID 8종), `createLocalIdFactory`(`LocalIdPrefix` 표), 같은 ms 안 단조 증가, 주입한 `Clock`·`RandomSource`만 사용. `L0.os.spec` §3.4 | OS-05 | S | M0 |
 | OS-18 | `identity.ts`: `machineId`(Linux `/etc/machine-id`, macOS `IOPlatformUUID`, 실패 시 hostname 해시), `userId`, `processStartFingerprint`(Linux `/proc` 지문의 epoch ms 변환, macOS `ps -o lstart=`). spec §3.10 | OS-01 | S | M0 |
 

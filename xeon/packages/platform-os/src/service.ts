@@ -12,6 +12,7 @@ import type {
   BinaryError,
 } from "@xeon/contracts/services";
 import { createRipgrepSource } from "./binaries/rg.ts";
+import { checkExternalBinaries, type BinaryCheckReport } from "./binaries/requirements.ts";
 import { createBinaryResolver, type BundledSource } from "./binaries/resolve.ts";
 import { createFileLock, type FileLock } from "./file-lock/index.ts";
 import { createFlockPrimitive } from "./file-lock/flock.ts";
@@ -60,6 +61,11 @@ export interface OsServiceHandle {
    * M2에서는 `trust.json` 쓰기가 쓴다.
    */
   readonly fileLock: FileLock;
+  /**
+   * 외부 바이너리 필수/선택 표(L0.os.spec §3.6.1)를 이 서비스의 `resolveBinary`로 점검한다.
+   * 첫 실행 안내와 doctor가 쓴다. 이름별 해석 캐시를 그대로 쓴다.
+   */
+  checkBinaries(signal: AbortSignal): Promise<Result<BinaryCheckReport, { kind: "cancelled" }>>;
   /** 설정 l0.os.log.level 변경(live)을 반영한다 */
   setLogLevel(level: LogLevel): void;
   /** 진행 중인 자식 프로세스 중단, 남은 타이머 취소, 로거 마지막 줄 */
@@ -215,6 +221,14 @@ export async function createOsService(
   return ok({
     service,
     fileLock,
+    checkBinaries: (signal) =>
+      checkExternalBinaries(
+        {
+          platform: info.platform,
+          resolveBinary: (name, opts, scope) => service.resolveBinary(name, opts, scope),
+        },
+        signal,
+      ),
     setLogLevel: (level) => rootLogger.setLevel(level),
     dispose(): Promise<void> {
       if (disposed) return Promise.resolve();
