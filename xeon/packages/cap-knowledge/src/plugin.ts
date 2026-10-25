@@ -29,7 +29,6 @@ import { createNodeFs } from "./fs/node-fs.ts";
 import type { KnowledgeFs } from "./fs/port.ts";
 import { knowledgeManifest } from "./manifest.ts";
 import { createWriteApprovals } from "./ports/approvals.ts";
-import { isKnowledgeSessionPort } from "./ports/session.ts";
 import { setupSearch } from "./search/setup.ts";
 import { KNOWLEDGE_MIGRATIONS, KNOWLEDGE_OWNER } from "./migrations.ts";
 import { createKnowledgeRuntime, type KnowledgeDeps } from "./service.ts";
@@ -118,8 +117,7 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
       const secrets = optionalPort(host, SecretsPortKey);
       const tools = optionalPort(host, ToolsPortKey);
       const approvalService = optionalPort(host, ApprovalServicePortKey);
-      const sessionCandidate = optionalPort(host, SessionPortKey);
-      const session = isKnowledgeSessionPort(sessionCandidate) ? sessionCandidate : undefined;
+      const session = optionalPort(host, SessionPortKey);
       const logger = os.logger("knowledge");
 
       const migrated = store.migrations.apply(KNOWLEDGE_MIGRATIONS);

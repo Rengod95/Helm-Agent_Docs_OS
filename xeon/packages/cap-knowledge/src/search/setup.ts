@@ -1,6 +1,5 @@
 import type { Logger } from "@xeon/contracts";
-import type { StoreDb, StoreCapabilities } from "@xeon/contracts/records";
-import type { KnowledgeSessionPort } from "../ports/session.ts";
+import type { SessionService, StoreDb, StoreCapabilities } from "@xeon/contracts/records";
 import { probeFts } from "./probe.ts";
 import { createKnowledgeProjector } from "./projector.ts";
 import type { SearchAvailability } from "./service.ts";
@@ -22,7 +21,7 @@ function ready(db: StoreDb, table: string): boolean {
 
 export function setupSearch(input: {
   readonly capabilities: Pick<StoreCapabilities, "fts5" | "sqliteVersion">;
-  readonly session: KnowledgeSessionPort | undefined;
+  readonly session: SessionService | undefined;
   readonly db: StoreDb;
   readonly logger: Logger;
 }): SearchSetup {

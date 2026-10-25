@@ -75,6 +75,8 @@ async function boot(
     layers?: ScopeStack;
     /** true면 실제 세션 서비스를 `xeon.session`으로 제공한다 */
     sessions?: boolean;
+    /** true면 시험 호스트가 기본으로 주는 부분 구현(RecordCommitPort 대역)을 `xeon.session`으로 둔다 */
+    partialSession?: boolean;
   } = {},
 ) {
   const clock = manualClock();
@@ -87,8 +89,8 @@ async function boot(
     options.sessions === true
       ? createSessionKit({ store, clock, ids, logger: recordingLogger([]) })
       : undefined;
-  // 실제 세션 서비스는 `xeon.session` 전체이므로 시험 호스트의 부분 구현(records)을 뺀다
-  const t = await createTestHost(kit === undefined ? {} : { without: ["records"] });
+  // `xeon.session`은 SessionService 전체여야 한다. 시험 호스트의 부분 구현(records)은 `partialSession`일 때만 남긴다
+  const t = await createTestHost(options.partialSession === true ? {} : { without: ["records"] });
   const registered: ToolRegistration[] = [];
   const unregistered: string[] = [];
   const lines: LogLine[] = [];
@@ -253,6 +255,12 @@ describe("plugin", () => {
     expect(only).toMatchObject({ data: { code: "unavailable" } });
     const skill = await apis.search?.query({ query: "Deploy steps", kinds: ["skill"] });
     expect(skill?.hits.map((hit) => hit.ref)).toEqual(["deploy"]);
+  });
+
+  test("a partial xeon.session is not accepted: the plugin setup fails instead of starting without search", async () => {
+    const { installed } = await boot({ partialSession: true });
+    expect(installed.setups[0]?.status).toBe("failed");
+    expect(installed.setups[0]?.failure?.kind).toBe("threw");
   });
 
   test("a consumer extension whose call carries no caller context cannot write", async () => {

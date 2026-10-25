@@ -229,7 +229,7 @@ xeon/packages/cap-knowledge/
 - `search/indexer.ts`가 `projector.ts`와 소비자를 나눈다. 계획의 `search/probe.ts`(trigram 프로브)는 능력 판정으로, `search/query.ts`는 `query-model.ts`(순수)와 `service.ts`로 나눴다. `docs-index.ts`는 계획 위치 그대로다.
 - 표 이름과 열은 spec §3.8 구현 메모를 따른다(`sessiondocs`, `sessionfts`, `docsfts`, `sessioncursor`, `thread_id`, `event_seq`).
 - 마이그레이션(`CAP_KNOWLEDGE` 세션 밖 상태)은 바꾸지 않았다. 검색 표는 모두 투영기가 선언한다.
-- 포트 파일 `ports/session.ts`는 `SessionService`의 필요한 부분과 운영 구현이 아닌 부분 구현(시험 호스트)을 구분하는 검사 `isKnowledgeSessionPort`를 함께 둔다.
+- 세션 포트는 `SessionService` 전체다 [결정: 통합 검토 L3]. 부분 구현을 걸러내는 덕 타이핑 검사(`isKnowledgeSessionPort`)와 `ports/session.ts`를 지웠다. `xeon.session`이 없으면(포트 미제공) 세션 검색 없이 시작하고, 있는데 완전한 `SessionService`가 아니면 플러그인 setup이 실패한다. 시험 호스트의 부분 구현(`RecordCommitPort` 대역)은 `without: ["records"]`로 빼고 완전한 세션(`createSessionKit`)이나 아무것도 주지 않는다.
 - 투영기 이벤트 kind와 세션 종류 추론은 spec §4.8.1·§4.8.2에 적었다.
 
 시험(모두 실제 SQLite와 실제 `core-persistence` 세션 서비스 위에서 돈다):
@@ -240,7 +240,7 @@ xeon/packages/cap-knowledge/
 | `query.test.ts` | 질의 모델(토큰, 경로, MATCH·LIKE 식, 스니펫), `korean short query uses like`, `three char query uses fts`, `nfc normalization`, `bm25 then recency`, `fts special chars quoted`, LIKE 와일드카드 리터럴, 숨김·ID·시각·한도·프로젝트 범위, scroll·read·list, `kind order concatenation`, 쓰기와 같은 트랜잭션의 색인 갱신, 가려진 스킬 |
 | `probe.test.ts` | 능력 판정 표, `probe failure disables session search`(FTS5 없음), `degraded: ["session"]`와 스킬·메모리 LIKE 대체, 세션 서비스 없이 시작 |
 | `fts-trigram.int.test.ts` | 실제 `bun:sqlite`에서 3글자 MATCH, 2글자 0건, 대소문자 무시, 조사 앞뒤 일치, bm25 순서 |
-| `plugin.test.ts` | 세션 서비스가 있을 때 투영기 등록·색인·검색·목록이 플러그인 경로로 동작, 없을 때 `unavailable` |
+| `plugin.test.ts` | 세션 서비스가 있을 때 투영기 등록·색인·검색·목록이 플러그인 경로로 동작, 없을 때 `unavailable`, 부분 `xeon.session`이면 setup 실패 |
 
 완료 기준 9(macOS FTS5·trigram 확인)는 이 기기에서 할 수 없다. `desktop-macos` CI job이나 실기에서 `fts-trigram.int.test.ts`를 한 번 돌려 기록한다.
 

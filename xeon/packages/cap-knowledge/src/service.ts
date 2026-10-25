@@ -14,7 +14,7 @@ import { recoverPrepared, type RecoverReport } from "./ledger/recover.ts";
 import { createLedgerRuntime } from "./ledger/service.ts";
 import { createMemory, type MemoryRuntime } from "./memory/store.ts";
 import type { WriteApprovals } from "./ports/approvals.ts";
-import type { KnowledgeSessionPort } from "./ports/session.ts";
+import type { SessionService } from "@xeon/contracts/records";
 import { createDocsIndex, type DocsIndex } from "./search/docs-index.ts";
 import { startIndexer, type Indexer } from "./search/indexer.ts";
 import { createSearch, type SearchAvailability, type SearchRuntime } from "./search/service.ts";
@@ -34,7 +34,7 @@ export interface KnowledgeDeps extends SkillsDeps {
   /** 메모리 파일 디렉터리 `<사용자 데이터>/memory`(spec §4.1) */
   readonly memoryDir: string;
   /** 세션 서비스. 없으면 세션 색인 소비자를 시작하지 않는다 */
-  readonly session: KnowledgeSessionPort | undefined;
+  readonly session: SessionService | undefined;
   /** 검색 표를 쓸 수 있는지(`search/setup.ts`). `docsFts`와 함께 조립 쪽이 같은 값으로 채운다 */
   readonly searchAvailability: SearchAvailability;
 }

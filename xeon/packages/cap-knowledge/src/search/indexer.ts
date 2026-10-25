@@ -3,10 +3,10 @@ import {
   ItemRecordedPayloadSchema,
   type CommitBatch,
   type DurableEventEnvelope,
+  type SessionService,
   type StoreDb,
 } from "@xeon/contracts/records";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
-import type { KnowledgeSessionPort } from "../ports/session.ts";
 
 // L2.knowledge.spec §4.8.1 색인 소비자 `cap.knowledge.fts`. 세션의 내구 이벤트 가운데 사용자·어시스턴트 메시지(`item.recorded`)의 텍스트를
 // NFC로 바꿔 `cap_knowledge_sessiondocs`와 `cap_knowledge_sessionfts`에 넣는다. 도구 결과, 사고(thinking), 도구 호출, 이미지는 넣지 않는다.
@@ -21,7 +21,7 @@ const CONSUMER = "fts";
 const BATCH_EVENTS = 500;
 
 export interface IndexerDeps {
-  readonly session: KnowledgeSessionPort;
+  readonly session: SessionService;
   readonly db: StoreDb;
   readonly logger: Logger;
 }
