@@ -838,6 +838,107 @@ export const SecretBeginRevealResultSchema: TObject<{ started: TBoolean }> = Typ
 );
 export type SecretBeginRevealResult = Static<typeof SecretBeginRevealResultSchema>;
 
+// ── trust.* (프로젝트 신뢰. 판정과 결정을 클라이언트가 부른다, X.loading-trust.spec §4.7) ──
+
+/** 결정 범위: 이 폴더, 상위 폴더, 이 호스트 프로세스 동안만(`session`은 저장하지 않는다) */
+export const TrustChoiceKindSchema: TUnion<
+  [TLiteral<"folder">, TLiteral<"parent">, TLiteral<"session">]
+> = Type.Union([Type.Literal("folder"), Type.Literal("parent"), Type.Literal("session")]);
+export type TrustChoiceKind = Static<typeof TrustChoiceKindSchema>;
+
+export const TrustChoiceSchema: TObject<{
+  kind: typeof TrustChoiceKindSchema;
+  verdict: TUnion<[TLiteral<"allow">, TLiteral<"deny">]>;
+}> = Type.Object(
+  {
+    kind: TrustChoiceKindSchema,
+    verdict: Type.Union([Type.Literal("allow"), Type.Literal("deny")]),
+  },
+  { additionalProperties: false },
+);
+export type TrustChoice = Static<typeof TrustChoiceSchema>;
+
+/** 판정이 어디서 나왔는가. `ext-host`의 `TrustVia`와 같은 집합이다 */
+export const TrustViaSchema: TUnion<
+  [
+    TLiteral<"override">,
+    TLiteral<"notRequired">,
+    TLiteral<"point">,
+    TLiteral<"store">,
+    TLiteral<"sessionMemory">,
+    TLiteral<"default">,
+    TLiteral<"prompt">,
+    TLiteral<"headless">,
+    TLiteral<"corruptStore">,
+  ]
+> = Type.Union([
+  Type.Literal("override"),
+  Type.Literal("notRequired"),
+  Type.Literal("point"),
+  Type.Literal("store"),
+  Type.Literal("sessionMemory"),
+  Type.Literal("default"),
+  Type.Literal("prompt"),
+  Type.Literal("headless"),
+  Type.Literal("corruptStore"),
+]);
+export type TrustVia = Static<typeof TrustViaSchema>;
+
+/** 클라이언트가 화면에 낼 선택지. `label`은 현지화 식별자다(`trust-folder`, `trust-parent`, `trust-session`, `deny-folder`, `deny-session`) */
+export const TrustOptionSchema: TObject<{
+  choice: typeof TrustChoiceSchema;
+  label: TString;
+  savedPath: TUnion<[TString, TNull]>;
+}> = Type.Object(
+  {
+    choice: TrustChoiceSchema,
+    label: Type.String({ minLength: 1, maxLength: 64 }),
+    /** 저장되는 폴더. `session` 선택지는 저장하지 않아 null이다 */
+    savedPath: Nullable(Type.String({ minLength: 1, maxLength: 4096 })),
+  },
+  { additionalProperties: false },
+);
+export type TrustOption = Static<typeof TrustOptionSchema>;
+
+export const TrustStatusSchema: TObject<{
+  projectRoot: TString;
+  required: TBoolean;
+  verdict: TUnion<[TLiteral<"allow">, TLiteral<"deny">, TLiteral<"undecided">]>;
+  via: typeof TrustViaSchema;
+  resources: TArray<TString>;
+  options: TArray<typeof TrustOptionSchema>;
+}> = Type.Object(
+  {
+    /** 정규화한 폴더 경로(심볼릭 링크를 푼 값) */
+    projectRoot: Type.String({ minLength: 1, maxLength: 4096 }),
+    /** 신뢰가 필요한 자원(프로젝트 설정, 스킬, MCP 서버 정의)이 있는가. 없으면 판정은 allow(`notRequired`)다 */
+    required: Type.Boolean(),
+    /** `undecided`는 결정이 없는 상태이고 불신으로 다룬다(fail-closed) */
+    verdict: Type.Union([Type.Literal("allow"), Type.Literal("deny"), Type.Literal("undecided")]),
+    via: TrustViaSchema,
+    /** 신뢰 필요 자원(프로젝트 루트 기준 상대 경로) */
+    resources: Type.Array(Type.String({ minLength: 1, maxLength: 1024 }), { maxItems: 64 }),
+    options: Type.Array(TrustOptionSchema, { maxItems: 8 }),
+  },
+  { additionalProperties: false },
+);
+export type TrustStatus = Static<typeof TrustStatusSchema>;
+
+export const TrustGetParamsSchema: TObject<{ workspace: TString }> = Type.Object(
+  { workspace: Type.String({ minLength: 1, maxLength: 4096 }) },
+  { additionalProperties: false },
+);
+export type TrustGetParams = Static<typeof TrustGetParamsSchema>;
+
+export const TrustDecideParamsSchema: TObject<{
+  workspace: TString;
+  choice: typeof TrustChoiceSchema;
+}> = Type.Object(
+  { workspace: Type.String({ minLength: 1, maxLength: 4096 }), choice: TrustChoiceSchema },
+  { additionalProperties: false },
+);
+export type TrustDecideParams = Static<typeof TrustDecideParamsSchema>;
+
 // ── 모든 요청 params의 _meta (§3.6) ──────────────────────────────────────
 
 /** params 스키마에 예약 키 `_meta?: WireMeta`를 더한 타입 */
@@ -990,6 +1091,14 @@ interface WireSchemas {
     params: typeof SecretNameRequestSchema;
     result: typeof SecretBeginRevealResultSchema;
   };
+  "trust.get": {
+    params: WithMeta<typeof TrustGetParamsSchema>;
+    result: typeof TrustStatusSchema;
+  };
+  "trust.decide": {
+    params: WithMeta<typeof TrustDecideParamsSchema>;
+    result: typeof TrustStatusSchema;
+  };
 }
 
 /** 메서드 이름 → { params, result } 정적 타입. 스키마에서 Static으로 만든다 */
@@ -1096,6 +1205,8 @@ export const WIRE_METHODS: {
     "M2",
   ),
   "secret.beginReveal": spec(SecretNameRequestSchema, SecretBeginRevealResultSchema, "M2"),
+  "trust.get": spec(withMeta(TrustGetParamsSchema), TrustStatusSchema, "M2"),
+  "trust.decide": spec(withMeta(TrustDecideParamsSchema), TrustStatusSchema, "M2"),
 };
 
 export const WIRE_NOTIFICATIONS: {

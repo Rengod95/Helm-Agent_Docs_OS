@@ -313,6 +313,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | approval | `approval.list` | `{ threadId: ThreadId }` | `{ approvals: PendingApproval[], position: StreamPosition }` | M2 |
 | command | `command.list` | `{ prefix?: string, includeHidden?: boolean }` | `{ commands: CommandInfo[] }` | M2 |
 | command | `command.run` | `{ threadId: ThreadId, text: string, confirmShell?: boolean }` | `CommandRunOutput` | M2 |
+| trust | `trust.get` | `{ workspace: string }` | `TrustStatus` | M2 |
+| trust | `trust.decide` | `{ workspace: string, choice: { kind: "folder"\|"parent"\|"session", verdict: "allow"\|"deny" } }` | `TrustStatus` | M2 |
 | settings | `settings.get` | `{ keys?: SettingKey[], threadId?: ThreadId }` | `{ settings: EffectiveSetting[] }` | M1 |
 | settings | `settings.set` | `{ key: SettingKey, value: unknown, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
 | settings | `settings.reset` | `{ key: SettingKey, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
@@ -324,6 +326,12 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | secret | `secret.beginEntry` | `{ name: SecretName, action: "add"\|"set"\|"rotate" }` | `{ started: boolean }` | M2 |
 | secret | `secret.beginReveal` | `{ name: SecretName }` | `{ started: boolean }` | M2 |
 
+- [결정: m2c G1-03] `trust.get`·`trust.decide`는 프로젝트 신뢰(`X.loading-trust.spec` §4.7)를 클라이언트가 묻고 정하는 메서드다. 이름과 모양은 `m2/fx-host`의 구현을 정본으로 하고 `m2/fx-apps`의 `trust.pending`·`trust.decide { projectRoot, choice }` 가정은 버린다. 이유는 둘이다. 첫째, wire에는 서버가 클라이언트에 보내는 요청이 없어서 대기 목록(`trust.pending`)은 호스트가 프롬프트를 쥐고 기다리는 구조를 전제한다. 둘째, 폴더는 클라이언트가 먼저 알고 있다(`workspace`). 호스트는 프롬프트를 띄울 화면이 없고(`headless`), 결정이 없는 폴더는 `undecided`라 불신으로 다룬다(fail-closed). 그래서 `.mcp.json`, 프로젝트 스킬, `.xeon/settings.json`, `.xeon/commands`는 사람이 정하기 전에는 적용되지 않는다. 클라이언트는 폴더에서 thread를 만들거나 열기 전에 `trust.get { workspace }`를 부르고, `verdict`가 `undecided`이고 `required`가 참이면 `options`로 선택지를 보여 준 뒤 `trust.decide`로 보낸다.
+  - `TrustStatus`는 `{ projectRoot, required, verdict: "allow"|"deny"|"undecided", via, resources, options }`다. `projectRoot`는 심볼릭 링크를 푼 경로, `resources`는 신뢰가 필요한 자원의 프로젝트 루트 기준 상대 경로, `via`는 판정의 출처(`override`·`notRequired`·`point`·`store`·`sessionMemory`·`default`·`prompt`·`headless`·`corruptStore`, `X.loading-trust`의 `TrustVia`와 같은 집합)다. `options`는 `{ choice, label, savedPath }`이고 `label`은 현지화 식별자(`trust-folder`, `trust-parent`, `trust-session`, `deny-folder`, `deny-session`)이며 `savedPath`는 결정을 저장하는 폴더(`session`은 null)다.
+  - `trust.decide`의 `choice`가 그 폴더의 `options`에 없으면 `jsonrpc.invalidParams`(`path: "choice"`)다. `session`은 저장하지 않고 그 호스트 프로세스 동안만 유지한다. `workspace`가 절대 경로가 아니면 `jsonrpc.invalidParams`(`path: "workspace"`)이고, 결정을 저장하지 못하면(손상된 저장 파일, 쓰기 실패) `store.io`(`details.code: "trust_store"`)다. `trust.get`은 아무것도 바꾸지 않는다. 신뢰 필요 자원이 없는 폴더도 `trust.decide`로 미리 정할 수 있다.
+  - 결정 뒤 호스트는 그 폴더의 project·local 설정 파일 층을 다시 읽고 `settings.invalidated`(§3.3.2)를 보낸다. 프로젝트 스킬은 다음 thread를 열 때, MCP 서버 정의는 다음 서버 로드 때 반영된다. 이미 열린 thread가 새 결정을 모두 받게 하려면 결정을 thread 열기 전에 한다.
+  - 저장 파일 `trust.json`은 두 클라이언트(CLI의 `xeon trust`, 데스크톱 카드)가 같은 호스트를 거쳐 쓴다. 프로세스 사이 쓰기 충돌은 L0.os의 `fileLock`이 막는다(`review.m2-plan` G1-10). wire는 이 잠금을 드러내지 않는다.
+  - `project_trust` 확장 지점은 이 메서드와 별개다. 확장이 결정을 내는 길이고 thread 없이 호스트 수준에서 발화한다(`F.extensions.spec` §7). M2에는 그 지점에 핸들러를 거는 확장이 없어 호스트는 발화하지 않고 저장소 판정만 쓴다.
 - [결정: m2c G1-02] `turn.resume`은 프로세스 종료로 끊긴 turn을 이어 실행하는 메서드다(`L1.loop.spec` §4.6 `LoopService.resume`, `L4.host-service.spec` §10 21번). `thread.list`가 `ThreadSummary.resumable`로 후보를 알리고(§3.3.1 아래 코드), 클라이언트가 사용자 확인 뒤 이 메서드를 부른다. 호스트는 자동 재개를 하지 않는다. 한 thread에 열린 turn은 하나라서 `turnId`를 받지 않는다.
   - 결과 세 모양은 `ResumeResult`(`services/loop.ts`)와 같아 변환이 없다. `resumed`는 이어 실행을 접수했다는 뜻이고 진행은 `events.subscribe`의 이벤트로 온다. `from`은 이어 시작한 단계다. 승인을 기다리던 turn은 `tools`로 이어지고 `approval.list`의 대기 승인이 다시 응답을 받는다.
   - `closed`는 이어 실행하지 않고 닫았다는 뜻이다. 끊기기 전에 중단 요청이 있었으면 `abort_requested`, 소유자가 취소했으면 `owner_cancelled`다. `nothing`은 열린 turn이 없다는 뜻이다. 둘 다 오류가 아니다.
@@ -440,6 +448,8 @@ export interface WireMethodMap {
   "secret.meta":       { params: SecretMetaParams;       result: SecretMetaResult };
   "secret.remove":     { params: SecretNameParams;       result: SecretRemoveResult };
   "secret.test":       { params: SecretNameParams;       result: SecretTestResult };
+  "trust.get":         { params: TrustGetParams;         result: TrustStatus };
+  "trust.decide":      { params: TrustDecideParams;      result: TrustStatus };
   "secret.beginEntry": { params: SecretBeginEntryParams; result: SecretBeginEntryResult };
 }
 export type WireMethodName = keyof WireMethodMap;

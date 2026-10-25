@@ -709,6 +709,8 @@ export interface PointDecl<N extends PointName = PointName> {
   readonly result?: TSchema;
   /** boundary 지점의 최종 검증 여부(§4.1) */
   readonly finalize?: "boundary";
+  /** 참이면 thread 없이 호스트 수준에서 발화한다(§7). 지금은 project_trust뿐이다 */
+  readonly threadless?: true;
   /** M1 스모크에서 페이로드를 정확화한 지점 */
   readonly m1: boolean;
   readonly pi: PiSource;
@@ -771,7 +773,7 @@ export type ChainPointName = { [N in PointName]: PointSignatures[N]["fold"] exte
 | 24 | `agent_before_settle` | boundary | chain | AgentBeforeSettlePayload | BoundaryPatch | skip | ● | types.ts:1000/994 | runner.ts:1029 emitBoundary | Xeon turn 정착 직전. 최종 검증(`finalize`) |
 | 25 | `agent_end` | boundary | tap | AgentEndPayload | void | record | | types.ts:937 | runner.ts:1089 emit | 같음 |
 | 26 | `agent_settled` | boundary | tap | AgentSettledPayload | void | record | ● | types.ts:1005 | runner.ts:1089 emit | Xeon turn 끝 |
-| 27 | `project_trust` | session | first | ProjectTrustPayload | ProjectTrustDecision | deny | | types.ts:686/693 | runner.ts:295 emitProjectTrustEvent | pi는 예외를 모으고 계속(fail-open). Xeon은 불신(no) |
+| 27 | `project_trust` | session | first | ProjectTrustPayload | ProjectTrustDecision | deny | | types.ts:686/693 | runner.ts:295 emitProjectTrustEvent | pi는 예외를 모으고 계속(fail-open). Xeon은 불신(no). thread 없이 호스트 수준에서 발화한다(`threadless`, §7) |
 | 28 | `resources_discover` | session | chain | ResourcesDiscoverPayload | ResourcesPatch | skip | | types.ts:711/718 | runner.ts:1474 emitResourcesDiscover | pi collect. merge가 경로를 확장 이름과 함께 추가 |
 | 29 | `mcp_servers_change` | session | tap | McpServersChangePayload | void | record | | types.ts:730 | runner.ts:459 emit (대기 안 함) | `dispatch: detached` |
 | 30 | `session_start` | session | tap | SessionStartPayload | void | record | ● | types.ts:741 | runner.ts:1089 emit | 같음 |
@@ -1255,6 +1257,7 @@ chain의 보충 규칙 [제안]:
 
 - [제안] 지점별 발화 문서는 `L1.readme` §6 소유표와 같다. 컴팩션은 core-context가 수행하므로 `session_*compact*`는 L1.context, 승인 화면 알림은 승인 프로토콜 소유라 `ui_prompt_*`는 L1.tools가 발화한다. `input` 지점은 L1.loop가 발화한다(`architecture.runtime-flow` 그림의 tasks 표기는 그쪽 문서가 고친다).
 
+- [결정: m2c G1-03] `project_trust`는 kind가 `session`이지만 thread 없이 호스트 수준에서 발화한다. 폴더 신뢰는 thread를 만들거나 열기 전에 판정해야 하기 때문이다(`X.loading-trust.spec` §4.7.4). `PointDecl.threadless: true`가 이 지점을 표시하고, 페이로드(`{ cwd }`)와 발화 문맥에 `threadId`가 없다. 그래서 핸들러는 thread 상태(`stateOf`)나 thread 신호를 쓰지 못하고, 예산·진단은 호스트 수준 한도를 따른다. 그 밖의 `session` 지점은 모두 thread에 묶여 발화한다. 발화 규칙의 구현(디스패처의 thread 없는 경로, 예산, 진단)은 X.primitives가 정한다. M2의 호스트는 이 지점에 핸들러를 거는 확장이 없어 발화하지 않는다.
 - 능력 도구 호출은 tool 지점을 지난다. 페이로드의 `capability` 필드로 능력을 식별한다(F.capabilities.spec §7).
 - [미결] 지점 5종 밖 이벤트(승인 요청·응답, 서브에이전트 생성, 그룹 레코드 쓰기, scope 토글 등 Xeon 고유 이벤트)를 지점으로 둘지, 관찰 전용 이벤트 버스로 둘지.
 

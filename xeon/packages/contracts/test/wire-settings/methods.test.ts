@@ -16,14 +16,14 @@ const THREAD = rawId("thr", 1);
 const names = Object.keys(WIRE_METHODS);
 
 describe("WIRE_METHODS", () => {
-  test("has the 30 methods of the spec table with their stages", () => {
-    expect(names).toHaveLength(30);
+  test("has the 32 methods of the spec table with their stages", () => {
+    expect(names).toHaveLength(32);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
       ["events.subscribe", "host.hello", "settings.get", "thread.create", "turn.start"].toSorted(),
     );
-    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(25);
+    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(27);
   });
 
   test("every row carries both schemas, since and status", () => {
@@ -329,6 +329,44 @@ describe("M2 method schemas are written out", () => {
       false,
     );
     expect(parse(WIRE_METHODS["secret.list"].params, { meta: true, usage: false }).ok).toBe(true);
+  });
+
+  test("trust methods take a workspace and a choice, and the status lists the options", () => {
+    const { params: getParams, result } = WIRE_METHODS["trust.get"];
+    expect(parse(getParams, { workspace: "/work/app" }).ok).toBe(true);
+    expect(parse(getParams, {}).ok).toBe(false);
+    expect(parse(getParams, { workspace: "" }).ok).toBe(false);
+    const decide = WIRE_METHODS["trust.decide"].params;
+    expect(
+      parse(decide, { workspace: "/work/app", choice: { kind: "folder", verdict: "allow" } }).ok,
+    ).toBe(true);
+    expect(
+      parse(decide, { workspace: "/work/app", choice: { kind: "forever", verdict: "allow" } }).ok,
+    ).toBe(false);
+    expect(
+      parse(decide, { workspace: "/work/app", choice: { kind: "session", verdict: "undecided" } })
+        .ok,
+    ).toBe(false);
+    const status = {
+      projectRoot: "/work/app",
+      required: true,
+      verdict: "undecided",
+      via: "headless",
+      resources: [".mcp.json", ".xeon/settings.json"],
+      options: [
+        {
+          choice: { kind: "folder", verdict: "allow" },
+          label: "trust-folder",
+          savedPath: "/work/app",
+        },
+        { choice: { kind: "session", verdict: "allow" }, label: "trust-session", savedPath: null },
+      ],
+    };
+    expect(parse(result, status).ok).toBe(true);
+    expect(WIRE_METHODS["trust.decide"].result).toBe(result);
+    expect(parse(result, { ...status, verdict: "maybe" }).ok).toBe(false);
+    expect(parse(result, { ...status, via: "somewhere" }).ok).toBe(false);
+    expect(parse(result, { ...status, extra: true }).ok).toBe(false);
   });
 
   test("thread.list returns summaries with the ThreadSummaryRow fields", () => {
