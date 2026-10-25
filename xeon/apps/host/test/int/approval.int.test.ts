@@ -183,7 +183,7 @@ describe("approval.respond", () => {
         approvalId: "evt_missing",
         decision: "allow",
       }),
-    ).toEqual({ applied: false });
+    ).toEqual({ applied: false, reason: "unknown_approval" });
     const asked = await fx.collector.waitFor(requested);
     await fx.connection.request("approval.respond", { approvalId: asked.id, decision: "deny" });
     await fx.close();

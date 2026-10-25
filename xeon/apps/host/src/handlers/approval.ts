@@ -19,7 +19,8 @@ function listFailure(error: ApprovalListFailure): WireError {
 }
 
 /**
- * 승인 응답을 L1.tools에 넘긴다. 이미 해결됐거나 모르는 `approvalId`이면 `applied: false`다.
+ * 승인 응답을 L1.tools에 넘긴다. 모르는 `approvalId`이면 `applied: false`와 이유 `unknown_approval`이다(이미 해결됐거나 응답이 맞지 않은 이유는
+ * L1.tools가 `already_resolved`·`answer_invalid`로 낸다, F wire §3.3.1).
  * 요청이 속한 thread를 이 프로세스가 쥐지 않았으면 3002다: 응답은 그 thread의 `approval.resolved` 커밋이라 쓰기 소유가 있어야 한다.
  * 재시작 직후에는 메모리 대기 목록이 비어 있으므로 포트가 쥔 thread의 미해결 요청을 먼저 되살린다(`restore`).
  */
@@ -29,7 +30,7 @@ export function createApprovalRespondHandler(engine: Engine): WireHandler<"appro
     const located = await approvals.locate(params.approvalId);
     if (!located.ok) throw wireErrorOfStore(located.error, "approval.respond lookup");
     const threadId = located.value;
-    if (threadId === undefined) return { applied: false };
+    if (threadId === undefined) return { applied: false, reason: "unknown_approval" };
     if (!locks.holds(threadId)) throw threadLocked(null);
     return await approvals.respond(params);
   };

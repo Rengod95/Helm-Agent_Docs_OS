@@ -47,11 +47,14 @@ const PARAMS: WireParams<"approval.respond"> = {
   remember: "once",
 };
 
-test("approval.respond for an approval nobody knows is applied false and never reaches the service", async () => {
+test("approval.respond for an approval nobody knows is applied false with the reason unknown_approval and never reaches the service", async () => {
   const responded: WireParams<"approval.respond">[] = [];
   const host = hostWithApproval({ threadId: undefined }, responded);
   const connection = await open(host);
-  expect(await connection.request("approval.respond", PARAMS)).toEqual({ applied: false });
+  expect(await connection.request("approval.respond", PARAMS)).toEqual({
+    applied: false,
+    reason: "unknown_approval",
+  });
   expect(responded).toEqual([]);
   await connection.close();
 });
