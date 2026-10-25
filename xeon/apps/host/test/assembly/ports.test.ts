@@ -1,3 +1,6 @@
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import { Bug, err, ok, type Logger } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
@@ -270,14 +273,19 @@ function harness(): Harness {
 }
 
 describe("threads", () => {
-  test("create forwards title and workspace, then reports the position in this store", async () => {
+  test("create forwards title and the canonical workspace, then reports the position in this store", async () => {
     const h = harness();
     const { ports } = createEnginePorts(h.deps);
-    const created = await ports.threads.create({ title: "t", workspace: "/w" });
-    expect(created.threadId).toBe(THREAD);
-    expect(created.position).toEqual({ storeId: STORE_ID, seq: 5 });
-    expect(h.calls[0]).toContain('"title":"t"');
-    expect(h.calls[0]).toContain('"workspace":"/w"');
+    const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-ports-")));
+    try {
+      const created = await ports.threads.create({ title: "t", workspace });
+      expect(created.threadId).toBe(THREAD);
+      expect(created.position).toEqual({ storeId: STORE_ID, seq: 5 });
+      expect(h.calls[0]).toContain('"title":"t"');
+      expect(h.calls[0]).toContain(`"workspace":${JSON.stringify(workspace)}`);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
   });
 
   test("a refused create is a store.* wire error, not a Bug", async () => {

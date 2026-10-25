@@ -58,6 +58,7 @@ import { wireErrorOfCreate, wireErrorOfLease, wireErrorOfStore } from "../store-
 import { messageOf, sequentially } from "../util.ts";
 import { createApprovalPort } from "./approvals.ts";
 import { createCommandPort } from "./commands.ts";
+import { canonicalWorkspace, wireErrorOfWorkspace, workspaceFilterOf } from "./workspace.ts";
 import type { CommandRegistryHolder } from "./l2-units.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 import { createSettingsStore } from "./settings-store.ts";
@@ -166,30 +167,39 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
   };
 
   const threads: ThreadPort = {
-    create(input) {
+    async create(input) {
+      // 작업 폴더는 정규 경로로 저장한다(HS-76). 상대 경로와 없는 폴더는 thread를 만들기 전에 거절한다
+      let workspace: string | undefined;
+      if (input.workspace !== undefined) {
+        const canonical = await canonicalWorkspace(input.workspace);
+        if (!canonical.ok) throw wireErrorOfWorkspace(canonical.error);
+        workspace = canonical.value;
+      }
       const threadId = deps.ids.next("thr");
       const created = session.threads.create({
         threadId,
         ...(input.title === undefined ? {} : { title: input.title }),
-        ...(input.workspace === undefined ? {} : { workspace: input.workspace }),
+        ...(workspace === undefined ? {} : { workspace }),
       });
-      if (!created.ok) {
-        return Promise.reject(wireErrorOfCreate(created.error, "threads.create failed"));
-      }
+      if (!created.ok) throw wireErrorOfCreate(created.error, "threads.create failed");
       const head = session.feed.headSeq();
-      if (!head.ok) return Promise.reject(wireErrorOfStore(head.error, "threads.create position"));
-      return Promise.resolve({
-        threadId: created.value.threadId,
-        position: { storeId, seq: head.value },
-      });
+      if (!head.ok) throw wireErrorOfStore(head.error, "threads.create position");
+      return { threadId: created.value.threadId, position: { storeId, seq: head.value } };
     },
     exists(threadId) {
       const found = session.query.thread(threadId);
       return found.ok ? ok(found.value !== undefined) : found;
     },
-    list(params) {
+    async list(params) {
+      // 필터는 저장된 값(정규 경로)과 같은 형태로 견준다(HS-76)
+      let workspace: string | undefined;
+      if (params.workspace !== undefined) {
+        const filter = await workspaceFilterOf(params.workspace);
+        if (!filter.ok) throw wireErrorOfWorkspace(filter.error);
+        workspace = filter.value;
+      }
       const page = session.threads.list({
-        ...(params.workspace === undefined ? {} : { workspace: params.workspace }),
+        ...(workspace === undefined ? {} : { workspace }),
         ...(params.cursor === undefined ? {} : { cursor: params.cursor }),
         ...(params.limit === undefined ? {} : { limit: params.limit }),
       });
@@ -197,15 +207,13 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       for (const row of page.threads) {
         const summary = threadSummaryOf(row);
         if (!summary.ok) {
-          return Promise.reject(
-            wireError("internal", {
-              message: `thread.list: ${summary.error.field} of ${row.threadId} is not a valid time`,
-            }),
-          );
+          throw wireError("internal", {
+            message: `thread.list: ${summary.error.field} of ${row.threadId} is not a valid time`,
+          });
         }
         summaries.push(summary.value);
       }
-      return Promise.resolve({ threads: summaries, nextCursor: page.nextCursor });
+      return { threads: summaries, nextCursor: page.nextCursor };
     },
     async fork(threadId, at) {
       const forked = await session.threads.fork(threadId, at, deps.ids.next("thr"));
