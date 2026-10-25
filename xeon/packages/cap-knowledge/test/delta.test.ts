@@ -186,6 +186,26 @@ describe("turn context", () => {
     expect((await turns.beforeAgentStart("thr_a"))?.customType).toBe(INDEX_MESSAGE_TYPE);
   });
 
+  test("after a compaction the next turn re-adds the index block and memory snapshot once, from the current index", async () => {
+    const world = await createWorld();
+    await created(world, "deploy", "Deploy steps.");
+    await world.runtime.memoryApi.add({ store: "user", text: "한국어 한다체" }, asHost());
+    const turns = contextOf(world);
+    await turns.start(THREAD, "new");
+    await turns.beforeAgentStart(THREAD);
+    expect(await turns.beforeAgentStart(THREAD)).toBeUndefined();
+
+    await created(world, "rollback", "Rollback steps.");
+    turns.afterCompaction(THREAD);
+    const again = await turns.beforeAgentStart(THREAD);
+    // 델타 메모가 아니라 지금 인덱스 전체와 메모리 스냅샷이다
+    expect(again?.customType).toBe(INDEX_MESSAGE_TYPE);
+    expect(again?.content).toContain("<name>deploy</name>");
+    expect(again?.content).toContain("<name>rollback</name>");
+    expect(again?.content).toContain("한국어 한다체");
+    expect(await turns.beforeAgentStart(THREAD)).toBeUndefined();
+  });
+
   test("a resumed session does not repeat the first-turn block and starts from the current index", async () => {
     const world = await createWorld();
     await created(world, "deploy", "Deploy steps.");

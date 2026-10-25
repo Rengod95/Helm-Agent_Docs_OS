@@ -55,6 +55,10 @@ const MAIN_FILE = "SKILL.md";
 export interface SkillWriteDeps extends SkillsDeps {
   readonly writer: Writer;
   readonly containsKnown: ((text: string) => boolean) | undefined;
+  /** 쓰기 전에 색인이 호출한 대화의 작업 폴더를 따르게 한다(`SkillsRuntime.syncFor`). 없으면 맞추지 않는다 */
+  readonly syncFor?:
+    | ((threadId: string | undefined) => Promise<Result<void, KnowledgeFailure>>)
+    | undefined;
 }
 
 type WriteResult = Promise<Result<WriteOutcome, KnowledgeFailure>>;
@@ -181,10 +185,15 @@ function callerOf(options: CallOptions | undefined): Result<Caller, KnowledgeFai
 
 function method<I>(
   execute: (input: I, caller: Caller) => WriteResult,
+  syncFor: SkillWriteDeps["syncFor"],
 ): (input: I, options?: CallOptions) => WriteResult {
-  return (input, options) => {
+  return async (input, options) => {
     const caller = callerOf(options);
-    return caller.ok ? execute(input, caller.value) : Promise.resolve(caller);
+    if (!caller.ok) return caller;
+    // 프로젝트 스킬의 색인은 이 호출이 속한 대화의 작업 폴더 것이어야 한다
+    const synced = await syncFor?.(caller.value.context?.threadId);
+    if (synced !== undefined && !synced.ok) return synced;
+    return execute(input, caller.value);
   };
 }
 
@@ -213,8 +222,11 @@ export function createSkillWrites(deps: SkillWriteDeps): SkillWrites {
   const { fs, writer } = deps;
 
   /** 쓸 수 있는 범위의 루트 디렉터리. 프로젝트 루트는 신뢰된 프로젝트에만 있다 */
-  async function rootOf(scope: WritableSkillScope): Promise<Result<string, KnowledgeFailure>> {
-    const resolved = await deps.roots();
+  async function rootOf(
+    scope: WritableSkillScope,
+    threadId: string | undefined,
+  ): Promise<Result<string, KnowledgeFailure>> {
+    const resolved = await deps.roots(threadId);
     const root = scope === "project" ? resolved.roots.project : resolved.roots.user;
     if (root === undefined) {
       return err(
@@ -323,7 +335,7 @@ export function createSkillWrites(deps: SkillWriteDeps): SkillWrites {
     const scope = input.scope ?? "user";
     const denied = scopeAllowed(scope, caller, input.approval);
     if (denied !== undefined) return err(denied);
-    const root = await rootOf(scope);
+    const root = await rootOf(scope, caller.context?.threadId);
     if (!root.ok) return root;
     const target: ChangeTarget = {
       kind: "skill",
@@ -686,12 +698,12 @@ export function createSkillWrites(deps: SkillWriteDeps): SkillWrites {
   }
 
   return {
-    create: method(runCreate),
-    edit: method(runEdit),
-    patch: method(runPatch),
-    writeFile: method(runWriteFile),
-    remove: method(runRemove),
-    manage: method(manage),
+    create: method(runCreate, deps.syncFor),
+    edit: method(runEdit, deps.syncFor),
+    patch: method(runPatch, deps.syncFor),
+    writeFile: method(runWriteFile, deps.syncFor),
+    remove: method(runRemove, deps.syncFor),
+    manage: method(manage, deps.syncFor),
     replayers: {
       "skills.create": replayWith(SkillCreateInputSchema, runCreate),
       "skills.edit": replayWith(SkillEditInputSchema, runEdit),

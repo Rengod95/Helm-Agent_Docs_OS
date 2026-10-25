@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { err, ok, type LogFields, type Logger, type Result } from "@xeon/contracts";
+import { eachAsync, err, ok, type LogFields, type Logger, type Result } from "@xeon/contracts";
 import {
   KnowledgeLedgerKey,
   KnowledgeSearchKey,
@@ -72,6 +72,7 @@ async function boot(
     refuse?: boolean;
     prepare?: (fs: MemoryFs) => void;
     projectTrust?: (projectDir: string) => Promise<boolean>;
+    workspaceOf?: (threadId: string) => string | undefined;
     layers?: ScopeStack;
     /** true면 실제 세션 서비스를 `xeon.session`으로 제공한다 */
     sessions?: boolean;
@@ -127,6 +128,7 @@ async function boot(
       ids: fixedLocalIds(),
       fs,
       ...(options.projectTrust === undefined ? {} : { projectTrust: options.projectTrust }),
+      ...(options.workspaceOf === undefined ? {} : { workspaceOf: options.workspaceOf }),
     }),
   );
   return { t, fs, store, installed, registered, unregistered, lines, kit };
@@ -185,6 +187,7 @@ describe("manifest", () => {
     expect(unit.manifest.points).toEqual([
       "session_start",
       "before_agent_start",
+      "session_compact",
       "session_shutdown",
     ]);
   });
@@ -416,6 +419,233 @@ describe("turn hooks", () => {
     );
     const again = await agentStart(t, thread, "turn-4");
     expect(again[0]?.customType).toBe("knowledge.context");
+  });
+});
+
+describe("compaction", () => {
+  test("after session_compact the next turn carries the index block and the memory snapshot again, built from the current index", async () => {
+    const { t, fs } = await boot({ prepare: (memory) => putSkill(memory, USER_SKILLS, "deploy") });
+    const thread = t.newThread();
+    await t.host.openThread(thread);
+    await t.host.dispatch(
+      "session_start",
+      { reason: "new", threadId: thread },
+      { threadId: thread, dispatchKey: "start" },
+    );
+    const first = await agentStart(t, thread, "turn-1");
+    expect(first.map((message) => message.customType)).toEqual(["knowledge.context"]);
+    expect(await agentStart(t, thread, "turn-2")).toEqual([]);
+
+    // 컴팩션 사이에 스킬이 늘었다: 다시 넣는 블록은 델타가 아니라 지금 인덱스 전체다
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    putSkill(fs, USER_SKILLS, "rollback", { description: "Roll back." });
+    await apis.skills?.reindex({});
+    await t.host.dispatch(
+      "session_compact",
+      {
+        threadId: thread,
+        eventId: t.ids.next("evt"),
+        reason: "threshold",
+        willRetry: false,
+        fromExtension: null,
+        tokensBefore: 9000,
+      },
+      { threadId: thread, dispatchKey: "compact-1" },
+    );
+    const again = await agentStart(t, thread, "turn-3");
+    expect(again.map((message) => message.customType)).toEqual(["knowledge.context"]);
+    expect(again[0]?.content).toContain("<name>deploy</name>");
+    expect(again[0]?.content).toContain("<name>rollback</name>");
+    // 한 번 다시 넣은 뒤에는 평소처럼 바뀐 것이 없으면 아무것도 더하지 않는다
+    expect(await agentStart(t, thread, "turn-4")).toEqual([]);
+  });
+
+  test("a compaction in one thread does not make another thread repeat its block", async () => {
+    const { t } = await boot({ prepare: (memory) => putSkill(memory, USER_SKILLS, "deploy") });
+    const a = t.newThread();
+    const b = t.newThread();
+    await t.host.openThread(a);
+    await t.host.openThread(b);
+    await eachAsync([a, b], async (thread) => {
+      await t.host.dispatch(
+        "session_start",
+        { reason: "new", threadId: thread },
+        { threadId: thread, dispatchKey: `start-${thread}` },
+      );
+      await agentStart(t, thread, `first-${thread}`);
+      return undefined;
+    });
+    await t.host.dispatch(
+      "session_compact",
+      {
+        threadId: a,
+        eventId: t.ids.next("evt"),
+        reason: "threshold",
+        willRetry: false,
+        fromExtension: null,
+        tokensBefore: 1,
+      },
+      { threadId: a, dispatchKey: "compact-a" },
+    );
+    expect((await agentStart(t, a, "next-a")).map((message) => message.customType)).toEqual([
+      "knowledge.context",
+    ]);
+    expect(await agentStart(t, b, "next-b")).toEqual([]);
+  });
+});
+
+const workspaceSkills = (fs: MemoryFs): void => {
+  putSkill(fs, USER_SKILLS, "deploy", { description: "Deploy steps." });
+  putSkill(fs, "/ws-a/.xeon/skills", "alpha", { description: "Only in workspace A." });
+  putSkill(fs, "/ws-b/.xeon/skills", "beta", { description: "Only in workspace B." });
+  putSkill(fs, PROJECT_SKILLS, "engine-cwd-skill", { description: "In the engine cwd." });
+};
+
+// G2-02: 프로젝트 스킬의 기준 폴더는 대화의 작업 폴더다(L2.readme §5.10). 엔진 cwd(`/proj`)는 쓰지 않는다.
+describe("the thread workspace is the project folder", () => {
+  const WORKSPACES = new Map<string, string>();
+  async function startedThread(t: Awaited<ReturnType<typeof boot>>["t"], workspace?: string) {
+    const thread = t.newThread();
+    if (workspace !== undefined) WORKSPACES.set(thread, workspace);
+    await t.host.openThread(thread);
+    await t.host.dispatch(
+      "session_start",
+      { reason: "new", threadId: thread },
+      { threadId: thread, dispatchKey: `start-${thread}` },
+    );
+    return thread;
+  }
+
+  const firstBlock = async (
+    t: Awaited<ReturnType<typeof boot>>["t"],
+    thread: Awaited<ReturnType<typeof startedThread>>,
+    key: string,
+  ): Promise<string> => {
+    const [message] = await agentStart(t, thread, key);
+    return typeof message?.content === "string" ? message.content : "";
+  };
+
+  test("each thread's first turn lists the project skills of its own workspace only, and trust is asked for that workspace", async () => {
+    WORKSPACES.clear();
+    const asked: string[] = [];
+    const { t } = await boot({
+      prepare: workspaceSkills,
+      workspaceOf: (threadId) => WORKSPACES.get(threadId),
+      projectTrust: (dir) => {
+        asked.push(dir);
+        return Promise.resolve(true);
+      },
+    });
+    const a = await startedThread(t, "/ws-a");
+    const textA = await firstBlock(t, a, "a-1");
+    expect(textA).toContain("<name>alpha</name>");
+    expect(textA).toContain("<name>deploy</name>");
+    expect(textA).not.toContain("<name>beta</name>");
+    expect(textA).not.toContain("engine-cwd-skill");
+
+    const b = await startedThread(t, "/ws-b");
+    const textB = await firstBlock(t, b, "b-1");
+    expect(textB).toContain("<name>beta</name>");
+    expect(textB).not.toContain("<name>alpha</name>");
+    expect(textB).not.toContain("engine-cwd-skill");
+
+    expect(new Set(asked)).toEqual(new Set(["/ws-a", "/ws-b"]));
+  });
+
+  test("a thread without a workspace has no project skills and the engine cwd is not a stand-in", async () => {
+    WORKSPACES.clear();
+    const asked: string[] = [];
+    const { t } = await boot({
+      prepare: workspaceSkills,
+      workspaceOf: (threadId) => WORKSPACES.get(threadId),
+      projectTrust: (dir) => {
+        asked.push(dir);
+        return Promise.resolve(true);
+      },
+    });
+    const bare = await startedThread(t);
+    const text = await firstBlock(t, bare, "bare-1");
+    expect(text).toContain("<name>deploy</name>");
+    expect(text).not.toContain("engine-cwd-skill");
+    expect(text).not.toContain("<name>alpha</name>");
+    expect(asked).toEqual([]);
+  });
+
+  test("going back to a workspace restores its skills without writing external ledger entries again", async () => {
+    WORKSPACES.clear();
+    const { t } = await boot({
+      prepare: workspaceSkills,
+      workspaceOf: (threadId) => WORKSPACES.get(threadId),
+      projectTrust: () => Promise.resolve(true),
+    });
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    const a = await startedThread(t, "/ws-a");
+    const b = await startedThread(t, "/ws-b");
+    await agentStart(t, a, "a-1");
+    await agentStart(t, b, "b-1");
+    const external = async (name: string) =>
+      (await apis.ledger?.list({ actorKind: "external" }))?.entries.filter(
+        (entry) => entry.target.name === name,
+      ) ?? [];
+    expect((await external("alpha")).map((entry) => entry.afterHash === null)).toEqual([false]);
+    expect((await external("beta")).map((entry) => entry.afterHash === null)).toEqual([false]);
+
+    // A로 돌아오면 A의 스킬이 다시 보이고, 바뀐 것이 없으므로 델타 메모도 새 원장 항목도 없다
+    expect(await agentStart(t, a, "a-2")).toEqual([]);
+    const listedA = await apis.skills?.list(
+      {},
+      { context: { threadId: a, caller: { kind: "host" } } },
+    );
+    expect(listedA?.skills.map((skill) => skill.name).toSorted()).toEqual(["alpha", "deploy"]);
+    const listedB = await apis.skills?.list(
+      {},
+      { context: { threadId: b, caller: { kind: "host" } } },
+    );
+    expect(listedB?.skills.map((skill) => skill.name).toSorted()).toEqual(["beta", "deploy"]);
+    expect((await external("alpha")).length).toBe(1);
+    expect((await external("beta")).length).toBe(1);
+  });
+
+  test("a project skill written in a thread lands in that thread's workspace", async () => {
+    WORKSPACES.clear();
+    const { t, fs } = await boot({
+      prepare: workspaceSkills,
+      workspaceOf: (threadId) => WORKSPACES.get(threadId),
+      projectTrust: () => Promise.resolve(true),
+    });
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    const a = await startedThread(t, "/ws-a");
+    const b = await startedThread(t, "/ws-b");
+    // 마지막으로 색인한 작업 폴더가 A여도 B의 대화에서 쓴 스킬은 B의 폴더에 만들어진다
+    await agentStart(t, b, "b-1");
+    await agentStart(t, a, "a-1");
+    const written = await apis.skills?.create(
+      { name: "gamma", description: "Written from B.", body: "# Steps\n", scope: "project" },
+      { context: { threadId: b, caller: { kind: "host" } } },
+    );
+    expect(written?.status).toBe("applied");
+    expect(fs.has("/ws-b/.xeon/skills/gamma/SKILL.md")).toBe(true);
+    expect(fs.has("/ws-a/.xeon/skills/gamma/SKILL.md")).toBe(false);
+    expect(fs.has("/proj/.xeon/skills/gamma/SKILL.md")).toBe(false);
+  });
+
+  test("an untrusted workspace contributes nothing and its skills are not read", async () => {
+    WORKSPACES.clear();
+    const { t } = await boot({
+      prepare: workspaceSkills,
+      workspaceOf: (threadId) => WORKSPACES.get(threadId),
+      projectTrust: (dir) => Promise.resolve(dir === "/ws-b"),
+    });
+    const a = await startedThread(t, "/ws-a");
+    expect(await firstBlock(t, a, "a-1")).not.toContain("<name>alpha</name>");
+    const b = await startedThread(t, "/ws-b");
+    expect(await firstBlock(t, b, "b-1")).toContain("<name>beta</name>");
   });
 });
 

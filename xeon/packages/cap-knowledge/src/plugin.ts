@@ -66,6 +66,12 @@ export interface KnowledgePluginOptions {
    * 프롬프터를 묶어 넘긴다. 없거나 거짓이거나 거부되면 프로젝트 스킬(`.xeon/skills`)을 싣지 않는다(fail-closed)
    */
   readonly projectTrust?: (projectDir: string) => Promise<boolean>;
+  /**
+   * 대화의 작업 폴더(`thread.workspace`, `L4.host-service.spec` HS-66의 `threadWorkspaceOf`와 같은 값). 있으면 프로젝트 스킬과 그
+   * 신뢰 판정이 이 폴더를 따른다: 대화를 지정한 읽기는 그 대화의 작업 폴더만 쓰고, 작업 폴더가 없는 대화에는 프로젝트 스킬이 없다.
+   * 엔진 cwd로 대신하지 않는다(L2.readme §5.10). 없으면 프로젝트 폴더는 엔진 cwd 하나다
+   */
+  readonly workspaceOf?: (threadId: string) => string | undefined;
   readonly loadIndex?: number;
 }
 
@@ -124,6 +130,16 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
       if (!migrated.ok) return err({ reason: migrated.error.kind, cause: migrated.error });
 
       const fs = options.fs ?? createNodeFs();
+      // 대화를 지정하지 않은 읽기(시작 때 재색인, 대기열 재실행)는 마지막으로 읽은 대화의 작업 폴더를 따른다
+      let lastProjectDir: string | undefined;
+      const projectDirOf = (threadId: string | undefined): string | undefined => {
+        const workspaceOf = options.workspaceOf;
+        if (workspaceOf === undefined) return exec?.cwd;
+        if (threadId === undefined) return lastProjectDir;
+        const workspace = workspaceOf(threadId);
+        lastProjectDir = workspace === undefined || workspace === "" ? undefined : workspace;
+        return lastProjectDir;
+      };
       const db = store.scoped(KNOWLEDGE_OWNER);
       // 세션 투영기와 검색 표. 쓸 수 없으면 그 기능만 끄고 계속한다(spec §4.8.5)
       const search = setupSearch({ capabilities: store.capabilities, session, db, logger });
@@ -144,9 +160,10 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
         ids: options.ids,
         logger,
         settings: (threadId) => readKnowledgeSettings(options.settings.layers(threadId)),
-        roots: async (): Promise<RootsResult> => {
-          const settings = readKnowledgeSettings(options.settings.layers(undefined));
-          const projectDir = exec?.cwd;
+        workspaceOf: options.workspaceOf,
+        roots: async (threadId): Promise<RootsResult> => {
+          const settings = readKnowledgeSettings(options.settings.layers(threadId));
+          const projectDir = projectDirOf(threadId);
           const wantsProject = settings.skills.projectSkills && projectDir !== undefined;
           const projectTrusted =
             wantsProject && (await isProjectTrusted(options.projectTrust, projectDir, logger));
@@ -210,6 +227,10 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
       g.on("before_agent_start", async (_payload, _current, ctx) => {
         const message = await turnContext.beforeAgentStart(ctx.threadId);
         return message === undefined ? undefined : { message };
+      });
+      // 컴팩션 뒤 첫 turn에 스킬 인덱스 블록과 메모리 스냅샷을 다시 넣는다(spec §4.2.7, C-11)
+      g.on("session_compact", (payload) => {
+        turnContext.afterCompaction(payload.threadId);
       });
       g.on("session_shutdown", (_payload, ctx) => {
         turnContext.shutdown(ctx.threadId);

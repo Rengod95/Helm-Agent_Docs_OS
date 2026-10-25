@@ -1,3 +1,4 @@
+import { isAbsolute, relative, sep } from "node:path";
 import { err, ok, parse, type Result } from "@xeon/contracts";
 import {
   SkillNameSchema,
@@ -28,6 +29,7 @@ import {
   allSkills,
   deleteFileState,
   deleteSkill,
+  getFileState,
   indexEntryChanged,
   upsertFileState,
   upsertSkill,
@@ -129,9 +131,34 @@ interface ExternalEntry {
   readonly indexChanged: boolean;
 }
 
+export interface ReindexOptions {
+  /**
+   * 작업 폴더 단위 프로젝트 폴더일 때 true. 현재 프로젝트 스킬 루트 밖의 프로젝트 행(다른 작업 폴더의 스킬)은 지워진 것이 아니라
+   * 이 색인에서 내려간 것이므로 원장에 외부 삭제를 남기지 않고 색인 행만 뺀다. 파일 상태(경로와 내용 해시)는 남겨 두어, 그 작업
+   * 폴더로 돌아왔을 때 내용이 그대로면 외부 추가로 다시 적지 않는다
+   */
+  readonly dropOutOfScopeProjects?: boolean;
+}
+
+/** `dir`이 `root` 자신이거나 그 아래인가 */
+function isWithin(dir: string, root: string): boolean {
+  const rel = relative(root, dir);
+  return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
+}
+
+/** 작업 폴더 단위 색인에서 현재 프로젝트 스킬 루트 밖에 있는 프로젝트 행인가 */
+function isOutOfScopeProject(row: SkillRow, roots: SkillRoots, options: ReindexOptions): boolean {
+  return (
+    options.dropOutOfScopeProjects === true &&
+    row.scope === "project" &&
+    (roots.project === undefined || !isWithin(row.dir, roots.project))
+  );
+}
+
 export async function reindexSkills(
   deps: LedgerDeps,
   roots: SkillRoots,
+  options: ReindexOptions = {},
 ): Promise<Result<ReindexResult, KnowledgeFailure>> {
   const loaded = await loadSkills(deps.fs, roots);
   const diagnostics: SkillDiagnostic[] = [...loaded.diagnostics];
@@ -185,7 +212,33 @@ export async function reindexSkills(
     for (const entry of found) {
       const key = keyOf(entry.scope, entry.name);
       seen.add(key);
-      const before = previousByKey.get(key);
+      const indexed = previousByKey.get(key);
+      // 다른 작업 폴더의 같은 이름 스킬이 색인에 있던 자리는 비어 있던 것으로 본다
+      const before =
+        indexed !== undefined && isOutOfScopeProject(indexed, roots, options) ? undefined : indexed;
+      if (
+        before === undefined &&
+        options.dropOutOfScopeProjects === true &&
+        entry.scope === "project"
+      ) {
+        // 이전에 확인한 파일이고 내용이 그대로면 작업 폴더를 오간 것뿐이다: 색인 행만 되살린다
+        const known = getFileState(tx, entry.dir);
+        if (known !== undefined && known.kind === "skill" && known.hash === entry.hash) {
+          upsertSkill(tx, {
+            scope: entry.scope,
+            name: entry.name,
+            dir: entry.dir,
+            layout: entry.skill.layout,
+            description: entry.description,
+            modelInvocable: entry.modelInvocable,
+            createdBy: createdByFromLedger(tx, entry.name, "project"),
+            treeHash: entry.hash,
+            updatedAt: now,
+          });
+          added += 1;
+          continue;
+        }
+      }
       const createdBy: SkillCreatedBy =
         before?.createdBy ??
         (isWritableScope(entry.scope)
@@ -244,6 +297,7 @@ export async function reindexSkills(
       if (seen.has(keyOf(before.scope, before.name))) continue;
       removed += 1;
       deleteSkill(tx, before.scope, before.name);
+      if (isOutOfScopeProject(before, roots, options)) continue;
       deleteFileState(tx, before.dir);
       if (isWritableScope(before.scope)) {
         appendExternal(

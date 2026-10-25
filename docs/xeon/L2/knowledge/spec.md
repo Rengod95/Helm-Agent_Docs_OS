@@ -867,7 +867,11 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
   - 설정 경로(`l2.knowledge.skills.paths`)는 절대 경로만 받는다. 상대 경로는 경고 진단이다. 디렉터리나 `.md` 파일을 줄 수 있다.
   - 심볼릭 링크가 조상 디렉터리를 가리키는 순환은 경고 진단과 함께 건너뛴다. 재귀 깊이 상한은 16이다.
   - 루트 바로 아래의 단일 `.md` 파일 스킬(`layout: "file"`)은 읽기만 한다. 쓰기 연산은 디렉터리 스킬(`layout: "dir"`)만 대상으로 한다.
-  - 프로젝트 스킬 색인은 엔진이 도는 프로젝트(`xeon.exec`의 cwd) 하나만 담는다. 재색인은 다른 프로젝트의 프로젝트 범위 행을 지운다. 프로젝트를 여럿 동시에 여는 구성은 [미결]이다(§10 미결 17).
+  - 프로젝트 폴더는 대화의 작업 폴더(`thread.workspace`)다 [결정: m2c G2-02, `L2.readme` §5.10]. 조립 루트가 `KnowledgePluginOptions.workspaceOf`(`(threadId) => string | undefined`, `L4.host-service.spec` HS-66의 `threadWorkspaceOf`와 같은 값)를 넘기면 프로젝트 스킬 루트와 신뢰 판정(`projectTrust`)이 그 대화의 작업 폴더를 따른다. 작업 폴더가 없는 대화에는 프로젝트 스킬이 없고 엔진 cwd로 내려가지 않는다. `workspaceOf`가 없으면 옛 동작(`xeon.exec`의 cwd 하나)이다.
+  - 프로젝트 스킬 색인은 한 번에 작업 폴더 하나만 담는다. 색인은 마지막으로 맞춘 작업 폴더를 기억하고(`SkillsRuntime.syncFor(threadId)`), 세션 시작·turn 시작·`list`·`view`·쓰기 연산이 부를 때 그 대화의 작업 폴더가 다르면 그 폴더로 다시 색인한다. 같으면 아무것도 하지 않는다.
+  - 작업 폴더를 오갈 때 이전 작업 폴더의 프로젝트 행은 지워진 것이 아니라 색인에서 내려간 것이므로 원장에 `external` 삭제를 남기지 않는다. 파일 상태(경로, 내용 해시)는 남겨 두어서, 그 작업 폴더로 돌아왔을 때 내용이 그대로면 `external` 추가를 다시 적지 않고 색인 행만 되살린다. 그 사이 파일이 바뀌었으면 바뀐 내용으로 `external` 항목을 남긴다. 색인 버전은 이 오가기로 바뀌지 않는다.
+  - 대화를 지정하지 않는 읽기(시작 때 재색인, 대기열에서 승인된 제안의 재실행)는 마지막으로 읽은 대화의 작업 폴더를 따른다. 엔진을 처음 열 때는 아직 읽은 대화가 없어 프로젝트 스킬이 없다.
+  - 작업 폴더가 다른 대화가 번갈아 돌면 그때마다 색인을 다시 맞춘다. 작업 폴더별로 색인을 나누는 구성은 [미결]이다(§10 미결 17).
 
 #### 4.2.2 형식과 구조 검증
 
@@ -923,7 +927,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 예산: `l2.knowledge.skills.indexBudgetChars`(기본 8,000자 [가정]). 항목 설명은 `l2.knowledge.skills.indexDescriptionChars`(기본 160자 [가정])에서 자르고 끝에 `…`을 붙인다. Hermes는 60자, Claude Code는 1,536자 상한이다(`_research/refs/hermes.md` §3.10.1 (라)·(바), `_research/item-catalog.md` L2 스킬 행). 기본값은 측정 뒤 정한다.
 - 예산을 넘으면 범위 순(프로젝트 → 사용자 → 확장 → 경로), 같은 범위 안에서는 이름 바이트 순으로 넣을 수 있는 만큼만 넣고 남은 개수를 적는다. 순서가 결정적이어야 같은 스킬 집합이 같은 블록을 만든다(프롬프트 캐시).
 - 블록 생성은 `skills/prompt-block.ts`의 순수 함수와 `SkillsRuntime.indexBlock(threadId)`로 구현했다(KN.1). 연결은 `turn-context.ts`가 한다(KN.5). `before_agent_start`에서 세션의 첫 turn이면 인덱스 블록과 메모리 스냅샷(§4.3.4)을 이어 붙여 `customType: "knowledge.context"`, `display: false`인 기록 메시지 하나로 더한다. 시스템 프롬프트는 건드리지 않는다. 더한 메시지가 세션 기록에 남는다는 것은 [가정]이다.
-- 첫 turn은 세션별 상태가 없는 turn이다. `session_start`의 `reason`이 `startup`·`new`면 상태를 비워 첫 turn으로 만들고, `resume`·`fork`·`reload`면 현재 인덱스를 기준으로 상태를 만든다. 이어받은 세션의 기록에 블록이 이미 있다고 보기 때문이다 [가정: `L1.context`가 기록 메시지를 컴팩션 뒤에 어떻게 다루는지에 따라 바뀐다].
+- 첫 turn은 세션별 상태가 없는 turn이다. `session_start`의 `reason`이 `startup`·`new`면 상태를 비워 첫 turn으로 만들고, `resume`·`fork`·`reload`면 현재 인덱스를 기준으로 상태를 만든다. 이어받은 세션의 기록에 블록이 이미 있다고 보기 때문이다. 컴팩션이 일어나면 이 가정이 깨지므로 §4.2.8이 다시 넣는다.
 - 블록과 인덱스 스냅샷은 같은 시점의 색인에서 만든다. 스킬을 끄면(`l2.knowledge.skills.enabled`) 블록은 비고, 메모리를 끄면 스냅샷이 빈다. 둘 다 비면 메시지를 더하지 않는다.
 - 이 블록을 어디에 두는지(시스템 프롬프트 영역, 첫 turn 메시지)는 `L1.context.spec`이 정한다. [제안] 메모리 스냅샷(§4.3.4)과 같은 첫 turn 기록 메시지로 넣는다. 기록 메시지면 재개 때 같은 내용이 다시 쓰여 결정적이다.
 
@@ -935,7 +939,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 스킬 인덱스 변경: 추가 deploy-rollback(롤백 절차 …), 변경 release-checklist, 삭제 old-notes
 ```
 
-- 세션마다 마지막으로 알린 인덱스 스냅샷(`indexVersion`과 모델에게 보이는 스킬의 이름 → 잘린 설명)을 메모리에 둔다. 인덱스 버전은 원장 `seq` 중 인덱스를 바꾼 항목(`index_changed = 1`인 `applied` 행)의 최댓값이다. 이름·설명·모델 호출 여부가 바뀌거나 스킬이 생기고 사라진 변경만 센다. 프로세스 재시작 뒤에는 현재 버전으로 시작한다 [가정: 재시작 사이의 변경 알림 한 번을 놓칠 수 있다. 컴팩션 뒤에는 L1.context가 인덱스 블록을 다시 넣는다고 본다].
+- 세션마다 마지막으로 알린 인덱스 스냅샷(`indexVersion`과 모델에게 보이는 스킬의 이름 → 잘린 설명)을 메모리에 둔다. 인덱스 버전은 원장 `seq` 중 인덱스를 바꾼 항목(`index_changed = 1`인 `applied` 행)의 최댓값이다. 이름·설명·모델 호출 여부가 바뀌거나 스킬이 생기고 사라진 변경만 센다. 프로세스 재시작 뒤에는 현재 버전으로 시작한다 [가정: 재시작 사이의 변경 알림 한 번을 놓칠 수 있다]. 컴팩션 뒤에는 첫 블록을 다시 넣는다(§4.2.8).
 - 본문만 바뀐 변경은 알리지 않는다. 모델은 다음 `view`에서 새 본문을 읽는다.
 - 구현은 `before_agent_start`에서 현재 `indexVersion`을 상태의 버전과 비교한다. 같으면 아무것도 하지 않는다. 다르면 이름과 잘린 설명을 비교해(`skills/delta.ts`의 `diffIndex`) 추가·변경·삭제를 정하고, 상태를 현재로 올린 뒤 비어 있지 않을 때만 메모를 더한다. 모델 호출 여부가 바뀌어 목록에 나타나거나 사라지는 스킬은 추가·삭제로 센다. 같은 이름의 범위가 바뀌어도 설명이 같으면 알리지 않는다.
 - 메모는 `customType: "knowledge.index-delta"`, `display: false` 메시지 하나다. 목록은 이름 바이트 순이고 한 줄에 10개까지, 넘으면 `외 N개`로 줄인다. 추가한 스킬 옆 설명은 60자(코드 포인트)에서 `…`로 자른다. 예산을 넘어 첫 블록에 싣지 못한 스킬도 인덱스에 있으면 추가로 알린다.
@@ -946,6 +950,14 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - `F.extensions.spec` §3.4 #28 `resources_discover`(session, chain)는 확장이 스킬·프롬프트 같은 리소스 경로를 더하는 지점이다. pi에서 확장이 스킬 경로를 더하는 경로다.
 - 이 능력은 그 지점을 정의하지 않고 결과만 쓴다. 지점의 합성 결과(확장 이름과 함께 추가된 스킬 경로)를 확장 제공 루트로 받아 읽기 전용 스킬로 싣는다 [가정: X가 합성 결과를 세션 시작 때 `cap-knowledge`에 넘기는 API를 `X.loading-trust.spec`이 정한다].
 - 확장 제공 스킬의 쓰기는 `read_only_scope`로 거부한다. 확장을 지우면 그 루트가 빠지고 다음 재색인 때 색인에서 빠진다.
+
+#### 4.2.8 컴팩션 뒤 재주입
+
+- 컴팩션(`L1.context.spec` §4.6)은 앞쪽 기록을 요약으로 바꾸므로, 첫 turn에 넣은 `knowledge.context` 메시지(스킬 인덱스 블록과 메모리 스냅샷)가 모델 입력에서 사라진다. 이 패키지가 `session_compact`(#35, tap, `L1.context.spec` 발화 지점)를 받아 그 대화의 세션별 상태를 비운다. 상태가 없으므로 다음 turn의 `before_agent_start`가 첫 turn처럼 동작해 그때의 인덱스와 메모리로 블록 하나를 다시 넣는다. 델타 메모가 아니라 전체다 [결정: m2c G2-01, C-11].
+- 다시 넣는 시점은 컴팩션 직후의 다음 turn 시작이다. 컴팩션이 turn 안에서 일어나 같은 turn의 단계를 재시도하는 경우(`willRetry`)에도 그 turn 안에서는 들어가지 않고 다음 turn 시작에 들어간다. `before_agent_start`가 turn마다 한 번 발화하기 때문이다.
+- 다른 대화의 상태는 건드리지 않는다. 한 번 다시 넣은 뒤에는 §4.2.6대로 바뀐 것이 있을 때만 델타를 더한다.
+- 컴팩션이 보존 구간에 첫 블록을 남겼는지는 알 수 없어서, 그 경우 블록이 한 번 더 들어가 중복된다 [가정]. 내용이 같아 해가 없고 다음 컴팩션이 정리한다.
+- 최근 읽은 파일과 호출된 스킬 본문의 재주입은 `L1.context.spec` §4.10 2차 항목(C-11)이고 이 패키지의 일이 아니다. 컴팩션 호출 배선(`/compact`, 자동 컴팩션)은 L1 쪽이다. 이 핸들러는 `session_compact`만 본다.
 
 ### 4.3 메모리
 
@@ -1293,6 +1305,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `session_start`(#30) | tap | 세션별 상태(마지막 인덱스 스냅샷) 초기화. `startup` 말고는 스킬 루트를 다시 훑어 바깥 편집을 반영한다(전체 재색인이며 mtime 검사는 하지 않는다) |
 | `before_agent_start`(#3) | chain | 세션 첫 turn: 메모리 스냅샷 + 스킬 인덱스 블록을 메시지로 더한다. 이후 turn: 인덱스가 바뀌었으면 델타 메모를 더한다(§4.2.6). `before_agent_start.message`는 추가 병합이다(`F.extensions.spec` §4.1) [가정: 더한 메시지가 세션 기록에 남는다] |
 | `resources_discover`(#28) | chain | 패치를 돌려주지 않는다. 합성 결과의 스킬 경로를 받는 방법은 X가 정한다(§4.2.7) |
+| `session_compact`(#35) | tap | 그 대화의 세션별 상태를 비워 다음 turn에 인덱스 블록과 메모리 스냅샷을 다시 넣게 한다(§4.2.8) |
 | `session_shutdown`(#39) | tap | 세션별 메모리 상태 정리 |
 
 - 모델 도구 경로는 tool 지점(`tool_call` first, `tool_result` chain)을 지난다. 페이로드 `capability` 필드(`{ id: "knowledge.skills", method: "manage" }`)로 L3 그룹이 특정 단계의 쓰기를 막거나 스킬 쓰기 사건을 셀 수 있다.
@@ -1327,9 +1340,10 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `ApprovalService`(`xeon.approvals`) `open`·`wait`와 요청 kind `tool`, 미리보기 payload(`args.preview`) | `L1.tools.spec` §3.6, F `services/approvals.ts` | 있음(KN.2가 `createWriteApprovals`로 쓴다) |
 | `DecideInput.approval`(확장의 제안 결정에 실을 증거), `LedgerEntry.afterUntrusted` | `F.capabilities.spec` | 요청(KN.2, §10 미결 21·22) |
 | 쓰기 도구 둘의 일반 도구 승인 기본값 `allow` | `L1.tools.spec` | 요청 |
-| 첫 turn 기록 메시지로 스냅샷·인덱스를 넣는 경로, 컴팩션 뒤 다시 넣기 | `L1.context.spec` | 요청 |
+| 첫 turn 기록 메시지로 스냅샷·인덱스를 넣는 경로 | `L1.context.spec` | 요청 |
+| 컴팩션 뒤 다시 넣기 | `L1.context.spec`의 `session_compact` | 있음(§4.2.8). 컴팩션 호출 배선은 L1 쪽(G2-01) |
 | 데이터 디렉터리 | `L0.os.spec`(`OsDirs.data`) | 있음 |
-| 프로젝트 디렉터리 | `xeon.exec`의 `cwd` | 있음(M2는 엔진 cwd 하나) |
+| 프로젝트 디렉터리 | 대화의 작업 폴더(`workspaceOf`, 조립 루트가 `threadWorkspaceOf`를 넘긴다). 옵션이 없으면 `xeon.exec`의 `cwd` | 있음(`L2.readme` §5.10) |
 | 프로세스 사이 파일 락 | `L0.os.spec` | 없음. 임대와 해시 재확인으로 대신한다(§4.3.3, §10 미결 18) |
 | `SkillFilePathSchema`를 점으로 시작하거나 끝나는 마디를 거부하도록 좁히기, `isSkillFilePath`도 같은 규칙 | `F.capabilities.spec` §3.9 | 요청(KN.1, §3.1) |
 | 마스킹 등록부 판정(값 노출 없음) | `L0.secrets.spec`(`Redactor.containsKnown`) | 있음. `xeon.secrets`가 없으면 이 판정만 건너뛴다 |
@@ -1370,7 +1384,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 14. [미결] 되감긴 가지의 메시지를 세션 검색에서 숨길지(§4.8.1).
 15. [가정] macOS 시스템 SQLite의 FTS5·trigram 포함(`_research/notes/L2-3.md` §2.2). 사용자 Mac에서 `pragma compile_options` 확인이 필요하다.
 16. [가정] Hermes 한도 1,375자·2,200자를 한국어 사용에 그대로 쓴다(§4.3.2).
-17. [미결] 프로젝트 스킬 색인의 범위. M2 구현은 엔진 cwd 하나의 프로젝트 스킬만 색인에 담고(`cap_knowledge_skills` 기본 키가 (범위, 이름)이다), 재색인이 다른 프로젝트의 프로젝트 범위 행을 지운다. 프로젝트를 여럿 동시에 여는 구성(데스크톱 다중 창)에서는 프로젝트 식별 열이 필요하다.
+17. [미결] 프로젝트 스킬 색인의 범위. 색인(`cap_knowledge_skills`의 기본 키가 (범위, 이름)이다)은 한 번에 작업 폴더 하나의 프로젝트 스킬만 담고, 대화의 작업 폴더가 다르면 그 폴더로 다시 색인한다(§4.2.1). 작업 폴더가 다른 대화가 번갈아 돌면 재색인이 잦다. 여러 작업 폴더를 동시에 담으려면 프로젝트 식별 열(작업 폴더)을 기본 키에 더해야 한다. 데스크톱 다중 창에서 필요해지면 M3 이후에 정한다.
 18. [미결] 프로세스 사이 파일 락. `OsService`에 락 API가 없어 임대와 해시 재확인으로 대신한다(§4.3.3). 데이터 디렉터리를 엔진 밖의 도구가 쓰는 경우의 보장은 해시 재확인까지다.
 19. [미결] 재색인 비용. 모든 스킬 트리를 읽고 해시한다. 스킬 수와 크기가 커지면 mtime·크기로 후보를 줄인다(`cap_knowledge_files.mtime_ms`가 그 자리다).
 20. [미결] 쓰기 한도(파일 1 MiB, 500개)와 읽기 한도(파일 16 MiB, 전체 64 MiB, 500개)의 차이(§4.2.2). 읽기 한도를 넘는 스킬은 색인에서 빠진다.

@@ -76,7 +76,11 @@ export function createKnowledgeRuntime(deps: KnowledgeDeps): KnowledgeRuntime {
   const skills = createSkills({ ...deps, afterReindex: () => docs.rebuild() });
   const executor = createChangeExecutor(deps);
   const writer = createWriter({ ...deps, executor });
-  const skillWrites = createSkillWrites({ ...deps, writer });
+  const skillWrites = createSkillWrites({
+    ...deps,
+    writer,
+    syncFor: (threadId) => skills.syncFor(threadId),
+  });
   const memory = createMemory({ ...deps, writer });
   // 승인된 제안을 다시 실행하는 메서드별 함수. 롤백은 원장 서비스가 만든 뒤에 채운다(대기열과 서로 참조한다)
   const replayers: { -readonly [K in keyof Replayers]: Replayers[K] } = {
@@ -105,8 +109,8 @@ export function createKnowledgeRuntime(deps: KnowledgeDeps): KnowledgeRuntime {
   const skillsApi: CapabilityApi<typeof KnowledgeSkills> = {
     list: (input, options) => settled(skillsId, "list", skills.list(input, options)),
     view: (input, options) => settled(skillsId, "view", skills.view(input, options)),
-    reindex: async () => {
-      const result = await skills.reindex();
+    reindex: async (_input, options) => {
+      const result = await skills.reindex(options?.context?.threadId);
       return settled(
         skillsId,
         "reindex",

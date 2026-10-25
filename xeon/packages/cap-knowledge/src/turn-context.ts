@@ -20,7 +20,9 @@ export interface TurnContextDeps {
   readonly skills: {
     indexBlock(threadId: string): Result<SkillIndexBlock, KnowledgeFailure>;
     indexSnapshot(threadId: string): Result<IndexSnapshot, KnowledgeFailure>;
-    reindex(): Promise<Result<unknown, KnowledgeFailure>>;
+    reindex(threadId?: string): Promise<Result<unknown, KnowledgeFailure>>;
+    /** 색인이 이 대화의 작업 폴더를 따르게 한다. 폴더가 그대로면 아무것도 하지 않는다 */
+    syncFor(threadId: string): Promise<Result<void, KnowledgeFailure>>;
   };
   readonly memory: {
     snapshotBlock(threadId: string): Promise<Result<string, KnowledgeFailure>>;
@@ -35,6 +37,11 @@ export interface TurnContext {
   start(threadId: string, reason: SessionStartReason): Promise<void>;
   /** turn 시작. 더할 메시지가 없으면 undefined */
   beforeAgentStart(threadId: string): Promise<ContextMessage | undefined>;
+  /**
+   * 컴팩션이 끝났다(`session_compact`). 컴팩션은 앞쪽 기록을 요약으로 바꾸므로 첫 turn에 넣었던 스킬 인덱스 블록과 메모리 스냅샷이
+   * 모델 입력에서 사라진다. 이 대화의 다음 turn을 처음 turn처럼 다루어, 그때의 인덱스와 메모리로 블록을 다시 넣는다(C-11)
+   */
+  afterCompaction(threadId: string): void;
   /** 세션 정리 */
   shutdown(threadId: string): void;
   /** 추적 중인 세션 수(시험용) */
@@ -89,8 +96,12 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
     start: async (threadId, reason) => {
       // 바깥에서 둔 스킬을 이 세션이 보게 한다. 시작 시 재색인은 `startup`이 이미 했다(spec §7)
       if (reason !== "startup") {
-        const refreshed = await deps.skills.reindex();
+        const refreshed = await deps.skills.reindex(threadId);
         if (!refreshed.ok) warn("knowledge.context.reindex_failed", threadId, refreshed.error);
+      } else {
+        // 시작 때 재색인은 대화를 모르고 했다. 이 대화의 작업 폴더로 맞춘다
+        const synced = await deps.skills.syncFor(threadId);
+        if (!synced.ok) warn("knowledge.context.reindex_failed", threadId, synced.error);
       }
       const fresh = reason === "startup" || reason === "new";
       if (fresh) {
@@ -106,9 +117,14 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
       states.set(threadId, snapshot.value);
     },
     beforeAgentStart: async (threadId) => {
+      const synced = await deps.skills.syncFor(threadId);
+      if (!synced.ok) warn("knowledge.context.reindex_failed", threadId, synced.error);
       const state = states.get(threadId);
       if (state === undefined) return introduce(threadId);
       return delta(threadId, state);
+    },
+    afterCompaction: (threadId) => {
+      states.delete(threadId);
     },
     shutdown: (threadId) => {
       states.delete(threadId);

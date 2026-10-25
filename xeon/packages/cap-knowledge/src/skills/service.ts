@@ -26,7 +26,15 @@ import { readDirTree, readSingleFileTree, treeHash, type Tree } from "./tree.ts"
 // L2.knowledge.plan K2: list, view(지연 로딩), reindex, 첫 turn 인덱스 블록.
 
 export interface SkillsDeps extends LedgerDeps {
-  readonly roots: () => Promise<RootsResult>;
+  /**
+   * 스킬 루트. `threadId`를 주면 그 대화의 작업 폴더가 프로젝트 폴더다(L2.readme §5.10). 주지 않으면 조립이 정한 엔진 단위 기준이다
+   */
+  readonly roots: (threadId?: string) => Promise<RootsResult>;
+  /**
+   * 대화의 작업 폴더. 있으면 프로젝트 스킬은 작업 폴더 단위가 되어, 대화가 바뀌어 폴더가 달라지면 색인을 그 폴더로 다시 맞춘다
+   * (`syncFor`). 없으면 프로젝트 폴더는 엔진 단위 하나다
+   */
+  readonly workspaceOf?: ((threadId: string) => string | undefined) | undefined;
   /** 호출 한 번이 읽는 유효 설정 */
   readonly settings: (threadId: string | undefined) => KnowledgeSettings;
   /** `knowledge_search`를 광고하는가(KN.2 전에는 false). 인덱스 블록 끝 안내문이 이 값을 따른다 */
@@ -44,7 +52,13 @@ export interface SkillsRuntime {
     input: SkillViewInput,
     options?: CallOptions,
   ): Promise<Result<SkillViewOutput, KnowledgeFailure>>;
-  reindex(): Promise<Result<ReindexResult, KnowledgeFailure>>;
+  /** `threadId`를 주면 그 대화의 작업 폴더를 프로젝트 폴더로 다시 색인한다 */
+  reindex(threadId?: string): Promise<Result<ReindexResult, KnowledgeFailure>>;
+  /**
+   * 색인이 이 대화의 작업 폴더를 따르게 한다. 마지막으로 색인한 작업 폴더와 같으면 아무것도 하지 않는다. `workspaceOf`가 없으면
+   * 항상 no-op이다. 대화를 여는 곳(세션 시작, turn 시작)과 목록·조회가 부른다
+   */
+  syncFor(threadId: string | undefined): Promise<Result<void, KnowledgeFailure>>;
   /** 세션 첫 turn에 넣는 인덱스 블록(spec §4.2.5) */
   indexBlock(threadId: string | undefined): Result<SkillIndexBlock, KnowledgeFailure>;
   /** 모델이 보는 인덱스(이름과 잘린 설명)와 버전. 델타 알림의 기준이다(spec §4.2.6) */
@@ -97,10 +111,26 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
   let lastDiagnostics: readonly SkillDiagnostic[] = [];
   const searchOptions = { searchTool: deps.searchToolAdvertised === true };
 
-  const reindex = async (): Promise<Result<ReindexResult, KnowledgeFailure>> => {
-    const resolved = await deps.roots();
-    const result = await reindexSkills(deps, resolved.roots);
+  // 마지막으로 색인한 작업 폴더. 대화 단위 프로젝트 폴더(`workspaceOf`)일 때만 쓴다
+  let syncedWorkspace: string | undefined;
+  let hasSynced = false;
+  let syncing: Promise<unknown> = Promise.resolve();
+
+  const workspaceKey = (threadId: string): string | undefined => {
+    const workspace = deps.workspaceOf?.(threadId);
+    return workspace === undefined || workspace === "" ? undefined : workspace;
+  };
+
+  const reindex = async (threadId?: string): Promise<Result<ReindexResult, KnowledgeFailure>> => {
+    const resolved = await deps.roots(threadId);
+    const result = await reindexSkills(deps, resolved.roots, {
+      dropOutOfScopeProjects: deps.workspaceOf !== undefined,
+    });
     if (result.ok) {
+      if (deps.workspaceOf !== undefined && threadId !== undefined) {
+        syncedWorkspace = workspaceKey(threadId);
+        hasSynced = true;
+      }
       lastDiagnostics = [...resolved.diagnostics, ...result.value.diagnostics];
       const refreshed = await deps.afterReindex?.();
       if (refreshed !== undefined && !refreshed.ok) {
@@ -111,6 +141,25 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
       }
     }
     return result;
+  };
+
+  const syncNow = async (threadId: string): Promise<Result<void, KnowledgeFailure>> => {
+    if (hasSynced && workspaceKey(threadId) === syncedWorkspace) return ok(undefined);
+    const reindexed = await reindex(threadId);
+    return reindexed.ok ? ok(undefined) : reindexed;
+  };
+
+  const syncFor: SkillsRuntime["syncFor"] = (threadId) => {
+    if (deps.workspaceOf === undefined || threadId === undefined) {
+      return Promise.resolve(ok(undefined));
+    }
+    // 두 대화가 동시에 맞추려 해도 색인은 한 번에 하나씩 다시 만든다
+    const run = syncing.then(
+      () => syncNow(threadId),
+      () => syncNow(threadId),
+    );
+    syncing = run;
+    return run;
   };
 
   const readRows = (): Result<{ rows: readonly SkillRow[]; version: number }, KnowledgeFailure> => {
@@ -146,20 +195,20 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
     return ok({ version: read.value.version, descriptions });
   };
 
-  const list: SkillsRuntime["list"] = (input, options) => {
+  const list: SkillsRuntime["list"] = async (input, options) => {
     const settings = deps.settings(options?.context?.threadId).skills;
     if (!settings.enabled) {
-      return Promise.resolve(
-        ok({
-          skills: [],
-          budget: { limitChars: settings.indexBudgetChars, usedChars: 0, omitted: 0 },
-          indexVersion: 0,
-          diagnostics: [],
-        }),
-      );
+      return ok({
+        skills: [],
+        budget: { limitChars: settings.indexBudgetChars, usedChars: 0, omitted: 0 },
+        indexVersion: 0,
+        diagnostics: [],
+      });
     }
+    const synced = await syncFor(options?.context?.threadId);
+    if (!synced.ok) return synced;
     const read = readRows();
-    if (!read.ok) return Promise.resolve(read);
+    if (!read.ok) return read;
     const scopes = input.scopes;
     const all = winners(read.value.rows)
       .filter((row) => scopes === undefined || scopes.includes(row.scope))
@@ -170,22 +219,20 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
       settings.indexBudgetChars,
       searchOptions,
     );
-    return Promise.resolve(
-      ok({
-        skills: all.slice(0, MAX_LISTED),
-        budget: {
-          limitChars: settings.indexBudgetChars,
-          usedChars: block.usedChars,
-          omitted: block.omitted,
-        },
-        indexVersion: read.value.version,
-        diagnostics: lastDiagnostics.slice(0, MAX_DIAGNOSTICS).map((item) => ({
-          severity: item.type,
-          message: item.message.slice(0, 512),
-          path: item.path.slice(0, 1024),
-        })),
-      }),
-    );
+    return ok({
+      skills: all.slice(0, MAX_LISTED),
+      budget: {
+        limitChars: settings.indexBudgetChars,
+        usedChars: block.usedChars,
+        omitted: block.omitted,
+      },
+      indexVersion: read.value.version,
+      diagnostics: lastDiagnostics.slice(0, MAX_DIAGNOSTICS).map((item) => ({
+        severity: item.type,
+        message: item.message.slice(0, 512),
+        path: item.path.slice(0, 1024),
+      })),
+    });
   };
 
   const treeOf = (row: SkillRow): Promise<Result<Tree, KnowledgeFailure>> =>
@@ -210,13 +257,15 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
     if (input.file !== undefined && !isAddressableSkillFile(input.file)) {
       return err(failure("invalid_input", "file is not a supported skill file path"));
     }
+    const synced = await syncFor(options?.context?.threadId);
+    if (!synced.ok) return synced;
     let row = find(input);
     if (!row.ok) return row;
     let tree = await treeOf(row.value);
     // 색인과 파일이 어긋났으면(바깥 편집) 재색인으로 맞추고 다시 찾는다(spec §4.2.4)
     if (!tree.ok && tree.error.kind !== "not_found") return tree;
     if (!tree.ok || treeHash(tree.value) !== row.value.treeHash) {
-      const refreshed = await reindex();
+      const refreshed = await reindex(options?.context?.threadId);
       if (!refreshed.ok) return refreshed;
       row = find(input);
       if (!row.ok) return row;
@@ -258,5 +307,5 @@ export function createSkills(deps: SkillsDeps): SkillsRuntime {
     });
   };
 
-  return { list, view, reindex, indexBlock, indexSnapshot };
+  return { list, view, reindex, syncFor, indexBlock, indexSnapshot };
 }
