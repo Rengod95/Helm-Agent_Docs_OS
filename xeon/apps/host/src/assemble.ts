@@ -57,6 +57,7 @@ import {
 import { buildEngineCatalog } from "./assembly/catalog.ts";
 import { builtinUnits, installFailureOf, unitOfModule } from "./assembly/extensions.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
+import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
@@ -474,6 +475,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     await register("platform-secrets", secretsPlatform(secrets.service));
     redact.current = (line) => secrets.service.redactor.mask(line).text;
 
+    // stdio MCP 서버를 띄우는 포트(결정 D6, 사용자 권한). 레지스트리와 트리 종료는 platform-process가, 비밀 env는 secrets가 준다
+    const mcpProcess = createHostMcpProcessPort({
+      ext,
+      secrets: secrets.service,
+      scheduler: os.time.scheduler,
+      parentEnv: process.env,
+      logger: os.logger("mcp-process"),
+    });
+
     const platform = detectExecPlatform(os.logger("platform-exec"));
     if (!platform.ok) {
       throw new AssembleError([
@@ -515,6 +525,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         trust: projectTrust,
         signal: lifetime.signal,
         engineVersion: ENGINE_VERSION,
+        ...(mcpProcess === undefined ? {} : { mcpProcess }),
         settings,
         workspaceOf,
         db: store.value.root,

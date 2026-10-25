@@ -6,5 +6,5 @@ E2 packages/platform-process test/transport-conformance.int.test.ts
 E4 packages/cap-web test/e4-search-selection.int.test.ts
 E4 apps/host test/int/cap-web.int.test.ts
 E5 apps/host test/int/approval-shapes.int.test.ts
-E6 apps/host test/int/cap-mcp.int.test.ts
+E6 apps/host test/int/cap-mcp.int.test.ts test/int/cap-mcp-stdio.int.test.ts
 E7 packages/platform-secrets test/admin.int.test.ts test/sops-real.int.test.ts

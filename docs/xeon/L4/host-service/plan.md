@@ -337,7 +337,7 @@ HOST.6에서 실제 엔진에 올리자 드러난 오류와 처리:
 
 | 항목 | 이유 | 확인 방법 |
 |---|---|---|
-| stdio MCP 서버 | L0가 스트림을 주는 프로세스 포트(`McpProcessPort`)를 내놓지 않았다(spec §10 25) | PLT 구현 뒤 실제 MCP 서버(예: 공식 filesystem 서버)로 연결·종료·크래시 재기동 |
+| stdio MCP 서버 | (m2c에서 연결했다. 아래 §9 HOST.15) 크래시 재기동과 공식 서버(예: filesystem)로의 연결은 확인하지 못했다 | 실제 MCP 서버로 연결·종료·크래시 재기동 |
 | 비밀을 쓰는 bash 호출의 종단 시험 | sops 제공자와 키 접근을 가짜로 바꿀 주입점이 조립 옵션에 없다 | `AssembleOptions`에 `ProcessRunner` 주입을 더하거나 platform-secrets 시험 제공자를 조립 옵션으로 연다 |
 | 컴팩션이 실제로 도는지 | core-loop가 `shouldCompact`·`recoverOverflow`를 부르지 않는다(L1C 요청). 설정 연결만 확인했다 | L1A 구현 뒤 긴 대화 시험 |
 | 프로젝트 신뢰 프롬프트 | 대화형 클라이언트(CLI.2, DESK)가 `TrustPrompter`를 아직 내놓지 않는다 | CLI.2·DESK 뒤 |
@@ -379,3 +379,4 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 | HOST.12 | G1-07 | 구현 | `SecretError`를 `secret.*` 전용 kind 3201~3212로 옮기고(입력 오류만 -32602) `secret.references`를 `SecretAdminService.references`에 잇는다. `secret.test`는 이미 확장된 결과를 싣는다. `test/secrets/wire.test.ts`(열두 변형의 kind·code·details와 stderr·경로 비노출), `test/handlers/secret.test.ts` |
 | HOST.13 | G1-01, G1-02, G2-12 | 구현 | `command.list`·`command.run`(`CommandPort`, `assembly/commands.ts`, 브리지 확장이 `dialog.commands` API를 `CommandRegistryHolder.api`에 채움), `turn.resume`(쓰기 소유 암묵 획득 뒤 `LoopService.resume`), `thread.rename`(`ThreadPort.rename`)과 첫 입력 80자 자동 제목(`title.ts`). 후보 `m2/fx-host`에는 이 처리기들이 없었다(새 foundation의 wire 계약 위에서 새로 썼다). `test/assembly/commands.test.ts`(호출자 `host`, 호출마다 새 요청 키), `test/handlers/command.test.ts`, `test/handlers/turn-resume.test.ts`, `test/handlers/thread-rename.test.ts`, `test/title.test.ts`, `test/int/command.int.test.ts`(실제 cap-work `/plan`·`/tasks`), `test/int/title.int.test.ts`, `test/int/approval-restart.int.test.ts`(SIGKILL 뒤 `turn.resume`) |
 | HOST.14 | G1-12, G4-05 (E4, H1) | 구현 | `hostedSearch`(`xeon.models`)를 cap-web에 넘기고 설정이 바뀌면 탐침 기억을 지우며 `session_shutdown`에서 세션 원문을 정리한다(spec HS-75). `m2/fx-host`의 cap-web 조립에서 `modelTool` 판정(`turn_start`)과 `headerSecrets`는 가져오지 않았다(이유는 HS-75). `test/int/cap-web.int.test.ts`: SearXNG 주소가 없으면 내장 래퍼만 쓰고 떠 있는 SearXNG를 부르지 않는다, 주소를 설정하면 SearXNG를 쓰고 설정을 바꾸면 실패 탐침 기억이 풀린다, 대역 없이도 엔진의 hosted 검색이 체인에 오른다 |
+| HOST.15 | G1-04 (E6) | 구현 | `createHostMcpProcessPort`가 L0의 `createMcpProcessPort`를 만들어 cap-mcp에 넘긴다(레지스트리는 `xeon.process`의 것). `m2/fx-mcp`의 `06158d2` 가운데 host 부분을 다시 썼고 cap-mcp의 `reload`·`turn_start` 단계 경계(`21cfa68`)는 T5 몫이라 가져오지 않았다. `test/assembly/mcp-process.test.ts`(포트 없음, `mcp` owner 등록, 비밀 env는 `secret_denied`), `test/int/cap-mcp-stdio.int.test.ts`(자식으로 뜬 stdio 서버의 도구를 모델이 부르고 엔진을 닫으면 프로세스가 남지 않는다), `xeon/scripts/exit-tests.txt`의 E6 줄에 더했다 |

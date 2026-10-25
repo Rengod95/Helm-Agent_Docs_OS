@@ -22,6 +22,7 @@ import {
   createToolServiceRegistrar,
   createTransportFactory,
   type McpMasker,
+  type McpProcessPort,
   type McpRulesSink,
 } from "@xeon/cap-mcp";
 import { hostOf, PrimitiveError, type ExtensionUnit, type ScopeHostApi } from "@xeon/ext-host";
@@ -32,9 +33,10 @@ import { createLoaderFs, type ProjectTrust } from "./trust.ts";
 // 포트(도구 등록, 헤더 비밀, 프로젝트 신뢰, 상태 표, 설정 층, 승인 규칙)를 `createMcp`에 잇고, 세션 시작에 `load`, 설정과 서버 변화의
 // 반영은 turn 시작(`before_agent_start`, 광고 앞)과 단계마다 모델 요청 앞(`before_provider_request`)에서 `applyBoundary`, 종료에 `shutdown`을 부른다. 능력 `mcp.client`와 `xeon.mcp`는 `runtime.service`로 낸다.
 //
+// - stdio 서버(결정 D6, ADR-0011): L0 platform-process의 `createMcpProcessPort`를 조립 루트가 `options.process`로 넘긴다(`mcp-process.ts`).
+//   cap-mcp는 L0를 import하지 않는다. 비밀 env를 쓰는 stdio 서버는 기동 승인 지점이 없어 `secret_denied`다(M3).
+//
 // 아직 없는 것:
-// - stdio 서버(결정 D6): 스트림을 주는 프로세스 포트(`McpProcessPort`)를 L0 platform-process가 아직 내놓지 않아 stdio 서버는
-//   "no process port is connected"로 연결에 실패한다. HTTP·SSE 서버는 된다.
 // - `mcp_servers_change` 발화: 지점 발화에는 thread가 필요한데 서버 변화는 thread에 속하지 않는다.
 // 조립 루트 코드(DR-14 예외 2).
 
@@ -47,6 +49,8 @@ export interface HostMcpOptions {
   readonly version: string;
   /** 서버 도구가 쓰면 안 되는 기계 이름(내장 도구 이름) */
   readonly reservedToolNames: () => ReadonlySet<string>;
+  /** stdio 서버를 띄우는 포트(L0 platform-process). 없으면 stdio 서버는 연결에 실패한다 */
+  readonly process?: McpProcessPort;
   readonly loadIndex?: number;
 }
 
@@ -119,7 +123,7 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
         files: createLoaderFs(),
         trust: { isTrusted: (projectRoot, signal) => options.trust.isTrusted(projectRoot, signal) },
         transports: createTransportFactory({
-          process: undefined,
+          process: options.process,
           secrets: secrets === undefined ? undefined : createSecretServiceHeaders(secrets),
           scheduler: os.time.scheduler,
           fetch: undefined,

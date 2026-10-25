@@ -41,6 +41,7 @@ import { createTasksEntry, TASKS_MANIFEST } from "@xeon/core-tasks";
 import { toolsPlugin } from "@xeon/core-tools";
 import type { BuiltinExtensionModule, ExtHost, ExtensionUnit, InstallResult } from "@xeon/ext-host";
 import type { AssembleOptions, HostMode, SettingsStorePort } from "../types.ts";
+import type { McpProcessPort } from "@xeon/cap-mcp";
 import { hostMcpPlugin } from "./cap-mcp.ts";
 import { hostGroupsPlugin } from "./groups.ts";
 import { hostWebPlugin } from "./cap-web.ts";
@@ -100,6 +101,8 @@ export interface ExtensionDeps {
     readonly heldThreads: () => readonly ThreadId[];
     readonly entries: () => readonly GroupCatalogEntry[];
   };
+  /** stdio MCP 서버를 띄우는 포트(L0 platform-process). 없으면 stdio 서버는 연결에 실패한다 */
+  readonly mcpProcess?: McpProcessPort;
   /** AssembleOptions.webPorts */
   readonly webPorts?: AssembleOptions["webPorts"];
   /** AssembleOptions.agentDefinitions */
@@ -305,6 +308,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           signal: deps.signal,
           version: deps.engineVersion,
           reservedToolNames: reservedToolNames,
+          ...(deps.mcpProcess === undefined ? {} : { process: deps.mcpProcess }),
           loadIndex,
         }),
     ],
