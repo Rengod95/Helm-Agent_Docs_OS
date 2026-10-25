@@ -248,7 +248,7 @@ export function approvalRequested(
         turnId: turn,
         stepId: null,
         toolCallId: "call-1",
-        caller: "model",
+        caller: "main",
       },
       requestKey: "k1",
       title: options.title ?? "bash 실행",

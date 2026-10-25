@@ -32,8 +32,10 @@ export interface CallerInfo {
   readonly kind: "model" | "extension" | "host";
   /** model일 때: 주 대화, 서브에이전트, 백그라운드 포크 */
   readonly agent?: "main" | "subagent" | "background";
-  /** extension일 때 확장 이름(그룹이면 그룹 이름) */
+  /** extension일 때 확장 이름(그룹이면 그룹 이름). 다른 종류의 호출자에는 채우지 않는다 */
   readonly extension?: string;
+  /** model이고 agent가 "subagent"일 때 서브에이전트 정의 이름(L1.agents `AgentDefinition.name`). `extension`과 뜻이 다르다 [결정: m2c G1-09] */
+  readonly agentName?: string;
   /** 이번 turn에서 untrusted 도구 결과를 이미 읽었는지. L1.tools가 계산한다 */
   readonly afterUntrusted?: boolean;
 }

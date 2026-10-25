@@ -118,7 +118,7 @@ export function summary(threadId: ThreadId, over: Partial<ThreadSummary> = {}): 
 
 export function approvalRequest(threadId: ThreadId): ApprovalRequestedPayload {
   return {
-    origin: { threadId, turnId: null, stepId: null, toolCallId: null, caller: "test" },
+    origin: { threadId, turnId: null, stepId: null, toolCallId: null, caller: "main" },
     requestKey: "k1",
     title: "Run tool",
     remember: ["once"],

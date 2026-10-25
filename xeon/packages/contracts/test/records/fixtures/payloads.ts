@@ -155,7 +155,7 @@ export const PAYLOAD_FIXTURES: Readonly<Record<CoreEventKind, Readonly<Record<st
         turnId: TURN,
         stepId: STEP,
         toolCallId: "call_1",
-        caller: "model:main",
+        caller: "main",
       },
       requestKey: "req-1",
       title: "Run bash",

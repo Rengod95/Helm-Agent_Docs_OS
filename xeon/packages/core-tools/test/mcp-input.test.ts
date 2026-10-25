@@ -220,6 +220,7 @@ test("mcp_input_malformed: an input_required variant that is neither an approval
 test("mcp_input_direct_tool: a directly registered server tool is retried with the continuation after the user answers", async () => {
   const h = await createHarness();
   const continuations: (CallContinuation | undefined)[] = [];
+  const seen: { threadId: unknown; context: unknown }[] = [];
   const registered = h.runtime.tools.register({
     kind: "direct",
     orderKey: "mcp.stub",
@@ -235,6 +236,7 @@ test("mcp_input_direct_tool: a directly registered server tool is retried with t
     exposure: "always",
     executeWithContinuation: (call) => {
       continuations.push(call.continuation);
+      seen.push({ threadId: call.threadId, context: call.context });
       if (call.continuation !== undefined) {
         return Promise.resolve({
           content: [{ type: "text", text: "direct done" }],
@@ -256,11 +258,23 @@ test("mcp_input_direct_tool: a directly registered server tool is retried with t
     },
   });
   expect(registered.ok).toBe(true);
-  const done = callTool(h.runtime.tools, h.run(), { id: "mcp_7", name: "ask_tool", args: {} });
+  const run = h.run();
+  const done = callTool(h.runtime.tools, run, { id: "mcp_7", name: "ask_tool", args: {} });
   await answerOpenQuestion(h, "Ada");
   const out = await done;
   expect(out.isError).toBe(false);
   expect(textOf(out.result)).toContain("direct done");
+  // 직접 등록 도구도 능력 도구와 같은 호출 문맥을 받는다: 두 라운드 모두 같은 대화, 호출 id, 주 대화 호출자다
+  expect(seen).toHaveLength(2);
+  for (const call of seen) {
+    expect(call.threadId).toBe(run.threadId);
+    expect(call.context).toMatchObject({
+      threadId: run.threadId,
+      turnId: run.turnId,
+      toolCallId: "mcp_7",
+      caller: { kind: "model", agent: "main" },
+    });
+  }
   expect(continuations).toEqual([
     undefined,
     {

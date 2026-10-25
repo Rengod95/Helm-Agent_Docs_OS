@@ -33,6 +33,12 @@ import { BlobRefSchema } from "../blob.ts";
 // 하위 모양의 필드 뜻은 L1.tools.spec §3.6 소관이다. records는 capabilities보다 낮은 순서가 아니라 같은 순서라
 // 그 도메인 타입을 import하지 않고 JSON 수준으로 같은 모양을 적는다.
 
+/**
+ * `origin.caller`가 따라야 하는 형식. 값을 만드는 함수는 `approvalCallerOf`(`services/approvals.ts`)이고 타입은 `ApprovalCaller`다.
+ * records는 services보다 낮아 그 타입을 import하지 못하므로 형식만 여기에 두고 services가 이 상수를 쓴다.
+ */
+export const APPROVAL_CALLER_PATTERN: string = "^(main|background|host|subagent:.+|ext:.+)$";
+
 export const ApprovalOriginJsonSchema: TObject<{
   threadId: TUnsafe<ThreadId>;
   turnId: TUnion<[TUnsafe<TurnId>, TNull]>;
@@ -45,8 +51,8 @@ export const ApprovalOriginJsonSchema: TObject<{
     turnId: Nullable(TurnIdSchema),
     stepId: Nullable(StepIdSchema),
     toolCallId: Nullable(Type.String({ minLength: 1, maxLength: 256 })),
-    /** CallerId */
-    caller: Type.String({ minLength: 1, maxLength: 128 }),
+    /** `ApprovalCaller`(`approvalCallerOf`가 만든다): main, background, host, subagent:<이름>, ext:<이름> */
+    caller: Type.String({ minLength: 1, maxLength: 128, pattern: APPROVAL_CALLER_PATTERN }),
   },
   { additionalProperties: false },
 );

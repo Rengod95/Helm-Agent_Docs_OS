@@ -1,4 +1,4 @@
-import type { CapabilityId, ToolName } from "../capabilities/index.ts";
+import type { CapabilityId, CallerInfo, ToolName } from "../capabilities/index.ts";
 import type {
   ApprovalId,
   JsonObject,
@@ -24,13 +24,37 @@ export type ApprovalKind = "tool" | "plan" | "question";
 export type ApprovalDecision = "allow" | "deny" | "answer";
 export type ApprovalRemember = "once" | "thread" | "always";
 
+/**
+ * 승인 요청을 일으킨 호출자. 정책 판정에 쓰는 `CallerId`(main, subagent:<이름>)에 승인 화면만 구분하는 셋을 더했다:
+ * `ext:<확장 이름>`(확장·그룹 코드), `background`(백그라운드 포크), `host`(호스트가 직접 낸 호출). 값은 `approvalCallerOf`가 만든다.
+ */
+export type ApprovalCaller = CallerId | "background" | "host" | `ext:${string}`;
+
+/**
+ * 호출 문맥의 호출자(`CallContext.caller`)를 승인 origin의 `caller` 값으로 바꾸는 유일한 함수다 [결정: m2c G1-09].
+ * L1.tools와 L2 어댑터(cap-dialog, cap-work, cap-knowledge)가 자기 복제를 두지 않고 이 함수를 쓴다. 순수.
+ *
+ * - `host` → `host`
+ * - `extension` → `ext:<extension>`. 이름이 없으면 `ext:unknown`
+ * - `model` + 주 대화(또는 `agent` 생략) → `main`
+ * - `model` + `subagent` → `subagent:<agentName>`. 이름이 없으면 `subagent:unknown`
+ * - `model` + `background` → `background`
+ */
+export function approvalCallerOf(caller: CallerInfo): ApprovalCaller {
+  if (caller.kind === "host") return "host";
+  if (caller.kind === "extension") return `ext:${caller.extension ?? "unknown"}`;
+  // 남은 종류는 model뿐이다
+  if (caller.agent === "subagent") return `subagent:${caller.agentName ?? "unknown"}`;
+  return caller.agent === "background" ? "background" : "main";
+}
+
 export interface ApprovalOrigin {
   readonly threadId: ThreadId;
   readonly turnId: TurnId | null;
   readonly stepId: StepId | null;
   /** 이 요청을 일으킨 도구 호출. 질문·계획 도구도 도구 호출이므로 보통 채워진다 */
   readonly toolCallId: string | null;
-  readonly caller: CallerId;
+  readonly caller: ApprovalCaller;
 }
 
 export interface ToolApprovalBody {

@@ -294,6 +294,8 @@ async function settleDirectInput(
     continuation: CallContinuation | undefined,
   ): Promise<DirectStep> => {
     const result = await executeWithContinuation({
+      threadId: call.run.threadId,
+      context: callContext(call),
       toolCallId: call.toolCallId,
       params: call.params,
       signal: call.signal,

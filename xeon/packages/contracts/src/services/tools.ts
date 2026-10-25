@@ -2,6 +2,7 @@ import { Type, type TUnsafe } from "typebox";
 import type { Result, SchemaProof } from "../base/index.ts";
 import type {
   AnyCapabilityDef,
+  CallContext,
   CallContinuation,
   CapabilityId,
   OrderedTool,
@@ -127,6 +128,13 @@ export interface DirectToolRegistration {
    * 첫 호출에는 `continuation`이 없다
    */
   readonly executeWithContinuation?: (call: {
+    /** 호출이 속한 대화. `context.threadId`와 같은 값이다. 도구 경로의 호출은 항상 대화가 있어 따로 둔다 */
+    readonly threadId: ThreadId;
+    /**
+     * 능력 도구가 받는 호출 문맥과 같은 값이다(`threadId`, `turnId`, `toolCallId`, `caller`, `interactive`, 비밀 승인 증거).
+     * 직접 등록 도구도 호출 주체와 대화를 알아야 승인 origin과 대화 범위 설정을 바르게 쓴다 [결정: m2c G1-09, A-08]
+     */
+    readonly context: CallContext;
     readonly toolCallId: string;
     readonly params: unknown;
     readonly signal: AbortSignal;

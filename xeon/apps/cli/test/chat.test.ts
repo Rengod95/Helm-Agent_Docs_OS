@@ -264,7 +264,7 @@ test("an approval request in print mode is answered with deny and announced", as
                 turnId: context.turnId,
                 stepId: null,
                 toolCallId: "call-1",
-                caller: "model",
+                caller: "main",
               },
               requestKey: "k1",
               title: "bash 실행",

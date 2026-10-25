@@ -385,7 +385,7 @@ export interface TurnAbortRequestedPayload {
 export interface ApprovalOriginJson {
   threadId: ThreadId; turnId: TurnId | null; stepId: StepId | null;
   toolCallId: string | null;
-  caller: string;                 // CallerId
+  caller: string;                 // ApprovalCaller. APPROVAL_CALLER_PATTERN: main | background | host | subagent:<이름> | ext:<이름>
 }
 export type ApprovalBodyJson =
   | { kind: "tool"; tool: { toolName: string; capability?: { id: string; method: string }; risk: string;
@@ -493,6 +493,19 @@ export interface SecretMaskedPayload {
   at: number;
 }
 ```
+
+- [결정: m2c G1-09] `origin`의 필드마다 값을 채우는 주체가 하나다. 승인 요청을 올리는 쪽(L1.tools의 도구 승인, L2 어댑터의 질문·계획 승인)이 아니라 승인 서비스(`ApprovalService.open`)가 요청을 받을 때 채우거나 검사한다.
+
+  | 필드 | 값 | 공급 |
+  |---|---|---|
+  | `threadId` | 호출이 일어난 대화. 자식 대화면 자식의 id다. 이벤트를 기록하는 대화(`surfaceThreadId`)와 다를 수 있다 | 호출 문맥 `CallContext.threadId` |
+  | `turnId` | 활성 turn. 호스트가 turn 밖에서 직접 낸 호출이면 null | 호출 문맥 `CallContext.turnId` |
+  | `toolCallId` | 도구 경로의 호출 id. 도구를 거치지 않은 요청이면 null | 호출 문맥 `CallContext.toolCallId` |
+  | `stepId` | `toolCallId`로 찾은 활성 호출의 단계. 활성 호출이 없으면 null. 능력 포트의 `CallContext`에는 `stepId`가 없어 L2 어댑터는 이 값을 채우지 않고 승인 서비스가 채운다 | 승인 서비스 |
+  | `caller` | `approvalCallerOf(CallContext.caller)`. 형식은 `APPROVAL_CALLER_PATTERN` | 변환 함수 하나 |
+
+  - 같은 호출에서 L1.tools가 올린 요청과 L2 어댑터가 올린 요청은 이 규칙으로 같은 값이 된다. E5(M2 종료 조건)의 "같은 승인 요청 레코드"는 `turnId`, `stepId`, `toolCallId`, `caller` 값이 같다는 뜻이다. 키 이름만 같은 것은 통과가 아니다.
+  - `caller` 변환 규칙은 `F.capabilities.spec` §3.2의 `CallerInfo` 아래 결정 문단이 정한다. `ext:<이름>`은 확장·그룹 코드가 능력을 부른 요청이고, `background`는 백그라운드 포크, `host`는 호스트가 직접 낸 호출이다.
 
 - [제안] `secret.*`는 `L0.secrets.spec` §8.3 R3의 (a)안으로 한정한다. 세션 이벤트는 `used`, `denied`, `approved`, `masked` 넷이고 생산자는 `core.tools`(tool-runtime)다. 관리 레코드(`secret.created`, `updated`, `deleted`, `rotated`, `revealed`)는 세션 이벤트로 넣지 않는다. 감사 레코드의 `threadId`와 `type`은 envelope의 `threadId`와 `kind`로 옮겨서 payload에 두지 않는다.
 - [결정: review.decisions-2 U-05] `post.accepted`는 retire한다. 카탈로그 항목은 `retired: true`로 남기고(§3.2 규칙 5) 새로 쓰지 않는다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나이고, 대화에 배치된 item은 `input.placed`가 적는다. 멱등 판정은 커밋 키 `in:<sourceKey>:<requestId>`(`eng.transactions.design` §4.8)와 `TxView.inputByRequestId`가 한다.
