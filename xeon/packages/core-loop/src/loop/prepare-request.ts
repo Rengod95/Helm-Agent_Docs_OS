@@ -6,6 +6,7 @@ import type {
 } from "@xeon/contracts/conversation";
 import type { ResolvedModel } from "@xeon/contracts/services";
 import { activatedTools } from "./activation.ts";
+import { compactBeforeRequest } from "./compaction.ts";
 import { environmentText } from "./environment.ts";
 import { currentLeaf, currentStep, resolveModel, type TurnRun } from "./turn-run.ts";
 import type { LoopFailure } from "./types.ts";
@@ -77,6 +78,10 @@ export async function prepareRequest(run: TurnRun): Promise<Result<RequestInput,
   }
   const toolset = advertised.value;
 
+  const beforeCompaction = await currentLeaf(run);
+  if (!beforeCompaction.ok) return beforeCompaction;
+  await compactBeforeRequest(run, resolved.value, beforeCompaction.value);
+  // 컴팩션이 커밋하면 커밋 피드가 leaf를 새 값으로 옮겨 놓는다
   const leaf = await currentLeaf(run);
   if (!leaf.ok) return leaf;
   const assembled = await ctx.context.assemble(threadId, leaf.value, {

@@ -351,7 +351,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 3. 같은 `stepId`로 이미 `reason: "overflow"` 컴팩션이 있으면 `fail(second_overflow)`다. 판정은 가지 위 `thread.compacted.details.xeon.stepId`로 하므로 재개 뒤에도 같다.
 4. 없으면 `compact({ reason: "overflow", stepId, willRetry: true })`를 한다. 성공하면 `retry`, 거부되면 `fail(compaction_cancelled)`, 실패하면 `fail(compaction_failed)`다.
 5. core-loop는 `retry`면 같은 단계의 요청을 한 번 다시 보낸다. 두 번째 오버플로우는 턴을 오류로 끝낸다(`L1.loop.spec`).
-6. M1에서는 2번 대신 `fail(disabled)`를 돌려준다. core-loop는 "컨텍스트 창을 넘었다"는 명확한 오류로 턴을 끝낸다.
+6. M1에서는 2번 대신 `fail(disabled)`를 돌려준다. core-loop는 "컨텍스트 창을 넘었다"는 명확한 오류로 턴을 끝낸다. M2 마감부터 core-loop가 1~5번과 요청 전 `shouldCompact` 검사를 실제로 부른다(`L1.loop.spec` §4.2 규칙 2). 조립 루트가 `ids`와 `core.context` 생산자를 주지 않아 컴팩션이 꺼진 구성은 계속 `fail(disabled)`이고 `shouldCompact`만 참이어도 `compact`가 `skipped(disabled)`를 돌려준다.
 
 - `autoCompact`가 거짓이면 오버플로우 복구도 하지 않고 `fail(disabled)`다. 수동 `compact`는 설정과 상관없이 한다 [구현: M2].
 - `session_before_compact`의 first 규칙은 fail-closed다(`F.extensions.spec` §4.1). 확장 핸들러 예외가 오버플로우 복구 컴팩션도 막는다는 뜻이다. 이 경우 `compaction_cancelled`로 오류가 드러난다.

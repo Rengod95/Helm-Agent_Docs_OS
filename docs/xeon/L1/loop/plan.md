@@ -51,6 +51,7 @@ xeon/packages/core-loop/
       tool-batch.ts         # 순차·병렬 스케줄, 이벤트 순서, 취소 시 not_executed, length 절단, terminate. 원본 508-692
       step-end.ts           # turn_end·agent_before_settle chain, 정착 후보, finalizeBoundary, 계속 판정, C5(T4) + drain → StepNext
       before-start.ts       # before_agent_start chain, prestart 커밋, 시스템 프롬프트 변경을 promptAddition으로 떼어 둔다
+      compaction.ts         # 요청 전 임계 컴팩션과 오버플로우 복구 호출 배선 (M2 마감 G2-01)
       environment.ts        # 환경 블록(날짜, 작업 디렉터리, 플랫폼)과 promptAddition 계산. 단계마다 volatile로 넘긴다 (M2 마감 G2-03)
     event-mapper.ts         # createAgentEventMapper(F 시그니처) + bindItem
     volatile.ts             # 휘발 envelope 발신(n, afterSeq, 묶음, 자르기)
@@ -197,6 +198,13 @@ xeon/packages/core-loop/
 | `the_prompt_addition_is_sent_on_every_step_of_the_turn` | `prompt-additions.test.ts` | 도구 호출이 있는 turn의 두 단계 모두 `volatile.instructions`가 같은 안내다 | M2 마감 G2-03 |
 | `a_handler_that_replaces_the_base_prompt_sends_the_whole_replacement_and_no_handler_sends_nothing` | `prompt-additions.test.ts` | 기본 프롬프트를 통째로 바꾸면 바꾼 전체가 `instructions`이고 접두의 `basePrompt`는 그대로. 핸들러가 없으면 `instructions` 키가 없다 | M2 마감 G2-03 |
 | `the_environment_block_carries_date_working_directory_and_platform_each_step` | `prompt-additions.test.ts` | 단계마다 `environment`가 `date`(UTC), `working_directory`, `platform` 줄이다 | M2 마감 G2-03 |
+| `a_full_window_is_compacted_before_the_request_and_the_request_is_built_on_the_new_leaf` | `compaction.test.ts` | `shouldCompact`가 참이면 호출 순서가 `should`, `compact`, `assemble`이고 `compact`는 `reason: "threshold"`, `willRetry: false`, 바인딩과 창 크기를 받으며, 조립은 컴팩션이 커밋한 이벤트까지 읽은 leaf로 한다 | M2 마감 G2-01 |
+| `a_window_below_the_threshold_is_not_compacted_and_every_step_is_checked` | `compaction.test.ts` | 임계 아래면 `compact` 0회이고 두 단계 모두 검사한다 | M2 마감 G2-01 |
+| `a_failed_compaction_does_not_stop_the_turn_and_is_not_retried_on_later_steps` | `compaction.test.ts` | 요약 실패 뒤에도 turn이 `completed`로 끝나고, 둘째 단계는 검사도 하지 않으며 경고 `loop.compaction_failed`가 남는다 | M2 마감 G2-01 |
+| `an_overflow_is_compacted_once_and_the_same_step_is_requested_again` | `compaction.test.ts` | 오버플로우 응답 뒤 `recoverOverflow`가 같은 `stepId`로 한 번 불리고, 같은 단계에서 요청이 두 번 나가며(`step.started` 1개), 실패한 시도는 기록되지 않고 성공 응답만 남는다. 둘째 조립은 컴팩션 이벤트 뒤 leaf다 | M2 마감 G2-01 |
+| `a_second_overflow_in_the_same_step_ends_the_turn_with_the_error` | `compaction.test.ts` | 다시 보낸 요청도 오버플로우면 복구는 한 번만 불리고 turn은 `failed`다 | M2 마감 G2-01 |
+| `an_overflow_that_cannot_be_recovered_commits_the_error_response_as_before` | `compaction.test.ts` | `fail(compaction_failed)`면 요청 1회, 오류 응답이 기록되고 사유가 경고로 남는다 | M2 마감 G2-01 |
+| `an_error_that_is_not_an_overflow_never_reaches_overflow_recovery` | `compaction.test.ts` | 속도 제한 같은 다른 오류는 `recoverOverflow`를 부르지 않는다 | M2 마감 G2-01 |
 
 ## 6. 완료 기준
 

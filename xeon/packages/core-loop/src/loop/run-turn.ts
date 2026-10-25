@@ -11,6 +11,7 @@ import type {
 } from "./types.ts";
 import { beforeAgentStart } from "./before-start.ts";
 import { commitResponse } from "./commit-response.ts";
+import { recoverFromOverflow } from "./compaction.ts";
 import { finishTurn } from "./finish-turn.ts";
 import { openStep } from "./open-step.ts";
 import { prepareRequest } from "./prepare-request.ts";
@@ -44,9 +45,17 @@ async function requestStep(
 ): Promise<Result<StepNext, LoopFailure>> {
   const opened = await openStep(run, placed);
   if (!opened.ok) return opened;
+  const preludeMark = run.state.prelude.length;
   const request = await prepareRequest(run);
   if (!request.ok) return request;
-  const streamed = await streamResponse(run, request.value);
+  let streamed = await streamResponse(run, request.value);
+  // 오버플로우는 단계당 한 번 컴팩션하고 같은 단계의 요청을 다시 보낸다. 앞 시도가 쌓은 prelude는 다시 조립해서 채운다
+  if (await recoverFromOverflow(run, request.value.model, streamed)) {
+    run.state.prelude.splice(preludeMark);
+    const again = await prepareRequest(run);
+    if (!again.ok) return again;
+    streamed = await streamResponse(run, again.value);
+  }
   const responded = await commitResponse(run, streamed);
   if (!responded.ok) return responded;
   const message = responded.value;

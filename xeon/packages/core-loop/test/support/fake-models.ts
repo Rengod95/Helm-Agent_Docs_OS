@@ -333,7 +333,9 @@ export function createFakeModels(options: {
       }),
       fromUsage: (usage) => usage.totalTokens,
     },
-    classify: () => null,
+    // 시험 대본의 오류 문구가 `context_overflow`로 시작하면 컨텍스트 오버플로우로 분류한다
+    classify: (message) =>
+      message.errorMessage?.startsWith("context_overflow") === true ? "context_overflow" : null,
     // hosted 검색은 루프가 쓰지 않는다: 지원하지 않는 모델처럼 답한다
     hostedSearch: {
       support: () => ({ supported: false, reason: "no_hosted_search" }),
