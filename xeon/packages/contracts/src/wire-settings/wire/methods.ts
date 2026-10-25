@@ -14,7 +14,7 @@ import {
   type TUnknown,
   type TUnsafe,
 } from "typebox";
-import { Nullable, type SchemaSound } from "../../base/index.ts";
+import { Nullable, type SchemaProof, type SchemaSound } from "../../base/index.ts";
 import {
   CommandInfoSchema,
   CommandRunOutput,
@@ -27,6 +27,7 @@ import {
   type SemVer,
 } from "../../capabilities/index.ts";
 import { ApprovalAnswerSchema, ApprovalRequestedPayloadSchema } from "../../records/index.ts";
+import type { BinaryName, BinarySource, OsPlatform } from "../../services/index.ts";
 import {
   EventIdSchema,
   ImageContentSchema,
@@ -142,8 +143,117 @@ export const HostHelloResultSchema: TObject<{
 );
 export type HostHelloResult = Static<typeof HostHelloResultSchema>;
 
-export const HostStatusParamsSchema: typeof EmptyParamsSchema = EmptyParamsSchema;
-export type HostStatusParams = EmptyParams;
+/**
+ * host.status params. `includeBinaries`가 참일 때만 호스트가 외부 바이너리를 점검해 result의 `binaries`에 싣는다.
+ * 점검은 바이너리마다 자식 프로세스를 띄워 버전을 확인하므로 상태 조회마다 하지 않는다(L4.host-service.spec HS-69).
+ */
+export const HostStatusParamsSchema: TObject<{ includeBinaries: TOptional<TBoolean> }> =
+  Type.Object({ includeBinaries: Type.Optional(Type.Boolean()) }, { additionalProperties: false });
+export type HostStatusParams = Static<typeof HostStatusParamsSchema>;
+
+/** 외부 바이너리 이름. `BinaryName`(services/os.ts)과 같은 집합이다 */
+const binaryNameShape = Type.Union([
+  Type.Literal("rg"),
+  Type.Literal("sops"),
+  Type.Literal("age"),
+  Type.Literal("git"),
+  Type.Literal("bwrap"),
+  Type.Literal("socat"),
+  Type.Literal("security"),
+  Type.Literal("secret-tool"),
+]);
+export const HostBinaryNameSchema: TUnsafe<BinaryName> = Type.Unsafe<BinaryName>(
+  binaryNameShape satisfies SchemaSound<BinaryName, typeof binaryNameShape>,
+);
+
+/**
+ * 바이너리 하나의 점검 결과. 실행 파일의 경로는 싣지 않는다(화면에 필요한 것은 버전과 안내뿐이다).
+ * `unusable.reason`은 `BinaryError.kind`(services/os.ts)다. 모르는 값이 와도 화면은 일반 문구로 보일 수 있게 문자열로 둔다.
+ */
+export type HostBinaryStatus =
+  | { readonly kind: "ok"; readonly version: string; readonly source: BinarySource }
+  | { readonly kind: "missing"; readonly hint: string }
+  | { readonly kind: "too_old"; readonly found: string; readonly required: string }
+  | { readonly kind: "unusable"; readonly reason: string };
+const binaryStatusShape = Type.Union([
+  Type.Object(
+    {
+      kind: Type.Literal("ok"),
+      version: Type.String({ maxLength: 64 }),
+      source: Type.Union([Type.Literal("bundled"), Type.Literal("system")]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { kind: Type.Literal("missing"), hint: Type.String({ maxLength: 512 }) },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal("too_old"),
+      found: Type.String({ maxLength: 64 }),
+      required: Type.String({ maxLength: 64 }),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { kind: Type.Literal("unusable"), reason: Type.String({ maxLength: 64 }) },
+    { additionalProperties: false },
+  ),
+]);
+export const HostBinaryStatusSchema: TUnsafe<HostBinaryStatus> = Type.Unsafe<HostBinaryStatus>(
+  binaryStatusShape satisfies SchemaSound<HostBinaryStatus, typeof binaryStatusShape>,
+);
+
+export interface HostBinaryItem {
+  readonly name: BinaryName;
+  /** `required`는 없으면 해당 기능이 동작하지 않는다. `optional`은 대체 경로가 있다 */
+  readonly need: "required" | "optional";
+  /** 쓰는 곳 */
+  readonly usedBy: string;
+  /** 없을 때 영향 */
+  readonly impact: string;
+  readonly status: HostBinaryStatus;
+}
+const binaryItemShape = Type.Object(
+  {
+    name: HostBinaryNameSchema,
+    need: Type.Union([Type.Literal("required"), Type.Literal("optional")]),
+    usedBy: Type.String({ maxLength: 256 }),
+    impact: Type.String({ maxLength: 512 }),
+    status: HostBinaryStatusSchema,
+  },
+  { additionalProperties: false },
+);
+export const HostBinaryItemSchema: TUnsafe<HostBinaryItem> = Type.Unsafe<HostBinaryItem>(
+  binaryItemShape satisfies SchemaProof<HostBinaryItem, typeof binaryItemShape>,
+);
+
+/**
+ * 외부 바이너리 점검 결과(`Engine.diagnose`의 `binaries`, L0.os.spec §3.6.1 `BinaryCheckReport`에서 경로만 뺀 모양).
+ * `ready`는 필수 바이너리가 모두 쓸 수 있다는 뜻이고 `blocking`은 쓸 수 없는 필수, `degraded`는 쓸 수 없는 선택 바이너리 이름이다.
+ * `ready: false`이면 데스크톱 첫 실행 화면이 `items`의 `hint`를 보인다. 점검이 취소되면 이 필드 없이 `request.cancelled`로 실패한다.
+ */
+export interface HostBinaryReport {
+  readonly platform: OsPlatform;
+  readonly ready: boolean;
+  readonly blocking: readonly BinaryName[];
+  readonly degraded: readonly BinaryName[];
+  readonly items: readonly HostBinaryItem[];
+}
+const binaryReportShape = Type.Object(
+  {
+    platform: Type.Union([Type.Literal("darwin"), Type.Literal("linux"), Type.Literal("win32")]),
+    ready: Type.Boolean(),
+    blocking: Type.Array(HostBinaryNameSchema, { maxItems: 16 }),
+    degraded: Type.Array(HostBinaryNameSchema, { maxItems: 16 }),
+    items: Type.Array(HostBinaryItemSchema, { maxItems: 16 }),
+  },
+  { additionalProperties: false },
+);
+export const HostBinaryReportSchema: TUnsafe<HostBinaryReport> = Type.Unsafe<HostBinaryReport>(
+  binaryReportShape satisfies SchemaProof<HostBinaryReport, typeof binaryReportShape>,
+);
 
 export const HostStatusResultSchema: TObject<{
   mode: TUnion<[TLiteral<"in-process">, TLiteral<"stdio">, TLiteral<"service">]>;
@@ -152,6 +262,7 @@ export const HostStatusResultSchema: TObject<{
   connections: TInteger;
   liveTurns: TInteger;
   idleShutdownAt: TUnion<[typeof IsoTimeSchema, TNull]>;
+  binaries: TOptional<typeof HostBinaryReportSchema>;
 }> = Type.Object(
   {
     mode: Type.Union([Type.Literal("in-process"), Type.Literal("stdio"), Type.Literal("service")]),
@@ -160,6 +271,8 @@ export const HostStatusResultSchema: TObject<{
     connections: Type.Integer({ minimum: 0 }),
     liveTurns: Type.Integer({ minimum: 0 }),
     idleShutdownAt: Nullable(IsoTimeSchema),
+    /** 요청에 `includeBinaries: true`가 있을 때만 있다(F wire §3.3.1) */
+    binaries: Type.Optional(HostBinaryReportSchema),
   },
   { additionalProperties: false },
 );
@@ -1044,10 +1157,9 @@ export function withMeta<S extends TObject>(schema: S): WithMeta<S> {
   );
 }
 
-/** host.status 요청 params. 키가 없는 객체에 `_meta`만 허용한다 */
-const HostStatusRequestSchema: WithMeta<TObject<{}>> = withMeta(
-  Type.Object({}, { additionalProperties: false }),
-);
+/** host.status 요청 params. 선택 필드 `includeBinaries`와 `_meta`만 받는다 */
+const HostStatusRequestSchema: WithMeta<typeof HostStatusParamsSchema> =
+  withMeta(HostStatusParamsSchema);
 /** 같은 params를 쓰는 메서드가 한 스키마 객체를 나눠 쓰도록 한 번만 만든다 */
 const ThreadRefRequestSchema: WithMeta<typeof ThreadRefParamsSchema> =
   withMeta(ThreadRefParamsSchema);

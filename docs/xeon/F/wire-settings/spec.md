@@ -294,7 +294,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 영역 | 메서드 | params | result | 단계 |
 |---|---|---|---|---|
 | host | `host.hello` | `{ protocolVersion: SemVer, client: {name, version, kind: "cli"\|"desktop"\|"other"}, experimental?: FeatureName[], auth?: { token: string } }`(`auth`는 M2) | `{ protocolVersion: SemVer, server: {name, version}, storeId: StoreId, transport: TransportKind, features: FeatureInfo[], experimental: FeatureName[] }` | M1 |
-| host | `host.status` | `{}` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, idleShutdownAt: IsoTime \| null }` | M2 |
+| host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport }` | M2 |
 | host | `host.shutdown` | `{ reason: "client_exit"\|"version_replace"\|"user", deadlineMs?: integer }` | `{ accepted: boolean }` | M2 |
 | thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
 | thread | `thread.create` | `{ workspace?: string, title?: string }` | `{ threadId: ThreadId, position: StreamPosition }` | M1 |
@@ -328,6 +328,10 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | secret | `secret.beginEntry` | `{ name: SecretName, action: "add"\|"set"\|"rotate" }` | `{ started: boolean }` | M2 |
 | secret | `secret.beginReveal` | `{ name: SecretName }` | `{ started: boolean }` | M2 |
 
+- [결정: m2c G2-07 후속] `host.status`가 외부 바이너리 점검 결과를 싣는다(`L4.host-service.spec` §10 28번). 사이드카 안의 엔진을 wire로만 보는 데스크톱 첫 실행 화면이 `Engine.diagnose`의 `binaries`를 받는 길이다. 진단 메서드를 새로 만들지 않아서(`host.diagnose` 반려는 그대로) 기존 메서드에 선택 필드만 더한다.
+  - params의 `includeBinaries: true`일 때만 호스트가 점검해 result의 `binaries`에 싣는다. 점검은 바이너리마다 자식 프로세스를 띄워 버전을 확인하므로(`L0.os.spec` §3.6.1) 상태 조회마다 하지 않는다. 생략하거나 거짓이면 `binaries`가 없고 이전 클라이언트의 `host.status`는 그대로 동작한다.
+  - `HostBinaryReport`는 `BinaryCheckReport`(`L0.os.spec` §3.6.1)에서 실행 파일 경로(`path`)만 뺀 모양이다: `{ platform, ready, blocking, degraded, items }`. `ready`는 필수 바이너리가 모두 쓸 수 있다는 뜻이고 `blocking`은 쓸 수 없는 필수, `degraded`는 쓸 수 없는 선택 바이너리 이름이다. `items`는 표의 행마다 `{ name, need: "required"\|"optional", usedBy, impact, status }`이고 `status`는 `ok { version, source }`, `missing { hint }`, `too_old { found, required }`, `unusable { reason }` 가운데 하나다. `hint`가 첫 실행 화면의 설치 안내 문구다.
+  - 점검이 중단되면(`cancelled`) 결과 없이 `request.cancelled`(5001)로 실패한다. 점검 결과가 `ready: false`여도 요청은 성공이다: 환경 문제의 판단과 안내는 클라이언트가 한다.
 - [결정: m2c G2-12] `thread.rename`은 대화 제목을 바꾼다. 목록이 모두 "제목 없음"으로 보이는 문제(`L1.persistence.spec` §4.10.5 `setTitle`)를 클라이언트가 풀 길이다. 호스트는 `thread.updated { title }`를 커밋하고 그 위치를 `position`으로 돌려준다. 제목은 1~200자이며(`ThreadSummary.title`, `thread.create`의 `title`과 같은 상한) 지우는 길은 없다. 쓰기 소유가 필요해서 `turn.start`처럼 암묵 획득을 한 번 시도하고 실패하면 `thread.locked`(3002)다. 없는 thread는 `thread.notFound`(3001), 닫힌 thread는 `thread.closed`(3007)다. 진행 중인 turn이 있어도 바꿀 수 있다.
   - 첫 입력에서 제목을 정하는 규칙(M2): 첫 `turn.start` 입력의 앞 80자(줄바꿈은 공백 하나로)를 제목으로 쓴다. 정하는 주체는 호스트이고 이 메서드와 같은 커밋 경로를 쓴다. 이미 제목이 있는 thread는 바꾸지 않는다. 모델이 만드는 자동 제목은 M3다.
 - [결정: m2c G1-07] 비밀 wire 보강 네 가지다(`L4.host-service.spec` §10 19번, 23번).
@@ -521,7 +525,7 @@ export declare const WIRE_NOTIFICATIONS: { readonly [N in ServerNotificationName
 | `EffectiveSetting`의 잠금 사유 문구(39번) | 보류 | 없음 | M3 | 관리 잠금은 `locked` 표시만으로 M2 화면이 동작한다 |
 | 사용량 wire 메서드(35번) | 보류 | 없음 | M3 | 레이트 리밋·계정 회전 게이지는 M3 화면이다(review.decisions-2 U-21) |
 | 사용자 알림 wire 알림(13번) | 보류 | 없음 | M3 | 알림은 M3다(review.decisions-2 S-04). M2는 내구 이벤트 kind로 대상을 고른다 |
-| `host.diagnose`(26번) | 반려 | 없음 | - | `doctor`는 `@xeon/host`의 진단 함수를 직접 부른다. 서비스 모드에서 원격으로 진단할 필요가 생기면 그때 다시 올린다 |
+| `host.diagnose`(26번) | 반려 | 없음 | - | `doctor`는 `@xeon/host`의 진단 함수를 직접 부른다. 서비스 모드에서 원격으로 진단할 필요가 생기면 그때 다시 올린다. 데스크톱 첫 실행 화면이 받는 외부 바이너리 점검은 `host.status`의 `includeBinaries`와 `binaries`다(§3.3.1) |
 | `turn.interrupt`를 M1으로 당기기(25번) | 반려 | 없음 | - | M1 `chat`은 한 턴이고 프로세스 종료로 멈춘다. `turn.interrupt`는 M2 표에 있다 |
 | 적합성 실행기 `testing` 서브패스(19번) | 반려 | 없음 | - | review.decisions-2 U-03. 실행기는 각 패키지 `test/`에 둔다 |
 

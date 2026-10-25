@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "../../src/index.ts";
-import { APPROVAL_NOT_APPLIED_REASONS } from "../../src/services/index.ts";
+import { APPROVAL_NOT_APPLIED_REASONS, type BinaryName } from "../../src/services/index.ts";
 import {
   WIRE_CLIENT_NOTIFICATIONS,
   WIRE_METHODS,
@@ -337,7 +337,11 @@ describe("M2 method schemas are written out", () => {
     // threadId는 프로젝트 명령을 읽을 thread 문맥이다. 선택이고 thread id 모양이어야 한다
     const withThread = parse(list.params, { prefix: "pl", threadId: THREAD });
     expect(withThread.ok).toBe(true);
-    expect(withThread.ok && withThread.value.threadId).toBe(THREAD);
+    const threadValue: unknown = withThread.ok ? withThread.value : undefined;
+    expect(threadValue).toEqual({
+      prefix: "pl",
+      threadId: THREAD,
+    });
     expect(parse(list.params, { threadId: "not-a-thread" }).ok).toBe(false);
     expect(parse(list.params, { threadId: 7 }).ok).toBe(false);
     const info = {
@@ -539,5 +543,113 @@ describe("M2 method schemas are written out", () => {
         idleShutdownAt: null,
       }).ok,
     ).toBe(true);
+  });
+
+  test("host.status asks for the external binary check only when includeBinaries is true", () => {
+    const { params } = WIRE_METHODS["host.status"];
+    expect(parse(params, {}).ok).toBe(true);
+    const asked = parse(params, { includeBinaries: true });
+    expect(asked.ok && asked.value.includeBinaries).toBe(true);
+    expect(parse(params, { includeBinaries: "yes" }).ok).toBe(false);
+    expect(parse(params, { binaries: true }).ok).toBe(false);
+  });
+
+  test("host.status carries the binary check as ready, blocking, degraded and one row per binary", () => {
+    const { result } = WIRE_METHODS["host.status"];
+    const status = {
+      mode: "stdio",
+      pid: 10,
+      startedAt: "2026-10-21T00:00:00.000Z",
+      connections: 1,
+      liveTurns: 0,
+      idleShutdownAt: null,
+    };
+    const binaries = {
+      platform: "linux",
+      ready: false,
+      blocking: ["sops"],
+      degraded: ["git", "secret-tool"],
+      items: [
+        {
+          name: "rg",
+          need: "required",
+          usedBy: "파일 검색",
+          impact: "파일 검색이 동작하지 않는다",
+          status: { kind: "ok", version: "14.1.0", source: "bundled" },
+        },
+        {
+          name: "sops",
+          need: "required",
+          usedBy: "secrets 기본 provider",
+          impact: "비밀을 읽고 쓸 수 없다",
+          status: { kind: "missing", hint: "brew install sops" },
+        },
+        {
+          name: "bwrap",
+          need: "required",
+          usedBy: "sandbox",
+          impact: "샌드박스를 쓸 수 없다",
+          status: { kind: "too_old", found: "0.3.0", required: "0.4.0" },
+        },
+        {
+          name: "git",
+          need: "optional",
+          usedBy: "작업 공간 git 기능",
+          impact: "git 상태 표시만 빠진다",
+          status: { kind: "unusable", reason: "version_unreadable" },
+        },
+      ],
+    };
+    const parsed = parse(result, { ...status, binaries });
+    const carried: unknown = parsed.ok ? parsed.value.binaries : undefined;
+    expect(carried).toEqual(binaries);
+    // 점검을 요청하지 않으면 필드가 없다
+    const plain = parse(result, status);
+    expect(plain.ok).toBe(true);
+    expect(plain.ok ? plain.value.binaries : "parse failed").toBeUndefined();
+    // 어긋난 모양은 거절한다
+    const row = binaries.items[1];
+    const rejects = (changed: Record<string, unknown>): boolean =>
+      parse(result, { ...status, binaries: { ...binaries, ...changed } }).ok;
+    expect(rejects({ ready: "no" })).toBe(false);
+    expect(rejects({ platform: "freebsd" })).toBe(false);
+    expect(rejects({ blocking: ["curl"] })).toBe(false);
+    expect(rejects({ extra: 1 })).toBe(false);
+    expect(rejects({ items: [{ ...row, need: "not_used" }] })).toBe(false);
+    expect(rejects({ items: [{ ...row, status: { kind: "ok", version: "1" } }] })).toBe(false);
+    // 실행 파일 경로는 wire에 싣지 않는다
+    expect(
+      rejects({
+        items: [
+          { ...row, status: { kind: "ok", version: "1", source: "system", path: "/usr/bin/x" } },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  test("every external binary name the services know is accepted in blocking", () => {
+    const all: Record<BinaryName, true> = {
+      rg: true,
+      sops: true,
+      age: true,
+      git: true,
+      bwrap: true,
+      socat: true,
+      security: true,
+      "secret-tool": true,
+    };
+    const { result } = WIRE_METHODS["host.status"];
+    for (const name of Object.keys(all)) {
+      const parsed = parse(result, {
+        mode: "stdio",
+        pid: 1,
+        startedAt: "2026-10-21T00:00:00.000Z",
+        connections: 0,
+        liveTurns: 0,
+        idleShutdownAt: null,
+        binaries: { platform: "darwin", ready: false, blocking: [name], degraded: [], items: [] },
+      });
+      expect(parsed.ok).toBe(true);
+    }
   });
 });
