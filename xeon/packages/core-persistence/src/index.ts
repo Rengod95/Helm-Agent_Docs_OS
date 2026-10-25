@@ -1,9 +1,5 @@
 // @xeon/core-persistence 공개 진입점(L1.persistence.plan §2). 서비스 xeon.session의 구현을 만든다.
-export {
-  createSessionService,
-  type SessionServiceImpl,
-  type SessionStartError,
-} from "./service.ts";
+export { createSessionService, type SessionStartError } from "./service.ts";
 export { type RetentionApi } from "./retention.ts";
 export {
   createSessionPoints,

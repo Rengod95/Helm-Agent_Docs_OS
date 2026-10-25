@@ -4,7 +4,13 @@
 // 삭제는 threads.remove와 같은 행 삭제 경로다(deleteThreadRows).
 import { Bug, err, ok, type Clock, type Logger, type Result } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
-import type { LeaseService, ReadFailure, StoreDb, StoreError } from "@xeon/contracts/records";
+import type {
+  LeaseService,
+  ReadFailure,
+  SessionRetention,
+  StoreDb,
+  StoreError,
+} from "@xeon/contracts/records";
 import type { PersistenceSettings } from "./deps.ts";
 import { sessionResource } from "./ids.ts";
 import { deleteThreadRows } from "./lifecycle-admin.ts";
@@ -14,12 +20,8 @@ import { writeResult } from "./tx-result.ts";
 
 const DAY_MS = 86_400_000;
 
-export interface RetentionApi {
-  /** 지금 설정으로 지워질 thread. 지우지 않는다(설정 화면의 삭제 대상 수 미리보기) */
-  preview(): Result<readonly ThreadId[], ReadFailure>;
-  /** 지울 thread를 지우고 지운 목록을 돌려준다 */
-  prune(): Result<readonly ThreadId[], StoreError>;
-}
+/** F 계약 `SessionService.retention`과 같은 모양이다. 계약 타입이 정의이고 이 패키지는 따로 선언하지 않는다 */
+export type RetentionApi = SessionRetention;
 
 export interface RetentionDeps {
   readonly db: StoreDb;

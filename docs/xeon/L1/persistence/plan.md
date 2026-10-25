@@ -165,7 +165,7 @@ xeon/packages/core-persistence/
 | PS-14 | 완료 | `settings.ts`(retention 키 읽기), `session-settings.ts`. `p_settings`는 두지 않는다(spec §6.2) |
 | PS-16 | 완료 | `ext-port.ts`, `ext-queries.ts`, `ext-state.ts`, `upcast.ts`(열린 확장 kind) |
 | PS-17 | 완료 | `points.ts`(7개), `resume.ts`(session_start·shutdown), `lifecycle*.ts` |
-| PS-18 | 완료 | `retention.ts`(`SessionServiceImpl.retention`) |
+| PS-18 | 완료 | `retention.ts`(`SessionService.retention`, 타입은 F `SessionRetention`) |
 | PS-23 | 완료 | `p_agents`(`projector/core.ts`, `CORE_PROJECTOR_VERSION` 4), `views.ts`(`readAgentByRequest`, `readChildAgents`, `readOpenChildren`), `tx-view.ts`, `query.childAgents`, `resume.ts`(`openChildren`) |
 
 시험 대역은 `platform-store/testing`의 실제 저장소다(`test/support/sqlite-store.ts`가 감싼다, open-issues M-04). `bunfig.toml`의 preload가 시험마다 저장소를 닫는다.

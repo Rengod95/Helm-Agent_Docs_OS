@@ -16,7 +16,7 @@ import { createExtPort } from "./ext-port.ts";
 import { createLifecycle } from "./lifecycle.ts";
 import { createGuardState, createOpenSessions } from "./ownership.ts";
 import { NO_SESSION_POINTS } from "./points.ts";
-import { createRetention, type RetentionApi } from "./retention.ts";
+import { createRetention } from "./retention.ts";
 import { createProducerRegistry } from "./producers.ts";
 import { createCoreProjector } from "./projector/core.ts";
 import { ensureProjectors } from "./projector/rebuild.ts";
@@ -39,14 +39,7 @@ export type SessionStartError =
  * SessionService를 만든다. 시작할 때 비투영 테이블 마이그레이션을 적용하고, 코어 투영기가 없거나 버전이 다르면 다시 만든다.
  * 쓰기 열기에서 아무것도 실행하지 않는다는 규칙은 열기·복구 쪽에서 지킨다(resume.ts)
  */
-/** SessionService에 보관 정리(조립 루트가 엔진 열기 때 한 번 부른다)를 더한 구현 타입 */
-export interface SessionServiceImpl extends SessionService {
-  readonly retention: RetentionApi;
-}
-
-export function createSessionService(
-  deps: SessionDeps,
-): Result<SessionServiceImpl, SessionStartError> {
+export function createSessionService(deps: SessionDeps): Result<SessionService, SessionStartError> {
   const applied = deps.migrations.apply(SESSION_MIGRATION_SET);
   if (!applied.ok) return err({ kind: "migration", error: applied.error });
 
