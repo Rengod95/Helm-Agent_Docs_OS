@@ -93,11 +93,24 @@ export type WireErrorKind =
   | "thread.hasForks"
   | "thread.invalidTarget"
   | "thread.cancelledByExtension"
+  | "thread.closed"
   | "settings.unknownKey"
   | "settings.invalidValue"
   | "settings.scopeNotAllowed"
   | "settings.locked"
   | "settings.secretValue"
+  | "secret.notFound"
+  | "secret.denied"
+  | "secret.providerUnavailable"
+  | "secret.keyUnavailable"
+  | "secret.decryptFailed"
+  | "secret.inUse"
+  | "secret.alreadyExists"
+  | "secret.readOnlyProvider"
+  | "secret.reauthRequired"
+  | "secret.cancelled"
+  | "secret.auditUnwritable"
+  | "secret.writeFailed"
   | "request.cancelled"
   | "host.shuttingDown"
   | "store.busy"
@@ -265,6 +278,16 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
+  /** 이미 닫힌 thread에 쓰기나 수명 주기 호출을 했다. 읽기(`thread.read`)와 `thread.delete`는 닫힌 thread에도 된다 */
+  "thread.closed": {
+    code: 3007,
+    kind: "thread.closed",
+    retryable: false,
+    details: Type.Object(
+      { threadId: Type.String({ maxLength: 64 }) },
+      { additionalProperties: false },
+    ),
+  },
   "settings.unknownKey": {
     code: 3101,
     kind: "settings.unknownKey",
@@ -310,6 +333,107 @@ export const WIRE_ERRORS: {
     kind: "settings.secretValue",
     retryable: false,
     details: KeyDetails,
+  },
+  // 3200~3299: 비밀 관리(`secret.*` 메서드). 어느 details에도 값, 값의 일부, 외부 도구의 출력이 없다
+  "secret.notFound": {
+    code: 3201,
+    kind: "secret.notFound",
+    retryable: false,
+    details: Type.Object(
+      { where: Type.Union([Type.Literal("meta"), Type.Literal("provider")]) },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.denied": {
+    code: 3202,
+    kind: "secret.denied",
+    retryable: false,
+    details: Type.Object(
+      { reason: Type.String({ maxLength: 64 }) },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.providerUnavailable": {
+    code: 3203,
+    kind: "secret.providerUnavailable",
+    retryable: false,
+    details: Type.Object(
+      {
+        provider: Type.String({ maxLength: 32 }),
+        reason: Type.Union([
+          Type.Literal("binary_missing"),
+          Type.Literal("version_too_old"),
+          Type.Literal("not_registered"),
+        ]),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.keyUnavailable": {
+    code: 3204,
+    kind: "secret.keyUnavailable",
+    retryable: false,
+    details: Type.Object(
+      {
+        key: Type.String({ maxLength: 32 }),
+        reason: Type.Union([
+          Type.Literal("locked"),
+          Type.Literal("item_missing"),
+          Type.Literal("no_secret_service"),
+          Type.Literal("access_denied"),
+          Type.Literal("file_mode"),
+        ]),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.decryptFailed": {
+    code: 3205,
+    kind: "secret.decryptFailed",
+    retryable: false,
+    details: Type.Object(
+      {
+        provider: Type.String({ maxLength: 32 }),
+        exitCode: Type.Union([Type.Integer(), Type.Null()]),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.inUse": {
+    code: 3206,
+    kind: "secret.inUse",
+    retryable: false,
+    details: Type.Object(
+      { activeLeases: Type.Integer({ minimum: 0 }) },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.alreadyExists": { code: 3207, kind: "secret.alreadyExists", retryable: false },
+  "secret.readOnlyProvider": {
+    code: 3208,
+    kind: "secret.readOnlyProvider",
+    retryable: false,
+    details: Type.Object(
+      { provider: Type.String({ maxLength: 32 }) },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.reauthRequired": { code: 3209, kind: "secret.reauthRequired", retryable: false },
+  "secret.cancelled": { code: 3210, kind: "secret.cancelled", retryable: false },
+  "secret.auditUnwritable": {
+    code: 3211,
+    kind: "secret.auditUnwritable",
+    retryable: false,
+    details: Type.Object({ code: Type.String({ maxLength: 64 }) }, { additionalProperties: false }),
+  },
+  "secret.writeFailed": {
+    code: 3212,
+    kind: "secret.writeFailed",
+    retryable: false,
+    details: Type.Object(
+      { target: Type.Literal("key_file"), code: Type.String({ maxLength: 64 }) },
+      { additionalProperties: false },
+    ),
   },
   "request.cancelled": { code: 5001, kind: "request.cancelled", retryable: false },
   "host.shuttingDown": {

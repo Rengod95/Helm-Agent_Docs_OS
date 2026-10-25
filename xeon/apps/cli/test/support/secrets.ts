@@ -56,9 +56,15 @@ export function fakeSecrets(
         const existed = entries.delete(String(params["name"]));
         return { removed: existed };
       },
-      "secret.test": (params) => ({
-        state: entries.has(String(params["name"])) ? "registered" : "missing",
-      }),
+      "secret.test": (params) => {
+        const registered = entries.has(String(params["name"]));
+        return {
+          state: registered ? "registered" : "missing",
+          decryptable: registered,
+          length: null,
+          sha256Prefix: null,
+        };
+      },
       "secret.beginEntry": async (params) => {
         beginEntryCalls.push({ ...params });
         const name = String(params["name"]);

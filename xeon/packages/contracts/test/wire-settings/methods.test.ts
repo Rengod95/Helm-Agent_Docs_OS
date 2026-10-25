@@ -16,14 +16,14 @@ const THREAD = rawId("thr", 1);
 const names = Object.keys(WIRE_METHODS);
 
 describe("WIRE_METHODS", () => {
-  test("has the 32 methods of the spec table with their stages", () => {
-    expect(names).toHaveLength(32);
+  test("has the 33 methods of the spec table with their stages", () => {
+    expect(names).toHaveLength(33);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
       ["events.subscribe", "host.hello", "settings.get", "thread.create", "turn.start"].toSorted(),
     );
-    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(27);
+    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(28);
   });
 
   test("every row carries both schemas, since and status", () => {
@@ -305,11 +305,45 @@ describe("M2 method schemas are written out", () => {
     expect(parse(run.result, { status: "failed" }).ok).toBe(false);
   });
 
+  test("secret.test reports decryptability, length and a hash prefix, and no value", () => {
+    const { result } = WIRE_METHODS["secret.test"];
+    const present = {
+      state: "registered",
+      decryptable: true,
+      length: 24,
+      sha256Prefix: "1a2b3c4d",
+    };
+    expect(parse(result, present).ok).toBe(true);
+    expect(
+      parse(result, { state: "missing", decryptable: false, length: null, sha256Prefix: null }).ok,
+    ).toBe(true);
+    // 앞 8자가 아닌 해시, 대문자, 값 필드, 옛 모양(state만)은 거부한다
+    expect(parse(result, { ...present, sha256Prefix: "1a2b3c4d5e6f" }).ok).toBe(false);
+    expect(parse(result, { ...present, sha256Prefix: "1A2B3C4D" }).ok).toBe(false);
+    expect(parse(result, { ...present, value: "plain" }).ok).toBe(false);
+    expect(parse(result, { ...present, length: -1 }).ok).toBe(false);
+    expect(parse(result, { state: "registered" }).ok).toBe(false);
+  });
+
+  test("secret.references names the settings, leases and sessions that point at a secret", () => {
+    const { params, result } = WIRE_METHODS["secret.references"];
+    expect(parse(params, { name: "github-token" }).ok).toBe(true);
+    expect(parse(params, { name: "GitHub" }).ok).toBe(false);
+    const report = { settingKeys: ["l2.web.exa.apiKey"], activeLeases: 1, sessions: [THREAD] };
+    expect(parse(result, report).ok).toBe(true);
+    expect(parse(result, { settingKeys: [], activeLeases: 0, sessions: [] }).ok).toBe(true);
+    expect(parse(result, { ...report, sessions: ["recent"] }).ok).toBe(false);
+    expect(parse(result, { ...report, settingKeys: ["no key"] }).ok).toBe(false);
+    expect(parse(result, { ...report, activeLeases: -1 }).ok).toBe(false);
+    expect(parse(result, { ...report, value: "x" }).ok).toBe(false);
+  });
+
   test("secret methods carry no value field", () => {
     for (const name of [
       "secret.meta",
       "secret.remove",
       "secret.test",
+      "secret.references",
       "secret.beginEntry",
       "secret.beginReveal",
     ] as const) {

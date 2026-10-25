@@ -8,6 +8,7 @@ import {
 } from "@xeon/contracts/wire";
 import { handleOf, listEntryOf, wireErrorOfSecret } from "../secrets/wire.ts";
 import type { Engine } from "../types.ts";
+import { notImplemented } from "./not-implemented.ts";
 
 // F.wire-settings.spec §3.3.1 secret.*, L4.host-service.spec §3.4 M2 표. 요청·응답·이벤트·오류 어디에도 값이 없다.
 // 값 입력과 열람은 CLI가 wire 밖으로 맡긴 수단(SecretOutOfBandPort)을 꺼내 SecretAdminService에 넘긴다.
@@ -18,6 +19,7 @@ type SecretMethod =
   | "secret.meta"
   | "secret.remove"
   | "secret.test"
+  | "secret.references"
   | "secret.beginEntry"
   | "secret.beginReveal";
 
@@ -87,8 +89,13 @@ function createTestHandler(engine: Engine): WireHandler<"secret.test"> {
   const { admin } = engine.ports.secrets;
   return async (params) => {
     const tested = await admin.test(handleOf(params.name));
-    if (tested.ok) return { state: tested.value.exists ? "registered" : "missing" };
-    if (tested.error.kind === "secret_missing") return { state: "missing" };
+    if (tested.ok) {
+      const { exists, decryptable, length, sha256Prefix } = tested.value;
+      return { state: exists ? "registered" : "missing", decryptable, length, sha256Prefix };
+    }
+    if (tested.error.kind === "secret_missing") {
+      return { state: "missing", decryptable: false, length: null, sha256Prefix: null };
+    }
     throw wireErrorOfSecret(tested.error, "secret.test");
   };
 }
@@ -152,6 +159,8 @@ export function createSecretHandlers(engine: Engine): Pick<WireHandlers, SecretM
     "secret.meta": createMetaHandler(engine),
     "secret.remove": createRemoveHandler(engine),
     "secret.test": createTestHandler(engine),
+    // G1-07: wire 계약만 있고 처리기는 HOST 트랙이 SecretAdminService.references에 잇는다
+    "secret.references": notImplemented("secret.references"),
     "secret.beginEntry": createBeginEntryHandler(engine),
     "secret.beginReveal": createBeginRevealHandler(engine),
   };

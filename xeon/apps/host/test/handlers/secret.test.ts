@@ -186,14 +186,23 @@ test("secret.remove removes, reports a name that is already gone, and refuses wh
   await connection.close();
 });
 
-test("secret.test says registered when the provider has the value and missing otherwise", async () => {
+test("secret.test carries the state, decryptability, length and hash prefix without the value", async () => {
   const host = seeded();
   const connection = await open(host);
-  expect(await connection.request("secret.test", { name: EXA })).toEqual({ state: "registered" });
-  expect(await connection.request("secret.test", { name: GITHUB })).toEqual({ state: "missing" });
-  expect(await connection.request("secret.test", { name: nameOf("never-added") })).toEqual({
-    state: "missing",
+  expect(await connection.request("secret.test", { name: EXA })).toEqual({
+    state: "registered",
+    decryptable: true,
+    length: VALUE.length,
+    sha256Prefix: null,
   });
+  const absent = {
+    state: "missing",
+    decryptable: false,
+    length: null,
+    sha256Prefix: null,
+  } as const;
+  expect(await connection.request("secret.test", { name: GITHUB })).toEqual(absent);
+  expect(await connection.request("secret.test", { name: nameOf("never-added") })).toEqual(absent);
   await connection.close();
 });
 

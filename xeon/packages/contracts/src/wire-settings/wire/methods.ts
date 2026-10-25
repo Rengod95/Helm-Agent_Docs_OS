@@ -792,7 +792,7 @@ export const SecretMetaResultSchema: TObject<{ secret: typeof SecretListEntrySch
   Type.Object({ secret: SecretListEntrySchema }, { additionalProperties: false });
 export type SecretMetaResult = Static<typeof SecretMetaResultSchema>;
 
-/** secret.remove, secret.test */
+/** secret.remove, secret.test, secret.references, secret.beginReveal */
 export const SecretNameParamsSchema: TObject<{ name: typeof SecretNameSchema }> = Type.Object(
   { name: SecretNameSchema },
   { additionalProperties: false },
@@ -805,13 +805,44 @@ export const SecretRemoveResultSchema: TObject<{ removed: TBoolean }> = Type.Obj
 );
 export type SecretRemoveResult = Static<typeof SecretRemoveResultSchema>;
 
+/**
+ * secret.test result. `state`는 제공자에 값이 있는지(`registered`)이고, 나머지는 `L0.secrets.spec`의 `SecretTestResult`다.
+ * `decryptable`은 값을 풀 수 있는가, `length`는 값의 바이트 수, `sha256Prefix`는 값의 SHA-256 hex 앞 8자다. 값이 없거나 풀 수 없으면
+ * `decryptable`은 거짓이고 나머지 둘은 null이다. 값 자체는 어디에도 없다. 앞 8자는 사람이 같은 값인지 견주는 데만 쓰고 기록하지 않는다.
+ */
 export const SecretTestResultSchema: TObject<{
   state: TUnion<[TLiteral<"registered">, TLiteral<"missing">]>;
+  decryptable: TBoolean;
+  length: TUnion<[TInteger, TNull]>;
+  sha256Prefix: TUnion<[TString, TNull]>;
 }> = Type.Object(
-  { state: Type.Union([Type.Literal("registered"), Type.Literal("missing")]) },
+  {
+    state: Type.Union([Type.Literal("registered"), Type.Literal("missing")]),
+    decryptable: Type.Boolean(),
+    length: Nullable(Type.Integer({ minimum: 0 })),
+    sha256Prefix: Nullable(Type.String({ pattern: "^[0-9a-f]{8}$" })),
+  },
   { additionalProperties: false },
 );
 export type SecretTestResult = Static<typeof SecretTestResultSchema>;
+
+/**
+ * secret.references result(`L0.secrets.spec`의 `SecretReferenceReport`). 삭제 전에 이 비밀을 가리키는 곳을 보이는 데 쓴다.
+ * `settingKeys`는 이 핸들을 값으로 가진 설정 키, `activeLeases`는 지금 열려 있는 임대 수, `sessions`는 최근에 이 비밀을 쓴 thread다.
+ */
+export const SecretReferencesResultSchema: TObject<{
+  settingKeys: TArray<typeof SettingKeySchema>;
+  activeLeases: TInteger;
+  sessions: TArray<typeof ThreadIdSchema>;
+}> = Type.Object(
+  {
+    settingKeys: Type.Array(SettingKeySchema, { maxItems: 256 }),
+    activeLeases: Type.Integer({ minimum: 0 }),
+    sessions: Type.Array(ThreadIdSchema, { maxItems: 100 }),
+  },
+  { additionalProperties: false },
+);
+export type SecretReferencesResult = Static<typeof SecretReferencesResultSchema>;
 
 export const SecretBeginEntryParamsSchema: TObject<{
   name: typeof SecretNameSchema;
@@ -1083,6 +1114,10 @@ interface WireSchemas {
     params: typeof SecretNameRequestSchema;
     result: typeof SecretTestResultSchema;
   };
+  "secret.references": {
+    params: typeof SecretNameRequestSchema;
+    result: typeof SecretReferencesResultSchema;
+  };
   "secret.beginEntry": {
     params: WithMeta<typeof SecretBeginEntryParamsSchema>;
     result: typeof SecretBeginEntryResultSchema;
@@ -1199,6 +1234,7 @@ export const WIRE_METHODS: {
   "secret.meta": spec(withMeta(SecretMetaParamsSchema), SecretMetaResultSchema, "M2"),
   "secret.remove": spec(SecretNameRequestSchema, SecretRemoveResultSchema, "M2"),
   "secret.test": spec(SecretNameRequestSchema, SecretTestResultSchema, "M2"),
+  "secret.references": spec(SecretNameRequestSchema, SecretReferencesResultSchema, "M2"),
   "secret.beginEntry": spec(
     withMeta(SecretBeginEntryParamsSchema),
     SecretBeginEntryResultSchema,

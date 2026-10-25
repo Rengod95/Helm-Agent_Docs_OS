@@ -50,11 +50,24 @@ describe("WIRE_ERRORS", () => {
       "thread.hasForks": 3004,
       "thread.invalidTarget": 3005,
       "thread.cancelledByExtension": 3006,
+      "thread.closed": 3007,
       "settings.unknownKey": 3101,
       "settings.invalidValue": 3102,
       "settings.scopeNotAllowed": 3103,
       "settings.locked": 3104,
       "settings.secretValue": 3105,
+      "secret.notFound": 3201,
+      "secret.denied": 3202,
+      "secret.providerUnavailable": 3203,
+      "secret.keyUnavailable": 3204,
+      "secret.decryptFailed": 3205,
+      "secret.inUse": 3206,
+      "secret.alreadyExists": 3207,
+      "secret.readOnlyProvider": 3208,
+      "secret.reauthRequired": 3209,
+      "secret.cancelled": 3210,
+      "secret.auditUnwritable": 3211,
+      "secret.writeFailed": 3212,
       "request.cancelled": 5001,
       "host.shuttingDown": 5002,
       "store.busy": 5003,
@@ -81,6 +94,38 @@ describe("WIRE_ERRORS", () => {
       const inWire = spec.code >= 1000 && spec.code < 6000;
       expect({ kind: spec.kind, ok: inJsonRpc || inWire }).toEqual({ kind: spec.kind, ok: true });
     }
+  });
+
+  test("secret.* errors live in 3200~3299 and carry only safe fields", () => {
+    const secretSpecs = specs.filter((s) => s.kind.startsWith("secret."));
+    expect(secretSpecs).toHaveLength(12);
+    for (const spec of secretSpecs) {
+      expect({ kind: spec.kind, code: spec.code >= 3200 && spec.code <= 3299 }).toEqual({
+        kind: spec.kind,
+        code: true,
+      });
+    }
+    const decrypt = WIRE_ERRORS["secret.decryptFailed"].details;
+    if (decrypt === undefined) throw new Error("details expected");
+    expect(parse(decrypt, { provider: "sops", exitCode: 1 }).ok).toBe(true);
+    expect(parse(decrypt, { provider: "sops", exitCode: null }).ok).toBe(true);
+    // 외부 도구의 출력(stderr)은 싣지 않는다
+    expect(parse(decrypt, { provider: "sops", exitCode: 1, stderrMasked: "boom" }).ok).toBe(false);
+    const inUse = WIRE_ERRORS["secret.inUse"].details;
+    if (inUse === undefined) throw new Error("details expected");
+    expect(parse(inUse, { activeLeases: 2 }).ok).toBe(true);
+    expect(parse(inUse, { activeLeases: -1 }).ok).toBe(false);
+    expect(wireError("secret.inUse", { details: { activeLeases: 2 } }).code).toBe(3206);
+    expect(WIRE_ERRORS["secret.alreadyExists"].details).toBeUndefined();
+  });
+
+  test("thread.closed names the closed thread", () => {
+    expect(wireError("thread.closed").code).toBe(3007);
+    expect(wireErrorCodeMatchesKind(3007, "thread.closed")).toBe(true);
+    const details = WIRE_ERRORS["thread.closed"].details;
+    if (details === undefined) throw new Error("details expected");
+    expect(parse(details, { threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" }).ok).toBe(true);
+    expect(parse(details, {}).ok).toBe(false);
   });
 
   test("the secret-value error carries only the key", () => {
