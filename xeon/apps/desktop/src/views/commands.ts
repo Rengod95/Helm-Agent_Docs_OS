@@ -1,8 +1,10 @@
 import type { EventId, ThreadId } from "@xeon/contracts/conversation";
 import { createContext, useContext } from "react";
 import { Bug, type Result } from "@xeon/contracts";
+import type { SecretName } from "@xeon/contracts/capabilities";
 import type { TrustChoice, TrustStatus } from "@xeon/contracts/wire";
-import type { LockedOption } from "../state/ui/index.ts";
+import type { SetupSnapshot } from "../app/setup.ts";
+import type { LockedOption, Screen } from "../state/ui/index.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
 // 보낸 직후의 표시(보내는 중, 실패)는 UI 스토어가, 결과는 엔진 이벤트가 거울에 넣는다.
@@ -37,6 +39,27 @@ export interface TrustCommands {
   decide(workspace: string, choice: TrustChoice): Promise<Result<TrustStatus, CommandError>>;
 }
 
+/**
+ * 최소 설정 화면(G2-08). 모두 요청 결과로 얻는 값이라 거울에 넣지 않는다. 키 값은 어느 메서드도 받지 않는다:
+ * 등록은 값 없는 `secret.beginEntry`가 시작하고 값은 호스트가 wire 밖에서 받는다.
+ */
+export interface SetupCommands {
+  load(): Promise<Result<SetupSnapshot, CommandError>>;
+  /** `secret.beginEntry`. 값을 받는 수단이 이 연결에 없으면 `false`다(사이드카는 아직 없다) */
+  beginKeyEntry(
+    secretName: SecretName,
+    action: "add" | "set",
+  ): Promise<Result<boolean, CommandError>>;
+  /** provider의 `apiKeyRef`를 `secret://<이름>`으로 정하고 켠다 */
+  connectProviderKey(
+    providerId: string,
+    secretName: SecretName,
+  ): Promise<Result<null, CommandError>>;
+  setDefaultModel(ref: string): Promise<Result<null, CommandError>>;
+  /** `settings.invalidated`를 받으면 부른다. 반환값은 구독 해제 */
+  onInvalidated(listener: () => void): () => void;
+}
+
 export interface Commands {
   selectThread(threadId: ThreadId): void;
   createThread(): Promise<Result<null, CommandError>>;
@@ -49,6 +72,7 @@ export interface Commands {
   interrupt(threadId: ThreadId): Promise<Result<null, CommandError>>;
   respondApproval(approvalId: EventId, response: ApprovalDecision): Promise<void>;
   readonly trust: TrustCommands;
+  readonly setup: SetupCommands;
   /** `thread.locked` 대화 상자의 "관찰만" 선택. 성공하면 그 thread의 입력창이 잠긴다 */
   observeThread(threadId: ThreadId): Promise<Result<null, CommandError>>;
   /** 같은 대화를 분기해 새 thread로 이어 쓴다. 성공하면 새 thread를 연다 */
@@ -56,6 +80,7 @@ export interface Commands {
   dismissLocked(): void;
   /** 관찰을 끝내고 쓰기를 다시 시도하게 한다 */
   retryWrite(threadId: ThreadId): void;
+  showScreen(screen: Screen): void;
   reloadThreads(): void;
   retryTranscript(): void;
   reconnect(): void;

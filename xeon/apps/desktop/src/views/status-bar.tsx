@@ -60,6 +60,14 @@ export function StatusBar(): ReactNode {
       {approvals > 0 ? <span className="warn">승인 {approvals}</span> : null}
       {connectError === null ? null : <span className="error">연결 실패: {connectError}</span>}
       <span className="grow" />
+      <button
+        type="button"
+        onClick={() => {
+          commands.showScreen("settings");
+        }}
+      >
+        설정
+      </button>
       {engine?.kind === "failed" ? (
         <button
           type="button"

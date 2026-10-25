@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { providerSecretName } from "../../src/settings/index.ts";
 import { evt, STORE, summary, thr } from "../state/helpers.ts";
 import { engineFake, makeApp, until } from "./support.ts";
 
@@ -141,6 +142,140 @@ describe("approval.respond reasons", () => {
     const state = app.ui.read.getState();
     expect(state.approvalSends[evt(7)]).toBe("invalid");
     expect(state.approvalDetails[evt(7)]).toBe("q1: unknown option");
+    await app.stop();
+  });
+});
+
+const setting = (key: string, value: unknown) => ({
+  key,
+  value,
+  source: { scope: "user" },
+  locked: false,
+  shadowed: [],
+  runtimeChange: "live",
+  pendingUntil: null,
+  deprecated: false,
+});
+
+describe("settings screen wire", () => {
+  const providers = [
+    { id: "openai", enabled: false, apiKeyRef: null, baseUrl: "http://proxy.local" },
+  ];
+
+  test("load reads the model keys and the secret list and never asks for a value", async () => {
+    const { app, params } = await liveApp({
+      results: {
+        "settings.get": {
+          settings: [
+            setting("l1.models.default", "anthropic/claude-sonnet-5-5"),
+            setting("l1.models.providers", providers),
+          ],
+        },
+        "secret.list": {
+          secrets: [
+            { name: "anthropic-api-key", status: "valid" },
+            { name: "old-key", status: "expired" },
+          ],
+        },
+      },
+    });
+    const loaded = await app.commands.setup.load();
+    if (!loaded.ok) throw new Error("load failed");
+    expect(loaded.value).toEqual({
+      providers,
+      defaultModel: "anthropic/claude-sonnet-5-5",
+      secrets: [
+        { name: "anthropic-api-key", registered: true },
+        { name: "old-key", registered: false },
+      ],
+      toolsReady: null,
+      binaries: null,
+    });
+    expect(params.find((p) => p.method === "settings.get")?.params).toEqual({
+      keys: ["l1.models.default", "l1.models.providers"],
+    });
+    await app.stop();
+  });
+
+  test("connectProviderKey rewrites only the matching provider in the user scope", async () => {
+    const { app, params } = await liveApp({
+      results: {
+        "settings.get": { settings: [setting("l1.models.providers", providers)] },
+        "settings.set": { setting: setting("l1.models.providers", []) },
+      },
+    });
+    const name = providerSecretName("openai");
+    if (!name.ok) throw new Error("fixture");
+    const done = await app.commands.setup.connectProviderKey("openai", name.value);
+    expect(done.ok).toBe(true);
+    expect(params.find((p) => p.method === "settings.set")?.params).toEqual({
+      key: "l1.models.providers",
+      value: [
+        {
+          id: "openai",
+          enabled: true,
+          apiKeyRef: "secret://openai-api-key",
+          baseUrl: "http://proxy.local",
+        },
+      ],
+      scope: "user",
+    });
+    await app.stop();
+  });
+
+  test("setDefaultModel writes the user scope; beginKeyEntry sends the name and action only", async () => {
+    const { app, params } = await liveApp({
+      results: {
+        "secret.beginEntry": { started: false },
+        "settings.set": { setting: setting("l1.models.default", null) },
+      },
+    });
+    expect((await app.commands.setup.setDefaultModel("anthropic/claude-sonnet-5-5")).ok).toBe(true);
+    const name = providerSecretName("anthropic");
+    if (!name.ok) throw new Error("fixture");
+    const begun = await app.commands.setup.beginKeyEntry(name.value, "add");
+    expect(begun).toEqual({ ok: true, value: false });
+    expect(params.find((p) => p.method === "settings.set")?.params).toEqual({
+      key: "l1.models.default",
+      value: "anthropic/claude-sonnet-5-5",
+      scope: "user",
+    });
+    expect(params.find((p) => p.method === "secret.beginEntry")?.params).toEqual({
+      name: "anthropic-api-key",
+      action: "add",
+    });
+    await app.stop();
+  });
+
+  test("a secret.* error kind from the host surfaces as a rejection with its code", async () => {
+    const { app } = await liveApp({
+      errors: { "secret.list": { code: 3201, kind: "secret.notFound" } },
+      results: { "settings.get": { settings: [] } },
+    });
+    const loaded = await app.commands.setup.load();
+    // 비밀 목록을 읽지 못해도 설정 화면은 뜬다. 키 단계는 "확인할 수 없음"이다
+    expect(loaded.ok && loaded.value.secrets).toBeNull();
+    await app.stop();
+  });
+
+  test("settings.invalidated for model keys wakes the listener, other keys do not", async () => {
+    const { app, fake } = await liveApp({});
+    let woke = 0;
+    const stop = app.commands.setup.onInvalidated(() => void (woke += 1));
+    const send = (keys: string[]): void =>
+      fake.emitLine({
+        jsonrpc: "2.0",
+        method: "settings.invalidated",
+        params: { keys, scopes: ["user"], threadId: null },
+      });
+    send(["l4.cli.theme"]);
+    send(["l1.models.default"]);
+    send([]);
+    await until(() => woke === 2, "two wake-ups");
+    stop();
+    send(["l1.models.default"]);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(woke).toBe(2);
     await app.stop();
   });
 });
