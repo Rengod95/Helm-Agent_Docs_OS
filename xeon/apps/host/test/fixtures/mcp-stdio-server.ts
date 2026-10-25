@@ -51,6 +51,7 @@ function handle(message: unknown): void {
     case "ping":
       reply(id, {});
       return;
+    // xeon-disable-next-line xeon/switch-default-never -- 메서드 이름은 문자열이다. 모르는 메서드는 JSON-RPC 오류로 돌려준다 (eng.typescript.guide TY-14)
     default:
       fail(id, -32601, `method not found: ${method}`);
   }
