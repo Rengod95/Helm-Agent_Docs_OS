@@ -73,7 +73,7 @@ binds: []
 
 | 번호 | 제목 | 파일 | 상태 | 핵심 결정 | 근거 결정 | 영향 층 |
 |---|---|---|---|---|---|---|
-| 0001 | 스택 | [ADR-0001-stack.md](ADR-0001-stack.md) | accepted | Bun 1.4.x(`bun@1.4.3`) + workspaces catalog, TypeScript 7.0.x(tsgo) strict + `isolatedDeclarations`, oxlint 1.89 + tsgolint, oxfmt 0.74 정확 고정, `bun test`, Turborepo 2.11, dependency-cruiser 18, knip 6, TypeBox 1.4, `bun:sqlite` | decisions-log 2026-10-21 3차, foundation-plan §2 | 전 층(F~L4), 툴체인 |
+| 0001 | 스택 | [ADR-0001-stack.md](ADR-0001-stack.md) | accepted | Bun 1.4.x(`bun@1.4.3`) + workspaces catalog, TypeScript 7.0.x(tsgo) strict + `isolatedDeclarations`, oxlint 1.89 + tsgolint, oxfmt 0.74 정확 고정, `bun test`, Turborepo 2.11, dependency-cruiser 18, knip 6, TypeBox 1.3.27(U-24), `bun:sqlite` | decisions-log 2026-10-21 3차, foundation-plan §2 | 전 층(F~L4), 툴체인 |
 | 0002 | 단일 DI Cordis | [ADR-0002-di-cordis.md](ADR-0002-di-cordis.md) | accepted | DI·플러그인 수명은 Cordis 하나. `xeon/vendor/cordis`에 4.0.0-rc.x 커밋(df4431e) 고정, ext-host 뒤에 숨긴다 | decisions-log 2026-10-19·3차, foundation-plan §1 표 1번·§2 DI 행 | X, 그리고 서비스를 쓰는 L0~L3 |
 | 0003 | pi durable 부분 포크 | [ADR-0003-pi-durable-fork.md](ADR-0003-pi-durable-fork.md) | accepted(§3.2 마지막 항목은 0009가 대체) | env·tools·images·truncate만 Chord 제거 포크(`CancelScope`로 치환), 커널 L1-a·b·f·g는 직접 구현하고 durable spec을 인용 | decisions-log 3차, foundation-plan §1 표 1번 | L0(exec), L1(tasks, loop, persistence, agents), L2(workspace) |
 | 0004 | 세션 저장 C안 | [ADR-0004-session-storage.md](ADR-0004-session-storage.md) | accepted | SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블(`x_<id>_`), 단계 경계 FULL, 도구별 효과 커밋(E1~E3), 세션 id OS 잠금 + `sys_leases.epoch` 펜싱 | decisions-log 2026-10-21 2차 | F(records), L0(store), L1(persistence) |

@@ -16,6 +16,7 @@ binds: [xeon/vendor/cordis/**, xeon/packages/ext-host/**]
 - 날짜: 2026-10-21
 - [결정] "DI는 Cordis 하나"(`_research/decisions-log.md` 2026-10-21 결정(3차), `_research/foundation-plan.md §1` 표 1번). 고정 방식은 `_research/foundation-plan.md §2` DI·플러그인 행("Cordis 4.0.0-rc.x를 `xeon/vendor/cordis`에 커밋 고정")이다.
 - 개정: 2026-10-21 `review.decisions-2` U-01(§3 6번 적용 시점을 단계 경계로 읽음), U-17(§3 4번 하위 층의 `@xeon/ext-host` import 범위). 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 두 항목은 사용자 확인을 거친 [결정]이다(2026-10-22).
+- 개정: 2026-10-25 마일스톤 재점검 G5-03(§4 감수할 점 [가정]의 TypeBox 판 표기를 1.4에서 1.3.27로 정정). 값 정정이라 같은 ADR 안에서 고쳤다.
 
 ## 2. 맥락
 
@@ -83,7 +84,7 @@ df4431e 소스 읽기로 확인한 대응이다(`_research/notes/arch-1.md §2`,
 - 선언 타입과 실제 동작이 다른 곳이 있다. `provide`의 disposer는 `() => void`로 선언되지만 Promise를 돌려주고, `on`의 disposer는 `() => boolean`으로 선언되지만 undefined를 돌려준다(`_research/notes/arch-1.md §6`). 래퍼에서 타입을 바로잡는다.
 - 일반 `emit`은 전역으로 전달된다. 그룹마다 같은 이벤트 이름을 쓰면 모든 그룹이 받는다(`_research/notes/arch-1.md §3`). 이벤트 이름 규칙이나 필터가 필요하다.
 - [가정] `provide`·`inject`·이벤트 디스패치·dispose의 JS 시그니처와 정리 순서는 df4431e 소스 읽기로 확인했고 실행으로 확인하지 않았다(`_research/notes/arch-1.md §7`). ext-host 단위 테스트에서 확인한다.
-- [가정] `Config` 검증은 Standard Schema를 요구한다(`fiber.ts:34-46`). TypeBox 1.4가 `~standard` 속성을 구현하는지는 확인하지 않았다(`_research/notes/arch-1.md §7`).
+- [가정] `Config` 검증은 Standard Schema를 요구한다(`fiber.ts:34-46`). TypeBox 1.3.27(ADR-0001 §3, `review.decisions-2` U-24)이 `~standard` 속성을 구현하는지는 확인하지 않았다(`_research/notes/arch-1.md §7`).
 - Effect·Chord 기반 코드를 그대로 재사용할 수 없다. opencode v2 투영은 표 모양과 리듀서 논리만 읽기 자료로 쓰고(`_research/packages.md §2.4`), pi durable의 Harness·Session·scheduler는 포크하지 않는다(ADR-0003).
 - `@cordisjs/plugin-loader`는 vendored에 없다(`UPSTREAM.json` `notCopied`). 설정 파일 기반 플러그인 로딩은 ext-host가 직접 구현하거나 따로 들여야 한다(`X.loading-trust.spec`).
 
