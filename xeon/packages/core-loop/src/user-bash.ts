@@ -262,7 +262,7 @@ export function createUserBash(ctx: LoopContext): UserBashRunner {
         {
           command: request.command,
           excludeFromContext: request.excludeFromContext,
-          cwd: ctx.workingDirectory ?? "",
+          cwd: ctx.workingDirectory?.(request.threadId) ?? "",
         },
         {
           threadId: request.threadId,

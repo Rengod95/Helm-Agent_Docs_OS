@@ -55,6 +55,8 @@ export interface HarnessOptions {
   readonly modelCallsCapacity?: number;
   readonly maxResumeAttempts?: number;
   readonly cancelledByOwner?: () => boolean;
+  /** `user_bash` 페이로드의 `cwd`를 대화별로 돌려준다. 생략하면 빈 문자열 */
+  readonly workingDirectory?: (threadId: ThreadId) => string | undefined;
   /** 승인 서비스 대역(`restore`만)을 루프에 건다. 재개 때 `await_input`이면 restore를 부르는지 본다 */
   readonly withApprovals?: boolean;
   /** 루프 서비스를 만들지 않는다. 단계 함수를 직접 부르는 시험(loop-rig)이 `core.loop` 생산자를 쓰려고 한다 */
@@ -185,6 +187,9 @@ async function build(
           hostMode: "in-process",
           kindLookup: options.kindLookup ?? testKindLookup,
           cancelledByOwner: options.cancelledByOwner ?? (() => false),
+          ...(options.workingDirectory === undefined
+            ? {}
+            : { workingDirectory: options.workingDirectory }),
         });
   await host.host.registerPlatform({
     name: "loop-test-ports",

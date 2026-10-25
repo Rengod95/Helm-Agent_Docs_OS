@@ -1,9 +1,10 @@
 import { expect, test } from "bun:test";
-import type { ToolResultRecord } from "@xeon/contracts/conversation";
+import type { ThreadId, ToolResultRecord } from "@xeon/contracts/conversation";
 import {
   defineManifest,
   type ExtensionEntry,
   type UserBashDecision,
+  type UserBashPayload,
 } from "@xeon/contracts/extensions";
 import type { ExtensionUnit } from "@xeon/ext-host";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
@@ -22,6 +23,33 @@ function guard(decision: UserBashDecision): ExtensionUnit {
     manifest: defineManifest({
       schemaVersion: 1,
       name: "user-bash-guard",
+      version: "0.1.0",
+      layer: "plugin",
+      kind: "plugin",
+      entry: "./index.ts",
+      points: ["user_bash"],
+      usesDrive: false,
+    }),
+    entry,
+    loadIndex: 2,
+    builtin: false,
+  };
+}
+
+// 결정 없이 payload만 보는 관찰자: 다음 핸들러(없으면 셸 실행)로 넘어간다
+function observer(seen: UserBashPayload[]): ExtensionUnit {
+  const entry: ExtensionEntry = ({ manifest, scope }) => {
+    scope(manifest.name, {}, (g) => {
+      g.on("user_bash", (payload) => {
+        seen.push(payload);
+        return undefined;
+      });
+    });
+  };
+  return {
+    manifest: defineManifest({
+      schemaVersion: 1,
+      name: "user-bash-observer",
       version: "0.1.0",
       layer: "plugin",
       kind: "plugin",
@@ -298,4 +326,38 @@ test("a user command runs while a turn is in progress and does not disturb it", 
   expect(countKind(events, "turn.completed")).toBe(1);
   expect(kindsOf(events)).toContain("item.recorded");
   expect(customItems(h)).toHaveLength(1);
+});
+
+test("user_bash_cwd_follows_the_thread: each thread's working directory reaches the handler payload", async () => {
+  const directories = new Map<ThreadId, string>();
+  const h = await createHarness({ workingDirectory: (threadId) => directories.get(threadId) });
+  const other = h.fake.startThread();
+  await h.host.host.openThread(other);
+  directories.set(h.threadId, "/work/alpha");
+  directories.set(other, "/work/beta");
+  const seen: UserBashPayload[] = [];
+  await h.host.host.install(observer(seen));
+  await h.host.settled();
+
+  const pwd = (threadId: ThreadId) =>
+    h.loop.runUserBash({ threadId, command: "pwd", excludeFromContext: true });
+  const first = await pwd(h.threadId);
+  const second = await pwd(other);
+  expect([first, second].map((outcome) => outcome.ok && outcome.value.status)).toEqual([
+    "completed",
+    "completed",
+  ]);
+  expect(seen).toEqual([
+    { command: "pwd", excludeFromContext: true, cwd: "/work/alpha" },
+    { command: "pwd", excludeFromContext: true, cwd: "/work/beta" },
+  ]);
+});
+
+test("user_bash_cwd_is_empty_without_a_working_directory", async () => {
+  const h = await createHarness({ workingDirectory: () => undefined });
+  const seen: UserBashPayload[] = [];
+  await h.host.host.install(observer(seen));
+  await h.host.settled();
+  await h.loop.runUserBash({ threadId: h.threadId, command: "pwd", excludeFromContext: true });
+  expect(seen).toEqual([{ command: "pwd", excludeFromContext: true, cwd: "" }]);
 });
