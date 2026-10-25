@@ -3,8 +3,9 @@ import { assertNever, Bug, err, ok, parse, type Result } from "@xeon/contracts";
 import { isCapabilityId } from "@xeon/contracts/capabilities";
 import { ApprovalIdSchema, type ApprovalId, type ThreadId } from "@xeon/contracts/conversation";
 import {
+  APPROVAL_REQUEST_KEY_MAX,
   ApprovalBodyJsonSchema,
-  commitKeyPart,
+  requestKeyFor,
   type ApprovalBodyJson,
   type ReadFailure,
 } from "@xeon/contracts/records";
@@ -28,19 +29,20 @@ import {
 // 포트는 출처를 받아 만든다. 도구 호출 안에서 낸 요청이면 `origin.toolCallId`가 있어 L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다.
 // 조립 루트 코드(DR-14 예외 2).
 
-const REQUEST_KEY_MAX = 48;
-
 function sha256Hex(text: string): string {
   return createHash("sha256").update(text).digest("hex");
 }
 
+/** 승인 요청 키의 모양(1~`APPROVAL_REQUEST_KEY_MAX`자, `^[A-Za-z0-9_.-]+$`). `requestKeyFor`가 내는 키는 모두 이 모양이다 */
+const APPROVAL_REQUEST_KEY = new RegExp(`^[A-Za-z0-9_.-]{1,${String(APPROVAL_REQUEST_KEY_MAX)}}$`);
+
 /**
- * L2 `requestId`를 승인 요청 키(1~48자)로 바꾼다. 밖의 값이라 커밋 키 알파벳 밖의 문자가 있을 수 있어 `commitKeyPart`를 거치고,
- * 48자를 넘으면 원문 해시로 줄인다. 같은 원문은 같은 키이고 다른 원문은 다른 키다
+ * L2 `requestId`를 승인 요청 키로 바꾼다. cap-*는 이미 F `requestKeyFor`로 만든 키를 `requestId`로 넘기므로, 키 모양이면 그대로 쓴다:
+ * 다시 `requestKeyFor`에 넣으면 `h_`로 시작하는 해시 키를 한 번 더 해시해 cap이 아는 키와 달라진다. 키 모양이 아닌 값(허용 밖 문자)만
+ * F `requestKeyFor`로 줄인다. 키 변환 함수는 contracts의 `requestKeyFor` 하나다
  */
-function requestKeyFor(raw: string): string {
-  const part = commitKeyPart(raw, sha256Hex);
-  return part.length <= REQUEST_KEY_MAX ? part : `h_${sha256Hex(raw).slice(0, 40)}`;
+function l2RequestKey(requestId: string): string {
+  return APPROVAL_REQUEST_KEY.test(requestId) ? requestId : requestKeyFor(requestId, sha256Hex);
 }
 
 function isRisk(value: string): value is ToolRisk {
@@ -156,7 +158,7 @@ function createL2ApprovalsPort(
       }
       const opened = await approvals.open({
         origin: options.origin(input),
-        requestKey: requestKeyFor(input.requestId),
+        requestKey: l2RequestKey(input.requestId),
         title: options.title?.(input) ?? DEFAULT_TITLES[input.kind],
         body,
         remember: ["once"],
