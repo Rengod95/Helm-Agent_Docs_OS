@@ -108,6 +108,7 @@ async function runScenario(
       apiKey: key,
       fetch: recorder.fetch,
       maxTokens: turn.maxTokens,
+      reasoning: scenario.reasoning,
     });
     const message = await stream.result();
     messages.push(message);

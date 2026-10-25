@@ -41,8 +41,8 @@ async function callWith(
   context: Context,
 ): Promise<AssistantMessage> {
   const models = builtinModels();
-  const model = models.getModel("anthropic", "claude-haiku-4-5");
-  if (model === undefined) throw new Error("catalog lacks claude-haiku-4-5");
+  const model = models.getModel("anthropic", "claude-haiku-5-5");
+  if (model === undefined) throw new Error("catalog lacks claude-haiku-5-5");
   const stream = models.streamSimple(model, context, {
     apiKey: KEY,
     maxTokens: 32,
@@ -80,7 +80,7 @@ async function recordOne(
   const built = buildRecordedTape({
     scenario: "unit",
     provider: "anthropic",
-    model: "claude-haiku-4-5",
+    model: "claude-haiku-5-5",
     piAi: "1.3.0",
     at: "2026-10-25T00:00:00.000Z",
     turns: [turn],
@@ -163,7 +163,7 @@ describe("recording_fetch", () => {
     expect(wire?.method).toBe("POST");
     expect(wire?.path).toBe("/v1/messages");
     expect(wire?.status).toBe(200);
-    expect(wire?.request).toEqual({ model: "claude-haiku-4-5", messages: 1, tools: [] });
+    expect(wire?.request).toEqual({ model: "claude-haiku-5-5", messages: 1, tools: [] });
     const offsets = wire?.chunks.map((chunk) => chunk.t) ?? [];
     expect(offsets.length).toBe(6);
     expect(offsets.slice(0, 4)).toEqual([5, 9, 20, 30]);
@@ -223,7 +223,7 @@ describe("recording_fetch", () => {
     const built = buildRecordedTape({
       scenario: "split",
       provider: "anthropic",
-      model: "claude-haiku-4-5",
+      model: "claude-haiku-5-5",
       piAi: "1.3.0",
       at: "2026-10-25T00:00:00.000Z",
       turns: [{ role: "main", message, exchanges: recorder.take() }],
@@ -244,7 +244,7 @@ describe("recording_fetch", () => {
     const input = {
       scenario: "bad",
       provider: "anthropic",
-      model: "claude-haiku-4-5",
+      model: "claude-haiku-5-5",
       piAi: "1.3.0",
       at: "2026-10-25T00:00:00.000Z",
       secrets: [KEY],
