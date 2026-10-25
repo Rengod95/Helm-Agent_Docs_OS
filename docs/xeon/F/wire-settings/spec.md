@@ -812,6 +812,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 5004 | `store.diskFull` | false | 저장 매체가 가득 찼다. 공간을 비운 뒤 다시 보낸다 | - |
 | 5005 | `store.readOnly` | false | 저장소가 읽기 전용으로 열려 있어 쓸 수 없다 | `reason` |
 | 5006 | `store.io` | false | 저장 매체 입출력 실패. 코드는 OS나 SQLite가 준 값이다 | `code` |
+| 5007 | `store.corrupt` | false | 저장된 행이 스키마와 다르다(손상, 수동 편집). 매체 오류(`store.io`)와 복구 안내가 달라서 나눈다. 복구 길은 `F.records.spec` §3.7 7항이다 | `where` |
 
 #### 3.5.3 오류 코드 구간 [제안]
 

@@ -736,6 +736,19 @@ export interface ChunkMigration<C extends JsonValue> {
 5. 투영 모양이나 규칙이 바뀌면 `ProjectionVersion.version`을 올린다. DB 마이그레이션 없이 내구 이벤트를 처음부터 재생해 투영을 다시 만든다.
 6. 청크 마이그레이션은 청크마다 별도 트랜잭션이고 커서를 같은 트랜잭션에 저장한다. 중단 뒤에는 저장된 커서부터 이어간다.
 
+7. [결정: m2c G2-06] 저장소를 열지 못한 이유는 안내 분류 넷으로 나눈다(`migrations.ts`의 `STORE_FAILURE_KINDS`, 순수 함수 `storeFailureKindOf(kind)`). 안내 문구와 복구 길이 달라서 한 이름(`storeUnavailable`)으로 합치지 않는다.
+
+   | 분류 | 해당하는 오류 kind | 뜻과 안내 |
+   |---|---|---|
+   | `future_version` | `migration_future_version` | DB가 이 앱보다 새 버전이다(앱을 되돌렸다). 마이그레이션이 DB를 건드리지 않는다. 앱을 새 버전으로 올린다. 읽기 전용으로 여는 길은 M3 |
+   | `corrupt` | `corrupt`, `migration_checksum_mismatch`, `migration_gap`, 저장된 행의 `row_invalid` | 파일이 망가졌거나 마이그레이션 이력이 맞지 않거나 행이 스키마와 다르다. 마이그레이션 전 스냅샷이나 백업에서 되살린다 |
+   | `migration_failed` | `migration_failed` | 마이그레이션 단계가 실패했다. 앞 단계는 유지된다. 마이그레이션 전 스냅샷으로 돌아가고 같은 버전에서 보고한다 |
+   | `unavailable` | 그 밖의 모든 kind(`busy`, `disk_full`, `io`, `permission`, `unsupported_filesystem`, `db_path_invalid`, `foreign_database`, `fts5_missing`) | 환경을 고치면 풀린다. 모르는 kind도 여기다 |
+
+   - 이름을 문자열로 받는 이유는 F가 L0.store의 `StoreOpenError`를 import하지 못해서다. 새 오류 kind를 더하면 분류 표와 시험을 먼저 고친다.
+   - 호스트는 `AssembleError`의 store 이유를 이 분류로 나눠 클라이언트에 알린다. 실행 중에 만난 `row_invalid`는 wire `store.corrupt`(5007, `F.wire-settings.spec` §3.5.2)로 알린다. 이전에는 `store.io`의 `details.code: "row_invalid"`로 옮겼다.
+   - 마이그레이션 전 스냅샷(`VACUUM INTO`)의 보관 수와 복구 절차는 L0.store와 운영 문서가 정한다. 내보내기와 복구 런북은 M3다.
+
 ### 3.8 세션 저장소 인터페이스 (2차)
 
 ```ts
@@ -1062,7 +1075,7 @@ export interface RecordCommitPort {
 | 파일 | 이름 | 필드 후보 정본 |
 |---|---|---|
 | `lease.ts` | `LeaseResource`, `LEASE_RESOURCE_PATTERN`, `LeaseKind`, `LeaseHolder`, `LeaseToken`, `LeaseOwnerInfo`, `LockBusy`, `LeaseRowInvalid`, `LeaseError`, `LeaseService` | `L0.store.spec` §3.1(FR-S2) |
-| `migrations.ts` | `MigrationStep`, `MigrationSet`, `MigrationError`, `MigrationReport`, `MigrationRunner`, `ExtensionTables`, `ExtensionTableError`. `ChunkMigration`은 §3.7에 둔다 | `L0.store.spec` §3.1(FR-S4) |
+| `migrations.ts` | `MigrationStep`, `MigrationSet`, `MigrationError`, `MigrationReport`, `MigrationRunner`, `ExtensionTables`, `ExtensionTableError`, `StoreFailureKind`, `STORE_FAILURE_KINDS`, `storeFailureKindOf`(§3.7 7항). `ChunkMigration`은 §3.7에 둔다 | `L0.store.spec` §3.1(FR-S4) |
 | `commit.ts` | `CommitKey`, `COMMIT_KEY_PATTERN`, `commitKeyPart`, `APPROVAL_REQUEST_KEY_MAX`, `requestKeyFor`, `isApprovalRequestKey`, `RESERVED_SOURCE_KEYS`, `ProducerId`, `StampedDraft`, `DraftInput`, `ProducerHandle`, `StepCheckpointInput`, `CommitPlan`, `CommitRequest`, `CommitResult`, `ReadOnlyReason`, `StoreError`, `ReadFailure`, `StoreBugCode`, `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
 | `projector.ts` | `ProjectionTx`, `Projector`, `ProjectorRegisterError`, `ProjectorFailure`, `ProjectorRegistry`. `ProjectionQuery`는 `session-service.ts`에 있다 | `L1.persistence.spec` §3.4 |
 | `session-service.ts` | `SessionServiceName`, `CommitListener`, `CommitBatch`, `FeedFilter`, `EventFeed`, `ThreadSummaryRow`, `ItemRow`, `ProjectionQuery`, `RecoveryMarker`, `OpenReport`, `OpenError`, `MAX_REPLAY_ATTEMPTS`, `EffectRerun`, `AutoResumeVerdict`, `ResumePlan`, `ResumeError`, `RecoverDeps`, `ThreadCreated`, `ThreadCreateInput`, `ThreadListQuery`, `ThreadPage`, `BranchSummaryInput`, `SessionShutdownReason`, `LifecycleError`, `ThreadLifecycle`, `SessionSettingsLayer`, `SessionSettingsError`, `SessionSettingsStore`, `SessionRetention`, `SessionService`. 쓰기 소유 판정은 `lease.ts`의 `LeaseToken`(epoch 펜싱)과 `LeaseOwnerInfo`(표시용), 열기 결과의 `OpenLease`가 맡는다. 옛 이름 `OwnershipGuard`·`OwnerInfo`는 없다 [결정: review.decisions-2 U-09, open-issues D-04] | `L1.persistence.spec` §3.3~§3.8, §6.2 |

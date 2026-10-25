@@ -117,7 +117,8 @@ export type WireErrorKind =
   | "store.busy"
   | "store.diskFull"
   | "store.readOnly"
-  | "store.io";
+  | "store.io"
+  | "store.corrupt";
 
 /**
  * M1 오류 목록(F.wire-settings.spec §3.5.2): kind → 정의. 키와 kind가 같고 code와 kind는 1:1이다.
@@ -473,6 +474,16 @@ export const WIRE_ERRORS: {
     kind: "store.io",
     retryable: false,
     details: Type.Object({ code: Type.String({ maxLength: 64 }) }, { additionalProperties: false }),
+  },
+  /** 저장된 행이 스키마와 다르다(손상, 수동 편집). 매체 오류(store.io)와 다르게 복구 안내가 달라서 나눈다. `where`는 `<표>.<열>` 같은 위치 이름이다 */
+  "store.corrupt": {
+    code: 5007,
+    kind: "store.corrupt",
+    retryable: false,
+    details: Type.Object(
+      { where: Type.String({ maxLength: 128 }) },
+      { additionalProperties: false },
+    ),
   },
 };
 

@@ -75,6 +75,7 @@ describe("WIRE_ERRORS", () => {
       "store.diskFull": 5004,
       "store.readOnly": 5005,
       "store.io": 5006,
+      "store.corrupt": 5007,
     });
   });
 
@@ -118,6 +119,17 @@ describe("WIRE_ERRORS", () => {
     expect(parse(inUse, { activeLeases: -1 }).ok).toBe(false);
     expect(wireError("secret.inUse", { details: { activeLeases: 2 } }).code).toBe(3206);
     expect(WIRE_ERRORS["secret.alreadyExists"].details).toBeUndefined();
+  });
+
+  test("store.corrupt names where the stored row is wrong and is not a media error", () => {
+    const spec = WIRE_ERRORS["store.corrupt"];
+    expect(spec.code).toBe(5007);
+    expect(spec.retryable).toBe(false);
+    if (spec.details === undefined) throw new Error("details expected");
+    expect(parse(spec.details, { where: "events.payload(item.recorded)" }).ok).toBe(true);
+    expect(parse(spec.details, { where: "x".repeat(129) }).ok).toBe(false);
+    expect(parse(spec.details, { code: "row_invalid" }).ok).toBe(false);
+    expect(WIRE_ERRORS["store.io"].code).not.toBe(spec.code);
   });
 
   test("thread.closed names the closed thread", () => {
