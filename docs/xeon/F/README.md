@@ -252,4 +252,24 @@ F가 정하지 않는 것:
 | `ModelService.hostedSearch` 필수화(`L2.web.plan` WEB.6) | `F.capabilities.spec` §3.12 `services/models.ts` |
 | `AgentServicePortKey`, `LoopServicePortKey` | `F.capabilities.spec` §3.12 규칙 9 |
 
-받지 않고 남긴 요청은 소유 문서에 [미결]로 남아 있다: 승인 만료 필드(`L2.dialog.spec` D-3 1), 동적 MCP 도구의 연속 정보와 `input_required` 질문 목록(`L2.mcp.plan` MCP.4), 부모 쓰기 토큰 조회(`L1.agents.spec` §4.1), `ChildTurnRequest`의 `tools.deny`, `ThreadLifecycle.list`·`SessionSettingsStore.layer`의 `Result`화, 투영 재구성 실패 변형, 설정 쓰기의 키 재사용 값 변환, 자식 생성 때 부모 초안을 같은 커밋에 싣는 자리.
+받지 않고 남긴 요청은 소유 문서에 [미결]로 남아 있다: 동적 MCP 도구의 연속 정보와 `input_required` 질문 목록(`L2.mcp.plan` MCP.4), 부모 쓰기 토큰 조회(`L1.agents.spec` §4.1), `ChildTurnRequest`의 `tools.deny`, `ThreadLifecycle.list`·`SessionSettingsStore.layer`의 `Result`화, 투영 재구성 실패 변형, 설정 쓰기의 키 재사용 값 변환, 자식 생성 때 부모 초안을 같은 커밋에 싣는 자리.
+
+## 10. M2 마감 요청 처리 기록
+
+`review.m2-plan`의 M2 마감 재점검(T1 F 계약)에서 모인 요청을 처리했다. 본문에는 `[결정: m2c <항목>]`로 표시했다. 항목 번호는 재점검 보고서의 통합 항목이다.
+
+| 항목 | 처리한 요청 | 위치 |
+|---|---|---|
+| G1-08 | U-04 호스트 계약 요청 판정표, 서버 알림 `settings.invalidated` | `F.wire-settings.spec` §3.3.2, §3.3.4 |
+| G1-01 | `command.list`, `command.run` | `F.wire-settings.spec` §3.3.1 |
+| G1-02 | `turn.resume` | `F.wire-settings.spec` §3.3.1 |
+| G1-03 | `trust.get`, `trust.decide`, `project_trust`의 `threadless` 표시 | `F.wire-settings.spec` §3.3.1, `F.extensions.spec` §3.4, §7 |
+| G1-07 | `secret.references`, `secret.test` 결과 확장, `secret.*` 오류 kind 3201~3212, `thread.closed` 3007 | `F.wire-settings.spec` §3.3.1, §3.5.2 |
+| G1-09 | 승인 origin 필드별 공급 규칙, `ApprovalCaller`와 `approvalCallerOf`, `CallerInfo.agentName`, 직접 등록 도구의 호출 문맥, `approval.respond` 결과의 `reason` | `F.records.spec` §3.3.1, `F.capabilities.spec` §3.2, §3.12, `F.wire-settings.spec` §3.3.1 |
+| G1-11 | 승인 만료 계약 필드 `expiresAt`, `onExpire`, 해결자 `expired`(구현은 M3) | `F.records.spec` §3.3.1, `F.capabilities.spec` §3.12 |
+| G2-11 | `thread.read`의 fork 연속성 규칙(`before`·`limit`은 이미 있었다) | `F.wire-settings.spec` §3.4.6 |
+| G2-12 | `thread.rename` | `F.wire-settings.spec` §3.3.1 |
+| G5-04 | `SettingDef.stage`, `settings.reserved` 3106, `settings.list`의 `includeReserved` | `F.wire-settings.spec` §3.8.2 |
+| G2-06 | 저장소 열기 실패 분류(`future_version`, `corrupt`, `migration_failed`, `unavailable`), `store.corrupt` 5007 | `F.records.spec` §3.7, `F.wire-settings.spec` §3.5.2 |
+
+받지 않고 M3로 넘긴 요청: 판정표(`F.wire-settings.spec` §3.3.4)의 보류 항목, `SecretEntryOffer`의 `add`용 메타 일부 필드, `status.list`와 첨부(G1-01), 도구 메타 `risk`·`hints`·`caller`와 효과 목록(G1-05, G1-06).
