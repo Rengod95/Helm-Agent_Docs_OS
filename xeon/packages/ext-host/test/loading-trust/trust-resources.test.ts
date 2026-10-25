@@ -57,6 +57,12 @@ test("only existence is checked, file contents are never read", async () => {
   expect(reads).toBe(0);
 });
 
+test("a project .xeon/commands alone requires trust", async () => {
+  // 명령 파일은 모델에게 가는 프롬프트 본문이고 셸 주입을 담을 수 있다(L2.dialog.spec 4.2.1a). 이 폴더만 있어도 판정이 필요하다
+  const fs = memoryFs(["/work/proj/.xeon/commands"]);
+  expect(await findTrustRequiringResources(fs, "/work/proj", HOME)).toEqual([".xeon/commands"]);
+});
+
 test("a project-root .mcp.json alone requires trust", async () => {
   // 루트 .mcp.json은 stdio 서버 실행 명령을 담는다. .xeon 없이 이 파일만 있어도 신뢰 판정이 필요하다
   const fs = memoryFs(["/work/proj/.mcp.json"]);

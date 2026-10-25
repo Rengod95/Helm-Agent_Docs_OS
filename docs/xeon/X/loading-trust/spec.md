@@ -888,7 +888,7 @@ export interface VirtualModuleRegistry {
 | `.xeon/settings.json`, `.xeon/settings.local.json` [가정: 파일 이름은 L1.persistence.spec] | 프로젝트·로컬 설정 |
 | `.xeon/mcp.json`, `.mcp.json` | 프로젝트 MCP 서버(`.mcp.json`은 프로젝트 루트의 Claude Code 형식 파일, L2.mcp.spec §4.2) |
 | `.xeon/hooks/` [가정: 외부 훅 위치는 X.operations.spec] | 외부 훅 |
-| `.xeon/skills/`, `.xeon/prompts/`, `.xeon/agents/` | 프로젝트 자원 |
+| `.xeon/skills/`, `.xeon/commands/`, `.xeon/prompts/`, `.xeon/agents/` | 프로젝트 자원. `.xeon/commands/`는 `L2.dialog` 슬래시 명령 파일이다(셸 주입을 담을 수 있다. `L2.dialog.spec` §4.2.1a) |
 | `.xeon/SYSTEM.md`, `.xeon/APPEND_SYSTEM.md` | 시스템 프롬프트 파일 |
 | `.agents/skills/`(프로젝트 루트와 상위 디렉터리, 사용자 홈의 것은 제외) | pi와 같은 공유 스킬 위치(`trust-manager.ts:186-208`) |
 

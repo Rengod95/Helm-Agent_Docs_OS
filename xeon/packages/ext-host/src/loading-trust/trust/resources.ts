@@ -25,6 +25,7 @@ export const TRUST_REQUIRING_PROJECT_RESOURCES: readonly string[] = [
   `${XEON_DIR}/mcp.json`,
   `${XEON_DIR}/hooks`,
   `${XEON_DIR}/skills`,
+  `${XEON_DIR}/commands`,
   `${XEON_DIR}/prompts`,
   `${XEON_DIR}/agents`,
   `${XEON_DIR}/SYSTEM.md`,
