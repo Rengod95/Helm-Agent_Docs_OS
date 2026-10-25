@@ -17,7 +17,7 @@ export {
 export type { OsRuntime } from "./runtime.ts";
 export { readOsRuntime } from "./runtime.ts";
 export { OS_SETTING_DEFS } from "./settings.ts";
-export type { LogRedact, LogSink } from "./logger.ts";
+export type { LogLevelSource, LogRedact, LogSink } from "./logger.ts";
 export {
   createNodeBinaryFs,
   type BinaryFs,

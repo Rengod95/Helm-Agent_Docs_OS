@@ -319,7 +319,7 @@ export function createJsonLinesLogger(opts: JsonLinesLoggerOptions): Logger & { 
 - `event`는 고정 이름(`turn.finished` 꼴)이다. 문자열 보간 메시지를 받지 않는다(BP-12).
 - 마스킹: 직렬화한 한 줄 전체를 `redact`에 넘긴 뒤 `sink`로 보낸다. `platform-os`는 `platform-secrets`를 import하지 않는다. 조립 루트(`apps/host`)가 `xeon.secrets`의 마스킹 함수를 `redact`에 연결한다. `redact`가 던지면 그 줄을 버리고 `{"event":"log.redact_failed"}` 한 줄만 쓴다(원문이 새지 않게).
 - 출력 위치: `sink`는 L4가 고른다(BP-12). stdio JSON-RPC 사이드카에서는 stdout을 쓰면 안 되므로 기본값은 stderr이고, 데스크톱 사이드카는 L4가 파일 sink를 줄 수 있다 [제안].
-- 레벨 미만 호출은 직렬화하지 않는다. `setLevel`은 설정 `l0.os.log.level` 변경을 반영한다(`runtimeChange: "live"`).
+- 레벨 미만 호출은 직렬화하지 않는다. 설정 `l0.os.log.level`(`runtimeChange: "live"`) 변경은 두 방법으로 반영한다. `PlatformOsConfig.logLevel`에 함수 `() => LogLevel`을 주면 로그를 낼 때마다 그 값을 읽어 구독 없이 다음 호출부터 반영된다(조립 루트가 설정 조회 함수를 넘긴다) [결정: m2 마감 G1-12]. `setLevel`(`OsServiceHandle.setLogLevel`)을 부르면 그 값으로 고정하고 함수 읽기를 멈춘다.
 
 테스트 대역 구분:
 

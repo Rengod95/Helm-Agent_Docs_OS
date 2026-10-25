@@ -218,6 +218,32 @@ describe("createOsService", () => {
     await started.value.dispose();
   });
 
+  test("logLevel에 함수를 주면 로그를 낼 때마다 읽어 설정 변경이 다음 호출부터 반영된다", async () => {
+    const lines: string[] = [];
+    const setting: { level: "debug" | "info" | "warn" | "error" } = { level: "warn" };
+    const started = await createOsService(
+      config(lines, { logLevel: () => setting.level }),
+      fakeRuntime(),
+    );
+    if (!started.ok) throw new Bug("unreachable");
+    lines.length = 0;
+    const log = started.value.service.logger("core-loop");
+    log.info("hidden.at.warn");
+    log.warn("shown.at.warn");
+    setting.level = "debug";
+    log.debug("shown.after.change");
+    setting.level = "error";
+    log.warn("hidden.again");
+    log.error("shown.at.error");
+    expect(events(lines)).toEqual(["shown.at.warn", "shown.after.change", "shown.at.error"]);
+    // setLogLevel을 부르면 그 값으로 고정한다
+    started.value.setLogLevel("info");
+    setting.level = "error";
+    log.info("fixed.info");
+    expect(events(lines).at(-1)).toBe("fixed.info");
+    await started.value.dispose();
+  });
+
   test("logRedact가 서비스 로그에 적용된다", async () => {
     const lines: string[] = [];
     const started = await createOsService(

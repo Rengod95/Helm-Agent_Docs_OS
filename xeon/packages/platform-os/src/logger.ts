@@ -12,10 +12,16 @@ export type LogRedact = (line: string) => string;
 /** 한 줄을 받아 내보낸다. 운영 기본은 L4가 넘기는 stderr 쓰기 함수 */
 export type LogSink = (line: string) => void;
 
+/**
+ * 로그 수준. 값이면 `setLevel`로만 바뀐다. 함수면 로그를 낼 때마다 불러 그 값을 쓴다(설정 `l0.os.log.level`의 live 변경이
+ * 구독 없이 다음 호출부터 반영된다). `setLevel`을 부르면 그 값으로 고정한다.
+ */
+export type LogLevelSource = LogLevel | (() => LogLevel);
+
 export interface JsonLinesLoggerOptions {
   readonly clock: Clock;
   readonly sink: LogSink;
-  readonly level: LogLevel;
+  readonly level: LogLevelSource;
   /** 없으면 조립 실패. 무동작이 필요하면 명시적으로 identity를 넘긴다 */
   readonly redact: LogRedact;
   readonly baseFields?: LogFields;
@@ -30,7 +36,11 @@ const REDACT_FAILED_LINE = '{"event":"log.redact_failed"}';
 const SERIALIZE_FAILED_LINE = '{"event":"log.serialize_failed"}';
 
 interface LoggerState {
-  level: LogLevel;
+  level: () => LogLevel;
+}
+
+function levelReader(source: LogLevelSource): () => LogLevel {
+  return typeof source === "function" ? source : () => source;
 }
 
 /**
@@ -38,7 +48,7 @@ interface LoggerState {
  * 합친다(같은 키는 뒤가 이긴다). 레벨 미만 호출은 직렬화하지 않는다. 직렬화한 줄 전체를 redact에 넘긴 뒤 sink로 보낸다.
  */
 export function createJsonLinesLogger(opts: JsonLinesLoggerOptions): LevelControlledLogger {
-  return makeLogger(opts, { level: opts.level }, opts.baseFields ?? {});
+  return makeLogger(opts, { level: levelReader(opts.level) }, opts.baseFields ?? {});
 }
 
 function makeLogger(
@@ -47,7 +57,7 @@ function makeLogger(
   fixed: LogFields,
 ): LevelControlledLogger {
   const emit = (level: LogLevel, event: string, fields: LogFields | undefined): void => {
-    if (LEVEL_RANK[level] < LEVEL_RANK[state.level]) return;
+    if (LEVEL_RANK[level] < LEVEL_RANK[state.level()]) return;
     // 실패한 원인(cause)에는 필드 값이 들어 있을 수 있어 싣지 않는다. 고정 줄이 실패를 알린다
     const line = attempt(() =>
       JSON.stringify({ ts: opts.clock.now(), level, event, ...fixed, ...fields }),
@@ -70,7 +80,7 @@ function makeLogger(
     error: (event, fields) => emit("error", event, fields),
     child: (fields) => makeLogger(opts, state, { ...fixed, ...fields }),
     setLevel: (level) => {
-      state.level = level;
+      state.level = () => level;
     },
   };
 }

@@ -102,7 +102,7 @@ xeon/packages/platform-os/
 | OS-04 | `fs-kind.ts`: `classifyFs`(순수, 분류 표), Linux statfs provider, macOS `mount` 출력 파서 | OS-01 | M | M0 |
 | OS-05 | `time/`: `systemClock`, `systemScheduler`(정수 핸들 표), `systemRandom`(`crypto.getRandomValues` 53비트) | F `Clock`·`Scheduler`·`RandomSource` | S | M0 |
 | OS-06 | 계약 테스트: 같은 Clock·Scheduler 계약 묶음을 운영 구현과 `manualClock`에 돌린다 | OS-05, 이 패키지 `test/`의 `manualClock` | S | M0 |
-| OS-07 | `logger.ts`: `createJsonLinesLogger`(레벨, 필드 합치기, `child`, `setLevel`) | OS-05, F `Logger` | M | M0 |
+| OS-07 | `logger.ts`: `createJsonLinesLogger`(레벨, 필드 합치기, `child`, `setLevel`). 레벨은 값 또는 읽기 함수(`LogLevelSource`)로 받아 `l0.os.log.level` live 변경을 반영한다 | OS-05, F `Logger` | M | M0 |
 | OS-08 | 로그 마스킹 훅 인터페이스: `LogRedact` 필수 인자, 예외 시 `log.redact_failed` 처리, 조립 루트 연결 예시 | OS-07 | S | M0 |
 | OS-09 | `testing/`: `tempDir`, `withIsolatedEnv`(TS-03 변수 목록 + `XEON_HOME`), `exports "./testing"` | OS-02 | S | M0 |
 | OS-10 | `service.ts`, `index.ts`: `OsService` 조립, `platformOsPlugin` 등록, 시작 순서와 `dispose` 순서(`L0.os.spec` §4) | OS-01~OS-09, ext-host `registerPlatform` | M | M1 |
