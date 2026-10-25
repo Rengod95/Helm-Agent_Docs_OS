@@ -88,6 +88,7 @@ export type {
   AssembleOptions,
   CommitBatch,
   Engine,
+  EngineDiagnostics,
   EnginePorts,
   EventFeedPort,
   HostLogPort,

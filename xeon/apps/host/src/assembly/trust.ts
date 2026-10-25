@@ -43,7 +43,7 @@ export interface TrustInspection {
 }
 
 /** 결정을 반영하지 못한 이유 */
-export type TrustDecideFailure =
+type TrustDecideFailure =
   /** 선택지에 없는 결정(상위 폴더가 없는데 `parent` 등) */
   | { readonly kind: "invalid_choice" }
   /** 저장 파일이 손상되었거나 쓰지 못했다. 기존 결정은 그대로다 */
