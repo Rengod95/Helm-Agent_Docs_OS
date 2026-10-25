@@ -36,6 +36,45 @@ function indent(lines: readonly string[]): string {
   return lines.map((line) => `  ${line}`).join("\n");
 }
 
+const REMEMBER_TEXT: Readonly<Record<"once" | "thread" | "always", string>> = {
+  once: "이번만 허용",
+  thread: "이 세션 동안 허용",
+  always: "항상 허용",
+};
+
+/**
+ * 승인이 끝났을 때 사용자가 알아야 하는 사실(L1.tools.spec 동의 표시 요건, G2-10). 사용자가 직접 답했고 요청한 범위 그대로 적용됐으면 없다.
+ * - 요청한 기억 범위와 적용한 범위가 다르면(예: 항상 허용이 이 세션 동안으로 낮춰짐) 낮춰 적용했음을 알린다.
+ * - 사용자 응답이 아닌 해결(만료, 비대화 자동 처리, turn 취소, 다른 요청으로 대체)은 그 이유를 알린다
+ */
+function resolutionNotice(op: Extract<RenderOp, { kind: "approvalResolved" }>): string | undefined {
+  const lines: string[] = [];
+  switch (op.resolvedBy) {
+    case "user":
+      break;
+    case "expired":
+      lines.push("승인 요청이 만료되어 정해 둔 대로 처리했다");
+      break;
+    case "noninteractive":
+      lines.push("대화형 입력이 없어 승인 요청을 자동으로 처리했다");
+      break;
+    case "cancelled":
+      lines.push("turn이 취소되어 승인 요청을 닫았다");
+      break;
+    case "superseded":
+      lines.push("다른 요청으로 대체되어 승인 요청을 닫았다");
+      break;
+    default:
+      return assertNever(op.resolvedBy, "ApprovalResolvedBy");
+  }
+  if (op.requestedRemember !== null && op.requestedRemember !== op.remember) {
+    lines.push(
+      `${REMEMBER_TEXT[op.requestedRemember]}을 골랐지만 ${REMEMBER_TEXT[op.remember]}으로 낮춰 적용했다`,
+    );
+  }
+  return lines.length === 0 ? undefined : lines.join("\n");
+}
+
 /** RenderOp 하나를 쓸 조각으로 바꾼다. 그리지 않는 op는 undefined다. 순수 함수 */
 export function pieceOf(op: RenderOp, layout: TextSinkLayout, color: boolean): Piece | undefined {
   const side = layout === "print" ? "stderr" : "stdout";
@@ -80,8 +119,12 @@ export function pieceOf(op: RenderOp, layout: TextSinkLayout, color: boolean): P
         target: "stderr",
         text: `${paint(color, "33", `승인 요청: ${op.view.title}`)}\n${indent(op.view.body)}\n`,
       };
-    case "approvalResolved":
-      return undefined;
+    case "approvalResolved": {
+      const notice = resolutionNotice(op);
+      return notice === undefined
+        ? undefined
+        : { target: "stderr", text: `${paint(color, "33", notice)}\n` };
+    }
     case "turnEnd":
       if (op.status === "completed") return undefined;
       return {

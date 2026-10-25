@@ -82,7 +82,20 @@ test("turn ends: nothing for completed, a line for interrupted and failed", () =
 test("progress ops are not drawn by the text sink", () => {
   expect(pieceOf({ kind: "progress", itemId: itemId(1), text: "t" }, "full", true)).toBeUndefined();
   expect(pieceOf({ kind: "clearProgress", itemId: itemId(1) }, "full", true)).toBeUndefined();
-  expect(pieceOf({ kind: "approvalResolved", approvalId: "a" }, "full", true)).toBeUndefined();
+  expect(
+    pieceOf(
+      {
+        kind: "approvalResolved",
+        approvalId: "a",
+        decision: "allow",
+        remember: "once",
+        requestedRemember: null,
+        resolvedBy: "user",
+      },
+      "full",
+      true,
+    ),
+  ).toBeUndefined();
 });
 
 test("approvals are announced on stderr with the body indented", () => {

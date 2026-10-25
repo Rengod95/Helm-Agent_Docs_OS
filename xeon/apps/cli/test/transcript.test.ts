@@ -308,7 +308,16 @@ test("approval.requested and approval.resolved draw and track the pending set", 
     },
   };
   const second = applied(first.state, batch(1, [resolved]));
-  expect(second.ops).toEqual([{ kind: "approvalResolved", approvalId: view.view.approvalId }]);
+  expect(second.ops).toEqual([
+    {
+      kind: "approvalResolved",
+      approvalId: view.view.approvalId,
+      decision: "deny",
+      remember: "once",
+      requestedRemember: null,
+      resolvedBy: "user",
+    },
+  ]);
   expect(second.state.pendingApprovals.size).toBe(0);
 });
 

@@ -98,10 +98,28 @@ async function runPrint(
 }
 
 /** 승인 응답 한 건의 결과를 사람에게 알린다(print 모드의 자동 거부) */
-function denyNotice(view: { readonly title: string }, outcome: "denied" | "failed"): string {
-  const text =
-    outcome === "denied" ? "거부로 답했다" : "거부로 답하려 했으나 host가 응답을 받지 못했다";
+function denyNotice(
+  view: { readonly title: string },
+  outcome: "denied" | "failed" | { readonly notApplied: string },
+): string {
+  let text: string;
+  if (outcome === "denied") text = "거부로 답했다";
+  else if (outcome === "failed") text = "거부로 답하려 했으나 host가 응답을 받지 못했다";
+  else text = `거부로 답했으나 적용되지 않았다 (${outcome.notApplied})`;
   return `승인 요청 "${view.title}"에 비대화 모드라 ${text}\n`;
+}
+
+/** 승인 응답이 적용되지 않은 이유(다시 보내도 같은 것)를 알리는 글 */
+function supersededText(reason: "already_resolved" | "unknown_approval" | "unspecified"): string {
+  switch (reason) {
+    case "unknown_approval":
+      return "(host가 모르는 승인이다. 재시작으로 사라졌을 수 있다)\n";
+    case "already_resolved":
+    case "unspecified":
+      return "(다른 곳에서 이미 답한 승인이다)\n";
+    default:
+      return assertNever(reason, "SupersededReason");
+  }
 }
 
 async function chatWork(
@@ -178,8 +196,8 @@ async function chatWork(
                 wiring.exit.request(EXIT.ok);
               });
             },
-            onSuperseded: () => {
-              detach(io.stdout("(다른 곳에서 이미 답한 승인이다)\n"), () => {
+            onSuperseded: (_approvalId, reason) => {
+              detach(io.stdout(supersededText(reason)), () => {
                 wiring.exit.request(EXIT.ok);
               });
             },

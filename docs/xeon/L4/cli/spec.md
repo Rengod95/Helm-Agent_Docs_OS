@@ -704,7 +704,13 @@ export type CliState = Static<typeof CliStateSchema>;
      - 질문: 질문마다 번호(여러 선택이면 쉼표)나 직접 입력(`allowFreeText`)을 받아 `decision: "answer"`와 `QuestionAnswer`(`{ [질문 id]: { selected, text? } }`)로 보낸다. `/deny`는 요청 전체를 거부한다.
      - 프롬프트는 한 번에 하나다. 입력 줄이 읽는 중에 승인이 오면 입력 줄을 닫고 승인을 먼저 묻는다.
      - 세션을 열 때 이전 기록을 다 그린 뒤 `approval.list { threadId }`로 아직 답하지 않은 승인을 되살려 묻는다(재시작 뒤 복원). 이벤트로 이미 받은 승인은 `approvalId`로 중복을 거른다.
-     - `approval.respond`가 `applied: false`이거나 `approval.resolved`가 먼저 오면 "다른 곳에서 이미 답한 승인이다"를 보이고 프롬프트를 닫는다.
+     - `approval.resolved`가 먼저 오면 "다른 곳에서 이미 답한 승인이다"를 보이고 프롬프트를 닫는다.
+     - `approval.respond`가 `applied: false`이면 `reason`으로 가른다 [결정: m2c G2-10]. `answer_invalid`는 `detail`을 보이고 같은 질문을 다시 묻는다(요청이 아직 대기 중이다). `commit_failed`는 "승인 응답을 기록하지 못했다"를 알리고 다시 묻는다. 두 이유로 3번 적용되지 않으면 이 승인을 대기로 남기고 포기한다(재시작 뒤 `approval.list`가 다시 묻는다). `already_resolved`와 이유를 알리지 않는 호스트는 "다른 곳에서 이미 답한 승인이다", `unknown_approval`은 "host가 모르는 승인이다. 재시작으로 사라졌을 수 있다"를 보이고 프롬프트를 닫는다. print 모드의 자동 거부가 적용되지 않으면 이유를 stderr에 남긴다.
+  7. 동의 표시 [결정: m2c G2-10. 요건의 정본은 `L1.tools.spec`이고 CLI는 아래를 보인다]: 사용자가 허용하는 것이 무엇인지 카드에서 알 수 있어야 한다.
+     - 도구 카드는 인자 요약(120자) 아래에 실행할 `command` 전체(40줄까지, 넘으면 "…(n줄 생략)")와 `secretEnv`의 비밀 핸들(`이름=secret://…`)을 보인다. 승인이 비밀 사용의 증거라서 명령과 핸들을 보고 허용해야 한다. `secret://` 참조 모양이 아닌 값은 값을 보이지 않고 "(참조 형식이 올바르지 않음)"만 쓴다. 인자가 BlobRef면 상세 줄이 없다.
+     - 요청 주체(`origin.caller`)가 `main`이 아니면 첫 줄에 보인다: `background`는 백그라운드 작업, `host`는 호스트, `subagent:<이름>`은 서브에이전트, `ext:<이름>`은 확장이다.
+     - `expiresAt`이 있으면 "만료: <ISO 시각> (그때까지 답하지 않으면 거부로 처리한다)"를 보인다. `onExpire`가 `answer`면 "정해 둔 답으로 처리한다"다.
+     - `approval.resolved`의 `requestedRemember`와 적용한 `remember`가 다르면(2차 전에는 `always`가 `thread`로 낮춰진다) "항상 허용을 골랐지만 이 세션 동안 허용으로 낮춰 적용했다"를 보인다. `resolvedBy`가 `user`가 아니면(`expired`, `noninteractive`, `cancelled`, `superseded`) 이유를 한 줄로 보인다. 사용자가 직접 답했고 요청한 범위 그대로면 아무것도 보이지 않는다.
 - 프로젝트 신뢰(M2) [결정: m2c G1-03. wire 이름은 F wire §3.3.1 trust를 따른다]
   1. 대화형 `chat`은 세션을 만들거나 열기 전에 `trust.get { workspace }`를 부른다. `required`가 참이고 `verdict`가 `undecided`일 때만 카드를 보인다. 이미 정한 폴더나 신뢰할 자원이 없는 폴더(`notRequired`)는 묻지 않는다.
   2. 카드는 프로젝트 폴더, 불러오려는 자원(`resources`), 판정과 출처(`via`), 신뢰하면 자원의 지시문·명령·MCP 서버가 사용자 권한으로 쓰인다는 경고, 번호가 붙은 선택지다. 선택지 글은 CLI가 `choice`(`kind` × `verdict`)로 만든다. `label`은 현지화 식별자라 글로 쓰지 않는다. 저장되는 폴더(`savedPath`)가 있으면 함께 보인다.
@@ -823,6 +829,7 @@ export type CliState = Static<typeof CliStateSchema>;
 - AC18. 대화형으로 `thread.list`가 `resumable`을 알린 세션을 열면 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`가 한 번 가고, 그 turn의 나머지 이벤트가 그려진다. 새 세션과 print 모드는 묻지 않고 `turn.resume`을 보내지 않는다.
 - AC19. 결정이 없고 신뢰할 자원이 있는 폴더에서 대화형 `chat`을 시작하면 `thread.create`보다 앞서 카드를 묻고, 번호를 입력하면 그 선택지의 `choice`로 `trust.decide { workspace, choice }`가 한 번 간다. 엔터는 `trust.decide`를 보내지 않는다. `xeon trust allow --scope parent`는 host가 낸 선택지의 `{ kind: "parent", verdict: "allow" }`를 보낸다.
 - AC20. `xeon secret rm <name>`은 `secret.references`로 읽은 설정 키·활성 lease·최근 세션을 보인 뒤 묻고, 활성 lease가 있으면 `secret.remove`를 보내지 않는다. `xeon secret test <name>`의 출력에는 길이와 SHA-256 앞 8자가 있고 값, 값의 base64·hex는 stdout·stderr·요청 어디에도 없다.
+- AC21. 도구 승인 카드에 `command` 전체와 `secretEnv` 핸들이 보이고, 값이 아닌 `secret://` 참조만 있다. `approval.resolved`가 `always`를 `thread`로 낮췄다고 알리면 그 사실이 카드 다음에 보인다. `approval.respond`가 `answer_invalid`를 돌려주면 `detail`을 보이고 다시 묻는다.
 
 ## 10. 미결 사항
 

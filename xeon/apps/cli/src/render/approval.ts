@@ -1,4 +1,4 @@
-import type { ApprovalRespondParams } from "@xeon/contracts/wire";
+import type { ApprovalRespondParams, ApprovalRespondResult } from "@xeon/contracts/wire";
 import type { ApprovalView, QuestionView, RememberChoice } from "./ops.ts";
 
 // L4.cli.spec §4.11. 승인 프롬프트. 줄 입력으로 허용·거부·답을 받아 approval.respond 인자로 바꾼다.
@@ -223,16 +223,29 @@ export interface ApprovalSink {
   dispose(): void;
 }
 
+/** 응답이 적용되지 않은 이유 중 다시 보내도 같은 것. `answer_invalid`와 `commit_failed`는 다시 입력해 보낼 수 있어 여기에 없다 */
+export type SupersededReason = "already_resolved" | "unknown_approval" | "unspecified";
+
 export interface PrompterOptions {
   readonly io: PromptIo;
   readonly respond: (
     approvalId: string,
     response: ApprovalResponse,
-  ) => Promise<{ applied: boolean }>;
+  ) => Promise<ApprovalRespondResult>;
   /** 응답 전송이 실패했다(연결 끊김 등). 알리고 계속한다 */
   readonly onError: (approvalId: string, cause: unknown) => void;
-  /** 다른 클라이언트가 먼저 답했거나 이미 처리된 승인이다 */
-  readonly onSuperseded: (approvalId: string) => void;
+  /** 다른 클라이언트가 먼저 답했거나 이미 처리된 승인이다. 이유를 알리지 않는 호스트는 `unspecified`다 */
+  readonly onSuperseded: (approvalId: string, reason: SupersededReason) => void;
+}
+
+/** 적용되지 않은 응답을 다시 입력받는 횟수 상한. 기록 실패가 계속되면 승인은 대기로 남기고 포기한다 */
+const MAX_REASKS = 3;
+
+/** 다시 입력해 보낼 수 있는 이유(answer_invalid, commit_failed)를 사람이 읽는 줄로 */
+function notAppliedText(result: ApprovalRespondResult): string {
+  if (result.reason === "commit_failed") return "승인 응답을 기록하지 못했다. 다시 입력한다\n";
+  const detail = result.detail === undefined ? "" : `: ${result.detail}`;
+  return `응답이 요청과 맞지 않다${detail}. 다시 입력한다\n`;
 }
 
 /** 대화형 프롬프트. 한 번에 하나만 묻고(입력이 하나뿐이다) 나머지는 줄을 세운다 */
@@ -246,18 +259,38 @@ export function createApprovalPrompter(options: PrompterOptions): ApprovalSink {
     disposed: false,
   };
 
+  /**
+   * 한 번 묻고 보낸다. 적용되지 않았을 때 이유로 가른다(F wire §3.3.1 approval.respond):
+   * `answer_invalid`는 요청이 아직 대기 중이라 응답을 고쳐 다시 보낼 수 있고, `commit_failed`는 기록에 실패해 같은 요청이 남아 있다.
+   * 둘은 이유를 알리고 다시 묻는다(상한 {@link MAX_REASKS}). 그 밖은 다시 보내도 같아서 프롬프트를 닫는다
+   */
   const handle = async (view: ApprovalView): Promise<void> => {
     if (state.disposed || closed.has(view.approvalId)) return;
     const controller = new AbortController();
     active.set(view.approvalId, controller);
     try {
-      const outcome = await askApproval(view, options.io, controller.signal);
-      if (outcome.kind === "dismissed" || closed.has(view.approvalId)) {
-        options.onSuperseded(view.approvalId);
-        return;
+      for (let attempt = 0; ; attempt += 1) {
+        // oxlint-disable-next-line no-await-in-loop -- 적용되지 않은 응답은 같은 질문을 다시 묻는다 (L4.cli.spec §4.11)
+        const outcome = await askApproval(view, options.io, controller.signal);
+        if (outcome.kind === "dismissed" || closed.has(view.approvalId)) {
+          options.onSuperseded(view.approvalId, "unspecified");
+          return;
+        }
+        // oxlint-disable-next-line no-await-in-loop -- 응답이 적용됐는지 보고 다음 동작을 정한다 (L4.cli.spec §4.11)
+        const sent = await options.respond(view.approvalId, outcome.response);
+        if (sent.applied) return;
+        if (sent.reason !== "answer_invalid" && sent.reason !== "commit_failed") {
+          options.onSuperseded(view.approvalId, sent.reason ?? "unspecified");
+          return;
+        }
+        if (attempt + 1 >= MAX_REASKS) {
+          // oxlint-disable-next-line no-await-in-loop -- 포기를 알린 뒤 끝낸다 (L4.cli.spec §4.11)
+          await options.io.stdout("응답이 계속 적용되지 않아 이 승인은 대기로 남긴다\n");
+          return;
+        }
+        // oxlint-disable-next-line no-await-in-loop -- 이유를 알린 뒤 다시 묻는다 (L4.cli.spec §4.11)
+        await options.io.stdout(notAppliedText(sent));
       }
-      const sent = await options.respond(view.approvalId, outcome.response);
-      if (!sent.applied) options.onSuperseded(view.approvalId);
     } catch (caught) {
       options.onError(view.approvalId, caught);
     } finally {
@@ -293,7 +326,10 @@ export function createApprovalPrompter(options: PrompterOptions): ApprovalSink {
 /** print 모드: 프롬프트를 열 수 없으므로 거부로 답한다(§4.11 4번) */
 export function createAutoDeny(options: {
   readonly respond: PrompterOptions["respond"];
-  readonly onResult: (view: ApprovalView, outcome: "denied" | "failed") => Promise<void>;
+  readonly onResult: (
+    view: ApprovalView,
+    outcome: "denied" | "failed" | { readonly notApplied: string },
+  ) => Promise<void>;
 }): ApprovalSink {
   const seen = new Set<string>();
   const state: { chain: Promise<void> } = { chain: Promise.resolve() };
@@ -302,7 +338,10 @@ export function createAutoDeny(options: {
       if (seen.has(view.approvalId)) return;
       seen.add(view.approvalId);
       const work = options.respond(view.approvalId, DENY_ONLY).then(
-        () => options.onResult(view, "denied"),
+        (sent) =>
+          sent.applied
+            ? options.onResult(view, "denied")
+            : options.onResult(view, { notApplied: sent.reason ?? "unspecified" }),
         // 응답 수단이 없는 host면 거부 응답이 가지 않았음을 알림에 밝힌다
         () => options.onResult(view, "failed"),
       );

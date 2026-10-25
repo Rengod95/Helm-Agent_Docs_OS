@@ -75,7 +75,15 @@ export type RenderOp =
   | { readonly kind: "progress"; readonly itemId: ItemId; readonly text: string }
   | { readonly kind: "clearProgress"; readonly itemId: ItemId }
   | { readonly kind: "approval"; readonly view: ApprovalView }
-  | { readonly kind: "approvalResolved"; readonly approvalId: string }
+  | {
+      readonly kind: "approvalResolved";
+      readonly approvalId: string;
+      readonly decision: "allow" | "deny" | "answer";
+      /** 실제로 적용한 기억 범위. 요청한 범위와 다르면 낮춰 적용한 것이다(L1.tools.spec §4.7) */
+      readonly remember: RememberChoice;
+      readonly requestedRemember: RememberChoice | null;
+      readonly resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired";
+    }
   | {
       readonly kind: "turnEnd";
       readonly status: "completed" | "interrupted" | "failed";

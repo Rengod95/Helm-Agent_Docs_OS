@@ -237,6 +237,12 @@ export function approvalRequested(
     readonly title?: string;
     readonly body?: unknown;
     readonly remember?: readonly ("once" | "thread" | "always")[];
+    /** origin.caller. 기본 main */
+    readonly caller?: string;
+    readonly expiresAt?: number;
+    readonly onExpire?:
+      | { readonly decision: "deny" }
+      | { readonly decision: "answer"; readonly answer: unknown };
   } = {},
 ): EventDraft {
   return {
@@ -248,7 +254,7 @@ export function approvalRequested(
         turnId: turn,
         stepId: null,
         toolCallId: "call-1",
-        caller: "main",
+        caller: options.caller ?? "main",
       },
       requestKey: "k1",
       title: options.title ?? "bash 실행",
@@ -265,6 +271,8 @@ export function approvalRequested(
       remember: options.remember ?? ["once", "thread", "always"],
       surfaceThreadId: thread,
       requestedAt: 1,
+      ...(options.expiresAt === undefined ? {} : { expiresAt: options.expiresAt }),
+      ...(options.onExpire === undefined ? {} : { onExpire: options.onExpire }),
     },
   };
 }
@@ -273,7 +281,14 @@ export function approvalResolved(
   turn: TurnId,
   approvalId: string,
   decision: "allow" | "deny" | "answer" = "allow",
-  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" = "user",
+  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired" = "user",
+  remember: {
+    readonly applied: "once" | "thread" | "always";
+    readonly requested: "once" | "thread" | "always" | null;
+  } = {
+    applied: "once",
+    requested: null,
+  },
 ): EventDraft {
   return {
     kind: "approval.resolved",
@@ -282,8 +297,8 @@ export function approvalResolved(
       approvalId,
       decision,
       answer: null,
-      remember: "once",
-      requestedRemember: null,
+      remember: remember.applied,
+      requestedRemember: remember.requested,
       resolvedBy,
     },
   };

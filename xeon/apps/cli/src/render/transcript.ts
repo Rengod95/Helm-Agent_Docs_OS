@@ -83,6 +83,64 @@ function isBlobRef(value: unknown): boolean {
   return typeof value === "object" && value !== null && "sha256" in value;
 }
 
+const COMMAND_LINES_MAX = 40;
+const SECRET_REF = /^secret:\/\/\S+$/;
+
+/** 객체에서 이름이 같은 필드의 값. 없으면 undefined다 */
+function fieldOf(object: object, name: string): unknown {
+  return Object.entries(object).find(([key]) => key === name)?.[1];
+}
+
+/**
+ * 도구 승인에서 인자 요약 120자가 가리는 내용을 따로 보인다(M2 검토 M2): 실행할 명령(`command` 문자열) 전체와, `secretEnv`로 쓸 비밀 핸들.
+ * 승인이 비밀 사용의 증거가 되므로 사용자가 명령과 핸들을 보고 허용해야 한다. 핸들은 `secret://` 참조이고 값이 아니다.
+ * 참조 모양이 아닌 값은 이름만 보인다
+ */
+function toolDetailLines(args: object): string[] {
+  if (isBlobRef(args)) return [];
+  const lines: string[] = [];
+  const command = fieldOf(args, "command");
+  if (typeof command === "string") {
+    const rows = command.split("\n");
+    lines.push("명령:", ...rows.slice(0, COMMAND_LINES_MAX).map((row) => `  ${row}`));
+    if (rows.length > COMMAND_LINES_MAX) {
+      lines.push(`  …(${String(rows.length - COMMAND_LINES_MAX)}줄 생략)`);
+    }
+  }
+  const env = fieldOf(args, "secretEnv");
+  if (typeof env === "object" && env !== null) {
+    const handles = Object.entries(env).map(([name, ref]: [string, unknown]) =>
+      typeof ref === "string" && SECRET_REF.test(ref)
+        ? `${name}=${ref}`
+        : `${name}=(참조 형식이 올바르지 않음)`,
+    );
+    if (handles.length > 0) lines.push(`비밀: ${handles.join(", ")}`);
+  }
+  return lines;
+}
+
+/**
+ * 요청 주체(`origin.caller`, `approvalCallerOf`가 만든 형식)를 사람이 읽는 줄로 바꾼다. 사용자가 직접 연 대화의 메인 에이전트는
+ * 보이지 않는다: 그 밖의 주체(서브에이전트, 확장, 백그라운드, 호스트)일 때만 누가 요청하는지 알려야 하기 때문이다
+ */
+function callerLine(caller: string): string[] {
+  if (caller === "main") return [];
+  if (caller === "background") return ["요청 주체: 백그라운드 작업"];
+  if (caller === "host") return ["요청 주체: 호스트"];
+  if (caller.startsWith("subagent:")) return [`요청 주체: 서브에이전트 ${caller.slice(9)}`];
+  if (caller.startsWith("ext:")) return [`요청 주체: 확장 ${caller.slice(4)}`];
+  return [`요청 주체: ${caller}`];
+}
+
+/** 만료 시각(`expiresAt`, epoch ms)과 만료 때의 처리(`onExpire`)를 한 줄로 */
+function expiryLine(payload: ApprovalRequestedPayload): string[] {
+  if (payload.expiresAt === undefined) return [];
+  const when = new Date(payload.expiresAt).toISOString();
+  const action =
+    payload.onExpire?.decision === "answer" ? "정해 둔 답으로 처리한다" : "거부로 처리한다";
+  return [`만료: ${when} (그때까지 답하지 않으면 ${action})`];
+}
+
 function itemOps(item: ItemRecord, ctx: EventContext, synthesizedResult: boolean): RenderOp[] {
   switch (item.kind) {
     case "user":
@@ -149,7 +207,13 @@ export function approvalViewOf(
       return {
         approvalId,
         title,
-        body: [`도구: ${body.tool.toolName} (위험: ${body.tool.risk})`, `인자: ${args}`],
+        body: [
+          ...callerLine(payload.origin.caller),
+          `도구: ${body.tool.toolName} (위험: ${body.tool.risk})`,
+          `인자: ${args}`,
+          ...toolDetailLines(body.tool.args),
+          ...expiryLine(payload),
+        ],
         allowsAnswer: false,
         remember,
         form: { kind: "tool" },
@@ -160,7 +224,7 @@ export function approvalViewOf(
       return {
         approvalId,
         title,
-        body: plan.split("\n"),
+        body: [...callerLine(payload.origin.caller), ...plan.split("\n"), ...expiryLine(payload)],
         allowsAnswer: false,
         remember,
         form: { kind: "plan", nextModes: body.plan.nextModes },
@@ -170,7 +234,11 @@ export function approvalViewOf(
       return {
         approvalId,
         title,
-        body: body.question.questions.map((question) => question.text),
+        body: [
+          ...callerLine(payload.origin.caller),
+          ...body.question.questions.map((question) => question.text),
+          ...expiryLine(payload),
+        ],
         allowsAnswer: true,
         remember,
         form: {
@@ -239,7 +307,10 @@ export function opsOfEvent(event: EventWire, ctx: EventContext): readonly Render
   if (kind === "approval.resolved") {
     const parsed = parse(ApprovalResolvedPayloadSchema, payload);
     if (!parsed.ok) return unreadable(kind);
-    return [{ kind: "approvalResolved", approvalId: parsed.value.approvalId }];
+    const { approvalId, decision, remember, requestedRemember, resolvedBy } = parsed.value;
+    return [
+      { kind: "approvalResolved", approvalId, decision, remember, requestedRemember, resolvedBy },
+    ];
   }
   if (kind === "settings.changed") {
     const parsed = parse(SettingsChangedPayloadSchema, payload);
