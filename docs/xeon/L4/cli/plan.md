@@ -250,6 +250,14 @@ xeon/apps/cli/
 - 호스트가 아직 구현하지 않은 메서드와의 호환: `thread.list`는 -32601이면 상태 파일로, `thread.open`·`turn.interrupt`·`approval.list`·`events.unsubscribe`는 `host.hello`의 `features`에 없으면 쓰지 않는다. HOST.2·HOST.4가 병합되기 전의 `xeon/foundation`에서도 `just verify`가 통과한다.
 - 컴파일 바이너리 확인(2026-10-24, WSL2 linux-x64, 한 번씩): `just desktop-sidecar host`가 만든 바이너리에 `host.hello`와 `settings.get`을 JSON Lines로 보내면 응답 둘이 305 ms 안에 오고(새 데이터 디렉터리의 첫 기동 포함), 응답을 받은 뒤 stdin을 닫으면 0으로 끝난다. `xeon version`은 0.036초, `xeon doctor`는 1.8초다(SearXNG 후보 네 곳 병렬 탐침 포함). `secret reveal`은 stdin이 TTY가 아니어서 2로 끝났다. 이 확인은 일회성 수동 실행이고, 같은 경로를 소스 진입으로 돌리는 `host-stdio.int.test.ts`와 번들을 만드는 `entry-bundle.test.ts`가 회귀를 막는다.
 
+### 4.6 M2 마감 구현 기록 (T6, 2026-10-25)
+
+M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰 CLI 쪽을 더한 기록이다. 호스트 처리기는 같은 시점에 T2가 구현하므로, 시험은 가짜 호스트(`test/support/fake-server.ts`)로 돌리고 실제 처리기가 필요한 종단 시험은 wave 2 병합 뒤에 다시 돌린다.
+
+| 항목 | 상태 | 구현 위치 |
+|---|---|---|
+| 오류 문구 | 구현: `secret.*` 전용 kind, `thread.closed`, `settings.reserved`, `store.corrupt`, 슬래시 명령 능력 오류(`cap.dialog.commands.*`). 시험은 값으로 비교한다 | `src/errors.ts`, `test/errors-wire.test.ts` |
+
 ## 5. 단위 테스트 목록
 
 ### 5.1 unit·int

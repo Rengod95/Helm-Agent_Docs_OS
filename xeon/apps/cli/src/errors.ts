@@ -65,8 +65,35 @@ function allowedScopesText(error: WireError): string {
   return scopes.filter((scope): scope is string => typeof scope === "string").join(", ");
 }
 
-/** 비밀 관리 오류는 F 표에 전용 kind가 없어 `internal`의 details.secret에 실려 온다(HOST.3 wireErrorOfSecret). 값은 없다 */
+/** F 오류 표의 비밀 kind(`secret.*`, 3201~3212)를 아래 문구 표의 이름으로 옮긴다 */
+const SECRET_WIRE_KINDS: Readonly<Record<string, string>> = {
+  "secret.notFound": "secret_missing",
+  "secret.denied": "denied",
+  "secret.providerUnavailable": "provider_unavailable",
+  "secret.keyUnavailable": "key_unavailable",
+  "secret.decryptFailed": "decrypt_failed",
+  "secret.inUse": "in_use",
+  "secret.alreadyExists": "already_exists",
+  "secret.readOnlyProvider": "read_only_provider",
+  "secret.reauthRequired": "reauth_required",
+  "secret.cancelled": "cancelled",
+  "secret.auditUnwritable": "audit_unwritable",
+  "secret.writeFailed": "write_failed",
+};
+
+/**
+ * 비밀 관리 오류. 전용 kind(`secret.*`)로 오고, 전용 kind가 생기기 전의 호스트는 `internal`의 details.secret에 실었다(HOST.3).
+ * 두 길을 같은 문구 표로 모은다. 값은 없다
+ */
 function secretFailure(error: WireError): Failure | undefined {
+  const wireKind = SECRET_WIRE_KINDS[error.data.kind];
+  if (wireKind !== undefined) {
+    const detail = (name: string): string | undefined => {
+      const value = error.data.details?.[name];
+      return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+    };
+    return secretFailureOf(wireKind, detail);
+  }
   const raw = error.data.details?.["secret"];
   if (typeof raw !== "object" || raw === null || !("kind" in raw)) return undefined;
   const kind: unknown = raw.kind;
@@ -74,6 +101,13 @@ function secretFailure(error: WireError): Failure | undefined {
     const value: unknown = Reflect.get(raw, name);
     return typeof value === "string" || typeof value === "number" ? String(value) : undefined;
   };
+  return typeof kind === "string" ? secretFailureOf(kind, field) : undefined;
+}
+
+function secretFailureOf(
+  kind: string,
+  field: (name: string) => string | undefined,
+): Failure | undefined {
   switch (kind) {
     case "secret_missing":
       return {
@@ -117,6 +151,8 @@ function secretFailure(error: WireError): Failure | undefined {
         fix: "sops 제공자를 쓴다",
         code: EXIT.error,
       };
+    case "cancelled":
+      return { message: "비밀 입력을 취소했다", fix: "필요하면 다시 실행한다", code: EXIT.error };
     case "denied":
     case "reauth_required":
       return {
@@ -134,6 +170,35 @@ function secretFailure(error: WireError): Failure | undefined {
     // xeon-disable-next-line xeon/switch-default-never -- 비밀 오류 kind는 서버가 더 새로우면 늘어난다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
     default:
       return undefined;
+  }
+}
+
+/** 슬래시 명령 실패. 능력 오류 구간(코드 4000)의 kind `cap.dialog.commands.<code>`다(F wire §3.3.1 command.run) */
+function commandFailure(error: WireError): Failure | undefined {
+  const prefix = "cap.dialog.commands.";
+  if (!error.data.kind.startsWith(prefix)) return undefined;
+  switch (error.data.kind.slice(prefix.length)) {
+    case "command_args_invalid": {
+      const reason = detailText(error, "message");
+      return {
+        message: `명령 인자가 선언에 맞지 않다${reason === undefined ? "" : `: ${reason}`}`,
+        fix: "/help로 명령의 사용법을 확인한다",
+        code: EXIT.usage,
+      };
+    }
+    case "command_shell_disabled":
+      return {
+        message: "셸 주입이 설정에서 꺼져 있어 이 명령을 실행하지 않는다",
+        fix: "l2.dialog.commands.shellInjection 설정을 확인한다 (xeon config get)",
+        code: EXIT.error,
+      };
+    // xeon-disable-next-line xeon/switch-default-never -- 명령 오류 code는 능력이 더하면 늘어난다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
+    default:
+      return {
+        message: `슬래시 명령을 실행하지 못했다 (${error.data.kind})`,
+        fix: "/help로 명령을 확인한다",
+        code: EXIT.error,
+      };
   }
 }
 
@@ -165,6 +230,12 @@ export function failureOfWire(error: WireError): Failure {
         fix: "xeon sessions show로 항목 id를 확인한다",
         code: EXIT.error,
       };
+    case "thread.closed":
+      return {
+        message: `닫힌 세션이라 쓸 수 없다: ${detailText(error, "threadId") ?? ""}`,
+        fix: "xeon sessions fork로 분기하거나 새 세션을 연다",
+        code: EXIT.error,
+      };
     case "turn.busy":
       return { message: "진행 중인 turn이 있다", fix: "끝난 뒤 다시 보낸다", code: EXIT.error };
     case "settings.unknownKey":
@@ -190,6 +261,12 @@ export function failureOfWire(error: WireError): Failure {
         message: `관리 설정이 잠근 키다: ${detailText(error, "key") ?? ""}`,
         fix: "관리자에게 요청한다",
         code: EXIT.error,
+      };
+    case "settings.reserved":
+      return {
+        message: `아직 읽는 코드가 없는 예약 키다: ${detailText(error, "key") ?? ""}`,
+        fix: "xeon config list로 쓸 수 있는 키를 확인한다",
+        code: EXIT.usage,
       };
     case "settings.secretValue":
       return {
@@ -223,6 +300,12 @@ export function failureOfWire(error: WireError): Failure {
         fix: "다른 엔진이 쓰는 중인지 xeon service status로 확인한다",
         code: EXIT.error,
       };
+    case "store.corrupt":
+      return {
+        message: `저장된 데이터가 스키마와 다르다 (${detailText(error, "where") ?? "위치 알 수 없음"})`,
+        fix: "xeon doctor를 실행하고 보고한다. 데이터 디렉터리를 복원하기 전에 복사해 둔다",
+        code: EXIT.error,
+      };
     case "store.io":
       return {
         message: "저장소 입출력에 실패했다",
@@ -252,12 +335,17 @@ export function failureOfWire(error: WireError): Failure {
       };
     }
     // xeon-disable-next-line xeon/switch-default-never -- 서버가 더 새로우면 모르는 와이어 오류 kind가 온다. 일반 문구로 돌려준다 (eng.typescript.guide TY-14)
-    default:
+    default: {
+      const secret = secretFailure(error);
+      if (secret !== undefined) return secret;
+      const command = commandFailure(error);
+      if (command !== undefined) return command;
       return {
         message: `엔진이 요청을 처리하지 못했다 (${kind})`,
         fix: "이 kind를 보고한다",
         code: EXIT.error,
       };
+    }
   }
 }
 
