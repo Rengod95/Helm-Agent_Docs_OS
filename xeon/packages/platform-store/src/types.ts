@@ -81,6 +81,16 @@ export type StoreWarning =
       readonly from: number;
       readonly to: number;
     }
+  /** 스키마를 올리기 전에 DB 스냅샷을 만들었다(L0.store.spec §4.6.1) */
+  | {
+      readonly kind: "migration_snapshot";
+      readonly path: string;
+      readonly owner: string;
+      readonly from: number;
+      readonly to: number;
+    }
+  /** 보관 수를 넘은 옛 스냅샷을 지우지 못했다 */
+  | { readonly kind: "snapshot_prune_failed"; readonly path: string; readonly code: string }
   | {
       readonly kind: "checkpoint_incomplete";
       readonly busy: number;

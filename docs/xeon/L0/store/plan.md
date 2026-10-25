@@ -20,6 +20,7 @@ binds: [xeon/packages/platform-store/**]
 |---|---|---|
 | M0 | 연결 설정, FTS5 프로브(Linux 구현 + macOS CI job), 접두사 검사, `write`/`read` 트랜잭션, sys 스키마 v1(`sys_meta`·`sys_migrations`·`sys_migration_cursors`·`sys_prefixes`), 마이그레이션 실행기, `openTestStore`, FaultInjector 연결, `StoreService` 등록과 `l0.store.*` 선언, 세션 잠금(sys v2 `sys_leases` + posix OS 잠금 + epoch 펜싱)과 두 프로세스 단일 소유 통합 테스트 | ST-01~ST-07, ST-09~ST-12, ST-15 |
 | M1 | 블롭 쓰기·읽기(sys v3), 확장 접두사 테이블 등록·삭제, 장애 주입 테스트, macOS fullfsync 측정, X 확장 저장 영역 계약 스위트 | ST-08, ST-14, ST-16, ST-17, ST-23 |
+| M2 | 마이그레이션 전 스냅샷 | ST-24 |
 | M2 이후 | 블롭 GC, 청크 마이그레이션, Windows `LockProvider`, macOS 동봉 SQLite 배포 경로, 운영 빌드 접두사 검사 확대 판단 | ST-18~ST-22 |
 
 - M1 스모크(`xeon chat` 강제 종료 뒤 재개, `_research/foundation-plan.md §6`)는 ST-12(임대)와 ST-13(복구 표식)이 끝나야 돈다.
@@ -41,6 +42,7 @@ xeon/packages/platform-store/
     db.ts                      # StoreDb 구현(write/read), 오류 매핑, inWrite 표지
     prefix.ts                  # 소유자 표, EXPLAIN 대조(디버그), DDL 어휘 검사(운영)
     migrations.ts              # MigrationRunner(apply, runChunked), 체크섬
+    snapshot.ts                # snapshotBeforeMigration: VACUUM INTO, 보관 3개 (ST-24)
     sys-schema.ts              # sys_* DDL (owner "sys" MigrationSet)
     ext-tables.ts              # ExtensionTables(register, drop)
     lease.ts                   # LeaseService(acquire, renew, release, holds, inspect, keepAlive)
@@ -111,6 +113,7 @@ xeon/packages/platform-store/
 | ST-21 | macOS 동봉 SQLite 배포 경로: FTS5 포함 dylib 빌드 스크립트, `L0.os` `resourceDir()` 연동, `L4.desktop.plan`·`L4.cli.plan`과 패키징 합의 | ST-02 | L | M2 이후 |
 | ST-22 | 운영 빌드 접두사 검사 확대 판단(ST-07 측정 결과), 블롭 해시 재검증 운영 적용 판단 | ST-07, ST-14 | S | M2 이후 |
 | ST-23 | 확장 저장 영역 계약 스위트(`ext-storage.contract.int.test.ts`): X `test/operations/storage/ext-storage.contract.ts`의 시나리오 모음을 테스트 파일 교차 import로 가져와 `openTestStore` 기반 저장소 팩토리(`StoreDb`, `ProjectionTx`, `Projector`, F.records.spec §3.9)로 돌린다. 장애 주입 지점 이름은 X와 같은 문자열(`after_ext_projection:<n>` 등)을 쓴다. 시나리오 파일은 `X.operations.plan` O-15가 만든다 [결정: review.decisions-2 D-05, U-17] | ST-08, ST-09 | S | M1 |
+| ST-24 | 마이그레이션 전 스냅샷: `snapshot.ts`(`snapshotBeforeMigration`, 보관 3개), `migrations.ts` 연결, `StoreWarning`의 `migration_snapshot`·`snapshot_prune_failed`. `migration-snapshot.int.test.ts`가 올리기 전 상태 복사, 모드, 보관 수, 실패 시 단계 미실행을 확인. `spec` §4.6.1 | ST-06 | S | M2 |
 
 ## 4. 채택 코드
 

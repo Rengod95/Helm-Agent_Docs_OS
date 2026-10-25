@@ -1,5 +1,5 @@
 import { existsSync, closeSync, openSync, realpathSync, statSync } from "node:fs";
-import { dirname, isAbsolute, join } from "node:path";
+import { basename, dirname, isAbsolute, join } from "node:path";
 import { assertNever, err, ok, type Result } from "@xeon/contracts";
 import type { FaultInjector, StoreCapabilities } from "@xeon/contracts/records";
 import { createBlobStore } from "./blob.ts";
@@ -18,6 +18,7 @@ import { syncCoreOwners } from "./owner-table.ts";
 import { APPLICATION_ID, applyReadPragmas, applyWritePragmas, readPragma } from "./pragmas.ts";
 import { isStrictBuild } from "./prefix.ts";
 import { createLockProvider, selectPlatformPolicy } from "./select.ts";
+import { MIGRATION_SNAPSHOT_KEEP } from "./snapshot.ts";
 import { assembleStoreService, createScopedFactory } from "./service.ts";
 import {
   asSqliteFailure,
@@ -198,6 +199,13 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
       engineVersion: options.engineVersion,
       strict,
       faults,
+      snapshots: {
+        dir: join(realDir, "backups"),
+        dbFileName: basename(options.dbPath),
+        keep: MIGRATION_SNAPSHOT_KEEP,
+        posix: policy.posixPermissions,
+      },
+      warnings,
     });
     const migrated = migrations.apply(SYS_MIGRATION_SET);
     if (!migrated.ok) {

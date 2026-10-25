@@ -1,4 +1,4 @@
-import { Bug, err, ok, type Clock, type Result } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, type Clock, type Result } from "@xeon/contracts";
 import type {
   MigrationError,
   MigrationReport,
@@ -19,7 +19,9 @@ import { sha256Hex } from "./hash.ts";
 import { readOwnerSpec } from "./owner-table.ts";
 import { SYS_OWNER, coreOwnerSpecs, createStatementGuard, type OwnerSpec } from "./prefix.ts";
 import { columnInt, columnString, toSqlRow } from "./rows.ts";
+import { snapshotBeforeMigration, type SnapshotConfig, type SnapshotError } from "./snapshot.ts";
 import { asSqliteFailure } from "./sqlite-env.ts";
+import type { StoreWarning } from "./types.ts";
 
 export interface MigrationDeps {
   readonly conn: StoreConnections;
@@ -28,6 +30,28 @@ export interface MigrationDeps {
   /** 테스트·디버그 빌드의 EXPLAIN 대조 */
   readonly strict: boolean;
   readonly faults: StoreFaultInjector;
+  /** 있으면 기존 스키마를 올리기 전에 DB 스냅샷을 만든다. 없으면 만들지 않는다(시험용) */
+  readonly snapshots?: SnapshotConfig;
+  /** 스냅샷 경고를 모으는 목록. 열기 때 모으는 경고 목록과 같은 것을 넘긴다 */
+  readonly warnings?: StoreWarning[];
+}
+
+function snapshotFailure(failure: SnapshotError, owner: string, version: number): MigrationError {
+  switch (failure.kind) {
+    case "busy":
+      return { kind: "busy" };
+    case "disk_full":
+      return { kind: "disk_full" };
+    case "io":
+      return {
+        kind: "migration_failed",
+        owner,
+        version,
+        code: `snapshot_failed:${failure.code}`,
+      };
+    default:
+      return assertNever(failure, "SnapshotError");
+  }
 }
 
 /** 단계의 체크섬. 공백 정규화를 하지 않는다(L0.store.spec §4.6) */
@@ -172,6 +196,26 @@ export function createMigrationRunner(deps: MigrationDeps): MigrationRunner {
           dbVersion,
           codeVersion: set.version,
         });
+      }
+      // 기존 스키마를 올릴 때만 스냅샷을 만든다. 처음 만드는 DB와 owner의 첫 등록은 잃을 데이터가 없다
+      if (deps.snapshots !== undefined && dbVersion > 0 && dbVersion < set.version) {
+        const taken = snapshotBeforeMigration(conn.write, deps.snapshots, {
+          owner: set.owner,
+          from: dbVersion,
+          to: set.version,
+          at: deps.clock.now(),
+        });
+        if (!taken.ok) return err(snapshotFailure(taken.error, set.owner, dbVersion + 1));
+        deps.warnings?.push({
+          kind: "migration_snapshot",
+          path: taken.value.path,
+          owner: set.owner,
+          from: dbVersion,
+          to: set.version,
+        });
+        for (const failed of taken.value.pruneFailed) {
+          deps.warnings?.push({ kind: "snapshot_prune_failed", ...failed });
+        }
       }
       for (const step of set.steps) {
         if (step.version <= dbVersion) continue;

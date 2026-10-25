@@ -629,9 +629,22 @@ macOS `fullfsync` [제안]:
   3. `sys_migrations`에서 그 owner의 행을 읽는다. 각 행의 `checksum`을 코드 단계의 체크섬과 대조한다. 다르면 `migration_checksum_mismatch`. DB 최대 버전이 `set.version`보다 크면 `migration_future_version`. 행 사이에 빈칸이 있으면 `migration_gap`.
   4. 남은 단계를 하나씩 별도 `write`(BEGIN IMMEDIATE)에서 실행한다. 단계의 모든 문장, 그 단계의 `sys_migrations` 행 삽입이 한 트랜잭션이다. 문장 하나가 실패하면 그 단계만 롤백되고 `migration_failed`를 돌려준다. 앞 단계는 남는다.
   5. 모든 DDL 문장은 §4.5 접두사 검사를 운영 빌드에서도 거친다.
+  6. 남은 단계가 있고 그 owner의 DB 버전이 1 이상이면(기존 스키마를 올리는 경우) 4번 전에 §4.6.1의 스냅샷을 만든다. 만들지 못하면 어떤 단계도 실행하지 않고 오류를 돌려준다.
 - 체크섬: `sha256Hex(steps[i].sql.join("\n;\n"))`. 공백 정규화를 하지 않는다. 한 번 배포한 단계의 SQL은 고치지 않고 새 단계를 더한다.
 - 처리 정책 [제안]: owner가 `sys`·`core.persistence`면 오류는 열기 실패다(호출자가 읽기 전용 열기를 고를 수 있게 `migration_future_version`은 따로 구분한다). `cap.*`, `ext.*`면 호출자(X 로딩, L2 플러그인)가 그 능력이나 확장을 끄고 나머지는 계속 연다.
 - 청크 마이그레이션 `runChunked(owner, m)`: `sys_migration_cursors`에서 커서를 읽고(없으면 `initialCursor`), 청크마다 `write` 안에서 `m.runChunk(tx, cursor, {maxRows})`와 커서 갱신을 한 트랜잭션으로 한다. `next === null`이면 `cursor = NULL`로 완료를 기록한다. 청크 사이에 `await`로 이벤트 루프를 양보하고 `signal`을 확인한다. 기본 `maxRows`는 500 [제안]. `F.records.spec` §3.7 규칙 6을 구현한다.
+
+#### 4.6.1 마이그레이션 전 스냅샷 [결정: m2 마감 G2-06]
+
+프리뷰 사용자의 DB를 지키기 위한 최소 안전장치다. 내보내기와 복구 런북은 M3다.
+
+- 시점: `apply`가 남은 단계를 실행하기 직전, 그 owner에 적용된 버전이 1 이상일 때만 만든다. 처음 만드는 DB, owner의 첫 등록, 이미 최신인 호출은 만들지 않는다. 열 때의 `sys` 마이그레이션과 소비자가 부르는 `cap.*`·`core.persistence` 마이그레이션이 같은 규칙이다.
+- 수단: 쓰기 연결의 `VACUUM INTO '<경로>'`다(WAL 내용을 포함한 일관된 복사). 쓰기 트랜잭션 밖에서만 돈다.
+- 위치와 이름: `<db 디렉터리>/backups/<db 파일>.pre-<UTC 시각>-<owner>-v<from>-to-v<to>.sqlite`. 시각은 `YYYYMMDDTHHMMSSmmmZ`라 이름순이 시간순이다. 디렉터리는 0700, 파일은 0600이다.
+- 보관: 같은 DB의 스냅샷은 최근 3개(`MIGRATION_SNAPSHOT_KEEP`)만 남기고, 새 스냅샷을 만든 뒤 오래된 것을 지운다. 지우지 못하면 경고 `snapshot_prune_failed`만 남기고 계속한다.
+- 알림: 만들 때마다 열기 경고 목록(`OpenedStore.warnings`)에 `migration_snapshot { path, owner, from, to }`를 더한다. 호스트가 이를 로그와 진단에 싣는다.
+- 실패: 스냅샷을 만들지 못하면 단계를 하나도 실행하지 않는다. `busy`는 `busy`, `disk_full`(SQLITE_FULL, ENOSPC)은 `disk_full`, 그 밖은 `migration_failed { version: 첫 남은 단계, code: "snapshot_failed:<코드>" }`다. 전용 오류 kind(`migration_snapshot_failed`)는 F 요청이다 [미결 S-12].
+- 같은 이름이 이미 있으면(같은 ms에 같은 owner·버전) `EEXIST`로 실패한다. 운영 시계에서는 일어나지 않는다.
 
 ### 4.7 세션 소유 잠금
 
@@ -856,4 +869,5 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - [미결 S-9] macOS `fullfsync` 기본값. 제안은 켬이고 성능 측정(ST-17) 뒤 확정한다.
 - [미결 S-10] bun:ffi 안정성. Bun 문서의 실험 기능 경고 원문을 확인하고, 문제가 있으면 `none` provider(DB 임대만)를 기본으로 둘지 정한다.
 - [미결 S-11] 블롭 해시 재검증을 운영 빌드에서도 할지(읽기 비용).
+- [미결 S-12] F 요청, 스냅샷 실패 전용 오류 kind. 지금은 `migration_failed`의 `code: "snapshot_failed:<코드>"`로 돌려준다(§4.6.1). `MigrationError`에 `migration_snapshot_failed`를 더하고, 손상(`corrupt`)과 미래 버전(`migration_future_version`) 오류를 사용자 안내 문구로 나누는 일은 F·host가 맡는다 [마감 G2-06].
 - [가정] macOS에서 bun:ffi `flock`, `libSystem.B.dylib` 이름, O_CLOEXEC 동작은 실측하지 않았다. Windows 전 구간, WSL `/mnt/c`의 flock도 실측하지 않았다(`_research/notes/L0-2.md §5`).
