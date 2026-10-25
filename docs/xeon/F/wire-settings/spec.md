@@ -310,6 +310,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | events | `events.unsubscribe` | `{ sub: SubId }` | `{}` | M2 |
 | approval | `approval.respond` | `{ approvalId: string, decision: "allow"\|"deny"\|"answer", answer?: ApprovalAnswer, remember?: "once"\|"thread"\|"always" }` | `{ applied: boolean }` | M2 |
 | approval | `approval.list` | `{ threadId: ThreadId }` | `{ approvals: PendingApproval[], position: StreamPosition }` | M2 |
+| command | `command.list` | `{ prefix?: string, includeHidden?: boolean }` | `{ commands: CommandInfo[] }` | M2 |
+| command | `command.run` | `{ threadId: ThreadId, text: string, confirmShell?: boolean }` | `CommandRunOutput` | M2 |
 | settings | `settings.get` | `{ keys?: SettingKey[], threadId?: ThreadId }` | `{ settings: EffectiveSetting[] }` | M1 |
 | settings | `settings.set` | `{ key: SettingKey, value: unknown, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
 | settings | `settings.reset` | `{ key: SettingKey, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
@@ -321,6 +323,13 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | secret | `secret.beginEntry` | `{ name: SecretName, action: "add"\|"set"\|"rotate" }` | `{ started: boolean }` | M2 |
 | secret | `secret.beginReveal` | `{ name: SecretName }` | `{ started: boolean }` | M2 |
 
+- [결정: m2c G1-01] `command.list`와 `command.run`은 엔진에 등록된 슬래시 명령(`dialog.commands`, `F.capabilities.spec` §3.9)을 클라이언트가 부르는 길이다. `/plan`, `/tasks`, `/goal`, `/helm start`처럼 L2·L3 코드가 등록한 동작 명령은 엔진 안에서만 돌 수 있어, 이 메서드가 없으면 클라이언트에서 실행되지 않는다. `CommandInfo`와 `CommandRunOutput`은 능력 정의 파일(`capabilities/defs/dialog.ts`)의 스키마를 그대로 쓴다. 호스트는 `command.list`를 `dialog.commands.list`로, `command.run`을 `dialog.commands.run`으로 옮기고 `threadId`를 호출 문맥에 싣는다.
+  - 출력은 `CommandRunOutput`의 `done`이 싣는다. `message`는 사람이 읽는 텍스트(4,000자까지)이고 `result`는 구조 값이다. 클라이언트는 `message`를 화면에 내고 `result`는 해석하지 않아도 된다.
+  - `expanded`의 `text`는 템플릿을 펼친 최종 입력이다. 클라이언트가 `turn.start`로 보낸다. `command.run`은 turn을 만들지 않는다.
+  - `needs_confirmation`을 받으면 클라이언트가 `shell` 목록을 보이고 사용자 확인을 받은 뒤 `confirmShell: true`로 같은 `text`를 다시 보낸다.
+  - 명령 실패는 능력 오류 구간(코드 4000, kind `cap.dialog.commands.<code>`: `command_args_invalid`, `command_shell_disabled`)과 `thread.notFound`로 돌아온다. 새 wire 오류 kind는 없다.
+  - 이름 없는 입력은 오류가 아니라 `{ status: "not_command" }`다. 클라이언트는 이 값을 받으면 `turn.start`로 보낸다.
+  - `status.list`와 첨부는 M3다(`review.m2-plan` G1-01).
 - [제안] M1 범위는 브리프의 최소 셋(`turn.start`, `events.subscribe`, `settings.get`)에 선행 조건 둘(`host.hello`, `thread.create`)을 더한다. 대화를 시작하려면 thread가 있어야 하고, 모든 연결은 hello로 시작하기 때문이다.
 - [제안] `thread.open`을 추가했다. `_research/process.md` §6.3의 세션 단위 쓰기 소유 규칙을 계약에 드러내기 위해서다. 소유 잠금을 얻지 못하면 `thread.locked`(§3.5.2) 오류에 대안(관찰, 분기, 위임)을 싣는다. in-process 단일 클라이언트인 M1에서는 `thread.create`가 소유를 함께 얻는다.
 - [결정: m2 F.2] `thread.read`는 열린 thread의 스냅샷을 돌려주는 읽기 전용 메서드다(L4.desktop 상태 설계 §14 1번). `thread.open` 결과에 items를 싣지 않고 새 메서드를 둔 이유는 셋이다. 첫째, `thread.open`은 쓰기 소유 획득이라는 부작용이 있어서 소유 없이 관찰하는 thread나 재동기화 때마다 부르기에 맞지 않다. 둘째, 스냅샷은 재설정과 재구독마다 다시 읽는데 `thread.open`은 열 때 한 번 부르는 메서드다. 셋째, 긴 thread는 앞부분을 나눠 받아야 해서 `limit`과 `before`가 필요하다. `thread.read`는 소유를 얻지 않고 닫힌 thread도 읽는다. `items`는 현재 가지의 내구 `ItemRecord`를 오래된 것부터 담고, `position`은 그 items가 반영한 저장소 위치다. 이어 붙이는 규칙은 §3.4.6이다.
@@ -414,6 +423,8 @@ export interface WireMethodMap {
   "events.unsubscribe":{ params: EventsUnsubscribeParams;result: EmptyResult };
   "approval.respond":  { params: ApprovalRespondParams;  result: ApprovalRespondResult };
   "approval.list":     { params: ApprovalListParams;     result: ApprovalListResult };
+  "command.list":      { params: CommandListParams;      result: CommandListResult };
+  "command.run":       { params: CommandRunParams;       result: CommandRunResult };
   "settings.get":      { params: SettingsGetParams;      result: SettingsGetResult };
   "settings.set":      { params: SettingsSetParams;      result: SettingsSetResult };
   "settings.reset":    { params: SettingsResetParams;    result: SettingsSetResult };

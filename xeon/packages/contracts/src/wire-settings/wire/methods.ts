@@ -16,6 +16,8 @@ import {
 } from "typebox";
 import { Nullable, type SchemaSound } from "../../base/index.ts";
 import {
+  CommandInfoSchema,
+  CommandRunOutput,
   SecretApprovalSchema,
   SecretMetaSchema,
   SecretNameSchema,
@@ -521,6 +523,58 @@ export const ApprovalListResultSchema: TObject<{
 );
 export type ApprovalListResult = Static<typeof ApprovalListResultSchema>;
 
+// ── command.* (엔진에 등록한 슬래시 명령. 클라이언트가 목록을 읽고 실행한다, G1-01) ──
+
+/** command.list가 돌려줄 명령 수 상한 */
+const COMMAND_LIST_MAX = 512;
+
+/** `dialog.commands.list`의 입력과 같은 뜻이다(F.capabilities.spec §3.9 dialog). `prefix`는 이름 앞부분이고 `/`는 붙이지 않는다 */
+export const CommandListParamsSchema: TObject<{
+  prefix: TOptional<TString>;
+  includeHidden: TOptional<TBoolean>;
+}> = Type.Object(
+  {
+    prefix: Type.Optional(Type.String({ minLength: 1, maxLength: 97 })),
+    includeHidden: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+export type CommandListParams = Static<typeof CommandListParamsSchema>;
+
+export const CommandListResultSchema: TObject<{ commands: TArray<typeof CommandInfoSchema> }> =
+  Type.Object(
+    { commands: Type.Array(CommandInfoSchema, { maxItems: COMMAND_LIST_MAX }) },
+    { additionalProperties: false },
+  );
+export type CommandListResult = Static<typeof CommandListResultSchema>;
+
+/**
+ * command.run params. `text`는 사용자가 친 줄 그대로다(`/plan 설계`처럼 `/`로 시작). 명령은 thread 문맥에서 돈다.
+ * 없는 thread는 `thread.notFound`다.
+ */
+export const CommandRunParamsSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  text: TString;
+  confirmShell: TOptional<TBoolean>;
+}> = Type.Object(
+  {
+    threadId: ThreadIdSchema,
+    text: Type.String({ minLength: 1, maxLength: 65536 }),
+    /** 셸 주입 실행을 사용자가 확인했는지. `needs_confirmation`을 받은 뒤 참으로 다시 부른다 */
+    confirmShell: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+export type CommandRunParams = Static<typeof CommandRunParamsSchema>;
+
+/**
+ * command.run result는 `dialog.commands.run`의 출력(`CommandRunOutput`)과 같다.
+ * `not_command`는 명령이 아닌 입력, `expanded`는 `turn.start`로 보낼 최종 텍스트, `needs_confirmation`은 셸 주입 확인 요청,
+ * `done`은 동작 명령의 처리 결과다. 화면에 낼 출력은 `done.message`(사람이 읽는 텍스트)와 `done.result`(구조 값)다.
+ */
+export const CommandRunResultSchema: typeof CommandRunOutput = CommandRunOutput;
+export type CommandRunResult = Static<typeof CommandRunResultSchema>;
+
 // ── settings.* ───────────────────────────────────────────────────────────
 
 export const SettingsGetParamsSchema: TObject<{
@@ -816,6 +870,14 @@ interface WireSchemas {
     params: WithMeta<typeof ApprovalListParamsSchema>;
     result: typeof ApprovalListResultSchema;
   };
+  "command.list": {
+    params: WithMeta<typeof CommandListParamsSchema>;
+    result: typeof CommandListResultSchema;
+  };
+  "command.run": {
+    params: WithMeta<typeof CommandRunParamsSchema>;
+    result: typeof CommandRunResultSchema;
+  };
   "settings.get": {
     params: WithMeta<typeof SettingsGetParamsSchema>;
     result: typeof SettingsGetResultSchema;
@@ -948,6 +1010,8 @@ export const WIRE_METHODS: {
     "M2",
   ),
   "approval.list": spec(withMeta(ApprovalListParamsSchema), ApprovalListResultSchema, "M2"),
+  "command.list": spec(withMeta(CommandListParamsSchema), CommandListResultSchema, "M2"),
+  "command.run": spec(withMeta(CommandRunParamsSchema), CommandRunResultSchema, "M2"),
   "settings.get": spec(withMeta(SettingsGetParamsSchema), SettingsGetResultSchema, "M1"),
   "settings.set": spec(withMeta(SettingsSetParamsSchema), SettingsSetResultSchema, "M2"),
   "settings.reset": spec(withMeta(SettingsResetParamsSchema), SettingsSetResultSchema, "M2"),

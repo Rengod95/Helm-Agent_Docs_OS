@@ -16,14 +16,14 @@ const THREAD = rawId("thr", 1);
 const names = Object.keys(WIRE_METHODS);
 
 describe("WIRE_METHODS", () => {
-  test("has the 27 methods of the spec table with their stages", () => {
-    expect(names).toHaveLength(27);
+  test("has the 29 methods of the spec table with their stages", () => {
+    expect(names).toHaveLength(29);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
       ["events.subscribe", "host.hello", "settings.get", "thread.create", "turn.start"].toSorted(),
     );
-    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(22);
+    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(24);
   });
 
   test("every row carries both schemas, since and status", () => {
@@ -244,6 +244,48 @@ describe("M2 method schemas are written out", () => {
     expect(
       parse(result, { approvals: [{ approvalId: entry.approvalId, request }], position }).ok,
     ).toBe(false);
+  });
+
+  test("command.list and command.run carry the dialog.commands shapes over the wire", () => {
+    const list = WIRE_METHODS["command.list"];
+    expect(parse(list.params, {}).ok).toBe(true);
+    expect(parse(list.params, { prefix: "pl", includeHidden: true }).ok).toBe(true);
+    expect(parse(list.params, { prefix: "" }).ok).toBe(false);
+    const info = {
+      name: "plan",
+      description: "계획 모드를 켠다",
+      argumentHint: "[주제]",
+      args: [{ name: "topic", rest: true }],
+      kind: "action",
+      source: "capability",
+      origin: "cap-work",
+      hasShell: false,
+    };
+    expect(parse(list.result, { commands: [info] }).ok).toBe(true);
+    expect(parse(list.result, { commands: [{ ...info, name: "Plan" }] }).ok).toBe(false);
+    expect(parse(list.result, { commands: [{ ...info, kind: "macro" }] }).ok).toBe(false);
+
+    const run = WIRE_METHODS["command.run"];
+    expect(parse(run.params, { threadId: THREAD, text: "/plan 설계" }).ok).toBe(true);
+    expect(parse(run.params, { threadId: THREAD, text: "/x", confirmShell: true }).ok).toBe(true);
+    expect(parse(run.params, { text: "/plan" }).ok).toBe(false);
+    expect(parse(run.params, { threadId: THREAD, text: "" }).ok).toBe(false);
+    // 동작 명령의 출력은 done.message(텍스트)와 done.result(구조 값)로 돌아온다
+    const done = { status: "done", name: "tasks", message: "할 일 2건", result: { open: 2 } };
+    expect(parse(run.result, done).ok).toBe(true);
+    expect(parse(run.result, { status: "not_command" }).ok).toBe(true);
+    expect(parse(run.result, { status: "expanded", name: "review", text: "검토한다" }).ok).toBe(
+      true,
+    );
+    expect(
+      parse(run.result, {
+        status: "needs_confirmation",
+        name: "ship",
+        shell: [{ index: 0, command: "git status" }],
+      }).ok,
+    ).toBe(true);
+    expect(parse(run.result, { ...done, message: undefined }).ok).toBe(false);
+    expect(parse(run.result, { status: "failed" }).ok).toBe(false);
   });
 
   test("secret methods carry no value field", () => {
