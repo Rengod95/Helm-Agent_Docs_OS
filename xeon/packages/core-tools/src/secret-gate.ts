@@ -49,6 +49,31 @@ function scanSecretEnv(args: JsonObject): Result<SecretEnvUse | undefined, Secre
   return ok({ handles, command: typeof command === "string" ? command : undefined });
 }
 
+/** 승인 제목의 길이 상한(`ApprovalRequestInput.title`) */
+const TITLE_MAX = 120;
+
+/** 호출 인자의 `secretEnv`가 가리키는 비밀. 참조가 틀리거나 `secretEnv`가 없으면 빈 목록이다(틀린 참조는 `checkSecretUse`가 거부한다) */
+export function secretHandlesOf(args: JsonObject): readonly SecretHandle[] {
+  const scanned = scanSecretEnv(args);
+  return scanned.ok && scanned.value !== undefined ? scanned.value.handles : [];
+}
+
+/**
+ * 비밀을 쓰는 호출의 승인 제목. 사용자가 이 승인으로 어떤 비밀을 내주는지 제목에서 알아야 하므로 비밀 참조를 앞에 둔다.
+ * 제목 길이를 넘으면 들어가는 만큼만 적고 나머지는 개수로 알린다
+ */
+export function secretUseTitle(toolName: string, handles: readonly SecretHandle[]): string {
+  const head = `Allow "${toolName}" to use `;
+  const full = `${head}${handles.join(", ")}?`;
+  if (full.length <= TITLE_MAX) return full;
+  for (let shown = handles.length - 1; shown >= 1; shown -= 1) {
+    const rest = handles.length - shown;
+    const title = `${head}${handles.slice(0, shown).join(", ")} (+${String(rest)} more)?`;
+    if (title.length <= TITLE_MAX) return title;
+  }
+  return `${head}${String(handles.length)} secrets?`.slice(0, TITLE_MAX);
+}
+
 /** 명령줄에서 정책이 판정할 target을 만든다(platform-exec `commandTarget`과 같은 규칙) */
 function commandTarget(command: string): UseCtx["target"] {
   const trimmed = command.trim();

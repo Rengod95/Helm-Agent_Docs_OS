@@ -18,7 +18,12 @@ import type {
 } from "@xeon/contracts/conversation";
 import type { ExtensionManifest, ScopeSetup } from "@xeon/contracts/extensions";
 import type { ScopeLayer, ScopeStack } from "@xeon/contracts/settings";
-import type { ToolCallOutcome, ToolRunContext, ToolService } from "@xeon/contracts/services";
+import type {
+  CallerId,
+  ToolCallOutcome,
+  ToolRunContext,
+  ToolService,
+} from "@xeon/contracts/services";
 import { Type } from "typebox";
 import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
 import type { ExtensionUnit } from "@xeon/ext-host";
@@ -66,7 +71,11 @@ export interface Harness {
   readonly apis: Map<string, unknown>;
   /** 파일 범위 설정 층을 바꾼다 */
   setLayers(layers: ScopeStack): void;
-  run(overrides?: { interactive?: boolean; signal?: AbortSignal }): ToolRunContext;
+  run(overrides?: {
+    interactive?: boolean;
+    signal?: AbortSignal;
+    caller?: CallerId;
+  }): ToolRunContext;
 }
 
 let unitCounter = 0;
@@ -152,6 +161,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
         threadId: thread,
         ...(overrides?.interactive === undefined ? {} : { interactive: overrides.interactive }),
         ...(overrides?.signal === undefined ? {} : { signal: overrides.signal }),
+        ...(overrides?.caller === undefined ? {} : { caller: overrides.caller }),
       });
       tasks.addTurn(run.turnId);
       return run;

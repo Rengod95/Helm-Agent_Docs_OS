@@ -96,6 +96,20 @@ export type ResponseError =
   | { readonly kind: "remember_not_offered"; readonly remember: ApprovalRemember }
   | { readonly kind: "answer_invalid"; readonly message: string };
 
+/** 클라이언트에 알릴 한 줄. 사용자가 응답을 고치는 데 필요한 만큼만 말한다 */
+export function invalidDetail(error: ResponseError): string {
+  switch (error.kind) {
+    case "decision_not_allowed":
+      return `decision "${error.decision}" does not fit this request`;
+    case "remember_not_offered":
+      return `remember "${error.remember}" is not offered by this request`;
+    case "answer_invalid":
+      return error.message;
+    default:
+      return assertNever(error, "invalidDetail");
+  }
+}
+
 export interface AppliedResponse {
   readonly decision: ApprovalDecision;
   readonly answer: JsonValue | null;

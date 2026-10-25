@@ -139,6 +139,10 @@ export interface DirectToolRegistration {
   readonly outputLimits?: OutputLimits | "self";
   /** 서버 주도 입력 요청(MCP `input_required`)을 낼 수 있는 도구의 실행. 있으면 `tool.execute` 대신 쓴다 (§4.3 `input_required`) */
   readonly executeWithContinuation?: (call: {
+    /** 호출이 속한 대화. `context.threadId`와 같은 값이다 */
+    readonly threadId: ThreadId;
+    /** 능력 도구가 받는 호출 문맥과 같은 값(`threadId`, `turnId`, `toolCallId`, `caller`, `interactive`, 비밀 승인 증거) */
+    readonly context: CallContext;
     readonly toolCallId: string;
     readonly params: unknown;
     readonly signal: AbortSignal;
@@ -155,6 +159,7 @@ export interface ToolRegisterError { readonly kind: "name_conflict"; readonly to
 ```
 
 - `ToolSpec`에는 `execute`가 없다(F.capabilities.spec §3.3). 능력 도구의 실행 함수는 §4.3의 어댑터가 서비스 키로 얻은 provider API에서 합성한다.
+- 호출 문맥 [결정: m2c G1-09, A-08]: 능력 도구는 `CallOptions.context`(F `CallContext`)로, 직접 등록 도구는 `executeWithContinuation`의 `threadId`와 `context`로 같은 문맥을 받는다. 어댑터(`entries.ts`의 `callContext`)가 `ToolRunContext`에서 채운다: `caller`는 주 대화면 `{ kind: "model", agent: "main" }`, 서브에이전트면 `{ kind: "model", agent: "subagent", agentName: <정의 이름> }`이다. `extension`은 확장·그룹 코드가 호출자일 때의 이름이라 이 경로에서는 비어 있다. 도구 구현과 L2 어댑터는 승인 origin의 `caller`를 `approvalCallerOf(context.caller)`(F `services/approvals.ts`) 하나로 만든다. 자기 복제를 두지 않는다. `execute`(pi `AgentTool.execute`)에는 문맥을 실을 자리가 없으므로 호출 주체와 대화가 필요한 직접 등록 도구는 `executeWithContinuation`으로 등록한다.
 - `DirectToolRegistration.tool`은 F `AgentTool`(F.conversation.spec §3.1.1)이다. 실행 함수를 가진 도구(확장 `registerTool`, MCP 동적 도구, 내장 `tool_search`)가 이 경로를 쓴다. 이런 도구도 같은 파이프라인을 지난다. 파이프라인 밖 실행 경로는 없다.
 - `core.<L1 도메인>` 순서 키 [제안]: L1이 내장하는 도구(`tool_search`, L1.agents.spec의 `agent`)의 순서 키다. F.capabilities.spec §4.5는 `ext.`, `mcp.` 접두만 정했으므로 추가를 요청한다(§8.3 F 요청 2).
 
@@ -584,11 +589,11 @@ export const ApprovalResolutionSchema: TSchema;
 
 | kind | 허용 decision | answer | remember |
 |---|---|---|---|
-| `tool` | `allow`, `deny` | deny일 때 `{ feedback: string }` 선택 | `once`, `thread`, `always` |
+| `tool` | `allow`, `deny` | deny일 때 `{ feedback: string }` 선택 | `once`, `thread`. 파이프라인은 `always`를 제안하지 않는다(§4.7 6번) |
 | `plan` | `allow`, `deny` | allow일 때 `{ mode?, note? }` 선택(`mode`는 `nextModes` 안), deny일 때 `{ feedback }` 선택 | `once` |
 | `question` | `answer`, `deny` | answer일 때 `QuestionAnswer` 필수(질문 id마다) | `once` |
 
-- 응답 검사 규칙 [제안]: 모두 `respond`가 커밋 전에 한다. 어긋나면 `applied: false`이고 이벤트를 쓰지 않는다. 요청은 대기 상태로 남는다.
+- 응답 검사 규칙 [제안]: 모두 `respond`가 커밋 전에 한다. 어긋나면 `applied: false`이고 이벤트를 쓰지 않는다. 요청은 대기 상태로 남는다. 결과의 `reason`이 클라이언트에 이유를 알린다: `answer_invalid`(decision이 kind에 맞지 않거나 answer·remember가 맞지 않음. `detail`에 한 줄. 요청은 대기 그대로라 고쳐 다시 보낼 수 있다), `already_resolved`(해결됐거나 다른 응답이 해결을 커밋하는 중), `unknown_approval`(이 런타임의 대기 목록에 없음. 메모리 표에서 빠진 해결된 요청도 여기에 든다), `commit_failed`(응답은 맞았으나 `approval.resolved` 커밋이 실패. 요청은 대기 그대로)(F `ApprovalApplyOutcome`, M2 마감 G1-09).
   - `tool`: `allow` 또는 `deny`. `remember`는 요청이 낸 범위 안이어야 한다.
   - `plan`: `allow`의 `answer`는 생략하거나 `{ mode?, note? }`다. `mode`는 요청 `nextModes` 안이어야 한다. `deny`의 `answer`는 `{ feedback }`만 받는다.
   - `question`: `answer`의 `QuestionAnswer`는 질문마다 항목이 하나씩 있고(`{ selected: string[], text?: string }`, 그 밖의 필드 없음), `selected`의 id는 그 질문의 선택지 안에 있고 중복이 없고, `multiSelect`가 거짓이면 하나 이하다. `allowFreeText`가 거짓이면 `text`가 없다. 선택도 `text`도 비면 거부한다. `deny`의 `answer`는 `{ feedback }`만 받는다.
@@ -855,7 +860,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 6. 기억 범위:
    - `once`: 이번 호출만.
    - `thread`: 같은 소유 트리 루트 대화가 끝날 때까지 같은 도구·같은 `ruleId`(규칙이 낸 ask) 또는 같은 도구(모드가 낸 ask)의 ask를 allow로 본다. 저장은 `approval.resolved` 이벤트 자체다. core-tools는 재개 때 이 이벤트에서 세션 허용 목록을 다시 만든다.
-   - `always`: 2차 항상 허용 캐시(§4.11)가 들어오기 전에는 `thread`로 낮춰 적용하고 `requestedRemember: "always"`를 남긴다 [제안].
+   - `always`: 파이프라인의 도구 승인은 제안하지 않는다(`remember`는 `["once", "thread"]`). 고르면 새 대화마다 같은 명령을 다시 묻는데 사용자는 항상 허용된 줄 알았기 때문이다(감사 L1-04) [결정: M2 마감 G2-10]. 영구 허용은 사용자 범위 규칙 `l1.tools.rules`의 allow 규칙을 쓴다. 2차 항상 허용 캐시(§4.11)가 들어오면 제안을 되살린다. 제안하지 않은 `always`를 클라이언트가 보내면 `answer_invalid`다. 능력 어댑터가 `always`를 제안하는 요청을 올리면(L2 `remember` 목록은 어댑터가 정한다) 2차 전까지 `thread`로 낮춰 적용하고 `approval.resolved`에 `remember: "thread"`와 `requestedRemember: "always"`를 함께 남긴다. 클라이언트는 이 둘이 다르면 낮춘 사실을 표시한다(아래 동의 표시 요건 6번).
 7. 비대화형: 정책이 낸 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 7단계). 정책을 지나지 않는 요청은 kind와 관계없이 사람이 없다: 정책이 허용한 뒤 파이프라인이 다시 묻는 비밀 사용 승인(§4.12)과 능력 서비스가 올리는 도구 승인(웹 도메인 승인 등)이 그렇다. 이 요청과 question·plan 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다. 이 커밋에는 대기 체크포인트와 `ui_prompt` 발화가 없다. 비대화형인지는 요청의 `origin`으로 찾은 활성 호출의 `ToolRunContext.interactive`로 본다. 활성 호출이 없는 요청(턴 밖의 그룹 코드)은 대화형으로 본다.
 8. 취소: 턴 취소(eng.transactions.design §6.2)는 그 턴의 미해결 요청을 `resolvedBy: "cancelled"`로 닫는다. 대기 중이던 도구 호출은 의도가 없으므로 실행되지 않고, 루프는 `not_executed` 합성 결과로 닫는다.
    - 살아 있는 호출이 기다리는 요청은 파이프라인(`decide`)과 어댑터(`input_required` 대기)가 신호가 끊길 때 닫는다. 프로세스가 끊긴 뒤 남은 요청은 호출이 없다. core-loop가 열린 turn을 닫을 때(`closeOpenTurn`) `ApprovalService.restore`로 미해결 요청을 읽어 그 turn의 것을 `cancel`로 닫는다.
@@ -869,6 +874,19 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 - 이 재실행은 같은 파이프라인을 지난다. `tool_call` 핸들러와 정책은 다시 실행된다. 의도 전이므로 다시 실행해도 된다(F.extensions.spec §4.3 재생 계약). 승인 단계에서 같은 `requestKey`(toolCallId)로 `request`를 부르면 커밋이 `replayed`로 끝나고 같은 `approvalId`의 기존 요청을 기다린다. 그 사이 응답이 커밋되었으면 바로 그 결과를 쓴다. 그래서 강제 종료 뒤 재개하면 같은 승인 요청이 복원된다(§9).
 - 질문 도구는 실행(8단계) 안에서 대기하므로 대기 전에 의도와 실행 표시가 이미 커밋되어 있다. 그래서 질문 도구는 `replay: "safe"`를 선언해야 한다 [제안]. 재개 때 `decideEffectRecovery`가 `rerun`을 내고, 다시 실행된 도구가 같은 `requestKey`로 같은 요청을 이어 기다린다. L2.dialog.spec·L2.work.spec에 이 선언을 요청한다(§8.4).
 - 서비스 모드 유휴 종료에서 승인 대기 세션을 live로 셀지는 architecture.runtime-flow.design §7 [미결]을 따른다. 이 문서는 정하지 않는다(§10).
+
+#### 동의 표시 요건
+
+승인 카드(`approval.requested`를 받아 `approval.respond`를 보내는 클라이언트 화면. L4 CLI와 데스크톱)가 지켜야 하는 요건이다 [결정: M2 마감 G2-10]. 사용자가 무엇에 동의하는지 정확히 알고 누르게 하는 것이 목적이다. 카드 구현은 L4 문서가 정하고, 이 절은 화면과 무관하게 보여야 하는 정보를 정한다.
+
+1. 도구 승인(`tool`)은 도구 이름, 위험 등급(`risk`), 실제로 실행될 인자를 보인다. 인자가 `BlobRef`이거나 길어서 줄이면 줄였다는 표시와 전체를 볼 수 있는 길을 둔다. 줄인 인자만 보고 허용하게 두지 않는다.
+2. 누가 요청했는지(`origin.caller`: 주 대화는 `main`, `subagent:<이름>`, `background`, `ext:<확장>`, `host`)와 어느 대화인지(`surfaceThreadId`와 `origin.threadId`가 다르면 서브에이전트 대화의 요청이다)를 보인다.
+3. 묻는 이유를 보인다. `ruleId`가 있으면 그 규칙이 물었다는 것을, 없으면 권한 모드가 물었다는 것을 말한다. 비밀 사용 승인(`secret.use`)은 쓰이는 비밀 참조 이름을 보인다(값은 보이지 않는다).
+4. 기억 범위는 요청의 `remember`에 든 값만 고르게 하고 뜻을 적는다: `once`는 이번 호출만, `thread`는 이 대화가 끝날 때까지 같은 도구의 같은 종류 요청이다. 요청이 제안하지 않은 범위를 선택지로 만들지 않는다. 기본 선택은 `once`다.
+5. 거부는 사유(`feedback`)를 함께 보낼 수 있게 한다. 허용과 거부를 같은 무게로 보이고, 한쪽만 기본 강조하지 않는다.
+6. 해결 뒤 `approval.resolved`의 `remember`와 `requestedRemember`가 다르면 낮춰 적용했다는 사실을 보인다("항상 허용"을 골랐으나 이 대화에서만 적용됨). 클라이언트가 `always`를 선택지로 보이지 않으므로(4번) 정상 경로에서는 나오지 않고, 능력 어댑터 요청에서만 나올 수 있다.
+7. `approval.respond`가 `applied: false`를 돌려주면 `reason`에 따라 다르게 다룬다: `answer_invalid`는 `detail`을 보이고 카드를 유지한다, `commit_failed`는 다시 보내게 하고 카드를 유지한다, `already_resolved`와 `unknown_approval`은 카드를 닫고 목록을 다시 읽는다.
+8. 비대화형 실행(`interactive: false`)에서 정책이 ask를 deny로 바꾼 호출은 카드를 올리지 않는다. 카드가 없는 거부는 도구 결과 문장(`noninteractive`)으로 사용자에게 보인다.
 
 ### 4.8 결과 경계화
 
@@ -1033,6 +1051,8 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 12. (반영됨: m2 F.8, core-tools 연결 L1F) F `CallOptions.continuation`(`CallContinuation`: `round`, `inputResponses`, `requestState`)과 MCP `McpQuestion`을 `QuestionBody`로 옮기는 규칙(`planMcpQuestionBody`, `decodeMcpAnswer`, `uniformMcpAnswer`, F.capabilities.spec §3.9 `defs/mcp-questions.ts`)이 들어갔다. D5(a)의 L1.tools 쪽 재호출에 필요하다(§4.3 `approvalId`가 없는 변형). core-tools 어댑터가 `McpInputRequiredSchema`로 변형을 알아보고 질문 승인(요청 키 `mcp:<toolCallId 해시>#r<round>`)을 올려 `continuation`으로 다시 부른다(§4.3, `src/mcp-input.ts`).
 13. (반영됨: m2 F.8) F `CallContext.approval?: SecretApprovalEvidence`(`services`의 `ApprovalEvidence`와 같은 타입)와 `CallContext.interactive?: boolean`. core-tools가 `entries.ts`의 `callContext`에서 채우고 cap-workspace의 shell `run`이 `SecretEnvRequest.ctx.approval`에 옮긴다(§4.12).
 14. [해소: M2 검토 3] F `ToolService`(F.capabilities.spec §3.12 `services/tools.ts`)에 `suspendWhile(threadId, toolCallId, wait)`를 더했다(§3.3). core-agents의 `agent` 도구가 `tools` 슬롯을 내려놓고 자식을 기다리는 데 필요하다. `AgentTool.execute`와 `ToolRunContext`에는 슬롯을 실을 자리가 없다.
+15. (반영됨: m2c G1-09, A-08) F `CallerInfo.agentName`, `approvalCallerOf`, `ApprovalCaller`(`services/approvals.ts`)와 `DirectToolRegistration.executeWithContinuation`의 `threadId`·`context`. core-tools가 `entries.ts`에서 채운다(§3.1 호출 문맥 규칙). L2 어댑터의 복제 `callerOf`는 L2 트랙이 `approvalCallerOf`로 바꾼다.
+16. (반영됨: m2c G1-08) F `ApprovalApplyOutcome`(`applied`, `reason`, `detail`)과 `ApprovalNotAppliedReason`. core-tools `respond`가 낸다(§3.6 응답 검사 규칙).
 
 ### 8.4 다른 문서 수정 요청
 
@@ -1076,6 +1096,10 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 31. `approvalId`가 없는 `input_required`(MCP)는 질문 승인(kind `question`)이 되고, 답이 `continuation.inputResponses`로 돌아가 같은 `requestId`로 다시 불린다. `requestState`는 바이트 그대로 가고 라운드는 이전 라운드 + 1이다. 거부는 모든 입력 요청에 `decline`, 비대화형은 요청과 거부 해결이 한 커밋이며 `decline`이다. 질문 중 turn 취소는 승인을 `cancelled`로 닫고 서버를 다시 부르지 않는다. 라운드마다 다른 요청 키를 쓴다. 모양이 틀린 변형은 `[xeon:input_required_invalid]` 오류 결과다.
 32. `secretEnv` 호출의 승인 증거는 `CallContext.approval`로 도구 구현에 전달된다. 증거가 없거나 비대화형이면 필드가 없거나 `interactive: false`다.
 33. 해결된 요청이 `RESOLVED_KEPT`를 넘으면 가장 먼저 해결된 것이 메모리 표에서 빠지고 대기 중인 요청은 남는다. 빠진 요청의 `requestKey`로 다시 `open`하면 새 이벤트 없이 같은 `approvalId`와 저장된 해결을 돌려준다.
+34. 능력 도구(`CallOptions.context`)와 직접 등록 도구(`executeWithContinuation`의 `context`)는 같은 `caller`를 받는다: 주 대화는 `{ kind: "model", agent: "main" }`, 서브에이전트는 `{ kind: "model", agent: "subagent", agentName: <정의 이름> }`이고 `approvalCallerOf`가 각각 `main`, `subagent:<정의 이름>`을 낸다.
+35. 도구 승인의 `remember`는 `["once", "thread"]`이다. 제안하지 않은 `always`를 보낸 응답은 `applied: false`, `reason: "answer_invalid"`이고 요청은 대기 그대로다. `always`를 제안한 어댑터 요청의 `always` 응답은 `approval.resolved`에 `remember: "thread"`, `requestedRemember: "always"`로 남는다.
+36. `respond`는 `applied: false`일 때 `reason`을 낸다: 모르는 `approvalId`는 `unknown_approval`, 해결된 요청은 `already_resolved`, 맞지 않는 decision·answer·remember는 `answer_invalid`와 `detail`이다.
+37. `origin.stepId`가 없는 요청은 활성 호출의 단계로 채워 기록한다(`approval.requested` payload의 `origin`과 이벤트 봉투가 같은 값). `secretEnv`를 쓰는 호출의 정책 승인 제목은 비밀 참조를 말하고 120자를 넘으면 개수로 줄인다.
 
 ## 10. 미결 사항
 

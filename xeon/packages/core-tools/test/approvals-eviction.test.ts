@@ -52,10 +52,11 @@ test("the oldest resolved requests leave memory first, pending ones stay, and a 
     waiting.request.approvalId,
   ]);
 
-  // 빠진 요청에는 응답을 적용하지 않는다
+  // 빠진 요청에는 응답을 적용하지 않는다. 표에 없으므로 모르는 요청과 같은 이유다
   const evictedId = idByKey.get("k1") ?? "";
   expect(await fake.approvals.respond(evictedId, { decision: "deny" })).toEqual({
     applied: false,
+    reason: "unknown_approval",
   });
 
   // 기록은 남아 있다: 같은 키로 다시 열면 새 이벤트 없이 같은 approvalId와 저장된 해결을 이어 받는다

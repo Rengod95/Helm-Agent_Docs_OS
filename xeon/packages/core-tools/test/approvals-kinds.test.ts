@@ -213,7 +213,10 @@ test("question answers are checked against the questions: unknown ids, bad optio
     },
   ];
   await eachInOrder(bad, async (response) => {
-    expect(await h.runtime.approvals.respond(id, response)).toEqual({ applied: false });
+    const outcome = await h.runtime.approvals.respond(id, response);
+    expect(outcome).toMatchObject({ applied: false, reason: "answer_invalid" });
+    // 어디가 맞지 않는지 한 줄을 알린다
+    expect(outcome.detail ?? "").not.toBe("");
   });
   expect(h.session.events.some((event) => event.kind === "approval.resolved")).toBe(false);
   expect(h.runtime.approvals.pending(h.thread)).toHaveLength(1);
@@ -243,8 +246,12 @@ test("plan_approval_switches_mode: allow with a mode writes the session mode bef
   // 허용 목록 밖의 모드와 질문용 decision은 적용되지 않는다
   expect(
     await h.runtime.approvals.respond(id, { decision: "allow", answer: { mode: "bypass" } }),
-  ).toEqual({ applied: false });
-  expect(await h.runtime.approvals.respond(id, { decision: "answer" })).toEqual({ applied: false });
+  ).toMatchObject({ applied: false, reason: "answer_invalid" });
+  expect(await h.runtime.approvals.respond(id, { decision: "answer" })).toEqual({
+    applied: false,
+    reason: "answer_invalid",
+    detail: 'decision "answer" does not fit this request',
+  });
   expect(h.runtime.tools.mode(h.thread)).toBe("plan");
   expect(
     await h.runtime.approvals.respond(id, { decision: "allow", answer: { mode: "acceptEdits" } }),

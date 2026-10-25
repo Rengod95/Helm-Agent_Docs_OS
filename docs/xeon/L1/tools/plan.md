@@ -192,6 +192,10 @@ xeon/packages/core-tools/
 | `lock_wait_abort_leaves_no_exec` | 잠금 대기 중 turn 취소면 그 호출에 `effect.exec`가 없고 중단 결과다 | TL-17 |
 | `tools_pool_cap_waits_after_lock` | `limits.tools = 1`이면 두 번째 실행이 첫 실행의 반납 뒤 시작하고, 기록된 순서가 키 잠금 → 슬롯이다(C3) | TL-17 |
 | `tool_result_masked_before_commit_and_points` | 가짜 `Redactor`에 등록한 값이 `effect.result`, toolResult item, blob, `tool_result`·`tool_execution_update` 페이로드에 없고 `secret.masked` 1건이 남는다 | TL-18 |
+| `capability_tool_subagent_name_reaches_the_approval_caller`, `direct_tool_subagent_name_reaches_the_approval_caller` | 서브에이전트 호출의 `CallContext.caller`가 `agentName`을 싣고 `approvalCallerOf`가 `subagent:<이름>`을 낸다. 능력 도구와 직접 등록 도구가 같다(`test/call-context.test.ts`, M2 마감 G1-09) | TL-12 |
+| `a client that asks for always on a bash request is refused, because always is not offered` | 도구 승인이 `always`를 제안하지 않고, 보낸 응답은 `answer_invalid`이며 요청은 대기 그대로다. `an adapter request that offers always ...`는 `thread`로 낮추고 `requestedRemember`를 남긴다(`test/approvals.test.ts`, M2 마감 G2-10) | TL-12 |
+| `an origin without stepId gets the active call's step ...` | `origin.stepId`가 없는 요청이 활성 호출의 단계로 채워져 payload와 이벤트 봉투가 일치한다. 서브에이전트 정책 승인의 `origin.caller`는 `subagent:<이름>`이다(`test/approval-origin.test.ts`, M2 마감 G1-09) | TL-12 |
+| `the approval title names the secrets of a call and shortens a long list by count` | `secretEnv` 호출의 정책 승인 제목이 `Allow "bash" to use secret://…?`이고 120자를 넘으면 `(+N more)`로 줄인다(`test/secret-approval.test.ts`, M2 마감 G2-10) | TL-18 |
 
 ## 6. 완료 기준
 

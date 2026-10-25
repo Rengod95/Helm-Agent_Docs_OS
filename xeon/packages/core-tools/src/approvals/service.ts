@@ -12,6 +12,7 @@ import {
 } from "@xeon/contracts/records";
 import {
   PERMISSION_MODE_STRICTNESS,
+  type ApprovalApplyOutcome,
   type ApprovalOrigin,
   type ApprovalWaitFailure,
   type OpenedApproval,
@@ -29,7 +30,7 @@ import { commitWithRetry, type CommitFailure } from "../commit.ts";
 import { isJsonObject, messageOf } from "../util.ts";
 import { requestCommitKey, resolveCommitKey } from "./keys.ts";
 import { scanApprovals } from "./pending.ts";
-import { requestIssue, validateResponse } from "./protocol.ts";
+import { invalidDetail, requestIssue, validateResponse } from "./protocol.ts";
 
 // L1.tools.spec §3.6, §4.7 승인 대기. 도구 승인(tool), 계획 승인(plan), 질문(question)이 하나의 대기 형식을 쓴다.
 // L2 능력은 자기 도구의 실행 안에서 `request`(또는 비차단 `open`+`wait`)를 부른다.
@@ -63,6 +64,8 @@ export interface ApprovalDeps {
  * 되찾아 저장된 해결을 이어 받는다(`adoptStoredResolution`). 대기 중인 요청과 대기자가 있는 요청은 빼지 않는다
  */
 const RESOLVED_KEPT = 256;
+/** `respond`가 돌려주는 detail의 길이 상한(wire `ApprovalRespondResult.detail`과 같다) */
+const DETAIL_MAX = 512;
 
 /**
  * 파이프라인과 L2 어댑터가 쓰는 확장. 비차단 `open`·`wait`·`get`은 F `ApprovalService`로 올라갔다(L1.tools.spec §8.3 F 요청 11).
@@ -317,8 +320,12 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
 
     const requestedAt = deps.clock.now();
     const sameThread = input.origin.threadId === surfaceThreadId;
+    // 능력 어댑터는 CallContext에서 origin을 만들고 거기에 stepId가 없다. 활성 호출이 알면 그 단계로 채워 모든 승인 기록의 origin이 같은 값을 갖게 한다
+    const stepId = input.origin.stepId ?? call?.run.stepId ?? null;
+    const origin: ApprovalOrigin =
+      stepId === input.origin.stepId ? input.origin : { ...input.origin, stepId };
     const payload = {
-      origin: input.origin,
+      origin,
       requestKey: input.requestKey,
       title: input.title,
       body: input.body,
@@ -346,8 +353,8 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       id: requestedId,
       kind: "approval.requested",
       threadId: surfaceThreadId,
-      turnId: sameThread ? input.origin.turnId : null,
-      stepId: sameThread ? input.origin.stepId : null,
+      turnId: sameThread ? origin.turnId : null,
+      stepId: sameThread ? origin.stepId : null,
       causationId: null,
       correlationId: null,
       payload,
@@ -367,8 +374,8 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
           id: deps.ids.next("evt"),
           kind: "approval.resolved",
           threadId: surfaceThreadId,
-          turnId: sameThread ? input.origin.turnId : null,
-          stepId: sameThread ? input.origin.stepId : null,
+          turnId: sameThread ? origin.turnId : null,
+          stepId: sameThread ? origin.stepId : null,
           causationId: requestedId,
           correlationId: null,
           payload: silentResolution,
@@ -409,6 +416,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     }
     const request: ApprovalRequest = {
       ...input,
+      origin,
       approvalId: eventId,
       surfaceThreadId,
       requestedAt,
@@ -482,16 +490,22 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   async function respond(
     approvalId: string,
     response: ApprovalResponse,
-  ): Promise<{ readonly applied: boolean }> {
+  ): Promise<ApprovalApplyOutcome> {
     const entry = byId.get(approvalId);
-    if (entry?.state !== "pending") return { applied: false };
+    if (entry === undefined) return { applied: false, reason: "unknown_approval" };
+    // 해결됐거나 다른 응답이 해결을 커밋하는 중이다. 맞지 않는 응답을 이 상태에서 검사하지 않는다: 고쳐 보내도 달라질 것이 없다
+    if (entry.state !== "pending") return { applied: false, reason: "already_resolved" };
     const checked = validateResponse(entry.request, response);
     if (!checked.ok) {
       deps.logger?.warn("tools.approval_response_invalid", {
         approvalId,
         reason: checked.error.kind,
       });
-      return { applied: false };
+      return {
+        applied: false,
+        reason: "answer_invalid",
+        detail: invalidDetail(checked.error).slice(0, DETAIL_MAX),
+      };
     }
     entry.state = "settling";
     const resolution: ApprovalResolution = {
@@ -506,7 +520,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     if (!committed.ok) {
       entry.state = "pending";
       deps.logger?.warn("tools.approval_resolve_failed", { approvalId });
-      return { applied: false };
+      return { applied: false, reason: "commit_failed" };
     }
     return { applied: true };
   }

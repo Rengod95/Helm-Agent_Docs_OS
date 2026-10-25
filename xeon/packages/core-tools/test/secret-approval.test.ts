@@ -12,6 +12,7 @@ import type { JsonObject } from "@xeon/contracts/conversation";
 import { createCallTable } from "../src/calls.ts";
 import { createPipeline } from "../src/pipeline.ts";
 import { createRegistry } from "../src/registry.ts";
+import { secretUseTitle } from "../src/secret-gate.ts";
 import { fakeSecretChecker } from "../src/testing/index.ts";
 import type { ToolEntry } from "../src/types.ts";
 import {
@@ -31,6 +32,7 @@ import {
 
 const TOKEN = "secret://github-token";
 const TOKEN_HANDLE = expectOk(parseSecretRef(TOKEN)).handle;
+const handleOf = (name: string) => expectOk(parseSecretRef(`secret://${name}`)).handle;
 const PROMPT = {
   handle: TOKEN_HANDLE,
   desc: "GitHub token",
@@ -112,6 +114,8 @@ test("the approval of the bash call itself is the per-use evidence: one request,
     kind: "tool",
     tool: { toolName: "bash", ruleId: "default.bash-ask" },
   });
+  // 이 승인이 비밀 사용의 증거이므로 제목이 비밀 참조를 말한다(승인 카드의 제목만 보고 허용해도 무엇을 내주는지 안다)
+  expect(request?.title).toBe(`Allow "bash" to use ${TOKEN}?`);
   await h.runtime.approvals.respond(request?.approvalId ?? "", { decision: "allow" });
   expect((await done).blocked).toBeUndefined();
 
@@ -351,4 +355,17 @@ test("a call that uses no secret carries no evidence", async () => {
   const run = workspace.calls.find((call) => call.method === "run");
   expect(run?.context?.approval).toBeUndefined();
   expect(run?.context?.interactive).toBe(false);
+});
+
+test("the approval title names the secrets of a call and shortens a long list by count", () => {
+  const many = Array.from({ length: 12 }, (_unused, index) =>
+    handleOf(`very-long-secret-name-${String(index)}`),
+  );
+  const title = secretUseTitle("bash", many);
+  expect(title.length).toBeLessThanOrEqual(120);
+  expect(title.startsWith('Allow "bash" to use secret://very-long-secret-name-0, ')).toBe(true);
+  expect(title).toMatch(/ \(\+\d+ more\)\?$/);
+  expect(secretUseTitle("bash", [handleOf("aa"), handleOf("bb")])).toBe(
+    'Allow "bash" to use secret://aa, secret://bb?',
+  );
 });

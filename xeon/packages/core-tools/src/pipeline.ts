@@ -60,7 +60,7 @@ import {
   type EffectKit,
 } from "./effects.ts";
 import { evaluatePolicy } from "./policy/engine.ts";
-import { checkSecretUse } from "./secret-gate.ts";
+import { checkSecretUse, secretHandlesOf, secretUseTitle } from "./secret-gate.ts";
 import type { ToolRegistry } from "./registry.ts";
 import { addHits, hitsPayload, maskResult } from "./secrets.ts";
 import { lockRequests, openToolScope } from "./tasks.ts";
@@ -236,6 +236,15 @@ function outcomeOf(
     message: finished.message,
     itemId: finished.itemId,
   };
+}
+
+/**
+ * 정책 승인의 제목. 호출이 `secretEnv`로 비밀을 쓰면 이 승인이 비밀 사용의 증거가 될 수 있으므로(U-19, `approveSecretUse`)
+ * 제목에 비밀 참조를 적는다. 그렇지 않으면 도구 이름만 적는다
+ */
+function policyTitle(toolName: string, args: JsonObject): string {
+  const handles = secretHandlesOf(args);
+  return handles.length === 0 ? `Allow tool "${toolName}"?` : secretUseTitle(toolName, handles);
 }
 
 export function createPipeline(
@@ -427,9 +436,11 @@ export function createPipeline(
         argsPayload,
         argsHash,
         ruleId: decision.ruleId,
-        title: `Allow tool "${entry.name}"?`,
+        title: policyTitle(entry.name, state.args),
         requestKey: requestKeyFor(toolCallId, sha256HexSync),
-        remember: ["once", "thread", "always"],
+        // `always`는 저장소(`core_tools_approvals`)가 들어오기 전까지 제안하지 않는다. 고르게 두면 새 대화마다 다시 묻는데
+        // 사용자는 항상 허용된 줄 안다(감사 L1-04, M2 마감 G2-10). 영구 허용은 사용자 규칙(`l1.tools.rules`)이다
+        remember: ["once", "thread"],
       },
       signal,
     );
@@ -521,7 +532,7 @@ export function createPipeline(
           argsPayload,
           argsHash,
           ruleId: SECRET_USE_RULE_ID,
-          title: `Allow "${state.entry.name}" to use ${verdict.handles.join(", ")}?`,
+          title: secretUseTitle(state.entry.name, verdict.handles),
           requestKey: requestKeyFor(`${state.toolCallId}:secret`, sha256HexSync),
           remember: ["once"],
         },
