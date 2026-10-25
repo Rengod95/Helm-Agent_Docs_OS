@@ -12,6 +12,7 @@ import type {
 } from "@xeon/contracts/records";
 import type {
   AgentDefinition,
+  HostedSearchPort,
   LoopError,
   ResumeResult,
   SecretAdminService,
@@ -75,6 +76,8 @@ export interface AssembleOptions {
   readonly webPorts?: {
     readonly resolver?: DnsResolver;
     readonly transport?: HttpTransport;
+    /** 모델 provider의 hosted 검색 대역(내장 검색 래퍼). 생략하면 `xeon.models`의 포트를 쓴다 */
+    readonly hostedSearch?: HostedSearchPort;
   };
   /** 기본 true. false면 Helm·학습 그룹을 싣지 않는다 */
   readonly defaultGroups?: boolean;

@@ -314,8 +314,13 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
         hostWebPlugin({
           ids: deps.localIds,
           layers: (threadId) => settings.layers(isId("thr", threadId) ? threadId : undefined),
+          onSettingsChange: (listener) => settings.onChange(() => listener()),
+          heldThreads: deps.groups.heldThreads,
           ...(deps.webPorts?.resolver === undefined ? {} : { resolver: deps.webPorts.resolver }),
           ...(deps.webPorts?.transport === undefined ? {} : { transport: deps.webPorts.transport }),
+          ...(deps.webPorts?.hostedSearch === undefined
+            ? {}
+            : { hostedSearch: deps.webPorts.hostedSearch }),
           loadIndex,
         }),
     ],

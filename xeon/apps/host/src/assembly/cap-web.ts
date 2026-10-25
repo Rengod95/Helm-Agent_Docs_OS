@@ -5,6 +5,8 @@ import { defineManifest, type ExtensionEntry, type PortKey } from "@xeon/contrac
 import type { SessionService } from "@xeon/contracts/records";
 import {
   ApprovalServicePortKey,
+  ModelServicePortKey,
+  type HostedSearchPort,
   OsPortKey,
   SecretServicePortKey,
   SessionPortKey,
@@ -29,8 +31,13 @@ import { createBareL2ApprovalsPort } from "./l2-approvals.ts";
 
 // m2-plan HOST.6, L2.web.plan §8.5. cap-web은 확장 엔트리를 내놓지 않아(WEB.6) 조립 루트가 `createWebRuntime`에 실제 포트를 이어 붙인다:
 // `xeon.store`(WebStorePort), `xeon.approvals`(도메인·URL 승인), `xeon.session` 이벤트 읽기(이미 나온 URL), `xeon.secrets`(외부 전송 마스킹),
-// 설정 층. 검색 provider(SearXNG, 내장 래퍼)와 `turn_start` 판정은 WEB.6이라 이 단계에는 없다: `web.search`는 provider가 없다는 실패를 돌려주고
-// `web.fetch`는 끝까지 동작한다. 조립 루트 코드(DR-14 예외 2).
+// `xeon.models`의 hosted 검색(내장 검색 래퍼, E4), 설정 층. `web.search`의 기본 provider는 내장 검색 래퍼다: 이 조립이 `hostedSearch`를
+// 넘기지 않으면 래퍼가 후보에 들지 않아 설정한 provider가 없을 때 검색할 곳이 없다(M2 마감 G1-12, H1). SearXNG와 키 API는 사용자가 설정했을 때만
+// 체인에 든다(ADR-0005 개정, L2.web.spec §4.8).
+// 지점 구독(결과를 바꾸지 않는 tap): `input`(나온 URL), `session_shutdown`(닫힌 세션의 보관 원문 정리). 설정이 바뀌면 탐침 기억을
+// 지운다: SearXNG를 새로 띄우거나 주소를 바꾼 뒤 실패 탐침의 30초를 기다리지 않게 한다.
+// 이 조립에 없는 것: 플러그인 provider 등록 목록(`registrations`)과 그 인증 값(`headerSecrets`)은 X의 후보 등록 API가 생긴 뒤에 잇는다
+// (L2.web.plan §8.5 X 레인 요청). `modelTool` 판정(`turn_start`)은 L1.models의 hosted 경로가 연결된 뒤에 한다. 조립 루트 코드(DR-14 예외 2).
 
 export interface HostWebOptions {
   /** 로컬 id 발급(원장·캐시 행). platform-os의 createLocalIdFactory */
@@ -40,6 +47,12 @@ export interface HostWebOptions {
   /** 시험 주입(AssembleOptions.webPorts) */
   readonly resolver?: DnsResolver;
   readonly transport?: HttpTransport;
+  /** 시험 주입(AssembleOptions.webPorts): 모델 provider의 hosted 검색 대역. 생략하면 `xeon.models`의 포트다 */
+  readonly hostedSearch?: HostedSearchPort;
+  /** 설정이 바뀔 때마다 부른다. 돌려주는 함수로 구독을 푼다 */
+  readonly onSettingsChange: (listener: () => void) => () => void;
+  /** 이 엔진이 지금 쓰기 소유를 쥔 thread. `session_shutdown`에서 살아 있는 세션을 가린다 */
+  readonly heldThreads: () => readonly string[];
   readonly loadIndex?: number;
 }
 
@@ -93,7 +106,7 @@ function sessionSourcesOf(session: Pick<SessionService, "readBranch">): WebSessi
   };
 }
 
-const WEB_POINTS = ["input"] as const;
+const WEB_POINTS = ["input", "session_shutdown"] as const;
 
 /** 내장 확장 단위. 조립 루트가 ExtHost.install로 올린다 */
 export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
@@ -107,6 +120,8 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
       const approvals = optionalPort(host, ApprovalServicePortKey);
       const secrets = optionalPort(host, SecretServicePortKey);
       const tools = optionalPort(host, ToolServicePortKey);
+      const models = optionalPort(host, ModelServicePortKey);
+      const hostedSearch = options.hostedSearch ?? models?.hostedSearch;
       const logger = os.logger("web");
 
       const runtime = createWebRuntime({
@@ -120,6 +135,7 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
           ? {}
           : { asker: createAskAdapter(createBareL2ApprovalsPort(approvals, webApprovalTitle)) }),
         ...(secrets === undefined ? {} : { guard: secrets.redactor }),
+        ...(hostedSearch === undefined ? {} : { hostedSearch }),
         ...(options.resolver === undefined ? {} : { resolver: options.resolver }),
         ...(options.transport === undefined ? {} : { transport: options.transport }),
       });
@@ -127,6 +143,9 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
       host.provide(WebFetchKey, runtime.service.fetch);
       if (approvals === undefined) {
         logger.warn("web.approvals_missing", { effect: "domains that need a question are denied" });
+      }
+      if (hostedSearch === undefined) {
+        logger.warn("web.models_missing", { effect: "the built-in search wrapper is not offered" });
       }
       if (!runtime.cacheEnabled) {
         logger.warn("web.cache_disabled", { effect: "fetch results are not cached on disk" });
@@ -136,6 +155,15 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
       g.on("input", (_payload, current, ctx) => {
         runtime.deps.seen.noteText(ctx.threadId, current.text);
         return undefined;
+      });
+
+      // 닫힌 세션이 남긴 session 보관 원문을 지운다. 살아 있는 세션은 이 엔진이 지금 쓰기 소유를 쥔 thread다
+      g.on("session_shutdown", (_payload, ctx) => {
+        runtime.purgeSessionRaw(new Set(options.heldThreads().filter((id) => id !== ctx.threadId)));
+      });
+      // 설정이 바뀌면 탐침 기억(성공 5분, 실패 30초)을 지운다
+      const stopSettings = options.onSettingsChange(() => {
+        runtime.probes.forget();
       });
 
       const unregisters: (() => void)[] = [];
@@ -166,6 +194,7 @@ export function hostWebPlugin(options: HostWebOptions): ExtensionUnit {
         }
       }
       g.onDispose(async () => {
+        stopSettings();
         for (const unregister of unregisters) unregister();
         await runtime.close();
       });
