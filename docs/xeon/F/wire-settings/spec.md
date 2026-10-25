@@ -306,6 +306,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | thread | `thread.revert` | `{ threadId: ThreadId, to: ItemId }` | `{ position: StreamPosition }` | M2 |
 | turn | `turn.start` | `{ threadId: ThreadId, input: TurnStartInput, requestId?: string(1..64) }` | `{ turnId: TurnId }` | M1 |
 | turn | `turn.interrupt` | `{ threadId: ThreadId, turnId?: TurnId }` | `{ interrupted: boolean }` | M2 |
+| turn | `turn.resume` | `{ threadId: ThreadId }` | `{ status: "resumed", turnId: TurnId, from: ResumeFrom }`, `{ status: "closed", turnId: TurnId, reason: "abort_requested"\|"owner_cancelled" }`, `{ status: "nothing" }` | M2 |
 | events | `events.subscribe` | `{ from: StreamPosition \| "head", filter?: EventFilter }` | `{ sub: SubId, start: Seq, headSeq: Seq, storeId: StoreId, mode: "replaying"\|"live" }` | M1 |
 | events | `events.unsubscribe` | `{ sub: SubId }` | `{}` | M2 |
 | approval | `approval.respond` | `{ approvalId: string, decision: "allow"\|"deny"\|"answer", answer?: ApprovalAnswer, remember?: "once"\|"thread"\|"always" }` | `{ applied: boolean }` | M2 |
@@ -323,6 +324,10 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | secret | `secret.beginEntry` | `{ name: SecretName, action: "add"\|"set"\|"rotate" }` | `{ started: boolean }` | M2 |
 | secret | `secret.beginReveal` | `{ name: SecretName }` | `{ started: boolean }` | M2 |
 
+- [결정: m2c G1-02] `turn.resume`은 프로세스 종료로 끊긴 turn을 이어 실행하는 메서드다(`L1.loop.spec` §4.6 `LoopService.resume`, `L4.host-service.spec` §10 21번). `thread.list`가 `ThreadSummary.resumable`로 후보를 알리고(§3.3.1 아래 코드), 클라이언트가 사용자 확인 뒤 이 메서드를 부른다. 호스트는 자동 재개를 하지 않는다. 한 thread에 열린 turn은 하나라서 `turnId`를 받지 않는다.
+  - 결과 세 모양은 `ResumeResult`(`services/loop.ts`)와 같아 변환이 없다. `resumed`는 이어 실행을 접수했다는 뜻이고 진행은 `events.subscribe`의 이벤트로 온다. `from`은 이어 시작한 단계다. 승인을 기다리던 turn은 `tools`로 이어지고 `approval.list`의 대기 승인이 다시 응답을 받는다.
+  - `closed`는 이어 실행하지 않고 닫았다는 뜻이다. 끊기기 전에 중단 요청이 있었으면 `abort_requested`, 소유자가 취소했으면 `owner_cancelled`다. `nothing`은 열린 turn이 없다는 뜻이다. 둘 다 오류가 아니다.
+  - `turn.start`처럼 쓰기 소유가 필요하고 암묵 획득을 한 번 시도한다. 소유하지 못하면 `thread.locked`(3002), 없는 thread는 `thread.notFound`(3001), 이미 도는 turn이 있으면 `turn.busy`(3003)다. 저장소 오류는 `store.*`다.
 - [결정: m2c G1-01] `command.list`와 `command.run`은 엔진에 등록된 슬래시 명령(`dialog.commands`, `F.capabilities.spec` §3.9)을 클라이언트가 부르는 길이다. `/plan`, `/tasks`, `/goal`, `/helm start`처럼 L2·L3 코드가 등록한 동작 명령은 엔진 안에서만 돌 수 있어, 이 메서드가 없으면 클라이언트에서 실행되지 않는다. `CommandInfo`와 `CommandRunOutput`은 능력 정의 파일(`capabilities/defs/dialog.ts`)의 스키마를 그대로 쓴다. 호스트는 `command.list`를 `dialog.commands.list`로, `command.run`을 `dialog.commands.run`으로 옮기고 `threadId`를 호출 문맥에 싣는다.
   - 출력은 `CommandRunOutput`의 `done`이 싣는다. `message`는 사람이 읽는 텍스트(4,000자까지)이고 `result`는 구조 값이다. 클라이언트는 `message`를 화면에 내고 `result`는 해석하지 않아도 된다.
   - `expanded`의 `text`는 템플릿을 펼친 최종 입력이다. 클라이언트가 `turn.start`로 보낸다. `command.run`은 turn을 만들지 않는다.
@@ -419,6 +424,7 @@ export interface WireMethodMap {
   "thread.revert":     { params: ThreadRevertParams;     result: ThreadRevertResult };
   "turn.start":        { params: TurnStartParams;        result: TurnStartResult };
   "turn.interrupt":    { params: TurnInterruptParams;    result: TurnInterruptResult };
+  "turn.resume":       { params: TurnResumeParams;       result: TurnResumeResult };
   "events.subscribe":  { params: EventsSubscribeParams;  result: EventsSubscribeResult };
   "events.unsubscribe":{ params: EventsUnsubscribeParams;result: EmptyResult };
   "approval.respond":  { params: ApprovalRespondParams;  result: ApprovalRespondResult };

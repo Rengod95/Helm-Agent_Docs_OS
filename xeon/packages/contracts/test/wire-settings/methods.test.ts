@@ -16,14 +16,14 @@ const THREAD = rawId("thr", 1);
 const names = Object.keys(WIRE_METHODS);
 
 describe("WIRE_METHODS", () => {
-  test("has the 29 methods of the spec table with their stages", () => {
-    expect(names).toHaveLength(29);
+  test("has the 30 methods of the spec table with their stages", () => {
+    expect(names).toHaveLength(30);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
       ["events.subscribe", "host.hello", "settings.get", "thread.create", "turn.start"].toSorted(),
     );
-    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(24);
+    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(25);
   });
 
   test("every row carries both schemas, since and status", () => {
@@ -244,6 +244,23 @@ describe("M2 method schemas are written out", () => {
     expect(
       parse(result, { approvals: [{ approvalId: entry.approvalId, request }], position }).ok,
     ).toBe(false);
+  });
+
+  test("turn.resume takes only the thread and answers with the three ResumeResult shapes", () => {
+    const { params, result } = WIRE_METHODS["turn.resume"];
+    expect(parse(params, { threadId: THREAD }).ok).toBe(true);
+    expect(parse(params, { threadId: THREAD, turnId: rawId("trn", 1) }).ok).toBe(false);
+    expect(parse(params, {}).ok).toBe(false);
+    const turnId = rawId("trn", 1);
+    expect(parse(result, { status: "resumed", turnId, from: "tools" }).ok).toBe(true);
+    expect(parse(result, { status: "resumed", turnId, from: "await_input" }).ok).toBe(true);
+    expect(parse(result, { status: "resumed", turnId, from: "lunch" }).ok).toBe(false);
+    expect(parse(result, { status: "resumed", turnId }).ok).toBe(false);
+    expect(parse(result, { status: "closed", turnId, reason: "abort_requested" }).ok).toBe(true);
+    expect(parse(result, { status: "closed", turnId, reason: "owner_cancelled" }).ok).toBe(true);
+    expect(parse(result, { status: "closed", turnId, reason: "bored" }).ok).toBe(false);
+    expect(parse(result, { status: "nothing" }).ok).toBe(true);
+    expect(parse(result, { status: "nothing", turnId }).ok).toBe(false);
   });
 
   test("command.list and command.run carry the dialog.commands shapes over the wire", () => {

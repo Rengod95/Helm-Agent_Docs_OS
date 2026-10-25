@@ -14,7 +14,8 @@ import type {
   WireResult,
 } from "../../src/wire-settings/wire/index.ts";
 import type { UserMessage } from "../../src/conversation/index.ts";
-import type { Assignable, Equal, Expect } from "../types/expect.ts";
+import type { ResumeResult } from "../../src/services/index.ts";
+import type { Assignable, DeepMutable, Equal, Expect } from "../types/expect.ts";
 
 // 이 파일의 단언은 tsc -b가 판정한다(컴파일 시점). 아래 테스트는 파일이 bun test와 knip 진입점에 들게 한다.
 
@@ -77,6 +78,11 @@ export type ServerNotificationNames = Expect<
 export type HandlerKeys = Expect<Equal<keyof WireHandlers, WireMethodName>>;
 export type HandlerNeedsEveryMethod = Expect<
   Equal<Assignable<Omit<WireHandlers, "turn.start">, WireHandlers>, false>
+>;
+
+/** turn.resume의 결과는 L1.loop의 ResumeResult와 같은 모양이다(wire와 LoopPort 사이를 옮길 때 변환이 없다) */
+export type TurnResumeMatchesLoop = Expect<
+  Equal<WireResult<"turn.resume">, DeepMutable<ResumeResult>>
 >;
 
 test("type assertions compile", () => {});

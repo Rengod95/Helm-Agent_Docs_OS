@@ -60,6 +60,8 @@ export function createWireHandlers(
     "thread.revert": createThreadRevertHandler(engine),
     "turn.start": createTurnStartHandler(engine, hub),
     "turn.interrupt": createTurnInterruptHandler(engine),
+    // G1-02: wire 계약만 있고 처리기는 HOST 트랙이 TurnPort.resume에 잇는다
+    "turn.resume": notImplemented("turn.resume"),
     "events.subscribe": createEventsSubscribeHandler(engine, hub),
     "events.unsubscribe": createEventsUnsubscribeHandler(hub),
     "approval.respond": createApprovalRespondHandler(engine),

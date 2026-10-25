@@ -453,6 +453,70 @@ export const TurnInterruptResultSchema: TObject<{ interrupted: TBoolean }> = Typ
 );
 export type TurnInterruptResult = Static<typeof TurnInterruptResultSchema>;
 
+/**
+ * turn.resume params. 끊긴 turn을 이어 실행하라는 요청이다. 대상은 `thread.list`의 `ThreadSummary.resumable.turnId` 후보이고
+ * 호스트가 열린 turn을 직접 찾으므로 turnId는 받지 않는다(한 thread에 열린 turn은 하나다).
+ */
+export const TurnResumeParamsSchema: TObject<{ threadId: typeof ThreadIdSchema }> = Type.Object(
+  { threadId: ThreadIdSchema },
+  { additionalProperties: false },
+);
+export type TurnResumeParams = Static<typeof TurnResumeParamsSchema>;
+
+/** 어느 단계부터 이어 실행했는가. `ResumeFrom`(`services/loop.ts`)과 같은 집합이다 */
+export const TurnResumeFromSchema: TUnion<
+  [
+    TLiteral<"turn_start">,
+    TLiteral<"request">,
+    TLiteral<"tools">,
+    TLiteral<"await_input">,
+    TLiteral<"turn_end">,
+  ]
+> = Type.Union([
+  Type.Literal("turn_start"),
+  Type.Literal("request"),
+  Type.Literal("tools"),
+  Type.Literal("await_input"),
+  Type.Literal("turn_end"),
+]);
+export type TurnResumeFrom = Static<typeof TurnResumeFromSchema>;
+
+/**
+ * turn.resume result. `ResumeResult`(`services/loop.ts`)와 같은 세 모양이다.
+ * `resumed`는 이어 실행을 접수했다는 뜻이고 진행은 이벤트로 온다. `closed`는 이어 실행하지 않고 닫았다(중단 요청이 있었거나 소유자가 취소했다).
+ * `nothing`은 이어 실행할 열린 turn이 없다.
+ */
+export const TurnResumeResultSchema: TUnion<
+  [
+    TObject<{
+      status: TLiteral<"resumed">;
+      turnId: typeof TurnIdSchema;
+      from: typeof TurnResumeFromSchema;
+    }>,
+    TObject<{
+      status: TLiteral<"closed">;
+      turnId: typeof TurnIdSchema;
+      reason: TUnion<[TLiteral<"abort_requested">, TLiteral<"owner_cancelled">]>;
+    }>,
+    TObject<{ status: TLiteral<"nothing"> }>,
+  ]
+> = Type.Union([
+  Type.Object(
+    { status: Type.Literal("resumed"), turnId: TurnIdSchema, from: TurnResumeFromSchema },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      status: Type.Literal("closed"),
+      turnId: TurnIdSchema,
+      reason: Type.Union([Type.Literal("abort_requested"), Type.Literal("owner_cancelled")]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object({ status: Type.Literal("nothing") }, { additionalProperties: false }),
+]);
+export type TurnResumeResult = Static<typeof TurnResumeResultSchema>;
+
 // ── approval.* (승인 요청은 내구 이벤트 approval.requested로 오고 응답만 메서드다, review.decisions-2 U-02) ──
 
 export const ApprovalRespondParamsSchema: TObject<{
@@ -854,6 +918,10 @@ interface WireSchemas {
     params: WithMeta<typeof TurnInterruptParamsSchema>;
     result: typeof TurnInterruptResultSchema;
   };
+  "turn.resume": {
+    params: WithMeta<typeof TurnResumeParamsSchema>;
+    result: typeof TurnResumeResultSchema;
+  };
   "events.subscribe": {
     params: WithMeta<typeof EventsSubscribeParamsSchema>;
     result: typeof EventsSubscribeResultSchema;
@@ -998,6 +1066,7 @@ export const WIRE_METHODS: {
   "thread.revert": spec(withMeta(ThreadRevertParamsSchema), ThreadRevertResultSchema, "M2"),
   "turn.start": spec(withMeta(TurnStartParamsSchema), TurnStartResultSchema, "M1"),
   "turn.interrupt": spec(withMeta(TurnInterruptParamsSchema), TurnInterruptResultSchema, "M2"),
+  "turn.resume": spec(withMeta(TurnResumeParamsSchema), TurnResumeResultSchema, "M2"),
   "events.subscribe": spec(
     withMeta(EventsSubscribeParamsSchema),
     EventsSubscribeResultSchema,
