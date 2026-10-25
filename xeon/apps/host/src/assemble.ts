@@ -192,13 +192,23 @@ function requirePort<Api>(ext: ExtHost, key: PortKey<Api>, service: string): Api
 }
 
 /**
- * thread의 작업 디렉터리. 세션 서비스가 올라오기 전이거나 모르는 thread, 작업 디렉터리가 없는 thread면 undefined다.
+ * thread의 작업 디렉터리. 세션 서비스가 올라오기 전이거나 모르는 thread, 작업 디렉터리가 없는 thread면 undefined다(호출자는 ""로 본다).
+ * thread 읽기가 실패하면(busy, io, row_invalid) 같이 undefined를 돌려주되 `host.thread_workspace_unreadable`로 남긴다: 읽기 실패를
+ * 작업 디렉터리가 없는 것으로 조용히 바꾸면 project·local 설정과 `user_bash`의 cwd가 왜 비었는지 알 수 없다.
  * 설정 층(project·local 파일)과 `user_bash`의 cwd가 같은 값을 쓴다
  */
-function threadWorkspaceOf(ext: ExtHost): (threadId: ThreadId) => string | undefined {
+export function threadWorkspaceOf(
+  ext: ExtHost,
+  logger: Logger,
+): (threadId: ThreadId) => string | undefined {
   return (threadId) => {
     const found = ext.ports.get(SESSION_KEY)?.query.thread(threadId);
-    return found?.ok === true ? (found.value?.workspace ?? undefined) : undefined;
+    if (found === undefined) return undefined;
+    if (!found.ok) {
+      logger.warn("host.thread_workspace_unreadable", { threadId, reason: found.error.kind });
+      return undefined;
+    }
+    return found.value?.workspace ?? undefined;
   };
 }
 
@@ -438,7 +448,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     };
     // 그룹 서비스가 보는 설치된 그룹(L3 매니페스트). 단위 목록이 만들어진 뒤에 채워진다
     const unitList: { units: readonly ExtensionUnit[] } = { units: [] };
-    const workspaceOf = threadWorkspaceOf(ext);
+    const workspaceOf = threadWorkspaceOf(ext, logger);
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         mode: options.mode,
