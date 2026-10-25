@@ -19,6 +19,7 @@ import {
   type HolderWriteError,
 } from "@xeon/group-kit";
 import { hostOf, type ExtHost, type ExtensionUnit } from "@xeon/ext-host";
+import { keyReusedBug } from "../store-error.ts";
 import type { SettingsStorePort, SettingsWriteFailure } from "../types.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 
@@ -61,7 +62,7 @@ function needsThread(scope: SettingScope): boolean {
   return scope === "session" || scope === "project" || scope === "local";
 }
 
-/** 설정 쓰기 실패를 구동 그룹 쓰기 오류로 옮긴다. 관리 범위가 잠근 것만 `locked`이고 나머지는 이유를 가려서 알린다 */
+/** 설정 쓰기 실패를 구동 그룹 쓰기 오류로 옮긴다. 관리 범위가 잠근 것만 `locked`이고 나머지는 이유를 가려서 알린다. `key_reused`는 호출 결함이라 던진다 */
 function holderFailureOf(failure: SettingsWriteFailure): HolderWriteError {
   switch (failure.kind) {
     case "managed_read_only":
@@ -82,8 +83,10 @@ function holderFailureOf(failure: SettingsWriteFailure): HolderWriteError {
     case "ownership_lost":
     case "read_only":
     case "row_invalid":
-    case "key_reused":
       return unwritable("storage");
+    case "key_reused":
+      // 호스트는 쓰기마다 새 요청 키를 만든다. 같은 키가 다른 내용으로 오는 것은 호출 결함이다(settings.set과 같은 판정)
+      throw keyReusedBug(failure, "groups.holder.write");
     default:
       return assertNever(failure, "SettingsWriteFailure");
   }
@@ -105,8 +108,8 @@ function targetThread(
   return ok(only);
 }
 
-/** 구동 그룹 설정 포트. 값 검사는 `checkSettingWrite`(settings.set과 같은 함수)가 한다 */
-function holderSettings(options: HostGroupsOptions): DriveHolderSettingsPort {
+/** 구동 그룹 설정 포트(시험이 직접 부른다). 값 검사는 `checkSettingWrite`(settings.set과 같은 함수)가 한다 */
+export function holderSettings(options: HostGroupsOptions): DriveHolderSettingsPort {
   return {
     read(threadId) {
       const value = options.settings.value(HOLDER_KEY, threadId ?? undefined);
@@ -131,8 +134,10 @@ function holderSettings(options: HostGroupsOptions): DriveHolderSettingsPort {
       if (!checked.ok) {
         switch (checked.kind) {
           case "settings.locked":
-          case "settings.scopeNotAllowed":
             return err(locked());
+          case "settings.scopeNotAllowed":
+            // 관리 범위에 쓰려는 요청만 관리 범위 잠금(`locked`)이다. 다른 범위가 이 키에 허용되지 않은 것은 요청 오류다
+            return err(scope === "managed" ? locked() : unwritable("invalid_value"));
           case "settings.unknownKey":
             // 구동 그룹 키는 X 층 카탈로그가 정의한다. 없으면 조립이 잘못된 것이다
             throw new Bug(`groups: ${HOLDER_KEY} is missing from the setting catalog`);
