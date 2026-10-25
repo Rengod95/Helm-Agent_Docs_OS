@@ -18,6 +18,7 @@ binds: [xeon/packages/platform-sandbox/**]
 |---|---|---|
 | M0 | 없음. SB-01 스파이크만 M0 끝에 먼저 돌려 M1 위험을 줄인다 [제안] | `_research/foundation-plan.md` §5 P4 M0 범위에 sandbox 없음 |
 | M1 | srt 래핑(`wrapShell`), 상태 탐지, 보호 경로, 자동 허용 판정, 자가 시험, `onUnavailable` 정책, 위반 기록, doctor 출력, 설정, 서비스 등록, `fakeSandbox` | [결정: foundation-plan §5 M1 "도구 read, ls, bash(sandbox)"], `product.scope.spec` §4.4 M1 "샌드박스 `bash`가 작업 폴더 밖 쓰기를 거부한다" |
+| M2 | 자가 시험 호출 경로 | SB-17 |
 | M2 이후 | 네트워크 허용 도메인 정책(srt 프록시), 이름 붙은 권한 프로필과 오프라인 규칙 검사, Windows 대응(srt-win alpha 재평가), srt 버전 갱신 | [결정: 계획 v2 L0-b 2차 항목], `_research/decisions-log.md` 2026-10-19 Windows 나중 |
 
 ## 2. 패키지와 파일 배치
@@ -99,6 +100,7 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 | SB-14 | (M2) 프로필·오프라인 검증: 이름 붙은 프로필(정책 묶음)과 실행 없는 규칙 검사 명령. Gemini CLI policy 구조는 참고만 | SB-12 | M |
 | SB-15 | (M2+) Windows 대응: srt-win alpha 재평가. 채택하면 win32 provider를 `srt`로 올리고 Windows CI | SB-12 | L |
 | SB-16 | (후속, sentinel 모드) 프록시 훅: 자식 HTTPS 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 `SandboxService`에 둘지 정하고 구현한다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안 비교, TLS 종단(`L0.secrets.spec` §10 6번). 선행 조건이 `L0.secrets.plan` SC-20이다 | SB-13 | L |
+| SB-17 | (M2) 자가 시험 호출 경로: `startSelfTests(shell)`(시작 직후 한 번, `selfTestIntervalMin`마다 반복, `stop`, dispose 연동). `self-test-schedule.test.ts`가 간격 재읽기, 0 처리, 항목 실패와 시험 자체 오류의 구분, 취소를 확인. 호출은 `L4.host-service`가 건다 | SB-07, SB-12 | S |
 
 순서: SB-01 → SB-02 ∥ SB-03 → SB-04, SB-06 → SB-05 → SB-07 ∥ SB-08 ∥ SB-09 → SB-10, SB-11 → SB-12(M1 끝).
 
