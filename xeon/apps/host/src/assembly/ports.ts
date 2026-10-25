@@ -3,6 +3,7 @@ import {
   attempt,
   attemptAsync,
   Bug,
+  err,
   ok,
   parse,
   type Clock,
@@ -31,7 +32,9 @@ import {
   wireError,
   type StoreId,
   type ThreadSummary,
+  type WireResult,
 } from "@xeon/contracts/wire";
+import { isAbsolute } from "node:path";
 import { PrimitiveError, type ExtHost } from "@xeon/ext-host";
 import type {
   ActivityPort,
@@ -46,6 +49,7 @@ import type {
   SettingsStorePort,
   SubmitOutcome,
   ThreadPort,
+  TrustPort,
   TurnPort,
   SecretsPort,
   UserNotifyPort,
@@ -56,7 +60,7 @@ import { createApprovalPort } from "./approvals.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 import { createSettingsStore } from "./settings-store.ts";
 import { readThread } from "./thread-read.ts";
-import type { ProjectTrust } from "./trust.ts";
+import type { ProjectTrust, TrustInspection } from "./trust.ts";
 
 // L4.host-service.spec §3.3.2. 아래 층 서비스(F 서비스 인터페이스)를 EnginePorts로 감싸는 어댑터. 어댑터가 이 폴더 한 곳에 모이므로
 // L1 서비스 이름이 바뀌어도 고칠 곳이 하나다(L4.host-service.plan §2). 조립 루트 코드(DR-14 예외 2).
@@ -112,6 +116,23 @@ function toLogValue(value: unknown): LogValue {
 
 function toLogFields(fields: Readonly<Record<string, unknown>>): LogFields {
   return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, toLogValue(value)]));
+}
+
+/** 판정과 선택지를 wire `TrustStatus`로 옮긴다 */
+function trustStatusOf(inspection: TrustInspection): WireResult<"trust.get"> {
+  const { result, options } = inspection;
+  return {
+    projectRoot: result.projectRoot,
+    required: result.required,
+    verdict: result.verdict,
+    via: result.via,
+    resources: [...result.resources],
+    options: options.map((option) => ({
+      choice: { kind: option.choice.kind, verdict: option.choice.verdict },
+      label: option.label,
+      savedPath: option.savedPath,
+    })),
+  };
 }
 
 function storeIdOf(raw: string): StoreId {
@@ -427,6 +448,24 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     holds: (threadId) => held.has(threadId),
   });
 
+  const trust: TrustPort = {
+    async get(workspace, signal) {
+      if (!isAbsolute(workspace)) return err({ kind: "workspace_not_absolute" });
+      return ok(trustStatusOf(await deps.trust.inspect(workspace, signal)));
+    },
+    async decide(workspace, choice, signal) {
+      if (!isAbsolute(workspace)) return err({ kind: "workspace_not_absolute" });
+      const decided = await deps.trust.decide(workspace, choice, signal);
+      if (!decided.ok) return decided;
+      // 신뢰가 바뀌었으므로 작업 폴더의 project·local 층을 다시 판정해 읽는다. 쥔 thread는 지금 바로 다시 읽는다
+      deps.settings.clearWorkspaceFiles();
+      await sequentially(Array.from(held.keys()), (threadId) => settings.prepare(threadId));
+      // 어느 키가 바뀌었는지 모르는 변경이다(keys가 빈 알림, F wire §3.3.2)
+      deps.settings.notifyChanged({ keys: [], scopes: ["project", "local"], threadId: null });
+      return ok(trustStatusOf(decided.value));
+    },
+  };
+
   const approvals: ApprovalPort = createApprovalPort({
     approvals: deps.approvals,
     session,
@@ -479,6 +518,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     notify,
     log,
     secrets: deps.secrets,
+    trust,
     ids: deps.ids,
     clock: deps.clock,
     scheduler: deps.scheduler,

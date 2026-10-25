@@ -11,7 +11,7 @@ import {
 } from "@xeon/contracts";
 import { toJsonValue, type IdFactory, type ThreadId } from "@xeon/contracts/conversation";
 import type { SessionService } from "@xeon/contracts/records";
-import type { ScopeStack, SettingScope } from "@xeon/contracts/settings";
+import type { ScopeStack, SettingKey, SettingScope } from "@xeon/contracts/settings";
 import type { Unsubscribe } from "@xeon/contracts/wire";
 import type { SettingsStorePort, SettingsWriteFailure } from "../types.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
@@ -74,13 +74,17 @@ function valuesOf(read: FileRead, path: string, logger: Logger): ReadonlyMap<str
 
 export function createSettingsStore(deps: SettingsStoreDeps): SettingsStorePort {
   const { engine, session, trust, logger } = deps;
-  const listeners = new Set<() => void>();
   /** 같은 파일에 대한 읽기-수정-쓰기를 차례로 한다 */
   const queues = new Map<string, Promise<unknown>>();
   const counter = { tmp: 0 };
 
-  function changed(): void {
-    for (const listener of Array.from(listeners)) listener();
+  /** 쓰기가 끝났음을 알린다. 구독은 엔진이 받으므로 확장(cap-web의 탐침 기억 등)과 wire 알림이 같은 신호를 듣는다 */
+  function changed(scope: SettingScope, key: SettingKey, threadId: ThreadId | undefined): void {
+    engine.notifyChanged({
+      keys: [key],
+      scopes: [scope],
+      threadId: scope === "session" && threadId !== undefined ? threadId : null,
+    });
   }
 
   function userPath(): string {
@@ -233,21 +237,18 @@ export function createSettingsStore(deps: SettingsStoreDeps): SettingsStorePort 
 
     async write(scope, key, value, threadId) {
       const written = await writeScope(scope, key, value, threadId);
-      if (written.ok) changed();
+      if (written.ok) changed(scope, key, threadId);
       return written;
     },
 
     async reset(scope, key, threadId) {
       const written = await writeScope(scope, key, undefined, threadId);
-      if (written.ok) changed();
+      if (written.ok) changed(scope, key, threadId);
       return written;
     },
 
     onChange(listener): Unsubscribe {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
+      return engine.onChange(listener);
     },
   };
 }

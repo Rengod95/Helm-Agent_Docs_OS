@@ -28,6 +28,7 @@ import {
   createThreadReadHandler,
   createThreadRevertHandler,
 } from "./thread.ts";
+import { createTrustHandlers } from "./trust.ts";
 import { createTurnInterruptHandler, createTurnStartHandler } from "./turn.ts";
 
 export type { HostInfo, HostLifecycle } from "./host.ts";
@@ -71,14 +72,12 @@ export function createWireHandlers(
     // G1-01: wire 계약만 있고 처리기는 HOST 트랙이 잇는다
     "command.list": notImplemented("command.list"),
     "command.run": notImplemented("command.run"),
-    // G1-03: wire 계약만 있고 처리기는 HOST 트랙이 신뢰 저장소에 잇는다
-    "trust.get": notImplemented("trust.get"),
-    "trust.decide": notImplemented("trust.decide"),
     "settings.get": createSettingsGetHandler(engine),
     "settings.set": createSettingsSetHandler(engine),
     "settings.reset": createSettingsResetHandler(engine),
     "settings.list": createSettingsListHandler(engine),
     ...createSecretHandlers(engine),
+    ...createTrustHandlers(engine),
   };
   return table;
 }

@@ -8,6 +8,7 @@ import {
   type ScopeStack,
   type SettingCatalog,
 } from "@xeon/contracts/settings";
+import type { SettingsChange } from "../types.ts";
 
 // L4.host-service.spec §3.3.2 SettingsStorePort의 읽기 쪽. 설정 파일 범위의 위치·읽기·병합은 호스트 소유다
 // (L1.persistence.spec §6.2 마지막 [제안]). M1은 사용자 파일 하나와 세션 범위를 읽는다:
@@ -41,6 +42,12 @@ export interface SettingsEngine {
   /** 작업 폴더의 project·local 층을 정한다. `undefined`는 층을 거둔다(신뢰하지 않는 폴더) */
   setWorkspaceFiles(workspace: string, files: WorkspaceSettingFiles | undefined): void;
   hasWorkspaceFiles(workspace: string): boolean;
+  /** 모든 작업 폴더의 project·local 층을 거둔다. 신뢰 결정이 바뀐 뒤 다음 `prepare`가 판정을 다시 해 읽게 한다 */
+  clearWorkspaceFiles(): void;
+  /** 설정이 바뀔 때마다 부른다(범위와 무관). 돌려주는 함수로 구독을 푼다. 확장(cap-web의 탐침 기억)과 wire 알림(`settings.invalidated`)이 같은 신호를 듣는다 */
+  onChange(listener: (change: SettingsChange) => void): () => void;
+  /** 설정이 바뀌었음을 알린다. 설정 저장소가 쓰기 뒤에, 신뢰 결정이 층을 다시 읽은 뒤에 부른다 */
+  notifyChanged(change: SettingsChange): void;
   /** 카탈로그 키의 유효 값. 모르는 키는 undefined다 */
   value(key: string, threadId?: ThreadId): unknown;
   /**
@@ -77,6 +84,7 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
     workspaceOf: undefined,
   };
   const workspaceFiles = new Map<string, WorkspaceSettingFiles>();
+  const listeners = new Set<(change: SettingsChange) => void>();
   const diagnostics: string[] = [];
 
   function layers(threadId: ThreadId | undefined): ScopeStack {
@@ -148,6 +156,18 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
       else workspaceFiles.set(workspace, files);
     },
     hasWorkspaceFiles: (workspace) => workspaceFiles.has(workspace),
+    clearWorkspaceFiles() {
+      workspaceFiles.clear();
+    },
+    onChange(listener) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    notifyChanged(change) {
+      for (const listener of Array.from(listeners)) listener(change);
+    },
     value(key, threadId) {
       const def = catalog.get(key);
       if (def === undefined) return undefined;

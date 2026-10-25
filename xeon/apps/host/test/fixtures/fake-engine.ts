@@ -26,6 +26,7 @@ import type {
   SettingsStorePort,
   SubmitOutcome,
   ThreadPort,
+  TrustPort,
   TurnPort,
 } from "../../src/types.ts";
 
@@ -68,6 +69,7 @@ export interface FakeEngineOptions {
     readonly turns?: Partial<TurnPort>;
     readonly settings?: Partial<SettingsStorePort>;
     readonly approvals?: Partial<ApprovalPort>;
+    readonly trust?: Partial<TrustPort>;
   };
 }
 
@@ -276,6 +278,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       respond: () => Promise.resolve({ applied: false }),
       list: () => Promise.reject(new Error("list is not part of the fake")),
       ...options.overrides?.approvals,
+    },
+    trust: {
+      get: () => Promise.reject(new Error("trust.get is not part of the fake")),
+      decide: () => Promise.reject(new Error("trust.decide is not part of the fake")),
+      ...options.overrides?.trust,
     },
     activity: {
       snapshot: () => ({ liveTurns: 0, liveTasks: 0, waitingApprovals: 0, pendingSchedules: 0 }),

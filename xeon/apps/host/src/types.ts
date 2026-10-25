@@ -161,6 +161,8 @@ export interface EnginePorts {
   readonly log: HostLogPort;
   /** L0.secrets 관리 서비스와 wire 밖 값 전달 통로 */
   readonly secrets: SecretsPort;
+  /** X.loading-trust 프로젝트 신뢰. 클라이언트가 묻고 정한다(`trust.get`·`trust.decide`) */
+  readonly trust: TrustPort;
   /** 새 id 발급(traceId, 연결 id). 엔진의 IdFactory다 */
   readonly ids: IdFactory;
   /** 엔진의 시계. 송신 큐 같은 호스트 자신의 시각에 쓴다 */
@@ -294,6 +296,16 @@ export type SettingsWriteFailure =
   | { readonly kind: "key_reused"; readonly requestKey: string }
   | StoreError;
 
+/**
+ * 설정이 바뀌었다는 신호. wire 알림 `settings.invalidated`의 원천이다(F wire §3.3.2). 값이 없다.
+ * `keys`가 비면 어느 키인지 모르는 변경(신뢰 결정으로 project·local 층을 통째로 다시 읽음)이고, `threadId`는 `session` 범위일 때만 있다
+ */
+export interface SettingsChange {
+  readonly keys: readonly SettingKey[];
+  readonly scopes: readonly SettingScope[];
+  readonly threadId: ThreadId | null;
+}
+
 export interface SettingsStorePort {
   layers(threadId: ThreadId | undefined): ScopeStack;
   /**
@@ -313,7 +325,7 @@ export interface SettingsStorePort {
     key: SettingKey,
     threadId: ThreadId | undefined,
   ): Promise<Result<void, SettingsWriteFailure>>;
-  onChange(listener: () => void): Unsubscribe;
+  onChange(listener: (change: SettingsChange) => void): Unsubscribe;
 }
 
 /** `approval.list`가 목록을 만들지 못한 이유 */
@@ -365,6 +377,36 @@ export interface SecretsPort {
    * 사용 정책은 비어 있어(사용 불가) `secret.meta`로 정책을 정하기 전에는 에이전트가 쓸 수 없다. 제공자 파일이 설정되지 않았으면 undefined.
    */
   newMeta(name: SecretName): SecretMeta | undefined;
+}
+
+/** 신뢰 질의·결정이 실패한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.3.1 trust.*) */
+export type TrustPortFailure =
+  /** `workspace`가 절대 경로가 아니다 */
+  | { readonly kind: "workspace_not_absolute" }
+  /** `choice`가 질의 결과의 선택지에 없다 */
+  | { readonly kind: "invalid_choice" }
+  /** 저장 파일이 손상되었거나 쓰지 못했다(잠금을 얻지 못한 것 포함). 기존 결정은 그대로다 */
+  | { readonly kind: "store_failed"; readonly reason: "corrupt" | "io" };
+
+/**
+ * 프로젝트 신뢰 질의와 결정(HS-58). 엔진은 프롬프트를 띄우지 않으므로 결정이 없는 폴더는 불신(`undecided`)이고,
+ * 클라이언트가 폴더에서 thread를 열기 전에 묻고 사람의 결정을 `decide`로 보낸다.
+ */
+export interface TrustPort {
+  /** 판정과 선택지. 아무것도 바꾸지 않는다 */
+  get(
+    workspace: string,
+    signal: AbortSignal,
+  ): Promise<Result<WireResult<"trust.get">, TrustPortFailure>>;
+  /**
+   * 결정을 저장하고(또는 세션에만 두고) 반영한 뒤의 판정을 돌려준다. 그 폴더의 project·local 설정 파일 층을 다시 읽고
+   * 설정 변경을 알린다(`settings.invalidated`)
+   */
+  decide(
+    workspace: string,
+    choice: WireParams<"trust.decide">["choice"],
+    signal: AbortSignal,
+  ): Promise<Result<WireResult<"trust.decide">, TrustPortFailure>>;
 }
 
 export interface HostLogPort {

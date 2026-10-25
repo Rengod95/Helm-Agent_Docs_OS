@@ -332,7 +332,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
   let portsHandle: PortsHandle | undefined;
   let shutdownCoordinator: ProcessShutdown | undefined;
-  let osHandle: OsServiceHandle | undefined;
+  const osSlot: { handle: OsServiceHandle | undefined } = { handle: undefined };
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
 
   async function closeAll(): Promise<void> {
@@ -385,11 +385,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         },
         runtime,
         (handle) => {
-          osHandle = handle;
+          osSlot.handle = handle;
         },
       ),
     );
     const os: OsService = requirePort(ext, OsPortKey, "xeon.os");
+    const osHandle = osSlot.handle;
+    // xeon.os를 올린 setup이 핸들을 넘긴다. 없으면 조립 순서가 깨진 것이다
+    // xeon-disable-next-line xeon/bug-for-expected -- osPlatform의 setup이 성공하면 핸들이 항상 채워진다 (eng.typescript.guide TY-24)
+    if (osHandle === undefined) throw new Bug("platform-os did not hand over its handle");
     logSink.attach(join(os.dirs.state, "logs", `${options.mode}.log`));
     const logger = os.logger("host");
     late.logger = logger;
@@ -401,6 +405,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 프로젝트 신뢰: 프로젝트 설정 파일(settings-store), 프로젝트 스킬, MCP 서버 정의가 같은 판정을 쓴다(결정 D6, X.loading-trust §4.7)
     const projectTrust = createProjectTrust({
       configDir: os.dirs.config,
+      fileLock: osHandle.fileLock,
       homeDir: os.dirs.home,
       clock,
       logger: os.logger("trust"),
@@ -598,10 +603,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       startedAt,
       ports: portsHandle.ports,
       shutdown: shutdownCoordinator,
-      diagnose: async (signal) => {
-        if (osHandle === undefined) throw new Bug("os handle is missing after assembly");
-        return { binaries: await osHandle.checkBinaries(signal) };
-      },
+      diagnose: async (signal) => ({ binaries: await osHandle.checkBinaries(signal) }),
       close: shutdown,
     };
     return engine;
