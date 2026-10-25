@@ -1,4 +1,4 @@
-import { mkdirSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
 import { attempt } from "@xeon/contracts";
@@ -32,7 +32,11 @@ function set(count: number): MigrationSet {
 async function open() {
   const clock = manualClock();
   const store = own(await openTestStore({ clock, ids: fixedIdFactory(clock) }));
-  return { store, clock, backups: join(dirname(store.path), "backups") };
+  return {
+    store,
+    clock, // 저장소는 DB 디렉터리의 realpath 아래에 스냅샷을 만든다(L0.store.spec §4.6.1). macOS는 /var가 /private/var 링크다
+    backups: join(realpathSync(dirname(store.path)), "backups"),
+  };
 }
 
 function snapshots(backups: string): string[] {

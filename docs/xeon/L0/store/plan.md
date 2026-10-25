@@ -91,7 +91,7 @@ xeon/packages/platform-store/
 | id | 내용 | 선행 | 규모 | 마일스톤 |
 |---|---|---|---|---|
 | ST-01 | `sqlite-env.ts`: 경로 결정, `setCustomSQLite` 1회 호출과 `loaded` 상태, `newDatabase()`, `probeFts5`(필수 단계) + `compile_options` 진단. Linux 먼저 | FR-S1 | S | M0 |
-| ST-02 | macOS CI job(`eng.toolchain.guide` TC-11에서 추가하는 job): `macos-latest`에서 시스템 SQLite 프로브 결과 기록, FTS5 없는 amalgamation과 FTS5 포함 amalgamation을 빌드해 `setCustomSQLite`로 지정하고 프로브 참·거짓 확인 | ST-01 | M | M0 |
+| ST-02 | [실측 2026-10-25 macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25: 시스템 `bun:sqlite`는 SQLite 3.51.0이고 `create virtual table … using fts5(x, tokenize="trigram")`가 성공한다. Homebrew `/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib`도 있으나 기본으로 쓰지 않는다. CI job 부분(FTS5 없는 amalgamation으로 거짓 확인)은 아직 남음] macOS CI job(`eng.toolchain.guide` TC-11에서 추가하는 job): `macos-latest`에서 시스템 SQLite 프로브 결과 기록, FTS5 없는 amalgamation과 FTS5 포함 amalgamation을 빌드해 `setCustomSQLite`로 지정하고 프로브 참·거짓 확인 | ST-01 | M | M0 |
 | ST-03 | 연결 팩토리(`pragmas.ts`, `open.ts` 3단계): 쓰기·읽기 PRAGMA 적용과 조회 검증, 파일 존재 검사, 0600/0700, `fsKind` 판정 처리, 종료 절차(`wal_checkpoint(TRUNCATE)`) | ST-01 | M | M0 |
 | ST-04 | `db.ts`: `write`(`transaction().immediate()`), `read`(BEGIN DEFERRED), 중첩·async 콜백 Bug, `SQLiteError.code` 오류 매핑 | ST-03 | M | M0 |
 | ST-05 | `sys-schema.ts`: `sys_meta`·`sys_migrations`·`sys_migration_cursors`·`sys_prefixes` DDL(owner `sys` v1), `application_id` 대조, `storeId` 발급, `user_version` 동기화 | ST-04 | S | M0 |
@@ -110,7 +110,7 @@ xeon/packages/platform-store/
 | ST-18 | `gc.ts`: 고아 행·행 없는 파일·임시 파일 정리, `scheduler` 임대 확인, 수동 시계 테스트 | ST-14, ST-12 | M | M2 이후 |
 | ST-19 | `migrations.ts` `runChunked`: `sys_migration_cursors`, 청크별 트랜잭션, `signal`, 중단 뒤 이어하기 | ST-06, FR-S5 | M | M2 이후 |
 | ST-20 | `lock/win32.ts`: named mutex 또는 `LockFileEx` bun:ffi 실측과 구현(미결 S-5) | ST-11 | M | M2 이후 |
-| ST-21 | macOS 동봉 SQLite 배포 경로: FTS5 포함 dylib 빌드 스크립트, `L0.os` `resourceDir()` 연동, `L4.desktop.plan`·`L4.cli.plan`과 패키징 합의 | ST-02 | L | M2 이후 |
+| ST-21 | [macOS 26 실측으로 FTS5가 시스템 SQLite에 있어 필요성이 낮아짐(ST-02, 2026-10-25). 구버전 macOS·FTS5 부재 시의 대비책으로 남긴다] macOS 동봉 SQLite 배포 경로: FTS5 포함 dylib 빌드 스크립트, `L0.os` `resourceDir()` 연동, `L4.desktop.plan`·`L4.cli.plan`과 패키징 합의 | ST-02 | L | M2 이후 |
 | ST-22 | 운영 빌드 접두사 검사 확대 판단(ST-07 측정 결과), 블롭 해시 재검증 운영 적용 판단 | ST-07, ST-14 | S | M2 이후 |
 | ST-23 | 확장 저장 영역 계약 스위트(`ext-storage.contract.int.test.ts`): X `test/operations/storage/ext-storage.contract.ts`의 시나리오 모음을 테스트 파일 교차 import로 가져와 `openTestStore` 기반 저장소 팩토리(`StoreDb`, `ProjectionTx`, `Projector`, F.records.spec §3.9)로 돌린다. 장애 주입 지점 이름은 X와 같은 문자열(`after_ext_projection:<n>` 등)을 쓴다. 시나리오 파일은 `X.operations.plan` O-15가 만든다 [결정: review.decisions-2 D-05, U-17] | ST-08, ST-09 | S | M1 |
 | ST-24 | 마이그레이션 전 스냅샷: `snapshot.ts`(`snapshotBeforeMigration`, 보관 3개), `migrations.ts` 연결, `StoreWarning`의 `migration_snapshot`·`snapshot_prune_failed`. `migration-snapshot.int.test.ts`가 올리기 전 상태 복사, 모드, 보관 수, 실패 시 단계 미실행을 확인. `spec` §4.6.1 | ST-06 | S | M2 |
@@ -129,7 +129,7 @@ xeon/packages/platform-store/
 
 락 구현 수단(research 질문 2 결과, `_research/notes/L0-2.md`):
 
-- macOS·Linux: bun:ffi `flock` 사이드카. Linux는 `dlopen("libc.so.6", { flock: { args: ["i32", "i32"], returns: "i32" } })`. `bun build --compile` 바이너리에서도 같은 결과를 실측했다(§2.2). macOS 라이브러리 이름(`libSystem.B.dylib`)은 ST-02 job에서 확인한다.
+- macOS·Linux: bun:ffi `flock` 사이드카. Linux는 `dlopen("libc.so.6", { flock: { args: ["i32", "i32"], returns: "i32" } })`. `bun build --compile` 바이너리에서도 같은 결과를 실측했다(§2.2). macOS 라이브러리 이름 `libSystem.B.dylib`는 실측으로 확인했다(macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25, `lock-posix.int.test.ts` 통과: 파일은 디스크에 없어도 dlopen이 된다).
 - Linux 추상 소켓(`Bun.listen({ unix: "\0…" })`)은 Linux 전용이라 채택하지 않는다. 파일 소켓 + connect 프로브는 판정과 unlink 사이 경쟁이 있어 채택하지 않는다(§2.4).
 - Windows: 미결 S-5. ST-20 전까지 `none` provider(DB 임대만, 크래시 뒤 최대 30초 대기)다.
 
@@ -194,7 +194,7 @@ xeon/packages/platform-store/
 
 | 위험 | 영향 | 대응 |
 |---|---|---|
-| macOS 시스템 SQLite에 FTS5가 없을 가능성 | 세션 검색 불가 | ST-02에서 실측. 없으면 동봉 dylib 경로(ST-21)를 확정할 때까지 `capabilities.fts5=false`로 검색만 끈다(spec §4.1) |
+| macOS 시스템 SQLite에 FTS5가 없을 가능성 | 세션 검색 불가 | ST-02에서 실측: macOS 26.5.2 시스템 SQLite 3.51.0에는 FTS5(trigram 포함)가 있다(macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25). 더 낮은 macOS는 미실측. 없으면 동봉 dylib 경로(ST-21)를 확정할 때까지 `capabilities.fts5=false`로 검색만 끈다(spec §4.1) |
 | bun:ffi로 OS 잠금이 불가능하거나 불안정(macOS, 실험 경고) | 크래시 뒤 즉시 인수 불가 | `none` provider(DB 임대만)로 후퇴한다. 정합성은 epoch로 같고, 크래시 뒤 최대 30초(`leaseTtlMs`) 대기와 PID·지문 검사 코드를 감수한다(`_research/notes/L0-2.md §4.3`) |
 | WAL 파일 증가와 체크포인트 정체 | 디스크 사용, 읽기 성능 저하 | `journal_size_limit` 64 MiB, `read` 콜백 동기, 종료 때 `TRUNCATE` 체크포인트, `checkpoint_incomplete` 경고를 진단에 남긴다. 다른 프로세스의 장시간 읽기 연결은 `host.status`(L4)로 보이게 한다 |
 | macOS `fullfsync` 성능 | 커밋 지연 | ST-17 측정. 지연이 크면 `macFullFsync` 기본값을 끄고 `checkpoint_fullfsync`만 둔다(미결 S-9) |

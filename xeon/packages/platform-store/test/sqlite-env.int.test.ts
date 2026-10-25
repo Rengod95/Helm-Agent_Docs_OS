@@ -72,8 +72,8 @@ describe("sqlite environment", () => {
   });
 
   test("initializing sqlite twice with the same path is a no-op", () => {
-    initSqlite(null);
-    initSqlite(null);
+    expect(initSqlite(null)).toEqual({ ok: true, value: undefined });
+    expect(initSqlite(null)).toEqual({ ok: true, value: undefined });
     expect(loadedSqlitePath()).toBeNull();
   });
 });

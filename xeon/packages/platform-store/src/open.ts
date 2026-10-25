@@ -106,11 +106,13 @@ function openStoreSync(options: OpenStoreOptions): OpenResult {
   }
 
   // 1. SQLite 로드와 FTS5 프로브
-  initSqlite(
+  const sqliteLoad = initSqlite(
     policy.customSqlite
       ? (options.settings.customSqlitePath ?? options.env.bundledSqlitePath)
       : null,
+    options.loadCustomSqlite,
   );
+  if (!sqliteLoad.ok) return err(sqliteLoad.error);
   const probe = (options.probe ?? probeSqlite)();
   if (!probe.fts5) {
     if (options.settings.requireFts5) return err({ kind: "fts5_missing" });

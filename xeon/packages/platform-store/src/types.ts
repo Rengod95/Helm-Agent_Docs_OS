@@ -49,6 +49,8 @@ export interface OpenStoreOptions {
   readonly storeFaults?: StoreFaultInjector;
   /** 테스트 전용. SQLite 능력 조사를 대신한다(FTS5 없는 SQLite를 흉내 낼 때) */
   readonly probe?: () => SqliteProbe;
+  /** 테스트 전용. Database.setCustomSQLite를 대신한다(dlopen 실패를 어느 OS에서나 흉내 낼 때) */
+  readonly loadCustomSqlite?: (path: string) => unknown;
   /** 범위 핸들의 EXPLAIN 대조를 강제로 켜거나 끈다. 생략하면 XEON_STORE_STRICT와 NODE_ENV로 정한다 */
   readonly strictPrefix?: boolean;
   readonly engineVersion: string;
@@ -64,6 +66,7 @@ export type StoreOpenError =
   | { readonly kind: "permission"; readonly path: string; readonly mode: number }
   | { readonly kind: "foreign_database"; readonly applicationId: number }
   | { readonly kind: "fts5_missing" }
+  | { readonly kind: "sqlite_load_failed"; readonly path: string }
   | { readonly kind: "corrupt"; readonly code: string }
   | { readonly kind: "busy" }
   | { readonly kind: "disk_full" }

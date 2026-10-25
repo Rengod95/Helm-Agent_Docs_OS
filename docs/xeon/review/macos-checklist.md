@@ -33,8 +33,8 @@ binds: []
 
 | # | 항목 | 이어지는 것 | 수단 | 기대 | 결과 |
 |---|---|---|---|---|---|
-| M-01 | `bun:sqlite`의 FTS5 trigram 탐침, `Database.setCustomSQLite` 경로, `fullfsync`, 세션 잠금 | R2, TC-11, FK-06 | CI `platform-store` 단계, 실기 `just test packages/platform-store` | 시험 통과, 탐침이 FTS5 있음 | |
-| M-02 | 한글 NFD 파일 이름과 경로 정규화 | FK-07 | CI `platform-os` 단계 | 시험 통과 | |
+| M-01 | `bun:sqlite`의 FTS5 trigram 탐침, `Database.setCustomSQLite` 경로, `fullfsync`, 세션 잠금 | R2, TC-11, FK-06 | CI `platform-store` 단계, 실기 `just test packages/platform-store` | 시험 통과, 탐침이 FTS5 있음 | 실측 macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25: 시스템 SQLite 3.51.0, trigram FTS5 성공(동봉 dylib 불필요). 첫 실행의 실패 2건은 수정함: 없는 커스텀 dylib은 `sqlite_load_failed`(spec §4.1), 스냅샷 경로는 realpath(`/private/var`). 재실행 대기 |
+| M-02 | 한글 NFD 파일 이름과 경로 정규화 | FK-07 | CI `platform-os` 단계 | 시험 통과 | 첫 실행의 실패 1건(가짜 Linux 시험이 실제 dlopen을 불러 `process_only` 경고)을 `OsRuntime.createFlock` 주입으로 고침. macOS 실제 `cross_process` 잠금은 통과함. 재실행 대기 |
 | M-03 | Seatbelt 샌드박스에서 작업 폴더 밖 쓰기 거부, 자가 시험 6항목 | M1, FK-01, FK-02, T-02 | CI `platform-sandbox`와 `exit-tests` 단계 | int 시험 통과, 건너뜀 0 | |
 | M-04 | 실제 sops로 비밀 관리 명령(E7) | E7, FK-05 | CI `platform-secrets`와 `exit-tests` 단계 | 시험 통과, 건너뜀 0 | |
 | M-05 | 키체인 age 키, `reveal`의 `os-auth`(Touch ID·암호) | E7, FK-04, T-06 | 실기만(CI 러너는 사람 인증 불가) | 재인증 성공 뒤에만 값 표시, 취소하면 값 없음 | |
@@ -45,6 +45,14 @@ binds: []
 | M-10 | WKWebView 렌더링과 입력 | FK-16, T-11 | 실기(화면 기록 권한 필요) | 트랜스크립트, 승인 카드, 설정 화면이 보임 | |
 | M-11 | 한글 IME 조합(입력창, 설정 화면) | G2-13, FK-16 | 실기, 사람 입력 | 조합 중 Enter가 전송되지 않음, 글자 깨짐 없음 | |
 | M-12 | 데스크톱 첫 실행: 키 등록, 모델 선택, 첫 실행 안내, 외부 바이너리 점검 결과 | D-b, G2-07, G2-08 | 실기 | 깨끗한 상태 디렉터리에서 첫 대화까지 감 | |
+
+## 3.1 macOS 실측 사실 (2026-10-25)
+
+- 기계: macOS 26.5.2, Apple silicon, Bun 1.4.3. 시험 로그는 `just test`의 platform 패키지 첫 실행이다.
+- 시스템 SQLite 3.51.0, FTS5 trigram 가상 테이블 생성 성공. Homebrew SQLite(`/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib`)는 있으나 기본 사용 안 함.
+- `Database.setCustomSQLite("/nonexistent/…")`는 macOS에서 dlopen 오류를 던진다(Linux는 `true`).
+- `/usr/lib/libSystem.B.dylib`는 디스크에 없지만 `dlopen("libSystem.B.dylib")`로 `flock`·`__error`가 쓰인다.
+- 임시 디렉터리는 `/var/folders/…`이고 realpath는 `/private/var/folders/…`다. `pwd -P`와 저장소 스냅샷 경로는 realpath를 돌려주므로 시험은 기대 경로를 `realpathSync`로 비교한다.
 
 ## 4. 미결 사항
 
