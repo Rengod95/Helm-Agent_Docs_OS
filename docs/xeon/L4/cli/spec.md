@@ -71,7 +71,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon`, `xeon chat` | 대화형 모드. TTY가 아니면 print 모드로 바뀐다(§4.2). 대화형의 슬래시 명령 중 엔진에 등록한 것은 `command.list`로 목록을, `command.run`으로 실행을 부른다(§4.12) | `host.hello`, `thread.create`, `events.subscribe`, `turn.start`, `settings.get`. 슬래시 명령: `command.list`, `command.run` | M1 |
 | `xeon chat -p <입력>`, `--print <입력>` | print 모드. 입력 하나로 turn 하나를 돌리고 응답 텍스트를 stdout에 쓴다. `-p -` 또는 `-p`만 쓰면 stdin 전체가 입력이다 | 위와 같음 | M1 |
 | `xeon chat -p … --json` | JSON 모드. 연결에서 오간 JSON-RPC 메시지를 순서대로 한 줄에 하나씩 쓴다(§4.4) | 위와 같음 | M1 |
-| `xeon chat --continue` | 현재 작업 폴더의 마지막 세션을 이어 연다. M1은 CLI 상태 파일, M2부터 `thread.list` | M1: 위와 같음. M2: `thread.list`, `thread.open` 추가 | M1 |
+| `xeon chat --continue` | 현재 작업 폴더의 마지막 세션을 이어 연다. M1은 CLI 상태 파일, M2부터 `thread.list`. 대화형이고 그 세션에 끊긴 turn이 있으면 묻고 `turn.resume`을 부른다(§4.4) | M1: 위와 같음. M2: `thread.list`, `thread.open` 추가 | M1 |
 | `xeon chat --resume <id>` | 지정 세션을 이어 연다 | M1: `events.subscribe`, `turn.start`. M2: `thread.open` 추가 | M1 |
 | `xeon chat --set <key>=<value>` | 이 세션에만 설정을 덮어쓴다(session 범위). 여러 번 쓸 수 있다 | `settings.set`(scope `session`, `threadId`) | M2 |
 | `xeon sessions ls [--all] [--limit n] [--json]` | 세션 목록. 기본은 현재 작업 폴더 | `thread.list` | M2 |
@@ -496,6 +496,13 @@ export type CliState = Static<typeof CliStateSchema>;
 - 구간 검사(F wire §4.5): `applyBatch`가 `from ≠ position.seq`를 받으면 `gap`을 돌려준다. CLI는 마지막 `to`부터 다시 구독한다.
 - 상태 파일 갱신: `events.batch`를 반영할 때마다 메모리의 위치를 바꾸고, 파일 쓰기는 turn 경계(`turn.completed`)와 종료 때 한다 [제안]. 강제 종료로 파일이 덜 갱신돼도 더 이른 위치부터 구독하므로 이벤트를 놓치지 않는다. 다시 받은 이벤트는 `applyBatch`가 seq로 걸러 중복 출력하지 않는다.
 
+- 끊긴 turn 이어 실행 [결정: m2c G1-02]:
+  - 대화형이 기존 세션(`--continue`, `--resume <id>`, `/resume`)을 열면 이전 기록을 다 그린 뒤, 입력을 받기 전에 `thread.list`에서 그 세션의 요약을 찾는다. 작업 폴더 범위에서 먼저 찾고 없으면 전체에서 찾는다. 쪽은 각 범위 최대 3쪽까지 넘겨 본다.
+  - 요약의 `resumable`이 `null`이 아니면 "이 세션에 끊긴 turn이 있다 (시작 <시각>, 이어 실행을 <n>번 시도했다)"를 보이고 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`를 보낸다. 호스트는 자동 재개를 하지 않으므로 CLI도 묻지 않고 부르지 않는다.
+  - 결과는 `resumed`(이어서 실행한다, 단계 `from`을 보이고 그 turn이 끝날 때까지 기다린다. 진행은 이벤트로 그려진다), `closed`(중단 요청 또는 소유자 취소라 이어 실행하지 않고 닫았다), `nothing`(이어서 실행할 turn이 없다)이다. 실패는 두 줄 오류로 알리고 입력을 이어 받는다.
+  - 새 세션, 관찰 전용으로 연 세션, print 모드, `host.hello`의 `features`에 `turn.resume`이 없는 호스트에서는 묻지 않는다. 목록을 읽지 못해도 대화를 막지 않는다.
+  - `xeon sessions ls`는 `resumable`이 있는 세션에 `[이어서 실행 가능]`을 붙인다(구현됨).
+
 ### 4.5 이벤트 렌더링
 
 - 내구(`events.batch`)는 트랜스크립트, 휘발(`stream.chunk`)은 진행 줄이다(F wire §3.4.4).
@@ -800,6 +807,7 @@ export type CliState = Static<typeof CliStateSchema>;
 - AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 계획 승인은 `{ mode?, note? }`, 질문은 `QuestionAnswer`다. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
 - AC16. `host --stdio`의 stdout에는 JSON-RPC 메시지만 나오고(사람용 출력은 stderr), stdin EOF에서 0으로 끝난다. `l4.cli.*` 키가 그 호스트의 카탈로그에 있다. 컴파일(`--minify --bytecode`) 바이너리에서도 같다.
 - AC17. 대화형에서 엔진에 등록한 동작 명령(`/plan on`)을 치면 `command.run { threadId, text: "/plan on" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
+- AC18. 대화형으로 `thread.list`가 `resumable`을 알린 세션을 열면 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`가 한 번 가고, 그 turn의 나머지 이벤트가 그려진다. 새 세션과 print 모드는 묻지 않고 `turn.resume`을 보내지 않는다.
 
 ## 10. 미결 사항
 

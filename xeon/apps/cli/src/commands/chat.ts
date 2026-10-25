@@ -1,4 +1,4 @@
-import { assertNever, attemptAsync, detach, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, attemptAsync, detach, err, ok, rethrow, type Result } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { ChatCommand, ChatTarget } from "../cli/command.ts";
 import type { EngineHandle } from "../engine.ts";
@@ -19,6 +19,7 @@ import { wireSignals, type SignalWiring } from "../signals.ts";
 import { createMinimalSink, runInteractive } from "../tui/minimal.ts";
 import { resolvePrintInput } from "./chat-input.ts";
 import { applyOverrides } from "./overrides.ts";
+import { offerTurnResume } from "./resume-turn.ts";
 import {
   createPositionKeeper,
   loadInitialState,
@@ -236,12 +237,36 @@ async function chatWork(
       return applied.error.code;
     }
     const current = (): ChatSession => holder.session ?? opened.value;
+    // 종료 요청이 오면 열려 있는 질문의 입력 대기를 푼다
+    const exitAbort = new AbortController();
+    detach(
+      (async () => {
+        await wiring.exit.requested;
+        exitAbort.abort();
+      })(),
+      rethrow,
+    );
+    /** 열어 둔 세션에 끊긴 turn이 있으면 묻고 이어 실행한다. 새 세션에는 없다 */
+    const offerResume = (session: ChatSession, signal: AbortSignal): Promise<boolean> =>
+      offerTurnResume({
+        handle,
+        workspace: ctx.workspace,
+        session,
+        io: {
+          readLine: (prompt, lineSignal) => io.readLine(prompt, lineSignal),
+          stdout: (text) => io.stdout(text),
+          stderr: (text) => io.stderr(text),
+        },
+        signal,
+        exitRequested: wiring.exit.requested,
+      });
     const code = interactive
       ? await runInteractive({
           io,
           current,
           exit: wiring.exit,
           approvals: () => holder.approvals,
+          ...(command.target.kind === "new" ? {} : { onOpened: offerResume }),
           slash: {
             connection: handle.connection,
             supports: (feature) => handle.supports(feature),
@@ -258,6 +283,7 @@ async function chatWork(
               }
               await io.stdout(`세션 ${next.value.threadId}으로 바꿨다\n`);
               await Promise.race([next.value.caughtUp(), wiring.exit.requested]);
+              await offerResume(next.value, exitAbort.signal);
               return ok(undefined);
             },
           },

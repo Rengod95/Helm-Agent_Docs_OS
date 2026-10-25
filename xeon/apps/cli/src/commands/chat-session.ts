@@ -19,6 +19,7 @@ import {
   type EventWire,
   type JsonRpcMessage,
   type StreamPosition,
+  type TurnResumeResult,
 } from "@xeon/contracts/wire";
 import { HostClientError } from "../host-client.ts";
 import type { ChatTarget } from "../cli/command.ts";
@@ -130,6 +131,17 @@ interface SentTurn {
   readonly done: Promise<TurnEnd>;
 }
 
+/** turn.resume의 결과. 이어 실행을 접수했으면(resumed) 그 turn이 끝날 때 이행하는 done이 있다 */
+export type ResumedTurn =
+  | {
+      readonly result: Extract<TurnResumeResult, { status: "resumed" }>;
+      readonly done: Promise<TurnEnd>;
+    }
+  | {
+      readonly result: Exclude<TurnResumeResult, { status: "resumed" }>;
+      readonly done: null;
+    };
+
 export interface ChatSessionOptions {
   readonly handle: EngineHandle;
   readonly workspace: string;
@@ -160,6 +172,8 @@ export interface ChatSession {
   /** 구독을 닫고 알림 처리를 멈춘다. 연결은 닫지 않는다(/resume이 다른 세션으로 바꿀 때) */
   close(): Promise<void>;
   sendTurn(input: string): Promise<SentTurn>;
+  /** 끊긴 turn을 이어 실행한다(turn.resume, G1-02). 사용자가 확인한 뒤에만 부른다. 호스트는 자동 재개를 하지 않는다 */
+  resumeTurn(): Promise<ResumedTurn>;
   /** 지금까지 도착한 알림의 처리가 끝나기를 기다린다 */
   idle(): Promise<void>;
   /** 열 때의 재전송(구독 위치부터 머리까지)을 모두 반영했을 때 이행한다. 대화형이 이전 기록을 다 그린 뒤 입력을 받게 한다 */
@@ -658,6 +672,23 @@ export async function openChatSession(
     restored.resolve();
   }
   // 접기 경계가 정해진 뒤 도착한 알림부터 그려진다. 여기서 한 번 비워 열기 직후의 재전송이 끝나기를 기다리지는 않는다
+  /** turn 하나가 끝날 때까지 기다리는 약속. 끝난 turn이 이미 도착했으면 바로 이행한다 */
+  const awaitTurnEnd = (turnId: string): Promise<TurnEnd> => {
+    const known = ends.get(turnId);
+    let done: Promise<TurnEnd>;
+    if (known !== undefined) {
+      done = Promise.resolve(known);
+    } else if (live.broken !== undefined) {
+      done = Promise.reject(live.broken);
+    } else {
+      const waiter = waiters.get(turnId) ?? Promise.withResolvers<TurnEnd>();
+      waiters.set(turnId, waiter);
+      done = waiter.promise;
+    }
+    return done.finally(() => {
+      live.turnActive = false;
+    });
+  };
   const session: ChatSession = {
     threadId,
     readOnly: resolved.value.readOnly,
@@ -683,21 +714,21 @@ export async function openChatSession(
       try {
         const requestId = handle.newRequestId();
         const started = await connection.request("turn.start", { threadId, input, requestId });
-        const known = ends.get(started.turnId);
-        let done: Promise<TurnEnd>;
-        if (known !== undefined) {
-          done = Promise.resolve(known);
-        } else if (live.broken !== undefined) {
-          done = Promise.reject(live.broken);
-        } else {
-          const waiter = waiters.get(started.turnId) ?? Promise.withResolvers<TurnEnd>();
-          waiters.set(started.turnId, waiter);
-          done = waiter.promise;
+        return { turnId: started.turnId, done: awaitTurnEnd(started.turnId) };
+      } catch (caught) {
+        live.turnActive = false;
+        throw caught;
+      }
+    },
+    async resumeTurn() {
+      live.turnActive = true;
+      try {
+        const result = await connection.request("turn.resume", { threadId });
+        if (result.status === "resumed") {
+          return { result, done: awaitTurnEnd(result.turnId) };
         }
-        const settled = done.finally(() => {
-          live.turnActive = false;
-        });
-        return { turnId: started.turnId, done: settled };
+        live.turnActive = false;
+        return { result, done: null };
       } catch (caught) {
         live.turnActive = false;
         throw caught;

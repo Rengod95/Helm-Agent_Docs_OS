@@ -257,6 +257,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 | 항목 | 상태 | 구현 위치 |
 |---|---|---|
 | 슬래시 명령 실행(G1-01) | 구현: 내장도 별칭도 아닌 이름을 `command.run`으로 보내 `done`(메시지·구조 값), `expanded`(turn으로 전송), `needs_confirmation`(`[y/N]` 뒤 `confirmShell`), `not_command`를 처리한다. `command.list`는 `/help`와 Tab 완성에 쓴다. 시험 `slash-commands.test.ts`는 가짜 호스트 처리기라서 실제 처리기와의 종단 시험은 wave 2 host 병합 뒤 다시 돌린다 | `src/slash.ts`, `src/tui/minimal.ts`, `test/slash-commands.test.ts` |
+| 끊긴 turn 이어 실행(G1-02) | 구현: 기존 세션을 연 대화형이 `thread.list`에서 요약을 찾아 `resumable`이 있으면 `[y/N]`을 묻고 `turn.resume`을 부른다. 결과 세 모양(`resumed`, `closed`, `nothing`)을 문구로 보이고 `resumed`는 turn이 끝날 때까지 기다린다. 시험 `turn-resume.test.ts`는 가짜 호스트라서 실제 처리기와의 종단 시험은 wave 2 host 병합 뒤 다시 돌린다 | `src/commands/resume-turn.ts`, `src/threads.ts`, `src/commands/chat-session.ts`(`resumeTurn`), `test/turn-resume.test.ts` |
 | 오류 문구 | 구현: `secret.*` 전용 kind, `thread.closed`, `settings.reserved`, `store.corrupt`, 슬래시 명령 능력 오류(`cap.dialog.commands.*`). 시험은 값으로 비교한다 | `src/errors.ts`, `test/errors-wire.test.ts` |
 
 ## 5. 단위 테스트 목록

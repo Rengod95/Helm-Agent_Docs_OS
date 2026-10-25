@@ -98,6 +98,10 @@ export interface InteractiveArgs {
   /** 지금 세션의 승인 sink. 승인이 입력 줄보다 먼저 사람에게 가야 해서 입력 대기가 이것을 본다 */
   readonly approvals: () => ApprovalSink | undefined;
   readonly slash: Omit<SlashContext, "io" | "signal" | "engineCommands">;
+  /**
+   * 세션을 열고 이전 기록을 다 그린 뒤, 입력을 받기 전에 부른다(끊긴 turn 이어 실행 확인). 종료 요청이 와서 기다림을 멈췄으면 true다
+   */
+  readonly onOpened?: (session: ChatSession, signal: AbortSignal) => Promise<boolean>;
 }
 
 /** session 범위를 허용하는 설정 키. /set 자동 완성에 쓴다. 읽지 못하면 완성 없이 동작한다 */
@@ -131,6 +135,9 @@ export async function runInteractive(args: InteractiveArgs): Promise<ExitCode> {
   await Promise.race([current().caughtUp(), exit.requested]);
   if (current().readOnly) {
     await io.stdout("관찰 전용이다: 입력은 보내지 않고 이 세션의 진행만 보인다 (/quit로 끝낸다)\n");
+  }
+  if (args.onOpened !== undefined && (await args.onOpened(current(), abort.signal))) {
+    return (await exit.requested).code;
   }
   // 엔진에 등록한 명령(command.list)은 도움말과 Tab 완성에 쓴다. 읽지 못하면 내장 명령만 동작한다
   const engineCommands: EngineCommand[] = [
