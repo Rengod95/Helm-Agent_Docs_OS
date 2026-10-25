@@ -41,7 +41,7 @@ L4는 층 F~L3를 하나의 실행 가능한 런타임으로 조립하고 사용
 | 마일스톤 | cli | desktop | host-service | settings-ui |
 |---|---|---|---|---|
 | M1 | `xeon chat` in-process(print 우선, 최소 대화형), `--json`, `--continue`/`--resume`, `config get`, `config schema`(로컬 명령), 저장소 유일의 scenario 테스트 | 스캐폴드, TS `StdioTransportFactory`·`HostConnection`이 엔진 프로세스에 대해 `WIRE_CONFORMANCE_CASES` 통과(Rust 툴체인 없음) | in-process 전송, 처리기 5개(`host.hello`, `thread.create`, `turn.start`, `events.subscribe`, `settings.get`), stdio 전송과 적합성 통과, `assemble` 최소형(테스트용 그룹 포함), `xeon config schema` | 없음 |
-| M2 | `sessions`, `config set/reset/list`, 비밀 관리 명령(`secret *`, UC-6, 값 열람 `secret reveal` 포함), `doctor`(검색 provider 상태 포함), 승인·잠금 프롬프트, 컴파일 바이너리의 `host --stdio` 서브커맨드 | Tauri 데스크톱과 엔진 사이드카, 정상 종료 시 사이드카 없음, CLI와 메시지 열 동일 | 나머지 처리기(`thread.*`, `turn.interrupt`, `events.unsubscribe`, `approval.respond`, `settings.set/reset/list`, `host.status`), `thread.open` 잠금과 `thread.locked`, stdio 종료 절차 | 얇은 화면(view-model, 일반 렌더러, 키 단위 편집기) |
+| M2 | `sessions`, `config set/reset/list`, 비밀 관리 명령(`secret *`, UC-6, 값 열람 `secret reveal` 포함), `doctor`(검색 provider 상태 포함), 승인·잠금 프롬프트, 컴파일 바이너리의 `host --stdio` 서브커맨드 | Tauri 데스크톱과 엔진 사이드카, 정상 종료 시 사이드카 없음, CLI와 메시지 열 동일 | 나머지 처리기(`thread.*`(`thread.rename` 포함), `turn.interrupt`, `turn.resume`, `events.unsubscribe`, `approval.respond`, `settings.set/reset/list`와 알림 `settings.invalidated`, `command.list/run`, `trust.get/decide`, `secret.references`, `host.status`), `thread.open` 잠금과 `thread.locked`, stdio 종료 절차, 첫 입력 제목, 외부 바이너리 점검(`Engine.diagnose`) | 얇은 화면(view-model, 일반 렌더러, 키 단위 편집기) |
 | M3 | `service start/status/stop/ensure/launch-mode/run` | 서비스 소켓 릴레이, OS 알림 | 서비스 모드 전부(등록 파일, `ensure`, 유휴 종료, 인증), 예약 틱, 알림 라우팅 | 12탭 전체, 전용 편집기, 비밀 탭(값 보기 포함), 레이트 리밋·계정 회전 항목, 첫 실행 권장 화면, 게이지 자리 |
 
 - M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다.
@@ -165,15 +165,15 @@ L4가 정하지 않는 것:
 | 4 | TUI 선택(pi-tui 채택, 스택 표에 행 없음) | `L4.cli.spec` §10-6 | 사용자 확인 |
 | 5 | 닫음: 데스크톱 프런트엔드는 React 19 + Zustand 5(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`. `L4.settings-ui.spec` §10-16의 부품 형식과 `ui`·`visual` 시험 도입은 남는다 | `L4.desktop.spec` §10-11, `L4.settings-ui.spec` §10-16 | - |
 | 6 | Linux/WSL 데스크톱 지원 수준, 최소 macOS·WebKitGTK 버전 | `L4.desktop.spec` §10-9·10 | 사용자 확인 |
-| 7 | 비밀 입력·관리 wire 경로. 값 없는 `secret.*` 다섯은 F에 M2로 들어왔다. 열람은 M2 CLI `secret reveal`과 M3 화면(review.decisions-2 U-20). 남은 것: `secret.beginReveal` F 추가(U-04에 따라 M2 계획), in-process CLI가 읽은 값을 wire 밖으로 L0.secrets에 넘기는 `@xeon/host` API, C안 불가 OS의 대체 | `L4.cli.spec` §10-3, `L4.settings-ui.spec` §10-2, `L0.secrets.spec` §8.3 R4 | F 변경 요청(M2 계획), host-service 요청 |
+| 7 | 비밀 입력·관리 wire 경로. 값 없는 `secret.*` 일곱(`list`, `meta`, `remove`, `test`, `references`, `beginEntry`, `beginReveal`)이 F에 M2로 있고 호스트가 처리한다(`L4.host-service.spec` §4.12, 오류는 `secret.*` 전용 kind 3201~3212). 열람은 M2 CLI `secret reveal`과 M3 화면(review.decisions-2 U-20). 남은 것: C안 불가 OS의 대체, `SecretEntryOffer`의 `add`용 메타 일부 필드(M3) | `L4.cli.spec` §10-3, `L4.settings-ui.spec` §10-2, `L0.secrets.spec` §8.3 R4 | M3 |
 | 8 | 닫음: 원격은 M3에 로컬 소켓 터널로, 내장 TLS + 토큰 WebSocket은 2차(review.decisions-2 U-11) | `L4.host-service.spec` §4.11, §10-4 | - |
 | 9 | 서비스 인증: Unix 소켓 + 파일 권한으로 충분한지, 토큰을 `host.hello`에 실을지 | `L4.host-service.spec` §10-10, `F.wire-settings.spec` §10-4 | 사용자 확인 |
 | 10 | 닫음: `host.shutdown`은 F 메서드 표에 M2로 있다. M2 전까지 stdin 닫기로 대신 | `L4.host-service.spec` §10-9, `L4.desktop.spec` §10-2 | - |
-| 11 | 비정상 종료 표식의 "이어서 실행" 후보 조회 수단(`ThreadSummary` 필드 또는 전용 메서드) | `L4.host-service.spec` §10-8, `L4.desktop.spec` §10-4 | F 변경 요청. M2 계획에서 정한다(review.decisions-2 U-04) |
+| 11 | 닫음: 비정상 종료 표식의 "이어서 실행" 후보는 `ThreadSummary.resumable`이 알리고, 사용자 확인 뒤 `turn.resume`이 이어 실행한다(m2c G1-02, `L4.host-service.spec` HS-74) | `L4.host-service.spec` §10-8·21, `L4.desktop.spec` §10-4 | - |
 | 12 | 닫음: 클라이언트 알림 `$/connectionReset`은 F에 M2로 있다 | `L4.desktop.spec` §10-2 | - |
-| 13 | 사용자 알림용 wire 알림 또는 표시 힌트. 알림 설정 자체는 `l2.dialog.notify.*`(review.decisions-2 S-04) | `L4.host-service.spec` §10-13, `L4.desktop.spec` §10-5 | F 변경 요청. M2 계획에서 정한다(U-04) |
-| 14 | 파일 범위 설정 변경 통지(`settings.invalidated` 후보) | `L4.host-service.spec` §10-17, `L4.settings-ui.spec` §10-1 | F 변경 요청. M2 계획에서 정한다(U-04) |
-| 15 | `settings.list`의 `type`에 `range` 병합 또는 F 공통 병합 함수 | `L4.host-service.spec` §10-11, `L4.settings-ui.spec` §10-7, `L4.cli.spec` §10-4 | F 변경 요청 |
+| 13 | 사용자 알림용 wire 알림 또는 표시 힌트. 알림 설정 자체는 `l2.dialog.notify.*`(review.decisions-2 S-04). 판정: 보류(M3). M2는 내구 이벤트 kind로 알림 대상을 고른다(`F.wire-settings.spec` §3.3.4) | `L4.host-service.spec` §10-13, `L4.desktop.spec` §10-5 | M3 계획 |
+| 14 | 닫음: 파일 범위 설정 변경 통지는 서버 알림 `settings.invalidated`로 정했고 호스트가 보낸다(m2c G1-08, `L4.host-service.spec` HS-71). 호스트 밖에서 직접 고친 파일의 변경은 파일 감시(M3) 전에는 알리지 못한다 | `L4.host-service.spec` §10-17, `L4.settings-ui.spec` §10-1 | - |
+| 15 | `settings.list`의 `type`에 `range` 병합 또는 F 공통 병합 함수. 판정: 보류(M3)(`F.wire-settings.spec` §3.3.4) | `L4.host-service.spec` §10-11, `L4.settings-ui.spec` §10-7, `L4.cli.spec` §10-4 | M3 계획 |
 | 16 | 승인 대기 세션을 유휴 종료에서 live로 볼지(제안 live) | `L4.host-service.spec` §10-6, ADR-0006 §6 | 사용자 확인 |
 | 17 | 닫음: 세션 잠금은 OS 잠금 + `sys_leases.epoch` 펜싱, 소유 표시는 `sys_leases` 행(review.decisions-2 U-09) | `L4.host-service.spec` §4.7, §10-14 | - |
 | 18 | `l4.desktop.*` 값의 저장 위치(데스크톱 로컬 파일 제안)와 관리 잠금 읽기 | `L4.desktop.spec` §10-6, `L4.settings-ui.spec` §10-18 | 작성자 결정 |
@@ -184,7 +184,7 @@ L4가 정하지 않는 것:
 | 23 | 패키지 도메인 이름 `host`와 routes 도메인 `host-service`의 불일치, 설정 화면 코드 위치 | `L4.host-service.spec` §10-18, `L4.settings-ui.spec` §10-11, `architecture.layers.spec` §10 | 작성자 결정 |
 | 24 | 릴리즈 형태(단일 파일, `native/` 사이드카 디렉터리), 사이드카 크기 상한, Windows 크래시 시 엔진 잔존 | `L4.cli.spec` §10-7, `L4.desktop.spec` §10-7, ADR-0008 §6 | 사용자 확인 |
 | 25 | M1에서 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1으로 당기기 | `L4.cli.spec` §10-2 | F 변경 요청 |
-| 26 | `doctor` 진단 경로(`@xeon/host` 진단 함수 또는 F `host.diagnose`) | `L4.cli.spec` §10-5 | F 변경 요청 또는 host-service 요청 |
+| 26 | 닫음: `doctor`는 `@xeon/host`의 진단 함수 `Engine.diagnose`(외부 바이너리 점검)를 직접 부른다. F `host.diagnose`는 반려됐다(m2c G2-07, `L4.host-service.spec` HS-69). 데스크톱이 같은 결과를 받는 경로는 `L4.host-service.spec` §10-28 | `L4.cli.spec` §10-5 | 데스크톱 경로는 F 변경 또는 T7 결정 |
 | 27 | print 모드의 승인 요청 기본 거부, 비대화 자동 승인 플래그 | `L4.cli.spec` §10-8 | 사용자 확인 |
 | 28 | 닫음: 승인 A안(review.decisions-2 U-02). `approval.requested`/`approval.resolved` kind는 `F.records.spec` 카탈로그에 있다 | `L4.cli.spec` §10-9 | - |
 | 29 | TUI 설정 화면과 view-model 공유 위치(DR-10) | `L4.cli.spec` §10-10, `L4.settings-ui.spec` §10-12 | 사용자 확인 |
@@ -193,11 +193,11 @@ L4가 정하지 않는 것:
 | 32 | 데스크톱 자동 업데이트 채택(M3 이후) | `L4.desktop.spec` §10-12 | 사용자 확인 |
 | 33 | 장수명 엔진의 stdio 유지와 로컬 소켓 전환 | `L4.desktop.spec` §10-13, ADR-0008 §6 | 작성자 결정(S3 spike 뒤) |
 | 34 | secrets 탭(M3)과 비밀 관리 명령(M2)의 순서 | `L4.settings-ui.spec` §10-4 | 작성자 결정 |
-| 35 | 사용량 wire 메서드와 게이지 채우기 시점. 레이트 리밋·계정 회전 설정은 M3 화면에 넣는다(review.decisions-2 U-21) | `L4.settings-ui.spec` §10-5 | F 변경 요청. M2 계획에서 정한다(U-04) |
-| 36 | 파일 단위 편집기의 `settings.readFile`·`settings.writeFile`, 모르는 키 목록, "파일 열기" | `L4.settings-ui.spec` §10-6 | F 변경 요청. M2 계획에서 정한다(U-04) |
-| 37 | `SettingsTab` enum과 `SettingUi` 편집기 힌트 필드 | `L4.settings-ui.spec` §10-8 | F 변경 요청 |
+| 35 | 사용량 wire 메서드와 게이지 채우기 시점. 레이트 리밋·계정 회전 설정은 M3 화면에 넣는다(review.decisions-2 U-21). 판정: 보류(M3) | `L4.settings-ui.spec` §10-5 | M3 계획 |
+| 36 | 파일 단위 편집기의 `settings.readFile`·`settings.writeFile`, 모르는 키 목록, "파일 열기". 판정: 보류(M3) | `L4.settings-ui.spec` §10-6 | M3 계획 |
+| 37 | `SettingsTab` enum과 `SettingUi` 편집기 힌트 필드. 판정: 보류(M3). 노출 단계 필드 `SettingDef.stage`만 M2에 받았다 | `L4.settings-ui.spec` §10-8 | M3 계획 |
 | 38 | i18n 방침(`ui.label`·`ui.help` 언어, 메시지 카탈로그) | `L4.settings-ui.spec` §10-9 | 사용자 확인 |
-| 39 | 관리 잠금 사유 문구 필드를 `EffectiveSetting`에 싣기 | `L4.settings-ui.spec` §10-10 | F 변경 요청 |
+| 39 | 관리 잠금 사유 문구 필드를 `EffectiveSetting`에 싣기. 판정: 보류(M3). 관리 잠금은 `locked` 표시만으로 M2 화면이 동작한다 | `L4.settings-ui.spec` §10-10 | M3 계획 |
 | 40 | 확장의 맞춤 설정 패널 허용 여부와 시점 | `L4.settings-ui.spec` §10-13 | 사용자 확인 |
 | 41 | 닫음: TypeBox 버전은 1.3.27이다(review.decisions-2 U-24). 클라이언트 `Check`와 서버 검사가 catalog의 같은 사본을 쓴다 | `L4.settings-ui.spec` §10-15, `F.wire-settings.spec` §10-6 | - |
 | 42 | desktop 모듈 규칙 W3 허용 목록에 F 서브패스와 `typebox/schema` 더하기 | `L4.settings-ui.spec` §10-17, `L4.desktop.spec` §4.9 | 작성자 결정(desktop) |
@@ -218,14 +218,15 @@ L4가 정하지 않는 것:
 
 ### 8.1 비밀 메서드 이름표
 
-[제안] CLI와 설정 화면은 아래 단수 `secret.*` 메서드를 같은 이름으로 쓴다. 모두 값 필드가 없다. 값 입력과 열람은 호스트 쪽 L0.secrets가 OS 입력 창(서비스 접속) 또는 wire 밖 전달(in-process CLI)로 받는다(`L4.settings-ui.spec` §4.6.4 C안, `L4.cli.spec` §4.7). `secret.beginReveal`을 뺀 다섯은 F 메서드 표에 M2로 있다(`F.wire-settings.spec` §4). `secret.beginReveal`은 F 변경 요청이다(§8 미결 7).
+[제안] CLI와 설정 화면은 아래 단수 `secret.*` 메서드를 같은 이름으로 쓴다. 모두 값 필드가 없다. 값 입력과 열람은 호스트 쪽 L0.secrets가 OS 입력 창(서비스 접속) 또는 wire 밖 전달(in-process CLI)로 받는다(`L4.settings-ui.spec` §4.6.4 C안, `L4.cli.spec` §4.7). 일곱 메서드 모두 F 메서드 표에 M2로 있고(`F.wire-settings.spec` §3.3.1) 호스트가 처리한다(`L4.host-service.spec` §4.12). 오류는 `secret.*` 전용 kind 3201~3212다(HS-47).
 
 | 메서드 | 주요 params | CLI 명령(`L4.cli.spec` §3.1) | 설정 화면(`L4.settings-ui.spec` §4.6.3) | L0.secrets 서비스 메서드(`L0.secrets.spec` §6.3) |
 |---|---|---|---|---|
 | `secret.list` | `{ meta?, usage? }` | `secret ls [--meta] [--usage]` | 목록, 사용 이력 | `ls`, `list` |
 | `secret.meta` | `{ name, …메타·정책 필드 }` | `secret meta` | 메타 편집, 정책 편집 | `meta` |
 | `secret.remove` | `{ name }` | `secret rm` | 삭제 | `references`, `rm` |
-| `secret.test` | `{ name }` | `secret test` | 등록 상태(`registered`, `missing`) | `test` |
+| `secret.test` | `{ name }` | `secret test` | 등록 상태(`registered`, `missing`), 복호화 가능 여부, 길이, SHA-256 앞 8자 | `test` |
+| `secret.references` | `{ name }` | `secret rm`이 삭제 전에 부른다 | 삭제 확인에 참조(설정 키, 활성 lease, 최근 thread)를 보인다 | `references` |
 | `secret.beginEntry` | `{ name, action: "add" \| "set" \| "rotate" }` | `secret add`, `secret set`, `secret rotate` | 추가, 회전 | `add`, `set`, `rotate` |
 | `secret.beginReveal` | `{ name }` | `secret reveal`(M2, review.decisions-2 U-20) | 값 보기(M3) | `reveal` |
 

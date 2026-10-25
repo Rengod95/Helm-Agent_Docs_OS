@@ -345,9 +345,9 @@ HOST.6에서 실제 엔진에 올리자 드러난 오류와 처리:
 
 ### 8.6 다른 레인에 요청한 것 (HOST.2·4·6)
 
-- F: 열린 turn 재개 메서드(spec §10 21), `thread.closed` 오류 kind(§10 23), 명령 처리기 출력(§10 26).
-- L1B: fork thread의 가지가 원본 history를 잇는지와 `thread.read`용 `before`·`limit` 질의(§10 22).
-- PLT: `McpProcessPort` 구현, 파일 잠금 API(§10 24·25).
+- F: (m2c에서 모두 처리됨) 열린 turn 재개 메서드는 `turn.resume`(spec §10 21), `thread.closed` 오류 kind(§10 23), 명령 처리기 출력은 `command.run`의 `done`(§10 26).
+- L1B: fork thread의 가지가 원본 history를 잇는지와 `thread.read`용 `before`·`limit` 질의(§10 22): m2c T4가 처리한다. 병합 뒤 `readThread`를 그 질의로 바꾼다.
+- PLT: (m2c에서 처리됨) `McpProcessPort` 구현, 파일 잠금 API(§10 24·25).
 - WK(cap-work): 표 이름을 바꿨다(위). `submit_plan` 승인 결과 문구는 한국어다.
 - DG(cap-dialog): `ask_user` 도구 등록은 조립 루트(`host-dialog-bridge`)가 했다. 플러그인이 등록하도록 옮길지 정한다.
 - core-agents: `agentsPlugin`에 `loop` 감싸개 선택 옵션을 더했다(자식 thread 열기). L1B가 같은 일을 플러그인 안에서 하면 옵션을 지운다.

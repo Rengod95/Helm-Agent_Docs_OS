@@ -289,7 +289,7 @@ export type SubmitOutcome =
 export interface TurnPort {
   submit(threadId: ThreadId, input: TurnStartInput, requestId: string | undefined): Promise<SubmitOutcome>;
   interrupt(threadId: ThreadId, turnId: TurnId | undefined): Promise<boolean>;
-  /** 열린 turn을 재개한다(자동 재개는 하지 않는다, L1.loop.spec §4.6). wire에 재개 메서드가 없어 지금은 시험과 서비스 모드 자동 재개(M3)가 쓴다(§10 미결 21) */
+  /** 열린 turn을 재개한다(자동 재개는 하지 않는다, L1.loop.spec §4.6). `turn.resume`(HS-74)이 사용자 확인 뒤 부르고 서비스 모드 자동 재개(M3)도 쓴다 */
   resume(threadId: ThreadId): Promise<Result<ResumeResult, LoopError>>;
   /** 진행 중 turn을 다음 안전 경계에서 멈추고 체크포인트를 커밋한다. 시한 안에 끝나면 true. */
   stopAtSafeBoundary(deadlineMs: number): Promise<boolean>;
@@ -831,7 +831,7 @@ F wire §4.3의 1~7단계를 그대로 구현한다. 1단계(프레임 크기)�
   - `thread.close`(HOST.2)도 같은 판정을 쓴다.
 - HS-28. `turn.start`는 이 프로세스가 그 thread의 잠금을 쥐고 있지 않으면 먼저 `tryAcquire`를 한 번 시도한다(암묵 획득) [제안]. 성공하면 HS-24 4단계처럼 토큰으로 쓰기를 열고 제출한다. 실패하면 3002와 HS-25의 `options`다. 그래서 M1에서도 기존 thread의 재개(`xeon chat --continue`, `L4.cli.spec` §4.3)가 `thread.open` 없이 동작한다. `turn.interrupt`, `thread.revert`는 암묵 획득을 하지 않고 `SessionLockPort.holds(threadId)`가 거짓이면 3002다. `thread.delete`는 한 번 얻어 본다: 열지 않고 지우는 클라이언트(`xeon sessions rm`)가 있고, 지우려면 쓰기 소유가 필요하기 때문이다(§3.4 표). `approval.respond`는 잠금을 얻으려 하지 않는다(§4.13).
 - HS-29. `sys_leases.heartbeat_at` 갱신은 `LeaseService.keepAlive`가 한다. 갱신이 `lease_lost`로 실패하면 호스트는 그 thread의 쓰기를 멈추고 소유를 잃은 것으로 다룬다. 주기는 L0.store가 정한다.
-- HS-30. 비정상 종료 표식의 "이어서 실행" 후보를 클라이언트에 알리는 wire 수단이 F에 없다(`thread.list`의 `ThreadSummary` 필드 미정, 전용 메서드 없음). F 변경 요청으로 §10 미결 8에 올린다. 그 전까지 후보는 `L1.persistence`의 투영에만 있다.
+- HS-30. 비정상 종료 표식의 "이어서 실행" 후보는 `thread.list`의 `ThreadSummary.resumable`(`turnId`, `runningSince`, `resumeAttempts`)이 클라이언트에 알린다(`F.wire-settings.spec` §3.3.1, 미결 9). 호스트는 `L1.persistence`의 `ThreadSummaryRow.marker`를 그 모양으로 옮길 뿐 자동으로 재개하지 않는다. 이어 실행은 사용자 확인 뒤 `turn.resume`이다(HS-74).
 
 ### 4.8 in-process·stdio 호스트의 종료
 
@@ -973,7 +973,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 - HS-49. `thread.read`는 `headSeq()` 읽기와 현재 가지 읽기의 시작을 같은 동기 구간에서 한다. 가지는 첫 읽기에서 한 번에 가져오므로 `position.seq`가 items와 같은 저장소 상태를 가리킨다(F wire §3.4.6 1항). `item.recorded`의 item만 골라 detached 필드를 blob에서 되돌린다. 쪽 크기는 `limit`(기본 200)과 응답 한 개의 직렬화 예산(프레임 한도에서 64 KiB 여유를 뺀 값) 가운데 작은 쪽이다. 예산을 넘으면 오래된 쪽부터 줄이되 item 하나는 담고, `hasMore`는 줄인 뒤에도 정확하다. `before`가 없는 item은 3005다: thread에 아예 없으면 `item_not_found`, thread에는 있으나 현재 가지에 없으면 `not_on_branch`. 가지 전체의 이벤트를 읽어 쪽을 자르는 구현이라 긴 thread에서는 읽기 비용이 크다(§10 미결 22). 큰 본문(detached 필드)은 돌려줄 쪽의 이벤트만 blob에서 되돌린다: 바이트 예산은 되돌린 크기로만 알 수 있어 쪽을 `limit`개로 먼저 자르고, 예산을 넘으면 그 안에서 오래된 쪽을 덜어 낸다 [결정: m2c, 통합 검토 M4].
 - HS-50. `approval.list`는 미해결 요청의 id를 투영(`pendingApprovals`)에서 읽는다. 하나도 없으면 거기서 끝난다(승인이 대기 중인 thread에만 요청하는 것이 보통이다, F wire §3.4.6 5항). 있으면 그 thread의 이벤트를 앞에서부터 읽어 `approval.requested`의 payload와 `seq`를 모은다. head 읽기와 투영 조회는 같은 동기 구간이다. 쓰기 소유와 무관하다.
 - HS-51. `approval.respond`는 요청이 속한 표면 thread를 쥔 호스트만 처리한다. 순서는 이렇다. (1) L1.tools의 메모리 대기 목록에서 `approvalId`를 찾는다. (2) 없으면 이 프로세스가 쥔 thread마다 `restore(threadId)`로 저장소의 미해결 요청을 되살린 뒤 다시 찾는다. (3) 그래도 없으면 저장소에서 미해결 요청을 가진 thread를 훑어 찾는다. 어디에도 없으면 `applied: false`다. 찾았는데 이 프로세스가 그 thread를 쥐지 않았으면 3002다: 응답은 그 thread의 `approval.resolved` 커밋이라 쓰기 소유가 필요하고, 응답을 위해 잠금을 얻지는 않는다. 쥐었으면 L1.tools의 `respond`로 넘긴다. 요청 kind와 맞지 않는 `decision`·`answer`는 `applied: false`다.
-- HS-52. 쓰기 소유를 얻을 때(`SessionLockPort.tryAcquire`) `restore(threadId)`를 한다. 재시작 뒤 같은 thread를 `thread.open`·`turn.start`로 다시 쥐면 미해결 요청이 메모리 대기로 되살아나 `approval.respond`가 찾는다. `restore`가 읽지 못하면 획득을 실패로 돌린다(store.*). 획득이 세션을 연 뒤에 실패하면(`ext.openThread`·`restore` 실패) 조립 루트가 열린 것을 되돌린다: 유지 신호를 끄고, `session.release("quit")`, `ext.closeThread`, 임대 반납 순서로 부른다. 단계마다 따로 감싸서 하나가 던져도 나머지가 돌고, 정리 중 오류는 `thread.open_cleanup_failed`로 기록만 해서 원래 실패를 가리지 않는다. 열린 turn의 재개(`TurnPort.resume`)는 따로다: 재개해야 응답을 기다리던 turn이 이어진다(§10 미결 21).
+- HS-52. 쓰기 소유를 얻을 때(`SessionLockPort.tryAcquire`) `restore(threadId)`를 한다. 재시작 뒤 같은 thread를 `thread.open`·`turn.start`로 다시 쥐면 미해결 요청이 메모리 대기로 되살아나 `approval.respond`가 찾는다. `restore`가 읽지 못하면 획득을 실패로 돌린다(store.*). 획득이 세션을 연 뒤에 실패하면(`ext.openThread`·`restore` 실패) 조립 루트가 열린 것을 되돌린다: 유지 신호를 끄고, `session.release("quit")`, `ext.closeThread`, 임대 반납 순서로 부른다. 단계마다 따로 감싸서 하나가 던져도 나머지가 돌고, 정리 중 오류는 `thread.open_cleanup_failed`로 기록만 해서 원래 실패를 가리지 않는다. 열린 turn의 재개(`TurnPort.resume`, wire `turn.resume`)는 따로다: 재개해야 응답을 기다리던 turn이 이어진다(HS-74).
 - HS-53. A1 시험(m2-plan HOST.4, open-issues M-02)은 한 저장소 위에서 이렇게 이어진다. 승인 요청 → 호스트 프로세스 SIGKILL → 새 호스트가 같은 저장소를 열어 목록을 본다(`approval.list`, `ThreadSummary.pendingApprovals`, `resumable`) → 소유 없이 응답하면 3002 → 쓰기로 열기 → 재개 → 응답이 같은 도구 호출을 이어 turn이 끝난다. 구현은 `test/int/approval-restart.int.test.ts`이고 첫 호스트는 실제 자식 프로세스(stdio)다.
 
 ### 4.14 설정 쓰기 [결정: m2-plan HOST.2]
@@ -1149,7 +1149,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 5. [미결] 데스크톱 TS 코드가 `@xeon/host/client`(엔진 없는 클라이언트 구현)를 import할지. DR-10 예외를 하나 더 여는 일이다. 다른 안은 `createHostConnection`을 F 아래 층으로 옮기는 것이다. F는 타이머·상태를 쓰는 런타임 로직을 두지 않으므로(F.readme §1) F 변경이 필요하다. `L4.desktop.spec`과 함께 정한다.
 6. [미결] 승인 대기 세션을 유휴 종료 판정에서 live로 볼지(ADR-0006 §6). 제안은 live(SV-04).
 7. [미결] 등록 파일 스키마의 정본 위치. 이 문서(§3.5)와 `L0.process.spec` 중 하나로 정한다. 작성자 결정(L0.process 작성자와 조율).
-8. [결정: review.decisions-2 U-04] F 변경 요청: 비정상 종료 표식(`running_since`, `resume_attempts`)의 "이어서 실행" 후보를 클라이언트에 알리는 수단. M1에 넣지 않고 M2 계획에서 정한다. 그때까지 F.wire-settings 미결로 둔다. 후보는 `ThreadSummary`에 재개 후보 필드를 두는 것 또는 전용 메서드다(HS-30).
+8. (닫힘 m2c G1-02) 비정상 종료 표식의 "이어서 실행" 후보는 `ThreadSummary.resumable`로 알리고 `turn.resume`으로 이어 실행한다(HS-30, HS-74).
 9. (닫힘) 종료 협조용 메시지는 F `host.shutdown`(M2)이다(`F.wire-settings.spec` §4). M2 전까지 stdin 닫기로 대신한다(HS-34).
 10. [미결] 서비스 인증: Unix 소켓 + 파일 권한만으로 충분한지, 토큰을 `host.hello`에 실을지(F wire §10 미결 4). 사용자 확인. 이 문서는 F 결정에 맞춘다(SV-05).
 11. [미결] `settings.list`의 `SettingDefWire.type`에 `range`를 합쳐 실을지, 병합 함수를 F에 둘지(`_research/notes/L4-3.md` §1, §4). F 변경 요청.
@@ -1163,7 +1163,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 19. (일부 닫힘 m2c G1-07) 비밀 관리 wire 보강(HOST.3). (a) 전용 `secret.*` kind 3201~3212로 닫았다(HS-47). (b) `SecretTestResult`가 복호화 가능 여부, 길이, SHA-256 앞 8자를 싣는다(HS-48). (d) `secret.references`를 처리한다(§3.4). 남은 것: (c) `SecretEntryOffer`에 `add`용 메타 일부(`desc`, `provider`, 사용 정책)를 싣는 선택 필드가 없어 HS-45의 기본 메타를 쓴다. M3다.
 20. [미결] HS-27 후속: 서비스 모드에서 live 작업 때문에 쥔 잠금을 작업이 끝난 뒤에 놓는 시점. `ActivityPort.onChange`와 thread별 활성 판정이 필요하다. M3 서비스 모드(H10~H11)에서 정한다.
 21. (닫힘 m2c G1-02) 열린 turn의 재개는 `turn.resume`으로 낸다(HS-74). 서비스 모드의 자동 재개는 M3다.
-22. [미결] `thread.read`는 가지 전체를 읽고 자른다(HS-49). 긴 thread를 위해 L1.persistence에 `before`·`limit` 질의(`branchItemRecords`)가 필요하다. 또 fork가 만든 thread의 가지는 원본의 history를 잇지 않는다: `thread.started{forkedFrom}`의 `parentId`가 비어 있어 `readBranch`가 원본 item을 포함하지 않는다(`L1.persistence.spec` §4.10.3 확인 필요). L1B 요청.
+22. [미결] `thread.read`는 가지 전체의 이벤트를 읽어 쪽을 자른다(HS-49, 되돌리는 것은 쪽뿐). `before`·`limit` 질의와 fork가 원본의 기록을 잇는 일은 m2c L1B 트랙(T4)이 L1.persistence에 더한다. 그 트랙이 병합되면 `readThread`가 그 질의를 쓰도록 바꾸고 이 항목을 닫는다.
 23. (닫힘 m2c G1-07) 종결된 thread에 대한 수명 주기 호출(`thread_closed`)은 `thread.closed`(3007)로 알린다(HS-68).
 24. (닫힘 m2c G1-10) 프로젝트 신뢰 저장 파일의 프로세스 사이 잠금은 L0.os의 `fileLock.updateText`로 닫았다(HS-58). 남은 것: `project_trust` 지점 발화는 thread 없는 발화 경로가 생긴 뒤에 연결한다(M3). `settings.json`(사용자·프로젝트 설정 파일)의 프로세스 사이 잠금은 M3다(`review.m3-plan`).
 25. (닫힘 m2c G1-04) `McpProcessPort`는 L0 platform-process가 내놓았고 조립 루트가 잇는다(HS-64). 남은 것: 비밀 env를 쓰는 stdio 서버의 기동 승인은 M3다(ADR-0011).
