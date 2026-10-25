@@ -75,6 +75,7 @@ export type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
 export type {
   DriveHolderSettingsPort,
   HolderSettingScope,
+  HolderUnwritableReason,
   HolderWriteError,
 } from "./ports/holder.ts";
 export type {

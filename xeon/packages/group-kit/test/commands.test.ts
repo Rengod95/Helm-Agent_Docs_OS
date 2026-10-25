@@ -133,14 +133,14 @@ test("command.drive-unknown-no-drive-locked-and-auto", async () => {
     text: "구동 그룹을 지정했다: review. 다음 단계 경계에 적용한다",
     pending: true,
   });
-  expect(holder.writes).toEqual([{ holder: "review", scope: "session" }]);
+  expect(holder.writes).toEqual([{ holder: "review", scope: "session", threadId: null }]);
 
   expect(await command.run("drive auto")).toEqual({
     ok: true,
     text: "구동 그룹 선택을 바꿨다: auto. 현재 holder는 유지한다",
     pending: false,
   });
-  expect(holder.writes.at(-1)).toEqual({ holder: null, scope: "session" });
+  expect(holder.writes.at(-1)).toEqual({ holder: null, scope: "session", threadId: null });
 
   const locked = await rig();
   const lockedHolder = memoryDriveHolderSettings({ locked: true });

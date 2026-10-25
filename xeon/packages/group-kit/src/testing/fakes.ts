@@ -6,6 +6,7 @@ import type { GroupCatalogPort } from "../ports/catalog.ts";
 import type {
   DriveHolderSettingsPort,
   HolderSettingScope,
+  HolderUnwritableReason,
   HolderWriteError,
 } from "../ports/holder.ts";
 
@@ -15,6 +16,8 @@ export interface MemoryDriveHolderSettings extends DriveHolderSettingsPort {
   readonly writes: readonly {
     readonly holder: DriveHolderSetting;
     readonly scope: HolderSettingScope;
+    /** 요청이 가리킨 thread. 가리키지 않았으면 null */
+    readonly threadId: ThreadId | null;
   }[];
   set(holder: DriveHolderSetting): void;
 }
@@ -23,22 +26,37 @@ export interface MemoryDriveHolderSettingsOptions {
   readonly initial?: DriveHolderSetting;
   /** 관리 범위가 잠근 것처럼 쓰기를 거부한다 */
   readonly locked?: boolean;
+  /** 잠기지는 않았지만 쓸 수 없는 것처럼 이 이유로 쓰기를 거부한다 */
+  readonly unwritable?: HolderUnwritableReason;
 }
 
 export function memoryDriveHolderSettings(
   options: MemoryDriveHolderSettingsOptions = {},
 ): MemoryDriveHolderSettings {
   let current: DriveHolderSetting = options.initial ?? null;
-  const writes: { holder: DriveHolderSetting; scope: HolderSettingScope }[] = [];
+  const writes: {
+    holder: DriveHolderSetting;
+    scope: HolderSettingScope;
+    threadId: ThreadId | null;
+  }[] = [];
   return {
     writes,
     read: (_threadId: ThreadId | null) => current,
-    write(holder, scope): Promise<Result<void, HolderWriteError>> {
+    write(holder, scope, threadId): Promise<Result<void, HolderWriteError>> {
       if (options.locked === true) {
         return Promise.resolve(err({ kind: "locked", key: "x.primitives.activeDriveGroup" }));
       }
+      if (options.unwritable !== undefined) {
+        return Promise.resolve(
+          err({
+            kind: "unwritable",
+            key: "x.primitives.activeDriveGroup",
+            reason: options.unwritable,
+          }),
+        );
+      }
       current = holder;
-      writes.push({ holder, scope });
+      writes.push({ holder, scope, threadId });
       return Promise.resolve(ok(undefined));
     },
     set(holder) {

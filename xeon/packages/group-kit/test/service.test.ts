@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { GroupStatus } from "@xeon/contracts/services";
+import type { GroupSettingUnwritableReason, GroupStatus } from "@xeon/contracts/services";
 import { createGroupService, defineGroup, type GroupModule } from "../src/index.ts";
 import { groupCatalogOf, memoryDriveHolderSettings } from "../src/testing/index.ts";
 import { serviceRig } from "./support/host.ts";
@@ -40,7 +40,7 @@ test("service.set-holder-rejects-unknown-and-no-drive", async () => {
 
   const accepted = await service.setDriveHolder("helm", { scope: "user" });
   expect(accepted).toMatchObject({ ok: true, value: { holder: "helm", scope: "user" } });
-  expect(holder.writes).toEqual([{ holder: "helm", scope: "user" }]);
+  expect(holder.writes).toEqual([{ holder: "helm", scope: "user", threadId: null }]);
   expect(service.driveHolderSetting()).toBe("helm");
 });
 
@@ -58,6 +58,53 @@ test("service.set-holder-reports-a-locked-setting-without-changing-it", async ()
     error: { kind: "group.settingLocked", key: "x.primitives.activeDriveGroup" },
   });
   expect(locked.driveHolderSetting()).toBe("helm");
+});
+
+test("service.set-holder-reports-each-unwritable-reason-apart-from-a-lock", async () => {
+  const reasons: readonly GroupSettingUnwritableReason[] = [
+    "no_thread",
+    "ambiguous_thread",
+    "not_owner",
+    "project_unavailable",
+    "invalid_value",
+    "storage",
+  ];
+  const rigged = await serviceRig([driver("helm")]);
+  const results = await Promise.all(
+    reasons.map((reason) => {
+      const holder = memoryDriveHolderSettings({ unwritable: reason, initial: "helm" });
+      const service = createGroupService({
+        host: rigged.t.host,
+        catalog: groupCatalogOf([driver("helm")]),
+        holder,
+        currentThread: () => rigged.thread,
+        report: () => {},
+      });
+      return service.setDriveHolder("auto");
+    }),
+  );
+  expect(results).toEqual(
+    reasons.map((reason) => ({
+      ok: false,
+      error: { kind: "group.settingUnwritable", key: "x.primitives.activeDriveGroup", reason },
+    })),
+  );
+});
+
+test("service.set-holder-passes-the-named-thread-to-the-write-and-measures-appliesAt-there", async () => {
+  const { service, holder, thread, t } = await serviceRig([driver("helm")]);
+  const other = t.newThread();
+  expect(t.host.leaseOf(thread)).toMatchObject({ scopeId: "helm" });
+  expect(t.host.leaseOf(other)).toBeNull();
+  // 상태를 보이는 thread에는 helm 임대가 있어 바로 적용이고, 가리킨 thread에는 임대가 없어 다음 경계다
+  const here = await service.setDriveHolder("helm", { scope: "session" });
+  const named = await service.setDriveHolder("helm", { scope: "session", threadId: other });
+  expect(here).toMatchObject({ ok: true, value: { appliesAt: "now" } });
+  expect(named).toMatchObject({ ok: true, value: { appliesAt: "nextStepBoundary" } });
+  expect(holder.writes).toEqual([
+    { holder: "helm", scope: "session", threadId: null },
+    { holder: "helm", scope: "session", threadId: other },
+  ]);
 });
 
 test("service.set-holder-tells-when-the-change-applies", async () => {

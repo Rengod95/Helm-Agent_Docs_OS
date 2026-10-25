@@ -12,6 +12,7 @@ import {
   GroupServiceName,
   type DriveHolderSetting,
   type DriveRole,
+  type GroupCommandError,
   type GroupError,
   type GroupMetricsSummary,
   type GroupResult,
@@ -22,7 +23,11 @@ import {
 import { defaultDriveArbiter, leaseArbiterPort, type DriveArbiter } from "./arbiter.ts";
 import type { GroupServiceWithSetting } from "./commands.ts";
 import type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
-import type { DriveHolderSettingsPort, HolderSettingScope } from "./ports/holder.ts";
+import type {
+  DriveHolderSettingsPort,
+  HolderSettingScope,
+  HolderWriteError,
+} from "./ports/holder.ts";
 
 export { GroupServiceName };
 
@@ -46,8 +51,6 @@ export interface GroupServiceDeps {
   /** 그룹 계측 요약. 없으면 GroupStatus.metrics는 null이다(계측 이벤트는 M3, G-17) */
   readonly metrics?: (id: GroupId) => GroupMetricsSummary | null;
 }
-
-const HOLDER_SETTING_KEY = "x.primitives.activeDriveGroup";
 
 const STATE_INVALID_CODES: ReadonlySet<string> = new Set(["state_schema", "state_too_large"]);
 const MIGRATION_CODES: ReadonlySet<string> = new Set([
@@ -86,6 +89,18 @@ function driveRoleOf(entry: GroupCatalogEntry, info: ScopeInfo | undefined): Dri
  * `xeon.groups` 서비스 구현(L3.group-kit.spec §3.8). X `LeaseArbiterPort.choose`와 그룹 목록·전환·구동 그룹 선택을 한 객체로 낸다.
  * 상태는 `ExtHost.scopes()`·`leaseOf()`를 부를 때마다 새로 읽는다. 따로 쌓아 두는 사본이 없다.
  */
+/** 설정 쓰기 실패를 서비스 오류로 옮긴다. 관리 범위의 잠금만 `group.settingLocked`고 나머지는 이유를 그대로 싣는다 */
+function groupErrorOf(error: HolderWriteError): GroupCommandError {
+  switch (error.kind) {
+    case "locked":
+      return { kind: "group.settingLocked", key: error.key };
+    case "unwritable":
+      return { kind: "group.settingUnwritable", key: error.key, reason: error.reason };
+    default:
+      return assertNever(error, "HolderWriteError");
+  }
+}
+
 export function createGroupService(deps: GroupServiceDeps): GroupServiceWithSetting {
   const arbiter = deps.arbiter ?? defaultDriveArbiter;
   const port: LeaseArbiterPort = leaseArbiterPort(arbiter, {
@@ -192,8 +207,11 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithSett
     return info !== undefined && info.status === "enabled" && info.drive === "registered";
   }
 
-  function appliesAtOf(next: DriveHolderSetting): HolderReceipt["appliesAt"] {
-    const thread = deps.currentThread();
+  function appliesAtOf(
+    next: DriveHolderSetting,
+    target: ThreadId | null,
+  ): HolderReceipt["appliesAt"] {
+    const thread = target ?? deps.currentThread();
     const lease = thread === null ? null : deps.host.leaseOf(thread);
     if (next === null) return "now";
     if (lease === null) return "nextStepBoundary";
@@ -226,10 +244,11 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithSett
           return { ok: false, error: { kind: "group.noDrive", id: entry.manifest.name } };
         }
       }
-      const appliesAt = appliesAtOf(next);
-      const written = await deps.holder.write(next, scope);
+      const target = options?.threadId ?? null;
+      const appliesAt = appliesAtOf(next, target);
+      const written = await deps.holder.write(next, scope, target);
       if (!written.ok) {
-        return { ok: false, error: { kind: "group.settingLocked", key: HOLDER_SETTING_KEY } };
+        return { ok: false, error: groupErrorOf(written.error) };
       }
       schedule();
       return { ok: true, value: { holder: next, scope, appliesAt } };
