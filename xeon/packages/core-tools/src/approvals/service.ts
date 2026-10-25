@@ -216,12 +216,11 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     }
   }
 
-  /** 해결된 요청이 상한을 넘으면 가장 오래전에 해결된 것을 표에서 뺀다. 대기자가 남은 요청은 빼지 않는다 */
+  /** 해결된 요청이 상한을 넘으면 가장 오래전에 해결된 것을 표에서 뺀다. `resolvedOrder`에는 `settle`이 대기자를 모두 깨우고 비운 뒤에 들어가고, 해결된 요청에는 `waitFor`가 대기자를 더하지 않으므로 빼지 못할 요청은 없다 */
   function evictResolved(): void {
     for (const approvalId of resolvedOrder) {
       if (resolvedOrder.size <= resolvedKept) return;
       const entry = byId.get(approvalId);
-      if (entry !== undefined && entry.waiters.size > 0) continue;
       resolvedOrder.delete(approvalId);
       if (entry === undefined) continue;
       byId.delete(approvalId);

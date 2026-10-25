@@ -69,3 +69,34 @@ test("the oldest resolved requests leave memory first, pending ones stay, and a 
   });
   expect(fake.session.events.length).toBe(eventsBefore);
 });
+
+test("a request that had a waiter is woken at resolution and then leaves memory in its turn like any other", async () => {
+  const fake = await fakeApprovals({ resolvedKept: 1 });
+  const thread = fake.ids.next("thr");
+  await fake.openThread(thread);
+  const origin = fake.originOf(thread);
+  const input = (key: string): ApprovalRequestInput => ({
+    origin,
+    requestKey: key,
+    title: key,
+    body: QUESTION,
+    remember: ["once"],
+  });
+  const answer = { note: { selected: [], text: "ok" } };
+
+  const first = expectOk(await fake.approvals.open(input("w1")));
+  const waited = fake.approvals.wait(first.request.approvalId, new AbortController().signal);
+  expect(
+    await fake.approvals.respond(first.request.approvalId, { decision: "answer", answer }),
+  ).toEqual({
+    applied: true,
+  });
+  const woken = await waited;
+  expect(woken.ok && woken.value.decision).toBe("answer");
+  // 상한 1: 첫 요청은 아직 표에 있고, 다음 요청이 해결되면 대기자가 있었던 첫 요청이 빠진다
+  expect(fake.approvals.get(first.request.approvalId)?.resolution?.decision).toBe("answer");
+  const second = expectOk(await fake.approvals.open(input("w2")));
+  await fake.approvals.respond(second.request.approvalId, { decision: "answer", answer });
+  expect(fake.approvals.get(first.request.approvalId)).toBeUndefined();
+  expect(fake.approvals.get(second.request.approvalId)?.resolution?.decision).toBe("answer");
+});
