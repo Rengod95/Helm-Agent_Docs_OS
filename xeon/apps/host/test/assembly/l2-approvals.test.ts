@@ -64,9 +64,24 @@ test("a hashed key made by a capability with requestKeyFor is not hashed a secon
   expect(await keyOf(capabilityKey)).not.toBe(hashedKey(capabilityKey));
 });
 
-test("a request id with characters outside the key alphabet becomes h_ plus the first 40 hex of its sha256", async () => {
-  expect(await keyOf("ask one/two")).toBe(hashedKey("ask one/two"));
-  expect(await keyOf("ask one/two")).toMatch(/^h_[0-9a-f]{40}$/);
+test("a request id that is not an approval request key is rejected, not hashed", async () => {
+  const keys: string[] = [];
+  const port = createBareL2ApprovalsPort(recordingApprovals(keys));
+  const results = await Promise.all(
+    ["ask one/two", "h_plain", "a:b"].map((requestId) =>
+      port.request({ threadId: THREAD, kind: "question", subject: SUBJECT, requestId }),
+    ),
+  );
+  const rejection = {
+    ok: false as const,
+    error: {
+      kind: "rejected" as const,
+      code: "approvals.request_invalid",
+      detail: "requestId must be an approval request key made with requestKeyFor",
+    },
+  };
+  expect(results).toEqual([rejection, rejection, rejection]);
+  expect(keys).toEqual([]);
 });
 
 test("a request id longer than 48 characters is rejected before any approval is opened", async () => {

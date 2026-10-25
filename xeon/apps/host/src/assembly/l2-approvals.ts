@@ -1,11 +1,9 @@
-import { createHash } from "node:crypto";
 import { assertNever, Bug, err, ok, parse, type Result } from "@xeon/contracts";
 import { isCapabilityId } from "@xeon/contracts/capabilities";
 import { ApprovalIdSchema, type ApprovalId, type ThreadId } from "@xeon/contracts/conversation";
 import {
-  APPROVAL_REQUEST_KEY_MAX,
   ApprovalBodyJsonSchema,
-  requestKeyFor,
+  isApprovalRequestKey,
   type ApprovalBodyJson,
   type ReadFailure,
 } from "@xeon/contracts/records";
@@ -28,22 +26,6 @@ import {
 // 조립 루트의 어댑터다(core-tools의 `testing/l2-port.ts`가 같은 규칙의 시험용 기준 구현이다). 호출마다 출처(origin)가 달라
 // 포트는 출처를 받아 만든다. 도구 호출 안에서 낸 요청이면 `origin.toolCallId`가 있어 L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다.
 // 조립 루트 코드(DR-14 예외 2).
-
-function sha256Hex(text: string): string {
-  return createHash("sha256").update(text).digest("hex");
-}
-
-/** 승인 요청 키의 모양(1~`APPROVAL_REQUEST_KEY_MAX`자, `^[A-Za-z0-9_.-]+$`). `requestKeyFor`가 내는 키는 모두 이 모양이다 */
-const APPROVAL_REQUEST_KEY = new RegExp(`^[A-Za-z0-9_.-]{1,${String(APPROVAL_REQUEST_KEY_MAX)}}$`);
-
-/**
- * L2 `requestId`를 승인 요청 키로 바꾼다. cap-*는 이미 F `requestKeyFor`로 만든 키를 `requestId`로 넘기므로, 키 모양이면 그대로 쓴다:
- * 다시 `requestKeyFor`에 넣으면 `h_`로 시작하는 해시 키를 한 번 더 해시해 cap이 아는 키와 달라진다. 키 모양이 아닌 값(허용 밖 문자)만
- * F `requestKeyFor`로 줄인다. 키 변환 함수는 contracts의 `requestKeyFor` 하나다
- */
-function l2RequestKey(requestId: string): string {
-  return APPROVAL_REQUEST_KEY.test(requestId) ? requestId : requestKeyFor(requestId, sha256Hex);
-}
 
 function isRisk(value: string): value is ToolRisk {
   return value === "read" || value === "write" || value === "exec";
@@ -146,6 +128,15 @@ function createL2ApprovalsPort(
       if (input.requestId.length < 1 || input.requestId.length > L2_APPROVAL_REQUEST_ID_MAX) {
         return err(rejected("approvals.request_invalid", "requestId must be 1-48 characters"));
       }
+      // cap-*는 F `requestKeyFor`로 만든 키를 넘긴다. 어댑터는 다시 해시하지 않고 키인지만 본다(`h_` 원문이 해시 키와 겹치지 않게 contracts가 판정한다)
+      if (!isApprovalRequestKey(input.requestId)) {
+        return err(
+          rejected(
+            "approvals.request_invalid",
+            "requestId must be an approval request key made with requestKeyFor",
+          ),
+        );
+      }
       const shape = parse(ApprovalBodyJsonSchema, {
         kind: input.kind,
         [input.kind]: input.subject,
@@ -158,7 +149,7 @@ function createL2ApprovalsPort(
       }
       const opened = await approvals.open({
         origin: options.origin(input),
-        requestKey: l2RequestKey(input.requestId),
+        requestKey: input.requestId,
         title: options.title?.(input) ?? DEFAULT_TITLES[input.kind],
         body,
         remember: ["once"],
