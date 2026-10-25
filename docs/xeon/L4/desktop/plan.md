@@ -375,6 +375,16 @@ M2 마감 반영(T7 DESK, 최소 설정 화면 G2-08): 구조와 규칙은 spec 
 
 M2 마감 반영(T7 DESK, 시험): 실제 `createTauriIpc`(invoke, Channel)를 `@tauri-apps/api/mocks`의 `mockIPC` 위에서 돌린다(`test/transport/tauri-mock.ts`, `tauri-mock.test.ts`, bun test). 셸 역할은 `fake-ipc.ts`가 맡고 `mockIPC`가 `engine_*` 명령을 그쪽으로 옮긴다. 시험하는 것은 명령 이름과 인자 모양, 바이트·상태 Channel 메시지의 해석(모르는 상태는 버림), 문자열 오류의 코드 변환, 결과 스키마 검사, 그리고 앱 전체가 이 경로로 `live` 연결에 이르는 흐름이다. `mockIPC`는 `invoke`의 세 번째 인자(헤더 `x-xeon-epoch`)를 넘기지 않아 세대 검사는 Rust 시험(`relay.rs`)이 맡는다. vitest는 쓰지 않는다.
 
+M2 마감 반영(T7 DESK, 사이드카 e2e 틀, G4-03):
+
+| 부분 | 파일 | 내용 |
+|---|---|---|
+| e2e 틀 | `test/e2e/harness.ts`, `scenario.ts`, `sidecar.e2e.test.ts` | stdio JSON-RPC로 엔진 프로세스를 모는 도구. 소스 진입(`bun apps/cli/src/main.ts host --stdio`)과 컴파일 사이드카(`xeon-<triple> host --stdio`)에 같은 요청열(hello, 구독, thread.create/list/read, settings.get, approval.list, secret.list, trust.get, command.list, host.status)을 보내 정규화한 응답과 이벤트열이 같은지, `host.shutdown` 또는 stdin EOF만으로 종료코드 0과 홈을 쥔 프로세스 0개인지 본다 |
+
+순서 경합(G4-03): thread를 연 직후 기본 켜짐 scope의 `scope.changed` 묶음이 다음 유휴 경계의 한 커밋으로 남고, 뒤따르는 입력과의 앞뒤는 시간에 달려 있다. 이전 도구는 60 ms를 기다려 이 경합을 가렸다. `untilScopesCommitted`가 시간 대신 조건을 기다린다: 구독으로 첫 `scope.changed`가 도착할 때까지 기다리고(커밋은 원자적이라 첫 이벤트가 오면 묶음 전체가 와 있다) seq가 이어지는지 확인한다. 시간 대기는 없고, 상한(20초)은 실패 메시지에 stderr를 싣는 용도다. 이 방식으로 소스 진입 두 번 실행의 응답·이벤트열이 같음을 시험한다.
+
+시험 결과(`just test apps/desktop`): 사이드카를 빌드하지 않았을 때 171 통과, 건너뜀 3(바이너리 시험). `just desktop-sidecar host`를 한 번 돌려 `xeon-x86_64-unknown-linux-gnu`(109.8 MiB)를 만든 뒤 174 통과, 건너뜀 0이다. 즉 Linux 컴파일 바이너리가 소스 진입과 같은 응답·이벤트열을 내고 EOF와 `host.shutdown`으로 종료코드 0, 잔존 프로세스 0이다. `trust.get`, `command.list`는 아직 host 처리기가 없는 foundation에서 두 쪽이 같은 `jsonrpc.methodNotFound`(-32601)를 내는 것을 견준 것이다. wave 2 host가 병합된 뒤 같은 요청열이 실제 값(신뢰 상태, 명령 목록)으로 같은지 다시 돌려야 한다. turn은 모델 테이프를 컴파일 바이너리에 넣을 길이 없어 e2e에 없다(메시지 열 동등은 `apps/host`의 transport-parity 시험이 맡는다). macOS와 Windows 바이너리는 확인하지 못했다.
+
 구현하면서 spec과 달라진 점:
 
 - 새 페이지의 `$/connectionReset`은 F에 아직 없어 보내지 않는다. 새로고침 뒤 `host.hello`가 중복(1002)이면 상태 표시줄에 `연결 실패: hello:1002`가 보이고 "다시 연결"만 가능하다. M1 정책(새로고침 = 엔진 재기동)에 맞춰 셸이 처리해야 한다 [미결].
