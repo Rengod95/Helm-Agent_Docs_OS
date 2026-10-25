@@ -14,7 +14,13 @@ import type { AssembledContext, ContextService } from "@xeon/contracts/services"
 export interface FakeContext {
   readonly service: ContextService;
   /** assemble이 낸 요청별 메시지 수 */
-  readonly assembled: readonly { readonly stepId: string; readonly messages: readonly Message[] }[];
+  readonly assembled: readonly {
+    readonly stepId: string;
+    readonly messages: readonly Message[];
+    /** 조립 옵션 중 루프가 채우는 값 */
+    readonly basePrompt: string;
+    readonly volatile: Readonly<Record<string, string>>;
+  }[];
 }
 
 function convertToLlm(messages: readonly AgentMessage[]): Message[] {
@@ -34,7 +40,12 @@ export function createFakeContext(options: {
   readonly session: Pick<SessionService, "readBranch">;
   readonly clock: Clock;
 }): FakeContext {
-  const assembled: { stepId: string; messages: readonly Message[] }[] = [];
+  const assembled: {
+    stepId: string;
+    messages: readonly Message[];
+    basePrompt: string;
+    volatile: Readonly<Record<string, string>>;
+  }[] = [];
 
   async function assemble(
     threadId: ThreadId,
@@ -75,7 +86,12 @@ export function createFakeContext(options: {
       pendingItems.push({ purpose: "prefix", message: prefix });
     }
     const all: Message[] = [prefix, ...convertToLlm(messages)];
-    assembled.push({ stepId: opts.stepId, messages: all });
+    assembled.push({
+      stepId: opts.stepId,
+      messages: all,
+      basePrompt: opts.basePrompt,
+      volatile: opts.volatile,
+    });
     return ok({
       messages: all,
       prefix: { prefixHash: "fake", toolset: "sha256:fake", recordedAt: null },

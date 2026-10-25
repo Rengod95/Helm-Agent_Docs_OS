@@ -35,8 +35,10 @@ export interface LoopDeps {
   readonly models: ModelService;
   readonly ext: LoopExtHost;
   readonly settings: LoopSettingsSource;
-  /** 기본 시스템 프롬프트. `before_agent_start`가 바꿀 수 있다 */
+  /** 접두에 고정되는 기본 시스템 프롬프트. `before_agent_start`가 더한 부분은 요청마다 volatile로 붙는다 */
   readonly basePrompt: string;
+  /** 환경 블록의 `platform` 줄. 예: "darwin/arm64". 생략하면 줄을 내지 않는다 */
+  readonly platform?: string;
   readonly hostMode: HostMode;
   /** boundary 엔트리 kind의 payload 스키마 조회(`finalizeBoundary` 규칙 1). 운영은 X의 kind 등록을 넘긴다 */
   readonly kindLookup: (kind: string) => CatalogEntry | undefined;

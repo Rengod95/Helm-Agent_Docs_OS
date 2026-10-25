@@ -6,6 +6,7 @@ import type {
 } from "@xeon/contracts/conversation";
 import type { ResolvedModel } from "@xeon/contracts/services";
 import { activatedTools } from "./activation.ts";
+import { environmentText } from "./environment.ts";
 import { currentLeaf, currentStep, resolveModel, type TurnRun } from "./turn-run.ts";
 import type { LoopFailure } from "./types.ts";
 
@@ -85,7 +86,14 @@ export async function prepareRequest(run: TurnRun): Promise<Result<RequestInput,
     tools: toolset.tools,
     basePrompt: state.basePrompt,
     sections: {},
-    volatile: {},
+    volatile: {
+      environment: environmentText({
+        now: ctx.clock.now(),
+        workingDirectory: ctx.workingDirectory?.(threadId),
+        platform: ctx.platform,
+      }),
+      ...(state.promptAddition === "" ? {} : { instructions: state.promptAddition }),
+    },
     turnId,
     stepId: step.stepId,
     signal: scope.signal,

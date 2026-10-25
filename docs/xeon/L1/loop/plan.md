@@ -50,7 +50,8 @@ xeon/packages/core-loop/
       commit-response.ts    # message_end chain, 도구 선언 차이 item, C3(T3) + next:"tools" 체크포인트
       tool-batch.ts         # 순차·병렬 스케줄, 이벤트 순서, 취소 시 not_executed, length 절단, terminate. 원본 508-692
       step-end.ts           # turn_end·agent_before_settle chain, 정착 후보, finalizeBoundary, 계속 판정, C5(T4) + drain → StepNext
-      before-start.ts       # before_agent_start chain, prestart 커밋
+      before-start.ts       # before_agent_start chain, prestart 커밋, 시스템 프롬프트 변경을 promptAddition으로 떼어 둔다
+      environment.ts        # 환경 블록(날짜, 작업 디렉터리, 플랫폼)과 promptAddition 계산. 단계마다 volatile로 넘긴다 (M2 마감 G2-03)
     event-mapper.ts         # createAgentEventMapper(F 시그니처) + bindItem
     volatile.ts             # 휘발 envelope 발신(n, afterSeq, 묶음, 자르기)
     checkpoint.ts           # finalizeBoundary, StepCheckpoint 채우기
@@ -192,6 +193,10 @@ xeon/packages/core-loop/
 | `resume_entries_use_main_path_step_functions` | `loop/run-turn.test.ts` | `tools`·`request`·`turn_end` 진입에서 같은 테이프의 끊기지 않은 실행과 내구 이벤트 열이 같다(spec §9-16) | 이행 |
 | `each_step_commits_three_plus_three_per_tool_call` | `turn.test.ts` | 진짜 core-loop를 대역 저장소 위에서 돌려 한 단계가 커밋 3개(S1, C3, C5)와 도구 호출마다 3개(E1, E2, E3)를 쓰는지 커밋 키로 센다. 도구 호출 0~3개(spec §4.2) | 이행 |
 | `upstream_event_order_cases` | `loop/upstream-parity.test.ts` | 원본 `packages/agent/test/agent-loop.test.ts`에서 고른 사례(도구 없는 응답, 도구 1개, 병렬 2개, steer 주입, 오류 응답, 중단)의 `AgentEvent` 순서가 같다. 사례는 옮겨 적고 원본 코드는 실행하지 않는다 | 이행 |
+| `a_prompt_change_of_the_second_turn_reaches_the_request_and_never_the_prefix` | `prompt-additions.test.ts` | turn마다 다른 안내를 덧붙이는 `before_agent_start` 핸들러로 두 turn을 돌리면 두 요청의 접두는 기본 프롬프트 그대로이고, 둘째 조립에 넘어간 volatile 안내는 둘째 안내뿐이다(수정 전에는 첫 turn 안내가 접두에 굳고 둘째 안내가 빠진다) | M2 마감 G2-03 |
+| `the_prompt_addition_is_sent_on_every_step_of_the_turn` | `prompt-additions.test.ts` | 도구 호출이 있는 turn의 두 단계 모두 `volatile.instructions`가 같은 안내다 | M2 마감 G2-03 |
+| `a_handler_that_replaces_the_base_prompt_sends_the_whole_replacement_and_no_handler_sends_nothing` | `prompt-additions.test.ts` | 기본 프롬프트를 통째로 바꾸면 바꾼 전체가 `instructions`이고 접두의 `basePrompt`는 그대로. 핸들러가 없으면 `instructions` 키가 없다 | M2 마감 G2-03 |
+| `the_environment_block_carries_date_working_directory_and_platform_each_step` | `prompt-additions.test.ts` | 단계마다 `environment`가 `date`(UTC), `working_directory`, `platform` 줄이다 | M2 마감 G2-03 |
 
 ## 6. 완료 기준
 

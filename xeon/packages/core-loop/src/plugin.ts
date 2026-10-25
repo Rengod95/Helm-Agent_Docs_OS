@@ -98,6 +98,7 @@ export function loopExtensionUnit(options: LoopPluginOptions): ExtensionUnit {
         ...(approvals === undefined ? {} : { approvals }),
         settings: options.settings ?? DEFAULT_LOOP_SETTINGS,
         basePrompt: options.basePrompt ?? DEFAULT_BASE_PROMPT,
+        platform: `${os.info.platform}/${os.info.arch}`,
         ...(options.workingDirectory === undefined
           ? {}
           : { workingDirectory: options.workingDirectory }),

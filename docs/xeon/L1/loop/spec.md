@@ -482,7 +482,10 @@ sequenceDiagram
 
 규칙:
 
-1. `before_agent_start`의 패치(메시지 추가, 시스템 프롬프트 변경)는 첫 요청의 컨텍스트 재구성에 들어간다. 메시지 추가분은 custom item으로 T1 다음 커밋(`turn:<turnId>:prestart`)에 기록한다 [제안]. 재개 때는 다시 발화하지 않고 기록된 item을 쓴다.
+1. `before_agent_start`의 패치 중 메시지 추가는 첫 요청의 컨텍스트 재구성에 들어간다. 메시지 추가분은 custom item으로 T1 다음 커밋(`turn:<turnId>:prestart`)에 기록한다 [제안]. 재개 때는 다시 발화하지 않고 기록된 item을 쓴다.
+   - 시스템 프롬프트 변경은 접두에 넣지 않는다. 접두는 thread에서 처음 만든 뒤 컴팩션까지 고정이므로, 첫 turn의 변경이 접두에 굳고 둘째 turn부터의 변경은 모델에 닿지 않았다(감사 L1-03, M2 마감 G2-03). 루프는 체인 결과에서 기본 프롬프트에 더해진 부분(`promptAddition`: 기본 프롬프트 뒤에 덧붙였으면 나머지, 바꿨으면 바꾼 전체)만 떼어 그 turn 상태에 두고, 단계마다 `AssembleOptions.volatile`의 `instructions` 항목으로 넘긴다. 접두의 `basePrompt`는 변경 전 기본 프롬프트(자식 turn은 요청의 `systemPrompt`) 그대로다. 그래서 turn마다 달라지는 안내(`l2.dialog.commands.advertise`의 명령 광고, 그룹의 turn별 지침)가 캐시된 접두를 깨지 않고 매 단계 전달된다.
+   - `instructions`는 커밋하지 않는다. 재개 진입(`request`, `tools`)은 `before_agent_start`를 다시 발화하지 않으므로 재개한 turn의 남은 단계에는 이 안내가 없고 다음 turn부터 다시 붙는다 [제안].
+   - 환경 블록의 소유자는 L1.loop이다. 단계마다 `environment` volatile 항목으로 날짜(단계를 여는 시각의 UTC 날짜), 대화의 작업 디렉터리(`workingDirectory`), `platform`(조립 루트가 OS 서비스의 `info`로 채운 `<platform>/<arch>`)을 줄 단위로 넘긴다. 모르는 값은 줄을 내지 않는다. 응답 언어와 도구 사용 규칙을 포함한 기본 프롬프트 문안은 M3의 프롬프트 설계에서 정한다(`review.m3-plan`).
 2. `prepareRequest`는 매 요청마다 커밋된 이벤트에서 컨텍스트를 다시 만든다. 그래서 `message_end` chain이 바꾼 메시지는 기록된 모양으로 다음 요청에 들어간다. 루프 안 메모리 배열을 직접 고치지 않는다.
    - 도구 광고(`xeon.tools.advertise`)에 넘기는 `activated`는 이 대화의 `tool_search` 효과 결과(`structuredContent.activated`)의 합집합이다(`L1.tools.spec` §4.1 규칙 5). 루프는 turn마다 활성 가지를 한 번 읽어 집합을 만들고, 같은 turn의 `tool_search` 결과는 도구 배치가 끝날 때 더한다. 재개한 turn도 같은 방법으로 집합을 다시 만들어 광고 목록이 끊기지 않은 실행과 같다(`loop/activation.ts`).
 3. `openStep`은 단계 경계에 적용된 scope 토글(F.extensions.spec §4.5)을 반영해 도구 광고를 다시 받는다. 모델 바인딩도 여기서 정한다.
@@ -777,5 +780,5 @@ runChildTurn(req):
 - [미결] 큐 입력과 drive turn 요청이 함께 기다릴 때의 순서(§4.1). [제안] 큐 입력 먼저. X.primitives.spec과 정한다.
 - [미결] 자동 재개 기본값(ADR-0006 §6). 이 문서는 꺼짐을 [제안]으로 쓴다.
 - [미결] 게이트 상한 기본 8과 반복 감지 임계(4, 3)는 참고 구현의 값이다. 테이프 시험 뒤 조정한다.
-- [미결] `before_agent_start`의 시스템 프롬프트 변경을 어디에 기록할지. 지금은 매 요청 재구성 때 다시 발화하지 않으므로 재개 뒤 같은 변경을 얻으려면 기록이 필요하다. [제안] custom item 대신 확장 kind 엔트리로 남기고 L1.context가 읽는다.
+- [미결] 재개한 turn에서 `before_agent_start`의 시스템 프롬프트 변경(`promptAddition`)을 되살릴지. 시스템 프롬프트 변경의 전달 위치는 §4.2 규칙 1대로 volatile `instructions`로 정했다(M2 마감 G2-03). 재개 진입은 이 지점을 다시 발화하지 않아 남은 단계에서 빠진다. 되살리려면 변경을 확장 kind 엔트리로 남기고 L1.context가 읽어야 한다 [제안].
 - [미결] 가드레일 플러그인 이름 `guardrail` 예약(§4.11).

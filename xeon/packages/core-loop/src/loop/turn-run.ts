@@ -70,8 +70,10 @@ interface RunState {
   stepLimitReason: "step_limit" | "child_limit";
   /** 자식 turn의 입력 토큰 상한(`ChildTurnRequest.limits.maxInputTokens`). 없으면 null */
   childMaxInputTokens: number | null;
-  /** `before_agent_start`가 바꾼 기본 프롬프트(없으면 서비스 기본값). 접두가 기록된 뒤에는 조립이 기록본을 쓴다 */
-  basePrompt: string;
+  /** 접두의 기본 프롬프트(자식 turn은 요청의 `systemPrompt`, 아니면 서비스 기본값). turn 안에서 바뀌지 않는다 */
+  readonly basePrompt: string;
+  /** `before_agent_start` 체인이 기본 프롬프트에 더한 부분. 이 turn의 모든 요청에 volatile로 붙는다(재개 진입은 비어 있다) */
+  promptAddition: string;
   /** 단계 안에서 같은 지점이 여러 번 불릴 때 dispatchKey를 구별하는 순번 */
   pointSeq: number;
   /** 첫 단계를 열 때 `agent_start`를 낸다 */
@@ -161,6 +163,7 @@ export function createTurnRun(ctx: LoopContext, spec: TurnRunSpec): TurnRun {
     ...stepLimitOf(ctx.settings.maxSteps(threadId), spec.child?.limits?.maxSteps),
     childMaxInputTokens: spec.child?.limits?.maxInputTokens ?? null,
     basePrompt: spec.child?.systemPrompt ?? ctx.basePrompt,
+    promptAddition: "",
     pointSeq: 0,
     agentStarted: false,
     activated: null,

@@ -272,7 +272,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 - 고정 접두는 thread에서 처음 조립할 때 만들고 `pendingItems`(`purpose: "prefix"`)로 돌려준다. core-loop가 첫 단계 커밋에 `item.recorded`(kind `system`)로 넣는다.
 - 이후 조립은 접두를 다시 만들지 않고 기록된 system item을 그대로 쓴다. 재개 뒤에도 같은 바이트다.
-- `before_agent_start`가 바꾼 절(`sections`)도 접두 system item 또는 `purpose: "sections"` item에 남는다. 그래서 재개 뒤 같은 지점을 다시 발화하지 않아도 같은 접두를 얻는다. `L1.loop.spec` §10의 "`before_agent_start` 시스템 프롬프트 변경 기록 위치" 미결에 대한 이 문서의 답이다 [제안].
+- 접두의 `basePrompt`는 루프가 정한 기본 프롬프트이고, `before_agent_start`가 시스템 프롬프트에 더한 부분은 접두에 넣지 않는다. 루프가 단계마다 `volatile`의 `instructions` 항목으로 넘긴다(`L1.loop.spec` §4.2 규칙 1). 접두를 만들 때의 `sections`는 접두 system item 또는 `purpose: "sections"` item에 남아 재개 뒤에도 같은 접두를 얻는다.
 - 호출 순서: core-loop는 요청마다 요청 준비 단계(`loop/prepare-request.ts`)에서 `assemble`을 부르고, 스트림을 열 때 결과 `messages`를 `convertToLlm`으로 바꿔 streamFn에 넘긴다(`L1.loop.spec` §3.2 표).
 - 접두는 컴팩션 때만 다시 만든다. `compact`가 `thread.compacted`와 같은 커밋에 새 접두 system item을 넣는다(§4.6 5번). pi `CompactionEntry.systemMessage`("compaction 경계의 프롬프트와 도구 상태")에 해당하는 값을 F 필드 추가 없이 별도 item으로 남기는 방식이다 [제안](`_research/notes/L1-3.md` §12 미결 (c)).
 - 근거: 접두 3계층(her, cc), 세션당 한 번 조립하고 컴팩션 때만 다시 만든다(`_research/item-catalog.md` L1-e 프롬프트 계층 행).
@@ -539,5 +539,5 @@ export interface SessionCompactFailedPayload {
 5. [미결] `CompactedPayload.details.xeon` 예약 키와 별도 필드 중 무엇으로 오버플로우 단계를 기록할지(§8.3 3).
 6. [미결] `turnId`가 null인 항목의 분할 턴 판정(`_research/notes/L1-3.md` §12 (h))과 `customType`별 컷 후보 여부(같은 절 (i)).
 7. [미결] 요약 호출 캐시 금지를 models 게이트웨이 규칙(역할별 기본 보존)으로 둘지, 컴팩션 호출 옵션으로 둘지. 이 문서는 두 곳 모두에 둔다(`L1.models.spec` §3.4 표, §3.2 `SummarizeDeps`).
-8. [미결] volatile 계층 원천 목록(날짜, 작업 디렉터리, git 상태 등)과 각 원천의 제공 층.
+8. [미결] volatile 계층 원천 중 git 상태의 제공 층. 날짜, 작업 디렉터리, 플랫폼은 L1.loop이 `environment` 항목으로, `before_agent_start`가 더한 프롬프트는 같은 층이 `instructions` 항목으로 넘긴다(`L1.loop.spec` §4.2 규칙 1) [구현: M2 마감].
 9. [미결] 대화 중 도구 변경을 지원하지 않는 provider에서 추가 도구를 다음 컴팩션까지 미루는 규칙이 사용 경험에 맞는지. 대안은 그 provider에서만 재광고를 허용하고 캐시 손실을 받아들이는 것이다.
