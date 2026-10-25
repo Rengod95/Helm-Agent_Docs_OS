@@ -118,3 +118,13 @@ desktop-build:
 [group('local')]
 desktop-test:
     cd xeon && just desktop-test
+
+# 실제 provider로 모델 테이프 녹화 <scenario>: 비용이 들어 사람 확인 뒤 --yes, 없으면 종료코드 3 (xeon/scripts/tape-record.ts)
+[group('local')]
+tape-record scenario *flags:
+    cd xeon && just tape-record {{scenario}} {{flags}}
+
+# 속도 기준선(콜드 스타트, --first-token은 실제 모델 호출이라 --yes 필요, 없으면 종료코드 3). 예산은 eng.performance.guide (xeon/scripts/bench.ts)
+[group('local')]
+bench *flags:
+    cd xeon && just bench {{flags}}

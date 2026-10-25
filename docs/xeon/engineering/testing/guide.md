@@ -359,7 +359,7 @@ export declare const t: {
 
 녹화(`origin: "recorded"`):
 
-- 녹화는 실제 모델과 네트워크를 쓰므로 `just verify`와 CI에서 돌지 않는다. [제안] 레시피 `just tape-record <테스트경로>`가 사람 확인 뒤 `--yes`로만 돈다(종료코드 3, `eng.toolchain.guide` 3.2절).
+- 녹화는 실제 모델과 네트워크를 쓰므로 `just verify`와 CI에서 돌지 않는다. 레시피 `just tape-record <scenario>`(`xeon/scripts/tape-record.ts`)는 `--yes` 없이는 계획만 보이고 종료코드 3으로 끝난다. 사람이 확인한 뒤 `--yes`로 다시 부르면 `packages/core-models/scripts/record-tape.ts <scenario> <out>`을 부르고, 결과는 `packages/core-models/test/tapes/recorded/<scenario>.tape.jsonl`이다. 녹화기 진입 파일은 L1C(core-models) 작업이고, 없으면 레시피가 종료코드 1로 그 이름을 알린다. M2 마감 전에 한 번 녹화한다(`review.m2-plan` §9 D-e).
 - 저장소에 넣기 전에 gitleaks로 비밀 패턴을 검사하고, 홈 디렉터리 절대 경로와 실제 사용자 이름이 없는지 확인한다. 하나라도 있으면 넣지 않는다.
 - 헤더의 `recordedFrom.piAi`로 pi-ai 판을 남긴다. pi-ai를 올리면 녹화 테이프를 재생해 스키마 실패가 없는지 본다.
 - 테이프에 모델 문장의 품질 기대를 두지 않는다. 기대값은 이벤트 저장 결과(타입과 핵심 필드)다.

@@ -412,7 +412,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | 0 | 통과 | — | 모든 단계 |
 | 1 | 코드나 설정의 위반 | 메시지의 파일과 규칙 ID를 보고 고친다 | 검사 도구의 위반, 테스트 실패, 잠금 불일치 |
 | 2 | 환경 문제 | 코드를 고치지 않고 보고한다 | `mise`·`bun` 실행 실패(예: "No version is set for shim: bun", `_research/notes/eng-3.md §3.2`), 네트워크 실패, tsgolint 시작 실패, FTS5 없음(TC-11), `check-layers.ts`가 파일을 읽지 못함, `ws check` 실패 |
-| 3 | 사람 확인 필요 | 사람이 확인한 뒤 같은 레시피를 `--yes`로 다시 부른다 | 잠금 파일·catalog 버전을 바꾸는 레시피, vendor 갱신(TC-06), 테이프 재녹화(`eng.testing.guide` TS-04) |
+| 3 | 사람 확인 필요 | 사람이 확인한 뒤 같은 레시피를 `--yes`로 다시 부른다 | 잠금 파일·catalog 버전을 바꾸는 레시피, vendor 갱신(TC-06), 테이프 녹화 `just tape-record`(`eng.testing.guide` TS-04), 실제 모델 첫 토큰 측정 `just bench --first-token`(`eng.performance.guide`) |
 
 - `just verify` 자체는 파일을 바꾸지 않으므로 3을 내지 않는다.
 - 외부 도구는 자체 종료코드를 낸다. 대부분 위반에 1을 낸다. 도구가 실행되지 못한 경우(셸 126·127)를 2로 바꾸는 감싸개는 `xeon/scripts/`에 둔다 [제안. 이름은 구현 때 정한다].

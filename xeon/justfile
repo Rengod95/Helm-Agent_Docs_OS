@@ -102,3 +102,13 @@ desktop-build:
 [group('local')]
 desktop-test:
     bash apps/desktop/scripts/cargo.sh test
+
+# 실제 provider로 모델 테이프 녹화 <scenario>: 비용이 들어 --yes 없이는 계획만 보이고 종료코드 3 (scripts/tape-record.ts, D-e)
+[group('local')]
+tape-record scenario *flags:
+    {{bun}} scripts/tape-record.ts {{scenario}} {{flags}}
+
+# 속도 기준선: 콜드 스타트(CLI, 사이드카). --first-token은 실제 모델 호출이라 --yes 없이는 종료코드 3 (scripts/bench.ts, ADR-0012)
+[group('local')]
+bench *flags:
+    {{bun}} scripts/bench.ts {{flags}}
