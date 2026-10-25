@@ -1,6 +1,7 @@
 import { assertNever, eachAsync, parse, type Result } from "@xeon/contracts";
 import {
   WorkPlans,
+  type CallerInfo,
   type CapabilityApi,
   type PlanId,
   type PlanSubmitResult,
@@ -23,12 +24,12 @@ import {
   type StampedDraft,
   type StoreError,
 } from "@xeon/contracts/records";
-import type {
-  ApprovalOrigin,
-  CallerId,
-  L2ApprovalSnapshot,
-  L2ApprovalsPort,
-  PermissionMode,
+import {
+  approvalCallerOf,
+  type ApprovalOrigin,
+  type L2ApprovalSnapshot,
+  type L2ApprovalsPort,
+  type PermissionMode,
 } from "@xeon/contracts/services";
 import {
   commitKeyOf,
@@ -83,10 +84,8 @@ function toPlanVersion(row: PlanRow): PlanVersion {
   };
 }
 
-function callerIdOf(scope: CallScope): CallerId {
-  const caller = scope.context?.caller;
-  return caller?.agent === "subagent" ? `subagent:${caller.extension ?? "agent"}` : "main";
-}
+/** 호출 문맥이 없는 범위(스레드를 다시 열 때 등)는 호스트가 직접 낸 호출이다(F.records.spec §3.3.1 caller 행) */
+const HOST_CALLER: CallerInfo = { kind: "host" };
 
 function originOf(scope: CallScope): ApprovalOrigin {
   return {
@@ -94,7 +93,7 @@ function originOf(scope: CallScope): ApprovalOrigin {
     turnId: scope.turnId,
     stepId: null,
     toolCallId: scope.context?.toolCallId ?? null,
-    caller: callerIdOf(scope),
+    caller: approvalCallerOf(scope.context?.caller ?? HOST_CALLER),
   };
 }
 

@@ -1,7 +1,9 @@
 import { afterEach, expect, test } from "bun:test";
-import { repeatAsync } from "@xeon/contracts";
+import { eachAsync, repeatAsync } from "@xeon/contracts";
 import { fakeApprovals } from "@xeon/core-tools/testing";
+import type { CallContext } from "@xeon/contracts/capabilities";
 import { createWriteApprovals } from "../src/ports/approvals.ts";
+import { SCAN_RULESET_VERSION } from "../src/scan/rules.ts";
 import { agentActor, contextOf, createPlan, request } from "./support/plans.ts";
 import { closeWorlds, createWorld } from "./support/world.ts";
 
@@ -111,4 +113,41 @@ test("cancelling the wait leaves the approval request open", async () => {
   expect(await running).toMatchObject({ ok: false, error: { kind: "aborted" } });
   expect(service.approvals.pending(threadId)).toHaveLength(1);
   expect(world.fs.has("/data/skills/deploy/SKILL.md")).toBe(false);
+});
+
+test("the approval origin caller is what approvalCallerOf makes from the call context (G1-09)", async () => {
+  const cases: readonly (readonly [string, CallContext["caller"], string])[] = [
+    ["main conversation", { kind: "model", agent: "main" }, "main"],
+    ["subagent", { kind: "model", agent: "subagent", agentName: "explore" }, "subagent:explore"],
+    ["background fork", { kind: "model", agent: "background" }, "background"],
+    ["extension", { kind: "extension", extension: "grp-helm" }, "ext:grp-helm"],
+    ["host", { kind: "host" }, "host"],
+  ];
+  await eachAsync(cases, async ([name, caller, expected]) => {
+    const service = await fakeApprovals();
+    const threadId = service.ids.next("thr");
+    await service.openThread(threadId);
+    const abort = new AbortController();
+    const asking = createWriteApprovals(service.approvals).ask(
+      {
+        threadId,
+        context: contextOf(threadId, caller, { toolCallId: "call-1" }),
+        requestKey: "write-1",
+        toolName: "skill_manage",
+        capability: { id: "knowledge.skills", method: "create" },
+        op: "skill.create",
+        target: { kind: "skill", name: "deploy", scope: "user" },
+        baseHash: null,
+        preview: "+ new skill",
+        scan: { rulesetVersion: SCAN_RULESET_VERSION, findings: [] },
+        afterUntrusted: false,
+      },
+      abort.signal,
+    );
+    const pending = await pendingOf(service.approvals, threadId);
+    expect([name, pending.origin.caller]).toEqual([name, expected]);
+    abort.abort();
+    await asking;
+    return undefined;
+  });
 });

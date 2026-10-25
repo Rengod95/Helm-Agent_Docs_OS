@@ -1,7 +1,12 @@
 import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
-import { err, parse } from "@xeon/contracts";
-import { CapabilityError, DialogAsk, type AskQuestion } from "@xeon/contracts/capabilities";
+import { eachAsync, err, parse } from "@xeon/contracts";
+import {
+  CapabilityError,
+  DialogAsk,
+  type AskQuestion,
+  type CallContext,
+} from "@xeon/contracts/capabilities";
 import { ApprovalBodyJsonSchema, ApprovalRequestedPayloadSchema } from "@xeon/contracts/records";
 import { createAskService } from "../src/ask/service.ts";
 import { callTool } from "./support/adapter.ts";
@@ -209,6 +214,35 @@ describe("같은 레코드 형식", () => {
       expect(payload.value.remember).toEqual(["once"]);
       expect(payload.value.surfaceThreadId).toBe(payload.value.origin.threadId);
     }
+  });
+
+  test("승인 origin의 caller는 호출 문맥에서 approvalCallerOf로 만든 값이다 (G1-09)", async () => {
+    const cases: readonly (readonly [string, CallContext["caller"], string])[] = [
+      ["주 대화", { kind: "model", agent: "main" }, "main"],
+      [
+        "서브에이전트",
+        { kind: "model", agent: "subagent", agentName: "explore" },
+        "subagent:explore",
+      ],
+      ["백그라운드 포크", { kind: "model", agent: "background" }, "background"],
+      ["확장", { kind: "extension", extension: "grp-helm" }, "ext:grp-helm"],
+      ["호스트", { kind: "host" }, "host"],
+    ];
+    await eachAsync(cases, async ([name, caller, expected]) => {
+      const { approvals, api } = await setup();
+      const thread = newThread();
+      await api.ask(
+        { questions: [SCOPE] },
+        { requestId: "call-1", context: { threadId: thread, toolCallId: "toolcall-1", caller } },
+      );
+      const stored = approvals.session.events.find((event) => event.kind === "approval.requested");
+      const payload = parse(ApprovalRequestedPayloadSchema, stored?.payload);
+      expect([name, payload.ok ? payload.value.origin.caller : undefined]).toEqual([
+        name,
+        expected,
+      ]);
+      return undefined;
+    });
   });
 
   test("도구 어댑터 경로: ask_user는 wait:false로 불린다", async () => {

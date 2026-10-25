@@ -1,14 +1,14 @@
 import { canonicalJson, err, ok, parse, type Result } from "@xeon/contracts";
-import type { CallContext } from "@xeon/contracts/capabilities";
+import type { CallContext, CallerInfo } from "@xeon/contracts/capabilities";
 import { ApprovalIdSchema, type ApprovalId, type ThreadId } from "@xeon/contracts/conversation";
 import { ApprovalBodyJsonSchema, type ReadFailure } from "@xeon/contracts/records";
 import {
+  approvalCallerOf,
   L2_APPROVAL_REQUEST_ID_MAX,
   type ApprovalOrigin,
   type ApprovalRequestError,
   type ApprovalResolution,
   type ApprovalService,
-  type CallerId,
   type L2ApprovalRequest,
   type L2ApprovalRespondInput,
   type L2ApprovalSnapshot,
@@ -31,12 +31,9 @@ export interface ApprovalsPortFactory {
 }
 
 const REQUEST_ID_MAX = L2_APPROVAL_REQUEST_ID_MAX;
+/** 호출 문맥이 없는 요청은 호스트가 직접 낸 호출이다(F.records.spec §3.3.1 caller 행) */
+const HOST_CALLER: CallerInfo = { kind: "host" };
 const QUESTION_TITLE = "Answer the questions";
-
-function callerOf(context: CallContext | undefined): CallerId {
-  const caller = context?.caller;
-  return caller?.agent === "subagent" ? `subagent:${caller.extension ?? "agent"}` : "main";
-}
 
 function rejected(detail: string): ApprovalRequestError {
   return { kind: "rejected", code: "approvals.request_invalid", detail };
@@ -95,7 +92,7 @@ export function questionApprovalsOver(approvals: ApprovalService): ApprovalsPort
         turnId: context?.turnId ?? null,
         stepId: null,
         toolCallId: context?.toolCallId ?? null,
-        caller: callerOf(context),
+        caller: approvalCallerOf(context?.caller ?? HOST_CALLER),
       } satisfies Omit<ApprovalOrigin, "threadId">;
 
       const port: L2ApprovalsPort = {

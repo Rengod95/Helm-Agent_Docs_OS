@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { createHash } from "node:crypto";
-import { Bug, parse } from "@xeon/contracts";
-import { PlanApprovalSubjectSchema, PlanSubmitOutput } from "@xeon/contracts/capabilities";
+import { Bug, eachAsync, parse } from "@xeon/contracts";
+import {
+  PlanApprovalSubjectSchema,
+  PlanSubmitOutput,
+  type CallContext,
+} from "@xeon/contracts/capabilities";
 import {
   ApprovalAnswerSchema,
   ApprovalRequestedPayloadSchema,
@@ -102,6 +106,35 @@ describe("submit_plan and the approval record", () => {
     ).toBe(true);
     expect(row?.approvalId).toBe(request?.approvalId);
     expect(row?.status).toBe("submitted");
+  });
+
+  test("the request origin caller is what approvalCallerOf makes from the call context (G1-09)", async () => {
+    const cases: readonly (readonly [string, CallContext["caller"], string])[] = [
+      ["main conversation", { kind: "model", agent: "main" }, "main"],
+      ["subagent", { kind: "model", agent: "subagent", agentName: "explore" }, "subagent:explore"],
+      ["background fork", { kind: "model", agent: "background" }, "background"],
+      ["extension", { kind: "extension", extension: "grp-helm" }, "ext:grp-helm"],
+      ["host", { kind: "host" }, "host"],
+    ];
+    await eachAsync(cases, async ([name, caller, expected]) => {
+      const h = await harness();
+      await h.plans.submit(
+        { title: "Refactor the loader", body: "1. split\n2. test" },
+        { requestId: "call-1", context: { threadId: h.threadId, caller } },
+      );
+      const origins: unknown[] = [];
+      for await (const item of h.session.readFrom(0)) {
+        if (item.ok && item.value.kind === "approval.requested") origins.push(item.value.payload);
+      }
+      const payload = parse(ApprovalRequestedPayloadSchema, origins[0]);
+      expect([name, payload.ok ? payload.value.origin.caller : undefined]).toEqual([
+        name,
+        expected,
+      ]);
+      await opened?.[Symbol.asyncDispose]();
+      opened = undefined;
+      return undefined;
+    });
   });
 
   test("allow approves and deny rejects with the feedback; a decision the plan kind does not take is not applied", async () => {

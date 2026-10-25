@@ -7,12 +7,12 @@ import type {
   ScanSummary,
 } from "@xeon/contracts/capabilities";
 import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
-import type {
-  ApprovalRequestError,
-  ApprovalRequestInput,
-  ApprovalResolution,
-  ApprovalService,
-  CallerId,
+import {
+  approvalCallerOf,
+  type ApprovalRequestError,
+  type ApprovalRequestInput,
+  type ApprovalResolution,
+  type ApprovalService,
 } from "@xeon/contracts/services";
 import { Type } from "typebox";
 import { failure, type KnowledgeFailure } from "../errors.ts";
@@ -50,13 +50,6 @@ export interface WriteApprovals {
     request: WriteApprovalRequest,
     signal: AbortSignal,
   ): Promise<Result<WriteApprovalAnswer, KnowledgeFailure>>;
-}
-
-function callerOf(context: CallContext): CallerId {
-  // 쓰기 승인은 주 대화와 확장(그룹)만 묻는다. 서브에이전트는 대기열로 간다
-  return context.caller.kind === "model" && context.caller.agent === "subagent"
-    ? "subagent:unknown"
-    : "main";
 }
 
 function requestFailure(error: ApprovalRequestError): KnowledgeFailure {
@@ -123,7 +116,7 @@ export function createWriteApprovals(service: ApprovalService): WriteApprovals {
           turnId: request.context.turnId ?? null,
           stepId: null,
           toolCallId: request.context.toolCallId ?? null,
-          caller: callerOf(request.context),
+          caller: approvalCallerOf(request.context.caller),
         },
         requestKey: request.requestKey,
         title: titleOf(request),
