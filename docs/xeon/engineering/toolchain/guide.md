@@ -438,13 +438,15 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 
 | job | 내용 | 로컬 재현 |
 |---|---|---|
-| `layer` (matrix F, X, L0, L1, L2, L3, L4) | `just setup` 뒤 `just ci-layer <층> <main이 아니면 true>`. `scripts/ci-layer.sh`가 층의 패키지 디렉터리로 `turbo run lint typecheck test --filter=<dir>`를 만든다. `true`이면 `--affected`를 더한다 | `just ci-layer L1`, `just ci-layer L1 true` |
-| `hygiene` | `fmt-check`, `check-layers`, `depcruise`, `knip` | 같은 레시피 |
+| `layer` (matrix root, F, X, L0, L1, L2, L3, L4) | `just setup` 뒤 `just ci-layer <층> <main이 아니면 true>`. `scripts/ci-layer.sh`가 층의 패키지 디렉터리로 `turbo run lint typecheck test --filter=<dir>`를 만든다. `true`이면 `--affected`를 더한다. `root`는 `xeon/scripts`의 `lint:root`, `typecheck:root`, `just test scripts`다. L0 job은 bubblewrap과 socat을 설치하고 unprivileged user namespace 제한을 끈다 | `just ci-layer L1`, `just ci-layer root` |
+| `hygiene` | `fmt-check`, `check-layers`, `check-ts-rules`, `depcruise`, `knip` | 같은 레시피 |
+| `exit-tests` | bubblewrap, socat, sops 3.13.3, age 1.3.2를 설치하고 `just exit-tests`. `xeon/scripts/exit-tests.txt`의 종료 조건 시험을 한 줄씩 돌려, 파일이 없거나 시험이 하나라도 건너뛰어지거나 실패하면 1로 끝나고 건너뛴 수를 출력한다 | `just exit-tests` |
 | `docs` | `docs-route --check --allow-missing` | 같은 레시피 |
 
 - 문서의 `[미결` 표지 수는 `just docs-route --unresolved`가 문서마다 셉니다. 추적 규칙은 `review.unresolved`입니다. verify 단계가 아니고 종료코드는 항상 0입니다.
 | `smoke` [제안] | 모델 테이프로 `xeon chat` 한 턴과 강제 종료 뒤 재개(`eng.testing.guide` TS-01 `scenario`). M1에서 더한다 | `just smoke` [제안] |
 
+- CI job 전체가 `just verify`의 `_verify-steps`를 모두 돈다. `xeon/scripts/ci-alignment.test.ts`가 루트 justfile의 단계 목록과 `xeon-ci.yml`의 명령을 비교해, 단계가 CI에서 빠지면 실패한다. `ws check`는 사용자 환경 검사라 CI에서 돌지 않는다.
 - 체크아웃은 `fetch-depth: 0`이다. `--affected`는 기준 커밋이 있어야 한다. 얕은 체크아웃이면 turbo가 모든 패키지를 바뀐 것으로 본다(`_research/stack-status.md §5-B`, §9).
 - 기준 커밋: PR은 `origin/<base_ref>`, push는 `origin/main`(`TURBO_SCM_BASE`).
 - 각 job은 `jdx/mise-action`으로 `mise.toml`의 Bun 1.4.3을 설치하고 just 1.58.0을 쓴다.

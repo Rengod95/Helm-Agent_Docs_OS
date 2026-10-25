@@ -63,10 +63,15 @@ knip:
 docs-route +args:
     {{bun}} scripts/docs-route.ts {{args}}
 
-# 한 층만 lint, typecheck, test (scripts/ci-layer.sh)
+# 한 층만 lint, typecheck, test (scripts/ci-layer.sh). root는 scripts의 lint, typecheck, test
 [group('local')]
 ci-layer layer affected="false":
     bash scripts/ci-layer.sh {{layer}} {{affected}}
+
+# 종료 조건 시험(scripts/exit-tests.txt)을 돌리고 건너뛴 수를 출력한다. 파일 없음, 건너뜀, 실패는 종료코드 1
+[group('local')]
+exit-tests:
+    {{bun}} scripts/exit-tests.ts
 
 # 웹 가격표 asOf 90일 검사: 오래된 항목을 출력만 하고 종료코드는 0 (L2.web.plan B5)
 [group('local')]

@@ -1,0 +1,10 @@
+# Exit-condition tests that must run, not skip (product.scope.spec 4.4.1, review.fake-only section 3).
+# just exit-tests runs each line and fails when a file is missing, a test is skipped or a test fails.
+# Format: <condition> <package dir> <test file or glob relative to the package> [more files ...]
+M1 packages/platform-sandbox test/*.int.test.ts
+E2 packages/platform-process test/transport-conformance.int.test.ts
+E4 packages/cap-web test/e4-search-selection.int.test.ts
+E4 apps/host test/int/cap-web.int.test.ts
+E5 apps/host test/int/approval-shapes.int.test.ts
+E6 apps/host test/int/cap-mcp.int.test.ts
+E7 packages/platform-secrets test/admin.int.test.ts test/sops-real.int.test.ts

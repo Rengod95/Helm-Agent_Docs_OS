@@ -69,10 +69,15 @@ knip:
 docs-route +args:
     cd xeon && just docs-route {{args}}
 
-# 한 층만 lint, typecheck, test: layer는 F X L0 L1 L2 L3 L4, affected=true면 turbo --affected
+# 한 층만 lint, typecheck, test: layer는 root F X L0 L1 L2 L3 L4(root는 xeon/scripts), affected=true면 turbo --affected
 [group('local')]
 ci-layer layer affected="false":
     cd xeon && just ci-layer {{layer}} {{affected}}
+
+# 종료 조건 시험 실행: 건너뛴 시험이 있으면 실패하고 건너뛴 수를 출력 (xeon/scripts/exit-tests.txt). CI가 bwrap·socat·sops와 함께 돈다
+[group('local')]
+exit-tests:
+    cd xeon && just exit-tests
 
 # 완료 기준. 검사 전부와 ws check (ws help justfile). 기기 전체 동시 검증 2개, 검증당 메모리 3G, 공용 예산 ws-dev.slice (scripts/guard.sh)
 [group('quality')]
