@@ -52,11 +52,6 @@ export interface WriteApprovals {
   ): Promise<Result<WriteApprovalAnswer, KnowledgeFailure>>;
 }
 
-/** 요청 키는 1~48자다. 호출 키(`CallOptions.requestId`)를 해시로 줄인다. 같은 입력은 같은 키다 */
-export function approvalRequestKey(requestId: string): string {
-  return `kw_${sha256Hex(requestId).slice(0, 40)}`;
-}
-
 function callerOf(context: CallContext): CallerId {
   // 쓰기 승인은 주 대화와 확장(그룹)만 묻는다. 서브에이전트는 대기열로 간다
   return context.caller.kind === "model" && context.caller.agent === "subagent"

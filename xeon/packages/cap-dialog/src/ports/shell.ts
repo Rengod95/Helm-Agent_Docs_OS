@@ -1,7 +1,8 @@
 import { err, ok, type Result } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { LoopService } from "@xeon/contracts/services";
-import { approvalKeyOf } from "../ask/keys.ts";
+import { requestKeyFor } from "@xeon/contracts/records";
+import { sha256Hex } from "../hash.ts";
 
 /**
  * 사용자 개시 셸 실행 포트(L2.dialog.spec §4.2.4 6번). 기본 구현은 `shellPortOver`로, `xeon.loop`의 `runUserBash`를 부른다.
@@ -40,7 +41,7 @@ const LOOP_REQUEST_ID_MAX = 64;
  * - `denied`는 포트의 `denied`다.
  * - 종료 코드가 0이 아니거나 중단된 실행은 `failed`다. `code`는 종료 코드나 `cancelled`다.
  * - 실행 전의 실패(`LoopError`)는 `failed`이고 `code`가 오류 종류다.
- * - 호출 키(`<requestId>:sh<순번>`)가 loop의 한도(64자)를 넘으면 앞 24자와 해시로 줄인다.
+ * - 호출 키(`<requestId>:sh<순번>`)가 loop의 한도(64자)를 넘으면 F `requestKeyFor`(`h_` + sha256 앞 40자)로 줄인다.
  */
 export function shellPortOver(loop: Pick<LoopService, "runUserBash">): ShellPort {
   return {
@@ -48,7 +49,7 @@ export function shellPortOver(loop: Pick<LoopService, "runUserBash">): ShellPort
       const requestId =
         context.requestId.length <= LOOP_REQUEST_ID_MAX
           ? context.requestId
-          : approvalKeyOf(context.requestId);
+          : requestKeyFor(context.requestId, sha256Hex);
       const outcome = await loop.runUserBash({
         threadId: context.threadId,
         command,

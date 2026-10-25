@@ -1,4 +1,5 @@
 import { assertNever, err, ok, type Result } from "@xeon/contracts";
+import { requestKeyFor } from "@xeon/contracts/records";
 import type {
   ApprovalEvidence,
   CallContext,
@@ -21,11 +22,11 @@ import {
   type ProposalMethod,
   type ProposalRecord,
 } from "../approval/proposals.ts";
-import { utf8Encode } from "../hash.ts";
+import { sha256Hex, utf8Encode } from "../hash.ts";
 import type { ChangeExecutor, ChangeSpec, LedgerDeps } from "../ledger/change.ts";
 import { findByRequestId } from "../ledger/rows.ts";
 import type { ChangeTarget } from "../ledger/target.ts";
-import { approvalRequestKey, type WriteApprovals } from "../ports/approvals.ts";
+import type { WriteApprovals } from "../ports/approvals.ts";
 import type { KnowledgeSettings } from "../settings.ts";
 import type { Tree } from "../skills/tree.ts";
 import { previewDiff } from "./preview.ts";
@@ -233,7 +234,7 @@ export function createWriter(deps: WriterDeps): Writer {
       {
         threadId,
         context,
-        requestKey: requestId === undefined ? ids.next("knp") : approvalRequestKey(requestId),
+        requestKey: requestId === undefined ? ids.next("knp") : requestKeyFor(requestId, sha256Hex),
         toolName: tool.name,
         capability: { id: tool.capability, method: tool.method },
         op: plan.op,

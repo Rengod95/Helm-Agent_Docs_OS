@@ -17,6 +17,7 @@ import {
   WorkPlanSubmittedSchema,
   type CommitPlan,
   type CommitResult,
+  requestKeyFor,
   type DurableEventEnvelope,
   type ReadFailure,
   type StampedDraft,
@@ -38,7 +39,8 @@ import {
 } from "../call.ts";
 import type { WorkPlansDeps } from "../deps.ts";
 import { internalError, planRejection, storeRejection } from "../errors.ts";
-import { approvalRequestId, nextModesFor, planSubject } from "../ports/approvals.ts";
+import { sha256Hex } from "../hash.ts";
+import { nextModesFor, planSubject } from "../ports/approvals.ts";
 import type { ModeFailure, PermissionModePort } from "../ports/permission-mode.ts";
 import {
   readModeMeta,
@@ -472,7 +474,7 @@ export function createPlans(deps: WorkPlansDeps): PlansRuntime {
       approvalId: snapshot.approvalId,
       decision: response.decision,
       ...(response.answer === undefined ? {} : { answer: response.answer }),
-      requestId: approvalRequestId(requestId),
+      requestId: requestKeyFor(requestId, sha256Hex),
     });
     const after = orThrow(method, readPlans(deps.reader, scope.threadId)).find(
       (plan) => plan.planId === row.planId && plan.version === row.version,

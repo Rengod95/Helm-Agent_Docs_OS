@@ -21,7 +21,6 @@ import {
   type OpenedApproval,
   type PermissionMode,
 } from "@xeon/contracts/services";
-import { sha256Hex } from "../hash.ts";
 import { planRefOf } from "../plans/refs.ts";
 
 // L2.work.spec §4.2.2. 계획 승인은 F `L2ApprovalsPort`(L2.readme §5.7)로 kind "plan" 요청을 낸다.
@@ -32,11 +31,6 @@ export type PlanApprovalsFactory = (origin: ApprovalOrigin) => L2ApprovalsPort;
 
 const REQUEST_ID_MAX = L2_APPROVAL_REQUEST_ID_MAX;
 const PLAN_TITLE = "Review the plan";
-
-/** 승인 응답에 쓰는 requestId(1~48자). 길면 해시로 줄인다(같은 입력은 같은 값) */
-export function approvalRequestId(raw: string): string {
-  return raw.length <= REQUEST_ID_MAX ? raw : `h_${sha256Hex(raw).slice(0, 40)}`;
-}
 
 /** 계획 승인 요청의 대상. F PlanApprovalBody(`plan`, `planRef`, `nextModes`)와 같은 모양이다 */
 export function planSubject(

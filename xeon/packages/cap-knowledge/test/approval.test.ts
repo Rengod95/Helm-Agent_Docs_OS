@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { sha256Hex } from "../src/hash.ts";
 import type { CallContext } from "@xeon/contracts/capabilities";
 import { SCAN_RULESET_VERSION } from "../src/scan/rules.ts";
 import { treeHash } from "../src/skills/tree.ts";
@@ -47,6 +48,18 @@ async function createDeploy(world: World, body = "v1\n"): Promise<string> {
 
 function noApproval(world: World): void {
   world.setLayers([userLayer({ "l2.knowledge.write.approval": false })]);
+}
+
+async function keyOf(requestId: string): Promise<string | undefined> {
+  const approvals = scriptedApprovals();
+  const world = await createWorld({ approvals });
+  await request(world.runtime.writer, {
+    plan: createPlan(),
+    actor: agentActor("main"),
+    context: MAIN_CALL,
+    requestId,
+  });
+  return approvals.requests[0]?.requestKey;
 }
 
 describe("write approval gate", () => {
@@ -133,7 +146,14 @@ describe("write approval gate", () => {
     });
     expect(first.ok && second.ok && first.value.ledgerId === second.value.ledgerId).toBe(true);
     expect(approvals.requests).toHaveLength(1);
-    expect(approvals.requests[0]?.requestKey).toMatch(/^kw_[0-9a-f]{40}$/);
+    expect(approvals.requests[0]?.requestKey).toBe("call-1");
+  });
+
+  test("the request key is F requestKeyFor of the call requestId: plain as is, otherwise h_ plus sha256", async () => {
+    const long = "k".repeat(49);
+    const odd = "call:with space";
+    const keys = [await keyOf(long), await keyOf(odd)];
+    expect(keys).toEqual([`h_${sha256Hex(long).slice(0, 40)}`, `h_${sha256Hex(odd).slice(0, 40)}`]);
   });
 
   test("background destructive always queued", async () => {

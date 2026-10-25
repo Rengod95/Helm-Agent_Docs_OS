@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
 import { Bug, parse } from "@xeon/contracts";
 import { PlanApprovalSubjectSchema, PlanSubmitOutput } from "@xeon/contracts/capabilities";
 import {
@@ -40,6 +41,8 @@ function latestOf(h: Harness) {
   if (!read.ok) throw new Bug("read failed", { cause: read.error });
   return read.value;
 }
+
+const sha = (text: string): string => createHash("sha256").update(text).digest("hex");
 
 describe("submit_plan and the approval record", () => {
   test("submit makes a kind plan approval request that has the same record shape as every other request", async () => {
@@ -167,6 +170,24 @@ describe("submit_plan and the approval record", () => {
       }
     }
     expect(decisions).toEqual(["allow:user", "deny:user", "deny:user"]);
+  });
+
+  test("the respond requestId is the F requestKeyFor of the call requestId", async () => {
+    const h = await harness();
+    const long = "r".repeat(49);
+    const odd = "call:with space";
+    await submit(h, "c1");
+    await h.plans.approve({ planId: PlanId("p1") }, h.opts("d1"));
+    await submit(h, "c2");
+    await h.plans.reject({ planId: PlanId("p2"), reason: "no" }, h.opts(long));
+    await submit(h, "c3");
+    await h.plans.reject({ planId: PlanId("p3"), reason: "no" }, h.opts(odd));
+    expect(h.approvals.respondRequestIds).toEqual([
+      "d1",
+      `h_${sha(long).slice(0, 40)}`,
+      `h_${sha(odd).slice(0, 40)}`,
+    ]);
+    for (const key of h.approvals.respondRequestIds) expect(key).toMatch(/^[A-Za-z0-9_.-]{1,48}$/);
   });
 
   test("a decided version rejects another decision with plan_closed and its status", async () => {

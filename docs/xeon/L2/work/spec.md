@@ -1015,7 +1015,7 @@ export const PlanApprovalAnswerSchema = Type.Object(
 | 요청 취소(L1.tools, `resolvedBy` `cancelled`·`superseded`) | 없음 | `withdrawn` | 없음 |
 
 - [결정: WK.3 통합] 계획 승인에는 `decision: "answer"`가 없다. 승인 서비스(L1.tools.spec §3.6 표)는 kind `plan`에 `allow`·`deny`만 받고, wire의 `answer`는 `allow`의 `{ mode?, note? }`와 `deny`의 `{ feedback }`뿐이다(`ApprovalAnswerSchema`). 그래서 `revise`는 `deny` + `{ feedback }`로 응답하고, 기록과 계획 상태에서 `reject`와 같은 `rejected`다. 차이는 `revise`가 `feedback`을 필수로 받는다는 점뿐이다. 수정을 요청받은 모델은 반려를 받았을 때와 같이 같은 `planId`로 새 버전을 제출한다. 상태 `revision_requested`는 F 열거에 남아 있지만 이 경로에서 만들어지지 않는다. 다시 만들려면 F가 `DenyAnswer`에 구별 필드를 더해야 한다.
-- `approve`, `reject`, `revise` 메서드는 `ApprovalsPort.respond`를 부르는 편의 경로다. 결정의 기록은 L1.tools의 `approval.resolved` 하나이고, 계획 상태는 투영기가 그 이벤트에서 계산한다(§3.7). 그래서 화면, 명령, 그룹 코드 중 어느 쪽으로 응답해도 기록 형식이 같다.
+- `approve`, `reject`, `revise` 메서드는 `ApprovalsPort.respond`를 부르는 편의 경로다. 결정의 기록은 L1.tools의 `approval.resolved` 하나이고, 계획 상태는 투영기가 그 이벤트에서 계산한다(§3.7). 그래서 화면, 명령, 그룹 코드 중 어느 쪽으로 응답해도 기록 형식이 같다. `respond`의 `requestId`는 호출의 `requestId`를 F `requestKeyFor`(`records/commit.ts`, U-13)로 바꾼 값이다. 48자 이하이고 키 알파벳(`^[A-Za-z0-9_.-]+$`) 안이며 `h_`로 시작하지 않으면 그대로, 아니면 `h_` + 원문 sha256 앞 40자다. 이 패키지는 자체 변환 함수를 두지 않는다 [결정: 통합 검토 L6].
 - [결정: WK.2] 이 표는 `src/plans/decision.ts` `outcomeOf` 한 곳에 있고 투영기와 `submit` 응답이 같은 함수를 쓴다. 취소된 요청에 대한 `submit` 재호출은 `decided`, 결정 `rejected`, `feedback = "The approval request was cancelled."`로 답한다.
 - 이미 결정된 버전에 다시 결정하면 `plan_closed`다. `version`을 생략하면 그 계획의 최신 버전이다.
 - `remember`(wire `approval.respond`의 선택 필드)는 계획 승인에 쓰지 않는다. 계획은 매번 다르기 때문이다.

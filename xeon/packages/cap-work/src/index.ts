@@ -15,7 +15,6 @@ export { createPlans, type PlansRuntime } from "./plans/service.ts";
 export { startPlanModeListener, type PlanModeListener } from "./plans/listener.ts";
 export { planRefOf, PLAN_REF_PATTERN } from "./plans/refs.ts";
 export {
-  approvalRequestId,
   nextModesFor,
   planApprovalsOver,
   planSubject,

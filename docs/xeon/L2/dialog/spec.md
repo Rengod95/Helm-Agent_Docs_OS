@@ -724,7 +724,7 @@ sequenceDiagram
 
 1. 질문 정의를 `checkAskQuestions`로 검사한다. 위반이면 `ask_invalid_questions`.
 2. 대상 `subject`를 `QuestionBody`로 만든다(§4.1.1).
-3. `L2ApprovalsPort.request`를 호출 `requestId`로 부른다. 승인 요청 키는 1~48자라 `requestId`가 48자를 넘으면 앞 24자와 해시 23자로 줄인다(앞이 같은 서로 다른 호출이 같은 키가 되지 않게 한다). 같은 키로 다시 부르면 L1.tools는 새 요청을 만들지 않고 기존 요청의 현재 상태를 돌려준다 [가정, L1.tools.spec].
+3. `L2ApprovalsPort.request`를 호출 `requestId`로 부른다. 승인 요청 키는 1~48자라 `requestId`를 F `requestKeyFor`(`records/commit.ts`, U-13)로 바꾼다: 48자 이하이고 키 알파벳(`^[A-Za-z0-9_.-]+$`) 안이며 `h_`로 시작하지 않으면 그대로, 아니면 `h_` + 원문 sha256 앞 40자다(앞이 같은 서로 다른 호출이 같은 키가 되지 않는다). cap-dialog는 자체 키 함수를 두지 않는다 [결정: 통합 검토 L6]. 같은 키로 다시 부르면 L1.tools는 새 요청을 만들지 않고 기존 요청의 현재 상태를 돌려준다 [가정, L1.tools.spec].
 4. 상태가 `pending`이면 `{ status: "input_required", approvalId }`를 돌려준다. L1.tools 어댑터가 이를 `ToolResultRecord.status: "input_required"`와 `inputRequired: InputRequiredInfo`로 옮긴다(F.conversation.spec §3.6). [제안] `InputRequiredInfo.requestState`에는 `approvalId`를, `inputRequests`에는 `{ kind: "question", approvalId }`를 싣는다. 값 모양의 확정은 L1.tools.spec이 한다.
 5. 상태가 해결이면 §4.1.1 표로 완료 출력을 만든다. 저장된 답을 `validateAskAnswer`로 다시 검사하고, 위반이면(구버전 클라이언트 등) `cancelled(dismissed)`로 처리하고 운영 로그에 남긴다.
 6. [가정] L1.tools는 승인이 해결되면 `input_required` 결과를 낸 도구 호출을 같은 입력과 같은 `requestId`로 다시 불러 완료 결과를 얻는다(MCP client 2.3.1의 `input_required` 재시도와 같은 모양, `_research/notes/L2-1.md` 1항). 도구 결과 커밋 키는 `tool:<toolCallId>:result` 하나라 재시작 뒤 재시도가 여러 번 일어나도 완료 처리는 한 번이다(eng.transactions.design §4.8).

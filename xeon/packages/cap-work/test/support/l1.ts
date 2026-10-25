@@ -41,6 +41,8 @@ export interface ApprovalsDriver {
   readonly requests: readonly LoggedRequest[];
   /** 어댑터의 request 호출 횟수(재요청 포함) */
   requestCalls(): number;
+  /** 어댑터의 respond 호출이 받은 `requestId`(호출 순서) */
+  readonly respondRequestIds: readonly string[];
   /** 다음 승인 요청 커밋 n번을 저장소 오류로 실패시킨다(강제 종료 흉내). 0이면 정상 */
   failRequests(count: number): void;
   /** 사용자 화면처럼 응답한다(`approval.respond`). 적용되면 true */
@@ -65,6 +67,7 @@ export function approvalsDriver(options: {
   const { session, approvals, faults } = options;
   const adapter = planApprovalsOver(approvals);
   let calls = 0;
+  const respondRequestIds: string[] = [];
   const factory: PlanApprovalsFactory = (origin) => {
     const port = adapter(origin);
     const counted: L2ApprovalsPort = {
@@ -72,6 +75,10 @@ export function approvalsDriver(options: {
       request(input) {
         calls += 1;
         return port.request(input);
+      },
+      respond(input) {
+        respondRequestIds.push(input.requestId);
+        return port.respond(input);
       },
     };
     return counted;
@@ -109,6 +116,7 @@ export function approvalsDriver(options: {
       return logged();
     },
     requestCalls: () => calls,
+    respondRequestIds,
     failRequests(count) {
       faults.remaining = count;
     },

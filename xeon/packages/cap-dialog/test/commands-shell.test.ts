@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
 import { err, ok, type Result } from "@xeon/contracts";
 import { CapabilityError } from "@xeon/contracts/capabilities";
@@ -296,9 +297,14 @@ describe("shellPortOver(LoopService.runUserBash) 대응", () => {
     });
   });
 
-  test("64자를 넘는 호출 키는 줄여서 보낸다", async () => {
+  test("64자를 넘는 호출 키는 h_ + sha256 앞 40자로 줄여서 보내고 이하는 그대로 보낸다", async () => {
     const { port, seen } = portReturning(ok({ status: "denied", reason: "x" }));
-    await port.run("x", { ...context, requestId: `${"k".repeat(70)}:sh0` });
-    expect(seen[0]?.requestId?.length).toBeLessThanOrEqual(64);
+    const long = `${"k".repeat(70)}:sh0`;
+    await port.run("x", { ...context, requestId: long });
+    await port.run("x", { ...context, requestId: "req-1:sh0" });
+    expect(seen.map((input) => input.requestId)).toEqual([
+      `h_${createHash("sha256").update(long).digest("hex").slice(0, 40)}`,
+      "req-1:sh0",
+    ]);
   });
 });

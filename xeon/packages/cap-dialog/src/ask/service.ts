@@ -9,11 +9,12 @@ import {
 } from "@xeon/contracts/capabilities";
 import { assertNever } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
+import { requestKeyFor } from "@xeon/contracts/records";
 import type { ApprovalRequestError, L2ApprovalSnapshot } from "@xeon/contracts/services";
 import type { DialogDeps } from "../deps.ts";
 import { DialogFailure, guarded } from "../errors.ts";
 import { createAskExpiry, type AskExpiry } from "./expiry.ts";
-import { approvalKeyOf } from "./keys.ts";
+import { sha256Hex } from "../hash.ts";
 import { fromQuestionAnswer, toQuestionBody } from "./mapping.ts";
 
 // L2.dialog.spec §3.1, §4.1. 질문은 승인 프로토콜(kind `question`)로 받는다. 대기는 승인 기록(내구)이 갖고
@@ -135,7 +136,7 @@ export function createAskService(deps: DialogDeps): AskService {
           });
         }
         const approvals = deps.approvals.forCall(context);
-        const requestKey = approvalKeyOf(requestId);
+        const requestKey = requestKeyFor(requestId, sha256Hex);
         const requested = await approvals.request({
           threadId: context.threadId,
           kind: "question",

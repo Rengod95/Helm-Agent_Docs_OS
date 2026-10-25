@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, test } from "bun:test";
 import { err, parse } from "@xeon/contracts";
 import { CapabilityError, DialogAsk, type AskQuestion } from "@xeon/contracts/capabilities";
@@ -342,8 +343,11 @@ describe("오류", () => {
   });
 });
 
+const digest = (text: string): string =>
+  createHash("sha256").update(text).digest("hex").slice(0, 40);
+
 describe("긴 requestId", () => {
-  test("48자를 넘는 키는 줄이되 앞이 같은 서로 다른 키는 다른 요청이 된다", async () => {
+  test("48자를 넘는 키는 h_ + sha256 앞 40자가 되고 앞이 같은 서로 다른 키는 다른 요청이 된다", async () => {
     const { approvals, api } = await setup();
     const thread = newThread();
     const prefix = "p".repeat(60);
@@ -351,8 +355,22 @@ describe("긴 requestId", () => {
     await api.ask({ questions: [SCOPE] }, callOptions(thread, { requestId: `${prefix}-b` }));
     await api.ask({ questions: [SCOPE] }, callOptions(thread, { requestId: `${prefix}-a` }));
     expect(approvals.entries()).toHaveLength(2);
-    for (const request of approvals.requests) {
-      expect(request.requestId.length).toBeLessThanOrEqual(48);
-    }
+    expect(approvals.requests.map((request) => request.requestId)).toEqual([
+      `h_${digest(`${prefix}-a`)}`,
+      `h_${digest(`${prefix}-b`)}`,
+      `h_${digest(`${prefix}-a`)}`,
+    ]);
+  });
+
+  test("키 알파벳 밖 문자가 있는 requestId도 해시 키가 되고 알파벳 안의 48자 이하는 그대로다", async () => {
+    const { approvals, api } = await setup();
+    const thread = newThread();
+    await api.ask({ questions: [SCOPE] }, callOptions(thread, { requestId: "call:odd id" }));
+    await api.ask({ questions: [SCOPE] }, callOptions(thread, { requestId: "call_plain-1" }));
+    const digest = createHash("sha256").update("call:odd id").digest("hex").slice(0, 40);
+    expect(approvals.requests.map((request) => request.requestId)).toEqual([
+      `h_${digest}`,
+      "call_plain-1",
+    ]);
   });
 });
