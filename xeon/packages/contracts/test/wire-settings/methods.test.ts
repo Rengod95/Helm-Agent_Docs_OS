@@ -28,14 +28,14 @@ function readItem(n: number): Record<string, unknown> {
 }
 
 describe("WIRE_METHODS", () => {
-  test("has the 33 methods of the spec table with their stages", () => {
-    expect(names).toHaveLength(33);
+  test("has the 34 methods of the spec table with their stages", () => {
+    expect(names).toHaveLength(34);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
       ["events.subscribe", "host.hello", "settings.get", "thread.create", "turn.start"].toSorted(),
     );
-    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(28);
+    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(29);
   });
 
   test("every row carries both schemas, since and status", () => {
@@ -294,6 +294,22 @@ describe("M2 method schemas are written out", () => {
     expect(
       parse(result, { approvals: [{ approvalId: entry.approvalId, request }], position }).ok,
     ).toBe(false);
+  });
+
+  test("thread.rename takes a 1..200 character title and answers with the position it reached", () => {
+    const { params, result } = WIRE_METHODS["thread.rename"];
+    expect(parse(params, { threadId: THREAD, title: "계획 회의" }).ok).toBe(true);
+    expect(parse(params, { threadId: THREAD, title: "x".repeat(200) }).ok).toBe(true);
+    expect(parse(params, { threadId: THREAD, title: "x".repeat(201) }).ok).toBe(false);
+    expect(parse(params, { threadId: THREAD, title: "" }).ok).toBe(false);
+    expect(parse(params, { threadId: THREAD, title: null }).ok).toBe(false);
+    expect(parse(params, { title: "a" }).ok).toBe(false);
+    // thread.list의 title 상한과 같다: 바꾼 제목은 목록 원소에 그대로 들어간다
+    const summaryTitle =
+      WIRE_METHODS["thread.list"].result.properties.threads.items.properties.title;
+    expect(parse(summaryTitle, "x".repeat(200)).ok).toBe(true);
+    expect(parse(result, { position: { storeId: STORE, seq: 3 } }).ok).toBe(true);
+    expect(parse(result, {}).ok).toBe(false);
   });
 
   test("turn.resume takes only the thread and answers with the three ResumeResult shapes", () => {

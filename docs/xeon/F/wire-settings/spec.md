@@ -304,6 +304,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | thread | `thread.delete` | `{ threadId: ThreadId }` | `{}` | M2 |
 | thread | `thread.fork` | `{ threadId: ThreadId, at?: ItemId }` | `{ threadId: ThreadId, position: StreamPosition }` | M2 |
 | thread | `thread.revert` | `{ threadId: ThreadId, to: ItemId }` | `{ position: StreamPosition }` | M2 |
+| thread | `thread.rename` | `{ threadId: ThreadId, title: string(1..200) }` | `{ position: StreamPosition }` | M2 |
 | turn | `turn.start` | `{ threadId: ThreadId, input: TurnStartInput, requestId?: string(1..64) }` | `{ turnId: TurnId }` | M1 |
 | turn | `turn.interrupt` | `{ threadId: ThreadId, turnId?: TurnId }` | `{ interrupted: boolean }` | M2 |
 | turn | `turn.resume` | `{ threadId: ThreadId }` | `{ status: "resumed", turnId: TurnId, from: ResumeFrom }`, `{ status: "closed", turnId: TurnId, reason: "abort_requested"\|"owner_cancelled" }`, `{ status: "nothing" }` | M2 |
@@ -327,6 +328,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | secret | `secret.beginEntry` | `{ name: SecretName, action: "add"\|"set"\|"rotate" }` | `{ started: boolean }` | M2 |
 | secret | `secret.beginReveal` | `{ name: SecretName }` | `{ started: boolean }` | M2 |
 
+- [결정: m2c G2-12] `thread.rename`은 대화 제목을 바꾼다. 목록이 모두 "제목 없음"으로 보이는 문제(`L1.persistence.spec` §4.10.5 `setTitle`)를 클라이언트가 풀 길이다. 호스트는 `thread.updated { title }`를 커밋하고 그 위치를 `position`으로 돌려준다. 제목은 1~200자이며(`ThreadSummary.title`, `thread.create`의 `title`과 같은 상한) 지우는 길은 없다. 쓰기 소유가 필요해서 `turn.start`처럼 암묵 획득을 한 번 시도하고 실패하면 `thread.locked`(3002)다. 없는 thread는 `thread.notFound`(3001), 닫힌 thread는 `thread.closed`(3007)다. 진행 중인 turn이 있어도 바꿀 수 있다.
+  - 첫 입력에서 제목을 정하는 규칙(M2): 첫 `turn.start` 입력의 앞 80자(줄바꿈은 공백 하나로)를 제목으로 쓴다. 정하는 주체는 호스트이고 이 메서드와 같은 커밋 경로를 쓴다. 이미 제목이 있는 thread는 바꾸지 않는다. 모델이 만드는 자동 제목은 M3다.
 - [결정: m2c G1-07] 비밀 wire 보강 네 가지다(`L4.host-service.spec` §10 19번, 23번).
   - `secret.test`의 결과는 `state`에 `decryptable`, `length`, `sha256Prefix`를 더했다(`L0.secrets.spec`의 `SecretTestResult`). `length`는 값의 바이트 수, `sha256Prefix`는 SHA-256 hex 앞 8자(소문자)이고 값이 없거나 풀 수 없으면 둘 다 null이다. 값은 어디에도 싣지 않는다. 앞 8자는 사람이 같은 값인지 견주는 표시용이고 감사 기록과 로그에는 남기지 않는다. 필드는 모두 필수라 옛 모양(`state`만)은 거부한다.
   - `secret.references { name }`는 삭제 전에 이 비밀을 가리키는 곳을 보인다(`L0.secrets.spec` `references`, `L4.cli.spec` §4.7 `secret rm`). 결과는 `{ settingKeys, activeLeases, sessions }`다. 메서드는 읽기 전용이다. 활성 임대가 있으면 `secret.remove`가 `secret.inUse`로 거부한다.
@@ -447,6 +450,7 @@ export interface WireMethodMap {
   "thread.delete":     { params: ThreadRefParams;        result: EmptyResult };
   "thread.fork":       { params: ThreadForkParams;       result: ThreadForkResult };
   "thread.revert":     { params: ThreadRevertParams;     result: ThreadRevertResult };
+  "thread.rename":     { params: ThreadRenameParams;     result: ThreadRenameResult };
   "turn.start":        { params: TurnStartParams;        result: TurnStartResult };
   "turn.interrupt":    { params: TurnInterruptParams;    result: TurnInterruptResult };
   "turn.resume":       { params: TurnResumeParams;       result: TurnResumeResult };

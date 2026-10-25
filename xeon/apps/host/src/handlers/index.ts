@@ -58,6 +58,8 @@ export function createWireHandlers(
     "thread.delete": createThreadDeleteHandler(engine, hub),
     "thread.fork": createThreadForkHandler(engine, hub),
     "thread.revert": createThreadRevertHandler(engine),
+    // G2-12: wire 계약만 있고 처리기는 HOST 트랙이 SessionService.setTitle에 잇는다
+    "thread.rename": notImplemented("thread.rename"),
     "turn.start": createTurnStartHandler(engine, hub),
     "turn.interrupt": createTurnInterruptHandler(engine),
     // G1-02: wire 계약만 있고 처리기는 HOST 트랙이 TurnPort.resume에 잇는다

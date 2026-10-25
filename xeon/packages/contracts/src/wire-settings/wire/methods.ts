@@ -403,6 +403,24 @@ export const ThreadRevertResultSchema: TObject<{ position: typeof StreamPosition
   Type.Object({ position: StreamPositionSchema }, { additionalProperties: false });
 export type ThreadRevertResult = Static<typeof ThreadRevertResultSchema>;
 
+/**
+ * thread.rename params. 대화 제목을 바꾼다(`thread.updated { title }`를 커밋). 제목은 1~200자이고 지우는 길은 없다.
+ * 첫 입력에서 제목을 뽑는 일(80자)은 클라이언트나 호스트가 하고 이 메서드로 보낸다.
+ */
+export const ThreadRenameParamsSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  title: TString;
+}> = Type.Object(
+  { threadId: ThreadIdSchema, title: Type.String({ minLength: 1, maxLength: 200 }) },
+  { additionalProperties: false },
+);
+export type ThreadRenameParams = Static<typeof ThreadRenameParamsSchema>;
+
+/** `position`은 제목 변경 이벤트를 반영한 저장소 위치다. 이 seq 이하의 `thread.updated`는 목록 갱신에 다시 적용하지 않는다 */
+export const ThreadRenameResultSchema: TObject<{ position: typeof StreamPositionSchema }> =
+  Type.Object({ position: StreamPositionSchema }, { additionalProperties: false });
+export type ThreadRenameResult = Static<typeof ThreadRenameResultSchema>;
+
 // ── turn.* ───────────────────────────────────────────────────────────────
 
 /** pi UserMessage["content"]와 같은 모양: 문자열 또는 텍스트·이미지 블록 목록 */
@@ -1071,6 +1089,10 @@ interface WireSchemas {
     params: WithMeta<typeof ThreadRevertParamsSchema>;
     result: typeof ThreadRevertResultSchema;
   };
+  "thread.rename": {
+    params: WithMeta<typeof ThreadRenameParamsSchema>;
+    result: typeof ThreadRenameResultSchema;
+  };
   "turn.start": {
     params: WithMeta<typeof TurnStartParamsSchema>;
     result: typeof TurnStartResultSchema;
@@ -1237,6 +1259,7 @@ export const WIRE_METHODS: {
   "thread.delete": spec(ThreadRefRequestSchema, EmptyResultSchema, "M2"),
   "thread.fork": spec(withMeta(ThreadForkParamsSchema), ThreadForkResultSchema, "M2"),
   "thread.revert": spec(withMeta(ThreadRevertParamsSchema), ThreadRevertResultSchema, "M2"),
+  "thread.rename": spec(withMeta(ThreadRenameParamsSchema), ThreadRenameResultSchema, "M2"),
   "turn.start": spec(withMeta(TurnStartParamsSchema), TurnStartResultSchema, "M1"),
   "turn.interrupt": spec(withMeta(TurnInterruptParamsSchema), TurnInterruptResultSchema, "M2"),
   "turn.resume": spec(withMeta(TurnResumeParamsSchema), TurnResumeResultSchema, "M2"),
