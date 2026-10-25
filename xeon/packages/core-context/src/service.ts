@@ -39,8 +39,16 @@ export interface ContextServiceDeps {
   readonly producer?: ProducerHandle;
   /** 컴팩션 이벤트 id 발급. 없으면 컴팩션을 하지 않는다 */
   readonly ids?: IdFactory;
+  /**
+   * 컴팩션 뒤에도 요약 바로 뒤에 다시 넣는 custom 메시지의 customType. 기본은 L2.knowledge의 스킬 색인과 메모리 스냅샷
+   * 블록(`knowledge.context`)과 색인 변경 메모(`knowledge.index-delta`)다. 빈 배열이면 재주입하지 않는다
+   */
+  readonly reinjectCustomTypes?: readonly string[];
   readonly logger?: Logger;
 }
+
+/** L2.knowledge.spec §4.2.5의 customType. 같은 문자열을 두 층이 약속한다(L1은 L2를 import하지 않는다) */
+const DEFAULT_REINJECT_TYPES: readonly string[] = ["knowledge.context", "knowledge.index-delta"];
 
 const COMPACTION_DISABLED: CompactOutcome = { status: "skipped", why: "disabled" };
 const NO_CHECK: CompactCheck = { should: false, tokens: 0, threshold: 0 };
@@ -50,6 +58,7 @@ export function createContextService(deps: ContextServiceDeps): ContextService {
     deps.settings ?? ((): ReturnType<ContextSettingsSource> => DEFAULT_CONTEXT_SETTINGS);
   /** 스레드마다 가장 최근 조립의 프롬프트 입력. 컴팩션이 새 접두를 만들 때 쓴다 */
   const lastInputs = new Map<ThreadId, PromptInputs>();
+  const reinject: ReadonlySet<string> = new Set(deps.reinjectCustomTypes ?? DEFAULT_REINJECT_TYPES);
 
   const compactDeps: CompactDeps | null =
     deps.producer === undefined || deps.ids === undefined
@@ -72,7 +81,7 @@ export function createContextService(deps: ContextServiceDeps): ContextService {
 
   return {
     async assemble(threadId, leaf, opts) {
-      const result = await assembleContext({ ...deps, settings }, threadId, leaf, opts);
+      const result = await assembleContext({ ...deps, settings, reinject }, threadId, leaf, opts);
       if (result.ok) {
         lastInputs.set(threadId, {
           basePrompt: opts.basePrompt,
@@ -101,6 +110,7 @@ export function createContextService(deps: ContextServiceDeps): ContextService {
         head,
         prefixIndex,
         systemMessageOf(projected.value[prefixIndex]),
+        reinject,
       );
       const current = settings();
       const tokens = deps.models.tokens.estimateContext(messages).tokens;

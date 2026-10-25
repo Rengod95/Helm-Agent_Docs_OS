@@ -376,12 +376,22 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 - 확장이 `session_before_tree`에서 요약을 직접 주면(pi `SessionBeforeTreeResult.summary`) A안의 호출자는 `summarizeBranch`를 부르지 않는다.
 
+### 4.9a 컴팩션 뒤 재주입 [구현: M2 마감 G2-01]
+
+컴팩션은 요약 앞의 원문을 모델 컨텍스트에서 뺀다. 첫 turn에 L2.knowledge가 넣은 스킬 색인·메모리 스냅샷 블록(`customType` `knowledge.context`)과 색인 변경 메모(`knowledge.index-delta`)가 같이 접히면 모델이 스킬 목록과 메모리를 잃는다(감사 L2-05).
+
+- 조립(`effectiveMessages`)이 가지 위 `firstKeptEventId` 앞 범위에서 허용 목록에 든 `customType`의 custom item을 찾아, 컴팩션 요약 메시지 바로 뒤에 가지 순서대로 다시 놓는다. 새 이벤트를 커밋하지 않고 매번 가지에서 같은 값으로 만들므로 재개 뒤에도 같은 바이트다. 남은 범위(`firstKeptEventId` 이후)에 있는 같은 종류의 item은 그 자리에 한 번만 나온다.
+- 허용 목록은 `createContextService`의 `reinjectCustomTypes` 옵션이고 기본값은 `["knowledge.context", "knowledge.index-delta"]`다. L1은 L2를 import하지 않으므로 두 층이 이 문자열을 약속한다(`L2.knowledge.spec` §4.2.5). 빈 배열이면 재주입하지 않는다. 호스트가 다른 customType을 더하려면 옵션에 넘긴다.
+- 컴팩션을 하지 않은 가지는 영향이 없다. 임계 검사(`shouldCompact`)의 토큰 추정에도 재주입 메시지가 들어간다.
+- 컴팩션 요약 입력에서 이 메시지들을 빼지는 않는다. 요약이 색인 내용을 한 번 더 담을 수 있으나 짧다 [제안].
+- 최근 읽은 파일 재주입(`l1.context.reinjectRecentFiles`)은 §4.10에 남아 있다(M3).
+
 ### 4.10 2차
 
 | 항목 | 규칙 [제안] | 근거 |
 |---|---|---|
 | 도구 결과 선제 제거 | 모델 호출 없이 보호 구간(최근 `keepRecentTokens`) 밖의 `toolResult` 중 `pruneThresholdChars`(기본 200자)를 넘는 결과를 짧은 표지 `[tool result pruned: <toolName>, <n> chars]`로 바꾼다. 조립 때만 바꾸고 원본은 둔다. 컴팩션 전 1단계로 실행한다 | her(200자 초과 오래된 결과), oc prune(`_research/item-catalog.md` L1-e) |
-| 컴팩션 후 재주입 | 새 접두 다음에 최근 읽은 파일 5개(`details.readFiles` 뒤쪽)와 호출된 스킬 본문을 `custom` 메시지로 다시 넣는다. 본문은 도구 재실행 없이 블롭 원문에서 읽는다 | cc 최근 파일 5개, 스킬 본문 상한 |
+| 컴팩션 후 재주입(파일, 스킬 본문) | 새 접두 다음에 최근 읽은 파일 5개(`details.readFiles` 뒤쪽)와 호출된 스킬 본문을 `custom` 메시지로 다시 넣는다. 스킬 색인과 메모리 스냅샷 블록은 §4.9a로 M2에 구현했다. 본문은 도구 재실행 없이 블롭 원문에서 읽는다 | cc 최근 파일 5개, 스킬 본문 상한 |
 | 추가 워크스페이스 루트 | 세션 생성 때 받은 루트 목록을 context 계층 절 `workspaceRoots`로 둔다. 쓰기 범위는 샌드박스 설정(`L0.sandbox.spec`)과 함께 정한다 | ACP 추가 루트 |
 | 캐시 워밍 | 유휴 중 캐시 만료 전에 짧은 요청을 보낼지 정한다. 결정 전에 `cache_warming_decision`(chain)을 발화한다. 비용 계산은 카탈로그 단가와 `ModelPromptCache` 수명으로 한다 | pi `core/cache-warmer.ts` |
 

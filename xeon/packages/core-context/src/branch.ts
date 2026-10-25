@@ -17,7 +17,12 @@ import {
   type SessionService,
 } from "@xeon/contracts/records";
 import type { ContextError } from "@xeon/contracts/services";
-import { branchSummaryMessage, compactionSummaryMessage, itemToMessage } from "./convert.ts";
+import {
+  branchSummaryMessage,
+  compactionSummaryMessage,
+  customToUser,
+  itemToMessage,
+} from "./convert.ts";
 
 // 가지 읽기와 투영. assemble(조립), compact(컴팩션), summarizeBranch(가지 요약)가 같은 읽기 규칙을 쓴다.
 
@@ -166,9 +171,29 @@ export function findPrefixIndex(
   return -1;
 }
 
+const NO_REINJECTION: ReadonlySet<string> = new Set();
+
+/** 머리 앞(요약에 접힌 범위)에 기록된, 재주입 대상 customType의 custom 메시지. 가지 순서 그대로다 */
+function reinjectedMessages(
+  projected: readonly (Projected | undefined)[],
+  head: CompactionHead,
+  reinject: ReadonlySet<string>,
+): Message[] {
+  if (reinject.size === 0) return [];
+  const folded: Message[] = [];
+  for (const entry of projected.slice(0, head.firstKeptIndex)) {
+    if (entry?.type !== "item" || entry.item.kind !== "custom") continue;
+    if (entry.item.status === "in_progress") continue;
+    if (reinject.has(entry.item.message.customType)) folded.push(customToUser(entry.item.message));
+  }
+  return folded;
+}
+
 /**
  * 컴팩션 머리와 기록된 접두를 반영한 모델 컨텍스트 메시지(§4.1 0~2). 접두는 호출자가 정해 첫 메시지로 넣는다.
  * 도구 변경·절 갱신 item은 접두 뒤 위치 그대로 두고, 머리 앞에 기록된 것은 새 접두가 반영하므로 뺀다.
+ * `reinject`에 든 customType의 custom 메시지는 머리 앞(요약에 접힌 범위)에 있어도 요약 바로 뒤에 시간 순서대로 다시
+ * 넣는다(컴팩션 뒤 재주입, L1.context.spec §4.10, M2 마감 G2-01). 가지에서 매번 같은 값으로 다시 만들어 커밋하지 않는다.
  * volatile, 변경 덧붙이기, 지점 처리는 하지 않는다
  */
 export function effectiveMessages(
@@ -177,9 +202,13 @@ export function effectiveMessages(
   head: CompactionHead | null,
   prefixIndex: number,
   prefixMessage: SystemMessage | undefined,
+  reinject: ReadonlySet<string> = NO_REINJECTION,
 ): Message[] {
   const messages: Message[] = prefixMessage === undefined ? [] : [prefixMessage];
-  if (head !== null) messages.push(compactionSummaryMessage(head.summary, head.recordedAt));
+  if (head !== null) {
+    messages.push(compactionSummaryMessage(head.summary, head.recordedAt));
+    messages.push(...reinjectedMessages(projected, head, reinject));
+  }
   const startIndex = head === null ? 0 : head.firstKeptIndex;
   for (let index = startIndex; index < projected.length; index += 1) {
     const entry = projected[index];

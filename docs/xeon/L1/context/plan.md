@@ -49,7 +49,7 @@ xeon/packages/core-context/
       branch-summary.ts        # summarizeBranch 초안 (C-7)
     overflow.ts                # recoverOverflow, 단계당 1회 판정(details.xeon.stepId) (C-8)
     prune.ts                   # 2차: 도구 결과 선제 제거 (C-10)
-    reinject.ts                # 2차: 컴팩션 후 재주입 (C-11)
+    reinject.ts                # 2차: 최근 파일 재주입 (C-11). 블록 재주입은 branch.ts의 effectiveMessages가 한다
     settings.ts                # defineSettings("l1.context", …)
   test/
     *.test.ts
@@ -74,7 +74,7 @@ xeon/packages/core-context/
 | C-8 | 오버플로우 복구: `recoverOverflow`, 같은 단계 판정, M1의 `fail(disabled)` 경로 | C-7, `L1.models.plan` M-1(`classify`) | 소 | M1(disabled 경로) → M2 |
 | C-9 | 지점 발화 6개: `context`(M1), `context_with_system`, `session_before_compact`, `session_compact`, `session_compact_failed`, `cache_warming_decision`(선언과 발화 자리만, 실제 발화는 2차 워밍) | C-1, C-7, X 디스패치 | 중 | M1 → M2 |
 | C-10 | 도구 결과 선제 제거 | C-7 | 소 | 2차 |
-| C-11 | 컴팩션 후 재주입 | C-7 | 중 | 2차 |
+| C-11 | 컴팩션 후 재주입. 스킬 색인·메모리 스냅샷 블록(`knowledge.context`, `knowledge.index-delta`)은 M2 마감에 구현(spec §4.9a). 최근 파일·스킬 본문은 2차 | C-7 | 중 | M2 마감(블록), 2차(파일) |
 
 - 선행 외부 작업: contracts(F 요청 타입), core-models 서비스(`xeon.models`의 `complete`, `tokens`, `classify`, `CachePolicy`), core-persistence 커밋(`xeon.session`의 `commit`, `readBranch`, `loadCheckpoint`. `threads.moveLeaf`의 `summary` 옵션은 M2).
 
@@ -123,6 +123,7 @@ xeon/packages/core-context/
 | `context_point_chain_replaces_messages` | `test/assemble.test.ts` | unit | `context`(chain) 핸들러가 낸 `messages`가 조립 결과를 바꾸고, 시스템 메시지는 핸들러에 넘어가지 않으며, 핸들러 예외면 그 패치만 버린다(C-9) | M1 |
 | `branch_summary_draft_not_committed` | `test/branch-summary.test.ts` | unit | `summarizeBranch`가 `BRANCH_SUMMARY_PROMPT`로 요약 초안(`BranchSummaryDraft`)을 돌려주고 커밋 0건이다. 요약 역할은 `summary`(C-7) | M2 |
 | `cache_warming_decision_declared_not_fired` | `test/compact-points.test.ts` | unit | 지점 `cache_warming_decision`이 선언 목록에 있고 M2 빌드에서는 발화 0회다. 실제 발화는 2차 캐시 워밍에서 시험한다(C-9) | M2 |
+| `reinjection_after_compaction` | `test/reinject.test.ts` | unit | 접힌 범위의 `knowledge.context`와 `knowledge.index-delta`가 요약 바로 뒤에 가지 순서로 한 번 나오고, 허용 목록 밖의 custom은 나오지 않으며, 남은 범위의 메모는 중복되지 않는다. 허용 목록이 비면 재주입하지 않고, 컴팩션이 없으면 기록된 자리에 그대로다 (M2 마감 G2-01) |
 
 - [구현: M2] core-context는 core-models를 import하지 못하므로(같은 층, DR-14) 요약 모델은 `test/support/fake-models.ts`의 대역이다. 요약 응답을 차례로 준비하고 호출 기록(역할 `summary`, `cacheRetention: "none"`, 시스템·사용자 프롬프트)을 확인한다. 저장소는 `test/support/log.ts`의 메모리 가지(`commit`, `producer` 포함)다.
 - 모델은 `@xeon/core-models/testing`의 테이프 가짜로 대신한다(`eng.testing.guide` TS-04). 테이프 `role`은 `summary`다.

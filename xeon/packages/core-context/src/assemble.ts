@@ -44,6 +44,8 @@ export interface AssembleDeps extends BranchReaderDeps {
   readonly ext: Pick<ExtHost, "dispatch">;
   /** 호출 시점의 유효 설정. 없으면 기본값이다 */
   readonly settings?: () => ContextSettings;
+  /** 컴팩션 머리 앞에 있어도 요약 뒤에 다시 넣는 custom 메시지의 customType. 없으면 재주입하지 않는다 */
+  readonly reinject?: ReadonlySet<string>;
   readonly logger?: Logger;
 }
 
@@ -256,7 +258,14 @@ export async function assembleContext(
   const switched = modelSwitchWarning(events, opts.binding);
   if (switched !== undefined) warnings.push(switched);
 
-  const messages = effectiveMessages(events, projected, head, prefixIndex, prefixMessage);
+  const messages = effectiveMessages(
+    events,
+    projected,
+    head,
+    prefixIndex,
+    prefixMessage,
+    deps.reinject,
+  );
   messages.push(...appended);
 
   const afterContext = await applyContextPoint(deps, threadId, opts, messages);

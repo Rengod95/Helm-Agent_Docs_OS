@@ -40,6 +40,8 @@ export interface HarnessOptions {
   readonly models?: FakeModelsOptions;
   /** 거짓이면 생산자·id 발급 없이 만든다(컴팩션 꺼진 서비스) */
   readonly compaction?: boolean;
+  /** 컴팩션 뒤 재주입 customType. 생략하면 서비스 기본값 */
+  readonly reinjectCustomTypes?: readonly string[];
 }
 
 export interface Harness {
@@ -70,6 +72,9 @@ export async function harness(options: HarnessOptions = {}): Promise<Harness> {
     ext: host.host,
     settings: () => settings,
     ...(compaction ? { producer, ids: log.ids } : {}),
+    ...(options.reinjectCustomTypes === undefined
+      ? {}
+      : { reinjectCustomTypes: options.reinjectCustomTypes }),
     logger: memoryLogger(logged),
   });
   return {
