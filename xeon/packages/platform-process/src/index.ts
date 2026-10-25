@@ -80,3 +80,21 @@ export {
   type ProcessSelectError,
   type TreeSignal,
 } from "./select.ts";
+export {
+  createMcpProcessPort,
+  DEFAULT_MCP_STDIN_CLOSE_MS,
+  type McpChild,
+  type McpProcessDeps,
+  type McpProcessPort,
+  type McpSecretSource,
+  type McpSpawnError,
+  type McpSpawnSpec,
+} from "./port/mcp-spawn.ts";
+export {
+  spawnPiped,
+  type PipedChild,
+  type PipedExit,
+  type PipedSpawnDeps,
+  type PipedSpawnError,
+  type PipedSpawnInput,
+} from "./port/spawn-piped.ts";

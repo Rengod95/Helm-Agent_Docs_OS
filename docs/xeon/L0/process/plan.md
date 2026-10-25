@@ -19,7 +19,7 @@ binds: [xeon/packages/platform-process/**]
 | 마일스톤 | 범위 | 작업 |
 |---|---|---|
 | M1 | in-process 전송 쌍과 envelope 검사 연결, 백그라운드 프로세스 레지스트리, 종료 협조 골격(`ProcessShutdown`), `xeon chat` 단계 0(자식 엔진 없음, adr.0006 §3.5) | PR-01, PR-06, PR-07, PR-08 |
-| M2 | 줄 단위 프레이밍과 stdio JSONL 전송, 전송 적합성 스위트(`F.wire-settings.spec` §9 A10), 자식 엔진 수명 임대(stdin EOF + `host.shutdown`), 잠금 실패 정책, 복구 표식 제시, X 포트 `ProcessPort.run`(외부 훅) | PR-02~PR-05, PR-15, PR-16, PR-21 |
+| M2 | 줄 단위 프레이밍과 stdio JSONL 전송, 전송 적합성 스위트(`F.wire-settings.spec` §9 A10), 자식 엔진 수명 임대(stdin EOF + `host.shutdown`), 잠금 실패 정책, 복구 표식 제시, X 포트 `ProcessPort.run`(외부 훅), MCP stdio 서버 포트 | PR-02~PR-05, PR-15, PR-16, PR-21, PR-23 |
 | M2 이후(제품 1차 범위) | 공유 서비스 모드: 등록 파일, `ensure`, 이중 기동 방지, 버전 불일치, 유휴 종료, 토큰 인증, 소켓 전송, 감독 | PR-09~PR-14 |
 | M3(제품 1차 범위) | 원격 사용: 로컬 서비스 소켓을 SSH 터널(Unix 소켓 전달)이나 사설망으로 연결해 같은 socket 전송·인증 규칙으로 접속 | PR-20 |
 | 2차 | launchd·systemd 등록, 내장 원격 전송(TLS + 토큰 WebSocket), Windows 전송 대안, `ProcessPort.spawn`(격리 확장 자식) | PR-17~PR-19, PR-22 |
@@ -48,6 +48,8 @@ xeon/packages/platform-process/
     registry.ts                   # BackgroundRegistry (메모리)
     port/
       hook-run.ts                 # ProcessPort.run: 셸 없는 실행, 출력 상한, signal 중단 시 트리 종료 (PR-21)
+      spawn-piped.ts              # 파이프 자식 기동: 셸 없음, 새 프로세스 그룹, 종료와 stdout 닫힘을 함께 기다림 (PR-23)
+      mcp-spawn.ts                # McpProcessPort: 비밀 env 주입, 레지스트리 등록, stdin 닫기 → SIGTERM → SIGKILL (PR-23)
       isolation.ts                # ProcessPort.spawn: 격리 확장 자식 기동과 레지스트리 등록 (PR-22, 2차)
     service/
       registration.ts             # ServiceRegistrationSchema, RegistrationStore (0600, 임시 파일 + rename, 미지 필드 보존)
@@ -118,6 +120,7 @@ xeon/packages/platform-process/
 | PR-18 | 내장 원격 전송(TLS + 토큰 WebSocket), 비루프백 무인증 기동 금지 | PR-13 | L | 2차 |
 | PR-19 | Windows 전송 대안 실측과 구현(미결 P-6). 결과에 따라 F `TransportKind` 추가 요청 | PR-13 | L | 2차 |
 | PR-21 | `port/hook-run.ts`: `ProcessPort.run`(spec §4.8 규칙 1~5). 부모 env 미상속, stdin 쓰기 뒤 닫기, stdout·stderr 상한과 `stdoutTruncated`, `signal` 중단 시 graceful → force 트리 종료와 `timedOut`, 기동 실패는 `spawnError`. `service.ts`의 `ProcessService`에 연결 | PR-08, F.extensions.plan E10 | M | M2 |
+| PR-23 | `port/spawn-piped.ts`, `port/mcp-spawn.ts`: `createMcpProcessPort`(spec §4.9). 파이프 자식 기동, `secretEnv` 주입(M2는 승인 증거가 없어 `secret_denied`), `owner.kind: "mcp"` 등록, 정지 순서 stdin 닫기 → SIGTERM → SIGKILL, 기동 실패 값 | PR-06, PR-08, PR-21 | M | M2 |
 | PR-22 | `port/isolation.ts`: `ProcessPort.spawn`(spec §4.8). Bun 자식 기동, `owner.ref = label`로 레지스트리 등록, 트리 kill. M1~M2는 거부 구현만 둔다 | PR-06, PR-08 | M | 2차 |
 | PR-20 | 원격 사용 확인: 소켓 중계(SSH Unix 소켓 전달을 흉내 내는 테스트 중계)를 거친 클라이언트가 `connectSocket`, `host.hello` 토큰 검사, 서비스 소실 처리를 로컬과 같은 결과로 통과하는 int 테스트. 원격 연결 안내 문구(`ssh -L`, 사설망 주소)는 `L4.host-service.spec`이 쓴다 | PR-13, PR-14 | S | M3 |
 
