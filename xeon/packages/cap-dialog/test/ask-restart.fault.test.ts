@@ -114,6 +114,7 @@ describe("재시작 후 단일 완료", () => {
       await restarted.respond(first.approvalId, "answer", { scope: { selected: ["small"] } }),
     ).toEqual({
       applied: false,
+      reason: "unknown_approval",
     });
   });
 });
