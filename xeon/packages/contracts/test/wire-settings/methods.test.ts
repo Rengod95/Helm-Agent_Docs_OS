@@ -16,6 +16,17 @@ const THREAD = rawId("thr", 1);
 
 const names = Object.keys(WIRE_METHODS);
 
+/** thread.read 결과 원소로 쓰는 user item */
+function readItem(n: number): Record<string, unknown> {
+  return {
+    itemId: rawId("itm", n),
+    status: "completed",
+    kind: "user",
+    message: userText,
+    requestId: null,
+  };
+}
+
 describe("WIRE_METHODS", () => {
   test("has the 33 methods of the spec table with their stages", () => {
     expect(names).toHaveLength(33);
@@ -251,6 +262,20 @@ describe("M2 method schemas are written out", () => {
         hasMore: false,
       }).ok,
     ).toBe(false);
+  });
+
+  test("thread.read never returns more items than its limit allows", () => {
+    // 한 번에 받을 수 있는 최대 item 수는 요청 limit의 상한과 같다(한 페이지가 프레임 한도 안에서 limit 이하로 오는 근거)
+    const { result } = WIRE_METHODS["thread.read"];
+    const position = { storeId: STORE, seq: 12 };
+    const page = (count: number) => ({
+      threadId: THREAD,
+      items: Array.from({ length: count }, (_, i) => readItem(i + 1)),
+      position,
+      hasMore: true,
+    });
+    expect(parse(result, page(500)).ok).toBe(true);
+    expect(parse(result, page(501)).ok).toBe(false);
   });
 
   test("approval.list returns approval.requested payloads with the position they reflect", () => {
