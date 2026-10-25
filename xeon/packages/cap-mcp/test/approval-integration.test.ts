@@ -286,6 +286,8 @@ describe("input_required through the real approval service", () => {
     // question 요청에 allow는 맞지 않는 조합이다(L1.tools.spec §3.6). 해결되지 않는다
     expect(await approvals.approvals.respond(request.approvalId, { decision: "allow" })).toEqual({
       applied: false,
+      reason: "answer_invalid",
+      detail: 'decision "allow" does not fit this request',
     });
     expect(approvals.approvals.pending(threadId)).toHaveLength(1);
     await approvals.approvals.respond(request.approvalId, {
