@@ -309,7 +309,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | turn | `turn.resume` | `{ threadId: ThreadId }` | `{ status: "resumed", turnId: TurnId, from: ResumeFrom }`, `{ status: "closed", turnId: TurnId, reason: "abort_requested"\|"owner_cancelled" }`, `{ status: "nothing" }` | M2 |
 | events | `events.subscribe` | `{ from: StreamPosition \| "head", filter?: EventFilter }` | `{ sub: SubId, start: Seq, headSeq: Seq, storeId: StoreId, mode: "replaying"\|"live" }` | M1 |
 | events | `events.unsubscribe` | `{ sub: SubId }` | `{}` | M2 |
-| approval | `approval.respond` | `{ approvalId: string, decision: "allow"\|"deny"\|"answer", answer?: ApprovalAnswer, remember?: "once"\|"thread"\|"always" }` | `{ applied: boolean }` | M2 |
+| approval | `approval.respond` | `{ approvalId: string, decision: "allow"\|"deny"\|"answer", answer?: ApprovalAnswer, remember?: "once"\|"thread"\|"always" }` | `{ applied: boolean, reason?: "answer_invalid"\|"already_resolved"\|"unknown_approval"\|"commit_failed", detail?: string }` | M2 |
 | approval | `approval.list` | `{ threadId: ThreadId }` | `{ approvals: PendingApproval[], position: StreamPosition }` | M2 |
 | command | `command.list` | `{ prefix?: string, includeHidden?: boolean }` | `{ commands: CommandInfo[] }` | M2 |
 | command | `command.run` | `{ threadId: ThreadId, text: string, confirmShell?: boolean }` | `CommandRunOutput` | M2 |
@@ -407,6 +407,16 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   | `tool` | `allow` | 없음 |
 
   - 그 밖의 조합(예: 도구 승인에 질문 답, 질문에 `allow`)은 모양이 스키마를 통과해도 승인 서비스가 `applied: false`로 돌려준다. 스키마에 맞지 않는 `answer`는 `-32602`다.
+  - `applied: false`의 이유 [결정: m2c G1-09, 통합 검토 M2]: 결과의 `reason`이 `applied: false`인 이유를 알리고, 클라이언트는 이 값으로 응답을 고쳐 다시 보낼지 정한다.
+
+    | `reason` | 뜻 | 요청 상태 | 클라이언트 |
+    |---|---|---|---|
+    | `answer_invalid` | decision이 요청 kind에 맞지 않거나, `answer`가 질문 묶음·계획 모양에 맞지 않거나, 요청이 내지 않은 `remember`다. `detail`이 고칠 곳을 한 줄로 알린다(최대 512자) | 대기 그대로 | 입력을 고쳐 다시 보낸다 |
+    | `already_resolved` | 이미 해결됐거나 다른 응답이 해결을 커밋하는 중이다 | 해결됨 | 요청을 목록에서 지운다 |
+    | `unknown_approval` | 이 엔진이 모르는 `approvalId`다(저장소에도 미해결 요청이 없다) | 없음 | 목록을 `approval.list`로 다시 읽는다 |
+    | `commit_failed` | 응답은 맞았으나 `approval.resolved` 커밋이 실패했다 | 대기 그대로 | 다시 보낼 수 있다 |
+
+    `reason`이 없는 `applied: false`는 이유를 알리지 않는 구현이다. 클라이언트는 `answer_invalid`가 아닌 모든 값을 "다시 보내도 같다"로 다룬다. `applied: true`에는 `reason`이 없다. 요청이 속한 thread의 쓰기 소유가 없으면 결과 대신 3002 오류가 난다(§4.6).
   - L2.dialog의 `AskAnswer`(`{ answers: [{ questionId, selected, text }] }`)는 wire에 나오지 않는다. 클라이언트는 `QuestionBody`를 그려서 답을 `QuestionAnswer`로 만들고, 능력 쪽 어댑터(cap-dialog)가 `AskAnswer`와 서로 옮긴다(`L2.dialog.spec` §4.1.1). 선택지가 없는 질문은 `selected: []`와 `text`로 답한다.
 
 #### 3.3.2 알림 표

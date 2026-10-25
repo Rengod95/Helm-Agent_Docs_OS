@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "../../src/index.ts";
+import { APPROVAL_NOT_APPLIED_REASONS } from "../../src/services/index.ts";
 import {
   WIRE_CLIENT_NOTIFICATIONS,
   WIRE_METHODS,
@@ -190,6 +191,30 @@ describe("M2 method schemas are written out", () => {
       parse(params, { approvalId: rawId("evt", 1), decision: "answer", answer: { q1: "x" } }).ok,
     ).toBe(false);
     expect(parse(params, { approvalId: rawId("evt", 1), decision: "maybe" }).ok).toBe(false);
+  });
+
+  test("approval.respond result carries the reason a response was not applied", () => {
+    const { result } = WIRE_METHODS["approval.respond"];
+    expect(parse(result, { applied: true }).ok).toBe(true);
+    expect(parse(result, { applied: false, reason: "already_resolved" }).ok).toBe(true);
+    expect(
+      parse(result, { applied: false, reason: "answer_invalid", detail: "decision is wrong" }).ok,
+    ).toBe(true);
+    expect(parse(result, { applied: false, reason: "nope" }).ok).toBe(false);
+    expect(parse(result, { applied: false, extra: 1 }).ok).toBe(false);
+    expect(
+      parse(result, { applied: false, reason: "answer_invalid", detail: "x".repeat(513) }).ok,
+    ).toBe(false);
+    // 서비스의 이유 목록과 wire 스키마가 같은 값을 쓴다
+    expect([...APPROVAL_NOT_APPLIED_REASONS]).toEqual([
+      "answer_invalid",
+      "already_resolved",
+      "unknown_approval",
+      "commit_failed",
+    ]);
+    for (const reason of APPROVAL_NOT_APPLIED_REASONS) {
+      expect(parse(result, { applied: false, reason }).ok).toBe(true);
+    }
   });
 
   test("thread.read returns items with the position they reflect", () => {

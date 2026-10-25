@@ -542,8 +542,37 @@ export const ApprovalRespondParamsSchema: TObject<{
 );
 export type ApprovalRespondParams = Static<typeof ApprovalRespondParamsSchema>;
 
-export const ApprovalRespondResultSchema: TObject<{ applied: TBoolean }> = Type.Object(
-  { applied: Type.Boolean() },
+export const ApprovalRespondResultSchema: TObject<{
+  applied: TBoolean;
+  reason: TOptional<
+    TUnion<
+      [
+        TLiteral<"answer_invalid">,
+        TLiteral<"already_resolved">,
+        TLiteral<"unknown_approval">,
+        TLiteral<"commit_failed">,
+      ]
+    >
+  >;
+  detail: TOptional<TString>;
+}> = Type.Object(
+  {
+    applied: Type.Boolean(),
+    /**
+     * `applied: false`일 때 이유(F.wire-settings.spec §3.3.1). 서비스의 `ApprovalNotAppliedReason`과 같은 값이다.
+     * `answer_invalid`는 요청이 아직 대기 중이니 응답을 고쳐 다시 보낼 수 있고, `already_resolved`·`unknown_approval`은 다시 보내도 같다
+     */
+    reason: Type.Optional(
+      Type.Union([
+        Type.Literal("answer_invalid"),
+        Type.Literal("already_resolved"),
+        Type.Literal("unknown_approval"),
+        Type.Literal("commit_failed"),
+      ]),
+    ),
+    /** `answer_invalid`일 때 어디가 맞지 않는지 한 줄(사용자에게 보일 수 있다) */
+    detail: Type.Optional(Type.String({ maxLength: 512 })),
+  },
   { additionalProperties: false },
 );
 export type ApprovalRespondResult = Static<typeof ApprovalRespondResultSchema>;

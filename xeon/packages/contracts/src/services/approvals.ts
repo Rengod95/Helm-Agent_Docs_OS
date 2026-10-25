@@ -146,6 +146,29 @@ export interface DenyAnswer {
   readonly feedback: string;
 }
 
+/**
+ * `respond`가 응답을 적용하지 못한 이유. 클라이언트는 이 값으로 "응답을 고쳐 다시 보낸다"와 "더 할 일이 없다"를 구분한다.
+ * - `answer_invalid`: decision이 요청 kind에 맞지 않거나, answer가 질문·계획 모양에 맞지 않거나, 요청이 제시하지 않은 기억 범위다. 요청은 대기 그대로다.
+ * - `already_resolved`: 이미 해결됐거나 다른 응답이 해결을 커밋하는 중이다.
+ * - `unknown_approval`: 이 런타임의 대기 목록에 없는 approvalId다.
+ * - `commit_failed`: 응답은 맞았으나 `approval.resolved` 커밋이 실패했다. 요청은 대기 그대로라 다시 보낼 수 있다.
+ */
+export const APPROVAL_NOT_APPLIED_REASONS: readonly [
+  "answer_invalid",
+  "already_resolved",
+  "unknown_approval",
+  "commit_failed",
+] = ["answer_invalid", "already_resolved", "unknown_approval", "commit_failed"];
+export type ApprovalNotAppliedReason = (typeof APPROVAL_NOT_APPLIED_REASONS)[number];
+
+/** `respond`의 결과. `applied: false`면 `reason`이 있다. 이유를 알리지 않는 구현(시험용 가짜)은 생략할 수 있다 */
+export interface ApprovalApplyOutcome {
+  readonly applied: boolean;
+  readonly reason?: ApprovalNotAppliedReason;
+  /** `answer_invalid`일 때 어디가 맞지 않는지 한 줄 */
+  readonly detail?: string;
+}
+
 export interface ApprovalResponse {
   readonly decision: ApprovalDecision;
   /**
@@ -194,8 +217,8 @@ export interface ApprovalService {
     input: ApprovalRequestInput,
     signal: AbortSignal,
   ): Promise<Result<ApprovalResolution, ApprovalRequestError>>;
-  /** wire approval.respond 처리. 이미 해결된 요청이면 applied: false */
-  respond(approvalId: string, response: ApprovalResponse): Promise<{ readonly applied: boolean }>;
+  /** wire approval.respond 처리. 적용하지 못하면 applied: false와 이유(`ApprovalNotAppliedReason`: 응답이 맞지 않음, 이미 해결됨, 모르는 id, 커밋 실패) */
+  respond(approvalId: string, response: ApprovalResponse): Promise<ApprovalApplyOutcome>;
   /** 대화의 미해결 요청. 재개와 클라이언트 재접속 때 쓴다 */
   pending(threadId: ThreadId): readonly ApprovalRequest[];
   /** 재개 때 이벤트에서 미해결 요청을 다시 읽어 메모리 대기 목록을 채운다. 읽기 실패는 오류 값이다 */
@@ -277,8 +300,8 @@ export interface L2ApprovalsPort {
     threadId: ThreadId,
     approvalId: ApprovalId,
   ): Promise<Result<L2ApprovalSnapshot | null, ReadFailure>>;
-  /** 이미 해결된 요청이면 applied: false */
-  respond(input: L2ApprovalRespondInput): Promise<{ readonly applied: boolean }>;
+  /** 적용하지 못하면 applied: false와 이유(`ApprovalNotAppliedReason`) */
+  respond(input: L2ApprovalRespondInput): Promise<ApprovalApplyOutcome>;
   cancel(
     threadId: ThreadId,
     approvalId: ApprovalId,
