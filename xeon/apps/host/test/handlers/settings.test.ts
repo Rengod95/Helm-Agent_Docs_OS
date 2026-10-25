@@ -206,6 +206,28 @@ test("settings.set maps the port's write failures to wire errors", async () => {
   );
 });
 
+test("settings.set maps a reused session request key to an internal error and logs the Bug message", async () => {
+  const host = createFakeHost({
+    overrides: {
+      settings: {
+        write: () => Promise.resolve(err({ kind: "key_reused", requestKey: "evt_1" })),
+      },
+    },
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const error = await wireErrorOf(
+    connection.request("settings.set", { key: REPLAY, value: 5000, scope: "user" }),
+  );
+  expect(error.code).toBe(-32603);
+  expect(error.data.kind).toBe("internal");
+  const logged = host.fake.log.errors.find((entry) => entry.message === "handler.threw");
+  expect(logged?.fields["message"]).toBe(
+    "settings.write: the host builds a fresh request key per call",
+  );
+  await connection.close();
+});
+
 test("settings.set without a thread for the session scope is invalid params; for project it needs a workspace", async () => {
   const host = createFakeHost({
     overrides: {

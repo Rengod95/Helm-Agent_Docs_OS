@@ -359,7 +359,7 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 
 | 항목 | 내용과 시험 |
 |---|---|
-| 설정 쓰기 실패 | L1F가 `SessionSettingsStore.set/reset`에 `key_reused`를 값으로 더했다. `SettingsWriteFailure`에 같은 kind를 더하고 처리기가 `store.io`(`settings_key_reused`)로 옮긴다. 호스트는 키를 호출마다 새로 만들므로 방어 경로다 |
+| 설정 쓰기 실패 | L1F가 `SessionSettingsStore.set/reset`에 `key_reused`를 값으로 더했다. `SettingsWriteFailure`에 같은 kind를 더하고 처리기가 `store-error.ts`의 `keyReusedBug`로 `Bug`로 옮긴다(와이어에는 `-32603 internal`). 호스트는 키를 호출마다 새로 만들므로 키 재사용은 호출 결함이다. 수명 주기·생성의 `key_reused`도 같은 도우미를 쓴다 |
 | AG-11 시험 | 조립 루트가 core-agents를 싣게 되었으므로 `agent-tools-slot.int.test.ts`가 플러그인을 직접 설치하지 않고 `agentDefinitions` 옵션만 넘긴다. 자식 thread 열기도 조립 루트의 감싸개가 한다 |
 | thread.read 시험 | cap-knowledge의 첫 turn 문맥이 사용자 입력 뒤에 custom item 하나를 더한다. `lifecycle.int.test.ts`의 기대 종류가 `user, custom, system, assistant`다 |
 | 질문·계획 승인, 사용자 셸 | cap-dialog와 cap-work의 기본 구현(`questionApprovalsOver`, `planApprovalsOver`, `shellPortOver`)이 `xeon.approvals`와 `xeon.loop`를 감싼다. 조립 루트의 같은 일을 하던 `dialogApprovalsFactory`, `planApprovalsFactory`, `userShellPort`와 `createCallL2ApprovalsPort`, `createOriginL2ApprovalsPort`를 지웠다. 기본 구현은 재시작 뒤 `restore`와 `key_reused` 거부를 더 한다. `l2-approvals.ts`에는 cap-web이 쓰는 출처 없는 포트만 남았다 |

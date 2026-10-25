@@ -1,4 +1,4 @@
-import { assertNever } from "@xeon/contracts";
+import { assertNever, type Bug } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   checkSettingWrite,
@@ -9,7 +9,7 @@ import {
   type SettingScope,
 } from "@xeon/contracts/settings";
 import { wireError, type WireError, type WireHandler } from "@xeon/contracts/wire";
-import { wireErrorOfStore } from "../store-error.ts";
+import { keyReusedBug, wireErrorOfStore } from "../store-error.ts";
 import type { Engine, SettingsWriteFailure } from "../types.ts";
 import { threadLocked } from "./owner.ts";
 
@@ -64,7 +64,7 @@ function writeFailure(
   failure: SettingsWriteFailure,
   def: SettingDef,
   scope: SettingScope,
-): WireError {
+): WireError | Bug {
   switch (failure.kind) {
     case "thread_required":
       return failure.scope === "session"
@@ -93,10 +93,7 @@ function writeFailure(
         details: { code: failure.code.slice(0, 64) },
       });
     case "key_reused":
-      return wireError("store.io", {
-        message: "settings.write: the session request key was reused",
-        details: { code: "settings_key_reused" },
-      });
+      return keyReusedBug(failure, "settings.write");
     case "busy":
     case "disk_full":
     case "io":

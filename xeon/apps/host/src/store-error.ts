@@ -68,6 +68,14 @@ export function wireErrorOfLease(
 }
 
 /**
+ * 저장소의 `key_reused`를 호출 결함으로 판정하는 자리는 여기 하나다(수명 주기, 생성, 설정 쓰기가 같이 쓴다).
+ * 호스트는 요청 키를 호출마다 새로 만든다. 같은 키가 다른 내용으로 다시 오는 것은 호스트가 키를 잘못 다뤘다는 불변 조건 위반이다
+ */
+export function keyReusedBug(error: { readonly kind: "key_reused" }, where: string): Bug {
+  return new Bug(`${where}: the host builds a fresh request key per call`, { cause: error });
+}
+
+/**
  * 수명 주기 호출(fork, revert, delete)의 오류. 예상 가능한 실패는 와이어 오류로 옮긴다(F wire §3.5.2).
  * `key_reused`는 호출마다 새 요청 키를 만드는 호스트에서는 나올 수 없다(불변 조건 위반이라 Bug)
  */
@@ -97,7 +105,7 @@ export function wireErrorOfLifecycle(error: LifecycleError, where: string): Wire
         details: { point: error.point, reason: error.reason },
       });
     case "key_reused":
-      return new Bug(`${where}: the host builds a fresh request key per call`, { cause: error });
+      return keyReusedBug(error, where);
     default:
       return assertNever(error, "LifecycleError");
   }
@@ -114,9 +122,10 @@ export function wireErrorOfCreate(error: LifecycleError, where: string): WireErr
     case "ownership_lost":
     case "thread_not_found":
       return wireErrorOfStore(error, where);
+    case "key_reused":
+      return keyReusedBug(error, where);
     case "not_owner":
     case "thread_closed":
-    case "key_reused":
     case "turn_running":
     case "has_forks":
     case "invalid_target":

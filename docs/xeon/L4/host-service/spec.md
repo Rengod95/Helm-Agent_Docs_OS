@@ -962,7 +962,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 
 - HS-54. 값 검사는 F의 `checkSettingWrite`가 한다(`settings.set`과 CLI `config set`이 같은 함수). 저장은 범위마다 다르다.
   - `user`: `<config>/settings.json`. 읽기-수정-쓰기를 임시 파일과 rename으로 한다(0600). 다른 키와 카탈로그에 없는 키는 보존한다(F wire §4.8). 같은 파일에 대한 쓰기는 프로세스 안에서 차례로 한다. 기존 파일이 JSON 객체가 아니면 쓰지 않고 `store.io`(`details.code: settings_file_invalid`)다.
-  - `session`: `sessionSettings.set`·`reset`(`settings.changed` 커밋). `threadId`가 필요하고 이 프로세스가 그 thread의 쓰기 소유를 쥐어야 한다(없으면 3002).
+  - `session`: `sessionSettings.set`·`reset`(`settings.changed` 커밋). `threadId`가 필요하고 이 프로세스가 그 thread의 쓰기 소유를 쥐어야 한다(없으면 3002). 요청 키는 호출마다 새로 만들므로 저장소의 `key_reused`는 호출 결함(`Bug`)이다: `store-error.ts`의 `keyReusedBug` 한 곳이 판정하고 와이어에는 `-32603 internal`로 나간다(원문은 로그에만, HS-08).
   - `project`·`local`: 신뢰한 작업 폴더의 `.xeon/settings.json`·`.xeon/settings.local.json`(X.loading-trust.spec §4.7.2). `threadId`와 그 thread의 workspace가 필요하다. 프로젝트 신뢰 판정(§4.15 HS-58)이 `allow`여야 쓴다. 신뢰 필요 자원이 없어 판정을 건너뛴 폴더(`notRequired`)는 사람이 정한 결정(저장 파일 또는 기본 정책 `always`)이 있을 때만 쓴다: 파일을 쓰는 순간 그 폴더가 판정 대상이 되므로 결정 없이 쓰면 다음 시작에 파일이 무시된다.
   - `managed`: 쓰지 않는다(읽기 전용 관리 정책 파일). 3103 `reason: managedReadOnly`.
 - HS-55. `layers(threadId)`는 동기라서 project·local 파일은 thread를 쥘 때와 `settings.get`·`set`·`reset`을 받을 때(`prepare`) 신뢰한 작업 폴더의 것을 읽어 둔다. 한 번 읽은 파일은 이 프로세스가 쓸 때까지 다시 읽지 않는다(사용자 파일도 시작 때 한 번만 읽는다). 신뢰하지 않은 폴더는 층이 없고, 다음 `prepare`가 판정을 다시 한다.
