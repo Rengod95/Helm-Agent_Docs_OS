@@ -381,6 +381,9 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 
 [제안] `_research/foundation-plan.md §5` P3의 순서를 따른다. 루트 `justfile`의 `verify`가 아래 단계를 차례로 부르고, 한 단계라도 실패하면 거기서 멈춘다. 끝에 `ws check`가 붙는다.
 
+- 단계 0~8은 `_verify-steps`로 묶여 `scripts/guard.sh verify -- just _verify-steps` 아래에서 돈다(justfile 계약 v2 9번, `ws help justfile` 6.1절). 가드는 기기 전체에서 동시에 도는 검증을 `WS_GUARD_SLOTS`개(기본 2)로 제한하고, 검증 하나를 메모리 상한 `WS_GUARD_VERIFY_MAX`(기본 3G) scope에 넣는다. 모든 scope는 공용 예산 `ws-dev.slice` 안에 있다. systemd 사용자 세션이 없는 기기(macOS, CI)에서는 한 줄 알리고 상한 없이 돈다.
+- `scripts/guard.sh`는 dotfiles `modules/ws/templates/guard.sh`의 복사본이다(둘째 줄 `# ws-guard vN`). 저장소에서 고치지 않고 `ws stack update guard`로 올린다. 이전의 `xeon/scripts/verify-guarded.sh`와 `xeon-dev.slice`는 쓰지 않는다.
+
 | # | 단계 | 레시피 | 실제 명령 | 실패할 때 고치는 법 | 소요 목표 | 종료코드 |
 |---|---|---|---|---|---|---|
 | 0 | 설치 | `just setup` | `bun install --frozen-lockfile` | 잠금 파일과 `package.json`이 다르면 `bun install`로 잠금 파일을 갱신하고 같이 커밋한다. 네트워크·레지스트리 오류는 환경 문제다 | 10초(캐시 있음) | 1: 잠금 불일치, 2: 네트워크·mise |
@@ -392,7 +395,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | 5 | 경계 | `just depcruise` | `depcruise packages apps plugins --config .dependency-cruiser.cjs` | 규칙 이름 `DR-NN-...`과 `from → to` 경로가 나온다 | 20초 | 1 |
 | 6 | 미사용 | `just knip` | `knip` | 미사용 파일·export·의존 목록. 지우거나 `knip.json`의 `entry`가 빠졌는지 본다 | 20초 | 1 |
 | 7 | 문서 | `just docs-route --check --allow-missing` | `bun scripts/docs-route.ts --check --allow-missing` | `문서경로: 오류`. 프런트매터, `depends_on`, `binds`를 고친다 | 3초 | 1 |
-| 8 | 테스트 | `just test` | `scripts/test-capped.sh`: `scripts`와 `test` 스크립트가 있는 패키지를 하나씩, cgroup 메모리 상한(`systemd-run --user`, 기본 `XEON_TEST_MEMORY_MAX=1500M`) 아래에서 각 패키지 cwd의 `bun test`로 돈다. 인자로 패키지 디렉터리를 주면 그것만 돈다 | 실패한 테스트 파일과 기대·실제 값. 커버리지 임계 미달은 메시지 없이 1로 끝난다(`_research/notes/eng-3.md §3.2`) | 60초(영향 범위) | 1 |
+| 8 | 테스트 | `just test` | `scripts/test-capped.sh`: `scripts`와 `test` 스크립트가 있는 패키지를 하나씩 저장소 루트 `scripts/guard.sh run` 아래에서 각 패키지 cwd의 `bun test`로 돈다. 실행 단위 메모리 상한은 `WS_GUARD_RUN_MAX`(기본 1500M), 대상마다 시간 상한은 `XEON_TEST_TIMEOUT_SEC`(기본 300초)다. 끝 줄에 건너뛴 시험 수를 적는다. 인자로 패키지 디렉터리를 주면 그것만 돈다(`just test packages/<이름>`) | 실패한 테스트 파일과 기대·실제 값. 커버리지 임계 미달은 메시지 없이 1로 끝난다(`_research/notes/eng-3.md §3.2`) | 60초(영향 범위) | 1 |
 | 9 | 환경 | `ws check` | 사용자 환경 검사 | `ws help`를 본다 | — | 2 |
 
 - 소요 목표 열은 실측 전 추정이다 [가정].

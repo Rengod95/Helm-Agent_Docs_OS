@@ -25,7 +25,7 @@ Xeon 코드의 테스트를 어떻게 쓰고, 어디에 두고, 어떻게 돌리
 - 통합 테스트는 최소로 둔다. 여러 패키지를 함께 띄우는 통합 테스트는 모델 테이프 기반 스모크 1개만 둔다.
 - 모델은 테이프 가짜로 대신한다. 테스트는 실제 모델과 네트워크를 쓰지 않는다.
 - 테스트 실행기는 `bun test`다. 패키지마다 따로 돈다. CI는 층별 job으로 돈다.
-- 로컬 실행은 `just test`다. `xeon/scripts/test-capped.sh`가 패키지를 하나씩 cgroup 메모리 상한 아래에서 돌려, 메모리를 과하게 쓰는 테스트는 그 패키지 실행만 끝낸다. 한 패키지만 돌릴 때는 `just test packages/<이름>`을 쓴다(`eng.toolchain.guide` 3.1절 8행).
+- 로컬 실행은 `just test`다. `xeon/scripts/test-capped.sh`가 패키지를 하나씩 저장소 루트 `scripts/guard.sh run`의 메모리 상한 아래에서 돌려, 메모리를 과하게 쓰는 테스트는 그 패키지 실행만 끝낸다. 끝 줄에 건너뛴 시험 수를 적는다. 한 패키지만 돌릴 때는 `just test packages/<이름>`을 쓴다(`eng.toolchain.guide` 3.1절 8행).
 - Vitest는 쓰지 않는다. Vitest는 Node 위에서 돌아 `bun:sqlite`를 쓰는 테스트를 실행하지 못한다.
 
 ### 1.2 패키지별 테스트 도우미

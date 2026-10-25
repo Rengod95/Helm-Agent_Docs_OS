@@ -1,15 +1,23 @@
 #!/usr/bin/env bash
-# Run `bun test` for scripts/ and every workspace package, one at a time, each under a memory cap.
-# A runaway test then ends only its own run (oom-kill) instead of exhausting the machine.
+# Run `bun test` for scripts/ and every workspace package, one at a time, each under the machine guard
+# (../scripts/guard.sh run: a memory cap per run inside the shared ws-dev.slice budget). A runaway test then ends only
+# its own run (oom-kill) instead of exhausting the machine. Inside `just verify` the guard is already active, so each
+# run shares the verify cap and only the per-target time limit below applies.
 # usage: test-capped.sh [package-dir ...]   (default: scripts and all packages with a "test" script)
-# env: XEON_TEST_MEMORY_MAX (default 1500M), XEON_TEST_TIMEOUT_SEC (default 300), XEON_SLICE (default xeon-dev.slice:
-#      all tests and verifications share that slice's memory budget, see ~/.config/systemd/user/xeon-dev.slice)
+# env: XEON_TEST_TIMEOUT_SEC (default 300) seconds per target; WS_GUARD_RUN_MAX (default 1500M) memory cap per target
+#      outside verify (see ../scripts/guard.sh for the other WS_GUARD_* knobs).
+# The summary line counts the tests bun reported as skipped, so a skip in CI is visible (just exit-tests fails on it).
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
-mem="${XEON_TEST_MEMORY_MAX:-1500M}"
-timeout_sec="${XEON_TEST_TIMEOUT_SEC:-300}"
 root="$PWD"
+guard="$root/../scripts/guard.sh"
+timeout_sec="${XEON_TEST_TIMEOUT_SEC:-300}"
+
+if [[ ! -x "$guard" ]]; then
+  echo "test-capped: $guard is missing (ws repo adopt copies it)" >&2
+  exit 2
+fi
 
 if [[ $# -gt 0 ]]; then
   targets=("$@")
@@ -23,40 +31,30 @@ else
   done
 fi
 
-# systemd user scope gives a real cgroup cap; without it fall back to a plain run.
-capped=false
-if command -v systemd-run >/dev/null && [[ "$(systemctl --user is-system-running 2>/dev/null)" =~ ^(running|degraded)$ ]]; then
-  capped=true
-else
-  echo "test-capped: systemd user session not available, running without a memory cap" >&2
-fi
+limit=()
+if command -v timeout >/dev/null 2>&1; then limit=(timeout "$timeout_sec"); fi
 
 failed=()
+skipped=0
+log="$(mktemp)"
+trap 'rm -f "$log"' EXIT
 for target in "${targets[@]}"; do
   dir="$root/$target"
   args=(test)
   if [[ "$target" == "scripts" ]]; then dir="$root"; args=(test scripts); fi
   echo "== $target"
-  if [[ "$capped" == "true" ]]; then
-    status=0
-    systemd-run --user --wait --pipe --collect --quiet --slice="${XEON_SLICE:-xeon-dev.slice}" \
-      -p MemoryMax="$mem" -p MemorySwapMax=0 -p RuntimeMaxSec="$timeout_sec" \
-      -p WorkingDirectory="$dir" -E PATH="$PATH" -E HOME="$HOME" \
-      -- mise exec -- bun "${args[@]}" || status=$?
-  else
-    status=0
-    (cd "$dir" && timeout "$timeout_sec" mise exec -- bun "${args[@]}") || status=$?
-  fi
+  status=0
+  (cd "$dir" && "$guard" run -- "${limit[@]}" mise exec -- bun "${args[@]}") 2>&1 | tee "$log" || status=$?
+  count="$(sed -nE 's/^ *([0-9]+) skip$/\1/p' "$log" | tail -1)"
+  skipped=$((skipped + ${count:-0}))
   if [[ "$status" -ne 0 ]]; then
-    reason="exit $status"
-    if [[ "$capped" == "true" ]]; then reason="$reason (memory cap $mem, timeout ${timeout_sec}s; 'journalctl --user -n 20' shows oom-kill or timeout)"; fi
-    echo "test-capped: $target failed: $reason" >&2
+    echo "test-capped: $target failed: exit $status (124: time limit ${timeout_sec}s; 137: memory cap, see journalctl --user -n 20)" >&2
     failed+=("$target")
   fi
 done
 
 if [[ ${#failed[@]} -gt 0 ]]; then
-  echo "test-capped: failed: ${failed[*]}" >&2
+  echo "test-capped: failed: ${failed[*]} ($skipped skipped)" >&2
   exit 1
 fi
-echo "test-capped: all ${#targets[@]} targets passed"
+echo "test-capped: all ${#targets[@]} targets passed ($skipped skipped)"

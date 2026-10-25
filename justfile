@@ -1,4 +1,4 @@
-# justfile 계약 v1 (전체: ws help justfile). 고치기 전에 읽는다.
+# justfile 계약 v2 (전체: ws help justfile). 고치기 전에 읽는다.
 # 1. 공개 레시피 이름은 동사 사전에서 고른다(ws help verbs). 없는 동사가 필요하면 저장소 고유 이름 + [group('local')].
 # 2. 변형은 레시피를 늘리지 말고 env/target/mode 값으로 추가한다. 새 env는 `just env-add <env>`.
 # 3. 기기를 넘는 일은 `ws on`, 비밀은 `secrets`. ssh·sops·절대 경로·비밀 값 출력 금지.
@@ -7,6 +7,7 @@
 # 6. 앱 스크립트(package.json 등)를 바꾸면 그것을 부르는 레시피도 같은 커밋에서 고친다.
 # 7. 환경·비밀 동사(secret-add, dotenv …)는 ~/.config/ws/ws.just에서 온다. 여기서 다시 만들지 않는다.
 # 8. 고친 뒤 `just --list`, `just verify`.
+# 9. test·verify는 scripts/guard.sh(기기 슬롯, 공용 메모리 예산) 아래에서 돈다: `scripts/guard.sh run -- <명령>`, verify는 `scripts/guard.sh verify -- just _verify-steps`.
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set allow-duplicate-recipes
 import? '~/.config/ws/ws.just'
@@ -38,10 +39,10 @@ lint:
 typecheck:
     cd xeon && just typecheck
 
-# Xeon 단위 테스트 (bun test, turbo)
+# Xeon 단위 테스트: scripts와 패키지를 하나씩 scripts/guard.sh run 상한 아래에서. 인자로 패키지 디렉터리 (xeon/scripts/test-capped.sh)
 [group('quality')]
-test:
-    cd xeon && just test
+test *targets:
+    cd xeon && just test {{targets}}
 
 # 층 순위 검사 (xeon/scripts/check-layers.ts)
 [group('local')]
@@ -73,10 +74,10 @@ docs-route +args:
 ci-layer layer affected="false":
     cd xeon && just ci-layer {{layer}} {{affected}}
 
-# 완료 기준. 검사 전부와 ws check (ws help justfile). 기기 전체 동시 검증 2개, 검증당 메모리 3G (xeon/scripts/verify-guarded.sh)
+# 완료 기준. 검사 전부와 ws check (ws help justfile). 기기 전체 동시 검증 2개, 검증당 메모리 3G, 공용 예산 ws-dev.slice (scripts/guard.sh)
 [group('quality')]
 verify:
-    xeon/scripts/verify-guarded.sh just _verify-steps
+    scripts/guard.sh verify -- just _verify-steps
     ws check
 
 # verify 단계 묶음. verify가 슬롯과 메모리 상한 안에서 부른다
