@@ -47,7 +47,8 @@ function fail(code: "secret_unavailable" | "aborted" | "env_denied", message: st
 }
 
 /**
- * `secretEnv.refs`의 각 항목에 env 모드 lease를 연다. 하나라도 실패하면 이미 얻은 lease를 모두 폐기하고
+ * `secretEnv.refs`의 각 핸들에 env 모드 lease를 한 번씩 열고, 그 핸들을 가리키는 env 이름 모두에 같은 값을 채운다
+ * (핸들당 승인 1회, L0.exec.spec §3.6). 하나라도 실패하면 이미 얻은 lease를 모두 폐기하고
  * `secret_unavailable`을 돌려준다. 오류 메시지에는 참조 이름(`secret://…`)만 넣는다.
  */
 export async function acquireSecretEnv(
@@ -56,6 +57,8 @@ export async function acquireSecretEnv(
   const entries = Object.entries(input.request.refs);
   const leases: SecretLease[] = [];
   const values: Record<string, string> = {};
+  // 핸들별로 읽은 값. 같은 핸들을 가리키는 env 이름이 여럿이어도 lease와 승인은 핸들당 한 번이다
+  const valueByHandle = new Map<string, string>();
   let disposed = false;
   const dispose = (): void => {
     if (disposed) return;
@@ -89,6 +92,11 @@ export async function acquireSecretEnv(
     const parsed = parseSecretRef(ref);
     if (!parsed.ok)
       return new ExecutionError("secret_unavailable", `Invalid secret reference: ${ref}`);
+    const known = valueByHandle.get(parsed.value.handle);
+    if (known !== undefined) {
+      values[name] = known;
+      return leaseFrom(index + 1);
+    }
     const leased = await secrets.withEnv(parsed.value.handle, ctx);
     if (!leased.ok) {
       return new ExecutionError(
@@ -104,6 +112,7 @@ export async function acquireSecretEnv(
         `Secret is unavailable: ${ref} (${value.error.kind})`,
       );
     }
+    valueByHandle.set(parsed.value.handle, value.value);
     values[name] = value.value;
     return leaseFrom(index + 1);
   };

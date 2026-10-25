@@ -19,7 +19,7 @@ export interface FakeSecrets extends SecretEnvSource {
 /** 이름(secret://<name>)별 값을 돌려주는 가짜. `missing`에 든 이름은 provider_unavailable 계열 오류다 */
 export function fakeSecrets(
   values: Readonly<Record<string, string>>,
-  options: { readonly missing?: readonly string[] } = {},
+  options: { readonly missing?: readonly string[]; readonly maxUses?: number } = {},
 ): FakeSecrets {
   let acquired = 0;
   let disposed = 0;
@@ -33,14 +33,18 @@ export function fakeSecrets(
     }
     acquired++;
     let closed = false;
+    let uses = 0;
     const lease: SecretLease = {
       leaseId: `sls_${acquired}`,
       handle,
       mode: "env",
       expiresAt: 0,
-      usesLeft: 1,
+      usesLeft: options.maxUses ?? 1,
       use: (fn) => {
-        if (closed) return Promise.resolve(err({ kind: "reauth_required" }));
+        if (closed || uses >= (options.maxUses ?? Number.POSITIVE_INFINITY)) {
+          return Promise.resolve(err({ kind: "reauth_required" }));
+        }
+        uses++;
         return Promise.resolve(
           fn({ bytes: new TextEncoder().encode(value), text: () => value }),
         ).then((result) => ok(result));

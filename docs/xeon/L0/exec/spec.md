@@ -457,7 +457,7 @@ export function buildChildEnv(input: {
 
 1. `buildChildEnv`로 기본 env를 만든다. 실패하면 3번 이후를 하지 않는다.
 2. `signal`이 이미 취소됐으면 `aborted`.
-3. `secretEnv.refs`의 각 항목에 대해 `xeon.secrets`의 env 모드 lease를 요청한다(`withEnv`, 인자는 `secretEnv.ctx`와 위에서 채운 `mode`·`target`). 하나라도 실패하면 이미 얻은 lease를 모두 폐기하고 `ExecutionError("secret_unavailable")`를 돌려준다. 오류 메시지에는 참조 이름(`secret://…`)만 넣는다.
+3. `secretEnv.refs`의 각 항목에 대해 `xeon.secrets`의 env 모드 lease를 요청한다(`withEnv`, 인자는 `secretEnv.ctx`와 위에서 채운 `mode`·`target`). 같은 핸들을 가리키는 env 이름이 여럿이면 핸들당 lease를 한 번만 열고 읽은 값을 그 이름 모두에 채운다(핸들당 승인 1회이므로 두 번째 lease는 `approval_missing`이 된다. 승인 정책은 바꾸지 않는다). 하나라도 실패하면 이미 얻은 lease를 모두 폐기하고 `ExecutionError("secret_unavailable")`를 돌려준다. 오류 메시지에는 참조 이름(`secret://…`)만 넣는다.
 4. lease 값을 기본 env 사본에 넣어 포크 `exec`를 부른다(`inheritEnv: false`).
 5. `exec`가 끝나면(성공, 실패, 취소, 시간 초과 모두) `finally`에서 lease를 폐기하고 env 사본의 참조를 버린다.
 
