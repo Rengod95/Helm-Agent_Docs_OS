@@ -33,7 +33,13 @@ export interface HostInfo {
 const IMPLEMENTED_NOTIFICATIONS: readonly (
   | keyof typeof WIRE_NOTIFICATIONS
   | keyof typeof WIRE_CLIENT_NOTIFICATIONS
-)[] = ["events.batch", "stream.chunk", "$/cancelRequest", "$/connectionReset"];
+)[] = [
+  "events.batch",
+  "stream.chunk",
+  "settings.invalidated",
+  "$/cancelRequest",
+  "$/connectionReset",
+];
 
 const NOTIFICATION_SPECS = { ...WIRE_NOTIFICATIONS, ...WIRE_CLIENT_NOTIFICATIONS };
 

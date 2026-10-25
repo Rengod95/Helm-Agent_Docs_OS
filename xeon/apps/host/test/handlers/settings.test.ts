@@ -5,6 +5,10 @@ import type { SettingsWriteFailure } from "../../src/types.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
+import { Type } from "typebox";
+import { defineSettings } from "@xeon/contracts/settings";
+import { flushMicrotasks, settleUntil } from "../fixtures/clock.ts";
+import type { WireNotificationParams } from "../fixtures/notifications.ts";
 
 async function wireErrorOf(call: Promise<unknown>): Promise<WireError> {
   try {
@@ -344,5 +348,79 @@ test("settings.list returns the catalog as wire definitions, filtered by prefix 
   expect(filtered.defs.every((def) => def.key.startsWith("l4.host-service."))).toBe(true);
   const replay = filtered.defs.find((def) => def.key === REPLAY);
   expect(replay?.default).toBe(100_000);
+  await connection.close();
+});
+
+// ── M2 마감 G1-08, G5-04: 예약 키 숨김과 settings.invalidated ───────────────────────────────
+
+const RESERVED_KEY = "l4.cli.futureSwitch";
+const reservedGroup = defineSettings("l4.cli", {
+  futureSwitch: {
+    type: Type.Boolean(),
+    default: false,
+    runtimeChange: "live",
+    allowedScopes: ["user"],
+    stage: "reserved",
+    since: "0.1.0",
+  },
+});
+
+test("settings.list hides reserved keys unless the client asks, and writing one is settings.reserved", async () => {
+  const host = createFakeHost({ settingGroups: [reservedGroup] });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const hidden = await connection.request("settings.list", { prefix: "l4.cli." });
+  expect(hidden.defs.map((def) => def.key)).toEqual([]);
+  const shown = await connection.request("settings.list", {
+    prefix: "l4.cli.",
+    includeReserved: true,
+  });
+  expect(shown.defs.map((def) => [def.key, def.stage])).toEqual([[RESERVED_KEY, "reserved"]]);
+  const refused = await wireErrorOf(
+    connection.request("settings.set", { key: RESERVED_KEY, value: true, scope: "user" }),
+  );
+  expect(refused.data.kind).toBe("settings.reserved");
+  expect(refused.code).toBe(3106);
+  await connection.close();
+});
+
+test("a settings change reaches every ready connection as settings.invalidated with keys, scopes and thread but no value", async () => {
+  const host = createFakeHost();
+  const first = host.connect().connection;
+  const second = host.connect().connection;
+  const notReady = host.connect().connection;
+  await first.request("host.hello", HELLO_PARAMS);
+  await second.request("host.hello", HELLO_PARAMS);
+  const seen: { readonly who: string; readonly params: WireNotificationParams }[] = [];
+  first.onNotification("settings.invalidated", (params) => {
+    seen.push({ who: "first", params });
+  });
+  second.onNotification("settings.invalidated", (params) => {
+    seen.push({ who: "second", params });
+  });
+  notReady.onNotification("settings.invalidated", (params) => {
+    seen.push({ who: "notReady", params });
+  });
+  const thread = host.fake.seedThread();
+  host.fake.emitSettingsChange({ keys: [REPLAY], scopes: ["session"], threadId: thread });
+  host.fake.emitSettingsChange({ keys: [], scopes: ["project", "local"], threadId: null });
+  await settleUntil(() => seen.length >= 4);
+  await flushMicrotasks();
+  expect(seen).toEqual([
+    { who: "first", params: { keys: [REPLAY], scopes: ["session"], threadId: thread } },
+    { who: "second", params: { keys: [REPLAY], scopes: ["session"], threadId: thread } },
+    { who: "first", params: { keys: [], scopes: ["project", "local"], threadId: null } },
+    { who: "second", params: { keys: [], scopes: ["project", "local"], threadId: null } },
+  ]);
+  await first.close();
+  await second.close();
+  await notReady.close();
+});
+
+test("host.hello lists settings.invalidated among the notifications the host implements", async () => {
+  const host = createFakeHost();
+  const { connection } = host.connect();
+  const hello = await connection.request("host.hello", HELLO_PARAMS);
+  expect(hello.features.map((feature) => feature.name)).toContain("settings.invalidated");
   await connection.close();
 });

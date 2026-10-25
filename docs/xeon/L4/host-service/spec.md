@@ -626,6 +626,7 @@ M1 알림:
 | `events.batch` | 서버 → 클라이언트 | 구독마다 §4.4 규칙으로 보낸다. 이벤트는 `toEventWire(event, redact)`로 바꾼다 |
 | `stream.chunk` | 서버 → 클라이언트 | §4.5. `toVolatileEventWire`로 바꾸고 `n`, `afterSeq`를 채운다 |
 | `$/cancelRequest` | 클라이언트 → 서버 | §4.6. hello 전이면 무시한다 |
+| `settings.invalidated` | 서버 → 클라이언트 | M2 마감 G1-08. 설정이 바뀔 때 hello를 마친 연결 전체에 보낸다(HS-71). 값이 없다 |
 
 M2:
 
@@ -644,7 +645,7 @@ M2:
 | `approval.list` | thread의 미해결 요청과 그 시점의 위치. 소유를 쥐지 않은 thread도 읽는다. §4.13 | `ApprovalPort.list`(L1.persistence) | 3001 |
 | `settings.set` | `checkSettingWrite(catalog, layers, key, scope, value)` 통과 뒤 §4.14의 범위별 저장, 결과는 `resolveSetting`. `session`·`project`·`local` 범위는 `threadId`가 필요하고 `project`·`local`은 그 thread의 workspace가 신뢰되어 있어야 한다. 없으면 3103에 `details.reason` `workspaceRequired`·`untrustedProject`, `managed`는 `managedReadOnly` | `SettingsStorePort.write` | 3001, 3002, 3101, 3102, 3103, 3104, 3105 |
 | `settings.reset` | 키·범위·잠금 검사 뒤 그 범위 값을 지운다(`checkSettingWrite`의 값 검사는 건너뛴다). 저장은 `settings.set`과 같다 | `SettingsStorePort.reset` | 3001, 3002, 3101, 3103, 3104 |
-| `settings.list` | 카탈로그를 `SettingDefWire`(`toSettingDefWire`)로 바꿔 키 순으로 돌려준다. `prefix`로 거르고 폐기된 키는 `includeDeprecated`일 때만 싣는다. `type`은 `toJsonSchema(def.type)`이고 `range`는 따로 싣는다 | 카탈로그 | - |
+| `settings.list` | 카탈로그를 `SettingDefWire`(`toSettingDefWire`)로 바꿔 키 순으로 돌려준다. `prefix`로 거르고 폐기된 키는 `includeDeprecated`일 때, 읽는 코드가 없는 `stage: "reserved"` 키는 `includeReserved`일 때만 싣는다(HS-71). `type`은 `toJsonSchema(def.type)`이고 `range`는 따로 싣는다 | 카탈로그 | - |
 | `host.status` | 모드, pid, 시작 시각(ISO), 연결 수, `liveTurns`, 유휴 종료 예정 시각(서비스만, 아니면 `null`) | 연결 허브, `ActivityPort`, 수명 관리 | - |
 | `secret.list` | 관리 서비스 목록을 값 없는 `SecretListEntry`로 바꾼다. `meta: true`일 때만 메타를 싣고, `usage: true`면 마지막 사용 시각을 감사 파일에서 채운다 | `SecretsPort.admin.ls`(L0.secrets) | - |
 | `secret.meta` | 준 필드만 메타에 적용하고 바뀐 항목을 상태와 함께 돌려준다 | `SecretsPort.admin.meta`, `ls` | -32602(메타 검사 실패), §4.12의 비밀 오류 |
@@ -661,7 +662,7 @@ M2 마감(m2c, 항목 ID는 `review.milestone-audit`):
 | `trust.decide` | G1-03. 사람의 결정을 저장 파일(`folder`, `parent`)이나 이 프로세스의 기억(`session`)에 쓰고 반영한 뒤의 `TrustStatus`를 돌려준다. 저장은 `fileLock` 안에서 한다(HS-58). 결정 뒤 project·local 설정 층을 다시 읽는다 | `TrustPort.decide` → `ProjectTrust.decide`, `OsServiceHandle.fileLock` | -32602(`workspace`, `choice`가 선택지에 없음), 5006 `store.io`(`details.code: "trust_store"`) |
 
 - `settings.set`의 `details`에는 값이 비밀이면 그 값을 넣지 않는다(F wire §4.9 비밀 값 비표시 규칙 4).
-- `settings.set`·`settings.reset`이 `session` 범위를 바꾸면 L1.persistence가 그 thread에 `settings.changed` 내구 이벤트를 커밋한다 [가정: `L1.persistence.spec`]. 파일 범위(`user`, `project`, `local`) 변경은 thread에 속하지 않아 같은 이벤트로 알릴 곳이 없다. 다른 클라이언트의 설정 화면이 이 변경을 알 수단은 §10 미결 17이다.
+- `settings.set`·`settings.reset`이 `session` 범위를 바꾸면 L1.persistence가 그 thread에 `settings.changed` 내구 이벤트를 커밋한다 [가정: `L1.persistence.spec`]. 파일 범위(`user`, `project`, `local`) 변경은 thread에 속하지 않아 같은 이벤트로 알릴 곳이 없다. 다른 클라이언트의 설정 화면은 `settings.invalidated` 알림으로 이 변경을 안다(HS-71, §10 미결 17).
 - `settings.list`의 `type`에 `range`를 합쳐 실을지는 `_research/notes/L4-3.md` §1의 제안(병합 함수를 F에 공통으로 둔다)과 함께 F가 정한다(§10 미결 11). 이 문서는 F wire §3.8.2 모양 그대로 싣는다.
 
 ### 3.5 서비스 등록 파일
@@ -1005,6 +1006,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 - HS-68. 저장소 열기 실패와 실행 중 손상 [결정: m2c G2-06]. `AssembleError { code: "store" }`의 이슈는 `failure`(`future_version`, `corrupt`, `migration_failed`, `unavailable`, F.records.spec §3.7 7항의 `storeFailureKindOf`)와 CLI가 구별하는 `message`를 가진다. `message`는 `fts5Missing`(FTS5 없음), `dataDirPermission`(권한, 지원하지 않는 파일 시스템), 그 밖은 분류에 따라 `storeFutureVersion`, `storeCorrupt`, `storeMigrationFailed`, `storeUnavailable`이다. 안내와 복구 길이 달라 한 이름으로 합치지 않는다. 마이그레이션 전 스냅샷(`VACUUM INTO`, `<데이터 디렉터리>/backups`)을 만들지 못하면 단계를 하나도 실행하지 않고 `migration_failed`(`code: snapshot_failed:*`)로 끝난다. 열기 경고는 로그로 남긴다: 스냅샷을 만들었으면 `store.migration_snapshot`(info, 경로·소유자·버전), 옛 스냅샷을 지우지 못했으면 `store.snapshot_prune_failed`(warn), 그 밖의 경고는 `store.warning`(종류)이다. 실행 중에 읽은 행이 스키마와 다르면(`row_invalid`) wire `store.corrupt`(5007, `details.where`)로 알리고, 종결된 thread에 쓰거나 수명 주기 호출을 하면 `thread.closed`(3007, `details.threadId`)로 알린다. 이전에는 각각 `store.io`(`details.code: "row_invalid"`)와 `thread.notFound`였다.
 - HS-69. 진단 함수 [결정: m2c G2-07]. `Engine.diagnose(signal)`는 첫 실행 점검과 `doctor`가 부른다. 지금은 외부 바이너리 필수/선택 표 점검(`OsServiceHandle.checkBinaries`, L0.os.spec §3.6.1) 하나이고, 결과 `ready: false`면 호출자가 환경 문제로 보고한다(CLI는 종료코드 2 계열, 데스크톱 첫 실행 화면은 `hint`를 보인다). 엔진을 열 때는 점검하지 않는다: `--version` 확인이 바이너리마다 자식 프로세스를 띄운다. wire에는 진단 메서드가 없다(`host.diagnose`는 반려, F.wire-settings.spec §3.3). 사이드카 안의 엔진을 wire로만 보는 클라이언트(데스크톱)는 이 결과를 받을 길이 아직 없고 이를 어떻게 낼지는 §10 미결 28이다.
 - HS-70. 프로젝트 신뢰 wire [결정: m2c G1-03]. `trust.get { workspace }`는 클라이언트가 폴더에서 thread를 만들거나 열기 전에 부르고, `verdict`가 `undecided`이고 `required`가 참이면 `options`를 보여 준 뒤 `trust.decide { workspace, choice }`로 보낸다(F wire §3.3.1). 호스트는 프롬프트를 띄우지 않는다. `options`는 그 폴더에서 가능한 선택지(`folder`·`parent`·`session` 허용, `folder`·`session` 거부)이고 상위 폴더가 없으면 `parent`가 빠진다. 선택지에 없는 `choice`는 `-32602`(`path: "choice"`)이고 아무것도 바꾸지 않는다. 결정이 서면 저장 파일이 바뀌고(`folder`, `parent`는 앞선 세션 기억을 지운다), 호스트는 모든 작업 폴더의 project·local 설정 층을 거두고 이 프로세스가 쥔 thread의 층을 신뢰 판정부터 다시 읽는다. 그 뒤 `settings.invalidated`를 보낸다(HS-71). 이미 연 thread의 프로젝트 스킬과 MCP 정의는 다음 thread 열기와 다음 서버 로드 때 반영된다. 폴더 경로는 성공 값의 `projectRoot`로만 나가고 오류 `details`에는 싣지 않는다(HS-56).
+- HS-71. 설정 변경 알림과 예약 키 [결정: m2c G1-08, G5-04]. 설정 변경 반영 규칙의 소유자는 호스트다. 설정 저장소가 쓰기를 마칠 때(`settings.set`·`reset`의 모든 범위)와 신뢰 결정이 project·local 층을 다시 읽은 뒤 `SettingsChange`(`keys`, `scopes`, `threadId`)를 낸다. 연결 허브가 이를 받아 hello를 마친(`ready`) 모든 연결에 `settings.invalidated { keys, scopes, threadId }`를 보낸다. 같은 연결의 `settings.set` 호출자도 받는다. 값은 싣지 않는다. `keys`는 쓴 키 하나이고, 신뢰 결정은 어느 키인지 모르는 변경이라 비어 있다(`scopes: ["project", "local"]`). `threadId`는 `session` 범위일 때만 있고 나머지는 `null`이다. 송신 큐가 차 있어도 건너뛰지 않는다: 놓치면 클라이언트가 옛 값을 계속 보인다. 호스트 안에서 같은 신호(`SettingsEngine.onChange`)를 받는 쪽은 MCP 정의 재적재(다음 단계 시작, `L2.mcp.spec`)다. 파일을 호스트 밖에서 직접 고친 변경은 파일 감시(M3)가 생기기 전에는 알리지 못한다. `settings.list`는 `stage: "reserved"` 키를 기본으로 뺀다. `settings.set`은 예약 키에 `3106 settings.reserved`로 거절한다(F `checkSettingWrite`).
 
 ## 5. 실패와 경계 사례
 
@@ -1141,7 +1143,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 14. [결정: review.decisions-2 U-09] 세션 잠금 구현은 OS 잠금(생존) + `sys_leases.epoch` 펜싱이다. 호스트는 `SessionLockPort`로 감싸고 받은 `LeaseToken`을 L1.persistence에 넘긴다(§4.7).
 15. (닫힘) `architecture.runtime-flow.design` §4.6 표의 service 열은 로컬 소켓과 원격 [미결]로 고쳐졌다(review.consistency-1 S-16). 원격은 U-11에 따라 로컬 소켓을 터널로 연결한다.
 16. [결정: review.decisions-2 U-03] 적합성 실행기 위치: F에는 `./testing` 서브패스를 두지 않는다. 실행기는 `apps/host/test/contract/conformance-runner.ts`에 둔다. F plan W14의 틀을 다른 패키지 테스트가 함께 쓰는 방법은 F 문서 쪽에서 정한다.
-17. [결정: review.decisions-2 U-04] F 변경 요청: 파일 범위 설정 변경을 접속 중인 다른 클라이언트에 알리는 수단(`settings.invalidated` 등). M1에 넣지 않고 M2 계획에서 정한다. `L4.settings-ui.spec` §10 미결 1과 같은 항목이다.
+17. (닫힘 m2c G1-08) 파일 범위 설정 변경 통지는 서버 알림 `settings.invalidated`로 정했고 호스트가 보낸다(HS-71). 파일 감시(M3) 전에는 호스트 밖에서 직접 고친 파일의 변경은 알리지 못한다.
 18. [미결] 패키지 도메인 이름: `package.json`의 `xeon.domain`은 `host`이고 routes.yaml 도메인은 `host-service`다(`architecture.layers.spec` §10 첫 항목). 작성자 결정 사항이며 이 문서는 디렉터리와 패키지 이름 `host`를 유지한다.
 19. [미결] F 요청, 비밀 관리 wire 보강(HOST.3). (a) `WIRE_ERRORS`에 비밀 관리 전용 kind가 없어 HS-47의 `internal` 대용을 쓴다. 3200번대 `secret.*` kind 요청. (b) `SecretTestResult`가 `registered`/`missing`뿐이라 `L4.cli.spec` §4.7이 요구하는 복호화 가능 여부, 길이, SHA-256 앞 8자를 싣지 못한다. 필드 추가 요청. (c) `SecretEntryOffer`에 `add`용 메타 일부(`desc`, `provider`, 사용 정책)를 싣는 선택 필드가 없어 HS-45의 기본 메타를 쓴다. (d) `secret.references`에 해당하는 wire 메서드가 없어 CLI `secret rm`이 삭제 전에 참조(설정 키, 활성 lease, 세션)를 보일 수 없다.
 20. [미결] HS-27 후속: 서비스 모드에서 live 작업 때문에 쥔 잠금을 작업이 끝난 뒤에 놓는 시점. `ActivityPort.onChange`와 thread별 활성 판정이 필요하다. M3 서비스 모드(H10~H11)에서 정한다.

@@ -354,6 +354,22 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
       });
     }
   });
+  // 설정이 바뀌면 연결 전체에 `settings.invalidated`를 보낸다(F wire §3.3.2, HS-71). 값은 싣지 않는다. 같은 연결의 `settings.set` 호출자도 받는다.
+  // 손실을 견디는 `stream.chunk`와 달리 놓치면 클라이언트가 옛 값을 계속 보여 주므로 송신 큐가 차 있어도 건너뛰지 않는다
+  const offSettings = engine.ports.settings.onChange((change) => {
+    for (const conn of hub.connections()) {
+      if (conn.phase !== "ready") continue;
+      conn.sender.push({
+        jsonrpc: "2.0",
+        method: "settings.invalidated",
+        params: toRecord({
+          keys: [...change.keys],
+          scopes: [...change.scopes],
+          threadId: change.threadId,
+        }),
+      });
+    }
+  });
   return {
     watchObserved: () => {
       poller.refresh();
@@ -361,6 +377,7 @@ export function startEventFanout(engine: Engine, hub: ConnectionHub): EventFanou
     stop() {
       offCommit();
       offVolatile();
+      offSettings();
       poller.dispose();
     },
   };

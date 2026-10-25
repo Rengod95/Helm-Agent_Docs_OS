@@ -23,6 +23,7 @@ import type {
   HostMode,
   LockOutcome,
   OwnerKind,
+  SettingsChange,
   SettingsStorePort,
   SubmitOutcome,
   ThreadPort,
@@ -63,6 +64,8 @@ export interface FakeEngineOptions {
   readonly acquireGate?: Promise<void>;
   /** settings.get이 보는 범위 층 */
   readonly layers?: ScopeStack;
+  /** 코어 카탈로그에 더하는 앱 설정 그룹(예약 키 시험 등) */
+  readonly settingGroups?: Parameters<typeof buildEngineCatalog>[0];
   /** 포트 일부를 바꿔 끼운다. 처리기가 오류를 어떻게 옮기는지, 어떤 순서로 부르는지 볼 때 쓴다 */
   readonly overrides?: {
     readonly threads?: Partial<ThreadPort>;
@@ -99,6 +102,8 @@ export interface FakeEngine {
   /** 종료 협조 시한을 넘겨 불린 exit의 종료코드. 대역의 exit는 프로세스를 끝내지 않고 던진다 */
   readonly exits: number[];
   emitVolatile(event: Pick<VolatileEventEnvelope, "threadId" | "turnId" | "n" | "afterSeq">): void;
+  /** 설정 변경 신호를 낸다(`SettingsStorePort.onChange` 구독자에게). 실제 엔진에서는 설정 저장소와 신뢰 결정이 낸다 */
+  emitSettingsChange(change: SettingsChange): void;
   /** 다음 turn.start가 turn.busy가 되게 한다 */
   setRunningTurn(turnId: TurnId | undefined): void;
   /** 다음 turn.start를 루프가 거부한 것으로 만든다 */
@@ -122,6 +127,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const events: DurableEventEnvelope[] = [];
   const commitListeners = new Set<(batch: CommitBatch) => void>();
   const volatileListeners = new Set<(event: VolatileEventEnvelope) => void>();
+  const settingsListeners = new Set<(change: SettingsChange) => void>();
   const threads = new Set<ThreadId>();
   const held = new Set<ThreadId>();
   const submitted: { threadId: ThreadId; requestId: string | undefined }[] = [];
@@ -270,7 +276,12 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       prepare: () => Promise.resolve(),
       write: () => Promise.reject(new Error("write is not part of the fake")),
       reset: () => Promise.reject(new Error("reset is not part of the fake")),
-      onChange: () => () => undefined,
+      onChange(listener) {
+        settingsListeners.add(listener);
+        return () => {
+          settingsListeners.delete(listener);
+        };
+      },
       ...options.overrides?.settings,
     },
     approvals: {
@@ -307,7 +318,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     return { storeId, seq: events.length };
   }
 
-  const built = buildEngineCatalog();
+  const built = buildEngineCatalog(options.settingGroups);
   if (!built.ok) throw new Error("the core catalog must build");
   const engine: Engine = {
     mode: options.mode ?? "in-process",
@@ -350,6 +361,9 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         afterSeq: partial.afterSeq,
       };
       for (const listener of Array.from(volatileListeners)) listener(event);
+    },
+    emitSettingsChange(change) {
+      for (const listener of Array.from(settingsListeners)) listener(change);
     },
     setRunningTurn(turnId) {
       state.running = turnId;

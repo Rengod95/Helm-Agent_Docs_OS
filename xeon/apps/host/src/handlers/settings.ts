@@ -163,7 +163,10 @@ export function createSettingsResetHandler(engine: Engine): WireHandler<"setting
   };
 }
 
-/** 카탈로그를 SettingDefWire로 바꿔 키 순으로 돌려준다. 폐기된 키는 `includeDeprecated`일 때만 싣는다 */
+/**
+ * 카탈로그를 SettingDefWire로 바꿔 키 순으로 돌려준다. 폐기된 키는 `includeDeprecated`일 때, 읽는 코드가 아직 없는 `reserved` 키는
+ * `includeReserved`일 때만 싣는다(F wire §3.8.2 `stage`). 설정 화면이 아무 일도 하지 않는 항목을 보이지 않게 한다
+ */
 export function createSettingsListHandler(engine: Engine): WireHandler<"settings.list"> {
   const { catalog } = engine;
   return (params) => {
@@ -171,6 +174,7 @@ export function createSettingsListHandler(engine: Engine): WireHandler<"settings
     const defs = [...catalog.values()]
       .filter((def) => def.key.startsWith(prefix))
       .filter((def) => params.includeDeprecated === true || def.deprecated === undefined)
+      .filter((def) => params.includeReserved === true || def.stage !== "reserved")
       .toSorted((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
       .map((def) => toSettingDefWire(def));
     return Promise.resolve({ defs });
