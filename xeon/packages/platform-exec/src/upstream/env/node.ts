@@ -662,6 +662,8 @@ export class NodeExecutionEnv implements ExecutionEnv {
   private platform: ExecPlatformProvider;
   // XEON-PATCH: P16
   private logger: Logger | undefined;
+  // XEON-PATCH: P19
+  private tempRoot: string | undefined;
   private activeChildPids = new Set<number>();
 
   // XEON-PATCH: P3
@@ -673,6 +675,8 @@ export class NodeExecutionEnv implements ExecutionEnv {
     watch?: Omit<NodeWatchOptions, "platform" | "logger">;
     // XEON-PATCH: P16
     logger?: Logger;
+    // XEON-PATCH: P19
+    tempRoot?: string;
   }) {
     this.cwd = options.cwd;
     // XEON-PATCH: P3
@@ -687,6 +691,8 @@ export class NodeExecutionEnv implements ExecutionEnv {
     };
     // XEON-PATCH: P16
     this.logger = options.logger;
+    // XEON-PATCH: P19
+    this.tempRoot = options.tempRoot;
   }
 
   async watch(
@@ -1373,7 +1379,11 @@ export class NodeExecutionEnv implements ExecutionEnv {
     try {
       // XEON-PATCH: P15
       const dirPrefix = prefix ?? "tmp-";
-      return ok(await mkdtemp(join(tmpdir(), dirPrefix)));
+      // XEON-PATCH: P19
+      if (this.tempRoot !== undefined) {
+        await mkdir(this.tempRoot, { recursive: true, mode: 0o700 });
+      }
+      return ok(await mkdtemp(join(this.tempRoot ?? tmpdir(), dirPrefix)));
     } catch (error) {
       return err(toFileError(error));
     }
@@ -1390,7 +1400,8 @@ export class NodeExecutionEnv implements ExecutionEnv {
       `${options?.prefix ?? ""}${randomUUID()}${options?.suffix ?? ""}`,
     );
     try {
-      await writeFile(filePath, "");
+      // XEON-PATCH: P19
+      await writeFile(filePath, "", { mode: 0o600 });
       return ok(filePath);
     } catch (error) {
       return err(toFileError(error, filePath));

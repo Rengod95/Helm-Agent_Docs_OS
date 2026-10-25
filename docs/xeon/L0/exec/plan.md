@@ -18,7 +18,7 @@ binds: [xeon/packages/platform-exec/**]
 |---|---|---|
 | M0 | 포크 5파일과 적합성 자산 복사, 포크 기록 3종, CancelScope 치환(P1), Result 정리(P2), 오류 클래스 F 이동(P6), 테스트 포팅(P4, P5), 플랫폼 provider 추출(P3, darwin·linux), 적합성 스위트 Linux 통과, Bun 동작 스파이크 | [결정: `_research/foundation-plan.md` §5 P4 M0 "`platform-exec`(durable env 포크)"] |
 | M1 | env 허용 목록 빌더, sandbox 데코레이터 접점(조립 시험), `secretEnv` 비밀 주입 지점(EX-13), `xeon.exec` 서비스 등록, 설정 정의, `fakeExec`·`memoryFs`, 적합성 macOS 통과 | [결정: foundation-plan §5 M1 "도구 read, ls, bash(sandbox)"]. M1의 "SOPS 비밀 참조 1종"은 bash 도구의 env 주입(실행마다 승인)으로 검증한다 [결정: review.decisions-2 U-19] |
-| M2 | 백그라운드 실행 `startBackground`(EX-20), 포크 정리 단계 Logger(P16, open-issues N-10) | [제안: `L0.exec.spec` §1 범위 표], [제안: m2-plan PLT.3] |
+| M2 | 백그라운드 실행 `startBackground`(EX-20), 포크 정리 단계 Logger(P16, open-issues N-10), spill 위치를 상태 디렉터리로(EX-22, P19) | [제안: `L0.exec.spec` §1 범위 표], [제안: m2-plan PLT.3] |
 | M2 이후 | Windows provider 보강과 Windows CI, Docker 어댑터, git worktree 격리(2차), SSH(보류) | [제안: `L0.exec.spec` §1 범위 표] |
 
 - M0 끝에서 `xeon.exec`는 서비스 등록 없이 패키지 export(`createExecService`)로만 쓸 수 있다. 서비스 등록은 ext-host 등록 API(`X.primitives.spec`)가 M0에 준비된 뒤 M1에 한다 [제안].
@@ -126,6 +126,7 @@ export function fakeExec(
 | EX-19 | (2차) git worktree 격리 래퍼: `git worktree add/remove`를 argv로 실행하는 100줄 안팎 함수와 `withCwd` 조합. 소비자는 `L1.agents.spec` | EX-14 | S |
 | EX-21 | 출력 절단 포크와 서비스 메서드: `D/src/truncate.ts`를 `src/upstream/truncate.ts`로, `test/env-truncate.test.ts`를 `test/upstream/truncate.test.ts`로 복사하고 `UPSTREAM.json` `copiedPaths`에 더한다. `ExecService.truncateHead`·`formatSize`를 서비스와 파생 env에 연결한다. 소비자 사본(`cap-workspace/src/truncate`, `apps/host/src/assembly/truncator.ts`)과 core-tools `truncator` 옵션을 지운다(review.decisions-2 D-08, spec §3.1 끝) | EX-01, EX-14 | S |
 | EX-20 | (M2) 백그라운드 실행: `background.ts`의 `startBackground`(spec §3.9). 자식 env 빌더 재사용, 새 프로세스 그룹 spawn, `stop(graceful)` SIGTERM·`stop(force)` `killProcessTree`, `exited`, 서비스·파생 env `cleanup` 연동. `BackgroundExecHandle`이 F `BackgroundStopper`에 대입 가능한지 타입 수준으로 확인(`exec-contract.contract.test.ts`, L0 패키지끼리 import하지 않는다) | EX-12, EX-14 | M |
+| EX-22 | (M2) spill 위치: `NodeExecutionEnv`의 `tempRoot` 옵션(P19), `ExecServiceOptions.tempDir`, 임시 파일 0600. `spill-dir.int.test.ts`가 위치, 모드, 옵션이 없을 때의 원본 동작을 확인 | EX-14 | S |
 
 순서: EX-01 → (EX-02) → EX-03 → EX-04 → EX-05, EX-06 ∥ EX-07 → EX-08 → EX-09 ∥ EX-10 → EX-11(M0 끝) → EX-12 → EX-14 → EX-13 ∥ EX-15 ∥ EX-16 ∥ EX-21(M1 끝) → EX-20(M2).
 

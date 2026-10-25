@@ -493,6 +493,7 @@ export interface ExecServiceOptions {
   readonly defaultTimeoutMs: number;            // l0.exec.defaultTimeoutMs, 0이면 없음
   readonly outputSpillBytes: number;            // l0.exec.outputSpillBytes, 0이면 기본 spill 없음
   readonly envExtra: readonly string[];         // l0.exec.envAllowlist.extra
+  readonly tempDir?: string;                    // 임시 디렉터리와 spill 파일 위치. 조립 루트가 <dirs.state>/spill을 넘긴다
 }
 
 /** 포크 NodeExecutionEnv와 provider, env 빌더, 비밀 주입을 묶는다. Cordis 등록은 ext-host API로 한다 */
@@ -506,6 +507,7 @@ export function createExecService(
 - 플러그인 dispose 때 서비스 `cleanup`을 한 번 부른다. 파생 env(`withCwd`)의 `cleanup`은 파생 env를 만든 소유자가 부른다.
 - `defaultTimeoutMs`는 호출자가 `timeout`을 주지 않았을 때만 쓴다. 원본 `timeout`이 초 단위이므로 `defaultTimeoutMs / 1000`으로 넘긴다.
 - `outputSpillBytes`는 호출자가 `spill`을 주지 않았을 때 `{ afterBytes: outputSpillBytes, afterLines: Number.MAX_SAFE_INTEGER }`로 넘긴다.
+- `tempDir`는 `createTempDir`·`createTempFile`과 spill 파일의 위치다(PATCHES P19). 있으면 그 디렉터리를 0700으로 만들고(없을 때) 아래에 `tmp-XXXX/`(0700)를 두며, 임시 파일은 0600이다. 없으면 원본대로 OS 임시 폴더다. 운영 조립은 항상 `<xeon.os dirs.state>/spill`을 넘긴다 [결정: m2 마감 G2-05].
 
 ### 3.9 백그라운드 실행 `startBackground` [제안]
 
@@ -701,7 +703,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 1. [미결] `abortSignal`의 `undefined` 허용 여부와 `eng.typescript.guide` §1.2·TY-22 문구 정정. 위치는 F `services/exec.ts`로 정해졌다([결정: review.decisions-2 D-04], 3.2절).
 2. [미결] `ExecService.withCwd` 추가와 `eng.context-map.design` §5.3 표 정정(3.1절). 공유 서비스 모드에서 세션별 cwd를 어떻게 줄지 `L0.process.spec`과 함께 정한다.
 3. [미결] 포크 업그레이드 정책(정기 diff 또는 보안·버그 수정 때만). adr.0003 §6을 이어받는다.
-4. [제안 적용: M2 PLT.3, 결정 없음] spill 파일 위치와 삭제 시점. 원본은 OS 임시 디렉터리(`tmp-*` 디렉터리, 0700)에 남긴다. env 모드 비밀이 출력에 섞이면 원문이 디스크에 남으므로 `secretEnv`가 있는 호출은 호출자가 준 `spill`도 기본 spill도 끈다(`service.int.test.ts`의 "secret value never appears in results or spill files"). `startBackground`는 `spill` 자체를 받지 않는다. 비밀이 없는 호출의 spill 위치(`xeon.os`의 임시 디렉터리)와 세션 종료 시 삭제는 `L0.secrets.spec`, `L2.workspace.spec`과 함께 정할 때까지 원본 동작을 유지한다.
+4. [결정: m2 마감 G2-05] spill 파일 위치는 `ExecServiceOptions.tempDir`(조립 루트가 `<dirs.state>/spill`)이고 소유자 전용이다(디렉터리 0700, 파일 0600). 원본은 OS 임시 디렉터리에 남겼다. env 모드 비밀이 출력에 섞이면 원문이 디스크에 남으므로 `secretEnv`가 있는 호출은 호출자가 준 `spill`도 기본 spill도 끈다(`service.int.test.ts`의 "secret value never appears in results or spill files"). `startBackground`는 `spill` 자체를 받지 않는다. 세션 종료 때 삭제, 보관 기간 정리, 디스크 상한은 정하지 않았다 [미결, M3 G2-05 나머지]. 조립 루트가 `tempDir`을 넘기도록 고치는 일은 L4.host 작업이다.
 5. [미결] 적합성 스위트의 watch 사례(사례당 최대 30초)를 `int` 파일 10초 상한(`eng.testing.guide` TS-01)에 맞추는 방법: 파일 분할, 별도 태그, 상한 예외 중 하나.
 6. [미결] `l0.exec.defaultTimeoutMs` 기본값. 0(제한 없음)과 안전 상한(예: 2시간) 중 고른다. `l2.workspace.shell.defaultTimeoutSec`과의 우선순위는 호출자 값이 앞선다.
 7. [미결] Windows 네이티브 적합성 기대 표(5.2절)는 실행하지 않은 [가정]이다. M2 이후 Windows CI에서 확인한다.

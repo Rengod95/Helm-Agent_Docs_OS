@@ -71,8 +71,9 @@
     "P15",
     "P16",
     "P17",
-    "P18"
+    "P18",
+    "P19"
   ],
-  "modificationsNote": "P7은 L0.exec.plan R-4의 예약 번호이고 쓰지 않았다(Bun mock.module이 node:fs를 바꾸는 것을 확인했다). 세 기록(이 목록, PATCHES.md, 소스의 XEON-PATCH 표지)의 id 집합이 같아야 한다. P10~P13은 출력 절단 포크(truncate.ts)의 패치다(review.decisions-2 B-04, L0.exec.plan EX-21). P14는 TypeScript 작성 규칙(eng.typescript.guide TY-06, TY-25) 적용 패치다. P15는 린트 억제 주석을 걷어 낸 패치다(eng.typescript.guide §1 포크 코드, TY-22). P18은 `void <호출식>`을 `detach`로 바꾼 패치다(TY-22, xeon/no-void-promise).",
+  "modificationsNote": "P7은 L0.exec.plan R-4의 예약 번호이고 쓰지 않았다(Bun mock.module이 node:fs를 바꾸는 것을 확인했다). 세 기록(이 목록, PATCHES.md, 소스의 XEON-PATCH 표지)의 id 집합이 같아야 한다. P10~P13은 출력 절단 포크(truncate.ts)의 패치다(review.decisions-2 B-04, L0.exec.plan EX-21). P14는 TypeScript 작성 규칙(eng.typescript.guide TY-06, TY-25) 적용 패치다. P15는 린트 억제 주석을 걷어 낸 패치다(eng.typescript.guide §1 포크 코드, TY-22). P18은 `void <호출식>`을 `detach`로 바꾼 패치다(TY-22, xeon/no-void-promise). P19는 임시 디렉터리 위치를 OS 임시 폴더에서 호출자가 준 상태 디렉터리로 옮기고 임시 파일을 0600으로 만드는 패치다(L0.exec.spec §10 4, 마감 G2-05).",
   "usedBy": "xeon/packages/platform-exec only (adr.0003, L0.exec.spec §3.3)"
 }
