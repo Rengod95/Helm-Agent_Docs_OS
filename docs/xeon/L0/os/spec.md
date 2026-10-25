@@ -252,7 +252,7 @@ export function systemScheduler(): Scheduler;       // 전역 setTimeout을 감�
 export function systemRandom(): RandomSource;       // crypto.getRandomValues 기반 [0, 1)
 ```
 
-- `systemClock().now()`는 epoch ms 정수다. 단조성은 보장하지 않는다. ULID 단조성은 `IdFactory` 쪽 문제다(F.readme §8 미결 8).
+- `systemClock().now()`는 epoch ms 정수다. 단조성은 보장하지 않는다. ULID 단조성은 `IdFactory` 구현이 지킨다(F.readme §8 미결 8, 결정됨).
 - `systemScheduler`: Bun의 `setTimeout`은 숫자가 아닌 타이머 객체를 돌려준다 [가정]. 그래서 내부에서 1부터 증가하는 정수 핸들을 발급하고 `Map<TimerHandle, Timer>`로 대응한다. `clearTimeout`에 모르는 핸들이 오면 아무것도 하지 않는다. 만기 콜백이 던진 예외는 잡지 않는다(`Bug` 전파).
 - `ms`가 음수이거나 `NaN`이면 0으로 다룬다. 테스트 대역 `manualClock`도 같은 규칙이어야 한다(계약 테스트, 9절).
 - `systemRandom`: `crypto.getRandomValues(new Uint32Array(2))`의 53비트로 `[0, 1)` 값을 만든다 [제안]. `Math.random`보다 예측이 어렵고 `createIdFactory`·`createLocalIdFactory`가 ULID 난수 부분에 쓴다.

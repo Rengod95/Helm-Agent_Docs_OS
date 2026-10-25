@@ -95,7 +95,7 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 | SB-08 | `onUnavailable` 정책: `wrapShell` 안의 3값 분기, `enabled=false` 처리, `escapeRetry` 검사 | SB-05 | S |
 | SB-09 | 위반 기록 수집: `getViolationsForCommand` → `SandboxViolation` 변환(합치기, 200자 자르기, 50개 상한), Linux 모니터 기본 끔 | SB-05 | S |
 | SB-10 | doctor 출력: `describeSandboxStatus`의 severity·hints, 시작 로그 한 줄. `L4.cli.plan`에 종료 코드 2 계열 연결 요청 | SB-02 | S |
-| SB-11 | 설정 정의: `settings.ts`의 `defineSettings("l0.sandbox", …)` 8키(spec §6), 범위 제한(넓히는 키는 `project` 제외), `ui.tab` 임시값 `"permissions"` | SB-02 | S |
+| SB-11 | 설정 정의: `settings.ts`의 `defineSettings("l0.sandbox", …)` M1 6키(`enabled`, `onUnavailable`, `protectedPaths.extra`, `writeRoots.extra`, `escapeRetry`, `selfTestIntervalMin`. spec §6 표의 `network.allowedDomains`, `network.deniedDomains` 2키는 M2에서 더한다), 범위 제한(넓히는 키는 `project` 제외), `ui.tab` 임시값 `"permissions"` | SB-02 | S |
 | SB-12 | 서비스 등록: `service.ts`의 `createSandboxService`, ext-host로 `SandboxServiceName` 등록, dispose 때 srt `reset()`. `fakeSandbox`와 `testing` 서브패스 | SB-05~SB-11, `X.primitives.plan` 등록 API | M |
 | SB-13 | (M2) 네트워크 정책: `l0.sandbox.network.*` 키 활성화, `strictAllowlist` 해제 여부, 프록시 env와 exec 허용 목록 연동, `deniedResolvedAddresses` 기본값, `L0.secrets` sentinel 모드(후속)와 프록시 공존 확인 | SB-12 | L |
 | SB-14 | (M2) 프로필·오프라인 검증: 이름 붙은 프로필(정책 묶음)과 실행 없는 규칙 검사 명령. Gemini CLI policy 구조는 참고만 | SB-12 | M |
