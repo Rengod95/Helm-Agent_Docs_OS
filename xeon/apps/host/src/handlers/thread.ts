@@ -151,6 +151,31 @@ export function createThreadRevertHandler(engine: Engine): WireHandler<"thread.r
 }
 
 /**
+ * 제목을 바꾼다(G2-12, HS-73). 쓰기 소유자만 바꿀 수 있어 `thread.delete`처럼 열지 않고 바꾸는 클라이언트(`xeon sessions rename`)를 위해
+ * 소유를 쥐지 않았으면 한 번 얻어 본다. 얻지 못하면 3002다. 이 호출이 얻은 잠금은 바꾼 뒤 놓는다. 결과 `position`은 제목 변경
+ * 이벤트를 반영한 저장소 위치다
+ */
+export function createThreadRenameHandler(engine: Engine): WireHandler<"thread.rename"> {
+  const { ports } = engine;
+  return async (params) => {
+    const { threadId } = params;
+    requireThread(engine, threadId, "thread.rename");
+    const acquiredHere = !ports.locks.holds(threadId);
+    if (acquiredHere) {
+      const lock = await ports.locks.tryAcquire(threadId, ownerKindOf(engine.mode));
+      if (!lock.ok) throw threadLocked(lock.ownerKind);
+    }
+    try {
+      const renamed = ports.threads.rename(threadId, params.title);
+      if (!renamed.ok) throw wireErrorOfLifecycle(renamed.error, "thread.rename");
+      return renamed.value;
+    } finally {
+      if (acquiredHere) await ports.locks.release(threadId);
+    }
+  };
+}
+
+/**
  * 쓰기 소유자만 지울 수 있다. `xeon sessions rm`처럼 thread를 열지 않고 지우는 클라이언트를 위해 소유를 쥐지 않았으면 한 번 얻어 본다
  * (HS-28 암묵 획득과 같은 규칙. 표(§3.4)가 "잠금을 얻을 수 없으면 거부"라고 적었다). 얻지 못하면 3002다.
  * 지우지 못했으면 이 호출이 얻은 잠금은 놓는다.

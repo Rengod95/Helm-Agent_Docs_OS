@@ -57,6 +57,7 @@ import {
 import { buildEngineCatalog } from "./assembly/catalog.ts";
 import { builtinUnits, installFailureOf, unitOfModule } from "./assembly/extensions.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
+import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
@@ -502,8 +503,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 그룹 서비스가 보는 설치된 그룹(L3 매니페스트). 단위 목록이 만들어진 뒤에 채워진다
     const unitList: { units: readonly ExtensionUnit[] } = { units: [] };
     const workspaceOf = threadWorkspaceOf(ext, logger);
+    const commands: CommandRegistryHolder = { current: undefined, api: undefined };
     const units: ExtensionUnit[] = [
       ...builtinUnits({
+        commands,
         mode: options.mode,
         clock,
         ids,
@@ -592,6 +595,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       holder,
       settings,
       secrets: createSecretsPort(secrets.admin, secretsSource(settings)),
+      commands,
       configDir: os.dirs.config,
       trust: projectTrust,
       signal: lifetime.signal,

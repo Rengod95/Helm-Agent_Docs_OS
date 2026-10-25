@@ -105,10 +105,10 @@ realTest(
       expect(refused).toBeInstanceOf(WireError);
       if (refused instanceof WireError) expect(refused.code).toBe(3002);
 
-      // 열면(쓰기) 미해결 요청이 메모리 대기 목록으로 되살아난다
-      await connection.request("thread.open", { threadId: created.threadId, mode: "write" });
-      const resumed = await host.engine.ports.turns.resume(created.threadId);
-      expect(resumed.ok && resumed.value.status).toBe("resumed");
+      // turn.resume이 쓰기 소유를 얻으며 미해결 요청을 메모리 대기 목록으로 되살리고(HS-52), 끊긴 turn을 이어 실행한다(G1-02).
+      // 열린 turn은 thread마다 하나라 turn id를 받지 않는다: 결과의 turnId가 승인을 기다리던 그 turn이다
+      const resumed = await connection.request("turn.resume", { threadId: created.threadId });
+      expect(resumed).toMatchObject({ status: "resumed", turnId: asked.turnId });
 
       // 재개만으로는 turn이 끝나지 않는다. 응답이 와야 같은 도구 호출이 이어진다
       expect(kindsOf(collected.events)).not.toContain("turn.completed");

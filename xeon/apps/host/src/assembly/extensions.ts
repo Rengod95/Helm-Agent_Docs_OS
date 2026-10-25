@@ -79,6 +79,8 @@ export interface ExtensionDeps {
   /** 엔진 빌드 버전(MCP 서버에 알리는 클라이언트 버전) */
   readonly engineVersion: string;
   readonly settings: SettingsEngine;
+  /** 명령 등록부 자리. 조립 루트가 만들고 엔진 포트(`command.*`)도 같은 자리를 읽는다 */
+  readonly commands: CommandRegistryHolder;
   /** thread의 작업 디렉터리(없으면 undefined). `user_bash` 지점 페이로드의 cwd가 된다 */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
   readonly db: StoreDb;
@@ -154,8 +156,8 @@ function reservedToolNames(): ReadonlySet<string> {
 /** 의존 순서로 늘어놓은 기본 확장 단위. loadIndex는 이 순서다 */
 export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   const { settings } = deps;
-  // cap-dialog의 동작 명령 등록부. 브리지 확장이 채우고 cap-work가 읽는다
-  const commandRegistry: CommandRegistryHolder = { current: undefined };
+  // cap-dialog의 동작 명령 등록부와 명령 서비스 API. 브리지 확장이 채우고 cap-work와 호스트의 command.* 처리기가 읽는다
+  const commandRegistry = deps.commands;
   const modules: readonly (readonly [ExtensionName, (loadIndex: number) => ExtensionUnit])[] = [
     [
       "core-persistence",

@@ -57,6 +57,8 @@ import type {
 import { wireErrorOfCreate, wireErrorOfLease, wireErrorOfStore } from "../store-error.ts";
 import { messageOf, sequentially } from "../util.ts";
 import { createApprovalPort } from "./approvals.ts";
+import { createCommandPort } from "./commands.ts";
+import type { CommandRegistryHolder } from "./l2-units.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 import { createSettingsStore } from "./settings-store.ts";
 import { readThread } from "./thread-read.ts";
@@ -86,6 +88,8 @@ export interface PortsDeps {
   readonly holder: LeaseHolder;
   readonly settings: SettingsEngine;
   readonly secrets: SecretsPort;
+  /** 명령 등록부 자리. 브리지 확장이 명령 서비스 API를 채운다 */
+  readonly commands: CommandRegistryHolder;
   /** 사용자 설정 파일이 없을 때 새로 만들 디렉터리(L0.os의 `dirs.config`) */
   readonly configDir: string;
   readonly trust: ProjectTrust;
@@ -215,6 +219,20 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const reverted = await session.threads.revert(threadId, to, deps.ids.next("evt"));
       if (!reverted.ok) return reverted;
       return ok({ position: { storeId, seq: reverted.value.headSeq } });
+    },
+    rename(threadId, title) {
+      // 제목마다 새 키다: 같은 키로 다른 제목을 쓰면 key_reused라 호출 한 번이 제목 한 번이다
+      const renamed = session.threads.setTitle(threadId, title, deps.ids.next("evt"));
+      if (!renamed.ok) return renamed;
+      const head = session.feed.headSeq();
+      if (!head.ok) return head;
+      return ok({ position: { storeId, seq: head.value } });
+    },
+    hasTitle(threadId) {
+      const found = session.query.thread(threadId);
+      if (!found.ok) return found;
+      const title = found.value?.title ?? null;
+      return ok(title !== null && title !== "");
     },
     async remove(threadId) {
       const removed = session.threads.remove(threadId);
@@ -518,6 +536,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     notify,
     log,
     secrets: deps.secrets,
+    commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
     trust,
     ids: deps.ids,
     clock: deps.clock,

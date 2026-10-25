@@ -4,6 +4,7 @@ import {
   DialogAskKey,
   DialogCommands,
   DialogCommandsKey,
+  type CapabilityApi,
   type CommandActionRegistry,
 } from "@xeon/contracts/capabilities";
 import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
@@ -14,9 +15,16 @@ import { hostOf, type ExtensionUnit } from "@xeon/ext-host";
 // 질문·계획 승인 포트와 사용자 셸은 두 패키지의 기본 구현(`questionApprovalsOver`, `planApprovalsOver`, `shellPortOver`)이 `xeon.approvals`와
 // `xeon.loop`를 감싸므로 조립 루트가 따로 잇지 않는다. 조립 루트 코드(DR-14 예외 2).
 
-/** 동작 명령 등록부를 나중에 채우는 자리. 브리지 확장이 채우고 cap-work가 등록 시점에 읽는다 */
+/** `dialog.commands` 능력의 서비스 API(목록, 실행). 호스트의 `command.*` 처리기가 쓴다 */
+export type CommandsApi = CapabilityApi<typeof DialogCommands>;
+
+/**
+ * 동작 명령 등록부와 명령 서비스 API를 나중에 채우는 자리. 브리지 확장이 채우고 cap-work가 등록 시점에(`current`),
+ * 호스트의 `command.list`·`command.run` 처리기가 호출 시점에(`api`) 읽는다
+ */
 export interface CommandRegistryHolder {
   current: CommandActionRegistry | undefined;
+  api: CommandsApi | undefined;
 }
 
 /**
@@ -40,6 +48,18 @@ function isCommandRegistry(value: unknown): value is CommandActionRegistry {
     value !== null &&
     "registerAction" in value &&
     typeof value.registerAction === "function"
+  );
+}
+
+/** 목록과 실행 메서드를 가진 명령 서비스 API인가. 공급자가 다른 능력 구현이면 호스트 명령이 없다 */
+function isCommandsApi(value: unknown): value is CommandsApi {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "list" in value &&
+    typeof value.list === "function" &&
+    "run" in value &&
+    typeof value.run === "function"
   );
 }
 
@@ -77,6 +97,11 @@ export function dialogBridgePlugin(
       const tools = host.port(ToolServicePortKey);
       const logger = host.port(OsPortKey).logger("dialog");
       const commands: unknown = g.capability(DialogCommandsKey);
+      if (isCommandsApi(commands)) holder.api = commands;
+      else
+        logger.warn("dialog.command_api_missing", {
+          effect: "command.list and command.run are unavailable",
+        });
       if (isCommandRegistry(commands)) holder.current = commands;
       else
         logger.warn("dialog.command_registry_missing", {
@@ -84,6 +109,7 @@ export function dialogBridgePlugin(
         });
       g.onDispose(() => {
         holder.current = undefined;
+        holder.api = undefined;
       });
       const registration: ToolRegistration = {
         kind: "capability",

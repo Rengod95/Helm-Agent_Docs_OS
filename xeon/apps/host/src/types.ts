@@ -161,6 +161,8 @@ export interface EnginePorts {
   readonly log: HostLogPort;
   /** L0.secrets 관리 서비스와 wire 밖 값 전달 통로 */
   readonly secrets: SecretsPort;
+  /** L2.dialog 슬래시 명령 */
+  readonly commands: CommandPort;
   /** X.loading-trust 프로젝트 신뢰. 클라이언트가 묻고 정한다(`trust.get`·`trust.decide`) */
   readonly trust: TrustPort;
   /** 새 id 발급(traceId, 연결 id). 엔진의 IdFactory다 */
@@ -197,6 +199,13 @@ export interface ThreadPort {
     threadId: ThreadId,
     to: ItemId,
   ): Promise<Result<{ readonly position: StreamPosition }, LifecycleError>>;
+  /** 쓰기 소유자만. 제목을 바꾸고(`thread.updated { title }` 커밋) 그 이벤트를 반영한 위치를 돌려준다. 호출마다 새 요청 키를 만든다 */
+  rename(
+    threadId: ThreadId,
+    title: string,
+  ): Result<{ readonly position: StreamPosition }, LifecycleError | ReadFailure>;
+  /** 제목이 이미 있는가. 첫 입력 자동 제목이 사람이 정한 제목을 덮지 않게 한다. 모르는 thread는 없는 것(false)이다 */
+  hasTitle(threadId: ThreadId): Result<boolean, ReadFailure>;
   /** 쓰기 소유자만. 지운 뒤 이 프로세스가 쥔 그 thread의 임대와 확장 상태를 거둔다 */
   remove(threadId: ThreadId): Promise<Result<void, LifecycleError>>;
   /**
@@ -225,13 +234,38 @@ export interface TurnPort {
   interrupt(threadId: ThreadId, turnId: TurnId | undefined): Promise<boolean>;
   /**
    * 열린 turn을 재개한다(자동 재개는 하지 않는다, L1.loop.spec §4.6). 재시작 뒤 승인 대기 turn은 재개해야 응답을 받아 이어진다.
-   * wire에 재개 메서드가 없어 지금은 시험과 서비스 모드의 자동 재개(M3)가 쓴다 [미결: F wire 요청]
+   * wire 메서드 `turn.resume`이 사용자 확인 뒤 부르고, 서비스 모드의 자동 재개(M3)도 쓴다
    */
   resume(threadId: ThreadId): Promise<Result<ResumeResult, LoopError>>;
   /** 진행 중 turn을 다음 안전 경계에서 멈추고 체크포인트를 커밋한다. 시한 안에 끝나면 true */
   stopAtSafeBoundary(deadlineMs: number): Promise<boolean>;
   /** 그 thread에 진행 중인 turn이 있는가. 서비스 모드의 잠금 해제 판정(HS-27)이 쓴다 */
   isLive(threadId: ThreadId): boolean;
+}
+
+/** 슬래시 명령 질의·실행이 실패한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.3.1 command.*) */
+export type CommandFailure =
+  /** 명령 서비스(`dialog.commands`)를 가진 확장이 올라와 있지 않다 */
+  | { readonly kind: "unavailable" }
+  /** 명령 서비스가 입력을 거절했다. `code`는 능력 오류 코드(`command_args_invalid`, `command_shell_disabled`, `denied` 등) */
+  | { readonly kind: "rejected"; readonly code: string; readonly message: string };
+
+/**
+ * 엔진에 등록한 슬래시 명령(L2.dialog `dialog.commands`)을 클라이언트가 읽고 실행한다(G1-01). 명령은 호스트가 호출한 것(호출자 `host`)으로
+ * 돌고 사람이 입력 자리에 있다(대화형). 실행은 thread 문맥에서 한다
+ */
+export interface CommandPort {
+  /** 이름 앞부분(`prefix`)으로 거른 명령 목록. thread 문맥이 없어 프로젝트 명령은 엔진의 기본 작업 폴더 기준이다(HS-72) */
+  list(
+    params: WireParams<"command.list">,
+    signal: AbortSignal,
+  ): Promise<Result<WireResult<"command.list">, CommandFailure>>;
+  /** 한 줄을 실행한다. 호출마다 새 요청 키를 만들어 넘긴다(같은 줄을 다시 보내면 다시 실행된다) */
+  run(
+    threadId: ThreadId,
+    params: Omit<WireParams<"command.run">, "threadId">,
+    signal: AbortSignal,
+  ): Promise<Result<WireResult<"command.run">, CommandFailure>>;
 }
 
 export interface CommitBatch {

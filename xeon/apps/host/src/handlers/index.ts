@@ -2,6 +2,7 @@ import type { WireHandlers } from "@xeon/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine } from "../types.ts";
 import { createApprovalListHandler, createApprovalRespondHandler } from "./approval.ts";
+import { createCommandHandlers } from "./command.ts";
 import { createEventsSubscribeHandler, createEventsUnsubscribeHandler } from "./events.ts";
 import {
   createHostHelloHandler,
@@ -26,16 +27,21 @@ import {
   createThreadListHandler,
   createThreadOpenHandler,
   createThreadReadHandler,
+  createThreadRenameHandler,
   createThreadRevertHandler,
 } from "./thread.ts";
 import { createTrustHandlers } from "./trust.ts";
-import { createTurnInterruptHandler, createTurnStartHandler } from "./turn.ts";
+import {
+  createTurnInterruptHandler,
+  createTurnResumeHandler,
+  createTurnStartHandler,
+} from "./turn.ts";
 
 export type { HostInfo, HostLifecycle } from "./host.ts";
 
 /**
  * 전송과 무관한 처리기 표 하나. in-process, stdio, socket이 같은 표를 쓴다.
- * M1 처리기 5개(host.hello, thread.create, turn.start, events.subscribe, settings.get)에 M2 처리기를 더했다. 아직 없는 메서드는 notImplemented로 채운다.
+ * M1 처리기 5개(host.hello, thread.create, turn.start, events.subscribe, settings.get)에 M2 처리기를 더했다. 아직 없는 메서드(`host.shutdown`을 열지 않는 in-process 호스트)는 notImplemented로 채운다.
  */
 export function createWireHandlers(
   engine: Engine,
@@ -59,25 +65,21 @@ export function createWireHandlers(
     "thread.delete": createThreadDeleteHandler(engine, hub),
     "thread.fork": createThreadForkHandler(engine, hub),
     "thread.revert": createThreadRevertHandler(engine),
-    // G2-12: wire 계약만 있고 처리기는 HOST 트랙이 SessionService.setTitle에 잇는다
-    "thread.rename": notImplemented("thread.rename"),
+    "thread.rename": createThreadRenameHandler(engine),
     "turn.start": createTurnStartHandler(engine, hub),
     "turn.interrupt": createTurnInterruptHandler(engine),
-    // G1-02: wire 계약만 있고 처리기는 HOST 트랙이 TurnPort.resume에 잇는다
-    "turn.resume": notImplemented("turn.resume"),
+    "turn.resume": createTurnResumeHandler(engine, hub),
     "events.subscribe": createEventsSubscribeHandler(engine, hub),
     "events.unsubscribe": createEventsUnsubscribeHandler(hub),
     "approval.respond": createApprovalRespondHandler(engine),
     "approval.list": createApprovalListHandler(engine),
-    // G1-01: wire 계약만 있고 처리기는 HOST 트랙이 잇는다
-    "command.list": notImplemented("command.list"),
-    "command.run": notImplemented("command.run"),
     "settings.get": createSettingsGetHandler(engine),
     "settings.set": createSettingsSetHandler(engine),
     "settings.reset": createSettingsResetHandler(engine),
     "settings.list": createSettingsListHandler(engine),
     ...createSecretHandlers(engine),
     ...createTrustHandlers(engine),
+    ...createCommandHandlers(engine, hub),
   };
   return table;
 }

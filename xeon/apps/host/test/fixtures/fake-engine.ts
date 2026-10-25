@@ -26,6 +26,7 @@ import type {
   SettingsChange,
   SettingsStorePort,
   SubmitOutcome,
+  CommandPort,
   ThreadPort,
   TrustPort,
   TurnPort,
@@ -73,6 +74,7 @@ export interface FakeEngineOptions {
     readonly settings?: Partial<SettingsStorePort>;
     readonly approvals?: Partial<ApprovalPort>;
     readonly trust?: Partial<TrustPort>;
+    readonly commands?: Partial<CommandPort>;
   };
 }
 
@@ -118,6 +120,8 @@ export interface FakeEngine {
   readonly acquisitions: { readonly threadId: ThreadId; readonly kind: OwnerKind }[];
   /** 연결을 거치지 않고 thread를 만든다(다른 프로세스가 만든 thread를 흉내 낸다) */
   seedThread(): ThreadId;
+  /** `thread.rename`과 첫 입력 자동 제목이 정한 제목 */
+  readonly titles: ReadonlyMap<ThreadId, string>;
 }
 
 const RECORDED_AT = 1_767_571_200_000;
@@ -130,6 +134,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
   const settingsListeners = new Set<(change: SettingsChange) => void>();
   const threads = new Set<ThreadId>();
   const held = new Set<ThreadId>();
+  const titles = new Map<ThreadId, string>();
   const submitted: { threadId: ThreadId; requestId: string | undefined }[] = [];
   const acquisitions: { threadId: ThreadId; kind: OwnerKind }[] = [];
   const released: ThreadId[] = [];
@@ -193,6 +198,14 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       revert: () => Promise.reject(new Error("revert is not part of the fake")),
       remove: () => Promise.reject(new Error("remove is not part of the fake")),
       read: () => Promise.reject(new Error("read is not part of the fake")),
+      rename(threadId, title) {
+        // 제목 변경은 쓰기 소유자만 한다(SessionService.threads.setTitle)
+        if (!held.has(threadId)) return err({ kind: "not_owner", threadId });
+        titles.set(threadId, title);
+        commit([{ kind: "thread.updated", threadId, payload: { title } }]);
+        return ok({ position: position() });
+      },
+      hasTitle: (threadId) => ok((titles.get(threadId) ?? "") !== ""),
       position: () => ok(position()),
       ...options.overrides?.threads,
     },
@@ -290,6 +303,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       list: () => Promise.reject(new Error("list is not part of the fake")),
       ...options.overrides?.approvals,
     },
+    commands: {
+      list: () => Promise.reject(new Error("command.list is not part of the fake")),
+      run: () => Promise.reject(new Error("command.run is not part of the fake")),
+      ...options.overrides?.commands,
+    },
     trust: {
       get: () => Promise.reject(new Error("trust.get is not part of the fake")),
       decide: () => Promise.reject(new Error("trust.decide is not part of the fake")),
@@ -372,6 +390,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       state.rejection = error;
     },
     secrets,
+    titles,
     submitted,
     held,
     acquisitions,
