@@ -143,6 +143,7 @@ export function holderSettings(options: HostGroupsOptions): DriveHolderSettingsP
             throw new Bug(`groups: ${HOLDER_KEY} is missing from the setting catalog`);
           case "settings.invalidValue":
           case "settings.secretValue":
+          case "settings.reserved":
             return err(unwritable("invalid_value"));
           default:
             return assertNever(checked.kind, "WriteCheckKind");

@@ -99,6 +99,7 @@ export type WireErrorKind =
   | "settings.scopeNotAllowed"
   | "settings.locked"
   | "settings.secretValue"
+  | "settings.reserved"
   | "secret.notFound"
   | "secret.denied"
   | "secret.providerUnavailable"
@@ -331,6 +332,13 @@ export const WIRE_ERRORS: {
   "settings.secretValue": {
     code: 3105,
     kind: "settings.secretValue",
+    retryable: false,
+    details: KeyDetails,
+  },
+  /** 읽는 코드가 아직 없는 `reserved` 키에 쓰려 했다(F.wire-settings.spec §3.8.2 `stage`) */
+  "settings.reserved": {
+    code: 3106,
+    kind: "settings.reserved",
     retryable: false,
     details: KeyDetails,
   },

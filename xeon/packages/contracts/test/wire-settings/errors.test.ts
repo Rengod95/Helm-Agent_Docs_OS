@@ -56,6 +56,7 @@ describe("WIRE_ERRORS", () => {
       "settings.scopeNotAllowed": 3103,
       "settings.locked": 3104,
       "settings.secretValue": 3105,
+      "settings.reserved": 3106,
       "secret.notFound": 3201,
       "secret.denied": 3202,
       "secret.providerUnavailable": 3203,

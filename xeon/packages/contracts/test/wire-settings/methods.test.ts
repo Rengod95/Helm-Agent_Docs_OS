@@ -469,6 +469,13 @@ describe("M2 method schemas are written out", () => {
     expect(parse(result, { ...status, extra: true }).ok).toBe(false);
   });
 
+  test("settings.list leaves reserved keys out unless asked", () => {
+    const { params } = WIRE_METHODS["settings.list"];
+    expect(parse(params, {}).ok).toBe(true);
+    expect(parse(params, { includeReserved: true, includeDeprecated: false }).ok).toBe(true);
+    expect(parse(params, { includeReserved: "yes" }).ok).toBe(false);
+  });
+
   test("thread.list returns summaries with the ThreadSummaryRow fields", () => {
     const { result, params } = WIRE_METHODS["thread.list"];
     const summary = {

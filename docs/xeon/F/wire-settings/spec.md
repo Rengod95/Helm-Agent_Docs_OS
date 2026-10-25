@@ -319,7 +319,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | settings | `settings.get` | `{ keys?: SettingKey[], threadId?: ThreadId }` | `{ settings: EffectiveSetting[] }` | M1 |
 | settings | `settings.set` | `{ key: SettingKey, value: unknown, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
 | settings | `settings.reset` | `{ key: SettingKey, scope: SettingScope, threadId?: ThreadId }` | `{ setting: EffectiveSetting }` | M2 |
-| settings | `settings.list` | `{ prefix?: string, includeDeprecated?: boolean }` | `{ defs: SettingDefWire[] }` | M2 |
+| settings | `settings.list` | `{ prefix?: string, includeDeprecated?: boolean, includeReserved?: boolean }` | `{ defs: SettingDefWire[] }` | M2 |
 | secret | `secret.list` | `{ meta?: boolean, usage?: boolean }` | `{ secrets: SecretListEntry[] }` | M2 |
 | secret | `secret.meta` | `{ name: SecretName, …메타·정책 필드 }` | `{ secret: SecretListEntry }` | M2 |
 | secret | `secret.remove` | `{ name: SecretName }` | `{ removed: boolean }` | M2 |
@@ -793,6 +793,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3103 | `settings.scopeNotAllowed` | false | 그 범위에 쓸 수 없는 키 | `key`, `scope`, `allowedScopes` |
 | 3104 | `settings.locked` | false | 관리 범위가 잠근 키 | `key`, `lockedBy: "managed"` |
 | 3105 | `settings.secretValue` | false | 비밀 키에 참조가 아닌 값을 넣었다 | `key` |
+| 3106 | `settings.reserved` | false | 읽는 코드가 아직 없는 `stage: "reserved"` 키에 쓰려 했다(§3.8.2) | `key` |
 | 3201 | `secret.notFound` | false | 그 이름의 비밀이 메타(`meta`)나 제공자(`provider`)에 없다. `secret.remove`는 이미 없는 이름이면 오류 없이 `removed: false`다 | `where` |
 | 3202 | `secret.denied` | false | 사용 정책이 거부했다(`SecretDenyReason`) | `reason` |
 | 3203 | `secret.providerUnavailable` | false | 제공자를 쓸 수 없다(바이너리 없음, 버전이 낮음, 등록 안 됨) | `provider`, `reason` |
@@ -966,7 +967,11 @@ export interface SettingDef<S extends TSchema = TSchema> {
   readonly secret?: boolean;               // 기본 false
   readonly since: SemVer;
   readonly deprecated?: SettingDeprecation;
+  readonly stage?: SettingStage;           // 생략하면 "active". 읽는 코드가 없는 키는 "reserved" [결정: m2c G5-04]
 }
+
+/** 구현 단계. active는 값을 읽어 동작을 바꾼다. reserved는 이름과 모양만 선언했다 */
+export const SettingStage = Type.Union([Type.Literal("active"), Type.Literal("reserved")]);
 
 /** 전송·검사용 형태(settings.list 결과, 확장 매니페스트 userConfig 변환 결과). type은 JSON Schema 객체다. */
 export const SettingDefWire = Obj({
@@ -981,8 +986,16 @@ export const SettingDefWire = Obj({
   secret: Type.Optional(Type.Boolean()),
   since: SemVer,
   deprecated: Type.Optional(SettingDeprecation),
+  stage: Type.Optional(SettingStage),
 });
 ```
+
+- [결정: m2c G5-04] `SettingDef.stage`는 값을 읽는 코드가 있는지를 알린다. 선언만 하고 읽지 않는 키(2차·M3 기능의 키)가 `xeon config set`과 설정 화면에서 일반 키처럼 보이고 값을 바꿔도 아무 일도 일어나지 않는 문제를 막는다. 규칙은 넷이다.
+  1. `reserved` 키는 `settings.list`에서 기본으로 빠진다. `includeReserved: true`를 주면 들어간다. `settings.get`은 지정한 키를 그대로 돌려준다.
+  2. `reserved` 키는 `ui`를 가져도 화면에 그리지 않는다. 클라이언트는 `settings.list` 결과에 `stage: "reserved"`가 보이면 건너뛴다.
+  3. `reserved` 키에 쓰는 `settings.set`, `xeon config set`(`checkSettingWrite`)은 `settings.reserved`(3106)로 거부한다. 키·구현 단계·범위·잠금·값 순으로 검사해서 범위나 값이 틀려도 이 오류가 먼저다. `settings.reset`은 값을 지우는 일이라 막지 않는다.
+  4. 파일에 이미 적힌 `reserved` 키 값은 읽히지만 쓰는 코드가 없다. 키를 `active`로 올리는 일은 읽는 코드를 넣는 커밋이 한다. `stage`는 `checkSettingDef` 규칙(D1~D9)을 바꾸지 않는다.
+  - 소유 층이 어느 키를 `reserved`로 표시할지는 각 층의 몫이다(`review.m2-plan` G5-04). 이 변경은 필드와 거부 규칙만 정한다. 표시 대상 후보는 `l4.cli.theme`·`statusLine`·`keybindingsFile`, `l0.process.service.*`, `l0.process.lockFallback.default`, `l0.os.telemetry.*`, `l2.web.browse.*`·`research.*`다.
 
 `SettingDef` 검사 규칙(`checkSettingDef`, 순수 함수). 하나라도 어기면 정의를 거부한다.
 

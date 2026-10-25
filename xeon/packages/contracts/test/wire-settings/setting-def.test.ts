@@ -6,6 +6,7 @@ import { CORE_EVENT_CATALOG } from "../../src/records/index.ts";
 import {
   SETTING_KEY_PATTERN,
   SettingDefWireSchema,
+  SettingStageSchema,
   SettingKeySchema,
   SettingScopeSchema,
   checkSettingDef,
@@ -175,6 +176,18 @@ describe("settings.changed alignment with records", () => {
 });
 
 describe("SettingDefWire", () => {
+  test("stage: active is the default, reserved travels on the wire, other values are refused", () => {
+    expect(toSettingDefWire(intDef()).stage).toBeUndefined();
+    const reserved = toSettingDefWire(intDef({ stage: "reserved" }));
+    expect(reserved.stage).toBe("reserved");
+    expect(parse(SettingDefWireSchema, reserved).ok).toBe(true);
+    expect(parse(SettingDefWireSchema, { ...reserved, stage: "planned" }).ok).toBe(false);
+    expect(parse(SettingStageSchema, "active").ok).toBe(true);
+    // stage는 정의 검사 규칙을 바꾸지 않는다: 같은 정의가 reserved여도 규칙 결과는 같다
+    expect(checkSettingDef(intDef({ stage: "reserved" }))).toEqual([]);
+    expect(rules(checkSettingDef(intDef({ stage: "reserved", default: 20_000 })))).toEqual(["D4"]);
+  });
+
   test("toSettingDefWire produces a valid wire form with a JSON Schema type", () => {
     const wire = toSettingDefWire(intDef());
     expect(parse(SettingDefWireSchema, JSON.parse(JSON.stringify(wire))).ok).toBe(true);

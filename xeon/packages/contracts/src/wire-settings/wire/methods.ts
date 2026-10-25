@@ -746,10 +746,13 @@ export type SettingsSetResult = Static<typeof SettingsSetResultSchema>;
 export const SettingsListParamsSchema: TObject<{
   prefix: TOptional<TString>;
   includeDeprecated: TOptional<TBoolean>;
+  includeReserved: TOptional<TBoolean>;
 }> = Type.Object(
   {
     prefix: Type.Optional(Type.String({ minLength: 1, maxLength: 128 })),
     includeDeprecated: Type.Optional(Type.Boolean()),
+    /** `stage: "reserved"` 키를 목록에 넣는다. 기본은 뺀다(F.wire-settings.spec §3.8.2) */
+    includeReserved: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
