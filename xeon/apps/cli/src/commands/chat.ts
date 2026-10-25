@@ -244,6 +244,7 @@ async function chatWork(
           approvals: () => holder.approvals,
           slash: {
             connection: handle.connection,
+            supports: (feature) => handle.supports(feature),
             workspace: ctx.workspace,
             threadId: () => current().threadId,
             switchTo: async (threadId: ThreadId) => {

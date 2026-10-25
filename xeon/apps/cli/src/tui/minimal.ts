@@ -9,7 +9,14 @@ import type { RenderOp } from "../render/model.ts";
 import { createTextSink, type RenderSink } from "../render/text-sink.ts";
 import type { ExitCoordinator } from "../signals.ts";
 import type { ApprovalSink } from "../render/approval.ts";
-import { completionsOf, parseSlash, runSlash, type SlashContext } from "../slash.ts";
+import {
+  completionsOf,
+  loadEngineCommands,
+  parseSlash,
+  runSlash,
+  type EngineCommand,
+  type SlashContext,
+} from "../slash.ts";
 import { displayWidth, truncateToWidth } from "../render/width.ts";
 import { sequentially } from "../util.ts";
 
@@ -90,7 +97,7 @@ export interface InteractiveArgs {
   readonly exit: ExitCoordinator;
   /** 지금 세션의 승인 sink. 승인이 입력 줄보다 먼저 사람에게 가야 해서 입력 대기가 이것을 본다 */
   readonly approvals: () => ApprovalSink | undefined;
-  readonly slash: Omit<SlashContext, "io" | "signal">;
+  readonly slash: Omit<SlashContext, "io" | "signal" | "engineCommands">;
 }
 
 /** session 범위를 허용하는 설정 키. /set 자동 완성에 쓴다. 읽지 못하면 완성 없이 동작한다 */
@@ -125,14 +132,40 @@ export async function runInteractive(args: InteractiveArgs): Promise<ExitCode> {
   if (current().readOnly) {
     await io.stdout("관찰 전용이다: 입력은 보내지 않고 이 세션의 진행만 보인다 (/quit로 끝낸다)\n");
   }
+  // 엔진에 등록한 명령(command.list)은 도움말과 Tab 완성에 쓴다. 읽지 못하면 내장 명령만 동작한다
+  const engineCommands: EngineCommand[] = [
+    ...(await loadEngineCommands(args.slash.connection, args.slash.supports)),
+  ];
   if (io.setCompleter !== undefined) {
     const keys = await sessionKeysOf(args.slash.connection);
-    io.setCompleter((line) => completionsOf(line, keys));
+    io.setCompleter((line) => completionsOf(line, keys, engineCommands));
   }
 
   const exitCode = async (): Promise<ExitCode> => (await exit.requested).code;
   /** 입력을 기다리는 사이 바뀌는 값이다. 함수로 다시 읽어 앞선 검사의 좁힘이 이어지지 않게 한다 */
   const exitRequested = (): boolean => exit.isRequested;
+
+  /** 입력 하나를 turn으로 보내 끝날 때까지 기다린다. 입력을 이어 받을 수 없으면 종료 코드, 이어 받으면 undefined다 */
+  const sendInput = async (text: string): Promise<ExitCode | undefined> => {
+    const session = current();
+    if (session.readOnly) {
+      await io.stderr("관찰 전용이라 입력을 보낼 수 없다\n");
+      return undefined;
+    }
+    try {
+      const sent = await session.sendTurn(text);
+      const outcome = await Promise.race([sent.done, exit.requested]);
+      if ("code" in outcome) return outcome.code;
+    } catch (caught) {
+      const failure = failureOfCaught(caught);
+      if (failure === undefined) throw caught;
+      await io.stderr(renderFailure(failure));
+      if (caught instanceof HostClientError || failure.code === EXIT.lockDenied) {
+        return failure.code;
+      }
+    }
+    return undefined;
+  };
 
   const step = async (): Promise<ExitCode> => {
     // 열려 있거나 줄 선 승인 프롬프트가 입력을 먼저 쓴다(재시작 뒤 되살린 승인, turn 밖에서 온 승인)
@@ -161,27 +194,18 @@ export async function runInteractive(args: InteractiveArgs): Promise<ExitCode> {
     const text = line.trim();
     if (text.length === 0) return step();
     if (text.startsWith("/")) {
-      const outcome = await runSlash(parseSlash(text), { ...args.slash, io, signal: abort.signal });
-      return outcome === "quit" ? EXIT.ok : step();
+      const outcome = await runSlash(parseSlash(text), {
+        ...args.slash,
+        io,
+        signal: abort.signal,
+        engineCommands: () => engineCommands,
+      });
+      if (outcome === "quit") return EXIT.ok;
+      if (outcome === "continue") return step();
+      // 명령이 펼친 텍스트는 사용자가 친 입력처럼 turn으로 보낸다
+      return (await sendInput(outcome.send)) ?? step();
     }
-    const session = current();
-    if (session.readOnly) {
-      await io.stderr("관찰 전용이라 입력을 보낼 수 없다\n");
-      return step();
-    }
-    try {
-      const sent = await session.sendTurn(text);
-      const outcome = await Promise.race([sent.done, exit.requested]);
-      if ("code" in outcome) return outcome.code;
-    } catch (caught) {
-      const failure = failureOfCaught(caught);
-      if (failure === undefined) throw caught;
-      await io.stderr(renderFailure(failure));
-      if (caught instanceof HostClientError || failure.code === EXIT.lockDenied) {
-        return failure.code;
-      }
-    }
-    return step();
+    return (await sendInput(text)) ?? step();
   };
   return step();
 }

@@ -68,7 +68,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 
 | 명령 | 동작 | 쓰는 wire 메서드 | 마일스톤 |
 |---|---|---|---|
-| `xeon`, `xeon chat` | 대화형 모드. TTY가 아니면 print 모드로 바뀐다(§4.2) | `host.hello`, `thread.create`, `events.subscribe`, `turn.start`, `settings.get` | M1 |
+| `xeon`, `xeon chat` | 대화형 모드. TTY가 아니면 print 모드로 바뀐다(§4.2). 대화형의 슬래시 명령 중 엔진에 등록한 것은 `command.list`로 목록을, `command.run`으로 실행을 부른다(§4.12) | `host.hello`, `thread.create`, `events.subscribe`, `turn.start`, `settings.get`. 슬래시 명령: `command.list`, `command.run` | M1 |
 | `xeon chat -p <입력>`, `--print <입력>` | print 모드. 입력 하나로 turn 하나를 돌리고 응답 텍스트를 stdout에 쓴다. `-p -` 또는 `-p`만 쓰면 stdin 전체가 입력이다 | 위와 같음 | M1 |
 | `xeon chat -p … --json` | JSON 모드. 연결에서 오간 JSON-RPC 메시지를 순서대로 한 줄에 하나씩 쓴다(§4.4) | 위와 같음 | M1 |
 | `xeon chat --continue` | 현재 작업 폴더의 마지막 세션을 이어 연다. M1은 CLI 상태 파일, M2부터 `thread.list` | M1: 위와 같음. M2: `thread.list`, `thread.open` 추가 | M1 |
@@ -706,10 +706,18 @@ export type CliState = Static<typeof CliStateSchema>;
   - `/model [<값>]`: 모델 선택 키의 별칭이다. 값이 없으면 그 키의 `range.enum`으로 목록을 보인다. 키 이름은 `L1.models.spec`이 정한다 [가정: 아직 이름이 정해지지 않았다].
   - `/resume [<번호|id>]`: `thread.list`로 이 작업 폴더의 목록을 보이고 고른 세션으로 바꾼다(M2). 바꿀 때 이전 세션의 구독을 해제하고(`events.unsubscribe`) 새 세션을 같은 연결에서 연다. 잠금이면 §4.11의 프롬프트가 뜬다. 바꾸지 못하면 이전 세션을 다시 연다.
   - `/help`, `/quit`: CLI 내장.
+  - 엔진 명령 [결정: m2c G1-01]: 내장도 별칭도 아닌 이름은 줄 전체를 `command.run { threadId, text }`에 그대로 넘긴다. `/plan`, `/tasks`, `/goal`처럼 L2·L3 코드가 등록한 동작 명령이 여기서 실행된다. 이름이 겹치면 내장과 별칭이 앞선다.
+    - 결과 `done`은 `message`를 stdout에 쓴다. `message`가 `null`이고 `result`가 `null`이 아니면 `result`를 들여쓴 JSON으로 쓴다. 동작 명령은 turn을 만들지 않는다.
+    - 결과 `expanded`는 템플릿을 펼친 최종 텍스트다. 사용자가 그 텍스트를 친 것처럼 `turn.start`로 보낸다(`command.run`은 turn을 만들지 않는다).
+    - 결과 `needs_confirmation`은 셸 주입이 있는 템플릿이다. 실행할 셸 명령을 보이고 `[y/N]`로 묻는다. `y`면 `confirmShell: true`로 한 번 더 부르고, 그 밖의 입력은 "실행하지 않았다"를 알리고 끝낸다.
+    - 결과 `not_command`는 모르는 슬래시 명령으로 처리한다.
+    - 실패는 능력 오류(`cap.dialog.commands.*`)와 `thread.notFound`로 온다. 문구는 §4.10 표다.
+    - `/help`는 `command.list`가 알려 준 명령을 "엔진 명령" 아래에 보인다. Tab 완성은 명령 이름과 첫 인자의 `choices`를 쓴다. 목록은 대화형을 시작할 때 한 번 읽는다.
+    - `host.hello`의 `features`에 `command.run`이 없는 호스트에서는 부르지 않고 모르는 명령으로 처리한다.
 - 별칭 표는 `src/slash.ts`의 상수 하나에 둔다. 키 이름이 없는 별칭은 등록하지 않는다. 현재 별칭은 `/model` → `l1.models.default` 하나다.
 - Tab 완성: `/set ` 뒤는 session 범위를 허용하는 키, 줄 첫 단어는 슬래시 이름이다. 키 목록은 대화형을 시작할 때 `settings.list`로 한 번 읽는다.
 - 실패한 슬래시 명령(없는 키, 허용되지 않은 범위)은 두 줄 오류를 stderr에 쓰고 입력을 이어 받는다.
-- 확장이 슬래시 명령을 더하는 경로(L2-e 프롬프트 템플릿)는 wire 메서드가 없어 이 문서에 두지 않는다.
+- 확장이 슬래시 명령을 더하는 경로(L2-e 프롬프트 템플릿)는 등록 쪽이 엔진 안이라 이 문서에 두지 않는다. 클라이언트는 위의 `command.list`와 `command.run`만 부른다.
 
 ## 5. 실패와 경계 사례
 
@@ -791,6 +799,7 @@ export type CliState = Static<typeof CliStateSchema>;
 - AC14. 키 플러그인이 없고 SearXNG가 감지되지 않은 설정에서 `xeon doctor`는 검색 provider 묶음 세 줄을 내고, 권장 목록에 Exa와 Brave가 있다.
 - AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 계획 승인은 `{ mode?, note? }`, 질문은 `QuestionAnswer`다. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
 - AC16. `host --stdio`의 stdout에는 JSON-RPC 메시지만 나오고(사람용 출력은 stderr), stdin EOF에서 0으로 끝난다. `l4.cli.*` 키가 그 호스트의 카탈로그에 있다. 컴파일(`--minify --bytecode`) 바이너리에서도 같다.
+- AC17. 대화형에서 엔진에 등록한 동작 명령(`/plan on`)을 치면 `command.run { threadId, text: "/plan on" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
 
 ## 10. 미결 사항
 

@@ -40,7 +40,7 @@ test("parseSlash reads the built-in commands, set, the model alias and resume", 
   });
   expect(parseSlash("/resume")).toEqual({ kind: "resume", target: null });
   expect(parseSlash("/resume 2")).toEqual({ kind: "resume", target: "2" });
-  expect(parseSlash("/frob x")).toEqual({ kind: "unknown", name: "frob" });
+  expect(parseSlash("/frob x")).toEqual({ kind: "engine", name: "frob", text: "/frob x" });
 });
 
 test("parseSlash reports a missing key or value and a malformed key", () => {
