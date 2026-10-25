@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
@@ -117,7 +117,8 @@ describe("startBackground", () => {
       },
     });
     await handle.exited;
-    expect(output.join("").trim()).toBe(root);
+    // pwd -P는 realpath를 돌려준다(macOS /var → /private/var). 서비스는 cwd를 정규화하지 않는다
+    expect(output.join("").trim()).toBe(realpathSync(root));
   });
 
   test("stop(graceful) ends a normal process and exited reports the signal", async () => {
