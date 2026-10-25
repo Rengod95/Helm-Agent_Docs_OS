@@ -150,7 +150,9 @@ test("secret.meta on a name that has no metadata fails, and an invalid patch is 
   );
   expect(unknown).toBeInstanceOf(WireError);
   if (unknown instanceof WireError) {
-    expect(unknown.data.details).toEqual({ secret: { kind: "secret_missing", where: "meta" } });
+    expect(unknown.data.kind).toBe("secret.notFound");
+    expect(unknown.code).toBe(3201);
+    expect(unknown.data.details).toEqual({ where: "meta" });
   }
   const invalid = await rejectionOf(
     connection.request("secret.meta", { name: EXA, desc: "invalid desc" }),
@@ -180,7 +182,9 @@ test("secret.remove removes, reports a name that is already gone, and refuses wh
   const refused = await rejectionOf(connection.request("secret.remove", { name: EXA }));
   expect(refused).toBeInstanceOf(WireError);
   if (refused instanceof WireError) {
-    expect(refused.data.details).toEqual({ secret: { kind: "in_use", activeLeases: 2 } });
+    expect(refused.data.kind).toBe("secret.inUse");
+    expect(refused.code).toBe(3206);
+    expect(refused.data.details).toEqual({ activeLeases: 2 });
   }
   expect(host.fake.secrets.records.has(EXA)).toBe(true);
   await connection.close();
@@ -382,5 +386,43 @@ test("no value reaches the host log, whatever the secret flow", async () => {
   const logged = JSON.stringify([host.fake.log.infos, host.fake.log.errors]);
   expect(logged).not.toContain(VALUE);
   expect(logged).toContain("secret.entry");
+  await connection.close();
+});
+
+// ── M2 마감 G1-07: secret.references ───────────────────────────────────────────────────────
+
+test("secret.references reports the setting keys, the active leases and the recent threads that point at a secret", async () => {
+  const host = seeded();
+  const thread = host.fake.seedThread();
+  const record = host.fake.secrets.records.get(EXA);
+  if (record === undefined) throw new Error("the seeded secret is missing");
+  record.activeLeases = 1;
+  record.references = {
+    settingKeys: ["l2.web.search.exa.apiKey", "l1.models.providers"],
+    sessions: [thread, "not-a-thread-id"],
+  };
+  const connection = await open(host);
+  expect(await connection.request("secret.references", { name: EXA })).toEqual({
+    settingKeys: ["l2.web.search.exa.apiKey", "l1.models.providers"],
+    activeLeases: 1,
+    sessions: [thread],
+  });
+  // 읽기 전용이다: 비밀은 그대로 있다
+  expect(host.fake.secrets.records.has(EXA)).toBe(true);
+  expect(host.fake.secrets.calls).toEqual(["references exa-key"]);
+  await connection.close();
+});
+
+test("secret.references on a name without metadata is secret.notFound, and no value is in the log", async () => {
+  const host = seeded();
+  const connection = await open(host);
+  const unknown = await rejectionOf(
+    connection.request("secret.references", { name: nameOf("nope-key") }),
+  );
+  expect(unknown).toBeInstanceOf(WireError);
+  if (unknown instanceof WireError) {
+    expect(unknown.data.kind).toBe("secret.notFound");
+    expect(JSON.stringify(unknown)).not.toContain(VALUE);
+  }
   await connection.close();
 });

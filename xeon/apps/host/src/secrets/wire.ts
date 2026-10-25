@@ -86,7 +86,12 @@ function invalidParams(path: string, message: string): WireError {
   return wireError("jsonrpc.invalidParams", { details: { issues: [{ path, message }] } });
 }
 
-/** F 오류 표에는 비밀 관리 전용 kind가 아직 없다. 입력 문제는 -32602로, 나머지는 kind를 details에 실은 internal로 알린다 */
+/**
+ * `SecretError` → wire 오류. 입력 문제(`invalid_ref`, `unsupported_ref_syntax`, `meta_invalid`, `value_too_short`)는 `-32602`로,
+ * 나머지는 camelCase로 바꾼 `secret.<kind>` 전용 kind로 1:1 옮긴다(F wire §3.5.2 3201~3212, HS-47). `details`는 안전한 필드
+ * (제공자, 사유 코드, 종료 코드, 임대 수)만 싣는다. 외부 도구의 출력(`stderrMasked`)과 경로(`audit_unwritable.path`,
+ * `write_failed.path`)는 싣지 않는다
+ */
 export function wireErrorOfSecret(error: SecretError, where: string): WireError {
   switch (error.kind) {
     case "invalid_ref":
@@ -109,44 +114,61 @@ export function wireErrorOfSecret(error: SecretError, where: string): WireError 
         `${where}: value is shorter than ${String(error.minBytes)} bytes`,
       );
     case "secret_missing":
-      return secretFailure(error.kind, where, { where: error.where });
+      return wireError("secret.notFound", {
+        message: `${where}: secret_missing`,
+        details: { where: error.where },
+      });
     case "denied":
-      return secretFailure(error.kind, where, { reason: error.reason });
+      return wireError("secret.denied", {
+        message: `${where}: denied`,
+        details: { reason: error.reason.slice(0, DETAIL_MAX) },
+      });
     case "provider_unavailable":
-      return secretFailure(error.kind, where, { provider: error.provider, reason: error.reason });
+      return wireError("secret.providerUnavailable", {
+        message: `${where}: provider_unavailable`,
+        details: { provider: error.provider, reason: error.reason },
+      });
     case "key_unavailable":
-      return secretFailure(error.kind, where, { key: error.key, reason: error.reason });
+      return wireError("secret.keyUnavailable", {
+        message: `${where}: key_unavailable`,
+        details: { key: error.key, reason: error.reason },
+      });
     case "decrypt_failed":
       // stderrMasked는 마스킹을 거쳤지만 외부 도구의 출력이다. 응답에 싣지 않는다
-      return secretFailure(error.kind, where, {
-        provider: error.provider,
-        exitCode: error.exitCode,
+      return wireError("secret.decryptFailed", {
+        message: `${where}: decrypt_failed`,
+        details: { provider: error.provider, exitCode: error.exitCode },
       });
     case "in_use":
-      return secretFailure(error.kind, where, { activeLeases: error.activeLeases });
+      return wireError("secret.inUse", {
+        message: `${where}: in_use`,
+        details: { activeLeases: error.activeLeases },
+      });
     case "already_exists":
-      return secretFailure(error.kind, where, {});
+      return wireError("secret.alreadyExists", { message: `${where}: already_exists` });
     case "read_only_provider":
-      return secretFailure(error.kind, where, { provider: error.provider });
+      return wireError("secret.readOnlyProvider", {
+        message: `${where}: read_only_provider`,
+        details: { provider: error.provider },
+      });
     case "reauth_required":
+      return wireError("secret.reauthRequired", { message: `${where}: reauth_required` });
     case "cancelled":
-      return secretFailure(error.kind, where, {});
+      return wireError("secret.cancelled", { message: `${where}: cancelled` });
     case "audit_unwritable":
-      return secretFailure(error.kind, where, { code: error.code });
+      return wireError("secret.auditUnwritable", {
+        message: `${where}: audit_unwritable`,
+        details: { code: error.code.slice(0, DETAIL_MAX) },
+      });
     case "write_failed":
-      return secretFailure(error.kind, where, { target: error.target, code: error.code });
+      return wireError("secret.writeFailed", {
+        message: `${where}: write_failed`,
+        details: { target: error.target, code: error.code.slice(0, DETAIL_MAX) },
+      });
     default:
       return assertNever(error, "SecretError");
   }
 }
 
-function secretFailure(
-  kind: SecretError["kind"],
-  where: string,
-  fields: Readonly<Record<string, unknown>>,
-): WireError {
-  return wireError("internal", {
-    message: `${where}: ${kind}`,
-    details: { secret: { kind, ...fields } },
-  });
-}
+/** 오류 details 문자열 상한(F wire §3.5.2 비밀 오류) */
+const DETAIL_MAX = 64;

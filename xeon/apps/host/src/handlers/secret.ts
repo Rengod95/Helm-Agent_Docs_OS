@@ -1,4 +1,5 @@
 import { assertNever, type Result } from "@xeon/contracts";
+import { isId, type ThreadId } from "@xeon/contracts/conversation";
 import type { SecretError, SecretMetaPatch } from "@xeon/contracts/services";
 import {
   wireError,
@@ -8,7 +9,6 @@ import {
 } from "@xeon/contracts/wire";
 import { handleOf, listEntryOf, wireErrorOfSecret } from "../secrets/wire.ts";
 import type { Engine } from "../types.ts";
-import { notImplemented } from "./not-implemented.ts";
 
 // F.wire-settings.spec §3.3.1 secret.*, L4.host-service.spec §3.4 M2 표. 요청·응답·이벤트·오류 어디에도 값이 없다.
 // 값 입력과 열람은 CLI가 wire 밖으로 맡긴 수단(SecretOutOfBandPort)을 꺼내 SecretAdminService에 넘긴다.
@@ -100,6 +100,27 @@ function createTestHandler(engine: Engine): WireHandler<"secret.test"> {
   };
 }
 
+/** wire 결과의 상한(F wire `SecretReferencesResult`): 설정 키 256, 최근 thread 100 */
+const REFERENCES_KEYS_MAX = 256;
+const REFERENCES_SESSIONS_MAX = 100;
+
+/**
+ * 삭제 전에 이 비밀을 가리키는 곳을 보인다(`L0.secrets` `references`, `L4.cli.spec` §4.7 `secret rm`). 읽기 전용이다.
+ * 알 수 없는 이름은 `secret.notFound`다. 최근 사용 thread에서 thread id 모양이 아닌 항목은 뺀다
+ */
+function createReferencesHandler(engine: Engine): WireHandler<"secret.references"> {
+  const { admin } = engine.ports.secrets;
+  return async (params) => {
+    const report = orThrow(await admin.references(handleOf(params.name)), "secret.references");
+    const sessions: ThreadId[] = report.sessions.filter((id): id is ThreadId => isId("thr", id));
+    return {
+      settingKeys: report.settingKeys.slice(0, REFERENCES_KEYS_MAX),
+      activeLeases: report.activeLeases,
+      sessions: sessions.slice(0, REFERENCES_SESSIONS_MAX),
+    };
+  };
+}
+
 function createBeginEntryHandler(engine: Engine): WireHandler<"secret.beginEntry"> {
   const { secrets, log } = engine.ports;
   const { admin, offers } = secrets;
@@ -159,8 +180,7 @@ export function createSecretHandlers(engine: Engine): Pick<WireHandlers, SecretM
     "secret.meta": createMetaHandler(engine),
     "secret.remove": createRemoveHandler(engine),
     "secret.test": createTestHandler(engine),
-    // G1-07: wire 계약만 있고 처리기는 HOST 트랙이 SecretAdminService.references에 잇는다
-    "secret.references": notImplemented("secret.references"),
+    "secret.references": createReferencesHandler(engine),
     "secret.beginEntry": createBeginEntryHandler(engine),
     "secret.beginReveal": createBeginRevealHandler(engine),
   };

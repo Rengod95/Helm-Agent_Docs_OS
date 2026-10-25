@@ -34,6 +34,8 @@ interface FakeSecretRecord {
   value: string | null;
   lastUsedAt: number | null;
   activeLeases: number;
+  /** `references`가 돌려줄 참조(설정 키와 최근 사용 thread). 없으면 빈 목록이다 */
+  references?: { readonly settingKeys: readonly string[]; readonly sessions: readonly string[] };
 }
 
 export interface FakeSecrets {
@@ -192,7 +194,19 @@ export function createFakeSecrets(config: SecretsConfig = FAKE_SECRETS_CONFIG): 
       record.activeLeases = 0;
       return ok({ revokedLeases });
     },
-    references: () => Promise.reject(new Error("references is not part of the fake")),
+    references(handle) {
+      const name = nameOf(handle);
+      calls.push(`references ${name ?? "?"}`);
+      const record = name === undefined ? undefined : records.get(name);
+      if (record === undefined) return Promise.resolve(err(missing(handle)));
+      return Promise.resolve(
+        ok({
+          settingKeys: record.references?.settingKeys ?? [],
+          activeLeases: record.activeLeases,
+          sessions: record.references?.sessions ?? [],
+        }),
+      );
+    },
     rm(handle) {
       const name = nameOf(handle);
       calls.push(`rm ${name ?? "?"}`);

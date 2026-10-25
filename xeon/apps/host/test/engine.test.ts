@@ -149,7 +149,8 @@ describe("real engine", () => {
       );
       expect(failed).toBeInstanceOf(WireError);
       if (failed instanceof WireError) {
-        expect(failed.data.details).toEqual({ secret: { kind: "secret_missing", where: "meta" } });
+        expect(failed.data.kind).toBe("secret.notFound");
+        expect(failed.data.details).toEqual({ where: "meta" });
       }
       expect(await connection.request("secret.beginReveal", { name: name.value })).toEqual({
         started: false,
