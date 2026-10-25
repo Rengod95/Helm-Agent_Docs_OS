@@ -37,6 +37,7 @@ import {
   ThreadIdSchema,
   ThreadStatusSchema,
   TurnIdSchema,
+  type EventId,
   type UserMessage,
 } from "../../conversation/index.ts";
 import {
@@ -52,6 +53,7 @@ import {
   SeqSchema,
   StoreIdSchema,
   StreamPositionSchema,
+  type StreamPosition,
 } from "./cursor.ts";
 import { WireMetaSchema } from "./jsonrpc.ts";
 import { FeatureInfoSchema, FeatureNameSchema, type FeatureStatus } from "./version.ts";
@@ -533,6 +535,75 @@ export type ThreadRenameParams = Static<typeof ThreadRenameParamsSchema>;
 export const ThreadRenameResultSchema: TObject<{ position: typeof StreamPositionSchema }> =
   Type.Object({ position: StreamPositionSchema }, { additionalProperties: false });
 export type ThreadRenameResult = Static<typeof ThreadRenameResultSchema>;
+
+/**
+ * thread.compact params. 대화를 지금 요약하라는 사용자 요청이다(`/compact`, 컴팩션 이유 `manual`). 자동 컴팩션(`threshold`, `overflow`)은
+ * 루프가 알아서 하고 이 메서드와 상관없다. `instructions`는 `/compact` 뒤에 적은 요약 지침이다(`CompactRequest.instructions`와 같은 뜻).
+ */
+export const ThreadCompactParamsSchema: TObject<{
+  threadId: typeof ThreadIdSchema;
+  instructions: TOptional<TString>;
+}> = Type.Object(
+  {
+    threadId: ThreadIdSchema,
+    instructions: Type.Optional(Type.String({ minLength: 1, maxLength: 20_000 })),
+  },
+  { additionalProperties: false },
+);
+export type ThreadCompactParams = Static<typeof ThreadCompactParamsSchema>;
+
+/** 요약하지 않은 이유. `CompactOutcome`의 `skipped.why`(`services/context.ts`)와 같은 집합이다 */
+export type ThreadCompactSkipReason =
+  | "nothing_to_summarize"
+  | "last_entry_is_compaction"
+  | "disabled";
+
+/**
+ * thread.compact result. `CompactOutcome`(`services/context.ts`)의 두 모양에 위치를 더했다.
+ * `compacted`는 `thread.compacted` 이벤트를 커밋했다는 뜻이고 `eventId`가 그 이벤트, `position`이 그 이벤트를 반영한 저장소 위치다.
+ * `tokensBefore`는 요약 전 추정 토큰 수이고 `fromExtension`은 요약 내용을 낸 확장 이름(없으면 `null`)이다.
+ * `skipped`는 요약할 것이 없거나 컴팩션이 꺼져 있어 아무것도 커밋하지 않았다는 뜻이고 오류가 아니다.
+ * 확장이 막은 경우(`CompactOutcome`의 `cancelled`)와 요약 실패는 결과가 아니라 오류다(`thread.cancelledByExtension`, `thread.compactFailed`).
+ */
+export type ThreadCompactResult =
+  | {
+      readonly status: "compacted";
+      readonly eventId: EventId;
+      readonly tokensBefore: number;
+      readonly fromExtension: string | null;
+      readonly position: StreamPosition;
+    }
+  | { readonly status: "skipped"; readonly why: ThreadCompactSkipReason };
+const threadCompactResultShape = Type.Union([
+  Type.Object(
+    {
+      status: Type.Literal("compacted"),
+      eventId: EventIdSchema,
+      tokensBefore: Type.Integer({ minimum: 0 }),
+      fromExtension: Nullable(Type.String({ maxLength: 32 })),
+      position: StreamPositionSchema,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      status: Type.Literal("skipped"),
+      why: Type.Union([
+        Type.Literal("nothing_to_summarize"),
+        Type.Literal("last_entry_is_compaction"),
+        Type.Literal("disabled"),
+      ]),
+    },
+    { additionalProperties: false },
+  ),
+]);
+export const ThreadCompactResultSchema: TUnsafe<ThreadCompactResult> =
+  Type.Unsafe<ThreadCompactResult>(
+    threadCompactResultShape satisfies SchemaSound<
+      ThreadCompactResult,
+      typeof threadCompactResultShape
+    >,
+  );
 
 // ── turn.* ───────────────────────────────────────────────────────────────
 
@@ -1214,6 +1285,10 @@ interface WireSchemas {
     params: WithMeta<typeof ThreadRenameParamsSchema>;
     result: typeof ThreadRenameResultSchema;
   };
+  "thread.compact": {
+    params: WithMeta<typeof ThreadCompactParamsSchema>;
+    result: typeof ThreadCompactResultSchema;
+  };
   "turn.start": {
     params: WithMeta<typeof TurnStartParamsSchema>;
     result: typeof TurnStartResultSchema;
@@ -1381,6 +1456,7 @@ export const WIRE_METHODS: {
   "thread.fork": spec(withMeta(ThreadForkParamsSchema), ThreadForkResultSchema, "M2"),
   "thread.revert": spec(withMeta(ThreadRevertParamsSchema), ThreadRevertResultSchema, "M2"),
   "thread.rename": spec(withMeta(ThreadRenameParamsSchema), ThreadRenameResultSchema, "M2"),
+  "thread.compact": spec(withMeta(ThreadCompactParamsSchema), ThreadCompactResultSchema, "M2"),
   "turn.start": spec(withMeta(TurnStartParamsSchema), TurnStartResultSchema, "M1"),
   "turn.interrupt": spec(withMeta(TurnInterruptParamsSchema), TurnInterruptResultSchema, "M2"),
   "turn.resume": spec(withMeta(TurnResumeParamsSchema), TurnResumeResultSchema, "M2"),

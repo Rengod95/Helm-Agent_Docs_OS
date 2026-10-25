@@ -94,6 +94,7 @@ export type WireErrorKind =
   | "thread.invalidTarget"
   | "thread.cancelledByExtension"
   | "thread.closed"
+  | "thread.compactFailed"
   | "settings.unknownKey"
   | "settings.invalidValue"
   | "settings.scopeNotAllowed"
@@ -263,7 +264,7 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
-  /** 확장이 thread 전환·분기·되감기를 막았다 */
+  /** 확장이 thread 전환·분기·되감기·컴팩션을 막았다 */
   "thread.cancelledByExtension": {
     code: 3006,
     kind: "thread.cancelledByExtension",
@@ -274,6 +275,7 @@ export const WIRE_ERRORS: {
           Type.Literal("session_before_fork"),
           Type.Literal("session_before_tree"),
           Type.Literal("session_before_switch"),
+          Type.Literal("session_before_compact"),
         ]),
         reason: Type.Union([Type.String({ maxLength: 512 }), Type.Null()]),
       },
@@ -287,6 +289,25 @@ export const WIRE_ERRORS: {
     retryable: false,
     details: Type.Object(
       { threadId: Type.String({ maxLength: 64 }) },
+      { additionalProperties: false },
+    ),
+  },
+  /** `thread.compact`가 요약을 만들거나 커밋하지 못했다. 원인은 `reason`이고 모델 출력이나 제공자 응답 본문은 싣지 않는다 */
+  "thread.compactFailed": {
+    code: 3008,
+    kind: "thread.compactFailed",
+    retryable: false,
+    details: Type.Object(
+      {
+        reason: Type.Union([
+          Type.Literal("read_failed"),
+          Type.Literal("projection_failed"),
+          Type.Literal("summary_failed"),
+          Type.Literal("summary_has_tool_call"),
+          Type.Literal("summary_truncated"),
+          Type.Literal("commit_failed"),
+        ]),
+      },
       { additionalProperties: false },
     ),
   },

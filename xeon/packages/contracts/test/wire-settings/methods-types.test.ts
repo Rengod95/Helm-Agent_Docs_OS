@@ -14,7 +14,7 @@ import type {
   WireResult,
 } from "../../src/wire-settings/wire/index.ts";
 import type { UserMessage } from "../../src/conversation/index.ts";
-import type { ResumeResult } from "../../src/services/index.ts";
+import type { CompactOutcome, ResumeResult } from "../../src/services/index.ts";
 import type { Assignable, DeepMutable, Equal, Expect } from "../types/expect.ts";
 
 // 이 파일의 단언은 tsc -b가 판정한다(컴파일 시점). 아래 테스트는 파일이 bun test와 knip 진입점에 들게 한다.
@@ -83,6 +83,19 @@ export type HandlerNeedsEveryMethod = Expect<
 /** turn.resume의 결과는 L1.loop의 ResumeResult와 같은 모양이다(wire와 LoopPort 사이를 옮길 때 변환이 없다) */
 export type TurnResumeMatchesLoop = Expect<
   Equal<WireResult<"turn.resume">, DeepMutable<ResumeResult>>
+>;
+
+/** thread.compact의 결과는 ContextService의 CompactOutcome에서 `cancelled`를 빼고 `compacted`에 위치를 더한 모양이다 */
+type WireCompacted = Extract<WireResult<"thread.compact">, { status: "compacted" }>;
+type OutcomeCompacted = Extract<CompactOutcome, { status: "compacted" }>;
+export type ThreadCompactCompactedMatchesOutcome = Expect<
+  Equal<Omit<WireCompacted, "position">, OutcomeCompacted>
+>;
+export type ThreadCompactSkippedMatchesOutcome = Expect<
+  Equal<
+    Extract<WireResult<"thread.compact">, { status: "skipped" }>,
+    Extract<CompactOutcome, { status: "skipped" }>
+  >
 >;
 
 test("type assertions compile", () => {});

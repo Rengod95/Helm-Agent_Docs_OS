@@ -305,6 +305,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | thread | `thread.fork` | `{ threadId: ThreadId, at?: ItemId }` | `{ threadId: ThreadId, position: StreamPosition }` | M2 |
 | thread | `thread.revert` | `{ threadId: ThreadId, to: ItemId }` | `{ position: StreamPosition }` | M2 |
 | thread | `thread.rename` | `{ threadId: ThreadId, title: string(1..200) }` | `{ position: StreamPosition }` | M2 |
+| thread | `thread.compact` | `{ threadId: ThreadId, instructions?: string(1..20000) }` | `{ status: "compacted", eventId: EventId, tokensBefore: integer, fromExtension: string \| null, position: StreamPosition }`, `{ status: "skipped", why: "nothing_to_summarize"\|"last_entry_is_compaction"\|"disabled" }` | M2 |
 | turn | `turn.start` | `{ threadId: ThreadId, input: TurnStartInput, requestId?: string(1..64) }` | `{ turnId: TurnId }` | M1 |
 | turn | `turn.interrupt` | `{ threadId: ThreadId, turnId?: TurnId }` | `{ interrupted: boolean }` | M2 |
 | turn | `turn.resume` | `{ threadId: ThreadId }` | `{ status: "resumed", turnId: TurnId, from: ResumeFrom }`, `{ status: "closed", turnId: TurnId, reason: "abort_requested"\|"owner_cancelled" }`, `{ status: "nothing" }` | M2 |
@@ -332,6 +333,12 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - params의 `includeBinaries: true`일 때만 호스트가 점검해 result의 `binaries`에 싣는다. 점검은 바이너리마다 자식 프로세스를 띄워 버전을 확인하므로(`L0.os.spec` §3.6.1) 상태 조회마다 하지 않는다. 생략하거나 거짓이면 `binaries`가 없고 이전 클라이언트의 `host.status`는 그대로 동작한다.
   - `HostBinaryReport`는 `BinaryCheckReport`(`L0.os.spec` §3.6.1)에서 실행 파일 경로(`path`)만 뺀 모양이다: `{ platform, ready, blocking, degraded, items }`. `ready`는 필수 바이너리가 모두 쓸 수 있다는 뜻이고 `blocking`은 쓸 수 없는 필수, `degraded`는 쓸 수 없는 선택 바이너리 이름이다. `items`는 표의 행마다 `{ name, need: "required"\|"optional", usedBy, impact, status }`이고 `status`는 `ok { version, source }`, `missing { hint }`, `too_old { found, required }`, `unusable { reason }` 가운데 하나다. `hint`가 첫 실행 화면의 설치 안내 문구다.
   - 점검이 중단되면(`cancelled`) 결과 없이 `request.cancelled`(5001)로 실패한다. 점검 결과가 `ready: false`여도 요청은 성공이다: 환경 문제의 판단과 안내는 클라이언트가 한다.
+- [결정: m2c G2-01] `thread.compact`는 사용자가 지금 대화를 요약하라고 요청하는 메서드다(`/compact`). 자동 컴팩션(요청 전 임계, 오버플로우 복구)은 루프가 하고(`L1.loop.spec` §4.2) 이 메서드는 이유 `manual`의 컴팩션 한 번이다(`ContextService.compact`, `CompactRequest.reason`).
+  - 쓰기 소유가 필요해서 `turn.start`처럼 암묵 획득을 한 번 시도하고 실패하면 `thread.locked`(3002)다. 진행 중인 turn이 있으면 `turn.busy`(3003)이다: 루프가 같은 가지에 컴팩션을 커밋할 수 있어 끼어들지 않는다. 없는 thread는 `thread.notFound`(3001), 닫힌 thread는 `thread.closed`(3007)다.
+  - `instructions`는 `/compact` 뒤에 적은 요약 지침이다. 생략하면 기본 요약 지침을 쓴다. 상한 20000자는 `session_before_compact`의 `instructions`와 같다.
+  - 결과 `compacted`는 `thread.compacted` 이벤트를 커밋했다는 뜻이다. `eventId`가 그 이벤트, `position`이 그 이벤트를 반영한 저장소 위치(`thread.rename`의 `position`과 같은 규칙), `tokensBefore`가 요약 전 추정 토큰 수, `fromExtension`이 요약 내용을 낸 확장 이름이다. 컴팩션 뒤 다음 turn에서 스킬 색인과 메모리 스냅샷을 다시 놓는 일은 L1.context가 하고 클라이언트가 할 일이 아니다.
+  - 결과 `skipped`는 요약할 것이 없거나(`nothing_to_summarize`), 마지막 항목이 이미 컴팩션이거나(`last_entry_is_compaction`), `l1.context.autoCompact` 같은 설정으로 꺼져 있다(`disabled`)는 뜻이다. 아무것도 커밋하지 않았고 오류가 아니다.
+  - 실패는 오류 값이다. 확장이 `session_before_compact`에서 막으면 `thread.cancelledByExtension`(3006, `point: "session_before_compact"`), 요약을 만들거나 커밋하지 못하면 `thread.compactFailed`(3008, `reason`)다. 요청이 취소되면 `request.cancelled`(5001)다. 저장소 오류는 `store.*`(5003~5007)다. 오류에 모델 출력이나 제공자 응답 본문은 싣지 않는다.
 - [결정: m2c G2-12] `thread.rename`은 대화 제목을 바꾼다. 목록이 모두 "제목 없음"으로 보이는 문제(`L1.persistence.spec` §4.10.5 `setTitle`)를 클라이언트가 풀 길이다. 호스트는 `thread.updated { title }`를 커밋하고 그 위치를 `position`으로 돌려준다. 제목은 1~200자이며(`ThreadSummary.title`, `thread.create`의 `title`과 같은 상한) 지우는 길은 없다. 쓰기 소유가 필요해서 `turn.start`처럼 암묵 획득을 한 번 시도하고 실패하면 `thread.locked`(3002)다. 없는 thread는 `thread.notFound`(3001), 닫힌 thread는 `thread.closed`(3007)다. 진행 중인 turn이 있어도 바꿀 수 있다.
   - 첫 입력에서 제목을 정하는 규칙(M2): 첫 `turn.start` 입력의 앞 80자(줄바꿈은 공백 하나로)를 제목으로 쓴다. 정하는 주체는 호스트이고 이 메서드와 같은 커밋 경로를 쓴다. 이미 제목이 있는 thread는 바꾸지 않는다. 모델이 만드는 자동 제목은 M3다.
 - [결정: m2c G1-07] 비밀 wire 보강 네 가지다(`L4.host-service.spec` §10 19번, 23번).
@@ -456,6 +463,7 @@ export interface WireMethodMap {
   "thread.fork":       { params: ThreadForkParams;       result: ThreadForkResult };
   "thread.revert":     { params: ThreadRevertParams;     result: ThreadRevertResult };
   "thread.rename":     { params: ThreadRenameParams;     result: ThreadRenameResult };
+  "thread.compact":    { params: ThreadCompactParams;    result: ThreadCompactResult };
   "turn.start":        { params: TurnStartParams;        result: TurnStartResult };
   "turn.interrupt":    { params: TurnInterruptParams;    result: TurnInterruptResult };
   "turn.resume":       { params: TurnResumeParams;       result: TurnResumeResult };
@@ -791,8 +799,9 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3003 | `turn.busy` | true | 진행 중 turn이 있어 새 turn을 받을 수 없다 | `turnId` |
 | 3004 | `thread.hasForks` | false | 이 thread를 `forkedFrom`으로 가리키는 thread가 있어 `thread.delete`를 거절했다 | `forks: ThreadId[]` |
 | 3005 | `thread.invalidTarget` | false | `thread.fork`·`thread.revert`의 대상이 맞지 않는다. `thread.read`의 `before`가 이 thread에 없거나(`item_not_found`) 현재 가지에 없을 때(`not_on_branch`)도 이 오류다 | `reason: "item_not_found"\|"not_on_branch"\|"inside_turn"\|"open_tool_calls"` |
-| 3006 | `thread.cancelledByExtension` | false | 확장이 thread 전환·분기·되감기를 막았다 | `point: "session_before_fork"\|"session_before_tree"\|"session_before_switch"`, `reason: string \| null` |
+| 3006 | `thread.cancelledByExtension` | false | 확장이 thread 전환·분기·되감기·컴팩션을 막았다 | `point: "session_before_fork"\|"session_before_tree"\|"session_before_switch"\|"session_before_compact"`, `reason: string \| null` |
 | 3007 | `thread.closed` | false | 이미 닫힌 thread에 쓰기나 수명 주기 호출(`turn.start`, `turn.resume`, `thread.open(write)`, `thread.fork`, `thread.revert`)을 했다. `thread.read`, `thread.list`, `thread.delete`는 닫힌 thread에도 된다 | `threadId` |
+| 3008 | `thread.compactFailed` | false | `thread.compact`가 요약을 만들거나 커밋하지 못했다. 요청 취소는 5001이고 확장이 막은 것은 3006이다 | `reason: "read_failed"\|"projection_failed"\|"summary_failed"\|"summary_has_tool_call"\|"summary_truncated"\|"commit_failed"` |
 | 3101 | `settings.unknownKey` | false | 등록되지 않은 키 | `key` |
 | 3102 | `settings.invalidValue` | false | 값이 스키마나 range에 맞지 않는다 | `key`, `issues` |
 | 3103 | `settings.scopeNotAllowed` | false | 그 범위에 쓸 수 없는 키 | `key`, `scope`, `allowedScopes` |

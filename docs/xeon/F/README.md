@@ -270,6 +270,7 @@ F가 정하지 않는 것:
 | G1-11 | 승인 만료 계약 필드 `expiresAt`, `onExpire`, 해결자 `expired`(구현은 M3) | `F.records.spec` §3.3.1, `F.capabilities.spec` §3.12 |
 | G2-11 | `thread.read`의 fork 연속성 규칙(`before`·`limit`은 이미 있었다) | `F.wire-settings.spec` §3.4.6 |
 | G2-12 | `thread.rename` | `F.wire-settings.spec` §3.3.1 |
+| G2-01 | `thread.compact`, `thread.compactFailed` 3008, `thread.cancelledByExtension`의 `session_before_compact` | `F.wire-settings.spec` §3.3.1, §3.5.2 |
 | G5-04 | `SettingDef.stage`, `settings.reserved` 3106, `settings.list`의 `includeReserved` | `F.wire-settings.spec` §3.8.2 |
 | G2-06 | 저장소 열기 실패 분류(`future_version`, `corrupt`, `migration_failed`, `unavailable`), `store.corrupt` 5007 | `F.records.spec` §3.7, `F.wire-settings.spec` §3.5.2 |
 

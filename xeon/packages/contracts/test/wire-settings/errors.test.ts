@@ -51,6 +51,7 @@ describe("WIRE_ERRORS", () => {
       "thread.invalidTarget": 3005,
       "thread.cancelledByExtension": 3006,
       "thread.closed": 3007,
+      "thread.compactFailed": 3008,
       "settings.unknownKey": 3101,
       "settings.invalidValue": 3102,
       "settings.scopeNotAllowed": 3103,
@@ -139,6 +140,39 @@ describe("WIRE_ERRORS", () => {
     if (details === undefined) throw new Error("details expected");
     expect(parse(details, { threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" }).ok).toBe(true);
     expect(parse(details, {}).ok).toBe(false);
+  });
+
+  test("thread.compactFailed names why the summary was not made and nothing else", () => {
+    expect(wireError("thread.compactFailed").code).toBe(3008);
+    expect(wireErrorCodeMatchesKind(3008, "thread.compactFailed")).toBe(true);
+    expect(WIRE_ERRORS["thread.compactFailed"].retryable).toBe(false);
+    const details = WIRE_ERRORS["thread.compactFailed"].details;
+    if (details === undefined) throw new Error("details expected");
+    for (const reason of [
+      "read_failed",
+      "projection_failed",
+      "summary_failed",
+      "summary_has_tool_call",
+      "summary_truncated",
+      "commit_failed",
+    ]) {
+      expect(parse(details, { reason }).ok).toBe(true);
+    }
+    // 요청 취소(5001)와 불변 조건 위반은 이 오류의 이유가 아니다
+    expect(parse(details, { reason: "aborted" }).ok).toBe(false);
+    expect(parse(details, { reason: "branch_not_found" }).ok).toBe(false);
+    expect(parse(details, { reason: "summary_failed", message: "provider said no" }).ok).toBe(
+      false,
+    );
+    expect(parse(details, {}).ok).toBe(false);
+  });
+
+  test("thread.cancelledByExtension also covers a compaction stopped by session_before_compact", () => {
+    const details = WIRE_ERRORS["thread.cancelledByExtension"].details;
+    if (details === undefined) throw new Error("details expected");
+    expect(parse(details, { point: "session_before_compact", reason: "policy" }).ok).toBe(true);
+    expect(parse(details, { point: "session_before_compact", reason: null }).ok).toBe(true);
+    expect(parse(details, { point: "session_before_nothing", reason: null }).ok).toBe(false);
   });
 
   test("the secret-value error carries only the key", () => {

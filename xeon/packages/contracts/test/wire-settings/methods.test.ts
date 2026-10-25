@@ -28,14 +28,14 @@ function readItem(n: number): Record<string, unknown> {
 }
 
 describe("WIRE_METHODS", () => {
-  test("has the 34 methods of the spec table with their stages", () => {
-    expect(names).toHaveLength(34);
+  test("has the 35 methods of the spec table with their stages", () => {
+    expect(names).toHaveLength(35);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
       ["events.subscribe", "host.hello", "settings.get", "thread.create", "turn.start"].toSorted(),
     );
-    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(29);
+    expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(30);
   });
 
   test("every row carries both schemas, since and status", () => {
@@ -310,6 +310,43 @@ describe("M2 method schemas are written out", () => {
     expect(parse(summaryTitle, "x".repeat(200)).ok).toBe(true);
     expect(parse(result, { position: { storeId: STORE, seq: 3 } }).ok).toBe(true);
     expect(parse(result, {}).ok).toBe(false);
+  });
+
+  test("thread.compact takes the thread and an optional guidance and answers compacted or skipped", () => {
+    const { params, result } = WIRE_METHODS["thread.compact"];
+    expect(WIRE_METHODS["thread.compact"].stage).toBe("M2");
+    expect(parse(params, { threadId: THREAD }).ok).toBe(true);
+    expect(parse(params, { threadId: THREAD, instructions: "결정 사항을 남긴다" }).ok).toBe(true);
+    expect(parse(params, { threadId: THREAD, instructions: "x".repeat(20_000) }).ok).toBe(true);
+    expect(parse(params, { threadId: THREAD, instructions: "x".repeat(20_001) }).ok).toBe(false);
+    expect(parse(params, { threadId: THREAD, instructions: "" }).ok).toBe(false);
+    expect(parse(params, { instructions: "a" }).ok).toBe(false);
+    expect(parse(params, { threadId: THREAD, reason: "manual" }).ok).toBe(false);
+
+    const eventId = rawId("evt", 7);
+    const position = { storeId: STORE, seq: 12 };
+    const compacted = {
+      status: "compacted",
+      eventId,
+      tokensBefore: 91_234,
+      fromExtension: null,
+      position,
+    };
+    const parsed = parse(result, compacted);
+    const value: unknown = parsed.ok ? parsed.value : undefined;
+    expect(value).toEqual(compacted);
+    expect(parse(result, { ...compacted, fromExtension: "summarizer" }).ok).toBe(true);
+    expect(parse(result, { ...compacted, tokensBefore: -1 }).ok).toBe(false);
+    expect(parse(result, { ...compacted, eventId: "not-an-event" }).ok).toBe(false);
+    expect(parse(result, { ...compacted, position: undefined }).ok).toBe(false);
+    expect(parse(result, { ...compacted, extra: 1 }).ok).toBe(false);
+    for (const why of ["nothing_to_summarize", "last_entry_is_compaction", "disabled"]) {
+      expect(parse(result, { status: "skipped", why }).ok).toBe(true);
+    }
+    expect(parse(result, { status: "skipped", why: "tired" }).ok).toBe(false);
+    expect(parse(result, { status: "skipped" }).ok).toBe(false);
+    // 확장이 막은 컴팩션은 결과가 아니라 오류다
+    expect(parse(result, { status: "cancelled", by: "ext", reason: "no" }).ok).toBe(false);
   });
 
   test("turn.resume takes only the thread and answers with the three ResumeResult shapes", () => {
