@@ -498,7 +498,7 @@ CREATE TABLE cap_mcp_servers (
 - MRTR 모드 [제안]: `ClientOptions.inputRequired.autoFulfill = false`로 두고 호출마다 `allowInputRequired: true`를 준다. SDK 자동 처리(기본 10라운드)는 메모리 안에서 핸들러를 부르므로 재시작 뒤 이어지지 않는다. 사람 응답은 승인 프로토콜로 받아야 하므로 수동 모드를 쓴다(§4.6).
 - 능력 선언: `elicitation: { form: {}, url: {} }`만 선언한다. `sampling`과 `roots`는 기본으로 선언하지 않는다. 선언하지 않은 입력 종류는 서버가 보내면 안 된다(MRTR 서버 요구 7, `_research/notes/L2-1.md` §3).
 - 연결 단계: 전송 생성(§4.3) → `connect`(또는 2026 `server/discover`) → `tools/list`, `prompts/list`(페이지 끝까지) → 노출 필터(§4.4) → 상태 `connected`, `cap_mcp_servers` 갱신 → `mcp_servers_change` 지점 발화(§7).
-- 종료: 세션 종료, `disable`, 서버 정의 삭제 때 연결을 닫는다. stdio 서버는 L0.process가 종료한다(SIGTERM 뒤 유예, 그다음 SIGKILL. 유예 시간은 `L0.process.spec`).
+- 종료: 세션 종료, `disable`, 서버 정의 삭제 때 연결을 닫는다. stdio 서버는 L0.process가 종료한다(SIGTERM 뒤 유예, 그다음 SIGKILL. 유예 시간은 `L0.process.spec`). 엔진이 닫히면 L0 레지스트리가 남은 서버 트리를 모두 정지한다(`L0.process.spec` §4.9).
 
 ### 4.2 서버 정의 로딩
 
@@ -606,7 +606,9 @@ sequenceDiagram
 
 ### 4.9 목록 변경과 진행 중 호출
 
-- 서버 도구 목록 변경(재연결, 2차 구독 알림, `reconnect`)은 메모리에 모아 두고 단계 경계에서 한 번에 반영한다. 반영 순서: 새 도구 집합 계산 → `diffToolsets(prev, next)` → L1.context가 `toolsAdded`/`toolsRemoved` 시스템 메시지로 기록(`F.capabilities.spec` §4.5) → `mcp_servers_change` 발화.
+- 서버 도구 목록 변경(재연결, 2차 구독 알림, `reconnect`)은 메모리에 모아 두고 단계 경계에서 한 번에 반영한다. 반영 시점은 단계를 여는 `turn_start` 지점이다: 앞 단계의 도구 결과가 커밋된 뒤이고 이 단계의 도구 광고 앞이라(`L1.loop.spec` 단계 1), 바뀐 도구가 이 단계부터 보이고 단계 중간에는 도구 표가 바뀌지 않는다(U-01). `before_provider_request`는 광고 뒤라 쓰지 않는다.
+- 정의 다시 읽기: 같은 `turn_start`에서 조립 루트가 `reload(signal, { threadId })`를 부르면 설정 `l2.mcp.servers`와 `.mcp.json`을 다시 읽고, 서버 정의·프로젝트 신뢰·`l2.mcp.*` 설정으로 만든 지문이 직전 반영과 다를 때만 서버를 맞춘다(추가는 연결, 삭제는 종료, 바뀐 정의는 재연결). 그래서 `nextTurn`인 `l2.mcp.servers` 변경이 다음 단계부터 적용된다. 읽는 설정 층은 `layers(threadId)`(프로젝트·로컬 층의 서버 정의가 그 대화에서 보인다)이고, 프로젝트 루트는 `workspaceOf(threadId)`, 곧 `turn_start`를 낸 대화의 작업 폴더다. 작업 폴더가 없는 대화에는 프로젝트 출처 정의가 없다(`L2.readme` §5.10). 작업 폴더가 다른 대화가 번갈아 단계를 열면 프로젝트 출처 정의가 그때마다 바뀌어 재연결이 잦다 [미결 13]. 반영 순서: 새 도구 집합 계산 → `diffToolsets(prev, next)` → L1.context가 `toolsAdded`/`toolsRemoved` 시스템 메시지로 기록(`F.capabilities.spec` §4.5) → `mcp_servers_change` 발화.
+- 직접 등록한 동적 도구의 호출은 `executeWithContinuation`의 `threadId`로 그 대화의 설정 층(세션 층 `l2.mcp.result.maxBytes` 등)을 읽는다(`L1.tools.spec` §3.3).
 - 진행 중인 호출은 시작할 때의 연결과 정의로 끝까지 간다. 목록에서 빠진 도구의 진행 중 호출도 끝까지 간다(`F.capabilities.spec` §5 5항).
 - 서버 정의 삭제·`disable`: 도구는 다음 단계 경계에서 빠진다. 진행 중 호출이 있으면 `callMs` 제한 시간까지 끝나기를 허용한 뒤 연결을 닫는다. 그 뒤에 남은 호출은 `server_disconnected`다.
 
@@ -747,3 +749,5 @@ sequenceDiagram
 10. [미결] 동적 도구 지점 페이로드의 `capability` 값(§7). `{ id: "mcp.client", method: "callTool" }`을 싣는 제안을 `F.extensions.spec` §3.5와 맞춘다.
 11. [미결] `l2.mcp.servers`를 세션 범위에서 바꿀 수 있게 할지. 지금은 뺐다. 세션 한정 끄기는 `disable` 메서드로 한다.
 12. [미결] 사용자 범위 서버 정의 파일(설정 파일 밖의 별도 `mcp.json`)을 둘지. 이 문서는 설정 키 하나와 프로젝트 `.mcp.json` 가져오기만 둔다.
+13. [미결] 작업 폴더가 서로 다른 대화가 한 엔진에서 동시에 돌 때 프로젝트 출처 서버 정의의 범위. 지금은 단계를 연 대화의 루트를 따르므로 번갈아 열면 재연결이 일어난다. 대화(작업 폴더)별 레지스트리로 나누는 안이 있다(`L2.readme` §5.10).
+14. [미결] 비밀 env가 있는 stdio 서버. env 모드는 실행마다 승인 증거를 요구하는데(`L0.secrets.spec` §4.2) 서버 시작에는 승인 지점이 없어 `secret_denied`로 끝난다(`L0.process.spec` 미결 P-12, ADR-0011). 구현은 M3다(`review.m3-plan`). 비밀 없는 서버와 HTTP 서버는 영향이 없다.

@@ -14,3 +14,5 @@ export type {
 } from "./stub-server.ts";
 export { createStubProcessPort } from "./stub-process.ts";
 export type { StubProcessOptions, StubProcessPort } from "./stub-process.ts";
+export { serveStubOverStdio } from "./stdio-serve.ts";
+export type { StdioStreams } from "./stdio-serve.ts";

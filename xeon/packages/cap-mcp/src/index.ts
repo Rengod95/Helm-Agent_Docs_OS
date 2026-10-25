@@ -2,7 +2,7 @@
 // SDK 타입은 어댑터 경계(adapter.ts, transport/, testing/) 밖으로 나가지 않는다.
 
 export { createMcp } from "./client/service.ts";
-export type { BoundaryReport, McpDeps, McpRuntime } from "./client/service.ts";
+export type { BoundaryReport, McpDeps, McpLoadOptions, McpRuntime } from "./client/service.ts";
 export {
   createToolServiceRegistrar,
   createToolsPortRegistrar,

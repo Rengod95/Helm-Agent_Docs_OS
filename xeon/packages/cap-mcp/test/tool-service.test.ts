@@ -21,7 +21,9 @@ import {
 import { createTestHost } from "@xeon/ext-host/testing";
 import { createToolServiceRegistrar } from "../src/client/register.ts";
 import { wrapUntrustedMcp } from "@xeon/contracts/capabilities";
+import type { ScopeStack } from "@xeon/contracts/settings";
 import type { StubCall, StubOutcome } from "../src/testing/stub-server.ts";
+import { layer } from "./support/layers.ts";
 import { buildWorld, startWorld, type World } from "./support/world.ts";
 
 // MCP.4 (E6): 연결된 서버의 도구가 실제 core-tools `ToolService`의 광고 목록에 단계 경계에서 나타난다.
@@ -262,5 +264,57 @@ describe("MCP tools in the real ToolService", () => {
     expect(seen[1]?.requestState).toBe("state-1");
     const first = outcome.result.content[0];
     expect(first?.type === "text" ? first.text : "").toContain("Ada");
+  });
+
+  test("a direct call reads the settings of the thread it runs in", async () => {
+    const { tools, session, ids, thread } = await bootTools();
+    // 세션 층의 결과 크기 상한은 그 thread의 호출에만 적용된다
+    let base: ScopeStack = [];
+    const source = {
+      layers: (threadId: string | undefined): ScopeStack =>
+        threadId === thread
+          ? [...base, layer("session", { "l2.mcp.result.maxBytes": 1024 })]
+          : base,
+    };
+    const world = buildWorld({
+      servers: {
+        stub: {
+          stub: {
+            era: "modern",
+            tools: [
+              {
+                name: "big",
+                description: "Long text",
+                annotations: { readOnlyHint: true },
+                handle: (): StubOutcome => ({
+                  kind: "complete",
+                  content: [{ type: "text", text: "x".repeat(5000) }],
+                }),
+              },
+            ],
+          },
+          def: { trustAnnotations: true },
+        },
+      },
+      overrides: { tools: createToolServiceRegistrar(tools), settings: source },
+    });
+    base = world.settings.layers(undefined);
+    worlds.push(world);
+    await startWorld(world);
+    await world.runtime.applyBoundary();
+    const run = fakeRunContext({ session, ids, threadId: thread });
+    const prepared = await tools.prepare(
+      { type: "toolCall", id: "mcp_big", name: "big", arguments: {} },
+      ASSISTANT,
+      run,
+    );
+    if (prepared.kind === "settled") throw new Bug("test.call_settled");
+    const outcome = await tools.execute(prepared.call, () => {}, run);
+    expect(outcome.isError).toBe(false);
+    const text = outcome.result.content
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .join("");
+    expect(text.length).toBeLessThan(2500);
+    expect(text).toContain("xxx");
   });
 });

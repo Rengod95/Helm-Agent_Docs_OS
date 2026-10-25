@@ -47,6 +47,7 @@ export function createToolServiceRegistrar(host: DirectToolHost): McpToolRegistr
         tool.execute(asJsonObject(call.params) ?? {}, {
           signal: call.signal,
           requestId: call.toolCallId,
+          threadId: call.threadId,
           ...(call.continuation === undefined ? {} : { continuation: call.continuation }),
         });
       const registered = host.register({

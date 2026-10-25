@@ -2,6 +2,7 @@ import {
   assertNever,
   attempt,
   attemptAsync,
+  canonicalJson,
   eachAsync,
   parse,
   type Clock,
@@ -79,8 +80,16 @@ export interface McpDeps {
   readonly masker: McpMasker;
   /** 호출마다 읽는 설정 층. 변경이 다음 호출부터 적용된다 */
   readonly settings: McpSettingsSource;
-  /** 프로젝트 루트. 없으면 프로젝트 출처 정의와 `.mcp.json`을 쓰지 않는다 */
+  /**
+   * 대화를 지정하지 않는 읽기(`load`, `threadId` 없는 `reload`)의 프로젝트 루트. 없으면 프로젝트 출처 정의와 `.mcp.json`을 쓰지 않는다.
+   * 대화가 있는 읽기는 `workspaceOf`가 정한다
+   */
   readonly projectRoot: string | undefined;
+  /**
+   * 대화의 작업 폴더(`thread.workspace`). 대화를 지정한 읽기(`McpLoadOptions.threadId`)는 이 값을 프로젝트 루트로 쓰고, 값이 없으면
+   * 프로젝트 출처 정의를 쓰지 않는다: 엔진 cwd로 대신하지 않는다(L4.host-service.spec HS-66, L2.readme §5.10). 조립 루트가 넘긴다
+   */
+  readonly workspaceOf?: ((threadId: string) => string | undefined) | undefined;
   readonly files: McpFileReader;
   readonly trust: McpProjectTrust;
   readonly transports: TransportFactory;
@@ -107,10 +116,23 @@ export interface BoundaryReport {
   readonly servers: McpServersChangePayload["servers"];
 }
 
+/** 정의를 읽을 때 deps 기본값을 바꾸는 값 */
+export interface McpLoadOptions {
+  /** 읽는 주체인 대화. 설정 층(`layers(threadId)`)과 프로젝트 루트(`workspaceOf(threadId)`)가 이 대화를 따른다 */
+  readonly threadId?: string | undefined;
+  /** 프로젝트 루트를 직접 정한다. 생략하면 `threadId`의 작업 폴더, 둘 다 없으면 `McpDeps.projectRoot` */
+  readonly projectRoot?: string | undefined;
+}
+
 export interface McpRuntime {
   readonly service: McpService;
-  /** 설정과 `.mcp.json`을 읽고 서버 연결을 시작한다(기다리지 않는다). 설정이 바뀌면 다시 부른다 */
-  load(signal: AbortSignal): Promise<LoadedDefinitions>;
+  /** 설정과 `.mcp.json`을 읽고 서버 연결을 시작한다(기다리지 않는다) */
+  load(signal: AbortSignal, options?: McpLoadOptions): Promise<LoadedDefinitions>;
+  /**
+   * 정의를 다시 읽고, 정의 지문(서버 정의, 신뢰, 설정)이 `load`·`reload`가 마지막에 반영한 것과 다를 때만 서버를 맞춘다. 반영했으면 true.
+   * 단계 경계마다 불러도 된다: 지문이 같으면 연결을 건드리지 않는다. 설정 `l2.mcp.servers`의 `nextTurn` 변경과 프로젝트 전환을 따라간다
+   */
+  reload(signal: AbortSignal, options?: McpLoadOptions): Promise<boolean>;
   /** 단계 경계: 모아 둔 변화를 도구 표에 한 번에 반영하고 `mcp_servers_change`를 발화한다 */
   applyBoundary(): Promise<BoundaryReport>;
   diagnostics(): readonly LoaderDiagnostic[];
@@ -186,6 +208,21 @@ function envOf(options: CallOptions | undefined): CallEnv {
   };
 }
 
+/** 서버 정의, 신뢰, 설정을 정규화 JSON으로 묶은 문자열. 같으면 서버를 맞출 일이 없다 */
+function definitionsFingerprint(result: LoadedDefinitions): string {
+  return canonicalJson({
+    trusted: result.trusted,
+    settings: result.settings,
+    servers: result.servers.map((server) => ({
+      id: server.id,
+      def: server.def,
+      source: server.source,
+      managed: server.managed,
+      requiresTrust: server.requiresTrust,
+    })),
+  });
+}
+
 function callMsOf(definition: ServerDefinition, settings: McpSettings): number {
   return definition.def.timeouts?.callMs ?? settings.callTimeoutMs;
 }
@@ -241,7 +278,9 @@ export function createMcp(deps: McpDeps): McpRuntime {
   const fingerprints = new Map<string, string>();
   const applied = new Map<string, { tool: McpDynamicTool; unregister: (() => void) | undefined }>();
   let loaded: LoadedDefinitions | undefined;
+  let loadedPrint: string | undefined;
   let boundaryRunning: Promise<unknown> = Promise.resolve();
+  let reloading: Promise<unknown> = Promise.resolve();
 
   const stateStore: StateStore | undefined =
     deps.store === undefined
@@ -753,24 +792,65 @@ export function createMcp(deps: McpDeps): McpRuntime {
     };
   }
 
+  /** 프로젝트 루트: 직접 준 값, 대화의 작업 폴더, 기본 루트 순. 대화를 지정했는데 작업 폴더가 없으면 루트도 없다 */
+  function projectRootOf(options: McpLoadOptions | undefined): string | undefined {
+    if (options?.projectRoot !== undefined) return options.projectRoot;
+    if (options?.threadId !== undefined && deps.workspaceOf !== undefined) {
+      const workspace = deps.workspaceOf(options.threadId);
+      return workspace === undefined || workspace === "" ? undefined : workspace;
+    }
+    return deps.projectRoot;
+  }
+
+  function readDefinitions(
+    signal: AbortSignal,
+    options: McpLoadOptions | undefined,
+  ): Promise<LoadedDefinitions> {
+    return loadDefinitions(
+      {
+        layers: deps.settings.layers(options?.threadId),
+        projectRoot: projectRootOf(options),
+        files: deps.files,
+        trust: deps.trust,
+        logger: deps.logger,
+      },
+      signal,
+    );
+  }
+
+  async function reloadNow(
+    signal: AbortSignal,
+    options: McpLoadOptions | undefined,
+  ): Promise<boolean> {
+    const result = await readDefinitions(signal, options);
+    const print = definitionsFingerprint(result);
+    // 서버와 상관없는 설정(승인 모드, 한도)은 호출 때 읽지만 경계 반영이 쓰는 사본은 항상 새로 둔다
+    loaded = result;
+    if (print === loadedPrint) return false;
+    loadedPrint = print;
+    resync();
+    return true;
+  }
+
   const service: McpService = { client, registerServer };
 
   return {
     service,
-    async load(signal) {
-      const result = await loadDefinitions(
-        {
-          layers: deps.settings.layers(undefined),
-          projectRoot: deps.projectRoot,
-          files: deps.files,
-          trust: deps.trust,
-          logger: deps.logger,
-        },
-        signal,
-      );
+    async load(signal, options) {
+      const result = await readDefinitions(signal, options);
       loaded = result;
+      loadedPrint = definitionsFingerprint(result);
       resync();
       return result;
+    },
+    reload(signal, options) {
+      // 정의 읽기는 한 번에 하나씩만 돈다. 지문 비교와 반영이 겹치지 않아야 한다
+      const run = reloading.then(
+        () => reloadNow(signal, options),
+        () => reloadNow(signal, options),
+      );
+      reloading = run;
+      return run;
     },
     applyBoundary() {
       // 경계 반영은 한 번에 하나씩만 돈다
