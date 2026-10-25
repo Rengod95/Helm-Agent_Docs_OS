@@ -58,6 +58,7 @@ import {
   EventsBatchParamsSchema,
   EventsEndedParamsSchema,
   IsoTimeSchema,
+  SettingsInvalidatedParamsSchema,
   StreamChunkParamsSchema,
   type EmptyParams,
 } from "./notifications.ts";
@@ -877,6 +878,7 @@ interface ServerNotificationSchemas {
   "events.batch": typeof EventsBatchParamsSchema;
   "events.ended": typeof EventsEndedParamsSchema;
   "stream.chunk": typeof StreamChunkParamsSchema;
+  "settings.invalidated": typeof SettingsInvalidatedParamsSchema;
 }
 export type ServerNotificationMap = {
   readonly [N in keyof ServerNotificationSchemas]: Static<ServerNotificationSchemas[N]>;
@@ -973,6 +975,11 @@ export const WIRE_NOTIFICATIONS: {
   "events.batch": { params: EventsBatchParamsSchema, since: "0.1.0", stage: "M1" },
   "events.ended": { params: EventsEndedParamsSchema, since: "0.1.0", stage: "M1" },
   "stream.chunk": { params: StreamChunkParamsSchema, since: "0.1.0", stage: "M1" },
+  "settings.invalidated": {
+    params: SettingsInvalidatedParamsSchema,
+    since: "0.1.0",
+    stage: "M2",
+  },
 };
 
 export const WIRE_CLIENT_NOTIFICATIONS: {

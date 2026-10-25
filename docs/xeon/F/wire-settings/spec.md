@@ -387,6 +387,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 서버 → 클라이언트 | `events.batch` | `{ sub: SubId, from: Seq, to: Seq, events: EventWire[], caughtUp: boolean }` | M1 |
 | 서버 → 클라이언트 | `events.ended` | `{ sub: SubId, reason: "replayFailed" }`. 서버가 구독을 끝냈다. 재전송 읽기가 실패해 구독을 지웠을 때 보낸다. 클라이언트는 같은 필터로 다시 구독하거나 오류로 처리한다 | M1 |
 | 서버 → 클라이언트 | `stream.chunk` | `{ event: VolatileEventWire }` (`n`, `afterSeq`를 담은 휘발 이벤트) | M1 |
+| 서버 → 클라이언트 | `settings.invalidated` | `{ keys: SettingKey[], scopes: SettingScope[], threadId: ThreadId, 없으면 null }`. 값이 없다. 받으면 `settings.get`으로 다시 읽는다(§3.3.4) | M2 |
 | 클라이언트 → 서버 | `$/cancelRequest` | `{ id: RpcId }` | M1 |
 | 클라이언트 → 서버 | `$/connectionReset` | `{}`. 클라이언트 화면이 같은 연결 위에서 다시 시작되어 이전 화면의 상태를 버린다(WebView 새로고침, `L4.desktop.spec` §4.5). 동작은 §4.1 5~7번 | M2 |
 
@@ -432,6 +433,7 @@ export interface ServerNotificationMap {
   "events.batch": EventsBatchParams;
   "events.ended": EventsEndedParams;
   "stream.chunk": StreamChunkParams;
+  "settings.invalidated": SettingsInvalidatedParams;
 }
 export type ServerNotificationName = keyof ServerNotificationMap;
 export type ServerNotificationParams<N extends ServerNotificationName> = ServerNotificationMap[N];
@@ -455,6 +457,27 @@ export declare const WIRE_NOTIFICATIONS: { readonly [N in ServerNotificationName
 
 - 각 `XxxParams`, `XxxResult` 타입은 같은 이름의 스키마 상수에서 `Static`으로 만든다. 그래서 `WireMethodMap`의 타입과 `WIRE_METHODS`의 스키마는 같은 원천을 갖는다.
 - [제안] 문서 §3.3.1 표와 `WIRE_METHODS`의 키·단계가 일치하는지 검사한다(plan의 완료 기준).
+
+#### 3.3.4 호스트 계약 요청 판정표 [결정: m2c G1-08]
+
+`review.decisions-2` U-04가 M2 계획에서 정하기로 미룬 요청을 하나씩 판정했다. "구현"은 호스트가 처리기를 갖는 단계다. 계약 선언이 필요한 요청은 해당 메서드·알림 표에 있다.
+
+| 요청 | 판정 | 계약 | 구현 | 사유와 대체 경로 |
+|---|---|---|---|---|
+| `settings.invalidated` 알림(`L4.readme` §8 14번) | 받음 | M2 알림 표 | M2 | 파일 범위 변경을 다른 클라이언트와 MCP 정의 재적재가 알아야 한다. 값이 없어 비밀이 실리지 않는다 |
+| `settings.list`의 `range` 병합(15번) | 보류 | 없음 | M3 | 설정 화면이 얇은 동안은 `SettingDefWire`의 `type` 검사로 충분하다. 클라이언트는 `toValueJsonSchema` 없이 `settings.set` 오류를 보인다 |
+| `settings.readFile`·`settings.writeFile`(36번) | 보류 | 없음 | M3 | 파일 단위 편집기는 M3 화면이다. M2는 `settings.get`·`settings.set`·`settings.reset`만 쓴다 |
+| `SettingsTab`·`SettingUi` 필드(37번) | 보류 | 없음 | M3 | 표시 힌트는 화면 구현과 함께 정한다. 노출 단계 필드 `SettingDef.stage`만 M2에 받는다(G5-04, §3.8.2) |
+| `EffectiveSetting`의 잠금 사유 문구(39번) | 보류 | 없음 | M3 | 관리 잠금은 `locked` 표시만으로 M2 화면이 동작한다 |
+| 사용량 wire 메서드(35번) | 보류 | 없음 | M3 | 레이트 리밋·계정 회전 게이지는 M3 화면이다(review.decisions-2 U-21) |
+| 사용자 알림 wire 알림(13번) | 보류 | 없음 | M3 | 알림은 M3다(review.decisions-2 S-04). M2는 내구 이벤트 kind로 대상을 고른다 |
+| `host.diagnose`(26번) | 반려 | 없음 | - | `doctor`는 `@xeon/host`의 진단 함수를 직접 부른다. 서비스 모드에서 원격으로 진단할 필요가 생기면 그때 다시 올린다 |
+| `turn.interrupt`를 M1으로 당기기(25번) | 반려 | 없음 | - | M1 `chat`은 한 턴이고 프로세스 종료로 멈춘다. `turn.interrupt`는 M2 표에 있다 |
+| 적합성 실행기 `testing` 서브패스(19번) | 반려 | 없음 | - | review.decisions-2 U-03. 실행기는 각 패키지 `test/`에 둔다 |
+
+- [결정: m2c G1-08] `settings.invalidated`의 `keys`는 바뀐 키 목록이고 비어 있으면 어느 키인지 모르는 변경(파일 통째 교체, 손상 복구)이다. `scopes`는 바뀐 범위이고 1개 이상이다. `threadId`는 `session` 범위 변경이 속한 thread이고 다른 범위면 `null`이다. 호스트는 모든 범위의 `settings.set`·`settings.reset`과 project·local·user 파일 변경 결과에 이 알림을 연결 전체에 보낸다. 같은 연결의 `settings.set` 호출자도 받는다.
+- [결정: m2c G1-08] 설정 변경 반영 규칙의 소유자는 호스트다. 알림을 받은 클라이언트는 `settings.get`으로 다시 읽을 뿐이고 값을 추측해 바꾸지 않는다. MCP 정의 재적재는 호스트 안에서 같은 신호를 받아 다음 단계 시작에 처리한다(`L2.mcp.spec`).
+- 판정이 "보류"인 요청은 M3 계획(`review.m3-plan`)이 받는다. 정하기 전에는 소비 문서가 이 요청에 의존하지 않는다.
 
 ### 3.4 커서, 구독, 휘발 스트림
 
@@ -1250,11 +1273,5 @@ settings:
 7. [미결] `Seq`·`StoreId`를 F.records로 옮길지. `sto` 접두는 `IdPrefix`에 넣지 않고 저장소 정체성 ID 부류로 둔다(`F.conversation.spec` §3.2.1 ①) [제안].
 8. [미결] `UserConfigEntry`에 값 스키마 필드(`type`, `default`, `range`, `runtimeChange`, `allowedScopes`)를 둘지(§3.8.3). 확장 설정 키 접두는 `ext.<name>.`로 맞췄다(`F.extensions.spec` §3.1, §6).
 9. [결정: m2-plan F.6] `ThreadSummary`의 필드는 §3.3.1 아래 코드로 정했다. 이어서 실행 후보는 전용 메서드 없이 `resumable` 필드로 알린다.
-10. [결정: review.decisions-2 U-04] 판정하지 않은 아래 호스트 계약 요청은 M1에 넣지 않는다. M2 계획에서 하나씩 받을지 반려할지 정하고, 그때까지 이 항목에 미결로 남긴다. 정하기 전에는 소비 문서가 이 항목에 의존하지 않고 각자 대체 경로를 둔다.
-    - `settings.invalidated` 알림(`L4.readme` §8 14번), `settings.list`의 `range` 병합(15번), `settings.readFile`·`settings.writeFile`(36번), `SettingsTab`·`SettingUi` 필드(37번), `EffectiveSetting`의 잠금 사유 문구(39번)
-    - 사용량 wire 메서드(35번), 사용자 알림 wire 알림(13번)
-    - 이어서 실행 후보 조회(11번): [결정: m2-plan F.6] `ThreadSummary.resumable` 필드로 받았다(미결 9)
-    - thread 오류 kind `thread.hasForks`, `thread.invalidTarget`, `thread.cancelledByExtension`(`L1.persistence.spec` FR-P6): [결정: m2-plan F.6] 3004~3006으로 받았다(§3.5.2)
-    - `turn.interrupt`를 M1으로 당기기(25번), `host.diagnose`(26번), 적합성 실행기의 `testing` 서브패스(19번. review.decisions-2 U-03으로 F에는 `testing` 서브패스를 두지 않는다. 실행기 틀은 각 패키지 `test/` 안에 둔다)
-    - `secret.beginReveal`(`L4.readme` §8.1): [결정: m2-plan F.5] M2 메서드로 받았다(§3.3.1 표)
+10. [결정: m2c G1-08] U-04가 미룬 호스트 계약 요청은 §3.3.4 판정표로 하나씩 받거나 보류하거나 반려했다. 보류 항목은 M3 계획이 받는다. 이전에 받은 항목은 그대로다: 이어서 실행 후보는 `ThreadSummary.resumable`(미결 9), thread 오류 kind 3004~3006(§3.5.2), `secret.beginReveal`(§3.3.1 표).
 11. [결정: m2 F.2] L4.desktop 상태 설계 §14의 1번(스냅샷), 2번과 13번(대기 승인 목록)을 `thread.read`, `approval.list`로 받았다(§3.3.1, §3.4.6). 12번(로딩 신호)은 새 신호 없이 클라이언트가 요청 수명주기로 얻는다(§3.4.6 6항).

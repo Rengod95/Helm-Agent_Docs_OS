@@ -40,12 +40,28 @@ describe("WIRE_METHODS", () => {
       "events.batch",
       "events.ended",
       "stream.chunk",
+      "settings.invalidated",
     ]);
     expect(Object.keys(WIRE_CLIENT_NOTIFICATIONS)).toEqual([
       "$/cancelRequest",
       "$/connectionReset",
     ]);
     expect(WIRE_CLIENT_NOTIFICATIONS["$/cancelRequest"].stage).toBe("M1");
+    expect(WIRE_NOTIFICATIONS["settings.invalidated"].stage).toBe("M2");
+  });
+
+  test("settings.invalidated carries no value and names the scopes that changed", () => {
+    const { params } = WIRE_NOTIFICATIONS["settings.invalidated"];
+    const valid = { keys: ["l1.loop.maxSteps"], scopes: ["user", "project"], threadId: null };
+    expect(parse(params, valid).ok).toBe(true);
+    expect(parse(params, { keys: [], scopes: ["session"], threadId: THREAD }).ok).toBe(true);
+    // 값 필드와 알 수 없는 범위, 빈 범위 목록, 중복 범위는 거부한다
+    expect(parse(params, { ...valid, value: 1 }).ok).toBe(false);
+    expect(parse(params, { ...valid, scopes: ["global"] }).ok).toBe(false);
+    expect(parse(params, { ...valid, scopes: [] }).ok).toBe(false);
+    expect(parse(params, { ...valid, scopes: ["user", "user"] }).ok).toBe(false);
+    expect(parse(params, { ...valid, keys: ["not a key"] }).ok).toBe(false);
+    expect(parse(params, { keys: [], scopes: ["user"] }).ok).toBe(false);
   });
 });
 

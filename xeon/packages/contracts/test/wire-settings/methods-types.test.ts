@@ -67,7 +67,10 @@ export function notificationInference(connection: HostConnection): void {
   connection.onNotification("$/cancelRequest", () => {});
 }
 export type ServerNotificationNames = Expect<
-  Equal<keyof ServerNotificationMap, "events.batch" | "events.ended" | "stream.chunk">
+  Equal<
+    keyof ServerNotificationMap,
+    "events.batch" | "events.ended" | "stream.chunk" | "settings.invalidated"
+  >
 >;
 
 /** handler table exhaustive: 처리기 하나를 빼면 WireHandlers 대입이 컴파일 오류다 */

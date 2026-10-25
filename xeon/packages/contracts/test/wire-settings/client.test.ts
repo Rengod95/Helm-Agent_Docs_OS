@@ -108,6 +108,26 @@ describe("createHostConnection", () => {
     expect(caught instanceof HostClientError && caught.kind).toBe("invalidResponse");
   });
 
+  test("settings.invalidated reaches its handler only when the params match the schema", () => {
+    const manual = manualTransport();
+    const connection = createHostConnection(manual.transport);
+    const received: unknown[] = [];
+    connection.onNotification("settings.invalidated", (params) => {
+      received.push(params);
+    });
+    manual.deliver({
+      jsonrpc: "2.0",
+      method: "settings.invalidated",
+      params: { keys: ["l1.loop.maxSteps"], scopes: ["user"], threadId: null },
+    });
+    manual.deliver({
+      jsonrpc: "2.0",
+      method: "settings.invalidated",
+      params: { keys: [], scopes: ["nowhere"], threadId: null },
+    });
+    expect(received).toEqual([{ keys: ["l1.loop.maxSteps"], scopes: ["user"], threadId: null }]);
+  });
+
   test("notify sends a client notification and no id", async () => {
     const manual = manualTransport();
     const connection = createHostConnection(manual.transport);
