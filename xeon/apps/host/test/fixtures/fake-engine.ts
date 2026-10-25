@@ -27,6 +27,7 @@ import type {
   SettingsStorePort,
   SubmitOutcome,
   CommandPort,
+  EngineDiagnostics,
   ThreadPort,
   TrustPort,
   TurnPort,
@@ -67,6 +68,8 @@ export interface FakeEngineOptions {
   readonly layers?: ScopeStack;
   /** 코어 카탈로그에 더하는 앱 설정 그룹(예약 키 시험 등) */
   readonly settingGroups?: Parameters<typeof buildEngineCatalog>[0];
+  /** 진단 함수를 바꿔 끼운다(`host.status`의 `includeBinaries`). 생략하면 필수 바이너리가 모두 있는 빈 점검이다 */
+  readonly diagnose?: (signal: AbortSignal) => Promise<EngineDiagnostics>;
   /** 포트 일부를 바꿔 끼운다. 처리기가 오류를 어떻게 옮기는지, 어떤 순서로 부르는지 볼 때 쓴다 */
   readonly overrides?: {
     readonly threads?: Partial<ThreadPort>;
@@ -106,6 +109,8 @@ export interface FakeEngine {
   emitVolatile(event: Pick<VolatileEventEnvelope, "threadId" | "turnId" | "n" | "afterSeq">): void;
   /** 설정 변경 신호를 낸다(`SettingsStorePort.onChange` 구독자에게). 실제 엔진에서는 설정 저장소와 신뢰 결정이 낸다 */
   emitSettingsChange(change: SettingsChange): void;
+  /** 진단 함수가 불린 횟수 */
+  readonly diagnoseCalls: () => number;
   /** 다음 turn.start가 turn.busy가 되게 한다 */
   setRunningTurn(turnId: TurnId | undefined): void;
   /** 다음 turn.start를 루프가 거부한 것으로 만든다 */
@@ -156,7 +161,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       throw new Error(`exit(${String(code)})`);
     },
   });
-  const counters = { reads: 0 };
+  const counters = { reads: 0, diagnoses: 0 };
 
   function commit(
     entries: readonly { kind: EventKind; threadId: ThreadId; payload?: unknown }[],
@@ -345,10 +350,13 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     startedAt: RECORDED_AT,
     ports,
     shutdown,
-    diagnose: () =>
-      Promise.resolve({
+    diagnose: (signal) => {
+      counters.diagnoses += 1;
+      if (options.diagnose !== undefined) return options.diagnose(signal);
+      return Promise.resolve({
         binaries: ok({ platform: "linux", items: [], ready: true, blocking: [], degraded: [] }),
-      }),
+      });
+    },
     close: () => Promise.resolve(),
   };
 
@@ -389,6 +397,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     setRejection(error) {
       state.rejection = error;
     },
+    diagnoseCalls: () => counters.diagnoses,
     secrets,
     titles,
     submitted,

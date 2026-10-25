@@ -184,7 +184,7 @@ L4가 정하지 않는 것:
 | 23 | 패키지 도메인 이름 `host`와 routes 도메인 `host-service`의 불일치, 설정 화면 코드 위치 | `L4.host-service.spec` §10-18, `L4.settings-ui.spec` §10-11, `architecture.layers.spec` §10 | 작성자 결정 |
 | 24 | 릴리즈 형태(단일 파일, `native/` 사이드카 디렉터리), 사이드카 크기 상한, Windows 크래시 시 엔진 잔존 | `L4.cli.spec` §10-7, `L4.desktop.spec` §10-7, ADR-0008 §6 | 사용자 확인 |
 | 25 | M1에서 turn만 멈추는 동작이 필요하면 `turn.interrupt`를 M1으로 당기기 | `L4.cli.spec` §10-2 | F 변경 요청 |
-| 26 | 닫음: `doctor`는 `@xeon/host`의 진단 함수 `Engine.diagnose`(외부 바이너리 점검)를 직접 부른다. F `host.diagnose`는 반려됐다(m2c G2-07, `L4.host-service.spec` HS-69). 데스크톱이 같은 결과를 받는 경로는 `host.status`의 `includeBinaries`와 `binaries`다(F 반영, 호스트 처리는 `L4.host-service.spec` §10-28) | `L4.cli.spec` §10-5 | 호스트 처리와 데스크톱 화면 |
+| 26 | 닫음: `doctor`는 `@xeon/host`의 진단 함수 `Engine.diagnose`(외부 바이너리 점검)를 직접 부른다. F `host.diagnose`는 반려됐다(m2c G2-07, `L4.host-service.spec` HS-69). 데스크톱이 같은 결과를 받는 경로는 `host.status`의 `includeBinaries`와 `binaries`다(F와 호스트 반영, `L4.host-service.spec` HS-69) | `L4.cli.spec` §10-5 | 데스크톱 화면 |
 | 27 | print 모드의 승인 요청 기본 거부, 비대화 자동 승인 플래그 | `L4.cli.spec` §10-8 | 사용자 확인 |
 | 28 | 닫음: 승인 A안(review.decisions-2 U-02). `approval.requested`/`approval.resolved` kind는 `F.records.spec` 카탈로그에 있다 | `L4.cli.spec` §10-9 | - |
 | 29 | TUI 설정 화면과 view-model 공유 위치(DR-10) | `L4.cli.spec` §10-10, `L4.settings-ui.spec` §10-12 | 사용자 확인 |

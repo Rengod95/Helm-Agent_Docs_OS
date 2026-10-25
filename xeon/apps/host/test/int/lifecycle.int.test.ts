@@ -305,4 +305,28 @@ describe("host.status and unsubscribe", () => {
     expect(again.code).toBe(2002);
     await session.close();
   });
+
+  // G2-07: 실제 점검의 모양이 wire 스키마(devChecks가 결과를 검사한다)를 지키고 실행 파일 경로가 나가지 않는다
+  realTest("includeBinaries carries the real external binary check without paths", async () => {
+    const session = await start("a");
+    const plain = await session.connection.request("host.status", {});
+    expect(plain.binaries).toBeUndefined();
+    const status = await session.connection.request("host.status", { includeBinaries: true });
+    const report = status.binaries;
+    expect(report).toBeDefined();
+    if (report !== undefined) {
+      const names = report.items.map((item) => item.name);
+      expect(names).toContain("sops");
+      expect(names).toContain("age");
+      expect(names).toContain("rg");
+      expect<string>(report.platform).toBe(process.platform);
+      expect(report.ready).toBe(report.blocking.length === 0);
+      const found = report.items.flatMap((item) =>
+        item.status.kind === "ok" ? [item.status] : [],
+      );
+      for (const ok of found)
+        expect(Object.keys(ok).toSorted()).toEqual(["kind", "source", "version"]);
+    }
+    await session.close();
+  });
 });

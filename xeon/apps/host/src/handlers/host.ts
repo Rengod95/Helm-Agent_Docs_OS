@@ -11,6 +11,7 @@ import {
   type WireMethodName,
 } from "@xeon/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
+import { hostBinaryReportOf } from "../binary-report.ts";
 import type { Engine } from "../types.ts";
 import { isNotImplemented } from "./not-implemented.ts";
 
@@ -125,19 +126,28 @@ export function createHostShutdownHandler(
   };
 }
 
-/** 모드, pid, 시작 시각, 연결 수, 진행 중 turn 수. 유휴 종료 예정 시각은 서비스 모드(M3)가 채운다 */
+/**
+ * 모드, pid, 시작 시각, 연결 수, 진행 중 turn 수. 유휴 종료 예정 시각은 서비스 모드(M3)가 채운다.
+ * `includeBinaries: true`일 때만 외부 바이너리 점검(`Engine.diagnose`)을 하고 결과를 `binaries`에 싣는다(G2-07, HS-69):
+ * 점검은 바이너리마다 자식 프로세스를 띄워 버전을 확인하므로 평소 상태 조회에는 하지 않는다. 점검이 중단되면 결과 없이 `request.cancelled`다
+ */
 export function createHostStatusHandler(
   engine: Engine,
   hub: () => ConnectionHub,
   info: HostInfo,
 ): WireHandler<"host.status"> {
-  return () =>
-    Promise.resolve({
+  return async (params, context) => {
+    const status = {
       mode: engine.mode,
       pid: info.pid,
       startedAt: new Date(engine.startedAt).toISOString(),
       connections: hub().size,
       liveTurns: engine.ports.activity.snapshot().liveTurns,
       idleShutdownAt: null,
-    });
+    };
+    if (params.includeBinaries !== true) return status;
+    const diagnosed = await engine.diagnose(context.signal);
+    if (!diagnosed.binaries.ok) throw wireError("request.cancelled");
+    return { ...status, binaries: hostBinaryReportOf(diagnosed.binaries.value) };
+  };
 }
