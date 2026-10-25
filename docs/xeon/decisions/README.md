@@ -77,14 +77,18 @@ binds: []
 | 0002 | 단일 DI Cordis | [ADR-0002-di-cordis.md](ADR-0002-di-cordis.md) | accepted | DI·플러그인 수명은 Cordis 하나. `xeon/vendor/cordis`에 4.0.0-rc.x 커밋(df4431e) 고정, ext-host 뒤에 숨긴다 | decisions-log 2026-10-19·3차, foundation-plan §1 표 1번·§2 DI 행 | X, 그리고 서비스를 쓰는 L0~L3 |
 | 0003 | pi durable 부분 포크 | [ADR-0003-pi-durable-fork.md](ADR-0003-pi-durable-fork.md) | accepted(§3.2 마지막 항목은 0009가 대체) | env·tools·images·truncate만 Chord 제거 포크(`CancelScope`로 치환), 커널 L1-a·b·f·g는 직접 구현하고 durable spec을 인용 | decisions-log 3차, foundation-plan §1 표 1번 | L0(exec), L1(tasks, loop, persistence, agents), L2(workspace) |
 | 0004 | 세션 저장 C안 | [ADR-0004-session-storage.md](ADR-0004-session-storage.md) | accepted | SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블(`x_<id>_`), 단계 경계 FULL, 도구별 효과 커밋(E1~E3), 세션 id OS 잠금 + `sys_leases.epoch` 펜싱 | decisions-log 2026-10-21 2차 | F(records), L0(store), L1(persistence) |
-| 0005 | 무료 웹 검색 기본값 | [ADR-0005-web-search-default.md](ADR-0005-web-search-default.md) | accepted | 모델용은 provider 내장 검색. 서비스 API `web.search`는 소형 모델 한 턴 래퍼(약 $0.011/회). SearXNG를 감지하면 우선. 무료 크레딧 API(Exa 월 2,500건, Brave 약 1,000건)는 첫 실행 설정에서 플러그인으로 권장. 키 없는 DuckDuckGo 스크레이핑 제외 | decisions-log 3차, foundation-plan §1 표 6번 | L2(web), L4(첫 실행 설정) |
+| 0005 | 무료 웹 검색 기본값 | [ADR-0005-web-search-default.md](ADR-0005-web-search-default.md) | accepted | 모델용은 provider 내장 검색. 서비스 API `web.search`는 소형 모델 한 턴 래퍼(약 $0.011/회). SearXNG는 사용자가 주소를 설정했을 때만 래퍼보다 먼저 쓴다(자동 감지 없음, 2026-10-25 개정). 무료 크레딧 API(Exa 월 2,500건, Brave 약 1,000건)는 첫 실행 설정에서 플러그인으로 권장. 키 없는 DuckDuckGo 스크레이핑 제외 | decisions-log 3차, foundation-plan §1 표 6번 | L2(web), L4(첫 실행 설정) |
 | 0006 | 프로세스 구조와 서비스 모드 | [ADR-0006-process-service-mode.md](ADR-0006-process-service-mode.md) | accepted | 엔진 라이브러리 + 단일 호스트 계약 + 전송 교체(CLI in-process, 데스크톱 자식 엔진 stdio). 공유 서비스 모드 `xeon service`(자동 기동, 유휴 종료)는 1차, OS 서비스 등록은 2차. 원격 사용은 1차(SSH 터널·사설망), 내장 원격 전송은 2차. 세션 단위 OS 잠금 + `sys_leases` 소유 표시 | decisions-log 계획 v2·3차, foundation-plan §1 표 2번 | L0(process), L4(cli, host-service, desktop) |
 | 0007 | 확장 지점 4연산 | [ADR-0007-ext-points.md](ADR-0007-ext-points.md) | accepted | on(fold tap/first/chain), post, drive(배타 임대, 기본 상한은 pi 방식의 예외), scope 4연산. 켜기·끄기와 임대 교대는 단계 경계. 지점 종류 5개와 지점 목록은 [제안](미합의) | decisions-log 2026-10-21 계획 v2 | F(extensions), X, L1, L3 |
 | 0008 | 데스크톱 Tauri 2 + 엔진 사이드카 | [ADR-0008-desktop-tauri.md](ADR-0008-desktop-tauri.md) | accepted | Tauri 2.12(시스템 WebView, 3플랫폼) + `bun build --compile` 엔진 사이드카 + stdio JSON-RPC | decisions-log 3차, foundation-plan §1 표 3번·§2 데스크톱 행 | L4(desktop, settings-ui) |
 | 0009 | 자체 에이전트 루프 | [ADR-0009-own-agent-loop.md](ADR-0009-own-agent-loop.md) | accepted | pi-agent-core 의존 제거. 1.3.0(MIT) 루프를 core-loop로 포크해 자체 루프로 재설계(진입점 `runTurn(entry)`, 단계 경계 커밋·확장 지점을 루프 코드가 직접 호출, 도구 단계는 core-tools 단계 계약). F가 `AgentMessage`·`AgentEvent`·`AgentTool`을 직접 정의. pi-ai는 유지 | 사용자 지시 2026-10-22, decisions-log 2026-10-21 첫 결정 | F(conversation), L1(loop, tools, models) |
 | 0010 | 데스크톱 프런트엔드 상태 | [ADR-0010-desktop-frontend-state.md](ADR-0010-desktop-frontend-state.md) | accepted | React 19 + Zustand 5. 엔진 거울 하나 + UI 스토어, 순수 reducer, 쓰기 미들웨어는 reducer 단계 3개(journal → guard → invariants), Zustand 미들웨어 미사용, 스트리밍 슬롯 + 프레임 커밋. Preact + signals 제외 | 사용자 지시 2026-10-24 | L4(desktop, settings-ui) |
+| 0011 | MCP stdio 서버 비샌드박스 실행 | [ADR-0011-mcp-stdio-unsandboxed.md](ADR-0011-mcp-stdio-unsandboxed.md) | accepted | M2는 stdio 서버를 사용자 권한으로 실행. 프로젝트 정의는 프로젝트 신뢰 뒤에만 읽음. 비밀 env 서버는 M3. 샌드박스는 bwrap·Seatbelt 시험 뒤 M3에 다시 정함 | review.m2-plan §8 D6, §9 D-c | L0(process), L2(mcp) |
+| 0012 | 실행 속도를 앱 크기보다 우선 | [ADR-0012-speed-over-size.md](ADR-0012-speed-over-size.md) | accepted | 시작·종료·응답 속도를 크기보다 먼저 봄. 사이드카 `--minify --bytecode`, 크기 상한 500 MiB는 회귀 검사용. 예산은 `eng.performance.guide` | 사용자 결정 2026-10-24 | L4(cli, desktop, host-service) |
+| 0013 | `post.when = next`와 `aside` | [ADR-0013-post-next-aside.md](ADR-0013-post-next-aside.md) | accepted | `next`는 붙기만 하고 turn을 열지 않음. `aside`는 L1·CLI 사용자 입력 전용. F `PostWhen` 변경 없음 | review.m2-plan §8 D7 | F(extensions), L1(tasks) |
+| 0014 | 단일 `xeon` 엔진 바이너리 | [ADR-0014-single-xeon-binary.md](ADR-0014-single-xeon-binary.md) | accepted | CLI와 데스크톱 사이드카가 같은 `xeon` 바이너리(`host --stdio`). 이름은 제품 이름 결정 때 한 번에 바꿈 | ADR-0001 §4.1, DESK.3 | L4(cli, desktop, host-service) |
 
-- 상태 열은 각 ADR 파일 프런트매터의 `status`와 같아야 한다. 이 색인을 쓴 시점(2026-10-21)에 0001~0008 여덟 파일 모두와 대조했다. 0009는 2026-10-22에, 0010은 2026-10-24에 더했다.
+- 상태 열은 각 ADR 파일 프런트매터의 `status`와 같아야 한다. 이 색인을 쓴 시점(2026-10-21)에 0001~0008 여덟 파일 모두와 대조했다. 0009는 2026-10-22에, 0010은 2026-10-24에, 0011~0014는 2026-10-25에 더했다. 0011~0014는 plan 표에만 있던 결정을 옮긴 것이다(마일스톤 재점검 G3-03, `review.m2-plan` §9).
 - 0005~0008의 핵심 결정 열은 조정자가 전달한 요약이다. 정확한 문구는 각 ADR이 기준이다.
 
 ## 3. ADR 사이 의존
@@ -103,6 +107,10 @@ flowchart LR
   A8["0008 데스크톱<br/>Tauri 2 + 사이드카"]
   A9["0009 자체 루프<br/>pi-agent-core 포크"]
   A10["0010 데스크톱 상태<br/>React 19 + Zustand 5"]
+  A11["0011 MCP stdio<br/>비샌드박스"]
+  A12["0012 속도 우선"]
+  A13["0013 next·aside"]
+  A14["0014 단일 xeon"]
 
   A1 --> A2
   A2 --> A7
@@ -119,6 +127,13 @@ flowchart LR
   A7 --> A9
   A1 --> A10
   A8 --> A10
+  A6 --> A11
+  A1 --> A12
+  A8 --> A12
+  A7 --> A13
+  A1 --> A14
+  A6 --> A14
+  A8 --> A14
 ```
 
 - 0001 → 0008: 사이드카는 `bun build --compile`로 만든다.
@@ -171,4 +186,5 @@ flowchart LR
 
 - [미결] `_templates/README.md`의 `status` 값 목록에 superseded를 추가할지. 추가하지 않으면 번복된 ADR의 상태를 프런트매터로 표시할 수 없다.
 - [미결] §4 표의 결정 중 어느 것을 ADR로 승격할지. [제안] 후보는 SOPS 비밀 기본값과 승인 프로토콜 통합이다.
+- [미결] on 핸들러의 외부 효과 금지와 `delegate`, `loop.spawn`, 능력 호출의 충돌(마일스톤 재점검 G1-06). Helm drive의 `gatherContext`, `work.tasks.create`가 효과 목록 밖이다. Helm 본체를 M3로 옮겼으므로(`review.m2-plan` §9 D-a) 이 ADR은 M3 Helm 착수 전에 쓴다(`review.m3-plan`).
 - [미결] 색인 상태 열과 파일 프런트매터의 일치를 `scripts/docs-route.ts`나 문서 검사에 넣을지.

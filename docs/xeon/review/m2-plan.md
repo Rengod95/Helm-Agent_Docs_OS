@@ -25,8 +25,8 @@ binds: []
 |---|---|---|
 | L2 능력 1차 | `cap-web`(검색 단계 ①~③, fetch), `cap-mcp`, `cap-knowledge`, `cap-work`(작업·계획 승인), `cap-dialog`(질문·명령·상태줄·첨부) | L2.web/mcp/knowledge/work/dialog.plan |
 | 승인 프로토콜 통합 | `approval.respond` 완성, U-19 env 주입 승인 증거 전달, 질문 도구·계획 승인·MCP 질문을 같은 `approval.requested` 레코드로 기록 | L1.tools.plan TL-5·TL-12, L4.host-service.plan H18, open-issues M-02 |
-| Helm 1차 | `group-kit` M2 항목, `group-helm` H-02~H-15 | L3.group-kit.plan, L3.helm.plan |
-| 데스크톱 | Tauri 셸, 엔진 사이드카(stdio 호스트), 승인 대기열 | L4.desktop.plan, L4.host-service.plan |
+| 그룹 기반 | `group-kit` M2 항목. `group-helm` H-02~H-15는 M3로 옮겼습니다(§9 D-a) | L3.group-kit.plan, L3.helm.plan |
+| 데스크톱 | Tauri 셸, 엔진 사이드카(stdio 호스트), 승인 대기열, 최소 설정 화면(키 등록, 모델 선택, 첫 실행 안내, §9 D-b) | L4.desktop.plan, L4.host-service.plan |
 | 비밀 관리 명령 | `xeon secret list/add/rm/reveal`, reveal의 OS 재인증(가능한 곳) | L0.secrets.plan SC-14·SC-23, L4.cli.plan C9 |
 | 이 묶음이 의존하는 하위 층 | L1 승인·위임·영속, L0 stdio 전송, X 임대 중재·리소스 레지스트리 | 각 plan M2 행 |
 
@@ -43,6 +43,8 @@ binds: []
 | 외부 확장 탐색·로더·훅·안전 모드(X.5: L-13, L-14, L-18, L-28, L-29, O-20~O-26, V-09) | 종료 조건 밖입니다. 결정 D9로 M3에 둡니다. 프로젝트 신뢰(X.4)만 M2에 남습니다 |
 | 데스크톱 Developer ID 서명과 공증(L4.desktop D10의 macOS 공증 부분) | 결정 D3으로 M3 릴리즈 후보에 둡니다. M2는 ad hoc 서명입니다 |
 | pi 메시지 스키마 깊은 검증(F.conversation.spec §10 미결 2) | M2 종료 조건과 무관합니다. 사용자 결정으로 M3에 둡니다 |
+| Helm 본체 `group-helm` H-02~H-15, E1, 도구 메타(G1-05), on 핸들러 효과 목록 ADR(G1-06) | 2026-10-25 결정 D-a로 M3에 둡니다(§9, `review.m3-plan`) |
+| 비밀 env를 쓰는 stdio MCP 서버 | 2026-10-25 결정 D-c로 M3에 둡니다(§9, ADR-0011) |
 
 ## 3. 트랙 규칙 (worktree 병렬 실행)
 
@@ -206,16 +208,16 @@ binds: []
 
 ## 5. 트랙별 시험과 종료 기준
 
-M2 종료 조건 번호(`product.scope.spec` §4.4 M2 행과 §4.3 비밀 관리 행):
+M2 종료 조건 번호의 정본은 `product.scope.spec` §4.4.1입니다. 아래는 요약입니다.
 
-- E1: Helm 확산 단계 쓰기 거부, 렌즈 N개 → 서브에이전트 N개 결과 커밋 뒤 적용 턴 1회(UC-2).
-- E2: 같은 모델 테이프와 입력으로 CLI(in-process)와 데스크톱 사이드카(stdio)의 호스트 메시지 열이 같음.
+- E0: 저장소 루트 `just verify` 종료코드 0(모든 트랙의 병합 조건). CI가 같은 검사를 돌립니다.
+- E1: Helm 확산 단계 쓰기 거부, 렌즈 N개 → 서브에이전트 N개 결과 커밋 뒤 적용 턴 1회(UC-2). M3로 옮겼습니다(§9 D-a).
+- E2: 같은 모델 테이프와 입력으로 CLI(in-process)와 데스크톱 사이드카(stdio, 컴파일 바이너리)의 호스트 메시지 열이 같음.
 - E3: 앱 정상 종료 뒤 사이드카 프로세스 없음.
-- E4: `web.search`가 SearXNG를 감지하면 SearXNG, 없으면 내장 검색 래퍼.
+- E4: SearXNG 주소를 설정하지 않으면 `web.search`가 내장 검색 래퍼, 설정하면 SearXNG. 실제 조립 엔진에서 확인(§9 H1).
 - E5: 질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록됨.
-- E6: 테스트 MCP 서버의 도구가 도구 목록에 노출됨.
+- E6: 테스트 MCP 서버(HTTP, stdio)의 도구가 실제 엔진 도구 목록에 노출됨.
 - E7: 비밀 관리 명령(목록, 등록, 삭제, 열람)과 열람의 재인증.
-- E0: `cd xeon && just verify` 종료코드 0(모든 트랙의 병합 조건).
 
 | 트랙 | 시험 | 종료 기준 |
 |---|---|---|
@@ -243,7 +245,7 @@ M2 종료 조건 번호(`product.scope.spec` §4.4 M2 행과 §4.3 비밀 관리
 | 항목 | 상태 | 영향과 대응 |
 |---|---|---|
 | `which cargo rustc` | 둘 다 1.99.1(rustup 사용자 영역 설치, 2026-10-24). `libwebkit2gtk-4.1`과 Tauri 시스템 패키지도 사용자가 설치함 | 결정 D1. DESK.1·DESK.2·DESK.5와 E2·E3의 Tauri 부분을 이 기기에서 실행합니다 |
-| bwrap, socat | 없음(open-issues E-02) | 샌드박스 int 시험은 건너뜁니다. MCP stdio 서버 샌드박스(결정 D6)도 시험할 수 없습니다 |
+| bwrap, socat | 2026-10-25 기준 bwrap 0.9.0은 있고 socat은 없음(open-issues E-02) | 샌드박스 int 시험은 socat이 없으면 종료코드 2로 알립니다. CI는 둘 다 설치합니다(G4-01). MCP stdio 서버 샌드박스는 M3에 정합니다(ADR-0011) |
 | macOS | 이 기기에는 없음. 필요할 때만 씀 | 키체인(SC-19), macOS FTS5·trigram(KN 완료 기준 9), `aarch64-apple-darwin` 사이드카는 CI `desktop-macos` job(`workflow_dispatch`나 PR 라벨 `ci:macos`)이나 실기에서만 확인합니다. 공증은 M3입니다(결정 D3) |
 | WSL2 벽시계 | platform-exec watch 적합성 시험 불안정(E-01) | 실패하면 한 번 재실행으로 판단합니다 |
 | Secret Service(`secret-tool`) | 없음 | 키는 파일 폴백입니다. `reveal`의 `os-auth` 경로는 확인할 수 없고 `tty-confirm`만 시험합니다 |
@@ -276,8 +278,8 @@ M2 종료 조건 번호(`product.scope.spec` §4.4 M2 행과 §4.3 비밀 관리
 | D3 | M2 데스크톱 서명 수준 | (b) M2는 ad hoc 서명입니다. Developer ID 서명과 공증은 M3 릴리즈 후보로 옮깁니다 | §2.2, L4.desktop.plan D10·§6 |
 | D4 | `web.browse`(B10) 배치 | M3 초입입니다 | §2.2, L2.web.plan B10 |
 | D5 | MCP `input_required`의 책임 나눔 | (a) L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출합니다 | MCP.4, L2.mcp.spec §10 |
-| D6 | MCP stdio 서버 샌드박스 | M2는 사용자 권한으로 실행합니다. `.mcp.json`(루트와 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽습니다. 샌드박스는 bwrap 시험 환경이 생긴 뒤 정합니다 | L2.mcp.spec §10 |
-| D7 | `post.when = next`와 `aside` | B안(붙기만 하고 스스로 시작하지 않음) + 1안(aside는 L1·CLI 전용)입니다. F `PostWhen` 변경은 없습니다 | L1B.5, L1.tasks.spec §4.9 |
+| D6 | MCP stdio 서버 샌드박스 | M2는 사용자 권한으로 실행합니다. `.mcp.json`(루트와 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽습니다. 샌드박스는 bwrap 시험 환경이 생긴 뒤 정합니다 | L2.mcp.spec §10, ADR-0011 |
+| D7 | `post.when = next`와 `aside` | B안(붙기만 하고 스스로 시작하지 않음) + 1안(aside는 L1·CLI 전용)입니다. F `PostWhen` 변경은 없습니다 | L1B.5, L1.tasks.spec §4.9, ADR-0013 |
 | D8 | Cordis provider 재시작 뒤 scope 재적용 시점 | (b) 재적용 요청을 기록하고 다음 단계 경계에 적용합니다. X.3에서 구현했습니다 | X.3, open-issues N-02 |
 | D9 | X 외부 확장 탐색·로더·훅·안전 모드(X.5) | M3입니다. 프로젝트 신뢰(X.4)만 M2에 둡니다 | §2.2, X.5, X.loading-trust.plan |
 | D10 | pi-tui 채택 | 스파이크를 M2에 돌리고 한글 IME·CJK 폭 확인을 통과할 때만 1.3.0을 채택합니다. M2 종료 조건에 넣지 않습니다 | CLI.5, L4.cli.plan C8 |
@@ -293,3 +295,71 @@ M2 종료 조건 번호(`product.scope.spec` §4.4 M2 행과 §4.3 비밀 관리
 | `getOrThrow` | 테스트 전용 도우미로 둡니다 | 없음 |
 | env-node-spill 스트림 훅 교체 | `Reflect.get`을 쓰는 현재 방식을 유지합니다 | 없음 |
 | 테스트 실행 | `just test`(`xeon/scripts/test-capped.sh`, cgroup 메모리 상한 아래에서 패키지 하나씩)로 돌립니다 | eng.toolchain.guide, eng.testing.guide |
+
+## 9. M2 마감 결정 (2026-10-25)
+
+완료 마일스톤 재점검(통합 항목 48건, G1~G5) 뒤 사용자가 권고대로 정했습니다. 각 층 문서는 이 표를 `[결정: review.m2-plan §9 D-<문자>]`로 인용합니다. 재점검 항목 번호(G1-01 등)의 정본은 재점검 보고서이고, 이 문서와 `review.m3-plan`, `review.open-issues`가 번호를 그대로 씁니다.
+
+| # | 결정 | 고른 안 | 반영 |
+|---|---|---|---|
+| D-a | E1(Helm UC-2)과 I7의 마일스톤 | M3로 옮깁니다. 함께 옮기는 항목은 G1-05 도구 메타(`risk`, `hints`, `caller`), G1-06 on 핸들러 효과 목록 ADR, G4-04 Helm 본체(H-02~H-15)입니다. M2의 그룹 작업은 `group-kit`까지입니다 | `product.scope.spec` §4.1 I7·§4.3·§4.4.1·§4.5, `product.usecases.spec` UC-2, `adr.readme` §6, `review.m3-plan` |
+| D-b | 데스크톱 최소 설정 화면 | M2에 넣습니다. 범위는 키 등록, 모델 선택, 첫 실행 안내입니다. 그래서 G5-04의 `SettingDef.stage`(선언만 하고 동작 없는 키를 화면에서 거르는 표지)도 M2로 당깁니다 | `product.scope.spec` §4.1 I14·§4.3, T7 DESK, T1 F |
+| D-c | 비밀 env를 쓰는 stdio MCP 서버 | M3로 미룹니다. M2는 `McpProcessPort` 병합과 D6 ADR만 합니다 | ADR-0011, `product.scope.spec` §4.3, `review.m3-plan` |
+| D-d | 지원 플랫폼 | macOS 우선, Linux 비공식, WSL은 개발 전용입니다 | `product.scope.spec` §4.7, `review.macos-checklist` |
+| D-e | 실제 provider 테이프 녹화와 D11 측정 | M2 마감 전에 각각 한 번 합니다. 실행할 때마다 사용자 확인을 받습니다(종료코드 3 뒤 `--yes`) | `just tape-record`, `just bench`, `eng.performance.guide`, §11 |
+| H1 | 웹 검색 기본값(사용자 지시) | SearXNG를 기본값으로 두지 않습니다. 모델용 도구는 활성 모델의 호스티드 검색을 씁니다(ADR-0005 ①). 서비스 API `web.search`의 기본값은 내장 검색 래퍼입니다. SearXNG와 키 API는 사용자가 설정했을 때만 provider 체인에 들어갑니다. 자동 감지는 없앱니다 | ADR-0005 개정(§3.1 ③, §3.3), `product.scope.spec` §4.1 I10·§4.4.1 E4, T5 cap-web, `L2.web.spec` §4.8.2·§4.8.3(L2 소유자) |
+
+- H1의 근거는 2026-10-24 웹 검색 조사입니다. 요약은 다음과 같습니다.
+  - Claude Code, Codex CLI, Gemini CLI는 모델 제공자의 호스티드 검색을 기본으로 둡니다. 별도 검색 키나 로컬 서버를 기본으로 요구하지 않습니다.
+  - 조사한 런타임 가운데 자체 호스팅 SearXNG를 기본값으로 쓰는 곳은 없습니다. SearXNG는 oh-my-pi와 pi 커뮤니티 패키지에서 선택지로만 나옵니다.
+  - Xeon의 SearXNG 감지는 탐침 요청에 실제 검색어를 실어 상위 검색 엔진으로 보내고, 실패가 사용자에게 잘 보이지 않습니다(`L2.web.spec` §4.8.3).
+- 함께 정리한 ADR 승격(G3-03)은 다음과 같습니다. ADR-0011(D6, MCP stdio 비샌드박스), ADR-0012(속도 우선), ADR-0013(D7), ADR-0014(단일 `xeon` 바이너리)입니다.
+
+## 10. 트랙 상태 (2026-10-25)
+
+§4.1 트랙의 상태입니다. 병합 해시는 `xeon/foundation`의 대표 커밋입니다. 남은 일은 재점검 항목 번호로 적고, 이 마감 작업의 트랙(T1~T7, Z)이 맡습니다. M1.5라는 마일스톤은 없습니다. 통합 검토 L1~L9와 후속 N-1~N-6, 재점검 G1~G5 수정은 모두 M2 안의 작업입니다.
+
+| 트랙 | 상태 | 병합 | 남은 일(재점검 번호, 맡는 트랙) |
+|---|---|---|---|
+| F 계약 | 병합 | 13c7241(F.1)~d828512(F.7), 9f69590(F.8) | G1-01, G1-02, G1-03, G1-07, G1-08, G1-09, G1-11 계약 필드, G2-06, G2-11, G2-12, G5-04 `stage`(T1) |
+| X 확장 호스트 | 병합(X.5는 M3, D9) | 93dad8d(X.1)~8efd085(X.4) | G1-03 `.xeon/commands` 신뢰 자원 표(T5) |
+| SEC L0 비밀 | 병합 | 9f045f9(SEC.1~5) | `os-auth`·키체인 macOS 확인(G4-02, Mac) |
+| PLT L0 | 병합 | 4a8215c(PLT.1)~4c75c7a(PLT.4) | G1-04 `McpProcessPort`, G1-10 `fileLock`, G2-05 spill 위치, G2-06 스냅샷, G2-07 외부 바이너리 점검, G4-01 샌드박스 int 시험, G1-12 `selfTest`(T3) |
+| L1A 도구·승인·루프 | 병합 | 6d2bf72(L1A.1)~45016bb(L1A.7) | G1-09 origin 정리, G2-03 systemPrompt 반영 결함, G2-10 동의 표시(T4) |
+| L1B 영속·위임·태스크 | 병합 | 9d5789d(L1B.1)~ced3b78(L1B.5) | G2-11 `before`·`limit`와 fork 연속성 규칙(T4) |
+| L1C 모델·컨텍스트 | 병합 | 50d696f(L1C.1)~0117d3c(L1C.5) | G2-01 컴팩션 호출 배선(T4), G4-06 실제 테이프(D-e) |
+| WEB | 병합 | e2d80b9(WEB.1)~33a66d8(WEB.6) | H1 자동 감지 제거, G4-05 host 수준 시험(T5), G1-12 `hostedSearch` 조립(T2) |
+| MCP | 병합 | 0354272(MCP.1)~40fd28e(MCP.4) | G1-04 stdio 경로(T3, T5), G2-02 대화 작업 폴더 기준(T5) |
+| KN | 병합 | b27916d(KN.1)~e8e901a(KN.5) | G2-01 재주입(T5), G2-02 기준 폴더(T5) |
+| WK | 병합 | ac378d5(WK.1)~9a781ff(WK.3 통합 시험) | 없음 |
+| DG | 병합 | 4e8c72a(DG.1~3)~92daeec | G2-02 기준 폴더(T5) |
+| GK | 병합 | 5acca50(GK.1)~efa6a6c(GK.5 문서) | 없음 |
+| HM | M3로 옮김(D-a) | 없음(`group-helm`은 설정만) | G4-04, G1-05, G1-06(`review.m3-plan`) |
+| HOST | 병합 | eeff08d(HOST.1)~8a96d81(HOST.6), 통합 검토 후속 be63a94까지 | G1-01·G1-02·G1-03·G1-07·G1-08 처리기, G1-12 조립, G2-02, G2-06, G2-07, G2-12(T2) |
+| CLI | 병합 | 78f2705(CLI.1~4), 7d64181(CLI.5 V-02) | 명령 실행, 재개, 신뢰 카드, `xeon trust`, 비밀 참조, 동의 표시, 제목(T6) |
+| DESK | 일부 병합(DESK.1~4) | 1e6fb9f(DESK.1)~1cbc13d(DESK.4) | DESK.5 e2e(G4-03), G2-08 최소 설정 화면(D-b), G2-09 single-instance, 신뢰·승인 카드(T7) |
+| Z 통합 | 진행 중 | 이 문서 §9~§11 | G3-01~G3-03, G3-05, G3-06, G5-01~G5-03, G5-06, G2-13, G4-01 CI, G4-02, G4-06, G4-07, G2-04, guard 채택(Z) |
+
+- 아직 병합하지 않은 후보 브랜치는 `m2/fx-host`, `m2/fx-mcp`, `m2/fx-apps`, `m2/fx-m`입니다. 옛 SHA 위에 있으므로 T2·T3·T5·T6·T7이 hunk 단위로 다시 씁니다. `m2/fx-l1`은 변경이 없습니다.
+
+## 11. M2 마감 절차와 종료 조건 판정
+
+마감은 4차에서 순서대로 합니다. 판정 결과는 이 절의 표에 적습니다.
+
+1. 각 차수 병합마다 rebase, `--ff-only`, 저장소 루트 `just verify`.
+2. 재검토자 1명이 항목별 수정과 새 결함을 봅니다.
+3. Mac 확인(`review.macos-checklist`). Mac이 꺼져 있으면 `ws mac queue add`로 넣습니다.
+4. GitHub macOS 수동 job(`xeon-macos.yml`)을 한 번 실행합니다.
+5. D-e: `just tape-record`와 `just bench --first-token`을 각각 한 번. 실행 직전에 사용자 확인을 받습니다.
+6. `TURBO_FORCE=true just verify`, PR #2 갱신, 아래 표 기록.
+
+| 조건 | 판정 | 근거(시험, 커밋, 실행 기록) |
+|---|---|---|
+| E0 | 미판정 | |
+| E1 | M3로 옮김(D-a) | |
+| E2 | 미판정 | |
+| E3 | 미판정 | |
+| E4 | 미판정 | |
+| E5 | 미판정 | |
+| E6 | 미판정 | |
+| E7 | 미판정 | |
