@@ -553,13 +553,16 @@ describe("locks", () => {
     expect(ports.locks.holds(THREAD)).toBe(false);
   });
 
-  test("extension thread state that the session cannot load yet (M2) is tolerated and logged", async () => {
+  test("a not_implemented Bug from ext.openThread is raised and the lease is given back", async () => {
     const h = harness();
-    h.state.openThreadError = new Bug("session.not_implemented: ext.loadThread arrives with M2");
+    h.state.openThreadError = new Bug("session.not_implemented: ext.loadThread");
     const { ports } = createEnginePorts(h.deps);
-    const outcome = await ports.locks.tryAcquire(THREAD, "cli");
-    expect(outcome.ok).toBe(true);
-    expect(h.infos).toContain("thread.extension_state_unavailable");
+    const thrown = await rejectionOf(ports.locks.tryAcquire(THREAD, "cli"));
+    expect(thrown).toBeInstanceOf(Bug);
+    expect(String(thrown)).toContain("session.not_implemented");
+    expect(h.calls).toContain("lease.release");
+    expect(h.infos).not.toContain("thread.extension_state_unavailable");
+    expect(ports.locks.holds(THREAD)).toBe(false);
   });
 
   test("any other failure while opening the thread for extensions gives the lease back and is raised", async () => {

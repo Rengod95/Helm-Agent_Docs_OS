@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { Bug, parseJson } from "@xeon/contracts";
+import { parseJson } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { SessionSettingsStore } from "@xeon/contracts/records";
 import {
@@ -69,13 +69,11 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
     user: ReadonlyMap<string, unknown>;
     userPath: string | undefined;
     session: SessionSettingsStore | undefined;
-    sessionNoticeGiven: boolean;
     workspaceOf: ((threadId: ThreadId) => string | undefined) | undefined;
   } = {
     user: new Map(),
     userPath: undefined,
     session: undefined,
-    sessionNoticeGiven: false,
     workspaceOf: undefined,
   };
   const workspaceFiles = new Map<string, WorkspaceSettingFiles>();
@@ -98,17 +96,7 @@ export function createSettingsEngine(catalog: SettingCatalog): SettingsEngine {
       );
     }
     if (threadId !== undefined && state.session !== undefined) {
-      try {
-        stack.push(state.session.layer(threadId));
-      } catch (caught) {
-        // core-persistence의 세션 범위 설정(sessionSettings.layer, PS-14)은 M2다. 그 전에는 세션 범위 없이 파일 범위만 본다 [미결]
-        if (!(caught instanceof Bug) || !/^[a-z]+\.not_implemented:/.test(caught.message))
-          throw caught;
-        if (!state.sessionNoticeGiven) {
-          state.sessionNoticeGiven = true;
-          diagnostics.push("settings.session_scope_unavailable");
-        }
-      }
+      stack.push(state.session.layer(threadId));
     }
     return stack;
   }

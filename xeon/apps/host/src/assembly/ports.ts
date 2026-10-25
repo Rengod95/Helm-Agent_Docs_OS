@@ -111,11 +111,6 @@ function toLogFields(fields: Readonly<Record<string, unknown>>): LogFields {
   return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, toLogValue(value)]));
 }
 
-/** 아직 구현되지 않은 하위 층 기능이 던지는 Bug("<영역>.not_implemented: …") */
-function isNotImplemented(caught: unknown): boolean {
-  return caught instanceof Bug && /^[a-z]+\.not_implemented:/.test(caught.message);
-}
-
 function storeIdOf(raw: string): StoreId {
   const parsed = parse(StoreIdSchema, raw);
   // xeon-disable-next-line xeon/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
@@ -353,22 +348,16 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     try {
       await ext.openThread(threadId);
     } catch (caught) {
-      if (isNotImplemented(caught)) {
-        // core-persistence의 ext.loadThread(PS-16)는 M2다. 그 전에는 확장의 thread 상태(켜짐, 상태 판, 임대)를 읽어 들이지 못하지만
-        // 기본 대화는 돌아간다. 구현되면 이 분기는 저절로 쓰이지 않는다 [미결]
-        log.info("thread.extension_state_unavailable", { threadId, message: messageOf(caught) });
-      } else {
-        alive[Symbol.dispose]();
-        store.leases.release(token);
-        // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 저장소 오류로 알린다. 빈 상태로 열면 켜짐과 상태 판을 잃는다
-        if (caught instanceof PrimitiveError && caught.code === "storage_unavailable") {
-          throw wireError("store.io", {
-            message: `ext.openThread failed: ${caught.message}`.slice(0, 200),
-            details: { code: "ext_state_unreadable" },
-          });
-        }
-        throw caught;
+      alive[Symbol.dispose]();
+      store.leases.release(token);
+      // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 저장소 오류로 알린다. 빈 상태로 열면 켜짐과 상태 판을 잃는다
+      if (caught instanceof PrimitiveError && caught.code === "storage_unavailable") {
+        throw wireError("store.io", {
+          message: `ext.openThread failed: ${caught.message}`.slice(0, 200),
+          details: { code: "ext_state_unreadable" },
+        });
       }
+      throw caught;
     }
     // 이전 프로세스가 남긴 미해결 승인 요청을 메모리 대기 목록으로 되살린다. approval.respond가 재시작 뒤에도 그 요청을 찾는다(HOST.4)
     const restored = await deps.approvals.restore(threadId);
