@@ -131,7 +131,7 @@ describe("approval.respond", () => {
           approvalId: asked.id,
           decision: "allow",
         }),
-      ).toEqual({ applied: false });
+      ).toEqual({ applied: false, reason: "already_resolved" });
       await fx.close();
     },
   );
@@ -163,7 +163,11 @@ describe("approval.respond", () => {
       decision: "answer",
       answer: { q1: { selected: ["a"] } },
     });
-    expect(wrong).toEqual({ applied: false });
+    expect(wrong).toEqual({
+      applied: false,
+      reason: "answer_invalid",
+      detail: 'decision "answer" does not fit this request',
+    });
     expect(
       (await fx.connection.request("approval.list", { threadId: fx.threadId })).approvals,
     ).toHaveLength(1);
