@@ -63,7 +63,7 @@ function countClose(state: { closed: number }): () => Promise<"clean" | "deadlin
 }
 
 function storeKind(message: string): string {
-  return startErrorOf(new AssembleError([{ code: "store", message }])).kind;
+  return startErrorOf(new AssembleError([{ code: "store", message, failure: "unavailable" }])).kind;
 }
 
 test("store issues map to fts5Missing, dataDirPermission and storeUnavailable", () => {
@@ -100,7 +100,7 @@ test("catalog, missing service and plugin issues map to their own kinds", () => 
 test("a catalog problem wins over a store problem when both are reported", () => {
   const error = startErrorOf(
     new AssembleError([
-      { code: "store", message: "fts5Missing" },
+      { code: "store", message: "fts5Missing", failure: "unavailable" },
       { code: "catalog", issues: [{ code: "foreignNamespace", key: "x.a.b", owner: "o" }] },
     ]),
   );
@@ -109,7 +109,13 @@ test("a catalog problem wins over a store problem when both are reported", () =>
 
 test("an AssembleError from the host becomes an EngineStartError value", async () => {
   const connect = createConnectEngine(
-    api(() => Promise.reject(new AssembleError([{ code: "store", message: "dataDirPermission" }]))),
+    api(() =>
+      Promise.reject(
+        new AssembleError([
+          { code: "store", message: "dataDirPermission", failure: "unavailable" },
+        ]),
+      ),
+    ),
   );
   const result = await connect(OPTIONS);
   expect(result).toMatchObject({ ok: false, error: { kind: "dataDirPermission" } });
