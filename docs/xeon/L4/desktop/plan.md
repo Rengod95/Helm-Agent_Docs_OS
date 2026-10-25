@@ -375,10 +375,14 @@ M2 마감 반영(T7 DESK, 최소 설정 화면 G2-08): 구조와 규칙은 spec 
 
 M2 마감 반영(T7 DESK, 시험): 실제 `createTauriIpc`(invoke, Channel)를 `@tauri-apps/api/mocks`의 `mockIPC` 위에서 돌린다(`test/transport/tauri-mock.ts`, `tauri-mock.test.ts`, bun test). 셸 역할은 `fake-ipc.ts`가 맡고 `mockIPC`가 `engine_*` 명령을 그쪽으로 옮긴다. 시험하는 것은 명령 이름과 인자 모양, 바이트·상태 Channel 메시지의 해석(모르는 상태는 버림), 문자열 오류의 코드 변환, 결과 스키마 검사, 그리고 앱 전체가 이 경로로 `live` 연결에 이르는 흐름이다. `mockIPC`는 `invoke`의 세 번째 인자(헤더 `x-xeon-epoch`)를 넘기지 않아 세대 검사는 Rust 시험(`relay.rs`)이 맡는다. vitest는 쓰지 않는다.
 
-M2 마감 반영(T7 DESK, 사이드카 e2e 틀, G4-03):
+M2 마감 반영(T7 DESK, Rust 셸과 사이드카 e2e, G2-09·G4-03·원격 점검 Phase 1):
 
 | 부분 | 파일 | 내용 |
 |---|---|---|
+| 단일 실행 | `src-tauri/src/main.rs`, `window.rs` | `tauri-plugin-single-instance`를 첫 플러그인으로 등록하고 콜백이 `focus_main`(show, unminimize, set_focus)을 부른다. 시험은 `tauri::test` mock 앱으로 창 조회와 레이블 일치를 본다. 실제로 프로세스 둘을 띄운 확인은 하지 않았다 |
+| 로그 파일 | `main.rs` `debug_log_plugin` | 디버그 빌드만. `LogDir` 파일과 표준 출력, 2 MB `KeepOne` |
+| 상태 덤프, 스냅샷 | `src-tauri/src/inspect/` | spec §4.15. JSON-RPC 처리(`mod.rs`), 소켓 서버(`server.rs`: 소켓 0600/폴더 0700, 접속 4개, 줄 16 KiB, 낡은 소켓 교체와 일반 파일 보존), 실제 앱 정보(`probe.rs`), macOS 스냅샷(`snapshot_macos.rs`). Rust 시험 65개가 `just desktop-test`로 통과했다 |
+| 릴리스 점검 | `test/inspect-guard.test.ts` | 소스 수준 cfg 보장. 산출물 확인 목록은 spec §4.15. `cargo check --release`는 경고 없이 통과했다 |
 | e2e 틀 | `test/e2e/harness.ts`, `scenario.ts`, `sidecar.e2e.test.ts` | stdio JSON-RPC로 엔진 프로세스를 모는 도구. 소스 진입(`bun apps/cli/src/main.ts host --stdio`)과 컴파일 사이드카(`xeon-<triple> host --stdio`)에 같은 요청열(hello, 구독, thread.create/list/read, settings.get, approval.list, secret.list, trust.get, command.list, host.status)을 보내 정규화한 응답과 이벤트열이 같은지, `host.shutdown` 또는 stdin EOF만으로 종료코드 0과 홈을 쥔 프로세스 0개인지 본다 |
 
 순서 경합(G4-03): thread를 연 직후 기본 켜짐 scope의 `scope.changed` 묶음이 다음 유휴 경계의 한 커밋으로 남고, 뒤따르는 입력과의 앞뒤는 시간에 달려 있다. 이전 도구는 60 ms를 기다려 이 경합을 가렸다. `untilScopesCommitted`가 시간 대신 조건을 기다린다: 구독으로 첫 `scope.changed`가 도착할 때까지 기다리고(커밋은 원자적이라 첫 이벤트가 오면 묶음 전체가 와 있다) seq가 이어지는지 확인한다. 시간 대기는 없고, 상한(20초)은 실패 메시지에 stderr를 싣는 용도다. 이 방식으로 소스 진입 두 번 실행의 응답·이벤트열이 같음을 시험한다.
@@ -454,7 +458,9 @@ M2 마감 반영(T7 DESK, 사이드카 e2e 틀, G4-03):
 | `@tauri-apps/api` | 2.12.x 정확 버전 [미확인] | `src/transport/ipc.ts`, `src/shell/**` | D2에서 crate와 맞는 값을 확인해 catalog에 고정한다 |
 | `tauri-plugin-shell`(crate) | `=2.5.0` | `engine.rs` | 조사 기준은 `plugins-workspace` `v2` 브랜치 커밋 `11211c30e71796cd737280303244552bb7f70797`(Cargo.toml 2.5.0, arch-2 §3.2). 정식 태그 미확인이라 D2에서 crates.io 버전과 대조한다. 대조 전까지 위 커밋 기준으로 둔다 |
 | `@tauri-apps/plugin-shell` | 넣지 않는다 | - | (a)안에서 WebView는 spawn하지 않는다 |
-| `tauri-plugin-single-instance` | 2.x [미확인] | `main.rs` | spec §5 동시 실행 |
+| `tauri-plugin-single-instance`(crate) | `=2.5.4` | `main.rs`, `window.rs` | spec §5 동시 실행 [결정: M2 마감 G2-09]. 다른 플러그인보다 먼저 등록 |
+| `tauri-plugin-log`(crate) | `=2.10.1` | `main.rs`(디버그 빌드만 등록) | spec §4.15 원격 점검 로그 파일 |
+| `objc2`, `objc2-app-kit`, `objc2-foundation`, `objc2-web-kit`, `block2`(crate, macOS 한정) | `0.6`, `0.3`, `0.3`, `0.3`, `0.6` | `src/inspect/snapshot_macos.rs` | spec §4.15 뷰포트 스냅샷. 디버그 빌드에서만 쓴다. WSL에서는 컴파일되지 않아 Mac 확인이 필요하다 |
 | `tauri-plugin-notification` | 2.x [미확인] | `src/shell/**`, M3 | spec §4.8 |
 | Rust 툴체인 | `1.99.1` 고정(2026-10-25 결정). `Cargo.toml`의 `rust-version = "1.99"` | `xeon/mise.toml`의 `rust = { version = "1.99.1", profile = "default" }`. `rust-toolchain.toml`은 만들지 않았다 | mise가 rustup으로 설치하고 `RUSTUP_TOOLCHAIN`을 정하므로 `rust-toolchain.toml`이 필요 없다. `profile = "default"`가 rustfmt·clippy를 포함한다. 1.99.0에는 회귀 3건(x86_64 FFI `bool` 반환 코드 생성 등)이 있어 1.99.1부터 쓴다. 다음 minor는 자동으로 채택하지 않는다. `rustc --print host-tuple`에 1.84+ 필요(adr.0008 §3.2). CI 러너의 설치 방법은 D9에서 정한다 |
 | `typebox` | 1.3.27 | IPC 스키마 | catalog. pi-ai와 같은 판(review.decisions-2 U-24) |
@@ -465,7 +471,7 @@ M2 마감 반영(T7 DESK, 사이드카 e2e 틀, G4-03):
 - 구조 참고(코드 복사 없음):
   - Tauri 사이드카 공식 문서 https://v2.tauri.app/develop/sidecar/ (externalBin, triple 규칙, capabilities).
   - opencode `standalone.ts`의 stdin EOF 임대(`_research/process.md §6.4`, adr.0006 §3.7 6번 근거 `standalone.ts:23-27`). 엔진 쪽 구현은 `L4.host-service.plan` 몫이고, 데스크톱은 그 동작을 전제로 테스트한다.
-- D2 착수 때 확정할 버전 목록(확정 전까지 [미확인]): `@tauri-apps/api`, `tauri-plugin-shell`, `tauri-plugin-single-instance`, `tauri-plugin-notification`, Rust 툴체인(`rust-toolchain.toml`). `react`, `react-dom`, `zustand`는 D6 착수 때 같은 방식으로 기록한다. D2 완료 조건에 이 목록의 정확 버전 기록을 넣는다.
+- D2 착수 때 확정할 버전 목록(확정 전까지 [미확인]): `@tauri-apps/api`, `tauri-plugin-shell`, `tauri-plugin-notification`, Rust 툴체인(`rust-toolchain.toml`). `react`, `react-dom`, `zustand`는 D6 착수 때 같은 방식으로 기록한다. D2 완료 조건에 이 목록의 정확 버전 기록을 넣는다.
 - 모든 TS 의존은 `xeon/package.json` catalog에 정확 버전으로 둔다(TC-01, TC-02). Rust crate는 `Cargo.toml`에 `=` 버전으로 두고 `Cargo.lock`을 커밋한다 [제안].
 
 ## 5. 단위 테스트 목록

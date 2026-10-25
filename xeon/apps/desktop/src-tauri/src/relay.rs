@@ -350,9 +350,16 @@ impl Relay {
         }
     }
 
-    #[cfg(test)]
+    /// 디버그 점검(`inspect`)과 시험이 읽는다. 릴리스 빌드에는 읽는 곳이 없다.
+    #[cfg(any(test, debug_assertions))]
     pub fn state(&self) -> EngineState {
         locked(&self.inner).state.clone()
+    }
+
+    /// 지금 붙어 있는 페이지의 세대. 0은 아직 attach가 없었다는 뜻이다.
+    #[cfg(any(test, debug_assertions))]
+    pub fn current_epoch(&self) -> u64 {
+        self.epoch.load(Ordering::SeqCst)
     }
 
     /// 상태를 기록하고 붙어 있는 페이지에 알린다.

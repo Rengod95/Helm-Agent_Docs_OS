@@ -536,6 +536,26 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - 모델 키와 기본 모델 단계가 끝나지 않았으면 대화 화면 위에 안내 띠("설정 열기")를 보인다(`src/views/setup-banner.tsx`). 설정을 읽지 못하는 연결에서는 띠를 그리지 않는다.
 - 화면의 로컬 상태는 요청 결과와 입력 중인 글자뿐이고 거울에 넣지 않는다(FS-03, FS-04).
 
+### 4.15 원격 점검 Phase 1 [제안: M2 마감 T7]
+
+SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접 보지 않고 로그, 상태 덤프, 뷰포트 이미지를 얻는다. 근거는 조사 노트의 §3과 §4다. 쓰기와 조작(클릭, 입력)은 이 단계에 없다.
+
+| 부분 | 내용 | 코드 |
+|---|---|---|
+| 로그 파일 | `tauri-plugin-log`의 `LogDir` 대상(`xeon-desktop-debug.log`)과 표준 출력. 수준 info, 파일 하나, 2 MB에서 새로 시작(`KeepOne`) | `main.rs` `debug_log_plugin` |
+| 상태 덤프 | 줄 단위 JSON-RPC 2.0 `state.dump`: 앱 이름·버전·pid·가동 시간, 엔진 상태(IPC 상태 채널과 같은 직렬화), 릴레이 세대, 메인 창 크기·가시·포커스·최소화, 로그 폴더. 대화 내용과 비밀 값은 싣지 않는다 | `src-tauri/src/inspect/mod.rs`, `probe.rs` |
+| 뷰포트 스냅샷 | `viewport.snapshot`: WKWebView가 보이는 영역을 PNG로 `<LogDir>/snapshots/viewport-<ms>.png`에 저장하고 `{ path, bytes, mime }`을 돌려준다. 이미지 바이트는 응답에 없다. macOS만 되고 그 밖은 오류(-32000)다 | `inspect/snapshot_macos.rs` |
+| 듣는 곳 | Unix 도메인 소켓 하나(기본 `<LogDir>/inspect.sock`, 환경 변수 `XEON_DESKTOP_INSPECT_SOCKET`으로 바꾼다). 소켓 폴더 0700, 파일 0600. 동시 접속 4개, 요청 줄 16 KiB 상한. 모르는 메서드는 -32601이고 읽기 전용이다 | `inspect/server.rs` |
+
+- 모두 `cfg(debug_assertions)` 아래다. `mod inspect;`와 로그 플러그인 등록, `start_inspect` 호출이 디버그 빌드에만 컴파일된다. `Relay::state`·`current_epoch`도 디버그와 시험에서만 열린다.
+- 릴리스 확인(릴리스 후보마다, 사람이 한다):
+  1. `cargo build --release`(`just desktop-build`)가 경고 없이 끝난다. WSL에서는 `cargo check --release`로 확인했다.
+  2. 실행 중인 릴리스 앱의 `lsof -U -p <pid>`에 `inspect.sock`이 없고, 로그 폴더에 `inspect.sock`이 만들어지지 않는다.
+  3. 릴리스 바이너리에서 `strings <앱 바이너리> | grep -c 'viewport.snapshot'`이 0이다.
+- 소스 수준 보장은 `test/inspect-guard.test.ts`가 시험한다(`mod inspect;`와 호출 지점의 cfg 줄, 소켓 생성이 `inspect` 밖에 없음, 로그 플러그인 cfg). 위 1~3은 컴파일 산출물 확인이라 자동화하지 않았다.
+- `tauri-plugin-log`는 crate 의존성이라 릴리스 빌드에도 링크 대상이다. 등록하지 않으므로 파일도 소켓도 생기지 않는다. 의존성을 디버그 전용으로 줄이는 일은 하지 않았다(`cfg(debug_assertions)`로 의존성을 나눌 수 없다).
+- 스냅샷 구현은 macOS에서만 컴파일된다. WSL에서는 컴파일도 시험도 못 했고 Mac 확인이 필요하다 [가정](`review.macos-checklist`에 더할 항목).
+
 ## 5. 실패와 경계 사례
 
 | 사례 | 처리 |
@@ -547,7 +567,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 | `engine_write`의 세대가 현재와 다름 | 거부한다. 이전 페이지의 늦은 쓰기가 새 연결에 섞이지 않게 한다 |
 | 종료 중(`stopping`)에 사용자 입력 | 입력창을 잠그고 "종료 중"을 보인다. 엔진은 `host.shuttingDown`(5002)을 돌려줄 수 있다 |
 | 종료 시한 초과 | 그룹 SIGKILL. 진행 중 turn은 다음 실행 때 이어서 실행 후보가 된다 |
-| 앱 두 개를 동시에 실행 | [제안] Tauri single-instance 플러그인으로 두 번째 인스턴스는 첫 창을 앞으로 가져오고 끝낸다. 다른 프로세스(CLI)와 같은 thread를 쓰려는 경우는 세션 잠금 규칙(adr.0006 §3.6)과 `thread.locked`(3002) 대안을 따른다 |
+| 앱 두 개를 동시에 실행 | [결정: M2 마감 G2-09] `tauri-plugin-single-instance`를 가장 먼저 등록한다. 두 번째 인스턴스는 다른 초기화(엔진 기동, DB)를 하기 전에 첫 인스턴스에 알리고 끝나며, 첫 인스턴스는 메인 창을 보이고 최소화를 풀고 포커스를 준다(`src-tauri/src/window.rs` `focus_main`). 다른 프로세스(CLI)와 같은 thread를 쓰려는 경우는 세션 잠금 규칙(adr.0006 §3.6)과 `thread.locked`(3002) 대안을 따른다 |
 | `thread.locked` | 관찰·분기 선택 대화 상자를 보인다. 위임은 서비스 공급원에서만 보인다 |
 | WebKitGTK가 설치되지 않은 Linux | 앱이 뜨지 않는다. 패키지 의존(`L4.desktop.plan` §3 D10)으로 막는다 |
 | WSL에서 WSLg가 없음 | [미결] 지원 범위(§10 미결 9). 지원하지 않으면 시작 시 안내 문구를 띄운다 |
@@ -616,6 +636,8 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - D-10. 트레이 유지 모드에서 창을 닫으면 WebView 엔진 프로세스가 0개가 되고, 진행 중 turn은 계속되며, 창을 다시 열면 D-04와 같이 이어진다.
 - D-11. 엔진 프로세스 환경에 `BUN_OPTIONS`가 없고 cwd가 절대 경로다.
 - D-12. `check-layers.ts` 앱 내부 규칙이 W1·W2·W6 위반 샘플 import를 거부한다.
+- D-13. 두 번째 앱 실행은 첫 인스턴스의 메인 창을 앞으로 가져오고 스스로 끝난다. 엔진이 둘 뜨지 않는다(`window.rs` 시험은 창 조회와 레이블 일치까지, 실제 두 프로세스 확인은 Mac에서 한다).
+- D-14. 릴리스 빌드에는 점검 소켓과 `viewport.snapshot`이 없다(§4.15 릴리스 확인).
 
 ## 10. 미결 사항
 

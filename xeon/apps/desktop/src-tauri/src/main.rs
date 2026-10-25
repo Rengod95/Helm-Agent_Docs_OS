@@ -6,8 +6,11 @@
 
 mod applog;
 mod engine;
+#[cfg(debug_assertions)]
+mod inspect;
 mod relay;
 mod time;
+mod window;
 
 use std::sync::Arc;
 
@@ -20,8 +23,17 @@ use crate::engine::{
 use crate::relay::Relay;
 
 fn main() {
-    let app = tauri::Builder::default()
-        .plugin(tauri_plugin_shell::init())
+    let builder = tauri::Builder::default()
+        // 단일 실행(G2-09): 두 번째 실행은 이 콜백을 첫 인스턴스에 알리고 스스로 끝난다. 엔진도 DB도 하나만 쓴다.
+        // 다른 플러그인보다 먼저 등록해야 두 번째 인스턴스가 나머지 초기화를 하기 전에 끝난다.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            window::focus_main(app);
+        }))
+        .plugin(tauri_plugin_shell::init());
+    // 디버그 빌드의 로그 파일(Phase 1 원격 점검). 릴리스는 applog.rs의 로그만 쓴다.
+    #[cfg(debug_assertions)]
+    let builder = builder.plugin(debug_log_plugin());
+    let app = builder
         .invoke_handler(tauri::generate_handler![
             relay::engine_attach,
             relay::engine_write,
@@ -41,8 +53,10 @@ fn main() {
                 log.clone(),
                 runtime,
             ));
-            app.manage(relay);
+            app.manage(relay.clone());
             app.manage(supervisor.clone());
+            #[cfg(all(debug_assertions, unix))]
+            start_inspect(app.handle(), &relay, &log);
             #[cfg(unix)]
             install_signal_handlers(app.handle().clone(), supervisor.clone(), log);
             supervisor.start();
@@ -126,4 +140,43 @@ fn install_signal_handlers(
     if spawned.is_err() {
         eprintln!("xeon-desktop: signal thread could not start");
     }
+}
+
+/// 디버그 전용 로그 플러그인: 로그 폴더(`LogDir`)의 파일과 표준 출력. 파일은 하나만 두고 2 MB에서 새로 시작한다.
+#[cfg(debug_assertions)]
+fn debug_log_plugin() -> tauri::plugin::TauriPlugin<tauri::Wry> {
+    use tauri_plugin_log::{RotationStrategy, Target, TargetKind};
+    tauri_plugin_log::Builder::new()
+        .targets([
+            Target::new(TargetKind::LogDir {
+                file_name: Some("xeon-desktop-debug".into()),
+            }),
+            Target::new(TargetKind::Stdout),
+        ])
+        .rotation_strategy(RotationStrategy::KeepOne)
+        .max_file_size(2_000_000)
+        .level(tauri_plugin_log::log::LevelFilter::Info)
+        .build()
+}
+
+/// 디버그 전용 원격 점검 소켓을 연다(`inspect`). 릴리스 빌드에는 이 함수도 호출도 없다.
+#[cfg(all(debug_assertions, unix))]
+fn start_inspect(app: &tauri::AppHandle, relay: &Arc<Relay>, log: &Arc<AppLog>) {
+    let Ok(log_dir) = app.path().app_log_dir() else {
+        log.line("debug inspect did not start: no log directory");
+        return;
+    };
+    let path = inspect::socket_path(&log_dir, std::env::var("XEON_DESKTOP_INSPECT_SOCKET").ok());
+    let probe = Arc::new(inspect::AppProbe {
+        app: app.clone(),
+        relay: relay.clone(),
+        log_dir: Some(log_dir),
+        started: std::time::Instant::now(),
+    });
+    inspect::serve(
+        tauri::async_runtime::handle().inner(),
+        path,
+        probe,
+        log.clone(),
+    );
 }
