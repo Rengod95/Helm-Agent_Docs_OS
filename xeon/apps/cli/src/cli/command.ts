@@ -7,6 +7,7 @@ import {
   type ThreadId,
 } from "@xeon/contracts/conversation";
 import { SettingKeySchema, type SettingKey, type SettingScope } from "@xeon/contracts/settings";
+import { titleProblem } from "../threads.ts";
 
 // L4.cli.spec §3.2. 명령 모델과 인자 파서. 순수 함수이고 외부 라이브러리를 쓰지 않는다: 비밀 값 argv 금지 같은 규칙을
 // 파서 안에 둬야 하기 때문이다.
@@ -43,7 +44,8 @@ export type SessionsCommand =
     }
   | { readonly kind: "sessions.show"; readonly threadId: ThreadId; readonly output: OutputMode }
   | { readonly kind: "sessions.fork"; readonly threadId: ThreadId; readonly at: ItemId | null }
-  | { readonly kind: "sessions.rm"; readonly threadId: ThreadId; readonly yes: boolean };
+  | { readonly kind: "sessions.rm"; readonly threadId: ThreadId; readonly yes: boolean }
+  | { readonly kind: "sessions.rename"; readonly threadId: ThreadId; readonly title: string };
 
 type FileScope = Extract<SettingScope, "user" | "project" | "local">;
 /** config schema만(L4.host-service.spec §6.2) */
@@ -806,12 +808,41 @@ function parseSessions(
         yes: has(scanned.value, "--yes"),
       });
     }
+    case "rename": {
+      const scanned = scanArgs(acc, tail, {});
+      if (!scanned.ok) return scanned;
+      const [idText, ...words] = scanned.value.positionals;
+      if (idText === undefined) {
+        return err(
+          usage(
+            "missingArgument",
+            "sessions rename에는 세션 id와 제목이 필요하다",
+            "xeon sessions rename <id> <제목>",
+          ),
+        );
+      }
+      const threadId = threadIdOf(idText);
+      if (!threadId.ok) return threadId;
+      // 제목은 따옴표 없이 여러 낱말로 써도 된다
+      const title = words.join(" ").trim();
+      const problem = titleProblem(title);
+      if (problem !== null) {
+        return err(
+          usage(
+            title.length === 0 ? "missingArgument" : "unexpectedArgument",
+            `sessions rename: ${problem}`,
+            "xeon sessions rename <id> <제목>",
+          ),
+        );
+      }
+      return ok({ kind: "sessions.rename", threadId: threadId.value, title });
+    }
     case undefined:
       return err(
         usage(
           "missingArgument",
           "sessions에는 하위 명령이 필요하다",
-          "ls, show, fork, rm 중 하나를 쓴다",
+          "ls, show, fork, rm, rename 중 하나를 쓴다",
         ),
       );
     // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
@@ -820,7 +851,7 @@ function parseSessions(
         usage(
           "unknownCommand",
           `모르는 명령 sessions ${action}`,
-          "ls, show, fork, rm 중 하나를 쓴다",
+          "ls, show, fork, rm, rename 중 하나를 쓴다",
         ),
       );
   }

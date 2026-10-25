@@ -56,7 +56,8 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
     case "sessions.ls":
     case "sessions.show":
     case "sessions.fork":
-    case "sessions.rm": {
+    case "sessions.rm":
+    case "sessions.rename": {
       const { runSessions } = await import("./commands/sessions.ts");
       return runSessions(ctx, command);
     }

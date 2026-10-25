@@ -37,3 +37,13 @@ export async function findThreadSummary(
   const inWorkspace = await scan(connection, workspace, threadId);
   return inWorkspace ?? scan(connection, null, threadId);
 }
+
+/** thread.rename이 받는 제목 길이 상한(F wire) */
+const TITLE_MAX = 200;
+
+/** 제목으로 쓸 수 있는가. 쓸 수 없으면 이유 한 줄, 쓸 수 있으면 null이다. 앞뒤 공백은 부르는 쪽이 지운다 */
+export function titleProblem(title: string): string | null {
+  if (title.length === 0) return "제목이 비어 있다";
+  if (title.length > TITLE_MAX) return `제목이 너무 길다 (${String(TITLE_MAX)}자 이하)`;
+  return null;
+}

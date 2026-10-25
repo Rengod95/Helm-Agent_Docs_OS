@@ -243,6 +243,20 @@ async function runRm(
   });
 }
 
+async function runRename(
+  ctx: CommandContext,
+  command: Extract<SessionsCommand, { kind: "sessions.rename" }>,
+): Promise<ExitCode> {
+  return withEngine(ctx, async (handle) => {
+    await handle.connection.request("thread.rename", {
+      threadId: command.threadId,
+      title: command.title,
+    });
+    await ctx.io.stdout(`이름을 바꿨다: ${command.threadId}  ${command.title}\n`);
+    return EXIT.ok;
+  });
+}
+
 export async function runSessions(
   ctx: CommandContext,
   command: SessionsCommand,
@@ -256,6 +270,8 @@ export async function runSessions(
       return runFork(ctx, command);
     case "sessions.rm":
       return runRm(ctx, command);
+    case "sessions.rename":
+      return runRename(ctx, command);
     default:
       return assertNever(command, "SessionsCommand");
   }

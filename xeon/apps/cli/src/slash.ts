@@ -10,6 +10,7 @@ import type {
 import { failureOfCaught, renderFailure, type Failure } from "./errors.ts";
 import type { CliIo } from "./io.ts";
 import { interpretRaw, showValue } from "./settings-input.ts";
+import { titleProblem } from "./threads.ts";
 
 // L4.cli.spec §4.12. 슬래시 명령은 설정 정의에서 만든다. 별칭 표는 이 파일의 상수 하나에 둔다.
 // 키 이름이 없는 별칭은 등록하지 않는다.
@@ -30,6 +31,7 @@ export type SlashCommand =
   | { readonly kind: "set"; readonly key: string; readonly raw: string }
   | { readonly kind: "alias"; readonly alias: SlashAlias; readonly raw: string | null }
   | { readonly kind: "resume"; readonly target: string | null }
+  | { readonly kind: "rename"; readonly title: string }
   | { readonly kind: "usage"; readonly message: string }
   /** 내장도 별칭도 아닌 이름. 엔진에 등록한 명령일 수 있어 줄 전체를 command.run에 넘긴다(§4.12) */
   | { readonly kind: "engine"; readonly name: string; readonly text: string };
@@ -40,9 +42,16 @@ export type EngineCommand = CommandListResult["commands"][number];
 const KEY_PATTERN = new RegExp(SETTING_KEY_PATTERN);
 
 /** 내장 슬래시 이름. 엔진 명령과 이름이 겹치면 내장이 앞선다 */
-const BUILTIN_NAMES: ReadonlySet<string> = new Set(["help", "quit", "exit", "set", "resume"]);
+const BUILTIN_NAMES: ReadonlySet<string> = new Set([
+  "help",
+  "quit",
+  "exit",
+  "set",
+  "resume",
+  "rename",
+]);
 /** Tab 완성에 보이는 내장 이름. exit는 quit의 별칭이라 뺀다 */
-const COMPLETED_BUILTINS: readonly string[] = ["help", "quit", "set", "resume"];
+const COMPLETED_BUILTINS: readonly string[] = ["help", "quit", "set", "resume", "rename"];
 
 /** 슬래시로 시작하는 한 줄을 명령으로 읽는다. 순수 함수 */
 export function parseSlash(line: string): SlashCommand {
@@ -70,6 +79,12 @@ export function parseSlash(line: string): SlashCommand {
     }
     case "resume":
       return { kind: "resume", target: rest.length === 0 ? null : rest };
+    case "rename": {
+      const problem = titleProblem(rest);
+      return problem === null
+        ? { kind: "rename", title: rest }
+        : { kind: "usage", message: `사용법: /rename <제목> (${problem})` };
+    }
     // xeon-disable-next-line xeon/switch-default-never -- 슬래시 이름은 닫히지 않은 문자열이다. 별칭이 아니면 모르는 명령 값으로 돌려준다 (eng.typescript.guide TY-14)
     default: {
       const alias = SLASH_ALIASES.find((candidate) => candidate.name === name);
@@ -91,6 +106,7 @@ function slashHelp(engine: readonly EngineCommand[] = []): string {
     "  /set <키> <값>   이 세션에만 설정을 바꾼다 (Tab으로 키를 고른다)",
     ...aliases,
     "  /resume [<번호|id>]   세션 목록에서 골라 바꾼다",
+    "  /rename <제목>   이 세션의 제목을 바꾼다",
     ...engineHelpLines(engine),
     "",
   ].join("\n");
@@ -262,6 +278,16 @@ function unknownSlash(ctx: SlashContext, name: string): Promise<SlashOutcome> {
     .then(() => "continue");
 }
 
+async function renameSession(ctx: SlashContext, title: string): Promise<SlashOutcome> {
+  try {
+    await ctx.connection.request("thread.rename", { threadId: ctx.threadId(), title });
+    await ctx.io.stdout(`제목을 바꿨다: ${title}\n`);
+    return "continue";
+  } catch (caught) {
+    return failWith(ctx, caught);
+  }
+}
+
 /** 동작 명령의 처리 결과를 보인다. 메시지가 있으면 메시지, 없고 구조 값이 있으면 JSON이다 */
 function doneText(result: Extract<CommandRunResult, { status: "done" }>): string {
   if (result.message !== null) return `${result.message}\n`;
@@ -345,6 +371,8 @@ export async function runSlash(command: SlashCommand, ctx: SlashContext): Promis
         : setSession(ctx, command.alias.key, command.raw);
     case "resume":
       return resume(ctx, command.target);
+    case "rename":
+      return renameSession(ctx, command.title);
     case "usage":
       await ctx.io.stderr(`${command.message}\n`);
       return "continue";

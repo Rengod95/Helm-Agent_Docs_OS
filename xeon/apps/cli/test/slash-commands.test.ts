@@ -189,7 +189,7 @@ test("/help lists the engine commands and the completer knows their names and fi
   expect(complete?.("/plan o")).toEqual(["/plan on", "/plan off"]);
   expect(complete?.("/plan of")).toEqual(["/plan off"]);
   // 내장 이름은 한 번만 나온다
-  expect(complete?.("/re")).toEqual(["/resume", "/review"]);
+  expect(complete?.("/re")).toEqual(["/resume", "/rename", "/review"]);
 });
 
 test("completionsOf is a pure function over the engine command list", () => {

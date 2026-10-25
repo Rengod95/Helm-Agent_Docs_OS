@@ -18,6 +18,7 @@ const OVERVIEW = `xeon: 대화형 에이전트 런타임
   sessions show <id> [--json]
   sessions fork <id> [--at <항목 id>]
   sessions rm <id> [--yes]  세션 목록, 보기, 분기, 삭제
+  sessions rename <id> <제목>  세션 제목을 바꾼다 (200자 이하)
   config get [<키>…]        유효 값과 출처를 보인다
   config schema --scope <managed|user|project|local> [--out <경로>] [--core-only]
                             설정 파일 JSON Schema를 쓴다

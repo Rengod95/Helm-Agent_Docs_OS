@@ -63,7 +63,7 @@ test("completionsOf completes /set keys from the session-scoped list and slash n
     "/set l4.cli.outputMode",
   ]);
   expect(completionsOf("/set ", keys)).toHaveLength(3);
-  expect(completionsOf("/re", keys)).toEqual(["/resume"]);
+  expect(completionsOf("/re", keys)).toEqual(["/resume", "/rename"]);
   expect(completionsOf("/mo", keys)).toEqual(["/model"]);
   expect(completionsOf("hello", keys)).toEqual([]);
   expect(completionsOf("/model x", keys)).toEqual([]);
