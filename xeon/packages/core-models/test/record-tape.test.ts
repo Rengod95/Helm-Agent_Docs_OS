@@ -111,7 +111,7 @@ describe("record_tape_entry", () => {
       matching: "role-queue",
       recordedFrom: {
         provider: "anthropic",
-        model: "claude-haiku-4-5",
+        model: "claude-haiku-5-5",
         piAi: "1.3.0",
         at: "2026-10-25T09:00:00.000Z",
       },
@@ -125,21 +125,24 @@ describe("record_tape_entry", () => {
       stopReason: "stop",
       usage: { input: 20, output: 4, cacheRead: 0, cacheWrite: 0, totalTokens: 24 },
     });
-    expect(turn?.wire?.request).toEqual({ model: "claude-haiku-4-5", messages: 1, tools: [] });
+    expect(turn?.wire?.request).toEqual({ model: "claude-haiku-5-5", messages: 2, tools: [] });
     expect(Object.keys(turn?.wire?.headers ?? {})).toEqual(["content-type"]);
 
     // 같은 시나리오 요청이 테이프 요청과 짝지어진다
     const replay = tapeFetch(tape);
     const models = builtinModels();
-    const model = models.getModel("anthropic", "claude-haiku-4-5");
+    const model = models.getModel("anthropic", "claude-haiku-5-5");
     const scenario = SCENARIOS["hello-text"];
     const first = scenario?.turns[0];
-    if (model === undefined || first === undefined) throw new Error("fixture missing");
+    if (model === undefined || scenario === undefined || first === undefined) {
+      throw new Error("fixture missing");
+    }
     const replayed = await models
       .streamSimple(model, first.context([]), {
         apiKey: KEY,
         fetch: replay.fetch,
         maxTokens: first.maxTokens,
+        reasoning: scenario.reasoning,
       })
       .result();
     replay.assertExhausted();
@@ -175,6 +178,6 @@ describe("record_tape_entry", () => {
     const tape = await loadTape(out);
     const response = tape.turns[0]?.response;
     expect(response?.type === "message" ? response.stopReason : "").toBe("toolUse");
-    expect(tape.turns[0]?.wire?.request.tools).toEqual(["read"]);
+    expect(tape.turns[0]?.wire?.request.tools).toEqual(["read", "__pi_deferred_placeholder__"]);
   });
 });
