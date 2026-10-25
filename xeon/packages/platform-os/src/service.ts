@@ -15,7 +15,6 @@ import { createRipgrepSource } from "./binaries/rg.ts";
 import { checkExternalBinaries, type BinaryCheckReport } from "./binaries/requirements.ts";
 import { createBinaryResolver, type BundledSource } from "./binaries/resolve.ts";
 import { createFileLock, type FileLock } from "./file-lock/index.ts";
-import { createFlockPrimitive } from "./file-lock/flock.ts";
 import { dirsWarnings, ensureDirs, resolveDirs } from "./dirs.ts";
 import {
   createMountProvider,
@@ -175,7 +174,7 @@ export async function createOsService(
   });
 
   const primitive =
-    providers.fileLock.kind === "flock" ? createFlockPrimitive(providers.fileLock) : undefined;
+    providers.fileLock.kind === "flock" ? runtime.createFlock(providers.fileLock) : undefined;
   if (providers.fileLock.kind === "flock" && primitive === undefined) {
     logger.warn("os.file_lock.process_only", { reason: "flock_unavailable" });
   }

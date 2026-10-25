@@ -27,12 +27,16 @@ export interface FlockPrimitive {
 type FlockFn = (fd: number, operation: number) => number;
 type ErrnoFn = () => number | null;
 
-interface Ffi {
+export interface Ffi {
   readonly flock: FlockFn;
   readonly errno: ErrnoFn;
 }
 
-function loadFfi(selection: FlockSelection): Ffi | undefined {
+/**
+ * libc 라이브러리를 이름으로 dlopen해 flock과 errno 위치 함수를 얻는다. 판정은 파일 존재가 아니라 dlopen 시도다.
+ * macOS 11+는 /usr/lib/libSystem.B.dylib가 디스크에 없고 dyld 공유 캐시 안에 있지만 dlopen("libSystem.B.dylib")는 된다.
+ */
+export function loadBunFfi(selection: FlockSelection): Ffi | undefined {
   const loaded = attempt(() => {
     const lib = dlopen(selection.libName, {
       flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
@@ -64,7 +68,10 @@ function errnoOf(caught: unknown): string {
 }
 
 /** FFI를 읽지 못하면 undefined */
-export function createFlockPrimitive(selection: FlockSelection): FlockPrimitive | undefined {
+export function createFlockPrimitive(
+  selection: FlockSelection,
+  loadFfi: (selection: FlockSelection) => Ffi | undefined = loadBunFfi,
+): FlockPrimitive | undefined {
   const ffi = loadFfi(selection);
   if (ffi === undefined) return undefined;
   return {
