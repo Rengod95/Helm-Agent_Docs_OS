@@ -373,6 +373,8 @@ M2 마감 반영(T7 DESK, TS만): 도구 승인 카드가 명령, 인자, 비밀
 
 M2 마감 반영(T7 DESK, 최소 설정 화면 G2-08): 구조와 규칙은 spec §4.14다. 파일은 `src/settings/{model,diagnostics}.ts`(순수 로직), `src/app/setup.ts`(wire), `src/views/settings.tsx`, `setup-banner.tsx`다. 시험은 `test/settings/*`(검사, 첫 실행 단계, 보고서 변환), `test/views/settings.test.tsx`(서버 렌더: 값 입력란이 없음, 안내 문구), `test/app/locked-trust.test.ts`의 "settings screen wire"(`settings.get`·`settings.set`·`secret.*` 요청 모양, `settings.invalidated` 필터)다. 사이드카가 키 값을 받을 수 없고 점검 결과를 전하는 wire가 없다는 두 한계가 남아 있다(spec §10 15, 16번). `secret.*`·`settings.set`의 실제 host 처리기와 맞춘 종단 시험은 wave 2 host가 병합된 뒤에 다시 돌려야 한다.
 
+M2 마감 반영(T7 DESK, 시험): 실제 `createTauriIpc`(invoke, Channel)를 `@tauri-apps/api/mocks`의 `mockIPC` 위에서 돌린다(`test/transport/tauri-mock.ts`, `tauri-mock.test.ts`, bun test). 셸 역할은 `fake-ipc.ts`가 맡고 `mockIPC`가 `engine_*` 명령을 그쪽으로 옮긴다. 시험하는 것은 명령 이름과 인자 모양, 바이트·상태 Channel 메시지의 해석(모르는 상태는 버림), 문자열 오류의 코드 변환, 결과 스키마 검사, 그리고 앱 전체가 이 경로로 `live` 연결에 이르는 흐름이다. `mockIPC`는 `invoke`의 세 번째 인자(헤더 `x-xeon-epoch`)를 넘기지 않아 세대 검사는 Rust 시험(`relay.rs`)이 맡는다. vitest는 쓰지 않는다.
+
 구현하면서 spec과 달라진 점:
 
 - 새 페이지의 `$/connectionReset`은 F에 아직 없어 보내지 않는다. 새로고침 뒤 `host.hello`가 중복(1002)이면 상태 표시줄에 `연결 실패: hello:1002`가 보이고 "다시 연결"만 가능하다. M1 정책(새로고침 = 엔진 재기동)에 맞춰 셸이 처리해야 한다 [미결].
