@@ -465,7 +465,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     opened.registered = true;
     for (const warning of store.value.warnings) logStoreWarning(logger, warning);
 
-    const secrets = createSecretsRuntime({
+    const secrets = (options.secretsRuntime ?? createSecretsRuntime)({
       os,
       ids: localIds,
       config: secretsSource(settings),

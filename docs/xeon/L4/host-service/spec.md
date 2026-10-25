@@ -197,6 +197,8 @@ export interface AssembleOptions {
   readonly exit?: (code: number) => never;                // 종료 협조 시한을 넘겼을 때 프로세스를 끝내는 함수. 기본 process.exit
   readonly buildModels?: ModelsExtensionOptions["buildModels"];  // pi-ai 모델 모음을 만드는 함수(모델 테이프 provider를 더한 것). core-models가 먼저 올라 xeon.models를 내므로 extraPlugins로는 바꿀 수 없다
   readonly agentDefinitions?: readonly AgentDefinition[]; // 서브에이전트 정의. 정의 파일 탐색(사용자·프로젝트 디렉터리)은 L1.agents 2차라 M2에는 이 경로뿐이다
+  readonly secretsRuntime?: (deps: SecretsRuntimeDeps) => SecretsRuntime;
+                                                          // 비밀 서비스(와 관리 서비스)를 만드는 함수. 기본은 sops 제공자를 가진 createSecretsRuntime. 시험이 platform-secrets/testing의 memorySecrets를 넘겨 sops와 age 키 없이 secretEnv 호출의 승인 증거를 끝에서 끝까지 본다
   readonly webPorts?: { readonly resolver?: DnsResolver; readonly transport?: HttpTransport; readonly hostedSearch?: HostedSearchPort };
                                                           // 웹 능력의 DNS 해석기와 HTTP 전송, hosted 검색(내장 검색 래퍼). 루프백은 정책이 항상 거부하므로 시험이 공개 주소로 풀리는 이름과 가짜 전송을 넣는다. hostedSearch를 생략하면 xeon.models의 포트다(HS-75)
 }

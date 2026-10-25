@@ -40,6 +40,7 @@ import type {
 } from "@xeon/contracts/wire";
 import type { DnsResolver, HttpTransport } from "@xeon/cap-web";
 import type { ModelsExtensionOptions } from "@xeon/core-models";
+import type { SecretsRuntime, SecretsRuntimeDeps } from "@xeon/platform-secrets";
 import type { BuiltinExtensionModule } from "@xeon/ext-host";
 import type { BinaryCheckReport } from "@xeon/platform-os";
 import type { SecretOfferStore } from "./secrets/offers.ts";
@@ -79,6 +80,12 @@ export interface AssembleOptions {
     /** 모델 provider의 hosted 검색 대역(내장 검색 래퍼). 생략하면 `xeon.models`의 포트를 쓴다 */
     readonly hostedSearch?: HostedSearchPort;
   };
+  /**
+   * 테스트 주입: 비밀 서비스(와 관리 서비스)를 만드는 함수. 운영은 생략하고 그러면 sops 제공자를 가진 `createSecretsRuntime`을 쓴다.
+   * 시험은 `memorySecrets`(`@xeon/platform-secrets/testing`)를 돌려줘 sops와 age 키 없이 `secretEnv` 호출의 승인 증거를 끝에서 끝까지 본다.
+   * 받은 deps의 시계, 스케줄러, id 발급은 엔진의 것이다
+   */
+  readonly secretsRuntime?: (deps: SecretsRuntimeDeps) => SecretsRuntime;
   /** 기본 true. false면 Helm·학습 그룹을 싣지 않는다 */
   readonly defaultGroups?: boolean;
   /** 조립 루트가 import할 수 없는 앱의 설정(예: l4.cli.*, L4.cli.spec §6) */
