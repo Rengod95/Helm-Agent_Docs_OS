@@ -260,7 +260,11 @@ describe("plugin", () => {
   test("a partial xeon.session is not accepted: the plugin setup fails instead of starting without search", async () => {
     const { installed } = await boot({ partialSession: true });
     expect(installed.setups[0]?.status).toBe("failed");
-    expect(installed.setups[0]?.failure?.kind).toBe("threw");
+    const failure = installed.setups[0]?.failure;
+    const error = failure?.kind === "threw" ? failure.error : undefined;
+    // 실패 원인이 부분 구현의 빠진 멤버(projectors)여야 한다: 다른 이유로 실패해도 통과하는 시험이 아니다
+    expect(error).toBeInstanceOf(TypeError);
+    expect(error instanceof Error && error.message).toContain("session.projectors");
   });
 
   test("a consumer extension whose call carries no caller context cannot write", async () => {
