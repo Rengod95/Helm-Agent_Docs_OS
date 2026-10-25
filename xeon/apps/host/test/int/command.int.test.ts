@@ -139,3 +139,46 @@ realTest(
   },
   30_000,
 );
+
+realTest(
+  "command.list with a threadId shows the project commands of that thread's folder once it is trusted",
+  async () => {
+    const home = useEngineHome();
+    const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-cmdlist-")));
+    mkdirSync(join(workspace, ".xeon", "commands"), { recursive: true });
+    writeFileSync(
+      join(workspace, ".xeon", "commands", "hello.md"),
+      "---\ndescription: greet\n---\nHello $ARGUMENTS\n",
+    );
+    const host = await startInProcessHost({ devChecks: true, defaultGroups: false });
+    const connection = createHostConnection(host.client);
+    await connection.request("host.hello", HELLO_PARAMS);
+    try {
+      const created = await connection.request("thread.create", { workspace });
+      const namesOf = async (params: { readonly threadId?: typeof created.threadId }) =>
+        (await connection.request("command.list", params)).commands.map((command) => command.name);
+      // 신뢰하기 전에는 그 폴더의 명령 파일을 읽지 않는다
+      expect(await namesOf({ threadId: created.threadId })).not.toContain("hello");
+      await connection.request("trust.decide", {
+        workspace,
+        choice: { kind: "folder", verdict: "allow" },
+      });
+      expect(await namesOf({ threadId: created.threadId })).toContain("hello");
+      // thread 문맥이 없으면 엔진의 기본 작업 폴더 기준이라 이 폴더의 명령이 없다
+      expect(await namesOf({})).not.toContain("hello");
+      // 목록만 읽으므로 쓰기 소유를 새로 얻지 않는다: 지운 thread는 3001이다
+      await connection.request("thread.delete", { threadId: created.threadId });
+      const caught = await rejectionOf(
+        connection.request("command.list", { threadId: created.threadId }),
+      );
+      expect(caught).toBeInstanceOf(WireError);
+      if (caught instanceof WireError) expect(caught.code).toBe(3001);
+    } finally {
+      await connection.close();
+      await host.close();
+      rmSync(workspace, { recursive: true, force: true });
+      home.dispose();
+    }
+  },
+  30_000,
+);

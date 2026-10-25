@@ -60,6 +60,47 @@ test("command.list passes the filter on and returns the list as the service gave
   await connection.close();
 });
 
+test("command.list with a known thread hands the thread to the service and takes no write ownership", async () => {
+  const asked: WireParams<"command.list">[] = [];
+  const host = createFakeHost({
+    overrides: {
+      commands: {
+        list: (params) => {
+          asked.push(params);
+          return Promise.resolve(ok(LISTED));
+        },
+      },
+    },
+  });
+  const threadId = host.fake.seedThread();
+  const connection = await open(host);
+  expect(await connection.request("command.list", { threadId })).toEqual(LISTED);
+  expect(asked).toEqual([{ threadId }]);
+  expect(host.fake.held.has(threadId)).toBe(false);
+  await connection.close();
+});
+
+test("command.list on an unknown thread is thread.notFound and lists nothing", async () => {
+  const asked: WireParams<"command.list">[] = [];
+  const host = createFakeHost({
+    overrides: {
+      commands: {
+        list: (params) => {
+          asked.push(params);
+          return Promise.resolve(ok(LISTED));
+        },
+      },
+    },
+  });
+  const connection = await open(host);
+  const threadId = fixedIdFactory(88).next("thr");
+  const error = await wireErrorOf(connection.request("command.list", { threadId }));
+  expect(error.code).toBe(3001);
+  expect(error.data.details).toEqual({ threadId });
+  expect(asked).toEqual([]);
+  await connection.close();
+});
+
 test("command.run on an unknown thread is thread.notFound and runs nothing", async () => {
   const ran: string[] = [];
   const host = createFakeHost({

@@ -38,8 +38,10 @@ export function createCommandPort(deps: CommandPortDeps): CommandPort {
     async list(params, signal) {
       const api = deps.holder.api;
       if (api === undefined) return err({ kind: "unavailable" });
-      const options: CallOptions = { signal, context: hostContext(undefined) };
-      const listed = await attemptAsync(() => api.list(params, options));
+      // threadId는 서비스 입력이 아니라 호출 문맥이다: 프로젝트 명령이 그 thread의 작업 폴더 기준으로 나온다(HS-72)
+      const { threadId, ...input } = params;
+      const options: CallOptions = { signal, context: hostContext(threadId) };
+      const listed = await attemptAsync(() => api.list(input, options));
       if (!listed.ok) return err(failureOf(listed.error.cause));
       return ok({ commands: listed.value.commands });
     },

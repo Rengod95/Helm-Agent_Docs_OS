@@ -42,7 +42,15 @@ function commandFailure(
 
 function createCommandListHandler(engine: Engine): WireHandler<"command.list"> {
   const { commands } = engine.ports;
+  const { threads } = engine.ports;
   return async (params, context) => {
+    // 읽기만 해서 쓰기 소유는 얻지 않는다. 없는 thread의 문맥으로는 목록을 만들지 않는다
+    if (params.threadId !== undefined) {
+      const exists = threads.exists(params.threadId);
+      if (!exists.ok) throw wireErrorOfStore(exists.error, "command.list thread lookup");
+      if (!exists.value)
+        throw wireError("thread.notFound", { details: { threadId: params.threadId } });
+    }
     const listed = await commands.list(params, context.signal);
     if (!listed.ok) throw commandFailure(listed.error, "command.list");
     return listed.value;

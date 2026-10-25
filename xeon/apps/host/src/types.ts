@@ -265,7 +265,7 @@ export type CommandFailure =
  * 돌고 사람이 입력 자리에 있다(대화형). 실행은 thread 문맥에서 한다
  */
 export interface CommandPort {
-  /** 이름 앞부분(`prefix`)으로 거른 명령 목록. thread 문맥이 없어 프로젝트 명령은 엔진의 기본 작업 폴더 기준이다(HS-72) */
+  /** 이름 앞부분(`prefix`)으로 거른 명령 목록. `threadId`가 있으면 프로젝트 명령은 그 thread의 작업 폴더 기준이고 없으면 엔진의 기본 작업 폴더 기준이다(HS-72) */
   list(
     params: WireParams<"command.list">,
     signal: AbortSignal,

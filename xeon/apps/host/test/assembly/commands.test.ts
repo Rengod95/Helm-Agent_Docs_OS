@@ -75,6 +75,19 @@ test("list calls the command service as the host without a thread and returns wh
   expect(seen[0]?.options?.context).toEqual({ caller: { kind: "host" } });
 });
 
+test("list with a thread puts it into the call context and not into the service input", async () => {
+  const seen: Seen[] = [];
+  const port = createCommandPort({
+    holder: holderWith(seen, () => Promise.reject(new Error("x"))),
+    ids,
+  });
+  const listed = await port.list({ prefix: "pl", threadId: THREAD }, SIGNAL);
+  expect(listed).toEqual({ ok: true, value: { commands: [INFO] } });
+  expect(seen).toHaveLength(1);
+  expect(seen[0]?.input).toEqual({ prefix: "pl" });
+  expect(seen[0]?.options?.context).toEqual({ threadId: THREAD, caller: { kind: "host" } });
+});
+
 test("run passes the thread, the host as the caller and a fresh request key every call", async () => {
   const seen: Seen[] = [];
   const done: CommandRunOutputValue = { status: "done", name: "plan", message: "ok", result: null };
