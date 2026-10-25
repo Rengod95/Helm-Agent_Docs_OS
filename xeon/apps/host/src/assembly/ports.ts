@@ -1,6 +1,7 @@
 import {
   assertNever,
   attempt,
+  attemptAsync,
   Bug,
   ok,
   parse,
@@ -288,6 +289,36 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     }
   }
 
+  /**
+   * `acquireFresh`가 세션을 연 뒤 실패했을 때 되돌린다(`openThread` 실패, `restore` 실패). 단계마다 따로 감싸서 하나가 실패해도
+   * 나머지(`closeThread`, 임대 반납)가 돈다. 정리 중 오류는 원래 실패를 가리지 않도록 기록만 한다
+   */
+  async function abandonOpened(
+    threadId: ThreadId,
+    token: LeaseToken,
+    alive: Disposable,
+  ): Promise<void> {
+    alive[Symbol.dispose]();
+    const released = await attemptAsync(() => session.release(threadId, "quit"));
+    if (!released.ok) {
+      log.error("thread.open_cleanup_failed", {
+        threadId,
+        step: "session.release",
+        message: messageOf(released.error.cause),
+      });
+    }
+    const closed = await attemptAsync(() => ext.closeThread(threadId));
+    if (!closed.ok) {
+      log.error("thread.open_cleanup_failed", {
+        threadId,
+        step: "ext.closeThread",
+        message: messageOf(closed.error.cause),
+      });
+    }
+    const lease = store.leases.release(token);
+    if (!lease.ok) log.error("lease.release_failed", { threadId, kind: lease.error.kind });
+  }
+
   async function releaseThread(threadId: ThreadId): Promise<void> {
     const lease = held.get(threadId);
     if (lease === undefined) return;
@@ -348,8 +379,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     try {
       await ext.openThread(threadId);
     } catch (caught) {
-      alive[Symbol.dispose]();
-      store.leases.release(token);
+      await abandonOpened(threadId, token, alive);
       // 확장 상태를 읽지 못한 것(busy, io, 손상 행)은 저장소 오류로 알린다. 빈 상태로 열면 켜짐과 상태 판을 잃는다
       if (caught instanceof PrimitiveError && caught.code === "storage_unavailable") {
         throw wireError("store.io", {
@@ -362,8 +392,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     // 이전 프로세스가 남긴 미해결 승인 요청을 메모리 대기 목록으로 되살린다. approval.respond가 재시작 뒤에도 그 요청을 찾는다(HOST.4)
     const restored = await deps.approvals.restore(threadId);
     if (!restored.ok) {
-      alive[Symbol.dispose]();
-      store.leases.release(token);
+      // 세션과 확장 상태가 이미 열렸다. 임대만 놓으면 열린 것이 남으므로 닫고 놓는다
+      await abandonOpened(threadId, token, alive);
       throw wireErrorOfStore(restored.error, "approvals.restore failed");
     }
     held.set(threadId, { token, alive });

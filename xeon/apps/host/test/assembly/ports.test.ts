@@ -60,6 +60,8 @@ interface Harness {
     threadsCreate: ReturnType<SessionService["threads"]["create"]>;
     threadExists: boolean;
     release: "ok" | "throw";
+    closeThread: "ok" | "throw";
+    restore: Awaited<ReturnType<ApprovalService["restore"]>>;
     fork: Awaited<ReturnType<SessionService["threads"]["fork"]>>;
     revert: Awaited<ReturnType<SessionService["threads"]["revert"]>>;
     remove: ReturnType<SessionService["threads"]["remove"]>;
@@ -106,6 +108,8 @@ function harness(): Harness {
     threadsCreate: ok({ threadId: THREAD, headSeq: 1, replayed: false, token: null }),
     threadExists: true,
     release: "ok",
+    closeThread: "ok",
+    restore: ok([]),
     fork: err({ kind: "thread_not_found", threadId: THREAD }),
     revert: err({ kind: "thread_not_found", threadId: THREAD }),
     remove: ok(undefined),
@@ -219,6 +223,7 @@ function harness(): Harness {
     },
     closeThread: () => {
       calls.push("ext.closeThread");
+      if (state.closeThread === "throw") return Promise.reject(new Error("close failed"));
       return Promise.resolve();
     },
   });
@@ -246,7 +251,7 @@ function harness(): Harness {
       approvals: partial<ApprovalService>({
         restore: (threadId) => {
           calls.push(`approvals.restore:${threadId}`);
-          return Promise.resolve(ok([]));
+          return Promise.resolve(state.restore);
         },
         pending: () => [],
       }),
@@ -565,14 +570,64 @@ describe("locks", () => {
     expect(ports.locks.holds(THREAD)).toBe(false);
   });
 
-  test("any other failure while opening the thread for extensions gives the lease back and is raised", async () => {
+  test("a failure of ext.openThread closes the opened session and the extension state, then gives the lease back, in that order", async () => {
     const h = harness();
     h.state.openThreadError = new Error("boom");
     const { ports } = createEnginePorts(h.deps);
     expect(String(await rejectionOf(ports.locks.tryAcquire(THREAD, "cli")))).toContain("boom");
-    expect(h.calls).toContain("lease.release");
-    expect(h.calls).toContain("keepAlive.dispose");
+    expect(h.calls).toEqual([
+      `lease.acquire:session:${THREAD}:cli`,
+      `session.recover:${THREAD}:stdio:unsafe`,
+      "ext.openThread",
+      "keepAlive.dispose",
+      "session.release",
+      "ext.closeThread",
+      "lease.release",
+    ]);
     expect(ports.locks.holds(THREAD)).toBe(false);
+  });
+
+  test("a failure of approvals.restore closes the opened session and the extension state, then gives the lease back, in that order", async () => {
+    const h = harness();
+    h.state.restore = err({ kind: "busy" });
+    const { ports } = createEnginePorts(h.deps);
+    const thrown = await rejectionOf(ports.locks.tryAcquire(THREAD, "cli"));
+    if (!(thrown instanceof WireError)) throw new Error("expected a WireError");
+    expect(thrown.data.kind).toBe("store.busy");
+    expect(thrown.message).toContain("approvals.restore failed");
+    expect(h.calls).toEqual([
+      `lease.acquire:session:${THREAD}:cli`,
+      `session.recover:${THREAD}:stdio:unsafe`,
+      "ext.openThread",
+      `approvals.restore:${THREAD}`,
+      "keepAlive.dispose",
+      "session.release",
+      "ext.closeThread",
+      "lease.release",
+    ]);
+    expect(ports.locks.holds(THREAD)).toBe(false);
+  });
+
+  test("a throwing session.release during the cleanup does not stop the remaining steps or hide the original failure", async () => {
+    const h = harness();
+    h.state.openThreadError = new Error("boom");
+    h.state.release = "throw";
+    const { ports } = createEnginePorts(h.deps);
+    expect(String(await rejectionOf(ports.locks.tryAcquire(THREAD, "cli")))).toContain("boom");
+    expect(h.calls.slice(-3)).toEqual(["session.release", "ext.closeThread", "lease.release"]);
+    expect(h.errors).toEqual(["thread.open_cleanup_failed"]);
+  });
+
+  test("a throwing ext.closeThread during the cleanup still gives the lease back", async () => {
+    const h = harness();
+    h.state.restore = err({ kind: "busy" });
+    h.state.closeThread = "throw";
+    const { ports } = createEnginePorts(h.deps);
+    const thrown = await rejectionOf(ports.locks.tryAcquire(THREAD, "cli"));
+    if (!(thrown instanceof WireError)) throw new Error("expected a WireError");
+    expect(thrown.data.kind).toBe("store.busy");
+    expect(h.calls.slice(-3)).toEqual(["session.release", "ext.closeThread", "lease.release"]);
+    expect(h.errors).toEqual(["thread.open_cleanup_failed"]);
   });
 
   test("a lost lease drops the thread and aborts its work with lease_lost", async () => {
