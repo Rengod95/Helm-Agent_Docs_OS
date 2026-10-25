@@ -53,7 +53,16 @@ export interface ApprovalDeps {
   /** 계획 승인의 `{ mode }`를 적용한다(ToolService.setMode "plan_approval") */
   readonly setMode: (threadId: ThreadId, mode: PermissionMode) => Promise<ModeChangeResult>;
   readonly modeOf: (threadId: ThreadId) => PermissionMode;
+  /** 메모리에 남기는 해결된 요청의 수 상한(기본 `RESOLVED_KEPT`). 시험이 작은 값을 넣는다 */
+  readonly resolvedKept?: number;
 }
+
+/**
+ * 해결된 요청을 메모리 표(byId, byKey)에 남기는 기본 수. 해결된 요청은 args 페이로드를 쥐고 있어 무한히 쌓이면 안 된다.
+ * 넘으면 가장 먼저 해결된 것부터 뺀다. 빠진 요청도 기록(이벤트)은 남아 있어서, 같은 requestKey의 `open`은 커밋 키로 기록된 요청을
+ * 되찾아 저장된 해결을 이어 받는다(`adoptStoredResolution`). 대기 중인 요청과 대기자가 있는 요청은 빼지 않는다
+ */
+const RESOLVED_KEPT = 256;
 
 /**
  * 파이프라인과 L2 어댑터가 쓰는 확장. 비차단 `open`·`wait`·`get`은 F `ApprovalService`로 올라갔다(L1.tools.spec §8.3 F 요청 11).
@@ -157,6 +166,9 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   const byId = new Map<string, Entry>();
   const byKey = new Map<string, string>();
   const remembered = new Set<string>();
+  /** 해결된 요청의 approvalId, 해결된 순서(Set은 넣은 순서를 지킨다). 상한을 넘으면 앞에서부터 표에서 뺀다 */
+  const resolvedOrder = new Set<string>();
+  const resolvedKept = deps.resolvedKept ?? RESOLVED_KEPT;
 
   function add(eventId: EventId, request: ApprovalRequest): Entry {
     const entry: Entry = {
@@ -204,12 +216,28 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     }
   }
 
+  /** 해결된 요청이 상한을 넘으면 가장 오래전에 해결된 것을 표에서 뺀다. 대기자가 남은 요청은 빼지 않는다 */
+  function evictResolved(): void {
+    for (const approvalId of resolvedOrder) {
+      if (resolvedOrder.size <= resolvedKept) return;
+      const entry = byId.get(approvalId);
+      if (entry !== undefined && entry.waiters.size > 0) continue;
+      resolvedOrder.delete(approvalId);
+      if (entry === undefined) continue;
+      byId.delete(approvalId);
+      const key = keyOf(entry.request.surfaceThreadId, entry.request.requestKey);
+      if (byKey.get(key) === approvalId) byKey.delete(key);
+    }
+  }
+
   function settle(entry: Entry, resolution: ApprovalResolution): void {
     entry.state = "resolved";
     entry.resolution = resolution;
     applyRemember(entry, resolution);
     for (const waiter of entry.waiters) waiter(resolution);
     entry.waiters.clear();
+    resolvedOrder.add(entry.request.approvalId);
+    evictResolved();
   }
 
   /**

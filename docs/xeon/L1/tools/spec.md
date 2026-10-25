@@ -860,6 +860,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 8. 취소: 턴 취소(eng.transactions.design §6.2)는 그 턴의 미해결 요청을 `resolvedBy: "cancelled"`로 닫는다. 대기 중이던 도구 호출은 의도가 없으므로 실행되지 않고, 루프는 `not_executed` 합성 결과로 닫는다.
    - 살아 있는 호출이 기다리는 요청은 파이프라인(`decide`)과 어댑터(`input_required` 대기)가 신호가 끊길 때 닫는다. 프로세스가 끊긴 뒤 남은 요청은 호출이 없다. core-loop가 열린 turn을 닫을 때(`closeOpenTurn`) `ApprovalService.restore`로 미해결 요청을 읽어 그 turn의 것을 `cancel`로 닫는다.
 9. 계획 승인의 모드 변경 [결정: L1A.4]: `allow`의 `answer.mode`가 현재 모드와 다르면 `setMode(origin.threadId, mode, "plan_approval")`을 부른다. `approval.resolved` 커밋 뒤, 대기를 풀기 전에 한다. 그래서 계획 도구가 이어갈 때 모드가 이미 바뀌어 있다. 모드를 바꾸지 못해도(`tools.mode_forbidden`, 저장소 실패) 해결은 그대로이고 경고를 남긴다. 해결 커밋 뒤 모드 쓰기 전에 끊기면, 재시작 뒤 계획 도구가 같은 `requestKey`로 다시 요청할 때 저장된 해결을 읽는 자리에서 같은 규칙으로 이어서 적용한다(이미 같은 모드면 쓰지 않는다).
+10. 메모리 표의 크기 [결정: 통합 검토 L7]: 해결된 요청은 `RESOLVED_KEPT`(256)개까지만 `byId`·`byKey`에 남기고, 넘으면 가장 먼저 해결된 요청부터 뺀다(FIFO). 대기 중인 요청과 대기자가 있는 요청은 빼지 않는다. 빠진 요청도 이벤트는 남아 있다. 같은 `requestKey`의 `open`은 커밋 키로 기록된 요청을 되찾고 저장된 해결을 이어 받는다(`replayed`, 같은 `approvalId`, 새 이벤트 없음). 빠진 `approvalId`로 `get`은 `undefined`, `wait`은 `unknown`이고 `respond`는 적용하지 않는다. 세션 허용 목록(`remember: "thread"`)은 이 표와 따로 둔다.
 
 내구화와 재개:
 
@@ -1074,6 +1075,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 30. `tools` 풀 슬롯이 1개이면 두 번째 호출은 첫 호출이 슬롯을 놓은 뒤 시작한다. 대기 중 turn을 취소하면 그 호출에 `effect.exec`가 없다. `suspendWhile` 동안 다른 호출이 슬롯을 쓸 수 있다.
 31. `approvalId`가 없는 `input_required`(MCP)는 질문 승인(kind `question`)이 되고, 답이 `continuation.inputResponses`로 돌아가 같은 `requestId`로 다시 불린다. `requestState`는 바이트 그대로 가고 라운드는 이전 라운드 + 1이다. 거부는 모든 입력 요청에 `decline`, 비대화형은 요청과 거부 해결이 한 커밋이며 `decline`이다. 질문 중 turn 취소는 승인을 `cancelled`로 닫고 서버를 다시 부르지 않는다. 라운드마다 다른 요청 키를 쓴다. 모양이 틀린 변형은 `[xeon:input_required_invalid]` 오류 결과다.
 32. `secretEnv` 호출의 승인 증거는 `CallContext.approval`로 도구 구현에 전달된다. 증거가 없거나 비대화형이면 필드가 없거나 `interactive: false`다.
+33. 해결된 요청이 `RESOLVED_KEPT`를 넘으면 가장 먼저 해결된 것이 메모리 표에서 빠지고 대기 중인 요청은 남는다. 빠진 요청의 `requestKey`로 다시 `open`하면 새 이벤트 없이 같은 `approvalId`와 저장된 해결을 돌려준다.
 
 ## 10. 미결 사항
 

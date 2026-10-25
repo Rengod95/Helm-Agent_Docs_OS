@@ -12,6 +12,8 @@ import { sequentialIds } from "./ids.ts";
 export interface FakeApprovalsOptions {
   readonly clock?: Clock;
   readonly ids?: IdFactory;
+  /** 메모리에 남기는 해결된 요청 수 상한. 생략하면 서비스의 기본값 */
+  readonly resolvedKept?: number;
 }
 
 export interface FakeApprovals {
@@ -39,6 +41,7 @@ export async function fakeApprovals(options: FakeApprovalsOptions = {}): Promise
     callOf: () => undefined,
     modeOf: () => "default",
     setMode: (_threadId, mode) => Promise.resolve({ ok: true, mode }),
+    ...(options.resolvedKept === undefined ? {} : { resolvedKept: options.resolvedKept }),
   });
   return {
     approvals,

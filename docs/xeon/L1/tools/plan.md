@@ -160,6 +160,7 @@ xeon/packages/core-tools/
 | `bypass_forbidden_by_managed` | `bypassAllowed: false`면 `setMode("bypass")`가 `tools.mode_forbidden`, 평가는 default로 | TL-4 |
 | `approval_pending_restored_after_restart` | 승인 대기 중 강제 종료(fault 테스트) 뒤 `restore` → `pending`에 같은 `approvalId` 하나, core-loop 대역이 같은 `prepare`·`execute`로 다시 돌린 뒤 새 `approval.requested` 0건 | TL-5 |
 | `approval_respond_twice_not_applied` | 두 번째 `respond`는 `applied: false`이고 이벤트가 늘지 않는다 | TL-5 |
+| `the oldest resolved requests leave memory first...` | `resolvedKept`를 넘기면 가장 먼저 해결된 요청이 메모리 표에서 빠지고(`get`이 `undefined`, `respond`는 적용 안 함) 대기 중인 요청은 남는다. 빠진 요청의 `requestKey`로 `open`하면 새 이벤트 없이 같은 `approvalId`와 저장된 해결(`answer` 값 포함)을 돌려준다 (`approvals-eviction.test.ts`) | L7 |
 | `approval_remember_thread_skips_next_ask` | `remember: "thread"` 뒤 같은 도구 ask가 승인 없이 allow. 재개 뒤에도 같다 | TL-5 |
 | `approval_turn_abort_cancels_pending` | 턴 취소가 대기 요청을 `resolvedBy: "cancelled"`로 닫고 도구는 실행되지 않는다 | TL-5 |
 | `question_and_plan_approval_share_request_shape` | 질문 요청과 계획 요청이 모두 `approval.requested`이고 `ApprovalRequestSchema`를 통과하며 `body.kind`만 다르다 | TL-12 |
