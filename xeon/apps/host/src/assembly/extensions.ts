@@ -161,6 +161,9 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   const { settings } = deps;
   // cap-dialog의 동작 명령 등록부와 명령 서비스 API. 브리지 확장이 채우고 cap-work와 호스트의 command.* 처리기가 읽는다
   const commandRegistry = deps.commands;
+  // L2 패키지는 대화 id를 문자열로 받는다. thread id 모양이 아니면 작업 폴더가 없는 것이다
+  const workspaceOfId = (threadId: string): string | undefined =>
+    isId("thr", threadId) ? deps.workspaceOf(threadId) : undefined;
   const modules: readonly (readonly [ExtensionName, (loadIndex: number) => ExtensionUnit])[] = [
     [
       "core-persistence",
@@ -285,6 +288,9 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ids: deps.ids,
           // 호출 문맥이 사람이 없다고 밝힌 호출(백그라운드, 비대화형 서브에이전트)에는 묻지 않는다. 생략은 대화형이다
           interactive: (context) => context.interactive !== false,
+          // 프로젝트 명령(.xeon/commands)은 신뢰한 프로젝트에서만 읽는다(G1-03, 결정 D6). 폴더는 대화의 작업 폴더다(HS-76)
+          projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
+          workspaceOf: workspaceOfId,
           loadIndex,
         }),
     ],
@@ -308,6 +314,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           signal: deps.signal,
           version: deps.engineVersion,
           reservedToolNames: reservedToolNames,
+          workspaceOf: workspaceOfId,
           ...(deps.mcpProcess === undefined ? {} : { process: deps.mcpProcess }),
           loadIndex,
         }),
@@ -336,6 +343,8 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           ids: deps.localIds,
           // 프로젝트 스킬(.xeon/skills)은 신뢰한 프로젝트에서만 싣는다(결정 D6, X.loading-trust §4.7)
           projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
+          // 프로젝트 폴더는 그 대화의 작업 폴더다. 작업 폴더가 없는 대화에는 프로젝트 스킬이 없다(HS-76)
+          workspaceOf: workspaceOfId,
           loadIndex,
         }),
     ],

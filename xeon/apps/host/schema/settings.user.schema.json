@@ -4343,28 +4343,6 @@
         }
       }
     },
-    "l2.web.search.searxng.detect": {
-      "default": true,
-      "type": "boolean",
-      "x-xeon": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local"
-        ],
-        "layer": "L2",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "SearXNG 자동 감지",
-          "order": 103,
-          "tab": "tools",
-          "widget": "toggle"
-        }
-      }
-    },
     "l2.web.search.searxng.url": {
       "default": "",
       "maxLength": 2048,
@@ -4381,7 +4359,7 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "비워 두면 로컬 후보 주소를 감지한다",
+          "help": "비워 두면 SearXNG를 쓰지 않는다. 주소를 찾아 나서지 않는다",
           "label": "SearXNG 주소",
           "order": 102,
           "tab": "tools",

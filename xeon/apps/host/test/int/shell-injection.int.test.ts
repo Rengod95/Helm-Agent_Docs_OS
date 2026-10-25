@@ -58,7 +58,11 @@ function captureModule(into: Captured) {
 realTest(
   "a slash command with a shell injection runs the command through runUserBash and substitutes its output",
   async () => {
-    writeUserSettings(home, { "l0.sandbox.enabled": false });
+    // 프로젝트 명령(.xeon/commands)은 프로젝트를 신뢰한 뒤에만 읽는다(G1-03). 이 시험은 셸 주입 경로를 본다
+    writeUserSettings(home, {
+      "l0.sandbox.enabled": false,
+      "x.loading-trust.defaultProjectTrust": "always",
+    });
     mkdirSync(join(workspace, ".xeon", "commands"), { recursive: true });
     writeFileSync(
       join(workspace, ".xeon", "commands", "probe.md"),

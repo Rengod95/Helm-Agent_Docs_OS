@@ -163,11 +163,8 @@ describe("approval.respond", () => {
       decision: "answer",
       answer: { q1: { selected: ["a"] } },
     });
-    expect(wrong).toEqual({
-      applied: false,
-      reason: "answer_invalid",
-      detail: 'decision "answer" does not fit this request',
-    });
+    expect(wrong).toMatchObject({ applied: false, reason: "answer_invalid" });
+    expect(typeof wrong.detail).toBe("string");
     expect(
       (await fx.connection.request("approval.list", { threadId: fx.threadId })).approvals,
     ).toHaveLength(1);

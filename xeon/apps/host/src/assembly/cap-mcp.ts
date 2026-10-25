@@ -7,7 +7,6 @@ import {
   type PortKey,
 } from "@xeon/contracts/extensions";
 import {
-  ExecPortKey,
   OsPortKey,
   SecretServicePortKey,
   StoreServicePortKey,
@@ -30,8 +29,9 @@ import { messageOf } from "../util.ts";
 import { createLoaderFs, type ProjectTrust } from "./trust.ts";
 
 // m2-plan HOST.6, L2.mcp.plan §8.5. cap-mcp는 확장 엔트리와 매니페스트를 내놓지 않는다(`createMcp(deps)`만). 이 파일이 그 몫이다:
-// 포트(도구 등록, 헤더 비밀, 프로젝트 신뢰, 상태 표, 설정 층, 승인 규칙)를 `createMcp`에 잇고, 세션 시작에 `load`, 설정과 서버 변화의
-// 반영은 turn 시작(`before_agent_start`, 광고 앞)과 단계마다 모델 요청 앞(`before_provider_request`)에서 `applyBoundary`, 종료에 `shutdown`을 부른다. 능력 `mcp.client`와 `xeon.mcp`는 `runtime.service`로 낸다.
+// 포트(도구 등록, 헤더 비밀, 프로젝트 신뢰, 상태 표, 설정 층, 승인 규칙, stdio 프로세스)를 `createMcp`에 잇고, 세션 시작에 `load`, 단계를 여는
+// `turn_start`(광고 앞)마다 그 대화의 정의를 `reload`하고 도구 표에 `applyBoundary`로 반영하며, 종료에 `shutdown`을 부른다.
+// 프로젝트 출처 정의의 기준 폴더는 그 대화의 작업 폴더다(`workspaceOf`, HS-76). 능력 `mcp.client`와 `xeon.mcp`는 `runtime.service`로 낸다.
 //
 // - stdio 서버(결정 D6, ADR-0011): L0 platform-process의 `createMcpProcessPort`를 조립 루트가 `options.process`로 넘긴다(`mcp-process.ts`).
 //   cap-mcp는 L0를 import하지 않는다. 비밀 env를 쓰는 stdio 서버는 기동 승인 지점이 없어 `secret_denied`다(M3).
@@ -49,6 +49,11 @@ export interface HostMcpOptions {
   readonly version: string;
   /** 서버 도구가 쓰면 안 되는 기계 이름(내장 도구 이름) */
   readonly reservedToolNames: () => ReadonlySet<string>;
+  /**
+   * 대화의 작업 폴더(`threadWorkspaceOf`, HS-66). 프로젝트 출처 정의(`.mcp.json`)와 그 신뢰 판정이 이 폴더를 따른다(HS-76).
+   * 작업 폴더가 없는 대화에는 프로젝트 서버가 없다
+   */
+  readonly workspaceOf: (threadId: string) => string | undefined;
   /** stdio 서버를 띄우는 포트(L0 platform-process). 없으면 stdio 서버는 연결에 실패한다 */
   readonly process?: McpProcessPort;
   readonly loadIndex?: number;
@@ -57,7 +62,7 @@ export interface HostMcpOptions {
 /** stdio 서버 종료 유예(SIGTERM 뒤 SIGKILL 전) */
 const STDIO_GRACE_MS = 2000;
 
-const MCP_POINTS = ["before_agent_start", "before_provider_request"] as const;
+const MCP_POINTS = ["turn_start"] as const;
 
 function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
   try {
@@ -96,7 +101,6 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
       const store = host.port(StoreServicePortKey);
       const tools = host.port(ToolServicePortKey);
       const secrets = optionalPort(host, SecretServicePortKey);
-      const exec = optionalPort(host, ExecPortKey);
       const logger = os.logger("mcp");
 
       const masker: McpMasker = {
@@ -119,7 +123,10 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
         logger,
         masker,
         settings: { layers: options.layers },
-        projectRoot: exec?.cwd,
+        // 엔진을 열 때의 첫 로드에는 대화가 없다. 엔진의 작업 디렉터리는 프로젝트가 아니다(데스크톱 사이드카는 홈): 기본 루트를 두지 않고
+        // 프로젝트 출처 정의는 대화의 첫 `turn_start`에서 그 대화의 작업 폴더로 읽는다(HS-76)
+        projectRoot: undefined,
+        workspaceOf: options.workspaceOf,
         files: createLoaderFs(),
         trust: { isTrusted: (projectRoot, signal) => options.trust.isTrusted(projectRoot, signal) },
         transports: createTransportFactory({
@@ -147,15 +154,12 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
       detach(runtime.load(options.signal), (caught) => {
         logger.error("mcp.load_failed", { message: messageOf(caught) });
       });
-      // 서버 변화는 단계 경계에서 도구 표에 반영한다(spec §4.9). turn 시작(광고 앞)과 단계마다 모델 요청 앞에서 부른다:
-      // 연결이 turn 도중에 끝나도 그 turn의 다음 호출부터 도구를 쓴다
-      g.on("before_agent_start", async () => {
+      // 서버 변화는 단계 경계에서 도구 표에 반영한다(L2.mcp.spec §4.9). 단계를 여는 `turn_start`(도구 광고 앞)에서 그 대화의 정의를 다시 읽어
+      // 지문이 바뀌었으면 서버를 맞추고, 모아 둔 변화를 한 번에 올린다. 연결이 단계 도중에 끝나면 다음 단계의 `turn_start`에 오른다.
+      // `before_provider_request`는 광고 뒤라 쓰지 않는다
+      g.on("turn_start", async (_payload, ctx) => {
+        await runtime.reload(options.signal, { threadId: ctx.threadId });
         await runtime.applyBoundary();
-        return undefined;
-      });
-      g.on("before_provider_request", async () => {
-        await runtime.applyBoundary();
-        return undefined;
       });
 
       const registration: ToolRegistration = {

@@ -1,3 +1,6 @@
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { expect, test } from "bun:test";
 import { renderTaskList } from "@xeon/contracts/capabilities";
 import { WireError } from "@xeon/contracts/wire";
@@ -95,6 +98,42 @@ realTest(
     } finally {
       await connection.close();
       await host.close();
+      home.dispose();
+    }
+  },
+  30_000,
+);
+
+realTest(
+  "a project command file of the thread's folder runs only after the folder is trusted",
+  async () => {
+    const home = useEngineHome();
+    const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-cmd-")));
+    mkdirSync(join(workspace, ".xeon", "commands"), { recursive: true });
+    writeFileSync(
+      join(workspace, ".xeon", "commands", "hello.md"),
+      "---\ndescription: greet\n---\nHello $ARGUMENTS\n",
+    );
+    const host = await startInProcessHost({ devChecks: true, defaultGroups: false });
+    const connection = createHostConnection(host.client);
+    await connection.request("host.hello", HELLO_PARAMS);
+    try {
+      const created = await connection.request("thread.create", { workspace });
+      // 신뢰하기 전에는 프로젝트 명령 파일을 읽지 않는다(fail-closed)
+      expect(
+        await connection.request("command.run", { threadId: created.threadId, text: "/hello Ada" }),
+      ).toEqual({ status: "not_command" });
+      await connection.request("trust.decide", {
+        workspace,
+        choice: { kind: "folder", verdict: "allow" },
+      });
+      expect(
+        await connection.request("command.run", { threadId: created.threadId, text: "/hello Ada" }),
+      ).toEqual({ status: "expanded", name: "hello", text: "Hello Ada" });
+    } finally {
+      await connection.close();
+      await host.close();
+      rmSync(workspace, { recursive: true, force: true });
       home.dispose();
     }
   },

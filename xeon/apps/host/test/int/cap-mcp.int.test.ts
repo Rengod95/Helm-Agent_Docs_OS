@@ -10,10 +10,19 @@ import { TAPE_SETTINGS, writeUserSettings } from "../fixtures/user-settings.ts";
 import { collectEvents, HELLO_PARAMS, startTurnWhenIdle } from "../fixtures/wire-client.ts";
 
 // HOST.6 cap-mcp (int): 설정에 적은 HTTP MCP 서버에 연결하고(루프백 스텁 서버), 서버가 광고한 도구가 도구 표에 올라
-// 모델이 부를 수 있다. stdio 서버는 프로세스 포트가 없어 이 단계에 없다. 서버 도구는 연결된 다음 turn 시작에 오른다.
+// 모델이 부를 수 있다. stdio 서버는 cap-mcp-stdio.int.test.ts다. 서버 도구는 연결된 다음 turn 시작(단계 경계)에 오른다.
 
 const gate = await realEngineGate();
 const realTest = gate.blocker === undefined ? test : test.skip;
+
+async function until(condition: () => boolean, timeoutMs: number): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (!condition() && Date.now() < deadline) {
+    // eslint-disable-next-line no-await-in-loop -- 폴링
+    await Bun.sleep(10);
+  }
+  return condition();
+}
 
 realTest(
   "a configured HTTP server connects and its tool is callable in the next turn",
@@ -60,7 +69,10 @@ realTest(
     const collector = collectEvents(connection);
     await connection.request("events.subscribe", { from: "head" });
     const created = await connection.request("thread.create", {});
-    // 연결은 세션 시작을 막지 않는다. 첫 turn이 끝날 즈음에는 연결되어 있어 도구가 다음 turn 시작에 오른다
+    // 연결은 세션 시작을 막지 않는다. 서버가 도구 목록을 내준 뒤 한 turn을 돌리면, 연결이 끝난 서버의 도구가 다음 turn 시작(단계 경계)에 오른다
+    expect(
+      await until(() => stub.requests.some((request) => request.method === "tools/list"), 10_000),
+    ).toBe(true);
     await connection.request("turn.start", { threadId: created.threadId, input: "warm up" });
     await collector.waitFor((event) => event.kind === "turn.completed");
     const second = await startTurnWhenIdle(connection, {

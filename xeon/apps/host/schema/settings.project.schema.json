@@ -2795,28 +2795,6 @@
         }
       }
     },
-    "l2.web.search.searxng.detect": {
-      "default": true,
-      "type": "boolean",
-      "x-xeon": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local"
-        ],
-        "layer": "L2",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "SearXNG 자동 감지",
-          "order": 103,
-          "tab": "tools",
-          "widget": "toggle"
-        }
-      }
-    },
     "l2.web.search.wrapper.maxContinuations": {
       "default": 3,
       "maximum": 10,
