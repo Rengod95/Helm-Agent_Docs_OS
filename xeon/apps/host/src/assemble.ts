@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { assertNever, attemptAsync, Bug, parse, type Logger } from "@xeon/contracts";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import type { PortKey } from "@xeon/contracts/extensions";
 import {
   SessionServiceName,
@@ -188,6 +189,17 @@ function requirePort<Api>(ext: ExtHost, key: PortKey<Api>, service: string): Api
   const found = ext.ports.get(key);
   if (found === undefined) throw new AssembleError([{ code: "missingService", service }]);
   return found;
+}
+
+/**
+ * thread의 작업 디렉터리. 세션 서비스가 올라오기 전이거나 모르는 thread, 작업 디렉터리가 없는 thread면 undefined다.
+ * 설정 층(project·local 파일)과 `user_bash`의 cwd가 같은 값을 쓴다
+ */
+function threadWorkspaceOf(ext: ExtHost): (threadId: ThreadId) => string | undefined {
+  return (threadId) => {
+    const found = ext.ports.get(SESSION_KEY)?.query.thread(threadId);
+    return found?.ok === true ? (found.value?.workspace ?? undefined) : undefined;
+  };
 }
 
 /** 엔진 하나를 만든다. 실패하면 AssembleError를 던지고, 그때까지 연 자원을 닫는다 */
@@ -426,6 +438,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     };
     // 그룹 서비스가 보는 설치된 그룹(L3 매니페스트). 단위 목록이 만들어진 뒤에 채워진다
     const unitList: { units: readonly ExtensionUnit[] } = { units: [] };
+    const workspaceOf = threadWorkspaceOf(ext);
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         mode: options.mode,
@@ -437,6 +450,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         signal: lifetime.signal,
         engineVersion: ENGINE_VERSION,
         settings,
+        workspaceOf,
         db: store.value.root,
         faults: store.value.faults,
         holder,
@@ -489,10 +503,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
     // 5~6. 카탈로그는 위에서 만들었다. 세션 범위 설정을 연결한다
     settings.bindSession(session.sessionSettings);
-    settings.bindWorkspaces((threadId) => {
-      const found = session.query.thread(threadId);
-      return found.ok ? (found.value?.workspace ?? undefined) : undefined;
-    });
+    settings.bindWorkspaces(workspaceOf);
 
     // 보관 정리(L1.persistence.spec §6.1): 엔진 열기 때 한 번. 기본 설정은 아무것도 지우지 않는다
     pruneOnOpen(session, logger);

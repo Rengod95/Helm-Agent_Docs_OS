@@ -79,6 +79,8 @@ export interface ExtensionDeps {
   /** 엔진 빌드 버전(MCP 서버에 알리는 클라이언트 버전) */
   readonly engineVersion: string;
   readonly settings: SettingsEngine;
+  /** thread의 작업 디렉터리(없으면 undefined). `user_bash` 지점 페이로드의 cwd가 된다 */
+  readonly workspaceOf: (threadId: ThreadId) => string | undefined;
   readonly db: StoreDb;
   readonly faults: FaultInjector;
   readonly holder: LeaseHolder;
@@ -225,6 +227,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
         loopExtensionUnit({
           ids: deps.ids,
           hostMode: deps.mode,
+          workingDirectory: deps.workspaceOf,
           settings: loopSource(settings),
           kindLookup,
           loadIndex,

@@ -979,6 +979,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 - HS-63. 그룹 서비스: `host-groups`가 `createGroupService`를 X의 임대 중재 포트(`xeon.groups`)와 같은 객체로 올린다. 그룹 목록은 설치한 단위 가운데 L3 매니페스트, 구동 그룹 설정은 `x.primitives.activeDriveGroup`(설정 엔진으로 읽고 `SettingsStorePort`로 쓴다. 쓸 수 없으면 `locked`), 그룹 설정 읽기(`xeon.settings`)는 설정 엔진의 유효 값이다. 서비스가 상태를 보이는 thread는 이 엔진이 가장 최근에 쓰기 소유를 쥔 thread다. `/group` 명령은 등록하지 않는다: 처리기가 출력을 돌려줄 길이 F `CommandResourceDef`에 없다(§10 미결 26).
 - HS-64. cap-mcp: HTTP·SSE 서버는 연결되고 서버 도구는 도구 표에 오른다. 서버 변화는 turn 시작(`before_agent_start`)과 단계마다 모델 요청 앞(`before_provider_request`)에서 반영한다. stdio 서버는 스트림을 주는 프로세스 포트를 L0가 아직 내놓지 않아 연결에 실패한다(§10 미결 25). `mcp_servers_change` 지점은 thread 없이 발화할 수 없어 발화하지 않는다.
 - HS-65. 실제 엔진 시험은 엔진이 서지 못하면 건너뛰지 않고 시험 파일이 실패한다(`test/fixtures/real-engine.ts`). 건너뛰면 조립 실패가 모든 실제 엔진 시험을 가려 검증이 통과한 것처럼 보인다.
+- HS-66. `user_bash` 지점 페이로드의 `cwd`는 그 대화의 작업 디렉터리다. 조립 루트가 `loopExtensionUnit({ workingDirectory })`에 `(threadId) => string | undefined`를 넘기고, 이 함수는 세션 서비스의 thread 행 `workspace`를 읽는다(설정 엔진의 project·local 층 조회와 같은 함수 `threadWorkspaceOf`). 작업 디렉터리가 없는 대화나 모르는 thread는 빈 문자열이다. 엔진 프로세스의 cwd를 대신 쓰지 않는다: 대화마다 작업 디렉터리가 다르다.
 
 ## 5. 실패와 경계 사례
 
