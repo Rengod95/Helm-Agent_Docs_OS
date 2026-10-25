@@ -334,6 +334,12 @@ describe("M2 method schemas are written out", () => {
     expect(parse(list.params, {}).ok).toBe(true);
     expect(parse(list.params, { prefix: "pl", includeHidden: true }).ok).toBe(true);
     expect(parse(list.params, { prefix: "" }).ok).toBe(false);
+    // threadId는 프로젝트 명령을 읽을 thread 문맥이다. 선택이고 thread id 모양이어야 한다
+    const withThread = parse(list.params, { prefix: "pl", threadId: THREAD });
+    expect(withThread.ok).toBe(true);
+    expect(withThread.ok && withThread.value.threadId).toBe(THREAD);
+    expect(parse(list.params, { threadId: "not-a-thread" }).ok).toBe(false);
+    expect(parse(list.params, { threadId: 7 }).ok).toBe(false);
     const info = {
       name: "plan",
       description: "계획 모드를 켠다",

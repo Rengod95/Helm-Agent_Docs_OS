@@ -261,7 +261,7 @@ F가 정하지 않는 것:
 | 항목 | 처리한 요청 | 위치 |
 |---|---|---|
 | G1-08 | U-04 호스트 계약 요청 판정표, 서버 알림 `settings.invalidated` | `F.wire-settings.spec` §3.3.2, §3.3.4 |
-| G1-01 | `command.list`, `command.run` | `F.wire-settings.spec` §3.3.1 |
+| G1-01 | `command.list`, `command.run`, `command.list`의 선택 params `threadId` | `F.wire-settings.spec` §3.3.1 |
 | G1-02 | `turn.resume` | `F.wire-settings.spec` §3.3.1 |
 | G1-03 | `trust.get`, `trust.decide`, `project_trust`의 `threadless` 표시 | `F.wire-settings.spec` §3.3.1, `F.extensions.spec` §3.4, §7 |
 | G1-07 | `secret.references`, `secret.test` 결과 확장, `secret.*` 오류 kind 3201~3212, `thread.closed` 3007 | `F.wire-settings.spec` §3.3.1, §3.5.2 |

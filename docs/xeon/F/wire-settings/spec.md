@@ -312,7 +312,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | events | `events.unsubscribe` | `{ sub: SubId }` | `{}` | M2 |
 | approval | `approval.respond` | `{ approvalId: string, decision: "allow"\|"deny"\|"answer", answer?: ApprovalAnswer, remember?: "once"\|"thread"\|"always" }` | `{ applied: boolean, reason?: "answer_invalid"\|"already_resolved"\|"unknown_approval"\|"commit_failed", detail?: string }` | M2 |
 | approval | `approval.list` | `{ threadId: ThreadId }` | `{ approvals: PendingApproval[], position: StreamPosition }` | M2 |
-| command | `command.list` | `{ prefix?: string, includeHidden?: boolean }` | `{ commands: CommandInfo[] }` | M2 |
+| command | `command.list` | `{ prefix?: string, includeHidden?: boolean, threadId?: ThreadId }` | `{ commands: CommandInfo[] }` | M2 |
 | command | `command.run` | `{ threadId: ThreadId, text: string, confirmShell?: boolean }` | `CommandRunOutput` | M2 |
 | trust | `trust.get` | `{ workspace: string }` | `TrustStatus` | M2 |
 | trust | `trust.decide` | `{ workspace: string, choice: { kind: "folder"\|"parent"\|"session", verdict: "allow"\|"deny" } }` | `TrustStatus` | M2 |
@@ -353,6 +353,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - 명령 실패는 능력 오류 구간(코드 4000, kind `cap.dialog.commands.<code>`: `command_args_invalid`, `command_shell_disabled`)과 `thread.notFound`로 돌아온다. 새 wire 오류 kind는 없다.
   - 이름 없는 입력은 오류가 아니라 `{ status: "not_command" }`다. 클라이언트는 이 값을 받으면 `turn.start`로 보낸다.
   - `status.list`와 첨부는 M3다(`review.m2-plan` G1-01).
+- [결정: m2c G1-01 후속] `command.list`의 `threadId`는 선택이다. 주면 프로젝트 명령(`.xeon/commands`)을 그 thread의 작업 폴더 기준으로 읽고(신뢰 게이트 포함), 생략하면 thread 문맥 없이 읽는다. 작업 폴더가 없는 thread는 프로젝트 명령 없이 나온다. 없는 thread는 `thread.notFound`(3001)다. 목록만 읽으므로 `command.run`과 달리 쓰기 소유를 얻지 않는다. `dialog.commands.list`의 입력 스키마는 바뀌지 않고, 호스트가 `threadId`를 입력에서 떼어 호출 문맥에 싣는다. 근거: `L4.host-service.spec` §10 29.
 - [제안] M1 범위는 브리프의 최소 셋(`turn.start`, `events.subscribe`, `settings.get`)에 선행 조건 둘(`host.hello`, `thread.create`)을 더한다. 대화를 시작하려면 thread가 있어야 하고, 모든 연결은 hello로 시작하기 때문이다.
 - [제안] `thread.open`을 추가했다. `_research/process.md` §6.3의 세션 단위 쓰기 소유 규칙을 계약에 드러내기 위해서다. 소유 잠금을 얻지 못하면 `thread.locked`(§3.5.2) 오류에 대안(관찰, 분기, 위임)을 싣는다. in-process 단일 클라이언트인 M1에서는 `thread.create`가 소유를 함께 얻는다.
 - [결정: m2 F.2] `thread.read`는 열린 thread의 스냅샷을 돌려주는 읽기 전용 메서드다(L4.desktop 상태 설계 §14 1번). `thread.open` 결과에 items를 싣지 않고 새 메서드를 둔 이유는 셋이다. 첫째, `thread.open`은 쓰기 소유 획득이라는 부작용이 있어서 소유 없이 관찰하는 thread나 재동기화 때마다 부르기에 맞지 않다. 둘째, 스냅샷은 재설정과 재구독마다 다시 읽는데 `thread.open`은 열 때 한 번 부르는 메서드다. 셋째, 긴 thread는 앞부분을 나눠 받아야 해서 `limit`과 `before`가 필요하다. `thread.read`는 소유를 얻지 않고 닫힌 thread도 읽는다. `items`는 현재 가지의 내구 `ItemRecord`를 오래된 것부터 담고, `position`은 그 items가 반영한 저장소 위치다. 이어 붙이는 규칙은 §3.4.6이다.
