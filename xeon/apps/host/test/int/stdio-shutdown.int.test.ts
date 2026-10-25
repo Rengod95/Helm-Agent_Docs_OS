@@ -136,21 +136,27 @@ describe("host.shutdown", () => {
   });
 });
 
+/** 시험 전부터 있던 처리기(`known`)를 뺀, 새로 붙은 신호 처리기 수 */
+function addedListeners(signal: "SIGTERM" | "SIGINT", known: ReadonlySet<unknown>): number {
+  return process.listeners(signal).filter((listener) => !known.has(listener)).length;
+}
+
 describe("signals", () => {
   realTest(
     "SIGTERM runs the same procedure with reason signal and removes its listeners",
     async () => {
-      const before = process.listenerCount("SIGTERM");
-      const beforeInt = process.listenerCount("SIGINT");
+      // 다른 소유자(예: 샌드박스 런타임의 정리 처리기)도 같은 신호에 처리기를 둘 수 있으므로, 시험 전부터 있던 처리기를 빼고 host가 더한 것만 센다
+      const before = new Set(process.listeners("SIGTERM"));
+      const beforeInt = new Set(process.listeners("SIGINT"));
       const running = await startStalledHost(true);
-      expect(process.listenerCount("SIGTERM")).toBe(before + 1);
+      expect(addedListeners("SIGTERM", before)).toBe(1);
       await startRunningTurn(running);
       process.emit("SIGTERM");
       const exit = await running.exit;
       expect(exit).toEqual({ code: 0, reason: "signal" });
       expect(kindsOf(running.events.events)).toContain("turn.completed");
-      expect(process.listenerCount("SIGTERM")).toBe(before);
-      expect(process.listenerCount("SIGINT")).toBe(beforeInt);
+      expect(addedListeners("SIGTERM", before)).toBe(0);
+      expect(addedListeners("SIGINT", beforeInt)).toBe(0);
       await running.connection.close();
     },
   );
