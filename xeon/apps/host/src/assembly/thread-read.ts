@@ -36,39 +36,46 @@ function itemOf(event: DurableEventEnvelope): Result<ItemRecord | undefined, Rea
 }
 
 /**
- * 현재 가지의 item 전부와 그 시점의 head. `headSeq()` 읽기와 가지 읽기의 시작(`for await`가 첫 `next()`를 바로 부른다)은 같은 동기 구간이다:
- * 가지는 첫 `next()`에서 한 번에 읽히므로(`readBranch`가 사슬을 한 질의로 가져온다) 두 값이 같은 저장소 상태를 본다.
- * 그 사이에 await가 끼면 head와 item이 어긋나므로 이 순서를 바꾸지 않는다.
+ * 현재 가지의 `item.recorded` 이벤트 전부(복원 전 사본)와 그 시점의 head. `headSeq()` 읽기와 가지 읽기의 시작(`for await`가 첫 `next()`를 바로 부른다)은
+ * 같은 동기 구간이다: 가지는 첫 `next()`에서 한 번에 읽히므로(`readBranch`가 사슬을 한 질의로 가져온다) 두 값이 같은 저장소 상태를 본다.
+ * 그 사이에 await가 끼면 head와 item이 어긋나므로 이 순서를 바꾸지 않는다. 큰 본문(detached 필드)은 여기서 되돌리지 않는다:
+ * 돌려줄 쪽만 `hydratedItems`가 되돌린다.
  */
-async function readBranchItems(
+async function readBranchEvents(
   session: SessionService,
   threadId: ThreadId,
-): Promise<Result<{ readonly head: number; readonly items: readonly ItemRecord[] }, ReadFailure>> {
+): Promise<
+  Result<{ readonly head: number; readonly events: readonly DurableEventEnvelope[] }, ReadFailure>
+> {
   const headRead = session.feed.headSeq();
   if (!headRead.ok) return headRead;
   const head = headRead.value;
-  const recorded: DurableEventEnvelope[] = [];
+  const events: DurableEventEnvelope[] = [];
   for await (const read of session.readBranch(threadId)) {
     if (!read.ok) return read;
-    if (read.value.seq <= head && read.value.kind === "item.recorded") recorded.push(read.value);
+    if (read.value.seq <= head && read.value.kind === "item.recorded") events.push(read.value);
   }
-  // detached 필드(큰 본문)는 blob에서 되돌린 사본으로 읽는다
-  const hydrated = await Promise.all(recorded.map((event) => session.hydrate(event)));
+  return ok({ head, events });
+}
+
+/** 고른 쪽의 이벤트만 blob에서 되돌려 item으로 읽는다 */
+async function hydratedItems(
+  session: SessionService,
+  events: readonly DurableEventEnvelope[],
+): Promise<Result<readonly ItemRecord[], ReadFailure>> {
+  const hydrated = await Promise.all(events.map((event) => session.hydrate(event)));
   const items: ItemRecord[] = [];
   for (const event of hydrated) {
     const item = itemOf(event);
     if (!item.ok) return item;
     if (item.value !== undefined) items.push(item.value);
   }
-  return ok({ head, items });
+  return ok(items);
 }
 
-/** 예산 안에서 `end` 바로 앞까지 가장 새 item부터 최대 `limit`개를 고른다. 하나는 항상 담는다 */
-function pageOf(
-  items: readonly ItemRecord[],
-  end: number,
-  limit: number,
-): { readonly start: number } {
+/** 예산 안에서 가장 새 item부터 최대 `limit`개를 고른다(`items`는 오래된 것부터). 하나는 항상 담는다 */
+function pageOf(items: readonly ItemRecord[], limit: number): { readonly start: number } {
+  const end = items.length;
   let start = end;
   let bytes = 0;
   while (start > 0 && end - start < limit) {
@@ -92,17 +99,17 @@ export async function readThread(
   if (!found.ok) return found;
   if (found.value === undefined) return err({ kind: "thread_not_found", threadId });
 
-  const branch = await readBranchItems(session, threadId);
+  const branch = await readBranchEvents(session, threadId);
   if (!branch.ok) return branch;
-  const { head, items } = branch.value;
+  const { head, events } = branch.value;
 
-  let end = items.length;
+  let end = events.length;
   if (before !== undefined) {
-    const at = items.findIndex((item) => item.itemId === before);
-    if (at < 0) {
-      // 이 thread의 item인데 현재 가지에 없으면 not_on_branch, 아예 없으면 item_not_found다
-      const recorded = session.query.itemEvent(threadId, before);
-      if (!recorded.ok) return recorded;
+    // 이 thread의 item인데 현재 가지에 없으면 not_on_branch, 아예 없으면 item_not_found다
+    const recorded = session.query.itemEvent(threadId, before);
+    if (!recorded.ok) return recorded;
+    const at = events.findIndex((event) => event.id === recorded.value);
+    if (recorded.value === undefined || at < 0) {
       return err({
         kind: "invalid_target",
         reason: recorded.value === undefined ? "item_not_found" : "not_on_branch",
@@ -110,11 +117,16 @@ export async function readThread(
     }
     end = at;
   }
-  const { start } = pageOf(items, end, params.limit ?? THREAD_READ_DEFAULT_LIMIT);
+  // 쪽 크기만큼만 되돌린다. 바이트 예산은 되돌린 크기로만 알 수 있어, 예산을 넘으면 그 안에서 오래된 쪽을 덜어 낸다
+  const limit = params.limit ?? THREAD_READ_DEFAULT_LIMIT;
+  const first = Math.max(0, end - limit);
+  const hydrated = await hydratedItems(session, events.slice(first, end));
+  if (!hydrated.ok) return hydrated;
+  const { start } = pageOf(hydrated.value, limit);
   return ok({
     threadId,
-    items: items.slice(start, end),
+    items: hydrated.value.slice(start),
     position: { storeId, seq: head },
-    hasMore: start > 0,
+    hasMore: first + start > 0,
   });
 }
