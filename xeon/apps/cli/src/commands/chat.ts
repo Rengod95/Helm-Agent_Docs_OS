@@ -20,6 +20,7 @@ import { createMinimalSink, runInteractive } from "../tui/minimal.ts";
 import { resolvePrintInput } from "./chat-input.ts";
 import { applyOverrides } from "./overrides.ts";
 import { offerTurnResume } from "./resume-turn.ts";
+import { noteUndecidedTrust, offerTrust } from "./trust.ts";
 import {
   createPositionKeeper,
   loadInitialState,
@@ -219,6 +220,20 @@ async function chatWork(
       return opened;
     };
 
+    // 종료 요청이 오면 열려 있는 질문의 입력 대기를 푼다
+    const exitAbort = new AbortController();
+    detach(
+      (async () => {
+        await wiring.exit.requested;
+        exitAbort.abort();
+      })(),
+      rethrow,
+    );
+
+    // 프로젝트 신뢰는 세션을 만들거나 열기 전에 정한다(F wire §3.3.1 trust). 대화형은 카드로 묻고 print 모드는 한 줄로 알린다
+    if (interactive) await offerTrust(ctx, handle, promptIo, exitAbort.signal);
+    else if (!jsonMode) await noteUndecidedTrust(ctx, handle);
+
     const opened = await openWith(command.target);
     if (!opened.ok) {
       await printFailure(io, opened.error);
@@ -237,15 +252,6 @@ async function chatWork(
       return applied.error.code;
     }
     const current = (): ChatSession => holder.session ?? opened.value;
-    // 종료 요청이 오면 열려 있는 질문의 입력 대기를 푼다
-    const exitAbort = new AbortController();
-    detach(
-      (async () => {
-        await wiring.exit.requested;
-        exitAbort.abort();
-      })(),
-      rethrow,
-    );
     /** 열어 둔 세션에 끊긴 turn이 있으면 묻고 이어 실행한다. 새 세션에는 없다 */
     const offerResume = (session: ChatSession, signal: AbortSignal): Promise<boolean> =>
       offerTurnResume({

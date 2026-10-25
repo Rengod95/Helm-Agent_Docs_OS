@@ -71,6 +71,11 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
       const { runSecret } = await import("./commands/secret.ts");
       return runSecret(ctx, command);
     }
+    case "trust.status":
+    case "trust.set": {
+      const { runTrust } = await import("./commands/trust.ts");
+      return runTrust(ctx, command);
+    }
     case "doctor": {
       const { runDoctor } = await import("./commands/doctor.ts");
       return runDoctor(ctx, command);

@@ -91,6 +91,8 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon secret rm <name> [--yes]` | 삭제. 참조하는 정책을 보인 뒤 확인한다. 사용 중이면 거부된다 | `secret.remove` | M2 |
 | `xeon secret test <name>` | 존재와 복호화 가능 여부. 길이와 해시 앞 8자만 출력한다. 현재 wire 결과는 `state`(`registered`, `missing`)뿐이라 구현은 그 값만 보인다 [미결 §10 12번] | `secret.test` | M2 |
 | `xeon secret reveal <name>` | 값 열람. 사람 전용이고 TTY에서만 동작한다. OS 인증 재확인이 가능한 플랫폼에서는 재확인한다(§4.7) [결정: review.decisions-2 U-20] | `secret.beginReveal { name }`. 값 필드 없음. F 메서드 추가는 M2 계획에서 정한다(review.decisions-2 U-04) | M2 |
+| `xeon trust [status] [--json]` | 이 작업 폴더의 프로젝트 신뢰 상태(폴더, 불러오려는 자원, 판정과 출처, 선택지)를 보인다. 신뢰할 자원이 없으면 stderr에 한 줄이다 | `trust.get { workspace }` | M2 |
+| `xeon trust allow\|deny [--scope folder\|parent\|session]` | 선택지 하나를 host에 보낸다. 범위 기본값은 `folder`. host가 낸 선택지에 없는 조합이면 2다 | `trust.get`, `trust.decide { workspace, choice }` | M2 |
 | `xeon service start\|status\|stop` | 서비스 기동, 상태, 종료. `install`/`uninstall`은 2차 | 없음. `runHostCommand({ kind: "service-start" \| "service-status" \| "service-stop" })`(§3.3). status는 그 안에서 `host.status`를 부른다 | M3 |
 | `xeon service ensure --json` | `ensure`만 하고 소켓 경로를 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.host-service.spec` HS-38) | 없음. `runHostCommand({ kind: "service-ensure" })` | M3 |
 | `xeon service launch-mode --json` | 서비스 사용 설정을 엔진 없이 읽어 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.desktop.spec` §4.2). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-launch-mode" })` | M3 |
@@ -699,6 +701,13 @@ export type CliState = Static<typeof CliStateSchema>;
      - 프롬프트는 한 번에 하나다. 입력 줄이 읽는 중에 승인이 오면 입력 줄을 닫고 승인을 먼저 묻는다.
      - 세션을 열 때 이전 기록을 다 그린 뒤 `approval.list { threadId }`로 아직 답하지 않은 승인을 되살려 묻는다(재시작 뒤 복원). 이벤트로 이미 받은 승인은 `approvalId`로 중복을 거른다.
      - `approval.respond`가 `applied: false`이거나 `approval.resolved`가 먼저 오면 "다른 곳에서 이미 답한 승인이다"를 보이고 프롬프트를 닫는다.
+- 프로젝트 신뢰(M2) [결정: m2c G1-03. wire 이름은 F wire §3.3.1 trust를 따른다]
+  1. 대화형 `chat`은 세션을 만들거나 열기 전에 `trust.get { workspace }`를 부른다. `required`가 참이고 `verdict`가 `undecided`일 때만 카드를 보인다. 이미 정한 폴더나 신뢰할 자원이 없는 폴더(`notRequired`)는 묻지 않는다.
+  2. 카드는 프로젝트 폴더, 불러오려는 자원(`resources`), 판정과 출처(`via`), 신뢰하면 자원의 지시문·명령·MCP 서버가 사용자 권한으로 쓰인다는 경고, 번호가 붙은 선택지다. 선택지 글은 CLI가 `choice`(`kind` × `verdict`)로 만든다. `label`은 현지화 식별자라 글로 쓰지 않는다. 저장되는 폴더(`savedPath`)가 있으면 함께 보인다.
+  3. 번호를 입력하면 `trust.decide { workspace, choice }`를 보낸다. 엔터나 EOF는 "나중에"라서 아무것도 보내지 않고, 이 프로젝트의 자원은 읽지 않는다는 한 줄을 stderr에 남긴다(fail-closed). 잘못된 번호는 다시 묻는다.
+  4. `trust.get`이나 `trust.decide`가 실패하면 한 줄로 알리고 대화는 계속한다. 프로젝트는 신뢰하지 않은 채로 열린다. 저장 실패(`store.io`, `details.code: "trust_store"`)는 전용 문구와 종료 코드 3 문구를 쓴다. `trust.json` 쓰기의 프로세스 간 잠금은 host가 맡는다(`fileLock`).
+  5. print 모드는 물을 수 없다. 결정이 없으면 stderr에 "프로젝트 신뢰가 정해지지 않아 <자원>을(를) 읽지 않는다 (xeon trust로 정한다)"를 한 줄 남긴다. JSON 모드는 메시지 열이 출력 전부라서(AC4) `trust.get`을 부르지 않는다.
+  6. `host.hello`의 `features`에 `trust.get`과 `trust.decide`가 없는 호스트에서 `chat`은 조용히 지나가고, `xeon trust`는 환경 문제(3)로 알린다.
 - 잠금(M2): `thread.locked` 오류의 `details.options`(`observe`, `fork`, `delegate`) 중 가능한 것만 보인다.
   - 관찰: `thread.open { mode: "observe" }` 뒤 구독만 한다. 입력란을 잠근다.
   - 분기: `thread.fork { threadId }`로 새 세션을 만들어 연다.
@@ -808,6 +817,7 @@ export type CliState = Static<typeof CliStateSchema>;
 - AC16. `host --stdio`의 stdout에는 JSON-RPC 메시지만 나오고(사람용 출력은 stderr), stdin EOF에서 0으로 끝난다. `l4.cli.*` 키가 그 호스트의 카탈로그에 있다. 컴파일(`--minify --bytecode`) 바이너리에서도 같다.
 - AC17. 대화형에서 엔진에 등록한 동작 명령(`/plan on`)을 치면 `command.run { threadId, text: "/plan on" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
 - AC18. 대화형으로 `thread.list`가 `resumable`을 알린 세션을 열면 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`가 한 번 가고, 그 turn의 나머지 이벤트가 그려진다. 새 세션과 print 모드는 묻지 않고 `turn.resume`을 보내지 않는다.
+- AC19. 결정이 없고 신뢰할 자원이 있는 폴더에서 대화형 `chat`을 시작하면 `thread.create`보다 앞서 카드를 묻고, 번호를 입력하면 그 선택지의 `choice`로 `trust.decide { workspace, choice }`가 한 번 간다. 엔터는 `trust.decide`를 보내지 않는다. `xeon trust allow --scope parent`는 host가 낸 선택지의 `{ kind: "parent", verdict: "allow" }`를 보낸다.
 
 ## 10. 미결 사항
 

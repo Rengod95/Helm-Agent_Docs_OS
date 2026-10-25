@@ -307,6 +307,13 @@ export function failureOfWire(error: WireError): Failure {
         code: EXIT.error,
       };
     case "store.io":
+      if (detailText(error, "code") === "trust_store") {
+        return {
+          message: "프로젝트 신뢰 결정을 저장하지 못했다",
+          fix: "신뢰 저장 파일(trust.json)의 권한과 내용을 확인한다",
+          code: EXIT.environment,
+        };
+      }
       return {
         message: "저장소 입출력에 실패했다",
         fix: "데이터 디렉터리의 권한과 디스크 상태를 확인한다",

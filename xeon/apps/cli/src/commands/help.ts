@@ -27,6 +27,9 @@ const OVERVIEW = `xeon: 대화형 에이전트 런타임
                             설정 쓰기, 지우기, 목록
   secret ls|add|set|meta|rotate|rm|test|reveal
                             비밀 관리. 값은 프롬프트나 stdin으로만 받는다. reveal은 터미널에서만 쓴다
+  trust [status] [--json]   이 작업 폴더의 프로젝트 신뢰 상태와 선택지를 보인다
+  trust allow|deny [--scope folder|parent|session]
+                            신뢰 결정을 보낸다. 신뢰하면 .mcp.json, 프로젝트 스킬, 프로젝트 명령을 읽는다
   service start|status|stop|ensure  서비스 모드 (M3)
   doctor [--json]           진단: 엔진, 저장소, 비밀 저장소, 터미널, 검색 provider
   version [--json]          버전

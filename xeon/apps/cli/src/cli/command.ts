@@ -75,6 +75,16 @@ export type ConfigCommand =
       readonly coreOnly: boolean;
     };
 
+type TrustScope = "folder" | "parent" | "session";
+
+export type TrustCommand =
+  | { readonly kind: "trust.status"; readonly output: OutputMode }
+  | {
+      readonly kind: "trust.set";
+      readonly verdict: "allow" | "deny";
+      readonly scope: TrustScope;
+    };
+
 export interface SecretMetaFlags {
   readonly provider?: "sops" | "op" | "bws" | "keychain";
   readonly desc?: string;
@@ -128,6 +138,7 @@ type CliCommand =
   | SessionsCommand
   | ConfigCommand
   | SecretCommand
+  | TrustCommand
   | ServiceCommand
   | CliHostCommand
   | DoctorCommand
@@ -630,6 +641,56 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
   }
 }
 
+const TRUST_SCOPES: readonly TrustScope[] = ["folder", "parent", "session"];
+
+function parseTrust(acc: GlobalAcc, rest: readonly string[]): Result<TrustCommand, UsageError> {
+  const [action, ...tail] = rest;
+  // `xeon trust --json`처럼 동작 이름 없이 플래그부터 오면 status다
+  const bare = action?.startsWith("-") === true;
+  if (action === undefined || action === "status" || bare) {
+    const scanned = scanArgs(acc, bare ? rest : tail, { "--json": { value: "none" } });
+    if (!scanned.ok) return scanned;
+    if (scanned.value.positionals.length > 0) {
+      return err(
+        usage(
+          "unexpectedArgument",
+          "trust status는 위치 인자를 받지 않는다",
+          "--json만 쓸 수 있다",
+        ),
+      );
+    }
+    return ok({ kind: "trust.status", output: outputOf(scanned.value) });
+  }
+  if (action !== "allow" && action !== "deny") {
+    return err(
+      usage("unknownCommand", `모르는 명령 trust ${action}`, "status, allow, deny 중 하나를 쓴다"),
+    );
+  }
+  const scanned = scanArgs(acc, tail, { "--scope": { value: "required" } });
+  if (!scanned.ok) return scanned;
+  if (scanned.value.positionals.length > 0) {
+    return err(
+      usage(
+        "unexpectedArgument",
+        `trust ${action}는 위치 인자를 받지 않는다`,
+        `xeon trust ${action} [--scope folder|parent|session]`,
+      ),
+    );
+  }
+  const scopeText = valueOf(scanned.value, "--scope") ?? "folder";
+  const scope = TRUST_SCOPES.find((candidate) => candidate === scopeText);
+  if (scope === undefined) {
+    return err(
+      usage(
+        "unexpectedArgument",
+        "--scope 값이 맞지 않다",
+        "folder, parent, session 중 하나를 쓴다",
+      ),
+    );
+  }
+  return ok({ kind: "trust.set", verdict: action, scope });
+}
+
 function parseSessions(
   acc: GlobalAcc,
   rest: readonly string[],
@@ -1061,6 +1122,7 @@ const COMMAND_WORDS: ReadonlySet<string> = new Set([
   "sessions",
   "config",
   "secret",
+  "trust",
   "service",
   "host",
   "doctor",
@@ -1089,6 +1151,8 @@ function commandOf(
       return parseConfig(acc, rest);
     case "secret":
       return parseSecret(acc, rest, terminal);
+    case "trust":
+      return parseTrust(acc, rest);
     case "service":
       return parseService(acc, rest);
     case "host":
