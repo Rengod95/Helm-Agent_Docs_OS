@@ -1,18 +1,13 @@
 import { expect, test } from "bun:test";
-import { Bug, ok, parse, type Result } from "@xeon/contracts";
-import type { EventId, ItemId } from "@xeon/contracts/conversation";
-import type {
-  DurableEventEnvelope,
-  ReadFailure,
-  SessionService,
-  ThreadSummaryRow,
-} from "@xeon/contracts/records";
-import { StoreIdSchema, type StoreId } from "@xeon/contracts/wire";
+import { Bug, err, ok, parse } from "@xeon/contracts";
+import type { ItemId, ItemRecord } from "@xeon/contracts/conversation";
+import type { ItemPage, ItemPageFailure, ItemPageRequest, ItemPages } from "@xeon/core-persistence";
+import { StoreIdSchema, WIRE_LIMITS, type StoreId } from "@xeon/contracts/wire";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { readThread } from "../../src/assembly/thread-read.ts";
-import { partial } from "../fixtures/unsafe.ts";
 
-// thread.read는 돌려줄 쪽의 이벤트만 blob에서 되돌린다(review M4). 가짜 세션이 hydrate 호출을 센다.
+// thread.read는 쪽 질의(L1.persistence `branchItemRecords`)에 before·limit을 그대로 넘기고, 응답 크기 예산만 호스트가 맞춘다(G2-11).
+// 가짜 쪽 질의가 요청을 기록한다. 쪽 읽기 자체(가지, fork 연속, blob)는 core-persistence의 시험이다.
 
 const ids = fixedIdFactory(700);
 const THREAD = ids.next("thr");
@@ -20,118 +15,92 @@ const parsedStore = parse(StoreIdSchema, "sto_01ARZ3NDEKTSV4RRFFQ69G5FAV");
 if (!parsedStore.ok) throw new Bug("the test store id must be valid");
 const STORE_ID: StoreId = parsedStore.value;
 
-interface Recorded {
-  readonly event: DurableEventEnvelope;
-  readonly itemId: ItemId;
+function customItem(index: number, content = `item ${String(index)}`): ItemRecord {
+  return {
+    itemId: ids.next("itm"),
+    status: "completed",
+    kind: "custom",
+    message: {
+      role: "custom",
+      customType: "test.item",
+      content,
+      display: false,
+      details: null,
+      timestamp: index,
+    },
+  };
 }
 
-function recordedItems(count: number): readonly Recorded[] {
-  const out: Recorded[] = [];
-  for (let index = 0; index < count; index += 1) {
-    const itemId = ids.next("itm");
-    const eventId = ids.next("evt");
-    const event = partial<DurableEventEnvelope>({
-      id: eventId,
-      seq: index + 1,
-      kind: "item.recorded",
-      payload: {
-        item: {
-          itemId,
-          status: "completed",
-          kind: "custom",
-          message: {
-            role: "custom",
-            customType: "test.item",
-            content: `item ${String(index)}`,
-            display: false,
-            details: null,
-            timestamp: index,
-          },
-        },
-      },
-    });
-    out.push({ event, itemId });
-  }
-  return out;
-}
-
-function fakeSession(recorded: readonly Recorded[]): {
-  readonly session: SessionService;
-  readonly hydrated: EventId[];
+function fakePages(answer: (request: ItemPageRequest) => ItemPage | ItemPageFailure): {
+  readonly pages: ItemPages;
+  readonly requests: ItemPageRequest[];
 } {
-  const hydrated: EventId[] = [];
-  const session = partial<SessionService>({
-    feed: partial<SessionService["feed"]>({ headSeq: () => ok(recorded.length) }),
-    // 가지 사이에 다른 종류의 이벤트가 끼어 있어도 item.recorded만 센다
-    async *readBranch() {
-      for (const entry of recorded) {
-        yield ok(
-          partial<DurableEventEnvelope>({
-            id: ids.next("evt"),
-            seq: 0,
-            kind: "turn.started",
-            payload: {},
-          }),
-        );
-        yield ok(entry.event);
-      }
+  const requests: ItemPageRequest[] = [];
+  const pages: ItemPages = {
+    branchItemRecords(request) {
+      requests.push(request);
+      const answered = answer(request);
+      return Promise.resolve("kind" in answered ? err(answered) : ok(answered));
     },
-    hydrate: (event) => {
-      hydrated.push(event.id);
-      return Promise.resolve(event);
-    },
-    query: partial<SessionService["query"]>({
-      thread: () => ok(partial<ThreadSummaryRow>({})),
-      itemEvent: (_threadId, itemId): Result<EventId | undefined, ReadFailure> =>
-        ok(recorded.find((entry) => entry.itemId === itemId)?.event.id),
-    }),
-  });
-  return { session, hydrated };
+  };
+  return { pages, requests };
 }
 
-test("only the returned page is hydrated, and hasMore counts what was left out", async () => {
-  const recorded = recordedItems(30);
-  const { session, hydrated } = fakeSession(recorded);
-  const read = await readThread(session, STORE_ID, { threadId: THREAD, limit: 5 });
+test("the page query gets before and limit unchanged, and its head becomes the position", async () => {
+  const items = [customItem(0), customItem(1), customItem(2)];
+  const anchor: ItemId = ids.next("itm");
+  const { pages, requests } = fakePages(() => ({ items, headSeq: 41, hasMore: true }));
+  const read = await readThread(pages, STORE_ID, { threadId: THREAD, limit: 3, before: anchor });
   if (!read.ok) throw new Error("expected a page");
-  expect(read.value.items.map((item) => item.itemId)).toEqual(
-    recorded.slice(25).map((entry) => entry.itemId),
-  );
+  expect(requests).toEqual([{ threadId: THREAD, limit: 3, before: anchor }]);
+  expect(read.value.items).toEqual(items);
+  expect(read.value.position).toEqual({ storeId: STORE_ID, seq: 41 });
   expect(read.value.hasMore).toBe(true);
-  expect(hydrated).toEqual(recorded.slice(25).map((entry) => entry.event.id));
 });
 
-test("a page before an item hydrates only the slice in front of it", async () => {
-  const recorded = recordedItems(30);
-  const { session, hydrated } = fakeSession(recorded);
-  const anchor = recorded[10];
-  if (anchor === undefined) throw new Error("expected an item");
-  const read = await readThread(session, STORE_ID, {
-    threadId: THREAD,
-    limit: 4,
-    before: anchor.itemId,
-  });
+test("without a limit the default page size is asked for, and no before is sent", async () => {
+  const { pages, requests } = fakePages(() => ({ items: [], headSeq: 0, hasMore: false }));
+  const read = await readThread(pages, STORE_ID, { threadId: THREAD });
   if (!read.ok) throw new Error("expected a page");
-  expect(read.value.items.map((item) => item.itemId)).toEqual(
-    recorded.slice(6, 10).map((entry) => entry.itemId),
-  );
-  expect(read.value.hasMore).toBe(true);
-  expect(hydrated).toHaveLength(4);
+  expect(requests).toEqual([{ threadId: THREAD, limit: 200 }]);
+  expect(read.value.items).toEqual([]);
+  expect(read.value.hasMore).toBe(false);
 });
 
-test("the oldest page has no more, and an item that is not recorded is item_not_found", async () => {
-  const recorded = recordedItems(3);
-  const { session } = fakeSession(recorded);
-  const all = await readThread(session, STORE_ID, { threadId: THREAD });
-  if (!all.ok) throw new Error("expected a page");
-  expect(all.value.items).toHaveLength(3);
-  expect(all.value.hasMore).toBe(false);
-  const missing = await readThread(session, STORE_ID, {
+test("items over the frame budget are dropped from the old end and hasMore turns true", async () => {
+  const big = "x".repeat(Math.floor(WIRE_LIMITS.maxFrameBytes / 3));
+  const items = [customItem(0, big), customItem(1, big), customItem(2, big), customItem(3, big)];
+  const { pages } = fakePages(() => ({ items, headSeq: 9, hasMore: false }));
+  const read = await readThread(pages, STORE_ID, { threadId: THREAD, limit: 4 });
+  if (!read.ok) throw new Error("expected a page");
+  expect(read.value.items.length).toBeLessThan(4);
+  expect(read.value.items.length).toBeGreaterThan(0);
+  // 남은 것은 가장 새 item부터 이어진 꼬리다
+  expect(read.value.items).toEqual(items.slice(4 - read.value.items.length));
+  expect(read.value.hasMore).toBe(true);
+});
+
+test("a single item over the budget is still returned alone", async () => {
+  const huge = customItem(0, "y".repeat(WIRE_LIMITS.maxFrameBytes));
+  const { pages } = fakePages(() => ({ items: [huge], headSeq: 1, hasMore: false }));
+  const read = await readThread(pages, STORE_ID, { threadId: THREAD });
+  if (!read.ok) throw new Error("expected a page");
+  expect(read.value.items).toEqual([huge]);
+  expect(read.value.hasMore).toBe(false);
+});
+
+test("the query's refusals reach the handler as they are", async () => {
+  const missing = fakePages(() => ({ kind: "invalid_target", reason: "item_not_found" }));
+  const refused = await readThread(missing.pages, STORE_ID, {
     threadId: THREAD,
     before: ids.next("itm"),
   });
-  expect(missing.ok).toBe(false);
-  if (!missing.ok) {
-    expect(missing.error).toMatchObject({ kind: "invalid_target", reason: "item_not_found" });
+  expect(refused.ok).toBe(false);
+  if (!refused.ok) {
+    expect(refused.error).toEqual({ kind: "invalid_target", reason: "item_not_found" });
   }
+  const unknown = fakePages(() => ({ kind: "thread_not_found", threadId: THREAD }));
+  const notFound = await readThread(unknown.pages, STORE_ID, { threadId: THREAD });
+  expect(notFound.ok).toBe(false);
+  if (!notFound.ok) expect(notFound.error).toEqual({ kind: "thread_not_found", threadId: THREAD });
 });

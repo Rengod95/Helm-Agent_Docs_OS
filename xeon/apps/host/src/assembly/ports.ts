@@ -35,6 +35,7 @@ import {
   type WireResult,
 } from "@xeon/contracts/wire";
 import { isAbsolute } from "node:path";
+import { itemPagesOf } from "@xeon/core-persistence";
 import { PrimitiveError, type ExtHost } from "@xeon/ext-host";
 import type {
   ActivityPort,
@@ -248,7 +249,14 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       await dropHeldThread(threadId);
       return removed;
     },
-    read: (params) => readThread(session, storeId, params),
+    read(params) {
+      // 쪽 질의는 L1.persistence가 세션 서비스에 딸려 내놓는다. 그 서비스가 아닌 구현이 들어왔다면 조립이 틀린 것이다
+      const itemPages = itemPagesOf(session);
+      if (itemPages === undefined) {
+        throw new Bug("host.item_pages_missing: xeon.session has no item page query");
+      }
+      return readThread(itemPages, storeId, params);
+    },
     position() {
       const head = session.feed.headSeq();
       return head.ok ? ok({ storeId, seq: head.value }) : head;

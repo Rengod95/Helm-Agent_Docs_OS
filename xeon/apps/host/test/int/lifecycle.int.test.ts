@@ -196,6 +196,32 @@ describe("thread lifecycle", () => {
     },
   );
 
+  realTest(
+    "a forked thread reads the items of its source up to the fork point, page by page",
+    async () => {
+      const session = await start("the answer");
+      const threadId = await answeredThread(session);
+      const source = await session.connection.request("thread.read", { threadId });
+      expect(source.items.length).toBeGreaterThan(1);
+      const forked = await session.connection.request("thread.fork", { threadId });
+      // 복사하지 않고 출처의 기록을 이어 읽는다: 같은 itemId가 같은 순서로 나온다(F wire §3.4.6 3.1항)
+      const read = await session.connection.request("thread.read", { threadId: forked.threadId });
+      expect(read.items.map((item) => item.itemId)).toEqual(
+        source.items.map((item) => item.itemId),
+      );
+      expect(read.hasMore).toBe(false);
+      const newest = await session.connection.request("thread.read", {
+        threadId: forked.threadId,
+        limit: 1,
+      });
+      expect(newest.items.map((item) => item.itemId)).toEqual(
+        source.items.slice(-1).map((item) => item.itemId),
+      );
+      expect(newest.hasMore).toBe(true);
+      await session.close();
+    },
+  );
+
   realTest("fork at an unknown item is 3005", async () => {
     const session = await start("a");
     const threadId = await answeredThread(session);
