@@ -2,10 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import type { Logger, LogFields } from "@xeon/contracts";
 import type { ProviderSearchRequest } from "@xeon/contracts/capabilities";
 import { WebHttpError } from "../src/policy/guarded-http.ts";
-import {
-  createSearxngProvider,
-  SEARXNG_DETECT_CANDIDATES,
-} from "../src/search/providers/searxng.ts";
+import { createSearxngProvider } from "../src/search/providers/searxng.ts";
 import { parseSearchQuery } from "../src/search/query.ts";
 import { fakeResolver } from "../src/testing/fake-resolver.ts";
 import { fixtureTransport, type FixtureTransport } from "../src/testing/http-fixtures.ts";
@@ -78,7 +75,7 @@ function request(query = "xeon", overrides: Partial<ProviderSearchRequest> = {})
 }
 
 function setup(
-  settings: { url: string; detect: boolean },
+  settings: { url: string },
   routes: Readonly<Record<string, Parameters<FixtureTransport["route"]>[1]>> = {},
 ) {
   const resolver = fakeResolver({
@@ -107,56 +104,49 @@ async function failure(promise: Promise<unknown>) {
 const urlsOf = (transport: FixtureTransport): string[] =>
   transport.requests.map((sent) => sent.url);
 
-describe("searxng detection", () => {
-  test("detect candidate order", async () => {
-    const down = { failure: { kind: "network", message: "connection refused" } } as const;
-    const { provider, transport } = setup(
-      { url: "", detect: true },
-      Object.fromEntries(SEARXNG_DETECT_CANDIDATES.map((base) => [PROBE(base), down])),
-    );
-    const available = await provider.isAvailable(SIGNAL);
-    expect(available.ok).toBe(false);
-    expect(urlsOf(transport)).toEqual(SEARXNG_DETECT_CANDIDATES.map(PROBE));
-    expect(available).toMatchObject({ ok: false, reason: "unreachable" });
+describe("searxng configured address", () => {
+  // 감지 후보였던 주소들. 어느 하나라도 물어보면 시험이 실패하도록 모두 성공 응답을 걸어 둔다
+  const FORMER_DETECT_ADDRESSES = [
+    "http://127.0.0.1:8888",
+    "http://127.0.0.1:8080",
+    "http://localhost:8888",
+    "http://localhost:8080",
+  ];
+  const answering = Object.fromEntries(
+    FORMER_DETECT_ADDRESSES.map((base) => [PROBE(base), { body: SEARX_BODY }]),
+  );
+
+  test("without an address no former detect address is probed even when one would answer", async () => {
+    const { provider, transport } = setup({ url: "" }, answering);
+    expect(await provider.isAvailable(SIGNAL)).toMatchObject({
+      ok: false,
+      reason: "unreachable",
+      detail: "no SearXNG address is set (l2.web.search.searxng.url)",
+    });
+    expect(transport.requests).toHaveLength(0);
+    expect(transport.connections()).toBe(0);
   });
 
-  test("the first answering candidate wins and later ones are not asked", async () => {
-    const down = { failure: { kind: "network", message: "connection refused" } } as const;
-    const { provider, transport } = setup(
-      { url: "", detect: true },
-      {
-        [PROBE("http://127.0.0.1:8888")]: down,
-        [PROBE("http://127.0.0.1:8080")]: { body: SEARX_BODY },
-      },
-    );
-    expect(await provider.isAvailable(SIGNAL)).toEqual({ ok: true });
-    expect(urlsOf(transport)).toEqual([
-      PROBE("http://127.0.0.1:8888"),
-      PROBE("http://127.0.0.1:8080"),
-    ]);
-    // 감지한 주소는 다음 탐침에서 맨 앞이다
-    await provider.isAvailable(SIGNAL);
-    expect(urlsOf(transport)[2]).toBe(PROBE("http://127.0.0.1:8080"));
+  test("a search without an address fails closed and sends nothing", async () => {
+    const { provider, transport } = setup({ url: "" }, answering);
+    const failed = await failure(provider.search(request(), SIGNAL));
+    expect(failed.code).toBe("unavailable");
+    expect(failed.retryable).toBe(false);
+    expect(transport.requests).toHaveLength(0);
   });
 
   test("a configured address is the only one asked", async () => {
     const { provider, transport } = setup(
-      { url: "http://localhost:9999/searx/", detect: true },
+      { url: "http://localhost:9999/searx/" },
       { [PROBE("http://localhost:9999/searx")]: { body: SEARX_BODY } },
     );
     expect(await provider.isAvailable(SIGNAL)).toEqual({ ok: true });
     expect(urlsOf(transport)).toEqual([PROBE("http://localhost:9999/searx")]);
   });
 
-  test("turning detection off without an address asks nobody", async () => {
-    const { provider, transport } = setup({ url: "", detect: false });
-    expect(await provider.isAvailable(SIGNAL)).toMatchObject({ ok: false, reason: "unreachable" });
-    expect(transport.requests).toHaveLength(0);
-  });
-
   test("json 403 maps to json-disabled and warns once", async () => {
     const { provider, logs } = setup(
-      { url: "http://127.0.0.1:8888", detect: false },
+      { url: "http://127.0.0.1:8888" },
       { [PROBE("http://127.0.0.1:8888")]: { status: 403, body: "Forbidden" } },
     );
     expect(await provider.isAvailable(SIGNAL)).toMatchObject({
@@ -169,20 +159,20 @@ describe("searxng detection", () => {
 
   test("a page that is not search json is unreachable", async () => {
     const { provider } = setup(
-      { url: "http://127.0.0.1:8888", detect: false },
+      { url: "http://127.0.0.1:8888" },
       { [PROBE("http://127.0.0.1:8888")]: { body: "<html>hello</html>" } },
     );
     expect(await provider.isAvailable(SIGNAL)).toMatchObject({ ok: false, reason: "unreachable" });
   });
 
   test("a metadata address is refused even as a configured endpoint", async () => {
-    const { provider, transport } = setup({ url: "http://169.254.169.254", detect: false });
+    const { provider, transport } = setup({ url: "http://169.254.169.254" });
     expect(await provider.isAvailable(SIGNAL)).toMatchObject({ ok: false, reason: "unreachable" });
     expect(transport.connections()).toBe(0);
   });
 
   test("an invalid configured address is unreachable without a request", async () => {
-    const { provider, transport } = setup({ url: "ftp://127.0.0.1:8888", detect: false });
+    const { provider, transport } = setup({ url: "ftp://127.0.0.1:8888" });
     expect(await provider.isAvailable(SIGNAL)).toMatchObject({ ok: false, reason: "unreachable" });
     expect(transport.requests).toHaveLength(0);
   });
@@ -194,10 +184,7 @@ describe("searxng search", () => {
     `${BASE}/search?${new URLSearchParams({ q, format: "json", pageno: "1", categories: "general", ...extra }).toString()}`;
 
   test("normalize searxng results", async () => {
-    const { provider } = setup(
-      { url: BASE, detect: false },
-      { [searchUrl("xeon")]: { body: SEARX_BODY } },
-    );
+    const { provider } = setup({ url: BASE }, { [searchUrl("xeon")]: { body: SEARX_BODY } });
     const result = await provider.search(request(), SIGNAL);
     expect(result.items).toEqual([
       {
@@ -224,7 +211,7 @@ describe("searxng search", () => {
   test("directives become engine operators and recency becomes time_range", async () => {
     const q = 'foo "exact phrase" -spam site:docs.example.org filetype:pdf intitle:"a b"';
     const { provider, transport } = setup(
-      { url: BASE, detect: false },
+      { url: BASE },
       {
         [searchUrl('foo "exact phrase" -spam site:docs.example.org filetype:pdf intitle:"a b"', {
           time_range: "week",
@@ -237,10 +224,7 @@ describe("searxng search", () => {
   });
 
   test("several site operators are left to the post filter", async () => {
-    const { provider } = setup(
-      { url: BASE, detect: false },
-      { [searchUrl("foo")]: { body: SEARX_BODY } },
-    );
+    const { provider } = setup({ url: BASE }, { [searchUrl("foo")]: { body: SEARX_BODY } });
     const result = await provider.search(request("foo site:a.example site:b.example"), SIGNAL);
     expect(result.items.length).toBeGreaterThan(0);
   });
@@ -254,7 +238,7 @@ describe("searxng search", () => {
     const failures = await Promise.all(
       cases.map((item) => {
         const { provider } = setup(
-          { url: BASE, detect: false },
+          { url: BASE },
           {
             [searchUrl("xeon")]: {
               status: item.status,
@@ -275,7 +259,7 @@ describe("searxng search", () => {
 
   test("every engine failing is an upstream error the chain can route around", async () => {
     const { provider } = setup(
-      { url: BASE, detect: false },
+      { url: BASE },
       {
         [searchUrl("xeon")]: {
           body: JSON.stringify({
@@ -290,18 +274,8 @@ describe("searxng search", () => {
   });
 
   test("a body that is not search json is an upstream error", async () => {
-    const { provider } = setup(
-      { url: BASE, detect: false },
-      { [searchUrl("xeon")]: { body: "oops" } },
-    );
+    const { provider } = setup({ url: BASE }, { [searchUrl("xeon")]: { body: "oops" } });
     expect((await failure(provider.search(request(), SIGNAL))).code).toBe("upstream_error");
-  });
-
-  test("a search without a detected address detects first and fails closed", async () => {
-    const { provider, transport } = setup({ url: "", detect: true });
-    const failed = await failure(provider.search(request(), SIGNAL));
-    expect(failed.code).toBe("unavailable");
-    expect(urlsOf(transport)).toEqual(SEARXNG_DETECT_CANDIDATES.map(PROBE));
   });
 });
 
@@ -311,7 +285,7 @@ describe("searxng through the service", () => {
   test("results carry session source ids and a free cost", async () => {
     const world = await makeWebWorld({
       builtinSearch: true,
-      settings: { search: { searxng: { url: BASE, detect: false } } },
+      settings: { search: { searxng: { url: BASE } } },
       hosts: { localhost: ["127.0.0.1"] },
     });
     world.transport.route(PROBE(BASE), { body: SEARX_BODY });
@@ -329,7 +303,7 @@ describe("searxng through the service", () => {
   test("searxng loopback endpoint exception is provider-only", async () => {
     const world = await makeWebWorld({
       builtinSearch: true,
-      settings: { search: { searxng: { url: BASE, detect: false } } },
+      settings: { search: { searxng: { url: BASE } } },
     });
     world.transport.route(PROBE(BASE), { body: SEARX_BODY });
     world.transport.route(`${BASE}/search?q=xeon&format=json&pageno=1&categories=general`, {

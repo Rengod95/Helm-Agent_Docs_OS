@@ -144,7 +144,10 @@ export function createProviderRegistry(deps: ProviderRegistryDeps): WebProviderC
       const plugin: SearchCandidate[] = [];
       for (const entry of created.values())
         if (entry.kind === "search") plugin.push(entry.candidate);
-      return [...deps.builtin.search, ...plugin];
+      const builtin = deps.builtin.search.filter(
+        (candidate) => candidate.enabled === undefined || candidate.enabled(),
+      );
+      return [...builtin, ...plugin];
     },
     fetchCandidates() {
       refresh();

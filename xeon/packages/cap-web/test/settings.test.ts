@@ -16,7 +16,6 @@ const SPEC_KEYS = [
   "search.provider",
   "search.pluginOrder",
   "search.searxng.url",
-  "search.searxng.detect",
   "search.wrapper.model",
   "search.wrapper.maxContinuations",
   "search.modelTool",
@@ -104,7 +103,7 @@ describe("web settings", () => {
       fetchTtlMinutes: 15,
       maxMegabytes: 256,
     });
-    expect(DEFAULT_WEB_SETTINGS.search.searxng).toEqual({ url: "", detect: true });
+    expect(DEFAULT_WEB_SETTINGS.search.searxng).toEqual({ url: "" });
     expect(DEFAULT_WEB_SETTINGS.policy.unseenUrl).toBe("ask");
   });
 

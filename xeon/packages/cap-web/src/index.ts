@@ -126,6 +126,7 @@ export { planChain } from "./search/chain.ts";
 export type { ChainPlan } from "./search/chain.ts";
 export {
   decideModelSearchTool,
+  isWrapperOnlyChain,
   normalizeHostedSearch,
   publishedDateOfPageAge,
 } from "./search/model-tool.ts";
@@ -134,7 +135,6 @@ export { parseSearchQuery, recencyCutoff } from "./search/query.ts";
 export type { ParsedQuery } from "./search/query.ts";
 export {
   createSearxngProvider,
-  SEARXNG_DETECT_CANDIDATES,
   SEARXNG_JSON_DISABLED_WARNING,
   SEARXNG_PROVIDER_ID,
   searxngManifest,

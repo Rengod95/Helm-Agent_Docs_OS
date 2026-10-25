@@ -61,16 +61,8 @@ const webSettings = defineSettings("l2.web", {
       widget: "text",
       order: 102,
       label: "SearXNG 주소",
-      help: "비워 두면 로컬 후보 주소를 감지한다",
+      help: "비워 두면 SearXNG를 쓰지 않는다. 주소를 찾아 나서지 않는다",
     },
-    since: "0.1.0",
-  },
-  "search.searxng.detect": {
-    type: Type.Boolean(),
-    default: true,
-    runtimeChange: "nextTurn",
-    allowedScopes: NO_SESSION,
-    ui: { tab: "tools", widget: "toggle", order: 103, label: "SearXNG 자동 감지" },
     since: "0.1.0",
   },
   "search.wrapper.model": {
@@ -415,7 +407,7 @@ export interface WebSettings {
   readonly search: {
     readonly provider: string;
     readonly pluginOrder: readonly string[];
-    readonly searxng: { readonly url: string; readonly detect: boolean };
+    readonly searxng: { readonly url: string };
     readonly wrapper: { readonly model: string; readonly maxContinuations: number };
     readonly modelTool: "auto" | "hosted" | "function" | "off";
   };
@@ -447,7 +439,7 @@ export const DEFAULT_WEB_SETTINGS: WebSettings = {
   search: {
     provider: "auto",
     pluginOrder: [],
-    searxng: { url: "", detect: true },
+    searxng: { url: "" },
     wrapper: { model: "auto", maxContinuations: 3 },
     modelTool: "auto",
   },
@@ -542,10 +534,6 @@ export function readWebSettings(layers: ScopeStack): WebSettings {
       pluginOrder: stringList(effective("search.pluginOrder", layers)),
       searxng: {
         url: stringOr(effective("search.searxng.url", layers), fallback.search.searxng.url),
-        detect: booleanOr(
-          effective("search.searxng.detect", layers),
-          fallback.search.searxng.detect,
-        ),
       },
       wrapper: {
         model: stringOr(effective("search.wrapper.model", layers), fallback.search.wrapper.model),

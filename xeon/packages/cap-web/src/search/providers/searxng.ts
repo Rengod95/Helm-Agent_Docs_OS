@@ -1,4 +1,4 @@
-import { eachAsync, parse, parseJson, type Logger } from "@xeon/contracts";
+import { parse, parseJson, type Logger } from "@xeon/contracts";
 import type {
   ProviderAvailabilityWeb,
   ProviderSearchItem,
@@ -17,19 +17,13 @@ import {
 } from "../../policy/guarded-http.ts";
 import { renderQueryText } from "./query-text.ts";
 
-// L2.web.spec §4.8.3, plan B8. SearXNG 감지와 검색 provider. 별도 프로세스의 HTTP만 쓴다(AGPL 코드를 번들하거나 링크하지 않는다).
-// 요청은 provider endpoint 예외(§4.6.5)로 나간다: 설정한 주소나 감지한 주소의 origin 하나만, 루프백과 사설 주소도 허용하되
+// L2.web.spec §4.8.3, plan B8. 사용자가 설정한 주소(`l2.web.search.searxng.url`)로 가는 SearXNG 검색 provider. 별도 프로세스의 HTTP만 쓴다
+// (AGPL 코드를 번들하거나 링크하지 않는다). 주소를 찾아 나서는 자동 감지는 없다(ADR-0005 개정, 사용자 결정 H1): 주소가 비어 있으면
+// 이 provider는 어디에도 요청을 보내지 않는다.
+// 요청은 provider endpoint 예외(§4.6.5)로 나간다: 설정한 주소의 origin 하나만, 루프백과 사설 주소도 허용하되
 // 메타데이터 주소는 거부한다. 이 예외는 이 provider의 요청에만 쓰이고 `web.fetch`의 콘텐츠 URL에는 쓰이지 않는다.
 
 export const SEARXNG_PROVIDER_ID = "searxng";
-
-/** 주소를 설정하지 않았을 때 보는 후보. 순서대로 본다 [가정: SearXNG Docker 예시의 흔한 포트] */
-export const SEARXNG_DETECT_CANDIDATES: readonly string[] = [
-  "http://127.0.0.1:8888",
-  "http://127.0.0.1:8080",
-  "http://localhost:8888",
-  "http://localhost:8080",
-];
 
 const PROBE_TIMEOUT_MS = 1500;
 /**
@@ -48,7 +42,7 @@ export const SEARXNG_JSON_DISABLED_WARNING =
   "searxng_json_disabled: add json to search.formats in SearXNG settings.yml";
 
 const SEARXNG_JSON_DISABLED_NOTICE =
-  "SearXNG was detected but its JSON format is turned off. Add json to search.formats in settings.yml.";
+  "The configured SearXNG answers 403 because its JSON format is turned off. Add json to search.formats in settings.yml.";
 
 export function searxngManifest(): WebProviderManifest {
   return {
@@ -79,8 +73,8 @@ export function searxngManifest(): WebProviderManifest {
 
 export interface SearxngDeps {
   readonly http: ProviderHttpDeps;
-  /** 호출 때마다 읽는 SearXNG 설정(`l2.web.search.searxng.*`) */
-  readonly settings: () => { readonly url: string; readonly detect: boolean };
+  /** 호출 때마다 읽는 SearXNG 설정(`l2.web.search.searxng.url`). 빈 문자열이면 설정하지 않은 것이다 */
+  readonly settings: () => { readonly url: string };
   readonly logger: Logger;
 }
 
@@ -193,7 +187,7 @@ function failureOfStatus(status: number, headers: Readonly<Record<string, string
   };
 }
 
-type Detection =
+type Probed =
   | { readonly ok: true; readonly base: string }
   | {
       readonly ok: false;
@@ -204,7 +198,6 @@ type Detection =
 export function createSearxngProvider(deps: SearxngDeps): WebSearchProvider {
   const manifest = searxngManifest();
   const clients = new Map<string, BoundProviderHttp>();
-  let detected: string | undefined;
   let warnedJsonDisabled = false;
 
   function clientFor(base: string): BoundProviderHttp {
@@ -217,7 +210,7 @@ export function createSearxngProvider(deps: SearxngDeps): WebSearchProvider {
   }
 
   /** 주소 하나를 탐침한다 */
-  async function probeOne(base: string, signal: AbortSignal): Promise<Detection> {
+  async function probeOne(base: string, signal: AbortSignal): Promise<Probed> {
     const sent = await clientFor(base).request(
       {
         method: "GET",
@@ -249,83 +242,50 @@ export function createSearxngProvider(deps: SearxngDeps): WebSearchProvider {
     return { ok: true, base };
   }
 
-  /** 설정한 주소 하나, 없으면 감지 후보를 순서대로. 첫 성공이 이긴다 */
-  async function detect(signal: AbortSignal): Promise<Detection> {
-    const settings = deps.settings();
-    let candidates: string[];
-    if (settings.url !== "") {
-      const base = baseOf(settings.url);
-      if (base === undefined) {
-        return {
-          ok: false,
-          reason: "unreachable",
-          detail: "the configured SearXNG URL is not a valid http(s) URL",
-        };
-      }
-      candidates = [base];
-    } else if (settings.detect) {
-      candidates = [
-        ...new Set([...(detected === undefined ? [] : [detected]), ...SEARXNG_DETECT_CANDIDATES]),
-      ];
-    } else {
+  /** 설정한 주소를 탐침한다. 주소가 비어 있거나 http(s) 주소가 아니면 요청을 보내지 않는다 */
+  async function probeConfigured(signal: AbortSignal): Promise<Probed> {
+    const { url } = deps.settings();
+    if (url === "") {
       return {
         ok: false,
         reason: "unreachable",
-        detail: "SearXNG detection is off and no address is set",
+        detail: "no SearXNG address is set (l2.web.search.searxng.url)",
       };
     }
-    const jsonDisabled: string[] = [];
-    const reasons: string[] = [];
-    const found = await eachAsync(
-      candidates,
-      async (base): Promise<{ value: Detection } | undefined> => {
-        if (signal.aborted) {
-          return { value: { ok: false, reason: "unreachable", detail: "the probe was aborted" } };
-        }
-        const probed = await probeOne(base, signal);
-        if (probed.ok) {
-          detected = probed.base;
-          return { value: probed };
-        }
-        if (probed.reason === "json-disabled") jsonDisabled.push(probed.detail);
-        reasons.push(probed.detail);
-        return undefined;
-      },
-    );
-    if (found !== undefined) return found.value;
-    const [firstDisabled] = jsonDisabled;
-    if (firstDisabled !== undefined) {
-      if (!warnedJsonDisabled) {
-        warnedJsonDisabled = true;
-        deps.logger.warn("web.searxng_json_disabled", { detail: firstDisabled });
-      }
-      return { ok: false, reason: "json-disabled", detail: firstDisabled };
+    const base = baseOf(url);
+    if (base === undefined) {
+      return {
+        ok: false,
+        reason: "unreachable",
+        detail: "the configured SearXNG URL is not a valid http(s) URL",
+      };
     }
-    return { ok: false, reason: "unreachable", detail: reasons.join("; ").slice(0, 500) };
+    if (signal.aborted) {
+      return { ok: false, reason: "unreachable", detail: "the probe was aborted" };
+    }
+    const probed = await probeOne(base, signal);
+    if (!probed.ok && probed.reason === "json-disabled" && !warnedJsonDisabled) {
+      warnedJsonDisabled = true;
+      deps.logger.warn("web.searxng_json_disabled", { detail: probed.detail });
+    }
+    return probed;
   }
 
   async function isAvailable(signal: AbortSignal): Promise<ProviderAvailabilityWeb> {
-    const found = await detect(signal);
+    const found = await probeConfigured(signal);
     if (found.ok) return { ok: true };
     return { ok: false, reason: found.reason, detail: found.detail };
   }
 
-  /** 검색에 쓸 주소. 설정한 주소가 있으면 그것, 아니면 마지막으로 감지한 주소, 없으면 지금 감지한다 */
-  async function baseForSearch(signal: AbortSignal): Promise<string> {
-    const settings = deps.settings();
-    if (settings.url !== "") {
-      const base = baseOf(settings.url);
-      if (base !== undefined) return base;
-    } else if (detected !== undefined) {
-      return detected;
-    }
-    const found = await detect(signal);
-    if (found.ok) return found.base;
+  /** 검색에 쓸 주소. 설정한 주소뿐이다. 비어 있거나 잘못된 주소면 요청 없이 `unavailable`이다 */
+  function baseForSearch(): string {
+    const base = baseOf(deps.settings().url);
+    if (base !== undefined) return base;
     throw new WebHttpError({
       code: "unavailable",
-      message: `SearXNG is unavailable: ${found.reason}`,
-      retryable: true,
-      detail: { reason: found.reason },
+      message: "SearXNG is unavailable: no valid address is configured.",
+      retryable: false,
+      detail: { reason: "unreachable" },
     });
   }
 
@@ -333,7 +293,7 @@ export function createSearxngProvider(deps: SearxngDeps): WebSearchProvider {
     request: ProviderSearchRequest,
     signal: AbortSignal,
   ): Promise<ProviderSearchResult> {
-    const base = await baseForSearch(signal);
+    const base = baseForSearch();
     const query = new URLSearchParams({
       q: renderQueryText(request, { includeDates: false }),
       format: "json",

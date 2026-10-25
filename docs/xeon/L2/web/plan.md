@@ -12,7 +12,7 @@ binds: [xeon/packages/cap-web/**]
 
 ## 1. 목표와 마일스톤 배치
 
-목표: `L2.web.spec`의 네 능력 중 1차 구성요소(`web.search`, `web.fetch`, `web.browse`의 playwright-core provider, 공통 웹 계약)를 첫 사용 버전(M3 종료)까지 만든다. M2 종료 조건 중 웹 항목 "`web.search`가 SearXNG를 감지하면 SearXNG를 쓰고, 없으면 내장 검색 래퍼를 쓴다"(`product.scope.spec` §4.4 M2)를 M2에서 만족한다.
+목표: `L2.web.spec`의 네 능력 중 1차 구성요소(`web.search`, `web.fetch`, `web.browse`의 playwright-core provider, 공통 웹 계약)를 첫 사용 버전(M3 종료)까지 만든다. M2 종료 조건 중 웹 항목 E4 "SearXNG 주소를 설정하지 않으면 내장 검색 래퍼, 설정하면 SearXNG"(`product.scope.spec` §4.4.1)를 M2에서 만족한다.
 
 ### 1.1 M0·M1·M2
 
@@ -149,7 +149,7 @@ xeon/plugins/web-exa/  web-brave/      # M3 (§1.3)
 | B5 | 비용 계측: reported/estimated/free, `cap_web_usage`, 월 무료 한도 경고, 가격표 asOf 90일 검사(`just web-pricing` 레시피, `just verify`에서 경고만), 세션당 호출 상한 | B2, B4(테이블) | M | M2 |
 | B6 | fetch 파이프라인: 협상 Markdown, 변환 모듈(readability+linkedom+turndown, defuddle), Worker, 승격(플러그인 후보, 브라우저는 B10 뒤 연결), 저장, 절단, rawRef 재조회, `urls` 일괄. WEB-R16 lint override와 check-layers 패턴 | B3, B4, B5 | L | M2 |
 | B7 | search provider 레지스트리와 선택 체인: X 후보 조회, `orderProviderCandidates`, 탐침 캐시, fallback 기록, 명시 선택 규칙, 쿼리 지시어 파서와 후처리 필터, `relaxed`, `decideModelSearchTool` | B3, B4, B5, X.primitives.plan의 후보 등록 API | M | M2 |
-| B8 | SearXNG 감지와 provider: 주소 후보, `format=json` 탐침, 403 → `json-disabled`, 결과 정규화, endpoint 예외 | B7 | S | M2 |
+| B8 | 설정한 SearXNG provider: 설정 주소 하나, `format=json` 탐침, 403 → `json-disabled`, 결과 정규화, endpoint 예외. 자동 감지 없음(H1) | B7 | S | M2 |
 | B9 | 내장 검색 래퍼: `HostedSearchPort` 사용, `pause_turn` 재요청 루프(상한 3), 결과 정규화(`encrypted_content` 제외), `unsupported-model`·`org-disabled` 탐침, 비용 계산, 모델 테이프 테스트. `normalizeHostedSearch` | B7, L1.models.plan의 `HostedSearchPort` | M | M2 |
 | B10 | browse playwright provider: 세션 관리와 상한, 필터 프록시, 이동 재검사, 사람 확인, 기본 비활성 동작, ref 부여, `code` 출력. Bun 호환 스모크(launch → goto → ariaSnapshot → close, connectOverCDP)와 Node 24 자식 우회(`runtime: node`). fetch 승격의 브라우저 경로 연결 | B3, B5, B6, L0.process.plan의 자식 프로세스 API | L | M3 초입 (결정 D4) |
 | B11 | 설정 키 `l2.web.*` 전체(`L2.web.spec` §6), 도메인 목록 범위 합집합 읽기, `checkSettingDef` 통과 테스트 | B1 | S | M2 |
@@ -185,14 +185,14 @@ xeon/plugins/web-exa/  web-brave/      # M3 (§1.3)
 |---|---|---|
 | `test/defs.test.ts` | `four web capabilities validate with zero issues` | `validateCapability` 4건과 `validateCapabilitySet` 이슈 0건 |
 | 같음 | `search tool params exclude provider` | 도구 파라미터에 `provider`가 없고 `toInput` 결과가 서비스 입력 스키마를 통과 |
-| `test/chain.test.ts` | `chain order table` | 표 주도 테스트: (호출 인자, 설정, 플러그인 유무·순서, SearXNG 감지, 래퍼 가용) 조합마다 시도 순서가 §4.8.2와 같음. 명시 선택은 원소 하나 |
+| `test/chain.test.ts` | `chain order table` | 표 주도 테스트: (호출 인자, 설정, 플러그인 유무·순서, SearXNG 주소 설정 여부, 래퍼 가용) 조합마다 시도 순서가 §4.8.2와 같음. 명시 선택은 원소 하나 |
 | 같음 | `explicit provider does not fall back` | 호출 인자 provider가 탐침 실패면 `unavailable`, `detail.reason` 있음, 다른 provider 호출 0 |
 | 같음 | `auto chain records fallbacks` | 플러그인 `no-key` → SearXNG `unreachable` → 래퍼 성공에서 `meta.fallbacks` 2줄, `stage: "probe"` |
 | 같음 | `call error falls back only for safe methods` | 호출 중 `rate_limited`는 다음 후보, `invalid_input`은 즉시 실패 |
 | `test/availability.test.ts` | `unavailable reasons` | 5개 사유 각각: 키 없는 플러그인 `no-key`, 연결 거부 SearXNG `unreachable`, 403 SearXNG `json-disabled`, 래퍼 조직 차단 400 뒤 `org-disabled`, hosted 미지원 모델 `unsupported-model` |
 | 같음 | `probe cache ttl` | 성공 탐침은 5분, 실패 탐침은 30초 동안 다시 보내지 않음(수동 시계) |
 | `test/searxng.test.ts` | `json 403 maps to json-disabled` | 403 픽스처 → `json-disabled`, 경고 1회 |
-| 같음 | `detect candidate order` | 설정 주소가 있으면 그 주소만, 없으면 후보 4개 순서 |
+| 같음 | `without an address no former detect address is probed even when one would answer` | 주소가 비어 있으면 옛 감지 후보 4개가 응답해도 요청 0건. 설정 주소가 있으면 그 주소만 |
 | 같음 | `normalize searxng results` | 픽스처 JSON → `results`, `sources`, `sN`, `cost.basis = "free"` |
 | `test/wrapper.test.ts` | `pause_turn continuation limit` | 테이프에서 `pause_turn` 4회 → 재요청 3회 후 부분 결과, `wrapper_continuation_limit` 경고 |
 | 같음 | `wrapper drops encrypted content` | 결과 JSON 어디에도 `encrypted_content`, `encrypted_index` 없음 |
@@ -252,7 +252,7 @@ xeon/plugins/web-exa/  web-brave/      # M3 (§1.3)
 
 M2:
 
-1. `L2.web.spec` §9 수용 기준 1~13이 단위 테스트로 통과한다. 특히 1(SearXNG 감지 시 SearXNG, 없으면 래퍼)과 2(`meta.fallbacks`)가 M2 종료 조건 "`web.search`가 SearXNG를 감지하면 SearXNG를 쓰고, 없으면 내장 검색 래퍼를 쓴다"(`product.scope.spec` §4.4 M2)를 확인한다.
+1. `L2.web.spec` §9 수용 기준 1~13이 단위 테스트로 통과한다. 특히 1(주소 미설정이면 래퍼, 설정하면 SearXNG)과 2(`meta.fallbacks`)가 M2 종료 조건 E4 "SearXNG 주소 미설정이면 내장 검색 래퍼, 설정하면 SearXNG"(`product.scope.spec` §4.4.1)를 확인한다.
 2. Helm 테스트 그룹이 `g.capability(WebSearchKey).search({ query })`와 `g.capability(WebFetchKey).fetch({ url })`를 `cap-web` import 없이 호출하고 타입 검사를 통과한다(`F.capabilities.spec` §9 수용 기준 4).
 3. `cd xeon && just verify` 종료코드 0. 가격표 검사는 경고만 내고 0으로 끝난다.
 4. WEB-R16 확인: `fetch/convert/` 아래에 `fetch(` 호출을 넣은 임시 변경으로 `just lint` 또는 `just check-layers`가 실패하는 것을 한 번 확인하고 되돌린다.
@@ -306,9 +306,9 @@ WEB.1~WEB.5는 브랜치 `m2/web`에서, WEB.6은 브랜치 `m2/webkn`에서 구
 | WEB.4 | B6 | 구현 | `fetch/convert/`(WEB-R16 영역: `convert.ts`, `sanitize.ts`, `readability.ts`, `defuddle.ts`, `turndown.ts`), `convert-worker.ts`(네트워크 전역을 지운 뒤 변환 모듈을 동적 import), `convert-runner.ts`(Worker 실행기와 직접 실행기), `local-provider.ts`, `promote.ts`(플러그인 후보 승격. 브라우저 승격은 비워 둠), `raw-read.ts`, `truncate.ts`, `robots-gate.ts`, `pipeline.ts`. `convert.test.ts`, `convert-worker.test.ts`, `fetch-pipeline.test.ts`, `fetch-cache-behavior.test.ts`. WEB-R16 확인(plan §6 4번): `convert/`에 `fetch(` 호출과 `node:http` import를 넣으면 `just check-layers`와 `just lint`가 각각 실패하는 것을 확인하고 되돌렸다 |
 | WEB.5 | B7 | 구현 | `search/chain.ts`(`planChain`, `runChain`: 탐침, fallback 기록, 명시 선택 규칙), `probe-cache.ts`(성공 5분, 실패 30초), `query.ts`(지시어 파서, 후처리 필터, `relaxed`), `model-tool.ts`(`decideModelSearchTool`), `registry.ts`(플러그인 등록을 provider로 만들고 내장 후보와 함께 `WebProviderCatalog`로 냄), `search-api.ts`(검색 서비스: 마스킹, 상한, 메모, single-flight, 정규화, 비용), `service.ts`와 `runtime.ts`(포트를 받아 `WebService` 조립), `manifest.ts`. `chain.test.ts`, `availability.test.ts`, `query.test.ts`, `model-tool.test.ts`, `registry.test.ts`, `search-api.test.ts` |
 
-| WEB.6 | B8 | 구현 | `search/providers/searxng.ts`(주소 감지, `format=json` 탐침, 403 `json-disabled`, 결과 정규화, endpoint 예외), `query-text.ts`(지시어를 검색어 연산자로 되돌림). 요청은 `createBoundProviderHttp`의 로컬 endpoint 예외로 나가며 `web.fetch` 콘텐츠 URL에는 열리지 않는다. `searxng.test.ts`(후보 순서, 설정 주소 단독, 감지 끔, 403, 비JSON, 메타데이터 주소 거부, 정규화, 연산자, 상태 코드별 오류, 서비스 통과, endpoint 예외는 provider 전용) |
+| WEB.6 | B8 | 구현 | `search/providers/searxng.ts`(설정 주소 탐침, `format=json`, 403 `json-disabled`, 결과 정규화, endpoint 예외), `query-text.ts`(지시어를 검색어 연산자로 되돌림). 요청은 `createBoundProviderHttp`의 로컬 endpoint 예외로 나가며 `web.fetch` 콘텐츠 URL에는 열리지 않는다. `searxng.test.ts`(설정 주소 단독, 주소 없으면 요청 없음, 403, 비JSON, 메타데이터 주소 거부, 정규화, 연산자, 상태 코드별 오류, 서비스 통과, endpoint 예외는 provider 전용) |
 | WEB.6 | B9 | 구현 | `search/providers/builtin-wrapper.ts`(`HostedSearchPort` 호출, `pause_turn` 이어 요청 상한, 사용량 합산 비용, `unsupported-model`·`org-disabled` 탐침), `model-tool.ts`의 `normalizeHostedSearch`와 `publishedDateOfPageAge`, `providers/builtin.ts`(내장 후보 조립), `testing/fake-hosted-search.ts`(테이프 재생 포트), `test/fixtures/tapes/*.json`. `wrapper.test.ts`(이어 요청 상한, `encrypted_content` 없음, 비용 추정, 조직 차단 기억과 해제, 오류 변환, 도메인 필터 전달, 정규화) |
-| WEB.6 | E4 | 구현 | `e4-search-selection.int.test.ts`: 루프백 가짜 SearXNG를 운영 전송(`createHttpTransport`)으로 호출해 `meta.provider = "searxng"`, 닫힌 포트면 `builtin-wrapper`와 `fallbacks[0] = { provider: "searxng", stage: "probe", reason: "unreachable" }`, 403이면 `json-disabled`와 안내 한 번, 기본 후보 주소 감지(녹화 전송), 명시 선택은 내려가지 않음 |
+| WEB.6 | E4 | 구현 | `e4-search-selection.int.test.ts`: 루프백 가짜 SearXNG를 운영 전송(`createHttpTransport`)으로 호출해 `meta.provider = "searxng"`, 닫힌 포트면 `builtin-wrapper`와 `fallbacks[0] = { provider: "searxng", stage: "probe", reason: "unreachable" }`, 403이면 `json-disabled`와 안내 한 번, 주소 미설정이면 옛 감지 후보 주소에 SearXNG가 있어도 래퍼가 답하고 요청 0건(H1), 명시 선택은 내려가지 않음 |
 
 ### 8.2 guarded-fetch 0.1.6 소스 확인 (WEB.2)
 
@@ -366,8 +366,8 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 
 ### 8.6 WEB.6 구현 메모
 
-- 내장 후보는 `createWebRuntime`이 만든다. SearXNG는 항상 후보이고(origin `detected`, 캐시 `persist`), 내장 래퍼는 `hostedSearch`(`ModelService.hostedSearch`)를 받았을 때만 후보다(origin `builtin`, 캐시 `session`). 시험처럼 체인을 직접 짜려면 `builtinSearch: false`로 끈다. 두 provider의 설정(`l2.web.search.searxng.*`, `l2.web.search.wrapper.*`)은 스레드 범위가 없는 유효 값을 호출마다 읽는다.
-- SearXNG 탐침 응답 상한은 512 KiB다(spec §4.8.3에서 64 KiB에서 올렸다). 실제 인스턴스의 응답 크기는 재지 못했다 [가정]. 감지 후보 주소 네 개(`127.0.0.1`·`localhost`의 8888, 8080)도 실제 Docker 구성과 대조하지 못했다.
+- 내장 후보는 `createWebRuntime`이 만든다. SearXNG는 `l2.web.search.searxng.url`이 비어 있지 않을 때만 후보이고(`SearchCandidate.enabled`가 호출마다 판정, origin `detected`, 캐시 `persist`), 내장 래퍼는 `hostedSearch`(`ModelService.hostedSearch`)를 받았을 때만 후보다(origin `builtin`, 캐시 `session`). 시험처럼 체인을 직접 짜려면 `builtinSearch: false`로 끈다. 두 provider의 설정(`l2.web.search.searxng.*`, `l2.web.search.wrapper.*`)은 스레드 범위가 없는 유효 값을 호출마다 읽는다.
+- SearXNG 탐침 응답 상한은 512 KiB다(spec §4.8.3에서 64 KiB에서 올렸다). 실제 인스턴스의 응답 크기는 재지 못했다 [가정]. 감지 후보 주소 네 개는 H1로 삭제했다.
 - 탐침 실패는 `ProbeCache`가 30초 기억한다. 그래서 SearXNG를 새로 띄워도 최대 30초 동안은 이전 실패가 보인다. 설정 변경 때 `ProbeCache.forget`을 부르는 연결은 HOST.6이 한다.
 - `computeCost`는 provider가 `basis: "estimated"`로 알린 `cost`를 사용량으로만 읽고 가격표로 다시 계산한다(spec §4.4.1). 내장 래퍼가 이 경로를 쓴다. 플러그인 provider가 `estimated`를 알리면 금액이 가격표 값으로 바뀐다.
 - `GuardedHttp`의 로컬 endpoint 비교(`endpointMatches`)가 대괄호 IPv6(`[::1]:8888`)를 호스트와 포트로 나누어 비교하도록 고쳤다. 전에는 대괄호를 붙인 채 비교해 IPv6 로컬 endpoint가 항상 거부됐다(M2 검토 18). 시험: `guarded-http.test.ts`.

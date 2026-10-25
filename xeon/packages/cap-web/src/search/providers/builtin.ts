@@ -6,7 +6,9 @@ import type { WebSettings } from "../../settings.ts";
 import { createWrapperProvider } from "./builtin-wrapper.ts";
 import { createSearxngProvider } from "./searxng.ts";
 
-// 내장 검색 provider 후보(L2.web.spec §3.6.2). 체인 순서는 origin이 정한다: 감지된 SearXNG(detected)가 내장 래퍼(builtin)보다 앞이다.
+// 내장 검색 provider 후보(L2.web.spec §3.6.2). 체인 순서는 origin이 정한다: 사용자가 주소를 설정한 SearXNG가 내장 래퍼(builtin)보다 앞이다.
+// SearXNG는 `l2.web.search.searxng.url`이 비어 있으면 후보에서 빠진다. 주소를 찾아 나서는 감지는 없다(ADR-0005 개정, 사용자 결정 H1).
+// origin 이름 `detected`는 F 계약(`ProviderOrigin`)의 이름을 그대로 쓴 것이다. 여기서는 "사용자가 설정한 내장 provider" 자리를 뜻한다.
 
 export interface BuiltinSearchDeps {
   readonly http: ProviderHttpDeps;
@@ -28,6 +30,7 @@ export function createBuiltinSearchCandidates(deps: BuiltinSearchDeps): readonly
       }),
       origin: "detected",
       cachePolicy: "persist",
+      enabled: () => deps.settings().searxng.url !== "",
     },
   ];
   if (deps.hosted !== undefined) {

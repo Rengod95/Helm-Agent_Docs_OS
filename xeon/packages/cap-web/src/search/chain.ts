@@ -11,8 +11,8 @@ import type { WebFailure } from "../errors.ts";
 import type { SearchCandidate } from "../ports/providers.ts";
 import { failureOfThrown } from "../provider-errors.ts";
 
-// L2.web.spec §4.8.2 선택 체인. 호출 인자 provider → 설정 provider → auto(키 플러그인 pluginOrder 순 → 감지된 SearXNG →
-// 내장 래퍼). 명시 선택(호출 인자, 설정)은 다른 후보로 내려가지 않는다. auto에서는 탐침 실패와 호출 중 일부 오류가 다음
+// L2.web.spec §4.8.2 선택 체인. 호출 인자 provider → 설정 provider → auto(키 플러그인 pluginOrder 순 → 사용자가 주소를 설정한
+// SearXNG → 내장 래퍼). 후보에는 사용자가 설정한 provider만 들어간다. 주소를 찾아 나서는 감지는 없다. 명시 선택(호출 인자, 설정)은 다른 후보로 내려가지 않는다. auto에서는 탐침 실패와 호출 중 일부 오류가 다음
 // 후보로 내려가고 `meta.fallbacks`에 남는다.
 
 /** auto 체인에서 다음 후보로 내려가는 호출 오류 코드. `invalid_input` 같은 입력 결함은 바로 실패한다 */
@@ -83,7 +83,7 @@ export async function runChain(
     return err({
       code: "unavailable",
       message: explicit
-        ? "The requested search provider is not registered."
+        ? "The requested search provider is not registered or not configured."
         : "No search provider is registered.",
       retryable: false,
       detail: { reason: explicit ? "unknown_provider" : "no_provider", fallbacks: [] },

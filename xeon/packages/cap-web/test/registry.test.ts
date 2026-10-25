@@ -83,6 +83,50 @@ describe("provider registry", () => {
     expect(creations).toBe(2);
   });
 
+  test("a builtin candidate whose enabled() is false is not offered until it turns true", () => {
+    let configured = false;
+    const catalog = createProviderRegistry({
+      source: { list: () => [] },
+      builtin: {
+        search: [
+          {
+            provider: fakeSearchProvider("searxng"),
+            origin: "detected",
+            cachePolicy: "persist",
+            enabled: () => configured,
+          },
+          {
+            provider: fakeSearchProvider("builtin-wrapper"),
+            origin: "builtin",
+            cachePolicy: "session",
+          },
+        ],
+        fetch: [],
+      },
+      http: {
+        resolver: fakeResolver(),
+        transport: fixtureTransport(),
+        secrets: undefined,
+        guard: undefined,
+      },
+      clock: manualClock(),
+      logger: {
+        debug: () => {},
+        info: () => {},
+        warn: () => {},
+        error: () => {},
+        child() {
+          return this;
+        },
+      },
+      extensionSetting: () => undefined,
+    });
+    const ids = () => catalog.searchCandidates().map((candidate) => candidate.provider.id);
+    expect(ids()).toEqual(["builtin-wrapper"]);
+    configured = true;
+    expect(ids()).toEqual(["searxng", "builtin-wrapper"]);
+  });
+
   test("the builtin candidates come first", () => {
     const builtin = fakeSearchProvider("searxng");
     const catalog = createProviderRegistry({
