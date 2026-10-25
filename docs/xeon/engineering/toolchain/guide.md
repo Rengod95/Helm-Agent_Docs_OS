@@ -438,6 +438,8 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | `layer` (matrix F, X, L0, L1, L2, L3, L4) | `just setup` 뒤 `just ci-layer <층> <main이 아니면 true>`. `scripts/ci-layer.sh`가 층의 패키지 디렉터리로 `turbo run lint typecheck test --filter=<dir>`를 만든다. `true`이면 `--affected`를 더한다 | `just ci-layer L1`, `just ci-layer L1 true` |
 | `hygiene` | `fmt-check`, `check-layers`, `depcruise`, `knip` | 같은 레시피 |
 | `docs` | `docs-route --check --allow-missing` | 같은 레시피 |
+
+- 문서의 `[미결` 표지 수는 `just docs-route --unresolved`가 문서마다 셉니다. 추적 규칙은 `review.unresolved`입니다. verify 단계가 아니고 종료코드는 항상 0입니다.
 | `smoke` [제안] | 모델 테이프로 `xeon chat` 한 턴과 강제 종료 뒤 재개(`eng.testing.guide` TS-01 `scenario`). M1에서 더한다 | `just smoke` [제안] |
 
 - 체크아웃은 `fetch-depth: 0`이다. `--affected`는 기준 커밋이 있어야 한다. 얕은 체크아웃이면 turbo가 모든 패키지를 바뀐 것으로 본다(`_research/stack-status.md §5-B`, §9).

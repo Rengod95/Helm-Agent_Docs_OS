@@ -2,6 +2,7 @@
 // Docs router and validator.
 //   docs-route --task <t[,t]> [paths|ids|L1/loop ...]   print the docs to read (repo-relative paths)
 //   docs-route --check [--allow-missing]                validate front matter, ids, links and binds
+//   docs-route --unresolved                              count `[미결` markers per document (review.unresolved)
 // Inputs: docs/xeon/_routing/routes.yaml and the front matter of docs/xeon/**/*.md (except _research).
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
@@ -84,6 +85,29 @@ export function loadDocs(repoRoot: string): Doc[] {
     const { front, error } = parseFrontmatter(readFileSync(full, "utf8"));
     return { file: relative(repoRoot, full), front, frontError: error };
   });
+}
+
+/** Number of `[미결` markers in one document. */
+export interface UnresolvedCount {
+  /** Path relative to the repository root. */
+  readonly file: string;
+  readonly count: number;
+}
+
+const UNRESOLVED_MARKER = "[미결";
+
+/** `[미결` markers per document of docs/xeon (except _research), documents without markers left out, sorted by path. */
+export function countUnresolved(repoRoot: string): UnresolvedCount[] {
+  const docsRoot = join(repoRoot, "docs/xeon");
+  if (!existsSync(docsRoot)) return [];
+  const files: string[] = [];
+  walkMarkdown(docsRoot, files);
+  const counts: UnresolvedCount[] = [];
+  for (const full of files.toSorted()) {
+    const count = readFileSync(full, "utf8").split(UNRESOLVED_MARKER).length - 1;
+    if (count > 0) counts.push({ file: relative(repoRoot, full), count });
+  }
+  return counts;
 }
 
 function toLayoutEntry(value: unknown): LayoutEntry {
@@ -403,6 +427,7 @@ if (import.meta.main) {
     options: {
       task: { type: "string", multiple: true },
       check: { type: "boolean", default: false },
+      unresolved: { type: "boolean", default: false },
       "allow-missing": { type: "boolean", default: false },
       ids: { type: "boolean", default: false },
       verbose: { type: "boolean", default: false },
@@ -426,6 +451,13 @@ if (import.meta.main) {
       `docs-route: ${report.errors.length} error(s), ${report.warnings.length} warning(s)\n`,
     );
     process.exit(report.errors.length > 0 ? 1 : 0);
+  }
+  if (values.unresolved) {
+    const counts = countUnresolved(repoRoot);
+    for (const { file, count } of counts) process.stdout.write(`${count}\t${file}\n`);
+    const total = counts.reduce((sum, { count }) => sum + count, 0);
+    process.stdout.write(`docs-route: ${total} [미결 marker(s) in ${counts.length} document(s)\n`);
+    process.exit(0);
   }
   const tasks = (values.task ?? [])
     .flatMap((value) => value.split(","))

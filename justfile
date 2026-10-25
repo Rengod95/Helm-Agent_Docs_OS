@@ -63,7 +63,7 @@ depcruise:
 knip:
     cd xeon && just knip
 
-# 문서 라우팅·프런트매터 검사 또는 조회: docs-route --check | --task implement <경로>
+# 문서 라우팅·프런트매터 검사 또는 조회: docs-route --check | --task implement <경로> | --unresolved
 [group('local')]
 docs-route +args:
     cd xeon && just docs-route {{args}}
