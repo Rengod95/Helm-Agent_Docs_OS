@@ -733,7 +733,7 @@ sequenceDiagram
 
 - 시간 제한값: 입력 `timeoutSec`, 없으면 설정 `l2.dialog.ask.timeoutSec`. 0이면 제한이 없다.
 - 시간 제한이 있으면 승인 요청에 만료 시각과 만료 시 결과를 함께 넘기는 것이 정본이다 [가정: L1.tools.spec이 만료를 내구적으로 관리한다. F.wire-settings.spec §4.6 A안 "대기 시간 제한을 엔진이 따로 관리한다"]. 만료 시 결과는 `defaultAskAnswer(questions)`가 있으면 그 답(`decision: "answer"`)이고, 없으면 취소(`cancel`)다.
-  - [잠정: review.m2-plan DG.1] F `ApprovalRequestInput`과 `L2ApprovalRequest`에 만료 필드가 없다(F 요청). 그동안 `ask/expiry.ts`가 프로세스 안 타이머(`xeon.os`의 `scheduler`)로 같은 일을 한다. 승인이 아직 대기이면 `ask`가 타이머를 걸고, 만료되면 추천 답으로 `respond`하거나 `cancel`한다. 사용자가 먼저 답했으면 `respond`의 `applied: false`로 끝난다.
+  - [잠정: review.m2-plan DG.1] F `ApprovalRequestInput`과 `L2ApprovalRequest`에 만료 필드(`expiresAt`, `onExpire`)가 들어왔다(m2c G1-11). 만료 타이머와 이 어댑터가 필드를 채우는 구현은 M3이므로(`review.m3-plan` M3-06) 그때까지 `ask/expiry.ts`가 프로세스 안 타이머(`xeon.os`의 `scheduler`)로 같은 일을 한다. 승인이 아직 대기이면 `ask`가 타이머를 걸고, 만료되면 추천 답으로 `respond`하거나 `cancel`한다. 사용자가 먼저 답했으면 `respond`의 `applied: false`로 끝난다.
   - 잠정 구현의 한계: 프로세스가 끝나면 타이머가 사라지고, 재시작 뒤 같은 `requestId`로 `ask`를 다시 부르면 제한 시간을 처음부터 다시 잰다. `defaulted`와 `timeout` 표지는 메모리에만 있어 재시작 뒤에는 각각 `defaulted: false`와 `aborted`로 읽힌다. F에 만료 필드가 오르면 이 타이머를 지운다.
   - 모든 질문에 추천 항목이 있을 때만 자동 답을 만든다. 일부 질문만 추천이 있으면 나머지 답을 지어내야 하므로 만들지 않는다 [제안].
   - 정본 설계에서 만료 시각은 요청 커밋 시각 + 제한이다. 프로세스가 없던 동안 시각이 지났으면 다음 실행 때 L1.tools가 해결하고 cap-dialog는 타이머를 갖지 않는다.
@@ -840,7 +840,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 #### 4.2.6 클라이언트 선언
 
 - 클라이언트는 `list`로 `CommandInfo[]`를 받아 자동완성을 만든다. 명령 목록이 바뀌면 다음 `list`에서 반영된다.
-- [미결] wire 노출. F.wire-settings.spec §3.3.1 메서드 표에는 명령·첨부·상태줄 메서드가 없다. `commands.list`, `commands.run`, `attachments.add`, `status.list`, `notify.list`(M3), `aside.ask`(2차)를 코어 wire 메서드로 더하도록 요청한다. 대안은 M2 이후 열리는 확장 메서드(`ext.<id>.<동사>`, F.wire-settings.spec §4.2)다(§10 D-2).
+- wire 노출 [결정: m2c G1-01]. 명령은 코어 wire 메서드 `command.list`, `command.run`이다(`F.wire-settings.spec` §3.3.1). `CommandInfo`와 `CommandRunOutput`은 이 능력 정의의 스키마를 그대로 쓴다. 첨부(`attachments.add`), 상태줄(`status.list`), 알림(`notify.list`, M3), 곁가지 질문(`aside.ask`, 2차)의 wire 메서드는 아직 없고 [미결]이다(§10 D-2).
 
 ### 4.3 동작 명령과 다른 L2 능력
 
@@ -1071,7 +1071,7 @@ export const manifest = defineManifest({
 ## 10. 미결 사항
 
 - D-1 닫힘. 호출 문맥은 `F.capabilities.spec` §3.2 `CallOptions.context`다(`L2.readme` §5.8).
-- D-2 [미결] wire 메서드 추가. `commands.list`, `commands.run`, `attachments.add`, `status.list`, `notify.list`, `aside.ask`를 F.wire-settings.spec 코어 표에 둘지, 확장 메서드(`ext.cap-dialog.*`)로 둘지. 클라이언트 명령 선언 형식이 F.wire-settings와 어긋날 위험이 여기서 생긴다.
+- D-2 [일부 닫힘, m2c G1-01] wire 메서드 추가. 닫힌 것: 명령 목록과 실행은 코어 표의 `command.list`, `command.run`이고 `CommandInfo`는 어긋나지 않는다. 남은 것 [미결]: `attachments.add`, `status.list`, `notify.list`, `aside.ask`를 코어 표에 둘지, 확장 메서드(`ext.cap-dialog.*`)로 둘지.
 - D-3 닫힘(구현 일부는 M3, review.m2-plan DG.1) L1.tools.spec과의 약속. 닫힌 것: 승인 요청 멱등(같은 `requestKey`, core-tools `open`), `input_required` 재시도(`status: "input_required"`에 `approvalId`, L1A.4), 질문에 `allow` 응답 거부(`applied: false`), 응답 모양(`QuestionAnswer`, §4.1.1). 닫힌 것(m2 F.8): (2) 비대화형 판정(`CallContext.interactive`), (3) `QuestionItem.header`, `QuestionOption.recommended`, (4) F `ApprovalService`의 비차단 `open`·`wait`·`get`(L1.tools.spec §8.3 F 요청 11). (4)로 정식 `ApprovalsPortFactory`(`questionApprovalsOver`)를 만들었고 실제 `ApprovalService` 위에서 시험한다. 같은 키의 서비스 쪽 내용 비교와 재시작 뒤 재요청이 처음 요청의 body를 돌려주는 것은 L1A 쪽 한계로 남았다(어댑터가 메모리 안에서 비교한다). 닫힘(m2c G1-11): (1) 만료 시각과 만료 결과의 계약 필드(`ApprovalRequestInput.expiresAt`·`onExpire`, `L2ApprovalRequest`의 같은 이름 필드, `resolvedBy: "expired"`)는 F에 들어갔다. 만료 타이머와 이 어댑터가 `expiresAt`을 채우는 구현은 M3다(`review.m3-plan` M3-06). 닫힘(m2c G1-09): 승인 origin의 `caller`는 `approvalCallerOf(CallContext.caller)`로 만든다. 이 어댑터는 자기 변환을 두지 않고, 호출 문맥이 없는 요청은 `host`로 본다(`F.records.spec` §3.3.1).
 - D-4 [미결] 상태줄 id와 `dialog.notify.emit`의 `origin` 확인. `CallOptions.context.caller.extension`(`L2.readme` §5.8)과 대조한다. X의 capability 래퍼가 채우는 값이 확장 이름인지 scope id인지 `X.primitives.spec`과 맞춘다(`L2.work.spec` W-6과 같은 문제).
 - D-5 [미결] 곁가지 질문의 기록 위치와 사용량 집계(2차).

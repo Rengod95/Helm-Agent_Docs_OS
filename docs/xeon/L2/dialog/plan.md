@@ -190,7 +190,7 @@ M3:
 | 위험 | 대응 |
 |---|---|
 | 승인 프로토콜 인터페이스가 L1.tools 작성 중이라 바뀜 | `src/ports/approvals.ts` 한 곳에 격리한다. 테스트는 가짜 서비스로만 돌린다. 요청 멱등과 재시도 규칙은 D2 시작 전에 L1.tools 작성자와 합의한다(`L2.work.plan` §7과 같은 합의) |
-| 클라이언트 명령 선언 형식이 F.wire-settings와 어긋남 | `CommandInfoSchema`를 F에 두고 wire 메서드(`commands.list`)의 결과 원소로 그대로 쓰도록 요청한다(D-2). 확정 전에는 in-process 클라이언트(CLI)만 쓴다 |
+| 클라이언트 명령 선언 형식이 F.wire-settings와 어긋남 | 닫음(m2c G1-01). `CommandInfoSchema`가 wire 메서드 `command.list`의 결과 원소로 그대로 쓰인다(D-2). 첨부·상태줄·알림의 wire 메서드는 아직 없다 |
 | 알림 소유 경계 미결(`L2.readme` §10 미결 15, 제안은 `dialog.notify`가 OS 알림과 푸시를 모두 소유) | M2에는 알림을 넣지 않는다. D11은 `classifyNotice`와 당겨 읽기만 먼저 만들고, 전달 경로는 D-6 결정 뒤 붙인다 |
 | 셸 주입이 사용자 모르게 실행됨 | `run`의 확인 게이트를 기본으로 두고 `input` 지점 경로는 셸 템플릿을 치환하지 않는다. 실행은 L1.tools의 일반 권한·샌드박스를 거친다 |
 | pi 포크와 원본의 차이가 커짐 | 치환 함수(`parseCommandArgs`, `substituteArgs`)는 손대지 않고 pi 테스트를 그대로 옮겨 회귀를 잡는다. 바꾼 점은 `PATCHES.md`에 모은다 |
