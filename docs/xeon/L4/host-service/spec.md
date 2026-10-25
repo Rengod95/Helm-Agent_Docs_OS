@@ -208,12 +208,17 @@ export interface Engine {
   readonly startedAt: number;                             // ms. host.status.startedAt의 원천
   readonly ports: EnginePorts;                            // §3.3.2
   readonly shutdown: EngineShutdown;                      // 종료 협조 창구(deviation). EOF, 신호, host.shutdown이 request(reason)을 부른다(HS-31)
+  diagnose(signal: AbortSignal): Promise<EngineDiagnostics>; // 진단 함수(HS-69). `doctor`와 첫 실행 안내가 부른다. 외부 바이너리 점검은 자식 프로세스를 띄우므로 엔진을 열 때가 아니라 이 호출에서 한다
   close(): Promise<void>;                                 // task 결과를 쓰지 않는다(ADR-0006 §3.1)
+}
+
+export interface EngineDiagnostics {
+  readonly binaries: Result<BinaryCheckReport, { readonly kind: "cancelled" }>;  // L0.os.spec §3.6.1. 쓸 수 없는 필수 바이너리는 `ready: false`, `blocking`이다
 }
 
 export type AssembleIssue =
   | { readonly code: "catalog"; readonly issues: readonly CatalogIssue[] }
-  | { readonly code: "store"; readonly message: string }
+  | { readonly code: "store"; readonly message: string; readonly failure: StoreFailureKind }  // HS-68. failure는 F.records.spec §3.7 7항의 안내 분류다
   | { readonly code: "missingService"; readonly service: string }
   | { readonly code: "plugin"; readonly plugin: string; readonly message: string };  // 기본 플러그인이나 extraPlugins 하나의 설치 실패(deviation)
 
@@ -568,7 +573,7 @@ export declare function listenServiceSocket(path: string, maxFrameBytes?: number
 | `EngineConnectOptions.settingGroups` | `AssembleOptions.settingGroups` | 같다 |
 | `EngineConnectOptions.devWireRoundTrip` | `AssembleOptions.devChecks` | 이름만 다르다 |
 | `EngineConnectOptions.observe` | 없음. CLI가 `Transport`를 감싸 `send`·`onMessage`를 탭한다 | 호스트는 관여하지 않는다 |
-| `EngineStartError.kind` | `AssembleError.issues[].code`(`catalog`, `store`, `missingService`), `EnsureResult.reason` | CLI가 자기 kind로 바꾼다. `store`는 `message`로 `fts5Missing`·`dataDirPermission`·`storeUnavailable`을 구별한다 [가정: L0.store 오류 모양에 따름]. `catalog` → `catalogConflict`, `missingService` → `missingService`이고 둘 다 CLI 종료코드 1이다. 나머지 kind는 3이다(`L4.cli.spec` §4.10) |
+| `EngineStartError.kind` | `AssembleError.issues[].code`(`catalog`, `store`, `missingService`), `EnsureResult.reason` | CLI가 자기 kind로 바꾼다. `store`는 `message`로 `fts5Missing`·`dataDirPermission`·`storeFutureVersion`·`storeCorrupt`·`storeMigrationFailed`·`storeUnavailable`을 구별하고 `failure`로 안내 분류(`future_version`, `corrupt`, `migration_failed`, `unavailable`)를 준다(HS-68). `catalog` → `catalogConflict`, `missingService` → `missingService`이고 둘 다 CLI 종료코드 1이다. 나머지 kind는 3이다(`L4.cli.spec` §4.10) |
 | `EngineHandle.shutdown(reason)` | in-process: `InProcessHost.close()`(HS-31, 시한은 `l0.process.shutdown.timeoutMs`). socket: `HostConnection.close()` | 시한 인자 없이 설정 키 값을 쓴다 |
 | `xeon host --stdio`(`CliHostCommand`) | `runHostCommand({ kind: "host-stdio" }, io)` | 같은 일. 설정 그룹을 넘길 때는 `startStdioHost`의 `assemble.settingGroups` |
 | `xeon service *`, `xeon config schema` | `runHostCommand({ kind: "service-…" \| "config-schema" }, io)` | 결과는 종료코드와 stderr 문구. 구조화 결과가 필요하면 CLI가 `ensureService`, `readRegistration`을 직접 쓴다 |
@@ -981,16 +986,28 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 - HS-65. 실제 엔진 시험은 엔진이 서지 못하면 건너뛰지 않고 시험 파일이 실패한다(`test/fixtures/real-engine.ts`). 건너뛰면 조립 실패가 모든 실제 엔진 시험을 가려 검증이 통과한 것처럼 보인다.
 - HS-66. `user_bash` 지점 페이로드의 `cwd`는 그 대화의 작업 디렉터리다. 조립 루트가 `loopExtensionUnit({ workingDirectory })`에 `(threadId) => string | undefined`를 넘기고, 이 함수는 세션 서비스의 thread 행 `workspace`를 읽는다(설정 엔진의 project·local 층 조회와 같은 함수 `threadWorkspaceOf`). 작업 디렉터리가 없는 대화나 모르는 thread는 빈 문자열이다. thread 읽기가 실패(busy, io, row_invalid)해도 값은 같은 빈 문자열이지만 `host.thread_workspace_unreadable` 경고(threadId, reason)로 남긴다: 읽기 실패를 작업 디렉터리 없음으로 조용히 바꾸지 않는다 [결정: 통합 검토 L5 후속 N-5]. 엔진 프로세스의 cwd를 대신 쓰지 않는다: 대화마다 작업 디렉터리가 다르다.
 
+### 4.16 M2 마감 조립 [결정: m2c 마감 G1-12, G2-05, G2-06, G2-07]
+
+L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 규칙은 `m2c` 트랙 T3가 L0에 낸 API를 쓴다.
+
+- HS-67. L0 연결 네 가지.
+  - `xeon.os`는 조립 루트의 `osPlatform`이 올리고 핸들(`fileLock`, `checkBinaries`)을 쥔다. F `OsService`에는 이 둘이 없고(`L0.os.spec` §3.6.1, §3.11) `platformOsPlugin`은 서비스만 내놓기 때문이다. 시작 실패는 값으로 돌려준다(L0.os.spec §3.10).
+  - `l0.os.log.level`은 값이 아니라 읽기 함수(`logLevelOf`)로 넘긴다. 로그를 낼 때마다 읽으므로 설정을 바꾸면 다음 줄부터 반영되고 사용자 설정 파일을 읽기 전의 첫 줄만 기본값 `info`다.
+  - 출력 spill 파일과 임시 파일은 OS 임시 폴더가 아니라 `<dirs.state>/spill`(소유자 전용 0700)에 둔다. `createExecService`의 `tempDir`로 넘기고, 평문 출력이 남기 때문에 운영 조립은 항상 넘긴다(`L0.exec.spec` §3.8).
+  - 샌드박스 서비스를 올릴 때 `SandboxServiceHandle.startSelfTests(xeon.exec)`를 한 번 부른다. 시작을 기다리지 않는다: 첫 실행 결과가 나오면 `sandbox.self_test`로 한 줄 남기고(통과는 info, 실패는 warn과 실패 항목 id), 이후 `l0.sandbox.selfTestIntervalMin`분마다는 서비스가 반복한다. 서비스 dispose가 반복을 멈춘다. 시험 자체가 던진 경우의 기록은 서비스가 한다.
+- HS-68. 저장소 열기 실패와 실행 중 손상 [결정: m2c G2-06]. `AssembleError { code: "store" }`의 이슈는 `failure`(`future_version`, `corrupt`, `migration_failed`, `unavailable`, F.records.spec §3.7 7항의 `storeFailureKindOf`)와 CLI가 구별하는 `message`를 가진다. `message`는 `fts5Missing`(FTS5 없음), `dataDirPermission`(권한, 지원하지 않는 파일 시스템), 그 밖은 분류에 따라 `storeFutureVersion`, `storeCorrupt`, `storeMigrationFailed`, `storeUnavailable`이다. 안내와 복구 길이 달라 한 이름으로 합치지 않는다. 마이그레이션 전 스냅샷(`VACUUM INTO`, `<데이터 디렉터리>/backups`)을 만들지 못하면 단계를 하나도 실행하지 않고 `migration_failed`(`code: snapshot_failed:*`)로 끝난다. 열기 경고는 로그로 남긴다: 스냅샷을 만들었으면 `store.migration_snapshot`(info, 경로·소유자·버전), 옛 스냅샷을 지우지 못했으면 `store.snapshot_prune_failed`(warn), 그 밖의 경고는 `store.warning`(종류)이다. 실행 중에 읽은 행이 스키마와 다르면(`row_invalid`) wire `store.corrupt`(5007, `details.where`)로 알리고, 종결된 thread에 쓰거나 수명 주기 호출을 하면 `thread.closed`(3007, `details.threadId`)로 알린다. 이전에는 각각 `store.io`(`details.code: "row_invalid"`)와 `thread.notFound`였다.
+- HS-69. 진단 함수 [결정: m2c G2-07]. `Engine.diagnose(signal)`는 첫 실행 점검과 `doctor`가 부른다. 지금은 외부 바이너리 필수/선택 표 점검(`OsServiceHandle.checkBinaries`, L0.os.spec §3.6.1) 하나이고, 결과 `ready: false`면 호출자가 환경 문제로 보고한다(CLI는 종료코드 2 계열, 데스크톱 첫 실행 화면은 `hint`를 보인다). 엔진을 열 때는 점검하지 않는다: `--version` 확인이 바이너리마다 자식 프로세스를 띄운다. wire에는 진단 메서드가 없다(`host.diagnose`는 반려, F.wire-settings.spec §3.3). 사이드카 안의 엔진을 wire로만 보는 클라이언트(데스크톱)는 이 결과를 받을 길이 아직 없고 이를 어떻게 낼지는 §10 미결 28이다.
+
 ## 5. 실패와 경계 사례
 
 | 사례 | 처리 |
 |---|---|
 | `buildCatalog`가 코어 키 중복을 돌려준다 | `AssembleError { code: "catalog" }`. `xeon`은 문제 목록을 stderr에 쓰고 종료코드 1. CLI in-process 경로는 `catalogConflict`로 바꿔 같은 1이다(`L4.cli.spec` §4.10). 서비스면 등록 파일을 쓰지 않는다 |
 | 포트가 요구하는 서비스가 없다(플러그인 누락) | `AssembleError { code: "missingService" }`. 종료코드 1. CLI in-process 경로는 `missingService`, 1이다 |
-| DB를 열 수 없다(권한, 손상, FTS5 없음) | `AssembleError { code: "store" }`. FTS5 검사는 L0.store(TC-11) |
+| DB를 열 수 없다(권한, 손상, 새 버전, 마이그레이션 실패, FTS5 없음) | `AssembleError { code: "store", message, failure }`. FTS5 검사는 L0.store(TC-11). 안내가 갈리는 분류(`future_version`, `corrupt`, `migration_failed`, `unavailable`)를 `failure`에 싣는다(HS-68) |
 | 처리기가 알 수 없는 예외를 던진다 | `-32603 "Internal error"`, 원문은 로그에만(HS-08) |
 | 저장소 쓰기가 실패한다(`turn.start` 제출, 열 때 복구, thread 생성, 임대 획득) | `StoreError`·`LeaseError`는 `Bug`로 던지지 않고 `5003 store.busy`, `5004 store.diskFull`, `5005 store.readOnly`, `5006 store.io`로 옮긴다. `ownership_lost`·`lease_lost`는 3002, `thread_not_found`는 3001이다(`apps/host/src/store-error.ts`) |
-| 저장소 읽기가 실패한다(`ThreadPort.exists`·`position`, `EventFeedPort.headSeq`·`read`) | 포트는 `Result<_, ReadFailure>`로 돌려주고 처리기가 `5003 store.busy`나 `5006 store.io`로 옮긴다. 손상된 행(`row_invalid`)도 `5006 store.io`이고 `details.code`가 `"row_invalid"`다. 재전송 중 읽기가 실패하면 구독을 닫고 `events.ended { reason: "replayFailed" }`를 보낸다 |
+| 저장소 읽기가 실패한다(`ThreadPort.exists`·`position`, `EventFeedPort.headSeq`·`read`) | 포트는 `Result<_, ReadFailure>`로 돌려주고 처리기가 `5003 store.busy`나 `5006 store.io`로 옮긴다. 손상된 행(`row_invalid`)은 `5007 store.corrupt`이고 `details.where`가 `<표>.<열>` 위치다(HS-68). 재전송 중 읽기가 실패하면 구독을 닫고 `events.ended { reason: "replayFailed" }`를 보낸다 |
 | 재전송 읽기가 실패한다 | 로그를 남기고 구독을 지운 뒤 `events.ended { sub, reason: "replayFailed" }` 알림을 보낸다. 클라이언트는 마지막 `to`부터 다시 구독한다 |
 | 서버 응답이 `WIRE_METHODS[m].result` 스키마와 맞지 않는다 | 클라이언트가 `HostClientError("invalidResponse")`로 거부한다. 알림 params가 스키마와 맞지 않으면 핸들러를 부르지 않는다 |
 | `host.hello` 전 `turn.start` | 1001(HS-01) |
@@ -1122,8 +1139,9 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 20. [미결] HS-27 후속: 서비스 모드에서 live 작업 때문에 쥔 잠금을 작업이 끝난 뒤에 놓는 시점. `ActivityPort.onChange`와 thread별 활성 판정이 필요하다. M3 서비스 모드(H10~H11)에서 정한다.
 21. [미결] F 요청, 열린 turn의 재개 메서드. 재시작 뒤 승인을 기다리던 turn은 `TurnPort.resume`으로 재개해야 응답을 받아 이어지는데 wire에는 재개 메서드가 없다(HS-30과 같은 뿌리). 지금은 시험과 서비스 모드 자동 재개(M3)만 `resume`을 부른다. `thread.open` 결과나 전용 메서드(`turn.resume`)로 낼지 F가 정한다.
 22. [미결] `thread.read`는 가지 전체를 읽고 자른다(HS-49). 긴 thread를 위해 L1.persistence에 `before`·`limit` 질의(`branchItemRecords`)가 필요하다. 또 fork가 만든 thread의 가지는 원본의 history를 잇지 않는다: `thread.started{forkedFrom}`의 `parentId`가 비어 있어 `readBranch`가 원본 item을 포함하지 않는다(`L1.persistence.spec` §4.10.3 확인 필요). L1B 요청.
-23. [미결] 종결된 thread에 대한 수명 주기 호출(`thread_closed`)을 옮길 와이어 오류가 없어 `thread.notFound`로 알린다(F 요청: `thread.closed` kind).
+23. (닫힘 m2c G1-07) 종결된 thread에 대한 수명 주기 호출(`thread_closed`)은 `thread.closed`(3007)로 알린다(HS-68).
 24. [미결] 프로젝트 신뢰 저장 파일은 프로세스 사이 잠금이 없다(호스트 둘이 동시에 결정을 저장하면 나중 쓰기가 앞 쓰기를 덮을 수 있다). L0.os의 파일 잠금 API가 필요하다. `project_trust` 지점 발화는 thread 없는 발화 경로가 생긴 뒤에 연결한다.
 25. [미결] PLT 요청, `McpProcessPort`: 표준 입출력 스트림을 주는 자식 실행(`secret://` env 주입, 종료는 stdin 닫기 → SIGTERM → SIGKILL, `BackgroundRegistry` 등록). 호스트는 `Bun.spawn`을 직접 쓸 수 없다(DR-07).
 26. [미결] F 요청, 명령 처리기의 출력. `CommandResourceDef.handler`가 `void`를 돌려줘 `/group status` 같은 명령이 보일 텍스트를 낼 길이 없다.
 27. [미결] 문서 정정 요청 D-12의 F 쪽: `F.wire-settings.spec` §3.4.3의 4·5단계 사이에 취소 창이 있다(HS-21), `F.records.spec` §4.3과 §3.4.4의 `n`·`afterSeq`는 발신자 값이다(HS-18). F 작성자가 반영한다.
+28. [미결] 데스크톱이 외부 바이너리 점검 결과(`Engine.diagnose`)를 받을 wire 경로. `host.diagnose`는 서비스 원격 진단이 필요해지면 다시 올리기로 반려됐고(F.wire-settings.spec §3.3), 데스크톱 첫 실행 화면(G2-08)은 사이드카 안의 엔진을 wire로만 본다. 후보는 `host.status` 결과에 `binaries` 필드를 더하는 것, 진단 서브커맨드(`xeon doctor --json`)를 Rust 셸이 실행하는 것이다. 어느 쪽이든 F 변경 또는 T7 결정이다.

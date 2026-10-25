@@ -6,8 +6,10 @@ import type { PortKey } from "@xeon/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
+  storeFailureKindOf,
   type LeaseHolder,
   type SessionService,
+  type StoreFailureKind,
   type StoreService,
 } from "@xeon/contracts/records";
 import {
@@ -39,9 +41,9 @@ import { createExecPlatformModule, detectExecPlatform } from "@xeon/platform-exe
 import {
   createIdFactory,
   createLocalIdFactory,
-  platformOsPlugin,
   readOsRuntime,
   type OsRuntime,
+  type OsServiceHandle,
 } from "@xeon/platform-os";
 import { createProcessShutdown, processPlugin, type ProcessShutdown } from "@xeon/platform-process";
 import { createSecretsRuntime } from "@xeon/platform-secrets";
@@ -50,18 +52,20 @@ import {
   storePlugin,
   type OpenedStore,
   type StoreOpenError,
+  type StoreWarning,
 } from "@xeon/platform-store";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
 import { builtinUnits, installFailureOf, unitOfModule } from "./assembly/extensions.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
-import { sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
+import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
 import { createSecretsPort, settingKeysReferencing } from "./assembly/secrets.ts";
 import { createProjectTrust } from "./assembly/trust.ts";
 import { createSettingsEngine } from "./assembly/settings-engine.ts";
 import {
   execOptionsOf,
+  logLevelOf,
   operationsSource,
   primitivesSource,
   sandboxSource,
@@ -120,7 +124,7 @@ function describeIssue(issue: AssembleIssue): string {
     case "catalog":
       return `catalog: ${issue.issues.map((entry) => `${entry.code} ${"key" in entry ? entry.key : ""}`).join(", ")}`;
     case "store":
-      return `store: ${issue.message}`;
+      return `store: ${issue.message} (${issue.failure})`;
     case "missingService":
       return `missing service ${issue.service}`;
     case "plugin":
@@ -130,28 +134,22 @@ function describeIssue(issue: AssembleIssue): string {
   }
 }
 
-/** 저장소를 열지 못한 이유를 CLI가 구별하는 이름으로 옮긴다(L4.host-service.spec §3.3.5 EngineStartError 대응) */
-function storeMessageOf(error: StoreOpenError): string {
-  switch (error.kind) {
-    case "fts5_missing":
-      return "fts5Missing";
-    case "permission":
-    case "unsupported_filesystem":
-      return "dataDirPermission";
-    case "db_path_invalid":
-    case "foreign_database":
-    case "corrupt":
-    case "busy":
-    case "disk_full":
-    case "io":
-    case "migration_checksum_mismatch":
-    case "migration_failed":
-    case "migration_future_version":
-    case "migration_gap":
-      return "storeUnavailable";
-    default:
-      return assertNever(error, "StoreOpenError");
+/** CLI가 구별하는 이름. 분류(`failure`)마다 안내가 달라서 한 이름으로 합치지 않는다(`F.records.spec` §3.7 7항) */
+const STORE_MESSAGE_BY_FAILURE: Readonly<Record<StoreFailureKind, string>> = {
+  future_version: "storeFutureVersion",
+  corrupt: "storeCorrupt",
+  migration_failed: "storeMigrationFailed",
+  unavailable: "storeUnavailable",
+};
+
+/** 저장소를 열지 못한 이유를 분류와 CLI가 구별하는 이름으로 옮긴다(L4.host-service.spec §3.3.5 EngineStartError 대응) */
+export function storeIssueOf(error: StoreOpenError): AssembleIssue & { readonly code: "store" } {
+  const failure = storeFailureKindOf(error.kind);
+  if (error.kind === "fts5_missing") return { code: "store", message: "fts5Missing", failure };
+  if (error.kind === "permission" || error.kind === "unsupported_filesystem") {
+    return { code: "store", message: "dataDirPermission", failure };
   }
+  return { code: "store", message: STORE_MESSAGE_BY_FAILURE[failure], failure };
 }
 
 function defaultProjectTrustOf(value: unknown): "ask" | "always" | "never" {
@@ -210,6 +208,51 @@ export function threadWorkspaceOf(
     }
     return found.value?.workspace ?? undefined;
   };
+}
+
+/**
+ * 저장소 열기 경고를 로그에 남긴다(L0.store.spec §4.6.1). 마이그레이션 전 스냅샷은 사용자 DB를 지키는 복구 수단이라 위치를 info로 남기고,
+ * 보관 수를 넘은 옛 스냅샷을 지우지 못한 것은 warn이다. 그 밖의 경고도 종류를 warn으로 남긴다. 값은 싣지 않는다
+ */
+export function logStoreWarning(logger: Logger, warning: StoreWarning): void {
+  switch (warning.kind) {
+    case "migration_snapshot":
+      logger.info("store.migration_snapshot", {
+        path: warning.path,
+        owner: warning.owner,
+        from: warning.from,
+        to: warning.to,
+      });
+      return;
+    case "snapshot_prune_failed":
+      logger.warn("store.snapshot_prune_failed", { path: warning.path, code: warning.code });
+      return;
+    case "fs_unknown":
+      logger.warn("store.warning", { kind: warning.kind, dir: warning.dir });
+      return;
+    case "permission_fixed":
+      logger.warn("store.warning", {
+        kind: warning.kind,
+        path: warning.path,
+        from: warning.from,
+        to: warning.to,
+      });
+      return;
+    case "checkpoint_incomplete":
+      logger.warn("store.warning", {
+        kind: warning.kind,
+        busy: warning.busy,
+        log: warning.log,
+        checkpointed: warning.checkpointed,
+      });
+      return;
+    case "fts5_missing":
+    case "lock_provider_none":
+      logger.warn("store.warning", { kind: warning.kind });
+      return;
+    default:
+      assertNever(warning, "StoreWarning");
+  }
 }
 
 /** 엔진 하나를 만든다. 실패하면 AssembleError를 던지고, 그때까지 연 자원을 닫는다 */
@@ -289,6 +332,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
 
   let portsHandle: PortsHandle | undefined;
   let shutdownCoordinator: ProcessShutdown | undefined;
+  let osHandle: OsServiceHandle | undefined;
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
 
   async function closeAll(): Promise<void> {
@@ -331,13 +375,18 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 1. 경로: L0.os
     await register(
       "platform-os",
-      platformOsPlugin(
+      osPlatform(
         {
           resourceDir: hostResourceDir(),
           logSink: logSink.sink,
           logRedact: (line) => redact.current(line),
+          // 설정 l0.os.log.level은 live다: 로그를 낼 때마다 읽어 변경이 다음 줄부터 반영된다(G1-12)
+          logLevel: logLevelOf(settings),
         },
         runtime,
+        (handle) => {
+          osHandle = handle;
+        },
       ),
     );
     const os: OsService = requirePort(ext, OsPortKey, "xeon.os");
@@ -402,13 +451,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       engineVersion: ENGINE_VERSION,
     });
     if (!store.ok) {
-      throw new AssembleError([{ code: "store", message: storeMessageOf(store.error) }], {
-        cause: store.error,
-      });
+      throw new AssembleError([storeIssueOf(store.error)], { cause: store.error });
     }
     opened.store = store.value;
     await register("platform-store", storePlugin(store.value));
     opened.registered = true;
+    for (const warning of store.value.warnings) logStoreWarning(logger, warning);
 
     const secrets = createSecretsRuntime({
       os,
@@ -429,7 +477,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     await register(
       "platform-exec",
       createExecPlatformModule({
-        options: execOptionsOf(settings, process.cwd()),
+        options: execOptionsOf(settings, process.cwd(), os.dirs.state),
         platform: platform.value,
         parentEnv: process.env,
         logger: os.logger("platform-exec"),
@@ -550,6 +598,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       startedAt,
       ports: portsHandle.ports,
       shutdown: shutdownCoordinator,
+      diagnose: async (signal) => {
+        if (osHandle === undefined) throw new Bug("os handle is missing after assembly");
+        return { binaries: await osHandle.checkBinaries(signal) };
+      },
       close: shutdown,
     };
     return engine;

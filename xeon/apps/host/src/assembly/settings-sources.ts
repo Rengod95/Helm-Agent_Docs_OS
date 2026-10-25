@@ -1,3 +1,5 @@
+import { join } from "node:path";
+import type { LogLevel } from "@xeon/contracts";
 import { isId } from "@xeon/contracts/conversation";
 import type { ScopeStack } from "@xeon/contracts/settings";
 import type { AgentsSettingsSource } from "@xeon/core-agents";
@@ -241,21 +243,34 @@ export function secretsSource(settings: SettingsEngine): () => SecretsConfig {
   };
 }
 
+/** 상태 디렉터리 아래 spill 폴더 이름 */
+const SPILL_DIR_NAME = "spill";
+
 export interface ExecOptionsValues {
   readonly cwd: string;
+  /** 출력 spill 파일과 임시 파일을 두는 폴더. `<상태 디렉터리>/spill`이다(L0.exec.spec §3.8) */
+  readonly tempDir: string;
   readonly shellPath: string | undefined;
   readonly defaultTimeoutMs: number;
   readonly outputSpillBytes: number;
   readonly envExtra: readonly string[];
 }
 
-/** l0.exec.* (선언 없는 키). 기본값은 L0.exec.spec §6 표다 */
-export function execOptionsOf(settings: SettingsEngine, cwd: string): ExecOptionsValues {
+/**
+ * l0.exec.* (선언 없는 키). 기본값은 L0.exec.spec §6 표다. spill 파일에는 평문 출력이 남으므로 OS 임시 폴더가 아니라
+ * 상태 디렉터리 아래 소유자 전용 폴더에 둔다(G2-05)
+ */
+export function execOptionsOf(
+  settings: SettingsEngine,
+  cwd: string,
+  stateDir: string,
+): ExecOptionsValues {
   const raw = settings.raw("l0.exec.");
   const shell = raw["shell"];
   const extra = raw["envAllowlist.extra"];
   return {
     cwd,
+    tempDir: join(stateDir, SPILL_DIR_NAME),
     shellPath: typeof shell === "string" ? shell : undefined,
     defaultTimeoutMs: intOr(raw["defaultTimeoutMs"], 0),
     outputSpillBytes: intOr(raw["outputSpillBytes"], 10_485_760),
@@ -265,6 +280,16 @@ export function execOptionsOf(settings: SettingsEngine, cwd: string): ExecOption
 
 /** 키 하나의 유효 값을 돌려주는 함수. 엔진 안(설정 엔진)과 밖(Engine의 카탈로그와 SettingsStorePort) 어느 쪽에서도 만든다 */
 export type SettingReader = (key: string) => unknown;
+
+/** l0.os.log.level 유효 값. 로그를 낼 때마다 읽는 함수로 넘겨 live 변경을 반영한다. 모르는 값은 info다 */
+export function logLevelOf(settings: SettingsEngine): () => LogLevel {
+  return () => {
+    const value = settings.value("l0.os.log.level");
+    return value === "debug" || value === "info" || value === "warn" || value === "error"
+      ? value
+      : "info";
+  };
+}
 
 /** l0.process.shutdown.timeoutMs 유효 값(ms). 기본 3000 */
 export function shutdownTimeoutOf(read: SettingReader): number {

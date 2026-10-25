@@ -365,3 +365,12 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 | 질문·계획 승인, 사용자 셸 | cap-dialog와 cap-work의 기본 구현(`questionApprovalsOver`, `planApprovalsOver`, `shellPortOver`)이 `xeon.approvals`와 `xeon.loop`를 감싼다. 조립 루트의 같은 일을 하던 `dialogApprovalsFactory`, `planApprovalsFactory`, `userShellPort`와 `createCallL2ApprovalsPort`, `createOriginL2ApprovalsPort`를 지웠다. 기본 구현은 재시작 뒤 `restore`와 `key_reused` 거부를 더 한다. `l2-approvals.ts`에는 cap-web이 쓰는 출처 없는 포트만 남았다 |
 | 사용자 셸 종단 | core-loop `runUserBash`가 구현되어 `shell-injection.int.test.ts`가 슬래시 명령의 `!{...}`를 실제 셸로 실행하고 출력을 치환하며 효과 레코드를 확인한다 |
 | MCP 서버 주도 요청 종단 (D5 a) | F `DirectToolRegistration.executeWithContinuation`을 더했다. cap-mcp `createToolServiceRegistrar`가 채우고, core-tools `settleDirectInput`이 `input_required`를 질문 승인으로 올려 같은 `toolCallId`로 다시 부른다. `approval-shapes.int.test.ts`가 질문 도구, 계획 승인, MCP 질문의 `approval.requested` 레코드 모양이 같음(E5)과 종단 흐름을 확인한다 |
+
+## 9. M2 마감 구현 기록 (m2c T2 HOST)
+
+`review.m2-plan` §9~§11이 정한 마감 작업 가운데 `xeon/apps/host`와 이 문서가 맡은 부분이다. 항목 ID(G1-01 등)는 `review.milestone-audit`의 통합 항목이다. 후보 브랜치(`m2/fx-host`, `m2/fx-mcp`, `m2/fx-m`)는 옛 SHA 위에 있어서 통째로 가져오지 않고 필요한 hunk를 새 `xeon/foundation` 위에 다시 썼다.
+
+| 작업 | 항목 | 상태 | 내용과 시험 |
+|---|---|---|---|
+| HOST.8 | G1-12, G2-05, G2-07 | 구현 | `xeon.os`를 `osPlatform`으로 올려 핸들(`fileLock`, `checkBinaries`)을 쥐고, `l0.os.log.level`을 읽기 함수로, exec `tempDir`를 `<state>/spill`로, 샌드박스 `startSelfTests`를 서비스 등록 때 한 번 잇는다. `Engine.diagnose`가 외부 바이너리 점검을 낸다(spec HS-67, HS-69). `test/assembly/platform.test.ts`, `test/assembly/settings-sources.test.ts`, `test/assemble.test.ts`(`diagnose`) |
+| HOST.9 | G2-06, G1-07 | 구현 | 저장소 열기 실패에 안내 분류(`failure`)를 싣고 열기 경고를 로그로 남긴다. 실행 중 `row_invalid`는 `store.corrupt`, 종결된 thread는 `thread.closed`로 옮긴다(spec HS-68). `test/assemble.test.ts`(`storeIssueOf` 표), `test/int/store-failure.int.test.ts`(새 버전, 이력 변조, 실패한 마이그레이션 뒤 스냅샷), `test/store-error.test.ts` |

@@ -9,6 +9,7 @@ import { createSettingsEngine, type SettingsEngine } from "../../src/assembly/se
 import {
   execOptionsOf,
   hostLimitsOf,
+  logLevelOf,
   loopSource,
   modelsSource,
   operationsSource,
@@ -188,8 +189,9 @@ test("undeclared package keys are read raw: persistence, store, exec, shutdown",
     heartbeatMs: 4000,
     leaseTtlMs: 20_000,
   });
-  expect(execOptionsOf(settings, "/work")).toEqual({
+  expect(execOptionsOf(settings, "/work", "/state")).toEqual({
     cwd: "/work",
+    tempDir: "/state/spill",
     shellPath: "/bin/sh",
     defaultTimeoutMs: 1500,
     outputSpillBytes: 10_485_760,
@@ -260,4 +262,19 @@ test("host limits read the live value every time", async () => {
   writeFileSync(path, JSON.stringify({ "l4.host-service.maxSubscriptionsPerConnection": 3 }));
   await settings.loadUserFile(path);
   expect(limits.maxSubscriptionsPerConnection).toBe(3);
+});
+
+test("l0.os.log.level is read on every call, so a change applies from the next log line", async () => {
+  const settings = await engineWith({ "l0.os.log.level": "debug" });
+  const level = logLevelOf(settings);
+  expect(level()).toBe("debug");
+  settings.setUserValue("l0.os.log.level", "warn");
+  expect(level()).toBe("warn");
+  settings.setUserValue("l0.os.log.level", undefined);
+  expect(level()).toBe("info");
+});
+
+test("the exec spill folder is under the state directory, never the OS temp folder", async () => {
+  const options = execOptionsOf(await engineWith({}), "/work", "/home/u/.local/state/xeon");
+  expect(options.tempDir).toBe("/home/u/.local/state/xeon/spill");
 });

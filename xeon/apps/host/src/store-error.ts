@@ -7,6 +7,8 @@ import { threadLocked } from "./handlers/owner.ts";
 // (F.wire-settings.spec §3.5.2 store.*).
 
 const CODE_MAX = 64;
+/** store.corrupt의 details.where 상한(F wire §3.5.2) */
+const WHERE_MAX = 128;
 
 /** StoreError → 와이어 오류. where는 개발자용 메시지 앞머리다 */
 export function wireErrorOfStore(error: StoreError, where: string): WireError {
@@ -21,10 +23,10 @@ export function wireErrorOfStore(error: StoreError, where: string): WireError {
         details: { code: error.code.slice(0, CODE_MAX) },
       });
     case "row_invalid":
-      // 저장된 행이 모양과 다르다(손상, 수동 편집). 저장 매체 문제로 보이므로 store.io로 옮긴다(위치 이름은 메시지에만 싣는다)
-      return wireError("store.io", {
-        message: `${where}: stored row is invalid (${error.where.slice(0, CODE_MAX)})`,
-        details: { code: "row_invalid" },
+      // 저장된 행이 모양과 다르다(손상, 수동 편집). 매체 오류(store.io)와 복구 안내가 달라서 store.corrupt로 알린다(F.records.spec §3.7 7항)
+      return wireError("store.corrupt", {
+        message: `${where}: stored row is invalid`,
+        details: { where: error.where.slice(0, WHERE_MAX) },
       });
     case "read_only":
       return wireError("store.readOnly", {
@@ -56,9 +58,9 @@ export function wireErrorOfLease(
         details: { code: error.code.slice(0, CODE_MAX) },
       });
     case "row_invalid":
-      return wireError("store.io", {
-        message: `${where}: lease row is invalid (${error.where.slice(0, CODE_MAX)})`,
-        details: { code: "row_invalid" },
+      return wireError("store.corrupt", {
+        message: `${where}: lease row is invalid`,
+        details: { where: error.where.slice(0, WHERE_MAX) },
       });
     case "lease_lost":
       return threadLocked(null);
@@ -92,8 +94,8 @@ export function wireErrorOfLifecycle(error: LifecycleError, where: string): Wire
     case "not_owner":
       return threadLocked(null);
     case "thread_closed":
-      // 종결된 thread에는 쓸 수 없다. 와이어에 따로 둔 오류가 없어 없는 thread처럼 알린다 [미결: F wire 요청]
-      return wireError("thread.notFound", { details: { threadId: error.threadId } });
+      // 종결된 thread에는 쓰기와 수명 주기 호출을 할 수 없다. 읽기와 삭제는 허용한다(F wire §3.5.2 3007)
+      return wireError("thread.closed", { details: { threadId: error.threadId } });
     case "turn_running":
       return wireError("turn.busy", { details: { turnId: error.turnId } });
     case "has_forks":

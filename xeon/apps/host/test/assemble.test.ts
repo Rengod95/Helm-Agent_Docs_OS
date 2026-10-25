@@ -3,7 +3,8 @@ import { afterAll, expect, test } from "bun:test";
 import { Type } from "typebox";
 import { err, ok, type LogFields, type Logger, type Result } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
-import type { ReadFailure } from "@xeon/contracts/records";
+import type { ReadFailure, StoreFailureKind } from "@xeon/contracts/records";
+import type { StoreOpenError, StoreWarning } from "@xeon/platform-store";
 import type { ExtHost } from "@xeon/ext-host";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { defineSettings } from "@xeon/contracts/settings";
@@ -12,6 +13,8 @@ import {
   assemble,
   buildEngineCatalog,
   coreSettingGroups,
+  logStoreWarning,
+  storeIssueOf,
   threadWorkspaceOf,
 } from "../src/assemble.ts";
 import { useEngineHome } from "./fixtures/engine-home.ts";
@@ -182,4 +185,100 @@ test("threadWorkspaceOf answers the workspace, and undefined without a log for a
   ).toBeUndefined();
   expect(threadWorkspaceOf(sessionPortReading(ok(null)), logger)(THREAD_X)).toBeUndefined();
   expect(warns).toEqual([]);
+});
+
+// G2-06: 저장소를 열지 못한 이유를 안내 분류로 나눠 알린다. 한 이름(storeUnavailable)으로 합치면 안내가 같아진다.
+const STORE_OPEN_ERRORS: Readonly<
+  Record<StoreOpenError["kind"], readonly [StoreOpenError, string, StoreFailureKind]>
+> = {
+  db_path_invalid: [
+    { kind: "db_path_invalid", reason: "is_directory" },
+    "storeUnavailable",
+    "unavailable",
+  ],
+  unsupported_filesystem: [
+    { kind: "unsupported_filesystem", fsKind: "network", dir: "/n" },
+    "dataDirPermission",
+    "unavailable",
+  ],
+  permission: [{ kind: "permission", path: "/d", mode: 0o755 }, "dataDirPermission", "unavailable"],
+  foreign_database: [
+    { kind: "foreign_database", applicationId: 1 },
+    "storeUnavailable",
+    "unavailable",
+  ],
+  fts5_missing: [{ kind: "fts5_missing" }, "fts5Missing", "unavailable"],
+  corrupt: [{ kind: "corrupt", code: "SQLITE_CORRUPT" }, "storeCorrupt", "corrupt"],
+  busy: [{ kind: "busy" }, "storeUnavailable", "unavailable"],
+  disk_full: [{ kind: "disk_full" }, "storeUnavailable", "unavailable"],
+  io: [{ kind: "io", code: "EIO" }, "storeUnavailable", "unavailable"],
+  migration_checksum_mismatch: [
+    { kind: "migration_checksum_mismatch", owner: "sys", version: 1 },
+    "storeCorrupt",
+    "corrupt",
+  ],
+  migration_gap: [
+    { kind: "migration_gap", owner: "sys", expected: 2, got: 4 },
+    "storeCorrupt",
+    "corrupt",
+  ],
+  migration_future_version: [
+    { kind: "migration_future_version", owner: "sys", dbVersion: 9, codeVersion: 3 },
+    "storeFutureVersion",
+    "future_version",
+  ],
+  migration_failed: [
+    { kind: "migration_failed", owner: "sys", version: 3, code: "snapshot_failed:ENOSPC" },
+    "storeMigrationFailed",
+    "migration_failed",
+  ],
+};
+
+test("every store open error maps to the CLI name and the guidance class the spec table gives", () => {
+  for (const [error, message, failure] of Object.values(STORE_OPEN_ERRORS)) {
+    expect(storeIssueOf(error)).toEqual({ code: "store", message, failure });
+  }
+});
+
+test("a store warning is logged by kind with its safe fields, and a migration snapshot keeps its place", () => {
+  const lines: [string, string, LogFields | undefined][] = [];
+  const logger: Logger = {
+    debug: () => undefined,
+    info: (event, fields) => lines.push(["info", event, fields]),
+    warn: (event, fields) => lines.push(["warn", event, fields]),
+    error: () => undefined,
+    child: () => logger,
+  };
+  const warnings: readonly StoreWarning[] = [
+    { kind: "migration_snapshot", path: "/b/xeon.v2.db", owner: "sys", from: 2, to: 3 },
+    { kind: "snapshot_prune_failed", path: "/b/old.db", code: "EACCES" },
+    { kind: "fts5_missing" },
+  ];
+  for (const warning of warnings) logStoreWarning(logger, warning);
+  expect(lines).toEqual([
+    ["info", "store.migration_snapshot", { path: "/b/xeon.v2.db", owner: "sys", from: 2, to: 3 }],
+    ["warn", "store.snapshot_prune_failed", { path: "/b/old.db", code: "EACCES" }],
+    ["warn", "store.warning", { kind: "fts5_missing" }],
+  ]);
+});
+
+test("diagnose reports the external binary table of this platform, and a cancelled signal is a value", async () => {
+  const engine = await assemble({ mode: "in-process" });
+  try {
+    const live = await engine.diagnose(new AbortController().signal);
+    expect(live.binaries.ok).toBe(true);
+    if (live.binaries.ok) {
+      const names = live.binaries.value.items.map((item) => item.name);
+      expect(names).toContain("sops");
+      expect(names).toContain("age");
+      expect(names).toContain("rg");
+      expect(live.binaries.value.ready).toBe(live.binaries.value.blocking.length === 0);
+    }
+    const cancelled = new AbortController();
+    cancelled.abort();
+    const stopped = await engine.diagnose(cancelled.signal);
+    expect(stopped.binaries).toEqual({ ok: false, error: { kind: "cancelled" } });
+  } finally {
+    await engine.close();
+  }
 });

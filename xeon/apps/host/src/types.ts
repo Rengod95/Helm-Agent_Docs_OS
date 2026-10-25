@@ -7,6 +7,7 @@ import type {
   LifecycleError,
   ReadFailure,
   StoreError,
+  StoreFailureKind,
   VolatileEventEnvelope,
 } from "@xeon/contracts/records";
 import type {
@@ -39,6 +40,7 @@ import type {
 import type { DnsResolver, HttpTransport } from "@xeon/cap-web";
 import type { ModelsExtensionOptions } from "@xeon/core-models";
 import type { BuiltinExtensionModule } from "@xeon/ext-host";
+import type { BinaryCheckReport } from "@xeon/platform-os";
 import type { SecretOfferStore } from "./secrets/offers.ts";
 
 // L4.host-service.spec §3.3.1~§3.3.2. 처리기와 연결 허브는 이 파일의 타입(EnginePorts)만 쓰고 아래 층 패키지를 import하지 않는다
@@ -95,7 +97,11 @@ export interface AssembleOptions {
 
 export type AssembleIssue =
   | { readonly code: "catalog"; readonly issues: readonly CatalogIssue[] }
-  | { readonly code: "store"; readonly message: string }
+  /**
+   * 저장소를 열지 못했다. `failure`는 안내 분류(`F.records.spec` §3.7 7항)이고 `message`는 CLI가 구별하는 이름이다:
+   * `fts5Missing`, `dataDirPermission`, 그 밖은 분류에 맞춰 `storeFutureVersion`, `storeCorrupt`, `storeMigrationFailed`, `storeUnavailable`
+   */
+  | { readonly code: "store"; readonly message: string; readonly failure: StoreFailureKind }
   | { readonly code: "missingService"; readonly service: string }
   /** 내장 플러그인(또는 extraPlugins) 하나의 설치가 실패했다. spec이 정한 세 code에 더한 값이다(deviation) */
   | { readonly code: "plugin"; readonly plugin: string; readonly message: string };
@@ -110,6 +116,12 @@ interface EngineShutdown extends ShutdownCoordinator {
   ): Promise<{ readonly completed: boolean; readonly elapsedMs: number }>;
 }
 
+/** 진단 함수의 결과. 값은 사용자 환경 문제를 알리는 데 쓴다(코드를 고칠 대상이 아니다) */
+export interface EngineDiagnostics {
+  /** 외부 바이너리 필수/선택 점검(L0.os.spec §3.6.1). 점검이 중단되면 `cancelled`다 */
+  readonly binaries: Result<BinaryCheckReport, { readonly kind: "cancelled" }>;
+}
+
 export interface Engine {
   readonly mode: HostMode;
   readonly storeId: StoreId;
@@ -119,6 +131,11 @@ export interface Engine {
   readonly ports: EnginePorts;
   /** 종료 협조 창구. stdio·서비스 호스트가 EOF, 신호, `host.shutdown`에서 요청한다(HS-31) */
   readonly shutdown: EngineShutdown;
+  /**
+   * 첫 실행 점검과 `doctor`가 부르는 진단 함수(`F.wire-settings.spec` §3.3의 `host.diagnose` 반려 판정: 진단은 `@xeon/host`의 함수를 직접 부른다).
+   * 외부 바이너리 점검은 자식 프로세스를 띄우므로 엔진을 열 때가 아니라 이 호출에서 한다
+   */
+  diagnose(signal: AbortSignal): Promise<EngineDiagnostics>;
   /** task 결과를 쓰지 않는다(ADR-0006 §3.1) */
   close(): Promise<void>;
 }

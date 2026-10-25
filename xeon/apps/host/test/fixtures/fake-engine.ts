@@ -309,6 +309,10 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
     startedAt: RECORDED_AT,
     ports,
     shutdown,
+    diagnose: () =>
+      Promise.resolve({
+        binaries: ok({ platform: "linux", items: [], ready: true, blocking: [], degraded: [] }),
+      }),
     close: () => Promise.resolve(),
   };
 
