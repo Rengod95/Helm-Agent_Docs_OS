@@ -828,6 +828,9 @@ export const APPROVAL_REQUEST_KEY_MAX: number = 48;
 /** 밖에서 온 id(toolCallId, L2 requestId)를 승인 요청 키(`^[A-Za-z0-9_.-]{1,48}$`)로 바꾸는 유일한 함수 [결정: 통합 검토 L6]. commitKeyPart(raw)가 48자 이하면 그대로,
  *  넘으면 "h_" + sha256Hex(원문) 앞 40자. core-tools 파이프라인, 호스트 l2-approvals, cap-*가 자기 함수를 따로 두지 않고 이 함수를 쓴다. 순수 */
 export function requestKeyFor(raw: string, sha256Hex: (text: string) => string): string;
+/** 값이 requestKeyFor가 낼 수 있는 승인 요청 키인지 판정한다(해시 없이). 1~48자 ^[A-Za-z0-9_.-]+$이고 "h_"로 시작하면 정확히 "h_" + 소문자 hex 40자여야 한다("h_plain" 같은 원문은 키가 아니다).
+ *  이미 키를 만든 호출자의 값을 다시 해시하지 않고 검사만 하는 자리(호스트 l2-approvals)가 쓴다. 키 알파벳 정의는 이 파일 하나다 [결정: 통합 검토 L5 후속 N-2]. 순수 */
+export function isApprovalRequestKey(value: string): boolean;
 /** 확장이 아닌 입력 출처 키. 확장 id로 쓸 수 없다(F.extensions.spec §4.7 name_reserved, review.decisions-2 U-13) */
 export const RESERVED_SOURCE_KEYS: readonly ["user", "deleg", "timer"];
 /** 생산자 id. 형식 정본은 eng.context-map.design §5.1 */
@@ -1041,7 +1044,7 @@ export interface RecordCommitPort {
 |---|---|---|
 | `lease.ts` | `LeaseResource`, `LEASE_RESOURCE_PATTERN`, `LeaseKind`, `LeaseHolder`, `LeaseToken`, `LeaseOwnerInfo`, `LockBusy`, `LeaseRowInvalid`, `LeaseError`, `LeaseService` | `L0.store.spec` §3.1(FR-S2) |
 | `migrations.ts` | `MigrationStep`, `MigrationSet`, `MigrationError`, `MigrationReport`, `MigrationRunner`, `ExtensionTables`, `ExtensionTableError`. `ChunkMigration`은 §3.7에 둔다 | `L0.store.spec` §3.1(FR-S4) |
-| `commit.ts` | `CommitKey`, `COMMIT_KEY_PATTERN`, `commitKeyPart`, `APPROVAL_REQUEST_KEY_MAX`, `requestKeyFor`, `RESERVED_SOURCE_KEYS`, `ProducerId`, `StampedDraft`, `DraftInput`, `ProducerHandle`, `StepCheckpointInput`, `CommitPlan`, `CommitRequest`, `CommitResult`, `ReadOnlyReason`, `StoreError`, `ReadFailure`, `StoreBugCode`, `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
+| `commit.ts` | `CommitKey`, `COMMIT_KEY_PATTERN`, `commitKeyPart`, `APPROVAL_REQUEST_KEY_MAX`, `requestKeyFor`, `isApprovalRequestKey`, `RESERVED_SOURCE_KEYS`, `ProducerId`, `StampedDraft`, `DraftInput`, `ProducerHandle`, `StepCheckpointInput`, `CommitPlan`, `CommitRequest`, `CommitResult`, `ReadOnlyReason`, `StoreError`, `ReadFailure`, `StoreBugCode`, `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
 | `projector.ts` | `ProjectionTx`, `Projector`, `ProjectorRegisterError`, `ProjectorFailure`, `ProjectorRegistry`. `ProjectionQuery`는 `session-service.ts`에 있다 | `L1.persistence.spec` §3.4 |
 | `session-service.ts` | `SessionServiceName`, `CommitListener`, `CommitBatch`, `FeedFilter`, `EventFeed`, `ThreadSummaryRow`, `ItemRow`, `ProjectionQuery`, `RecoveryMarker`, `OpenReport`, `OpenError`, `MAX_REPLAY_ATTEMPTS`, `EffectRerun`, `AutoResumeVerdict`, `ResumePlan`, `ResumeError`, `RecoverDeps`, `ThreadCreated`, `ThreadCreateInput`, `ThreadListQuery`, `ThreadPage`, `BranchSummaryInput`, `SessionShutdownReason`, `LifecycleError`, `ThreadLifecycle`, `SessionSettingsLayer`, `SessionSettingsError`, `SessionSettingsStore`, `SessionRetention`, `SessionService`. 쓰기 소유 판정은 `lease.ts`의 `LeaseToken`(epoch 펜싱)과 `LeaseOwnerInfo`(표시용), 열기 결과의 `OpenLease`가 맡는다. 옛 이름 `OwnershipGuard`·`OwnerInfo`는 없다 [결정: review.decisions-2 U-09, open-issues D-04] | `L1.persistence.spec` §3.3~§3.8, §6.2 |
 | `session-service.ts` | `RecordCommitPort`, `ExtCommitRequest`, `ExtCommitRejectCode`, `ExtCommitResult`, `StoredScopeState`, `OpenLease`, `ExtThreadSnapshot`, `ExtRecordQuery`, `ExtRecordRow` | 위 블록이 정본이다(옮김 끝남). `F.extensions.spec` §3.2.1 `ports.ts`가 다시 export한다 |

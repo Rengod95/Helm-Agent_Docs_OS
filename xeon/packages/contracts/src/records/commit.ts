@@ -20,6 +20,7 @@ export const COMMIT_KEY_PATTERN: string = "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$";
 const COMMIT_KEY_PART_PLAIN = /^[A-Za-z0-9_.-]{1,120}$/;
 const COMMIT_KEY_PART_HASH_PREFIX = "h_";
 const COMMIT_KEY_PART_HASH_LENGTH = 40;
+const HASHED_KEY = /^h_[0-9a-f]{40}$/;
 
 /**
  * 밖에서 온 id(toolCallId)를 커밋 키 부분으로 바꾸는 유일한 함수다. 규칙 정본은 eng.transactions.design §4.7(review.decisions-2 U-13).
@@ -48,6 +49,17 @@ export function requestKeyFor(raw: string, sha256Hex: (text: string) => string):
   const part = commitKeyPart(raw, sha256Hex);
   if (part.length <= APPROVAL_REQUEST_KEY_MAX) return part;
   return `${COMMIT_KEY_PART_HASH_PREFIX}${sha256Hex(raw).slice(0, COMMIT_KEY_PART_HASH_LENGTH)}`;
+}
+
+/**
+ * 값이 `requestKeyFor`가 낼 수 있는 승인 요청 키인지 판정한다(해시 구현 없이). 키는 1~`APPROVAL_REQUEST_KEY_MAX`자 `^[A-Za-z0-9_.-]+$`이고,
+ * `h_`로 시작하면 정확히 `h_` + 소문자 hex 40자(해시 키)여야 한다. `h_plain` 같은 원문은 `requestKeyFor`가 해시하므로 키가 아니다.
+ * 이미 키를 만든 호출자(cap-*)의 값을 다시 해시하지 않고 검사만 해야 하는 자리(L4 L2 승인 어댑터)가 쓴다. 키 알파벳 정의는 이 파일 하나다
+ */
+export function isApprovalRequestKey(value: string): boolean {
+  if (value.length > APPROVAL_REQUEST_KEY_MAX || !COMMIT_KEY_PART_PLAIN.test(value)) return false;
+  if (!value.startsWith(COMMIT_KEY_PART_HASH_PREFIX)) return true;
+  return HASHED_KEY.test(value);
 }
 
 /**

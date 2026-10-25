@@ -14,6 +14,7 @@ import {
   ApprovalRequestedPayloadSchema,
   RESERVED_SOURCE_KEYS,
   commitKeyPart,
+  isApprovalRequestKey,
   requestKeyFor,
   ownerOfKind,
   type DurableEventDraft,
@@ -197,6 +198,30 @@ describe("requestKeyFor (U-13, approval request keys)", () => {
     expect(requestKeyFor("x".repeat(60), sha256Hex)).toBe(a);
     // 해시 결과를 다시 넣어도 자기 자신이 되지 않는다(h_ 접두 원문은 해시된다)
     expect(requestKeyFor(a, sha256Hex)).not.toBe(a);
+  });
+});
+
+describe("isApprovalRequestKey (U-13)", () => {
+  test("accepts what requestKeyFor produces and nothing that it would hash", () => {
+    for (const raw of ["call_1", "x".repeat(48), "x".repeat(60), "h_plain", "a:b", ""]) {
+      const key = requestKeyFor(raw, sha256Hex);
+      expect(isApprovalRequestKey(key)).toBe(true);
+    }
+    expect(isApprovalRequestKey("call_1.ask-2")).toBe(true);
+  });
+
+  test("rejects an h_ prefixed raw id, odd characters, empty and too long values", () => {
+    for (const raw of [
+      "h_plain",
+      `h_${"a".repeat(39)}`,
+      `h_${"A".repeat(40)}`,
+      `h_${"a".repeat(41)}`,
+    ]) {
+      expect(isApprovalRequestKey(raw)).toBe(false);
+    }
+    for (const raw of ["", "a:b", "ask one", "한글", "x".repeat(49)]) {
+      expect(isApprovalRequestKey(raw)).toBe(false);
+    }
   });
 });
 
