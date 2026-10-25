@@ -42,6 +42,16 @@ export interface DialogPluginOptions {
   readonly shell?: ShellPort;
   /** 사람이 답할 수 있는 호출인가. 생략하면 모든 호출이 대화형이다 */
   readonly interactive?: (context: CallContext) => boolean;
+  /**
+   * 프로젝트 폴더가 신뢰되었는가(X.loading-trust `resolveProjectTrust`의 `trusted`). 조립 루트가 신뢰 저장소와 프롬프터를 묶어
+   * 넘긴다. 없거나 거짓이거나 실패하면 프로젝트의 `.xeon/commands`를 읽지 않는다(fail-closed, 결정 D6)
+   */
+  readonly projectTrust?: (projectDir: string) => Promise<boolean>;
+  /**
+   * 대화의 작업 폴더(`L4.host-service.spec` HS-66의 `threadWorkspaceOf`와 같은 값). 생략하면 `xeon.session`의 thread 행
+   * `workspace`를 읽는다. 어느 쪽이든 작업 폴더가 없는 대화에는 프로젝트 명령이 없다(`L2.readme` §5.10)
+   */
+  readonly workspaceOf?: (threadId: string) => string | undefined;
   readonly loadIndex?: number;
 }
 
@@ -97,9 +107,19 @@ export function dialogPlugin(options: DialogPluginOptions): ExtensionUnit {
           userDir: `${os.dirs.home}/.xeon/commands`,
           home: os.dirs.home,
           projectRoot: (threadId) => {
-            if (session === undefined || threadId === undefined) return exec.cwd;
+            if (threadId === undefined) return null;
+            if (options.workspaceOf !== undefined) {
+              const workspace = options.workspaceOf(threadId);
+              return workspace === undefined || workspace === "" ? null : workspace;
+            }
+            // 세션 서비스가 없는 구성은 thread 행을 읽을 수 없어 엔진 cwd 하나를 프로젝트로 본다
+            if (session === undefined) return exec.cwd;
             const row = session.query.thread(threadId);
-            return (row.ok ? row.value?.workspace : null) ?? exec.cwd;
+            return (row.ok ? row.value?.workspace : null) ?? null;
+          },
+          projectTrusted: async (projectDir) => {
+            if (options.projectTrust === undefined) return false;
+            return await options.projectTrust(projectDir);
           },
         },
         files: exec,

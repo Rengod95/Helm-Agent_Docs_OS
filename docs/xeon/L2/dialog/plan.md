@@ -147,7 +147,7 @@ xeon/packages/cap-dialog/
 | `test/ask-restart.fault.test.ts` | 재시작 후 단일 완료 | 답 기록 뒤 강제 종료 → 재개 → 재시도 세 번 → 승인 요청 1건, 도구 결과 완료 커밋 1건(`tool:<toolCallId>:result`) |
 | `test/ask-wait.test.ts` | 메모리 대기 | `wait: true`가 응답 시 완료 출력을 돌려주고, `signal` 취소 시 `aborted` 오류를 내며 승인 요청은 남는다 |
 | `test/upstream/prompt-templates.test.ts` | 인자 치환($1, $@, $ARGUMENTS) 표 | pi 치환 테스트 전부와 §4.2.2 표 여섯 표기, 재귀 치환 없음, `$0` 빈 문자열 |
-| `test/commands-priority.test.ts` | 명령 우선순위 | 다섯 출처에 같은 이름이 있으면 `builtin`이 쓰이고 나머지는 `includeHidden`에서만 보인다. 프로젝트 > 사용자. `capability` 중복 등록은 `command_name_taken` |
+| `test/commands-priority.test.ts` | 명령 우선순위 | 다섯 출처에 같은 이름이 있으면 `builtin`이 쓰이고 나머지는 `includeHidden`에서만 보인다. 프로젝트 > 사용자. `capability` 중복 등록은 `command_name_taken`. 신뢰하지 않은 프로젝트 폴더는 `.xeon/commands`와 상대 경로 디렉터리를 읽지 않고 사용자·절대 경로 디렉터리는 그대로다(G1-03) |
 | `test/commands-shell.test.ts` | 셸 주입 확인 게이트 | `!{…}` 포함 템플릿을 `confirmShell` 없이 `run`하면 셸 포트 호출 0회와 `needs_confirmation`. 확인 뒤 순서대로 실행·치환. 설정 `off`면 `command_shell_disabled`. `input` 지점 핸들러는 셸 포함 템플릿을 치환하지 않는다 |
 | `test/commands-action.test.ts` | 동작 명령 | `registerAction` 처리기가 인자와 `requestId`를 받는다. `args` 선언 위반은 `command_args_invalid`. 해제 함수 뒤 `not_command` |
 | `test/commands-loader.test.ts` | 명령 파일 읽기 | 앞머리 없음·`description` 없음(첫 줄 60자)·YAML 오류(그 파일만 건너뜀, 진단)·`args` 필드 |
@@ -219,7 +219,7 @@ M3:
 - `ask/`에 `keys.ts`(요청 키 줄이기), `mapping.ts`(`AskQuestion`·`AskAnswer`와 `QuestionBody`·`QuestionAnswer`), `expiry.ts`(잠정 시간 제한)를 더했다. `commands/`에 `action-args.ts`를 더했다.
 - 지점 핸들러는 `input`, `tool_execution_start`, `tool_execution_end`, `before_agent_start`이다. 알림용 지점은 없다.
 
-테스트 대응(§5)은 파일 이름이 같다. 추가로 `plugin.test.ts`(실제 ExtHost에 올려 능력, 지점, 구독 정리 확인), `session-adapter.test.ts`(휘발 봉투), `status-core.test.ts`, `settings.test.ts`, `fork-records.test.ts`를 두었다. `ask-restart.fault.test.ts`는 같은 이벤트 로그 위에 새 `ApprovalService`(메모리 대기 목록이 빈 것)와 새 ask 서비스를 세우는 것으로 재시작을 흉내 낸다. 도구 결과 완료 커밋 1건(`tool:<toolCallId>:result`)과 SIGKILL 재개는 통합 단계(HOST.4)에서 확인한다.
+테스트 대응(§5)은 파일 이름이 같다. 추가로 `plugin.test.ts`(실제 ExtHost에 올려 능력, 지점, 구독 정리 확인. 프로젝트 신뢰가 없거나 판정이 실패하면 프로젝트 명령 0개와 경고 한 번, 신뢰는 대화의 작업 폴더로 묻고 작업 폴더가 없는 대화는 엔진 cwd로 내려가지 않음: G1-03, G2-02), `session-adapter.test.ts`(휘발 봉투), `status-core.test.ts`, `settings.test.ts`, `fork-records.test.ts`를 두었다. `ask-restart.fault.test.ts`는 같은 이벤트 로그 위에 새 `ApprovalService`(메모리 대기 목록이 빈 것)와 새 ask 서비스를 세우는 것으로 재시작을 흉내 낸다. 도구 결과 완료 커밋 1건(`tool:<toolCallId>:result`)과 SIGKILL 재개는 통합 단계(HOST.4)에서 확인한다.
 
 통합 단계(HOST.6)에서 실제 구현으로 바꿀 포트:
 

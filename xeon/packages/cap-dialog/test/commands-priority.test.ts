@@ -152,6 +152,39 @@ describe("명령 우선순위", () => {
     expect(names(listed.commands)).toEqual(["a@user", "b@user", "c@user"]);
   });
 
+  test("신뢰하지 않은 프로젝트 폴더는 명령 디렉터리와 그 폴더 기준 상대 경로 디렉터리를 읽지 않는다 (G1-03)", async () => {
+    const commandFiles = memoryCommandFiles({
+      [`${PROJECT}/p.md`]: "p",
+      [`${USER}/u.md`]: "u",
+      "/work/team/b.md": "b",
+      "/abs/c.md": "c",
+    });
+    const layers = [
+      {
+        scope: "user" as const,
+        values: new Map([["l2.dialog.commands.dirs", ["team", "/abs"]]]),
+      },
+    ];
+    const untrusted = harness({
+      commandFiles,
+      layers,
+      projectTrusted: () => Promise.resolve(false),
+    });
+    expect(
+      names(
+        (await createCommandsService(untrusted.deps).api.list({}, callOptions(newThread())))
+          .commands,
+      ),
+    ).toEqual(["c@user", "u@user"]);
+    // 같은 파일이라도 신뢰하면 프로젝트 명령과 상대 경로 디렉터리가 보인다
+    const trusted = harness({ commandFiles, layers, projectTrusted: () => Promise.resolve(true) });
+    expect(
+      names(
+        (await createCommandsService(trusted.deps).api.list({}, callOptions(newThread()))).commands,
+      ),
+    ).toEqual(["b@user", "c@user", "p@project", "u@user"]);
+  });
+
   test("프로젝트 폴더를 모르면 상대 경로 디렉터리와 프로젝트 명령 디렉터리를 건너뛴다", async () => {
     const commandFiles = memoryCommandFiles({
       [`${PROJECT}/p.md`]: "p",

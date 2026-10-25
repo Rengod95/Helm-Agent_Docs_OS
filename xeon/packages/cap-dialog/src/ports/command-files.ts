@@ -16,8 +16,16 @@ export interface CommandRoots {
   readonly userDir: string;
   /** 사용자 홈. 설정 디렉터리의 `~/`를 푼다 */
   readonly home: string;
-  /** 대화의 프로젝트 폴더(작업 폴더). 모르면 null이다 */
+  /**
+   * 대화의 프로젝트 폴더(작업 폴더). 작업 폴더가 없거나 대화를 모르면 null이다. 엔진 cwd로 대신하지 않는다(`L2.readme` §5.10)
+   */
   projectRoot(threadId: ThreadId | undefined): string | null;
+  /**
+   * 프로젝트 폴더가 신뢰되었는가(`X.loading-trust.spec` §4.7의 `trusted`). 신뢰하지 않은 폴더의 `.xeon/commands`와 그 폴더 기준
+   * 상대 경로 명령 디렉터리는 읽지 않는다: 저장소가 낸 명령 파일은 모델에게 가는 프롬프트 본문이고 셸 주입(`!{…}`)을 담을 수
+   * 있기 때문이다. 판정이 실패하면 거짓이다(fail-closed)
+   */
+  projectTrusted(projectDir: string): Promise<boolean>;
 }
 
 /** 프로젝트 폴더 아래 명령 디렉터리 이름 */

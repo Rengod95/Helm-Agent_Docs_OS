@@ -1,4 +1,4 @@
-import { eachAsync } from "@xeon/contracts";
+import { attemptAsync, eachAsync } from "@xeon/contracts";
 import {
   DialogCommands,
   type CallOptions,
@@ -96,9 +96,42 @@ export function createCommandsService(deps: DialogDeps): CommandsService {
     return project === null ? undefined : `${project}/${raw}`;
   }
 
-  function dirsFor(threadId: ThreadId | undefined): CommandDir[] {
+  /** 신뢰하지 않은 프로젝트 폴더를 이미 알린 폴더. 폴더마다 한 번만 알린다 */
+  const warnedUntrusted = new Set<string>();
+
+  /** 대화의 프로젝트 폴더. 신뢰하지 않았으면 null이다 */
+  async function trustedProject(
+    threadId: ThreadId | undefined,
+    context: CancelScope,
+  ): Promise<string | null> {
     const roots = deps.commandRoots;
     const project = roots.projectRoot(threadId);
+    if (project === null) return null;
+    const trusted = await attemptAsync(() => roots.projectTrusted(project));
+    if (trusted.ok && trusted.value) return project;
+    if (!warnedUntrusted.has(project)) {
+      warnedUntrusted.add(project);
+      const listing = await deps.commandFiles.listDir(
+        `${project}/${PROJECT_COMMANDS_DIR}`,
+        context,
+      );
+      // 싣지 못한 명령 파일이 실제로 있을 때만 알린다
+      if (listing.ok) {
+        deps.logger.warn("dialog.project_commands_untrusted", {
+          projectDir: project,
+          reason: trusted.ok ? "not_trusted" : "trust_check_failed",
+        });
+      }
+    }
+    return null;
+  }
+
+  async function dirsFor(
+    threadId: ThreadId | undefined,
+    context: CancelScope,
+  ): Promise<CommandDir[]> {
+    const roots = deps.commandRoots;
+    const project = await trustedProject(threadId, context);
     const dirs: CommandDir[] = [];
     if (project !== null)
       dirs.push({ dir: `${project}/${PROJECT_COMMANDS_DIR}`, source: "project" });
@@ -114,7 +147,7 @@ export function createCommandsService(deps: DialogDeps): CommandsService {
     threadId: ThreadId | undefined,
     context: CancelScope,
   ): Promise<ReadonlyMap<string, readonly Candidate[]>> {
-    const loaded = await loader.load(dirsFor(threadId), context);
+    const loaded = await loader.load(await dirsFor(threadId, context), context);
     return registry.catalog(loaded.entries);
   }
 

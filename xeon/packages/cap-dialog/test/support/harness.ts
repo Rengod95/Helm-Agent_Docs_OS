@@ -149,6 +149,7 @@ export interface HarnessOptions {
   readonly images?: DialogDeps["images"];
   readonly interactive?: DialogDeps["interactive"];
   readonly projectRoot?: (threadId: ThreadId | undefined) => string | null;
+  readonly projectTrusted?: (projectDir: string) => Promise<boolean>;
   readonly timers?: ManualTimers;
 }
 
@@ -183,6 +184,7 @@ export function harness(options: HarnessOptions = {}): Harness {
       userDir: "/home/user/.xeon/commands",
       home: "/home/user",
       projectRoot: options.projectRoot ?? (() => "/work"),
+      projectTrusted: options.projectTrusted ?? (() => Promise.resolve(true)),
     },
     files,
     images: options.images,

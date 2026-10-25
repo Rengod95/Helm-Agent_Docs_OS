@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ok, type Result } from "@xeon/contracts";
+import { eachAsync, ok, type Result } from "@xeon/contracts";
 import {
   DialogAskKey,
   DialogAttachmentsKey,
@@ -82,20 +82,32 @@ interface Collected {
   listener: ((batch: CommitBatch) => void) | undefined;
 }
 
-async function boot(options: { session?: boolean; store?: boolean; approvals?: boolean } = {}) {
+async function boot(
+  options: {
+    session?: boolean;
+    store?: boolean;
+    approvals?: boolean;
+    /** 프로젝트 신뢰 판정. 생략하면 모두 신뢰한다. null이면 옵션을 주지 않는다(fail-closed) */
+    trust?: ((projectDir: string) => Promise<boolean>) | null;
+    /** 기본 명령 파일에 더하는 파일 */
+    extraCommands?: Record<string, string>;
+  } = {},
+) {
   const t = await createTestHost({ without: ["records"] });
   const timers = manualTimers();
   const lines: LogLine[] = [];
   const commandFiles = memoryCommandFiles({
     "/work/.xeon/commands/hello.md": "---\ndescription: 인사\n---\n안녕 $1",
     "/work/.xeon/commands/shell.md": "x !{echo hi}",
+    ...options.extraCommands,
   });
   const files = memoryFiles();
   const blobs = memoryBlobs();
   const approvals = await realApprovals();
   const collected: Collected = { volatile: [], subscribed: [], listener: undefined };
   const exec: FakeExec = { ...commandFiles, ...files, cwd: "/work" };
-  const workspace: Record<string, string> = {};
+  // 항목이 없는 대화는 엔진 cwd와 같은 `/work`를 작업 폴더로 가진다. undefined를 넣으면 작업 폴더가 없는 대화다
+  const workspace: Record<string, string | undefined> = {};
 
   await t.host.registerPlatform({
     name: "fake-l0",
@@ -119,7 +131,8 @@ async function boot(options: { session?: boolean; store?: boolean; approvals?: b
           onVolatile: () => () => undefined,
         });
         ctx.providePort(QueryKey, {
-          thread: (threadId) => ok({ workspace: workspace[threadId] }),
+          thread: (threadId) =>
+            ok({ workspace: threadId in workspace ? workspace[threadId] : "/work" }),
         });
         ctx.providePort(SubscribeKey, (afterSeq, listener, filter) => {
           collected.subscribed.push({ afterSeq, kindPrefixes: filter?.kindPrefixes });
@@ -170,6 +183,9 @@ async function boot(options: { session?: boolean; store?: boolean; approvals?: b
       settings: { layers: () => [] },
       ids,
       shell,
+      ...(options.trust === null
+        ? {}
+        : { projectTrust: options.trust ?? (() => Promise.resolve(true)) }),
       loadIndex: 1,
     }),
   );
@@ -254,6 +270,8 @@ describe("manifest", () => {
   });
 });
 
+const failingTrust = (): Promise<boolean> => Promise.reject(new Error("store unreadable"));
+
 describe("plugin", () => {
   test("설치하면 능력 넷이 제공되고 소비자가 부를 수 있다", async () => {
     const { t, installed, approvals } = await boot();
@@ -273,6 +291,62 @@ describe("plugin", () => {
     expect(approvals.entries()).toHaveLength(1);
     const listed = await apis.commands?.list({}, callOptions(thread));
     expect(listed?.commands.map((command) => command.name)).toEqual(["hello", "shell"]);
+  });
+
+  test("프로젝트 신뢰가 없으면 .xeon/commands를 읽지 않고 한 번 경고한다 (G1-03)", async () => {
+    const { t, lines } = await boot({ trust: () => Promise.resolve(false) });
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    const thread = t.newThread();
+    expect((await apis.commands?.list({}, callOptions(thread)))?.commands).toEqual([]);
+    expect((await apis.commands?.list({}, callOptions(thread)))?.commands).toEqual([]);
+    const expand = await apis.commands?.expand({ text: "/hello 철수" }, callOptions(thread));
+    expect(expand).toEqual({ matched: false });
+    const warned = lines.filter((line) => line.event === "dialog.project_commands_untrusted");
+    expect(warned.map((line) => line.fields)).toEqual([
+      { projectDir: "/work", reason: "not_trusted" },
+    ]);
+  });
+
+  test("판정 콜백이 없거나 실패하면 신뢰하지 않은 것으로 본다 (G1-03)", async () => {
+    await eachAsync([null, failingTrust] as const, async (trust) => {
+      const { t } = await boot({ trust });
+      const { apis, unit } = consumer();
+      await t.host.install(unit);
+      await t.settled();
+      const listed = await apis.commands?.list({}, callOptions(t.newThread()));
+      expect(listed?.commands).toEqual([]);
+      return undefined;
+    });
+  });
+
+  test("신뢰는 대화의 작업 폴더로 묻고, 작업 폴더가 없는 대화는 엔진 cwd로 내려가지 않는다 (G2-02)", async () => {
+    const asked: string[] = [];
+    const { t, workspace } = await boot({
+      trust: (dir) => {
+        asked.push(dir);
+        return Promise.resolve(true);
+      },
+      extraCommands: { "/other/.xeon/commands/elsewhere.md": "다른 폴더 명령" },
+    });
+    const { apis, unit } = consumer();
+    await t.host.install(unit);
+    await t.settled();
+    const other = t.newThread();
+    workspace[other] = "/other";
+    const bare = t.newThread();
+    workspace[bare] = undefined;
+
+    const inOther = await apis.commands?.list({}, callOptions(other));
+    expect(inOther?.commands.map((command) => [command.name, command.source])).toEqual([
+      ["elsewhere", "project"],
+    ]);
+    expect(asked).toEqual(["/other"]);
+    const withoutWorkspace = await apis.commands?.list({}, callOptions(bare));
+    expect(withoutWorkspace?.commands).toEqual([]);
+    // 작업 폴더가 없는 대화는 신뢰를 묻지도 않는다
+    expect(asked).toEqual(["/other"]);
   });
 
   test("입력 지점은 셸 없는 템플릿 명령만 치환한다", async () => {
