@@ -92,11 +92,28 @@ export type MachineIdSource = "etc-machine-id" | "ioreg" | "hostname";
 /** 프로세스 시작 시각 지문을 읽는 수단 */
 export type FingerprintSource = "proc" | "ps" | "unsupported";
 
+/**
+ * 파일 잠금 수단. `flock`은 libc flock(2)을 bun:ffi로 부른다(프로세스가 죽으면 OS가 푼다).
+ * `process`는 같은 프로세스 안의 직렬화만 한다(프로세스 사이 잠금을 아직 지원하지 않는 OS).
+ */
+export type FileLockSource =
+  | {
+      readonly kind: "flock";
+      /** libc 공유 라이브러리 이름 */
+      readonly libName: string;
+      /** errno 위치를 돌려주는 libc 함수 이름 */
+      readonly errnoSymbol: "__errno_location" | "__error";
+      /** 이 플랫폼에서 EWOULDBLOCK(EAGAIN)의 errno 값 */
+      readonly wouldBlockErrno: number;
+    }
+  | { readonly kind: "process" };
+
 /** OS마다 바뀌는 수단의 선택 결과. 구현은 각 기능 파일이 이 값으로 고른다 */
 export interface OsProviders {
   readonly fsKind: FsKindSource;
   readonly machineId: MachineIdSource;
   readonly fingerprint: FingerprintSource;
+  readonly fileLock: FileLockSource;
 }
 
 /** 배포 환경이 provider를 덮어쓸 때 쓴다(조립 루트가 넘긴다). 비어 있으면 OS 기준으로 고른다 */
@@ -113,11 +130,36 @@ export function selectProviders(info: OsInfo, overrides: EnvOverrides = {}): OsP
 function baseProviders(platform: OsPlatform): OsProviders {
   switch (platform) {
     case "darwin":
-      return { fsKind: "mount", machineId: "ioreg", fingerprint: "ps" };
+      return {
+        fsKind: "mount",
+        machineId: "ioreg",
+        fingerprint: "ps",
+        fileLock: {
+          kind: "flock",
+          libName: "libSystem.B.dylib",
+          errnoSymbol: "__error",
+          wouldBlockErrno: 35,
+        },
+      };
     case "linux":
-      return { fsKind: "statfs", machineId: "etc-machine-id", fingerprint: "proc" };
+      return {
+        fsKind: "statfs",
+        machineId: "etc-machine-id",
+        fingerprint: "proc",
+        fileLock: {
+          kind: "flock",
+          libName: "libc.so.6",
+          errnoSymbol: "__errno_location",
+          wouldBlockErrno: 11,
+        },
+      };
     case "win32":
-      return { fsKind: "none", machineId: "hostname", fingerprint: "unsupported" };
+      return {
+        fsKind: "none",
+        machineId: "hostname",
+        fingerprint: "unsupported",
+        fileLock: { kind: "process" },
+      };
     default:
       return assertNever(platform, "OsPlatform");
   }

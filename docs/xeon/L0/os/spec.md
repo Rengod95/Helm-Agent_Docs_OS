@@ -584,6 +584,34 @@ export function platformOsPlugin(config: PlatformOsConfig): PlatformModule;   //
 - `time`은 서비스 등록 뒤 바뀌지 않는다. 조립 루트는 이 값을 꺼내 `deps`로 다른 패키지에 넘긴다(BP-05). 시계를 별도 서비스 이름(`xeon.clock` 등)으로 나눌지는 미결 7이다.
 - `PlatformOsConfig.notifier`의 타입 `NotifierProvider`를 L4가 구현하려면 공개 진입점에서 이 타입을 export해야 한다. L4 조립 루트만 쓴다.
 
+### 3.11 파일 잠금
+
+프로세스 둘 이상이 읽고 고쳐 쓰는 사용자 파일(M2는 `trust.json`)의 덮어쓰기를 막는다 [결정: m2 마감 G1-10]. `OsService`(F)에는 아직 없고, `platformOsPlugin`이 만든 `OsServiceHandle.fileLock`으로 낸다. F에 `OsService.fileLock`을 더하는 일은 F 요청이다 [미결 12].
+
+```ts
+// platform-os 공개: src/file-lock/index.ts
+export type FileLockScope = "cross_process" | "process";
+export interface FileLockOptions { readonly timeoutMs?: number; readonly signal?: AbortSignal }
+export type FileLockError =
+  | { readonly kind: "timeout"; readonly path: string; readonly waitedMs: number }
+  | { readonly kind: "cancelled" }
+  | { readonly kind: "io"; readonly path: string; readonly code: string };
+
+export interface FileLock {
+  readonly scope: FileLockScope;
+  withLock<T>(path: string, fn: () => Promise<T>, options?: FileLockOptions): Promise<Result<T, FileLockError>>;
+  updateText(path: string, fn: (current: string | null) => string, options?: FileLockOptions): Promise<Result<void, FileLockError>>;
+}
+```
+
+- 잠금 파일은 `<path>.lock`이다. 대상 파일을 직접 잠그지 않으므로 `updateText`가 이름을 바꿔 교체해도 잠금이 유지된다. 잠금 파일은 지우지 않는다(지우면 옛 inode 보유자와 새 inode 생성자가 한 경로를 둘로 나눠 쥘 수 있다). 잠금 파일이 들어갈 디렉터리는 있어야 한다. `updateText`는 없으면 0700으로 만든다.
+- 구현은 libc `flock(2)`(`LOCK_EX | LOCK_NB`)를 bun:ffi로 부른다. FFI 호출은 `src/file-lock/flock.ts` 한 파일에 있고, 라이브러리와 errno 이름은 `select.ts`가 OS별로 고른다(macOS `libSystem.B.dylib`/`__error`/35, Linux `libc.so.6`/`__errno_location`/11). 프로세스가 죽으면 OS가 잠금을 푼다.
+- 기다림은 25ms 간격 폴링이다. 같은 프로세스 안에서는 보유 표를 먼저 보고, 표에 있으면 OS 잠금을 시도하지 않는다. `timeoutMs`(기본 5000)가 지나면 `timeout`, `signal`이 중단되면 `cancelled`, 잠금 파일을 열지 못하거나 flock이 EWOULDBLOCK 아닌 errno로 실패하면 `io`다.
+- `scope`는 `cross_process`(flock 사용)이거나 `process`다. `process`는 Windows(M2 범위 밖)와 FFI를 읽지 못한 환경이고, 같은 프로세스 안에서만 배타다. 이때 서비스 시작 로그에 `os.file_lock.process_only`를 남긴다.
+- `withLock`은 `fn`이 던지면 잠금을 놓고 그 오류를 그대로 거부로 전한다. `updateText`의 `fn`이 던지면 파일은 바뀌지 않는다(신뢰 저장소가 손상 파일을 `corrupt`로 알리는 경로).
+- `updateText`는 같은 디렉터리의 임시 파일(`<path>.<pid>.<번호>.tmp`, 0600)에 쓰고 `rename`한다. 읽기 실패 가운데 `ENOENT`는 `fn(null)`이고 나머지는 `io`다. fsync는 하지 않는다(신뢰·설정 파일은 마지막 값이 사라져도 이전 값으로 돌아갈 뿐이다) [제안].
+- `TrustStoreBackend.update`(F)가 이 메서드와 같은 모양이다: 호스트 조립 루트가 `updateText`를 `update`에, 잠금 없는 읽기를 `read`에 연결한다.
+
 ## 4. 동작 규칙
 
 1. 시작 순서: 플랫폼 판별 → 디렉터리 해석 → 디렉터리 생성·검사 → 로거 생성 → 서비스 등록. 바이너리 해석, 알림 provider 확인, 감시, 텔레메트리 SDK 로드는 처음 쓸 때 한다(지연).
@@ -711,3 +739,5 @@ F에 요청:
 9. [미결] `l0.os.dirs.override`의 관리 설정 파일 위치. 사용자 설정 파일이 config 디렉터리 안에 있어 순환이 생기므로 관리 범위만 허용했다.
 10. [미결] 2차 의존의 정확한 버전과 이름. `@parcel/watcher`는 조사 시점 2.6.0이고 catalog 확정 전이다. `pi-telemetry` 1.3.0의 npm 범위 이름(`@earendil-works/` 여부)과 라이선스(MIT 여부)는 확인하지 않았다. 둘 다 OS-14·OS-15 착수 전에 npm 레지스트리에서 확인해 catalog와 `L0.os.plan` §4 표에 정확히 적는다.
 11. [미결] `processStartFingerprint`의 macOS 수단(`ps -o lstart=`는 초 단위)과 Windows 수단(`GetProcessTimes`). macOS 해상도로 pid 재사용을 충분히 구분하는지 실측한다.
+12. [미결] F 요청, `OsService.fileLock`. 지금은 `OsServiceHandle.fileLock`으로만 낸다. F가 `OsService`에 같은 모양을 더하면 조립 루트가 핸들 대신 서비스에서 받는다. `settings.json` 쓰기에 같은 잠금을 쓰는 일은 M3다.
+13. [가정] macOS의 `libSystem.B.dylib` `flock`, `__error`, EWOULDBLOCK(35)은 이 저장소에서 실측하지 않았다(`L0.store`의 같은 FFI 값과 같다). Linux는 `file-lock.int.test.ts`가 자식 프로세스 넷의 읽기-수정-쓰기 100회가 한 줄도 잃지 않음을 확인한다.

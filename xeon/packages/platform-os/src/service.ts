@@ -13,6 +13,8 @@ import type {
 } from "@xeon/contracts/services";
 import { createRipgrepSource } from "./binaries/rg.ts";
 import { createBinaryResolver, type BundledSource } from "./binaries/resolve.ts";
+import { createFileLock, type FileLock } from "./file-lock/index.ts";
+import { createFlockPrimitive } from "./file-lock/flock.ts";
 import { dirsWarnings, ensureDirs, resolveDirs } from "./dirs.ts";
 import {
   createMountProvider,
@@ -45,6 +47,11 @@ export type OsStartError = DirsError;
 
 export interface OsServiceHandle {
   readonly service: OsService;
+  /**
+   * 프로세스 사이 파일 잠금(L0.os.spec §3.11). F `OsService`에는 아직 없어 핸들로 낸다 [F 요청].
+   * M2에서는 `trust.json` 쓰기가 쓴다.
+   */
+  readonly fileLock: FileLock;
   /** 설정 l0.os.log.level 변경(live)을 반영한다 */
   setLogLevel(level: LogLevel): void;
   /** 진행 중인 자식 프로세스 중단, 남은 타이머 취소, 로거 마지막 줄 */
@@ -153,6 +160,18 @@ export async function createOsService(
     bundledSource: config.bundledSource ?? createRipgrepSource({ run: runtime.run, logger }),
   });
 
+  const primitive =
+    providers.fileLock.kind === "flock" ? createFlockPrimitive(providers.fileLock) : undefined;
+  if (providers.fileLock.kind === "flock" && primitive === undefined) {
+    logger.warn("os.file_lock.process_only", { reason: "flock_unavailable" });
+  }
+  const fileLock = createFileLock({
+    primitive,
+    clock: runtime.clock,
+    scheduler: runtime.scheduler,
+    logger,
+  });
+
   const service: OsService = {
     info,
     dirs,
@@ -187,6 +206,7 @@ export async function createOsService(
   let disposed = false;
   return ok({
     service,
+    fileLock,
     setLogLevel: (level) => rootLogger.setLevel(level),
     dispose(): Promise<void> {
       if (disposed) return Promise.resolve();
