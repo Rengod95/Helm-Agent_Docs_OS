@@ -1,6 +1,5 @@
 import { attemptAsync, err, ok, type Result } from "@xeon/contracts";
 import type { EventId, ThreadId } from "@xeon/contracts/conversation";
-import { WireError } from "@xeon/contracts/wire";
 import {
   buildDiagnostics,
   type AppVersions,
@@ -10,6 +9,8 @@ import {
 import type { Journal } from "../state/shared/index.ts";
 import type { UiStore } from "../state/ui/index.ts";
 import type { ApprovalDecision, CommandError, Commands } from "../views/commands.ts";
+import { approvalFailureOf } from "./approval-outcome.ts";
+import { errorOf } from "./command-error.ts";
 import type { Session } from "./session.ts";
 
 export type CommandDeps = {
@@ -20,10 +21,6 @@ export type CommandDeps = {
   readonly versions: () => AppVersions;
   readonly clipboard: { writeText(text: string): Promise<void> };
 };
-
-function errorOf(cause: unknown): CommandError {
-  return cause instanceof WireError ? { kind: "rejected", code: cause.code } : { kind: "failed" };
-}
 
 export function createCommands(deps: CommandDeps): Commands {
   const { session, engine, ui } = deps;
@@ -57,7 +54,19 @@ export function createCommands(deps: CommandDeps): Commands {
       const started = await withConnection((c) =>
         c.request("turn.start", { threadId, input: text, requestId }),
       );
-      return started.ok ? ok(null) : started;
+      if (!started.ok) {
+        // 다른 프로세스가 쓰기 소유를 쥐었다면 대화 상자가 대안을 묻는다. 호출한 입력창에도 오류는 그대로 돌려준다
+        if (started.error.kind === "locked") {
+          ui.actions.showLocked({
+            threadId,
+            ownerKind: started.error.ownerKind,
+            options: started.error.options,
+          });
+        }
+        return started;
+      }
+      ui.actions.setObserving(threadId, false);
+      return ok(null);
     },
     async interrupt(threadId) {
       const done = await withConnection((c) => c.request("turn.interrupt", { threadId }));
@@ -78,8 +87,35 @@ export function createCommands(deps: CommandDeps): Commands {
         ),
       );
       // 대기열에서 빠지는 일은 approval.resolved 이벤트가 한다. 여기서는 보낸 결과 표시만 고친다
-      if (!sent.ok || !sent.value.applied) ui.actions.approvalFailed(approvalId);
+      const failure = approvalFailureOf(sent, response.decision);
+      if (failure !== null) ui.actions.approvalFailed(approvalId, failure.kind, failure.detail);
     },
+    trust: {
+      status: (workspace) => withConnection((c) => c.request("trust.get", { workspace })),
+      decide: (workspace, choice) =>
+        withConnection((c) => c.request("trust.decide", { workspace, choice })),
+    },
+    async observeThread(threadId) {
+      const opened = await withConnection((c) =>
+        c.request("thread.open", { threadId, mode: "observe" }),
+      );
+      if (!opened.ok) return opened;
+      ui.actions.setObserving(threadId, true);
+      ui.actions.dismissLocked();
+      return ok(null);
+    },
+    async forkThread(threadId) {
+      const forked = await withConnection((c) => c.request("thread.fork", { threadId }));
+      if (!forked.ok) return forked;
+      ui.actions.dismissLocked();
+      // 목록에는 thread.started 이벤트가 들어온다. 선택은 화면 상태라 바로 한다
+      engine.flush();
+      ui.actions.selectThread(forked.value.threadId);
+      session.link()?.openThread(forked.value.threadId);
+      return ok(null);
+    },
+    dismissLocked: () => ui.actions.dismissLocked(),
+    retryWrite: (threadId) => ui.actions.setObserving(threadId, false),
     reloadThreads: () => session.link()?.reloadThreads(),
     retryTranscript() {
       const id: ThreadId | null = ui.read.getState().selectedThreadId;

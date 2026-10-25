@@ -507,6 +507,12 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 | 설정 진입 | 설정 화면 열기 | `L4.settings-ui.spec` | M2 진입점, 화면 내용은 settings-ui |
 
 - 승인 대기열: [가정] A안에서는 대기 상태가 저장소에 있으므로 새로고침·재기동 뒤에도 §4.6 재개로 대기열이 다시 채워진다. B안(서버 → 클라이언트 요청)으로 정해지면 대기열 복구 규칙을 다시 쓴다.
+- 승인 카드 [결정: M2 검토 M2, 마감 G2-10]:
+  - 도구 승인은 도구 이름과 위험도에 더해 `command` 문자열 전체, `args` 전체(접힘, 4000자 상한), `secretEnv`로 쓸 비밀 핸들(`이름 ← secret://…`)을 보인다. 이 승인이 비밀 사용의 증거가 되므로 사용자가 내용을 보고 허용해야 한다. 핸들은 참조이고 값이 아니며, 참조 모양이 아닌 값은 이름만 보인다. 인자가 BlobRef면 "별도 저장소에 있다"만 보인다.
+  - 질문 승인은 선택지를 그린다(`multiSelect`면 체크박스, 아니면 라디오. `header`, `description`, `recommended` 표시). 자유 입력은 `allowFreeText`가 참인 질문에만 둔다. 모든 질문에 선택이나 자유 입력이 하나 있어야 "답하기"가 켜지고, 보내는 값은 `L1.tools.spec` §3.6이 받는 `QuestionAnswer`(`{ [질문 id]: { selected, text? } }`)다. "거부"는 질문에도 있다.
+  - 응답이 적용되지 않으면 `approval.respond` 결과의 `reason`으로 이유별 문장을 보인다(`src/app/approval-outcome.ts`). `answer_invalid`는 `invalid`(host가 준 `detail` 한 줄을 덧붙인다), `already_resolved`와 `unknown_approval`은 `closed`, `commit_failed`와 연결 오류는 `failed`, 이유가 없으면 `unapplied`다. 스키마에 맞지 않는 질문 답의 `-32602`도 `invalid`로 읽는다.
+- 프로젝트 신뢰 카드 [결정: M2 마감 G1-03]: 신뢰하지 않은 프로젝트는 `.mcp.json`, 프로젝트 스킬, 프로젝트 슬래시 명령, 프로젝트 설정을 읽지 않는다. 열린 대화의 작업 폴더(`ThreadSummary.workspace`)에 대해 연결이 `live`가 되면 `trust.get { workspace }`를 부르고, 신뢰가 필요한 자원이 있고(`required`) 허용이 아니면(`verdict`가 `undecided` 또는 `deny`) 입력창 위에 카드를 보인다. 카드는 프로젝트 경로, 불러오려는 자원, host가 만든 선택지(`TrustOption`)를 버튼으로 둔다. 버튼 문구는 `label` 식별자(`trust-folder` 등)를 `src/views/trust-model.ts` 표로 옮기고 모르는 식별자는 그대로 보인다. 선택은 `trust.decide { workspace, choice }`로 보내고, 돌아온 판정으로 카드를 바꾼다(신뢰하면 사라진다). 판정은 이벤트가 아니라 요청 결과라 거울에 넣지 않고 부품의 로컬 상태에 둔다(`eng.frontend-state.guide` FS-03, FS-04). 거부한 프로젝트는 바꿀 수 있게 카드가 남는다. 메서드가 없는 host의 `-32601`은 `unsupported`로 읽고 카드를 그리지 않는다.
+- `thread.locked` 대화 상자 [결정: M2 마감 G2-09]: `turn.start`가 `thread.locked`(3002)로 거절되면 대화 상자를 연다(`src/views/locked-dialog.tsx`). 소유자 종류(`details.ownerKind`)를 이름으로 보이고, host가 준 대안 중 `observe`(`thread.open { mode: "observe" }`, 성공하면 그 대화의 입력창이 잠기고 "쓰기 다시 시도"가 나온다)와 `fork`(`thread.fork`, 성공하면 새 대화를 연다)만 버튼으로 둔다. `delegate`는 서비스 공급원에서만 있어 사이드카에서는 보이지 않는다. 쓰기가 성공하면 관찰 표시는 지워진다.
 - 입력창의 `requestId`: 재기동 사이에 같은 입력이 두 번 제출되지 않도록 입력마다 새 `requestId`를 만들고, 응답을 받기 전에 연결이 끊기면 같은 `requestId`로 다시 보낸다(`F.wire-settings.spec` §3.3.1 `turn.start` 제안).
 - 키 바인딩과 테마는 `appearance` 탭 설정이다(§6).
 - 확장 이벤트(`x.<확장id>.*`)는 M2에서 일반 item(종류 이름과 요약)으로만 보인다. 확장별 화면은 범위 밖이다.

@@ -1,86 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import { repeatAsync } from "@xeon/contracts";
 import type { EngineState } from "../../src/transport/ipc.ts";
-import { createApp, type App } from "../../src/app/bootstrap.ts";
-import { fakeIpc, requestId, type FakeIpc } from "../transport/fake-ipc.ts";
-import { STORE, summary, thr, userItem } from "../state/helpers.ts";
-
-const tick = (ms = 5): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
-
-async function until(condition: () => boolean, label: string): Promise<void> {
-  let left = 200;
-  await repeatAsync<undefined>(async () => {
-    if (condition()) return { value: undefined };
-    left -= 1;
-    if (left <= 0) throw new Error(`timed out waiting for ${label}`);
-    await tick();
-    return undefined;
-  });
-}
-
-function methodOf(message: unknown): string {
-  const method: unknown =
-    typeof message === "object" && message !== null ? Reflect.get(message, "method") : undefined;
-  return typeof method === "string" ? method : "";
-}
-
-/** 엔진 역할: 요청에 결과를 돌려준다. 시험이 호출 목록을 본다 */
-function engineFake(
-  threads = [summary(thr(1))],
-  stateForAttach?: (n: number) => EngineState,
-): { fake: FakeIpc; methods: string[] } {
-  const methods: string[] = [];
-  const results: Readonly<Record<string, unknown>> = {
-    "host.hello": {
-      protocolVersion: "0.1.0",
-      server: { name: "xeon", version: "1.2.3" },
-      storeId: STORE,
-      transport: "stdio",
-      features: [],
-      experimental: [],
-    },
-    "events.subscribe": { sub: "s1", start: 5, headSeq: 5, storeId: STORE, mode: "live" },
-    "thread.list": { threads, nextCursor: null },
-    "thread.read": {
-      threadId: thr(1),
-      items: [userItem(1, "hello")],
-      position: { storeId: STORE, seq: 5 },
-      hasMore: false,
-    },
-    "turn.start": { turnId: "trn_00000000000000000000000001" },
-  };
-  const result = (method: string): unknown => results[method] ?? {};
-  const fake = fakeIpc({
-    ...(stateForAttach === undefined ? {} : { stateForAttach }),
-    onWrite: (message, f) => {
-      const method = methodOf(message);
-      methods.push(method);
-      if (requestId(message) === "") return; // 알림($/connectionReset)에는 응답이 없다
-      f.emitLine({ jsonrpc: "2.0", id: requestId(message), result: result(method) });
-    },
-  });
-  return { fake, methods };
-}
-
-function makeApp(fake: FakeIpc): App {
-  return createApp({
-    ipc: fake.ipc,
-    clock: { now: () => Date.now() },
-    scheduler: {
-      setTimeout: (fn, ms) => Number(setTimeout(fn, ms)),
-      clearTimeout: (h) => clearTimeout(h),
-    },
-    frames: {
-      requestAnimationFrame: (cb) => Number(setTimeout(() => cb(0), 0)),
-      cancelAnimationFrame: (h) => clearTimeout(h),
-    },
-    monotonic: () => performance.now(),
-    clipboard: { writeText: () => Promise.resolve() },
-    appVersion: "0.0.0",
-    frameFallbackMs: 20,
-    logSink: () => {},
-  });
-}
+import { fakeIpc, requestId } from "../transport/fake-ipc.ts";
+import { summary, thr } from "../state/helpers.ts";
+import { engineFake, makeApp, tick, until } from "./support.ts";
 
 describe("app session over a fake shell and fake engine", () => {
   test("attach, hello, subscribe, thread.list end in a live link with the list ready", async () => {

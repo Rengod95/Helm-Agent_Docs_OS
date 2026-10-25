@@ -274,3 +274,55 @@ input[type="text"] {
   padding: 1px 8px;
   font-size: 12px;
 }
+.question {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+}
+.question legend {
+  padding: 0;
+  font-weight: 500;
+}
+.question .option {
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+}
+.approval pre.code {
+  max-height: 160px;
+  overflow: auto;
+  margin: 6px 0;
+}
+.approval-secrets {
+  margin-top: 6px;
+}
+.approvals .approval-secrets ul,
+.approvals .trust-resources {
+  margin: 2px 0 0;
+  padding-left: 18px;
+  display: block;
+  list-style: disc;
+}
+.observing {
+  padding: 4px 12px;
+  border-top: 1px solid var(--border);
+}
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.4);
+}
+.dialog {
+  max-width: 440px;
+  padding: 16px 20px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.dialog h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}

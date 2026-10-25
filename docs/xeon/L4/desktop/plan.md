@@ -369,6 +369,8 @@ D6(UI 셸)과 D7(승인 대기열)의 구현 결과다. 상태 설계는 `L4.des
 
 실제 창 확인(WSLg, 디버그, 가짜 엔진 `XEON_DESKTOP_ENGINE_BIN`): WebKitGTK 창에서 연결됨, 목록 읽기, 승인 복원(`approval.list`), 대화 열기(`thread.read`), 입력 → 토큰 스트리밍 → 확정, 승인 응답 → 대기열에서 사라짐, 새 대화 만들기가 끝까지 동작했다. CSP 위반은 없었다. 마우스·키보드 입력은 DOM 이벤트로 흉내 냈고 한글 IME 조합은 확인하지 못했다. macOS와 Windows는 확인하지 못했다.
 
+M2 마감 반영(T7 DESK, TS만): 도구 승인 카드가 명령, 인자, 비밀 핸들을 보이고(`src/views/approval-form.ts`), 질문 카드가 선택지와 `allowFreeText`를 따르며 `QuestionAnswer`를 만든다. 실패 표시는 `approval.respond`의 `reason`·`detail`로 `failed`, `invalid`, `closed`, `unapplied`로 나뉜다(`src/app/approval-outcome.ts`). 프로젝트 신뢰 카드(`src/views/trust.tsx`, `trust-model.ts`)는 `trust.get`·`trust.decide`를 부른다. `thread.locked`는 `src/app/command-error.ts`가 대안을 읽고 `src/views/locked-dialog.tsx`가 묻는다(G2-09). 시험은 `test/views/*`(서버 렌더와 순수 로직)와 `test/app/locked-trust.test.ts`(가짜 셸과 가짜 엔진)다. `trust.get`·`trust.decide`·`thread.open observe`의 실제 host 처리기와 맞춘 종단 시험은 wave 2 host가 병합된 뒤에 다시 돌려야 한다.
+
 구현하면서 spec과 달라진 점:
 
 - 새 페이지의 `$/connectionReset`은 F에 아직 없어 보내지 않는다. 새로고침 뒤 `host.hello`가 중복(1002)이면 상태 표시줄에 `연결 실패: hello:1002`가 보이고 "다시 연결"만 가능하다. M1 정책(새로고침 = 엔진 재기동)에 맞춰 셸이 처리해야 한다 [미결].

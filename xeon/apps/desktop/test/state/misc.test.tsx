@@ -7,6 +7,7 @@ import { checkMirror } from "../../src/state/engine/invariants.ts";
 import { createFrameClock } from "../../src/state/shared/frame.ts";
 import { createUiStore } from "../../src/state/ui/store.ts";
 import type { Commands } from "../../src/views/commands.ts";
+import { fakeCommands } from "../views/fake-commands.ts";
 import { Providers } from "../../src/views/providers.tsx";
 import { StatusBar } from "../../src/views/status-bar.tsx";
 import { Transcript } from "../../src/views/transcript.tsx";
@@ -219,18 +220,7 @@ describe("settled markers", () => {
 });
 
 describe("react surface (server render, no DOM)", () => {
-  const commands: Commands = {
-    selectThread: () => {},
-    createThread: () => Promise.resolve({ ok: true, value: null }),
-    sendTurn: () => Promise.resolve({ ok: true, value: null }),
-    interrupt: () => Promise.resolve({ ok: true, value: null }),
-    respondApproval: () => Promise.resolve(),
-    reloadThreads: () => {},
-    retryTranscript: () => {},
-    reconnect: () => {},
-    restartEngine: () => Promise.resolve(),
-    copyDiagnostics: () => Promise.resolve(true),
-  };
+  const commands: Commands = fakeCommands();
 
   test("hooks without a provider throw Bug (FS context rule)", () => {
     expect(() => renderToString(<Transcript />)).toThrow(Bug);
