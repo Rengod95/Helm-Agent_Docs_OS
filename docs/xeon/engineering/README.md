@@ -30,6 +30,7 @@ binds: []
 | 9 | `events/design.md` | `eng.events.design` | design | 이벤트 종류, 내구·휘발, 순서, 재생 | | 필수 | |
 | 10 | `transactions/design.md` | `eng.transactions.design` | design | 정합성·원자성, 단일 DB, outbox, 멱등 | | 필수 | |
 | 11 | `frontend-state/guide.md` | `eng.frontend-state.guide` | guide | UI 전역 상태(React 19 + Zustand 5): 스토어 구성, reducer 단계, 스트리밍, 재동기화, 선택자 | | | |
+| 12 | `performance/guide.md` | `eng.performance.guide` | guide | 속도 예산표, `just bench` 측정 규칙(ADR-0012) | | | |
 
 - `review` 묶음에는 이 디렉터리 밖의 `architecture.layers.spec`도 들어 있다(`routes.yaml` `by_task.review`).
 - 11은 작업 묶음에 넣지 않고 `binds`(`xeon/apps/desktop/src/**`, `xeon/**/*.tsx`)로만 고른다. UI 코드가 아닌 작업이 읽을 이유가 없기 때문이다.
@@ -65,6 +66,7 @@ binds: []
 | EV | `eng.events.design` | `EV-NN` |
 | TX | `eng.transactions.design` | `TX-NN` |
 | FS | `eng.frontend-state.guide` | `FS-NN` |
+| PF | `eng.performance.guide` | `PF-NN` |
 
 - 인용 형식: 문서 안에서는 `<문서 id> <규칙 ID>`로 쓴다. 예: `eng.anti-patterns.guide AP-C-05`.
 - 링크 앵커: 명시적 `<a id>`를 둔 문서는 `eng.anti-patterns.guide`와 `eng.best-practices.guide`뿐이다. 이 두 문서의 항목만 `[AP-C-05](anti-patterns/guide.md#ap-c-05)`처럼 규칙 ID의 소문자를 앵커로 링크한다. 다른 문서의 규칙(DR, TY, DT, TC, TS, CM, EV, TX, FS)은 헤딩 자동 앵커가 제목 전체를 포함하므로 링크하지 않고 인용 형식으로 쓴다.
