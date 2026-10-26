@@ -11,7 +11,7 @@ import { summary } from "./support/m2.ts";
 import { scriptedInput } from "./support/script.ts";
 
 // G2-12: 세션 제목. 목록은 제목을 보이고, `sessions rename`과 `/rename`은 thread.rename으로 바꾼다.
-// 첫 입력 80자로 제목을 정하는 일은 호스트(T2)가 한다. 호스트 처리기는 가짜다(종단 시험은 wave 2 병합 뒤 다시 돌린다).
+// 첫 입력 80자로 제목을 정하는 일은 호스트(T2)가 한다. 호스트 처리기는 가짜다(종단 시험은 rename-host.int.test.ts).
 
 const harnesses: Harness[] = [];
 afterEach(() => {

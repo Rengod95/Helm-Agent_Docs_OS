@@ -11,7 +11,7 @@ import { summary } from "./support/m2.ts";
 import { scriptedInput, type Reply } from "./support/script.ts";
 
 // G1-01: 엔진에 등록한 슬래시 명령을 command.list / command.run으로 실행한다. 호스트 처리기는 가짜다
-// (실제 처리기와의 종단 시험은 T2 병합 뒤 `needs wave-2 host`로 다시 돌린다).
+// (실제 처리기와의 종단 시험은 slash-commands-host.int.test.ts).
 
 const harnesses: Harness[] = [];
 afterEach(() => {

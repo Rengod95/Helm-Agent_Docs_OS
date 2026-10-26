@@ -501,7 +501,7 @@ export type CliState = Static<typeof CliStateSchema>;
 
 - 끊긴 turn 이어 실행 [결정: m2c G1-02]:
   - 대화형이 기존 세션(`--continue`, `--resume <id>`, `/resume`)을 열면 이전 기록을 다 그린 뒤, 입력을 받기 전에 `thread.list`에서 그 세션의 요약을 찾는다. 작업 폴더 범위에서 먼저 찾고 없으면 전체에서 찾는다. 쪽은 각 범위 최대 3쪽까지 넘겨 본다.
-  - 요약의 `resumable`이 `null`이 아니면 "이 세션에 끊긴 turn이 있다 (시작 <시각>, 이어 실행을 <n>번 시도했다)"를 보이고 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`를 보낸다. 호스트는 자동 재개를 하지 않으므로 CLI도 묻지 않고 부르지 않는다.
+  - 요약의 `resumable`이 `null`이 아니면 "이 세션에 끊긴 turn이 있다 (시작 <시각>, 이어 실행을 <n>번 시도했다)"를 보이고 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`를 보낸다. 호스트는 자동 재개를 하지 않으므로 CLI도 묻지 않고 부르지 않는다. 호스트가 쓰기 소유를 얻으면서 되살린 미해결 승인(HS-52)이 있으면 그 승인 카드가 이 질문보다 먼저 서고, 카드에 답한 뒤에 이 질문을 한다 [미결 §10 15번].
   - 결과는 `resumed`(이어서 실행한다, 단계 `from`을 보이고 그 turn이 끝날 때까지 기다린다. 진행은 이벤트로 그려진다), `closed`(중단 요청 또는 소유자 취소라 이어 실행하지 않고 닫았다), `nothing`(이어서 실행할 turn이 없다)이다. 실패는 두 줄 오류로 알리고 입력을 이어 받는다.
   - 새 세션, 관찰 전용으로 연 세션, print 모드, `host.hello`의 `features`에 `turn.resume`이 없는 호스트에서는 묻지 않는다. 목록을 읽지 못해도 대화를 막지 않는다.
   - `xeon sessions ls`는 `resumable`이 있는 세션에 `[이어서 실행 가능]`을 붙인다(구현됨).
@@ -717,7 +717,7 @@ export type CliState = Static<typeof CliStateSchema>;
      - 프롬프트는 한 번에 하나다. 입력 줄이 읽는 중에 승인이 오면 입력 줄을 닫고 승인을 먼저 묻는다.
      - 세션을 열 때 이전 기록을 다 그린 뒤 `approval.list { threadId }`로 아직 답하지 않은 승인을 되살려 묻는다(재시작 뒤 복원). 이벤트로 이미 받은 승인은 `approvalId`로 중복을 거른다.
      - `approval.resolved`가 먼저 오면 "다른 곳에서 이미 답한 승인이다"를 보이고 프롬프트를 닫는다.
-     - `approval.respond`가 `applied: false`이면 `reason`으로 가른다 [결정: m2c G2-10]. `answer_invalid`는 `detail`을 보이고 같은 질문을 다시 묻는다(요청이 아직 대기 중이다). `commit_failed`는 "승인 응답을 기록하지 못했다"를 알리고 다시 묻는다. 두 이유로 3번 적용되지 않으면 이 승인을 대기로 남기고 포기한다(재시작 뒤 `approval.list`가 다시 묻는다). `already_resolved`와 이유를 알리지 않는 호스트는 "다른 곳에서 이미 답한 승인이다", `unknown_approval`은 "host가 모르는 승인이다. 재시작으로 사라졌을 수 있다"를 보이고 프롬프트를 닫는다. print 모드의 자동 거부가 적용되지 않으면 이유를 stderr에 남긴다.
+     - `approval.respond`가 `applied: false`이면 `reason`에 따라 처리를 나눈다 [결정: m2c G2-10]. `answer_invalid`는 `detail`을 보이고 같은 질문을 다시 묻는다(요청이 아직 대기 중이다). `commit_failed`는 "승인 응답을 기록하지 못했다"를 알리고 다시 묻는다. 두 이유로 3번 적용되지 않으면 이 승인을 대기로 남기고 포기한다(재시작 뒤 `approval.list`가 다시 묻는다). `already_resolved`와 이유를 알리지 않는 호스트는 "다른 곳에서 이미 답한 승인이다", `unknown_approval`은 "host가 모르는 승인이다. 재시작으로 사라졌을 수 있다"를 보이고 프롬프트를 닫는다. print 모드의 자동 거부가 적용되지 않으면 이유를 stderr에 남긴다.
   7. 동의 표시 [결정: m2c G2-10. 요건의 정본은 `L1.tools.spec`이고 CLI는 아래를 보인다]: 사용자가 허용하는 것이 무엇인지 카드에서 알 수 있어야 한다.
      - 도구 카드는 인자 요약(120자) 아래에 실행할 `command` 전체(40줄까지, 넘으면 "…(n줄 생략)")와 `secretEnv`의 비밀 핸들(`이름=secret://…`)을 보인다. 승인이 비밀 사용의 증거라서 명령과 핸들을 보고 허용해야 한다. `secret://` 참조 모양이 아닌 값은 값을 보이지 않고 "(참조 형식이 올바르지 않음)"만 쓴다. 인자가 BlobRef면 상세 줄이 없다.
      - 요청 주체(`origin.caller`)가 `main`이 아니면 첫 줄에 보인다: `background`는 백그라운드 작업, `host`는 호스트, `subagent:<이름>`은 서브에이전트, `ext:<이름>`은 확장이다.
@@ -869,3 +869,4 @@ export type CliState = Static<typeof CliStateSchema>;
 12. [결정: m2c G1-07] `secret test`의 출력. F 결과에 `decryptable`, `length`, `sha256Prefix`가 더해져서 §4.7대로 출력한다.
 13. [미결] 설정 값 사전 검사(§4.8). `settings.list`의 `SettingDefWire`는 `type`이 JSON Schema 객체라 `validateSettingValue`(TSchema 입력)를 바로 부를 수 없고, CLI에서 `Type.Unsafe(json)`을 쓰면 TY-26을 어긴다. F가 `SettingDefWire`를 받는 검사 함수를 내면 `config set`이 왕복 전에 범위 오류를 알릴 수 있다. 그 전까지 값 판정은 호스트의 `settings.set`이 한다(오류 문구는 §4.10 표).
 14. [결정: m2c G1-07] 비밀 삭제 전 참조 표시. `secret.references`로 설정 키, 활성 lease 수, 최근 사용한 세션을 보인다(§4.7 `rm`).
+15. [미결] 끊긴 turn을 연 세션의 질문 순서. 실제 호스트는 쓰기 소유를 얻을 때 미해결 승인을 되살리므로(`L4.host-service.spec` HS-52) 승인 카드가 `이어서 실행할까요? [y/N]`보다 먼저 선다. 이어 실행을 먼저 묻고 승인 카드를 그 뒤로 미루려면 승인 프롬프트를 이어 실행 질문이 끝날 때까지 붙잡는 장치가 CLI에 필요하다. 지금은 두 질문이 같은 입력 줄을 순서대로 쓰고 어느 쪽으로도 잘못 응답되지 않는다(`turn-resume-host.int.test.ts`). 작성자 결정.

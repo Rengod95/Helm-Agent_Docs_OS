@@ -10,7 +10,7 @@ import { summary } from "./support/m2.ts";
 import { scriptedInput, type Reply } from "./support/script.ts";
 
 // G1-02: thread.list의 resumable 표식이 있는 세션을 열면 사용자에게 묻고, 확인하면 turn.resume을 부른다.
-// 호스트 처리기는 가짜다(실제 처리기와의 종단 시험은 T2 병합 뒤 `needs wave-2 host`로 다시 돌린다).
+// 호스트 처리기는 가짜다(실제 처리기와의 종단 시험은 turn-resume-host.int.test.ts).
 
 const harnesses: Harness[] = [];
 afterEach(() => {

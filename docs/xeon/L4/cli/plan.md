@@ -252,20 +252,39 @@ xeon/apps/cli/
 
 ### 4.6 M2 마감 구현 기록 (T6, 2026-10-25)
 
-M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰 CLI 쪽을 더한 기록이다. 호스트 처리기는 같은 시점에 T2가 구현하므로, 시험은 가짜 호스트(`test/support/fake-server.ts`)로 돌리고 실제 처리기가 필요한 종단 시험은 wave 2 병합 뒤에 다시 돌린다.
+M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰 CLI 쪽을 더한 기록이다. 호스트 처리기는 같은 시점에 T2가 구현하므로, 시험은 가짜 호스트(`test/support/fake-server.ts`)로 돌렸고 실제 처리기가 필요한 종단 시험은 wave 2 병합 뒤에 실제 호스트로 다시 만들었다(아래 "실제 호스트 종단 시험").
 
 | 항목 | 상태 | 구현 위치 |
 |---|---|---|
 | 오류 문구 | 구현: `secret.*` 전용 kind, `thread.closed`, `settings.reserved`, `store.corrupt`, 슬래시 명령 능력 오류(`cap.dialog.commands.*`). 시험은 값으로 비교한다 | `src/errors.ts`, `test/errors-wire.test.ts` |
-| 슬래시 명령 실행(G1-01) | 구현: 내장도 별칭도 아닌 이름을 `command.run`으로 보내 `done`(메시지·구조 값), `expanded`(turn으로 전송), `needs_confirmation`(`[y/N]` 뒤 `confirmShell`), `not_command`를 처리한다. `command.list`는 `/help`와 Tab 완성에 쓴다. `command.list`에는 연 세션의 `threadId`를 보내고(호스트가 프로젝트 명령을 그 세션의 작업 폴더 기준으로 읽는다) `/resume`으로 세션을 바꾸면 다시 읽는다. 시험 `slash-commands.test.ts`는 가짜 호스트 처리기라서 실제 처리기와의 종단 시험은 wave 2 host 병합 뒤 다시 돌린다 | `src/slash.ts`, `src/tui/minimal.ts`, `test/slash-commands.test.ts` |
-| 끊긴 turn 이어 실행(G1-02) | 구현: 기존 세션을 연 대화형이 `thread.list`에서 요약을 찾아 `resumable`이 있으면 `[y/N]`을 묻고 `turn.resume`을 부른다. 결과 세 모양(`resumed`, `closed`, `nothing`)을 문구로 보이고 `resumed`는 turn이 끝날 때까지 기다린다. 시험 `turn-resume.test.ts`는 가짜 호스트라서 실제 처리기와의 종단 시험은 wave 2 host 병합 뒤 다시 돌린다 | `src/commands/resume-turn.ts`, `src/threads.ts`, `src/commands/chat-session.ts`(`resumeTurn`), `test/turn-resume.test.ts` |
-| 프로젝트 신뢰(G1-03) | 구현: `xeon trust [status\|allow\|deny]`(`trust.get`, `trust.decide`)와 대화형 `chat` 시작 카드. `m2/fx-apps`의 `trust.pending`·`projectRoot` 가정은 버리고 F의 `trust.get { workspace }`와 `TrustStatus`로 다시 썼다(포트 `TrustClient`는 없앴다). 시험 `trust.test.ts`는 가짜 처리기라서 실제 처리기(`trust.json` 쓰기, 잠금)와의 종단 시험은 wave 2 host 병합 뒤 다시 돌린다 | `src/commands/trust.ts`, `src/render/trust.ts`, `src/cli/command.ts`(`parseTrust`), `test/trust.test.ts` |
-| 비밀 참조·시험 출력(G1-07) | 구현: `secret rm`이 `secret.references`로 설정 키·활성 lease·최근 세션을 보인 뒤 묻고, 활성 lease가 있으면 지우기를 보내지 않는다. `secret test`는 `decryptable`, 길이, SHA-256 앞 8자를 보이고 복호화할 수 없으면 1이다(C9의 "`state`만 보인다"를 대체). 값은 어디에도 없다는 검사(`expectNoValue`)를 `test`에도 건다. 가짜 처리기라서 실제 처리기와의 종단 시험은 wave 2 host 병합 뒤 다시 돌린다 | `src/commands/secret.ts`, `test/secret.test.ts`, `test/support/secrets.ts` |
-| 동의 표시(G2-10) | 구현: 도구 카드가 `command` 전체와 `secretEnv` 핸들(`Reflect.get` 없이 다시 씀), 요청 주체(`origin.caller`), 만료(`expiresAt`, `onExpire`)를 보인다. `approval.resolved`의 `requestedRemember`와 `remember`가 다르면(`always`→`thread`) 낮춰 적용했음을, `resolvedBy`가 `user`가 아니면 이유를 보인다. `approval.respond`의 `reason`을 `answer_invalid`·`commit_failed`(다시 묻기, 3번까지), `already_resolved`·`unknown_approval`(닫기)로 가른다. 요건의 정본(`L1.tools.spec`)과 `always` 숨김은 T4 소관이다 | `src/render/transcript.ts`, `src/render/text-sink.ts`, `src/render/approval.ts`, `src/commands/chat.ts`, `test/approval-consent.test.ts` |
+| 슬래시 명령 실행(G1-01) | 구현: 내장도 별칭도 아닌 이름을 `command.run`으로 보내 `done`(메시지·구조 값), `expanded`(turn으로 전송), `needs_confirmation`(`[y/N]` 뒤 `confirmShell`), `not_command`를 처리한다. `command.list`는 `/help`와 Tab 완성에 쓴다. `command.list`에는 연 세션의 `threadId`를 보내고(호스트가 프로젝트 명령을 그 세션의 작업 폴더 기준으로 읽는다) `/resume`으로 세션을 바꾸면 다시 읽는다. 가짜 호스트 시험은 `slash-commands.test.ts`, 실제 호스트 종단 시험은 `slash-commands-host.int.test.ts` | `src/slash.ts`, `src/tui/minimal.ts`, `test/slash-commands.test.ts` |
+| 끊긴 turn 이어 실행(G1-02) | 구현: 기존 세션을 연 대화형이 `thread.list`에서 요약을 찾아 `resumable`이 있으면 `[y/N]`을 묻고 `turn.resume`을 부른다. 결과 세 모양(`resumed`, `closed`, `nothing`)을 문구로 보이고 `resumed`는 turn이 끝날 때까지 기다린다. 가짜 호스트 시험은 `turn-resume.test.ts`, 실제 호스트 종단 시험은 `turn-resume-host.int.test.ts` | `src/commands/resume-turn.ts`, `src/threads.ts`, `src/commands/chat-session.ts`(`resumeTurn`), `test/turn-resume.test.ts` |
+| 프로젝트 신뢰(G1-03) | 구현: `xeon trust [status\|allow\|deny]`(`trust.get`, `trust.decide`)와 대화형 `chat` 시작 카드. `m2/fx-apps`의 `trust.pending`·`projectRoot` 가정은 버리고 F의 `trust.get { workspace }`와 `TrustStatus`로 다시 썼다(포트 `TrustClient`는 없앴다). 가짜 처리기 시험은 `trust.test.ts`, 실제 처리기(`trust.json` 쓰기)와의 종단 시험은 `trust-host.int.test.ts` | `src/commands/trust.ts`, `src/render/trust.ts`, `src/cli/command.ts`(`parseTrust`), `test/trust.test.ts` |
+| 비밀 참조·시험 출력(G1-07) | 구현: `secret rm`이 `secret.references`로 설정 키·활성 lease·최근 세션을 보인 뒤 묻고, 활성 lease가 있으면 지우기를 보내지 않는다. `secret test`는 `decryptable`, 길이, SHA-256 앞 8자를 보이고 복호화할 수 없으면 1이다(C9의 "`state`만 보인다"를 대체). 값은 어디에도 없다는 검사(`expectNoValue`)를 `test`에도 건다. 가짜 처리기 시험은 `secret.test.ts`, 실제 sops·age 저장소와의 종단 시험은 `secret-host.int.test.ts` | `src/commands/secret.ts`, `test/secret.test.ts`, `test/support/secrets.ts` |
+| 동의 표시(G2-10) | 구현: 도구 카드가 `command` 전체와 `secretEnv` 핸들(`Reflect.get` 없이 다시 씀), 요청 주체(`origin.caller`), 만료(`expiresAt`, `onExpire`)를 보인다. `approval.resolved`의 `requestedRemember`와 `remember`가 다르면(`always`→`thread`) 낮춰 적용했음을, `resolvedBy`가 `user`가 아니면 이유를 보인다. `approval.respond`의 `reason`에 따라 `answer_invalid`·`commit_failed`는 다시 묻고(3번까지) `already_resolved`·`unknown_approval`은 프롬프트를 닫는다. 요건의 정본(`L1.tools.spec`)과 `always` 숨김은 T4 소관이다 | `src/render/transcript.ts`, `src/render/text-sink.ts`, `src/render/approval.ts`, `src/commands/chat.ts`, `test/approval-consent.test.ts` |
 | 수동 컴팩션(G2-01) | 구현: `/compact [<지침>]`이 `thread.compact`를 보낸다. `compacted`는 요약 전 토큰 수, `skipped`는 이유 한 줄을 보인다. 확장 차단(3006), 요약 실패(3008), 진행 중 turn(3003), 닫힌 세션(3007), 취소는 두 줄 오류로 알리고 입력을 이어 받는다. 이름이 같은 엔진 명령보다 내장이 앞선다. `thread.compact`가 없는 호스트에는 보내지 않는다 | `src/slash.ts`, `src/errors.ts`, `test/slash-commands.test.ts`, `test/errors-wire.test.ts` |
 | 세션 제목(G2-12) | 구현: `sessions rename <id> <제목>`과 `/rename <제목>`이 `thread.rename`을 보낸다(1~200자 검사는 `titleProblem` 한 곳). 목록의 제목 표시는 M2에 이미 있었고 `(제목 없음)`이 호스트가 제목을 채우면 사라진다. 첫 입력 80자 제목은 T2(호스트)가 정하므로 CLI에는 두지 않았다 | `src/commands/sessions.ts`, `src/slash.ts`, `src/threads.ts`, `src/cli/command.ts`, `test/rename.test.ts` |
 
-- 이 절의 시험은 모두 가짜 호스트(`test/support/fake-server.ts`)를 쓴다. 실제 처리기가 있어야 의미가 있는 종단 확인은 wave 2의 호스트(T2) 병합 뒤 `just test apps/cli`와 모델 테이프 시나리오로 다시 돌린다: `command.run`의 `/plan` 출력(G1-01), `turn.resume`(G1-02), `trust.get`·`trust.decide`와 `trust.json` 쓰기(G1-03), `secret.references`·`secret.test` 확장 결과(G1-07), `thread.rename`과 호스트가 정한 첫 입력 제목(G2-12), 승인 `reason`·`detail`(G2-10).
+#### 실제 호스트 종단 시험 (M2 마감 병합 뒤)
+
+가짜 호스트 시험(`test/support/fake-server.ts`)은 CLI가 보낸 요청과 받은 값의 처리를 빠르게 확인하고, 아래 시험은 같은 흐름을 실제 `@xeon/host`와 모델 테이프로 다시 확인한다. 공통 도구는 `test/support/real-host.ts`다. `connectEngine`이 실제 호스트를 같은 프로세스에 세우고, 입출력은 `harness.ts`의 가짜 `CliIo`를 그대로 쓰며, 보낸 요청은 `observe` 탭으로 모은다(`RealCli.sent`). 엔진 홈(`XEON_HOME`)은 시험마다 임시 디렉터리다. 승인을 기다리다 죽는 호스트는 실제 자식 프로세스(`test/fixtures/scenario-host.ts`, `test/support/stdio-child.ts`)로 띄워 SIGKILL한다.
+
+| 시험 파일 | 실제 호스트에서 확인한 것 | 가짜 호스트 시험에만 남은 것 |
+|---|---|---|
+| `slash-commands-host.int.test.ts` | `command.list { threadId }`의 id가 `command.run`의 id와 같다. `/help`에 `/plan`, `/tasks`가 보이고 `/tasks`, `/plan`의 출력이 호스트가 쓴 문구와 같다. 신뢰 전에는 프로젝트 명령 `/hello`가 없고 `xeon trust allow` 뒤에는 있으며 펼친 텍스트가 `turn.start`의 `input`이 된다. `/compact`가 긴 대화(테이프 모델 요약)를 요약하고 둘째 호출은 `last_entry_is_compaction`이다. 짧은 대화는 `nothing_to_summarize`다 | `needs_confirmation`(셸 주입), 확장 차단과 요약 실패 오류 문구 |
+| `turn-resume-host.int.test.ts` | 승인을 기다리다 SIGKILL된 호스트의 저장소를 새 호스트가 열면 `thread.list`의 `resumable`로 묻고, y에서만 `turn.resume`이 한 번 가며 되살아난 승인에 답하면 turn이 끝난다. n이면 `turn.resume`이 가지 않는다. 새 세션은 묻지 않는다 | 결과 `closed`·`nothing`의 문구, `turn.resume` 실패 문구 |
+| `trust-host.int.test.ts` | 실제 `trust.get`의 카드와 `--json`, `trust allow --scope parent`가 `trust.json`(0600)에 남고 다음 실행의 판정이 `allow`(`store`)가 된다. 세션 범위 결정은 파일을 쓰지 않는다. 시작 카드는 `thread.create`보다 앞서고 번호로 고른 선택지를 보내며 두 번째 실행은 묻지 않는다. 엔터는 아무것도 저장하지 않는다. 자원이 없는 폴더는 stderr 한 줄이다 | 저장 실패(`store.io`)와 `trust.get` 실패 문구, print·JSON 모드 |
+| `secret-host.int.test.ts` | 실제 sops·age로 `secret add`, `ls`, `test`(길이와 해시 앞 8자), `rm`(참조 한 줄과 `[y/N]`), `rm --yes`를 한 저장소에서 잇는다. 값, base64, hex가 stdout·stderr·보낸 요청·홈 아래 모든 파일에 없다 | 설정 키와 활성 lease가 있는 참조 표시, `reveal`, 제공자·키 오류 종료 코드 |
+| `rename-host.int.test.ts` | 호스트가 첫 입력(공백 정리, 앞 80자)으로 제목을 정하고 `sessions rename`이 그것을 바꾸며 `sessions ls`가 보인다. `/rename`이 정한 제목을 첫 입력이 덮지 않는다. 없는 세션은 `thread.notFound` 문구와 1이다 | 호스트가 `thread.rename`을 모르는 경우 |
+| `approval-consent-host.int.test.ts` | 실제 bash 승인 카드가 명령 전체를 보인다. `t`는 `remember: "thread"`로 가고 같은 세션의 다음 호출은 묻지 않는다. 거부 이유가 `answer.feedback`으로 간다. print 모드는 거부로 답한다 | `secretEnv` 카드(운영 `bash` 도구는 모델에 `secretEnv`를 내지 않는다), 요청 주체, 만료, `resolvedBy`, 낮춤 알림, `answer_invalid`·`commit_failed` 재질문 |
+| `doctor-host.int.test.ts` | 실제 `host.status { includeBinaries: true }`의 보고서가 `--json`의 `binaries`가 되고 종료 코드가 `ready`를 따른다. 바이너리마다 한 줄이 있다. 주소가 없으면 탐침이 0번이고 설정한 주소만 탐침한다. 실제 카탈로그에 `searxng.detect`가 없다 | `ready: false`인 보고서 |
+
+이 시험들에서 알게 된 동작:
+
+- 실제 호스트는 쓰기 소유를 얻을 때 미해결 승인을 되살리므로(HS-52), 끊긴 turn이 있는 세션을 열면 승인 카드가 이어 실행 질문보다 먼저 선다. 두 질문은 같은 입력 줄을 쓰므로 승인에 답한 뒤에 `이어서 실행할까요? [y/N]`을 묻는다. 순서를 바꾸는 일은 하지 않았다 [미결 spec §10 14번].
+- 실제 호스트는 도구 승인의 기억 범위로 `once`와 `thread`만 낸다. 낮춤 알림(`always`→`thread`)은 호스트가 `always`를 내지 않는 동안 나오지 않는다.
+- 이 기기에서 실제 sops·age 시험은 `age-keygen`과 `sops --encrypt`로 만든 임시 키와 파일을 쓰며, 둘이 없으면 시험이 실패한다(건너뛰지 않는다).
+
 - 아직 CLI가 쓰지 않는 wave 1 계약: `settings.invalidated` 알림(대화형 Tab 완성의 키 목록과 엔진 명령 목록을 다시 읽는 데 쓸 수 있다). 대화형 시작 때 한 번만 읽는 현재 동작으로도 어긋나지 않아서 M3로 둔다.
 
 ## 5. 단위 테스트 목록

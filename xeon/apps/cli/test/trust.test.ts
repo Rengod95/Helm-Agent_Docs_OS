@@ -10,7 +10,7 @@ import { createHarness, type Harness } from "./support/harness.ts";
 import { scriptedInput, type Reply } from "./support/script.ts";
 
 // G1-03: 프로젝트 신뢰. trust.get으로 상태를 읽고 trust.decide로 결정을 보낸다. 호스트 처리기는 가짜다
-// (저장 파일 잠금과 실제 처리기는 T2 소관이며, 종단 시험은 wave 2 병합 뒤 `needs wave-2 host`로 다시 돌린다).
+// (실제 처리기와 trust.json 쓰기는 trust-host.int.test.ts가 실제 호스트로 확인한다).
 
 const harnesses: Harness[] = [];
 afterEach(() => {
