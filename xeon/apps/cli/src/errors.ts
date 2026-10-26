@@ -50,6 +50,19 @@ function detailText(error: WireError, key: string): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
+/** 확장이 막을 수 있는 지점(`thread.cancelledByExtension`의 point)을 사람이 읽는 말로 바꾼다. 모르는 값은 그대로 보인다 */
+const POINT_TEXT: Readonly<Record<string, string>> = {
+  session_before_compact: "컴팩션",
+  session_before_fork: "분기",
+  session_before_tree: "되감기",
+  session_before_switch: "세션 전환",
+};
+
+function pointText(point: string | undefined): string {
+  if (point === undefined) return "이";
+  return POINT_TEXT[point] ?? point;
+}
+
 function firstIssueText(error: WireError): string | undefined {
   const issues = error.data.details?.["issues"];
   if (!Array.isArray(issues)) return undefined;
@@ -238,6 +251,22 @@ export function failureOfWire(error: WireError): Failure {
       };
     case "turn.busy":
       return { message: "진행 중인 turn이 있다", fix: "끝난 뒤 다시 보낸다", code: EXIT.error };
+    case "thread.cancelledByExtension": {
+      const reason = detailText(error, "reason");
+      return {
+        message: `확장이 ${pointText(detailText(error, "point"))} 작업을 막았다${reason === undefined ? "" : `: ${reason}`}`,
+        fix: "확장의 설정을 확인한다 (xeon config get)",
+        code: EXIT.error,
+      };
+    }
+    case "thread.compactFailed":
+      return {
+        message: `대화를 요약하지 못했다 (${detailText(error, "reason") ?? "원인 알 수 없음"})`,
+        fix: "잠시 뒤 다시 /compact를 실행한다. 반복되면 xeon doctor를 실행하고 보고한다",
+        code: EXIT.error,
+      };
+    case "request.cancelled":
+      return { message: "요청이 취소되었다", fix: "필요하면 다시 실행한다", code: EXIT.error };
     case "settings.unknownKey":
       return {
         message: `등록되지 않은 설정 키: ${detailText(error, "key") ?? ""}`,

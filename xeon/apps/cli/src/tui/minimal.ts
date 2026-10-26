@@ -140,9 +140,21 @@ export async function runInteractive(args: InteractiveArgs): Promise<ExitCode> {
     return (await exit.requested).code;
   }
   // 엔진에 등록한 명령(command.list)은 도움말과 Tab 완성에 쓴다. 읽지 못하면 내장 명령만 동작한다
+  // 프로젝트 명령은 세션의 작업 폴더 기준이라 세션을 바꾸면(/resume) 다시 읽는다
+  let commandsThreadId = current().threadId;
   const engineCommands: EngineCommand[] = [
-    ...(await loadEngineCommands(args.slash.connection, args.slash.supports)),
+    ...(await loadEngineCommands(args.slash.connection, args.slash.supports, commandsThreadId)),
   ];
+  const reloadEngineCommands = async (): Promise<void> => {
+    const threadId = current().threadId;
+    if (threadId === commandsThreadId) return;
+    commandsThreadId = threadId;
+    engineCommands.splice(
+      0,
+      engineCommands.length,
+      ...(await loadEngineCommands(args.slash.connection, args.slash.supports, threadId)),
+    );
+  };
   if (io.setCompleter !== undefined) {
     const keys = await sessionKeysOf(args.slash.connection);
     io.setCompleter((line) => completionsOf(line, keys, engineCommands));
@@ -208,7 +220,10 @@ export async function runInteractive(args: InteractiveArgs): Promise<ExitCode> {
         engineCommands: () => engineCommands,
       });
       if (outcome === "quit") return EXIT.ok;
-      if (outcome === "continue") return step();
+      if (outcome === "continue") {
+        await reloadEngineCommands();
+        return step();
+      }
       // 명령이 펼친 텍스트는 사용자가 친 입력처럼 turn으로 보낸다
       return (await sendInput(outcome.send)) ?? step();
     }

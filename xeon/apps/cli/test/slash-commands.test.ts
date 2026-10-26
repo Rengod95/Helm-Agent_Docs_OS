@@ -1,11 +1,13 @@
 import { afterEach, expect, test } from "bun:test";
-import { WireError } from "@xeon/contracts/wire";
+import { WireError, wireError } from "@xeon/contracts/wire";
 import type { CommandListResult } from "@xeon/contracts/wire";
 import { EXIT } from "../src/exit-codes.ts";
 import { completionsOf, parseSlash } from "../src/slash.ts";
 import { assistantItem, turnCompleted } from "./support/events.ts";
 import type { FakeHandlers, TurnContext } from "./support/fake-server.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
+import { threadId } from "./support/ids.ts";
+import { summary } from "./support/m2.ts";
 import { scriptedInput, type Reply } from "./support/script.ts";
 
 // G1-01: 엔진에 등록한 슬래시 명령을 command.list / command.run으로 실행한다. 호스트 처리기는 가짜다
@@ -196,4 +198,178 @@ test("completionsOf is a pure function over the engine command list", () => {
   expect(completionsOf("/p", [], [PLAN, REVIEW])).toEqual(["/plan"]);
   expect(completionsOf("/plan ", [], [PLAN])).toEqual(["/plan on", "/plan off"]);
   expect(completionsOf("/review ", [], [REVIEW])).toEqual([]);
+});
+
+function requestsOf(h: Harness, method: string): readonly Record<string, unknown>[] {
+  return h
+    .server()
+    .requests.filter((request) => request.method === method)
+    .map((request) => Object.fromEntries(Object.entries(request.params ?? {})));
+}
+
+test("command.list is asked with the id of the session the chat opened (G1-01)", async () => {
+  const s = chat(["/plan on"], {
+    "command.list": () => ({ commands: [PLAN] }),
+    "command.run": () => ({ status: "done", name: "plan", message: "ok", result: null }),
+  });
+  expect(await s.h.run(["chat"])).toBe(EXIT.ok);
+  const listed = requestsOf(s.h, "command.list");
+  expect(listed).toEqual([{ threadId: expect.stringMatching(/^thr_/) }]);
+  // 목록을 읽은 thread와 명령을 실행한 thread가 같다
+  expect(listed[0]?.["threadId"]).toBe(runParams(s.h)[0]?.["threadId"]);
+});
+
+test("switching sessions with /resume reads the command list again for the new session", async () => {
+  const T1 = threadId(1);
+  const T2 = threadId(2);
+  const input = scriptedInput(["/resume 2", "/help", "/quit"]);
+  const h = createHarness({
+    terminal: TTY,
+    env: { NO_COLOR: "1" },
+    readLine: (prompt, signal) => input.readLine(prompt, signal),
+    server: {
+      knownThreads: [T1, T2],
+      onTurn: answer("ok"),
+      handlers: {
+        "thread.list": () => ({
+          threads: [summary(T1, { title: "하나" }), summary(T2, { title: "둘" })],
+          nextCursor: null,
+        }),
+        "thread.open": (params) => ({
+          threadId: params["threadId"],
+          role: "owner",
+          position: { storeId: "sto_00000000000000000000000001", seq: 0 },
+        }),
+        // 프로젝트 명령은 세션의 작업 폴더에 달려 있다: 두 번째 세션에서만 /review가 있다
+        "command.list": (params) => ({
+          commands: params["threadId"] === T2 ? [PLAN, REVIEW] : [PLAN],
+        }),
+      },
+    },
+  });
+  harnesses.push(h);
+  expect(await h.run(["chat", "--resume", T1])).toBe(EXIT.ok);
+  expect(requestsOf(h, "command.list").map((params) => params["threadId"])).toEqual([T1, T2]);
+  const help = h.stdoutText().slice(h.stdoutText().lastIndexOf("슬래시 명령"));
+  expect(help).toContain("  /review   변경을 검토한다\n");
+});
+
+test("parseSlash reads /compact with and without summary instructions", () => {
+  expect(parseSlash("/compact")).toEqual({ kind: "compact", instructions: null });
+  expect(parseSlash("/compact  결정 사항만 남겨  ")).toEqual({
+    kind: "compact",
+    instructions: "결정 사항만 남겨",
+  });
+});
+
+test("/compact sends thread.compact for this session and prints the token count", async () => {
+  const s = chat(["/compact"], {
+    "thread.compact": () => ({
+      status: "compacted",
+      eventId: "evt_00000000000000000000000001",
+      tokensBefore: 8123,
+      fromExtension: null,
+      position: { storeId: "sto_00000000000000000000000001", seq: 9 },
+    }),
+  });
+  expect(await s.h.run(["chat"])).toBe(EXIT.ok);
+  expect(requestsOf(s.h, "thread.compact")).toEqual([{ threadId: expect.stringMatching(/^thr_/) }]);
+  expect(s.h.stdoutText()).toContain("대화를 요약했다 (요약 전 약 8123 토큰)\n");
+  // 요약은 turn을 만들지 않는다
+  expect(s.h.methods()).not.toContain("turn.start");
+});
+
+test("/compact passes the text after the name as the summary instructions and names an extension", async () => {
+  const s = chat(["/compact 결정 사항만 남겨"], {
+    "thread.compact": () => ({
+      status: "compacted",
+      eventId: "evt_00000000000000000000000001",
+      tokensBefore: 40,
+      fromExtension: "my-summary",
+      position: { storeId: "sto_00000000000000000000000001", seq: 9 },
+    }),
+  });
+  expect(await s.h.run(["chat"])).toBe(EXIT.ok);
+  expect(requestsOf(s.h, "thread.compact")).toEqual([
+    { threadId: expect.stringMatching(/^thr_/), instructions: "결정 사항만 남겨" },
+  ]);
+  expect(s.h.stdoutText()).toContain("(요약 전 약 40 토큰, 요약 확장 my-summary)");
+});
+
+test("a skipped compaction prints its reason and is not an error", async () => {
+  const reasons = [
+    ["nothing_to_summarize", "요약할 내용이 아직 없다"],
+    ["last_entry_is_compaction", "방금 요약했다. 새 대화가 쌓인 뒤에 다시 요약한다"],
+    ["disabled", "이 엔진은 컴팩션을 쓸 수 없게 조립되어 있다"],
+  ] as const;
+  for (const [why, text] of reasons) {
+    const s = chat(["/compact"], { "thread.compact": () => ({ status: "skipped", why }) });
+    // oxlint-disable-next-line no-await-in-loop -- 사례마다 하네스 하나를 끝까지 돌린다
+    expect(await s.h.run(["chat"])).toBe(EXIT.ok);
+    expect(s.h.stdoutText()).toContain(`${text}\n`);
+    expect(s.h.stderrText()).toBe("");
+  }
+});
+
+test("compaction failures are two-line phrases and the session goes on", async () => {
+  const failures: readonly [ReturnType<typeof wireError>, string, string][] = [
+    [
+      wireError("thread.cancelledByExtension", {
+        details: { point: "session_before_compact", reason: "요약 금지 구간" },
+      }),
+      "xeon: 확장이 컴팩션 작업을 막았다: 요약 금지 구간",
+      "  해결: 확장의 설정을 확인한다 (xeon config get)",
+    ],
+    [
+      wireError("thread.compactFailed", { details: { reason: "summary_failed" } }),
+      "xeon: 대화를 요약하지 못했다 (summary_failed)",
+      "  해결: 잠시 뒤 다시 /compact를 실행한다. 반복되면 xeon doctor를 실행하고 보고한다",
+    ],
+    [wireError("turn.busy"), "xeon: 진행 중인 turn이 있다", "  해결: 끝난 뒤 다시 보낸다"],
+    [
+      wireError("thread.closed", { details: { threadId: "thr_1" } }),
+      "xeon: 닫힌 세션이라 쓸 수 없다: thr_1",
+      "  해결: xeon sessions fork로 분기하거나 새 세션을 연다",
+    ],
+    [wireError("request.cancelled"), "xeon: 요청이 취소되었다", "  해결: 필요하면 다시 실행한다"],
+  ];
+  for (const [error, first, second] of failures) {
+    const s = chat(["/compact", "hello"], {
+      "thread.compact": () => {
+        throw error;
+      },
+    });
+    // oxlint-disable-next-line no-await-in-loop -- 사례마다 하네스 하나를 끝까지 돌린다
+    expect(await s.h.run(["chat"])).toBe(EXIT.ok);
+    expect(s.h.stderrText()).toContain(`${first}\n${second}\n`);
+    // 오류 뒤에도 입력을 이어 받는다
+    expect(s.h.methods()).toContain("turn.start");
+  }
+});
+
+test("a host without thread.compact never gets the call", async () => {
+  const s = chat(["/compact"], {});
+  expect(await s.h.run(["chat"])).toBe(EXIT.ok);
+  expect(s.h.methods()).not.toContain("thread.compact");
+  expect(s.h.stderrText()).toContain("xeon: 이 엔진은 수동 컴팩션을 처리하지 않는다");
+});
+
+test("/compact is built in: it wins over an engine command with the same name and shows in /help and completion", async () => {
+  const compactCommand: CommandListResult["commands"][number] = {
+    ...PLAN,
+    name: "compact",
+    description: "엔진 쪽 compact",
+    argumentHint: null,
+    args: [],
+  };
+  const s = chat(["/help", "/compact"], {
+    "command.list": () => ({ commands: [compactCommand] }),
+    "command.run": () => ({ status: "done", name: "compact", message: "엔진", result: null }),
+    "thread.compact": () => ({ status: "skipped", why: "nothing_to_summarize" }),
+  });
+  expect(await s.h.run(["chat"])).toBe(EXIT.ok);
+  expect(s.h.stdoutText()).toContain("  /compact [<지침>]   지금 대화를 요약해 줄인다\n");
+  expect(s.h.stdoutText()).not.toContain("엔진 쪽 compact");
+  expect(s.h.methods()).not.toContain("command.run");
+  expect(s.h.completer()?.("/co")).toEqual(["/compact"]);
 });

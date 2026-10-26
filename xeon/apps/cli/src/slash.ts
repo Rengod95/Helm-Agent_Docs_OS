@@ -5,6 +5,7 @@ import type {
   CommandListResult,
   CommandRunResult,
   HostConnection,
+  ThreadCompactSkipReason,
   ThreadSummary,
 } from "@xeon/contracts/wire";
 import { failureOfCaught, renderFailure, type Failure } from "./errors.ts";
@@ -32,6 +33,8 @@ export type SlashCommand =
   | { readonly kind: "alias"; readonly alias: SlashAlias; readonly raw: string | null }
   | { readonly kind: "resume"; readonly target: string | null }
   | { readonly kind: "rename"; readonly title: string }
+  /** 지금 대화를 요약한다(thread.compact). `instructions`는 `/compact` 뒤에 적은 요약 지침이다 */
+  | { readonly kind: "compact"; readonly instructions: string | null }
   | { readonly kind: "usage"; readonly message: string }
   /** 내장도 별칭도 아닌 이름. 엔진에 등록한 명령일 수 있어 줄 전체를 command.run에 넘긴다(§4.12) */
   | { readonly kind: "engine"; readonly name: string; readonly text: string };
@@ -49,9 +52,17 @@ const BUILTIN_NAMES: ReadonlySet<string> = new Set([
   "set",
   "resume",
   "rename",
+  "compact",
 ]);
 /** Tab 완성에 보이는 내장 이름. exit는 quit의 별칭이라 뺀다 */
-const COMPLETED_BUILTINS: readonly string[] = ["help", "quit", "set", "resume", "rename"];
+const COMPLETED_BUILTINS: readonly string[] = [
+  "help",
+  "quit",
+  "set",
+  "resume",
+  "rename",
+  "compact",
+];
 
 /** 슬래시로 시작하는 한 줄을 명령으로 읽는다. 순수 함수 */
 export function parseSlash(line: string): SlashCommand {
@@ -85,6 +96,9 @@ export function parseSlash(line: string): SlashCommand {
         ? { kind: "rename", title: rest }
         : { kind: "usage", message: `사용법: /rename <제목> (${problem})` };
     }
+    case "compact":
+      // 요약 지침은 thread.compact가 1자 이상 2만 자 이하만 받는다. 길이를 넘으면 호스트가 invalidParams로 거부한다
+      return { kind: "compact", instructions: rest.length === 0 ? null : rest };
     // xeon-disable-next-line xeon/switch-default-never -- 슬래시 이름은 닫히지 않은 문자열이다. 별칭이 아니면 모르는 명령 값으로 돌려준다 (eng.typescript.guide TY-14)
     default: {
       const alias = SLASH_ALIASES.find((candidate) => candidate.name === name);
@@ -107,6 +121,7 @@ function slashHelp(engine: readonly EngineCommand[] = []): string {
     ...aliases,
     "  /resume [<번호|id>]   세션 목록에서 골라 바꾼다",
     "  /rename <제목>   이 세션의 제목을 바꾼다",
+    "  /compact [<지침>]   지금 대화를 요약해 줄인다",
     ...engineHelpLines(engine),
     "",
   ].join("\n");
@@ -288,6 +303,50 @@ async function renameSession(ctx: SlashContext, title: string): Promise<SlashOut
   }
 }
 
+const SKIP_TEXT: Readonly<Record<ThreadCompactSkipReason, string>> = {
+  nothing_to_summarize: "요약할 내용이 아직 없다",
+  last_entry_is_compaction: "방금 요약했다. 새 대화가 쌓인 뒤에 다시 요약한다",
+  disabled: "이 엔진은 컴팩션을 쓸 수 없게 조립되어 있다",
+};
+
+/** `/compact`: 지금 대화를 요약한다. 쓰기 소유는 호스트가 얻고, 진행 중인 turn이 있으면 호스트가 거부한다 */
+async function compactSession(
+  ctx: SlashContext,
+  instructions: string | null,
+): Promise<SlashOutcome> {
+  if (!ctx.supports("thread.compact")) {
+    await ctx.io.stderr(
+      renderFailure({
+        message: "이 엔진은 수동 컴팩션을 처리하지 않는다",
+        fix: "같은 빌드의 엔진과 CLI를 쓴다 (xeon version으로 확인한다)",
+      }),
+    );
+    return "continue";
+  }
+  try {
+    const result = await ctx.connection.request("thread.compact", {
+      threadId: ctx.threadId(),
+      ...(instructions === null ? {} : { instructions }),
+    });
+    switch (result.status) {
+      case "compacted":
+        await ctx.io.stdout(
+          `대화를 요약했다 (요약 전 약 ${String(result.tokensBefore)} 토큰${
+            result.fromExtension === null ? "" : `, 요약 확장 ${result.fromExtension}`
+          })\n`,
+        );
+        return "continue";
+      case "skipped":
+        await ctx.io.stdout(`${SKIP_TEXT[result.why]}\n`);
+        return "continue";
+      default:
+        return assertNever(result, "ThreadCompactResult");
+    }
+  } catch (caught) {
+    return failWith(ctx, caught);
+  }
+}
+
 /** 동작 명령의 처리 결과를 보인다. 메시지가 있으면 메시지, 없고 구조 값이 있으면 JSON이다 */
 function doneText(result: Extract<CommandRunResult, { status: "done" }>): string {
   if (result.message !== null) return `${result.message}\n`;
@@ -345,13 +404,17 @@ async function runEngineCommand(
   }
 }
 
-/** 엔진 명령 목록을 읽는다. 읽지 못하거나 호스트가 모르면 빈 목록이다(내장 명령은 그대로 동작한다) */
+/**
+ * 엔진 명령 목록을 읽는다. `threadId`를 보내 호스트가 프로젝트 명령(`.xeon/commands`)을 그 세션의 작업 폴더 기준으로 읽게 한다
+ * (G1-01). 읽지 못하거나 호스트가 모르면 빈 목록이다(내장 명령은 그대로 동작한다)
+ */
 export async function loadEngineCommands(
   connection: HostConnection,
   supports: (feature: string) => boolean,
+  threadId: ThreadId,
 ): Promise<readonly EngineCommand[]> {
   if (!supports("command.list")) return [];
-  const listed = await attemptAsync(() => connection.request("command.list", {}));
+  const listed = await attemptAsync(() => connection.request("command.list", { threadId }));
   return listed.ok ? listed.value.commands : [];
 }
 
@@ -373,6 +436,8 @@ export async function runSlash(command: SlashCommand, ctx: SlashContext): Promis
       return resume(ctx, command.target);
     case "rename":
       return renameSession(ctx, command.title);
+    case "compact":
+      return compactSession(ctx, command.instructions);
     case "usage":
       await ctx.io.stderr(`${command.message}\n`);
       return "continue";

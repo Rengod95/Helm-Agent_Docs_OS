@@ -68,7 +68,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 
 | 명령 | 동작 | 쓰는 wire 메서드 | 마일스톤 |
 |---|---|---|---|
-| `xeon`, `xeon chat` | 대화형 모드. TTY가 아니면 print 모드로 바뀐다(§4.2). 대화형의 슬래시 명령 중 엔진에 등록한 것은 `command.list`로 목록을, `command.run`으로 실행을 부른다(§4.12) | `host.hello`, `thread.create`, `events.subscribe`, `turn.start`, `settings.get`. 슬래시 명령: `command.list`, `command.run` | M1 |
+| `xeon`, `xeon chat` | 대화형 모드. TTY가 아니면 print 모드로 바뀐다(§4.2). 대화형의 슬래시 명령 중 엔진에 등록한 것은 `command.list`로 목록을, `command.run`으로 실행을 부른다(§4.12) | `host.hello`, `thread.create`, `events.subscribe`, `turn.start`, `settings.get`. 슬래시 명령: `command.list { threadId }`, `command.run`, `thread.compact` | M1 |
 | `xeon chat -p <입력>`, `--print <입력>` | print 모드. 입력 하나로 turn 하나를 돌리고 응답 텍스트를 stdout에 쓴다. `-p -` 또는 `-p`만 쓰면 stdin 전체가 입력이다 | 위와 같음 | M1 |
 | `xeon chat -p … --json` | JSON 모드. 연결에서 오간 JSON-RPC 메시지를 순서대로 한 줄에 하나씩 쓴다(§4.4) | 위와 같음 | M1 |
 | `xeon chat --continue` | 현재 작업 폴더의 마지막 세션을 이어 연다. M1은 CLI 상태 파일, M2부터 `thread.list`. 대화형이고 그 세션에 끊긴 turn이 있으면 묻고 `turn.resume`을 부른다(§4.4) | M1: 위와 같음. M2: `thread.list`, `thread.open` 추가 | M1 |
@@ -676,6 +676,9 @@ export type CliState = Static<typeof CliStateSchema>;
 | `thread.locked` | 다른 프로세스(`ownerKind`)가 이 세션을 쓰고 있다 | M1: 끝날 때까지 두거나 새 세션을 연다. M2: 프롬프트(§4.11) | 4 |
 | `thread.closed` | 닫힌 세션이라 쓸 수 없다 | `xeon sessions fork`로 분기하거나 새 세션을 연다 | 1 |
 | `turn.busy` | 진행 중인 turn이 있다 | 끝난 뒤 다시 보낸다 | 1 |
+| `thread.cancelledByExtension` | 확장이 `point`의 작업(컴팩션, 분기, 되감기, 세션 전환)을 막았다. `reason`이 있으면 붙인다 | 확장의 설정을 확인한다 | 1 |
+| `thread.compactFailed` | 대화를 요약하지 못했다(`reason`) | 잠시 뒤 다시 `/compact`를 실행한다. 반복되면 `xeon doctor`를 실행하고 보고한다 | 1 |
+| `request.cancelled` | 요청이 취소되었다 | 필요하면 다시 실행한다 | 1 |
 | `settings.unknownKey` | 등록되지 않은 키 | `xeon config list`로 키를 확인한다 | 2 |
 | `settings.invalidValue` | 값이 형식이나 범위에 맞지 않다(`issues` 첫 항목) | 허용 범위를 확인한다 | 2 |
 | `settings.scopeNotAllowed` | 그 범위에 쓸 수 없는 키 | 허용 범위: `allowedScopes` | 2 |
@@ -733,6 +736,12 @@ export type CliState = Static<typeof CliStateSchema>;
   - `/model [<값>]`: 모델 선택 키의 별칭이다. 값이 없으면 그 키의 `range.enum`으로 목록을 보인다. 키 이름은 `L1.models.spec`이 정한다 [가정: 아직 이름이 정해지지 않았다].
   - `/resume [<번호|id>]`: `thread.list`로 이 작업 폴더의 목록을 보이고 고른 세션으로 바꾼다(M2). 바꿀 때 이전 세션의 구독을 해제하고(`events.unsubscribe`) 새 세션을 같은 연결에서 연다. 잠금이면 §4.11의 프롬프트가 뜬다. 바꾸지 못하면 이전 세션을 다시 연다.
   - `/rename <제목>`: 지금 세션의 제목을 `thread.rename { threadId, title }`로 바꾼다 [결정: m2c G2-12]. 제목이 비었거나 200자를 넘으면 보내지 않고 사용법을 알린다.
+  - `/compact [<지침>]`: 지금 세션의 대화를 요약해 줄인다 [결정: m2c G2-01]. `thread.compact { threadId, instructions? }`를 한 번 보낸다. `<지침>`은 `/compact` 뒤의 나머지 줄이고 없으면 `instructions`를 싣지 않는다. 쓰기 소유는 호스트가 암묵으로 얻는다(`L4.host-service.spec` HS-77).
+    - `compacted`면 `대화를 요약했다 (요약 전 약 <tokensBefore> 토큰)`을 쓴다. 요약 내용을 확장이 냈으면(`fromExtension`) `, 요약 확장 <이름>`을 덧붙인다.
+    - `skipped`는 오류가 아니다. `why`별로 한 줄을 stdout에 쓴다: `nothing_to_summarize`는 "요약할 내용이 아직 없다", `last_entry_is_compaction`은 "방금 요약했다. 새 대화가 쌓인 뒤에 다시 요약한다", `disabled`는 "이 엔진은 컴팩션을 쓸 수 없게 조립되어 있다".
+    - 실패는 `thread.cancelledByExtension`(확장이 막음, 3006), `thread.compactFailed`(요약 또는 커밋 실패, 3008), `turn.busy`(진행 중인 turn, 3003), `thread.closed`(3007), `request.cancelled`로 온다. 문구는 §4.10 표다. 입력은 이어 받는다.
+    - `host.hello`의 `features`에 `thread.compact`가 없는 호스트에서는 부르지 않고 "이 엔진은 수동 컴팩션을 처리하지 않는다"를 알린다.
+    - 이름이 같은 엔진 명령이 있어도 내장이 앞선다. `/help`와 Tab 완성에 보인다. 자동 컴팩션(`threshold`, `overflow`)은 루프가 하고 CLI는 관여하지 않는다.
   - `/help`, `/quit`: CLI 내장.
   - 엔진 명령 [결정: m2c G1-01]: 내장도 별칭도 아닌 이름은 줄 전체를 `command.run { threadId, text }`에 그대로 넘긴다. `/plan`, `/tasks`, `/goal`처럼 L2·L3 코드가 등록한 동작 명령이 여기서 실행된다. 이름이 겹치면 내장과 별칭이 앞선다.
     - 결과 `done`은 `message`를 stdout에 쓴다. `message`가 `null`이고 `result`가 `null`이 아니면 `result`를 들여쓴 JSON으로 쓴다. 동작 명령은 turn을 만들지 않는다.
@@ -740,7 +749,7 @@ export type CliState = Static<typeof CliStateSchema>;
     - 결과 `needs_confirmation`은 셸 주입이 있는 템플릿이다. 실행할 셸 명령을 보이고 `[y/N]`로 묻는다. `y`면 `confirmShell: true`로 한 번 더 부르고, 그 밖의 입력은 "실행하지 않았다"를 알리고 끝낸다.
     - 결과 `not_command`는 모르는 슬래시 명령으로 처리한다.
     - 실패는 능력 오류(`cap.dialog.commands.*`)와 `thread.notFound`로 온다. 문구는 §4.10 표다.
-    - `/help`는 `command.list`가 알려 준 명령을 "엔진 명령" 아래에 보인다. Tab 완성은 명령 이름과 첫 인자의 `choices`를 쓴다. 목록은 대화형을 시작할 때 한 번 읽는다.
+    - `/help`는 `command.list`가 알려 준 명령을 "엔진 명령" 아래에 보인다. Tab 완성은 명령 이름과 첫 인자의 `choices`를 쓴다. 목록은 `command.list { threadId }`로 읽는다 [결정: m2c G1-01]. 호스트가 프로젝트 명령(`.xeon/commands`)을 그 세션의 작업 폴더 기준으로 읽게 하려는 것이다. 대화형을 시작할 때 한 번 읽고, `/resume`으로 세션을 바꾸면 새 세션의 id로 다시 읽는다.
     - `host.hello`의 `features`에 `command.run`이 없는 호스트에서는 부르지 않고 모르는 명령으로 처리한다.
 - 별칭 표는 `src/slash.ts`의 상수 하나에 둔다. 키 이름이 없는 별칭은 등록하지 않는다. 현재 별칭은 `/model` → `l1.models.default` 하나다.
 - Tab 완성: `/set ` 뒤는 session 범위를 허용하는 키, 줄 첫 단어는 슬래시 이름이다. 키 목록은 대화형을 시작할 때 `settings.list`로 한 번 읽는다.
@@ -827,12 +836,13 @@ export type CliState = Static<typeof CliStateSchema>;
 - AC14. 키 플러그인이 없고 SearXNG가 감지되지 않은 설정에서 `xeon doctor`는 검색 provider 묶음 세 줄을 내고, 권장 목록에 Exa와 Brave가 있다.
 - AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 계획 승인은 `{ mode?, note? }`, 질문은 `QuestionAnswer`다. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
 - AC16. `host --stdio`의 stdout에는 JSON-RPC 메시지만 나오고(사람용 출력은 stderr), stdin EOF에서 0으로 끝난다. `l4.cli.*` 키가 그 호스트의 카탈로그에 있다. 컴파일(`--minify --bytecode`) 바이너리에서도 같다.
-- AC17. 대화형에서 엔진에 등록한 동작 명령(`/plan on`)을 치면 `command.run { threadId, text: "/plan on" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
+- AC17. 대화형이 시작할 때 `command.list { threadId }`로 연 세션의 id를 보내고, `/resume`으로 세션을 바꾸면 새 id로 다시 읽는다. 엔진에 등록한 동작 명령(`/plan on`)을 치면 `command.run { threadId, text: "/plan on" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.
 - AC18. 대화형으로 `thread.list`가 `resumable`을 알린 세션을 열면 `이어서 실행할까요? [y/N]`을 묻는다. `y`일 때만 `turn.resume { threadId }`가 한 번 가고, 그 turn의 나머지 이벤트가 그려진다. 새 세션과 print 모드는 묻지 않고 `turn.resume`을 보내지 않는다.
 - AC19. 결정이 없고 신뢰할 자원이 있는 폴더에서 대화형 `chat`을 시작하면 `thread.create`보다 앞서 카드를 묻고, 번호를 입력하면 그 선택지의 `choice`로 `trust.decide { workspace, choice }`가 한 번 간다. 엔터는 `trust.decide`를 보내지 않는다. `xeon trust allow --scope parent`는 host가 낸 선택지의 `{ kind: "parent", verdict: "allow" }`를 보낸다.
 - AC20. `xeon secret rm <name>`은 `secret.references`로 읽은 설정 키·활성 lease·최근 세션을 보인 뒤 묻고, 활성 lease가 있으면 `secret.remove`를 보내지 않는다. `xeon secret test <name>`의 출력에는 길이와 SHA-256 앞 8자가 있고 값, 값의 base64·hex는 stdout·stderr·요청 어디에도 없다.
 - AC21. 도구 승인 카드에 `command` 전체와 `secretEnv` 핸들이 보이고, 값이 아닌 `secret://` 참조만 있다. `approval.resolved`가 `always`를 `thread`로 낮췄다고 알리면 그 사실이 카드 다음에 보인다. `approval.respond`가 `answer_invalid`를 돌려주면 `detail`을 보이고 다시 묻는다.
 - AC22. `xeon sessions rename <id> <제목>`과 `/rename <제목>`은 `thread.rename { threadId, title }`를 한 번 보내고, 바뀐 제목이 `sessions ls`와 `/resume` 목록에 보인다. 제목이 비었거나 200자를 넘으면 호스트에 보내지 않는다. 첫 입력에서 제목을 정하는 일(80자)은 호스트가 하며 CLI는 하지 않는다.
+- AC23. `/compact`는 `thread.compact { threadId }`를 한 번 보내고(`/compact <지침>`이면 `instructions`를 함께), `compacted`이면 요약 전 토큰 수를, `skipped`이면 이유를 stdout에 쓰며 `turn.start`를 보내지 않는다. 확장이 막거나 요약이 실패하거나 turn이 진행 중이면 두 줄 오류를 stderr에 쓰고 입력을 이어 받는다. 같은 이름의 엔진 명령이 있어도 `command.run`을 부르지 않는다.
 
 ## 10. 미결 사항
 

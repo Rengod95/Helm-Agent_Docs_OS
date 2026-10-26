@@ -94,3 +94,36 @@ test("slash command failures come as capability errors and map to Korean phrases
   const other = failureOfWire(capabilityError("unavailable", {}));
   expect(other.message).toBe("슬래시 명령을 실행하지 못했다 (cap.dialog.commands.unavailable)");
 });
+
+test("compaction kinds have their own phrases and the exit code 1", () => {
+  expect(
+    failureOfWire(
+      wireError("thread.cancelledByExtension", {
+        details: { point: "session_before_compact", reason: null },
+      }),
+    ),
+  ).toEqual({
+    message: "확장이 컴팩션 작업을 막았다",
+    fix: "확장의 설정을 확인한다 (xeon config get)",
+    code: EXIT.error,
+  });
+  expect(
+    failureOfWire(
+      wireError("thread.cancelledByExtension", {
+        details: { point: "session_before_fork", reason: "분기 금지" },
+      }),
+    ).message,
+  ).toBe("확장이 분기 작업을 막았다: 분기 금지");
+  expect(
+    failureOfWire(wireError("thread.compactFailed", { details: { reason: "commit_failed" } })),
+  ).toEqual({
+    message: "대화를 요약하지 못했다 (commit_failed)",
+    fix: "잠시 뒤 다시 /compact를 실행한다. 반복되면 xeon doctor를 실행하고 보고한다",
+    code: EXIT.error,
+  });
+  expect(failureOfWire(wireError("request.cancelled"))).toEqual({
+    message: "요청이 취소되었다",
+    fix: "필요하면 다시 실행한다",
+    code: EXIT.error,
+  });
+});
