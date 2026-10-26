@@ -36,7 +36,7 @@ binds: []
 |---|---|---|---|---|---|
 | M-01 | `bun:sqlite`의 FTS5 trigram 탐침, `Database.setCustomSQLite` 경로, `fullfsync`, 세션 잠금 | R2, TC-11, FK-06 | CI `platform-store` 단계, 실기 `just test packages/platform-store` | 시험 통과, 탐침이 FTS5 있음 | 통과(실기, 2026-10-25, `m2c/mac` 기준). 시스템 SQLite 3.51.0에서 FTS5 trigram 탐침이 성공해 동봉 dylib이 필요 없습니다. 동시 첫 열기 경합을 `3aae85e`에서 고친 뒤 10회 연속 종료코드 0입니다(작업 20261025-232814-7624). 건너뜀 2건과 경과는 §4.2에 있습니다 |
 | M-02 | 한글 NFD 파일 이름과 경로 정규화 | FK-07 | CI `platform-os` 단계 | 시험 통과 | 통과(실기, 2026-10-25, `m2c/mac` 기준, 작업 20261025-223149-7bc2). `platform-os` 219 통과, 0 실패. 같은 작업의 `platform-exec`는 218 통과, 1 건너뜀, 0 실패입니다(`pwd -P` 기대 경로를 realpath로 비교하도록 `9d15a06`에서 고친 뒤) |
-| M-03 | Seatbelt 샌드박스에서 작업 폴더 밖 쓰기 거부, 자가 시험 6항목 | M1, FK-01, FK-02, T-02 | CI `platform-sandbox`와 `exit-tests` 단계 | int 시험 통과, 건너뜀 0 | 미실행. 실기에서 돈 `platform-sandbox` 131 통과(작업 20261025-202916-7042)는 `sandbox.int.test.ts`가 들어가기 전 checkout이라 Seatbelt 증거가 아닙니다 |
+| M-03 | Seatbelt 샌드박스에서 작업 폴더 밖 쓰기 거부, 자가 시험 6항목 | M1, FK-01, FK-02, T-02 | CI `platform-sandbox`와 `exit-tests` 단계 | int 시험 통과, 건너뜀 0 | 실기 통과, CI 미실행(2026-10-25, 작업 20261025-202916-7042, 메인 checkout, 커밋 미기록). `just test packages/platform-sandbox` 131 통과, 0 건너뜀입니다. 그중 `sandbox.int.test.ts`의 `real sandbox (srt)` 8건이 실제 srt(macOS Seatbelt)로 돌았습니다: 작업 폴더 밖 쓰기 거부, `.git/hooks` 쓰기 거부, 보호 파일 읽기 거부, 네트워크 거부, 자가 시험 6항목. `exit-tests`의 건너뜀 0 검사와 CI 단계는 돌지 않았습니다 |
 | M-04 | 실제 sops로 비밀 관리 명령(E7) | E7, FK-05 | CI `platform-secrets`와 `exit-tests` 단계 | 시험 통과, 건너뜀 0 | |
 | M-05 | 키체인 age 키, `reveal`의 `os-auth`(Touch ID·암호) | E7, FK-04, T-06 | 실기만(CI 러너는 사람 인증 불가) | 재인증 성공 뒤에만 값 표시, 취소하면 값 없음 | 미실행 |
 | M-06 | FTS5 검색(cap-knowledge) | FK-06 | CI `cap-knowledge` 단계 | 시험 통과 | |
@@ -63,7 +63,7 @@ binds: []
 
 | 작업 | 위치 | 명령 | 결과 |
 |---|---|---|---|
-| 20261025-202916-7042(안의 194109) | 메인 checkout | `platform-store`·`platform-os`·`platform-sandbox`·`platform-exec`의 `just test`, `just desktop-test` | store 2 실패, os 1 실패, sandbox 131 통과, exec 2 실패, Rust 54 통과. 실패는 macOS 차이(커스텀 dylib 오류, realpath, 가짜 Linux 시험의 실제 dlopen)였고 `m2c/mac`에서 고쳤습니다(`1a1ac35`, `9d15a06`, `8248af7`) |
+| 20261025-202916-7042(안의 194109) | 메인 checkout | `platform-store`·`platform-os`·`platform-sandbox`·`platform-exec`의 `just test`, `just desktop-test` | store 2 실패, os 1 실패, sandbox 131 통과(실제 srt 8건 포함, M-03), exec 2 실패, Rust 54 통과. 실패는 macOS 차이(커스텀 dylib 오류, realpath, 가짜 Linux 시험의 실제 dlopen)였고 `m2c/mac`에서 고쳤습니다(`1a1ac35`, `9d15a06`, `8248af7`) |
 | 20261025-223149-7bc2 | `m2c/mac` | store·os·exec의 `just test` | store 215 통과, 2 건너뜀, 1 실패(동시 첫 열기). os 219 통과. exec 218 통과, 1 건너뜀 |
 | 20261025-224546-05fe | `m2c/mac` | store `just test` 5회 | 4회 통과(217 통과, 2 건너뜀), 1회 실패. 동시 첫 열기 스냅샷 경합으로 `f659901`, `3aae85e`에서 고쳤습니다 |
 | 20261025-224508-0141 | `m2c/t7` | `just test apps/desktop`, `just desktop-test`, `just desktop-sidecar host`, 다시 `just test apps/desktop` | 175 통과·3 건너뜀(사이드카 없음), Rust 65 통과, 사이드카 91.0 MiB, 178 통과·0 건너뜀(사이드카 있음) |
@@ -75,5 +75,5 @@ binds: []
 ## 5. 미결 사항
 
 - [미결] M-05, M-10, M-11, M-13은 사람이 직접 하거나 화면 기록 권한이 필요합니다. 마감 절차(`review.m2-plan` §11 3번)에서 사용자에게 시간을 요청합니다.
-- [미결] M-03(Seatbelt)은 실기와 CI 어디에서도 돌지 않았습니다. GitHub macOS 수동 job(`xeon-macos.yml`)을 한 번 돌려 M-03, M-04, M-06과 CI 열을 채웁니다(`review.m2-plan` §11 4번).
+- [미결] CI 수단은 하나도 돌지 않았습니다. GitHub macOS 수동 job(`xeon-macos.yml`)을 한 번 돌려 M-03의 `exit-tests` 부분, M-04, M-06과 각 행의 CI 결과를 채웁니다(`review.m2-plan` §11 4번).
 - [미결] M-07 콜드 스타트와 M-09 프리뷰 종료는 미측정입니다. M-09가 비어 있는 동안 E3의 앱 정상 종료 부분은 Rust 가짜 시험이 유일한 근거입니다.
