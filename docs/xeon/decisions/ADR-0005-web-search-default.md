@@ -137,7 +137,7 @@ export interface WebSearchProvider {
 
 ### 3.5 설정 노출
 
-- [제안] F5 설정 키: `l2.web.search.provider`(`"auto"` 또는 `WebSearchProviderId`), `l2.web.search.searxng.url`, `l2.web.search.wrapper.model`, `l2.web.search.wrapper.maxContinuations`. 범위는 사용자·프로젝트다(`_research/settings.md §2.10` 웹 검색과 가져오기 제공자 행). 키 이름과 기본값의 정본은 `L2.web.spec` §6이다. 키 플러그인 우선순위는 `l2.web.search.pluginOrder`다.
+- [제안] F5 설정 키: `l2.web.search.provider`(`"auto"` 또는 `WebSearchProviderId`), `l2.web.search.searxng.url`, `l2.web.search.wrapper.model`, `l2.web.search.wrapper.maxContinuations`. 범위는 `_research/settings.md §2.10`의 웹 검색과 가져오기 제공자 행을 따르되 `searxng.url`만 project 범위에서 정하지 못한다(저장소를 여는 것만으로 검색 요청 대상이 바뀌지 않게 한다, `L2.web.spec` §4.8.3). 키 이름, 범위, 기본값의 정본은 `L2.web.spec` §6이다. 키 플러그인 우선순위는 `l2.web.search.pluginOrder`다.
 - 첫 실행 권장 화면(검색 provider 상태, SearXNG 주소 입력, ④ 권장 목록)은 M3 L4 설정 화면에 두고, ①~③은 M2에 동작한다(`product.scope.spec` I10).
 - L4 설정 노출: `L4.settings-ui.spec`의 "도구와 웹" 탭에 검색 provider 선택(auto 또는 고정)과 플러그인 등록(키는 `secret://` 참조)을 둔다(`_research/layer-plan-v2-notes.md` "L4 설정 화면 구성안" 도구와 웹 행).
 

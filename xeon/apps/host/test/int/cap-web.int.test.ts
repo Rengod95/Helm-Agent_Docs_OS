@@ -181,8 +181,8 @@ async function searchRig(
 realTest(
   "with no SearXNG address set, web_search uses the built-in wrapper and never calls a SearXNG that happens to run",
   async () => {
-    // detect=false는 감지가 아직 있는 빌드에서도 같은 결과를 내려는 설정이다(감지를 없앤 빌드에서는 영향이 없다)
-    const rig = await searchRig({ "l2.web.search.searxng.detect": false }, true, ["only query"]);
+    // 설정은 비어 있고 SearXNG는 떠 있다: 자동 감지가 없으므로 호출하지 않는다(H1)
+    const rig = await searchRig({}, true, ["only query"]);
     await rig.runTurn("search it");
     expect(rig.hosted.requests).toHaveLength(1);
     expect(rig.hosted.requests[0]?.query).toBe("only query");
@@ -232,7 +232,7 @@ realTest(
   async () => {
     // 시험이 hosted 검색 대역을 주지 않으면 xeon.models의 포트가 쓰인다. 테이프 provider는 hosted 검색이 없어 래퍼가 모델 미지원으로 내려가지만,
     // 래퍼가 후보에 올라 있다는 것이 연결의 증거다(연결하지 않으면 후보에 없다)
-    const rig = await searchRig({ "l2.web.search.searxng.detect": false }, false, ["any"], false);
+    const rig = await searchRig({}, false, ["any"], false);
     await rig.runTurn("search it");
     expect(toolResultTexts(rig.collector.events, 6000).join("\n")).toContain(
       "builtin-wrapper probe:unsupported-model",

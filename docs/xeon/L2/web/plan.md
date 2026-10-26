@@ -368,7 +368,7 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 
 - 내장 후보는 `createWebRuntime`이 만든다. SearXNG는 `l2.web.search.searxng.url`이 비어 있지 않을 때만 후보이고(`SearchCandidate.enabled`가 호출마다 판정, origin `detected`, 캐시 `persist`), 내장 래퍼는 `hostedSearch`(`ModelService.hostedSearch`)를 받았을 때만 후보다(origin `builtin`, 캐시 `session`). 시험처럼 체인을 직접 짜려면 `builtinSearch: false`로 끈다. 두 provider의 설정(`l2.web.search.searxng.*`, `l2.web.search.wrapper.*`)은 스레드 범위가 없는 유효 값을 호출마다 읽는다.
 - SearXNG 탐침 응답 상한은 512 KiB다(spec §4.8.3에서 64 KiB에서 올렸다). 실제 인스턴스의 응답 크기는 재지 못했다 [가정]. 감지 후보 주소 네 개는 H1로 삭제했다.
-- 탐침 실패는 `ProbeCache`가 30초 기억한다. 그래서 SearXNG를 새로 띄워도 최대 30초 동안은 이전 실패가 보인다. 설정 변경 때 `ProbeCache.forget`을 부르는 연결은 HOST.6이 한다.
+- 탐침 실패는 `ProbeCache`가 30초 기억한다. 그래서 SearXNG를 새로 띄워도 최대 30초 동안은 이전 실패가 보인다. 설정 변경 때 `ProbeCache.forget`을 부르는 연결은 HOST.14가 했다(`L4.host-service.spec` HS-75).
 - `computeCost`는 provider가 `basis: "estimated"`로 알린 `cost`를 사용량으로만 읽고 가격표로 다시 계산한다(spec §4.4.1). 내장 래퍼가 이 경로를 쓴다. 플러그인 provider가 `estimated`를 알리면 금액이 가격표 값으로 바뀐다.
 - `GuardedHttp`의 로컬 endpoint 비교(`endpointMatches`)가 대괄호 IPv6(`[::1]:8888`)를 호스트와 포트로 나누어 비교하도록 고쳤다. 전에는 대괄호를 붙인 채 비교해 IPv6 로컬 endpoint가 항상 거부됐다(M2 검토 18). 시험: `guarded-http.test.ts`.
 - 모델 테이프는 포트 수준 JSON(`HostedSearchResponse`와 `HostedSearchError`의 나열)이다. 모델 provider의 원시 스트림 테이프는 core-models의 `hosted-search.test.ts`가 시험한다. 두 시험이 `HostedSearchPort` 계약에서 만난다.
@@ -381,4 +381,4 @@ npm 레지스트리의 0.1.6 타르볼을 빈 디렉터리에 풀어 `dist/index
 - 모델용 도구 판정의 입력 `wrapperOnlyChain`은 `isWrapperOnlyChain(catalog.searchCandidates())`로 얻는다. 호출은 조립 루트(`turn_start`의 `modelTool` 판정, spec §7)가 한다. 이 패키지는 확장 엔트리를 내지 않으므로 아직 연결되지 않았다.
 - G4-05: `web_search` 도구 정의(`WebSearch.tools[0]`)의 파라미터 파싱 → `toInput` → 서비스 → `toContent`를 실제 조립(`createWebRuntime`)에서 걸고, 출력이 `WebSearchOutputSchema`를 만족하는지 본다. SearXNG는 루프백 가짜 서버와 운영 전송(`createHttpTransport`)으로 연결한다. public 모드 SSRF 방어가 Bun에서 도는지(실제 DNS)는 이 시험으로 확인하지 못했다(`review.fake-only` FK-11). host 수준 시험은 T2의 조립(G1-12) 뒤에 한다.
 - F 계약 `ProviderOrigin`의 `detected` 이름이 남았다(spec §10 미결 18).
-- 이 변경으로 `apps/host`의 설정 스키마 산출물(`schema/settings.*.schema.json`)에서 `l2.web.search.searxng.detect`가 빠져야 하고, `apps/cli`의 `doctor`가 읽는 `searxng.detect`와 `L4.cli.spec` §4.x, `L4.settings-ui.spec`의 감지 결과 칸을 고쳐야 한다(각 소유 트랙).
+- 이 변경의 소비 쪽 정리: `apps/host`의 설정 스키마 산출물(`schema/settings.*.schema.json`)과 host 시험(`test/int/cap-web.int.test.ts`)에서 `l2.web.search.searxng.detect`를 뺐다(m2c H2). 남은 것은 `apps/cli`의 `doctor`가 읽는 `searxng.detect`, `L4.cli.spec` §4.7.1의 감지 결과 줄, `L4.settings-ui.spec` §4의 SearXNG 감지 결과 칸이다(각 소유 트랙).
