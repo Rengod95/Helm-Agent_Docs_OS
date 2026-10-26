@@ -4,7 +4,7 @@ layer: L4
 domain: desktop
 kind: spec
 status: draft
-depends_on: [adr.0008, adr.0006, adr.0010, F.wire-settings.spec, L4.host-service.spec, eng.dependency-rules.guide, eng.toolchain.guide, eng.testing.guide, L0.os.spec, L0.process.spec]
+depends_on: [adr.0008, adr.0006, adr.0010, adr.0014, F.wire-settings.spec, L4.host-service.spec, eng.dependency-rules.guide, eng.toolchain.guide, eng.testing.guide, L0.os.spec, L0.process.spec]
 binds: [xeon/apps/desktop/**]
 ---
 
@@ -102,7 +102,7 @@ flowchart LR
 
 ### 3.3 셸과 WebView 사이 IPC
 
-[제안] 셸은 아래 Tauri 명령 다섯 개만 WebView에 연다. 명령 이름은 Rust `#[tauri::command]` 함수 이름이다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다.
+[제안] 셸은 아래 엔진 중계 명령 다섯 개와 키 등록 명령 하나(`secret_register`, 이 표 아래)만 WebView에 연다. 명령 이름은 Rust `#[tauri::command]` 함수 이름이다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다.
 
 | 명령 | 인자 | 결과 | 뜻 |
 |---|---|---|---|
@@ -112,6 +112,7 @@ flowchart LR
 | `engine_restart` | 없음 | `null` | `failed` 상태에서 사용자가 수동 재기동을 고를 때 부른다. `failed`가 아니면 `not-failed`로 거부한다 |
 | `engine_detach` | `epoch: number` | `null` | 페이지가 내려갈 때 릴레이를 끊는다. 엔진은 끄지 않는다. `epoch`가 현재 연결일 때만 끊으므로 새로고침 뒤 늦게 온 이전 페이지의 호출이 새 연결을 끊지 못한다 |
 
+- 키 등록 명령 `secret_register`는 엔진 중계가 아니다. 원시 바이트 본문 `<동작> <이름>\n<값>`(동작은 `add` 또는 `set`)을 받아 번들된 사이드카를 `xeon secret <동작> <이름>`으로 한 번 실행하고, 값을 그 stdin에 한 번 쓴 뒤 닫고, 끝나기를 기다려 `null`을 돌려준다. 거부는 `{ kind, ... }` 객체다: `bad-request`, `empty`, `too-large`(값 8 KiB 초과), `busy`(이미 진행 중), `timeout`(30초), `unavailable { detail }`(사이드카를 띄우지 못함), `rejected { exitCode, detail }`(자식이 0이 아닌 코드로 끝남). 화면 쪽 흐름과 약점은 §4.14.1이다.
 - 오류 값은 kebab-case 문자열 코드다: `epoch-stale`, `engine-not-running`, `engine-stopping`, `not-failed`, `too-large`, `bad-request`.
 - `onBytes`의 메시지는 엔진 stdout 바이트 그대로이고 완성된 줄(`\n`으로 끝나는 바이트열)만 담는다. 종류 표지나 세대 접두사는 없다. attach마다 `Channel`이 따로이므로 세대는 `AttachResult.epoch`로 안다. 셸은 줄 끝이 오지 않은 꼬리를 쥐고 있다가 줄이 완성되면 보낸다.
 - 신용 기반 역압 [결정: `L4.desktop.plan` §3.1.1 S3 조건 1]: 셸은 보낸 바이트에서 `engine_ack`로 돌려받은 바이트를 뺀 값이 4 MiB를 넘으면 더 보내지 않는다. 이 동안 엔진 stdout 읽기가 멈추고 엔진의 stdout 쓰기가 막힌다. WebView는 처리한 바이트가 256 KiB 쌓일 때마다 `engine_ack(epoch, bytes)`를 부른다(창은 확인 단위의 16배라 확인이 늦어도 송신이 멎지 않는다). 미확인 바이트가 창 이하이면 다음 묶음을 보낸다(묶음 하나가 창을 넘을 수 있어 큰 프레임도 멈추지 않는다).
@@ -310,7 +311,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 | E8 | 세션 DB는 바이너리에 임베드하지 않는다. DB 위치는 엔진이 `L0.os.spec`의 사용자 데이터 디렉터리에서 정하고, 셸은 DB 경로를 넘기지 않는다. 그래야 CLI와 데스크톱이 같은 DB를 연다 | adr.0008 §3.3 제안 5, `_research/stack-status.md §7-C` 임베디드 SQLite 행 | [제안] |
 | E9 | 엔진의 손자 프로세스는 엔진과 같은 프로세스 그룹에 남아야 한다. 엔진 쪽 실행 코드가 손자를 새 그룹이나 새 세션으로 떼어 내면 E3의 그룹 종료가 그 손자에 미치지 않는다. 떼어 낸 손자는 엔진이 EOF·shutdown 처리 때 직접 정리한다 | arch-2 §3.2 그룹 범위 행 | [제안]. `L0.process.spec`에 요구 |
 | E10 | stdout은 JSON Lines 전용이다. 엔진 로그는 stderr로 쓰고, 셸은 stderr를 줄 단위로 앱 로그 파일에 남긴다. stderr 줄 길이는 8 KiB에서 자른다 | `F.wire-settings.spec` §3.1 프레이밍 | [제안] |
-| E11 | 셸 로그와 릴레이는 프레임 내용을 기록하지 않는다. 바이트 수, 프레임 수, 세대 번호만 남긴다. 비밀 값은 프레임에 실리지 않지만(`L4.readme` §4 비밀 행) 다른 결함으로 실리더라도 셸 로그에 남지 않는다 | `F.wire-settings.spec` §4.9 비밀 값 비표시 규칙 2, §3.8.1 SecretRef, `L0.secrets.spec` §8.3 R4(값 없는 `secret.*`) | [제안] |
+| E11 | 셸 로그와 릴레이는 프레임 내용을 기록하지 않는다. 바이트 수, 프레임 수, 세대 번호만 남긴다. 비밀 값은 프레임에 실리지 않지만(`L4.readme` §4 비밀 행) 다른 결함으로 실리더라도 셸 로그에 남지 않는다. 키 등록 명령(`secret_register`, §3.3)의 본문은 값을 싣지만 로그에는 이름과 결과 종류만 쓰고, 자식 출력은 값이 들어 있으면 버린다 | `F.wire-settings.spec` §4.9 비밀 값 비표시 규칙 2, §3.8.1 SecretRef, `L0.secrets.spec` §8.3 R4(값 없는 `secret.*`) | [제안] |
 
 - E5의 체크포인트 시한: 엔진은 EOF 뒤 `l0.process.shutdown.timeoutMs`(기본 3000ms) 안에 종료한다(`L0.process.spec` §6, `L4.host-service.spec` HS-31, HS-32). S4 측정(WSL2, 20회)에서 idle 호스트의 EOF → 종료는 중앙값 약 28 ms, 최대 61 ms였다. 기본값은 종료 경로에 충분하고, 진행 중 turn이 있을 때의 체크포인트 시간은 [미확인]이다(`L4.desktop.plan` §3.1.1 S4).
 - E8의 확인: `L0.os.spec`이 CLI와 엔진 사이드카에 같은 데이터 디렉터리를 돌려주는지는 그 문서의 수용 기준에 요구한다.
@@ -535,6 +536,42 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - `settings.invalidated`를 받으면(`keys`에 `l1.models.`로 시작하는 키가 있거나 `keys`가 빈 알림) 설정 화면과 안내 띠가 `settings.get`으로 다시 읽는다. 구독은 연결이 `live`가 될 때마다 새로 건다. 같은 연결의 `settings.set` 호출자도 알림을 받으므로 저장 직후 화면은 한 번 더 읽는다.
 - 모델 키와 기본 모델 단계가 끝나지 않았으면 대화 화면 위에 안내 띠("설정 열기")를 보인다(`src/views/setup-banner.tsx`). 설정을 읽지 못하는 연결에서는 띠를 그리지 않는다.
 - 화면의 로컬 상태는 요청 결과와 입력 중인 글자뿐이고 거울에 넣지 않는다(FS-03, FS-04).
+
+#### 4.14.1 사이드카 연결에서 키 값 받기 [결정: M2 첫 실행 M-12]
+
+M2 첫 실행에서 깨끗한 Mac에는 `xeon` 명령이 설치되어 있지 않았고, 설정 화면의 터미널 안내(`xeon secret add <이름>`)를 따를 수 없었다. 사이드카 호스트는 값을 받을 수단이 없어(HS-44) 키 등록이 끝나지 않았다. 두 경로를 고려했다.
+
+| 경로 | 값이 지나는 곳 | 약점 |
+|---|---|---|
+| 서비스 쪽 OS 입력 창(M3) | OS 입력 창과 L0.secrets | 서비스 모드가 있어야 한다. M2에는 없다 |
+| Rust 셸이 번들된 `xeon secret`을 실행하고 stdin에 한 번 쓴다(채택) | WebView 입력란, Tauri IPC 본문, 셸의 요청 버퍼, 자식 stdin 파이프 | 값이 DOM과 IPC를 지난다(`L4.settings-ui.spec` §4.6.4 B안과 같은 약점). 아래 약점 항목 |
+
+채택한 경로는 비밀 저장 로직을 Rust에 두지 않는다. 저장은 ADR-0014대로 사이드카 바이너리가 곧 `xeon` CLI라는 점을 쓴다. 셸은 CLI와 같은 `secret add|set`을 한 번 실행할 뿐이어서 메타, 감사, SOPS 쓰기 규칙이 엔진 한 곳에 남는다.
+
+흐름(`src-tauri/src/secret_entry.rs`, `src/settings/key-entry.ts`):
+
+1. 화면이 "키 등록"에서 값 없는 `secret.beginEntry`를 먼저 부른다. `started: true`(값을 호스트가 받음)면 기존 흐름대로 provider에 연결한다. `started: false`이거나 메서드가 없으면(`unsupported`) 화면 안에 등록 창을 연다.
+2. 등록 창은 제어하지 않는 `type="password"` 입력란이다. 값은 DOM 노드에만 있고 React 상태, zustand 거울, props에 들어가지 않는다. 저장을 누르면 `submitKey`가 첫 `await` 전에 입력란을 읽고 곧바로 비우며, 앞뒤 공백과 줄바꿈을 지운 뒤 UTF-8 바이트 배열 하나로 바꾼다. 취소와 창이 사라지는 것도 입력란을 비운다.
+3. WebView가 `secret_register`를 원시 바이트 본문 `<동작> <이름>\n<값>`으로 부른다(JSON 문자열에 싣지 않는다). 호출이 끝나면 그 바이트 배열을 0으로 덮는다.
+4. 셸은 본문을 검사한다(동작은 `add`·`set`, 이름은 `^[a-z][a-z0-9-]{1,63}$`라서 `-`로 시작하는 옵션이 될 수 없다, 값은 1바이트 이상 8 KiB 이하). 번들된 사이드카를 인자 `secret <동작> <이름>`으로 실행한다. 작업 폴더와 환경은 엔진과 같다(홈, `BUN_OPTIONS`만 제거). 그러므로 CLI와 사이드카가 같은 OS 디렉터리를 보고 같은 비밀 저장소(설정 폴더의 비밀 메타 `<config>/secrets/meta`, SOPS 파일, age 키)를 쓴다. 상태 폴더의 `cli/state.json`은 CLI의 자체 상태 파일이고 비밀 저장소가 아니다.
+5. 셸은 요청 본문의 값 조각을 복사하지 않고 자식 stdin에 한 번 쓰고 닫는다(EOF). CLI는 stdin이 TTY가 아니면 EOF까지 읽고 끝의 줄바꿈 하나를 지운다(`L4.cli.spec` §4.7, 상한 64 KiB). 셸 쪽 값 상한 8 KiB는 파이프 버퍼보다 작게 두어 자식이 읽지 않고 끝나도 쓰기가 막히지 않게 한다.
+6. 셸은 자식이 끝나기를 30초까지 기다린다. 넘으면 프로세스 그룹째 끝낸다(자식이 부른 sops와 age 포함). 종료 코드 0이면 성공이다. 아니면 `rejected`이고 `detail`에 자식 stderr의 앞부분(600자)을 싣는다. CLI의 오류 문구는 값을 담지 않는다. 그래도 자식 출력에 값이 그대로 들어 있으면 `detail`을 비운다.
+7. 성공하면 화면은 provider를 연결하고 `secret.list`를 다시 읽어 "등록됨"을 보인다.
+
+규칙:
+
+- 한 번에 하나만 등록한다. 진행 중에 또 오면 `busy`다.
+- 자식의 인자와 환경 변수에 값이 없다. 셸 로그(`applog`)에는 `secret entry <동작> <이름>: <결과 종류>`만 쓴다. 요청 구조체의 `Debug` 출력에는 값 길이만 있다.
+- `secret rotate`는 CLI가 비TTY를 거부하므로(`L4.cli.spec` §4.7) 이 경로는 `add`와 `set`만 쓴다.
+- 개발 빌드에서 `XEON_DESKTOP_ENGINE_BIN`과 `XEON_DESKTOP_ENGINE_ARGS`가 `... host --stdio`로 끝나면 그 앞부분에 `secret <동작> <이름>`을 이어 쓴다. 그 모양이 아니면 번들 사이드카를 쓴다.
+- 사이드카를 띄우지 못하면(`unavailable`) 화면은 기존 터미널 명령 안내로 돌아간다.
+
+약점(받아들인 것):
+
+- 값이 WebView 안에 있다. password 입력란은 화면에 보이지 않을 뿐 DOM 노드의 `value`이고, 읽는 순간 JS 문자열이 하나 생긴다. 문자열은 지울 수 없어 가비지 수집 전까지 WebView 힙에 남는다. 바이트 배열과 입력란만 덮는다.
+- Tauri IPC 본문과 셸의 요청 버퍼는 Tauri가 쥐고 있어 셸이 덮지 못한다.
+- 같은 사용자의 다른 프로세스가 `ps`로 자식의 인자를 보는 길에는 값이 없지만, 실행 중인 WebView 프로세스 메모리를 읽는 공격자에게는 열려 있다. 값 없는 경로(C안)가 가능한 서비스 쪽 OS 입력 창(M3)이 생기면 그쪽을 먼저 쓴다.
+- 디버그 빌드의 점검 소켓 `viewport.snapshot`은 보이는 영역을 이미지로 저장한다. password 입력란은 점으로 그려지므로 값이 이미지에 남지 않는다(§4.15) [가정: WKWebView 실측 전].
 
 ### 4.15 원격 점검 Phase 1 [제안: M2 마감 T7]
 

@@ -76,6 +76,7 @@ xeon/apps/desktop/
       main.rs                     # 앱 조립, RunEvent 처리, 신호 처리기
       engine.rs                   # Supervisor: spawn·종료·재기동 (spec §4.1 E1~E11, §4.4), Launcher 추상화
       relay.rs                    # 줄 버퍼, 신용, stdin 쓰기 스레드, 셸 명령 engine_* (spec §3.3)
+      secret_entry.rs             # 키 등록: 번들 사이드카를 `xeon secret add|set`으로 한 번 실행, 값은 stdin에만 (spec §3.3, §4.14.1)
       applog.rs                   # 앱 로그 파일(바이트 수만 기록, E11)
       time.rs                     # RFC 3339 UTC 문자열
   test/

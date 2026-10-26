@@ -700,12 +700,39 @@ async fn pump<L: Launcher>(
 // ---------------------------------------------------------------------------------------------
 // Tauri 구현
 
-struct ChildStdin(CommandChild);
+/// `CommandChild`를 감싼 stdin. 떨어뜨리면(drop) 파이프가 닫혀 EOF가 된다(플러그인은 drop에서 프로세스를 죽이지 않는다).
+pub(crate) struct ChildStdin(pub(crate) CommandChild);
 
 impl StdinSink for ChildStdin {
     fn write_all(&mut self, bytes: &[u8]) -> io::Result<()> {
         self.0.write(bytes).map_err(io::Error::other)
     }
+}
+
+/// 플러그인의 이벤트 채널을 용량 1의 채널로 한 번 더 거친다. 소비가 느리면 플러그인의 읽기 스레드까지 멈춘다.
+pub(crate) fn forward_events(
+    runtime: &Handle,
+    mut rx: mpsc::Receiver<CommandEvent>,
+) -> mpsc::Receiver<EngineEvent> {
+    let (tx, events) = mpsc::channel(1);
+    runtime.spawn(async move {
+        while let Some(event) = rx.recv().await {
+            let mapped = match event {
+                CommandEvent::Stdout(bytes) => EngineEvent::Stdout(bytes),
+                CommandEvent::Stderr(bytes) => EngineEvent::Stderr(bytes),
+                CommandEvent::Terminated(payload) => EngineEvent::Terminated {
+                    code: payload.code,
+                    signal: payload.signal,
+                },
+                CommandEvent::Error(message) => EngineEvent::Error(message),
+                _ => continue,
+            };
+            if tx.send(mapped).await.is_err() {
+                break;
+            }
+        }
+    });
+    events
 }
 
 pub struct TauriLauncher {
@@ -719,7 +746,7 @@ impl TauriLauncher {
     }
 
     /// E6: 사용자 홈 디렉터리의 절대 경로.
-    fn working_dir(&self) -> Result<PathBuf, LaunchError> {
+    pub(crate) fn working_dir(&self) -> Result<PathBuf, LaunchError> {
         let home = self
             .app
             .path()
@@ -733,7 +760,7 @@ impl TauriLauncher {
     }
 
     #[cfg(debug_assertions)]
-    fn dev_override() -> Option<(OsString, Vec<OsString>)> {
+    pub(crate) fn dev_override() -> Option<(OsString, Vec<OsString>)> {
         let bin = std::env::var_os("XEON_DESKTOP_ENGINE_BIN").filter(|v| !v.is_empty())?;
         let args = std::env::var("XEON_DESKTOP_ENGINE_ARGS")
             .map(|text| text.split_whitespace().map(OsString::from).collect())
@@ -742,7 +769,7 @@ impl TauriLauncher {
     }
 
     #[cfg(not(debug_assertions))]
-    fn dev_override() -> Option<(OsString, Vec<OsString>)> {
+    pub(crate) fn dev_override() -> Option<(OsString, Vec<OsString>)> {
         None
     }
 }
@@ -758,7 +785,7 @@ impl Launcher for TauriLauncher {
                 .map_err(|e| LaunchError(format!("sidecar `{SIDECAR_NAME}` is not available: {e}")))?
                 .args(SIDECAR_ARGS),
         };
-        let (mut rx, child) = command
+        let (rx, child) = command
             .set_raw_out(true)
             .set_process_group(true)
             .current_dir(cwd)
@@ -767,25 +794,7 @@ impl Launcher for TauriLauncher {
             .spawn()
             .map_err(|e| LaunchError(format!("spawn failed: {e}")))?;
         let pid = child.pid();
-        // 용량 1의 채널을 한 번 더 거친다. 소비가 느리면 플러그인의 읽기 스레드까지 멈춘다.
-        let (tx, events) = mpsc::channel(1);
-        self.runtime.spawn(async move {
-            while let Some(event) = rx.recv().await {
-                let mapped = match event {
-                    CommandEvent::Stdout(bytes) => EngineEvent::Stdout(bytes),
-                    CommandEvent::Stderr(bytes) => EngineEvent::Stderr(bytes),
-                    CommandEvent::Terminated(payload) => EngineEvent::Terminated {
-                        code: payload.code,
-                        signal: payload.signal,
-                    },
-                    CommandEvent::Error(message) => EngineEvent::Error(message),
-                    _ => continue,
-                };
-                if tx.send(mapped).await.is_err() {
-                    break;
-                }
-            }
-        });
+        let events = forward_events(&self.runtime, rx);
         Ok(Launched {
             pid,
             events,

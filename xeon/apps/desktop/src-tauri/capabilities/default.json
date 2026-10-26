@@ -9,6 +9,7 @@
     "allow-engine-write",
     "allow-engine-ack",
     "allow-engine-restart",
-    "allow-engine-detach"
+    "allow-engine-detach",
+    "allow-secret-register"
   ]
 }

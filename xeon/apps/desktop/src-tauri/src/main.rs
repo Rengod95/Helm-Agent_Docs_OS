@@ -9,6 +9,7 @@ mod engine;
 #[cfg(debug_assertions)]
 mod inspect;
 mod relay;
+mod secret_entry;
 mod time;
 mod window;
 
@@ -21,6 +22,7 @@ use crate::engine::{
     AppSupervisor, EngineConfig, EngineState, ExitAction, Supervisor, TauriLauncher,
 };
 use crate::relay::Relay;
+use crate::secret_entry::{AppSecretEntry, SecretEntry, TauriEntryLauncher, ENTRY_TIMEOUT};
 
 fn main() {
     let builder = tauri::Builder::default()
@@ -39,13 +41,15 @@ fn main() {
             relay::engine_write,
             relay::engine_ack,
             relay::engine_restart,
-            relay::engine_detach
+            relay::engine_detach,
+            secret_entry::secret_register
         ])
         .setup(|app| {
             let log = Arc::new(AppLog::open(app.path().app_log_dir().ok().as_deref()));
             let relay = Arc::new(Relay::new(EngineState::Stopped));
             let runtime = tauri::async_runtime::handle().inner().clone();
             let launcher = TauriLauncher::new(app.handle().clone(), runtime.clone());
+            let entry_launcher = TauriEntryLauncher::new(app.handle().clone(), runtime.clone());
             let supervisor: Arc<AppSupervisor> = Arc::new(Supervisor::new(
                 launcher,
                 relay.clone(),
@@ -53,6 +57,9 @@ fn main() {
                 log.clone(),
                 runtime,
             ));
+            let entry: Arc<AppSecretEntry> =
+                Arc::new(SecretEntry::new(entry_launcher, log.clone(), ENTRY_TIMEOUT));
+            app.manage(entry);
             app.manage(relay.clone());
             app.manage(supervisor.clone());
             #[cfg(all(debug_assertions, unix))]

@@ -6,6 +6,7 @@ fn main() {
         "engine_ack",
         "engine_restart",
         "engine_detach",
+        "secret_register",
     ]);
     if let Err(error) = tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest)) {
         eprintln!("{error:#}");
