@@ -304,7 +304,7 @@ test("a skipped compaction prints its reason and is not an error", async () => {
   ] as const;
   for (const [why, text] of reasons) {
     const s = chat(["/compact"], { "thread.compact": () => ({ status: "skipped", why }) });
-    // oxlint-disable-next-line no-await-in-loop -- 사례마다 하네스 하나를 끝까지 돌린다
+    // oxlint-disable-next-line no-await-in-loop -- 사례마다 하네스 하나를 끝까지 돌린다 (eng.testing.guide TS-03)
     expect(await s.h.run(["chat"])).toBe(EXIT.ok);
     expect(s.h.stdoutText()).toContain(`${text}\n`);
     expect(s.h.stderrText()).toBe("");
@@ -339,7 +339,7 @@ test("compaction failures are two-line phrases and the session goes on", async (
         throw error;
       },
     });
-    // oxlint-disable-next-line no-await-in-loop -- 사례마다 하네스 하나를 끝까지 돌린다
+    // oxlint-disable-next-line no-await-in-loop -- 사례마다 하네스 하나를 끝까지 돌린다 (eng.testing.guide TS-03)
     expect(await s.h.run(["chat"])).toBe(EXIT.ok);
     expect(s.h.stderrText()).toContain(`${first}\n${second}\n`);
     // 오류 뒤에도 입력을 이어 받는다
