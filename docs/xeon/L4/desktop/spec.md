@@ -499,7 +499,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 
 | 영역 | 내용 | 쓰는 wire | 단계 |
 |---|---|---|---|
-| 스레드 목록 | thread 목록, 새 thread, 이어서 실행 후보 표시 | `thread.list`, `thread.create`, `thread.open` | M2 |
+| 스레드 목록 | thread 목록, 새 thread(작업 폴더 입력, §4.16), 이어서 실행 후보 표시 | `thread.list`, `thread.create`, `thread.open` | M2 |
 | 트랜스크립트 | item 목록(가상 스크롤), 스트리밍 조각 표시 | `events.subscribe`, `events.batch`, `stream.chunk` | M2 |
 | 입력창 | 텍스트·이미지 입력, 중단 버튼 | `turn.start`(`requestId` 포함), `turn.interrupt` | M2 |
 | 승인 대기열 | 대기 중 승인 요청 목록과 응답 | `approval.requested`·`approval.resolved` 내구 이벤트, `approval.respond` | M2. [가정] `F.wire-settings.spec` §4.6 A안 |
@@ -555,6 +555,15 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - 소스 수준 보장은 `test/inspect-guard.test.ts`가 시험한다(`mod inspect;`와 호출 지점의 cfg 줄, 소켓 생성이 `inspect` 밖에 없음, 로그 플러그인 cfg). 위 1~3은 컴파일 산출물 확인이라 자동화하지 않았다.
 - `tauri-plugin-log`는 crate 의존성이라 릴리스 빌드에도 링크 대상이다. 등록하지 않으므로 파일도 소켓도 생기지 않는다. 의존성을 디버그 전용으로 줄이는 일은 하지 않았다(`cfg(debug_assertions)`로 의존성을 나눌 수 없다).
 - 스냅샷 구현은 macOS에서만 컴파일된다. WSL에서는 컴파일도 시험도 못 했고 Mac 확인이 필요하다 [가정](`review.macos-checklist`에 더할 항목).
+
+### 4.16 새 대화의 작업 폴더 [결정: M2 마감 G2-02]
+
+사이드카의 작업 디렉터리는 사용자 홈이다. 대화에 작업 폴더가 없으면 프로젝트 자원(`.mcp.json`, `.xeon/skills`, `.xeon/commands`)과 신뢰 판정이 홈 기준이 되므로, 데스크톱은 대화를 만들 때 폴더를 `thread.create`의 `workspace`로 보낸다.
+
+- 스레드 목록 위에 "작업 폴더 (선택)" 입력란을 둔다(`src/views/thread-list.tsx`). 후보는 목록에 있는 대화의 `workspace` 중 서로 다른 값 최대 8개다(목록 순서, `selectRecentWorkspaces`). 새 대화를 만든 뒤에도 입력란은 그대로 두어 같은 프로젝트에서 대화를 이어서 여는 일이 쉽다.
+- 보내기 전 검사는 `src/views/workspace-model.ts`가 한다. 앞뒤 공백을 지우고, 빈 값은 `workspace`를 생략한다(작업 폴더 없는 대화). 값이 있으면 절대 경로(POSIX `/…`, 드라이브 `C:\…`·`C:/…`, UNC `\\…`)여야 하고 4096자를 넘지 않아야 한다. 아니면 안내 문구를 보이고 "새 대화"를 막는다. `~`와 상대 경로는 호스트가 풀지 않으므로 보내지 않는다.
+- 폴더가 있는 폴더인지는 호스트가 확인한다. 호스트가 거부하면(`-32602`, `path: "workspace"`, `L4.host-service.spec` HS-76) "작업 폴더를 열 수 없습니다" 문구를 보이고 대화를 열지 않는다. 받아들이면 호스트가 심볼릭 링크를 푼 정규 경로로 저장한다. 그래서 열린 대화의 `ThreadSummary.workspace`와 신뢰 카드가 부르는 `trust.get`의 `projectRoot`가 같은 문자열이다(§4.13).
+- 운영체제의 폴더 선택 창은 아직 없다. Tauri dialog 플러그인과 capability가 필요하다(§10 17번).
 
 ## 5. 실패와 경계 사례
 
@@ -639,6 +648,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - D-13. 두 번째 앱 실행은 첫 인스턴스의 메인 창을 앞으로 가져오고 스스로 끝난다. 엔진이 둘 뜨지 않는다(`window.rs` 시험은 창 조회와 레이블 일치까지, 실제 두 프로세스 확인은 Mac에서 한다).
 - D-14. 릴리스 빌드에는 점검 소켓과 `viewport.snapshot`이 없다(§4.15 릴리스 확인).
 - D-15. 설정 화면은 외부 도구 점검 결과를 `host.status { includeBinaries: true }`의 `binaries`에서 읽고, 시작 안내 띠와 `settings.invalidated` 뒤 다시 읽기는 `includeBinaries`를 보내지 않는다. 컴파일 사이드카가 소스 진입과 같은 도구 목록(이름, 구분, 쓰는 곳, 영향)을 돌려주고 응답에 실행 파일 경로가 없다(`test/e2e/sidecar.e2e.test.ts`).
+- D-16. 새 대화는 입력한 폴더를 `thread.create`의 `workspace`로 그대로 보내고, 입력이 비면 `workspace` 키를 보내지 않으며, 상대 경로는 보내지 않는다. 호스트가 거부한 폴더(`-32602`)로는 대화가 선택되지 않는다.
 
 ## 10. 미결 사항
 
@@ -658,3 +668,4 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 14. [가정] (Tauri `Channel`의 원시 바이트 전송과 Rust API 사이드카의 capabilities 비적용은 WSL2 WebKitGTK에서 S1·S3으로 확인했다. macOS, Windows는 미확인이다.) WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
 15. [미결] 사이드카에서 모델 키 값을 받는 수단. 값 없는 `secret.beginEntry`는 호스트가 맡은 수단이 있어야 시작되는데 stdio 호스트에는 없다(HS-44). 데스크톱이 터미널 명령 안내에 머무는 동안 "데스크톱에서 키 등록"은 끝나지 않은 것이다. 후보: 서비스 쪽 OS 입력 창(M3), Rust 셸이 별도 `xeon secret add` 프로세스의 stdin에 한 번 쓰는 길(값이 DOM과 Tauri IPC를 지난다, `L4.settings-ui.spec` §4.6.4 B안과 같은 약점).
 16. (닫힘, M2 마감 G2-07) 외부 바이너리 점검 결과를 전하는 길은 `host.status`의 `includeBinaries` 요청과 결과의 `binaries`다(F 변경, `L4.host-service.spec` HS-69). 앱이 보고서를 주입하던 방식은 없앴다(§4.14).
+17. [미결] 새 대화의 작업 폴더를 고르는 운영체제 폴더 선택 창. 지금은 경로를 입력한다(§4.16). `tauri-plugin-dialog`를 더하면 Cargo 의존과 capability(`dialog:allow-open`, 디렉터리만)가 늘고 `Cargo.lock`이 바뀐다. V1(§4.11)의 "셸 명령으로 감싸 쓴다"를 따르고 macOS에서 확인한다. [가정] capability 이름은 플러그인 문서로 확인하지 않았다.

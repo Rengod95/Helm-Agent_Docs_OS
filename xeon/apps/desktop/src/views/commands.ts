@@ -67,7 +67,8 @@ export interface SetupCommands {
 
 export interface Commands {
   selectThread(threadId: ThreadId): void;
-  createThread(): Promise<Result<null, CommandError>>;
+  /** `workspace`는 작업 폴더(절대 경로)이고 `thread.create`로 그대로 보낸다. 없으면 폴더 없는 대화다(G2-02) */
+  createThread(workspace?: string): Promise<Result<null, CommandError>>;
   /** requestId는 같은 입력의 재시도가 같은 값을 쓰도록 호출자가 만든다(spec 4.13) */
   sendTurn(
     threadId: ThreadId,

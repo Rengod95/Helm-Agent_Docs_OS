@@ -27,6 +27,8 @@ function useEngine<U>(selector: (state: EngineMirror) => U): U {
 export const useThreadIds = (): readonly ThreadId[] => useEngine(sel.selectThreadIds);
 export const useThread = (id: ThreadId): ThreadSummary | undefined =>
   useEngine((s) => sel.selectThread(s, id));
+export const useRecentWorkspaces = (limit: number): readonly string[] =>
+  useEngine(useShallow((s: EngineMirror) => sel.selectRecentWorkspaces(s, limit)));
 export const useTranscriptItemIds = (): readonly ItemId[] => useEngine(sel.selectTranscriptItemIds);
 export const useItem = (id: ItemId): ItemRecord | undefined =>
   useEngine((s) => sel.selectItem(s, id));

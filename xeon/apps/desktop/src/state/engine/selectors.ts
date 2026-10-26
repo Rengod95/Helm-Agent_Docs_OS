@@ -10,6 +10,16 @@ const NO_ITEMS: readonly ItemId[] = Object.freeze([]);
 export const selectThreadIds = (s: EngineMirror): readonly ThreadId[] => s.threads.ids;
 export const selectThread = (s: EngineMirror, id: ThreadId): ThreadSummary | undefined =>
   s.threads.byId[id];
+/** 목록 순서(최근 활동 먼저)로 본 서로 다른 작업 폴더. 새 대화의 폴더 후보다. 배열을 새로 만들므로 훅에서 useShallow로 감싼다 */
+export const selectRecentWorkspaces = (s: EngineMirror, limit: number): readonly string[] => {
+  const seen = new Set<string>();
+  for (const id of s.threads.ids) {
+    const workspace = s.threads.byId[id]?.workspace;
+    if (workspace !== null && workspace !== undefined) seen.add(workspace);
+    if (seen.size >= limit) break;
+  }
+  return [...seen];
+};
 export const selectTranscriptItemIds = (s: EngineMirror): readonly ItemId[] =>
   s.transcript?.status === "ready" ? s.transcript.itemIds : NO_ITEMS;
 export const selectItem = (s: EngineMirror, id: ItemId): ItemRecord | undefined =>

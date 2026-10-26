@@ -378,3 +378,35 @@ describe("settings screen wire", () => {
     await app.stop();
   });
 });
+
+describe("new thread workspace (G2-02)", () => {
+  const CREATED = { "thread.create": { threadId: thr(2), position: { storeId: STORE, seq: 6 } } };
+
+  test("the chosen folder is sent as thread.create workspace and the new thread is selected", async () => {
+    const { app, params } = await liveApp({ results: CREATED });
+    const created = await app.commands.createThread("/Users/me/project");
+    expect(created.ok).toBe(true);
+    expect(params.find((p) => p.method === "thread.create")?.params).toEqual({
+      workspace: "/Users/me/project",
+    });
+    expect(app.ui.read.getState().selectedThreadId).toBe(thr(2));
+    await app.stop();
+  });
+
+  test("without a folder the request carries no workspace key", async () => {
+    const { app, params } = await liveApp({ results: CREATED });
+    await app.commands.createThread();
+    expect(params.find((p) => p.method === "thread.create")?.params).toEqual({});
+    await app.stop();
+  });
+
+  test("a folder the host refuses (-32602) is a rejection with its code and no thread is selected", async () => {
+    const { app } = await liveApp({
+      errors: { "thread.create": { code: -32602, kind: "jsonrpc.invalidParams" } },
+    });
+    const created = await app.commands.createThread("/no/such/folder");
+    expect(created).toEqual({ ok: false, error: { kind: "rejected", code: -32602 } });
+    expect(app.ui.read.getState().selectedThreadId).toBeNull();
+    await app.stop();
+  });
+});

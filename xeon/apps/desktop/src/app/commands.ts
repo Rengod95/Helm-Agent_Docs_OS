@@ -42,8 +42,10 @@ export function createCommands(deps: CommandDeps): Commands {
       ui.actions.selectThread(threadId);
       session.link()?.openThread(threadId);
     },
-    async createThread() {
-      const created = await withConnection((c) => c.request("thread.create", {}));
+    async createThread(workspace) {
+      const created = await withConnection((c) =>
+        c.request("thread.create", workspace === undefined ? {} : { workspace }),
+      );
       if (!created.ok) return created;
       // 목록에는 thread.started 이벤트가 들어온다. 선택은 화면 상태라 바로 한다
       engine.flush();

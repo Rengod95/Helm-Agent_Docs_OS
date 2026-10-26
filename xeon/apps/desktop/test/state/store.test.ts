@@ -27,6 +27,7 @@ import {
 } from "./helpers.ts";
 import { watch } from "../../src/state/shared/watch.ts";
 import {
+  selectRecentWorkspaces,
   selectItem,
   selectPartText,
   selectStreamingIds,
@@ -488,5 +489,25 @@ describe("per-item selectors notify only their subscribers", () => {
     h.store.flush();
     expect(causes).toHaveLength(1);
     expect(second).toBe(1);
+  });
+});
+
+describe("selectRecentWorkspaces", () => {
+  test("lists distinct workspaces in list order, skips threads without one and honours the limit", () => {
+    const h = harness();
+    h.store.ingest({
+      type: "threads",
+      threads: [
+        summary(thr(1), { workspace: "/a" }),
+        summary(thr(2), { workspace: null }),
+        summary(thr(3), { workspace: "/b" }),
+        summary(thr(4), { workspace: "/a" }),
+        summary(thr(5), { workspace: "/c" }),
+      ],
+    });
+    h.store.flush();
+    const state = h.store.read.getState();
+    expect(selectRecentWorkspaces(state, 8)).toEqual(["/a", "/b", "/c"]);
+    expect(selectRecentWorkspaces(state, 2)).toEqual(["/a", "/b"]);
   });
 });
