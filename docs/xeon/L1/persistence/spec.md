@@ -765,6 +765,7 @@ export interface ThreadLifecycle {
 
 - `checkpoint.step`의 producer는 `core.persistence`다. 체크포인트 내용(`StepCheckpointInput`)은 루프가 만들고, envelope는 저장소가 만든다.
 - 합성 결과 두 kind는 `core.tools`(`effect.*`)와 `core.loop`(`item.*`) 소유다. `recover`만 쓸 수 있는 kind 단위 예외로 `TYPE_PREFIX_OWNERS`에 둔다(`eng.context-map.design` §5.1의 `tool.args_delta` 예외와 같은 방식) [제안]. 조건: `effect.result.synthesized === true`이고 item kind가 `toolResult`, `isError: true`일 때만 허용한다.
+- 컴팩션의 새 접두 `item.recorded`(kind `system`)는 `core.context`가 `thread.compacted`와 한 커밋으로 쓴다(`L1.context.spec` §4.6 5번). `item.*`는 `core.loop` 소유이므로 이것도 kind 단위 예외다: 공개 핸들 `core.context`만 `item.recorded` 초안을 낼 수 있고, 다른 `item.*` kind와 다른 생산자는 그대로 `store.prefix_not_owned`다. 전에는 이 예외가 없어 접두가 생기는 컴팩션이 실제 저장소에서 커밋 전에 Bug로 끝났다(core-context 시험의 메모리 로그가 이 검사를 건너뛰어 가려졌다). 시험: `test/commit.test.ts`의 `core.context drafts the compaction prefix item`.
 - `settings.changed`의 producer는 `core.persistence` 하나로 둔다 [제안]. `L1.tools.spec` §3.9가 권한 모드 변경을 직접 커밋한다고 적었으므로 `sessionSettings.set`을 쓰도록 요청한다(§8.4).
 
 `thread.resumed`는 F 카탈로그에 있다(FR-P3 반영). 복구 표식의 `resume_attempts`를 이벤트에서 다시 만들 수 있게 한다.

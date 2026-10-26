@@ -80,6 +80,45 @@ describe("producers", () => {
     ).toThrow("store.prefix_not_owned");
   });
 
+  test("core.context drafts the compaction prefix item and nothing else of core.loop", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    const scope = { turnId: null, stepId: null };
+    const prefixPayload = () => ({
+      item: {
+        itemId: h.ids.next("itm"),
+        status: "completed",
+        kind: "system",
+        message: { role: "system", content: "prefix", timestamp: 1 },
+      },
+    });
+    const prefix = draftOf(h, h.context, "item.recorded", threadId, scope, prefixPayload());
+    expect(prefix.producer).toBe("core.context");
+    expect(prefix.draft.kind).toBe("item.recorded");
+    // 예외는 item.recorded 하나다: 같은 core.loop 접두의 다른 kind와 합성 결과 kind는 여전히 거절된다
+    expect(() => draftOf(h, h.context, "turn.started", threadId, scope, {})).toThrow(
+      "store.prefix_not_owned: core.context cannot draft turn.started (owner: core.loop)",
+    );
+    expect(() => draftOf(h, h.context, "effect.result", threadId, scope, {})).toThrow(
+      "store.prefix_not_owned: core.context cannot draft effect.result (owner: core.tools)",
+    );
+    // 다른 생산자는 item.recorded를 얻지 못한다
+    expect(() => draftOf(h, h.tasks, "item.recorded", threadId, scope, prefixPayload())).toThrow(
+      "store.prefix_not_owned: core.tasks cannot draft item.recorded (owner: core.loop)",
+    );
+    // 쓰기 검사도 같은 예외를 인정해 커밋까지 간다
+    const committed = commitOrThrow(h, threadId, "compact:prefix", () => ({
+      kind: "append",
+      drafts: [prefix],
+      checkpoint: null,
+    }));
+    expect(committed.eventIds).toEqual([prefix.draft.id]);
+    const stored = h.store.raw
+      .query<{ kind: string }, [string]>("SELECT kind FROM events WHERE id = ?")
+      .all(prefix.draft.id);
+    expect(stored).toEqual([{ kind: "item.recorded" }]);
+  });
+
   test("a producer is claimed once and core.persistence is never claimable", async () => {
     const h = await openHarness();
     expect(() => h.service.producer("core.loop")).toThrow("store.producer_claimed");
