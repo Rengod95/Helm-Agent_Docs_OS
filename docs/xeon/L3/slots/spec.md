@@ -722,3 +722,4 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 - [결정: review.decisions-2 U-18] 새 그룹 이름 규칙: `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음). `eng.context-map.design` CM-07·C-6과 F `ExtensionName` 정정은 그 문서 쪽 변경이다.
 - [결정: review.decisions-2 T-21] 공통 모순 (1) 그룹 kind 접두는 공개·비공개 모두 `grp.<id>.*`다. 템플릿은 공개 레코드에 `g.record`, 비공개 기록에 `recordPrivate`를 쓴다(`L3.readme` §10.2).
 - [미결] 공통 모순 (2) on 핸들러 외부 효과 금지와 `delegate`의 `requestId` 멱등 예외. 템플릿은 핸들러에서 `delegate`를 쓰지 않는다.
+  - 결정됨: ADR-0015(C안, 2026-10-25). on 핸들러의 결정적 `requestId` `delegate`는 허용된다. 템플릿은 그대로 핸들러에서 `delegate`를 쓰지 않는다. 쓰는 예는 L3.learning.spec §4.3·§4.10이다.

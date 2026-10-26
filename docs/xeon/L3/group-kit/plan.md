@@ -161,8 +161,8 @@ xeon/packages/group-kit/
 | G-16 | `smokeGroup`을 `defineGroup`으로 옮기고 M1 스모크가 그대로 통과하는지 확인 | G-04, G-05, G-01 | S | M2 |
 | G-17 | `metrics/record.ts`: 단계 경계 증가분 기록 `grp.<그룹>.metrics.recorded`(`recordPrivate`), 토큰·비용·임대 시간 계산 | G-05, X `ScopeApi.recordPrivate`(review.decisions-2 T-21) | M | M3 |
 | G-18 | `promotion/report.ts`: `buildPromotionReport`, `/group status` 부가 줄 | G-17, X `events()`·`toolOwner()` [가정] | M | M3 |
-| G-19 | `scan/`: `scanDriveSource`(`@swc/core` `parseSync`), SD-01~SD-10, DR-07 `MODULE_OWNERS` 행 추가 | G-04, `eng.dependency-rules.guide` 표 변경 승인 | M | M3 |
-| G-20 | `replayDrive` 확장: 지점 목록 지정, 사용자 입력 시작, 실패 보고에 첫 차이 이벤트 표시 | G-15 | S | M3 |
+| G-19 | `scan/`: `scanDriveSource`(`@swc/core` `parseSync`), SD-01~SD-10(SD-07~09 메시지는 ADR-0015 §3.2를 가리킨다), DR-07 `MODULE_OWNERS` 행 추가 | G-04, `eng.dependency-rules.guide` 표 변경 승인 | M | M3 |
+| G-20 | `replayDrive` 확장: 지점 목록 지정, 사용자 입력 시작, 실패 보고에 첫 차이 이벤트 표시, 효과 계수(ADR-0015 §3.6: 끊기 직전의 drive·on 핸들러를 두 번 실행하고 가짜 포트의 `EffectCounts`가 기준과 같은지 확인, 실패는 `effects-doubled`) | G-15, ADR-0015 | M | M3 |
 | G-21 | 통신 검사 샘플: `test/fixtures/cross-group-import`로 check-layers DR-02 실패를 확인하는 테스트 | G-03, `check-layers.ts` fixture 입력 지원(eng.toolchain) | S | M2 |
 | G-22 | 리소스 등록 래퍼: `GroupApi.registerTool`, `registerCommand`를 X `hostOf(g)`로 전달. 그룹을 끄면 해제되는지 테스트 | G-05, X `hostOf`·`ResourceRegistry`(X.primitives.spec §3.8, §3.9) | S | M2 |
 | G-23 | `groupManifest`(plugin.json 값 검증·좁히기)와 상태 없는 그룹(`state` 생략) 지원, `state_version` 검사 확장 | G-04 | S | M2 |
@@ -170,6 +170,9 @@ xeon/packages/group-kit/
 | G-25 | (L3.slots S-02 대응) `src/testing/policies/` 정식 예 3종과 `test/tapes/slots/` 테이프 3개, `testing` 진입점 재export | G-22, G-23, L3.slots.plan S-02 | M | 2차 |
 | G-26 | (L3.slots S-03 대응) `test/slots/templates.test.ts`: drive 템플릿을 임시 디렉터리에 생성하고 `replayDrive`로 재생 | G-15, G-24 | S | 2차 |
 | G-27 | (L3.slots S-04 대응) `test/slots/templates.test.ts`: 세 템플릿 생성 결과의 `validateManifest`·`validateUsage`, 로드·토글 확인 | G-24 | S | 2차 |
+| G-28 | `GroupApi.delegateStatus`(읽기, ADR-0015 §3.2 `g.delegateStatus` 행)와 `cancelDelegates`(그룹 끄기 때 진행 중 위임 취소, 재실행되는 코드에서 호출 금지). L1.agents 취소·조회 API가 선행이다 | G-14, M3 요구 M3-REQ-11, M3-REQ-65 | M | M3 |
+| G-29 | `DelegateSpec.report`를 선택 필드로 바꾸고 `report`가 없으면 보고 post를 만들지 않는다([미결 D-M3-03] 권고 a 기준) | G-14 | S | M3 |
+| G-30 | `GroupStatus.drive`에 `"rejected"` 값을 더해 임대 대기 상한 초과 거부를 보인다(`/group status`, `GroupService.onChange`). F `services/groups.ts` 변경이 선행이다 | G-12, G-07, M3 요구 M3-REQ-99 | S | M3 |
 
 선행 작업 정리:
 
@@ -231,6 +234,10 @@ xeon/packages/group-kit/
 | `settings.no-drive-holder-key` | `l3.group-kit` 묶음에 키가 `instrumentation`, `statusLine` 둘뿐이고 `checkSettingDef`를 통과한다. 구동 그룹 선택 키는 X 키를 읽는다 | M2 |
 | `replay.cut-at-every-commit-yields-same-events` | EV-09 좋은 예 그룹에서 모든 절단 지점의 digest가 기준과 같다 | M2 |
 | `replay.detects-closure-state` | EV-09 나쁜 예 그룹에서 `ok: false`이고 `firstDiff`가 채워진다 | M2 |
+| `replay.effects-counted-once-per-cut` | 모든 절단 지점에서 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행해도 가짜 포트의 `EffectCounts`(turn, spawn, delegate, capabilityWrite, post)가 기준 실행과 같다 | M3 |
+| `replay.detects-doubled-effect` | 같은 `requestId`를 쓰지 않고 효과를 두 번 내는 나쁜 그룹에서 `ok: false`, `failure: "effects-doubled"`이다 | M3 |
+| `delegate.status-readable-in-drive-not-in-on` | `delegateStatus`는 drive 문맥에서는 값을 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행 문맥에서 거부된다 | M3 |
+| `status.drive-rejected-shown` | 대기 상한을 넘겨 거부된 그룹의 `GroupStatus.drive`가 `"rejected"`이다 | M3 |
 | `delegate.rejects-long-request-id` | 48자 초과 `requestId`와 남의 접두 `customType`을 호출 전에 거부한다 | M2 |
 | `delegate.idempotent-by-request-id` | 같은 `requestId` 두 번째 호출이 `duplicate`이고 자식이 하나다(가짜 위임 서비스) | M3 |
 | `scan.flags-date-now-in-drive` | drive 본문 `Date.now()`에 SD-01, drive 밖에는 없음 | M3 |
@@ -275,6 +282,9 @@ xeon/packages/group-kit/
 | 17 | `promotion.second-consumer-is-candidate` |
 | 18 | `metrics.disabled-writes-nothing` |
 | 19 | `status-line.examples` |
+| 22 | `replay.effects-counted-once-per-cut`, `replay.detects-doubled-effect` |
+| 23 | `delegate.status-readable-in-drive-not-in-on` |
+| 24 | `status.drive-rejected-shown` |
 
 ## 7. 위험과 대응
 

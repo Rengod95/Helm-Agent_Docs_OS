@@ -4,7 +4,7 @@ layer: L3
 domain: group-kit
 kind: spec
 status: draft
-depends_on: [F.extensions.spec, F.records.spec, F.capabilities.spec, F.wire-settings.spec, F.conversation.spec, X.primitives.spec, eng.dependency-rules.guide, eng.context-map.design, eng.events.design]
+depends_on: [F.extensions.spec, F.records.spec, F.capabilities.spec, F.wire-settings.spec, F.conversation.spec, X.primitives.spec, eng.dependency-rules.guide, eng.context-map.design, eng.events.design, adr.0015, review.m3-design-inputs]
 binds: [xeon/packages/group-kit/**]
 ---
 
@@ -98,7 +98,7 @@ import type {
 import type { Upcaster } from "@xeon/contracts/records";
 import type { SettingDefInput, SettingGroup } from "@xeon/contracts/settings";
 import type { CommandResourceDef, ToolResourceDef } from "@xeon/ext-host";   // X.primitives.spec §3.8, §3.9
-import type { DelegateResult, DelegateSpec } from "./delegate.ts";
+import type { DelegateResult, DelegateSpec, DelegateStatus } from "./delegate.ts";
 import type { GroupMetricsHandle } from "./metrics/types.ts";
 
 /** 확장 id 규칙(review.decisions-2 U-18). 소문자, 숫자, 하이픈. 밑줄은 쓰지 않는다 */
@@ -155,6 +155,10 @@ export interface GroupApi<S, D extends GroupSettingDefs = Record<never, never>> 
   settings(): GroupSettingValues<D>;
   /** L1-g 백그라운드 위임 래퍼(§3.4). requestId 멱등 */
   delegate(spec: DelegateSpec): Promise<DelegateResult>;
+  /** [제안] 이 scope가 현재 대화에서 시작한 위임의 상태. L1 AgentService.status 전달. 재실행되는 코드에서는 부르지 않는다(§3.4) */
+  delegateStatus(requestId: string): DelegateStatus | undefined;
+  /** [제안] 이 scope가 주체인 진행 중 백그라운드 위임을 모두 취소한다. onDispose에서 쓴다(§4.10, D-M3-04) */
+  cancelDelegates(reason: string): Promise<{ readonly cancelled: number }>;
   /** 이 그룹의 계측 조회(§3.12). 2차 전까지 snapshot()은 메모리 집계만 돌려준다 */
   readonly metrics: GroupMetricsHandle;
   /** 그룹 전용 모델 도구 등록. X hostOf(g).registerTool을 그대로 부른다. setup 안에서만. scope가 꺼지면 해제된다 */
@@ -313,8 +317,11 @@ export interface DelegateSpec {
   readonly task: string;
   /** 필수. 대화 범위 멱등 키, 1~48자. group-kit이 ":report"를 붙여 보고 post의 키로 쓴다(64자 한도) */
   readonly requestId: string;
-  /** 필수. 완료 보고 post의 모양 */
-  readonly report: DelegateReport;
+  /**
+   * 완료 보고 post의 모양. [미결 D-M3-03] 권고 a안 기준으로 선택 필드다.
+   * 없으면 L1-g는 부모 대화에 agent.settled만 커밋하고 보고 입력을 만들지 않는다. b안으로 정해지면 필수로 되돌린다
+   */
+  readonly report?: DelegateReport;
   readonly toolPolicy?: DelegateToolPolicy;
   readonly limits?: DelegateLimits;
   /** 모델 역할 이름 또는 모델 참조. 없으면 정의의 model(L1.agents.spec §4.9) */
@@ -331,10 +338,15 @@ export interface DelegateReceipt {
 }
 
 export type DelegateError =
-  | { readonly kind: "group.delegateInvalid"; readonly field: "requestId" | "report.customType" | "agent"; readonly message: string }
+  | { readonly kind: "group.delegateInvalid"; readonly field: "requestId" | "report.customType" | "agent" | "fork"; readonly message: string }
   | { readonly kind: "group.delegateUnavailable" }          // 위임 서비스가 없음(M2) 또는 매니페스트 미선언
   | { readonly kind: "group.disabling"; readonly id: string }
   | { readonly kind: "group.delegateFailed"; readonly message: string };
+
+/** [제안] L1.agents.spec §3.2 ChildStatus를 그룹에 보이는 모양. settled면 종료 상태만 싣는다. 사용량은 이 값에 싣지 않는다 */
+export type DelegateStatus =
+  | { readonly state: "queued" | "running"; readonly childThreadId: ThreadId }
+  | { readonly state: "settled"; readonly childThreadId: ThreadId; readonly status: "completed" | "aborted" | "error" };
 
 /** 복구 가능한 실패는 throw하지 않고 값으로 돌려준다(eng.typescript.guide TY-11) */
 export type DelegateResult =
@@ -346,10 +358,12 @@ export type DelegateResult =
 - [가정] 래퍼는 `g.capability(AgentsDelegateKey)`로 L1-g 서비스(`xeon.agents`, `eng.context-map.design` 5.3절)를 얻어 부른다. 키 이름, 능력 ID, 서비스 메서드 시그니처는 L1.agents.spec이 정한다. 매니페스트는 그 능력을 `requires`나 `optional`에 선언한다. 선언이 없으면 F `validateUsage`가 `capability_undeclared`를 낸다.
 - L1 대응: 래퍼는 `DelegateSpec`을 L1.agents.spec §3.2 `DelegateRequest`로 옮겨 `AgentService.delegate(request, origin)`을 부른다. 필드는 `agent`, `task`, `requestId`, `report`, `model`이 같은 이름이고, `toolPolicy` → `tools`, `limits` → `limits`, `fork` → `fork`다. `origin.owner`는 `{ kind: "scope", scopeId }`다. L1.agents.spec §3.2 끝 문단은 옛 필드(`toolPolicy.deny`만, `forkFrom`)를 적었으므로 이 절에 맞춰 고칠 대상이다.
 - 도구 정책 [제안]: 허용 목록과 차단 목록을 둘 다 받는다. 판정은 L1.agents.spec §4.3 권한 상한을 따른다. `allow`는 정의 `tools`와 교집합을 내므로 그룹이 정의보다 넓힐 수 없고, 부모가 거부한 도구도 자식에서 거부된다. 학습 그룹은 허용 목록, 다른 그룹은 차단 목록을 쓸 수 있다. 이것으로 L3.learning.spec §10 미결 10(차단·허용 방식)을 닫는다.
-- 완료 보고 [가정]: L1-g가 자식 정착 뒤 부모 대화에 `PostItem{ kind: "context", customType: report.customType, display: report.display }`를 `when: report.when`, `requestId: "<requestId>:report"`로 넣는다. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(`_research/notes/L3-1.md` §3.3).
+- 완료 보고 [가정]: `report`가 있으면 L1-g가 자식 정착 뒤 부모 대화에 `PostItem{ kind: "context", customType: report.customType, display: report.display }`를 `when: report.when`, `requestId: "<requestId>:report"`로 넣는다. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(`_research/notes/L3-1.md` §3.3). `report`가 없으면 보고 입력을 만들지 않는다 [미결 D-M3-03]. 그룹은 부모 대화의 코어 이벤트 `agent.settled` 구독(L3.learning.spec §8.1 REQ-LN-02)이나 `delegateStatus`로 완료를 안다.
+- 포크 지점: `fork: { at: "event" }`는 L1-g가 `agents.invalid_request`로 거부한다(L1.agents.spec §4.1 3번, 세션에 이벤트 기준 fork가 없다). 그룹은 `{ at: "item" }`을 쓴다. `DelegateFork`의 `event` 갈래는 L1 지원이 생길 때까지 남겨 두되 `delegate` 입력 검사에서 `group.delegateInvalid`(`field: "fork"`)로 막는 안을 [제안]한다.
+- 재실행 문맥 [결정: adr.0015]: `delegate`는 on 핸들러와 drive 함수에서 부를 수 있다. `requestId`는 커밋된 값에서 만든 결정적 키여야 한다(ADR-0015 §3.4). `delegateStatus`는 효과 없는 읽기다. ADR-0015 §3.2 표의 `g.delegateStatus` 행에 따라 drive 함수에서는 부를 수 있고 on 핸들러에서는 부르지 않는다. 결과를 고정하려면 상태에 커밋한다. `cancelDelegates`는 효과가 있는 호출이라 재실행되는 코드에서 부르지 않고 `onDispose`와 명령 처리기에서 부른다.
 - 멱등: 같은 thread에서 같은 `requestId`의 두 번째 호출은 자식을 만들지 않고 `status: "duplicate"`와 처음 자식의 `childThreadId`를 돌려준다. 중복 생성 방지 방법(소유 간선 검색 또는 `requests` 테이블)은 L1.agents.spec이 정한다.
 - 상한: 위임은 drive 임대 상한(`DriveLimits`)에 들어가지 않는다. 위임 상한의 귀속은 [미결](§10).
-- [미결] F.extensions.spec §4.3은 `on` 핸들러의 외부 효과를 `post`, `commit`, `record`로 한정한다. 학습 그룹은 `on` 핸들러(예: `agent_settled`)에서 검토 포크를 시작해야 한다. [제안] 허용 연산 목록에 "requestId 멱등 연산"(`g.delegate`, drive 안의 `loop.spawn`)을 더하고, `on` 핸들러 안에서 부르는 `delegate`의 `requestId`는 커밋된 id(`turnId`, `stepId`)에서 결정적으로 만든다는 규칙을 F.extensions.spec에 요청한다. 이 규칙이 확정되기 전에는 그룹 문서가 `on` 핸들러에서 `record`로 요청만 남기고 다음 단계 경계 이후 `delegate`를 부르는 우회를 쓴다.
+- (닫힘) [결정: adr.0015] F.extensions.spec §4.3의 on 핸들러 효과 목록(`post`, `commit`, `record`)에 `requestId` 멱등 `g.delegate`가 더해진다(C안, 2026-10-25). `delegate`의 `requestId`는 커밋된 id(`turnId`, `stepId`)나 상태 값에서 결정적으로 만든다(ADR-0015 §3.4). 옛 우회(`record`로 요청만 남기고 다음 단계 경계 뒤에 `delegate`를 부르는 방식)는 쓰지 않는다. F.extensions.spec 본문 반영은 ADR-0015 §4.3 표에 있다.
 
 ### 3.5 DriveArbiter (임대 중재 정책)
 
@@ -757,7 +771,7 @@ import type { JsonValue } from "@xeon/contracts/conversation";
 export interface ReplayHarness {
   /** 새 테스트 호스트에 그룹 하나를 holder로 올린다. restore가 null이면 처음부터, 값이 있으면 그 이벤트열의 앞 commits개 커밋만 복원하고 재개 절차로 시작한다. 같은 테이프로 끝까지 실행한다 */
   run(group: GroupModule, restore: { readonly events: readonly JsonValue[]; readonly commits: number } | null):
-    Promise<{ readonly events: readonly JsonValue[]; readonly commitPoints: readonly number[] }>;
+    Promise<{ readonly events: readonly JsonValue[]; readonly commitPoints: readonly number[]; /* M3(G-20): 효과 계수기를 가진 하니스만 채운다 */ readonly effects?: EffectCounts }>;
   /** 정규화한 이벤트열의 digest. 같은 의미면 같은 문자열 */
   digest(events: readonly JsonValue[]): string;
   /** 두 정규화 이벤트열에서 처음 달라진 위치. 같으면 null */
@@ -769,7 +783,7 @@ export interface ReplayDriveOptions {
   readonly harness: ReplayHarness;
   /** 기준 실행의 커밋 수 상한. 넘으면 실패한다. 기본 200 */
   readonly maxCommits?: number;
-  // M3(G-20)에서 더한다: initialState, input(첫 사용자 입력), cutAt("every-commit" | 지점 목록)
+  // M3(G-20)에서 더한다: initialState, input(첫 사용자 입력), cutAt("every-commit" | 지점 목록), effects(아래 효과 계수)
 }
 
 export interface ReplayCut {
@@ -785,8 +799,8 @@ export interface ReplayDriveReport {
   readonly baselineDigest: string;
   readonly cuts: readonly ReplayCut[];
   readonly ok: boolean;
-  /** ok가 false인데 절단 비교 때문이 아니면 채운다: 커밋 수가 maxCommits 초과, 커밋이 하나도 없음 */
-  readonly failure?: "max-commits-exceeded" | "no-commits";
+  /** ok가 false인데 절단 비교 때문이 아니면 채운다: 커밋 수가 maxCommits 초과, 커밋이 하나도 없음, 효과 계수가 기준보다 큼(M3, 아래 4번) */
+  readonly failure?: "max-commits-exceeded" | "no-commits" | "effects-doubled";
 }
 
 export function replayDrive(options: ReplayDriveOptions): Promise<ReplayDriveReport>;
@@ -798,6 +812,20 @@ export function replayDrive(options: ReplayDriveOptions): Promise<ReplayDriveRep
 1. 기준 실행: `harness.run(group, null)`으로 그룹 하나를 holder로 올려 테이프로 끝까지 실행한다. 내구 이벤트열과 커밋 지점 목록을 얻는다. 커밋 지점은 `g.commit`, `loop.turn` 결과, `loop.spawn` 결과, `post` 수락, `record` 쓰기가 커밋된 위치다.
 2. 지점 k마다: `harness.run(group, { events, commits: k })`로 새 호스트에 앞 k개 커밋만 복원하고 프로세스 재시작과 같은 재개 절차로 drive 함수를 마지막 커밋 상태로 다시 부른다. 같은 테이프로 끝까지 실행한다.
 3. 두 이벤트열을 `harness.digest`로 비교하고 다르면 `harness.firstDiff`로 위치를 얻는다. 정규화 규칙은 `eng.testing.guide` 1.2절을 따른다. F에는 `./testing` 서브패스를 두지 않으므로 정규화 함수는 하니스를 만드는 테스트 쪽이 가진다 [결정: review.decisions-2 U-03]. 모든 지점에서 같으면 `ok`다. 커밋이 하나도 없는 실행은 확인할 것이 없으므로 `ok: false`, `failure: "no-commits"`다(그룹이 임대를 받지 못한 시험 오류가 조용히 통과하지 않게 한다).
+4. 효과 계수 [제안, G-20, ADR-0015 §3.6]: 기준 실행의 모든 커밋 지점에서 끊고 재개할 때, 끊기 직전의 drive 호출과 on 핸들러를 같은 입력으로 두 번 실행한다. 가짜 포트(`LoopPort`, 위임 서비스, 능력 공급자)가 효과 계수기를 가지고, 하니스는 `harness.run`의 결과에 `effects`(아래 `EffectCounts`)를 싣는다. 절단 실행의 계수가 기준 실행의 같은 지점까지의 계수와 같아야 한다. 계수는 코어가 중복으로 돌려준 호출(`duplicate`, 재생된 `loop.turn`·`loop.spawn`, 처음 결과를 돌려준 멱등 능력 호출)과 읽기 호출을 세지 않는다. 반환값과 이벤트열이 같아도 계수가 다르면 `ok: false`, `failure: "effects-doubled"`다.
+
+```ts
+/** 가짜 포트가 센 외부 효과 수. 중복 응답과 읽기는 세지 않는다 */
+export interface EffectCounts {
+  readonly turn: number;
+  readonly spawn: number;
+  readonly delegate: number;
+  /** `idempotent: true` 능력 메서드의 새 효과 수 */
+  readonly capabilityWrite: number;
+  readonly post: number;
+}
+```
+
 - 근거: `eng.events.design` EV-09 강제 수단("커밋 지점마다 프로세스를 끊고 재호출해 같은 이벤트 열이 나오는지"), 7.1절 4번. 결정성 등급은 D0다(`eng.testing.guide` TS-02).
 
 ### 3.11 scanDriveSource (2차)
@@ -833,7 +861,7 @@ export function scanDriveSource(source: string, options?: { readonly fileName?: 
 | SD-04 | `crypto.randomUUID` | error | `Use IdFactory (TY-21).` | TY-21 |
 | SD-05 | `crypto.getRandomValues` | error | `Inject RandomSource (TY-21).` | TY-21 |
 | SD-06 | `performance.now` | error | `Inject Clock (TY-21).` | TY-21 |
-| SD-07 | `fetch` 호출 | error | `drive effects only via loop.turn, loop.spawn, post (F.extensions §4.6).` | F.extensions.spec §4.6 |
+| SD-07 | `fetch` 호출 | error | `Direct I/O is not allowed in drive; use the effects of ADR-0015 §3.2.` | F.extensions.spec §4.6, ADR-0015 §3.2 |
 | SD-08 | `node:fs`, `fs`, `node:fs/promises` 바인딩 사용, `Bun.file`, `Bun.write` | error | 같음 | F.extensions.spec §4.6 |
 | SD-09 | 그 밖의 `Bun.*` 호출(`Bun.spawn`, `Bun.$`, `Bun.sleep` 등) | error | 같음 | F.extensions.spec §4.6 |
 | SD-10 | drive 함수 밖에서 선언한 `let`·`var` 변수를 drive 본문이 재할당 | warning | `drive state lives only in scope state (eng.events EV-09).` | EV-09 |
@@ -1071,7 +1099,7 @@ g.on("turn_end", async (end, _current, ctx) => {
 ### 4.10 위임 규칙
 
 - `delegate`는 켜진 그룹이면 임대와 관계없이 부를 수 있다. 꺼지는 중(`disabling`)이면 `group.disabling`을 돌려준다.
-- 그룹이 꺼질 때 진행 중인 위임을 취소할지 완료까지 둘지는 [미결]이다. [제안] 완료까지 두고 보고 post는 그대로 넣는다. 백그라운드 위임은 부모 abort가 전파되지 않는 경계이기 때문이다(`_research/notes/L3-1.md` §3.7).
+- 그룹이 꺼질 때 진행 중인 위임을 취소할지 완료까지 둘지는 [미결 D-M3-04]이다. 권고는 b(즉시 취소)다. 끈 뒤에도 토큰을 쓰고 결과가 들어오면 사용자 기대와 어긋나기 때문이다. b안이면 그룹은 `onDispose`에서 `cancelDelegates`를 부르고, group-kit은 L1 `AgentService.cancel({ ownerScopeId })`(L3.learning.spec §8.1 REQ-LN-06)로 옮긴다. 옛 [제안](완료까지 두고 보고 post를 넣음)은 a안이다.
 
 ## 5. 실패와 경계 사례
 
@@ -1172,11 +1200,14 @@ g.on("turn_end", async (end, _current, ctx) => {
 19. `formatGroupStatusLine`은 §3.9 예 표의 다섯 입력에 표의 문자열을 그대로 돌려준다.
 20. `group-kit` 운영 소스에서 `LeaseArbiterPort`, `LeaseCandidate`, `GroupService`, `GroupStatus`, `DriveHolderSetting`, `GroupMetricsSummary`를 정의하는 선언이 0개이고, 이 이름은 `@xeon/contracts/extensions` 또는 `@xeon/contracts/services`에서 온다. `services/groups.ts`의 `HolderReceipt["scope"]`는 F.wire-settings `SettingScope`에 대입 가능하고 그 반대도 된다(타입 테스트).
 21. 상태 갱신이 멱등 reducer(§4.5 6번)인 그룹에서 같은 `turn_end` 핸들러를 소비 커밋 전에 두 번 실행하면 `grp.<그룹>.state.committed`는 한 번만 늘고 두 번째 `commit`은 이벤트를 쓰지 않는다.
+22. (M3, ADR-0015) `replayDrive`는 효과 계수기를 가진 하니스에서 모든 절단 지점의 drive·on 핸들러 이중 실행 뒤에도 `EffectCounts`가 기준 실행과 같으면 `ok: true`다. 같은 `requestId` 없이 효과를 두 번 내는 그룹에는 `failure: "effects-doubled"`를 돌려준다.
+23. (M3, ADR-0015) `delegateStatus`는 drive 문맥에서 상태를 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행되는 코드에서 거부되고 `onDispose`와 명령 처리기에서는 동작한다.
+24. (M3) 임대 대기 상한을 넘어 거부된 그룹의 `GroupStatus.drive`는 `"rejected"`다.
 
 ## 10. 미결 사항
 
 - [결정: review.decisions-2 T-21] 공통 모순 1(닫힘): 확장 kind는 F 형식 `grp.<그룹>.<영역>.<이름>` 하나다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유), 계측은 `grp.<그룹>.metrics.recorded`(`recordPrivate`)다. eng 문서의 옛 밑줄 접두 표기는 쓰지 않는다.
-- [미결] 공통 모순 2: F.extensions.spec §4.3(on 핸들러 외부 효과 금지)과 학습 검토 포크 시작·Helm spawn의 관계. requestId 멱등 연산(`g.delegate`, `loop.spawn`)만 허용 목록에 더하는 규칙의 확정(§3.4).
+- (닫힘) [결정: adr.0015] 공통 모순 2: F.extensions.spec §4.3(on 핸들러 외부 효과 금지)과 학습 검토 포크 시작·Helm spawn의 관계. C안(2026-10-25)으로 `requestId` 멱등 `g.delegate`와 drive 안 `loop.spawn`, 선언된 능력 호출이 허용된다(§3.4, §3.10). F.extensions.spec 본문 반영은 ADR-0015 §4.3 표에 있다.
 - [미결] 공통 모순 3: `xeon/packages/group-kit/package.json`의 `xeon.domain`이 `kit`이고 routes layout 도메인은 `group-kit`이다. DR-03은 "디렉터리 이름의 접두사를 뺀 값"과 layout 도메인 이름이 같다고 적었는데 `group-kit`에서 두 값이 다르다. [제안] `group-kit`으로 맞추고 DR-03에 `group-kit`을 접두 규칙 예외로 적는다(L3.group-kit.plan G-02).
 - [미결] 대기 vs 거부: 이 문서는 대기를 [제안]한다(§3.5 규칙 3). `product.vision.spec` §5와 §10 미결 3의 답이다.
 - (닫힘) 선점 허용: X가 이름 지정에 한해 다음 경계에서 `revoked`로 회수한다(X.primitives.spec §4.4.1 5번, [결정: P-22]). `auto`는 선점하지 않는다(§3.5 규칙 4, §4.3 4번). `auto` 우선순위 선점은 두지 않는다.
@@ -1189,6 +1220,7 @@ g.on("turn_end", async (end, _current, ctx) => {
 - [미결] 유휴 중 임대 부여로 자율 turn이 시작되는 것을 허용할지. X.primitives.spec §4.5.5는 유휴 토글을 즉시 적용하고 자율 turn을 [제안]으로 허용한다.
 - [미결] `GroupService`가 thread별 상태를 보이는 방식(§3.8 [가정]).
 - [미결] 완료 보고가 새 turn을 시작하는지, 위임 상한의 귀속, 그룹 끄기 때 진행 중 위임 처리(§3.4, §4.10, `_research/notes/L3-1.md` §6). 위임 도구 정책(허용·차단)은 §3.4에서 둘 다 받는 것으로 정했다 [제안].
+  - M3 설계(2026-10-26): `next` 보고는 turn을 시작하지 않는다(ADR-0013). 보고 자체를 둘지는 [미결 D-M3-03](권고 a, `report` 선택 필드), 끄기 때 처리는 [미결 D-M3-04](권고 b, `cancelDelegates`), 상한 귀속은 L1.agents 요구 REQ-L1-03(`review.m3-design-inputs` §4.4)이다.
 - [결정: review.decisions-2 T-21] 상태 상한(64 KiB)을 넘는 비공개 기록은 X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 `GroupApi`가 그대로 전달한다(§3.2).
 - [미결] 임대 이벤트 이름: F.records.spec `lease.acquired`·`lease.released`와 `eng.context-map.design` 5.1절 `drive.leased`·`drive.released`. 이 문서는 F 이름을 쓴다.
 - [결정: review.decisions-2 T-21] `grp.<그룹>.metrics.recorded`와 `grp.<그룹>.state.committed`의 소유는 §4.9와 §3.6 표에 적었다.
