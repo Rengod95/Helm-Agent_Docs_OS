@@ -1,4 +1,5 @@
 import { assertNever, type Bug } from "@xeon/contracts";
+import { parseModelRef } from "@xeon/contracts/services";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   checkSettingWrite,
@@ -115,6 +116,39 @@ function effectiveOf(
   return resolveSetting(def, engine.ports.settings.layers(threadId)).setting;
 }
 
+/** 모델 id를 값으로 갖는 설정 키: 기본 모델과 역할별 모델 */
+const MODEL_REF_KEY = /^l1\.models\.(?:default|routing\.[a-z]+)$/;
+const MODEL_HINT_MAX = 5;
+
+/**
+ * 모델 참조(`provider/modelId[:수준]`) 설정이 카탈로그에 없는 모델을 가리키면 쓰기를 거절한다. 틀린 id(`claude-sonnet-5.5`)가 저장돼
+ * 첫 turn에서야 실패하는 일을 막는다. 같은 provider의 등록된 모델 몇 개를 보여 준다(HS-78 [결정: M2 Mac 실기]).
+ * 값이 문자열이 아니거나(null로 지움) 참조 형식이 틀리면 건드리지 않는다: 형식은 `checkSettingWrite`가 이미 판정했다.
+ */
+function requireKnownModel(engine: Engine, key: string, value: unknown): void {
+  if (!MODEL_REF_KEY.test(key) || typeof value !== "string") return;
+  const parsed = parseModelRef(value);
+  if (!parsed.ok) return;
+  const { provider, modelId } = parsed.value;
+  const known = engine.ports.models.modelIds(provider);
+  if (known.includes(modelId)) return;
+  const hint =
+    known.length === 0
+      ? `provider ${provider}에 등록된 모델이 없다`
+      : `${provider}의 모델: ${known.slice(0, MODEL_HINT_MAX).join(", ")}${known.length > MODEL_HINT_MAX ? " 등" : ""}`;
+  throw wireError("settings.invalidValue", {
+    details: {
+      key,
+      issues: [
+        {
+          path: "value",
+          message: `알 수 없는 모델 ${provider}/${modelId} (${hint})`.slice(0, 512),
+        },
+      ],
+    },
+  });
+}
+
 export function createSettingsSetHandler(engine: Engine): WireHandler<"settings.set"> {
   const { ports, catalog } = engine;
   return async (params) => {
@@ -136,8 +170,11 @@ export function createSettingsSetHandler(engine: Engine): WireHandler<"settings.
     }
     const def = catalog.get(key);
     if (def === undefined) throw wireError("settings.unknownKey", { details: { key } });
+    requireKnownModel(engine, key, checked.value);
     const written = await ports.settings.write(scope, key, checked.value, threadId);
     if (!written.ok) throw writeFailure(written.error, def, scope);
+    // 사용자 범위의 provider 키 연결은 사람의 허용이다: 그 비밀에 모델 provider 사용 하나를 더한다(HS-45)
+    if (key === "l1.models.providers" && scope === "user") await ports.secrets.linkModelProviders();
     return { setting: effectiveOf(engine, def, threadId) };
   };
 }

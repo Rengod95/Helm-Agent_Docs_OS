@@ -70,6 +70,7 @@ import {
   settingKeysReferencing,
 } from "./assembly/secrets.ts";
 import { createProjectTrust } from "./assembly/trust.ts";
+import { createProviderLinker } from "./secrets/provider-link.ts";
 import { createSettingsEngine } from "./assembly/settings-engine.ts";
 import {
   execOptionsOf,
@@ -621,6 +622,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       secrets: createSecretsPort(
         secrets.admin,
         effectiveSecretsConfig(secretsSource(settings), os.dirs.config),
+        createProviderLinker({
+          admin: secrets.admin,
+          settings,
+          catalog: built.catalog,
+          targetOf: (providerId) => models.providerTarget(providerId),
+          logger: os.logger("secret-link"),
+        }),
       ),
       commands,
       configDir: os.dirs.config,

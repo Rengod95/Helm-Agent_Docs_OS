@@ -333,6 +333,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       },
     },
     secrets: secrets.port,
+    models: { modelIds: (provider) => (provider === "tape" ? ["tape-1"] : []) },
     ids,
     clock: { now: () => RECORDED_AT },
     scheduler,

@@ -759,6 +759,8 @@ sequenceDiagram
 2. secret 위젯에는 값 입력란이 없다. 입력은 등록된 비밀 이름 목록에서 고르거나 이름을 적는 참조 선택기다. 적은 이름은 `SecretRef` 패턴(`^secret://[a-z][a-z0-9-]{1,63}$`)에 맞아야 하고, 맞지 않는 입력은 초안 상태에 남기지 않고 버린다(`reduceSettings`의 `draftEdited`).
 3. secret 위젯의 항목은 정의의 `ui.tab`에 있다(예: providers 탭의 API 키 참조). secrets 탭은 이 키들의 참조 위치 목록을 바로 가기로만 보인다(§4.1 규칙 2).
 4. view-model, 로그, 오류 객체, 상태 직렬화(`JSON.stringify(state)`)에 참조 아닌 비밀 문자열이 없다. 이것을 테스트로 확인한다(plan §5 `secret-never-holds-value`).
+5. [결정: M2 Mac 실기] 참조 선택기로 provider의 키 참조를 저장하는 것(사용자 범위 `l1.models.providers`의 `settings.set`)이 "provider에 연결"이고, 그 비밀의 사용을 허용하는 행위이기도 하다. 호스트가 이 쓰기를 보고 비밀 메타에 모델 provider 호출 하나(runtime-http, `model.provider:<id>`, provider 호스트)만 허용한다(`L4.host-service.spec` HS-45). 화면은 `secret.meta`를 부르지 않고 사용 정책을 직접 고르게 하지 않는다. 연결이 이미 되어 있어도 같은 저장을 다시 하면 허용이 다시 맞춰진다.
+6. [결정: M2 Mac 실기] `settings.set`이 3102로 거절하면(예: 모르는 모델 id, `L4.host-service.spec` HS-78) 화면은 `details.issues[0].message`를 그대로 보인다.
 
 #### 4.6.2 상태 표시
 

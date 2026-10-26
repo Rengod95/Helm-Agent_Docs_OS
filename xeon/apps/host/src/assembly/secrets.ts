@@ -3,6 +3,7 @@ import { resolveSetting } from "@xeon/contracts/settings";
 import type { SecretAdminService } from "@xeon/contracts/services";
 import { withDefaultSopsFile, type SecretsConfig } from "@xeon/platform-secrets";
 import { createSecretOfferStore } from "../secrets/offers.ts";
+import type { ProviderLinker } from "../secrets/provider-link.ts";
 import type { SecretsPort } from "../types.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 
@@ -27,16 +28,20 @@ export function effectiveSecretsConfig(
 export function createSecretsPort(
   admin: SecretAdminService,
   config: () => SecretsConfig,
+  linker: ProviderLinker,
 ): SecretsPort {
   return {
     admin,
     offers: createSecretOfferStore(),
+    linkModelProviders: () => linker.link(),
     newMeta(name): SecretMeta | undefined {
       const current = config();
       // 메타 ref 규칙(`<env>/<KEY>`)을 아는 제공자는 sops뿐이다. 기본 제공자가 sops가 아니면 값을 놓을 곳을 정할 수 없다.
       // 파일 목록이 비는 일은 effectiveSecretsConfig가 기본 파일을 채우므로 없다(빈 목록은 방어일 뿐이다)
       const file = current.sops.files[0];
       if (current.defaultProvider !== "sops" || file === undefined) return undefined;
+      // 이미 사용자 설정이 모델 provider에 연결한 이름이면 그 호출 하나만 허용하는 정책으로 시작한다(HS-45). 아니면 빈 정책이다
+      const granted = linker.grantFor(name);
       return {
         name,
         desc: name,
@@ -44,9 +49,9 @@ export function createSecretsPort(
         ref: `${file.env}/${sopsKeyOf(name)}`,
         scope: "user",
         expiresAt: null,
-        // 빈 정책은 사용 불가다. 사람이 `secret.meta`로 모드·도구·호스트를 정해야 에이전트가 쓴다
-        use: { modes: [], tools: [], hosts: [] },
-        approval: current.approval.default,
+        // 빈 정책은 사용 불가다. 사람이 `secret.meta`로 모드·도구·호스트를 정하거나 모델 provider에 연결해야 쓴다
+        use: granted?.use ?? { modes: [], tools: [], hosts: [] },
+        approval: granted?.approval ?? current.approval.default,
         ttlSeconds: current.lease.ttlSeconds,
         maxUses: current.lease.maxUses,
       };

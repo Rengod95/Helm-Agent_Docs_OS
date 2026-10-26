@@ -424,3 +424,93 @@ test("host.hello lists settings.invalidated among the notifications the host imp
   expect(hello.features.map((feature) => feature.name)).toContain("settings.invalidated");
   await connection.close();
 });
+
+// HS-46 [결정: M2 Mac 실기]: 모르는 모델 id는 저장하기 전에 거절한다. 같은 provider의 모델을 보여 준다.
+test("settings.set refuses a model id the registry does not have, names it and the provider's models, and writes nothing", async () => {
+  const writes: unknown[] = [];
+  const host = createFakeHost({
+    overrides: {
+      settings: {
+        write: (scope, key, value) => {
+          writes.push([scope, key, value]);
+          return Promise.resolve(ok(undefined));
+        },
+      },
+    },
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const wrong = await wireErrorOf(
+    connection.request("settings.set", {
+      key: "l1.models.default",
+      value: "tape/tape-1.5:high",
+      scope: "user",
+    }),
+  );
+  expect(wrong.code).toBe(3102);
+  expect(wrong.data.details).toEqual({
+    key: "l1.models.default",
+    issues: [{ path: "value", message: "알 수 없는 모델 tape/tape-1.5 (tape의 모델: tape-1)" }],
+  });
+  const noProvider = await wireErrorOf(
+    connection.request("settings.set", {
+      key: "l1.models.routing.review",
+      value: "nowhere/m",
+      scope: "user",
+    }),
+  );
+  expect(noProvider.data.details).toEqual({
+    key: "l1.models.routing.review",
+    issues: [
+      {
+        path: "value",
+        message: "알 수 없는 모델 nowhere/m (provider nowhere에 등록된 모델이 없다)",
+      },
+    ],
+  });
+  expect(writes).toEqual([]);
+  // 등록된 모델(추론 수준 접미 포함)과 지우는 값(null)은 통과한다
+  await connection.request("settings.set", {
+    key: "l1.models.default",
+    value: "tape/tape-1:high",
+    scope: "user",
+  });
+  await connection.request("settings.set", {
+    key: "l1.models.default",
+    value: null,
+    scope: "user",
+  });
+  expect(writes).toEqual([
+    ["user", "l1.models.default", "tape/tape-1:high"],
+    ["user", "l1.models.default", null],
+  ]);
+  await connection.close();
+});
+
+test("settings.set tells the secret service about provider links only for the user scope of l1.models.providers", async () => {
+  const host = createFakeHost({
+    overrides: { settings: { write: () => Promise.resolve(ok(undefined)) } },
+  });
+  const { connection } = host.connect();
+  await connection.request("host.hello", HELLO_PARAMS);
+  const providers = [{ id: "tape", enabled: true, apiKeyRef: "secret://tape-key", baseUrl: null }];
+  await connection.request("settings.set", {
+    key: "l1.models.providers",
+    value: providers,
+    scope: "user",
+  });
+  expect(host.fake.secrets.linkCalls()).toBe(1);
+  // 다른 키, 다른 범위는 연결이 아니다: 프로젝트 파일이 비밀의 사용 정책을 넓히지 못한다
+  await connection.request("settings.set", {
+    key: "l1.models.default",
+    value: "tape/tape-1",
+    scope: "user",
+  });
+  await connection.request("settings.set", {
+    key: "l1.models.providers",
+    value: providers,
+    scope: "project",
+  });
+  expect(host.fake.secrets.linkCalls()).toBe(1);
+  await connection.close();
+});

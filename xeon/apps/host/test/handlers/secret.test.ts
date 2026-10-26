@@ -4,7 +4,7 @@ import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities"
 import { WireError } from "@xeon/contracts/wire";
 import { createSecretsPort } from "../../src/assembly/secrets.ts";
 import { createFakeHost } from "../fixtures/fake-host.ts";
-import { createFakeSecrets, sampleMeta } from "../fixtures/fake-secrets.ts";
+import { createFakeSecrets, NO_PROVIDER_LINKS, sampleMeta } from "../fixtures/fake-secrets.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { HELLO_PARAMS } from "../fixtures/wire-client.ts";
 import { DEFAULT_SECRETS_CONFIG } from "@xeon/platform-secrets";
@@ -321,7 +321,7 @@ test("secret.beginEntry add needs a SOPS file in the settings to place the value
   const connection = await open(host);
   // 대역의 설정은 파일이 있다. 파일이 없는 포트로 바꿔 끼워 같은 경로를 확인한다
   const { admin, offers } = host.fake.engine.ports.secrets;
-  const noFile = createSecretsPort(admin, () => ({ ...DEFAULT_SECRETS_CONFIG }));
+  const noFile = createSecretsPort(admin, () => ({ ...DEFAULT_SECRETS_CONFIG }), NO_PROVIDER_LINKS);
   expect(noFile.newMeta(EXA)).toBeUndefined();
   offers.offerEntry({ name: EXA, action: "add", source: sourceOf(VALUE).source });
   expect(host.fake.secrets.port.newMeta(EXA)?.ref).toBe("dev/EXA_KEY");

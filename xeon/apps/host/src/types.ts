@@ -173,6 +173,8 @@ export interface EnginePorts {
   readonly log: HostLogPort;
   /** L0.secrets 관리 서비스와 wire 밖 값 전달 통로 */
   readonly secrets: SecretsPort;
+  /** L1.models 카탈로그 조회. 설정 쓰기가 모델 id를 검사한다(HS-78 [결정: M2 Mac 실기]) */
+  readonly models: ModelCatalogPort;
   /** L2.dialog 슬래시 명령 */
   readonly commands: CommandPort;
   /** X.loading-trust 프로젝트 신뢰. 클라이언트가 묻고 정한다(`trust.get`·`trust.decide`) */
@@ -449,6 +451,17 @@ export interface SecretsPort {
    * 사용 정책은 비어 있어(사용 불가) `secret.meta`로 정책을 정하기 전에는 에이전트가 쓸 수 없다. 제공자 파일이 설정되지 않았으면 undefined.
    */
   newMeta(name: SecretName): SecretMeta | undefined;
+  /**
+   * 사용자 범위 `l1.models.providers`에 연결된 비밀에 모델 provider 사용 하나를 허용으로 더한다(HS-45 [결정: M2 Mac 실기]).
+   * `settings.set`이 그 키를 쓴 뒤 부른다. 비밀이 아직 없으면 건너뛰고(만들 때 `newMeta`가 더한다) 실패는 경고로만 남긴다
+   */
+  linkModelProviders(): Promise<void>;
+}
+
+/** 모델 카탈로그 조회(L1.models `list`). 허용·차단 목록을 적용한 결과다 */
+interface ModelCatalogPort {
+  /** `provider`에 등록된 모델 id들 */
+  modelIds(provider: string): readonly string[];
 }
 
 /** 신뢰 질의·결정이 실패한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.3.1 trust.*) */

@@ -15,7 +15,14 @@ import type {
 } from "@xeon/contracts/services";
 import { DEFAULT_SECRETS_CONFIG, type SecretsConfig } from "@xeon/platform-secrets";
 import { createSecretsPort } from "../../src/assembly/secrets.ts";
+import type { ProviderLinker } from "../../src/secrets/provider-link.ts";
 import type { SecretsPort } from "../../src/types.ts";
+
+/** 어떤 provider에도 연결되지 않은 상태의 연결기(기본 메타가 빈 정책이다) */
+export const NO_PROVIDER_LINKS: ProviderLinker = {
+  link: () => Promise.resolve(),
+  grantFor: () => undefined,
+};
 
 // 비밀 관리 서비스(platform-secrets의 admin)의 메모리 대역. 호스트의 secret.* 처리기와 SecretsPort(기본 메타, 맡긴 수단 저장소)는
 // 실제 코드를 쓰고, L0.secrets 쪽만 바꾼다. 값은 길이와 호출 기록으로만 남기고, 시험이 "값이 새지 않았다"를 확인할 수 있게
@@ -49,6 +56,8 @@ export interface FakeSecrets {
   readonly shown: string[];
   /** 메타 없이 제공자에만 있는 항목(orphaned) */
   readonly orphanRefs: string[];
+  /** `linkModelProviders`가 불린 횟수(설정 쓰기 처리기가 연결을 알렸는지) */
+  linkCalls(): number;
 }
 
 export function sampleMeta(name: SecretName, overrides: Partial<SecretMeta> = {}): SecretMeta {
@@ -249,12 +258,21 @@ export function createFakeSecrets(config: SecretsConfig = FAKE_SECRETS_CONFIG): 
     },
   };
 
+  const linked = { count: 0 };
+  const linker: ProviderLinker = {
+    ...NO_PROVIDER_LINKS,
+    link: () => {
+      linked.count += 1;
+      return Promise.resolve();
+    },
+  };
   return {
-    port: createSecretsPort(admin, () => config),
+    port: createSecretsPort(admin, () => config, linker),
     records,
     calls,
     received,
     shown,
     orphanRefs,
+    linkCalls: () => linked.count,
   };
 }

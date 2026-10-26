@@ -498,6 +498,7 @@ export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "
 | 6 | 승인: 메타 `approval`이 `none`이 아니면 `ctx.approval`이 있고 범위와 만료가 맞는다. `env` 모드는 메타가 `none`이어도 `per-use` 승인을 요구한다 | `approval_missing` |
 
 - 호스트 일치 [제안]: 소문자 비교, `*.example.com`은 한 단계 이상의 하위 도메인만 맞는다(`example.com` 자신은 아니다). IP 리터럴과 `localhost`는 메타에 그대로 적혀 있을 때만 맞는다. 포트가 메타에 없으면 443만 맞는다.
+- 모델 provider 키의 정책 [결정: M2 Mac 실기]: 새 비밀의 정책은 비어 있어(`L4.host-service.spec` HS-45) 모델 호출 lease(`runtime-http`, `model.provider:<id>`, 호스트는 provider 주소)가 거부된다. 정책은 이 패키지가 정하지 않는다. 호스트가 사람의 provider 연결 행위를 근거로 `secret.meta`와 같은 경로(`SecretAdminService.meta`)로 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [provider 호스트]`만 더한다. 이 판정(§4.2)은 바꾸지 않는다.
 - 승인 기본값 [제안, `_research/secrets.md` §6.4]: 읽기 호스트는 `per-session`, 쓰기·배포 호스트는 `per-use`. 메타를 만들 때 사람이 고르고, 고르지 않으면 `l0.secrets.approval.default`를 쓴다.
 - `check`가 `needs_approval`을 돌려주면 L1이 `xeon.approvals`로 사람에게 묻고, 받은 `ApprovalEvidence`를 넣어 `lease`를 다시 부른다. L0는 L1 승인 서비스를 부르지 않는다(층 순위).
 - 승인 결과를 받은 L1은 `secret.approved` 레코드를 `SecretService`에 알리지 않는다. 대신 `lease`가 승인 증거를 처음 본 때 `secret.approved`를 낸다 [제안]. 레코드 생산 위치를 한 곳으로 두기 위해서다.

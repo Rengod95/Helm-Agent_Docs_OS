@@ -89,7 +89,7 @@ export interface PortsDeps {
   /** 수동 컴팩션(`thread.compact`)이 부른다 */
   readonly context: Pick<ContextService, "compact">;
   /** 수동 컴팩션이 현재 모델(역할 `main`)의 바인딩과 창 크기를 정할 때 쓴다 */
-  readonly models: Pick<ModelService, "resolve">;
+  readonly models: Pick<ModelService, "resolve" | "list">;
   readonly tasks: TaskService;
   readonly approvals: ApprovalService;
   /** 열 때 복구가 도구의 현재 재실행 정책을 본다(ToolService.meta) */
@@ -159,6 +159,14 @@ function storeIdOf(raw: string): StoreId {
 interface HeldLease {
   readonly token: LeaseToken;
   readonly alive: Disposable;
+}
+
+/** provider에 등록된 모델 id들. `list`의 ref는 `provider/modelId`다(thinking 수준 접미 없음) */
+function modelIdsOf(models: Pick<ModelService, "list">, provider: string): readonly string[] {
+  const prefix = `${provider}/`;
+  return models
+    .list({ provider })
+    .flatMap((info) => (info.ref.startsWith(prefix) ? [info.ref.slice(prefix.length)] : []));
 }
 
 export function createEnginePorts(deps: PortsDeps): PortsHandle {
@@ -594,6 +602,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     notify,
     log,
     secrets: deps.secrets,
+    models: { modelIds: (provider) => modelIdsOf(deps.models, provider) },
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
     trust,
     ids: deps.ids,

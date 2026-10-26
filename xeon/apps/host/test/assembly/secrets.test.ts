@@ -13,7 +13,11 @@ import {
   settingKeysReferencing,
 } from "../../src/assembly/secrets.ts";
 import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";
-import { createFakeSecrets, FAKE_SECRETS_CONFIG } from "../fixtures/fake-secrets.ts";
+import {
+  createFakeSecrets,
+  FAKE_SECRETS_CONFIG,
+  NO_PROVIDER_LINKS,
+} from "../fixtures/fake-secrets.ts";
 
 const scratch = mkdtempSync(join(tmpdir(), "xh-sec-"));
 afterAll(() => {
@@ -27,11 +31,15 @@ function nameOf(text: string) {
 }
 
 test("the default metadata of a new secret follows the first SOPS file and the secret settings", () => {
-  const port = createSecretsPort(createFakeSecrets().port.admin, () => ({
-    ...FAKE_SECRETS_CONFIG,
-    approval: { default: "per-use", writeHosts: "per-use" },
-    lease: { ttlSeconds: 60, maxUses: 3 },
-  }));
+  const port = createSecretsPort(
+    createFakeSecrets().port.admin,
+    () => ({
+      ...FAKE_SECRETS_CONFIG,
+      approval: { default: "per-use", writeHosts: "per-use" },
+      lease: { ttlSeconds: 60, maxUses: 3 },
+    }),
+    NO_PROVIDER_LINKS,
+  );
   expect(port.newMeta(nameOf("exa-key"))).toEqual({
     name: nameOf("exa-key"),
     desc: "exa-key",
@@ -48,13 +56,17 @@ test("the default metadata of a new secret follows the first SOPS file and the s
 
 test("a new secret has nowhere to go without a SOPS file, or with a default provider whose ref rule is unknown", () => {
   const admin = createFakeSecrets().port.admin;
-  expect(createSecretsPort(admin, () => DEFAULT_SECRETS_CONFIG).newMeta(nameOf("exa-key"))).toBe(
-    undefined,
-  );
   expect(
-    createSecretsPort(admin, () => ({ ...FAKE_SECRETS_CONFIG, defaultProvider: "op" })).newMeta(
+    createSecretsPort(admin, () => DEFAULT_SECRETS_CONFIG, NO_PROVIDER_LINKS).newMeta(
       nameOf("exa-key"),
     ),
+  ).toBe(undefined);
+  expect(
+    createSecretsPort(
+      admin,
+      () => ({ ...FAKE_SECRETS_CONFIG, defaultProvider: "op" }),
+      NO_PROVIDER_LINKS,
+    ).newMeta(nameOf("exa-key")),
   ).toBe(undefined);
 });
 
@@ -65,7 +77,7 @@ test("a clean machine with no SOPS file configured still has a place for a new s
   expect(config().sops.files).toEqual([
     { env: "user", path: join(configDir, "secrets", "sops", "user.yaml") },
   ]);
-  const port = createSecretsPort(createFakeSecrets().port.admin, config);
+  const port = createSecretsPort(createFakeSecrets().port.admin, config, NO_PROVIDER_LINKS);
   // 값은 SOPS 제공자가 찾는 파일과 같은 `user/<KEY>`에 놓인다
   expect(port.newMeta(nameOf("anthropic-api-key"))?.ref).toBe("user/ANTHROPIC_API_KEY");
 });
@@ -77,7 +89,7 @@ test("a configured SOPS file list is left alone and the default file is not mixe
     join(scratch, "config"),
   );
   expect(config().sops.files).toEqual([mine]);
-  const port = createSecretsPort(createFakeSecrets().port.admin, config);
+  const port = createSecretsPort(createFakeSecrets().port.admin, config, NO_PROVIDER_LINKS);
   expect(port.newMeta(nameOf("exa-key"))?.ref).toBe("dev/EXA_KEY");
 });
 
@@ -88,6 +100,7 @@ test("another default provider still has no place: the setting, not a missing fi
       () => ({ ...DEFAULT_SECRETS_CONFIG, defaultProvider: "op" }),
       join(scratch, "config"),
     ),
+    NO_PROVIDER_LINKS,
   );
   expect(port.newMeta(nameOf("exa-key"))).toBe(undefined);
 });
