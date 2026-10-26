@@ -31,7 +31,8 @@
       "entry": [
         "test/**/*.test.ts",
         "test/fixtures/crash-host.ts",
-        "test/fixtures/mcp-stdio-server.ts"
+        "test/fixtures/mcp-stdio-server.ts",
+        "test/fixtures/secret-add-child.ts"
       ]
     },
     "apps/cli": {
