@@ -4,7 +4,7 @@ layer: L3
 domain: helm
 kind: spec
 status: draft
-depends_on: [F.extensions.spec, F.records.spec, F.capabilities.spec, F.conversation.spec, X.primitives.spec, L3.group-kit.spec, L3.slots.spec, L2.web.spec, L2.knowledge.spec, L2.work.spec, L1.agents.spec, L1.tools.spec, adr.0013, adr.0015, eng.typescript.guide, product.usecases.spec, review.m3-design-inputs]
+depends_on: [F.extensions.spec, F.records.spec, F.capabilities.spec, F.conversation.spec, X.primitives.spec, L3.group-kit.spec, L3.slots.spec, L2.web.spec, L2.knowledge.spec, L2.work.spec, L1.agents.spec, L1.tools.spec, adr.0013, adr.0015, adr.0017, X.loading-trust.spec, eng.typescript.guide, product.usecases.spec, review.m3-design-inputs]
 binds: [xeon/packages/group-helm/**]
 ---
 
@@ -12,7 +12,7 @@ binds: [xeon/packages/group-helm/**]
 
 패키지: `@xeon/group-helm`(`xeon/packages/group-helm`). 그룹 이름(`ExtensionName`, 주 scope id): `helm`.
 
-M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-plan` §9 D-a, `review.m3-plan` M3-01). 이 판은 M3 설계 단계 입력(`review.m3-design-inputs` §4.1 H-IN-01~17)에 답하고, ADR-0015(효과 목록 C안)와 도구 메타(G1-05, `review.m3-plan` M3-02)를 반영한다. 사용자 결정을 기다리는 선택은 권고안으로 적고 `[미결 D-M3-NN]`으로 표시한다(`review.m3-design-inputs` §3).
+M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-plan` §9 D-a, `review.m3-plan` M3-01). 이 판은 M3 설계 단계 입력(`review.m3-design-inputs` §4.1 H-IN-01~17)에 답하고, ADR-0015(효과 목록 C안)와 도구 메타(G1-05, `review.m3-plan` M3-02)를 반영한다. 2026-10-26 사용자 결정(`review.m3-design-inputs` §3 D-M3-01·05·06·07·11·17)을 반영했다. Helm은 L3 그룹 코드를 담은 기본 플러그인이다 [결정: review.m3-design-inputs D-M3-01].
 
 ## 1. 목적과 범위
 
@@ -74,7 +74,7 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 | 실패 처리 | 예외와 표 | `HelmFailure` kind 판별 유니온과 kind별 처리표(§3.12, §4.12). drive 코드에 `!` 단언을 두지 않는다 | `eng.typescript.guide` TY-11, TY-13, TY-24 |
 | 렌즈 | 자리표시 3개 | 내장 렌즈 6개와 신호별 우선순위(§3.6) | H-IN-03 |
 | 종료·부분 결과·식별자 | 미결 2, 3, 16 | M3는 적용 1회로 끝내고 부분 결과를 허용한다. 단계·신호 식별자를 이 판으로 고정한다 [제안] | H-IN-02, 04, 05 |
-| 사용자 결정 대기 | 미결 4 | `[미결 D-M3-01]`(형태·기본 켬), `[미결 D-M3-05]`(임대 충돌), `[미결 D-M3-06]`(유휴 자율 turn), `[미결 D-M3-07]`(안전 모드) | `review.m3-design-inputs` §3.1 |
+| 형태와 사용자 결정 | 내장 그룹(조립 루트 등록), 미결 4 | 기본 플러그인(D-M3-01 c), 임대 충돌 대기(05 a), 유휴 자율 turn 허용(06 a), 안전 모드에서 적재 안 함(07 a), 자체 확장 API만(11 c) | [결정: review.m3-design-inputs D-M3-01, 05, 06, 07, 11] |
 
 ### 1.2 UC-2 대응
 
@@ -82,8 +82,8 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 
 | UC-2 흐름 | 이 문서 | 수용 기준 |
 |---|---|---|
-| 사전 조건: Helm이 켜져 있음 | §3.1 `defaultEnabled` `[미결 D-M3-01]`, §6 `ext.helm.enabled` | 13 |
-| 사전 조건: 임대를 다른 그룹이 갖지 않음 | §4.10, §4.13 대기 규칙 `[미결 D-M3-05]` | 5, 19 |
+| 사전 조건: Helm이 설치되어 켜져 있음 | §3.1 플러그인 설치와 `defaultEnabled`, §6 `ext.helm.enabled` | 13 |
+| 사전 조건: 임대를 다른 그룹이 갖지 않음 | §4.10, §4.13 대기 규칙 [결정: review.m3-design-inputs D-M3-05] | 5, 19 |
 | 주 1. tap 핸들러가 탐구 신호를 기록 | §3.5, §4.3 | 8 |
 | 주 2. 탐구 시작과 임대·상한 | §3.3, §4.5, §6 `driveLimits` | 11 |
 | 주 3. `before_agent_start` chain이 렌즈를 주입 | §3.6, §4.4 | 18(plan `inject.*`) |
@@ -123,7 +123,7 @@ M3 세부 설계판(2026-10-26). 첫 동작 마일스톤은 M3다(`review.m2-pla
 
 ## 3. 인터페이스
 
-모든 공개 이름은 `@xeon/group-helm`의 `src/index.ts`가 export한다. 다른 패키지는 이 패키지를 import하지 않는다(CM-06). export는 조립 루트(`apps/host`)의 그룹 등록과 테스트용이다.
+모든 공개 이름은 `@xeon/group-helm`의 `src/index.ts`가 export한다. 다른 패키지는 이 패키지를 import하지 않는다(CM-06). export는 플러그인 엔트리(§3.1 플러그인 산출물의 `entry`)와 테스트용이다. 설정 정의 `helmSettings`는 호스트 설정 카탈로그도 가져간다(§6) [제안].
 
 외부 이름의 출처:
 
@@ -151,7 +151,7 @@ export const helmManifest = defineManifest({
   layer: "L3",
   kind: "group",
   entry: "./src/index.ts",
-  defaultEnabled: true,                        // [미결 D-M3-01] 권고 a: 내장 그룹, 기본 켬
+  defaultEnabled: true,                        // [결정: D-M3-01] 기본 플러그인. 설치되어 있으면 켠다
   usesDrive: true,
   usesPost: true,
   points: [
@@ -173,7 +173,7 @@ export const helmManifest = defineManifest({
   recordKinds: HELM_RECORD_KINDS,              // §3.4
   readsRecordKinds: [],                        // 다른 그룹의 레코드를 읽지 않는다 [결정: review.decisions-2 D-10]
   components: { agents: ["./agents/explorer.md"] },        // [가정] L1.agents.spec 정의 파일 형식
-  trust: { level: "builtin" },
+  trust: { level: "user" },                   // 설치 위치 user의 상한과 같다(§3.1 패키징)
 }) satisfies ExtensionManifest;
 ```
 
@@ -182,8 +182,12 @@ export const helmManifest = defineManifest({
 - `web.fetch`는 Helm 코드가 부르지 않는다. explorer가 모델 도구 `web_fetch`로 쓴다(§4.7). 매니페스트에 두는 것은 provider 유무를 저하 판정(explorer 과제의 고지)에 쓰기 위해서다.
 - `explorer` 정의 파일은 그룹 패키지 안에 둔다 [가정]. L1.agents.spec이 그룹 제공 정의를 받지 않으면 정의를 L1 기본 정의로 옮긴다.
 - `drive_conflict` 경고: 다른 drive 그룹이 기본 활성이면 `validateManifestSet`이 경고한다. 실행 중에는 임대를 하나만 준다(F.extensions.spec §4.7).
-- 형태와 기본 켬 `[미결 D-M3-01]`: 권고 a(내장 그룹, 기본 켬)를 따른다. `trust.level: "builtin"`, 조립 루트(`apps/host`)가 `helmGroup`을 등록한다. b(기본 끔)가 정해지면 `defaultEnabled`만 `false`로 바꾸고 첫 실행 안내(L4)가 켜기를 묻는다. c(기본 플러그인)가 정해지면 패키지는 그대로 두고 조립 루트 등록을 플러그인 설치 경로로 옮긴다. 세 안 모두 이 문서의 나머지 설계는 같다.
-- 안전 모드 `[미결 D-M3-07]`: 권고 a(안전 모드에서 L3 내장 그룹을 끈다)를 따르면 Helm은 안전 모드에서 적재되지 않는다. Helm 쪽 코드 변경은 없고 X.operations가 적재 목록에서 뺀다(REQ-X-08).
+- 형태와 기본 켬 [결정: review.m3-design-inputs D-M3-01]: Helm은 기본 플러그인이다. 별도 패키지(`@xeon/group-helm`)로 설치하고, 설치되어 있으면 켠다(`defaultEnabled: true`). 소스 패키지의 층과 kind는 그대로다(`layer: "L3"`, `kind: "group"`, `group-kit`의 `defineGroup` 사용). 조립 루트(`apps/host`)는 Helm을 내장 확장으로 등록하지 않는다.
+- 패키징 [제안]: 빌드가 플러그인 산출물 하나를 만든다. 산출물은 `.xeon-plugin/plugin.json`(이 매니페스트를 JSON으로 옮긴 것)과 엔트리 번들(`entry`), `agents/explorer.md`다. 릴리즈는 이 산출물을 앱 자원 디렉터리(`OsDirs.resource`)에 넣고, 첫 실행이 사용자 확장 위치 `<userDir>/extensions/helm/`에 설치한다. 앱이 갱신되면 설치본이 원본 그대로일 때(파일 해시가 같을 때)만 새 산출물로 바꾼다. 사용자가 고친 설치본은 그대로 두고 `/helm status`와 `xeon doctor`가 판 차이를 알린다.
+- 적재와 신뢰: X.loading-trust의 외부 확장 로더가 설치 위치 `user`의 후보로 찾는다. 신뢰 상한은 `user`이고 매니페스트도 `trust.level: "user"`를 요청한다. `user` 등급은 `on`, `post`, `drive`, 리소스 등록, 접두 테이블 저장을 쓸 수 있다(X.loading-trust.spec §4.6.2). Helm은 자체 확장 API(`ScopeApi`, `group-kit`)만 쓴다. pi 확장 어댑터는 두지 않는다 [결정: review.m3-design-inputs D-M3-11].
+- 의존 해석 [제안]: 엔트리 번들은 `@xeon/contracts`, `@xeon/group-kit`, `typebox`를 넣지 않고 외부 import로 남긴다. X 로더가 이 셋을 호스트의 같은 모듈 인스턴스로 가상 모듈 등록한다(X.loading-trust.spec §4.10.6의 등록 수단). 그래야 F 스키마 객체와 `group-kit` 상태가 호스트와 하나다. 이 등록은 X 쪽 요구다(§8).
+- 끄기와 지우기: 끄기는 `ext.helm.enabled`(§6)다. 지우기는 설치 디렉터리를 지우는 것이고, 지운 뒤에는 Helm 지점 핸들러와 명령이 없다. 커밋된 상태(`x_helm_state`)와 기록은 남아 다시 설치하면 이어 쓴다.
+- 안전 모드 [결정: review.m3-design-inputs D-M3-07]: 안전 모드는 L3 그룹과 `user` 등급 외부 확장을 싣지 않으므로(X.operations.spec §4.6.2) Helm은 적재되지 않는다. Helm 쪽 코드 변경은 없다(REQ-X-08).
 
 ### 3.2 상태 (`src/state.ts`)
 
@@ -765,7 +769,7 @@ Helm은 L3.slots.spec §3.1의 판정과 체크리스트를 따르는 첫 drive 
 | C2 상태 스키마 | §3.2 `helmStateDecl`(version 1) | plan 테스트 4, 4a |
 | C3 drive와 상한 | §4.5, `DriveOptions.limits`는 `l3.helm.driveLimits` | plan 테스트 23 |
 | C4 레코드 kind | §3.4 `HELM_RECORD_KINDS` 3개, `readsRecordKinds: []` | plan 테스트 2, 3 |
-| C5 설정 네임스페이스 | 내장 그룹이라 `l3.helm.*`(F.wire-settings.spec §3.8.3 규칙 3). `enabled`는 X 예약 키 `ext.helm.enabled` | plan 테스트 6 |
+| C5 설정 네임스페이스 | `l3.helm.*`를 유지한다 [제안]. 공식 기본 플러그인의 설정 정의는 호스트 카탈로그가 정적으로 싣는다(§6, §10 미결 13). `enabled`는 X 예약 키 `ext.helm.enabled` | plan 테스트 6 |
 | C6 단위 테스트 | plan §5.1 | |
 | C7 재생 테스트 | `replayDrive` 효과 계수(§4.11, ADR-0015 §3.6) | plan 테스트 21, 35 |
 | C8 다른 그룹 import 없음 | 소스 import는 `@xeon/contracts`, `@xeon/group-kit`, `typebox`뿐 | check-layers DR-02 |
@@ -1018,7 +1022,7 @@ export function helmDrive(g: GroupApi<HelmState>): DriveFn<HelmState> {
 - requestId: Helm은 `loop.turn`, `loop.spawn`, 멱등 능력 호출에 탐구 id에서 만든 결정적 키를 직접 넘긴다(ADR-0015 §3.4). X 기본 키(`${leaseId}:${순번}`)는 재시작·재활성화 뒤 `leaseId`가 바뀌면 달라질 수 있는데(REQ-X-04), 명시 키는 커밋된 상태 값(`inquiryId`, `round`, `lensId`, `findingId`)만 재료로 쓰므로 임대가 바뀌어도 같다. 그래서 Helm은 REQ-X-04의 답에 기대지 않는다(이전 판 미결 7을 Helm 쪽에서는 닫는다).
 - 재개(UC-2): 커밋 전에 프로세스가 끝나면 drive는 마지막 커밋 상태로 다시 호출된다. `explore` 단계에서 커밋 전이던 spawn은 같은 requestId로 다시 호출된다. 코어(L1.agents)가 이미 자식 대화를 만들었으면 기록된 결과를 돌려받고, 만들지 않았으면 새로 실행한다. 이 보장은 재시작 뒤에도 유지돼야 하므로 (thread, `requestId`) 멱등을 세션 DB에 둔다(ADR-0015 §3.2, REQ-L1-01). 같은 렌즈에 서브에이전트가 두 개 이상 결과를 남기지 않는다.
 - 결정성: drive 함수 안에서 `Date.now`, `Math.random`, 직접 I/O를 쓰지 않는다. `replayDrive`의 효과 계수(§4.11)와 `scanDriveSource`의 `drive.ts` 정적 검사(L3.group-kit.plan G-19, L3.helm.plan H-18)로 확인한다.
-- 유휴 자율 turn `[미결 D-M3-06]`: 권고 a(임대 상한 안에서 허용)를 따른다. 사용자 turn이 끝난 뒤 임대를 받으면 drive는 `diverge`·`apply` turn을 사용자 입력 없이 연다(X.primitives.spec §4.5.5). b(금지)가 정해지면 drive는 `loop.turn` 앞에서 사용자 turn이 실행 중인지 확인하고, 아니면 커밋 없이 반환해 다음 사용자 turn의 경계까지 기다린다. 확인 수단은 `LoopHandle`에 없으므로 b일 때 F에 요구를 더한다.
+- 유휴 자율 turn [결정: review.m3-design-inputs D-M3-06]: 임대 상한 안에서 허용한다. 사용자 turn이 끝난 뒤 임대를 받으면 drive는 `diverge`·`apply` turn을 사용자 입력 없이 연다(X.primitives.spec §4.5.5). 비용은 `l3.helm.driveLimits`가 묶는다.
 
 ### 4.6 쓰기 거부
 
@@ -1113,7 +1117,7 @@ export function guardWrite(g: GroupApi<HelmState>): Handler<"tool_call", HelmSta
 
 ### 4.10 다른 그룹과의 공존
 
-- 다른 그룹이 drive 임대를 가진 동안 Helm은 대기 상태로 남는다. `pending`은 남고 `phase`는 `idle`이다. 쓰기 거부는 걸리지 않는다. 신호 감지(on 핸들러)와 기록은 계속된다. 임대가 풀리면 DriveArbiter가 Helm에 임대를 준다. 대기·거부 정책은 `x.primitives.activeDriveGroup`과 L3.group-kit.spec §3.5가 정한다. 기본 동작은 `[미결 D-M3-05]`이고 권고안(대기, 상한 뒤 거부)에서 Helm의 처리는 §4.13이다.
+- 다른 그룹이 drive 임대를 가진 동안 Helm은 대기 상태로 남는다. `pending`은 남고 `phase`는 `idle`이다. 쓰기 거부는 걸리지 않는다. 신호 감지(on 핸들러)와 기록은 계속된다. 임대가 풀리면 DriveArbiter가 Helm에 임대를 준다. 대기·거부 정책은 `x.primitives.activeDriveGroup`과 L3.group-kit.spec §3.5가 정한다. 기본 동작은 대기이고 대기 상한을 넘으면 거부한다 [결정: review.m3-design-inputs D-M3-05]. Helm의 처리는 §4.13이다.
 - 학습 그룹은 drive를 쓰지 않으므로 Helm 임대 중에도 on, post, 백그라운드 위임으로 동작한다(F.extensions.spec §4.6 [결정]). Helm은 학습 그룹이 꺼져 있어도 같은 동작을 한다(§4.7 저하 동작).
 - 두 그룹의 chain 패치는 X의 디스패치 순서대로 합성되고, first 결정은 먼저 거부한 쪽이 정한다(F.extensions.spec §4.2).
 
@@ -1172,16 +1176,16 @@ export function guardWrite(g: GroupApi<HelmState>): Handler<"tool_call", HelmSta
 - `budget`과 `turn`은 탐구를 끝내지만 drive 함수는 정상 반환한다. drive 예외(F.extensions.spec §5 6번)는 `failureOf`가 모르는 예외에만 생긴다.
 - 실패를 버리는 경로는 없다. 모든 kind는 전이, 기록, 상태 표시 가운데 하나 이상으로 이어진다.
 
-### 4.13 사용자 결정에 기대는 동작
+### 4.13 사용자 결정에 따른 동작
 
-| 결정 | 권고안으로 쓴 동작 | 다른 안이 정해지면 |
-|---|---|---|
-| `[미결 D-M3-01]` 형태와 기본 켬 | 내장 그룹, `defaultEnabled: true`(§3.1) | b: `defaultEnabled: false`. c: 조립 루트 등록을 플러그인 설치로 옮긴다 |
-| `[미결 D-M3-05]` 임대 충돌 | 대기. 다른 그룹이 임대를 가진 동안 `pending`을 유지한다(§4.10). 대기 상한을 넘어 X·group-kit이 요청을 거부하면 내구 이벤트 `lease.rejected`가 커밋된다. Helm은 이 이벤트의 구독 핸들러(페이로드만 입력, §7)에서 `pending`을 지우고 "임대 대기 상한" 알림을 `post`한다(`requestId: helm:<inquiryId>:idle:0:rejected`) [제안] | b(즉시 거부): 같은 경로로 첫 거부에서 `pending`을 지운다 |
-| `[미결 D-M3-06]` 유휴 자율 turn | 허용. 사용자 turn 뒤에도 탐구가 이어진다(§4.5) | b: drive가 사용자 turn 중에만 turn을 연다. F에 확인 수단이 필요하다. c: `l3.helm.autoStart` 기본을 `off`로 둔다 |
-| `[미결 D-M3-07]` 안전 모드 | Helm을 적재하지 않는다(§3.1) | b: 그대로 적재. c: 적재하되 임대를 받지 않으므로 신호 기록만 한다 |
-| `[미결 D-M3-04]` 그룹 끄기 때 진행 중 위임 | Helm은 `g.delegate`를 쓰지 않으므로 영향이 없다. 임대 안의 `loop.turn`·`loop.spawn`은 UC-2 대안 흐름대로 정착까지 진행한다 | 영향 없음 |
-| `[미결 D-M3-17]` 알림 범위 | 탐구 종료·상한 알림은 `post`(`display: true`)로 대화에 남긴다. 사용자가 창을 보고 있지 않을 때의 OS 알림은 L4 알림 경로가 `grp.helm.inquiry.finished` 기록을 보고 정한다 | 모바일 푸시가 M3에 들어와도 Helm 코드는 같다 |
+| 결정 | 동작 |
+|---|---|
+| D-M3-01 c 형태와 기본 켬 | 기본 플러그인. 설치되어 있으면 켜고(`defaultEnabled: true`), 외부 확장 로더가 `user` 등급으로 싣는다(§3.1) |
+| D-M3-05 a 임대 충돌 | 대기. 다른 그룹이 임대를 가진 동안 `pending`을 유지한다(§4.10). 대기 상한을 넘어 X·group-kit이 요청을 거부하면 내구 이벤트 `lease.rejected`가 커밋된다. Helm은 이 이벤트의 구독 핸들러(페이로드만 입력, §7)에서 `pending`을 지우고 "임대 대기 상한" 알림을 `post`한다(`requestId: helm:<inquiryId>:idle:0:rejected`) [제안] |
+| D-M3-06 a 유휴 자율 turn | 허용. 사용자 turn 뒤에도 탐구가 임대 상한 안에서 이어진다(§4.5) |
+| D-M3-07 a 안전 모드 | Helm을 적재하지 않는다(§3.1). 상태는 남는다 |
+| D-M3-04 b 그룹 끄기 때 진행 중 위임 | Helm은 `g.delegate`를 쓰지 않으므로 취소할 위임이 없다. 임대 안의 `loop.turn`·`loop.spawn`은 UC-2 대안 흐름대로 정착까지 진행한다 |
+| D-M3-17 알림 | 탐구 종료·상한 알림은 `post`(`display: true`)로 대화에 남긴다. 연결된 클라이언트 알림과 OS 알림은 L4 알림 경로가 `grp.helm.inquiry.finished` 기록을 보고 보낸다. 클라이언트 창이 앞에 있어도 기본으로 보내고 설정으로 끈다. 웹·모바일 푸시는 후순위이고 들어와도 Helm 코드는 같다 |
 
 - 대기 거부를 알리는 값 [제안]: 핸들러는 `GroupStatus.drive`처럼 커밋되지 않은 런타임 값을 읽지 않는다. on 핸들러의 입력은 지점 페이로드뿐이라는 규칙(§4.11, ADR-0015 §3.2)을 지키기 위해서다. 거부는 내구 이벤트 `lease.rejected`(페이로드 `groupId`, `reason`, 거부된 요청의 `requestSeq`)로 커밋되고, Helm은 이 이벤트의 구독 핸들러만으로 처리한다. 구독 수단은 학습 그룹의 `agent.settled` 구독과 같은 것을 쓴다(L3.learning.spec §8.1 REQ-LN-02). `GroupStatus.drive`의 `"rejected"`(와 거부 사유)는 `/group status` 같은 화면용이고 group-kit이 더한다(§8, G-IN-04, REQ-X-08). 두 요구는 `lease.rejected` 이벤트와 `GroupStatus.drive` 값을 F·X·group-kit에 더하는 하위 층 작업이다.
 
@@ -1208,9 +1212,9 @@ export function guardWrite(g: GroupApi<HelmState>): Handler<"tool_call", HelmSta
 | 17 | X 능력 래퍼가 읽기 호출을 `effect_not_allowed`로 거부(L2 정의에 `readOnly` 선언이 아직 없음) | `capability` 실패로 그 출처를 건너뛴다(§4.12). 탐구는 끝난다. 시험 `knowledge.undeclared-method-degrades`가 이 경로를 확인한다 |
 | 18 | `work.tasks.create`에 `idempotent` 선언이 없음 | X가 `effect_not_allowed`로 거부한다. 작업 연결만 빠지고 발견 기록은 남는다 |
 | 19 | 상태 커밋 판 충돌(`state_conflict`) | `updateState`가 한 번 다시 읽어 적용한다. 다시 충돌하면 `yield`(§4.12) |
-| 20 | 임대 대기 상한 초과로 요청 거부 `[미결 D-M3-05]` | `pending`을 지우고 알림을 `post`한다(§4.13) |
+| 20 | 임대 대기 상한 초과로 요청 거부 [결정: review.m3-design-inputs D-M3-05] | `pending`을 지우고 알림을 `post`한다(§4.13) |
 | 21 | 도구 메타(`risk`)가 페이로드에 없음 | 쓰기로 본다. 확산 단계에서 읽기 도구도 거부되고 `/helm status`가 경고한다(§4.6) |
-| 22 | 안전 모드로 시작 `[미결 D-M3-07]` | Helm이 적재되지 않는다. 상태는 그대로 남고 일반 모드로 다시 시작하면 커밋된 단계에서 이어 간다 |
+| 22 | 안전 모드로 시작 [결정: review.m3-design-inputs D-M3-07] | Helm이 적재되지 않는다. 상태는 그대로 남고 일반 모드로 다시 시작하면 커밋된 단계에서 이어 간다 |
 
 ## 6. 설정 노출
 
@@ -1245,7 +1249,7 @@ export interface HelmSettings {
 
 - `driveLimits.maxTurns` 기본 4는 발산 1, 적용 1에 여유 2를 둔 값이다. `maxSpawns` 기본 8은 `maxLenses` 상한과 같다. 이 기본값은 pi 방식(기본 상한 없음)의 예외다 [결정: review.decisions-2 U-12]. drive는 사용자 입력 없이 턴을 만들기 때문에 상한이 없으면 끝나지 않을 수 있다. 사용자는 설정 화면 `plugins` 탭에서 이 값을 조정한다. 이 키가 X 일반 기본값 `x.primitives.driveDefaultLimits`를 Helm에 한해 덮어쓴다. 일반 대화 턴에는 상한을 두지 않는다.
 - `maxLenses`가 `driveLimits.maxSpawns`보다 크면 설정 저장 때 경고하고, 실행 때는 §4.2 explore 행 규칙으로 처리한다.
-- Helm 켜기·끄기 키는 X 로더 예약 키 `ext.helm.enabled` 하나다(F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3). 내장 그룹도 같은 키를 쓰고 Helm은 이 키를 `defineSettings`로 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`(§3.1)가 정한다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정: review.decisions-2 K-04].
+- Helm 켜기·끄기 키는 X 로더 예약 키 `ext.helm.enabled` 하나다(F.extensions.spec §6, X.loading-trust.spec §4.5, F.wire-settings.spec §3.8.3). 플러그인과 L3 그룹이 모두 이 키를 쓰고 Helm은 이 키를 `defineSettings`로 선언하지 않는다. 기본값은 매니페스트 `defaultEnabled`(§3.1)가 정한다. 값 속성은 X.loading-trust.spec §6 정의를 따른다: `runtimeChange` `live`(요청을 기록하고 적용은 다음 단계 경계), `allowedScopes` managed~session [결정: review.decisions-2 K-04].
 - L4 노출: 설정 화면 "플러그인과 그룹" 탭의 Helm 항목, 설정 파일, `/helm` 명령(§3.9). `/group on|off|status`는 group-kit 소유다.
 - 비밀 설정은 없다.
 - 마일스톤: M2 코드(`xeon/packages/group-helm/src/settings.ts`)는 `driveLimits` 하나만 선언한다. 나머지 세 키는 M3-04로 더한다.
@@ -1277,7 +1281,7 @@ export interface HelmSettings {
 | 명령 `/helm start\|stop\|status`, `HelmStatusView` | L4.cli.spec, L4.desktop.spec |
 | `customType` `grp.helm.notice.suggested`, `grp.helm.notice.status` | L4(표시), F.conversation.spec `XeonCustomMessage` |
 | 서브에이전트 정의 이름 `explorer` | L1.agents.spec |
-| `helmGroup`(GroupModule) | L4.host-service.spec 조립 루트 |
+| `helmGroup`(GroupModule), 플러그인 산출물(`.xeon-plugin/plugin.json`, 엔트리 번들) | X.loading-trust.spec 외부 확장 로더, L4 릴리즈(첫 실행 설치) |
 
 요구:
 
@@ -1288,14 +1292,15 @@ export interface HelmSettings {
 | `MethodDef.idempotent?: true`, 읽기 표지(`readOnly` 또는 `effect` 열거), `validateCapability` 코드, 공통 오류 `effect_not_allowed` | F.capabilities.spec §3.2, §3.6 | 요구 | REQ-F-01 |
 | `ToolCallPayload`에 `risk`, `hints`, `caller`. `tool_execution_end`에 `input` | F.records.spec, F.extensions.spec §3.4, L1.tools.plan(M3-02) | 요구. Helm 쓰기 판정(§4.6)과 `repeat` 신호(§3.5)의 입력 | REQ-F-04 |
 | `before_agent_start` 페이로드(`prompt`, `systemPrompt`)와 패치(`systemPrompt`) 필드 | F.extensions.spec §3.4 3행 | 요구. 지금은 pi 형태를 [가정] | REQ-F-05 |
-| `ReplayPolicy` 값 이름(`safe\|unsafe` 대 `never\|safe`, 사용자 확인 대기) | F.records.spec | 요구. Helm은 이름에 기대지 않는다 | REQ-F-03 |
+| `ReplayPolicy` 값 이름은 `safe\|unsafe` 유지 [결정: review.m3-design-inputs D-M3-31] | F.records.spec | 확정. Helm은 이름에 기대지 않는다 | REQ-F-03 |
 | 능력 래퍼의 문맥 검사(on에서 능력 호출 거부, drive에서 선언 없는 메서드 거부), `effects` 계수 규칙 | X.primitives.spec §4.4.3, §4.4.4, §4.6 | 요구 | REQ-X-01 |
 | `ScopeApi.commit`의 같은 프로세스 직렬화(`expectStateRev` CAS와 `state_conflict`는 이미 있다) | X.primitives.spec §4.6.1 | 요구. 정해지면 `updateState` 큐를 지운다(§4.1) | REQ-X-02 |
 | `record`와 `commit` 원자 묶음 | X.primitives.spec, F.extensions.spec | 요구. 없는 동안 `findingId` 중복 제거(§4.8) | REQ-X-03 |
 | 재시작 뒤 `leaseId` 유지 | X.primitives.spec | Helm은 명시 키로 기대지 않는다(§4.5) | REQ-X-04 |
-| 대기 기본, 대기 상한, 거부 통지, 유휴 자율 turn, 안전 모드의 내장 그룹 | X.primitives.spec §4.5.5, X.operations.spec, L3.group-kit.spec §3.5, §3.8 | 요구. 내구 이벤트 `lease.rejected`와 화면용 `GroupStatus.drive` `"rejected"`를 더한다(§4.13) | REQ-X-08, G-IN-04 |
+| 대기 기본, 대기 상한, 거부 통지, 유휴 자율 turn, 안전 모드의 L3 그룹(D-M3-05·06·07 결정 반영) | X.primitives.spec §4.5.5, X.operations.spec, L3.group-kit.spec §3.5, §3.8 | 요구. 내구 이벤트 `lease.rejected`와 화면용 `GroupStatus.drive` `"rejected"`를 더한다(§4.13) | REQ-X-08, G-IN-04 |
 | 서비스 키 A안 래퍼 | X.primitives.spec, F.extensions.spec | 요구. Helm은 `g.capability(key)`만 쓴다 | REQ-X-09 |
 | `tool_call` 지점과 정책·승인·샌드박스의 처리 순서 | X.operations.spec, L1.tools.spec | 요구. §4.6 처리 순서 [가정] | REQ-X-11 |
+| 외부 확장 로더(자체 API), 기본 플러그인의 첫 실행 설치, `@xeon/contracts`·`@xeon/group-kit`·`typebox` 가상 모듈 등록 | X.loading-trust.spec §4.2, §4.10.6, `review.m3-plan` M3-15 | 요구 [제안]. 없으면 Helm을 적재할 수 없다(§3.1) | M3-15 |
 | `defineGroup`, `GroupApi.settings()`·`registerCommand`, `DriveArbiter`, `replayDrive`(G-20 효과 계수), `scanDriveSource`, `GroupStatus` | L3.group-kit.spec §3.2, §3.5, §3.8, §3.10, §3.11 | 문서 있음. G-20 효과 계수는 ADR-0015 §4.3 반영 대기 | G-IN-02 |
 | `loop.spawn`의 (thread, `requestId`) 멱등을 세션 DB에 남겨 재시작 뒤에도 유지 | L1.agents.spec, L1.loop.spec §4.8 | 요구. 지금은 프로세스 메모리 64개 | REQ-L1-01 |
 | 자식 대화의 지점 발화와 그룹 핸들러 적용 범위 | L1.agents.spec | 요구. Helm은 `caller`로 대상을 고르고 explorer 도구 상한으로 보강한다(§4.6) | REQ-L1-04 |
@@ -1326,7 +1331,7 @@ export interface HelmSettings {
 16. (ADR-0015) UC-2 기준 실행의 모든 커밋 지점에서 끊고 drive와 on 핸들러를 두 번 실행한 뒤 재개해도 효과 계수가 §4.11 표의 기대값과 같다(새 turn 2, 새 spawn 3, 새 작업 2, 종료 알림 1, `inquiry.finished` 1).
 17. 쓰기 판정은 §4.6 표를 따른다. `risk: read`는 허용, `write`·`exec`·없음은 거부, `hints.readOnly: true`이고 `risk: exec`이면 거부, `caller`가 `subagent:explorer`가 아닌 서브에이전트면 허용이다.
 18. 탐구 단계의 `before_agent_start` 패치는 앞 핸들러의 `systemPrompt` 뒤에 Helm 블록 하나를 붙이고, 렌즈 본문을 둘 이상 넣지 않는다.
-19. `[미결 D-M3-05]` 권고안 기준: 임대 대기가 거부되어 `lease.rejected`가 커밋되면 구독 핸들러가 `pending`을 지우고 거부 알림을 한 번 `post`한다. 같은 이벤트로 핸들러를 다시 실행해도 알림은 `duplicate`다. 핸들러는 `GroupStatus`를 읽지 않는다.
+19. [결정: review.m3-design-inputs D-M3-05] 임대 대기가 거부되어 `lease.rejected`가 커밋되면 구독 핸들러가 `pending`을 지우고 거부 알림을 한 번 `post`한다. 같은 이벤트로 핸들러를 다시 실행해도 알림은 `duplicate`다. 핸들러는 `GroupStatus`를 읽지 않는다.
 20. `reactionOf`는 모든 `HelmFailure` kind와 단계 쌍에서 §4.12 표의 처리를 돌려준다. `failureOf`가 모르는 예외는 다시 던져지고 drive 등록이 `group.driveThrew`로 표시된다. 예상 가능한 실패로 drive가 예외를 내는 경로는 없다.
 21. on 핸들러 실행 중 능력 호출 수는 0이다. drive의 능력 호출은 `readOnly` 또는 `idempotent` 선언 메서드뿐이고, 선언 없는 메서드를 가진 가짜 provider로 바꾸면 X 래퍼가 `effect_not_allowed`로 거부하며 탐구는 저하 동작으로 끝난다.
 22. 탐구 단계인데 `inquiryId`가 `null`인 상태로 drive를 부르면 예외 없이 `inquiry.finished`(`failed`)가 기록되고 상태가 초기값이 된다.
@@ -1347,13 +1352,13 @@ M3 판에서 닫은 항목:
 - (닫힘) C3 `xeon.domain`: Helm은 `group-helm` → `helm`으로 두 규칙의 값이 같다. group-kit 쪽 값은 M3-35가 정한다.
 - [결정: review.decisions-2 T-21] 레코드 kind 접두: 공개·비공개 모두 `grp.<그룹>.<영역>.<이름>`이다.
 
-사용자 결정 대기(`review.m3-design-inputs` §3):
+사용자 결정으로 닫은 항목(`review.m3-design-inputs` §3, 2026-10-26):
 
-1. [미결 D-M3-01] Helm의 형태와 기본 켬. 권고 a(내장 그룹, 기본 켬)로 썼다(§3.1, §4.13).
-2. [미결 D-M3-05] 임대 충돌 때 기본 동작. 권고 a(대기, 상한 뒤 거부)로 썼다(§4.13).
-3. [미결 D-M3-06] 유휴 중 자율 turn. 권고 a(상한 안에서 허용)로 썼다(§4.5, §4.13).
-4. [미결 D-M3-07] 안전 모드의 L3 내장 그룹. 권고 a(끈다)로 썼다(§3.1, §4.13).
-5. [미결 D-M3-17] 원격·알림 범위. 권고안에서 Helm 코드 영향은 없다(§4.13).
+1. (닫힘) [결정: review.m3-design-inputs D-M3-01] 형태: 기본 플러그인, 설치되어 있으면 켬(§3.1, §4.13).
+2. (닫힘) [결정: review.m3-design-inputs D-M3-05] 임대 충돌: 대기, 상한 뒤 거부(§4.13).
+3. (닫힘) [결정: review.m3-design-inputs D-M3-06] 유휴 자율 turn: 상한 안에서 허용(§4.5, §4.13).
+4. (닫힘) [결정: review.m3-design-inputs D-M3-07] 안전 모드: 적재하지 않음(§3.1, §4.13).
+5. (닫힘) [결정: review.m3-design-inputs D-M3-17] 알림: 연결된 클라이언트와 OS 알림, 창이 앞이어도 기본 보냄. Helm 코드 영향은 없다(§4.13).
 
 남은 내부 설계:
 
@@ -1364,5 +1369,7 @@ M3 판에서 닫은 항목:
 10. [미결] 탐구가 없을 때 turn마다 생기는 임대 부여·`idle` 반납 비용(§3.3, H-IN-15). M3 구현 뒤 turn당 `lease.*` 이벤트 수를 재고, 문제가 되면 X에 후보 제외 조건을 요청한다.
 11. [가정] `tool_call` 지점이 정책·승인보다 먼저 디스패치된다(§4.6, REQ-X-11).
 12. [가정] 지식 검색 도구 결과의 빈 결과 판정 형식(§3.5). L2.knowledge.spec과 맞춘다.
+13. [미결] 플러그인이 된 Helm의 설정 네임스페이스. F.wire-settings.spec §3.8.3 규칙 2는 확장이 코어 네임스페이스에 키를 더하지 못하게 한다. [제안] 설정 정의는 호스트 카탈로그가 `@xeon/group-helm`의 `helmSettings`로 정적으로 싣고 키 이름 `l3.helm.*`를 유지한다(M2 키 `l3.helm.driveLimits`와 같다). 다른 안은 `ext.helm.*`로 옮기는 것이다. F.wire-settings 작성자와 함께 정한다.
+14. [미결] 플러그인 엔트리의 가상 모듈 의존(§3.1 의존 해석). X 로더가 자체 패키지를 가상 모듈로 등록하는 방식이 같은 모듈 인스턴스를 주는지는 X.loading-trust 스파이크에서 확인한다 [가정].
 
 하위 층 반영 대기(§8 요구 표): REQ-F-01, REQ-F-02, REQ-F-04, REQ-F-05, REQ-X-01, REQ-X-02, REQ-X-03, REQ-X-08, REQ-X-09, REQ-X-11, REQ-L1-01, REQ-L1-04, REQ-L2-01, G-IN-02, `lease.rejected` 이벤트, `GroupStatus.drive`의 `"rejected"`.

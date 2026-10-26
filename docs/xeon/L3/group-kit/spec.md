@@ -157,7 +157,7 @@ export interface GroupApi<S, D extends GroupSettingDefs = Record<never, never>> 
   delegate(spec: DelegateSpec): Promise<DelegateResult>;
   /** [제안] 이 scope가 현재 대화에서 시작한 위임의 상태. L1 AgentService.status 전달. 재실행되는 코드에서는 부르지 않는다(§3.4) */
   delegateStatus(requestId: string): DelegateStatus | undefined;
-  /** [제안] 이 scope가 주체인 진행 중 백그라운드 위임을 모두 취소한다. onDispose에서 쓴다(§4.10, D-M3-04) */
+  /** [제안] 이 scope가 주체인 진행 중 백그라운드 위임을 모두 취소한다. onDispose에서 쓴다(§4.10, [결정: D-M3-04]) */
   cancelDelegates(reason: string): Promise<{ readonly cancelled: number }>;
   /** 이 그룹의 계측 조회(§3.12). 2차 전까지 snapshot()은 메모리 집계만 돌려준다 */
   readonly metrics: GroupMetricsHandle;
@@ -318,8 +318,8 @@ export interface DelegateSpec {
   /** 필수. 대화 범위 멱등 키, 1~48자. group-kit이 ":report"를 붙여 보고 post의 키로 쓴다(64자 한도) */
   readonly requestId: string;
   /**
-   * 완료 보고 post의 모양. [미결 D-M3-03] 권고 a안 기준으로 선택 필드다.
-   * 없으면 L1-g는 부모 대화에 agent.settled만 커밋하고 보고 입력을 만들지 않는다. b안으로 정해지면 필수로 되돌린다
+   * 완료 보고 post의 모양. 선택 필드다 [결정: review.m3-design-inputs D-M3-03].
+   * 없으면 L1-g는 부모 대화에 agent.settled만 커밋하고 보고 입력을 만들지 않는다
    */
   readonly report?: DelegateReport;
   readonly toolPolicy?: DelegateToolPolicy;
@@ -358,7 +358,7 @@ export type DelegateResult =
 - [가정] 래퍼는 `g.capability(AgentsDelegateKey)`로 L1-g 서비스(`xeon.agents`, `eng.context-map.design` 5.3절)를 얻어 부른다. 키 이름, 능력 ID, 서비스 메서드 시그니처는 L1.agents.spec이 정한다. 매니페스트는 그 능력을 `requires`나 `optional`에 선언한다. 선언이 없으면 F `validateUsage`가 `capability_undeclared`를 낸다.
 - L1 대응: 래퍼는 `DelegateSpec`을 L1.agents.spec §3.2 `DelegateRequest`로 옮겨 `AgentService.delegate(request, origin)`을 부른다. 필드는 `agent`, `task`, `requestId`, `report`, `model`이 같은 이름이고, `toolPolicy` → `tools`, `limits` → `limits`, `fork` → `fork`다. `origin.owner`는 `{ kind: "scope", scopeId }`다. L1.agents.spec §3.2 끝 문단은 옛 필드(`toolPolicy.deny`만, `forkFrom`)를 적었으므로 이 절에 맞춰 고칠 대상이다.
 - 도구 정책 [제안]: 허용 목록과 차단 목록을 둘 다 받는다. 판정은 L1.agents.spec §4.3 권한 상한을 따른다. `allow`는 정의 `tools`와 교집합을 내므로 그룹이 정의보다 넓힐 수 없고, 부모가 거부한 도구도 자식에서 거부된다. 학습 그룹은 허용 목록, 다른 그룹은 차단 목록을 쓸 수 있다. 이것으로 L3.learning.spec §10 미결 10(차단·허용 방식)을 닫는다.
-- 완료 보고 [가정]: `report`가 있으면 L1-g가 자식 정착 뒤 부모 대화에 `PostItem{ kind: "context", customType: report.customType, display: report.display }`를 `when: report.when`, `requestId: "<requestId>:report"`로 넣는다. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(`_research/notes/L3-1.md` §3.3). `report`가 없으면 보고 입력을 만들지 않는다 [미결 D-M3-03]. 그룹은 부모 대화의 코어 이벤트 `agent.settled` 구독(L3.learning.spec §8.1 REQ-LN-02)이나 `delegateStatus`로 완료를 안다.
+- 완료 보고 [가정]: `report`가 있으면 L1-g가 자식 정착 뒤 부모 대화에 `PostItem{ kind: "context", customType: report.customType, display: report.display }`를 `when: report.when`, `requestId: "<requestId>:report"`로 넣는다. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(`_research/notes/L3-1.md` §3.3). `report`가 없으면 보고 입력을 만들지 않는다 [결정: review.m3-design-inputs D-M3-03]. 학습 그룹은 `report`를 넣지 않는다. 그룹은 부모 대화의 코어 이벤트 `agent.settled` 구독(L3.learning.spec §8.1 REQ-LN-02)이나 `delegateStatus`로 완료를 안다.
 - 포크 지점: `fork: { at: "event" }`는 L1-g가 `agents.invalid_request`로 거부한다(L1.agents.spec §4.1 3번, 세션에 이벤트 기준 fork가 없다). 그룹은 `{ at: "item" }`을 쓴다. `DelegateFork`의 `event` 갈래는 L1 지원이 생길 때까지 남겨 두되 `delegate` 입력 검사에서 `group.delegateInvalid`(`field: "fork"`)로 막는 안을 [제안]한다.
 - 재실행 문맥 [결정: adr.0015]: `delegate`는 on 핸들러와 drive 함수에서 부를 수 있다. `requestId`는 커밋된 값에서 만든 결정적 키여야 한다(ADR-0015 §3.4). `delegateStatus`는 효과 없는 읽기다. ADR-0015 §3.2 표의 `g.delegateStatus` 행에 따라 drive 함수에서는 부를 수 있고 on 핸들러에서는 부르지 않는다. 결과를 고정하려면 상태에 커밋한다. `cancelDelegates`는 효과가 있는 호출이라 재실행되는 코드에서 부르지 않고 `onDispose`와 명령 처리기에서 부른다.
 - 멱등: 같은 thread에서 같은 `requestId`의 두 번째 호출은 자식을 만들지 않고 `status: "duplicate"`와 처음 자식의 `childThreadId`를 돌려준다. 중복 생성 방지 방법(소유 간선 검색 또는 `requests` 테이블)은 L1.agents.spec이 정한다.
@@ -449,11 +449,11 @@ export function leaseArbiterPort(
 
 1. `holderSetting`이 scope id이면 그 그룹만 임대를 받는다. 그 그룹이 후보가 아니면 아무도 받지 않는다(`named-unavailable`).
 2. `null`(auto)이면 `requestSeq`가 가장 작은 후보가 받는다. `requestSeq`가 같으면 `loadOrder`가 작은 쪽이다(`first-request`). `requestSeq`가 null인 후보(활성 가지에 enabled 기록이 없는 기본 켜짐 그룹)는 어떤 enabled 기록보다 앞선 것으로 보고, null끼리는 `loadOrder`로 정한다. 쌍마다 기준이 달라지지 않도록 전체 순서를 이 하나로 둔다.
-3. 받지 못한 후보는 모두 `waiting`이다. 대기 그룹은 거부되지 않는다. drive 함수만 호출되지 않고 `on`, `post`, `delegate`는 계속 동작한다.
+3. 받지 못한 후보는 모두 `waiting`이다. 대기 그룹은 대기 상한을 넘기 전까지 거부되지 않는다. 상한을 넘으면 요청을 거부하고 내구 이벤트 `lease.rejected`를 커밋한다(plan G-30, REQ-X-08) [결정: review.m3-design-inputs D-M3-05]. drive 함수만 호출되지 않고 `on`, `post`, `delegate`는 계속 동작한다.
 4. `auto`는 선점하지 않는다. 임대가 있는 동안 X는 `choose`를 부르지 않으므로 holder는 그 임대가 반납될 때(`idle`, 상한, 끄기, 오류)까지 유지된다. 그룹을 새로 켜거나 설정이 `null`로 바뀌어도 현재 임대는 회수되지 않는다. 이름 지정은 X가 회수한다: `x.primitives.activeDriveGroup`이 다른 후보 그룹을 가리키면 X가 다음 경계에서 현재 임대를 `lease.released{reason:"revoked"}`로 반납하고 이어서 가리킨 그룹에 부여한다(X.primitives.spec §4.4.1 5번, [결정: P-22]). 가리킨 그룹이 후보가 아니면 현재 임대를 유지한다(§4.3).
 
 - [결정] drive 임대는 한 번에 그룹 하나만 가진다. `on`, `post`, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4, F.extensions.spec §4.6).
-- `product.vision.spec` §5와 §10 미결 3("두 그룹이 동시에 drive를 요청할 때 기본 동작, 대기 또는 거부")에 이 문서는 위 규칙 3(대기)을 [제안]으로 답한다. 확정은 사용자 확인 뒤다(§10).
+- `product.vision.spec` §5와 §10 미결 3("두 그룹이 동시에 drive를 요청할 때 기본 동작, 대기 또는 거부")에 위 규칙 3(대기, 상한 뒤 거부)으로 답한다 [결정: review.m3-design-inputs D-M3-05].
 - 설정 키 [결정: review.decisions-2 S-15]: drive 보유 그룹 설정은 X 키 `x.primitives.activeDriveGroup` 하나다. group-kit은 별도 키를 두지 않고 이 키의 유효 값을 정책 입력으로 읽는다. 포트가 없을 때(group-kit 없이 X만 올린 테스트 호스트 등) X는 같은 키로 기본 규칙을 쓴다(X.primitives.spec §4.4.1 4번). 값이 `null`이고 후보가 둘 이상일 때 X 기본 규칙은 아무에게도 주지 않고, group-kit 정책은 요청 순서로 정한다(규칙 2). `/group drive`와 설정 화면의 "구동 그룹" 선택은 이 키를 쓴다.
 - 회수 경로 [결정: X.primitives.spec §4.4.1 5번, P-22]: 정책(`DriveArbiter`)은 임대를 회수하지 않는다. 회수는 X가 설정 `x.primitives.activeDriveGroup`을 직접 읽고 다음 경계에서 한다. 사용자가 이름을 지정하면(`/group drive <이름>`) 현재 임대는 그 경계까지 유지되고 진행 중인 `loop.turn`은 끊기지 않는다. 현재 holder를 끄는 방법(`/group off <이름>`, `lease.released{reason:"disabled"}`)과 holder의 drive가 `idle`로 반납하기를 기다리는 방법도 그대로 쓸 수 있다.
 - `DriveLease.status`에 대기 상태는 넣지 않는다 [제안]. 대기는 정책 결과다. 임대 상태 기계에 넣지 않고 group-kit의 `GroupStatus.drive`로만 나타낸다.
@@ -1099,7 +1099,7 @@ g.on("turn_end", async (end, _current, ctx) => {
 ### 4.10 위임 규칙
 
 - `delegate`는 켜진 그룹이면 임대와 관계없이 부를 수 있다. 꺼지는 중(`disabling`)이면 `group.disabling`을 돌려준다.
-- 그룹이 꺼질 때 진행 중인 위임을 취소할지 완료까지 둘지는 [미결 D-M3-04]이다. 권고는 b(즉시 취소)다. 끈 뒤에도 토큰을 쓰고 결과가 들어오면 사용자 기대와 어긋나기 때문이다. b안이면 그룹은 `onDispose`에서 `cancelDelegates`를 부르고, group-kit은 L1 `AgentService.cancel({ ownerScopeId })`(L3.learning.spec §8.1 REQ-LN-06)로 옮긴다. 옛 [제안](완료까지 두고 보고 post를 넣음)은 a안이다.
+- 그룹이 꺼지면 진행 중인 위임을 즉시 취소한다 [결정: review.m3-design-inputs D-M3-04]. 끈 뒤에도 토큰을 쓰고 결과가 들어오면 사용자 기대와 어긋나기 때문이다. 그룹은 `onDispose`에서 `cancelDelegates`를 부르고, group-kit은 L1 `AgentService.cancel({ ownerScopeId })`(L3.learning.spec §8.1 REQ-LN-06)로 옮긴다. 옛 [제안](완료까지 두고 보고 post를 넣음)은 쓰지 않는다.
 
 ## 5. 실패와 경계 사례
 
@@ -1209,7 +1209,7 @@ g.on("turn_end", async (end, _current, ctx) => {
 - [결정: review.decisions-2 T-21] 공통 모순 1(닫힘): 확장 kind는 F 형식 `grp.<그룹>.<영역>.<이름>` 하나다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유), 계측은 `grp.<그룹>.metrics.recorded`(`recordPrivate`)다. eng 문서의 옛 밑줄 접두 표기는 쓰지 않는다.
 - (닫힘) [결정: adr.0015] 공통 모순 2: F.extensions.spec §4.3(on 핸들러 외부 효과 금지)과 학습 검토 포크 시작·Helm spawn의 관계. C안(2026-10-25)으로 `requestId` 멱등 `g.delegate`와 drive 안 `loop.spawn`, 선언된 능력 호출이 허용된다(§3.4, §3.10). F.extensions.spec 본문 반영은 ADR-0015 §4.3 표에 있다.
 - [미결] 공통 모순 3: `xeon/packages/group-kit/package.json`의 `xeon.domain`이 `kit`이고 routes layout 도메인은 `group-kit`이다. DR-03은 "디렉터리 이름의 접두사를 뺀 값"과 layout 도메인 이름이 같다고 적었는데 `group-kit`에서 두 값이 다르다. [제안] `group-kit`으로 맞추고 DR-03에 `group-kit`을 접두 규칙 예외로 적는다(L3.group-kit.plan G-02).
-- [미결] 대기 vs 거부: 이 문서는 대기를 [제안]한다(§3.5 규칙 3). `product.vision.spec` §5와 §10 미결 3의 답이다.
+- (닫힘) [결정: review.m3-design-inputs D-M3-05] 대기 vs 거부: 대기가 기본이고 대기 상한을 넘으면 거부한다(§3.5 규칙 3). `product.vision.spec` §5와 §10 미결 3의 답이다.
 - (닫힘) 선점 허용: X가 이름 지정에 한해 다음 경계에서 `revoked`로 회수한다(X.primitives.spec §4.4.1 5번, [결정: P-22]). `auto`는 선점하지 않는다(§3.5 규칙 4, §4.3 4번). `auto` 우선순위 선점은 두지 않는다.
 - (닫힘) [결정: review.decisions-2 D-04] `GroupService`와 부속 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 둔다(F.capabilities.spec §3.12, 이 문서 §3.8). `eng.context-map.design` §5.3의 F 위치 열은 그 문서 쪽에서 services로 고친다.
 - [미결] 템플릿 위치: `eng.context-map.design` C-2. 이 문서와 L3.group-kit.plan §2는 L3.slots.plan §2.1 후보 a(`xeon/packages/group-kit/templates/`, 정식 예는 `src/testing/policies/`)를 [제안]으로 따른다. 스캐폴드 명령의 실행은 L4.cli.spec이 맡는다(L3.slots.spec §3.3.6).
@@ -1217,10 +1217,10 @@ g.on("turn_end", async (end, _current, ctx) => {
 - (닫힘) 정책 포트 타입 `LeaseArbiterPort`·`LeaseCandidate`의 정본은 F.extensions.spec §3.2.1 `ports.ts`다. group-kit은 `@xeon/contracts/extensions`에서 가져온다. 역할 분담은 §3.5 표로 정했다.
 - (닫힘) X에 요청한 4개 항목(§3.13)은 X.1과 테스트 호스트 재시작으로 반영됐다. 2차 계측·승격 집계용 조회(§3.13 5번)만 남았다.
 - [미결] M2 구현이 남긴 연결: 설정 읽기 포트 `GroupSettingsSourceKey`(`xeon.settings`), `DriveHolderSettingsPort`, `GroupCatalogPort`는 조립 루트(HOST)가 설정 서비스와 로더 보고에 연결한다. 그 전까지 시험은 `memoryDriveHolderSettings`, `groupCatalogOf`를 쓴다.
-- [미결] 유휴 중 임대 부여로 자율 turn이 시작되는 것을 허용할지. X.primitives.spec §4.5.5는 유휴 토글을 즉시 적용하고 자율 turn을 [제안]으로 허용한다.
+- (닫힘) [결정: review.m3-design-inputs D-M3-06] 유휴 중 임대 부여로 자율 turn을 시작하는 것을 임대 상한 안에서 허용한다. X.primitives.spec §4.5.5의 [제안]과 같다.
 - [미결] `GroupService`가 thread별 상태를 보이는 방식(§3.8 [가정]).
-- [미결] 완료 보고가 새 turn을 시작하는지, 위임 상한의 귀속, 그룹 끄기 때 진행 중 위임 처리(§3.4, §4.10, `_research/notes/L3-1.md` §6). 위임 도구 정책(허용·차단)은 §3.4에서 둘 다 받는 것으로 정했다 [제안].
-  - M3 설계(2026-10-26): `next` 보고는 turn을 시작하지 않는다(ADR-0013). 보고 자체를 둘지는 [미결 D-M3-03](권고 a, `report` 선택 필드), 끄기 때 처리는 [미결 D-M3-04](권고 b, `cancelDelegates`), 상한 귀속은 L1.agents 요구 REQ-L1-03(`review.m3-design-inputs` §4.4)이다.
+- [미결] 위임 상한의 귀속(§3.4, `_research/notes/L3-1.md` §6). 완료 보고와 끄기 때 처리는 아래 결정으로 닫았다. 위임 도구 정책(허용·차단)은 §3.4에서 둘 다 받는 것으로 정했다 [제안].
+  - M3 설계(2026-10-26): `next` 보고는 turn을 시작하지 않는다(ADR-0013). `report`는 선택 필드다 [결정: review.m3-design-inputs D-M3-03]. 끄기 때는 `cancelDelegates`로 즉시 취소한다 [결정: review.m3-design-inputs D-M3-04]. 상한 귀속은 L1.agents 요구 REQ-L1-03(`review.m3-design-inputs` §4.4)이다.
 - [결정: review.decisions-2 T-21] 상태 상한(64 KiB)을 넘는 비공개 기록은 X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 `GroupApi`가 그대로 전달한다(§3.2).
 - [미결] 임대 이벤트 이름: F.records.spec `lease.acquired`·`lease.released`와 `eng.context-map.design` 5.1절 `drive.leased`·`drive.released`. 이 문서는 F 이름을 쓴다.
 - [결정: review.decisions-2 T-21] `grp.<그룹>.metrics.recorded`와 `grp.<그룹>.state.committed`의 소유는 §4.9와 §3.6 표에 적었다.

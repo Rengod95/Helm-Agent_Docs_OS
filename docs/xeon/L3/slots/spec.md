@@ -4,7 +4,7 @@ layer: L3
 domain: slots
 kind: spec
 status: draft
-depends_on: [L3.group-kit.spec, F.extensions.spec, F.wire-settings.spec, eng.testing.guide, eng.context-map.design]
+depends_on: [L3.group-kit.spec, F.extensions.spec, adr.0017, F.wire-settings.spec, eng.testing.guide, eng.context-map.design]
 binds: []
 ---
 
@@ -25,7 +25,7 @@ binds: []
 정하는 것:
 
 - 새 사상을 그룹으로 만들지 판정하는 기준, 그룹 추가 체크리스트, 외부 그룹의 공존·신뢰·설정 규칙(3.1절, 4.1절)
-- 정책 플러그인의 구조 규칙과 정식 예 3종: 검토 강제(`reviewgate`), 커밋 전 검증(`commitguard`), 입출력 가드레일 골격(`guardrail`)(3.2절, 4.2절)
+- 정책 플러그인의 구조 규칙과 정식 예 3종: 검토 강제(`reviewgate`), 커밋 전 검증(`commitguard`), 가드레일 지점 예(`guardrail`)(3.2절, 4.2절)
 - 그룹 템플릿의 파일 목록, 종류 3개(drive, policy, observe)와 골격 코드, 이름 규칙, 템플릿 색인 형식, 생성 명령의 요구 인터페이스(3.3절, 4.3절)
 
 다루지 않는 것:
@@ -39,7 +39,7 @@ binds: []
 정식 예의 위치:
 
 - [제안] 정책 예 3종은 제품 기능이 아니다. 템플릿과 `group-kit`의 정책 경로를 검증하는 테스트 fixture다. 기본 배포에 넣지 않고 `group-kit`의 `testing` 서브패스 아래에 둔다(`L3.slots.plan` §2).
-- [결정] 입출력 가드레일은 코어에서 빼고 보류한다. 필요하면 X의 차단 지점(first)에 붙는 선택 플러그인으로 만든다(`_research/layer-plan-v2-notes.md` "입출력 가드레일은 필요한가"). 이 문서의 `guardrail`은 보류 해제 때 쓸 설계 골격이다.
+- [결정: review.m3-design-inputs D-M3-30] 코어에 내장 콘텐츠 검사는 두지 않는다. 대신 F·X가 fail-closed 가드레일 지점 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 둔다(ADR-0017). 검사는 이 지점에 붙는 플러그인이 한다. 이 문서의 `guardrail`은 그 지점을 쓰는 예다.
 
 ## 2. 용어
 
@@ -245,36 +245,45 @@ export const commitguard: GroupModule = defineGroup<GuardState>({
 - 한계 [가정]: `bash`로 파일을 바꾸는 경우는 `invalidateOn`에 잡히지 않는다. fixture는 이 한계를 테스트로 고정하지 않는다. 실제 정책으로 쓰려면 작업 트리 지문을 상태에 두는 방식이 필요하다.
 - 상태가 필요하므로 `kind: "group"`이다(4.2.1).
 
-#### 3.2.4 정식 예 3: 입출력 가드레일 골격 (`guardrail`, 보류)
+#### 3.2.4 정식 예 3: 가드레일 지점 예 (`guardrail`)
 
-[결정] 가드레일은 보류다. 필요하면 X의 first 차단 지점에 붙는 선택 플러그인으로 만든다(`_research/layer-plan-v2-notes.md` "입출력 가드레일은 필요한가"). 이 절은 보류 해제 때 쓸 설계 골격과 fixture 수준 동작만 정한다.
+[결정: review.m3-design-inputs D-M3-30] 입출력 가드레일은 내장 검사 없이 지점만 둔다. 지점 셋의 이름, fold, 실패 정책은 ADR-0017과 `F.extensions.spec` §3.4가 정한다. 이 절은 그 지점을 쓰는 플러그인의 설계 골격과 fixture 수준 동작만 정한다.
 
-참고한 판정 모델(`_research/item-catalog.md` 121~123행, `_research/ext-points.md` §4.5):
+| 가드레일 지점 | 시점 | fold | 실패 |
+|---|---|---|---|
+| 모델 요청 가드 | provider 요청을 보내기 직전. 다른 `request` 지점의 패치가 모두 적용된 최종 요청을 받는다 | first(차단 결정) | fail-closed |
+| 도구 호출 가드 | 도구 실행 직전. `tool_call` 지점의 결정 뒤 실행이 남은 호출만 받는다 [제안] | first(차단 결정) | fail-closed |
+| 출력 가드 | 모델 출력이 사용자에게 표시되거나 다른 실행 경로(명령, 산출물 적용)로 넘어가기 직전 | first(차단 결정) | fail-closed |
 
-- Agents SDK 가드레일 종류는 input, output, tool-input, tool-output 넷이다.
-- 판정은 통과, 트립와이어, 불명 3값이다. 검사기 예외는 거부와 구분해 "불명"으로 둔다(item-catalog 123행, 보류).
-- 도구를 쓰는 에이전트는 선행 차단을 기본으로 한다(item-catalog 121행). Xeon의 on 디스패치는 순차 await이므로 input·tool_call 지점의 검사는 본래 선행 차단이다.
-- 거부된 출력은 세션 저장에서 뺀다(item-catalog 122행). Xeon에서는 `tool_result` chain으로 결과를 가리는 것까지만 골격에 둔다. 최종 어시스턴트 출력의 저장 제외는 보류 해제 때 정한다.
+- 지점 이름은 ADR-0017의 자체 이름 규칙으로 M3 F 첫 작업이 정한다. 아래 코드는 F 상수 `GUARD_POINTS`(`request`, `tool`, `output`) [제안]로 이름을 가리킨다.
+- 가드 지점의 결정은 차단 하나다(`{ block: true, reason }`). 값을 바꾸지 않는다. 핸들러 예외와 결정 스키마 위반은 차단으로 처리한다.
+
+참고한 사실과 판정 모델(`_research/item-catalog.md` 121~123행, `_research/ext-points.md` §4.5):
+
+- pi, Claude Code, Codex CLI에는 내장 콘텐츠 가드레일이 없다. 훅·확장 이벤트와 권한·샌드박스로 막는다. OpenAI Agents SDK는 가드레일 프레임워크를 둔다.
+- Agents SDK 가드레일 종류는 input, output, tool-input, tool-output 넷이다. 이 문서의 지점 셋은 input을 모델 요청 가드, tool-input을 도구 호출 가드, output을 출력 가드에 대응시킨다. tool-output은 도구 결과가 다음 모델 요청에 들어가므로 모델 요청 가드에서 본다.
+- 판정은 통과, 트립와이어, 불명 3값이다. 검사기 예외는 거부와 구분해 "불명"으로 둔다(item-catalog 123행).
+- 도구를 쓰는 에이전트는 선행 차단을 기본으로 한다(item-catalog 121행). Xeon의 on 디스패치는 순차 await이므로 가드 지점의 검사는 선행 차단이다.
 
 | 항목 | 값 |
 |---|---|
-| 매니페스트 | `name: "guardrail"`, `kind: "plugin"`, `layer: "plugin"`, `usesDrive: false`, `usesPost: true`, `points: ["input", "tool_call", "tool_result"]` |
-| 지점과 fold | `input`(chain: 트립와이어면 `{ action: "handled" }`), `tool_call`(first: 트립와이어면 거부), `tool_result`(chain: 트립와이어면 내용 교체와 `isError: true`) |
-| post | `input` 거부 때 `kind: "context"`, `customType: "x.guardrail.input.blocked"`, `when: "next"`, `requestId: "guardrail:input:<입력 해시>"`로 거부 사유를 알린다 [제안] |
-| 실패 정책 | 검사 함수 예외는 핸들러 안에서 `unknown` 판정으로 바꾼다. `unknown`의 처리는 `ext.guardrail.onUnknown`(기본 `"deny"`)이다. 핸들러 자체가 던지면 first는 거부, chain은 그 패치만 버린다 |
-| 설정 키 | `ext.guardrail.patterns`(정규식 문자열 목록), `ext.guardrail.onUnknown`(`"deny"`\|`"allow"`, 기본 `"deny"`), `ext.guardrail.checkInput`, `ext.guardrail.checkToolCall`, `ext.guardrail.checkToolResult`(불리언, 기본 `true`) |
-| 수용 기준 | 패턴에 걸린 입력은 모델 요청 전에 처리 완료로 바뀐다. 패턴에 걸린 도구 호출은 거부된다. 패턴에 걸린 도구 결과는 가려진 내용으로 바뀐다. 검사 함수 예외 시 `onUnknown: "deny"`이면 거부, `"allow"`이면 통과한다 |
+| 매니페스트 | `name: "guardrail"`, `kind: "plugin"`, `layer: "plugin"`, `usesDrive: false`, `usesPost: true`, `points`: 가드 지점 셋 |
+| 지점과 fold | 세 가드 지점 모두 first. 트립와이어면 차단 |
+| post | 모델 요청 차단 때 `kind: "context"`, `customType: "x.guardrail.request.blocked"`, `when: "next"`, `requestId: "guardrail:request:<요청 해시>"`로 차단 사유를 알린다 [제안] |
+| 실패 정책 | 검사 함수 예외는 핸들러 안에서 `unknown` 판정으로 바꾼다. `unknown`의 처리는 `ext.guardrail.onUnknown`(기본 `"deny"`)이다. 핸들러 자체가 던지면 지점 규칙대로 차단이다 |
+| 설정 키 | `ext.guardrail.patterns`(정규식 문자열 목록), `ext.guardrail.onUnknown`(`"deny"`\|`"allow"`, 기본 `"deny"`), `ext.guardrail.checkRequest`, `ext.guardrail.checkTool`, `ext.guardrail.checkOutput`(불리언, 기본 `true`) |
+| 수용 기준 | 패턴에 걸린 모델 요청은 보내지 않는다. 패턴에 걸린 도구 호출은 실행되지 않는다. 패턴에 걸린 출력은 표시·실행되지 않는다. 검사 함수 예외 시 `onUnknown: "deny"`이면 차단, `"allow"`이면 통과한다 |
 
 ```ts
 // group-kit/src/testing/policies/guardrail.ts  (fixture 골격, 4.2.4)
-import type { ExtensionEntry } from "@xeon/contracts/extensions";
+import { GUARD_POINTS, type ExtensionEntry, type GuardDecision } from "@xeon/contracts/extensions";   // GUARD_POINTS, GuardDecision은 [제안] 이름(ADR-0017)
 
 export type GuardVerdict =
   | { readonly kind: "pass" }
   | { readonly kind: "tripwire"; readonly reason: string }
   | { readonly kind: "unknown"; readonly error: string };
 
-export type GuardSite = "input" | "tool_call" | "tool_result";
+export type GuardSite = "request" | "tool" | "output";
 
 /** 순수 검사 함수. 입출력·시계·난수를 쓰지 않는다(P6) */
 export type GuardCheck = (text: string, site: GuardSite) => GuardVerdict;
@@ -292,23 +301,20 @@ export const guardrail: ExtensionEntry = ({ scope }) => {
   scope("guardrail", {}, (g) => {
     const blocked = (v: GuardVerdict, onUnknown: "deny" | "allow"): boolean =>
       v.kind === "tripwire" || (v.kind === "unknown" && onUnknown === "deny");
-    g.on("input", (p) => (blocked(judge(check(), p.text, "input"), onUnknown()) ? { action: "handled" } : undefined));
-    g.on("tool_call", (p) =>
-      blocked(judge(check(), JSON.stringify(p.input), "tool_call"), onUnknown())
-        ? { block: true, reason: "guardrail: 차단된 도구 입력" } : undefined);
-    g.on("tool_result", (_p, current) => {
-      const text = current.content.map((c) => (c.type === "text" ? c.text : "")).join("\n");
-      return blocked(judge(check(), text, "tool_result"), onUnknown())
-        ? { content: [{ type: "text", text: "[guardrail] 결과를 가렸다" }], isError: true } : undefined;
-    });
+    const decide = (site: GuardSite, text: string): GuardDecision | undefined =>
+      blocked(judge(check(), text, site), onUnknown()) ? { block: true, reason: `guardrail: ${site} 차단` } : undefined;
+    g.on(GUARD_POINTS.request, (p) => decide("request", requestText(p)));
+    g.on(GUARD_POINTS.tool, (p) => decide("tool", JSON.stringify(p.input)));
+    g.on(GUARD_POINTS.output, (p) => decide("output", outputText(p)));
   });
 };
 // check(), onUnknown()은 ext.guardrail.* 설정에서 읽는 지역 함수다. 설정 읽기 API는 X가 정한다 [가정]
-// input 거부 알림 post(표의 post 행)는 골격에서 생략했다
+// requestText(), outputText()는 페이로드에서 검사할 텍스트를 모으는 순수 함수다. 페이로드 모양은 F가 정한다
+// 모델 요청 차단 알림 post(표의 post 행)는 골격에서 생략했다
 ```
 
-- 검사 함수는 순수 함수로 둔다. 모델 기반 분류기를 on 핸들러에서 부르면 재실행 때 결과가 달라질 수 있다(P6). 모델 분류기 사용은 보류 해제 조건(4.2.4)과 함께 정한다.
-- `input` 지점의 `handled`는 입력을 모델에 보내지 않는다(`CHAIN_RULES.input`의 `stop`). 입력 거부 알림은 post로만 한다.
+- 검사 함수는 순수 함수로 둔다. 모델 기반 분류기를 on 핸들러에서 부르면 재실행 때 결과가 달라질 수 있다(P6). 모델 분류기는 플러그인 작성자가 고를 수 있으나 재실행 결정성 규칙(4.2.4)을 따른다.
+- 모델 요청 가드의 차단은 그 요청을 보내지 않고 turn을 실패로 끝낸다. 차단 사유 알림은 post로만 한다. turn 실패의 모양은 L1.loop이 정한다.
 - 상태가 없고 `/group` 토글이 필요 없으므로 `kind: "plugin"`이다(4.2.1). 그래서 `defineGroup` 대신 F `ExtensionEntry`와 `scope`를 직접 쓴다.
 
 ### 3.3 그룹 템플릿
@@ -606,19 +612,15 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 2. `tool_call`: bash 명령이 `commitPattern`에 맞고 `ctx.state.verified`가 거짓이면 거부한다.
 3. 판정은 디스패치 시작 시점의 커밋 상태(`HandlerContext.state`)로만 한다.
 
-#### 4.2.4 guardrail 동작과 보류 해제 조건
+#### 4.2.4 guardrail 동작
 
-1. 각 지점에서 대상 텍스트를 검사 함수에 넘기고 판정 3값을 얻는다. 예외는 `unknown`으로 바꾼다.
-2. `tripwire`, 또는 `unknown`이면서 `onUnknown: "deny"`인 경우 차단한다. input은 `handled`, tool_call은 거부, tool_result는 내용 교체다.
+1. 각 가드 지점에서 대상 텍스트를 검사 함수에 넘기고 판정 3값을 얻는다. 예외는 `unknown`으로 바꾼다.
+2. `tripwire`, 또는 `unknown`이면서 `onUnknown: "deny"`인 경우 차단한다. 모델 요청은 보내지 않고, 도구 호출은 실행하지 않고, 출력은 표시·실행하지 않는다.
 3. 검사는 순차 await 디스패치 안에서 실행되므로 선행 차단이다. 병렬 모드(Agents SDK `runInParallel`)는 두지 않는다 [제안]. 병렬 실행은 지점 필드로 새어 나오는 설정이라 4연산 단순화 결정과 맞지 않기 때문이다(`_research/ext-points.md` §4.5 시사점).
+4. 가드 지점은 fail-closed다 [결정: review.m3-design-inputs D-M3-30, adr.0017]. 핸들러 예외나 시간 초과는 차단으로 처리한다.
+5. 모델 분류기를 가드 핸들러에서 부를 수 있다. 핸들러는 재실행될 수 있으므로 같은 입력에 같은 판정을 내도록 판정 결과를 입력 해시로 기억해 두는 방식을 권한다 [제안].
 
-보류 해제 조건 [미결]. 아래 후보 가운데 무엇을 조건으로 할지 사용자 확인이 필요하다.
-
-- 원격 접속이나 공유 서비스 모드로 본인 밖 사용자가 에이전트를 쓰게 될 때(`product.usecases.spec` UC-5)
-- 정책 엔진(L1-d), 샌드박스(L0-b), 비밀 마스킹(L0-c)으로 막지 못한 위협 사례가 기록될 때
-- 사용자가 명시적으로 요청할 때
-
-해제 시 기본 경로 비용: 가드레일이 꺼져 있으면 지점에 핸들러가 없으므로 비용이 없다. 켜면 input·tool_call·tool_result마다 검사 함수가 실행된다. 패턴 검사는 텍스트 길이에 비례한다. 모델 분류기를 쓰면 지점마다 모델 호출이 더해진다.
+기본 경로 비용: 가드 지점에 핸들러가 없으면 비용이 없다. 플러그인을 켜면 모델 요청, 도구 호출, 출력마다 검사 함수가 실행된다. 패턴 검사는 텍스트 길이에 비례한다. 모델 분류기를 쓰면 지점마다 모델 호출이 더해진다.
 
 ### 4.3 템플릿 생성 규칙
 
@@ -671,9 +673,9 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 | observe 템플릿 | `agent_settled`(tap) | 안 씀 | 안 씀 | 상태 있음, 레코드 씀 |
 | reviewgate | `tool_result`(chain), `agent_before_settle`(chain), `agent_settled`(tap) | 씀 | 안 씀 | 상태 있음 |
 | commitguard | `tool_call`(first), `tool_result`(chain) | 안 씀 | 안 씀 | 상태 있음 |
-| guardrail | `input`(chain), `tool_call`(first), `tool_result`(chain) | 씀 | 안 씀 | 상태 없음(plugin) |
+| guardrail | 가드 지점 셋(first, fail-closed) | 씀 | 안 씀 | 상태 없음(plugin) |
 
-- 지점 이름과 fold는 `F.extensions.spec` §3.4 표를 따른다. 정식 예가 쓰는 지점은 `agent_settled`를 빼면 모두 M1 정확화 지점이다(`input`, `tool_call`, `tool_result`, `agent_before_settle`; `agent_settled`도 M1 ●).
+- 지점 이름과 fold는 `F.extensions.spec` §3.4 표를 따른다. 정식 예가 쓰는 지점은 `agent_settled`를 빼면 모두 M1 정확화 지점이다(`input`, `tool_call`, `tool_result`, `agent_before_settle`; `agent_settled`도 M1 ●). `guardrail`이 쓰는 가드 지점 셋은 M3 F 작업이 더한다(ADR-0017).
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -707,7 +709,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 4. 정식 예 3종이 테이프 시나리오(fixture 수준)로 동작한다.
    - reviewgate: 쓰기 도구를 쓴 턴에서 검토 post가 정확히 한 번 들어가고, 같은 `requestId`의 두 번째 post는 `duplicate: true`다.
    - commitguard: 검증 성공 전 `git commit` bash 호출은 거부되고, 검증 성공 뒤에는 실행된다.
-   - guardrail: 패턴에 걸린 `tool_call`은 거부되고, 검사 함수 예외는 `onUnknown: "deny"`에서 거부된다.
+   - guardrail: 패턴에 걸린 도구 호출은 도구 호출 가드에서 차단되고, 검사 함수 예외는 `onUnknown: "deny"`에서 차단된다. 핸들러가 던지면 차단된다.
 5. policy 그룹의 first 핸들러가 예외를 던지면 도구 호출이 거부된다.
 6. 템플릿으로 만든 그룹 소스에 `@xeon/group-helm` import를 넣으면 check-layers가 `DR-02`로 실패한다.
 7. 템플릿으로 만든 가짜 그룹을 추가하는 변경에서 `contracts`와 `ext-host`의 diff가 0이다(`product.vision.spec` S1).
@@ -716,7 +718,7 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 - [미결] 템플릿 파일 위치(`eng.context-map.design` C-2). 이 문서는 `group-kit/templates/`를 [제안]한다(3.3.1).
 - [미결] 정책 플러그인의 group/plugin 구분 기준의 최종 확정(4.2.1).
-- [미결] 입출력 가드레일 보류 해제 조건(4.2.4)과, 해제 시 모델 분류기를 on 핸들러에서 쓸지(재실행 결정성).
+- (닫힘) [결정: review.m3-design-inputs D-M3-30] 입출력 가드레일 보류는 내장 검사 없음과 fail-closed 가드 지점 셋으로 바꿨다(ADR-0017, 3.2.4절, 4.2.4절). 모델 분류기 사용은 4.2.4 5번의 [제안]이다.
 - [미결] 외부 그룹의 신뢰 등급 값 집합과 다른 그룹 import를 X 로더가 거부할지(`X.loading-trust.spec`, `F.extensions.spec` §10).
 - [미결] 생성 명령 `xeon group new`의 소유 문서. 이 문서는 실행을 `L4.cli.spec`에 두고 요구 R1~R6만 정한다. 매니페스트 형식(`plugin.json` 또는 `manifest.ts`) 선택 옵션도 함께 정한다.
 - [결정: review.decisions-2 U-18] 새 그룹 이름 규칙: `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음). `eng.context-map.design` CM-07·C-6과 F `ExtensionName` 정정은 그 문서 쪽 변경이다.

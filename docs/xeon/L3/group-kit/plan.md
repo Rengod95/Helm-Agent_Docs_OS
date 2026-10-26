@@ -171,7 +171,7 @@ xeon/packages/group-kit/
 | G-26 | (L3.slots S-03 대응) `test/slots/templates.test.ts`: drive 템플릿을 임시 디렉터리에 생성하고 `replayDrive`로 재생 | G-15, G-24 | S | 2차 |
 | G-27 | (L3.slots S-04 대응) `test/slots/templates.test.ts`: 세 템플릿 생성 결과의 `validateManifest`·`validateUsage`, 로드·토글 확인 | G-24 | S | 2차 |
 | G-28 | `GroupApi.delegateStatus`(읽기, ADR-0015 §3.2 `g.delegateStatus` 행)와 `cancelDelegates`(그룹 끄기 때 진행 중 위임 취소, 재실행되는 코드에서 호출 금지). L1.agents 취소·조회 API가 선행이다 | G-14, M3 요구 M3-REQ-11, M3-REQ-65 | M | M3 |
-| G-29 | `DelegateSpec.report`를 선택 필드로 바꾸고 `report`가 없으면 보고 post를 만들지 않는다([미결 D-M3-03] 권고 a 기준) | G-14 | S | M3 |
+| G-29 | `DelegateSpec.report`를 선택 필드로 바꾸고 `report`가 없으면 보고 post를 만들지 않는다([결정: review.m3-design-inputs D-M3-03]) | G-14 | S | M3 |
 | G-30 | `GroupStatus.drive`에 `"rejected"` 값을 더해 임대 대기 상한 초과 거부를 보인다(`/group status`, `GroupService.onChange`). F `services/groups.ts` 변경이 선행이다 | G-12, G-07, M3 요구 M3-REQ-99 | S | M3 |
 
 선행 작업 정리:

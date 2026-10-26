@@ -4,7 +4,7 @@ layer: L3
 domain: helm
 kind: plan
 status: draft
-depends_on: [L3.helm.spec, L3.group-kit.plan, L2.web.plan, L2.knowledge.plan, L2.work.plan, L1.agents.plan, adr.0015]
+depends_on: [L3.helm.spec, L3.group-kit.plan, L2.web.plan, L2.knowledge.plan, L2.work.plan, L1.agents.plan, X.loading-trust.plan, adr.0015]
 binds: [xeon/packages/group-helm/**]
 ---
 
@@ -21,7 +21,7 @@ binds: [xeon/packages/group-helm/**]
 | M0 | 없음. 의존 대상(`contracts`의 extensions·records·capabilities·settings 타입)만 준비된다 | 없음 |
 | M1 | 스캐폴드: 패키지 디렉터리, `package.json`(`xeon.layer: "L3"`, `xeon.domain: "helm"`), `tsconfig.json`, 빈 `src/index.ts`, `test/` 디렉터리. 호스트 조립 루트는 Helm을 등록하지 않는다 | H-01(완료) |
 | M2 | 설정 `l3.helm.driveLimits` 하나(`src/settings.ts`). 본체 없음 | 완료 |
-| M3 | Helm 본체 1차. L3-b 구성요소 5개 전부, 명령, 설정 3키 추가(M3-04), ADR-0015 효과 계수 시험, 실패 값, UC-2 통합 테스트(E1), 학습 그룹 공존 확인, `scanDriveSource` 정적 검사 | H-02 ~ H-21 |
+| M3 | Helm 본체 1차. L3-b 구성요소 5개 전부, 명령, 설정 3키 추가(M3-04), ADR-0015 효과 계수 시험, 실패 값, UC-2 통합 테스트(E1), 학습 그룹 공존 확인, `scanDriveSource` 정적 검사, 기본 플러그인 패키징(D-M3-01) | H-02 ~ H-22 |
 | 2차 이후 | 렌즈 제안 경로(L3.helm.spec §10 미결 6), 다회 라운드와 종료 판정(미결 7), 신호 임계 설정 노출(미결 8) | 미배정 |
 
 M3 착수 조건(선행):
@@ -30,7 +30,8 @@ M3 착수 조건(선행):
 |---|---|---|
 | M3-02 | `ToolCallPayload`의 `risk`·`hints`·`caller`, `tool_execution_end`의 `input`(REQ-F-04) | H-05(`repeat`), H-08 |
 | M3-new-01 | ADR-0015 구현: F `MethodDef.idempotent`·읽기 표지(REQ-F-01), F 효과 목록 문장(REQ-F-02), X 능력 래퍼 문맥 검사와 `effects` 계수(REQ-X-01), L1 spawn 멱등의 내구 기록(REQ-L1-01), L2 메서드 분류(REQ-L2-01), group-kit `replayDrive` 효과 계수(G-20) | H-10, H-11, H-19 |
-| 사용자 결정 | D-M3-01, D-M3-05, D-M3-06, D-M3-07. 권고안으로 구현을 시작하고, 다른 안이 정해지면 L3.helm.spec §4.13 표의 해당 행만 바꾼다 | H-02(`defaultEnabled`), H-20(대기 거부) |
+| 사용자 결정(받음, 2026-10-26) | D-M3-01 c(기본 플러그인), D-M3-05 a(대기, 상한 뒤 거부), D-M3-06 a(유휴 자율 turn 허용), D-M3-07 a(안전 모드 적재 안 함), D-M3-11 c(자체 확장 API만). 동작은 L3.helm.spec §4.13 표 | H-02(`defaultEnabled`, `trust.level`), H-20(대기 거부), H-22(패키징) |
+| M3-15 | X 외부 확장 로더(자체 API), 자체 패키지 가상 모듈 등록, 기본 플러그인 첫 실행 설치 | H-22, H-15 |
 
 학습 그룹과의 관계 [결정: review.decisions-2 D-10]: Helm은 다른 그룹의 레코드를 읽지 않는다. 학습 그룹이 적용한 스킬과 메모리는 L2 지식 능력(`knowledge.search`, `knowledge.skills`, `knowledge.memory`)으로 얻는다. 그래서 학습 그룹이 M3에 들어와도 Helm 코드는 바뀌지 않고, M3에는 공존 확인(H-16)만 둔다.
 
@@ -95,17 +96,18 @@ xeon/packages/group-helm/
 | H-10 | 지식 소비: `gatherContext`(읽기 호출, requestId 없음), `callSource`, `degradeOf`, 저하 동작 표, 외부 텍스트 감싸기 | H-09, H-20, L2.web 최소형(`web.search` 서비스, `WebSearchKey`), F `capabilities/defs` 키 상수, L2 읽기 표지(REQ-L2-01. 없으면 `effect_not_allowed` 저하 경로만 동작) | M |
 | H-11 | 발견 기록과 작업 연결: `recordDiscoveries`, `recordFinished`, `linkWork`(`work.tasks`의 `create({ content })`, 멱등 쓰기, requestId `helm:<inquiryId>:cap:task:<findingId>`, 발견별 `Result`) | H-09, H-10, L2.work `WorkTasksKey`와 `idempotent: true` 선언(없으면 건너뛰는 경로만) | M |
 | H-12 | 명령: `parseHelmCommand`, `runHelmCommand`(`Result<HelmStatusView, HelmCommandError>`), `helmCommand`(kind별 문장, `assertNever`), `HelmStatusView`(group-kit `GroupStatus`에서 임대 상태) | H-06, H-20, group-kit `GroupApi.registerCommand`(L3.group-kit.plan G-22) | S |
-| H-13 | 조립: `index.ts`의 `helmGroup = defineGroup(...)`, 조립 루트 등록 항목(L4.host-service 쪽 한 줄) | H-05, H-07, H-08, H-09, H-11, H-12 | S |
+| H-13 | 조립: `index.ts`의 `helmGroup = defineGroup(...)`와 플러그인 엔트리 export. 조립 루트(`apps/host`)에는 Helm 등록을 두지 않는다. 호스트 설정 카탈로그에 `helmSettings`를 싣는 한 줄(L3.helm.spec §10 미결 13 [제안]) | H-05, H-07, H-08, H-09, H-11, H-12 | S |
 | H-14 | 재생·재개 단위 테스트: `replayDrive`로 단계마다 재호출, 임대 교체 뒤 requestId 안정성 | H-13 | M |
 | H-19 | 재생 2회, 효과 1회 시험(스펙 §4.11): `replayDrive` 효과 계수로 모든 커밋 지점에서 끊고 drive·on 핸들러를 두 번 실행. `apply` 분기 안 두 지점 추가 | H-14, L3.group-kit.plan G-20(효과 계수 확장, M3-new-01) | M |
-| H-20 | 실패 값: `failures.ts`(`HelmFailure`, `failureOf`, `reactionOf`, `HelmCommandError`), `updateState`의 `Result` 반환과 `state_conflict` 1회 재시도, 대기 거부 처리(스펙 §4.13 D-M3-05 권고안: `lease.rejected` 구독 핸들러) | H-03, 내구 이벤트 `lease.rejected`와 구독 수단(없으면 대기 거부 경로만 빼고 진행) | M |
+| H-20 | 실패 값: `failures.ts`(`HelmFailure`, `failureOf`, `reactionOf`, `HelmCommandError`), `updateState`의 `Result` 반환과 `state_conflict` 1회 재시도, 대기 거부 처리(스펙 §4.13 D-M3-05 a: `lease.rejected` 구독 핸들러) | H-03, 내구 이벤트 `lease.rejected`와 구독 수단(없으면 대기 거부 경로만 빼고 진행) | M |
+| H-22 | 기본 플러그인 패키징(D-M3-01): `.xeon-plugin/plugin.json` 생성(매니페스트 대조 테스트), 엔트리 번들 빌드(`@xeon/contracts`·`@xeon/group-kit`·`typebox`는 외부 import), 릴리즈 자원 배치, 첫 실행 설치와 갱신 규칙(원본 해시 일치 때만 교체), 외부 로더 적재 int 테스트(`user` 등급, 안전 모드 미적재) | H-13, X.loading-trust 외부 확장 로더와 가상 모듈 등록(M3-15), L4 릴리즈(M3-27) | M |
 | H-21 | 효과 등급 적합 시험: 선언 없는 메서드를 가진 가짜 provider로 X 래퍼 거부와 저하 동작 확인, on 핸들러의 능력 호출 0 확인(스펙 §9 21번) | H-10, H-11, X.primitives 능력 래퍼 문맥 검사(REQ-X-01) | S |
 | H-15 | 통합 테스트: UC-2 테이프 재생(int)과 강제 종료 뒤 재개(fault) | H-13, `@xeon/ext-host/testing`, `@xeon/core-models/testing`, 가짜 서브에이전트 | M |
 | H-16 | 학습 그룹 공존 확인: `grp.learning.*` 레코드 픽스처가 있어도 `gatherContext`가 다른 그룹 레코드를 읽지 않는지 검사([결정: review.decisions-2 D-10]), 학습 그룹과 공존 통합 확인 | H-10, L3.learning M3 | S |
 | H-17 | 문서 대조: 스펙 §4.2 전이표, §3.4 kind 목록, §6 설정 표와 코드 상수 대조 테스트 | H-04, H-06, H-02 | S |
 | H-18 | 정적 결정성 검사: `scanDriveSource`로 `drive.ts` 검사(테스트 26번) | H-09, L3.group-kit.plan G-19(M3) | S |
 
-순서: H-02 → H-03 → H-20 → H-04 → H-05 → H-06 → H-07 → H-08 → H-09 → H-10 → H-11 → H-12 → H-13 → H-14 → H-19 → H-21 → H-15 → H-16 → H-18. H-04와 H-06, H-05와 H-07은 병렬로 진행할 수 있다. H-17은 H-06 뒤 아무 때나 한다. H-01은 M1에 끝났다.
+순서: H-02 → H-03 → H-20 → H-04 → H-05 → H-06 → H-07 → H-08 → H-09 → H-10 → H-11 → H-12 → H-13 → H-14 → H-19 → H-21 → H-22 → H-15 → H-16 → H-18. H-04와 H-06, H-05와 H-07은 병렬로 진행할 수 있다. H-17은 H-06 뒤 아무 때나 한다. H-01은 M1에 끝났다.
 
 선행 산출물(다른 계획):
 
@@ -124,6 +126,7 @@ xeon/packages/group-helm/
 | L2 메서드 효과 등급 선언(`web.search`, `knowledge.*` 읽기, `work.tasks.create` 멱등) | L2.web·knowledge·work plan(REQ-L2-01) | H-10, H-11 |
 | `replayDrive` 효과 계수(G-20 확장) | L3.group-kit.plan | H-19 |
 | 내구 이벤트 `lease.rejected`, `GroupStatus.drive`의 `"rejected"`와 대기 상한 | L3.group-kit.plan G-30, X.primitives.plan(REQ-X-08, D-M3-05) | H-20 |
+| 외부 확장 로더(자체 API), `@xeon/contracts`·`@xeon/group-kit`·`typebox` 가상 모듈 등록, 첫 실행 설치 | X.loading-trust.plan(M3-15), L4 릴리즈(M3-27) | H-22, H-15 |
 
 ## 4. 채택 코드
 
@@ -254,5 +257,5 @@ eng.testing.guide TS-01의 `scenario` 태그는 저장소 전체에 1개(`apps/c
 | 7 | 재시작 뒤 spawn이 중복된다 | 탐구 id 기반 명시 requestId(`drive.requestids-stable-across-lease-change`)와 L1 spawn 멱등의 세션 DB 기록(REQ-L1-01). `resume.after-kill-in-explore`가 둘을 함께 확인한다 |
 | 8 | `record`와 `commit` 사이 강제 종료로 발견 기록이 중복된다 | `findingId` 중복 제거 키, 읽는 쪽 중복 제거 규칙. 원자 API(REQ-X-03)가 생기면 바꾼다 |
 | 9 | 도구 메타가 비어 확산 단계에서 읽기 도구까지 거부된다 | M3-02를 H-08의 선행으로 둔다. 메타가 없는 도구 목록을 `/helm status`에 보여 준다 |
-| 10 | 사용자 결정(D-M3-01, 05, 06, 07)이 권고안과 다르게 난다 | 결정에 기대는 동작을 스펙 §4.13 표 한 곳에 모았다. 바뀌는 곳은 매니페스트 `defaultEnabled`, 대기 거부 처리(H-20), drive의 turn 시작 조건 하나씩이다 |
+| 10 | 기본 플러그인 적재 경로(외부 로더, 가상 모듈 등록, 첫 실행 설치)가 M3-15·M3-27보다 늦어진다 | H-02~H-21은 `defineGroup` 단위 테스트와 `@xeon/ext-host/testing`으로 진행한다. 적재 경로가 늦으면 E1 통합 시험(H-15)만 테스트 하네스의 직접 설치로 돌리고, H-22 int 테스트는 로더가 들어온 뒤 한다 |
 | 11 | 읽기 능력 호출이 재생마다 다시 불려 비용이 는다 | `converge` 한 분기에서만 부르고 결과를 `converged` 커밋으로 고정한다. 재생 횟수는 커밋 지점 사이 끊김 수만큼이라 정상 운영에서는 0이다 |

@@ -15,7 +15,7 @@ binds: [xeon/packages/group-learning/**]
 목표는 L3.learning.spec의 1차 구성요소(학습 트리거, 검토 포크, 승인 대기열, 메타인지 피드백 제안)를 M3에 넣는 것이다. 근거는 `product.scope.spec` 4.1 I8(학습 그룹 M3), 4.3 M3 행, 4.4 M3 종료 조건, 4.5 UC-3 행이다.
 
 - M3 설계 개정(2026-10-26): spec §1.0의 변경(ADR-0015 효과 분류, `agent.settled` 구독, 지연 정리, 범위 선택, Result 종류)에 맞춰 작업 LR-03·LR-05·LR-09·LR-15를 고치고 LR-23~LR-28을 더했다. `review.m3-plan`의 작업 번호는 M3-new-03(학습 그룹 1차)이다(`review.m3-design-inputs` §5.2).
-- 사용자 결정 D-M3-02·03·04·09가 나기 전에는 각 권고안으로 구현한다. 다른 안이 정해지면 바뀌는 작업은 §7 위험 표 "결정 대기" 행에 적었다.
+- 사용자 결정 D-M3-02(기본 켬), 03(보고 없음), 04(끄기 때 즉시 취소), 09(프로젝트 범위는 승인 화면에서만), 32(대기열 둘)를 받았다(2026-10-26, `review.m3-design-inputs` §3). 작업은 이 결정대로 구현한다.
 
 | 마일스톤 | 학습 그룹 작업 | 선행 조건(다른 층) |
 |---|---|---|
@@ -89,7 +89,7 @@ xeon/packages/group-learning/
 | LR-02 | 설정: `settings.ts`에 spec §6.1의 13개 키 `SettingDef`. 설정 읽기 실패 시 fail-closed 경로 | LR-01, F.wire-settings `defineSettings` | S |
 | LR-03 | 카운터 집계: `agent_start`로 집계표 열기, `turn_end`(chain, `undefined` 반환)로 step당 도구 반복 계수와 `stepId` 중복 방지, 도구 이름 기반 스킬 쓰기 판정(spec §4.2) | LR-01, F `TurnEndPayload` | M |
 | LR-04 | 임계 판정 순수 함수: `applyTurn`(규칙 0 `in_flight` 포함), `reviewRequestId`, `agent_settled` 핸들러의 상태 커밋(턴당 1회). `origin`·`status`·`hasFinalAnswer`·`lastItemId` 읽기와 필드가 없을 때의 임시 규칙 | LR-02, LR-03, REQ-LN-01 | S |
-| LR-05 | 포크 호출: `buildReviewSpec`(`fork: { at: "item" }`, `report` 없음 [미결 D-M3-03]), `reviewTokenBudget`, `reviewStartOutcome`, on 핸들러의 `g.delegate`(ADR-0015)와 "위임 먼저, 커밋 나중" 순서, `delegateFailures`, `grp.learning.fork.started`, `agents/learning-review.md` 정의 | LR-04, REQ-LN-05·07·08, group-kit `GroupApi.delegate`(G-14) | M |
+| LR-05 | 포크 호출: `buildReviewSpec`(`fork: { at: "item" }`, `report` 없음 [결정: review.m3-design-inputs D-M3-03]), `reviewTokenBudget`, `reviewStartOutcome`, on 핸들러의 `g.delegate`(ADR-0015)와 "위임 먼저, 커밋 나중" 순서, `delegateFailures`, `grp.learning.fork.started`, `agents/learning-review.md` 정의 | LR-04, REQ-LN-05·07·08, group-kit `GroupApi.delegate`(G-14) | M |
 | LR-06 | 제안 도구와 허용 목록: `g.registerTool`로 `learning_propose` 등록, 입력 검사, 읽기 선행 가드(`baseHash`), 후보 수 상한, `toolPolicy.allow` 기본값과 거부 안내 문장(`denyHint`) | LR-05, group-kit `registerTool`(G-22), L1.tools 실행 시점 허용 검사 | M |
 | LR-07 | 검토 지시: `prompts.ts` 요구 사항 7항목(신호, 선호 순서, 저장 금지, 메모리 영역, DATA 방어, 출력 규약, 편향 문구 금지) 문구 본문 작성 | LR-05 | M |
 | LR-08 | Proposal 이벤트와 투영: `grp.learning.proposal.*`·`grp.learning.fork.*` 비공개 기록 9종, `learningProjector`, `x_learning_proposals`·`x_learning_reviews` DDL | LR-06. X `ScopeApi.recordPrivate`(review.decisions-2 T-21, spec §3.7.1)의 X 구현 | M |
@@ -107,9 +107,9 @@ xeon/packages/group-learning/
 | LR-21 | (2차) 학습 이력: 대기열과 원장 시간순 합치기, `/learning history`, 되돌리기 | LR-10, `knowledge.ledger.read` | M |
 | LR-22 | (2차) 스크립트 제안: 반복 명령 묶음 탐지(최소 반복 3회 [가정]), `kind: "script"` 후보 | LR-06, LR-10 | M |
 | LR-23 | 완료 구독: `agent.settled` 구독 핸들러, `reviewFinishOutcome`, `fork.finished`·`review.finished` 기록, `settledReviewId` 커밋과 `inFlightReviewId` 비우기(§4.3 선후 경합). 구독이 없을 때 명령 진입의 `g.delegateStatus` 대체 경로 | LR-05, REQ-LN-02·07·08 | M |
-| LR-24 | 그룹 끄기 취소: `onDispose`의 `g.cancelDelegates`와 `inFlightReviewId` 커밋(REQ-X-12 [가정]), 커밋하지 못하는 구성에서는 다시 켠 뒤 `inFlightReviewId` 정리 [미결 D-M3-04] | LR-23, REQ-LN-06·08 | S |
+| LR-24 | 그룹 끄기 취소: `onDispose`의 `g.cancelDelegates`와 `inFlightReviewId` 커밋(REQ-X-12 [가정]), 커밋하지 못하는 구성에서는 다시 켠 뒤 `inFlightReviewId` 정리 [결정: review.m3-design-inputs D-M3-04] | LR-23, REQ-LN-06·08 | S |
 | LR-25 | ADR-0015 재생 시험: 모든 커밋 지점에서 끊고 재개, 핸들러 2회 실행, 위임·기록·커밋 계수 1(spec §9 17·18·19) | LR-05, LR-23, group-kit `replayDrive` 효과 계수(G-20 확장), M3-new-01 | M |
-| LR-26 | 범위 선택과 신뢰 표지: `Proposal.scope`, `approve --scope`, `KnowledgeChange.scope`, `afterUntrusted` 기록과 화면 필드 [미결 D-M3-09] | LR-09, LR-10, REQ-LN-01·09·10 | S |
+| LR-26 | 범위 선택과 신뢰 표지: `Proposal.scope`, `approve --scope`, `KnowledgeChange.scope`, `afterUntrusted` 기록과 화면 필드 [결정: review.m3-design-inputs D-M3-09] | LR-09, LR-10, REQ-LN-01·09·10 | S |
 | LR-27 | 충돌 처리: `name_exists` 거부, 유사 스킬 `conflictsWith`(옛 LR-12 충돌 표시를 대신한다. LR-12 번호는 비워 둔다) | LR-06 | S |
 | LR-28 | Result 종류: `results.ts`의 `DecisionResult`, `ApplyTransition`, `QueueSweep`, `LearningError`와 분류 순수 함수 | LR-01 | S |
 
@@ -202,7 +202,7 @@ xeon/packages/group-learning/
 - 구성: 실제 SQLite 임시 파일, X·group-kit 실구현, L1-g·L2-d 가짜, 테스트용 drive 그룹(Helm 대역), 테이프 `test/tapes/uc3-review.tape.jsonl`(주 대화 10 turn + 검토 포크 응답).
 - 확인: (1) 임계를 넘는 세션에서 포크가 백그라운드로 1회 실행되고 후보가 대기열에 들어가며, 승인 전 스킬 디렉터리와 메모리 파일 해시가 같다. (2) drive 그룹이 임대를 가진 동안에도 (1)이 성립한다. (3) 승인 뒤에만 L2-d `apply`가 불린다.
 - [제안] 계층(L-IN-19): `eng.testing.guide` TS-01은 `scenario` 계층을 저장소 전체에 1개(`apps/cli` 스모크)로 제한한다. 이 테스트는 패키지 안 `int` 계층으로 둔다. 실제 SQLite와 X·group-kit 실구현을 쓰므로 UC-3 검증에 충분하고, 저장소 전체 스모크 수 제한을 바꾸지 않는다.
-- 추가 확인(M3 설계 개정): (4) 검토 결과가 부모 대화의 모델 입력에 없다([미결 D-M3-03] a안). (5) 검토 도중 프로세스를 끊고 재개해도 자식 대화는 1개다(ADR-0015).
+- 추가 확인(M3 설계 개정): (4) 검토 결과가 부모 대화의 모델 입력에 없다([결정: review.m3-design-inputs D-M3-03]). (5) 검토 도중 프로세스를 끊고 재개해도 자식 대화는 1개다(ADR-0015).
 
 ## 6. 완료 기준
 
@@ -256,5 +256,5 @@ xeon/packages/group-learning/
 | 승인 피로 | 후보가 많으면 사용자가 대기열을 보지 않게 된다 | 대기열 만료(`l3.learning.queue.expiryDays`, 기본 30일) [제안], 검토당 후보 상한 8개(spec §3.5) |
 | L2-d 쓰기 API 미확정 | 보관·적용·스캔·원장의 메서드 구분 근거가 없다(`_research/notes/L3-3.md` §4.1) | `apply.ts`를 어댑터 하나로 모아 L2.knowledge 확정 뒤 이 파일만 바꾼다 |
 | 하위 층 요구 미반영 | REQ-LN-01(`AgentSettledPayload` 필드)과 REQ-LN-02(`agent.settled` 구독)가 없으면 검토가 시작되지 않거나 한 번만 돈다(spec §5 사례 15·17) | F·X·L1 계약 트랙(M3 설계 단계)에서 먼저 반영한다. 반영 전에는 LR-04의 임시 규칙과 LR-23의 명령 진입 대체 경로로 시험만 한다 |
-| 결정 대기 | D-M3-02(기본 켬), D-M3-03(보고 전달), D-M3-04(끄기 때 취소), D-M3-09(프로젝트 범위)가 권고안과 다르게 정해짐 | 바뀌는 곳: D-M3-02는 매니페스트 한 줄. D-M3-03 b는 LR-05의 `report` 값과 수용 기준 21. D-M3-04 a·c는 LR-24. D-M3-09 a·b는 LR-26. 나머지 작업은 영향이 없다 |
+| 결정 반영 | D-M3-02·03·04·09·32를 받았다. 남은 위험은 L1 쪽 요구(위임 취소 API REQ-L1-02, `report` 선택 필드 REQ-L1-05)가 늦어지는 것이다 | LR-05, LR-24는 해당 L1 요구가 들어온 뒤 완료 판정한다. 그 전에는 가짜 위임 서비스로 단위 시험을 돌린다 |
 | 대기열 이중화 | 학습 대기열과 L2 `cap_knowledge_proposals`가 따로 있다(spec §10 미결 8) | L4 승인 화면이 두 출처를 한 목록으로 보인다(REQ-LN-10). 하나로 합치기로 정해지면 LR-08~LR-10을 L2 대기열의 생산자 경로로 바꾼다 |
