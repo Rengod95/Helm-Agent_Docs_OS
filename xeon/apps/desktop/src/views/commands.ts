@@ -19,7 +19,12 @@ export type CommandError =
       readonly ownerKind: string;
       readonly options: readonly LockedOption[];
     }
-  | { readonly kind: "rejected"; readonly code: number | null }
+  | {
+      readonly kind: "rejected";
+      readonly code: number | null;
+      /** host가 값 검사 실패(`settings.invalidValue`, 3102)에서 준 첫 문제의 문장. 설정 화면이 그대로 보인다 */
+      readonly detail?: string;
+    }
   | { readonly kind: "failed" };
 
 export type ApprovalDecision =

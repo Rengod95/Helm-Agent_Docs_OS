@@ -4,7 +4,7 @@ import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities"
 import { renderToString } from "react-dom/server";
 import { keepTools } from "../../src/app/setup.ts";
 import { binaryViewOf, setupSteps, type SetupSnapshot } from "../../src/settings/index.ts";
-import { SettingsBody, Steps, Tools, type KeyEntry } from "../../src/views/settings.tsx";
+import { errorText, SettingsBody, Steps, Tools, type KeyEntry } from "../../src/views/settings.tsx";
 
 const noop = (): void => {};
 
@@ -175,5 +175,20 @@ describe("keepTools", () => {
       toolsReady: true,
       binaries,
     });
+  });
+});
+
+describe("save errors", () => {
+  test("a rejected value shows the host sentence, so a wrong model id says what is wrong", () => {
+    expect(
+      errorText({
+        kind: "rejected",
+        code: 3102,
+        detail: "알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5)",
+      }),
+    ).toBe(
+      "저장하지 못했습니다: 알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5)",
+    );
+    expect(errorText({ kind: "rejected", code: 3103 })).toBe("엔진이 거절했습니다 (3103).");
   });
 });

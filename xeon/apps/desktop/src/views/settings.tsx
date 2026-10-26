@@ -37,9 +37,13 @@ export type KeyEntry =
   | { readonly state: "terminal"; readonly command: string }
   | { readonly state: "failed"; readonly text: string };
 
-function errorText(error: CommandError): string {
+export function errorText(error: CommandError): string {
   if (error.kind === "offline") return "엔진에 연결되어 있지 않습니다.";
   if (error.kind === "unsupported") return "이 엔진은 이 기능을 지원하지 않습니다.";
+  if (error.kind === "rejected" && error.detail !== undefined) {
+    // 값이 틀렸다는 host의 문장은 사용자가 고칠 수 있는 내용이라 그대로 보인다(예: 알 수 없는 모델 ...)
+    return `저장하지 못했습니다: ${error.detail}`;
+  }
   if (error.kind === "rejected" && error.code !== null) {
     return `엔진이 거절했습니다 (${error.code}).`;
   }

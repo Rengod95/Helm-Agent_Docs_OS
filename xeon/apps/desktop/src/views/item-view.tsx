@@ -110,6 +110,16 @@ export const RecordedItem: NamedExoticComponent<{ readonly id: ItemId }> = memo(
     if (item === undefined) return null;
     // display가 거짓인 확장 item은 모델 문맥 전용이라 화면에 그리지 않는다(F.conversation.spec 3.5.2)
     if (item.kind === "custom" && !item.message.display) return null;
+    // system item은 요청 앞에 붙는 시스템 프롬프트다. 모델 문맥 전용이라 그리지 않는다(L4.desktop.spec §4.13)
+    if (item.kind === "system") return null;
+    // 내용 없이 실패한 어시스턴트 item은 보일 것이 없다. 실패 원인은 트랜스크립트 아래 경고 한 곳에만 보인다
+    if (
+      item.kind === "assistant" &&
+      item.status === "failed" &&
+      item.message.content.length === 0
+    ) {
+      return null;
+    }
     return (
       <article className={`item item-${item.kind}`} data-status={item.status}>
         <header className="role">{ROLE_LABEL[item.kind]}</header>

@@ -518,6 +518,8 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - 키 바인딩과 테마는 `appearance` 탭 설정이다(§6).
 - 확장 이벤트(`x.<확장id>.*`)는 M2에서 일반 item(종류 이름과 요약)으로만 보인다. 확장별 화면은 범위 밖이다.
 - `display: false`인 확장 item(`kind: "custom"`, 예: `x.knowledge.context`)은 모델 문맥 전용이라 트랜스크립트에 그리지 않는다(`F.conversation.spec` §3.5.2). `display: true`만 위 규칙으로 보인다.
+- `kind: "system"` item(요청 앞에 붙는 시스템 프롬프트, 예: "You are Xeon, a helpful coding assistant.")는 모델 문맥 전용이라 그리지 않는다 [결정: M2 Mac 실기]. 사용자가 쓴 말과 모델의 응답이 아니고 F 명세도 화면 표시를 요구하지 않는다. 내용 없이 `failed`로 끝난 어시스턴트 item도 그리지 않는다: 보일 내용이 없고 실패 원인은 트랜스크립트 아래 `role="alert"` 한 곳에만 보인다(실패가 두 번 보이지 않게 한다). 내용이 있는 `failed`·`interrupted` item은 내용과 상태 표지를 그대로 보인다.
+- 실패 문장은 host가 준 `turn.completed.error`를 그대로 보인다. 모델을 해석하지 못했으면 `model_unavailable: model_not_found: model <ref> is not in the catalog`처럼 종류와 모델이 보이고(`L1.loop.spec` §4.3), 비밀을 열지 못했으면 `secret_unresolved: ... could not be leased (denied: <사유>)`로 사유가 보인다(`L1.models.spec` §3.9).
 - 입력창 Enter [결정: M2 Mac 실기]: 한글 조합 중의 Enter는 보내지 않는다. WebKit(Safari, WKWebView)은 `compositionend`를 Enter keydown보다 먼저 내고 그 keydown의 `isComposing`이 거짓이라, `isComposing`, `keyCode === 229`, `compositionend` 직후 50ms 안의 Enter를 모두 조합 확정으로 본다(`src/views/composer-model.ts`). 전송은 동기 잠금(ref)으로 한 번에 하나만 나가고, 보내는 즉시 입력을 비우며 실패하면 입력을 돌려준다.
 - 입력창 잠금 [결정: M2 Mac 실기]: 모델 키와 기본 모델이 끝나지 않았으면(시작 안내 띠와 같은 판단) 입력창을 잠그고 안내 문장을 보인다.
 - turn 실패 표시 [결정: M2 Mac 실기]: `turn.completed`가 `status: "failed"`이면 `error`를 해당 대화의 트랜스크립트 아래에 `role="alert"`로 보이고(거울의 `turnFailures`), 다음 `turn.started`에 지운다.
@@ -538,6 +540,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - 사이드카(stdio) 호스트에는 값을 받을 수단이 없어 `secret.beginEntry`가 `started: false`를 돌려준다(`L4.host-service.spec` HS-44, 서비스 쪽 OS 입력 창은 M3). 이 연결에서는 셸이 값을 받는다(§4.14.1).
 - 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `src/settings/diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `xeon doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
 - `settings.invalidated`를 받으면(`keys`에 `l1.models.`로 시작하는 키가 있거나 `keys`가 빈 알림) 설정 화면과 안내 띠가 `settings.get`으로 다시 읽는다. 구독은 연결이 `live`가 될 때마다 새로 건다. 같은 연결의 `settings.set` 호출자도 알림을 받으므로 저장 직후 화면은 한 번 더 읽는다.
+- 저장이 거절되면(`settings.set`의 3102) 화면은 host가 준 첫 문제의 문장을 그대로 보인다: `저장하지 못했습니다: 알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5, …)`. 기본 모델은 저장하기 전에 host가 카탈로그에서 검사한다(`L4.host-service.spec` HS-78). "provider에 연결"은 그 키의 모델 provider 사용을 허용하는 행위이기도 하다(`L4.host-service.spec` HS-45): 같은 연결을 다시 저장하면 이전 빌드가 빈 정책으로 만든 키의 허용이 다시 맞춰진다 [결정: M2 Mac 실기]. 연결 뒤에는 `secret.meta` 없이 모델 호출이 된다.
 - 모델 키와 기본 모델 단계가 끝나지 않았으면 대화 화면 위에 안내 띠("설정 열기")를 보인다(`src/views/setup-banner.tsx`). 설정을 읽지 못하는 연결에서는 띠를 그리지 않는다.
 - 화면의 로컬 상태는 요청 결과와 입력 중인 모델 이름뿐이고 거울에 넣지 않는다(FS-03, FS-04). 키 값은 로컬 상태에도 없다(§4.14.1).
 

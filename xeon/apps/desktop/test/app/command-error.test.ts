@@ -27,6 +27,28 @@ describe("errorOf", () => {
     expect(errorOf(locked)).toEqual({ kind: "locked", ownerKind: "unknown", options: [] });
   });
 
+  test("a rejected value keeps the first issue sentence the host wrote, and a malformed details keeps only the code", () => {
+    const invalid = wireError("settings.invalidValue", {
+      details: {
+        key: "l1.models.default",
+        issues: [
+          {
+            path: "value",
+            message:
+              "알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5)",
+          },
+        ],
+      },
+    });
+    expect(errorOf(invalid)).toEqual({
+      kind: "rejected",
+      code: 3102,
+      detail: "알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5)",
+    });
+    const bare = wireError("settings.invalidValue", { details: { key: "k", issues: [] } });
+    expect(errorOf(bare)).toEqual({ kind: "rejected", code: 3102 });
+  });
+
   test("other wire errors keep their code and a foreign throw is a plain failure", () => {
     expect(errorOf(wireError("thread.notFound"))).toEqual({ kind: "rejected", code: 3001 });
     expect(errorOf(new Error("boom"))).toEqual({ kind: "failed" });
