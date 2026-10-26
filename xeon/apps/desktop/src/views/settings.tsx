@@ -102,7 +102,7 @@ export function Tools(props: { readonly binaries: BinaryView | null }): ReactNod
  * 키 값 등록 창. 입력란은 제어 컴포넌트가 아니다: 값은 DOM 노드에만 있고 React 상태와 props에 들어가지 않는다.
  * 저장을 누르면 부모가 `field.take()`로 읽는 즉시 비운다. 취소와 사라짐(unmount)도 비운다.
  */
-export function KeyForm(props: {
+function KeyForm(props: {
   readonly busy: boolean;
   readonly onSubmit: (field: KeyField) => void;
   readonly onCancel: () => void;

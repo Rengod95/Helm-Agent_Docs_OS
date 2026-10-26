@@ -31,7 +31,7 @@ type Run = <T>(
 ) => Promise<Result<T, CommandError>>;
 
 /** 셸의 오류를 화면이 아는 오류로 바꾼다. 셸 내부 사정(`detail`, 잘못된 요청)은 화면에 올리지 않는다 */
-export function keyRegisterErrorOf(error: SecretRegisterError): KeyRegisterError {
+function keyRegisterErrorOf(error: SecretRegisterError): KeyRegisterError {
   switch (error.kind) {
     case "unavailable":
     case "empty":

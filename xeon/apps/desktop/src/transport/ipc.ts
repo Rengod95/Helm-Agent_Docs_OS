@@ -152,7 +152,7 @@ const SecretRegisterErrorSchema = Type.Union([
 ]);
 
 /** 셸이 거부한 값도 프로세스 밖의 값이다(TY-10). 모르는 모양은 `unknown`이다 */
-export function parseSecretRegisterError(value: unknown): SecretRegisterError {
+function parseSecretRegisterError(value: unknown): SecretRegisterError {
   const parsed = parse(SecretRegisterErrorSchema, value);
   return parsed.ok ? parsed.value : { kind: "unknown" };
 }
