@@ -1281,7 +1281,7 @@ ADR-0005 §3.1의 ①(모델용 도구)과 ②(서비스 API)를 이 문서의 �
 | ① 모델용 도구 | 모델 | 아래 `l2.web.search.modelTool`에 따라 hosted 서버 도구 또는 `web_search` 함수 도구 |
 | ② 서비스 API | L3 그룹 코드, 호스트, 다른 웹 메서드 | 앞단 `search`. 선택 체인(§4.8.2) |
 
-[미결] ①에서 무엇을 광고할지와 그 책임 경계(§10 미결 3). 선택지:
+[미결] ①에서 무엇을 광고할지와 그 책임 경계(§10 미결 3). M2 구현 상태: 모델에는 `web_search` 함수 도구(B안)만 나간다. `decideModelSearchTool`과 `isWrapperOnlyChain`은 구현과 시험이 있지만 호스트 조립이 부르지 않고, 설정 `l2.web.search.modelTool`은 값을 읽는 곳이 없다. A안(hosted)은 §10 미결 3의 막힘이 풀릴 때까지 연결하지 않는다. 선택지:
 
 | 안 | 광고하는 도구 | 실행 | 장점 | 단점 |
 |---|---|---|---|---|
@@ -1711,7 +1711,7 @@ export const webSettings = defineSettings("l2.web", {
 | `CallOptions.context`(`CallContext`, `CallerInfo`) | `F.capabilities.spec` §3.2 | 있음 |
 | `defineSettings`, `ScopeStack`, `SettingDef` | `F.wire-settings.spec` | 있음 |
 | `HostedSearchPort`: 모델 지정, hosted 검색 도구 하나만 단 단일 턴 요청, `stopReason`(`end_turn`·`pause_turn`·`max_tokens`·`refusal`), 이어 요청용 불투명 continuation, 결과 블록(url, title, page_age, cited_text), 토큰·검색 요청 사용량, 조직 차단 400 식별, 모델별 hosted 지원 여부 조회 | `L1.models.spec` | 있음(F `services/models.ts`의 `HostedSearchPort`, 구현 `core-models`의 `createHostedSearch`, `ModelService.hostedSearch`) |
-| hosted 서버 도구를 모델 요청에 넣는 기능과 `encrypted_content` 반송(§4.8.1 A안) | `L1.models.spec` | 요청 [가정] |
+| hosted 서버 도구를 모델 요청에 넣는 기능과 `encrypted_content` 반송(§4.8.1 A안) | `L1.models.spec` | 없음 [미결]. M2에 구현하지 않았다(§10 미결 3, `L1.models.spec` §10 12번) |
 | `ApprovalService`(`xeon.approvals`) 요청 kind `tool`·`plan`, 기억 범위 | `L1.tools.spec` | [가정] |
 | `redactForPersistence` 적용 경로(영속 사본) | `L1.tools.spec`, `L1.persistence.spec` | 요청 [가정] |
 | 서브에이전트 실행과 위임 옵션의 웹 규칙 필드 | `L1.agents.spec` | 2차 [가정] |
@@ -1747,6 +1747,12 @@ export const webSettings = defineSettings("l2.web", {
 1. 닫힘. `F.capabilities.spec` §3.9 `web.search` 예시는 간추린 설명용 예시로 선언되었고 정본은 `defs/web.ts`와 이 문서 §3.2다. provider 메타는 `meta`(`ProviderSelectionMeta`, F.capabilities §3.11)다.
 2. 닫힘. 호출자 정보는 `F.capabilities.spec` §3.2 `CallOptions.context.caller`로 받는다(§3.7). `L2.knowledge.spec`도 같다.
 3. [미결] 모델용 도구 경로 ①의 광고 방식(hosted, function, auto)과 L1.models와의 책임 경계. 제안은 auto(세션 시작 때 판정 고정)다(§4.8.1). ADR-0005 ①은 "provider 내장 검색을 그대로 노출"이라 A안에 가깝다.
+   - M2 조사 결과(M2 마감 재검토 4): 구현하지 않았다. 요청 쪽은 막힘이 없다. `before_provider_request`(chain)의 `ProviderPayloadPatch`가 페이로드를 통째로 바꾸므로 서버 도구 한 개를 `tools`에 더하는 일은 지금 계약으로 된다. 막히는 곳은 응답 쪽이다.
+   - (a) pi-ai 1.3.0의 `AssistantMessage.content`는 `TextContent | ThinkingContent | ToolCall`뿐이다(`types.d.ts:364`). anthropic-messages 어댑터는 `text`, `thinking`, `redacted_thinking`, `tool_use` 블록만 모으고 `server_tool_use`와 `web_search_tool_result`는 버린다(소스에 `web_search`, `server_tool_use` 문자열이 없다). 다음 요청의 대화 이력 변환도 그 세 가지만 내보낸다. 그래서 `encrypted_content`를 보관하고 반송할 자리가 없고, 이전 턴의 검색 결과와 텍스트 인용(`cited_text`)이 이력에서 빠진다.
+   - (b) `pause_turn`은 어댑터가 `stopReason: "stop"`(`rawStopReason: "pause_turn"`)으로 바꾼다(`mapStopReason`). 루프는 이를 턴 끝으로 읽어 본문이 잘린 채 끝난다. 이어 요청은 서버 도구 블록을 포함한 직전 content를 다시 보내야 하므로 (a) 없이는 못 한다.
+   - (c) 메인 턴의 hosted 결과(`HostedSearchResponse` 모양)를 `normalizeHostedSearch`로 넘기는 경로가 없다. L4 인용 렌더링에 쓰려면 F에 이벤트나 레코드가 필요하다.
+   - 풀려면 다음 중 하나가 필요하다. 어느 쪽이든 M2 범위 밖이라 `m3-plan`으로 넘긴다. 1) pi-ai 어댑터 패치(서버 도구 블록을 content에 싣고 이력 변환에서 되돌린다), 2) F `AssistantMessage` 확장 또는 provider 불투명 블록 레코드와 루프의 `pause_turn` 이어 요청. 둘 다 F 계약이나 vendor 변경이다.
+   - 영향: 기능 손실은 없다. 기본 설정(체인이 래퍼뿐)에서 모델의 검색이 `web_search` 함수 도구 → 내장 래퍼 경로로 처리되어 검색마다 모델 호출이 하나 더 든다(§4.8.1 B안의 단점). `l2.web.search.modelTool`의 `hosted`와 `auto`는 지금 `function`과 같게 동작한다.
 4. [미결] 선택 순서 3·4번(키 플러그인과 설정한 SearXNG 중 먼저 쓸 것). 제안은 플러그인 우선이다. ADR-0005 §6에서 승계한다(§4.8.2).
 5. 닫힘. 자동 감지는 없앴고 사용자가 주소를 설정한 SearXNG만 후보다(사용자 결정 H1, 2026-10-25, ADR-0005 §3.3 개정, §4.8.3). 설정한 주소의 탐침 형식은 §4.8.3이다.
 6. [미결] robots.txt를 사용자 대행 단건 fetch에도 적용할지. 제안은 자동 수집에만 적용이다. 공개 릴리즈 전에 다시 정한다(§4.7).

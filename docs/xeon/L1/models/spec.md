@@ -528,6 +528,7 @@ export function setup(g: ScopeApi<unknown>): void;
 - 오류(`HostedSearchError`): 신호가 중단됐으면 `cancelled`. HTTP 400이고 메시지에 web search와 organization·admin·disabled·not enabled 계열 단어가 함께 있으면 `org_disabled` [가정: 오류 문구는 실제 응답으로 확인하지 못했다]. 429나 도구 결과의 `too_many_requests`는 `rate_limited`(`retryAfterMs: null`). provider·모델 없음은 `unsupported_model`. 그 밖은 `upstream`이고 `status`는 메시지에서 읽은 HTTP 상태, `message`는 비밀 마스킹을 거친 문자열이다. 결과가 없고 도구 결과가 `web_search_tool_result_error`면 `upstream`이다.
 - thread에 속하지 않는 호출이다. 요청 지점(`before_provider_request` 등)과 `model_select`는 발화하지 않는다. 사용량은 예약 thread id(`HOSTED_SEARCH_THREAD`)에 역할 `search`로 쌓인다.
 - 시험: 어댑터 원시 이벤트를 테이프 차례의 `rawEvents`로 재생한다(`@xeon/core-models/testing`의 테이프 provider). 네트워크 호출은 없다.
+- 범위 밖: 이 포트는 대화 기록에 남지 않는 단일 턴 요청이다. 메인 모델의 일반 턴 요청에 서버 도구를 넣는 일(`L2.web.spec` §4.8.1 A안)은 M2에 구현하지 않았다. 사유는 §10 12번이다.
 
 ## 4. 동작 규칙
 
@@ -901,3 +902,4 @@ export interface ThinkingLevelSelectPayload {
 9. [미결] pi `registerVirtualModel` 지원 여부(§3.7).
 10. [결정: review.decisions-2 U-24] TypeBox 버전은 catalog 1.3.27이고 pi-ai가 고정한 판과 같다. core-models가 pi-ai `Tool.parameters`를 그대로 넘겨도 스키마 객체가 한 판이다.
 11. [미결] L1 서비스가 유효 설정을 읽는 경로와 서비스 이름(§8.2 마지막 행).
+12. [미결] 일반 턴 요청의 hosted 서버 도구(`L2.web.spec` §4.8.1 A안, ADR-0005 ①). M2 마감 재검토 4에서 조사했고 구현하지 않았다. 페이로드에 서버 도구를 더하는 것은 `before_provider_request` 패치로 가능하다. 모자란 것은 응답 쪽이다. pi-ai 1.3.0의 `AssistantMessage.content`(`types.d.ts:364`)와 anthropic-messages 어댑터는 `server_tool_use`, `web_search_tool_result` 블록을 싣지도 이력으로 되돌리지도 않는다. 그래서 (a) `encrypted_content` 보관과 반송, (b) `pause_turn`(어댑터가 `stopReason: "stop"`으로 바꿔 턴이 잘린다) 이어 요청, (c) 인용을 `normalizeHostedSearch`와 L4로 보내는 경로가 없다. pi-ai 어댑터 패치나 F `AssistantMessage` 확장이 필요하고 `m3-plan`에서 정한다. 그 전까지 모델 검색은 `web_search` 함수 도구와 내장 래퍼로 처리된다(`L2.web.spec` §10 3번).
