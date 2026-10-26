@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import type { AssistantMessageEvent } from "@xeon/contracts/conversation";
 import type { UsageRecord } from "@xeon/contracts/services";
-import { secretBackedCredentialStore, type CredentialFailure } from "../src/secrets-bridge.ts";
+import { err } from "@xeon/contracts";
+import { parseSecretRef } from "@xeon/contracts/capabilities";
+import {
+  createSecretResolver,
+  secretBackedCredentialStore,
+  type CredentialFailure,
+} from "../src/secrets-bridge.ts";
 import { memorySecrets, t, tape } from "../src/testing/index.ts";
 import { createHarness, FAKE_KEY } from "./support/harness.ts";
 import { memoryLogger, type LogLine } from "./support/logger.ts";
@@ -83,6 +89,30 @@ describe("secret_ref_resolved_at_request_time_only", () => {
     expect(h.service.classify(message)).toBe("secret_unresolved");
     expect(h.fake.calls()).toHaveLength(0);
     expect(h.player.remaining()).toBe(1);
+  });
+
+  test("a lease denied by the policy names the deny reason, not the secret value", async () => {
+    const h = createHarness({ tape: ONE_TURN });
+    const parsed = parseSecretRef("secret://tape-key");
+    if (!parsed.ok) throw new Error("the fixture reference is valid");
+    const { handle } = parsed.value;
+    const resolver = createSecretResolver(
+      {
+        ...h.secrets.service,
+        lease: () => Promise.resolve(err({ kind: "denied", handle, reason: "mode_not_allowed" })),
+      },
+      {},
+    );
+    const resolved = await resolver.resolve("secret://tape-key", "tape", "model.provider:tape");
+    expect(resolved).toEqual({
+      ok: false,
+      error: {
+        kind: "secret_unresolved",
+        providerId: "tape",
+        secretName: "tape-key",
+        reason: "secret tape-key could not be leased (denied: mode_not_allowed)",
+      },
+    });
   });
 
   test("the log names the secret reference and never the value", async () => {

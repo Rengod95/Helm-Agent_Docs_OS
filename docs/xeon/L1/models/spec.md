@@ -463,6 +463,7 @@ export function secretBackedCredentialStore(refs: ProviderCredentialRefs, secret
 - `modify`, `delete`는 `ModelsError("auth")`를 던진다. 키 등록과 삭제는 비밀 관리 경로(`just secret-add`, 설정 화면 secrets 탭)로만 한다.
 - `list()`는 provider 이름과 참조 유무만 돌려준다(pi 계약: "must not execute configured API-key commands while listing").
 - 오류 문자열은 `xeon.secrets`의 마스킹 함수를 지난다 [가정: L0.secrets.spec이 마스킹 API를 서비스로 제공한다].
+- `lease`가 정책으로 거부되면(`denied`) 종결 메시지의 사유 문장에 거부 사유를 싣는다: `secret_unresolved: secret <이름> could not be leased (denied: mode_not_allowed)`. 사람이 어디를 고칠지(사용 모드, 호스트) 알 수 있다 [결정: M2 Mac 실기].
 - 위장 경로 가드 [제안]: 기본 `anthropic` provider에서 해석한 값이 `sk-ant-oat`를 포함하면 요청을 보내지 않고 `oauth_token_on_default_provider` 오류를 낸다. pi-ai 기본 경로는 키 접두만으로 위장 분기에 들어가기 때문이다(`anthropic-messages.ts:978-980`, `1014`, `_research/notes/L1-2.md` §3.1). [결정 M-1: m2/l1c] 가드로 막는다. 설정 참조뿐 아니라 agent-core가 `apiKey` 옵션으로 넘긴 값도 같은 규칙으로 검사한다(기본 provider id `anthropic`만 대상이다). 가드에 걸리면 종결 메시지는 `oauth_token_on_default_provider: …`이고 요청은 나가지 않는다.
 
 ### 3.10 2차 타입

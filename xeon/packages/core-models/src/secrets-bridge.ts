@@ -99,7 +99,10 @@ export function createSecretResolver(
           kind: "secret_unresolved",
           providerId,
           secretName: name,
-          reason: `secret ${name} could not be leased (${leased.error.kind})`,
+          // 정책이 거부했으면 사유(mode_not_allowed, host_mismatch 등)도 싣는다: 사람이 `secret meta`나 provider 연결로 고칠 곳을 안다
+          reason: `secret ${name} could not be leased (${
+            leased.error.kind === "denied" ? `denied: ${leased.error.reason}` : leased.error.kind
+          })`,
         });
       }
       const lease = leased.value;
