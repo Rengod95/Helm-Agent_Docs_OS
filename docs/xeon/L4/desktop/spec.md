@@ -404,7 +404,7 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 - `ensure`는 셸이 엔진 바이너리를 `xeon service ensure --json`으로 짧게 실행해 얻는다(`L4.host-service.spec` HS-38). stdout은 JSON 한 줄이다. 성공이면 `{ "ok": true, "socket": <경로>, "version": <버전>, "action": <EnsureResult.action> }`이고 종료코드 0, 실패면 `{ "ok": false, "reason": <EnsureResult.reason> }`이고 종료코드 1이다. 셸은 `socket`만 쓰고, 실패면 `restarting` 상태와 §4.4 재기동 정책을 따른다.
 - 서비스 공급원에서 앱을 닫아도 서비스와 진행 중 turn은 계속된다. §4.3의 `host.shutdown`과 그룹 SIGKILL은 서비스에 보내지 않는다. 셸은 소켓만 닫는다.
 - 서비스가 사라지면(소켓 EOF) 셸은 `restarting`으로 두고 `ensure`를 다시 부른다. 재기동 정책은 §4.4와 같다.
-- 알림 [결정: review.decisions-2 S-04]: 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 탭은 `L2.dialog.spec`의 `l2.dialog.notify.*` 정의(`notify.os`, `notify.completed`, `notify.approvalWaiting`, `notify.questionWaiting`, `notify.error`, `notify.backgroundCompleted`, 탭 `execution`)를 따른다. 데스크톱은 전달 수단으로 Tauri 알림 플러그인(`tauri-plugin-notification`)을 쓴다. 사건 원천은 `events.batch`의 내구 이벤트(승인 요청 등)다. 창이 앞에 있을 때 보내지 않는 조건은 데스크톱이 판단한다(`L2.dialog.spec` §10 D-6). 사용자 알림 전용 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다(review.decisions-2 U-04, §10 미결 5).
+- 알림 [결정: review.decisions-2 S-04]: 알림은 1차(M3)다. 켜기 기본값, 종류 목록, 탭은 `L2.dialog.spec`의 `l2.dialog.notify.*` 정의(`notify.os`, `notify.completed`, `notify.approvalWaiting`, `notify.questionWaiting`, `notify.error`, `notify.backgroundCompleted`, 탭 `execution`)를 따른다. 데스크톱은 전달 수단으로 Tauri 알림 플러그인(`tauri-plugin-notification`)을 쓴다. 사건 원천은 `events.batch`의 내구 이벤트(승인 요청 등)다. 창이 앞에 있어도 기본으로 OS 알림을 보내고, 설정으로 끌 수 있다 [결정: review.m3-design-inputs D-M3-17]. 웹·모바일 푸시 알림은 후순위다. 사용자 알림 전용 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다(review.decisions-2 U-04, §10 미결 5).
 
 ### 4.9 앱 내부 모듈 경계
 
@@ -458,8 +458,8 @@ pub enum PipeSource { Sidecar(SidecarPipe), Service(SocketPipe) }
 
 | 플랫폼 | 순위 | WebView | 상태 |
 |---|---|---|---|
-| macOS | 1순위 | WKWebView | [결정] 첫 지원 OS(`_research/decisions-log.md` 2026-10-19 답) |
-| Linux | 1순위 | WebKitGTK | [결정] 첫 지원 OS. WSL의 WSLg에서 GUI 앱 지원 수준은 [미결](§10 미결 9) |
+| macOS | 1순위 | WKWebView | [결정] 첫 지원 OS(`_research/decisions-log.md` 2026-10-19 답). 최소 macOS 14, Apple Silicon(arm64)만 지원하고 Intel macOS는 빌드하지 않는다 [결정: review.m3-design-inputs D-M3-25 행 2·3]. Tauri 2 기본 최소값은 10.13이고 WKWebView `isInspectable`은 13.3이 필요하다 |
+| Linux | 1순위 | WebKitGTK | [결정] 첫 지원 OS. x86_64와 arm64를 빌드한다 [결정: review.m3-design-inputs D-M3-25 행 2]. WebKitGTK 4.1 [가정]. WSL의 WSLg에서 GUI 앱 지원 수준은 [미결](§10 미결 9) |
 | Windows | 나중 | WebView2 | [가정] 나중에 지원하지만 빌드 대상에서 빼지 않는다(adr.0008 §2) |
 
 WebView 엔진 차이로 생기는 웹 API 제약 [제안. 각 항목은 M2 첫 주에 플랫폼별로 확인한다]:
@@ -470,7 +470,7 @@ WebView 엔진 차이로 생기는 웹 API 제약 [제안. 각 항목은 M2 첫 
 | V2 | 웹 알림 | WebView의 `Notification` API 동작이 플랫폼마다 다르다 [가정] | Tauri 알림 플러그인을 쓴다(§4.8) |
 | V3 | 클립보드 | 비동기 Clipboard API의 읽기 권한과 사용자 제스처 요구가 엔진마다 다르다 [가정] | 쓰기만 Web API, 읽기는 셸 명령 |
 | V4 | 출처(origin) | 앱 페이지의 출처가 플랫폼마다 다르다(macOS·Linux `tauri://localhost`, Windows `http://tauri.localhost`) [가정] | `localStorage`·`sessionStorage` 키를 출처에 기대지 않는다. 출처 비교 코드를 두지 않는다 |
-| V5 | JS·CSS 기능 기준 | WebKitGTK 버전이 배포판마다 다르고, WKWebView 버전은 macOS 버전에 묶인다 | 빌드 타깃을 최소 지원 macOS의 Safari 버전에 맞춘다. 최소 버전은 [미결](§10 미결 10) |
+| V5 | JS·CSS 기능 기준 | WebKitGTK 버전이 배포판마다 다르고, WKWebView 버전은 macOS 버전에 묶인다 | 빌드 타깃을 최소 지원 macOS(14)의 Safari 버전에 맞춘다 [결정: review.m3-design-inputs D-M3-25 행 3] |
 | V6 | WebGPU, WebCodecs, 미디어 캡처 | 엔진마다 가용성이 다르다 | M2 범위에서 쓰지 않는다 |
 | V7 | 스크롤과 글꼴 렌더링 | 오버레이 스크롤바, 글꼴 대체가 다르다 | 가상 스크롤 높이 계산을 실제 측정값으로 한다. 고정 행 높이를 가정하지 않는다 |
 | V8 | 개발자 도구 | 릴리스 빌드에서 열지 않는다 | Tauri `devtools` 기능은 개발 빌드에서만 켠다 |
@@ -698,14 +698,14 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 
 1. [미결] 엔진 바이너리 이름과 서브커맨드. 이 문서는 `xeon`, `host --stdio`를 [제안]으로 쓴다. `L4.host-service.spec`이 확정하고, `xeon/apps/desktop/README.md`와 `eng.toolchain.guide` TC-10의 "apps/host 단독 사이드카" 서술과 맞춘다. 바꿀 곳은 `sidecar.json` 한 곳이다.
 2. (닫힘) F 변경 요청 두 건, `host.shutdown`과 클라이언트 알림 `$/connectionReset`은 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4, review.consistency-1 K-15). 이 문서의 params 예와 다르면 F 정의를 따른다. 재설정 동작은 `F.wire-settings.spec` §4.1 5~7번이고 호스트가 구현했다(m2 F.8). 새 페이지는 `openEngineConnection`에서 hello 전에 `HostConnection.notify("$/connectionReset", {})`을 보낸다(§4.5).
-3. (닫힘, m2 F.8) `StdioTransportFactory` 구현(JSON Lines 프레이밍)과 `createHostConnection`(id 발급, 대기 요청 표, 취소)은 F `@xeon/contracts/wire`의 런타임 중립 구현으로 옮겼다(`F.wire-settings.spec` §3.1). 데스크톱은 복사본(`apps/desktop/src/transport/connection.ts`, `json-lines.ts`)을 지우고 거기서 가져온다. 호스트와 CLI는 같은 구현을 다시 내보낸다.
+3. (닫힘, m2 F.8) [결정: adr.0020] M3에 이 구현을 L4 공유 패키지 `@xeon/client`로 옮기고 F는 계약만 둔다. 이전 기록: `StdioTransportFactory` 구현(JSON Lines 프레이밍)과 `createHostConnection`(id 발급, 대기 요청 표, 취소)은 F `@xeon/contracts/wire`의 런타임 중립 구현으로 옮겼다(`F.wire-settings.spec` §3.1). 데스크톱은 복사본(`apps/desktop/src/transport/connection.ts`, `json-lines.ts`)을 지우고 거기서 가져온다. 호스트와 CLI는 같은 구현을 다시 내보낸다.
 4. [결정: review.decisions-2 U-04] 이어서 실행 후보를 wire로 알리는 방법(`ThreadSummary` 필드 또는 이벤트)은 M1에 넣지 않고 M2 계획에서 정한다.
 5. [결정: review.decisions-2 U-04] 사용자 알림 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다. 그 전에는 내구 이벤트 kind로 알림 대상을 고른다(§4.8).
 6. [미결] `l4.desktop.*` 값의 저장 위치. 제안은 데스크톱 로컬 파일(엔진 카탈로그 밖)이다. 대안은 F에 클라이언트 카탈로그 등록을 더해 엔진 설정 계층에 넣는 것이다. 관리 범위 잠금을 로컬 파일에서 어떻게 읽을지도 함께 정한다.
 7. [미결] Windows 크래시 때 엔진이 남는 문제. 셸이 kill-on-close job object를 직접 만들지, 플러그인 상류에 요청할지(adr.0008 §6, arch-2 §5 4행).
 8. [미결] 메모리 예산 수치(§4.10 B1~B4). S5 측정 뒤 확정한다.
 9. [미결] WSL(WSLg)에서 데스크톱 앱의 지원 수준. 지원, 비공식 동작, 미지원 중 고른다. 참고: WSLg(XWayland, llvmpipe)에서 Tauri 창이 열리고 S1·S3이 돌았다(`L4.desktop.plan` §3.1.1).
-10. [미결] 최소 지원 macOS 버전과 Linux 배포판(WebKitGTK 버전). 빌드 타깃(V5)이 여기에 묶인다.
+10. [결정: review.m3-design-inputs D-M3-25 행 3] 최소 지원 macOS는 14이고 arm64만이다. Linux는 x86_64·arm64이고 WebKitGTK 4.1은 [가정]으로 둔다. 실측 뒤 배포판 목록을 적는다. 빌드 타깃(V5)이 여기에 묶인다.
 11. (닫힘) 프런트엔드 프레임워크와 상태 라이브러리는 React 19 + Zustand 5다(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`다.
 12. [미결] 자동 업데이트 채택(M3 이후). Tauri updater 플러그인과 서명 키 관리가 필요하다.
 13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). 이 문서는 stdio를 전제로 쓴다. S3 spike(`L4.desktop.plan` §3.1.1) 판정 [제안]: stdio를 유지하되 릴레이에 신용 기반 역압(Channel 무제어 송신은 지속 대용량에서 정지했다), 락 밖 비동기 stdin 쓰기, 세대별 줄 버퍼를 둔다. 세 조건은 M2 DESK.2에서 `relay.rs`에 구현됐고(`L4.desktop.plan` §3.2.1), Linux/WSL2에서 32 MB 연속 송신이 손실·중복 없이 지났다. macOS·Windows 재측정 뒤 확정한다.
@@ -713,3 +713,4 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 15. (닫힘, M2 첫 실행 M-12) 사이드카 연결에서 모델 키 값을 받는 수단은 Rust 셸이 번들된 `xeon secret add|set <이름>`을 한 번 실행하고 값을 그 stdin에 한 번 쓰는 길이다(§4.14.1). 값 없는 `secret.beginEntry`는 호스트가 받을 수 있는 연결(서비스, M3)에서만 쓰이고 사이드카는 이 경로로 화면 안의 등록 창을 연다. 받아들인 약점(값이 DOM, JS 문자열, Tauri IPC 본문을 지남)은 §4.14.1에 적었다. 남은 [미결]: (a) 실행 중인 사이드카 엔진이 별도 프로세스가 쓴 등록을 `secret.list`에서 곧바로 보는지는 실제 기기에서 확인하지 않았다(화면은 등록 뒤 `secret.list`를 다시 읽는다). (b) 등록이 `not_registered`로 실패하는 호스트 쪽 원인(`l0.secrets.sops.files` 기본값 `[]`, `L0.secrets.spec` §10 4번, HS-45 `newMeta`)은 이 앱이 아니라 호스트가 고쳐야 한다. 이 경로는 자식의 오류 문구를 그대로 보인다.
 16. (닫힘, M2 마감 G2-07) 외부 바이너리 점검 결과를 전하는 길은 `host.status`의 `includeBinaries` 요청과 결과의 `binaries`다(F 변경, `L4.host-service.spec` HS-69). 앱이 보고서를 주입하던 방식은 없앴다(§4.14).
 17. [미결] 새 대화의 작업 폴더를 고르는 운영체제 폴더 선택 창. 지금은 경로를 입력한다(§4.16). `tauri-plugin-dialog`를 더하면 Cargo 의존과 capability(`dialog:allow-open`, 디렉터리만)가 늘고 `Cargo.lock`이 바뀐다. V1(§4.11)의 "셸 명령으로 감싸 쓴다"를 따르고 macOS에서 확인한다. [가정] capability 이름은 플러그인 문서로 확인하지 않았다.
+18. [결정: adr.0016] 화면 문자열은 react-intl과 `packages/client`의 ko·en 카탈로그(ICU MessageFormat)로 만든다. 로케일은 `ui.locale`(기본 auto: OS 로케일, 없으면 영어)이고 날짜·숫자는 `Intl`로 표시한다. 엔진 오류는 `kind`와 인자로 받아 화면이 문장을 만든다. 지금 소스의 하드코딩 한국어 문자열 이전은 M3 작업이다(`review.m3-plan` M3-39).

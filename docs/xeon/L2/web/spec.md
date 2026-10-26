@@ -1753,17 +1753,17 @@ export const webSettings = defineSettings("l2.web", {
    - (c) 메인 턴의 hosted 결과(`HostedSearchResponse` 모양)를 `normalizeHostedSearch`로 넘기는 경로가 없다. L4 인용 렌더링에 쓰려면 F에 이벤트나 레코드가 필요하다.
    - 풀려면 다음 중 하나가 필요하다. 어느 쪽이든 M2 범위 밖이라 `m3-plan`으로 넘긴다. 1) pi-ai 어댑터 패치(서버 도구 블록을 content에 싣고 이력 변환에서 되돌린다), 2) F `AssistantMessage` 확장 또는 provider 불투명 블록 레코드와 루프의 `pause_turn` 이어 요청. 둘 다 F 계약이나 vendor 변경이다.
    - 영향: 기능 손실은 없다. 기본 설정(체인이 래퍼뿐)에서 모델의 검색이 `web_search` 함수 도구 → 내장 래퍼 경로로 처리되어 검색마다 모델 호출이 하나 더 든다(§4.8.1 B안의 단점). `l2.web.search.modelTool`의 `hosted`와 `auto`는 지금 `function`과 같게 동작한다.
-4. [미결] 선택 순서 3·4번(키 플러그인과 설정한 SearXNG 중 먼저 쓸 것). 제안은 플러그인 우선이다. ADR-0005 §6에서 승계한다(§4.8.2).
+4. [결정: review.m3-design-inputs D-M3-23 행 1] 자동 선택 순서는 사용자가 설정 화면에서 끌어 옮겨 정한다. 목록은 등록된 검색 도구 전부이고 기본 웹 검색 도구를 포함한다. 플러그인은 기본 후순위다. 여러 provider 동시 질의를 기본 기능으로 둔다. 선택 체인(§4.8.2) 본문은 M3 작업에서 이 규칙으로 고친다.
 5. 닫힘. 자동 감지는 없앴고 사용자가 주소를 설정한 SearXNG만 후보다(사용자 결정 H1, 2026-10-25, ADR-0005 §3.3 개정, §4.8.3). 설정한 주소의 탐침 형식은 §4.8.3이다.
-6. [미결] robots.txt를 사용자 대행 단건 fetch에도 적용할지. 제안은 자동 수집에만 적용이다. 공개 릴리즈 전에 다시 정한다(§4.7).
+6. [결정: review.m3-design-inputs D-M3-23 행 4] robots.txt는 기본으로 따르지 않고, 설정으로 따르게 할 수 있다(§4.7). 크롤링 자동화는 사용자 프로그램과 플러그인의 영역이다.
 7. [미결] 세션당 호출 상한 카운터의 영속화. 제안은 프로세스 메모리다(§4.4.4).
 8. [미결] 브라우저 트래픽 필터를 `cap-web` 로컬 프록시로 할지 `L0.sandbox`의 네트워크 필터로 할지(§4.10.2). playwright-local에서 `allowedDomains`를 강제하는 방법은 선행 조사에서도 확인되지 않았다(`_research/notes/L2-2.md` §6).
-9. [미결] Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다.
+9. [미결] 기본 브라우저 provider는 Stagehand(Browserbase, MIT, TS 라이브러리 + MCP)다. Playwright MCP는 후보이고 Aside·Ego Lite는 공식 API가 생기면 어댑터를 둔다 [결정: review.m3-design-inputs D-M3-23]. §4.10의 `playwright-local` 설계는 Stagehand provider로 고치는 M3 작업에서 다시 쓴다. 남은 질문: Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다.
 10. [미결] `web.research` 실행 기록의 영속화와 재개(2차, §4.11.4).
 11. [미결] provider 선택 키의 값 목록 표시. 플러그인 설치 상태에 따라 바뀌는 선택지를 `SettingDef`로 표현하는 방법(`L4.settings-ui.spec`과 함께, §6).
 12. [미결] 기본 추출기. 제안은 readability 0.6.0 + linkedom 0.18.13이고 defuddle 0.19.5는 설정으로 고른다. 우리 샘플 페이지로 비교 측정한 뒤 정한다(`_research/web-tools.md` §2.3 "측정마다 순위가 뒤집힌다").
 13. [미결] `none` 결과의 영속 사본(발췌 삭제)을 적용하는 위치와 재개 때 프롬프트 캐시 영향(§4.3.4).
-14. [미결] Parallel을 첫 실행 권장 목록에 넣을지(ADR-0005 §6 승계).
+14. [결정: review.m3-design-inputs D-M3-23 행 2·3] Parallel과 Jina는 넣지 않는다. 키 플러그인은 첫 사용 때 고지한다(행 5).
 15. [가정] SearXNG를 수정 없이 별도 프로세스로 쓰면 AGPL 배포 의무가 없다. 법률 확인 전에는 번들하지 않는다(ADR-0005 §3.1).
 16. [가정] 래퍼 1회 약 $0.011, 지연 미측정(ADR-0005 §3.2, §6).
 17. 소스는 확인함(`L2.web.plan` §8.2). 0.1.x 신생 패키지이고 Bun 런타임에서의 동작은 실행으로 확인하지 못했다 [미결](`L2.web.plan` §8.3).

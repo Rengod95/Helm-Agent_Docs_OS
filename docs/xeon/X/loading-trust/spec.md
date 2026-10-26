@@ -32,7 +32,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 - 확장 설정 연결과 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, X 층 키 `x.loading-trust.*`
 - 신뢰 등급 4값의 뜻과 허용 연산 표, 프로젝트 신뢰 판정과 저장
 - 프로세스 격리(2차)의 전송, 프록시, 직렬화, 수명, 기록 경로
-- pi 확장 어댑터의 범위와 지원 표, 가상 모듈 처리
+- pi 확장 어댑터의 범위와 지원 표, 가상 모듈 처리. 어댑터는 만들지 않기로 했다 [결정: review.m3-design-inputs D-M3-11 c](§4.10)
 - `project_trust`, `resources_discover` 지점의 발화 시점(F.extensions.spec §7)
 
 다루지 않는 것:
@@ -1024,7 +1024,9 @@ flowchart LR
 - 대기 중에 들어온 디스패치는 프로세스가 없으므로 즉시 예외로 처리한다.
 - 호스트 종료(`ExtensionLoader.dispose`) 때는 `xeon/iso.dispose`를 보내고 `killGraceMs` 뒤 `SIGKILL`한다. 서비스 모드의 유휴 종료도 같은 경로를 쓴다(adr.0006 §3.4).
 
-### 4.10 pi 확장 어댑터 (M2 이후)
+### 4.10 pi 확장 어댑터 (만들지 않음)
+
+[결정: review.m3-design-inputs D-M3-11 c] pi 확장 호환은 두지 않는다. 외부 확장은 자체 확장 API(`.xeon-plugin/plugin.json` 매니페스트와 `ExtensionEntry`)로만 싣는다. 그래서 아래 §4.10.1~§4.10.6의 어댑터, `PI_COMPAT_TABLE`, pi 가상 모듈, §4.2.1 표의 pi 디렉터리 두 행, 설정 `x.loading-trust.piCompat`은 만들지 않는다. 절은 검토 기록으로 남긴다. 가상 모듈 등록 수단(`VirtualModuleRegistry`)은 자체 SDK 모듈(`@xeon/contracts`, `@xeon/group-kit`, `typebox`)을 플러그인 번들에 주는 용도로만 쓴다 [제안](`review.m3-lower-requirements` M3-REQ-110). 이 수단으로 기본 플러그인 Helm(`review.m3-design-inputs` D-M3-01 c)이 호스트와 같은 SDK 인스턴스를 쓴다.
 
 #### 4.10.1 범위
 
@@ -1262,15 +1264,16 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 2. [미결] 엔트리 export 형태. F.extensions.spec §3.2는 `ExtensionEntry`를 default export로 적었고, Xeon lint는 default export를 막는다. [제안] 내장은 named `extension`, 외부는 `default` 또는 `extension`을 허용한다. F 주석 수정 요청.
 3. [미결] F `validateManifest`의 `name_reserved` 판정이 매니페스트 `trust.level`에만 의존한다. [제안] F가 설치 위치를 인자로 받거나, 로더의 `trust_exceeds_source` 검사를 정본으로 둔다. F 수정 요청.
 4. [미결] `untrusted` 처리(§4.6.3). [제안] 로드하지 않음. 격리와 샌드박스를 함께 쓰는 경로가 생기면 격리 강제를 다시 검토한다.
-5. [미결] 프로젝트 설정 파일 중 `ext.*`, `x.loading-trust.*` 밖의 키를 신뢰 전에 적용할지(§4.7.4). pi는 프로젝트 설정 전체를 막는다.
+5. [결정: review.m3-design-inputs D-M3-31 행 3] 프로젝트 설정 파일의 키는 `ext.*`, `x.loading-trust.*` 밖의 것도 신뢰 뒤에만 적용한다(§4.7.4). pi와 같다.
 6. [미결] 로드 진단을 내구·휘발 이벤트로 낼지와 type 접두(`ext.`/`extension.`). F.records.spec과 eng.context-map.design 변경이 필요하다.
-7. [미결] "이번 세션만" 신뢰의 범위. [제안] 호스트 프로세스 수명. 서비스 모드에서 thread·클라이언트 단위로 좁힐지.
+7. [결정: review.m3-design-inputs D-M3-31 행 3] "이번 세션만" 신뢰의 범위는 호스트 프로세스 수명이다. 서비스 모드에서도 thread·클라이언트 단위로 좁히지 않는다.
 8. [미결] 격리 확장의 drive 허용(§4.9.5). [제안] 1차 격리에서는 금지.
-9. [미결] pi `pi-coding-agent` 도구 팩토리 15종의 대응(L1.tools·L2.workspace 계약과 연결). 1차는 비지원.
+9. (닫힘) pi `pi-coding-agent` 도구 팩토리 15종의 대응. pi 어댑터를 만들지 않으므로 대상이 없다 [결정: review.m3-design-inputs D-M3-11 c].
 10. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다. pi 확장과 워크스페이스가 같은 판이라 가상 모듈 `typebox`가 pi 확장에 같은 판을 준다.
 11. [미결] eng.context-map.design §4.1이 ext-host 소유 데이터로 `xh_*`(신뢰 결정, 설치·신뢰 등급)를 적었다. 이 문서는 신뢰 결정을 사용자 영역 파일(`<userDir>/trust.json`)에 둔다 [제안]. DB 테이블을 둘지, context-map 표를 고칠지 정해야 한다.
 12. [미결] 서비스 모드에서 프로젝트 확장의 단위. 여러 작업 폴더를 동시에 여는 서비스 프로세스에서 프로젝트 확장을 작업 폴더별로 따로 로드할지, 프롬프트를 어느 클라이언트에 보낼지. [제안] 작업 폴더를 처음 여는 thread 시점에 판정하고, 프롬프트는 그 thread를 연 연결로 보낸다. wire 방식은 승인 요청과 같은 A안(내구 이벤트 `approval.requested` + 호스트 메서드 `approval.respond`, [결정: review.decisions-2 U-02])을 따른다. 남은 결정은 프로젝트 확장의 로드 단위다.
 13. (해소) 이벤트 kind 접두는 F 규칙 `x.<name>.`/`grp.<name>.`이다([결정: review.decisions-2 T-21]). 이 문서는 `x.<name>.pi.entry`를 쓴다.
 14. [미결] eng.dependency-rules.guide DR-07 표에 `vscode-jsonrpc` → `ext-host` 행 추가 요청.
 15. [가정] Bun 직접 `import()`가 `bun build --compile` 바이너리에서 외부 `.ts`를 불러오는지, `Bun.plugin` 모듈 등록이 가상 모듈로 동작하는지, 질의 접미로 캐시를 피할 수 있는지. 확인 전이다.
-16. [미결] adr.0009로 pi-agent-core 의존이 없어졌다. 가상 모듈 `@earendil-works/pi-agent-core`(pi 확장 호환)를 계속 제공할지, 제공하면 F `AgentTool` 등 타입 별칭을 둘지(adr.0009 §6). 1차는 비지원으로 둔다 [제안].
+16. (닫힘) pi 가상 모듈은 제공하지 않는다 [결정: review.m3-design-inputs D-M3-11 c]. 이전 기록: adr.0009로 pi-agent-core 의존이 없어졌다. 가상 모듈 `@earendil-works/pi-agent-core`(pi 확장 호환)를 계속 제공할지, 제공하면 F `AgentTool` 등 타입 별칭을 둘지(adr.0009 §6). 1차는 비지원으로 둔다 [제안].
+17. [미결] 기본 플러그인(Helm) 설치 경로. [제안] 릴리즈 자원 디렉터리의 플러그인 산출물을 첫 실행 때 `<userDir>/extensions/helm/`에 복사하고, 앱이 갱신되면 설치본이 원본 해시와 같을 때만 교체한다(`review.m3-design-inputs` D-M3-01 c, `review.m3-lower-requirements` M3-REQ-110). 설치 위치가 `user`라 신뢰 상한은 `user`이고, `user` 등급은 `on`·`post`·`drive`를 쓸 수 있다(§4.6.2).

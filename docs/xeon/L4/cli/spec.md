@@ -27,7 +27,7 @@ binds: [xeon/apps/cli/**]
 ### 1.2 다루지 않는 것
 
 - 엔진 조립(Cordis 호스트, 플러그인 등록, 저장소 열기), 전송 구현, 서비스 수명(등록 파일, `ensure`, 유휴 종료): `L4.host-service.spec`.
-- 설정 화면(데스크톱 12탭): `L4.settings-ui.spec`. CLI의 TUI 설정 화면도 [미결](§4.9, §10).
+- 설정 화면(데스크톱 12탭): `L4.settings-ui.spec`. CLI의 TUI 설정 화면은 지금 만들지 않되, 나중에 만들 수 있게 view-model을 `packages/client`에 둔다 [결정: review.m3-design-inputs D-M3-30 행 3, adr.0020](§4.9, §10).
 - 데스크톱 셸: `L4.desktop.spec`.
 - 비밀 값의 저장·해석·마스킹: `L0.secrets.spec`. CLI는 명령 입구와 출력 규칙만 정한다.
 - 승인 요청 payload의 모양: `L1.tools.spec`. CLI는 표시와 응답 규칙만 정한다.
@@ -224,7 +224,7 @@ export declare function parseArgv(
 
 ### 3.3 엔진 연결: `@xeon/host` API 조합
 
-[결정] UI는 엔진 객체를 직접 다루지 않고 호스트 계약만 쓴다(adr.0006 §3.2). [제안] CLI는 `@xeon/host`의 공개 진입점(`.`, `./client`)이 내는 함수를 조합해 연결을 만든다. `EngineConnector`, `StdioHostRunner`, `ServiceControl` 같은 이름은 `@xeon/host`에 없다. 연결 타입과 오류 문구는 CLI 안의 이름이다(`L4.host-service.spec` §3.3.5). `apps/cli` → `@xeon/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1, 사용자 승인 전 [미결 §10 1번]).
+[결정] UI는 엔진 객체를 직접 다루지 않고 호스트 계약만 쓴다(adr.0006 §3.2). [제안] CLI는 `@xeon/host`의 공개 진입점(`.`)과 L4 공유 패키지 `@xeon/client`(연결 코드 `createHostConnection`, [결정: adr.0020])가 내는 함수를 조합해 연결을 만든다. M2의 `@xeon/host/client` 서브패스는 M3에 `@xeon/client`로 옮긴다. `EngineConnector`, `StdioHostRunner`, `ServiceControl` 같은 이름은 `@xeon/host`에 없다. 연결 타입과 오류 문구는 CLI 안의 이름이다(`L4.host-service.spec` §3.3.5). `apps/cli` → `@xeon/host` import는 허용 목록 `DR-10/cli-host`로 연다(`L4.host-service.spec` §3.1, 사용자 승인 전 [미결 §10 1번]).
 
 | CLI 경로 | 쓰는 `@xeon/host` API | `L4.host-service.plan` 작업 |
 |---|---|---|
@@ -672,7 +672,7 @@ export type CliState = Static<typeof CliStateSchema>;
 
 #### 4.9.4 설정 화면
 
-- [미결] TUI 안의 설정 화면(pi `/settings`, omp `/settings`에 해당)을 만들지 정하지 않았다. 만들면 설정 화면의 view-model(탭 배치, 위젯 결정, 범위 배지)을 데스크톱 `settings-ui`와 공유해야 하고, 공유 위치는 앱끼리 import 금지(DR-10) 때문에 L4 아래 층이 되어야 한다. M3의 선택 작업으로 둔다.
+- [결정: review.m3-design-inputs D-M3-30 행 3] TUI 안의 설정 화면(pi `/settings`, omp `/settings`에 해당)은 M3에 만들지 않는다. 설정은 `xeon config` 명령과 데스크톱 화면으로 바꾼다. 나중에 만들 수 있게 설정 view-model(탭 배치, 위젯 결정, 범위 배지)은 L4 공유 패키지 `packages/client`에 둔다 [결정: adr.0020].
 
 ### 4.10 오류 문구
 
@@ -708,7 +708,7 @@ export type CliState = Static<typeof CliStateSchema>;
   1. `approval.requested` 내구 이벤트가 오면 `ApprovalView`를 만들고 프롬프트를 연다. 선택지는 허용, 거부, 답(질문형일 때)이고 기억 범위는 이번만(`once`), 이 세션(`thread`), 항상(`always`)이다.
   2. 사용자의 선택을 `approval.respond { approvalId, decision, answer?, remember? }`로 보낸다.
   3. `approval.resolved` 이벤트가 오면 프롬프트를 닫는다. 다른 클라이언트가 먼저 답한 경우도 같다.
-  4. print 모드는 프롬프트를 열 수 없으므로 `decision: "deny"`로 답하고 stderr에 한 줄 알린다 [제안]. 비대화 자동 승인 플래그를 둘지는 [미결 §10 8번].
+  4. print 모드는 프롬프트를 열 수 없으므로 `decision: "deny"`로 답하고 stderr에 한 줄 알린다 [제안]. M3에서는 사전 허용 규칙을 먼저 적용하고, 전체 자동 승인 플래그를 옵션으로 둔다 [결정: review.m3-design-inputs D-M3-14](§10 8번).
   5. payload 모양은 `L1.tools.spec` 소관이다. CLI는 제목·본문·질문 여부만 읽는다.
   6. 구현 (대화형 줄 입력): 요청 payload의 `remember`가 허용하는 범위만 보인다.
      - 도구: `[y]` 이번만 허용, `[t]` 이 세션 동안 허용(`thread`가 있을 때), `[a]` 항상 허용(`always`가 있을 때), `[n]` 거부. `n` 뒤에 이유를 받아 있으면 `answer: { feedback }`으로 보낸다.
@@ -861,13 +861,14 @@ export type CliState = Static<typeof CliStateSchema>;
 4. [미결] `type`에 `range`를 병합하는 함수를 F에 공통으로 둘지(`_research/notes/L4-3.md`). `config schema`는 wire 없이 로컬 명령(`L4.host-service.spec` §6.2)으로 정해져 F 변경 요청에서 뺐다.
 5. [결정: M2 임시] `doctor`의 진단 경로. FTS5 검사(TC-11)는 `platform-store` 안에만 둔다. M2는 CLI가 `connectEngine`의 성공·실패(`EngineStartError`), `secret.list`, `settings.get`으로 판정한다(§4.7.1). 조립 진입점이 진단 함수를 내거나 F에 `host.diagnose`를 더하면 그쪽으로 옮긴다. 비밀 저장소의 sops·age 판정은 `secret.list` 오류 kind(`provider_unavailable`, `key_unavailable`)에 기대므로 sops가 없어도 목록 조회가 오류 없이 끝나는 구성이면 항목이 `ok`로 나올 수 있다 [가정].
 6. [결정: review.m2-plan §8 D10] pi-tui 채택은 M2 스파이크의 한글 IME·CJK 폭 확인 통과를 조건으로 한다(§4.9.2). 실패하면 최소 renderer로 유지한다. M2 종료 조건이 아니다. 스파이크 결과(2026-10-24, `L4.cli.plan` §4.4): CJK 폭, IME 확정 입력, 하드웨어 커서 위치, 줄바꿈의 자동 확인은 모두 통과했다. 실제 터미널(macOS·Linux·WSL)의 한국어 IME 확인과 Bun 1.4.3 `--compile` 실행 확인이 남아 채택을 보류하고 최소 renderer를 유지한다. 최소 renderer의 진행 줄이 문자 수로 잘리던 문제는 칸 수 기준으로 고쳤다.
-7. [미결] 릴리즈 형태: 단일 파일만 배포할지, pi처럼 `native/` 사이드카 디렉터리를 함께 둘지(`_research/notes/L4-1.md` §5). macOS 공증 때 사이드카 `.node`와 FTS5 dylib의 서명 위치는 `_research/notes/L4-2.md`가 다룬다.
-8. [결정: M2] print 모드에서 승인 요청이 오면 거부로 답하고 stderr에 한 줄 알린다(§4.11 4번). [미결] 비대화 자동 승인 플래그를 둘지.
+7. [결정: review.m3-design-inputs D-M3-25 행 4] 릴리즈 형태는 단일 파일이다. native 모듈이 꼭 필요하면 옆 디렉터리를 쓴다. 이전 질문: 단일 파일만 배포할지, pi처럼 `native/` 사이드카 디렉터리를 함께 둘지(`_research/notes/L4-1.md` §5). macOS 공증 때 사이드카 `.node`와 FTS5 dylib의 서명 위치는 `_research/notes/L4-2.md`가 다룬다.
+8. [결정: M2] print 모드에서 승인 요청이 오면 거부로 답하고 stderr에 한 줄 알린다(§4.11 4번). [결정: review.m3-design-inputs D-M3-14] M3 기본은 L1.tools 사전 허용 규칙만 적용하고 나머지는 거부한다. 전체 자동 승인 플래그(모두 허용, 이름 [제안] `--yes-all`)를 옵션으로 둔다.
 9. [결정: review.decisions-2 U-02] 승인 요청은 A안(내구 이벤트 `approval.requested`/`approval.resolved` + `approval.respond`)이다. kind는 F.records 카탈로그에 있다(`F.records.spec` §3.2).
-10. [미결] TUI 설정 화면과 view-model 공유 위치(§4.9.4).
+10. [결정: review.m3-design-inputs D-M3-30 행 3, adr.0020] TUI 설정 화면은 M3에 만들지 않는다. view-model 공유 위치는 `packages/client`다(§4.9.4).
 11. [미결] stdout EPIPE의 종료 코드(0 제안)와 129·143 추가.
 12. [결정: m2c G1-07] `secret test`의 출력. F 결과에 `decryptable`, `length`, `sha256Prefix`가 더해져서 §4.7대로 출력한다.
 13. [미결] 설정 값 사전 검사(§4.8). `settings.list`의 `SettingDefWire`는 `type`이 JSON Schema 객체라 `validateSettingValue`(TSchema 입력)를 바로 부를 수 없고, CLI에서 `Type.Unsafe(json)`을 쓰면 TY-26을 어긴다. F가 `SettingDefWire`를 받는 검사 함수를 내면 `config set`이 왕복 전에 범위 오류를 알릴 수 있다. 그 전까지 값 판정은 호스트의 `settings.set`이 한다(오류 문구는 §4.10 표).
 14. [결정: m2c G1-07] 비밀 삭제 전 참조 표시. `secret.references`로 설정 키, 활성 lease 수, 최근 사용한 세션을 보인다(§4.7 `rm`).
 15. [미결] 끊긴 turn을 연 세션의 질문 순서. 실제 호스트는 쓰기 소유를 얻을 때 미해결 승인을 되살리므로(`L4.host-service.spec` HS-52) 승인 카드가 `이어서 실행할까요? [y/N]`보다 먼저 선다. 이어 실행을 먼저 묻고 승인 카드를 그 뒤로 미루려면 승인 프롬프트를 이어 실행 질문이 끝날 때까지 붙잡는 장치가 CLI에 필요하다. 지금은 두 질문이 같은 입력 줄을 순서대로 쓰고 어느 쪽으로도 잘못 응답되지 않는다(`turn-resume-host.int.test.ts`). 작성자 결정.
 16. [미결] `settings.invalidated` 구독(M2 마감 재검토 T6 메모). 이 문서가 M2에 요구하는 동작은 "시작할 때 `settings.list`와 `command.list`를 한 번 읽는다"(§4.12)이고 CLI는 알림을 구독하지 않는다. 대화 중에 다른 연결이 설정이나 신뢰를 바꾸면 Tab 완성의 키 목록과 엔진 명령 목록이 낡는다. 알림을 받아 두 목록을 다시 읽는 일은 M3에 한다(`L4.cli.plan` §4.6 끝 항목).
+17. [결정: adr.0016] CLI 출력 문장은 `@formatjs/intl`과 `packages/client`의 ko·en 카탈로그로 만든다. 로케일은 `ui.locale`(기본 auto, OS 로케일, 영어 폴백)을 따른다. 지금 소스에 하드코딩된 한국어 문자열의 이전은 M3 작업이다(`review.m3-plan` M3-39).

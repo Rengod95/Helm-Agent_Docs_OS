@@ -570,8 +570,9 @@ export declare function reduceSettings(state: SettingsState, action: SettingsAct
 | 모델 역할 표 | models | 용도별 라우팅(`L1.models.spec`) | 역할 행 고정, 모델 선택 목록, 추론 레벨과 토큰 예산을 한 행에 |
 | 폴백 체인 | models | 폴백 체인(`L1.models.spec`) | 순서 끌어 옮기기, 발동 조건 설명 |
 | 권한 규칙 편집기 | permissions | 권한 규칙(`L1.tools.spec`) | 허용·거부·질문 열, 규칙 충돌 표시 |
-| 샌드박스 경로·도메인 목록 | permissions | 쓰기 경로, 허용 도메인(`L0.sandbox.spec`) | 차단 우선 표시, 경로 형식 검사 |
-| 계정 풀 | providers | 계정 목록, 우선순위, 예약 %(`L1.models.spec`) | 순위 끌어 옮기기, 키 참조는 `secret` 위젯 |
+| 샌드박스 경로·도메인 목록 | permissions | 쓰기 경로, 차단 도메인(`L0.sandbox.spec`. 네트워크 기본 허용 + 차단 목록, [결정: review.m3-design-inputs D-M3-18]) | 차단 우선 표시, 경로 형식 검사 |
+| 검색 도구 순서 | tools | 자동 선택 순서(`L2.web.spec`) | 등록된 검색 도구 목록(기본 웹 검색 도구 포함)을 끌어 옮겨 순서를 정한다. 플러그인은 기본 후순위다 [결정: review.m3-design-inputs D-M3-23] |
+| 계정 풀 | providers | 계정 목록, 우선순위, 예약 %(`L1.models.spec`). API 키 계정과 구독 계정 모두. 회전은 기본 꺼짐이고 켤 때 첫 사용 고지(약관 위험)를 보인다 [결정: review.m3-design-inputs D-M3-22] | 순위 끌어 옮기기, 키 참조는 `secret` 위젯 |
 
 - 전용 편집기를 고르는 기준은 키 이름이다(예: 정의 키가 정해진 목록에 있음). [미결] 키 이름에 묶는 대신 F `SettingUi`에 편집기 힌트 필드를 더할지(§10 미결 8).
 
@@ -828,7 +829,7 @@ sequenceDiagram
 - 항목 라벨은 `SettingDef.ui.label`, 설명은 `ui.help`, 단위는 `ui.unit`을 그대로 쓴다. 설정 화면이 라벨을 다시 짓지 않는다.
 - 탭 라벨(§4.1.1), 배지 글자, 오류·안내 문구는 settings-ui가 소유한다.
 - [제안] UI 문구는 한 형식으로 맞춘다. 문장 문구(오류, 안내, 빈 탭 이유)는 해요체로 쓰고, 라벨·배지·버튼은 명사(구)로 쓴다. 문서 본문의 한다체 규칙은 UI 문구 예에 적용하지 않는다.
-- [미결] i18n 방침. `SettingUi.label`은 문자열 하나이고 언어별 값을 담는 필드가 없다. 키 소유 층이 한국어로 적을지, 메시지 카탈로그 키를 둘지 정해야 한다(§10 미결 9).
+- [결정: adr.0016] `SettingUi.label`·`ui.help`는 메시지 키(생성 TS id)로 바꾸고 ko·en 카탈로그(ICU MessageFormat, JSON)는 `packages/client`에 둔다. 화면은 react-intl로 문장을 만들고 로케일은 `ui.locale`(기본 auto: OS 로케일, 없으면 영어)이다(`review.m3-lower-requirements` M3-REQ-21).
 
 #### 4.8.3 관리 잠금 문구 규칙
 
@@ -855,7 +856,7 @@ sequenceDiagram
 
 | 항목 | 내용 | 원천 |
 |---|---|---|
-| 검색 provider 상태 | 현재 `l2.web.search.provider` 유효 값, `auto`이면 설정에서 정해지는 체인(키를 등록한 플러그인, 주소를 설정한 SearXNG, 내장 검색 래퍼 순) | `settings.get`, `L2.web.spec` §4.8.2 선택 체인 |
+| 검색 provider 상태 | 현재 `l2.web.search.provider` 유효 값, `auto`이면 사용자가 끌어 옮겨 정한 순서(기본 웹 검색 도구 포함, 플러그인 기본 후순위) [결정: review.m3-design-inputs D-M3-23] | `settings.get`, `L2.web.spec` §4.8.2 선택 체인 |
 | SearXNG 주소 | `l2.web.search.searxng.url` 입력란. 비어 있으면 SearXNG는 체인에 들어가지 않는다 | `settings.get`·`settings.set`, `L2.web.spec` §4.8.3 설정한 SearXNG |
 | 권장 목록 | 무료 크레딧 API 플러그인(Exa, Brave)과 월 크레딧 안내, 키 등록 버튼 | ADR-0005 §3.1 ④, 키 등록은 §4.6 C안 경로 |
 
@@ -947,10 +948,10 @@ sequenceDiagram
 6. [결정: review.decisions-2 U-04] 파일 단위 편집기의 `settings.readFile`·`settings.writeFile`, 모르는 키 목록, "파일 열기" 동작 제공 여부(§4.2.3, §4.3.5)는 M1에 넣지 않고 M2 계획에서 정한다.
 7. [미결] 검사용 병합 함수 `toValueJsonSchema`를 F에 둘지, `settings.list`가 병합한 `type`을 실을지(`_research/notes/L4-3.md` §4 P1, `L4.host-service.spec` §10 미결 11과 같은 항목). 두면 settings-ui의 같은 이름 함수를 지우고 F 것을 쓴다. 그 전까지는 settings-ui에 두고 계약 테스트로 F `settingsJsonSchema`와 같은지 확인한다.
 8. [미결] `SettingsTab` enum과 `SettingUi` 변경. 현재 변경은 필요 없다고 본다. 전용 편집기 힌트 필드를 더할지, 탭을 더할지는 M3 전용 편집기 작업 때 F 부 버전 변경 요청으로 올린다(§4.1.2, §4.2.4).
-9. [미결] i18n 방침. `ui.label`·`ui.help`의 언어와 메시지 카탈로그 여부(§4.8.2).
+9. [결정: adr.0016] i18n 방침. `ui.label`·`ui.help`는 메시지 키이고 ko·en 카탈로그를 `packages/client`에 둔다(§4.8.2).
 10. [미결] 관리 잠금 사유 문구를 F에 실을지(§4.8.3).
-11. [미결] 설정 화면 코드 위치. `architecture.layers.spec` §10과 같은 항목. 제안은 `apps/desktop/src/settings` 유지(§4.9).
-12. [미결] CLI와 view-model 공유 위치(DR-10, §4.9).
+11. [결정: adr.0020] 설정 화면 렌더러는 `apps/desktop/src/settings`에 두고, view-model(`settings/model`)은 `packages/client`로 옮긴다(§4.9).
+12. [결정: adr.0020] CLI와 view-model 공유 위치는 `packages/client`다(`DR-10/cli-client`, `DR-10/desktop-client`). CLI의 TUI 설정 화면은 M3에 만들지 않는다 [결정: review.m3-design-inputs D-M3-30 행 3].
 13. [미결] 확장의 맞춤 설정 패널 허용 여부와 시점(§7).
 14. 닫음: project·local 범위 쓰기에서 열린 프로젝트가 없을 때의 오류는 3103 `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"`다(`L4.host-service.spec` §3.4 `settings.set` 행). §4.4.4 표와 §5에 반영했다.
 15. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다(`F.wire-settings.spec` §10 6번). 클라이언트 `Check`와 서버 검사가 catalog의 같은 사본을 써서 AC11이 성립한다.

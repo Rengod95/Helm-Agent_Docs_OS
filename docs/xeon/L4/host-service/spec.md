@@ -1151,12 +1151,12 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 2. [미결] 바이너리 구성. 단일 `xeon`(제안)과 `apps/host` 단독 사이드카 중 선택(§3.2). 사용자 확인.
 3. [미결] 문서 수정 요청: `eng.toolchain.guide` TC-10과 같은 문서 §2 바이너리 행, `xeon/apps/desktop/README.md`의 사이드카 문구(§3.2). 2번이 확정되면 작성자가 고친다.
 4. [결정: review.decisions-2 U-11] 원격 사용은 M3이고 로컬 서비스 소켓을 SSH 터널·사설망으로 연결한다. 내장 TLS + 토큰 WebSocket은 2차다(§4.11).
-5. [미결] 데스크톱 TS 코드가 `@xeon/host/client`(엔진 없는 클라이언트 구현)를 import할지. DR-10 예외를 하나 더 여는 일이다. 다른 안은 `createHostConnection`을 F 아래 층으로 옮기는 것이다. F는 타이머·상태를 쓰는 런타임 로직을 두지 않으므로(F.readme §1) F 변경이 필요하다. `L4.desktop.spec`과 함께 정한다.
-6. [미결] 승인 대기 세션을 유휴 종료 판정에서 live로 볼지(ADR-0006 §6). 제안은 live(SV-04).
+5. [결정: adr.0020] 클라이언트 연결 코드(`createHostConnection`)와 설정 view-model, CLI·데스크톱 공유 로직은 새 L4 공유 패키지 `xeon/packages/client`(`@xeon/client`, F만 import)로 옮긴다(`review.m3-design-inputs` D-M3-26 b 변형). `@xeon/host/client` 서브패스는 두지 않고, F는 런타임 로직 없는 계약으로 둔다. `apps/cli`·`apps/desktop` → `@xeon/client`는 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`다(`architecture.layers.spec` §3.2).
+6. [결정: review.m3-design-inputs D-M3-13 행 2] 승인 대기 세션은 유휴 종료 판정에서 live다(SV-04).
 7. [미결] 등록 파일 스키마의 정본 위치. 이 문서(§3.5)와 `L0.process.spec` 중 하나로 정한다. 작성자 결정(L0.process 작성자와 조율).
 8. (닫힘 m2c G1-02) 비정상 종료 표식의 "이어서 실행" 후보는 `ThreadSummary.resumable`로 알리고 `turn.resume`으로 이어 실행한다(HS-30, HS-74).
 9. (닫힘) 종료 협조용 메시지는 F `host.shutdown`(M2)이다(`F.wire-settings.spec` §4). M2 전까지 stdin 닫기로 대신한다(HS-34).
-10. [미결] 서비스 인증: Unix 소켓 + 파일 권한만으로 충분한지, 토큰을 `host.hello`에 실을지(F wire §10 미결 4). 사용자 확인. 이 문서는 F 결정에 맞춘다(SV-05).
+10. [결정: review.m3-design-inputs D-M3-16 c] 서비스 인증: 로컬 Unix 소켓은 파일 권한만 쓰고, TCP로 열 때만 `host.hello` 토큰이 필수다(SV-05). 원격 형태는 자체 호스트 서버의 호스트에 다른 기기의 데스크톱·CLI가 접속하는 것과 자기 컴퓨터에서 호스트를 켜는 것 둘이다([결정: review.m3-design-inputs D-M3-17]).
 11. [미결] `settings.list`의 `SettingDefWire.type`에 `range`를 합쳐 실을지, 병합 함수를 F에 둘지(`_research/notes/L4-3.md` §1, §4). F 변경 요청.
 12. 닫음: `xeon service ensure --json` 출력 형식(HS-38)을 `L4.desktop.spec` §4.8이 그대로 인용한다. 서비스 경로 진입 판정은 `xeon service launch-mode --json`(§3.2)으로 맞췄다.
 13. [결정: review.decisions-2 U-04] F 변경 요청: 사용자 알림용 wire 알림 또는 표시 힌트 필드(HS-43). M1에 넣지 않고 M2 계획에서 정한다.

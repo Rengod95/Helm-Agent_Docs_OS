@@ -22,8 +22,8 @@ binds: [xeon/packages/ext-host/src/operations/**]
 | 2 | 실패 격리와 핸들러 시간 예산 | 1차 | §3.2~§3.3, §4.2~§4.3 |
 | 3 | 확장 전용 저장 영역 | 1차 | §3.4, §4.4 |
 | 4 | 이름 충돌 규칙 | 2차 | §3.5, §4.5 |
-| 5 | 안전 모드 | 2차 | §3.6, §4.6 |
-| 6 | 외부 훅 프로토콜 | 2차 | §3.7, §4.7 |
+| 5 | 안전 모드 | 2차. M3에 넣는다 [결정: review.m3-design-inputs D-M3-11 c] | §3.6, §4.6 |
+| 6 | 외부 훅 프로토콜 | 2차. D-M3-11 c안 원문("로더·안전 모드만")에 따라 M3 밖이다. 확인 대기는 §10 21 | §3.7, §4.7 |
 
 정하는 것:
 
@@ -69,7 +69,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 | 지역 이름 | 확장 전용 테이블 이름에서 접두를 뺀 부분 |
 | 정식 이름 (qualified name) | `<확장 이름>:<이름>` 형식의 리소스 이름. 모델 도구는 `<확장 이름>__<이름>` |
 | 짧은 이름 | 접두 없는 리소스 이름. 충돌이 없고 예약되지 않았을 때만 노출한다 |
-| 안전 모드 | 외부 확장(`user`·`project` tier), 외부 훅, L3 내장 그룹([제안], §4.6.2)을 싣지 않고 시작하는 모드 |
+| 안전 모드 | 외부 확장(`user`·`project` tier), 외부 훅, L3 내장 그룹([결정: review.m3-design-inputs D-M3-07 a], §4.6.2)을 싣지 않고 시작하는 모드 |
 | 외부 훅 | 설정에 적은 외부 명령. on 지점 하나에 stdin/stdout JSON으로 참여한다 |
 
 ## 3. 인터페이스
@@ -1056,13 +1056,13 @@ pi 어댑터에서의 처리:
 | `guard` tier(권한·샌드박스 내장 가드) | 켜짐 |
 | `core` tier(L1 코어) | 켜짐 |
 | `builtin` tier 중 L0~L2 내장 패키지(`platform-*`, `cap-*`) | 켜짐 |
-| `builtin` tier 중 L3 내장 그룹(Helm, 학습 그룹) | 꺼짐 [제안, §10 미결 19] |
-| `user`, `project` tier 확장(외부 plugin, 외부 group, pi 어댑터 확장) | 꺼짐 |
+| `builtin` tier 중 L3 내장 그룹(학습 그룹) | 꺼짐 [결정: review.m3-design-inputs D-M3-07 a] |
+| `user`, `project` tier 확장(외부 plugin, 외부 group). 기본 플러그인 Helm은 사용자 확장 위치에 설치되므로 여기에 든다([결정: review.m3-design-inputs D-M3-01 c]) | 꺼짐 |
 | 외부 훅 전체 | 꺼짐 |
 | 관리(managed) 범위 확장(2차) | 켜짐(`guard`) |
 
 - 기준: `allowedInSafeMode`는 tier가 `guard`·`core`이거나, tier가 `builtin`이고 `layer`가 `L1`·`L2`이면 참이다. 내장 L0 패키지는 on을 쓰지 않으므로 이 판정과 별개로 항상 실린다.
-- [제안] L3 내장 그룹을 끄는 이유: drive를 쓰는 그룹은 루프 진행을 바꾸므로, 복구 목적의 시작에서는 기본 루프만 남긴다. 안전 모드는 계획 v2의 "모든 확장을 끈 채 시작"(`_research/layer-plan-v2.json` X-c 안전 모드 행)을 내장 L0~L2와 보안 가드를 남기는 범위로 읽는다. Helm은 L3 기본 그룹([결정] `_research/decisions-log.md` 2026-10-21 계획 v2)이므로 안전 모드에서 기본 그룹이 빠지는 제품 동작이 된다. 사용자 확인 전이다(§10 미결 19). 확인 결과 L3 내장 그룹을 남기기로 하면 이 행과 `allowedInSafeMode`, §9 수용 기준 21을 함께 고친다.
+- [결정: review.m3-design-inputs D-M3-07 a] L3 내장 그룹을 끈다. 이유: drive를 쓰는 그룹은 루프 진행을 바꾸므로, 복구 목적의 시작에서는 기본 루프만 남긴다. 안전 모드는 계획 v2의 "모든 확장을 끈 채 시작"(`_research/layer-plan-v2.json` X-c 안전 모드 행)을 내장 L0~L2와 보안 가드를 남기는 범위로 읽는다. Helm은 L3 기본 그룹([결정] `_research/decisions-log.md` 2026-10-21 계획 v2)이므로 안전 모드에서 기본 그룹이 빠지는 제품 동작이 된다. 사용자 확인 전이다(§10 미결 19). 확인 결과 L3 내장 그룹을 남기기로 하면 이 행과 `allowedInSafeMode`, §9 수용 기준 21을 함께 고친다.
 
 #### 4.6.3 동작
 
@@ -1295,7 +1295,7 @@ pi 어댑터에서의 처리:
 18. 확장 `a`의 `bc`와 확장 `a-b`의 `c`는 다른 테이블이 되고 `parseExtTableName`이 각각의 소유 확장을 돌려준다. `dropExtension("a", true)`는 `x_a_b_c`를 지우지 않는다.
 19. `dropExtension(name, false)`는 아무것도 지우지 않고 대상 목록만 돌려준다. `true`로 부른 뒤에도 그 확장의 이벤트 행 수는 같다.
 20. 외부 확장 둘이 같은 도구 이름 `search`를 등록하면 둘 다 `<확장>__search`로 노출되고 `search`는 노출되지 않는다. 입력 순서를 바꿔도 결과가 같다. 내장 도구 이름 `read`를 외부 확장이 등록하면 `<확장>__read`로만 노출된다. 한 확장을 끄면 남은 확장이 짧은 이름을 되찾고 도구 포트에는 해제 뒤 새 이름으로 다시 등록된다(집합 판정 `exposeAll`).
-21. 안전 모드로 시작하면 `user`·`project` tier 확장, L3 내장 그룹([제안], §10 미결 19), 외부 훅이 실리지 않고 `guard`·`core`·L0~L2 내장 패키지는 실린다.
+21. 안전 모드로 시작하면 `user`·`project` tier 확장(기본 플러그인 Helm 포함), L3 내장 그룹, 외부 훅이 실리지 않고 `guard`·`core`·L0~L2 내장 패키지는 실린다.
 22. `--disable-ext acme-notes`로 시작하면 그 확장만 실리지 않고 `ext.acme-notes.enabled` 설정 값은 바뀌지 않는다.
 23. 연속 시작 실패 수가 3이면 `shouldSuggestSafeMode`가 참이다.
 24. `tool_call` 외부 훅이 exit 2로 끝나면 결정은 거부이고 `reason`은 stderr 앞 500자다. 장부에는 실패로 남지 않는다.
@@ -1326,14 +1326,15 @@ pi 어댑터에서의 처리:
 7. [미결] 자동 끄기의 영속 여부. 현재 [제안]은 프로세스 단위(재시작하면 다시 실림)다. 여러 번의 시작에서 반복해 꺼지는 확장을 `ext.<name>.enabled=false`로 기록할지, 사용자 확인을 받을지.
 8. [미결] 이벤트에서 다시 만들 수 없는 부가 데이터 테이블(보존 테이블)을 허용할지. 허용하면 `eng.context-map.design` §5.2의 "`x_`는 확장 투영기만 쓴다, 재생 가능"을 바꾸고, 직접 쓰기 경로(커밋 계획에 데이터 연산 목록을 싣는 F `CommitPlan` 확장)와 열 추가 마이그레이션(`storage/migrate.ts`)이 필요하다.
 9. [미결] `ExtQuery`의 범위 조건(`gt`, `lt`, `in`, 접두 일치)과 집계. 그리고 SQLite authorizer(§4.4.6 C안)를 `bun:sqlite`에서 쓸 수 있는지 확인.
-10. [미결] pi 어댑터 확장의 내장 도구 교체 허용 여부. pi는 같은 이름 등록으로 내장 도구를 바꾼다. 허용하면 사용자 설정(예: `ext.<name>.overrideTools`)으로 명시 허용하는 방식을 제안한다.
+10. (닫힘) pi 어댑터를 만들지 않으므로 대상이 없다 [결정: review.m3-design-inputs D-M3-11 c]. 외부 확장의 내장 도구 교체는 규칙 2대로 허용하지 않는다. 이전 질문: pi 어댑터 확장의 내장 도구 교체 허용 여부. pi는 같은 이름 등록으로 내장 도구를 바꾼다. 허용하면 사용자 설정(예: `ext.<name>.overrideTools`)으로 명시 허용하는 방식을 제안한다.
 11. [미결] 안전 모드 상태를 클라이언트에 알리는 wire 필드(`F.wire-settings.spec` 호스트 정보 메서드).
 12. 안전 모드 키 위치(해소). `L4.settings-ui.spec` "plugins" 탭 행이 안전 모드를 `x.operations.*` 아래로 적어 이 문서의 `x.operations.safeMode.*`와 같다.
 13. [미결] 외부 훅 목록의 범위 병합 규칙(이어 붙이기)이 `F.wire-settings.spec` §4.7 우선순위(높은 범위가 값을 덮어씀)와 다르다. 배열 키의 병합 규칙을 F에 둘지, 이 키만 예외로 둘지.
 14. [미결] 기본 예산 값(30초·10초·5초·1초·2초)과 자동 끄기 기준(연속 5회, 창 50회 중 10회 이상이고 50% 이상)은 실측 전 값이다. M1 스모크와 pi 예제 확장 이식 뒤 조정한다.
-15. [미결] first 지점의 fail-closed를 `session_before_*`, `project_trust`에도 적용하는 `F.extensions.spec` §10 미결과 연결된다. 그 결정이 fail-open으로 바뀌면 §4.2.4의 예산 초과 처리와 §4.7.3 표의 first 열을 그 지점에서 바꾼다.
+15. [결정: adr.0017] 실패 정책은 지점 선언이 정한다. `session_before_*`, `project_trust`, 가드레일 지점은 fail-closed이고 `session_before_compact`만 fail-open 예외다 [제안]. §4.2.4의 예산 초과 처리와 §4.7.3 표의 first 열은 지점 선언의 실패 정책 값을 따르게 고친다(`review.m3-lower-requirements` M3-REQ-108).
 16. (해소) X.primitives.spec `DispatchPolicy`(§3.4)에 선택 메서드 `onHandlerSettled(entry, activeMs)`와 `run(entry, work, outer)`를 넣었다 [제안]. 이 문서의 `DispatchPolicyExtension`은 지웠고 `OperationsPolicy`가 두 메서드를 구현한다(§3.8, §4.2.3, §4.3.2).
 17. (해소, M2 O-19) `ResourcePolicy.exposeAll`(집합 판정)을 X.primitives.spec §3.9에 더했고 `createResourcePolicy`가 구현한다(§4.5).
 18. (해소) setup 시간 예산 키는 `x.operations.budget.setupMs`다. X.loading-trust.spec §4.3.1도 같은 이름을 쓴다. 값은 `OperationsPolicy.setupBudgetMs` → `ExtHostDeps.setupBudgetMs` 경로로 primitives의 scope setup에 걸린다.
-19. [미결] 안전 모드에서 L3 내장 그룹(Helm, 학습 그룹)을 끌지(§4.6.2). [제안] 끈다. 근거는 계획 v2 X-c "모든 확장을 끈 채 시작"의 해석뿐이고, Helm이 L3 기본 그룹이므로 사용자 확인이 필요하다. 남기기로 하면 drive 그룹만 임대 없이 싣는 안도 있다.
+19. [결정: review.m3-design-inputs D-M3-07 a] 안전 모드에서 L3 내장 그룹을 끈다(§4.6.2). Helm은 기본 플러그인(D-M3-01 c)이라 `user` tier로 실리고 같이 꺼진다.
 20. [미결] 샌드박스 강제를 on 핸들러(`tool_call` first)로 둘지, L0 실행 경로에서만 할지(§3.1, §4.1.2). [제안] L0 실행 경로에서 하고 on 핸들러는 두지 않는다. on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다. `L0.sandbox.spec`, `L1.tools.spec`과 정한다.
+21. [미결] 외부 훅(§3.7, §4.7)의 M3 포함 여부. D-M3-11 c안 원문은 "로더·안전 모드만"이라 이 문서는 M3 밖으로 적었다. 사용자 답 "pi 호환 없음, 자체 확장 API만"은 훅을 따로 말하지 않아 확인이 필요하다(`review.m3-lower-requirements` §8).

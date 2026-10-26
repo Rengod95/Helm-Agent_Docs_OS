@@ -739,7 +739,7 @@ export type ChainPointName = { [N in PointName]: PointSignatures[N]["fold"] exte
 
 ### 3.4 지점 선언 표
 
-- 표의 지점 이름은 pi 이벤트명과 같다. 이름 표기는 snake_case가 정본이다 [제안].
+- 표의 지점 이름은 아직 pi 이벤트명이다. 지점 이름은 자체 규칙으로 정리하고 pi snake_case 정본 제약은 없앤다 [결정: adr.0017]. 규칙과 새 이름표(옛 pi 이름 대응 열 포함)는 M3 F 첫 작업이 이 절에 적는다(`review.m3-lower-requirements` M3-REQ-106). 같은 작업에서 지점 선언에 실패 정책 열, fold `collect`, 가드레일 지점 셋, 수명주기 지점을 더한다(M3-REQ-12, 101, 105, 107).
 - pi 위치 약어: 정의는 `~/projects/_ref/pi-src/packages/coding-agent/src/core/extensions/types.ts`의 줄(이벤트/결과), 합성은 같은 디렉터리 `runner.ts`의 줄이다. `cache-warmer.ts`는 `core/cache-warmer.ts`다. 줄 번호는 pi 1.1.0 소스 기준이다(`_research/notes/F-1.md` §2).
 - 실패 열은 fold에서 파생된다(§4.1). `record` = 기록 후 계속, `deny` = 거부값(`FIRST_DENY`)으로 처리, `skip` = 그 핸들러의 패치만 버림.
 - M1 열의 ●는 M1 스모크에서 페이로드를 정확화하는 지점이다(F.extensions.plan).
@@ -1108,8 +1108,8 @@ chain의 보충 규칙 [제안]:
 - 핸들러가 받는 `payload`는 디스패치 내내 원본 그대로다. 누적은 `current`에만 쌓인다. 이 분리로 pi의 collect 2종(`resources_discover`, `cache_warming_decision`)과 `before_agent_start`의 message 수집을 chain 하나로 표현한다. 핸들러가 원본을 받으므로 `cache_warming_decision`의 반례(`_research/notes/F-1.md` §3.3)가 생기지 않는다.
 - 병합 규칙은 지점별 순수 함수(`CHAIN_RULES`)로 F에 둔다. 기본은 교체이고, `tool_result`는 필드별 병합, `resources_discover`와 `before_agent_start.message`는 추가다.
 - boundary의 최종 검증(`finalize: "boundary"`): `turn_end`와 `agent_before_settle`은 모든 핸들러 뒤에 L1이 최종 값을 검증한다. 엔트리로 컨텍스트를 재구성할 수 없으면 `{ entries: [], continue: false }`로 바꾼다(`runner.ts:1075-1077`과 같다). 중간 단계의 무효 상태는 허용하고 기록만 한다. `continue`는 L1이 `canContinue`로 다시 승인한다. 검증 로직은 L1.loop.spec이 정하고 F는 표지만 둔다.
-- [미결] boundary의 "엔트리 추가 + 계속" 합성을 위의 chain 교체 + `finalize` 표지로 확정할지, fold 4번째(collect)나 지점별 예외 표를 둘지. `_research/notes/F-1.md` §3.1은 chain 하나로 표현된다고 판정했고, §3.4는 collect 추가를 최소 보완안으로 제시했다. [제안] fold 3종을 유지한다.
-- [미결] first의 fail-closed를 모든 first 지점에 그대로 적용할지. pi는 `session_before_*`와 `project_trust`에서 fail-open이다(`_research/ext-points.md` §6.1 질문 2). 현재 표는 [결정]의 세 줄 규칙을 그대로 적용하고, pi와의 차이는 §3.4 표의 "pi와 차이" 열에 있다.
+- [결정: adr.0017] 4번째 fold `collect`를 더한다. 모든 핸들러의 반환값을 등록 순서대로 모으고, 예외를 낸 핸들러는 그 기여만 뺀다(fail-open). boundary의 "엔트리 추가 + 계속"을 chain 교체 + `finalize`로 둘지 `collect`로 옮길지는 지점 배정 문제이고 M3 F 첫 작업이 §3.4 표에서 정한다(`review.m3-lower-requirements` M3-REQ-105). 위 세 줄 규칙은 `collect`를 더해 네 줄이 된다.
+- [결정: adr.0017] 실패 정책은 지점 선언이 정한다. 권한·차단 지점(`tool_call`, `user_bash`, `project_trust`, `session_before_*`, 가드레일 지점)은 fail-closed, 관찰·추가 지점(`tap`, `collect`)은 fail-open, 변형 지점(`chain`)은 그 핸들러만 건너뛴다. `session_before_compact`는 fail-open 예외로 둔다 [제안]. 선언 필드와 표는 M3-REQ-12가 §3.4에 적는다.
 
 ### 4.2 디스패치 순서
 
@@ -1215,8 +1215,8 @@ chain의 보충 규칙 [제안]:
 
 ### 4.10 지점 이름 표기
 
-- [제안] 지점 이름의 정본은 pi 이벤트명(snake_case)이다. 계획 v2는 "지점 이름은 pi 이벤트명을 그대로 씁니다"라고 적었다(`_research/layer-plan-v2-notes.md` 확장 지점 절).
-- [미결] 같은 자료의 Helm 의사코드와 `_research/ext-points.md` §5는 `request`, `tool.before`, `tool.after`, `turn.end` 같은 점 표기를 쓴다. [제안] 점 표기는 예시 표기로 보고 계약에 쓰지 않는다. 별칭(점 표기 → pi 이름)을 X가 받을지 사용자 확인이 필요하다.
+- [결정: adr.0017] 지점 이름은 자체 규칙으로 정리한다. 계획 v2의 "지점 이름은 pi 이벤트명을 그대로 씁니다"(`_research/layer-plan-v2-notes.md` 확장 지점 절)는 pi 확장 호환을 전제로 했고, pi 어댑터를 두지 않기로 해(`review.m3-design-inputs` D-M3-11 c) 그 전제가 없어졌다. 새 이름표가 나오기 전까지 이 문서는 pi 이벤트명을 쓴다.
+- 같은 자료의 Helm 의사코드와 `_research/ext-points.md` §5는 `request`, `tool.before`, `tool.after`, `turn.end` 같은 점 표기를 쓴다. 이 표기는 새 이름 규칙의 후보 자료로만 본다. 별칭은 두지 않는다 [제안]. 규칙과 이름표는 M3 F 첫 작업(M3-REQ-106)이 정한다.
 
 ## 5. 실패와 경계 사례
 
@@ -1259,7 +1259,7 @@ chain의 보충 규칙 [제안]:
 
 - [결정: m2c G1-03] `project_trust`는 kind가 `session`이지만 thread 없이 호스트 수준에서 발화한다. 폴더 신뢰는 thread를 만들거나 열기 전에 판정해야 하기 때문이다(`X.loading-trust.spec` §4.7.4). `PointDecl.threadless: true`가 이 지점을 표시하고, 페이로드(`{ cwd }`)와 발화 문맥에 `threadId`가 없다. 그래서 핸들러는 thread 상태(`stateOf`)나 thread 신호를 쓰지 못하고, 예산·진단은 호스트 수준 한도를 따른다. 그 밖의 `session` 지점은 모두 thread에 묶여 발화한다. 발화 규칙의 구현(디스패처의 thread 없는 경로, 예산, 진단)은 X.primitives가 정한다. M2의 호스트는 이 지점에 핸들러를 거는 확장이 없어 발화하지 않는다.
 - 능력 도구 호출은 tool 지점을 지난다. 페이로드의 `capability` 필드로 능력을 식별한다(F.capabilities.spec §7).
-- [미결] 지점 5종 밖 이벤트(승인 요청·응답, 서브에이전트 생성, 그룹 레코드 쓰기, scope 토글 등 Xeon 고유 이벤트)를 지점으로 둘지, 관찰 전용 이벤트 버스로 둘지.
+- [결정: adr.0017] 지점 5종 밖 Xeon 고유 이벤트는 수명주기 지점으로 연다. 첫 목록은 L3 요구분(위임 정착 `agent.settled`, 임대 거부 `lease.rejected`)이고 나머지(승인 요청·응답, 그룹 레코드 쓰기, scope 토글 등)는 요구가 생길 때 더한다(`review.m3-lower-requirements` M3-REQ-101).
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -1303,11 +1303,12 @@ chain의 보충 규칙 [제안]:
 
 ## 10. 미결 사항
 
-- [미결] boundary fold: chain 교체 + `finalize` 표지로 확정할지, 4번째 fold(collect)나 지점별 예외 표를 둘지(§4.1). 계획 v2의 fold 3종 결정(`_research/decisions-log.md` 20행)을 바꾸는 사안이다.
-- [미결] first fail-closed를 `session_before_*`, `project_trust`에도 적용할지(§4.1).
+- [결정: adr.0017] 4번째 fold `collect`를 더하고 지점별 실패 정책 표를 둔다(§4.1). 계획 v2의 fold 3종 결정을 ADR-0017이 부분 대체한다. boundary 지점의 배정은 M3 F 첫 작업이 정한다.
+- [결정: adr.0017] `session_before_*`, `project_trust`는 fail-closed다. `session_before_compact`만 fail-open 예외다 [제안](§4.1).
 - [결정: review.decisions-2 U-06] `tool_call`의 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해진다. 인자 변경이 필요하면 2차에 pi 밖 이름의 chain 지점을 따로 더한다.
-- [미결] 지점 5종 밖 이벤트(Xeon 고유 이벤트) 처리(§7).
-- [미결] 지점 이름 표기: pi snake_case 정본과 조사 자료 점 표기의 별칭 허용 여부(§4.10).
+- [결정: adr.0017] 지점 5종 밖 이벤트는 수명주기 지점으로 연다(§7).
+- [결정: adr.0017] 지점 이름은 자체 규칙으로 정리하고 별칭은 두지 않는다 [제안](§4.10). 규칙과 이름표는 M3 F 첫 작업이다.
+- [결정: adr.0017] 가드레일 지점 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 fold `first`, fail-closed로 선언한다. 내장 검사는 두지 않는다(`review.m3-design-inputs` D-M3-30 행 1). 선언은 M3-REQ-107이다.
 - [미결] 능력·확장 이름 네임스페이스(예약 이름 목록, 외부 확장의 L2 도메인 이름 사용 금지). F.capabilities.spec §10과 함께 정한다.
 - [미결] 매니페스트 신뢰 필드 범위: `trust.level` 값 집합과 매니페스트가 요청할 수 있는 범위. X.loading-trust.spec과 함께 정한다.
 - 닫음: session 지점 15종의 발화 문서 배정(§7 표, `L1.readme` §6).

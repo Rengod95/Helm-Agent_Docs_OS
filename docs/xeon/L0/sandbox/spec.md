@@ -507,12 +507,12 @@ export function selectSandboxProvider(input: {
 
 ## 10. 미결 사항
 
-1. [미결] 1차 샌드박스 안 네트워크를 전부 차단하는 기본값. 패키지 설치(`npm install`, `pip install`)가 샌드박스 안에서 실패한다. 1차에 `l0.sandbox.network.allowedDomains`를 열지(M2 키를 앞당김) 정한다.
+1. [결정: review.m3-design-inputs D-M3-18 행 1] 샌드박스 안 네트워크는 기본 허용이다. 사용자가 차단 도메인 목록(`l0.sandbox.network.blockedDomains` [제안])을 관리한다. 패키지 설치가 샌드박스 안에서 그대로 돈다. 키 이름과 차단 방식(srt 네트워크 필터 재사용)은 M3-14 작업에서 정한다(`review.m3-lower-requirements` M3-REQ-55).
 2. [미결] 격리 없이 실행한 호출과 자가 시험 실패의 감사 이벤트 소유자. `platform-sandbox`는 이벤트 type을 소유하지 않는다(`eng.context-map.design` §4.1). 후보는 L1 tools(`tool.` 접두)다.
-3. [미결] MCP stdio 서버 프로세스를 샌드박스에 넣을지(`L2.mcp.spec`과 협의). 18 R-1은 넣는 쪽이었다.
-4. [미결] 샌드박스 밖 재시도(`l0.sandbox.escapeRetry`)를 Xeon에 둘지. srt에는 없고 Claude Code 설정 기능이다(`_research/notes/L0-1.md` §9).
+3. [결정: review.m3-design-inputs D-M3-19 행 1] MCP stdio 서버는 출처별 기본값을 쓴다. 프로젝트 출처 서버는 샌드박스에 넣고, 사용자 출처 서버는 넣지 않는다. 서버별 설정으로 바꿀 수 있다(`L2.mcp.spec`, M3-REQ-57).
+4. [결정: review.m3-design-inputs D-M3-18 행 3] 샌드박스 밖 재시도(`l0.sandbox.escapeRetry`)를 둔다. 기본은 끔이고, 켜도 재시도마다 승인을 받는다(`_research/notes/L0-1.md` §9).
 5. [미결] x64·arm64 밖 Linux 지원. seccomp 필터가 번들되지 않아 `select.ts`는 `unsupported_os`를 돌려준다. 지금은 `xeon.os`가 해당 arch를 등록 실패로 처리하므로 운영 경로가 없다(3.5절). 지원을 넓히면 두 문서를 함께 고친다.
-6. [미결] 중첩 사용자 네임스페이스. L2 브라우저 도구(Playwright)를 샌드박스 셸에서 띄우려면 `allowNestedUserNamespaces: true`가 필요하고 쓰기 거부가 무력화될 수 있다(`_research/notes/L0-1.md` §6).
-7. [미결] 자격 파일 행(`~/.npmrc`, `~/.config/gh` 등)의 읽기 거부 기본값. 안전하지만 `gh`, 사설 레지스트리 `npm`이 샌드박스 안에서 인증 없이 돈다. 비밀 env 주입(`L0.exec.spec` §3.6)으로 대신할 수 있는지 `L0.secrets.spec`과 함께 정한다.
+6. [미결] 중첩 사용자 네임스페이스. 기본 브라우저 provider는 Stagehand다([결정: review.m3-design-inputs D-M3-23]). L2 브라우저 도구(Stagehand, Playwright)를 샌드박스 셸에서 띄우려면 `allowNestedUserNamespaces: true`가 필요하고 쓰기 거부가 무력화될 수 있다(`_research/notes/L0-1.md` §6).
+7. [결정: review.m3-design-inputs D-M3-18 행 2] 자격 파일 행(`~/.npmrc`, `~/.config/gh` 등)은 기본으로 읽기를 허용하고, 설정(`l0.sandbox.credentialFiles` [제안])으로 거부할 수 있다. 이전 질문: 자격 파일 행의 읽기 거부 기본값. 안전하지만 `gh`, 사설 레지스트리 `npm`이 샌드박스 안에서 인증 없이 돈다. 비밀 env 주입(`L0.exec.spec` §3.6)으로 대신할 수 있는지 `L0.secrets.spec`과 함께 정한다.
 8. [미결] `SettingsTab`의 `"sandbox"` 추가(F 변경).
 9. [미결] 프록시 훅(후속, sentinel 모드). `L0.secrets.spec` §4.3 M2 sentinel 설계는 자식 HTTPS가 `xeon.sandbox` 프록시를 지나고 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 요구한다. 이 문서는 아직 그 훅을 정하지 않았다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안을 `L0.sandbox.plan` SB-16에서 비교하고 TLS 종단(`L0.secrets.spec` §10 6번)과 함께 정한다.

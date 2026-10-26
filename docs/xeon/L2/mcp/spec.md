@@ -740,9 +740,9 @@ sequenceDiagram
 1. [미결] 서버 도구 기계 이름 형식(`F.capabilities.spec` §10의 a/b/c). 이 문서는 정하지 않고 `mcpToolName` 한 곳에 모은다. `eng.context-map.design` CM-03 예시의 `mcp:<서버>:<도구>`는 `TOOL_NAME_WIRE_PATTERN`과 맞지 않으므로 예시를 고치도록 요청한다.
 2. [결정: review.m2-plan §8 D5] `input_required` 흐름의 책임 나눔(§4.6)은 L1.tools가 kind `question` 승인을 올리고 `continuation`으로 재호출하는 (a)안이다. `cap-mcp`는 `askWithApprovals`(`L2ApprovalsPort`)로 같은 질문을 올리는 경로도 갖고 있어 그룹 코드가 쓴다. F 요청 12(`L1.tools.spec` §8.3)의 F 쪽은 닫혔다(m2 F.8): `CallOptions.continuation`(`CallContinuation`)과 질문 옮기기 규칙(F `defs/mcp-questions.ts`의 `planMcpQuestionBody`, `decodeMcpAnswer`, `uniformMcpAnswer`)이다. cap-mcp의 `callTool`·`getPrompt`·`readResource`는 `options.continuation`을 입력의 `continuation`보다 먼저 읽는다. core-tools 어댑터 연결과 동적 도구 경로(`AgentTool.execute`에 연속 정보 자리가 없음)는 [미결]이다.
 3. [미결] 서버 주도 요청의 승인 기록을 `cap_mcp_`에 둘지. 제안은 두지 않는 것이다.
-4. [미결] 서버 정의 `env`·`headers`에 비밀이 아닌 평문 값을 허용할지. 이 문서는 `secret://` 참조만 허용한다. 평문을 허용하면 `.mcp.json` 호환이 넓어지지만 비밀이 평문으로 들어올 위험이 있다.
+4. [결정: review.m3-design-inputs D-M3-19 행 3] 서버 정의 `env`·`headers`에 평문 값을 허용하되, 비밀 이름 패턴(`KEY`, `TOKEN`, `SECRET` 등) 키의 평문은 거부한다. 명시 답이 없어 권고를 적용했다 [가정]. M3 구현 전까지 이 문서의 현행 규칙(`secret://` 참조만)이 동작한다.
 5. [결정: review.m2-plan §8 D6] M2는 stdio 서버를 사용자 권한으로 실행하고 `.mcp.json`(루트와 `.xeon/mcp.json`)은 프로젝트 신뢰 뒤에만 읽는다. 샌드박스 적용 범위(쓰기 경로, 네트워크)는 bwrap 시험 환경이 생긴 뒤 정한다.
-6. [미결] sampling 허용. `ask`로 승인되었을 때 어떤 모델·예산으로 응답할지(L1.models 라우팅). 2026에서 deprecated이므로 2차 이후로 미룰 수 있다.
+6. [결정: review.m3-design-inputs D-M3-19 행 4] sampling은 지원하지 않는다. 2026-07-28 MCP 명세 개정에서 Deprecated다(SEP-2577). 서버의 sampling 요청은 거부로 답한다.
 7. [미결] Tasks 명세 본문의 필드와 `notifications/tasks` 존재 여부(`_research/notes/L2-1.md` §4.5, §10). 확인 전에는 Tasks 어댑터를 구현하지 않는다.
 8. [미결] `_research/packages.md` §4.4 L2-b "MCP Tasks: 그대로" 판정을 "자체 어댑터(명시 스키마 요청)"로 고칠지. 이 문서는 고친 판정을 따른다.
 9. [결정: L2.mcp.plan §8.2] 2025 사양 서버의 서버 → 클라이언트 elicitation 요청은 수동 모드에서 처리기가 없어 오류로 거절된다(§5 13번). 사람에게 묻는 2025 경로는 필요가 생기면 그 요청만 승인 프로토콜로 옮기는 처리기를 둔다.
@@ -750,4 +750,4 @@ sequenceDiagram
 11. [미결] `l2.mcp.servers`를 세션 범위에서 바꿀 수 있게 할지. 지금은 뺐다. 세션 한정 끄기는 `disable` 메서드로 한다.
 12. [미결] 사용자 범위 서버 정의 파일(설정 파일 밖의 별도 `mcp.json`)을 둘지. 이 문서는 설정 키 하나와 프로젝트 `.mcp.json` 가져오기만 둔다.
 13. [미결] 작업 폴더가 서로 다른 대화가 한 엔진에서 동시에 돌 때 프로젝트 출처 서버 정의의 범위. 지금은 단계를 연 대화의 루트를 따르므로 번갈아 열면 재연결이 일어난다. 대화(작업 폴더)별 레지스트리로 나누는 안이 있다(`L2.readme` §5.10).
-14. [미결] 비밀 env가 있는 stdio 서버. env 모드는 실행마다 승인 증거를 요구하는데(`L0.secrets.spec` §4.2) 서버 시작에는 승인 지점이 없어 `secret_denied`로 끝난다(`L0.process.spec` 미결 P-12, ADR-0011). 구현은 M3다(`review.m3-plan`). 비밀 없는 서버와 HTTP 서버는 영향이 없다.
+14. [결정: review.m3-design-inputs D-M3-19 행 2] 비밀 env 서버의 기동 승인은 서버 정의마다 한 번이고 정의가 바뀌면 다시 받는다. 승인 레코드에 정의 해시를 싣는다. 명시 답이 없어 권고를 적용했다 [가정]. 샌드박스는 출처별 기본값(프로젝트 출처 켬, 사용자 출처 끔)이다(D-M3-19 행 1). 이전 기록: 비밀 env가 있는 stdio 서버. env 모드는 실행마다 승인 증거를 요구하는데(`L0.secrets.spec` §4.2) 서버 시작에는 승인 지점이 없어 `secret_denied`로 끝난다(`L0.process.spec` 미결 P-12, ADR-0011). 구현은 M3다(`review.m3-plan`). 비밀 없는 서버와 HTTP 서버는 영향이 없다.
