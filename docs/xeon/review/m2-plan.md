@@ -315,19 +315,40 @@ M2 종료 조건 번호의 정본은 `product.scope.spec` §4.4.1입니다. 아�
   - Xeon의 SearXNG 감지는 탐침 요청에 실제 검색어를 실어 상위 검색 엔진으로 보내고, 실패가 사용자에게 잘 보이지 않습니다(`L2.web.spec` §4.8.3).
 - 함께 정리한 ADR 승격(G3-03)은 다음과 같습니다. ADR-0011(D6, MCP stdio 비샌드박스), ADR-0012(속도 우선), ADR-0013(D7), ADR-0014(단일 `xeon` 바이너리)입니다.
 
-## 10. 트랙 상태 (2026-10-25)
+## 10. 트랙 상태 (2026-10-26, M2 마감 병합 뒤)
 
-§4.1 트랙의 상태입니다. 병합 해시는 `xeon/foundation`의 대표 커밋입니다. 남은 일은 재점검 항목 번호로 적고, 이 마감 작업의 트랙(T1~T7, Z)이 맡습니다. M1.5라는 마일스톤은 없습니다. 통합 검토 L1~L9와 후속 N-1~N-6, 재점검 G1~G5 수정은 모두 M2 안의 작업입니다.
+`xeon/foundation` `dbef8b2` 기준입니다. M2 마감 트랙(T1~T7, Z)은 모두 `xeon/foundation`에 병합했고 아직 push하지 않았습니다. 판정(fixed, partial, missing)은 M2 마감 재검토(`be63a94..dbef8b2`, 106커밋, 2026-10-26)를 따릅니다. 재검토는 코드를 읽기만 했고, 시험 통과 수는 병합 보고서 값입니다. M1.5라는 마일스톤은 없습니다. 통합 검토 L1~L9와 후속 N-1~N-6, 재점검 G1~G5 수정, 마감 트랙은 모두 M2 안의 작업입니다.
 
-| 트랙 | 상태 | 병합 | 남은 일(재점검 번호, 맡는 트랙) |
+### 10.1 마감 트랙
+
+병합 범위의 해시는 대표 커밋입니다. 이력이 한 줄이라 트랙 사이에 다른 트랙 커밋이 섞여 있습니다.
+
+| 트랙 | 상태 | 대표 커밋 | 재검토 판정과 남은 일 |
+|---|---|---|---|
+| T1 F 계약 | 병합 | b66522c(G1-08)~87f9eaa(F README), 병합 차수 추가 ac105dc, b8ad9f4, 55a9e3f | 모두 fixed. BP-11 예외 3건은 §10.3 |
+| T2 HOST | 병합 | 24361c0(G1-12 조립)~0230af1, 55c8e63, 병합 차수 h2의 c12cf80, 9dda5ba, 326a949, c1afe1d | fixed: 신뢰, 명령, 재개, 제목, 설정 알림, 비밀 참조, 작업 폴더, 쪽 질의, 바이너리 점검, 수동 컴팩션, `hostedSearch` 조립, stdio MCP, `unknown_approval`. missing: G1-12 `scope.handler_failed` 발신. `L4.host-service.spec` §10 32번과 `review.m3-plan` M3-22가 추적합니다. 남은 `[미결]`: 수동 컴팩션과 다른 연결의 `turn.start` 겹침(`L4.host-service.spec` §10 31번) |
+| T3 PLT | 병합 | 89ced1e(G1-04)~54ca52c(G4-01) | fixed: G1-04, G1-10, G2-05, G2-06, G2-07, G1-12 `selfTest`·`log.level`. partial: G4-01은 `sandbox.int.test.ts`가 환경이 없으면 `describe.skip`이라 `exit-tests`의 건너뜀 0 검사에 기댑니다. macOS Seatbelt는 실기에서 실제 srt 시험 8건이 한 번 통과했고 CI는 미실행입니다(`review.macos-checklist` M-03). macOS 실측 수정 브랜치 `m2c/mac`(`1a1ac35`~`3aae85e`, 5커밋)은 아직 병합하지 않았습니다 |
+| T4 L1 | 병합 | 3c38739(G2-03)~4c38310(G2-11), 67dc4b4, 병합 차수 h2의 9b0300b | fixed: G2-03, G2-01 임계·오버플로와 수동 컴팩션, G2-11, G1-09, G2-10. partial: 자동 컴팩션 뒤 대화가 이어지는 시험은 루프 수준 가짜 컨텍스트뿐이고, 실제 엔진에서 작은 창으로 이어지는 host 시험이 없습니다. 재검토 결함 2(컴팩션 뒤 스킬 색인과 메모리 블록이 두 번 들어갈 가능성, PLAUSIBLE)를 두 층을 합친 시험으로 확인해야 합니다 |
+| T5 L2 | 병합 | 2358033(G1-09)~be3b46f(L2 문서), f5d9f30 | fixed: H1 자동 감지 제거, `.xeon/commands` 신뢰 게이트, `McpRuntime.reload`와 작업 폴더 기준 루트, cap-knowledge 컴팩션 재주입, G4-05. partial: 공개 모드 SSRF 방어가 Bun에서 실제 DNS로 도는지 미확인(FK-11). 재검토 결함 4: 모델용 호스티드 검색(`decideModelSearchTool`)이 시험에서만 불리고 L1.models 요청에 연결되지 않았습니다(E4 `web.search`와 별개) |
+| T6 CLI | 병합 | 5c30343(G1-07)~2816bb7(종단 시험), 병합 수정 4e5b338, 75170ca, b3afbca | fixed. 남은 일: CLI는 `settings.invalidated`를 구독하지 않습니다. `L4.cli.spec` §10 15번(승인 카드가 재개 질문보다 먼저 보임)은 `[미결]`입니다 |
+| T7 DESK | 병합 | 6e60969(카드)~efeaf98(작업 폴더), 병합 수정 5cf7d83, dbef8b2 | fixed: 설정 화면, 첫 실행 안내, 바이너리 점검 표시, 승인·신뢰 카드, `thread.locked` 대화 상자, 작업 폴더, `untilScopesCommitted`, 원격 점검 Phase 1. partial: single-instance는 Rust 코드만 있고 두 프로세스로 확인하지 않았습니다(M-13). `snapshot_macos.rs`는 미실행입니다(M-10). 사이드카 e2e에 `turn`이 없고, 컴파일 바이너리는 로컬 빌드에만 있습니다(§11 메모). `L4.desktop.spec` §10 15번(`secret.beginEntry` `started: true` 미확인), 17번(작업 폴더를 경로로 입력)은 `[미결]`입니다 |
+| Z 문서·검증 | 병합 | 8aac424(위협 모델)~9613673(온보딩), aa12722, d6184b1, 44d09c7, 1071f1a | fixed: D-a~D-e·H1 기록, ADR-0011~0014, 위협 모델, `review.m3-plan`, 미결 추적표, `review.fake-only`, 온보딩, justfile v2와 `guard.sh`, CI `exit-tests` 작업, `xeon-macos.yml`, `just tape-record`, `just bench`. partial: G5-02(이 표, 2026-10-26 갱신), G5-03(재검토 결함 6의 새 어긋남, 2026-10-26 문서 수정으로 일부 닫음), G4-02(`review.macos-checklist` 일부 채움), G2-04(`first_token` 미측정). missing: D11 측정과 `just bench --first-token` 실행 기록. 테이프 녹화는 `bef8c87`에서 했습니다 |
+
+- 재검토 새 결함 13건의 정본은 재검토 보고서 §4입니다. 문서로 추적하는 곳은 각 행과 §10.3, `review.m3-plan`(M3-22, M3-29, M3-30, M3-41)입니다.
+
+### 10.2 §4.1 트랙
+
+§4.1 트랙은 모두 M2 마감 전에 병합했습니다. 셋째 열은 M2 마감에서 처리한 재점검 항목과 맡은 마감 트랙입니다. 처리 결과는 §10.1에 있습니다.
+
+| 트랙 | 상태 | 병합 | M2 마감에서 처리한 것(재점검 번호, 맡은 트랙) |
 |---|---|---|---|
 | F 계약 | 병합 | 13c7241(F.1)~d828512(F.7), 9f69590(F.8) | G1-01, G1-02, G1-03, G1-07, G1-08, G1-09, G1-11 계약 필드, G2-06, G2-11, G2-12, G5-04 `stage`(T1) |
 | X 확장 호스트 | 병합(X.5는 M3, D9) | 93dad8d(X.1)~8efd085(X.4) | G1-03 `.xeon/commands` 신뢰 자원 표(T5) |
-| SEC L0 비밀 | 병합 | 9f045f9(SEC.1~5) | `os-auth`·키체인 macOS 확인(G4-02, Mac) |
+| SEC L0 비밀 | 병합 | 9f045f9(SEC.1~5) | 없음. `os-auth`·키체인 macOS 확인(G4-02)은 미실행입니다(`review.macos-checklist` M-05) |
 | PLT L0 | 병합 | 4a8215c(PLT.1)~4c75c7a(PLT.4) | G1-04 `McpProcessPort`, G1-10 `fileLock`, G2-05 spill 위치, G2-06 스냅샷, G2-07 외부 바이너리 점검, G4-01 샌드박스 int 시험, G1-12 `selfTest`(T3) |
 | L1A 도구·승인·루프 | 병합 | 6d2bf72(L1A.1)~45016bb(L1A.7) | G1-09 origin 정리, G2-03 systemPrompt 반영 결함, G2-10 동의 표시(T4) |
 | L1B 영속·위임·태스크 | 병합 | 9d5789d(L1B.1)~ced3b78(L1B.5) | G2-11 `before`·`limit`와 fork 연속성 규칙(T4) |
-| L1C 모델·컨텍스트 | 병합 | 50d696f(L1C.1)~0117d3c(L1C.5) | G2-01 컴팩션 호출 배선(T4), G4-06 실제 테이프(D-e) |
+| L1C 모델·컨텍스트 | 병합 | 50d696f(L1C.1)~0117d3c(L1C.5) | G2-01 컴팩션 호출 배선(T4), G4-06 실제 테이프 2개(D-e, `bef8c87`) |
 | WEB | 병합 | e2d80b9(WEB.1)~33a66d8(WEB.6) | H1 자동 감지 제거, G4-05 host 수준 시험(T5), G1-12 `hostedSearch` 조립(T2) |
 | MCP | 병합 | 0354272(MCP.1)~40fd28e(MCP.4) | G1-04 stdio 경로(T3, T5), G2-02 대화 작업 폴더 기준(T5) |
 | KN | 병합 | b27916d(KN.1)~e8e901a(KN.5) | G2-01 재주입(T5), G2-02 기준 폴더(T5) |
@@ -337,10 +358,29 @@ M2 종료 조건 번호의 정본은 `product.scope.spec` §4.4.1입니다. 아�
 | HM | M3로 옮김(D-a) | 없음(`group-helm`은 설정만) | G4-04, G1-05, G1-06(`review.m3-plan`) |
 | HOST | 병합 | eeff08d(HOST.1)~8a96d81(HOST.6), 통합 검토 후속 be63a94까지 | G1-01·G1-02·G1-03·G1-07·G1-08 처리기, G1-12 조립, G2-02, G2-06, G2-07, G2-12(T2) |
 | CLI | 병합 | 78f2705(CLI.1~4), 7d64181(CLI.5 V-02) | 명령 실행, 재개, 신뢰 카드, `xeon trust`, 비밀 참조, 동의 표시, 제목(T6) |
-| DESK | 일부 병합(DESK.1~4) | 1e6fb9f(DESK.1)~1cbc13d(DESK.4) | DESK.5 e2e(G4-03), G2-08 최소 설정 화면(D-b), G2-09 single-instance, 신뢰·승인 카드(T7) |
-| Z 통합 | 진행 중 | 이 문서 §9~§11 | G3-01~G3-03, G3-05, G3-06, G5-01~G5-03, G5-06, G2-13, G4-01 CI, G4-02, G4-06, G4-07, G2-04, guard 채택(Z) |
+| DESK | 병합 | 1e6fb9f(DESK.1)~1cbc13d(DESK.4), DESK.5는 T7의 f9483e5·ca43943 | DESK.5 e2e(G4-03), G2-08 최소 설정 화면(D-b), G2-09 single-instance, 신뢰·승인 카드(T7) |
+| Z 통합 | 병합, 마감 절차 진행 중(§11) | 이 문서 §9~§11 | G3-01~G3-03, G3-05, G3-06, G5-01~G5-03, G5-06, G2-13, G4-01 CI, G4-02, G4-06, G4-07, G2-04, guard 채택(Z) |
 
-- 아직 병합하지 않은 후보 브랜치는 `m2/fx-host`, `m2/fx-mcp`, `m2/fx-apps`, `m2/fx-m`입니다. 옛 SHA 위에 있으므로 T2·T3·T5·T6·T7이 hunk 단위로 다시 씁니다. `m2/fx-l1`은 변경이 없습니다.
+- 옛 SHA 위의 후보 브랜치 `m2/fx-host`, `m2/fx-mcp`, `m2/fx-apps`, `m2/fx-m`은 그대로 병합하지 않았습니다. 필요한 hunk는 T2·T3·T5·T6·T7이 `xeon/foundation` 위에서 다시 써서 넣었습니다. `m2/fx-l1`은 변경이 없었습니다.
+
+### 10.3 BP-11 예외: 계약 커밋의 기계적 소비 층 수정
+
+`eng.best-practices.guide` BP-11은 한 커밋이 한 층만 고치고, F 계약 변경과 소비 층 구현을 나누라고 정합니다. T1의 contracts 커밋 3건이 소비 층 소스를 함께 고쳤습니다. 재검토가 결함 7로 짚었고, 아래 이유로 예외로 받아들입니다.
+
+| 커밋 | 계약 변경 | 함께 고친 소비 층 | 고친 내용 |
+|---|---|---|---|
+| `cdbf11d` | 승인 origin 공급 규칙(G1-09): `CallerInfo` 값과 필수 호출 문맥 | `core-tools/src/entries.ts`, cli·desktop 시험 도우미 | 직접 등록 도구의 호출에 `threadId`와 `context`를 채우는 두 줄, 시험 기대값의 `caller` 값 교체 |
+| `737f5c8` | 비밀 wire 보강(G1-07): `SecretTestResult` 필드, `secret.references` | `apps/host/src/handlers/secret.ts`, cli 시험 도우미 | 늘어난 필수 결과 필드를 채움, `secret.references` 자리에 `notImplemented` 처리기 |
+| `55a9e3f` | 수동 컴팩션 `thread.compact`(G2-01) | `apps/host/src/handlers/index.ts` | 철저한 처리기 표에 `notImplemented("thread.compact")` 한 줄 |
+
+- 받아들이는 이유:
+  - 처리기 표와 결과 타입은 F 메서드 목록에 대해 철저합니다. 계약만 바꾸면 소비 층이 타입 검사에서 깨집니다. 커밋마다 타입 검사가 통과하는 이력을 지키려면 소비 층을 같은 커밋에서 맞춰야 했습니다.
+  - 소비 층 수정은 동작을 더하지 않는 기계적 맞춤입니다. 실제 처리기는 뒤따른 T2 커밋(`53d108b`, `326a949`)과 T4·T5 커밋이 넣었습니다.
+  - BP-11의 이름 변경 예외와 같은 성격입니다. 다만 커밋 설명에 이유를 적지 않아 규칙의 "PR 설명에 이유를 적는다"는 지키지 못했습니다. 이 절이 그 기록입니다.
+- 다음부터 피하는 방법 [제안]:
+  - (a) F 커밋이 새 메서드를 선택 처리기 표(소비 층이 아직 처리하지 않는 메서드는 `methodNotFound`로 답하는 표)에 넣습니다. 그러면 소비 층은 고치지 않아도 타입 검사를 통과하고, 소비 층 커밋이 처리기를 더할 때 철저한 표로 옮깁니다.
+  - (b) 필수 필드나 철저한 표를 바꾸는 F 변경이면, 같은 차수에 소비 층의 자리 표시 커밋을 바로 뒤에 둡니다. 두 커밋 사이에 `just check`를 F 패키지에만 돌리고, 저장소 전체 검사는 둘을 함께 병합한 뒤 돌립니다.
+  - (c) 어쩔 수 없이 한 커밋에 넣을 때는 커밋 본문에 "BP-11 예외: 기계적 맞춤"과 고친 소비 파일을 적습니다.
 
 ## 11. M2 마감 절차와 종료 조건 판정
 
@@ -363,3 +403,10 @@ M2 종료 조건 번호의 정본은 `product.scope.spec` §4.4.1입니다. 아�
 | E5 | 미판정 | |
 | E6 | 미판정 | |
 | E7 | 미판정 | |
+
+- 중간 판정 메모(M2 마감 재검토, 2026-10-26). 위 표는 `TURBO_FORCE=true just verify`와 push 뒤에 채웁니다. 그 전의 재검토 의견은 다음과 같고 판정이 아닙니다.
+  - E0 부분 충족: 병합 전 각 워크트리에서 `just verify`가 통과했습니다. `TURBO_FORCE=true just verify`, push, CI 실행은 아직입니다.
+  - E2 부분 충족: 컴파일 바이너리 증거가 재현되지 않습니다. `sidecar.e2e.test.ts`는 바이너리가 없으면 건너뛰고, 바이너리는 gitignore 대상이라 로컬 빌드에만 있으며 CI는 사이드카를 빌드하지 않습니다. `exit-tests.txt`의 E2 줄은 `platform-process`의 `transport-conformance`만 가리킵니다. 바이너리 e2e에는 `turn`이 없습니다. macOS 바이너리 e2e 3건은 실기에서 한 번 돌았습니다(`review.macos-checklist` M-07).
+  - E3 부분 충족: 엔진 쪽(`stdio-shutdown.int.test.ts`, 사이드카 e2e)만 있습니다. Tauri 앱 정상 종료는 Rust 가짜 시험뿐이고 M-09가 비어 있습니다.
+  - E4 충족(`cap-web.int.test.ts`의 설정 없음·SearXNG 설정함 두 경우), E5 충족(`approval-shapes.int.test.ts`), E6 충족(`cap-mcp.int.test.ts`, `cap-mcp-stdio.int.test.ts`).
+  - E7 조건부 충족: Linux `tty-confirm`(`platform-secrets/test/admin.int.test.ts`)만 돌았고 macOS `os-auth`(M-05)는 미실행입니다.
