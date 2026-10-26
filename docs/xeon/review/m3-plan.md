@@ -12,7 +12,7 @@ binds: []
 
 ## 1. 목적과 읽는 법
 
-- M2에서 M3로 넘긴 항목과, 다른 레인이 M3에 맡긴 요청을 한곳에 모읍니다. 마일스톤 재점검 G3-02의 산출물이고 입력은 G1-14와 M2 마감 결정(`review.m2-plan` §9)입니다.
+- M2에서 M3로 넘긴 항목과, 다른 레인이 M3에 맡긴 요청을 한곳에 모읍니다. 마일스톤 재점검 G3-02의 산출물이고 입력은 G1-14와 M2 마감 결정(`review.m2-plan` §9)입니다. M2 마감 재검토(2026-10-26, `be63a94..dbef8b2`)가 M3로 넘긴 항목도 원천 칸에 "재검토 결함 N"으로 적습니다.
 - 이 문서는 M3 작업 분해 전의 입력 목록입니다. M3 트랙과 작업 ID는 M3 착수 때 `review.m2-plan` 형식으로 정합니다.
 - 항목 번호 `M3-NN`은 이 문서 안에서만 씁니다. 원천 칸에는 재점검 번호(G1-14 등)나 원 감사 ID를 적습니다.
 - M3의 범위와 종료 조건 정본은 `product.scope.spec` §4.3·§4.4입니다.
@@ -63,8 +63,8 @@ M2 문서에 "M3에서"라고만 적고 받는 문서가 없던 요청입니다.
 | M3-26 | 외부 바이너리(sops, age, rg, bwrap, socat) 번들과 서명(필수/선택 표와 점검은 M2) | G2-07 | `L4/release/spec.md` |
 | M3-27 | 릴리즈, 배포, 업데이트, 공급망, 고지 문서. Developer ID 서명과 공증(D3) | G3-04 | `L4/release/spec.md`(새 문서) |
 | M3-28 | 운영·진단 런북, 용어집, 구현 상태 지도, 데이터·개인정보 문서, 비기능 요구 절(온보딩은 M2) | G3-05 | `eng.onboarding.guide`, architecture, product |
-| M3-29 | 성능 예산 게이트(기준선은 M2) | G2-04, ADR-0012 | `eng.performance.guide` |
-| M3-30 | CI 액션 SHA 고정, CI gitleaks | G4-07 | `.github/workflows/**` |
+| M3-29 | 성능 예산 게이트(기준선은 M2). 지표별 예산 수치는 macOS 기준선을 본 뒤 사용자가 정합니다. M2 마감 재검토 시점에 `first_token` 기준선과 D11 측정(실제 키 검색 래퍼 약 20회, 개발자 세션 DB 사본 FTS)은 실행 기록이 없습니다. M2 마감 절차(`review.m2-plan` §11 5번)에서 하지 못하면 이 항목이 측정부터 맡습니다 | G2-04, ADR-0012, D11, D-e | `eng.performance.guide` |
+| M3-30 | CI 액션 SHA 고정, CI gitleaks. M2 마감 상태: 워크플로가 `actions/checkout@v4`, `actions/setup-node@v4`, `jdx/mise-action@v2`, `extractions/setup-just@v2`처럼 이동하는 태그를 씁니다. 커밋 SHA로 고정하고 판 주석을 답니다 | G4-07, 재검토 결함 12 | `.github/workflows/**` |
 
 ## 5. 설계 묶음
 
@@ -80,6 +80,7 @@ M2 문서에 "M3에서"라고만 적고 받는 문서가 없던 요청입니다.
 | M3-38 | 데스크톱 `closeBehavior`, `EngineConfig::from_values` 호출처 | G2-09 | `L4.desktop.spec` |
 | M3-39 | 접근성, i18n·로케일(IME 확인은 M2) | G2-13 | `L4.desktop.spec`, `L4.cli.spec` |
 | M3-40 | 원격 점검 Phase 2(Victauri PoC) | M2 마감 계획 T7 | `L4.desktop.plan` |
+| M3-41 | 시험 파일의 `Reflect.get` 정리. M2 마감에서 시험 파일 6개에 16곳이 늘었습니다(`apps/desktop/test/e2e/scenario.ts` 7, `sidecar.e2e.test.ts` 2, `test/app/support.ts` 2, `test/transport/tauri-mock.ts` 2, `apps/cli/test/doctor-host.int.test.ts` 2, `turn-resume-host.int.test.ts` 1). 소스에는 없습니다. TypeBox `Value.Check`나 판별 함수로 좁혀 읽게 바꿉니다 | 재검토 결함 9 | `eng.typescript.guide`, `eng.testing.guide` |
 
 ## 6. M3 착수 조건
 
