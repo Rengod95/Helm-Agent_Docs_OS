@@ -638,7 +638,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - D-12. `check-layers.ts` 앱 내부 규칙이 W1·W2·W6 위반 샘플 import를 거부한다.
 - D-13. 두 번째 앱 실행은 첫 인스턴스의 메인 창을 앞으로 가져오고 스스로 끝난다. 엔진이 둘 뜨지 않는다(`window.rs` 시험은 창 조회와 레이블 일치까지, 실제 두 프로세스 확인은 Mac에서 한다).
 - D-14. 릴리스 빌드에는 점검 소켓과 `viewport.snapshot`이 없다(§4.15 릴리스 확인).
-- D-15. 설정 화면은 외부 도구 점검 결과를 `host.status { includeBinaries: true }`의 `binaries`에서 읽고, 시작 안내 띠와 `settings.invalidated` 뒤 다시 읽기는 `includeBinaries`를 보내지 않는다.
+- D-15. 설정 화면은 외부 도구 점검 결과를 `host.status { includeBinaries: true }`의 `binaries`에서 읽고, 시작 안내 띠와 `settings.invalidated` 뒤 다시 읽기는 `includeBinaries`를 보내지 않는다. 컴파일 사이드카가 소스 진입과 같은 도구 목록(이름, 구분, 쓰는 곳, 영향)을 돌려주고 응답에 실행 파일 경로가 없다(`test/e2e/sidecar.e2e.test.ts`).
 
 ## 10. 미결 사항
 
