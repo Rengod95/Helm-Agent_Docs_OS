@@ -29,8 +29,14 @@ function isStamped(value: object): value is StampedDraft {
   return stampRegistry.has(value);
 }
 
+/** 컴팩션 커밋의 새 접두 system item은 core.context만 낸다(core-persistence `producers.ts`의 같은 예외, 9b0300b) */
+function mayDraft(producer: ProducerId, kind: EventKind): boolean {
+  if (ownerOfKind(kind) === producer) return true;
+  return producer === "core.context" && kind === "item.recorded";
+}
+
 function stamp(producer: ProducerId, input: DraftInput): StampedDraft {
-  if (ownerOfKind(input.kind) !== producer && input.kind !== "item.recorded") {
+  if (!mayDraft(producer, input.kind)) {
     throw new Bug(`store.prefix_not_owned: ${producer} cannot draft ${input.kind}`);
   }
   const draft: DurableEventDraft = { ...input, version: input.version ?? 1, durable: true };

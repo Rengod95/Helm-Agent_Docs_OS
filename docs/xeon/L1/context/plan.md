@@ -125,7 +125,7 @@ xeon/packages/core-context/
 | `cache_warming_decision_declared_not_fired` | `test/compact-points.test.ts` | unit | 지점 `cache_warming_decision`이 선언 목록에 있고 M2 빌드에서는 발화 0회다. 실제 발화는 2차 캐시 워밍에서 시험한다(C-9) | M2 |
 | `reinjection_after_compaction` | `test/reinject.test.ts` | unit | 접힌 범위의 `knowledge.context`와 `knowledge.index-delta`가 요약 바로 뒤에 가지 순서로 한 번 나오고, 허용 목록 밖의 custom은 나오지 않으며, 남은 범위의 메모는 중복되지 않는다. 허용 목록이 비면 재주입하지 않고, 컴팩션이 없으면 기록된 자리에 그대로다 (M2 마감 G2-01) |
 
-- [구현: M2] core-context는 core-models를 import하지 못하므로(같은 층, DR-14) 요약 모델은 `test/support/fake-models.ts`의 대역이다. 요약 응답을 차례로 준비하고 호출 기록(역할 `summary`, `cacheRetention: "none"`, 시스템·사용자 프롬프트)을 확인한다. 저장소는 `test/support/log.ts`의 메모리 가지(`commit`, `producer` 포함)다.
+- [구현: M2] core-context는 core-models를 import하지 못하므로(같은 층, DR-14) 요약 모델은 `test/support/fake-models.ts`의 대역이다. 요약 응답을 차례로 준비하고 호출 기록(역할 `summary`, `cacheRetention: "none"`, 시스템·사용자 프롬프트)을 확인한다. 저장소는 `test/support/log.ts`의 메모리 가지(`commit`, `producer` 포함)다. 이 대역의 `producer(id).draft`는 실제 저장소(`core-persistence/src/producers.ts`)와 같은 소유 규칙을 건다: kind 접두 소유자만 초안을 낼 수 있고, `item.recorded`는 접두 소유자(`core.loop`)와 컴팩션 접두 item의 `core.context`만 낸다. 규칙을 느슨하게 두면 `core.context`의 소유권 오류가 가려진다(`9b0300b`, M2 마감 재검토 병합 2). `test/memory-log.test.ts`가 허용과 거절을 값으로 견준다.
 - 모델은 `@xeon/core-models/testing`의 테이프 가짜로 대신한다(`eng.testing.guide` TS-04). 테이프 `role`은 `summary`다.
 - 저장은 `xeon.session`의 테스트 대역(메모리 가지)을 쓴다 [가정: `L1.persistence.plan`이 `testing` 서브패스로 제공].
 
