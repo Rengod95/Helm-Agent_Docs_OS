@@ -20,7 +20,7 @@ export interface RunOutput {
   readonly stderr: string;
 }
 
-export type RunFailure =
+type RunFailure =
   | { readonly kind: "spawn_failed"; readonly code: string }
   | { readonly kind: "cancelled" };
 

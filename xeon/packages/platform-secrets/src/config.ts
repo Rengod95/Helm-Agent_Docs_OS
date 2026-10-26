@@ -60,7 +60,7 @@ export const DEFAULT_AGE_KEY_SUBPATH: readonly string[] = ["secrets", "age", "ke
  * 나뉘지 않으므로 어느 클라이언트가 등록해도 같은 파일이다. `<config>/secrets/` 아래라 샌드박스 보호 경로가 이미 덮는다.
  */
 export const DEFAULT_SOPS_ENV = "user";
-export const DEFAULT_SOPS_SUBPATH: readonly string[] = ["secrets", "sops", "user.yaml"];
+const DEFAULT_SOPS_SUBPATH: readonly string[] = ["secrets", "sops", "user.yaml"];
 
 export function defaultSopsFile(configDir: string): SecretsSopsFile {
   return { env: DEFAULT_SOPS_ENV, path: join(configDir, ...DEFAULT_SOPS_SUBPATH) };
