@@ -566,6 +566,7 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 - [미결] Windows code signing 인증서 종류(OV, Azure Artifact Signing)와 비용.
 - [결정: review.decisions-2 B-06] D1의 `Bun.spawn`은 DR-07 테스트 한정 행과 허용 목록 `DR-07/desktop-test-spawn`으로 푼다.
 - [결정] `xeon/scripts/build-sidecar.ts`는 `scripts/`에 둔다(`m2-plan` DESK 소유 목록). 이 문서 `binds` 밖이라 `eng.toolchain.guide`와 함께 확인할 항목으로 남는다.
+- [미결] 컴파일 사이드카의 한 턴 비교(E2): 바이너리에 모델 테이프를 넣는 길이 없고 운영 진입에 시험 전용 관문을 두지 않기로 했다. `XEON_SCENARIO_TAPE`는 시험 진입(`apps/cli/test/fixtures/scenario-main.ts`)만 읽는다. 지금은 `turn`을 포함한 in-process 대 stdio 쌍(`apps/host` `transport-parity`)과 바이너리의 턴 없는 요청열 비교(`test/e2e/sidecar.e2e.test.ts`)로 나눠 확인한다(`review.m2-plan` §5). 바이너리 한 턴이 필요해지면 테이프를 받는 시험용 빌드 방식을 정해야 한다.
 - [미결] Intel macOS, arm64 Linux CI 러너 확보.
 - [미결] 자동 업데이트 채택(M3 이후).
 - [미결] 상태 관리 라이브러리(`L4.desktop.spec` §10 미결 11). 프레임워크는 React 19 [결정: review.m2-plan §8 D2].

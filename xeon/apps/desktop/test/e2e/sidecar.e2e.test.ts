@@ -7,7 +7,8 @@ import { binaryReportOf, CLI_MAIN, nthReply, runScenario, sidecarPath } from "./
 
 // G4-03 (E2, E3): 컴파일한 사이드카 바이너리를 stdio로 몰아 소스 진입과 같은 응답·이벤트열이 나오는지, 정상 종료 뒤 프로세스가 남지 않는지 본다.
 // 사이드카가 없으면(빌드하지 않았으면) 바이너리 시험은 건너뛴다: `just desktop-sidecar host` 뒤에 돈다. 소스 진입 시험은 항상 돈다.
-// "needs the binary" 시험의 건너뜀은 종료 조건 증거가 되지 못한다(review.fake-only). 종료 조건 판정 때는 건너뜀 0을 확인한다.
+// "needs the binary" 시험의 건너뜀은 종료 조건 증거가 되지 못한다(review.fake-only). `just exit-tests`(scripts/exit-tests.txt의 E2,E3 줄)는
+// 사이드카가 없으면 먼저 빌드하고 건너뜀이 하나라도 있으면 실패한다.
 
 const SOURCE = [process.execPath, CLI_MAIN, "host", "--stdio"] as const;
 const binary = sidecarPath();
