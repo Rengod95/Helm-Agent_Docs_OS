@@ -81,7 +81,7 @@ check pkg:
 ci-layer layer affected="false":
     cd xeon && just ci-layer {{layer}} {{affected}}
 
-# 종료 조건 시험 실행: 건너뛴 시험이 있으면 실패하고 건너뛴 수를 출력 (xeon/scripts/exit-tests.txt). CI가 bwrap·socat·sops와 함께 돈다
+# 종료 조건 시험 실행: 건너뛴 시험이 있으면 실패하고 건너뛴 수를 출력 (xeon/scripts/exit-tests.txt). 이 기기의 사이드카가 없으면 먼저 빌드한다(E2·E3). CI가 bwrap·socat·sops와 함께 돈다
 [group('local')]
 exit-tests:
     cd xeon && just exit-tests

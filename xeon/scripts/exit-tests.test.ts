@@ -4,7 +4,9 @@ import { join } from "node:path";
 import {
   describeVerdict,
   judge,
+  needsSidecar,
   parseExitList,
+  sidecarBinaryPath,
   skippedTotal,
   summarizeBunOutput,
   type ExitEntry,
@@ -53,7 +55,7 @@ test("a line without files, a bad label, an escaping path or an empty list is an
   });
   expect(parseExitList("e7 packages/x test/a.ts\n")).toEqual({
     ok: false,
-    error: "line 1: condition must look like E7 or M1",
+    error: "line 1: condition must look like E7, M1 or E2,E3",
   });
   expect(parseExitList("E7 ../x test/a.ts\n")).toEqual({
     ok: false,
@@ -69,14 +71,48 @@ test("the repository list parses and names every exit condition it covers", () =
   const text = readFileSync(join(import.meta.dir, "exit-tests.txt"), "utf8");
   const parsed = parseExitList(text);
   if (!parsed.ok) throw new Error(parsed.error);
-  expect([...new Set(parsed.value.map((entry) => entry.condition))]).toEqual([
-    "M1",
-    "E2",
-    "E4",
-    "E5",
-    "E6",
-    "E7",
-  ]);
+  const covered = parsed.value.flatMap((entry) => entry.condition.split(","));
+  expect([...new Set(covered)].toSorted()).toEqual(["E2", "E3", "E4", "E5", "E6", "E7", "M1"]);
+});
+
+test("E2 and E3 each name the host test and the sidecar e2e test, and the e2e line makes the runner build the sidecar", () => {
+  const text = readFileSync(join(import.meta.dir, "exit-tests.txt"), "utf8");
+  const parsed = parseExitList(text);
+  if (!parsed.ok) throw new Error(parsed.error);
+  const lineOf = (condition: string, dir: string, file: string): boolean =>
+    parsed.value.some(
+      (entry) =>
+        entry.condition.split(",").includes(condition) &&
+        entry.dir === dir &&
+        entry.files.includes(file),
+    );
+  expect(lineOf("E2", "apps/host", "test/contract/transport-parity.contract.test.ts")).toBe(true);
+  expect(lineOf("E2", "apps/desktop", "test/e2e/sidecar.e2e.test.ts")).toBe(true);
+  expect(lineOf("E3", "apps/host", "test/int/stdio-shutdown.int.test.ts")).toBe(true);
+  expect(lineOf("E3", "apps/desktop", "test/e2e/sidecar.e2e.test.ts")).toBe(true);
+  expect(needsSidecar(parsed.value)).toBe(true);
+});
+
+test("a line for several conditions parses, and only desktop lines need the sidecar", () => {
+  const parsed = parseExitList(
+    "E2,E3 apps/desktop test/e2e/x.e2e.test.ts\nE4 apps/host test/a.ts\n",
+  );
+  if (!parsed.ok) throw new Error(parsed.error);
+  expect(parsed.value.map((entry) => entry.condition)).toEqual(["E2,E3", "E4"]);
+  expect(needsSidecar(parsed.value)).toBe(true);
+  expect(needsSidecar(parsed.value.slice(1))).toBe(false);
+  expect(parseExitList("E2,e3 apps/desktop test/a.ts\n").ok).toBe(false);
+  expect(parseExitList("E2, apps/desktop test/a.ts\n").ok).toBe(false);
+});
+
+test("the sidecar binary path follows the triple of the machine", () => {
+  expect(sidecarBinaryPath("xeon", "linux", "x64")).toBe(
+    "apps/desktop/src-tauri/binaries/xeon-x86_64-unknown-linux-gnu",
+  );
+  expect(sidecarBinaryPath("xeon", "darwin", "arm64")).toBe(
+    "apps/desktop/src-tauri/binaries/xeon-aarch64-apple-darwin",
+  );
+  expect(sidecarBinaryPath("xeon", "freebsd", "x64")).toBeUndefined();
 });
 
 test("bun output gives pass, skip and fail counts; no pass line is undefined", () => {

@@ -26,6 +26,7 @@ permissions:
 env:
   # The jobs together run the steps of `just verify` (xeon/scripts/verify-steps.sh); scripts/ci-alignment.test.ts checks it.
 # exit-tests runs the exit-condition tests with their binaries and fails on any skip (product.scope.spec 4.4.1).
+# It builds the sidecar binary first when it is missing (E2, E3), so the sidecar e2e tests never skip.
 # turbo --affected compares against this ref. Needs fetch-depth 0.
   TURBO_SCM_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
   TURBO_TELEMETRY_DISABLED: "1"

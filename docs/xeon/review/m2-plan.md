@@ -214,6 +214,10 @@ M2 종료 조건 번호의 정본은 `product.scope.spec` §4.4.1입니다. 아�
 - E1: Helm 확산 단계 쓰기 거부, 렌즈 N개 → 서브에이전트 N개 결과 커밋 뒤 적용 턴 1회(UC-2). M3로 옮겼습니다(§9 D-a).
 - E2: 같은 모델 테이프와 입력으로 CLI(in-process)와 데스크톱 사이드카(stdio, 컴파일 바이너리)의 호스트 메시지 열이 같음.
 - E3: 앱 정상 종료 뒤 사이드카 프로세스 없음.
+
+E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습니다. E2는 `apps/host`의 `transport-parity.contract.test.ts`와 `apps/desktop`의 `sidecar.e2e.test.ts`, E3는 `apps/host`의 `stdio-shutdown.int.test.ts`와 같은 e2e 파일을 돌리고, 건너뛴 시험이 하나라도 있으면 실패합니다. `exit-tests`는 이 기기의 사이드카가 없으면 `just desktop-sidecar host`로 먼저 빌드하므로(CI의 `exit-tests` job과 `desktop-macos` job도 같은 경로) 바이너리 시험이 조용히 건너뛰어지지 않습니다.
+
+컴파일 바이너리가 모델 테이프를 받는 길은 없습니다(모델은 조립 때 정해지고, 운영 진입에 시험 전용 환경 변수 관문을 두지 않습니다. `XEON_SCENARIO_TAPE`는 `apps/cli/test/fixtures/scenario-main.ts`라는 시험 진입이 읽습니다). 그래서 E2의 "같은 테이프로 같은 메시지 열" 비교는 `turn`을 포함한 in-process 대 stdio 쌍(`transport-parity`)이 맡고, 컴파일 바이너리에는 `turn` 없이 같은 요청열의 응답·이벤트열이 소스 진입과 같음을 e2e가 확인합니다. 바이너리의 한 턴 비교는 [미결]입니다(`L4.desktop.plan` 미결 사항).
 - E4: SearXNG 주소를 설정하지 않으면 `web.search`가 내장 검색 래퍼, 설정하면 SearXNG. 실제 조립 엔진에서 확인(§9 H1).
 - E5: 질문 도구와 계획 승인이 같은 승인 요청 레코드로 기록됨.
 - E6: 테스트 MCP 서버(HTTP, stdio)의 도구가 실제 엔진 도구 목록에 노출됨.
@@ -235,9 +239,9 @@ M2 종료 조건 번호의 정본은 `product.scope.spec` §4.4.1입니다. 아�
 | DG | `ask-flow.test.ts`(같은 레코드 형식), `ask-restart.fault.test.ts` | E5 |
 | GK | L3.group-kit.plan §6 M2 행, `replayDrive` `ok: true` | E1 선행 |
 | HM | `uc2.write-deny-and-n-lenses`, `resume.after-kill-in-explore`, `contracts`·`ext-host`·`group-kit` diff 0 | E1 |
-| HOST | `transport-parity`(컴파일 바이너리 stdio 포함), `thread-locked-alternatives`, `forced-kill-resume`, `stdio-eof-checkpoint-exit`, 승인 응답 한 엔진 시험 | E2, E3(엔진 쪽), E5(wire) |
+| HOST | `transport-parity`(in-process와 같은 프로세스 안 스트림 쌍 stdio, 한 턴 포함, 컴파일 바이너리는 제외), `thread-locked-alternatives`, `forced-kill-resume`, `stdio-eof-checkpoint-exit`(`stdio-shutdown.int.test.ts`), 승인 응답 한 엔진 시험 | E2, E3(엔진 쪽), E5(wire) |
 | CLI | L4.cli.plan §5.1 M2 시험, `secret reveal` TTY 아님 → 거부 | E7(명령 부분) |
-| DESK | `no-grandchild-left.int.test.ts`, `shutdown-message-then-exit.int.test.ts`, e2e(`*.e2e.test.ts`) | E2·E3(Tauri 부분). 환경 제약은 §6, 결정 D1 |
+| DESK | `test/e2e/sidecar.e2e.test.ts`(컴파일 사이드카: 소스 진입과 같은 응답·이벤트열, stdin EOF만으로 종료 0과 홈을 쥔 프로세스 없음, `host.shutdown` 응답 뒤 종료 0과 3초 안 종료), Rust 셸 시험(`just desktop-test`) | E2·E3(Tauri 부분). 환경 제약은 §6, 결정 D1 |
 | Z | 위 시험 전부를 한 커밋에서 실행, 결과를 open-issues와 이 문서에 기록 | E0~E7 |
 
 ## 6. 환경 제약 (2026-10-23 확인)

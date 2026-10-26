@@ -73,7 +73,7 @@ check pkg:
 ci-layer layer affected="false":
     bash scripts/ci-layer.sh {{layer}} {{affected}}
 
-# 종료 조건 시험(scripts/exit-tests.txt)을 돌리고 건너뛴 수를 출력한다. 파일 없음, 건너뜀, 실패는 종료코드 1
+# 종료 조건 시험(scripts/exit-tests.txt)을 돌리고 건너뛴 수를 출력한다. 파일 없음, 건너뜀, 실패는 종료코드 1. apps/desktop 줄(E2·E3)이 있으면 사이드카가 없을 때 `desktop-sidecar host`를 먼저 단독으로 돌린다
 [group('local')]
 exit-tests:
     {{bun}} scripts/exit-tests.ts

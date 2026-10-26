@@ -9,13 +9,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
+import { hostTriple, outputFileName, parseSidecarConfig } from "./build-sidecar.ts";
 
 export type Result<T, E> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: E };
 
 export interface ExitEntry {
-  /** Condition label, e.g. E7. */
+  /** Condition label, e.g. E7. One line may serve several conditions: `E2,E3`. */
   readonly condition: string;
   /** Package directory relative to xeon/. */
   readonly dir: string;
@@ -41,7 +42,9 @@ export type Verdict =
       readonly summary: BunSummary | undefined;
     };
 
-const CONDITION = /^[A-Z][A-Z0-9-]*$/;
+const CONDITION = /^[A-Z][A-Z0-9-]*(,[A-Z][A-Z0-9-]*)*$/;
+/** The package whose tests drive the compiled sidecar binary (apps/desktop/test/e2e). */
+const SIDECAR_PACKAGE = "apps/desktop";
 
 /** Parses scripts/exit-tests.txt. Blank lines and `#` comments are skipped. */
 export function parseExitList(text: string): Result<ExitEntry[], string> {
@@ -53,7 +56,7 @@ export function parseExitList(text: string): Result<ExitEntry[], string> {
     const [condition, dir, ...files] = trimmed.split(/\s+/);
     const line = index + 1;
     if (condition === undefined || !CONDITION.test(condition)) {
-      return { ok: false, error: `line ${String(line)}: condition must look like E7 or M1` };
+      return { ok: false, error: `line ${String(line)}: condition must look like E7, M1 or E2,E3` };
     }
     if (dir === undefined || files.length === 0) {
       return {
@@ -68,6 +71,22 @@ export function parseExitList(text: string): Result<ExitEntry[], string> {
   }
   if (entries.length === 0) return { ok: false, error: "the list has no entries" };
   return { ok: true, value: entries };
+}
+
+/** True when a line runs the desktop e2e tests, which skip without the compiled sidecar binary. */
+export function needsSidecar(entries: readonly ExitEntry[]): boolean {
+  return entries.some((entry) => entry.dir === SIDECAR_PACKAGE);
+}
+
+/** Where `just desktop-sidecar host` leaves the binary of this machine, relative to xeon/. undefined on an unsupported host. */
+export function sidecarBinaryPath(
+  name: string,
+  platform: string,
+  arch: string,
+): string | undefined {
+  const triple = hostTriple(platform, arch);
+  if (!triple.ok) return undefined;
+  return join(SIDECAR_PACKAGE, "src-tauri", "binaries", outputFileName(name, triple.value));
 }
 
 /** Reads the `N pass`, `N skip`, `N fail` lines of `bun test` output. undefined when there is no pass line. */
@@ -159,6 +178,33 @@ async function runBunTest(
   }
 }
 
+/**
+ * Builds the sidecar for this machine when it is missing, so the e2e tests never skip on a missing binary. Runs alone, before any
+ * test line. undefined when the binary is there afterwards, otherwise the reason.
+ */
+async function ensureSidecar(xeonRoot: string): Promise<string | undefined> {
+  const configFile = join(xeonRoot, SIDECAR_PACKAGE, "sidecar.json");
+  const config = parseSidecarConfig(existsSync(configFile) ? readFileSync(configFile, "utf8") : "");
+  if (!config.ok) return `${configFile} is not a valid sidecar config`;
+  const relative = sidecarBinaryPath(config.value.name, process.platform, process.arch);
+  if (relative === undefined) return `no sidecar target for ${process.platform}/${process.arch}`;
+  if (existsSync(join(xeonRoot, relative))) return undefined;
+  process.stdout.write(
+    `exit-tests: ${relative} is missing, building it (just desktop-sidecar host)\n`,
+  );
+  try {
+    const child = Bun.spawn(
+      [process.execPath, join(xeonRoot, "scripts", "build-sidecar.ts"), "host"],
+      { cwd: xeonRoot, stdout: "inherit", stderr: "inherit" },
+    );
+    const code = await child.exited;
+    if (code !== 0) return `build-sidecar exited ${String(code)}`;
+  } catch (cause) {
+    return cause instanceof Error ? cause.message : String(cause);
+  }
+  return existsSync(join(xeonRoot, relative)) ? undefined : `${relative} was not produced`;
+}
+
 if (import.meta.main) {
   const { values } = parseArgs({
     args: Bun.argv.slice(2),
@@ -175,6 +221,15 @@ if (import.meta.main) {
   if (!parsed.ok) {
     process.stderr.write(`exit-tests: ${listFile}: ${parsed.error}\n`);
     process.exit(1);
+  }
+  if (needsSidecar(parsed.value)) {
+    const failure = await ensureSidecar(xeonRoot);
+    if (failure !== undefined) {
+      process.stderr.write(
+        `exit-tests: the sidecar binary is missing and could not be built: ${failure}\n`,
+      );
+      process.exit(1);
+    }
   }
   const runOne = async (entry: ExitEntry): Promise<Verdict> => {
     const packageDir = join(xeonRoot, entry.dir);
