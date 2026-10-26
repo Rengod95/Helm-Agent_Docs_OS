@@ -305,6 +305,7 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
 
   return {
     resolve: (role, overrides = {}) => resolveWith(role, overrides),
+    providerTarget: targetOf,
     rebind(binding: ModelBinding): Result<ResolvedModel, ModelError> {
       const settings = deps.settings();
       const ref = formatModelRef({
