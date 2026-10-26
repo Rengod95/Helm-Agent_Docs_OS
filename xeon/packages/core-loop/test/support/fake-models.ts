@@ -227,6 +227,7 @@ export function createFakeModels(options: {
       binding = next;
       return ok(resolved());
     },
+    providerTarget: () => null,
     stream: () => notImplemented("stream"),
     complete: () => notImplemented("complete"),
     streamFn: (ctx) => (_model, transcript, streamOptions) => {

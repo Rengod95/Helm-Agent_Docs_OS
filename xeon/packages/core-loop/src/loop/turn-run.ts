@@ -300,7 +300,11 @@ export function resolveModel(run: TurnRun): Result<ResolvedModel, LoopFailure> {
   }
   const { role, overrides: roleOverrides } = roleOf(run);
   const resolved = ctx.models.resolve(role, roleOverrides);
-  if (!resolved.ok) return err({ kind: "model_unavailable", detail: resolved.error.kind });
+  if (!resolved.ok)
+    return err({
+      kind: "model_unavailable",
+      detail: `${resolved.error.kind}: ${resolved.error.message}`,
+    });
   return ok(remember(run, resolved.value));
 }
 
@@ -310,7 +314,11 @@ export function nextBinding(run: TurnRun): Result<ModelBinding, LoopFailure> {
   const resolved = run.ctx.models.resolve(role, roleOverrides);
   if (resolved.ok) return ok(resolved.value.binding);
   const current = run.state.binding;
-  if (current === null) return err({ kind: "model_unavailable", detail: resolved.error.kind });
+  if (current === null)
+    return err({
+      kind: "model_unavailable",
+      detail: `${resolved.error.kind}: ${resolved.error.message}`,
+    });
   return ok(current);
 }
 

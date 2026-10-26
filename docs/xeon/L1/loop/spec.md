@@ -494,7 +494,7 @@ sequenceDiagram
 3. `openStep`은 단계 경계에 적용된 scope 토글(F.extensions.spec §4.5)을 반영해 도구 광고를 다시 받는다. 모델 바인딩도 여기서 정한다.
 4. `endStep` 안의 순서: (a) 결과 없는 호출이 없음을 확인(배치가 이미 닫았다, §3.3 규칙 4. 진입 `turn_end`의 `closing`만 여기서 닫는다) → (b) `turn_end` chain → (c) 정착 후보 판정(도구 호출 없음 또는 배치 `terminate`, 그리고 `inputs.peek`의 steer 없음) → (d) 후보면 `agent_before_settle` chain → (e) `finalizeBoundary` 두 값 → (f) 예산·게이트·중단 판정으로 계속 여부 결정 → (g) T4 커밋(build 안에서 `inputs.drain(view, …, "stepEnd", { continuing })`) → (h) `StepNext` 반환(배치된 입력은 `placed`로 다음 요청 앞에 붙는다). `stopReason`이 `error`·`aborted`이면 (d)는 `outcome`을 그대로 넘기고 `StepNext`는 `settle`이다.
 5. (c)의 `peek`와 (g)의 커밋 안 선택 사이에 steer가 새로 들어오면 (g)가 그 steer를 고른다. 이때 이미 발화한 `agent_before_settle`의 엔트리는 그대로 커밋하고 turn은 이어간다 [제안]. 핸들러는 재실행해도 되는 질의라 결과가 어긋나지 않는다.
-6. 커밋 실패(`err`)는 `Result`로 돌아와 루프가 단계 반복을 멈춘다. 루프는 T6를 `failed`, `error: "loop_rejected"`로 커밋한다. 예외로 run을 멈추지 않는다.
+6. 커밋 실패(`err`)는 `Result`로 돌아와 루프가 단계 반복을 멈춘다. 루프는 T6를 `failed`, `error: "loop_rejected"`로 커밋한다(모델을 해석하지 못한 경우만 §4.3 표의 `model_unavailable: …`). 예외로 run을 멈추지 않는다.
 7. T6는 turn 범위 노드의 소유 작업이 모두 정착한 뒤에 쓴다(`eng.transactions.design` §6.2 4항). 그래서 `turn.completed`의 seq는 그 turn의 모든 `effect.result`보다 크다.
 
 ### 4.3 `turn.completed.status` 결정
@@ -509,6 +509,7 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 | `l1.loop.maxSteps`에 이름 | `interrupted` | `"step_limit"` |
 | drive turn 신호(`LoopTurnRequest.signal`, X가 넘기는 thread 취소 신호) | `interrupted` | 취소 사유 코드 |
 | 루프 run 실패(커밋 실패 등) | `failed` | `"loop_rejected"` |
+| 모델을 해석하지 못함(`xeon.models.resolve`가 `err`: 모르는 모델 id, 차단, provider 없음) | `failed` | `"model_unavailable: <ModelError.kind>: <ModelError.message>"`. 사용자가 설정으로 고칠 수 있는 원인이라 화면이 그대로 보인다 [결정: M2 Mac 실기] |
 | 자식 turn 한도(`ChildTurnRequest.limits`) 도달 | `interrupted` | `"child_limit"` |
 
 ### 4.4 입력 큐 연결

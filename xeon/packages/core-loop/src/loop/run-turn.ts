@@ -12,7 +12,7 @@ import type {
 import { beforeAgentStart } from "./before-start.ts";
 import { commitResponse } from "./commit-response.ts";
 import { recoverFromOverflow } from "./compaction.ts";
-import { finishTurn } from "./finish-turn.ts";
+import { finishTurn, type RunRejection } from "./finish-turn.ts";
 import { openStep } from "./open-step.ts";
 import { prepareRequest } from "./prepare-request.ts";
 import { endStep } from "./step-end.ts";
@@ -173,7 +173,7 @@ async function runEntry(run: TurnRun): Promise<Result<void, LoopFailure>> {
 /** turn 하나를 끝까지 실행한다. T1은 호출자가 이미 커밋했다. 마지막에 T6(또는 열어 둔 채 반환)까지 한다 */
 export async function runTurn(ctx: LoopContext, spec: TurnRunSpec): Promise<TurnRunResult> {
   const run = createTurnRun(ctx, spec);
-  let rejection: { readonly reason: string } | null = null;
+  let rejection: RunRejection = null;
   try {
     // 열린 turn을 닫는 재진입(`turn_end`)은 먼저 turn 노드를 취소하고, 소유 작업이 없던 노드는 그 자리에서 정착한다.
     // 정착한 노드에는 작업을 등록할 수 없으므로 이 경우만 등록 없이 닫는 작업을 직접 기다린다(open-issues N-03)
@@ -181,7 +181,10 @@ export async function runTurn(ctx: LoopContext, spec: TurnRunSpec): Promise<Turn
       spec.scope.state === "settled" ? await runEntry(run) : await spec.scope.track(runEntry(run));
     if (!finished.ok) {
       // 단계 실패는 값으로 돌아온다. run을 멈추고 T6를 failed로 쓴다
-      rejection = { reason: failureDetail(finished.error) };
+      const reason = failureDetail(finished.error);
+      // 모델을 해석하지 못한 원인(모르는 모델 id 등)은 사용자가 설정으로 고친다. 종결 오류에 그대로 보인다
+      rejection =
+        finished.error.kind === "model_unavailable" ? { reason, userError: reason } : { reason };
     }
   } catch (error) {
     // 불변식 위반(Bug)이나 도구·모델 계약 위반. 같은 경로로 T6 failed에 이른다

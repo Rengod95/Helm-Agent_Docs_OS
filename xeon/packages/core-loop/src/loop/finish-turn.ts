@@ -11,7 +11,11 @@ function noop(): Promise<void> {
 }
 
 /** run 거부(단계 실패나 불변식 위반)로 끝난 turn의 원인. 없으면 null */
-export type RunRejection = { readonly reason: string } | null;
+export type RunRejection = {
+  readonly reason: string;
+  /** `turn.completed.error`에 그대로 쓸 문장. 사용자가 고칠 수 있는 원인(모델을 해석하지 못함)만 싣고, 없으면 `loop_rejected`다 */
+  readonly userError?: string;
+} | null;
 
 export async function finishTurn(run: TurnRun, rejection: RunRejection): Promise<TurnRunResult> {
   const { ctx, scope, state, mapper, spec, threadId, turnId } = run;
@@ -42,7 +46,7 @@ export async function finishTurn(run: TurnRun, rejection: RunRejection): Promise
   let error: string | null;
   if (rejection !== null && abortCode === "error") {
     status = "failed";
-    error = "loop_rejected";
+    error = rejection.userError ?? "loop_rejected";
   } else if (state.endReason === "step_limit" || state.endReason === "child_limit") {
     status = "interrupted";
     error = state.endReason;
@@ -60,7 +64,7 @@ export async function finishTurn(run: TurnRun, rejection: RunRejection): Promise
     error = totals.lastErrorMessage ?? "error";
   } else if (rejection !== null) {
     status = "failed";
-    error = "loop_rejected";
+    error = rejection.userError ?? "loop_rejected";
   } else {
     status = "completed";
     error = null;
