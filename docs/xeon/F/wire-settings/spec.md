@@ -345,6 +345,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - `secret.test`의 결과는 `state`에 `decryptable`, `length`, `sha256Prefix`를 더했다(`L0.secrets.spec`의 `SecretTestResult`). `length`는 값의 바이트 수, `sha256Prefix`는 SHA-256 hex 앞 8자(소문자)이고 값이 없거나 풀 수 없으면 둘 다 null이다. 값은 어디에도 싣지 않는다. 앞 8자는 사람이 같은 값인지 견주는 표시용이고 감사 기록과 로그에는 남기지 않는다. 필드는 모두 필수라 옛 모양(`state`만)은 거부한다.
   - `secret.references { name }`는 삭제 전에 이 비밀을 가리키는 곳을 보인다(`L0.secrets.spec` `references`, `L4.cli.spec` §4.7 `secret rm`). 결과는 `{ settingKeys, activeLeases, sessions }`다. 메서드는 읽기 전용이다. 활성 임대가 있으면 `secret.remove`가 `secret.inUse`로 거부한다.
   - 비밀 오류 kind를 3201~3212로 나눴다(§3.5.2). `SecretError`의 입력 오류(`invalid_ref`, `unsupported_ref_syntax`, `meta_invalid`, `value_too_short`)는 새 kind 없이 `jsonrpc.invalidParams`로 간다. 나머지 `SecretError.kind`는 camelCase로 바꾼 `secret.<kind>`로 1:1 대응한다(`secret_missing` → `secret.notFound`). `details`는 안전한 필드(이름이 아닌 제공자, 사유 코드, 종료 코드, 임대 수)만 싣고 `stderrMasked` 같은 외부 도구 출력은 싣지 않는다. 이전의 `internal` + `details.secret` 대용(`L4.host-service.spec` HS-47)은 이 kind로 바뀐다.
+  - [결정: m2r sec] `secret.writeFailed`의 `target`에 `key_store`(OS 키 저장소에 age 키를 만들지 못함)와 `sops_file`(기본 SOPS 비밀 파일을 만들지 못함)을 더했다. 첫 `secret add`가 키와 파일을 자동으로 준비하게 되면서(`L0.secrets.spec` §4.8) 준비 실패를 "sops와 age를 설치하라"가 아닌 실제 원인으로 알려야 하기 때문이다. `code`는 OS 오류 코드 또는 `sops_encrypt_failed`, `recipient_unknown`, `unsupported_format`, `lock_timeout` 같은 이름이다.
   - `thread.closed`(3007)는 닫힌 thread에 쓰기나 수명 주기 호출을 했을 때의 오류다. 이전에는 `thread.notFound`로 알렸다. 닫힌 thread의 읽기와 삭제는 허용한다.
   - 남은 요청: `SecretEntryOffer`의 `add`용 메타 일부 필드(`L4.host-service.spec` §10 19번 (c))는 이 묶음에 넣지 않았다. 호스트의 기본 메타로 충분한 동안 M3로 둔다.
 - [결정: m2c G1-03] `trust.get`·`trust.decide`는 프로젝트 신뢰(`X.loading-trust.spec` §4.7)를 클라이언트가 묻고 정하는 메서드다. 이름과 모양은 `m2/fx-host`의 구현을 정본으로 하고 `m2/fx-apps`의 `trust.pending`·`trust.decide { projectRoot, choice }` 가정은 버린다. 이유는 둘이다. 첫째, wire에는 서버가 클라이언트에 보내는 요청이 없어서 대기 목록(`trust.pending`)은 호스트가 프롬프트를 쥐고 기다리는 구조를 전제한다. 둘째, 폴더는 클라이언트가 먼저 알고 있다(`workspace`). 호스트는 프롬프트를 띄울 화면이 없고(`headless`), 결정이 없는 폴더는 `undecided`라 불신으로 다룬다(fail-closed). 그래서 `.mcp.json`, 프로젝트 스킬, `.xeon/settings.json`, `.xeon/commands`는 사람이 정하기 전에는 적용되지 않는다. 클라이언트는 폴더에서 thread를 만들거나 열기 전에 `trust.get { workspace }`를 부르고, `verdict`가 `undecided`이고 `required`가 참이면 `options`로 선택지를 보여 준 뒤 `trust.decide`로 보낸다.
@@ -819,7 +820,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 3209 | `secret.reauthRequired` | false | 사람 재확인이 끝나지 않았다 | - |
 | 3210 | `secret.cancelled` | false | 사람이 입력이나 확인을 취소했다. 아무것도 저장되지 않았다 | - |
 | 3211 | `secret.auditUnwritable` | false | 감사 기록을 쓸 수 없어 동작을 멈췄다 | `code` |
-| 3212 | `secret.writeFailed` | false | 키 파일 쓰기에 실패했다. 값은 싣지 않는다 | `target`, `code` |
+| 3212 | `secret.writeFailed` | false | 키 파일, OS 키 저장소, 기본 SOPS 비밀 파일 쓰기에 실패했다. 값과 경로는 싣지 않는다 | `target`(`key_file`, `key_store`, `sops_file`), `code` |
 | 5001 | `request.cancelled` | false | `$/cancelRequest`로 취소했다 | - |
 | 5002 | `host.shuttingDown` | true | 호스트가 종료 중이다 | `retryAfterMs` |
 | 5003 | `store.busy` | true | 저장소 쓰기 잠금 대기가 시간을 넘었다. 같은 요청을 다시 보내도 된다 | - |

@@ -122,6 +122,20 @@ describe("WIRE_ERRORS", () => {
     expect(WIRE_ERRORS["secret.alreadyExists"].details).toBeUndefined();
   });
 
+  test("secret.writeFailed names the write target: key file, OS key store or SOPS file", () => {
+    const details = WIRE_ERRORS["secret.writeFailed"].details;
+    if (details === undefined) throw new Error("details expected");
+    for (const target of ["key_file", "key_store", "sops_file"]) {
+      expect({ target, ok: parse(details, { target, code: "EACCES" }).ok }).toEqual({
+        target,
+        ok: true,
+      });
+    }
+    expect(parse(details, { target: "meta_file", code: "EACCES" }).ok).toBe(false);
+    // 경로는 싣지 않는다
+    expect(parse(details, { target: "sops_file", code: "EACCES", path: "/p" }).ok).toBe(false);
+  });
+
   test("store.corrupt names where the stored row is wrong and is not a media error", () => {
     const spec = WIRE_ERRORS["store.corrupt"];
     expect(spec.code).toBe(5007);

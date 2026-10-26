@@ -461,7 +461,14 @@ export const WIRE_ERRORS: {
     kind: "secret.writeFailed",
     retryable: false,
     details: Type.Object(
-      { target: Type.Literal("key_file"), code: Type.String({ maxLength: 64 }) },
+      {
+        target: Type.Union([
+          Type.Literal("key_file"),
+          Type.Literal("key_store"),
+          Type.Literal("sops_file"),
+        ]),
+        code: Type.String({ maxLength: 64 }),
+      },
       { additionalProperties: false },
     ),
   },

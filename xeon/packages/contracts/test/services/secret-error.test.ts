@@ -40,5 +40,19 @@ describe("SecretError file failures", () => {
     };
     expect(labelOf(audit)).toBe("audit:EACCES");
     expect(labelOf(key)).toBe("key_file:EEXIST");
+    const sops: SecretError = {
+      kind: "write_failed",
+      target: "sops_file",
+      path: "/p/user.yaml",
+      code: "sops_encrypt_failed",
+    };
+    const store: SecretError = {
+      kind: "write_failed",
+      target: "key_store",
+      path: "keychain",
+      code: "add_failed",
+    };
+    expect(labelOf(sops)).toBe("sops_file:sops_encrypt_failed");
+    expect(labelOf(store)).toBe("key_store:add_failed");
   });
 });

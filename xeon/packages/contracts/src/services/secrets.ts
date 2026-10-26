@@ -265,10 +265,13 @@ export type SecretError =
   | { readonly kind: "reauth_required" }
   /** 감사 파일을 쓸 수 없다. 기록 없이는 진행하면 안 되는 동작(값 열람 등)이 이 오류로 멈춘다. code는 OS 오류 코드나 이름만 싣는다 */
   | { readonly kind: "audit_unwritable"; readonly path: string; readonly code: string }
-  /** 파일 쓰기가 실패했다. target은 쓰던 대상, code는 OS 오류 코드나 이름이며 값은 싣지 않는다. 이미 있는 파일을 덮어쓰지 않을 때는 EEXIST다 */
+  /**
+   * 쓰기가 실패했다. target은 쓰던 대상(키 파일, OS 키 저장소, SOPS 비밀 파일), code는 OS 오류 코드나 이름이며 값은 싣지 않는다.
+   * 이미 있는 키 파일을 덮어쓰지 않을 때는 EEXIST다. `sops_file`의 code는 OS 오류 코드 또는 `sops_encrypt_failed`, `recipient_unknown`, `unsupported_format`, `lock_timeout`이다
+   */
   | {
       readonly kind: "write_failed";
-      readonly target: "key_file";
+      readonly target: "key_file" | "key_store" | "sops_file";
       readonly path: string;
       readonly code: string;
     }
