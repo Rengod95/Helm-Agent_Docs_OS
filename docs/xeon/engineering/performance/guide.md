@@ -23,7 +23,7 @@ binds: []
 | `cold_start_cli` | `bun apps/cli/src/main.ts version --json` 시작부터 종료까지 | `just bench` | WSL2 중앙값 143.6 ms(3회) | [미결] | 번들 전 소스 진입. 모듈 적재 비용을 봅니다 |
 | `cold_start_sidecar` | 컴파일한 사이드카 `xeon-<triple> version --json` 시작부터 종료까지 | `just desktop-sidecar host` 뒤 `just bench` | WSL2 약 131 ms(`--bytecode`, `L4.desktop.plan` §3 spike S2) | [미결] | macOS 값은 `review.macos-checklist` M-07 |
 | `first_token` | `xeon chat -p` 시작부터 첫 `stream.chunk` 알림까지 | `just bench --first-token --yes` | 미측정 | [미결] | 실제 모델 호출. 사용자 확인 뒤 1회(결정 D-e) |
-| 사이드카 크기 | triple별 바이너리 크기 | `just desktop-sidecar <triple>` | 약 90 MiB | 500 MiB(회귀 상한) | ADR-0012 §3 2번. 줄이는 목표가 아닙니다 |
+| 사이드카 크기 | triple별 바이너리 크기 | `just desktop-sidecar <triple>` | WSL2 `x86_64-unknown-linux-gnu` 109.8 MiB(T7, `L4.desktop.plan` 구현 기록), macOS 26.5.2 `aarch64-apple-darwin` 91.0 MiB(`ws mac` 작업 20261025-224508-0141) | 500 MiB(회귀 상한) | ADR-0012 §3 2번. 줄이는 목표가 아닙니다. macOS 값은 `review.macos-checklist` M-07 |
 
 - 예산 열의 숫자는 기준선을 본 뒤 사용자가 정합니다. 정하면 `xeon/scripts/bench.ts`의 `BUDGET_MS`를 같은 커밋에서 고칩니다.
 - `just bench`는 지표마다 최소, 중앙값, p90, 최대와 예산 판정(`no budget`, `within`, `over`)을 출력합니다.
