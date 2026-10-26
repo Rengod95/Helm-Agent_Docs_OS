@@ -251,6 +251,13 @@ export interface ModelListFilter {
   readonly reasoning?: boolean;
 }
 
+/** 비밀을 쓰는 provider 요청의 목적지. 호스트 일치 정책(`L0.secrets.spec` §4.2)이 본다 */
+export interface ProviderTarget {
+  readonly host: string;
+  /** URL에 포트가 없으면 null */
+  readonly port: number | null;
+}
+
 export interface ModelInfo {
   /** "provider/modelId" */
   readonly ref: ModelRefString;
@@ -565,6 +572,11 @@ export interface ModelService extends ModelsPort {
 
   /** 카탈로그 조회. 허용·차단 목록을 적용한 결과 */
   list(filter?: ModelListFilter): readonly ModelInfo[];
+  /**
+   * provider 요청의 목적지(baseUrl 설정 덮어쓰기 → 등록부 덮어쓰기 → provider 기본 주소 순). 주소를 모르거나 해석할 수 없으면 null이다.
+   * 모델 호출의 비밀 lease가 쓰는 목적지와 같은 값이라 사람이 provider에 키를 연결할 때 이 호스트만 허용하는 데 쓴다(`L1.models.spec` §3.9)
+   */
+  providerTarget(providerId: string): ProviderTarget | null;
   /** provider 등록. 플러그인은 F provider 인터페이스(ProviderDef)로 이 메서드를 부른다 */
   addProvider(owner: ScopeId, name: string, def: ProviderDef): Result<Unsubscribe, ModelError>;
   /**

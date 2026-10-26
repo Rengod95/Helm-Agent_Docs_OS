@@ -163,6 +163,8 @@ export interface ModelService extends ModelsPort {
 
   /** 카탈로그 조회. 허용·차단 목록을 적용한 결과 */
   list(filter?: ModelListFilter): readonly ModelInfo[];
+  /** provider 요청의 목적지(baseUrl 설정 → 등록부 → provider 기본 주소). 모르거나 해석할 수 없으면 null. 비밀 lease의 `target`과 같은 값이다(§3.9) [결정: M2 Mac 실기] */
+  providerTarget(providerId: string): ProviderTarget | null;
   /** provider 등록. 플러그인은 F provider 인터페이스(ProviderDef)로 이 메서드를 부른다(§3.7, §3.11) */
   addProvider(owner: ScopeId, name: string, def: ProviderDef): Result<Unsubscribe, ModelError>;
   /** X ModelsPort 등록(확장 hostOf(g).registerProvider). config를 ProviderConfigDefSchema로 검사해 addProvider와 같은 경로로 등록한다. 실패하면 ModelError 값을 던진다(§3.7) */
@@ -457,6 +459,7 @@ export function secretBackedCredentialStore(refs: ProviderCredentialRefs, secret
 - 해석 시점: pi-ai `Models.getAuth`가 요청마다 `CredentialStore.read(providerId)`를 부른다(`auth/types.ts:65-70`). 이 함수 안에서만 `xeon.secrets`로 값을 얻고, 값은 반환 객체 안에만 있다. 캐시하지 않는다 [제안](`_research/secrets.md` §6.2 "실행 직전 해석").
 - 값은 요청 헤더로만 나간다. `ModelCallRequest`, `ResolvedModel`, 이벤트, 로그, 지점 페이로드에 싣지 않는다(§7.2 헤더 가림).
 - 사용 모드: `runtime-http`(`L0.secrets.spec` §4.3 M3)로 `lease`한다. purpose는 `model.provider:<id>`, `target`은 provider 기본 URL의 호스트다. 마일스톤 M1부터 이 모드를 쓴다. 값은 프로세스 안 HTTP 클라이언트에만 있고 모델 컨텍스트, 이벤트, DB에 들어가지 않는다(review.decisions-2 U-19 보충). bash 도구의 비밀 주입은 `env` 모드 그대로다.
+- 사용 정책의 근원 [결정: M2 Mac 실기]: 새로 등록한 비밀의 사용 정책은 비어 있어(`L4.host-service.spec` HS-45) 위 `lease`는 `denied`다. 비밀을 provider에 연결하는 사람의 행위(사용자 범위 `l1.models.providers`의 `apiKeyRef` 쓰기. 데스크톱 "provider에 연결"과 `xeon config set`은 모두 `settings.set`이다)가 이 호출 하나만 허용하는 정책을 비밀 메타에 더한다. 허용은 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [providerTarget(<id>)의 호스트]`뿐이다. `env` 모드, 도구, 다른 호스트는 열지 않는다. 호스트 쪽 규칙은 `L4.host-service.spec` HS-45 [결정: M2 Mac 실기]다. `providerTarget`은 이 호스트 값을 호출과 같은 규칙으로 구하기 위한 조회다.
 - `modify`, `delete`는 `ModelsError("auth")`를 던진다. 키 등록과 삭제는 비밀 관리 경로(`just secret-add`, 설정 화면 secrets 탭)로만 한다.
 - `list()`는 provider 이름과 참조 유무만 돌려준다(pi 계약: "must not execute configured API-key commands while listing").
 - 오류 문자열은 `xeon.secrets`의 마스킹 함수를 지난다 [가정: L0.secrets.spec이 마스킹 API를 서비스로 제공한다].
