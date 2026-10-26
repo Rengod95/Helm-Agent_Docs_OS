@@ -6,7 +6,7 @@ import type { AssembleOptions } from "../../src/types.ts";
 // 정해진 답을 차례로 내면서, 모델이 받은 요청 본문을 모으는 테이프 모델. 작은 컨텍스트 창을 줄 수 있고, 요청 하나의 응답을 풀어 줄 때까지
 // 붙잡아 둘 수 있다(요약 호출이 도는 중에 다른 요청을 보내는 시험). 대화 turn과 요약 호출이 같은 큐(`main`)에서 차례로 답을 꺼낸다.
 
-export interface RecordingModels {
+interface RecordingModels {
   readonly buildModels: NonNullable<AssembleOptions["buildModels"]>;
   /** 요청마다 모델이 받은 메시지 열을 JSON 텍스트로 한 줄씩. 요약 호출도 한 요청이다 */
   requestTexts(): readonly string[];
@@ -16,7 +16,7 @@ export interface RecordingModels {
   release(): void;
 }
 
-export interface RecordingOptions {
+interface RecordingOptions {
   readonly contextWindow: number;
   /** 이 번호(0부터)의 요청은 `release()`가 불릴 때까지 응답을 내지 않는다 */
   readonly holdRequest?: number;
