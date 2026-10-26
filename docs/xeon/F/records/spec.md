@@ -743,7 +743,7 @@ export interface ChunkMigration<C extends JsonValue> {
    | `future_version` | `migration_future_version` | DB가 이 앱보다 새 버전이다(앱을 되돌렸다). 마이그레이션이 DB를 건드리지 않는다. 앱을 새 버전으로 올린다. 읽기 전용으로 여는 길은 M3 |
    | `corrupt` | `corrupt`, `migration_checksum_mismatch`, `migration_gap`, 저장된 행의 `row_invalid` | 파일이 망가졌거나 마이그레이션 이력이 맞지 않거나 행이 스키마와 다르다. 마이그레이션 전 스냅샷이나 백업에서 되살린다 |
    | `migration_failed` | `migration_failed` | 마이그레이션 단계가 실패했다. 앞 단계는 유지된다. 마이그레이션 전 스냅샷으로 돌아가고 같은 버전에서 보고한다 |
-   | `unavailable` | 그 밖의 모든 kind(`busy`, `disk_full`, `io`, `permission`, `unsupported_filesystem`, `db_path_invalid`, `foreign_database`, `fts5_missing`) | 환경을 고치면 풀린다. 모르는 kind도 여기다 |
+   | `unavailable` | 그 밖의 모든 kind(`busy`, `disk_full`, `io`, `permission`, `unsupported_filesystem`, `db_path_invalid`, `foreign_database`, `fts5_missing`, `sqlite_load_failed`) | 환경을 고치면 풀린다. 모르는 kind도 여기다 |
 
    - 이름을 문자열로 받는 이유는 F가 L0.store의 `StoreOpenError`를 import하지 못해서다. 새 오류 kind를 더하면 분류 표와 시험을 먼저 고친다.
    - 호스트는 `AssembleError`의 store 이유를 이 분류로 나눠 클라이언트에 알린다. 실행 중에 만난 `row_invalid`는 wire `store.corrupt`(5007, `F.wire-settings.spec` §3.5.2)로 알린다. 이전에는 `store.io`의 `details.code: "row_invalid"`로 옮겼다.

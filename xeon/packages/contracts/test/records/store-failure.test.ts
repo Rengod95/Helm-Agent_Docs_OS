@@ -27,6 +27,7 @@ describe("storeFailureKindOf", () => {
       "db_path_invalid",
       "foreign_database",
       "fts5_missing",
+      "sqlite_load_failed",
       "something_new",
       "",
     ]) {
