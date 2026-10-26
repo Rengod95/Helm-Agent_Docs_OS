@@ -5,7 +5,7 @@ import { wireError, type WireError, type WireHandler } from "@xeon/contracts/wir
 import type { ConnectionHub } from "../connection-types.ts";
 import type { Engine, ThreadCompactFailure, ThreadReadFailure } from "../types.ts";
 import { wireErrorOfLifecycle, wireErrorOfStore } from "../store-error.ts";
-import { claimWrite, ownerKindOf, threadLocked } from "./owner.ts";
+import { claimWrite, threadLocked, withWriteOwner } from "./owner.ts";
 
 // L4.host-service.spec §3.4 M1 표. thread.create: thread를 만들고 쓰기 소유를 함께 얻는다(M1에서는 create가 소유를 얻는다).
 // thread.open은 아래에 있다. M2 나머지(HOST.2)는 이 파일 아래쪽: list, read, close, fork, revert, delete.
@@ -153,33 +153,29 @@ export function createThreadRevertHandler(engine: Engine): WireHandler<"thread.r
 
 /**
  * 제목을 바꾼다(G2-12, HS-73). 쓰기 소유자만 바꿀 수 있어 `thread.delete`처럼 열지 않고 바꾸는 클라이언트(`xeon sessions rename`)를 위해
- * 소유를 쥐지 않았으면 한 번 얻어 본다. 얻지 못하면 3002다. 이 호출이 얻은 잠금은 바꾼 뒤 놓는다. 결과 `position`은 제목 변경
- * 이벤트를 반영한 저장소 위치다
+ * 소유를 쥐지 않았으면 한 번 얻어 본다. 얻지 못하면 3002다. 이 호출이 얻은 잠금은 바꾼 뒤 놓되, 그동안 다른 연결이 소유를 이어받았으면
+ * 놓지 않는다(`withWriteOwner`). 결과 `position`은 제목 변경 이벤트를 반영한 저장소 위치다
  */
-export function createThreadRenameHandler(engine: Engine): WireHandler<"thread.rename"> {
+export function createThreadRenameHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): WireHandler<"thread.rename"> {
   const { ports } = engine;
   return async (params) => {
     const { threadId } = params;
     requireThread(engine, threadId, "thread.rename");
-    const acquiredHere = !ports.locks.holds(threadId);
-    if (acquiredHere) {
-      const lock = await ports.locks.tryAcquire(threadId, ownerKindOf(engine.mode));
-      if (!lock.ok) throw threadLocked(lock.ownerKind);
-    }
-    try {
+    return await withWriteOwner(engine, hub(), threadId, () => {
       const renamed = ports.threads.rename(threadId, params.title);
       if (!renamed.ok) throw wireErrorOfLifecycle(renamed.error, "thread.rename");
       return renamed.value;
-    } finally {
-      if (acquiredHere) await ports.locks.release(threadId);
-    }
+    });
   };
 }
 
 /**
  * 쓰기 소유자만 지울 수 있다. `xeon sessions rm`처럼 thread를 열지 않고 지우는 클라이언트를 위해 소유를 쥐지 않았으면 한 번 얻어 본다
  * (HS-28 암묵 획득과 같은 규칙. 표(§3.4)가 "잠금을 얻을 수 없으면 거부"라고 적었다). 얻지 못하면 3002다.
- * 지우지 못했으면 이 호출이 얻은 잠금은 놓는다.
+ * 지우지 못했으면 이 호출이 얻은 잠금은 놓되, 그동안 다른 연결이 소유를 이어받았으면 놓지 않는다(`withWriteOwner`).
  */
 export function createThreadDeleteHandler(
   engine: Engine,
@@ -189,16 +185,10 @@ export function createThreadDeleteHandler(
   return async (params) => {
     const { threadId } = params;
     requireThread(engine, threadId, "thread.delete");
-    const acquiredHere = !ports.locks.holds(threadId);
-    if (acquiredHere) {
-      const lock = await ports.locks.tryAcquire(threadId, ownerKindOf(engine.mode));
-      if (!lock.ok) throw threadLocked(lock.ownerKind);
-    }
-    const removed = await ports.threads.remove(threadId);
-    if (!removed.ok) {
-      if (acquiredHere) await ports.locks.release(threadId);
-      throw wireErrorOfLifecycle(removed.error, "thread.delete");
-    }
+    await withWriteOwner(engine, hub(), threadId, async () => {
+      const removed = await ports.threads.remove(threadId);
+      if (!removed.ok) throw wireErrorOfLifecycle(removed.error, "thread.delete");
+    });
     // 이 thread를 열어 둔 연결의 기록을 지운다
     for (const conn of hub().connections()) {
       conn.openThreads.delete(threadId);

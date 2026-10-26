@@ -66,7 +66,7 @@ export function createWireHandlers(
     "thread.delete": createThreadDeleteHandler(engine, hub),
     "thread.fork": createThreadForkHandler(engine, hub),
     "thread.revert": createThreadRevertHandler(engine),
-    "thread.rename": createThreadRenameHandler(engine),
+    "thread.rename": createThreadRenameHandler(engine, hub),
     "thread.compact": createThreadCompactHandler(engine, hub),
     "turn.start": createTurnStartHandler(engine, hub),
     "turn.interrupt": createTurnInterruptHandler(engine),
