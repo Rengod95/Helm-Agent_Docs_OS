@@ -5,7 +5,8 @@ import type { SkillIndexBlock } from "./skills/prompt-block.ts";
 
 // L2.knowledge.spec §4.2.5, §4.2.6, §4.3.4, §7: 세션별 프롬프트 맥락. 첫 turn에는 스킬 인덱스 블록과 메모리 스냅샷을
 // 기록 메시지 하나로 더하고, 이후 turn에는 인덱스가 바뀌었을 때만 델타 메모 하나를 더한다. 시스템 프롬프트와 첫 블록은
-// 건드리지 않는다(프롬프트 캐시 접두).
+// 건드리지 않는다(프롬프트 캐시 접두). 컴팩션 뒤에 이 메시지를 모델 입력에 다시 놓는 일은 L1.context가 한다(L1.context.spec §4.9a):
+// 이 패키지는 컴팩션을 보지 않고 세션별 상태를 그대로 둔다(L2.knowledge.spec §4.2.8).
 
 export const INDEX_MESSAGE_TYPE = "knowledge.context";
 export const DELTA_MESSAGE_TYPE = "knowledge.index-delta";
@@ -37,11 +38,6 @@ export interface TurnContext {
   start(threadId: string, reason: SessionStartReason): Promise<void>;
   /** turn 시작. 더할 메시지가 없으면 undefined */
   beforeAgentStart(threadId: string): Promise<ContextMessage | undefined>;
-  /**
-   * 컴팩션이 끝났다(`session_compact`). 컴팩션은 앞쪽 기록을 요약으로 바꾸므로 첫 turn에 넣었던 스킬 인덱스 블록과 메모리 스냅샷이
-   * 모델 입력에서 사라진다. 이 대화의 다음 turn을 처음 turn처럼 다루어, 그때의 인덱스와 메모리로 블록을 다시 넣는다(C-11)
-   */
-  afterCompaction(threadId: string): void;
   /** 세션 정리 */
   shutdown(threadId: string): void;
   /** 추적 중인 세션 수(시험용) */
@@ -122,9 +118,6 @@ export function createTurnContext(deps: TurnContextDeps): TurnContext {
       const state = states.get(threadId);
       if (state === undefined) return introduce(threadId);
       return delta(threadId, state);
-    },
-    afterCompaction: (threadId) => {
-      states.delete(threadId);
     },
     shutdown: (threadId) => {
       states.delete(threadId);

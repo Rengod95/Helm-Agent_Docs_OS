@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { eachAsync, err, ok, type LogFields, type Logger, type Result } from "@xeon/contracts";
+import { err, ok, type LogFields, type Logger, type Result } from "@xeon/contracts";
 import {
   KnowledgeLedgerKey,
   KnowledgeSearchKey,
@@ -187,7 +187,6 @@ describe("manifest", () => {
     expect(unit.manifest.points).toEqual([
       "session_start",
       "before_agent_start",
-      "session_compact",
       "session_shutdown",
     ]);
   });
@@ -423,7 +422,7 @@ describe("turn hooks", () => {
 });
 
 describe("compaction", () => {
-  test("after session_compact the next turn carries the index block and the memory snapshot again, built from the current index", async () => {
+  test("a compaction does not make the next turn add the block again: L1.context puts the folded block back, and a later index change arrives as a delta only", async () => {
     const { t, fs } = await boot({ prepare: (memory) => putSkill(memory, USER_SKILLS, "deploy") });
     const thread = t.newThread();
     await t.host.openThread(thread);
@@ -436,7 +435,7 @@ describe("compaction", () => {
     expect(first.map((message) => message.customType)).toEqual(["knowledge.context"]);
     expect(await agentStart(t, thread, "turn-2")).toEqual([]);
 
-    // 컴팩션 사이에 스킬이 늘었다: 다시 넣는 블록은 델타가 아니라 지금 인덱스 전체다
+    // 컴팩션 사이에 스킬이 늘었다
     const { apis, unit } = consumer();
     await t.host.install(unit);
     await t.settled();
@@ -454,45 +453,37 @@ describe("compaction", () => {
       },
       { threadId: thread, dispatchKey: "compact-1" },
     );
-    const again = await agentStart(t, thread, "turn-3");
-    expect(again.map((message) => message.customType)).toEqual(["knowledge.context"]);
-    expect(again[0]?.content).toContain("<name>deploy</name>");
-    expect(again[0]?.content).toContain("<name>rollback</name>");
-    // 한 번 다시 넣은 뒤에는 평소처럼 바뀐 것이 없으면 아무것도 더하지 않는다
+    // 전체 블록을 다시 넣지 않는다(요약에 접힌 블록은 L1이 다시 놓는다). 바뀐 것은 평소처럼 델타 하나다
+    const after = await agentStart(t, thread, "turn-3");
+    expect(after.map((message) => message.customType)).toEqual(["knowledge.index-delta"]);
+    expect(after[0]?.content).toContain("rollback");
+    expect(after[0]?.content).not.toContain("<available_skills>");
     expect(await agentStart(t, thread, "turn-4")).toEqual([]);
   });
 
-  test("a compaction in one thread does not make another thread repeat its block", async () => {
+  test("a compaction with no index change leaves the next turn empty", async () => {
     const { t } = await boot({ prepare: (memory) => putSkill(memory, USER_SKILLS, "deploy") });
-    const a = t.newThread();
-    const b = t.newThread();
-    await t.host.openThread(a);
-    await t.host.openThread(b);
-    await eachAsync([a, b], async (thread) => {
-      await t.host.dispatch(
-        "session_start",
-        { reason: "new", threadId: thread },
-        { threadId: thread, dispatchKey: `start-${thread}` },
-      );
-      await agentStart(t, thread, `first-${thread}`);
-      return undefined;
-    });
+    const thread = t.newThread();
+    await t.host.openThread(thread);
+    await t.host.dispatch(
+      "session_start",
+      { reason: "new", threadId: thread },
+      { threadId: thread, dispatchKey: "start" },
+    );
+    await agentStart(t, thread, "turn-1");
     await t.host.dispatch(
       "session_compact",
       {
-        threadId: a,
+        threadId: thread,
         eventId: t.ids.next("evt"),
-        reason: "threshold",
+        reason: "manual",
         willRetry: false,
         fromExtension: null,
         tokensBefore: 1,
       },
-      { threadId: a, dispatchKey: "compact-a" },
+      { threadId: thread, dispatchKey: "compact-1" },
     );
-    expect((await agentStart(t, a, "next-a")).map((message) => message.customType)).toEqual([
-      "knowledge.context",
-    ]);
-    expect(await agentStart(t, b, "next-b")).toEqual([]);
+    expect(await agentStart(t, thread, "turn-2")).toEqual([]);
   });
 });
 

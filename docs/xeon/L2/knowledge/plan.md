@@ -266,7 +266,7 @@ xeon/packages/cap-knowledge/
 | 파일 | 내용 |
 |---|---|
 | `delta.test.ts` | 비교와 문장(정렬, 10개 상한, 60자 설명), 첫 turn 메시지, `index delta next turn`(추가·변경·삭제가 다음 turn 메모 하나, 같은 변경은 한 번만), 본문만 바꾼 변경은 메모 없음, 모델 호출 여부 전환, 세션 독립과 `shutdown`, 재개한 세션, `startup` 말고는 재색인, 스킬·메모리를 끄면 메시지 없음 |
-| `plugin.test.ts` | 후크 경로: `session_start` → 첫 turn 블록 → 변경 뒤 델타 → `session_shutdown` 뒤 첫 turn으로 돌아감. 매니페스트 `points`. `session_compact` 뒤 다음 turn에 인덱스 블록과 메모리 스냅샷이 현재 인덱스로 다시 들어가고 다른 대화는 그대로(G2-01, spec §4.2.8). 대화의 작업 폴더가 프로젝트 폴더: 대화마다 자기 작업 폴더의 프로젝트 스킬만 보이고 신뢰도 그 폴더로 묻는다, 작업 폴더가 없는 대화는 프로젝트 스킬이 없다, 작업 폴더를 오가도 원장에 `external` 항목이 늘지 않는다, 신뢰하지 않은 작업 폴더의 스킬은 싣지 않는다, 대화 안에서 쓴 프로젝트 스킬은 그 대화의 작업 폴더에 만들어진다(G2-02, spec §4.2.1) |
+| `plugin.test.ts` | 후크 경로: `session_start` → 첫 turn 블록 → 변경 뒤 델타 → `session_shutdown` 뒤 첫 turn으로 돌아감. 매니페스트 `points`. `session_compact`를 보내도 다음 turn이 전체 블록을 다시 넣지 않고, 그 사이 바뀐 인덱스는 델타 하나로만 온다(M2 마감 재검토 결함 2, spec §4.2.8). 대화의 작업 폴더가 프로젝트 폴더: 대화마다 자기 작업 폴더의 프로젝트 스킬만 보이고 신뢰도 그 폴더로 묻는다, 작업 폴더가 없는 대화는 프로젝트 스킬이 없다, 작업 폴더를 오가도 원장에 `external` 항목이 늘지 않는다, 신뢰하지 않은 작업 폴더의 스킬은 싣지 않는다, 대화 안에서 쓴 프로젝트 스킬은 그 대화의 작업 폴더에 만들어진다(G2-02, spec §4.2.1) |
 
 ## 4. 채택 코드
 
@@ -362,7 +362,6 @@ xeon/packages/cap-knowledge/
 | 같음 | `fts special chars quoted` | `"`, `*`, `:` 든 질의가 문법 오류 없이 동작 |
 | `test/probe.test.ts` | `probe failure disables session search` | trigram 생성이 실패하도록 한 가짜 store → 시작 성공, 세션만 요청 `unavailable`, 기본 질의 `degraded: ["session"]` |
 | `test/delta.test.ts` | `index delta next turn` | 스킬 추가·설명 변경·삭제 뒤 다음 turn 델타 메모 1개, 본문만 바꾼 변경은 메모 없음 |
-| | `after a compaction the next turn re-adds the index block and memory snapshot once…` | `afterCompaction` 뒤 다음 turn은 델타가 아닌 전체 블록과 메모리 스냅샷이고 그다음 turn은 비어 있다(G2-01) |
 | `test/settings.test.ts` | `knowledge settings pass checkSettingDef` | 키 집합이 spec §6 표와 같고 승인·스캔·경로 키의 `allowedScopes`가 `managed`, `user`뿐 |
 
 `int` 태그:

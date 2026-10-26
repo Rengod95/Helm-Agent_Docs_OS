@@ -228,10 +228,6 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
         const message = await turnContext.beforeAgentStart(ctx.threadId);
         return message === undefined ? undefined : { message };
       });
-      // 컴팩션 뒤 첫 turn에 스킬 인덱스 블록과 메모리 스냅샷을 다시 넣는다(spec §4.2.7, C-11)
-      g.on("session_compact", (payload) => {
-        turnContext.afterCompaction(payload.threadId);
-      });
       g.on("session_shutdown", (_payload, ctx) => {
         turnContext.shutdown(ctx.threadId);
       });

@@ -927,7 +927,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 예산: `l2.knowledge.skills.indexBudgetChars`(기본 8,000자 [가정]). 항목 설명은 `l2.knowledge.skills.indexDescriptionChars`(기본 160자 [가정])에서 자르고 끝에 `…`을 붙인다. Hermes는 60자, Claude Code는 1,536자 상한이다(`_research/refs/hermes.md` §3.10.1 (라)·(바), `_research/item-catalog.md` L2 스킬 행). 기본값은 측정 뒤 정한다.
 - 예산을 넘으면 범위 순(프로젝트 → 사용자 → 확장 → 경로), 같은 범위 안에서는 이름 바이트 순으로 넣을 수 있는 만큼만 넣고 남은 개수를 적는다. 순서가 결정적이어야 같은 스킬 집합이 같은 블록을 만든다(프롬프트 캐시).
 - 블록 생성은 `skills/prompt-block.ts`의 순수 함수와 `SkillsRuntime.indexBlock(threadId)`로 구현했다(KN.1). 연결은 `turn-context.ts`가 한다(KN.5). `before_agent_start`에서 세션의 첫 turn이면 인덱스 블록과 메모리 스냅샷(§4.3.4)을 이어 붙여 `customType: "knowledge.context"`, `display: false`인 기록 메시지 하나로 더한다. 시스템 프롬프트는 건드리지 않는다. 더한 메시지가 세션 기록에 남는다는 것은 [가정]이다.
-- 첫 turn은 세션별 상태가 없는 turn이다. `session_start`의 `reason`이 `startup`·`new`면 상태를 비워 첫 turn으로 만들고, `resume`·`fork`·`reload`면 현재 인덱스를 기준으로 상태를 만든다. 이어받은 세션의 기록에 블록이 이미 있다고 보기 때문이다. 컴팩션이 일어나면 이 가정이 깨지므로 §4.2.8이 다시 넣는다.
+- 첫 turn은 세션별 상태가 없는 turn이다. `session_start`의 `reason`이 `startup`·`new`면 상태를 비워 첫 turn으로 만들고, `resume`·`fork`·`reload`면 현재 인덱스를 기준으로 상태를 만든다. 이어받은 세션의 기록에 블록이 이미 있다고 보기 때문이다. 컴팩션이 일어나면 이 가정이 깨질 수 있어 접힌 블록은 L1이 다시 놓는다(§4.2.8).
 - 블록과 인덱스 스냅샷은 같은 시점의 색인에서 만든다. 스킬을 끄면(`l2.knowledge.skills.enabled`) 블록은 비고, 메모리를 끄면 스냅샷이 빈다. 둘 다 비면 메시지를 더하지 않는다.
 - 이 블록을 어디에 두는지(시스템 프롬프트 영역, 첫 turn 메시지)는 `L1.context.spec`이 정한다. [제안] 메모리 스냅샷(§4.3.4)과 같은 첫 turn 기록 메시지로 넣는다. 기록 메시지면 재개 때 같은 내용이 다시 쓰여 결정적이다.
 
@@ -939,7 +939,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 스킬 인덱스 변경: 추가 deploy-rollback(롤백 절차 …), 변경 release-checklist, 삭제 old-notes
 ```
 
-- 세션마다 마지막으로 알린 인덱스 스냅샷(`indexVersion`과 모델에게 보이는 스킬의 이름 → 잘린 설명)을 메모리에 둔다. 인덱스 버전은 원장 `seq` 중 인덱스를 바꾼 항목(`index_changed = 1`인 `applied` 행)의 최댓값이다. 이름·설명·모델 호출 여부가 바뀌거나 스킬이 생기고 사라진 변경만 센다. 프로세스 재시작 뒤에는 현재 버전으로 시작한다 [가정: 재시작 사이의 변경 알림 한 번을 놓칠 수 있다]. 컴팩션 뒤에는 첫 블록을 다시 넣는다(§4.2.8).
+- 세션마다 마지막으로 알린 인덱스 스냅샷(`indexVersion`과 모델에게 보이는 스킬의 이름 → 잘린 설명)을 메모리에 둔다. 인덱스 버전은 원장 `seq` 중 인덱스를 바꾼 항목(`index_changed = 1`인 `applied` 행)의 최댓값이다. 이름·설명·모델 호출 여부가 바뀌거나 스킬이 생기고 사라진 변경만 센다. 프로세스 재시작 뒤에는 현재 버전으로 시작한다 [가정: 재시작 사이의 변경 알림 한 번을 놓칠 수 있다]. 컴팩션은 이 상태를 바꾸지 않는다(§4.2.8).
 - 본문만 바뀐 변경은 알리지 않는다. 모델은 다음 `view`에서 새 본문을 읽는다.
 - 구현은 `before_agent_start`에서 현재 `indexVersion`을 상태의 버전과 비교한다. 같으면 아무것도 하지 않는다. 다르면 이름과 잘린 설명을 비교해(`skills/delta.ts`의 `diffIndex`) 추가·변경·삭제를 정하고, 상태를 현재로 올린 뒤 비어 있지 않을 때만 메모를 더한다. 모델 호출 여부가 바뀌어 목록에 나타나거나 사라지는 스킬은 추가·삭제로 센다. 같은 이름의 범위가 바뀌어도 설명이 같으면 알리지 않는다.
 - 메모는 `customType: "knowledge.index-delta"`, `display: false` 메시지 하나다. 목록은 이름 바이트 순이고 한 줄에 10개까지, 넘으면 `외 N개`로 줄인다. 추가한 스킬 옆 설명은 60자(코드 포인트)에서 `…`로 자른다. 예산을 넘어 첫 블록에 싣지 못한 스킬도 인덱스에 있으면 추가로 알린다.
@@ -953,11 +953,11 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.2.8 컴팩션 뒤 재주입
 
-- 컴팩션(`L1.context.spec` §4.6)은 앞쪽 기록을 요약으로 바꾸므로, 첫 turn에 넣은 `knowledge.context` 메시지(스킬 인덱스 블록과 메모리 스냅샷)가 모델 입력에서 사라진다. 이 패키지가 `session_compact`(#35, tap, `L1.context.spec` 발화 지점)를 받아 그 대화의 세션별 상태를 비운다. 상태가 없으므로 다음 turn의 `before_agent_start`가 첫 turn처럼 동작해 그때의 인덱스와 메모리로 블록 하나를 다시 넣는다. 델타 메모가 아니라 전체다 [결정: m2c G2-01, C-11].
-- 다시 넣는 시점은 컴팩션 직후의 다음 turn 시작이다. 컴팩션이 turn 안에서 일어나 같은 turn의 단계를 재시도하는 경우(`willRetry`)에도 그 turn 안에서는 들어가지 않고 다음 turn 시작에 들어간다. `before_agent_start`가 turn마다 한 번 발화하기 때문이다.
-- 다른 대화의 상태는 건드리지 않는다. 한 번 다시 넣은 뒤에는 §4.2.6대로 바뀐 것이 있을 때만 델타를 더한다.
-- 컴팩션이 보존 구간에 첫 블록을 남겼는지는 알 수 없어서, 그 경우 블록이 한 번 더 들어가 중복된다 [가정]. 내용이 같아 해가 없고 다음 컴팩션이 정리한다.
-- 최근 읽은 파일과 호출된 스킬 본문의 재주입은 `L1.context.spec` §4.10 2차 항목(C-11)이고 이 패키지의 일이 아니다. 컴팩션 호출 배선(`/compact`, 자동 컴팩션)은 L1 쪽이다. 이 핸들러는 `session_compact`만 본다.
+- 컴팩션(`L1.context.spec` §4.6)은 앞쪽 기록을 요약으로 바꾸므로, 첫 turn에 넣은 `knowledge.context` 메시지(스킬 인덱스 블록과 메모리 스냅샷)가 요약에 접히면 모델 입력에서 빠진다. 이 메시지를 다시 놓는 일은 L1.context가 한다. 조립이 접힌 범위의 `knowledge.context`와 `knowledge.index-delta` custom item을 요약 바로 뒤에 가지 순서대로 다시 놓는다(`L1.context.spec` §4.9a, 두 층이 customType 문자열을 약속한다). 이 패키지는 컴팩션을 구독하지 않고 세션별 상태를 그대로 둔다 [결정: M2 마감 재검토 결함 2].
+- 이유. 이 패키지가 `session_compact`에서 상태를 비워 다음 turn에 전체 블록을 새로 넣으면, L1이 다시 놓은 옛 블록과 새 블록이 한 요청에 모두 들어가 스킬 색인과 메모리가 두 번 보인다(실제 엔진 시험 `apps/host/test/int/compact-reinject.int.test.ts`가 요청 본문을 세어 확인했다). L1의 재주입은 가지에서 매번 같은 값으로 만들어 재개와 프로세스 재시작 뒤에도 같은 바이트이지만, 이 패키지의 세션별 상태는 메모리에만 있어 재시작 뒤에는 컴팩션 사실을 알 수 없다.
+- 결과. 컴팩션 뒤 모델이 보는 블록은 첫 turn의 스냅샷 그대로다. 그 뒤 인덱스가 바뀌면 §4.2.6대로 델타 메모 하나만 더한다. 메모리 스냅샷은 세션 동안 고정이다(§4.3.4). 컴팩션이 보존 구간에 블록을 남기면 그 자리에 한 번만 나온다.
+- 허용 목록이 다르면 어긋난다. 호스트가 L1의 `reinjectCustomTypes`를 빈 배열로 두면 컴팩션 뒤 블록이 모델 입력에서 사라진다. 이 패키지는 보충하지 않는다.
+- 최근 읽은 파일과 호출된 스킬 본문의 재주입은 `L1.context.spec` §4.10 2차 항목(C-11)이고 이 패키지의 일이 아니다. 컴팩션 호출 배선(`/compact`, 자동 컴팩션)도 L1 쪽이다.
 
 ### 4.3 메모리
 
@@ -1305,7 +1305,6 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `session_start`(#30) | tap | 세션별 상태(마지막 인덱스 스냅샷) 초기화. `startup` 말고는 스킬 루트를 다시 훑어 바깥 편집을 반영한다(전체 재색인이며 mtime 검사는 하지 않는다) |
 | `before_agent_start`(#3) | chain | 세션 첫 turn: 메모리 스냅샷 + 스킬 인덱스 블록을 메시지로 더한다. 이후 turn: 인덱스가 바뀌었으면 델타 메모를 더한다(§4.2.6). `before_agent_start.message`는 추가 병합이다(`F.extensions.spec` §4.1) [가정: 더한 메시지가 세션 기록에 남는다] |
 | `resources_discover`(#28) | chain | 패치를 돌려주지 않는다. 합성 결과의 스킬 경로를 받는 방법은 X가 정한다(§4.2.7) |
-| `session_compact`(#35) | tap | 그 대화의 세션별 상태를 비워 다음 turn에 인덱스 블록과 메모리 스냅샷을 다시 넣게 한다(§4.2.8) |
 | `session_shutdown`(#39) | tap | 세션별 메모리 상태 정리 |
 
 - 모델 도구 경로는 tool 지점(`tool_call` first, `tool_result` chain)을 지난다. 페이로드 `capability` 필드(`{ id: "knowledge.skills", method: "manage" }`)로 L3 그룹이 특정 단계의 쓰기를 막거나 스킬 쓰기 사건을 셀 수 있다.
@@ -1341,7 +1340,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `DecideInput.approval`(확장의 제안 결정에 실을 증거), `LedgerEntry.afterUntrusted` | `F.capabilities.spec` | 요청(KN.2, §10 미결 21·22) |
 | 쓰기 도구 둘의 일반 도구 승인 기본값 `allow` | `L1.tools.spec` | 요청 |
 | 첫 turn 기록 메시지로 스냅샷·인덱스를 넣는 경로 | `L1.context.spec` | 요청 |
-| 컴팩션 뒤 다시 넣기 | `L1.context.spec`의 `session_compact` | 있음(§4.2.8). 컴팩션 호출 배선은 L1 쪽(G2-01) |
+| 컴팩션 뒤 다시 넣기 | `L1.context.spec` §4.9a | L1이 한다. 이 패키지는 상태를 그대로 둔다(§4.2.8) |
 | 데이터 디렉터리 | `L0.os.spec`(`OsDirs.data`) | 있음 |
 | 프로젝트 디렉터리 | 대화의 작업 폴더(`workspaceOf`, 조립 루트가 `threadWorkspaceOf`를 넘긴다). 옵션이 없으면 `xeon.exec`의 `cwd` | 있음(`L2.readme` §5.10) |
 | 프로세스 사이 파일 락 | `L0.os.spec` | 없음. 임대와 해시 재확인으로 대신한다(§4.3.3, §10 미결 18) |
@@ -1371,7 +1370,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 1. [미결] 메모리 정본의 위치. 제안은 "정본 파일 + DB 색인·원장·대기열"이다. `eng.context-map.design` §4.1 표는 메모리를 `cap_knowledge_`에 두고, `_research/item-catalog.md`는 git 추적 파일을 권한다(§4.1).
 2. 닫힘. 호출자 정보는 `F.capabilities.spec` §3.2 `CallOptions.context.caller`로 받는다(`L2.web.spec` §3.7과 같다).
 3. [미결] 제안 대기열의 소유와 중복. 이 문서는 `cap_knowledge_proposals`(에이전트 쓰기용)를 두고 학습 정책을 가진 L3 그룹은 자기 대기열을 갖는다. 하나로 합칠지(`L3.learning.spec` §10 미결 9, `eng.context-map.design` §4.1 "제안 대기열").
-4. [미결] 메모리 스냅샷과 스킬 인덱스를 넣는 위치(시스템 프롬프트 영역 또는 첫 turn 기록 메시지)와 컴팩션 뒤 다시 넣는 규칙. `L1.context.spec`과 함께 정한다(§4.2.5, §4.3.4).
+4. [미결] 메모리 스냅샷과 스킬 인덱스를 넣는 위치(시스템 프롬프트 영역 또는 첫 turn 기록 메시지)와 컴팩션 뒤 다시 넣는 규칙. 첫 turn 기록 메시지로 넣고 컴팩션 뒤 재주입은 L1이 한다(§4.2.5, §4.2.8, `L1.context.spec` §4.9a). 시스템 프롬프트 영역에 둘지는 남는다.
 5. [미결] 쓰기 도구 승인의 이중화 방지. 일반 도구 승인 기본 `allow` + 능력 게이트(제안) 또는 L1.tools 승인 하나에 diff를 싣는 방식(§3.6).
 6. [미결] 원장 보존 기간과 오래된 blob 정리. 지우지 않으면 원장 blob이 계속 늘어난다(`L2.knowledge.plan` §7).
 7. [미결] 인덱스 예산과 설명 자르기 기본값(8,000자, 160자). 측정 전 [가정]이다(§4.2.5).

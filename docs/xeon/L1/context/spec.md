@@ -382,6 +382,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 - 조립(`effectiveMessages`)이 가지 위 `firstKeptEventId` 앞 범위에서 허용 목록에 든 `customType`의 custom item을 찾아, 컴팩션 요약 메시지 바로 뒤에 가지 순서대로 다시 놓는다. 새 이벤트를 커밋하지 않고 매번 가지에서 같은 값으로 만들므로 재개 뒤에도 같은 바이트다. 남은 범위(`firstKeptEventId` 이후)에 있는 같은 종류의 item은 그 자리에 한 번만 나온다.
 - 허용 목록은 `createContextService`의 `reinjectCustomTypes` 옵션이고 기본값은 `["knowledge.context", "knowledge.index-delta"]`다. L1은 L2를 import하지 않으므로 두 층이 이 문자열을 약속한다(`L2.knowledge.spec` §4.2.5). 빈 배열이면 재주입하지 않는다. 호스트가 다른 customType을 더하려면 옵션에 넘긴다.
+- 이 재주입이 블록을 다시 모델 입력에 올리는 유일한 경로다. L2.knowledge는 컴팩션에서 세션 상태를 비워 전체 블록을 새로 넣지 않는다(`L2.knowledge.spec` §4.2.8). 그렇게 하면 다시 놓은 옛 블록과 새 블록이 한 요청에 둘 다 들어간다(M2 마감 재검토 결함 2, 실제 엔진 시험 `apps/host/test/int/compact-reinject.int.test.ts`). 그래서 컴팩션 뒤에 보이는 블록은 첫 turn 스냅샷 그대로이고, 그 뒤 변경은 `knowledge.index-delta`로 온다.
 - 컴팩션을 하지 않은 가지는 영향이 없다. 임계 검사(`shouldCompact`)의 토큰 추정에도 재주입 메시지가 들어간다.
 - 컴팩션 요약 입력에서 이 메시지들을 빼지는 않는다. 요약이 색인 내용을 한 번 더 담을 수 있으나 짧다 [제안].
 - 최근 읽은 파일 재주입(`l1.context.reinjectRecentFiles`)은 §4.10에 남아 있다(M3).
