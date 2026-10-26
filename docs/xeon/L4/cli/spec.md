@@ -574,7 +574,7 @@ export type CliState = Static<typeof CliStateSchema>;
     - 활성 lease가 하나라도 있으면 묻지 않고 "사용 중인 비밀이라 지울 수 없다 (활성 lease <n>개)"로 1로 끝낸다. `secret.remove`는 보내지 않는다.
     - `--yes`는 묻지 않고 지우되, 참조가 하나라도 있으면 같은 한 줄을 stderr에 남긴다. 활성 lease는 호스트가 거부하고(`secret.inUse`) CLI는 활성 lease 수를 보인다.
     - `host.hello`의 `features`에 `secret.references`가 없는 호스트에서는 사용 정책만 보인다.
-  - 비밀 오류는 F 오류 표의 전용 kind(`secret.notFound`~`secret.writeFailed`, 3201~3212)로 온다. 전용 kind가 생기기 전의 호스트는 `internal`의 `details.secret.kind`에 실었으므로 CLI는 두 길을 같은 문구 표로 모은다. 문구와 종료 코드는 제공자·키 문제가 3, 나머지가 1이다.
+  - 비밀 오류는 F 오류 표의 전용 kind(`secret.notFound`~`secret.writeFailed`, 3201~3212)로 온다. 전용 kind가 생기기 전의 호스트는 `internal`의 `details.secret.kind`에 실었으므로 CLI는 두 길을 같은 문구 표로 모은다. 문구와 종료 코드는 제공자·키 문제가 3, 나머지가 1이다. [결정: m2r sec] 같은 kind라도 원인별로 해결 줄을 나눈다: `provider_unavailable`은 `binary_missing`이면 "sops와 age를 설치", `version_too_old`면 버전을 올리라고, `not_registered`면 `l0.secrets.defaultProvider`와 `l0.secrets.sops.files`를 보라고 한다(SOPS 파일이 없는 것은 원인이 아니다: 기본 파일은 첫 `secret add`가 만든다, `L0.secrets.spec` §4.8). `key_unavailable`(`file`, `access_denied`)는 `l0.secrets.ageKey.source`를 `file`로 저장하라고 한다. `write_failed`는 `target`(`sops_file`, `key_store`, `key_file`)과 `code`를 문구에 싣고 `code`별로 고칠 곳을 말한다.
 - `reveal` (구현): 확인 문구로 이름을 다시 입력받고(`tty-confirm`, `verifiedAt`은 엔진 시계) 열람 수단을 맡긴 뒤 `secret.beginReveal`을 보낸다. 값은 `show` 콜백에서 바이트 그대로 `stdoutStream`에 한 번 쓰고, 문자열로 바꾸지 않는다. `os-auth`는 L0.os가 제공하기 전까지 쓰지 않는다. 호스트가 `started: false`를 돌려주면(재확인 만료·취소) 값을 보이지 않고 1이다.
 - 값 열람 [결정: review.decisions-2 U-20]: 열람 경로는 M2 CLI `xeon secret reveal <name>`과 M3 데스크톱 화면(`L4.settings-ui.spec`) 둘이다. 에이전트 경로(모델 도구, 확장 API)에는 열람이 없다.
   - [제안] `reveal`은 stdin과 stdout이 모두 TTY일 때만 동작한다. 아니면 `revealRequiresTty` 사용법 오류(2)다. `--json`을 받지 않는다.

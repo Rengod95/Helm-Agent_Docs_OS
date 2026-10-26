@@ -127,3 +127,77 @@ test("compaction kinds have their own phrases and the exit code 1", () => {
     code: EXIT.error,
   });
 });
+
+// M2 첫 실행: 깨끗한 기기의 첫 `secret add`가 실패했을 때 원인에 맞는 해결을 보인다("sops와 age를 설치"는 sops가 없을 때만이다).
+
+test("not_registered points at the provider setting, not at installing sops and age", () => {
+  const failure = failureOfWire(
+    wireError("secret.providerUnavailable", {
+      details: { provider: "sops", reason: "not_registered" },
+    }),
+  );
+  expect(failure.message).toBe("비밀 제공자(sops)를 쓸 수 없다 (not_registered)");
+  expect(failure.fix).toContain("l0.secrets.defaultProvider");
+  expect(failure.fix).toContain("l0.secrets.sops.files");
+  expect(failure.fix).not.toContain("설치");
+  expect(failure.code).toBe(EXIT.environment);
+});
+
+test("a too old sops asks for an upgrade; a missing one still asks for an install", () => {
+  const old = failureOfWire(
+    wireError("secret.providerUnavailable", {
+      details: { provider: "sops", reason: "version_too_old" },
+    }),
+  );
+  expect(old.fix).toBe("sops를 3.10.0 이상(권장 3.12.0 이상)으로 올리고 xeon doctor로 확인한다");
+});
+
+test("a file key that is not confirmed yet tells the user which setting to save", () => {
+  const failure = failureOfWire(
+    wireError("secret.keyUnavailable", { details: { key: "file", reason: "access_denied" } }),
+  );
+  expect(failure).toEqual({
+    message: "복호화 키를 아직 쓸 수 없다 (OS 키 저장소가 없어 파일 키가 필요하다)",
+    fix: "키를 디스크 파일에 두는 것을 확인했다면 xeon config set l0.secrets.ageKey.source file로 저장하고 다시 실행한다",
+    code: EXIT.environment,
+  });
+  // 키 항목이 없는 경우
+  expect(
+    failureOfWire(
+      wireError("secret.keyUnavailable", {
+        details: { key: "darwin-keychain", reason: "item_missing" },
+      }),
+    ).message,
+  ).toBe("복호화 키를 찾을 수 없다 (키 항목이 없다)");
+});
+
+const sopsFile = (code: string) =>
+  failureOfWire(wireError("secret.writeFailed", { details: { target: "sops_file", code } }));
+
+test("write failures name what could not be prepared and why", () => {
+  expect(sopsFile("sops_encrypt_failed")).toEqual({
+    message: "기본 비밀 파일을 준비하지 못했다 (sops_encrypt_failed)",
+    fix: "sops가 파일을 암호화하지 못했다. sops 버전을 확인하고 xeon doctor로 진단한다",
+    code: EXIT.environment,
+  });
+  expect(sopsFile("recipient_unknown").fix).toContain("l0.secrets.sops.files");
+  expect(sopsFile("unsupported_format").fix).toContain(".yaml");
+  expect(sopsFile("lock_timeout").fix).toBe(
+    "다른 xeon이 같은 비밀 파일에 쓰고 있다. 끝난 뒤 다시 실행한다",
+  );
+  // OS 오류 코드는 권한과 디스크를 보게 한다
+  expect(sopsFile("EACCES")).toEqual({
+    message: "기본 비밀 파일을 준비하지 못했다 (EACCES)",
+    fix: "xeon 설정 디렉터리의 secrets/sops 폴더 권한과 디스크 상태를 확인한다",
+    code: EXIT.environment,
+  });
+  const store = failureOfWire(
+    wireError("secret.writeFailed", { details: { target: "key_store", code: "add_failed" } }),
+  );
+  expect(store.message).toBe("age 키를 OS 키 저장소에 만들지 못했다 (add_failed)");
+  expect(store.fix).toContain("l0.secrets.ageKey.source");
+  const keyFile = failureOfWire(
+    wireError("secret.writeFailed", { details: { target: "key_file", code: "EACCES" } }),
+  );
+  expect(keyFile.message).toBe("age 키 파일을 만들지 못했다 (EACCES)");
+});

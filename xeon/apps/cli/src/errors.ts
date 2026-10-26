@@ -117,6 +117,48 @@ function secretFailure(error: WireError): Failure | undefined {
   return typeof kind === "string" ? secretFailureOf(kind, field) : undefined;
 }
 
+/** 첫 등록이 기본 SOPS 파일이나 age 키를 준비하다 실패했다. 원인(code)별로 고칠 곳을 말한다. 경로와 값은 wire에 없다 */
+function writeFailure(target: string | undefined, code: string | undefined): Failure {
+  const suffix = code === undefined ? "" : ` (${code})`;
+  if (target === "sops_file") {
+    const fixes: Readonly<Record<string, string>> = {
+      sops_encrypt_failed:
+        "sops가 파일을 암호화하지 못했다. sops 버전을 확인하고 xeon doctor로 진단한다",
+      recipient_unknown:
+        "age 키는 있는데 수신자 기록이 없다. 이미 쓰는 SOPS 파일이 있으면 l0.secrets.sops.files에 { env, path }로 적는다",
+      unsupported_format:
+        "빈 SOPS 파일을 만들 수 없는 형식이다. l0.secrets.sops.files의 경로를 .yaml이나 .json으로 정한다",
+      lock_timeout: "다른 xeon이 같은 비밀 파일에 쓰고 있다. 끝난 뒤 다시 실행한다",
+    };
+    return {
+      message: `기본 비밀 파일을 준비하지 못했다${suffix}`,
+      fix:
+        (code === undefined ? undefined : fixes[code]) ??
+        "xeon 설정 디렉터리의 secrets/sops 폴더 권한과 디스크 상태를 확인한다",
+      code: EXIT.environment,
+    };
+  }
+  if (target === "key_store") {
+    return {
+      message: `age 키를 OS 키 저장소에 만들지 못했다${suffix}`,
+      fix: "키체인 접근을 허용하고 다시 실행한다. 키를 디스크 파일에 두려면 xeon config set l0.secrets.ageKey.source file로 저장한다",
+      code: EXIT.environment,
+    };
+  }
+  if (target === "key_file") {
+    return {
+      message: `age 키 파일을 만들지 못했다${suffix}`,
+      fix: "xeon 설정 디렉터리의 secrets/age 폴더 권한을 확인한다. 이미 있는 키 파일은 덮어쓰지 않는다",
+      code: EXIT.environment,
+    };
+  }
+  return {
+    message: "비밀 저장소에 쓰지 못했다",
+    fix: "데이터 디렉터리의 권한과 디스크 상태를 확인한다",
+    code: EXIT.environment,
+  };
+}
+
 function secretFailureOf(
   kind: string,
   field: (name: string) => string | undefined,
@@ -140,18 +182,52 @@ function secretFailureOf(
         fix: "사용이 끝난 뒤 다시 지운다. 값만 바꾸려면 xeon secret rotate <이름>을 쓴다",
         code: EXIT.error,
       };
-    case "provider_unavailable":
+    case "provider_unavailable": {
+      const reason = field("reason");
+      const message = `비밀 제공자(${field("provider") ?? "sops"})를 쓸 수 없다${reason === undefined ? "" : ` (${reason})`}`;
+      if (reason === "not_registered") {
+        // 값을 놓을 제공자가 정해지지 않았다. SOPS 파일이 없는 것은 원인이 아니다: 기본 파일은 첫 등록이 만든다
+        return {
+          message,
+          fix: "l0.secrets.defaultProvider가 sops인지 확인한다 (xeon config get l0.secrets.defaultProvider). 다른 위치의 SOPS 파일을 쓰려면 l0.secrets.sops.files에 { env, path }를 적는다",
+          code: EXIT.environment,
+        };
+      }
+      if (reason === "version_too_old") {
+        return {
+          message,
+          fix: "sops를 3.10.0 이상(권장 3.12.0 이상)으로 올리고 xeon doctor로 확인한다",
+          code: EXIT.environment,
+        };
+      }
       return {
-        message: `비밀 제공자(${field("provider") ?? "sops"})를 쓸 수 없다${field("reason") === undefined ? "" : ` (${field("reason") ?? ""})`}`,
+        message,
         fix: "sops와 age를 설치하고 xeon doctor로 확인한다",
         code: EXIT.environment,
       };
-    case "key_unavailable":
+    }
+    case "key_unavailable": {
+      if (field("key") === "file" && field("reason") === "access_denied") {
+        // 자동 선택이 파일 키로 떨어졌고 사람이 아직 확인하지 않았다(L0.secrets.spec §4.7 5번)
+        return {
+          message: "복호화 키를 아직 쓸 수 없다 (OS 키 저장소가 없어 파일 키가 필요하다)",
+          fix: "키를 디스크 파일에 두는 것을 확인했다면 xeon config set l0.secrets.ageKey.source file로 저장하고 다시 실행한다",
+          code: EXIT.environment,
+        };
+      }
+      if (field("reason") === "item_missing") {
+        return {
+          message: "복호화 키를 찾을 수 없다 (키 항목이 없다)",
+          fix: "처음 등록하는 것이면 xeon secret add가 키를 만든다. 이미 쓰는 SOPS 파일이 있으면 그 age 키 위치를 확인하고 xeon doctor로 진단한다",
+          code: EXIT.environment,
+        };
+      }
       return {
         message: "복호화 키를 찾을 수 없다",
         fix: "age 키 위치를 확인하고 xeon doctor로 진단한다",
         code: EXIT.environment,
       };
+    }
     case "decrypt_failed":
       return {
         message: "비밀을 복호화하지 못했다",
@@ -174,6 +250,7 @@ function secretFailureOf(
         code: EXIT.error,
       };
     case "write_failed":
+      return writeFailure(field("target"), field("code"));
     case "audit_unwritable":
       return {
         message: "비밀 저장소에 쓰지 못했다",
