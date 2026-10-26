@@ -35,7 +35,11 @@
       ]
     },
     "apps/cli": {
-      "entry": ["test/**/*.test.ts", "test/fixtures/scenario-main.ts"]
+      "entry": [
+        "test/**/*.test.ts",
+        "test/fixtures/scenario-main.ts",
+        "test/fixtures/scenario-host.ts"
+      ]
     }
   },
   "ignoreIssues": {
