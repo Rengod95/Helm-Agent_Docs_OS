@@ -108,6 +108,8 @@ export const RecordedItem: NamedExoticComponent<{ readonly id: ItemId }> = memo(
   function RecordedItem(props: { readonly id: ItemId }): ReactNode {
     const item = useItem(props.id);
     if (item === undefined) return null;
+    // display가 거짓인 확장 item은 모델 문맥 전용이라 화면에 그리지 않는다(F.conversation.spec 3.5.2)
+    if (item.kind === "custom" && !item.message.display) return null;
     return (
       <article className={`item item-${item.kind}`} data-status={item.status}>
         <header className="role">{ROLE_LABEL[item.kind]}</header>

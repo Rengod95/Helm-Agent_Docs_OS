@@ -517,6 +517,10 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - 입력창의 `requestId`: 재기동 사이에 같은 입력이 두 번 제출되지 않도록 입력마다 새 `requestId`를 만들고, 응답을 받기 전에 연결이 끊기면 같은 `requestId`로 다시 보낸다(`F.wire-settings.spec` §3.3.1 `turn.start` 제안).
 - 키 바인딩과 테마는 `appearance` 탭 설정이다(§6).
 - 확장 이벤트(`x.<확장id>.*`)는 M2에서 일반 item(종류 이름과 요약)으로만 보인다. 확장별 화면은 범위 밖이다.
+- `display: false`인 확장 item(`kind: "custom"`, 예: `x.knowledge.context`)은 모델 문맥 전용이라 트랜스크립트에 그리지 않는다(`F.conversation.spec` §3.5.2). `display: true`만 위 규칙으로 보인다.
+- 입력창 Enter [결정: M2 Mac 실기]: 한글 조합 중의 Enter는 보내지 않는다. WebKit(Safari, WKWebView)은 `compositionend`를 Enter keydown보다 먼저 내고 그 keydown의 `isComposing`이 거짓이라, `isComposing`, `keyCode === 229`, `compositionend` 직후 50ms 안의 Enter를 모두 조합 확정으로 본다(`src/views/composer-model.ts`). 전송은 동기 잠금(ref)으로 한 번에 하나만 나가고, 보내는 즉시 입력을 비우며 실패하면 입력을 돌려준다.
+- 입력창 잠금 [결정: M2 Mac 실기]: 모델 키와 기본 모델이 끝나지 않았으면(시작 안내 띠와 같은 판단) 입력창을 잠그고 안내 문장을 보인다.
+- turn 실패 표시 [결정: M2 Mac 실기]: `turn.completed`가 `status: "failed"`이면 `error`를 해당 대화의 트랜스크립트 아래에 `role="alert"`로 보이고(거울의 `turnFailures`), 다음 `turn.started`에 지운다.
 
 ### 4.14 최소 설정 화면 [결정: M2 마감 D-b, G2-08]
 

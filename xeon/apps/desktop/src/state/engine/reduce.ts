@@ -48,6 +48,18 @@ export function enterReset(state: EngineMirror, reason: ResetReason): EngineMirr
   return { ...state, link };
 }
 
+function withTurnFailure(
+  state: EngineMirror,
+  threadId: ThreadId,
+  failure: string | null,
+): EngineMirror {
+  const { [threadId]: _old, ...rest } = state.turnFailures;
+  return {
+    ...state,
+    turnFailures: failure === null ? rest : { ...rest, [threadId]: failure },
+  };
+}
+
 /** 순수 함수. 엔진 거울의 모든 변경은 여기서만 일어난다 */
 export function reduceMirror(state: EngineMirror, input: MirrorInput): Reduced<EngineMirror> {
   switch (input.type) {
@@ -405,10 +417,20 @@ function applyFact(state: EngineMirror, fact: DurableFact): EngineMirror {
     case "thread.closed":
       return patchThread(state, fact.threadId, (t) => ({ ...t, status: "closed" }));
     case "turn.started":
-      return patchThread(state, fact.threadId, (t) => ({ ...t, status: "running" }));
+      return withTurnFailure(
+        patchThread(state, fact.threadId, (t) => ({ ...t, status: "running" })),
+        fact.threadId,
+        null,
+      );
     case "turn.completed": {
       const done = patchThread(state, fact.threadId, (t) => ({ ...t, status: "idle" }));
-      return { ...done, streaming: dropStreamingTurn(done.streaming, fact.threadId, fact.turnId) };
+      const failure =
+        fact.payload.status === "failed" ? (fact.payload.error ?? "원인을 알 수 없습니다.") : null;
+      return withTurnFailure(
+        { ...done, streaming: dropStreamingTurn(done.streaming, fact.threadId, fact.turnId) },
+        fact.threadId,
+        failure,
+      );
     }
     case "item.recorded":
       // transcript 반영은 applyBatch가 batch 단위로 한 번에 한다

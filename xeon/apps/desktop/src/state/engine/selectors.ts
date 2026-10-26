@@ -66,4 +66,6 @@ export const selectUnlistedApprovals = (s: EngineMirror, id: ThreadId): number =
 /** 이 thread에 진행 중인 turn이 있는지. 입력창이 중단 버튼을 보일지 정한다 */
 export const selectThreadRunning = (s: EngineMirror, id: ThreadId): boolean =>
   s.threads.byId[id]?.status === "running";
+export const selectTurnFailure = (s: EngineMirror, id: ThreadId | null): string | null =>
+  id === null ? null : (s.turnFailures[id] ?? null);
 export const selectApprovalCount = (s: EngineMirror): number => s.approvals.ids.length;

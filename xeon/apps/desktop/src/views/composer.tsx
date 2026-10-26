@@ -9,6 +9,8 @@ import {
 } from "../state/engine/index.ts";
 import { useObserving } from "../state/ui/index.ts";
 import { useCommands, type CommandError } from "./commands.ts";
+import { composerDisabledReason, createEnterGuard, createSendLatch } from "./composer-model.ts";
+import { useSetupNeeded } from "./setup-needed.ts";
 
 // 입력창. 입력 중인 글자는 이 부품만 쓰므로 로컬 상태다(FS-04).
 // requestId는 같은 입력의 재시도가 같은 값을 쓰도록 실패했을 때 유지하고, 성공하면 새로 만든다(spec 4.13).
@@ -27,6 +29,12 @@ function sendErrorText(error: CommandError): string {
   return "보내지 못했습니다.";
 }
 
+/** keyCode는 표준에서 빠졌지만 WebKit만 IME 처리 중 keydown을 229로 알린다. 폐기 표시 없이 값만 읽는다 */
+function legacyKeyCode(event: object): number {
+  const value: unknown = Reflect.get(event, "keyCode");
+  return typeof value === "number" ? value : 0;
+}
+
 function ComposerFor(props: {
   readonly threadId: ThreadId;
   readonly disabledReason: string | null;
@@ -37,30 +45,48 @@ function ComposerFor(props: {
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const requestId = useRef<string>(newRequestId());
-  const composing = useRef(false);
+  // 최신 입력. 한글 조합이 끝난 직후의 keydown은 React 상태가 아직 갱신되기 전일 수 있다
+  const draftRef = useRef("");
+  const guard = useRef(createEnterGuard());
+  // sending 상태는 비동기라 연속 Enter를 못 막는다. 동기 잠금으로 막는다
+  const latch = useRef(createSendLatch());
 
   const send = async (): Promise<void> => {
-    const text = draft.trim();
-    if (text === "" || sending || props.disabledReason !== null) return;
+    const text = draftRef.current.trim();
+    if (text === "" || props.disabledReason !== null) return;
+    if (!latch.current.tryAcquire()) return;
     setSending(true);
     setError(null);
+    // 보내는 즉시 비운다. 남은 조합 글자가 두 번째 메시지가 되지 않게 한다
+    draftRef.current = "";
+    setDraft("");
     const result = await commands.sendTurn(props.threadId, text, requestId.current);
+    latch.current.release();
     setSending(false);
     if (result.ok) {
-      setDraft("");
       requestId.current = newRequestId();
       return;
+    }
+    // 실패하면 입력을 돌려주고(그 사이 새로 쓴 것이 없을 때만) 오류를 보인다
+    if (draftRef.current === "") {
+      draftRef.current = text;
+      setDraft(text);
     }
     setError(sendErrorText(result.error));
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
-    // 한글 조합 중의 Enter는 글자 확정이다. 보내지 않는다
+    // 한글 조합 중의 Enter는 글자 확정이다. 보내지 않는다(WebKit은 keyCode 229, compositionend가 먼저)
     if (
-      event.key !== "Enter" ||
-      event.shiftKey ||
-      composing.current ||
-      event.nativeEvent.isComposing
+      !guard.current.isSendEnter(
+        {
+          key: event.key,
+          shiftKey: event.shiftKey,
+          isComposing: event.nativeEvent.isComposing,
+          keyCode: legacyKeyCode(event.nativeEvent),
+        },
+        event.timeStamp,
+      )
     )
       return;
     event.preventDefault();
@@ -84,14 +110,15 @@ function ComposerFor(props: {
         }
         disabled={props.disabledReason !== null}
         onChange={(event) => {
+          draftRef.current = event.currentTarget.value;
           setDraft(event.currentTarget.value);
         }}
         onKeyDown={onKeyDown}
         onCompositionStart={() => {
-          composing.current = true;
+          guard.current.compositionStart();
         }}
-        onCompositionEnd={() => {
-          composing.current = false;
+        onCompositionEnd={(event) => {
+          guard.current.compositionEnd(event.timeStamp);
         }}
       />
       <div className="composer-actions">
@@ -126,16 +153,15 @@ export function Composer(): ReactNode {
   const threadId = useOpenThreadId();
   const engine = useEngineState();
   const phase = useLinkPhase();
+  const setupNeeded = useSetupNeeded();
   const observing = useObserving(threadId);
   if (threadId === null) return null;
-  const disabledReason =
-    engine?.kind !== "running"
-      ? "엔진이 꺼져 있어 보낼 수 없습니다."
-      : phase === "live" || phase === "syncing"
-        ? observing
-          ? "다른 곳이 이 대화를 쓰고 있어 관찰만 합니다."
-          : null
-        : "연결을 맞추는 중입니다.";
+  const disabledReason = composerDisabledReason({
+    engineRunning: engine?.kind === "running",
+    phase,
+    observing,
+    setupNeeded,
+  });
   // thread가 바뀌면 입력 중이던 글자를 버린다(key)
   return (
     <>

@@ -54,4 +54,6 @@ export const useUnlistedApprovals = (id: ThreadId): number =>
   useEngine((s) => sel.selectUnlistedApprovals(s, id));
 export const useThreadRunning = (id: ThreadId): boolean =>
   useEngine((s) => sel.selectThreadRunning(s, id));
+export const useTurnFailure = (id: ThreadId | null): string | null =>
+  useEngine((s) => sel.selectTurnFailure(s, id));
 export const useApprovalCount = (): number => useEngine(sel.selectApprovalCount);

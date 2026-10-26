@@ -5,6 +5,7 @@ import {
   useStreamingIds,
   useTranscriptItemIds,
   useTranscriptStatus,
+  useTurnFailure,
 } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
 import { RecordedItem, StreamingRow } from "./item-view.tsx";
@@ -24,6 +25,7 @@ export function Transcript(): ReactNode {
   const ids = useTranscriptItemIds();
   const live = useStreamingIds();
   const commands = useCommands();
+  const failure = useTurnFailure(threadId);
   // 진행 중 item은 열린 thread의 것만 보인다
   const rows = useMemo<readonly Row[]>(
     () => [
@@ -49,12 +51,30 @@ export function Transcript(): ReactNode {
       </Notice>
     );
   }
-  if (rows.length === 0) return <Notice>아직 메시지가 없습니다.</Notice>;
+  const failureNotice =
+    failure === null ? null : (
+      <div className="error" role="alert">
+        응답을 만들지 못했습니다: {failure}
+      </div>
+    );
+  if (rows.length === 0) {
+    return (
+      <>
+        <Notice>아직 메시지가 없습니다.</Notice>
+        {failureNotice}
+      </>
+    );
+  }
   return (
-    <VirtualList
-      rows={rows}
-      followTail
-      renderRow={(row) => (row.live ? <StreamingRow id={row.id} /> : <RecordedItem id={row.id} />)}
-    />
+    <>
+      <VirtualList
+        rows={rows}
+        followTail
+        renderRow={(row) =>
+          row.live ? <StreamingRow id={row.id} /> : <RecordedItem id={row.id} />
+        }
+      />
+      {failureNotice}
+    </>
   );
 }

@@ -111,6 +111,8 @@ export type EngineMirror = {
   readonly transcript: Transcript | null;
   readonly streaming: Streaming;
   readonly approvals: Approvals;
+  /** 실패로 끝난 마지막 turn의 오류 문장. thread별이며 다음 turn이 시작되면 지운다 */
+  readonly turnFailures: Readonly<Record<string, string>>;
 };
 
 export const EMPTY_STREAMING: Streaming = {
@@ -129,4 +131,5 @@ export const INITIAL_MIRROR: EngineMirror = {
   transcript: null,
   streaming: EMPTY_STREAMING,
   approvals: { resolved: [], ids: [], byId: {} },
+  turnFailures: {},
 };
