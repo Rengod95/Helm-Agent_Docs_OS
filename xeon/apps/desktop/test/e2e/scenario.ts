@@ -1,7 +1,7 @@
 import { arch, platform } from "node:os";
 import { existsSync, mkdirSync, realpathSync } from "node:fs";
 import { join } from "node:path";
-import { type EngineProcess, HELLO, type Message, processesWithHome } from "./harness.ts";
+import { type EngineProcess, HELLO, type Message } from "./harness.ts";
 
 // 모델 없이 돌릴 수 있는 요청열(G4-03). 컴파일 바이너리에는 테이프 모델을 넣을 길이 없어서(모델은 조립 때 정해진다) turn은 돌리지 않고,
 // wire의 나머지 표면(hello, 구독, thread, 설정, 비밀 목록, 승인 목록, 신뢰, 명령 목록)이 같은 바이트열을 내는지를 본다.
@@ -33,7 +33,7 @@ const ID_PATTERN = /^[a-z]{3,4}_[0-9A-HJKMNP-TV-Z]{26}$/;
  * 식별자를 처음 나온 순서의 번호로, 시각과 프로세스 값을 고정 문자열로 바꾼다. `roots`(엔진 홈과 그 정규 경로)로 시작하는 경로는
  * 앞부분을 `<home>`으로 바꾼다: `trust.get`의 `projectRoot`와 `thread.list`의 `workspace`는 실행마다 다른 임시 폴더를 담는다.
  */
-export function normalizer(roots: readonly string[] = []): (value: unknown) => unknown {
+function normalizer(roots: readonly string[] = []): (value: unknown) => unknown {
   const seen = new Map<string, string>();
   function walk(value: unknown, key: string | undefined): unknown {
     if (typeof value === "string") {
@@ -73,7 +73,7 @@ function eventsOf(message: Message): readonly Message[] {
     : [];
 }
 
-export function allEvents(engine: EngineProcess): readonly Message[] {
+function allEvents(engine: EngineProcess): readonly Message[] {
   return engine.notifications
     .filter((n) => n["method"] === "events.batch")
     .flatMap(eventsOf)
@@ -86,7 +86,7 @@ export function allEvents(engine: EngineProcess): readonly Message[] {
  * 시간을 기다리는 대신 이 커밋의 첫 `scope.changed`가 구독으로 도착하기를 기다린다. 커밋은 원자적이라 첫 이벤트가 오면 묶음 전체가 와 있고,
  * 같은 seq 구간의 `scope.changed`가 이어지는지(끊김이 없는지) 확인한 개수를 돌려준다.
  */
-export async function untilScopesCommitted(engine: EngineProcess, threads = 1): Promise<number> {
+async function untilScopesCommitted(engine: EngineProcess, threads = 1): Promise<number> {
   const threadsWithScopes = (): Set<unknown> =>
     new Set(
       allEvents(engine)
@@ -125,7 +125,7 @@ export type ScenarioRun = {
 };
 
 /** 응답 메시지의 result 필드 하나. 오류 응답이면 undefined */
-export function resultField(reply: Message, field: string): unknown {
+function resultField(reply: Message, field: string): unknown {
   const result = reply["result"];
   return typeof result === "object" && result !== null ? Reflect.get(result, field) : undefined;
 }
@@ -237,5 +237,3 @@ export function nthReply(responses: readonly unknown[], method: string, n: numbe
   const entry: unknown = matching[n];
   return typeof entry === "object" && entry !== null ? Reflect.get(entry, "reply") : undefined;
 }
-
-export { processesWithHome };

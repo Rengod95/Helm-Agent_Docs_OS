@@ -4,7 +4,7 @@ import type { HostBinaryReport, HostBinaryStatus } from "@xeon/contracts/wire";
 // 값은 `host.status { includeBinaries: true }`의 `binaries`다(F.wire-settings.spec §3.3.1). 연결이 결과를 스키마로 검증하고 건네므로
 // 여기서 다시 parse하지 않는다. 결과에 `binaries`가 없으면(구형 호스트, 점검 취소) 화면 값은 없다(null).
 
-export type BinaryRow = {
+type BinaryRow = {
   readonly name: string;
   readonly need: "required" | "optional";
   readonly usedBy: string;

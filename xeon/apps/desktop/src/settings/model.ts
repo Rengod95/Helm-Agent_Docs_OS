@@ -127,7 +127,7 @@ export type SetupInput = {
 export type SetupSnapshot = SetupInput & { readonly binaries: BinaryView | null };
 
 /** 키 참조가 가리키는 비밀이 등록되어 있는 provider id 목록 */
-export function providersWithKey(input: SetupInput): readonly string[] {
+function providersWithKey(input: SetupInput): readonly string[] {
   const registered = new Set((input.secrets ?? []).filter((s) => s.registered).map((s) => s.name));
   return input.providers
     .filter((entry) => {

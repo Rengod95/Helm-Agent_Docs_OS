@@ -34,7 +34,7 @@ export type ApprovalDecision =
  * 프로젝트 신뢰(F.wire-settings.spec `trust.get`, `trust.decide`). 판정은 요청 결과로 얻는 값이라 거울에 넣지 않고
  * 부르는 부품의 로컬 상태에 둔다(FS-03). 결정을 보내면 host가 저장한 뒤의 판정을 돌려준다.
  */
-export interface TrustCommands {
+interface TrustCommands {
   status(workspace: string): Promise<Result<TrustStatus, CommandError>>;
   decide(workspace: string, choice: TrustChoice): Promise<Result<TrustStatus, CommandError>>;
 }

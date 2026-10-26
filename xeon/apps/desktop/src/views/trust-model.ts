@@ -11,7 +11,7 @@ const LABEL_TEXT: Readonly<Record<string, string>> = {
   "deny-session": "이번 실행 동안만 거부",
 };
 
-export type TrustButton = {
+type TrustButton = {
   readonly choice: TrustChoice;
   readonly text: string;
   /** 저장되는 폴더(툴팁). `session` 선택지는 저장하지 않아 null이다 */

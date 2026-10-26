@@ -40,7 +40,7 @@ const HELLO: {
   client: { name: "xeon-e2e", version: "0.0.0", kind: "other" },
 };
 
-export function newHome(): string {
+function newHome(): string {
   const root = mkdtempSync(join(tmpdir(), "xeon-e2e-"));
   chmodSync(root, 0o700);
   mkdirSync(join(root, "config"), { mode: 0o700 });
