@@ -2,7 +2,7 @@ import type { Result } from "@xeon/contracts";
 import type { KeyProviderIdPublic, SecretError } from "@xeon/contracts/services";
 
 // L0.secrets.spec §3.7. age 키 획득. 이 패키지의 코드는 identity를 읽지 않는다. 키 명령이나 키 파일 경로를
-// sops의 자식 env에 넘길 뿐이다. 예외는 첫 실행의 provision(마일스톤 M1에서는 구현하지 않는다).
+// sops의 자식 env에 넘길 뿐이다. 예외는 첫 쓰기의 provision이다(파일 폴백과 macOS Keychain이 구현한다).
 
 type KeyProviderId = KeyProviderIdPublic;
 
@@ -25,7 +25,10 @@ export interface KeyProvider {
   probe(): Promise<KeyAvailability>;
   /** sops 자식 env에 넣을 변수. SOPS_AGE_KEY_CMD 또는 SOPS_AGE_KEY_FILE 하나 */
   sopsKeyEnv(): Result<Readonly<Partial<Record<SopsKeyEnvName, string>>>, SecretError>;
-  /** 첫 실행 설정: identity를 만들어 저장하고 수신자(공개키)만 돌려준다. 파일 폴백만 구현한다 */
+  /**
+   * 첫 쓰기 설정: identity를 만들어 저장하고 수신자(공개키)만 돌려준다. 이미 있는 키는 덮어쓰지 않고
+   * `write_failed`(code `EEXIST`)로 돌려준다. 파일 폴백과 macOS Keychain이 구현한다(Linux Secret Service는 아직 없다)
+   */
   provision?(): Promise<Result<{ readonly recipient: string }, SecretError>>;
 }
 

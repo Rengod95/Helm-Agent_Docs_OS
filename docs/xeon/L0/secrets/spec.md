@@ -113,7 +113,7 @@ import {
   - `use.modes`는 번호(`M2`, `M3`) 대신 모드 이름을 쓴다(§2).
   - `approval`의 `never`를 `none`(승인 필요 없음)으로 바꾼다. `never`는 "항상 거부"로도 읽히기 때문이다.
   - `use.origins`를 더한다. M4는 호스트가 아닌 origin으로 바인딩한다(§4.3).
-- 메타 파일 형식과 위치 [제안]: 비밀 하나에 YAML 파일 하나, `<OsDirs.config>/secrets/meta/<name>.yaml`. `OsDirs.config`는 `xeon.os`가 정하고 이미 `xeon`으로 끝난다(`L0.os.spec` §3.2. 예: Linux `~/.config/xeon/secrets/meta/`). 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키 기본 위치)은 모두 `<OsDirs.config>/secrets/` 아래에 둔다. 파일에는 값이 없으므로 평문이고 권한은 0600으로 쓴다. 파싱은 [가정] Bun 1.4 내장 YAML 파서를 쓴다. 쓸 수 없으면 같은 스키마의 JSON 파일로 바꾼다.
+- 메타 파일 형식과 위치 [제안]: 비밀 하나에 YAML 파일 하나, `<OsDirs.config>/secrets/meta/<name>.yaml`. `OsDirs.config`는 `xeon.os`가 정하고 이미 `xeon`으로 끝난다(`L0.os.spec` §3.2. 예: Linux `~/.config/xeon/secrets/meta/`). 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키 기본 위치, 수신자 기록, 기본 SOPS 파일)은 모두 `<OsDirs.config>/secrets/` 아래에 둔다. 파일에는 값이 없으므로 평문이고 권한은 0600으로 쓴다. 파싱은 [가정] Bun 1.4 내장 YAML 파서를 쓴다. 쓸 수 없으면 같은 스키마의 JSON 파일로 바꾼다.
 - 범위 규칙 [제안]: 1차는 사용자 범위 메타만 읽는다. 프로젝트 저장소 안의 메타는 읽지 않는다. 저장소를 받는 것만으로 사용자 비밀의 허용 호스트가 넓어지지 않게 하기 위해서다(`F.wire-settings.spec` §4.7 규칙 4의 "범위 제한 키"와 같은 이유). `scope: project:<id>`는 "그 프로젝트의 세션에서만 쓸 수 있다"는 제한으로만 작동한다.
 
 ### 3.3 사용 맥락과 lease (`lease.ts`)
@@ -353,19 +353,20 @@ export interface KeyProvider {
   probe(): Promise<KeyAvailability>;
   /** sops 자식 env에 넣을 변수. SOPS_AGE_KEY_CMD 또는 SOPS_AGE_KEY_FILE 하나 */
   sopsKeyEnv(): Result<Readonly<Record<"SOPS_AGE_KEY_CMD" | "SOPS_AGE_KEY_FILE", string>>, SecretError>;
-  /** 첫 실행 설정: identity를 만들어 저장하고 수신자(공개키)만 돌려준다 */
+  /** 첫 쓰기 설정: identity를 만들어 저장하고 수신자(공개키)만 돌려준다. 이미 있는 키는 덮어쓰지 않는다(`write_failed`, code `EEXIST`) */
   provision?(): Promise<Result<{ readonly recipient: string }, SecretError>>;
 }
 ```
 
 | OS provider | 파일 | 키 명령 [제안] | 근거 |
 |---|---|---|---|
-| macOS Keychain | `key/darwin.ts` | `security find-generic-password -s xeon.age -a default -w` | `_research/notes/L0-3.md` §3 |
+| macOS Keychain | `key/darwin.ts` | `security find-generic-password -s xeon.age -a default -w`. 항목 만들기(`provision`)는 `security -i`의 stdin으로 `add-generic-password`를 보낸다 [가정, macOS 실기 확인 전] | `_research/notes/L0-3.md` §3 |
 | Linux Secret Service | `key/linux.ts` | `secret-tool lookup service xeon.age account default` | 같은 곳. Secret Service(D-Bus `org.freedesktop.secrets`)가 필요하다 |
 | Windows 자격 증명 관리자 | `key/win32.ts` | 헬퍼 실행 파일 필요(`cmdkey`는 암호를 읽지 못한다) [미결] | 같은 곳 §3.3 |
 | 파일 폴백 | `key/file-fallback.ts` | `SOPS_AGE_KEY_FILE=<경로>`(0600) | 같은 곳 §3 표 "WSL·헤드리스" |
 
 - 키 명령은 셸 없이 실행되고 google/shlex 규칙으로 나뉜다. 인자는 작은따옴표로 감싸 만든다. Windows 경로의 백슬래시는 따옴표 밖에서 사라진다(`_research/notes/L0-3.md` §2.3).
+- `provision`을 가진 provider는 파일 폴백과 macOS Keychain이다. Linux Secret Service는 항목 존재를 identity 읽기 없이 확인할 수 없어서(`secret-tool lookup`이 비밀을 출력한다) 아직 구현하지 않는다 [미결 §10 11번].
 - `SOPS_AGE_KEY`(키 값을 env로 전달)는 쓰지 않는다. sops는 부모 env를 키 명령에 그대로 넘긴다(같은 곳 §7).
 - 3.12.0 이상의 `SOPS_AGE_RECIPIENT`를 쓰는 수신자별 출력은 1차에서 쓰지 않는다. 키체인 항목 하나에 identity 한 줄을 둔다 [제안].
 - 선택 로직은 `src/select.ts` 한 곳에만 둔다(DR-13, `L0.readme` §3.1). `process.platform`과 WSL 판정은 이 파일 안에서만 읽는다. 순서 [제안]: `l0.secrets.ageKey.source`가 `file`이면 파일, `keychain`이면 OS provider(없으면 오류), `auto`면 OS provider의 `probe()`가 `available`일 때 그것, 아니면 파일 폴백을 쓰되 §4.7의 고지를 낸다.
@@ -462,14 +463,14 @@ export type SecretError =
   | { readonly kind: "read_only_provider"; readonly provider: SecretProviderId }
   | { readonly kind: "reauth_required" }
   | { readonly kind: "audit_unwritable"; readonly path: string; readonly code: string }       // 감사 파일을 쓸 수 없다. 열람처럼 기록 없이는 진행하면 안 되는 동작이 멈춘다
-  | { readonly kind: "write_failed"; readonly target: "key_file"; readonly path: string; readonly code: string }  // 파일 쓰기 실패. 덮어쓰기 거부는 code가 EEXIST
+  | { readonly kind: "write_failed"; readonly target: "key_file" | "key_store" | "sops_file"; readonly path: string; readonly code: string }  // 쓰기 실패. key_file은 키 파일(덮어쓰기 거부는 code가 EEXIST), key_store는 OS 키 저장소, sops_file은 SOPS 비밀 파일을 만들거나 쓰던 중
   | { readonly kind: "cancelled" };                                  // 서비스가 닫혀 진행 중인 sops 호출·바이너리 해석이 중단됐다
 export type KeyProviderIdPublic = "darwin-keychain" | "linux-secret-service" | "win32-credential" | "file";
 ```
 
 - 예상 가능한 실패는 모두 `Result`로 돌려준다. throw는 `Bug`(호출 결함, 불변식 위반)에만 쓴다(`eng.typescript.guide` TY-11).
 - 오류 객체와 `message`에 값을 넣지 않는다. `stderrMasked`는 sops stderr를 `Redactor.mask`로 지나게 한 뒤 앞 500자만 둔다.
-- `audit_unwritable`과 `write_failed`의 `code`는 OS 오류 코드나 오류 이름만 싣는다. 값과 오류 메시지는 싣지 않는다. 키 파일 `provision`은 쓰기 실패의 원인을 `code`에 담아 돌려주며(TY-25) 원인을 버리지 않는다.
+- `audit_unwritable`과 `write_failed`의 `code`는 OS 오류 코드나 오류 이름만 싣는다. 값과 오류 메시지는 싣지 않는다. 키 `provision`과 SOPS 파일 만들기는 쓰기 실패의 원인을 `code`에 담아 돌려주며(TY-25) 원인을 버리지 않는다. `sops_file`의 `code`는 OS 오류 코드 또는 `sops_encrypt_failed`(sops 암호화 실패), `recipient_unknown`(키는 있는데 수신자 기록이 없음), `unsupported_format`(빈 문서를 암호화할 수 없는 dotenv), `lock_timeout`(다른 쓰기가 잠금을 쥐고 있음)이다. `key_store`의 `code`는 `EEXIST`(항목이 이미 있음), `find_failed`, `add_failed` 또는 OS 오류 코드다.
 - `secret_missing`은 `L2.mcp.spec` §5 표 10행의 `lastError.code = "secret_missing"`과 같은 이름이다.
 
 ## 4. 동작 규칙
@@ -572,6 +573,7 @@ M2 설계(후속 구현):
 5. 키 명령 호출 횟수: sops는 복호화 요청마다 키 명령을 실행한다. lease 하나에 키체인 조회가 한 번 이상 생긴다(`_research/notes/L0-3.md` §2.2).
 6. 쓰기(`put`, 마일스톤 M2): 값이 argv에 오르면 `/proc/<pid>/cmdline`으로 보인다. [가정] sops의 `set` 하위 명령이 stdin으로 값을 받는 옵션을 가진 버전에서만 `put`을 켠다. 그런 옵션이 없으면 `capabilities().put = false`로 두고 사용자에게 §4.8의 등록 경로를 안내한다 [미결 §10].
 7. 순수 JS SOPS 구현(`sops-age`)은 쓰지 않는다. 메타데이터, KMS, PGP까지 지원하는 공식 바이너리 호출이 조사의 권장이다(`_research/secrets.md` §3.3).
+8. [결정: m2r sec] 쓰기 잠금과 첫 파일 만들기. `put`·`remove`는 대상 SOPS 파일의 잠금(`<파일>.lock`, `L0.os.spec` §3.11 `fileLock`) 안에서 한다. 호스트가 CLI와 데스크톱 사이드카로 둘 이상 떠 있어도 같은 파일의 읽고-고치고-쓰기가 서로 덮어쓰지 않는다. 잠금을 받지 못한 조립(시험)은 같은 프로세스 안 직렬화만 한다. 대상 파일이 없으면 같은 잠금 안에서 만든다: sops 바이너리 확인 → age 수신자 확보(§4.7 7번) → `sops encrypt --age <수신자> --filename-override <경로> /dev/stdin`으로 빈 문서(`{}`)를 암호화 → 0600 임시 파일에 암호문을 쓰고 이름을 바꾼다. 평문 문서는 sops의 stdin으로만 가고 디스크에 쓰지 않는다. 형식은 확장자로 정하며 dotenv는 빈 문서를 암호화할 수 없어 `write_failed`(`sops_file`, `unsupported_format`)다. sops가 없는 기기에서 키만 만들어 두는 일이 없도록 바이너리 확인이 수신자 확보보다 먼저다.
 
 ### 4.7 age 키 획득과 파일 폴백
 
@@ -584,19 +586,23 @@ M2 설계(후속 구현):
    - 첫 사용과 `diagnose()` 결과에 "키가 디스크 파일에 있다. 같은 사용자 권한의 프로그램은 읽을 수 있다"는 고지를 낸다.
    - `auto` 선택으로 파일 폴백에 간 경우 사람이 한 번 확인해야 사용한다(`l0.secrets.ageKey.source`를 `file`로 저장) [제안].
 6. `@napi-rs/keyring` 2.1.2는 후보로만 둔다. Linux에서 Secret Service가 없으면 메모리 전용 keyutils로 조용히 넘어가므로, 쓰게 되면 스토어를 `secret-service`로 고정해야 한다(`_research/notes/L0-3.md` §0 11번). Bun 로드는 [미확인]이다.
+7. [결정: m2r sec] 첫 쓰기의 키 만들기(`provision`)와 수신자 기록. 첫 `add`는 기본 SOPS 파일이 없을 때 키가 없으면 만든다. `provision`은 이미 있는 키를 덮어쓰지 않는다. 이 패키지는 identity를 읽지 않으므로(1번) 키가 이미 있을 때 수신자를 되찾을 수 없다. 그래서 만든 직후 수신자(공개키)를 `<OsDirs.config>/secrets/age/recipient.<provider id>.txt`(평문, 0600)에 기록하고, 이후에는 이 기록을 읽는다. 키를 만든 뒤 SOPS 파일 암호화가 실패해도 다음 시도가 같은 키와 수신자를 쓴다. 키는 있는데 기록이 없으면(밖에서 만든 키 등) 파일을 만들 수 없어 `write_failed`(`sops_file`, `recipient_unknown`)이고, 사람이 기존 SOPS 파일을 `l0.secrets.sops.files`에 적는다. macOS의 `provision`은 항목 존재를 `security find-generic-password`(`-w` 없이)로 확인하고, 없으면 `security -i`의 stdin으로 `add-generic-password -s xeon.age -a default -w <identity>`를 보낸 뒤 항목을 다시 찾아 확인한다. identity는 argv에 오르지 않고, stdin 버퍼는 쓴 직후 0으로 덮는다. `auto`가 확인 전 파일 폴백으로 떨어진 경우(5번)에는 키를 만들지 않고 `key_unavailable`(`file`, `access_denied`)이다.
 
 ### 4.8 사용자 등록 경로
+
+[결정: m2r sec] 기본 SOPS 파일. `l0.secrets.sops.files`가 비어 있으면 항목 하나 `{ env: "user", path: "<OsDirs.config>/secrets/sops/user.yaml" }`를 쓴다(`withDefaultSopsFile`). 사람이 파일을 한 줄이라도 적으면 기본 파일은 쓰지 않는다(섞지 않는다). 위치를 `<OsDirs.config>/secrets/` 아래로 정한 이유는 셋이다. 첫째, 이 패키지의 파일(메타, 감사 파일, 파일 폴백 age 키)이 모두 이 아래라 한 곳만 보호하면 된다. 둘째, 샌드박스 보호 행(`<xeonConfig>/secrets/`)이 이미 덮는다. 셋째, `OsDirs`는 사용자 하나에 하나이고 클라이언트(CLI, 데스크톱 사이드카)마다 나뉘지 않는다(`L0.os.spec` §3.2. 클라이언트마다 다른 것은 `OsDirs.state` 아래 `cli/state.json` 같은 클라이언트 상태뿐이다). 그래서 메타(`<config>/secrets/meta/`), 감사 파일, age 키, 수신자 기록, 기본 SOPS 파일이 모든 클라이언트에서 같고, 한 클라이언트가 등록한 비밀을 다른 클라이언트가 바로 본다. 사용자의 `secrets` 도구(`just secret-add`)가 쓰는 파일과는 별개이며 이 기본값은 그 도구에 의존하지 않는다. 그 도구의 파일을 쓰려면 사람이 `l0.secrets.sops.files`에 적는다(아래 (b)).
+
+첫 `add`는 설정 없이 동작한다: SOPS 파일과 age 키가 없으면 §4.6 8번과 §4.7 7번대로 만들고 값을 쓴다. 설정에 적은 파일이 아직 없을 때도 같다.
 
 [제안] 개발 환경에 레시피 `just secret-add <키> [env]`(외부 `secrets` 도구를 부른다)가 있으면 그 경로로 등록하도록 안내한다. 이 레시피는 이 저장소 개발자의 작업 규칙(`eng.best-practices.guide` BP-07)이고 `_research/decisions-log.md`에는 없다. 레시피의 내부 구성은 이 문서가 정하지 않는다. 공개 배포 사용자에게는 레시피가 없다고 본다 [가정].
 
 | 경로 | 누가 | 흐름 | 이 문서의 역할 |
 |---|---|---|---|
 | (a) 안내 | 모든 사용자 | 메시지, 오류, doctor 안내문이 등록 방법을 보인다 | `secret_missing` 오류와 `diagnose()`의 `hint`에 `just secret-add <키> [env]`를 첫 경로로 적는다. ws 레시피가 없는 환경(공개 배포 사용자)을 위해 둘째 줄에 `xeon secret add <name>`을 적는다 [제안]. 레시피 존재 여부는 `secrets` 실행 파일이 PATH에 있는지로 판정한다 [가정] |
-| (b) 레시피가 관리하는 SOPS 파일 읽기 | 레시피 사용자 | 레시피가 SOPS 파일에 키를 쓴다 → SOPS 제공자가 그 파일의 키 이름을 복호화 없이 읽는다 → `sops:<env>/<KEY>` 참조로 목록에 `orphaned`로 보인다 → 사람이 `secret meta`로 이름과 정책을 붙인다 | §4.6 2·3번. 파일 위치와 env 매핑은 `l0.secrets.sops.files` 설정이다 |
-| (c) `xeon secret add` | 레시피를 쓰지 않는 사용자 | `xeon secret add <name>` → 값은 stdin 또는 가린 프롬프트 → SOPS 제공자 `put` | §3.8 `add`. `put`이 꺼진 제공자면 (a) 안내로 돌아간다 |
+| (b) 레시피가 관리하는 SOPS 파일 읽기 | 레시피 사용자 | 레시피가 SOPS 파일에 키를 쓴다 → SOPS 제공자가 그 파일의 키 이름을 복호화 없이 읽는다 → `sops:<env>/<KEY>` 참조로 목록에 `orphaned`로 보인다 → 사람이 `secret meta`로 이름과 정책을 붙인다 | §4.6 2·3번. 파일 위치와 env 매핑은 `l0.secrets.sops.files` 설정이다. 그 도구의 파일 규약은 확인하지 못했으므로 사람이 `{ env, path }`를 적는다 [미결 §10 4번 후속] |
+| (c) `xeon secret add` | 레시피를 쓰지 않는 사용자 | `xeon secret add <name>` → 값은 stdin 또는 가린 프롬프트 → SOPS 제공자 `put`(기본 파일이 없으면 만든다) | §3.8 `add`. `put`이 꺼진 제공자면 (a) 안내로 돌아간다 |
 
-- [가정] `secrets` 도구는 env 이름마다 SOPS 파일 하나를 관리한다. 파일 경로와 env 이름 규약은 확인하지 못했다 [미결 §10]. 확인 전까지 `l0.secrets.sops.files`의 기본값은 빈 목록이고, 사람이 `{ env, path }`를 적는다.
-- `just secret-add`의 키 이름(대문자 env 변수 형식)과 핸들 이름(소문자, 하이픈)은 다르다. 자동 변환(`GITHUB_TOKEN` → `github-token`)은 제안으로만 보이고 사람이 확정한다 [제안].
+- `just secret-add`의 키 이름(대문자 env 변수 형식)과 핸들 이름(소문자, 하이픈)은 다르다. 자동 변환(`GITHUB_TOKEN` → `github-token`)은 제안으로만 보이고 사람이 확정한다 [제안]. 기본 파일에 `xeon secret add`로 만든 키는 같은 규칙(`anthropic-api-key` → `ANTHROPIC_API_KEY`)을 쓴다.
 - 문서, 예시, 테스트 픽스처에는 실제 값이나 SOPS 파일 내용을 쓰지 않는다. 예시는 `secret://github-token` 같은 이름만 쓴다.
 
 ### 4.9 관리 동작 규칙
@@ -621,6 +627,11 @@ M2 설계(후속 구현):
 | sops가 3.10.0 미만 | `provider_unavailable`(`version_too_old`) |
 | Keychain 잠김 또는 사용자가 대화상자에서 거부 | sops가 실패한다. stderr로 원인을 가릴 수 없으면 `decrypt_failed`, 키 명령 종료 코드로 구분되면 `key_unavailable`(`locked` \| `access_denied`) [가정: 키 명령 오류가 sops stderr에 남는다] |
 | Linux에 Secret Service가 없다 | `probe()`가 `no_secret_service`. `auto`면 파일 폴백 확인 절차(§4.7 5번) |
+| 첫 `add`인데 sops 바이너리가 없다 | `provider_unavailable`(`binary_missing`). 키도 파일도 만들지 않는다 |
+| 첫 `add`의 SOPS 파일 암호화 실패 | `write_failed`(`sops_file`, `sops_encrypt_failed`). 만든 키와 수신자 기록은 남아 다음 시도가 이어 쓴다 |
+| 키는 있는데 수신자 기록이 없고 SOPS 파일이 없다 | `write_failed`(`sops_file`, `recipient_unknown`) |
+| macOS Keychain 항목을 만들지 못했다(사용자가 거부, 잠김) | `write_failed`(`key_store`, `add_failed` 또는 OS 코드) |
+| 두 클라이언트가 동시에 첫 `add` | 파일 잠금이 차례로 하게 한다. 키와 SOPS 파일은 하나만 생기고 두 값이 모두 들어간다 |
 | 키 파일 권한이 0600이 아니다 | `key_unavailable`(`file_mode`). 권한을 고치는 명령을 안내한다 |
 | 복호화 실패(수신자 불일치, 파일 손상) | `decrypt_failed`. stderr는 마스킹 뒤 500자 |
 | 메타 파일 스키마 오류 | 그 비밀만 `meta_invalid`로 목록에 보이고 lease는 거부한다. 다른 비밀은 영향이 없다 |
@@ -658,7 +669,7 @@ M2 설계(후속 구현):
 |---|---|---|---|---|---|
 | `l0.secrets.providers` | `string[]`(`SecretProviderId`) | `["sops"]` | managed, user | restart | secrets 탭 목록, `config` |
 | `l0.secrets.defaultProvider` | `SecretProviderId` | `"sops"` | managed, user | live | secrets 탭 select |
-| `l0.secrets.sops.files` | `{ env: string; path: string }[]` | `[]` [가정 §4.8] | managed, user | live | secrets 탭 table |
+| `l0.secrets.sops.files` | `{ env: string; path: string }[]` | `[]`. 비어 있으면 기본 파일 `user`(§4.8) | managed, user | live | secrets 탭 table |
 | `l0.secrets.sops.binary` | `string \| null` | `null`(xeon.os 해석) | managed, user | restart | advanced 탭 |
 | `l0.secrets.ageKey.source` | `"auto" \| "keychain" \| "file"` | `"auto"` | managed, user | restart | secrets 탭 select |
 | `l0.secrets.ageKey.filePath` | `string \| null` | `null`(기본 경로 `<OsDirs.config>/secrets/age/keys.txt`) | managed, user | restart | secrets 탭 text |
@@ -768,10 +779,12 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 1. [미결] 세션 밖 관리 레코드의 저장 위치(권고: `platform-secrets` 소유 추가 전용 파일)와 단일 DB 결정(ADR-0004)과의 관계(§3.9). 감사 이벤트 kind 소유자는 `F.records.spec` §3.3.1의 (a)안(tool-runtime 발행)으로 정해졌다.
 2. [결정: review.decisions-2 U-19] 마일스톤 M1의 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다. `withEnv`(§3.6)와 exec `secretEnv`(`L0.exec.spec` §3.6)를 M1에 둔다. `product.scope.spec` §4.4 M1 행, `L2.workspace.spec` §3.3과 같은 배치다. 모델 provider API 키는 마일스톤 M1부터 `runtime-http` 모드로 lease한다(§4.3 표, 수용 기준 14). env 경로는 아직 끝까지 이어지지 않았다. M1 코드는 승인 증거를 `null`로 넘기고 호스트 `approval.respond`가 `notImplemented`다. 마일스톤 M2 승인 프로토콜 작업(`L4.host-service.plan` H18)에서 증거 전달까지 완성한다.
 3. [미결] sops 최소 버전. 이 문서는 3.10.0을 하한으로 두었다. 조사는 3.12.0 하한, 3.13.3 실사용을 제안한다(`_research/notes/L0-3.md` §2.1).
-4. [미결] 사용자 `secrets` 도구(`just secret-add`)가 관리하는 SOPS 파일의 위치와 env 이름 매핑 규약. 확인 전까지 `l0.secrets.sops.files`는 사람이 적는다.
+4. [결정: m2r sec] 기본 SOPS 파일은 `<OsDirs.config>/secrets/sops/user.yaml`(env `user`)이고 `l0.secrets.sops.files`가 비었을 때만 쓴다(§4.8). 사용자 `secrets` 도구(`just secret-add`)의 파일 위치와 env 이름 매핑 규약은 이 기본값과 별개이며 아직 확인하지 못했다. 그 파일을 쓰려면 사람이 `l0.secrets.sops.files`에 적는다 [미결].
 5. [미결] sops `set`이 stdin으로 값을 받는지. 받지 못하면 SOPS 제공자 `put`을 끄고 `just secret-add` 경로만 쓴다(§4.6 6번).
 6. [미결] M2 sentinel의 TLS 종단 방식(`tlsTerminate`와 `mitmProxy` 중 선택, 자식 CA 신뢰). `xeon.sandbox` 프록시 훅(후속, sentinel 모드 요구, `L0.sandbox.plan` SB-16)과 함께 정한다.
 7. [미결] Windows 네이티브 age 키 획득 수단(PowerShell P/Invoke 헬퍼, Bun 컴파일 헬퍼 + `@napi-rs/keyring`)과 1차 `win32` 동작(파일 폴백 허용 여부).
 8. [결정: review.decisions-2 D-04] 관리 서비스는 `xeon.secretAdmin`(`SecretAdminService`)으로 나눈다. `F.capabilities.spec` §3.12 표, `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 반영되었다(8.3절 R2).
 9. [미결] 이미 기록된 이벤트에 남은 값의 사후 가림. `docs/design/18-security.md` §3.10.6의 판정을 Xeon에 옮길지 정한다.
 10. [미결] 플러그인 제공자(`op`, `bws`)의 바이너리 호출 소유 규칙(DR-07 행 추가).
+11. [미결] Linux Secret Service의 `provision`(`secret-tool store`는 stdin으로 비밀을 받지만 항목 존재를 identity 읽기 없이 확인할 수단이 없다). 지금 Linux는 `auto`에서 Secret Service가 있어도 키 항목이 없으면 `key_unavailable`(`item_missing`)이고, WSL·헤드리스는 사람이 `l0.secrets.ageKey.source`를 `file`로 확인한 뒤(§4.7 5번) 파일 폴백이 키를 만든다.
+12. [미결] macOS `provision`의 `security -i` 경로와 `-T`(신뢰 앱) 없이 만든 항목의 복호화 때 접근 승인 대화상자. macOS 실기(M2 체크리스트 M-12 재실행)에서 확인한다.

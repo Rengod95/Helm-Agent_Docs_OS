@@ -1,6 +1,6 @@
 import { assertNever } from "@xeon/contracts";
 import type { OsInfo } from "@xeon/contracts/services";
-import { createDarwinKeyProvider } from "./key/darwin.ts";
+import { createDarwinKeyProvider, type DarwinKeyExec } from "./key/darwin.ts";
 import { createFileKeyProvider, type StatKeyFile } from "./key/file-fallback.ts";
 import { createLinuxKeyProvider } from "./key/linux.ts";
 import type { KeyProvider } from "./key/provider.ts";
@@ -20,6 +20,8 @@ export interface KeySelectInput {
   readonly resolveTool: (name: "security" | "secret-tool") => Promise<string | null>;
   readonly pathExists: (path: string) => boolean;
   readonly stat?: StatKeyFile;
+  /** macOS provision(`security -i`) 실행 수단. 없으면 macOS 키를 만들 수 없다 */
+  readonly exec?: DarwinKeyExec;
 }
 
 export interface KeySelection {
@@ -34,7 +36,10 @@ async function osProvider(input: KeySelectInput): Promise<KeyProvider> {
   const platform = input.info.platform;
   switch (platform) {
     case "darwin":
-      return createDarwinKeyProvider({ securityPath: await input.resolveTool("security") });
+      return createDarwinKeyProvider({
+        securityPath: await input.resolveTool("security"),
+        ...(input.exec === undefined ? {} : { exec: input.exec }),
+      });
     case "linux":
       return createLinuxKeyProvider({
         secretToolPath: await input.resolveTool("secret-tool"),

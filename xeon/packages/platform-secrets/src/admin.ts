@@ -116,6 +116,13 @@ function isRefreshable(provider: SecretProvider): provider is RefreshableProvide
   return typeof Reflect.get(provider, "refreshCapabilities") === "function";
 }
 
+/** 쓰기를 못 하는 이유를 더 정확히 밝힐 수 있는 제공자(예: sops 바이너리가 없어 쓰기 지원을 판정하지 못함) */
+function explainsReadOnly(
+  provider: SecretProvider,
+): provider is SecretProvider & { readOnlyReason(): Promise<SecretError> } {
+  return "readOnlyReason" in provider && typeof provider.readOnlyReason === "function";
+}
+
 async function capabilitiesOf(provider: SecretProvider): Promise<SecretProviderCapabilities> {
   return isRefreshable(provider) ? provider.refreshCapabilities() : provider.capabilities();
 }
@@ -157,7 +164,11 @@ async function putValue(
 ): Promise<Result<void, SecretError>> {
   const caps = await capabilitiesOf(provider);
   if (!caps.put || provider.put === undefined) {
-    return err({ kind: "read_only_provider", provider: meta.provider });
+    return err(
+      explainsReadOnly(provider)
+        ? await provider.readOnlyReason()
+        : { kind: "read_only_provider", provider: meta.provider },
+    );
   }
   const value = await readValue(source);
   if (!value.ok) return value;
