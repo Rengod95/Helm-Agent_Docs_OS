@@ -59,10 +59,8 @@ export interface NewDatabaseOptions {
 
 /** 이 패키지에서 Database를 만드는 유일한 길(L0.store.plan §2). strict 모드로 연다 */
 export function newDatabase(filename: string, options: NewDatabaseOptions = {}): Database {
-  if (loaded === undefined) {
-    const init = initSqlite(null);
-    if (!init.ok) throw new Bug(`store.sqlite_init: ${init.error.kind}`);
-  }
+  // 번들 SQLite는 불러올 것이 없어 실패하지 않는다. 첫 Database가 번들로 로드 상태를 정한다
+  if (loaded === undefined) loaded = { path: null };
   return new Database(filename, { ...options, strict: true });
 }
 
