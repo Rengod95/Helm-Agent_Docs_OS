@@ -208,6 +208,11 @@ const STORE_OPEN_ERRORS: Readonly<
     "unavailable",
   ],
   fts5_missing: [{ kind: "fts5_missing" }, "fts5Missing", "unavailable"],
+  sqlite_load_failed: [
+    { kind: "sqlite_load_failed", path: "/lib/libsqlite3.dylib" },
+    "storeUnavailable",
+    "unavailable",
+  ],
   corrupt: [{ kind: "corrupt", code: "SQLITE_CORRUPT" }, "storeCorrupt", "corrupt"],
   busy: [{ kind: "busy" }, "storeUnavailable", "unavailable"],
   disk_full: [{ kind: "disk_full" }, "storeUnavailable", "unavailable"],
