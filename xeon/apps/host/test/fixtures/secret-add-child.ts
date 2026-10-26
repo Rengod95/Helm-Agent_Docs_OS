@@ -12,8 +12,9 @@ import { createSecretsRuntime, DEFAULT_SECRETS_CONFIG } from "@xeon/platform-sec
 // 시험 보조 프로세스: 한 클라이언트(CLI나 데스크톱 사이드카 자리)처럼 xeon.os(파일 잠금 포함)와 platform-secrets를 올리고
 // 비밀 하나를 `add`한다. XEON_HOME은 부모 시험이 정한 임시 디렉터리다. 결과는 한 줄 JSON이고 값은 싣지 않는다(시험이 만든 가짜 값이다).
 
-const name = process.env["CHILD_SECRET_NAME"] ?? "";
-const value = process.env["CHILD_SECRET_VALUE"] ?? "";
+// 이름은 인자, 값은 표준 입력으로 받는다(값을 환경 변수에 두지 않는다)
+const name = process.argv[2] ?? "";
+const value = await Bun.stdin.text();
 
 const runtime = readOsRuntime();
 const started = await createOsService(

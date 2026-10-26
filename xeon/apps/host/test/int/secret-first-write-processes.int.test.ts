@@ -20,14 +20,13 @@ interface ChildResult {
 }
 
 async function runChild(home: string, name: string, value: string): Promise<ChildResult> {
-  const proc = Bun.spawn(["bun", CHILD], {
+  const proc = Bun.spawn(["bun", CHILD, name], {
     env: {
       PATH: Bun.env["PATH"] ?? "/usr/bin:/bin",
       HOME: home,
       XEON_HOME: home,
-      CHILD_SECRET_NAME: name,
-      CHILD_SECRET_VALUE: value,
     },
+    stdin: new TextEncoder().encode(value),
     stdout: "pipe",
     stderr: "pipe",
   });
