@@ -9,14 +9,12 @@ import {
   withProviderKey,
   type BinaryView,
   type SecretRow,
-  type SetupInput,
+  type SetupSnapshot,
 } from "../settings/index.ts";
 import type { CommandError, SetupCommands } from "../views/commands.ts";
 
 // 최소 설정 화면이 부르는 wire(G2-08). 모델 키는 값 없는 `secret.*`로만 다루고(L0.secrets.spec R4),
 // provider 설정에는 `secret://<이름>` 참조만 쓴다. 값은 이 화면, wire, 로그 어디에도 없다.
-
-export type SetupSnapshot = SetupInput & { readonly binaries: BinaryView | null };
 
 /**
  * 점검 없이 다시 읽은 설정(`load({ binaries: false })`)에 앞서 읽은 외부 도구 점검 결과를 이어 붙인다.

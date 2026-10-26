@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToString } from "react-dom/server";
-import { keepTools, type SetupSnapshot } from "../../src/app/setup.ts";
-import { binaryViewOf, setupSteps } from "../../src/settings/index.ts";
+import { keepTools } from "../../src/app/setup.ts";
+import { binaryViewOf, setupSteps, type SetupSnapshot } from "../../src/settings/index.ts";
 import { SettingsBody, Steps, Tools, type KeyEntry } from "../../src/views/settings.tsx";
 
 const noop = (): void => {};

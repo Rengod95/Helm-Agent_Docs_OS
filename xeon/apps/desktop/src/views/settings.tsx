@@ -1,7 +1,7 @@
 import { detach, rethrow } from "@xeon/contracts";
 import type { SecretName } from "@xeon/contracts/capabilities";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { keepTools, type SetupSnapshot } from "../app/setup.ts";
+import { keepTools } from "../app/setup.ts";
 import { useLinkPhase } from "../state/engine/index.ts";
 import {
   checkModelRef,
@@ -10,6 +10,7 @@ import {
   providerSecretName,
   setupSteps,
   type BinaryView,
+  type SetupSnapshot,
   type SetupStep,
 } from "../settings/index.ts";
 import { useCommands, type CommandError } from "./commands.ts";

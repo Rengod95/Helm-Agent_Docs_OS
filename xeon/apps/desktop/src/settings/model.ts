@@ -2,6 +2,7 @@ import { parse, type Result } from "@xeon/contracts";
 import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
 import { MODEL_REF_PATTERN } from "@xeon/contracts/services";
 import { Type } from "typebox";
+import type { BinaryView } from "./diagnostics.ts";
 
 // 최소 설정 화면의 순수 로직(G2-08, L4.desktop.spec §4.14). 화면이 보이는 값을 wire 값에서 만들고, 보내는 값을 입력에서 만든다.
 // 키 값은 어디에도 없다. 이 모듈이 다루는 비밀은 이름(`secret://<이름>` 참조의 이름)뿐이다.
@@ -121,6 +122,9 @@ export type SetupInput = {
   /** null이면 점검 결과를 받지 못했다 */
   readonly toolsReady: boolean | null;
 };
+
+/** `SetupCommands.load`가 돌려주는 값. 점검 없이 읽었으면 `binaries`는 null이다 */
+export type SetupSnapshot = SetupInput & { readonly binaries: BinaryView | null };
 
 /** 키 참조가 가리키는 비밀이 등록되어 있는 provider id 목록 */
 export function providersWithKey(input: SetupInput): readonly string[] {
