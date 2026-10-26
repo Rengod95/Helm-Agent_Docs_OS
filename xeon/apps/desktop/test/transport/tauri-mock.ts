@@ -1,4 +1,6 @@
 import { Channel } from "@tauri-apps/api/core";
+import { parse } from "@xeon/contracts";
+import { SecretNameSchema } from "@xeon/contracts/capabilities";
 import { clearMocks, mockIPC } from "@tauri-apps/api/mocks";
 import type { DesktopIpc } from "../../src/transport/ipc.ts";
 import { createTauriIpc } from "../../src/transport/ipc.ts";
@@ -53,6 +55,21 @@ function rejectWith(code: string): Promise<never> {
   return Promise.reject(code);
 }
 
+/** 셸이 `Result<_, 오류 구조체>`로 거부하면 invoke는 직렬화된 JSON 값(객체)으로 거부된다 */
+export function rejectLikeShell(value: unknown): Promise<never> {
+  // oxlint-disable-next-line prefer-promise-reject-errors -- Tauri 명령 오류는 Error가 아니라 직렬화된 값으로 거부된다 (@tauri-apps/api core.d.ts invoke)
+  return Promise.reject(value);
+}
+
+/** `secret_register`의 본문 `<동작> <이름>\n<값>`을 나눈다. 셸(secret_entry.rs `parse_request`)과 같은 규칙이다 */
+function entryOf(args: unknown): { name: string; action: string; value: Uint8Array } {
+  const body = bytesIn(args);
+  const at = body.indexOf(10);
+  if (at < 0) throw new Error("secret_register body has no head line");
+  const [action = "", name = ""] = new TextDecoder().decode(body.slice(0, at)).split(" ");
+  return { name, action, value: body.slice(at + 1) };
+}
+
 export function tauriMockIpc(fake: FakeIpc): {
   readonly ipc: DesktopIpc;
   readonly calls: Call[];
@@ -103,6 +120,18 @@ export function tauriMockIpc(fake: FakeIpc): {
     if (cmd === "engine_restart") {
       await fake.ipc.restart();
       return null;
+    }
+    if (cmd === "secret_register") {
+      const entry = entryOf(args);
+      const name = parse(SecretNameSchema, entry.name);
+      if (!name.ok) return rejectLikeShell({ kind: "bad-request" });
+      const registered = await fake.ipc.registerSecret(
+        name.value,
+        entry.action === "set" ? "set" : "add",
+        entry.value,
+      );
+      // 셸은 오류를 `{kind, ...}` 객체로 거부한다
+      return registered.ok ? null : rejectLikeShell(registered.error);
     }
     if (cmd === "engine_detach") {
       await fake.ipc.detach(Number(field(args, "epoch")));

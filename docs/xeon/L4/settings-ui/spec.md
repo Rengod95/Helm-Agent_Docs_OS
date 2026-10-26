@@ -797,7 +797,7 @@ sequenceDiagram
 | B. Tauri command | WebView 입력란 → Rust command → sops·키체인 직접 호출 | WebView DOM, Tauri IPC, Rust 프로세스 | wire를 지나지 않는다 | 값이 DOM을 지난다. 비밀 저장 로직이 L0.secrets(TS)와 Rust 두 곳에 생긴다. 메타·감사 기록이 엔진 밖에서 생긴다 | 없음(대신 desktop에 비밀 로직) |
 | C. L0.secrets 흐름 위임 | WebView는 `secret.beginEntry {name, action}` 같은 값 없는 요청만 보낸다 → 호스트의 L0.secrets가 OS 보안 입력(키체인 대화상자, pinentry 등)이나 터미널 프롬프트를 띄워 값을 직접 받는다 → 결과 상태만 돌려준다 | L0.secrets와 OS 입력 창 | 값이 DOM, wire, 이벤트 어디에도 없다. 열람(`secret.beginReveal`)도 같은 경로로 OS 창에 한 번 보이고 닫힌다. CLI의 `secret add`(stdin) 흐름과 소유 위치가 같다(`_research/secrets.md` §6.6) | OS별 보안 입력 구현이 필요하다(L0.os·L0.secrets). Linux에 pinentry가 없으면 대체 경로가 필요하다 | 값 없는 메서드 추가 |
 
-- [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. M3 전까지(M2)는 비밀 등록 버튼 대신 `xeon secret add <이름>` 명령 안내를 보인다. 이 명령은 stdin으로 값을 받는다(`_research/secrets.md` §6.6).
+- [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. M3 전까지(M2)의 사이드카 연결에는 호스트가 값을 받을 수단이 없다(HS-44). 이 연결의 최소 설정 화면은 C안 대신 B안의 변형을 쓴다 [결정: M2 첫 실행 M-12]: 화면 안의 등록 창이 값을 한 번 받아 Rust 셸에 넘기고, 셸은 번들된 `xeon secret add|set`을 실행해 stdin에 한 번 쓴다. 비밀 저장 로직은 Rust에 새로 생기지 않고 CLI의 것을 그대로 쓴다. 약점은 B안과 같다(값이 DOM과 Tauri IPC를 지난다). 규칙과 약점은 `L4.desktop.spec` §4.14.1이다. 셸 경로가 없으면 `xeon secret add <이름>` 명령 안내로 돌아간다(이 명령은 stdin으로 값을 받는다, `_research/secrets.md` §6.6). M3의 비밀 탭은 C안을 쓴다.
 - [결정: review.decisions-2 U-20] 값 열람 경로는 M2 CLI `xeon secret reveal`(`L4.cli.spec` §4.7)과 M3 이 화면의 "값 보기" 둘이다. 에이전트 경로에는 열람이 없다. 이 화면의 열람은 C안 경로(`secret.beginReveal`, OS 인증 재확인)를 쓴다.
 - [제안] C안에서 셸 포트 `openSecretFlow`는 desktop이 호스트 메서드를 불러 구현한다. settings-ui는 결과 상태(`SecretFlowOutcome`)만 받는다.
 - C안이 OS에서 불가능한 경우의 대체로 A안을 쓸지는 [미결]이다(§10 미결 2). A안을 쓰면 값이 wire를 지나므로 `L4.readme` §4 비밀 행, `L4.desktop.spec` E11, `L0.secrets.spec` §8.3 R4의 전제를 함께 고쳐야 한다. 그때도 입력란은 한 번 쓰고 비우는 별도 창에 두고, view-model 상태에는 넣지 않는다.
@@ -857,7 +857,7 @@ sequenceDiagram
 | SearXNG 주소 | `l2.web.search.searxng.url` 입력란. 비어 있으면 SearXNG는 체인에 들어가지 않는다 | `settings.get`·`settings.set`, `L2.web.spec` §4.8.3 설정한 SearXNG |
 | 권장 목록 | 무료 크레딧 API 플러그인(Exa, Brave)과 월 크레딧 안내, 키 등록 버튼 | ADR-0005 §3.1 ④, 키 등록은 §4.6 C안 경로 |
 
-- 키 등록 버튼은 §4.6.4 C안(`secret.beginEntry`)을 쓰고, 값은 이 화면을 지나지 않는다. 등록 뒤 provider 설정에는 `secret://<이름>` 참조만 쓴다.
+- 키 등록 버튼은 §4.6.4 C안(`secret.beginEntry`)을 쓰고, 값은 이 화면을 지나지 않는다. 호스트가 값을 받을 수 없는 사이드카 연결의 M2 최소 화면만 예외다: 그 화면의 등록 창이 값을 한 번 받는다(§4.6.4, `L4.desktop.spec` §4.14.1). 등록 뒤 provider 설정에는 `secret://<이름>` 참조만 쓴다.
 - [결정: review.m2-plan §9 H1] SearXNG 자동 감지는 없다. SearXNG는 사용자가 주소를 설정했을 때만 체인에 들어가므로 이 화면에 감지 결과 칸을 두지 않는다. provider 상태 행은 설정 값으로 계산한 체인만 보인다.
 - [가정] 마지막 검색에서 실제로 쓴 provider와 탐침 결과(`unreachable`, `json-disabled`)를 읽는 wire 수단은 없다. 이 값을 화면에 보이려면 F 변경 요청이 필요하고 M3 첫 실행 화면 작업에서 정한다. 그 전까지 탐침 실패는 `meta.warnings`와 L4 진단으로만 보인다(`L2.web.spec` §4.8.3).
 - CLI는 같은 내용을 `xeon doctor`의 검색 provider 묶음으로 보인다(`L4.cli.spec` §4.7.1).
@@ -938,7 +938,7 @@ sequenceDiagram
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-04] 변경 신호 범위. `settings.changed`는 thread 내구 이벤트라 user·project 파일 변경이 오지 않을 수 있다. 값 없는 서버 알림 `settings.invalidated`(§4.5.2)는 M1에 넣지 않고 M2 계획에서 정한다. 그때까지 F.wire-settings 미결이고 화면은 §4.5.2의 다시 읽기 규칙을 쓴다.
-2. [미결] 비밀 값 입력·열람 경로. 제안은 C안(L0.secrets 흐름 위임, 값 없는 `secret.beginEntry`·`secret.beginReveal`). CLI도 같은 C안을 쓴다. C안이 불가능한 OS에서 A안(wire 전용 메서드)을 대체로 쓸지(§4.6.4). F 변경 요청.
+2. [미결] 비밀 값 입력·열람 경로(M2 최소 화면의 사이드카 연결은 닫힘: `L4.desktop.spec` §10 15번, 셸이 CLI를 실행하는 B안 변형). 제안은 C안(L0.secrets 흐름 위임, 값 없는 `secret.beginEntry`·`secret.beginReveal`). CLI도 같은 C안을 쓴다. C안이 불가능한 OS에서 A안(wire 전용 메서드)을 대체로 쓸지(§4.6.4). F 변경 요청.
 3. (닫힘) 비밀 관리 데이터의 wire 경로. `secret.list { meta?, usage? }`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`는 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4). 열람 시작 `secret.beginReveal`의 F 추가는 M2 계획에서 정한다(review.decisions-2 U-04, U-20). 정본 표는 `L4.readme` §8.1이다.
 4. [미결] secrets 탭과 비밀 관리 명령(M2, `product.scope.spec` UC-6)의 순서. 명령이 M2이고 화면이 M3이므로 M2 화면은 명령 안내만 보인다.
 5. [결정: review.decisions-2 U-04, U-21] 레이트 리밋·계정 회전 설정은 M3 화면에 넣는다. 사용량 wire 메서드와 게이지 채우기 시점은 M2 계획에서 정한다(§4.7).

@@ -1,6 +1,6 @@
 import { detach, rethrow } from "@xeon/contracts";
 import type { SecretName } from "@xeon/contracts/capabilities";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { keepTools } from "../app/setup.ts";
 import { useLinkPhase } from "../state/engine/index.ts";
 import {
@@ -9,6 +9,8 @@ import {
   PRESET_PROVIDERS,
   providerSecretName,
   setupSteps,
+  submitKey,
+  type KeyField,
   type BinaryView,
   type SetupSnapshot,
   type SetupStep,
@@ -16,7 +18,9 @@ import {
 import { useCommands, type CommandError } from "./commands.ts";
 
 // 최소 설정 화면(G2-08, L4.desktop.spec §4.14): 첫 실행 안내, 외부 도구 점검 결과, 모델 키 등록, 기본 모델.
-// 요청 결과로 얻는 값이라 거울에 넣지 않고 이 화면의 로컬 상태에 둔다(FS-03, FS-04). 키 값을 받는 입력란은 없다.
+// 요청 결과로 얻는 값이라 거울에 넣지 않고 이 화면의 로컬 상태에 둔다(FS-03, FS-04).
+// 키 값은 호스트가 받을 수 없는 연결(사이드카)에서만 이 화면의 등록 창에서 받는다(§4.14.1). 그 입력란은 제어 컴포넌트가 아니다:
+// 값은 React 상태에 들어가지 않고, 저장을 누르면 `submitKey`가 입력란을 읽는 즉시 비운다.
 
 const STEP_TEXT: Readonly<Record<SetupStep["id"], string>> = {
   tools: "외부 도구 점검",
@@ -27,7 +31,9 @@ const STEP_TEXT: Readonly<Record<SetupStep["id"], string>> = {
 export type KeyEntry =
   | { readonly state: "idle" }
   | { readonly state: "busy" }
-  /** 이 연결에서는 호스트가 값을 받을 수단이 없다. 터미널 명령을 안내한다 */
+  /** 호스트가 값을 받을 수 없어 이 화면의 등록 창을 연다. 값은 상태에 없다 */
+  | { readonly state: "form"; readonly name: SecretName; readonly action: "add" | "set" }
+  /** 셸에도 값을 받는 길이 없다. 터미널 명령을 안내한다 */
   | { readonly state: "terminal"; readonly command: string }
   | { readonly state: "failed"; readonly text: string };
 
@@ -92,6 +98,64 @@ export function Tools(props: { readonly binaries: BinaryView | null }): ReactNod
   );
 }
 
+/**
+ * 키 값 등록 창. 입력란은 제어 컴포넌트가 아니다: 값은 DOM 노드에만 있고 React 상태와 props에 들어가지 않는다.
+ * 저장을 누르면 부모가 `field.take()`로 읽는 즉시 비운다. 취소와 사라짐(unmount)도 비운다.
+ */
+export function KeyForm(props: {
+  readonly busy: boolean;
+  readonly onSubmit: (field: KeyField) => void;
+  readonly onCancel: () => void;
+}): ReactNode {
+  const input = useRef<HTMLInputElement | null>(null);
+  const clear = (): void => {
+    if (input.current !== null) input.current.value = "";
+  };
+  return (
+    <form
+      className="key-form"
+      onSubmit={(event) => {
+        event.preventDefault();
+        props.onSubmit({
+          take: () => {
+            const typed = input.current?.value ?? "";
+            clear();
+            return typed;
+          },
+        });
+      }}
+    >
+      <label className="field">
+        <span>키 값</span>
+        <input
+          ref={input}
+          type="password"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          defaultValue=""
+        />
+      </label>
+      <div className="approval-actions">
+        <button type="submit" className="primary" disabled={props.busy}>
+          저장
+        </button>
+        <button
+          type="button"
+          disabled={props.busy}
+          onClick={() => {
+            clear();
+            props.onCancel();
+          }}
+        >
+          취소
+        </button>
+      </div>
+    </form>
+  );
+}
+
 export function SettingsBody(props: {
   readonly snapshot: SetupSnapshot;
   readonly providerInput: string;
@@ -101,7 +165,11 @@ export function SettingsBody(props: {
   readonly message: string | null;
   readonly onProvider: (value: string) => void;
   readonly onModel: (value: string) => void;
+
   readonly onRegister: () => void;
+  /** 저장을 눌렀다. `field.take()`가 입력란을 읽고 비운다 */
+  readonly onSubmitKey: (field: KeyField) => void;
+  readonly onCancelKey: () => void;
   readonly onConnect: () => void;
   readonly onRecheck: () => void;
   readonly onSaveModel: () => void;
@@ -136,8 +204,9 @@ export function SettingsBody(props: {
       <section>
         <h2>모델 키</h2>
         <p className="dim">
-          키 값은 이 화면에 입력하지 않습니다. 호스트가 별도 경로로 받아 비밀 저장소에 두고,
-          설정에는 <code>secret://이름</code> 참조만 남습니다.
+          키 값은 등록 창에 한 번 입력하면 바로 지워지고 엔진 연결을 지나지 않습니다. 앱이 번들된
+          <code>xeon</code>으로 비밀 저장소에 두고, 설정에는 <code>secret://이름</code> 참조만
+          남습니다.
         </p>
         <label className="field">
           <span>provider</span>
@@ -186,6 +255,9 @@ export function SettingsBody(props: {
             다시 확인
           </button>
         </div>
+        {props.keyEntry.state === "form" ? (
+          <KeyForm busy={props.busy} onSubmit={props.onSubmitKey} onCancel={props.onCancelKey} />
+        ) : null}
         {props.keyEntry.state === "terminal" ? (
           <div role="note">
             <p>
@@ -313,17 +385,15 @@ export function SettingsScreen(): ReactNode {
     const exists = (loaded.snapshot.secrets ?? []).some((s) => s.name === name && s.registered);
     work(async () => {
       setKeyEntry({ state: "busy" });
-      const begun = await commands.setup.beginKeyEntry(name, exists ? "set" : "add");
-      if (!begun.ok) {
+      const action = exists ? "set" : "add";
+      const begun = await commands.setup.beginKeyEntry(name, action);
+      // 호스트가 값을 받을 수 없는 연결(사이드카)이거나 그 메서드가 없는 엔진이면 이 화면의 등록 창을 연다
+      if (!begun.ok && begun.error.kind !== "unsupported") {
         setKeyEntry({ state: "failed", text: errorText(begun.error) });
         return;
       }
-      if (!begun.value) {
-        // 값을 받을 수단이 없다(사이드카). 취소한 경우도 같은 값이라 안내는 두 경우를 모두 말한다
-        setKeyEntry({
-          state: "terminal",
-          command: `xeon secret ${exists ? "set" : "add"} ${name}`,
-        });
+      if (!begun.ok || !begun.value) {
+        setKeyEntry({ state: "form", name, action });
         return;
       }
       setKeyEntry({ state: "idle" });
@@ -331,6 +401,39 @@ export function SettingsScreen(): ReactNode {
       if (!connected.ok) setKeyEntry({ state: "failed", text: errorText(connected.error) });
       await reload(false);
     });
+  };
+
+  const submitKeyValue = (field: KeyField): void => {
+    const provider = checkProviderId(providerInput);
+    if (!provider.ok || keyEntry.state !== "form") return;
+    const { name, action } = keyEntry;
+    work(async () => {
+      // `submitKey`는 첫 await 전에 입력란을 읽고 비운다. 그 뒤에 상태를 바꿔 등록 창을 내린다
+      const submitting = submitKey(commands.setup, name, action, field);
+      setKeyEntry({ state: "busy" });
+      const outcome = await submitting;
+      if (outcome.kind === "terminal") {
+        setKeyEntry({ state: "terminal", command: `xeon secret ${action} ${name}` });
+        return;
+      }
+      if (outcome.kind === "failed") {
+        setKeyEntry({ state: "failed", text: outcome.text });
+        return;
+      }
+      if (outcome.kind === "empty") {
+        setKeyEntry({ state: "failed", text: "키 값을 입력하세요." });
+        return;
+      }
+      setKeyEntry({ state: "idle" });
+      const connected = await commands.setup.connectProviderKey(provider.value, name);
+      if (!connected.ok) setKeyEntry({ state: "failed", text: errorText(connected.error) });
+      // 등록 결과는 `secret.list`를 다시 읽어 보인다(등록됨)
+      await reload(false);
+    });
+  };
+
+  const cancelKey = (): void => {
+    setKeyEntry({ state: "idle" });
   };
 
   const connect = (): void => {
@@ -389,6 +492,8 @@ export function SettingsScreen(): ReactNode {
           }}
           onModel={setModelInput}
           onRegister={register}
+          onSubmitKey={submitKeyValue}
+          onCancelKey={cancelKey}
           onConnect={connect}
           onRecheck={() => {
             setKeyEntry({ state: "idle" });

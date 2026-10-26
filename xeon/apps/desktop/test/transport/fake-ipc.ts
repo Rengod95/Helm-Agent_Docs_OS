@@ -1,4 +1,10 @@
-import type { AttachResult, DesktopIpc, EngineState, IpcError } from "../../src/transport/ipc.ts";
+import type {
+  AttachResult,
+  DesktopIpc,
+  EngineState,
+  IpcError,
+  SecretRegisterError,
+} from "../../src/transport/ipc.ts";
 
 const RUNNING: EngineState = { kind: "running", source: "sidecar", pid: 4242 };
 const enc = new TextEncoder();
@@ -13,6 +19,8 @@ export type FakeIpc = {
   readonly written: { readonly epoch: number; readonly text: string }[];
   readonly acks: { readonly epoch: number; readonly bytes: number }[];
   readonly detached: number[];
+  /** `registerSecret` 호출. 값은 호출 시점의 글자로 남긴다(호출자가 바이트를 덮은 뒤에도 비교할 수 있다) */
+  readonly registered: { readonly name: string; readonly action: string; readonly text: string }[];
   epoch(): number;
 };
 
@@ -23,6 +31,8 @@ export type FakeIpcOptions = {
   /** write마다 불린다. 엔진 역할을 하는 시험이 응답을 emitLine으로 돌려준다 */
   readonly onWrite?: (message: unknown, fake: FakeIpc) => void;
   readonly writeError?: IpcError;
+  /** `registerSecret`이 돌려줄 오류. 없으면 성공 */
+  readonly registerError?: SecretRegisterError;
 };
 
 function ignore(): void {
@@ -36,6 +46,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
   const written: { epoch: number; text: string }[] = [];
   const acks: { epoch: number; bytes: number }[] = [];
   const detached: number[] = [];
+  const registered: { name: string; action: string; text: string }[] = [];
   const fake: FakeIpc = {
     ipc: {
       attach(bytes, state) {
@@ -66,6 +77,14 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
         detached.push(e);
         return Promise.resolve({ ok: true, value: null });
       },
+      registerSecret(name, action, value) {
+        registered.push({ name, action, text: dec.decode(value) });
+        return Promise.resolve(
+          options.registerError === undefined
+            ? { ok: true, value: null }
+            : { ok: false, error: options.registerError },
+        );
+      },
     },
     emitLine: (value) => onBytes(enc.encode(`${JSON.stringify(value)}\n`)),
     emitBytes: (bytes) => onBytes(bytes),
@@ -73,6 +92,7 @@ export function fakeIpc(options: FakeIpcOptions = {}): FakeIpc {
     written,
     acks,
     detached,
+    registered,
     epoch: () => epoch,
   };
   return fake;

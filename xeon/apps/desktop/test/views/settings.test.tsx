@@ -1,10 +1,18 @@
 import { describe, expect, test } from "bun:test";
+import { parse } from "@xeon/contracts";
+import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
 import { renderToString } from "react-dom/server";
 import { keepTools } from "../../src/app/setup.ts";
 import { binaryViewOf, setupSteps, type SetupSnapshot } from "../../src/settings/index.ts";
 import { SettingsBody, Steps, Tools, type KeyEntry } from "../../src/views/settings.tsx";
 
 const noop = (): void => {};
+
+function secretName(text: string): SecretName {
+  const parsed = parse(SecretNameSchema, text);
+  if (!parsed.ok) throw new Error("test name must parse");
+  return parsed.value;
+}
 
 function body(
   snapshot: SetupSnapshot,
@@ -21,6 +29,8 @@ function body(
       onProvider={noop}
       onModel={noop}
       onRegister={noop}
+      onSubmitKey={noop}
+      onCancelKey={noop}
       onConnect={noop}
       onRecheck={noop}
       onSaveModel={noop}
@@ -37,14 +47,14 @@ const EMPTY: SetupSnapshot = {
 };
 
 describe("settings screen", () => {
-  test("a fresh install shows the three steps open, the doctor hint and no key input", () => {
+  test("a fresh install shows the three steps open, the doctor hint and no key input yet", () => {
     const out = body(EMPTY);
     expect(out.match(/data-done="no"/g)?.length).toBe(3);
     expect(out).toContain("xeon doctor");
     expect(out).toContain("anthropic-api-key");
     expect(out).toContain("등록되지 않음");
     expect(out).toContain("키 등록");
-    // 입력란은 provider와 모델 둘뿐이다. 비밀 값을 받는 password 입력이 없다
+    // 등록 창을 열기 전에는 입력란이 provider와 모델 둘뿐이다. 비밀 값을 받는 password 입력이 없다
     expect(out).not.toContain('type="password"');
     expect(out.match(/<input/g)?.length).toBe(2);
   });
@@ -76,7 +86,21 @@ describe("settings screen", () => {
     expect(linked).toMatch(/<button[^>]*disabled[^>]*>provider에 연결</);
   });
 
-  test("when the host cannot take the key it shows the terminal command, never an input for the value", () => {
+  test("the key form is a masked, uncontrolled input that renders without any value", () => {
+    const name = secretName("anthropic-api-key");
+    const out = body(EMPTY, { keyEntry: { state: "form", name, action: "add" } });
+    expect(out.match(/<input[^>]*type="password"[^>]*>/g)?.length).toBe(1);
+    const input = out.match(/<input[^>]*type="password"[^>]*>/)?.[0] ?? "";
+    expect(input).toContain('autoComplete="off"');
+    // 값을 속성으로 싣지 않는다(제어 컴포넌트가 아니다)
+    expect(input).not.toMatch(/value="[^"]/);
+    expect(out).toMatch(/<button[^>]*type="submit"[^>]*>저장</);
+    expect(out).toContain("취소");
+    // 터미널 안내는 셸에도 길이 없을 때만이다
+    expect(out).not.toContain("xeon secret add anthropic-api-key");
+  });
+
+  test("when not even the shell can take the key it shows the terminal command, never an input for the value", () => {
     const out = body(EMPTY, {
       keyEntry: { state: "terminal", command: "xeon secret add anthropic-api-key" },
     });

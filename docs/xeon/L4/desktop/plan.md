@@ -76,7 +76,7 @@ xeon/apps/desktop/
       main.rs                     # 앱 조립, RunEvent 처리, 신호 처리기
       engine.rs                   # Supervisor: spawn·종료·재기동 (spec §4.1 E1~E11, §4.4), Launcher 추상화
       relay.rs                    # 줄 버퍼, 신용, stdin 쓰기 스레드, 셸 명령 engine_* (spec §3.3)
-      secret_entry.rs             # 키 등록: 번들 사이드카를 `xeon secret add|set`으로 한 번 실행, 값은 stdin에만 (spec §3.3, §4.14.1)
+      secret_entry.rs             # 키 등록: 번들 사이드카를 `xeon secret add|set`으로 한 번 실행, 값은 stdin에만 (spec §4.14.1)
       applog.rs                   # 앱 로그 파일(바이트 수만 기록, E11)
       time.rs                     # RFC 3339 UTC 문자열
   test/
@@ -542,6 +542,8 @@ Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/
 
 - 서비스 사용 설정이 켜지면 셸이 서비스 소켓을 릴레이하고, 앱을 닫아도 서비스의 turn이 계속된다.
 - 알림 wire가 정해졌으면 알림이 OS 알림으로 보인다.
+M2 첫 실행 반영(M-12, 키 등록): 깨끗한 Mac에는 `xeon` 명령이 없어 터미널 안내로는 키를 등록할 수 없었다. 셸 명령 `secret_register`(`src-tauri/src/secret_entry.rs`)가 번들된 사이드카를 `xeon secret add|set <이름>`으로 실행하고 값을 stdin에 한 번 쓴다(spec §4.14.1, §3.3). 화면은 `src/settings/key-entry.ts`(`submitKey`: 입력란을 읽는 즉시 비우고 바이트 배열만 넘기고 보낸 뒤 0으로 덮는다), `src/views/settings.tsx`의 `KeyForm`(제어하지 않는 password 입력란), `src/transport/ipc.ts`의 `registerSecret`이다. 시험: Rust(`secret_entry.rs` 안: 값이 인자에 없음, stdin 쓰기 한 번 뒤 닫힘, 종료 코드·출력 변환과 값이 든 출력 비움, 시한 뒤 그룹 종료, 동시 등록 거절, 본문 검사), `test/settings/key-entry.test.ts`(입력란이 대기 중에 이미 비어 있음, 바이트 0으로 덮임), `test/app/key-register.test.ts`(실제 앱과 `ipc.ts`를 `mockIPC` 위에서 돌려 값이 셸 명령 본문에만 있고 wire, 화면 상태, 거울, 로그에 없음, 오류 변환), `test/views/settings.test.tsx`(등록 창이 값 속성 없는 password 입력란 하나).
+
 
 ## 7. 위험과 대응
 

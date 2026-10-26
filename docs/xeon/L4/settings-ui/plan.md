@@ -30,7 +30,7 @@ binds: [xeon/apps/desktop/src/settings/**]
 - 일반 폼 렌더러(`views/SettingsShell`, `TabPage`, `Field`): 위젯 8종을 일반 부품으로 그린다.
 - advanced 탭 파일 편집기의 키 단위 형태(`FileEditor`, spec §4.2.3 M2 행).
 - 두 원천 합치기(spec §4.1.3): 엔진 `settings.*`와 데스크톱 로컬 저장소.
-- 결과: `settings.list`·`settings.get`·`settings.set`·`settings.reset`이 실제 호스트와 함께 도는 화면. secrets 탭은 `xeon secret add` 명령 안내만 보인다.
+- 결과: `settings.list`·`settings.get`·`settings.set`·`settings.reset`이 실제 호스트와 함께 도는 화면. secrets 탭은 `xeon secret add` 명령 안내만 보인다(M2 최소 설정 화면의 키 등록은 `L4.desktop.spec` §4.14.1이 이미 제공한다).
 
 ### 1.4 M3: 화면 전체
 

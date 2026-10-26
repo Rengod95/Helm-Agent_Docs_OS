@@ -16,6 +16,7 @@ export function fakeCommands(overrides: Partial<Commands> = {}): Commands {
     setup: {
       load: () => Promise.resolve(err({ kind: "unsupported" })),
       beginKeyEntry: () => Promise.resolve(ok(false)),
+      registerKey: () => Promise.resolve(ok(null)),
       connectProviderKey: () => Promise.resolve(ok(null)),
       setDefaultModel: () => Promise.resolve(ok(null)),
       onInvalidated: () => () => {},

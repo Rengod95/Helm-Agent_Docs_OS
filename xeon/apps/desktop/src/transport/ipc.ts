@@ -1,5 +1,6 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import { attemptAsync, parse, type ParseError, type Result } from "@xeon/contracts";
+import type { SecretName } from "@xeon/contracts/capabilities";
 import {
   Type,
   type Static,
@@ -109,6 +110,53 @@ export function parseAttachResult(value: unknown): Result<AttachResult, ParseErr
   return parse(AttachResultSchema, value);
 }
 
+/**
+ * 키 등록 명령(`secret_register`)의 오류. 셸이 `{kind, ...}` 객체로 거부한다(src-tauri/src/secret_entry.rs).
+ * `unknown`은 IPC 자체가 실패했거나 셸이 모르는 모양을 돌려준 경우다.
+ */
+export type SecretRegisterError =
+  | { readonly kind: "bad-request" }
+  | { readonly kind: "empty" }
+  | { readonly kind: "too-large" }
+  | { readonly kind: "busy" }
+  | { readonly kind: "timeout" }
+  | { readonly kind: "unavailable"; readonly detail: string }
+  | { readonly kind: "rejected"; readonly exitCode: number | null; readonly detail: string }
+  | { readonly kind: "unknown" };
+
+const SecretRegisterErrorSchema = Type.Union([
+  Type.Object(
+    {
+      kind: Type.Union([
+        Type.Literal("bad-request"),
+        Type.Literal("empty"),
+        Type.Literal("too-large"),
+        Type.Literal("busy"),
+        Type.Literal("timeout"),
+      ]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { kind: Type.Literal("unavailable"), detail: Type.String({ maxLength: 4096 }) },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      kind: Type.Literal("rejected"),
+      exitCode: Type.Union([Type.Integer(), Type.Null()]),
+      detail: Type.String({ maxLength: 4096 }),
+    },
+    { additionalProperties: false },
+  ),
+]);
+
+/** 셸이 거부한 값도 프로세스 밖의 값이다(TY-10). 모르는 모양은 `unknown`이다 */
+export function parseSecretRegisterError(value: unknown): SecretRegisterError {
+  const parsed = parse(SecretRegisterErrorSchema, value);
+  return parsed.ok ? parsed.value : { kind: "unknown" };
+}
+
 export type IpcError =
   | { readonly kind: "command"; readonly command: string; readonly code: string }
   | { readonly kind: "invalid"; readonly command: string };
@@ -125,6 +173,15 @@ export interface DesktopIpc {
   ack(epoch: number, bytes: number): Promise<Result<null, IpcError>>;
   restart(): Promise<Result<null, IpcError>>;
   detach(epoch: number): Promise<Result<null, IpcError>>;
+  /**
+   * 모델 키를 등록한다. 셸이 번들된 사이드카를 `xeon secret <동작> <이름>`으로 실행하고 값을 그 stdin에 한 번 쓴다.
+   * 값은 요청 본문 바이트로만 가고 이 함수가 돌아오기 전에 그 버퍼를 0으로 덮는다. `value`는 호출자가 덮는다.
+   */
+  registerSecret(
+    name: SecretName,
+    action: "add" | "set",
+    value: Uint8Array,
+  ): Promise<Result<null, SecretRegisterError>>;
 }
 
 function codeOf(cause: unknown): string {
@@ -192,5 +249,20 @@ export function createTauriIpc(): DesktopIpc {
         await invoke("engine_detach", { epoch });
         return null;
       }),
+    async registerSecret(name, action, value) {
+      // 본문은 `<동작> <이름>\n<값>`이다. 값을 문자열로 바꾸거나 JSON에 싣지 않는다
+      const head = new TextEncoder().encode(`${action} ${name}\n`);
+      const body = new Uint8Array(head.byteLength + value.byteLength);
+      body.set(head, 0);
+      body.set(value, head.byteLength);
+      try {
+        const sent = await attemptAsync(() => invoke("secret_register", body));
+        return sent.ok
+          ? { ok: true, value: null }
+          : { ok: false, error: parseSecretRegisterError(sent.error.cause) };
+      } finally {
+        body.fill(0);
+      }
+    },
   };
 }

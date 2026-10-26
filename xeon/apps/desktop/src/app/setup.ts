@@ -1,4 +1,4 @@
-import { ok, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, type Result } from "@xeon/contracts";
 import type { HostConnection } from "@xeon/contracts/wire";
 import {
   binaryViewOf,
@@ -8,9 +8,11 @@ import {
   providersOf,
   withProviderKey,
   type BinaryView,
+  type KeyRegisterError,
   type SecretRow,
   type SetupSnapshot,
 } from "../settings/index.ts";
+import type { DesktopIpc, SecretRegisterError } from "../transport/ipc.ts";
 import type { CommandError, SetupCommands } from "../views/commands.ts";
 
 // 최소 설정 화면이 부르는 wire(G2-08). 모델 키는 값 없는 `secret.*`로만 다루고(L0.secrets.spec R4),
@@ -28,12 +30,32 @@ type Run = <T>(
   work: (connection: HostConnection) => Promise<T>,
 ) => Promise<Result<T, CommandError>>;
 
+/** 셸의 오류를 화면이 아는 오류로 바꾼다. 셸 내부 사정(`detail`, 잘못된 요청)은 화면에 올리지 않는다 */
+export function keyRegisterErrorOf(error: SecretRegisterError): KeyRegisterError {
+  switch (error.kind) {
+    case "unavailable":
+    case "empty":
+    case "too-large":
+    case "busy":
+    case "timeout":
+      return { kind: error.kind };
+    case "rejected":
+      return { kind: "rejected", exitCode: error.exitCode, detail: error.detail };
+    case "bad-request":
+    case "unknown":
+      return { kind: "failed" };
+    default:
+      return assertNever(error, "SecretRegisterError");
+  }
+}
+
 /** 쓰기 범위는 사용자 설정 파일이다. 키 등록과 기본 모델은 대화마다 다르지 않다 */
 const SCOPE = "user";
 
 export function createSetupCommands(
   run: Run,
   onInvalidated: (listener: () => void) => () => void,
+  ipc: Pick<DesktopIpc, "registerSecret">,
 ): SetupCommands {
   return {
     async load(options) {
@@ -68,6 +90,10 @@ export function createSetupCommands(
     async beginKeyEntry(name, action) {
       const begun = await run((c) => c.request("secret.beginEntry", { name, action }));
       return begun.ok ? ok(begun.value.started) : begun;
+    },
+    async registerKey(name, action, value) {
+      const registered = await ipc.registerSecret(name, action, value);
+      return registered.ok ? ok(null) : err(keyRegisterErrorOf(registered.error));
     },
     async connectProviderKey(providerId, secretName) {
       // 목록 전체를 한 키로 쓰므로(병합 단위는 키 하나) 현재 값을 읽어 원소만 바꾼 목록을 보낸다

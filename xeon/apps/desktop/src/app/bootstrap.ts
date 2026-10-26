@@ -75,6 +75,7 @@ export function createApp(env: AppEnv): App {
   );
   const commands = createCommands({
     session,
+    ipc: env.ipc,
     engine,
     ui,
     journal,

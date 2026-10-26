@@ -3,7 +3,7 @@ import { createContext, useContext } from "react";
 import { Bug, type Result } from "@xeon/contracts";
 import type { SecretName } from "@xeon/contracts/capabilities";
 import type { TrustChoice, TrustStatus } from "@xeon/contracts/wire";
-import type { SetupSnapshot } from "../settings/index.ts";
+import type { KeyRegisterError, SetupSnapshot } from "../settings/index.ts";
 import type { LockedOption, Screen } from "../state/ui/index.ts";
 
 // 화면이 부르는 명령. 구현은 src/app/commands.ts다. 명령은 거울을 바꾸지 않는다(FS-02):
@@ -40,8 +40,9 @@ interface TrustCommands {
 }
 
 /**
- * 최소 설정 화면(G2-08). 모두 요청 결과로 얻는 값이라 거울에 넣지 않는다. 키 값은 어느 메서드도 받지 않는다:
- * 등록은 값 없는 `secret.beginEntry`가 시작하고 값은 호스트가 wire 밖에서 받는다.
+ * 최소 설정 화면(G2-08). 모두 요청 결과로 얻는 값이라 거울에 넣지 않는다. wire 메서드는 값을 받지 않는다:
+ * 호스트가 값을 받을 수 있으면 값 없는 `secret.beginEntry`가 시작하고, 받을 수 없는 연결(사이드카)은 `registerKey`가
+ * 셸의 `secret_register` 명령으로 값을 보낸다. 값은 wire를 지나지 않는다(L4.desktop.spec §4.14.1).
  */
 export interface SetupCommands {
   /**
@@ -50,11 +51,20 @@ export interface SetupCommands {
    * 거짓이면 `binaries`와 `toolsReady`는 비어 있다.
    */
   load(options: { readonly binaries: boolean }): Promise<Result<SetupSnapshot, CommandError>>;
-  /** `secret.beginEntry`. 값을 받는 수단이 이 연결에 없으면 `false`다(사이드카는 아직 없다) */
+  /** `secret.beginEntry`. 호스트가 값을 받는 수단이 이 연결에 없으면 `false`다(사이드카 호스트는 항상 `false`, HS-44) */
   beginKeyEntry(
     secretName: SecretName,
     action: "add" | "set",
   ): Promise<Result<boolean, CommandError>>;
+  /**
+   * 셸이 값을 받아 번들된 `xeon secret add|set`의 stdin에 한 번 쓴다. 값을 담은 `value`는 호출자가 보낸 뒤 덮는다.
+   * 이 연결에 셸 경로가 없으면 `unavailable`이다.
+   */
+  registerKey(
+    secretName: SecretName,
+    action: "add" | "set",
+    value: Uint8Array,
+  ): Promise<Result<null, KeyRegisterError>>;
   /** provider의 `apiKeyRef`를 `secret://<이름>`으로 정하고 켠다 */
   connectProviderKey(
     providerId: string,

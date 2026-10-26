@@ -1,12 +1,14 @@
 import { repeatAsync } from "@xeon/contracts";
 import type { ThreadSummary } from "@xeon/contracts/wire";
-import type { EngineState } from "../../src/transport/ipc.ts";
+import type { DesktopIpc, EngineState, SecretRegisterError } from "../../src/transport/ipc.ts";
 import { createApp, type App } from "../../src/app/bootstrap.ts";
 import { fakeIpc, requestId, type FakeIpc } from "../transport/fake-ipc.ts";
 import { STORE, summary, thr, userItem } from "../state/helpers.ts";
 
 /** 시험별로 바꾸는 엔진 응답. results는 메서드 결과를 덮고, errors는 JSON-RPC 오류 프레임을 돌려준다 */
 export type EngineExtra = {
+  /** `registerSecret`이 돌려줄 오류(가짜 ipc 직접 호출용). 없으면 성공 */
+  readonly registerError?: SecretRegisterError;
   readonly results?: Readonly<Record<string, unknown>>;
   readonly errors?: Readonly<Record<string, { code: number; kind: string; details?: unknown }>>;
 };
@@ -65,6 +67,7 @@ export function engineFake(
   };
   const result = (method: string): unknown => extra.results?.[method] ?? results[method] ?? {};
   const fake = fakeIpc({
+    ...(extra.registerError === undefined ? {} : { registerError: extra.registerError }),
     ...(stateForAttach === undefined ? {} : { stateForAttach }),
     onWrite: (message, f) => {
       const method = methodOf(message);
@@ -95,8 +98,13 @@ export function engineFake(
 }
 
 export function makeApp(fake: FakeIpc): App {
+  return makeAppOver(fake.ipc);
+}
+
+/** 셸 쪽을 직접 정한 ipc(예: mockIPC 위의 실제 ipc.ts)로 앱을 만든다 */
+export function makeAppOver(ipc: DesktopIpc): App {
   return createApp({
-    ipc: fake.ipc,
+    ipc,
     clock: { now: () => Date.now() },
     scheduler: {
       setTimeout: (fn, ms) => Number(setTimeout(fn, ms)),

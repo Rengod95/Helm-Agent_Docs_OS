@@ -13,9 +13,12 @@ import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
 import { createSetupCommands } from "./setup.ts";
 import type { Session } from "./session.ts";
+import type { DesktopIpc } from "../transport/ipc.ts";
 
 export type CommandDeps = {
   readonly session: Session;
+  /** 키 등록(`registerSecret`)만 쓴다. 나머지 셸 명령은 세션이 맡는다 */
+  readonly ipc: Pick<DesktopIpc, "registerSecret">;
   readonly engine: EngineStore;
   readonly ui: UiStore;
   readonly journal: Journal<ApplyNote>;
@@ -98,16 +101,20 @@ export function createCommands(deps: CommandDeps): Commands {
       decide: (workspace, choice) =>
         withConnection((c) => c.request("trust.decide", { workspace, choice })),
     },
-    setup: createSetupCommands(withConnection, (listener) => {
-      const connection = session.connection();
-      return connection === null
-        ? () => {}
-        : connection.onNotification("settings.invalidated", (params) => {
-            // 모델 키와 기본 모델 키만 화면에 영향이 있다. 키 목록이 비면 전체 무효화로 본다
-            const keys = params.keys;
-            if (keys.length === 0 || keys.some((key) => key.startsWith("l1.models."))) listener();
-          });
-    }),
+    setup: createSetupCommands(
+      withConnection,
+      (listener) => {
+        const connection = session.connection();
+        return connection === null
+          ? () => {}
+          : connection.onNotification("settings.invalidated", (params) => {
+              // 모델 키와 기본 모델 키만 화면에 영향이 있다. 키 목록이 비면 전체 무효화로 본다
+              const keys = params.keys;
+              if (keys.length === 0 || keys.some((key) => key.startsWith("l1.models."))) listener();
+            });
+      },
+      deps.ipc,
+    ),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),
