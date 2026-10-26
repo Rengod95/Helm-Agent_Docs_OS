@@ -17,7 +17,7 @@ export function SetupBanner(): ReactNode {
     let stale = false;
     const check = (): void => {
       detach(
-        commands.setup.load().then((result) => {
+        commands.setup.load({ binaries: false }).then((result) => {
           if (!stale) setNeeded(result.ok && !readyToChat(result.value));
           return undefined;
         }),

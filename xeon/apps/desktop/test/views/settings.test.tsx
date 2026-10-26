@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { renderToString } from "react-dom/server";
-import type { SetupSnapshot } from "../../src/app/setup.ts";
+import { keepTools, type SetupSnapshot } from "../../src/app/setup.ts";
 import { binaryViewOf, setupSteps } from "../../src/settings/index.ts";
 import { SettingsBody, Steps, Tools, type KeyEntry } from "../../src/views/settings.tsx";
 
@@ -126,5 +126,30 @@ describe("external tools table", () => {
       />,
     );
     expect(out.match(/확인할 수 없음/g)?.length).toBe(2);
+  });
+});
+
+describe("keepTools", () => {
+  test("a settings re-read keeps the earlier tool check and takes everything else from the new read", () => {
+    const binaries = binaryViewOf({
+      platform: "linux",
+      ready: true,
+      blocking: [],
+      degraded: [],
+      items: [],
+    });
+    const previous: SetupSnapshot = { ...EMPTY, toolsReady: true, binaries };
+    const fresh: SetupSnapshot = {
+      ...EMPTY,
+      defaultModel: "anthropic/claude-sonnet-5-5",
+      secrets: [{ name: "anthropic-api-key", registered: true }],
+    };
+    expect(keepTools(fresh, previous)).toEqual({
+      providers: [],
+      defaultModel: "anthropic/claude-sonnet-5-5",
+      secrets: [{ name: "anthropic-api-key", registered: true }],
+      toolsReady: true,
+      binaries,
+    });
   });
 });

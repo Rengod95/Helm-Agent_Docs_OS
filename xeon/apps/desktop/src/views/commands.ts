@@ -44,7 +44,12 @@ export interface TrustCommands {
  * 등록은 값 없는 `secret.beginEntry`가 시작하고 값은 호스트가 wire 밖에서 받는다.
  */
 export interface SetupCommands {
-  load(): Promise<Result<SetupSnapshot, CommandError>>;
+  /**
+   * 설정, 비밀 목록을 읽는다. `binaries`가 참이면 `host.status { includeBinaries: true }`로 외부 도구도 점검한다.
+   * 점검은 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 참이다. 시작 안내 띠는 거짓이다.
+   * 거짓이면 `binaries`와 `toolsReady`는 비어 있다.
+   */
+  load(options: { readonly binaries: boolean }): Promise<Result<SetupSnapshot, CommandError>>;
   /** `secret.beginEntry`. 값을 받는 수단이 이 연결에 없으면 `false`다(사이드카는 아직 없다) */
   beginKeyEntry(
     secretName: SecretName,

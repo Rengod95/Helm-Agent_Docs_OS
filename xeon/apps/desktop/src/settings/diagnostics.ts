@@ -1,36 +1,8 @@
-import { parse } from "@xeon/contracts";
-import { Type, type Static } from "typebox";
+import type { HostBinaryReport, HostBinaryStatus } from "@xeon/contracts/wire";
 
-// 외부 바이너리 점검 결과(G2-07, L0.os.spec §3.6.1 `BinaryCheckReport`)를 화면 값으로 읽는다.
-// 이 보고서를 wire로 싣는 메서드는 F에 없다(`host.diagnose` 반려, F.wire-settings.spec). 값의 원천은 앱이 주입하고(`src/app/setup.ts`),
-// 모양은 platform-os의 보고서 JSON과 같다. 모양이 다르거나 값이 없으면 "받을 수 없음"(null)이다.
-
-const NeedSchema = Type.Union([Type.Literal("required"), Type.Literal("optional")]);
-const StatusSchema = Type.Union([
-  Type.Object({
-    kind: Type.Literal("ok"),
-    path: Type.String(),
-    version: Type.String(),
-    source: Type.String(),
-  }),
-  Type.Object({ kind: Type.Literal("missing"), hint: Type.String() }),
-  Type.Object({ kind: Type.Literal("too_old"), found: Type.String(), required: Type.String() }),
-  Type.Object({ kind: Type.Literal("unusable"), reason: Type.String() }),
-]);
-const ItemSchema = Type.Object({
-  name: Type.String(),
-  need: NeedSchema,
-  usedBy: Type.String(),
-  impact: Type.String(),
-  status: StatusSchema,
-});
-const ReportSchema = Type.Object({
-  platform: Type.String(),
-  items: Type.Array(ItemSchema, { maxItems: 64 }),
-  ready: Type.Boolean(),
-  blocking: Type.Array(Type.String(), { maxItems: 64 }),
-  degraded: Type.Array(Type.String(), { maxItems: 64 }),
-});
+// 외부 바이너리 점검 결과(G2-07, L0.os.spec §3.6.1 `BinaryCheckReport`에서 경로만 뺀 `HostBinaryReport`)를 화면 값으로 읽는다.
+// 값은 `host.status { includeBinaries: true }`의 `binaries`다(F.wire-settings.spec §3.3.1). 연결이 결과를 스키마로 검증하고 건네므로
+// 여기서 다시 parse하지 않는다. 결과에 `binaries`가 없으면(구형 호스트, 점검 취소) 화면 값은 없다(null).
 
 export type BinaryRow = {
   readonly name: string;
@@ -50,7 +22,7 @@ export type BinaryView = {
   readonly rows: readonly BinaryRow[];
 };
 
-function noteOf(status: Static<typeof StatusSchema>): { ok: boolean; note: string } {
+function noteOf(status: HostBinaryStatus): { ok: boolean; note: string } {
   if (status.kind === "ok") return { ok: true, note: status.version };
   if (status.kind === "missing") return { ok: false, note: status.hint };
   if (status.kind === "too_old") {
@@ -59,11 +31,9 @@ function noteOf(status: Static<typeof StatusSchema>): { ok: boolean; note: strin
   return { ok: false, note: `쓸 수 없음 (${status.reason})` };
 }
 
-/** 점검 보고서 JSON을 화면 값으로 읽는다. 없거나 모양이 다르면 null */
-export function binaryViewOf(report: unknown): BinaryView | null {
-  const parsed = parse(ReportSchema, report);
-  if (!parsed.ok) return null;
-  const binaries = parsed.value;
+/** 점검 보고서를 화면 값으로 바꾼다. 보고서가 없으면 null */
+export function binaryViewOf(binaries: HostBinaryReport | undefined): BinaryView | null {
+  if (binaries === undefined) return null;
   return {
     platform: binaries.platform,
     ready: binaries.ready,

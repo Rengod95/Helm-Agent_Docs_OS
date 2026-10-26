@@ -1,8 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import type { HostBinaryReport } from "@xeon/contracts/wire";
 import { binaryViewOf } from "../../src/settings/index.ts";
 
-// platform-os BinaryCheckReport의 JSON 모양 그대로
-const REPORT = {
+// host.status의 binaries(HostBinaryReport): platform-os BinaryCheckReport에서 실행 파일 경로만 뺀 모양
+const REPORT: HostBinaryReport = {
   platform: "linux",
   ready: false,
   blocking: ["sops"],
@@ -20,7 +21,7 @@ const REPORT = {
       need: "required",
       usedBy: "검색",
       impact: "검색 불가",
-      status: { kind: "ok", path: "/usr/bin/rg", version: "14.1.0", source: "path" },
+      status: { kind: "ok", version: "14.1.0", source: "system" },
     },
     {
       name: "sops",
@@ -52,9 +53,39 @@ describe("binaryViewOf", () => {
     ]);
   });
 
-  test("anything that is not a report is no view", () => {
-    expect(binaryViewOf(null)).toBeNull();
-    expect(binaryViewOf({ platform: "linux" })).toBeNull();
-    expect(binaryViewOf({ ...REPORT, items: [{ name: "x" }] })).toBeNull();
+  test("a result without binaries (old host, nothing asked) is no view", () => {
+    expect(binaryViewOf(undefined)).toBeNull();
+  });
+
+  test("a ready report with only usable tools lists them all as usable", () => {
+    const view = binaryViewOf({
+      platform: "darwin",
+      ready: true,
+      blocking: [],
+      degraded: [],
+      items: [
+        {
+          name: "rg",
+          need: "required",
+          usedBy: "검색",
+          impact: "검색 불가",
+          status: { kind: "ok", version: "14.1.0", source: "bundled" },
+        },
+      ],
+    });
+    expect(view).toEqual({
+      platform: "darwin",
+      ready: true,
+      rows: [
+        {
+          name: "rg",
+          need: "required",
+          usedBy: "검색",
+          ok: true,
+          note: "14.1.0",
+          impact: "검색 불가",
+        },
+      ],
+    });
   });
 });

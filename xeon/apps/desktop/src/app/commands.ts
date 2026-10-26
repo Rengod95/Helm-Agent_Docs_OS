@@ -11,7 +11,7 @@ import type { UiStore } from "../state/ui/index.ts";
 import type { ApprovalDecision, CommandError, Commands } from "../views/commands.ts";
 import { approvalFailureOf } from "./approval-outcome.ts";
 import { errorOf } from "./command-error.ts";
-import { createSetupCommands, type BinaryReportSource } from "./setup.ts";
+import { createSetupCommands } from "./setup.ts";
 import type { Session } from "./session.ts";
 
 export type CommandDeps = {
@@ -21,8 +21,6 @@ export type CommandDeps = {
   readonly journal: Journal<ApplyNote>;
   readonly versions: () => AppVersions;
   readonly clipboard: { writeText(text: string): Promise<void> };
-  /** 외부 바이너리 점검 보고서의 원천. 없으면 설정 화면이 "받을 수 없음"을 보인다 */
-  readonly binaryReport: BinaryReportSource;
 };
 
 export function createCommands(deps: CommandDeps): Commands {
@@ -98,20 +96,16 @@ export function createCommands(deps: CommandDeps): Commands {
       decide: (workspace, choice) =>
         withConnection((c) => c.request("trust.decide", { workspace, choice })),
     },
-    setup: createSetupCommands(
-      withConnection,
-      (listener) => {
-        const connection = session.connection();
-        return connection === null
-          ? () => {}
-          : connection.onNotification("settings.invalidated", (params) => {
-              // 모델 키와 기본 모델 키만 화면에 영향이 있다. 키 목록이 비면 전체 무효화로 본다
-              const keys = params.keys;
-              if (keys.length === 0 || keys.some((key) => key.startsWith("l1.models."))) listener();
-            });
-      },
-      deps.binaryReport,
-    ),
+    setup: createSetupCommands(withConnection, (listener) => {
+      const connection = session.connection();
+      return connection === null
+        ? () => {}
+        : connection.onNotification("settings.invalidated", (params) => {
+            // 모델 키와 기본 모델 키만 화면에 영향이 있다. 키 목록이 비면 전체 무효화로 본다
+            const keys = params.keys;
+            if (keys.length === 0 || keys.some((key) => key.startsWith("l1.models."))) listener();
+          });
+    }),
     async observeThread(threadId) {
       const opened = await withConnection((c) =>
         c.request("thread.open", { threadId, mode: "observe" }),

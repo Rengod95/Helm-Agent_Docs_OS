@@ -19,11 +19,12 @@ import type { CommandError, SetupCommands } from "../views/commands.ts";
 export type SetupSnapshot = SetupInput & { readonly binaries: BinaryView | null };
 
 /**
- * 외부 바이너리 점검 보고서의 원천(G2-07). wire에는 이 보고서를 싣는 메서드가 없고(`host.status` 결과는 키를 더 허용하지 않는다)
- * `host.diagnose`는 반려되었다. 그래서 원천은 주입한다: 값은 platform-os `BinaryCheckReport`의 JSON 모양이고, 모양이 다르면
- * "받을 수 없음"이다. 원천이 없으면(기본) 화면은 `xeon doctor` 안내를 보인다.
+ * 점검 없이 다시 읽은 설정(`load({ binaries: false })`)에 앞서 읽은 외부 도구 점검 결과를 이어 붙인다.
+ * 설정이 바뀌어도 설치된 도구는 그대로라 점검을 되풀이하지 않는다(점검은 자식 프로세스를 띄운다, HS-69).
  */
-export type BinaryReportSource = () => Promise<unknown>;
+export function keepTools(fresh: SetupSnapshot, previous: SetupSnapshot): SetupSnapshot {
+  return { ...fresh, binaries: previous.binaries, toolsReady: previous.toolsReady };
+}
 
 type Run = <T>(
   work: (connection: HostConnection) => Promise<T>,
@@ -35,10 +36,9 @@ const SCOPE = "user";
 export function createSetupCommands(
   run: Run,
   onInvalidated: (listener: () => void) => () => void,
-  binaryReport: BinaryReportSource,
 ): SetupCommands {
   return {
-    async load() {
+    async load(options) {
       const settings = await run((c) =>
         c.request("settings.get", { keys: [DEFAULT_MODEL_KEY, PROVIDERS_KEY] }),
       );
@@ -52,7 +52,12 @@ export function createSetupCommands(
             registered: entry.status === "valid" || entry.status === "expiring",
           }))
         : null;
-      const binaries = binaryViewOf(await binaryReport());
+      // 외부 도구 점검은 바이너리마다 자식 프로세스를 띄우므로 요청한 쪽만 한다(HS-69). 읽지 못하거나 구형 호스트면 "받을 수 없음"이다
+      let binaries: BinaryView | null = null;
+      if (options.binaries) {
+        const status = await run((c) => c.request("host.status", { includeBinaries: true }));
+        binaries = status.ok ? binaryViewOf(status.value.binaries) : null;
+      }
       const snapshot: SetupSnapshot = {
         providers: providersOf(valueOf(PROVIDERS_KEY)),
         defaultModel: defaultModelOf(valueOf(DEFAULT_MODEL_KEY)),

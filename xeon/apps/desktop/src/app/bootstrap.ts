@@ -7,7 +7,6 @@ import type { DesktopIpc } from "../transport/ipc.ts";
 import { createCommands } from "./commands.ts";
 import { BUILD_CHECKS } from "./build.ts";
 import { createWebViewLogger, type LogLine, type LogRing } from "./logger.ts";
-import type { BinaryReportSource } from "./setup.ts";
 import { startSession, type Session } from "./session.ts";
 import type { Commands } from "../views/commands.ts";
 
@@ -25,8 +24,6 @@ export type AppEnv = {
   readonly frameFallbackMs: number;
   /** 로그 줄을 밖으로 보낼 곳(warn 이상). 기본은 개발자 도구 콘솔이다 */
   readonly logSink?: (line: LogLine) => void;
-  /** 외부 바이너리 점검 보고서의 원천(src/app/setup.ts). 기본은 없음 */
-  readonly binaryReport?: BinaryReportSource;
 };
 
 export type App = {
@@ -83,7 +80,6 @@ export function createApp(env: AppEnv): App {
     journal,
     versions: () => ({ app: env.appVersion, engine: session.engineVersion() }),
     clipboard: env.clipboard,
-    binaryReport: env.binaryReport ?? (() => Promise.resolve(null)),
   });
   return {
     engine,

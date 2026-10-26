@@ -179,7 +179,7 @@ describe("settings screen wire", () => {
         },
       },
     });
-    const loaded = await app.commands.setup.load();
+    const loaded = await app.commands.setup.load({ binaries: false });
     if (!loaded.ok) throw new Error("load failed");
     expect(loaded.value).toEqual({
       providers,
@@ -194,7 +194,106 @@ describe("settings screen wire", () => {
     expect(params.find((p) => p.method === "settings.get")?.params).toEqual({
       keys: ["l1.models.default", "l1.models.providers"],
     });
+    // 점검을 청하지 않은 읽기(시작 안내 띠, 설정 알림 뒤의 다시 읽기)는 자식 프로세스를 띄우는 점검을 일으키지 않는다
+    expect(params.some((p) => p.method === "host.status")).toBe(false);
     await app.stop();
+  });
+
+  const HOST_STATUS = {
+    mode: "stdio",
+    pid: 4242,
+    startedAt: "2026-10-26T00:00:00.000Z",
+    connections: 1,
+    liveTurns: 0,
+    idleShutdownAt: null,
+  };
+
+  test("load with binaries asks host.status for the check and shows the report from the wire (G2-07)", async () => {
+    const { app, params } = await liveApp({
+      results: {
+        "settings.get": { settings: [] },
+        "host.status": {
+          ...HOST_STATUS,
+          binaries: {
+            platform: "darwin",
+            ready: false,
+            blocking: ["sops"],
+            degraded: ["socat"],
+            items: [
+              {
+                name: "sops",
+                need: "required",
+                usedBy: "비밀 저장소",
+                impact: "키를 저장할 수 없다",
+                status: { kind: "missing", hint: "brew install sops" },
+              },
+              {
+                name: "rg",
+                need: "required",
+                usedBy: "검색",
+                impact: "검색 불가",
+                status: { kind: "ok", version: "14.1.0", source: "bundled" },
+              },
+            ],
+          },
+        },
+      },
+    });
+    const loaded = await app.commands.setup.load({ binaries: true });
+    if (!loaded.ok) throw new Error("load failed");
+    expect(params.find((p) => p.method === "host.status")?.params).toEqual({
+      includeBinaries: true,
+    });
+    expect(loaded.value.toolsReady).toBe(false);
+    expect(loaded.value.binaries).toEqual({
+      platform: "darwin",
+      ready: false,
+      rows: [
+        {
+          name: "sops",
+          need: "required",
+          usedBy: "비밀 저장소",
+          ok: false,
+          note: "brew install sops",
+          impact: "키를 저장할 수 없다",
+        },
+        {
+          name: "rg",
+          need: "required",
+          usedBy: "검색",
+          ok: true,
+          note: "14.1.0",
+          impact: "검색 불가",
+        },
+      ],
+    });
+    await app.stop();
+  });
+
+  test("a host.status without binaries, an old host and a cancelled check all leave the tools unknown", async () => {
+    const without = await liveApp({
+      results: { "settings.get": { settings: [] }, "host.status": HOST_STATUS },
+    });
+    const a = await without.app.commands.setup.load({ binaries: true });
+    expect(a.ok && [a.value.binaries, a.value.toolsReady]).toEqual([null, null]);
+    await without.app.stop();
+
+    const oldHost = await liveApp({
+      errors: { "host.status": { code: -32601, kind: "jsonrpc.methodNotFound" } },
+      results: { "settings.get": { settings: [] } },
+    });
+    const b = await oldHost.app.commands.setup.load({ binaries: true });
+    expect(b.ok && [b.value.binaries, b.value.toolsReady]).toEqual([null, null]);
+    await oldHost.app.stop();
+
+    const cancelled = await liveApp({
+      errors: { "host.status": { code: 5001, kind: "request.cancelled" } },
+      results: { "settings.get": { settings: [] } },
+    });
+    const c = await cancelled.app.commands.setup.load({ binaries: true });
+    // 점검이 취소되어도 설정은 읽힌다. 부분 결과는 없다
+    expect(c.ok && [c.value.binaries, c.value.toolsReady]).toEqual([null, null]);
+    await cancelled.app.stop();
   });
 
   test("connectProviderKey rewrites only the matching provider in the user scope", async () => {
@@ -252,7 +351,7 @@ describe("settings screen wire", () => {
       errors: { "secret.list": { code: 3201, kind: "secret.notFound" } },
       results: { "settings.get": { settings: [] } },
     });
-    const loaded = await app.commands.setup.load();
+    const loaded = await app.commands.setup.load({ binaries: false });
     // 비밀 목록을 읽지 못해도 설정 화면은 뜬다. 키 단계는 "확인할 수 없음"이다
     expect(loaded.ok && loaded.value.secrets).toBeNull();
     await app.stop();

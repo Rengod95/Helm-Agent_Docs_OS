@@ -504,7 +504,7 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 | 입력창 | 텍스트·이미지 입력, 중단 버튼 | `turn.start`(`requestId` 포함), `turn.interrupt` | M2 |
 | 승인 대기열 | 대기 중 승인 요청 목록과 응답 | `approval.requested`·`approval.resolved` 내구 이벤트, `approval.respond` | M2. [가정] `F.wire-settings.spec` §4.6 A안 |
 | 상태 표시줄 | 엔진 상태(`EngineState`), 공급원, 연결 상태, 진행 중 turn 수 | `onState`, `host.status` | M2 |
-| 설정 진입 | 설정 화면 열기(§4.14 최소 화면) | `settings.get`, `settings.set`, `secret.*` | M2 최소 화면, 전체 화면은 `L4.settings-ui.spec`(M3) |
+| 설정 진입 | 설정 화면 열기(§4.14 최소 화면) | `settings.get`, `settings.set`, `secret.*`, `host.status` | M2 최소 화면, 전체 화면은 `L4.settings-ui.spec`(M3) |
 
 - 승인 대기열: [가정] A안에서는 대기 상태가 저장소에 있으므로 새로고침·재기동 뒤에도 §4.6 재개로 대기열이 다시 채워진다. B안(서버 → 클라이언트 요청)으로 정해지면 대기열 복구 규칙을 다시 쓴다.
 - 승인 카드 [결정: M2 검토 M2, 마감 G2-10]:
@@ -524,15 +524,15 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 | 영역 | 내용 | 쓰는 wire |
 |---|---|---|
 | 시작 안내 | 세 단계(외부 도구 점검, 모델 키 등록, 기본 모델 선택)의 완료 여부. 키 단계는 "활성 provider의 `apiKeyRef`가 가리키는 비밀이 등록되어 있다"일 때, 모델 단계는 "기본 모델의 provider가 키를 가진 provider와 같다"일 때 끝난다 | `settings.get`, `secret.list` |
-| 외부 도구 | 필수/선택 바이너리의 사용 가능 여부, 버전 또는 해야 할 일, 못 쓸 때의 영향(L0.os.spec §3.6.1 `BinaryCheckReport`) | 아래 참고 |
+| 외부 도구 | 필수/선택 바이너리의 사용 가능 여부, 버전 또는 해야 할 일, 못 쓸 때의 영향(L0.os.spec §3.6.1 `BinaryCheckReport`에서 경로만 뺀 `HostBinaryReport`) | `host.status { includeBinaries: true }` |
 | 모델 키 | provider 입력(후보 목록은 편의), 기본 비밀 이름 `<provider>-api-key`, 등록 여부, 키 등록/바꾸기, provider에 연결 | `secret.list`, `secret.beginEntry`, `settings.get`·`settings.set` (`l1.models.providers`) |
 | 기본 모델 | `provider/모델[:추론 레벨]` 입력(형식만 검사), 저장 | `settings.set` (`l1.models.default`) |
 
 - 쓰기 범위는 `user`다. `l1.models.providers`는 목록 전체가 한 키이므로(병합 단위는 키 하나) 현재 값을 읽어 해당 provider 원소만 바꾼 목록을 보낸다. baseUrl은 그대로 둔다.
 - 키 값은 이 화면, wire, 로그 어디에도 없다. 입력란은 provider와 모델 둘뿐이고 값을 받는 입력란이 없다(`L4.settings-ui.spec` §4.6.4 C안). 등록은 값 없는 `secret.beginEntry { name, action }`이 시작하고 값은 호스트가 wire 밖에서 받는다.
 - 사이드카(stdio) 호스트에는 값을 받을 수단이 없어 `secret.beginEntry`가 `started: false`를 돌려준다(`L4.host-service.spec` HS-44, 서비스 쪽 OS 입력 창은 M3). 이때 화면은 터미널 명령(`xeon secret add <이름>`)을 안내하고, 사용자가 등록한 뒤 "다시 확인"으로 목록을 다시 읽는다. 등록되어 있으면 "provider에 연결"이 켜진다. 값 입력 수단이 생기면 같은 흐름이 자동 연결까지 이어진다(`started: true`면 바로 연결한다). [미결: §10 15번]
-- 외부 도구 점검 결과를 싣는 wire가 없다(`host.diagnose` 반려, `host.status` 결과는 키를 더 허용하지 않는다). 보고서의 원천은 앱이 주입한다(`createApp({ binaryReport })`, 값은 platform-os `BinaryCheckReport`의 JSON 모양). 원천이 없으면 "받을 수 없음"과 `xeon doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. [미결: §10 16번]
-- `settings.invalidated`(`l1.models.*` 키 또는 키 목록이 빈 알림)를 받으면 설정 화면과 안내 띠가 다시 읽는다.
+- 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `src/settings/diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `xeon doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
+- `settings.invalidated`를 받으면(`keys`에 `l1.models.`로 시작하는 키가 있거나 `keys`가 빈 알림) 설정 화면과 안내 띠가 `settings.get`으로 다시 읽는다. 구독은 연결이 `live`가 될 때마다 새로 건다. 같은 연결의 `settings.set` 호출자도 알림을 받으므로 저장 직후 화면은 한 번 더 읽는다.
 - 모델 키와 기본 모델 단계가 끝나지 않았으면 대화 화면 위에 안내 띠("설정 열기")를 보인다(`src/views/setup-banner.tsx`). 설정을 읽지 못하는 연결에서는 띠를 그리지 않는다.
 - 화면의 로컬 상태는 요청 결과와 입력 중인 글자뿐이고 거울에 넣지 않는다(FS-03, FS-04).
 
@@ -638,6 +638,7 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 - D-12. `check-layers.ts` 앱 내부 규칙이 W1·W2·W6 위반 샘플 import를 거부한다.
 - D-13. 두 번째 앱 실행은 첫 인스턴스의 메인 창을 앞으로 가져오고 스스로 끝난다. 엔진이 둘 뜨지 않는다(`window.rs` 시험은 창 조회와 레이블 일치까지, 실제 두 프로세스 확인은 Mac에서 한다).
 - D-14. 릴리스 빌드에는 점검 소켓과 `viewport.snapshot`이 없다(§4.15 릴리스 확인).
+- D-15. 설정 화면은 외부 도구 점검 결과를 `host.status { includeBinaries: true }`의 `binaries`에서 읽고, 시작 안내 띠와 `settings.invalidated` 뒤 다시 읽기는 `includeBinaries`를 보내지 않는다.
 
 ## 10. 미결 사항
 
@@ -656,4 +657,4 @@ SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접
 13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). 이 문서는 stdio를 전제로 쓴다. S3 spike(`L4.desktop.plan` §3.1.1) 판정 [제안]: stdio를 유지하되 릴레이에 신용 기반 역압(Channel 무제어 송신은 지속 대용량에서 정지했다), 락 밖 비동기 stdin 쓰기, 세대별 줄 버퍼를 둔다. 세 조건은 M2 DESK.2에서 `relay.rs`에 구현됐고(`L4.desktop.plan` §3.2.1), Linux/WSL2에서 32 MB 연속 송신이 손실·중복 없이 지났다. macOS·Windows 재측정 뒤 확정한다.
 14. [가정] (Tauri `Channel`의 원시 바이트 전송과 Rust API 사이드카의 capabilities 비적용은 WSL2 WebKitGTK에서 S1·S3으로 확인했다. macOS, Windows는 미확인이다.) WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
 15. [미결] 사이드카에서 모델 키 값을 받는 수단. 값 없는 `secret.beginEntry`는 호스트가 맡은 수단이 있어야 시작되는데 stdio 호스트에는 없다(HS-44). 데스크톱이 터미널 명령 안내에 머무는 동안 "데스크톱에서 키 등록"은 끝나지 않은 것이다. 후보: 서비스 쪽 OS 입력 창(M3), Rust 셸이 별도 `xeon secret add` 프로세스의 stdin에 한 번 쓰는 길(값이 DOM과 Tauri IPC를 지난다, `L4.settings-ui.spec` §4.6.4 B안과 같은 약점).
-16. [미결] 외부 바이너리 점검 결과를 데스크톱에 전하는 길. F wire에 메서드가 없다(`host.diagnose` 반려). 후보: `host.status` 결과에 선택 필드 추가(F 변경), Rust 셸이 `xeon doctor`를 실행해 결과를 `binaryReport`로 주입.
+16. (닫힘, M2 마감 G2-07) 외부 바이너리 점검 결과를 전하는 길은 `host.status`의 `includeBinaries` 요청과 결과의 `binaries`다(F 변경, `L4.host-service.spec` HS-69). 앱이 보고서를 주입하던 방식은 없앴다(§4.14).

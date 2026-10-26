@@ -1,7 +1,7 @@
 import { detach, rethrow } from "@xeon/contracts";
 import type { SecretName } from "@xeon/contracts/capabilities";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import type { SetupSnapshot } from "../app/setup.ts";
+import { keepTools, type SetupSnapshot } from "../app/setup.ts";
 import { useLinkPhase } from "../state/engine/index.ts";
 import {
   checkModelRef,
@@ -255,25 +255,34 @@ export function SettingsScreen(): ReactNode {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  const reload = useCallback((): Promise<void> => {
-    return commands.setup.load().then((result) => {
-      if (result.ok) {
-        setLoaded({ kind: "ready", snapshot: result.value });
-        // 입력란이 비어 있을 때만 지금 값을 채운다. 사용자가 고치던 글자를 덮어쓰지 않는다
-        setModelInput((current) => (current === "" ? (result.value.defaultModel ?? "") : current));
-      } else {
-        setLoaded({ kind: "error", error: result.error });
-      }
-      return undefined;
-    });
-  }, [commands]);
+  // `withTools`가 거짓이면(설정이 바뀌었다는 알림) 외부 도구 점검은 다시 하지 않고 앞서 읽은 결과를 유지한다
+  const reload = useCallback(
+    (withTools: boolean): Promise<void> => {
+      return commands.setup.load({ binaries: withTools }).then((result) => {
+        if (result.ok) {
+          const fresh = result.value;
+          setLoaded((previous) =>
+            withTools || previous.kind !== "ready"
+              ? { kind: "ready", snapshot: fresh }
+              : { kind: "ready", snapshot: keepTools(fresh, previous.snapshot) },
+          );
+          // 입력란이 비어 있을 때만 지금 값을 채운다. 사용자가 고치던 글자를 덮어쓰지 않는다
+          setModelInput((current) => (current === "" ? (fresh.defaultModel ?? "") : current));
+        } else {
+          setLoaded({ kind: "error", error: result.error });
+        }
+        return undefined;
+      });
+    },
+    [commands],
+  );
 
   // 연결이 살아나면 읽고, 설정이 바뀌었다는 알림을 받으면 다시 읽는다
   useEffect(() => {
     if (phase !== "live") return undefined;
-    detach(reload(), rethrow);
+    detach(reload(true), rethrow);
     return commands.setup.onInvalidated(() => {
-      detach(reload(), rethrow);
+      detach(reload(false), rethrow);
     });
   }, [commands, phase, reload]);
 
@@ -319,7 +328,7 @@ export function SettingsScreen(): ReactNode {
       setKeyEntry({ state: "idle" });
       const connected = await commands.setup.connectProviderKey(provider.value, name);
       if (!connected.ok) setKeyEntry({ state: "failed", text: errorText(connected.error) });
-      await reload();
+      await reload(false);
     });
   };
 
@@ -332,7 +341,7 @@ export function SettingsScreen(): ReactNode {
       setKeyEntry(
         connected.ok ? { state: "idle" } : { state: "failed", text: errorText(connected.error) },
       );
-      await reload();
+      await reload(false);
     });
   };
 
@@ -342,7 +351,7 @@ export function SettingsScreen(): ReactNode {
     work(async () => {
       const saved = await commands.setup.setDefaultModel(model.value);
       setMessage(saved.ok ? "기본 모델을 저장했습니다." : errorText(saved.error));
-      await reload();
+      await reload(false);
     });
   };
 
@@ -382,7 +391,7 @@ export function SettingsScreen(): ReactNode {
           onConnect={connect}
           onRecheck={() => {
             setKeyEntry({ state: "idle" });
-            work(reload);
+            work(() => reload(true));
           }}
           onSaveModel={saveModel}
         />
