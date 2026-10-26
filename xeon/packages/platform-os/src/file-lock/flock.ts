@@ -36,7 +36,7 @@ export interface Ffi {
  * libc 라이브러리를 이름으로 dlopen해 flock과 errno 위치 함수를 얻는다. 판정은 파일 존재가 아니라 dlopen 시도다.
  * macOS 11+는 /usr/lib/libSystem.B.dylib가 디스크에 없고 dyld 공유 캐시 안에 있지만 dlopen("libSystem.B.dylib")는 된다.
  */
-export function loadBunFfi(selection: FlockSelection): Ffi | undefined {
+function loadBunFfi(selection: FlockSelection): Ffi | undefined {
   const loaded = attempt(() => {
     const lib = dlopen(selection.libName, {
       flock: { args: [FFIType.i32, FFIType.i32], returns: FFIType.i32 },
