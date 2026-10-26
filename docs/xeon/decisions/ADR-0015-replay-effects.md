@@ -17,6 +17,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 - [결정] C안(선언형 허용)을 채택한다. `g.delegate`와 `loop.spawn`은 코어가 멱등을 보장한다. 능력 메서드는 F 정의에 `idempotent: true`를 선언하고 `requestId`를 받는 것만 허용한다. 읽기(replay safe) 메서드는 drive에서 허용한다. 선언 없는 쓰기는 요청 레코드와 워커를 거친다. 시험은 "재생 2회, 효과 1회"로 둔다(사용자 결정 2026-10-25, M3 설계 단계 순서 결정).
 - 이 ADR은 `review.m3-plan` M3-03과 마일스톤 재점검 G1-06을 닫는다. `adr.readme` §6의 G1-06 미결, `L3.helm.spec` §10 [미결 C2], `L3.learning.spec` §10 미결 2, `L3.group-kit.spec` §3.4·§10 공통 모순 2의 결정 근거다.
 - 함께 닫는 사용자 결정: `product.scope.spec` §10 미결 4(Helm 내부 설계 착수 시점)는 "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(이 ADR)"이다. 문서 반영은 §4.3 후속 작업에 적는다.
+- 개정: 2026-10-26 `review.m3-design-inputs` D-M3-31 행 1·8(§6 미결 두 항목을 닫음). §3.2 on 핸들러 읽기 불허 [제안]을 [결정]으로 올린다.
 
 ## 2. 맥락
 
@@ -59,7 +60,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 - [결정] `g.delegate`와 `loop.spawn`은 코어가 멱등을 보장한다. 같은 대화에서 같은 `requestId`의 두 번째 호출은 새 자식 대화나 위임을 만들지 않고 처음 결과(`duplicate` 또는 기록된 `SpawnOutcome`)를 돌려준다. 이 보장은 프로세스 재시작 뒤에도 유지된다(키를 세션 DB에 커밋한다).
 - [결정] 능력 메서드는 F 정의가 `idempotent: true`를 선언하고 `requestId`를 받을 때만 효과가 있는 호출로 허용한다.
 - [결정] 읽기(replay safe) 메서드는 drive에서 허용한다.
-- [제안] on 핸들러의 읽기 메서드 호출은 허용하지 않는다. on 핸들러는 fold 시간 예산 안에서 도는 질의이고, 읽기 결과가 재실행마다 달라지면 핸들러 결과도 달라진다. 필요해지면 이 표를 개정한다(§6 미결).
+- [결정: review.m3-design-inputs D-M3-31 행 8] on 핸들러의 읽기 메서드 호출은 허용하지 않는다. on 핸들러는 fold 시간 예산 안에서 도는 질의이고, 읽기 결과가 재실행마다 달라지면 핸들러 결과도 달라진다. 바꾸려면 §1.4 절차로 이 표를 개정한다.
 
 ### 3.3 F 메서드 정의의 선언
 
@@ -137,7 +138,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 | `L3.slots.spec` §10 | 공통 모순 2를 닫음으로 적는다 | 반영 |
 | `L3.readme` §10.2 미결 2 | 공통 모순 2를 닫음으로 적는다 | 대기 |
 | `review.m3-plan` §2, §6, §7 | M3-03 완료 표시, §7 미결 "`product.scope.spec` §10 미결 4" 닫음 | 대기(M2 마감 작업) |
-| `product.scope.spec` §10 미결 4 | "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(ADR-0015)"으로 닫는다 | 대기(M2 마감 작업) |
+| `product.scope.spec` §10 미결 4 | "M2 마감 직후, M3 설계 단계 첫 트랙. 선행은 M3-03(ADR-0015)"으로 닫는다 | 완료(M3 설계 결정 반영, 2026-10-26) |
 
 ## 5. 대안
 
@@ -150,9 +151,9 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 ## 6. 미결 사항
 
 - [미결] `readOnly` 표지 이름과 위치. `MethodDef.readOnly` 대신 `effect: "read" | "idempotent" | "write"` 같은 열거 하나로 둘지 F 작업에서 정한다.
-- [미결] on 핸들러의 읽기 메서드 호출 허용 여부(§3.2 [제안]은 불허). 사용자 확인 항목이고(`review.m3-design-inputs` D-M3-31 행 8) L3 Helm·학습 문서는 불허를 전제로 쓴다.
+- 닫음 [결정: review.m3-design-inputs D-M3-31 행 8]: on 핸들러의 읽기 메서드 호출은 허용하지 않는다(§3.2).
 - [미결] 요청 레코드 워커의 소유(X 효과 워커 또는 L1 백그라운드 작업)와 결과 통지 방법(§3.5).
 - [미결] 외부 확장이 공급하는 능력의 `idempotent` 선언을 믿을 조건(신뢰 등급, 적합성 시험 강제 방법). `X.loading-trust.spec`과 함께 정한다.
-- [미결] `ReplayPolicy` 값 이름(`safe|unsafe` 대 `never|safe`). 이 ADR은 현행 F 표기 `safe|unsafe`(`F.conversation.spec` §3.6)를 쓴다(§3.3, §3.5). `F.records.spec` §10 미결 4가 사용자 확인 대상이라고 적었으므로 사용자 답(`review.m3-design-inputs` D-M3-31 행 1)이 바뀌면 §3.3의 검증 규칙 이름과 §3.5의 값도 함께 바꾼다.
+- 닫음 [결정: review.m3-design-inputs D-M3-31 행 1]: `safe|unsafe`를 유지한다. 옛 질문: `ReplayPolicy` 값 이름(`safe|unsafe` 대 `never|safe`). 이 ADR은 현행 F 표기 `safe|unsafe`(`F.conversation.spec` §3.6)를 쓴다(§3.3, §3.5). `F.records.spec` §10 미결 4가 사용자 확인 대상이라고 적었으므로 사용자 답(`review.m3-design-inputs` D-M3-31 행 1)이 바뀌면 §3.3의 검증 규칙 이름과 §3.5의 값도 함께 바꾼다.
 - [미결] drive의 `idempotent` 쓰기에 기본 키를 줄지. `leaseId` 유지 규칙(REQ-X-04)이 닫힐 때까지는 명시 키만 받는다(§3.4 3번).
 - [가정] `L2.knowledge`의 쓰기 메서드가 `CallOptions.requestId = idempotencyKey`로 내구 멱등을 이미 보장한다고 본다(`L3.learning.spec` §3.6). 적합성 시험으로 확인한다.

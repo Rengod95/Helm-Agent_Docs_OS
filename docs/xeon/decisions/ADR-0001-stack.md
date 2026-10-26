@@ -124,8 +124,9 @@ binds: [xeon/package.json, xeon/bunfig.toml, xeon/turbo.json, xeon/tsconfig.base
 
 ## 7. 미결 사항
 
-- [미결] 공개 라이브러리 목록. tsdown 0.23과 publint·attw는 공개 패키지에만 쓰는데, 어떤 패키지를 npm에 공개할지(예: `contracts`, `group-kit`)가 정해지지 않았다. `product.scope.spec`에서 정한다.
+- 닫음 [결정: review.m3-design-inputs D-M3-25 행 6]: M3에서 npm에 공개하는 패키지는 없다. tsdown·publint·attw는 공개를 정할 때 다시 본다.
 - [미결] 자체 성능 측정 여부. 속도 수치는 벤더·2차 자료다. `hyperfine`으로 oxlint+oxfmt와 tsgo를 측정할지 정한다(`_research/stack-status.md §1-D`).
+- [결정: review.m3-design-inputs D-M3-29 행 1] 의존 버전은 현재 버전으로 고정하고 점진 업데이트를 운영 정책으로 둔다. 아래 미결은 그 정책의 Bun 세부다.
 - [미결] Bun 1.4.x 패치 업그레이드 정책. `packageManager`는 정확 버전(1.4.3)이고 결정은 1.4.x다. 패치를 올리는 조건(FTS5 탐침 재실행, 바이너리 크기 확인)을 `eng.toolchain.guide`가 정할지 이 ADR에 둘지 정한다.
-- [미결] Playwright의 Bun 호환 확인 시점. 우회가 필요하면 Node 배포 방식(번들 대 사용자 설치)을 정해야 한다.
+- [미결] Playwright의 Bun 호환 확인 시점. 기본 브라우저 provider는 Stagehand다 [결정: review.m3-design-inputs D-M3-23]. Stagehand 실행 런타임 확인(M3-new-13)에서 함께 본다.
 - [미결] Windows 네이티브 지원 시점의 스택 재확인. 첫 지원 OS는 macOS와 Linux(WSL 포함)다(`_research/decisions-log.md` 2026-10-19).

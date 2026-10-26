@@ -18,7 +18,7 @@ id: L1.loop.spec            # <층>.<도메인>.<종류>. engineering은 eng.<�
 layer: L1                   # F | X | L0 | L1 | L2 | L3 | L4 | product | architecture | eng | adr | meta
 domain: loop
 kind: spec                  # readme | spec | design | plan | guide | adr | review
-status: draft               # draft | review | accepted
+status: draft               # draft | review | accepted | superseded(ADR 한정)
 depends_on: [F.extensions.spec, eng.events.design]   # 이 문서가 전제하는 문서 id
 binds: [xeon/packages/core-loop/**]                  # 이 문서가 구속하는 코드 경로 glob
 ---

@@ -156,6 +156,7 @@ binds: [xeon/packages/platform-store/**, xeon/packages/core-persistence/**, xeon
 - [미결] FTS5 가용성은 플랫폼별 스파이크가 필요하다. Linux x64·arm64, Windows, macOS(arm64, x64)에서 배포 바이너리와 `bun build --compile` 산출물로 탐침(§3.5 3번)을 실행해 확인한다(`_research/stack-status.md §7-D` 결론, `_research/notes/arch-3.md §4`).
 - [미결] 세션 잠금 구현을 네이티브 flock(바인딩)으로 할지 `proper-lockfile`(mtime 갱신 방식, 크래시 뒤 수 초 대기)로 할지. Node 표준 라이브러리에는 flock이 없다(`_research/process.md §6.3` 1번). Bun의 FFI나 내장 API로 가능한지도 확인한다.
 - [미결] macOS에서 FTS5가 포함된 dylib을 찾지 못할 때의 처리. 시작을 중단할지, FTS5 기능만 끄고 시작할지(`_research/notes/arch-3.md` 미결 사항).
-- [미결] macOS dylib 경로 지정 방식. Homebrew 경로 규칙으로 자동 탐색할지, F5 설정 키로 받을지. 설정 키라면 L4 노출 여부도 정한다.
+- 닫음(`review.m3-design-inputs` §3.8 C-052): 번들 SQLite를 쓰고 설정 키를 두지 않는다.
 - [미결] 블롭 분리 임계 크기와 해시 함수.
-- [미결] 이벤트 보관 기간과 투영 재생성 시점(마이그레이션 때만 대 요청 시). L4 설정 화면의 "세션과 컨텍스트" 탭(보관 기간, 내보내기)과 연결된다(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안).
+- [결정: review.m3-design-inputs D-M3-21 a] 이벤트는 기본으로 지우지 않는다. 설정 화면에서 기간을 정할 수 있고, 참조 없는 블롭만 GC한다.
+- [미결] 투영 재생성 시점(마이그레이션 때만 대 요청 시). 옛 질문: 이벤트 보관 기간과 투영 재생성 시점. L4 설정 화면의 "세션과 컨텍스트" 탭(보관 기간, 내보내기)과 연결된다(`_research/layer-plan-v2-notes.md` L4 설정 화면 구성안).

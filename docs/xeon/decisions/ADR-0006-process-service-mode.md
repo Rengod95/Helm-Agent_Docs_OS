@@ -19,6 +19,7 @@ binds: [xeon/packages/platform-process/**, xeon/apps/host/**, xeon/apps/cli/**]
 - [결정] 프로세스 구조는 "엔진 라이브러리 + 단일 호스트 계약 + 전송 교체(CLI in-process, 데스크톱 자식 엔진)"다(`_research/decisions-log.md` 2026-10-21 "계획 v2"). 계획 v2는 공유 서비스 모드를 2차로 두었으나 3차 결정이 1차로 올렸다.
 - 표기: `_research/process.md`의 `helm service`는 이 문서에서 `xeon service`로 바꿔 쓴다.
 - 개정: 2026-10-21 `review.decisions-2` U-09(§3.6 1·4번 쓰기 소유 펜싱과 소유 표시), U-11(§3.3·§3.5 원격 사용 단계). 결정을 뒤집지 않고 미결과 세부를 정한 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 두 항목은 사용자 확인을 거친 [결정]이다(2026-10-22). U-09 세부 정정은 `review.decisions-2` U-09 행을 따른다.
+- 개정: 2026-10-26 `review.m3-design-inputs` D-M3-13 행 1·2·5(§3.5 단계 1.5, §3.6 규칙 5, §3.7 체크리스트 4번, §6), D-M3-16 c(서비스 소켓 인증: Unix 소켓은 파일 권한, TCP로 열 때만 토큰), D-M3-17(원격 형태 두 가지: 자체 호스트 서버에 켜 둔 호스트에 다른 기기의 데스크톱·CLI가 접속, 자기 컴퓨터에서 클라이언트가 호스트를 켬). 미결을 정한 보충이다.
 
 ## 2. 맥락
 
@@ -77,6 +78,7 @@ binds: [xeon/packages/platform-process/**, xeon/apps/host/**, xeon/apps/cli/**]
 | service | `xeon service`에 접속하는 CLI·데스크톱 | 로컬 Unix 소켓 | 서비스 프로세스 | 1차(OS 등록은 2차) |
 
 - [결정: review.decisions-2 U-11] 원격 사용은 1차(M3)에 넣는다. 다른 기기의 클라이언트는 service 전송의 로컬 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결해 쓴다. 전송 종류와 호스트 계약은 service와 같고, 인증은 SSH·사설망 인증과 소켓 파일 권한이 맡는다. 내장 TLS + 토큰 WebSocket 전송은 2차다. 인증서 관리와 외부 노출 위험이 큰 내장 서버 없이 원격 사용을 얻기 위해서다.
+- [결정: review.m3-design-inputs D-M3-17] M3 원격 사용 형태는 둘이다. (1) 자체 호스트 서버에서 `xeon` 호스트를 켜 두고 다른 기기의 데스크톱 앱과 CLI가 접속해 개발한다. (2) 자기 컴퓨터에서 데스크톱이나 CLI가 호스트를 켜서 쓴다. 웹 클라이언트 범위는 M3 구현 계획에서 정하고, 웹·모바일 알림은 후순위다.
 
 [제안] 호스트 쪽 전송 인터페이스는 다음 형태로 둔다. 메시지 타입 `HostMessage`는 F `wire-settings`가 정한다.
 
@@ -145,11 +147,11 @@ export type ServiceRegistration = Static<typeof ServiceRegistration>;
 
 - [결정] 불변식: 호스트 계약과 DB 스키마는 단계가 바뀌어도 변하지 않는다. 단계 전환은 엔진 프로세스를 누가 소유하는지만 바꾼다(`_research/process.md §6.2` 끝 문단).
 - [제안] 예약 틱은 서비스 프로세스 안에서 돈다. 대기 예약이 있으면 유휴 종료 조건이 성립하지 않으므로 서비스가 살아 있는 동안 예약이 실행된다. 재부팅 뒤에는 2차 OS 등록 전까지 사용자가 앱이나 CLI를 열어 `ensure`가 실행될 때 서비스가 다시 뜬다. 그 사이 놓친 예약을 따라잡을지 건너뛸지는 `L2.schedule.spec`이 정한다 [미결: L2.schedule.spec].
-- 단계 1.5(pi식 세션별 분리 워커)는 두지 않는다. foundation-plan이 서비스 모드로 바로 가기 때문이다([미결] §6에서 [결정] 승격 여부 확인).
+- [결정: review.m3-design-inputs D-M3-13 행 5] 단계 1.5(pi식 세션별 분리 워커)는 두지 않는다. foundation-plan이 서비스 모드로 바로 가기 때문이다.
 
 ### 3.6 단일 소유와 잠금 규칙
 
-[결정] 단계 0부터 아래 여섯 규칙을 적용한다(`_research/process.md §6.3`). 규칙 5의 자동 재개 기본값만 [미결]이다. 두 문서가 어긋나면 ADR이 우선한다(`adr.readme` §5). 상태 전이와 순서의 상세는 `architecture.runtime-flow.design`이 정하되, 어긋남을 발견하면 이 ADR을 먼저 고치고(결정이 바뀌면 `adr.readme` §1.4 번복 절차) runtime-flow를 맞춘다.
+[결정] 단계 0부터 아래 여섯 규칙을 적용한다(`_research/process.md §6.3`). 규칙 5의 자동 재개 기본값은 꺼짐이고 서비스 모드에서 `l1.persistence.autoResume`으로 켠다 [결정: review.m3-design-inputs D-M3-13 행 1]. 두 문서가 어긋나면 ADR이 우선한다(`adr.readme` §5). 상태 전이와 순서의 상세는 `architecture.runtime-flow.design`이 정하되, 어긋남을 발견하면 이 ADR을 먼저 고치고(결정이 바뀌면 `adr.readme` §1.4 번복 절차) runtime-flow를 맞춘다.
 
 1. 쓰기 소유자는 세션마다 하나다. 세션 실행을 시작하려는 프로세스는 세션 id를 키로 한 OS 잠금을 얻어야 한다. 경로 대신 id를 키로 쓰고, 프로세스가 죽으면 커널이 잠금을 푼다(omp 방식, `OMP/docs/session.md:538`). OS 잠금은 생존 판정에 쓰고, 쓰기 소유는 `sys_leases.epoch` 펜싱으로 커밋마다 확인한다. 잠금을 얻은 프로세스가 `sys_leases` 행의 epoch를 올려 `LeaseToken`을 받고, 커밋 트랜잭션 안에서 epoch가 다르면 롤백한다(ADR-0004 §3.4) [결정: review.decisions-2 U-09]. 멈춘 소유자(잠자기, SIGSTOP)는 잠금을 쥔 채라 깨어나거나 죽을 때까지 세션이 잠긴다. 이 한계는 받아들인다(`L0.store.spec` §4.7.1).
 2. 읽기는 자유다. SQLite WAL은 읽기 여럿과 쓰기 하나를 허용한다. 잠금은 세션 실행 소유를 막는 장치이고 조회·검색·관찰 UI는 잠금 없이 연다.
@@ -170,8 +172,8 @@ export type ServiceRegistration = Static<typeof ServiceRegistration>;
 | 1 | 등록 파일 | 권한 0600, 스키마에 없는 필드를 보존한다 | Claude Code `roster.json` 규칙(`CC/agent-view.md:848`) |
 | 2 | 기동 경합 | 고정 소켓 경로를 먼저 바인드한 쪽이 이긴다. 진 쪽은 물러나 기존 서비스에 접속한다 | opencode contender, pi `acquireServerActivation` |
 | 3 | 버전 불일치 | 서비스가 한가하면 자동 재기동, 작업 중이면 경고한다 | opencode `mismatch: replace`, Claude Code 경고 |
-| 4 | 유휴 종료 조건 | 연결 0 + live task 0 + 대기 예약 0일 때만 종료한다. 시작 직후 유예를 둔다. 승인 대기 세션을 live로 볼지는 [미결]이고, 작성자 제안은 live로 보는 쪽이다(Claude Code는 권한 프롬프트에서 멈춘 세션을 계속 실행으로 본다, `CC/agent-view.md:819`) | pi 10초/1초 유예 |
-| 5 | 인증 | 로컬은 Unix 소켓 + 파일 권한. 1차 원격(SSH 터널·사설망)은 같은 소켓을 쓰므로 같은 규칙이다. 2차 TCP·WebSocket은 무작위 토큰 필수, `initialize` 전에 인증한다. 비루프백 리스너의 무인증 기동을 금지한다 | Codex app-server |
+| 4 | 유휴 종료 조건 | 연결 0 + live task 0 + 대기 예약 0일 때만 종료한다. 시작 직후 유예를 둔다. 승인 대기 세션은 live로 본다 [결정: review.m3-design-inputs D-M3-13 행 2]. 근거는 작성자 제안과 같다(Claude Code는 권한 프롬프트에서 멈춘 세션을 계속 실행으로 본다, `CC/agent-view.md:819`) | pi 10초/1초 유예 |
+| 5 | 인증 | 로컬은 Unix 소켓 + 파일 권한. 1차 원격 중 SSH 터널은 같은 소켓을 쓰므로 같은 규칙이다. 소켓을 사설망에 TCP로 열 때만 토큰(`host.hello` `auth`)이 필수다 [결정: review.m3-design-inputs D-M3-16 c]. 2차 TCP·WebSocket은 무작위 토큰 필수, `initialize` 전에 인증한다. 비루프백 리스너의 무인증 기동을 금지한다 | Codex app-server |
 | 6 | 부모-자식 수명 | 자식 엔진은 stdin EOF 임대로 정리한다. 서비스는 `detached` + `unref`로 부모에서 분리한다 | opencode `standalone.ts:23-27`, pi `PX/process.ts:40-70` |
 | 7 | 종료 협조 | 먼저 종료 요청을 보내고 안전 경계에서 체크포인트한 뒤 종료한다. 서비스는 SIGTERM으로 요청하고 시한 뒤 SIGKILL한다. 데스크톱 자식 엔진은 Tauri 셸 플러그인이 SIGKILL만 보내므로 stdin으로 `shutdown` 요청을 먼저 보낸다(ADR-0008) | opencode 3초, `_research/notes/arch-2.md §5` 1행 |
 | 8 | 단일 장애점 | 서비스가 죽어도 DB와 복구 표식이 남으므로 다음 `ensure`가 재개 후보를 제시한다. 서비스 소실을 감지한 클라이언트는 안전하게 멈춘다 | Claude Code 감독자 소실 시 1분 뒤 정지 |
@@ -206,7 +208,7 @@ export type ServiceRegistration = Static<typeof ServiceRegistration>;
 ## 6. 미결 사항
 
 - [미결] 세션 잠금 구현: 네이티브 flock 바인딩과 `proper-lockfile` 중 선택(`_research/process.md §6.3` 1번, `§6.5` 4번). macOS·Linux·Windows의 OS 임대 방식(omp: Linux 추상 소켓, Windows named mutex, macOS flock 사이드카, `process.md §5`)을 L0에서 공통 인터페이스로 둘지 함께 정한다.
-- [미결] 자동 재개 기본값(§3.6 5번). 권고는 꺼짐이고 서비스 모드에서만 설정으로 켜는 것이다(`process.md §6.5` 5번).
-- [미결] 단계 1.5 생략. foundation-plan이 서비스 모드로 바로 가므로 [결정]으로 올릴 수 있는지 사용자 확인이 필요하다(`process.md §6.5` 2번).
-- [미결] 승인 대기 세션을 유휴 종료 판정에서 live로 볼지(체크리스트 4번).
+- 닫음: 자동 재개 기본값은 꺼짐, 서비스 모드에서 설정으로 켠다 [결정: review.m3-design-inputs D-M3-13 행 1]. 모델 요청 재전송 정책과 효과 재생 시험이 생긴 뒤 다시 본다.
+- 닫음: 단계 1.5 생략을 [결정]으로 올렸다 [결정: review.m3-design-inputs D-M3-13 행 5].
+- 닫음: 승인 대기 세션은 유휴 종료 판정에서 live다 [결정: review.m3-design-inputs D-M3-13 행 2].
 - [가정] `process.md §7`의 한계를 전제로 둔다. Codex 데스크톱이 app-server를 띄우는 방식과 TUI in-process 전송, 클라이언트가 모두 끊겼을 때 진행 중 턴의 처리는 2차 출처이거나 미확인이다. Goose 이전 `goosed`의 세부와 2.0 ACP 서버 전송 방식도 미확인이다. opencode의 유휴 종료 부재와 pi의 서버 시작 시 자동 재개 부재는 검색 결과 부재에 근거한다.
