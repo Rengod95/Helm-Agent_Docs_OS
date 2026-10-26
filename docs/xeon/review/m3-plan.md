@@ -49,7 +49,7 @@ M2 문서에 "M3에서"라고만 적고 받는 문서가 없던 요청입니다.
 | M3-19 | U-04 판정표에서 M3로 둔 wire(`settings.readFile`·`writeFile`, 사용량, 알림) | G1-08 | `F.wire-settings.spec` |
 | M3-20 | 명령 wire의 `status.list`와 첨부 | G1-01 | `F.wire-settings.spec`, `L2.dialog.spec` |
 | M3-21 | 승인 origin 구현 정리(규칙은 M2 spec) | G1-09 | `L1.tools.plan` |
-| M3-22 | 자동 끄기 알림 `scope.handler_failed` 발신과 클라이언트 표시, `l0.os.log.level` 적용 중 M2에 넣지 않은 부분. M2 마감 상태: kind와 페이로드 스키마는 F에 있고, 호스트 조립 루트가 `OperationsNotifier`를 넘기지 않아 운영 로그에만 남는다. CLI는 이 kind를 그리지 않는다 | G1-12, M2 마감 재검토 결함 5 | `X.operations.spec`, `L4.host-service.spec` §10 32번, `L4.cli.spec`, `L4.desktop.spec`, `L0.os.spec` |
+| M3-22 | 자동 끄기 알림 `scope.handler_failed` 발신과 클라이언트 표시, `l0.os.log.level` 적용 중 M2에 넣지 않은 부분. M2 마감 상태: kind와 페이로드 스키마는 F에 있고, 호스트 조립 루트가 `OperationsNotifier`를 넘기지 않아 운영 로그에만 남는다. CLI는 이 kind를 그리지 않는다 | G1-12, M2 마감 재검토 결함 5 | `X.operations.spec`, `L4.host-service.spec` §10 33번, `L4.cli.spec`, `L4.desktop.spec`, `L0.os.spec` |
 | M3-23 | 프로세스 간 파일 잠금의 `settings.json` 적용(`trust.json`은 M2) | G1-10 | `L0.os.spec`, `L1.persistence.spec` |
 
 - 이미 `product.scope.spec` §4.3 M3 범위에 있는 항목은 다시 적지 않습니다: `web.browse`(D4), 목표 판정, 공유 서비스 모드, 예약·원격·알림, 학습 그룹, `cap-workspace`의 `write`·`edit`·`grep`·`find`, `cap-artifacts`, `cap-schedule`, pi 메시지 스키마 깊은 검증(`review.m2-plan` §2.2).
