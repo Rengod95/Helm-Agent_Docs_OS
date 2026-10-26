@@ -64,7 +64,11 @@ import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
 import { pruneOnOpen } from "./assembly/retention.ts";
 import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
-import { createSecretsPort, settingKeysReferencing } from "./assembly/secrets.ts";
+import {
+  createSecretsPort,
+  effectiveSecretsConfig,
+  settingKeysReferencing,
+} from "./assembly/secrets.ts";
 import { createProjectTrust } from "./assembly/trust.ts";
 import { createSettingsEngine } from "./assembly/settings-engine.ts";
 import {
@@ -474,6 +478,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       ids: localIds,
       config: secretsSource(settings),
       env: process.env,
+      // 같은 사용자의 CLI와 데스크톱 사이드카가 한 SOPS 파일에 동시에 쓰지 않게 하는 프로세스 사이 잠금(L0.secrets.spec §4.6 8번)
+      fileLock: osHandle.fileLock,
       settingKeysFor: (handle) => Promise.resolve(settingKeysReferencing(settings, handle)),
     });
     await register("platform-secrets", secretsPlatform(secrets.service));
@@ -612,7 +618,10 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       ext,
       holder,
       settings,
-      secrets: createSecretsPort(secrets.admin, secretsSource(settings)),
+      secrets: createSecretsPort(
+        secrets.admin,
+        effectiveSecretsConfig(secretsSource(settings), os.dirs.config),
+      ),
       commands,
       configDir: os.dirs.config,
       trust: projectTrust,

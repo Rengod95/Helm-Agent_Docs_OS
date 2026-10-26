@@ -1,7 +1,7 @@
 import type { SecretHandle, SecretMeta, SecretName } from "@xeon/contracts/capabilities";
 import { resolveSetting } from "@xeon/contracts/settings";
 import type { SecretAdminService } from "@xeon/contracts/services";
-import type { SecretsConfig } from "@xeon/platform-secrets";
+import { withDefaultSopsFile, type SecretsConfig } from "@xeon/platform-secrets";
 import { createSecretOfferStore } from "../secrets/offers.ts";
 import type { SecretsPort } from "../types.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
@@ -13,6 +13,17 @@ function sopsKeyOf(name: SecretName): string {
   return name.toUpperCase().replaceAll("-", "_");
 }
 
+/**
+ * 설정에 SOPS 파일이 없으면 사용자 기본 파일을 채운 유효 설정(L0.secrets.spec §4.8). `newMeta`는 platform-secrets가 읽는 것과
+ * 같은 유효 설정을 봐야 새 비밀의 `ref`(`user/<KEY>`)가 SOPS 제공자가 찾는 파일과 맞는다. `configDir`은 `os.dirs.config`다
+ */
+export function effectiveSecretsConfig(
+  config: () => SecretsConfig,
+  configDir: string,
+): () => SecretsConfig {
+  return () => withDefaultSopsFile(config(), configDir);
+}
+
 export function createSecretsPort(
   admin: SecretAdminService,
   config: () => SecretsConfig,
@@ -22,7 +33,8 @@ export function createSecretsPort(
     offers: createSecretOfferStore(),
     newMeta(name): SecretMeta | undefined {
       const current = config();
-      // 메타 ref 규칙(`<env>/<KEY>`)을 아는 제공자는 sops뿐이다. 파일이 설정되지 않았으면 값을 놓을 곳이 없다
+      // 메타 ref 규칙(`<env>/<KEY>`)을 아는 제공자는 sops뿐이다. 기본 제공자가 sops가 아니면 값을 놓을 곳을 정할 수 없다.
+      // 파일 목록이 비는 일은 effectiveSecretsConfig가 기본 파일을 채우므로 없다(빈 목록은 방어일 뿐이다)
       const file = current.sops.files[0];
       if (current.defaultProvider !== "sops" || file === undefined) return undefined;
       return {

@@ -134,7 +134,8 @@ function createBeginEntryHandler(engine: Engine): WireHandler<"secret.beginEntry
       case "add": {
         const meta = secrets.newMeta(params.name);
         if (meta === undefined) {
-          // 값을 놓을 SOPS 파일이 설정에 없다(l0.secrets.sops.files)
+          // 기본 제공자가 sops가 아니라 값을 놓을 곳을 정할 수 없다(l0.secrets.defaultProvider). SOPS 파일이 없는 경우는
+          // 기본 파일이 채워지고 첫 쓰기가 만든다(L0.secrets.spec §4.8)
           throw wireErrorOfSecret(
             { kind: "provider_unavailable", provider: "sops", reason: "not_registered" },
             "secret.beginEntry",
