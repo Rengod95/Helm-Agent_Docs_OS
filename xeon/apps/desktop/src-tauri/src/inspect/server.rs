@@ -1,7 +1,7 @@
 //! Unix 도메인 소켓 서버. 접속마다 줄 단위로 요청을 읽고 응답을 쓴다.
 
 use std::io;
-use std::os::unix::fs::PermissionsExt as _;
+use std::os::unix::fs::{DirBuilderExt as _, MetadataExt as _, PermissionsExt as _};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -40,6 +40,53 @@ pub fn serve(runtime: &Handle, path: PathBuf, probe: Arc<dyn Probe>, log: Arc<Ap
     });
 }
 
+/// 소켓이 놓일 폴더를 준비한다. 앱이 만든 폴더만 0700으로 둔다. 이미 있는 폴더는 권한을 바꾸지 않는다.
+/// `XEON_DESKTOP_INSPECT_SOCKET`이 `/tmp/x.sock`을 가리켜도 `/tmp` 같은 공용 폴더의 권한을 건드리지 않게 하려는 것이다.
+/// 이미 있는 폴더는 앱 사용자 소유이고 다른 사용자(other)가 쓸 수 없을 때만 받는다. 아니면 `PermissionDenied`다.
+/// 그룹 쓰기는 막지 않는다. 사용자별 그룹과 umask 002 환경에서 만든 로그 폴더가 0775이기 때문이다. 소켓 파일은 0600이다.
+fn prepare_socket_dir(dir: &Path) -> io::Result<()> {
+    let dir = if dir.as_os_str().is_empty() { Path::new(".") } else { dir };
+    match std::fs::metadata(dir) {
+        Ok(meta) => return check_existing_dir(dir, &meta),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error),
+    }
+    if let Some(parent) = dir.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent)?;
+        }
+    }
+    match std::fs::DirBuilder::new().mode(0o700).create(dir) {
+        Ok(()) => Ok(()),
+        // 그 사이에 다른 프로세스가 만들었다. 우리가 만든 폴더가 아니므로 같은 검사를 거친다
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            check_existing_dir(dir, &std::fs::metadata(dir)?)
+        }
+        Err(error) => Err(error),
+    }
+}
+
+fn check_existing_dir(dir: &Path, meta: &std::fs::Metadata) -> io::Result<()> {
+    if !meta.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("the socket folder {} is not a directory", dir.display()),
+        ));
+    }
+    // SAFETY: geteuid는 인자도 실패도 없는 읽기 호출이다.
+    let me = unsafe { libc::geteuid() };
+    if meta.uid() != me || meta.permissions().mode() & 0o002 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!(
+                "refusing the socket folder {}: it exists and is not owned by this user or is writable by others (it is left unchanged)",
+                dir.display()
+            ),
+        ));
+    }
+    Ok(())
+}
+
 fn bind(path: &Path) -> io::Result<UnixListener> {
     if path.as_os_str().len() > MAX_SOCKET_PATH_BYTES {
         return Err(io::Error::new(
@@ -48,8 +95,7 @@ fn bind(path: &Path) -> io::Result<UnixListener> {
         ));
     }
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
+        prepare_socket_dir(dir)?;
     }
     // 이전 실행이 남긴 소켓 파일. 다른 종류의 파일은 지우지 않는다.
     match std::fs::symlink_metadata(path) {
@@ -207,6 +253,63 @@ mod tests {
         std::fs::write(&file, b"data").unwrap();
         assert_eq!(bind(&file).err().map(|e| e.kind()), Some(io::ErrorKind::AlreadyExists));
         assert_eq!(std::fs::read(&file).unwrap(), b"data");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn a_missing_socket_folder_chain_is_created_and_only_the_last_folder_is_private() {
+        let root = temp_dir("chain");
+        let dir = root.join("inner");
+        let path = dir.join("i.sock");
+        drop(bind(&path).expect("bind"));
+        assert_eq!(std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777, 0o700);
+        assert_ne!(std::fs::metadata(&root).unwrap().permissions().mode() & 0o777, 0o700);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn an_existing_shared_folder_is_refused_and_its_permissions_stay_as_they_were() {
+        let dir = temp_dir("shared");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o777)).unwrap();
+        let path = dir.join("i.sock");
+        assert_eq!(bind(&path).err().map(|e| e.kind()), Some(io::ErrorKind::PermissionDenied));
+        assert_eq!(std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777, 0o777);
+        assert!(!path.exists(), "no socket is created in a folder it refused");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn an_existing_folder_of_this_user_that_others_cannot_write_is_used_as_it_is() {
+        for mode in [0o755, 0o775] {
+            let dir = temp_dir("log-dir");
+            std::fs::create_dir_all(&dir).unwrap();
+            std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(mode)).unwrap();
+            let path = dir.join("i.sock");
+            drop(bind(&path).expect("bind"));
+            assert_eq!(std::fs::metadata(&dir).unwrap().permissions().mode() & 0o777, mode);
+            assert_eq!(std::fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+
+    #[tokio::test]
+    async fn the_system_temp_folder_is_never_taken_over_by_an_override_path() {
+        let tmp = Path::new("/tmp");
+        let before = std::fs::metadata(tmp).unwrap().permissions().mode();
+        let path = tmp.join(format!("xeon-inspect-override-{}.sock", std::process::id()));
+        assert_eq!(bind(&path).err().map(|e| e.kind()), Some(io::ErrorKind::PermissionDenied));
+        assert_eq!(std::fs::metadata(tmp).unwrap().permissions().mode(), before);
+        assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn a_file_in_place_of_the_socket_folder_is_refused() {
+        let dir = temp_dir("not-a-dir");
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("folder");
+        std::fs::write(&file, b"data").unwrap();
+        assert_eq!(bind(&file.join("i.sock")).err().map(|e| e.kind()), Some(io::ErrorKind::InvalidInput));
         let _ = std::fs::remove_dir_all(&dir);
     }
 
