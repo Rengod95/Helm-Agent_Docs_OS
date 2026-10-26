@@ -87,8 +87,9 @@ binds: []
 | 0012 | 실행 속도를 앱 크기보다 우선 | [ADR-0012-speed-over-size.md](ADR-0012-speed-over-size.md) | accepted | 시작·종료·응답 속도를 크기보다 먼저 봄. 사이드카 `--minify --bytecode`, 크기 상한 500 MiB는 회귀 검사용. 예산은 `eng.performance.guide` | 사용자 결정 2026-10-24 | L4(cli, desktop, host-service) |
 | 0013 | `post.when = next`와 `aside` | [ADR-0013-post-next-aside.md](ADR-0013-post-next-aside.md) | accepted | `next`는 붙기만 하고 turn을 열지 않음. `aside`는 L1·CLI 사용자 입력 전용. F `PostWhen` 변경 없음 | review.m2-plan §8 D7 | F(extensions), L1(tasks) |
 | 0014 | 단일 `xeon` 엔진 바이너리 | [ADR-0014-single-xeon-binary.md](ADR-0014-single-xeon-binary.md) | accepted | CLI와 데스크톱 사이드카가 같은 `xeon` 바이너리(`host --stdio`). 이름은 제품 이름 결정 때 한 번에 바꿈 | ADR-0001 §4.1, DESK.3 | L4(cli, desktop, host-service) |
+| 0015 | 재실행되는 확장 코드의 효과 목록 | [ADR-0015-replay-effects.md](ADR-0015-replay-effects.md) | accepted | C안(선언형 허용). `g.delegate`·`loop.spawn`은 코어가 멱등 보장. 능력 메서드는 F 정의 `idempotent: true` + `requestId`만 허용, 읽기(`readOnly`, [제안] 이름)는 drive에서 허용. 선언 없는 쓰기는 요청 레코드 + 워커. 시험은 재생 2회·효과 1회 | 사용자 결정 2026-10-25(M3-03, G1-06) | F(capabilities, extensions), X(primitives), L1(loop, agents), L2(전 능력), L3(group-kit, helm, learning) |
 
-- 상태 열은 각 ADR 파일 프런트매터의 `status`와 같아야 한다. 이 색인을 쓴 시점(2026-10-21)에 0001~0008 여덟 파일 모두와 대조했다. 0009는 2026-10-22에, 0010은 2026-10-24에, 0011~0014는 2026-10-25에 더했다. 0011~0014는 plan 표에만 있던 결정을 옮긴 것이다(마일스톤 재점검 G3-03, `review.m2-plan` §9).
+- 상태 열은 각 ADR 파일 프런트매터의 `status`와 같아야 한다. 이 색인을 쓴 시점(2026-10-21)에 0001~0008 여덟 파일 모두와 대조했다. 0009는 2026-10-22에, 0010은 2026-10-24에, 0011~0014는 2026-10-25에, 0015는 2026-10-26에 더했다. 0011~0014는 plan 표에만 있던 결정을 옮긴 것이다(마일스톤 재점검 G3-03, `review.m2-plan` §9).
 - 0005~0008의 핵심 결정 열은 조정자가 전달한 요약이다. 정확한 문구는 각 ADR이 기준이다.
 
 ## 3. ADR 사이 의존
@@ -111,6 +112,7 @@ flowchart LR
   A12["0012 속도 우선"]
   A13["0013 next·aside"]
   A14["0014 단일 xeon"]
+  A15["0015 효과 목록<br/>선언형 허용"]
 
   A1 --> A2
   A2 --> A7
@@ -134,6 +136,9 @@ flowchart LR
   A1 --> A14
   A6 --> A14
   A8 --> A14
+  A4 --> A15
+  A7 --> A15
+  A9 --> A15
 ```
 
 - 0001 → 0008: 사이드카는 `bun build --compile`로 만든다.
@@ -141,6 +146,7 @@ flowchart LR
 - 0006 → 0007: 확장 지점의 적용 시점(단계 경계)과 실행 위치가 프로세스 구조를 전제한다(ADR-0007 `depends_on`).
 - 0003·0004·0007 → 0009: 자체 루프는 커널 직접 구현(0003)을 이어받고, 단계 경계 커밋(0004)과 확장 지점 4연산(0007)을 루프 코드에서 직접 호출한다. 0009는 0003 §3.2 마지막 항목을 대체한다.
 - 0001·0008 → 0010: UI 코드는 0001의 TypeScript·`bun build`·`bun test` 스택을 따르고, 0008의 시스템 WebView와 stdio 릴레이 위에서 돈다.
+- 0004·0007·0009 → 0015: 효과 목록은 커밋 단위 멱등(0004), 확장 지점 재생 계약(0007), 루프의 drive 연동(0009)을 전제한다.
 - 0003은 0004의 이벤트 소싱 결정과 맞물리지만 `depends_on`에는 0002만 둔다. 커널 저장 규칙은 0003 본문에서 0004를 참조한다.
 
 ## 4. 아직 ADR이 아닌 결정
@@ -167,15 +173,15 @@ flowchart LR
 | 작업 대상 | 먼저 읽을 ADR | 함께 읽을 문서 id |
 |---|---|---|
 | 툴체인, CI, 패키지 설정(`xeon/package.json`, `tsconfig.base.json` 등) | 0001 | `eng.toolchain.guide`, `eng.typescript.guide` |
-| F `contracts` | 0001, 0004(records), 0007(extensions), 0009(conversation) | `F.records.spec`, `F.extensions.spec` |
-| X `ext-host` | 0002, 0007 | `X.readme`, `X.primitives.spec`, `X.loading-trust.spec` |
+| F `contracts` | 0001, 0004(records), 0007(extensions), 0009(conversation), 0015(capabilities, extensions) | `F.records.spec`, `F.extensions.spec` |
+| X `ext-host` | 0002, 0007, 0015 | `X.readme`, `X.primitives.spec`, `X.loading-trust.spec` |
 | L0 `platform-exec` | 0003 | `L0.exec.spec` |
 | L0 `platform-store` | 0004, 0001 | `L0.store.spec`, `eng.transactions.design` |
 | L0 `platform-process` | 0006, 0004 | `L0.process.spec` |
 | L1 `core-tasks`, `core-loop`, `core-persistence`, `core-agents` | 0003, 0004, 0007, 0009(`core-loop`) | `L1.tasks.spec`, `L1.loop.spec`, `L1.persistence.spec`, `L1.agents.spec`, `eng.events.design` |
 | L2 `cap-workspace` | 0003 | `L2.workspace.spec` |
 | L2 `cap-web` | 0005 | `L2.web.spec` |
-| L3 그룹(`group-kit`, `group-helm`, `group-learning`) | 0007, 0002 | `L3.group-kit.spec`, `F.extensions.spec` |
+| L3 그룹(`group-kit`, `group-helm`, `group-learning`) | 0007, 0002, 0015 | `L3.group-kit.spec`, `F.extensions.spec` |
 | L4 `apps/cli`, `apps/host` | 0006 | `L4.cli.spec`, `L4.host-service.spec` |
 | L4 `apps/desktop` | 0008, 0006, 0010 | `L4.desktop.spec`, `L4.desktop.design`, `eng.frontend-state.guide` |
 
@@ -186,5 +192,5 @@ flowchart LR
 
 - [미결] `_templates/README.md`의 `status` 값 목록에 superseded를 추가할지. 추가하지 않으면 번복된 ADR의 상태를 프런트매터로 표시할 수 없다.
 - [미결] §4 표의 결정 중 어느 것을 ADR로 승격할지. [제안] 후보는 SOPS 비밀 기본값과 승인 프로토콜 통합이다.
-- [미결] on 핸들러의 외부 효과 금지와 `delegate`, `loop.spawn`, 능력 호출의 충돌(마일스톤 재점검 G1-06). Helm drive의 `gatherContext`, `work.tasks.create`가 효과 목록 밖이다. Helm 본체를 M3로 옮겼으므로(`review.m2-plan` §9 D-a) 이 ADR은 M3 Helm 착수 전에 쓴다(`review.m3-plan`).
+- 닫음: on 핸들러의 외부 효과 금지와 `delegate`, `loop.spawn`, 능력 호출의 충돌(마일스톤 재점검 G1-06)은 ADR-0015(C안, 2026-10-25 사용자 결정)로 정했다.
 - [미결] 색인 상태 열과 파일 프런트매터의 일치를 `scripts/docs-route.ts`나 문서 검사에 넣을지.

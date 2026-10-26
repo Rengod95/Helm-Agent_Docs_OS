@@ -155,4 +155,5 @@ manifest:
     - adr.0012   # 실행 속도를 앱 크기보다 우선
     - adr.0013   # post.when = next는 붙기만 하고 aside는 L1·CLI 입력 전용
     - adr.0014   # 엔진 바이너리는 단일 xeon
+    - adr.0015   # 재실행되는 확장 코드의 효과 목록: 선언형 허용(C안)
   layers: "각 층마다 <층>.readme 1개 + 도메인마다 spec, plan (layout.domains 참조)"
