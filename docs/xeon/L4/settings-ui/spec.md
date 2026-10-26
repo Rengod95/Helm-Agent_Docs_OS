@@ -853,12 +853,13 @@ sequenceDiagram
 
 | 항목 | 내용 | 원천 |
 |---|---|---|
-| 검색 provider 상태 | 현재 `l2.web.search.provider` 유효 값, `auto`이면 지금 고르는 provider와 그 이유(키 플러그인, SearXNG, 내장 검색 래퍼) | `settings.get`, `L2.web.spec` provider 선택 순서 |
-| SearXNG 주소 | `l2.web.search.searxng.url` 입력란과 감지 결과(감지한 주소 또는 "없음") | `settings.get`·`settings.set`, `L2.web.spec` SearXNG 감지 |
+| 검색 provider 상태 | 현재 `l2.web.search.provider` 유효 값, `auto`이면 설정에서 정해지는 체인(키를 등록한 플러그인, 주소를 설정한 SearXNG, 내장 검색 래퍼 순) | `settings.get`, `L2.web.spec` §4.8.2 선택 체인 |
+| SearXNG 주소 | `l2.web.search.searxng.url` 입력란. 비어 있으면 SearXNG는 체인에 들어가지 않는다 | `settings.get`·`settings.set`, `L2.web.spec` §4.8.3 설정한 SearXNG |
 | 권장 목록 | 무료 크레딧 API 플러그인(Exa, Brave)과 월 크레딧 안내, 키 등록 버튼 | ADR-0005 §3.1 ④, 키 등록은 §4.6 C안 경로 |
 
 - 키 등록 버튼은 §4.6.4 C안(`secret.beginEntry`)을 쓰고, 값은 이 화면을 지나지 않는다. 등록 뒤 provider 설정에는 `secret://<이름>` 참조만 쓴다.
-- [가정] provider 상태와 SearXNG 감지 결과를 읽는 wire 수단은 아직 없다. 감지 결과를 설정 화면에 보이려면 F 변경 요청이 필요하고, review.decisions-2 U-04에 따라 M2 계획에서 정한다. 수단이 없으면 상태 행은 설정 값만 보이고 감지 결과 칸은 "확인할 수 없음"으로 둔다.
+- [결정: review.m2-plan §9 H1] SearXNG 자동 감지는 없다. SearXNG는 사용자가 주소를 설정했을 때만 체인에 들어가므로 이 화면에 감지 결과 칸을 두지 않는다. provider 상태 행은 설정 값으로 계산한 체인만 보인다.
+- [가정] 마지막 검색에서 실제로 쓴 provider와 탐침 결과(`unreachable`, `json-disabled`)를 읽는 wire 수단은 없다. 이 값을 화면에 보이려면 F 변경 요청이 필요하고 M3 첫 실행 화면 작업에서 정한다. 그 전까지 탐침 실패는 `meta.warnings`와 L4 진단으로만 보인다(`L2.web.spec` §4.8.3).
 - CLI는 같은 내용을 `xeon doctor`의 검색 provider 묶음으로 보인다(`L4.cli.spec` §4.7.1).
 
 ## 5. 실패와 경계 사례
