@@ -34,6 +34,7 @@ import {
   wireError,
   type StoreId,
   type ThreadSummary,
+  type TurnStartInput,
   type WireResult,
 } from "@xeon/contracts/wire";
 import { isAbsolute } from "node:path";
@@ -65,6 +66,7 @@ import { canonicalWorkspace, wireErrorOfWorkspace, workspaceFilterOf } from "./w
 import type { CommandRegistryHolder } from "./l2-units.ts";
 import type { SettingsEngine } from "./settings-engine.ts";
 import { createSettingsStore } from "./settings-store.ts";
+import { createThreadGate } from "./thread-gate.ts";
 import { readThread } from "./thread-read.ts";
 import type { ProjectTrust, TrustInspection } from "./trust.ts";
 
@@ -163,6 +165,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
   const { session, store, loop, tasks, ext, logger } = deps;
   const storeId = storeIdOf(store.storeId);
   const held = new Map<ThreadId, HeldLease>();
+  // 수동 컴팩션과 turn을 여는 일이 같은 thread에서 겹치지 않게 한다(HS-77, §10 미결 31)
+  const gate = createThreadGate();
 
   const log: HostLogPort = {
     error: (message, fields) => {
@@ -267,68 +271,79 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       const head = session.feed.headSeq();
       return head.ok ? ok({ storeId, seq: head.value }) : head;
     },
-    async compact(threadId, instructions, signal) {
-      const found = session.query.thread(threadId);
-      if (!found.ok) return found;
-      if (found.value === undefined) return err({ kind: "thread_not_found", threadId });
-      if (found.value.status === "closed") return err({ kind: "thread_closed", threadId });
-      // 열린 turn이 있는 동안 컴팩션을 커밋하면 루프가 쥔 가지 끝과 어긋난다. turn 사이에서만 한다(HS-77)
-      const running = loop.threadStatus(threadId).runningTurnId;
-      if (running !== null) return err({ kind: "turn_running", turnId: running });
-      const resolved = deps.models.resolve("main", {});
-      if (!resolved.ok) return err({ kind: "model_unavailable", detail: resolved.error.kind });
-      const compacted = await deps.context.compact(threadId, {
-        reason: "manual",
-        binding: resolved.value.binding,
-        contextWindow: resolved.value.model.contextWindow,
-        ...(instructions === undefined ? {} : { instructions }),
-        willRetry: false,
-        signal,
-      });
-      if (!compacted.ok) return err({ kind: "context_failed", error: compacted.error });
-      return ok(compacted.value);
-    },
+    // 요약(모델 호출, 수 초)과 커밋이 끝날 때까지 같은 thread의 `turn.start`·`turn.resume`은 기다린다
+    compact: (threadId, instructions, signal) =>
+      gate.run(threadId, async () => {
+        const found = session.query.thread(threadId);
+        if (!found.ok) return found;
+        if (found.value === undefined) return err({ kind: "thread_not_found", threadId });
+        if (found.value.status === "closed") return err({ kind: "thread_closed", threadId });
+        // 열린 turn이 있는 동안 컴팩션을 커밋하면 루프가 쥔 가지 끝과 어긋난다. turn 사이에서만 한다(HS-77)
+        const running = loop.threadStatus(threadId).runningTurnId;
+        if (running !== null) return err({ kind: "turn_running", turnId: running });
+        const resolved = deps.models.resolve("main", {});
+        if (!resolved.ok) return err({ kind: "model_unavailable", detail: resolved.error.kind });
+        const compacted = await deps.context.compact(threadId, {
+          reason: "manual",
+          binding: resolved.value.binding,
+          contextWindow: resolved.value.model.contextWindow,
+          ...(instructions === undefined ? {} : { instructions }),
+          willRetry: false,
+          signal,
+        });
+        if (!compacted.ok) return err({ kind: "context_failed", error: compacted.error });
+        return ok(compacted.value);
+      }),
   };
 
+  /** `turns.submit`의 본문. 같은 thread의 컴팩션과 겹치지 않게 부르는 쪽이 gate 안에서 부른다 */
+  async function submitInput(
+    threadId: ThreadId,
+    input: TurnStartInput,
+    requestId: string | undefined,
+  ): Promise<SubmitOutcome> {
+    // 같은 requestId의 재제출은 처음 turnId를 돌려준다(HS-22, F wire turn.start)
+    if (requestId !== undefined) {
+      const existing = session.query.turnByRequestId(threadId, null, requestId);
+      if (!existing.ok) return { ok: false, reason: "rejected", error: existing.error };
+      if (existing.value !== undefined) return { ok: true, turnId: existing.value.turnId };
+    }
+    const running = loop.threadStatus(threadId).runningTurnId;
+    if (running !== null) return { ok: false, reason: "busy", turnId: running };
+    const admitted = await loop.admit({
+      threadId,
+      content: input,
+      ...(requestId === undefined ? {} : { requestId }),
+      via: "interactive",
+    });
+    // 저장소 부족·소유 상실 같은 실패는 예상 가능하다. 결함(Bug)으로 올리지 않고 처리기가 와이어 오류로 옮기게 돌려준다
+    if (!admitted.ok) return { ok: false, reason: "rejected", error: admitted.error };
+    const outcome = admitted.value;
+    switch (outcome.status) {
+      case "started":
+        return { ok: true, turnId: outcome.turnId };
+      case "duplicate":
+        if (outcome.turnId !== null) return { ok: true, turnId: outcome.turnId };
+        throw new Bug("loop.admit returned a duplicate without a turn");
+      case "queued":
+        // 유휴 thread에서 queued가 나오는 것은 input 지점이 입력을 보류했을 때다. 접수된 turn이 없다
+        if (outcome.runningTurnId !== null) {
+          return { ok: false, reason: "busy", turnId: outcome.runningTurnId };
+        }
+        throw new Bug("loop.admit queued the input without a running turn");
+      case "handled":
+        throw new Bug("loop.admit: an extension handled the input without starting a turn");
+      default:
+        return assertNever(outcome, "AdmitResult");
+    }
+  }
+
   const turns: TurnPort = {
-    async submit(threadId, input, requestId): Promise<SubmitOutcome> {
-      // 같은 requestId의 재제출은 처음 turnId를 돌려준다(HS-22, F wire turn.start)
-      if (requestId !== undefined) {
-        const existing = session.query.turnByRequestId(threadId, null, requestId);
-        if (!existing.ok) return { ok: false, reason: "rejected", error: existing.error };
-        if (existing.value !== undefined) return { ok: true, turnId: existing.value.turnId };
-      }
-      const running = loop.threadStatus(threadId).runningTurnId;
-      if (running !== null) return { ok: false, reason: "busy", turnId: running };
-      const admitted = await loop.admit({
-        threadId,
-        content: input,
-        ...(requestId === undefined ? {} : { requestId }),
-        via: "interactive",
-      });
-      // 저장소 부족·소유 상실 같은 실패는 예상 가능하다. 결함(Bug)으로 올리지 않고 처리기가 와이어 오류로 옮기게 돌려준다
-      if (!admitted.ok) return { ok: false, reason: "rejected", error: admitted.error };
-      const outcome = admitted.value;
-      switch (outcome.status) {
-        case "started":
-          return { ok: true, turnId: outcome.turnId };
-        case "duplicate":
-          if (outcome.turnId !== null) return { ok: true, turnId: outcome.turnId };
-          throw new Bug("loop.admit returned a duplicate without a turn");
-        case "queued":
-          // 유휴 thread에서 queued가 나오는 것은 input 지점이 입력을 보류했을 때다. 접수된 turn이 없다
-          if (outcome.runningTurnId !== null) {
-            return { ok: false, reason: "busy", turnId: outcome.runningTurnId };
-          }
-          throw new Bug("loop.admit queued the input without a running turn");
-        case "handled":
-          throw new Bug("loop.admit: an extension handled the input without starting a turn");
-        default:
-          return assertNever(outcome, "AdmitResult");
-      }
-    },
+    // 같은 thread의 수동 컴팩션이 도는 동안은 기다렸다가 제출한다(HS-77, §10 미결 31)
+    submit: (threadId, input, requestId) =>
+      gate.run(threadId, () => submitInput(threadId, input, requestId)),
     interrupt: (threadId, turnId) => loop.interrupt(threadId, turnId),
-    resume: (threadId) => loop.resume(threadId),
+    resume: (threadId) => gate.run(threadId, () => loop.resume(threadId)),
     stopAtSafeBoundary: (deadlineMs) => loop.stopAtSafeBoundary(deadlineMs),
     isLive: (threadId) => loop.threadStatus(threadId).runningTurnId !== null,
   };

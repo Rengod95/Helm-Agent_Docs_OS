@@ -74,6 +74,8 @@ interface Harness {
     threadRowStatus: ThreadStatus;
     modelResolve: ReturnType<ModelService["resolve"]>;
     compact: Awaited<ReturnType<ContextService["compact"]>>;
+    /** 값이 있으면 요약 호출이 이 약속이 풀릴 때까지 끝나지 않는다 */
+    compactGate: Promise<void> | undefined;
     release: "ok" | "throw";
     closeThread: "ok" | "throw";
     restore: Awaited<ReturnType<ApprovalService["restore"]>>;
@@ -135,6 +137,7 @@ function harness(): Harness {
       }),
     ),
     compact: ok<CompactOutcome>({ status: "skipped", why: "nothing_to_summarize" }),
+    compactGate: undefined,
     release: "ok",
     closeThread: "ok",
     restore: ok([]),
@@ -236,7 +239,10 @@ function harness(): Harness {
   });
   const loop = partial<LoopService>({
     threadStatus: () => partial<ThreadLoopStatus>({ runningTurnId: state.runningTurn }),
-    admit: () => Promise.resolve(state.admit),
+    admit: () => {
+      calls.push("loop.admit");
+      return Promise.resolve(state.admit);
+    },
     interrupt: () => Promise.resolve(true),
     stopAtSafeBoundary: () => Promise.resolve(true),
   });
@@ -283,9 +289,12 @@ function harness(): Harness {
       store,
       loop,
       context: partial<ContextService>({
-        compact: (threadId, request) => {
+        compact: async (threadId, request) => {
           result.compactRequests.push({ threadId, request });
-          return Promise.resolve(state.compact);
+          calls.push("context.compact:start");
+          await state.compactGate;
+          calls.push("context.compact:end");
+          return state.compact;
         },
       }),
       models: partial<ModelService>({
@@ -874,3 +883,85 @@ describe("threads.compact", () => {
 });
 
 export type { ThreadId };
+
+function gated(): { readonly open: () => void; readonly gate: Promise<void> } {
+  const gate = Promise.withResolvers<void>();
+  return { open: () => gate.resolve(), gate: gate.promise };
+}
+
+describe("a manual compaction and the turns of the same thread (HS-77, §10 미결 31)", () => {
+  const signal = new AbortController().signal;
+
+  test("a turn submitted while the summary is being made waits for the compaction to commit, then starts", async () => {
+    const h = harness();
+    const summary = gated();
+    h.state.compactGate = summary.gate;
+    const { ports } = createEnginePorts(h.deps);
+    const compacting = ports.threads.compact(THREAD, undefined, signal);
+    await flushMicrotasks();
+    expect(h.calls).toEqual(["context.compact:start"]);
+    const submitted = ports.turns.submit(THREAD, "hi", undefined);
+    await flushMicrotasks();
+    // 요약이 끝나기 전에는 루프가 입력을 받지 않는다
+    expect(h.calls).toEqual(["context.compact:start"]);
+    summary.open();
+    expect(await compacting).toEqual({
+      ok: true,
+      value: { status: "skipped", why: "nothing_to_summarize" },
+    });
+    expect(await submitted).toEqual({ ok: true, turnId: TURN });
+    expect(h.calls).toEqual(["context.compact:start", "context.compact:end", "loop.admit"]);
+  });
+
+  test("a resume waits the same way, and another thread is not held up", async () => {
+    const h = harness();
+    const summary = gated();
+    h.state.compactGate = summary.gate;
+    const calls: string[] = [];
+    const other = ids.next("thr");
+    const resumed: ThreadId[] = [];
+    const deps: PortsDeps = {
+      ...h.deps,
+      loop: partial<LoopService>({
+        threadStatus: () => partial<ThreadLoopStatus>({ runningTurnId: null }),
+        admit: () => {
+          calls.push("admit");
+          return Promise.resolve(h.state.admit);
+        },
+        resume: (threadId: ThreadId) => {
+          resumed.push(threadId);
+          return Promise.resolve(err<LoopError>({ kind: "io", code: "stub" }));
+        },
+      }),
+    };
+    const { ports } = createEnginePorts(deps);
+    const compacting = ports.threads.compact(THREAD, undefined, signal);
+    await flushMicrotasks();
+    const resuming = ports.turns.resume(THREAD);
+    const otherSubmit = ports.turns.submit(other, "hi", undefined);
+    await flushMicrotasks();
+    // 다른 thread의 입력은 그대로 접수된다. 같은 thread의 재개는 기다린다
+    expect(calls).toEqual(["admit"]);
+    expect(resumed).toEqual([]);
+    await otherSubmit;
+    summary.open();
+    await compacting;
+    await resuming;
+    expect(resumed).toEqual([THREAD]);
+  });
+
+  test("a compaction that finds a turn already running still ends with turn_running, and a failed compaction does not keep later turns waiting", async () => {
+    const h = harness();
+    h.state.runningTurn = TURN;
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "turn_running", turnId: TURN },
+    });
+    h.state.runningTurn = null;
+    h.state.compact = err<ContextError>({ kind: "summary_failed", message: "boom" });
+    const failed = await ports.threads.compact(THREAD, undefined, signal);
+    expect(failed.ok).toBe(false);
+    expect(await ports.turns.submit(THREAD, "hi", undefined)).toEqual({ ok: true, turnId: TURN });
+  });
+});
