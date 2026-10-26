@@ -14,12 +14,14 @@ import {
 } from "@xeon/contracts/records";
 import {
   ApprovalServiceName,
+  ContextServiceName,
   LoopServiceName,
   ModelServiceName,
   OsPortKey,
   TaskServiceName,
   ToolServiceName,
   type ApprovalService,
+  type ContextService,
   type LoopService,
   type ModelService,
   type OsService,
@@ -185,6 +187,7 @@ const TASKS_KEY: PortKey<TaskService> = { name: TaskServiceName };
 const APPROVALS_KEY: PortKey<ApprovalService> = { name: ApprovalServiceName };
 const TOOLS_KEY: PortKey<ToolService> = { name: ToolServiceName };
 const MODELS_KEY: PortKey<ModelService> = { name: ModelServiceName };
+const CONTEXT_KEY: PortKey<ContextService> = { name: ContextServiceName };
 
 function requirePort<Api>(ext: ExtHost, key: PortKey<Api>, service: string): Api {
   const found = ext.ports.get(key);
@@ -578,7 +581,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const tasks = requirePort(ext, TASKS_KEY, "xeon.tasks");
     const approvals = requirePort(ext, APPROVALS_KEY, "xeon.approvals");
     const tools = requirePort(ext, TOOLS_KEY, "xeon.tools");
-    requirePort(ext, MODELS_KEY, "xeon.models");
+    const models = requirePort(ext, MODELS_KEY, "xeon.models");
+    const context = requirePort(ext, CONTEXT_KEY, "xeon.context");
 
     // 5~6. 카탈로그는 위에서 만들었다. 세션 범위 설정을 연결한다
     settings.bindSession(session.sessionSettings);
@@ -600,6 +604,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       session,
       store: storeService,
       loop,
+      context,
+      models,
       tasks,
       approvals,
       tools,

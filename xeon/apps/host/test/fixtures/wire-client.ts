@@ -6,6 +6,7 @@ import {
   type EventWire,
   type HostConnection,
   type WireParams,
+  type WireResult,
 } from "@xeon/contracts/wire";
 
 // 시험용 클라이언트 도우미: hello와 이벤트 수집. 이벤트는 알림이 올 때 깨어나는 대기로 기다린다(실제 시간을 폴링하지 않는다).
@@ -79,6 +80,26 @@ export async function startTurnWhenIdle(
     const started = await attemptAsync(() => connection.request("turn.start", params));
     if (started.ok) return { value: started.value };
     const cause = started.error.cause;
+    if (cause instanceof WireError && cause.data.kind === "turn.busy" && state.left > 0) {
+      state.left -= 1;
+      await new Promise<void>((resolve) => setTimeout(resolve, 5));
+      return undefined;
+    }
+    return rethrow(cause);
+  });
+}
+
+/** turn.completed 직후의 turn.busy(재시도 가능)를 `startTurnWhenIdle`처럼 기다려 thread.compact를 보낸다 */
+export async function compactWhenIdle(
+  connection: HostConnection,
+  params: WireParams<"thread.compact">,
+  attempts = 50,
+): Promise<WireResult<"thread.compact">> {
+  const state = { left: attempts };
+  return await repeatAsync<WireResult<"thread.compact">>(async () => {
+    const compacted = await attemptAsync(() => connection.request("thread.compact", params));
+    if (compacted.ok) return { value: compacted.value };
+    const cause = compacted.error.cause;
     if (cause instanceof WireError && cause.data.kind === "turn.busy" && state.left > 0) {
       state.left -= 1;
       await new Promise<void>((resolve) => setTimeout(resolve, 5));

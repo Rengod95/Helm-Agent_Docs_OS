@@ -210,6 +210,7 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
         commit([{ kind: "thread.updated", threadId, payload: { title } }]);
         return ok({ position: position() });
       },
+      compact: () => Promise.reject(new Error("compact is not part of the fake")),
       hasTitle: (threadId) => ok((titles.get(threadId) ?? "") !== ""),
       position: () => ok(position()),
       ...options.overrides?.threads,

@@ -56,3 +56,28 @@ export function answeringModels(
   );
   return tapeBuildModels(provider);
 }
+
+/** 모델이 부른 순서대로 정해진 답을 내는 테이프. 대화 turn과 요약 호출이 같은 큐(`main`)에서 차례로 꺼낸다 */
+export function sequencedModels(
+  id: string,
+  answers: readonly string[],
+): NonNullable<AssembleOptions["buildModels"]> {
+  const provider = tapeProvider(
+    tapePlayer(
+      tape(
+        id,
+        answers.map((answer, index) => ({
+          role: "main" as const,
+          label: `answer ${String(index + 1)}`,
+          response: {
+            type: "message" as const,
+            content: [t.text(answer)],
+            stopReason: "stop" as const,
+          },
+        })),
+      ),
+      { clock: realTapeClock() },
+    ),
+  );
+  return tapeBuildModels(provider);
+}

@@ -21,6 +21,7 @@ import {
 } from "./settings.ts";
 import {
   createThreadCloseHandler,
+  createThreadCompactHandler,
   createThreadCreateHandler,
   createThreadDeleteHandler,
   createThreadForkHandler,
@@ -66,8 +67,7 @@ export function createWireHandlers(
     "thread.fork": createThreadForkHandler(engine, hub),
     "thread.revert": createThreadRevertHandler(engine),
     "thread.rename": createThreadRenameHandler(engine),
-    // 호스트 처리는 다음 작업이다(L4.host-service.spec §10 미결 30). 그 전에는 host.hello의 features에서 빠진다
-    "thread.compact": notImplemented("thread.compact"),
+    "thread.compact": createThreadCompactHandler(engine, hub),
     "turn.start": createTurnStartHandler(engine, hub),
     "turn.interrupt": createTurnInterruptHandler(engine),
     "turn.resume": createTurnResumeHandler(engine, hub),

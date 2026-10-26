@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import { Bug, err, ok, type Logger } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId, ThreadStatus } from "@xeon/contracts/conversation";
 import type {
   LeaseError,
   LeaseOwnerInfo,
@@ -19,9 +19,16 @@ import type {
   AbortTicket,
   AdmitResult,
   ApprovalService,
+  CompactOutcome,
+  CompactRequest,
+  ContextError,
+  ContextService,
   LoopError,
   LoopService,
+  ModelError,
+  ModelService,
   OsService,
+  ResolvedModel,
   TaskService,
   ThreadLoopStatus,
   ToolMeta,
@@ -52,6 +59,8 @@ interface Harness {
   readonly calls: string[];
   readonly infos: string[];
   readonly errors: string[];
+  readonly compactRequests: { readonly threadId: ThreadId; readonly request: CompactRequest }[];
+  readonly resolvedRoles: string[];
   state: {
     acquire: ReturnType<StoreService["leases"]["acquire"]>;
     openForWrite: ReturnType<SessionService["openForWrite"]>;
@@ -62,6 +71,9 @@ interface Harness {
     existingTurn: { turnId: typeof TURN } | undefined;
     threadsCreate: ReturnType<SessionService["threads"]["create"]>;
     threadExists: boolean;
+    threadRowStatus: ThreadStatus;
+    modelResolve: ReturnType<ModelService["resolve"]>;
+    compact: Awaited<ReturnType<ContextService["compact"]>>;
     release: "ok" | "throw";
     closeThread: "ok" | "throw";
     restore: Awaited<ReturnType<ApprovalService["restore"]>>;
@@ -110,6 +122,19 @@ function harness(): Harness {
     existingTurn: undefined,
     threadsCreate: ok({ threadId: THREAD, headSeq: 1, replayed: false, token: null }),
     threadExists: true,
+    threadRowStatus: "idle",
+    modelResolve: ok(
+      partial<ResolvedModel>({
+        binding: {
+          role: "main",
+          provider: "anthropic",
+          modelId: "claude-x",
+          thinkingLevel: "high",
+        },
+        model: partial<ResolvedModel["model"]>({ contextWindow: 200_000 }),
+      }),
+    ),
+    compact: ok<CompactOutcome>({ status: "skipped", why: "nothing_to_summarize" }),
     release: "ok",
     closeThread: "ok",
     restore: ok([]),
@@ -122,6 +147,8 @@ function harness(): Harness {
     calls,
     infos,
     errors,
+    compactRequests: [],
+    resolvedRoles: [],
     state,
     lostCallback: undefined,
   };
@@ -158,7 +185,12 @@ function harness(): Harness {
       },
     }),
     query: partial<SessionService["query"]>({
-      thread: () => ok(state.threadExists ? partial<ThreadSummaryRow>({}) : undefined),
+      thread: () =>
+        ok(
+          state.threadExists
+            ? partial<ThreadSummaryRow>({ status: state.threadRowStatus })
+            : undefined,
+        ),
       turnByRequestId: () =>
         ok(state.existingTurn === undefined ? undefined : partial<TurnView>(state.existingTurn)),
     }),
@@ -250,6 +282,18 @@ function harness(): Harness {
       session,
       store,
       loop,
+      context: partial<ContextService>({
+        compact: (threadId, request) => {
+          result.compactRequests.push({ threadId, request });
+          return Promise.resolve(state.compact);
+        },
+      }),
+      models: partial<ModelService>({
+        resolve: (role) => {
+          result.resolvedRoles.push(role);
+          return state.modelResolve;
+        },
+      }),
       tasks,
       approvals: partial<ApprovalService>({
         restore: (threadId) => {
@@ -714,6 +758,118 @@ describe("the small ports", () => {
     expect(entries).toEqual([
       { n: 1, big: "[bigint]", nested: '{"a":1}', nothing: null, inf: "Infinity", ok: true },
     ]);
+  });
+});
+
+describe("threads.compact", () => {
+  const signal = new AbortController().signal;
+
+  test("a manual compaction hands the context service the current model and the user's instructions, and returns its outcome", async () => {
+    const h = harness();
+    const compacted: CompactOutcome = {
+      status: "compacted",
+      eventId: ids.next("evt"),
+      tokensBefore: 91_000,
+      fromExtension: null,
+    };
+    h.state.compact = ok(compacted);
+    const { ports } = createEnginePorts(h.deps);
+    const outcome = await ports.threads.compact(THREAD, "keep the API decisions", signal);
+    expect(outcome).toEqual({ ok: true, value: compacted });
+    expect(h.resolvedRoles).toEqual(["main"]);
+    expect(h.compactRequests).toEqual([
+      {
+        threadId: THREAD,
+        request: {
+          reason: "manual",
+          binding: {
+            role: "main",
+            provider: "anthropic",
+            modelId: "claude-x",
+            thinkingLevel: "high",
+          },
+          contextWindow: 200_000,
+          instructions: "keep the API decisions",
+          willRetry: false,
+          signal,
+        },
+      },
+    ]);
+  });
+
+  test("without instructions the request has no instructions field", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    await ports.threads.compact(THREAD, undefined, signal);
+    expect(Object.keys(h.compactRequests[0]?.request ?? {}).toSorted()).toEqual([
+      "binding",
+      "contextWindow",
+      "reason",
+      "signal",
+      "willRetry",
+    ]);
+  });
+
+  test("the context service's skipped and cancelled outcomes are values, not failures", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    h.state.compact = ok({ status: "cancelled", by: "guard", reason: "not now" });
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: true,
+      value: { status: "cancelled", by: "guard", reason: "not now" },
+    });
+    h.state.compact = ok({ status: "skipped", why: "disabled" });
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: true,
+      value: { status: "skipped", why: "disabled" },
+    });
+  });
+
+  test("a thread that is gone, a closed thread and a running turn stop before any model or summary call", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    h.state.threadExists = false;
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "thread_not_found", threadId: THREAD },
+    });
+    h.state.threadExists = true;
+    h.state.threadRowStatus = "closed";
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "thread_closed", threadId: THREAD },
+    });
+    h.state.threadRowStatus = "running";
+    h.state.runningTurn = TURN;
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "turn_running", turnId: TURN },
+    });
+    expect(h.resolvedRoles).toEqual([]);
+    expect(h.compactRequests).toEqual([]);
+  });
+
+  test("no model for the main role is a failure value and nothing is summarized", async () => {
+    const h = harness();
+    const noModel: ModelError = { kind: "no_model_for_role", message: "none" };
+    h.state.modelResolve = err(noModel);
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "model_unavailable", detail: noModel.kind },
+    });
+    expect(h.compactRequests).toEqual([]);
+  });
+
+  test("a context error comes back whole, with its kind", async () => {
+    const h = harness();
+    const failure: ContextError = { kind: "summary_failed", message: "provider said no" };
+    h.state.compact = err(failure);
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "context_failed", error: failure },
+    });
   });
 });
 

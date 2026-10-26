@@ -12,6 +12,8 @@ import type {
 } from "@xeon/contracts/records";
 import type {
   AgentDefinition,
+  CompactOutcome,
+  ContextError,
   HostedSearchPort,
   LoopError,
   ResumeResult,
@@ -189,6 +191,22 @@ export type ThreadReadFailure =
   | Extract<StoreError, { readonly kind: "thread_not_found" }>
   | { readonly kind: "invalid_target"; readonly reason: "item_not_found" | "not_on_branch" };
 
+/**
+ * 수동 컴팩션(`thread.compact`, HS-77)이 요약을 끝내지 못한 이유. 처리기가 와이어 오류로 옮긴다(F wire §3.5.2).
+ * 확장이 막은 경우는 실패가 아니라 `CompactOutcome`의 `cancelled`로 돌아온다
+ */
+export type ThreadCompactFailure =
+  | ReadFailure
+  | Extract<StoreError, { readonly kind: "thread_not_found" }>
+  /** 종결된 thread에는 쓰기를 하지 않는다 */
+  | { readonly kind: "thread_closed"; readonly threadId: ThreadId }
+  /** 열린 turn이 있다. 컴팩션은 turn 사이에서만 한다 */
+  | { readonly kind: "turn_running"; readonly turnId: TurnId }
+  /** 요약에 쓸 현재 모델(역할 `main`)을 해석하지 못했다. 값은 `ModelError.kind`다 */
+  | { readonly kind: "model_unavailable"; readonly detail: string }
+  /** 컨텍스트 서비스가 읽기, 투영, 요약, 커밋 가운데 하나를 마치지 못했다 */
+  | { readonly kind: "context_failed"; readonly error: ContextError };
+
 export interface ThreadPort {
   create(input: {
     readonly workspace?: string;
@@ -226,6 +244,16 @@ export interface ThreadPort {
     params: WireParams<"thread.read">,
   ): Promise<Result<WireResult<"thread.read">, ThreadReadFailure>>;
   position(threadId: ThreadId): Result<StreamPosition, ReadFailure>;
+  /**
+   * 대화를 지금 요약한다(`/compact`, 이유 `manual`). 쓰기 소유는 호출자가 이미 쥐었다고 본다. 열린 turn이 있으면 `turn_running`이다.
+   * 요약 모델은 컨텍스트 서비스가 `summary` 역할로 고르고, 여기서는 컴팩션 뒤 재주입에 쓰는 현재 모델(역할 `main`)의 바인딩과 창 크기를 넘긴다.
+   * 결과 `compacted`의 커밋 위치는 호출자가 `position`으로 읽는다
+   */
+  compact(
+    threadId: ThreadId,
+    instructions: string | undefined,
+    signal: AbortSignal,
+  ): Promise<Result<CompactOutcome, ThreadCompactFailure>>;
 }
 
 export type SubmitOutcome =

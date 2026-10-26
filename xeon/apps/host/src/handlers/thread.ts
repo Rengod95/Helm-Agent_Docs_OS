@@ -1,8 +1,9 @@
 import type { ThreadId } from "@xeon/contracts/conversation";
-import { assertNever } from "@xeon/contracts";
+import type { ContextError } from "@xeon/contracts/services";
+import { assertNever, Bug } from "@xeon/contracts";
 import { wireError, type WireError, type WireHandler } from "@xeon/contracts/wire";
 import type { ConnectionHub } from "../connection-types.ts";
-import type { Engine, ThreadReadFailure } from "../types.ts";
+import type { Engine, ThreadCompactFailure, ThreadReadFailure } from "../types.ts";
 import { wireErrorOfLifecycle, wireErrorOfStore } from "../store-error.ts";
 import { claimWrite, ownerKindOf, threadLocked } from "./owner.ts";
 
@@ -205,5 +206,93 @@ export function createThreadDeleteHandler(
       conn.observedThreads.delete(threadId);
     }
     return {};
+  };
+}
+
+/** 컴팩션을 끝내지 못한 이유를 와이어 오류로 옮긴다(F wire §3.5.2). 모델 출력과 제공자 응답 본문은 싣지 않는다 */
+function compactFailure(error: ThreadCompactFailure, where: string): WireError | Bug {
+  switch (error.kind) {
+    case "busy":
+    case "io":
+    case "row_invalid":
+    case "thread_not_found":
+      return wireErrorOfStore(error, where);
+    case "thread_closed":
+      return wireError("thread.closed", { details: { threadId: error.threadId } });
+    case "turn_running":
+      return wireError("turn.busy", { details: { turnId: error.turnId } });
+    case "model_unavailable":
+      // 요약을 만들 모델이 없다: 요약 호출이 시작되지 못한 것이라 요약 실패 이유로 알린다
+      return wireError("thread.compactFailed", { details: { reason: "summary_failed" } });
+    case "context_failed":
+      return contextFailure(error.error, where);
+    default:
+      return assertNever(error, "ThreadCompactFailure");
+  }
+}
+
+function contextFailure(error: ContextError, where: string): WireError | Bug {
+  switch (error.kind) {
+    case "aborted":
+      return wireError("request.cancelled");
+    case "branch_not_found":
+      // 컨텍스트 서비스가 활성 가지를 스스로 읽는다. 열려 있는 thread에 이벤트가 없다는 것은 저장소의 불변 조건 위반이다
+      return new Bug(`${where}: the active branch of an existing thread has no events`, {
+        cause: error,
+      });
+    case "read_failed":
+    case "projection_failed":
+    case "summary_failed":
+    case "summary_has_tool_call":
+    case "summary_truncated":
+    case "commit_failed":
+      return wireError("thread.compactFailed", { details: { reason: error.kind } });
+    default:
+      return assertNever(error.kind, "ContextErrorKind");
+  }
+}
+
+/**
+ * 대화를 지금 요약한다(G2-01, HS-77). `turn.start`처럼 쓰기 소유를 암묵 획득하고(HS-28), 열린 turn이 있으면 3003이다.
+ * 컨텍스트 서비스가 이유 `manual`로 요약하고 `thread.compacted`를 커밋한다. 요약할 것이 없거나 컴팩션이 꺼져 있으면 오류가 아니라
+ * `skipped`다. 확장이 막으면 3006(`session_before_compact`), 요약이나 커밋이 실패하면 3008이다
+ */
+export function createThreadCompactHandler(
+  engine: Engine,
+  hub: () => ConnectionHub,
+): WireHandler<"thread.compact"> {
+  const { ports } = engine;
+  return async (params, context) => {
+    const { threadId } = params;
+    requireThread(engine, threadId, "thread.compact");
+    await claimWrite(engine, hub(), context.connectionId, threadId);
+    const compacted = await ports.threads.compact(threadId, params.instructions, context.signal);
+    if (!compacted.ok) {
+      ports.log.error("thread.compact_failed", { threadId, kind: compacted.error.kind });
+      throw compactFailure(compacted.error, "thread.compact");
+    }
+    const outcome = compacted.value;
+    switch (outcome.status) {
+      case "compacted": {
+        // 위치는 커밋한 뒤에 읽는다: 컴팩션 이벤트를 반영한 저장소 위치다
+        const position = ports.threads.position(threadId);
+        if (!position.ok) throw wireErrorOfStore(position.error, "thread.compact position");
+        return {
+          status: "compacted",
+          eventId: outcome.eventId,
+          tokensBefore: outcome.tokensBefore,
+          fromExtension: outcome.fromExtension,
+          position: position.value,
+        };
+      }
+      case "skipped":
+        return { status: "skipped", why: outcome.why };
+      case "cancelled":
+        throw wireError("thread.cancelledByExtension", {
+          details: { point: "session_before_compact", reason: outcome.reason.slice(0, 512) },
+        });
+      default:
+        return assertNever(outcome, "CompactOutcome");
+    }
   };
 }

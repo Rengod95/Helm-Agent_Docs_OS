@@ -21,7 +21,9 @@ import type {
 } from "@xeon/contracts/records";
 import type {
   ApprovalService,
+  ContextService,
   LoopService,
+  ModelService,
   OsService,
   TaskService,
   ToolService,
@@ -82,6 +84,10 @@ export interface PortsDeps {
   readonly session: SessionService;
   readonly store: StoreService;
   readonly loop: LoopService;
+  /** 수동 컴팩션(`thread.compact`)이 부른다 */
+  readonly context: Pick<ContextService, "compact">;
+  /** 수동 컴팩션이 현재 모델(역할 `main`)의 바인딩과 창 크기를 정할 때 쓴다 */
+  readonly models: Pick<ModelService, "resolve">;
   readonly tasks: TaskService;
   readonly approvals: ApprovalService;
   /** 열 때 복구가 도구의 현재 재실행 정책을 본다(ToolService.meta) */
@@ -260,6 +266,27 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     position() {
       const head = session.feed.headSeq();
       return head.ok ? ok({ storeId, seq: head.value }) : head;
+    },
+    async compact(threadId, instructions, signal) {
+      const found = session.query.thread(threadId);
+      if (!found.ok) return found;
+      if (found.value === undefined) return err({ kind: "thread_not_found", threadId });
+      if (found.value.status === "closed") return err({ kind: "thread_closed", threadId });
+      // 열린 turn이 있는 동안 컴팩션을 커밋하면 루프가 쥔 가지 끝과 어긋난다. turn 사이에서만 한다(HS-77)
+      const running = loop.threadStatus(threadId).runningTurnId;
+      if (running !== null) return err({ kind: "turn_running", turnId: running });
+      const resolved = deps.models.resolve("main", {});
+      if (!resolved.ok) return err({ kind: "model_unavailable", detail: resolved.error.kind });
+      const compacted = await deps.context.compact(threadId, {
+        reason: "manual",
+        binding: resolved.value.binding,
+        contextWindow: resolved.value.model.contextWindow,
+        ...(instructions === undefined ? {} : { instructions }),
+        willRetry: false,
+        signal,
+      });
+      if (!compacted.ok) return err({ kind: "context_failed", error: compacted.error });
+      return ok(compacted.value);
     },
   };
 
