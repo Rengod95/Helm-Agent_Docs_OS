@@ -244,11 +244,11 @@ xeon/apps/cli/
 | C10 `sessions` | 구현: `ls`(쪽 단위, `--all`, `--limit`, `--json`), `show`(`events.subscribe` → 머리까지 → `events.unsubscribe`), `fork --at`, `rm`(`--yes`, 비TTY는 2) | `src/commands/sessions.ts` |
 | C11 승인·잠금·중단 | 구현: 도구·계획·질문 프롬프트(kind별 `answer` 모양), `approval.list` 복원, `approval.resolved`로 프롬프트 닫기, `thread.locked` 프롬프트(관찰·분기), Ctrl+C `turn.interrupt` | `src/render/approval.ts`, `src/render/lock.ts`, `src/commands/chat-session.ts`, `src/commands/chat.ts`, `src/signals.ts` |
 | C13 `config set/reset/list`, `--set`, 슬래시 | 구현. 사전 검사는 하지 않는다(spec §10 13번). 슬래시는 `/set`, `/model`, `/resume`, `/help`, `/quit`와 Tab 완성 | `src/commands/config.ts`, `src/commands/overrides.ts`, `src/slash.ts`, `src/tui/minimal.ts` |
-| C15 `doctor` | 구현: 엔진·저장소·비밀 저장소·서비스·터미널과 검색 provider 세 줄. 진단 경로는 임시 결정(spec §10 5번) | `src/commands/doctor.ts` |
+| C15 `doctor` | 구현: 엔진·저장소·비밀 저장소·외부 바이너리·서비스·터미널과 검색 provider 세 줄. 바이너리는 `host.status { includeBinaries: true }`로 받는다(M2 마감 G2-07). SearXNG는 설정한 주소 하나만 탐침한다(자동 감지 삭제, M2 마감 H1). 진단 경로는 임시 결정(spec §10 5번) | `src/commands/doctor.ts` |
 | C16 `host --stdio` | 구현: `startStdioHost`에 `l4.cli.*` 그룹을 넘긴다. stdout은 `CliIo.stdoutStream` 전용 | `src/commands/host.ts` |
 
 - 호스트가 아직 구현하지 않은 메서드와의 호환: `thread.list`는 -32601이면 상태 파일로, `thread.open`·`turn.interrupt`·`approval.list`·`events.unsubscribe`는 `host.hello`의 `features`에 없으면 쓰지 않는다. HOST.2·HOST.4가 병합되기 전의 `xeon/foundation`에서도 `just verify`가 통과한다.
-- 컴파일 바이너리 확인(2026-10-24, WSL2 linux-x64, 한 번씩): `just desktop-sidecar host`가 만든 바이너리에 `host.hello`와 `settings.get`을 JSON Lines로 보내면 응답 둘이 305 ms 안에 오고(새 데이터 디렉터리의 첫 기동 포함), 응답을 받은 뒤 stdin을 닫으면 0으로 끝난다. `xeon version`은 0.036초, `xeon doctor`는 1.8초다(SearXNG 후보 네 곳 병렬 탐침 포함). `secret reveal`은 stdin이 TTY가 아니어서 2로 끝났다. 이 확인은 일회성 수동 실행이고, 같은 경로를 소스 진입으로 돌리는 `host-stdio.int.test.ts`와 번들을 만드는 `entry-bundle.test.ts`가 회귀를 막는다.
+- 컴파일 바이너리 확인(2026-10-24, WSL2 linux-x64, 한 번씩): `just desktop-sidecar host`가 만든 바이너리에 `host.hello`와 `settings.get`을 JSON Lines로 보내면 응답 둘이 305 ms 안에 오고(새 데이터 디렉터리의 첫 기동 포함), 응답을 받은 뒤 stdin을 닫으면 0으로 끝난다. `xeon version`은 0.036초, `xeon doctor`는 1.8초다(당시 구현의 SearXNG 후보 네 곳 병렬 탐침 포함, 지금은 자동 감지가 없다). `secret reveal`은 stdin이 TTY가 아니어서 2로 끝났다. 이 확인은 일회성 수동 실행이고, 같은 경로를 소스 진입으로 돌리는 `host-stdio.int.test.ts`와 번들을 만드는 `entry-bundle.test.ts`가 회귀를 막는다.
 
 ### 4.6 M2 마감 구현 기록 (T6, 2026-10-25)
 
@@ -303,7 +303,7 @@ M2 CLI.1~CLI.4에서 더한 시험(가짜 호스트 서버 위, `test/support/fa
 | host-stdio | `test/host-stdio.test.ts` | unit | `startStdioHost`에 `l4.cli` 그룹과 바이트 stdout을 넘기고 엔진에 연결하지 않으며, 종료 코드와 stderr 안내가 맞다 |
 | host-stdio-process | `test/host-stdio.int.test.ts` | int | 실제 프로세스로 `host --stdio`: stdout은 JSON-RPC 줄뿐, `l4.cli.theme`이 카탈로그에 있고, 응답 뒤 stdin EOF에서 0(AC16) |
 | entry-bundle | `test/entry-bundle.test.ts` | int | CLI 진입이 `--minify --bytecode`로 묶인다(최상위 await 없음) |
-| doctor | `test/doctor.test.ts` | unit | 검색 세 줄(AC14), 감지 순서, JSON 꺼짐, 키 플러그인 등록 표시, 엔진 실패 항목과 종료 코드, 터미널 항목 |
+| doctor | `test/doctor.test.ts` | unit | 검색 세 줄(AC14), 주소가 없으면 탐침 없음, 설정한 주소의 응답·응답 없음·JSON 꺼짐, 키 플러그인 등록 표시, 엔진 실패 항목과 종료 코드, 터미널 항목, 바이너리 점검 줄과 종료 코드와 `--json`(AC24) |
 
 추가 unit [제안]: `tool-renderers`(read·ls·bash의 `details` 표시, 렌더러가 없을 때 `content` 20줄), `state-file`(깨진 파일 버림, 원자 쓰기), `keybindings-conflict`(충돌 목록 출력). 이 셋은 위 목록의 이름 규칙을 따른다.
 

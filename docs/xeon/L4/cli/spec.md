@@ -99,7 +99,7 @@ import type { SettingKey, SettingScope, EffectiveSetting, SettingDefWire, Settin
 | `xeon service launch-mode --json` | 서비스 사용 설정을 엔진 없이 읽어 JSON 한 줄로 쓴다. 데스크톱 셸이 쓴다(`L4.desktop.spec` §4.2). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-launch-mode" })` | M3 |
 | `xeon service run` | 서비스 본체를 전경에서 실행한다. `service start`와 `ensure`가 자기 바이너리를 detached로 띄울 때 붙이는 인자다(`L4.host-service.spec` §3.2, SV-06). 도움말에 보이지 않는다 | 없음. `runHostCommand({ kind: "service-run" })` | M3 |
 | `xeon host --stdio` | 내부 진입. stdin/stdout JSON Lines로 엔진 서버를 연다. 데스크톱 사이드카가 쓴다. 도움말에 보이지 않는다 | 서버 쪽 전체. `startStdioHost({ readable, writable, assemble: { settingGroups } })`(`l4.cli.*` 그룹을 카탈로그에 넣으려고 `runHostCommand`를 거치지 않는다, §3.3 표) | M2(컴파일 바이너리 서브커맨드, 구현됨) |
-| `xeon doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 서비스 도달, 터미널 능력, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `settings.get`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
+| `xeon doctor` | FTS5, sops·age, 데이터 디렉터리 권한, 외부 바이너리 점검, 서비스 도달, 터미널 능력, 검색 provider 상태(§4.7.1) 진단 [제안] | `connectEngine` 결과와 wire 조회(`secret.list`, `host.status { includeBinaries: true }`, `settings.get`)로 판정한다(§4.7.1, §10 5번 임시 결정) | M2 |
 | `xeon version [--json]` | CLI 버전, 계약 버전(`WIRE_PROTOCOL_VERSION`), Bun 버전 | 없음 | M1 |
 
 - 근거: 명령 모양은 omp `config list/get/set/reset`(`_research/settings.md` §1, §3 [S36]), pi 모드 4종(TUI, print, JSON, RPC: `_research/refs/pi.md` "같은 AgentSession을 네 모드가 쓴다", `~/projects/_ref/pi-src/packages/coding-agent/src/modes/`), 비밀 명령은 `_research/secrets.md` §6.6, 서비스 명령은 adr.0006 §3.4다.
@@ -587,11 +587,11 @@ export type CliState = Static<typeof CliStateSchema>;
 [제안] ADR-0005 ④의 첫 실행 권장 내용(`product.scope.spec` I10)을 CLI에서는 `xeon doctor`의 한 묶음으로 보인다. M3 데스크톱 첫 실행 화면은 `L4.settings-ui.spec`이 맡는다.
 
 - 줄 1: 현재 `web.search` provider(`l2.web.search.provider` 유효 값과 `auto`일 때 고른 provider).
-- 줄 2: SearXNG 감지 결과(감지한 주소 또는 "없음"). 없으면 해결 문장으로 `xeon config set l2.web.search.searxng.url <주소>`를 보인다.
+- 줄 2: 설정한 SearXNG 주소의 상태. 자동 감지는 없다 [결정: m2c H1, `L2.web.spec` §4.8.3]. 주소(`l2.web.search.searxng.url`)가 비어 있으면 어디에도 요청하지 않고 "주소를 설정하지 않았다"와 `xeon config set l2.web.search.searxng.url <주소>`를 보인다. 주소가 있으면 그 주소 하나만 탐침해 응답함, JSON 형식 꺼짐, 응답 없음 중 하나를 보인다. 응답이 없으면 검색이 내장 래퍼로 내려간다는 말을 덧붙인다.
 - 줄 3: 등록되지 않은 무료 크레딧 API 플러그인 권장 목록(Exa, Brave)과 키 등록 명령 `xeon secret add <이름>`.
 - 값은 키 이름과 참조 문자열만 보인다. 비밀 값은 없다.
 - 키 이름과 provider 목록의 정본은 `L2.web.spec`이다. 이 출력은 그 값을 읽기만 한다.
-- 구현 (임시 경로, §10 5번): 설정 네 키(`l2.web.search.provider`, `searxng.url`, `searxng.detect`, `pluginOrder`)를 `settings.get`으로 읽는다. 엔진에 아직 없는 키는 기본값으로 판정하고 "엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다"를 덧붙인다. 줄 1은 L2.web.spec §4.8.2의 순서(명시 provider, 키 플러그인, 감지된 SearXNG, 내장 래퍼)를 따른다. SearXNG 감지는 L2.web.spec §4.8.3의 탐침(`GET <base>/search?q=xeon&format=json&pageno=1`, 1.5초, 64 KiB, 403이면 `json-disabled`)과 후보 순서를 CLI가 같은 값으로 가진다. L2.web의 provider 상태 조회가 조립 진입점으로 나오면 이 복제를 그쪽 조회로 바꾼다.
+- 구현 (임시 경로, §10 5번): 설정 세 키(`l2.web.search.provider`, `searxng.url`, `pluginOrder`)를 `settings.get`으로 읽는다. 옛 키 `searxng.detect`와 후보 주소 목록은 없앴다. 엔진에 아직 없는 키는 기본값으로 판정하고 "엔진에서 검색 설정을 읽지 못해 기본 설정으로 판정했다"를 덧붙인다. 줄 1은 L2.web.spec §4.8.2의 순서(명시 provider, 키 플러그인, 설정한 SearXNG, 내장 래퍼)를 따른다. `l2.web.search.provider`를 `searxng`로 고정했는데 주소가 비어 있으면 "주소가 없어 쓸 수 없다"를 덧붙인다. 설정한 주소의 탐침은 L2.web.spec §4.8.3의 형식(`GET <base>/search?q=xeon&format=json&pageno=1`, 1.5초, 64 KiB, 403이면 `json-disabled`)을 CLI가 같은 값으로 가진다. L2.web의 provider 상태 조회가 조립 진입점으로 나오면 이 복제를 그쪽 조회로 바꾼다.
 - 출력 형식:
 
   ```text
@@ -600,15 +600,23 @@ export type CliState = Static<typeof CliStateSchema>;
     [ok]   엔진을 열었다 (in-process). 세션 저장소와 FTS5를 쓸 수 있다
     [ok]   상태 디렉터리: <경로>
     [ok]   비밀 저장소: 사용할 수 있다 (등록 0개)
+    [ok]   외부 바이너리 sops: 3.9.0 (시스템) — 비밀 저장소
+    [경고] 외부 바이너리 bwrap: 없다 (선택) — 명령을 샌드박스 없이 실행하지 못한다
+           해결: bubblewrap 패키지를 설치한다
     [참고] 서비스 모드: 사용 안 함 (in-process)
     [ok]   터미널: stdin TTY, stdout TTY, 100열, 색 사용
   검색 provider
     검색 provider: auto → 내장 검색 래퍼 (builtin-wrapper)
-    SearXNG: 없음 — 해결: xeon config set l2.web.search.searxng.url <주소> (감지 후보 http://127.0.0.1:8888 등)
+    SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: xeon config set l2.web.search.searxng.url <주소>
     권장 키 플러그인: Exa, Brave — 키 등록: xeon secret add exa-api-key, xeon secret add brave-api-key
   ```
 
-  엔진을 열지 못하면 첫 항목이 `[실패] 엔진을 열 수 없다: <message>`와 해결 줄이 되고 종료 코드는 `EngineStartError` 표(§4.10)를 따른다. 터미널 항목과 검색 세 줄은 엔진 없이도 낸다. `--json`은 같은 내용을 `{ version, checks, search }` 문서 하나로 쓴다. 키 플러그인 ID는 `plugin:web-exa`, `plugin:web-brave`(L2.web.spec §4.8)이고 `pluginOrder`에 있으면 등록된 것으로 본다.
+  엔진을 열지 못하면 첫 항목이 `[실패] 엔진을 열 수 없다: <message>`와 해결 줄이 되고 종료 코드는 `EngineStartError` 표(§4.10)를 따른다. 터미널 항목과 검색 세 줄은 엔진 없이도 낸다. `--json`은 같은 내용을 `{ version, checks, binaries, search }` 문서 하나로 쓴다. `binaries`는 호스트가 준 `HostBinaryReport` 그대로이고 점검 결과가 없으면 `null`이다.
+- 외부 바이너리 점검 [결정: m2c G2-07, `L4.host-service.spec` HS-69]: 엔진을 연 뒤 `host.status { includeBinaries: true }`를 한 번 보내 `binaries`를 받고 바이너리마다 항목 한 줄을 낸다. 점검은 바이너리마다 자식 프로세스를 띄우므로 doctor 말고 다른 명령은 요청하지 않는다.
+  - `ok`는 `[ok]   외부 바이너리 <이름>: <버전> (번들|시스템) — <쓰는 곳>`이다.
+  - `missing`, `too_old`, `unusable`은 `need`가 `required`이면 `[실패]`, `optional`이면 `[경고]`다. 해결 줄은 `missing`이면 호스트가 준 `hint`, `too_old`이면 필요한 버전 이상으로 올리라는 말, `unusable`이면 설치와 실행 권한을 확인하라는 말이다.
+  - 보고서의 `ready`가 거짓(필수 바이너리를 쓸 수 없음)이면 종료 코드는 3(환경 문제)이다. 선택 바이너리만 빠졌으면 0이다. HS-69가 "종료코드 2 계열"이라 적은 자리는 CLI 종료 코드 표(§3.6)에서 환경 문제인 3으로 읽는다.
+  - `host.hello`의 `features`에 `host.status`가 없거나 응답에 `binaries`가 없으면 "점검 결과를 알리지 않는다"를 `[참고]`로 한 줄 낸다. 점검 요청이 실패하면(`request.cancelled` 등) `[경고]` 한 줄로 알리고 doctor는 이어 간다. 키 플러그인 ID는 `plugin:web-exa`, `plugin:web-brave`(L2.web.spec §4.8)이고 `pluginOrder`에 있으면 등록된 것으로 본다.
 - 설정의 비밀 키(`secret: true`)는 `config get`이 참조 문자열(`secret://<name>`)이나 `null`만 보인다(F wire §4.9).
 
 ### 4.8 설정 명령과 세션 덮어쓰기
@@ -833,7 +841,8 @@ export type CliState = Static<typeof CliStateSchema>;
 - AC11. 개발 빌드의 in-process 연결에서 `devWireRoundTrip: true`가 `AssembleOptions.devChecks`로 전달된다(§3.3). 컴파일 바이너리에서는 `false`다.
 - AC12. 사용법 오류 출력은 두 줄(무엇, 해결)이고 종료 코드는 2다.
 - AC13. stdout이 TTY가 아닐 때 `xeon secret reveal <name>`은 2로 끝나고, stdout·stderr·이벤트 DB 어디에도 그 비밀 값이 없다. TTY에서 열람하면 감사 기록이 한 건 늘고 그 기록에 값이 없다.
-- AC14. 키 플러그인이 없고 SearXNG가 감지되지 않은 설정에서 `xeon doctor`는 검색 provider 묶음 세 줄을 내고, 권장 목록에 Exa와 Brave가 있다.
+- AC14. 키 플러그인이 없고 SearXNG 주소를 설정하지 않은 설정에서 `xeon doctor`는 검색 provider 묶음 세 줄을 내고, 권장 목록에 Exa와 Brave가 있다. 주소가 비어 있으면 어떤 주소에도 탐침을 보내지 않는다. 옛 후보 주소(`127.0.0.1`·`localhost`의 8888, 8080)에서 SearXNG가 응답해도 쓰지 않는다.
+- AC24. `xeon doctor`는 `host.status { includeBinaries: true }`를 한 번 보내 바이너리마다 한 줄을 낸다. 필수 바이너리를 쓸 수 없으면 종료 코드 3이고 선택 바이너리만 빠졌으면 0이다. `--json`의 `binaries`는 호스트가 준 보고서와 같다.
 - AC15. 승인 프롬프트의 응답이 kind별 정본 모양이다: 도구 허용은 `remember`만, 거부 이유는 `{ feedback }`, 계획 승인은 `{ mode?, note? }`, 질문은 `QuestionAnswer`다. 다른 클라이언트가 먼저 답하면 열린 프롬프트가 닫히고 `approval.respond`를 보내지 않는다.
 - AC16. `host --stdio`의 stdout에는 JSON-RPC 메시지만 나오고(사람용 출력은 stderr), stdin EOF에서 0으로 끝난다. `l4.cli.*` 키가 그 호스트의 카탈로그에 있다. 컴파일(`--minify --bytecode`) 바이너리에서도 같다.
 - AC17. 대화형이 시작할 때 `command.list { threadId }`로 연 세션의 id를 보내고, `/resume`으로 세션을 바꾸면 새 id로 다시 읽는다. 엔진에 등록한 동작 명령(`/plan on`)을 치면 `command.run { threadId, text: "/plan on" }`이 한 번 가고 `done.message`가 stdout에 나오며 `turn.start`는 가지 않는다. `expanded` 결과는 펼친 텍스트가 `turn.start`의 `input`이 되고, `needs_confirmation`은 사용자가 `y`를 입력해야만 `confirmShell: true`로 다시 간다.

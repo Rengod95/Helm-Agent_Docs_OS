@@ -1,7 +1,7 @@
 import { afterEach, expect, test } from "bun:test";
-import { wireError } from "@xeon/contracts/wire";
+import { wireError, type HostBinaryReport } from "@xeon/contracts/wire";
 import { EXIT } from "../src/exit-codes.ts";
-import { describeSearch, SEARXNG_CANDIDATES } from "../src/commands/doctor.ts";
+import { describeSearch } from "../src/commands/doctor.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { def, fakeSettings } from "./support/m2.ts";
 
@@ -13,7 +13,6 @@ afterEach(() => {
 const SEARCH_DEFS = [
   def("l2.web.search.provider", { default: "auto", layer: "L2" }),
   def("l2.web.search.searxng.url", { default: "", layer: "L2" }),
-  def("l2.web.search.searxng.detect", { type: { type: "boolean" }, default: true, layer: "L2" }),
   def("l2.web.search.pluginOrder", { type: { type: "array" }, default: [], layer: "L2" }),
   def("l0.process.service.enabled", { type: { type: "boolean" }, default: false, layer: "L0" }),
 ];
@@ -53,32 +52,52 @@ test("doctor prints the engine checks and the three search provider lines (AC14)
   expect(search.trimEnd().split("\n")).toEqual([
     "검색 provider",
     "  검색 provider: auto → 내장 검색 래퍼 (builtin-wrapper)",
-    "  SearXNG: 없음 — 해결: xeon config set l2.web.search.searxng.url <주소> (감지 후보 http://127.0.0.1:8888 등)",
+    "  SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다) — 쓰려면: xeon config set l2.web.search.searxng.url <주소>",
     "  권장 키 플러그인: Exa, Brave — 키 등록: xeon secret add exa-api-key, xeon secret add brave-api-key",
   ]);
   expect(h.closed()).toBe(true);
 });
 
-test("a detected SearXNG becomes the auto provider and the detection tries the loopback candidates in order", async () => {
+test("without a configured address nothing is probed, even when the old candidate addresses would answer (H1)", async () => {
   const probed: string[] = [];
   const h = harness(
     {},
     {
       probes: {
-        probeSearxng: (url) => {
-          probed.push(url);
-          return Promise.resolve(url === "http://127.0.0.1:8080" ? "ok" : "unreachable");
-        },
+        probeSearxng: (url) => (probed.push(url), Promise.resolve("ok")),
       },
     },
   );
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
-  expect(probed.toSorted()).toEqual(SEARXNG_CANDIDATES.toSorted());
-  expect(h.stdoutText()).toContain("검색 provider: auto → searxng (http://127.0.0.1:8080)");
-  expect(h.stdoutText()).toContain("SearXNG: 감지됨 http://127.0.0.1:8080");
+  expect(probed).toEqual([]);
+  expect(h.stdoutText()).toContain("검색 provider: auto → 내장 검색 래퍼 (builtin-wrapper)");
+  expect(h.stdoutText()).toContain("SearXNG: 주소를 설정하지 않았다 (자동 감지는 하지 않는다)");
+  expect(h.stdoutText()).not.toContain("감지됨");
 });
 
-test("a configured SearXNG address is the only one probed; a JSON-disabled answer gets its own hint", async () => {
+test("a configured SearXNG address is the only one probed and becomes the auto provider when it answers", async () => {
+  const probed: string[] = [];
+  const h = harness(
+    { "l2.web.search.searxng.url": "http://search.local:9000" },
+    { probes: { probeSearxng: (url) => (probed.push(url), Promise.resolve("ok")) } },
+  );
+  expect(await h.run(["doctor"])).toBe(EXIT.ok);
+  expect(probed).toEqual(["http://search.local:9000"]);
+  expect(h.stdoutText()).toContain("검색 provider: auto → searxng (http://search.local:9000)");
+  expect(h.stdoutText()).toContain("SearXNG: 설정한 주소가 응답한다 http://search.local:9000");
+});
+
+test("a configured address that does not answer falls back to the wrapper and says so; JSON-disabled gets its own hint", async () => {
+  const down = harness(
+    { "l2.web.search.searxng.url": "http://search.local:9000" },
+    { probes: { probeSearxng: () => Promise.resolve("unreachable") } },
+  );
+  expect(await down.run(["doctor"])).toBe(EXIT.ok);
+  expect(down.stdoutText()).toContain(
+    "SearXNG: http://search.local:9000에 응답이 없다 — 해결: 주소와 서버 상태를 확인한다. 그동안 검색은 내장 검색 래퍼로 내려간다",
+  );
+  expect(down.stdoutText()).toContain("auto → 내장 검색 래퍼");
+
   const probed: string[] = [];
   const h = harness(
     { "l2.web.search.searxng.url": "http://search.local:9000" },
@@ -95,16 +114,6 @@ test("a configured SearXNG address is the only one probed; a JSON-disabled answe
   expect(h.stdoutText()).toContain("auto → 내장 검색 래퍼");
 });
 
-test("detection off and no address probes nothing", async () => {
-  const probed: string[] = [];
-  const h = harness(
-    { "l2.web.search.searxng.detect": false },
-    { probes: { probeSearxng: (url) => (probed.push(url), Promise.resolve("ok")) } },
-  );
-  await h.run(["doctor"]);
-  expect(probed).toEqual([]);
-});
-
 test("registered key plugins are listed as registered and lead the auto choice", async () => {
   const h = harness({ "l2.web.search.pluginOrder": ["plugin:web-exa", "web-brave"] });
   expect(await h.run(["doctor"])).toBe(EXIT.ok);
@@ -115,7 +124,10 @@ test("registered key plugins are listed as registered and lead the auto choice",
 test("an explicit provider is shown as pinned", async () => {
   const h = harness({ "l2.web.search.provider": "searxng" });
   await h.run(["doctor"]);
-  expect(h.stdoutText()).toContain("검색 provider: searxng (l2.web.search.provider로 고정)");
+  // 주소가 없으면 고정해도 후보에 들지 못한다(L2.web.spec §4.8.2)
+  expect(h.stdoutText()).toContain(
+    "검색 provider: searxng (l2.web.search.provider로 고정) — 주소가 없어 쓸 수 없다",
+  );
 });
 
 test("search settings the engine does not know yet fall back to the defaults and say so", async () => {
@@ -197,10 +209,161 @@ test("doctor --json has the same content as one document", async () => {
 
 test("describeSearch is pure over its settings and probe", async () => {
   const status = await describeSearch(
-    { provider: "auto", searxngUrl: "", detect: true, pluginOrder: [] },
+    { provider: "auto", searxngUrl: "", pluginOrder: [] },
     { probeSearxng: () => Promise.resolve("unreachable") },
     false,
   );
   expect(status.provider).toBe("검색 provider: auto → 내장 검색 래퍼 (builtin-wrapper)");
   expect(status.recommended).toContain("Exa, Brave");
+});
+
+const READY_REPORT: HostBinaryReport = {
+  platform: "linux",
+  ready: true,
+  blocking: [],
+  degraded: ["bwrap"],
+  items: [
+    {
+      name: "sops",
+      need: "required",
+      usedBy: "비밀 저장소",
+      impact: "비밀을 읽고 쓸 수 없다",
+      status: { kind: "ok", version: "3.9.0", source: "system" },
+    },
+    {
+      name: "rg",
+      need: "optional",
+      usedBy: "파일 검색",
+      impact: "내장 검색으로 내려가 느려진다",
+      status: { kind: "ok", version: "14.1.0", source: "bundled" },
+    },
+    {
+      name: "bwrap",
+      need: "optional",
+      usedBy: "샌드박스",
+      impact: "명령을 샌드박스 없이 실행하지 못한다",
+      status: { kind: "missing", hint: "bubblewrap 패키지를 설치한다" },
+    },
+  ],
+};
+
+test("doctor asks host.status for the binary report and prints one line per binary (G2-07)", async () => {
+  const asked: Record<string, unknown>[] = [];
+  const h = harness(
+    {},
+    {},
+    {
+      "host.status": (params) => {
+        asked.push(Object.fromEntries(Object.entries(params)));
+        return {
+          mode: "in-process",
+          pid: 1,
+          startedAt: "2026-10-26T00:00:00.000Z",
+          connections: 1,
+          liveTurns: 0,
+          idleShutdownAt: null,
+          binaries: READY_REPORT,
+        };
+      },
+    },
+  );
+  // 선택 바이너리만 빠졌으므로 종료 코드는 0이다
+  expect(await h.run(["doctor"])).toBe(EXIT.ok);
+  expect(asked).toEqual([{ includeBinaries: true }]);
+  const lines = h.stdoutText().split("\n");
+  expect(lines).toContain("  [ok]   외부 바이너리 sops: 3.9.0 (시스템) — 비밀 저장소");
+  expect(lines).toContain("  [ok]   외부 바이너리 rg: 14.1.0 (번들) — 파일 검색");
+  expect(lines).toContain(
+    "  [경고] 외부 바이너리 bwrap: 없다 (선택) — 명령을 샌드박스 없이 실행하지 못한다",
+  );
+  expect(lines).toContain("         해결: bubblewrap 패키지를 설치한다");
+});
+
+test("a required binary that cannot be used is a failed check and the environment exit code", async () => {
+  const h = harness(
+    {},
+    {},
+    {
+      "host.status": () => ({
+        mode: "in-process",
+        pid: 1,
+        startedAt: "2026-10-26T00:00:00.000Z",
+        connections: 1,
+        liveTurns: 0,
+        idleShutdownAt: null,
+        binaries: {
+          platform: "linux",
+          ready: false,
+          blocking: ["age", "git"],
+          degraded: [],
+          items: [
+            {
+              name: "age",
+              need: "required",
+              usedBy: "비밀 저장소",
+              impact: "비밀을 복호화할 수 없다",
+              status: { kind: "too_old", found: "1.0.0", required: "1.1.0" },
+            },
+            {
+              name: "git",
+              need: "required",
+              usedBy: "작업 공간",
+              impact: "변경 내역을 읽지 못한다",
+              status: { kind: "unusable", reason: "permission_denied" },
+            },
+          ],
+        },
+      }),
+    },
+  );
+  expect(await h.run(["doctor"])).toBe(EXIT.environment);
+  const lines = h.stdoutText().split("\n");
+  expect(lines).toContain(
+    "  [실패] 외부 바이너리 age: 버전이 낮다 (1.0.0, 필요 1.1.0) — 비밀을 복호화할 수 없다",
+  );
+  expect(lines).toContain("         해결: age을(를) 1.1.0 이상으로 올린다");
+  expect(lines).toContain(
+    "  [실패] 외부 바이너리 git: 쓸 수 없다 (permission_denied) — 변경 내역을 읽지 못한다",
+  );
+});
+
+test("doctor --json carries the raw binary report, or null when the engine has none", async () => {
+  const withReport = harness(
+    {},
+    {},
+    {
+      "host.status": () => ({
+        mode: "in-process",
+        pid: 1,
+        startedAt: "2026-10-26T00:00:00.000Z",
+        connections: 1,
+        liveTurns: 0,
+        idleShutdownAt: null,
+        binaries: READY_REPORT,
+      }),
+    },
+  );
+  expect(await withReport.run(["doctor", "--json"])).toBe(EXIT.ok);
+  expect(JSON.parse(withReport.stdoutText())).toMatchObject({ binaries: READY_REPORT });
+
+  const without = harness();
+  expect(await without.run(["doctor", "--json"])).toBe(EXIT.ok);
+  expect(JSON.parse(without.stdoutText())).toMatchObject({ binaries: null });
+  expect(without.stdoutText()).toContain("이 엔진은 점검 결과를 알리지 않는다");
+  expect(without.methods()).not.toContain("host.status");
+});
+
+test("a binary check that fails is a warning and doctor goes on", async () => {
+  const h = harness(
+    {},
+    {},
+    {
+      "host.status": () => {
+        throw wireError("request.cancelled");
+      },
+    },
+  );
+  expect(await h.run(["doctor"])).toBe(EXIT.ok);
+  expect(h.stdoutText()).toContain("[경고] 외부 바이너리: 점검하지 못했다 — 요청이 취소되었다");
+  expect(h.stdoutText()).toContain("검색 provider:");
 });
