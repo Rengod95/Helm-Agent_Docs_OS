@@ -285,7 +285,7 @@ M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰
 - 실제 호스트는 도구 승인의 기억 범위로 `once`와 `thread`만 낸다. 낮춤 알림(`always`→`thread`)은 호스트가 `always`를 내지 않는 동안 나오지 않는다.
 - 이 기기에서 실제 sops·age 시험은 `age-keygen`과 `sops --encrypt`로 만든 임시 키와 파일을 쓰며, 둘이 없으면 시험이 실패한다(건너뛰지 않는다).
 
-- 아직 CLI가 쓰지 않는 wave 1 계약: `settings.invalidated` 알림(대화형 Tab 완성의 키 목록과 엔진 명령 목록을 다시 읽는 데 쓸 수 있다). 대화형 시작 때 한 번만 읽는 현재 동작으로도 어긋나지 않아서 M3로 둔다.
+- 아직 CLI가 쓰지 않는 wave 1 계약: `settings.invalidated` 알림(대화형 Tab 완성의 키 목록과 엔진 명령 목록을 다시 읽는 데 쓸 수 있다). 대화형 시작 때 한 번만 읽는 현재 동작으로도 어긋나지 않아서 M3로 둔다(spec §10 16번).
 
 ## 5. 단위 테스트 목록
 
