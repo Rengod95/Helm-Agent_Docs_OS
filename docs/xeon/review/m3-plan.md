@@ -63,7 +63,7 @@ M2 문서에 "M3에서"라고만 적고 받는 문서가 없던 요청입니다.
 | M3-26 | 외부 바이너리(sops, age, rg, bwrap, socat) 번들과 서명(필수/선택 표와 점검은 M2) | G2-07 | `L4/release/spec.md` |
 | M3-27 | 릴리즈, 배포, 업데이트, 공급망, 고지 문서. Developer ID 서명과 공증(D3) | G3-04 | `L4/release/spec.md`(새 문서) |
 | M3-28 | 운영·진단 런북, 용어집, 구현 상태 지도, 데이터·개인정보 문서, 비기능 요구 절(온보딩은 M2) | G3-05 | `eng.onboarding.guide`, architecture, product |
-| M3-29 | 성능 예산 게이트(기준선은 M2). 지표별 예산 수치는 macOS 기준선을 본 뒤 사용자가 정합니다. M2 마감 재검토 시점에 `first_token` 기준선과 D11 측정(실제 키 검색 래퍼 약 20회, 개발자 세션 DB 사본 FTS)은 실행 기록이 없습니다. M2 마감 절차(`review.m2-plan` §11 5번)에서 하지 못하면 이 항목이 측정부터 맡습니다 | G2-04, ADR-0012, D11, D-e | `eng.performance.guide` |
+| M3-29 | 성능 예산 게이트(기준선은 M2). 지표별 예산 수치는 macOS 기준선을 본 뒤 사용자가 정합니다. 2026-10-27에 서버(WSL2)에서 `cold_start_cli` 중앙값 189.8 ms, `cold_start_sidecar` 중앙값 46.9 ms, `first_token` 1289.5 ms(1회, 실제 provider)를 쟀습니다(`eng.performance.guide` §2). macOS 기준선과 D11 측정(실제 키 검색 래퍼 약 20회, 개발자 세션 DB 사본 FTS)은 실행 기록이 없어 이 항목이 측정부터 맡습니다 | G2-04, ADR-0012, D11, D-e | `eng.performance.guide` |
 | M3-30 | CI 액션 SHA 고정, CI gitleaks. M2 마감 상태: 워크플로가 `actions/checkout@v4`, `actions/setup-node@v4`, `jdx/mise-action@v2`, `extractions/setup-just@v2`처럼 이동하는 태그를 씁니다. 커밋 SHA로 고정하고 판 주석을 답니다 | G4-07, 재검토 결함 12 | `.github/workflows/**` |
 
 ## 5. 설계 묶음
@@ -81,6 +81,17 @@ M2 문서에 "M3에서"라고만 적고 받는 문서가 없던 요청입니다.
 | M3-39 | 접근성, i18n·로케일(IME 확인은 M2) | G2-13 | `L4.desktop.spec`, `L4.cli.spec` |
 | M3-40 | 원격 점검 Phase 2(Victauri PoC) | M2 마감 계획 T7 | `L4.desktop.plan` |
 | M3-41 | 시험 파일의 `Reflect.get` 정리. M2 마감에서 시험 파일 6개에 16곳이 늘었습니다(`apps/desktop/test/e2e/scenario.ts` 7, `sidecar.e2e.test.ts` 2, `test/app/support.ts` 2, `test/transport/tauri-mock.ts` 2, `apps/cli/test/doctor-host.int.test.ts` 2, `turn-resume-host.int.test.ts` 1). 소스에는 없습니다. TypeBox `Value.Check`나 판별 함수로 좁혀 읽게 바꿉니다 | 재검토 결함 9 | `eng.typescript.guide`, `eng.testing.guide` |
+
+### 5.2 M2 Mac 실기 마감이 넘긴 항목 (2026-10-27)
+
+M2 Mac 실기(`review.macos-checklist` M-10~M-13, `xeon/foundation` `c8afa8b`)에서 나온 항목입니다. M3 설계 브랜치의 `M3-new-NN`과 겹치지 않게 `M3-m2c-NN`으로 적습니다.
+
+| # | 항목 | 원천 | 받는 문서 |
+|---|---|---|---|
+| M3-m2c-01 | macOS `os-auth`(Touch ID·암호) 구현. 지금은 `osAuthAvailable` 기본값이 false(`xeon/packages/platform-secrets/src/assemble.ts`)라 macOS `reveal` 재인증이 없습니다. E7의 macOS 부분을 이 항목으로 옮깁니다 | M-05, E7 | `L0.secrets.spec`, `L0.secrets.plan` |
+| M3-m2c-02 | HS-78 전에 저장한 모르는 기본 모델 id가 남아 있어도 첫 실행 안내의 "기본 모델 선택" 단계가 완료로 보입니다. 데스크톱에는 모델 목록 wire가 없습니다. 계약(모델 목록, 또는 settings·`host.status`의 유효성 필드) → host → 데스크톱 시작 시 점검 순서로 고칩니다 | M-12, HS-78(`7683dc6`) | `F.wire-settings.spec`, `L4.host-service.spec`, `L4.desktop.spec` |
+| M3-m2c-03 | `apps/desktop/src/views/composer.tsx`의 `legacyKeyCode`가 `Reflect.get(event, "keyCode")`를 써서 TS 규칙에 어긋납니다. Mac IME를 다시 확인한 뒤 `KeyboardEvent.keyCode`를 타입으로 읽거나 조합 끝 유예만으로 막도록 바꿉니다 | M-11(`0338353`), M3-41 | `eng.typescript.guide`, `L4.desktop.spec` |
+| M3-m2c-04 | 첫 실행 환경 정리 묶음: (a) Finder에서 띄운 앱의 PATH에 sops가 없을 수 있습니다(터미널에서 띄우면 됨). (b) Linux Secret Service에 키를 마련하는 경로가 없습니다. (c) CLI `sopsMissing` 문구(`apps/cli/src/engine.ts` 250행 부근)가 `platform-secrets` 플러그인 실패와 메시지에 sops·age가 들어간 실패를 모두 "sops 또는 age를 찾을 수 없다"로 보입니다. (d) 다른 프로세스가 바꾼 비밀 메타데이터를 사이드카가 바로 보는지 확인하지 않았습니다. (e) Mac에서 디버그 로그 `xeon-desktop-debug.log`가 0바이트였습니다 | M-12 | `L0.secrets.spec`, `L4.cli.spec`, `L4.desktop.spec` |
 
 ## 6. M3 착수 조건
 

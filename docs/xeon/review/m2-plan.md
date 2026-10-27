@@ -336,7 +336,7 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
 | T5 L2 | 병합 | 2358033(G1-09)~be3b46f(L2 문서), f5d9f30 | fixed: H1 자동 감지 제거, `.xeon/commands` 신뢰 게이트, `McpRuntime.reload`와 작업 폴더 기준 루트, cap-knowledge 컴팩션 재주입, G4-05. partial: 공개 모드 SSRF 방어가 Bun에서 실제 DNS로 도는지 미확인(FK-11). 재검토 결함 4: 모델용 호스티드 검색(`decideModelSearchTool`)이 시험에서만 불리고 L1.models 요청에 연결되지 않았습니다(E4 `web.search`와 별개) |
 | T6 CLI | 병합 | 5c30343(G1-07)~2816bb7(종단 시험), 병합 수정 4e5b338, 75170ca, b3afbca | fixed. 남은 일: CLI는 `settings.invalidated`를 구독하지 않습니다. `L4.cli.spec` §10 15번(승인 카드가 재개 질문보다 먼저 보임)은 `[미결]`입니다 |
 | T7 DESK | 병합 | 6e60969(카드)~efeaf98(작업 폴더), 병합 수정 5cf7d83, dbef8b2 | fixed: 설정 화면, 첫 실행 안내, 바이너리 점검 표시, 승인·신뢰 카드, `thread.locked` 대화 상자, 작업 폴더, `untilScopesCommitted`, 원격 점검 Phase 1. partial: single-instance는 Rust 코드만 있고 두 프로세스로 확인하지 않았습니다(M-13). `snapshot_macos.rs`는 미실행입니다(M-10). 사이드카 e2e에 `turn`이 없고, 컴파일 바이너리는 로컬 빌드에만 있습니다(§11 메모). `L4.desktop.spec` §10 15번(`secret.beginEntry` `started: true` 미확인), 17번(작업 폴더를 경로로 입력)은 `[미결]`입니다 |
-| Z 문서·검증 | 병합 | 8aac424(위협 모델)~9613673(온보딩), aa12722, d6184b1, 44d09c7, 1071f1a | fixed: D-a~D-e·H1 기록, ADR-0011~0014, 위협 모델, `review.m3-plan`, 미결 추적표, `review.fake-only`, 온보딩, justfile v2와 `guard.sh`, CI `exit-tests` 작업, `xeon-macos.yml`, `just tape-record`, `just bench`. partial: G5-02(이 표, 2026-10-26 갱신), G5-03(재검토 결함 6의 새 어긋남, 2026-10-26 문서 수정으로 일부 닫음), G4-02(`review.macos-checklist` 일부 채움), G2-04(`first_token` 미측정). missing: D11 측정과 `just bench --first-token` 실행 기록. 테이프 녹화는 `bef8c87`에서 했습니다 |
+| Z 문서·검증 | 병합 | 8aac424(위협 모델)~9613673(온보딩), aa12722, d6184b1, 44d09c7, 1071f1a | fixed: D-a~D-e·H1 기록, ADR-0011~0014, 위협 모델, `review.m3-plan`, 미결 추적표, `review.fake-only`, 온보딩, justfile v2와 `guard.sh`, CI `exit-tests` 작업, `xeon-macos.yml`, `just tape-record`, `just bench`. partial: G5-02(이 표, 2026-10-26 갱신), G5-03(재검토 결함 6의 새 어긋남, 2026-10-26 문서 수정으로 일부 닫음), G4-02(`review.macos-checklist` 일부 채움), G2-04(`first_token` 미측정). missing: D11 측정과 `just bench --first-token` 실행 기록. 테이프 녹화는 `bef8c87`에서 했습니다. `just bench` 기준선과 `--first-token`은 2026-10-27에 쟀습니다(§11) |
 
 - 재검토 새 결함 13건의 정본은 재검토 보고서 §4입니다. 문서로 추적하는 곳은 각 행과 §10.3, `review.m3-plan`(M3-22, M3-29, M3-30, M3-41)입니다.
 
@@ -399,15 +399,21 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
 
 | 조건 | 판정 | 근거(시험, 커밋, 실행 기록) |
 |---|---|---|
-| E0 | 미판정 | |
-| E1 | M3로 옮김(D-a) | |
-| E2 | 미판정 | |
-| E3 | 미판정 | |
-| E4 | 미판정 | |
-| E5 | 미판정 | |
-| E6 | 미판정 | |
-| E7 | 미판정 | |
+| E0 | 조건부 | 병합 전 각 워크트리에서 `just verify`가 통과했습니다(§10). `xeon/foundation` `c8afa8b`에서 `TURBO_FORCE=true just verify`, push, CI 실행 기록은 아직 없습니다. 이 셋이 끝나야 충족입니다 |
+| E1 | M3로 옮김(D-a) | `review.m3-plan` M3-01 |
+| E2 | Linux 충족, Mac 조건부 | `just exit-tests` 10/10줄, 건너뜀 0(WSL2, `m2f/e23` `1cfc743`, 2026-10-26, 로그 `~/.cache/xeon/scratch-backup/e23-exit-tests.log`). E2 줄: `platform-process` 45 통과, `apps/host`(`transport-parity`) 1 통과, `apps/desktop`(사이드카 e2e, 이 실행에서 빌드한 Linux 바이너리) 8 통과. 바이너리 한 턴 비교는 [미결](§5). macOS: 바이너리 e2e 3건이 한 번 돌았고(M-07), M-09 결과 대기 |
+| E3 | Linux 충족, Mac 조건부 | 같은 `exit-tests` 실행의 E3 줄: `apps/host`(`stdio-shutdown.int.test.ts`) 4 통과, `apps/desktop` 사이드카 e2e 8 통과. Tauri 앱 정상 종료 뒤 사이드카 0개는 M-09 결과 대기 |
+| E4 | 충족 | `exit-tests` E4 줄: `cap-web` 9 통과(`cap-web.int.test.ts`의 설정 없음·SearXNG 설정함), `apps/host` 4 통과. M2 마감 재검토 판정과 같습니다 |
+| E5 | 충족 | `exit-tests` E5 줄: `apps/host`(`approval-shapes.int.test.ts`) 1 통과. M2 마감 재검토 판정과 같습니다 |
+| E6 | 충족 | `exit-tests` E6 줄: `apps/host`(`cap-mcp.int.test.ts`, `cap-mcp-stdio.int.test.ts`) 2 통과. M2 마감 재검토 판정과 같습니다 |
+| E7 | Linux 충족, macOS M3로 옮김 | `exit-tests` E7 줄: `platform-secrets` 14 통과(`admin.int.test.ts`의 `tty-confirm`). Mac 실기에서 키 등록과 `secret ls`가 동작했습니다(`review.macos-checklist` M-12). macOS `os-auth`(Touch ID)는 구현되지 않아(`osAuthAvailable` 기본값 false) `review.m3-plan` M3-m2c-01로 옮깁니다 |
 
+- 절차 진행(2026-10-27):
+  - 3번 Mac 확인: M-10, M-11, M-12, M-13이 통과했습니다. M-09는 측정 중이고 M-05는 M3로 옮깁니다(`review.macos-checklist` §3, §5).
+  - 4번 GitHub macOS 수동 job(`xeon-macos.yml`): 아직 돌리지 않았습니다.
+  - 5번 D-e: 테이프 녹화는 `bef8c87`. `just bench`는 서버(WSL2)에서 `cold_start_cli` 중앙값 189.8 ms, `cold_start_sidecar` 중앙값 46.9 ms, `just bench --first-token --yes`는 `first_token` 1289.5 ms(1회, 실제 provider)입니다(`eng.performance.guide` §2). 예산은 정하지 않았고 예산표는 틀로 남깁니다. 예산은 M3에서 정합니다(`review.m3-plan` M3-29). §8 D11의 래퍼 측정과 FTS 측정은 실행 기록이 없습니다.
+  - 6번: `TURBO_FORCE=true just verify`, PR #2 갱신은 아직입니다.
+  - `exit-tests` 실행 기준(`1cfc743`) 뒤에 Mac 실기 수정 커밋(`48e99d9`~`c8afa8b`)이 비밀, host, 데스크톱을 고쳤습니다. 6번에서 `c8afa8b` 이후 커밋으로 `just exit-tests`를 다시 돌려 E2~E7 근거를 갱신합니다.
 - 중간 판정 메모(M2 마감 재검토, 2026-10-26). 위 표는 `TURBO_FORCE=true just verify`와 push 뒤에 채웁니다. 그 전의 재검토 의견은 다음과 같고 판정이 아닙니다.
   - E0 부분 충족: 병합 전 각 워크트리에서 `just verify`가 통과했습니다. `TURBO_FORCE=true just verify`, push, CI 실행은 아직입니다.
   - E2 부분 충족: 컴파일 바이너리 증거가 재현되지 않습니다. `sidecar.e2e.test.ts`는 바이너리가 없으면 건너뛰고, 바이너리는 gitignore 대상이라 로컬 빌드에만 있으며 CI는 사이드카를 빌드하지 않습니다. `exit-tests.txt`의 E2 줄은 `platform-process`의 `transport-conformance`만 가리킵니다. 바이너리 e2e에는 `turn`이 없습니다. macOS 바이너리 e2e 3건은 실기에서 한 번 돌았습니다(`review.macos-checklist` M-07).
