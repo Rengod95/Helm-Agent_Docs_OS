@@ -413,7 +413,7 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
   - 4번 GitHub macOS 수동 job(`xeon-macos.yml`): 아직 돌리지 않았습니다.
   - 5번 D-e: 테이프 녹화는 `bef8c87`. `just bench`는 서버(WSL2)에서 `cold_start_cli` 중앙값 189.8 ms, `cold_start_sidecar` 중앙값 46.9 ms, `just bench --first-token --yes`는 `first_token` 1289.5 ms(1회, 실제 provider)입니다(`eng.performance.guide` §2). 예산은 정하지 않았고 예산표는 틀로 남깁니다. 예산은 M3에서 정합니다(`review.m3-plan` M3-29). §8 D11의 래퍼 측정과 FTS 측정은 실행 기록이 없습니다.
   - 6번: `TURBO_FORCE=true just verify`, PR #2 갱신은 아직입니다.
-  - `exit-tests` 실행 기준(`1cfc743`) 뒤에 Mac 실기 수정 커밋(`48e99d9`~`c8afa8b`)이 비밀, host, 데스크톱을 고쳤습니다. 6번에서 `c8afa8b` 이후 커밋으로 `just exit-tests`를 다시 돌려 E2~E7 근거를 갱신합니다.
+  - `exit-tests` 실행 기준(`1cfc743`) 뒤에 Mac 실기 수정 커밋(`48e99d9`~`c8afa8b`)이 비밀, host, 데스크톱을 고쳤습니다. 2026-10-27 `c8afa8b`에서 `just exit-tests`를 다시 돌렸고 10/10줄, 건너뜀 0입니다(줄별 통과 수는 `1cfc743` 실행과 같음, 로그 `~/.cache/xeon/scratch-backup/exit-tests-c8afa8b.log`).
 - 중간 판정 메모(M2 마감 재검토, 2026-10-26). 위 표는 `TURBO_FORCE=true just verify`와 push 뒤에 채웁니다. 그 전의 재검토 의견은 다음과 같고 판정이 아닙니다.
   - E0 부분 충족: 병합 전 각 워크트리에서 `just verify`가 통과했습니다. `TURBO_FORCE=true just verify`, push, CI 실행은 아직입니다.
   - E2 부분 충족: 컴파일 바이너리 증거가 재현되지 않습니다. `sidecar.e2e.test.ts`는 바이너리가 없으면 건너뛰고, 바이너리는 gitignore 대상이라 로컬 빌드에만 있으며 CI는 사이드카를 빌드하지 않습니다. `exit-tests.txt`의 E2 줄은 `platform-process`의 `transport-conformance`만 가리킵니다. 바이너리 e2e에는 `turn`이 없습니다. macOS 바이너리 e2e 3건은 실기에서 한 번 돌았습니다(`review.macos-checklist` M-07).
