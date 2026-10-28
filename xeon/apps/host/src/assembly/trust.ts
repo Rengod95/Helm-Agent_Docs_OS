@@ -185,7 +185,7 @@ export function createProjectTrust(deps: ProjectTrustDeps): ProjectTrust {
       store,
       fs,
       homeDir: deps.homeDir,
-      // project_trust 지점은 thread 없이 발화할 수 없고(DispatchOptions.threadId) M2에는 그 지점에 핸들러를 거는 확장이 없다 [미결]
+      // session.trust.before 지점은 thread 없이 발화할 수 없고(DispatchOptions.threadId) M2에는 그 지점에 핸들러를 거는 확장이 없다 [미결]
       emitProjectTrust: () => Promise.resolve(undefined),
       sessionMemory,
       signal,

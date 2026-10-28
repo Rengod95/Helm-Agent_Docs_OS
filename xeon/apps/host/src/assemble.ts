@@ -203,8 +203,8 @@ function requirePort<Api>(ext: ExtHost, key: PortKey<Api>, service: string): Api
 /**
  * thread의 작업 디렉터리. 세션 서비스가 올라오기 전이거나 모르는 thread, 작업 디렉터리가 없는 thread면 undefined다(호출자는 ""로 본다).
  * thread 읽기가 실패하면(busy, io, row_invalid) 같이 undefined를 돌려주되 `host.thread_workspace_unreadable`로 남긴다: 읽기 실패를
- * 작업 디렉터리가 없는 것으로 조용히 바꾸면 project·local 설정과 `user_bash`의 cwd가 왜 비었는지 알 수 없다.
- * 설정 층(project·local 파일)과 `user_bash`의 cwd가 같은 값을 쓴다
+ * 작업 디렉터리가 없는 것으로 조용히 바꾸면 project·local 설정과 `input.bash.before`의 cwd가 왜 비었는지 알 수 없다.
+ * 설정 층(project·local 파일)과 `input.bash.before`의 cwd가 같은 값을 쓴다
  */
 export function threadWorkspaceOf(
   ext: ExtHost,

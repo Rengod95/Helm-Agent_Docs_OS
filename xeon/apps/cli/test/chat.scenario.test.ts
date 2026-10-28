@@ -244,7 +244,7 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       scope: (id, def, setup) => {
         const handle = host.scope(id, def, async (g) => {
           await setup(g);
-          g.on("tool_call", () => {
+          g.on("tool.call.before", () => {
             hold.handle?.disable();
             return undefined;
           });
@@ -338,7 +338,7 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
     expect(disabled.seq).toBeLessThan(nextStep.seq);
     // 끄기 요청이 turn을 끊지 않는다
     expect(payloadField(secondEnded, "status")).toBe("completed");
-    // 꺼진 그룹은 그 뒤 단계의 turn_end를 보지 않는다. 켜져 있던 동안의 turn_end는 봤다
+    // 꺼진 그룹은 그 뒤 단계의 boundary.step.after를 보지 않는다. 켜져 있던 동안의 boundary.step.after는 봤다
     expect(group.probe.turnEndSteps).not.toContain(nextStep.stepId);
     expect(group.probe.turnEndSteps.length).toBeGreaterThanOrEqual(2);
   } finally {

@@ -82,7 +82,7 @@ export interface ExtensionDeps {
   readonly settings: SettingsEngine;
   /** 명령 등록부 자리. 조립 루트가 만들고 엔진 포트(`command.*`)도 같은 자리를 읽는다 */
   readonly commands: CommandRegistryHolder;
-  /** thread의 작업 디렉터리(없으면 undefined). `user_bash` 지점 페이로드의 cwd가 된다 */
+  /** thread의 작업 디렉터리(없으면 undefined). `input.bash.before` 지점 페이로드의 cwd가 된다 */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
   readonly db: StoreDb;
   readonly faults: FaultInjector;

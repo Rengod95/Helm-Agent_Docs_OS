@@ -126,7 +126,7 @@ test("each skipped reason is a result and not an error", async () => {
   );
 });
 
-test("a compaction an extension stopped is 3006 at session_before_compact with the extension's reason", async () => {
+test("a compaction an extension stopped is 3006 at session.compact.before with the extension's reason", async () => {
   const { host } = compactingHost(() =>
     ok({ status: "cancelled", by: "guard", reason: "not now" }),
   );
@@ -136,7 +136,7 @@ test("a compaction an extension stopped is 3006 at session_before_compact with t
     connection.request("thread.compact", { threadId: created.threadId }),
   );
   expect(error.code).toBe(3006);
-  expect(error.data.details).toEqual({ point: "session_before_compact", reason: "not now" });
+  expect(error.data.details).toEqual({ point: "session.compact.before", reason: "not now" });
   await connection.close();
 });
 

@@ -245,7 +245,7 @@ function contextFailure(error: ContextError, where: string): WireError | Bug {
 /**
  * 대화를 지금 요약한다(G2-01, HS-77). `turn.start`처럼 쓰기 소유를 암묵 획득하고(HS-28), 열린 turn이 있으면 3003이다.
  * 컨텍스트 서비스가 이유 `manual`로 요약하고 `thread.compacted`를 커밋한다. 요약할 것이 없거나 컴팩션이 꺼져 있으면 오류가 아니라
- * `skipped`다. 확장이 막으면 3006(`session_before_compact`), 요약이나 커밋이 실패하면 3008이다
+ * `skipped`다. 확장이 막으면 3006(`session.compact.before`), 요약이나 커밋이 실패하면 3008이다
  */
 export function createThreadCompactHandler(
   engine: Engine,
@@ -279,7 +279,7 @@ export function createThreadCompactHandler(
         return { status: "skipped", why: outcome.why };
       case "cancelled":
         throw wireError("thread.cancelledByExtension", {
-          details: { point: "session_before_compact", reason: outcome.reason.slice(0, 512) },
+          details: { point: "session.compact.before", reason: outcome.reason.slice(0, 512) },
         });
       default:
         return assertNever(outcome, "CompactOutcome");

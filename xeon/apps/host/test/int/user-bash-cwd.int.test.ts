@@ -14,7 +14,7 @@ import { sequentially } from "../../src/util.ts";
 import { useEngineHome } from "../fixtures/engine-home.ts";
 import { realEngineGate } from "../fixtures/real-engine.ts";
 
-// 결정 L2: `user_bash` 지점 페이로드의 cwd는 그 대화의 작업 디렉터리다. 조립 루트가 core-loop에 대화별 함수를 넘기므로
+// 결정 L2: `input.bash.before` 지점 페이로드의 cwd는 그 대화의 작업 디렉터리다. 조립 루트가 core-loop에 대화별 함수를 넘기므로
 // 작업 디렉터리가 다른 두 대화는 서로 다른 cwd를 보고, 작업 디렉터리가 없는 대화는 빈 문자열을 본다.
 
 const gate = await realEngineGate();
@@ -42,14 +42,14 @@ function observerModule(into: Captured) {
     layer: "plugin",
     kind: "plugin",
     entry: "./index.ts",
-    points: ["user_bash"],
+    points: ["input.bash.before"],
     usesDrive: false,
     trust: { level: "builtin" },
   });
   const extension: ExtensionEntry = ({ manifest: loaded, scope }) => {
     scope(loaded.name, {}, (g) => {
       into.loop = hostOf(g).port(LoopServicePortKey);
-      g.on("user_bash", (payload) => {
+      g.on("input.bash.before", (payload) => {
         into.payloads.push(payload);
         return { type: "deny", reason: "observed" };
       });
@@ -59,7 +59,7 @@ function observerModule(into: Captured) {
 }
 
 realTest(
-  "user_bash sees the working directory of the thread it runs in",
+  "input.bash.before sees the working directory of the thread it runs in",
   async () => {
     const captured: Captured = { loop: undefined, payloads: [] };
     const engine = await assemble({

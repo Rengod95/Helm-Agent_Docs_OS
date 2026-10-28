@@ -30,14 +30,14 @@ import { createLoaderFs, type ProjectTrust } from "./trust.ts";
 
 // m2-plan HOST.6, L2.mcp.plan §8.5. cap-mcp는 확장 엔트리와 매니페스트를 내놓지 않는다(`createMcp(deps)`만). 이 파일이 그 몫이다:
 // 포트(도구 등록, 헤더 비밀, 프로젝트 신뢰, 상태 표, 설정 층, 승인 규칙, stdio 프로세스)를 `createMcp`에 잇고, 세션 시작에 `load`, 단계를 여는
-// `turn_start`(광고 앞)마다 그 대화의 정의를 `reload`하고 도구 표에 `applyBoundary`로 반영하며, 종료에 `shutdown`을 부른다.
+// `boundary.step.before`(광고 앞)마다 그 대화의 정의를 `reload`하고 도구 표에 `applyBoundary`로 반영하며, 종료에 `shutdown`을 부른다.
 // 프로젝트 출처 정의의 기준 폴더는 그 대화의 작업 폴더다(`workspaceOf`, HS-76). 능력 `mcp.client`와 `xeon.mcp`는 `runtime.service`로 낸다.
 //
 // - stdio 서버(결정 D6, ADR-0011): L0 platform-process의 `createMcpProcessPort`를 조립 루트가 `options.process`로 넘긴다(`mcp-process.ts`).
 //   cap-mcp는 L0를 import하지 않는다. 비밀 env를 쓰는 stdio 서버는 기동 승인 지점이 없어 `secret_denied`다(M3).
 //
 // 아직 없는 것:
-// - `mcp_servers_change` 발화: 지점 발화에는 thread가 필요한데 서버 변화는 thread에 속하지 않는다.
+// - `session.mcp.after` 발화: 지점 발화에는 thread가 필요한데 서버 변화는 thread에 속하지 않는다.
 // 조립 루트 코드(DR-14 예외 2).
 
 export interface HostMcpOptions {
@@ -62,7 +62,7 @@ export interface HostMcpOptions {
 /** stdio 서버 종료 유예(SIGTERM 뒤 SIGKILL 전) */
 const STDIO_GRACE_MS = 2000;
 
-const MCP_POINTS = ["turn_start"] as const;
+const MCP_POINTS = ["boundary.step.before"] as const;
 
 function optionalPort<Api>(host: ScopeHostApi, key: PortKey<Api>): Api | undefined {
   try {
@@ -124,7 +124,7 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
         masker,
         settings: { layers: options.layers },
         // 엔진을 열 때의 첫 로드에는 대화가 없다. 엔진의 작업 디렉터리는 프로젝트가 아니다(데스크톱 사이드카는 홈): 기본 루트를 두지 않고
-        // 프로젝트 출처 정의는 대화의 첫 `turn_start`에서 그 대화의 작업 폴더로 읽는다(HS-76)
+        // 프로젝트 출처 정의는 대화의 첫 `boundary.step.before`에서 그 대화의 작업 폴더로 읽는다(HS-76)
         projectRoot: undefined,
         workspaceOf: options.workspaceOf,
         files: createLoaderFs(),
@@ -154,10 +154,10 @@ export function hostMcpPlugin(options: HostMcpOptions): ExtensionUnit {
       detach(runtime.load(options.signal), (caught) => {
         logger.error("mcp.load_failed", { message: messageOf(caught) });
       });
-      // 서버 변화는 단계 경계에서 도구 표에 반영한다(L2.mcp.spec §4.9). 단계를 여는 `turn_start`(도구 광고 앞)에서 그 대화의 정의를 다시 읽어
-      // 지문이 바뀌었으면 서버를 맞추고, 모아 둔 변화를 한 번에 올린다. 연결이 단계 도중에 끝나면 다음 단계의 `turn_start`에 오른다.
-      // `before_provider_request`는 광고 뒤라 쓰지 않는다
-      g.on("turn_start", async (_payload, ctx) => {
+      // 서버 변화는 단계 경계에서 도구 표에 반영한다(L2.mcp.spec §4.9). 단계를 여는 `boundary.step.before`(도구 광고 앞)에서 그 대화의 정의를 다시 읽어
+      // 지문이 바뀌었으면 서버를 맞추고, 모아 둔 변화를 한 번에 올린다. 연결이 단계 도중에 끝나면 다음 단계의 `boundary.step.before`에 오른다.
+      // `request.provider.before`는 광고 뒤라 쓰지 않는다
+      g.on("boundary.step.before", async (_payload, ctx) => {
         await runtime.reload(options.signal, { threadId: ctx.threadId });
         await runtime.applyBoundary();
       });

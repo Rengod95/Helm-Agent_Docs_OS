@@ -558,7 +558,7 @@ describe("locks", () => {
     expect(h.calls.at(-1)).toBe("lease.release");
   });
 
-  test("releasing runs session_shutdown, closes the thread for extensions and returns the lease", async () => {
+  test("releasing runs session.shutdown, closes the thread for extensions and returns the lease", async () => {
     const h = harness();
     const { ports } = createEnginePorts(h.deps);
     const outcome = await ports.locks.tryAcquire(THREAD, "app");

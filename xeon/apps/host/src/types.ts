@@ -346,7 +346,7 @@ export type LockOutcome =
 export interface SessionLockPort {
   tryAcquire(threadId: ThreadId, kind: OwnerKind): Promise<LockOutcome>;
   holds(threadId: ThreadId): boolean;
-  /** 쥔 잠금을 놓는다(`session_shutdown` 발화, 임대 반납). 쥐고 있지 않으면 아무 일도 하지 않는다 */
+  /** 쥔 잠금을 놓는다(`session.shutdown` 발화, 임대 반납). 쥐고 있지 않으면 아무 일도 하지 않는다 */
   release(threadId: ThreadId): Promise<void>;
 }
 

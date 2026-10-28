@@ -113,7 +113,7 @@ export interface PortsHandle {
   heldThreads(): readonly ThreadId[];
   /** 가장 최근에 쓰기 소유를 쥔 thread(그룹 서비스가 상태를 보여 줄 thread). 쥔 thread가 없으면 null */
   activeThread(): ThreadId | null;
-  /** 쥔 세션 임대를 모두 반납한다(엔진을 닫기 전). 각 thread에 session_shutdown("quit")을 발화한다 */
+  /** 쥔 세션 임대를 모두 반납한다(엔진을 닫기 전). 각 thread에 session.shutdown("quit")을 발화한다 */
   releaseAll(): Promise<void>;
 }
 
@@ -381,7 +381,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   /**
    * 지운 thread의 임대를 거둔다. `session.threads.remove`는 호스트가 준 토큰을 반납하지 않는다(호스트가 반납한다, L1.persistence ownership).
-   * 이벤트가 없으므로 `session_shutdown`은 발화하지 않고 확장의 thread 상태만 닫는다
+   * 이벤트가 없으므로 `session.shutdown`은 발화하지 않고 확장의 thread 상태만 닫는다
    */
   async function dropHeldThread(threadId: ThreadId): Promise<void> {
     const lease = held.get(threadId);
