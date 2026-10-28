@@ -277,12 +277,25 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
                 marks === undefined ? payload : applyCacheMarks(payload, marks, spec.context);
               const hooked = hook === undefined ? marked : hook(marked);
               if (dispatcher === null) return hooked;
-              return await dispatcher.beforeProviderRequest({
+              const final = await dispatcher.beforeProviderRequest({
                 ...base,
                 ...target,
                 dispatchKey: keyOf("request.provider.before"),
                 payload: hooked,
               });
+              // 가드는 체인이 끝난 최종 페이로드를 본다. 차단이면 던져서 요청을 보내지 않는다(pi-ai가 오류 응답으로 바꾼다)
+              if (dispatcher.guardProviderRequest !== undefined) {
+                const guarded = await dispatcher.guardProviderRequest({
+                  ...base,
+                  ...target,
+                  dispatchKey: keyOf("guard.model.before"),
+                  payload: final,
+                });
+                if (guarded !== undefined) {
+                  throw new Error(`[xeon:denied_by_guard] ${guarded.reason}`);
+                }
+              }
+              return final;
             },
           }),
       // 8: 응답 수신. 인증·쿠키 헤더는 뺀다

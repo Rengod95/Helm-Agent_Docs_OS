@@ -76,6 +76,23 @@ function dispatcherOf(ext: ExtHost): ProviderDispatcher {
       );
       return outcome.value.payload;
     },
+    async guardProviderRequest(input) {
+      const outcome = await ext.dispatch(
+        "guard.model.before",
+        {
+          provider: input.provider,
+          modelId: input.modelId,
+          role: input.role,
+          payload: input.payload,
+        },
+        {
+          threadId: input.threadId,
+          dispatchKey: input.dispatchKey,
+          ...(input.signal === undefined ? {} : { signal: input.signal }),
+        },
+      );
+      return outcome.decision;
+    },
     async beforeProviderHeaders(input) {
       const outcome = await ext.dispatch(
         "request.headers.before",

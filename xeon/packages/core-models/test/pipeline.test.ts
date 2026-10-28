@@ -205,3 +205,51 @@ describe("headers_point_payload_masks_secret_values", () => {
     expect(JSON.stringify(lines)).not.toContain(FAKE_KEY);
   });
 });
+
+describe("guard.model.before (M3-REQ-109)", () => {
+  test("the guard sees the final payload after the chain and its block stops the request", async () => {
+    const seen: unknown[] = [];
+    const h = createHarness({
+      tape: ONE_TURN,
+      dispatcher: {
+        beforeProviderRequest: (input) =>
+          Promise.resolve({ chained: true, original: input.payload }),
+        guardProviderRequest(input) {
+          seen.push(input.payload);
+          return Promise.resolve({ block: true, reason: "policy says no" });
+        },
+      },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("error");
+    expect(message.errorMessage).toBe("[xeon:denied_by_guard] policy says no");
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ chained: true });
+  });
+
+  test("a throwing guard blocks the request too", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      dispatcher: {
+        beforeProviderRequest: (input) => Promise.resolve(input.payload),
+        guardProviderRequest: () => Promise.reject(new Error("guard exploded")),
+      },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("error");
+    expect(message.errorMessage).toContain("guard exploded");
+  });
+
+  test("a guard without an opinion lets the chained payload through", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      dispatcher: {
+        beforeProviderRequest: () => Promise.resolve({ chained: true }),
+        guardProviderRequest: () => Promise.resolve(undefined),
+      },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("stop");
+    expect(h.fake.calls()[0]?.payload).toEqual({ chained: true });
+  });
+});

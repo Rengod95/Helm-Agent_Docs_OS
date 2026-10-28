@@ -602,6 +602,7 @@ export function resolveRole(input: {
 | 3 | 추론: `reasoning = thinkingLevel`(off면 생략), `thinkingBudgets` | `SimpleStreamOptions` |
 | 4 | 재시도 수치: `maxRetries`, `maxRetryDelayMs` | `ProviderRequestOptions` |
 | 5 | 페이로드 확정 뒤: 캐시 표식 적용(anthropic-messages만) → `request.provider.before` 디스패치 | `onPayload` |
+| 5b | `request.provider.before` 체인이 끝난 최종 페이로드로 `guard.model.before`(first, fail-closed) 디스패치 [결정: M3-REQ-109]. 차단이면 `[xeon:denied_by_guard] <사유>` 오류를 던져 요청을 보내지 않고, pi-ai가 오류 응답(`stopReason: "error"`)으로 바꾼다. 핸들러·디스패처 예외도 차단이다. 내장 검사는 없다 | `onPayload` |
 | 6 | 헤더 확정 뒤: `request.headers.before` 디스패치(비밀 헤더 가림) | `transformHeaders` |
 | 7 | 자격 증명 해석(요청 직전) | `CredentialStore.read` |
 | 8 | 응답 수신: `request.provider.after` 디스패치 | `onResponse` |
