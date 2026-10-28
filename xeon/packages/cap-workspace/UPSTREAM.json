@@ -16,6 +16,7 @@
     "packages/durable/src/env/decode.ts -> src/files/upstream/decode.ts",
     "packages/durable/src/tools/image.ts -> src/images/upstream/image.ts",
     "packages/durable/src/tools/image-processor.ts -> src/images/upstream/image-processor.ts",
+    "packages/durable/src/tools/edit-diff.ts -> src/files/upstream/edit-diff.ts",
     "LICENSE -> LICENSE.pi"
   ],
   "originalSha256": {
@@ -27,22 +28,43 @@
     "packages/durable/src/env/decode.ts": "3db30eae71f612b015b95e83b28d64b5330498a517119b5a01e210666cb5b032",
     "LICENSE": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48",
     "packages/durable/src/tools/image.ts": "b7f7eff7af7a36ea6633e5323ee7184d2de6814743e0a54ce0040d576be38f98",
-    "packages/durable/src/tools/image-processor.ts": "c6ad2f1683785a1fb4cdfaca0e26c8a234bb87767518834a5614cc94c057a5fb"
+    "packages/durable/src/tools/image-processor.ts": "c6ad2f1683785a1fb4cdfaca0e26c8a234bb87767518834a5614cc94c057a5fb",
+    "packages/durable/src/tools/edit-diff.ts": "70f486d5d5e54a76913d96597e792fc3e2c0938813b01595824a63b2300800db"
   },
   "partialCopies": [
     "packages/durable/src/harness/output.ts -> src/upstream/output.ts (Progress와 PROGRESS_BYTES_PER_SECOND 외 나머지를 뺐다. 상수만 남겼다)",
     "packages/durable/src/env/decode.ts -> src/files/upstream/decode.ts (rangeDecoder, startsWithBom만. StreamDecoder를 뺐다)",
-    "packages/durable/src/tools/image-processor.ts -> src/images/upstream/image-processor.ts (ImageProcessor, PreparedImage, toBase64를 뺐다. 처리기는 2차. 상수 INLINE_IMAGE_TYPES와 base64Length만 남겼다)"
+    "packages/durable/src/tools/image-processor.ts -> src/images/upstream/image-processor.ts (ImageProcessor, PreparedImage, toBase64를 뺐다. 처리기는 2차. 상수 INLINE_IMAGE_TYPES와 base64Length만 남겼다)",
+    "packages/durable/src/tools/edit-diff.ts -> src/files/upstream/edit-diff.ts (diff 패키지 import와 generateUnifiedPatch, generateDiffString을 뺐다. diff 생성은 src/files/diff.ts(새 원본)가 한다)"
   ],
   "notCopied": [
     "packages/durable/src/tools/env.ts (requireEnv는 서비스 주입으로 대체. L2.workspace.plan §2)",
     "packages/durable/src/tools/index.ts (Harness 확장 객체 createCodingTools라 쓰지 않는다)",
-    "packages/durable/src/tools/write.ts, file-mutation-queue.ts, edit.ts, edit-diff.ts (M3, W5)",
+    "packages/durable/src/tools/write.ts, file-mutation-queue.ts, edit.ts (M3, W5)",
     "packages/coding-agent/src/core/tools/grep.ts, find.ts (M3, W6)",
     "packages/durable/src/images (2차)",
     "packages/durable/src/harness/types.ts, define.ts (도구 껍데기를 걷어 내 추출할 타입이 없다. PATCHES.md 'W2와의 차이')",
     "packages/durable/src/truncate.ts (platform-exec로 옮겼다. review.decisions-2 D-08, B-04. 이 패키지는 xeon.exec의 truncateHeadOf를 부른다)"
   ],
-  "modifications": ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "P12"],
+  "modifications": [
+    "P1",
+    "P2",
+    "P3",
+    "P4",
+    "P5",
+    "P6",
+    "P7",
+    "P8",
+    "P9",
+    "P10",
+    "P11",
+    "P12",
+    "P13",
+    "P14",
+    "P15",
+    "P16",
+    "P17",
+    "P18"
+  ],
   "usedBy": "xeon/packages/cap-workspace only (adr.0003, L2.workspace.plan §2)"
 }

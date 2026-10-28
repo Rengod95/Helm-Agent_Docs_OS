@@ -621,6 +621,7 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 - 오류 `detail`은 `{ editIndex, totalEdits }`를 공통으로 싣는다. 원본 메시지 문구(`edits[i].oldText ...`)는 `message`에 그대로 둔다.
 - 같은 경로의 동시 변경은 durable `tools/file-mutation-queue.ts`로 경로별로 줄 세운다. 다른 경로는 병렬로 돈다.
 - 쓰기는 같은 디렉터리의 임시 파일에 쓰고 이름을 바꾸는 방식이 원자적이다. 포크 원본이 직접 덮어쓰는지 확인한 뒤 바꿀지 정한다 [미결 4].
+- `FileChange.diff`는 외부 라이브러리 없이 `files/diff.ts`가 만든다(통합 diff, 문맥 3줄); pi의 `diff` 패키지는 쓰지 않는다 [결정: 오케스트레이터 기본값].
 
 줄 해시 편집(2차, 설계 메모) [제안]:
 

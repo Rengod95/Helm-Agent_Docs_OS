@@ -1,6 +1,6 @@
 # cap-workspace 포크 패치 기록
 
-`src/**/upstream/`과 `src/upstream/`은 pi의 포크다(durable 도구 5개와 출력 한도 함수, 이미지 형식 판별 2개, coding-agent `ls`). 원본 저장소, 커밋, 복사 경로, 파일별 sha256은 `UPSTREAM.json`에 있다.
+`src/**/upstream/`과 `src/upstream/`은 pi의 포크다(durable 도구 5개와 출력 한도 함수, 이미지 형식 판별 2개, 편집 일치 함수 1개(`edit-diff`), coding-agent `ls`). 원본 저장소, 커밋, 복사 경로, 파일별 sha256은 `UPSTREAM.json`에 있다.
 세 기록의 패치 id 집합이 같아야 한다: 이 표, `UPSTREAM.json`의 `modifications`, 소스의 `// XEON-PATCH: <id>` 표지.
 `test/fork-records.test.ts`가 이를 검사한다. 근거 문서는 `L2.workspace.plan` §2, `adr.0003` §3.4다.
 고친 줄 위에 표지를 단다. 줄 번호는 원본(커밋 `cdaf6c2`, `packages/durable/` 또는 `packages/coding-agent/`) 기준이다.
@@ -21,6 +21,12 @@
 | P10 | `files/upstream/path-utils.ts`(`resolveReadToolPath`), `files/upstream/read.ts`(`readHead`, `readFileText`), `upstream/output.ts`(`sanitizeOutput`) | `eng.typescript.guide` §1 포크 코드 절과 TY-22를 적용해 린트 억제 주석을 모두 걷는다. `no-await-in-loop` 반복문 세 곳(읽기 경로 후보 확인, 머리 조각 읽기, 읽는 동안 파일이 바뀌었는지 보는 재시도)은 `@xeon/contracts`의 `eachAsync`·`repeatAsync`로 옮긴다. `no-control-regex`가 걸린 `INVALID_OUTPUT` 정규식은 UTF-16 코드 단위를 검사하는 `isInvalidOutputUnit`으로 바꾼다. 검사 범위는 같다: U+0000..U+0008, U+000B..U+001F, U+FFF9..U+FFFB. 동작은 같다 | `tsc -b`, `bun run lint`, `test/output.test.ts`, `test/read.test.ts` |
 | P11 | `tools/image.ts` 전체 | `eng.typescript.guide` TY-22와 비null 단언 금지에 맞춘다. `isAnimatedPngOf`의 `no-await-in-loop` 반복문을 `@xeon/contracts`의 `repeatAsync`로 옮긴다(조각 검사 순서와 반환값은 같다). `imageDimensions`의 JPEG 조각 표지 읽기 `bytes[offset + 1]!`를 `?? 0`으로 바꾸고, `imageDimensions`의 문자열 `switch`를 `if` 연쇄로 바꾼다(`oxlint default-case`는 `default`를 요구하고 `check-ts-rules` TY-14는 `default`가 `assertNever`를 부르길 요구하는데, 이 `switch`는 열린 문자열이라 `assertNever`를 부를 수 없다. 분기 내용과 순서는 같다). 표지 바이트가 0이면 SOF 범위(0xC0..0xCF) 밖이라 다음 조각으로 넘어가는 동작은 같다. 나머지는 원본 그대로다: `detectSupportedImageMimeType`, `detectSupportedImageMimeTypeOf`, `imageDimensions`, `ByteSource` | `images.test.ts`, `tsc -b` |
 | P12 | `tools/image-processor.ts` 전체 | 처리기 없는 최소형(plan W7 M2)에 필요한 것만 남긴다: `INLINE_IMAGE_TYPES`, `base64Length`. 한도 기본값은 설정 키(`l2.workspace.images.*`)가 갖고 `ImageLimits`는 F `@xeon/contracts/capabilities`의 것을 쓰므로 `DEFAULT_IMAGE_LIMITS`도 뺀다. `ImageProcessor`, `PreparedImage`, `toBase64`는 처리기가 들어오는 2차에 가져온다(쓰는 곳이 없으면 knip이 막는다) | `images.test.ts` |
+| P13 | `tools/edit-diff.ts:5`, `:365-500` | `import * as Diff from "diff"`를 뺀다. `generateUnifiedPatch`, `generateDiffString`을 지운다. 새 의존을 더하지 않는다. diff 생성은 `src/files/diff.ts`(새 원본, 아래 절)가 한다 | `package.json`에 `diff`를 넣지 않는다(의존 추가 금지), `fork-records.test.ts`(패치 표지 집합) |
+| P14 | `tools/edit-diff.ts:192-195`, `:254-290`, `:301-363`, `:347-349` | 실패를 던지지 않고 값으로 돌려준다. `applyEditsToNormalizedContent`를 `applyEdits(content, edits, { fuzzy })`로 바꾸고 `Result<AppliedEdits, EditFailure>`를 준다. `EditFailure.kind`는 `empty_old_text`, `not_found`, `ambiguous`, `overlap`, `no_change`다. 오류 문구는 원본을 따르되 ` in ${path}` 조각은 뺐다(함수가 경로를 받지 않는다). `overlap`의 `editIndex`는 앞 편집 번호, `no_change`는 0이다. `AppliedEdits`에 `matchMode`를 더했다(`AppliedEditsResult` 대체) | `edit-diff.test.ts`(E12~E16과 E1·E2 왕복) |
+| P15 | `tools/edit-diff.ts:92-94`, `:100-102`, `:135-137` | 불변 조건 위반(바깥 구간, 줄 수 불일치, 줄 번호 범위 밖)은 `Result`가 아니라 `Bug`로 던진다(TY-24). 입력이 잘못돼도 생기지 않으므로 예상 가능한 실패가 아니다. `lineAt`을 더해 줄 범위 밖 접근을 `Bug`로 막는다 | `edit-diff.test.ts`(E10이 `applyReplacementsPreservingUnchangedLines`를 지난다. Bug 경로는 올바른 입력으로 닿지 않는다), `just check-ts-rules` |
+| P16 | `tools/edit-diff.ts:203-241`, `:248-252` | 설정 `l2.workspace.edit.fuzzy`(E17)를 옵션 `fuzzy`로 받는다. `fuzzy: false`면 퍼지 공간을 만들지 않고 정확 일치만 본다. 정확 일치 실패는 `not_found`에 `fuzzyDisabled: true`를 붙인다. 중복 검사도 정확 공간에서 센다(같은 공간에서 찾은 자리를 세야 하므로). `fuzzy: true`일 때는 원본처럼 퍼지 공간에서 센다 | `edit fuzzy can be disabled` |
+| P17 | `tools/edit-diff.ts:85-88`, `:107-116`, `:139-158`, `:311-351` | `noUncheckedIndexedAccess`와 비null 단언 금지에 맞춘다. `lines[i]` 검색은 `findIndex`, `replacements[i]` 역순 순회는 `toReversed()`, `groups[len-1]`은 `at(-1)`, `baseLines[i]`는 `lineAt`, `matchedEdits[i-1]` 비교는 다음 편집 undefined 검사로 바꾼다. 순서와 결과는 같다 | `oxlint --type-aware`(이 파일들), `tsc -b` |
+| P18 | `tools/edit-diff.ts:30`, `:128`, `:171`, `:203` | 내보내기를 줄인다. `normalizeForFuzzyMatch`, `applyReplacementsPreservingUnchangedLines`, `FuzzyMatchResult`, `fuzzyFindText`는 이 파일 안에서만 쓰므로 내보내지 않는다(knip이 미사용 내보내기를 막는다). 내보내는 것은 `detectLineEnding`, `normalizeToLF`, `restoreLineEndings`, `stripBom`, `Edit`, `applyEdits`, `AppliedEdits`, `EditFailure`다 | `just knip` |
 
 ## W2와의 차이
 
@@ -33,6 +39,17 @@ Harness 확장 객체(`defineTool`)에 기대는 쪽이 원본 병합이 쉬워�
 - `harness/output.ts`: `OutputBuffer`, `boundOutput`, `sanitizeOutput`, `characterEnd`와 그 의존만 둔다. `Progress`(진행 커밋 지연기, `Date.now()`와 타이머를 쓴다)는 뺐다. `PROGRESS_BYTES_PER_SECOND` 상수는 window 옵션에 필요해 남겼다.
 - `env/decode.ts`: `rangeDecoder`, `startsWithBom`만 `src/files/upstream/decode.ts`에 둔다. `StreamDecoder`는 쓰지 않는다. `platform-exec`가 같은 파일을 포크로 갖고 있으나 구현 패키지를 import하지 않는 규칙(DR-02)에 따라 따로 복사했다.
 - `truncate.ts`: 이 패키지에 두지 않는다. 구현은 `platform-exec`의 포크(`src/upstream/truncate.ts`)이고 `ExecService.truncateHeadOf`·`truncateHead`·`formatSize`로 부른다(`review.decisions-2` D-08, B-04). `read.ts`가 앞부분과 전체 합계로 `truncateHeadOf`를 부른다. 이 패키지의 사본(`src/truncate/upstream/`)은 지웠다.
+
+## 새 원본(포크 아님)
+
+`src/files/diff.ts`는 pi 원본이 아니라 이 패키지의 새 코드다(`UPSTREAM.json`에 없다). `buildFileChange`가 `FileChange`(F `@xeon/contracts/capabilities`)를 만든다.
+L2.workspace.spec §4.4의 결정대로 외부 라이브러리를 쓰지 않는다. 알고리즘은 다음과 같다.
+
+- 앞뒤 공통 줄을 먼저 떼고 가운데만 LCS로 비교한다.
+- 가운데 칸 수(삭제 줄 × 추가 줄)가 4,000,000을 넘으면 LCS를 만들지 않고 삭제 한 덩어리와 추가 한 덩어리로 낸다.
+- 문맥은 3줄이다. 사이에 낀 같은 줄이 6줄 이하인 변경은 한 덩어리(hunk)로 합친다.
+- 한 줄짜리 구간은 `,1`을 생략하고(통합 diff 관례), 줄바꿈이 없는 끝 줄은 `\ No newline at end of file`를 붙인다.
+- `firstChangedLine`은 새 파일 기준이다. 삭제만 있으면 삭제 자리 바로 뒤 줄 번호다(파일 끝이면 줄 수 + 1).
 
 ## 서식
 
