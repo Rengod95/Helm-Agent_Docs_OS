@@ -410,7 +410,7 @@ E2·E3의 재현은 `just exit-tests`(`xeon/scripts/exit-tests.txt`)가 맡습�
 
 - 절차 진행(2026-10-27):
   - 3번 Mac 확인: M-10, M-11, M-12, M-13이 통과했습니다. M-09도 2026-10-28에 통과했고 M-05는 M3로 옮깁니다(`review.macos-checklist` §3, §5).
-  - 4번 GitHub macOS 수동 job(`xeon-macos.yml`): 아직 돌리지 않았습니다.
+  - 4번 GitHub macOS 수동 job(`xeon-macos.yml`): 2026-10-28 실행 40634847311에서 모든 단계가 통과했습니다(`review.macos-checklist` §4.2). 첫 실행에서 드러난 CI 도구 누락과 bash 3.2 문제는 `0dc2c67`, E5 시험 경합은 `91b8df8`에서 고쳤습니다.
   - 5번 D-e: 테이프 녹화는 `bef8c87`. `just bench`는 서버(WSL2)에서 `cold_start_cli` 중앙값 189.8 ms, `cold_start_sidecar` 중앙값 46.9 ms, `just bench --first-token --yes`는 `first_token` 1289.5 ms(1회, 실제 provider)입니다(`eng.performance.guide` §2). 예산은 정하지 않았고 예산표는 틀로 남깁니다. 예산은 M3에서 정합니다(`review.m3-plan` M3-29). §8 D11의 래퍼 측정과 FTS 측정은 실행 기록이 없습니다.
   - 6번: `TURBO_FORCE=true just verify`, PR #2 갱신은 아직입니다.
   - `exit-tests` 실행 기준(`1cfc743`) 뒤에 Mac 실기 수정 커밋(`48e99d9`~`c8afa8b`)이 비밀, host, 데스크톱을 고쳤습니다. 2026-10-27 `c8afa8b`에서 `just exit-tests`를 다시 돌렸고 10/10줄, 건너뜀 0입니다(줄별 통과 수는 `1cfc743` 실행과 같음, 로그 `~/.cache/xeon/scratch-backup/exit-tests-c8afa8b.log`).
