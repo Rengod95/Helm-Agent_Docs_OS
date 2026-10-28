@@ -45,6 +45,15 @@
     "approvedBy": "review.decisions-2"
   },
   {
+    "id": "DR-02/group-kit-testing-helm",
+    "rule": "DR-02",
+    "from": "packages/group-helm",
+    "to": "@xeon/group-kit",
+    "entries": ["./testing"],
+    "reason": "Helm tests use the group-kit test helpers replayDrive (effect counting) and scanDriveSource (L3.helm.plan H-14, H-18, H-19).",
+    "approvedBy": "L3.helm.plan"
+  },
+  {
     "id": "DR-02/group-kit-learning",
     "rule": "DR-02",
     "from": "packages/group-learning",
