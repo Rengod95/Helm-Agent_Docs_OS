@@ -220,7 +220,7 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 | (1차 미사용) | `filesystem.allowRead` | 확인 | `denyRead` 안에서 다시 허용. basename 예외는 목록 전개로 처리하므로 쓰지 않는다 |
 | (고정 거짓) | `filesystem.allowGitConfig` | 확인 | `.git/config` 쓰기 계속 거부 |
 | `policy.network.allowedDomains` | `network.allowedDomains` | 확인 | 빈 목록이면 허용 목록은 비어 있다. 목록 밖 호스트는 아래 `strictAllowlist` 행이 정한다 |
-| `policy.network.deniedDomains` ← 설정 `l0.sandbox.network.blockedDomains` | `network.deniedDomains` | 확인 | 허용 목록보다 먼저 검사. 서비스가 `initialize`에 한 번 넘긴다. srt 스키마가 받지 않는 항목은 빼고 개수만 로그에 남긴다 [결정: M3-REQ-55] |
+| `policy.network.deniedDomains` ← 설정 `l0.sandbox.network.blockedDomains` | `network.deniedDomains` | 확인 | 허용 목록보다 먼저 검사. 서비스가 `initialize`에 한 번 넘긴다. srt 스키마가 받지 않는 항목은 빼고 `SandboxStatus.rejectedBlockedDomains`에 목록으로 싣는다(status와 doctor가 보여 준다). 개수는 `sandbox.blocked_domain_rejected` 로그에도 남긴다. 목록은 갱신할 때마다 새로 정하고, 탐지가 끝나지 않은 갱신에서는 빈 목록이다 [결정: M3-REQ-55] |
 | (서비스 고정) | `network.strictAllowlist` = 거짓과 `initialize`의 질의 콜백(항상 허용) | 확인 | 거부 목록은 콜백보다 먼저 검사되므로 목록 밖 호스트는 모두 허용이고 거부 목록만 막는다(차단 목록 방식, 기본 허용). 목록 방식 엄격 모드(콜백 없음, `strictAllowlist` 참)는 `SrtPort.initialize`의 `allowUnlistedHosts` 거짓으로 남아 있다 |
 | `policy.allowEscape` | 없음 | — | Xeon만 쓴다. 참이면 srt로 감싸지 않는다(4.2절) |
 | `l0.sandbox.enabled = false` | srt `initialize` 안 함 | — | status `none`, reason `disabled` |

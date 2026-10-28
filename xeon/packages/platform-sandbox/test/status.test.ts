@@ -249,6 +249,39 @@ describe("status", () => {
     );
   });
 
+  test("rejected blocked domains show in the status when srt rejected some, in ready and unavailable states", () => {
+    const provider = selectSandboxProvider(linuxPlatform());
+    const base = {
+      provider,
+      enabled: true,
+      onUnavailable: "ask",
+      lastSelfTest: undefined,
+    } as const;
+    const ready = buildStatus({
+      ...base,
+      detection: { kind: "ready", tools: {} },
+      rejectedBlockedDomains: ["*.com"],
+    });
+    expect(ready.rejectedBlockedDomains).toEqual(["*.com"]);
+    const unavailable = buildStatus({
+      ...base,
+      detection: {
+        kind: "unavailable",
+        reason: "missing_dependency",
+        missing: ["bwrap"],
+        installHints: [],
+      },
+      rejectedBlockedDomains: ["*.com"],
+    });
+    expect(unavailable.rejectedBlockedDomains).toEqual(["*.com"]);
+    const none = buildStatus({
+      ...base,
+      detection: { kind: "ready", tools: {} },
+      rejectedBlockedDomains: [],
+    });
+    expect(none).not.toHaveProperty("rejectedBlockedDomains");
+  });
+
   test("status after a failed self-test is unavailable with the failed items", async () => {
     const dirs = makeTestDirs();
     const os = fakeOs(dirs);
@@ -337,10 +370,14 @@ describe("network blocklist and nested namespaces", () => {
     });
   });
 
-  test("an entry srt rejects is dropped and the others stay blocked", async () => {
+  test("an entry srt rejects is dropped from srt, listed in the status, and the others stay blocked", async () => {
     const srt = fakeSrt({ invalidDomains: ["*.com"] });
-    const { srt: used } = await makeWithSettings({ blockedDomains: ["*.com", "ok.example"] }, srt);
+    const { service, srt: used } = await makeWithSettings(
+      { blockedDomains: ["*.com", "ok.example"] },
+      srt,
+    );
     expect(used.initializeCalls[0]?.config.network.deniedDomains).toEqual(["ok.example"]);
+    expect(service.status().rejectedBlockedDomains).toEqual(["*.com"]);
   });
 
   test("nestedNamespaces is off by default and on only when the setting asks", async () => {

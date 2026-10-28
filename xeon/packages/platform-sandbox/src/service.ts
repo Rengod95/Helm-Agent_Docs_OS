@@ -138,6 +138,8 @@ export async function createSandboxService(
   let initialized = false;
   let tools: SrtTools = {};
   let lastSelfTest: SandboxStatus["lastSelfTest"];
+  /** 마지막 갱신에서 srt가 거부해 차단 목록에서 뺀 도메인. 갱신할 때마다 새로 정한다 */
+  let rejectedBlockedDomains: readonly string[] = [];
   let refreshing: Promise<SandboxStatus> | undefined;
   /** 정책에서 본 작업 공간 root. protectedPaths()가 root별 git 항목을 더하는 데 쓴다 */
   const knownRoots = new Set<string>();
@@ -150,6 +152,7 @@ export async function createSandboxService(
       detection,
       onUnavailable: settings.onUnavailable,
       lastSelfTest: withSelfTest ? lastSelfTest : undefined,
+      rejectedBlockedDomains,
     });
   };
 
@@ -166,19 +169,30 @@ export async function createSandboxService(
     });
   };
 
-  /** srt 스키마가 받지 않는 차단 항목은 빼고 개수만 로그에 남긴다. 나머지 차단은 유지한다 */
+  /**
+   * srt 스키마가 받지 않는 차단 항목은 빼고 `rejectedBlockedDomains`에 남긴다(status와 doctor가 보여 준다).
+   * 개수는 로그에도 남긴다. 나머지 차단은 유지한다.
+   */
   const validBlockedDomains = (domains: readonly string[]): string[] => {
-    const accepted = domains.filter(
-      (domain) =>
-        srt.validateConfig(toSrtGlobalConfig({}, blocklistNetwork([domain]), {})).length === 0,
-    );
-    if (accepted.length !== domains.length) {
-      logger.warn("sandbox.blocked_domain_rejected", { count: domains.length - accepted.length });
+    const accepted: string[] = [];
+    const rejected: string[] = [];
+    for (const domain of domains) {
+      if (srt.validateConfig(toSrtGlobalConfig({}, blocklistNetwork([domain]), {})).length === 0) {
+        accepted.push(domain);
+      } else {
+        rejected.push(domain);
+      }
+    }
+    rejectedBlockedDomains = rejected;
+    if (rejected.length > 0) {
+      logger.warn("sandbox.blocked_domain_rejected", { count: rejected.length });
     }
     return accepted;
   };
 
   const doRefresh = async (refreshSignal: AbortSignal): Promise<SandboxStatus> => {
+    // 차단 목록 검사는 탐지가 끝난 뒤에만 돈다. 이번 갱신에서 돌지 않았으면 이전 결과를 남기지 않는다
+    rejectedBlockedDomains = [];
     if (initialized) {
       initialized = false;
       try {
