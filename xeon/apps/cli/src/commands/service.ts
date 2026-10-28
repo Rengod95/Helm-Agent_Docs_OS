@@ -33,6 +33,7 @@ function hostCommandOf(command: ServiceCommand): HostCommand {
         kind: "service-start",
         ...(command.safeMode ? { safeMode: true } : {}),
         ...(command.listenTcp === null ? {} : { tcp: command.listenTcp }),
+        ...(command.allowNonLoopback ? { allowNonLoopback: true } : {}),
       };
     case "ensure":
       return { kind: "service-ensure", ...(command.safeMode ? { safeMode: true } : {}) };
@@ -47,6 +48,7 @@ function hostCommandOf(command: ServiceCommand): HostCommand {
         kind: "service-run",
         safeMode: command.safeMode,
         ...(command.listenTcp === null ? {} : { tcp: command.listenTcp }),
+        ...(command.allowNonLoopback ? { allowNonLoopback: true } : {}),
       };
     default:
       return assertNever(command.action, "ServiceAction");

@@ -122,6 +122,8 @@ export interface ServiceCommand {
   readonly safeMode: boolean;
   /** `--listen-tcp <host>:<port>`. start·run만. 서비스가 TCP로도 연다(토큰은 등록 파일에 있다) */
   readonly listenTcp: { readonly host: string; readonly port: number } | null;
+  /** `--allow-non-loopback`. 루프백이 아닌 `--listen-tcp` 주소를 허용한다 */
+  readonly allowNonLoopback: boolean;
 }
 /** @xeon/host의 HostCommand(runHostCommand 입력)와 다른 타입이다. 이름을 나눠 둔다. */
 interface CliHostCommand {
@@ -1103,6 +1105,12 @@ const SERVICE_ACTIONS: readonly ServiceCommand["action"][] = [
   "run",
 ];
 
+function isLoopbackHost(host: string): boolean {
+  return (
+    host === "localhost" || host === "::1" || host === "[::1]" || /^127\.\d+\.\d+\.\d+$/.test(host)
+  );
+}
+
 function listenAddressOf(text: string): { readonly host: string; readonly port: number } | null {
   const colon = text.lastIndexOf(":");
   if (colon <= 0) return null;
@@ -1136,6 +1144,7 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
     "--json": { value: "none" },
     "--safe-mode": { value: "none" },
     "--listen-tcp": { value: "required" },
+    "--allow-non-loopback": { value: "none" },
   });
   if (!scanned.ok) return scanned;
   if (scanned.value.positionals.length > 0) {
@@ -1180,9 +1189,35 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
         ),
       );
     }
+    if (!has(flags, "--allow-non-loopback") && !isLoopbackHost(parsed.host)) {
+      return err(
+        usage(
+          "unexpectedArgument",
+          `--listen-tcp 주소가 루프백이 아니다 (${parsed.host})`,
+          "루프백 주소(127.0.0.1, ::1)를 쓰거나 --allow-non-loopback을 함께 쓴다",
+        ),
+      );
+    }
     listenTcp = parsed;
   }
-  return ok({ kind: "service", action, output: outputOf(flags), safeMode, listenTcp });
+  const allowNonLoopback = has(flags, "--allow-non-loopback");
+  if (allowNonLoopback && listenTcp === null) {
+    return err(
+      usage(
+        "unexpectedArgument",
+        "--allow-non-loopback은 --listen-tcp와 함께만 쓴다",
+        "--listen-tcp <호스트>:<포트>를 함께 쓴다",
+      ),
+    );
+  }
+  return ok({
+    kind: "service",
+    action,
+    output: outputOf(flags),
+    safeMode,
+    listenTcp,
+    allowNonLoopback,
+  });
 }
 
 function parseHost(acc: GlobalAcc, rest: readonly string[]): Result<CliHostCommand, UsageError> {
