@@ -359,6 +359,13 @@ describe("cancellation and settling order", () => {
     });
   });
 
+  test("cancel by owner scope returns cancelled false until background delegation exists (M3-REQ-11 compile fix)", async () => {
+    const h = openHarness({ run: () => Promise.resolve({ status: "completed" }) });
+    expect(await h.service.cancel({ ownerScopeId: "learning" }, "group off")).toEqual({
+      cancelled: false,
+    });
+  });
+
   test("a drive-style origin signal outside the task tree also aborts the child", async () => {
     const started = deferred<void>();
     const h = openHarness({

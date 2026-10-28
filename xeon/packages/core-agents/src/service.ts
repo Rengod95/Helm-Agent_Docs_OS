@@ -793,6 +793,10 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
 
     async cancel(target: CancelTarget, reason: string): Promise<{ readonly cancelled: boolean }> {
       let childThreadId: ThreadId | undefined;
+      if ("ownerScopeId" in target) {
+        // 소유 scope 단위 취소(M3-REQ-11)는 백그라운드 위임(M3-REQ-65)과 함께 구현한다. 위임이 아직 없어 취소할 자식이 없다
+        return { cancelled: false };
+      }
       if ("childThreadId" in target) {
         childThreadId = target.childThreadId;
       } else {
