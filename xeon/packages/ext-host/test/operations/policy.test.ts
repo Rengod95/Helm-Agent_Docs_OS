@@ -15,7 +15,7 @@ test("settings: x.operations keys pass catalog", () => {
   const defs = Object.values(operationsSettings.defs);
   const catalog = buildCatalog([{ owner: "ext-host", namespace: "x.operations", defs }]);
   expect(catalog.ok).toBe(true);
-  expect(defs).toHaveLength(11);
+  expect(defs).toHaveLength(13);
   for (const def of defs) {
     expect(def.layer).toBe("X");
     // 저장소에 든 설정이 예산·자동 끄기를 바꾸지 못한다

@@ -14,7 +14,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 
 ## 1. 목적과 범위
 
-확장이 발견되고 검증되어 로드되는 흐름, 프로젝트 신뢰, 선택적 프로세스 격리, pi 확장 어댑터의 범위를 정한다.
+확장이 발견되고 검증되어 로드되는 흐름, 프로젝트 신뢰, 선택적 프로세스 격리, SDK 가상 모듈, 기본 플러그인 설치를 정한다. pi 확장 어댑터는 두지 않는다(adr.0017 §3.7).
 
 근거:
 
@@ -32,7 +32,7 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 - 확장 설정 연결과 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, X 층 키 `x.loading-trust.*`
 - 신뢰 등급 4값의 뜻과 허용 연산 표, 프로젝트 신뢰 판정과 저장
 - 프로세스 격리(2차)의 전송, 프록시, 직렬화, 수명, 기록 경로
-- pi 확장 어댑터의 범위와 지원 표, 가상 모듈 처리. 어댑터는 만들지 않기로 했다 [결정: review.m3-design-inputs D-M3-11 c](§4.10)
+- SDK 가상 모듈(`@xeon/contracts`, `@xeon/group-kit`, `typebox`)과 기본 플러그인 설치(§4.4.6, §4.4.7), 안전 모드 연결(§4.3.1 5a단계)
 - `session.trust.before`, `session.resources` 지점의 발화 시점(F.extensions.spec §7)
 
 다루지 않는 것:
@@ -57,7 +57,8 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 | 내장 필수 확장 | `essential: true`로 등록된 내장 확장. 이 확장의 실패는 시작 실패다 |
 | 격리 확장 | `ext.<name>.isolation`이 `process`인 확장. 자식 프로세스에서 실행된다 |
 | 프록시 | 격리 확장 대신 호스트 프로세스에서 지점 핸들러와 리소스를 등록하는 대리 객체 |
-| pi 확장 | 매니페스트 없이 `ExtensionFactory`(`(pi) => void`)를 default export하는 pi coding-agent 확장 모듈 |
+| SDK 가상 모듈 | 플러그인 번들이 import하는 `@xeon/contracts`, `@xeon/group-kit`, `typebox`를 호스트가 쓰는 모듈 객체로 돌려주는 등록(§4.4.6) |
+| 기본 플러그인 | 릴리즈에 들어 있고 첫 실행 때 사용자 확장 위치에 복사되는 외부 확장 형식의 플러그인(Helm, §4.4.7) |
 
 ## 3. 인터페이스
 
@@ -122,17 +123,12 @@ export interface BuiltinExtensionModule {
   readonly essential?: boolean;
 }
 
-export type CandidateOrigin = "manifest" | "pi";
-
 export interface ExtensionCandidate {
   readonly source: InstallSource;
-  readonly origin: CandidateOrigin;
-  /** 확장 루트 절대 경로. 내장은 null */
+  /** 확장 루트 절대 경로(심볼릭 링크를 푼 경로). 내장은 null */
   readonly root: string | null;
-  /** `.xeon-plugin/plugin.json` 절대 경로. 내장과 pi 확장은 null */
+  /** `.xeon-plugin/plugin.json` 절대 경로. 내장은 null */
   readonly manifestPath: string | null;
-  /** pi 확장의 엔트리 파일 절대 경로. 그 밖에는 null */
-  readonly piEntryPath: string | null;
   /** 내장만 */
   readonly builtin: BuiltinExtensionModule | null;
 }
@@ -142,17 +138,26 @@ export interface ExtensionCandidate {
 import type { LoaderFs, LoaderPaths } from "@xeon/contracts/extensions";
 export type { LoaderFs, LoaderPaths } from "@xeon/contracts/extensions";
 
-export interface DiscoverInput {
-  readonly builtins: readonly BuiltinExtensionModule[];
-  readonly paths: LoaderPaths;
-  /** 프로젝트 루트. 신뢰가 허용된 뒤에만 넘긴다(§4.7.4) */
-  readonly projectRoot: string | null;
-  /** x.loading-trust.paths 유효 값 */
-  readonly extraPaths: readonly string[];
-  readonly piCompat: boolean;
+export interface ExternalLocation {
+  readonly source: "managed" | "user" | "project";
+  /** `extensions/`와 같은 모양의 디렉터리. 그 아래 한 단계의 디렉터리마다 후보 하나다 */
+  readonly dir: string;
 }
 
-export function discover(fs: LoaderFs, input: DiscoverInput): Promise<{
+/**
+ * 설치 위치별 탐색 디렉터리(§4.2.1 표). `projectRoot`는 신뢰가 허용된 뒤에만 넘긴다(§4.7.4).
+ * `sources`를 생략하면 managed, user, project 모두다
+ */
+export function externalLocations(input: {
+  readonly paths: LoaderPaths;
+  /** x.loading-trust.paths 유효 값. user 위치로 본다 */
+  readonly extraPaths: readonly string[];
+  readonly projectRoot: string | null;
+  readonly sources?: readonly ExternalLocation["source"][];
+}): readonly ExternalLocation[];
+
+/** 외부 확장 탐색. 매니페스트 내용은 읽지 않고 존재만 확인한다. 위치 순서, 이름의 코드 포인트 순이다 */
+export function discoverExternal(fs: LoaderFs, locations: readonly ExternalLocation[]): Promise<{
   readonly candidates: readonly ExtensionCandidate[];
   readonly diagnostics: readonly LoadDiagnostic[];
 }>;
@@ -186,7 +191,7 @@ export type LoadState =
 
 export type LoadStage =
   | "discover" | "manifest" | "set" | "trust" | "settings" | "capabilities" | "admit"
-  | "entry" | "usage" | "activate" | "isolation" | "pi";
+  | "entry" | "usage" | "activate" | "isolation";
 
 export type LoadDiagnosticCode =
   | "manifest_missing" | "manifest_parse" | "manifest_invalid"
@@ -199,8 +204,7 @@ export type LoadDiagnosticCode =
   | "usage_invalid" | "usage_warning"
   | "essential_failed" | "disabled_by_setting" | "safe_mode" | "disabled_flag"
   | "isolation_unavailable" | "isolation_point_unsupported" | "isolation_drive_unsupported"
-  | "isolation_exited" | "isolation_restart_limit" | "isolation_protocol"
-  | "pi_unsupported_module" | "pi_unsupported_api" | "pi_input_mutation" | "pi_name_invalid";
+  | "isolation_exited" | "isolation_restart_limit" | "isolation_protocol";
 
 export const LoadDiagnosticSchema = Type.Object({
   extension: Type.Union([Type.String(), Type.Null()]),
@@ -237,7 +241,6 @@ export interface LoadedExtensionInfo {
   readonly name: ExtensionName;
   readonly version: SemVer;
   readonly source: InstallSource;
-  readonly origin: CandidateOrigin;
   readonly trust: TrustLevel;
   readonly state: LoadState;
   readonly isolation: "none" | "process";
@@ -260,15 +263,18 @@ export interface LoadOptions {
   readonly mode: LoaderMode;
   /** CLI 일회 지정. 있으면 신뢰 판정의 첫 단계로 쓴다(§4.7.3) */
   readonly trustOverride?: boolean;
-  /** 안전 모드와 --disable-ext(X.operations.spec §3.6 StartupOptions). 없으면 둘 다 꺼짐. 2차 */
+  /** 안전 모드와 --disable-ext(X.operations.spec §3.6 StartupOptions). 없으면 둘 다 꺼짐 */
   readonly startup?: StartupOptions;
+  /** x.loading-trust.paths 유효 값. 각 경로는 `extensions/`와 같은 모양의 디렉터리이고 user 위치로 본다(§4.2.1) [제안] */
+  readonly extraPaths?: readonly string[];
   readonly signal: AbortSignal;
 }
 
 export interface LoadReport {
   readonly extensions: readonly LoadedExtensionInfo[];
   readonly diagnostics: readonly LoadDiagnostic[];
-  readonly projectTrust: ProjectTrustResult;
+  /** 프로젝트 신뢰 판정. 안전 모드라 판정하지 않았으면 null */
+  readonly projectTrust: ProjectTrustResult | null;
   /** 거부된 확장을 뺀 설정 그룹. 조립 루트가 buildCatalog에 넣는다(§4.5.4) */
   readonly settingGroups: readonly {
     readonly owner: string;
@@ -317,8 +323,8 @@ export interface ExtensionLoader {
 export interface LoaderDeps {
   /** 설치 대상. 엔트리 호출과 scope 실행은 ExtHost.install이 한다(§4.1) */
   readonly host: ExtHost;
-  /** 운영 정책(X.operations.spec §3.8). 6a단계 admit, 설치 실패·제거 때 forget, 5a단계 startupFilter */
-  readonly policy: Pick<OperationsPolicy, "admit" | "forget" | "startupFilter">;
+  /** 운영 정책(X.operations.spec §3.8). 6a단계 admit, 설치 실패·제거 때 forget. 5a단계는 순수 함수 `startupFilter`를 직접 부른다 [제안] */
+  readonly policy: Pick<OperationsPolicy, "admit" | "forget">;
   readonly fs: LoaderFs;
   readonly paths: LoaderPaths;
   readonly trustBackend: TrustStoreBackend;
@@ -329,6 +335,13 @@ export interface LoaderDeps {
   /** 제거 흐름의 테이블 삭제(X.operations.spec §3.4). 없으면 remove는 테이블을 남긴다. M2 */
   readonly storageAdmin?: ExtStorageAdmin;
   readonly clock: { now(): number };
+  /**
+   * 플러그인 번들에 줄 SDK 가상 모듈. 지정자 → 호스트가 쓰는 모듈 객체(§4.4.6). `@xeon/group-kit`은 L3라 X가 import할 수 없어
+   * 조립 루트가 넘긴다. 없으면 외부 확장의 SDK import가 실패한다(`entry_import_failed`)
+   */
+  readonly sdkModules?: SdkModules;
+  /** `session.trust.before` 발화(§4.7.3 4번). 없으면 결정 없음으로 본다 */
+  readonly emitProjectTrust?: (cwd: string, signal: AbortSignal) => Promise<{ readonly trusted: "yes" | "no"; readonly remember?: boolean } | undefined>;
 }
 
 export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader;
@@ -357,7 +370,6 @@ export const RESERVED_EXT_KEYS: readonly ["enabled", "isolation"] = ["enabled", 
 export declare const loadingTrustSettings: SettingGroup<"x.loading-trust", {
   readonly defaultProjectTrust: SettingDefInput;
   readonly paths: SettingDefInput;
-  readonly piCompat: SettingDefInput;
   readonly "isolation.maxRestarts": SettingDefInput;
   readonly "isolation.restartWindowSec": SettingDefInput;
 }>;
@@ -558,83 +570,49 @@ export interface IsolationPolicy {
 }
 ```
 
-### 3.9 pi 어댑터 (`pi-adapter/factory.ts`, `pi-adapter/api-map.ts`, `pi-adapter/compat-report.ts`) — M2 이후
+### 3.9 SDK 가상 모듈과 기본 플러그인 (`virtual-modules.ts`, `default-plugin.ts`)
 
 ```ts
-/** pi ExtensionFactory. 타입은 pi 패키지에 의존하지 않고 로컬로 둔다 */
-export type PiExtensionFactory = (pi: PiExtensionApiShim) => void | Promise<void>;
+// virtual-modules.ts
+/** 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 하는 지정자 */
+export const SDK_MODULE_SPECIFIERS: readonly ["@xeon/contracts", "@xeon/group-kit", "typebox"];
+/** 지정자 → 호스트의 모듈 객체(보통 `import * as ns`의 결과) */
+export type SdkModules = Readonly<Record<string, Readonly<Record<string, unknown>>>>;
+export type SdkRegisterError =
+  | { readonly kind: "unavailable" }                          // Bun 런타임이 아니다
+  | { readonly kind: "conflict"; readonly specifier: string }; // 같은 지정자에 다른 객체가 이미 등록됐다
+/** 같은 객체의 재등록은 아무 일도 하지 않는다. 충돌이면 아무것도 등록하지 않는다. 프로세스 전역이다 */
+export function registerSdkModules(modules: SdkModules): Result<void, SdkRegisterError>;
 
-/** pi ExtensionAPI 중 어댑터가 제공하는 부분. 형태는 pi types.ts:1564-1890을 따른다 */
-export interface PiExtensionApiShim {
-  on(event: string, handler: (event: unknown, ctx: unknown) => unknown): void;
-  registerTool(tool: unknown): void;
-  registerCommand(name: string, options: unknown): void;
-  sendMessage(message: unknown, options?: unknown): void;
-  sendUserMessage(content: unknown, options?: unknown): void;
-  appendEntry(customType: string, data?: unknown): void;
-  // §4.10.4 지원 표의 나머지 멤버. 비지원 멤버는 PiCompatUnsupportedError를 던진다
-  readonly [member: string]: unknown;
+// default-plugin.ts
+/** 복사에 쓰는 파일 접근. LoaderFs는 읽기 전용이라 조립 루트가 L0.os로 구현해 넘긴다 */
+export interface PluginInstallFs {
+  readText(path: string): Promise<string | null>;
+  listDir(path: string): Promise<readonly { readonly name: string; readonly kind: "file" | "dir" | "symlink" }[] | null>;
+  readBytes(path: string): Promise<Uint8Array>;
+  writeBytes(path: string, bytes: Uint8Array): Promise<void>;
+  makeDir(path: string): Promise<void>;
+  removeDir(path: string): Promise<void>;
+  rename(from: string, to: string): Promise<void>;
 }
-
-export declare class PiCompatUnsupportedError extends Error {
-  readonly api: string;
+export interface DefaultPluginInstallInput {
+  readonly fs: PluginInstallFs;
+  /** 릴리즈에 든 기본 플러그인 디렉터리 */
+  readonly source: string;
+  /** `<userDir>/extensions/<name>/` */
+  readonly destination: string;
 }
-
-/** 공장 함수 실행 동안 기록한 사용 */
-export interface PiRecordedUsage {
-  readonly on: readonly PointName[];
-  readonly post: boolean;
-  readonly tools: readonly string[];
-  readonly commands: readonly string[];
-  readonly providers: readonly string[];
-  readonly appendEntry: boolean;
-}
-
-/** 합성 매니페스트. 순수 함수 */
-export function synthesizeManifest(input: {
-  readonly name: ExtensionName;
-  readonly version: SemVer;
-  readonly entry: string;
-  readonly source: "user" | "project";
-  readonly usage: PiRecordedUsage;
-}): ExtensionManifest;
-
-/** pi 파일·디렉터리 이름에서 확장 이름을 만든다. "pi-" 접두, 소문자, 64자 이하 */
-export function piExtensionName(entryPath: string): ExtensionName | null;
-
-/** post 멱등 키. 길이 64자 이하 */
-export function piPostKey(input: {
-  readonly extension: ExtensionName;
-  readonly turnId: string | null;
-  readonly content: unknown;
-  /** 같은 turn 안에서 같은 내용의 몇 번째 호출인가(0부터) */
-  readonly ordinal: number;
-}): string;
-
-export type PiSupport = "supported" | "partial" | "unsupported";
-export interface PiCompatRow {
-  readonly api: string;
-  readonly support: PiSupport;
-  /** Xeon 대응 */
-  readonly maps: string;
-  readonly note: string;
-}
-/** §4.10.4 표의 코드형 */
-export const PI_COMPAT_TABLE: readonly PiCompatRow[];
-
-/** 로드한 pi 확장 하나의 호환 보고. 쓰인 비지원·부분 항목 목록 */
-export interface PiCompatReport {
-  readonly extension: ExtensionName;
-  readonly used: readonly { readonly api: string; readonly support: PiSupport }[];
-}
-
-/** 가상 모듈. 제공 패키지가 등록한다(§4.10.6) */
-export interface VirtualModuleRegistry {
-  register(specifier: string, namespace: Readonly<Record<string, unknown>>): void;
-  /** 비지원 모듈. import하면 pi_unsupported_module 진단과 함께 실패한다 */
-  block(specifier: string, reason: string): void;
-}
+export type DefaultPluginInstallOutcome =
+  | { readonly action: "installed"; readonly version: string }
+  | { readonly action: "replaced"; readonly version: string; readonly previousVersion?: string }
+  | { readonly action: "kept"; readonly version: string; readonly installedVersion: string };
+export type DefaultPluginInstallError =
+  | { readonly kind: "source_invalid"; readonly message: string }
+  | { readonly kind: "io"; readonly message: string; readonly cause: unknown };
+export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<Result<DefaultPluginInstallOutcome, DefaultPluginInstallError>>;
 ```
+
+- [미결] `PluginInstallFs`의 정본 위치. 쓰기 포트는 F.extensions.spec §3.2.1 로더 포트에 있어야 한다. F 수정 요청.
 
 ## 4. 동작 규칙
 
@@ -653,16 +631,13 @@ export interface VirtualModuleRegistry {
 |---|---|---|---|
 | `builtin` | 조립 루트가 넘기는 `BuiltinExtensionModule[]` | 모듈의 `manifest` 상수 | `builtin` |
 | `managed` | `<managedDir>/extensions/<dir>/` | `.xeon-plugin/plugin.json` | `user` |
-| `user` | `<userDir>/extensions/<dir>/`, `x.loading-trust.paths`의 각 경로 | `.xeon-plugin/plugin.json` | `user` |
+| `user` | `<userDir>/extensions/<dir>/`, `x.loading-trust.paths`의 각 경로(`extensions/`와 같은 모양의 디렉터리, 그 아래 한 단계가 확장 하나) [제안] | `.xeon-plugin/plugin.json` | `user` |
 | `project` | `<projectRoot>/.xeon/extensions/<dir>/` | `.xeon-plugin/plugin.json` | `project` |
-| pi(`user`) | `<userDir>/pi-extensions/` | 없음(합성, §4.10) | `user` |
-| pi(`project`) | `<projectRoot>/.xeon/pi-extensions/` | 없음(합성) | `project` |
 
 - 외부 확장의 매니페스트는 확장 루트의 `.xeon-plugin/plugin.json`이다(F.extensions.spec §3.1, Claude Code `.claude-plugin/plugin.json` 레이아웃, `_research/refs/claude-code.md` 96-99행).
 - 내장 패키지는 엔트리 모듈이 `manifest` 상수와 `extension` 엔트리를 named export한다. 로더는 같은 `validateManifest`로 검사한다. 내장 매니페스트도 JSON 파싱 결과와 같은 검사를 받는다.
-- 탐색 깊이는 한 단계다. `extensions/` 아래 디렉터리마다 `.xeon-plugin/plugin.json`이 있으면 후보 하나다. 더 깊이 내려가지 않는다(pi `discoverExtensionsInDir`와 같은 규칙, `loader.ts:791-826`).
+- 탐색 깊이는 한 단계다. `extensions/` 아래 디렉터리마다 `.xeon-plugin/plugin.json`이 있으면 후보 하나다. 더 깊이 내려가지 않는다.
 - 매니페스트 파일이 없는 디렉터리는 `manifest_missing` 경고만 남기고 건너뛴다. Claude Code의 "매니페스트 없이 표준 레이아웃 자동 탐색"(`_research/refs/claude-code.md` 96행)은 채택하지 않는다 [제안]. 엔트리와 지점 선언이 없으면 정적 검사를 할 수 없기 때문이다.
-- pi 디렉터리는 pi 규칙(`*.ts`·`*.js` 파일, `<dir>/index.ts`, `<dir>/package.json`의 `pi.extensions`)으로 찾는다(`loader.ts:736-826`). `x.loading-trust.piCompat`이 거짓이면 찾지 않는다.
 - 심볼릭 링크는 `realpath`로 풀고, 같은 실제 경로는 한 번만 후보로 둔다.
 
 #### 4.2.2 우선순위와 이름 충돌
@@ -697,16 +672,18 @@ export interface VirtualModuleRegistry {
 | 9 | 활성화 | 시작 적용 결과 확정, provider 연쇄 확인 | `error` | `capability_provider_failed` |
 
 - 2단계의 `unknown_key` 경고는 진단에 남기고 계속한다(F.extensions.spec §4.7).
+- 5a단계의 안전 모드 판정은 `assignTier`로 tier를 구한 뒤 `startupFilter`(X.operations.spec §3.6)를 부른다. 안전 모드에서는 `user`·`project` tier(기본 플러그인 Helm 포함)와 L3 내장 그룹이 `disabled`(`safe_mode`)이고, `--disable-ext`로 지정한 이름은 `disabled`(`disabled_flag`)다. 빠진 외부 확장은 매니페스트만 읽고 엔트리는 import하지 않는다. 안전 모드에서는 프로젝트 위치를 탐색하지도, 프로젝트 신뢰를 묻지도 않는다(`LoadReport.projectTrust`는 null이고 진단 `safe_mode` 하나가 남는다).
+- 같은 이름이 여러 위치에 있을 때 위치가 다르면 낮은 순위의 것만 `rejected`이고, 같은 위치 안이면 둘 다 `rejected`다(§4.2.2).
 - 3단계는 두 번 실행한다. 첫 번째는 프로젝트 신뢰 전 집합(내장, 관리, 사용자), 두 번째는 프로젝트 후보를 더한 집합이다. 두 번째에서 새로 생긴 오류는 프로젝트 확장만 `rejected`로 만든다.
 - `drive_conflict`, `capability_unprovided` 경고는 진단만 남긴다. 실행 중 임대는 X.primitives가 하나만 준다.
-- 7단계에서 scope setup이 던지거나 시간 예산을 넘으면 primitives가 그 scope의 fiber를 해제해 setup 동안의 등록(on, drive, 리소스, onDispose)을 모두 되돌린다(X.primitives.spec §4.5.3). pi의 `discard()`와 같다(`loader.ts:542-549`, `621-631`). 시간 예산 값은 X.operations.spec의 `x.operations.budget.setupMs`이고, `ExtHostDeps.setupBudgetMs`로 primitives에 들어간다.
+- 7단계에서 scope setup이 던지거나 시간 예산을 넘으면 primitives가 그 scope의 fiber를 해제해 setup 동안의 등록(on, drive, 리소스, onDispose)을 모두 되돌린다(X.primitives.spec §4.5.3).  시간 예산 값은 X.operations.spec의 `x.operations.budget.setupMs`이고, `ExtHostDeps.setupBudgetMs`로 primitives에 들어간다.
 - 7·8단계에서 실패한 확장은 로더가 `ExtHost.uninstall`과 `policy.forget`을 불러 남은 정의와 tier 표 항목을 지운다.
 - 8단계의 `point_undeclared`, `post_undeclared`, `drive_undeclared`, `capability_undeclared`, `record_kind_undeclared`, `read_kind_undeclared`는 오류다. 7단계처럼 등록이 되돌려진 상태이고 `error`로 둔다. `point_unused`는 경고다(`usage_warning`).
 - 시작 때는 첫 turn 전이므로 install이 켜기를 바로 적용한다(X.primitives.spec §4.5.6 시작 적용). 실행 중 `ensureLoaded`처럼 thread가 돌고 있으면 켜기는 다음 단계 경계에 적용되고(F.extensions.spec §4.5), 그 setup 실패는 9단계 뒤 `ScopeInfo.lastError`로만 보인다 [제안].
 
 #### 4.3.2 실패 격리
 
-- [제안] 내장 필수가 아닌 확장 하나의 실패는 그 확장만 멈춘다. 다른 확장의 단계 진행과 엔진 시작은 계속한다. 이 규칙은 모든 단계에 적용된다(항목 카탈로그 X절 실패 격리 행, pi `loadExtensionsInternal`의 오류 수집 `loader.ts:676-716`).
+- [제안] 내장 필수가 아닌 확장 하나의 실패는 그 확장만 멈춘다. 다른 확장의 단계 진행과 엔진 시작은 계속한다. 이 규칙은 모든 단계에 적용된다(항목 카탈로그 X절 실패 격리 행, .
 - 예외 1: `essential: true` 내장 확장이 `rejected`, `disabled`, `error` 중 하나가 되면 `loadAll`은 `essential_failed` 진단과 함께 `LoadAbortError`를 던진다. 조립 루트는 연 자원을 닫고 시작을 거부한다(L4.host-service.spec §4.1). [제안] L1 코어 패키지(`core-*`)의 확장 모듈은 필수다. L2 능력과 L3 그룹은 필수가 아니다.
 - 예외 2: 로더 자신이 쓰는 주입 의존이 없으면 시작 실패다(architecture.layers.spec §4.3.3 1번). 대상은 `host`, `policy`, `LoaderFs`, `LoaderPaths`, `TrustStoreBackend`다. `TrustPrompter`가 없으면 headless로 보고, `IsolationProcessPort`가 없으면 격리 설정 확장만 `error`(`isolation_unavailable`)다.
 - 능력 연쇄: 6단계는 매니페스트의 `provides`로 정적으로 판정한다. 9단계 뒤 실제로 활성화되지 못한 provider가 있으면, 그 능력을 `requires`로 선언한 확장도 `error`(`capability_provider_failed`)로 바꾼다. `optional`은 영향이 없다. 프로젝트 신뢰 전 집합의 확장이 프로젝트 확장만 제공하는 능력을 `requires`하면 `capability_missing`이다 [제안].
@@ -726,10 +703,11 @@ export interface VirtualModuleRegistry {
 | 안 | 방식 | 장점 | 단점 |
 |---|---|---|---|
 | A. Bun 직접 `import()` [제안] | 엔트리 절대 경로를 `import()`한다. 가상 모듈은 `Bun.plugin`의 `build.module(specifier, () => ({ exports, loader: "object" }))`로 등록한다 | 의존 0. Bun이 TS를 그대로 변환한다. 런타임과 같은 모듈 그래프라 `instanceof`가 맞는다 | 모듈 캐시를 끄는 옵션이 없다. 핫 리로드에 캐시 무효화 우회가 필요하다(§4.4.4). `Bun.plugin`은 프로세스 전역이다 |
-| B. jiti | pi와 같은 방식(`loader.ts:576-581`, `moduleCache: false`, `virtualModules`) | pi 어댑터 경로가 원본과 같다. 캐시를 끌 수 있다 | 의존 하나와 별도 변환기. Bun 변환과 결과가 다를 수 있다. pi는 Bun 바이너리에서 정적 로더(`jiti-static-loader.ts`)로 따로 우회한다 |
+| B. jiti | 별도 변환기로 엔트리를 평가하고 `moduleCache: false`와 `virtualModules`를 쓴다 | 캐시를 끌 수 있다 | 의존 하나와 별도 변환기. Bun 변환과 결과가 다를 수 있다 |
 | C. `Bun.Transpiler` + 직접 평가 | 소스를 변환해 평가한다 | 캐시를 완전히 통제한다 | import 해석을 직접 만들어야 한다. 오류 위치가 흐려진다 |
 
-- [제안] A를 쓴다. `bun build --compile` 바이너리에서 외부 `.ts` 파일의 동적 `import()`가 동작하는지는 확인하지 않았다 [가정]. 동작하지 않으면 B로 바꾼다. 이 판정은 X.loading-trust.plan의 첫 스파이크 작업이다.
+- [결정] A를 쓴다. 스파이크 결과(Bun 1.4.3, 2026-10-28): `Bun.plugin`의 `build.module(specifier, () => ({ exports, loader: "object" }))`로 등록한 지정자는 그 뒤 `import()`하는 모듈(임의 경로의 `.ts` 엔트리 포함)이 호스트가 넘긴 객체의 값을 그대로 받고, 엔트리 옆 `node_modules`에 같은 이름의 패키지가 있어도 등록한 쪽이 이긴다. 받는 모듈 네임스페이스 객체는 호스트의 것과 다른 객체지만 그 안의 값(함수, 심볼, 배열)은 같다. 이 동작은 `test/loading-trust/external-loader.int.test.ts`가 고정한다.
+- `bun build --compile` 바이너리에서 외부 `.ts` 파일의 동적 `import()`가 동작하는지는 확인하지 않았다 [가정]. 동작하지 않으면 B로 바꾼다. 데스크톱 패키징 작업이 확인한다.
 
 #### 4.4.2 엔트리 모듈 형태
 
@@ -783,6 +761,28 @@ export interface VirtualModuleRegistry {
 5. 확장 상태를 목록에서 지우고 `RemoveResult`를 돌려준다. 설치 파일(확장 디렉터리)의 삭제는 로더 범위 밖이다 [가정: L4.cli.spec·L4.settings-ui.spec이 정한다].
 
 - 내장 확장은 제거할 수 없다. `remove`는 내장 확장 이름에 대해 오류를 던진다. 내장 확장은 `ext.<name>.enabled`로만 끈다.
+
+#### 4.4.6 SDK 가상 모듈
+
+- [제안] 플러그인 번들은 `@xeon/contracts`, `@xeon/group-kit`, `typebox`를 import한다. 번들에 사본을 넣으면 `instanceof`, `Symbol`, 스키마 객체가 호스트와 어긋나므로, 로더가 이 세 지정자를 호스트가 쓰는 모듈 객체로 등록한다(M3-REQ-110, adr.0017 §3.7 4번). 하위 경로 지정자(`typebox/value` 등)는 등록하지 않는다. 필요해지면 조립 루트가 `LoaderDeps.sdkModules`에 더한다.
+- 모듈 객체는 조립 루트가 `LoaderDeps.sdkModules`로 넘긴다. `@xeon/group-kit`은 L3 패키지라 X가 import할 수 없기 때문이다. 등록은 첫 외부 엔트리를 import하기 직전에 한다(`registerSdkModules`).
+- 등록은 `Bun.plugin`이라 프로세스 전역이고 첫 import 뒤에는 바꿀 수 없다. 같은 지정자에 같은 객체를 다시 등록하면 아무 일도 하지 않고, 다른 객체를 등록하려 하면 `conflict`다. 이 오류는 외부 확장의 `entry_import_failed`로 보인다. Bun이 아닌 런타임에서는 `unavailable`이다.
+- 등록한 지정자는 같은 프로세스의 Xeon 패키지가 import해도 같은 객체를 받는다. 호스트가 넘긴 객체가 곧 호스트가 쓰는 모듈이므로 결과가 같다.
+
+#### 4.4.7 기본 플러그인 설치
+
+- [제안] 릴리즈에 든 기본 플러그인(Helm, D-M3-01 c)은 `installDefaultPlugin`이 사용자 확장 위치 `<userDir>/extensions/<name>/`에 복사한다. 조립 루트가 `loadAll` 전에 부른다. 설치 위치가 `user`라 신뢰 상한이 `user`이고 안전 모드에서 실리지 않는다(M3-REQ-29, M3-REQ-110).
+- 규칙은 설치본 매니페스트(`.xeon-plugin/plugin.json`)의 `version`과 번들 매니페스트의 `version` 비교다.
+
+| 설치본 | 동작 |
+|---|---|
+| 디렉터리 없음 | 복사한다(`installed`) |
+| 매니페스트가 없거나 읽을 수 없거나 검증에 실패함 | 손상으로 보고 교체한다(`replaced`) |
+| 번들보다 낮은 버전 | 교체한다(`replaced`, `previousVersion`) |
+| 번들과 같거나 높은 버전 | 건드리지 않는다(`kept`). 사용자가 올린 개발 판을 내리지 않는다 |
+
+- 복사는 `<destination>.installing`에 끝낸 뒤 대상을 지우고 옮긴다. 복사 도중 실패하면 이전 설치본이 그대로 남고 임시 디렉터리는 지운다. 번들 매니페스트가 없거나 잘못되면 `source_invalid`다(릴리즈 결함).
+- [미결] 사용자가 설치본을 직접 지우면 다음 시작에 다시 설치된다. "이미 설치한 적 있음" 표지(설정 키 또는 상태 파일)를 둘지 정해야 한다.
 
 ### 4.5 설정 연결
 
@@ -884,7 +884,6 @@ export interface VirtualModuleRegistry {
 | 경로(프로젝트 루트 기준) | 대상 |
 |---|---|
 | `.xeon/extensions/` | 프로젝트 확장 |
-| `.xeon/pi-extensions/` | 프로젝트 pi 확장 |
 | `.xeon/settings.json`, `.xeon/settings.local.json` [가정: 파일 이름은 L1.persistence.spec] | 프로젝트·로컬 설정 |
 | `.xeon/mcp.json`, `.mcp.json` | 프로젝트 MCP 서버(`.mcp.json`은 프로젝트 루트의 Claude Code 형식 파일, L2.mcp.spec §4.2) |
 | `.xeon/hooks/` [가정: 외부 훅 위치는 X.operations.spec, M4] | 외부 훅 |
@@ -938,7 +937,6 @@ export interface VirtualModuleRegistry {
 | 대상 | 처리 | 소유 문서 |
 |---|---|---|
 | 프로젝트 확장 | 매니페스트 읽기, import, 엔트리 실행을 하지 않는다. 판정 전에는 매니페스트 JSON도 파싱하지 않는다 | 이 문서 |
-| 프로젝트 pi 확장 | import하지 않는다 | 이 문서 |
 | 프로젝트 훅(외부 훅 프로토콜, M4) | 실행하지 않는다 | X.operations.spec |
 | 프로젝트·로컬 설정 파일의 `ext.*` 키와 `x.loading-trust.*` 키 | 유효 값 계산에서 뺀다. 파일에서 지우지 않는다 | 이 문서(규칙), L1.persistence.spec(적용) |
 | 프로젝트 MCP 서버(`.xeon/mcp.json`, `.mcp.json`) | 기동하지 않는다 | L2.mcp.spec |
@@ -1024,124 +1022,9 @@ flowchart LR
 - 대기 중에 들어온 디스패치는 프로세스가 없으므로 즉시 예외로 처리한다.
 - 호스트 종료(`ExtensionLoader.dispose`) 때는 `xeon/iso.dispose`를 보내고 `killGraceMs` 뒤 `SIGKILL`한다. 서비스 모드의 유휴 종료도 같은 경로를 쓴다(adr.0006 §3.4).
 
-### 4.10 pi 확장 어댑터 (만들지 않음)
+### 4.10 pi 확장 호환 (두지 않음)
 
-[결정: review.m3-design-inputs D-M3-11 c] pi 확장 호환은 두지 않는다. 외부 확장은 자체 확장 API(`.xeon-plugin/plugin.json` 매니페스트와 `ExtensionEntry`)로만 싣는다. 그래서 아래 §4.10.1~§4.10.6의 어댑터, `PI_COMPAT_TABLE`, pi 가상 모듈, §4.2.1 표의 pi 디렉터리 두 행, 설정 `x.loading-trust.piCompat`은 만들지 않는다. 절은 검토 기록으로 남긴다. 가상 모듈 등록 수단(`VirtualModuleRegistry`)은 자체 SDK 모듈(`@xeon/contracts`, `@xeon/group-kit`, `typebox`)을 플러그인 번들에 주는 용도로만 쓴다 [제안](`review.m3-lower-requirements` M3-REQ-110). 이 수단으로 기본 플러그인 Helm(`review.m3-design-inputs` D-M3-01 c)이 호스트와 같은 SDK 인스턴스를 쓴다.
-
-#### 4.10.1 범위
-
-- [제안] 매니페스트가 없는 pi `ExtensionFactory`(`(pi) => void`)를 로드하는 경로를 둔다. 대상은 §4.2.1의 pi 디렉터리에서 찾은 파일이다.
-- 지점 이름은 pi 이벤트명과 같으므로(F.extensions.spec §3.4) `pi.on(name, h)`은 같은 이름의 `on`으로 옮긴다. 의미 차이는 지원 표에 적는다.
-- 지원 범위의 기준은 예제 근거와 공식 타입 계약의 합집합이다(`_research/notes/X-3.md` §4).
-
-#### 4.10.2 로드 흐름
-
-1. 엔트리 import(가상 모듈 등록 상태, §4.10.6). 실패하면 `error`(`entry_import_failed` 또는 `pi_unsupported_module`).
-2. 기록용 `PiExtensionApiShim`으로 공장 함수를 실행한다. 등록은 아직 적용하지 않고 `PiRecordedUsage`로 모은다. 비지원 멤버 호출은 `PiCompatUnsupportedError`이고, 공장 함수가 그 예외로 끝나면 `error`(`pi_unsupported_api`)다.
-3. `synthesizeManifest`로 합성 매니페스트를 만들고 `validateManifest`, `validateManifestSet`을 거친다. 이름은 `piExtensionName`(파일·디렉터리 이름 → `pi-<slug>`)이고 만들 수 없으면 `rejected`(`pi_name_invalid`)다.
-4. 4~6단계(신뢰, 설정, 능력)를 거친다.
-5. 기록한 등록을 다시 실행하는 `ExtensionEntry`(주 scope 하나의 setup 안에서 기록 순서대로 `on`·리소스 등록을 부른다)를 만들어 `ExtensionUnit`으로 `ExtHost.install`에 넘긴다(6a~9단계). `validateUsage` 대조는 install 안에서 primitives가 한다.
-
-- 합성 매니페스트 [제안]:
-
-```ts
-{
-  schemaVersion: 1,
-  name,                                 // "pi-<slug>"
-  version,                              // 가까운 package.json의 version, 없으면 "0.0.0"
-  layer: "plugin",
-  kind: "plugin",
-  entry,                                // 확장 루트 기준 상대 경로
-  points: usage.on,                     // 공장 함수 실행 중 기록한 사용
-  usesPost: usage.post,
-  usesDrive: false,
-  recordKinds: usage.appendEntry ? [{ kind: `x.${name}.pi.entry`, version: 1, description: "pi appendEntry", payload: PI_ENTRY_SCHEMA }] : [],
-  trust: { level: source === "project" ? "project" : "user" },
-  isolation: "none",
-}
-```
-
-- 배치 지시는 합성 등급을 `user`로 둔다. 프로젝트 위치의 pi 확장은 §4.6.1 상한 규칙 때문에 `project`가 된다 [제안].
-- 어댑터 확장의 `defaultEnabled`는 생략한다(기본 켜짐). 사용자는 `ext.pi-<slug>.enabled`로 끈다.
-- pi 확장의 격리는 1차 어댑터에서 지원하지 않는다 [제안]. `ext.<name>.isolation: "process"`면 `error`(`isolation_unavailable`)다.
-
-#### 4.10.3 API 대응
-
-| pi | Xeon | 규칙 |
-|---|---|---|
-| `pi.on(event, handler)` | `g.on(event, h)` | 페이로드 사본에 `type: event`를 더해 넘긴다. 반환값은 지점별 변환표(`api-map.ts`)로 F 결정·패치로 바꾼다. 예: `tool.call.before`의 `{ block: true, reason }` → `ToolCallDecision`의 거부 형태, `session.trust.before`의 `undecided` → `undefined` |
-| `pi.sendMessage(message, { deliverAs, triggerTurn })` | `g.post({ kind: "context", customType, content, display, details }, { when, requestId })` | `deliverAs` `steer`→`steer`, `followUp`→`followUp`, `nextTurn`→`next`. 생략 시 실행 중이면 `steer`, 유휴면 `followUp`. X.primitives.spec §4.7 [제안]에서 유휴 post는 turn을 시작하지 않으므로 pi `triggerTurn: true`의 유휴 즉시 시작은 옮기지 못한다. 시작 값(`start`) 추가 여부는 X.primitives.spec §4.7 [미결]이고, 결정 전에는 `triggerTurn`을 부분 지원으로 둔다(`_research/notes/X-1.md` §4.2). `customType`은 `x.<name>.pi.<정규화 이름>`으로 바꾼다 |
-| `pi.sendUserMessage(content, options)` | `g.post({ kind: "user", content }, { when, requestId })` | `when` 대응은 위와 같다 |
-| post `requestId` | `piPostKey` | [제안] `pi:` + base32(sha256(`<name>\|<turnId 또는 "idle">\|<정규화 JSON 내용 해시>\|<ordinal>`)) 앞 40자. 같은 turn에서 같은 내용의 k번째 호출이 같은 키를 얻으므로 재생 때 중복 주입이 없다. adr.0007 §3.7 "메시지 내용과 호출 순번에서 `requestId`를 파생" |
-| `pi.appendEntry(customType, data)` | `g.record("x.<name>.pi.entry", { type: "thread", id }, { customType, data })` | 확장 레코드. 레코드 종류 하나로 모은다 |
-| `pi.registerTool(def)` | X.primitives 리소스 등록(도구) | TypeBox 매개변수 스키마는 그대로. `execute(toolCallId, params, signal, onUpdate, ctx)` 인자 순서를 맞춘다 |
-| `pi.registerCommand(name, opts)` | X.primitives 리소스 등록(명령) | 명령 이름은 `<name>:<command>` 네임스페이스 [가정: 이름 충돌 규칙은 X.operations.spec] |
-| `pi.registerShortcut(key, opts)` | `hostOf(g).registerShortcut(key, def)`(X.primitives.spec §3.8) | 이름 규칙은 `ResourceClaim`(X.operations.spec §4.5). 키 바인딩 적용은 L4 |
-| `pi.registerFlag(name, opts)`, `pi.getFlag(name)` | `hostOf(g).registerFlag(name, def)`, `hostOf(g).getFlag(name)` | 이름 규칙은 `ResourceClaim`. 플래그 값은 L4 CLI 인자 해석이 채운다 [가정: L4.cli.spec] |
-| `pi.registerProvider(...)` | L1.models provider 등록 | 부분 지원. M2 이후 2차 |
-| `ctx`(이벤트 핸들러 두 번째 인자) | 어댑터가 만든 부분 `ExtensionContext` | 지원 표의 ctx 행 |
-
-#### 4.10.4 지원 표
-
-지원률 근거: pi 예제 79단위의 정적 집계(`_research/notes/X-3.md` §2, research 질문 3). 예제를 실행하지 않았다.
-
-| 항목 | 등급 | Xeon 대응 | 예제 근거(단위 수) | 비고 |
-|---|---|---|---|---|
-| `pi.on` 이벤트 41종 | 지원 | 같은 이름 지점 | 24종 사용(`session.start` 25, `input.agent.before` 8 …) | fold가 pi와 다른 지점은 F.extensions.spec §3.4 "pi와 차이" 열 |
-| `tool.call.before` 차단(`block`) | 지원 | `ToolCallDecision` 거부 | 4 | |
-| `tool.call.before` `event.input` 제자리 수정 | 비지원 | 없음 | 0 | 페이로드는 읽기 전용(F.extensions.spec §5 10번). `tool.call.before`은 인자 변경을 지원하지 않는다([결정: review.decisions-2 U-06]). [제안] 어댑터는 사본을 넘기고 핸들러 뒤 사본이 바뀌었으면 거부로 처리하고 `pi_input_mutation` 진단을 남긴다. 무시하면 정리 의도의 변경이 빠진 채 도구가 실행되므로 거부가 안전하다 |
-| `session_before_*` 취소 | 부분 | first `SessionCancelDecision` | fork 3, switch 3, compact 1 | pi는 예외 시 계속, Xeon은 취소 |
-| `registerCommand` | 지원 | 리소스 등록 | 35 | |
-| `registerTool` | 지원 | 리소스 등록 | 19 | |
-| `sendMessage`, `sendUserMessage` | 지원 | `post` | 5, 4 | `triggerTurn`은 부분(§4.10.3) |
-| `appendEntry` | 지원 | 확장 레코드 | 8 | |
-| `exec` | 지원 | `xeon.exec` 서비스 | 9 | 샌드박스 규칙은 L0.exec.spec |
-| `registerFlag`, `getFlag` | 부분 | `hostOf(g).registerFlag`·`getFlag`(X.primitives.spec §4.8) | 4 | 값 해석은 L4 CLI [가정]. 이름은 `--<확장 이름>:<이름>`, 충돌이 없으면 `--<이름>`(X.operations.spec §4.5 규칙 8) |
-| `getActiveTools`, `setActiveTools`, `getAllTools` | 부분 | L1.tools 노출 목록 | 3, 3, 2 | |
-| `setModel`, `getThinkingLevel`, `setThinkingLevel` | 부분 | L1.models | 1, 2, 1 | |
-| `getSessionName`, `setSessionName`, `setLabel` | 지원 | L1.persistence 제목·라벨 | 2, 2, 1 | |
-| `registerProvider`, `registerVirtualModel` | 부분 | L1.models | 2, 1 | M2 이후 |
-| `registerShortcut` | 부분 | `hostOf(g).registerShortcut`(X.primitives.spec §4.8) | 2 | 핸들러가 `ctx.ui` 커스텀 컴포넌트를 쓰면 실행 때 `PiCompatUnsupportedError` |
-| `registerMessageRenderer`, `registerEntryRenderer` | 비지원 | 없음 | 2, 2 | pi 렌더러는 pi-tui 컴포넌트를 돌려주는 함수라 `RendererResourceDef`(모듈 경로, X.primitives.spec §3.9)로 옮길 수 없다. L4.cli.spec도 확장 UI 렌더를 두지 않는다 |
-| ctx 읽기: `cwd`, `hasUI`, `mode`, `model`, `isIdle`, `isProjectTrusted`, `getContextUsage`, `getSystemPrompt`, `thinkingLevel` | 지원 | 어댑터 ctx | 11, 15, 14, 6, 1, 1, 2, 1, 1 | |
-| ctx `sessionManager`, `modelRegistry` | 부분 | 읽기 전용 일부 | 15, 6 | |
-| ctx `compact`, `shutdown` | 부분 | L1.context 컴팩션 요청, 호스트 종료 요청 | 1, 1 | |
-| `ctx.ui` 대화상자: `notify`, `select`, `confirm`, `input`, `editor`, `setStatus`, `setTitle` | 지원 | L2.dialog 서비스 | 46, 9, 5, 2, 3, 12, 2 | |
-| `ctx.ui` 커스텀 컴포넌트: `custom`, `setWidget`, `setFooter`, `setHeader`, `setEditorComponent`, `addAutocompleteProvider` | 비지원 | 없음 | 합집합 24 | L4.cli.spec §7 "pi의 `ctx.ui.custom`은 두지 않는다" |
-| 명령 전용 세션 제어: `ctx.newSession`, `fork`, `reload`, `waitForIdle`, `navigateTree`, `switchSession` | 비지원 | 없음 | `newSession` 1, `reload` 1, 나머지 0 | 루프 소유가 필요한 흐름은 drive 그룹으로 옮긴다 |
-| `ctx.executeTool`, `ctx.tools` | 비지원 | 없음 | 0 | 지원 보류 |
-| import `@earendil-works/pi-tui` | 비지원 | 차단 모듈 | 25 | |
-| import `@earendil-works/pi-coding-agent` 유틸·상수 12종 | 지원 | 어댑터 shim | 단위 합 미집계 | `getAgentDir`은 `userDir`을 돌려준다 |
-| import `@earendil-works/pi-coding-agent` 도구 팩토리 15종 | 비지원(1차) | 없음 | 4~1 | §10 미결 9 |
-| import `@earendil-works/pi-coding-agent` TUI 계열 6종 | 비지원 | 없음 | 3~1 | |
-| import `typebox`, `@earendil-works/pi-ai`, `@earendil-works/pi-agent-core` | 지원 | 가상 모듈 | 12, 14, 3 | 버전 차이는 §10 미결 10 |
-| import `@earendil-works/pi-ai/oauth` | 비지원 | 차단 모듈 | 0 | 위장 경로 분리 결정(`_research/decisions-log.md` 2026-10-21 결정(2차)). 위장 provider는 pi 확장 경로에 두지 않고 `plugins/*` 패키지(L1 순위)로 둔다. 그 패키지는 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않으며, F provider 인터페이스로 `core-models` 서비스에 등록한다([결정: review.decisions-2 U-16]) |
-
-- 지원률 [가정]: TUI 의존 단위 32개(40.5%)와 명령 전용 제어 단위(`reload-runtime` 1, `handoff`는 TUI 집합에 이미 포함)를 빼면 수정 없이 올라갈 수 있는 상한은 79단위 중 46단위(약 58%)다(`_research/notes/X-3.md` §2.6, §2.8). 외부 npm 의존 4단위의 설치 상태, 도구 팩토리 사용 단위, 실행 결과는 확인하지 않았다. 실제 비율은 X.loading-trust.plan의 호환 보고(`compat-report.ts`)로 다시 잰다.
-- 이 표는 어댑터 범위의 고정선이다. 표에 없는 멤버는 비지원이고, 표를 고쳐야 범위가 늘어난다(X.loading-trust.plan §7).
-
-#### 4.10.5 어댑터 위치
-
-- 코드는 `xeon/packages/ext-host/src/loading-trust/pi-adapter/`에 둔다. pi coding-agent 패키지에 의존하지 않는다. pi 타입은 필요한 부분만 로컬 타입으로 옮겨 적는다(F.extensions.spec §3.3 페이로드 형태 규칙과 같은 원칙).
-
-#### 4.10.6 가상 모듈
-
-- pi 확장은 `@earendil-works/pi-coding-agent` 등을 import한다(79단위 전부, `_research/notes/X-3.md` §2.1). pi는 `virtual-modules.ts`(38줄)에서 키 20개를 실체 9개에 대응시킨다.
-- [제안] ext-host는 `pi-ai`, `pi-agent-core`를 직접 import할 수 없다(eng.dependency-rules.guide DR-07: `pi-ai`는 `core-models`와 `plugins/*`([결정: review.decisions-2 U-16]), `pi-agent-core`는 어느 패키지도 import하지 않는다[결정: adr.0009]). 그래서 가상 모듈 표는 소유 패키지가 `VirtualModuleRegistry.register`로 채운다.
-
-| 지정자(키) | 실체 | 등록하는 패키지 |
-|---|---|---|
-| `typebox`, `typebox/compile`, `typebox/value`, `@sinclair/typebox`, `@sinclair/typebox/compile`, `@sinclair/typebox/value` | 워크스페이스 `typebox` 1.3.27 | ext-host |
-| `@earendil-works/pi-ai`, `@earendil-works/pi-ai/compat`, `@mariozechner/pi-ai`, `@mariozechner/pi-ai/compat` | pi-ai 공개 엔트리 [가정: 1.3.0에 compat 엔트리가 있다] | core-models |
-| `@earendil-works/pi-ai/providers/all`, `@mariozechner/pi-ai/providers/all` | pi-ai providers | core-models |
-| `@earendil-works/pi-agent-core`, `@mariozechner/pi-agent-core` | pi-agent-core | 소유 패키지 없음 [미결](§10 16) |
-| `@earendil-works/pi-coding-agent`, `@mariozechner/pi-coding-agent` | 어댑터 shim(지원 표의 export만) | ext-host |
-| `@earendil-works/pi-ai/oauth`, `@mariozechner/pi-ai/oauth` | 차단 | ext-host |
-| `@earendil-works/pi-tui`, `@mariozechner/pi-tui` | 차단 | ext-host |
-
-- 등록 방식은 §4.4.1 A안의 `Bun.plugin` 모듈 등록이다. 차단 모듈은 import 시점에 `PiCompatUnsupportedError`를 던지는 모듈로 등록한다.
-- `@sinclair/typebox` 키는 DR-07의 import 금지와 다르다. Xeon 코드가 그 패키지를 import하지 않고, pi 확장의 지정자를 워크스페이스 typebox로 돌릴 뿐이다.
-- 가상 모듈은 pi 확장의 import에만 필요하다. `Bun.plugin` 등록은 프로세스 전역이므로 같은 지정자를 쓰는 Xeon 패키지도 같은 실체를 받는다. 실체가 같은 모듈 인스턴스이면 결과가 같다 [가정]. 확인은 plan의 스파이크 작업이다.
+[결정: review.m3-design-inputs D-M3-11 c, adr.0017 §3.7] pi 확장 어댑터, pi 가상 모듈, 설정 `x.loading-trust.piCompat`, pi 확장 디렉터리, `pi_*` 진단 코드는 없다. 외부 확장은 자체 확장 API(`.xeon-plugin/plugin.json` 매니페스트와 `ExtensionEntry`)로만 싣는다. 가상 모듈 등록 수단은 SDK 모듈 세 개를 플러그인 번들에 주는 용도뿐이다(§4.4.6).
 
 ## 5. 실패와 경계 사례
 
@@ -1157,6 +1040,9 @@ flowchart LR
 | 내장 필수 확장이 throw | `LoadAbortError`, 시작 거부 |
 | 같은 이름이 사용자와 프로젝트 위치에 모두 있음 | 사용자 것을 쓰고 프로젝트 것은 `rejected`(`name_conflict`) |
 | 외부 확장이 `trust.level: "builtin"` | `rejected`(`trust_exceeds_source`) |
+| 매니페스트 디렉터리에 `plugin.json`이 없음 | 진단 `manifest_missing`(경고)만 남기고 건너뛴다 |
+| `entry`가 가리키는 파일이 없음, 함수 export가 없음, import 중 예외, 확장 루트 밖으로 풀림 | `error`(각각 `entry_not_found`, `entry_not_function`, `entry_import_failed`). 다른 확장은 계속 |
+| 취소 신호가 설치 중에 켜짐 | `ExtHost.install`이 엔트리를 기다리지 않고 끝내고 `loadAll`은 `LoadAbortError`를 던진다 |
 | 비대화형 실행, 프로젝트에 `.xeon/extensions/` 있음, 저장 결정 없음 | 불신. 프로젝트 확장은 import되지 않고 `rejected`(`trust_undecided`) |
 | `session.trust.before` 핸들러가 throw | `FIRST_DENY.project_trust`(불신). 저장하지 않는다 |
 | 신뢰 저장 파일 손상 | 불신(`corruptStore`), 프롬프트 없음, 쓰기 거부, 진단 |
@@ -1168,9 +1054,6 @@ flowchart LR
 | 격리 설정인데 `xeon.process` 서비스 없음 | `error`(`isolation_unavailable`) |
 | 격리 확장의 first 핸들러가 예산 초과 | `FIRST_DENY` 적용, 취소 전송, 유예 뒤 강제 종료 |
 | 격리 프로세스 연결 끊김 | 진행 중 요청 예외 처리, 재시작 정책(§4.9.7) |
-| pi 확장이 `@earendil-works/pi-tui` import | `error`(`pi_unsupported_module`) |
-| pi 확장이 `tool.call.before`에서 `event.input` 수정 | 그 호출 거부, `pi_input_mutation` 진단 |
-| pi 확장이 공장 함수 실행 중 `ctx.ui.custom` 경로를 가진 명령만 등록 | 로드는 성공한다. 명령 실행 때 `PiCompatUnsupportedError` |
 
 ## 6. 설정 노출
 
@@ -1182,12 +1065,11 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `ext.<name>.isolation` | `"none" \| "process"` | 매니페스트 `isolation`, 없으면 `"none"` | enum `none`, `process` | `restart` | `managed`, `user` | `select` |
 | `x.loading-trust.defaultProjectTrust` | `"ask" \| "always" \| "never"` | `"ask"` | enum | `restart` | `managed`, `user` | `select` |
 | `x.loading-trust.paths` | `string[]` | `[]` | - | `restart` | `managed`, `user` | `list` |
-| `x.loading-trust.piCompat` | `boolean` | `true` | - | `restart` | `managed`, `user` | `toggle` |
 | `x.loading-trust.isolation.maxRestarts` | `integer` | `3` | 0~20 | `live` | `managed`, `user` | `number` |
 | `x.loading-trust.isolation.restartWindowSec` | `integer` | `600` | 10~86400 | `live` | `managed`, `user` | `number` |
 
 - `x.loading-trust.*` 키는 프로젝트 범위를 허용하지 않는다. 저장소를 받는 것만으로 신뢰·탐색 설정이 바뀌지 않게 하기 위해서다(F.wire-settings.spec §4.7 규칙 4).
-- 안전 모드 키는 X.operations.spec 소유다. L4.settings-ui.spec §표가 `x.loading-trust.*`에 안전 모드를 넣은 표기는 정합성 단계에서 `x.operations.*`로 고친다 [제안].
+- 안전 모드 키(`x.operations.safeMode.default`, `x.operations.safeMode.suggestAfter`)는 X.operations.spec 소유다. L4.settings-ui.spec §표가 `x.loading-trust.*`에 안전 모드를 넣은 표기는 정합성 단계에서 `x.operations.*`로 고친다 [제안].
 - L4 노출: 설정 화면 "플러그인과 그룹" 탭에 확장 목록(상태, 등급, 위치, 진단 수), 토글(`enabled`), 격리 선택(`isolation`), 신뢰 결정 목록(저장 파일 내용)을 둔다. CLI는 `xeon config`로 같은 키를 다룬다.
 
 ## 7. 확장 지점
@@ -1195,7 +1077,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | 지점 | 이 문서의 역할 | 발화 시점 |
 |---|---|---|
 | `session.trust.before`(session, first) | 발화한다 | 프로젝트 신뢰 판정 4번(§4.7.3). 내장·관리·사용자 확장 활성화 뒤, 프로젝트 탐색 전. 판정 한 번에 한 번 |
-| `session.resources`(session, chain) | 발화한다 | `loadAll` 끝(모든 단계 뒤) `reason: "startup"`, `reload` 끝 `reason: "reload"`. pi는 `session.start` 뒤에 발화한다(`types.ts:709`). Xeon은 로더 수명에 맞춘다 [제안]. 프로젝트 불신이면 프로젝트 확장의 핸들러는 없다 |
+| `session.resources`(session, chain) | 발화한다 | `loadAll` 끝(모든 단계 뒤) `reason: "startup"`, `reload` 끝 `reason: "reload"`. 로더 수명에 맞춘다 [제안]. 프로젝트 불신이면 프로젝트 확장의 핸들러는 없다 |
 
 - post, drive와의 관계: 로더는 post와 drive를 직접 쓰지 않는다. 격리 확장의 post는 `OutboxAgent`가 그 확장 scope로 대신 실행한다(§4.9.6). drive는 격리 확장에 허용하지 않는다(§4.9.5).
 - 4연산 사용과 매니페스트의 대조(`validateUsage`)는 primitives가 `install` 안에서 하고, 로더는 그 결과를 진단으로 옮긴다(§4.4.3). 연산 실행 자체도 X.primitives.spec이다.
@@ -1212,7 +1094,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `ProjectTrustResult`, `TrustPrompter`·`TrustPromptRequest`·`TrustChoice`(F 이름 재export) | L4.cli.spec, L4.desktop.spec(프롬프트 구현) |
 | `TrustStoreBackend`, `LoaderFs`, `LoaderPaths`(F 이름 재export) | L0.os.spec(구현) |
 | `IsolationProcessPort`, `IsolatedChild`(F 이름 재export) | L0.process.spec(구현) |
-| `VirtualModuleRegistry` | L1.models.spec, L1.loop.spec(pi 모듈 등록) |
+| `registerSdkModules`, `SDK_MODULE_SPECIFIERS`, `SdkModules`, `installDefaultPlugin`, `PluginInstallFs` | L4.host-service.spec(조립 루트가 `LoaderDeps.sdkModules`와 첫 실행 설치에 사용) |
 | 예약 키 `ext.<name>.enabled`, `ext.<name>.isolation`, 키 `x.loading-trust.*` | F.wire-settings.spec, L4.settings-ui.spec, L3.readme |
 | 신뢰 전 적용 제외 규칙(§4.7.4) | L1.persistence.spec, L2.mcp.spec, L2.knowledge.spec, X.operations.spec |
 
@@ -1225,13 +1107,13 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 | `settingsFromManifest`, `buildCatalog`, `defineSettings`, `SettingDef`, `CatalogIssue` | F.wire-settings.spec |
 | `CapabilityId`, `SemVer`, 범위 비교 [가정: `satisfies` 함수] | F.capabilities.spec |
 | `ExtHost.install`·`uninstall`·`registerPlatform`·`ports`, `ExtensionUnit`, `InstallResult`, `ScopeSetupOutcome`, `PrimitiveError`, `ProcessPortKey`, `ScopeFn` 구현, 디스패처, 리소스 등록, 코어 능력 레지스트리, scope 켜기·끄기 | X.primitives.spec |
-| `OperationsPolicy.admit`·`forget`·`startupFilter`, `StartupOptions`, `ExtStorageAdmin`, 시간 예산(`x.operations.budget.setupMs`), 실패 격리·자동 끄기, 안전 모드, 접두 테이블 API, 외부 훅 | X.operations.spec |
+| `OperationsPolicy.admit`·`forget`, `startupFilter`·`StartupOptions`(순수 함수와 타입), `ExtStorageAdmin`, 시간 예산(`x.operations.budget.setupMs`), 실패 격리·자동 끄기, 안전 모드, 접두 테이블 API, 외부 훅 | X.operations.spec |
 | 의존 규칙(DR-07, DR-11, DR-14) | eng.dependency-rules.guide |
 | outbox 규칙(§7) | eng.transactions.design |
 | 층 순위와 주입 원칙(§4.3.3) | architecture.layers.spec |
 | 단일 DI와 플러그인 로더 부재 | adr.0002 |
 | 격리 2차, 서비스 모드 유휴 종료 | adr.0006 |
-| 4연산, pi `sendMessage` → `post` requestId 파생 | adr.0007 |
+| 4연산 | adr.0007 |
 
 ## 9. 수용 기준
 
@@ -1242,7 +1124,7 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 5. `mode: "headless"`, 저장 결정 없음, `defaultProjectTrust: "ask"`이면 프로젝트 확장이 로드되지 않고 `ProjectTrustResult.via`가 `headless`, 진단 코드가 `trust_undecided`다.
 6. `ext.<name>.enabled`의 유효 값이 `false`인 확장은 엔트리가 한 번도 호출되지 않고 상태가 `disabled`다. 세션 범위에서 `true`로 바꾸면 `ensureLoaded`가 엔트리를 한 번 부른다.
 7. 격리 확장 프록시의 `tool.call.before` 핸들러가 시간 예산을 넘기면 결정은 `FIRST_DENY.tool_call`이고 자식에게 취소가 전송된다(가짜 `IsolationProcessPort`).
-8. `tool.call.before`에서 `{ block: true, reason }`을 돌려주는 pi 샘플 확장을 어댑터로 로드하면 합성 매니페스트의 `points`가 `["tool.call.before"]`이고, 해당 도구 호출의 결정이 거부다.
+8. (삭제) pi 어댑터는 두지 않는다.
 9. `requires: [{ id: "web.search", range: "^1.0.0" }]`인 확장은 provider가 없으면 엔트리가 실행되지 않고 진단 `capability_missing`에 능력 ID가 있다.
 10. 같은 후보 집합을 섞은 순서로 넣어도 `orderManifests` 결과와 `loadIndex`가 같다.
 11. 신뢰 저장 파일이 JSON이 아니면 판정은 불신(`via: "corruptStore"`)이고, 프롬프트가 호출되지 않으며 `setMany`가 `TrustStoreCorruptError`를 던진다. 파일 내용은 바뀌지 않는다.
@@ -1250,13 +1132,16 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 13. 사용자 위치와 프로젝트 위치에 같은 이름이 있으면 사용자 것이 `active`, 프로젝트 것이 `rejected`(`name_conflict`)다.
 14. 이 문서 §4.6.2 표의 각 행·열과 `TRUST_MATRIX` 상수가 같다(문서 대조 테스트).
 15. 외부 확장 매니페스트의 `trust.level: "builtin"`은 `trust_exceeds_source`로 거부된다.
-16. pi 확장이 `@earendil-works/pi-tui`를 import하면 `error`(`pi_unsupported_module`)이고 다른 pi 확장의 로드는 계속된다.
-17. `piPostKey`는 같은 입력에 같은 값을, ordinal만 다른 입력에 다른 값을 돌려주며 길이가 64 이하다.
+16. 외부 확장의 `entry`가 없는 파일이거나 함수 export가 없거나 import 중 던지면 그 확장만 `error`(`entry_not_found`, `entry_not_function`, `entry_import_failed`)이고 다른 확장의 로드는 계속된다.
+17. 사용자 위치의 외부 확장은 `<userDir>/extensions/<이름>/.xeon-plugin/plugin.json`에서 발견되어 `user` 등급, `user` tier로 로드되고 `on` 핸들러가 호출된다. 플러그인이 import한 `@xeon/contracts`, `typebox`, `@xeon/group-kit`은 호스트가 넘긴 값과 같다.
 18. 격리 자식이 `restartWindowSec` 안에 `maxRestarts + 1`번 끝나면 상태가 `error`(`isolation_restart_limit`)다.
 19. 로더는 Cordis를 import하지 않는다. 확장 엔트리는 `ExtHost.install`로만 실행되고(가짜 `ExtHost`의 호출 기록으로 확인), scope setup 본문의 `post`는 `setup_action`, 엔트리 본문 예외는 `entry_threw`가 된다.
 20. `policy.admit`이 `TierError`를 내면 그 확장은 install되지 않고 진단이 `tier_rejected`다.
 21. `previewRemoval`은 아무것도 바꾸지 않고 테이블 목록만 돌려준다. `remove(name, { dropTables: true })`는 `uninstall`, `forget`, `dropExtension(name, true)`를 이 순서로 부른다. `dropTables: false`면 테이블이 남는다.
 22. `LoadOptions.startup`의 `disabled`에 든 외부 확장은 엔트리가 import되지 않고 상태가 `disabled`, 진단이 `disabled_flag`다. 내장 확장이면 `install`이 불리지 않는다.
+23. 안전 모드에서는 사용자 위치 외부 확장이 `disabled`(`safe_mode`)이고 엔트리가 import되지 않으며, L3 내장 그룹이 `disabled`이고 L1·L2 내장은 `active`다. 프로젝트 위치는 탐색하지 않고 `LoadReport.projectTrust`는 null이다.
+24. 깨진 `plugin.json`(JSON 아님, 스키마 위반, 파일 없음)은 진단(`manifest_parse`, `manifest_invalid`, `manifest_missing`)만 남기고 다른 확장은 로드된다.
+25. `installDefaultPlugin`은 없는 대상에 복사하고(`installed`), 같은 버전은 그대로 두며(`kept`), 번들이 더 높은 버전이거나 설치본 매니페스트가 손상이면 교체한다(`replaced`). 번들 매니페스트가 잘못되면 `source_invalid`이고 대상은 바뀌지 않는다.
 
 ## 10. 미결 사항
 
@@ -1264,16 +1149,16 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 2. [미결] 엔트리 export 형태. F.extensions.spec §3.2는 `ExtensionEntry`를 default export로 적었고, Xeon lint는 default export를 막는다. [제안] 내장은 named `extension`, 외부는 `default` 또는 `extension`을 허용한다. F 주석 수정 요청.
 3. [미결] F `validateManifest`의 `name_reserved` 판정이 매니페스트 `trust.level`에만 의존한다. [제안] F가 설치 위치를 인자로 받거나, 로더의 `trust_exceeds_source` 검사를 정본으로 둔다. F 수정 요청.
 4. [미결] `untrusted` 처리(§4.6.3). [제안] 로드하지 않음. 격리와 샌드박스를 함께 쓰는 경로가 생기면 격리 강제를 다시 검토한다.
-5. [결정: review.m3-design-inputs D-M3-31 행 3] 프로젝트 설정 파일의 키는 `ext.*`, `x.loading-trust.*` 밖의 것도 신뢰 뒤에만 적용한다(§4.7.4). pi와 같다.
+5. [결정: review.m3-design-inputs D-M3-31 행 3] 프로젝트 설정 파일의 키는 `ext.*`, `x.loading-trust.*` 밖의 것도 신뢰 뒤에만 적용한다(§4.7.4).
 6. [미결] 로드 진단을 내구·휘발 이벤트로 낼지와 type 접두(`ext.`/`extension.`). F.records.spec과 eng.context-map.design 변경이 필요하다.
 7. [결정: review.m3-design-inputs D-M3-31 행 3] "이번 세션만" 신뢰의 범위는 호스트 프로세스 수명이다. 서비스 모드에서도 thread·클라이언트 단위로 좁히지 않는다.
 8. [미결] 격리 확장의 drive 허용(§4.9.5). [제안] 1차 격리에서는 금지.
 9. (닫힘) pi `pi-coding-agent` 도구 팩토리 15종의 대응. pi 어댑터를 만들지 않으므로 대상이 없다 [결정: review.m3-design-inputs D-M3-11 c].
-10. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다. pi 확장과 워크스페이스가 같은 판이라 가상 모듈 `typebox`가 pi 확장에 같은 판을 준다.
+10. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다. 가상 모듈 `typebox`가 플러그인 번들에 워크스페이스와 같은 판을 준다.
 11. [미결] eng.context-map.design §4.1이 ext-host 소유 데이터로 `xh_*`(신뢰 결정, 설치·신뢰 등급)를 적었다. 이 문서는 신뢰 결정을 사용자 영역 파일(`<userDir>/trust.json`)에 둔다 [제안]. DB 테이블을 둘지, context-map 표를 고칠지 정해야 한다.
 12. [미결] 서비스 모드에서 프로젝트 확장의 단위. 여러 작업 폴더를 동시에 여는 서비스 프로세스에서 프로젝트 확장을 작업 폴더별로 따로 로드할지, 프롬프트를 어느 클라이언트에 보낼지. [제안] 작업 폴더를 처음 여는 thread 시점에 판정하고, 프롬프트는 그 thread를 연 연결로 보낸다. wire 방식은 승인 요청과 같은 A안(내구 이벤트 `approval.requested` + 호스트 메서드 `approval.respond`, [결정: review.decisions-2 U-02])을 따른다. 남은 결정은 프로젝트 확장의 로드 단위다.
-13. (해소) 이벤트 kind 접두는 F 규칙 `x.<name>.`/`grp.<name>.`이다([결정: review.decisions-2 T-21]). 이 문서는 `x.<name>.pi.entry`를 쓴다.
+13. (해소) 이벤트 kind 접두는 F 규칙 `x.<name>.`/`grp.<name>.`이다([결정: review.decisions-2 T-21]).
 14. [미결] eng.dependency-rules.guide DR-07 표에 `vscode-jsonrpc` → `ext-host` 행 추가 요청.
-15. [가정] Bun 직접 `import()`가 `bun build --compile` 바이너리에서 외부 `.ts`를 불러오는지, `Bun.plugin` 모듈 등록이 가상 모듈로 동작하는지, 질의 접미로 캐시를 피할 수 있는지. 확인 전이다.
-16. (닫힘) pi 가상 모듈은 제공하지 않는다 [결정: review.m3-design-inputs D-M3-11 c]. 이전 기록: adr.0009로 pi-agent-core 의존이 없어졌다. 가상 모듈 `@earendil-works/pi-agent-core`(pi 확장 호환)를 계속 제공할지, 제공하면 F `AgentTool` 등 타입 별칭을 둘지(adr.0009 §6). 1차는 비지원으로 둔다 [제안].
-17. [미결] 기본 플러그인(Helm) 설치 경로. [제안] 릴리즈 자원 디렉터리의 플러그인 산출물을 첫 실행 때 `<userDir>/extensions/helm/`에 복사하고, 앱이 갱신되면 설치본이 원본 해시와 같을 때만 교체한다(`review.m3-design-inputs` D-M3-01 c, `review.m3-lower-requirements` M3-REQ-110). 설치 위치가 `user`라 신뢰 상한은 `user`이고, `user` 등급은 `on`·`post`·`drive`를 쓸 수 있다(§4.6.2).
+15. (해소, 일부) Bun 직접 `import()`와 `Bun.plugin` 모듈 등록은 스파이크로 확인했다(§4.4.1). `bun build --compile` 바이너리에서 외부 `.ts`를 불러오는지, 질의 접미로 캐시를 피할 수 있는지는 확인 전이다 [가정].
+16. (닫힘) pi 가상 모듈은 제공하지 않는다 [결정: review.m3-design-inputs D-M3-11 c].
+17. (해소, 일부) 기본 플러그인(Helm) 설치 경로는 §4.4.7이 정한다. 설치 위치가 `user`라 신뢰 상한은 `user`이고, `user` 등급은 `on`·`post`·`drive`를 쓸 수 있다(§4.6.2). 교체 규칙은 매니페스트 `version` 비교다. 남은 것은 사용자 삭제 후 재설치 방지 표지와 `PluginInstallFs`의 F 정본화다.

@@ -51,7 +51,7 @@ xeon/packages/ext-host/
       migrate.ts         # M2 이후. 보존 테이블 마이그레이션(스펙 §10 미결 8 결정 뒤). M1에는 투영 버전 재생성 호출만
     naming.ts            # M2. NamedResourceKind, ResourceClaim, ResolvedName, qualifiedName, ReservedNames,
                          # resolveNames, createResourcePolicy
-    safe-mode.ts         # M2. SafeModeSource, StartupOptions, LoadCandidate, SkipReason, startupFilter,
+    safe-mode.ts         # M3a. SafeModeSource, StartupOptions, LoadCandidate, SkipReason, startupFilter,
                          # allowedInSafeMode, StartupHealthStore, shouldSuggestSafeMode
     hooks/
       config.ts          # M2. HOOK_ID_PATTERN, HOOK_POINTS, HookPointName, HookDefSchema, HookDef,

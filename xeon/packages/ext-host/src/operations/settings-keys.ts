@@ -5,6 +5,8 @@ import { DEFAULT_BUDGETS_MS, type BudgetTable } from "./budget.ts";
 
 const BUDGET_SCOPES = ["managed", "user", "local", "session"] as const;
 const STARTUP_BUDGET_SCOPES = ["managed", "user", "local"] as const;
+/** 안전 모드 키는 저장소 설정이 복구용 시작을 막거나 바꾸지 못하게 managed·user만 받는다 */
+const SAFE_MODE_SCOPES = ["managed", "user"] as const;
 
 function budgetKey(
   label: string,
@@ -50,7 +52,7 @@ function autoKey(
 }
 
 /**
- * x.operations.* 1차 키(X.operations.spec §6). 안전 모드·외부 훅 키(2차)는 M2에서 더한다.
+ * x.operations.* 1차 키(X.operations.spec §6). 안전 모드 키 둘을 더했다. 외부 훅 키(M4)는 아직 없다.
  * 예산과 자동 끄기 키는 project 범위를 받지 않는다 [제안]
  */
 export const operationsSettings: SettingGroup<
@@ -67,6 +69,8 @@ export const operationsSettings: SettingGroup<
     readonly "autoDisable.windowSize": SettingDefInput;
     readonly "autoDisable.minFailures": SettingDefInput;
     readonly "autoDisable.failureRate": SettingDefInput;
+    readonly "safeMode.default": SettingDefInput;
+    readonly "safeMode.suggestAfter": SettingDefInput;
   }
 > = defineSettings("x.operations", {
   "budget.firstMs": budgetKey(
@@ -152,6 +156,23 @@ export const operationsSettings: SettingGroup<
     340,
     { min: 0.05, max: 1 },
   ),
+  "safeMode.default": {
+    type: Type.Boolean(),
+    default: false,
+    runtimeChange: "restart",
+    allowedScopes: SAFE_MODE_SCOPES,
+    ui: { tab: "plugins", widget: "toggle", order: 400, label: "안전 모드로 시작" },
+    since: "0.1.0",
+  },
+  "safeMode.suggestAfter": {
+    type: Type.Integer(),
+    default: 3,
+    range: { min: 1, max: 100 },
+    runtimeChange: "restart",
+    allowedScopes: SAFE_MODE_SCOPES,
+    ui: { tab: "plugins", widget: "number", order: 410, label: "안전 모드 제안 기준(연속 실패)" },
+    since: "0.1.0",
+  },
 });
 
 /** 유효 설정 값 읽기. 조립 루트(L4 host)가 설정 서비스에 연결해 넘긴다 */

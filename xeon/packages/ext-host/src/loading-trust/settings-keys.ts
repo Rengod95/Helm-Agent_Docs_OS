@@ -65,7 +65,6 @@ export const loadingTrustSettings: SettingGroup<
   {
     readonly defaultProjectTrust: SettingDefInput;
     readonly paths: SettingDefInput;
-    readonly piCompat: SettingDefInput;
     readonly "isolation.maxRestarts": SettingDefInput;
     readonly "isolation.restartWindowSec": SettingDefInput;
   }
@@ -85,14 +84,6 @@ export const loadingTrustSettings: SettingGroup<
     runtimeChange: "restart",
     allowedScopes: ["managed", "user"],
     ui: { tab: "plugins", widget: "list", order: 410, label: "확장 탐색 경로" },
-    since: "0.1.0",
-  },
-  piCompat: {
-    type: Type.Boolean(),
-    default: true,
-    runtimeChange: "restart",
-    allowedScopes: ["managed", "user"],
-    ui: { tab: "plugins", widget: "toggle", order: 420, label: "pi 확장 호환" },
     since: "0.1.0",
   },
   "isolation.maxRestarts": {

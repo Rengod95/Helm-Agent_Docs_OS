@@ -69,7 +69,7 @@ function isPlainObject(value: unknown): value is Readonly<Record<string, unknown
 }
 
 /**
- * 저장 파일 본문을 읽는다. 파일이 없으면 빈 항목이다. pi 형식(버전 없는 `Record<path, boolean | null>`)은
+ * 저장 파일 본문을 읽는다. 파일이 없으면 빈 항목이다. 버전 없는 형식(`Record<path, boolean | null>`, 버전 0)은
  * 손상으로 보지 않고 같은 의미로 변환한다(`allow`/`deny`, `null`은 건너뜀)
  */
 // XEON-PATCH: corrupt-as-value
@@ -79,7 +79,7 @@ function readEntries(text: string | null, migratedAt: string): Result<TrustEntri
   if (!json.ok) return err("not valid JSON");
   const parsed = json.value;
   if (!isPlainObject(parsed)) return err("expected an object");
-  if (!("version" in parsed)) return readPiFormat(parsed, migratedAt);
+  if (!("version" in parsed)) return readUnversionedFormat(parsed, migratedAt);
   const checked = parse(TrustFileSchema, parsed);
   if (!checked.ok) {
     const first = checked.error.issues[0];
@@ -89,7 +89,7 @@ function readEntries(text: string | null, migratedAt: string): Result<TrustEntri
 }
 
 // XEON-PATCH: pi-v0-format
-function readPiFormat(
+function readUnversionedFormat(
   data: Readonly<Record<string, unknown>>,
   migratedAt: string,
 ): Result<TrustEntries, string> {

@@ -5050,26 +5050,6 @@
         }
       }
     },
-    "x.loading-trust.piCompat": {
-      "default": true,
-      "type": "boolean",
-      "x-xeon": {
-        "allowedScopes": [
-          "managed",
-          "user"
-        ],
-        "layer": "X",
-        "runtimeChange": "restart",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "label": "pi 확장 호환",
-          "order": 420,
-          "tab": "plugins",
-          "widget": "toggle"
-        }
-      }
-    },
     "x.operations.autoDisable.consecutive": {
       "default": 5,
       "maximum": 1000,
@@ -5327,6 +5307,48 @@
           "order": 220,
           "tab": "plugins",
           "unit": "ms",
+          "widget": "number"
+        }
+      }
+    },
+    "x.operations.safeMode.default": {
+      "default": false,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "안전 모드로 시작",
+          "order": 400,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "x.operations.safeMode.suggestAfter": {
+      "default": 3,
+      "maximum": 100,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user"
+        ],
+        "layer": "X",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "안전 모드 제안 기준(연속 실패)",
+          "order": 410,
+          "tab": "plugins",
           "widget": "number"
         }
       }

@@ -87,6 +87,8 @@ export {
 // loading-trust (X.loading-trust.spec §3.1~§3.9 중 M0·M1 몫)
 export {
   createExtensionLoader,
+  installDefaultPlugin,
+  SDK_MODULE_SPECIFIERS,
   findTrustRequiringResources,
   LoadAbortError,
   loadingTrustSettings,
@@ -101,6 +103,9 @@ export {
   TRUST_LEVELS,
   TRUST_MATRIX,
   type BuiltinExtensionModule,
+  type DefaultPluginInstallError,
+  type DefaultPluginInstallInput,
+  type DefaultPluginInstallOutcome,
   type ExtensionLoader,
   type InstallSource,
   type LoadDiagnostic,
@@ -110,6 +115,8 @@ export {
   type LoaderFs,
   type LoaderMode,
   type LoaderPaths,
+  type PluginInstallFs,
+  type SdkModules,
   type LoadOptions,
   type LoadReport,
   type LoadStage,
@@ -137,6 +144,9 @@ export type {
 export {
   createOperationsPolicy,
   createResourcePolicy,
+  NO_STARTUP_OPTIONS,
+  type SafeModeSource,
+  type StartupOptions,
   extTablePrefix,
   operationsSettings,
   parseExtTableName,

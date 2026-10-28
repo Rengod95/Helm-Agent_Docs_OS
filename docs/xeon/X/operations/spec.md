@@ -40,7 +40,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 
 - 지점 이름, fold, 페이로드 타입, `FIRST_DENY`, `CHAIN_RULES`: `F.extensions.spec`(정본). 이 문서는 이름으로 인용하고 재정의하지 않는다.
 - 디스패처, post 큐, drive 임대 중재, scope 토글 적용, 리소스 등록 API, `DispatchPolicy` 인터페이스 자체: `X.primitives.spec`
-- 확장 탐색, 로드 순서, 매니페스트 검증 흐름, 신뢰 판정, 프로세스 격리, pi 어댑터: `X.loading-trust.spec`
+- 확장 탐색, 로드 순서, 매니페스트 검증 흐름, 신뢰 판정, 프로세스 격리, SDK 가상 모듈: `X.loading-trust.spec`
 - 세션 커밋 경로와 투영기 실행: `L1.persistence.spec`, `eng.transactions.design`
 - 테이블 DDL 실행과 연결 관리: `L0.store.spec`
 
@@ -562,7 +562,7 @@ export function createResourcePolicy(reserved: ReservedNames): ResourcePolicy;
 export const NO_RESERVED_NAMES: ReservedNames;
 ```
 
-### 3.6 안전 모드 (`safe-mode.ts`, 2차)
+### 3.6 안전 모드 (`safe-mode.ts`)
 
 ```ts
 export type SafeModeSource = "flag" | "env" | "setting" | "command";
@@ -1036,7 +1036,7 @@ pi 어댑터에서의 처리:
 - pi는 같은 이름 도구 등록으로 내장 도구를 바꿀 수 있다. Xeon에서는 규칙 2에 따라 내장 이름(`read`, `bash` 등)을 바꿀 수 없고, pi 확장의 그 도구는 정식 이름으로 노출된다. 내장 도구 교체 허용 여부는 §10 미결 10이다.
 - `F.capabilities.spec` §10의 도구 이름 네임스페이스 [미결] 후보 가운데 이 문서는 (b) `<확장>__<이름>`과 (c) 충돌한 쪽만 접두의 결합을 제안한다.
 
-### 4.6 안전 모드 (2차)
+### 4.6 안전 모드
 
 #### 4.6.1 켜는 방법
 
@@ -1215,8 +1215,8 @@ pi 어댑터에서의 처리:
 | `x.operations.autoDisable.windowSize` | integer | 50 | 5~10000 | live | managed, user, local | plugins | 1차 |
 | `x.operations.autoDisable.minFailures` | integer | 10 | 1~10000 | live | managed, user, local | plugins | 1차 |
 | `x.operations.autoDisable.failureRate` | number | 0.5 | 0.05~1 | live | managed, user, local | plugins | 1차 |
-| `x.operations.safeMode.default` | boolean | false | | restart | managed, user | plugins | 2차 |
-| `x.operations.safeMode.suggestAfter` | integer | 3 | 1~100 | restart | managed, user | plugins | 2차 |
+| `x.operations.safeMode.default` | boolean | false | | restart | managed, user | plugins | 1차 |
+| `x.operations.safeMode.suggestAfter` | integer | 3 | 1~100 | restart | managed, user | plugins | 1차 |
 | `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, session | plugins | 2차 |
 | `x.operations.hookDefs` | `HookDefListSchema` | `[]` | | live | managed, user, project, local | plugins(widget `table`) | 2차 |
 | `x.operations.hookEnvAllow` | string[] | `[]` | | live | managed, user | plugins(widget `list`) | 2차 |

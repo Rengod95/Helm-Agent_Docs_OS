@@ -15,7 +15,7 @@ binds: [xeon/packages/ext-host/**]
 X는 F 다음 순위(1)의 확장 체계 층이다. L1~L3의 플러그인과 의도 그룹이 루프에 붙는 장치를 맡는다(`architecture.layers.spec` §4.1, §4.4 X 항목).
 
 - 네 연산의 실행: on(fold `tap`/`first`/`chain`), post, drive(배타 임대), scope. [결정] 확장 지점은 이 네 연산이다(`_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007).
-- 확장의 탐색·검증·로딩과 신뢰 판정, 선택적 프로세스 격리(2차), pi 확장 어댑터.
+- 확장의 탐색·검증·로딩과 신뢰 판정, 선택적 프로세스 격리(2차), SDK 가상 모듈과 기본 플러그인 설치.
 - 운영 규칙: 실행 순서 tier, 핸들러 시간 예산, 실패 격리와 자동 끄기, 확장 전용 저장 영역, 이름 충돌, 안전 모드, 외부 훅.
 - [결정] DI는 Cordis 하나이고 `ext-host` 뒤에 숨긴다. Cordis를 import하는 패키지는 `ext-host` 하나다(adr.0002, `eng.dependency-rules.guide` DR-11). 다른 층은 `@xeon/ext-host`의 공개 API와 F 타입만 본다.
 
@@ -34,7 +34,7 @@ X가 정하지 않는 것:
 
 | 도메인 | 계획 v2 | 한 줄 책임 | 소유 설정 키 | 문서 | 1차 / 2차 |
 |---|---|---|---|---|---|
-| loading-trust | X-a 로딩과 신뢰 | 탐색, 로드 순서, 매니페스트 검증 흐름(로드 파이프라인), 신뢰 등급과 프로젝트 신뢰, 프로세스 격리, pi 어댑터 | `ext.<name>.enabled`, `ext.<name>.isolation`, `x.loading-trust.*` | `X.loading-trust.spec`, `X.loading-trust.plan` | 1차: 로딩, 정적 검증, 프로젝트 신뢰. 2차: 프로세스 격리. M2 이후: pi 어댑터 |
+| loading-trust | X-a 로딩과 신뢰 | 탐색, 로드 순서, 매니페스트 검증 흐름(로드 파이프라인), 신뢰 등급과 프로젝트 신뢰, 프로세스 격리, SDK 가상 모듈, 기본 플러그인 설치 | `ext.<name>.enabled`, `ext.<name>.isolation`, `x.loading-trust.*` | `X.loading-trust.spec`, `X.loading-trust.plan` | 1차: 로딩, 정적 검증, 프로젝트 신뢰. 2차: 프로세스 격리. M2 이후: pi 어댑터 |
 | primitives | X-b 원시 연산 네 개 | 4연산 실행, 디스패처, post 큐, drive 임대 중재, scope 토글·상태, 리소스 등록, `@xeon/ext-host` 공개 API, `DispatchPolicy`·`ResourcePolicy` 인터페이스 | `x.primitives.*`(`driveLimits`, `activeDriveGroup`, `capabilityProviders`) | `X.primitives.spec`, `X.primitives.plan` | 1차 전부 |
 | operations | X-c 운영 규칙 | tier, 핸들러 시간 예산, 실패 격리·자동 끄기, 확장 전용 저장(`ExtStorage`), 이름 충돌, 안전 모드, 외부 훅 프로토콜. `DispatchPolicy`·`ResourcePolicy` 구현 | `x.operations.*` | `X.operations.spec`, `X.operations.plan` | 1차: tier, 예산·실패 격리, 저장 영역. 2차: 이름 충돌, 안전 모드, 외부 훅 |
 

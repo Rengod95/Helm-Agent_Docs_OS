@@ -43,6 +43,17 @@ import {
 } from "./tier.ts";
 
 export {
+  allowedInSafeMode,
+  NO_STARTUP_OPTIONS,
+  shouldSuggestSafeMode,
+  startupFilter,
+  type LoadCandidate,
+  type SafeModeSource,
+  type SkipReason,
+  type StartupHealthStore,
+  type StartupOptions,
+} from "./safe-mode.ts";
+export {
   assignTier,
   compareOrderKey,
   GUARD_EXTENSIONS,

@@ -107,6 +107,8 @@ import type {
 | `LoadState`, `LoadStage`, `LoadDiagnosticCode`, `LoadDiagnostic`, `LoadDiagnosticSchema`, `LoadedExtensionInfo` | 타입, 스키마 | X.loading-trust.spec §3.4 |
 | `createExtensionLoader`, `ExtensionLoader`, `LoaderMode`, `LoadOptions`, `LoadReport`, `LoadAbortError`, `LoaderDeps`, `RemovalPreview`, `RemoveResult` | 함수, 인터페이스, 클래스 | X.loading-trust.spec §3.5 |
 | `RESERVED_EXT_KEYS`, `loadingTrustSettings` | 상수, `defineSettings` 결과 | X.loading-trust.spec §3.6 |
+| `installDefaultPlugin`, `DefaultPluginInstallInput`, `DefaultPluginInstallOutcome`, `DefaultPluginInstallError`, `PluginInstallFs`, `SDK_MODULE_SPECIFIERS`, `SdkModules` | 함수, 인터페이스, 타입, 상수 | X.loading-trust.spec §3.9 |
+| `StartupOptions`, `SafeModeSource`, `NO_STARTUP_OPTIONS` | 인터페이스, 타입, 상수 | X.operations.spec §3.6 |
 | `ProjectTrustResult`, `ResolveProjectTrustInput`, `ProjectTrustStore`, `createProjectTrustStore`, `resolveProjectTrust`, `findTrustRequiringResources`, `TRUST_REQUIRING_PROJECT_RESOURCES`, `trustOptions`, `TrustLookup`, `TrustStoreError`, `TrustVerdict`, `TrustVia`, `LoaderMode` | 인터페이스, 함수, 상수, 타입 | X.loading-trust.spec §3.7 |
 | `TrustStoreBackend`, `TrustPrompter`, `TrustPromptRequest`, `TrustChoice`, `TrustChoiceKind`, `TrustOption`, `TrustUpdate` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.loading-trust.spec §3.7) |
 | `IsolationProcessPort`, `IsolationSpawnSpec`, `IsolatedChild` | 인터페이스(F 이름 재export) | F.extensions.spec §3.2.1(재export는 X.loading-trust.spec §3.8) |
