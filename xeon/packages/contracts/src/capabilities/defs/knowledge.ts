@@ -1075,6 +1075,8 @@ export type LedgerEntry = {
   proposalId?: string;
   rollbackOf?: string;
   rolledBackBy?: string;
+  /** 이 쓰기를 한 turn에 untrusted 도구 결과를 이미 읽었다(`CallerInfo.afterUntrusted`). 승인 화면이 경고를 보인다 */
+  afterUntrusted?: boolean;
 };
 const ledgerEntryShape = Type.Object({
   ledgerId: LedgerIdSchema,
@@ -1091,6 +1093,7 @@ const ledgerEntryShape = Type.Object({
   proposalId: Type.Optional(ProposalIdSchema),
   rollbackOf: Type.Optional(LedgerIdSchema),
   rolledBackBy: Type.Optional(LedgerIdSchema),
+  afterUntrusted: Type.Optional(Type.Boolean()),
 });
 export const LedgerEntrySchema: TUnsafe<LedgerEntry> = Type.Unsafe<LedgerEntry>(
   ledgerEntryShape satisfies SchemaProof<LedgerEntry, typeof ledgerEntryShape>,
@@ -1217,6 +1220,8 @@ export type Proposal = {
   preview: string;
   scan: ScanSummary;
   ledgerId?: string;
+  /** 제안한 쓰기가 untrusted 도구 결과를 읽은 turn에서 나왔다. 없으면 거짓이다 */
+  afterUntrusted?: boolean;
 };
 const proposalShape = Type.Object({
   proposalId: ProposalIdSchema,
@@ -1229,15 +1234,31 @@ const proposalShape = Type.Object({
   preview: Type.String({ maxLength: 200_000 }),
   scan: ScanSummarySchema,
   ledgerId: Type.Optional(LedgerIdSchema),
+  afterUntrusted: Type.Optional(Type.Boolean()),
 });
 export const ProposalSchema: TUnsafe<Proposal> = Type.Unsafe<Proposal>(
   proposalShape satisfies SchemaProof<Proposal, typeof proposalShape>,
 );
 
-export type ProposalsInput = { status?: ProposalStatus; limit?: number };
+/** `status`는 하나, `statuses`는 여럿(둘 다 주면 합집합). `before`는 이 항목 앞(더 오래된 쪽)부터 읽는 키셋 위치다 */
+export type ProposalsInput = {
+  status?: ProposalStatus;
+  statuses?: ProposalStatus[];
+  limit?: number;
+  before?: { createdAt: number; proposalId: string };
+};
 const proposalsInputShape = Type.Object({
   status: Type.Optional(ProposalStatusSchema),
+  statuses: Type.Optional(
+    Type.Array(ProposalStatusSchema, { minItems: 1, maxItems: 5, uniqueItems: true }),
+  ),
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 50 })),
+  before: Type.Optional(
+    Type.Object({
+      createdAt: Type.Integer({ minimum: 0 }),
+      proposalId: ProposalIdSchema,
+    }),
+  ),
 });
 export const ProposalsInputSchema: TUnsafe<ProposalsInput> = Type.Unsafe<ProposalsInput>(
   proposalsInputShape satisfies SchemaProof<ProposalsInput, typeof proposalsInputShape>,
@@ -1255,11 +1276,14 @@ export type DecideInput = {
   proposalId: string;
   decision: "approve" | "reject";
   note?: string;
+  /** 승인 때 사용자가 고른 스킬 범위. `skills.create` 제안만 `project`로 바꿀 수 있다(D-M3-09). 생략하면 제안의 범위다 */
+  scope?: WritableSkillScope;
 };
 const decideInputShape = Type.Object({
   proposalId: ProposalIdSchema,
   decision: Type.Union([Type.Literal("approve"), Type.Literal("reject")]),
   note: Type.Optional(Type.String({ maxLength: 500 })),
+  scope: Type.Optional(WritableSkillScopeSchema),
 });
 export const DecideInputSchema: TUnsafe<DecideInput> = Type.Unsafe<DecideInput>(
   decideInputShape satisfies SchemaProof<DecideInput, typeof decideInputShape>,

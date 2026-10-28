@@ -45,7 +45,6 @@ import {
 } from "../../src/capabilities/index.ts";
 import { ApprovalIdSchema } from "../../src/conversation/index.ts";
 import { must, rawId } from "../helpers/ids.ts";
-import { withoutClassWarnings } from "./helpers.ts";
 
 function options(n: number): { id: string; label: string }[] {
   return Array.from({ length: n }, (_, i) => ({ id: `o${i}`, label: `O${i}` }));
@@ -82,8 +81,7 @@ const NAME_Q: AskQuestion = { id: "name", question: "이름을 알려 주세요"
 
 describe("dialog definitions", () => {
   test("the seven definitions have no validation issues and the set resolves its requires", () => {
-    for (const def of DIALOG_CAPABILITIES)
-      expect(withoutClassWarnings(validateCapability(def))).toEqual([]);
+    for (const def of DIALOG_CAPABILITIES) expect(validateCapability(def)).toEqual([]);
     expect(validateCapabilitySet([...DIALOG_CAPABILITIES, WORKSPACE_IMAGES])).toEqual([]);
     expect(DIALOG_CAPABILITIES.map((d) => d.id)).toEqual([
       "dialog.ask",

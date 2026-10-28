@@ -14,6 +14,8 @@ import {
   KnowledgeSkillsKey,
   LedgerEntrySchema,
   MemoryManageInputSchema,
+  ProposalSchema,
+  ProposalsInputSchema,
   SkillCreateInputSchema,
   SkillManageInputSchema,
   SkillNameSchema,
@@ -35,7 +37,7 @@ import {
   type ToolContent,
   type WriteOutcome,
 } from "../../src/capabilities/index.ts";
-import { propertyNames, withoutClassWarnings } from "./helpers.ts";
+import { propertyNames } from "./helpers.ts";
 
 const DEFS: readonly AnyCapabilityDef[] = [
   KnowledgeSkills,
@@ -67,7 +69,7 @@ const APPLIED: WriteOutcome = {
 
 describe("knowledge definitions", () => {
   test("each of the four definitions has no validation issues and the set has no conflicts", () => {
-    for (const def of DEFS) expect(withoutClassWarnings(validateCapability(def))).toEqual([]);
+    for (const def of DEFS) expect(validateCapability(def)).toEqual([]);
     expect(validateCapabilitySet(DEFS)).toEqual([]);
   });
 
@@ -365,5 +367,44 @@ describe("knowledge renderers", () => {
     expect(text).toContain("[잘림]");
     expect(text).toContain("이어 읽기: fromSeq=3");
     expect(firstText(renderMessages({ messages: [] }))).toBe("(메시지 없음)");
+  });
+});
+
+describe("proposal queue fields for the merged approval list (M3-REQ-91)", () => {
+  test("proposals accepts several statuses and a keyset position, and rejects an empty status list", () => {
+    expect(
+      parse(ProposalsInputSchema, {
+        statuses: ["pending", "stale"],
+        before: { createdAt: 5, proposalId: "knp_01ARZ3NDEKTSV4RRFFQ5ABCDEF" },
+        limit: 20,
+      }).ok,
+    ).toBe(true);
+    expect(parse(ProposalsInputSchema, { statuses: [] }).ok).toBe(false);
+    expect(parse(ProposalsInputSchema, { before: { createdAt: -1, proposalId: "x" } }).ok).toBe(
+      false,
+    );
+  });
+
+  test("decide accepts the scope the user picked and only user or project", () => {
+    const base = { proposalId: "knp_01ARZ3NDEKTSV4RRFFQ5ABCDEF", decision: "approve" as const };
+    expect(parse(DecideInputSchema, { ...base, scope: "project" }).ok).toBe(true);
+    expect(parse(DecideInputSchema, { ...base, scope: "extension" }).ok).toBe(false);
+  });
+
+  test("ledger entries and proposals carry the optional afterUntrusted mark", () => {
+    const scan = { rulesetVersion: "1.0.0", findings: [] };
+    const proposal = {
+      proposalId: "knp_01ARZ3NDEKTSV4RRFFQ5ABCDEF",
+      createdAt: 1,
+      actor: { kind: "user" },
+      target: { kind: "skill", name: "deploy" },
+      op: "skill.create",
+      baseHash: null,
+      status: "pending",
+      preview: "+x",
+      scan,
+    };
+    expect(parse(ProposalSchema, { ...proposal, afterUntrusted: true }).ok).toBe(true);
+    expect(parse(ProposalSchema, { ...proposal, afterUntrusted: "yes" }).ok).toBe(false);
   });
 });

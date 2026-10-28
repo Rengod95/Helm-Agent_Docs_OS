@@ -3,7 +3,6 @@ import {
   toJsonSchema,
   type AnyCapabilityDef,
   type CapabilityId,
-  type CapabilityIssue,
 } from "../../src/capabilities/index.ts";
 
 /** 메서드 하나(run)와 지정한 이름의 도구들을 가진 최소 능력 정의 */
@@ -25,16 +24,6 @@ export function makeDef(id: CapabilityId, toolNames: readonly string[]): AnyCapa
       parameters: input,
     })),
   };
-}
-
-/**
- * 내장 정의 검사에서 분류 경고(`effect_class_missing`)를 뺀다. L2 정의의 `readOnly`·`idempotent` 분류는 M3-REQ-88(L2 트랙)이 채운다.
- * 분류가 끝나면 이 함수를 지우고 이슈 0건으로 되돌린다.
- */
-export function withoutClassWarnings(
-  issues: readonly CapabilityIssue[],
-): readonly CapabilityIssue[] {
-  return issues.filter((issue) => issue.code !== "effect_class_missing");
 }
 
 export function permutations<T>(items: readonly T[]): readonly (readonly T[])[] {

@@ -41,7 +41,7 @@ import {
   SAMPLE_SEARCH_OUTPUT,
   sampleSource,
 } from "./fixtures/web-samples.ts";
-import { propertyNames, withoutClassWarnings } from "./helpers.ts";
+import { propertyNames } from "./helpers.ts";
 
 const DEFS: readonly AnyCapabilityDef[] = [WebSearch, WebFetch, WebBrowse, WebResearch];
 
@@ -52,7 +52,7 @@ function firstText(result: ToolContent): string {
 
 describe("web definitions", () => {
   test("each of the four definitions has no validation issues", () => {
-    for (const def of DEFS) expect(withoutClassWarnings(validateCapability(def))).toEqual([]);
+    for (const def of DEFS) expect(validateCapability(def)).toEqual([]);
   });
 
   test("the set has no conflicts and research requires search and fetch", () => {

@@ -584,6 +584,8 @@ export const LedgerEntrySchema = Type.Object({
   proposalId: Type.Optional(ProposalIdSchema),
   rollbackOf: Type.Optional(LedgerIdSchema),
   rolledBackBy: Type.Optional(LedgerIdSchema),
+  /** 이 쓰기를 한 turn에 untrusted 도구 결과를 이미 읽었다. 승인 화면이 경고를 보인다 [결정: M3-REQ-91] */
+  afterUntrusted: Type.Optional(Type.Boolean()),
 });
 
 export const LedgerListInputSchema = Type.Object({
@@ -619,6 +621,8 @@ export const ProposalSchema = Type.Object({
   preview: Type.String({ maxLength: 200_000 }),
   scan: ScanSummarySchema,
   ledgerId: Type.Optional(LedgerIdSchema),
+  /** 제안한 쓰기가 untrusted 도구 결과를 읽은 turn에서 나왔다. 없으면 거짓이다 [결정: M3-REQ-91] */
+  afterUntrusted: Type.Optional(Type.Boolean()),
 });
 
 export const KnowledgeLedger = defineCapability({
@@ -644,12 +648,15 @@ export const KnowledgeLedger = defineCapability({
                    }), output: ScanSummarySchema, replay: "safe", readOnly: true },
       proposals: { description: "제안 대기열을 돌려준다.", input: Type.Object({
                      status: Type.Optional(ProposalSchema.properties.status),
+                     statuses: Type.Optional(Type.Array(ProposalSchema.properties.status, { minItems: 1, maxItems: 5, uniqueItems: true })),
                      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 50 })),
+                     before: Type.Optional(Type.Object({ createdAt: Type.Integer({ minimum: 0 }), proposalId: ProposalIdSchema })),
                    }), output: Type.Object({ proposals: Type.Array(ProposalSchema, { maxItems: 200 }) }), replay: "safe", readOnly: true },
       decide:    { description: "제안 하나를 승인하거나 거절한다. 승인하면 쓰기 경로로 적용한다.", input: Type.Object({
                      proposalId: ProposalIdSchema,
                      decision: Type.Union([Type.Literal("approve"), Type.Literal("reject")]),
                      note: Type.Optional(Type.String({ maxLength: 500 })),
+                     scope: Type.Optional(WritableSkillScopeSchema),
                    }), output: Type.Object({ proposal: ProposalSchema, outcome: Type.Optional(WriteOutcomeSchema) }),
                    errors: {
                      proposal_closed: { description: "이미 처리된 제안", retryable: false },
