@@ -37,14 +37,14 @@ const PATCHER = defineManifest({
   layer: "L3",
   kind: "group",
   entry: "./src/index.ts",
-  points: ["before_provider_request"],
+  points: ["request.provider.before"],
   usesDrive: false,
   trust: { level: "builtin" },
 });
 
 const patcherEntry: ExtensionEntry = ({ manifest: own, scope }) => {
   scope(own.name, {}, (g) => {
-    g.on("before_provider_request", (payload) => ({
+    g.on("request.provider.before", (payload) => ({
       payload: { patched: true, was: payload.payload },
     }));
   });
@@ -58,7 +58,7 @@ describe("core-models builtin extension", () => {
     expect(typeof extension).toBe("function");
   });
 
-  test("installs into ext-host, provides xeon.models, and fires before_provider_request through xeon.ext", async () => {
+  test("installs into ext-host, provides xeon.models, and fires request.provider.before through xeon.ext", async () => {
     const th = await createTestHost();
     const secrets = memorySecrets({ "tape-key": FAKE_KEY });
     await th.host.registerPlatform({
@@ -199,11 +199,11 @@ describe("core-models builtin extension", () => {
       kind: "group",
       entry: "./src/index.ts",
       points: [
-        "before_provider_headers",
-        "after_provider_response",
-        "provider_stream_event",
-        "model_select",
-        "thinking_level_select",
+        "request.headers.before",
+        "request.provider.after",
+        "request.stream",
+        "request.model.after",
+        "request.thinking.after",
       ],
       usesDrive: false,
       trust: { level: "builtin" },
@@ -212,20 +212,20 @@ describe("core-models builtin extension", () => {
       manifest: spyManifest,
       entry: ({ manifest: own, scope }) => {
         scope(own.name, {}, (g) => {
-          g.on("before_provider_headers", (payload) => {
+          g.on("request.headers.before", (payload) => {
             seen.push(`headers:${Object.keys(payload.headers).join(",")}`);
             return { set: { "x-spy": "1" } };
           });
-          g.on("after_provider_response", (payload) => {
+          g.on("request.provider.after", (payload) => {
             seen.push(`response:${payload.status}:${Object.keys(payload.headers).join(",")}`);
           });
-          g.on("provider_stream_event", (payload) => {
+          g.on("request.stream", (payload) => {
             seen.push(`raw:${payload.model}`);
           });
-          g.on("model_select", (payload) => {
+          g.on("request.model.after", (payload) => {
             seen.push(`select:${payload.binding.modelId}:${payload.previous === null}`);
           });
-          g.on("thinking_level_select", (payload) => {
+          g.on("request.thinking.after", (payload) => {
             seen.push(`level:${payload.level}`);
           });
         });

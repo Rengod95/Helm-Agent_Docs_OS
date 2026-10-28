@@ -35,7 +35,7 @@ export interface LoopDeps {
   readonly models: ModelService;
   readonly ext: LoopExtHost;
   readonly settings: LoopSettingsSource;
-  /** 접두에 고정되는 기본 시스템 프롬프트. `before_agent_start`가 더한 부분은 요청마다 volatile로 붙는다 */
+  /** 접두에 고정되는 기본 시스템 프롬프트. `input.agent.before`가 더한 부분은 요청마다 volatile로 붙는다 */
   readonly basePrompt: string;
   /** 환경 블록의 `platform` 줄. 예: "darwin/arm64". 생략하면 줄을 내지 않는다 */
   readonly platform?: string;
@@ -45,7 +45,7 @@ export interface LoopDeps {
   /** 소유 사슬 취소 판정(`RecoverDeps.cancelledByOwner`, L1.tasks.spec §4.8 3번) */
   readonly cancelledByOwner: (threadId: ThreadId, turnId: TurnId) => boolean;
   /**
-   * `user_bash` 지점 페이로드의 `cwd`. 조립 루트가 대화의 작업 디렉터리를 돌려준다(대화마다 다를 수 있다).
+   * `input.bash.before` 지점 페이로드의 `cwd`. 조립 루트가 대화의 작업 디렉터리를 돌려준다(대화마다 다를 수 있다).
    * 생략하거나 `undefined`를 돌려주면 빈 문자열이다
    */
   readonly workingDirectory?: (threadId: ThreadId) => string | undefined;

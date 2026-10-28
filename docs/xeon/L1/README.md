@@ -131,66 +131,71 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 
 ## 6. 확장 지점 소유표
 
-발화 소유 41개의 정본이다. 지점 이름, kind, fold는 `F.extensions.spec` §3.4 표와 같고 페이로드는 그 문서 §3.5를 따른다. "F §7"은 그 문서 §7 표의 kind별 발화 문서 배정이다.
+발화 소유 46개의 정본이다. 지점 이름, kind, fold는 `F.extensions.spec` §3.4 표와 같고 페이로드는 그 문서 §3.5를 따른다. "F §7"은 그 문서 §7 표의 kind별 발화 문서 배정이다.
 
 | # | 지점 | kind | fold | 소유 | F §7 배정과의 차이 |
 |---|---|---|---|---|---|
-| 1 | `input` | input | chain | loop | 같음. runtime-flow §4.1 그림은 tasks로 그렸다(§13 (d)) |
-| 2 | `user_bash` | input | first | loop | 같음 |
-| 3 | `before_agent_start` | input | chain | loop | 같음 |
-| 4 | `context` | request | chain | context | 같음(F는 request를 context·models 공동으로 적었다) |
-| 5 | `context_with_system` | request | chain | context | 같음 |
-| 6 | `cache_warming_decision` | request | chain | context | 같음 |
-| 7 | `before_provider_request` | request | chain | models | 같음 |
-| 8 | `before_provider_headers` | request | chain | models | 같음 |
-| 9 | `after_provider_response` | request | tap | models | 같음 |
-| 10 | `provider_stream_event` | request | tap | models | 같음 |
-| 11 | `model_select` | request | tap | models | 같음 |
-| 12 | `thinking_level_select` | request | tap(detached) | models | 같음 |
-| 13 | `tool_call` | tool | first | tools | 같음 |
-| 14 | `tool_result` | tool | chain | tools | 같음 |
-| 15 | `tool_execution_start` | tool | tap | tools | 같음 |
-| 16 | `tool_execution_update` | tool | tap | tools | 같음 |
-| 17 | `tool_execution_end` | tool | tap | tools | 같음 |
-| 18 | `agent_start` | boundary | tap | loop | 같음 |
-| 19 | `turn_start` | boundary | tap | loop | 같음 |
-| 20 | `message_start` | boundary | tap | loop | 같음 |
-| 21 | `message_update` | boundary | tap | loop | 같음 |
-| 22 | `message_end` | boundary | chain | loop | 같음 |
-| 23 | `turn_end` | boundary | chain | loop | 같음 |
-| 24 | `agent_before_settle` | boundary | chain | loop | 같음 |
-| 25 | `agent_end` | boundary | tap | loop | 같음 |
-| 26 | `agent_settled` | boundary | tap | loop | 같음 |
-| 27 | `project_trust` | session | first | X(`X.loading-trust.spec`) | 같음. L1 밖 |
-| 28 | `resources_discover` | session | chain | X(`X.loading-trust.spec`) | 같음. L1 밖 |
-| 29 | `mcp_servers_change` | session | tap(detached) | L2.mcp(`L2.mcp.spec`) | 같음. L1 밖 |
-| 30 | `session_start` | session | tap | persistence | 같음 |
-| 31 | `session_info_changed` | session | tap(detached) | persistence | 같음 |
-| 32 | `session_before_switch` | session | first | persistence | 같음 |
-| 33 | `session_before_fork` | session | first | persistence | 같음 |
-| 34 | `session_before_compact` | session | first | context | 같음(§13 (c)에서 F §7을 고쳤다) |
-| 35 | `session_compact` | session | tap | context | 같음 |
-| 36 | `session_compact_failed` | session | tap | context | 같음 |
-| 37 | `session_before_tree` | session | first | persistence | 같음 |
-| 38 | `session_tree` | session | tap | persistence | 같음 |
-| 39 | `session_shutdown` | session | tap | persistence | 같음 |
-| 40 | `ui_prompt_start` | session | tap(detached) | tools | 같음. 승인 프로토콜이 발화한다(`L1.tools.spec` §7) |
-| 41 | `ui_prompt_end` | session | tap(detached) | tools | 같음 |
+| 1 | `input.user.before` | input | chain | loop | 같음. runtime-flow §4.1 그림은 tasks로 그렸다(§13 (d)) |
+| 2 | `input.bash.before` | input | first | loop | 같음 |
+| 3 | `input.agent.before` | input | collect | loop | 같음 |
+| 4 | `request.context.before` | request | chain | context | 같음(F는 request를 context·models 공동으로 적었다) |
+| 5 | `request.system.before` | request | chain | context | 같음 |
+| 6 | `request.cache.before` | request | chain | context | 같음 |
+| 7 | `request.provider.before` | request | chain | models | 같음 |
+| 8 | `request.headers.before` | request | chain | models | 같음 |
+| 9 | `request.provider.after` | request | tap | models | 같음 |
+| 10 | `request.stream` | request | tap | models | 같음 |
+| 11 | `request.model.after` | request | tap | models | 같음 |
+| 12 | `request.thinking.after` | request | tap(detached) | models | 같음 |
+| 13 | `tool.call.before` | tool | first | tools | 같음 |
+| 14 | `tool.result` | tool | chain | tools | 같음 |
+| 15 | `tool.execution.before` | tool | tap | tools | 같음 |
+| 16 | `tool.execution.update` | tool | tap | tools | 같음 |
+| 17 | `tool.execution.after` | tool | tap | tools | 같음 |
+| 18 | `boundary.turn.before` | boundary | tap | loop | 같음 |
+| 19 | `boundary.step.before` | boundary | tap | loop | 같음 |
+| 20 | `boundary.message.before` | boundary | tap | loop | 같음 |
+| 21 | `boundary.message.update` | boundary | tap | loop | 같음 |
+| 22 | `boundary.message.after` | boundary | chain | loop | 같음 |
+| 23 | `boundary.step.after` | boundary | chain | loop | 같음 |
+| 24 | `boundary.settle.before` | boundary | chain | loop | 같음 |
+| 25 | `boundary.turn.after` | boundary | tap | loop | 같음 |
+| 26 | `boundary.settle.after` | boundary | tap | loop | 같음 |
+| 27 | `session.trust.before` | session | first | X(`X.loading-trust.spec`) | 같음. L1 밖 |
+| 28 | `session.resources` | session | collect | X(`X.loading-trust.spec`) | 같음. L1 밖 |
+| 29 | `session.mcp.after` | session | tap(detached) | L2.mcp(`L2.mcp.spec`) | 같음. L1 밖 |
+| 30 | `session.start` | session | tap | persistence | 같음 |
+| 31 | `session.info.after` | session | tap(detached) | persistence | 같음 |
+| 32 | `session.switch.before` | session | first | persistence | 같음 |
+| 33 | `session.fork.before` | session | first | persistence | 같음 |
+| 34 | `session.compact.before` | session | first | context | 같음(§13 (c)에서 F §7을 고쳤다) |
+| 35 | `session.compact.after` | session | tap | context | 같음 |
+| 36 | `session.compact.failed` | session | tap | context | 같음 |
+| 37 | `session.tree.before` | session | first | persistence | 같음 |
+| 38 | `session.tree.after` | session | tap | persistence | 같음 |
+| 39 | `session.shutdown` | session | tap | persistence | 같음 |
+| 40 | `session.prompt.before` | session | tap(detached) | tools | 같음. 승인 프로토콜이 발화한다(`L1.tools.spec` §7) |
+| 41 | `session.prompt.after` | session | tap(detached) | tools | 같음 |
+| 42 | `guard.model.before` | guard | first | loop | adr.0017로 더한 지점. 발화 위치는 `L1.loop.spec`이 정한다(M3-REQ-109). 내장 검사는 없다 |
+| 43 | `guard.tool.before` | guard | first | tools | 같음. 발화 위치는 `L1.tools.spec`이 정한다(M3-REQ-109) |
+| 44 | `guard.output.before` | guard | first | loop | 같음. 출력 대상은 [가정] |
+| 45 | `lifecycle.agent.settled` | lifecycle | tap | agents | 내구 이벤트 `agent.settled` 커밋 뒤 발화한다(M3-REQ-109) |
+| 46 | `lifecycle.lease.rejected` | lifecycle | tap | X(`X.primitives.spec`) | L1 밖. 내구 이벤트 `lease.rejected`는 X가 커밋한다(M3-REQ-99) |
 
 도메인별 집계:
 
 | 도메인 | 개수 | 지점(위 표 #) | 근거 |
 |---|---|---|---|
 | tasks | 0 | 없음. post 대상 큐만 제공 | `L1.tasks.spec` §7 |
-| loop | 12 | 1, 2, 3, 18~26 | `L1.loop.spec` §7 |
+| loop | 13 | 1, 2, 3, 18~26, 42, 44 | `L1.loop.spec` §7 |
 | models | 6 | 7~12 | `L1.models.spec` §7 |
-| tools | 7 | 13~17, 40, 41 | `L1.tools.spec` §7 |
+| tools | 8 | 13~17, 40, 41, 43 | `L1.tools.spec` §7 |
 | context | 6 | 4, 5, 6, 34, 35, 36 | `L1.context.spec` §7 |
 | persistence | 7 | 30~33, 37~39 | `L1.persistence.spec` §7 |
-| agents | 0 | 없음. 자식 대화 안의 지점은 loop·tools가 발화 | `L1.agents.spec` §7 |
-| L1 밖 | 3 | 27, 28(X), 29(L2.mcp) | `F.extensions.spec` §7 |
+| agents | 1 | 45(커밋 뒤 발화는 M3-REQ-109가 요구하고 이 작업에서는 이름만 둔다). 자식 대화 안의 지점은 loop·tools가 발화 | `L1.agents.spec` §7 |
+| L1 밖 | 4 | 27, 28, 46(X), 29(L2.mcp) | `F.extensions.spec` §7 |
 
-합계 41이고 각 지점의 소유자는 하나다.
+합계 46이고 각 지점의 소유자는 하나다.
 
 ## 7. 이벤트 kind와 테이블 접두 소유표
 
@@ -261,7 +266,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 | 합계 | 24 | 15(1차 14 + 배포 제외 1)(+ 당겨 온 완료 게이트 상한) | 1(+ 당겨 온 구조화 출력 최소형, 리플레이 커서, 레이트 리밋과 계정 회전) | 10 | 1 | 1 | 39/51 |
 
 - 집계 방식: 숫자는 구성요소 단위다. 구성요소 일부를 앞 마일스톤으로 당긴 경우는 괄호로 적고 숫자에 넣지 않는다. 그래서 합계 열의 숫자는 당기기 전과 같다(M1 24, M2 14 + 배포 제외 1, M3 1, 2차 10, 보류 1, 배포 제외 1, 합 51). "1차/전체" 열은 계획 JSON 표기라 당기기와 무관하다.
-- 각주 1: 완료 게이트는 계획 JSON에서 2차다. drive 계속 지시(M2 Helm)와 목표 판정(M3)이 `agent_before_settle`의 계속을 쓰므로 횟수 상한(`l1.loop.gate.maxContinues`)만 M2로 당긴다(`L1.loop.plan` §1).
+- 각주 1: 완료 게이트는 계획 JSON에서 2차다. drive 계속 지시(M2 Helm)와 목표 판정(M3)이 `boundary.settle.before`의 계속을 쓰므로 횟수 상한(`l1.loop.gate.maxContinues`)만 M2로 당긴다(`L1.loop.plan` §1).
 - 각주 2: 리플레이 커서는 계획 JSON의 2차 구성요소 "되감기, 리플레이 커서, JSONL 내보내기"의 일부다. M3 공유 서비스 모드의 원격 클라이언트 재접속에 필요해 이 부분만 M3로 당긴다(`L1.persistence.plan` §1).
 - M1 스모크: 모델 테이프로 `xeon chat` 한 턴, 강제 종료 뒤 재개, drive 그룹 토글이 단계 경계에서 적용(`_research/foundation-plan.md` §6). L1의 몫은 models·loop·tools·persistence·tasks의 M1 열과 context의 최소 조립이다.
 - 각주 3: 레이트 리밋과 계정 회전은 계획 JSON에서 2차다. 설정을 M3 설정 화면에서 조작할 수 있어야 하므로 M3로 당긴다 [결정: review.decisions-2 U-21]. 합계의 2차 칸 10에는 그대로 센다(당기기 집계 방식). 구독 계정 회전의 약관 검토는 M3 착수 전에 한다(`L1.models.spec` §4.8).
@@ -292,7 +297,7 @@ L1은 거의 바뀌지 않는 코어 플러그인 7개다. 대화형 에이전�
 
 1. 이름의 정본은 F다. envelope 필드는 `kind`, `version`, `threadId`, `durable`이고 코어 kind는 `F.records.spec` §3.3 표, ID 접두는 `thr`·`trn`·`stp`·`itm`·`prt`·`evt`·`efx`·`ckp`, `requestId`는 브랜드 없는 문자열(1~64자)이다. engineering 문서의 `type`, `sessionId`, `tool.intended` 같은 표기는 F 이름으로 바꿔 읽는다(`F.records.spec` §3.1.2).
 2. 재생 계약: on 핸들러는 다시 실행해도 되는 질의다. 효과는 `post`(멱등 키 필수), `commit`, `record`로만 낸다(`F.extensions.spec` §4.3). pi-ai `onPayload`처럼 재시도 때 다시 불리는 훅에 연결한 지점도 같은 조건이다(`L1.models.spec` §4.3).
-3. 도구 지점 재실행 금지: 재생과 재개에서 이미 결정된 도구 호출에 대해 `tool_call` 지점을 다시 발화하지 않는다. 저장된 `effect.intent.args`가 재실행 입력이다(`architecture.runtime-flow.design` §4.2, `F.records.spec` §3.5).
+3. 도구 지점 재실행 금지: 재생과 재개에서 이미 결정된 도구 호출에 대해 `tool.call.before` 지점을 다시 발화하지 않는다. 저장된 `effect.intent.args`가 재실행 입력이다(`architecture.runtime-flow.design` §4.2, `F.records.spec` §3.5).
 4. 커밋 뒤 방출: tap 지점과 구독자 전달은 커밋 뒤, chain·first 결과는 커밋 전에 받아 커밋에 넣는다(`L1.loop.spec` §7).
 5. 단계 경계: 확장 켜기·끄기, drive 임대 교대, 도구 목록 변경은 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용한다 [결정: review.decisions-2 U-01](`F.extensions.spec` §4.5).
 6. 예산: 단계 수와 비용에 기본 상한을 두지 않는다. 사용자 중단, 컨텍스트 한도, 추론 레벨별 토큰 예산만 둔다. 상한은 그룹의 drive 임대에만 걸린다(`_research/layer-plan-v2-notes.md` 가드레일 절). 이 예외는 [결정: review.decisions-2 U-12]이다. 목표 판정 횟수 상한(`l1.agents.judge.maxRuns`)은 결정 4의 별도 상한이다.

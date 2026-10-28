@@ -31,27 +31,27 @@ test("extension_points_fire_in_the_documented_order_around_the_commits", async (
   await h.settle();
 
   expect(recorder.order()).toEqual([
-    "input",
-    "before_agent_start",
-    "agent_start",
-    "turn_start",
-    "message_start",
-    "message_update",
-    "message_end",
-    "turn_end",
-    "agent_before_settle",
-    "agent_end",
-    "agent_settled",
+    "input.user.before",
+    "input.agent.before",
+    "boundary.turn.before",
+    "boundary.step.before",
+    "boundary.message.before",
+    "boundary.message.update",
+    "boundary.message.after",
+    "boundary.step.after",
+    "boundary.settle.before",
+    "boundary.turn.after",
+    "boundary.settle.after",
   ]);
   const lastKindAt = (point: string): string | undefined =>
     recorder.sightings.find((sighting) => sighting.point === point)?.lastKind;
   // tap은 커밋 뒤, chain은 커밋 전
-  expect(lastKindAt("turn_start")).toBe("step.started");
-  expect(lastKindAt("message_end")).toBe("step.started");
-  expect(lastKindAt("turn_end")).toBe("item.recorded");
-  expect(lastKindAt("agent_before_settle")).toBe("item.recorded");
-  expect(lastKindAt("agent_end")).toBe("turn.completed");
-  expect(lastKindAt("agent_settled")).toBe("turn.completed");
+  expect(lastKindAt("boundary.step.before")).toBe("step.started");
+  expect(lastKindAt("boundary.message.after")).toBe("step.started");
+  expect(lastKindAt("boundary.step.after")).toBe("item.recorded");
+  expect(lastKindAt("boundary.settle.before")).toBe("item.recorded");
+  expect(lastKindAt("boundary.turn.after")).toBe("turn.completed");
+  expect(lastKindAt("boundary.settle.after")).toBe("turn.completed");
 });
 
 test("turn_end_fires_on_each_step_boundary_and_agent_before_settle_only_when_settling", async () => {
@@ -73,10 +73,10 @@ test("turn_end_fires_on_each_step_boundary_and_agent_before_settle_only_when_set
   await h.settle();
   const count = (point: string): number =>
     recorder.sightings.filter((sighting) => sighting.point === point).length;
-  expect(count("turn_start")).toBe(2);
-  expect(count("turn_end")).toBe(2);
-  expect(count("agent_before_settle")).toBe(1);
-  expect(count("agent_end")).toBe(1);
+  expect(count("boundary.step.before")).toBe(2);
+  expect(count("boundary.step.after")).toBe(2);
+  expect(count("boundary.settle.before")).toBe(1);
+  expect(count("boundary.turn.after")).toBe(1);
 });
 
 async function sourcesOf(
@@ -153,7 +153,7 @@ function inputGroup(handler: Parameters<typeof makeEntry>[0]): ExtensionUnit {
       layer: "plugin",
       kind: "plugin",
       entry: "./index.ts",
-      points: ["input"],
+      points: ["input.user.before"],
       usesDrive: false,
     }),
     entry: makeEntry(handler),
@@ -169,7 +169,7 @@ function makeEntry(
 ): ExtensionEntry {
   return ({ manifest, scope }) => {
     scope(manifest.name, {}, (g) => {
-      g.on("input", (payload) => handler(payload.text));
+      g.on("input.user.before", (payload) => handler(payload.text));
     });
   };
 }

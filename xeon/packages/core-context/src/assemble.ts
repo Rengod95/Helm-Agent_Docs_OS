@@ -37,7 +37,7 @@ import { DEFAULT_CONTEXT_SETTINGS, type ContextSettings } from "./settings.ts";
 import { decideToolChange } from "./toolset-diff.ts";
 
 // L1.context.spec §4.1 조립 순서: 가지 읽기 → 컴팩션 머리 → 메시지 변환 → context 지점 → 도구·절 변경 →
-// context_with_system 지점 → 캐시 표식 → volatile → 추정(§4.2~§4.5). 커밋하지 않는다.
+// request.system.before 지점 → 캐시 표식 → volatile → 추정(§4.2~§4.5). 커밋하지 않는다.
 
 export interface AssembleDeps extends BranchReaderDeps {
   readonly models: Pick<ModelService, "tokens">;
@@ -138,11 +138,11 @@ async function applyContextPoint(
   const visible = assembled.filter((message) => !isSystem(message));
   // 디스패치가 payload를 동결하고 핸들러가 current를 고칠 수 있으므로 저장소가 준 객체는 복사해서 넘긴다
   const outcome = await deps.ext.dispatch(
-    "context",
+    "request.context.before",
     { messages: structuredClone(visible) },
     {
       threadId,
-      dispatchKey: `${opts.stepId}:context`,
+      dispatchKey: `${opts.stepId}:request.context.before`,
       initial: { messages: structuredClone(visible) },
       ...(opts.signal === undefined ? {} : { signal: opts.signal }),
     },
@@ -153,7 +153,7 @@ async function applyContextPoint(
   return systemState === undefined ? returned : [systemState, ...returned];
 }
 
-/** context_with_system 지점(chain)을 전체 배열로 발화한다(§4.1 5번). 결과가 최종 messages다 */
+/** request.system.before 지점(chain)을 전체 배열로 발화한다(§4.1 5번). 결과가 최종 messages다 */
 async function applyContextWithSystemPoint(
   deps: AssembleDeps,
   threadId: ThreadId,
@@ -161,11 +161,11 @@ async function applyContextWithSystemPoint(
   assembled: readonly Message[],
 ): Promise<{ readonly messages: readonly Message[]; readonly changed: boolean }> {
   const outcome = await deps.ext.dispatch(
-    "context_with_system",
+    "request.system.before",
     { messages: structuredClone([...assembled]) },
     {
       threadId,
-      dispatchKey: `${opts.stepId}:context_with_system`,
+      dispatchKey: `${opts.stepId}:request.system.before`,
       initial: { messages: structuredClone([...assembled]) },
       ...(opts.signal === undefined ? {} : { signal: opts.signal }),
     },

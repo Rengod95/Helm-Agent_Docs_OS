@@ -21,7 +21,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
 - 역할 표의 역할 목록, 해석 순서, 모델 참조 문자열 형식 `provider/modelId[:thinkingLevel]`.
 - 추론 레벨과 레벨별 토큰 예산, 단계 체크포인트(`StepCheckpoint.model`) 고정 규칙.
 - 비밀 참조(`secret://`)를 요청 직전에만 해석하는 규칙.
-- 발화 지점 6개: `before_provider_request`, `before_provider_headers`, `after_provider_response`, `provider_stream_event`, `model_select`, `thinking_level_select`.
+- 발화 지점 6개: `request.provider.before`, `request.headers.before`, `request.provider.after`, `request.stream`, `request.model.after`, `request.thinking.after`.
 - M3: 레이트 리밋과 계정 회전(설정은 M3 설정 화면, review.decisions-2 U-21). 2차: 폴백 체인, 구조화 출력.
 - 위장 provider 플러그인의 분리 방식(방안 A 우선, 방안 B 전환 조건), 배포 제외 검사, 위험 고지.
 - 설정 키 `l1.models.*`.
@@ -530,7 +530,7 @@ export function setup(g: ScopeApi<unknown>): void;
 - 종료 사유: `message_delta`의 `stop_reason`을 `end_turn`, `pause_turn`, `max_tokens`, `refusal`로 옮기고 그 밖의 값은 `end_turn`이다. 종료 사유를 받았으면 `refusal`처럼 pi-ai가 오류로 끝낸 경우도 정상 응답이다.
 - 이어 요청: `pause_turn`이면 직전 응답의 content 블록 전체(`encrypted_content` 포함)를 JSON으로 직렬화해 `hs1:<base64url>` 문자열로 `continuation`에 담는다. 호출자는 읽거나 저장하지 않는다. 다음 요청의 `continuation`은 페이로드 `messages` 끝에 assistant 메시지로 되돌려 보낸다. 해석할 수 없는 문자열은 `upstream`(`status: null`)이고 요청을 보내지 않는다.
 - 오류(`HostedSearchError`): 신호가 중단됐으면 `cancelled`. HTTP 400이고 메시지에 web search와 organization·admin·disabled·not enabled 계열 단어가 함께 있으면 `org_disabled` [가정: 오류 문구는 실제 응답으로 확인하지 못했다]. 429나 도구 결과의 `too_many_requests`는 `rate_limited`(`retryAfterMs: null`). provider·모델 없음은 `unsupported_model`. 그 밖은 `upstream`이고 `status`는 메시지에서 읽은 HTTP 상태, `message`는 비밀 마스킹을 거친 문자열이다. 결과가 없고 도구 결과가 `web_search_tool_result_error`면 `upstream`이다.
-- thread에 속하지 않는 호출이다. 요청 지점(`before_provider_request` 등)과 `model_select`는 발화하지 않는다. 사용량은 예약 thread id(`HOSTED_SEARCH_THREAD`)에 역할 `search`로 쌓인다.
+- thread에 속하지 않는 호출이다. 요청 지점(`request.provider.before` 등)과 `request.model.after`는 발화하지 않는다. 사용량은 예약 thread id(`HOSTED_SEARCH_THREAD`)에 역할 `search`로 쌓인다.
 - 시험: 어댑터 원시 이벤트를 테이프 차례의 `rawEvents`로 재생한다(`@xeon/core-models/testing`의 테이프 provider). 네트워크 호출은 없다.
 - 범위 밖: 이 포트는 대화 기록에 남지 않는 단일 턴 요청이다. 메인 모델의 일반 턴 요청에 서버 도구를 넣는 일(`L2.web.spec` §4.8.1 A안)은 M2에 구현하지 않았다. 사유는 §10 12번이다.
 
@@ -588,8 +588,8 @@ export function resolveRole(input: {
 2. 같은 단계의 `checkpoint.step`에 `{ provider, modelId, thinkingLevel }`을 쓴다(`F.records.spec` §3.6 `StepCheckpoint.model`).
 3. 재개하면 core-loop가 `rebind(checkpoint.model + role "main")`을 부른다. 역할 표를 거치지 않으므로 설정이 바뀌었어도 재개 뒤 첫 요청은 고정 값을 쓴다. 출처는 `checkpoint`다.
 4. 그 다음 단계부터는 1번으로 돌아가 새로 해석한다.
-5. 고정 모델이 카탈로그에서 사라졌거나 차단 목록에 들어갔으면 `rebind`는 오류를 낸다. core-loop는 새로 해석하고 `model_select`(`source: "restore"`)를 발화한다 [제안].
-6. 바인딩이 이전 단계와 다르면 `model_select`를 발화한다. 레벨만 다르면 `thinking_level_select`를 발화한다(§7).
+5. 고정 모델이 카탈로그에서 사라졌거나 차단 목록에 들어갔으면 `rebind`는 오류를 낸다. core-loop는 새로 해석하고 `request.model.after`(`source: "restore"`)를 발화한다 [제안].
+6. 바인딩이 이전 단계와 다르면 `request.model.after`를 발화한다. 레벨만 다르면 `request.thinking.after`를 발화한다(§7).
 
 ### 4.3 호출 파이프라인
 
@@ -601,11 +601,11 @@ export function resolveRole(input: {
 | 2 | 캐시 정책 적용: `cacheRetention`, `sessionId = threadId`(retention이 none이 아닐 때) | `StreamOptions` |
 | 3 | 추론: `reasoning = thinkingLevel`(off면 생략), `thinkingBudgets` | `SimpleStreamOptions` |
 | 4 | 재시도 수치: `maxRetries`, `maxRetryDelayMs` | `ProviderRequestOptions` |
-| 5 | 페이로드 확정 뒤: 캐시 표식 적용(anthropic-messages만) → `before_provider_request` 디스패치 | `onPayload` |
-| 6 | 헤더 확정 뒤: `before_provider_headers` 디스패치(비밀 헤더 가림) | `transformHeaders` |
+| 5 | 페이로드 확정 뒤: 캐시 표식 적용(anthropic-messages만) → `request.provider.before` 디스패치 | `onPayload` |
+| 6 | 헤더 확정 뒤: `request.headers.before` 디스패치(비밀 헤더 가림) | `transformHeaders` |
 | 7 | 자격 증명 해석(요청 직전) | `CredentialStore.read` |
-| 8 | 응답 수신: `after_provider_response` 디스패치 | `onResponse` |
-| 9 | 원시 스트림 이벤트: `provider_stream_event` 디스패치(지원하는 어댑터만) | `onProviderStreamEvent` |
+| 8 | 응답 수신: `request.provider.after` 디스패치 | `onResponse` |
+| 9 | 원시 스트림 이벤트: `request.stream` 디스패치(지원하는 어댑터만) | `onProviderStreamEvent` |
 | 10 | 종결 이벤트(`done` 또는 `error`): `UsageRecord` 기록 | 스트림 래퍼 |
 
 - 5번 `onPayload`는 1.3.0에서 재시도 때 다시 불린다(`_research/notes/L1-2.md` §3.9). 캐시 표식 적용과 지점 디스패치는 같은 입력에 같은 결과를 내야 한다. on 핸들러 재실행 계약(`F.extensions.spec` §4.3)과 같은 조건이다.
@@ -654,7 +654,7 @@ export function resolveRole(input: {
 
 - 동작 조건은 `overloaded`와 `provider_unavailable`뿐이다. 레이트 리밋(`rate_limited`, `quota_exhausted`)에서는 동작하지 않는다. 레이트 리밋은 §4.8 정책이 처리한다(Claude Code `fallbackModel` 규칙, `_research/settings.md` §2.5 폴백 행).
 - 체인은 역할별이다. 콘텐츠를 아직 내지 않은 요청만 다음 모델로 다시 보낸다.
-- 폴백으로 바뀐 바인딩은 그 단계 안에서만 유지하고, 체크포인트에는 실제로 쓴 바인딩을 쓴다. 다음 단계는 역할 표로 다시 해석한다 [제안]. 바뀔 때 `model_select`(`source: "fallback"`)를 발화한다.
+- 폴백으로 바뀐 바인딩은 그 단계 안에서만 유지하고, 체크포인트에는 실제로 쓴 바인딩을 쓴다. 다음 단계는 역할 표로 다시 해석한다 [제안]. 바뀔 때 `request.model.after`(`source: "fallback"`)를 발화한다.
 - 참고: omp `session/retry-fallback-chains.ts`(읽기 자료).
 
 ### 4.10 구조화 출력 (2차)
@@ -737,14 +737,14 @@ export function resolveRole(input: {
 | `l1.models.default`가 없고 역할 표도 비어 있음 | `resolve`가 `no_model_for_role`. core-loop는 턴을 시작하지 않고 설정 안내 오류를 낸다 |
 | 참조 형식 오류(`anthropic` 같이 `/` 없음) | 설정 쓰기 단계에서 `settings.invalidValue`(`ModelRefStringSchema`). 파일에 남은 값은 `invalid_ref` |
 | 참조 접미가 레벨 이름이 아님(`…-v1:0`) | modelId의 일부로 읽는다 |
-| 모델이 지원하지 않는 레벨 요청 | `clampThinkingLevel`로 낮춘다. `thinking_level_select`는 실제 쓰인 레벨로 발화한다 |
-| 체크포인트의 모델이 없어짐 | `rebind` 오류 → 새로 해석, `model_select`(`restore`) |
+| 모델이 지원하지 않는 레벨 요청 | `clampThinkingLevel`로 낮춘다. `request.thinking.after`는 실제 쓰인 레벨로 발화한다 |
+| 체크포인트의 모델이 없어짐 | `rebind` 오류 → 새로 해석, `request.model.after`(`restore`) |
 | 그룹 덮어쓰기의 scopeId가 꺼진 그룹 | 덮어쓰기를 무시한다. 꺼진 그룹은 호출을 일으키지 않으므로 정상 경로에서는 생기지 않는다 |
 | 비밀 참조 해석 실패 | `secret_unresolved` 오류 종결 메시지. 재시도하지 않는다 |
 | 기본 `anthropic` provider에 `sk-ant-oat` 키 | `oauth_token_on_default_provider`. 요청을 보내지 않는다 |
 | 같은 이름 provider 두 번 등록 | 두 번째가 `provider_conflict` |
-| `before_provider_request` 핸들러가 페이로드를 망가뜨림 | 그 핸들러 패치를 버리고(skip) 다음으로 간다. 최종 페이로드가 provider에서 거부되면 `provider_error` 종결 |
-| `before_provider_headers` 패치가 인증 헤더를 바꾸려 함 | 인증 헤더(`authorization`, `x-api-key`, `x-goog-api-key`) 패치는 무시하고 기록한다 [제안] |
+| `request.provider.before` 핸들러가 페이로드를 망가뜨림 | 그 핸들러 패치를 버리고(skip) 다음으로 간다. 최종 페이로드가 provider에서 거부되면 `provider_error` 종결 |
+| `request.headers.before` 패치가 인증 헤더를 바꾸려 함 | 인증 헤더(`authorization`, `x-api-key`, `x-goog-api-key`) 패치는 무시하고 기록한다 [제안] |
 | 스트림 도중 사용자 중단 | 종결 `aborted`, 부분 사용량 기록 |
 | 캐시 표식이 상한을 넘음 | 우선순위가 낮은 위치부터 버린다(`sites` 뒤쪽부터) |
 | 위장 플러그인을 켰지만 `acknowledgeRisk`가 false | provider를 등록하지 않는다. `anthropic-oauth/...` 참조는 `provider_unavailable` |
@@ -787,18 +787,18 @@ fold와 페이로드는 `F.extensions.spec` §3.4~§3.5를 인용만 한다. 이
 
 | 지점 | kind | fold | 발화 위치 | pi-ai 연결점 | 비고 |
 |---|---|---|---|---|---|
-| `before_provider_request` | request | chain | §4.3 5번 | `onPayload` | M1 지점. 페이로드 `{ payload }`(F §3.5). 패치는 교체 |
-| `before_provider_headers` | request | chain | §4.3 6번 | `transformHeaders` | 헤더 패치(null은 삭제) |
-| `after_provider_response` | request | tap | §4.3 8번 | `onResponse` | |
-| `provider_stream_event` | request | tap | §4.3 9번 | `onProviderStreamEvent` | 지원하는 어댑터만 |
-| `model_select` | request | tap | 단계 시작에 바인딩이 바뀔 때(§4.2 6번), 폴백 전환 | 없음 | |
-| `thinking_level_select` | request | tap(detached) | 레벨만 바뀔 때 | 없음 | `dispatch: detached` |
+| `request.provider.before` | request | chain | §4.3 5번 | `onPayload` | M1 지점. 페이로드 `{ payload }`(F §3.5). 패치는 교체 |
+| `request.headers.before` | request | chain | §4.3 6번 | `transformHeaders` | 헤더 패치(null은 삭제) |
+| `request.provider.after` | request | tap | §4.3 8번 | `onResponse` | |
+| `request.stream` | request | tap | §4.3 9번 | `onProviderStreamEvent` | 지원하는 어댑터만 |
+| `request.model.after` | request | tap | 단계 시작에 바인딩이 바뀔 때(§4.2 6번), 폴백 전환 | 없음 | |
+| `request.thinking.after` | request | tap(detached) | 레벨만 바뀔 때 | 없음 | `dispatch: detached` |
 
 - 발화 구현 [구현: M2, m2/l1c]:
-  - `model_select`와 `thinking_level_select`는 요청을 보내기 직전에 같은 thread·역할·scope의 직전 호출 바인딩과 비교해 발화한다. 요청을 보내지 못한 호출(provider 없음, 가드)은 비교도 발화도 하지 않는다. 직전 호출이 없으면(처음이거나 프로세스를 다시 띄운 뒤) `previous: null`인 `model_select`를 한 번 낸다. provider·모델이 다르면 `model_select`만, 레벨만 다르면 `thinking_level_select`만 낸다. `source`는 체크포인트로 다시 묶은 해석 결과면 `restore`, 그 밖은 `route`다. `set`(사용자 `/model`)과 `fallback`은 이 서비스가 구분하지 못하므로 쓰지 않는다.
-  - `before_provider_headers`는 pi-ai `transformHeaders`에서 발화한다. 핸들러에는 소문자 이름으로 바꾼 사본을 주고, 이름에 `authorization`, `api-key`, `token`, `secret`, `cookie`가 들어 있거나 비밀 참조에서 푼 헤더의 값은 `"[secret]"`로 가린다. 핸들러가 낸 최종 헤더 중 가린 헤더는 어떤 패치도 받지 않고 원래 값을 쓴다(바꾸거나 지우려 하면 로그 `model.auth_header_patch_ignored`에 이름만 남긴다). 새 인증 헤더를 만드는 패치도 같다. 가리지 않은 헤더는 패치대로 바뀌고, 최종 값에 없는 이름은 삭제된다.
-  - `after_provider_response`의 헤더에서는 `authorization`, `api-key`, `cookie`가 든 이름을 뺀다.
-  - `provider_stream_event`는 어댑터가 원시 이벤트를 넘길 때마다 발화한다. 디스패치 키는 호출 키에 이벤트 순번을 붙인다.
+  - `request.model.after`와 `request.thinking.after`는 요청을 보내기 직전에 같은 thread·역할·scope의 직전 호출 바인딩과 비교해 발화한다. 요청을 보내지 못한 호출(provider 없음, 가드)은 비교도 발화도 하지 않는다. 직전 호출이 없으면(처음이거나 프로세스를 다시 띄운 뒤) `previous: null`인 `request.model.after`를 한 번 낸다. provider·모델이 다르면 `request.model.after`만, 레벨만 다르면 `request.thinking.after`만 낸다. `source`는 체크포인트로 다시 묶은 해석 결과면 `restore`, 그 밖은 `route`다. `set`(사용자 `/model`)과 `fallback`은 이 서비스가 구분하지 못하므로 쓰지 않는다.
+  - `request.headers.before`는 pi-ai `transformHeaders`에서 발화한다. 핸들러에는 소문자 이름으로 바꾼 사본을 주고, 이름에 `authorization`, `api-key`, `token`, `secret`, `cookie`가 들어 있거나 비밀 참조에서 푼 헤더의 값은 `"[secret]"`로 가린다. 핸들러가 낸 최종 헤더 중 가린 헤더는 어떤 패치도 받지 않고 원래 값을 쓴다(바꾸거나 지우려 하면 로그 `model.auth_header_patch_ignored`에 이름만 남긴다). 새 인증 헤더를 만드는 패치도 같다. 가리지 않은 헤더는 패치대로 바뀌고, 최종 값에 없는 이름은 삭제된다.
+  - `request.provider.after`의 헤더에서는 `authorization`, `api-key`, `cookie`가 든 이름을 뺀다.
+  - `request.stream`는 어댑터가 원시 이벤트를 넘길 때마다 발화한다. 디스패치 키는 호출 키에 이벤트 순번을 붙인다.
   - 한 호출의 키는 `<stepId|turnId|threadId>:<지점>:<순번>`이고 순번은 호출마다 하나다. 같은 호출의 재시도는 같은 키를 쓴다.
 
 ### 7.2 페이로드 필드 제안 (F 요청)
@@ -830,8 +830,8 @@ export interface ThinkingLevelSelectPayload {
 ```
 
 - `BeforeProviderRequestPayload`(F §3.5, `{ payload: unknown }`)에 `provider`, `modelId`, `role`을 더하도록 요청한다. 핸들러가 provider별로 다른 패치를 내려면 필요하다.
-- pi `model_select`의 `model: Model<any>`는 F 타입 규칙에 따라 `ModelBinding`으로 바꿨다. `source`의 pi 값 `cycle`은 Xeon에 대응 기능이 없어 뺐다.
-- 재생 계약: 모든 핸들러는 다시 실행해도 되는 질의다(`F.extensions.spec` §4.3). `before_provider_request`는 pi-ai 재시도 때 같은 요청에 다시 불릴 수 있다(§4.3).
+- pi `request.model.after`의 `model: Model<any>`는 F 타입 규칙에 따라 `ModelBinding`으로 바꿨다. `source`의 pi 값 `cycle`은 Xeon에 대응 기능이 없어 뺐다.
+- 재생 계약: 모든 핸들러는 다시 실행해도 되는 질의다(`F.extensions.spec` §4.3). `request.provider.before`는 pi-ai 재시도 때 같은 요청에 다시 불릴 수 있다(§4.3).
 
 ### 7.3 휘발 이벤트 접두
 
@@ -884,7 +884,7 @@ export interface ThinkingLevelSelectPayload {
 3. `overrides.scopeId = "helm"`이고 `groupRouting.helm.review`가 있으면 그 값이 `routing.review`보다 먼저 쓰인다. `overrides.ref`는 그룹 덮어쓰기보다 먼저 쓰인다.
 4. `parseModelRef("bedrock/anthropic.claude-x-v1:0")`의 modelId는 `anthropic.claude-x-v1:0`이고 레벨은 null이다. `parseModelRef("anthropic/claude-x:high")`의 레벨은 `high`다.
 5. 테이프가 `error`(`reason: "aborted"`, `afterContent` 있음)를 낸 호출의 사용량이 `UsageMeter.totals`에 더해지고 `abortedCalls`가 1 늘어난다.
-6. 요청 로그, 지점 페이로드(`before_provider_headers`, `after_provider_response`), 이벤트 DB, 오류 메시지 어디에도 `secret://`를 해석한 값이 나타나지 않는다. 테스트는 알려진 가짜 키 문자열을 모든 출력에서 찾는다.
+6. 요청 로그, 지점 페이로드(`request.headers.before`, `request.provider.after`), 이벤트 DB, 오류 메시지 어디에도 `secret://`를 해석한 값이 나타나지 않는다. 테스트는 알려진 가짜 키 문자열을 모든 출력에서 찾는다.
 7. 단계 시작 바인딩의 `{ provider, modelId, thinkingLevel }`이 같은 단계 `checkpoint.step`의 `model`과 같다. 재개 뒤 첫 요청은 그 사이 `l1.models.default`를 바꿔도 체크포인트 값을 쓴다.
 8. 기본 `anthropic` provider에 `sk-ant-oat`로 시작하는 가짜 키를 주면 요청이 나가지 않고 `oauth_token_on_default_provider`가 된다.
 9. `plugins/provider-anthropic-oauth` 디렉터리를 지운 작업 트리에서 core-models 테스트가 모두 통과한다.
@@ -906,4 +906,4 @@ export interface ThinkingLevelSelectPayload {
 9. [미결] pi `registerVirtualModel` 지원 여부(§3.7).
 10. [결정: review.decisions-2 U-24] TypeBox 버전은 catalog 1.3.27이고 pi-ai가 고정한 판과 같다. core-models가 pi-ai `Tool.parameters`를 그대로 넘겨도 스키마 객체가 한 판이다.
 11. [미결] L1 서비스가 유효 설정을 읽는 경로와 서비스 이름(§8.2 마지막 행).
-12. [미결] 일반 턴 요청의 hosted 서버 도구(`L2.web.spec` §4.8.1 A안, ADR-0005 ①). M2 마감 재검토 4에서 조사했고 구현하지 않았다. 페이로드에 서버 도구를 더하는 것은 `before_provider_request` 패치로 가능하다. 모자란 것은 응답 쪽이다. pi-ai 1.3.0의 `AssistantMessage.content`(`types.d.ts:364`)와 anthropic-messages 어댑터는 `server_tool_use`, `web_search_tool_result` 블록을 싣지도 이력으로 되돌리지도 않는다. 그래서 (a) `encrypted_content` 보관과 반송, (b) `pause_turn`(어댑터가 `stopReason: "stop"`으로 바꿔 턴이 잘린다) 이어 요청, (c) 인용을 `normalizeHostedSearch`와 L4로 보내는 경로가 없다. pi-ai 어댑터 패치나 F `AssistantMessage` 확장이 필요하고 `m3-plan`에서 정한다. 그 전까지 모델 검색은 `web_search` 함수 도구와 내장 래퍼로 처리된다(`L2.web.spec` §10 3번).
+12. [미결] 일반 턴 요청의 hosted 서버 도구(`L2.web.spec` §4.8.1 A안, ADR-0005 ①). M2 마감 재검토 4에서 조사했고 구현하지 않았다. 페이로드에 서버 도구를 더하는 것은 `request.provider.before` 패치로 가능하다. 모자란 것은 응답 쪽이다. pi-ai 1.3.0의 `AssistantMessage.content`(`types.d.ts:364`)와 anthropic-messages 어댑터는 `server_tool_use`, `web_search_tool_result` 블록을 싣지도 이력으로 되돌리지도 않는다. 그래서 (a) `encrypted_content` 보관과 반송, (b) `pause_turn`(어댑터가 `stopReason: "stop"`으로 바꿔 턴이 잘린다) 이어 요청, (c) 인용을 `normalizeHostedSearch`와 L4로 보내는 경로가 없다. pi-ai 어댑터 패치나 F `AssistantMessage` 확장이 필요하고 `m3-plan`에서 정한다. 그 전까지 모델 검색은 `web_search` 함수 도구와 내장 래퍼로 처리된다(`L2.web.spec` §10 3번).

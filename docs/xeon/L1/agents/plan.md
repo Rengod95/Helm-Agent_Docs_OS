@@ -84,7 +84,7 @@ xeon/packages/core-agents/
 - core-tasks: 소유 트리 노드 API, 백그라운드 경계, 취소 의도 커밋과 전파, `subagents` 풀, 입력 큐 초안 `draftQueued`(L1.tasks.plan). 이름은 L1.agents.spec에서 [가정]으로 두었다.
 - core-tools: `evaluatePolicy`, `stricter`, 코어 규칙 등록 `registerRules`(default 티어 출처 `core:agents`), `ToolRunContext.ceiling` 처리(ceiling 단계), 도구 등록(L1.tools.plan TL-3·TL-8·TL-13).
 - core-persistence: 커밋 API, 자식 대화 재개, 자식 연결 kind(`agent.*`, F 요청 3 반영), `p_agents` 투영과 `TxView.agentByRequestId`, `ResumePlan.openChildren`(L1.persistence.plan PS-23).
-- core-loop: `runChildTurn` 진입점(L1.loop.plan LP15), 완료 게이트(`agent_before_settle`)에서 L2.work 핸들러가 `judge`를 부르는 경로(L1.loop.plan).
+- core-loop: `runChildTurn` 진입점(L1.loop.plan LP15), 완료 게이트(`boundary.settle.before`)에서 L2.work 핸들러가 `judge`를 부르는 경로(L1.loop.plan).
 - core-models: 역할 `judge`, `subagent` 라우팅과 구조화 출력, 테이프(L1.models.plan).
 - ext-host: `loop.spawn` → `xeon.agents.spawn` 연결, 그룹 위임 래퍼에 서비스 주입(X.primitives.plan, L3.group-kit.plan).
 

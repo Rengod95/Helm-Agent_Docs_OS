@@ -117,9 +117,9 @@ export async function finishTurn(run: TurnRun, rejection: RunRejection): Promise
 
   // agent_end tap은 T6 커밋 뒤(L1.loop.spec §7)
   await ctx.ext.dispatch(
-    "agent_end",
+    "boundary.turn.after",
     { turnId, messages: structuredClone([...state.newMessages]) },
-    tapOptions(run, `${turnId}:agent_end`),
+    tapOptions(run, `${turnId}:boundary.turn.after`),
   );
 
   return {
@@ -131,9 +131,9 @@ export async function finishTurn(run: TurnRun, rejection: RunRejection): Promise
       // settle은 thread가 유휴로 보일 때 불러야 drive 재호출이 시작된다
       await ctx.ext.boundary.settle(signal, "committed");
       await ctx.ext.dispatch(
-        "agent_settled",
+        "boundary.settle.after",
         { turnId, aborted: status === "interrupted" },
-        tapOptions(run, `${turnId}:agent_settled`),
+        tapOptions(run, `${turnId}:boundary.settle.after`),
       );
     },
   };

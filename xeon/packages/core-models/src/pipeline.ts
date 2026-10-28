@@ -254,7 +254,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
               const final = await dispatcher.beforeProviderHeaders?.({
                 ...base,
                 ...target,
-                dispatchKey: keyOf("before_provider_headers"),
+                dispatchKey: keyOf("request.headers.before"),
                 headers: plan.visible,
               });
               const result = plan.finalize(final ?? plan.visible);
@@ -280,7 +280,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
               return await dispatcher.beforeProviderRequest({
                 ...base,
                 ...target,
-                dispatchKey: keyOf("before_provider_request"),
+                dispatchKey: keyOf("request.provider.before"),
                 payload: hooked,
               });
             },
@@ -293,7 +293,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
               await dispatcher.afterProviderResponse?.({
                 ...base,
                 ...target,
-                dispatchKey: keyOf("after_provider_response"),
+                dispatchKey: keyOf("request.provider.after"),
                 status: response.status,
                 headers: publicResponseHeaders(response.headers),
               });
@@ -312,7 +312,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
                 provider: spec.provider,
                 api,
                 model: spec.modelId,
-                dispatchKey: `${keyOf("provider_stream_event")}:${streamEvents}`,
+                dispatchKey: `${keyOf("request.stream")}:${streamEvents}`,
                 data,
               });
             },
@@ -352,13 +352,14 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
         async () =>
           await dispatcher.modelSelect?.({
             ...base,
-            dispatchKey: keyOf("model_select"),
+            dispatchKey: keyOf("request.model.after"),
             binding,
             previous,
             source: spec.selectSource,
           }),
       );
-      if (!fired.ok) deps.logger?.warn("model.select_point_failed", { point: "model_select" });
+      if (!fired.ok)
+        deps.logger?.warn("model.select_point_failed", { point: "request.model.after" });
       return;
     }
     if (previous.thinkingLevel !== binding.thinkingLevel) {
@@ -366,14 +367,14 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
         async () =>
           await dispatcher.thinkingLevelSelect?.({
             ...base,
-            dispatchKey: keyOf("thinking_level_select"),
+            dispatchKey: keyOf("request.thinking.after"),
             role: ctx.role,
             level: binding.thinkingLevel,
             previousLevel: previous.thinkingLevel,
           }),
       );
       if (!fired.ok) {
-        deps.logger?.warn("model.select_point_failed", { point: "thinking_level_select" });
+        deps.logger?.warn("model.select_point_failed", { point: "request.thinking.after" });
       }
     }
   }

@@ -232,7 +232,7 @@ export function turnStartRequest(
   return { request, planned: () => captured };
 }
 
-/** `before_agent_start`가 추가한 custom item을 기록하는 C2b 커밋(turn:<turnId>:prestart) */
+/** `input.agent.before`가 추가한 custom item을 기록하는 C2b 커밋(turn:<turnId>:prestart) */
 export function prestartRequest(
   drafter: Drafter,
   scope: { readonly threadId: ThreadId; readonly turnId: TurnId },

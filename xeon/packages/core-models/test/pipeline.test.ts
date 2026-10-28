@@ -70,7 +70,7 @@ describe("before_provider_request input", () => {
       provider: "tape",
       modelId: "tape-1",
       role: "main",
-      dispatchKey: `${stepId}:before_provider_request:1`,
+      dispatchKey: `${stepId}:request.provider.before:1`,
     });
     expect(inputs[0]?.payload).toMatchObject({ model: "tape-1" });
   });
@@ -94,7 +94,7 @@ describe("before_provider_request input", () => {
 });
 
 describe("request_points_remaining_five_fire", () => {
-  test("before_provider_headers, after_provider_response and provider_stream_event fire once per request", async () => {
+  test("before_provider_headers, request.provider.after and request.stream fire once per request", async () => {
     const spy = spyDispatcher();
     const h = createHarness({
       tape: ONE_TURN,
@@ -131,7 +131,7 @@ describe("request_points_remaining_five_fire", () => {
     expect(new Set(spy.rawEvents.map((event) => event.dispatchKey)).size).toBe(2);
   });
 
-  test("a before_provider_headers patch reaches the request and null removes a header", async () => {
+  test("a request.headers.before patch reaches the request and null removes a header", async () => {
     const spy = spyDispatcher((headers) => {
       const { "x-remove": _removed, ...rest } = headers;
       return { ...rest, "x-added": "yes" };

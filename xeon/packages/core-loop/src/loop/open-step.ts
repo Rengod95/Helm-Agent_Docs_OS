@@ -6,7 +6,7 @@ import { commitStep, currentStep, dispatchKey, emitNotifications, tapOptions } f
 import type { TurnRun } from "./turn-run.ts";
 import type { LoopFailure, PlacedMessage } from "./types.ts";
 
-// L1.loop.spec §3.2 단계 1 `openStep`. `agent_start`(첫 단계), 단계 시작 알림, S1(T2) 커밋, `turn_start` tap,
+// L1.loop.spec §3.2 단계 1 `openStep`. `boundary.turn.before`(첫 단계), 단계 시작 알림, S1(T2) 커밋, `boundary.step.before` tap,
 // 앞 단계 끝(C5)이 배치한 입력의 메시지 이벤트까지 한다. 모델 바인딩과 도구 광고는 요청을 준비할 때 정한다.
 
 export async function openStep(
@@ -17,7 +17,11 @@ export async function openStep(
   if (!state.agentStarted) {
     state.agentStarted = true;
     emitEvent(run, { type: "agent_start" });
-    await ctx.ext.dispatch("agent_start", { turnId }, tapOptions(run, `${turnId}:agent_start`));
+    await ctx.ext.dispatch(
+      "boundary.turn.before",
+      { turnId },
+      tapOptions(run, `${turnId}:boundary.turn.before`),
+    );
   }
 
   const notes = mapper.map({ type: "turn_start" });
@@ -34,9 +38,9 @@ export async function openStep(
       notes.filter((note) => note.type !== "step.started"),
     );
     await ctx.ext.dispatch(
-      "turn_start",
+      "boundary.step.before",
       { stepIndex: step.stepIndex, stepId: step.stepId, timestamp: ctx.clock.now() },
-      tapOptions(run, dispatchKey(run, step.stepId, "turn_start")),
+      tapOptions(run, dispatchKey(run, step.stepId, "boundary.step.before")),
     );
   }
 

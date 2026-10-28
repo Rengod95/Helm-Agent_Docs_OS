@@ -63,7 +63,7 @@ interface RunState {
   endReason: EndReason | null;
   /** 재개로 같은 단계의 요청을 다시 보낸다: 그 단계의 `step.started`는 이미 기록됨 */
   adoptFirstStep: boolean;
-  /** 이 실행이 낸 메시지(`agent_end` tap의 messages) */
+  /** 이 실행이 낸 메시지(`boundary.turn.after` tap의 messages) */
   readonly newMessages: AgentMessage[];
   maxSteps: number;
   /** 단계 상한에 이르렀을 때의 턴 종료 사유. 자식 한도가 정한 상한이면 `child_limit`다 */
@@ -72,13 +72,13 @@ interface RunState {
   childMaxInputTokens: number | null;
   /** 접두의 기본 프롬프트(자식 turn은 요청의 `systemPrompt`, 아니면 서비스 기본값). turn 안에서 바뀌지 않는다 */
   readonly basePrompt: string;
-  /** `before_agent_start` 체인이 기본 프롬프트에 더한 부분. 이 turn의 모든 요청에 volatile로 붙는다(재개 진입은 비어 있다) */
+  /** `input.agent.before`(collect)가 기본 프롬프트에 더한 부분. 이 turn의 모든 요청에 volatile로 붙는다(재개 진입은 비어 있다) */
   promptAddition: string;
   /** 이 turn에서 임계 컴팩션이 실패하거나 하지 않았다. 단계마다 같은 요약 호출을 반복하지 않으려고 다시 시도하지 않는다 */
   compactionBlocked: boolean;
   /** 단계 안에서 같은 지점이 여러 번 불릴 때 dispatchKey를 구별하는 순번 */
   pointSeq: number;
-  /** 첫 단계를 열 때 `agent_start`를 낸다 */
+  /** 첫 단계를 열 때 `boundary.turn.before`를 낸다 */
   agentStarted: boolean;
   /** `tool_search`가 활성화한 지연 도구. 처음 필요할 때 활성 가지에서 읽는다(`loop/activation.ts`) */
   activated: Set<ToolName> | null;

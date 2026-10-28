@@ -22,7 +22,7 @@ binds: [xeon/packages/core-context/**]
 |---|---|---|
 | M0 | 코드 없음. 선행: contracts에 `L1.context.spec` §3.1 F 요청 타입(`ContextServiceName`, `ContextService`, `AssembleOptions`, `AssembledContext`)과 `L1.models.spec`의 `CachePolicy`, `ModelBinding`, `ContextUsageEstimate`가 있어야 한다 | `_research/foundation-plan.md` §5 P4 M0 |
 | M1 | 최소 조립: 고정 접두(기본 프롬프트 + 대화 메시지 + `orderTools` 정렬 도구 목록), 접두 system item 기록, `convertToLlm`, 지점 `context`. 오버플로우는 `recoverOverflow`가 `fail(disabled)`를 돌려주고 core-loop가 명확한 오류로 턴을 끝낸다 | `_research/foundation-plan.md` §5 P4 M1, `L1.context.spec` §4.7 6번 |
-| M2 | 컴팩션 포크(컷 포인트, 요약, 임계, 비파괴 엔트리), 오버플로우 복구, 캐시 표식, 도구 변경 `SystemMessage`, 절 갱신, 모델 전환 경고, 지점 나머지 5개(`cache_warming_decision`은 선언만), 떠난 가지 요약 초안, 설정 `l1.context.*` | 계획 v2 L1-e 1차 행 |
+| M2 | 컴팩션 포크(컷 포인트, 요약, 임계, 비파괴 엔트리), 오버플로우 복구, 캐시 표식, 도구 변경 `SystemMessage`, 절 갱신, 모델 전환 경고, 지점 나머지 5개(`request.cache.before`은 선언만), 떠난 가지 요약 초안, 설정 `l1.context.*` | 계획 v2 L1-e 1차 행 |
 | M3 | 없음(M2 결과를 Helm·학습 그룹 테이프로 다듬기만 한다) | — |
 | 2차(M3 이후) | 도구 결과 선제 제거, 컴팩션 후 재주입, 추가 워크스페이스 루트, 캐시 워밍 | 계획 v2 L1-e 2차 행 |
 
@@ -72,7 +72,7 @@ xeon/packages/core-context/
 | C-6 | 임계 계산: `shouldCompactTokens`(`>` 비교), 카탈로그 `contextWindow` 연결, 기본값 한 곳(`settings.ts`) | C-0 | 소 | M2 |
 | C-7 | `thread.compacted` 생성과 조립 반영: 한 커밋에 `thread.compacted` + 새 접두 system item, `details.xeon`, 조립 때 머리 적용, `summarizeBranch` 초안 | C-1, C-5 | 중 | M2 |
 | C-8 | 오버플로우 복구: `recoverOverflow`, 같은 단계 판정, M1의 `fail(disabled)` 경로 | C-7, `L1.models.plan` M-1(`classify`) | 소 | M1(disabled 경로) → M2 |
-| C-9 | 지점 발화 6개: `context`(M1), `context_with_system`, `session_before_compact`, `session_compact`, `session_compact_failed`, `cache_warming_decision`(선언과 발화 자리만, 실제 발화는 2차 워밍) | C-1, C-7, X 디스패치 | 중 | M1 → M2 |
+| C-9 | 지점 발화 6개: `context`(M1), `request.system.before`, `session.compact.before`, `session.compact.after`, `session.compact.failed`, `request.cache.before`(선언과 발화 자리만, 실제 발화는 2차 워밍) | C-1, C-7, X 디스패치 | 중 | M1 → M2 |
 | C-10 | 도구 결과 선제 제거 | C-7 | 소 | 2차 |
 | C-11 | 컴팩션 후 재주입. 스킬 색인·메모리 스냅샷 블록(`knowledge.context`, `knowledge.index-delta`)은 M2 마감에 구현(spec §4.9a). 최근 파일·스킬 본문은 2차 | C-7 | 중 | M2 마감(블록), 2차(파일) |
 
@@ -116,13 +116,13 @@ xeon/packages/core-context/
 | `overflow_second_failure_surfaces_error` | 같음 | unit | 두 번째는 `fail(second_overflow)`, 컴팩션 추가 없음. 첫 컴팩션 뒤 서비스를 새로 만들어도 같은 판정 | M2 |
 | `overflow_disabled_in_m1` | 같음 | unit | M1 설정에서는 `fail(disabled)`, 요약 호출 0건 | M1 |
 | `session_before_compact_denial_blocks` | `test/compact-points.test.ts` | unit | `{ cancel: true }` 결정이나 핸들러 예외면 `cancelled`, 커밋 0건, 요약 호출 0건 | M2 |
-| `compaction_failure_emits_session_compact_failed` | 같음 | unit | 테이프 `error`면 `session_compact_failed` 한 번, 커밋 0건 | M2 |
-| `extension_summary_skips_model_call` | 같음 | unit | `session_before_compact`가 요약을 주면 모델 호출 0건, `fromExtension`에 확장 이름 | M2 |
+| `compaction_failure_emits_session_compact_failed` | 같음 | unit | 테이프 `error`면 `session.compact.failed` 한 번, 커밋 0건 | M2 |
+| `extension_summary_skips_model_call` | 같음 | unit | `session.compact.before`가 요약을 주면 모델 호출 0건, `fromExtension`에 확장 이름 | M2 |
 | `model_switch_warning` | `test/assemble.test.ts` | unit | 이전 단계 바인딩과 provider가 다르면 `cache_reset_model_switch`, 레벨만 다르면 경고 없음 | M2 |
 | `settings_defs_pass_checks` | `test/settings.test.ts` | unit | `l1.context.*` 정의가 `checkSettingDef`·`buildCatalog` 통과 | M2 |
 | `context_point_chain_replaces_messages` | `test/assemble.test.ts` | unit | `context`(chain) 핸들러가 낸 `messages`가 조립 결과를 바꾸고, 시스템 메시지는 핸들러에 넘어가지 않으며, 핸들러 예외면 그 패치만 버린다(C-9) | M1 |
 | `branch_summary_draft_not_committed` | `test/branch-summary.test.ts` | unit | `summarizeBranch`가 `BRANCH_SUMMARY_PROMPT`로 요약 초안(`BranchSummaryDraft`)을 돌려주고 커밋 0건이다. 요약 역할은 `summary`(C-7) | M2 |
-| `cache_warming_decision_declared_not_fired` | `test/compact-points.test.ts` | unit | 지점 `cache_warming_decision`이 선언 목록에 있고 M2 빌드에서는 발화 0회다. 실제 발화는 2차 캐시 워밍에서 시험한다(C-9) | M2 |
+| `cache_warming_decision_declared_not_fired` | `test/compact-points.test.ts` | unit | 지점 `request.cache.before`이 선언 목록에 있고 M2 빌드에서는 발화 0회다. 실제 발화는 2차 캐시 워밍에서 시험한다(C-9) | M2 |
 | `reinjection_after_compaction` | `test/reinject.test.ts` | unit | 접힌 범위의 `knowledge.context`와 `knowledge.index-delta`가 요약 바로 뒤에 가지 순서로 한 번 나오고, 허용 목록 밖의 custom은 나오지 않으며, 남은 범위의 메모는 중복되지 않는다. 허용 목록이 비면 재주입하지 않고, 컴팩션이 없으면 기록된 자리에 그대로다 (M2 마감 G2-01) |
 
 - [구현: M2] core-context는 core-models를 import하지 못하므로(같은 층, DR-14) 요약 모델은 `test/support/fake-models.ts`의 대역이다. 요약 응답을 차례로 준비하고 호출 기록(역할 `summary`, `cacheRetention: "none"`, 시스템·사용자 프롬프트)을 확인한다. 저장소는 `test/support/log.ts`의 메모리 가지(`commit`, `producer` 포함)다. 이 대역의 `producer(id).draft`는 실제 저장소(`core-persistence/src/producers.ts`)와 같은 소유 규칙을 건다: kind 접두 소유자만 초안을 낼 수 있고, `item.recorded`는 접두 소유자(`core.loop`)와 컴팩션 접두 item의 `core.context`만 낸다. 규칙을 느슨하게 두면 `core.context`의 소유권 오류가 가려진다(`9b0300b`, M2 마감 재검토 병합 2). `test/memory-log.test.ts`가 허용과 거절을 값으로 견준다.
@@ -145,12 +145,12 @@ xeon/packages/core-context/
 | 2 | 요약 품질이 모델에 따라 다르다 | 요약 지침을 설정(`l1.context.compactionInstructions`)으로 열고, 골든 테스트는 컷 포인트에 한정한다. 요약 문장은 테이프 고정 값으로만 확인한다 |
 | 3 | 캐시 표식 위치가 provider마다 다르다 | `xeon.models`의 캐시 정책 객체가 provider 차이(`maxBreakpoints`, `midConversation*`)를 흡수한다. core-context는 정책을 읽고 위치만 계산한다 |
 | 4 | 토큰 추정 방식 차이(pi 컴팩션 4자/토큰, pi-ai 3.5자/토큰)로 pi 테스트 기대값이 맞지 않는다 | 골든 픽스처의 기대 인덱스를 3.5자 기준으로 다시 계산하고, 원래 값과 차이를 픽스처 주석에 남긴다 |
-| 5 | `context`·`context_with_system` 핸들러가 결정적이지 않으면 접두 바이트 고정이 깨진다 | 계약으로 둔다(`F.extensions.spec` §4.3). 디버그 빌드에서 같은 입력 두 번 디스패치 결과를 비교해 다르면 경고를 남기는 검사를 [제안]한다 |
+| 5 | `context`·`request.system.before` 핸들러가 결정적이지 않으면 접두 바이트 고정이 깨진다 | 계약으로 둔다(`F.extensions.spec` §4.3). 디버그 빌드에서 같은 입력 두 번 디스패치 결과를 비교해 다르면 경고를 남기는 검사를 [제안]한다 |
 | 6 | 컴팩션 지점 발화 주체를 context로 옮기는 F 수정이 늦어진다 | F 수정 전에도 core-context가 발화한다. `F.extensions.spec` §7 표 수정은 P2 정합성 검토 항목으로 올린다 |
 
 ## 8. 구현 상태 (M2, m2/l1c)
 
-- C-2(도구 변경 비교와 `append`·`defer`), C-3(캐시 표식 위치), C-4(컷 포인트), C-5(요약 호출과 롤링 갱신), C-6(임계), C-7(`thread.compacted`와 새 접두를 한 커밋으로, 떠난 가지 요약 초안), C-8(오버플로우 복구), C-9(지점 발화)를 구현했다. `cache_warming_decision`은 선언만 있고 발화하지 않는다.
+- C-2(도구 변경 비교와 `append`·`defer`), C-3(캐시 표식 위치), C-4(컷 포인트), C-5(요약 호출과 롤링 갱신), C-6(임계), C-7(`thread.compacted`와 새 접두를 한 커밋으로, 떠난 가지 요약 초안), C-8(오버플로우 복구), C-9(지점 발화)를 구현했다. `request.cache.before`은 선언만 있고 발화하지 않는다.
 - 설정은 `contextSettingsOf`가 조립 루트의 `ContextSettingsSource`를 대신하고, 확장은 `createContextExtension({ settings, ids })`다. 기본 `extension`은 id 발급이 없어 컴팩션이 꺼져 있다. 호스트 조립이 `createContextExtension`에 설정과 `ids`를 넘겨야 컴팩션이 켜진다(HOST 트랙 요청).
 - M1 고정값(컴팩션 꺼짐, 임계·유지 토큰 상수)은 설정 `l1.context.autoCompact`, `reserveTokens`, `keepRecentTokens`, `compactionInstructions`를 읽는 코드로 바꿨다(`review.open-issues` M-07의 core-context 몫). 같은 항목의 core-tasks limiter, BlobRef 생산자(core-tools), detached 필드(core-persistence 쓰기 경로)는 이 패키지 밖이다.
-- 섹션 갱신 item, 모델 전환 경고, `near_window` 경고, `context_with_system`, volatile 계층도 이 단계에서 구현했다.
+- 섹션 갱신 item, 모델 전환 경고, `near_window` 경고, `request.system.before`, volatile 계층도 이 단계에서 구현했다.

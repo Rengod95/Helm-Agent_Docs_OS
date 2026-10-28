@@ -26,7 +26,7 @@ const POSTER_MANIFEST: ExtensionManifest = {
   layer: "L3",
   kind: "group",
   entry: "./src/index.ts",
-  points: ["agent_settled"],
+  points: ["boundary.settle.after"],
   usesPost: true,
   usesDrive: false,
 };
@@ -94,7 +94,7 @@ test("an extension post goes through ext-host into a single input.queued", async
   const receipts: PostReceipt[] = [];
   const entry: ExtensionEntry = ({ manifest, scope }) => {
     scope(manifest.name, {}, (g) => {
-      g.on("agent_settled", async () => {
+      g.on("boundary.settle.after", async () => {
         receipts.push(
           await g.post(
             { kind: "user", content: "review done" },
@@ -111,7 +111,7 @@ test("an extension post goes through ext-host into a single input.queued", async
   await t.host.openThread(thread);
   const fire = (key: string) =>
     t.host.dispatch(
-      "agent_settled",
+      "boundary.settle.after",
       { turnId: t.ids.next("trn"), aborted: false },
       { threadId: thread, dispatchKey: key },
     );

@@ -35,10 +35,10 @@ test("stream_response_emits_start_updates_and_one_message_end_for_a_normal_strea
   await h.settle();
   const count = (point: string): number =>
     recorder.sightings.filter((sighting) => sighting.point === point).length;
-  expect(count("message_start")).toBe(1);
+  expect(count("boundary.message.before")).toBe(1);
   // 텍스트 블록 하나는 start, delta, end 세 갱신이다
-  expect(count("message_update")).toBe(3);
-  expect(count("message_end")).toBe(1);
+  expect(count("boundary.message.update")).toBe(3);
+  expect(count("boundary.message.after")).toBe(1);
 });
 
 test("stream_response_handles_a_stream_that_ends_without_a_start_event", async () => {
@@ -50,10 +50,10 @@ test("stream_response_handles_a_stream_that_ends_without_a_start_event", async (
   await h.settle();
   const count = (point: string): number =>
     recorder.sightings.filter((sighting) => sighting.point === point).length;
-  // 시작 이벤트가 없어도 message_start와 message_end가 한 번씩 나가고 응답은 기록된다
-  expect(count("message_start")).toBe(1);
-  expect(count("message_update")).toBe(0);
-  expect(count("message_end")).toBe(1);
+  // 시작 이벤트가 없어도 boundary.message.before와 boundary.message.after가 한 번씩 나가고 응답은 기록된다
+  expect(count("boundary.message.before")).toBe(1);
+  expect(count("boundary.message.update")).toBe(0);
+  expect(count("boundary.message.after")).toBe(1);
   expect(countKind(h.fake.events(h.threadId), "turn.completed")).toBe(1);
   const recorded = assistantMessages(h.fake.events(h.threadId));
   expect(recorded).toHaveLength(1);

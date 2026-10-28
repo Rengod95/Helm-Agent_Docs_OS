@@ -18,9 +18,9 @@ import { Type } from "typebox";
 import { commitWithRetry, describeCommitFailure } from "./commit.ts";
 import type { LoopContext } from "./types.ts";
 
-// L1.loop.spec §3.1 `runUserBash`, LP12 `user_bash`. 사용자가 `!명령`으로 친 셸 명령을 처리한다.
-// 1. `user_bash`(first) 지점을 발화한다. 거부면 실행하지 않고, 결과 대체면 명령을 실행하지 않고 그 결과를 쓴다.
-// 2. 거부가 아니면 `xeon.tools.runUserShell`로 실행한다(정책 deny와 `tool_call` 거부는 도구 쪽이 막는다).
+// L1.loop.spec §3.1 `runUserBash`, LP12 `input.bash.before`. 사용자가 `!명령`으로 친 셸 명령을 처리한다.
+// 1. `input.bash.before`(first) 지점을 발화한다. 거부면 실행하지 않고, 결과 대체면 명령을 실행하지 않고 그 결과를 쓴다.
+// 2. 거부가 아니면 `xeon.tools.runUserShell`로 실행한다(정책 deny와 `tool.call.before` 거부는 도구 쪽이 막는다).
 // 3. `!!`가 아니면 명령과 출력을 custom item 하나로 기록해 다음 요청의 컨텍스트에 들어가게 한다. `!!`는 효과 3단만 남는다.
 //
 // turn을 열지 않는다. 도구 쪽 효과 기록은 turn과 단계 id를 요구하므로 이 호출 전용 id를 새로 만들어 쓴다.
@@ -133,7 +133,7 @@ export function createUserBash(ctx: LoopContext): UserBashRunner {
   /**
    * 대화별 요청 id → 명령은 끝났지만 컨텍스트 기록(`item.recorded`)이 아직 안 된 결과.
    * 기록 실패는 오류로 돌려주고 요청을 잊는다(같은 키로 다시 부르면 처음부터 한다). 그러나 명령은 이미 돌았으니 다시 돌리면 효과가 두 번이다.
-   * 그래서 돈 결과를 여기에 두고, 같은 requestId 재호출은 실행·`user_bash` 발화를 건너뛰고 기록만 다시 한다
+   * 그래서 돈 결과를 여기에 두고, 같은 requestId 재호출은 실행·`input.bash.before` 발화를 건너뛰고 기록만 다시 한다
    */
   const ranOnly = new Map<ThreadId, Map<string, { result: UserBashResult; replaced: boolean }>>();
 
@@ -255,10 +255,10 @@ export function createUserBash(ctx: LoopContext): UserBashRunner {
     const ran = ranOnly.get(request.threadId)?.get(requestId);
     if (ran !== undefined) return recordRan(request, requestId, ran.result, ran.replaced);
 
-    // user_bash(first): 실패는 거부로 본다(fail-closed, 도구 호출의 tool_call 지점과 같다)
+    // input.bash.before(first): 실패는 거부로 본다(fail-closed, 도구 호출의 tool.call.before 지점과 같다)
     const fired = await attemptAsync(() =>
       ctx.ext.dispatch(
-        "user_bash",
+        "input.bash.before",
         {
           command: request.command,
           excludeFromContext: request.excludeFromContext,
@@ -279,7 +279,7 @@ export function createUserBash(ctx: LoopContext): UserBashRunner {
       });
       return ok({
         status: "denied",
-        reason: "A user_bash handler failed, so the command was not run.",
+        reason: "A input.bash.before handler failed, so the command was not run.",
       });
     }
     const decision = fired.value.decision;

@@ -225,12 +225,12 @@ export interface ToolService extends ToolsPort {
   advertise(input: AdvertiseInput): Promise<Result<AdvertisedToolset, AdvertiseError>>;
 
   /**
-   * 도구 호출 하나의 준비(adr.0009 §3.4). 도구 조회, 인자 검증, `tool_call` 지점, 정책·승인, E1(`effect.intent`) 커밋을 차례로 한다(§4.2).
+   * 도구 호출 하나의 준비(adr.0009 §3.4). 도구 조회, 인자 검증, `tool.call.before` 지점, 정책·승인, E1(`effect.intent`) 커밋을 차례로 한다(§4.2).
    * 실패는 던지지 않고 `settled`로 돌려준다. 미발견·인자 오류·거부·중단 호출은 결과 item까지 기록된 상태다. 루프는 준비를 항상 원래 순서대로 하나씩 부른다
    */
   prepare(call: AgentToolCall, assistant: AssistantMessage, run: ToolRunContext): Promise<CallPreparation>;
 
-  /** 준비를 마친 호출의 실행과 마감: E2(`effect.exec`), 실행, 마스킹, `tool_result` chain, 경계화, E3(`effect.result` + toolResult item). 병렬로 불러도 된다 */
+  /** 준비를 마친 호출의 실행과 마감: E2(`effect.exec`), 실행, 마스킹, `tool.result` chain, 경계화, E3(`effect.result` + toolResult item). 병렬로 불러도 된다 */
   execute(call: PreparedCall, onUpdate: AgentToolUpdateCallback, run: ToolRunContext): Promise<ToolCallOutcome>;
 
   /** 실행하지 않은 호출을 이유와 함께 닫는다(중단 `not_executed`, 출력 한도 절단 `truncated`). 의도가 있으면 `effect.result`, 없으면 효과 없는 toolResult item으로 기록한다 */
@@ -302,11 +302,11 @@ export interface RuleRegistration {
 ```
 
 - [결정: adr.0009] `prepare`·`execute`·`settleRejected`가 훅 쌍(`hooks`)과 `toAgentTools`, `observe`, `closeUnexecuted`, `settledItem`을 대신한다. 루프는 호출마다 `tool_execution_start` 이벤트 → `prepare` → (`ready`면) `execute` → `tool_execution_end` 이벤트 순서로 부르고, 결과 메시지는 `ToolCallOutcome.message`를 쓴다. 결과 기록은 core-tools만 한다. 루프가 toolResult item을 따로 커밋하지 않는다.
-- `tool_execution_start`·`tool_execution_update`·`tool_execution_end` tap 지점(§7)은 core-tools가 `prepare`(시작), `execute`의 진행 콜백(갱신), 호출 마감(끝)에서 발화한다. 준비 없이 닫는 호출(`settleRejected`)도 시작·끝 tap을 짝으로 낸다. 페이로드는 비밀을 가린 값이다.
+- `tool.execution.before`·`tool.execution.update`·`tool.execution.after` tap 지점(§7)은 core-tools가 `prepare`(시작), `execute`의 진행 콜백(갱신), 호출 마감(끝)에서 발화한다. 준비 없이 닫는 호출(`settleRejected`)도 시작·끝 tap을 짝으로 낸다. 페이로드는 비밀을 가린 값이다.
 - `ToolMeta.executionMode`는 배치 스케줄에 쓴다. 호출 중 하나라도 `"sequential"`이면 루프는 그 배치를 순차로 돈다(L1.loop.spec §3.3 규칙 1).
 - 재개 때 승인 대기 중이던 호출과 의도 없는 호출은 core-loop가 `runTurn({ kind: "tools" })`에서 주 경로와 같은 `prepare`·`execute`로 실행한다(L1.loop.spec §4.5 `tools`·`await_input` 행). 결과 불명 효과의 재실행만 `rerun`이다. 그래서 재실행도 같은 기록 경로를 지난다.
 - `registerRules`의 첫 사용처는 core-agents의 자식 차단 규칙(`source: "core:agents"`, L1.agents.spec §4.3)이다. 확장 티어 규칙 등록은 2차다(§4.11).
-- `runUserShell` [결정: L1A.5, L1F]: 사용자가 `!명령`으로 직접 친 셸 명령을 `bash` 도구로 같은 파이프라인에 넣는다. 정책은 caller `main`, `depth` 0, `interactive: true`로 평가하고 `ceiling`은 쓰지 않는다. deny 규칙과 `tool_call` 지점의 거부는 막는다. ask는 사용자 본인이 낸 명령이라 승인 요청 없이 허용으로 본다. 효과는 3단(`effect.intent`, `effect.exec`, `effect.result`)으로 남기고 `effect.result.resultItemId`는 null이다. toolResult item은 기록하지 않는다. 결과를 컨텍스트에 어떻게 넣을지는 호출한 쪽(L1.loop의 `runUserBash`)이 `includeInContext`로 정한다. `bash` 도구가 없거나 막히면 던지지 않고 `isError` 결과 레코드를 돌려준다. 실행 전에 닫힌 호출(정책 deny, `tool_call` 거부, 인자 오류, 도구 미등록)의 레코드는 `details.code`가 `not_executed`(미등록은 `tool_unavailable`)이고, L1.loop의 `runUserBash`가 이 값으로 "명령이 돌지 않았다"를 알아보고 `denied`로 돌려준다.
+- `runUserShell` [결정: L1A.5, L1F]: 사용자가 `!명령`으로 직접 친 셸 명령을 `bash` 도구로 같은 파이프라인에 넣는다. 정책은 caller `main`, `depth` 0, `interactive: true`로 평가하고 `ceiling`은 쓰지 않는다. deny 규칙과 `tool.call.before` 지점의 거부는 막는다. ask는 사용자 본인이 낸 명령이라 승인 요청 없이 허용으로 본다. 효과는 3단(`effect.intent`, `effect.exec`, `effect.result`)으로 남기고 `effect.result.resultItemId`는 null이다. toolResult item은 기록하지 않는다. 결과를 컨텍스트에 어떻게 넣을지는 호출한 쪽(L1.loop의 `runUserBash`)이 `includeInContext`로 정한다. `bash` 도구가 없거나 막히면 던지지 않고 `isError` 결과 레코드를 돌려준다. 실행 전에 닫힌 호출(정책 deny, `tool.call.before` 거부, 인자 오류, 도구 미등록)의 레코드는 `details.code`가 `not_executed`(미등록은 `tool_unavailable`)이고, L1.loop의 `runUserBash`가 이 값으로 "명령이 돌지 않았다"를 알아보고 `denied`로 돌려준다.
 - `suspendWhile(threadId, toolCallId, wait)` [결정: M2 검토 3]: F `ToolService`의 메서드다(승격 완료, §8.3 F 요청 14). `tools` 풀 슬롯을 쥔 호출이 자식 대화를 기다리는 동안 슬롯을 내려놓고(`Slot.suspendWhile`), 기다림이 끝나면 같은 풀에서 다시 얻는다. 슬롯을 쥔 호출이 아니면 그냥 기다린다. core-agents의 `agent` 도구는 자식을 기다리는 `service.spawn`을 이 안에서 기다린다. 슬롯을 쥔 채 기다리면 `tools` 상한만큼의 `agent` 호출이 자식의 도구 호출 슬롯을 막아 교착한다.
 
 ### 3.4 노출 (`tools.ts`)
@@ -714,11 +714,11 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 
 | # | 단계 | 위치 | 실패 처리 |
 |---|---|---|---|
-| 1 | `tool_execution_start` 발화(tap) | `prepare` 첫 단계 | 기록 후 계속 |
+| 1 | `tool.execution.before` 발화(tap) | `prepare` 첫 단계 | 기록 후 계속 |
 | 2 | 도구 이름 해석 | `prepare`. 원본 agent-loop.ts:716-722 | 없으면 `[xeon:tool_unavailable]` 오류 결과(`settled`) |
 | 3 | 인자 준비 | 없다. 도구별 `prepareArguments`는 F `AgentTool`에서 뺐다(F.conversation.spec §3.1.1) | — |
 | 4 | 스키마 검증 `validateToolArguments` | `prepare`. core-tools `validate.ts`가 pi-ai 1.3.0 `validateToolArguments`의 TypeBox 경로(argumentsError 확인, 사본, 선택 null 제거, `Value.Convert`, 스키마 검사)를 옮겼다. TypeBox 표지가 없는 순수 JSON Schema(MCP)의 `coerceWithJsonSchema` 경로는 옮기지 않았다(M2 cap-mcp에서 더한다) | 예외 대신 `settled` 오류 결과로 모델에 돌아간다 |
-| 5a | `tool_call` 지점(first) | `prepare` | 핸들러 예외는 `FIRST_DENY.tool_call`로 거부(fail-closed). 디스패처 자체 예외도 거부 |
+| 5a | `tool.call.before` 지점(first) | `prepare` | 핸들러 예외는 `FIRST_DENY.tool_call`로 거부(fail-closed). 디스패처 자체 예외도 거부 |
 | 5b | 정책 평가 `evaluatePolicy`. 자식 대화(`ceiling` 있음)는 §4.5 ceiling 단계 적용 | `prepare` | deny는 `settled` |
 | 5c | 승인 대기(ask일 때) | `prepare`. `ApprovalService.request` | deny·cancelled는 `settled` |
 | 5d | 중단 확인 | `prepare`. 의도를 쓰기 전에 turn 신호를 본다 | 중단이면 `settled`(`[xeon:aborted]`) |
@@ -727,10 +727,10 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 | 7b | 잠금 키 산출: 도구의 잠금 선언(`ToolSpec.locks`, L1.tasks.spec FR-T6)이 낸 경로마다 `xeon.exec`의 `canonicalPath`로 정규 경로를 얻어 키 `${env.id}\0${realpath}`를 만든다. 없는 파일은 부모 정규 경로 + 이름이다. 읽기 도구(`hints.readOnly`)는 `shared`, 그 밖은 `exclusive`다 | 같은 자리 | 잠금 선언이 없으면 키 큐를 쓰지 않는다. 경로 해석 실패는 `invalid_input` 오류 결과다 [제안] |
 | 7c | 키 잠금 뒤 `tools` 풀 슬롯 획득: `xeon.tasks.locks.run(keys, toolNode, () => limiter("tools").acquire(toolNode) …)`. 순서는 L1.tasks.spec §4.5 C3(키 먼저, 슬롯 나중)이다. 잠금 선언이 없는 호출도 슬롯은 얻는다. 실행이 끝나면 슬롯을 놓는다(M2 구현 완료) | 같은 자리 | 대기 중 취소는 `[aborted]` 중단 결과이고 `effect.exec` 전이므로 재개 판정은 `not_started`다 |
 | 7d | `effect.exec` 커밋 | 같은 자리 | 커밋 실패는 실행하지 않고 `tools.commit_failed` 결과 |
-| 8 | 도구 실행 | 어댑터가 provider 메서드 또는 `DirectToolRegistration.tool.execute`를 부른다. `signal`은 tool 노드 신호다. 진행은 `onUpdate` 콜백과 `tool_execution_update`(tap)이고 발화 전에 비밀 마스킹을 거친다(§4.12) | 예외는 오류 결과, `CapabilityError`는 §4.3. 실행이 끝나면 슬롯을 반납한다(C1) |
-| 9 | `tool_result` 지점(chain) | `execute`의 마감. 페이로드는 마스킹한 결과다(§4.12) | 실패한 핸들러의 패치만 버린다(skip) |
+| 8 | 도구 실행 | 어댑터가 provider 메서드 또는 `DirectToolRegistration.tool.execute`를 부른다. `signal`은 tool 노드 신호다. 진행은 `onUpdate` 콜백과 `tool.execution.update`(tap)이고 발화 전에 비밀 마스킹을 거친다(§4.12) | 예외는 오류 결과, `CapabilityError`는 §4.3. 실행이 끝나면 슬롯을 반납한다(C1) |
+| 9 | `tool.result` 지점(chain) | `execute`의 마감. 페이로드는 마스킹한 결과다(§4.12) | 실패한 핸들러의 패치만 버린다(skip) |
 | 10 | 결과 경계화 + `effect.result`·toolResult `item.recorded` 한 커밋. 커밋 뒤 tool 노드가 정착한다 | `execute`의 마감 | 커밋 실패는 §5 사례 7(`itemId: null`) |
-| 11 | `tool_execution_end` 발화(tap) | 마감 뒤 | 기록 후 계속 |
+| 11 | `tool.execution.after` 발화(tap) | 마감 뒤 | 기록 후 계속 |
 
 부속 규칙:
 
@@ -738,7 +738,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 - `execute`는 예상 가능한 실패를 던지지 않는다. 도구가 던진 오류는 `isError` 결과가 된다. chain의 핸들러별 skip은 ext-host 디스패처가 한다(F.extensions.spec §4.1).
 - 의도 커밋에 넣는 인자는 단계 5a 이후의 최종 인자다. 1.3.0의 `BeforeToolCallResult`에는 인자 재작성 필드가 없으므로(agent `types.ts:66-74`) 최종 인자는 검증된 인자와 같다. 인자 재작성은 §4.10(2차)이다.
 - 병렬 모드에서 루프는 배치의 준비(단계 1~6)를 앞 호출부터 하나씩 마친 뒤 실행을 함께 시작한다(L1.loop.spec §3.3 규칙 2·3, 원본 agent-loop.ts:596-648). 그래서 한 배치 안의 승인 요청은 앞 호출부터 차례로 하나씩 나간다 [제안]. 여러 요청을 묶어 한 번에 보이는 화면은 L4가 `pending()`으로 만들 수 있다.
-- `tool_execution_start`는 거부될 호출에도 발화한다(원본 agent-loop.ts:543, 598). 그래서 의도 기록의 근거로 쓰지 않는다(`_research/notes/L1-1.md` §3(c)).
+- `tool.execution.before`는 거부될 호출에도 발화한다(원본 agent-loop.ts:543, 598). 그래서 의도 기록의 근거로 쓰지 않는다(`_research/notes/L1-1.md` §3(c)).
 - 중단으로 실행하지 않는 호출은 루프가 같은 배치 안에서 `settleRejected(…, "not_executed")`로 닫는다(L1.loop.spec §3.3 규칙 4). core-tools는 그 호출들을 의도가 있으면 `effect.result{ status: "abandoned" }`와 toolResult item 한 커밋으로, 의도가 없으면 toolResult item 하나(`effectId: null`)로 기록한다. `stopReason: "length"`로 잘린 응답의 호출은 `"truncated"`로 닫는다. 같은 호출을 두 번 닫아도 처음 결과를 돌려주고 다시 쓰지 않는다.
 - 차단된 호출(2~5d 실패)에는 효과 이벤트가 없다. 그 오류 결과는 core-tools가 `prepare` 안에서 toolResult `item.recorded`(`effectId: null`, 커밋 키 `tool:<key>:result`)로 기록한다. 루프는 toolResult item을 직접 기록하지 않는다.
 - 같은 파이프라인 밖에서 도구를 실행하는 경로는 두지 않는다. 도구가 다른 도구를 부를 때도 `prepare`·`execute`를 지나야 하고, 중첩 호출의 `ToolCallPayload.parentToolCallId`를 채운다. 중첩 호출의 진입점 이름과 위치는 [미결](§10)이다.
@@ -822,7 +822,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 - 설정 범위별 규칙 수집 [제안]: F.wire-settings.spec §4.7 규칙 2는 키 하나의 값을 통째로 바꾼다. 정책 규칙은 범위마다 모아야 한다. 그래서 core-tools는 `l1.tools.rules`를 유효 값 하나로 읽지 않고 범위별 층(`ScopeStack`)에서 각각 읽어 티어를 붙인다. 이 읽기 방식을 SettingDef에 표시하는 필드(예: `merge: "collect"`)를 F.wire-settings.spec에 요청한다(§8.3 F 요청 5).
 - 코어 규칙 등록 [제안]: L1 패키지는 `ToolService.registerRules(source, rules)`로 default 티어 규칙을 넣는다. `source`는 `core:<도메인>`이고 `TieredRule.source`에 그대로 들어간다. 같은 `source`로 다시 부르면 그 출처의 규칙을 통째로 바꾼다. core-agents는 `l1.agents.maxDepth`가 바뀔 때 차단 규칙을 다시 등록한다. 등록은 `validateRules`를 거치고, 문제가 있는 규칙은 적재하지 않고 `RuleRegistration.issues`로 돌려준다. 규칙 변경은 다음 단계 경계의 `advertise`와 다음 도구 호출 평가부터 적용한다(M2).
 - 내장 기본 규칙(M1): `default.read-allow`(risk `read` → allow), `default.ls-allow`, `default.read-tool-allow`(도구 `read`, `ls` → allow), `default.bash-ask`(도구 `bash` → ask). 나머지는 모드 기본값을 따른다.
-- 확장의 `tool_call` 핸들러와 정책 규칙의 관계: 둘 다 거부할 수 있다. 핸들러는 그룹 상태에 따라 바뀌는 동적 판정(예: Helm 확산 단계의 쓰기 거부, L3.helm.spec §4.6)에 쓰고, 규칙은 선언형 정적 판정에 쓴다. 순서는 핸들러(5a) 뒤 정책(5b)이다. 핸들러가 거부하면 정책과 승인을 부르지 않는다. 그래서 사용자는 이미 거부된 호출의 승인 요청을 받지 않는다.
+- 확장의 `tool.call.before` 핸들러와 정책 규칙의 관계: 둘 다 거부할 수 있다. 핸들러는 그룹 상태에 따라 바뀌는 동적 판정(예: Helm 확산 단계의 쓰기 거부, L3.helm.spec §4.6)에 쓰고, 규칙은 선언형 정적 판정에 쓴다. 순서는 핸들러(5a) 뒤 정책(5b)이다. 핸들러가 거부하면 정책과 승인을 부르지 않는다. 그래서 사용자는 이미 거부된 호출의 승인 요청을 받지 않는다.
 
 ### 4.6 권한 모드와 위험 등급
 
@@ -849,10 +849,10 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 흐름:
 
 1. 요청자: 도구 승인은 core-tools 파이프라인(§4.2 5c)이 낸다. 질문과 계획 승인은 L2 dialog·work 능력이 자기 도구의 실행 안에서 `xeon.approvals.request`를 부른다(eng.context-map.design §4.4 표 3행).
-2. 커밋: `request`는 한 커밋에 `approval.requested`와 `checkpoint.step`(`ToolRunContext.drafts.waitingCheckpoint`, `next: "await_input"`(L1.loop.spec §4.5 재진입 표), 해당 호출의 `pendingToolCalls[].waiting = "approval"`)을 쓴다. requestId는 §3.9 표다. 커밋 뒤 `ui_prompt_start`를 발화한다.
+2. 커밋: `request`는 한 커밋에 `approval.requested`와 `checkpoint.step`(`ToolRunContext.drafts.waitingCheckpoint`, `next: "await_input"`(L1.loop.spec §4.5 재진입 표), 해당 호출의 `pendingToolCalls[].waiting = "approval"`)을 쓴다. requestId는 §3.9 표다. 커밋 뒤 `session.prompt.before`를 발화한다.
    - L2가 낸 요청은 `origin.toolCallId`로 core-tools의 활성 호출 표에서 그 호출의 `ToolRunContext`를 찾아 체크포인트 초안을 만든다. 도구 승인은 의도 전이라 `pendingToolCalls[].effectId`가 null이고, 도구 실행 안에서 낸 질문·계획 요청은 그 호출의 `effect.intent`의 `effectId`를 싣는다. `waiting`은 모두 `"approval"`이다(저장소의 A1 예외가 이 값만 받는다). 활성 호출이 없는 요청(그룹 코드가 턴 밖에서 낸 요청)은 체크포인트 없이 이벤트만 쓴다.
 3. 대기: 메모리 대기 목록에 넣고 응답을 기다린다. 대기 중에 도는 프로세스는 없다(architecture.runtime-flow.design §4.5).
-4. 응답: `respond`가 kind별 규칙(§3.6 표)을 검사하고 `approval.resolved`를 커밋한다. 커밋 뒤 대기를 풀고 `ui_prompt_end`를 발화한다. 같은 `approvalId`의 두 번째 응답은 `applied: false`다.
+4. 응답: `respond`가 kind별 규칙(§3.6 표)을 검사하고 `approval.resolved`를 커밋한다. 커밋 뒤 대기를 풀고 `session.prompt.after`를 발화한다. 같은 `approvalId`의 두 번째 응답은 `applied: false`다.
 5. 결과 반영:
    - tool: allow → 파이프라인 6단계로 간다. deny → `{ block: true, reason }`. 사유 문장은 `"[xeon:denied_by_user] The user denied this tool call."`에 feedback이 있으면 `" Feedback: <feedback>"`를 붙인다.
    - plan: allow이고 `answer.mode`가 있으면 `ToolService.setMode(threadId, mode, "plan_approval")`을 부른다. 계획 도구의 결과 내용은 L2.work.spec이 정한다.
@@ -871,7 +871,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 
 - [제안] 대기 상태는 `StepCheckpoint.pendingToolCalls[].waiting`으로 내구화하고 재개 때 복원한다(F.records.spec §3.6, architecture.runtime-flow.design §4.5, durable spec 1898-1915).
 - 재개 절차 [제안]: L1.persistence.spec의 재개가 마지막 체크포인트에서 `waiting: "approval"`인 호출을 찾으면 `ApprovalService.restore(threadId)`를 부른다. `restore`는 `approval.resolved`가 없는 `approval.requested`를 다시 읽어 메모리 대기 목록에 넣는다. core-loop는 `runTurn({ kind: "tools", awaitInput: true })`에서 그 호출들에 `prepare`를 다시 부른다(§3.3, L1.loop.spec §4.5 `await_input` 행).
-- 이 재실행은 같은 파이프라인을 지난다. `tool_call` 핸들러와 정책은 다시 실행된다. 의도 전이므로 다시 실행해도 된다(F.extensions.spec §4.3 재생 계약). 승인 단계에서 같은 `requestKey`(toolCallId)로 `request`를 부르면 커밋이 `replayed`로 끝나고 같은 `approvalId`의 기존 요청을 기다린다. 그 사이 응답이 커밋되었으면 바로 그 결과를 쓴다. 그래서 강제 종료 뒤 재개하면 같은 승인 요청이 복원된다(§9).
+- 이 재실행은 같은 파이프라인을 지난다. `tool.call.before` 핸들러와 정책은 다시 실행된다. 의도 전이므로 다시 실행해도 된다(F.extensions.spec §4.3 재생 계약). 승인 단계에서 같은 `requestKey`(toolCallId)로 `request`를 부르면 커밋이 `replayed`로 끝나고 같은 `approvalId`의 기존 요청을 기다린다. 그 사이 응답이 커밋되었으면 바로 그 결과를 쓴다. 그래서 강제 종료 뒤 재개하면 같은 승인 요청이 복원된다(§9).
 - 질문 도구는 실행(8단계) 안에서 대기하므로 대기 전에 의도와 실행 표시가 이미 커밋되어 있다. 그래서 질문 도구는 `replay: "safe"`를 선언해야 한다 [제안]. 재개 때 `decideEffectRecovery`가 `rerun`을 내고, 다시 실행된 도구가 같은 `requestKey`로 같은 요청을 이어 기다린다. L2.dialog.spec·L2.work.spec에 이 선언을 요청한다(§8.4).
 - 서비스 모드 유휴 종료에서 승인 대기 세션을 live로 셀지는 architecture.runtime-flow.design §7 [미결]을 따른다. 이 문서는 정하지 않는다(§10).
 
@@ -893,7 +893,7 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
 [결정] 긴 출력을 자르고 원문은 blob으로 뺀다. pi durable truncate 포크를 쓴다(`_research/layer-plan-v2.json` L1-d "결과 경계화", adr.0003). 포크 위치는 `platform-exec`이고 core-tools는 `xeon.exec`로 부른다(§3.7).
 
 1. 한도: 줄 `l1.tools.output.maxLines`(기본 2,000), 바이트 `l1.tools.output.maxBytes`(기본 51,200). 먼저 걸리는 쪽이 적용된다. pi와 같은 값이다(`_research/item-catalog.md` L1-d "도구 결과 경계화", durable `truncate.ts:11-12`). 도구별 `outputLimits`가 있으면 그 값을 쓴다.
-2. 대상: `tool_result` chain(§4.2 9단계)을 거친 최종 결과의 텍스트 파트다. 텍스트 파트를 `"\n"`으로 이어 한 문자열로 재고, 한도 안이면 그대로 둔다. 이미지 파트는 자르지 않는다. 큰 이미지 데이터는 F.records.spec §3.4의 문자열 분리 규칙으로 blob이 된다.
+2. 대상: `tool.result` chain(§4.2 9단계)을 거친 최종 결과의 텍스트 파트다. 텍스트 파트를 `"\n"`으로 이어 한 문자열로 재고, 한도 안이면 그대로 둔다. 이미지 파트는 자르지 않는다. 큰 이미지 데이터는 F.records.spec §3.4의 문자열 분리 규칙으로 blob이 된다.
 3. 한도를 넘으면:
    - 원문 전체(이어 붙인 텍스트)를 UTF-8로 `xeon.store.putBlob(bytes, "text/plain; charset=utf-8")`에 넣는다. 커밋 전, 트랜잭션 밖에서 한다(eng.transactions.design §4.2 `StoreService.putBlob`).
    - 모델용 내용은 `truncateHead(full, limits).content` 한 파트와 안내 문장 한 파트다. 안내 문장: `"[xeon:output_truncated] Showing the first <outputLines> of <totalLines> lines (<formatSize(outputBytes)> of <formatSize(totalBytes)>). The full output is stored as blob sha256:<hex>."`
@@ -909,7 +909,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 ### 4.9 재생
 
 - 재개 때 결과 없는 효과의 판정은 F.records.spec §3.5 `decideEffectRecovery`가 한다. 호출은 L1.persistence.spec 몫이다.
-- 결정이 `rerun`이면 L1.persistence가 `ToolService.rerun(intent, run)`을 부른다. `rerun`은 `tool_call` 지점, 정책, 승인을 다시 거치지 않고 저장된 `intent.args`로 단계 7a~11을 실행한다(durable spec 3136-3170 "Recovery does not rerun beforeTool", architecture.runtime-flow.design §4.2 "재생 시 도구 지점" 행). `effect.result`의 requestId는 처음과 같은 `tool:<toolCallId>:result`다.
+- 결정이 `rerun`이면 L1.persistence가 `ToolService.rerun(intent, run)`을 부른다. `rerun`은 `tool.call.before` 지점, 정책, 승인을 다시 거치지 않고 저장된 `intent.args`로 단계 7a~11을 실행한다(durable spec 3136-3170 "Recovery does not rerun beforeTool", architecture.runtime-flow.design §4.2 "재생 시 도구 지점" 행). `effect.result`의 requestId는 처음과 같은 `tool:<toolCallId>:result`다.
 - 재실행 횟수 상한(eng.transactions.design §5.2 `MAX_REPLAY_ATTEMPTS = 2`)과 시도 기록 이벤트는 F.records.spec에 kind가 없다. 시도 표시를 `effect.exec`의 반복으로 셀지 L1.persistence.spec과 함께 정한다 [미결](§10).
 - 결정이 `synthesize`이면 합성 결과(`OUTCOME_UNKNOWN_TEXT` 또는 `NOT_STARTED_TEXT`)를 L1.persistence가 커밋한다. core-tools는 관여하지 않는다.
 
@@ -917,7 +917,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 - pi-agent-core 1.3.0 원본의 `BeforeToolCallResult`에는 `args` 필드가 없었다(agent `types.ts:66-74`, `_research/notes/L1-1.md` §3(e)). 자체 루프(adr.0009)에서는 포크 조건이 없다. `prepare`가 검증한 인자를 `PreparedCall.args`로 돌려주므로 교체 인자를 같은 자리에 넣으면 된다.
 - 그래서 인자 재작성은 2차로 둔다. 도입할 때는 `prepare` 안에서 재검증하고 `PreparedCall.args`와 `effect.intent.args`에 같은 값을 넣는다(`_research/packages.md` §4.3 L1-d "인자 재작성").
-- `tool_call` 지점에서는 인자를 바꿀 수 없다. 이 지점의 결정은 허용·거부·결과 대체뿐이다. 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해지기 때문이다. 확장의 인자 변경이 필요하면 2차에 별도 chain 지점을 더한다 [결정: review.decisions-2 U-06].
+- `tool.call.before` 지점에서는 인자를 바꿀 수 없다. 이 지점의 결정은 허용·거부·결과 대체뿐이다. 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해지기 때문이다. 확장의 인자 변경이 필요하면 2차에 별도 chain 지점을 더한다 [결정: review.decisions-2 U-06].
 - 도입 뒤 규칙 [제안]: 재작성된 인자는 스키마 검증을 다시 거치고, 승인 요청에는 재작성된 인자를 싣는다. `effect.intent.args`는 재작성 뒤 값이다. 승인자가 본 인자와 실행되는 인자가 같아야 하기 때문이다(`_research/item-catalog.md` L1-d "인자 재작성과 재검증").
 
 ### 4.11 2차 항목
@@ -935,7 +935,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 | 경로 정규화 | 잠금 키 산출에만 `xeon.exec.canonicalPath`를 쓴다(§4.2 7b) | 파일 도구의 탈출 검사(L2.workspace.spec "역할 나눔" 표) | `xeon.exec` |
 | 비밀 값 주입(`ShellExecOptions.secretEnv`) | 하지 않는다. 값을 보지 않는다 | 실행 옵션으로 참조(`secret://…`)를 넘긴다 | `xeon.exec`가 spawn 직전에 `xeon.secrets` lease로 값을 넣는다(L0.exec.spec §3.6) |
 | 승인과 명령 패턴 | 정책 규칙의 `args` 패턴과 승인 프로토콜(§4.5, §4.7). `xeon.secrets.check`가 `needs_approval`이면 `xeon.approvals`로 묻고 받은 증거를 넘긴다(L0.secrets.spec §4.2) | 없음 | 정책 판정은 `xeon.secrets`(L0.secrets.spec §4.2) |
-| 도구 결과 마스킹(2계층 `tool-result`) | 8단계 결과와 진행 갱신을 `tool_execution_update`·`tool_result` 발화, 경계화·blob 쓰기, 10단계 커밋 전에 `Redactor.maskDeep`으로 가린다. 텍스트, `structuredContent`, `details`, 오류 문장 모두다. 가린 것이 있으면 `secret.masked`(`layer: "tool-result"`)를 남긴다 | 없음 | `Redactor` 구현(L0.secrets.spec §3.5, §4.4) |
+| 도구 결과 마스킹(2계층 `tool-result`) | 8단계 결과와 진행 갱신을 `tool.execution.update`·`tool.result` 발화, 경계화·blob 쓰기, 10단계 커밋 전에 `Redactor.maskDeep`으로 가린다. 텍스트, `structuredContent`, `details`, 오류 문장 모두다. 가린 것이 있으면 `secret.masked`(`layer: "tool-result"`)를 남긴다 | 없음 | `Redactor` 구현(L0.secrets.spec §3.5, §4.4) |
 | 도구 인자의 남의 비밀 구문 검사 | 4단계 검증 뒤 `findForeignSecretSyntax`를 부른다 [가정: L0.secrets.spec 103행] | 없음 | 검사 함수 |
 
 - M1 종료 조건의 비밀 항목(`product.scope.spec` §4.4 M1 행: SOPS 비밀 참조 1종을 쓰는 도구 호출에서 값이 이벤트 DB와 모델 요청 본문에 없다)은 위 표대로 나뉜다. L1.tools 몫은 승인·명령 패턴과 2계층 마스킹이다. 주입과 lease는 L0.exec·L0.secrets 몫이다. 세 몫을 한 번에 확인하는 것은 `apps/cli` M1 스모크 시나리오다(L1.tools.plan §6).
@@ -952,7 +952,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 1. 모델이 광고하지 않은 도구를 부름(전역 deny로 뺀 도구 포함): `prepare` 2단계는 광고 목록을 다시 보지 않고 등록 표에서 이름을 찾는다. 등록되지 않은 이름이면 `[xeon:tool_unavailable]` 오류 결과(`settled`)다. 등록된 도구면 5a·5b를 지나므로 전역 deny 규칙이 그 호출을 거부한다.
 2. 인자 검증 실패: 예외를 던지지 않고 `isError: true` 도구 결과로 모델에 돌아간다. 효과 이벤트는 없다. 루프는 계속된다(§4.2 4단계, core-tools `validate.ts`).
-3. `tool_call` 핸들러 예외 또는 결정 스키마 위반: `FIRST_DENY.tool_call`(`{ block: true, reason: "extension handler failed" }`)로 거부한다(F.extensions.spec §3.5, §5 사례 2). ext-host 디스패치 호출 자체가 실패해도 같은 거부로 본다(fail-closed).
+3. `tool.call.before` 핸들러 예외 또는 결정 스키마 위반: `FIRST_DENY.tool_call`(`{ block: true, reason: "extension handler failed" }`)로 거부한다(F.extensions.spec §3.5, §5 사례 2). ext-host 디스패치 호출 자체가 실패해도 같은 거부로 본다(fail-closed).
 4. 정책 규칙의 정규식이 잘못됨: 적재 때 그 규칙만 빼고 진단을 남긴다. 평가는 나머지 규칙으로 한다. managed 규칙이 빠지면 설정 화면에 오류 배지를 보인다(L4.settings-ui.spec).
 5. 승인 대기 중 턴 취소: §4.7 8번. 승인 대기 중 프로세스 강제 종료: §4.7 재개.
 6. 승인 대기 중 클라이언트 재접속: 클라이언트는 `events.subscribe`로 미해결 `approval.requested`를 다시 받는다. 호스트는 `ApprovalService.pending`으로 현재 목록을 줄 수도 있다.
@@ -987,19 +987,19 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 | 지점 | fold | 발화 위치 | 비고 |
 |---|---|---|---|
-| `tool_call` | first | §4.2 5a | 결정은 `ToolCallDecision`. 예외는 거부(fail-closed) |
-| `tool_result` | chain | §4.2 9 | 패치는 `ToolResultPatch`, 병합은 `CHAIN_RULES.tool_result` |
-| `tool_execution_start` | tap | §4.2 1 | core-tools가 `prepare`(또는 준비 없이 닫는 `settleRejected`)에서 발화한다 |
-| `tool_execution_update` | tap | §4.2 8 | `execute`의 진행 콜백에서 발화한다 |
-| `tool_execution_end` | tap | §4.2 11 | 호출 마감(`execute`, 준비 중 닫힘, `settleRejected`) 뒤 발화한다 |
-| `ui_prompt_start` | tap(detached) | §4.7 2, `approval.requested` 커밋 뒤 | F.extensions.spec §7 배정과 같다 |
-| `ui_prompt_end` | tap(detached) | §4.7 4, `approval.resolved` 커밋 뒤 | 같음 |
+| `tool.call.before` | first | §4.2 5a | 결정은 `ToolCallDecision`. 예외는 거부(fail-closed) |
+| `tool.result` | chain | §4.2 9 | 패치는 `ToolResultPatch`, 병합은 `CHAIN_RULES.tool_result` |
+| `tool.execution.before` | tap | §4.2 1 | core-tools가 `prepare`(또는 준비 없이 닫는 `settleRejected`)에서 발화한다 |
+| `tool.execution.update` | tap | §4.2 8 | `execute`의 진행 콜백에서 발화한다 |
+| `tool.execution.after` | tap | §4.2 11 | 호출 마감(`execute`, 준비 중 닫힘, `settleRejected`) 뒤 발화한다 |
+| `session.prompt.before` | tap(detached) | §4.7 2, `approval.requested` 커밋 뒤 | F.extensions.spec §7 배정과 같다 |
+| `session.prompt.after` | tap(detached) | §4.7 4, `approval.resolved` 커밋 뒤 | 같음 |
 
 - `ToolCallPayload.capability`는 능력 도구일 때 채운다(F.capabilities.spec §7).
 - [제안] 페이로드 추가 요청(§8.3 F 요청 4): `ToolCallPayload`에 `caller: CallerId`, `risk: ToolRisk`, `hints?: ToolHints`를 더한다. Helm의 쓰기 판정(L3.helm.spec §4.6 [미결 8] "메타 출처")과 그룹 핸들러의 자식 대화 구분에 쓴다. 추가 전에는 핸들러가 `xeon.tools.meta(name)`을 group-kit 경유로 조회한다.
 - 서브에이전트 대화의 도구 호출에도 같은 지점이 같은 규칙으로 발화한다. `HandlerContext.threadId`는 자식 대화다 [제안].
 - `post`, `drive`, `scope`와의 관계: core-tools는 post·drive를 쓰지 않는다. 확장 비활성화(scope)로 도구 등록이 빠지면 다음 단계 경계의 `advertise`에서 사라진다(F.capabilities.spec §5 사례 5).
-- 확장 규칙 등록(extension 티어)은 2차다. 그 전에는 확장이 `tool_call` 핸들러로 거부한다. L1 코어 규칙 등록(`registerRules`, default 티어)은 M2다.
+- 확장 규칙 등록(extension 티어)은 2차다. 그 전에는 확장이 `tool.call.before` 핸들러로 거부한다. L1 코어 규칙 등록(`registerRules`, default 티어)은 M2다.
 
 ## 8. 다른 문서와의 인터페이스
 
@@ -1064,7 +1064,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 
 1. 전역 deny 규칙(`{ tool: "bash", effect: "deny" }`, 인자·모드 조건 없음)이 있으면 `advertise` 결과의 `tools`에 `bash`가 없고 `removed`에 규칙 id와 함께 있다.
 2. 같은 등록·규칙을 어떤 순서로 넣어도 `advertise`의 `tools` 순서와 `fingerprint`가 같다.
-3. `tool_call` 핸들러가 예외를 던지면 그 호출은 거부 결과(`isError: true`)이고 `effect.intent`가 없다.
+3. `tool.call.before` 핸들러가 예외를 던지면 그 호출은 거부 결과(`isError: true`)이고 `effect.intent`가 없다.
 4. 스키마를 위반한 인자는 예외 없이 `isError: true` 도구 결과로 모델에 돌아가고 루프는 다음 단계로 간다.
 5. 장애 주입으로 `effect.intent` 커밋을 실패시키면 provider `execute`는 한 번도 불리지 않는다. 의도 표에 없는 `toolCallId`로 어댑터 `execute`를 직접 부르면 provider를 부르지 않는다.
 6. 정상 실행 한 건은 `effect.intent`, `effect.exec`, `effect.result` 순서로 기록되고, `effect.result`와 toolResult `item.recorded`는 같은 커밋(같은 requestId, 연속 seq)에 있다.
@@ -1081,7 +1081,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 17. `l1.tasks.limits.tools = 1`이면 두 번째 도구 실행은 첫 실행이 슬롯을 반납한 뒤 시작하고, 키 잠금을 슬롯보다 먼저 얻는다(M2).
 18. `ceiling`이 있는 자식 호출에서 부모 관점 결정이 deny면 자식 관점 결정이 allow여도 deny다.
 19. `registerRules("core:agents", …)`를 두 번 부르면 두 번째 규칙 집합만 평가에 쓰이고, 잘못된 규칙은 `issues`로 돌아오며 적재되지 않는다.
-20. 도구 결과에 알려진 비밀 값이 있으면 `effect.result`, toolResult `item.recorded`, blob 원문, `tool_result`·`tool_execution_update` 페이로드에 값 문자열이 없다.
+20. 도구 결과에 알려진 비밀 값이 있으면 `effect.result`, toolResult `item.recorded`, blob 원문, `tool.result`·`tool.execution.update` 페이로드에 값 문자열이 없다.
 21. core-tools와 F capabilities 소스의 import 목록에 `@earendil-works/pi-agent-core`가 없다(check-layers, DR-07).
 22. 계획 승인 `allow { mode }`는 계획 도구가 이어가기 전에 세션 모드를 바꾼다. 해결이 커밋된 뒤 모드 쓰기 전에 끊겨도, 재시작 뒤 같은 `requestKey` 요청이 모드를 이어서 적용하고 모드 변경을 두 번 쓰지 않는다. 모드 밖의 `mode`, 질문용 decision은 `applied: false`다.
 23. 질문 응답은 질문 묶음에 맞지 않으면(모르는 id, 없는 선택지, 단일 선택에 둘, 자유 입력 불허에 text, 빈 답) `applied: false`이고 이벤트가 없다.
@@ -1104,7 +1104,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 ## 10. 미결 사항
 
 - [미결] 서비스 모드 유휴 종료에서 승인 대기 세션을 live로 셀지(architecture.runtime-flow.design §7). 이 문서와 L1.tools.plan은 M2까지 live로 취급한다.
-- [결정: review.decisions-2 U-06] `tool_call` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 별도 chain 지점을 더한다(§4.10).
+- [결정: review.decisions-2 U-06] `tool.call.before` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 별도 chain 지점을 더한다(§4.10).
 - [미결] 꼬리 보존 미리보기의 공통 모드(§4.8 7번).
 - [미결] 재실행 시도 횟수 기록 방식과 상한(§4.9). eng.transactions.design `MAX_REPLAY_ATTEMPTS`와 F.records.spec 결정표의 연결.
 - [결정: L1A.4, L1F] `input_required` 출력 변형의 판별 필드는 `status: "input_required"`이다(§4.3). `approvalId`가 없는 MCP 변형의 재호출은 어댑터가 질문 승인을 올려 `CallOptions.continuation`으로 닫는다.

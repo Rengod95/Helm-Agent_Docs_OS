@@ -211,8 +211,8 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       dispatchKey: `approval:${request.approvalId}:ui_prompt_${phase}`,
     };
     try {
-      if (phase === "start") await deps.ext.dispatch("ui_prompt_start", payload, options);
-      else await deps.ext.dispatch("ui_prompt_end", payload, options);
+      if (phase === "start") await deps.ext.dispatch("session.prompt.before", payload, options);
+      else await deps.ext.dispatch("session.prompt.after", payload, options);
     } catch (error) {
       // 탭 지점의 실패는 기록하고 계속한다(F.extensions.spec §4.1)
       deps.logger?.warn("tools.ui_prompt_failed", { phase, message: messageOf(error) });

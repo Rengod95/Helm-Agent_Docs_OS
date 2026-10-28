@@ -147,7 +147,7 @@ function boundaryGroup(
 ): ExtensionUnit {
   const entry: ExtensionEntry = ({ manifest, scope }) => {
     scope(manifest.name, {}, (g) => {
-      g.on("turn_end", (payload, current, ctx) => ({
+      g.on("boundary.step.after", (payload, current, ctx) => ({
         entries: [...current.entries, ...entries(payload.stepId, ctx.threadId, null)],
       }));
     });
@@ -160,7 +160,7 @@ function boundaryGroup(
       layer: "plugin",
       kind: "plugin",
       entry: "./index.ts",
-      points: ["turn_end"],
+      points: ["boundary.step.after"],
       usesDrive: false,
     }),
     entry,

@@ -48,7 +48,7 @@ export interface OpenTurnReduction {
   readonly requestId: string | null;
   readonly prompt: string;
   readonly images: readonly ImageContent[];
-  /** `before_agent_start`가 추가한 item이 이미 기록됐다 */
+  /** `input.agent.before`가 추가한 item이 이미 기록됐다 */
   readonly hasPrestart: boolean;
   readonly stepCount: number;
   readonly usage: Usage | null;

@@ -24,7 +24,7 @@ binds: [xeon/packages/core-models/**, xeon/plugins/provider-anthropic-oauth/**]
 | 단계 | 범위 | 근거 |
 |---|---|---|
 | M0 | core-models 코드 없음. 선행: contracts에 `L1.models.spec` §3.2·§3.3의 F 요청 타입(`ModelRole`, `ModelRef`, `parseModelRef`, `ModelBinding`, `CachePolicy`, 그리고 `@xeon/contracts/services`의 `ModelService`·`ModelServiceName`)이 들어가야 한다. platform-secrets의 `SecretService` 인터페이스가 F에 있어야 한다 | `_research/foundation-plan.md` §5 P4 M0 |
-| M1 | pi-ai 모델 1개 호출(`stream`, `complete`, `streamFn`), 사용량 합산(중단 응답 포함), 모델 테이프 가짜(`@xeon/core-models/testing`), 비밀 참조 해석 연결(`secretBackedCredentialStore`), `l1.models.default`·`providers`·`retry` 설정, 지점 `before_provider_request` | `_research/foundation-plan.md` §5 P4 M1 "pi-ai 모델 1개", `eng.testing.guide` TS-04 |
+| M1 | pi-ai 모델 1개 호출(`stream`, `complete`, `streamFn`), 사용량 합산(중단 응답 포함), 모델 테이프 가짜(`@xeon/core-models/testing`), 비밀 참조 해석 연결(`secretBackedCredentialStore`), `l1.models.default`·`providers`·`retry` 설정, 지점 `request.provider.before` | `_research/foundation-plan.md` §5 P4 M1 "pi-ai 모델 1개", `eng.testing.guide` TS-04 |
 | M2 | 역할 표와 라우팅(6역할, 그룹 덮어쓰기), 추론 레벨·레벨별 토큰 예산 설정과 체크포인트 고정, 캐시 정책 객체와 표식 적용, provider 등록 API, 나머지 지점 5개, 허용·차단 목록. 별도 작업 줄기: 위장 provider 플러그인(방안 A 스파이크, 회귀 테스트, 배포 제외 CI 검사) | 계획 v2 L1-c 1차 행, `L1.agents.plan` M2(서브에이전트 역할) |
 | M3 | 구조화 출력 최소형(목표 판정용, 재시도 루프와 횟수 상한), 레이트 리밋과 계정 회전(설정은 M3 설정 화면) | `L1.models.spec` §3.10·§4.8, `L1.agents.spec` §4.8, review.decisions-2 U-21 |
 | 2차(M3 이후) | 폴백 체인, 구조화 출력 전체 | 계획 v2 L1-c 2차 행 |
@@ -93,8 +93,8 @@ xeon/plugins/provider-anthropic-oauth/
 
 | id | 내용 | 선행 | 규모 | 단계 |
 |---|---|---|---|---|
-| M-0 | contracts 선행 확인: F 요청 타입(`models.ts`), `SecretService` 인터페이스, 지점 `before_provider_request` 선언. 없으면 F·L0 트랙에 요청하고 착수하지 않는다 | contracts, platform-secrets 서비스 인터페이스 | 소 | M0 |
-| M-1 | pi-ai 서비스 래퍼: `createModels`에 내장 provider 등록, `stream`·`complete`·`streamFn`, §4.3 파이프라인 1~4·7·10단계, `tokens`, `classify`. `before_provider_request` 디스패치(5단계) | M-0 | 중 | M1 |
+| M-0 | contracts 선행 확인: F 요청 타입(`models.ts`), `SecretService` 인터페이스, 지점 `request.provider.before` 선언. 없으면 F·L0 트랙에 요청하고 착수하지 않는다 | contracts, platform-secrets 서비스 인터페이스 | 소 | M0 |
+| M-1 | pi-ai 서비스 래퍼: `createModels`에 내장 provider 등록, `stream`·`complete`·`streamFn`, §4.3 파이프라인 1~4·7·10단계, `tokens`, `classify`. `request.provider.before` 디스패치(5단계) | M-0 | 중 | M1 |
 | M-2 | 역할 표 해석기(순수): `resolveRole`, `ROLE_FALLBACK`, 허용·차단 패턴, `clampThinkingLevel` 연결, `parseModelRef` 사용 | M-0 | 소 | M2 (M1에는 `main` 역할만 쓰는 최소 경로) |
 | M-3 | usage 합산: 종결 이벤트에서 `UsageRecord`, `UsageMeter.totals`·`subscribe`. coding-agent `usage-totals.ts` `combineUsage` 소형 포크 판단(가져오면 F `Usage`로 타입 교체, 아니면 15줄 안팎 자체 작성) | M-1 | 소 | M1 |
 | M-4 | provider 등록 API: `addProvider(owner, name, ProviderDef)`와 `ModelsPort` 충족 `registerProvider(owner, name, ProviderResourceDef)`(JSON `kind: "config"`만, 실패는 `ModelError` 던짐), 중복 거부, `Unsubscribe`와 scope dispose, `kind: "config"` 검사(`apiKey`는 참조만) | M-1 | 중 | M2 |
@@ -104,7 +104,7 @@ xeon/plugins/provider-anthropic-oauth/
 | M-8 | 위장 래퍼 방안 A 스파이크: `_research/notes/L1-2.md` §5 S1~S6을 따른다. A2(Api id 유지, provider id `anthropic-oauth`)로 시작. 와이어 동등성 테스트(S5)를 통과하지 못하거나 `L1.models.spec` §4.11.2 전환 조건에 걸리면 방안 B 결정 기록을 남긴다 | M-4 | 대 | M2 별도 줄기 |
 | M-9 | 회귀 테스트 복사: pi-ai `test/anthropic-oauth.test.ts`(로그인·갱신, 7개), `anthropic-tool-name-normalization.test.ts`(실 API 왕복, 키 없으면 건너뜀, 4개). 복사본은 실행 전 내용을 검토한다. 두 파일은 요청 형태를 보증하지 않으므로 M-8의 동등성 테스트가 주 검증이다 | M-8 | 소 | M2 |
 | M-10 | 배포 제외 CI 검사: `xeon/scripts/check-release.ts`와 `.github/workflows/xeon-ci.yml`의 L1 job 항목(`L1.models.spec` §4.11.4 1~4). `just verify`에도 넣는다 | M-8 | 소 | M2 |
-| M-11 | 나머지 지점 5개(`before_provider_headers`, `after_provider_response`, `provider_stream_event`, `model_select`, `thinking_level_select`), 비밀 헤더 가림, 바인딩 변경 감지 | M-1, M-2 | 중 | M2 |
+| M-11 | 나머지 지점 5개(`request.headers.before`, `request.provider.after`, `request.stream`, `request.model.after`, `request.thinking.after`), 비밀 헤더 가림, 바인딩 변경 감지 | M-1, M-2 | 중 | M2 |
 | M-12 | 구조화 출력 최소형: `completeStructured`, `validateToolArguments` 재시도 루프, 시도 상한 | M-1 | 소 | M3 |
 | M-13 | 레이트 리밋·계정 회전: 별도 설계 문서 먼저(§7 위험 4), `core_models_*` 테이블, 계정 선택, 대기·전환, M3 설정 화면 키(`accounts`, `rateLimit`) | M-6, 설계 문서 | 대 | M3 |
 | M-14 | 폴백 체인: `overloaded`·`provider_unavailable`에서만, 콘텐츠 전 요청만 | M-1, M-2 | 중 | 2차 |
@@ -163,9 +163,9 @@ xeon/plugins/provider-anthropic-oauth/
 | `oauth_wrapper_unmaps_tool_names_in_response` | 플러그인 `test/stream-unmap.test.ts` | unit | `toolcall_start`에서 되돌린 이름이 후속 이벤트와 `done` 메시지에 반영 | M2 |
 | `oauth_wrapper_wire_equivalence` | 플러그인 `test/wire-equivalence.test.ts` | contract | 가짜 `sk-ant-oat` 키로 원본 `stream`과 래퍼의 요청 URL·헤더(인증 값 제외)·본문 비교. 네트워크 없음(캡처 fetch) | M2 |
 | `oauth_plugin_default_disabled` | 플러그인 `test/plugin.test.ts` | unit | 매니페스트 `defaultEnabled: false`. `acknowledgeRisk` 거짓이면 `addProvider` 호출 0건 | M2 |
-| `request_points_remaining_five_fire` | `test/pipeline.test.ts` | unit | `before_provider_headers` 패치가 요청 헤더에 반영되고 `null` 값은 헤더를 지운다. `after_provider_response`·`provider_stream_event`는 tap으로 한 번씩 발화하고, `thinking_level_select`는 detached로 발화해 요청을 기다리게 하지 않는다(M-11) | M2 |
-| `headers_point_payload_masks_secret_values` | `test/pipeline.test.ts` | unit | `before_provider_headers` 페이로드의 인증 헤더 값은 `"[secret]"`이고, 핸들러가 인증 헤더를 패치하지 않으면 실제 요청에는 해석한 값이 그대로 나간다. 지점 페이로드와 로그에 가짜 키 문자열이 없다(M-11, spec §3.9, §7.2) | M2 |
-| `model_select_fires_on_binding_change` | `test/routing.test.ts` | unit | 단계 시작 바인딩이 이전 단계와 다르면 `model_select`가 한 번 발화하고, 레벨만 다르면 `thinking_level_select`만 발화한다. 바인딩이 같으면 둘 다 0회(M-11, spec §4.2 6번) | M2 |
+| `request_points_remaining_five_fire` | `test/pipeline.test.ts` | unit | `request.headers.before` 패치가 요청 헤더에 반영되고 `null` 값은 헤더를 지운다. `request.provider.after`·`request.stream`는 tap으로 한 번씩 발화하고, `request.thinking.after`는 detached로 발화해 요청을 기다리게 하지 않는다(M-11) | M2 |
+| `headers_point_payload_masks_secret_values` | `test/pipeline.test.ts` | unit | `request.headers.before` 페이로드의 인증 헤더 값은 `"[secret]"`이고, 핸들러가 인증 헤더를 패치하지 않으면 실제 요청에는 해석한 값이 그대로 나간다. 지점 페이로드와 로그에 가짜 키 문자열이 없다(M-11, spec §3.9, §7.2) | M2 |
+| `model_select_fires_on_binding_change` | `test/routing.test.ts` | unit | 단계 시작 바인딩이 이전 단계와 다르면 `request.model.after`가 한 번 발화하고, 레벨만 다르면 `request.thinking.after`만 발화한다. 바인딩이 같으면 둘 다 0회(M-11, spec §4.2 6번) | M2 |
 | `release_manifest_excludes_oauth_plugin` | `xeon/scripts/check-release.test.ts` | unit | 일부러 의존을 넣은 픽스처 `package.json`에서 검사가 실패하고, 실제 워크스페이스에서는 통과 | M2 |
 | `hosted_search_single_turn` | `test/hosted-search.test.ts` | unit | 서버 도구 하나만 단 단일 요청, 결과·인용·사용량 변환, `encrypted_content` 미노출, `search` 역할·캐시 없음, 요청 지점 미발화(L1C.3) | M2 |
 | `hosted_search_pause_continuation` | 같음 | unit | `pause_turn` 응답의 continuation이 다음 요청에 assistant 메시지로 되돌아가고 호출자에게는 불투명하다(L1C.3) | M2 |

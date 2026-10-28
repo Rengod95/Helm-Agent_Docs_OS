@@ -246,7 +246,7 @@ export type DelegateResult =
 
 ```ts
 export interface JudgeEvidence {
-  readonly kind: "assistant_text" | "tool_result" | "work_item" | "note";
+  readonly kind: "assistant_text" | "tool.result" | "work_item" | "note";
   readonly text: string;
   /** 증거 원본 위치. item, effect, L2.work 레코드 */
   readonly ref?: { readonly itemId?: ItemId; readonly effectId?: string; readonly workRef?: string };
@@ -465,7 +465,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - 출력 스키마: `{ verdict: "met" | "not_met" | "undecidable", rationale: string, missing: string[] }`. 스키마를 어기면 한 번 다시 묻지 않고 `undecidable`로 본다 [제안]. 다시 묻기는 상한을 흐리게 하기 때문이다.
 - 상한: `l1.agents.judge.maxRuns`(기본 3)은 `(threadId, goalRef)`마다의 판정 실행 수다. 판정 상한 키는 이 하나이고 L2.work는 자기 상한 키를 두지 않고 이 키를 참조한다 [결정: review.decisions-2 S-06]. 판정 오류(`failed`)는 실행 수에 넣지 않는다(§5 사례 8). 판정 역할 이름은 L1.models.spec 역할 표의 `judge`다. `judge`는 그 대화의 `agent.judged` 수를 세어 상한이면 모델을 부르지 않고 `{ kind: "capped" }`를 돌려준다. 완료 게이트가 이 결과를 어떻게 처리할지(turn 종료와 사용자 알림)는 L1.loop.spec이 정한다 [가정].
 - 기록 [제안]: `judge`는 모델 응답을 받은 직후 `agent.judged`를 자기 커밋(requestId `judge:<threadId 해시>:<goalRef>:<run>`)으로 남기고 결과를 돌려준다. 재개 때 같은 `(goalRef, run)`의 기록이 있으면 `{ kind: "recorded" }`를 돌려주고 다시 판정하지 않는다. 모델 호출 뒤 커밋 전에 끝나면 재개 때 다시 판정한다(비용만 든다).
-- 단계 경계 커밋과의 관계: architecture.runtime-flow.design §4.5는 "판정 결과는 단계 경계 커밋에 내구 이벤트로 남아"라고 적었고, L1.loop.spec §4.9는 L2.work의 `agent_before_settle` 핸들러가 판정 결과를 확장 kind 엔트리로 T4에 넣는다고 적었다. 그런데 `finalizeBoundary`는 접두 없는 코어 kind 엔트리를 거부한다(L1.loop.spec §9 수용 기준 5). 그래서 `agent.judged`는 판정 호출의 자기 커밋으로 쓰고, L2.work 핸들러는 T4 엔트리에 판정 참조(`agent.judged`의 EventId)만 남긴다 [제안]. 이렇게 하면 단계 경계 커밋보다 먼저 판정이 내구화된다. 이 정리는 L1.loop.spec·L2.work.spec과 맞춰야 한다 [미결](§10).
+- 단계 경계 커밋과의 관계: architecture.runtime-flow.design §4.5는 "판정 결과는 단계 경계 커밋에 내구 이벤트로 남아"라고 적었고, L1.loop.spec §4.9는 L2.work의 `boundary.settle.before` 핸들러가 판정 결과를 확장 kind 엔트리로 T4에 넣는다고 적었다. 그런데 `finalizeBoundary`는 접두 없는 코어 kind 엔트리를 거부한다(L1.loop.spec §9 수용 기준 5). 그래서 `agent.judged`는 판정 호출의 자기 커밋으로 쓰고, L2.work 핸들러는 T4 엔트리에 판정 참조(`agent.judged`의 EventId)만 남긴다 [제안]. 이렇게 하면 단계 경계 커밋보다 먼저 판정이 내구화된다. 이 정리는 L1.loop.spec·L2.work.spec과 맞춰야 한다 [미결](§10).
 - 판정 모델 요청의 requestId(모델 호출 멱등 키가 생기면)는 `judge:<goalRef>:<run>`이다.
 - 목표 저장은 L2.work 소관이고 판정 결과의 소비는 루프의 완료 게이트다. 이 문서는 판정 호출과 기록만 제공한다.
 
@@ -537,7 +537,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | `ThreadId`, `ItemId`, `Usage`, `XeonCustomMessage` | F.conversation.spec |
 | `thread.started.forkedFrom`, `DurableEventDraft`, 분기 규칙 §4.6 | F.records.spec |
 | `TaskService.openScope`(노드 kind `subagent`, `background`), `abort(target, reason, { background })`, `limiter("subagents")`, `Slot.suspendWhile`, `inputs.draftQueued`(완료 보고 초안) | L1.tasks.spec |
-| 자식 turn 실행 진입점(`runChildTurn`, `ChildTurnRequest`, L1.loop.spec §3.1·§4.13), 완료 게이트(`agent_before_settle`) | L1.loop.spec |
+| 자식 turn 실행 진입점(`runChildTurn`, `ChildTurnRequest`, L1.loop.spec §3.1·§4.13), 완료 게이트(`boundary.settle.before`) | L1.loop.spec |
 | `evaluatePolicy`, `stricter`, `PolicyRule`, 도구 등록, 코어 규칙 등록 `registerRules`, `ToolRunContext.ceiling`(ceiling 단계 §4.5) | L1.tools.spec |
 | 모델 역할 `judge`, `subagent` 라우팅과 구조화 출력 [가정] | L1.models.spec |
 | 재개 절차, 멱등 조회 `TxView.agentByRequestId`, 투영 `p_agents`, `ResumePlan.openChildren`, 자식 임대 상속(`ThreadCreateInput.inheritOwnerFrom`, `ThreadCreated.token`), `openForWrite(child, token)` | L1.persistence.spec |

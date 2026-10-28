@@ -568,7 +568,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       : undefined;
     const imageField = flat.images.length === 0 ? {} : { images: [...flat.images] };
     const chain = await deps.ext.dispatch(
-      "input",
+      "input.user.before",
       {
         text: flat.text,
         ...imageField,

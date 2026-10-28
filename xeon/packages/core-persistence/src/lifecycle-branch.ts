@@ -114,7 +114,7 @@ function eventBelongsToThread(
 }
 
 function cancelled(
-  point: "session_before_fork" | "session_before_tree" | "session_before_switch",
+  point: "session.fork.before" | "session.tree.before" | "session.switch.before",
   decision: { readonly cancel: boolean; readonly reason?: string } | undefined,
 ): LifecycleError | null {
   if (decision === undefined || !decision.cancel) return null;
@@ -260,9 +260,9 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
           ...(summaryEventId === undefined ? {} : { summaryEventId }),
           fromExtension: null,
         },
-        `${threadId}:session_tree:${String(result.lastSeq)}`,
+        `${threadId}:session.tree.after:${String(result.lastSeq)}`,
       ),
-      failPoint("session_tree", threadId),
+      failPoint("session.tree.after", threadId),
     );
   };
 
@@ -291,9 +291,9 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
           entriesToSummarize: facts.value.entries,
           userWantsSummary: options.summary !== undefined,
         },
-        `${threadId}:session_before_tree:${options.requestKey}`,
+        `${threadId}:session.tree.before:${options.requestKey}`,
       );
-      const stopped = cancelled("session_before_tree", decision);
+      const stopped = cancelled("session.tree.before", decision);
       if (stopped !== null) return err(stopped);
       const offered = decision !== undefined && !decision.cancel ? decision.summary : undefined;
       const summary: BranchSummaryInput | undefined =
@@ -380,9 +380,9 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
           entriesToSummarize: facts.value.entries,
           userWantsSummary: false,
         },
-        `${threadId}:session_before_tree:${requestKey}`,
+        `${threadId}:session.tree.before:${requestKey}`,
       );
-      const stopped = cancelled("session_before_tree", decision);
+      const stopped = cancelled("session.tree.before", decision);
       if (stopped !== null) return err(stopped);
       const moved = commitLeafMove({
         threadId,
@@ -436,9 +436,9 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
       if (!onBranch) return err({ kind: "invalid_target", reason: "not_on_branch" });
       const decision = await points.beforeFork(
         { threadId, itemId, position: "at" },
-        `${threadId}:session_before_fork:${newThreadId}`,
+        `${threadId}:session.fork.before:${newThreadId}`,
       );
-      const stopped = cancelled("session_before_fork", decision);
+      const stopped = cancelled("session.fork.before", decision);
       if (stopped !== null) return err(stopped);
       const created = deps.createForked(
         {
@@ -453,9 +453,9 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
         detach(
           points.start(
             { reason: "fork", threadId: newThreadId, previousThreadId: threadId },
-            `${newThreadId}:session_start:${String(created.value.headSeq)}`,
+            `${newThreadId}:session.start:${String(created.value.headSeq)}`,
           ),
-          failPoint("session_start", newThreadId),
+          failPoint("session.start", newThreadId),
         );
       }
       return created;
@@ -465,9 +465,9 @@ export function createBranchOps(deps: BranchDeps): TreeOps {
       const decision = await points.beforeSwitch(
         from,
         { reason: to === null ? "new" : "resume", ...(to === null ? {} : { targetThreadId: to }) },
-        `${from}:session_before_switch:${to ?? "new"}`,
+        `${from}:session.switch.before:${to ?? "new"}`,
       );
-      const stopped = cancelled("session_before_switch", decision);
+      const stopped = cancelled("session.switch.before", decision);
       return stopped === null ? ok(undefined) : err(stopped);
     },
   };

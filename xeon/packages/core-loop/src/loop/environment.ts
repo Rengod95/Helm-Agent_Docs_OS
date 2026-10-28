@@ -1,4 +1,4 @@
-// L1.loop.spec §4.2 규칙 1a. 접두에 넣지 않는 요청별 안내 두 가지를 만든다: 환경 블록과 `before_agent_start`가 붙인 프롬프트.
+// L1.loop.spec §4.2 규칙 1a. 접두에 넣지 않는 요청별 안내 두 가지를 만든다: 환경 블록과 `input.agent.before`가 붙인 프롬프트.
 // 둘 다 volatile 계층(`AssembleOptions.volatile`)으로 가서 단계마다 대화 끝에 붙고 커밋하지 않는다. 접두는 기본 프롬프트와
 // 도구만 담으므로 turn마다 다른 값이 캐시를 깨지 않고, 둘째 대화부터 사라지지도 않는다(M2 마감 G2-03, 감사 L1-03).
 
@@ -24,7 +24,7 @@ export function environmentText(facts: EnvironmentFacts): string {
 }
 
 /**
- * `before_agent_start` 체인이 돌려준 시스템 프롬프트에서 기본 프롬프트에 더해진 부분. 핸들러가 기본 프롬프트 뒤에 덧붙이면
+ * `input.agent.before`(collect)가 돌려준 시스템 프롬프트에서 기본 프롬프트에 더해진 부분. 핸들러가 기본 프롬프트 뒤에 덧붙이면
  * 그 나머지이고, 기본 프롬프트를 바꿨으면 바꾼 전체다. 바뀌지 않았으면 빈 문자열이다
  */
 export function promptAddition(base: string, next: string): string {

@@ -309,10 +309,10 @@ export function createResumer(deps: ResumeDeps): Resumer {
         detach(
           points.start(
             { reason: marker === null ? "startup" : "resume", threadId },
-            `${threadId}:session_start:${String(thread.value.headSeq)}`,
+            `${threadId}:session.start:${String(thread.value.headSeq)}`,
           ),
           (cause) => {
-            deps.logger?.warn("session.point_failed", { point: "session_start", threadId });
+            deps.logger?.warn("session.point_failed", { point: "session.start", threadId });
             deps.logger?.debug("session.point_failure_cause", { cause: String(cause) });
           },
         );
@@ -539,7 +539,7 @@ export function createResumer(deps: ResumeDeps): Resumer {
     },
 
     async release(threadId, reason): Promise<void> {
-      await points.shutdown(threadId, { reason }, `${threadId}:session_shutdown`);
+      await points.shutdown(threadId, { reason }, `${threadId}:session.shutdown`);
       releaseOpenSession(sessions, leases, deps.logger, threadId);
     },
   };

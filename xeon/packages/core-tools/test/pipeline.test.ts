@@ -269,8 +269,8 @@ test("an unavailable capability provider is an error result, not a crash", async
 test("tool_call_hook_throw_denies: a throwing handler blocks the call and leaves no effect events", async () => {
   const h = await createHarness();
   const probe = registerWorkspace(h);
-  await installHandlers(h, "bad-guard", ["tool_call"], (g) => {
-    g.on("tool_call", () => {
+  await installHandlers(h, "bad-guard", ["tool.call.before"], (g) => {
+    g.on("tool.call.before", () => {
       throw new Error("boom");
     });
   });
@@ -284,11 +284,11 @@ test("tool_call_hook_throw_denies: a throwing handler blocks the call and leaves
   expect(kindsOf(h)).toEqual(["item.recorded"]);
 });
 
-test("a tool_call handler decision blocks with its own reason", async () => {
+test("a tool.call.before handler decision blocks with its own reason", async () => {
   const h = await createHarness();
   registerWorkspace(h);
-  await installHandlers(h, "guard", ["tool_call"], (g) => {
-    g.on("tool_call", () => ({ block: true, reason: "no reads today" }));
+  await installHandlers(h, "guard", ["tool.call.before"], (g) => {
+    g.on("tool.call.before", () => ({ block: true, reason: "no reads today" }));
   });
   const out = await callTool(h.runtime.tools, h.run(), {
     id: "call_13",
@@ -316,13 +316,13 @@ test("a dispatcher exception is also a denial (fail closed)", async () => {
 test("tool_result_handler_throw_skipped: one failing handler does not turn the result into an error", async () => {
   const h = await createHarness();
   registerWorkspace(h);
-  await installHandlers(h, "bad-result", ["tool_result"], (g) => {
-    g.on("tool_result", () => {
+  await installHandlers(h, "bad-result", ["tool.result"], (g) => {
+    g.on("tool.result", () => {
       throw new Error("boom");
     });
   });
-  await installHandlers(h, "good-result", ["tool_result"], (g) => {
-    g.on("tool_result", (_payload, current) => ({
+  await installHandlers(h, "good-result", ["tool.result"], (g) => {
+    g.on("tool.result", (_payload, current) => ({
       content: [...current.content, { type: "text", text: "appended by handler" }],
     }));
   });
@@ -465,11 +465,11 @@ test("tap points fire for a settled call: start and end, both with masked payloa
   const h = await createHarness();
   registerWorkspace(h);
   const seen: string[] = [];
-  await installHandlers(h, "watch", ["tool_execution_start", "tool_execution_end"], (g) => {
-    g.on("tool_execution_start", (payload) => {
+  await installHandlers(h, "watch", ["tool.execution.before", "tool.execution.after"], (g) => {
+    g.on("tool.execution.before", (payload) => {
       seen.push(`start:${payload.toolCallId}`);
     });
-    g.on("tool_execution_end", (payload) => {
+    g.on("tool.execution.after", (payload) => {
       seen.push(`end:${payload.toolCallId}:${String(payload.isError)}`);
     });
   });
@@ -482,11 +482,11 @@ test("tap points fire once per phase for an executed call", async () => {
   const h = await createHarness();
   registerWorkspace(h);
   const seen: string[] = [];
-  await installHandlers(h, "watch", ["tool_execution_start", "tool_execution_end"], (g) => {
-    g.on("tool_execution_start", (payload) => {
+  await installHandlers(h, "watch", ["tool.execution.before", "tool.execution.after"], (g) => {
+    g.on("tool.execution.before", (payload) => {
       seen.push(`start:${payload.toolCallId}`);
     });
-    g.on("tool_execution_end", (payload) => {
+    g.on("tool.execution.after", (payload) => {
       seen.push(`end:${payload.toolCallId}:${String(payload.isError)}`);
     });
   });

@@ -24,7 +24,7 @@ export type TurnEntry =
       readonly kind: "fresh";
       readonly prompt: string;
       readonly images: readonly ImageContent[];
-      /** 재개 때 `before_agent_start`가 추가한 item이 이미 있으면 다시 발화하지 않는다 */
+      /** 재개 때 `input.agent.before`가 추가한 item이 이미 있으면 다시 발화하지 않는다 */
       readonly skipBeforeStart: boolean;
     }
   /** 다음(또는 끊긴) 단계의 모델 요청부터. `adoptStepId`가 있으면 그 단계의 `step.started`는 이미 기록됨 */
@@ -97,7 +97,7 @@ export interface TurnRunResult {
   readonly usage: Usage | null;
   readonly finalItemId: ItemId | null;
   readonly error: string | null;
-  /** 호출자가 thread를 유휴로 표시한 뒤 부른다: 경계 `turn_settled`를 알리고 `agent_settled`를 발화한다 */
+  /** 호출자가 thread를 유휴로 표시한 뒤 부른다: 경계 `turn_settled`를 알리고 `boundary.settle.after`를 발화한다 */
   readonly afterIdle: () => Promise<void>;
 }
 

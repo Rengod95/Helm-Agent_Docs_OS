@@ -82,7 +82,7 @@ function issuesOf(entry: DurableEventDraft, index: number, ctx: BoundaryCheckCon
 }
 
 /**
- * `turn_end`·`agent_before_settle`의 최종 값을 검증한다. 규칙 하나라도 어기면 값 전체를
+ * `boundary.step.after`·`boundary.settle.before`의 최종 값을 검증한다. 규칙 하나라도 어기면 값 전체를
  * `{ entries: [], continue: false }`로 바꾸고 `issues`를 돌려준다. `continue`는 규칙을 통과한 뒤에도
  * `canContinue`가 거짓이면 거짓으로 바꾼다(엔트리는 남긴다).
  */

@@ -407,18 +407,23 @@ test("restore reports a failed event read instead of throwing", async () => {
   expect(expectOk(await h.runtime.approvals.restore(h.thread))).toEqual([]);
 });
 
-test("ui_prompt_start fires after the request commit and ui_prompt_end after the resolution", async () => {
+test("ui_prompt_start fires after the request commit and session.prompt.after after the resolution", async () => {
   const h = await createHarness();
   registerWorkspace(h);
   const seen: string[] = [];
-  await installHandlers(h, "prompt-watch", ["ui_prompt_start", "ui_prompt_end"], (g) => {
-    g.on("ui_prompt_start", () => {
-      seen.push(`start:${kinds(h).join(",")}`);
-    });
-    g.on("ui_prompt_end", () => {
-      seen.push(`end:${kinds(h).join(",")}`);
-    });
-  });
+  await installHandlers(
+    h,
+    "prompt-watch",
+    ["session.prompt.before", "session.prompt.after"],
+    (g) => {
+      g.on("session.prompt.before", () => {
+        seen.push(`start:${kinds(h).join(",")}`);
+      });
+      g.on("session.prompt.after", () => {
+        seen.push(`end:${kinds(h).join(",")}`);
+      });
+    },
+  );
   const { done } = await startBash(h, "call_13");
   const [request] = h.runtime.approvals.pending(h.thread);
   await h.runtime.approvals.respond(request?.approvalId ?? "", { decision: "allow" });

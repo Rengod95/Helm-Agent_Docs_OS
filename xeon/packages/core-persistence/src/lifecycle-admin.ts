@@ -272,11 +272,11 @@ export function createAdminOps(
         detach(
           points.infoChanged(
             { threadId, name: title },
-            `${threadId}:session_info_changed:${String(result.lastSeq)}`,
+            `${threadId}:session.info.after:${String(result.lastSeq)}`,
           ),
           (cause) => {
             logger?.warn("session.point_failed", {
-              point: "session_info_changed",
+              point: "session.info.after",
               threadId,
               reason: String(cause),
             });

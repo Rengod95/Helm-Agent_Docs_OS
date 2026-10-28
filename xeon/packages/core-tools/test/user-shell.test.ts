@@ -58,11 +58,11 @@ test("a deny rule still blocks the user's command: nothing runs and no effect is
   expect(h.session.events).toEqual([]);
 });
 
-test("a tool_call handler can still refuse the user's command", async () => {
+test("a tool.call.before handler can still refuse the user's command", async () => {
   const h = await createHarness();
   const probe = registerWorkspace(h);
-  await installHandlers(h, "guard", ["tool_call"], (g) => {
-    g.on("tool_call", () => ({ block: true, reason: "no shell today" }));
+  await installHandlers(h, "guard", ["tool.call.before"], (g) => {
+    g.on("tool.call.before", () => ({ block: true, reason: "no shell today" }));
   });
   const record = await h.runtime.tools.runUserShell(
     { command: "echo hi", includeInContext: true },

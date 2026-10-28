@@ -24,10 +24,10 @@ function advertiser(outputs: readonly (string | ((base: string) => string))[]): 
   let call = 0;
   const entry: ExtensionEntry = ({ manifest, scope }) => {
     scope(manifest.name, {}, (g) => {
-      g.on("before_agent_start", (_payload, current) => {
+      g.on("input.agent.before", (payload) => {
         const output = outputs[Math.min(call, outputs.length - 1)];
         call += 1;
-        const text = typeof output === "function" ? output(current.systemPrompt) : output;
+        const text = typeof output === "function" ? output(payload.systemPrompt) : output;
         return text === undefined ? undefined : { systemPrompt: text };
       });
     });
@@ -40,7 +40,7 @@ function advertiser(outputs: readonly (string | ((base: string) => string))[]): 
       layer: "plugin",
       kind: "plugin",
       entry: "./index.ts",
-      points: ["before_agent_start"],
+      points: ["input.agent.before"],
       usesDrive: false,
     }),
     entry,

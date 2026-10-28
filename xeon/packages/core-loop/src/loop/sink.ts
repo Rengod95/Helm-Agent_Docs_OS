@@ -23,7 +23,7 @@ export function emitEvent(run: TurnRun, event: AgentEvent): void {
 export async function emitMessageStart(run: TurnRun, message: AgentMessage): Promise<void> {
   emitEvent(run, { type: "message_start", message });
   await run.ctx.ext.dispatch(
-    "message_start",
+    "boundary.message.before",
     { message: structuredClone(message) },
     tapOptions(
       run,
@@ -43,7 +43,7 @@ export async function emitMessageUpdate(
 ): Promise<void> {
   emitEvent(run, { type: "message_update", message, assistantMessageEvent });
   await run.ctx.ext.dispatch(
-    "message_update",
+    "boundary.message.update",
     {
       message: structuredClone(message),
       assistantMessageEvent: structuredClone(assistantMessageEvent),

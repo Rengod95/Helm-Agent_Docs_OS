@@ -44,8 +44,8 @@ import {
   type SummarizeDeps,
 } from "./summarize.ts";
 
-// L1.context.spec §4.6, plan C-4·C-5·C-7·C-9. 컴팩션 한 번: 가지 읽기 → 준비 → session_before_compact → 요약 →
-// 한 커밋(thread.compacted + 새 접두) → session_compact. 원본 이벤트는 지우지 않는다.
+// L1.context.spec §4.6, plan C-4·C-5·C-7·C-9. 컴팩션 한 번: 가지 읽기 → 준비 → session.compact.before → 요약 →
+// 한 커밋(thread.compacted + 새 접두) → session.compact.after. 원본 이벤트는 지우지 않는다.
 
 /** F `CompactedPayload.summary` 상한(글자). 넘으면 저장할 수 없다 */
 const SUMMARY_MAX_CHARS = 65_536;
@@ -295,9 +295,9 @@ export async function compactThread(
       .filter((t) => t.length > 0)
       .join("\n") || null;
 
-  // 확장이 거부하거나 요약을 대신할 수 있다. first 지점은 핸들러 실패에도 거부(fail-closed)다
+  // 확장이 거부하거나 요약을 대신할 수 있다. 이 지점은 fail-open이다(adr.0017): 핸들러 실패는 결정 없음이라 컴팩션이 계속된다
   const before = await deps.ext.dispatch(
-    "session_before_compact",
+    "session.compact.before",
     {
       threadId,
       reason: request.reason,
@@ -311,7 +311,7 @@ export async function compactThread(
       },
       instructions,
     },
-    { threadId, dispatchKey: `${key}:session_before_compact`, ...options },
+    { threadId, dispatchKey: `${key}:session.compact.before`, ...options },
   );
   const decision = before.decision;
   const by = before.decidedBy?.extension ?? "extension";
@@ -460,7 +460,7 @@ export async function compactThread(
   }
   const eventId = result.eventIds[0] ?? compactedId;
   await deps.ext.dispatch(
-    "session_compact",
+    "session.compact.after",
     {
       threadId,
       eventId,
@@ -469,7 +469,7 @@ export async function compactThread(
       fromExtension,
       tokensBefore: prep.tokensBefore,
     },
-    { threadId, dispatchKey: `${key}:session_compact`, ...options },
+    { threadId, dispatchKey: `${key}:session.compact.after`, ...options },
   );
   return ok({ status: "compacted", eventId, tokensBefore: prep.tokensBefore, fromExtension });
 }
@@ -483,11 +483,11 @@ async function failed(
 ): Promise<void> {
   deps.logger?.warn("context.compaction_failed", { kind: error.kind, reason: request.reason });
   await deps.ext.dispatch(
-    "session_compact_failed",
+    "session.compact.failed",
     { threadId, reason: request.reason, errorMessage: failedMessage(error) },
     {
       threadId,
-      dispatchKey: `${key}:session_compact_failed`,
+      dispatchKey: `${key}:session.compact.failed`,
       ...(request.signal === undefined ? {} : { signal: request.signal }),
     },
   );

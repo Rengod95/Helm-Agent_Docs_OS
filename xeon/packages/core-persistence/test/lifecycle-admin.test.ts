@@ -163,12 +163,12 @@ describe("threads.setTitle", () => {
     expectOk(h.service.threads.setTitle(threadId, "after", "t1"));
     expect(expectOk(h.service.query.thread(threadId))?.title).toBe("after");
     await Promise.resolve();
-    const fired = recording.calls.filter((call) => call.point === "session_info_changed");
+    const fired = recording.calls.filter((call) => call.point === "session.info.after");
     expect(fired.map((call) => call.payload)).toEqual([{ threadId, name: "after" }]);
     // 같은 키 재시도는 다시 알리지 않는다
     expectOk(h.service.threads.setTitle(threadId, "after", "t1"));
     await Promise.resolve();
-    expect(recording.calls.filter((call) => call.point === "session_info_changed")).toHaveLength(1);
+    expect(recording.calls.filter((call) => call.point === "session.info.after")).toHaveLength(1);
     expectOk(h.service.threads.setTitle(threadId, null, "t2"));
     expect(expectOk(h.service.query.thread(threadId))?.title).toBeNull();
     expect(branchItemsOf(h, threadId)).toEqual([]);

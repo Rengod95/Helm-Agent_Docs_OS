@@ -282,16 +282,16 @@ export function createPipeline(
   async function tapStart(run: ToolRunContext, call: AgentToolCall): Promise<void> {
     try {
       await deps.ext.dispatch(
-        "tool_execution_start",
+        "tool.execution.before",
         {
           toolCallId: call.id,
           toolName: call.name,
           args: deps.redactor.maskDeep(call.arguments).value,
         },
-        { threadId: run.threadId, dispatchKey: `${run.stepId}:tool_execution_start:${call.id}` },
+        { threadId: run.threadId, dispatchKey: `${run.stepId}:tool.execution.before:${call.id}` },
       );
     } catch (error) {
-      warn("tools.observe_failed", { point: "tool_execution_start", message: messageOf(error) });
+      warn("tools.observe_failed", { point: "tool.execution.before", message: messageOf(error) });
     }
   }
 
@@ -303,7 +303,7 @@ export function createPipeline(
   ): Promise<void> {
     try {
       await deps.ext.dispatch(
-        "tool_execution_update",
+        "tool.execution.update",
         {
           toolCallId: call.id,
           toolName: call.name,
@@ -312,11 +312,11 @@ export function createPipeline(
         },
         {
           threadId: run.threadId,
-          dispatchKey: `${run.stepId}:tool_execution_update:${call.id}:${n}`,
+          dispatchKey: `${run.stepId}:tool.execution.update:${call.id}:${n}`,
         },
       );
     } catch (error) {
-      warn("tools.observe_failed", { point: "tool_execution_update", message: messageOf(error) });
+      warn("tools.observe_failed", { point: "tool.execution.update", message: messageOf(error) });
     }
   }
 
@@ -327,7 +327,7 @@ export function createPipeline(
   ): Promise<void> {
     try {
       await deps.ext.dispatch(
-        "tool_execution_end",
+        "tool.execution.after",
         {
           toolCallId: call.id,
           toolName: call.name,
@@ -335,10 +335,10 @@ export function createPipeline(
           isError: outcome.isError,
           ...(outcome.durationMs === undefined ? {} : { durationMs: outcome.durationMs }),
         },
-        { threadId: run.threadId, dispatchKey: `${run.stepId}:tool_execution_end:${call.id}` },
+        { threadId: run.threadId, dispatchKey: `${run.stepId}:tool.execution.after:${call.id}` },
       );
     } catch (error) {
-      warn("tools.observe_failed", { point: "tool_execution_end", message: messageOf(error) });
+      warn("tools.observe_failed", { point: "tool.execution.after", message: messageOf(error) });
     }
   }
 
@@ -362,14 +362,18 @@ export function createPipeline(
     const capability = capabilityRefOf(entry);
     try {
       const outcome = await deps.ext.dispatch(
-        "tool_call",
+        "tool.call.before",
         {
           toolCallId,
           toolName: entry.name,
           input: state.args,
           ...(capability === undefined ? {} : { capability }),
         },
-        { threadId: run.threadId, dispatchKey: `${run.stepId}:tool_call:${toolCallId}`, signal },
+        {
+          threadId: run.threadId,
+          dispatchKey: `${run.stepId}:tool.call.before:${toolCallId}`,
+          signal,
+        },
       );
       const decision = outcome.decision;
       if (decision === undefined) return undefined;
@@ -377,7 +381,7 @@ export function createPipeline(
     } catch (error) {
       // 디스패처 자체의 실패도 거부다(fail-closed, L1.tools.spec §5 사례 3)
       warn("tools.tool_call_dispatch_failed", { toolCallId, message: messageOf(error) });
-      return denied(`[xeon:denied_by_extension] ${FIRST_DENY.tool_call.reason}`);
+      return denied(`[xeon:denied_by_extension] ${FIRST_DENY["tool.call.before"].reason}`);
     }
   }
 
@@ -916,7 +920,7 @@ export function createPipeline(
     const capability = capabilityRefOf(entry);
     try {
       const outcome = await deps.ext.dispatch(
-        "tool_result",
+        "tool.result",
         {
           toolCallId,
           toolName: entry.name,
@@ -925,7 +929,7 @@ export function createPipeline(
         },
         {
           threadId: run.threadId,
-          dispatchKey: `${run.stepId}:tool_result:${toolCallId}`,
+          dispatchKey: `${run.stepId}:tool.result:${toolCallId}`,
           initial: value,
           ...(signal === undefined ? {} : { signal }),
         },
@@ -1253,7 +1257,7 @@ export function createPipeline(
   // ── 사용자 셸(L1.tools.spec §3.3 runUserShell) ────────────────────────
 
   /**
-   * 사용자가 직접 친 셸 명령을 같은 파이프라인으로 실행한다: caller `main`, 대화형으로 평가한다. deny 규칙과 `tool_call` 거부는 막고,
+   * 사용자가 직접 친 셸 명령을 같은 파이프라인으로 실행한다: caller `main`, 대화형으로 평가한다. deny 규칙과 `tool.call.before` 거부는 막고,
    * ask는 사용자 본인이 낸 명령이라 허용으로 본다. 효과는 3단(intent, exec, result)으로 남고 toolResult item은 기록하지 않는다
    * (결과를 컨텍스트에 어떻게 넣을지는 호출한 쪽이 `includeInContext`로 정한다)
    */

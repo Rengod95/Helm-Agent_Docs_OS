@@ -114,7 +114,7 @@ test("the_waiting_checkpoint_never_records_a_placeholder_model", async () => {
 
 const promptEntry: ExtensionEntry = ({ manifest, scope }) => {
   scope(manifest.name, {}, (g) => {
-    g.on("before_agent_start", () => ({
+    g.on("input.agent.before", () => ({
       message: {
         customType: "grp.prompt-group.note.recorded",
         content: "remember: be brief",
@@ -134,7 +134,7 @@ function promptGroup(): ExtensionUnit {
       layer: "plugin",
       kind: "plugin",
       entry: "./index.ts",
-      points: ["before_agent_start"],
+      points: ["input.agent.before"],
       usesDrive: false,
     }),
     entry: promptEntry,
