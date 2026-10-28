@@ -93,6 +93,33 @@ describe("child mode and ceiling", () => {
       }),
     ).toEqual({ caller: "main", depth: 0, mode: "default" });
   });
+
+  test("ceilingOf carries the caller deny globs and the deny hint for run-time rejection", () => {
+    expect(
+      ceilingOf({
+        parent: { caller: "main", depth: 0, mode: "default" },
+        definitionTools: undefined,
+        requestAllow: ["learning_propose"],
+        requestDeny: ["bash"],
+        denyHint: "review only",
+      }),
+    ).toEqual({
+      caller: "main",
+      depth: 0,
+      mode: "default",
+      allow: ["learning_propose"],
+      deny: ["bash"],
+      denyHint: "review only",
+    });
+    expect(
+      ceilingOf({
+        parent: { caller: "main", depth: 0, mode: "default" },
+        definitionTools: undefined,
+        requestAllow: undefined,
+        requestDeny: [],
+      }),
+    ).toEqual({ caller: "main", depth: 0, mode: "default" });
+  });
 });
 
 describe("deny list and definition rules", () => {

@@ -51,6 +51,9 @@ export interface CeilingInput {
   readonly definitionTools: readonly string[] | undefined;
   /** 호출자가 준 allow. 정의와의 교집합만 쓴다 */
   readonly requestAllow: readonly string[] | undefined;
+  /** 호출자가 준 거부 glob과 거부 문장 안내. 실행 시점에 거부한다 [제안: M3-REQ-78] */
+  readonly requestDeny?: readonly string[] | undefined;
+  readonly denyHint?: string | undefined;
 }
 
 /** 자식 `ToolRunContext.ceiling`: 부모 관점과 정의 제한(교집합) */
@@ -61,5 +64,9 @@ export function ceilingOf(input: CeilingInput): PolicyCeiling {
     depth: input.parent.depth,
     mode: input.parent.mode,
     ...(allow === undefined ? {} : { allow }),
+    ...(input.requestDeny === undefined || input.requestDeny.length === 0
+      ? {}
+      : { deny: input.requestDeny }),
+    ...(input.denyHint === undefined ? {} : { denyHint: input.denyHint }),
   };
 }

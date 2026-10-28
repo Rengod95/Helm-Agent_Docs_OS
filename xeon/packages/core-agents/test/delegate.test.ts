@@ -420,6 +420,10 @@ describe("limits and tool policy", () => {
       deny: ["bash", "web.*"],
       denyHint: "read only",
     });
+    expect(h.loop.calls[0]?.tools.ceiling).toMatchObject({
+      deny: ["bash", "web.*"],
+      denyHint: "read only",
+    });
   });
 
   test("without deny the request carries neither deny nor denyHint", async () => {

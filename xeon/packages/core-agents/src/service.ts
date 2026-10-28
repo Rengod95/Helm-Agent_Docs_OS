@@ -571,6 +571,8 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       parent: { caller: origin.caller, depth: origin.depth, mode: parentMode },
       definitionTools: definition.tools,
       requestAllow: request.tools?.allow,
+      requestDeny: request.tools?.deny,
+      denyHint: request.tools?.denyHint,
     });
     let parentList: AdvertisedToolset | undefined;
     if (request.tools?.keepParentList === true) {
