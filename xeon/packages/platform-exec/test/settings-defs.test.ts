@@ -13,6 +13,7 @@ describe("l0.exec settings", () => {
     expect(EXEC_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l0.exec.shell",
       "l0.exec.defaultTimeoutMs",
+      "l0.exec.unattendedTimeoutMs",
       "l0.exec.outputSpillBytes",
       "l0.exec.envAllowlist.extra",
     ]);
@@ -35,6 +36,7 @@ describe("l0.exec settings", () => {
     expect(defaults).toEqual({
       "l0.exec.shell": undefined, // no default: the shell is found automatically
       "l0.exec.defaultTimeoutMs": 0,
+      "l0.exec.unattendedTimeoutMs": 1_800_000,
       "l0.exec.outputSpillBytes": 10485760,
       "l0.exec.envAllowlist.extra": [],
     });
