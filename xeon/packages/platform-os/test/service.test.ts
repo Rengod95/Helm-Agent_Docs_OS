@@ -316,17 +316,25 @@ describe("createOsService", () => {
     await started.value.dispose();
   });
 
-  test("M3 이전: notify는 disabled, 2차: watch는 backend_unavailable, telemetry는 꺼짐", async () => {
+  test("notifier null은 notify disabled, 기본은 OS provider, 앱 디렉터리 밖 watch는 outside_app_dirs, telemetry는 꺼짐", async () => {
+    const none = await createOsService(config([], { notifier: null }), fakeRuntime());
+    if (!none.ok) throw new Bug("unreachable");
+    expect(await none.value.service.notify({ kind: "done", title: "t", body: "" }, signal)).toEqual(
+      err({ kind: "disabled" }),
+    );
+    // fakeRuntime의 run은 항상 spawn_failed(ENOENT)라 기본 linux provider는 notify-send 없음으로 본다
     const started = await createOsService(config([]), fakeRuntime());
     if (!started.ok) throw new Bug("unreachable");
     const { service } = started.value;
     expect(await service.notify({ kind: "done", title: "t", body: "" }, signal)).toEqual(
-      err({ kind: "disabled" }),
+      err({ kind: "unavailable", provider: "os.os.notify/linux", reason: "ENOENT" }),
     );
-    const watch = await service.watch("/x", {}, () => {});
-    expect(!watch.ok && watch.error.kind).toBe("backend_unavailable");
+    expect(await service.watch("/x", {}, () => {})).toEqual(
+      err({ kind: "outside_app_dirs", path: "/x" }),
+    );
     expect(service.telemetry.enabled).toBe(false);
     expect(service.telemetry.tracer("xeon.l0.os")).toBeDefined();
+    await none.value.dispose();
     await started.value.dispose();
   });
 

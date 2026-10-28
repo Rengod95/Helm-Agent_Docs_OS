@@ -109,11 +109,12 @@ xeon/packages/platform-os/
 | OS-10 | `service.ts`, `index.ts`: `OsService` 조립, `platformOsPlugin` 등록, 시작 순서와 `dispose` 순서(`L0.os.spec` §4) | OS-01~OS-09, ext-host `registerPlatform` | M | M1 |
 | OS-11 | `binaries/resolve.ts`, `rg.ts`: `resolveBinary` 우선순위(번들 > 시스템), PATH 탐색, `--version` 파싱(`security`·`secret-tool`은 버전 확인 생략), 동시 호출 합치기, `@vscode/ripgrep` 연동 | OS-02, OS-10 | M | M1 |
 | OS-12 | 번들 추출 실측과 `extract.ts`: `bun build --compile` 단일 바이너리에서 rg를 내장·추출·해시 검사·실행. `binaries.lock.json` 생성: 생성 함수 `generateBinariesLock`(`lock.ts`)는 M2 PLT.4에서 구현했고, 사이드카 빌드 스크립트(DESK.3)가 부른다. 추출·실측은 M2 이후 | OS-11 | M | M2 이후 |
-| OS-13 | `notify/`: `NotifierProvider`, `buildNotifyCommand`, darwin·linux provider, `none`, 디바운스, 본문 `redact`. 켜기·종류 설정은 두지 않는다(`L2.dialog` 소유). win32는 OS-17 | OS-10 | M | M3 |
-| OS-14 | `watch/`: `createFileWatcher`, parcel 백엔드, poll 백엔드, 앱 디렉터리 밖 거부, 한도 초과 시 폴링 전환 | OS-10 | M | M2 이후 |
+| OS-13 | `notify/`: `NotifierProvider`, `buildNotifyCommand`, darwin·linux provider, `none`, 디바운스, 본문 `redact`. 켜기·종류 설정은 두지 않는다(`L2.dialog` 소유). win32는 OS-17. 완료(B0-OS): `notify-send` 가짜 바이너리 int 시험이 인자 값을 비교한다 | OS-10 | M | M3 |
+| OS-14 | `watch/`: `createFileWatcher`, `WatchBackend` 포트와 `fs.watch` 백엔드(완료, B0-OS), parcel 백엔드(의존 승인 뒤 1커밋), poll 백엔드, 앱 디렉터리 밖 거부와 추가 root, 백엔드 전환 | OS-10 | M | M3b(포트·fs.watch), 이후(parcel) |
 | OS-15 | `telemetry/`: SDK 지연 로드, exporter(file, otlp-http), 스팬 이름·속성 규칙, 속성 마스킹, pi-telemetry 어댑터 | OS-08, OS-10 | M | M2 이후 |
 | OS-16 | 검사: `process.platform` 등 OS 분기 표현이 `select.ts` 밖에 없음을 확인하는 패키지 테스트. `check-layers.ts`의 DR-13 검사(다른 작업자 소유)에 패키지 안 규칙을 더하자는 요청 | OS-01 | S | M0 |
 | OS-17 | Windows 보강: `%APPDATA%`·`%LOCALAPPDATA%` 실측, win32 알림 provider, 드라이브 종류 판정, `PATHEXT` 탐색 | OS-02, OS-11, OS-13 | L | M2 이후 |
+| OS-22 | M3b B0-OS 묶음(완료): `worktree.ts`(워크트리 연산), `log-file.ts`(회전 sink, 10 MiB × 5), `bounded.ts`(진단 배열 상한 256), `product.ts`(제품 이름 상수 한 곳). 두 프로세스 `fileLock` 경합 시험은 OS-20에서 이미 있다 | OS-10 | M | M3b |
 | OS-20 | `file-lock/`: `createFileLock`(`withLock`, `updateText`), `select.ts`의 `fileLock` 선택, bun:ffi `flock`. 같은 프로세스 직렬화, 자식 프로세스 SIGKILL 뒤 해제, 읽기-수정-쓰기 손실 없음을 실제 프로세스로 확인. `spec` §3.11 | OS-01, OS-10 | M | M2 |
 | OS-21 | `binaries/requirements.ts`: OS별 필수/선택 표, `checkExternalBinaries`(보고서 `ready`·`blocking`·`degraded`), `OsServiceHandle.checkBinaries`. `spec` §3.6.1 | OS-11 | S | M2 |
 | OS-19 | `ids.ts`: `createIdFactory`(브랜드 ID 8종), `createLocalIdFactory`(`LocalIdPrefix` 표), 같은 ms 안 단조 증가, 주입한 `Clock`·`RandomSource`만 사용. `L0.os.spec` §3.4 | OS-05 | S | M0 |

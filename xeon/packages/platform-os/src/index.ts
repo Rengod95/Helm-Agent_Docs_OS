@@ -14,6 +14,24 @@ export {
   type FileLockOptions,
   type FileLockScope,
 } from "./file-lock/index.ts";
+export {
+  createNotify,
+  createOsNotifierProvider,
+  buildNotifyCommand,
+  type NotifierProvider,
+} from "./notify/provider.ts";
+export { createFileWatcher, type FileWatcher, type WatchBackend } from "./watch/watcher.ts";
+export { createFsWatchBackend } from "./watch/fs-watch.ts";
+export {
+  createWorktreeOps,
+  type WorktreeCreateOptions,
+  type WorktreeError,
+  type WorktreeInfo,
+  type WorktreeOps,
+} from "./worktree.ts";
+export { createRotatingFileSink, type RotatingFileSinkOptions } from "./log-file.ts";
+export { createBoundedList, DEFAULT_DIAGNOSTICS_CAP, type BoundedList } from "./bounded.ts";
+export { PRODUCT, productUserAgent } from "./product.ts";
 export type { OsRuntime } from "./runtime.ts";
 export { readOsRuntime } from "./runtime.ts";
 export { OS_SETTING_DEFS } from "./settings.ts";

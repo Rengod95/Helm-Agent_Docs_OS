@@ -1,4 +1,4 @@
-import { assertNever, err, ok, type LogLevel, type Result } from "@xeon/contracts";
+import { assertNever, ok, type LogLevel, type Result } from "@xeon/contracts";
 import type {
   BinaryName,
   DirsError,
@@ -15,6 +15,14 @@ import { createRipgrepSource } from "./binaries/rg.ts";
 import { checkExternalBinaries, type BinaryCheckReport } from "./binaries/requirements.ts";
 import { createBinaryResolver, type BundledSource } from "./binaries/resolve.ts";
 import { createFileLock, type FileLock } from "./file-lock/index.ts";
+import {
+  createNotify,
+  createOsNotifierProvider,
+  type NotifierProvider,
+} from "./notify/provider.ts";
+import { createFsWatchBackend } from "./watch/fs-watch.ts";
+import { createFileWatcher, type WatchBackend } from "./watch/watcher.ts";
+import { createWorktreeOps, type WorktreeOps } from "./worktree.ts";
 import { dirsWarnings, ensureDirs, resolveDirs } from "./dirs.ts";
 import {
   createMountProvider,
@@ -48,6 +56,18 @@ export interface PlatformOsConfig {
   readonly dirsOverride?: string;
   /** 소스 실행에서 번들 바이너리 경로를 주는 수단. 없으면 `@vscode/ripgrep`이 주는 rg를 쓴다(목록 파일이 있으면 그쪽이 먼저다) */
   readonly bundledSource?: BundledSource;
+  /**
+   * 알림 provider(L0.os.spec §3.7). 생략하면 OS 기본(macOS osascript, Linux·WSL notify-send)을 고르고,
+   * null이면 provider none이라 notify가 disabled를 돌려준다. 데스크톱은 L4가 wire 알림 provider를 넘긴다.
+   */
+  readonly notifier?: NotifierProvider | null;
+  /**
+   * config·data·state 밖에서 감시를 허용하는 절대 경로(워크트리 루트 등) [결정: 오케스트레이터 기본값: 기본 없음].
+   * M3-REQ-48의 감시 root 완화는 호출자가 이 목록으로 명시한 경로에만 적용된다.
+   */
+  readonly extraWatchRoots?: readonly string[];
+  /** 감시 백엔드. 앞에서부터 시도한다. 기본 fs.watch 하나(`@parcel/watcher` 어댑터는 승인 뒤 여기에 앞세운다) */
+  readonly watchBackends?: readonly WatchBackend[];
 }
 
 /** 서비스 시작 실패. 플랫폼 판별과 디렉터리 해석·생성·검사의 오류다 */
@@ -64,6 +84,8 @@ export interface OsServiceHandle {
    * 외부 바이너리 필수/선택 표(L0.os.spec §3.6.1)를 이 서비스의 `resolveBinary`로 점검한다.
    * 첫 실행 안내와 doctor가 쓴다. 이름별 해석 캐시를 그대로 쓴다.
    */
+  /** git 워크트리 연산(L0.os.spec §3.13). F `OsService`에는 아직 없어 핸들로 낸다 [F 요청] */
+  readonly worktrees: WorktreeOps;
   checkBinaries(signal: AbortSignal): Promise<Result<BinaryCheckReport, { kind: "cancelled" }>>;
   /** 설정 l0.os.log.level 변경(live)을 반영한다 */
   setLogLevel(level: LogLevel): void;
@@ -113,7 +135,7 @@ export function resolveOsDirs(
 
 /**
  * OsService를 조립한다. 순서: 플랫폼 판별, 디렉터리 해석, 디렉터리 생성·검사, 로거, 기계 식별자(L0.os.spec §4 1번).
- * 바이너리 해석은 처음 쓸 때 한다. 알림(M3), 파일 감시와 텔레메트리(M2 이후)는 아직 없어 정해진 값을 돌려준다.
+ * 바이너리 해석은 처음 쓸 때 한다. 텔레메트리는 아직 없어 꺼진 값을 돌려준다.
  */
 export async function createOsService(
   config: PlatformOsConfig,
@@ -185,6 +207,17 @@ export async function createOsService(
     logger,
   });
 
+  const notifier =
+    config.notifier === undefined
+      ? createOsNotifierProvider({ info, run: runtime.run, logger })
+      : (config.notifier ?? undefined);
+  const watcher = createFileWatcher({
+    allowedRoots: [dirs.config, dirs.data, dirs.state, ...(config.extraWatchRoots ?? [])],
+    scheduler: runtime.scheduler,
+    logger,
+    backends: config.watchBackends ?? [createFsWatchBackend({ logger })],
+  });
+
   const service: OsService = {
     info,
     dirs,
@@ -203,11 +236,8 @@ export async function createOsService(
     ): Promise<Result<ResolvedBinary, BinaryError>> {
       return binaryResolver(name, opts, signal);
     },
-    notify: () => Promise.resolve(err({ kind: "disabled" })),
-    watch: () =>
-      Promise.resolve(
-        err({ kind: "backend_unavailable", reason: "file watching starts at M2 (OS-14)" }),
-      ),
+    notify: createNotify({ provider: notifier, clock: runtime.clock, redact: config.logRedact }),
+    watch: (root, opts, onBatch) => watcher.watch(root, opts, onBatch),
     telemetry: DISABLED_TELEMETRY,
   };
 
@@ -220,6 +250,7 @@ export async function createOsService(
   return ok({
     service,
     fileLock,
+    worktrees: createWorktreeOps({ run: runtime.run }),
     checkBinaries: (signal) =>
       checkExternalBinaries(
         {
@@ -229,13 +260,13 @@ export async function createOsService(
         signal,
       ),
     setLogLevel: (level) => rootLogger.setLevel(level),
-    dispose(): Promise<void> {
-      if (disposed) return Promise.resolve();
+    async dispose(): Promise<void> {
+      if (disposed) return;
       disposed = true;
       lifetime.abort();
+      await watcher.closeAll();
       runtime.scheduler.dispose();
       logger.info("os.service.stopped");
-      return Promise.resolve();
     },
   });
 }
