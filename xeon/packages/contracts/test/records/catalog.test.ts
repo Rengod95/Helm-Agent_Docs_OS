@@ -188,7 +188,7 @@ describe("requested kinds (F.records.spec 3.3.1)", () => {
     }
   });
 
-  test("approval.requested body kinds are tool, question, plan only", () => {
+  test("approval.requested body kinds are tool, question, plan, review only", () => {
     const base = PAYLOAD_FIXTURES["approval.requested"];
     const question = {
       kind: "question",

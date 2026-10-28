@@ -20,7 +20,7 @@ export const ApprovalServiceName = "xeon.approvals" as const;
 /** `xeon.approvals` 전체 모양(ApprovalService)의 포트 키. 제공 core-tools */
 export const ApprovalServicePortKey: PortKey<ApprovalService> = { name: ApprovalServiceName };
 
-export type ApprovalKind = "tool" | "plan" | "question";
+export type ApprovalKind = "tool" | "plan" | "question" | "review";
 export type ApprovalDecision = "allow" | "deny" | "answer";
 export type ApprovalRemember = "once" | "thread" | "always";
 
@@ -102,10 +102,33 @@ export interface QuestionBody {
   readonly questions: readonly QuestionItem[];
 }
 
+/** 검토 승인 본문의 파일 요약. hunk 본문은 싣지 않는다(L2.artifacts.spec §3.3 `ReviewFileView`의 부분 집합) */
+export interface ReviewFileSummary {
+  readonly path: string;
+  readonly change: "added" | "modified" | "deleted" | "renamed";
+  /** 이진 파일은 hunk가 없고 파일 단위로 결정한다 */
+  readonly binary: boolean;
+  /** 파일의 hunk 수 */
+  readonly hunks: number;
+}
+
+/** [제안: ADR-0018 §6 미결의 답] 검토 승인(kind `review`)의 본문. 최소 집합이다 */
+export interface ReviewBody {
+  /** `rvw_<ULID>` */
+  readonly reviewId: string;
+  /** 변경 묶음을 담은 changeset 산출물 `art_<ULID>` */
+  readonly artifactId: string;
+  readonly title: string;
+  /** 이 요청이 묻는 라운드. 열 때 1 */
+  readonly round: number;
+  readonly files: readonly ReviewFileSummary[];
+}
+
 export type ApprovalBody =
   | { readonly kind: "tool"; readonly tool: ToolApprovalBody }
   | { readonly kind: "plan"; readonly plan: PlanApprovalBody }
-  | { readonly kind: "question"; readonly question: QuestionBody };
+  | { readonly kind: "question"; readonly question: QuestionBody }
+  | { readonly kind: "review"; readonly review: ReviewBody };
 
 /**
  * 만료했을 때 요청이 어떻게 해결되는가 [결정: m2c G1-11]. `deny`는 거부(기본), `answer`는 정한 답으로 응답한 것으로 본다
@@ -278,7 +301,7 @@ export const L2_APPROVAL_REQUEST_ID_MAX: number = 48;
  * L2 패키지끼리 import하지 않으므로 F가 이 모양을 한 번만 정의한다. 구현(어댑터)은 각 cap-*의 `src/ports/approvals.ts`가 맡고,
  * 도메인 대상(subject)을 ApprovalBody로, 응답(answer)을 도메인 답으로 바꾸는 규칙은 그 어댑터가 가진다.
  *
- * - kind는 ApprovalKind와 같다. `review`(artifacts.reviews)는 L1.tools.spec이 받아들이면 더한다(L2.readme §10 미결 14).
+ * - kind는 ApprovalKind와 같다. `review`(artifacts.reviews)는 ADR-0018이 받아들여 더했다.
  * - 실패는 throw하지 않고 Result 오류 값으로 돌려준다(TY-11). 호출자는 값을 보고 CapabilityError로 바꾼다.
  */
 export type L2ApprovalKind = ApprovalKind;

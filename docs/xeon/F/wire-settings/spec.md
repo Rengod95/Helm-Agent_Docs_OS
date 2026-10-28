@@ -421,7 +421,8 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   |---|---|---|
   | `question` | `answer` | `QuestionAnswer`: 질문 id → `{ selected: string[], text?: string }`. 키는 `QuestionBody`의 질문 id, `selected`는 그 질문의 선택지 id다. 질문은 최대 4개다 |
   | `plan` | `allow` | `{ mode?, note? }`(선택). `mode`는 승인 뒤에 쓸 다음 권한 모드로 `nextModes` 가운데 하나다. `note`는 계획 도구에 돌려줄 메모(최대 8192자)다 |
-  | `tool`, `plan`, `question` | `deny` | `{ feedback }`(선택). 모델에게 돌려줄 거부 이유(1~8192자) |
+  | `review` | `answer` | `ReviewAnswer`: `{ decisions, comments, submit, approveRemaining? }`. 스키마는 `F.records` `ReviewAnswerSchema`이고 모양은 `L2.artifacts.spec` §4.2.4와 같다 [제안: M3-REQ-09] |
+  | `tool`, `plan`, `question`, `review` | `deny` | `{ feedback }`(선택). 모델에게 돌려줄 거부 이유(1~8192자) |
   | `tool` | `allow` | 없음 |
 
   - 그 밖의 조합(예: 도구 승인에 질문 답, 질문에 `allow`)은 모양이 스키마를 통과해도 승인 서비스가 `applied: false`로 돌려준다. 스키마에 맞지 않는 `answer`는 `-32602`다.
@@ -1345,7 +1346,7 @@ wire:
 - A14. 구독(`from: "head"`) 뒤 `thread.read`를 보내고 `seq > position.seq`인 이벤트만 적용하면, 읽기와 겹치는 구간에 이벤트가 커밋되어도 최종 item 집합이 중단 없이 구독한 클라이언트의 것과 같다.
 - A15. `approval.list`의 `approvals`는 `position.seq` 시점에 `approval.resolved`가 없는 `approval.requested` 전부이고 각 항목의 `request`가 이벤트 payload와 같다. 응답한 뒤에는 목록에서 빠진다.
 - A16. `createHostConnection`과 `createStdioTransport`는 `@xeon/contracts/wire`의 같은 구현을 CLI, 호스트, 데스크톱이 쓴다. 이 구현의 소스는 Bun·Node 모듈을 import하지 않는다. `HostConnection.notify`는 `$/connectionReset`을 id 없는 알림으로 보낸다.
-- A17. `approval.respond`의 `answer`는 `QuestionAnswer`, `{ mode?, note? }`, `{ feedback }` 가운데 하나여야 한다. 질문 id 아래 문자열 하나만 둔 값이나 `AskAnswer` 배열 모양은 `-32602`다.
+- A17. `approval.respond`의 `answer`는 `QuestionAnswer`, `{ mode?, note? }`, `{ feedback }`, `ReviewAnswer` 가운데 하나여야 한다. 질문 id 아래 문자열 하나만 둔 값이나 `AskAnswer` 배열 모양은 `-32602`다.
 
 settings:
 

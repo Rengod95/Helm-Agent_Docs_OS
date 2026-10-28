@@ -405,7 +405,14 @@ export type ApprovalBodyJson =
   | { kind: "plan"; plan: { plan: string | BlobRef; planRef: string | null; nextModes: string[] } }
   | { kind: "question"; question: { questions: { id: string; header?: string; text: string;                    // header: 1~64자 머리글
                                                  options: { id: string; label: string; description?: string; recommended?: boolean }[];
-                                                 multiSelect: boolean; allowFreeText: boolean }[] } };   // questions 1~4개
+                                                 multiSelect: boolean; allowFreeText: boolean }[] } }   // questions 1~4개
+  /** 검토 승인(ADR-0018, M3-REQ-09). 필드는 최소 집합이다 [제안: ADR-0018 §6 미결의 답, L2.artifacts.spec §4.2.4 subject]. hunk 본문은 싣지 않는다 */
+  | { kind: "review"; review: { reviewId: string;              // rvw_<ULID>
+                                artifactId: string;            // art_<ULID>. changeset 산출물
+                                title: string;                 // 최대 200자
+                                round: number;                 // 1부터. 이 요청이 묻는 라운드
+                                files: { path: string; change: "added" | "modified" | "deleted" | "renamed";
+                                         binary: boolean; hunks: number }[] } };   // files 최대 256개
 /** approvalId는 envelope id다. payload에 두지 않는다 */
 export interface ApprovalRequestedPayload {
   origin: ApprovalOriginJson;
@@ -433,12 +440,21 @@ export interface ApprovalResolvedPayload {
 
 /**
  * approval.respond의 answer 정본 모양이다. 승인 서비스는 검증한 응답의 answer를 approval.resolved의 answer(ApprovalResolvedPayload.answer)에 그대로 싣는다 [결정: m2 F.8].
- * 스키마는 ApprovalAnswerSchema = PlanAnswerSchema | DenyAnswerSchema | QuestionAnswerSchema (records/catalog/approval.ts).
+ * 스키마는 ApprovalAnswerSchema = PlanAnswerSchema | DenyAnswerSchema | QuestionAnswerSchema | ReviewAnswerSchema (records/catalog/approval.ts).
  * 어느 kind·decision에 어느 모양이 맞는지는 F.wire-settings.spec §3.3.1이 정한다.
  */
 export type QuestionAnswerJson = Record<string, { selected: string[]; text?: string }>;   // 질문 id → 답. 최대 4개
 export interface PlanAnswerJson { mode?: string; note?: string }       // plan allow. mode는 nextModes 안, note 최대 8192자
 export interface DenyAnswerJson { feedback: string }                                      // 1~8192자
+/** review decision "answer" [제안]. 모양은 L2.artifacts.spec §4.2.4 ReviewAnswer와 같다 */
+export interface ReviewAnswerJson {
+  decisions: { hunkId: string; decision: "pending" | "approved" | "rejected" }[];     // hunkId ^f[0-9]{1,4}h[0-9]{1,4}$, 최대 4096개
+  comments: { target: { type: "hunk"; hunkId: string; line?: { side: "old" | "new"; number: number } }
+                    | { type: "file"; path: string } | { type: "review" };
+              body: string }[];                                                       // body 1~8000자, 최대 256개
+  submit: boolean;                // 참이면 결정 반영 뒤 제출까지 한다
+  approveRemaining?: boolean;
+}
 
 // src/records/catalog/input.ts   (L1.tasks.spec §3.8)
 export interface InputQueuedPayload {
