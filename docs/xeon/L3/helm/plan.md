@@ -28,7 +28,7 @@ M3 착수 조건(선행):
 
 | 선행 | 내용 | 막는 작업 |
 |---|---|---|
-| M3-02 | `ToolCallPayload`의 `risk`·`hints`·`caller`, `tool_execution_end`의 `input`(REQ-F-04) | H-05(`repeat`), H-08 |
+| M3-02 | `ToolCallPayload`의 `risk`·`hints`·`caller`, `tool.execution.after`의 `input`(REQ-F-04) | H-05(`repeat`), H-08 |
 | M3-new-01 | ADR-0015 구현: F `MethodDef.idempotent`·읽기 표지(REQ-F-01), F 효과 목록 문장(REQ-F-02), X 능력 래퍼 문맥 검사와 `effects` 계수(REQ-X-01), L1 spawn 멱등의 내구 기록(REQ-L1-01), L2 메서드 분류(REQ-L2-01), group-kit `replayDrive` 효과 계수(G-20) | H-10, H-11, H-19 |
 | 사용자 결정(받음, 2026-10-26) | D-M3-01 c(기본 플러그인), D-M3-05 a(대기, 상한 뒤 거부), D-M3-06 a(유휴 자율 turn 허용), D-M3-07 a(안전 모드 적재 안 함), D-M3-11 c(자체 확장 API만). 동작은 L3.helm.spec §4.13 표 | H-02(`defaultEnabled`, `trust.level`), H-20(대기 거부), H-22(패키징) |
 | M3-15 | X 외부 확장 로더(자체 API), 자체 패키지 가상 모듈 등록, 기본 플러그인 첫 실행 설치 | H-22, H-15 |
@@ -51,11 +51,11 @@ xeon/packages/group-helm/
     state.ts              # HelmState 스키마, INITIAL_HELM_STATE, helmStateDecl, fitState, updateState,
                           # HelmEvent, transition, TRANSITIONS
     signals.ts            # SIGNAL_DEFAULTS, HelmTurnTally, openTally, observeToolEnd, extractTerms, settleTurn,
-                          # inquiryIdFrom, decideAction, observeTool(tool_execution_end tap), settle(agent_settled tap)
+                          # inquiryIdFrom, decideAction, observeTool(tool.execution.after tap), settle(boundary.settle.after tap)
     lenses.ts             # LensDef, BUILTIN_LENSES(6개), LENS_PRIORITY, selectLenses
     prompts.ts            # LensBlock, lensBlockFor, renderLensBlock, divergePrompt, applyPrompt, explorerTask,
-                          # postRequestId, injectLens(before_agent_start chain), 알림 post 도우미
-    guard.ts              # WRITE_DENY_REASON, ToolCallMetaView, isWriteCall, isGuardedCaller, guardWrite(tool_call first)
+                          # postRequestId, injectLens(input.agent.before chain), 알림 post 도우미
+    guard.ts              # WRITE_DENY_REASON, ToolCallMetaView, isWriteCall, isGuardedCaller, guardWrite(tool.call.before first)
     drive.ts              # helmDrive, minLimits, turnRequestId, spawnRequestId, ExplorerReportSchema,
                           # parseExplorerAnswer, dedupeFindings, ActiveInquiry, activeInquiry, guarded
     knowledge.ts          # KnowledgeDigest, gatherContext, callSource, degradeOf, 외부 텍스트 감싸기
@@ -88,9 +88,9 @@ xeon/packages/group-helm/
 | H-02 | 매니페스트와 레코드 스키마: `manifest.ts`, `records.ts`의 payload 스키마 3종과 `HELM_RECORD_KINDS` | H-01, F.extensions M0(`defineManifest`, `RecordKindDecl`, `validateManifest`) | S |
 | H-03 | 상태 스키마: `HelmStateSchema`, `INITIAL_HELM_STATE`, `helmStateDecl`, `fitState`(직렬화 60 KiB 예산), `updateState`(직렬 큐 + `fitState`) | H-02 | S |
 | H-04 | 설정: `helmSettings`(`defineSettings("l3.helm", …)`)에 `autoStart`, `maxLenses`, `writeGuard`를 더해 4개 키(M3-04). `driveLimits`는 M2에 있다. `HelmSettings` | H-01, F.wire-settings `defineSettings`·`checkSettingDef` | S |
-| H-05 | 신호: 순수 함수(`openTally`, `observeToolEnd`, `settleTurn`, `extractTerms`(스펙 §3.5 규칙), `inquiryIdFrom`, `decideAction`)와 tap 핸들러 2개(`tool_execution_end`는 메모리 집계만, `agent_settled`는 기록과 turn당 1회 커밋). suggest 모드 post(`when: "next"`). `input`이 없으면 `repeat` 집계를 건너뛴다 | H-03, H-04, M3-02(`tool_execution_end.input`) | M |
+| H-05 | 신호: 순수 함수(`openTally`, `observeToolEnd`, `settleTurn`, `extractTerms`(스펙 §3.5 규칙), `inquiryIdFrom`, `decideAction`)와 tap 핸들러 2개(`tool.execution.after`는 메모리 집계만, `boundary.settle.after`는 기록과 turn당 1회 커밋). suggest 모드 post(`when: "next"`). `input`이 없으면 `repeat` 집계를 건너뛴다 | H-03, H-04, M3-02(`tool_execution_end.input`) | M |
 | H-06 | 단계 전이: `HelmEvent`, `transition`, `TRANSITIONS`. 스펙 §4.2 표와 1:1. 임대 필요 판정 훅은 두지 않는다(스펙 §3.3) | H-03 | M |
-| H-07 | 주입: `lenses.ts`(내장 렌즈 6개, `LENS_PRIORITY`, `selectLenses(pending, …)`), `prompts.ts`(블록 구조, 단계별 문구 본문, turn 입력, explorer 과제, requestId), `before_agent_start` chain 핸들러, 알림 post(`when: "next"`), `agents/explorer.md` 본문과 `risk: read` 도구 목록 | H-06 | M |
+| H-07 | 주입: `lenses.ts`(내장 렌즈 6개, `LENS_PRIORITY`, `selectLenses(pending, …)`), `prompts.ts`(블록 구조, 단계별 문구 본문, turn 입력, explorer 과제, requestId), `input.agent.before` chain 핸들러, 알림 post(`when: "next"`), `agents/explorer.md` 본문과 `risk: read` 도구 목록 | H-06 | M |
 | H-08 | 쓰기 거부: `ToolCallMetaView`, `isWriteCall`(`risk !== "read"`), `isGuardedCaller`(`main`, `subagent:explorer`), `guardWrite`. 메타 없음 경고(`/helm status`) | H-03, H-04, M3-02(`ToolCallPayload.risk`·`hints`·`caller`) | S |
 | H-09 | drive 단계 머신: `helmDrive`(단계당 한 분기, 커밋 후 반환), `activeInquiry`, `guarded`, `minLimits`, requestId 함수, `parseExplorerAnswer`, `dedupeFindings`, 상한·중지·부분 실패 처리. 비null 단언 없이 `Result`로 좁힌다 | H-06, H-07, group-kit M2 산출물(`defineGroup`, `DriveArbiter`, `replayDrive`), X.primitives 임대 API(부여·`idle` 반납·`LeaseBudget`), L1.agents `loop.spawn`(explorer 정의 로딩) | L |
 | H-10 | 지식 소비: `gatherContext`(읽기 호출, requestId 없음), `callSource`, `degradeOf`, 저하 동작 표, 외부 텍스트 감싸기 | H-09, H-20, L2.web 최소형(`web.search` 서비스, `WebSearchKey`), F `capabilities/defs` 키 상수, L2 읽기 표지(REQ-L2-01. 없으면 `effect_not_allowed` 저하 경로만 동작) | M |
@@ -159,9 +159,9 @@ xeon/packages/group-helm/
 | 6 | `settings.defs-pass-check` | 4개 키가 `checkSettingDef`를 통과하고 키·기본값이 스펙 §6 표와 같다 |
 | 7 | `signals.stuck-after-n-same-errors` | 같은 도구의 같은 오류 3회 연속이면 `stuck` 1건, 중간에 성공이 끼면 0건 |
 | 8 | `signals.repeat-after-n-same-calls` | 같은 도구·같은 정규화 인자 3회 연속이면 `repeat` 1건, 인자 키 순서만 다르면 같은 호출로 센다 |
-| 9 | `signals.newdomain-on-knowledge-misses` | 한 turn 지식 검색 빈 결과 2회면 `agent_settled`에서 `newDomain` 1건, 다음 turn에서 카운터가 0 |
-| 10 | `signals.pure-query-no-side-effect` | 같은 페이로드로 핸들러를 두 번 실행해도 집계표, 커밋된 `watch`, 기록 수가 한 번 실행과 같고, 능력 호출·post 호출 수가 0(suggest 아닌 경우). `agent_settled` 재실행의 커밋·기록은 `replayed`다 |
-| 10a | `signals.commit-once-per-turn` | 도구 호출 5회가 있는 turn에서 `g.commit`은 `agent_settled`의 1회이고 `tool_execution_end`·`before_agent_start`는 커밋하지 않는다 |
+| 9 | `signals.newdomain-on-knowledge-misses` | 한 turn 지식 검색 빈 결과 2회면 `boundary.settle.after`에서 `newDomain` 1건, 다음 turn에서 카운터가 0 |
+| 10 | `signals.pure-query-no-side-effect` | 같은 페이로드로 핸들러를 두 번 실행해도 집계표, 커밋된 `watch`, 기록 수가 한 번 실행과 같고, 능력 호출·post 호출 수가 0(suggest 아닌 경우). `boundary.settle.after` 재실행의 커밋·기록은 `replayed`다 |
+| 10a | `signals.commit-once-per-turn` | 도구 호출 5회가 있는 turn에서 `g.commit`은 `boundary.settle.after`의 1회이고 `tool.execution.after`·`input.agent.before`는 커밋하지 않는다 |
 | 11 | `signals.autostart-modes` | `off`는 기록만, `suggest`는 `when: "next"` post 1건(같은 turn 재실행 시 `duplicate: true`, 유휴 thread에서 turn을 열지 않음), `auto`는 `pending` 커밋 뒤 Helm이 다시 임대 후보가 된다(테스트 호스트에서 다음 경계에 `lease.acquired`) |
 | 12 | `transitions.table-covers-all-phase-pairs` | 모든 (단계, 이벤트) 쌍을 열거해 표에 있으면 표의 다음 단계, 없으면 같은 상태 |
 | 13 | `transitions.finish-resets-inquiry` | `idle`로 가는 전이가 탐구 필드를 초기화하고 `finished`를 채운다 |
@@ -185,7 +185,7 @@ xeon/packages/group-helm/
 | 31 | `disable.at-step-boundary-releases-lease` | 탐구 중 disable 요청 뒤 다음 단계 경계에서 `lease.released`(`disabled`) 1건, 핸들러 미호출, 상태 보존, 다시 켜면 같은 단계에서 이어짐 |
 | 32 | `coexist.learning-on-while-helm-holds-lease` | 테스트 호스트에 drive를 쓰지 않는 가짜 그룹(학습 그룹 역할, `group-learning` import 없음)을 함께 켜고, Helm 임대 중에도 그 그룹의 on 핸들러와 post가 동작 |
 | 33 | `coexist.waiting-lease-keeps-signals` | 다른 그룹이 임대를 가진 동안 `pending` 유지, `phase` `idle`, 신호 기록 계속, 쓰기 거부 없음 |
-| 34 | `restore.invalid-state-resets` | `session_start`에서 스키마 위반 상태면 초기 상태 커밋과 `inquiry.finished`(`failed`) |
+| 34 | `restore.invalid-state-resets` | `session.start`에서 스키마 위반 상태면 초기 상태 커밋과 `inquiry.finished`(`failed`) |
 | 35 | `replay.twice-effects-once` (H-19) | UC-2 기준 실행의 모든 커밋 지점에서 끊고 drive·on 핸들러를 두 번 실행해도 새 turn 2, 새 spawn 3, 새 작업 2, 종료 알림 1, `inquiry.finished` 1(스펙 §4.11 표) |
 | 36 | `replay.apply-split-points` (H-19) | `recordDiscoveries`와 `linkWork` 사이, `linkWork`와 `applied` 커밋 사이에서 끊어도 작업 2개, 적용 turn 1회 |
 | 37 | `failures.reaction-covers-all-kinds` (H-20) | 모든 `HelmFailure` kind × 단계 쌍이 스펙 §4.12 표의 `HelmReaction`을 돌려준다 |

@@ -51,7 +51,7 @@ xeon/packages/group-learning/
     state.ts              LearningStateSchema, INITIAL_LEARNING_STATE
     results.ts            DecisionResult, ApplyTransition, QueueSweep, LearningError(spec §3.9)
     settings.ts           defineSettings("l3.learning", …)(spec §6.1)
-    triggers.ts           TurnTally 집계(agent_start, turn_end), applyTurn, reviewRequestId, on 핸들러 등록
+    triggers.ts           TurnTally 집계(boundary.turn.before, boundary.step.after), applyTurn, reviewRequestId, on 핸들러 등록
     review/
       fork.ts             buildReviewSpec, reviewTokenBudget, g.delegate 호출, agent.settled 구독과 reviewFinishOutcome, 취소
       policy.ts           toolPolicy.allow 기본값(DelegateToolPolicy), learning_propose 도구 등록과 검사
@@ -87,8 +87,8 @@ xeon/packages/group-learning/
 |---|---|---|---|
 | LR-01 | 매니페스트와 상태: `manifest.ts`, `state.ts`, `index.ts`의 `defineGroup` 뼈대. `validateManifest` 통과 테스트 | group-kit M2(`defineGroup`, `GroupDef<S>`) | S |
 | LR-02 | 설정: `settings.ts`에 spec §6.1의 13개 키 `SettingDef`. 설정 읽기 실패 시 fail-closed 경로 | LR-01, F.wire-settings `defineSettings` | S |
-| LR-03 | 카운터 집계: `agent_start`로 집계표 열기, `turn_end`(chain, `undefined` 반환)로 step당 도구 반복 계수와 `stepId` 중복 방지, 도구 이름 기반 스킬 쓰기 판정(spec §4.2) | LR-01, F `TurnEndPayload` | M |
-| LR-04 | 임계 판정 순수 함수: `applyTurn`(규칙 0 `in_flight` 포함), `reviewRequestId`, `agent_settled` 핸들러의 상태 커밋(턴당 1회). `origin`·`status`·`hasFinalAnswer`·`lastItemId` 읽기와 필드가 없을 때의 임시 규칙 | LR-02, LR-03, REQ-LN-01 | S |
+| LR-03 | 카운터 집계: `boundary.turn.before`로 집계표 열기, `boundary.step.after`(chain, `undefined` 반환)로 step당 도구 반복 계수와 `stepId` 중복 방지, 도구 이름 기반 스킬 쓰기 판정(spec §4.2) | LR-01, F `TurnEndPayload` | M |
+| LR-04 | 임계 판정 순수 함수: `applyTurn`(규칙 0 `in_flight` 포함), `reviewRequestId`, `boundary.settle.after` 핸들러의 상태 커밋(턴당 1회). `origin`·`status`·`hasFinalAnswer`·`lastItemId` 읽기와 필드가 없을 때의 임시 규칙 | LR-02, LR-03, REQ-LN-01 | S |
 | LR-05 | 포크 호출: `buildReviewSpec`(`fork: { at: "item" }`, `report` 없음 [결정: review.m3-design-inputs D-M3-03]), `reviewTokenBudget`, `reviewStartOutcome`, on 핸들러의 `g.delegate`(ADR-0015)와 "위임 먼저, 커밋 나중" 순서, `delegateFailures`, `grp.learning.fork.started`, `agents/learning-review.md` 정의 | LR-04, REQ-LN-05·07·08, group-kit `GroupApi.delegate`(G-14) | M |
 | LR-06 | 제안 도구와 허용 목록: `g.registerTool`로 `learning_propose` 등록, 입력 검사, 읽기 선행 가드(`baseHash`), 후보 수 상한, `toolPolicy.allow` 기본값과 거부 안내 문장(`denyHint`) | LR-05, group-kit `registerTool`(G-22), L1.tools 실행 시점 허용 검사 | M |
 | LR-07 | 검토 지시: `prompts.ts` 요구 사항 7항목(신호, 선호 순서, 저장 금지, 메모리 영역, DATA 방어, 출력 규약, 편향 문구 금지) 문구 본문 작성 | LR-05 | M |
@@ -129,7 +129,7 @@ xeon/packages/group-learning/
 
 | Hermes 요소 | 참고 위치 | 학습 그룹 대응 | 바꾸는 점 |
 |---|---|---|---|
-| 카운터 트리거 | `agent/turn_context.py:758-767`, `agent/turn_iteration_prep.py:166-167`, `agent/tool_executor.py:744-747`, `agent/turn_finalizer.py:763-791`(`hermes.md` §3.10.1 (가)) | `triggers.ts` `applyTurn` | 단계 경계 이벤트(`agent_start`, `tool_execution_end`, `agent_settled`) 기준. 순수 함수로 분리. 커밋 턴당 1회 |
+| 카운터 트리거 | `agent/turn_context.py:758-767`, `agent/turn_iteration_prep.py:166-167`, `agent/tool_executor.py:744-747`, `agent/turn_finalizer.py:763-791`(`hermes.md` §3.10.1 (가)) | `triggers.ts` `applyTurn` | 단계 경계 이벤트(`boundary.turn.before`, `tool.execution.after`, `boundary.settle.after`) 기준. 순수 함수로 분리. 커밋 턴당 1회 |
 | 캐시 패리티 포크 | `background_review.py:965-975`, `1147-1160`(`hermes.md` §3.10.1 (나) 8) | `review/fork.ts` `buildReviewSpec` | 스레드 대신 L1-g 백그라운드 위임. 캐시 공유는 L1.agents 지원 여부에 따름 [가정] |
 | 디스패치 화이트리스트 | `background_review.py:1088-1131`(`hermes.md` §3.10.1 (나) 9) | `review/policy.ts` `toolPolicy.allow`(group-kit `DelegateToolPolicy`) | 스킬 쓰기 툴셋도 허용하지 않는다. 허용은 읽기와 `learning_propose`뿐 |
 | 읽기 선행 가드 | `tools/skill_manager_guards.py:211-221`(`hermes.md` §3.10.1 (다)) | `learning_propose`의 `baseHash` 검사 | "같은 검토 안의 읽기 기록" 대신 내용 해시 비교 |
@@ -149,8 +149,8 @@ xeon/packages/group-learning/
 | `manifest.validates` | `validateManifest` 오류 0, `usesDrive: false`, 지점 4개, 레코드 8종 접두 `grp.learning.` | LR-01 |
 | `settings.defs-valid` | 13개 키가 `checkSettingDef`를 통과하고 기본값이 spec §6.1과 같다 | LR-02 |
 | `settings.read-failure-fails-closed` | 설정 읽기 실패 시 `g.delegate`와 `apply` 호출 0 | LR-02 |
-| `triggers.counts-user-turns` | 사용자 turn 10회째 `agent_settled`에서 `review/user_turns` | LR-03, LR-04 |
-| `triggers.counts-tool-iterations-per-step` | 한 step의 도구 3개는 반복 1회(`turn_end` 하나). 같은 `stepId`의 `turn_end` 재발화도 1회. 핸들러 반환값은 `undefined` | LR-03 |
+| `triggers.counts-user-turns` | 사용자 turn 10회째 `boundary.settle.after`에서 `review/user_turns` | LR-03, LR-04 |
+| `triggers.counts-tool-iterations-per-step` | 한 step의 도구 3개는 반복 1회(`boundary.step.after` 하나). 같은 `stepId`의 `boundary.step.after` 재발화도 1회. 핸들러 반환값은 `undefined` | LR-03 |
 | `triggers.skips-aborted-and-scheduled-turns` | `aborted`, `error`, `scheduled`, `remote`, `delegation`, `drive` turn은 사용자 turn 수를 올리지 않고 검토를 시작하지 않는다 | LR-04 |
 | `triggers.resets-on-skill-write` | `skill_manage` 또는 `learning_propose` 도구 결과가 있는 step 뒤 도구 반복 카운터 0 | LR-03 |
 | `triggers.zero-threshold-disables-reason` | 임계 0이면 그 사유로는 검토하지 않는다 | LR-04 |
@@ -186,7 +186,7 @@ xeon/packages/group-learning/
 | `settled.status-fallback-on-command` | 구독 없는 구성에서 `/learning queue` 진입 → `delegateStatus` 조회로 종료 기록 | LR-23 |
 | `dispose.cancels-in-flight-review` | 검토 중 그룹 끄기 → `cancelDelegates` 1회, 자식 `agent.settled{ aborted }` | LR-24 |
 | `dispose.clears-inflight-id-after-cancel` | 그룹 끄기 뒤 다시 켜면 `inFlightReviewId`가 null이고 명령을 부르지 않아도 다음 임계에서 검토가 시작된다. `onDispose`에서 커밋하지 못하는 구성이면 첫 명령 진입의 대체 조회로 비워진다 | LR-24 |
-| `replay.agent-settled-twice-one-delegate` | ADR-0015: 모든 커밋 지점에서 끊고 재개, `agent_settled` 2회 실행 → 위임 1, `fork.started` 1, 상태 반영 1 | LR-25 |
+| `replay.agent-settled-twice-one-delegate` | ADR-0015: 모든 커밋 지점에서 끊고 재개, `boundary.settle.after` 2회 실행 → 위임 1, `fork.started` 1, 상태 반영 1 | LR-25 |
 | `replay.no-capability-calls-in-handlers` | on 핸들러·구독 핸들러 실행 중 `g.capability` 호출 0 | LR-25 |
 | `scope.tool-proposals-are-user-scope` | `learning_propose`로 만든 스킬 후보의 `scope`는 `user` | LR-26 |
 | `scope.approve-project-scope` | `approve --scope project` → 적용 어댑터 `scope: "project"`. 메모리 후보 → `learning.scopeNotAllowed` | LR-26 |

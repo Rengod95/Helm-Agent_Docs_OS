@@ -123,7 +123,7 @@ test("wrap.metrics-count-commits-posts-and-spawns", async () => {
     defineGroup<{ readonly n: number }>({
       manifest: groupManifestOf({
         name: "counted",
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         usesPost: true,
         usesDrive: true,
       }),
@@ -134,7 +134,7 @@ test("wrap.metrics-count-commits-posts-and-spawns", async () => {
       },
       setup(g) {
         api = g;
-        g.on("agent_settled", async (_payload, ctx) => {
+        g.on("boundary.settle.after", async (_payload, ctx) => {
           await g.post({ kind: "user", content: "hi" }, { when: "next", requestId: "same-key" });
           await g.post(
             { kind: "user", content: "hi again" },

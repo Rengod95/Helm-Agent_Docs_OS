@@ -120,7 +120,7 @@ flowchart TD
 | 설정 키(외부 그룹) | `ext.<id>.<이름>`. `ext.<id>.enabled`, `ext.<id>.isolation`은 X 로더 예약 키. 켜기 키 `ext.<id>.enabled`는 내장 그룹도 쓴다(`ext.helm.enabled`, `ext.learning.enabled`) | `F.wire-settings.spec` §3.8.3, `F.extensions.spec` §6 |
 | 명령 | `/group …`(group-kit), `/<그룹 이름> …`(각 그룹) | `L3.group-kit.spec`, 각 그룹 spec |
 | 서비스 이름 | `xeon.groups`(`GroupService`, group-kit 제공). 인터페이스 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 두고 X `LeaseArbiterPort`를 확장한다 [결정: review.decisions-2 D-04]. 그룹은 서비스를 제공하지 않는다 | `F.capabilities.spec` §3.12, `eng.context-map.design` §5.3, CM-06 |
-| 지점 이름 | pi snake_case(`tool_call`, `agent_before_settle`, `tool_result`, `input`, `turn_end`, `agent_settled` 등) | `F.extensions.spec` §3.4, §4.10 |
+| 지점 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(`tool.call.before`, `boundary.settle.before`, `tool.result`, `input.user.before`, `boundary.step.after`, `boundary.settle.after` 등) | `F.extensions.spec` §3.4, §4.10 |
 
 공통 확정 이름(L3 네 문서가 같은 문자열을 쓴다):
 
@@ -146,8 +146,8 @@ flowchart TD
 | 그룹 | F 타입 | X 연산 | L1 서비스 | L2 능력 | 다른 그룹 레코드 |
 |---|---|---|---|---|---|
 | group-kit | `ExtensionManifest`, `validateManifest`, `ScopeApi`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `SettingDef`, `defineSettings` | `scope`(그룹 등록), `drive` 등록 전달, `LeaseArbiterPort` 제공, `hostOf(g).registerTool`·`registerCommand` 전달 | `xeon.ext`, `xeon.agents`(`delegate` 구현) | 없음 | 없음 |
-| helm | `ScopeApi`, `LoopHandle`, `SpawnSpec`, `GroupRecord`, `RecordKindDecl`, `ServiceKey`, `ToolCallDecision`, `PostItem` | `on`(chain `before_agent_start`, first `tool_call`, tap `tool_execution_end`·`agent_settled`·`session_start`), `post`, `drive`, `scope` | `xeon.agents`(`loop.spawn` 경유) | 모두 선택(`optional`): `web.search`, `web.fetch`, `knowledge.search`, `knowledge.skills`, `knowledge.memory`(읽기), `work.tasks` | 없음 |
-| learning | `ScopeApi`, `GroupRecord`, `RecordKindDecl`, `PostItem`(`kind: "context"`) | `on`(tap 4개: `agent_start`, `tool_execution_end`, `agent_settled`, `session_start`), `post` 선언, `scope`. chain·first·drive 없음 | `xeon.agents`(`GroupApi.delegate`로 백그라운드 위임) | 필수(`requires`): `knowledge.skills`, `knowledge.memory`, `knowledge.search`, `knowledge.ledger`(읽기, 승인 뒤 쓰기, 원장, 스캔) | 없음 |
+| helm | `ScopeApi`, `LoopHandle`, `SpawnSpec`, `GroupRecord`, `RecordKindDecl`, `ServiceKey`, `ToolCallDecision`, `PostItem` | `on`(collect `input.agent.before`, first `tool.call.before`, tap `tool.execution.after`·`boundary.settle.after`·`session.start`), `post`, `drive`, `scope` | `xeon.agents`(`loop.spawn` 경유) | 모두 선택(`optional`): `web.search`, `web.fetch`, `knowledge.search`, `knowledge.skills`, `knowledge.memory`(읽기), `work.tasks` | 없음 |
+| learning | `ScopeApi`, `GroupRecord`, `RecordKindDecl`, `PostItem`(`kind: "context"`) | `on`(tap 4개: `boundary.turn.before`, `tool.execution.after`, `boundary.settle.after`, `session.start`), `post` 선언, `scope`. chain·first·drive 없음 | `xeon.agents`(`GroupApi.delegate`로 백그라운드 위임) | 필수(`requires`): `knowledge.skills`, `knowledge.memory`, `knowledge.search`, `knowledge.ledger`(읽기, 승인 뒤 쓰기, 원장, 스캔) | 없음 |
 | slots 템플릿 | 위와 같은 F 타입 | 템플릿 종류에 따른다 | 선택 | 선택 | 선택 |
 
 그룹 사이 통신:

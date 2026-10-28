@@ -29,7 +29,7 @@ export function install(
 /** agent_settled 지점을 한 번 발화한다. 이 지점에 on을 건 그룹의 핸들러가 부른다 */
 export function fireSettled(t: TestHost, thread: ThreadId, key: string): Promise<unknown> {
   return t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: key },
   );

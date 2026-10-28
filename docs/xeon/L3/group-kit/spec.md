@@ -198,11 +198,11 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = Record
 
 ```ts
 export default defineGroup<DemoState>({
-  manifest: demoManifest,                 // kind "group", layer "L3", points ["tool_call", "turn_end"], usesPost, usesDrive
+  manifest: demoManifest,                 // kind "group", layer "L3", points ["tool.call.before", "boundary.step.after"], usesPost, usesDrive
   state: { schema: DemoStateSchema, initial: { phase: "idle" }, version: 1 },
   setup(g) {
-    g.on("tool_call", (_call, ctx) => ctx.state.phase === "review" ? { block: true, reason: "검토 단계는 읽기 전용" } : undefined);
-    g.on("turn_end", async (end) => {      // chain. 효과는 requestId 멱등 post로만(F §4.3)
+    g.on("tool.call.before", (_call, ctx) => ctx.state.phase === "review" ? { block: true, reason: "검토 단계는 읽기 전용" } : undefined);
+    g.on("boundary.step.after", async (end) => {      // chain. 효과는 requestId 멱등 post로만(F §4.3)
       if (end.toolResults.length === 0) {
         await g.post(
           { kind: "context", customType: "grp.demo.nudge.sent", content: "검토를 이어 간다", display: false },
@@ -953,7 +953,7 @@ export interface PromotionReport {
 export interface PromotionInput {
   /** 도구 이름 → 등록한 그룹 [가정: X 리소스 등록부] */
   readonly toolOwners: ReadonlyMap<ToolName, GroupId>;
-  /** tool_execution_end 이벤트와 그 호출이 속한 turn의 시작 주체 */
+  /** tool.execution.after 이벤트와 그 호출이 속한 turn의 시작 주체 */
   readonly calls: readonly { readonly tool: ToolName; readonly seq: number; readonly threadId: string; readonly origin: ScopeId | "user" }[];
 }
 
@@ -1057,7 +1057,7 @@ function countTurn(st: Readonly<CountState>, stepId: string): CountState {
   return { turns: st.turns + 1, lastStepId: stepId };
 }
 
-g.on("turn_end", async (end, _current, ctx) => {
+g.on("boundary.step.after", async (end, _current, ctx) => {
   await g.commit(countTurn(ctx.state, end.stepId));   // 재실행되어도 turns는 한 번만 오른다
   return undefined;
 });
@@ -1179,14 +1179,14 @@ g.on("turn_end", async (end, _current, ctx) => {
 ## 9. 수용 기준
 
 1. `x.primitives.activeDriveGroup`이 `null`(auto)일 때 drive 그룹 A(요청 순번 10)와 B(요청 순번 12)가 켜지면 A의 drive 함수만 호출되고 B의 drive 함수 호출 수는 0이다. B의 `GroupStatus.drive`는 `"waiting"`이다.
-2. 1번 상태에서 B의 `tool_call` 핸들러와 `post`는 계속 호출·수락되고, B가 `delegate`를 부르면 `accepted` 영수증을 받는다.
+2. 1번 상태에서 B의 `tool.call.before` 핸들러와 `post`는 계속 호출·수락되고, B가 `delegate`를 부르면 `accepted` 영수증을 받는다.
 3. `x.primitives.activeDriveGroup`이 `null`(auto)이고 holder A가 있을 때 C를 새로 켜도 단계 경계 뒤 holder는 A다(선점 없음).
 4. A가 임대를 가진 동안 `x.primitives.activeDriveGroup`을 B로 바꾸면 A의 진행 중 `loop.turn`은 `completed`로 끝나고, 다음 경계에 `lease.released{reason:"revoked"}`(A)와 `lease.acquired`(B)가 차례로 기록된다. 중단된 step은 0개다. B가 후보가 아니면(예: 꺼짐) A의 임대는 유지된다. A를 끄면 끄기가 적용된 경계에 `lease.released{reason:"disabled"}`(A)가 기록되고, 그 뒤 판단 시점에 `choose`가 B를 고른다.
 5. `x.primitives.activeDriveGroup`이 켜지지 않은 그룹 이름이면 `decide`는 `holder: null`, `reason: "named-unavailable"`을 돌려주고 drive 함수는 하나도 호출되지 않는다.
 6. `setDriveHolder("learning")`(drive 미사용)은 `group.noDrive`를 돌려주고 설정 값은 바뀌지 않는다. `/group drive xyz`는 `알 수 없는 그룹: xyz. 설치된 그룹: …`을 출력한다.
 7. 실행 중 `/group off helm`은 `pending: true`를 돌려주고, 다음 단계 경계 전까지 상태줄 끝에 `다음 단계 경계에 적용`이 있으며, 경계 뒤 `scope.changed{status:"disabled"}`가 정확히 한 번 커밋된다.
 8. `group-kit` 소스에서 `@xeon/group-helm`, `@xeon/group-learning` import가 0이다(check-layers). `group-helm`에 `@xeon/group-learning` import 샘플을 넣으면 check-layers가 DR-02로 실패한다.
-9. M1 테스트 그룹(`smokeGroup`)이 한 턴에서 `on`(`tool_call`, `turn_end`), `post`, `drive`를 모두 쓰고, `checkGroup(smokeGroup)`의 오류가 0이다.
+9. M1 테스트 그룹(`smokeGroup`)이 한 턴에서 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 모두 쓰고, `checkGroup(smokeGroup)`의 오류가 0이다.
 10. setup에서 매니페스트 `points`에 없는 지점에 `on`을 건 그룹은 `checkGroup`이 `point_undeclared`를 돌려준다. `name: "auto"`, `name: "web"`(L2 도메인 이름)인 정의는 `defineGroup`이 `group_name`으로 `Bug`를 던진다. `state` 없이 `on`만 쓰는 정의는 오류 없이 `GroupModule`(`stateVersion: 0`)을 만든다.
 10a. `registerTool`, `registerCommand`로 등록한 도구와 명령은 그룹을 끄면 해제된다(가짜 `ExtHost.resources` 등록 수로 확인).
 10b. `groupManifest`는 `kind: "plugin"`인 매니페스트 값에 `Bug`를 던지고, 템플릿 `plugin.json`과 같은 값에는 `GroupManifest`를 돌려준다.
@@ -1200,7 +1200,7 @@ g.on("turn_end", async (end, _current, ctx) => {
 18. `l3.group-kit.instrumentation = false`면 `grp.<그룹>.metrics.recorded` 기록이 0개이고 `GroupStatus.metrics`는 null이다.
 19. `formatGroupStatusLine`은 §3.9 예 표의 다섯 입력에 표의 문자열을 그대로 돌려준다.
 20. `group-kit` 운영 소스에서 `LeaseArbiterPort`, `LeaseCandidate`, `GroupService`, `GroupStatus`, `DriveHolderSetting`, `GroupMetricsSummary`를 정의하는 선언이 0개이고, 이 이름은 `@xeon/contracts/extensions` 또는 `@xeon/contracts/services`에서 온다. `services/groups.ts`의 `HolderReceipt["scope"]`는 F.wire-settings `SettingScope`에 대입 가능하고 그 반대도 된다(타입 테스트).
-21. 상태 갱신이 멱등 reducer(§4.5 6번)인 그룹에서 같은 `turn_end` 핸들러를 소비 커밋 전에 두 번 실행하면 `grp.<그룹>.state.committed`는 한 번만 늘고 두 번째 `commit`은 이벤트를 쓰지 않는다.
+21. 상태 갱신이 멱등 reducer(§4.5 6번)인 그룹에서 같은 `boundary.step.after` 핸들러를 소비 커밋 전에 두 번 실행하면 `grp.<그룹>.state.committed`는 한 번만 늘고 두 번째 `commit`은 이벤트를 쓰지 않는다.
 22. (M3, ADR-0015) `replayDrive`는 효과 계수기를 가진 하니스에서 모든 절단 지점의 drive·on 핸들러 이중 실행 뒤에도 `EffectCounts`가 기준 실행과 같으면 `ok: true`다. 같은 `requestId` 없이 효과를 두 번 내는 그룹에는 `failure: "effects-doubled"`를 돌려준다.
 23. (M3, ADR-0015) `delegateStatus`는 drive 문맥에서 상태를 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행되는 코드에서 거부되고 `onDispose`와 명령 처리기에서는 동작한다.
 24. (M3) 임대 대기 상한을 넘어 거부된 그룹의 `GroupStatus.drive`는 `"rejected"`다.

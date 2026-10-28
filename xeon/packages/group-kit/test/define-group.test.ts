@@ -31,7 +31,7 @@ test("define-group.rejects-usage-without-manifest-point", async () => {
   const module = defineGroup({
     manifest: groupManifestOf({ name: "needs-point", points: [] }),
     setup(g) {
-      g.on("tool_call", () => undefined);
+      g.on("tool.call.before", () => undefined);
     },
   });
   const issues = await checkGroup(module);
@@ -42,12 +42,12 @@ test("define-group.check-group-passes-a-correct-group", async () => {
   const module = defineGroup({
     manifest: groupManifestOf({
       name: "correct-group",
-      points: ["tool_call"],
+      points: ["tool.call.before"],
       usesDrive: true,
     }),
     state: { schema: CounterSchema, initial: { n: 0 }, version: 1 },
     setup(g) {
-      g.on("tool_call", () => undefined);
+      g.on("tool.call.before", () => undefined);
       g.drive(async (loop, state) => {
         await loop.turn({ input: { kind: "user", content: "go" } });
         await g.commit({ n: state.n + 1 });
@@ -96,9 +96,9 @@ test("define-group.rejects-wrong-kind-and-layer", () => {
 
 test("define-group.accepts-stateless-group", () => {
   const module = defineGroup({
-    manifest: groupManifestOf({ name: "stateless", points: ["tool_call"] }),
+    manifest: groupManifestOf({ name: "stateless", points: ["tool.call.before"] }),
     setup(g) {
-      g.on("tool_call", () => undefined);
+      g.on("tool.call.before", () => undefined);
     },
   });
   expect(module.stateVersion).toBe(0);

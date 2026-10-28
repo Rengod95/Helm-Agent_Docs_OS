@@ -104,7 +104,7 @@ binds: []
 
 #### 3.1.5 제2의 Helm 예시
 
-[제안] 가상 그룹 `focuslens`는 긴 작업 중 목표에서 벗어난 탐색을 줄이는 사상이다. `before_agent_start`(chain)로 현재 목표 요약을 시스템 프롬프트 끝에 더하고, `tool_execution_end`(tap)로 목표와 무관한 도구 사용 횟수를 메모리에 세어 `agent_settled`(tap)에서 turn당 한 번 상태에 커밋하며(L3.helm.spec §4.3, §7과 같은 관찰 권장안), 그 수가 `ext.focuslens.driftLimit`를 넘으면 `post`(`when: "next"`)로 목표 재확인 입력을 한 번 넣는다. drive는 쓰지 않으므로 policy 템플릿에서 시작하고, Helm이 켜져 있어도 임대 경쟁 없이 함께 동작한다. 레코드 `grp.focuslens.drift.detected`를 공개하면 Helm은 `readsRecordKinds`로 읽을 수 있다. 이 변경은 `group-focuslens` 패키지(또는 외부 디렉터리) 하나만 더하고 코어 diff는 0이다.
+[제안] 가상 그룹 `focuslens`는 긴 작업 중 목표에서 벗어난 탐색을 줄이는 사상이다. `input.agent.before`(collect)로 현재 목표 요약을 시스템 프롬프트 끝에 더하고, `tool.execution.after`(tap)로 목표와 무관한 도구 사용 횟수를 메모리에 세어 `boundary.settle.after`(tap)에서 turn당 한 번 상태에 커밋하며(L3.helm.spec §4.3, §7과 같은 관찰 권장안), 그 수가 `ext.focuslens.driftLimit`를 넘으면 `post`(`when: "next"`)로 목표 재확인 입력을 한 번 넣는다. drive는 쓰지 않으므로 policy 템플릿에서 시작하고, Helm이 켜져 있어도 임대 경쟁 없이 함께 동작한다. 레코드 `grp.focuslens.drift.detected`를 공개하면 Helm은 `readsRecordKinds`로 읽을 수 있다. 이 변경은 `group-focuslens` 패키지(또는 외부 디렉터리) 하나만 더하고 코어 diff는 0이다.
 
 ### 3.2 정책 플러그인
 
@@ -128,8 +128,8 @@ binds: []
 
 | 항목 | 값 |
 |---|---|
-| 매니페스트 | `name: "reviewgate"`, `kind: "group"`, `layer: "L3"`, `usesDrive: false`, `usesPost: true`, `points: ["tool_result", "agent_before_settle", "agent_settled"]` |
-| 지점과 fold | `tool_result`(chain, 패치 없음: 쓰기 도구 결과 관찰 후 상태 커밋), `agent_before_settle`(chain: `{ continue: true }` 패치), `agent_settled`(tap: 상태 초기화 커밋) |
+| 매니페스트 | `name: "reviewgate"`, `kind: "group"`, `layer: "L3"`, `usesDrive: false`, `usesPost: true`, `points: ["tool.result", "boundary.settle.before", "boundary.settle.after"]` |
+| 지점과 fold | `tool.result`(chain, 패치 없음: 쓰기 도구 결과 관찰 후 상태 커밋), `boundary.settle.before`(chain: `{ continue: true }` 패치), `boundary.settle.after`(tap: 상태 초기화 커밋) |
 | post | `kind: "context"`, `customType: "grp.reviewgate.review.requested"`, `when: "steer"`, `requestId: "reviewgate:<turnId>"` |
 | 실패 정책 | chain 예외는 그 핸들러의 패치만 버린다(skip). 그 턴은 검토 없이 정착한다. tap 예외는 기록 후 계속한다 |
 | 설정 키 | `ext.reviewgate.writeTools`(문자열 목록, 기본 `["write", "edit"]`), `ext.reviewgate.prompt`(문자열), `ext.reviewgate.mode`(`"continue"`\|`"followUp"`, 기본 `"continue"`) |
@@ -144,7 +144,7 @@ import { defineGroup, groupManifest, type GroupModule } from "@xeon/group-kit";
 const reviewgateManifest = groupManifest({                          // 저장소 안 fixture라 매니페스트 객체를 직접 정의한다
   schemaVersion: 1, name: "reviewgate", version: "0.1.0", displayName: "검토 강제",
   layer: "L3", kind: "group", entry: "./src/testing/policies/reviewgate.ts",
-  usesDrive: false, usesPost: true, points: ["tool_result", "agent_before_settle", "agent_settled"],
+  usesDrive: false, usesPost: true, points: ["tool.result", "boundary.settle.before", "boundary.settle.after"],
   defaultEnabled: false, trust: { level: "builtin" },
 });
 
@@ -165,13 +165,13 @@ export const reviewgate: GroupModule = defineGroup<ReviewState>({
   state: { schema: ReviewState, initial: { writes: 0 }, version: 1 },
   settings: reviewgateSettings,
   setup(g) {
-    g.on("tool_result", async (p, current) => {
+    g.on("tool.result", async (p, current) => {
       if (!current.isError && g.settings().writeTools.includes(p.toolName)) {
         await g.commit({ writes: g.state().writes + 1 });
       }
       return undefined;                                   // 관찰만. 패치 없음
     });
-    g.on("agent_before_settle", async (p, current, ctx) => {
+    g.on("boundary.settle.before", async (p, current, ctx) => {
       if (p.outcome !== "completed" || ctx.state.writes === 0 || current.continue) return undefined;
       const s = g.settings();
       const receipt = await g.post(
@@ -180,7 +180,7 @@ export const reviewgate: GroupModule = defineGroup<ReviewState>({
       );
       return receipt.duplicate || s.mode !== "continue" ? undefined : { continue: true };
     });
-    g.on("agent_settled", async () => { await g.commit({ writes: 0 }); });
+    g.on("boundary.settle.after", async () => { await g.commit({ writes: 0 }); });
   },
 });
 ```
@@ -195,8 +195,8 @@ export const reviewgate: GroupModule = defineGroup<ReviewState>({
 
 | 항목 | 값 |
 |---|---|
-| 매니페스트 | `name: "commitguard"`, `kind: "group"`, `layer: "L3"`, `usesDrive: false`, `points: ["tool_call", "tool_result"]` |
-| 지점과 fold | `tool_call`(first: 커밋 호출 거부), `tool_result`(chain, 패치 없음: 검증 성공과 쓰기 관찰 후 상태 커밋) |
+| 매니페스트 | `name: "commitguard"`, `kind: "group"`, `layer: "L3"`, `usesDrive: false`, `points: ["tool.call.before", "tool.result"]` |
+| 지점과 fold | `tool.call.before`(first: 커밋 호출 거부), `tool.result`(chain, 패치 없음: 검증 성공과 쓰기 관찰 후 상태 커밋) |
 | post | 쓰지 않는다. 거부 사유는 `ToolCallDecision.reason`으로 모델에 돌아간다 |
 | 실패 정책 | first 예외는 거부(`FIRST_DENY.tool_call`, fail-closed). 그래서 판정 함수가 던지면 커밋은 막힌다. chain 예외는 그 관찰만 버린다(검증 성공을 놓치면 다음 커밋도 거부된다. 안전한 쪽으로 실패한다) |
 | 설정 키 | `ext.commitguard.verifyCommand`(문자열, 기본 `"just verify"`), `ext.commitguard.commitPattern`(정규식 문자열, 기본 `"^\\s*git\\s+commit\\b"`), `ext.commitguard.invalidateOn`(문자열 목록, 기본 `["write", "edit"]`) |
@@ -213,7 +213,7 @@ const commandOf = (input: Readonly<Record<string, JsonValue>>): string =>
 const commitguardManifest = groupManifest({
   schemaVersion: 1, name: "commitguard", version: "0.1.0", displayName: "커밋 전 검증",
   layer: "L3", kind: "group", entry: "./src/testing/policies/commitguard.ts",
-  usesDrive: false, points: ["tool_call", "tool_result"],
+  usesDrive: false, points: ["tool.call.before", "tool.result"],
   defaultEnabled: false, trust: { level: "builtin" },
 });
 
@@ -222,13 +222,13 @@ export const commitguard: GroupModule = defineGroup<GuardState>({
   state: { schema: GuardState, initial: { verified: false }, version: 1 },
   settings: commitguardSettings,                         // defineSettings("ext.commitguard", { verifyCommand, commitPattern, invalidateOn })
   setup(g) {
-    g.on("tool_call", (p, ctx) => {                      // 질의만. 상태는 디스패치 시작 시점의 커밋 값
+    g.on("tool.call.before", (p, ctx) => {                      // 질의만. 상태는 디스패치 시작 시점의 커밋 값
       if (p.toolName !== "bash") return undefined;
       if (!new RegExp(g.settings().commitPattern).test(commandOf(p.input))) return undefined;
       return ctx.state.verified ? undefined
         : { block: true, reason: `커밋 전에 \`${g.settings().verifyCommand}\`를 성공시켜라.` };
     });
-    g.on("tool_result", async (p, current) => {
+    g.on("tool.result", async (p, current) => {
       const s = g.settings();
       if (p.toolName === "bash" && commandOf(p.input).trim() === s.verifyCommand) {
         await g.commit({ verified: !current.isError });
@@ -241,7 +241,7 @@ export const commitguard: GroupModule = defineGroup<GuardState>({
 });
 ```
 
-- `tool_call` 핸들러는 재실행 가능한 질의다. 상태를 읽고 결정만 돌려준다. 상태 변경은 `tool_result`에서 `commit`으로만 한다(P6).
+- `tool.call.before` 핸들러는 재실행 가능한 질의다. 상태를 읽고 결정만 돌려준다. 상태 변경은 `tool.result`에서 `commit`으로만 한다(P6).
 - 한계 [가정]: `bash`로 파일을 바꾸는 경우는 `invalidateOn`에 잡히지 않는다. fixture는 이 한계를 테스트로 고정하지 않는다. 실제 정책으로 쓰려면 작업 트리 지문을 상태에 두는 방식이 필요하다.
 - 상태가 필요하므로 `kind: "group"`이다(4.2.1).
 
@@ -252,7 +252,7 @@ export const commitguard: GroupModule = defineGroup<GuardState>({
 | 가드레일 지점 | 시점 | fold | 실패 |
 |---|---|---|---|
 | 모델 요청 가드 | provider 요청을 보내기 직전. 다른 `request` 지점의 패치가 모두 적용된 최종 요청을 받는다 | first(차단 결정) | fail-closed |
-| 도구 호출 가드 | 도구 실행 직전. `tool_call` 지점의 결정 뒤 실행이 남은 호출만 받는다 [제안] | first(차단 결정) | fail-closed |
+| 도구 호출 가드 | 도구 실행 직전. `tool.call.before` 지점의 결정 뒤 실행이 남은 호출만 받는다 [제안] | first(차단 결정) | fail-closed |
 | 출력 가드 | 모델 출력이 사용자에게 표시되거나 다른 실행 경로(명령, 산출물 적용)로 넘어가기 직전 | first(차단 결정) | fail-closed |
 
 - 지점 이름은 ADR-0017의 자체 이름 규칙으로 M3 F 첫 작업이 정한다. 아래 코드는 F 상수 `GUARD_POINTS`(`request`, `tool`, `output`) [제안]로 이름을 가리킨다.
@@ -407,7 +407,7 @@ const group: GroupModule = defineGroup<State>({
   state: { schema: __ID__State, initial: initialState, version: 1 },
   settings: __ID__Settings,
   setup(g) {
-    g.on("agent_settled", () => {});                  // 관찰 자리(tap). 커밋은 turn당 한 번, 효과는 commit·record·post만
+    g.on("boundary.settle.after", () => {});                  // 관찰 자리(tap). 커밋은 turn당 한 번, 효과는 commit·record·post만
     g.drive(async (loop, st) => {
       // 재생 규율: 진행 상태는 st(커밋된 상태)에만 둔다. Date.now·Math.random·직접 I/O 금지
       if (st.phase === "done" || loop.budget.turns === 0) return;
@@ -448,7 +448,7 @@ const group: GroupModule = defineGroup({
   manifest: groupManifest(manifestJson),
   settings: __ID__Settings,
   setup(g) {
-    g.on("tool_call", (p) => {                        // first: 차단. 예외는 거부가 된다
+    g.on("tool.call.before", (p) => {                        // first: 차단. 예외는 거부가 된다
       return g.settings().blockedTools.includes(p.toolName)
         ? { block: true, reason: "__TITLE__ 정책이 이 도구를 막았다" }
         : undefined;
@@ -471,7 +471,7 @@ const group: GroupModule = defineGroup<State>({
   state: { schema: __ID__State, initial: initialState, version: 1 },
   settings: __ID__Settings,
   setup(g) {
-    g.on("agent_settled", async (p) => {              // tap: 관찰. 반환값은 쓰지 않는다
+    g.on("boundary.settle.after", async (p) => {              // tap: 관찰. 반환값은 쓰지 않는다
       const next = { count: g.state().count + 1 };
       await g.commit(next);
       await g.record("grp.__ID__.turn.counted", { type: "turn", id: p.turnId }, next);
@@ -510,15 +510,15 @@ export const __ID__Settings: SettingGroup<"ext.__ID__", { blockedTools: SettingD
   "layer": "L3",
   "kind": "group",
   "entry": "./src/index.ts",
-  "points": ["tool_call"],
+  "points": ["tool.call.before"],
   "usesDrive": false,
   "defaultEnabled": false,
   "trust": { "level": "user" }
 }
 ```
 
-- drive 템플릿은 `"usesDrive": true`, `"points": ["agent_settled"]`, observe 템플릿은 `"points": ["agent_settled"]`, `"recordKinds"`에 `grp.__ID__.turn.counted` 선언을 둔다.
-- 관찰 지점 권장안 [제안]: 관찰은 tap 지점(`agent_settled`, 도구 단위가 필요하면 `tool_execution_end`)에서 하고 상태 커밋은 turn당 한 번(`agent_settled`)으로 둔다. `turn_end`는 chain이고 경계 엔트리를 다루는 지점이라 관찰 자리로 쓰지 않는다(`L3.helm.spec` §7, `L3.group-kit.spec` §4.5 4번).
+- drive 템플릿은 `"usesDrive": true`, `"points": ["boundary.settle.after"]`, observe 템플릿은 `"points": ["boundary.settle.after"]`, `"recordKinds"`에 `grp.__ID__.turn.counted` 선언을 둔다.
+- 관찰 지점 권장안 [제안]: 관찰은 tap 지점(`boundary.settle.after`, 도구 단위가 필요하면 `tool.execution.after`)에서 하고 상태 커밋은 turn당 한 번(`boundary.settle.after`)으로 둔다. `boundary.step.after`는 chain이고 경계 엔트리를 다루는 지점이라 관찰 자리로 쓰지 않는다(`L3.helm.spec` §7, `L3.group-kit.spec` §4.5 4번).
 - `plugin.json` JSON import에는 템플릿 `tsconfig.json`의 `resolveJsonModule`이 필요하다 [가정: `tsconfig.base.json`이 켜 두지 않으면 템플릿 쪽에서 켠다].
 - [제안] 템플릿의 `defaultEnabled`는 `false`다. 새 그룹은 사용자가 켜기 전에는 루프에 영향을 주지 않는다.
 
@@ -599,17 +599,17 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 #### 4.2.2 reviewgate 동작
 
-1. `tool_result`에서 쓰기 도구 결과가 오류가 아니면 `writes`를 하나 늘려 커밋한다.
-2. `agent_before_settle`에서 outcome이 `completed`이고 `writes > 0`이고 다른 핸들러가 아직 `continue`를 요청하지 않았으면 검토 입력을 post한다. `requestId`는 `reviewgate:<turnId>`다.
+1. `tool.result`에서 쓰기 도구 결과가 오류가 아니면 `writes`를 하나 늘려 커밋한다.
+2. `boundary.settle.before`에서 outcome이 `completed`이고 `writes > 0`이고 다른 핸들러가 아직 `continue`를 요청하지 않았으면 검토 입력을 post한다. `requestId`는 `reviewgate:<turnId>`다.
 3. post가 새로 들어갔고 `mode`가 `continue`면 `{ continue: true }`를 돌려준다. 같은 턴의 다음 정착에서는 같은 `requestId`가 `duplicate: true`이므로 더 요청하지 않는다. 그래서 한 턴에 검토 요청은 최대 한 번이다.
-4. `agent_settled`에서 `writes`를 0으로 커밋한다.
+4. `boundary.settle.after`에서 `writes`를 0으로 커밋한다.
 
 - 재실행: 2단계가 재실행되면 post는 `duplicate: true`를 돌려주고 패치를 내지 않는다. 같은 입력이 두 번 들어가지 않는다.
 
 #### 4.2.3 commitguard 동작
 
-1. `tool_result`: bash 명령이 `verifyCommand`와 같으면 결과 성공 여부를 `verified`로 커밋한다. `invalidateOn` 도구가 성공하면 `verified: false`를 커밋한다.
-2. `tool_call`: bash 명령이 `commitPattern`에 맞고 `ctx.state.verified`가 거짓이면 거부한다.
+1. `tool.result`: bash 명령이 `verifyCommand`와 같으면 결과 성공 여부를 `verified`로 커밋한다. `invalidateOn` 도구가 성공하면 `verified: false`를 커밋한다.
+2. `tool.call.before`: bash 명령이 `commitPattern`에 맞고 `ctx.state.verified`가 거짓이면 거부한다.
 3. 판정은 디스패치 시작 시점의 커밋 상태(`HandlerContext.state`)로만 한다.
 
 #### 4.2.4 guardrail 동작
@@ -644,10 +644,10 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 | 3 | 그룹 이름에 밑줄이나 대문자가 있거나, 예약 이름임 | 생성 명령이 거부한다. 직접 쓴 매니페스트는 X 로더가 확장 id 규칙(review.decisions-2 U-18)과 `RESERVED_EXT_IDS`로 거부한다(CM-07) |
 | 4 | 정책 플러그인(`kind: "plugin"`)이 `usesDrive: true`를 선언함 | `validateManifest`가 `drive_requires_group` 오류를 낸다 |
 | 5 | 정책 그룹이 `usesDrive: false`인데 `g.drive`를 호출함 | `validateUsage`가 `drive_undeclared` 오류를 낸다. 로드가 실패한다 |
-| 6 | 정책이 first 지점(`tool_call`)에서 예외를 냄 | 그 도구 호출은 `FIRST_DENY.tool_call`로 거부된다(fail-closed). 뒤 핸들러는 실행되지 않는다 |
+| 6 | 정책이 first 지점(`tool.call.before`)에서 예외를 냄 | 그 도구 호출은 `FIRST_DENY.tool_call`로 거부된다(fail-closed). 뒤 핸들러는 실행되지 않는다 |
 | 7 | 정책이 chain 지점에서 예외를 냄 | 그 핸들러의 패치만 버린다. reviewgate면 그 턴은 검토 없이 정착한다 |
 | 8 | `reviewgate`의 `continue`를 L1이 승인하지 않음(`canContinue` 거짓) | 검토 입력은 큐에 남는다. 다음 입력과 함께 모델에 들어간다 |
-| 9 | 두 정책 그룹이 같은 `tool_call`에 first 핸들러를 둠 | 순서상 먼저 결정한 쪽이 결과를 정한다. 순서는 `X.primitives.spec`의 tier 규칙이다 |
+| 9 | 두 정책 그룹이 같은 `tool.call.before`에 first 핸들러를 둠 | 순서상 먼저 결정한 쪽이 결과를 정한다. 순서는 `X.primitives.spec`의 tier 규칙이다 |
 | 10 | 템플릿의 설정 파일이 `ext.__ID__.enabled`를 선언함 | 예약 키라 거부된다(`F.wire-settings.spec` §3.8.3 규칙 1). 템플릿은 이 키를 두지 않는다 |
 | 11 | 외부 그룹이 `l3.` 키를 선언함 | `buildCatalog`가 `foreignNamespace`로 그 그룹의 설정 전체를 거부한다 |
 | 12 | 대상 디렉터리가 비어 있지 않음 | 생성 명령이 파일을 쓰지 않고 거부한다(R3) |
@@ -668,14 +668,14 @@ test("__ID__.drive-replays-at-every-commit", async () => {
 
 | 구성요소 | on (지점, fold) | post | drive | scope |
 |---|---|---|---|---|
-| drive 템플릿 | `agent_settled`(tap, 관찰 자리) | 선택 | 씀 | 상태 있음 |
-| policy 템플릿 | `tool_call`(first) | 선택 | 안 씀 | 상태 없음(생략 가능, `L3.group-kit.spec` §3.2) |
-| observe 템플릿 | `agent_settled`(tap) | 안 씀 | 안 씀 | 상태 있음, 레코드 씀 |
-| reviewgate | `tool_result`(chain), `agent_before_settle`(chain), `agent_settled`(tap) | 씀 | 안 씀 | 상태 있음 |
-| commitguard | `tool_call`(first), `tool_result`(chain) | 안 씀 | 안 씀 | 상태 있음 |
+| drive 템플릿 | `boundary.settle.after`(tap, 관찰 자리) | 선택 | 씀 | 상태 있음 |
+| policy 템플릿 | `tool.call.before`(first) | 선택 | 안 씀 | 상태 없음(생략 가능, `L3.group-kit.spec` §3.2) |
+| observe 템플릿 | `boundary.settle.after`(tap) | 안 씀 | 안 씀 | 상태 있음, 레코드 씀 |
+| reviewgate | `tool.result`(chain), `boundary.settle.before`(chain), `boundary.settle.after`(tap) | 씀 | 안 씀 | 상태 있음 |
+| commitguard | `tool.call.before`(first), `tool.result`(chain) | 안 씀 | 안 씀 | 상태 있음 |
 | guardrail | 가드 지점 셋(first, fail-closed) | 씀 | 안 씀 | 상태 없음(plugin) |
 
-- 지점 이름과 fold는 `F.extensions.spec` §3.4 표를 따른다. 정식 예가 쓰는 지점은 `agent_settled`를 빼면 모두 M1 정확화 지점이다(`input`, `tool_call`, `tool_result`, `agent_before_settle`; `agent_settled`도 M1 ●). `guardrail`이 쓰는 가드 지점 셋은 M3 F 작업이 더한다(ADR-0017).
+- 지점 이름과 fold는 `F.extensions.spec` §3.4 표를 따른다. 정식 예가 쓰는 지점은 `boundary.settle.after`를 빼면 모두 M1 정확화 지점이다(`input.user.before`, `tool.call.before`, `tool.result`, `boundary.settle.before`; `boundary.settle.after`도 M1 ●). `guardrail`이 쓰는 가드 지점 셋은 M3 F 작업이 더한다(ADR-0017).
 
 ## 8. 다른 문서와의 인터페이스
 

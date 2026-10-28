@@ -17,7 +17,7 @@ binds: [xeon/packages/group-kit/**]
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
 | M0 | group-kit 작업 없음. 선행 작업만 있다: F `contracts/extensions` 타입(`ScopeApi`, `DriveFn`, `GroupRecord`, `validateManifest`, `validateUsage`), X `ext-host` 최소형(on/post/drive/scope) | `product.scope.spec` 4.3절 M0, F.extensions.plan M0 |
-| M1 | 테스트용 그룹 fixture 하나만 만든다. `src/testing/smoke-group.ts`: on(`tool_call`, `turn_end`)·post·drive를 모두 쓰는 최소 그룹. 이 그룹은 F 타입과 X 최소형만 쓰고 `defineGroup`을 쓰지 않는다. `xeon.domain` 값 수정 | `product.scope.spec` 4.3절 M1, `_research/foundation-plan.md` §6 M1 스모크, F.extensions.plan M1 |
+| M1 | 테스트용 그룹 fixture 하나만 만든다. `src/testing/smoke-group.ts`: on(`tool.call.before`, `boundary.step.after`)·post·drive를 모두 쓰는 최소 그룹. 이 그룹은 F 타입과 X 최소형만 쓰고 `defineGroup`을 쓰지 않는다. `xeon.domain` 값 수정 | `product.scope.spec` 4.3절 M1, `_research/foundation-plan.md` §6 M1 스모크, F.extensions.plan M1 |
 | M2 | `defineGroup`(상태 없는 그룹 포함), `groupManifest`, `validateGroupDef`, `checkGroup`, `GroupApi` 래퍼(`settings()`, 메모리 계측, `registerTool`·`registerCommand`), `DriveArbiter`와 `LeaseArbiterPort` 어댑터, 그룹 상태 레코드 어댑터, 레코드 래퍼 검사, `GroupService`(`xeon.groups`), `/group` 명령 해석·실행, 상태줄 문자열 생성, `l3.group-kit.*` 설정, `replayDrive` 최소형(Helm 테스트가 쓴다), DR-02 허용 목록 등록, M1 fixture를 `defineGroup`으로 옮김 | `product.scope.spec` 4.3절 M2 "Helm 본체 1차(group-kit, group-helm)" |
 | M3 이후(2차) | `delegate` 구현(학습 그룹 M3와 함께, L1.agents 의존), `scanDriveSource`, `PromotionReport`, `GroupMetrics` 이벤트 기록, `replayDrive` 옵션 확장. L3.slots의 템플릿 3종과 정식 예 3종을 이 패키지에 둔다(G-24~G-27) | `_research/layer-plan-v2.json` L3-a·L3-d 2차 항목, `product.scope.spec` 4.3절 M3, L3.slots.plan §1 |
 
@@ -143,7 +143,7 @@ xeon/packages/group-kit/
 
 | id | 내용 | 선행 작업 | 규모 | 마일스톤 |
 |---|---|---|---|---|
-| G-01 | M1 테스트 그룹 `smokeGroup`: F `ExtensionEntry`로 직접 작성. 매니페스트 `points: ["tool_call", "turn_end"]`, `usesPost: true`, `usesDrive: true`. drive는 `loop.turn` 한 번 뒤 `commit`, `turn_end`에서 `post`(`requestId: smoke:${stepId}`), `tool_call`에서 쓰기 도구 차단. `testing` 진입점 추가 | F.extensions.plan E(M0 타입·검증), X.primitives.plan의 M0 최소형과 `@xeon/ext-host/testing` | S | M1 |
+| G-01 | M1 테스트 그룹 `smokeGroup`: F `ExtensionEntry`로 직접 작성. 매니페스트 `points: ["tool.call.before", "boundary.step.after"]`, `usesPost: true`, `usesDrive: true`. drive는 `loop.turn` 한 번 뒤 `commit`, `boundary.step.after`에서 `post`(`requestId: smoke:${stepId}`), `tool.call.before`에서 쓰기 도구 차단. `testing` 진입점 추가 | F.extensions.plan E(M0 타입·검증), X.primitives.plan의 M0 최소형과 `@xeon/ext-host/testing` | S | M1 |
 | G-02 | `package.json` `xeon.domain`을 `group-kit`으로 변경, `exports`에 `./testing` 추가, `tsconfig.json` `references` 정리 | 없음 | S | M1 |
 | G-03 | 허용 목록에 `DR-02/group-kit-helm`, `DR-02/group-kit-learning` 등록, `reason` 갱신 | G-02, `check-layers.ts` 허용 목록 읽기(eng.toolchain) | S | M2 |
 | G-04 | `define-group.ts`: 타입, `GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`, `validateGroupDef`, `defineGroup`(검증 실패 시 `Bug`) | F `ExtensionManifest`, `StateDecl`, `validateManifest`, F `SettingGroup`, `defineSettings` | M | M2 |
@@ -200,7 +200,7 @@ xeon/packages/group-kit/
 
 | 테스트 이름 | 확인하는 동작 | 마일스톤 |
 |---|---|---|
-| `smoke.uses-on-post-drive-in-one-turn` | `smokeGroup`이 한 턴에서 `tool_call`·`turn_end` 핸들러, `post`, drive 함수를 모두 호출한다 | M1 |
+| `smoke.uses-on-post-drive-in-one-turn` | `smokeGroup`이 한 턴에서 `tool.call.before`·`boundary.step.after` 핸들러, `post`, drive 함수를 모두 호출한다 | M1 |
 | `smoke.manifest-passes-validation` | `smokeGroup` 매니페스트가 `validateManifest`, 실제 등록이 `validateUsage`를 오류 없이 통과한다 | M1 |
 | `smoke.toggle-applies-at-step-boundary` | 실행 중 끄기 요청이 다음 단계 경계에서 적용되고 그 전 단계의 핸들러는 계속 불린다 | M1 |
 | `define-group.rejects-usage-without-manifest-point` | 매니페스트에 없는 지점에 `on`을 건 그룹에서 `checkGroup`이 `point_undeclared`를 돌려준다 | M2 |
@@ -216,7 +216,7 @@ xeon/packages/group-kit/
 | `arbiter.port-maps-lease-candidates` | `leaseArbiterPort`가 `LeaseCandidate.loadIndex`를 `loadOrder`로 옮기고 `decide`의 `holder`를 `choose` 결과로 돌려준다 | M2 |
 | `arbiter.named-unavailable-grants-none` | 지정 그룹이 후보가 아니면 `holder: null`, 모두 `waiting` | M2 |
 | `arbiter.excludes-drive-error` | drive 예외로 오류 표시된 그룹은 X가 후보에 넣지 않고 `GroupStatus.drive`가 `"error"`다(테스트 호스트) | M2 |
-| `arbiter.waiting-group-keeps-on-handlers` | 대기 그룹의 drive 함수 호출은 0이고 `tool_call` 핸들러와 `post`는 계속 동작한다(테스트 호스트) | M2 |
+| `arbiter.waiting-group-keeps-on-handlers` | 대기 그룹의 drive 함수 호출은 0이고 `tool.call.before` 핸들러와 `post`는 계속 동작한다(테스트 호스트) | M2 |
 | `arbiter.named-swap-revokes-at-the-next-boundary` | A가 임대를 가진 동안 `x.primitives.activeDriveGroup`을 B로 바꾸면 임대는 그 경계까지 유지되고, 다음 경계에서 `lease.released{revoked}` 뒤 B가 `lease.acquired`를 받는다. 끊긴 step이 없다. B가 후보가 아니면 유지된다(X.primitives.spec §4.4.1 5번) | M2 |
 | `state.restore-on-branch` | v1·v2 커밋 뒤 v1 직후로 분기하면 `state()`가 v1이다 | M2 |
 | `state.restore-on-resume` | 재시작 뒤 drive 함수 인자가 마지막 커밋 상태다 | M2 |

@@ -55,20 +55,20 @@ xeon/packages/group-kit/
       README.md
       test/manifest.test.ts
     drive/
-      .xeon-plugin/plugin.json      # usesDrive: true, points: ["agent_settled"]
+      .xeon-plugin/plugin.json      # usesDrive: true, points: ["boundary.settle.after"]
       src/index.ts                  # defineGroup + g.drive 골격
       src/state.ts
       src/settings.ts
       test/unit.test.ts
       test/replay.test.ts           # replayDrive 골격
     policy/
-      .xeon-plugin/plugin.json      # usesDrive: false, points: ["tool_call"]
-      src/index.ts                  # tool_call first 골격(상태 없음)
+      .xeon-plugin/plugin.json      # usesDrive: false, points: ["tool.call.before"]
+      src/index.ts                  # tool.call.before first 골격(상태 없음)
       src/settings.ts
       test/unit.test.ts
     observe/
-      .xeon-plugin/plugin.json      # usesDrive: false, points: ["agent_settled"], recordKinds 1개
-      src/index.ts                  # agent_settled tap + record 골격
+      .xeon-plugin/plugin.json      # usesDrive: false, points: ["boundary.settle.after"], recordKinds 1개
+      src/index.ts                  # boundary.settle.after tap + record 골격
       src/state.ts
       src/settings.ts
       test/unit.test.ts
@@ -134,9 +134,9 @@ xeon/packages/group-kit/
 | 테스트 이름 | 확인할 동작 | 작업 |
 |---|---|---|
 | `template.drive-group-loads-and-toggles` | drive 템플릿으로 생성한 그룹이 로드되고, 켜면 다음 단계 경계 뒤 drive 함수가 호출되며, 끄면 다음 단계 경계 뒤 임대가 반납된다 | S-01 |
-| `template.policy-group-denies-via-first` | policy 템플릿 그룹이 `blockedTools`에 있는 도구의 `tool_call`을 거부하고, 사유가 도구 결과로 모델에 돌아간다 | S-01 |
+| `template.policy-group-denies-via-first` | policy 템플릿 그룹이 `blockedTools`에 있는 도구의 `tool.call.before`을 거부하고, 사유가 도구 결과로 모델에 돌아간다 | S-01 |
 | `template.policy-exception-becomes-deny` | policy 그룹의 first 핸들러가 던지면 `FIRST_DENY.tool_call`로 거부되고 뒤 핸들러는 실행되지 않는다 | S-01 |
-| `template.policy-group-disable-stops-first-handler` | policy 템플릿 그룹이 `contracts`·`ext-host` 수정 없이 로드되고, `ext.<id>.enabled`를 거짓으로 바꾸면 다음 단계 경계 뒤 그 그룹의 `tool_call` 핸들러 호출 수가 0이며 `blockedTools`의 도구가 실행된다 | S-01 |
+| `template.policy-group-disable-stops-first-handler` | policy 템플릿 그룹이 `contracts`·`ext-host` 수정 없이 로드되고, `ext.<id>.enabled`를 거짓으로 바꾸면 다음 단계 경계 뒤 그 그룹의 `tool.call.before` 핸들러 호출 수가 0이며 `blockedTools`의 도구가 실행된다 | S-01 |
 | `template.manifest-passes-validateManifest` | 세 템플릿 생성 결과의 `plugin.json`이 `validateManifest` 오류 0, setup 뒤 `validateUsage` 오류 0이다. `focus_lens`(밑줄), `core`(예약 이름)는 생성 단계에서 거부되고, 하이픈 이름은 통과한다(review.decisions-2 U-18) | S-04 |
 | `template.replay-test-cuts-at-every-commit` | drive 템플릿의 `test/replay.test.ts`가 생성 직후 통과한다. 커밋 지점 수만큼 끊어 재개한 효과 열이 끊지 않은 실행과 같다 | S-03 |
 | `policy.verify-before-commit-blocks-until-verified` | `commitguard`: 검증 전 `git commit` bash 호출 거부 → `just verify` 성공 → 커밋 실행 → `write` 성공 → 다시 거부 | S-02 |
@@ -147,7 +147,7 @@ xeon/packages/group-kit/
 
 | 테스트 이름 | 확인할 동작 | 작업 |
 |---|---|---|
-| `template.observe-group-records-turn-count` | observe 템플릿 그룹이 `agent_settled`마다 `grp.<id>.turn.counted` 레코드를 쓰고, 다른 그룹의 `readRecords`로 읽힌다 | S-01 |
+| `template.observe-group-records-turn-count` | observe 템플릿 그룹이 `boundary.settle.after`마다 `grp.<id>.turn.counted` 레코드를 쓰고, 다른 그룹의 `readRecords`로 읽힌다 | S-01 |
 | `template.index-matches-files` | `templates/index.json`의 파일 목록과 실제 파일 집합이 같고, `TemplateIndexSchema`를 통과한다 | S-01 |
 | `policy.guardrail-unknown-follows-setting` | `guardrail`: 검사 함수 예외 시 `onUnknown: "deny"`면 거부, `"allow"`면 통과 | S-02 |
 | `policy.plugin-kind-rejects-drive` | `kind: "plugin"` 정책 매니페스트에 `usesDrive: true`면 `drive_requires_group` 오류 | S-04 |

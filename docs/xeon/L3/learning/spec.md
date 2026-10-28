@@ -17,13 +17,13 @@ binds: [xeon/packages/group-learning/**]
 - [결정] 학습 그룹은 L3 기본 그룹이다. `drive`를 쓰지 않으므로 Helm과 함께 켤 수 있다(`_research/decisions-log.md` 2026-10-21 계획 v2, `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", F.extensions.spec §4.6).
 - [결정] 저장(스킬, 메모리, 세션 검색, 변경 원장)은 L2-d(L2.knowledge.spec, 패키지 `cap-knowledge`)가 소유한다. 학습 그룹은 정책만 가진다(eng.context-map.design 3절 협력 규칙 5).
 - [결정] 검토 포크는 L1-g 백그라운드 위임(L1.agents.spec, 패키지 `core-agents`)으로 실행한다(eng.context-map.design 3절 협력 규칙 4, F.extensions.spec §4.6, `architecture/runtime-flow/design.md` §4.5).
-- [결정: adr.0015] on 핸들러에서 `requestId` 멱등 `g.delegate`를 부를 수 있다. 검토 포크는 `agent_settled` 핸들러에서 바로 시작한다(§4.3). 재실행되는 코드의 효과 분류는 §4.10이다.
+- [결정: adr.0015] on 핸들러에서 `requestId` 멱등 `g.delegate`를 부를 수 있다. 검토 포크는 `boundary.settle.after` 핸들러에서 바로 시작한다(§4.3). 재실행되는 코드의 효과 분류는 §4.10이다.
 
 ### 1.0 M3 설계 개정 (2026-10-26)
 
 M3 설계 단계(사용자 결정 2026-10-25의 순서)에서 이 문서를 M3 구현 기준으로 고쳤다. 입력은 `review.m3-design-inputs` §4.2(L-IN-01~L-IN-19)와 §4.4 요구 목록, ADR-0015다. 바뀐 점:
 
-- 재실행 효과 분류를 ADR-0015 표에 맞췄다(§4.10). on 핸들러는 능력 메서드를 부르지 않는다. 대기열 복원과 만료 판정은 재실행되지 않는 명령 경로로 옮겼고(§4.5 규칙 7), 지점 `session_start`는 쓰지 않는다.
+- 재실행 효과 분류를 ADR-0015 표에 맞췄다(§4.10). on 핸들러는 능력 메서드를 부르지 않는다. 대기열 복원과 만료 판정은 재실행되지 않는 명령 경로로 옮겼고(§4.5 규칙 7), 지점 `session.start`는 쓰지 않는다.
 - 검토 포크의 완료는 부모 대화의 내구 이벤트 `agent.settled`로 안다(§4.3). 보고 post는 만들지 않고 검토 결과를 부모 모델 입력에 넣지 않는다 [결정: review.m3-design-inputs D-M3-03].
 - 포크 지점을 `{ at: "item" }`으로 바꿨다. L1-g는 `{ at: "event" }`를 `agents.invalid_request`로 거부한다(L1.agents.spec §4.1 3번).
 - 한 대화에서 동시에 도는 검토는 하나다(상태 `inFlightReviewId`, §4.2).
@@ -87,7 +87,7 @@ export const manifest = defineManifest({
   defaultEnabled: true,            // [결정: D-M3-02] 내장 그룹, 기본 켬
   usesDrive: false,
   usesPost: false,                 // [제안] 그룹은 post를 부르지 않는다. 완료 보고는 L1-g 코어 경로다(§7)
-  points: ["agent_start", "turn_end", "agent_settled"],
+  points: ["boundary.turn.before", "boundary.step.after", "boundary.settle.after"],
   // 내구 이벤트 구독: 코어 kind "agent.settled"(§4.3 완료 통지). 선언 위치는 요구 REQ-LN-02(§8.1)
   requires: [                                // L2.knowledge.spec §1 능력 4개
     { id: "knowledge.skills", range: "^1.0.0" },
@@ -150,7 +150,7 @@ export const learningGroup = defineGroup<LearningState>({
   manifest,
   state: { schema: LearningStateSchema, initial: INITIAL_LEARNING_STATE, version: 1 },
   setup: (g: GroupApi<LearningState>) => {
-    registerTriggers(g);      // triggers.ts: agent_start, turn_end, agent_settled
+    registerTriggers(g);      // triggers.ts: boundary.turn.before, boundary.step.after, boundary.settle.after
     registerSettledWatch(g);  // review/fork.ts: 코어 이벤트 agent.settled 구독, 검토 종료 기록(§4.3)
     registerProposeTool(g);   // review/policy.ts: g.registerTool로 learning_propose 도구
     registerCommands(g);      // commands.ts: g.registerCommand("learning", …). 대기열 복원·만료는 여기서(§4.5 규칙 7)
@@ -180,7 +180,7 @@ export type TurnOrigin = "user" | "scheduled" | "remote" | "delegation" | "drive
 /** turn 하나 동안 핸들러가 모은 값. agent_settled에서 한 번 반영한다 */
 export interface TurnTally {
   readonly turnId: TurnId;
-  /** agent_settled 페이로드의 값(REQ-LN-01). 필드가 없는 동안은 "user"로 본다 */
+  /** boundary.settle.after 페이로드의 값(REQ-LN-01). 필드가 없는 동안은 "user"로 본다 */
   readonly origin: TurnOrigin;
   readonly status: "completed" | "aborted" | "error";
   readonly hasFinalAnswer: boolean;
@@ -218,7 +218,7 @@ export const REVIEW_AGENT = "learning-review";
 export const REVIEW_RESULT_TYPE = "grp.learning.review.result";
 
 export function buildReviewSpec(input: {
-  /** upToItemId: 이번 turn의 마지막 내구 item. agent_settled 페이로드의 lastItemId(REQ-LN-01) */
+  /** upToItemId: 이번 turn의 마지막 내구 item. boundary.settle.after 페이로드의 lastItemId(REQ-LN-01) */
   readonly parent: { readonly threadId: ThreadId; readonly upToItemId: ItemId };
   /** reviewRequestId(epoch) 또는 수동 검토 "learning:review:manual:<n>". 1~48자 */
   readonly requestId: string;
@@ -630,14 +630,14 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
 
 | 지점 | fold | 하는 일 |
 |---|---|---|
-| `agent_start` | tap | 이 대화의 turn 집계표(`TurnTally`)를 `turnId`로 연다 |
-| `turn_end` | chain(값을 바꾸지 않고 `undefined`를 돌려준다) | `toolResults`가 하나 이상이고 이 `stepId`를 처음 보면 `toolIterations += 1`. 도구 이름이 `skill_manage` 또는 `learning_propose`이면 `skillWritten = true` |
-| `agent_settled` | tap | 페이로드의 `origin`, `status`, `hasFinalAnswer`로 집계표를 닫고 `applyTurn`으로 판정한다. `review`이면 §4.3의 순서로 포크를 시작하고 상태를 커밋한다. `skip`이면 상태만 커밋한다 |
+| `boundary.turn.before` | tap | 이 대화의 turn 집계표(`TurnTally`)를 `turnId`로 연다 |
+| `boundary.step.after` | chain(값을 바꾸지 않고 `undefined`를 돌려준다) | `toolResults`가 하나 이상이고 이 `stepId`를 처음 보면 `toolIterations += 1`. 도구 이름이 `skill_manage` 또는 `learning_propose`이면 `skillWritten = true` |
+| `boundary.settle.after` | tap | 페이로드의 `origin`, `status`, `hasFinalAnswer`로 집계표를 닫고 `applyTurn`으로 판정한다. `review`이면 §4.3의 순서로 포크를 시작하고 상태를 커밋한다. `skip`이면 상태만 커밋한다 |
 | 내구 이벤트 `agent.settled` | 구독(REQ-LN-02) | `reviewFinishOutcome`으로 검토 종료를 기록하고 `inFlightReviewId`를 비운다(§4.3 완료 통지) |
 
-- `tool_execution_end` 대신 `turn_end`를 쓴다 [제안]. `ToolExecutionEndPayload`에는 `stepId`가 없어 step 중복을 막을 수 없고(`xeon/packages/contracts/src/extensions/points/tool.ts`), `TurnEndPayload`는 `stepId`와 `toolResults`를 가진다(F.extensions.spec §3.4 `points/boundary.ts`). `turn_end`의 fold는 chain이지만 학습 핸들러는 값을 바꾸지 않으므로 다른 그룹의 결과와 캐시 접두에 영향이 없다.
-- 스킬 쓰기 판정 [제안]: 도구 이름만 본다. `skill_manage`는 L2 스킬 쓰기 도구이고 모든 연산이 쓰기다(L2.knowledge.spec §3.6). `learning_propose`는 종류와 무관하게 스킬 작업으로 본다. 입력을 보지 않으므로 `tool_execution_end`의 `input` 필드(REQ-F-04)를 기다리지 않는다.
-- `session_start`는 쓰지 않는다. 대기열 복원과 만료는 읽기가 필요해서 on 핸들러에 둘 수 없다(ADR-0015 §3.2, `review.m3-design-inputs` D-M3-31 행 8). §4.5 규칙 7의 명령 경로로 옮겼다.
+- `tool.execution.after` 대신 `boundary.step.after`를 쓴다 [제안]. `ToolExecutionEndPayload`에는 `stepId`가 없어 step 중복을 막을 수 없고(`xeon/packages/contracts/src/extensions/points/tool.ts`), `TurnEndPayload`는 `stepId`와 `toolResults`를 가진다(F.extensions.spec §3.4 `points/boundary.ts`). `boundary.step.after`의 fold는 chain이지만 학습 핸들러는 값을 바꾸지 않으므로 다른 그룹의 결과와 캐시 접두에 영향이 없다.
+- 스킬 쓰기 판정 [제안]: 도구 이름만 본다. `skill_manage`는 L2 스킬 쓰기 도구이고 모든 연산이 쓰기다(L2.knowledge.spec §3.6). `learning_propose`는 종류와 무관하게 스킬 작업으로 본다. 입력을 보지 않으므로 `tool.execution.after`의 `input` 필드(REQ-F-04)를 기다리지 않는다.
+- `session.start`는 쓰지 않는다. 대기열 복원과 만료는 읽기가 필요해서 on 핸들러에 둘 수 없다(ADR-0015 §3.2, `review.m3-design-inputs` D-M3-31 행 8). §4.5 규칙 7의 명령 경로로 옮겼다.
 
 `applyTurn(state, tally, settings, enabled)` 규칙:
 
@@ -651,13 +651,13 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
 - 입력 출처 판정: `AgentSettledPayload`에 `origin`, `status`, `hasFinalAnswer`, `lastItemId`를 더하도록 요구한다(REQ-LN-01, `review.m3-design-inputs` REQ-F-06). 지금 페이로드는 `{ turnId, aborted }`뿐이다(F.extensions.spec §3.4). 필드가 들어오기 전 임시 규칙: `origin`은 `user`, `status`는 `aborted`면 `aborted` 아니면 `completed`, `hasFinalAnswer`는 참으로 본다. `lastItemId`가 없으면 검토를 시작하지 않는다(포크 지점을 정할 수 없다).
 - 검토 포크 대화 판정: 위임 자식 대화의 turn은 `origin = "delegation"`이라 규칙 2로 제외된다. 그룹 핸들러가 자식 대화에서도 발화하는지(REQ-L1-04)와 무관하게 성립한다. 재귀 방지는 이 규칙과 `toolPolicy`(위임 도구 없음) 두 겹이다.
 - Helm drive가 연 turn(`origin = "drive"`)은 사용자 turn으로 세지 않는다(§4.9).
-- step 중복 방지: 집계표는 센 `stepId` 집합을 가진다. 재생으로 다시 발화한 같은 `turn_end`는 다시 세지 않는다.
-- 커밋 빈도 [제안]: 상태 커밋은 turn당 1회(`agent_settled`)다. 예외로 `agent.settled` 구독 핸들러가 검토당 1회 커밋한다(§4.3). `agent_start`, `turn_end`의 집계는 프로세스 메모리의 집계표에만 둔다. 집계표는 효과가 아니므로 ADR-0015 표의 대상이 아니다. 집계표 값은 `requestId` 재료로 쓰지 않는다(ADR-0015 §3.4 2번). 집계표는 `turnId`로 구분하고 커밋 뒤 버린다. 크래시로 집계표를 잃으면 그 turn의 증가분만 잃는다. 결과는 검토가 한 turn 늦어지는 것뿐이므로 받아들인다.
+- step 중복 방지: 집계표는 센 `stepId` 집합을 가진다. 재생으로 다시 발화한 같은 `boundary.step.after`는 다시 세지 않는다.
+- 커밋 빈도 [제안]: 상태 커밋은 turn당 1회(`boundary.settle.after`)다. 예외로 `agent.settled` 구독 핸들러가 검토당 1회 커밋한다(§4.3). `boundary.turn.before`, `boundary.step.after`의 집계는 프로세스 메모리의 집계표에만 둔다. 집계표는 효과가 아니므로 ADR-0015 표의 대상이 아니다. 집계표 값은 `requestId` 재료로 쓰지 않는다(ADR-0015 §3.4 2번). 집계표는 `turnId`로 구분하고 커밋 뒤 버린다. 크래시로 집계표를 잃으면 그 turn의 증가분만 잃는다. 결과는 검토가 한 turn 늦어지는 것뿐이므로 받아들인다.
 - 임계는 설정 키 `l3.learning.trigger.userTurns`(기본 10), `l3.learning.trigger.toolIterations`(기본 10)로 바꾼다. 0은 그 사유를 끈다는 뜻이다 [제안].
 
 ### 4.3 검토 포크
 
-시작 순서(`agent_settled` 핸들러, 판정이 `review`일 때):
+시작 순서(`boundary.settle.after` 핸들러, 판정이 `review`일 때):
 
 1. 스냅샷 범위를 정한다: 부모 `threadId`와 이번 turn의 마지막 내구 item id(`AgentSettledPayload.lastItemId`, REQ-LN-01).
 2. 다른 그룹의 레코드는 읽지 않는다 [결정: review.decisions-2 D-10]. 검토 입력은 1의 스냅샷뿐이다.
@@ -741,7 +741,7 @@ Hermes 규칙(`hermes.md` §3.10.1 (가) 1~5)을 단계 경계 이벤트 기준�
    - 자동 병합은 하지 않는다. 사용자가 고르는 길은 셋이다: 승인(새 스킬로 둠), 거절, 수정(`edit`)으로 기존 스킬의 `patch` 후보로 바꿈. 두 스킬을 합치는 일은 2차 큐레이터의 LLM 통합 몫이다(§4.8.1).
 5. 승인 중 원본 변경: 승인 시점과 적용 시점 사이에 원본이 바뀌면 L2-d가 `base_stale`을 돌려주고 후보는 `pending`으로 돌아간다(위 표). 사용자는 새 diff를 보고 다시 결정한다.
 6. 결정 경로: 결정은 사용자 명령(§6.2) 처리기 안에서 한다. 명령 처리기는 재실행되는 코드가 아니므로 ADR-0015 표의 대상이 아니고 L2-d 호출을 직접 할 수 있다. 결정 이벤트(`grp.learning.proposal.decided`)를 먼저 커밋하고 적용을 부른다. 적용 호출은 `ApprovalEvidence{ source: "learning.queue", proposalId, revision, decidedAt }`를 싣는다. L2-d는 이 증거를 믿을 때 자기 승인 요청을 내지 않으므로 승인이 한 번이다(L-IN-16). 증거를 믿는 조건(`l2.knowledge.write.trustedEvidenceSources`에 `learning.queue`가 있음)은 요구 REQ-LN-09다. 믿지 않으면 L2-d가 승인 요청을 한 번 더 내고, 학습 그룹은 그 결과를 `approval_required`로 받아 `approved`에 둔다.
-7. 지연 정리 [제안]: `/learning` 명령 처리기는 진입 때마다 먼저 `sweepQueue`를 돌린다. (1) `approved`이고 `applied`가 아닌 행의 적용을 같은 `idempotencyKey`로 다시 부른다. (2) 만료 시각이 지난 `pending` 행을 `expired`로 바꾼다. (3) `inFlightReviewId`가 있고 구독 경로가 없으면 §4.3 대체 조회를 한다. 시각은 명령 문맥의 주입 시계를 쓴다. L4 승인 화면은 목록을 `/learning queue --json`으로 받으므로 화면을 열 때도 정리가 돈다. 옛 `session_start` 복원은 on 핸들러 안의 읽기와 능력 쓰기라 ADR-0015 §3.2에서 허용되지 않는다(능력 쓰기는 `idempotent: true` 선언이 있으면 허용되지만 대상 행을 고르는 읽기가 막힌다). `approved` 미적용 행은 결정 명령 도중 프로세스가 끝날 때만 생기므로 다음 명령까지 미뤄도 사용자가 보는 상태와 어긋나지 않는다.
+7. 지연 정리 [제안]: `/learning` 명령 처리기는 진입 때마다 먼저 `sweepQueue`를 돌린다. (1) `approved`이고 `applied`가 아닌 행의 적용을 같은 `idempotencyKey`로 다시 부른다. (2) 만료 시각이 지난 `pending` 행을 `expired`로 바꾼다. (3) `inFlightReviewId`가 있고 구독 경로가 없으면 §4.3 대체 조회를 한다. 시각은 명령 문맥의 주입 시계를 쓴다. L4 승인 화면은 목록을 `/learning queue --json`으로 받으므로 화면을 열 때도 정리가 돈다. 옛 `session.start` 복원은 on 핸들러 안의 읽기와 능력 쓰기라 ADR-0015 §3.2에서 허용되지 않는다(능력 쓰기는 `idempotent: true` 선언이 있으면 허용되지만 대상 행을 고르는 읽기가 막힌다). `approved` 미적용 행은 결정 명령 도중 프로세스가 끝날 때만 생기므로 다음 명령까지 미뤄도 사용자가 보는 상태와 어긋나지 않는다.
 8. 범위 선택 [결정: review.m3-design-inputs D-M3-09]: 스킬 후보의 기본 범위는 `user`다. `approve`에 `scope: "project"`가 있으면 적용 어댑터가 `KnowledgeChange.scope = "project"`로 부른다. 메모리·피드백 후보에 `project`를 주면 `learning.scopeNotAllowed`다. 모델 도구 경로(`learning_propose`, `skill_manage`)는 프로젝트 범위를 고를 수 없다.
 
 ### 4.6 사전 스캔 (`proposals/scan.ts`)
@@ -791,15 +791,15 @@ M3 1차 범위 밖이고 M4 이후에 둔다(`product/scope/spec.md` 4.5, `_rese
 
 ### 4.10 재실행되는 코드의 효과 (ADR-0015)
 
-학습 그룹에서 재실행되는 코드는 on 핸들러 세 개(`agent_start`, `turn_end`, `agent_settled`)와 `agent.settled` 구독 핸들러다. drive 함수는 없다. 각 코드가 내는 효과와 ADR-0015 §3.2 표의 근거:
+학습 그룹에서 재실행되는 코드는 on 핸들러 세 개(`boundary.turn.before`, `boundary.step.after`, `boundary.settle.after`)와 `agent.settled` 구독 핸들러다. drive 함수는 없다. 각 코드가 내는 효과와 ADR-0015 §3.2 표의 근거:
 
 | 코드 | 효과 | ADR-0015 분류 | 멱등 근거 |
 |---|---|---|---|
-| `agent_start` | 없음(메모리 집계표) | 해당 없음 | 효과가 아니다 |
-| `turn_end` | 없음(메모리 집계표). 반환 `undefined` | 해당 없음 | `stepId` 집합으로 중복 계수를 막는다 |
-| `agent_settled` | `g.delegate(spec)` | `g.delegate`: on 핸들러 허용 | 코어(L1-g)의 (부모 대화, `learning:review:<epoch>`) 멱등. 재시작 뒤에도 유지(REQ-L1-01) |
-| `agent_settled` | `g.recordPrivate("grp.learning.fork.started", …)` | `recordPrivate` 허용 | X 커밋 키 `rec:<scope 해시>:<dispatchKey>:<n>` |
-| `agent_settled` | `g.commit(next)` | `commit` 허용 | X 상태 커밋 멱등 키(재실행은 `replayed`) |
+| `boundary.turn.before` | 없음(메모리 집계표) | 해당 없음 | 효과가 아니다 |
+| `boundary.step.after` | 없음(메모리 집계표). 반환 `undefined` | 해당 없음 | `stepId` 집합으로 중복 계수를 막는다 |
+| `boundary.settle.after` | `g.delegate(spec)` | `g.delegate`: on 핸들러 허용 | 코어(L1-g)의 (부모 대화, `learning:review:<epoch>`) 멱등. 재시작 뒤에도 유지(REQ-L1-01) |
+| `boundary.settle.after` | `g.recordPrivate("grp.learning.fork.started", …)` | `recordPrivate` 허용 | X 커밋 키 `rec:<scope 해시>:<dispatchKey>:<n>` |
+| `boundary.settle.after` | `g.commit(next)` | `commit` 허용 | X 상태 커밋 멱등 키(재실행은 `replayed`) |
 | `agent.settled` 구독 | `recordPrivate`(`fork.finished`), `record`(`review.finished`), `commit` | 모두 허용 | 디스패치 키(구독한 이벤트 id) 기반 커밋 키 |
 
 - 능력 메서드: on 핸들러는 능력 메서드를 부르지 않는다. 읽기도 부르지 않는다(ADR-0015 §3.2, [결정: review.m3-design-inputs D-M3-31] 행 8). 능력 호출은 도구 `execute`(§3.5)와 명령 처리기(§4.5)에만 있다.
@@ -818,14 +818,14 @@ M3 1차 범위 밖이고 M4 이후에 둔다(`product/scope/spec.md` 4.5, `_rese
 | 4 | 승인과 적용 사이 원본 스킬 변경 | L2-d `base_stale` → `pending`으로 되돌림, 새 diff 표시(§4.5 규칙 5) |
 | 5 | 학습 그룹 비활성화 중 포크 진행 | [결정: review.m3-design-inputs D-M3-04] 즉시 취소: 비활성화 적용 때 `onDispose`에서 `g.cancelDelegates("group_disabled")`를 부른 뒤 `g.commit`으로 `inFlightReviewId = null`을 커밋한다(`onDispose` 안의 커밋 허용 여부는 REQ-X-12 [가정]). L1-g는 이 scope가 주체인 백그라운드 자식을 모두 취소하고 `agent.settled{ status: "aborted" }`를 커밋한다. 학습 그룹이 꺼져 있으므로 구독 핸들러는 돌지 않는다. `onDispose`에서 커밋하지 못하는 구성이면 `inFlightReviewId`가 남고, 다시 켠 뒤 첫 명령 진입 때 대체 조회(§4.3)로 비운다. 취소 전에 제출된 후보는 `pending`으로 남고, 다시 켜면 대기열을 그대로 보인다. |
 | 6 | 재개 뒤 같은 지점 재발화 | 같은 `requestId`로 `g.delegate` → `duplicate`. 포크는 하나만 있다(§4.3) |
-| 7 | `agent_settled` 핸들러 안에서 `g.delegate`가 `{ ok: false }`를 돌려주거나 예외 | `{ ok: false }`(`group.delegateUnavailable`, `group.disabling`, `group.delegateFailed`, `group.delegateInvalid`)이면 카운터만 갱신하고 `delegateFailures += 1`을 커밋한다(§4.3 3). 예외는 tap 규칙대로 기록하고 계속하며 상태를 커밋하지 않는다. 다음 turn에 같은 `epoch + 1`로 다시 시도한다. `delegateFailures`가 3이 되면 그 판정에서 검토를 포기하고 카운터를 0, `delegateFailures`를 0으로 커밋한다 [제안] |
+| 7 | `boundary.settle.after` 핸들러 안에서 `g.delegate`가 `{ ok: false }`를 돌려주거나 예외 | `{ ok: false }`(`group.delegateUnavailable`, `group.disabling`, `group.delegateFailed`, `group.delegateInvalid`)이면 카운터만 갱신하고 `delegateFailures += 1`을 커밋한다(§4.3 3). 예외는 tap 규칙대로 기록하고 계속하며 상태를 커밋하지 않는다. 다음 turn에 같은 `epoch + 1`로 다시 시도한다. `delegateFailures`가 3이 되면 그 판정에서 검토를 포기하고 카운터를 0, `delegateFailures`를 0으로 커밋한다 [제안] |
 | 8 | 포크가 쓰기 도구를 부름 | 실행 거부, 거부 사유 반환(§4.3). 후보는 생기지 않는다 |
 | 9 | 포크가 `baseHash` 없이 patch 제안 | `learning_propose`가 `base_missing`을 돌려준다. 후보 없음 |
 | 10 | 분기로 이전 지점으로 되돌아감 | scope 상태가 그 지점 값으로 돌아간다(`inFlightReviewId` 포함). 같은 `epoch`가 다시 나와 `requestId`가 겹치면 `duplicate`로 포크를 시작하지 않는다. 되돌아간 상태에 남은 `inFlightReviewId`는 그 검토의 `agent.settled`가 이미 커밋되어 있으면 다음 명령 진입의 대체 조회로 비운다. 대기열 행은 세션 단위이므로 분기와 무관하게 남는다 [제안] |
 | 11 | 설정 읽기 실패 | 검토를 시작하지 않는다(fail-closed, §4.1). 대기열 적용도 미룬다 |
 | 12 | L2-d 능력 미제공(`requires` 미충족) | 트리거와 포크를 시작하지 않는다. `/learning queue`는 "지식 저장소 없음"을 보여 준다. 로드 거부 여부는 X.loading-trust.spec이 정한다 |
 | 13 | 같은 대상에 대한 두 후보가 동시에 `pending` | 둘 다 둔다. 하나가 `applied`가 되면 다른 하나는 다음 적용 때 `base_stale`로 `pending`에 머문다 |
-| 14 | 검토가 진행 중인데 임계에 다시 도달 | `skip/in_flight`. 카운터는 계속 센다. 검토가 끝나 `inFlightReviewId`가 비면 다음 `agent_settled`에서 판정한다(§4.2 규칙 0) |
+| 14 | 검토가 진행 중인데 임계에 다시 도달 | `skip/in_flight`. 카운터는 계속 센다. 검토가 끝나 `inFlightReviewId`가 비면 다음 `boundary.settle.after`에서 판정한다(§4.2 규칙 0) |
 | 15 | `agent.settled` 구독 경로가 없음(REQ-LN-02 미반영) | `inFlightReviewId`가 남아 새 검토가 시작되지 않는다. `/learning` 명령 진입 때 `g.delegateStatus`로 조회해 비운다(§4.3 대체). 명령을 쓰지 않으면 검토가 한 번만 돈다. 그래서 REQ-LN-02는 M3 학습 그룹 착수의 선행 조건이다(L3.learning.plan §3) |
 | 16 | 위임 자식이 정착했는데 부모 대화가 삭제됨 | L1-g는 `agent.settled`를 남기지 않을 수 있다(L1.agents.spec §5 7번). 부모 대화가 없으므로 그 대화의 학습 상태도 없다. 대기열의 그 검토 후보는 세션 단위로 남는다 |
 | 17 | `AgentSettledPayload.lastItemId` 없음 | 검토를 시작하지 않고 카운터를 유지한다(`skip/excluded`로 기록하지 않는다). REQ-LN-01이 들어오기 전에는 학습 그룹이 검토를 시작할 수 없다 |
@@ -877,10 +877,10 @@ F.wire-settings.spec §3.8의 `SettingDef`로 선언한다(`settings.ts`, `defin
 
 | 연산 | 사용 | 내용 |
 |---|---|---|
-| `on` tap | 2개 | `agent_start`, `agent_settled`(§4.2) |
+| `on` tap | 2개 | `boundary.turn.before`, `boundary.settle.after`(§4.2) |
 | 내구 이벤트 구독 | 1개 | 코어 `agent.settled`(§4.3, REQ-LN-02) |
-| `on` first | 없음 | 쓰기 거부는 L1 실행 검사(`DelegateSpec.toolPolicy`, §3.4)가 한다. 그룹의 `tool_call` 핸들러로 하지 않는다 [제안]. 그룹 핸들러가 어느 대화에 적용되는지 F에 규칙이 없기 때문이다 |
-| `on` chain | 1개 | `turn_end`. 도구 반복만 세고 `undefined`를 돌려준다(§4.2). 시스템 프롬프트, 컨텍스트를 바꾸지 않는다(캐시 접두 보존) |
+| `on` first | 없음 | 쓰기 거부는 L1 실행 검사(`DelegateSpec.toolPolicy`, §3.4)가 한다. 그룹의 `tool.call.before` 핸들러로 하지 않는다 [제안]. 그룹 핸들러가 어느 대화에 적용되는지 F에 규칙이 없기 때문이다 |
+| `on` chain | 1개 | `boundary.step.after`. 도구 반복만 세고 `undefined`를 돌려준다(§4.2). 시스템 프롬프트, 컨텍스트를 바꾸지 않는다(캐시 접두 보존) |
 | `post` | 쓰지 않음 | `usesPost: false`. 완료 보고 post도 없다 [결정: review.m3-design-inputs D-M3-03](§4.3) |
 | `drive` | 쓰지 않음 | `usesDrive: false` |
 | `scope` | 주 scope `learning` | 상태 `LearningState`(§3.2) |
@@ -944,7 +944,7 @@ F.wire-settings.spec §3.8의 `SettingDef`로 선언한다(`settings.ts`, `defin
 2. (UC-3) Helm이 drive 임대를 가진 상태에서도 학습 그룹의 트리거와 검토 포크가 동작한다.
 3. 사용자 turn이 `trigger.userTurns - 1`회이고 도구 반복이 `trigger.toolIterations - 1`회인 세션에서 `g.delegate` 호출은 0회다.
 4. `pending`, `rejected`, `expired` 후보만 있는 상태에서 L2-d `apply` 호출은 0회이고, 스킬 디렉터리와 메모리 파일의 해시가 세션 전후로 같다.
-5. 같은 `epoch`에 대해 `agent_settled`를 두 번 발화시키고(재생 모의) 프로세스를 재시작해도 L1-g가 만든 자식 대화는 1개다.
+5. 같은 `epoch`에 대해 `boundary.settle.after`를 두 번 발화시키고(재생 모의) 프로세스를 재시작해도 L1-g가 만든 자식 대화는 1개다.
 6. 학습 그룹이 켜진 모든 테스트에서 `drive` 호출은 0회다(`validateUsage` 기록과 X 호출 계측).
 7. 검토 포크가 쓰기 도구(`write`, `edit`, `bash` 등)를 부르면 도구 결과에 거부 사유와 `learning_propose` 안내가 돌아오고, 그 호출로는 후보가 생기지 않는다. 후보는 `learning_propose` 호출로만 생긴다.
 8. 중단된 turn, 예약 실행 turn, 검토 포크 대화의 turn은 `userTurnsSinceReview`를 올리지 않는다.
@@ -956,10 +956,10 @@ F.wire-settings.spec §3.8의 `SettingDef`로 선언한다(`settings.ts`, `defin
 14. `/learning queue revert`는 L2-d `rollback`만 부르고, 성공하면 상태가 `reverted`다.
 15. 비공개 기록 9종의 kind가 모두 `grp.learning.` 접두와 F `RECORD_KIND_PATTERN`(4마디)을 따르고, `learningProjector.kinds`와 §3.7.1 표가 같은 집합이다. 이 9종은 `learningRecordKindDecls`에 없고, `recordPrivate`로 쓴 행은 `visibility: "private"`로 커밋된다. 다른 그룹의 `readRecords`로 이 kind를 조회하면 0건이다(X.primitives.spec §9 29).
 16. `diff`가 16 KiB를 넘는 제안을 만들고 프로세스를 재시작해 재생하면 `x_learning_proposals`의 `diff`가 원문과 같고, 승인된 제안의 재적용과 만료 판정 결과가 재시작 전과 같다.
-17. (ADR-0015 재생 2회, 효과 1회) 검토를 시작하는 `agent_settled` 핸들러를 같은 커밋 상태와 같은 페이로드로 두 번 실행하고 그 사이 프로세스를 재시작해도, 가짜 위임 서비스의 자식 생성 계수는 1이고 `grp.learning.fork.started` 행은 1개이며 상태 커밋은 한 번만 반영된다.
+17. (ADR-0015 재생 2회, 효과 1회) 검토를 시작하는 `boundary.settle.after` 핸들러를 같은 커밋 상태와 같은 페이로드로 두 번 실행하고 그 사이 프로세스를 재시작해도, 가짜 위임 서비스의 자식 생성 계수는 1이고 `grp.learning.fork.started` 행은 1개이며 상태 커밋은 한 번만 반영된다.
 18. (ADR-0015) `agent.settled` 구독 핸들러를 같은 이벤트로 두 번 실행해도 `grp.learning.fork.finished`, `grp.learning.review.finished`가 각 1개이고 `inFlightReviewId`는 null이다.
 19. 학습 그룹의 on 핸들러와 구독 핸들러 실행 중 `g.capability` 호출은 0회다(능력 래퍼 계측).
-20. `inFlightReviewId`가 있는 동안 임계를 넘어도 `g.delegate` 호출은 0회이고, 검토가 끝난 뒤 다음 `agent_settled`에서 한 번 불린다.
+20. `inFlightReviewId`가 있는 동안 임계를 넘어도 `g.delegate` 호출은 0회이고, 검토가 끝난 뒤 다음 `boundary.settle.after`에서 한 번 불린다.
 21. ([결정: review.m3-design-inputs D-M3-03]) 검토가 끝난 뒤 부모 대화의 다음 모델 요청 입력에 `grp.learning.review.result` 항목이 없고, 부모 대화에 `input.queued{ source.type: "delegation" }`이 없다.
 22. ([결정: review.m3-design-inputs D-M3-04]) 검토 포크가 도는 중 학습 그룹을 끄면 그 자식의 `agent.settled{ status: "aborted" }`가 커밋되고, 그 뒤 자식 대화에 새 모델 요청이 없다.
 23. 위임 자식 대화(`origin = "delegation"`)와 drive turn(`origin = "drive"`)은 `userTurnsSinceReview`를 올리지 않는다.

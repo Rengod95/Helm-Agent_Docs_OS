@@ -77,6 +77,7 @@ const DRIVE_TEXT: Readonly<Record<GroupStatus["drive"], string>> = {
   waiting: "대기",
   none: "없음",
   error: "오류",
+  rejected: "거부",
 };
 
 function statusLine(group: GroupStatus): string {
