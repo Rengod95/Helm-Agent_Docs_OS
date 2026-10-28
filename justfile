@@ -71,6 +71,11 @@ knip:
 docs-route +args:
     cd xeon && just docs-route {{args}}
 
+# 요구 장부 검사: M3-REQ 행마다 상태(M3a, M3b:<트랙 id>, M4), 이월 표마다 트랙 id, 상태별 개수 (xeon/scripts/req-ledger.ts)
+[group('local')]
+req-ledger:
+    cd xeon && just req-ledger
+
 # 패키지 하나만 lint, typecheck, test: 각각 scripts/guard.sh run 1.5G 아래에서 차례로. 병렬 작업 중에는 이것과 just test <패키지>만 돌린다 (xeon/scripts/check-pkg.sh)
 [group('quality')]
 check pkg:
