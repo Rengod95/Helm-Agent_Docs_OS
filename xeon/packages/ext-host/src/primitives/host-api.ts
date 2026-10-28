@@ -458,12 +458,25 @@ export function createScopeApi(
       return done.ok ? ok(stateAs(done.value)) : done;
     },
     registerTool(def: ToolResourceDef): void {
+      // 승인 요구를 낮추는 선언은 builtin 확장만 낼 수 있다. 그 밖의 확장은 등록이 거부되어 로드가 실패한다(M3-REQ-78)
+      if (
+        !record.builtin &&
+        (def.risk === "read" || def.risk === "write" || def.hints?.readOnly === true)
+      ) {
+        throw new PrimitiveError(
+          "tool_risk_reserved",
+          `${record.extension} is not built in, so tool ${def.name} cannot declare a risk below exec`,
+          { scopeId: record.id },
+        );
+      }
       // 도구 `execute`는 호출 id를 디스패치 키로 하는 ambient 안에서 실행한다. 같은 호출 id의 재실행은 같은 멱등 키를 받는다
       const wrapped: ToolResourceDef = {
         name: def.name,
         description: def.description,
         parameters: def.parameters,
         replay: def.replay,
+        ...(def.risk === undefined ? {} : { risk: def.risk }),
+        ...(def.hints === undefined ? {} : { hints: def.hints }),
         execute: (args, ctx) =>
           withAmbient(directAmbient(record.id, ctx.threadId, "tool", ctx.toolCallId), () =>
             def.execute(args, ctx),

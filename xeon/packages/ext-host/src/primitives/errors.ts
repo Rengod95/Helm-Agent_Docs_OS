@@ -37,6 +37,7 @@ export type PrimitiveErrorCode =
   | "capability_unavailable"
   | "capability_ambiguous"
   | "service_reserved"
+  | "tool_risk_reserved"
   | "resource_conflict"
   | "resource_name_invalid";
 

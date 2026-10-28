@@ -306,3 +306,46 @@ test("a throwing registry listener does not stop the others", async () => {
   expect(seen).toEqual(["one"]);
   expect(t.diagnostics.some((d) => d.message.includes("ResourceRegistry listener"))).toBe(true);
 });
+
+test("a builtin extension's risk and hints reach the tools port, and a user extension cannot lower the risk", async () => {
+  const t = await createTestHost();
+  const fakes = await withPorts(t);
+  await t.host.openThread(t.newThread());
+  await t.host.install(
+    makeUnit({ name: "risk-builtin" }, (g) => {
+      hostOf(g).registerTool({
+        ...toolDef("low"),
+        risk: "read",
+        hints: { idempotent: true },
+      });
+    }),
+  );
+  expect(fakes.tools.get("low")?.risk).toBe("read");
+  expect(fakes.tools.get("low")?.hints).toEqual({ idempotent: true });
+
+  const codes: Record<string, string | undefined> = {};
+  await t.host.install(
+    makeUnit({ name: "risk-user", builtin: false }, (g) => {
+      const host = hostOf(g);
+      codes.read = codeOf(() => {
+        host.registerTool({ ...toolDef("u-read"), risk: "read" });
+      });
+      codes.write = codeOf(() => {
+        host.registerTool({ ...toolDef("u-write"), risk: "write" });
+      });
+      codes.readOnlyHint = codeOf(() => {
+        host.registerTool({ ...toolDef("u-hint"), hints: { readOnly: true } });
+      });
+      codes.exec = codeOf(() => {
+        host.registerTool({ ...toolDef("u-exec"), risk: "exec" });
+      });
+    }),
+  );
+  expect(codes).toEqual({
+    read: "tool_risk_reserved",
+    write: "tool_risk_reserved",
+    readOnlyHint: "tool_risk_reserved",
+    exec: undefined,
+  });
+  expect([...fakes.tools.keys()]).toEqual(["low", "u-exec"]);
+});

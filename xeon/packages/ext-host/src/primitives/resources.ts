@@ -236,6 +236,8 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
           description: original.description,
           parameters: original.parameters,
           replay: original.replay,
+          ...(original.risk === undefined ? {} : { risk: original.risk }),
+          ...(original.hints === undefined ? {} : { hints: original.hints }),
           execute: (args, ctx) => original.execute(args, ctx),
         });
         if (!registered.ok) {
