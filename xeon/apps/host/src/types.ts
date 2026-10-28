@@ -95,6 +95,11 @@ export interface AssembleOptions {
   readonly secretsRuntime?: (deps: SecretsRuntimeDeps) => SecretsRuntime;
   /** 기본 true. false면 Helm·학습 그룹을 싣지 않는다 */
   readonly defaultGroups?: boolean;
+  /**
+   * 안전 모드. 참이면 L3 내장 그룹(학습)을 싣지 않는다 [결정: review.m3-design-inputs D-M3-07 a, X.operations.spec §4.6.2]. 대기열은 남고
+   * 다시 켜면 그대로 보인다. L1·L2 내장 패키지는 그대로 싣는다. 기본 false
+   */
+  readonly safeMode?: boolean;
   /** 조립 루트가 import할 수 없는 앱의 설정(예: l4.cli.*, L4.cli.spec §6) */
   readonly settingGroups?: readonly SettingGroup<
     SettingNamespace,
@@ -182,6 +187,8 @@ export interface EnginePorts {
   readonly models: ModelCatalogPort;
   /** L2.dialog 슬래시 명령 */
   readonly commands: CommandPort;
+  /** 지식 제안 대기열 둘(학습 그룹, L2.knowledge)을 한 목록으로 보이고 결정한다(M3-REQ-18, D-M3-32 a) */
+  readonly proposals: ProposalPort;
   /** X.loading-trust 프로젝트 신뢰. 클라이언트가 묻고 정한다(`trust.get`·`trust.decide`) */
   readonly trust: TrustPort;
   /** 새 id 발급(traceId, 연결 id). 엔진의 IdFactory다 */
@@ -311,6 +318,22 @@ export interface CommandPort {
     params: Omit<WireParams<"command.run">, "threadId">,
     signal: AbortSignal,
   ): Promise<Result<WireResult<"command.run">, CommandFailure>>;
+}
+
+/**
+ * 지식 제안 대기열 `proposal.list`·`proposal.decide`(F wire §3.3.1, M3-REQ-18). 대기열은 둘이다: 학습 그룹(`source: "learning"`)과 L2.knowledge의
+ * 쓰기 승인 대기열(`source: "knowledge"`). 한 출처를 읽지 못하면(그룹이 꺼짐, 안전 모드, 지식 저장소 없음) 그 출처만 `unavailable`에 올리고
+ * 나머지는 돌려준다. 결정은 출처가 정한 오류를 wire의 결정 실패 이유로 옮긴 값이다(오류 값이고 던지지 않는다)
+ */
+export interface ProposalPort {
+  list(
+    params: WireParams<"proposal.list">,
+    signal: AbortSignal,
+  ): Promise<WireResult<"proposal.list">>;
+  decide(
+    params: WireParams<"proposal.decide">,
+    signal: AbortSignal,
+  ): Promise<WireResult<"proposal.decide">>;
 }
 
 export interface CommitBatch {

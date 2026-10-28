@@ -13,3 +13,9 @@ export function asFrame(frame: unknown): JsonRpcMessage {
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A6 시험의 계약 위반 주입: 잘못된 프레임 (eng.typescript.guide TY-06)
   return frame as JsonRpcMessage;
 }
+
+/** 스키마를 어긴 params를 일부러 보내는 시험 도구다. 서버가 -32602로 거부해야 한다 */
+export function invalidParams(params: unknown): never {
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A6 시험의 계약 위반 주입: 필수 필드가 빠진 params (eng.typescript.guide TY-06)
+  return params as never;
+}

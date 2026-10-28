@@ -390,3 +390,14 @@ m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결
 | HOST.23 | M2 마감 재검토 10 | 구현 | `thread.rename`·`thread.delete`가 빌린 잠금을 어떻게 놓는지 바로잡는다. 둘 다 `holds`가 거짓일 때 잠금을 한 번 얻어 쓰고 놓는데, 그동안 같은 thread의 다른 연결이 `turn.start` 등으로 소유를 이어받아도 `finally`가 잠금을 놓아 그 연결이 잠금 없이 쓰게 됐다(두 호출이 같은 획득을 기다리면 `holds`가 "내가 얻었다"를 말해 주지 못한다). `handlers/owner.ts`의 `withWriteOwner`가 thread별 빌린 호출 수를 세어 마지막 호출이 끝날 때만 놓고, 쓰기로 연 연결·소유를 얻는 중인 `claimWrite`·진행 중 turn이 있으면 놓지 않는다. 연결 단위 소유자 검사는 spec HS-23(여러 연결이 소유를 함께 씀)에 어긋나 더하지 않았다. 시험: `test/handlers/thread-write-owner.test.ts`(가짜 엔진의 `acquireGate`로 겹침을 만든다: 이어받으면 놓지 않음, 둘이 겹친 rename은 한 번만 놓음, 거절된 delete도 같음, 빌린 뒤에는 잠금이 남지 않음), `test/int/thread-rename-owner.int.test.ts`(실제 잠금에서 rename과 turn.start가 겹친 뒤 다른 호스트의 쓰기 열기는 3002, rename만 했으면 열림). 수정 전에는 앞의 세 시험과 int 첫 시험이 실패한다 |
 | HOST.24 | M2 첫 실행 (m2r sec) | 구현 | 깨끗한 기기에서 첫 `secret add`가 설정 없이 된다. `assembly/secrets.ts`의 `effectiveSecretsConfig`가 빈 `l0.secrets.sops.files`에 사용자 기본 파일을 채워 `newMeta`와 platform-secrets가 같은 파일을 보고(HS-45), 조립 루트가 `OsServiceHandle.fileLock`을 platform-secrets에 넘긴다. `test/assembly/secrets.test.ts`, `test/int/secret-first-write-processes.int.test.ts`(프로세스 둘이 동시에 첫 `add`, 실제 flock·sops·age, 임시 홈) |
 | HOST.25 | M2 Mac 실기 (m2r lease) | 구현 | 모델 provider 연결이 비밀의 사용 정책을 연다(HS-45)와 모르는 모델 id 거절(HS-78). `secrets/provider-link.ts`(`createProviderLinker`: `link`는 `settings.set`의 사용자 범위 `l1.models.providers` 뒤, `grantFor`는 `newMeta`), `handlers/settings.ts`의 `requireKnownModel`, `EnginePorts.models`. `test/secrets/provider-link.test.ts`(허용은 runtime-http·`model.provider:<id>`·호스트뿐, 멱등, 합집합), `test/handlers/settings.test.ts`, `test/int/provider-key-link.int.test.ts`(가짜 Anthropic 서버로 데스크톱 순서·CLI 순서·예전 빈 정책 복구, env·도구·다른 호스트 lease는 계속 거부) |
+
+## 10. M3a 구현 기록 (T-LR의 L4 몫)
+
+| 작업 | 상태 | 내용과 시험 |
+|---|---|---|
+| M3-18 | 구현 | `proposal.list`·`proposal.decide` 처리기(`handlers/proposal.ts`)와 포트(`assembly/proposals.ts`, `EnginePorts.proposals`). 학습 대기열과 L2 대기열을 한 목록으로 합치고 결정을 출처로 보낸다(spec HS-79). `test/assembly/proposals.test.ts`(합치기 순서, 상태 필터, 커서 쪽 읽기, 읽지 못하는 출처, 결정 경로와 오류 표), `test/handlers/proposal.test.ts`(params 위반은 -32602, 결정 실패는 오류 값) |
+| 학습 그룹 조립 | 구현 | `assembly/learning.ts`(내장 그룹 단위, 브리지 확장 `host-proposals-bridge`, 안전 모드·`defaultGroups` 판정, 투영기 등록 `registerLearningProjection`, 읽기 면 자리 `slotReader`, `/learning` 명령 실행기 `createLearningRunner`). `AssembleOptions.safeMode`를 더했다. 투영기가 대기열 행을 만들므로 SQLite 저장소와 `learningStore` 옵션은 없앴다. 설정 그룹 `l3.learning`을 카탈로그와 `schema/`에 더했다. `test/assembly/learning.test.ts`(명령 실행기, 읽기 면 자리), `test/int/proposals.int.test.ts`(실제 SQLite 세션 DB와 cap-knowledge 위에서 모델 테이프가 `learning_propose`를 부르면 투영된 대기열에 후보가 서고, 승인 전에는 스킬 파일이 없고, 승인이 `/learning` 명령을 거쳐 스킬 파일을 만든다. 안전 모드와 `defaultGroups: false`는 싣지 않는다) |
+| M3-REQ-104 | 구현 | `knowledgePlugin`에 `trustedEvidenceSources: ["learning.queue"]`(학습 그룹을 싣는 구성에서만). `test/int/proposals.int.test.ts` |
+
+남은 것: 안전 모드를 켜는 입구(CLI 인자, 설정)는 이 단계에 없다. `AssembleOptions.safeMode`만 있다 [미결].
+

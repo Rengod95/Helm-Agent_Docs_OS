@@ -22,6 +22,7 @@ import { WEB_SETTING_DEFS } from "@xeon/cap-web";
 import { WORK_SETTING_DEFS } from "@xeon/cap-work";
 import { WORKSPACE_SETTING_DEFS } from "@xeon/cap-workspace";
 import { helmSettings } from "@xeon/group-helm";
+import { learningSettings } from "@xeon/group-learning";
 import { groupKitSettings } from "@xeon/group-kit";
 import { loadingTrustSettings, operationsSettings, primitivesSettings } from "@xeon/ext-host";
 import { EXEC_SETTING_DEFS } from "@xeon/platform-exec";
@@ -79,6 +80,7 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofDefs("cap-dialog", "l2.dialog", DIALOG_SETTING_DEFS),
     ofGroup("group-kit", groupKitSettings),
     ofGroup("group-helm", helmSettings),
+    ofGroup("group-learning", learningSettings),
     ofGroup("host", hostSettings),
   ];
 }

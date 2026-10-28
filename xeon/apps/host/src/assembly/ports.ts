@@ -49,6 +49,7 @@ import type {
   HostMode,
   LockOutcome,
   OwnerKind,
+  ProposalPort,
   SessionLockPort,
   SettingsStorePort,
   SubmitOutcome,
@@ -100,6 +101,8 @@ export interface PortsDeps {
   readonly secrets: SecretsPort;
   /** 명령 등록부 자리. 브리지 확장이 명령 서비스 API를 채운다 */
   readonly commands: CommandRegistryHolder;
+  /** 지식 제안 대기열 둘의 합친 조회·결정(`proposal.*`) */
+  readonly proposals: ProposalPort;
   /** 사용자 설정 파일이 없을 때 새로 만들 디렉터리(L0.os의 `dirs.config`) */
   readonly configDir: string;
   readonly trust: ProjectTrust;
@@ -604,6 +607,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     secrets: deps.secrets,
     models: { modelIds: (provider) => modelIdsOf(deps.models, provider) },
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
+    proposals: deps.proposals,
     trust,
     ids: deps.ids,
     clock: deps.clock,

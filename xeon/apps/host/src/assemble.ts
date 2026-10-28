@@ -59,6 +59,12 @@ import {
 import { capabilityDefsOf } from "./assembly/capability-defs.ts";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
 import { builtinUnits, installFailureOf, unitOfModule } from "./assembly/extensions.ts";
+import {
+  createLearningWiring,
+  learningLoaded,
+  registerLearningProjection,
+} from "./assembly/learning.ts";
+import { createProposalPort } from "./assembly/proposals.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
 import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
@@ -527,6 +533,13 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const unitList: { units: readonly ExtensionUnit[] } = { units: [] };
     const workspaceOf = threadWorkspaceOf(ext, logger);
     const commands: CommandRegistryHolder = { current: undefined, api: undefined };
+    // 학습 그룹의 읽기 면(세션 DB의 x_learning_* 투영)과 명령 실행기, 그룹·L2 대기열을 잇는 자리. 읽기 면은 세션 서비스가 올라온 뒤(아래 4단계)에 채운다
+    const learning = createLearningWiring({
+      resources: () => ext.resources,
+      ids,
+      heldThreads: () => portsHandle?.heldThreads() ?? [],
+      activeThread: () => portsHandle?.activeThread() ?? null,
+    });
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         commands,
@@ -545,6 +558,9 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         faults: store.value.faults,
         holder,
         ext,
+        learning,
+        ...(options.defaultGroups === undefined ? {} : { defaultGroups: options.defaultGroups }),
+        ...(options.safeMode === undefined ? {} : { safeMode: options.safeMode }),
         groups: {
           catalog: built.catalog,
           store: () => portsHandle?.ports.settings,
@@ -586,6 +602,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 4. 서비스 확인: 포트가 요구하는 서비스가 모두 올라왔는지 본다
     const session = requirePort(ext, SESSION_KEY, "xeon.session");
     const storeService = requirePort(ext, STORE_KEY, "xeon.store");
+    if (learningLoaded({ defaultGroups: options.defaultGroups, safeMode: options.safeMode })) {
+      const failed = registerLearningProjection({ session, store: storeService, wiring: learning });
+      if (failed !== undefined) {
+        throw new AssembleError([{ code: "plugin", plugin: "learning", message: failed }]);
+      }
+    }
     const loop = requirePort(ext, LOOP_KEY, "xeon.loop");
     const tasks = requirePort(ext, TASKS_KEY, "xeon.tasks");
     const approvals = requirePort(ext, APPROVALS_KEY, "xeon.approvals");
@@ -633,6 +655,14 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         }),
       ),
       commands,
+      proposals: createProposalPort({
+        learning: () => learning.bridge.api(),
+        runner: learning.runner,
+        knowledge: () => learning.knowledge.current,
+        report: (message, fields) => {
+          logger.warn(message, fields);
+        },
+      }),
       configDir: os.dirs.config,
       trust: projectTrust,
       signal: lifetime.signal,

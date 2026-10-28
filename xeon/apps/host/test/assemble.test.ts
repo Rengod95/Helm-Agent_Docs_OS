@@ -96,6 +96,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "ext-host",
     "group-helm",
     "group-kit",
+    "group-learning",
     "host",
     "platform-exec",
     "platform-os",

@@ -3371,6 +3371,172 @@
         }
       }
     },
+    "l3.learning.approval.required": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "끄면 파괴적이지 않은 후보(create, add_file, add)는 스캔을 통과한 뒤 바로 적용된다. 파괴적 연산(patch, archive, replace, remove)은 이 값과 무관하게 승인이 필요하다.",
+          "label": "학습 후보 승인 필수",
+          "order": 305,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l3.learning.review.maxIterations": {
+      "default": 16,
+      "maximum": 64,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project"
+        ],
+        "layer": "L3",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "검토 포크가 쓸 수 있는 step 수 상한.",
+          "label": "학습 검토 최대 step",
+          "order": 302,
+          "tab": "plugins",
+          "widget": "number"
+        }
+      }
+    },
+    "l3.learning.review.model": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project"
+        ],
+        "layer": "L3",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "비우면 부모 대화의 모델을 쓴다. 부모와 다르면 프롬프트 캐시 공유를 기대하지 않는다.",
+          "label": "학습 검토 모델",
+          "order": 304,
+          "tab": "plugins",
+          "widget": "text"
+        }
+      }
+    },
+    "l3.learning.review.tokenBudget": {
+      "anyOf": [
+        {
+          "maximum": 2000000,
+          "minimum": 1000,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project"
+        ],
+        "layer": "L3",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0"
+      }
+    },
+    "l3.learning.scan.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "후보를 대기열에 올리기 전에 지식 저장소의 위협 패턴 검사를 돌린다. 적용 때의 저장소 검사는 이 값과 무관하다.",
+          "label": "학습 후보 사전 스캔",
+          "order": 306,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l3.learning.trigger.toolIterations": {
+      "default": 10,
+      "maximum": 1000,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project",
+          "session"
+        ],
+        "layer": "L3",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "스킬 쓰기 없이 도구 반복이 이 수만큼 쌓이면 학습 검토를 시작한다. 0이면 이 사유로는 검토하지 않는다.",
+          "label": "학습 검토: 도구 반복 임계",
+          "order": 301,
+          "tab": "plugins",
+          "widget": "number"
+        }
+      }
+    },
+    "l3.learning.trigger.userTurns": {
+      "default": 10,
+      "maximum": 1000,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project",
+          "session"
+        ],
+        "layer": "L3",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "사용자 turn이 이 수만큼 쌓이면 백그라운드 학습 검토를 시작한다. 0이면 이 사유로는 검토하지 않는다.",
+          "label": "학습 검토: 사용자 turn 임계",
+          "order": 300,
+          "tab": "plugins",
+          "widget": "number"
+        }
+      }
+    },
     "x.primitives.activeDriveGroup": {
       "anyOf": [
         {

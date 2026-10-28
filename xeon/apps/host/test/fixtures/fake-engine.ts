@@ -29,6 +29,7 @@ import type {
   CommandPort,
   EngineDiagnostics,
   ThreadPort,
+  ProposalPort,
   TrustPort,
   TurnPort,
 } from "../../src/types.ts";
@@ -78,6 +79,7 @@ export interface FakeEngineOptions {
     readonly approvals?: Partial<ApprovalPort>;
     readonly trust?: Partial<TrustPort>;
     readonly commands?: Partial<CommandPort>;
+    readonly proposals?: Partial<ProposalPort>;
   };
 }
 
@@ -313,6 +315,11 @@ export function createFakeEngine(options: FakeEngineOptions = {}): FakeEngine {
       list: () => Promise.reject(new Error("command.list is not part of the fake")),
       run: () => Promise.reject(new Error("command.run is not part of the fake")),
       ...options.overrides?.commands,
+    },
+    proposals: {
+      list: () => Promise.reject(new Error("proposal.list is not part of the fake")),
+      decide: () => Promise.reject(new Error("proposal.decide is not part of the fake")),
+      ...options.overrides?.proposals,
     },
     trust: {
       get: () => Promise.reject(new Error("trust.get is not part of the fake")),

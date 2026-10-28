@@ -78,6 +78,9 @@
     },
     {
       "path": "../../packages/group-kit"
+    },
+    {
+      "path": "../../packages/group-learning"
     }
   ]
 }
