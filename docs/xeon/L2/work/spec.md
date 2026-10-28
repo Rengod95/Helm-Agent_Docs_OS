@@ -113,7 +113,7 @@ export type ArtifactRef = Static<typeof ArtifactRefSchema>;
 
 - [제안] 작업·계획·목표·보고 ID는 ULID 접두 ID(eng.domain-types.guide DT-06)를 쓰지 않고 스레드 안 순번을 쓴다. 모델이 `task_write`에서 ID를 직접 적어야 하므로 짧아야 한다(Claude Code 작업 도구도 순번 ID를 쓴다, `_research/l2e.md` §3.1 A1). DT-06의 "외부 발급 ID는 브랜드만 붙이고 패턴은 따로 둔다" 규칙과 같은 처리다. 다른 스레드의 같은 ID와 구별할 일이 없다. 모든 조회는 스레드 범위다.
 - 호출 문맥: 서비스 메서드는 대상 스레드를 알아야 한다. 대상 스레드는 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`의 `threadId`다(`L2.readme` §5.8). 도구 경로에서는 L1.tools가 도구 호출의 스레드로 채우고, 그룹 경로에서는 X의 capability 래퍼가 `HandlerContext.threadId`(F.extensions.spec §3.2)로 채운다. 없으면 `invalid_input`이다.
-- 쓰기 메서드의 `requestId`는 필수다 [제안]. 없으면 `invalid_input`이다. 같은 `requestId`의 재호출은 이벤트를 다시 쓰지 않고 처음 결과를 돌려준다(eng.transactions.design §4.7, TX-05). 그래서 쓰기 메서드에 `replay: "safe"`와 `idempotent: true`를 선언한다. 예외는 `enterMode`와 `exitMode`다. 권한 모드는 L1.tools가 소유해 `requestId` 결과를 기억하지 않으므로 선언 없음(`replay: "unsafe"`)이다(§3.9 표).
+- 쓰기 메서드의 `requestId`는 필수다 [제안]. 없으면 `invalid_input`이다. 같은 `requestId`의 재호출은 이벤트를 다시 쓰지 않고 처음 결과를 돌려준다(eng.transactions.design §4.7, TX-05). 그래서 쓰기 메서드에 `replay: "safe"`와 `idempotent: true`를 선언한다. 예외는 `enterMode`, `exitMode`, `approve`, `reject`, `revise`다. 권한 모드는 L1.tools가 소유하고, 계획 결정은 승인 해결 하나(`approval.resolved`)에 기록되어 둘 다 `requestId` 결과를 기억하지 않으므로 선언 없음(`replay: "unsafe"`)이다(§3.9 표). 적합성 시험(M3-REQ-89)이 이를 드러냈다.
 
 ### 3.2 `work.tasks`
 
@@ -419,9 +419,9 @@ export const WorkPlans = defineCapability({
       enterMode: { description: "권한 모드를 계획 모드로 바꾸도록 L1.tools에 요청한다.", input: PlanEnterModeInput, output: PlanModeOutput, replay: "unsafe", errors: PlanErrors },
       exitMode: { description: "계획 모드를 끝내고 이전 모드로 돌린다. 승인 필수면 승인된 계획이 있어야 한다.", input: PlanExitModeInput, output: PlanModeOutput, replay: "unsafe", errors: PlanErrors },
       submit: { description: "계획을 제출하고 승인을 요청한다.", input: PlanSubmitInput, output: PlanSubmitOutput, replay: "safe", idempotent: true, errors: PlanErrors },
-      approve: { description: "승인 대기 중인 버전을 승인한다.", input: PlanApproveInput, output: PlanOutput, replay: "safe", idempotent: true, errors: PlanErrors },
-      reject: { description: "승인 대기 중인 버전을 반려한다.", input: PlanRejectInput, output: PlanOutput, replay: "safe", idempotent: true, errors: PlanErrors },
-      revise: { description: "승인 대기 중인 버전에 수정을 요청한다.", input: PlanReviseInput, output: PlanOutput, replay: "safe", idempotent: true, errors: PlanErrors },
+      approve: { description: "승인 대기 중인 버전을 승인한다.", input: PlanApproveInput, output: PlanOutput, replay: "unsafe", errors: PlanErrors },
+      reject: { description: "승인 대기 중인 버전을 반려한다.", input: PlanRejectInput, output: PlanOutput, replay: "unsafe", errors: PlanErrors },
+      revise: { description: "승인 대기 중인 버전에 수정을 요청한다.", input: PlanReviseInput, output: PlanOutput, replay: "unsafe", errors: PlanErrors },
       versions: { description: "계획의 모든 버전을 조회한다.", input: PlanVersionsInput, output: PlanVersionsOutput, replay: "safe", readOnly: true },
     },
   },
@@ -892,9 +892,9 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태,
 | `work.plans.enterMode` | 선언 없음 | unsafe | 모드는 L1.tools가 소유하고 `requestId` 결과를 기억하지 않는다. 두 번째 호출은 `previousMode: null`을 돌려준다 |
 | `work.plans.exitMode` | 선언 없음 | unsafe | 같음. 모드가 이미 풀렸으면 `plan_mode_inactive`다 |
 | `work.plans.submit` | idempotent | safe | `work:plans:<requestId>` 커밋 키(`commitPlans`) |
-| `work.plans.approve` | idempotent | safe | 같음 |
-| `work.plans.reject` | idempotent | safe | 같음 |
-| `work.plans.revise` | idempotent | safe | 같음 |
+| `work.plans.approve` | 선언 없음 | unsafe | 결정은 L1.tools 승인 해결 하나(`approval.resolved`)에 기록되고 응답 `requestId`는 기억하지 않는다. 같은 `requestId`의 두 번째 호출은 `plan_closed`다 |
+| `work.plans.reject` | 선언 없음 | unsafe | 결정은 L1.tools 승인 해결 하나(`approval.resolved`)에 기록되고 응답 `requestId`는 기억하지 않는다. 같은 `requestId`의 두 번째 호출은 `plan_closed`다 |
+| `work.plans.revise` | 선언 없음 | unsafe | 결정은 L1.tools 승인 해결 하나(`approval.resolved`)에 기록되고 응답 `requestId`는 기억하지 않는다. 같은 `requestId`의 두 번째 호출은 `plan_closed`다 |
 | `work.plans.versions` | readOnly | safe | 투영 조회 |
 | `work.reports.build` | idempotent | safe | `work.report_built`를 `work:reports:<requestId>` 커밋 키로 남긴다 |
 | `work.tasks.create` | idempotent | safe | `work:tasks:<requestId>` 커밋 키(TX-05) |

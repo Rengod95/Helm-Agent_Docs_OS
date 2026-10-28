@@ -106,14 +106,20 @@ describe("work definitions", () => {
     expect(MAX_WORK_TASKS).toBe(500);
   });
 
-  test("only the plan mode switches are replay unsafe (the mode is not keyed by requestId)", () => {
+  test("the plan mode switches and the plan decisions are replay unsafe (nothing keyed by requestId remembers them)", () => {
     const unsafe: string[] = [];
     for (const def of DEFS) {
       for (const [name, method] of Object.entries(def.service.methods)) {
         if (method.replay !== "safe") unsafe.push(`${def.id}.${name}`);
       }
     }
-    expect(unsafe).toEqual(["work.plans.enterMode", "work.plans.exitMode"]);
+    expect(unsafe).toEqual([
+      "work.plans.enterMode",
+      "work.plans.exitMode",
+      "work.plans.approve",
+      "work.plans.reject",
+      "work.plans.revise",
+    ]);
   });
 
   test("submit_plan hides wait from the model and forces it off", () => {
