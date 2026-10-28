@@ -1,6 +1,7 @@
 import { Type, type TUnsafe } from "typebox";
 import type { SchemaProof } from "../base/index.ts";
 import type { EventId, ItemId, ThreadId, TurnId, Usage } from "../conversation/index.ts";
+import type { LeaseToken } from "../records/index.ts";
 import type {
   LeaseId,
   PortKey,
@@ -114,6 +115,11 @@ export interface SpawnOrigin {
   /** 이 소유 작업의 requestId. 자식 requestId 파생에 쓴다 */
   readonly ownerRequestId: string;
   readonly signal: AbortSignal;
+  /**
+   * 부모 thread의 세션 쓰기 임대 토큰. 자식 thread가 같은 holder로 소유를 이어받는 근거다(`ThreadCreateInput.inheritOwnerFrom`).
+   * 선택이다. 없으면 core-agents가 조립 루트의 `AgentsOwnership.parentToken(threadId)`로 얻는다 [제안: M3-REQ-10]
+   */
+  readonly parentToken?: LeaseToken;
 }
 
 /** 부모 이력의 어디까지를 자식에 복제할지(F.records.spec §4.6 fork). 생략하면 빈 대화에서 시작 */
@@ -157,7 +163,12 @@ export interface ReportDelivery {
 export interface DelegateRequest extends Omit<SpawnRequest, "background"> {
   /** 필수. 대화 범위 멱등 키, 1~48자. 보고 post의 키는 "<requestId>:report" */
   readonly requestId: string;
-  readonly report: ReportDelivery;
+  /**
+   * 완료 보고를 부모 대화의 입력으로 넣는 방법. 선택이다. 없으면 보고 입력(`input.queued`)을 만들지 않고 `agent.settled`만 커밋한다.
+   * 결과는 부모 모델 입력에 들어가지 않고 완료 통지(`agent.settled` 레코드, `lifecycle.agent.settled` 지점, `AgentService.status`)로만 읽는다
+   * [결정: review.m3-design-inputs D-M3-03 a, M3-REQ-11]
+   */
+  readonly report?: ReportDelivery;
 }
 
 export type MimicryFlag =
@@ -198,7 +209,12 @@ export type ChildStatus =
 
 export type CancelTarget =
   | { readonly childThreadId: ThreadId }
-  | { readonly parentThreadId: ThreadId; readonly requestId: string };
+  | { readonly parentThreadId: ThreadId; readonly requestId: string }
+  /**
+   * 주체 단위 취소: 이 scope(그룹)가 소유한 진행 중 위임을 모두 취소한다. 그룹을 끌 때 쓴다 [결정: review.m3-design-inputs D-M3-04 b].
+   * 취소된 자식도 `agent.settled { status: "aborted" }`를 남긴다 [제안: M3-REQ-11, REQ-LN-06]
+   */
+  | { readonly ownerScopeId: ScopeId };
 
 export type AgentsErrorCode =
   | "agents.unknown_definition"
@@ -264,9 +280,9 @@ export type JudgeOutcome =
 export interface AgentService {
   /** 포그라운드 생성. 자식이 정착할 때까지 기다린다. 같은 (부모, requestId)면 기존 자식을 쓴다 */
   spawn(request: SpawnRequest, origin: SpawnOrigin): Promise<SpawnResult>;
-  /** 백그라운드 위임. 자식을 접수하고 바로 돌려준다. 완료 보고는 부모 inbox에 post된다 */
+  /** 백그라운드 위임. 자식을 접수하고 바로 돌려준다. `report`가 있으면 완료 보고가 부모 inbox에 post되고, 없으면 `agent.settled`만 남는다 */
   delegate(request: DelegateRequest, origin: SpawnOrigin): Promise<DelegateResult>;
-  /** 직접 취소. 백그라운드 자식도 취소한다. 취소 의도를 먼저 커밋한다 */
+  /** 직접 취소(자식, (부모, requestId), 소유 scope 단위). 백그라운드 자식도 취소한다. 취소 의도를 먼저 커밋한다 */
   cancel(target: CancelTarget, reason: string): Promise<{ readonly cancelled: boolean }>;
   status(parentThreadId: ThreadId, requestId: string): ChildStatus | undefined;
   /** 정의 등록. 같은 이름은 우선순위 높은 출처가 이긴다 */

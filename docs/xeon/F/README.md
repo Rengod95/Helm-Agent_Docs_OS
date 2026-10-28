@@ -252,7 +252,7 @@ F가 정하지 않는 것:
 | `ModelService.hostedSearch` 필수화(`L2.web.plan` WEB.6) | `F.capabilities.spec` §3.12 `services/models.ts` |
 | `AgentServicePortKey`, `LoopServicePortKey` | `F.capabilities.spec` §3.12 규칙 9 |
 
-받지 않고 남긴 요청은 소유 문서에 [미결]로 남아 있다: 동적 MCP 도구의 연속 정보와 `input_required` 질문 목록(`L2.mcp.plan` MCP.4), 부모 쓰기 토큰 조회(`L1.agents.spec` §4.1), `ChildTurnRequest`의 `tools.deny`, `ThreadLifecycle.list`·`SessionSettingsStore.layer`의 `Result`화, 투영 재구성 실패 변형, 설정 쓰기의 키 재사용 값 변환, 자식 생성 때 부모 초안을 같은 커밋에 싣는 자리.
+받지 않고 남긴 요청은 소유 문서에 [미결]로 남아 있다: 동적 MCP 도구의 연속 정보와 `input_required` 질문 목록(`L2.mcp.plan` MCP.4), `ThreadLifecycle.list`·`SessionSettingsStore.layer`의 `Result`화, 투영 재구성 실패 변형, 설정 쓰기의 키 재사용 값 변환. 부모 쓰기 토큰(`SpawnOrigin.parentToken`), `ChildTurnRequest.tools.deny`, 자식 생성 때 부모 초안을 싣는 자리(`ThreadCreateInput.parentDrafts`)는 M3a에서 받았다(M3-REQ-10).
 
 ## 10. M2 마감 요청 처리 기록
 

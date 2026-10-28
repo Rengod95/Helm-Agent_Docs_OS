@@ -90,6 +90,10 @@ export interface ChildTurnRequest {
     readonly surfaceThreadId: ThreadId;
     readonly interactive: boolean;
     readonly allow?: readonly string[];
+    /** 거부할 도구 이름 glob. 광고 목록에서 빼지 않고 실행 시점에 거부한다 [제안: M3-REQ-10, `ChildToolPolicy.deny`] */
+    readonly deny?: readonly string[];
+    /** 허용 밖·거부 호출의 거부 문장에 붙일 안내(`ChildToolPolicy.denyHint`) */
+    readonly denyHint?: string;
     readonly keepParentList?: { readonly parent: AdvertisedToolset };
   };
   /** 자식 subagent 범위 노드. turn 노드를 이 아래에 연다 */
