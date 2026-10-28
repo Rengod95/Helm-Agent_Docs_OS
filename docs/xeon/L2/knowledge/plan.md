@@ -312,6 +312,7 @@ xeon/packages/cap-knowledge/
 | 파일 | 테스트 이름 | 확인할 동작 |
 |---|---|---|
 | `test/defs.test.ts` | `four knowledge capabilities validate with zero issues` | 네 정의 `validateCapability` 0건, 집합 `validateCapabilitySet` 0건 |
+| `test/idempotency.conformance.test.ts` | `knowledge writes dedupe on requestId across a store reopen`(메서드 열한 개), `a different requestId is a new write` | 능력 적합성(ADR-0015 §3.6, M3-REQ-88·89, L-IN-17). `skills.create`·`edit`·`patch`·`writeFile`·`remove`·`manage`, `memory.add`·`replace`·`remove`·`manage`, `ledger.rollback`을 같은 `requestId`로 저장소를 닫았다 다시 열고 두 번 부른다. 두 번째 결과가 처음과 같고 원장 행이 하나 늘어난 채이며 정본 파일이 그대로다. 입력은 처음 호출의 것을 그대로 보내므로 멱등 확인이 계산보다 앞서지 않으면 `base_stale`·`name_conflict`로 실패한다 |
 | 같음 | `write tool params exclude approval and overrideScan` | `skill_manage`, `memory_manage` 파라미터에 두 필드가 없음 |
 | `test/upstream-skills.test.ts` | `discovery rules match pi` | 픽스처 트리에서 SKILL.md 루트 정지, 점·`node_modules` 건너뜀, 루트 `.md` 처리, 이름 검증 경고가 pi 원본 규칙과 같음 |
 | 같음 | `frontmatter parse via Bun.YAML` | BOM·CRLF 처리, 순환 별칭 frontmatter는 오류 진단 |
