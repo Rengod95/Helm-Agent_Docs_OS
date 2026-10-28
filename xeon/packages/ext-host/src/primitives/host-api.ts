@@ -1,6 +1,6 @@
 import type { ServiceKey } from "@xeon/contracts/capabilities";
 import { Bug, ok, type Result } from "@xeon/contracts";
-import type { JsonValue } from "@xeon/contracts/conversation";
+import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
 import type {
   DriveOptions,
   ExtensionName,
@@ -58,6 +58,18 @@ import type { RecordInput, StateService, StateUpdateError } from "./state.ts";
 
 export type { StateMigration } from "./state-migration.ts";
 
+/**
+ * 지금 실행 중인 재실행 문맥(on 핸들러 또는 drive 함수). `ScopeHostApi.callContext`가 돌려준다.
+ * `signal`은 on에서는 핸들러 호출의 취소 신호(예산 초과, 세션 종료로 abort), drive에서는 임대의 취소 신호다
+ */
+export interface ScopeCallContext {
+  readonly kind: "on" | "drive";
+  readonly threadId: ThreadId;
+  readonly signal: AbortSignal;
+  /** on일 때 실행 중인 지점 */
+  readonly point?: PointName;
+}
+
 /** setup이 받은 g에 붙는 부가 API(X.primitives.spec §3.8) */
 export interface ScopeHostApi<S = unknown> {
   readonly scopeId: ScopeId;
@@ -83,6 +95,11 @@ export interface ScopeHostApi<S = unknown> {
    * 능력은 매니페스트 requires나 optional에 있어야 한다
    */
   requestEffect(request: EffectRequest): Promise<void>;
+  /**
+   * 호출한 scope의 on 핸들러나 drive 함수 안이면 그 문맥(thread, 취소 신호, on이면 지점). setup, 명령 처리기, 도구 `execute`,
+   * 능력 공급자 안, drive의 turn·spawn 안처럼 재실행되지 않는 곳과 다른 scope의 문맥에서는 undefined다
+   */
+  callContext(): ScopeCallContext | undefined;
   commitWith(next: S, records: readonly RecordInput[]): Promise<Readonly<S>>;
   /**
    * 줄 세운 읽기-계산-커밋(M3-REQ-23 [제안]). 같은 (thread, scope)의 `commit`·`updateState`는 호출 순서대로 하나씩 실행된다.
@@ -383,6 +400,23 @@ export function createScopeApi(
           kind: manifest.kind === "group" ? "group" : "plugin",
         });
       }
+    },
+    callContext() {
+      const amb = ambient();
+      // g를 만든 scope의 문맥만 돌려준다. 다른 scope의 핸들러가 이 g의 함수를 불러도 그 scope의 thread를 내주지 않는다
+      if (amb === undefined || amb.scopeId !== record.id) return undefined;
+      if (amb.drive !== null) {
+        return { kind: "drive", threadId: amb.threadId, signal: amb.drive.signal };
+      }
+      if (amb.handler !== null && amb.point !== null) {
+        return {
+          kind: "on",
+          threadId: amb.threadId,
+          signal: amb.handler.signal,
+          point: amb.point,
+        };
+      }
+      return undefined;
     },
     async commitWith(next, records) {
       return stateAs(await deps.state.commitWith(record, generation, next, records));

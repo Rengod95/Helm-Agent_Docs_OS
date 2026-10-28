@@ -9,6 +9,7 @@ function context() {
   return {
     threadId: ids.next("thr"),
     scopeId: "ctx-scope",
+    point: null,
     dispatchKey: "key",
     counter: 0,
     drive: null,

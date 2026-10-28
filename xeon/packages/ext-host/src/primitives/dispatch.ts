@@ -233,6 +233,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
             {
               threadId: options.threadId,
               scopeId: entry.scopeId,
+              point,
               dispatchKey: options.dispatchKey,
               counter: 0,
               drive: null,

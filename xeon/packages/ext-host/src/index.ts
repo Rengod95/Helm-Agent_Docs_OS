@@ -49,6 +49,7 @@ export {
   type LeaseArbiterPort,
   LeaseArbiterPortKey,
   ExtHostPortKey,
+  SessionFeedPortKey,
   // primitives §3.7, §3.8
   capabilityDefTable,
   type CapabilityDefLookup,
@@ -57,6 +58,7 @@ export {
   isReservedServiceName,
   hostOf,
   type ScopeHostApi,
+  type ScopeCallContext,
   type StateMigration,
   // primitives §3.9 (리소스 레지스트리와 리소스 포트, F 이름 다시 export)
   McpPortKey,

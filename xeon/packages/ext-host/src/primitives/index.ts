@@ -52,7 +52,12 @@ export {
   type ScopeToggleSourceOf,
 } from "./host.ts";
 export { SessionFeedPortKey } from "./lifecycle.ts";
-export { hostOf, type ScopeHostApi, type StateMigration } from "./host-api.ts";
+export {
+  hostOf,
+  type ScopeCallContext,
+  type ScopeHostApi,
+  type StateMigration,
+} from "./host-api.ts";
 export {
   McpPortKey,
   ModelsPortKey,

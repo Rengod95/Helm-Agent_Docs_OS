@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { ScopeId } from "@xeon/contracts/extensions";
+import type { PointName, ScopeId } from "@xeon/contracts/extensions";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { HandlerGate } from "./dispatch-types.ts";
 
@@ -8,6 +8,8 @@ export interface DriveInvocation {
   readonly leaseId: string;
   /** 호출 시작 때의 상태 판 */
   readonly baseRev: number;
+  /** 임대의 취소 신호. 반납·회수·끄기로 abort된다 */
+  readonly signal: AbortSignal;
   /** 호출 안 일련번호. turn·spawn·commit·record가 함께 쓴다 */
   i: number;
   /** 재생이 아닌 효과의 수 */
@@ -18,6 +20,8 @@ export interface DriveInvocation {
 export interface Ambient {
   readonly threadId: ThreadId;
   readonly scopeId: ScopeId;
+  /** 핸들러 안이면 실행 중인 지점, drive 안이면 null */
+  readonly point: PointName | null;
   /** 핸들러 안이면 디스패치 키, drive 안이면 null */
   readonly dispatchKey: string | null;
   /** 핸들러 안 멱등 키 카운터 */

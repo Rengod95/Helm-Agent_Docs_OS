@@ -94,10 +94,10 @@ import type {
 | `DispatchPolicy`, `HandlerEntryInfo`, `HandlerGate`, `HandlerRunOutcome`, `DEFAULT_DISPATCH_POLICY` | 인터페이스, 타입, 상수 | 이 문서 §3.4 |
 | `BoundaryHooks`, `BoundarySignal`, `BoundaryContribution` | 인터페이스 | 이 문서 §3.5 |
 | `PortKey`, `PortLookup`, `LoopPort`, `LoopPortKey`, `InputQueuePort`, `InputQueuePortKey`, `RecordCommitPort`, `RecordCommitPortKey`, `ProjectorRegistryPort`, `ProjectorRegistryPortKey`, `ScopedStorePort`, `ScopedStorePortKey`, `ProcessPort`, `ProcessPortKey`, `LeaseArbiterPort`, `LeaseArbiterPortKey` 및 부속 타입 | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.6) |
-| `ExtHostPortKey` | 상수 | 이 문서 §3.6 |
+| `ExtHostPortKey`, `SessionFeedPortKey` | 상수 | 이 문서 §3.6, §4.11 |
 | `capabilityServiceName`, `providerServiceName`, `isReservedServiceName` | 함수 | 이 문서 §3.7 |
 | `capabilityDefTable`, `CapabilityDefLookup` | 함수, 타입 | 이 문서 §4.4.7 |
-| `hostOf`, `ScopeHostApi`, `StateMigration` | 함수, 인터페이스 | 이 문서 §3.8 |
+| `hostOf`, `ScopeHostApi`, `ScopeCallContext`, `StateMigration` | 함수, 인터페이스 | 이 문서 §3.8 |
 | `ScopeInfo`, `ResourceRegistry`, `ResourceKind`, `ResourceRecord`, `ResourceExposure`, `ResourcePolicy`, `FlagValueError`, `CommandResourceDef`, `ShortcutResourceDef`, `FlagResourceDef`, `RendererResourceDef` | 인터페이스 | 이 문서 §3.9 |
 | `ToolsPort`, `ModelsPort`, `McpPort`, `ToolsPortKey`, `ModelsPortKey`, `McpPortKey`, `ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef` | 인터페이스, 상수(F 이름 재export) | F.extensions.spec §3.2.1(재export 목록은 이 문서 §3.9) |
 | `PrimitiveError`, `PrimitiveErrorCode` | 클래스, 타입 | 이 문서 §3.10 |
@@ -579,6 +579,15 @@ F의 `ScopeApi<S>`에는 서비스 제공, 포트 조회, 리소스 등록, 상�
 // primitives/host-api.ts
 export type StateMigration = (doc: JsonValue, fromVersion: number) => JsonValue;
 
+/** 지금 실행 중인 재실행 문맥. signal은 on에서는 핸들러 호출의 취소 신호, drive에서는 임대의 취소 신호다 */
+export interface ScopeCallContext {
+  readonly kind: "on" | "drive";
+  readonly threadId: ThreadId;
+  readonly signal: AbortSignal;
+  /** on일 때 실행 중인 지점 */
+  readonly point?: PointName;
+}
+
 export interface ScopeHostApi<S = unknown> {
   readonly scopeId: ScopeId;
   readonly extension: ExtensionName;
@@ -596,6 +605,11 @@ export interface ScopeHostApi<S = unknown> {
   updateState(fn: (prev: Readonly<S>) => S, records?: (next: S) => readonly RecordInput[]): Promise<Result<Readonly<S>, StateUpdateError>>;
   /** 선언 없는 쓰기 요청(§4.10, M3-REQ-27 [제안]) */
   requestEffect(request: EffectRequest): Promise<void>;
+  /**
+   * 호출한 scope의 on 핸들러나 drive 함수 안이면 그 문맥을 돌려준다(§4.2 ambient). setup, 명령 처리기, 도구 execute,
+   * 능력 공급자 안, drive의 turn·spawn 안과 다른 scope의 문맥에서는 undefined다
+   */
+  callContext(): ScopeCallContext | undefined;
   /**
    * 사용자 응답(대화상자, 승인) 대기를 감싼다. 핸들러 안에서 부르면 wait 동안 핸들러 시간 예산 시계를 멈추고,
    * wait에는 핸들러의 취소 신호와 options.signal을 AbortSignal.any로 합쳐 넘긴다. 핸들러 밖에서는 그대로 실행한다
@@ -618,6 +632,7 @@ export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi<S>;
 ```
 
 - `hostOf`는 `WeakMap<ScopeApi, ScopeHostApi>`로 찾는다. 같은 g에 대해 같은 객체를 돌려준다.
+- `callContext`는 ambient(§4.2 `withAmbient`)를 읽는다. ambient의 `scopeId`가 g를 만든 scope와 다르면 undefined다. drive 문맥의 `signal`은 `LoopHandle.signal`과 같은 임대 신호이고, on 문맥의 `signal`은 핸들러 `ctx.signal`과 같아 시간 초과 때 abort된 상태가 된다. drive의 `turn`·`spawn`과 능력 공급자 호출은 ambient를 끊으므로(§4.4.7) 그 안에서는 undefined다. 이 값으로 L3가 `g.delegate`의 thread를 얻고, on·drive에서 허용되지 않는 연산을 거부한다.
 - 포트로 넘기는 리소스 정의(`ToolResourceDef`, `ProviderResourceDef`, `McpServerResourceDef`)는 F.extensions.spec §3.2.1 정의를 쓰고, X가 보관하는 리소스 정의(`CommandResourceDef` 등)는 §3.9에 둔다.
 - [미결] F.extensions.spec §3.2 `ScopeApi`에 `provide`를 두지 않은 상태에서 L2 공급자가 이 API로 등록하는 방식이 F.capabilities.spec의 의도와 같은지. 다른 안은 F `ScopeApi`에 `provide<Api>(key, impl)`를 추가하는 것이다.
 
@@ -780,7 +795,7 @@ dispatch(point, payload, options):
 runOne(entry, args):
   info = info(entry)
   outer = options.signal과 세대 신호(§4.5.4)를 합친 신호
-  ambient = { threadId, dispatchKey, scopeId, counter: 0 }      // §4.6.3의 멱등 키 재료
+  ambient = { threadId, point, dispatchKey, scopeId, counter: 0 }      // §4.6.3의 멱등 키 재료. point는 callContext가 읽는다(§3.8)
   work = (signal, gate) => withAmbient(ambient, () =>
            entry.fn(...args, { scopeId, state: states[scopeId], threadId, signal }))   // gate는 UI 포트 래퍼로
   o = policy.run
@@ -1524,6 +1539,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 50. (M3) 임대 대기가 `x.primitives.leaseWaitLimit`을 넘으면 `lease.rejected`가 경계 기여로 커밋되고 커밋 뒤에만 `lifecycle.lease.rejected`가 발화한다(§4.4.1 8번, §4.11).
 51. (M3) 피드로 온 `agent.settled`는 `owner` scope의 구독자만 받고 같은 이벤트는 한 번만 발화한다(§4.11).
 52. (M3) 선언 없는 쓰기 요청은 requested → started → settled 순으로 한 번 실행되고, 재시작 뒤 결과 없는 `started`는 `unsafe` 메서드에서 `unknown`으로 닫힌다(§4.10).
+53. (M3) `hostOf(g).callContext()`는 on 핸들러 안에서 `kind: "on"`, thread, 지점, 살아 있는 신호를, drive 함수 안에서 `kind: "drive"`와 `LoopHandle.signal`과 같은 신호를 돌려준다. setup, 호출 뒤의 바깥, 다른 scope의 핸들러 안, drive의 `turn`·`spawn` 안에서는 undefined이고, 시간 초과한 핸들러의 문맥은 abort된 신호를 보인다(§3.8).
 - [미결] 능력 호출의 `effects` 계수. 공급자 반환으로는 처음 결과와 재생 결과를 구별할 수 없어 세지 않는다(§4.4.7).
 - [미결] `ServiceKey`가 정의를 싣지 않아 X가 `ExtHostDeps.capabilityDefs`를 받는다. 조립 루트가 내장 능력 정의 표를 만들어 넘겨야 한다(F에 정의 목록이 없다).
 - [미결] 임대 대기 상한의 단위와 기본값 8(§4.4.1 8번, §6). 경계 수 대신 시간으로 둘지.

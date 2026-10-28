@@ -245,6 +245,7 @@ export function createLeaseBroker(
     const invocation: DriveInvocation = {
       leaseId: lease.leaseId,
       baseRev,
+      signal: lease.abort.signal,
       i: 0,
       effects: 0,
     };
@@ -255,6 +256,7 @@ export function createLeaseBroker(
         {
           threadId: thread.threadId,
           scopeId: lease.scopeId,
+          point: null,
           dispatchKey: null,
           counter: 0,
           drive: invocation,
