@@ -29,6 +29,9 @@ import { PrimitiveError } from "./errors.ts";
 import { DEFAULT_LEASE_WAIT_LIMIT } from "./settings.ts";
 import type { StateService } from "./state.ts";
 
+/** 경계 없이 상태 커밋만 하고 반환한 drive를 바로 다시 부르는 연속 횟수 상한(X.primitives.spec §4.4.3) [제안] */
+export const MAX_CHAINED_REINVOKES = 8;
+
 export interface LeaseBroker {
   /** openThread: 저장된 열린 임대를 되살린다. 설치되지 않았거나 꺼진 scope의 임대는 restart로 반납 예정이 된다 */
   restore(thread: ThreadRuntime, open: OpenLease | null): void;
@@ -310,6 +313,26 @@ export function createLeaseBroker(
     // 실행 중에 호출 조건이 지나갔고 thread가 유휴면 바로 다시 부른다
     if (lease.missed && loopStatusIdle(thread.threadId)) {
       start(thread, lease);
+      return;
+    }
+    // 이 호출이 상태만 커밋하고 반환하면(turn·spawn 경계가 없다) 다음 경계가 오지 않는다. 새 상태 판으로 바로 다시 부른다.
+    // 상태를 계속 바꾸는 drive가 무한히 돌지 않게 연속 횟수에 상한을 둔다(X.primitives.spec §4.4.3)
+    if (
+      stateService.revOf(thread.threadId, lease.scopeId) !== baseRev &&
+      loopStatusIdle(thread.threadId)
+    ) {
+      if (lease.chained >= MAX_CHAINED_REINVOKES) {
+        core.deps.report({
+          level: "info",
+          code: "scope_notice",
+          scopeId: lease.scopeId,
+          extension: record.extension,
+          message: `drive of ${lease.scopeId} committed state ${String(MAX_CHAINED_REINVOKES)} times in a row without a boundary; it is called again at the next boundary`,
+        });
+        return;
+      }
+      lease.chained += 1;
+      start(thread, lease);
     }
   }
 
@@ -422,6 +445,7 @@ export function createLeaseBroker(
       running: false,
       wantInvoke: true,
       missed: false,
+      chained: 0,
       committed: false,
     };
   }
@@ -502,6 +526,7 @@ export function createLeaseBroker(
         running: false,
         wantInvoke: true,
         missed: false,
+        chained: 0,
         committed: true,
       };
       thread.lease = lease;
@@ -594,6 +619,7 @@ export function createLeaseBroker(
       const record = core.scopes.get(lease.scopeId);
       if (record === undefined || record.generation?.open !== true) return;
       if (signal.kind === "step_end") return;
+      lease.chained = 0;
       if (lease.running) {
         lease.missed = true;
         return;

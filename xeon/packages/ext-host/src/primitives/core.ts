@@ -171,6 +171,8 @@ export interface LeaseRuntime {
   wantInvoke: boolean;
   /** 실행 중에 호출 조건(turn_settled·idle)이 지나갔다 */
   missed: boolean;
+  /** 경계 없이 상태 커밋만 하고 반환해 바로 다시 부른 연속 횟수. 경계가 오면 0으로 돌아간다 */
+  chained: number;
   /** lease.acquired가 커밋되었는가 */
   committed: boolean;
 }
