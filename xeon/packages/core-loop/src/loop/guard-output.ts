@@ -42,6 +42,15 @@ export async function guardFinalOutput(
       },
     ),
   );
+  // 가드를 기다리는 동안 turn이 취소됐다: 답을 가리지 않고 중단된 응답으로 정착한다(abort는 가드의 차단이 아니다)
+  if (scope.signal.aborted) {
+    return {
+      ...message,
+      content: [],
+      stopReason: "aborted",
+      errorMessage: "turn aborted while guarding the output",
+    };
+  }
   let reason: string;
   if (!outcome.ok) {
     ctx.logger.warn("loop.guard_output_dispatch_failed", { threadId, turnId });

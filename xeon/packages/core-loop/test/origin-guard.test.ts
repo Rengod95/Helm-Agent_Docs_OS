@@ -231,3 +231,50 @@ test("a step with tool calls is not an output: the guard only sees the final ans
   await h.settle();
   expect(seen.guards.map((guard) => guard.content)).toEqual(["done"]);
 });
+
+test("a turn aborted while the output guard runs ends aborted and the answer is not shown as withheld", async () => {
+  const h = await createHarness({ script: [answer("answer under guard")] });
+  const threadId = h.fake.startThread();
+  await h.host.host.openThread(threadId);
+  const scope = h.tasks.service.openScope(h.tasks.service.root, { kind: "subagent", id: threadId });
+  const controller = new AbortController();
+  const manifest = defineManifest({
+    schemaVersion: 1,
+    name: "abort-guard",
+    version: "0.1.0",
+    layer: "plugin",
+    kind: "plugin",
+    entry: "./index.ts",
+    points: ["guard.output.before"],
+    usesDrive: false,
+  });
+  const entry: ExtensionEntry = ({ manifest: own, scope: group }) => {
+    group(own.name, {}, (g) => {
+      g.on("guard.output.before", () => {
+        controller.abort();
+        return undefined;
+      });
+    });
+  };
+  await h.host.host.install({ manifest, entry, loadIndex: 5, builtin: false });
+  await h.host.settled();
+  const request: ChildTurnRequest = {
+    threadId,
+    requestId: "child-req-abort",
+    input: { kind: "user", content: "go" },
+    systemPrompt: "child prompt",
+    model: "subagent",
+    tools: {
+      caller: "subagent:explorer",
+      depth: 1,
+      interactive: false,
+      surfaceThreadId: threadId,
+      ceiling: { caller: "main", depth: 0, mode: "default" },
+    },
+    signal: controller.signal,
+    scope,
+  };
+  const result = await h.loop.runChildTurn(request);
+  expect(result.ok && result.value.outcome.status).toBe("aborted");
+  expect(assistantTexts(h, threadId)).toEqual([]);
+});
