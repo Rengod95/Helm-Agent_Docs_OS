@@ -44,7 +44,7 @@ for target in "${targets[@]}"; do
   if [[ "$target" == "scripts" ]]; then dir="$root"; args=(test scripts); fi
   echo "== $target"
   status=0
-  (cd "$dir" && "$guard" run -- "${limit[@]}" mise exec -- bun "${args[@]}") 2>&1 | tee "$log" || status=$?
+  (cd "$dir" && "$guard" run -- ${limit[@]+"${limit[@]}"} mise exec -- bun "${args[@]}") 2>&1 | tee "$log" || status=$?
   count="$(sed -nE 's/^ *([0-9]+) skip$/\1/p' "$log" | tail -1)"
   skipped=$((skipped + ${count:-0}))
   if [[ "$status" -ne 0 ]]; then
