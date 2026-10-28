@@ -7,11 +7,24 @@
 # is printed step by step when all of them are done. If some fail, the first failed one in the list below gives the exit code
 # and every failed one is named. The heavy steps (lint, typecheck, depcruise) and test run alone, one after the other.
 # The `test` step is not wrapped: test-capped.sh already runs every package under guard.sh run (1.5G each).
-# usage: verify-steps.sh   (from anywhere; steps run from the repository root)
+# Two modes. fast (default, `just verify`): turbo caches are read (lint, typecheck, test) and lint runs without type-aware rules
+# (xeon/.oxlintrc.fast.json, one oxlint call). full (`just verify-full`): TURBO_FORCE=true, so nothing is read from the turbo cache
+# (results are still written), and lint is the type-aware run of every package.
+# usage: verify-steps.sh [fast|full]   (from anywhere; steps run from the repository root)
 # env: XEON_VERIFY_STEP_MAX (default 2G) memory cap of each step; no time limit for a step (WS_GUARD_TIMEOUT_SEC=0).
 #      The other WS_GUARD_* knobs are described in ../scripts/guard.sh.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
+
+mode="${1:-fast}"
+case "$mode" in
+  fast) ;;
+  full) export TURBO_FORCE=true ;;
+  *)
+    echo "usage: verify-steps.sh [fast|full]" >&2
+    exit 64
+    ;;
+esac
 
 step_max="${XEON_VERIFY_STEP_MAX:-2G}"
 steps=(setup fmt-check check-layers check-ts-rules "docs-route --check" knip lint typecheck depcruise test)
@@ -30,6 +43,7 @@ is_light() {
 # run_step <step>: the step in its own scope (the test step is not wrapped); the exit code is the step's
 run_step() {
   local step="$1"
+  if [[ "$step" == "lint" && "$mode" == "fast" ]]; then step="lint fast"; fi
   # shellcheck disable=SC2086 # a step with arguments ("docs-route --check") is split on purpose
   if [[ "$step" == "test" ]]; then
     env -u WS_GUARD_ACTIVE just $step
@@ -99,4 +113,4 @@ for step in "${steps[@]}"; do
 done
 run_pending
 echo "verify: step times: ${timings[*]}" >&2
-echo "verify: all ${#steps[@]} steps passed in ${SECONDS}s"
+echo "verify: all ${#steps[@]} steps passed in ${SECONDS}s ($mode)"

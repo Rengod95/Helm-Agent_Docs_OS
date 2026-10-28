@@ -65,6 +65,17 @@ test("every verify step has a CI command", () => {
   expect(missing).toEqual([]);
 });
 
+test("CI is the full form of verify: turbo reads no cache in either workflow", () => {
+  for (const file of ["xeon-ci.yml", "xeon-macos.yml"]) {
+    const data: unknown = Bun.YAML.parse(
+      readFileSync(join(REPO, ".github", "workflows", file), "utf8"),
+    );
+    expect(isRecord(data) && isRecord(data["env"]) ? data["env"]["TURBO_FORCE"] : undefined).toBe(
+      "true",
+    );
+  }
+});
+
 test("the layer matrix covers xeon/scripts and every layer", () => {
   expect(workflow().matrix).toEqual(LAYERS);
 });

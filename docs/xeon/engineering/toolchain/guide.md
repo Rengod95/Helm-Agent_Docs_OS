@@ -387,6 +387,8 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 - turbo 캐시는 `~/.cache/xeon/turbo`(`TURBO_CACHE_DIR`)에 두고 모든 worktree가 함께 쓴다. 에이전트 worktree에서 통과한 패키지는 메인 체크아웃에서 재생된다. 같은 기기의 apps/host와 core-persistence는 함께 돌지 않게 `test-pkg.sh`가 `~/.cache/xeon/heavy.lock`을 잡는다.
 - 가벼운 검사(fmt-check, check-layers, check-ts-rules, docs-route, knip)는 `verify-steps.sh`가 setup 다음에 같이 돌린다(각자 scope). 출력은 모두 끝난 뒤 단계 순서대로 나온다. 하나 이상 실패하면 목록 앞쪽의 실패 단계 종료코드로 끝나고 실패한 단계 이름이 모두 적힌다. 무거운 단계(lint, typecheck, depcruise)와 test는 차례로 혼자 돈다. 그래서 단계 순서는 `setup`, 가벼운 검사, `lint`, `typecheck`, `depcruise`, `test`다.
 - knip은 `--cache`(기본 위치 `node_modules/.cache/knip`)로 돈다. 파일이 바뀌거나 늘거나 줄면 다시 계산하는 것을 확인했다. depcruise `--cache`는 쓰지 않는다. 실제 위반(다른 층의 앱을 가져오는 import)을 더해도 캐시가 "위반 없음"을 그대로 내서(metadata, content 두 전략 모두) 검사를 놓친다. 캐시 없이 4~5초라 얻는 것도 작다.
+- 두 길이 있다. `just verify`(빠른 길)는 병합과 push 전에 돌린다. turbo 캐시를 읽는 lint, typecheck, test를 쓰고 lint는 type-aware 없이 `just lint fast`(`.oxlintrc.fast.json`이 `.oxlintrc.json`을 확장하고 `typeAware`와 미사용 disable 보고를 끈다, 저장소 전체를 한 번에 1초 안쪽)로 돈다. `just verify-full`은 `TURBO_FORCE=true`로 캐시를 읽지 않고 type-aware lint(`just lint`)까지 모든 검사를 새로 돌며 결과 캐시를 새로 채운다. 마일스톤 마감과 CI만 쓴다. type-aware 규칙(`no-floating-promises`, `no-unsafe-type-assertion` 등)의 위반은 빠른 길에서 잡히지 않고 full과 CI에서 잡힌다. 단계 목록과 순서는 두 길이 같다(`verify-steps.sh fast|full`).
+- 타입 검사 도구는 `typescript` 7(`tsc`)이다. 7.x는 Go 네이티브 컴파일러(`@typescript/typescript-linux-x64` 등 플랫폼 패키지)라 `@typescript/native-preview`(tsgo)를 더할 이유가 없다. 의존성을 더하지 않는다.
 - 단계마다 걸린 시간(`verify: time 12s (lint)`)과 최대 메모리(`verify: peak …M`)가 stderr에 나오고, 끝에 단계별 시간 목록이 한 줄로 붙는다. 시험 단계는 대상마다 시간을 적고 끝에 느린 순서로 정리한다. 속도를 고칠 때는 이 숫자로 비교한다.
 - `scripts/guard.sh`는 dotfiles `modules/ws/templates/guard.sh`의 복사본이다(둘째 줄 `# ws-guard vN`). 저장소에서 고치지 않고 `ws stack update guard`로 올린다. 이전의 `xeon/scripts/verify-guarded.sh`와 `xeon-dev.slice`는 쓰지 않는다. `guard.sh`는 고치지 않고 `WS_GUARD_SLOTS`, `WS_GUARD_RUN_MAX`, `WS_GUARD_TIMEOUT_SEC`, `WS_GUARD_ACTIVE` 환경 변수로만 다룬다.
 
@@ -452,7 +454,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 - 문서의 `[미결` 표지 수는 `just docs-route --unresolved`가 문서마다 셉니다. 추적 규칙은 `review.unresolved`입니다. verify 단계가 아니고 종료코드는 항상 0입니다.
 | `smoke` [제안] | 모델 테이프로 `xeon chat` 한 턴과 강제 종료 뒤 재개(`eng.testing.guide` TS-01 `scenario`). M1에서 더한다 | `just smoke` [제안] |
 
-- CI job 전체가 `just verify`의 `_verify-steps`를 모두 돈다. `xeon/scripts/ci-alignment.test.ts`가 루트 justfile의 단계 목록과 `xeon-ci.yml`의 명령을 비교해, 단계가 CI에서 빠지면 실패한다. `ws check`는 사용자 환경 검사라 CI에서 돌지 않는다.
+- CI job 전체가 `just verify-full`과 같은 단계를 모두 돈다(두 워크플로의 `TURBO_FORCE: "true"`로 turbo 캐시를 읽지 않고, lint는 type-aware다). `xeon/scripts/ci-alignment.test.ts`가 루트 justfile의 단계 목록과 `xeon-ci.yml`의 명령을 비교해, 단계가 CI에서 빠지면 실패한다. `ws check`는 사용자 환경 검사라 CI에서 돌지 않는다.
 - 체크아웃은 `fetch-depth: 0`이다. `--affected`는 기준 커밋이 있어야 한다. 얕은 체크아웃이면 turbo가 모든 패키지를 바뀐 것으로 본다(`_research/stack-status.md §5-B`, §9).
 - 기준 커밋: PR은 `origin/<base_ref>`, push는 `origin/main`(`TURBO_SCM_BASE`).
 - 각 job은 `jdx/mise-action`으로 `mise.toml`의 Bun 1.4.3을 설치하고 just 1.58.0을 쓴다.

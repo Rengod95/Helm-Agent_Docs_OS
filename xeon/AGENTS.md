@@ -80,6 +80,7 @@ Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 
 | `just docs-route --check [--allow-missing]`                               | 문서 프런트매터, id, depends_on, binds 검사                                        |
 | `just ci-layer <F\|X\|L0\|L1\|L2\|L3\|L4> [true]`                         | 한 층만 lint, typecheck, test (`true`는 turbo `--affected`)                        |
 | `just verify`                                                             | 위 전부 + `ws check`. 기기에서 한 번에 하나, 단계마다 따로 2G, 시험은 패키지마다 1.5G |
+| `just verify-full`                                                        | verify와 같되 캐시를 읽지 않고 type-aware lint까지. 마일스톤 마감과 CI만         |
 
 ### 병렬 작업 중 규칙
 

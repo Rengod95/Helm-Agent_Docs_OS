@@ -16,6 +16,8 @@ permissions:
 
 env:
   TURBO_TELEMETRY_DISABLED: "1"
+  # the full form of verify (verify-full): no turbo cache reads
+  TURBO_FORCE: "true"
   MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/xeon
 
 jobs:

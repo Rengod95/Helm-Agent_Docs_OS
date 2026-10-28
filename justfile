@@ -9,7 +9,7 @@
 # 8. 고친 뒤 `just --list`, `just verify`.
 # 9. test·verify는 scripts/guard.sh(기기 슬롯, 공용 메모리 예산) 아래에서 돈다: `scripts/guard.sh run -- <명령>`, verify는 `scripts/guard.sh verify -- just _verify-steps`.
 # 이 저장소: verify는 기기에서 한 번에 하나(WS_GUARD_SLOTS=1)이고 _verify-steps(xeon/scripts/verify-steps.sh)가 단계마다 guard.sh run scope(2G, XEON_VERIFY_STEP_MAX)를 따로 만든다. test 단계는 turbo(동시 2개)로 패키지마다 1.5G, 캐시에 맞는 패키지는 다시 돌지 않는다.
-# 병렬 작업 중에는 `just check <패키지>`·`just test <패키지>`만 돌린다. 저장소 전체 verify·lint·typecheck는 마지막 병합 단계 한 곳에서만.
+# verify는 빠른 길(병합·push 전), verify-full은 마일스톤 마감과 CI만. 병렬 작업 중에는 `just check <패키지>`·`just test <패키지>`만 돌린다. 저장소 전체 verify·lint·typecheck는 마지막 병합 단계 한 곳에서만.
 set shell := ["bash", "-euo", "pipefail", "-c"]
 set allow-duplicate-recipes
 import? '~/.config/ws/ws.just'
@@ -31,10 +31,10 @@ fmt:
 fmt-check:
     cd xeon && just fmt-check
 
-# Xeon 정적 검사 (oxlint type-aware, turbo)
+# Xeon 정적 검사: mode=full은 type-aware(turbo 캐시), mode=fast는 type-aware 없이 한 번에 (.oxlintrc.fast.json)
 [group('quality')]
-lint:
-    cd xeon && just lint
+lint mode="full":
+    cd xeon && just lint {{mode}}
 
 # Xeon 타입 검사 (tsc -b, TypeScript 7)
 [group('quality')]
@@ -86,16 +86,22 @@ ci-layer layer affected="false":
 exit-tests:
     cd xeon && just exit-tests
 
-# 완료 기준. 검사 전부와 ws check (ws help justfile). 마지막 병합 단계만 돌린다. 기기에서 한 번에 하나(슬롯 1), 단계마다 따로 메모리 상한 2G(XEON_VERIFY_STEP_MAX), 시험은 패키지마다 1.5G, 공용 예산 ws-dev.slice (scripts/guard.sh)
+# 완료 기준, 빠른 길: 병합과 push 전에 돈다. 검사 전부와 ws check. 시험·lint·타입 검사는 turbo 캐시(모든 worktree 공용)를 쓰고 lint는 type-aware 없이 돈다. 마일스톤 마감과 CI는 verify-full. 기기에서 한 번에 하나(슬롯 1), 단계마다 따로 메모리 상한 2G(XEON_VERIFY_STEP_MAX), 시험은 패키지마다 1.5G, 공용 예산 ws-dev.slice (scripts/guard.sh)
 [group('quality')]
 verify:
-    WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps
+    WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps fast
     ws check
 
-# verify 단계 묶음: setup, 가벼운 검사(fmt-check check-layers check-ts-rules docs-route knip, 같이), lint typecheck depcruise test를 차례로, 단계마다 guard.sh run scope 하나. 처음 실패에서 멈추고 종료코드를 그대로 낸다 (xeon/scripts/verify-steps.sh)
+# 완료 기준, 전체: TURBO_FORCE로 캐시를 읽지 않고 type-aware lint까지 모든 검사를 새로 돈다(결과 캐시는 새로 채운다). 마일스톤 마감과 CI만 쓴다. 나머지는 verify와 같다
+[group('quality')]
+verify-full:
+    WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps full
+    ws check
+
+# verify 단계 묶음: setup, 가벼운 검사(fmt-check check-layers check-ts-rules docs-route knip, 같이), lint typecheck depcruise test를 차례로, 단계마다 guard.sh run scope 하나. mode fast|full. 처음 실패에서 멈추고 종료코드를 그대로 낸다 (xeon/scripts/verify-steps.sh)
 [private]
-_verify-steps:
-    bash xeon/scripts/verify-steps.sh
+_verify-steps mode="fast":
+    bash xeon/scripts/verify-steps.sh {{mode}}
 
 # 웹 가격표 asOf 90일 검사: 오래된 항목을 출력만 하고 종료코드는 0 (xeon/packages/cap-web/src/cost/pricing-cli.ts)
 [group('local')]

@@ -23,11 +23,10 @@ fmt-check:
     {{bun}} run fmt-check:root
     {{bun}} run fmt-check
 
-# 정적 검사: scripts, 각 패키지 (type-aware)
+# 정적 검사: mode=full은 type-aware(scripts와 각 패키지, turbo 캐시), mode=fast는 type-aware 없이 한 번에(.oxlintrc.fast.json, 1초 안쪽)
 [group('quality')]
-lint:
-    {{bun}} run lint:root
-    {{bun}} run lint
+lint mode="full":
+    {{ if mode == "fast" { bun + " run lint:fast" } else { bun + " run lint:root && " + bun + " run lint" } }}
 
 # 타입 검사: scripts, 각 패키지 (tsc -b)
 [group('quality')]
