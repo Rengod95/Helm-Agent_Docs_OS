@@ -131,9 +131,8 @@ describe("dialog definitions", () => {
       "unsafe",
       "safe",
     ]);
-    for (const method of Object.values(DialogNotify.service.methods)) {
-      expect(method.replay).toBe("safe");
-    }
+    const notify = DialogNotify.service.methods;
+    expect([notify.emit.replay, notify.list.replay]).toEqual(["unsafe", "safe"]);
   });
 });
 

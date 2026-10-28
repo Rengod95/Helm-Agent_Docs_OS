@@ -525,7 +525,7 @@ export const DialogAside = defineCapability({
   description: "본류 컨텍스트를 읽기만 하는 별도 질문. 본류 기록을 바꾸지 않는다.",
   service: {
     methods: {
-      ask: { description: "본류 스냅숏을 읽고 별도 모델 호출로 답한다.", input: AsideAskInput, output: AsideAskOutput, replay: "safe", readOnly: true },
+      ask: { description: "본류 스냅숏을 읽고 별도 모델 호출로 답한다.", input: AsideAskInput, output: AsideAskOutput, replay: "unsafe" },
     },
   },
   tools: [],
@@ -617,7 +617,7 @@ export const DialogNotify = defineCapability({
   description: "사용자 주의가 필요한 상태를 5종으로 분류하고 알린다.",
   service: {
     methods: {
-      emit: { description: "그룹·플러그인이 알림을 직접 낸다(내구 기록).", input: NotifyEmitInput, output: Type.Object({ notice: NoticeSchema }), replay: "safe", idempotent: true },
+      emit: { description: "그룹·플러그인이 알림을 직접 낸다(내구 기록).", input: NotifyEmitInput, output: Type.Object({ notice: NoticeSchema }), replay: "unsafe" },
       list: { description: "afterSeq 뒤의 알림을 분류해 돌려준다(당겨 읽기).", input: NotifyListInput, output: Type.Object({ notices: Type.Array(NoticeSchema), nextSeq: Type.Integer() }), replay: "safe", readOnly: true },
     },
   },
@@ -685,13 +685,13 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태,
 | 메서드 | 분류 | replay | 근거 |
 |---|---|---|---|
 | `dialog.ask.ask` | idempotent | safe | `requestId` 필수. 승인 요청이 같은 키로 하나만 생기고 다시 부르면 그 요청의 현재 상태를 돌려준다(§4.1) |
-| `dialog.aside.ask` | readOnly | safe | 본류에 이벤트를 쓰지 않고 답은 반환값으로만 남는다(§4.6). 모델 호출 비용만 든다 [제안] |
+| `dialog.aside.ask` | 선언 없음 | unsafe | 유료 모델 호출이라 읽기로 보지 않는다. 공급자는 2차 [결정: 2026-10-28 오케스트레이터] |
 | `dialog.attachments.add` | 선언 없음 | unsafe | blob을 저장한다. `requestId` 멱등 기록이 없다 |
 | `dialog.commands.register` | 선언 없음 | unsafe | 메모리 등록부를 바꾼다. 내구 기록이 없다 |
 | `dialog.commands.list` | readOnly | safe | 등록부 조회 |
 | `dialog.commands.expand` | readOnly | safe | 치환만 하고 실행하지 않는다 |
 | `dialog.commands.run` | 선언 없음 | unsafe | 동작 명령 처리기를 실행한다. 처리기 안의 효과는 처리기가 `requestId`로 지킨다 |
-| `dialog.notify.emit` | idempotent | safe | `dialog.notified`를 `dialog:notify:<requestId>` 커밋 키로 남긴다(§3.7). 공급자는 M3(D11)에서 만든다 |
+| `dialog.notify.emit` | 선언 없음 | unsafe | 공급자가 아직 없다. `dialog.notified`를 `dialog:notify:<requestId>` 키로 남기는 구현(M3b, D11)이 적합성 시험과 함께 들어오면 `idempotent`로 올린다 [결정: 2026-10-28 오케스트레이터] |
 | `dialog.notify.list` | readOnly | safe | 내구 이벤트 조회 |
 | `dialog.status.setItem` | 선언 없음 | unsafe | 휘발 스냅숏을 바꾼다. 내구 기록이 없어 `requestId`로 기억할 곳이 없다 |
 | `dialog.status.clearItem` | 선언 없음 | unsafe | 같음 |

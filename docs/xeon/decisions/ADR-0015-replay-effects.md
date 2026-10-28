@@ -66,6 +66,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 
 1. [결정] `MethodDef`에 `idempotent?: true`를 더한다. 뜻은 "같은 대화에서 같은 `requestId`로 다시 불러도 추가 효과가 없고 처음 결과를 돌려준다"이다.
 2. [제안] `MethodDef`에 `readOnly?: true`를 더한다. 뜻은 "대화 상태, 세션 DB, 작업 공간, 외부 시스템 어디에도 효과를 남기지 않는다"이다. 결정 문장의 "읽기(replay safe) 메서드"를 정의에서 구별하는 표지다. 이름은 `ToolHints.readOnly`와 맞췄다(§6 미결).
+   - [결정: 2026-10-28 오케스트레이터] `readOnly` 메서드는 관찰상 순수한 파생 데이터를 쓸 수 있다: 캐시, 검색 색인, 내용 주소 blob, 사용량·비용 계량, 시간과 현재 데이터만으로 정해지는 정리(제안 만료 정리, 바깥 편집을 원장에 기록하는 지연 재색인). 대화 기록, 사용자 파일과 사용자가 쓴 데이터, 외부 시스템의 상태는 바꿀 수 없다. 외부 서버의 읽기 메서드를 부르는 것은 허용한다(MCP `tools/list` 등). 유료 모델 호출처럼 비용이 드는 효과가 있는 메서드(`dialog.aside.ask`)와 공급자가 없는 메서드(`dialog.notify.emit`)는 선언 없음으로 둔다. 계량을 쓰는 읽기(`web.fetch`의 세션당 상한 카운터)는 drive 재생이 계량을 다시 소모할 수 있다.
 3. [제안] `validateCapability` 규칙을 더한다.
    - `idempotent: true`인데 `replay`가 `"safe"`가 아님(생략 포함): error `idempotent_replay_unsafe`.
    - `readOnly: true`인데 `replay`가 `"safe"`가 아님: error `read_only_replay_unsafe`.

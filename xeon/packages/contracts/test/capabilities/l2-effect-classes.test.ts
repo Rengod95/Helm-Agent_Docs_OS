@@ -68,13 +68,13 @@ const DEFS: readonly AnyCapabilityDef[] = [
 
 const EXPECTED: readonly string[] = [
   "dialog.ask.ask idempotent safe",
-  "dialog.aside.ask readOnly safe",
+  "dialog.aside.ask none unsafe",
   "dialog.attachments.add none unsafe",
   "dialog.commands.register none unsafe",
   "dialog.commands.list readOnly safe",
   "dialog.commands.expand readOnly safe",
   "dialog.commands.run none unsafe",
-  "dialog.notify.emit idempotent safe",
+  "dialog.notify.emit none unsafe",
   "dialog.notify.list readOnly safe",
   "dialog.status.setItem none unsafe",
   "dialog.status.clearItem none unsafe",
