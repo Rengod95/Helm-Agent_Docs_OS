@@ -6,7 +6,7 @@ import { defineGroup, GroupSettingsSourceKey, type GroupApi } from "../src/index
 import { fireSettled, install } from "./support/host.ts";
 import { groupManifestOf } from "./support/manifests.ts";
 
-const modeSettings = defineSettings("l3.with-mode", {
+const modeInputs = {
   mode: {
     type: Type.String({ enum: ["fast", "slow"] }),
     default: "fast",
@@ -21,7 +21,9 @@ const modeSettings = defineSettings("l3.with-mode", {
     allowedScopes: ["user"],
     since: "0.1.0",
   },
-});
+} as const;
+
+const modeSettings = defineSettings("l3.with-mode", modeInputs);
 
 type ModeDefs = typeof modeSettings.defs;
 
@@ -123,7 +125,7 @@ test("wrap.metrics-count-commits-posts-and-spawns", async () => {
     defineGroup<{ readonly n: number }>({
       manifest: groupManifestOf({
         name: "counted",
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         usesPost: true,
         usesDrive: true,
       }),
@@ -134,7 +136,7 @@ test("wrap.metrics-count-commits-posts-and-spawns", async () => {
       },
       setup(g) {
         api = g;
-        g.on("agent_settled", async (_payload, ctx) => {
+        g.on("boundary.settle.after", async (_payload, ctx) => {
           await g.post({ kind: "user", content: "hi" }, { when: "next", requestId: "same-key" });
           await g.post(
             { kind: "user", content: "hi again" },
@@ -162,4 +164,34 @@ test("wrap.metrics-count-commits-posts-and-spawns", async () => {
     denies: 0,
     delegates: 0,
   });
+});
+
+test("wrap.settings-of-a-user-trust-group-read-only-its-own-ext-namespace", async () => {
+  const t = await createTestHost();
+  const values: Record<string, unknown> = {
+    "ext.user-mode.mode": "slow",
+    "ext.user-mode.limit": 9,
+    "ext.other.limit": 5,
+  };
+  await t.host.registerPlatform({
+    name: "settings-source",
+    setup(ctx) {
+      ctx.providePort(GroupSettingsSourceKey, { value: (key) => values[key] });
+    },
+  });
+  const sink: { api?: GroupApi<never, ModeDefs> } = {};
+  const group = defineGroup({
+    manifest: groupManifestOf({ name: "user-mode", builtin: false }),
+    settings: defineSettings("ext.user-mode", modeInputs),
+    setup(g) {
+      sink.api = g;
+    },
+  });
+  await t.host.install({
+    manifest: group.manifest,
+    entry: group.entry,
+    loadIndex: 0,
+    builtin: false,
+  });
+  expect(sink.api?.settings()).toEqual({ mode: "slow", limit: 9 });
 });

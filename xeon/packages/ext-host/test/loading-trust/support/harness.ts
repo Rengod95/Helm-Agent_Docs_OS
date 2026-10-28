@@ -64,9 +64,17 @@ export function moduleOf(
   };
 }
 
+/** 외부 확장 시험에서 바꾸는 로더 의존. 나머지는 빈 파일 시스템과 고정 경로다 */
+export type LoaderOverrides = Partial<
+  Pick<LoaderDeps, "fs" | "paths" | "trustBackend" | "prompter" | "sdkModules" | "emitProjectTrust">
+>;
+
 export interface LoaderHarness extends OperationsHarness {
   readonly loader: ExtensionLoader;
-  readonly options: (builtins: readonly BuiltinExtensionModule[]) => LoadOptions;
+  readonly options: (
+    builtins: readonly BuiltinExtensionModule[],
+    extra?: Partial<LoadOptions>,
+  ) => LoadOptions;
   readonly settings: { enabled: Map<string, boolean>; values: Set<string> };
 }
 
@@ -74,6 +82,7 @@ export async function createLoaderHarness(
   options: HarnessOptions & {
     readonly policy?: Pick<OperationsPolicy, "admit" | "forget">;
     readonly core?: LoaderDeps["coreCapabilities"];
+    readonly loader?: LoaderOverrides;
   } = {},
 ): Promise<LoaderHarness> {
   const harness = await createOperationsHarness(options);
@@ -85,9 +94,14 @@ export async function createLoaderHarness(
   const loader = createExtensionLoader({
     host: harness.t.host,
     policy: options.policy ?? harness.policy,
-    fs: EMPTY_FS,
-    paths: PATHS,
-    trustBackend: TRUST_BACKEND,
+    fs: options.loader?.fs ?? EMPTY_FS,
+    paths: options.loader?.paths ?? PATHS,
+    trustBackend: options.loader?.trustBackend ?? TRUST_BACKEND,
+    ...(options.loader?.prompter === undefined ? {} : { prompter: options.loader.prompter }),
+    ...(options.loader?.sdkModules === undefined ? {} : { sdkModules: options.loader.sdkModules }),
+    ...(options.loader?.emitProjectTrust === undefined
+      ? {}
+      : { emitProjectTrust: options.loader.emitProjectTrust }),
     clock: { now: harness.t.timers.now },
     settings: source,
     ...(options.core === undefined ? {} : { coreCapabilities: options.core }),
@@ -96,11 +110,12 @@ export async function createLoaderHarness(
     ...harness,
     loader,
     settings,
-    options: (builtins) => ({
+    options: (builtins, extra = {}) => ({
       builtins,
       cwd: "/work",
       mode: "headless",
       signal: new AbortController().signal,
+      ...extra,
     }),
   };
 }

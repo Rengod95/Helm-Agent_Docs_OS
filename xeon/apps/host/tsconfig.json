@@ -8,6 +8,9 @@
   "include": ["src", "test"],
   "references": [
     {
+      "path": "../../packages/client"
+    },
+    {
       "path": "../../packages/contracts"
     },
     {
@@ -75,6 +78,9 @@
     },
     {
       "path": "../../packages/group-kit"
+    },
+    {
+      "path": "../../packages/group-learning"
     }
   ]
 }

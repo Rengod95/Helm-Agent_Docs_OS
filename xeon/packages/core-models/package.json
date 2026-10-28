@@ -10,7 +10,7 @@
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test scripts",
     "typecheck": "tsc -b",
-    "test": "bun test",
+    "test": "bash ../../scripts/test-pkg.sh",
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test scripts"
   },
   "dependencies": {

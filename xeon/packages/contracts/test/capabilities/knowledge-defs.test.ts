@@ -14,6 +14,8 @@ import {
   KnowledgeSkillsKey,
   LedgerEntrySchema,
   MemoryManageInputSchema,
+  ProposalSchema,
+  ProposalsInputSchema,
   SkillCreateInputSchema,
   SkillManageInputSchema,
   SkillNameSchema,
@@ -126,15 +128,16 @@ describe("knowledge definitions", () => {
     expect(parse(MemoryManageInputSchema, memory).ok).toBe(true);
   });
 
-  test("write methods replay as unsafe and reads as safe", () => {
+  test("writes dedupe by requestId so they replay safe, decide and reindex replay unsafe", () => {
     const skills = KnowledgeSkills.service.methods;
     for (const name of ["create", "edit", "patch", "writeFile", "remove", "manage"] as const) {
-      expect(skills[name].replay ?? "unsafe").toBe("unsafe");
-    }
-    for (const name of ["list", "view", "reindex"] as const) {
       expect(skills[name].replay).toBe("safe");
     }
-    expect(KnowledgeLedger.service.methods.rollback.replay ?? "unsafe").toBe("unsafe");
+    for (const name of ["list", "view"] as const) {
+      expect(skills[name].replay).toBe("safe");
+    }
+    expect(skills.reindex.replay).toBe("unsafe");
+    expect(KnowledgeLedger.service.methods.rollback.replay).toBe("safe");
     expect(KnowledgeLedger.service.methods.decide.replay ?? "unsafe").toBe("unsafe");
     expect(KnowledgeLedger.service.methods.scan.replay).toBe("safe");
   });
@@ -364,5 +367,44 @@ describe("knowledge renderers", () => {
     expect(text).toContain("[잘림]");
     expect(text).toContain("이어 읽기: fromSeq=3");
     expect(firstText(renderMessages({ messages: [] }))).toBe("(메시지 없음)");
+  });
+});
+
+describe("proposal queue fields for the merged approval list (M3-REQ-91)", () => {
+  test("proposals accepts several statuses and a keyset position, and rejects an empty status list", () => {
+    expect(
+      parse(ProposalsInputSchema, {
+        statuses: ["pending", "stale"],
+        before: { createdAt: 5, proposalId: "knp_01ARZ3NDEKTSV4RRFFQ5ABCDEF" },
+        limit: 20,
+      }).ok,
+    ).toBe(true);
+    expect(parse(ProposalsInputSchema, { statuses: [] }).ok).toBe(false);
+    expect(parse(ProposalsInputSchema, { before: { createdAt: -1, proposalId: "x" } }).ok).toBe(
+      false,
+    );
+  });
+
+  test("decide accepts the scope the user picked and only user or project", () => {
+    const base = { proposalId: "knp_01ARZ3NDEKTSV4RRFFQ5ABCDEF", decision: "approve" as const };
+    expect(parse(DecideInputSchema, { ...base, scope: "project" }).ok).toBe(true);
+    expect(parse(DecideInputSchema, { ...base, scope: "extension" }).ok).toBe(false);
+  });
+
+  test("ledger entries and proposals carry the optional afterUntrusted mark", () => {
+    const scan = { rulesetVersion: "1.0.0", findings: [] };
+    const proposal = {
+      proposalId: "knp_01ARZ3NDEKTSV4RRFFQ5ABCDEF",
+      createdAt: 1,
+      actor: { kind: "user" },
+      target: { kind: "skill", name: "deploy" },
+      op: "skill.create",
+      baseHash: null,
+      status: "pending",
+      preview: "+x",
+      scan,
+    };
+    expect(parse(ProposalSchema, { ...proposal, afterUntrusted: true }).ok).toBe(true);
+    expect(parse(ProposalSchema, { ...proposal, afterUntrusted: "yes" }).ok).toBe(false);
   });
 });

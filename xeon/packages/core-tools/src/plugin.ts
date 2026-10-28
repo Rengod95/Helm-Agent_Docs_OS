@@ -1,4 +1,4 @@
-import { attempt, type Clock, type Logger } from "@xeon/contracts";
+import { attempt, type Clock, type Logger, type Scheduler } from "@xeon/contracts";
 import {
   WorkspaceFiles,
   WorkspaceImages,
@@ -17,6 +17,7 @@ import type { SessionService } from "@xeon/contracts/records";
 import {
   ApprovalServicePortKey,
   ExecPortKey,
+  OsPortKey,
   SecretServicePortKey,
   SessionPortKey,
   StoreServicePortKey,
@@ -49,6 +50,8 @@ export const TOOLS_EXTENSION_NAME = "core-tools";
 
 export interface ToolsPluginOptions {
   readonly clock: Clock;
+  /** 승인 만료 타이머. 생략하면 `xeon.os`가 있을 때 그 스케줄러를 쓰고, 없으면 타이머 없이 시계만 본다 */
+  readonly scheduler?: Scheduler;
   readonly ids: IdFactory;
   /** 파일 범위(managed, user, project, local) 설정 층. 세션 범위는 xeon.session에서 읽는다 */
   readonly settings: ToolsSettingsSource;
@@ -114,6 +117,7 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         // 선언하지 않았거나 공급자가 없으면 도구 호출이 unavailable 결과가 된다
         return resolved.ok ? resolved.value : undefined;
       };
+      const scheduler = options.scheduler ?? ext.ports.get(OsPortKey)?.time.scheduler;
       const deps: ToolsDeps = {
         session,
         producer: session.producer("core.tools"),
@@ -128,6 +132,7 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         resolveCapability,
         config: configReader(options.settings, session),
         clock: options.clock,
+        ...(scheduler === undefined ? {} : { scheduler }),
         ids: options.ids,
         logger: options.logger,
       };

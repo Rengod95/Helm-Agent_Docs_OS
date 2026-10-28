@@ -96,6 +96,7 @@ export const SettingsTabSchema: TUnion<
     TLiteral<"tools">,
     TLiteral<"plugins">,
     TLiteral<"execution">,
+    TLiteral<"sandbox">,
     TLiteral<"appearance">,
     TLiteral<"advanced">,
   ]
@@ -110,6 +111,7 @@ export const SettingsTabSchema: TUnion<
   Type.Literal("tools"),
   Type.Literal("plugins"),
   Type.Literal("execution"),
+  Type.Literal("sandbox"),
   Type.Literal("appearance"),
   Type.Literal("advanced"),
 ]);
@@ -138,20 +140,64 @@ export const SettingWidgetSchema: TUnion<
 ]);
 export type SettingWidget = Static<typeof SettingWidgetSchema>;
 
+/**
+ * 전용 편집기 힌트 [결정: M3-REQ-15, 오케스트레이터 기본값]. `ui.widget`이 일반 위젯이면 화면은 그 위젯으로 그리고,
+ * `editor`가 있으면 클라이언트가 아는 전용 편집기로 바꿔 그린다. 모르는 값은 일반 위젯으로 그린다(키 이름에 묶지 않는다).
+ * 값은 `L4.settings-ui.spec` §4.2.4 표의 전용 편집기 여섯 가지다.
+ */
+export const SettingEditorSchema: TUnion<
+  [
+    TLiteral<"modelRoles">,
+    TLiteral<"fallbackChain">,
+    TLiteral<"permissionRules">,
+    TLiteral<"sandboxLists">,
+    TLiteral<"searchOrder">,
+    TLiteral<"accountPool">,
+  ]
+> = Type.Union([
+  Type.Literal("modelRoles"),
+  Type.Literal("fallbackChain"),
+  Type.Literal("permissionRules"),
+  Type.Literal("sandboxLists"),
+  Type.Literal("searchOrder"),
+  Type.Literal("accountPool"),
+]);
+export type SettingEditor = Static<typeof SettingEditorSchema>;
+
+/**
+ * 메시지 키 [결정: M3-REQ-21, adr.0016]. 화면 문자열은 키로 싣고 ko·en 카탈로그(JSON, `@xeon/client`)가 문장을 낸다.
+ * 점으로 이은 낙타 표기 식별자다. 예: `settings.l1.loop.maxSteps.label`.
+ */
+export const MESSAGE_KEY_PATTERN: string = "^[a-z][A-Za-z0-9]*(\\.[A-Za-z][A-Za-z0-9]*)*$";
+export const MessageKeySchema: TString = Type.String({
+  minLength: 1,
+  maxLength: 128,
+  pattern: MESSAGE_KEY_PATTERN,
+});
+
 export const SettingUiSchema: TObject<{
   tab: typeof SettingsTabSchema;
   widget: typeof SettingWidgetSchema;
+  editor: TOptional<typeof SettingEditorSchema>;
   order: TInteger;
   label: TString;
+  labelKey: TOptional<TString>;
   help: TOptional<TString>;
+  helpKey: TOptional<TString>;
   unit: TOptional<TString>;
 }> = Type.Object(
   {
     tab: SettingsTabSchema,
     widget: SettingWidgetSchema,
+    editor: Type.Optional(SettingEditorSchema),
     order: Type.Integer({ minimum: 0, maximum: 9999 }),
+    /** 개발·진단용 대체 문구. `labelKey`가 있으면 클라이언트는 카탈로그 문장을 쓰고 이 값은 키가 없을 때만 쓴다 */
     label: Type.String({ minLength: 1, maxLength: 80 }),
+    /** 라벨의 메시지 키(M3-REQ-21). 생성 TS id로 선언하고 호스트·화면이 같은 키를 쓴다 */
+    labelKey: Type.Optional(MessageKeySchema),
     help: Type.Optional(Type.String({ maxLength: 500 })),
+    /** 설명의 메시지 키 */
+    helpKey: Type.Optional(MessageKeySchema),
     unit: Type.Optional(Type.String({ maxLength: 16 })),
   },
   { additionalProperties: false },

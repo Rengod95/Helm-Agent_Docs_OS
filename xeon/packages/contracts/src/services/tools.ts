@@ -4,11 +4,14 @@ import type {
   AnyCapabilityDef,
   CallContext,
   CallContinuation,
+  CallerId,
   CapabilityId,
   OrderedTool,
   ServiceKey,
   ToolName,
+  ToolClass,
   ToolRef,
+  ToolRisk,
   ToolSpec,
   ToolsetFingerprint,
 } from "../capabilities/index.ts";
@@ -59,12 +62,9 @@ export const ToolServicePortKey: PortKey<ToolService> = { name: ToolServiceName 
 
 // ── 도구 메타 ────────────────────────────────────────────────────────────
 
-/** 효과 범위. 미선언은 "exec"로 본다 */
-export type ToolRisk = "read" | "write" | "exec";
-export const TOOL_RISK_ORDER: readonly ToolRisk[] = ["read", "write", "exec"];
+export type { CallerId, ToolClass, ToolRisk } from "../capabilities/index.ts";
 
-/** 정책이 도구 이름 대신 쓰는 의미 표지. L1.agents의 자식 차단 목록이 쓴다 */
-export type ToolClass = "spawn" | "user_interaction" | "shared_state_write" | "external_send";
+export const TOOL_RISK_ORDER: readonly ToolRisk[] = ["read", "write", "exec"];
 
 /** 광고 방식. auto는 도구 수가 지연 임계를 넘을 때 지연 도구가 된다 */
 export type ExposureMode = "always" | "deferred" | "auto";
@@ -148,9 +148,6 @@ export type ToolRegistration = CapabilityToolsRegistration | DirectToolRegistrat
 export type Unregister = () => void;
 
 // ── 실행 맥락 ────────────────────────────────────────────────────────────
-
-/** 호출 주체. 정의 이름은 L1.agents의 AgentDefinition.name */
-export type CallerId = "main" | `subagent:${string}`;
 
 export interface ToolRunDrafts {
   /**
@@ -328,6 +325,10 @@ export interface PolicyCeiling {
   readonly mode: PermissionMode;
   /** 정의 파일 tools 제한(glob). 없으면 제한 없음 */
   readonly allow?: readonly string[];
+  /** 호출자가 준 거부 도구 이름 glob. 광고에서 빼지 않고 실행 시점에 거부한다 [제안: M3-REQ-78] */
+  readonly deny?: readonly string[];
+  /** `allow` 밖이거나 `deny`에 걸린 호출의 거부 문장에 붙일 안내 */
+  readonly denyHint?: string;
 }
 
 /** 규칙 정적 검사가 찾는 문제 */
@@ -541,7 +542,7 @@ export interface ToolService extends ToolsPort {
   advertise(input: AdvertiseInput): Promise<Result<AdvertisedToolset, AdvertiseError>>;
 
   /**
-   * 도구 호출 하나의 준비(adr.0009 §3.4). 도구 조회, 인자 검증, `tool_call` 지점, 정책·승인, E1(`effect.intent`) 커밋을 차례로 한다.
+   * 도구 호출 하나의 준비(adr.0009 §3.4). 도구 조회, 인자 검증, `tool.call.before` 지점, 정책·승인, E1(`effect.intent`) 커밋을 차례로 한다.
    * 실패는 던지지 않고 `settled`로 돌려준다. 미발견·인자 오류·거부·중단 호출은 결과 item까지 기록된 상태다.
    * 루프는 준비를 항상 원래 순서대로 하나씩 부른다.
    */
@@ -552,7 +553,7 @@ export interface ToolService extends ToolsPort {
   ): Promise<CallPreparation>;
 
   /**
-   * 준비를 마친 호출의 실행과 마감: E2(`effect.exec`), 실행, 마스킹, `tool_result` chain, 경계화, E3(`effect.result` + toolResult item).
+   * 준비를 마친 호출의 실행과 마감: E2(`effect.exec`), 실행, 마스킹, `tool.result` chain, 경계화, E3(`effect.result` + toolResult item).
    * 병렬로 불러도 된다. 도구가 던진 오류는 `isError` 결과가 되어 돌아온다.
    */
   execute(

@@ -60,7 +60,7 @@ binds: [xeon/packages/core-tasks/**]
 | 배치 (placement) | 큐의 입력을 대화에 item으로 넣는 일. 이벤트 `input.placed` |
 | 배치 지점 | `turnStart`(turn 시작 커밋)와 `stepEnd`(단계 끝 커밋) 둘 |
 
-turn과 step은 `F.conversation.spec` §2, §2.1을 따른다. pi의 turn은 Xeon의 step이고, pi의 run(`agent_start`~`agent_end`)이 Xeon의 turn이다.
+turn과 step은 `F.conversation.spec` §2, §2.1을 따른다. pi의 turn은 Xeon의 step이고, pi의 run(`boundary.turn.before`~`boundary.turn.after`)이 Xeon의 turn이다.
 
 ## 3. 인터페이스
 
@@ -243,6 +243,8 @@ export interface InputDraft {
   /** 대화 범위 멱등 키. 브랜드 없는 문자열 1~64자(F.extensions.spec §2) */
   readonly requestId: string;
   readonly source: InputSource;
+  /** 이 입력이 시작하는 turn의 출처. `input.queued.origin`에 그대로 적는다. 없으면 적지 않고 `source`에서 정한다(L1.loop.spec §4.4b) */
+  readonly origin?: TurnOrigin;
 }
 
 export interface QueuedInput extends InputDraft {
@@ -440,7 +442,7 @@ abort(target, reason, { background }):
 
 ### 4.4 병렬 도구와 키 큐
 
-[결정] 도구 배치는 기본 병렬이고 도구별 `executionMode`(`ToolMeta.executionMode`)를 따른다. pi-agent-core 1.3.0의 배치 규칙을 core-loop `loop/tool-batch.ts`로 옮겼다(adr.0009 §3.3, `_research/packages.md` §4.3 "병렬 도구 실행: 그대로"). 루프는 한 배치의 준비(`tools.prepare`: 검증, `tool_call` 지점, 정책·승인)를 순서대로 끝낸 뒤 실행만 동시에 한다. 도구 하나라도 `executionMode: "sequential"`이면 배치 전체가 순차다(원본 `~/projects/_ref/pi-src/packages/agent/src/agent-loop.ts:508-523`, 586-660).
+[결정] 도구 배치는 기본 병렬이고 도구별 `executionMode`(`ToolMeta.executionMode`)를 따른다. pi-agent-core 1.3.0의 배치 규칙을 core-loop `loop/tool-batch.ts`로 옮겼다(adr.0009 §3.3, `_research/packages.md` §4.3 "병렬 도구 실행: 그대로"). 루프는 한 배치의 준비(`tools.prepare`: 검증, `tool.call.before` 지점, 정책·승인)를 순서대로 끝낸 뒤 실행만 동시에 한다. 도구 하나라도 `executionMode: "sequential"`이면 배치 전체가 순차다(원본 `~/projects/_ref/pi-src/packages/agent/src/agent-loop.ts:508-523`, 586-660).
 
 같은 파일을 쓰는 호출은 키 큐로 직렬화한다. 경계 [제안]:
 
@@ -544,7 +546,7 @@ abort(target, reason, { background }):
 
 | 안 | 동작 | 장점 | 단점 |
 |---|---|---|---|
-| A. 시작한다 | 실행 중이면 `stepEnd`(continuing 여부와 무관)에 배치하고 요청 한 번을 보장한다. 유휴면 turn을 연다 | adr.0007 §3.1 표의 "경계 지점의 `continue`" 대응과 같다 | `agent_before_settle`의 `continue`, drive의 `loop.turn`과 기능이 겹친다(`_research/ext-points.md` §5 안 1 단점 3) |
+| A. 시작한다 | 실행 중이면 `stepEnd`(continuing 여부와 무관)에 배치하고 요청 한 번을 보장한다. 유휴면 turn을 연다 | adr.0007 §3.1 표의 "경계 지점의 `continue`" 대응과 같다 | `boundary.settle.before`의 `continue`, drive의 `loop.turn`과 기능이 겹친다(`_research/ext-points.md` §5 안 1 단점 3) |
 | B. 붙기만 한다 [결정] | 실행 중이면 `continuing: true`인 `stepEnd`에서만, 유휴면 다음 `turnStart`에서 배치한다. 요청을 만들지 않는다 | 요청을 만드는 경로가 `continue`와 drive로 정리된다. pi `nextTurn`과 같은 뜻으로 읽힌다 [가정: pi `nextTurn` 동작 미확인] | 유휴 thread에 넣은 `next`는 사용자 입력이 올 때까지 머문다 |
 
 - B안이면 `next`와 `aside`의 배치 규칙이 같아진다. 두 모드의 차이는 출처뿐이다. `aside`는 사용자·CLI 입력이고, `next`는 확장 `post`다.
@@ -625,7 +627,7 @@ SettingDef 규칙 대조(`F.wire-settings.spec` §3.8.2 D1~D9):
 
 ## 7. 확장 지점
 
-- 이 도메인이 발화하는 지점은 없다. 발화 소유표(41개)에서 tasks 몫은 0이다.
+- 이 도메인이 발화하는 지점은 없다. 발화 소유표(46개)에서 tasks 몫은 0이다.
 - `post`: `xeon.tasks`가 `InputQueuePort`(`X.primitives.spec` §3.6)를 구현한다. `enqueue(EnqueueRequest)`를 `TaskService` 최상위에 두고, 안에서 `inputs.enqueue`를 부른다. X의 `ExtensionOps.post`(`F.extensions.spec` §3.2) 구현은 이 포트를 부른다. 대응은 `when` → `mode`, `requestId` → `requestId`, `item` → `item`, `source: { type: "extension", scopeId }`다. 결과 `EnqueueResult.duplicate`는 `EnqueueReceipt.duplicate`다.
 - [결정: review.decisions-2 U-05] 확장 post의 커밋에는 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나만 넣는다. `post.accepted`는 retire했다(`F.records.spec` §3.3 `retired: true`). 같은 post의 두 번째 호출은 커밋 키 `in:<scopeId>:<requestId>`와 `TxView.inputByRequestId`로 걸러 `duplicate: true` 영수증을 돌려준다. 배치된 item은 `input.placed`가 적는다.
 - `drive`: `LoopHandle.turn`은 `xeon.loop`가 처리한다(`L1.loop.spec`). tasks는 drive turn에 turn 노드를 주고, 임대 회수 신호를 받지 않는다. 임대 신호 처리는 loop 몫이다.

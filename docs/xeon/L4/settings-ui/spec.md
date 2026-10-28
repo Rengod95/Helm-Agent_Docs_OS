@@ -5,7 +5,7 @@ domain: settings-ui
 kind: spec
 status: draft
 depends_on: [F.wire-settings.spec, F.records.spec, L4.desktop.spec, L4.host-service.spec, L0.secrets.spec, L1.models.spec, L2.web.spec, L2.dialog.spec, X.primitives.spec, adr.0005, adr.0008]
-binds: [xeon/apps/desktop/src/settings/**]
+binds: [xeon/packages/client/src/settings/**]
 ---
 
 # L4 설정 화면 (settings-ui)
@@ -53,8 +53,8 @@ binds: [xeon/apps/desktop/src/settings/**]
 | 초안 | 사용자가 편집 중이고 아직 `settings.set`으로 보내지 않은 값 |
 | 쓰기 범위 | 이 화면이 값을 저장할 수 있는 범위. `managed`를 뺀 `SettingScope` 값. 타입은 `WritableScope` |
 | 변경 신호 | 다른 연결(CLI 등)이나 엔진이 설정을 바꿨다는 수신 정보. 현재는 `settings.changed` 내구 이벤트(§4.5) |
-| view-model | DOM, 프레임워크, 전송에 의존하지 않는 순수 TS 상태와 함수. `xeon/apps/desktop/src/settings/model/` |
-| 렌더러 | view-model을 화면 부품으로 그리는 코드. `xeon/apps/desktop/src/settings/views/` |
+| view-model | DOM, 프레임워크, 전송에 의존하지 않는 순수 TS 상태와 함수. `xeon/packages/client/src/settings/`(`@xeon/client/settings`, adr.0020) |
+| 렌더러 | view-model을 화면 부품으로 그리는 코드. `xeon/apps/desktop/src/views/` |
 | 셸 포트 | desktop이 settings-ui에 넘기는 의존 묶음(`SettingsHostPort`). 연결, 현재 thread, 재시작 동작을 담는다 |
 
 `SettingDefWire`, `EffectiveSetting`, `SettingsTab`, `SettingWidget`, `SettingScope`, `RuntimeChange`, `SettingKey`, `SecretRef`, `settingsJsonSchema`, `checkSettingWrite`, `validateSettingValue`의 이름과 값 집합은 `F.wire-settings.spec` §3.8~§4.10을 그대로 따른다.
@@ -85,7 +85,7 @@ binds: [xeon/apps/desktop/src/settings/**]
 ### 3.2 셸 포트와 컨트롤러
 
 ```ts
-// xeon/apps/desktop/src/settings/index.ts
+// xeon/packages/client/src/settings/index.ts
 import type { HostConnection, Unsubscribe } from "@xeon/contracts/wire";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { SettingKey, SettingScope } from "@xeon/contracts/settings";
@@ -141,7 +141,7 @@ export type { SecretStatus };
 ### 3.3 연결 어댑터
 
 ```ts
-// xeon/apps/desktop/src/settings/connection.ts
+// xeon/packages/client/src/settings/connection.ts
 import type { HostConnection, Unsubscribe, WireParams, WireResult } from "@xeon/contracts/wire";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { SettingKey, SettingScope } from "@xeon/contracts/settings";
@@ -172,7 +172,7 @@ export declare function createSettingsClient(connection: HostConnection): Settin
 ### 3.4 view-model 타입
 
 ```ts
-// xeon/apps/desktop/src/settings/model/types.ts
+// xeon/packages/client/src/settings/types.ts
 import type {
   EffectiveSetting, RuntimeChange, SecretRef, SettingDefWire, SettingKey, SettingScope, SettingsTab,
 } from "@xeon/contracts/settings";
@@ -570,8 +570,9 @@ export declare function reduceSettings(state: SettingsState, action: SettingsAct
 | 모델 역할 표 | models | 용도별 라우팅(`L1.models.spec`) | 역할 행 고정, 모델 선택 목록, 추론 레벨과 토큰 예산을 한 행에 |
 | 폴백 체인 | models | 폴백 체인(`L1.models.spec`) | 순서 끌어 옮기기, 발동 조건 설명 |
 | 권한 규칙 편집기 | permissions | 권한 규칙(`L1.tools.spec`) | 허용·거부·질문 열, 규칙 충돌 표시 |
-| 샌드박스 경로·도메인 목록 | permissions | 쓰기 경로, 허용 도메인(`L0.sandbox.spec`) | 차단 우선 표시, 경로 형식 검사 |
-| 계정 풀 | providers | 계정 목록, 우선순위, 예약 %(`L1.models.spec`) | 순위 끌어 옮기기, 키 참조는 `secret` 위젯 |
+| 샌드박스 경로·도메인 목록 | permissions | 쓰기 경로, 차단 도메인(`L0.sandbox.spec`. 네트워크 기본 허용 + 차단 목록, [결정: review.m3-design-inputs D-M3-18]) | 차단 우선 표시, 경로 형식 검사 |
+| 검색 도구 순서 | tools | 자동 선택 순서(`L2.web.spec`) | 등록된 검색 도구 목록(기본 웹 검색 도구 포함)을 끌어 옮겨 순서를 정한다. 플러그인은 기본 후순위다 [결정: review.m3-design-inputs D-M3-23] |
+| 계정 풀 | providers | 계정 목록, 우선순위, 예약 %(`L1.models.spec`). API 키 계정과 구독 계정 모두. 회전은 기본 꺼짐이고 켤 때 첫 사용 고지(약관 위험)를 보인다 [결정: review.m3-design-inputs D-M3-22] | 순위 끌어 옮기기, 키 참조는 `secret` 위젯 |
 
 - 전용 편집기를 고르는 기준은 키 이름이다(예: 정의 키가 정해진 목록에 있음). [미결] 키 이름에 묶는 대신 F `SettingUi`에 편집기 힌트 필드를 더할지(§10 미결 8).
 
@@ -828,7 +829,7 @@ sequenceDiagram
 - 항목 라벨은 `SettingDef.ui.label`, 설명은 `ui.help`, 단위는 `ui.unit`을 그대로 쓴다. 설정 화면이 라벨을 다시 짓지 않는다.
 - 탭 라벨(§4.1.1), 배지 글자, 오류·안내 문구는 settings-ui가 소유한다.
 - [제안] UI 문구는 한 형식으로 맞춘다. 문장 문구(오류, 안내, 빈 탭 이유)는 해요체로 쓰고, 라벨·배지·버튼은 명사(구)로 쓴다. 문서 본문의 한다체 규칙은 UI 문구 예에 적용하지 않는다.
-- [미결] i18n 방침. `SettingUi.label`은 문자열 하나이고 언어별 값을 담는 필드가 없다. 키 소유 층이 한국어로 적을지, 메시지 카탈로그 키를 둘지 정해야 한다(§10 미결 9).
+- [결정: adr.0016] `SettingUi.label`·`ui.help`는 메시지 키(생성 TS id)로 바꾸고 ko·en 카탈로그(ICU MessageFormat, JSON)는 `packages/client`에 둔다. 화면은 react-intl로 문장을 만들고 로케일은 `ui.locale`(기본 auto: OS 로케일, 없으면 영어)이다(`review.m3-lower-requirements` M3-REQ-21).
 
 #### 4.8.3 관리 잠금 문구 규칙
 
@@ -839,9 +840,9 @@ sequenceDiagram
 
 ### 4.9 코드 위치
 
-- [제안] 코드는 `xeon/apps/desktop/src/settings/`에 둔다(`_routing/routes.yaml` layout L4 `settings-ui`). `architecture.layers.spec` §10은 "설정 화면의 코드 위치를 `apps/desktop/src/settings`로 둘지 별도 앱으로 둘지"를 미결로 둔다. 이 문서는 별도 앱 없이 desktop 안 하위 디렉터리를 제안하고 같은 미결을 이어 받는다(§10 미결 11).
+- [결정: adr.0020] view-model은 `xeon/packages/client/src/settings/`(`@xeon/client/settings`)에 두고 렌더러는 `xeon/apps/desktop/src/views/`에 둔다. 별도 앱은 두지 않는다.
 - `package.json`의 `xeon.domain`은 `desktop`이다. settings-ui는 별도 패키지가 아니므로 층 검사(`check-layers.ts`)는 desktop 패키지 단위로 돈다.
-- [미결] CLI가 같은 view-model을 쓰려면 공유 위치가 필요하다. 앱끼리 import 금지(DR-10) 때문에 `apps/cli`가 `apps/desktop/src/settings/model`을 import할 수 없다. 후보는 셋이다(§10 미결 12).
+- [결정: adr.0020] CLI와 데스크톱이 view-model을 함께 쓰는 위치는 `packages/client`다. `apps/cli`와 `apps/desktop`은 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`로 import한다.
   - 공유 패키지로 내린다. L4 아래 층에 화면 view-model을 두는 것이 층 뜻과 맞는지 정해야 한다.
   - `apps/` 아래 라이브러리 패키지(앱이 아닌 L4 패키지)를 허용한다. DR-10과 `architecture.layers.spec` §10 "같은 층 예외"를 바꾸는 일이다.
   - CLI는 `xeon config`(F `checkSettingWrite` 기반)만 쓰고 view-model을 공유하지 않는다.
@@ -855,7 +856,7 @@ sequenceDiagram
 
 | 항목 | 내용 | 원천 |
 |---|---|---|
-| 검색 provider 상태 | 현재 `l2.web.search.provider` 유효 값, `auto`이면 설정에서 정해지는 체인(키를 등록한 플러그인, 주소를 설정한 SearXNG, 내장 검색 래퍼 순) | `settings.get`, `L2.web.spec` §4.8.2 선택 체인 |
+| 검색 provider 상태 | 현재 `l2.web.search.provider` 유효 값, `auto`이면 사용자가 끌어 옮겨 정한 순서(기본 웹 검색 도구 포함, 플러그인 기본 후순위) [결정: review.m3-design-inputs D-M3-23] | `settings.get`, `L2.web.spec` §4.8.2 선택 체인 |
 | SearXNG 주소 | `l2.web.search.searxng.url` 입력란. 비어 있으면 SearXNG는 체인에 들어가지 않는다 | `settings.get`·`settings.set`, `L2.web.spec` §4.8.3 설정한 SearXNG |
 | 권장 목록 | 무료 크레딧 API 플러그인(Exa, Brave)과 월 크레딧 안내, 키 등록 버튼 | ADR-0005 §3.1 ④, 키 등록은 §4.6 C안 경로 |
 
@@ -947,10 +948,10 @@ sequenceDiagram
 6. [결정: review.decisions-2 U-04] 파일 단위 편집기의 `settings.readFile`·`settings.writeFile`, 모르는 키 목록, "파일 열기" 동작 제공 여부(§4.2.3, §4.3.5)는 M1에 넣지 않고 M2 계획에서 정한다.
 7. [미결] 검사용 병합 함수 `toValueJsonSchema`를 F에 둘지, `settings.list`가 병합한 `type`을 실을지(`_research/notes/L4-3.md` §4 P1, `L4.host-service.spec` §10 미결 11과 같은 항목). 두면 settings-ui의 같은 이름 함수를 지우고 F 것을 쓴다. 그 전까지는 settings-ui에 두고 계약 테스트로 F `settingsJsonSchema`와 같은지 확인한다.
 8. [미결] `SettingsTab` enum과 `SettingUi` 변경. 현재 변경은 필요 없다고 본다. 전용 편집기 힌트 필드를 더할지, 탭을 더할지는 M3 전용 편집기 작업 때 F 부 버전 변경 요청으로 올린다(§4.1.2, §4.2.4).
-9. [미결] i18n 방침. `ui.label`·`ui.help`의 언어와 메시지 카탈로그 여부(§4.8.2).
+9. [결정: adr.0016] i18n 방침. `ui.label`·`ui.help`는 메시지 키이고 ko·en 카탈로그를 `packages/client`에 둔다(§4.8.2).
 10. [미결] 관리 잠금 사유 문구를 F에 실을지(§4.8.3).
-11. [미결] 설정 화면 코드 위치. `architecture.layers.spec` §10과 같은 항목. 제안은 `apps/desktop/src/settings` 유지(§4.9).
-12. [미결] CLI와 view-model 공유 위치(DR-10, §4.9).
+11. [결정: adr.0020] 설정 화면 렌더러는 `apps/desktop/src/views`에 두고, view-model은 `packages/client`로 옮긴다(§4.9).
+12. [결정: adr.0020] CLI와 view-model 공유 위치는 `packages/client`다(`DR-10/cli-client`, `DR-10/desktop-client`). CLI의 TUI 설정 화면은 M3에 만들지 않는다 [결정: review.m3-design-inputs D-M3-30 행 3].
 13. [미결] 확장의 맞춤 설정 패널 허용 여부와 시점(§7).
 14. 닫음: project·local 범위 쓰기에서 열린 프로젝트가 없을 때의 오류는 3103 `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"`다(`L4.host-service.spec` §3.4 `settings.set` 행). §4.4.4 표와 §5에 반영했다.
 15. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다(`F.wire-settings.spec` §10 6번). 클라이언트 `Check`와 서버 검사가 catalog의 같은 사본을 써서 AC11이 성립한다.

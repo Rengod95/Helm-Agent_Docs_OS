@@ -476,11 +476,11 @@ test("near_window: an estimate above window minus reserve warns", async () => {
   expect(edge.warnings).toEqual([]);
 });
 
-test("context_with_system sees the whole array including the prefix and may replace it", async () => {
+test("request.system.before sees the whole array including the prefix and may replace it", async () => {
   const { h } = await conversation();
   const seen: string[] = [];
-  await installHandlers(h.host, "sys-view", 0, ["context_with_system"], (g) => {
-    g.on("context_with_system", (payload) => {
+  await installHandlers(h.host, "sys-view", 0, ["request.system.before"], (g) => {
+    g.on("request.system.before", (payload) => {
       seen.push(payload.messages.map((message) => message.role).join(","));
       return undefined;
     });
@@ -491,8 +491,8 @@ test("context_with_system sees the whole array including the prefix and may repl
   expect(seen).toEqual(["system,user,assistant,user"]);
   expect(result.warnings).toEqual([]);
 
-  await installHandlers(h.host, "sys-rewrite", 1, ["context_with_system"], (g) => {
-    g.on("context_with_system", (payload) => ({
+  await installHandlers(h.host, "sys-rewrite", 1, ["request.system.before"], (g) => {
+    g.on("request.system.before", (payload) => ({
       messages: [
         { role: "system" as const, content: "rewritten", timestamp: 1 },
         ...payload.messages.slice(1),

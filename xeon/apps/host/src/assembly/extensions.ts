@@ -29,6 +29,7 @@ import {
 } from "@xeon/contracts/capabilities";
 import { dialogPlugin } from "@xeon/cap-dialog";
 import { knowledgePlugin } from "@xeon/cap-knowledge";
+import { APPROVAL_SOURCE } from "@xeon/group-learning";
 import { workPlugin } from "@xeon/cap-work";
 import { workspacePlugin } from "@xeon/cap-workspace";
 import type { AgentDefinition } from "@xeon/contracts/services";
@@ -44,6 +45,12 @@ import type { AssembleOptions, HostMode, SettingsStorePort } from "../types.ts";
 import type { McpProcessPort } from "@xeon/cap-mcp";
 import { hostMcpPlugin } from "./cap-mcp.ts";
 import { hostGroupsPlugin } from "./groups.ts";
+import {
+  learningLoaded,
+  learningUnit,
+  proposalsBridgePlugin,
+  type LearningWiring,
+} from "./learning.ts";
 import { hostWebPlugin } from "./cap-web.ts";
 import { openingChildThreads } from "./child-threads.ts";
 import { dialogBridgePlugin, type CommandRegistryHolder, lazyCommandRegistry } from "./l2-units.ts";
@@ -82,7 +89,7 @@ export interface ExtensionDeps {
   readonly settings: SettingsEngine;
   /** 명령 등록부 자리. 조립 루트가 만들고 엔진 포트(`command.*`)도 같은 자리를 읽는다 */
   readonly commands: CommandRegistryHolder;
-  /** thread의 작업 디렉터리(없으면 undefined). `user_bash` 지점 페이로드의 cwd가 된다 */
+  /** thread의 작업 디렉터리(없으면 undefined). `input.bash.before` 지점 페이로드의 cwd가 된다 */
   readonly workspaceOf: (threadId: ThreadId) => string | undefined;
   readonly db: StoreDb;
   readonly faults: FaultInjector;
@@ -101,6 +108,12 @@ export interface ExtensionDeps {
     readonly heldThreads: () => readonly ThreadId[];
     readonly entries: () => readonly GroupCatalogEntry[];
   };
+  /** 학습 그룹과 L2 제안 대기열 어댑터를 잇는 자리(`proposal.*` 처리기가 읽는다) */
+  readonly learning: LearningWiring;
+  /** AssembleOptions.defaultGroups. false면 L3 기본 그룹(학습)을 싣지 않는다 */
+  readonly defaultGroups?: boolean;
+  /** AssembleOptions.safeMode. 참이면 L3 내장 그룹을 싣지 않는다 */
+  readonly safeMode?: boolean;
   /** stdio MCP 서버를 띄우는 포트(L0 platform-process). 없으면 stdio 서버는 연결에 실패한다 */
   readonly mcpProcess?: McpProcessPort;
   /** AssembleOptions.webPorts */
@@ -164,6 +177,7 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
   // L2 패키지는 대화 id를 문자열로 받는다. thread id 모양이 아니면 작업 폴더가 없는 것이다
   const workspaceOfId = (threadId: string): string | undefined =>
     isId("thr", threadId) ? deps.workspaceOf(threadId) : undefined;
+  const learning = learningLoaded({ defaultGroups: deps.defaultGroups, safeMode: deps.safeMode });
   const modules: readonly (readonly [ExtensionName, (loadIndex: number) => ExtensionUnit])[] = [
     [
       "core-persistence",
@@ -345,9 +359,31 @@ export function builtinUnits(deps: ExtensionDeps): readonly ExtensionUnit[] {
           projectTrust: (projectDir) => deps.trust.isTrusted(projectDir, deps.signal),
           // 프로젝트 폴더는 그 대화의 작업 폴더다. 작업 폴더가 없는 대화에는 프로젝트 스킬이 없다(HS-76)
           workspaceOf: workspaceOfId,
+          // 학습 그룹을 싣는 구성에서만 그 대기열의 승인 증거를 믿는다(M3-REQ-104)
+          trustedEvidenceSources: learning ? [APPROVAL_SOURCE] : [],
           loadIndex,
         }),
     ],
+    [
+      "host-proposals-bridge",
+      (loadIndex) => proposalsBridgePlugin(deps.learning.knowledge, loadIndex),
+    ],
+    ...(learning
+      ? [
+          [
+            "learning",
+            (loadIndex: number) =>
+              learningUnit(
+                {
+                  wiring: deps.learning,
+                  clock: deps.clock,
+                  logger: deps.logger.child({ component: "learning" }),
+                },
+                loadIndex,
+              ),
+          ] as const,
+        ]
+      : []),
   ];
   return modules.map(([, make], index) => make(index));
 }

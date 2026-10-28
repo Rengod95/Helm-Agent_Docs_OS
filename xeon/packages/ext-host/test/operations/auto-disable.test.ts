@@ -24,8 +24,9 @@ function failed(
   return {
     owner: { type: "extension", name, scopeId: name },
     tier,
-    point: "tool_result",
+    point: "tool.result",
     fold: "chain",
+    failure: "skip",
     result,
     activeMs: 1,
     at: 1,
@@ -161,8 +162,9 @@ test("autoDisable: hooks and forced disable", () => {
   const hookOutcome: HandlerOutcomeRecord = {
     owner: { type: "hook", hookId: "audit" },
     tier: "user",
-    point: "tool_call",
+    point: "tool.call.before",
     fold: "first",
+    failure: "closed",
     result: "hook_exit",
     activeMs: 1,
     at: 1,
@@ -209,8 +211,8 @@ test("autoDisable: applied at step boundary", async () => {
   policy.admit({ name: "auto-bad", source: "user", trust: "user", essential: false }, "plugin");
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "auto-bad", points: ["agent_settled"] }, (g) => {
-      g.on("agent_settled", () => {
+    makeUnit({ name: "auto-bad", points: ["boundary.settle.after"] }, (g) => {
+      g.on("boundary.settle.after", () => {
         calls.push("handler");
         throw new Error("always fails");
       });
@@ -221,7 +223,7 @@ test("autoDisable: applied at step boundary", async () => {
   t.loop.setRunning(thread, true);
   const fire = (key: string) =>
     t.host.dispatch(
-      "agent_settled",
+      "boundary.settle.after",
       { turnId: t.ids.next("trn"), aborted: false },
       { threadId: thread, dispatchKey: key },
     );

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { type EngineProcess, processesWithHome, startEngine } from "./harness.ts";
-import { binaryViewOf } from "../../src/settings/index.ts";
+import { binaryViewOf } from "@xeon/client/settings";
 import { HostBinaryReportSchema, type HostBinaryReport } from "@xeon/contracts/wire";
 import { parse } from "@xeon/contracts";
 import { binaryReportOf, CLI_MAIN, nthReply, runScenario, sidecarPath } from "./scenario.ts";
@@ -32,9 +32,7 @@ describe("source entry (harness regression)", () => {
     expect(run.strayStdout).toEqual([]);
     // 기본 켜짐 scope가 하나 이상 있고 한 묶음으로 커밋된다
     expect(run.scopeCount).toBeGreaterThan(0);
-    const kinds = run.events.map((event): unknown =>
-      typeof event === "object" && event !== null ? Reflect.get(event, "kind") : undefined,
-    );
+    const kinds = run.events.map((event): unknown => (isRecord(event) ? event["kind"] : undefined));
     expect(kinds[0]).toBe("thread.started");
     expect(kinds.filter((k) => k === "scope.changed")).toHaveLength(run.scopeCount);
     const exit = await engine.shutdown({ message: true });
@@ -54,12 +52,13 @@ describe("source entry (harness regression)", () => {
   }, 90_000);
 });
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
 /** 응답 프레임의 result 또는 error에서 필드를 꺼낸다 */
 function pick(reply: unknown, ...path: readonly string[]): unknown {
-  return path.reduce<unknown>(
-    (node, key) => (typeof node === "object" && node !== null ? Reflect.get(node, key) : undefined),
-    reply,
-  );
+  return path.reduce<unknown>((node, key) => (isRecord(node) ? node[key] : undefined), reply);
 }
 
 function shape(report: HostBinaryReport): unknown {
@@ -111,13 +110,22 @@ describe("what the desktop asks, answered by the real host (T7)", () => {
     expect(pick(after, "result", "verdict")).toBe("allow");
     expect(pick(after, "result", "via")).toBe("store");
 
-    // command.list: 엔진에 등록된 /plan, /tasks. thread를 주어도 같은 목록이다
+    // command.list: 엔진에 등록된 /learning(학습 그룹), /plan, /tasks. thread를 주어도 같은 목록이다. /helm은 없다:
+    // 기본 플러그인 번들이 이 실행 환경(실행 파일 옆 default-plugins/)에 없어 Helm이 설치·적재되지 않는다
     const names = (reply: unknown): unknown[] => {
       const commands = pick(reply, "result", "commands");
       return Array.isArray(commands) ? commands.map((c: unknown) => pick(c, "name")) : [];
     };
-    expect(names(nthReply(run.responses, "command.list", 0))).toEqual(["plan", "tasks"]);
-    expect(names(nthReply(run.responses, "command.list", 1))).toEqual(["plan", "tasks"]);
+    expect(names(nthReply(run.responses, "command.list", 0))).toEqual([
+      "learning",
+      "plan",
+      "tasks",
+    ]);
+    expect(names(nthReply(run.responses, "command.list", 1))).toEqual([
+      "learning",
+      "plan",
+      "tasks",
+    ]);
 
     // 설정 화면: 저장한 기본 모델이 다시 읽으면 나오고, 저장은 연결 전체에 settings.invalidated를 낸다. 화면의 필터(l1.models.)에 걸린다
     expect(pick(nthReply(run.responses, "settings.set", 0), "result")).toBeDefined();

@@ -109,10 +109,10 @@ xeon/packages/platform-process/
 | PR-07 | `lease/shutdown.ts`: `createProcessShutdown`(신호, 참여자 역순 호출, 시한, `exit` 주입, 중복 요청 합치기) | FR-P7 | S | M1 |
 | PR-08 | `service.ts`, `settings.ts`: `ProcessService` 조립과 `xeon.process` 등록, `l0.process.*` 선언 | PR-06, PR-07 | S | M1 |
 | PR-09 | `service/registration.ts`: `ServiceRegistrationSchema`, 0600 임시 파일 + fsync + rename, 미지 필드 병합 보존, 모드 검사, `removeIfOwned` | FR-P3 | S | M2 이후 |
-| PR-10 | `service/ensure.ts`와 `service/supervisor.ts`: `ensureService` 알고리즘, bind-first-wins, stale 소켓은 `service` 임대를 얻은 쪽만 unlink, 등록 전 접속 대기열, detached + unref 기동 | PR-09, PR-13 | L | M2 이후 |
-| PR-11 | 버전 불일치 처리: 한가하면 `host.shutdown(version_replace)` 후 재기동, 바쁘면 `version_mismatch_busy`, 주 버전 다르면 접속 거부 | PR-10, FR-P1 | M | M2 이후 |
-| PR-12 | `service/idle.ts`: 유휴 종료 판정기(수동 시계), 시작 유예, 승인 대기 live 계산, `idleShutdownAt` | PR-07 | S | M2 이후 |
-| PR-13 | `service/auth.ts`와 `transport/socket.ts`: 토큰 생성·상수 시간 비교, `host.hello` 전 인증 연결, Unix 소켓 리스너(0600, 경로 길이 검사, 소켓 상대 경로 24바이트 상한). runtime 경로 폴백은 `xeon.os`가 한다(`L0.os.spec` §3.2) | PR-02, FR-P2 | M | M2 이후 |
+| PR-10 | `service/ensure.ts`와 `service/supervisor.ts`: `ensureService` 알고리즘, bind-first-wins, stale 소켓은 활성화 잠금(조립 루트가 L0.os fileLock으로 주입, DR-02)을 얻은 쪽만 unlink, detached + unref 기동(`service/bind.ts`, `service/spawn.ts`). 등록 전 접속 대기열은 L4가 맡는다 | PR-09, PR-13 | L | M3b B1-SVC 구현됨 |
+| PR-11 | 버전 불일치 처리: 한가하면 `host.shutdown(version_replace)` 후 재기동, 바쁘면 `version_mismatch_busy`, 주 버전 다르면 접속 거부 | PR-10, FR-P1 | M | M3b B1-SVC 구현됨 |
+| PR-12 | `service/idle.ts`: 유휴 종료 판정기(수동 시계), 시작 유예, 승인 대기 live 계산, `idleShutdownAt` | PR-07 | S | M3b B1-SVC 구현됨 |
+| PR-13 | `service/auth.ts`와 `transport/socket.ts`: 토큰 생성·상수 시간 비교, `host.hello` 전 인증 연결, Unix 소켓 리스너(0600, 경로 길이 검사 103바이트, 소켓 상대 경로 24바이트 상한), TCP 리스너는 토큰 없이 열지 않고 `PeerInfo.requiresToken`을 위층에 알린다, 토큰 회전 `TokenGate`. runtime 경로 폴백은 `xeon.os`가 한다(`L0.os.spec` §3.2) | PR-02, FR-P2 | M | M3b B1-SVC 구현됨 |
 | PR-14 | 서비스 소실 처리: 클라이언트 정지 상태, 재접속 안 함, 다음 `ensure`의 재개 후보 제시 통합 테스트 | PR-10, PR-16 | S | M2 이후 |
 | PR-15 | `lock-fallback.ts`: `LockFallbackPolicy.decide` 규칙 네 가지, `thread.locked` details 생성 도우미 | FR-S2 | S | M2 |
 | PR-16 | `resume-offer.ts`: `buildResumeOffers`(입력 `ResumeCandidate[]`, 자동 재개 꺼짐 기본, 서비스 모드 한정, 상한, `heldBy`) | L1.persistence FR-P1(`RecoveryMarker`) | S | M2 |

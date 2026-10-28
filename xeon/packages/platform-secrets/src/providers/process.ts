@@ -10,6 +10,8 @@ export interface RunRequest {
   readonly timeoutMs: number;
   /** 자식 stdin으로 보낼 바이트. 없으면 stdin을 닫는다. 호출자가 끝난 뒤 0으로 덮는다 */
   readonly stdin?: Uint8Array;
+  /** 참이면 자식 stdout을 읽지 않고 버린다(결과 `stdout`은 빈 바이트). 비밀을 출력하는 명령의 종료 코드만 볼 때 쓴다 */
+  readonly discardStdout?: boolean;
   /** 서비스가 닫히면 중단된다. 실행 중인 자식 프로세스를 죽인다 */
   readonly signal: AbortSignal;
 }
@@ -35,7 +37,7 @@ export const bunRunner: ProcessRunner = async (request) => {
     const proc = Bun.spawn([...request.argv], {
       env: { ...request.env },
       stdin: request.stdin ?? "ignore",
-      stdout: "pipe",
+      stdout: request.discardStdout === true ? "ignore" : "pipe",
       stderr: "pipe",
       timeout: request.timeoutMs,
       signal: request.signal,

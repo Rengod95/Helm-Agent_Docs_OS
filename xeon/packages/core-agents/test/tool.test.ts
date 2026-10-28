@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { parse } from "@xeon/contracts";
 import { AGENT_TOOL_NAME } from "../src/index.ts";
+import { spawnRecorder } from "../src/testing/index.ts";
 import { agentToolRegistration } from "../src/tool.ts";
 import { openHarness } from "./support/harness.ts";
 
@@ -73,7 +74,7 @@ describe("the agent tool", () => {
     expect(h.loop.calls).toHaveLength(1);
   });
 
-  test("errors come back as isError results; no task scope and background are refused", async () => {
+  test("errors come back as isError results; no task scope is refused", async () => {
     const h = openHarness();
     const registration = agentToolRegistration(h.service, h.tasks, h.tools);
     h.openToolCall("tc-1");
@@ -93,13 +94,28 @@ describe("the agent tool", () => {
       () => {},
     );
     expect(orphan.isError).toBe(true);
-    const background = await registration.tool.execute(
-      "tc-1",
-      { agent: "explorer", task: "t", background: true },
+  });
+
+  test("a background call delegates, returns an acceptance and queues the report as agent.report", async () => {
+    const h = openHarness();
+    const registration = agentToolRegistration(h.service, h.tasks, h.tools);
+    h.openToolCall("tc-bg");
+    const recorder = spawnRecorder(h.session);
+    const result = await registration.tool.execute(
+      "tc-bg",
+      { agent: "explorer", task: "dig", background: true },
       new AbortController().signal,
       () => {},
     );
-    expect(background.isError).toBe(true);
+    expect(result.isError).toBeUndefined();
+    expect(result.details).toMatchObject({ status: "accepted" });
+    await recorder.settleAll(h.parentThreadId, ["tool:tc-bg:spawn:0"]);
+    recorder.dispose();
+    const queued = h.session.events.find((event) => event.kind === "input.queued");
+    expect(queued?.payload).toMatchObject({
+      mode: "followUp",
+      item: { kind: "context", display: true },
+    });
   });
 
   test("the parameter schema requires agent and task", () => {

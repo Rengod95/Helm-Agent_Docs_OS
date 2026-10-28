@@ -67,6 +67,8 @@ export function approvalBodyOf(body: ApprovalBodyJson): ApprovalBody | undefined
     }
     case "question":
       return { kind: "question", question: { questions: body.question.questions } };
+    case "review":
+      return { kind: "review", review: body.review };
     default:
       return assertNever(body, "approvals.bodyOf");
   }
@@ -96,6 +98,8 @@ function requestOf(event: DurableEventEnvelope): ApprovalRequest | undefined {
     remember: payload.remember,
     surfaceThreadId: payload.surfaceThreadId,
     requestedAt: payload.requestedAt,
+    ...(payload.expiresAt === undefined ? {} : { expiresAt: payload.expiresAt }),
+    ...(payload.onExpire === undefined ? {} : { onExpire: payload.onExpire }),
   };
 }
 

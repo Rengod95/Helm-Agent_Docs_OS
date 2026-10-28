@@ -2,10 +2,10 @@ import { expect, test } from "bun:test";
 import type { ServiceKey } from "@xeon/contracts/capabilities";
 import { hostOf } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { makeUnit } from "./fixtures/support.ts";
+import { echoDefs, makeUnit } from "./fixtures/support.ts";
 
 interface Echo {
-  echo(): string;
+  echo(text?: string, options?: { readonly requestId?: string }): string;
 }
 const echoKey: ServiceKey<Echo> = { capability: "demo.echo", version: "1.0.0" };
 
@@ -17,7 +17,7 @@ async function setup(): Promise<{
   setups: () => number;
   handled: string[];
 }> {
-  const t = await createTestHost();
+  const t = await createTestHost({ capabilityDefs: echoDefs });
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
@@ -32,13 +32,13 @@ async function setup(): Promise<{
       {
         name: "pr-consumer",
         loadIndex: 1,
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
         setupCount += 1;
-        g.on("agent_settled", () => {
-          handled.push(g.capability(echoKey).echo());
+        g.on("boundary.settle.after", () => {
+          handled.push(g.capability(echoKey).echo(undefined, { requestId: "r1" }));
         });
       },
     ),
@@ -49,7 +49,7 @@ async function setup(): Promise<{
 
 async function fire(t: Host, thread: ReturnType<Host["newThread"]>, key: string): Promise<void> {
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: key },
   );

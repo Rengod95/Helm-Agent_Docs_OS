@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
+import { dirname } from "node:path";
 import { chmod, readFile, stat, writeFile, mkdir } from "node:fs/promises";
 import type { SecretAuditRecord } from "@xeon/contracts/capabilities";
+import { err, ok } from "@xeon/contracts";
+import type { SecretFileLock } from "../src/providers/lock.ts";
 import { auditFilePath, createAuditLog, parseAuditLine } from "../src/audit-file.ts";
 import { manualClock } from "./support/clock.ts";
 import { handleOf } from "./support/names.ts";
@@ -143,6 +147,102 @@ describe("audit file (spec §3.9)", () => {
     const durable = await log.appendDurable(created(clock.now()));
     expect(durable.ok).toBe(false);
     if (!durable.ok) expect(durable.error.kind).toBe("audit_io");
+  });
+});
+
+/** withLock 호출을 기록하고 fn을 잠금 표시 안에서 돈다. 시험이 실패를 시킬 수 있다 */
+function recordingLock(failWith?: { kind: "timeout" } | { kind: "io"; code: string }) {
+  const calls: string[] = [];
+  let holding = false;
+  const lock: SecretFileLock = {
+    async withLock<T>(path: string, fn: () => Promise<T>) {
+      calls.push(path);
+      if (failWith !== undefined) return err(failWith);
+      holding = true;
+      try {
+        return ok(await fn());
+      } finally {
+        holding = false;
+      }
+    },
+  };
+  return { lock, calls, isHolding: () => holding };
+}
+
+async function lockedHarness(lock: SecretFileLock) {
+  const dir = await tempDir();
+  dirs.push(dir);
+  const clock = manualClock();
+  const log = createAuditLog({
+    configDir: dir.path,
+    clock,
+    logger: recordingLogger(),
+    retentionDays: () => 90,
+    lock,
+  });
+  return { dir, clock, log, path: auditFilePath(dir.path) };
+}
+
+describe("audit file cross-process lock (M3-REQ-61)", () => {
+  test("every append and the retention prune run while holding the lock on the audit file", async () => {
+    const fake = recordingLock();
+    const { clock, log, path } = await lockedHarness(fake.lock);
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, `${JSON.stringify(used(clock.now() - 100 * DAY))}\n`);
+    expect((await log.appendDurable(created(clock.now()))).ok).toBe(true);
+    expect((await log.appendDurable(created(clock.now() + 1))).ok).toBe(true);
+    expect(fake.calls).toEqual([path, path]);
+    // 정리(오래된 줄 삭제)와 추가가 같은 잠금 안에서 끝났다
+    const read = await log.read();
+    expect(read.ok && read.value.map((r) => r.at)).toEqual([clock.now(), clock.now() + 1]);
+    expect(fake.isHolding()).toBe(false);
+  });
+
+  test("a lock timeout or io failure writes nothing and is reported as audit_io", async () => {
+    const timedOut = recordingLock({ kind: "timeout" });
+    const a = await lockedHarness(timedOut.lock);
+    const result = await a.log.appendDurable(created(a.clock.now()));
+    expect(result).toEqual({
+      ok: false,
+      error: { kind: "audit_io", code: "lock_timeout", path: a.path },
+    });
+    expect(existsSync(a.path)).toBe(false);
+
+    const broken = recordingLock({ kind: "io", code: "EACCES" });
+    const b = await lockedHarness(broken.lock);
+    const failed = await b.log.appendDurable(created(b.clock.now()));
+    expect(failed).toEqual({
+      ok: false,
+      error: { kind: "audit_io", code: "EACCES", path: b.path },
+    });
+  });
+
+  test("two logs on the same file lose no line while one of them prunes", async () => {
+    const dir = await tempDir();
+    dirs.push(dir);
+    const clock = manualClock();
+    const path = auditFilePath(dir.path);
+    await mkdir(`${dir.path}/secrets`, { recursive: true });
+    const stale = Array.from({ length: 40 }, (_, i) =>
+      JSON.stringify(used(clock.now() - 200 * DAY + i)),
+    );
+    await writeFile(path, `${stale.join("\n")}\n`);
+    const make = () =>
+      createAuditLog({
+        configDir: dir.path,
+        clock,
+        logger: recordingLogger(),
+        retentionDays: () => 90,
+      });
+    const a = make();
+    const b = make();
+    const writes = [
+      a.appendDurable(created(clock.now())),
+      ...Array.from({ length: 30 }, (_, i) => b.appendDurable(created(clock.now() + 1 + i))),
+    ];
+    expect((await Promise.all(writes)).every((r) => r.ok)).toBe(true);
+    const read = await a.read();
+    expect(read.ok && read.value.length).toBe(31);
   });
 });
 

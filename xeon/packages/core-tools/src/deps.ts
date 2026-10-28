@@ -1,4 +1,4 @@
-import type { Clock, Logger } from "@xeon/contracts";
+import type { Clock, Logger, Scheduler } from "@xeon/contracts";
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import type { ProducerHandle, SessionService, StoreService } from "@xeon/contracts/records";
 import type { Redactor, TieredRule } from "@xeon/contracts/services";
@@ -39,6 +39,8 @@ export interface ToolsDeps {
   /** 대화의 현재 설정을 읽는다. threadId가 null이면 세션 범위 층 없이 읽는다 */
   readonly config: (threadId: ThreadId | null) => ToolsConfig;
   readonly clock: Clock;
+  /** 승인 만료 타이머(M3-REQ-72). 없으면 타이머 없이 `restore`·`respond`·`open`이 시계를 보고 만료를 해결한다 */
+  readonly scheduler?: Scheduler;
   readonly ids: IdFactory;
   readonly logger: Logger | undefined;
 }

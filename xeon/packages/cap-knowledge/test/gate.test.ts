@@ -125,3 +125,14 @@ describe("evidence validity", () => {
     expect(isEvidenceValid(undefined, EXTENSION, trusted)).toBe(false);
   });
 });
+
+describe("evidence source prefix", () => {
+  test("a dotted extension name matches by the whole name, not the first segment", () => {
+    const actor = { kind: "extension", extension: "my.group" } as const;
+    const evidence = { source: "my.group.queue", ref: "p:1", decidedAt: 1 };
+    expect(isEvidenceValid(evidence, actor, ["my.group.queue"])).toBe(true);
+    expect(
+      isEvidenceValid(evidence, { kind: "extension", extension: "other" }, ["my.group.queue"]),
+    ).toBe(false);
+  });
+});

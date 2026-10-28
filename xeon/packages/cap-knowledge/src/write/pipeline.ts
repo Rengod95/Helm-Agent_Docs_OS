@@ -29,6 +29,7 @@ import type { ChangeTarget } from "../ledger/target.ts";
 import type { WriteApprovals } from "../ports/approvals.ts";
 import type { KnowledgeSettings } from "../settings.ts";
 import type { Tree } from "../skills/tree.ts";
+import { keyReused, type Idem } from "./idempotency.ts";
 import { previewDiff } from "./preview.ts";
 
 // L2.knowledge.spec §4.4.1 쓰기 경로의 6단계(쓰기 승인 게이트)와 그 앞의 멱등 확인. 새 내용을 이미 계산한 변경(`WritePlan`) 하나를
@@ -56,22 +57,28 @@ export interface WritePlan {
   readonly captureFailure: ChangeSpec["captureFailure"];
 }
 
+/** 제안 결정으로 사람이 이미 승인한 쓰기. 원장에 제안 id와 제안 당시의 afterUntrusted를 남긴다 */
+export interface DecidedProposal {
+  readonly proposalId: string;
+  readonly afterUntrusted: boolean;
+}
+
 export interface WriteRequest {
   readonly plan: WritePlan;
   readonly actor: KnowledgeActor;
   readonly context: CallContext | undefined;
-  /** `CallOptions.requestId`. 같은 키의 두 번째 호출은 첫 결과를 돌려받는다 */
-  readonly requestId: string | undefined;
+  /** (대화, 메서드, `CallOptions.requestId`)와 입력 지문. 같은 키·같은 입력의 두 번째 호출은 첫 결과를, 다른 입력은 `key_reused`를 받는다 */
+  readonly requestId: Idem | undefined;
   /** 호출 확장이 낸 증거(모양만 검사한 것). 유효성은 게이트가 판정한다 */
   readonly evidence: ApprovalEvidence | undefined;
   readonly signal: AbortSignal | undefined;
   /** 제안 결정으로 사람이 이미 승인했다. 게이트를 건너뛰고 원장에 제안 id를 남긴다 */
-  readonly decided: { readonly proposalId: string } | undefined;
+  readonly decided: DecidedProposal | undefined;
 }
 
 export interface Writer {
   /** 같은 `requestId`로 이미 처리한 쓰기가 있으면 그 첫 결과(2단계 멱등 확인). 계산 앞에서 부른다 */
-  recall(requestId: string | undefined): Result<WriteOutcome | undefined, KnowledgeFailure>;
+  recall(idem: Idem | undefined): Result<WriteOutcome | undefined, KnowledgeFailure>;
   run(request: WriteRequest): Promise<Result<WriteOutcome, KnowledgeFailure>>;
 }
 
@@ -131,18 +138,24 @@ function writingActorOf(actor: KnowledgeActor): WritingActor | undefined {
   }
 }
 
+/** 제안 결정이 다시 실행하는 쓰기의 멱등 키. 같은 결정을 두 번 실행해도 원장 `request_id`가 막는다 */
+function proposalIdem(proposalId: string): Idem {
+  const key = `proposal:${proposalId}`;
+  return { key, fingerprint: "", raw: key };
+}
+
 export function createWriter(deps: WriterDeps): Writer {
   const { db, blobs, clock, ids, executor } = deps;
 
-  function recall(
-    requestId: string | undefined,
-  ): Result<WriteOutcome | undefined, KnowledgeFailure> {
-    if (requestId === undefined) return ok(undefined);
-    const ledger = db.read((tx) => findByRequestId(tx, requestId));
+  function recall(idem: Idem | undefined): Result<WriteOutcome | undefined, KnowledgeFailure> {
+    if (idem === undefined) return ok(undefined);
+    const ledger = db.read((tx) => findByRequestId(tx, idem.key));
     if (!ledger.ok) return err(fromStoreError(ledger.error, "ledger lookup"));
     if (!ledger.value.ok) return ledger.value;
     const applied = ledger.value.value;
     if (applied !== undefined) {
+      const reused = keyReused(applied.requestFingerprint, idem);
+      if (reused !== undefined) return err(reused);
       if (applied.outcome !== null && applied.status === "applied") return ok(applied.outcome);
       return err(
         failure("unavailable", "a request with the same requestId is still being applied", {
@@ -150,10 +163,13 @@ export function createWriter(deps: WriterDeps): Writer {
         }),
       );
     }
-    const queued = db.read((tx) => findProposalByRequestId(tx, requestId));
+    const queued = db.read((tx) => findProposalByRequestId(tx, idem.key));
     if (!queued.ok) return err(fromStoreError(queued.error, "proposal lookup"));
     if (!queued.value.ok) return queued.value;
-    return ok(queued.value.value === undefined ? undefined : queuedOutcome(queued.value.value));
+    const found = queued.value.value;
+    if (found === undefined) return ok(undefined);
+    const clash = keyReused(found.requestFingerprint, idem);
+    return clash === undefined ? ok(queuedOutcome(found)) : err(clash);
   }
 
   function enqueue(request: WriteRequest): Result<WriteOutcome, KnowledgeFailure> {
@@ -169,9 +185,12 @@ export function createWriter(deps: WriterDeps): Writer {
     const proposalId = ids.next("knp");
     const written = db.write((tx): Result<WriteOutcome, KnowledgeFailure> => {
       if (requestId !== undefined) {
-        const duplicate = findProposalByRequestId(tx, requestId);
+        const duplicate = findProposalByRequestId(tx, requestId.key);
         if (!duplicate.ok) return duplicate;
-        if (duplicate.value !== undefined) return ok(queuedOutcome(duplicate.value));
+        if (duplicate.value !== undefined) {
+          const clash = keyReused(duplicate.value.requestFingerprint, requestId);
+          return clash === undefined ? ok(queuedOutcome(duplicate.value)) : err(clash);
+        }
       }
       insertProposal(tx, {
         proposalId,
@@ -188,7 +207,9 @@ export function createWriter(deps: WriterDeps): Writer {
         baseHash: plan.baseHash ?? null,
         scan: plan.scan,
         preview: previewDiff(plan.current, plan.next),
-        requestId,
+        requestId: requestId?.key,
+        requestFingerprint: requestId?.fingerprint,
+        ...(request.context?.caller.afterUntrusted === true ? { afterUntrusted: true } : {}),
       });
       return ok({ status: "queued", proposalId, scan: plan.scan, indexChanged: false });
     });
@@ -208,7 +229,7 @@ export function createWriter(deps: WriterDeps): Writer {
       requestId:
         request.decided === undefined
           ? request.requestId
-          : `proposal:${request.decided.proposalId}`,
+          : proposalIdem(request.decided.proposalId),
       baseHash: plan.baseHash,
       next: plan.next,
       removal: plan.removal,
@@ -218,6 +239,10 @@ export function createWriter(deps: WriterDeps): Writer {
       reason: plan.reason,
       proposalId: request.decided?.proposalId,
       rollbackOf: plan.rollbackOf,
+      afterUntrusted:
+        request.decided === undefined
+          ? request.context?.caller.afterUntrusted === true
+          : request.decided.afterUntrusted,
       captureFailure: plan.captureFailure,
     });
   }
@@ -234,7 +259,8 @@ export function createWriter(deps: WriterDeps): Writer {
       {
         threadId,
         context,
-        requestKey: requestId === undefined ? ids.next("knp") : requestKeyFor(requestId, sha256Hex),
+        requestKey:
+          requestId === undefined ? ids.next("knp") : requestKeyFor(requestId.raw, sha256Hex),
         toolName: tool.name,
         capability: { id: tool.capability, method: tool.method },
         op: plan.op,

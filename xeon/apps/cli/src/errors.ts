@@ -52,10 +52,10 @@ function detailText(error: WireError, key: string): string | undefined {
 
 /** 확장이 막을 수 있는 지점(`thread.cancelledByExtension`의 point)을 사람이 읽는 말로 바꾼다. 모르는 값은 그대로 보인다 */
 const POINT_TEXT: Readonly<Record<string, string>> = {
-  session_before_compact: "컴팩션",
-  session_before_fork: "분기",
-  session_before_tree: "되감기",
-  session_before_switch: "세션 전환",
+  "session.compact.before": "컴팩션",
+  "session.fork.before": "분기",
+  "session.tree.before": "되감기",
+  "session.switch.before": "세션 전환",
 };
 
 function pointText(point: string | undefined): string {

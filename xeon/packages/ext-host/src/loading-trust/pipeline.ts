@@ -12,7 +12,6 @@ import {
   type TString,
   type TUnion,
 } from "typebox";
-import type { CandidateOrigin } from "./discover.ts";
 import type { InstallSource, TrustLevel } from "./trust/levels.ts";
 
 export type LoadState =
@@ -37,8 +36,7 @@ export type LoadStage =
   | "entry"
   | "usage"
   | "activate"
-  | "isolation"
-  | "pi";
+  | "isolation";
 
 export type LoadDiagnosticCode =
   | "manifest_missing"
@@ -73,11 +71,7 @@ export type LoadDiagnosticCode =
   | "isolation_drive_unsupported"
   | "isolation_exited"
   | "isolation_restart_limit"
-  | "isolation_protocol"
-  | "pi_unsupported_module"
-  | "pi_unsupported_api"
-  | "pi_input_mutation"
-  | "pi_name_invalid";
+  | "isolation_protocol";
 
 const IssueSchema: TObject<{
   severity: TString;
@@ -140,7 +134,6 @@ export interface LoadedExtensionInfo {
   readonly name: ExtensionName;
   readonly version: SemVer;
   readonly source: InstallSource;
-  readonly origin: CandidateOrigin;
   readonly trust: TrustLevel;
   readonly state: LoadState;
   readonly isolation: "none" | "process";

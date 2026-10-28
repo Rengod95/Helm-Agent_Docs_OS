@@ -18,6 +18,7 @@ binds: [xeon/packages/ext-host/**, xeon/packages/contracts/src/extensions/**, xe
 - [결정] Hermes식 학습 정책은 L3 학습 그룹이고 `drive`를 쓰지 않으며 Helm과 함께 켤 수 있다(같은 기록).
 - 사용자가 확인한 범위는 연산 4개와 fold 3종까지다. 확장 지점 목록과 Helm 내부 설계는 "층 구성 계획 보완·합의 뒤 착수"로 남아 있다(`_research/decisions-log.md` 2026-10-21 결정(2차) 끝 문장). 그래서 이 ADR의 지점 종류 수(5개), 지점 이름 목록, 지점별 fold 배정은 [제안]이다.
 - 개정: 2026-10-21 `review.decisions-2` U-01(§3.1·§3.6 켜기·끄기와 임대 교대 시점을 단계 경계로 읽음), U-06(§3.3 `tool_call` 인자 변경 미지원), U-12(§3.5 drive 상한 기본값을 pi 방식의 예외로 인정, 기본값은 설정 화면에서 조정). 결정을 뒤집지 않고 해석과 미결을 정한 보충이라 같은 ADR 안에서 고쳤다(`adr.readme` §1.4). 세 항목은 사용자 확인을 거친 [결정]이다(2026-10-22).
+- 부분 대체: 2026-10-26 ADR-0017. 대체된 절은 §3.2(fold 3종), §3.3(지점 종류와 pi 이름 정본), §3.4(pi 등록 API), §3.5 실패 정책 행, §4.1 pi 호환 항목, §5.2 가드레일 보류 행이다. 연산 4개(§3.1)와 임대·켜고 끄기(§3.6)는 그대로다(`review.m3-design-inputs` D-M3-10, D-M3-11, D-M3-30).
 
 ## 2. 맥락
 
@@ -52,7 +53,7 @@ binds: [xeon/packages/ext-host/**, xeon/packages/contracts/src/extensions/**, xe
 | `followUp` | 에이전트 정착 뒤 입력으로 들어간다 | `deliverAs: "followUp"` |
 | `next` | 경계 뒤 정확히 한 요청에 들어간다. 이 항목이 그 요청을 스스로 시작하는지, 다음 사용자 입력이 시작하는 요청에 붙기만 하는지는 [미결](§6) | `deliverAs: "nextTurn"`, 경계 지점의 `continue` |
 
-### 3.2 fold 세 종류
+### 3.2 fold 세 종류 (ADR-0017이 대체)
 
 [결정] 합성 방식은 확장이 고르지 않는다. 지점을 선언할 때 fold를 정한다(`_research/layer-plan-v2-notes.md` 같은 절).
 
@@ -62,7 +63,7 @@ binds: [xeon/packages/ext-host/**, xeon/packages/contracts/src/extensions/**, xe
 | `first` | 첫 결정이 이긴다 | 거부로 처리한다(fail-closed) | 동기 핸들러는 `bail`, 비동기는 `serial`. 래퍼는 지점 선언의 결정 스키마에 맞는 객체(예: `tool_call`의 `ToolCallDecision`)만 결정으로 본다. `bail`은 `0`, `''`, `NaN`도 결정으로 취급하기 때문이다(`arch-1.md §2` bail 판정 규칙 행) |
 | `chain` | 앞 핸들러의 결과를 뒤 핸들러가 이어받는다 | 그 핸들러만 건너뛴다 | `waterfall`. `next` 호출 횟수 검사는 래퍼가 맡는다(`arch-1.md §5`) |
 
-### 3.3 지점 종류
+### 3.3 지점 종류 (ADR-0017이 대체)
 
 [제안] 지점은 `input`, `request`, `tool`, `boundary`, `session` 다섯 종류로 나눈다. 지점 이름은 pi 이벤트명을 따른다(`_research/layer-plan-v2-notes.md` 같은 절). 사용자가 확인한 범위는 연산 4개와 fold 3종까지이고, 종류 수와 이름은 합의 전이다(§1). `_research/decisions-log.md`의 "확장 지점 목록(5)"은 남은 결정 목록의 5번 항목을 뜻하고 종류 수가 아니다.
 
@@ -85,7 +86,7 @@ binds: [xeon/packages/ext-host/**, xeon/packages/contracts/src/extensions/**, xe
 - 관찰 전용 이벤트 약 22개는 모두 `tap` 지점이다.
 - [결정] 지점 선언(이름, fold, 페이로드 타입)은 F4(`xeon/packages/contracts/src/extensions`)에 둔다. L1과 X는 그 선언을 공유한다(`_research/foundation-plan.md §3` "층 순위와 의존 방향").
 
-### 3.4 리소스 등록은 별도
+### 3.4 리소스 등록은 별도 (pi API 부분은 ADR-0017이 대체)
 
 [결정] 도구, 명령, provider 등록은 확장 지점에 넣지 않는다. 리소스 등록으로 따로 다루고 pi API(`registerTool`, `registerCommand`, `registerProvider` 등)를 따른다(`_research/layer-plan-v2-notes.md` 같은 절, `_research/ext-points.md §1.3`).
 
@@ -240,12 +241,12 @@ helm.disable(); // ScopeHandle. 다음 단계 경계에서 임대 반납
 
 ## 6. 미결 사항
 
-- [미결] fold를 3종으로 충분히 줄일 수 있는지. pi `emitBoundary`(entries 병합 + continue)와 `resources_discover`(누적)를 `chain`과 `tap`의 변종으로 흡수할 수 있는지 검토가 필요하다(`_research/ext-points.md §6.1` 1번).
-- [미결] `first`의 실패를 거부로 고정할 때 pi `session_before_compact`(현재 fail-open) 같은 지점별 예외 표가 필요한지(`_research/ext-points.md §6.1` 2번).
-- [미결] 비협조적인 확장 코드의 강제 종료는 프로세스 경계 없이 불가능하다. `drive` 상한이 협조적 코드에만 유효하다는 한계를 받아들일지, 그룹별 격리 선택지를 1차에 둘지(`_research/ext-points.md §6.1` 3번).
-- [미결] 지점 종류 5개(`input`, `request`, `tool`, `boundary`, `session`), 지점 이름 목록, 지점별 fold 배정(§3.3). 사용자 합의 전이다(`_research/decisions-log.md` 2차).
-- [미결] `post.when = next`가 경계 뒤 요청을 스스로 시작하는지, 다음 사용자 입력이 시작하는 요청에 붙기만 하는지(§3.1). §3.1 표의 pi 대응 가운데 경계 지점의 `continue`는 요청을 시작하는 쪽으로 읽힌다. pi `nextTurn`의 정확한 동작은 확인하지 않았다 [가정]. `product.usecases.spec` UC-1의 수용 기준은 이 결정 뒤에 확정한다.
+- 닫음(ADR-0017 §3.3): fold는 `collect`를 더해 4종이다. 옛 질문: fold를 3종으로 충분히 줄일 수 있는지. pi `emitBoundary`(entries 병합 + continue)와 `resources_discover`(누적)를 `chain`과 `tap`의 변종으로 흡수할 수 있는지 검토가 필요하다(`_research/ext-points.md §6.1` 1번).
+- 닫음(ADR-0017 §3.4): 지점 선언이 실패 정책을 정한다. 옛 질문: `first`의 실패를 거부로 고정할 때 pi `session_before_compact`(현재 fail-open) 같은 지점별 예외 표가 필요한지(`_research/ext-points.md §6.1` 2번).
+- 닫음(ADR-0017 §3.7 3번 [가정]): 같은 프로세스의 한계를 받아들이고 격리는 M4에서 다시 본다. 옛 질문: 비협조적인 확장 코드의 강제 종료는 프로세스 경계 없이 불가능하다. `drive` 상한이 협조적 코드에만 유효하다는 한계를 받아들일지, 그룹별 격리 선택지를 1차에 둘지(`_research/ext-points.md §6.1` 3번).
+- 닫음(ADR-0017): 지점 종류는 기존 5개에 `lifecycle`, `guard`를 더하고([제안] 이름), 이름은 자체 규칙으로 M3 F 첫 작업이 정한다. 옛 질문: 지점 종류 5개, 지점 이름 목록, 지점별 fold 배정(§3.3).
+- 닫음(ADR-0013): `next`는 붙기만 하고 turn을 시작하지 않는다. 옛 질문: `post.when = next`가 경계 뒤 요청을 스스로 시작하는지, 다음 사용자 입력이 시작하는 요청에 붙기만 하는지(§3.1). §3.1 표의 pi 대응 가운데 경계 지점의 `continue`는 요청을 시작하는 쪽으로 읽힌다. pi `nextTurn`의 정확한 동작은 확인하지 않았다 [가정]. `product.usecases.spec` UC-1의 수용 기준은 이 결정 뒤에 확정한다.
 - [결정: review.decisions-2 U-06] `tool_call`의 인자 변경(pi는 `event.input` 제자리 수정)은 지원하지 않는다. 인자를 바꾸면 의도 커밋과 실행 인자가 달라져 재생 판정이 복잡해진다. 필요하면 2차에 별도 chain 지점을 더한다.
 - [결정: review.decisions-2 U-12] `drive` 임대 상한 기본값은 §3.5 예산 행이다. 설정 노출은 `L4.settings-ui.spec` "플러그인과 그룹" 탭의 drive 임대 상한 항목이다(`_research/layer-plan-v2-notes.md` "L4 설정 화면 구성안").
 - [미결] 그룹 사이 이벤트 격리 정책. Cordis 일반 `emit`은 전역 전달이므로 그룹 접두사나 필터를 기본으로 둘지(`_research/notes/arch-1.md §8`).
-- [가정] pi 확장 대부분이 거의 수정 없이 올라온다. 실제 이식은 검증하지 않았다(`_research/ext-points.md §7`).
+- 닫음(ADR-0017 §3.7): pi 확장 어댑터를 두지 않으므로 이 가정은 쓰지 않는다.

@@ -34,3 +34,16 @@ export { decideOpenEffect, type OpenEffectInput } from "./recovery.ts";
 export { SESSION_MIGRATION_OWNER, SESSION_MIGRATION_SET } from "./schema/migrations.ts";
 export { SESSION_TABLE_COLUMNS } from "./schema/ddl.ts";
 export { CORE_PROJECTOR_TABLES, CORE_PROJECTOR_VERSION } from "./projector/core.ts";
+export {
+  createReplayResolver,
+  type ReplayFrom,
+  type ReplayFromError,
+  type ReplayResolver,
+  type ReplayResolverDeps,
+  type ReplayStart,
+} from "./replay.ts";
+export {
+  MODEL_REQUEST_RESEND_POLICY,
+  modelRequestResendOf,
+  type ModelRequestResend,
+} from "./resend.ts";

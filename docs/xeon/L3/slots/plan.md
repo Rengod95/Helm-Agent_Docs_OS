@@ -55,20 +55,20 @@ xeon/packages/group-kit/
       README.md
       test/manifest.test.ts
     drive/
-      .xeon-plugin/plugin.json      # usesDrive: true, points: ["agent_settled"]
+      .xeon-plugin/plugin.json      # usesDrive: true, points: ["boundary.settle.after"]
       src/index.ts                  # defineGroup + g.drive 골격
       src/state.ts
       src/settings.ts
       test/unit.test.ts
       test/replay.test.ts           # replayDrive 골격
     policy/
-      .xeon-plugin/plugin.json      # usesDrive: false, points: ["tool_call"]
-      src/index.ts                  # tool_call first 골격(상태 없음)
+      .xeon-plugin/plugin.json      # usesDrive: false, points: ["tool.call.before"]
+      src/index.ts                  # tool.call.before first 골격(상태 없음)
       src/settings.ts
       test/unit.test.ts
     observe/
-      .xeon-plugin/plugin.json      # usesDrive: false, points: ["agent_settled"], recordKinds 1개
-      src/index.ts                  # agent_settled tap + record 골격
+      .xeon-plugin/plugin.json      # usesDrive: false, points: ["boundary.settle.after"], recordKinds 1개
+      src/index.ts                  # boundary.settle.after tap + record 골격
       src/state.ts
       src/settings.ts
       test/unit.test.ts
@@ -86,7 +86,7 @@ xeon/packages/group-kit/
     policies/
       reviewgate.ts                 # 검토 강제 (L3.slots.spec §3.2.2)
       commitguard.ts                # 커밋 전 검증 (§3.2.3)
-      guardrail.ts                  # 입출력 가드레일 골격, 보류 (§3.2.4)
+      guardrail.ts                  # 가드레일 지점 예 (§3.2.4)
   test/
     tapes/
       slots/reviewgate-write-then-settle.tape.jsonl
@@ -106,16 +106,16 @@ xeon/packages/group-kit/
 | id | 내용 | 선행 | 규모 |
 |---|---|---|---|
 | S-01 | 템플릿 3종 골격 추출. M1 테스트 그룹, Helm, 학습 그룹의 공통 골격을 `templates/{drive,policy,observe}`와 `common/`로 옮기고 `index.json`을 쓴다 | `L3.group-kit.plan` M1 테스트 그룹, `L3.helm.plan` M2 구현, `L3.learning.plan` M3 구현 | 중 |
-| S-02 | 정식 예 3종 구현: `reviewgate`(검토 강제), `commitguard`(커밋 전 검증), `guardrail`(가드레일 골격, 보류 표시)과 테이프 3개 | S-01, `group-kit/testing`의 그룹 하네스(`L3.group-kit.plan`) | 중 |
+| S-02 | 정식 예 3종 구현: `reviewgate`(검토 강제), `commitguard`(커밋 전 검증), `guardrail`(가드 지점 셋을 쓰는 예)과 테이프 3개 | S-01, F 가드 지점(ADR-0017, M3 F 작업), `group-kit/testing`의 그룹 하네스(`L3.group-kit.plan`) | 중 |
 | S-03 | 재생 테스트 골격: drive 템플릿을 생성해 `replayDrive`로 모든 커밋 지점에서 끊고 재개하는 테스트 | S-01, `replayDrive`(`L3.group-kit.plan` 2차 재생 검사) | 소 |
 | S-04 | 매니페스트 검증 테스트: 세 템플릿 생성 결과가 `validateManifest`·`validateUsage`를 통과하고, 잘못된 이름·kind 조합이 거부되는지 확인 | S-01, F `validateManifest`(`F.extensions.plan`) | 소 |
 | S-05 | `xeon group new <이름> [--drive\|--policy]` 계약(요구 R1~R6, `templates/index.json` 형식)을 `L4.cli.spec`·`L4.cli.plan`에 전달하고 반영을 확인 | S-01, S-04 | 소 |
-| S-06 | 가드레일 보류 해제 조건 문서화. 사용자 확인 뒤 `L3.slots.spec` §4.2.4의 [미결]을 [결정]으로 바꾸거나 보류를 유지 | 없음(사용자 확인 필요) | 소 |
+| S-06 | (닫힘) 가드레일 보류 해제 조건. [결정: review.m3-design-inputs D-M3-30] 내장 검사 없이 fail-closed 가드 지점 셋을 둔다(ADR-0017). 남은 일은 S-02의 `guardrail` 예를 가드 지점으로 쓰는 것뿐이다 | 없음 | — |
 | S-07 | 교차 import 거부 테스트: 생성한 그룹에 `@xeon/group-helm` import를 넣은 가짜 워크스페이스로 check-layers `DR-02` 실패 확인 | S-01, `check-layers.ts`의 허용 목록 구현(`eng.dependency-rules.guide` 4절) | 소 |
 | S-08 | 코어 diff 0 확인: 템플릿으로 만든 가짜 그룹을 워크스페이스에 더하는 변경에서 `packages/contracts`, `packages/ext-host` diff가 0인지 검사하는 스크립트 단계 | S-01, S-04 | 소 |
 
 - 규모: 소는 하루 이내, 중은 2~3일이다 [가정].
-- S-02의 `guardrail`은 골격과 fixture 테스트까지만 만든다. 보류 해제(S-06) 전에는 기본 배포와 설정 카탈로그에 넣지 않는다.
+- S-02의 `guardrail`은 골격과 fixture 테스트까지만 만든다. 기본 배포와 설정 카탈로그에 넣지 않는다. 내장 콘텐츠 검사를 두지 않는 결정(D-M3-30)과 같다.
 
 ## 4. 채택 코드
 
@@ -134,9 +134,9 @@ xeon/packages/group-kit/
 | 테스트 이름 | 확인할 동작 | 작업 |
 |---|---|---|
 | `template.drive-group-loads-and-toggles` | drive 템플릿으로 생성한 그룹이 로드되고, 켜면 다음 단계 경계 뒤 drive 함수가 호출되며, 끄면 다음 단계 경계 뒤 임대가 반납된다 | S-01 |
-| `template.policy-group-denies-via-first` | policy 템플릿 그룹이 `blockedTools`에 있는 도구의 `tool_call`을 거부하고, 사유가 도구 결과로 모델에 돌아간다 | S-01 |
+| `template.policy-group-denies-via-first` | policy 템플릿 그룹이 `blockedTools`에 있는 도구의 `tool.call.before`을 거부하고, 사유가 도구 결과로 모델에 돌아간다 | S-01 |
 | `template.policy-exception-becomes-deny` | policy 그룹의 first 핸들러가 던지면 `FIRST_DENY.tool_call`로 거부되고 뒤 핸들러는 실행되지 않는다 | S-01 |
-| `template.policy-group-disable-stops-first-handler` | policy 템플릿 그룹이 `contracts`·`ext-host` 수정 없이 로드되고, `ext.<id>.enabled`를 거짓으로 바꾸면 다음 단계 경계 뒤 그 그룹의 `tool_call` 핸들러 호출 수가 0이며 `blockedTools`의 도구가 실행된다 | S-01 |
+| `template.policy-group-disable-stops-first-handler` | policy 템플릿 그룹이 `contracts`·`ext-host` 수정 없이 로드되고, `ext.<id>.enabled`를 거짓으로 바꾸면 다음 단계 경계 뒤 그 그룹의 `tool.call.before` 핸들러 호출 수가 0이며 `blockedTools`의 도구가 실행된다 | S-01 |
 | `template.manifest-passes-validateManifest` | 세 템플릿 생성 결과의 `plugin.json`이 `validateManifest` 오류 0, setup 뒤 `validateUsage` 오류 0이다. `focus_lens`(밑줄), `core`(예약 이름)는 생성 단계에서 거부되고, 하이픈 이름은 통과한다(review.decisions-2 U-18) | S-04 |
 | `template.replay-test-cuts-at-every-commit` | drive 템플릿의 `test/replay.test.ts`가 생성 직후 통과한다. 커밋 지점 수만큼 끊어 재개한 효과 열이 끊지 않은 실행과 같다 | S-03 |
 | `policy.verify-before-commit-blocks-until-verified` | `commitguard`: 검증 전 `git commit` bash 호출 거부 → `just verify` 성공 → 커밋 실행 → `write` 성공 → 다시 거부 | S-02 |
@@ -147,7 +147,7 @@ xeon/packages/group-kit/
 
 | 테스트 이름 | 확인할 동작 | 작업 |
 |---|---|---|
-| `template.observe-group-records-turn-count` | observe 템플릿 그룹이 `agent_settled`마다 `grp.<id>.turn.counted` 레코드를 쓰고, 다른 그룹의 `readRecords`로 읽힌다 | S-01 |
+| `template.observe-group-records-turn-count` | observe 템플릿 그룹이 `boundary.settle.after`마다 `grp.<id>.turn.counted` 레코드를 쓰고, 다른 그룹의 `readRecords`로 읽힌다 | S-01 |
 | `template.index-matches-files` | `templates/index.json`의 파일 목록과 실제 파일 집합이 같고, `TemplateIndexSchema`를 통과한다 | S-01 |
 | `policy.guardrail-unknown-follows-setting` | `guardrail`: 검사 함수 예외 시 `onUnknown: "deny"`면 거부, `"allow"`면 통과 | S-02 |
 | `policy.plugin-kind-rejects-drive` | `kind: "plugin"` 정책 매니페스트에 `usesDrive: true`면 `drive_requires_group` 오류 | S-04 |
@@ -174,7 +174,7 @@ xeon/packages/group-kit/
 |---|---|
 | 템플릿이 커지면 `group-kit`의 구조가 템플릿 모양에 굳어 바꾸기 어려워진다 | 템플릿은 최소 골격만 담는다(`L3.slots.spec` §4.3 규칙 1). 정책 로직, 렌즈, 프롬프트 문구를 넣지 않는다. 템플릿 추출은 세 그룹 구현 뒤에 한다(1절) |
 | 정식 예(`reviewgate`, `commitguard`, `guardrail`)가 제품 기능으로 오해된다 | `src/testing/policies/`에 두고 기본 배포·설정 카탈로그에 넣지 않는다. 각 파일 머리 주석과 spec에 "템플릿 검증용 fixture"임을 적는다 |
-| 가드레일 보류를 해제하면 기본 경로에 비용이 생긴다 | 꺼져 있으면 지점에 핸들러가 없어 비용이 없다. 켜면 input·tool_call·tool_result마다 검사가 돈다. 해제 때 패턴 검사부터 시작하고, 모델 분류기는 재실행 결정성과 비용을 확인한 뒤 따로 정한다(S-06) |
+| 가드레일 플러그인을 켜면 기본 경로에 비용이 생긴다 | 가드 지점에 핸들러가 없으면 비용이 없다. 켜면 모델 요청·도구 호출·출력마다 검사가 돈다. 예는 패턴 검사만 쓰고, 모델 분류기는 재실행 결정성 규칙(`L3.slots.spec` 4.2.4 5번)을 따른다 |
 | `defineGroup`·`replayDrive` 시그니처가 2차 전에 바뀐다 | 템플릿 테스트가 `group-kit` 테스트에 들어 있으므로 시그니처 변경이 같은 변경에서 템플릿 실패로 드러난다 |
 | 생성 명령 소유가 정해지지 않아 S-05가 막힌다 | 템플릿은 생성 명령 없이도 쓸 수 있다(디렉터리 복사와 치환). S-05는 다른 작업을 막지 않는다 |
 | 외부 그룹이 신뢰 등급 없이 다른 그룹을 import한다 | 저장소 안은 check-layers가 막는다. 외부 그룹은 `X.loading-trust.spec`의 결정을 따른다([미결]) |

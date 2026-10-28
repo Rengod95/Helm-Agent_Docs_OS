@@ -150,7 +150,7 @@ describe("model_select_fires_on_binding_change", () => {
     expect(spy.levels).toHaveLength(0);
   });
 
-  test("a different model fires model_select with the previous binding", async () => {
+  test("a different model fires request.model.after with the previous binding", async () => {
     const spy = spyDispatcher();
     const h = createHarness({ tape: TWO, provider: MODELS, dispatcher: spy.dispatcher });
     await h.service.stream(h.request("a")).result();
@@ -164,7 +164,7 @@ describe("model_select_fires_on_binding_change", () => {
     expect(spy.levels).toHaveLength(0);
   });
 
-  test("a level-only change fires thinking_level_select and not model_select", async () => {
+  test("a level-only change fires request.thinking.after and not model_select", async () => {
     const spy = spyDispatcher();
     const h = createHarness({ tape: TWO, provider: MODELS, dispatcher: spy.dispatcher });
     h.setSettings({ default: "tape/thinker:low" });

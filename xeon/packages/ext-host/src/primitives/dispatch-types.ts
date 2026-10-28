@@ -1,6 +1,7 @@
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type {
   ChainSig,
+  CollectSig,
   ExtensionName,
   FirstSig,
   PointName,
@@ -18,10 +19,12 @@ export type PayloadOf<N extends PointName> = PointSignatures[N]["payload"];
 
 interface DispatchOptionsBase {
   readonly threadId: ThreadId;
-  /** 결정적 키. 같은 지점이 같은 위치에서 다시 발화하면 같은 값. 예: "<stepId>:tool_call:<toolCallId>" */
+  /** 결정적 키. 같은 지점이 같은 위치에서 다시 발화하면 같은 값. 예: "<stepId>:tool.call.before:<toolCallId>"(lifecycle 지점은 이벤트 id) */
   readonly dispatchKey: string;
   /** 디스패치 전체의 취소 신호. 핸들러 ctx.signal의 부모다 */
   readonly signal?: AbortSignal;
+  /** 있으면 그 scope의 핸들러만 실행한다. 수명주기 지점의 소유 scope 거르기에 쓴다(ADR-0017 §3.6) */
+  readonly onlyScope?: ScopeId;
 }
 
 export type DispatchOptions<N extends PointName> =
@@ -32,7 +35,12 @@ export type DispatchOptions<N extends PointName> =
         /** POINTS[N].finalize가 "boundary"면 필수. 모든 핸들러 뒤 L1이 최종 값을 검증·보정한다 */
         readonly finalize?: (value: V) => V;
       }
-    : DispatchOptionsBase;
+    : PointSignatures[N] extends CollectSig<infer _P, infer V, infer _C>
+      ? DispatchOptionsBase & {
+          /** collect 초기값. 지점이 만들고 모은 기여가 이 값에 한 번 병합된다 */
+          readonly initial: V;
+        }
+      : DispatchOptionsBase;
 
 /** 지점 종류를 지운 옵션. 내부 디스패처가 쓴다 */
 export interface AnyDispatchOptions extends DispatchOptionsBase {
@@ -89,6 +97,15 @@ export interface ChainOutcome<V> {
   readonly stopped: boolean;
 }
 
+export interface CollectOutcome<V> {
+  readonly fold: "collect";
+  /** 모은 기여를 initial에 한 번 병합한 값. 기여가 없으면 initial 그대로다 */
+  readonly value: V;
+  /** 기여를 낸 핸들러. 등록 순서다 */
+  readonly contributed: readonly HandlerRef[];
+  readonly failures: readonly HandlerFailure[];
+}
+
 export type DispatchOutcome<N extends PointName> =
   PointSignatures[N] extends TapSig<infer _P>
     ? TapOutcome
@@ -96,10 +113,16 @@ export type DispatchOutcome<N extends PointName> =
       ? FirstOutcome<D>
       : PointSignatures[N] extends ChainSig<infer _P, infer V, infer _X>
         ? ChainOutcome<V>
-        : never;
+        : PointSignatures[N] extends CollectSig<infer _P, infer V, infer _C>
+          ? CollectOutcome<V>
+          : never;
 
 /** 지점 종류를 지운 결과 */
-export type AnyDispatchOutcome = TapOutcome | FirstOutcome<unknown> | ChainOutcome<unknown>;
+export type AnyDispatchOutcome =
+  | TapOutcome
+  | FirstOutcome<unknown>
+  | ChainOutcome<unknown>
+  | CollectOutcome<unknown>;
 
 // ── DispatchPolicy (X.primitives.spec §3.4) ───────────────────────────────
 

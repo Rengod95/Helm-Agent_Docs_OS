@@ -1,6 +1,6 @@
 // ext-host 내장 플러그인: xeon.agents 제공, 내장 도구 agent와 차단 규칙 등록(L1.agents.plan AG-10).
 // Cordis는 import하지 않는다. 서비스 등록은 hostOf(g).providePort로 한다.
-import type { Logger } from "@xeon/contracts";
+import { attempt, type Logger } from "@xeon/contracts";
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import {
   defineManifest,
@@ -9,6 +9,7 @@ import {
 } from "@xeon/contracts/extensions";
 import type { LeaseHolder, LeaseToken } from "@xeon/contracts/records";
 import {
+  ModelServicePortKey,
   SessionPortKey,
   StoreServicePortKey,
   TaskServicePortKey,
@@ -84,6 +85,11 @@ export function agentsPlugin(options: AgentsPluginOptions): ExtensionUnit {
           leases: store.leases,
         },
         log: options.log,
+        // xeon.models는 core-models가 올린다. 판정 때마다 얻고, 아직 없으면 판정은 failed다(적재 순서에 묶이지 않는다)
+        models: () => {
+          const found = attempt(() => host.port(ModelServicePortKey));
+          return found.ok ? found.value : undefined;
+        },
       });
       for (const definition of options.builtinDefinitions ?? []) service.define(definition);
       service.syncRules();

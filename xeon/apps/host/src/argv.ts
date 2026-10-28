@@ -1,3 +1,4 @@
+import { isLoopbackHost } from "@xeon/platform-process";
 import type { HostCommand } from "./host-command.ts";
 import type { SettingsFileScope } from "./settings.ts";
 
@@ -42,14 +43,63 @@ function parseConfigSchema(rest: readonly string[]): ParsedArgv {
   };
 }
 
+/** `service run`와 `host --service`의 인자: `--safe-mode`, `--listen-tcp <host:port>`, `--allow-non-loopback` */
+function parseServiceRun(rest: readonly string[]): ParsedArgv {
+  let safeMode = false;
+  let tcp: { readonly host: string; readonly port: number } | undefined;
+  let allowNonLoopback = false;
+  for (let index = 0; index < rest.length; index += 1) {
+    const arg = rest[index];
+    if (arg === "--safe-mode") {
+      safeMode = true;
+    } else if (arg === "--allow-non-loopback") {
+      allowNonLoopback = true;
+    } else if (arg === "--listen-tcp") {
+      const value = rest[index + 1];
+      index += 1;
+      const colon = value?.lastIndexOf(":") ?? -1;
+      const port = value === undefined ? Number.NaN : Number(value.slice(colon + 1));
+      if (
+        value === undefined ||
+        colon <= 0 ||
+        !Number.isInteger(port) ||
+        port < 0 ||
+        port > 65_535
+      ) {
+        return { ok: false, message: "--listen-tcp needs <host>:<port>" };
+      }
+      tcp = { host: value.slice(0, colon), port };
+    } else {
+      return { ok: false, message: `unknown argument: ${arg ?? ""}` };
+    }
+  }
+  // 루프백이 아닌 주소는 명시 허용 없이는 거부한다 [결정: 오케스트레이터 기본값]
+  if (tcp !== undefined && !allowNonLoopback && !isLoopbackHost(tcp.host)) {
+    return {
+      ok: false,
+      message: `tcp_not_loopback: ${tcp.host} is not a loopback address; add --allow-non-loopback to open it`,
+    };
+  }
+  return {
+    ok: true,
+    command: {
+      kind: "service-run",
+      safeMode,
+      ...(tcp === undefined ? {} : { tcp }),
+      ...(allowNonLoopback ? { allowNonLoopback: true } : {}),
+    },
+  };
+}
+
 export function parseHostArgv(argv: readonly string[]): ParsedArgv {
   const [first, second, ...rest] = argv;
   if (first === "host" && second === "--stdio" && rest.length === 0) {
     return { ok: true, command: { kind: "host-stdio" } };
   }
+  if (first === "host" && second === "--service") return parseServiceRun(rest);
   if (first === "config" && second === "schema") return parseConfigSchema(rest);
   if (first === "service") {
-    if (second === "run") return { ok: true, command: { kind: "service-run" } };
+    if (second === "run") return parseServiceRun(rest);
     if (second === "start") return { ok: true, command: { kind: "service-start" } };
     if (second === "status") {
       return { ok: true, command: { kind: "service-status", json: rest.includes("--json") } };
@@ -61,6 +111,7 @@ export function parseHostArgv(argv: readonly string[]): ParsedArgv {
   }
   return {
     ok: false,
-    message: "usage: main.ts host --stdio | config schema --scope <scope> | service <command>",
+    message:
+      "usage: main.ts host --stdio | host --service [--safe-mode] [--listen-tcp <host>:<port>] | config schema --scope <scope> | service <command>",
   };
 }

@@ -18,6 +18,7 @@ import {
 import type { KnowledgeFs } from "../fs/port.ts";
 import { updateIndexAfterChange } from "../skills/index-update.ts";
 import type { Tree } from "../skills/tree.ts";
+import { keyReused, type Idem } from "../write/idempotency.ts";
 import { putTree, type BlobPort } from "./manifest.ts";
 import {
   findByRequestId,
@@ -49,7 +50,7 @@ export interface ChangeSpec {
   readonly actor: KnowledgeActor;
   readonly target: ChangeTarget;
   readonly op: LedgerOp;
-  readonly requestId: string | undefined;
+  readonly requestId: Idem | undefined;
   /** 지금 해시가 이 값이어야 한다. 대상이 없어야 하면 null, 검사하지 않으면 undefined */
   readonly baseHash: string | null | undefined;
   /** 적용 뒤 내용. 대상을 없애면 null */
@@ -63,6 +64,8 @@ export interface ChangeSpec {
   readonly proposalId: string | undefined;
   /** 롤백이면 되돌리는 원래 항목의 id */
   readonly rollbackOf: string | undefined;
+  /** 이 쓰기를 한 turn에 untrusted 도구 결과를 읽었다. 생략하면 거짓이다 */
+  readonly afterUntrusted?: boolean;
   /** 안전 캡처가 실패했을 때의 오류 종류. 일반 쓰기는 internal, 롤백은 rollback_unsafe */
   readonly captureFailure: Extract<KnowledgeFailureKind, "internal" | "rollback_unsafe">;
 }
@@ -117,11 +120,15 @@ export function createChangeExecutor(deps: LedgerDeps): ChangeExecutor {
 
     // 2단계 멱등
     if (spec.requestId !== undefined) {
-      const requestId = spec.requestId;
-      const found = db.read((tx) => findByRequestId(tx, requestId));
+      const idem = spec.requestId;
+      const found = db.read((tx) => findByRequestId(tx, idem.key));
       if (!found.ok) return err(fromStoreError(found.error, "ledger lookup"));
       if (!found.value.ok) return found.value;
-      if (found.value.value !== undefined) return existingOutcome(found.value.value);
+      const stored = found.value.value;
+      if (stored !== undefined) {
+        const reused = keyReused(stored.requestFingerprint, idem);
+        return reused === undefined ? existingOutcome(stored) : err(reused);
+      }
     }
 
     // 3단계 대상 읽기와 baseHash 비교
@@ -155,22 +162,29 @@ export function createChangeExecutor(deps: LedgerDeps): ChangeExecutor {
       afterHash,
       beforeManifest: beforeManifest.value,
       afterManifest: afterManifest.value,
-      requestId: spec.requestId,
+      requestId: spec.requestId?.key,
+      requestFingerprint: spec.requestId?.fingerprint,
       approvedBy: spec.approvedBy,
       evidence: spec.evidence,
       scan: spec.scan,
       reason: spec.reason,
       proposalId: spec.proposalId,
       rollbackOf: spec.rollbackOf,
+      ...(spec.afterUntrusted === true ? { afterUntrusted: true } : {}),
       status: "prepared",
       indexChanged: false,
       outcome: undefined,
     };
     const inserted = db.write((tx): Result<Inserted, KnowledgeFailure> => {
       if (spec.requestId !== undefined) {
-        const duplicate = findByRequestId(tx, spec.requestId);
+        const duplicate = findByRequestId(tx, spec.requestId.key);
         if (!duplicate.ok) return duplicate;
-        if (duplicate.value !== undefined) return ok({ kind: "existing", record: duplicate.value });
+        if (duplicate.value !== undefined) {
+          const reused = keyReused(duplicate.value.requestFingerprint, spec.requestId);
+          return reused === undefined
+            ? ok({ kind: "existing", record: duplicate.value })
+            : err(reused);
+        }
       }
       insertRecord(tx, record);
       return ok({ kind: "inserted" });

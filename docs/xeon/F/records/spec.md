@@ -44,7 +44,7 @@ binds: [xeon/packages/contracts/src/records/**]
 | 투영 | 내구 이벤트에서 파생한 조회 테이블(메시지, 파트, 체크포인트). 같은 트랜잭션에서 갱신한다 |
 | leaf | thread의 현재 가지 끝 이벤트 id |
 | 효과 | 부작용이 있을 수 있는 도구 실행 하나 |
-| 단계 경계 | step이 끝나는 시점(pi `turn_end`). 용어는 `F.conversation.spec` §2를 따른다 |
+| 단계 경계 | step이 끝나는 시점(pi `boundary.step.after`). 용어는 `F.conversation.spec` §2를 따른다 |
 | 업캐스터 | kind별 payload를 버전 n에서 n+1로 바꾸는 순수 함수 |
 
 ## 3. 인터페이스
@@ -172,7 +172,7 @@ export type CoreEventKind =
   | "part.recorded"
   | "effect.intent" | "effect.exec" | "effect.result"
   | "checkpoint.step"
-  | "scope.changed" | "scope.handler_failed" | "lease.acquired" | "lease.released"
+  | "scope.changed" | "scope.handler_failed" | "lease.acquired" | "lease.released" | "lease.rejected"
   | "post.accepted" /* retired: review.decisions-2 U-05 */ | "settings.changed"
   | "approval.requested" | "approval.resolved"
   | "input.queued" | "input.placed" | "input.withdrawn"
@@ -244,7 +244,7 @@ export const CORE_EVENT_CATALOG: readonly CatalogEntry[];
 export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 ```
 
-코어 카탈로그(40종, 모두 version 1). 아래 표는 `xeon/scripts/check-event-catalog.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 표 행을 고치면 코드도 고친다.
+코어 카탈로그(41종, 모두 version 1). 아래 표는 `xeon/scripts/check-event-catalog.ts`가 `CORE_EVENT_CATALOG`와 대조한다(`F.records.plan`). 표 행을 고치면 코드도 고친다.
 
 <!-- catalog:start -->
 | kind | durable | payload 스키마 | 요약 |
@@ -275,6 +275,7 @@ export function catalogEntry(kind: CoreEventKind): CatalogEntry;
 | `scope.handler_failed` | 아니오 | `ScopeHandlerFailedPayloadSchema` | 확장 핸들러 실패 알림(`X.operations.spec` §4.3.4) |
 | `lease.acquired` | 예 | `LeaseAcquiredPayloadSchema` | drive 배타 임대 획득 |
 | `lease.released` | 예 | `LeaseReleasedPayloadSchema` | drive 임대 해제 |
+| `lease.rejected` | 예 | `LeaseRejectedPayloadSchema` | drive 임대 요청이 대기 상한 뒤 거부됨(`{ groupId, reason, requestSeq }`). 수명주기 지점 `lifecycle.lease.rejected`의 페이로드 [결정: adr.0017, `review.m3-lower-requirements` M3-REQ-99] |
 | `post.accepted` | 예 | `PostAcceptedPayloadSchema` | retired(`retired: true`, [결정: review.decisions-2 U-05]). 새로 쓰지 않는다. M1 개발 DB에 남은 행을 읽을 때만 스키마를 쓴다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`)다 |
 | `settings.changed` | 예 | `SettingsChangedPayloadSchema` | 세션 범위 설정 변경 |
 | `approval.requested` | 예 | `ApprovalRequestedPayloadSchema` | 승인 요청. `body.kind`는 `tool` \| `question` \| `plan`. 승인 id = 이 이벤트 id |
@@ -334,6 +335,11 @@ export interface LeaseAcquiredPayload {
   leaseId: string;                // F.extensions.spec DriveLease.leaseId
   scopeId: string;                // 임대를 받은 그룹의 scope
   limits: { maxTurns?: number; maxSpawns?: number; maxTokens?: number };   // DriveLease.limits(DriveLimits)
+  /**
+   * 임대 차수. 그 scope의 활성 가지 위 직전 lease.acquired 개수 + 1, 1부터(X.primitives.spec §4.4.1). 같은 임대의 이어짐을 판정하는 근거다.
+   * 선택이라 version을 올리지 않는다. 없으면(옛 기록) 활성 가지 위 개수로 다시 센다 [결정: M3-REQ-08]
+   */
+  leaseEpoch?: number;
 }
 export interface LeaseReleasedPayload {
   leaseId: string;
@@ -341,6 +347,12 @@ export interface LeaseReleasedPayload {
   /** disabled: 그룹 끄기(§4.5), budget: 상한 도달(§4.6), error: drive 함수 예외, idle: 효과 없는 반환 반복(§5 7번),
    *  revoked: X의 중재로 회수, restart: 프로세스 재시작 뒤 정리. 번호는 F.extensions.spec 절 */
   reason: "disabled" | "budget" | "error" | "idle" | "revoked" | "restart";
+}
+/** drive 임대 요청이 대기 상한 뒤 거부됐다 [결정: adr.0017, M3-REQ-99]. X가 커밋하고 group-kit이 `GroupStatus.drive: "rejected"`를 채운다 */
+export interface LeaseRejectedPayload {
+  groupId: string;                // 요청한 그룹(ExtensionName)
+  reason: string;                 // 거부 사유. 값 집합은 X.primitives.spec이 정한다 [미결]
+  requestSeq: number;             // 거부된 요청의 순번(0 이상)
 }
 export interface PostAcceptedPayload {
   requestId: string;              // F.extensions.spec PostOptions.requestId. 대화 범위 멱등 키
@@ -393,7 +405,14 @@ export type ApprovalBodyJson =
   | { kind: "plan"; plan: { plan: string | BlobRef; planRef: string | null; nextModes: string[] } }
   | { kind: "question"; question: { questions: { id: string; header?: string; text: string;                    // header: 1~64자 머리글
                                                  options: { id: string; label: string; description?: string; recommended?: boolean }[];
-                                                 multiSelect: boolean; allowFreeText: boolean }[] } };   // questions 1~4개
+                                                 multiSelect: boolean; allowFreeText: boolean }[] } }   // questions 1~4개
+  /** 검토 승인(ADR-0018, M3-REQ-09). 필드는 최소 집합이다 [제안: ADR-0018 §6 미결의 답, L2.artifacts.spec §4.2.4 subject]. hunk 본문은 싣지 않는다 */
+  | { kind: "review"; review: { reviewId: string;              // rvw_<ULID>
+                                artifactId: string;            // art_<ULID>. changeset 산출물
+                                title: string;                 // 최대 200자
+                                round: number;                 // 1부터. 이 요청이 묻는 라운드
+                                files: { path: string; change: "added" | "modified" | "deleted" | "renamed";
+                                         binary: boolean; hunks: number }[] } };   // files 최대 256개
 /** approvalId는 envelope id다. payload에 두지 않는다 */
 export interface ApprovalRequestedPayload {
   origin: ApprovalOriginJson;
@@ -421,12 +440,21 @@ export interface ApprovalResolvedPayload {
 
 /**
  * approval.respond의 answer 정본 모양이다. 승인 서비스는 검증한 응답의 answer를 approval.resolved의 answer(ApprovalResolvedPayload.answer)에 그대로 싣는다 [결정: m2 F.8].
- * 스키마는 ApprovalAnswerSchema = PlanAnswerSchema | DenyAnswerSchema | QuestionAnswerSchema (records/catalog/approval.ts).
+ * 스키마는 ApprovalAnswerSchema = PlanAnswerSchema | DenyAnswerSchema | QuestionAnswerSchema | ReviewAnswerSchema (records/catalog/approval.ts).
  * 어느 kind·decision에 어느 모양이 맞는지는 F.wire-settings.spec §3.3.1이 정한다.
  */
 export type QuestionAnswerJson = Record<string, { selected: string[]; text?: string }>;   // 질문 id → 답. 최대 4개
 export interface PlanAnswerJson { mode?: string; note?: string }       // plan allow. mode는 nextModes 안, note 최대 8192자
 export interface DenyAnswerJson { feedback: string }                                      // 1~8192자
+/** review decision "answer" [제안]. 모양은 L2.artifacts.spec §4.2.4 ReviewAnswer와 같다 */
+export interface ReviewAnswerJson {
+  decisions: { hunkId: string; decision: "pending" | "approved" | "rejected" }[];     // hunkId ^f[0-9]{1,4}h[0-9]{1,4}$, 최대 4096개
+  comments: { target: { type: "hunk"; hunkId: string; line?: { side: "old" | "new"; number: number } }
+                    | { type: "file"; path: string } | { type: "review" };
+              body: string }[];                                                       // body 1~8000자, 최대 256개
+  submit: boolean;                // 참이면 결정 반영 뒤 제출까지 한다
+  approveRemaining?: boolean;
+}
 
 // src/records/catalog/input.ts   (L1.tasks.spec §3.8)
 export interface InputQueuedPayload {
@@ -440,6 +468,11 @@ export interface InputQueuedPayload {
     | { type: "extension"; scopeId: string }
     | { type: "delegation"; childThreadId: ThreadId }
     | { type: "schedule"; timerId: string };
+  /**
+   * 이 입력이 시작하는 turn의 출처. 입력을 넣은 쪽이 밝힌다. 선택이라 version을 올리지 않는다.
+   * 없으면 source에서 정한다: user → user, delegation → delegation, schedule → scheduled, extension → other [제안: M3-REQ-06]
+   */
+  origin?: TurnOrigin;
 }
 export interface InputPlacedPayload { inputId: EventId; itemId: ItemId }      // inputId = input.queued 이벤트 id
 export interface InputWithdrawnPayload { inputId: EventId; reason: "user" | "aborted" | "superseded" }
@@ -469,6 +502,13 @@ export interface AgentSettledEventPayload {
   answerItemId: ItemId | null;
   usage: Usage | null;            // 자식 사용량은 여기에만 남는다
   error: string | null;
+  /**
+   * 자식을 만든 쪽(agent.spawned.owner와 같은 값). 그룹이 자기 scope가 맡긴 위임만 거를 때 쓴다(kind "scope"의 scopeId).
+   * 선택이라 version을 올리지 않는다. 없으면(옛 기록) agent.spawned의 owner를 읽는다 [제안: M3-REQ-103, REQ-LN-02]
+   */
+  owner?: SpawnOwnerJson;
+  /** 상한에 닿아 끝났으면 어느 상한인가(maxSteps는 "steps", maxInputTokens는 "tokens"). 아니면 null. status는 그대로 세 값 중 하나다 [제안: M3-REQ-103, REQ-LN-07] */
+  limitHit?: "steps" | "tokens" | null;
 }
 export interface AgentJudgedPayload {
   goalRef: string;
@@ -532,12 +572,12 @@ export interface SecretMaskedPayload {
 규칙:
 
 1. 각 파일은 `CatalogEntry[]`를 export한다. 휘발 kind는 `durable: false`다. 이름은 §3.2 규칙 1(점 하나, snake_case)을 따른다.
-2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 40종만 담고 `check-event-catalog.ts`는 코어 표(§3.3)와 각 도메인 문서의 카탈로그 표를 따로 대조한다.
+2. 병합: `src/records/catalog/index.ts`가 `CORE_EVENT_CATALOG`와 도메인 카탈로그를 이어 `EVENT_CATALOG: readonly CatalogEntry[]`를 만든다. 같은 kind가 두 번 나오면 모듈 로드 시 `Bug`다. `parseEventKind`와 `catalogEntry`는 병합 카탈로그로 판정한다(§3.2 규칙 7). `CORE_EVENT_CATALOG`는 코어 41종만 담고 `check-event-catalog.ts`는 코어 표(§3.3)와 각 도메인 문서의 카탈로그 표를 따로 대조한다.
 3. 접두 표기: 이벤트 영역은 단수 `artifact`다. 능력 id·서비스·테이블의 복수 `artifacts`(`cap.artifacts`, `L2.artifacts.spec`)는 그대로 두고 둘의 대응은 위 표가 정한다(`L2.readme` §2 표 주석).
 4. 소유: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`, 표의 정본은 `eng.context-map.design` §5.1)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행을 둔다. 커밋 때 접두 소유 검사는 이 표로 한다.
 5. payload 스키마는 records 순서(`F.readme` §3)를 지켜 각 카탈로그 파일에 둔다. capabilities 정의 파일(`defs/<domain>.ts`)에서 import하지 않는다(`L2.work.spec` W-4 답). 정의 파일과 같은 값 모양(작업, 목표, 보고, 상태줄 세그먼트 등)은 카탈로그 파일에 다시 적고, `test/records/work-catalog.test.ts`·`dialog-catalog.test.ts`가 두 쪽을 JSON Schema로 비교해(설명 문구는 제외) 어긋남을 잡는다. 브랜드 타입은 `base`의 같은 `Brand`라 서로 대입된다. [결정: m2-plan F.3]
 6. 외부 확장이 `DomainArea`·`ReservedDomainArea`를 접두 없이 쓰면 `reserved_area`다. 외부 확장이 L2 도메인 이름을 확장 이름으로 쓰는 경우는 `F.extensions.spec` §4.7 `name_reserved`가 막는다.
-7. [결정: m2-plan F.3] M2 현재 `WORK_EVENT_CATALOG`(10종, 모두 내구)와 `DIALOG_EVENT_CATALOG`(`dialog.status` 휘발, `dialog.notified` 내구)가 `EVENT_CATALOG`에 병합되어 있다. `artifact`, `schedule`은 M3에서 더한다. `CatalogEntry` 타입은 `catalog/entry.ts`에 있고 `catalog/index.ts`가 재노출한다(도메인 카탈로그 파일이 `index.ts`를 import하면 순환이라서다).
+7. [결정: m2-plan F.3] M2 현재 `WORK_EVENT_CATALOG`(10종, 모두 내구)와 `DIALOG_EVENT_CATALOG`(`dialog.status` 휘발, `dialog.notified` 내구)가 `EVENT_CATALOG`에 병합되어 있다. `artifact`(12종)와 `schedule`(15종)은 M3b B0-F가 더했다(`catalog/artifact.ts`, `catalog/schedule.ts`, M3-REQ-14). payload 모양의 정본은 `L2.artifacts.spec` §3.6과 `L2.schedule.spec` §3.7이고, kind·durable 표는 `test/records/artifact-schedule-catalog.test.ts`가 코드와 대조한다. `CatalogEntry` 타입은 `catalog/entry.ts`에 있고 `catalog/index.ts`가 재노출한다(도메인 카탈로그 파일이 `index.ts`를 import하면 순환이라서다).
 
 ### 3.4 내구/휘발과 큰 값 분리
 
@@ -635,7 +675,7 @@ export const NOT_STARTED_TEXT: string;
 
 기록 순서 [제안]:
 
-1. `effect.intent`: `tool_call` 지점(first, 인자 변경 불가. `F.extensions.spec` §3.4 #13)을 통과한 뒤 L1.tools가 검증·정규화한 최종 인자로 실행 전에 커밋한다. 인자 변경 경로(`F.extensions.spec` §10 후보 b·c)를 채택하면 이 문장을 그 경로를 거친 인자로 고친다.
+1. `effect.intent`: `tool.call.before` 지점(first, 인자 변경 불가. `F.extensions.spec` §3.4 #13)을 통과한 뒤 L1.tools가 검증·정규화한 최종 인자로 실행 전에 커밋한다. 인자 변경 경로(`F.extensions.spec` §10 후보 b·c)를 채택하면 이 문장을 그 경로를 거친 인자로 고친다.
 2. `effect.exec`: 실행 직전에 커밋한다. `intent`와 같은 커밋에 넣어도 된다. 둘을 나누면 "실행 시작 전 중단"과 "실행 중 중단"을 구분할 수 있다.
 3. `effect.result`: 결과 toolResult `item.recorded`와 같은 커밋에 쓴다(pi durable `harness/tool.ts:588-630`, `_research/notes/F-3.md` §7).
 
@@ -1078,7 +1118,7 @@ export interface RecordCommitPort {
 | `migrations.ts` | `MigrationStep`, `MigrationSet`, `MigrationError`, `MigrationReport`, `MigrationRunner`, `ExtensionTables`, `ExtensionTableError`, `StoreFailureKind`, `STORE_FAILURE_KINDS`, `storeFailureKindOf`(§3.7 7항). `ChunkMigration`은 §3.7에 둔다 | `L0.store.spec` §3.1(FR-S4) |
 | `commit.ts` | `CommitKey`, `COMMIT_KEY_PATTERN`, `commitKeyPart`, `APPROVAL_REQUEST_KEY_MAX`, `requestKeyFor`, `isApprovalRequestKey`, `RESERVED_SOURCE_KEYS`, `ProducerId`, `StampedDraft`, `DraftInput`, `ProducerHandle`, `StepCheckpointInput`, `CommitPlan`, `CommitRequest`, `CommitResult`, `ReadOnlyReason`, `StoreError`, `ReadFailure`, `StoreBugCode`, `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
 | `projector.ts` | `ProjectionTx`, `Projector`, `ProjectorRegisterError`, `ProjectorFailure`, `ProjectorRegistry`. `ProjectionQuery`는 `session-service.ts`에 있다 | `L1.persistence.spec` §3.4 |
-| `session-service.ts` | `SessionServiceName`, `CommitListener`, `CommitBatch`, `FeedFilter`, `EventFeed`, `ThreadSummaryRow`, `ItemRow`, `ProjectionQuery`, `RecoveryMarker`, `OpenReport`, `OpenError`, `MAX_REPLAY_ATTEMPTS`, `EffectRerun`, `AutoResumeVerdict`, `ResumePlan`, `ResumeError`, `RecoverDeps`, `ThreadCreated`, `ThreadCreateInput`, `ThreadListQuery`, `ThreadPage`, `BranchSummaryInput`, `SessionShutdownReason`, `LifecycleError`, `ThreadLifecycle`, `SessionSettingsLayer`, `SessionSettingsError`, `SessionSettingsStore`, `SessionRetention`, `SessionService`. 쓰기 소유 판정은 `lease.ts`의 `LeaseToken`(epoch 펜싱)과 `LeaseOwnerInfo`(표시용), 열기 결과의 `OpenLease`가 맡는다. 옛 이름 `OwnershipGuard`·`OwnerInfo`는 없다 [결정: review.decisions-2 U-09, open-issues D-04] | `L1.persistence.spec` §3.3~§3.8, §6.2 |
+| `session-service.ts` | `SessionServiceName`, `CommitListener`, `CommitBatch`, `FeedFilter`, `EventFeed`, `ThreadSummaryRow`, `ItemRow`, `ProjectionQuery`, `RecoveryMarker`, `OpenReport`, `OpenError`, `MAX_REPLAY_ATTEMPTS`, `EffectRerun`, `AutoResumeVerdict`, `ResumePlan`, `ResumeError`, `RecoverDeps`, `ThreadCreated`, `ThreadCreateInput`(M3a: `parentDrafts?`. `inheritOwnerFrom`의 부모 thread에 같은 커밋으로 넣을 초안 [제안: M3-REQ-10]), `ThreadListQuery`, `ThreadPage`, `BranchSummaryInput`, `SessionShutdownReason`, `LifecycleError`, `ThreadLifecycle`, `SessionSettingsLayer`, `SessionSettingsError`, `SessionSettingsStore`, `SessionRetention`, `SessionService`. 쓰기 소유 판정은 `lease.ts`의 `LeaseToken`(epoch 펜싱)과 `LeaseOwnerInfo`(표시용), 열기 결과의 `OpenLease`가 맡는다. 옛 이름 `OwnershipGuard`·`OwnerInfo`는 없다 [결정: review.decisions-2 U-09, open-issues D-04] | `L1.persistence.spec` §3.3~§3.8, §6.2 |
 | `session-service.ts` | `RecordCommitPort`, `ExtCommitRequest`, `ExtCommitRejectCode`, `ExtCommitResult`, `StoredScopeState`, `OpenLease`, `ExtThreadSnapshot`, `ExtRecordQuery`, `ExtRecordRow` | 위 블록이 정본이다(옮김 끝남). `F.extensions.spec` §3.2.1 `ports.ts`가 다시 export한다 |
 
 ## 4. 동작 규칙
@@ -1149,7 +1189,7 @@ export interface RecordCommitPort {
 ## 7. 확장 지점
 
 - 확장과 의도 그룹은 `EventKindRegistry`로 `x.<extId>.*`, `grp.<groupId>.*` kind를 등록한다. 등록 구현과 신뢰 등급 검사는 X(`X.primitives.spec`, `X.loading-trust.spec`)가 한다.
-- X의 네 연산 중 scope, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `input.queued`(`source.type: "extension"`)로 기록된다(post는 [결정: review.decisions-2 U-05]). on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool_result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool_call` 지점은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
+- X의 네 연산 중 scope, drive, post의 결과는 각각 `scope.changed`, `lease.acquired`/`lease.released`, `input.queued`(`source.type: "extension"`)로 기록된다(post는 [결정: review.decisions-2 U-05]). on(fold) 실행 자체는 기록하지 않는다 [제안]. fold가 바꾼 결과(`tool.result` 패치, boundary 엔트리)는 해당 이벤트에 남는다. `tool.call.before` 지점은 인자를 바꾸지 못하므로 `effect.intent.args`는 fold 결과가 아니다(§3.5 기록 순서 1).
 - 그룹 간 레코드 형식은 `F.extensions.spec`이 정한다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -1177,8 +1217,8 @@ export interface RecordCommitPort {
 4. `decideEffectRecovery`는 순수 함수이며 결정표 다섯 행을 그대로 낸다. intent만 있는 `unsafe` 효과는 `synthesize`/`not_started`, intent+exec만 있는 `unsafe` 효과는 `synthesize`/`outcome_unknown`으로 닫힌다.
 5. `@xeon/contracts/records`가 export하는 `ReplayPolicy`, `ReplayPolicySchema`, `toReplayPolicy`는 `@xeon/contracts/conversation`의 것과 같은 심볼이다(동일 참조). 매핑 값은 `F.conversation.spec` §9 수용 기준 9가 확인한다.
 6. 직렬화 크기가 262,145바이트인 envelope는 `checkEnvelopeSize`에서 `ok: false`(`event_too_large`)다. 262,144바이트는 `ok: true`다.
-7. `parseEventKind`는 코어 kind 40개와 병합된 도메인 카탈로그 kind를 통과시키고, 접두 없는 비코어·비도메인 kind, `ReservedDomainArea` kind, 형식 위반을 거부한다.
-8. `CORE_EVENT_CATALOG`의 kind·durable 목록이 §3.3 표(40종)와 같다. 도메인 카탈로그(`<DOMAIN>_EVENT_CATALOG`)는 해당 L2 문서의 카탈로그 표와 같고, 병합 카탈로그에 중복 kind가 없다(검사 스크립트).
+7. `parseEventKind`는 코어 kind 41개와 병합된 도메인 카탈로그 kind를 통과시키고, 접두 없는 비코어·비도메인 kind, `ReservedDomainArea` kind, 형식 위반을 거부한다.
+8. `CORE_EVENT_CATALOG`의 kind·durable 목록이 §3.3 표(41종)와 같다. 도메인 카탈로그(`<DOMAIN>_EVENT_CATALOG`)는 해당 L2 문서의 카탈로그 표와 같고, 병합 카탈로그에 중복 kind가 없다(검사 스크립트).
 9. 카탈로그의 모든 payload 스키마가 대표 픽스처의 JSON 왕복 뒤 검증을 통과한다.
 10. `StepCheckpointSchema`는 `schemaVersion` 누락과 `stepIndex` 음수를 거부한다.
 11. `ChunkMigration.runChunk`는 동기이고 실행기가 같은 `tx`에 커서를 저장한다. 청크 중간에 던지면 그 청크의 행과 커서가 함께 롤백된다.
@@ -1191,7 +1231,7 @@ export interface RecordCommitPort {
 1. [미결] 해시 체인: 09 §3.2.2의 `prevHash`/`hash` 체인을 유지할지. [제안] M0에서는 두지 않고, 필요하면 열 추가 마이그레이션으로 더한다. 개인 런타임에서 변조 탐지 요구가 확인되지 않았다.
 2. [미결] 휘발 이벤트 seq 부여 여부: 현재 [제안]은 seq 없음 + `n` + `afterSeq`다. 여러 클라이언트가 휘발 조각 순서를 seq 기준으로 맞춰야 하는 요구가 생기면 다시 본다.
 3. [결정: M2 마감 G5-03] ULID 단조성은 L0 `IdFactory` 구현이 지킨다(`F.conversation.spec` §10 미결 3과 같은 항목).
-4. [미결] 재생 정책 이름 통일: `ReplayPolicy = "safe" | "unsafe"`(pi durable) 채택과 F `AgentTool.replay`(pi-agent-core에서 온 `"never" | "safe"`)의 `"never"` → `"unsafe"` 매핑을 확정할지(정의 위치는 `F.conversation.spec` §3.6). Xeon 도구 선언에서 `"never"`를 계속 허용할지.
+4. [결정: review.m3-design-inputs D-M3-31 행 1] 닫음: `ReplayPolicy`는 `"safe" | "unsafe"`를 유지한다. 옛 질문: 재생 정책 이름 통일: `ReplayPolicy = "safe" | "unsafe"`(pi durable) 채택과 F `AgentTool.replay`(pi-agent-core에서 온 `"never" | "safe"`)의 `"never"` → `"unsafe"` 매핑을 확정할지(정의 위치는 `F.conversation.spec` §3.6). Xeon 도구 선언에서 `"never"`를 계속 허용할지.
 5. [미결] 등록 해제된 확장 kind를 투영 재생에서 건너뛸지, 시작을 거부할지.
 6. [미결] 효과 결과 코드 집합: `ok`, `error`, `interrupted`, `abandoned` 네 값으로 충분한지(`_research/notes/F-3.md` §8.3 미결 3).
 7. [미결] 모델 요청 재전송: 재개 시 `next: "request"` 체크포인트에서 요청을 다시 보내는 것을 기본으로 할지, 요청마다 멱등 키를 둘지(`_research/notes/F-3.md` §8.3 미결 2).

@@ -17,7 +17,7 @@ binds: [xeon/packages/group-kit/**]
 | 마일스톤 | 범위 | 근거 |
 |---|---|---|
 | M0 | group-kit 작업 없음. 선행 작업만 있다: F `contracts/extensions` 타입(`ScopeApi`, `DriveFn`, `GroupRecord`, `validateManifest`, `validateUsage`), X `ext-host` 최소형(on/post/drive/scope) | `product.scope.spec` 4.3절 M0, F.extensions.plan M0 |
-| M1 | 테스트용 그룹 fixture 하나만 만든다. `src/testing/smoke-group.ts`: on(`tool_call`, `turn_end`)·post·drive를 모두 쓰는 최소 그룹. 이 그룹은 F 타입과 X 최소형만 쓰고 `defineGroup`을 쓰지 않는다. `xeon.domain` 값 수정 | `product.scope.spec` 4.3절 M1, `_research/foundation-plan.md` §6 M1 스모크, F.extensions.plan M1 |
+| M1 | 테스트용 그룹 fixture 하나만 만든다. `src/testing/smoke-group.ts`: on(`tool.call.before`, `boundary.step.after`)·post·drive를 모두 쓰는 최소 그룹. 이 그룹은 F 타입과 X 최소형만 쓰고 `defineGroup`을 쓰지 않는다. `xeon.domain` 값 수정 | `product.scope.spec` 4.3절 M1, `_research/foundation-plan.md` §6 M1 스모크, F.extensions.plan M1 |
 | M2 | `defineGroup`(상태 없는 그룹 포함), `groupManifest`, `validateGroupDef`, `checkGroup`, `GroupApi` 래퍼(`settings()`, 메모리 계측, `registerTool`·`registerCommand`), `DriveArbiter`와 `LeaseArbiterPort` 어댑터, 그룹 상태 레코드 어댑터, 레코드 래퍼 검사, `GroupService`(`xeon.groups`), `/group` 명령 해석·실행, 상태줄 문자열 생성, `l3.group-kit.*` 설정, `replayDrive` 최소형(Helm 테스트가 쓴다), DR-02 허용 목록 등록, M1 fixture를 `defineGroup`으로 옮김 | `product.scope.spec` 4.3절 M2 "Helm 본체 1차(group-kit, group-helm)" |
 | M3 이후(2차) | `delegate` 구현(학습 그룹 M3와 함께, L1.agents 의존), `scanDriveSource`, `PromotionReport`, `GroupMetrics` 이벤트 기록, `replayDrive` 옵션 확장. L3.slots의 템플릿 3종과 정식 예 3종을 이 패키지에 둔다(G-24~G-27) | `_research/layer-plan-v2.json` L3-a·L3-d 2차 항목, `product.scope.spec` 4.3절 M3, L3.slots.plan §1 |
 
@@ -143,7 +143,7 @@ xeon/packages/group-kit/
 
 | id | 내용 | 선행 작업 | 규모 | 마일스톤 |
 |---|---|---|---|---|
-| G-01 | M1 테스트 그룹 `smokeGroup`: F `ExtensionEntry`로 직접 작성. 매니페스트 `points: ["tool_call", "turn_end"]`, `usesPost: true`, `usesDrive: true`. drive는 `loop.turn` 한 번 뒤 `commit`, `turn_end`에서 `post`(`requestId: smoke:${stepId}`), `tool_call`에서 쓰기 도구 차단. `testing` 진입점 추가 | F.extensions.plan E(M0 타입·검증), X.primitives.plan의 M0 최소형과 `@xeon/ext-host/testing` | S | M1 |
+| G-01 | M1 테스트 그룹 `smokeGroup`: F `ExtensionEntry`로 직접 작성. 매니페스트 `points: ["tool.call.before", "boundary.step.after"]`, `usesPost: true`, `usesDrive: true`. drive는 `loop.turn` 한 번 뒤 `commit`, `boundary.step.after`에서 `post`(`requestId: smoke:${stepId}`), `tool.call.before`에서 쓰기 도구 차단. `testing` 진입점 추가 | F.extensions.plan E(M0 타입·검증), X.primitives.plan의 M0 최소형과 `@xeon/ext-host/testing` | S | M1 |
 | G-02 | `package.json` `xeon.domain`을 `group-kit`으로 변경, `exports`에 `./testing` 추가, `tsconfig.json` `references` 정리 | 없음 | S | M1 |
 | G-03 | 허용 목록에 `DR-02/group-kit-helm`, `DR-02/group-kit-learning` 등록, `reason` 갱신 | G-02, `check-layers.ts` 허용 목록 읽기(eng.toolchain) | S | M2 |
 | G-04 | `define-group.ts`: 타입, `GROUP_NAME_PATTERN`, `RESERVED_GROUP_NAMES`, `validateGroupDef`, `defineGroup`(검증 실패 시 `Bug`) | F `ExtensionManifest`, `StateDecl`, `validateManifest`, F `SettingGroup`, `defineSettings` | M | M2 |
@@ -161,8 +161,8 @@ xeon/packages/group-kit/
 | G-16 | `smokeGroup`을 `defineGroup`으로 옮기고 M1 스모크가 그대로 통과하는지 확인 | G-04, G-05, G-01 | S | M2 |
 | G-17 | `metrics/record.ts`: 단계 경계 증가분 기록 `grp.<그룹>.metrics.recorded`(`recordPrivate`), 토큰·비용·임대 시간 계산 | G-05, X `ScopeApi.recordPrivate`(review.decisions-2 T-21) | M | M3 |
 | G-18 | `promotion/report.ts`: `buildPromotionReport`, `/group status` 부가 줄 | G-17, X `events()`·`toolOwner()` [가정] | M | M3 |
-| G-19 | `scan/`: `scanDriveSource`(`@swc/core` `parseSync`), SD-01~SD-10, DR-07 `MODULE_OWNERS` 행 추가 | G-04, `eng.dependency-rules.guide` 표 변경 승인 | M | M3 |
-| G-20 | `replayDrive` 확장: 지점 목록 지정, 사용자 입력 시작, 실패 보고에 첫 차이 이벤트 표시 | G-15 | S | M3 |
+| G-19 | `scan/`: `scanDriveSource`(`@swc/core` `parseSync`), SD-01~SD-10(SD-07~09 메시지는 ADR-0015 §3.2를 가리킨다), DR-07 `MODULE_OWNERS` 행 추가 | G-04, `eng.dependency-rules.guide` 표 변경 승인 | M | M3 |
+| G-20 | `replayDrive` 확장: 지점 목록 지정, 사용자 입력 시작, 실패 보고에 첫 차이 이벤트 표시, 효과 계수(ADR-0015 §3.6: 끊기 직전의 drive·on 핸들러를 두 번 실행하고 가짜 포트의 `EffectCounts`가 기준과 같은지 확인, 실패는 `effects-doubled`) | G-15, ADR-0015 | M | M3 |
 | G-21 | 통신 검사 샘플: `test/fixtures/cross-group-import`로 check-layers DR-02 실패를 확인하는 테스트 | G-03, `check-layers.ts` fixture 입력 지원(eng.toolchain) | S | M2 |
 | G-22 | 리소스 등록 래퍼: `GroupApi.registerTool`, `registerCommand`를 X `hostOf(g)`로 전달. 그룹을 끄면 해제되는지 테스트 | G-05, X `hostOf`·`ResourceRegistry`(X.primitives.spec §3.8, §3.9) | S | M2 |
 | G-23 | `groupManifest`(plugin.json 값 검증·좁히기)와 상태 없는 그룹(`state` 생략) 지원, `state_version` 검사 확장 | G-04 | S | M2 |
@@ -170,6 +170,9 @@ xeon/packages/group-kit/
 | G-25 | (L3.slots S-02 대응) `src/testing/policies/` 정식 예 3종과 `test/tapes/slots/` 테이프 3개, `testing` 진입점 재export | G-22, G-23, L3.slots.plan S-02 | M | 2차 |
 | G-26 | (L3.slots S-03 대응) `test/slots/templates.test.ts`: drive 템플릿을 임시 디렉터리에 생성하고 `replayDrive`로 재생 | G-15, G-24 | S | 2차 |
 | G-27 | (L3.slots S-04 대응) `test/slots/templates.test.ts`: 세 템플릿 생성 결과의 `validateManifest`·`validateUsage`, 로드·토글 확인 | G-24 | S | 2차 |
+| G-28 | `GroupApi.delegateStatus`(읽기, ADR-0015 §3.2 `g.delegateStatus` 행)와 `cancelDelegates`(그룹 끄기 때 진행 중 위임 취소, 재실행되는 코드에서 호출 금지). L1.agents 취소·조회 API가 선행이다 | G-14, M3 요구 M3-REQ-11, M3-REQ-65 | M | M3 |
+| G-29 | `DelegateSpec.report`를 선택 필드로 바꾸고 `report`가 없으면 보고 post를 만들지 않는다([결정: review.m3-design-inputs D-M3-03]) | G-14 | S | M3 |
+| G-30 | `GroupStatus.drive`에 `"rejected"` 값을 더해 임대 대기 상한 초과 거부를 보인다(`/group status`, `GroupService.onChange`). F `services/groups.ts` 변경이 선행이다 | G-12, G-07, M3 요구 M3-REQ-99 | S | M3 |
 
 선행 작업 정리:
 
@@ -197,7 +200,7 @@ xeon/packages/group-kit/
 
 | 테스트 이름 | 확인하는 동작 | 마일스톤 |
 |---|---|---|
-| `smoke.uses-on-post-drive-in-one-turn` | `smokeGroup`이 한 턴에서 `tool_call`·`turn_end` 핸들러, `post`, drive 함수를 모두 호출한다 | M1 |
+| `smoke.uses-on-post-drive-in-one-turn` | `smokeGroup`이 한 턴에서 `tool.call.before`·`boundary.step.after` 핸들러, `post`, drive 함수를 모두 호출한다 | M1 |
 | `smoke.manifest-passes-validation` | `smokeGroup` 매니페스트가 `validateManifest`, 실제 등록이 `validateUsage`를 오류 없이 통과한다 | M1 |
 | `smoke.toggle-applies-at-step-boundary` | 실행 중 끄기 요청이 다음 단계 경계에서 적용되고 그 전 단계의 핸들러는 계속 불린다 | M1 |
 | `define-group.rejects-usage-without-manifest-point` | 매니페스트에 없는 지점에 `on`을 건 그룹에서 `checkGroup`이 `point_undeclared`를 돌려준다 | M2 |
@@ -213,7 +216,7 @@ xeon/packages/group-kit/
 | `arbiter.port-maps-lease-candidates` | `leaseArbiterPort`가 `LeaseCandidate.loadIndex`를 `loadOrder`로 옮기고 `decide`의 `holder`를 `choose` 결과로 돌려준다 | M2 |
 | `arbiter.named-unavailable-grants-none` | 지정 그룹이 후보가 아니면 `holder: null`, 모두 `waiting` | M2 |
 | `arbiter.excludes-drive-error` | drive 예외로 오류 표시된 그룹은 X가 후보에 넣지 않고 `GroupStatus.drive`가 `"error"`다(테스트 호스트) | M2 |
-| `arbiter.waiting-group-keeps-on-handlers` | 대기 그룹의 drive 함수 호출은 0이고 `tool_call` 핸들러와 `post`는 계속 동작한다(테스트 호스트) | M2 |
+| `arbiter.waiting-group-keeps-on-handlers` | 대기 그룹의 drive 함수 호출은 0이고 `tool.call.before` 핸들러와 `post`는 계속 동작한다(테스트 호스트) | M2 |
 | `arbiter.named-swap-revokes-at-the-next-boundary` | A가 임대를 가진 동안 `x.primitives.activeDriveGroup`을 B로 바꾸면 임대는 그 경계까지 유지되고, 다음 경계에서 `lease.released{revoked}` 뒤 B가 `lease.acquired`를 받는다. 끊긴 step이 없다. B가 후보가 아니면 유지된다(X.primitives.spec §4.4.1 5번) | M2 |
 | `state.restore-on-branch` | v1·v2 커밋 뒤 v1 직후로 분기하면 `state()`가 v1이다 | M2 |
 | `state.restore-on-resume` | 재시작 뒤 drive 함수 인자가 마지막 커밋 상태다 | M2 |
@@ -231,6 +234,10 @@ xeon/packages/group-kit/
 | `settings.no-drive-holder-key` | `l3.group-kit` 묶음에 키가 `instrumentation`, `statusLine` 둘뿐이고 `checkSettingDef`를 통과한다. 구동 그룹 선택 키는 X 키를 읽는다 | M2 |
 | `replay.cut-at-every-commit-yields-same-events` | EV-09 좋은 예 그룹에서 모든 절단 지점의 digest가 기준과 같다 | M2 |
 | `replay.detects-closure-state` | EV-09 나쁜 예 그룹에서 `ok: false`이고 `firstDiff`가 채워진다 | M2 |
+| `replay.effects-counted-once-per-cut` | 모든 절단 지점에서 끊기 직전의 drive 호출과 on 핸들러를 두 번 실행해도 가짜 포트의 `EffectCounts`(turn, spawn, delegate, capabilityWrite, post)가 기준 실행과 같다 | M3 |
+| `replay.detects-doubled-effect` | 같은 `requestId`를 쓰지 않고 효과를 두 번 내는 나쁜 그룹에서 `ok: false`, `failure: "effects-doubled"`이다 | M3 |
+| `delegate.status-readable-in-drive-not-in-on` | `delegateStatus`는 drive 문맥에서는 값을 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행 문맥에서 거부된다 | M3 |
+| `status.drive-rejected-shown` | 대기 상한을 넘겨 거부된 그룹의 `GroupStatus.drive`가 `"rejected"`이다 | M3 |
 | `delegate.rejects-long-request-id` | 48자 초과 `requestId`와 남의 접두 `customType`을 호출 전에 거부한다 | M2 |
 | `delegate.idempotent-by-request-id` | 같은 `requestId` 두 번째 호출이 `duplicate`이고 자식이 하나다(가짜 위임 서비스) | M3 |
 | `scan.flags-date-now-in-drive` | drive 본문 `Date.now()`에 SD-01, drive 밖에는 없음 | M3 |
@@ -275,6 +282,9 @@ xeon/packages/group-kit/
 | 17 | `promotion.second-consumer-is-candidate` |
 | 18 | `metrics.disabled-writes-nothing` |
 | 19 | `status-line.examples` |
+| 22 | `replay.effects-counted-once-per-cut`, `replay.detects-doubled-effect` |
+| 23 | `delegate.status-readable-in-drive-not-in-on` |
+| 24 | `status.drive-rejected-shown` |
 
 ## 7. 위험과 대응
 
@@ -300,3 +310,15 @@ xeon/packages/group-kit/
 | (G-03) | 허용 목록 | 완료(F.1) | `DR-02/group-kit-helm`, `DR-02/group-kit-learning`이 이미 있다. G-21 시험용으로 `DR-07/group-kit-test-spawn`(scope test)을 더했다 |
 
 M2 시험 이름 대응에서 바뀐 것: `arbiter.swap-waits-for-lease-release`는 `arbiter.named-swap-revokes-at-the-next-boundary`로 바꿨다(X.1 P-22). `define-group.migration-required-on-version-bump`는 `define-group.*`와 `state.migration-upgrades-a-lower-stored-version` 둘로 나눴다.
+
+## 9. M3a 구현 상태 (2026-10-28, 브랜치 m3a/kit)
+
+| plan ID | 상태 | 비고 |
+|---|---|---|
+| G-14 | 완료 | `GroupApi.delegate(spec, options?)`가 `xeon.agents` 포트의 `AgentService.delegate`를 부른다. `owner`는 `{ kind: "scope", scopeId }`, `ownerRequestId`는 `requestId`다. 멱등은 L1이 보장한다. on 핸들러와 drive 함수에서는 X `hostOf(g).callContext()`의 thread와 신호를 쓰고, 명령 처리기와 도구 `execute`는 `options`로 넘긴다(spec §3.13 요청 6). 결과는 `lifecycle.agent.settled`로 소유 scope에만 온다. 시험 대역 `fakeAgents` |
+| G-19 | 완료 | `scanDriveSource`와 SD-00(구문 오류, [제안])·SD-01~SD-10. `group-kit/package.json`에 `@swc/core` 의존을 더했다. DR-07 `MODULE_OWNERS` 표 행 추가는 승인 대기([미결]) |
+| G-20 | 일부 완료 | 효과 계수(`EffectCounts`, `ReplayHarness.run`의 `effects`, `expectEffects`, `effects-doubled`, `effects-mismatch`). 지점 목록 지정, 사용자 입력 시작, 첫 차이 이벤트 표시는 남았다 |
+| G-22 | 완료(M2) | `registerTool`·`registerCommand`는 M2에 끝났다. 학습 그룹의 `learning_propose` 등록(LR-06)은 이 연산을 그대로 쓴다. M3a에서 바꾼 것이 없다 |
+| G-28 | 완료 | `GroupApi.delegateStatus`, `cancelDelegates`(`CancelTarget { ownerScopeId }`). 반환은 값이다(spec §10). 재실행 문맥 거부는 X `callContext`로 실제 호스트에서 동작한다(`delegate-real-host.int.test.ts`) |
+| G-29 | 완료 | `DelegateSpec.report`는 선택이고 없으면 L1 요청에도 싣지 않는다 |
+| G-30 | 완료(거부 사유 노출은 [미결]) | `createGroupService`가 커밋 피드(`lease.rejected`, `lease.released`, `lease.acquired`, `scope.changed`)로 `GroupStatus.drive "rejected"`를 채우고 `onChange`로 알린다 |

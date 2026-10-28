@@ -39,6 +39,8 @@ export interface SandboxStatus {
   onUnavailable: OnUnavailable;
   /** 마지막 자가 시험. 아직 돌지 않았으면 없음 */
   lastSelfTest?: { at: number; passed: boolean; failed: SelfTestItemId[] };
+  /** srt 스키마가 받지 않아 차단 목록에서 빠진 도메인. 빠진 것이 없으면 없음(L0.sandbox.spec §3.2) */
+  rejectedBlockedDomains?: string[];
 }
 
 const SELF_TEST_IDS = [
@@ -88,6 +90,9 @@ const sandboxStatusShape = Type.Object(
         },
         { additionalProperties: false },
       ),
+    ),
+    rejectedBlockedDomains: Type.Optional(
+      Type.Array(Type.String({ minLength: 1, maxLength: 253 }), { maxItems: 256 }),
     ),
   },
   { additionalProperties: false },

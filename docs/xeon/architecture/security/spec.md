@@ -102,8 +102,8 @@ binds: []
 
 ## 7. 확장 지점
 
-- `project_trust` 지점의 `on`은 `builtin`과 `user` 등급만 겁니다(`X.loading-trust.spec` §4.6.2).
-- `tool_call` 지점의 first 핸들러 거부는 T-01의 추가 통제로 쓸 수 있습니다. 예외는 거부로 처리합니다(fold 실패 정책).
+- `session.trust.before` 지점의 `on`은 `builtin`과 `user` 등급만 겁니다(`X.loading-trust.spec` §4.6.2).
+- `tool.call.before` 지점의 first 핸들러 거부는 T-01의 추가 통제로 쓸 수 있습니다. 예외는 거부로 처리합니다(fold 실패 정책).
 
 ## 8. 다른 문서와의 인터페이스
 

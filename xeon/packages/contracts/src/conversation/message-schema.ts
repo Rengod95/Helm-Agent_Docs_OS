@@ -18,7 +18,8 @@ import type {
 } from "./pi.ts";
 
 /**
- * pi 타입의 런타임 스키마(F.conversation.spec §3.3). role(또는 type) 판별과 필수 최상위 필드만 얕게 검사한다.
+ * pi 타입의 런타임 스키마(F.conversation.spec §3.3, M3-REQ-20). role(또는 type) 판별과 필수 필드에 더해
+ * 선택 필드(서명, 진단, 지연 핸들, 중첩 호출 기록, 도구 선언)의 타입까지 깊게 검사한다.
  * 모든 객체는 additionalProperties: true라 pi가 선택 필드를 더해도 옛 기록과 새 기록이 통과한다.
  * 정적 타입과 스키마의 일치는 컴파일러가 보장하지 않는다. 픽스처 왕복 테스트와 판별 값 목록 테스트로 확인한다.
  */
@@ -83,6 +84,22 @@ export const ASSISTANT_EVENT_TYPES: readonly [
   "error",
 ];
 
+/** 재귀 JSON 값. 깊은 검사의 바탕이며 NaN·무한대는 통과하지 못한다 */
+const jsonValueShape = Type.Cyclic(
+  {
+    JsonValue: Type.Union([
+      Type.Null(),
+      Type.Boolean(),
+      Type.Number(),
+      Type.String(),
+      Type.Array(Type.Ref("JsonValue")),
+      Type.Record(Type.String(), Type.Ref("JsonValue")),
+    ]),
+  },
+  "JsonValue",
+);
+const jsonObjectShape = Type.Record(Type.String(), jsonValueShape);
+
 function open<P extends Parameters<typeof Type.Object>[0]>(
   properties: P,
 ): ReturnType<typeof Type.Object<P>> {
@@ -114,8 +131,17 @@ const usageShape = open({
   }),
 });
 
-const textShape = open({ type: Type.Literal("text"), text: Type.String() });
-const thinkingShape = open({ type: Type.Literal("thinking"), thinking: Type.String() });
+const textShape = open({
+  type: Type.Literal("text"),
+  text: Type.String(),
+  textSignature: Type.Optional(Type.String()),
+});
+const thinkingShape = open({
+  type: Type.Literal("thinking"),
+  thinking: Type.String(),
+  thinkingSignature: Type.Optional(Type.String()),
+  redacted: Type.Optional(Type.Boolean()),
+});
 const imageShape = open({
   type: Type.Literal("image"),
   data: Type.String(),
@@ -125,15 +151,58 @@ const toolCallShape = open({
   type: Type.Literal("toolCall"),
   id: Type.String({ minLength: 1 }),
   name: Type.String({ minLength: 1 }),
-  arguments: Type.Record(Type.String(), Type.Unknown()),
+  arguments: jsonObjectShape,
+  thoughtSignature: Type.Optional(Type.String()),
+  namespace: Type.Optional(Type.String()),
+  argumentsError: Type.Optional(Type.String()),
 });
 
 const textOrImage = Type.Union([textShape, imageShape]);
 const assistantBlock = Type.Union([textShape, thinkingShape, toolCallShape]);
 
+const toolDeclShape = open({
+  name: Type.String(),
+  description: Type.String(),
+  parameters: Type.Record(Type.String(), Type.Unknown()),
+});
+const diagnosticShape = open({
+  type: Type.String(),
+  timestamp: Type.Number(),
+  error: Type.Optional(
+    open({
+      name: Type.Optional(Type.String()),
+      message: Type.String(),
+      stack: Type.Optional(Type.String()),
+      code: Type.Optional(Type.Union([Type.String(), Type.Number()])),
+    }),
+  ),
+  details: Type.Optional(jsonObjectShape),
+});
+const deferredShape = open({
+  provider: Type.String(),
+  modelId: Type.String(),
+  api: Type.String(),
+  id: Type.String(),
+  expiresAt: Type.Optional(Type.Number()),
+  pollAfterMs: Type.Optional(Type.Number()),
+  data: Type.Optional(jsonValueShape),
+});
+const nestedCallShape = open({
+  id: Type.String(),
+  name: Type.String(),
+  arguments: Type.Optional(jsonObjectShape),
+  argumentsBytes: Type.Optional(NonNegativeNumber),
+  status: Type.Union([Type.Literal("ok"), Type.Literal("error"), Type.Literal("unfinished")]),
+  durationMs: Type.Optional(NonNegativeNumber),
+  error: Type.Optional(Type.String()),
+});
+
 const systemShape = open({
   role: Type.Literal("system"),
   content: Type.Union([Type.String(), Type.Array(textShape)]),
+  sections: Type.Optional(Type.Record(Type.String(), Type.Union([Type.String(), Type.Null()]))),
+  toolsAdded: Type.Optional(Type.Array(toolDeclShape)),
+  toolsRemoved: Type.Optional(Type.Array(open({ name: Type.String() }))),
   timestamp: Type.Number(),
 });
 const userShape = open({
@@ -147,19 +216,49 @@ const assistantShape = open({
   api: Type.String(),
   provider: Type.String(),
   model: Type.String(),
+  responseModel: Type.Optional(Type.String()),
+  responseId: Type.Optional(Type.String()),
+  providerThinkingLevel: Type.Optional(Type.String()),
+  thinkingLevel: Type.Optional(literalUnion(MODEL_THINKING_LEVELS)),
+  diagnostics: Type.Optional(Type.Array(diagnosticShape)),
   usage: usageShape,
   stopReason: stopReasonShape,
+  deferred: Type.Optional(deferredShape),
+  errorMessage: Type.Optional(Type.String()),
+  rawStopReason: Type.Optional(Type.String()),
+  endTurn: Type.Optional(Type.Boolean()),
   timestamp: Type.Number(),
+  durationMs: Type.Optional(NonNegativeNumber),
 });
 const toolResultShape = open({
   role: Type.Literal("toolResult"),
   toolCallId: Type.String(),
   toolName: Type.String(),
   content: Type.Array(textOrImage),
+  details: Type.Optional(jsonValueShape),
+  usage: Type.Optional(usageShape),
+  nestedCalls: Type.Optional(
+    open({ calls: Type.Array(nestedCallShape), complete: Type.Boolean() }),
+  ),
   isError: Type.Boolean(),
   timestamp: Type.Number(),
+  durationMs: Type.Optional(NonNegativeNumber),
 });
-/** 모든 JSON 값. 저장 경로는 JSON 왕복을 거치므로 얕게 통과시킨다(깊은 검사는 하지 않는다). */
+/** 끝까지 검사하는 JSON 값. 확장 지점 페이로드처럼 `$ref`가 필요 없는 곳에서 쓴다(M3-REQ-05) */
+export const DeepJsonValueSchema: TUnsafe<JsonValue> = Type.Unsafe<JsonValue>(jsonValueShape);
+export const DeepJsonObjectSchema: TUnsafe<JsonObject> = Type.Unsafe<JsonObject>(jsonObjectShape);
+
+/**
+ * 정적 타입은 `unknown`으로 두고 런타임에서만 JSON 객체·값을 끝까지 검사한다. 정적 타입을 `JsonObject`·`JsonValue`로 좁히면
+ * `unknown`을 넘기던 호출자(core-models의 제공자 요청)가 컴파일되지 않아서 두는 호환 형태다. 호출자가 좁힌 뒤 `Deep*`로 바꾼다 [제안].
+ */
+export const CheckedJsonObjectSchema: TUnsafe = Type.Unsafe(jsonObjectShape);
+export const CheckedJsonValueSchema: TUnsafe = Type.Unsafe(jsonValueShape);
+
+/**
+ * 모든 JSON 값. 능력 정의의 JSON Schema 생성에도 쓰이므로 `$ref` 없는 얕은 스키마로 둔다.
+ * 메시지 안의 JSON 필드는 재귀 검사(jsonValueShape)를 쓴다(M3-REQ-20).
+ */
 export const JsonValueSchema: TUnsafe<JsonValue> = Type.Unsafe<JsonValue>(Type.Unknown());
 export const JsonObjectSchema: TUnsafe<JsonObject> = Type.Unsafe<JsonObject>(
   Type.Record(Type.String(), Type.Unknown()),

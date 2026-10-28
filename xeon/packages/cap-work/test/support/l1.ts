@@ -105,7 +105,13 @@ export function approvalsDriver(options: {
         requestId: payload.value.requestKey,
         kind: body.kind,
         subject:
-          body.kind === "plan" ? body.plan : body.kind === "question" ? body.question : body.tool,
+          body.kind === "plan"
+            ? body.plan
+            : body.kind === "question"
+              ? body.question
+              : body.kind === "review"
+                ? body.review
+                : body.tool,
         origin: payload.value.origin,
       };
     });

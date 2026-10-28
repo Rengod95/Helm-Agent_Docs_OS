@@ -11,9 +11,9 @@ import type { FoldEnv } from "./env.ts";
  * (X.primitives.spec §4.2 chain 아래 [제안], M1에서 지점별 확정)
  */
 const ALWAYS_CHECKED: ReadonlySet<PointName> = new Set([
-  "context",
-  "context_with_system",
-  "before_provider_request",
+  "request.context.before",
+  "request.system.before",
+  "request.provider.before",
 ]);
 
 export interface ChainOptions {

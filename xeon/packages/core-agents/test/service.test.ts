@@ -31,6 +31,28 @@ describe("spawn", () => {
     expect(h.service.liveCount()).toBe(0);
   });
 
+  test("a drive spawn with no running turn opens the child under the thread node as background and still waits for the result", async () => {
+    const h = openHarness();
+    const origin: SpawnOrigin = {
+      parentThreadId: h.parentThreadId,
+      owner: { kind: "drive", turnId: null, scopeId: "grp", leaseId: "lease-1" },
+      caller: "main",
+      depth: 0,
+      ownerRequestId: "lease-1:0.0",
+      signal: new AbortController().signal,
+    };
+    const result = await h.service.spawn(
+      { agent: "explorer", task: "look", requestId: "lease-1:0.0" },
+      origin,
+    );
+    expect(result.status).toBe("completed");
+    expect(result.answer).toContain("found it");
+    const child = h.tasks.scopes.find((scope) => scope.kind === "subagent");
+    expect(child?.id).toBe(result.childThreadId);
+    expect(child?.parent).toBe(h.parentScope);
+    expect(child?.background).toBe(true);
+  });
+
   test("a foreground spawn creates the child, links it, runs one turn and settles with a guarded report", async () => {
     const h = openHarness();
     const { origin } = h.openToolCall("tc-1");
@@ -98,7 +120,7 @@ describe("spawn", () => {
     expect(h.session.events.filter((event) => event.kind === "turn.completed")).toEqual([]);
   });
 
-  test("failures are values: unknown definition, depth, background, deny, parent aborting", async () => {
+  test("failures are values: unknown definition, depth, background spawn, parent aborting", async () => {
     const h = openHarness({ maxDepth: 1 });
     const { origin, controller } = h.openToolCall("tc-1");
     const unknown = await h.service.spawn({ agent: "ghost", task: "t" }, origin);
@@ -113,12 +135,7 @@ describe("spawn", () => {
       { agent: "explorer", task: "t", background: true },
       origin,
     );
-    expect(background.answer).toContain("agents.unavailable");
-    const denied = await h.service.spawn(
-      { agent: "explorer", task: "t", tools: { deny: ["bash"] } },
-      origin,
-    );
-    expect(denied.answer).toContain("agents.invalid_request");
+    expect(background.answer).toContain("agents.invalid_request");
     controller.abort();
     const aborting = await h.service.spawn({ agent: "explorer", task: "t" }, origin);
     expect(aborting.answer).toContain("agents.parent_aborting");
@@ -355,6 +372,13 @@ describe("cancellation and settling order", () => {
       state: "settled",
     });
     expect(await h.service.cancel({ childThreadId: childId }, "again")).toEqual({
+      cancelled: false,
+    });
+  });
+
+  test("cancel by owner scope finds nothing when no delegation is live", async () => {
+    const h = openHarness({ run: () => Promise.resolve({ status: "completed" }) });
+    expect(await h.service.cancel({ ownerScopeId: "learning" }, "group off")).toEqual({
       cancelled: false,
     });
   });

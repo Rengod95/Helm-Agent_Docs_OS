@@ -17,12 +17,13 @@ export const SMOKE_GROUP_MANIFEST: ExtensionManifest = defineManifest({
   name: "smoke-group",
   version: "0.1.0",
   displayName: "Smoke group",
-  description: "M1 walking-skeleton smoke group. Uses on(tool_call, turn_end), post and drive.",
+  description:
+    "M1 walking-skeleton smoke group. Uses on(tool.call.before, boundary.step.after), post and drive.",
   defaultEnabled: true,
   layer: "L3",
   kind: "group",
   entry: "./src/index.ts",
-  points: ["tool_call", "turn_end"],
+  points: ["tool.call.before", "boundary.step.after"],
   usesPost: true,
   usesDrive: true,
   recordKinds: [
@@ -77,12 +78,12 @@ export function createSmokeGroup(options: SmokeGroupOptions): {
       manifest.name,
       { state: { schema: SmokeStateSchema, initial: { count: 0 }, version: 1 } },
       (g) => {
-        g.on("tool_call", (payload) => {
+        g.on("tool.call.before", (payload) => {
           if (payload.toolName !== denyTool) return undefined;
           probe.deniedCalls.push(payload.toolCallId);
           return { block: true, reason: "smoke group denies this tool" };
         });
-        g.on("turn_end", async (payload, current, ctx) => {
+        g.on("boundary.step.after", async (payload, current, ctx) => {
           probe.turnEndThreads.push(ctx.threadId);
           await g.post(
             { kind: "user", content: "smoke follow up" },

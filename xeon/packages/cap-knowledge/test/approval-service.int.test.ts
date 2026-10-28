@@ -1,3 +1,4 @@
+import { idem } from "./support/helpers.ts";
 import { afterEach, expect, test } from "bun:test";
 import { eachAsync, repeatAsync } from "@xeon/contracts";
 import { fakeApprovals } from "@xeon/core-tools/testing";
@@ -42,7 +43,7 @@ test("an agent write becomes a tool approval and an allow answer applies it", as
     plan: createPlan(),
     actor: agentActor("main"),
     context,
-    requestId: "write-1",
+    requestId: idem("write-1"),
   });
   const pending = await pendingOf(service.approvals, threadId);
   expect(pending.title).toBe("Approve skill.create on skill deploy?");
@@ -70,7 +71,7 @@ test("an agent write becomes a tool approval and an allow answer applies it", as
     plan: createPlan(),
     actor: agentActor("main"),
     context,
-    requestId: "write-1",
+    requestId: idem("write-1"),
   });
   expect(again).toEqual(outcome);
   expect(
@@ -84,7 +85,7 @@ test("a deny answer with feedback refuses the write and keeps the files", async 
     plan: createPlan(),
     actor: agentActor("main"),
     context,
-    requestId: "write-2",
+    requestId: idem("write-2"),
   });
   const pending = await pendingOf(service.approvals, threadId);
   await service.approvals.respond(pending.approvalId, {
@@ -105,7 +106,7 @@ test("cancelling the wait leaves the approval request open", async () => {
     plan: createPlan(),
     actor: agentActor("main"),
     context,
-    requestId: "write-3",
+    requestId: idem("write-3"),
     signal: abort.signal,
   });
   await pendingOf(service.approvals, threadId);

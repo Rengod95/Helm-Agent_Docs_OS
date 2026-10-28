@@ -25,7 +25,7 @@ binds: [xeon/packages/platform-process/**]
 5. 세션 잠금 실패 때 동작 정책 `LockFallbackPolicy`
 6. 복구 표식 기반 '이어서 실행' 제시 정책
 7. OS 서비스 등록 provider(2차)
-8. X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1) 구현: 외부 훅 실행 `run`(M2)과 격리 확장 자식 기동 `spawn`(2차). `ProcessService`가 이 포트를 확장한다(§3.1, §4.8)
+8. X 포트 `ProcessPort`(`F.extensions.spec` §3.2.1) 구현: 외부 훅 실행 `run`(포트는 M2, 외부 훅 소비자는 M4 [결정: 2026-10-28 사용자])과 격리 확장 자식 기동 `spawn`(2차). `ProcessService`가 이 포트를 확장한다(§3.1, §4.8)
 
 원격 사용은 1차(M3)이고 새 전송을 두지 않는다. 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결해 쓴다. 내장 TLS + 토큰 WebSocket은 2차다 [결정: review.decisions-2 U-11].
 
@@ -182,25 +182,37 @@ import type { Result } from "@xeon/contracts";
 export declare const createInProcessPair: InProcessTransportFactory;
 export declare const createStdioTransport: StdioTransportFactory;
 
-/** 클라이언트 쪽 socket 전송 */
-export declare function connectSocket(options: SocketTransportOptions): Promise<Result<Transport, SocketError>>;
+/** 서버 쪽 리스너 옵션. unix는 토큰을 요구하지 않고 소켓 파일을 0600으로 만든다. tcp는 token이 비면 열지 않는다(`token_required`) */
+export type SocketListenOptions =
+  | { readonly kind: "unix"; readonly path: string; readonly maxFrameBytes?: number }
+  | { readonly kind: "tcp"; readonly host: string; readonly port: number; readonly token: string; readonly allowNonLoopback?: boolean; readonly maxFrameBytes?: number };
+export type SocketConnectOptions =
+  | { readonly kind: "unix"; readonly path: string; readonly maxFrameBytes?: number }
+  | { readonly kind: "tcp"; readonly host: string; readonly port: number; readonly maxFrameBytes?: number };
 
-/** 서버 쪽 리스너. 연결마다 Transport 하나 */
-export interface SocketListener extends AsyncDisposable {
-  readonly path: string;
+/** 클라이언트 쪽 socket 전송. 전송 종류는 `"socket"`이다 */
+export declare function connectSocket(options: SocketConnectOptions): Promise<Result<Transport, SocketError>>;
+
+/** 서버 쪽 리스너. 연결마다 Transport 하나. 처리기가 붙기 전에 온 연결은 대기열에 두고 첫 처리기에 넘긴다(§4.4.3 4번) */
+export interface SocketListener {
+  readonly path: string;                                            // unix는 소켓 경로, tcp는 "host:port"
+  readonly kind: "unix" | "tcp";
   onConnection(handler: (transport: Transport, peer: PeerInfo) => void): () => void;
   readonly connectionCount: number;
   close(): Promise<void>;
 }
-export interface PeerInfo { readonly connectionId: string }
+/** requiresToken이 참(tcp)이면 위층이 `host.hello`의 `auth.token`을 `verifyToken`으로 검사한다 */
+export interface PeerInfo { readonly connectionId: string; readonly requiresToken: boolean }
 export type SocketError =
   | { readonly kind: "address_in_use"; readonly path: string }
   | { readonly kind: "not_found"; readonly path: string }
   | { readonly kind: "refused"; readonly path: string }
-  | { readonly kind: "path_too_long"; readonly path: string; readonly limit: number }
+  | { readonly kind: "path_too_long"; readonly path: string; readonly limit: number }   // limit = UNIX_SOCKET_PATH_LIMIT(103)
   | { readonly kind: "permission"; readonly path: string }
+  | { readonly kind: "token_required" }
+  | { readonly kind: "tcp_not_loopback"; readonly host: string }   // 루프백이 아닌데 allowNonLoopback이 없다
   | { readonly kind: "io"; readonly code: string };
-export declare function listenSocket(options: SocketTransportOptions): Promise<Result<SocketListener, SocketError>>;
+export declare function listenSocket(options: SocketListenOptions): Promise<Result<SocketListener, SocketError>>;
 ```
 
 ```ts
@@ -239,8 +251,11 @@ export declare function createProcessShutdown(options: { readonly timeoutMs: num
 // xeon/packages/platform-process/src/service/registration.ts
 import { Type, type Static } from "typebox";
 
-/** adr.0006 §3.4 [제안] 스키마를 확정한 모양. 위치는 F wire(FR-P3) */
-export const ServiceRegistrationSchema = Type.Object(
+/**
+ * adr.0006 §3.4 [제안] 스키마를 확정한 모양. 위치는 F wire(FR-P3). F에 올라가기 전까지 이 패키지가 정본이다.
+ * 스키마 값은 패키지 안에서만 쓰고(isolatedDeclarations), 밖에는 `ServiceRegistration` 타입과 `RegistrationStore`만 낸다.
+ */
+const ServiceRegistrationSchema = Type.Object(
   {
     schemaVersion: Type.Literal(1),
     version: Type.String({ minLength: 1, maxLength: 64 }),          // 엔진 버전(semver)
@@ -269,16 +284,18 @@ export interface RegistrationStore {
   /** 내용의 pid·startedAt이 자기 것일 때만 지운다 */
   removeIfOwned(pid: number, startedAt: number): Result<boolean, RegistrationError>;
 }
+export declare function createRegistrationStore(options: { readonly path: string }): RegistrationStore;
 ```
 
 ```ts
 // xeon/packages/platform-process/src/service/ensure.ts
 export interface EnsureDeps {
   readonly registration: RegistrationStore;
-  readonly connect: (socket: string) => Promise<Result<Transport, SocketError>>;
-  /** host.hello 왕복. 버전과 한가함(liveTasks 0)을 돌려준다 */
-  readonly probe: (transport: Transport, token: string) => Promise<Result<ServiceProbe, ProbeError>>;
-  /** detached + unref로 `xeon service start --foreground`를 띄운다 (L4가 명령 배열을 준다) */
+  /** 소켓에 접속해 host.hello·host.status를 한 번 왕복하고 연결을 닫는다. 버전과 한가함(liveTasks 0, pendingSchedules 0)을 돌려준다 */
+  readonly probe: (socket: string, registration: ServiceRegistration) => Promise<Result<ServiceProbe, ProbeError | SocketError>>;
+  /** 한가한 구버전을 host.shutdown(reason version_replace)으로 내리고 종료를 기다린다 */
+  readonly replace: (registration: ServiceRegistration) => Promise<Result<void, { readonly kind: "replace_failed" }>>;
+  /** detached + unref로 `xeon service run`을 띄운다 (L4가 명령 배열을 준다) */
   readonly spawnService: () => Result<{ readonly pid: number }, { readonly kind: "spawn_failed"; readonly code: string }>;
   readonly clock: Clock;
   readonly scheduler: Scheduler;                                     // 200 ms 재시도 간격, startTimeoutMs 시한
@@ -288,16 +305,31 @@ export interface EnsureDeps {
 export interface ServiceProbe { readonly version: string; readonly protocolVersion: string; readonly idle: boolean }
 export type ProbeError = { readonly kind: "auth_failed" } | { readonly kind: "timeout" } | { readonly kind: "protocol_unsupported" };
 
+/** 접속은 돌려주지 않는다. probe 연결은 닫혔고 host.hello는 연결마다 한 번이라, 호출자가 registration.socket으로 새로 접속한다 */
 export type EnsureOutcome =
-  | { readonly kind: "connected"; readonly transport: Transport; readonly registration: ServiceRegistration; readonly started: boolean }
-  | { readonly kind: "version_mismatch_busy"; readonly transport: Transport; readonly registration: ServiceRegistration };   // 경고 후 그대로 접속
+  | { readonly kind: "connected"; readonly registration: ServiceRegistration; readonly started: boolean }
+  | { readonly kind: "version_mismatch_busy"; readonly registration: ServiceRegistration };   // 경고 후 그대로 접속
 export type EnsureError =
   | { readonly kind: "start_timeout"; readonly waitedMs: number }
   | { readonly kind: "protocol_unsupported"; readonly serviceVersion: string }
   | { readonly kind: "auth_failed" }
+  | { readonly kind: "replace_failed" }   // 한가한 다른 주 버전 서비스를 내리지 못했다
+  | { readonly kind: "insecure_registration"; readonly mode: number }   // 등록 파일 모드가 0600보다 넓다. 접속하지 않는다
   | { readonly kind: "spawn_failed"; readonly code: string };
 
-export declare function ensureService(deps: EnsureDeps, options?: { readonly startTimeoutMs?: number }): Promise<Result<EnsureOutcome, EnsureError>>;
+export declare function ensureService(deps: EnsureDeps, options?: { readonly startTimeoutMs?: number; readonly retryMs?: number }): Promise<Result<EnsureOutcome, EnsureError>>;
+
+// xeon/packages/platform-process/src/service/bind.ts. 이중 기동 방지(§4.4.3)
+/** 활성화 잠금. fn을 도는 동안 쥐고, 다른 경합자가 쥐었으면 busy를 값으로 돌려준다. 조립 루트가 L0.os의 파일 잠금으로 만들어 넘긴다 */
+export type ActivationLock = <T>(fn: () => Promise<T>) => Promise<Result<T, { readonly kind: "busy" }>>;
+export type BindError = { readonly kind: "in_use" } | SocketError;
+export declare function bindServiceSocket(options: { readonly path: string; readonly maxFrameBytes?: number; readonly activationLock: ActivationLock }): Promise<Result<SocketListener, BindError>>;
+
+// xeon/packages/platform-process/src/service/spawn.ts. 기동과 감독(§4.4.6)
+export declare function spawnDetachedService(input: { readonly command: string; readonly args: readonly string[]; readonly cwd: string; readonly env?: Readonly<Record<string, string | undefined>> }): Result<{ readonly pid: number }, { readonly kind: "spawn_failed"; readonly code: string }>;
+export declare function isProcessAlive(pid: number): boolean;
+/** SIGTERM → termWaitMs 대기 → SIGKILL → killWaitMs 대기. 호출자는 먼저 host.shutdown으로 협조 종료를 시도한다 */
+export declare function stopProcess(deps: StopProcessDeps, pid: number, waits: { readonly termWaitMs: number; readonly killWaitMs: number }): Promise<"already_gone" | "terminated" | "killed" | "still_alive">;
 ```
 
 ```ts
@@ -322,6 +354,10 @@ export declare function createIdleMonitor(options: { readonly clock: Clock; read
 /** 상수 시간 비교. initialize(host.hello) 전에 호출한다 */
 export declare function verifyToken(expected: string, presented: unknown): boolean;
 export declare function newServiceToken(random: (bytes: number) => Uint8Array): string;
+/** TCP 토큰 회전. rotate는 새 토큰을 만들고 이전 토큰을 즉시 무효로 한다. 등록 파일을 다시 쓰는 일은 호출자 몫이다 */
+export interface TokenGate { current(): string; verify(presented: unknown): boolean; rotate(persist?: (next: string) => boolean): string | undefined }
+export declare function createTokenGate(random: (bytes: number) => Uint8Array): TokenGate;
+// rotate(persist?)는 토큰을 바꾸기 전에 persist(next)로 등록 파일에 쓰고, 거짓이면 바꾸지 않고 undefined를 돌려준다
 ```
 
 ```ts
@@ -512,15 +548,15 @@ ensureService():
 
 1. 서비스 프로세스는 시작하자마자 `listenSocket(path)`를 시도한다.
 2. `address_in_use`면 `connect(path)`로 상대를 확인한다. 접속되면 진 쪽이다. 등록 파일을 건드리지 않고 종료코드 0으로 끝난다.
-3. `refused`(이전 서비스가 죽고 소켓 파일이 남음)면 stale 소켓이다. 지우기 전에 `xeon.store`의 `leases.acquire("service", holder)`를 얻는다(`L0.store.spec` §4.7). 임대를 얻은 쪽만 소켓 파일을 unlink하고 다시 바인드한다. 임대를 못 얻으면 다른 경합자가 처리 중이므로 진 쪽으로 끝난다. 판정과 unlink 사이의 경쟁(`_research/notes/L0-2.md §2.4`)을 이 임대로 막는다 [제안].
+3. `refused`·`not_found`(이전 서비스가 죽고 소켓 파일이 남음)면 stale 소켓이다. 지우기 전에 활성화 잠금(`ActivationLock`)을 얻는다. 잠금을 얻은 쪽만 한 번 더 접속을 확인한 뒤 소켓 파일을 unlink하고 다시 바인드한다. 잠금을 못 얻으면 다른 경합자가 처리 중이므로 진 쪽으로 끝난다. 판정과 unlink 사이의 경쟁(`_research/notes/L0-2.md §2.4`)을 이 잠금으로 막는다. [결정: 오케스트레이터 기본값] 이 패키지는 다른 `platform-*`를 import하지 못하므로(DR-02) 잠금 수단은 조립 루트가 L0.os의 `fileLock.withLock`(`<runtimeDir>/service.activation`, `timeoutMs` 0)으로 만들어 넘긴다. 원안의 `xeon.store` 임대 대신이다.
 4. 바인드에 이긴 서비스만 엔진을 열고 등록 파일을 쓴다. 등록 파일 쓰기 전에 들어온 클라이언트 접속은 대기열에 두고 엔진이 열린 뒤 `host.hello`를 처리한다 [제안]. 바인드 직후 접속한 클라이언트가 오류 없이 이어지게 하기 위해서다.
 5. 서비스는 종료 때 `removeIfOwned(pid, startedAt)`로 자기 등록 파일만 지운다.
 
 #### 4.4.4 유휴 종료
 
-- 조건: 연결 0 + live task 0 + 대기 예약 0이 `idleGraceMs`(기본 60000 [제안]) 동안 이어질 때만 종료한다(adr.0006 §3.7 4번). 시작 직후 `startupGraceMs`(10000, pi 선례) 동안은 판정하지 않는다.
+- 조건: 연결 0 + live task 0 + 대기 예약 0이 `idleGraceMs`(기본 60000 [제안]) 동안 이어질 때만 종료한다(adr.0006 §3.7 4번). 시작 직후 `startupGraceMs`(10000, pi 선례) 동안은 판정하지 않는다. 시작 유예 안에서 한가해졌으면 유예가 끝난 시각부터 `idleGraceMs`를 센다(종료 예정 시각 = max(지금, 시작 + startupGraceMs) + idleGraceMs). 한가함이 이어지는 동안 같은 입력으로 `update`를 다시 불러도 예정 시각은 밀리지 않는다.
 - 승인 대기 세션은 live로 센다 [제안](adr.0006 §6 미결, Claude Code 선례 `CC/agent-view.md:819`). 사용자가 나중에 승인하러 돌아왔을 때 서비스가 떠 있어야 바로 이어지기 때문이다.
-- 대기 예약이 하나라도 있으면 종료하지 않는다. 예약 틱은 서비스 프로세스 안에서 돈다(adr.0006 §3.5).
+- 대기 예약이 하나라도 있으면 종료하지 않는다. 예약 틱은 서비스 프로세스 안에서 돈다(adr.0006 §3.5). 대기 예약 수는 L2 schedule이 채운다. 그 트랙이 오기 전에는 조립 루트가 0을 넘긴다 [결정: 오케스트레이터 기본값, M3b B1-SVC].
 - 판정기는 상태 없이 입력 표본만 받는다. 입력이 바뀔 때마다 타이머를 다시 건다. 시계는 주입한다(수동 시계로 시험, TS-03).
 - 유휴 종료도 `ProcessShutdown.request("idle")`을 거친다.
 
@@ -535,15 +571,16 @@ ensureService():
 #### 4.4.5 인증
 
 - 로컬 Unix 소켓: 소켓 파일 0600, 디렉터리 0700, 소유자 검사로 같은 사용자만 접속한다(adr.0006 §3.7 5번).
-- [제안] Unix 소켓에서도 등록 파일의 토큰을 `host.hello` params의 `auth.token`으로 보낸다(심층 방어). 서버는 `verifyToken`(상수 시간 비교)이 거짓이면 `host.hello`를 거부하고 연결을 닫는다. hello 전 다른 메서드는 이미 1001로 거부된다(`F.wire-settings.spec` §4.1 1번). wire 스키마 변경 요청은 §8.1 FR-P2이고 `F.wire-settings.spec` §10 미결 4와 같은 질문이다.
+- [결정: review.m3-design-inputs D-M3-16, M3-REQ-43] Unix 소켓은 파일 권한(소켓 0600, 디렉터리 0700)으로만 막고 토큰을 검사하지 않는다(P-10 닫힘). `listenSocket`은 소켓 파일을 0600으로 만든다. `PeerInfo.requiresToken`은 unix에서 거짓이다.
+- TCP로 열 때만 토큰을 검사한다. `listenSocket({ kind: "tcp" })`는 토큰이 비어 있으면 `token_required`로 열지 않는다. `PeerInfo.requiresToken`이 참인 연결의 `host.hello`는 `auth.token`을 `verifyToken`(상수 시간 비교)으로 검사하고, 없으면 `host.authFailed`(`details.reason: "missing"`), 틀리면 `"invalid"`로 응답한 뒤 연결을 닫는다. hello 전 다른 메서드는 1001로 거부된다. 토큰 회전은 `TokenGate.rotate()`가 새 토큰을 만들고 이전 토큰을 즉시 무효로 한다. 이미 열린 연결은 그대로다.
 - 원격(1차, M3): SSH 터널이나 사설망으로 연결된 클라이언트도 로컬 소켓에 접속하므로 같은 규칙을 쓴다. 터널 끝이 서버 쪽 사용자 권한으로 소켓에 접속하기 때문이다. 토큰 검사는 이 경로의 추가 방어다(미결 P-10).
-- 내장 TCP·WebSocket(2차): 무작위 토큰 필수, `initialize`(`host.hello`) 전에 인증한다. 비루프백 리스너는 토큰 없이 기동하지 않는다(Codex app-server 선례).
+- TCP 전송(`xeon host --service`의 `--listen-tcp <host:port>` 옵션, L4): 위 규칙대로 토큰이 필수다. 루프백 주소(`localhost`, `127.x`, `::1`)가 아니면 토큰이 있어도 `allowNonLoopback`을 명시해야 열린다(`tcp_not_loopback`) [결정: 오케스트레이터 기본값, Codex app-server 선례]. 내장 TLS + WebSocket은 2차다.
 - 토큰은 32바이트 무작위(`crypto.getRandomValues`, 주입), base64url. 등록 파일 밖으로 쓰지 않고 로그에 남기지 않는다.
 
 #### 4.4.6 기동과 분리, 종료 협조, 소실
 
-- 서비스는 `node:child_process.spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true })` 후 `unref()`로 부모에서 분리한다(adr.0006 §3.7 6번, pi `PX/process.ts:40-70`) [가정: Bun 1.4.3의 node 호환 `detached` 동작은 실측 전]. 서비스의 cwd는 홈 디렉터리로 둔다(opencode `server-process.ts:60-64`).
-- 종료 협조: SIGTERM을 받으면 `ProcessShutdown.request("signal")`. 시한(`shutdown.timeoutMs`) 뒤 스스로 종료코드 1로 끝난다. `xeon service stop`(L4)은 먼저 `host.shutdown`을 보내고, 시한 + 1초 뒤에도 살아 있으면 SIGTERM, 다시 시한 뒤 SIGKILL을 보낸다(adr.0006 §3.7 7번).
+- 서비스는 `spawnDetachedService`가 `node:child_process.spawn(cmd, args, { detached: true, stdio: "ignore", windowsHide: true })` 후 `unref()`로 부모에서 분리한다(adr.0006 §3.7 6번, pi `PX/process.ts:40-70`). Bun 1.4.3 Linux에서 시험으로 확인했다(`service-ensure.test.ts`). macOS는 실측 전이다. 서비스의 cwd는 홈 디렉터리로 둔다(opencode `server-process.ts:60-64`).
+- 종료 협조: SIGTERM을 받으면 `ProcessShutdown.request("signal")`. 시한(`shutdown.timeoutMs`) 뒤 스스로 종료코드 1로 끝난다. `xeon service stop`(L4)은 먼저 `host.shutdown`을 보내고, 시한 + 1초 뒤에도 살아 있으면 `stopProcess`로 SIGTERM, 다시 시한 뒤 SIGKILL을 보낸다(adr.0006 §3.7 7번). `stopProcess`와 `isProcessAlive`가 감독 쪽 L0 부분이다.
 - 서비스 소실: 클라이언트 쪽 socket 전송이 `onClose`(`eof`, `error`)를 받았고 자신이 닫지 않았다면, 클라이언트는 진행 중 요청을 실패로 끝내고 입력을 받지 않는 정지 상태로 간다. 자동 재접속은 하지 않는다 [제안]. 다음 `ensure`가 서비스를 다시 띄우고 복구 표식(§4.6)으로 재개 후보를 보인다(adr.0006 §3.7 8번).
 
 #### 4.4.7 adr.0006 §3.7 체크리스트의 테스트 문장
@@ -606,7 +643,7 @@ ensureService():
 
 `ProcessService`는 `ProcessPort`의 두 메서드를 구현한다. 메서드 이름과 인자 모양은 `F.extensions.spec` §3.2.1이 정본이고, 아래는 이 패키지의 동작 규칙이다 [제안]. ext-host는 `Bun.spawn`, `node:child_process`를 import하지 않으므로(DR-07) 이 두 경로는 이 패키지만 실행한다.
 
-`run(spec: HookRunSpec): Promise<HookRawRun>`(외부 훅, `X.operations.spec` §3.7, M2):
+`run(spec: HookRunSpec): Promise<HookRawRun>`(외부 훅, `X.operations.spec` §3.7, 포트는 M2, 소비자는 M4):
 
 1. `argv[0]`을 셸 없이 직접 실행한다. `cwd`와 `env`는 받은 값만 쓰고 부모 env를 상속하지 않는다. env 허용 목록 구성은 호출자(`hookEnv`, `X.operations.spec` §3.7)의 일이다.
 2. `stdin` 문자열을 쓰고 닫는다. stdout·stderr는 각각 `maxStdoutChars`·`maxStderrChars`에서 자르고, stdout을 잘랐으면 `stdoutTruncated: true`다.
@@ -710,7 +747,7 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 | `ProcessService`(`ProcessPort` 확장), `ProcessServiceName`(`xeon.process`), `BackgroundRegistry`, `ShutdownCoordinator` | X.operations.spec §3.7(`run`), X.loading-trust.spec §3.8(`spawn`, 2차), L1.tools.spec, L1.loop.spec, L1.persistence.spec, L2.mcp.spec, L2.schedule.spec, L4.host-service.spec. `eng.context-map.design` §5.3의 소비 열(mcp, schedule, host)에 tool-runtime, run-engine(loop), session-core(persistence)를 더하도록 요청한다(`L0.readme` §9 미결 9) |
 | `createInProcessPair`, `createStdioTransport`, `listenSocket`, `connectSocket` | L4.host-service.spec, L4.cli.spec, F.wire-settings.plan(전송 적합성 스위트 A10) |
 | `watchChildLease`, `createProcessShutdown` | L4.host-service.spec |
-| `ServiceRegistration`, `RegistrationStore`, `ensureService`, `createIdleMonitor`, `verifyToken` | L4.host-service.spec. L4.cli.spec·L4.desktop.spec은 `apps/host` 경유(§3.2) |
+| `ServiceRegistration`, `RegistrationStore`(`createRegistrationStore`), `ensureService`, `bindServiceSocket`, `createIdleMonitor`, `verifyToken`, `createTokenGate`, `spawnDetachedService`, `stopProcess` | L4.host-service.spec. L4.cli.spec·L4.desktop.spec은 `apps/host` 경유(§3.2) |
 | `LockFallbackPolicy`, `LockFallbackChoice` | L4.host-service.spec(`thread.locked` 조립). L4.cli.spec·L4.desktop.spec은 `apps/host` 경유 또는 wire 오류 `thread.locked`로 받는다 |
 | `buildResumeOffers`, `ResumeOffer`, `ResumeCandidate` | L4.host-service.spec. L4.desktop.spec은 wire(`thread.list`)로 받는다 |
 | `OsServiceRegistrar`(2차) | L4.host-service.spec(`xeon service install`) |
@@ -772,9 +809,9 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 - [미결 P-5] 엔진 진입점 `Runtime.open(dbPath)`의 시그니처와 소유. 권고는 L4 `apps/host`가 소유하고 `openRuntime({ dbPath, transport, … }): Promise<Result<Runtime, RuntimeOpenError>>` 모양이다. F에 둘지 함께 정한다.
 - [미결 P-6] Windows 서비스 전송(AF_UNIX, named pipe, loopback TCP + 토큰). §5.1 비교표.
 - [미결 P-7] 자동 재개 기본값(adr.0006 §6). 키 소유는 `L1.persistence.spec`이고 기본값 판단도 그 문서 미결 4로 옮겼다. 이 문서의 권고는 꺼짐, 서비스 모드에서만 켤 수 있음이다.
-- [미결 P-8] 승인 대기 세션을 유휴 판정에서 live로 볼지(adr.0006 §6). 권고는 live.
+- [결정: review.m3-design-inputs D-M3-13 행 2] P-8. 승인 대기 세션은 유휴 판정에서 live다.
 - [결정: review.decisions-2 U-11] P-9. 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다. 내장 TLS + 토큰 WebSocket(PR-18)은 2차다.
-- [미결 P-10] Unix 소켓에서도 토큰을 요구할지(FR-P2, `F.wire-settings.spec` §10 미결 4).
+- [결정: review.m3-design-inputs D-M3-16] P-10. Unix 소켓은 파일 권한으로 막고 TCP로 열 때만 토큰을 요구한다(§4.4.5). `host.hello`의 `auth` 필드와 `host.authFailed` 오류는 F에 반영되었다.
 - [미결 P-11] Windows에서 `.cmd` 셔임(`npx.cmd` 등)으로 stdio MCP 서버를 띄우는 방법. 셸 없이 실행할 수 없어 `cross-spawn` 같은 해석이 필요하다. 1차 지원 OS(macOS, Linux, WSL)에는 해당이 없다.
 - [미결 P-12] 비밀 env가 있는 MCP stdio 서버(M3). env 모드는 실행마다 승인 증거를 요구하고(`L0.secrets.spec` §4.2), 서버 시작에는 승인 지점이 없어 `secret_denied`가 된다. 서버 정의를 추가하거나 처음 연결할 때 사람이 승인하고 그 증거를 `McpSpawnSpec`에 싣는 흐름이 필요하다. 승인 서비스와 `L2.mcp.spec`의 합의 사항이다.
 - [가정] Bun 1.4.3의 `node:child_process` `detached`·`unref`와 `Bun.listen({ unix })`의 macOS 동작은 실측하지 않았다.

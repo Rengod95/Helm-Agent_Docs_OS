@@ -122,7 +122,7 @@ describe("web definitions", () => {
     expect(WebSearch.tools[0].executionMode).toBe("parallel");
     expect(WebFetch.tools[0].replay).toBe("safe");
     expect(WebBrowse.tools.every((t) => t.executionMode === "sequential")).toBe(true);
-    expect(WebBrowse.tools.map((t) => t.replay)).toEqual(["unsafe", "unsafe", "safe", "safe"]);
+    expect(WebBrowse.tools.map((t) => t.replay)).toEqual(["unsafe", "unsafe", "safe", "unsafe"]);
     expect(WebResearch.tools[0].replay).toBe("unsafe");
   });
 });

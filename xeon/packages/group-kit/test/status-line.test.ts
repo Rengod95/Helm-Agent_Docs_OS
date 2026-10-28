@@ -53,6 +53,12 @@ test("status-line.examples", () => {
   ).toBe("그룹 helm[대기] learning");
 });
 
+test("status-line.rejected-lease-request", () => {
+  expect(
+    formatGroupStatusLine([helm(), group("review", { usesDrive: true, drive: "rejected" })]),
+  ).toBe("그룹 helm[구동] review[거부]");
+});
+
 test("status-line.pending-enable-and-empty-and-switch", () => {
   expect(
     formatGroupStatusLine([group("review", { scope: "enabling", pendingToggle: "enable" })]),

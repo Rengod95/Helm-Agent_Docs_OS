@@ -1,5 +1,5 @@
 import type { Clock, Result, Scheduler } from "@xeon/contracts";
-import type { SecretMeta, SecretName } from "@xeon/contracts/capabilities";
+import type { AnyCapabilityDef, SecretMeta, SecretName } from "@xeon/contracts/capabilities";
 import type { IdFactory, ItemId, ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
   DurableEventEnvelope,
@@ -63,6 +63,11 @@ export interface AssembleOptions {
   /** 테스트용 그룹, 모델 테이프 provider */
   readonly extraPlugins?: readonly HostPluginModule[];
   /**
+   * 확장이 공급하는 능력의 정의. 내장 L2 정의 표에 더해 능력 래퍼에 넘긴다(X.primitives.spec §4.4.7).
+   * 정의에 `idempotent`·`readOnly`가 없는 메서드는 on 핸들러와 drive 함수에서 거부된다
+   */
+  readonly extraCapabilityDefs?: readonly AnyCapabilityDef[];
+  /**
    * 테스트 주입: pi-ai 모델 모음을 만드는 함수(모델 테이프 provider를 더한 것). 운영은 생략하고 그러면 pi-ai 내장 provider를 쓴다.
    * `extraPlugins`로는 모델 서비스를 바꿀 수 없다: core-models가 먼저 올라 xeon.models를 이미 냈기 때문이다(L4.host-service.plan §7).
    */
@@ -88,8 +93,23 @@ export interface AssembleOptions {
    * 받은 deps의 시계, 스케줄러, id 발급은 엔진의 것이다
    */
   readonly secretsRuntime?: (deps: SecretsRuntimeDeps) => SecretsRuntime;
-  /** 기본 true. false면 Helm·학습 그룹을 싣지 않는다 */
+  /** 기본 true. false면 기본 플러그인(Helm) 설치와 외부 확장 적재를 건너뛴다 */
   readonly defaultGroups?: boolean;
+  /**
+   * 안전 모드. 참이면 L3 내장 그룹(학습)을 싣지 않는다 [결정: review.m3-design-inputs D-M3-07 a, X.operations.spec §4.6.2]. 대기열은 남고
+   * 다시 켜면 그대로 보인다. L1·L2 내장 패키지는 그대로 싣는다. 기본 false
+   */
+  readonly safeMode?: boolean;
+  /**
+   * 대기 예약 수의 출처(유휴 종료 판정, `ActivitySnapshot.pendingSchedules`). 예약 능력(cap-schedule)이 조립에 들어오면 조립 루트가 채운다.
+   * 생략하면 항상 0이다 [결정: 오케스트레이터 기본값, M3b B1-SVC]. 시험이 값을 넣어 유휴 판정을 확인한다
+   */
+  readonly pendingSchedules?: PendingSchedulesPort;
+  /**
+   * 기본 플러그인 번들 뿌리(`<뿌리>/<이름>/.xeon-plugin/plugin.json`). 생략하면 실행 파일 옆 `default-plugins/`다.
+   * 개발 실행과 시험이 번들 위치를 바꿀 때 쓴다
+   */
+  readonly defaultPluginsDir?: string;
   /** 조립 루트가 import할 수 없는 앱의 설정(예: l4.cli.*, L4.cli.spec §6) */
   readonly settingGroups?: readonly SettingGroup<
     SettingNamespace,
@@ -134,8 +154,16 @@ export interface EngineDiagnostics {
   readonly binaries: Result<BinaryCheckReport, { readonly kind: "cancelled" }>;
 }
 
+/** 대기 예약 수. 값이 바뀌면 `onChange`로 알린다(유휴 종료 판정이 다시 계산한다) */
+export interface PendingSchedulesPort {
+  count(): number;
+  onChange(listener: () => void): Unsubscribe;
+}
+
 export interface Engine {
   readonly mode: HostMode;
+  /** 안전 모드로 열렸는가(`AssembleOptions.safeMode`). host.status.safeMode의 원천 */
+  readonly safeMode: boolean;
   readonly storeId: StoreId;
   readonly catalog: SettingCatalog;
   /** ms. host.status.startedAt의 원천 */
@@ -177,6 +205,8 @@ export interface EnginePorts {
   readonly models: ModelCatalogPort;
   /** L2.dialog 슬래시 명령 */
   readonly commands: CommandPort;
+  /** 지식 제안 대기열 둘(학습 그룹, L2.knowledge)을 한 목록으로 보이고 결정한다(M3-REQ-18, D-M3-32 a) */
+  readonly proposals: ProposalPort;
   /** X.loading-trust 프로젝트 신뢰. 클라이언트가 묻고 정한다(`trust.get`·`trust.decide`) */
   readonly trust: TrustPort;
   /** 새 id 발급(traceId, 연결 id). 엔진의 IdFactory다 */
@@ -308,6 +338,22 @@ export interface CommandPort {
   ): Promise<Result<WireResult<"command.run">, CommandFailure>>;
 }
 
+/**
+ * 지식 제안 대기열 `proposal.list`·`proposal.decide`(F wire §3.3.1, M3-REQ-18). 대기열은 둘이다: 학습 그룹(`source: "learning"`)과 L2.knowledge의
+ * 쓰기 승인 대기열(`source: "knowledge"`). 한 출처를 읽지 못하면(그룹이 꺼짐, 안전 모드, 지식 저장소 없음) 그 출처만 `unavailable`에 올리고
+ * 나머지는 돌려준다. 결정은 출처가 정한 오류를 wire의 결정 실패 이유로 옮긴 값이다(오류 값이고 던지지 않는다)
+ */
+export interface ProposalPort {
+  list(
+    params: WireParams<"proposal.list">,
+    signal: AbortSignal,
+  ): Promise<WireResult<"proposal.list">>;
+  decide(
+    params: WireParams<"proposal.decide">,
+    signal: AbortSignal,
+  ): Promise<WireResult<"proposal.decide">>;
+}
+
 export interface CommitBatch {
   /** (firstSeq - 1, lastSeq] 구간 */
   readonly firstSeq: number;
@@ -346,7 +392,7 @@ export type LockOutcome =
 export interface SessionLockPort {
   tryAcquire(threadId: ThreadId, kind: OwnerKind): Promise<LockOutcome>;
   holds(threadId: ThreadId): boolean;
-  /** 쥔 잠금을 놓는다(`session_shutdown` 발화, 임대 반납). 쥐고 있지 않으면 아무 일도 하지 않는다 */
+  /** 쥔 잠금을 놓는다(`session.shutdown` 발화, 임대 반납). 쥐고 있지 않으면 아무 일도 하지 않는다 */
   release(threadId: ThreadId): Promise<void>;
 }
 

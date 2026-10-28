@@ -57,9 +57,12 @@ describe("workspace definitions", () => {
         expect(tool.replay).toBe("unsafe");
       }
     }
-    for (const method of Object.values(WorkspaceImages.service.methods)) {
-      expect(method.replay).toBe("safe");
-    }
+    const images = WorkspaceImages.service.methods;
+    expect([images.load.replay, images.resize.replay, images.register.replay]).toEqual([
+      "safe",
+      "safe",
+      "unsafe",
+    ]);
   });
 
   test("tool order is stable", () => {

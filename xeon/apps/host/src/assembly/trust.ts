@@ -117,7 +117,7 @@ class TrustFileLockError extends Error {
  * 신뢰 저장 파일 백엔드. 읽기는 잠금 없이 한다(쓰기가 같은 디렉터리의 임시 파일을 만들어 이름을 바꾸므로 읽는 쪽은 옛 파일이나 새 파일 하나를 본다).
  * 갱신은 `fileLock.updateText`가 `<path>.lock` 아래에서 읽고-고치고-쓴다: 호스트 둘이 동시에 결정을 저장해도 앞 쓰기를 덮지 않는다.
  */
-function fileBackend(path: string, fileLock: FileLock): TrustStoreBackend {
+export function fileBackend(path: string, fileLock: FileLock): TrustStoreBackend {
   return {
     async read() {
       const read = await attemptAsync(() => readTextOrNull(path));
@@ -185,7 +185,7 @@ export function createProjectTrust(deps: ProjectTrustDeps): ProjectTrust {
       store,
       fs,
       homeDir: deps.homeDir,
-      // project_trust 지점은 thread 없이 발화할 수 없고(DispatchOptions.threadId) M2에는 그 지점에 핸들러를 거는 확장이 없다 [미결]
+      // session.trust.before 지점은 thread 없이 발화할 수 없고(DispatchOptions.threadId) M2에는 그 지점에 핸들러를 거는 확장이 없다 [미결]
       emitProjectTrust: () => Promise.resolve(undefined),
       sessionMemory,
       signal,

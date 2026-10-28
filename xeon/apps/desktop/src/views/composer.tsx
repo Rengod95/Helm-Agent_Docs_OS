@@ -29,12 +29,6 @@ function sendErrorText(error: CommandError): string {
   return "보내지 못했습니다.";
 }
 
-/** keyCode는 표준에서 빠졌지만 WebKit만 IME 처리 중 keydown을 229로 알린다. 폐기 표시 없이 값만 읽는다 */
-function legacyKeyCode(event: object): number {
-  const value: unknown = Reflect.get(event, "keyCode");
-  return typeof value === "number" ? value : 0;
-}
-
 function ComposerFor(props: {
   readonly threadId: ThreadId;
   readonly disabledReason: string | null;
@@ -83,7 +77,8 @@ function ComposerFor(props: {
           key: event.key,
           shiftKey: event.shiftKey,
           isComposing: event.nativeEvent.isComposing,
-          keyCode: legacyKeyCode(event.nativeEvent),
+          // oxlint-disable-next-line typescript/no-deprecated -- keyCode는 폐기 표시지만 WebKit이 IME 처리 중 Enter keydown에 실어 보내는 값(229)이라 읽는다 (review.macos-checklist M-11)
+          keyCode: event.nativeEvent.keyCode,
         },
         event.timeStamp,
       )

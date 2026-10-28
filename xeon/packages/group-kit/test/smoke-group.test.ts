@@ -80,13 +80,13 @@ test("smoke.uses-on-post-drive-in-one-turn", async () => {
 
   // tool_call: 쓰기 도구만 거부한다
   const denied = await t.host.dispatch(
-    "tool_call",
+    "tool.call.before",
     { toolCallId: "call_w", toolName: "write", input: {} },
     { threadId: thread, dispatchKey: "tc-w" },
   );
   expect(denied.decision).toMatchObject({ block: true });
   const allowed = await t.host.dispatch(
-    "tool_call",
+    "tool.call.before",
     { toolCallId: "call_r", toolName: "read", input: {} },
     { threadId: thread, dispatchKey: "tc-r" },
   );
@@ -96,7 +96,7 @@ test("smoke.uses-on-post-drive-in-one-turn", async () => {
   // turn_end: followUp을 post한다
   const stepId = t.ids.next("stp");
   await t.host.dispatch(
-    "turn_end",
+    "boundary.step.after",
     {
       stepIndex: 1,
       stepId,
@@ -113,7 +113,7 @@ test("smoke.uses-on-post-drive-in-one-turn", async () => {
     },
     {
       threadId: thread,
-      dispatchKey: `${stepId}:turn_end`,
+      dispatchKey: `${stepId}:boundary.step.after`,
       initial: { entries: [], continue: false },
       finalize: (value) => value,
     },

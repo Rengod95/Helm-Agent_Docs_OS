@@ -198,7 +198,7 @@ export const DialogAsk = defineCapability({
         description: "질문 묶음을 사용자에게 보내고 답을 받는다.",
         input: AskInput,
         output: AskOutput,
-        replay: "safe",
+        replay: "safe", idempotent: true,
         errors: {
           ask_invalid_questions: { description: "질문 정의가 규칙(checkAskQuestions)을 어김", retryable: false,
             detail: Type.Object({ issues: Type.Array(Type.String()) }) },
@@ -357,9 +357,9 @@ export const DialogCommands = defineCapability({
   description: "슬래시 명령과 프롬프트 템플릿. 모델은 명령을 호출하지 않는다.",
   service: {
     methods: {
-      register: { description: "템플릿 명령을 등록한다.", input: CommandRegisterInput, output: Type.Object({ command: CommandInfoSchema }), replay: "safe", errors: CommandErrors },
-      list: { description: "명령 목록과 인자 선언을 돌려준다.", input: CommandListInput, output: Type.Object({ commands: Type.Array(CommandInfoSchema) }), replay: "safe" },
-      expand: { description: "입력이 명령이면 치환 결과를 돌려준다. 아무것도 실행하지 않는다.", input: CommandExpandInput, output: CommandExpandOutput, replay: "safe", errors: CommandErrors },
+      register: { description: "템플릿 명령을 등록한다.", input: CommandRegisterInput, output: Type.Object({ command: CommandInfoSchema }), replay: "unsafe", errors: CommandErrors },
+      list: { description: "명령 목록과 인자 선언을 돌려준다.", input: CommandListInput, output: Type.Object({ commands: Type.Array(CommandInfoSchema) }), replay: "safe", readOnly: true },
+      expand: { description: "입력이 명령이면 치환 결과를 돌려준다. 아무것도 실행하지 않는다.", input: CommandExpandInput, output: CommandExpandOutput, replay: "safe", readOnly: true, errors: CommandErrors },
       run: { description: "명령을 실행한다. 템플릿은 최종 텍스트를, 동작 명령은 처리기 결과를 돌려준다.", input: CommandRunInput, output: CommandRunOutput, replay: "unsafe", errors: CommandErrors },
     },
   },
@@ -425,9 +425,9 @@ export const DialogStatus = defineCapability({
   description: "상태줄 세그먼트 등록. 변경은 휘발 이벤트 dialog.status로만 나간다.",
   service: {
     methods: {
-      setItem: { description: "세그먼트를 만들거나 바꾼다.", input: StatusItemSchema, output: Type.Object({}), replay: "safe" },
-      clearItem: { description: "세그먼트를 지운다.", input: Type.Object({ id: Type.String({ pattern: STATUS_ITEM_ID_PATTERN }) }, { additionalProperties: false }), output: Type.Object({}), replay: "safe" },
-      list: { description: "현재 세그먼트 전체(재접속 뒤 다시 그리기용).", input: Type.Object({}, { additionalProperties: false }), output: Type.Object({ items: Type.Array(StatusItemSchema) }), replay: "safe" },
+      setItem: { description: "세그먼트를 만들거나 바꾼다.", input: StatusItemSchema, output: Type.Object({}), replay: "unsafe" },
+      clearItem: { description: "세그먼트를 지운다.", input: Type.Object({ id: Type.String({ pattern: STATUS_ITEM_ID_PATTERN }) }, { additionalProperties: false }), output: Type.Object({}), replay: "unsafe" },
+      list: { description: "현재 세그먼트 전체(재접속 뒤 다시 그리기용).", input: Type.Object({}, { additionalProperties: false }), output: Type.Object({ items: Type.Array(StatusItemSchema) }), replay: "safe", readOnly: true },
     },
   },
   tools: [],
@@ -489,7 +489,7 @@ export const DialogAttachments = defineCapability({
         description: "첨부 하나를 검사하고 저장한 뒤 입력 파트를 만든다.",
         input: AttachmentAddInput,
         output: AttachmentAddOutput,
-        replay: "safe",
+        replay: "unsafe",
         errors: {
           attachment_too_large: { description: "l2.dialog.attachments.maxBytes 초과", retryable: false,
             detail: Type.Object({ size: Type.Integer(), limit: Type.Integer() }) },
@@ -525,7 +525,7 @@ export const DialogAside = defineCapability({
   description: "본류 컨텍스트를 읽기만 하는 별도 질문. 본류 기록을 바꾸지 않는다.",
   service: {
     methods: {
-      ask: { description: "본류 스냅숏을 읽고 별도 모델 호출로 답한다.", input: AsideAskInput, output: AsideAskOutput, replay: "safe" },
+      ask: { description: "본류 스냅숏을 읽고 별도 모델 호출로 답한다.", input: AsideAskInput, output: AsideAskOutput, replay: "unsafe" },
     },
   },
   tools: [],
@@ -550,12 +550,12 @@ export const DialogStyles = defineCapability({
   description: "세션 단위 출력 스타일. 적용은 다음 턴 시작이다.",
   service: {
     methods: {
-      register: { description: "스타일을 등록한다.", input: StyleSchema, output: Type.Object({}), replay: "safe" },
+      register: { description: "스타일을 등록한다.", input: StyleSchema, output: Type.Object({}), replay: "unsafe" },
       select: {
         description: "이 세션의 스타일을 고른다. null은 기본 스타일.",
         input: Type.Object({ id: Type.Union([StyleIdSchema, Type.Null()]) }, { additionalProperties: false }),
         output: Type.Object({ active: StyleIdSchema, appliesAt: Type.Literal("next_turn") }),
-        replay: "safe",
+        replay: "unsafe",
         errors: { style_unknown: { description: "등록되지 않은 스타일", retryable: false } },
       },
     },
@@ -617,8 +617,8 @@ export const DialogNotify = defineCapability({
   description: "사용자 주의가 필요한 상태를 5종으로 분류하고 알린다.",
   service: {
     methods: {
-      emit: { description: "그룹·플러그인이 알림을 직접 낸다(내구 기록).", input: NotifyEmitInput, output: Type.Object({ notice: NoticeSchema }), replay: "safe" },
-      list: { description: "afterSeq 뒤의 알림을 분류해 돌려준다(당겨 읽기).", input: NotifyListInput, output: Type.Object({ notices: Type.Array(NoticeSchema), nextSeq: Type.Integer() }), replay: "safe" },
+      emit: { description: "그룹·플러그인이 알림을 직접 낸다(내구 기록).", input: NotifyEmitInput, output: Type.Object({ notice: NoticeSchema }), replay: "unsafe" },
+      list: { description: "afterSeq 뒤의 알림을 분류해 돌려준다(당겨 읽기).", input: NotifyListInput, output: Type.Object({ notices: Type.Array(NoticeSchema), nextSeq: Type.Integer() }), replay: "safe", readOnly: true },
     },
   },
   tools: [],
@@ -677,6 +677,27 @@ export const DIALOG_EVENT_CATALOG: readonly CatalogEntry[] = [
 - `dialog.status`는 휘발 이름 규칙 `<대상>.status`를 따른다(eng.events.design §4.5 규칙 2). 재생 대상이 아니다.
 - `dialog.notified`는 M3다. `eng.context-map.design` §5.1의 `dialog.` 행은 내구 type을 "L2.dialog.spec 카탈로그"로 두었으므로 이 표가 그 카탈로그다.
 - `notification.` 접두사는 금지 접두사다(eng.events.design §4.5 규칙 4). 그래서 내구 이벤트 이름을 `dialog.notified`로 둔다.
+
+### 3.8 효과 분류 [결정: M3-REQ-88]
+
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록, 사용자 파일과 사용자가 쓴 데이터, 외부 시스템의 상태를 바꾸지 않는 읽기다. 관찰상 순수한 파생 데이터(캐시, 색인, 내용 주소 blob, 사용량·비용 계량, 시간과 현재 데이터만으로 정해지는 정리)는 쓸 수 있다 [결정: 2026-10-28 오케스트레이터, ADR-0015 §3.3]. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+
+| 메서드 | 분류 | replay | 근거 |
+|---|---|---|---|
+| `dialog.ask.ask` | idempotent | safe | `requestId` 필수. 승인 요청이 같은 키로 하나만 생기고 다시 부르면 그 요청의 현재 상태를 돌려준다(§4.1) |
+| `dialog.aside.ask` | 선언 없음 | unsafe | 유료 모델 호출이라 읽기로 보지 않는다. 공급자는 2차 [결정: 2026-10-28 오케스트레이터] |
+| `dialog.attachments.add` | 선언 없음 | unsafe | blob을 저장한다. `requestId` 멱등 기록이 없다 |
+| `dialog.commands.register` | 선언 없음 | unsafe | 메모리 등록부를 바꾼다. 내구 기록이 없다 |
+| `dialog.commands.list` | readOnly | safe | 등록부 조회 |
+| `dialog.commands.expand` | readOnly | safe | 치환만 하고 실행하지 않는다 |
+| `dialog.commands.run` | 선언 없음 | unsafe | 동작 명령 처리기를 실행한다. 처리기 안의 효과는 처리기가 `requestId`로 지킨다 |
+| `dialog.notify.emit` | 선언 없음 | unsafe | 공급자가 아직 없다. `dialog.notified`를 `dialog:notify:<requestId>` 키로 남기는 구현(M3b, D11)이 적합성 시험과 함께 들어오면 `idempotent`로 올린다 [결정: 2026-10-28 오케스트레이터] |
+| `dialog.notify.list` | readOnly | safe | 내구 이벤트 조회 |
+| `dialog.status.setItem` | 선언 없음 | unsafe | 휘발 스냅숏을 바꾼다. 내구 기록이 없어 `requestId`로 기억할 곳이 없다 |
+| `dialog.status.clearItem` | 선언 없음 | unsafe | 같음 |
+| `dialog.status.list` | readOnly | safe | 스냅숏 조회 |
+| `dialog.styles.register` | 선언 없음 | unsafe | 메모리 등록부를 바꾼다. 공급자는 2차 |
+| `dialog.styles.select` | 선언 없음 | unsafe | 세션 설정을 쓴다. `requestId` 멱등이 없다. 공급자는 2차 |
 
 ## 4. 동작 규칙
 
@@ -830,12 +851,12 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
   - 명령마다 멱등 키 `<호출 requestId>:sh<순번>`을 넘긴다. 셸 실행과 동작 명령에는 `CallOptions.context.threadId`와 `requestId`가 필요하다. 없으면 `invalid_input`이다.
 - 셸 주입 문법 `!{…}`와 실행 전 확인은 Gemini CLI 사용자 명령을 참고했다(`_research/l2e.md` §3.4 D5). 중괄호 짝 맞추기는 Gemini 규칙처럼 중첩을 센다 [가정].
 - 설정 `l2.dialog.commands.shellInjection`이 `off`이면 셸 주입이 있는 템플릿은 확인 단계에 가기 전에 `command_shell_disabled`다. 셸 포트가 조립되지 않았으면 `unavailable`(`detail.reason: "shell_missing"`)이다.
-- 클라이언트가 `/`로 시작하는 입력을 `run`을 거치지 않고 `turn.start`로 보내면, cap-dialog의 `input` 지점 핸들러(chain)가 템플릿 명령만 치환한다(셸 주입이 없는 것만). 동작 명령과 셸 주입 명령은 이 경로에서 치환하지 않고 그대로 둔다. on 핸들러는 효과를 내지 않아야 하기 때문이다(F.extensions.spec §4.3).
+- 클라이언트가 `/`로 시작하는 입력을 `run`을 거치지 않고 `turn.start`로 보내면, cap-dialog의 `input.user.before` 지점 핸들러(chain)가 템플릿 명령만 치환한다(셸 주입이 없는 것만). 동작 명령과 셸 주입 명령은 이 경로에서 치환하지 않고 그대로 둔다. on 핸들러는 효과를 내지 않아야 하기 때문이다(F.extensions.spec §4.3).
 
 #### 4.2.5 모델에 대한 광고
 
 - 모델은 명령을 호출하지 않는다. 도구가 없다.
-- [제안] 설정 `l2.dialog.commands.advertise`가 참이면 명령 이름과 설명 목록(이름 바이트 순, 최대 50개)을 시스템 프롬프트 조각으로 붙인다. 모델이 사용자에게 명령을 권할 수 있게 하려는 것이다. 목록이 바뀔 때만 조각이 바뀌므로 프롬프트 캐시 접두는 명령 추가·제거 때만 바뀐다. [결정: review.m2-plan DG.2] M2는 `before_agent_start` 지점의 `systemPrompt` 교체 패치로 현재 시스템 프롬프트 뒤에 붙인다. 조각을 붙이는 전용 API가 L1.context.spec에 생기면 그쪽으로 옮긴다.
+- [제안] 설정 `l2.dialog.commands.advertise`가 참이면 명령 이름과 설명 목록(이름 바이트 순, 최대 50개)을 시스템 프롬프트 조각으로 붙인다. 모델이 사용자에게 명령을 권할 수 있게 하려는 것이다. 목록이 바뀔 때만 조각이 바뀌므로 프롬프트 캐시 접두는 명령 추가·제거 때만 바뀐다. [결정: review.m2-plan DG.2] M2는 `input.agent.before` 지점의 `systemPrompt` 교체 패치로 현재 시스템 프롬프트 뒤에 붙인다. 조각을 붙이는 전용 API가 L1.context.spec에 생기면 그쪽으로 옮긴다.
 
 #### 4.2.6 클라이언트 선언
 
@@ -853,7 +874,7 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 | id | 내용 | 갱신 계기 |
 |---|---|---|
 | `core.turn` | 대기, 실행 중(단계 n), 승인 대기, 질문 대기 | `turn.started`, 휘발 `turn.progress`, `approval.requested`/`resolved`, `turn.completed` |
-| `core.tools` | 실행 중인 도구 이름(최대 3개) | `tool_execution_start`/`end` 지점(tap) |
+| `core.tools` | 실행 중인 도구 이름(최대 3개) | `tool.execution.before`/`tool.execution.after` 지점(tap) |
 | `core.usage` | 이 세션 누적 토큰과 비용 | `turn.completed.usage` |
 
 - 그룹 상태 세그먼트: 그룹은 `"<자기 이름>.<이름>"` 형식 id로 `setItem`을 부른다(예: `<그룹 이름>.phase`에 "2/3단계"). 다른 소유자의 id를 쓰는 것을 막을 호출자 확인 수단은 §10 D-4다.
@@ -862,11 +883,11 @@ pi `substituteArgs`를 그대로 쓴다(`~/projects/_ref/pi-src/packages/coding-
 - [결정: review.m2-plan DG.3] 구현 규칙:
   - 설정 `status.segments`가 고른 세그먼트만 `list`와 이벤트에 나온다. 둘이 같은 목록을 쓰므로 재접속한 클라이언트가 이벤트와 같은 화면을 그린다. 이벤트는 앞 32개만 싣고, `list`는 선택된 전체를 돌려준다.
   - 스레드마다 세그먼트는 256개까지다. 새 id가 넘으면 `invalid_input`이다.
-  - 내장 세그먼트는 내구 이벤트 피드(`turn.started`, `turn.completed`, `approval.requested`, `approval.resolved`)와 `tool_execution_start`·`tool_execution_end` 지점에서 계산한다. `core.turn`은 이벤트를 하나라도 본 스레드에서 보인다. `core.usage`는 `turn.completed.usage`의 `totalTokens`와 `cost.total`을 누적한다. 같은 `seq`의 이벤트는 한 번만 센다.
+  - 내장 세그먼트는 내구 이벤트 피드(`turn.started`, `turn.completed`, `approval.requested`, `approval.resolved`)와 `tool.execution.before`·`tool.execution.after` 지점에서 계산한다. `core.turn`은 이벤트를 하나라도 본 스레드에서 보인다. `core.usage`는 `turn.completed.usage`의 `totalTokens`와 `cost.total`을 누적한다. 같은 `seq`의 이벤트는 한 번만 센다.
   - 피드 구독은 구독한 뒤 커밋되는 이벤트만 받는다. 재시작 전 누적 사용량은 따라잡지 않는다 [미결: 재시작 뒤 `core.usage` 복원 정책].
   - 세그먼트 id 소유자 확인(D-4)은 아직 하지 않는다. `setItem`은 어떤 id든 받는다.
 - 재생 대상이 아니다. 재접속한 클라이언트는 `list`로 다시 그린다. 상태줄 정보는 정본이 아니므로 놓쳐도 내구 이벤트만으로 같은 최종 화면을 만들 수 있어야 한다는 규칙(eng.events.design EV-10)을 어기지 않는다.
-- F.extensions.spec의 `ui_prompt_start`, `ui_prompt_end` 지점(41종 표 40·41번)과의 구분: 두 지점은 확장 UI 대화상자가 열리고 닫히는 것을 관찰하는 tap 지점이다. `dialog.status`는 표시 항목을 등록하는 서비스 API다. 질문 도구의 대기는 `approval.*` 이벤트로 드러나며 `ui_prompt_*`를 발화하지 않는다 [제안]. L1이 승인 대기에 `ui_prompt_*`를 발화할지는 L1.tools.spec이 정한다.
+- F.extensions.spec의 `session.prompt.before`, `session.prompt.after` 지점(41종 표 40·41번)과의 구분: 두 지점은 확장 UI 대화상자가 열리고 닫히는 것을 관찰하는 tap 지점이다. `dialog.status`는 표시 항목을 등록하는 서비스 API다. 질문 도구의 대기는 `approval.*` 이벤트로 드러나며 `ui_prompt_*`를 발화하지 않는다 [제안]. L1이 승인 대기에 `ui_prompt_*`를 발화할지는 L1.tools.spec이 정한다.
 
 ### 4.5 첨부
 
@@ -1012,7 +1033,7 @@ export const manifest = defineManifest({
     { id: "dialog.notify", version: "1.0.0" },
   ],
   requires: [{ id: "workspace.images", range: "^1.0.0" }],
-  points: ["input", "tool_execution_start", "tool_execution_end", "before_agent_start"],
+  points: ["input", "tool.execution.before", "tool.execution.after", "input.agent.before"],
   usesPost: false,
   usesDrive: false,
 });
@@ -1020,13 +1041,13 @@ export const manifest = defineManifest({
 
 | 지점 | fold | 쓰임 |
 |---|---|---|
-| `input` | chain | `/`로 시작하는 입력의 템플릿 명령 치환(셸 주입 없는 것만, §4.2.4). 질의와 치환만 한다 |
-| `tool_execution_start`, `tool_execution_end` | tap | 상태줄 `core.tools` 갱신 |
-| `before_agent_start` | chain | 명령 목록 광고와 출력 스타일 조각(시스템 프롬프트 조각 API가 이 지점이 아니면 L1.context 경로로 옮긴다 [가정]) |
+| `input.user.before` | chain | `/`로 시작하는 입력의 템플릿 명령 치환(셸 주입 없는 것만, §4.2.4). 질의와 치환만 한다 |
+| `tool.execution.before`, `tool.execution.after` | tap | 상태줄 `core.tools` 갱신 |
+| `input.agent.before` | collect | 명령 목록 광고와 출력 스타일 조각(시스템 프롬프트 조각 API가 이 지점이 아니면 L1.context 경로로 옮긴다 [가정]). cap-dialog는 `payload.systemPrompt` 뒤에 조각을 붙여 돌려준다. [결정: 2026-10-28 오케스트레이터] collect에서 핸들러는 원본 payload만 보고 `systemPrompt`는 마지막으로 정의한 값이 이기므로, `systemPrompt`를 기여하는 핸들러는 하나만 둔다. 두 번째 기여자가 생기면 그때 다시 본다. |
 
 - post와 drive를 쓰지 않는다.
 - 내구 피드 구독(`xeon.session`)으로 `turn.*`, `approval.*`, `agent.settled`, `work.goal_settled`를 받아 상태줄 `core.turn`과 알림 분류를 계산한다. 구독자는 `seq`로 중복을 거른다(EV-05).
-- `ask_user`는 `tool_call`(first), `tool_result`(chain) 지점을 지난다(F.capabilities.spec §7).
+- `ask_user`는 `tool.call.before`(first), `tool.result`(chain) 지점을 지난다(F.capabilities.spec §7).
 
 ## 8. 다른 문서와의 인터페이스
 

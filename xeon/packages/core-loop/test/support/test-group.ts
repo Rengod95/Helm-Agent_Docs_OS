@@ -20,7 +20,7 @@ const TEST_GROUP_MANIFEST: ExtensionManifest = defineManifest({
   kind: "group",
   entry: "./index.ts",
   defaultEnabled: false,
-  points: ["turn_end"],
+  points: ["boundary.step.after"],
   usesPost: true,
   usesDrive: true,
   recordKinds: [
@@ -67,7 +67,7 @@ export function createTestGroup(options: TestGroupOptions): {
       manifest.name,
       { state: { schema: StateSchema, initial: { count: 0 }, version: 1 } },
       (g) => {
-        g.on("turn_end", async (payload, current, ctx) => {
+        g.on("boundary.step.after", async (payload, current, ctx) => {
           probe.turnEnds.push(payload.stepId);
           if (options.postFollowUp === true && !flags.posted) {
             flags.posted = true;

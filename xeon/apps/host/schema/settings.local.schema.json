@@ -2,6 +2,153 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "ext.helm.autoStart": {
+      "default": "suggest",
+      "enum": [
+        "off",
+        "suggest",
+        "auto"
+      ],
+      "maxLength": 16,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "탐구 신호가 났을 때: off는 기록만, suggest는 제안 메시지, auto는 바로 탐구를 요청한다",
+          "label": "Helm 자동 시작",
+          "order": 200,
+          "tab": "plugins",
+          "widget": "select"
+        }
+      }
+    },
+    "ext.helm.driveLimits": {
+      "additionalProperties": false,
+      "default": {
+        "maxSpawns": 8,
+        "maxTokens": 400000,
+        "maxTurns": 4
+      },
+      "properties": {
+        "maxSpawns": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxTokens": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxTurns": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Helm 탐구가 쓰는 턴, 하위 에이전트, 토큰 상한. x.primitives.driveDefaultLimits를 Helm에 한해 덮어쓰고 천장 x.primitives.driveLimits를 넘지 못한다.",
+          "label": "Helm drive 상한",
+          "order": 210,
+          "tab": "plugins",
+          "widget": "table"
+        }
+      }
+    },
+    "ext.helm.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Helm 켜기",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.helm.maxLenses": {
+      "default": 3,
+      "maximum": 8,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "한 탐구가 병렬로 띄우는 탐색 관점의 수. 남은 spawn 예산보다 많으면 앞 렌즈만 실행한다",
+          "label": "Helm 렌즈 수",
+          "order": 220,
+          "tab": "plugins",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "ext.helm.writeGuard": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "발산·탐색 단계에서 쓰기 도구 호출을 실행 전에 거부한다",
+          "label": "Helm 쓰기 거부",
+          "order": 230,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "l0.os.log.level": {
       "default": "info",
       "enum": [
@@ -1066,6 +1213,63 @@
           "order": 30,
           "tab": "permissions",
           "widget": "table"
+        }
+      }
+    },
+    "l1.tools.unattended.approval": {
+      "default": "expire",
+      "enum": [
+        "wait",
+        "deny",
+        "expire"
+      ],
+      "maxLength": 16,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "wait는 답이 올 때까지 기다리고, deny는 바로 거부하고, expire는 기다리다 제한 시간이 지나면 거부한다",
+          "label": "무인 실행의 승인 요청",
+          "order": 40,
+          "tab": "permissions",
+          "widget": "select"
+        }
+      }
+    },
+    "l1.tools.unattended.timeoutSeconds": {
+      "default": 3600,
+      "maximum": 604800,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "무인 승인이 expire일 때 이 시간이 지나면 거부로 끝낸다",
+          "label": "무인 실행의 승인 제한 시간",
+          "order": 50,
+          "tab": "permissions",
+          "unit": "초",
+          "widget": "number"
         }
       }
     },
@@ -3068,49 +3272,6 @@
           "order": 201,
           "tab": "plugins",
           "widget": "toggle"
-        }
-      }
-    },
-    "l3.helm.driveLimits": {
-      "additionalProperties": false,
-      "default": {
-        "maxSpawns": 8,
-        "maxTokens": 400000,
-        "maxTurns": 4
-      },
-      "properties": {
-        "maxSpawns": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "maxTokens": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "maxTurns": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "type": "object",
-      "x-xeon": {
-        "allowedScopes": [
-          "managed",
-          "user",
-          "project",
-          "local",
-          "session"
-        ],
-        "layer": "L3",
-        "runtimeChange": "nextTurn",
-        "secret": false,
-        "since": "0.1.0",
-        "ui": {
-          "help": "Helm 탐구가 쓰는 턴, 하위 에이전트, 토큰 상한. x.primitives.driveDefaultLimits를 Helm에 한해 덮어쓰고 천장 x.primitives.driveLimits를 넘지 못한다.",
-          "label": "Helm drive 상한",
-          "order": 210,
-          "tab": "plugins",
-          "widget": "table"
         }
       }
     },

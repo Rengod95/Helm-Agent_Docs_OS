@@ -29,7 +29,8 @@ import { hashOfTarget, readTarget, type ChangeTarget } from "../ledger/target.ts
 import type { KnowledgeSettings } from "../settings.ts";
 import { getFileState } from "../skills/store.ts";
 import { treeOf, type Tree } from "../skills/tree.ts";
-import type { WritePlan, Writer } from "../write/pipeline.ts";
+import { idemOf } from "../write/idempotency.ts";
+import type { DecidedProposal, WritePlan, Writer } from "../write/pipeline.ts";
 import { checkWriteExtras, scanForWrite } from "../write/scan.ts";
 import {
   checkEntryText,
@@ -100,7 +101,7 @@ interface Caller {
   readonly context: CallOptions["context"];
   readonly requestId: string | undefined;
   readonly signal: AbortSignal | undefined;
-  readonly decided: { readonly proposalId: string } | undefined;
+  readonly decided: DecidedProposal | undefined;
   readonly note: string | undefined;
 }
 
@@ -353,7 +354,7 @@ function replayWith<S extends TSchema>(
       context: undefined,
       requestId: undefined,
       signal: call.signal,
-      decided: { proposalId: call.proposalId },
+      decided: { proposalId: call.proposalId, afterUntrusted: call.afterUntrusted },
       note: call.note,
     });
     return done.ok ? ok(done.value.outcome) : done;
@@ -497,7 +498,8 @@ export function createMemory(deps: MemoryDeps): MemoryRuntime {
     if (!checked.ok) return checked;
     const threadId = caller.context?.threadId;
     if (caller.decided === undefined) {
-      const known = writer.recall(caller.requestId);
+      const idem = idemOf(caller.requestId, threadId, proposalMethod, storedInput);
+      const known = writer.recall(idem);
       if (!known.ok) return known;
       if (known.value !== undefined) {
         const state = await inspect(store, threadId);
@@ -544,7 +546,10 @@ export function createMemory(deps: MemoryDeps): MemoryRuntime {
       plan: writePlan,
       actor: caller.actor,
       context: caller.context,
-      requestId: caller.requestId,
+      requestId:
+        caller.decided === undefined
+          ? idemOf(caller.requestId, threadId, proposalMethod, storedInput)
+          : undefined,
       evidence: checked.value.evidence,
       signal: caller.signal,
       decided: caller.decided,

@@ -13,6 +13,7 @@ export type PrimitiveErrorCode =
   | "lease_inactive"
   | "lease_revoked"
   | "lease_budget"
+  | "handler_aborted"
   | "scope_inactive"
   | "scope_foreign_id"
   | "scope_duplicate"
@@ -36,6 +37,7 @@ export type PrimitiveErrorCode =
   | "capability_unavailable"
   | "capability_ambiguous"
   | "service_reserved"
+  | "tool_risk_reserved"
   | "resource_conflict"
   | "resource_name_invalid";
 

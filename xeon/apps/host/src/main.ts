@@ -1,20 +1,23 @@
 import { writeFile } from "node:fs/promises";
-import { assertNever, attemptAsync, Bug, detach } from "@xeon/contracts";
-import { resolveSetting } from "@xeon/contracts/settings";
+import { assertNever, detach } from "@xeon/contracts";
 import type { SecretOutOfBandPort } from "@xeon/contracts/services";
 import type { StdioTransportOptions, Transport } from "@xeon/contracts/wire";
-import { AssembleError, assemble, ENGINE_VERSION } from "./assemble.ts";
+import { AssembleError } from "./assemble.ts";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
+import { hostLimitsOf } from "./assembly/settings-sources.ts";
 import {
-  hostLimitsOf,
-  shutdownTimeoutOf,
-  type SettingReader,
-} from "./assembly/settings-sources.ts";
-import { createConnectionHub } from "./connection.ts";
-import type { ConnectionHub } from "./connection-types.ts";
-import { createWireHandlers, type HostLifecycle } from "./handlers/index.ts";
+  closeHost,
+  settingReaderOf,
+  startHost,
+  stopHost,
+  stopTurns,
+  type HostExit,
+  type RunningHost,
+} from "./host-runtime.ts";
+
 import { parseHostArgv } from "./argv.ts";
 import type { CommandIo, HostCommand } from "./host-command.ts";
+import { runServiceCommand } from "./service/commands.ts";
 import { renderSettingsSchema } from "./settings.ts";
 import { createInProcessTransportFactory } from "./transport/in-process.ts";
 import { createStdioTransport } from "./transport/stdio.ts";
@@ -22,9 +25,10 @@ import type { AssembleOptions, Engine } from "./types.ts";
 import { messageOf } from "./util.ts";
 
 export type { CommandIo, HostCommand } from "./host-command.ts";
+export type { HostExit } from "./host-runtime.ts";
 
 // L4.host-service.spec §3.3.4, §4.8. 호스트 시작 함수(in-process, stdio)와 서브커맨드 진입(runHostCommand).
-// 서비스 모드(startService, ensureService)와 service-* 명령은 M3다.
+// 서비스 모드(startService, ensureHostService)와 service-* 명령은 service/ 아래에 있다.
 
 export interface InProcessHost {
   /** kind "in-process". createHostConnection에 넘긴다 */
@@ -39,82 +43,10 @@ export interface InProcessHost {
   close(): Promise<"clean" | "deadline">;
 }
 
-export interface HostExit {
-  readonly code: 0 | 1;
-  readonly reason: "eof" | "signal" | "idle" | "stop" | "startup";
-  /** 시작 거부(code 1)일 때 이유 한 줄. spec에 더한 선택 필드 */
-  readonly message?: string;
-}
-
 export interface StdioHostOptions extends StdioTransportOptions {
   readonly assemble?: Omit<AssembleOptions, "mode">;
   /** SIGTERM·SIGINT를 받으면 종료 절차를 밟는다(HS-36). 기본 true. 시험은 끈다 [spec에 더한 선택 필드] */
   readonly handleSignals?: boolean;
-}
-
-interface RunningHost {
-  readonly engine: Engine;
-  readonly hub: ConnectionHub;
-}
-
-function settingReaderOf(engine: Engine): SettingReader {
-  return (key) => {
-    const def = engine.catalog.get(key);
-    if (def === undefined) return undefined;
-    return resolveSetting(def, engine.ports.settings.layers(undefined)).setting.value;
-  };
-}
-
-async function startHost(
-  options: AssembleOptions,
-  lifecycle?: HostLifecycle,
-): Promise<RunningHost> {
-  const engine = await assemble(options);
-  const slot: { hub: ConnectionHub | undefined } = { hub: undefined };
-  const handlers = createWireHandlers(
-    engine,
-    () => {
-      if (slot.hub === undefined) throw new Bug("connection hub is used before it is created");
-      return slot.hub;
-    },
-    { serverName: "xeon", serverVersion: ENGINE_VERSION, pid: process.pid },
-    lifecycle,
-  );
-  const hub = createConnectionHub(engine, handlers);
-  slot.hub = hub;
-  return { engine, hub };
-}
-
-/** HS-31 1·2단계: 새 요청을 거절하고, 진행 중 turn을 안전 경계에서 멈추고 체크포인트를 커밋한다. 시한 안에 못 멈췄으면 "deadline" */
-async function stopTurns(running: RunningHost): Promise<"clean" | "deadline"> {
-  const { engine, hub } = running;
-  hub.beginShutdown();
-  const deadlineMs = shutdownTimeoutOf(settingReaderOf(engine));
-  const stopped = await attemptAsync(() => engine.ports.turns.stopAtSafeBoundary(deadlineMs));
-  if (!stopped.ok) {
-    // 멈추는 호출이 실패하면 turn이 멈췄는지 알 수 없다. 시한을 넘긴 것과 같이 다룬다
-    engine.ports.log.error("host.stop_failed", { message: messageOf(stopped.error.cause) });
-    return "deadline";
-  }
-  if (!stopped.value) {
-    engine.ports.log.error("host.stop_timeout", { deadlineMs });
-    return "deadline";
-  }
-  return "clean";
-}
-
-/** HS-31 3·4단계: 연결을 닫고 엔진을 닫는다 */
-async function closeHost(running: RunningHost): Promise<void> {
-  await running.hub.closeAll("shutdown");
-  running.hub.dispose();
-  await running.engine.close();
-}
-
-/** in-process 종료(HS-35): 협조 창구 없이 1~4단계를 차례로 한다 */
-async function stopHost(running: RunningHost): Promise<"clean" | "deadline"> {
-  const outcome = await stopTurns(running);
-  await closeHost(running);
-  return outcome;
 }
 
 export async function startInProcessHost(
@@ -254,8 +186,7 @@ export async function runHostCommand(command: HostCommand, io: CommandIo): Promi
     case "service-stop":
     case "service-ensure":
     case "service-launch-mode":
-      await writeText(io.stderr, `${command.kind} is available from M3 (service mode)\n`);
-      return 1;
+      return runServiceCommand(command, io);
     default:
       return assertNever(command, "HostCommand");
   }

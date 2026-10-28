@@ -85,6 +85,8 @@ test("expectedLayer maps directories to layers", () => {
   expect(expectedLayer("packages/group-helm")).toBe("L3");
   expect(expectedLayer("plugins/provider-anthropic-oauth")).toBe("L1");
   expect(expectedLayer("apps/cli")).toBe("L4");
+  expect(expectedLayer("packages/client")).toBe("L4");
+  expect(expectedDomain("packages/client")).toBe("client");
   expect(expectedLayer("vendor/cordis")).toBe("vendor");
 });
 
@@ -198,6 +200,19 @@ test("DR-10: apps importing apps fail under DR-10", () => {
   pkg("apps/cli", "L4", ["@xeon/host"], { files: { "src/a.ts": 'import "@xeon/host";' } });
   pkg("apps/host", "L4");
   expect(rules()).toEqual(["DR-10"]);
+});
+
+test("DR-10: an app importing packages/client fails until the allowlist names it, and client importing an app fails under DR-02", () => {
+  pkg("packages/contracts", "F");
+  pkg("packages/client", "L4", ["@xeon/contracts", "@xeon/host"], {
+    domain: "client",
+    files: { "src/a.ts": 'import "@xeon/contracts";\nimport "@xeon/host";' },
+  });
+  pkg("apps/host", "L4");
+  pkg("apps/cli", "L4", ["@xeon/client"], { files: { "src/a.ts": 'import "@xeon/client";' } });
+  expect(rules().toSorted()).toEqual(["DR-02", "DR-10"]);
+  allowlist([{ id: "DR-10/cli-client", rule: "DR-10", from: "apps/cli", to: "@xeon/client" }]);
+  expect(rules()).toEqual(["DR-02"]);
 });
 
 test("allowlist: a listed same-layer pair passes, an unlisted pair still fails", () => {

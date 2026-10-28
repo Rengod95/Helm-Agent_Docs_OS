@@ -32,8 +32,8 @@ test("detached tap returns before its handlers run and keeps their order", async
   const waiting = gate();
   const order: string[] = [];
   await t.host.install(
-    makeUnit({ name: "dt-a", points: ["session_info_changed"], loadIndex: 0 }, (g) => {
-      g.on("session_info_changed", async () => {
+    makeUnit({ name: "dt-a", points: ["session.info.after"], loadIndex: 0 }, (g) => {
+      g.on("session.info.after", async () => {
         order.push("a:start");
         await waiting.promise;
         order.push("a:end");
@@ -41,13 +41,13 @@ test("detached tap returns before its handlers run and keeps their order", async
     }),
   );
   await t.host.install(
-    makeUnit({ name: "dt-b", points: ["session_info_changed"], loadIndex: 1 }, (g) => {
-      g.on("session_info_changed", () => {
+    makeUnit({ name: "dt-b", points: ["session.info.after"], loadIndex: 1 }, (g) => {
+      g.on("session.info.after", () => {
         order.push("b");
       });
     }),
   );
-  const outcome = await t.host.dispatch("session_info_changed", infoPayload(thread), {
+  const outcome = await t.host.dispatch("session.info.after", infoPayload(thread), {
     threadId: thread,
     dispatchKey: "k",
   });
@@ -67,14 +67,14 @@ test("a late failure is reported to the policy only, not in the outcome", async 
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "dt-fail", points: ["session_info_changed"] }, (g) => {
-      g.on("session_info_changed", async () => {
+    makeUnit({ name: "dt-fail", points: ["session.info.after"] }, (g) => {
+      g.on("session.info.after", async () => {
         await Promise.resolve();
         throw new Error("late boom");
       });
     }),
   );
-  const outcome = await t.host.dispatch("session_info_changed", infoPayload(thread), {
+  const outcome = await t.host.dispatch("session.info.after", infoPayload(thread), {
     threadId: thread,
     dispatchKey: "k",
   });
@@ -95,8 +95,8 @@ test("closing the thread aborts a running detached handler and drops the rest wi
   const calls: string[] = [];
   let signalAborted: boolean | undefined;
   await t.host.install(
-    makeUnit({ name: "dt-slow", points: ["session_info_changed"], loadIndex: 0 }, (g) => {
-      g.on("session_info_changed", async (_payload, ctx) => {
+    makeUnit({ name: "dt-slow", points: ["session.info.after"], loadIndex: 0 }, (g) => {
+      g.on("session.info.after", async (_payload, ctx) => {
         calls.push("slow");
         await waiting.promise;
         signalAborted = ctx.signal.aborted;
@@ -105,13 +105,13 @@ test("closing the thread aborts a running detached handler and drops the rest wi
     }),
   );
   await t.host.install(
-    makeUnit({ name: "dt-next", points: ["session_info_changed"], loadIndex: 1 }, (g) => {
-      g.on("session_info_changed", () => {
+    makeUnit({ name: "dt-next", points: ["session.info.after"], loadIndex: 1 }, (g) => {
+      g.on("session.info.after", () => {
         calls.push("next");
       });
     }),
   );
-  await t.host.dispatch("session_info_changed", infoPayload(thread), {
+  await t.host.dispatch("session.info.after", infoPayload(thread), {
     threadId: thread,
     dispatchKey: "k",
   });
@@ -133,8 +133,8 @@ test("a detached handler still gets the time budget", async () => {
   await t.host.openThread(thread);
   let aborted = false;
   await t.host.install(
-    makeUnit({ name: "dt-budget", points: ["session_info_changed"] }, (g) => {
-      g.on("session_info_changed", (_payload, ctx) => {
+    makeUnit({ name: "dt-budget", points: ["session.info.after"] }, (g) => {
+      g.on("session.info.after", (_payload, ctx) => {
         ctx.signal.addEventListener("abort", () => {
           aborted = true;
         });
@@ -142,7 +142,7 @@ test("a detached handler still gets the time budget", async () => {
       });
     }),
   );
-  await t.host.dispatch("session_info_changed", infoPayload(thread), {
+  await t.host.dispatch("session.info.after", infoPayload(thread), {
     threadId: thread,
     dispatchKey: "k",
   });
@@ -158,13 +158,13 @@ test("a thread that is not open can still receive a detached dispatch", async ()
   const thread = t.newThread();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "dt-unopened", points: ["session_info_changed"] }, (g) => {
-      g.on("session_info_changed", () => {
+    makeUnit({ name: "dt-unopened", points: ["session.info.after"] }, (g) => {
+      g.on("session.info.after", () => {
         calls.push("ran");
       });
     }),
   );
-  await t.host.dispatch("session_info_changed", infoPayload(thread), {
+  await t.host.dispatch("session.info.after", infoPayload(thread), {
     threadId: thread,
     dispatchKey: "k",
   });

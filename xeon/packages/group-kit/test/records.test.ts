@@ -9,7 +9,7 @@ const DONE_KIND = "grp.writer.note.done";
 
 const manifest = groupManifestOf({
   name: "writer",
-  points: ["agent_settled"],
+  points: ["boundary.settle.after"],
   usesPost: true,
   recordKinds: [
     {
@@ -45,7 +45,7 @@ test("records.write-requires-declared-kind", async () => {
     defineGroup({
       manifest,
       setup(g) {
-        g.on("agent_settled", async () => {
+        g.on("boundary.settle.after", async () => {
           codes.push(
             await codeOf(() =>
               g.record("grp.writer.note.other", { type: "thread", id: "t1" }, { text: "x" }),
@@ -76,7 +76,7 @@ test("records.rejects-foreign-prefix", async () => {
     defineGroup({
       manifest,
       setup(g) {
-        g.on("agent_settled", async () => {
+        g.on("boundary.settle.after", async () => {
           codes.push(
             await codeOf(() =>
               g.record("grp.helm.signal.detected", { type: "thread", id: "t1" }, { text: "x" }),

@@ -34,6 +34,7 @@ function build(
     secretPaths: [],
     ageKeyFileEnv: undefined,
     extraPaths: [],
+    credentialReadAllowed: true,
     ...overrides,
   });
 }
@@ -303,5 +304,64 @@ describe("matchProtectedPath decides by access", () => {
     expect(
       matchProtectedPath(entries, join(dirs.workspace, ".env.example"), "read"),
     ).toBeUndefined();
+  });
+});
+
+describe("credential file reads (M3-REQ-55)", () => {
+  const readable = [
+    ".npmrc",
+    ".netrc",
+    ".pypirc",
+    join(".docker", "config.json"),
+    join(".config", "gh", "hosts.yml"),
+  ];
+  const stillDenied = [join(".ssh", "id_ed25519"), join(".aws", "credentials"), ".git-credentials"];
+
+  test("by default CLI auth files are readable but not writable, keys and cloud credentials stay unreadable", () => {
+    const dirs = makeTestDirs();
+    const entries = build(dirs);
+    for (const name of readable) {
+      const path = join(dirs.home, name);
+      expect(matchProtectedPath(entries, path, "read")).toBeUndefined();
+      expect(matchProtectedPath(entries, path, "write")?.reason).toBe("credentials");
+    }
+    for (const name of stillDenied) {
+      expect(matchProtectedPath(entries, join(dirs.home, name), "read")?.reason).toBe(
+        "credentials",
+      );
+    }
+  });
+
+  test("credentialFiles=deny blocks reading them too", () => {
+    const dirs = makeTestDirs();
+    const entries = build(dirs, { credentialReadAllowed: false });
+    for (const name of readable) {
+      expect(matchProtectedPath(entries, join(dirs.home, name), "read")?.reason).toBe(
+        "credentials",
+      );
+    }
+  });
+
+  test("the service follows the setting when it builds the default policy", async () => {
+    const dirs = makeTestDirs();
+    const npmrc = join(dirs.home, ".npmrc");
+    const make = async (mode: "allow" | "deny") => {
+      const service = await createSandboxService(
+        {
+          os: fakeOs(dirs),
+          settings: () => settingsOf({ credentialFiles: mode }),
+          srt: fakeSrt(),
+          platform: linuxPlatform(),
+          parentEnv: () => ({}),
+        },
+        new AbortController().signal,
+      );
+      return service.defaultPolicy({ workspaceRoots: [dirs.workspace], tempDir: dirs.tmp });
+    };
+    const allowed = await make("allow");
+    expect(allowed.readDeny).not.toContain(npmrc);
+    expect(allowed.writeDeny).toContain(npmrc);
+    const denied = await make("deny");
+    expect(denied.readDeny).toContain(npmrc);
   });
 });

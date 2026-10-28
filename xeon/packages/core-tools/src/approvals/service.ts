@@ -1,4 +1,15 @@
-import { Bug, err, ok, parse, type Clock, type Logger, type Result } from "@xeon/contracts";
+import {
+  Bug,
+  detach,
+  err,
+  ok,
+  parse,
+  type Clock,
+  type Logger,
+  type Result,
+  type Scheduler,
+  type TimerHandle,
+} from "@xeon/contracts";
 import type { EffectId, EventId, IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import {
   ApprovalRequestedPayloadSchema,
@@ -27,9 +38,11 @@ import {
 } from "@xeon/contracts/services";
 import type { ExtHost } from "@xeon/ext-host";
 import { commitWithRetry, type CommitFailure } from "../commit.ts";
+import { UNATTENDED_DEFAULTS, type ToolsUnattendedConfig } from "../settings.ts";
 import { isJsonObject, messageOf } from "../util.ts";
 import { requestCommitKey, resolveCommitKey } from "./keys.ts";
-import { scanApprovals } from "./pending.ts";
+import { scanApprovals, type ScannedApprovals } from "./pending.ts";
+import { unattendedPlan } from "./unattended.ts";
 import { invalidDetail, requestIssue, validateResponse } from "./protocol.ts";
 
 // L1.tools.spec §3.6, §4.7 승인 대기. 도구 승인(tool), 계획 승인(plan), 질문(question)이 하나의 대기 형식을 쓴다.
@@ -54,6 +67,10 @@ export interface ApprovalDeps {
   /** 계획 승인의 `{ mode }`를 적용한다(ToolService.setMode "plan_approval") */
   readonly setMode: (threadId: ThreadId, mode: PermissionMode) => Promise<ModeChangeResult>;
   readonly modeOf: (threadId: ThreadId) => PermissionMode;
+  /** 만료 타이머. 없으면 타이머 없이 `restore`, `respond`, `open`이 시계를 보고 만료를 해결한다 */
+  readonly scheduler?: Scheduler;
+  /** 사람이 답할 수 없는 주 대화 turn의 승인 정책(`l1.tools.unattended.*`). 없으면 설정 기본값이다 */
+  readonly unattended?: (threadId: ThreadId) => ToolsUnattendedConfig;
   /** 메모리에 남기는 해결된 요청의 수 상한(기본 `RESOLVED_KEPT`). 시험이 작은 값을 넣는다 */
   readonly resolvedKept?: number;
 }
@@ -66,6 +83,8 @@ export interface ApprovalDeps {
 const RESOLVED_KEPT = 256;
 /** `respond`가 돌려주는 detail의 길이 상한(wire `ApprovalRespondResult.detail`과 같다) */
 const DETAIL_MAX = 512;
+/** 만료 해결 커밋이 실패했을 때 다시 시도하기까지의 시간(ms) */
+const EXPIRE_RETRY_MS = 5_000;
 
 /**
  * 파이프라인과 L2 어댑터가 쓰는 확장. 비차단 `open`·`wait`·`get`은 F `ApprovalService`로 올라갔다(L1.tools.spec §8.3 F 요청 11).
@@ -84,6 +103,8 @@ interface Entry {
   state: EntryState;
   resolution: ApprovalResolution | undefined;
   readonly waiters: Set<(resolution: ApprovalResolution) => void>;
+  /** 만료 타이머. 해결되면 지운다 */
+  timer: TimerHandle | undefined;
 }
 
 function rememberKey(surfaceThreadId: string, toolName: string, ruleId: string | null): string {
@@ -157,6 +178,29 @@ function planModeOf(
   return isMode(mode) ? mode : undefined;
 }
 
+function expiredResolution(
+  request: ApprovalRequest,
+  logger: Logger | undefined,
+): ApprovalResolution {
+  const base = {
+    approvalId: request.approvalId,
+    remember: "once",
+    requestedRemember: null,
+    resolvedBy: "expired",
+  } as const;
+  const onExpire = request.onExpire ?? { decision: "deny" };
+  if (onExpire.decision === "answer") {
+    // 정한 답이 요청 kind에 맞아야 쓴다. 맞지 않으면 거부로 닫는다
+    const checked = validateResponse(request, { decision: "answer", answer: onExpire.answer });
+    if (checked.ok) return { ...base, decision: "answer", answer: checked.value.answer };
+    logger?.warn("tools.approval_expire_answer_invalid", {
+      approvalId: request.approvalId,
+      reason: checked.error.kind,
+    });
+  }
+  return { ...base, decision: "deny", answer: null };
+}
+
 function promptKind(request: ApprovalRequest): "confirm" | "select" {
   return request.body.kind === "question" ? "select" : "confirm";
 }
@@ -173,6 +217,15 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   const resolvedOrder = new Set<string>();
   const resolvedKept = deps.resolvedKept ?? RESOLVED_KEPT;
 
+  function stateOf(entry: Entry): EntryState {
+    return entry.state;
+  }
+
+  function overdue(entry: Entry): boolean {
+    const at = entry.request.expiresAt;
+    return at !== undefined && deps.clock.now() >= at;
+  }
+
   function add(eventId: EventId, request: ApprovalRequest): Entry {
     const entry: Entry = {
       eventId,
@@ -180,10 +233,69 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       state: "pending",
       resolution: undefined,
       waiters: new Set(),
+      timer: undefined,
     };
     byId.set(request.approvalId, entry);
     byKey.set(keyOf(request.surfaceThreadId, request.requestKey), request.approvalId);
+    arm(entry, undefined);
     return entry;
+  }
+
+  /** 만료 시각에 깨는 타이머를 건다. `delay`를 주지 않으면 만료 시각까지 남은 시간이다. 타이머가 없는 구성은 걸지 않는다 */
+  function arm(entry: Entry, delay: number | undefined): void {
+    const at = entry.request.expiresAt;
+    const scheduler = deps.scheduler;
+    if (at === undefined || scheduler === undefined) return;
+    if (entry.timer !== undefined) scheduler.clearTimeout(entry.timer);
+    const after = delay ?? Math.max(0, at - deps.clock.now());
+    entry.timer = scheduler.setTimeout(() => {
+      entry.timer = undefined;
+      detach(expire(entry), (cause) => {
+        deps.logger?.error("tools.approval_expire_failed", {
+          approvalId: entry.request.approvalId,
+          message: messageOf(cause),
+        });
+      });
+    }, after);
+  }
+
+  /**
+   * 만료 시각이 지난 대기 요청을 `onExpire`대로 해결한다(`resolvedBy: "expired"`, M3-REQ-72). 시계가 아직 만료 시각에 못 미치면
+   * 타이머만 다시 건다. 커밋이 실패하면 대기로 되돌리고 잠시 뒤 다시 시도한다
+   */
+  async function expire(entry: Entry): Promise<void> {
+    if (stateOf(entry) !== "pending") return;
+    if (!overdue(entry)) {
+      arm(entry, undefined);
+      return;
+    }
+    let done = false;
+    try {
+      const committed = await commitSettling(entry, expiredResolution(entry.request, deps.logger));
+      done = committed.ok;
+    } finally {
+      // 커밋이 실패하거나 던져도 요청은 대기로 돌아와 있다. 잠시 뒤 다시 만료를 시도한다
+      if (!done && stateOf(entry) === "pending") {
+        deps.logger?.warn("tools.approval_expire_commit_failed", {
+          approvalId: entry.request.approvalId,
+        });
+        arm(entry, EXPIRE_RETRY_MS);
+      }
+    }
+    if (done) deps.logger?.info("tools.approval_expired", { approvalId: entry.request.approvalId });
+  }
+
+  /** 해결 커밋 동안 요청을 `settling`으로 두고, 해결되지 않은 채 끝나면(실패, 예외) 대기로 되돌린다 */
+  async function commitSettling(
+    entry: Entry,
+    resolution: ApprovalResolution,
+  ): Promise<Result<void, CommitFailure>> {
+    entry.state = "settling";
+    try {
+      return await commitResolution(entry, resolution);
+    } finally {
+      if (stateOf(entry) === "settling") entry.state = "pending";
+    }
   }
 
   function applyRemember(entry: Entry, resolution: ApprovalResolution): void {
@@ -211,8 +323,8 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       dispatchKey: `approval:${request.approvalId}:ui_prompt_${phase}`,
     };
     try {
-      if (phase === "start") await deps.ext.dispatch("ui_prompt_start", payload, options);
-      else await deps.ext.dispatch("ui_prompt_end", payload, options);
+      if (phase === "start") await deps.ext.dispatch("session.prompt.before", payload, options);
+      else await deps.ext.dispatch("session.prompt.after", payload, options);
     } catch (error) {
       // 탭 지점의 실패는 기록하고 계속한다(F.extensions.spec §4.1)
       deps.logger?.warn("tools.ui_prompt_failed", { phase, message: messageOf(error) });
@@ -233,6 +345,10 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   }
 
   function settle(entry: Entry, resolution: ApprovalResolution): void {
+    if (entry.timer !== undefined) {
+      deps.scheduler?.clearTimeout(entry.timer);
+      entry.timer = undefined;
+    }
     entry.state = "resolved";
     entry.resolution = resolution;
     applyRemember(entry, resolution);
@@ -320,6 +436,18 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
 
     const requestedAt = deps.clock.now();
     const sameThread = input.origin.threadId === surfaceThreadId;
+    // 사람이 답할 수 없는 호출은 무인 정책이 정한다(요청이 이미 만료 시각을 가졌으면 그 값이 먼저다)
+    const unattended =
+      call !== undefined && !call.run.interactive
+        ? unattendedPlan(
+            call.run,
+            deps.unattended?.(call.run.threadId) ?? UNATTENDED_DEFAULTS,
+            requestedAt,
+          )
+        : undefined;
+    const timeoutAt = unattended?.silent === false ? unattended.timeoutAt : null;
+    const expiresAt = input.expiresAt ?? timeoutAt ?? undefined;
+    const onExpire = input.onExpire;
     // 능력 어댑터는 CallContext에서 origin을 만들고 거기에 stepId가 없다. 활성 호출이 알면 그 단계로 채워 모든 승인 기록의 origin이 같은 값을 갖게 한다
     const stepId = input.origin.stepId ?? call?.run.stepId ?? null;
     const origin: ApprovalOrigin =
@@ -332,6 +460,8 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       remember: input.remember,
       surfaceThreadId,
       requestedAt,
+      ...(expiresAt === undefined ? {} : { expiresAt }),
+      ...(expiresAt === undefined || onExpire === undefined ? {} : { onExpire }),
     };
     const shape = parse(ApprovalRequestedPayloadSchema, payload);
     if (!shape.ok) {
@@ -347,7 +477,7 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     // 정책의 ask는 비대화형에서 deny로 바뀌어 도구 승인이 나오지 않는 것이 보통이지만, 정책이 허용한 뒤에 파이프라인이 다시 묻는
     // 비밀 사용 승인과 능력 서비스가 올리는 도구 승인(도메인 승인 등)은 정책을 지나지 않는다. 그래서 kind를 가리지 않는다.
     // 턴 밖의 요청(call 없음)은 대화형으로 본다
-    const silent = call !== undefined && !call.run.interactive;
+    const silent = unattended?.silent === true;
     const requestedId = deps.ids.next("evt");
     const requestedDraft = deps.producer.draft({
       id: requestedId,
@@ -414,36 +544,40 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     if (!committed.result.replayed && eventId !== requestedId) {
       throw new Bug("tools.approval_event_id_mismatch: the store did not keep the draft event id");
     }
-    const request: ApprovalRequest = {
+    const fresh: ApprovalRequest = {
       ...input,
       origin,
       approvalId: eventId,
       surfaceThreadId,
       requestedAt,
+      ...(expiresAt === undefined ? {} : { expiresAt }),
     };
-    const entry = add(eventId, request);
+    // 같은 키의 요청이 이미 커밋되어 있었다면(재시작) 저장된 요청이 정본이다: 만료 시각을 처음부터 다시 재지 않는다
+    let stored: ScannedApprovals | undefined;
+    let request = fresh;
     if (committed.result.replayed) {
-      const adopted = await adoptStoredResolution(entry);
-      if (!adopted.ok) return err({ kind: "store", error: adopted.error });
+      const scanned = await scanApprovals(deps.session, surfaceThreadId);
+      if (!scanned.ok) return err({ kind: "store", error: scanned.error });
+      stored = scanned.value;
+      request =
+        stored.requests.find((candidate) => candidate.eventId === eventId)?.request ?? fresh;
+    }
+    const entry = add(eventId, request);
+    if (stored !== undefined) {
+      // 그 사이 응답이 커밋되었으면 이어 받는다. 해결은 커밋됐지만 모드 변경 전에 끊겼을 수 있어, 계획 도구가 다시 요청하는 이 자리에서 이어서 적용한다
+      const resolved = stored.resolved.get(entry.request.approvalId);
+      if (resolved !== undefined) {
+        await applyPlanMode(entry.request, resolved);
+        settle(entry, resolved);
+      }
     } else if (silent) {
       settle(entry, silentResolution);
     } else {
       await prompt(entry, "start");
     }
+    // 이미 만료 시각이 지난 요청(재시작 뒤, 또는 과거 시각)은 기다리지 않고 해결한다
+    if (stateOf(entry) === "pending" && overdue(entry)) await expire(entry);
     return ok(opened(entry));
-  }
-
-  /** 같은 키의 요청이 이미 커밋되어 있었다면(재시작) 그 사이 응답이 커밋되었는지 이벤트에서 확인한다 */
-  async function adoptStoredResolution(entry: Entry): Promise<Result<void, ReadFailure>> {
-    const scanned = await scanApprovals(deps.session, entry.request.surfaceThreadId);
-    if (!scanned.ok) return scanned;
-    const stored = scanned.value.resolved.get(entry.request.approvalId);
-    if (stored !== undefined) {
-      // 해결은 커밋됐지만 모드 변경 전에 끊겼을 수 있다. 계획 도구가 다시 요청하는 이 자리에서 이어서 적용한다
-      await applyPlanMode(entry.request, stored);
-      settle(entry, stored);
-    }
-    return ok(undefined);
   }
 
   /** 해결이 오면 그 해결, signal이 끊기면 undefined */
@@ -495,6 +629,12 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
     if (entry === undefined) return { applied: false, reason: "unknown_approval" };
     // 해결됐거나 다른 응답이 해결을 커밋하는 중이다. 맞지 않는 응답을 이 상태에서 검사하지 않는다: 고쳐 보내도 달라질 것이 없다
     if (entry.state !== "pending") return { applied: false, reason: "already_resolved" };
+    // 만료 시각이 지났으면 타이머가 깨기 전이라도 만료가 먼저다
+    // 만료 커밋이 실패해 아직 대기여도 만료 시각 뒤의 응답은 받지 않는다(만료는 다시 시도한다)
+    if (overdue(entry)) {
+      await expire(entry);
+      return { applied: false, reason: "already_resolved" };
+    }
     const checked = validateResponse(entry.request, response);
     if (!checked.ok) {
       deps.logger?.warn("tools.approval_response_invalid", {
@@ -507,7 +647,6 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
         detail: invalidDetail(checked.error).slice(0, DETAIL_MAX),
       };
     }
-    entry.state = "settling";
     const resolution: ApprovalResolution = {
       approvalId,
       decision: checked.value.decision,
@@ -516,9 +655,8 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
       requestedRemember: checked.value.requestedRemember,
       resolvedBy: "user",
     };
-    const committed = await commitResolution(entry, resolution);
+    const committed = await commitSettling(entry, resolution);
     if (!committed.ok) {
-      entry.state = "pending";
       deps.logger?.warn("tools.approval_resolve_failed", { approvalId });
       return { applied: false, reason: "commit_failed" };
     }
@@ -531,12 +669,8 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   ): Promise<{ readonly applied: boolean }> {
     const entry = byId.get(approvalId);
     if (entry?.state !== "pending") return { applied: false };
-    entry.state = "settling";
-    const committed = await commitResolution(entry, cancelledResolution(entry.request));
-    if (!committed.ok) {
-      entry.state = "pending";
-      return { applied: false };
-    }
+    const committed = await commitSettling(entry, cancelledResolution(entry.request));
+    if (!committed.ok) return { applied: false };
     deps.logger?.info("tools.approval_cancelled", { approvalId, reason });
     return { applied: true };
   }
@@ -552,12 +686,16 @@ export function createApprovalService(deps: ApprovalDeps): ApprovalsInternal {
   ): Promise<Result<readonly ApprovalRequest[], ReadFailure>> {
     const scanned = await scanApprovals(deps.session, threadId);
     if (!scanned.ok) return scanned;
+    const added: Entry[] = [];
     for (const { eventId, request: stored } of scanned.value.requests) {
       if (byId.has(stored.approvalId)) continue;
       const entry = add(eventId, stored);
       const resolved = scanned.value.resolved.get(stored.approvalId);
       if (resolved !== undefined) settle(entry, resolved);
+      else added.push(entry);
     }
+    // 재시작 사이에 만료 시각이 지난 요청은 되살리면서 바로 해결한다
+    await Promise.all(added.filter(overdue).map(expire));
     return ok(pending(threadId));
   }
 

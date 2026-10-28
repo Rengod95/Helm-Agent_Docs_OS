@@ -42,6 +42,7 @@ export interface QuestionView {
 type ApprovalForm =
   | { readonly kind: "tool" }
   | { readonly kind: "plan"; readonly nextModes: readonly string[] }
+  | { readonly kind: "review" }
   | { readonly kind: "question"; readonly questions: readonly QuestionView[] };
 
 export interface ApprovalView {

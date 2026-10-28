@@ -37,14 +37,14 @@ const PATCHER = defineManifest({
   layer: "L3",
   kind: "group",
   entry: "./src/index.ts",
-  points: ["before_provider_request"],
+  points: ["request.provider.before"],
   usesDrive: false,
   trust: { level: "builtin" },
 });
 
 const patcherEntry: ExtensionEntry = ({ manifest: own, scope }) => {
   scope(own.name, {}, (g) => {
-    g.on("before_provider_request", (payload) => ({
+    g.on("request.provider.before", (payload) => ({
       payload: { patched: true, was: payload.payload },
     }));
   });
@@ -58,7 +58,7 @@ describe("core-models builtin extension", () => {
     expect(typeof extension).toBe("function");
   });
 
-  test("installs into ext-host, provides xeon.models, and fires before_provider_request through xeon.ext", async () => {
+  test("installs into ext-host, provides xeon.models, and fires request.provider.before through xeon.ext", async () => {
     const th = await createTestHost();
     const secrets = memorySecrets({ "tape-key": FAKE_KEY });
     await th.host.registerPlatform({
@@ -199,11 +199,11 @@ describe("core-models builtin extension", () => {
       kind: "group",
       entry: "./src/index.ts",
       points: [
-        "before_provider_headers",
-        "after_provider_response",
-        "provider_stream_event",
-        "model_select",
-        "thinking_level_select",
+        "request.headers.before",
+        "request.provider.after",
+        "request.stream",
+        "request.model.after",
+        "request.thinking.after",
       ],
       usesDrive: false,
       trust: { level: "builtin" },
@@ -212,20 +212,20 @@ describe("core-models builtin extension", () => {
       manifest: spyManifest,
       entry: ({ manifest: own, scope }) => {
         scope(own.name, {}, (g) => {
-          g.on("before_provider_headers", (payload) => {
+          g.on("request.headers.before", (payload) => {
             seen.push(`headers:${Object.keys(payload.headers).join(",")}`);
             return { set: { "x-spy": "1" } };
           });
-          g.on("after_provider_response", (payload) => {
+          g.on("request.provider.after", (payload) => {
             seen.push(`response:${payload.status}:${Object.keys(payload.headers).join(",")}`);
           });
-          g.on("provider_stream_event", (payload) => {
+          g.on("request.stream", (payload) => {
             seen.push(`raw:${payload.model}`);
           });
-          g.on("model_select", (payload) => {
+          g.on("request.model.after", (payload) => {
             seen.push(`select:${payload.binding.modelId}:${payload.previous === null}`);
           });
-          g.on("thinking_level_select", (payload) => {
+          g.on("request.thinking.after", (payload) => {
             seen.push(`level:${payload.level}`);
           });
         });
@@ -279,6 +279,105 @@ describe("core-models builtin extension", () => {
     await th.settled();
     expect(seen).toContain("level:high");
     expect(seen.filter((line) => line.startsWith("select:"))).toHaveLength(1);
+    await th.host.dispose();
+  });
+
+  test("guard.model.before through xeon.ext: a block or a throwing handler stops the request, the guard sees the chained payload", async () => {
+    const th = await createTestHost();
+    const secrets = memorySecrets({ "tape-key": FAKE_KEY });
+    await th.host.registerPlatform({
+      name: "test-secrets",
+      setup(ctx) {
+        ctx.providePort(SecretServiceKey, secrets.service);
+      },
+    });
+    const clock = manualClock();
+    const fake = tapeProvider(
+      tapePlayer(
+        tape("core-models/plugin-guard", [
+          {
+            role: "main",
+            response: { type: "message", content: [t.text("ok")], stopReason: "stop" },
+          },
+          {
+            role: "main",
+            response: { type: "message", content: [t.text("ok")], stopReason: "stop" },
+          },
+        ]),
+        { clock },
+      ),
+    );
+    const models = createModelsExtension({
+      clock,
+      settings: () => SETTINGS,
+      buildModels: (credentials) => {
+        const collection = createModels({ credentials });
+        collection.setProvider(fake.provider);
+        return collection;
+      },
+    });
+    await th.host.install({
+      manifest: models.manifest,
+      entry: models.extension,
+      loadIndex: 0,
+      builtin: true,
+    });
+    await th.settled();
+    await th.host.install({ manifest: PATCHER, entry: patcherEntry, loadIndex: 1, builtin: true });
+    const seen: unknown[] = [];
+    let mode: "block" | "throw" = "block";
+    await th.host.install({
+      manifest: defineManifest({
+        schemaVersion: 1,
+        name: "model-guard",
+        version: "0.1.0",
+        layer: "L3",
+        kind: "group",
+        entry: "./src/index.ts",
+        points: ["guard.model.before"],
+        usesDrive: false,
+        trust: { level: "builtin" },
+      }),
+      entry: ({ manifest: own, scope }) => {
+        scope(own.name, {}, (g) => {
+          g.on("guard.model.before", (payload) => {
+            seen.push(payload.payload);
+            if (mode === "throw") throw new Error("guard exploded");
+            return { block: true, reason: "no model calls" };
+          });
+        });
+      },
+      loadIndex: 2,
+      builtin: true,
+    });
+    await th.settled();
+    const service = th.host.ports.get(ModelServiceKey);
+    if (service === undefined) throw new Error("xeon.models is missing");
+    const threadId = th.newThread();
+    await th.host.openThread(threadId);
+    const resolved = service.resolve("main");
+    if (!resolved.ok) throw new Error("main role does not resolve");
+    const call = () =>
+      service
+        .stream({
+          threadId,
+          turnId: null,
+          stepId: null,
+          role: "main",
+          resolved: resolved.value,
+          context: { messages: [{ role: "user", content: "hi", timestamp: clock.now() }] },
+        })
+        .result();
+    const blocked = await call();
+    expect(blocked.stopReason).toBe("error");
+    expect(blocked.errorMessage).toBe("[xeon:denied_by_guard] no model calls");
+    expect(seen[0]).toMatchObject({ patched: true, was: { model: "tape-1" } });
+    expect(fake.calls()).toEqual([]);
+    mode = "throw";
+    const thrown = await call();
+    expect(thrown.stopReason).toBe("error");
+    expect(thrown.errorMessage).toBe("[xeon:denied_by_guard] extension handler failed");
+    expect(fake.calls()).toEqual([]);
     await th.host.dispose();
   });
 });

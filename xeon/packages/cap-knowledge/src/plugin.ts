@@ -33,7 +33,11 @@ import { setupSearch } from "./search/setup.ts";
 import { KNOWLEDGE_MIGRATIONS, KNOWLEDGE_OWNER } from "./migrations.ts";
 import { createKnowledgeRuntime, type KnowledgeDeps } from "./service.ts";
 import { createTurnContext } from "./turn-context.ts";
-import { readKnowledgeSettings, type KnowledgeSettingsSource } from "./settings.ts";
+import {
+  readKnowledgeSettings,
+  withTrustedEvidence,
+  type KnowledgeSettingsSource,
+} from "./settings.ts";
 import type { SkillDiagnostic } from "./upstream/skills.ts";
 import { projectSkillsDir, resolveSkillRoots, type RootsResult } from "./skills/roots.ts";
 
@@ -56,7 +60,7 @@ export interface KnowledgePluginOptions {
   readonly ids: LocalIdFactory;
   /** 시험이 메모리 가짜를 넣는다. 기본은 node:fs 구현 */
   readonly fs?: KnowledgeFs;
-  /** `resources_discover`가 알린 확장 제공 스킬 루트(spec §4.2.7) */
+  /** `session.resources`가 알린 확장 제공 스킬 루트(spec §4.2.7) */
   readonly extensionSkillRoots?: () => readonly {
     readonly dir: string;
     readonly extension: string;
@@ -72,6 +76,11 @@ export interface KnowledgePluginOptions {
    * 엔진 cwd로 대신하지 않는다(L2.readme §5.10). 없으면 프로젝트 폴더는 엔진 cwd 하나다
    */
   readonly workspaceOf?: (threadId: string) => string | undefined;
+  /**
+   * 설정 `l2.knowledge.write.trustedEvidenceSources`에 더해 믿을 승인 증거 출처(`<확장 이름>.<대기열 이름>`). 조립 루트가 내장 그룹의
+   * 선언에서 채운다(M3-REQ-104, D-11). 이 패키지는 그룹 이름을 기본값으로 갖지 않는다
+   */
+  readonly trustedEvidenceSources?: readonly string[];
   readonly loadIndex?: number;
 }
 
@@ -159,7 +168,11 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
         clock: os.time.clock,
         ids: options.ids,
         logger,
-        settings: (threadId) => readKnowledgeSettings(options.settings.layers(threadId)),
+        settings: (threadId) =>
+          withTrustedEvidence(
+            readKnowledgeSettings(options.settings.layers(threadId)),
+            options.trustedEvidenceSources,
+          ),
         workspaceOf: options.workspaceOf,
         roots: async (threadId): Promise<RootsResult> => {
           const settings = readKnowledgeSettings(options.settings.layers(threadId));
@@ -221,14 +234,14 @@ export function knowledgePlugin(options: KnowledgePluginOptions): ExtensionUnit 
         memory: runtime.memory,
         logger,
       });
-      g.on("session_start", async (payload) => {
+      g.on("session.start", async (payload) => {
         await turnContext.start(payload.threadId, payload.reason);
       });
-      g.on("before_agent_start", async (_payload, _current, ctx) => {
+      g.on("input.agent.before", async (_payload, ctx) => {
         const message = await turnContext.beforeAgentStart(ctx.threadId);
         return message === undefined ? undefined : { message };
       });
-      g.on("session_shutdown", (_payload, ctx) => {
+      g.on("session.shutdown", (_payload, ctx) => {
         turnContext.shutdown(ctx.threadId);
       });
 

@@ -154,12 +154,12 @@ function driveGroup(name: string, calls: string[], throwOnDrive = false): GroupM
   return defineGroup({
     manifest: groupManifestOf({
       name,
-      points: ["tool_call"],
+      points: ["tool.call.before"],
       usesPost: true,
       usesDrive: true,
     }),
     setup(g) {
-      g.on("tool_call", (payload) =>
+      g.on("tool.call.before", (payload) =>
         payload.toolName === "danger" ? { block: true, reason: `${name} blocks` } : undefined,
       );
       g.drive(async (loop) => {
@@ -210,7 +210,7 @@ test("arbiter.waiting-group-keeps-on-handlers", async () => {
 
   // 그래도 B의 on 핸들러는 계속 동작한다
   const outcome = await r.t.host.dispatch(
-    "tool_call",
+    "tool.call.before",
     { toolCallId: "c1", toolName: "danger", input: {} },
     { threadId: thread, dispatchKey: "tc-1" },
   );

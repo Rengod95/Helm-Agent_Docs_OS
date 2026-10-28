@@ -5,5 +5,16 @@
     "outDir": "dist",
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../ext-host"
+    },
+    {
+      "path": "../group-kit"
+    }
+  ]
 }

@@ -173,7 +173,9 @@ test("settings: reserved defs shape", () => {
 test("settings: x.loading-trust keys pass the catalog and refuse the project scope", () => {
   const defs = Object.values(loadingTrustSettings.defs);
   expect(buildCatalog([{ owner: "ext-host", namespace: "x.loading-trust", defs }]).ok).toBe(true);
-  expect(defs).toHaveLength(5);
+  expect(defs).toHaveLength(4);
+  // pi 호환 키는 없다(adr.0017 §3.7)
+  expect(Object.keys(loadingTrustSettings.defs)).not.toContain("piCompat");
   for (const def of defs) {
     expect(def.allowedScopes).not.toContain("project");
     expect(def.ui?.tab).toBe("plugins");

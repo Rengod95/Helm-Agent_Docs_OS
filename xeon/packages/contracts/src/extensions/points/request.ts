@@ -11,10 +11,14 @@ import {
   type TRecord,
   type TString,
   type TUnion,
-  type TUnknown,
 } from "typebox";
 import { Nullable } from "../../base/index.ts";
-import { AgentMessageSchema, ModelThinkingLevelSchema } from "../../conversation/index.ts";
+import {
+  AgentMessageSchema,
+  CheckedJsonObjectSchema,
+  CheckedJsonValueSchema,
+  ModelThinkingLevelSchema,
+} from "../../conversation/index.ts";
 
 /** 헤더 값. null은 삭제를 뜻한다(before_provider_headers) */
 const HeaderValueSchema: TUnion<[TString, TNull]> = Nullable(Type.String({ maxLength: 8192 }));
@@ -86,30 +90,26 @@ export const BeforeProviderRequestPayloadSchema: TObject<{
   provider: TString;
   modelId: TString;
   role: TString;
-  payload: TUnknown;
+  payload: typeof CheckedJsonObjectSchema;
 }> = Type.Object(
   {
     provider: Type.String({ minLength: 1, maxLength: 128 }),
     modelId: Type.String({ minLength: 1, maxLength: 256 }),
     /** L1.models.spec ModelRole */
     role: Type.String({ minLength: 1, maxLength: 64 }),
-    payload: Type.Unknown(),
+    payload: CheckedJsonObjectSchema,
   },
   { additionalProperties: false },
 );
 export type BeforeProviderRequestPayload = Static<typeof BeforeProviderRequestPayloadSchema>;
 
-export const ProviderPayloadValueSchema: TObject<{ payload: TUnknown }> = Type.Object(
-  { payload: Type.Unknown() },
-  { additionalProperties: false },
-);
+export const ProviderPayloadValueSchema: TObject<{ payload: typeof CheckedJsonObjectSchema }> =
+  Type.Object({ payload: CheckedJsonObjectSchema }, { additionalProperties: false });
 export type ProviderPayloadValue = Static<typeof ProviderPayloadValueSchema>;
 
 /** 교체 */
-export const ProviderPayloadPatchSchema: TObject<{ payload: TUnknown }> = Type.Object(
-  { payload: Type.Unknown() },
-  { additionalProperties: false },
-);
+export const ProviderPayloadPatchSchema: TObject<{ payload: typeof CheckedJsonObjectSchema }> =
+  Type.Object({ payload: CheckedJsonObjectSchema }, { additionalProperties: false });
 export type ProviderPayloadPatch = Static<typeof ProviderPayloadPatchSchema>;
 
 // ── #8 before_provider_headers (chain) ───────────────────────────────────
@@ -170,13 +170,13 @@ export const ProviderStreamPayloadSchema: TObject<{
   provider: TString;
   api: TString;
   model: TString;
-  data: TUnknown;
+  data: typeof CheckedJsonValueSchema;
 }> = Type.Object(
   {
     provider: Type.String({ minLength: 1, maxLength: 128 }),
     api: Type.String({ minLength: 1, maxLength: 128 }),
     model: Type.String({ minLength: 1, maxLength: 256 }),
-    data: Type.Unknown(),
+    data: CheckedJsonValueSchema,
   },
   { additionalProperties: false },
 );

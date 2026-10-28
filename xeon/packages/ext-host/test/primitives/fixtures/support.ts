@@ -1,3 +1,5 @@
+import { defineCapability } from "@xeon/contracts/capabilities";
+import { Type } from "typebox";
 import type { ExtensionManifest, ScopeDef, ScopeSetup } from "@xeon/contracts/extensions";
 import type {
   AssistantMessage,
@@ -6,7 +8,11 @@ import type {
   UserMessage,
 } from "@xeon/contracts/conversation";
 import type { ExtThreadSnapshot, RecordCommitPort } from "@xeon/contracts/records";
-import type { ExtensionUnit } from "../../../src/primitives/index.ts";
+import {
+  capabilityDefTable,
+  type CapabilityDefLookup,
+  type ExtensionUnit,
+} from "../../../src/primitives/index.ts";
 
 /** 기록 포트의 스냅샷. 읽기 실패는 시험 결함이므로 던진다 */
 export async function snapshotOf(
@@ -140,3 +146,38 @@ export async function rejectionOf(run: () => unknown): Promise<unknown> {
   }
   return undefined;
 }
+
+const echoText = Type.Object(
+  { text: Type.Optional(Type.String()) },
+  { additionalProperties: false },
+);
+const echoOut = Type.String();
+
+/** 시험용 능력 `demo.echo`: `echo`는 멱등 쓰기, `peek`는 읽기, `poke`는 선언 없는 쓰기 */
+const echoCapability = defineCapability({
+  id: "demo.echo",
+  version: "1.0.0",
+  description: "echo",
+  service: {
+    methods: {
+      echo: {
+        description: "echo",
+        input: echoText,
+        output: echoOut,
+        replay: "safe",
+        idempotent: true,
+      },
+      peek: {
+        description: "peek",
+        input: echoText,
+        output: echoOut,
+        replay: "safe",
+        readOnly: true,
+      },
+      poke: { description: "poke", input: echoText, output: echoOut, replay: "unsafe" },
+    },
+  },
+  tools: [],
+});
+
+export const echoDefs: CapabilityDefLookup = capabilityDefTable([echoCapability]);

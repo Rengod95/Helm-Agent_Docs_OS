@@ -35,7 +35,7 @@
     "find-list: the boolean check returns the list of resources that were found (resources.ts)",
     "injected-fs-home: existsSync/homedir/process.env.HOME become LoaderFs and the homeDir argument (resources.ts)",
     "decision-order: the order keeps pi's and adds session memory, store corruption and headless denial; verdicts are allow, deny, undecided (resolve.ts)",
-    "point-fail-closed: an exception from the project_trust point denies instead of being reported and skipped (resolve.ts)",
+    "point-fail-closed: an exception from the session.trust.before point denies instead of being reported and skipped (resolve.ts)",
     "corrupt-store-no-prompt: a corrupt store denies without prompting so a saved answer cannot overwrite other folders' decisions (resolve.ts)",
     "prompter-port: ctx.ui.select and hasUI become the TrustPrompter port and the headless mode (resolve.ts)"
   ],

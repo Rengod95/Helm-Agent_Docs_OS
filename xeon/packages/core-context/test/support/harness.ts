@@ -91,7 +91,10 @@ export async function harness(options: HarnessOptions = {}): Promise<Harness> {
   };
 }
 
-function manifestOf(name: string, points: readonly PointName[] = ["context"]): ExtensionManifest {
+function manifestOf(
+  name: string,
+  points: readonly PointName[] = ["request.context.before"],
+): ExtensionManifest {
   return {
     schemaVersion: 1,
     name,
@@ -130,14 +133,14 @@ export async function installContextHandler(
   host: TestHost,
   name: string,
   loadIndex: number,
-  handler: Handler<"context">,
+  handler: Handler<"request.context.before">,
 ): Promise<void> {
   const manifest = manifestOf(name);
   const unit: ExtensionUnit = {
     manifest,
     entry: ({ scope }) => {
       scope(name, {}, (g) => {
-        g.on("context", handler);
+        g.on("request.context.before", handler);
       });
     },
     loadIndex,

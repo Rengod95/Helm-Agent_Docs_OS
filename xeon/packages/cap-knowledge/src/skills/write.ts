@@ -29,7 +29,8 @@ import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import { utf8DecodeStrict, utf8Encode } from "../hash.ts";
 import { hashOfTarget, readTarget, type ChangeTarget } from "../ledger/target.ts";
 import { checkWriteExtras, scanForWrite, type ScanTarget } from "../write/scan.ts";
-import type { WritePlan, Writer } from "../write/pipeline.ts";
+import { idemOf } from "../write/idempotency.ts";
+import type { DecidedProposal, WritePlan, Writer } from "../write/pipeline.ts";
 import { describeSkill, mainFileOf } from "./document.ts";
 import { isAddressableSkillFile } from "./paths.ts";
 import type { SkillsDeps } from "./service.ts";
@@ -102,7 +103,7 @@ interface Caller {
   readonly context: CallContext | undefined;
   readonly requestId: string | undefined;
   readonly signal: AbortSignal | undefined;
-  readonly decided: { readonly proposalId: string } | undefined;
+  readonly decided: DecidedProposal | undefined;
   readonly note: string | undefined;
 }
 
@@ -212,7 +213,7 @@ function replayWith<S extends TSchema>(
       context: undefined,
       requestId: undefined,
       signal: call.signal,
-      decided: { proposalId: call.proposalId },
+      decided: { proposalId: call.proposalId, afterUntrusted: call.afterUntrusted },
       note: call.note,
     });
   };
@@ -574,7 +575,9 @@ export function createSkillWrites(deps: SkillWriteDeps): SkillWrites {
     const checked = checkWriteExtras(caller.context, input);
     if (!checked.ok) return checked;
     if (caller.decided === undefined) {
-      const known = writer.recall(caller.requestId);
+      const known = writer.recall(
+        idemOf(caller.requestId, caller.context?.threadId, proposalMethod, input),
+      );
       if (!known.ok) return known;
       if (known.value !== undefined) return ok(known.value);
     }
@@ -609,7 +612,10 @@ export function createSkillWrites(deps: SkillWriteDeps): SkillWrites {
       plan,
       actor: caller.actor,
       context: caller.context,
-      requestId: caller.requestId,
+      requestId:
+        caller.decided === undefined
+          ? idemOf(caller.requestId, caller.context?.threadId, proposalMethod, input)
+          : undefined,
       evidence: checked.value.evidence,
       signal: caller.signal,
       decided: caller.decided,

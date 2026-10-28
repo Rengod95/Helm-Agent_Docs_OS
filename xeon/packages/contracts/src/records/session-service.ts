@@ -257,6 +257,11 @@ export interface ThreadCreateInput {
   readonly creationKey?: string;
   /** 자식 thread 생성. 부모 thread의 토큰. 같은 holder로 session:<threadId> 임대를 얻는다 */
   readonly inheritOwnerFrom?: LeaseToken;
+  /**
+   * 부모 thread에 같은 커밋으로 넣는 초안(부모의 `agent.spawned` 등). `inheritOwnerFrom`이 있을 때만 쓴다.
+   * 각 초안의 `threadId`는 `inheritOwnerFrom`이 가리키는 부모 thread여야 한다. 선택이다. 없으면 부모 커밋을 따로 한다 [제안: M3-REQ-10]
+   */
+  readonly parentDrafts?: readonly DurableEventDraft[];
 }
 
 export interface ThreadListQuery {
@@ -297,7 +302,7 @@ export type LifecycleError =
     }
   | {
       readonly kind: "cancelled_by_extension";
-      readonly point: "session_before_fork" | "session_before_tree" | "session_before_switch";
+      readonly point: "session.fork.before" | "session.tree.before" | "session.switch.before";
       readonly reason: string | null;
     };
 

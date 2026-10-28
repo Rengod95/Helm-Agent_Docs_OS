@@ -1075,6 +1075,8 @@ export type LedgerEntry = {
   proposalId?: string;
   rollbackOf?: string;
   rolledBackBy?: string;
+  /** 이 쓰기를 한 turn에 untrusted 도구 결과를 이미 읽었다(`CallerInfo.afterUntrusted`). 승인 화면이 경고를 보인다 */
+  afterUntrusted?: boolean;
 };
 const ledgerEntryShape = Type.Object({
   ledgerId: LedgerIdSchema,
@@ -1091,6 +1093,7 @@ const ledgerEntryShape = Type.Object({
   proposalId: Type.Optional(ProposalIdSchema),
   rollbackOf: Type.Optional(LedgerIdSchema),
   rolledBackBy: Type.Optional(LedgerIdSchema),
+  afterUntrusted: Type.Optional(Type.Boolean()),
 });
 export const LedgerEntrySchema: TUnsafe<LedgerEntry> = Type.Unsafe<LedgerEntry>(
   ledgerEntryShape satisfies SchemaProof<LedgerEntry, typeof ledgerEntryShape>,
@@ -1217,6 +1220,8 @@ export type Proposal = {
   preview: string;
   scan: ScanSummary;
   ledgerId?: string;
+  /** 제안한 쓰기가 untrusted 도구 결과를 읽은 turn에서 나왔다. 없으면 거짓이다 */
+  afterUntrusted?: boolean;
 };
 const proposalShape = Type.Object({
   proposalId: ProposalIdSchema,
@@ -1229,15 +1234,31 @@ const proposalShape = Type.Object({
   preview: Type.String({ maxLength: 200_000 }),
   scan: ScanSummarySchema,
   ledgerId: Type.Optional(LedgerIdSchema),
+  afterUntrusted: Type.Optional(Type.Boolean()),
 });
 export const ProposalSchema: TUnsafe<Proposal> = Type.Unsafe<Proposal>(
   proposalShape satisfies SchemaProof<Proposal, typeof proposalShape>,
 );
 
-export type ProposalsInput = { status?: ProposalStatus; limit?: number };
+/** `status`는 하나, `statuses`는 여럿(둘 다 주면 합집합). `before`는 이 항목 앞(더 오래된 쪽)부터 읽는 키셋 위치다 */
+export type ProposalsInput = {
+  status?: ProposalStatus;
+  statuses?: ProposalStatus[];
+  limit?: number;
+  before?: { createdAt: number; proposalId: string };
+};
 const proposalsInputShape = Type.Object({
   status: Type.Optional(ProposalStatusSchema),
+  statuses: Type.Optional(
+    Type.Array(ProposalStatusSchema, { minItems: 1, maxItems: 5, uniqueItems: true }),
+  ),
   limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 50 })),
+  before: Type.Optional(
+    Type.Object({
+      createdAt: Type.Integer({ minimum: 0 }),
+      proposalId: ProposalIdSchema,
+    }),
+  ),
 });
 export const ProposalsInputSchema: TUnsafe<ProposalsInput> = Type.Unsafe<ProposalsInput>(
   proposalsInputShape satisfies SchemaProof<ProposalsInput, typeof proposalsInputShape>,
@@ -1255,11 +1276,14 @@ export type DecideInput = {
   proposalId: string;
   decision: "approve" | "reject";
   note?: string;
+  /** 승인 때 사용자가 고른 스킬 범위. `skills.create` 제안만 `project`로 바꿀 수 있다(D-M3-09). 생략하면 제안의 범위다 */
+  scope?: WritableSkillScope;
 };
 const decideInputShape = Type.Object({
   proposalId: ProposalIdSchema,
   decision: Type.Union([Type.Literal("approve"), Type.Literal("reject")]),
   note: Type.Optional(Type.String({ maxLength: 500 })),
+  scope: Type.Optional(WritableSkillScopeSchema),
 });
 export const DecideInputSchema: TUnsafe<DecideInput> = Type.Unsafe<DecideInput>(
   decideInputShape satisfies SchemaProof<DecideInput, typeof decideInputShape>,
@@ -1305,47 +1329,61 @@ export const KnowledgeSkills: CapabilityDef<
         input: SkillListInputSchema,
         output: SkillListOutputSchema,
         replay: "safe",
+        readOnly: true,
       },
       view: {
         description: "스킬 본문이나 지원 파일 하나를 읽는다.",
         input: SkillViewInputSchema,
         output: SkillViewOutputSchema,
         replay: "safe",
+        readOnly: true,
       },
       create: {
         description: "새 스킬을 만든다.",
         input: SkillCreateInputSchema,
         output: WriteOutcomeSchema,
+        replay: "safe",
+        idempotent: true,
         errors: SKILL_WRITE_ERRORS,
       },
       edit: {
         description: "설명이나 본문 전체를 바꾼다.",
         input: SkillEditInputSchema,
         output: WriteOutcomeSchema,
+        replay: "safe",
+        idempotent: true,
         errors: SKILL_WRITE_ERRORS,
       },
       patch: {
         description: "본문이나 지원 파일에 정확 일치 치환을 적용한다.",
         input: SkillPatchInputSchema,
         output: WriteOutcomeSchema,
+        replay: "safe",
+        idempotent: true,
         errors: SKILL_WRITE_ERRORS,
       },
       writeFile: {
         description: "지원 파일 하나를 쓴다.",
         input: SkillWriteFileInputSchema,
         output: WriteOutcomeSchema,
+        replay: "safe",
+        idempotent: true,
         errors: SKILL_WRITE_ERRORS,
       },
       remove: {
         description: "스킬이나 지원 파일을 보관함으로 옮기거나 지운다.",
         input: SkillRemoveInputSchema,
         output: WriteOutcomeSchema,
+        replay: "safe",
+        idempotent: true,
         errors: SKILL_WRITE_ERRORS,
       },
       manage: {
         description: "action에 따라 create·edit·patch·writeFile·remove 중 하나로 보낸다.",
         input: SkillManageInputSchema,
         output: WriteOutcomeSchema,
+        replay: "safe",
+        idempotent: true,
         errors: SKILL_WRITE_ERRORS,
       },
       reindex: {
@@ -1353,7 +1391,7 @@ export const KnowledgeSkills: CapabilityDef<
           "스킬 루트를 다시 훑어 색인과 파일을 맞춘다. 바깥 편집은 원장에 external로 남긴다.",
         input: SkillReindexInputSchema,
         output: SkillReindexOutputSchema,
-        replay: "safe",
+        replay: "unsafe",
       },
     },
   },
@@ -1410,29 +1448,38 @@ export const KnowledgeMemory: CapabilityDef<
         input: MemoryReadInputSchema,
         output: MemoryReadOutputSchema,
         replay: "safe",
+        readOnly: true,
       },
       add: {
         description: "항목 하나를 더한다.",
         input: MemoryAddInputSchema,
         output: MemoryWriteOutputSchema,
+        replay: "safe",
+        idempotent: true,
         errors: MEMORY_WRITE_ERRORS,
       },
       replace: {
         description: "항목 하나를 바꾼다.",
         input: MemoryReplaceInputSchema,
         output: MemoryWriteOutputSchema,
+        replay: "safe",
+        idempotent: true,
         errors: MEMORY_WRITE_ERRORS,
       },
       remove: {
         description: "항목 하나를 지운다.",
         input: MemoryRemoveInputSchema,
         output: MemoryWriteOutputSchema,
+        replay: "safe",
+        idempotent: true,
         errors: MEMORY_WRITE_ERRORS,
       },
       manage: {
         description: "action에 따라 add·replace·remove 또는 batch로 보낸다. batch는 원자적이다.",
         input: MemoryManageInputSchema,
         output: MemoryWriteOutputSchema,
+        replay: "safe",
+        idempotent: true,
         errors: MEMORY_WRITE_ERRORS,
       },
     },
@@ -1481,24 +1528,28 @@ export const KnowledgeSearch: CapabilityDef<
         input: KnowledgeQueryInputSchema,
         output: KnowledgeQueryOutputSchema,
         replay: "safe",
+        readOnly: true,
       },
       scroll: {
         description: "세션의 한 메시지 앞뒤를 읽는다.",
         input: SessionScrollInputSchema,
         output: SessionMessagesOutputSchema,
         replay: "safe",
+        readOnly: true,
       },
       read: {
         description: "세션 메시지를 seq 순으로 읽는다.",
         input: SessionReadInputSchema,
         output: SessionMessagesOutputSchema,
         replay: "safe",
+        readOnly: true,
       },
       list: {
         description: "최근 세션 목록을 돌려준다.",
         input: SessionListInputSchema,
         output: SessionListOutputSchema,
         replay: "safe",
+        readOnly: true,
       },
     },
   },
@@ -1564,17 +1615,21 @@ export const KnowledgeLedger: CapabilityDef<LedgerMethods, readonly []> = define
         input: LedgerListInputSchema,
         output: LedgerListOutputSchema,
         replay: "safe",
+        readOnly: true,
       },
       show: {
         description: "원장 항목 하나와 파일별 diff를 돌려준다.",
         input: LedgerIdRefSchema,
         output: LedgerShowOutputSchema,
         replay: "safe",
+        readOnly: true,
       },
       rollback: {
         description: "원장 항목 하나를 되돌린다. 되돌림도 원장에 남는다.",
         input: LedgerRollbackInputSchema,
         output: WriteOutcomeSchema,
+        replay: "safe",
+        idempotent: true,
         errors: {
           rollback_conflict: {
             description: "대상의 현재 해시가 그 항목의 afterHash와 다름(뒤에 다른 변경이 있음)",
@@ -1592,12 +1647,14 @@ export const KnowledgeLedger: CapabilityDef<LedgerMethods, readonly []> = define
         input: LedgerScanInputSchema,
         output: ScanSummarySchema,
         replay: "safe",
+        readOnly: true,
       },
       proposals: {
         description: "제안 대기열을 돌려준다.",
         input: ProposalsInputSchema,
         output: ProposalsOutputSchema,
         replay: "safe",
+        readOnly: true,
       },
       decide: {
         description: "제안 하나를 승인하거나 거절한다. 승인하면 쓰기 경로로 적용한다.",

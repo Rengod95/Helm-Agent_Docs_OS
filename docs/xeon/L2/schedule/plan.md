@@ -228,7 +228,7 @@ xeon/packages/cap-schedule/
 | `wakeup.test.ts` › 대체 | 세 번 호출하면 마지막 하나만 `pending`, 앞의 둘 `replaced` |
 | › 정착 대기 | 기한에 turn이 진행 중이면 정착 뒤 투입 |
 | › self 간격 | 반복 중 웨이크업이 없으면 `model` 사유로 멈춤 |
-| `restart.test.ts` › host_exit 정리 | 투영에 `running` 루프가 있고 메모리 타이머가 없으면 `session_start`에서 `host_exit` 기록, 자동 재시작 없음 |
+| `restart.test.ts` › host_exit 정리 | 투영에 `running` 루프가 있고 메모리 타이머가 없으면 `session.start`에서 `host_exit` 기록, 자동 재시작 없음 |
 
 ### 5.6 jobs 상태 전이 (H4)
 

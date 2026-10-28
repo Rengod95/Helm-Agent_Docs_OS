@@ -1,0 +1,18 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/bunfig.toml",
+        "$TURBO_ROOT$/mise.toml",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/scripts/test-pkg.sh",
+        "$TURBO_ROOT$/scripts/ensure-sidecar.sh",
+        "$TURBO_ROOT$/../scripts/guard.sh",
+        "$TURBO_ROOT$/../docs/xeon/X/**"
+      ]
+    }
+  }
+}

@@ -210,11 +210,11 @@ export function createLifecycle(deps: LifecycleDeps): ThreadLifecycle {
       detach(
         deps.points.start(
           { reason: "new", threadId },
-          `${threadId}:session_start:${String(result.lastSeq)}`,
+          `${threadId}:session.start:${String(result.lastSeq)}`,
         ),
         (cause) => {
           deps.logger?.warn("session.point_failed", {
-            point: "session_start",
+            point: "session.start",
             threadId,
             reason: String(cause),
           });

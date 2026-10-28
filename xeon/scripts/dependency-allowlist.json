@@ -9,6 +9,33 @@
     "approvedBy": "review.decisions-2"
   },
   {
+    "id": "DR-10/cli-client",
+    "rule": "DR-10",
+    "from": "apps/cli",
+    "to": "@xeon/client",
+    "entries": ["."],
+    "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
+    "approvedBy": "adr.0020"
+  },
+  {
+    "id": "DR-10/desktop-client",
+    "rule": "DR-10",
+    "from": "apps/desktop",
+    "to": "@xeon/client",
+    "entries": [".", "./stdio", "./settings"],
+    "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
+    "approvedBy": "adr.0020"
+  },
+  {
+    "id": "DR-10/host-client",
+    "rule": "DR-10",
+    "from": "apps/host",
+    "to": "@xeon/client",
+    "entries": ["."],
+    "reason": "apps/host keeps the @xeon/host/client re-export and its tests drive the host through the client connection (adr.0020; open: adr.0020 section 3.5 says host does not import client).",
+    "approvedBy": "adr.0020"
+  },
+  {
     "id": "DR-02/group-kit-helm",
     "rule": "DR-02",
     "from": "packages/group-helm",
@@ -18,12 +45,21 @@
     "approvedBy": "review.decisions-2"
   },
   {
+    "id": "DR-02/group-kit-testing-helm",
+    "rule": "DR-02",
+    "from": "packages/group-helm",
+    "to": "@xeon/group-kit",
+    "entries": ["./testing"],
+    "reason": "Helm tests use the group-kit test helpers replayDrive (effect counting) and scanDriveSource (L3.helm.plan H-14, H-18, H-19).",
+    "approvedBy": "L3.helm.plan"
+  },
+  {
     "id": "DR-02/group-kit-learning",
     "rule": "DR-02",
     "from": "packages/group-learning",
     "to": "@xeon/group-kit",
-    "entries": ["."],
-    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15).",
+    "entries": [".", "./testing"],
+    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15). The group tests use the group-kit fakes (fake agents, replayDrive) through ./testing (L3.learning.plan section 2, DR-14 exception 5).",
     "approvedBy": "review.decisions-2"
   },
   {

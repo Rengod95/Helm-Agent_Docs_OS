@@ -168,7 +168,7 @@ const writeExtras = {
 export const UNTRUSTED_SESSION_OPEN = "<untrusted_session_content";
 ```
 
-- 행위자는 입력 필드가 아니다. 서비스는 `CallOptions.context.caller`(`CallerInfo`, `L2.readme` §5.8의 L2 공통 `F.capabilities.spec` 변경 요청)에서 행위자를 만든다. 이 문서에서 `caller.kind`, `caller.afterUntrusted`로 짧게 쓴 것은 이 필드다. `caller.kind = "model"`이면 `agent`, `extension`이면 `extension`, `host`이면 `user`다. 호출자가 행위자를 꾸며 승인 게이트를 건너뛰지 못하게 하기 위해서다.
+- 행위자는 입력 필드가 아니다. 서비스는 `CallOptions.context.caller`(`CallerInfo`, `L2.readme` §5.8의 L2 공통 `F.capabilities.spec` 변경 요청)에서 행위자를 만든다. 이 문서에서 `caller.kind`, `caller.afterUntrusted`로 짧게 쓴 것은 이 필드다. `caller.kind = "model"`이면 `agent`, `extension`이면 `extension`, `host`이면 `user`다. 호출자가 행위자를 꾸며 승인 게이트를 건너뛰지 못하게 하기 위해서다. 그룹·확장 경로의 호출 문맥은 X의 capability 래퍼가 채운다(`F.capabilities.spec` §3.2 `CallOptions.context`, `X.primitives.spec` §4.4.7). 래퍼는 `caller { kind: "extension", extension: <호출 확장 이름> }`과 `threadId`를 싣고, L1.tools 어댑터가 이미 채운 문맥은 덮지 않는다. 그래서 확장이 `g.capability`로 부른 쓰기는 `extension` 행위자로 §4.5 표를 따르고(증거 없음, 세션 없음이면 대기열), 호출 문맥이 아예 없는 호출(래퍼를 거치지 않은 직접 호출)만 `denied`다.
 - `approval`과 `overrideScan`은 호출자 종류가 맞지 않으면 무시하지 않고 `invalid_input`으로 거부한다. 모델 도구 파라미터에는 두 필드가 없다(§3.6).
 - 지원 파일 경로 [결정: KN.1]. `SkillFilePathSchema`의 패턴은 `references/../x`와 `references/.hidden`을 받아들인다. 서비스는 경로를 입력으로 받은 모든 메서드(`view`, `patch`, `writeFile`, `remove`)에서 파일을 열기 전에 F의 `isSkillFilePath`(패턴과 `.`·`..` 마디 거부)를 부른다. 이 패키지는 거기에 점으로 시작하거나 끝나는 마디의 거부를 더한다(`skills/paths.ts` `isAddressableSkillFile`). 트리 해시와 안전 캡처가 점 항목을 보지 않으므로(§4.2.3), 점으로 시작하는 지원 파일을 쓰면 `baseHash`가 그 파일의 변경을 가리지 못하기 때문이다. 끝에 점이 붙은 마디는 Windows가 점을 지워 다른 파일이 되는 것을 막는다.
 - 스키마를 좁힌다 [결정: KN.1, 반영됨: m2 F.8]. F가 받아들였다: `SkillFilePathSchema`의 패턴을 `^(references|templates|scripts|assets)/[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?(?:/[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?){0,4}$`로 바꾸고 `isSkillFilePath`는 이 패턴과 같은 규칙만 남긴다. 모델에 보이는 JSON Schema가 거부할 경로를 미리 거절하게 하는 것이 목적이다. F가 받아들이기 전까지 `isAddressableSkillFile`이 같은 규칙을 지키고, 받아들이면 그 함수는 `isSkillFilePath` 호출 한 줄이 된다. 이 패키지는 사용자 입력 경로를 디렉터리 경로에 이어 붙여 열지 않는다. `view`는 트리를 읽은 결과(메모리)에서 경로를 찾으므로 입력 경로가 파일 시스템 호출에 쓰이지 않는다.
@@ -305,17 +305,17 @@ export const KnowledgeSkills = defineCapability({
   description: "Agent Skills 스킬의 색인, 본문 지연 로딩, 승인과 원장을 거친 쓰기.",
   service: {
     methods: {
-      list:      { description: "스킬 인덱스를 돌려준다.", input: SkillListInputSchema, output: SkillListOutputSchema, replay: "safe" },
-      view:      { description: "스킬 본문이나 지원 파일 하나를 읽는다.", input: SkillViewInputSchema, output: SkillViewOutputSchema, replay: "safe" },
-      create:    { description: "새 스킬을 만든다.", input: SkillCreateInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
-      edit:      { description: "설명이나 본문 전체를 바꾼다.", input: SkillEditInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
-      patch:     { description: "본문이나 지원 파일에 정확 일치 치환을 적용한다.", input: SkillPatchInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
-      writeFile: { description: "지원 파일 하나를 쓴다.", input: SkillWriteFileInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
-      remove:    { description: "스킬이나 지원 파일을 보관함으로 옮기거나 지운다.", input: SkillRemoveInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
-      manage:    { description: "action에 따라 create·edit·patch·writeFile·remove 중 하나로 보낸다.", input: SkillManageInputSchema, output: WriteOutcomeSchema, errors: skillWriteErrors },
+      list:      { description: "스킬 인덱스를 돌려준다.", input: SkillListInputSchema, output: SkillListOutputSchema, replay: "safe", readOnly: true },
+      view:      { description: "스킬 본문이나 지원 파일 하나를 읽는다.", input: SkillViewInputSchema, output: SkillViewOutputSchema, replay: "safe", readOnly: true },
+      create:    { description: "새 스킬을 만든다.", input: SkillCreateInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
+      edit:      { description: "설명이나 본문 전체를 바꾼다.", input: SkillEditInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
+      patch:     { description: "본문이나 지원 파일에 정확 일치 치환을 적용한다.", input: SkillPatchInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
+      writeFile: { description: "지원 파일 하나를 쓴다.", input: SkillWriteFileInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
+      remove:    { description: "스킬이나 지원 파일을 보관함으로 옮기거나 지운다.", input: SkillRemoveInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
+      manage:    { description: "action에 따라 create·edit·patch·writeFile·remove 중 하나로 보낸다.", input: SkillManageInputSchema, output: WriteOutcomeSchema, replay: "safe", idempotent: true, errors: skillWriteErrors },
       reindex:   { description: "스킬 루트를 다시 훑어 색인과 파일을 맞춘다. 바깥 편집은 원장에 external로 남긴다.",
                    input: Type.Object({}), output: Type.Object({ added: Type.Integer(), changed: Type.Integer(), removed: Type.Integer(), indexVersion: Type.Integer() }),
-                   replay: "safe" },
+                   replay: "unsafe" },
     },
   },
   tools: [
@@ -332,7 +332,7 @@ export const KnowledgeSkills = defineCapability({
 export const KnowledgeSkillsKey = serviceKey(KnowledgeSkills);
 ```
 
-- 쓰기 메서드의 `replay`는 생략(`"unsafe"`)이다. 같은 `requestId`의 두 번째 호출은 원장에서 첫 결과를 돌려주므로(§4.4.5) 그룹의 재시도는 안전하지만, 결과 불명인 모델 도구 호출을 다시 실행하면 승인 요청이 다시 뜰 수 있어 재생하지 않는다 [제안].
+- [결정: M3-REQ-88] 쓰기 메서드(`create`·`edit`·`patch`·`writeFile`·`remove`·`manage`, 메모리 쓰기, `ledger.rollback`)는 `replay: "safe"`와 `idempotent: true`를 선언한다. 같은 `requestId`의 두 번째 호출은 원장(`request_id`)과 대기열이 저장한 첫 결과를 돌려주므로(§4.4.5) 재실행되는 코드(on 핸들러, drive)가 불러도 효과가 한 번이다. 결과 불명인 모델 도구 호출을 다시 실행하면 승인 요청이 다시 뜰 수 있어 도구 `skill_manage`·`memory_manage`의 `replay`는 `"unsafe"`로 둔다(도구가 메서드보다 좁아도 된다). `decide`와 `reindex`는 `requestId` 멱등이 없어 선언 없음(`replay: "unsafe"`)이다.
 - `manage`는 다른 쓰기 메서드와 같은 경로로 보내는 분배기다. 모델 도구가 메서드 하나에 대응해야 하므로(`F.capabilities.spec` §4.2) 둔다. `action`별 필수 필드 검사(예: `patch`는 `baseHash`, `edits`)는 런타임에서 하고 실패하면 `invalid_input`이다.
 - `skill_manage`의 `scope`는 모델 파라미터에 없다. 모델 쓰기는 `user` 범위로 간다. 프로젝트 스킬(`.xeon/skills`)은 사용자나 확장(증거 있음)만 쓴다 [제안]. 저장소에 커밋되는 파일을 에이전트가 승인 없이 바꾸지 않게 하기 위해서다.
 
@@ -418,11 +418,11 @@ export const KnowledgeMemory = defineCapability({
   description: "사용자 정보(user)와 환경 사실(env) 두 저장소의 한도 있는 상주 메모리.",
   service: {
     methods: {
-      read:    { description: "현재 메모리 상태를 읽는다. 세션 스냅샷과 다를 수 있다.", input: MemoryReadInputSchema, output: MemoryReadOutputSchema, replay: "safe" },
-      add:     { description: "항목 하나를 더한다.", input: MemoryAddInputSchema, output: MemoryWriteOutputSchema, errors: memoryWriteErrors },
-      replace: { description: "항목 하나를 바꾼다.", input: MemoryReplaceInputSchema, output: MemoryWriteOutputSchema, errors: memoryWriteErrors },
-      remove:  { description: "항목 하나를 지운다.", input: MemoryRemoveInputSchema, output: MemoryWriteOutputSchema, errors: memoryWriteErrors },
-      manage:  { description: "action에 따라 add·replace·remove 또는 batch로 보낸다. batch는 원자적이다.", input: MemoryManageInputSchema, output: MemoryWriteOutputSchema, errors: memoryWriteErrors },
+      read:    { description: "현재 메모리 상태를 읽는다. 세션 스냅샷과 다를 수 있다.", input: MemoryReadInputSchema, output: MemoryReadOutputSchema, replay: "safe", readOnly: true },
+      add:     { description: "항목 하나를 더한다.", input: MemoryAddInputSchema, output: MemoryWriteOutputSchema, replay: "safe", idempotent: true, errors: memoryWriteErrors },
+      replace: { description: "항목 하나를 바꾼다.", input: MemoryReplaceInputSchema, output: MemoryWriteOutputSchema, replay: "safe", idempotent: true, errors: memoryWriteErrors },
+      remove:  { description: "항목 하나를 지운다.", input: MemoryRemoveInputSchema, output: MemoryWriteOutputSchema, replay: "safe", idempotent: true, errors: memoryWriteErrors },
+      manage:  { description: "action에 따라 add·replace·remove 또는 batch로 보낸다. batch는 원자적이다.", input: MemoryManageInputSchema, output: MemoryWriteOutputSchema, replay: "safe", idempotent: true, errors: memoryWriteErrors },
     },
   },
   tools: [
@@ -527,10 +527,10 @@ export const KnowledgeSearch = defineCapability({
   description: "스킬·메모리·지난 세션 전문 검색. 세션은 LLM 요약 없이 원문을 돌려준다.",
   service: {
     methods: {
-      query:  { description: "질의어로 스킬·메모리·세션 메시지를 찾는다.", input: KnowledgeQueryInputSchema, output: KnowledgeQueryOutputSchema, replay: "safe" },
-      scroll: { description: "세션의 한 메시지 앞뒤를 읽는다.", input: SessionScrollInputSchema, output: SessionMessagesOutputSchema, replay: "safe" },
-      read:   { description: "세션 메시지를 seq 순으로 읽는다.", input: SessionReadInputSchema, output: SessionMessagesOutputSchema, replay: "safe" },
-      list:   { description: "최근 세션 목록을 돌려준다.", input: SessionListInputSchema, output: SessionListOutputSchema, replay: "safe" },
+      query:  { description: "질의어로 스킬·메모리·세션 메시지를 찾는다.", input: KnowledgeQueryInputSchema, output: KnowledgeQueryOutputSchema, replay: "safe", readOnly: true },
+      scroll: { description: "세션의 한 메시지 앞뒤를 읽는다.", input: SessionScrollInputSchema, output: SessionMessagesOutputSchema, replay: "safe", readOnly: true },
+      read:   { description: "세션 메시지를 seq 순으로 읽는다.", input: SessionReadInputSchema, output: SessionMessagesOutputSchema, replay: "safe", readOnly: true },
+      list:   { description: "최근 세션 목록을 돌려준다.", input: SessionListInputSchema, output: SessionListOutputSchema, replay: "safe", readOnly: true },
     },
   },
   tools: [
@@ -584,6 +584,8 @@ export const LedgerEntrySchema = Type.Object({
   proposalId: Type.Optional(ProposalIdSchema),
   rollbackOf: Type.Optional(LedgerIdSchema),
   rolledBackBy: Type.Optional(LedgerIdSchema),
+  /** 이 쓰기를 한 turn에 untrusted 도구 결과를 이미 읽었다. 승인 화면이 경고를 보인다 [결정: M3-REQ-91] */
+  afterUntrusted: Type.Optional(Type.Boolean()),
 });
 
 export const LedgerListInputSchema = Type.Object({
@@ -619,6 +621,8 @@ export const ProposalSchema = Type.Object({
   preview: Type.String({ maxLength: 200_000 }),
   scan: ScanSummarySchema,
   ledgerId: Type.Optional(LedgerIdSchema),
+  /** 제안한 쓰기가 untrusted 도구 결과를 읽은 turn에서 나왔다. 없으면 거짓이다 [결정: M3-REQ-91] */
+  afterUntrusted: Type.Optional(Type.Boolean()),
 });
 
 export const KnowledgeLedger = defineCapability({
@@ -628,11 +632,11 @@ export const KnowledgeLedger = defineCapability({
   service: {
     methods: {
       list:      { description: "원장 항목을 최신순으로 돌려준다.", input: LedgerListInputSchema,
-                   output: Type.Object({ entries: Type.Array(LedgerEntrySchema, { maxItems: 200 }) }), replay: "safe" },
+                   output: Type.Object({ entries: Type.Array(LedgerEntrySchema, { maxItems: 200 }) }), replay: "safe", readOnly: true },
       show:      { description: "원장 항목 하나와 파일별 diff를 돌려준다.", input: Type.Object({ ledgerId: LedgerIdSchema }),
-                   output: LedgerShowOutputSchema, replay: "safe" },
+                   output: LedgerShowOutputSchema, replay: "safe", readOnly: true },
       rollback:  { description: "원장 항목 하나를 되돌린다. 되돌림도 원장에 남는다.", input: Type.Object({ ledgerId: LedgerIdSchema, reason: Type.Optional(Type.String({ maxLength: 500 })) }),
-                   output: WriteOutcomeSchema,
+                   output: WriteOutcomeSchema, replay: "safe", idempotent: true,
                    errors: {
                      rollback_conflict: { description: "대상의 현재 해시가 그 항목의 afterHash와 다름(뒤에 다른 변경이 있음)", retryable: false },
                      rollback_unsafe: { description: "현재 내용의 안전 캡처에 실패해 되돌리지 않음", retryable: true },
@@ -641,15 +645,18 @@ export const KnowledgeLedger = defineCapability({
       scan:      { description: "쓰기 없이 위협 패턴 검사만 한다.", input: Type.Object({
                      kind: Type.Union([Type.Literal("skill"), Type.Literal("memory")]),
                      text: Type.String({ maxLength: 1_048_576 }),
-                   }), output: ScanSummarySchema, replay: "safe" },
+                   }), output: ScanSummarySchema, replay: "safe", readOnly: true },
       proposals: { description: "제안 대기열을 돌려준다.", input: Type.Object({
                      status: Type.Optional(ProposalSchema.properties.status),
+                     statuses: Type.Optional(Type.Array(ProposalSchema.properties.status, { minItems: 1, maxItems: 5, uniqueItems: true })),
                      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 200, default: 50 })),
-                   }), output: Type.Object({ proposals: Type.Array(ProposalSchema, { maxItems: 200 }) }), replay: "safe" },
+                     before: Type.Optional(Type.Object({ createdAt: Type.Integer({ minimum: 0 }), proposalId: ProposalIdSchema })),
+                   }), output: Type.Object({ proposals: Type.Array(ProposalSchema, { maxItems: 200 }) }), replay: "safe", readOnly: true },
       decide:    { description: "제안 하나를 승인하거나 거절한다. 승인하면 쓰기 경로로 적용한다.", input: Type.Object({
                      proposalId: ProposalIdSchema,
                      decision: Type.Union([Type.Literal("approve"), Type.Literal("reject")]),
                      note: Type.Optional(Type.String({ maxLength: 500 })),
+                     scope: Type.Optional(WritableSkillScopeSchema),
                    }), output: Type.Object({ proposal: ProposalSchema, outcome: Type.Optional(WriteOutcomeSchema) }),
                    errors: {
                      proposal_closed: { description: "이미 처리된 제안", retryable: false },
@@ -749,6 +756,7 @@ CREATE TABLE cap_knowledge_ledger (
   before_manifest TEXT,                   -- BlobRef JSON: [{path, blob}] 목록 blob
   after_manifest  TEXT,
   request_id     TEXT UNIQUE,             -- CallOptions.requestId. 멱등 키. 중단(aborted)한 행은 NULL로 비워 같은 키로 다시 부를 수 있다
+  after_untrusted INTEGER NOT NULL DEFAULT 0, -- 이 쓰기를 한 turn에 untrusted 도구 결과를 읽었다(§4.6.3 3번). 마이그레이션 3단계가 더했다
   approved_by    TEXT,
   evidence       TEXT,                    -- ApprovalEvidence JSON
   scan           TEXT NOT NULL,           -- ScanSummary JSON(규칙 이름만)
@@ -777,7 +785,8 @@ CREATE TABLE cap_knowledge_proposals (
   preview      TEXT NOT NULL,             -- 제안할 때 만든 통합 diff(20,000자). KN.2가 더했다
   decided_at   INTEGER,
   ledger_id    TEXT,
-  request_id   TEXT UNIQUE
+  request_id   TEXT UNIQUE,
+  after_untrusted INTEGER NOT NULL DEFAULT 0 -- 제안한 쓰기의 afterUntrusted. 마이그레이션 3단계가 더했다
 ) STRICT;
 
 -- 세션 투영·색인: 투영기 cap.knowledge가 DDL을 선언한다. 세션 삭제 때 session_id 행이 함께 지워진다.
@@ -829,6 +838,37 @@ CREATE VIRTUAL TABLE cap_knowledge_session_fts USING fts5(
 | `knowledge.ledger.rollback` | `knowledge.ledger.rollback` | 실패 사유 `hash_mismatch` → `rollback_conflict` |
 | `KnowledgeChange.createdBy: "agent"` | 행위자가 `agent`나 `extension`이면 `created_by = 'agent'` | 큐레이터 대상 판정(`L3.learning.spec` §4.8.1)에 쓴다 |
 | `KnowledgeChange.kind: "script"` | 1차 범위 밖 | 반복 작업 스크립트 제안은 2차(`L3.learning.spec` §4.8.3). 저장 위치는 [미결] |
+
+### 3.10 효과 분류 [결정: M3-REQ-88]
+
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록, 사용자 파일과 사용자가 쓴 데이터, 외부 시스템의 상태를 바꾸지 않는 읽기다. 관찰상 순수한 파생 데이터(캐시, 색인, 내용 주소 blob, 사용량·비용 계량, 시간과 현재 데이터만으로 정해지는 정리)는 쓸 수 있다 [결정: 2026-10-28 오케스트레이터, ADR-0015 §3.3]. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+
+| 메서드 | 분류 | replay | 근거 |
+|---|---|---|---|
+| `knowledge.ledger.list` | readOnly | safe | 원장 조회 |
+| `knowledge.ledger.show` | readOnly | safe | 원장 조회 |
+| `knowledge.ledger.rollback` | idempotent | safe | 같은 `requestId`는 계산 앞에서 원장 `request_id`를 보고 첫 결과를 돌려준다(§4.5.3) |
+| `knowledge.ledger.scan` | readOnly | safe | 순수 검사 |
+| `knowledge.ledger.proposals` | readOnly | safe | 대기열 조회. 만료 기한이 지난 `pending`을 `expired`로 바꾸는 정리는 시간과 현재 데이터만으로 정해지는 파생 정리라 읽기로 본다 |
+| `knowledge.ledger.decide` | 선언 없음 | unsafe | 사람만 부른다. 같은 `requestId`를 기억하지 않고 두 번째 결정은 `proposal_closed`다 |
+| `knowledge.memory.read` | readOnly | safe | 파일 조회 |
+| `knowledge.memory.add` | idempotent | safe | 원장 `request_id`와 대기열이 첫 결과를 기억한다(§4.4.5) |
+| `knowledge.memory.replace` | idempotent | safe | 같음 |
+| `knowledge.memory.remove` | idempotent | safe | 같음 |
+| `knowledge.memory.manage` | idempotent | safe | 같음 |
+| `knowledge.search.query` | readOnly | safe | 색인 조회 |
+| `knowledge.search.scroll` | readOnly | safe | 세션 이벤트 조회 |
+| `knowledge.search.read` | readOnly | safe | 세션 이벤트 조회 |
+| `knowledge.search.list` | readOnly | safe | 투영 조회 |
+| `knowledge.skills.list` | readOnly | safe | 색인 조회. 바깥 편집을 맞추는 지연 재색인이 그 편집을 원장에 `external`로 남기는 것은 이미 일어난 변경의 관찰 기록이라 읽기로 본다 |
+| `knowledge.skills.view` | readOnly | safe | 같음 |
+| `knowledge.skills.reindex` | 선언 없음 | unsafe | 사용자가 명시로 부르는 재색인이다. `requestId` 멱등이 없고 지연 재색인(`list`·`view`)과 달리 호출 자체가 목적이라 읽기로 두지 않는다 |
+| `knowledge.skills.create` | idempotent | safe | 원장 `request_id`와 대기열이 첫 결과를 기억한다(§4.4.5) |
+| `knowledge.skills.edit` | idempotent | safe | 같음 |
+| `knowledge.skills.patch` | idempotent | safe | 같음 |
+| `knowledge.skills.writeFile` | idempotent | safe | 같음 |
+| `knowledge.skills.remove` | idempotent | safe | 같음 |
+| `knowledge.skills.manage` | idempotent | safe | 같음 |
 
 ## 4. 동작 규칙
 
@@ -907,7 +947,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 #### 4.2.4 지연 로딩
 
 - `list`와 인덱스는 이름·설명·범위·해시만 담는다. 본문은 `view`를 부를 때 파일에서 읽는다.
-- `list`는 색인(DB)만 읽는다. 스킬 루트를 다시 훑는 일은 시작 시 재색인, `skills.reindex`, `view`의 해시 불일치 처리가 맡는다. 엔진이 도는 동안 바깥에서 새로 둔 스킬은 이 셋 중 하나나 새 세션의 `session_start`(§7)가 재색인할 때까지 `list`에 나타나지 않는다.
+- `list`는 색인(DB)만 읽는다. 스킬 루트를 다시 훑는 일은 시작 시 재색인, `skills.reindex`, `view`의 해시 불일치 처리가 맡는다. 엔진이 도는 동안 바깥에서 새로 둔 스킬은 이 셋 중 하나나 새 세션의 `session.start`(§7)가 재색인할 때까지 `list`에 나타나지 않는다.
 - `view`는 매번 파일을 읽고 트리 해시를 다시 계산한다. 색인의 해시와 다르면 바깥 편집으로 보고 §4.3.5의 스킬 쪽 처리(원장 `external` 기록, 색인 갱신)를 한 뒤 결과를 돌려준다.
 - 지원 파일의 상대 경로는 스킬 디렉터리 기준이다. `view({ name, file })`로 읽는다. 모델 렌더링은 "상대 경로는 skill_view의 file로 읽는다"는 안내를 본문 앞에 붙인다(pi `formatSkillsForPrompt`의 상대 경로 안내를 우리 도구로 바꾼 것).
 
@@ -926,8 +966,8 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - 예산: `l2.knowledge.skills.indexBudgetChars`(기본 8,000자 [가정]). 항목 설명은 `l2.knowledge.skills.indexDescriptionChars`(기본 160자 [가정])에서 자르고 끝에 `…`을 붙인다. Hermes는 60자, Claude Code는 1,536자 상한이다(`_research/refs/hermes.md` §3.10.1 (라)·(바), `_research/item-catalog.md` L2 스킬 행). 기본값은 측정 뒤 정한다.
 - 예산을 넘으면 범위 순(프로젝트 → 사용자 → 확장 → 경로), 같은 범위 안에서는 이름 바이트 순으로 넣을 수 있는 만큼만 넣고 남은 개수를 적는다. 순서가 결정적이어야 같은 스킬 집합이 같은 블록을 만든다(프롬프트 캐시).
-- 블록 생성은 `skills/prompt-block.ts`의 순수 함수와 `SkillsRuntime.indexBlock(threadId)`로 구현했다(KN.1). 연결은 `turn-context.ts`가 한다(KN.5). `before_agent_start`에서 세션의 첫 turn이면 인덱스 블록과 메모리 스냅샷(§4.3.4)을 이어 붙여 `customType: "knowledge.context"`, `display: false`인 기록 메시지 하나로 더한다. 시스템 프롬프트는 건드리지 않는다. 더한 메시지가 세션 기록에 남는다는 것은 [가정]이다.
-- 첫 turn은 세션별 상태가 없는 turn이다. `session_start`의 `reason`이 `startup`·`new`면 상태를 비워 첫 turn으로 만들고, `resume`·`fork`·`reload`면 현재 인덱스를 기준으로 상태를 만든다. 이어받은 세션의 기록에 블록이 이미 있다고 보기 때문이다. 컴팩션이 일어나면 이 가정이 깨질 수 있어 접힌 블록은 L1이 다시 놓는다(§4.2.8).
+- 블록 생성은 `skills/prompt-block.ts`의 순수 함수와 `SkillsRuntime.indexBlock(threadId)`로 구현했다(KN.1). 연결은 `turn-context.ts`가 한다(KN.5). `input.agent.before`에서 세션의 첫 turn이면 인덱스 블록과 메모리 스냅샷(§4.3.4)을 이어 붙여 `customType: "knowledge.context"`, `display: false`인 기록 메시지 하나로 더한다. 시스템 프롬프트는 건드리지 않는다. 더한 메시지가 세션 기록에 남는다는 것은 [가정]이다.
+- 첫 turn은 세션별 상태가 없는 turn이다. `session.start`의 `reason`이 `startup`·`new`면 상태를 비워 첫 turn으로 만들고, `resume`·`fork`·`reload`면 현재 인덱스를 기준으로 상태를 만든다. 이어받은 세션의 기록에 블록이 이미 있다고 보기 때문이다. 컴팩션이 일어나면 이 가정이 깨질 수 있어 접힌 블록은 L1이 다시 놓는다(§4.2.8).
 - 블록과 인덱스 스냅샷은 같은 시점의 색인에서 만든다. 스킬을 끄면(`l2.knowledge.skills.enabled`) 블록은 비고, 메모리를 끄면 스냅샷이 빈다. 둘 다 비면 메시지를 더하지 않는다.
 - 이 블록을 어디에 두는지(시스템 프롬프트 영역, 첫 turn 메시지)는 `L1.context.spec`이 정한다. [제안] 메모리 스냅샷(§4.3.4)과 같은 첫 turn 기록 메시지로 넣는다. 기록 메시지면 재개 때 같은 내용이 다시 쓰여 결정적이다.
 
@@ -941,20 +981,20 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - 세션마다 마지막으로 알린 인덱스 스냅샷(`indexVersion`과 모델에게 보이는 스킬의 이름 → 잘린 설명)을 메모리에 둔다. 인덱스 버전은 원장 `seq` 중 인덱스를 바꾼 항목(`index_changed = 1`인 `applied` 행)의 최댓값이다. 이름·설명·모델 호출 여부가 바뀌거나 스킬이 생기고 사라진 변경만 센다. 프로세스 재시작 뒤에는 현재 버전으로 시작한다 [가정: 재시작 사이의 변경 알림 한 번을 놓칠 수 있다]. 컴팩션은 이 상태를 바꾸지 않는다(§4.2.8).
 - 본문만 바뀐 변경은 알리지 않는다. 모델은 다음 `view`에서 새 본문을 읽는다.
-- 구현은 `before_agent_start`에서 현재 `indexVersion`을 상태의 버전과 비교한다. 같으면 아무것도 하지 않는다. 다르면 이름과 잘린 설명을 비교해(`skills/delta.ts`의 `diffIndex`) 추가·변경·삭제를 정하고, 상태를 현재로 올린 뒤 비어 있지 않을 때만 메모를 더한다. 모델 호출 여부가 바뀌어 목록에 나타나거나 사라지는 스킬은 추가·삭제로 센다. 같은 이름의 범위가 바뀌어도 설명이 같으면 알리지 않는다.
+- 구현은 `input.agent.before`에서 현재 `indexVersion`을 상태의 버전과 비교한다. 같으면 아무것도 하지 않는다. 다르면 이름과 잘린 설명을 비교해(`skills/delta.ts`의 `diffIndex`) 추가·변경·삭제를 정하고, 상태를 현재로 올린 뒤 비어 있지 않을 때만 메모를 더한다. 모델 호출 여부가 바뀌어 목록에 나타나거나 사라지는 스킬은 추가·삭제로 센다. 같은 이름의 범위가 바뀌어도 설명이 같으면 알리지 않는다.
 - 메모는 `customType: "knowledge.index-delta"`, `display: false` 메시지 하나다. 목록은 이름 바이트 순이고 한 줄에 10개까지, 넘으면 `외 N개`로 줄인다. 추가한 스킬 옆 설명은 60자(코드 포인트)에서 `…`로 자른다. 예산을 넘어 첫 블록에 싣지 못한 스킬도 인덱스에 있으면 추가로 알린다.
-- 상태는 `session_shutdown`에서 지운다. 지운 세션의 다음 turn은 첫 turn으로 본다. 종료 후크 없이 사라진 세션의 항목은 프로세스가 끝날 때까지 남는다(항목 하나는 스킬 수만큼의 문자열이다).
+- 상태는 `session.shutdown`에서 지운다. 지운 세션의 다음 turn은 첫 turn으로 본다. 종료 후크 없이 사라진 세션의 항목은 프로세스가 끝날 때까지 남는다(항목 하나는 스킬 수만큼의 문자열이다).
 
-#### 4.2.7 `resources_discover` 지점과의 관계
+#### 4.2.7 `session.resources` 지점과의 관계
 
-- `F.extensions.spec` §3.4 #28 `resources_discover`(session, chain)는 확장이 스킬·프롬프트 같은 리소스 경로를 더하는 지점이다. pi에서 확장이 스킬 경로를 더하는 경로다.
+- `F.extensions.spec` §3.4 #28 `session.resources`(session, chain)는 확장이 스킬·프롬프트 같은 리소스 경로를 더하는 지점이다. pi에서 확장이 스킬 경로를 더하는 경로다.
 - 이 능력은 그 지점을 정의하지 않고 결과만 쓴다. 지점의 합성 결과(확장 이름과 함께 추가된 스킬 경로)를 확장 제공 루트로 받아 읽기 전용 스킬로 싣는다 [가정: X가 합성 결과를 세션 시작 때 `cap-knowledge`에 넘기는 API를 `X.loading-trust.spec`이 정한다].
 - 확장 제공 스킬의 쓰기는 `read_only_scope`로 거부한다. 확장을 지우면 그 루트가 빠지고 다음 재색인 때 색인에서 빠진다.
 
 #### 4.2.8 컴팩션 뒤 재주입
 
 - 컴팩션(`L1.context.spec` §4.6)은 앞쪽 기록을 요약으로 바꾸므로, 첫 turn에 넣은 `knowledge.context` 메시지(스킬 인덱스 블록과 메모리 스냅샷)가 요약에 접히면 모델 입력에서 빠진다. 이 메시지를 다시 놓는 일은 L1.context가 한다. 조립이 접힌 범위의 `knowledge.context`와 `knowledge.index-delta` custom item을 요약 바로 뒤에 가지 순서대로 다시 놓는다(`L1.context.spec` §4.9a, 두 층이 customType 문자열을 약속한다). 이 패키지는 컴팩션을 구독하지 않고 세션별 상태를 그대로 둔다 [결정: M2 마감 재검토 결함 2].
-- 이유. 이 패키지가 `session_compact`에서 상태를 비워 다음 turn에 전체 블록을 새로 넣으면, L1이 다시 놓은 옛 블록과 새 블록이 한 요청에 모두 들어가 스킬 색인과 메모리가 두 번 보인다(실제 엔진 시험 `apps/host/test/int/compact-reinject.int.test.ts`가 요청 본문을 세어 확인했다). L1의 재주입은 가지에서 매번 같은 값으로 만들어 재개와 프로세스 재시작 뒤에도 같은 바이트이지만, 이 패키지의 세션별 상태는 메모리에만 있어 재시작 뒤에는 컴팩션 사실을 알 수 없다.
+- 이유. 이 패키지가 `session.compact.after`에서 상태를 비워 다음 turn에 전체 블록을 새로 넣으면, L1이 다시 놓은 옛 블록과 새 블록이 한 요청에 모두 들어가 스킬 색인과 메모리가 두 번 보인다(실제 엔진 시험 `apps/host/test/int/compact-reinject.int.test.ts`가 요청 본문을 세어 확인했다). L1의 재주입은 가지에서 매번 같은 값으로 만들어 재개와 프로세스 재시작 뒤에도 같은 바이트이지만, 이 패키지의 세션별 상태는 메모리에만 있어 재시작 뒤에는 컴팩션 사실을 알 수 없다.
 - 결과. 컴팩션 뒤 모델이 보는 블록은 첫 turn의 스냅샷 그대로다. 그 뒤 인덱스가 바뀌면 §4.2.6대로 델타 메모 하나만 더한다. 메모리 스냅샷은 세션 동안 고정이다(§4.3.4). 컴팩션이 보존 구간에 블록을 남기면 그 자리에 한 번만 나온다.
 - 허용 목록이 다르면 어긋난다. 호스트가 L1의 `reinjectCustomTypes`를 빈 배열로 두면 컴팩션 뒤 블록이 모델 입력에서 사라진다. 이 패키지는 보충하지 않는다.
 - 최근 읽은 파일과 호출된 스킬 본문의 재주입은 `L1.context.spec` §4.10 2차 항목(C-11)이고 이 패키지의 일이 아니다. 컴팩션 호출 배선(`/compact`, 자동 컴팩션)도 L1 쪽이다.
@@ -1067,7 +1107,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.4.5 멱등
 
-- 쓰기 메서드의 `CallOptions.requestId`는 원장과 대기열의 `request_id`에 저장된다. 같은 키의 두 번째 호출은 저장된 `outcome`을 그대로 돌려준다. 입력이 달라도 첫 결과를 돌려준다. L3 그룹이 승인 증거와 함께 쓰는 적용 키(예: `<그룹 이름>:apply:<proposalId>:<revision>`)가 이 경로를 쓴다.
+- [결정: 2026-10-28 리뷰] 멱등 키는 (대화, 메서드, `CallOptions.requestId`)다. 원장과 대기열의 `request_id`에 `<threadId 또는 ->:<메서드>:<requestId>`로, 입력 지문(sha256)은 `request_fp`에 저장된다(마이그레이션 4단계). 같은 키·같은 입력의 두 번째 호출은 저장된 `outcome`을 돌려주고, 같은 키에 다른 입력이 오면 첫 결과를 돌려주지 않고 `invalid_input`(`detail.reason: "key_reused"`)으로 거부한다. 다른 대화나 다른 메서드의 같은 `requestId`는 다른 쓰기다. `skills.manage`·`memory.manage`는 안쪽 메서드(`skills.create` 등)의 키 공간을 쓴다. 제안 결정이 다시 실행하는 쓰기의 키는 `proposal:<제안 ID>`이고 지문이 없다. L3 그룹이 승인 증거와 함께 쓰는 적용 키(예: `<그룹 이름>:apply:<proposalId>:<revision>`)가 이 경로를 쓴다.
 - `requestId`가 없으면 멱등을 보장하지 않는다.
 
 ### 4.5 쓰기 승인과 제안 대기열
@@ -1092,7 +1132,9 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 승인 요청은 `xeon.approvals`(`ApprovalService`)의 도구 승인(kind `tool`)으로 낸다 [결정: KN.2]. `ports/approvals.ts`의 `createWriteApprovals`가 `open`으로 요청을 커밋하고(같은 `requestKey`면 기존 요청과 현재 해결 상태를 돌려받는다) 해결이 없으면 `wait`로 기다린다. 요청 키는 호출의 `requestId`를 F `requestKeyFor`(`records/commit.ts`, U-13)로 바꾼 값이다(1~48자). 48자 이하이고 키 알파벳(`^[A-Za-z0-9_.-]+$`) 안이며 `h_`로 시작하지 않으면 그대로, 아니면 `h_` + 원문 sha256 앞 40자다 [결정: 통합 검토 L6, 이전 `kw_` 접두 함수를 지움]. `requestId`가 없으면 `knp` ID를 키로 써서 멱등을 보장하지 않는다. 본문은 `{ toolName, capability: { id, method }, risk: "write", args, argsHash, ruleId: null }`이고 `toolName`은 스킬 쓰기면 `skill_manage`, 메모리 쓰기면 `memory_manage`, 롤백이면 `knowledge.ledger`다. `args`는 `{ op, target, baseHash, preview, scan, afterUntrusted }`이고 `preview`는 현재 내용 기준 통합 diff를 20,000자에서 자른 것, `scan`은 규칙 이름과 판정(`<규칙>:<block|warn>`)만 담는다. 사람이 한 허용(`resolvedBy: "user"`의 `allow`)만 허용으로 센다. 취소, 대체, 비대화형 해결은 거부다. 거부의 `answer.feedback`은 오류 `approval_denied`의 `detail.feedback`으로 돌려준다.
 - 묻지 못하는 경우 [제안: KN.2]: `ask` 판정이어도 승인 포트가 없거나, 호출 문맥에 `threadId`가 없거나, `interactive`가 `false`(크론·헤드리스)이면 묻지 않고 제안 대기열로 보낸다. 닫힌 쪽으로 실패하고 정본 파일은 바뀌지 않는다.
 - 승인 대기는 루프의 승인 대기 상태로 커밋되고 멈춘다. 재개 때 결과 이벤트로 이어진다(`L2.readme` §5.7). 승인 결과 "항상"은 이 능력에 적용하지 않는다 [제안]. 스킬·메모리 쓰기는 매번 내용이 달라서다.
-- `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 그룹 이름을 쓰지 않는다. 증거를 낼 L3 그룹의 source는 L3가 설정으로 채운다 [결정: review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다.
+- `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 그룹 이름을 쓰지 않는다. 증거를 낼 L3 그룹의 source는 L3가 설정으로 채운다 [결정: review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다. 첫 마디가 아니라 `<확장 이름>.` 접두로 맞춘다. 신뢰하는 출처의 확장은 `ApprovalEvidence`의 `ref`와 `decidedAt`을 스스로 증언한다. L2는 그 내용을 대기열 원본과 대조하지 않으므로 신뢰 목록에 올리는 것은 그 확장을 사람 승인의 대리인으로 믿는 일이다 [결정: 2026-10-28 리뷰, 문서화].
+  - [제안: M3-REQ-104] 내장 그룹이 채우는 길은 조립 루트가 플러그인 옵션 `KnowledgePluginOptions.trustedEvidenceSources`(`<확장 이름>.<대기열 이름>` 목록)로 넘기는 것이다. 효과가 있는 신뢰 목록은 설정 값과 이 옵션의 합집합(`withTrustedEvidence`)이다. 학습 그룹을 내장으로 올리는 조립 루트가 `["learning.queue"]`를 넘기면 학습 대기열의 사람 승인이 증거가 되어 L2는 승인 요청을 내지 않는다(승인이 한 번이다). 이 패키지는 그룹 이름을 기본값으로 갖지 않고 옵션을 비우면 신뢰 목록은 설정 값 그대로다. 합쳐도 위 유효성 규칙(첫 마디가 호출 확장 이름과 같음)은 그대로라 다른 확장이 `learning.queue`를 빌려 쓸 수 없다.
+  - [결정: M3-REQ-104, D-M3-09] 스킬 쓰기 입력의 `scope: "project"`는 행위자가 `user`이거나 유효한 승인 증거가 있는 확장일 때만 받는다. 모델 도구 경로는 범위를 고를 수 없다(`skill_manage` 파라미터에 `scope`가 없고 모델 행위자는 `denied`다). 학습 승인 화면에서 사용자가 프로젝트 범위를 고르면 학습 그룹이 증거와 함께 `scope: "project"`로 부른다.
 
 #### 4.5.2 제안 대기열
 
@@ -1102,7 +1144,10 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
   - [결정: KN.2] 승인한 제안은 게이트를 다시 거치지 않는다(사람이 미리보기를 보고 승인했다). 원장 행의 행위자는 제안한 행위자이고(결정한 사용자는 원장에 남지 않는다), `approved_by`는 `approval`이며 `proposal_id`가 제안을 가리킨다. 스킬 `created_by`(§4.4.4)와 감사가 "누가 바꿨나"와 "누가 승인했나"를 구분하기 위해서다. 같은 결정을 두 번 실행해도 원장 `request_id`(`proposal:<제안 ID>`)가 막는다. `decide`의 `note`는 원장 `reason`이 된다.
   - [결정: KN.2] 다시 실행이 `base_stale`, `name_conflict`, `patch_mismatch`, `rollback_conflict`로 실패하면 제안은 `stale`이다. 다른 실패(`scan_blocked`, `internal` 등)는 제안을 `pending`으로 두고 오류만 돌려준다.
   - 같은 `requestId`로 같은 쓰기를 다시 부르면 대기열도 첫 결과(`status: "queued"`, 같은 `proposalId`)를 돌려준다. 제안이 적용된 뒤에도 첫 결과를 돌려준다.
-  - 목록은 최신순이다. 목록과 결정 앞에서 만료를 정리하고, 시작 때도 정리한다.
+  - 목록은 최신순이다. 목록과 결정 앞에서 만료를 정리하고, 시작 때도 정리한다. `statuses`(여럿)와 `before`(`(createdAt, proposalId)` 키셋 위치)로 합친 목록의 쪽 나누기를 돕는다.
+  - [결정: M3-REQ-91, D-M3-09] `decide({ approve, scope })`: 사용자가 승인 때 범위를 고르면 새 스킬(`skills.create`) 제안만 그 범위로 적용한다. 범위가 제안의 범위와 같으면 그대로이고, 메모리 제안이나 기존 스킬을 고치는 제안에 다른 범위를 주면 `invalid_input`(`detail.reason: "scope_not_allowed"`)이며 제안은 `pending`으로 남는다. 사용자가 고른 범위는 증거가 필요 없다(사람의 승인이다).
+  - [결정: M3-REQ-91] 제안과 원장 행은 `afterUntrusted`(제안한 쓰기가 untrusted 도구 결과를 읽은 turn에서 나왔는지)를 가진다. 승인하면 원장 행이 제안의 값을 이어받는다.
+  - [결정: M3-REQ-91, D-M3-32 a] 대기열은 둘(학습 그룹, 이 능력)이고 승인 화면이 한 목록으로 합친다. 이 능력의 몫은 `createKnowledgeProposalWire(ledgerApi)`다. `list({ status, limit, before })`가 제안을 합친 목록의 행(`ProposalRow`, `source: "knowledge"`)으로 옮기고, `decide(params)`가 `ledger.decide`의 오류를 결정 실패 이유(`not_found`, `closed`, `base_stale`, `scan_failed`, `approval_required`, `scope_not_allowed`, `revision_mismatch`, `unsupported`, `unavailable`)로 옮긴다. `edit`와 `revert`는 학습 대기열만 받으므로 `unsupported`이고 지식 제안의 `revision`은 1이다. 행의 `destructive`는 기준 해시를 요구하는 연산과 롤백이다. 호스트의 `proposal.list`·`proposal.decide` 처리기는 이 어댑터를 부른다(처리기는 이 패키지의 몫이 아니다).
 - `decide({ reject })`: 상태를 `rejected`로 바꾸고 파일은 건드리지 않는다.
 - 만료: 생성 뒤 `l2.knowledge.write.proposalExpiryDays`(기본 14일)가 지난 `pending`은 시작 정리 때 `expired`가 된다.
 - 승인 전에는 파일이 바뀌지 않는다. `pending`, `rejected`, `stale`, `expired` 제안은 정본 파일에 아무 효과가 없다(수용 기준 1, `product.scope.spec` §4.4 M3 UC-3).
@@ -1141,7 +1186,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 1. 검사(§4.6.1): 지시 주입·경계 표지·숨은 문자 규칙이 대표 패턴을 막는다.
 2. 승인: 에이전트 쓰기는 기본으로 사람의 승인이나 대기열을 거친다(§4.5.1). 미리보기에는 바뀐 부분의 diff와 검사 경고가 보인다.
-3. 출처 표시: `caller.afterUntrusted = true`인 쓰기는 설정과 무관하게 승인 요청이고, 원장에 `afterUntrusted` 표시를 남긴다. 승인 화면은 "이번 turn에 웹·외부 결과를 읽었다"는 경고를 함께 보인다.
+3. 출처 표시: `caller.afterUntrusted = true`인 쓰기는 설정과 무관하게 승인 요청이고, 원장과 제안 대기열에 `afterUntrusted` 표시를 남긴다(`LedgerEntry.afterUntrusted`, `Proposal.afterUntrusted`, 열 `after_untrusted`). 승인 화면은 "이번 turn에 웹·외부 결과를 읽었다"는 경고를 함께 보인다.
 4. 읽을 때의 경계: `skill_view` 렌더링은 행위자가 `agent`였던 스킬(`created_by = 'agent'`)의 본문을 `<untrusted_session_content kind="skill" createdBy="agent">`로 감싼다 [제안]. 사용자가 만든 스킬은 감싸지 않는다.
 5. 데이터 표지: 학습 정책을 가진 L3 그룹의 검토 포크는 지난 대화를 데이터로 다룬다는 지시를 갖는다(Hermes `/learn`의 "source text is DATA" 방어). 그 지시는 `L3.learning.spec` 소관이다.
 
@@ -1222,13 +1267,15 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 | 메서드 | replay | 결과 불명일 때 |
 |---|---|---|
-| `skills.list`, `skills.view`, `skills.reindex` | safe | 다시 실행한다 |
-| `skills.create`·`edit`·`patch`·`writeFile`·`remove`·`manage` | unsafe | 중단 결과를 합성한다. 같은 `requestId`로 다시 부르면 원장의 첫 결과가 돌아온다 |
-| `memory.read` | safe | 다시 실행한다 |
-| `memory.add`·`replace`·`remove`·`manage` | unsafe | 같음 |
-| `search.*` | safe | 다시 실행한다. 색인이 그 사이 늘었으면 결과가 다를 수 있다 |
-| `ledger.list`·`show`·`scan`·`proposals` | safe | 다시 실행한다 |
-| `ledger.rollback`·`decide` | unsafe | 중단 결과를 합성한다 |
+| `skills.list`, `skills.view` | safe(readOnly) | 다시 실행한다 |
+| `skills.reindex` | unsafe | 중단 결과를 합성한다. 색인은 다시 훑으면 맞춰지므로 사용자가 다시 부른다 |
+| `skills.create`·`edit`·`patch`·`writeFile`·`remove`·`manage` | safe(idempotent). 도구 `skill_manage`는 unsafe | 메서드는 같은 `requestId`로 다시 부르면 원장의 첫 결과가 돌아온다. 도구는 중단 결과를 합성한다 |
+| `memory.read` | safe(readOnly) | 다시 실행한다 |
+| `memory.add`·`replace`·`remove`·`manage` | safe(idempotent). 도구 `memory_manage`는 unsafe | 같음 |
+| `search.*` | safe(readOnly) | 다시 실행한다. 색인이 그 사이 늘었으면 결과가 다를 수 있다 |
+| `ledger.list`·`show`·`scan`·`proposals` | safe(readOnly) | 다시 실행한다 |
+| `ledger.rollback` | safe(idempotent) | 같은 `requestId`로 다시 부르면 원장의 첫 결과가 돌아온다 |
+| `ledger.decide` | unsafe | 중단 결과를 합성한다 |
 
 - 렌더러(`renderSkillView`, `renderWriteOutcome`, `renderMemoryWrite`, `renderHits`, `renderMessages`)는 순수 함수다.
 - 첫 turn 스냅샷·인덱스 블록은 기록 메시지로 남는다는 제안(§4.2.5, §4.3.4)을 따르면 재개 때 다시 계산하지 않는다. 기록하지 않는 방식이 정해지면 블록은 세션별 저장 사본에서 다시 만들어야 한다(§10 미결 4).
@@ -1302,12 +1349,12 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 | 지점 | fold | 쓰임 |
 |---|---|---|
-| `session_start`(#30) | tap | 세션별 상태(마지막 인덱스 스냅샷) 초기화. `startup` 말고는 스킬 루트를 다시 훑어 바깥 편집을 반영한다(전체 재색인이며 mtime 검사는 하지 않는다) |
-| `before_agent_start`(#3) | chain | 세션 첫 turn: 메모리 스냅샷 + 스킬 인덱스 블록을 메시지로 더한다. 이후 turn: 인덱스가 바뀌었으면 델타 메모를 더한다(§4.2.6). `before_agent_start.message`는 추가 병합이다(`F.extensions.spec` §4.1) [가정: 더한 메시지가 세션 기록에 남는다] |
-| `resources_discover`(#28) | chain | 패치를 돌려주지 않는다. 합성 결과의 스킬 경로를 받는 방법은 X가 정한다(§4.2.7) |
-| `session_shutdown`(#39) | tap | 세션별 메모리 상태 정리 |
+| `session.start`(#30) | tap | 세션별 상태(마지막 인덱스 스냅샷) 초기화. `startup` 말고는 스킬 루트를 다시 훑어 바깥 편집을 반영한다(전체 재색인이며 mtime 검사는 하지 않는다) |
+| `input.agent.before`(#3) | collect | 세션 첫 turn: 메모리 스냅샷 + 스킬 인덱스 블록을 메시지로 더한다. 이후 turn: 인덱스가 바뀌었으면 델타 메모를 더한다(§4.2.6). `input.agent.before`의 message는 collect 병합(추가)이다(`F.extensions.spec` §4.1) [가정: 더한 메시지가 세션 기록에 남는다] |
+| `session.resources`(#28) | chain | 패치를 돌려주지 않는다. 합성 결과의 스킬 경로를 받는 방법은 X가 정한다(§4.2.7) |
+| `session.shutdown`(#39) | tap | 세션별 메모리 상태 정리 |
 
-- 모델 도구 경로는 tool 지점(`tool_call` first, `tool_result` chain)을 지난다. 페이로드 `capability` 필드(`{ id: "knowledge.skills", method: "manage" }`)로 L3 그룹이 특정 단계의 쓰기를 막거나 스킬 쓰기 사건을 셀 수 있다.
+- 모델 도구 경로는 tool 지점(`tool.call.before` first, `tool.result` chain)을 지난다. 페이로드 `capability` 필드(`{ id: "knowledge.skills", method: "manage" }`)로 L3 그룹이 특정 단계의 쓰기를 막거나 스킬 쓰기 사건을 셀 수 있다.
 - 그룹 코드의 서비스 호출은 tool 지점을 지나지 않는다. 그래서 게이트·검사·원장은 서비스 안에서 적용한다.
 - cap-knowledge는 drive와 post를 쓰지 않는다. L2 전체는 drive를 쓰지 않는다(`L2.readme` §4.2).
 - 학습 정책(카운터 트리거, 검토 포크 스폰, 큐레이터 주기)은 L3 그룹이 자기 `on` 핸들러로 구현한다. 이 능력은 그 정책을 위한 지점이나 훅을 따로 두지 않는다.
@@ -1337,7 +1384,8 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 투영기 등록(`projectors.register`)과 같은 컨텍스트 범위 핸들의 투영 표 쓰기 | `L1.persistence.spec`, `L0.store.spec` | 있음(표 이름은 `cap_knowledge_` + 밑줄 없는 지역 이름, 세션 삭제 정리는 `thread_id` 열) |
 | 세션 종류·부모·작업 디렉터리 | `thread.started.workspace`, `agent.spawned.background` | 있음. 종류 필드는 없어 `agent.spawned`로 추론한다(§4.8.2) |
 | `ApprovalService`(`xeon.approvals`) `open`·`wait`와 요청 kind `tool`, 미리보기 payload(`args.preview`) | `L1.tools.spec` §3.6, F `services/approvals.ts` | 있음(KN.2가 `createWriteApprovals`로 쓴다) |
-| `DecideInput.approval`(확장의 제안 결정에 실을 증거), `LedgerEntry.afterUntrusted` | `F.capabilities.spec` | 요청(KN.2, §10 미결 21·22) |
+| `LedgerEntry.afterUntrusted`, `Proposal.afterUntrusted`, `ProposalsInput.statuses`·`before`, `DecideInput.scope` | `F.capabilities.spec` | 있음(M3-REQ-91) |
+| `DecideInput.approval`(확장의 제안 결정에 실을 증거) | `F.capabilities.spec` | 요청(§10 미결 22) |
 | 쓰기 도구 둘의 일반 도구 승인 기본값 `allow` | `L1.tools.spec` | 요청 |
 | 첫 turn 기록 메시지로 스냅샷·인덱스를 넣는 경로 | `L1.context.spec` | 요청 |
 | 컴팩션 뒤 다시 넣기 | `L1.context.spec` §4.9a | L1이 한다. 이 패키지는 상태를 그대로 둔다(§4.2.8) |
@@ -1346,7 +1394,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 프로세스 사이 파일 락 | `L0.os.spec` | 없음. 임대와 해시 재확인으로 대신한다(§4.3.3, §10 미결 18) |
 | `SkillFilePathSchema`를 점으로 시작하거나 끝나는 마디를 거부하도록 좁히기, `isSkillFilePath`도 같은 규칙 | `F.capabilities.spec` §3.9 | 요청(KN.1, §3.1) |
 | 마스킹 등록부 판정(값 노출 없음) | `L0.secrets.spec`(`Redactor.containsKnown`) | 있음. `xeon.secrets`가 없으면 이 판정만 건너뛴다 |
-| `resources_discover` 합성 결과 전달 | `X.loading-trust.spec` | [가정] |
+| `session.resources` 합성 결과 전달 | `X.loading-trust.spec` | [가정] |
 | `Clock`, `IdFactory`, `LocalIdFactory`, `localIdPattern` | `F.readme`(주입 인터페이스, 구현은 `platform-os`), `F.conversation.spec` §3.2.1 | 있음 |
 
 ## 9. 수용 기준
@@ -1371,7 +1419,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 2. 닫힘. 호출자 정보는 `F.capabilities.spec` §3.2 `CallOptions.context.caller`로 받는다(`L2.web.spec` §3.7과 같다).
 3. [미결] 제안 대기열의 소유와 중복. 이 문서는 `cap_knowledge_proposals`(에이전트 쓰기용)를 두고 학습 정책을 가진 L3 그룹은 자기 대기열을 갖는다. 하나로 합칠지(`L3.learning.spec` §10 미결 9, `eng.context-map.design` §4.1 "제안 대기열").
 4. [미결] 메모리 스냅샷과 스킬 인덱스를 넣는 위치(시스템 프롬프트 영역 또는 첫 turn 기록 메시지)와 컴팩션 뒤 다시 넣는 규칙. 첫 turn 기록 메시지로 넣고 컴팩션 뒤 재주입은 L1이 한다(§4.2.5, §4.2.8, `L1.context.spec` §4.9a). 시스템 프롬프트 영역에 둘지는 남는다.
-5. [미결] 쓰기 도구 승인의 이중화 방지. 일반 도구 승인 기본 `allow` + 능력 게이트(제안) 또는 L1.tools 승인 하나에 diff를 싣는 방식(§3.6).
+5. [미결] 쓰기 도구 승인의 이중화 방지. 일반 도구 승인 기본 `allow` + 능력 게이트(제안) 또는 L1.tools 승인 하나에 diff를 싣는 방식(§3.6). M3-REQ-91이 정하라고 했지만 도구 등록 정책(`ToolPolicyMeta`)에 도구별 기본 승인 결정을 담는 필드가 없고 일반 승인 규칙은 L1.tools 설정이라 이 능력만으로는 닫을 수 없다. 증거가 신뢰되는 쓰기(§4.5.1)는 능력 게이트가 승인 요청을 내지 않아 이중화가 없다. 도구 경로의 이중화는 L1.tools 요청(§8)이 닫힐 때까지 남는다.
 6. [미결] 원장 보존 기간과 오래된 blob 정리. 지우지 않으면 원장 blob이 계속 늘어난다(`L2.knowledge.plan` §7).
 7. [미결] 인덱스 예산과 설명 자르기 기본값(8,000자, 160자). 측정 전 [가정]이다(§4.2.5).
 8. [미결] 도구 없는 능력(`knowledge.ledger`)의 허용. `F.capabilities.spec` §10을 따른다.
@@ -1387,5 +1435,5 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 18. [미결] 프로세스 사이 파일 락. `OsService`에 락 API가 없어 임대와 해시 재확인으로 대신한다(§4.3.3). 데이터 디렉터리를 엔진 밖의 도구가 쓰는 경우의 보장은 해시 재확인까지다.
 19. [미결] 재색인 비용. 모든 스킬 트리를 읽고 해시한다. 스킬 수와 크기가 커지면 mtime·크기로 후보를 줄인다(`cap_knowledge_files.mtime_ms`가 그 자리다).
 20. [미결] 쓰기 한도(파일 1 MiB, 500개)와 읽기 한도(파일 16 MiB, 전체 64 MiB, 500개)의 차이(§4.2.2). 읽기 한도를 넘는 스킬은 색인에서 빠진다.
-21. [미결] 원장 `afterUntrusted` 표시. §4.6.3 3번은 `afterUntrusted = true`인 쓰기를 원장에 표시하라고 하지만 F `LedgerEntry`에 필드가 없다. 구현(KN.2)은 승인 요청의 `args.afterUntrusted`로만 알린다. F가 `LedgerEntry.afterUntrusted?`를 더하면 원장 열을 더한다.
-22. [미결] 확장의 제안 결정. `DecideInput`에 `approval` 증거가 없어 `decide`는 호스트 전용이다(§4.5.2). 제안 대기열과 L3 그룹의 자기 대기열(미결 3)을 합칠 때 함께 정한다.
+21. 닫음 [결정: M3-REQ-91]: 원장 `afterUntrusted` 표시. F `LedgerEntry.afterUntrusted?`와 `Proposal.afterUntrusted?`가 들어왔고 열 `after_untrusted`(마이그레이션 3단계)에 남긴다.
+22. 닫음 [결정: M3-REQ-91, D-M3-32 a]: 확장의 제안 결정. 대기열은 둘을 유지하고 `decide`는 호스트(사용자) 전용이다(§4.5.2). 확장이 이 대기열을 결정하는 길은 두지 않는다. 학습 그룹은 자기 대기열을 결정하고 이 능력의 쓰기를 증거와 함께 부른다.

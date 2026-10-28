@@ -4,7 +4,7 @@ layer: L3
 domain: group-kit
 kind: spec
 status: draft
-depends_on: [F.extensions.spec, F.records.spec, F.capabilities.spec, F.wire-settings.spec, F.conversation.spec, X.primitives.spec, eng.dependency-rules.guide, eng.context-map.design, eng.events.design]
+depends_on: [F.extensions.spec, F.records.spec, F.capabilities.spec, F.wire-settings.spec, F.conversation.spec, X.primitives.spec, eng.dependency-rules.guide, eng.context-map.design, eng.events.design, adr.0015, review.m3-design-inputs]
 binds: [xeon/packages/group-kit/**]
 ---
 
@@ -92,13 +92,16 @@ L3-a 구성요소 7개를 인터페이스로 확정한다.
 ```ts
 // xeon/packages/group-kit/src/define-group.ts
 import type { Static } from "typebox";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import type {
   ExtensionEntry, ExtensionManifest, GroupId, ScopeApi, StateDecl,
 } from "@xeon/contracts/extensions";
 import type { Upcaster } from "@xeon/contracts/records";
 import type { SettingDefInput, SettingGroup } from "@xeon/contracts/settings";
 import type { CommandResourceDef, ToolResourceDef } from "@xeon/ext-host";   // X.primitives.spec §3.8, §3.9
-import type { DelegateResult, DelegateSpec } from "./delegate.ts";
+import type {
+  CancelDelegatesResult, DelegateCallOptions, DelegateResult, DelegateSpec, DelegateStatusResult,
+} from "./delegate.ts";
 import type { GroupMetricsHandle } from "./metrics/types.ts";
 
 /** 확장 id 규칙(review.decisions-2 U-18). 소문자, 숫자, 하이픈. 밑줄은 쓰지 않는다 */
@@ -153,8 +156,12 @@ export interface GroupDef<S = never, D extends GroupSettingDefs = Record<never, 
 export interface GroupApi<S, D extends GroupSettingDefs = Record<never, never>> extends ScopeApi<S> {
   /** 마지막 단계 경계에서 읽은 이 그룹 설정의 유효 값. 동기, 순수 조회 */
   settings(): GroupSettingValues<D>;
-  /** L1-g 백그라운드 위임 래퍼(§3.4). requestId 멱등 */
-  delegate(spec: DelegateSpec): Promise<DelegateResult>;
+  /** L1-g 백그라운드 위임 래퍼(§3.4). 소유는 이 scope, requestId 멱등. `options`는 thread와 취소 신호를 정한다 [제안] */
+  delegate(spec: DelegateSpec, options?: DelegateCallOptions): Promise<DelegateResult>;
+  /** [제안] 이 scope가 그 대화에서 시작한 위임의 상태. L1 AgentService.status 전달. on 핸들러에서는 `group.effectNotAllowed`다(§3.4) */
+  delegateStatus(requestId: string, options?: { readonly threadId?: ThreadId }): DelegateStatusResult;
+  /** [제안] 이 scope가 주체인 진행 중 백그라운드 위임을 모두 취소한다. onDispose와 명령 처리기에서 쓴다(§4.10, [결정: D-M3-04]). 재실행되는 코드에서는 `group.effectNotAllowed`다 */
+  cancelDelegates(reason?: string): Promise<CancelDelegatesResult>;
   /** 이 그룹의 계측 조회(§3.12). 2차 전까지 snapshot()은 메모리 집계만 돌려준다 */
   readonly metrics: GroupMetricsHandle;
   /** 그룹 전용 모델 도구 등록. X hostOf(g).registerTool을 그대로 부른다. setup 안에서만. scope가 꺼지면 해제된다 */
@@ -185,7 +192,7 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = Record
 - 상태 없는 그룹 [제안]: `state`를 생략할 수 있다. 상태 없이 `on`, `post`, `record`만 쓰는 정책 그룹(L3.slots.spec §3.2, policy 템플릿)을 위해서다. 생략하면 `migrations`를 둘 수 없고(`state_migration_missing`이 아닌 `state_version` 오류), `g.state()`·`g.commit()`은 X가 `state_undeclared`로 거부한다.
 - 매니페스트 전달 [제안]: 저장소 안 그룹은 `defineManifest` 상수를 `manifest`에 넘긴다. `.xeon-plugin/plugin.json`만 가진 외부 그룹은 JSON import(`import manifestJson from "../.xeon-plugin/plugin.json" with { type: "json" }`)로 읽고 `groupManifest(manifestJson)`을 넘긴다. X 로더도 같은 파일을 읽으므로 두 값은 같다. 같은지는 X 로더가 `validateManifestSet` 전에 비교한다 [가정: X.loading-trust.spec].
 - 리소스 등록 [제안]: `registerTool`, `registerCommand`는 X `hostOf(g)`(X.primitives.spec §3.8, §4.8)의 같은 이름 연산을 그대로 부른다. 그룹 패키지는 `@xeon/ext-host`를 import하지 않으므로(§3.1, DR-14) group-kit이 이 두 연산을 `GroupApi`로 옮긴다. 그 밖의 `hostOf` 연산(`registerShortcut`, `registerFlag`, `registerMessageRenderer` 등)은 그룹 요구가 생기면 같은 방식으로 더한다.
-- `settings()` [M2]: 값은 포트 `GroupSettingsSourceKey`(서비스 이름 `xeon.settings`, 조립 루트가 설정 서비스에 연결하는 자리)에서 호출 때마다 읽는다. 값이 없거나 스키마를 통과하지 못하면 정의의 `default`다. 포트가 없거나 내장 확장이 아니면 기본값만 돌려준다. "마지막 단계 경계의 스냅샷"은 설정 서비스가 맡는다(thread별 값은 X.primitives.spec §3.2의 `PrimitivesSettingsSource`처럼 thread를 받는 읽기가 필요하며 [미결]). 기본값도 없고 값도 없는 비밀 설정은 `Bug`다.
+- `settings()` [M2]: 값은 X의 `hostOf(g).settingValue(key)`로 호출 때마다 읽는다. 이 메서드는 포트 `GroupSettingsSourceKey`(서비스 이름 `xeon.settings`, 조립 루트가 설정 서비스에 연결하는 자리)를 거친다. 내장 그룹은 모든 키를, 신뢰 `user`인 외부 그룹은 자기 `ext.<id>.*` 키만 읽는다(X.primitives.spec §3.8). 값이 없거나 스키마를 통과하지 못하면 정의의 `default`다. 포트가 없으면 기본값만 돌려준다. "마지막 단계 경계의 스냅샷"은 설정 서비스가 맡는다(thread별 값은 X.primitives.spec §3.2의 `PrimitivesSettingsSource`처럼 thread를 받는 읽기가 필요하며 [미결]). 기본값도 없고 값도 없는 비밀 설정은 `Bug`다.
 - `commit` 래퍼 [M2]: `checkStateCommit`이 스키마·64 KiB·동일 값을 먼저 검사한다. 위반이면 X와 같은 `PrimitiveError`(`state_schema`, `state_too_large`)를 던지고, 같은 값이면 X를 부르지 않고 현재 값을 돌려준다. `record`·`post`는 `checkRecordKind`·`checkPostItem`으로 자기 `grp.<이름>.` 접두를 먼저 검사한다(다른 접두는 `record_invalid`, 선언 없는 자기 접두 kind는 `record_kind_undeclared`).
 - 비공개 기록 [결정: review.decisions-2 T-21]: 비공개 기록 연산은 X `ScopeApi.recordPrivate(kind, payload)`다. kind는 자기 `grp.<name>.*`이고, `readsRecordKinds`와 다른 그룹의 `readRecords`로 조회되지 않으며, 큰 값은 blob으로 분리한다(조건은 L3.learning.spec §3.7.1). `GroupApi`는 `ScopeApi`를 상속하므로 이 연산을 그대로 전달한다. 작은 비공개 상태는 상태 문서(`commit`, §4.5 상한 안)를 쓴다.
 - `drive` 함수에는 상태를 인자로만 넘긴다. 반환값이나 이전 호출의 값을 다음 호출에 넘기지 않는다(`architecture.runtime-flow.design` §4.3 완화책).
@@ -194,11 +201,11 @@ export function defineGroup<S = never, const D extends GroupSettingDefs = Record
 
 ```ts
 export default defineGroup<DemoState>({
-  manifest: demoManifest,                 // kind "group", layer "L3", points ["tool_call", "turn_end"], usesPost, usesDrive
+  manifest: demoManifest,                 // kind "group", layer "L3", points ["tool.call.before", "boundary.step.after"], usesPost, usesDrive
   state: { schema: DemoStateSchema, initial: { phase: "idle" }, version: 1 },
   setup(g) {
-    g.on("tool_call", (_call, ctx) => ctx.state.phase === "review" ? { block: true, reason: "검토 단계는 읽기 전용" } : undefined);
-    g.on("turn_end", async (end) => {      // chain. 효과는 requestId 멱등 post로만(F §4.3)
+    g.on("tool.call.before", (_call, ctx) => ctx.state.phase === "review" ? { block: true, reason: "검토 단계는 읽기 전용" } : undefined);
+    g.on("boundary.step.after", async (end) => {      // chain. 효과는 requestId 멱등 post로만(F §4.3)
       if (end.toolResults.length === 0) {
         await g.post(
           { kind: "context", customType: "grp.demo.nudge.sent", content: "검토를 이어 간다", display: false },
@@ -313,8 +320,11 @@ export interface DelegateSpec {
   readonly task: string;
   /** 필수. 대화 범위 멱등 키, 1~48자. group-kit이 ":report"를 붙여 보고 post의 키로 쓴다(64자 한도) */
   readonly requestId: string;
-  /** 필수. 완료 보고 post의 모양 */
-  readonly report: DelegateReport;
+  /**
+   * 완료 보고 post의 모양. 선택 필드다 [결정: review.m3-design-inputs D-M3-03].
+   * 없으면 L1-g는 부모 대화에 agent.settled만 커밋하고 보고 입력을 만들지 않는다
+   */
+  readonly report?: DelegateReport;
   readonly toolPolicy?: DelegateToolPolicy;
   readonly limits?: DelegateLimits;
   /** 모델 역할 이름 또는 모델 참조. 없으면 정의의 model(L1.agents.spec §4.9) */
@@ -331,10 +341,47 @@ export interface DelegateReceipt {
 }
 
 export type DelegateError =
-  | { readonly kind: "group.delegateInvalid"; readonly field: "requestId" | "report.customType" | "agent"; readonly message: string }
+  | { readonly kind: "group.delegateInvalid"; readonly field: "requestId" | "report.customType" | "agent" | "fork"; readonly message: string }
   | { readonly kind: "group.delegateUnavailable" }          // 위임 서비스가 없음(M2) 또는 매니페스트 미선언
   | { readonly kind: "group.disabling"; readonly id: string }
   | { readonly kind: "group.delegateFailed"; readonly message: string };
+
+/**
+ * 호출이 속한 대화와 취소 신호 [제안]. on 핸들러는 `ctx.threadId`·`ctx.signal`을, 명령 처리기와 도구 `execute`는 자기 호출 문맥의
+ * thread를 넘긴다. on 핸들러와 drive 함수에서는 생략하면 X의 호출 문맥(`hostOf(g).callContext()`, §3.13 요청 6)을 쓰고, 문맥이 없는 곳에서 생략하면 `group.delegateUnavailable`이다
+ */
+export interface DelegateCallOptions {
+  readonly threadId?: ThreadId;
+  readonly signal?: AbortSignal;
+}
+
+/** [제안] L1.agents.spec §3.2 ChildStatus를 그룹에 보이는 모양. settled면 종료 상태만 싣는다. 사용량은 이 값에 싣지 않는다 */
+export type DelegateStatus =
+  | { readonly state: "queued" | "running"; readonly childThreadId: ThreadId }
+  | { readonly state: "settled"; readonly childThreadId: ThreadId; readonly status: "completed" | "aborted" | "error" };
+
+/** 재실행되는 문맥에서 부를 수 없는 호출(ADR-0015 §3.2 표). `delegateStatus`는 on 핸들러, `cancelDelegates`는 on 핸들러와 drive 함수 [제안] */
+export interface DelegateContextError {
+  readonly kind: "group.effectNotAllowed";
+  readonly effect: "g.delegateStatus" | "g.cancelDelegates";
+  readonly context: "on" | "drive";
+}
+
+/** [제안] ok면 status가 undefined일 수 있다(그 requestId의 위임이 없음) */
+export type DelegateStatusResult =
+  | { readonly ok: true; readonly status: DelegateStatus | undefined }
+  | { readonly ok: false; readonly error: DelegateContextError | { readonly kind: "group.delegateUnavailable" } };
+
+/** [제안] cancelled는 L1 `AgentService.cancel`의 값이다(하나라도 멈췄으면 true) */
+export type CancelDelegatesResult =
+  | { readonly ok: true; readonly cancelled: boolean }
+  | {
+      readonly ok: false;
+      readonly error:
+        | DelegateContextError
+        | { readonly kind: "group.delegateUnavailable" }
+        | { readonly kind: "group.delegateFailed"; readonly message: string };
+    };
 
 /** 복구 가능한 실패는 throw하지 않고 값으로 돌려준다(eng.typescript.guide TY-11) */
 export type DelegateResult =
@@ -343,13 +390,17 @@ export type DelegateResult =
 ```
 
 - [결정] 학습 그룹은 drive를 쓰지 않는다. 검토 포크는 L1 백그라운드 위임 서비스로 실행한다(F.extensions.spec §4.6, `_research/decisions-log.md` 2026-10-21 계획 v2). `delegate`는 이 경로의 그룹 쪽 래퍼다. drive 임대와 관계없이 모든 켜진 그룹이 쓴다(층 사이 규칙 4 "백그라운드 위임은 여러 그룹이 함께 쓴다").
-- [가정] 래퍼는 `g.capability(AgentsDelegateKey)`로 L1-g 서비스(`xeon.agents`, `eng.context-map.design` 5.3절)를 얻어 부른다. 키 이름, 능력 ID, 서비스 메서드 시그니처는 L1.agents.spec이 정한다. 매니페스트는 그 능력을 `requires`나 `optional`에 선언한다. 선언이 없으면 F `validateUsage`가 `capability_undeclared`를 낸다.
+- 구현 [M3a]: 래퍼는 `hostOf(g).port(AgentServicePortKey)`(`xeon.agents`)로 L1 서비스를 얻는다. 포트는 내장 확장만 읽을 수 있어 외부 그룹이나 서비스가 없는 구성은 `group.delegateUnavailable`이다. `origin`은 `{ parentThreadId, owner: { kind: "scope", scopeId }, caller: "main", depth: 0, ownerRequestId: requestId, signal }`이다. `parentThreadId`는 `options.threadId`, 없으면 X의 재실행 문맥이다. L1 오류 `agents.unavailable`은 `group.delegateUnavailable`, 나머지는 `group.delegateFailed`(메시지 `<kind>: <message>`)이고 L1 호출이 던지면 같은 오류로 바꾼다. 매니페스트 능력 선언 검사(`delegate_capability`)는 능력 ID가 없어 구현하지 않는다([미결](§10)).
+- [가정, 옛 안] 래퍼는 `g.capability(AgentsDelegateKey)`로 L1-g 서비스(`xeon.agents`, `eng.context-map.design` 5.3절)를 얻어 부른다. 키 이름, 능력 ID, 서비스 메서드 시그니처는 L1.agents.spec이 정한다. 매니페스트는 그 능력을 `requires`나 `optional`에 선언한다. 선언이 없으면 F `validateUsage`가 `capability_undeclared`를 낸다.
 - L1 대응: 래퍼는 `DelegateSpec`을 L1.agents.spec §3.2 `DelegateRequest`로 옮겨 `AgentService.delegate(request, origin)`을 부른다. 필드는 `agent`, `task`, `requestId`, `report`, `model`이 같은 이름이고, `toolPolicy` → `tools`, `limits` → `limits`, `fork` → `fork`다. `origin.owner`는 `{ kind: "scope", scopeId }`다. L1.agents.spec §3.2 끝 문단은 옛 필드(`toolPolicy.deny`만, `forkFrom`)를 적었으므로 이 절에 맞춰 고칠 대상이다.
 - 도구 정책 [제안]: 허용 목록과 차단 목록을 둘 다 받는다. 판정은 L1.agents.spec §4.3 권한 상한을 따른다. `allow`는 정의 `tools`와 교집합을 내므로 그룹이 정의보다 넓힐 수 없고, 부모가 거부한 도구도 자식에서 거부된다. 학습 그룹은 허용 목록, 다른 그룹은 차단 목록을 쓸 수 있다. 이것으로 L3.learning.spec §10 미결 10(차단·허용 방식)을 닫는다.
-- 완료 보고 [가정]: L1-g가 자식 정착 뒤 부모 대화에 `PostItem{ kind: "context", customType: report.customType, display: report.display }`를 `when: report.when`, `requestId: "<requestId>:report"`로 넣는다. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(`_research/notes/L3-1.md` §3.3).
+- 완료 보고 [가정]: `report`가 있으면 L1-g가 자식 정착 뒤 부모 대화에 `PostItem{ kind: "context", customType: report.customType, display: report.display }`를 `when: report.when`, `requestId: "<requestId>:report"`로 넣는다. `kind: "user"`는 쓰지 않는다. 사용자 발화와 섞이기 때문이다(`_research/notes/L3-1.md` §3.3). `report`가 없으면 보고 입력을 만들지 않는다 [결정: review.m3-design-inputs D-M3-03]. 학습 그룹은 `report`를 넣지 않는다. 그룹은 부모 대화의 코어 이벤트 `agent.settled` 구독(L3.learning.spec §8.1 REQ-LN-02)이나 `delegateStatus`로 완료를 안다.
+- 포크 지점: `fork: { at: "event" }`는 L1-g가 `agents.invalid_request`로 거부한다(L1.agents.spec §4.1 3번, 세션에 이벤트 기준 fork가 없다). 그룹은 `{ at: "item" }`을 쓴다. `DelegateFork`의 `event` 갈래는 L1 지원이 생길 때까지 남겨 두되 `delegate` 입력 검사에서 `group.delegateInvalid`(`field: "fork"`)로 막는 안을 [제안]한다.
+- 재실행 문맥 [결정: adr.0015]: `delegate`는 on 핸들러와 drive 함수에서 부를 수 있다. `requestId`는 커밋된 값에서 만든 결정적 키여야 한다(ADR-0015 §3.4). `delegateStatus`는 효과 없는 읽기다. ADR-0015 §3.2 표의 `g.delegateStatus` 행에 따라 drive 함수에서는 부를 수 있고 on 핸들러에서는 부르지 않는다. 결과를 고정하려면 상태에 커밋한다. `cancelDelegates`는 효과가 있는 호출이라 재실행되는 코드에서 부르지 않고 `onDispose`와 명령 처리기에서 부른다. `onDispose`는 scope의 generation이 닫힌 뒤에 실행되어 포트 조회가 거부되므로, `wrap`은 `xeon.agents` 서비스를 setup에서 한 번 잡아 두고 `delegate`, `delegateStatus`, `cancelDelegates`가 같은 값을 쓴다 [제안]. 서비스가 setup 때 없었으면 부를 때마다 다시 조회한다.
+- 결과 수신 [M3a]: 위임 결과는 L1이 커밋하는 `agent.settled`가 지점 `lifecycle.agent.settled`로 흘러온다. X가 `owner`가 이 scope인 이벤트만 이 그룹의 핸들러에 보내므로 그룹은 `g.on("lifecycle.agent.settled", …)`로 자기 위임의 결과만 받는다. group-kit은 이 경로에 래퍼를 더하지 않는다.
 - 멱등: 같은 thread에서 같은 `requestId`의 두 번째 호출은 자식을 만들지 않고 `status: "duplicate"`와 처음 자식의 `childThreadId`를 돌려준다. 중복 생성 방지 방법(소유 간선 검색 또는 `requests` 테이블)은 L1.agents.spec이 정한다.
 - 상한: 위임은 drive 임대 상한(`DriveLimits`)에 들어가지 않는다. 위임 상한의 귀속은 [미결](§10).
-- [미결] F.extensions.spec §4.3은 `on` 핸들러의 외부 효과를 `post`, `commit`, `record`로 한정한다. 학습 그룹은 `on` 핸들러(예: `agent_settled`)에서 검토 포크를 시작해야 한다. [제안] 허용 연산 목록에 "requestId 멱등 연산"(`g.delegate`, drive 안의 `loop.spawn`)을 더하고, `on` 핸들러 안에서 부르는 `delegate`의 `requestId`는 커밋된 id(`turnId`, `stepId`)에서 결정적으로 만든다는 규칙을 F.extensions.spec에 요청한다. 이 규칙이 확정되기 전에는 그룹 문서가 `on` 핸들러에서 `record`로 요청만 남기고 다음 단계 경계 이후 `delegate`를 부르는 우회를 쓴다.
+- (닫힘) [결정: adr.0015] F.extensions.spec §4.3의 on 핸들러 효과 목록(`post`, `commit`, `record`)에 `requestId` 멱등 `g.delegate`가 더해진다(C안, 2026-10-25). `delegate`의 `requestId`는 커밋된 id(`turnId`, `stepId`)나 상태 값에서 결정적으로 만든다(ADR-0015 §3.4). 옛 우회(`record`로 요청만 남기고 다음 단계 경계 뒤에 `delegate`를 부르는 방식)는 쓰지 않는다. F.extensions.spec 본문 반영은 ADR-0015 §4.3 표에 있다.
 
 ### 3.5 DriveArbiter (임대 중재 정책)
 
@@ -435,11 +486,11 @@ export function leaseArbiterPort(
 
 1. `holderSetting`이 scope id이면 그 그룹만 임대를 받는다. 그 그룹이 후보가 아니면 아무도 받지 않는다(`named-unavailable`).
 2. `null`(auto)이면 `requestSeq`가 가장 작은 후보가 받는다. `requestSeq`가 같으면 `loadOrder`가 작은 쪽이다(`first-request`). `requestSeq`가 null인 후보(활성 가지에 enabled 기록이 없는 기본 켜짐 그룹)는 어떤 enabled 기록보다 앞선 것으로 보고, null끼리는 `loadOrder`로 정한다. 쌍마다 기준이 달라지지 않도록 전체 순서를 이 하나로 둔다.
-3. 받지 못한 후보는 모두 `waiting`이다. 대기 그룹은 거부되지 않는다. drive 함수만 호출되지 않고 `on`, `post`, `delegate`는 계속 동작한다.
+3. 받지 못한 후보는 모두 `waiting`이다. 대기 그룹은 대기 상한을 넘기 전까지 거부되지 않는다. 상한을 넘으면 요청을 거부하고 내구 이벤트 `lease.rejected`를 커밋한다(plan G-30, REQ-X-08) [결정: review.m3-design-inputs D-M3-05]. drive 함수만 호출되지 않고 `on`, `post`, `delegate`는 계속 동작한다.
 4. `auto`는 선점하지 않는다. 임대가 있는 동안 X는 `choose`를 부르지 않으므로 holder는 그 임대가 반납될 때(`idle`, 상한, 끄기, 오류)까지 유지된다. 그룹을 새로 켜거나 설정이 `null`로 바뀌어도 현재 임대는 회수되지 않는다. 이름 지정은 X가 회수한다: `x.primitives.activeDriveGroup`이 다른 후보 그룹을 가리키면 X가 다음 경계에서 현재 임대를 `lease.released{reason:"revoked"}`로 반납하고 이어서 가리킨 그룹에 부여한다(X.primitives.spec §4.4.1 5번, [결정: P-22]). 가리킨 그룹이 후보가 아니면 현재 임대를 유지한다(§4.3).
 
 - [결정] drive 임대는 한 번에 그룹 하나만 가진다. `on`, `post`, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4, F.extensions.spec §4.6).
-- `product.vision.spec` §5와 §10 미결 3("두 그룹이 동시에 drive를 요청할 때 기본 동작, 대기 또는 거부")에 이 문서는 위 규칙 3(대기)을 [제안]으로 답한다. 확정은 사용자 확인 뒤다(§10).
+- `product.vision.spec` §5와 §10 미결 3("두 그룹이 동시에 drive를 요청할 때 기본 동작, 대기 또는 거부")에 위 규칙 3(대기, 상한 뒤 거부)으로 답한다 [결정: review.m3-design-inputs D-M3-05].
 - 설정 키 [결정: review.decisions-2 S-15]: drive 보유 그룹 설정은 X 키 `x.primitives.activeDriveGroup` 하나다. group-kit은 별도 키를 두지 않고 이 키의 유효 값을 정책 입력으로 읽는다. 포트가 없을 때(group-kit 없이 X만 올린 테스트 호스트 등) X는 같은 키로 기본 규칙을 쓴다(X.primitives.spec §4.4.1 4번). 값이 `null`이고 후보가 둘 이상일 때 X 기본 규칙은 아무에게도 주지 않고, group-kit 정책은 요청 순서로 정한다(규칙 2). `/group drive`와 설정 화면의 "구동 그룹" 선택은 이 키를 쓴다.
 - 회수 경로 [결정: X.primitives.spec §4.4.1 5번, P-22]: 정책(`DriveArbiter`)은 임대를 회수하지 않는다. 회수는 X가 설정 `x.primitives.activeDriveGroup`을 직접 읽고 다음 경계에서 한다. 사용자가 이름을 지정하면(`/group drive <이름>`) 현재 임대는 그 경계까지 유지되고 진행 중인 `loop.turn`은 끊기지 않는다. 현재 holder를 끄는 방법(`/group off <이름>`, `lease.released{reason:"disabled"}`)과 holder의 drive가 `idle`로 반납하기를 기다리는 방법도 그대로 쓸 수 있다.
 - `DriveLease.status`에 대기 상태는 넣지 않는다 [제안]. 대기는 정책 결과다. 임대 상태 기계에 넣지 않고 group-kit의 `GroupStatus.drive`로만 나타낸다.
@@ -562,7 +613,8 @@ export interface GroupMetricsSummary {
   readonly leaseMs: number;
 }
 
-export type DriveRole = "holder" | "waiting" | "none" | "error";
+/** rejected: drive 임대 요청이 대기 상한 뒤 거부됐다(`lease.rejected`, M3-REQ-99). 채우는 일은 X 커밋이 낸 이벤트를 읽는 group-kit 작업이 한다 */
+export type DriveRole = "holder" | "waiting" | "none" | "error" | "rejected";
 
 export interface GroupError {
   readonly kind: "group.driveThrew" | "group.setupFailed" | "group.stateInvalid" | "group.migrationFailed";
@@ -637,6 +689,7 @@ export interface GroupService extends LeaseArbiterPort {
 - [결정: review.decisions-2 D-04] 위 이름(`GroupService`, `GroupServiceName`, `DriveRole`, `GroupError`, `GroupStatus`, `GroupCommandError`, `GroupSettingUnwritableReason`, `GroupResult`, `ToggleReceipt`, `HolderReceipt`, `DriveHolderSetting`, `GroupMetricsSummary`)은 F `services/groups.ts`가 내보낸다. group-kit은 `@xeon/contracts/services`에서 `import type`으로 가져와 다시 내보내고 자기 정의를 두지 않는다. `GroupId`, `ScopeStatus`, `LeaseId`, `RecordKind`, `Unsubscribe`, `LeaseArbiterPort`, `ScopeId`는 F `extensions`에서 온다. `HolderSettingScope`는 파일 안 별칭이고 내보내지 않는다. `F.wire-settings.spec`의 `SettingScope`와 서로 대입 가능해야 한다(§9 수용 기준 20).
 - `enable`, `disable`의 지속: 이 메서드는 현재 엔진의 scope 상태만 바꾼다. 다음 실행에도 남기려면 X 예약 키 `ext.<이름>.enabled`를 L4 설정 경로로 쓴다(§6).
 - `setDriveHolder` 오류: 설치되지 않은 이름은 `group.unknown`, `usesDrive`가 false인 그룹은 `group.noDrive`, 관리 범위가 값을 잠갔으면 `group.settingLocked`, 잠기지는 않았지만 쓸 수 없었으면 `group.settingUnwritable`(이유는 `reason`). 오류면 설정을 바꾸지 않는다. `options.threadId`는 설정을 쓰고 `appliesAt`를 재는 thread다. 생략하면 `session`·`project`·`local` 범위는 쓰기 소유를 쥔 thread가 하나일 때 그 thread에 쓰고, 정할 수 없으면 대상이 없을 때 `no_thread`, 여럿일 때 `ambiguous_thread`다. "마지막으로 쥔 thread"를 고르지 않는다 [결정: 통합 검토 L8].
+- 거부 표시 [M3a, G-30]: `createGroupService`는 커밋 피드 포트(`{ name: "xeon.session", member: "feed" }`)가 있으면 구독해 내구 이벤트로 거부 상태를 센다. `lease.rejected{groupId}`가 오면 그 thread에서 그 그룹을 거부로 기록하고, 그 thread의 `lease.released`, 그 그룹의 `lease.acquired`, 그 그룹의 `scope.changed`가 오면 지운다. X가 거부된 scope를 다음 임대 반납 커밋까지 다시 세지 않는 규칙과 같다. `GroupStatus.drive`는 `ScopeInfo.drive`가 `registered`이고 거부로 기록된 그룹에 `"rejected"`이고, 기록이 바뀌면 `onChange`로 알린다. 상태줄 `[거부]`와 `/group status`의 `drive=거부`는 이 값을 그대로 보인다. 기록은 프로세스 메모리에만 둔다. 피드 포트가 없는 구성(시험 호스트 기본값)은 `"waiting"`으로 남는다. 피드 연결 전에 커밋된 거부는 보이지 않는다 [제안].
 - [가정] 서비스 한 인스턴스는 현재 활성 thread 하나의 그룹 상태를 보인다. scope 토글과 임대가 thread마다 따로인지는 X.primitives.spec이 정한다.
 
 ### 3.9 전환 명령과 상태줄
@@ -757,7 +810,7 @@ import type { JsonValue } from "@xeon/contracts/conversation";
 export interface ReplayHarness {
   /** 새 테스트 호스트에 그룹 하나를 holder로 올린다. restore가 null이면 처음부터, 값이 있으면 그 이벤트열의 앞 commits개 커밋만 복원하고 재개 절차로 시작한다. 같은 테이프로 끝까지 실행한다 */
   run(group: GroupModule, restore: { readonly events: readonly JsonValue[]; readonly commits: number } | null):
-    Promise<{ readonly events: readonly JsonValue[]; readonly commitPoints: readonly number[] }>;
+    Promise<{ readonly events: readonly JsonValue[]; readonly commitPoints: readonly number[]; /* M3a(G-20): 효과 계수기를 가진 하니스만 채운다. 이 실행이 새로 낸 효과 수 */ readonly effects?: EffectCounts }>;
   /** 정규화한 이벤트열의 digest. 같은 의미면 같은 문자열 */
   digest(events: readonly JsonValue[]): string;
   /** 두 정규화 이벤트열에서 처음 달라진 위치. 같으면 null */
@@ -769,11 +822,15 @@ export interface ReplayDriveOptions {
   readonly harness: ReplayHarness;
   /** 기준 실행의 커밋 수 상한. 넘으면 실패한다. 기본 200 */
   readonly maxCommits?: number;
-  // M3(G-20)에서 더한다: initialState, input(첫 사용자 입력), cutAt("every-commit" | 지점 목록)
+  /** [M3a] 기준 실행의 효과 수가 이 값과 같은지 확인한다(주어진 항목만). 다르면 `effects-mismatch` [제안] */
+  readonly expectEffects?: Partial<EffectCounts>;
+  // 남은 몫(G-20): initialState, input(첫 사용자 입력), cutAt("every-commit" | 지점 목록)
 }
 
 export interface ReplayCut {
   readonly commitIndex: number;
+  /** [M3a] 이 절단 실행이 새로 낸 효과 수. 하니스가 계수기를 가진 경우만 */
+  readonly effects?: EffectCounts;
   readonly equal: boolean;
   /** 정규화 이벤트열에서 처음 달라진 위치. 같으면 null */
   readonly firstDiff: number | null;
@@ -785,8 +842,10 @@ export interface ReplayDriveReport {
   readonly baselineDigest: string;
   readonly cuts: readonly ReplayCut[];
   readonly ok: boolean;
-  /** ok가 false인데 절단 비교 때문이 아니면 채운다: 커밋 수가 maxCommits 초과, 커밋이 하나도 없음 */
-  readonly failure?: "max-commits-exceeded" | "no-commits";
+  /** ok가 false인데 절단 비교 때문이 아니면 채운다: 커밋 수가 maxCommits 초과, 커밋이 하나도 없음, 효과 계수가 기준보다 큼(M3, 아래 4번) */
+  readonly failure?: "max-commits-exceeded" | "no-commits" | "effects-doubled" | "effects-mismatch";
+  /** [M3a] 기준 실행의 효과 수. 하니스가 계수기를 가진 경우만 */
+  readonly effects?: EffectCounts;
 }
 
 export function replayDrive(options: ReplayDriveOptions): Promise<ReplayDriveReport>;
@@ -798,14 +857,28 @@ export function replayDrive(options: ReplayDriveOptions): Promise<ReplayDriveRep
 1. 기준 실행: `harness.run(group, null)`으로 그룹 하나를 holder로 올려 테이프로 끝까지 실행한다. 내구 이벤트열과 커밋 지점 목록을 얻는다. 커밋 지점은 `g.commit`, `loop.turn` 결과, `loop.spawn` 결과, `post` 수락, `record` 쓰기가 커밋된 위치다.
 2. 지점 k마다: `harness.run(group, { events, commits: k })`로 새 호스트에 앞 k개 커밋만 복원하고 프로세스 재시작과 같은 재개 절차로 drive 함수를 마지막 커밋 상태로 다시 부른다. 같은 테이프로 끝까지 실행한다.
 3. 두 이벤트열을 `harness.digest`로 비교하고 다르면 `harness.firstDiff`로 위치를 얻는다. 정규화 규칙은 `eng.testing.guide` 1.2절을 따른다. F에는 `./testing` 서브패스를 두지 않으므로 정규화 함수는 하니스를 만드는 테스트 쪽이 가진다 [결정: review.decisions-2 U-03]. 모든 지점에서 같으면 `ok`다. 커밋이 하나도 없는 실행은 확인할 것이 없으므로 `ok: false`, `failure: "no-commits"`다(그룹이 임대를 받지 못한 시험 오류가 조용히 통과하지 않게 한다).
+4. 효과 계수 [제안, G-20, ADR-0015 §3.6, M3a 구현]: 기준 실행의 모든 커밋 지점에서 끊고 재개할 때, 끊기 직전의 drive 호출과 on 핸들러를 같은 입력으로 두 번 실행한다. 가짜 포트(`LoopPort`, 입력 큐, 위임 서비스, 능력 공급자)가 효과 계수기를 가지고, 하니스는 `harness.run`의 결과에 `effects`(아래 `EffectCounts`)를 싣는다. 기준 실행의 `effects`는 그 실행이 낸 효과 전부이고, 절단 실행의 `effects`는 복원한 뒤 새로 낸 효과다. 절단 실행은 기준 실행과 같은 가짜 포트의 멱등 기억(요청 키 표)을 이어 써야 하고, 그러면 같은 상태·입력의 재실행은 새 효과가 0이다(옛 안의 "같은 지점까지의 계수 비교"는 이 규칙으로 바꿨다). 계수는 코어가 중복으로 돌려준 호출(`duplicate`, 재생된 `loop.turn`·`loop.spawn`, 처음 결과를 돌려준 멱등 능력 호출)과 읽기 호출을 세지 않는다. 이벤트열이 모두 같아도 절단 실행이 새 효과를 냈으면 `ok: false`, `failure: "effects-doubled"`다. `expectEffects`를 주면 기준 실행의 효과 수가 그 값과 같은지도 보고(`effects-mismatch`), 효과가 한 번 났다는 확인은 이 값으로 한다. `diffEffects`, `effectKindsOf`, `NO_EFFECTS`는 하니스를 만드는 쪽이 계수를 다룰 때 쓴다. 가짜 위임 서비스는 `fakeAgents`(`@xeon/group-kit/testing`)다.
+
+```ts
+/** 가짜 포트가 센 외부 효과 수. 중복 응답과 읽기는 세지 않는다 */
+export interface EffectCounts {
+  readonly turn: number;
+  readonly spawn: number;
+  readonly delegate: number;
+  /** `idempotent: true` 능력 메서드의 새 효과 수 */
+  readonly capabilityWrite: number;
+  readonly post: number;
+}
+```
+
 - 근거: `eng.events.design` EV-09 강제 수단("커밋 지점마다 프로세스를 끊고 재호출해 같은 이벤트 열이 나오는지"), 7.1절 4번. 결정성 등급은 D0다(`eng.testing.guide` TS-02).
 
-### 3.11 scanDriveSource (2차)
+### 3.11 scanDriveSource (M3a 구현)
 
 ```ts
 // xeon/packages/group-kit/src/testing/scan/scan-drive.ts  (공개 진입점: @xeon/group-kit/testing)
 export type DriveScanCode =
-  | "SD-01" | "SD-02" | "SD-03" | "SD-04" | "SD-05" | "SD-06"
+  | "SD-00" | "SD-01" | "SD-02" | "SD-03" | "SD-04" | "SD-05" | "SD-06"
   | "SD-07" | "SD-08" | "SD-09" | "SD-10";
 
 export interface DriveScanFinding {
@@ -833,11 +906,12 @@ export function scanDriveSource(source: string, options?: { readonly fileName?: 
 | SD-04 | `crypto.randomUUID` | error | `Use IdFactory (TY-21).` | TY-21 |
 | SD-05 | `crypto.getRandomValues` | error | `Inject RandomSource (TY-21).` | TY-21 |
 | SD-06 | `performance.now` | error | `Inject Clock (TY-21).` | TY-21 |
-| SD-07 | `fetch` 호출 | error | `drive effects only via loop.turn, loop.spawn, post (F.extensions §4.6).` | F.extensions.spec §4.6 |
+| SD-07 | `fetch` 호출 | error | `Direct I/O is not allowed in drive; use the effects of ADR-0015 §3.2.` | F.extensions.spec §4.6, ADR-0015 §3.2 |
 | SD-08 | `node:fs`, `fs`, `node:fs/promises` 바인딩 사용, `Bun.file`, `Bun.write` | error | 같음 | F.extensions.spec §4.6 |
 | SD-09 | 그 밖의 `Bun.*` 호출(`Bun.spawn`, `Bun.$`, `Bun.sleep` 등) | error | 같음 | F.extensions.spec §4.6 |
 | SD-10 | drive 함수 밖에서 선언한 `let`·`var` 변수를 drive 본문이 재할당 | warning | `drive state lives only in scope state (eng.events EV-09).` | EV-09 |
 
+- 구현 [M3a]: 위 표를 그대로 구현했다. 보태거나 좁힌 점은 다음과 같다. (1) 구문 오류가 있으면 `SD-00` 오류 하나(줄 1, 열 1, 메시지는 파서 메시지)를 돌려준다 [제안]. (2) 금지 문자열은 호출이 아니어도 참조하면 찾는다(`const now = Date.now`). `Bun.file`·`Bun.write`는 SD-08, 그 밖의 `Bun.<이름>`은 SD-09다. (3) SD-08은 `fs`, `node:fs`, `fs/promises`, `node:fs/promises` import의 지역 이름을 drive 본문에서 쓰면 낸다. (4) SD-10은 같은 파일에서 `let`·`var`로 선언했고 drive 함수 밖에 있는 변수를 본문이 대입·증감할 때 낸다. 구조 분해로 가려진 이름이나 다른 파일 변수는 보지 않는다. (5) 줄·열은 1부터이고 열은 UTF-16 코드 단위다. 결과는 위치 순서다. 한계는 협조적 코드만 잡는다는 점이다. 별칭(`const f = fetch`)과 동적 접근(`globalThis["fetch"]`)은 못 잡는다.
 - 파서 [제안]: `@swc/core` 1.16.18(catalog에 이미 있고 dependency-cruiser가 쓴다, `eng.dependency-rules.guide` 3.1절)의 `parseSync`. TS 7에는 안정 programmatic API가 없다. `@swc/core`를 group-kit이 import하려면 DR-07 `MODULE_OWNERS` 표에 항목이 필요하다 [미결](§10).
 
 ### 3.12 PromotionReport와 GroupMetrics (2차)
@@ -924,7 +998,7 @@ export interface PromotionReport {
 export interface PromotionInput {
   /** 도구 이름 → 등록한 그룹 [가정: X 리소스 등록부] */
   readonly toolOwners: ReadonlyMap<ToolName, GroupId>;
-  /** tool_execution_end 이벤트와 그 호출이 속한 turn의 시작 주체 */
+  /** tool.execution.after 이벤트와 그 호출이 속한 turn의 시작 주체 */
   readonly calls: readonly { readonly tool: ToolName; readonly seq: number; readonly threadId: string; readonly origin: ScopeId | "user" }[];
 }
 
@@ -961,13 +1035,15 @@ X.primitives.spec에 있는 것:
 | 상태 커밋과 크기 상한 | `commit`의 `expectStateRev`, `state_too_large` | §4.6.1 |
 | 유휴 토글 적용 | 유휴면 다음 매크로태스크에 적용 | §4.5.5 |
 
-X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(요청 4 일부)이 xeon/foundation에 병합됐다]:
+X에 요청한 것 [반영됨: X.1(요청 1~3)과 테스트 호스트 재시작(요청 4 일부)이 xeon/foundation에 병합됐고, 요청 6·7은 M3a X-3이 닫았다]:
 
 1. `LeaseCandidate.enabledAtSeq: number | null`(마지막 `scope.changed{status:"enabled"}`의 seq). [반영] F `LeaseCandidate`에 있다.
 2. 현재 임대의 `leaseId` 조회. [반영] `ExtHost.leaseOf(threadId)`가 `LeaseInfo{leaseId, scopeId, leaseEpoch, status}`를 돌려준다. `GroupStatus.leaseId`에 쓴다.
 3. scope 상태·임대 상태 변경 구독. [반영] `ExtHost.onChange(listener)`가 `ExtChange{kind: "scope" | "lease", scopeId, threadId}`를 경계 커밋 뒤 알린다. `GroupService.onChange`에 쓴다.
 4. 테스트 호스트 재시작. [반영] `TestHost.restart()`.
 5. 2차: 계측·승격 집계용 내구 이벤트 조회(kind 접두 필터)와 도구 소유 scope 조회(`ExtHost.resources`의 `ResourceRecord.scopeId`로 대신할 수 있다). [미결]
+6. [반영, M3a X-3] 재실행 문맥 조회: `hostOf(g).callContext(): { kind: "on" | "drive"; threadId: ThreadId; signal: AbortSignal; point?: PointName } | undefined`(X.primitives.spec §3.8). setup, 명령 처리기, 도구 `execute`, drive의 `turn`·`spawn` 안에서는 undefined다. `GroupHostAccess.callContext()`가 이 값을 그대로 돌려준다. `delegate`는 on 핸들러와 drive 함수 안에서 문맥의 thread와 신호를 쓰고, `{ threadId, signal }` 옵션은 명령 처리기와 도구 `execute`에서만 필요하다. `delegateStatus`의 on 거부와 `cancelDelegates`의 on·drive 거부(`group.effectNotAllowed`)는 실제 호스트에서 동작한다(`delegate-real-host.int.test.ts`).
+7. [반영, M3a X-3] `SessionFeedPortKey`(`{ name: "xeon.session", member: "feed" }`)를 `@xeon/ext-host` 공개 진입점에서 내보낸다. group-kit은 이 키를 쓰고 자체 키(`GroupFeedPortKey`)는 없앴다(§3.8 "거부 표시").
 
 - 설정 읽기와 쓰기는 설정 서비스(F.wire-settings.spec `EffectiveSetting`, `WriteCheck`)로 한다. X에는 이 용도의 API가 없다 [가정: 서비스 이름은 F.wire-settings.spec].
 - 임대 교체 [가정]: X는 반납 경계에서 `lease.released`를 기록하고(X.primitives.spec §4.5.3 끄기 2번), 다음 판단(§4.4.1 3번)에서 새 `lease.acquired`를 기록한다. 같은 경계 훅에서 반납과 부여가 함께 일어나면 같은 경계 커밋에 실린다고 본다. X 문서가 다르게 정하면 §5 6번을 고친다.
@@ -1028,7 +1104,7 @@ function countTurn(st: Readonly<CountState>, stepId: string): CountState {
   return { turns: st.turns + 1, lastStepId: stepId };
 }
 
-g.on("turn_end", async (end, _current, ctx) => {
+g.on("boundary.step.after", async (end, _current, ctx) => {
   await g.commit(countTurn(ctx.state, end.stepId));   // 재실행되어도 turns는 한 번만 오른다
   return undefined;
 });
@@ -1071,7 +1147,7 @@ g.on("turn_end", async (end, _current, ctx) => {
 ### 4.10 위임 규칙
 
 - `delegate`는 켜진 그룹이면 임대와 관계없이 부를 수 있다. 꺼지는 중(`disabling`)이면 `group.disabling`을 돌려준다.
-- 그룹이 꺼질 때 진행 중인 위임을 취소할지 완료까지 둘지는 [미결]이다. [제안] 완료까지 두고 보고 post는 그대로 넣는다. 백그라운드 위임은 부모 abort가 전파되지 않는 경계이기 때문이다(`_research/notes/L3-1.md` §3.7).
+- 그룹이 꺼지면 진행 중인 위임을 즉시 취소한다 [결정: review.m3-design-inputs D-M3-04]. 끈 뒤에도 토큰을 쓰고 결과가 들어오면 사용자 기대와 어긋나기 때문이다. 그룹은 `onDispose`에서 `cancelDelegates`를 부르고, group-kit은 L1 `AgentService.cancel({ ownerScopeId })`(L3.learning.spec §8.1 REQ-LN-06)로 옮긴다. 옛 [제안](완료까지 두고 보고 post를 넣음)은 쓰지 않는다.
 
 ## 5. 실패와 경계 사례
 
@@ -1150,14 +1226,14 @@ g.on("turn_end", async (end, _current, ctx) => {
 ## 9. 수용 기준
 
 1. `x.primitives.activeDriveGroup`이 `null`(auto)일 때 drive 그룹 A(요청 순번 10)와 B(요청 순번 12)가 켜지면 A의 drive 함수만 호출되고 B의 drive 함수 호출 수는 0이다. B의 `GroupStatus.drive`는 `"waiting"`이다.
-2. 1번 상태에서 B의 `tool_call` 핸들러와 `post`는 계속 호출·수락되고, B가 `delegate`를 부르면 `accepted` 영수증을 받는다.
+2. 1번 상태에서 B의 `tool.call.before` 핸들러와 `post`는 계속 호출·수락되고, B가 `delegate`를 부르면 `accepted` 영수증을 받는다.
 3. `x.primitives.activeDriveGroup`이 `null`(auto)이고 holder A가 있을 때 C를 새로 켜도 단계 경계 뒤 holder는 A다(선점 없음).
 4. A가 임대를 가진 동안 `x.primitives.activeDriveGroup`을 B로 바꾸면 A의 진행 중 `loop.turn`은 `completed`로 끝나고, 다음 경계에 `lease.released{reason:"revoked"}`(A)와 `lease.acquired`(B)가 차례로 기록된다. 중단된 step은 0개다. B가 후보가 아니면(예: 꺼짐) A의 임대는 유지된다. A를 끄면 끄기가 적용된 경계에 `lease.released{reason:"disabled"}`(A)가 기록되고, 그 뒤 판단 시점에 `choose`가 B를 고른다.
 5. `x.primitives.activeDriveGroup`이 켜지지 않은 그룹 이름이면 `decide`는 `holder: null`, `reason: "named-unavailable"`을 돌려주고 drive 함수는 하나도 호출되지 않는다.
 6. `setDriveHolder("learning")`(drive 미사용)은 `group.noDrive`를 돌려주고 설정 값은 바뀌지 않는다. `/group drive xyz`는 `알 수 없는 그룹: xyz. 설치된 그룹: …`을 출력한다.
 7. 실행 중 `/group off helm`은 `pending: true`를 돌려주고, 다음 단계 경계 전까지 상태줄 끝에 `다음 단계 경계에 적용`이 있으며, 경계 뒤 `scope.changed{status:"disabled"}`가 정확히 한 번 커밋된다.
 8. `group-kit` 소스에서 `@xeon/group-helm`, `@xeon/group-learning` import가 0이다(check-layers). `group-helm`에 `@xeon/group-learning` import 샘플을 넣으면 check-layers가 DR-02로 실패한다.
-9. M1 테스트 그룹(`smokeGroup`)이 한 턴에서 `on`(`tool_call`, `turn_end`), `post`, `drive`를 모두 쓰고, `checkGroup(smokeGroup)`의 오류가 0이다.
+9. M1 테스트 그룹(`smokeGroup`)이 한 턴에서 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 모두 쓰고, `checkGroup(smokeGroup)`의 오류가 0이다.
 10. setup에서 매니페스트 `points`에 없는 지점에 `on`을 건 그룹은 `checkGroup`이 `point_undeclared`를 돌려준다. `name: "auto"`, `name: "web"`(L2 도메인 이름)인 정의는 `defineGroup`이 `group_name`으로 `Bug`를 던진다. `state` 없이 `on`만 쓰는 정의는 오류 없이 `GroupModule`(`stateVersion: 0`)을 만든다.
 10a. `registerTool`, `registerCommand`로 등록한 도구와 명령은 그룹을 끄면 해제된다(가짜 `ExtHost.resources` 등록 수로 확인).
 10b. `groupManifest`는 `kind: "plugin"`인 매니페스트 값에 `Bug`를 던지고, 템플릿 `plugin.json`과 같은 값에는 `GroupManifest`를 돌려준다.
@@ -1171,14 +1247,17 @@ g.on("turn_end", async (end, _current, ctx) => {
 18. `l3.group-kit.instrumentation = false`면 `grp.<그룹>.metrics.recorded` 기록이 0개이고 `GroupStatus.metrics`는 null이다.
 19. `formatGroupStatusLine`은 §3.9 예 표의 다섯 입력에 표의 문자열을 그대로 돌려준다.
 20. `group-kit` 운영 소스에서 `LeaseArbiterPort`, `LeaseCandidate`, `GroupService`, `GroupStatus`, `DriveHolderSetting`, `GroupMetricsSummary`를 정의하는 선언이 0개이고, 이 이름은 `@xeon/contracts/extensions` 또는 `@xeon/contracts/services`에서 온다. `services/groups.ts`의 `HolderReceipt["scope"]`는 F.wire-settings `SettingScope`에 대입 가능하고 그 반대도 된다(타입 테스트).
-21. 상태 갱신이 멱등 reducer(§4.5 6번)인 그룹에서 같은 `turn_end` 핸들러를 소비 커밋 전에 두 번 실행하면 `grp.<그룹>.state.committed`는 한 번만 늘고 두 번째 `commit`은 이벤트를 쓰지 않는다.
+21. 상태 갱신이 멱등 reducer(§4.5 6번)인 그룹에서 같은 `boundary.step.after` 핸들러를 소비 커밋 전에 두 번 실행하면 `grp.<그룹>.state.committed`는 한 번만 늘고 두 번째 `commit`은 이벤트를 쓰지 않는다.
+22. (M3, ADR-0015) `replayDrive`는 효과 계수기를 가진 하니스에서 모든 절단 지점의 drive·on 핸들러 이중 실행 뒤에도 `EffectCounts`가 기준 실행과 같으면 `ok: true`다. 같은 `requestId` 없이 효과를 두 번 내는 그룹에는 `failure: "effects-doubled"`를 돌려준다.
+23. (M3, ADR-0015) `delegateStatus`는 drive 문맥에서 상태를 돌려주고 on 문맥에서는 거부된다. `cancelDelegates`는 재실행되는 코드에서 거부되고 `onDispose`와 명령 처리기에서는 동작한다.
+24. (M3) 임대 대기 상한을 넘어 거부된 그룹의 `GroupStatus.drive`는 `"rejected"`다.
 
 ## 10. 미결 사항
 
 - [결정: review.decisions-2 T-21] 공통 모순 1(닫힘): 확장 kind는 F 형식 `grp.<그룹>.<영역>.<이름>` 하나다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유), 계측은 `grp.<그룹>.metrics.recorded`(`recordPrivate`)다. eng 문서의 옛 밑줄 접두 표기는 쓰지 않는다.
-- [미결] 공통 모순 2: F.extensions.spec §4.3(on 핸들러 외부 효과 금지)과 학습 검토 포크 시작·Helm spawn의 관계. requestId 멱등 연산(`g.delegate`, `loop.spawn`)만 허용 목록에 더하는 규칙의 확정(§3.4).
+- (닫힘) [결정: adr.0015] 공통 모순 2: F.extensions.spec §4.3(on 핸들러 외부 효과 금지)과 학습 검토 포크 시작·Helm spawn의 관계. C안(2026-10-25)으로 `requestId` 멱등 `g.delegate`와 drive 안 `loop.spawn`, 선언된 능력 호출이 허용된다(§3.4, §3.10). F.extensions.spec 본문 반영은 ADR-0015 §4.3 표에 있다.
 - [미결] 공통 모순 3: `xeon/packages/group-kit/package.json`의 `xeon.domain`이 `kit`이고 routes layout 도메인은 `group-kit`이다. DR-03은 "디렉터리 이름의 접두사를 뺀 값"과 layout 도메인 이름이 같다고 적었는데 `group-kit`에서 두 값이 다르다. [제안] `group-kit`으로 맞추고 DR-03에 `group-kit`을 접두 규칙 예외로 적는다(L3.group-kit.plan G-02).
-- [미결] 대기 vs 거부: 이 문서는 대기를 [제안]한다(§3.5 규칙 3). `product.vision.spec` §5와 §10 미결 3의 답이다.
+- (닫힘) [결정: review.m3-design-inputs D-M3-05] 대기 vs 거부: 대기가 기본이고 대기 상한을 넘으면 거부한다(§3.5 규칙 3). `product.vision.spec` §5와 §10 미결 3의 답이다.
 - (닫힘) 선점 허용: X가 이름 지정에 한해 다음 경계에서 `revoked`로 회수한다(X.primitives.spec §4.4.1 5번, [결정: P-22]). `auto`는 선점하지 않는다(§3.5 규칙 4, §4.3 4번). `auto` 우선순위 선점은 두지 않는다.
 - (닫힘) [결정: review.decisions-2 D-04] `GroupService`와 부속 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 둔다(F.capabilities.spec §3.12, 이 문서 §3.8). `eng.context-map.design` §5.3의 F 위치 열은 그 문서 쪽에서 services로 고친다.
 - [미결] 템플릿 위치: `eng.context-map.design` C-2. 이 문서와 L3.group-kit.plan §2는 L3.slots.plan §2.1 후보 a(`xeon/packages/group-kit/templates/`, 정식 예는 `src/testing/policies/`)를 [제안]으로 따른다. 스캐폴드 명령의 실행은 L4.cli.spec이 맡는다(L3.slots.spec §3.3.6).
@@ -1186,13 +1265,18 @@ g.on("turn_end", async (end, _current, ctx) => {
 - (닫힘) 정책 포트 타입 `LeaseArbiterPort`·`LeaseCandidate`의 정본은 F.extensions.spec §3.2.1 `ports.ts`다. group-kit은 `@xeon/contracts/extensions`에서 가져온다. 역할 분담은 §3.5 표로 정했다.
 - (닫힘) X에 요청한 4개 항목(§3.13)은 X.1과 테스트 호스트 재시작으로 반영됐다. 2차 계측·승격 집계용 조회(§3.13 5번)만 남았다.
 - [미결] M2 구현이 남긴 연결: 설정 읽기 포트 `GroupSettingsSourceKey`(`xeon.settings`), `DriveHolderSettingsPort`, `GroupCatalogPort`는 조립 루트(HOST)가 설정 서비스와 로더 보고에 연결한다. 그 전까지 시험은 `memoryDriveHolderSettings`, `groupCatalogOf`를 쓴다.
-- [미결] 유휴 중 임대 부여로 자율 turn이 시작되는 것을 허용할지. X.primitives.spec §4.5.5는 유휴 토글을 즉시 적용하고 자율 turn을 [제안]으로 허용한다.
+- (닫힘) [결정: review.m3-design-inputs D-M3-06] 유휴 중 임대 부여로 자율 turn을 시작하는 것을 임대 상한 안에서 허용한다. X.primitives.spec §4.5.5의 [제안]과 같다.
 - [미결] `GroupService`가 thread별 상태를 보이는 방식(§3.8 [가정]).
-- [미결] 완료 보고가 새 turn을 시작하는지, 위임 상한의 귀속, 그룹 끄기 때 진행 중 위임 처리(§3.4, §4.10, `_research/notes/L3-1.md` §6). 위임 도구 정책(허용·차단)은 §3.4에서 둘 다 받는 것으로 정했다 [제안].
+- [미결] 위임 상한의 귀속(§3.4, `_research/notes/L3-1.md` §6). 완료 보고와 끄기 때 처리는 아래 결정으로 닫았다. 위임 도구 정책(허용·차단)은 §3.4에서 둘 다 받는 것으로 정했다 [제안].
+  - M3 설계(2026-10-26): `next` 보고는 turn을 시작하지 않는다(ADR-0013). `report`는 선택 필드다 [결정: review.m3-design-inputs D-M3-03]. 끄기 때는 `cancelDelegates`로 즉시 취소한다 [결정: review.m3-design-inputs D-M3-04]. 상한 귀속은 L1.agents 요구 REQ-L1-03(`review.m3-design-inputs` §4.4)이다.
 - [결정: review.decisions-2 T-21] 상태 상한(64 KiB)을 넘는 비공개 기록은 X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 `GroupApi`가 그대로 전달한다(§3.2).
 - [미결] 임대 이벤트 이름: F.records.spec `lease.acquired`·`lease.released`와 `eng.context-map.design` 5.1절 `drive.leased`·`drive.released`. 이 문서는 F 이름을 쓴다.
 - [결정: review.decisions-2 T-21] `grp.<그룹>.metrics.recorded`와 `grp.<그룹>.state.committed`의 소유는 §4.9와 §3.6 표에 적었다.
 - [결정: review.decisions-2 U-18] 그룹 이름 규칙은 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음)이다. 테이블 접두는 이름의 하이픈을 밑줄로 바꿔 만든다.
-- [미결] `scanDriveSource`의 파서 `@swc/core`를 group-kit이 import하려면 DR-07 `MODULE_OWNERS` 항목이 필요하다.
+- [미결] `scanDriveSource`의 파서 `@swc/core`를 group-kit이 import하려면 DR-07 `MODULE_OWNERS` 항목이 필요하다. M3a는 `group-kit/package.json`에 `@swc/core`(`catalog:`)를 더했고 `check-layers`는 통과한다. `eng.dependency-rules.guide` 표와 `MODULE_OWNERS`에 행을 더하는 승인은 아직 없다.
+- [미결] [M3a] `delegate_capability` 검사(§3.3): 위임 능력 ID가 F에 없고 L1 서비스는 포트(`xeon.agents`)라 매니페스트로 선언할 수 없다. 포트는 내장 확장만 읽으므로 외부 그룹의 위임 허용 여부는 신뢰 등급 정책이 정한다.
+- [미결] [M3a] 옛 스펙의 `cancelDelegates(reason): Promise<{ cancelled: number }>`와 `delegateStatus(requestId): DelegateStatus | undefined`를 값 반환(`CancelDelegatesResult`, `DelegateStatusResult`)으로 바꿨다. L1 `cancel`은 `{ cancelled: boolean }`을 돌려주어 개수를 알 수 없고, 서비스 없음과 문맥 거부는 값으로 알려야 하기 때문이다(TY-11). 학습 스펙 §3·§4.3의 호출 예(`g.cancelDelegates("group_disabled")`)는 그대로 쓸 수 있고 반환값을 쓰는 곳만 맞춘다.
+- [미결] [M3a] G-30의 "실패 값": `GroupStatus.drive`의 `"rejected"`만 채웠다. 거부 사유(`reason`, `requestSeq`)를 `GroupStatus`나 `GroupError`에 싣는 안은 F `services/groups.ts` 변경이 필요해 하지 않았다.
+- [미결] [M3a] `replayDrive`의 지점 목록 지정(`cutAt`)과 사용자 입력 시작(`input`), 실패 보고의 첫 차이 이벤트 표시는 G-20 남은 몫이다.
 - (닫힘) `RuntimeChange`의 단계 경계 값: 이 값을 쓰던 group-kit의 구동 그룹 키를 지웠다(§6, review.decisions-2 S-15).
 - [결정: review.decisions-2 U-17] `group-kit`의 `@xeon/ext-host` import(`hostOf`, 리소스 정의 타입, 플러그인 등록)는 DR-14의 ext-host 예외(서비스 등록·주입 API만)에 든다. 그룹 패키지는 `@xeon/ext-host`를 import하지 않는다(L3.readme §3).

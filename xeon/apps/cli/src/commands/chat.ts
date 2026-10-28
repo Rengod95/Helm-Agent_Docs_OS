@@ -132,11 +132,15 @@ async function chatWork(
 ): Promise<ExitCode> {
   const { io, global } = ctx;
   const interactive = command.mode === "interactive";
-  const connected = await connectOrReport(ctx, (message) => {
-    // 위치를 먼저 남기고(동기) 그 다음에 JSON 줄로 내보낸다: 강제 종료 뒤 재개가 본 이벤트를 다시 받지 않게 한다(AC2)
-    holder.keeper?.observe(message);
-    tap.observe(message);
-  });
+  const connected = await connectOrReport(
+    ctx,
+    (message) => {
+      // 위치를 먼저 남기고(동기) 그 다음에 JSON 줄로 내보낸다: 강제 종료 뒤 재개가 본 이벤트를 다시 받지 않게 한다(AC2)
+      holder.keeper?.observe(message);
+      tap.observe(message);
+    },
+    { safeMode: command.safeMode },
+  );
   if (!connected.ok) return connected.error;
   const handle = connected.value;
   holder.handle = handle;

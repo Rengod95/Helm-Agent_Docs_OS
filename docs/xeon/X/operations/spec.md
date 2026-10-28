@@ -22,8 +22,8 @@ binds: [xeon/packages/ext-host/src/operations/**]
 | 2 | 실패 격리와 핸들러 시간 예산 | 1차 | §3.2~§3.3, §4.2~§4.3 |
 | 3 | 확장 전용 저장 영역 | 1차 | §3.4, §4.4 |
 | 4 | 이름 충돌 규칙 | 2차 | §3.5, §4.5 |
-| 5 | 안전 모드 | 2차 | §3.6, §4.6 |
-| 6 | 외부 훅 프로토콜 | 2차 | §3.7, §4.7 |
+| 5 | 안전 모드 | 2차. M3에 넣는다 [결정: review.m3-design-inputs D-M3-11 c] | §3.6, §4.6 |
+| 6 | 외부 훅 프로토콜 | M4로 옮김. M3 밖이다 [결정: 2026-10-28 사용자]. 근거는 D-M3-11 c안 원문("로더·안전 모드만")과 §10 21 | §3.7, §4.7 |
 
 정하는 것:
 
@@ -40,7 +40,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 
 - 지점 이름, fold, 페이로드 타입, `FIRST_DENY`, `CHAIN_RULES`: `F.extensions.spec`(정본). 이 문서는 이름으로 인용하고 재정의하지 않는다.
 - 디스패처, post 큐, drive 임대 중재, scope 토글 적용, 리소스 등록 API, `DispatchPolicy` 인터페이스 자체: `X.primitives.spec`
-- 확장 탐색, 로드 순서, 매니페스트 검증 흐름, 신뢰 판정, 프로세스 격리, pi 어댑터: `X.loading-trust.spec`
+- 확장 탐색, 로드 순서, 매니페스트 검증 흐름, 신뢰 판정, 프로세스 격리, SDK 가상 모듈: `X.loading-trust.spec`
 - 세션 커밋 경로와 투영기 실행: `L1.persistence.spec`, `eng.transactions.design`
 - 테이블 DDL 실행과 연결 관리: `L0.store.spec`
 
@@ -69,7 +69,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 | 지역 이름 | 확장 전용 테이블 이름에서 접두를 뺀 부분 |
 | 정식 이름 (qualified name) | `<확장 이름>:<이름>` 형식의 리소스 이름. 모델 도구는 `<확장 이름>__<이름>` |
 | 짧은 이름 | 접두 없는 리소스 이름. 충돌이 없고 예약되지 않았을 때만 노출한다 |
-| 안전 모드 | 외부 확장(`user`·`project` tier), 외부 훅, L3 내장 그룹([제안], §4.6.2)을 싣지 않고 시작하는 모드 |
+| 안전 모드 | 외부 확장(`user`·`project` tier), 외부 훅, L3 내장 그룹([결정: review.m3-design-inputs D-M3-07 a], §4.6.2)을 싣지 않고 시작하는 모드 |
 | 외부 훅 | 설정에 적은 외부 명령. on 지점 하나에 stdin/stdout JSON으로 참여한다 |
 
 ## 3. 인터페이스
@@ -191,7 +191,7 @@ export const DEFAULT_BUDGETS_MS: BudgetTable;
 
 /** 고빈도 관찰 지점. streamTap 예산을 쓴다 */
 export const STREAM_TAP_POINTS: readonly PointName[];
-// = ["message_update", "provider_stream_event", "tool_execution_update"]
+// = ["boundary.message.update", "request.stream", "tool.execution.update"]
 
 /** 순수 함수. setup(X.primitives.spec §4.5.3, 값은 OperationsPolicy.setupBudgetMs)과 외부 훅은 이 함수를 쓰지 않는다 */
 export function budgetClassOf(point: PointDecl): Exclude<BudgetClass, "setup" | "hook">;
@@ -250,6 +250,8 @@ export interface HandlerOutcomeRecord {
   readonly tier: Tier;
   readonly point: PointName;
   readonly fold: Fold;
+  /** 그 지점 선언의 실패 정책. `POINTS[point].failure`를 읽는다(F.extensions.spec §3.3, adr.0017) */
+  readonly failure: FailurePolicy;
   readonly result: HandlerResultKind;
   /** 멈춘 시간을 뺀 실행 시간 */
   readonly activeMs: number;
@@ -259,8 +261,7 @@ export interface HandlerOutcomeRecord {
   readonly message?: string;
 }
 
-/** F.extensions.spec FoldOnError와 같은 값. 재정의하지 않고 POINTS[point].onError를 읽는다 */
-export type FoldFailureAction = PointDecl["onError"];
+/** F.extensions.spec FailurePolicy(`closed`, `open`, `skip`)를 쓴다. 재정의하지 않고 POINTS[point].failure를 읽는다 */
 
 export interface FailureStats {
   readonly consecutive: number;
@@ -561,7 +562,7 @@ export function createResourcePolicy(reserved: ReservedNames): ResourcePolicy;
 export const NO_RESERVED_NAMES: ReservedNames;
 ```
 
-### 3.6 안전 모드 (`safe-mode.ts`, 2차)
+### 3.6 안전 모드 (`safe-mode.ts`)
 
 ```ts
 export type SafeModeSource = "flag" | "env" | "setting" | "command";
@@ -601,7 +602,7 @@ export interface StartupHealthStore {
 export function shouldSuggestSafeMode(consecutiveFailures: number, threshold: number): boolean;
 ```
 
-### 3.7 외부 훅 (`hooks/*.ts`, 2차)
+### 3.7 외부 훅 (`hooks/*.ts`, M4)
 
 ```ts
 // hooks/config.ts
@@ -609,8 +610,8 @@ export const HOOK_ID_PATTERN = "^[a-z][a-z0-9-]{1,63}$";
 
 /** 외부 훅이 참여할 수 있는 지점 */
 export const HOOK_POINTS: readonly [
-  "input", "user_bash", "tool_call", "tool_result",
-  "session_start", "session_before_compact", "agent_settled", "session_shutdown",
+  "input.user.before", "input.bash.before", "tool.call.before", "tool.result",
+  "session.start", "session.compact.before", "boundary.settle.after", "session.shutdown",
 ];
 export type HookPointName = (typeof HOOK_POINTS)[number];
 
@@ -810,13 +811,13 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | `first` | 바깥 tier의 결정이 우선한다. 바깥 핸들러가 `undefined`가 아닌 값을 내면 안쪽 핸들러는 실행되지 않는다 |
 | `chain` | 바깥에서 안쪽으로 적용한다. 안쪽 핸들러는 바깥 핸들러들이 만든 `current`를 받는다. 교체 규칙의 지점에서는 안쪽 패치가 바깥 패치를 덮어쓸 수 있다 |
 
-예 1 (`first`, `tool_call`): `guard`의 권한 핸들러, `user` 확장 A, `builtin`의 Helm이 모두 `tool_call`에 걸려 있다. 권한 핸들러가 `{ block: true, reason: "denied by rule" }`을 내면 A와 Helm은 실행되지 않는다. 권한 핸들러가 `undefined`를 내고 A가 거부를 내면 Helm은 실행되지 않는다. `ToolCallDecision`에는 허용 변형이 없으므로(`F.extensions.spec` §3.5) 안쪽 확장이 바깥의 거부를 허용으로 바꾸는 경로가 없다.
+예 1 (`first`, `tool.call.before`): `guard`의 권한 핸들러, `user` 확장 A, `builtin`의 Helm이 모두 `tool.call.before`에 걸려 있다. 권한 핸들러가 `{ block: true, reason: "denied by rule" }`을 내면 A와 Helm은 실행되지 않는다. 권한 핸들러가 `undefined`를 내고 A가 거부를 내면 Helm은 실행되지 않는다. `ToolCallDecision`에는 허용 변형이 없으므로(`F.extensions.spec` §3.5) 안쪽 확장이 바깥의 거부를 허용으로 바꾸는 경로가 없다.
 
-예 2 (`first`, `project_trust`): 결정에 "신뢰함"이 있는 지점이다. 사용자 확장이 가드보다 바깥에 있으면 그 확장의 "신뢰함"이 가드를 건너뛴다. 그래서 가드는 가장 바깥 tier여야 한다.
+예 2 (`first`, `session.trust.before`): 결정에 "신뢰함"이 있는 지점이다. 사용자 확장이 가드보다 바깥에 있으면 그 확장의 "신뢰함"이 가드를 건너뛴다. 그래서 가드는 가장 바깥 tier여야 한다.
 
-예 3 (`chain`, `before_agent_start`): `guard`가 시스템 프롬프트에 안전 문구를 더하고, `user` 확장이 시스템 프롬프트를 교체하면 안전 문구는 사라진다. chain은 안쪽 핸들러가 값을 고칠 수 있는 fold다. 그래서 [제안] 보안 불변식은 chain 지점에 두지 않는다. 보안 판정은 first 지점(`tool_call`, `user_bash`, `project_trust`, `session_before_*`)과 L1의 최종 검증(`F.extensions.spec` §4.1 `finalize`, `L1.tools.spec`의 권한 판정)에 둔다. 가드 tier의 chain 핸들러는 기본값 제공 용도로만 쓴다.
+예 3 (`chain`, `input.agent.before`): `guard`가 시스템 프롬프트에 안전 문구를 더하고, `user` 확장이 시스템 프롬프트를 교체하면 안전 문구는 사라진다. chain은 안쪽 핸들러가 값을 고칠 수 있는 fold다. 그래서 [제안] 보안 불변식은 chain 지점에 두지 않는다. 보안 판정은 first 지점(`tool.call.before`, `input.bash.before`, `session.trust.before`, `session_before_*`)과 L1의 최종 검증(`F.extensions.spec` §4.1 `finalize`, `L1.tools.spec`의 권한 판정)에 둔다. 가드 tier의 chain 핸들러는 기본값 제공 용도로만 쓴다.
 
-예 4 (`chain`, `tool_result`): `user` 확장 A가 `content`를 요약으로 바꾸고, `builtin`의 학습 그룹이 `details`만 바꾼다. `CHAIN_RULES.tool_result`는 필드별 병합이라 두 변경이 모두 남는다. 순서가 바뀌어도 결과가 같다.
+예 4 (`chain`, `tool.result`): `user` 확장 A가 `content`를 요약으로 바꾸고, `builtin`의 학습 그룹이 `details`만 바꾼다. `CHAIN_RULES.tool_result`는 필드별 병합이라 두 변경이 모두 남는다. 순서가 바뀌어도 결과가 같다.
 
 ### 4.2 핸들러 시간 예산
 
@@ -824,7 +825,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 | 출처 | 기본 예산 | UI 대기 | 초과 시 | 근거 |
 |---|---|---|---|---|
-| omp | 모든 핸들러 30초, `session_shutdown` 2초 | 대화상자·승인 동안 정지(`HandlerTimeoutBudget` pause/resume) | `tool_call`은 차단, 나머지는 건너뜀 | omp `runner.ts:133-200`(상수, `handlerTimeoutForEvent`, `createHandlerUIContext`), `:300-375`(`raceHandlerWithTimeout`), `_research/refs/oh-my-pi.md` 125·274행 |
+| omp | 모든 핸들러 30초, `session.shutdown` 2초 | 대화상자·승인 동안 정지(`HandlerTimeoutBudget` pause/resume) | `tool.call.before`은 차단, 나머지는 건너뜀 | omp `runner.ts:133-200`(상수, `handlerTimeoutForEvent`, `createHandlerUIContext`), `:300-375`(`raceHandlerWithTimeout`), `_research/refs/oh-my-pi.md` 125·274행 |
 | Claude Code mods | 핸들러 10초(`prompt.edit` 50ms), `.catch` 1초 | `$.ui.ask` 대기 미산입 | 건너뜀(fail-open), `.catch`로 fail-closed 선택 | `_research/refs/claude-code.md` mods "실패 격리" 항목 |
 | Claude Code 설정 훅 | command 600초(일부 30초·10초), SessionEnd 1.5초 | 해당 없음 | 비차단(`onFailure:"block"`으로 차단 선택) | `_research/refs/claude-code.md` hooks 항목 |
 | Hermes | 핫패스 훅과 `pre_tool_call` 30초 | 확인 안 함 | `pre_tool_call`은 차단, 나머지 건너뜀 | `_research/refs/hermes.md` 304행 |
@@ -836,11 +837,11 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 | 등급 | 대상 | 기본(ms) | 이유 |
 |---|---|---|---|
-| `first` | fold가 `first`인 지점 7개 | 30,000 | 정책 판정이 외부 정책 파일이나 판정 모델을 볼 수 있다. omp·Hermes와 같은 값 |
-| `chain` | fold가 `chain`인 지점 12개 | 10,000 | 모델 요청마다(`context`, `before_provider_request`) 또는 커밋 직전(`turn_end`, `agent_before_settle`)에 실행되어 지연이 사용자에게 바로 보인다. Claude Code mods와 같은 값 |
+| `first` | fold가 `first`인 지점 10개(guard 3개 포함) | 30,000 | 정책 판정이 외부 정책 파일이나 판정 모델을 볼 수 있다. omp·Hermes와 같은 값 |
+| `chain` | fold가 `chain`인 지점 10개와 `collect`인 지점 2개 | 10,000 | 모델 요청마다(`request.context.before`, `request.provider.before`) 또는 커밋 직전(`boundary.step.after`, `boundary.settle.before`)에 실행되어 지연이 사용자에게 바로 보인다. Claude Code mods와 같은 값 |
 | `tap` | `await` tap 중 아래 둘을 뺀 것 | 5,000 | 결과가 없으므로 기다릴 이유가 적다 |
 | `streamTap` | `STREAM_TAP_POINTS` 3개 | 1,000 | 토큰·진행 조각마다 실행된다 |
-| `shutdown` | `session_shutdown` | 2,000 | 종료를 붙잡지 않는다(omp issue #2600 주석) |
+| `shutdown` | `session.shutdown` | 2,000 | 종료를 붙잡지 않는다(omp issue #2600 주석) |
 | `setup` | 엔트리 본문과 scope setup 실행(`ExtHost.install`, X.primitives.spec §4.5.3, §4.5.6) | 10,000 | 시작 시간을 붙잡지 않는다. 넘으면 primitives가 그 scope의 fiber를 해제해 등록을 되돌리고, 로더가 `setup_timeout` 진단을 남긴다(X.loading-trust.spec §4.4.3) |
 | `hook` | 외부 훅(§4.7) | 30,000 | 프로세스 시작 비용을 포함한다. 훅 정의의 `timeoutMs`가 우선한다(최대 600,000) |
 
@@ -862,7 +863,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 2. 디스패처는 그 핸들러의 완료를 대기하지 않고 다음 핸들러로 진행한다. 늦게 온 반환값과 예외는 버린다.
 3. fold별 처리는 `F.extensions.spec` §4.1 세 줄을 그대로 적용한다. 예산 초과는 예외와 같다.
    - `tap`: 기록하고 계속한다.
-   - `first`: `FIRST_DENY[point]`를 결정으로 쓴다. 예: `tool_call`은 `{ block: true, reason: "extension handler failed", terminate: false }`. `project_trust`는 불신, `session_before_*`는 취소다.
+   - `first`: `FIRST_DENY[point]`를 결정으로 쓴다. 예: `tool.call.before`은 `{ block: true, reason: "extension handler failed", terminate: false }`. `session.trust.before`는 불신, `session_before_*`는 취소다.
    - `chain`: 그 핸들러의 패치를 버리고 `current`를 다음 핸들러에 넘긴다.
 4. 실패 장부에 `timeout`으로 기록한다(§4.3).
 
@@ -875,7 +876,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 #### 4.2.6 트랜잭션 지연과의 관계
 
 - 확장 기여(`first`, `chain` 결과)는 커밋 전에 트랜잭션 밖에서 계산하고 결과만 커밋에 넣는다(`eng.transactions.design` §4.1, TX-01). 그래서 핸들러 예산은 DB 쓰기 잠금 시간에 들어가지 않는다. 늘어나는 것은 커밋 시점까지의 지연이다.
-- 커밋 지점별 최악 지연은 그 지점 핸들러 예산의 합이다. 예: `turn_end`(C5·C6 앞)에 chain 핸들러가 3개면 최대 30초 늦게 커밋된다. `tool_call`(C3 앞)에 first 핸들러가 2개면 최대 60초다.
+- 커밋 지점별 최악 지연은 그 지점 핸들러 예산의 합이다. 예: `boundary.step.after`(C5·C6 앞)에 chain 핸들러가 3개면 최대 30초 늦게 커밋된다. `tool.call.before`(C3 앞)에 first 핸들러가 2개면 최대 60초다.
 - [제안] 한 지점의 핸들러 실행 시간 합이 1초를 넘으면 느린 지점 진단(운영 로그, `xeon doctor` 출력 후보)을 남긴다. 사용자 알림은 하지 않는다.
 - 예산 초과로 커밋에 들어가는 값: first는 거부값, chain은 그때까지의 `current`다. 둘 다 결정적이므로 재생 규칙(`F.extensions.spec` §4.3)과 충돌하지 않는다.
 
@@ -889,7 +890,7 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 | 예외 | `threw` | 실패 |
 | 예산 초과 | `timeout` | 실패 |
 | first 결정·chain 패치의 스키마 위반 | `result_invalid` | 실패 |
-| chain 병합 함수 예외(예: `message_end` role 불일치) | `merge_rejected` | 실패 |
+| chain 병합 함수 예외(예: `boundary.message.after` role 불일치) | `merge_rejected` | 실패 |
 | tap 핸들러가 값을 반환 | `value_from_tap` | 기록만, 실패 아님 |
 | 격리 확장 프로세스의 비정상 종료로 끝난 호출 | `isolation_exited` | 실패 |
 | 외부 훅의 비정상 종료·출력 위반·시작 실패 | `hook_exit`, `hook_output`, `hook_spawn` | 실패 |
@@ -1029,13 +1030,12 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `exposeAll`을 더했다(M2). 리소스 레지스트리는 같은 kind(도구, 명령, 단축키, 플래그)의 리소스가 등록되거나 해제될 때마다 그 kind 전체 레코드로 `exposeAll`을 불러 노출 이름을 다시 계산한다. 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`에서 등록을 해제하고 새 이름으로 다시 등록한다). 들어오는 레코드의 노출 이름이 `too_long`이면 기존 레코드를 건드리지 않고 등록을 거부한다(`resource_name_invalid`). 그래서 규칙 3(로드 순서 무관)이 지켜지고, 확장 하나를 끄면 남은 확장이 짧은 이름을 되찾는다. 쌍 판정 `resolve`는 `exposeAll`이 없는 정책을 위해 남겼고 들어오는 쪽에 `{ action: "rename", name: <정식 이름> }`을 돌려준다.
 
-pi 어댑터에서의 처리:
+외부 확장의 내장 도구 교체:
 
-- pi 확장은 `registerTool`, `registerCommand`, `registerShortcut`, `registerFlag`로 짧은 이름을 등록한다(`_research/notes/X-3.md` 어댑터 지원 표). 어댑터는 이 호출을 같은 규칙의 `ResourceClaim`으로 바꾼다. 확장 이름은 어댑터가 정한 `ExtensionName`이다(`X.loading-trust.spec`).
-- pi는 같은 이름 도구 등록으로 내장 도구를 바꿀 수 있다. Xeon에서는 규칙 2에 따라 내장 이름(`read`, `bash` 등)을 바꿀 수 없고, pi 확장의 그 도구는 정식 이름으로 노출된다. 내장 도구 교체 허용 여부는 §10 미결 10이다.
+- 외부 확장이 내장 도구와 같은 이름(`read`, `bash` 등)을 등록해도 규칙 2에 따라 내장 이름은 바뀌지 않고, 그 확장의 도구는 정식 이름으로 노출된다. 내장 도구 교체 허용 여부는 §10 미결 10이다.
 - `F.capabilities.spec` §10의 도구 이름 네임스페이스 [미결] 후보 가운데 이 문서는 (b) `<확장>__<이름>`과 (c) 충돌한 쪽만 접두의 결합을 제안한다.
 
-### 4.6 안전 모드 (2차)
+### 4.6 안전 모드
 
 #### 4.6.1 켜는 방법
 
@@ -1056,13 +1056,13 @@ pi 어댑터에서의 처리:
 | `guard` tier(권한·샌드박스 내장 가드) | 켜짐 |
 | `core` tier(L1 코어) | 켜짐 |
 | `builtin` tier 중 L0~L2 내장 패키지(`platform-*`, `cap-*`) | 켜짐 |
-| `builtin` tier 중 L3 내장 그룹(Helm, 학습 그룹) | 꺼짐 [제안, §10 미결 19] |
-| `user`, `project` tier 확장(외부 plugin, 외부 group, pi 어댑터 확장) | 꺼짐 |
+| `builtin` tier 중 L3 내장 그룹(학습 그룹) | 꺼짐 [결정: review.m3-design-inputs D-M3-07 a] |
+| `user`, `project` tier 확장(외부 plugin, 외부 group). 기본 플러그인 Helm은 사용자 확장 위치에 설치되므로 여기에 든다([결정: review.m3-design-inputs D-M3-01 c]) | 꺼짐 |
 | 외부 훅 전체 | 꺼짐 |
 | 관리(managed) 범위 확장(2차) | 켜짐(`guard`) |
 
 - 기준: `allowedInSafeMode`는 tier가 `guard`·`core`이거나, tier가 `builtin`이고 `layer`가 `L1`·`L2`이면 참이다. 내장 L0 패키지는 on을 쓰지 않으므로 이 판정과 별개로 항상 실린다.
-- [제안] L3 내장 그룹을 끄는 이유: drive를 쓰는 그룹은 루프 진행을 바꾸므로, 복구 목적의 시작에서는 기본 루프만 남긴다. 안전 모드는 계획 v2의 "모든 확장을 끈 채 시작"(`_research/layer-plan-v2.json` X-c 안전 모드 행)을 내장 L0~L2와 보안 가드를 남기는 범위로 읽는다. Helm은 L3 기본 그룹([결정] `_research/decisions-log.md` 2026-10-21 계획 v2)이므로 안전 모드에서 기본 그룹이 빠지는 제품 동작이 된다. 사용자 확인 전이다(§10 미결 19). 확인 결과 L3 내장 그룹을 남기기로 하면 이 행과 `allowedInSafeMode`, §9 수용 기준 21을 함께 고친다.
+- [결정: review.m3-design-inputs D-M3-07 a] L3 내장 그룹을 끈다. 이유: drive를 쓰는 그룹은 루프 진행을 바꾸므로, 복구 목적의 시작에서는 기본 루프만 남긴다. 안전 모드는 계획 v2의 "모든 확장을 끈 채 시작"(`_research/layer-plan-v2.json` X-c 안전 모드 행)을 내장 L0~L2와 보안 가드를 남기는 범위로 읽는다. Helm은 L3 기본 그룹([결정] `_research/decisions-log.md` 2026-10-21 계획 v2)이므로 안전 모드에서 기본 그룹이 빠지는 제품 동작이 된다. 사용자 확인 전이다(§10 미결 19). 확인 결과 L3 내장 그룹을 남기기로 하면 이 행과 `allowedInSafeMode`, §9 수용 기준 21을 함께 고친다.
 
 #### 4.6.3 동작
 
@@ -1082,7 +1082,7 @@ pi 어댑터에서의 처리:
 - 같은 탭의 확장 목록에 자동으로 꺼진 확장과 안전 모드로 빠진 확장을 사유와 함께 보인다.
 - 안전 모드 키는 `x.operations.safeMode.*`다. `L4.settings-ui.spec` §4.1 "plugins" 탭 행도 안전 모드를 `x.operations.*` 아래로 적는다(§10 12번, 해소).
 
-### 4.7 외부 훅 프로토콜 (2차)
+### 4.7 외부 훅 프로토콜 (M4)
 
 #### 4.7.1 설정 위치와 형식
 
@@ -1095,26 +1095,26 @@ pi 어댑터에서의 처리:
 ```json
 {
   "x.operations.hookDefs": [
-    { "id": "no-rm-rf", "point": "tool_call", "tools": ["bash"], "command": ["./.xeon/hooks/check-bash.sh"], "timeoutMs": 5000 },
-    { "id": "log-start", "point": "session_start", "command": ["/usr/local/bin/xeon-log", "start"] }
+    { "id": "no-rm-rf", "point": "tool.call.before", "tools": ["bash"], "command": ["./.xeon/hooks/check-bash.sh"], "timeoutMs": 5000 },
+    { "id": "log-start", "point": "session.start", "command": ["/usr/local/bin/xeon-log", "start"] }
   ]
 }
 ```
 
 #### 4.7.2 매칭
 
-- 지점: `HOOK_POINTS` 8개만 허용한다. 고빈도 지점(스트림 tap), 모델 요청 직전 chain(`context`, `before_provider_request`), boundary chain(`turn_end` 등, 확장 kind 초안이 필요함)은 외부 프로세스 비용과 형식 때문에 뺀다.
+- 지점: `HOOK_POINTS` 8개만 허용한다. 고빈도 지점(스트림 tap), 모델 요청 직전 chain(`request.context.before`, `request.provider.before`), boundary chain(`boundary.step.after` 등, 확장 kind 초안이 필요함)은 외부 프로세스 비용과 형식 때문에 뺀다.
 
   | 지점 | fold | Claude Code 대응 |
   |---|---|---|
-  | `input` | chain | UserPromptSubmit |
-  | `user_bash` | first | (없음) |
-  | `tool_call` | first | PreToolUse |
-  | `tool_result` | chain | PostToolUse |
-  | `session_start` | tap | SessionStart |
-  | `session_before_compact` | first | PreCompact |
-  | `agent_settled` | tap | Stop(차단 불가) |
-  | `session_shutdown` | tap | SessionEnd |
+  | `input.user.before` | chain | UserPromptSubmit |
+  | `input.bash.before` | first | (없음) |
+  | `tool.call.before` | first | PreToolUse |
+  | `tool.result` | chain | PostToolUse |
+  | `session.start` | tap | SessionStart |
+  | `session.compact.before` | first | PreCompact |
+  | `boundary.settle.after` | tap | Stop(차단 불가) |
+  | `session.shutdown` | tap | SessionEnd |
 
 - 도구 필터: `tools`는 도구 이름 정확 일치 목록이다. 정규식은 받지 않는다 [제안]. Claude Code 매처는 정규식을 받지만 "강한 차단은 권한 시스템으로 하라"고 경고한다(`_research/refs/claude-code.md` hooks 매처 항목).
 
@@ -1214,8 +1214,8 @@ pi 어댑터에서의 처리:
 | `x.operations.autoDisable.windowSize` | integer | 50 | 5~10000 | live | managed, user, local | plugins | 1차 |
 | `x.operations.autoDisable.minFailures` | integer | 10 | 1~10000 | live | managed, user, local | plugins | 1차 |
 | `x.operations.autoDisable.failureRate` | number | 0.5 | 0.05~1 | live | managed, user, local | plugins | 1차 |
-| `x.operations.safeMode.default` | boolean | false | | restart | managed, user | plugins | 2차 |
-| `x.operations.safeMode.suggestAfter` | integer | 3 | 1~100 | restart | managed, user | plugins | 2차 |
+| `x.operations.safeMode.default` | boolean | false | | restart | managed, user | plugins | 1차 |
+| `x.operations.safeMode.suggestAfter` | integer | 3 | 1~100 | restart | managed, user | plugins | 1차 |
 | `x.operations.budget.hookMs` | integer | 30000 | 100~600000 | live | managed, user, local, session | plugins | 2차 |
 | `x.operations.hookDefs` | `HookDefListSchema` | `[]` | | live | managed, user, project, local | plugins(widget `table`) | 2차 |
 | `x.operations.hookEnvAllow` | string[] | `[]` | | live | managed, user | plugins(widget `list`) | 2차 |
@@ -1249,7 +1249,7 @@ pi 어댑터에서의 처리:
 | `HandlerOutcomeRecord`, `FailureLedger`, `AutoDisabler`, `ScopeChangeReason` | X.primitives.spec, L4.settings-ui.spec(상태 표시) |
 | `ExtStorage`, `ExtTables`, `ExtProjection`, `ExtTableDef`, `storageOf`, `extTablePrefix`, `parseExtTableName` | L3.group-kit.spec, L3.helm.spec, L3.learning.spec, 외부 확장 |
 | `ExtStorageAdmin` | X.loading-trust.spec §4.4.5(제거 흐름, `LoaderDeps.storageAdmin`), L4(확인 화면) |
-| `resolveNames`, `qualifiedName`, `ResourceClaim`, `createResourcePolicy` | X.primitives.spec(리소스 등록), X.loading-trust.spec(pi 어댑터) |
+| `resolveNames`, `qualifiedName`, `ResourceClaim`, `createResourcePolicy` | X.primitives.spec(리소스 등록), X.loading-trust.spec(외부 확장 로더) |
 | `startupFilter`, `StartupOptions`, `allowedInSafeMode`, `StartupHealthStore`, `shouldSuggestSafeMode` | X.loading-trust.spec(`LoadOptions.startup`, 5a단계), L4.host-service.spec, L4.cli.spec |
 | `HookDef`, `HookInput`, `HookOutput`, `HOOK_SCHEMA_VERSION`, `interpretHookRun` | 외부 훅 작성자 문서, L4.settings-ui.spec |
 | 설정 키 `x.operations.*`, `operationsSettings` | L4.settings-ui.spec, L4.cli.spec, L4.host-service.spec(카탈로그 조립) |
@@ -1265,7 +1265,7 @@ pi 어댑터에서의 처리:
 | `SettingDef`, `defineSettings`, 키 문법, 범위 | F.wire-settings.spec |
 | 도구 이름 허용 문자, 도구 순서 키 | F.capabilities.spec |
 | `DispatchPolicy`(`onHandlerSettled`·`run` 포함, §3.4), `HandlerGate`, `HandlerRunOutcome`, `ExtHost.scope`·`scopes`·`install`·`ports`(ScopeControl과 포트의 바탕), `ExtHostDeps.now`·`setTimer`·`setupBudgetMs`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord`, `hostOf`, `ExtHost.ports`로 꺼내는 포트 키(F 이름 재export), UI 포트 | X.primitives.spec §3.2~§3.9 |
-| `TrustLevel`, `InstallSource`, `LoadedExtensionInfo`(`essential`, `loadIndex`), `TRUST_MATRIX.storage`, 로드 파이프라인 5a·6a·7단계, 프로젝트 신뢰, 제거 흐름, 격리 확장의 outbox, pi 어댑터 | X.loading-trust.spec §3.1~§3.5, §4.3, §4.4.5, §4.6, §4.7, §4.9, §4.10 |
+| `TrustLevel`, `InstallSource`, `LoadedExtensionInfo`(`essential`, `loadIndex`), `TRUST_MATRIX.storage`, 로드 파이프라인 5a·6a·7단계, 프로젝트 신뢰, 제거 흐름, 격리 확장의 outbox | X.loading-trust.spec §3.1~§3.5, §4.3, §4.4.5, §4.6, §4.7, §4.9 |
 | `Projector`, `ProjectionTx`, 투영 규칙 | eng.events.design §5.1 |
 | 커밋 순서, `SessionWriter`, `StoreService.scoped`, outbox 표 | eng.transactions.design §4, §7 |
 | 테이블·type 접두 소유표, 서비스 이름(`xeon.session`, `xeon.store`, `xeon.process`) | eng.context-map.design §5 |
@@ -1276,14 +1276,14 @@ pi 어댑터에서의 처리:
 ## 9. 수용 기준
 
 1. `guard` tier 핸들러는 로드·등록 순서와 관계없이 같은 지점의 다른 tier 핸들러보다 먼저 실행된다. 사용자 확장을 먼저 싣고 먼저 등록해도 같다.
-2. `tool_call`에서 `guard` 핸들러가 거부하면 `user`·`builtin` 핸들러는 호출되지 않고 결정은 가드의 거부다.
+2. `tool.call.before`에서 `guard` 핸들러가 거부하면 `user`·`builtin` 핸들러는 호출되지 않고 결정은 가드의 거부다.
 3. `orderKeyOf`·`tierOfFrom`으로 정렬한 결과는 tier가 같으면 `loadIndex`, 그것도 같으면 `registrationIndex` 오름차순이다.
 4. `assignTier`는 `GUARD_EXTENSIONS`에 없는 확장에 `guard`를 주지 않는다. `project` 설치 위치에 `builtin` 신뢰가 오면 `source_trust_mismatch`다.
 5. 가짜 시계에서 `first` 지점 핸들러가 30,000ms까지 끝나지 않으면 결정은 `FIRST_DENY[point]`이고 핸들러 signal은 `TimeoutError`로 abort된다. 29,999ms에 끝나면 그 값을 쓴다.
 6. `chain` 지점 핸들러가 예산을 넘으면 그 패치만 버려지고 다음 핸들러는 이전 `current`를 받는다.
 7. 핸들러가 `hostOf(g).awaitUser`로 60,000ms 동안 대화상자를 기다리고 그 앞뒤로 20,000ms씩 실행하면(`first`, 예산 30,000ms) 예산 초과가 아니다. 대기 없이 같은 40,000ms를 실행하면 예산 초과다.
 8. 예산 초과 뒤 핸들러가 값을 반환해도 결정·패치에 반영되지 않는다.
-9. `session_shutdown` 핸들러는 2,000ms에서 끊긴다.
+9. `session.shutdown` 핸들러는 2,000ms에서 끊긴다.
 10. drive 함수는 가짜 시계로 600,000ms가 지나도 시간 예산으로 abort되지 않는다.
 11. 한 확장의 핸들러가 연속 5번 실패하면 끄기 요청이 기록되고, 다음 단계 경계에서 `scope.changed{status:"disabled"}`가 커밋된다. 요청과 경계 사이에 실행 중인 디스패치는 끊기지 않는다.
 12. `guard`, `core` tier 확장은 실패가 기준을 넘어도 자동으로 꺼지지 않는다.
@@ -1295,11 +1295,11 @@ pi 어댑터에서의 처리:
 18. 확장 `a`의 `bc`와 확장 `a-b`의 `c`는 다른 테이블이 되고 `parseExtTableName`이 각각의 소유 확장을 돌려준다. `dropExtension("a", true)`는 `x_a_b_c`를 지우지 않는다.
 19. `dropExtension(name, false)`는 아무것도 지우지 않고 대상 목록만 돌려준다. `true`로 부른 뒤에도 그 확장의 이벤트 행 수는 같다.
 20. 외부 확장 둘이 같은 도구 이름 `search`를 등록하면 둘 다 `<확장>__search`로 노출되고 `search`는 노출되지 않는다. 입력 순서를 바꿔도 결과가 같다. 내장 도구 이름 `read`를 외부 확장이 등록하면 `<확장>__read`로만 노출된다. 한 확장을 끄면 남은 확장이 짧은 이름을 되찾고 도구 포트에는 해제 뒤 새 이름으로 다시 등록된다(집합 판정 `exposeAll`).
-21. 안전 모드로 시작하면 `user`·`project` tier 확장, L3 내장 그룹([제안], §10 미결 19), 외부 훅이 실리지 않고 `guard`·`core`·L0~L2 내장 패키지는 실린다.
+21. 안전 모드로 시작하면 `user`·`project` tier 확장(기본 플러그인 Helm 포함), L3 내장 그룹, 외부 훅이 실리지 않고 `guard`·`core`·L0~L2 내장 패키지는 실린다.
 22. `--disable-ext acme-notes`로 시작하면 그 확장만 실리지 않고 `ext.acme-notes.enabled` 설정 값은 바뀌지 않는다.
 23. 연속 시작 실패 수가 3이면 `shouldSuggestSafeMode`가 참이다.
-24. `tool_call` 외부 훅이 exit 2로 끝나면 결정은 거부이고 `reason`은 stderr 앞 500자다. 장부에는 실패로 남지 않는다.
-25. `tool_call` 외부 훅이 exit 1로 끝나면 결정은 거부이고 실패(`hook_exit`)로 남는다. `tool_result` 외부 훅이 exit 1로 끝나면 패치를 버리고 다음 핸들러로 간다.
+24. `tool.call.before` 외부 훅이 exit 2로 끝나면 결정은 거부이고 `reason`은 stderr 앞 500자다. 장부에는 실패로 남지 않는다.
+25. `tool.call.before` 외부 훅이 exit 1로 끝나면 결정은 거부이고 실패(`hook_exit`)로 남는다. `tool.result` 외부 훅이 exit 1로 끝나면 패치를 버리고 다음 핸들러로 간다.
 26. 외부 훅 stdout이 10,000자를 넘으면 10,000자에서 잘리고 실패(`hook_output`)로 처리된다(`first`면 거부).
 27. 외부 훅 stdin JSON에는 `schemaVersion: "xeon.hook.v1"`, `point`, `fold`, `payload`가 있다.
 28. `hookEnv`는 허용 목록 밖 변수와 `SECRET_ENV_PATTERN`에 맞는 변수를 넘기지 않는다. 프로젝트 범위 `x.operations.hookEnvAllow` 값은 무시된다.
@@ -1326,14 +1326,15 @@ pi 어댑터에서의 처리:
 7. [미결] 자동 끄기의 영속 여부. 현재 [제안]은 프로세스 단위(재시작하면 다시 실림)다. 여러 번의 시작에서 반복해 꺼지는 확장을 `ext.<name>.enabled=false`로 기록할지, 사용자 확인을 받을지.
 8. [미결] 이벤트에서 다시 만들 수 없는 부가 데이터 테이블(보존 테이블)을 허용할지. 허용하면 `eng.context-map.design` §5.2의 "`x_`는 확장 투영기만 쓴다, 재생 가능"을 바꾸고, 직접 쓰기 경로(커밋 계획에 데이터 연산 목록을 싣는 F `CommitPlan` 확장)와 열 추가 마이그레이션(`storage/migrate.ts`)이 필요하다.
 9. [미결] `ExtQuery`의 범위 조건(`gt`, `lt`, `in`, 접두 일치)과 집계. 그리고 SQLite authorizer(§4.4.6 C안)를 `bun:sqlite`에서 쓸 수 있는지 확인.
-10. [미결] pi 어댑터 확장의 내장 도구 교체 허용 여부. pi는 같은 이름 등록으로 내장 도구를 바꾼다. 허용하면 사용자 설정(예: `ext.<name>.overrideTools`)으로 명시 허용하는 방식을 제안한다.
+10. (닫힘) pi 어댑터를 만들지 않으므로 대상이 없다 [결정: review.m3-design-inputs D-M3-11 c]. 외부 확장의 내장 도구 교체는 규칙 2대로 허용하지 않는다. 이전 질문: pi 어댑터 확장의 내장 도구 교체 허용 여부. pi는 같은 이름 등록으로 내장 도구를 바꾼다. 허용하면 사용자 설정(예: `ext.<name>.overrideTools`)으로 명시 허용하는 방식을 제안한다.
 11. [미결] 안전 모드 상태를 클라이언트에 알리는 wire 필드(`F.wire-settings.spec` 호스트 정보 메서드).
 12. 안전 모드 키 위치(해소). `L4.settings-ui.spec` "plugins" 탭 행이 안전 모드를 `x.operations.*` 아래로 적어 이 문서의 `x.operations.safeMode.*`와 같다.
 13. [미결] 외부 훅 목록의 범위 병합 규칙(이어 붙이기)이 `F.wire-settings.spec` §4.7 우선순위(높은 범위가 값을 덮어씀)와 다르다. 배열 키의 병합 규칙을 F에 둘지, 이 키만 예외로 둘지.
 14. [미결] 기본 예산 값(30초·10초·5초·1초·2초)과 자동 끄기 기준(연속 5회, 창 50회 중 10회 이상이고 50% 이상)은 실측 전 값이다. M1 스모크와 pi 예제 확장 이식 뒤 조정한다.
-15. [미결] first 지점의 fail-closed를 `session_before_*`, `project_trust`에도 적용하는 `F.extensions.spec` §10 미결과 연결된다. 그 결정이 fail-open으로 바뀌면 §4.2.4의 예산 초과 처리와 §4.7.3 표의 first 열을 그 지점에서 바꾼다.
+15. [결정: adr.0017] 실패 정책은 지점 선언이 정한다. `session_before_*`, `session.trust.before`, 가드레일 지점은 fail-closed이고 `session.compact.before`만 fail-open 예외다 [제안]. §4.2.4의 예산 초과 처리와 §4.7.3 표의 first 열은 지점 선언의 실패 정책 값을 따르게 고친다(`review.m3-lower-requirements` M3-REQ-108).
 16. (해소) X.primitives.spec `DispatchPolicy`(§3.4)에 선택 메서드 `onHandlerSettled(entry, activeMs)`와 `run(entry, work, outer)`를 넣었다 [제안]. 이 문서의 `DispatchPolicyExtension`은 지웠고 `OperationsPolicy`가 두 메서드를 구현한다(§3.8, §4.2.3, §4.3.2).
 17. (해소, M2 O-19) `ResourcePolicy.exposeAll`(집합 판정)을 X.primitives.spec §3.9에 더했고 `createResourcePolicy`가 구현한다(§4.5).
 18. (해소) setup 시간 예산 키는 `x.operations.budget.setupMs`다. X.loading-trust.spec §4.3.1도 같은 이름을 쓴다. 값은 `OperationsPolicy.setupBudgetMs` → `ExtHostDeps.setupBudgetMs` 경로로 primitives의 scope setup에 걸린다.
-19. [미결] 안전 모드에서 L3 내장 그룹(Helm, 학습 그룹)을 끌지(§4.6.2). [제안] 끈다. 근거는 계획 v2 X-c "모든 확장을 끈 채 시작"의 해석뿐이고, Helm이 L3 기본 그룹이므로 사용자 확인이 필요하다. 남기기로 하면 drive 그룹만 임대 없이 싣는 안도 있다.
-20. [미결] 샌드박스 강제를 on 핸들러(`tool_call` first)로 둘지, L0 실행 경로에서만 할지(§3.1, §4.1.2). [제안] L0 실행 경로에서 하고 on 핸들러는 두지 않는다. on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다. `L0.sandbox.spec`, `L1.tools.spec`과 정한다.
+19. [결정: review.m3-design-inputs D-M3-07 a] 안전 모드에서 L3 내장 그룹을 끈다(§4.6.2). Helm은 기본 플러그인(D-M3-01 c)이라 `user` tier로 실리고 같이 꺼진다.
+20. [미결] 샌드박스 강제를 on 핸들러(`tool.call.before` first)로 둘지, L0 실행 경로에서만 할지(§3.1, §4.1.2). [제안] L0 실행 경로에서 하고 on 핸들러는 두지 않는다. on 핸들러가 필요해지면 L1 내장 확장이 맡고 `GUARD_EXTENSIONS`에 더한다. `L0.sandbox.spec`, `L1.tools.spec`과 정한다.
+21. [결정: 2026-10-28 사용자] 외부 훅(§3.7, §4.7)은 M3 밖이고 M4로 옮긴다. D-M3-11 c안 원문("로더·안전 모드만")과 같은 판단이다. 이 항목은 닫았다.

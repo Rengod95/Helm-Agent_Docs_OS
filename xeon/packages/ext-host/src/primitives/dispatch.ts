@@ -3,6 +3,7 @@ import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   POINTS,
   type ChainPointName,
+  type CollectPointName,
   type FirstPointName,
   type PointName,
   type ScopeId,
@@ -25,6 +26,7 @@ import type {
 } from "./dispatch-types.ts";
 import type { ExtDiagnostic } from "./errors.ts";
 import { foldChain } from "./fold/chain.ts";
+import { foldCollect } from "./fold/collect.ts";
 import type { FoldEnv, RunResult } from "./fold/env.ts";
 import { foldFirst } from "./fold/first.ts";
 import { foldTap } from "./fold/tap.ts";
@@ -80,6 +82,10 @@ function isFirstPoint(point: PointName): point is FirstPointName {
 
 function isChainPoint(point: PointName): point is ChainPointName {
   return POINTS[point].fold === "chain";
+}
+
+function isCollectPoint(point: PointName): point is CollectPointName {
+  return POINTS[point].fold === "collect";
 }
 
 function failureOf(
@@ -227,6 +233,7 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
             {
               threadId: options.threadId,
               scopeId: entry.scopeId,
+              point,
               dispatchKey: options.dispatchKey,
               counter: 0,
               drive: null,
@@ -302,7 +309,14 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
       if (decl.finalize === "boundary" && options.finalize === undefined) {
         throw new Bug(`dispatch.finalize_missing: ${point} requires options.finalize`);
       }
-      const entries = sortEntries(deps.registry.snapshot(point, options.threadId), policy);
+      const entries = sortEntries(
+        deps.registry
+          .snapshot(point, options.threadId)
+          .filter(
+            (entry) => options.onlyScope === undefined || entry.scopeId === options.onlyScope,
+          ),
+        policy,
+      );
       const fold = decl.fold;
       if (fold === "tap" && decl.dispatch === "detached") {
         // 완료를 기다리지 않는다. 핸들러는 이 호출이 돌아온 뒤에 순서대로 실행하고, 실패는 정책과 진단으로만 보고한다.
@@ -335,6 +349,9 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
             initial: options.initial,
             finalize: options.finalize,
           });
+        case "collect":
+          if (!isCollectPoint(point)) throw new Bug(`dispatch.fold_mismatch: ${point}`);
+          return foldCollect(env, point, entries, payload, { initial: options.initial });
         default:
           return assertNever(fold, "PointDecl.fold");
       }

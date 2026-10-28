@@ -300,6 +300,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 | `guarded-fetch`, `defuddle`, `turndown`, `@mozilla/readability`, `linkedom` | `cap-web` | packages.md §4.4 L2-c web.fetch, `L2.web.spec` §4.9.3(변환 모듈이 쓰는 라이브러리). `fetch/convert/**`는 WEB-R16이 추가로 제한한다 |
 | `age-encryption` | `platform-secrets` | `L0.secrets.plan` SC-13(파일 폴백 키 생성) |
 | `cordis`, `@cordisjs/*`, `vendor/cordis` | `ext-host` | DR-11 |
+| `@swc/core` | `group-kit`의 `src/testing/**`(`./testing` 하위 경로, `scanDriveSource`)와 dependency-cruiser 파서. group-kit의 다른 운영 소스는 import하지 않고, 사이드카·데스크톱·플러그인 번들에 넣지 않는다(번들 확인은 M3-27) | `L3.group-kit.plan` §2(G-19, H-14·H-18 drive 정적 검사) [결정: 2026-10-28 사용자 승인] |
 | `@tauri-apps/*` | `apps/desktop` | foundation-plan §2 데스크톱 행 |
 | `react`, `react-dom`, `zustand` | `apps/desktop`. 앱 안 import 위치는 `eng.frontend-state.guide` FS-06이 더 좁힌다 | adr.0010 §3.3 [결정: 2026-10-24 사용자 지시] |
 | `node:*`, `bun:*`, Bun 전역 | F(`contracts`)에서 금지 | 06 R4를 F에 한정해 옮긴다. F는 데스크톱 WebView에서도 import되므로 런타임 중립이어야 한다 [제안] |
@@ -415,6 +416,8 @@ import { runTurn } from "@xeon/core-loop";                        // DR-09: L1 i
 - `apps/desktop`은 엔진을 `apps/host`에서 만든 사이드카 바이너리로 실행하고 stdio JSON-RPC로 연결한다(`_research/foundation-plan.md §1` 결정 3). `@xeon/host`를 import하지 않는다.
 - `apps/cli`는 엔진 라이브러리를 in-process로 쓴다.
 - [결정: review.decisions-2 U-15] 엔진 조립 코드는 `apps/host` 한 곳에 둔다. `apps/cli` → `apps/host` 한 방향만 허용 목록 항목 `DR-10/cli-host`로 허용한다(4절). `apps/host`는 다른 앱을 import하지 않고, `apps/desktop`은 어떤 앱도 import하지 않는다.
+- [결정: adr.0020] CLI와 데스크톱이 함께 쓰는 연결 코드(`createHostConnection`), 설정 view-model, 공유 로직, i18n 카탈로그는 L4 공유 패키지 `xeon/packages/client`(`@xeon/client`)에 둔다. 이 패키지는 F(`@xeon/contracts`)만 import한다. `apps/cli` → `@xeon/client`, `apps/desktop` → `@xeon/client` 두 간선을 허용 목록 항목 `DR-10/cli-client`, `DR-10/desktop-client`로 허용한다(4절). `@xeon/client`는 앱이나 엔진 패키지를 import하지 않는다. `check-layers.ts`는 `apps/*` → `packages/client`를 DR-10으로 보고하고, `expectedLayer`는 디렉터리 이름 `client`를 L4로 본다. `.dependency-cruiser.cjs`는 L4 경로에 `packages/client/`를 넣고 `client` → `apps/*` 간선을 막는다.
+- `apps/host` → `@xeon/client`는 호스트의 `./client` 재노출과 시험 때문에 `DR-10/host-client`로 열었다. [미결] adr.0020 §3.5는 이 간선을 두지 않는 안이다.
 
 이유: 앱끼리 import하면 데스크톱 번들에 CLI 코드가 섞이고, 사이드카 경계(프로세스 분리)가 무너진다. 조립 코드를 두 앱에 나눠 두면 플러그인 등록 순서가 두 벌이 된다.
 
@@ -459,7 +462,7 @@ import type { Context } from "cordis";                      // DR-11
 
 [결정] `_research/foundation-plan.md §3`: 지점 이름, fold, 페이로드 타입을 F4에 둔다.
 
-- 선언 위치: `packages/contracts/src/extensions/**`(`F.extensions.spec`). 선언 객체의 모양은 adr.0007 §3.7의 `PointDecl`(`name`, `kind`, `fold`, `payload`, `result`)이다. 지점 이름은 pi 이벤트명(`tool_call`, `turn_end` 등, adr.0007 §3.3)을 따른다 [가정: 목록은 `F.extensions.spec`이 확정한다].
+- 선언 위치: `packages/contracts/src/extensions/**`(`F.extensions.spec`). 선언 객체의 모양은 adr.0007 §3.7의 `PointDecl`(`name`, `kind`, `fold`, `payload`, `result`)이다. 지점 이름은 `<종류>.<대상>[.<시점>]` 규칙(`tool.call.before`, `boundary.step.after` 등, adr.0017 §3.2)을 따르고 목록은 `F.extensions.spec`이 정한다.
 - L1은 선언 객체를 import해 지점을 연다. X(`ext-host`)는 같은 선언을 import해 등록과 실행을 검사한다. 확장(L2·L3·플러그인)은 adr.0007 §3.7의 `g.on(<지점 이름>, handler)`로 처리기를 단다. 지점 이름 인자의 타입은 F 선언에서 만든 `PointName` 유니온이므로 선언에 없는 이름은 컴파일 오류다.
 - 금지: L1 패키지 안에서 지점 선언 객체나 지점 이름 문자열을 새로 만들기, X가 L1을 import해 지점 목록을 얻기(DR-01 위반이기도 하다).
 
@@ -470,12 +473,12 @@ import type { Context } from "cordis";                      // DR-11
 ```ts
 // packages/contracts/src/extensions/points.ts  (F)
 export const ToolCallPoint = {
-  name: "tool_call",
+  name: "tool.call.before",
   kind: "tool",
   fold: "first",
   payload: ToolCallPayloadSchema,      // TypeBox 스키마
   result: ToolCallResultSchema,        // Deny를 포함한다(adr.0007 §3.7)
-} as const satisfies PointDecl<"tool_call", typeof ToolCallPayloadSchema, typeof ToolCallResultSchema>;
+} as const satisfies PointDecl<"tool.call.before", typeof ToolCallPayloadSchema, typeof ToolCallResultSchema>;
 ```
 
 ```ts
@@ -486,14 +489,14 @@ const verdict = await ext.dispatch(ToolCallPoint, payload);
 
 ```ts
 // packages/group-helm/src/setup.ts  (L3): adr.0007 §3.7 모양으로 처리기를 단다
-g.on("tool_call", (call, st) => (st.phase === "diverge" && isWrite(call) ? { deny: "helm.readonly_phase" } : undefined));
+g.on("tool.call.before", (call, st) => (st.phase === "diverge" && isWrite(call) ? { deny: "helm.readonly_phase" } : undefined));
 ```
 
 나쁜 예:
 
 ```ts
 // packages/core-tools/src/pipeline.ts  (L1)
-await ext.dispatch({ name: "tool_call", fold: "first" }, payload);   // DR-12: L1에서 지점 선언을 새로 만든다
+await ext.dispatch({ name: "tool.call.before", fold: "first" }, payload);   // DR-12: L1에서 지점 선언을 새로 만든다
 ```
 
 `PointDecl`, `PointName`, `g.on`은 adr.0007 §3.7 초안의 이름이다. `ToolCallPoint`, `ext.dispatch`(L1이 지점을 여는 호출)의 정확한 이름과 시그니처는 `F.extensions.spec`과 `X.primitives.spec`이 정한다. 위 예시의 이름은 설명용이다 [가정].
@@ -727,12 +730,21 @@ export const AllowList = Type.Array(AllowEntry);
     "approvedBy": "review.decisions-2"
   },
   {
+    "id": "DR-02/group-kit-testing-helm",
+    "rule": "DR-02",
+    "from": "packages/group-helm",
+    "to": "@xeon/group-kit",
+    "entries": ["./testing"],
+    "reason": "Helm tests use the group-kit test helpers replayDrive (effect counting) and scanDriveSource (L3.helm.plan H-14, H-18, H-19).",
+    "approvedBy": "L3.helm.plan"
+  },
+  {
     "id": "DR-02/group-kit-learning",
     "rule": "DR-02",
     "from": "packages/group-learning",
     "to": "@xeon/group-kit",
-    "entries": ["."],
-    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15).",
+    "entries": [".", "./testing"],
+    "reason": "L3 groups use the shared group definition helpers (review.decisions-2 U-15). The group tests use the group-kit fakes (fake agents, replayDrive) through ./testing (L3.learning.plan section 2, DR-14 exception 5).",
     "approvedBy": "review.decisions-2"
   },
   {
@@ -740,9 +752,36 @@ export const AllowList = Type.Array(AllowEntry);
     "rule": "DR-10",
     "from": "apps/cli",
     "to": "@xeon/host",
-    "entries": ["."],
+    "entries": [".", "./client"],
     "reason": "The CLI reuses the single engine assembly code in apps/host (review.decisions-2 U-15).",
     "approvedBy": "review.decisions-2"
+  },
+  {
+    "id": "DR-10/cli-client",
+    "rule": "DR-10",
+    "from": "apps/cli",
+    "to": "@xeon/client",
+    "entries": ["."],
+    "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
+    "approvedBy": "adr.0020"
+  },
+  {
+    "id": "DR-10/desktop-client",
+    "rule": "DR-10",
+    "from": "apps/desktop",
+    "to": "@xeon/client",
+    "entries": [".", "./stdio", "./settings"],
+    "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
+    "approvedBy": "adr.0020"
+  },
+  {
+    "id": "DR-10/host-client",
+    "rule": "DR-10",
+    "from": "apps/host",
+    "to": "@xeon/client",
+    "entries": ["."],
+    "reason": "apps/host keeps the @xeon/host/client re-export and its tests drive the host through the client connection (adr.0020; open: adr.0020 section 3.5 says host does not import client).",
+    "approvedBy": "adr.0020"
   },
   {
     "id": "DR-07/cli-test-spawn",
@@ -756,7 +795,7 @@ export const AllowList = Type.Array(AllowEntry);
 ]
 ```
 
-- 위 세 항목(DR-02 둘, DR-10 하나)과 테스트 한정 `DR-07/*-test-spawn` 항목이 이 문서가 미리 승인하는 예외의 전부다. `plugins/*`의 같은 층 예외는 두지 않는다([결정: review.decisions-2 U-16]).
+- 위 여섯 항목(DR-02 둘, DR-10 넷. `DR-10/*-client` 셋은 [결정: adr.0020]으로 더했다)과 테스트 한정 `DR-07/*-test-spawn` 항목이 이 문서가 미리 승인하는 예외의 전부다. `plugins/*`의 같은 층 예외는 두지 않는다([결정: review.decisions-2 U-16]).
 - 테스트 한정 프로세스 실행 [결정: review.decisions-2 B-06]: `scope: "test"`, `rule: "DR-07"`, `to: "Bun.spawn"`(같은 항목이 `Bun.spawnSync`, `node:child_process`도 덮는다) 항목을 미리 승인한다. 대상 패키지는 `apps/cli`(`DR-07/cli-test-spawn`), `packages/core-persistence`(`DR-07/persistence-test-spawn`), `packages/cap-workspace`(`DR-07/workspace-test-spawn`, `test/fork-records.test.ts`), `apps/desktop`(`DR-07/desktop-test-spawn`, `L4.desktop.plan` D1)이다. 위 JSON은 그중 하나만 보인다. L0 소유 패키지(`platform-*`)는 원래 소유자라 항목이 필요 없다. `check-layers.ts`는 `scope: "test"` 항목을 테스트 파일에만 적용하고, 같은 패키지의 `src/**`에서 쓰면 `DR-07`로 실패한다. 검사는 `Bun.spawn`·`Bun.spawnSync` 호출과 `node:child_process` import를 주석을 뺀 소스에서 찾는다. 운영 소스는 소유 표의 다섯 패키지(`platform-exec`, `platform-process`, `platform-sandbox`, `platform-secrets`, `platform-os`)만 쓴다. 테스트 파일은 모든 `platform-*` 패키지와 항목이 있는 패키지만 쓴다(`platform-store` 테스트 보조 파일이 자식 프로세스로 잠금을 시험하기 때문이다) [구현: review.decisions-2 B-06].
 - `TS-NN` 항목은 `eng.testing.guide` TS-05의 `mock.module` 예외를 같은 파일에 기록하는 형식이다. `from`은 테스트 파일이 있는 패키지 디렉터리, `to`는 바꾸는 외부 npm 모듈 지정자다. 미리 승인한 `TS-05` 항목은 없다.
 - 새 항목을 더하는 절차:

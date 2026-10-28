@@ -37,6 +37,7 @@ const DEFAULT_TITLES: Readonly<Record<L2ApprovalRequest["kind"], string>> = {
   tool: "Approve this action?",
   plan: "Review the plan",
   question: "Answer the questions",
+  review: "Review the changes",
 };
 
 function stateOf(opened: OpenedApproval): L2ApprovalSnapshot["state"] {

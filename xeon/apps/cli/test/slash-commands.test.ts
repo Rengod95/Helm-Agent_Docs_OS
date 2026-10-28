@@ -315,7 +315,7 @@ test("compaction failures are two-line phrases and the session goes on", async (
   const failures: readonly [ReturnType<typeof wireError>, string, string][] = [
     [
       wireError("thread.cancelledByExtension", {
-        details: { point: "session_before_compact", reason: "요약 금지 구간" },
+        details: { point: "session.compact.before", reason: "요약 금지 구간" },
       }),
       "xeon: 확장이 컴팩션 작업을 막았다: 요약 금지 구간",
       "  해결: 확장의 설정을 확인한다 (xeon config get)",

@@ -48,6 +48,8 @@ export interface EngineAssembleOverrides {
 export interface EngineConnectOptions {
   /** 작업 폴더 절대 경로 */
   readonly workspace: string;
+  /** `--safe-mode`: AssembleOptions.safeMode로 넘긴다. 이번 시작에 외부 확장과 L3 내장 그룹을 싣지 않는다 */
+  readonly safeMode?: boolean;
   /** "auto"면 서비스 사용 설정을 엔진 없이 읽어 정한다. 서비스 모드(M3)가 없는 동안 "auto"는 in-process다 */
   readonly preference: ConnectPreference;
   readonly client: { readonly name: "xeon-cli"; readonly version: string };
@@ -268,6 +270,7 @@ function assembleOptionsOf(options: EngineConnectOptions): Omit<AssembleOptions,
   return {
     settingGroups: options.settingGroups,
     devChecks: options.devWireRoundTrip,
+    ...(options.safeMode === true ? { safeMode: true } : {}),
     ...(extra?.dataDir === undefined ? {} : { dataDir: extra.dataDir }),
     ...(extra?.extraPlugins === undefined ? {} : { extraPlugins: extra.extraPlugins }),
     ...(extra?.buildModels === undefined ? {} : { buildModels: extra.buildModels }),
@@ -325,8 +328,8 @@ export function createConnectEngine(api: HostApi): ConnectEngine {
     if (options.preference === "service") {
       return err({
         kind: "serviceUnreachable",
-        message: "서비스 모드는 아직 쓸 수 없다",
-        fix: "서비스 모드는 M3에서 제공한다. in-process로 실행한다",
+        message: "서비스에 접속하는 chat은 아직 쓸 수 없다",
+        fix: "서비스 접속은 원격 트랙(M3b B2-RMT)에서 제공한다. xeon service status로 서비스를 확인하고 chat은 in-process로 실행한다",
       });
     }
     const statePaths = await api.resolveHostStatePaths(

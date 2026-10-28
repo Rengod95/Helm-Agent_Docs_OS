@@ -7,7 +7,7 @@ import {
   type ScopeId,
   type Unsubscribe,
 } from "@xeon/contracts/extensions";
-import type { ExtHost, ScopeInfo } from "@xeon/ext-host";
+import { SessionFeedPortKey, type ExtHost, type ScopeInfo } from "@xeon/ext-host";
 import {
   GroupServiceName,
   type DriveHolderSetting,
@@ -22,6 +22,7 @@ import {
 } from "@xeon/contracts/services";
 import { defaultDriveArbiter, leaseArbiterPort, type DriveArbiter } from "./arbiter.ts";
 import type { GroupServiceWithSetting } from "./commands.ts";
+import { createLeaseRejections } from "./lease-rejections.ts";
 import type { GroupCatalogEntry, GroupCatalogPort } from "./ports/catalog.ts";
 import type {
   DriveHolderSettingsPort,
@@ -68,7 +69,11 @@ function errorOf(info: ScopeInfo): GroupError | null {
   return { kind: "group.setupFailed", message, atSeq: null };
 }
 
-function driveRoleOf(entry: GroupCatalogEntry, info: ScopeInfo | undefined): DriveRole {
+function driveRoleOf(
+  entry: GroupCatalogEntry,
+  info: ScopeInfo | undefined,
+  rejected: boolean,
+): DriveRole {
   if (!entry.manifest.usesDrive || info === undefined) return "none";
   if (info.status !== "enabled" && info.status !== "disabling") return "none";
   switch (info.drive) {
@@ -77,7 +82,7 @@ function driveRoleOf(entry: GroupCatalogEntry, info: ScopeInfo | undefined): Dri
     case "error":
       return "error";
     case "registered":
-      return "waiting";
+      return rejected ? "rejected" : "waiting";
     case "none":
       return "none";
     default:
@@ -109,8 +114,16 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithSett
   const listeners = new Set<(groups: readonly GroupStatus[]) => void>();
   let hostSubscription: Unsubscribe | undefined;
   let scheduled = false;
+  const rejections = createLeaseRejections();
+
+  /** 커밋 피드 포트가 올라와 있으면 구독한다. 포트가 늦게 올라올 수 있어 읽을 때마다 확인한다 */
+  function attachFeed(): void {
+    const feed = deps.host.ports.get(SessionFeedPortKey);
+    if (feed !== undefined) rejections.attach(feed, schedule);
+  }
 
   function statusOf(entry: GroupCatalogEntry): GroupStatus {
+    attachFeed();
     const id = entry.manifest.name;
     const info = deps.host.scopes().find((scope) => scope.id === id);
     const thread = deps.currentThread();
@@ -123,7 +136,7 @@ export function createGroupService(deps: GroupServiceDeps): GroupServiceWithSett
       scope,
       pendingToggle: scope === "enabling" ? "enable" : scope === "disabling" ? "disable" : null,
       usesDrive: entry.manifest.usesDrive,
-      drive: driveRoleOf(entry, info),
+      drive: driveRoleOf(entry, info, thread !== null && rejections.has(thread, id)),
       leaseId: lease !== null && lease.scopeId === id ? lease.leaseId : null,
       lastError: info === undefined ? null : errorOf(info),
       recordKinds: (entry.manifest.recordKinds ?? []).map((decl) => decl.kind),

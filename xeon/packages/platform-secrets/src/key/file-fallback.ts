@@ -12,6 +12,8 @@ import type { KeyAvailability, KeyProvider, SopsKeyEnvName } from "./provider.ts
 // 예외는 첫 실행의 provision이다. age-encryption으로 identity를 만들어 0600 파일로 쓰고 수신자(공개키)만 돌려준다.
 // 생성한 identity를 담은 버퍼는 쓴 직후 0으로 덮는다.
 
+const KEY_FILE_MODE = 0o600;
+
 interface KeyFileStat {
   readonly mode: number;
   readonly uid: number;
@@ -37,12 +39,12 @@ type FileCheck = "ok" | "item_missing" | "file_mode";
 function check(deps: FileKeyDeps): FileCheck {
   const stat = (deps.stat ?? statKeyFile)(deps.path);
   if (stat === null) return "item_missing";
-  if ((stat.mode & 0o077) !== 0) return "file_mode";
+  // 정확히 0600만 받는다. 더 좁은 0400도 거부해 "권한이 0600이 아니면 거부" 규칙(spec §4.7 4번)을 한 가지로 둔다
+  if ((stat.mode & 0o777) !== KEY_FILE_MODE) return "file_mode";
   if (deps.uid !== null && stat.uid !== deps.uid) return "file_mode";
   return "ok";
 }
 
-const KEY_FILE_MODE = 0o600;
 const KEY_DIR_MODE = 0o700;
 
 /**

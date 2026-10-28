@@ -38,12 +38,12 @@ test("tier: guard handler always runs first", async () => {
         makeUnit(
           {
             name,
-            points: ["tool_call"],
+            points: ["tool.call.before"],
             loadIndex,
             layer: name === "core-tools" ? "L1" : "plugin",
           },
           (g) => {
-            g.on("tool_call", () => {
+            g.on("tool.call.before", () => {
               calls.push(name);
               return undefined;
             });
@@ -53,7 +53,7 @@ test("tier: guard handler always runs first", async () => {
       return "continue";
     },
   );
-  await t.host.dispatch("tool_call", toolCall, { threadId: thread, dispatchKey: "k" });
+  await t.host.dispatch("tool.call.before", toolCall, { threadId: thread, dispatchKey: "k" });
   expect(calls).toEqual(["core-tools", "tier-user", "tier-builtin"]);
 });
 
@@ -66,27 +66,30 @@ test("tier: first fold stops at outer guard deny", async () => {
   policy.admit({ name: "tier-inner", source: "user", trust: "user", essential: false }, "plugin");
   policy.admit({ name: "core-tools", source: "builtin", trust: "builtin", essential: true }, "L1");
   await t.host.install(
-    makeUnit({ name: "tier-inner", points: ["tool_call"], loadIndex: 0 }, (g) => {
-      g.on("tool_call", () => {
+    makeUnit({ name: "tier-inner", points: ["tool.call.before"], loadIndex: 0 }, (g) => {
+      g.on("tool.call.before", () => {
         calls.push("user");
         return undefined;
       });
     }),
   );
   await t.host.install(
-    makeUnit({ name: "core-tools", points: ["tool_call"], loadIndex: 1, layer: "L1" }, (g) => {
-      g.on("tool_call", () => {
-        calls.push("guard");
-        return { block: true, reason: "denied by rule" };
-      });
-    }),
+    makeUnit(
+      { name: "core-tools", points: ["tool.call.before"], loadIndex: 1, layer: "L1" },
+      (g) => {
+        g.on("tool.call.before", () => {
+          calls.push("guard");
+          return { block: true, reason: "denied by rule" };
+        });
+      },
+    ),
   );
-  const outcome = await t.host.dispatch("tool_call", toolCall, {
+  const outcome = await t.host.dispatch("tool.call.before", toolCall, {
     threadId: thread,
     dispatchKey: "k",
   });
   expect(outcome.decision).toEqual({ block: true, reason: "denied by rule" });
-  expect(outcome.decision).not.toEqual(FIRST_DENY.tool_call);
+  expect(outcome.decision).not.toEqual(FIRST_DENY["tool.call.before"]);
   expect(calls).toEqual(["guard"]);
 });
 
@@ -104,12 +107,12 @@ test("tier: lexicographic order within tier", async () => {
     async ([name, loadIndex]) => {
       policy.admit({ name, source: "user", trust: "user", essential: false }, "plugin");
       await t.host.install(
-        makeUnit({ name, points: ["tool_call"], loadIndex }, (g) => {
-          g.on("tool_call", () => {
+        makeUnit({ name, points: ["tool.call.before"], loadIndex }, (g) => {
+          g.on("tool.call.before", () => {
             calls.push(`${name}#1`);
             return undefined;
           });
-          g.on("tool_call", () => {
+          g.on("tool.call.before", () => {
             calls.push(`${name}#2`);
             return undefined;
           });
@@ -118,7 +121,7 @@ test("tier: lexicographic order within tier", async () => {
       return "continue";
     },
   );
-  await t.host.dispatch("tool_call", toolCall, { threadId: thread, dispatchKey: "k" });
+  await t.host.dispatch("tool.call.before", toolCall, { threadId: thread, dispatchKey: "k" });
   expect(calls).toEqual(["tier-a#1", "tier-a#2", "tier-b#1", "tier-b#2"]);
 });
 

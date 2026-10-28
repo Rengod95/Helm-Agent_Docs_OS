@@ -19,7 +19,6 @@ const PROJECT_MCP_JSON = ".mcp.json";
 export const TRUST_REQUIRING_PROJECT_RESOURCES: readonly string[] = [
   PROJECT_MCP_JSON,
   `${XEON_DIR}/extensions`,
-  `${XEON_DIR}/pi-extensions`,
   `${XEON_DIR}/settings.json`,
   `${XEON_DIR}/settings.local.json`,
   `${XEON_DIR}/mcp.json`,

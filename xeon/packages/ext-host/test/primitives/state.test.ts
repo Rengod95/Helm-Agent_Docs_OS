@@ -12,7 +12,7 @@ type Host = Awaited<ReturnType<typeof createTestHost>>;
 
 function fire(t: Host, thread: ReturnType<Host["newThread"]>, key: string) {
   return t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: key },
   );
@@ -33,8 +33,8 @@ test("commit schema and conflict", async () => {
   await t.host.openThread(thread);
   const codes: (string | undefined)[] = [];
   await t.host.install(
-    makeUnit({ name: "st-basic", points: ["agent_settled"], def: counterDef }, (g) => {
-      g.on("agent_settled", async () => {
+    makeUnit({ name: "st-basic", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+      g.on("boundary.settle.after", async () => {
         // 스키마를 어긴 값
         codes.push(await codeOf(() => g.commit({ n: -1 })));
         // 같은 판에 대한 두 커밋: 앞의 것이 이기고 뒤의 것은 충돌이다
@@ -57,8 +57,8 @@ test("rerun handler commit is idempotent", async () => {
   await t.host.openThread(thread);
   const seen: { state: unknown; returned: unknown }[] = [];
   await t.host.install(
-    makeUnit({ name: "st-rerun", points: ["agent_settled"], def: counterDef }, (g) => {
-      g.on("agent_settled", async (_payload, ctx) => {
+    makeUnit({ name: "st-rerun", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+      g.on("boundary.settle.after", async (_payload, ctx) => {
         const returned = await g.commit({ n: ctx.state.n + 1 });
         seen.push({ state: ctx.state, returned });
       });
@@ -89,8 +89,8 @@ test("state is frozen, undeclared state and size are rejected", async () => {
   const codes: (string | undefined)[] = [];
   let frozen = false;
   await t.host.install(
-    makeUnit({ name: "st-none", points: ["agent_settled"] }, (g) => {
-      g.on("agent_settled", async () => {
+    makeUnit({ name: "st-none", points: ["boundary.settle.after"] }, (g) => {
+      g.on("boundary.settle.after", async () => {
         codes.push(await codeOf(() => g.state()));
         codes.push(await codeOf(() => g.commit(unsafeInput({}))));
       });
@@ -100,7 +100,7 @@ test("state is frozen, undeclared state and size are rejected", async () => {
     makeUnit(
       {
         name: "st-big",
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         loadIndex: 1,
         def: {
           state: {
@@ -111,7 +111,7 @@ test("state is frozen, undeclared state and size are rejected", async () => {
         },
       },
       (g) => {
-        g.on("agent_settled", async () => {
+        g.on("boundary.settle.after", async () => {
           frozen = Object.isFrozen(g.state());
           codes.push(await codeOf(() => g.commit({ text: "x".repeat(262_144) })));
         });
@@ -154,7 +154,7 @@ test("record and read declarations", async () => {
       {
         name: "rec-group",
         kind: "group",
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         recordKinds: [
           {
             kind: "grp.rec-group.note.recorded",
@@ -165,7 +165,7 @@ test("record and read declarations", async () => {
         ],
       },
       (g) => {
-        g.on("agent_settled", async () => {
+        g.on("boundary.settle.after", async () => {
           const subject = { type: "thread" as const, id: thread };
           results.push(
             await codeOf(() => g.record("grp.rec-group.other.recorded", subject, { text: "x" })),
@@ -203,7 +203,7 @@ test("recordPrivate is hidden from other extensions", async () => {
       {
         name: "prv-learning",
         kind: "group",
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         recordKinds: [
           {
             kind: "grp.prv-learning.skill.proposed",
@@ -214,7 +214,7 @@ test("recordPrivate is hidden from other extensions", async () => {
         ],
       },
       (g) => {
-        g.on("agent_settled", async () => {
+        g.on("boundary.settle.after", async () => {
           await g.recordPrivate("grp.prv-learning.proposal.created", { id: "p1" });
           seen.own = (await g.readRecords({ kind: "grp.prv-learning.*" })).length;
           invalid.push(
@@ -236,12 +236,12 @@ test("recordPrivate is hidden from other extensions", async () => {
       {
         name: "prv-other",
         kind: "group",
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         loadIndex: 1,
         readsRecordKinds: ["grp.prv-learning.*"],
       },
       (g) => {
-        g.on("agent_settled", async () => {
+        g.on("boundary.settle.after", async () => {
           seen.other = (await g.readRecords({ kind: "grp.prv-learning.*" })).length;
         });
       },
@@ -266,8 +266,8 @@ test("rewind restores the state of the active branch", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "st-rewind", points: ["agent_settled"], def: counterDef }, (g) => {
-      g.on("agent_settled", async (_payload, ctx) => {
+    makeUnit({ name: "st-rewind", points: ["boundary.settle.after"], def: counterDef }, (g) => {
+      g.on("boundary.settle.after", async (_payload, ctx) => {
         await g.commit({ n: ctx.state.n + 1 });
       });
     }),
@@ -286,8 +286,8 @@ test("rewind restores the state of the active branch", async () => {
   await t.settled();
   const seen: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "st-peek", points: ["agent_settled"], loadIndex: 1 }, (g) => {
-      g.on("agent_settled", (_payload, ctx) => {
+    makeUnit({ name: "st-peek", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+      g.on("boundary.settle.after", (_payload, ctx) => {
         seen.push(ctx.threadId);
       });
     }),

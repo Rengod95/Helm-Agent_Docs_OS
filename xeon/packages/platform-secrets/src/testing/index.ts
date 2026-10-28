@@ -14,6 +14,7 @@ import { bunInheritRunner, createSecretAdminService, type ChildRunner } from "..
 import type { AuditLog } from "../audit-file.ts";
 import { DEFAULT_SECRETS_CONFIG } from "../config.ts";
 import { createLease } from "../lease.ts";
+import type { OsAuthError, OsAuthProvider } from "../os-auth.ts";
 import type { MetaEntry, MetaStore } from "../meta.ts";
 import { PROVIDER_PLACEHOLDER_HANDLE } from "../providers/sops.ts";
 import { handleForName } from "../ref.ts";
@@ -329,4 +330,36 @@ export function memorySecrets(options: MemorySecretsOptions): MemorySecrets {
       audit.setFailing(failing);
     },
   });
+}
+
+// ── 가짜 OS 인증 ─────────────────────────────────────────────────────────
+
+export interface FakeOsAuthOptions {
+  readonly clock: Clock;
+  /** 다음 verify의 결과. 기본은 성공이다 */
+  readonly outcome?: "verified" | OsAuthError;
+  readonly available?: boolean;
+}
+
+export interface FakeOsAuth extends OsAuthProvider {
+  /** verify가 받은 대화상자 문구 */
+  readonly reasons: string[];
+}
+
+/** 대화상자 없이 정해진 결과를 돌려주는 OS 인증. L4와 reveal 시험이 쓴다 */
+export function fakeOsAuth(options: FakeOsAuthOptions): FakeOsAuth {
+  const reasons: string[] = [];
+  return {
+    id: "darwin-osascript",
+    reasons,
+    available: () => options.available ?? true,
+    verify(reason) {
+      reasons.push(reason);
+      const outcome = options.outcome ?? "verified";
+      if (outcome === "verified") {
+        return Promise.resolve(ok({ method: "os-auth", verifiedAt: options.clock.now() }));
+      }
+      return Promise.resolve(err(outcome));
+    },
+  };
 }

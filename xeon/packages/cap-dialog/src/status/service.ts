@@ -30,7 +30,7 @@ export interface StatusService {
   readonly api: StatusApi;
   /** 내구 이벤트 피드의 이벤트 하나를 내장 세그먼트에 반영한다 */
   readonly onEvent: (event: DurableEventEnvelope) => void;
-  /** `tool_execution_start`·`tool_execution_end` 지점 */
+  /** `tool.execution.before`·`tool.execution.after` 지점 */
   readonly onToolStart: (threadId: ThreadId, toolCallId: string, toolName: string) => void;
   readonly onToolEnd: (threadId: ThreadId, toolCallId: string) => void;
   readonly dispose: () => void;

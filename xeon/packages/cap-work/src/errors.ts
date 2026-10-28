@@ -2,6 +2,7 @@ import { assertNever } from "@xeon/contracts";
 import { CapabilityError, type CapabilityId } from "@xeon/contracts/capabilities";
 import type { JsonValue } from "@xeon/contracts/conversation";
 import type { StoreError } from "@xeon/contracts/records";
+import type { GoalFailure } from "./goals/failure.ts";
 import type { PlanFailure } from "./plans/failure.ts";
 import type { OpFailure } from "./tasks/failure.ts";
 
@@ -151,6 +152,53 @@ export function planRejection(
       );
     default:
       return assertNever(failure, "planRejection");
+  }
+}
+
+/** 목표 규칙 거부(spec §3.4 GoalErrors) */
+export function goalRejection(
+  capability: CapabilityId,
+  method: string,
+  failure: GoalFailure,
+): CapabilityError {
+  switch (failure.kind) {
+    case "invalid_input":
+      return make(capability, method, "invalid_input", failure.message, false);
+    case "not_found":
+      return make(capability, method, "not_found", `${failure.id} does not exist.`, false, {
+        id: failure.id,
+      });
+    case "goal_active":
+      return make(
+        capability,
+        method,
+        "goal_active",
+        `Goal ${failure.goalId} is still active. Pass replace to swap it.`,
+        false,
+        { goalId: failure.goalId },
+      );
+    case "goal_closed":
+      return make(capability, method, "goal_closed", "The goal is already closed.", false);
+    case "goal_not_delegated":
+      return make(
+        capability,
+        method,
+        "goal_not_delegated",
+        "Only a goal with a delegated judge takes judge calls.",
+        false,
+      );
+    case "goal_turn_stale":
+      return make(
+        capability,
+        method,
+        "goal_turn_stale",
+        "The turn is not waiting for a judgment of this goal.",
+        false,
+      );
+    case "denied":
+      return make(capability, method, "denied", failure.message, false);
+    default:
+      return assertNever(failure, "goalRejection");
   }
 }
 

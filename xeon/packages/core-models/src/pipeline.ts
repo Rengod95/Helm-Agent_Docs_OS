@@ -9,6 +9,7 @@ import {
 import { AssistantMessageEventStream as PiAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import { attemptAsync, type Clock, type Logger } from "@xeon/contracts";
 import type { AssistantMessage, ModelThinkingLevel } from "@xeon/contracts/conversation";
+import { FIRST_DENY } from "@xeon/contracts/extensions";
 import type {
   AssistantMessageEventStream,
   CacheMarks,
@@ -254,7 +255,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
               const final = await dispatcher.beforeProviderHeaders?.({
                 ...base,
                 ...target,
-                dispatchKey: keyOf("before_provider_headers"),
+                dispatchKey: keyOf("request.headers.before"),
                 headers: plan.visible,
               });
               const result = plan.finalize(final ?? plan.visible);
@@ -277,12 +278,27 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
                 marks === undefined ? payload : applyCacheMarks(payload, marks, spec.context);
               const hooked = hook === undefined ? marked : hook(marked);
               if (dispatcher === null) return hooked;
-              return await dispatcher.beforeProviderRequest({
+              const final = await dispatcher.beforeProviderRequest({
                 ...base,
                 ...target,
-                dispatchKey: keyOf("before_provider_request"),
+                dispatchKey: keyOf("request.provider.before"),
                 payload: hooked,
               });
+              // 가드는 체인이 끝난 최종 페이로드를 본다. 차단이면 던져서 요청을 보내지 않는다(pi-ai가 오류 응답으로 바꾼다)
+              const guard = await attemptAsync(() =>
+                dispatcher.guardProviderRequest({
+                  ...base,
+                  ...target,
+                  dispatchKey: keyOf("guard.model.before"),
+                  payload: final,
+                }),
+              );
+              // 디스패처 호출 자체의 실패도 차단이고, 사유는 같은 형식으로 모델 오류 응답에 남는다
+              const reason = guard.ok
+                ? guard.value?.reason
+                : FIRST_DENY["guard.model.before"].reason;
+              if (reason !== undefined) throw new Error(`[xeon:denied_by_guard] ${reason}`);
+              return final;
             },
           }),
       // 8: 응답 수신. 인증·쿠키 헤더는 뺀다
@@ -293,7 +309,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
               await dispatcher.afterProviderResponse?.({
                 ...base,
                 ...target,
-                dispatchKey: keyOf("after_provider_response"),
+                dispatchKey: keyOf("request.provider.after"),
                 status: response.status,
                 headers: publicResponseHeaders(response.headers),
               });
@@ -312,7 +328,7 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
                 provider: spec.provider,
                 api,
                 model: spec.modelId,
-                dispatchKey: `${keyOf("provider_stream_event")}:${streamEvents}`,
+                dispatchKey: `${keyOf("request.stream")}:${streamEvents}`,
                 data,
               });
             },
@@ -352,13 +368,14 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
         async () =>
           await dispatcher.modelSelect?.({
             ...base,
-            dispatchKey: keyOf("model_select"),
+            dispatchKey: keyOf("request.model.after"),
             binding,
             previous,
             source: spec.selectSource,
           }),
       );
-      if (!fired.ok) deps.logger?.warn("model.select_point_failed", { point: "model_select" });
+      if (!fired.ok)
+        deps.logger?.warn("model.select_point_failed", { point: "request.model.after" });
       return;
     }
     if (previous.thinkingLevel !== binding.thinkingLevel) {
@@ -366,14 +383,14 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
         async () =>
           await dispatcher.thinkingLevelSelect?.({
             ...base,
-            dispatchKey: keyOf("thinking_level_select"),
+            dispatchKey: keyOf("request.thinking.after"),
             role: ctx.role,
             level: binding.thinkingLevel,
             previousLevel: previous.thinkingLevel,
           }),
       );
       if (!fired.ok) {
-        deps.logger?.warn("model.select_point_failed", { point: "thinking_level_select" });
+        deps.logger?.warn("model.select_point_failed", { point: "request.thinking.after" });
       }
     }
   }

@@ -9,7 +9,13 @@ import type { Upcaster } from "@xeon/contracts/records";
 import type { SettingDef, SettingDefInput, SettingGroup } from "@xeon/contracts/settings";
 import type { CommandResourceDef } from "@xeon/ext-host";
 import type { Static } from "typebox";
-import type { DelegateResult, DelegateSpec } from "./delegate.ts";
+import type {
+  CancelDelegatesResult,
+  DelegateCallOptions,
+  DelegateResult,
+  DelegateSpec,
+  DelegateStatusResult,
+} from "./delegate.ts";
 import type { GroupMetricsHandle } from "./metrics/types.ts";
 import type { StateMigrations } from "./state.ts";
 
@@ -53,8 +59,18 @@ export interface GroupDef<S = never, D extends GroupSettingDefs = NoSettings> {
 export interface GroupApi<S, D extends GroupSettingDefs = NoSettings> extends ScopeApi<S> {
   /** 마지막으로 읽은 이 그룹 설정의 유효 값. 동기, 순수 조회 */
   settings(): GroupSettingValues<D>;
-  /** L1-g 백그라운드 위임 래퍼(§3.4). requestId 멱등. M2는 입력 검사와 `group.delegateUnavailable`만 한다 */
-  delegate(spec: DelegateSpec): Promise<DelegateResult>;
+  /** L1-g 백그라운드 위임 래퍼(§3.4). 소유는 이 scope, requestId 멱등. on 핸들러와 drive 함수에서 부를 수 있다 */
+  delegate(spec: DelegateSpec, options?: DelegateCallOptions): Promise<DelegateResult>;
+  /** 위임 상태 조회(효과 없음). drive 함수에서 부를 수 있고 on 핸들러에서는 `group.effectNotAllowed`다(ADR-0015 §3.2) */
+  delegateStatus(
+    requestId: string,
+    options?: Pick<DelegateCallOptions, "threadId">,
+  ): DelegateStatusResult;
+  /**
+   * 이 scope가 소유한 진행 중 위임을 모두 취소한다(§4.10). `onDispose`와 명령 처리기에서만 부른다.
+   * on 핸들러와 drive 함수에서는 `group.effectNotAllowed`다
+   */
+  cancelDelegates(reason?: string): Promise<CancelDelegatesResult>;
   /** 이 그룹의 계측 조회(§3.12). 2차 전까지 snapshot()은 메모리 집계만 돌려준다 */
   readonly metrics: GroupMetricsHandle;
   /** 그룹 전용 모델 도구 등록. X hostOf(g).registerTool을 그대로 부른다. setup 안에서만. scope가 꺼지면 해제된다 */

@@ -93,8 +93,8 @@ describe("overflow recovery", () => {
 
   test("a cancelled, failed or empty compaction fails with its own reason", async () => {
     const cancelled = await overflowed();
-    await installHandlers(cancelled.h.host, "deny", 3, ["session_before_compact"], (g) => {
-      g.on("session_before_compact", () => ({ cancel: true as const, reason: "no" }));
+    await installHandlers(cancelled.h.host, "deny", 3, ["session.compact.before"], (g) => {
+      g.on("session.compact.before", () => ({ cancel: true as const, reason: "no" }));
     });
     expect(
       await cancelled.h.service.recoverOverflow(

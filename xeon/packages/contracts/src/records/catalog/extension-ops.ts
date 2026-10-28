@@ -97,6 +97,7 @@ export const LeaseAcquiredPayloadSchema: TObject<{
   leaseId: TString;
   scopeId: TString;
   limits: typeof DriveLimitsJsonSchema;
+  leaseEpoch: TOptional<TInteger>;
 }> = Type.Object(
   {
     /** F.extensions.spec DriveLease.leaseId */
@@ -105,6 +106,11 @@ export const LeaseAcquiredPayloadSchema: TObject<{
     scopeId: scopeId(),
     /** DriveLease.limits(DriveLimits) */
     limits: DriveLimitsJsonSchema,
+    /**
+     * 임대 차수. 그 scope의 활성 가지 위 직전 `lease.acquired` 개수 + 1, 1부터 센다(X.primitives.spec §4.4.1).
+     * 선택이라 `version`을 올리지 않는다. 없으면(옛 기록) 활성 가지 위 개수로 다시 센다 [결정: M3-REQ-08]
+     */
+    leaseEpoch: Type.Optional(Type.Integer({ minimum: 1 })),
   },
   { additionalProperties: false },
 );
@@ -143,6 +149,25 @@ export const LeaseReleasedPayloadSchema: TObject<{
   { additionalProperties: false },
 );
 export type LeaseReleasedPayload = Static<typeof LeaseReleasedPayloadSchema>;
+
+/**
+ * drive 임대 요청이 대기 상한 뒤 거부됐다(M3-REQ-99, review.m3-design-inputs D-M3-05 a).
+ * groupId는 요청한 그룹(ExtensionName), requestSeq는 거부된 요청의 순번이다.
+ * 수명주기 지점 `lifecycle.lease.rejected`의 페이로드이기도 하다.
+ */
+export const LeaseRejectedPayloadSchema: TObject<{
+  groupId: TString;
+  reason: TString;
+  requestSeq: TInteger;
+}> = Type.Object(
+  {
+    groupId: Type.String({ minLength: 1, maxLength: 96 }),
+    reason: Type.String({ minLength: 1, maxLength: 64 }),
+    requestSeq: Type.Integer({ minimum: 0 }),
+  },
+  { additionalProperties: false },
+);
+export type LeaseRejectedPayload = Static<typeof LeaseRejectedPayloadSchema>;
 
 /** ScopeApi.post 호출의 영수증. 큐 항목 사실은 같은 커밋의 input.queued가 적는다 */
 export const PostAcceptedPayloadSchema: TObject<{

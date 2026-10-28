@@ -38,12 +38,12 @@ function intentOf(h: Harness, toolCallId: string): EffectIntent {
   throw new Error(`no intent for ${toolCallId}`);
 }
 
-test("rerun_skips_tool_call_hook: stored args run again without the tool_call handler or policy", async () => {
+test("rerun_skips_tool_call_hook: stored args run again without the tool.call.before handler or policy", async () => {
   const h = await createHarness();
   const probe = registerWorkspace(h);
   let handlerCalls = 0;
-  await installHandlers(h, "counter", ["tool_call"], (g) => {
-    g.on("tool_call", () => {
+  await installHandlers(h, "counter", ["tool.call.before"], (g) => {
+    g.on("tool.call.before", () => {
       handlerCalls += 1;
       return undefined;
     });

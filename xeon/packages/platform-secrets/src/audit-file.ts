@@ -19,12 +19,13 @@ import {
 import { Type } from "typebox";
 import { SECRETS_SUBDIR } from "./config.ts";
 import { errorCode } from "./errors.ts";
+import { createProcessLock, type SecretFileLock } from "./providers/lock.ts";
 
 // L0.secrets.spec §3.9. 감사 파일 `<OsDirs.config>/secrets/audit.log`: 줄마다 JSON 하나, 추가 전용, 기록마다 fsync, 0600.
 // 어느 레코드에도 값, 값의 일부, 값의 해시를 싣지 않는다(레코드 타입이 그런 필드를 갖지 않는다).
-// 쓰기는 이 프로세스 안에서 한 줄로 이어 붙인다(순서 유지). 다른 프로세스와의 동시 쓰기는 O_APPEND에 맡기고,
-// 보관 기간 정리(prune)만 파일을 다시 쓰므로 정리 중에 다른 프로세스가 붙인 줄이 사라질 수 있다 [가정: 한 사용자의 CLI와 호스트는
-// 정리를 시작 시점에 한 번만 하고, 정리 시각이 겹칠 가능성은 낮다].
+// 쓰기는 이 프로세스 안에서 한 줄로 이어 붙인다(순서 유지). 프로세스 사이에서는 파일 잠금(`<audit.log>.lock`, M3-REQ-61)을 쥔 채
+// 정리(prune)와 추가를 한다. 정리가 파일을 다시 쓰는 동안 다른 프로세스가 붙인 줄이 사라지지 않게 하려는 것이다.
+// 잠금을 받지 못한 호스트·시험은 프로세스 안 직렬화만 한다(createProcessLock).
 
 const AUDIT_FILE_NAME = "audit.log";
 
@@ -57,6 +58,8 @@ export interface AuditLogDeps {
   readonly logger: Logger;
   /** l0.secrets.audit.retentionDays. 호출마다 읽는다 */
   readonly retentionDays: () => number;
+  /** 프로세스 사이 파일 잠금(`OsServiceHandle.fileLock`). 없으면 프로세스 안 직렬화만 한다 */
+  readonly lock?: SecretFileLock;
 }
 
 // ── 줄 해석 ──────────────────────────────────────────────────────────────
@@ -199,6 +202,7 @@ function ignore(): void {
 
 export function createAuditLog(deps: AuditLogDeps): AuditLog {
   const path = auditFilePath(deps.configDir);
+  const lock = deps.lock ?? createProcessLock();
   const ioError = (error: unknown): AuditWriteError => ({
     kind: "audit_io",
     code: errorCode(error),
@@ -247,7 +251,8 @@ export function createAuditLog(deps: AuditLogDeps): AuditLog {
     return ok(undefined);
   }
 
-  async function append(record: SecretAuditRecord): Promise<Result<void, AuditWriteError>> {
+  /** 잠금을 쥔 채 부른다. 첫 쓰기에서 보관 기간 정리를 한 번 하고, 한 줄을 이어 붙인다 */
+  async function writeLocked(record: SecretAuditRecord): Promise<Result<void, AuditWriteError>> {
     if (!pruned) {
       pruned = true;
       const result = await prune();
@@ -255,7 +260,6 @@ export function createAuditLog(deps: AuditLogDeps): AuditLog {
     }
     const line = `${JSON.stringify(record)}\n`;
     const written = await attemptAsync(async () => {
-      await mkdir(dirname(path), { recursive: true, mode: DIR_MODE });
       const handle = await open(path, "a", FILE_MODE);
       try {
         // 이미 있던 파일의 권한이 넓어도 0600으로 되돌린다
@@ -267,6 +271,22 @@ export function createAuditLog(deps: AuditLogDeps): AuditLog {
       }
     });
     return written.ok ? ok(undefined) : err(ioError(written.error.cause));
+  }
+
+  async function append(record: SecretAuditRecord): Promise<Result<void, AuditWriteError>> {
+    // 잠금 파일이 들어갈 디렉터리가 먼저 있어야 한다
+    const prepared = await attemptAsync(() =>
+      mkdir(dirname(path), { recursive: true, mode: DIR_MODE }),
+    );
+    if (!prepared.ok) return err(ioError(prepared.error.cause));
+    const locked = await lock.withLock(path, () => writeLocked(record));
+    if (locked.ok) return locked.value;
+    const code = locked.error.kind === "io" ? locked.error.code : locked.error.kind;
+    return err({
+      kind: "audit_io",
+      code: locked.error.kind === "timeout" ? "lock_timeout" : code,
+      path,
+    });
   }
 
   return {

@@ -84,7 +84,7 @@ xeon/packages/core-agents/
 - core-tasks: 소유 트리 노드 API, 백그라운드 경계, 취소 의도 커밋과 전파, `subagents` 풀, 입력 큐 초안 `draftQueued`(L1.tasks.plan). 이름은 L1.agents.spec에서 [가정]으로 두었다.
 - core-tools: `evaluatePolicy`, `stricter`, 코어 규칙 등록 `registerRules`(default 티어 출처 `core:agents`), `ToolRunContext.ceiling` 처리(ceiling 단계), 도구 등록(L1.tools.plan TL-3·TL-8·TL-13).
 - core-persistence: 커밋 API, 자식 대화 재개, 자식 연결 kind(`agent.*`, F 요청 3 반영), `p_agents` 투영과 `TxView.agentByRequestId`, `ResumePlan.openChildren`(L1.persistence.plan PS-23).
-- core-loop: `runChildTurn` 진입점(L1.loop.plan LP15), 완료 게이트(`agent_before_settle`)에서 L2.work 핸들러가 `judge`를 부르는 경로(L1.loop.plan).
+- core-loop: `runChildTurn` 진입점(L1.loop.plan LP15), 완료 게이트(`boundary.settle.before`)에서 L2.work 핸들러가 `judge`를 부르는 경로(L1.loop.plan).
 - core-models: 역할 `judge`, `subagent` 라우팅과 구조화 출력, 테이프(L1.models.plan).
 - ext-host: `loop.spawn` → `xeon.agents.spawn` 연결, 그룹 위임 래퍼에 서비스 주입(X.primitives.plan, L3.group-kit.plan).
 
@@ -99,8 +99,8 @@ xeon/packages/core-agents/
 | AG-4 | 완료 | `denylist.ts`, `service.ts`(`syncRules`) |
 | AG-5 | 완료 | `result-guard.ts`, `report-reader.ts` |
 | AG-6 | 완료 | `request-id.ts`, `service.ts`(`attach`: 정착, 진행 중, 끊김) |
-| AG-7 | M3 | `delegate`는 `agents.unavailable` |
-| AG-8 | M3 | `judge`는 `failed` |
+| AG-7 | 완료(M3) | `service.ts`(`provision`, `attachBackground`, `startInBackground`, `cancel`), `tool.ts`(`background: true`). 시험 `test/delegate.test.ts` |
+| AG-8 | 완료(M3) | `judge.ts`, `structured.ts`(`completeStructured`), `goal-gate.ts`. 시험 `test/judge.test.ts` |
 | AG-9 | 완료(M2 범위) | `definitions/loader.ts`, `definitions/registry.ts`(우선순위 등록부) |
 | AG-10 | 완료 | `plugin.ts`, `tool.ts`, `settings.ts`, `ports.ts`(F에 키가 없어 `AgentServicePortKey`·`LoopServicePortKey`를 이 패키지가 만든다) |
 | AG-11 | 완료 | `gate.ts`(루트별 `maxConcurrent`), 전체 풀 `limiter("subagents")`. `tools` 슬롯 `suspendWhile`(C2)은 `agent` 도구가 `ToolService.suspendWhile` 안에서 `spawn`을 기다려 해소(M2 검토 3). `l1.tasks.limits.tools = 1`에서 `agent` 호출의 자식이 도구를 부르는 통합 시험 `agent_waits_for_child_without_holding_the_tools_slot`이 실제 엔진(SQLite 저장소, 실제 풀·파이프라인·`runChildTurn`, 모델만 테이프)에서 통과한다. `suspendWhile`을 빼면 같은 시험이 교착으로 시간 초과가 되는 것을 확인했다 [L1F] |

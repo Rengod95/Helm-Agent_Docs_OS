@@ -29,6 +29,11 @@ export function hostResourceDir(): string {
   return dirname(process.execPath);
 }
 
+/** 릴리즈에 든 기본 플러그인 번들의 뿌리: 자원 디렉터리 아래 `default-plugins/`. 릴리즈 배치가 정해지면 바뀐다 [미결] */
+export function defaultPluginsDir(): string {
+  return join(hostResourceDir(), "default-plugins");
+}
+
 /** 디렉터리를 만들고(0700) 경로를 돌려준다. 예상 가능한 실패는 Result로 돌려준다 */
 export async function resolveHostStatePaths(
   options: ResolveHostStatePathsOptions = {},

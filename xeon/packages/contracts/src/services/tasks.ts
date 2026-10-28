@@ -1,5 +1,5 @@
 import type { Result } from "../base/index.ts";
-import type { EventId, ItemId, ThreadId, TurnId } from "../conversation/index.ts";
+import type { EventId, ItemId, ThreadId, TurnId, TurnOrigin } from "../conversation/index.ts";
 import type {
   InputQueuePort,
   PortKey,
@@ -142,6 +142,8 @@ export interface InputDraft {
   /** 대화 범위 멱등 키. 브랜드 없는 문자열 1~64자 */
   readonly requestId: string;
   readonly source: InputSource;
+  /** 이 입력이 시작하는 turn의 출처. `input.queued.origin`에 그대로 적는다. 없으면 `source`에서 정한다(L1.loop.spec §4.4b) */
+  readonly origin?: TurnOrigin;
 }
 
 export interface QueuedInput extends InputDraft {

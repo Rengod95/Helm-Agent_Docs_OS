@@ -24,3 +24,14 @@ export {
   type ByteSink,
   type ByteStreams,
 } from "./process-stdio.ts";
+export {
+  connectSocket,
+  isLoopbackHost,
+  listenSocket,
+  UNIX_SOCKET_PATH_LIMIT,
+  type PeerInfo,
+  type SocketConnectOptions,
+  type SocketError,
+  type SocketListenOptions,
+  type SocketListener,
+} from "./socket.ts";

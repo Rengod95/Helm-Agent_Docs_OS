@@ -15,12 +15,16 @@ import type {
   Unsubscribe,
 } from "@xeon/contracts/extensions";
 import { createCapabilityBindings } from "./bindings.ts";
-import { createEventBus, type EventBus } from "./event-bus.ts";
+import { EMPTY_CAPABILITY_DEFS, type CapabilityDefLookup } from "./capability-guard.ts";
+import { createLifecycle, type CommittedEvent } from "./lifecycle.ts";
+import { createEffectWorker, type EffectWorkerPort } from "./effect-worker.ts";
 import { createBoundary, type BoundaryHooks } from "./boundary.ts";
 import type {
   ExtChange,
   HostCore,
   InstalledUnit,
+  ScopeRecord,
+  ThreadRuntime,
   PrimitivesSettingsSource,
   ResolvedDeps,
 } from "./core.ts";
@@ -72,6 +76,13 @@ export interface ExtHostDeps {
   readonly report: (diagnostic: ExtDiagnostic) => void;
   /** 참이면 페이로드·패치·결정 스키마 검사와 페이로드 동결을 켠다. 기본 참 */
   readonly strict?: boolean;
+  /**
+   * 능력 정의 조회. 능력 래퍼가 재실행되는 코드(on 핸들러, drive 함수)의 호출을 메서드의 `idempotent`·`readOnly` 선언으로 검사한다
+   * (ADR-0015 §3.2). 없으면 정의를 모르는 능력이므로 그 문맥의 모든 호출을 거부한다
+   */
+  readonly capabilityDefs?: CapabilityDefLookup;
+  /** 선언 없는 쓰기 요청 워커(ADR-0015 §3.5). 없으면 X의 기본 워커 */
+  readonly effectWorker?: EffectWorkerPort;
 }
 
 /** loading-trust가 검증을 끝낸 확장 하나. 순서는 loadIndex가 정한다 */
@@ -155,6 +166,12 @@ export interface ExtHost {
   ): Promise<DispatchOutcome<N>>;
   /** L1 루프가 단계 경계와 유휴 진입 때 부른다 */
   readonly boundary: BoundaryHooks;
+  /**
+   * 이벤트가 커밋된 뒤 부른다. kind가 `LIFECYCLE_POINTS`에 있으면 수명주기 지점(`lifecycle.agent.settled`,
+   * `lifecycle.lease.rejected`)을 디스패치한다. X가 낸 경계 기여(`lease.rejected`)는 `boundary.settle`이 직접 알리므로
+   * L1이 자기 커밋(위임 정착 `agent.settled`)을 알릴 때 쓴다. 끝나기를 기다린다
+   */
+  afterCommit(threadId: ThreadId, events: readonly CommittedEvent[]): Promise<void>;
   /** thread를 열 때(새로 만들거나 재개할 때, 되감기 뒤) 상태 판, 켜짐 상태, 열린 임대를 읽어 들인다 */
   openThread(threadId: ThreadId): Promise<void>;
   closeThread(threadId: ThreadId): Promise<void>;
@@ -183,8 +200,6 @@ export interface LeaseInfo {
 /** 패키지 안(testing, loading-trust, operations)에서만 쓰는 호스트 내부 */
 export interface ExtHostInternals {
   readonly core: HostCore;
-  /** pi events 어댑터용 휘발 이벤트 버스(X.primitives.spec §4.9). 확장 코드에는 주지 않는다 */
-  readonly events: EventBus;
   /** 추적 중인 작업(drive 호출, 유휴 적용, 능력 바인딩)이 모두 끝나기를 기다린다 */
   whenSettled(): Promise<void>;
   /** 토글 요청을 사유와 함께 기록한다(X.operations ScopeControl의 바탕). threadId가 있으면 그 thread만의 요청이다 */
@@ -412,15 +427,39 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
   }
 
   const resources = createResourceStore({ ports, policy: deps.resourcePolicy, report });
-  const state = createStateService(core);
+  const kick: { directCommitted: (thread: ThreadRuntime, record: ScopeRecord) => void } = {
+    directCommitted: () => {},
+  };
+  const state = createStateService(core, {
+    directCommitted: (thread, record) => {
+      kick.directCommitted(thread, record);
+    },
+  });
   services.state = state;
   const post = createPostQueue(core);
+  const effects =
+    deps.effectWorker ?? createEffectWorker(core, deps.capabilityDefs ?? EMPTY_CAPABILITY_DEFS);
   // 순환 참조(경계 ↔ 임대 ↔ scope)는 지연 호출 자리로 푼다
   const late: { requestApply: (threadId: ThreadId) => void } = { requestApply: () => {} };
   const lease = createLeaseBroker(core, state, { requestApply: (id) => late.requestApply(id) });
+  kick.directCommitted = (thread, record) => {
+    lease.onDirectCommit(thread, record.id);
+  };
   const scope = createScopeRuntime(core, {
     makeApi: (record, generation) =>
-      createScopeApi({ core, state, post, bindings, resources }, record, generation),
+      createScopeApi(
+        {
+          core,
+          state,
+          post,
+          bindings,
+          resources,
+          capabilityDefs: deps.capabilityDefs ?? EMPTY_CAPABILITY_DEFS,
+          effects,
+        },
+        record,
+        generation,
+      ),
     state,
     lease,
     requestApply: (threadId) => {
@@ -428,7 +467,8 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       else if (core.threads.has(threadId)) boundary.requestApply(threadId);
     },
   });
-  const boundary = createBoundary(core, scope, lease);
+  const lifecycle = createLifecycle(core);
+  const boundary = createBoundary(core, scope, lease, effects, lifecycle);
   late.requestApply = (id) => {
     if (core.threads.has(id)) boundary.requestApply(id);
   };
@@ -605,7 +645,12 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       prepare: (signal) => boundary.prepare(signal),
       settle: (signal, result) => boundary.settle(signal, result),
     },
-    openThread: (threadId) => boundary.openThread(threadId),
+    afterCommit: (threadId, events) => lifecycle.afterCommit(threadId, events),
+    openThread: async (threadId) => {
+      lifecycle.attach();
+      await boundary.openThread(threadId);
+      core.track(lifecycle.flush(threadId));
+    },
     closeThread: (threadId) => boundary.closeThread(threadId),
     leaseOf(threadId) {
       const held = core.threads.get(threadId)?.lease;
@@ -633,6 +678,7 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
         await scope.teardown(record);
         return "continue";
       });
+      lifecycle.detach();
       core.scopes.clear();
       core.units.clear();
       const finished = await waitWithin(
@@ -657,7 +703,6 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
 
   internalsByHost.set(host, {
     core,
-    events: createEventBus(core),
     whenSettled: () => core.whenSettled(),
     requestScope(scopeId, enabled, reason, threadId) {
       const record = core.scopes.get(scopeId);

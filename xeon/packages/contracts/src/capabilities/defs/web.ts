@@ -432,6 +432,7 @@ export const WebSearch: CapabilityDef<
         input: WebSearchInputSchema,
         output: WebSearchOutputSchema,
         replay: "safe",
+        readOnly: true,
         errors: {
           query_rejected: {
             description: "provider가 검색어를 거부함(금칙어, 길이 등)",
@@ -645,6 +646,7 @@ export const WebFetch: CapabilityDef<
         input: WebFetchInputSchema,
         output: WebFetchOutputSchema,
         replay: "safe",
+        readOnly: true,
         errors: {
           session_limit: {
             description: "세션당 fetch 상한(l2.web.limits.fetchPerSession)을 넘음",
@@ -1079,13 +1081,14 @@ export const WebBrowse: CapabilityDef<
         input: BrowseReadInputSchema,
         output: BrowseReadOutputSchema,
         replay: "safe",
+        readOnly: true,
         errors: BROWSE_ERRORS,
       },
       close: {
         description: "세션을 닫는다. 이미 닫혔으면 closed=false.",
         input: BrowseCloseInputSchema,
         output: BrowseCloseOutputSchema,
-        replay: "safe",
+        replay: "unsafe",
       },
     },
   },
@@ -1131,7 +1134,7 @@ export const WebBrowse: CapabilityDef<
       method: "close",
       parameters: BrowseCloseInputSchema,
       toContent: renderBrowseClose,
-      replay: "safe",
+      replay: "unsafe",
       executionMode: "sequential",
       hints: { readOnly: false, idempotent: true },
     },
@@ -1352,12 +1355,13 @@ export const WebResearch: CapabilityDef<
         input: ResearchRunRefSchema,
         output: ResearchRunSchema,
         replay: "safe",
+        readOnly: true,
       },
       cancel: {
         description: "조사를 취소한다. 이미 끝났으면 현재 상태를 돌려준다.",
         input: ResearchRunRefSchema,
         output: ResearchHandleSchema,
-        replay: "safe",
+        replay: "unsafe",
       },
       run: {
         description: "조사를 시작하고 끝난 뒤 결과를 돌려준다.",

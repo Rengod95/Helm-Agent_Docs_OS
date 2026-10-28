@@ -8,6 +8,7 @@ import type {
   StopReason,
   ToolResultMessage,
   TurnId,
+  TurnOrigin,
   Usage,
 } from "@xeon/contracts/conversation";
 import type { EffectIntent } from "@xeon/contracts/records";
@@ -24,7 +25,7 @@ export type TurnEntry =
       readonly kind: "fresh";
       readonly prompt: string;
       readonly images: readonly ImageContent[];
-      /** 재개 때 `before_agent_start`가 추가한 item이 이미 있으면 다시 발화하지 않는다 */
+      /** 재개 때 `input.agent.before`가 추가한 item이 이미 있으면 다시 발화하지 않는다 */
       readonly skipBeforeStart: boolean;
     }
   /** 다음(또는 끊긴) 단계의 모델 요청부터. `adoptStepId`가 있으면 그 단계의 `step.started`는 이미 기록됨 */
@@ -72,6 +73,8 @@ export interface TurnRunSpec {
   readonly scope: TaskScope;
   readonly entry: TurnEntry;
   readonly interactive: boolean;
+  /** 이 turn의 입력 출처(`boundary.turn.before`·`boundary.settle.after` 페이로드) */
+  readonly origin: TurnOrigin;
   /** drive turn이면 임대 scope id(모델 해석의 그룹 덮어쓰기 키) */
   readonly scopeId: string | null;
   /** drive turn이면 임대 id(경계 신호의 drivenBy) */
@@ -97,7 +100,7 @@ export interface TurnRunResult {
   readonly usage: Usage | null;
   readonly finalItemId: ItemId | null;
   readonly error: string | null;
-  /** 호출자가 thread를 유휴로 표시한 뒤 부른다: 경계 `turn_settled`를 알리고 `agent_settled`를 발화한다 */
+  /** 호출자가 thread를 유휴로 표시한 뒤 부른다: 경계 `turn_settled`를 알리고 `boundary.settle.after`를 발화한다 */
   readonly afterIdle: () => Promise<void>;
 }
 

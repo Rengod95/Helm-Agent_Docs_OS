@@ -3,11 +3,14 @@ import {
   type Static,
   type TBoolean,
   type TInteger,
+  type TNull,
+  type TNumber,
   type TObject,
   type TOptional,
   type TRecord,
   type TSchema,
   type TString,
+  type TUnion,
   type TUnknown,
 } from "typebox";
 
@@ -19,6 +22,7 @@ export const WireErrorDataSchema: TObject<{
   retryable: TBoolean;
   retryAfterMs: TOptional<TInteger>;
   details: TOptional<TRecord<"^.*$", TUnknown>>;
+  args: TOptional<TRecord<"^.*$", TUnion<[TString, TNumber, TBoolean, TNull]>>>;
   traceId: TOptional<TString>;
 }> = Type.Object(
   {
@@ -27,6 +31,16 @@ export const WireErrorDataSchema: TObject<{
     retryable: Type.Boolean(),
     retryAfterMs: Type.Optional(Type.Integer({ minimum: 0 })),
     details: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    /**
+     * 문장에 끼울 인자(M3-REQ-21). 문장은 클라이언트가 `kind`를 메시지 키로 카탈로그에서 만든다. `message`는 개발자용 영어로 남는다.
+     * 값은 문자열·숫자·불리언·null이고 비밀 값을 싣지 않는다
+     */
+    args: Type.Optional(
+      Type.Record(
+        Type.String(),
+        Type.Union([Type.String(), Type.Number(), Type.Boolean(), Type.Null()]),
+      ),
+    ),
     traceId: Type.Optional(Type.String({ maxLength: 64 })),
   },
   { additionalProperties: true },
@@ -101,6 +115,8 @@ export type WireErrorKind =
   | "settings.locked"
   | "settings.secretValue"
   | "settings.reserved"
+  | "settings.fileConflict"
+  | "settings.fileInvalid"
   | "secret.notFound"
   | "secret.denied"
   | "secret.providerUnavailable"
@@ -166,7 +182,16 @@ export const WIRE_ERRORS: {
     ),
   },
   /** M2: host.hello의 auth.token이 없거나 맞지 않다. 응답 뒤 연결을 닫는다 */
-  "host.authFailed": { code: 1004, kind: "host.authFailed", retryable: false },
+  "host.authFailed": {
+    code: 1004,
+    kind: "host.authFailed",
+    retryable: false,
+    /** 토큰 값은 싣지 않는다. 사유만 싣는다(M3-REQ-19) */
+    details: Type.Object(
+      { reason: Type.Union([Type.Literal("missing"), Type.Literal("invalid")]) },
+      { additionalProperties: false },
+    ),
+  },
   "replay.outOfRange": {
     code: 2001,
     kind: "replay.outOfRange",
@@ -272,10 +297,10 @@ export const WIRE_ERRORS: {
     details: Type.Object(
       {
         point: Type.Union([
-          Type.Literal("session_before_fork"),
-          Type.Literal("session_before_tree"),
-          Type.Literal("session_before_switch"),
-          Type.Literal("session_before_compact"),
+          Type.Literal("session.fork.before"),
+          Type.Literal("session.tree.before"),
+          Type.Literal("session.switch.before"),
+          Type.Literal("session.compact.before"),
         ]),
         reason: Type.Union([Type.String({ maxLength: 512 }), Type.Null()]),
       },
@@ -363,6 +388,26 @@ export const WIRE_ERRORS: {
     kind: "settings.reserved",
     retryable: false,
     details: KeyDetails,
+  },
+  /** `settings.writeFile`의 `baseSha256`이 지금 파일과 다르다. 다시 읽고 합친 뒤 보낸다(M3-REQ-15) */
+  "settings.fileConflict": {
+    code: 3107,
+    kind: "settings.fileConflict",
+    retryable: false,
+    details: Type.Object(
+      { scope: Type.String({ maxLength: 16 }) },
+      { additionalProperties: false },
+    ),
+  },
+  /** `settings.writeFile`의 `text`가 JSON 객체가 아니거나 그 범위의 스키마에 맞지 않는다(M3-REQ-15) */
+  "settings.fileInvalid": {
+    code: 3108,
+    kind: "settings.fileInvalid",
+    retryable: false,
+    details: Type.Object(
+      { scope: Type.String({ maxLength: 16 }), issues: IssuesSchema },
+      { additionalProperties: false },
+    ),
   },
   // 3200~3299: 비밀 관리(`secret.*` 메서드). 어느 details에도 값, 값의 일부, 외부 도구의 출력이 없다
   "secret.notFound": {
@@ -534,6 +579,8 @@ export interface WireErrorOptions {
   readonly retryAfterMs?: number;
   readonly traceId?: string;
   readonly details?: Readonly<Record<string, unknown>>;
+  /** 문장에 끼울 인자(M3-REQ-21). 클라이언트가 kind를 키로 문장을 만든다 */
+  readonly args?: Readonly<Record<string, string | number | boolean | null>>;
 }
 
 /** 표에 있는 kind로 WireError를 만든다. details 스키마 검사는 호출자 몫이다 */
@@ -544,6 +591,7 @@ export function wireError(kind: WireErrorKind, options: WireErrorOptions = {}): 
     retryable: spec.retryable,
     ...(options.retryAfterMs !== undefined ? { retryAfterMs: options.retryAfterMs } : {}),
     ...(options.details !== undefined ? { details: options.details } : {}),
+    ...(options.args !== undefined ? { args: options.args } : {}),
     ...(options.traceId !== undefined ? { traceId: options.traceId } : {}),
   };
   return new WireError(spec.code, options.message ?? spec.kind, data);

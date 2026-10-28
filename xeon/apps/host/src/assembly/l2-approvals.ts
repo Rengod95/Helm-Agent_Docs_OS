@@ -67,6 +67,8 @@ function bodyOfJson(body: ApprovalBodyJson): ApprovalBody | undefined {
       };
     case "question":
       return { kind: "question", question: { questions: body.question.questions } };
+    case "review":
+      return { kind: "review", review: body.review };
     default:
       return assertNever(body, "ApprovalBodyJson");
   }
@@ -106,6 +108,7 @@ const DEFAULT_TITLES: Readonly<Record<L2ApprovalRequest["kind"], string>> = {
   tool: "Approve this action?",
   plan: "Review the plan",
   question: "Answer the questions",
+  review: "Review the changes",
 };
 
 export interface L2PortOptions {

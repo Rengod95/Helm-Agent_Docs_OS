@@ -1,3 +1,4 @@
+import { noGuard } from "./support/dispatcher.ts";
 import { describe, expect, test } from "bun:test";
 import type { AssistantMessageEvent } from "@xeon/contracts/conversation";
 import type { UsageRecord } from "@xeon/contracts/services";
@@ -47,6 +48,7 @@ describe("secret_ref_resolved_at_request_time_only", () => {
     const h = createHarness({
       tape: ONE_TURN,
       dispatcher: {
+        guardProviderRequest: noGuard,
         beforeProviderRequest(input) {
           seen.push(input);
           return Promise.resolve(input.payload);

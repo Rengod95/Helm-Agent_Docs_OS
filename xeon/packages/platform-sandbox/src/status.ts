@@ -143,18 +143,23 @@ export interface StatusInput {
   readonly detection: Detection;
   readonly onUnavailable: OnUnavailable;
   readonly lastSelfTest: { at: number; passed: boolean; failed: SelfTestItemId[] } | undefined;
+  /** srt가 거부해 차단 목록에서 빠진 도메인. 없거나 빈 목록이면 status에 키가 없다 */
+  readonly rejectedBlockedDomains?: readonly string[];
 }
 
 /** 탐지 결과, 설정, 마지막 자가 시험을 합쳐 SandboxStatus를 만든다. 순수 함수 */
 export function buildStatus(input: StatusInput): SandboxStatus {
   const { provider, onUnavailable, lastSelfTest } = input;
   const selfTest = lastSelfTest === undefined ? {} : { lastSelfTest };
+  const rejectedList = input.rejectedBlockedDomains ?? [];
+  const rejected = rejectedList.length > 0 ? { rejectedBlockedDomains: [...rejectedList] } : {};
   const none = {
     level: "none",
     platform: provider.platform,
     available: false,
     onUnavailable,
     ...selfTest,
+    ...rejected,
   } as const;
   if (!input.enabled) return { ...none, reason: "disabled" };
   const detection = input.detection;
@@ -175,6 +180,7 @@ export function buildStatus(input: StatusInput): SandboxStatus {
     available: true,
     onUnavailable,
     ...selfTest,
+    ...rejected,
   };
 }
 

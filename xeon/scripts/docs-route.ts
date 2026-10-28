@@ -11,7 +11,7 @@ import { parseArgs } from "node:util";
 export const LAYERS = ["F", "X", "L0", "L1", "L2", "L3", "L4"] as const;
 const DOC_LAYERS = [...LAYERS, "product", "architecture", "eng", "adr", "meta"];
 const KINDS = ["readme", "spec", "design", "plan", "guide", "adr", "review"];
-const STATUSES = ["draft", "review", "accepted"];
+const STATUSES = ["draft", "review", "accepted", "superseded"];
 const REQUIRED = ["id", "layer", "domain", "kind", "status", "depends_on", "binds"] as const;
 
 export interface Doc {
@@ -290,8 +290,11 @@ export function checkDocs(repoRoot: string, options: { allowMissing: boolean }):
     if (!DOC_LAYERS.includes(layer))
       error(doc.file, `layer "${layer}" is not one of ${DOC_LAYERS.join(", ")}`);
     if (!KINDS.includes(kind)) error(doc.file, `kind "${kind}" is not one of ${KINDS.join(", ")}`);
-    if (!STATUSES.includes(str(doc, "status")))
-      error(doc.file, `status "${str(doc, "status")}" is not one of ${STATUSES.join(", ")}`);
+    const status = str(doc, "status");
+    if (!STATUSES.includes(status))
+      error(doc.file, `status "${status}" is not one of ${STATUSES.join(", ")}`);
+    else if (status === "superseded" && kind !== "adr")
+      error(doc.file, `status "superseded" is allowed only for kind "adr" (decisions/README §1.3)`);
 
     const previous = ids.get(id);
     if (previous === undefined) ids.set(id, doc);

@@ -1,6 +1,7 @@
 import { Bug, err, ok, type Result } from "@xeon/contracts";
 import type { AssistantMessage, LifecycleEvent } from "@xeon/contracts/conversation";
 import { responseRequest } from "../commits.ts";
+import { guardFinalOutput } from "./guard-output.ts";
 import {
   commitStep,
   currentStep,
@@ -11,7 +12,7 @@ import {
 } from "./turn-run.ts";
 import type { LoopFailure } from "./types.ts";
 
-// L1.loop.spec §3.2 단계 4 `commitResponse`. `message_end` chain으로 응답을 확정하고, 앞서 쌓은 system·custom item과 함께
+// L1.loop.spec §3.2 단계 4 `commitResponse`. `boundary.message.after` chain으로 응답을 확정하고, 앞서 쌓은 system·custom item과 함께
 // C3(T3)로 커밋한다. 도구 호출이 있으면 `next:"tools"` 체크포인트는 core-persistence의 커밋 규칙을 따른다(L1.loop.spec §3.5).
 
 type ItemCompletedNote = Extract<LifecycleEvent, { readonly type: "item.completed" }>;
@@ -28,7 +29,7 @@ export async function commitResponse(
   const { ctx, state, mapper, running, threadId, scope } = run;
   const step = currentStep(run);
   const patched = await ctx.ext.dispatch(
-    "message_end",
+    "boundary.message.after",
     { message: structuredClone(original) },
     {
       threadId,
@@ -38,7 +39,9 @@ export async function commitResponse(
     },
   );
   const patchedMessage = patched.value.message;
-  const finalMessage = patchedMessage.role === "assistant" ? patchedMessage : original;
+  const chained = patchedMessage.role === "assistant" ? patchedMessage : original;
+  // 표시와 기록 전에 출력 가드를 거친다. 차단된 답은 사유 한 줄로 바뀌어 대화 기록에 남는다
+  const finalMessage = await guardFinalOutput(run, chained);
   const notes = mapper.map({ type: "message_end", message: finalMessage });
   const completed = itemCompletedOf(notes);
   if (completed === undefined || completed.item.kind !== "assistant") {

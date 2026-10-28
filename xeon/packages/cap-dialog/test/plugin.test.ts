@@ -260,10 +260,10 @@ describe("manifest", () => {
     ]);
     expect(manifest?.requires).toEqual([{ id: "workspace.images", range: "^1.0.0" }]);
     expect(manifest?.points).toEqual([
-      "input",
-      "tool_execution_start",
-      "tool_execution_end",
-      "before_agent_start",
+      "input.user.before",
+      "tool.execution.before",
+      "tool.execution.after",
+      "input.agent.before",
     ]);
     expect(manifest?.usesPost).toBe(false);
     expect(manifest?.usesDrive).toBe(false);
@@ -355,7 +355,7 @@ describe("plugin", () => {
     await t.host.openThread(thread);
     const dispatch = (text: string) =>
       t.host.dispatch(
-        "input",
+        "input.user.before",
         { text, source: "interactive" },
         { threadId: thread, dispatchKey: `k:${text}`, initial: { text, handled: false } },
       );
@@ -369,7 +369,7 @@ describe("plugin", () => {
     const thread = t.newThread();
     await t.host.openThread(thread);
     const out = await t.host.dispatch(
-      "before_agent_start",
+      "input.agent.before",
       { prompt: "hi", systemPrompt: "BASE", systemPromptOptions: {} },
       {
         threadId: thread,
@@ -390,7 +390,7 @@ describe("plugin", () => {
     const thread = t.newThread();
     await t.host.openThread(thread);
     await t.host.dispatch(
-      "tool_execution_start",
+      "tool.execution.before",
       { toolCallId: "c1", toolName: "bash", args: {} },
       { threadId: thread, dispatchKey: "s" },
     );
@@ -404,7 +404,7 @@ describe("plugin", () => {
       afterSeq: 10,
     });
     await t.host.dispatch(
-      "tool_execution_end",
+      "tool.execution.after",
       { toolCallId: "c1", toolName: "bash", result: null, isError: false },
       { threadId: thread, dispatchKey: "e" },
     );

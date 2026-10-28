@@ -10,7 +10,7 @@ import {
   type KnowledgeRuntime,
 } from "../../src/service.ts";
 import type { WriteApprovals } from "../../src/ports/approvals.ts";
-import { readKnowledgeSettings } from "../../src/settings.ts";
+import { readKnowledgeSettings, withTrustedEvidence } from "../../src/settings.ts";
 import { resolveSkillRoots } from "../../src/skills/roots.ts";
 import { fixedIdFactory, fixedLocalIds, manualClock, type ManualClock } from "./clock.ts";
 import { createMemoryFs, type MemoryFs } from "./memory-fs.ts";
@@ -75,6 +75,12 @@ export interface WorldOptions {
   readonly extensionRoots?: readonly { readonly dir: string; readonly extension: string }[];
   /** true면 실제 세션 서비스(투영기 등록부 포함)를 올리고 검색 표와 색인 소비자를 시작한다 */
   readonly sessions?: boolean;
+  /** 있으면 이 경로의 파일 저장소를 연다. 닫고 다시 여는 시험이 쓴다. 닫는 일은 시험이 한다(`closeWorlds`가 닫지 않는다) */
+  readonly path?: string;
+  /** 있으면 이 파일 시스템을 쓴다. 저장소를 다시 열어도 정본 파일이 남아 있게 한다 */
+  readonly fs?: MemoryFs;
+  /** 조립 루트가 선언하는 신뢰 증거 출처(`KnowledgePluginOptions.trustedEvidenceSources`와 같다) */
+  readonly trustedEvidenceSources?: readonly string[];
   /** 저장소 능력 판정을 덮어쓴다(FTS5 없음, 낡은 SQLite 시험) */
   readonly capabilities?: { readonly fts5: boolean; readonly sqliteVersion: string };
 }
@@ -82,10 +88,14 @@ export interface WorldOptions {
 /** 메모리 파일 시스템 + 실제 SQLite 임시 저장소 + 마이그레이션 적용을 한 번에 만든다 */
 export async function createWorld(options: WorldOptions = {}): Promise<World> {
   const clock = manualClock();
-  const fs = createMemoryFs();
+  const fs = options.fs ?? createMemoryFs();
   const ids = fixedIdFactory(clock);
-  const store = await openTestStore({ clock, ids });
-  opened.push(store);
+  const store = await openTestStore({
+    clock,
+    ids,
+    ...(options.path === undefined ? {} : { path: options.path }),
+  });
+  if (options.path === undefined) opened.push(store);
   const migrated = store.service.migrations.apply(KNOWLEDGE_MIGRATIONS);
   if (!migrated.ok) throw new Error(`migration failed: ${migrated.error.kind}`);
   const logs: LogLine[] = [];
@@ -116,7 +126,8 @@ export async function createWorld(options: WorldOptions = {}): Promise<World> {
     clock,
     ids: fixedLocalIds(),
     logger,
-    settings: () => readKnowledgeSettings(layers),
+    settings: () =>
+      withTrustedEvidence(readKnowledgeSettings(layers), options.trustedEvidenceSources),
     roots: () => {
       const settings = readKnowledgeSettings(layers);
       return Promise.resolve({

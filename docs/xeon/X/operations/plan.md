@@ -14,13 +14,13 @@ binds: [xeon/packages/ext-host/src/operations/**]
 
 ## 1. 목표와 마일스톤 배치
 
-[결정] M0 범위에 `ext-host`(Cordis vendored, on/post/drive/scope 최소형)가 들어가고, M1은 테스트용 그룹이 on/post/drive를 쓰는 걷는 골격이다(`_research/foundation-plan.md` §5 P4). 이 계획의 1차·2차 구분은 `_research/layer-plan-v2.json` X-c를 따른다. 이름 충돌, 안전 모드, 외부 훅은 2차다.
+[결정] M0 범위에 `ext-host`(Cordis vendored, on/post/drive/scope 최소형)가 들어가고, M1은 테스트용 그룹이 on/post/drive를 쓰는 걷는 골격이다(`_research/foundation-plan.md` §5 P4). 이 계획의 1차·2차 구분은 `_research/layer-plan-v2.json` X-c를 따른다. 이름 충돌, 안전 모드는 2차다. 외부 훅은 M4다 [결정: 2026-10-28 사용자].
 
 | 마일스톤 | 범위 | 스펙 절 | 소비자 |
 |---|---|---|---|
 | M0 | tier 정렬 키(`TIERS`, `orderKeyOf`, `compareOrderKey`, `assignTier`, `TierTable`)와 `DispatchPolicy.tierOf`·`budgetMs`·`onHandlerFailure`·`onHandlerSettled`·`run` 연결(X.primitives.spec §3.4). 핸들러 시간 예산(`runWithBudget`, `BudgetGate`, `awaitUser`, `budgetClassOf`, `DEFAULT_BUDGETS_MS`)과 UI 대기 제외. 예산 초과·예외의 fold별 처리(tap 기록, first `FIRST_DENY`, chain 패치 버림)를 primitives 디스패처에 연결. 확장 단위 실패 집계(`FailureLedger`)와 `HandlerOutcomeRecord` 기록. 1차 설정 키 중 예산 키 | §3.1~§3.3, §4.1~§4.2, §4.3.1~§4.3.2, §6 | X.primitives 디스패처, L1 지점 발화 |
 | M1 | `ExtStorage` 최소형: 접두 테이블 정의·DDL, 확장 투영으로 코어 커밋과 같은 트랜잭션 쓰기, 읽기, 소유 장부 `xh_ext_tables`. 테스트 그룹이 이를 사용한다. 자동 끄기(`judgeAutoDisable`, `AutoDisabler`, `ScopeControl` 연결)와 알림. 자동 끄기 설정 키 | §3.3~§3.4, §4.3.3~§4.3.5, §4.4.1~§4.4.5, §4.4.8 | M1 스모크 테스트 그룹, L3 group-kit |
-| M2 이후 | 이름 충돌 네임스페이스(`resolveNames`, pi 어댑터 연결). 안전 모드와 `--disable-ext`, 연속 시작 실패 제안. 외부 훅 프로토콜(설정, 실행, 해석, 환경 정리). 접두 밖 접근 차단 강화(`checkStatement` 상시화 검토, authorizer 조사), `ExtQuery` 범위 조건. 확장 테이블 삭제(`ExtStorageAdmin`). 보존 테이블과 열 추가 마이그레이션(스펙 §10 미결 8 결정 뒤) | §3.5~§3.7, §4.4.6~§4.4.7, §4.5~§4.7 | X.loading-trust(제거, pi 어댑터, 로더), L4 host·cli·settings-ui |
+| M2 이후 | 이름 충돌 네임스페이스(`resolveNames`). 안전 모드와 `--disable-ext`, 연속 시작 실패 제안. 외부 훅 프로토콜(설정, 실행, 해석, 환경 정리)은 M4로 옮겼다 [결정: 2026-10-28 사용자]. 접두 밖 접근 차단 강화(`checkStatement` 상시화 검토, authorizer 조사), `ExtQuery` 범위 조건. 확장 테이블 삭제(`ExtStorageAdmin`). 보존 테이블과 열 추가 마이그레이션(스펙 §10 미결 8 결정 뒤) | §3.5~§3.7, §4.4.6~§4.4.7, §4.5~§4.7 | X.loading-trust(제거, 로더), L4 host·cli·settings-ui |
 
 - M0에서 F.records의 휘발 kind `scope.handler_failed` 추가(스펙 §10 미결 4)가 아직이면 알림은 운영 로그로만 남기고, kind가 생기면 같은 `OperationsNotifier` 구현을 바꾼다.
 - M1의 확장 테이블 삭제는 범위 밖이다. M1 테스트 그룹은 제거하지 않는다.
@@ -38,7 +38,7 @@ xeon/packages/ext-host/
     budget.ts            # BudgetClass, BudgetTable, DEFAULT_BUDGETS_MS, STREAM_TAP_POINTS, budgetClassOf,
                          # budgetMsFrom, BudgetGate, BudgetOutcome, BudgetDeps, runWithBudget, awaitUser
     failure.ts           # FailureKind, HandlerResultKind, HandlerOutcomeRecord, fromHandlerFailure,
-                         # FoldFailureAction, FailureStats, FailureLedger, createFailureLedger
+                         # FailureStats, FailureLedger, createFailureLedger
     auto-disable.ts      # AutoDisablePolicy, DEFAULT_AUTO_DISABLE, AUTO_DISABLE_EXEMPT_TIERS,
                          # AutoDisableVerdict, judgeAutoDisable, ScopeChangeReason, ScopeControl,
                          # OperationsNotifier, AutoDisabler, createAutoDisabler
@@ -51,8 +51,8 @@ xeon/packages/ext-host/
       migrate.ts         # M2 이후. 보존 테이블 마이그레이션(스펙 §10 미결 8 결정 뒤). M1에는 투영 버전 재생성 호출만
     naming.ts            # M2. NamedResourceKind, ResourceClaim, ResolvedName, qualifiedName, ReservedNames,
                          # resolveNames, createResourcePolicy
-    safe-mode.ts         # M2. SafeModeSource, StartupOptions, LoadCandidate, SkipReason, startupFilter,
-                         # allowedInSafeMode, StartupHealthStore, shouldSuggestSafeMode
+    safe-mode.ts         # M3a. SafeModeSource, StartupOptions, LoadCandidate, SkipReason, startupFilter,
+                         # allowedInSafeMode, shouldSuggestSafeMode
     hooks/
       config.ts          # M2. HOOK_ID_PATTERN, HOOK_POINTS, HookPointName, HookDefSchema, HookDef,
                          # HookDefListSchema, HookSource, LoadedHook, loadHooks
@@ -101,15 +101,15 @@ xeon/packages/ext-host/
 | O-13 | `storage/guard.ts`: `checkStatement`(접두 대조, 금지 키워드, 여러 문장). 테스트·디버그 빌드에서 O-14가 만든 모든 문장에 적용 | O-12 | S | M1 |
 | O-14 | `storage/ext-storage.ts`: `defineTables`(검사, 소유 장부 `xh_ext_tables`, `kinds` 소유 검사), `ExtProjection` → `Projector` 변환과 `ProjectorRegistryPort.register` 등록(`Result` 오류 → `defineTables` 실패), `onFailure` 구독, `ExtWriters`(ProjectionTx 감싸기), `read`(`scoped("ext.<name>")` 읽기), 소유 장부(`scoped("xh")`), `storageOf` | P-30(`ProjectorRegistryPortKey`, `ScopedStorePortKey`, `PortLookup`), L0.store.plan(`StoreService.scoped`, `ProjectionTx` 포트), L1.persistence.plan(`ProjectorRegistry.register`), F.records.plan(확장 kind 등록 `EventKindRegistry`), O-12, O-13 | L | M1 |
 | O-15 | 저장 영역 계약 시나리오 `ext-storage.contract.ts`: 저장소 팩토리를 인자로 받는 시나리오 모음. X `test/` 안에서는 F 인터페이스로 만든 자체 저장 대역(`test/operations/support/fake-store.ts`, 장애 주입 지점 포함)으로 돌린다. 시나리오 파일은 테스트 파일이라 L0.store.plan ST-23이 실제 bun:sqlite 팩토리로 같은 시나리오를 돌릴 수 있다(테스트 파일 교차 import, [결정: review.decisions-2 U-17]). 장애 주입 롤백 시나리오 포함 | F.records.plan(`StoreDb`, `ProjectionTx`, `Projector`), O-14 | M | M1 |
-| O-16 | M1 스모크 연결: 테스트 그룹이 `storageOf(g).defineTables`로 테이블 하나를 정의하고 `turn_end` entries의 자기 kind 이벤트를 투영한다. 재개 뒤 행이 이어지는지 확인 | F.extensions.plan M1 스모크 매니페스트, L4.host-service.plan 조립, O-14 | M | M1 |
+| O-16 | M1 스모크 연결: 테스트 그룹이 `storageOf(g).defineTables`로 테이블 하나를 정의하고 `boundary.step.after` entries의 자기 kind 이벤트를 투영한다. 재개 뒤 행이 이어지는지 확인 | F.extensions.plan M1 스모크 매니페스트, L4.host-service.plan 조립, O-14 | M | M1 |
 | O-17 | `doc-constants.test.ts`: 스펙 §4.2.2 표·§6 표의 기본값과 §3.1 tier 이름을 코드 상수와 대조 | O-05, O-10, O-02 | S | M1 |
 | O-18 | `naming.ts`: `qualifiedName`, `resolveNames`(순서 무관, 예약, 충돌, 64자), `createResourcePolicy`(`ResourcePolicy.resolve` 쌍 판정) | P-24(리소스 레지스트리, `ResourcePolicy`) | M | M2 |
-| O-19 | `ExtHostDeps.resourcePolicy` 연결, 집합 판정 메서드 추가를 primitives와 합의(스펙 §10 미결 17), pi 어댑터의 `registerTool`·`registerCommand`·`registerShortcut`·`registerFlag` 매핑 확인 | L-19(pi 어댑터), O-18 | M | M2 |
-| O-20 | `safe-mode.ts`: `startupFilter`, `allowedInSafeMode`, `shouldSuggestSafeMode`. `OperationsPolicy.startupFilter`(후보별 `assignTier` 뒤 `startupFilter`), `StartupHealthStore` 포트, 2차 안전 모드 키 2개. 로더 5a단계 연결은 L-29 | L-08(로더), L4.host-service.plan(시작 상태 파일, `--safe-mode`·`--disable-ext` 파싱), O-02 | M | M2 |
-| O-21 | `hooks/config.ts`: `HookDefSchema`, 범위별 목록 병합, tier 부여, 프로젝트 신뢰 조건, 2차 훅 키 3개 | L-17(프로젝트 신뢰), F.wire-settings.plan(배열 키 병합, 스펙 §10 미결 13), O-02 | M | M2 |
-| O-22 | `hooks/protocol.ts`: `HookInput` 직렬화, `HookOutputSchema`, `interpretHookRun`(스펙 §4.7.3 표 전체) | F.extensions.plan(`POINTS[point].result` 스키마), O-21 | M | M2 |
-| O-23 | `hooks/run.ts`: `hookEnv`, `HookProcessPort`(`ProcessPortKey`로 조회)로 실행, 출력 상한, 예산, 결과를 `HandlerOutcomeRecord`로 보고 | P-30(`ProcessPortKey`), L0.process.plan(`ProcessService` 실행 메서드, 프로세스 그룹 종료), O-22, O-08 | M | M2 |
-| O-24 | 외부 훅 등록: 범위별 내부 내장 확장 단위(`xeon-hooks-<범위>`)를 `ExtHost.install`로 싣고 훅마다 on 핸들러 하나를 등록(모든 확장 뒤 loadIndex, `TierTable`에 범위별 tier), (단위, 순번) → 훅 id 표, 자동 끄기의 훅 끄기 연결 | P-13(`install`), O-03, O-10, O-23 | M | M2 |
+| O-19 | `ExtHostDeps.resourcePolicy` 연결, 집합 판정 메서드 추가를 primitives와 합의(스펙 §10 미결 17). pi 어댑터는 두지 않으므로 어댑터의 등록 매핑 확인은 없다(ADR-0017 §3.7) | O-18 | M | M2 |
+| O-20 | `safe-mode.ts`: `startupFilter`, `allowedInSafeMode`, `shouldSuggestSafeMode`. `OperationsPolicy.startupFilter`(후보별 `assignTier` 뒤 `startupFilter`), `StartupHealthStore` 포트(호스트가 시작 상태 파일을 연결할 때 정의합니다. 2026-10-28 미사용 export 정리), 2차 안전 모드 키 2개. 로더 5a단계 연결은 L-29 | L-08(로더), L4.host-service.plan(시작 상태 파일, `--safe-mode`·`--disable-ext` 파싱), O-02 | M | M2 |
+| O-21 | `hooks/config.ts`: `HookDefSchema`, 범위별 목록 병합, tier 부여, 프로젝트 신뢰 조건, 2차 훅 키 3개 | L-17(프로젝트 신뢰), F.wire-settings.plan(배열 키 병합, 스펙 §10 미결 13), O-02 | M | M4 |
+| O-22 | `hooks/protocol.ts`: `HookInput` 직렬화, `HookOutputSchema`, `interpretHookRun`(스펙 §4.7.3 표 전체) | F.extensions.plan(`POINTS[point].result` 스키마), O-21 | M | M4 |
+| O-23 | `hooks/run.ts`: `hookEnv`, `HookProcessPort`(`ProcessPortKey`로 조회)로 실행, 출력 상한, 예산, 결과를 `HandlerOutcomeRecord`로 보고 | P-30(`ProcessPortKey`), L0.process.plan(`ProcessService` 실행 메서드, 프로세스 그룹 종료), O-22, O-08 | M | M4 |
+| O-24 | 외부 훅 등록: 범위별 내부 내장 확장 단위(`xeon-hooks-<범위>`)를 `ExtHost.install`로 싣고 훅마다 on 핸들러 하나를 등록(모든 확장 뒤 loadIndex, `TierTable`에 범위별 tier), (단위, 순번) → 훅 id 표, 자동 끄기의 훅 끄기 연결 | P-13(`install`), O-03, O-10, O-23 | M | M4 |
 | O-25 | `ExtStorageAdmin`(`tablesOf`, `dropExtension` 2단계 확인)과 제거 흐름 연결(`LoaderDeps.storageAdmin`) | L-28(제거 흐름), L4.settings-ui.plan(확인 화면), O-14 | M | M2 |
 | O-26 | 접두 차단 강화: `bun:sqlite` authorizer 노출 여부 조사(문서·소스 읽기만), `ExtQuery` 범위 조건 | O-14, 스펙 §10 미결 9 | M | M2 |
 | O-27 | 보존 테이블과 `storage/migrate.ts` 열 추가 마이그레이션 | 스펙 §10 미결 8 결정, F.records.plan(`CommitPlan` 확장 시) | L | M2 이후 |
@@ -142,7 +142,7 @@ xeon/packages/ext-host/
 | 7 | `budget: pause/resume excludes user wait` | 20s 실행 + 60s 대기 + 20s 실행은 통과, 대기 없는 40s는 초과 | §9-7 |
 | 8 | `budget: nested pause counts depth` | pause 두 번, resume 한 번이면 여전히 멈춤. 두 번째 resume에서 다시 잼 | §4.2.3 |
 | 9 | `budget: late result is discarded` | 초과 뒤 반환값·예외가 결과와 장부에 영향 없음, 타이머가 남지 않음(`ManualClock` 대기 타이머 0) | §9-8 |
-| 10 | `budget: shutdown and stream classes` | `session_shutdown` 2,000ms, `message_update` 1,000ms, detached tap도 예산 적용 | §9-9, §4.2.2 |
+| 10 | `budget: shutdown and stream classes` | `session.shutdown` 2,000ms, `boundary.message.update` 1,000ms, detached tap도 예산 적용 | §9-9, §4.2.2 |
 | 11 | `budget: drive has no time budget` | `budgetMs: null`이면 600,000ms 진행에도 abort 없음 | §9-10 |
 | 12 | `budget: outer abort is aborted not failure` | outer abort → `aborted`, 장부 연속 수 변화 없음 | §9-14 |
 | 13 | `failure: classification table` | threw, timeout, result_invalid, aborted, ok 분류와 연속 수·창 갱신 | §4.3.1~§4.3.2 |
@@ -201,5 +201,5 @@ xeon/packages/ext-host/
 |---|---|---|
 | O-07 | 완료 | 핸들러용 UI 포트는 F 타입에 넣지 않고 `hostOf(g).awaitUser(wait, { signal? })`로 연결했다. 핸들러의 `gate`·신호를 `withAmbient`로 싣고 `awaitUser`가 예산 시계를 멈춘다. `user-wait.test.ts` |
 | O-18 | 완료 | `naming.ts`: `qualifiedName`, `resolveNames`(순서 무관, 예약, 충돌, 64자), `createResourcePolicy`(집합 판정 `exposeAll`과 쌍 판정 `resolve`), `NO_RESERVED_NAMES`. `naming.test.ts` |
-| O-19 | 부분 | `ExtHostDeps.resourcePolicy` 연결(`OperationsPolicy.resources`)과 집합 판정 메서드(`ResourcePolicy.exposeAll`) 합의는 끝났다. pi 어댑터의 `registerTool`·`registerCommand`·`registerShortcut`·`registerFlag` 매핑 확인은 어댑터(L-19, M3)가 생길 때 한다. 조립 루트(apps/host)가 `resourcePolicy: policy.resources`를 넘기는 일은 HOST 트랙 몫이다 |
+| O-19 | 부분 | `ExtHostDeps.resourcePolicy` 연결(`OperationsPolicy.resources`)과 집합 판정 메서드(`ResourcePolicy.exposeAll`) 합의는 끝났다. pi 어댑터는 두지 않으므로(ADR-0017 §3.7) 어댑터의 등록 매핑 확인은 없다. 조립 루트(apps/host)가 `resourcePolicy: policy.resources`를 넘기는 일은 HOST 트랙 몫이다 |
 | 저장 영역 N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`가 `Result<_, ExtRowError>`를 돌려준다(spec §3.4, §4.4.4) |

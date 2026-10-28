@@ -4,10 +4,12 @@ import { Bug, type Logger, type LogFields } from "@xeon/contracts";
 import type {
   CallOptions,
   CapabilityApi,
+  WorkGoals,
   WorkPlans,
+  WorkReports,
   WorkTasks,
 } from "@xeon/contracts/capabilities";
-import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
+import type { IdFactory, ThreadId, TurnId, Usage } from "@xeon/contracts/conversation";
 import type { SessionService } from "@xeon/contracts/records";
 import type { ScopeStack } from "@xeon/contracts/settings";
 import { createSessionService } from "@xeon/core-persistence";
@@ -17,6 +19,7 @@ import type { WorkPlansDeps } from "../../src/deps.ts";
 import { startPlanModeListener, type PlanModeListener } from "../../src/plans/listener.ts";
 import { createPlans, type PlansRuntime } from "../../src/plans/service.ts";
 import { createFakeArtifacts, type FakeArtifacts } from "../../src/testing/index.ts";
+import { createGoals, type GoalsRuntime } from "../../src/goals/service.ts";
 import { createTasksApi } from "../../src/tasks/service.ts";
 import { createWorkProjector } from "../../src/projection/projector.ts";
 import { DEFAULT_WORK_SETTINGS, type WorkSettings } from "../../src/settings.ts";
@@ -68,8 +71,8 @@ export interface Base extends AsyncDisposable {
   newThread(): ThreadId;
   /** 내구 이벤트 수 */
   eventCount(): number;
-  /** turn.started와 turn.completed를 커밋 하나로 남긴다(완료된 턴 하나) */
-  completeTurn(thread?: ThreadId): void;
+  /** turn.started와 turn.completed를 커밋 하나로 남긴다(완료된 턴 하나). 사용량을 주면 turn.completed에 싣는다 */
+  completeTurn(thread?: ThreadId, usage?: Usage | null): TurnId;
   /** cap_work_* 테이블마다 행 내용의 해시 */
   workDigests(): Promise<Readonly<Record<string, string>>>;
 }
@@ -80,6 +83,11 @@ export interface Harness extends Base {
   /** 설정을 바꾼다. 호출마다 읽으므로 다음 호출부터 적용된다 */
   setSettings(next: WorkSettings): void;
   readonly plans: CapabilityApi<typeof WorkPlans>;
+  readonly goals: CapabilityApi<typeof WorkGoals>;
+  readonly reports: CapabilityApi<typeof WorkReports>;
+  readonly goalsRuntime: GoalsRuntime;
+  /** `l1.agents.judge.maxRuns`의 유효 값을 바꾼다. 호출마다 읽으므로 다음 호출부터 적용된다 */
+  setMaxRuns(next: number): void;
   readonly runtime: PlansRuntime;
   readonly mode: ModeDriver;
   readonly approvals: ApprovalsDriver;
@@ -95,19 +103,26 @@ export interface Harness extends Base {
 }
 
 export interface BaseOptions {
+  /** 있으면 이 경로의 파일 저장소를 연다. 닫고 다시 여는 시험이 쓴다(경로의 정리는 시험이 한다) */
   readonly path?: string;
+  /** 다시 열 때 이미 있는 스레드를 쓰기용으로 이어 연다. 없으면 새 스레드를 만든다 */
+  readonly thread?: ThreadId;
+  /** ID 발급기의 seed. 같은 저장소를 다시 열 때 이전 ID와 겹치지 않게 다르게 준다 */
+  readonly idSeed?: number;
 }
 
 export interface HarnessOptions extends BaseOptions {
   readonly settings?: WorkSettings;
   /** false면 산출물 포트 없이 연다 */
   readonly artifacts?: boolean;
+  /** `l1.agents.judge.maxRuns`. 생략하면 3 */
+  readonly maxRuns?: number;
 }
 
 /** 저장소와 세션 서비스(투영기 등록부 대역 포함)만. 플러그인 시험이 쓴다 */
 export async function openBase(options: BaseOptions = {}): Promise<Base> {
   const clock = manualClock();
-  const ids = fixedIdFactory(1);
+  const ids = fixedIdFactory(options.idSeed ?? 1);
   const store = await openTestStore({
     clock,
     ids,
@@ -138,17 +153,20 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
     layers: () => fileLayers,
   });
   let counter = 0;
-  const newThread = (): ThreadId => {
-    const threadId = ids.next("thr");
-    const made = session.threads.create({ threadId });
-    if (!made.ok) throw new Bug("harness: thread create failed", { cause: made.error });
+  const adopt = (threadId: ThreadId): ThreadId => {
     const token = store.leases.acquire(`session:${threadId}`, TEST_HOLDER_A);
     if (!token.ok) throw new Bug("harness: lease failed", { cause: token.error });
     const opened = session.openForWrite(threadId, token.value);
     if (!opened.ok) throw new Bug("harness: open failed", { cause: opened.error });
     return threadId;
   };
-  const threadId = newThread();
+  const newThread = (): ThreadId => {
+    const threadId = ids.next("thr");
+    const made = session.threads.create({ threadId });
+    if (!made.ok) throw new Bug("harness: thread create failed", { cause: made.error });
+    return adopt(threadId);
+  };
+  const threadId = options.thread === undefined ? newThread() : adopt(options.thread);
   return {
     clock,
     ids,
@@ -174,7 +192,7 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
       if (!rows.ok || rows.value === undefined) throw new Bug("harness: event count failed");
       return Number(rows.value["n"]);
     },
-    completeTurn(thread = threadId) {
+    completeTurn(thread = threadId, usage = null) {
       const turnId = ids.next("trn");
       const scope = { turnId, stepId: null };
       const draft = (kind: "turn.started" | "turn.completed", payload: unknown) =>
@@ -200,7 +218,7 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
             draft("turn.completed", {
               status: "completed",
               stepCount: 0,
-              usage: null,
+              usage,
               error: null,
             }),
           ],
@@ -210,6 +228,7 @@ export async function openBase(options: BaseOptions = {}): Promise<Base> {
       if (!result.ok || result.value.status !== "committed") {
         throw new Bug("harness: turn commit failed", { cause: result });
       }
+      return turnId;
     },
     async workDigests() {
       const all = await store.rowDigests();
@@ -254,6 +273,8 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
     artifacts,
   };
   const api = createTasksApi(deps);
+  const maxRuns = { current: options.maxRuns ?? 3 };
+  const goals = createGoals({ ...deps, clock: base.clock, maxRuns: () => maxRuns.current });
   const runtime = createPlans(deps);
   const listener = startPlanModeListener(base.session, runtime, logger);
   const settle = async (): Promise<void> => {
@@ -264,6 +285,12 @@ export async function openHarness(options: HarnessOptions = {}): Promise<Harness
   return Object.assign(base, {
     api,
     plans: runtime.api,
+    goals: goals.goalsApi,
+    reports: goals.reportsApi,
+    goalsRuntime: goals,
+    setMaxRuns(next: number): void {
+      maxRuns.current = next;
+    },
     runtime,
     mode,
     approvals,

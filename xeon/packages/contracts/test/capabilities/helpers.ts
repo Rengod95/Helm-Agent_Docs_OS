@@ -14,7 +14,7 @@ export function makeDef(id: CapabilityId, toolNames: readonly string[]): AnyCapa
     version: "1.0.0",
     description: `capability ${id}`,
     service: {
-      methods: { run: { description: "run", input, output, replay: "safe" } },
+      methods: { run: { description: "run", input, output, replay: "safe", readOnly: true } },
     },
     tools: toolNames.map((name) => ({
       name,

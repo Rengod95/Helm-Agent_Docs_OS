@@ -9,7 +9,16 @@ import type { HandlerFailure } from "../../src/primitives/index.ts";
 const owner = { type: "extension", name: "fail-ext", scopeId: "fail-ext" } as const;
 
 function outcome(result: HandlerOutcomeRecord["result"]): HandlerOutcomeRecord {
-  return { owner, tier: "user", point: "tool_call", fold: "first", result, activeMs: 1, at: 1 };
+  return {
+    owner,
+    tier: "user",
+    point: "tool.call.before",
+    fold: "first",
+    failure: "closed",
+    result,
+    activeMs: 1,
+    at: 1,
+  };
 }
 
 test("failure: classification table", () => {
@@ -53,7 +62,7 @@ test("failure: window size follows the live setting", () => {
 
 test("failure: fromHandlerFailure keeps the owner, fold and a bounded message", () => {
   const failure: HandlerFailure = {
-    point: "message_end",
+    point: "boundary.message.after",
     handler: { scopeId: "fail-ext/sub", extension: "fail-ext", seq: 3 },
     reason: "merge_rejected",
     error: new Error("x".repeat(900)),
@@ -76,4 +85,23 @@ test("failure: fromHandlerFailure keeps the owner, fold and a bounded message", 
     elapsedMs: 1,
   };
   expect(fromHandlerFailure(timedOut, "user", 1).message).toBeUndefined();
+});
+
+const failureAt = (point: HandlerFailure["point"]): HandlerFailure => ({
+  point,
+  handler: { scopeId: "fail-ext", extension: "fail-ext", seq: 1 },
+  reason: "threw",
+  elapsedMs: 1,
+});
+
+const policyOf = (point: HandlerFailure["point"]) =>
+  fromHandlerFailure(failureAt(point), "user", 1).failure;
+
+test("failure: records read the failure policy of the point declaration", () => {
+  expect(policyOf("tool.call.before")).toBe("closed");
+  expect(policyOf("guard.output.before")).toBe("closed");
+  expect(policyOf("session.compact.before")).toBe("open");
+  expect(policyOf("session.resources")).toBe("open");
+  expect(policyOf("lifecycle.agent.settled")).toBe("open");
+  expect(policyOf("tool.result")).toBe("skip");
 });

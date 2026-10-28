@@ -9,6 +9,7 @@ import type {
   Unregister,
 } from "@xeon/contracts/services";
 import { createApprovalService, type ApprovalsInternal } from "./approvals/service.ts";
+import { systemScheduler } from "./approvals/timer.ts";
 import { createCallTable } from "./calls.ts";
 import type { ToolsDeps } from "./deps.ts";
 import { entriesOf, resourceEntry, toToolMeta } from "./entries.ts";
@@ -46,6 +47,9 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     producer: deps.producer,
     ids: deps.ids,
     clock: deps.clock,
+    // 주입된 스케줄러가 없어도 만료 타이머는 있어야 한다: 없으면 `expire` 정책의 무인 turn이 영원히 기다린다
+    scheduler: deps.scheduler ?? systemScheduler(),
+    unattended: (threadId) => deps.config(threadId).unattended,
     ext: deps.ext,
     logger: deps.logger,
     callOf: (origin) => {

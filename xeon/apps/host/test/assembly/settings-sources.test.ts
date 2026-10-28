@@ -7,6 +7,7 @@ import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { createSettingsEngine, type SettingsEngine } from "../../src/assembly/settings-engine.ts";
 import {
+  agentsSource,
   execOptionsOf,
   hostLimitsOf,
   logLevelOf,
@@ -170,6 +171,11 @@ test("l1.loop.maxSteps, tools and workspace sources read the same layers", async
   expect(workspaceSource(settings).layers("not-a-thread")).toHaveLength(1);
 });
 
+test("l1.agents.judge.maxRuns reaches the agents source and defaults to 3", async () => {
+  expect(agentsSource(await engineWith({ "l1.agents.judge.maxRuns": 5 })).judgeMaxRuns?.()).toBe(5);
+  expect(agentsSource(await engineWith({})).judgeMaxRuns?.()).toBe(3);
+});
+
 test("undeclared package keys are read raw: persistence, store, exec, shutdown", async () => {
   const reports: string[] = [];
   const settings = await engineWith({
@@ -247,6 +253,9 @@ test("l0.secrets.* build the secrets config and drop malformed sops files", asyn
   expect(set.lease).toEqual({ ttlSeconds: 60, maxUses: 200 });
   const odd = secretsSource(await engineWith({ "l0.secrets.ageKey.source": "magic" }))();
   expect(odd.ageKey.source).toBe("auto");
+  // 원격 호스트용 값(Secret Service 먼저, 없으면 확인 없이 파일 폴백)이 그대로 전달된다
+  const remote = secretsSource(await engineWith({ "l0.secrets.ageKey.source": "auto-file" }))();
+  expect(remote.ageKey.source).toBe("auto-file");
 });
 
 test("host limits read the live value every time", async () => {

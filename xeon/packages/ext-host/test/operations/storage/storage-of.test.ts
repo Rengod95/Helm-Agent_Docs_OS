@@ -216,7 +216,7 @@ function noteProjection(version: number): ExtProjection<typeof NOTE_TABLE> {
 async function fireTurnEnd(t: TestHost, thread: ThreadId, key: string) {
   const stepId = t.ids.next("stp");
   return t.host.dispatch(
-    "turn_end",
+    "boundary.step.after",
     {
       stepIndex: 0,
       stepId,

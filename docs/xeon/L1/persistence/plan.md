@@ -143,8 +143,8 @@ xeon/packages/core-persistence/
 | PS-14 | 설정 노출: `settings.ts`(`l1.persistence.*` 5키, 단계별 since), `session-settings.ts`(`settings.changed`, `p_settings`) | PS-2, contracts(`defineSettings`) | S | M1/M2 |
 | PS-15 | blob 분리: `blob.ts`(`detachLarge`, `hydrate`), `p_blob_refs`, `query.liveBlobRefs` | PS-3, L0.store.plan(`putBlob`, `readBlob`) | M | M1 |
 | PS-16 | 플러그인과 서비스 조립: `plugin.ts`(`xeon.store` 주입, `xeon.session` 제공, `producer` 한 번 받기 규칙), `index.ts`, `ext-port.ts`(M2) | PS-2, PS-12, X.primitives(플러그인 등록 API) | M | M1(ext-port M2) |
-| PS-17 | 확장 지점 7개 발화: `points.ts`. M1은 `session_start`, `session_shutdown`(F 표 M1 ● 지점), M2는 나머지 5개 | PS-16, X.primitives(`ExtHost.dispatch`) | M | M1/M2 |
-| PS-18 | 보관 정리: `retention.ts`, 제외 규칙, `retention.*` 키 연결 | PS-9 | S | M2 |
+| PS-17 | 확장 지점 7개 발화: `points.ts`. M1은 `session.start`, `session.shutdown`(F 표 M1 ● 지점), M2는 나머지 5개 | PS-16, X.primitives(`ExtHost.dispatch`) | M | M1/M2 |
+| PS-18 | 보관 정리: `retention.ts`, 제외 규칙, `retention.*` 키 연결. M3b B1-SVC: 지울 때 재전송 하한(`replay.floor`) 상승, `replay.ts`(`replayFrom`), `resend.ts`(재개 때 모델 요청 재전송 정책) | PS-9 | S | M2 |
 | PS-19 | 리플레이 커서: `replay-cursor.ts`(`replayFrom` 해석, `oldestReplayableSeq`) | PS-12, FR-P7 | S | M3 |
 | PS-20 | 되감기: `rewind.ts`(스냅샷 기록 `checkpoint.files`, `RewindPlan`, 복원 효과 3단) | PS-10, FR-P8, L1.tools(쓰기 분류) | L | 2차 |
 | PS-21 | JSONL 내보내기: `export-jsonl.ts`(pi v3 대응 표, xeon-jsonl), `export.format` 키 | PS-10, PS-15 | M | 2차 |
@@ -230,28 +230,28 @@ xeon/packages/core-persistence/
 | `resume_synthesizes_outcome_unknown_for_unsafe` | `recovery.test.ts` | intent+exec, `unsafe` → `interrupted` 합성, `OUTCOME_UNKNOWN_TEXT`. intent만 → `abandoned`, `NOT_STARTED_TEXT` | PS-7 |
 | `resume_reruns_safe_tool_once_up_to_max_attempts` | `recovery.test.ts` | safe·safe → `reruns` 한 건, attempt 1. exec 3건이면 `outcome_unknown` | PS-7 |
 | `resume_does_not_promote_stored_unsafe` | `recovery.test.ts` | 저장 `unsafe`, 현재 `safe` → 합성 | PS-7 |
-| `resume_never_fires_tool_call_point_for_intended_calls` | `recovery.test.ts` | 재개 경로의 `tool_call` 디스패치 0회(가짜 ExtHost 기록) | PS-7 |
+| `resume_never_fires_tool_call_point_for_intended_calls` | `recovery.test.ts` | 재개 경로의 `tool.call.before` 디스패치 0회(가짜 ExtHost 기록) | PS-7 |
 | `resume_lists_tool_calls_without_intent_as_pending` | `recovery.test.ts` | 의도 없는 toolCall이 `pendingToolCalls`에 | PS-7 |
 | `resume_restores_pending_approval` | `resume.int.test.ts` | A1 커밋 뒤 끊고 다시 열면 같은 `approvalId` 하나, 새 `approval.requested` 없음 | PS-8 |
 | `resume_restores_input_queue` | `resume.int.test.ts` | queued 두 건이 같은 seq 순서로 복원 | PS-8 |
 | `abort_requested_turn_not_resumed` | `resume.int.test.ts` | 취소 의도 있는 turn은 `reruns` 비고 `autoResume.reason: "abort_requested"` | PS-6 |
 | `resume_marker_comes_from_events` | `resume.int.test.ts` | `turn.started` 뒤 표식 생김, `turn.completed` 뒤 사라짐, `thread.resumed`로 시도 수 증가 | PS-6 |
 | `resume_attempts_capped` | `resume.int.test.ts` | `maxResumeAttempts` 도달 뒤 `beginResume` → `attempts_exhausted` | PS-6 |
-| `fork_creates_new_thread_with_forked_from` | `lifecycle.test.ts` | 새 thread 첫 이벤트 `thread.started{forkedFrom}`, 원본 이벤트 수 불변, `session_before_fork` 거부 시 커밋 없음 | PS-9 |
+| `fork_creates_new_thread_with_forked_from` | `lifecycle.test.ts` | 새 thread 첫 이벤트 `thread.started{forkedFrom}`, 원본 이벤트 수 불변, `session.fork.before` 거부 시 커밋 없음 | PS-9 |
 | `fork_continuity` | `fork-continuity.test.ts` | fork thread의 활성 가지가 출처의 fork 지점까지의 item을 같은 `itemId`로 잇고, 출처의 이후 쓰기는 들어오지 않으며, fork의 fork도 이어지고, 상속한 item으로는 되감기가 안 된다 (M2 마감 G2-11) | PS-9 |
 | `branch_item_records_pages` | `item-pages.test.ts` | `before`·`limit` 쪽을 이어 붙이면 활성 가지 전체와 같고(fork 경계 포함), `hasMore` 정확, 오류 사유 구분, 쪽에 든 item의 blob만 읽는다 (M2 마감 G2-11) | PS-9 |
 | `leaf_move_keeps_old_branch` | `branch.test.ts` | `moveLeaf` 뒤 옛 가지가 `readFrom`에 남고 `readBranch`에는 새 가지만 | PS-10 |
 | `branch_summary_committed_with_leaf_move` | `branch.test.ts` | summary가 있으면 `thread.branch_summarized`가 같은 커밋 | PS-10 |
 | `revert_rejects_target_inside_turn` | `lifecycle.test.ts` | toolCall 있는 assistant item 대상 → `invalid_target{inside_turn}` | PS-9 |
 | `remove_deletes_thread_rows_and_blocks_other_deletes` | `lifecycle.test.ts` | `remove`만 `events` 삭제 가능, 포크가 가리키면 `has_forks`, 지운 seq 재사용 없음 | PS-9 |
-| `set_title_writes_thread_updated_and_fires_info_changed` | `lifecycle.test.ts` | 제목 이벤트와 `session_info_changed` 1회 | PS-9 |
+| `set_title_writes_thread_updated_and_fires_info_changed` | `lifecycle.test.ts` | 제목 이벤트와 `session.info.after` 1회 | PS-9 |
 | `lock_conflict_offers_delegate_observe_fork` | `resume.int.test.ts` | 가짜 잠금 실패 때 `openForRead`가 observer로 열리고 커밋은 `read_only{observer}`, `fork`는 새 thread를 만든다. 선택지 구성은 호스트 테스트가 확인 | PS-6, PS-9 |
 | `session_settings_follow_branch` | `lifecycle.test.ts` | `settings.changed`가 `p_settings`와 `layer(threadId)`에 반영 | PS-14 |
 | `session_settings_key_reused` | `session-settings.test.ts` | 같은 `requestKey`에 다른 값이면 `set`·`reset`이 `key_reused` 값을 돌려주고 행과 층이 그대로다 | PS-14 |
 | `ddl_matches_spec_table` | `ddl.test.ts` | DDL 열 목록과 스펙 §3.10 표 대조 | PS-1 |
 | `restart_invariants_k1_to_k6` | `restart.fault.test.ts` | 자식 프로세스를 K1~K6에서 SIGKILL, 다시 열어 `recover`, 스펙 §4.14 불변식 | PS-6, PS-7 |
 | `events_update_and_stray_delete_blocked_by_trigger` | `ddl.test.ts` | `events` UPDATE는 트리거가 막고, `threads.remove` 경로 밖의 DELETE도 막는다(스펙 §9-21) | PS-1 |
-| `session_points_fire_at_spec_times` | `points.test.ts` | 지점 7개가 스펙 §7.1 시점에 발화한다. first 지점(`session_before_switch`, `session_before_fork`, `session_before_tree`)의 거부·예외면 커밋이 없고, tap 지점은 커밋 뒤에만 발화한다. M1은 `session_start`, `session_shutdown`, M2는 나머지 5개 | PS-17 |
+| `session_points_fire_at_spec_times` | `points.test.ts` | 지점 7개가 스펙 §7.1 시점에 발화한다. first 지점(`session.switch.before`, `session.fork.before`, `session.tree.before`)의 거부·예외면 커밋이 없고, tap 지점은 커밋 뒤에만 발화한다. M1은 `session.start`, `session.shutdown`, M2는 나머지 5개 | PS-17 |
 | `retention_prunes_only_eligible_threads` | `retention.test.ts` | `maxAgeDays`·`maxCount` 대상 중 표식이 남은 thread, 열린 turn이 있는 thread, 포크 출처, 쓰기 소유 중인 thread는 남고 나머지만 `threads.remove` 경로로 지워진다 | PS-18 |
 | `agent_by_request_id_finds_spawned_child` | `projector.test.ts` | `agent.spawned` 커밋 뒤 `TxView.agentByRequestId(부모, requestId)`가 그 자식을 돌려주고, `agent.settled` 뒤 `settled`가 채워진다. 재생성 뒤에도 같다(스펙 §9-22) | PS-23 |
 | `resume_lists_unsettled_children` | `resume.int.test.ts` | 자식 생성 커밋 뒤 SIGKILL, 다시 열면 `ResumePlan.openChildren`에 그 자식이 있고, 부모 turn에 취소 의도가 있으면 재개 대상에서 빠진다 | PS-23 |

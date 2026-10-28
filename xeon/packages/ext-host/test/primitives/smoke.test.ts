@@ -1,10 +1,10 @@
-// M1 걷는 골격 스모크의 X 쪽 모양: 테스트용 그룹이 on(tool_call, turn_end), post, drive를 쓴다(X.primitives.plan §6 7번).
+// M1 걷는 골격 스모크의 X 쪽 모양: 테스트용 그룹이 on(tool.call.before, boundary.step.after), post, drive를 쓴다(X.primitives.plan §6 7번).
 import { expect, test } from "bun:test";
 import { FIRST_DENY } from "@xeon/contracts/extensions";
 import { createSmokeGroup, createTestHost, flushMicrotasks } from "../../src/testing/index.ts";
 import { assistantStop, toolResultMessage, userText } from "./fixtures/support.ts";
 
-test("the smoke group denies a tool, adds an entry at turn_end, posts and drives", async () => {
+test("the smoke group denies a tool, adds an entry at boundary.step.after, posts and drives", async () => {
   const t = await createTestHost();
   const thread = t.newThread();
   const { unit, probe } = createSmokeGroup({ ids: t.ids });
@@ -19,27 +19,27 @@ test("the smoke group denies a tool, adds an entry at turn_end, posts and drives
   const kinds = t.records.events(thread).map((event) => event.kind);
   expect(kinds).toEqual(["scope.changed", "lease.acquired", "grp.smoke-group.state.committed"]);
 
-  // tool_call: 특정 도구만 거부한다
+  // tool.call.before: 특정 도구만 거부한다
   const denied = await t.host.dispatch(
-    "tool_call",
+    "tool.call.before",
     { toolCallId: "call_1", toolName: "danger", input: {} },
     { threadId: thread, dispatchKey: "tc1" },
   );
   expect(denied.decision).toMatchObject({ block: true });
   expect(denied.substituted).toBe(false);
   const allowed = await t.host.dispatch(
-    "tool_call",
+    "tool.call.before",
     { toolCallId: "call_2", toolName: "read", input: {} },
     { threadId: thread, dispatchKey: "tc2" },
   );
   expect(allowed.decision).toBeUndefined();
   expect(probe.deniedCalls).toEqual(["call_1"]);
-  expect(denied.decision).not.toEqual(FIRST_DENY.tool_call);
+  expect(denied.decision).not.toEqual(FIRST_DENY["tool.call.before"]);
 
-  // turn_end: 엔트리를 더하고 followUp을 post한다
+  // boundary.step.after: 엔트리를 더하고 followUp을 post한다
   const stepId = t.ids.next("stp");
   const turnEnd = await t.host.dispatch(
-    "turn_end",
+    "boundary.step.after",
     {
       stepIndex: 2,
       stepId,
@@ -56,7 +56,7 @@ test("the smoke group denies a tool, adds an entry at turn_end, posts and drives
     },
     {
       threadId: thread,
-      dispatchKey: `${stepId}:turn_end`,
+      dispatchKey: `${stepId}:boundary.step.after`,
       initial: { entries: [], continue: false },
       finalize: (value) => value,
     },

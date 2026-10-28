@@ -7,6 +7,7 @@ import {
 } from "@xeon/contracts/extensions";
 import { EVENT_CATALOG, SessionServiceName, type SessionService } from "@xeon/contracts/records";
 import {
+  AgentServiceName,
   ApprovalServiceName,
   ContextServiceName,
   LoopServiceName,
@@ -14,6 +15,7 @@ import {
   OsServiceName,
   TaskServiceName,
   ToolServiceName,
+  type AgentService,
   type ApprovalService,
   type ContextService,
   type LoopService,
@@ -56,6 +58,7 @@ const TOOLS_KEY: PortKey<ToolService> = { name: ToolServiceName };
 const CONTEXT_KEY: PortKey<ContextService> = { name: ContextServiceName };
 const MODELS_KEY: PortKey<ModelService> = { name: ModelServiceName };
 const OS_KEY: PortKey<OsService> = { name: OsServiceName };
+const AGENTS_KEY: PortKey<AgentService> = { name: AgentServiceName };
 const APPROVALS_KEY: PortKey<ApprovalService> = { name: ApprovalServiceName };
 
 /** 기본 시스템 프롬프트. 조립 루트가 설정으로 덮어쓴다 */
@@ -67,7 +70,7 @@ export interface LoopPluginOptions {
   readonly hostMode: HostMode;
   readonly settings?: LoopSettingsSource;
   readonly basePrompt?: string;
-  /** `user_bash` 지점 페이로드의 작업 디렉터리를 대화별로 돌려준다 */
+  /** `input.bash.before` 지점 페이로드의 작업 디렉터리를 대화별로 돌려준다 */
   readonly workingDirectory?: LoopDeps["workingDirectory"];
   readonly kindLookup?: LoopDeps["kindLookup"];
   readonly cancelledByOwner?: LoopDeps["cancelledByOwner"];
@@ -96,6 +99,8 @@ export function loopExtensionUnit(options: LoopPluginOptions): ExtensionUnit {
         models: host.port(MODELS_KEY),
         ext,
         ...(approvals === undefined ? {} : { approvals }),
+        // core-agents는 이 서비스 뒤에 올라오므로 spawn을 부를 때 찾는다(`loop.spawn` 위임, L1.loop.spec §4.8)
+        agents: () => ext.ports.get(AGENTS_KEY),
         settings: options.settings ?? DEFAULT_LOOP_SETTINGS,
         basePrompt: options.basePrompt ?? DEFAULT_BASE_PROMPT,
         platform: `${os.info.platform}/${os.info.arch}`,

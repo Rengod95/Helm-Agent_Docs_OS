@@ -23,6 +23,7 @@ export function fakeConnection(table: Table): {
     "events.ended": new Set(),
     "stream.chunk": new Set(),
     "settings.invalidated": new Set(),
+    "notify.delivered": new Set(),
   };
   const calls: { method: string; params: unknown }[] = [];
   const connection: HostConnection = {

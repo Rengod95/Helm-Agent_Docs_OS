@@ -11,7 +11,7 @@ export interface PointCall {
 export interface RecordingPointsOptions {
   /** 지점 이름 → 취소 이유. 있으면 그 first 지점이 취소를 결정한다 */
   readonly cancel?: Readonly<
-    Partial<Record<"session_before_switch" | "session_before_fork" | "session_before_tree", string>>
+    Partial<Record<"session.switch.before" | "session.fork.before" | "session.tree.before", string>>
   >;
   /** session_before_tree가 계속하면서 주는 요약 */
   readonly treeSummary?: { readonly summary: string };
@@ -27,28 +27,28 @@ export function recordingPoints(options: RecordingPointsOptions = {}): {
   };
   const points: SessionPoints = {
     start(payload) {
-      record("session_start", payload.threadId, payload);
+      record("session.start", payload.threadId, payload);
       return Promise.resolve();
     },
     infoChanged(payload) {
-      record("session_info_changed", payload.threadId, payload);
+      record("session.info.after", payload.threadId, payload);
       return Promise.resolve();
     },
     beforeSwitch(threadId, payload) {
-      record("session_before_switch", threadId, payload);
-      const reason = options.cancel?.session_before_switch;
+      record("session.switch.before", threadId, payload);
+      const reason = options.cancel?.["session.switch.before"];
       return Promise.resolve(reason === undefined ? undefined : { cancel: true, reason });
     },
     beforeFork(payload) {
-      record("session_before_fork", payload.threadId, payload);
-      const reason = options.cancel?.session_before_fork;
+      record("session.fork.before", payload.threadId, payload);
+      const reason = options.cancel?.["session.fork.before"];
       return Promise.resolve(
         reason === undefined ? { cancel: false as const } : { cancel: true as const, reason },
       );
     },
     beforeTree(payload) {
-      record("session_before_tree", payload.threadId, payload);
-      const reason = options.cancel?.session_before_tree;
+      record("session.tree.before", payload.threadId, payload);
+      const reason = options.cancel?.["session.tree.before"];
       if (reason !== undefined) return Promise.resolve({ cancel: true as const, reason });
       return Promise.resolve({
         cancel: false as const,
@@ -58,11 +58,11 @@ export function recordingPoints(options: RecordingPointsOptions = {}): {
       });
     },
     tree(payload) {
-      record("session_tree", payload.threadId, payload);
+      record("session.tree.after", payload.threadId, payload);
       return Promise.resolve();
     },
     shutdown(threadId, payload) {
-      record("session_shutdown", threadId, payload);
+      record("session.shutdown", threadId, payload);
       return Promise.resolve();
     },
   };

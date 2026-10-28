@@ -31,6 +31,9 @@ export {
 export {
   checkDelegateSpec,
   DELEGATE_REQUEST_ID_MAX,
+  type CancelDelegatesResult,
+  type DelegateCallOptions,
+  type DelegateContextError,
   type DelegateError,
   type DelegateFork,
   type DelegateLimits,
@@ -38,6 +41,8 @@ export {
   type DelegateReport,
   type DelegateResult,
   type DelegateSpec,
+  type DelegateStatus,
+  type DelegateStatusResult,
   type DelegateToolPolicy,
 } from "./delegate.ts";
 export type { GroupMetrics, GroupMetricsHandle, GroupMetricsSummary } from "./metrics/types.ts";

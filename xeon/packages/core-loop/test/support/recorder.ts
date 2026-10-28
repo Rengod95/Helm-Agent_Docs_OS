@@ -17,12 +17,12 @@ export interface Recorder {
 }
 
 const TAP_POINTS = [
-  "agent_start",
-  "turn_start",
-  "message_start",
-  "message_update",
-  "agent_end",
-  "agent_settled",
+  "boundary.turn.before",
+  "boundary.step.before",
+  "boundary.message.before",
+  "boundary.message.update",
+  "boundary.turn.after",
+  "boundary.settle.after",
 ] as const satisfies readonly PointName[];
 
 export function createRecorder(fake: FakeSession, name = "recorder"): Recorder {
@@ -40,11 +40,11 @@ export function createRecorder(fake: FakeSession, name = "recorder"): Recorder {
     entry: "./index.ts",
     points: [
       ...TAP_POINTS,
-      "input",
-      "before_agent_start",
-      "message_end",
-      "turn_end",
-      "agent_before_settle",
+      "input.user.before",
+      "input.agent.before",
+      "boundary.message.after",
+      "boundary.step.after",
+      "boundary.settle.before",
     ],
     usesDrive: false,
   });
@@ -55,24 +55,24 @@ export function createRecorder(fake: FakeSession, name = "recorder"): Recorder {
           see(point);
         });
       }
-      g.on("input", () => {
-        see("input");
+      g.on("input.user.before", () => {
+        see("input.user.before");
         return undefined;
       });
-      g.on("before_agent_start", () => {
-        see("before_agent_start");
+      g.on("input.agent.before", () => {
+        see("input.agent.before");
         return undefined;
       });
-      g.on("message_end", () => {
-        see("message_end");
+      g.on("boundary.message.after", () => {
+        see("boundary.message.after");
         return undefined;
       });
-      g.on("turn_end", () => {
-        see("turn_end");
+      g.on("boundary.step.after", () => {
+        see("boundary.step.after");
         return undefined;
       });
-      g.on("agent_before_settle", () => {
-        see("agent_before_settle");
+      g.on("boundary.settle.before", () => {
+        see("boundary.settle.before");
         return undefined;
       });
     });

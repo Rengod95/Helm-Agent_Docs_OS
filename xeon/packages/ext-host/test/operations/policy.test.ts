@@ -15,7 +15,7 @@ test("settings: x.operations keys pass catalog", () => {
   const defs = Object.values(operationsSettings.defs);
   const catalog = buildCatalog([{ owner: "ext-host", namespace: "x.operations", defs }]);
   expect(catalog.ok).toBe(true);
-  expect(defs).toHaveLength(11);
+  expect(defs).toHaveLength(13);
   for (const def of defs) {
     expect(def.layer).toBe("X");
     // 저장소에 든 설정이 예산·자동 끄기를 바꾸지 못한다
@@ -57,8 +57,9 @@ test("policy: admit records the tier and forget clears tables and ledger", async
   policy.ledger.record({
     owner: { type: "extension", name: "pol-user", scopeId: "pol-user" },
     tier: "user",
-    point: "tool_call",
+    point: "tool.call.before",
     fold: "first",
+    failure: "closed",
     result: "threw",
     activeMs: 1,
     at: 1,
@@ -79,15 +80,15 @@ test("policy: essential extensions are exempt from auto disable", async () => {
     "L2",
   );
   await t.host.install(
-    makeUnit({ name: "pol-essential", points: ["agent_settled"], layer: "L2" }, (g) => {
-      g.on("agent_settled", () => {
+    makeUnit({ name: "pol-essential", points: ["boundary.settle.after"], layer: "L2" }, (g) => {
+      g.on("boundary.settle.after", () => {
         throw new Error("always");
       });
     }),
   );
   await eachInOrder(["1", "2", "3", "4"], async (key) => {
     await t.host.dispatch(
-      "agent_settled",
+      "boundary.settle.after",
       { turnId: t.ids.next("trn"), aborted: false },
       { threadId: thread, dispatchKey: key },
     );
@@ -102,7 +103,7 @@ test("policy: setup budget comes from x.operations.budget.setupMs", async () => 
   const { t, policy } = harness;
   expect(policy.setupBudgetMs()).toBe(200);
   const pending = t.host.install(
-    makeUnit({ name: "pol-slow", points: ["tool_call"] }, () => new Promise<void>(() => {})),
+    makeUnit({ name: "pol-slow", points: ["tool.call.before"] }, () => new Promise<void>(() => {})),
   );
   await flushMicrotasks(200);
   await t.timers.advance(200);
@@ -117,12 +118,12 @@ test("policy: handlers run through runWithBudget and report settled once", async
   await t.host.openThread(thread);
   policy.admit({ name: "pol-tap", source: "user", trust: "user", essential: false }, "plugin");
   await t.host.install(
-    makeUnit({ name: "pol-tap", points: ["agent_settled"] }, (g) => {
-      g.on("agent_settled", () => new Promise<void>(() => {}));
+    makeUnit({ name: "pol-tap", points: ["boundary.settle.after"] }, (g) => {
+      g.on("boundary.settle.after", () => new Promise<void>(() => {}));
     }),
   );
   const pending = t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );
@@ -133,15 +134,15 @@ test("policy: handlers run through runWithBudget and report settled once", async
   expect(policy.ledger.stats("ext:pol-tap")).toMatchObject({ consecutive: 1, totalFailures: 1 });
   // 정상 호출은 연속 수를 0으로 돌린다
   const second = await t.host.install(
-    makeUnit({ name: "pol-fine", points: ["agent_settled"], loadIndex: 1 }, (g) => {
-      g.on("agent_settled", () => {});
+    makeUnit({ name: "pol-fine", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+      g.on("boundary.settle.after", () => {});
     }),
   );
   expect(second.setups[0]?.status).toBe("applied");
   t.host.scope("pol-tap")?.disable();
   await t.settled();
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k2" },
   );

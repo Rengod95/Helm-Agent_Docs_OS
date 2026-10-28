@@ -68,7 +68,7 @@ layout:
       cli: "xeon/apps/cli/**"
       desktop: "xeon/apps/desktop/**"
       host-service: "xeon/apps/host/**"
-      settings-ui: "xeon/apps/desktop/src/settings/**"
+      settings-ui: "xeon/packages/client/src/settings/**"   # view-model(adr.0020). 렌더러는 xeon/apps/desktop/src/views
   plugins:
     - path: "xeon/plugins/provider-anthropic-oauth/**"
       docs: [L1.readme, L1.models.spec, L1.models.plan]
@@ -99,6 +99,8 @@ layout:
       - test-dirs
       - testing-dirs
       - desktop-src
+      - client-package
+      - dependency-allowlist
     paths:
       workspace: "xeon/**"
       packages: "xeon/packages/**"
@@ -123,6 +125,9 @@ layout:
       testing-dirs: "xeon/packages/*/src/testing/**"
       # 데스크톱 WebView TS 소스. eng.frontend-state.guide가 쓴다. 다른 UI 코드는 tsx-sources로 잡는다
       desktop-src: "xeon/apps/desktop/src/**"
+      # L4 공유 클라이언트 패키지(adr.0020). L4 도메인 문서가 생기기 전까지 ADR binds용으로 둔다
+      client-package: "xeon/packages/client/**"
+      dependency-allowlist: "xeon/scripts/dependency-allowlist.json"
 
 # 산출 문서 목록 (작성 대상). id는 <층>.<도메인>.<종류>.
 manifest:
@@ -155,4 +160,10 @@ manifest:
     - adr.0012   # 실행 속도를 앱 크기보다 우선
     - adr.0013   # post.when = next는 붙기만 하고 aside는 L1·CLI 입력 전용
     - adr.0014   # 엔진 바이너리는 단일 xeon
+    - adr.0015   # 재실행되는 확장 코드의 효과 목록: 선언형 허용(C안)
+    - adr.0016   # 다국어와 로케일: FormatJS, ICU, ko·en
+    - adr.0017   # 확장 지점 개정: 자체 이름, collect, 실패 정책 표, 수명주기·가드레일 지점, pi 어댑터 없음
+    - adr.0018   # 승인 프로토콜 하나(도구·계획·질문·검토)
+    - adr.0019   # 비밀 기본 저장소 SOPS(age)
+    - adr.0020   # L4 공유 클라이언트 패키지 packages/client
   layers: "각 층마다 <층>.readme 1개 + 도메인마다 spec, plan (layout.domains 참조)"

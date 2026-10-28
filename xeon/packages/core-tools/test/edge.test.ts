@@ -220,11 +220,11 @@ test("an executed call releases its tool node", async () => {
   expect(settled).toBe(true);
 });
 
-test("a tool_call decision with terminate stops the batch", async () => {
+test("a tool.call.before decision with terminate stops the batch", async () => {
   const h = await createHarness();
   registerWorkspace(h);
-  await installHandlers(h, "stopper", ["tool_call"], (g) => {
-    g.on("tool_call", () => ({ block: true, reason: "stop here", terminate: true }));
+  await installHandlers(h, "stopper", ["tool.call.before"], (g) => {
+    g.on("tool.call.before", () => ({ block: true, reason: "stop here", terminate: true }));
   });
   const run = h.run();
   const prepared = await h.runtime.tools.prepare(

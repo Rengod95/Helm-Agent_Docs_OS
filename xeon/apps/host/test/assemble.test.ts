@@ -96,6 +96,7 @@ test("the core groups build one catalog with the keys of every package that decl
     "ext-host",
     "group-helm",
     "group-kit",
+    "group-learning",
     "host",
     "platform-exec",
     "platform-os",
@@ -107,7 +108,7 @@ test("the core groups build one catalog with the keys of every package that decl
   for (const key of [
     "x.primitives.driveDefaultLimits",
     "x.primitives.driveLimits",
-    "l3.helm.driveLimits",
+    "ext.helm.driveLimits",
     "x.operations.budget.firstMs",
     "x.loading-trust.defaultProjectTrust",
     "l0.os.log.level",

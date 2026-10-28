@@ -12,7 +12,8 @@ import type {
   TaskScopeKind,
   TaskScopeSpec,
 } from "@xeon/contracts/services";
-import type { StoreError } from "@xeon/contracts/records";
+import type { StoreError, ProducerHandle } from "@xeon/contracts/records";
+import type { IdFactory } from "@xeon/contracts/conversation";
 import type { AgentsTasks } from "../../src/index.ts";
 
 class FakeScope implements TaskScope {
@@ -149,7 +150,13 @@ export interface FakeTasks extends AgentsTasks {
   readonly scopes: readonly TaskScope[];
 }
 
-export function fakeTasks(): FakeTasks {
+export interface FakeTasksOptions {
+  /** 입력 큐 초안(draftQueued)이 쓰는 생산자와 id 발급기 */
+  readonly producer: ProducerHandle;
+  readonly ids: IdFactory;
+}
+
+export function fakeTasks(options: FakeTasksOptions): FakeTasks {
   const root = new FakeScope("app", "app", null, false);
   const all: FakeScope[] = [root];
   const limits: Record<PoolName, { capacity: number }> = {
@@ -165,6 +172,28 @@ export function fakeTasks(): FakeTasks {
   return {
     root,
     limits,
+    inputs: {
+      draftQueued(view, draft) {
+        const existing = view.inputByRequestId(draft.threadId, draft.source.type, draft.requestId);
+        if (existing !== undefined) return { drafts: [], existing };
+        const stamped = options.producer.draft({
+          id: options.ids.next("evt"),
+          kind: "input.queued",
+          threadId: draft.threadId,
+          turnId: null,
+          stepId: null,
+          causationId: null,
+          correlationId: null,
+          payload: {
+            mode: draft.mode,
+            item: draft.item,
+            requestId: draft.requestId,
+            source: draft.source,
+          },
+        });
+        return { drafts: [stamped], existing: undefined };
+      },
+    },
     get scopes() {
       return all;
     },

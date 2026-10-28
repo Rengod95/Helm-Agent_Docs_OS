@@ -1,5 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { Bug, err, ok, type Logger, type LogFields, type Result } from "@xeon/contracts";
+import {
+  Bug,
+  err,
+  ok,
+  type Clock,
+  type Logger,
+  type LogFields,
+  type Result,
+} from "@xeon/contracts";
 import {
   WorkPlansKey,
   WorkTasksKey,
@@ -37,6 +45,7 @@ interface FakeTools {
 }
 interface FakeOs {
   logger(component: string): Logger;
+  readonly time: { readonly clock: Clock };
 }
 
 const OsKey: PortKey<FakeOs> = { name: "xeon.os" };
@@ -89,7 +98,10 @@ async function boot(
     setup(ctx) {
       ctx.providePort(SessionPortKey, opened.session);
       ctx.providePort(ScopedStorePortKey, opened.store.service);
-      ctx.providePort(OsKey, { logger: () => recordingLogger(lines) });
+      ctx.providePort(OsKey, {
+        logger: () => recordingLogger(lines),
+        time: { clock: { now: () => 1_767_571_200_000 } },
+      });
       // 승인은 실제 core-tools 서비스다. 플러그인이 이 포트를 `planApprovalsOver`로 감싸 쓴다
       ctx.providePort(ApprovalServicePortKey, opened.l1.approvals);
       if (options.tools !== false) {
@@ -165,8 +177,15 @@ describe("manifest", () => {
     expect(checked.manifest?.provides).toEqual([
       { id: "work.tasks", version: "1.0.0" },
       { id: "work.plans", version: "1.0.0" },
+      { id: "work.goals", version: "1.0.0" },
+      { id: "work.reports", version: "1.0.0" },
     ]);
-    expect(checked.manifest?.points).toEqual(["before_agent_start", "session_start"]);
+    expect(checked.manifest?.points).toEqual([
+      "input.agent.before",
+      "session.start",
+      "boundary.step.after",
+      "boundary.settle.before",
+    ]);
     expect(checked.manifest?.usesDrive).toBe(false);
   });
 });
@@ -261,7 +280,7 @@ describe("plugin", () => {
 
 async function dispatch(t: TestHost, threadId: ReturnType<TestHost["newThread"]>) {
   return await t.host.dispatch(
-    "before_agent_start",
+    "input.agent.before",
     { prompt: "go on", systemPrompt: "", systemPromptOptions: {} },
     {
       threadId,
@@ -307,7 +326,7 @@ describe("work.plans through the plugin", () => {
     );
     expect(approvals.requests).toHaveLength(0);
     await t.host.dispatch(
-      "session_start",
+      "session.start",
       { reason: "resume", threadId: opened.threadId },
       { threadId: opened.threadId, dispatchKey: "start-1" },
     );
@@ -341,7 +360,10 @@ describe("work.plans through the plugin", () => {
       setup(ctx) {
         ctx.providePort(SessionPortKey, opened.session);
         ctx.providePort(ScopedStorePortKey, opened.store.service);
-        ctx.providePort(OsKey, { logger: () => recordingLogger(lines) });
+        ctx.providePort(OsKey, {
+          logger: () => recordingLogger(lines),
+          time: { clock: { now: () => 1_767_571_200_000 } },
+        });
       },
     });
     await t.host.install(workPlugin({ ids: opened.ids, settings: { layers: () => [] } }));

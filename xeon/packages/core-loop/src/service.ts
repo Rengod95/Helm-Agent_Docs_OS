@@ -8,7 +8,13 @@ import type {
   TurnId,
   Usage,
 } from "@xeon/contracts/conversation";
-import type { LoopTurnRequest, LoopTurnResult, PostItem } from "@xeon/contracts/extensions";
+import type {
+  LoopSpawnRequest,
+  LoopSpawnResult,
+  LoopTurnRequest,
+  LoopTurnResult,
+  PostItem,
+} from "@xeon/contracts/extensions";
 import type { DurableEventEnvelope, ReadFailure } from "@xeon/contracts/records";
 import type {
   AdmitRequest,
@@ -31,7 +37,12 @@ import { runTurn as runLoopTurn } from "./loop/run-turn.ts";
 import type { TurnEntry, TurnRunResult } from "./loop/types.ts";
 import { createThreadGate } from "./thread-gate.ts";
 import { createUserBash } from "./user-bash.ts";
-import { textAndImages, turnStartRequest, type TurnStartSource } from "./turn-start.ts";
+import {
+  originOfSource,
+  textAndImages,
+  turnStartRequest,
+  type TurnStartSource,
+} from "./turn-start.ts";
 import type { LoopContext, LoopDeps, StartOutcome, ThreadRuntime } from "./types.ts";
 
 // L1.loop.spec §3.1 LoopService. thread 구동기(§2), admit(§4.1), drive 연동(§4.8), 재개(§4.5, §4.6).
@@ -237,6 +248,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
           skipBeforeStart: false,
         },
         interactive: planned.interactive,
+        origin: planned.origin,
         scopeId: planned.scopeId,
         leaseId: source.kind === "drive" ? source.request.leaseId : null,
         driveSignal: source.kind === "drive" ? source.request.signal : null,
@@ -429,6 +441,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       },
       ...priorOf(reduction),
       interactive: false,
+      origin: reduction.origin,
       scopeId: reduction.scopeId,
       leaseId: null,
       driveSignal: null,
@@ -530,6 +543,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       scope,
       entry,
       interactive: child === null ? reduction.scopeId === null : child.tools.interactive,
+      origin: reduction.origin,
       scopeId: reduction.scopeId,
       leaseId: null,
       driveSignal: null,
@@ -568,7 +582,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       : undefined;
     const imageField = flat.images.length === 0 ? {} : { images: [...flat.images] };
     const chain = await deps.ext.dispatch(
-      "input",
+      "input.user.before",
       {
         text: flat.text,
         ...imageField,
@@ -597,6 +611,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       item,
       requestId,
       source: { type: "user", via: request.via },
+      origin: originOfSource({ type: "user", via: request.via }),
     });
     if (!enqueued.ok) {
       const error = enqueued.error;
@@ -690,6 +705,49 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       }
       return await handleStartRejection(thread, request, outcome.failure);
     });
+  }
+
+  /**
+   * drive의 `loop.spawn`(L1.loop.spec §4.8). `xeon.agents`의 포그라운드 spawn에 위임한다.
+   * 멱등은 core-agents가 (부모 thread, requestId)의 `agent.spawned`와 creationKey로 맡으므로, 같은 요청을 다시 부르면
+   * 새 자식을 만들지 않고 기록된 결과를 `replayed: true`로 돌려준다.
+   */
+  async function spawn(request: LoopSpawnRequest): Promise<LoopSpawnResult> {
+    const agents = deps.agents?.();
+    if (agents === undefined) {
+      throw new LoopRejection({ kind: "input_invalid", message: "xeon.agents is not available" });
+    }
+    if (request.spec.background === true) {
+      throw new LoopRejection({
+        kind: "input_invalid",
+        message: "loop.spawn runs in the foreground; use the group delegate for background runs",
+      });
+    }
+    const result = await agents.spawn(
+      { agent: request.spec.agent, task: request.spec.task, requestId: request.requestId },
+      {
+        parentThreadId: request.threadId,
+        owner: {
+          kind: "drive",
+          turnId: null,
+          scopeId: request.scopeId,
+          leaseId: request.leaseId,
+        },
+        caller: "main",
+        depth: 0,
+        ownerRequestId: request.requestId,
+        signal: request.signal,
+      },
+    );
+    return {
+      outcome: {
+        childThreadId: result.childThreadId,
+        status: result.status,
+        ...(result.answer === undefined ? {} : { answer: result.answer }),
+      },
+      replayed: result.reused,
+      usage: result.usage,
+    };
   }
 
   /**
@@ -822,13 +880,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     status: (threadId) =>
       (threads.get(threadId)?.running?.phase ?? "idle") === "idle" ? "idle" : "running",
     runTurn,
-    spawn: () =>
-      Promise.reject(
-        new LoopRejection({
-          kind: "input_invalid",
-          message: "loop.spawn is available from M2 (xeon.agents)",
-        }),
-      ),
+    spawn,
     whenIdle: (threadId, fn) => runtimeOf(threadId).gate.run(1, fn),
     // user_bash 지점 발화, xeon.tools.runUserShell 실행, 컨텍스트 기록(L1.loop.spec §3.1, LP12)
     runUserBash: (request) => userBash.run(request),

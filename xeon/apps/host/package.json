@@ -10,7 +10,7 @@
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
     "typecheck": "tsc -b",
-    "test": "bun test",
+    "test": "bash ../../scripts/test-pkg.sh",
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
   },
   "dependencies": {
@@ -20,6 +20,7 @@
     "@xeon/cap-web": "workspace:*",
     "@xeon/cap-work": "workspace:*",
     "@xeon/cap-workspace": "workspace:*",
+    "@xeon/client": "workspace:*",
     "@xeon/contracts": "workspace:*",
     "@xeon/core-agents": "workspace:*",
     "@xeon/core-context": "workspace:*",
@@ -31,6 +32,7 @@
     "@xeon/ext-host": "workspace:*",
     "@xeon/group-helm": "workspace:*",
     "@xeon/group-kit": "workspace:*",
+    "@xeon/group-learning": "workspace:*",
     "@xeon/platform-exec": "workspace:*",
     "@xeon/platform-os": "workspace:*",
     "@xeon/platform-process": "workspace:*",

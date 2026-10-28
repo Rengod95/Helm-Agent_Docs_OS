@@ -95,21 +95,38 @@ export function toSrtFileConfig(policy: EffectivePolicy): SrtCommandConfig {
   };
 }
 
+export interface GlobalConfigOptions {
+  /** 참이면 거부 목록에 없는 호스트를 허용한다(M3-REQ-55 기본). 거짓이면 허용 목록 밖은 모두 거부한다 */
+  readonly allowUnlistedHosts?: boolean;
+  /** 참이면 중첩 사용자 네임스페이스를 허용한다(M3-REQ-56, 격리가 약해진다) */
+  readonly nestedNamespaces?: boolean;
+}
+
+/** 허용 목록 없이 거부 목록만 있는 네트워크 정책(차단 목록 방식) */
+export function blocklistNetwork(blockedDomains: readonly string[]): SandboxNetworkPolicy {
+  return { allowedDomains: [], deniedDomains: [...blockedDomains] };
+}
+
 /**
  * srt `initialize`에 한 번 넘기는 프로세스 전역 설정. 네트워크와 고정 값만 담고 파일 정책은 비워 둔다.
- * 완화 옵션은 모두 거짓으로 고정한다(L0.sandbox.spec §3.2).
+ * 완화 옵션은 거짓으로 고정하고, 중첩 네임스페이스만 설정으로 켠다(L0.sandbox.spec §3.2).
  */
-export function toSrtGlobalConfig(tools: SrtTools, network: SandboxNetworkPolicy): SrtConfig {
+export function toSrtGlobalConfig(
+  tools: SrtTools,
+  network: SandboxNetworkPolicy,
+  options: GlobalConfigOptions = {},
+): SrtConfig {
   return {
     network: {
       allowedDomains: [...network.allowedDomains],
       deniedDomains: [...network.deniedDomains],
-      strictAllowlist: true,
+      // 차단 목록 방식(allowUnlistedHosts)은 목록 밖 호스트를 srt 질의 콜백이 허용한다. 엄격 모드는 콜백을 건너뛴다
+      strictAllowlist: options.allowUnlistedHosts !== true,
       allowAllUnixSockets: false,
       allowLocalBinding: false,
     },
     filesystem: { denyRead: [], allowWrite: [], denyWrite: [], allowGitConfig: false },
-    enableWeakerNestedSandbox: false,
+    enableWeakerNestedSandbox: options.nestedNamespaces === true,
     enableWeakerNetworkIsolation: false,
     allowAppleEvents: false,
     allowPty: false,

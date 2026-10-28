@@ -382,6 +382,14 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 [제안] `_research/foundation-plan.md §5` P3의 순서를 따른다. 루트 `justfile`의 `verify`가 아래 단계를 차례로 부르고, 한 단계라도 실패하면 거기서 멈춘다. 끝에 `ws check`가 붙는다.
 
 - 단계 0~8은 `_verify-steps`(`xeon/scripts/verify-steps.sh`)로 묶인다. `just verify`는 `WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps`로 기기의 검증 슬롯을 하나 잡고(기기에서 helm 검증은 한 번에 하나, 나머지는 기다린다), 단계를 차례로 돌되 단계마다 `WS_GUARD_ACTIVE`를 풀고 `scripts/guard.sh run`으로 따로 scope를 만든다(상한 `XEON_VERIFY_STEP_MAX`, 기본 2G, 시간 제한 없음). 시험 단계(`just test`)는 감싸지 않는다. `test-capped.sh`가 패키지마다 `guard.sh run` 1.5G를 건다. 처음 실패한 단계에서 멈추고 그 종료코드를 낸다. 모든 scope는 공용 예산 `ws-dev.slice` 안에 있다. 병렬 작업 중에는 저장소 전체 검사(`just verify`, `just lint`, `just typecheck`)를 돌리지 않고 `just check <패키지>`(패키지 하나의 lint, typecheck, test, 각 1.5G)만 돌린다. systemd 사용자 세션이 없는 기기(macOS, CI)에서는 한 줄 알리고 상한 없이 돈다.
+- 시험 캐시(turbo): 패키지의 시험 해시는 그 패키지의 추적 파일 전부(`$TURBO_DEFAULT$`, 시험 고정물 포함)와 `transit` 작업을 거쳐 올라오는 의존 패키지의 해시(시험 파일은 제외)로 정해진다. 의존 패키지의 소스가 바뀌면 의존하는 쪽의 시험이 다시 돌고, 시험 파일만 바뀌면 그 패키지만 다시 돈다. turbo가 보지 못하는 입력은 `xeon/turbo.json`의 `test.inputs`(`bun.lock`, `bunfig.toml`, `mise.toml`, `tsconfig.base.json`, 시험 래퍼, `guard.sh`)와 패키지별 `turbo.json`(읽는 문서: contracts는 `docs/xeon/F/`, ext-host는 `X/`, group-helm은 `L3/helm/`, desktop은 `L4/desktop/spec.md`, group-kit은 `scripts/check-layers.ts`)에 적는다. 시험이 새 바깥 파일을 읽게 되면 그 패키지의 `turbo.json`에 입력을 더한다. 환경(bwrap, sops, rg 같은 기기 도구)은 해시에 없다. 도구를 바꾼 뒤에는 `TURBO_FORCE=true just test`로 한 번 새로 돌린다.
+- desktop의 사이드카 e2e는 gitignored 바이너리를 쓴다. desktop 시험 해시는 `@xeon/cli#transit`에 의존해 바이너리의 소스(cli와 cli가 쓰는 모든 패키지)를 따라간다. 시험을 돌릴 때 `scripts/ensure-sidecar.sh`가 그 소스의 해시를 바이너리 옆 `.sources.sha256`과 견주어, 다르거나 바이너리가 없으면 `just desktop-sidecar host`로 다시 만든다. 낡은 바이너리로 시험이 거짓 실패하지 않는다.
+- turbo 캐시는 `~/.cache/xeon/turbo`(`TURBO_CACHE_DIR`)에 두고 모든 worktree가 함께 쓴다. 에이전트 worktree에서 통과한 패키지는 메인 체크아웃에서 재생된다. 같은 기기의 apps/host와 core-persistence는 함께 돌지 않게 `test-pkg.sh`가 `~/.cache/xeon/heavy.lock`을 잡는다.
+- 가벼운 검사(fmt-check, check-layers, check-ts-rules, docs-route, knip)는 `verify-steps.sh`가 setup 다음에 같이 돌린다(각자 scope). 출력은 모두 끝난 뒤 단계 순서대로 나온다. 하나 이상 실패하면 목록 앞쪽의 실패 단계 종료코드로 끝나고 실패한 단계 이름이 모두 적힌다. 무거운 단계(lint, typecheck, depcruise)와 test는 차례로 혼자 돈다. 그래서 단계 순서는 `setup`, 가벼운 검사, `lint`, `typecheck`, `depcruise`, `test`다.
+- knip은 `--cache`(기본 위치 `node_modules/.cache/knip`)로 돈다. 파일이 바뀌거나 늘거나 줄면 다시 계산하는 것을 확인했다. depcruise `--cache`는 쓰지 않는다. 실제 위반(다른 층의 앱을 가져오는 import)을 더해도 캐시가 "위반 없음"을 그대로 내서(metadata, content 두 전략 모두) 검사를 놓친다. 캐시 없이 4~5초라 얻는 것도 작다.
+- 두 길이 있다. `just verify`(빠른 길)는 병합과 push 전에 돌린다. turbo 캐시를 읽는 lint, typecheck, test를 쓰고 lint는 type-aware 없이 `just lint fast`(`.oxlintrc.fast.json`이 `.oxlintrc.json`을 확장하고 `typeAware`와 미사용 disable 보고를 끈다, 저장소 전체를 한 번에 1초 안쪽)로 돈다. `just verify-full`은 `TURBO_FORCE=true`로 캐시를 읽지 않고 type-aware lint(`just lint`)까지 모든 검사를 새로 돌며 결과 캐시를 새로 채운다. 마일스톤 마감과 CI만 쓴다. type-aware 규칙(`no-floating-promises`, `no-unsafe-type-assertion` 등)의 위반은 빠른 길에서 잡히지 않고 full과 CI에서 잡힌다. 단계 목록과 순서는 두 길이 같다(`verify-steps.sh fast|full`).
+- 타입 검사 도구는 `typescript` 7(`tsc`)이다. 7.x는 Go 네이티브 컴파일러(`@typescript/typescript-linux-x64` 등 플랫폼 패키지)라 `@typescript/native-preview`(tsgo)를 더할 이유가 없다. 의존성을 더하지 않는다.
+- 단계마다 걸린 시간(`verify: time 12s (lint)`)과 최대 메모리(`verify: peak …M`)가 stderr에 나오고, 끝에 단계별 시간 목록이 한 줄로 붙는다. 시험 단계는 대상마다 시간을 적고 끝에 느린 순서로 정리한다. 속도를 고칠 때는 이 숫자로 비교한다.
 - `scripts/guard.sh`는 dotfiles `modules/ws/templates/guard.sh`의 복사본이다(둘째 줄 `# ws-guard vN`). 저장소에서 고치지 않고 `ws stack update guard`로 올린다. 이전의 `xeon/scripts/verify-guarded.sh`와 `xeon-dev.slice`는 쓰지 않는다. `guard.sh`는 고치지 않고 `WS_GUARD_SLOTS`, `WS_GUARD_RUN_MAX`, `WS_GUARD_TIMEOUT_SEC`, `WS_GUARD_ACTIVE` 환경 변수로만 다룬다.
 
 | # | 단계 | 레시피 | 실제 명령 | 실패할 때 고치는 법 | 소요 목표 | 종료코드 |
@@ -395,7 +403,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | 5 | 경계 | `just depcruise` | `depcruise packages apps plugins --config .dependency-cruiser.cjs` | 규칙 이름 `DR-NN-...`과 `from → to` 경로가 나온다 | 20초 | 1 |
 | 6 | 미사용 | `just knip` | `knip` | 미사용 파일·export·의존 목록. 지우거나 `knip.json`의 `entry`가 빠졌는지 본다 | 20초 | 1 |
 | 7 | 문서 | `just docs-route --check --allow-missing` | `bun scripts/docs-route.ts --check --allow-missing` | `문서경로: 오류`. 프런트매터, `depends_on`, `binds`를 고친다 | 3초 | 1 |
-| 8 | 테스트 | `just test` | `scripts/test-capped.sh`: `scripts`와 `test` 스크립트가 있는 패키지를 하나씩 저장소 루트 `scripts/guard.sh run` 아래에서 각 패키지 cwd의 `bun test`로 돈다. 실행 단위 메모리 상한은 `WS_GUARD_RUN_MAX`(기본 1500M), 대상마다 시간 상한은 `XEON_TEST_TIMEOUT_SEC`(기본 300초)다. 끝 줄에 건너뛴 시험 수를 적는다. 인자로 패키지 디렉터리를 주면 그것만 돈다(`just test packages/<이름>`) | 실패한 테스트 파일과 기대·실제 값. 커버리지 임계 미달은 메시지 없이 1로 끝난다(`_research/notes/eng-3.md §3.2`) | 60초(영향 범위) | 1 |
+| 8 | 테스트 | `just test` | `scripts/test-capped.sh`: `xeon/scripts`는 `bun test scripts`를 매번 돌리고, 패키지는 `turbo run test`(동시 2개)로 돌린다. 캐시가 맞는 패키지는 로그만 재생한다. 맞지 않으면 패키지의 `test` 스크립트 `scripts/test-pkg.sh`가 저장소 루트 `scripts/guard.sh run` 아래에서 `bun test`를 돈다. 실행 단위 메모리 상한은 `WS_GUARD_RUN_MAX`(기본 1500M), 패키지마다 시간 상한은 `XEON_TEST_TIMEOUT_SEC`(기본 300초)다. 끝 줄에 건너뛴 시험 수를 적고(캐시 재생에도 나온다), 인자로 패키지 디렉터리를 주면 그것만 돈다(`just test packages/<이름>`) | 실패한 테스트 파일과 기대·실제 값. 커버리지 임계 미달은 메시지 없이 1로 끝난다(`_research/notes/eng-3.md §3.2`) | 캐시 적중 1초, 전부 새로 돌면 3~4분 | 1 |
 | 9 | 환경 | `ws check` | 사용자 환경 검사 | `ws help`를 본다 | — | 2 |
 
 - 소요 목표 열은 실측 전 추정이다 [가정].
@@ -446,10 +454,11 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 - 문서의 `[미결` 표지 수는 `just docs-route --unresolved`가 문서마다 셉니다. 추적 규칙은 `review.unresolved`입니다. verify 단계가 아니고 종료코드는 항상 0입니다.
 | `smoke` [제안] | 모델 테이프로 `xeon chat` 한 턴과 강제 종료 뒤 재개(`eng.testing.guide` TS-01 `scenario`). M1에서 더한다 | `just smoke` [제안] |
 
-- CI job 전체가 `just verify`의 `_verify-steps`를 모두 돈다. `xeon/scripts/ci-alignment.test.ts`가 루트 justfile의 단계 목록과 `xeon-ci.yml`의 명령을 비교해, 단계가 CI에서 빠지면 실패한다. `ws check`는 사용자 환경 검사라 CI에서 돌지 않는다.
+- CI job 전체가 `just verify-full`과 같은 단계를 모두 돈다(두 워크플로의 `TURBO_FORCE: "true"`로 turbo 캐시를 읽지 않고, lint는 type-aware다). `xeon/scripts/ci-alignment.test.ts`가 루트 justfile의 단계 목록과 `xeon-ci.yml`의 명령을 비교해, 단계가 CI에서 빠지면 실패한다. `ws check`는 사용자 환경 검사라 CI에서 돌지 않는다.
 - 체크아웃은 `fetch-depth: 0`이다. `--affected`는 기준 커밋이 있어야 한다. 얕은 체크아웃이면 turbo가 모든 패키지를 바뀐 것으로 본다(`_research/stack-status.md §5-B`, §9).
 - 기준 커밋: PR은 `origin/<base_ref>`, push는 `origin/main`(`TURBO_SCM_BASE`).
 - 각 job은 `jdx/mise-action`으로 `mise.toml`의 Bun 1.4.3을 설치하고 just 1.58.0을 쓴다.
+- 워크플로의 액션은 태그 대신 커밋 SHA로 고정합니다. 줄 끝 주석에 판을 적습니다(`uses: owner/repo@<sha> # v4.4.0`). 올릴 때는 같은 메이저 안의 최신 정식 판을 고르고 SHA를 새로 적습니다.
 - 원격 캐시는 쓰지 않는다 [제안]. 필요해지면 TC-04 절차로 더한다.
 - macOS job: `.github/workflows/xeon-macos.yml`. `workflow_dispatch`나 PR 라벨 `ci:macos`로만 돈다(`review.m2-plan` §8 D1). `macos-15`에서 `platform-store`(FTS5와 `setCustomSQLite`, TC-11), `platform-os`, `platform-sandbox`(Seatbelt), `platform-secrets`, `cap-knowledge` 시험, `just exit-tests`, `aarch64-apple-darwin` 사이드카 빌드, `just desktop-test`를 돈다. 결과는 `review.macos-checklist`에 적는다.
 

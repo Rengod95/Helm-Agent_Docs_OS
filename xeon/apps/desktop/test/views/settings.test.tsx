@@ -3,7 +3,7 @@ import { parse } from "@xeon/contracts";
 import { SecretNameSchema, type SecretName } from "@xeon/contracts/capabilities";
 import { renderToString } from "react-dom/server";
 import { keepTools } from "../../src/app/setup.ts";
-import { binaryViewOf, setupSteps, type SetupSnapshot } from "../../src/settings/index.ts";
+import { binaryViewOf, setupSteps, type SetupSnapshot } from "@xeon/client/settings";
 import { errorText, SettingsBody, Steps, Tools, type KeyEntry } from "../../src/views/settings.tsx";
 
 const noop = (): void => {};

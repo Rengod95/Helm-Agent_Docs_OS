@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
 import type { BeforeProviderRequestInput, ProviderDispatcher } from "../src/index.ts";
-import { spyDispatcher } from "./support/dispatcher.ts";
+import { noGuard, spyDispatcher } from "./support/dispatcher.ts";
 import { t, tape } from "../src/testing/index.ts";
 import { createHarness, FAKE_KEY } from "./support/harness.ts";
 import { memoryLogger, type LogLine } from "./support/logger.ts";
@@ -17,6 +17,7 @@ describe("before_provider_request_rerun_same_result", () => {
       tape: ONE_TURN,
       provider: { payloadAttempts: 2 },
       dispatcher: {
+        guardProviderRequest: noGuard,
         beforeProviderRequest(input) {
           inputs.push(input);
           return Promise.resolve({ patched: true, original: input.payload });
@@ -38,6 +39,7 @@ describe("before_provider_request_rerun_same_result", () => {
         { role: "main", response: { type: "message", content: [t.text("2")], stopReason: "stop" } },
       ]),
       dispatcher: {
+        guardProviderRequest: noGuard,
         beforeProviderRequest(input) {
           keys.push(input.dispatchKey);
           return Promise.resolve(input.payload);
@@ -57,6 +59,7 @@ describe("before_provider_request input", () => {
     const h = createHarness({
       tape: ONE_TURN,
       dispatcher: {
+        guardProviderRequest: noGuard,
         beforeProviderRequest(input) {
           inputs.push(input);
           return Promise.resolve(input.payload);
@@ -70,7 +73,7 @@ describe("before_provider_request input", () => {
       provider: "tape",
       modelId: "tape-1",
       role: "main",
-      dispatchKey: `${stepId}:before_provider_request:1`,
+      dispatchKey: `${stepId}:request.provider.before:1`,
     });
     expect(inputs[0]?.payload).toMatchObject({ model: "tape-1" });
   });
@@ -84,7 +87,10 @@ describe("before_provider_request input", () => {
   test("a failing dispatcher ends the call with a provider error and still records the call", async () => {
     const h = createHarness({
       tape: ONE_TURN,
-      dispatcher: { beforeProviderRequest: () => Promise.reject(new Error("handler exploded")) },
+      dispatcher: {
+        beforeProviderRequest: () => Promise.reject(new Error("handler exploded")),
+        guardProviderRequest: noGuard,
+      },
     });
     const message = await h.service.stream(h.request("hi")).result();
     expect(message.stopReason).toBe("error");
@@ -94,7 +100,7 @@ describe("before_provider_request input", () => {
 });
 
 describe("request_points_remaining_five_fire", () => {
-  test("before_provider_headers, after_provider_response and provider_stream_event fire once per request", async () => {
+  test("before_provider_headers, request.provider.after and request.stream fire once per request", async () => {
     const spy = spyDispatcher();
     const h = createHarness({
       tape: ONE_TURN,
@@ -131,7 +137,7 @@ describe("request_points_remaining_five_fire", () => {
     expect(new Set(spy.rawEvents.map((event) => event.dispatchKey)).size).toBe(2);
   });
 
-  test("a before_provider_headers patch reaches the request and null removes a header", async () => {
+  test("a request.headers.before patch reaches the request and null removes a header", async () => {
     const spy = spyDispatcher((headers) => {
       const { "x-remove": _removed, ...rest } = headers;
       return { ...rest, "x-added": "yes" };
@@ -203,5 +209,53 @@ describe("headers_point_payload_masks_secret_values", () => {
     expect(JSON.stringify(h.fake.calls()[0]?.headers)).not.toContain("injected");
     expect(lines.some((line) => line.event === "model.auth_header_patch_ignored")).toBe(true);
     expect(JSON.stringify(lines)).not.toContain(FAKE_KEY);
+  });
+});
+
+describe("guard.model.before (M3-REQ-109)", () => {
+  test("the guard sees the final payload after the chain and its block stops the request", async () => {
+    const seen: unknown[] = [];
+    const h = createHarness({
+      tape: ONE_TURN,
+      dispatcher: {
+        beforeProviderRequest: (input) =>
+          Promise.resolve({ chained: true, original: input.payload }),
+        guardProviderRequest(input) {
+          seen.push(input.payload);
+          return Promise.resolve({ block: true, reason: "policy says no" });
+        },
+      },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("error");
+    expect(message.errorMessage).toBe("[xeon:denied_by_guard] policy says no");
+    expect(seen).toHaveLength(1);
+    expect(seen[0]).toMatchObject({ chained: true });
+  });
+
+  test("a throwing guard blocks the request too", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      dispatcher: {
+        beforeProviderRequest: (input) => Promise.resolve(input.payload),
+        guardProviderRequest: () => Promise.reject(new Error("guard exploded")),
+      },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("error");
+    expect(message.errorMessage).toBe("[xeon:denied_by_guard] extension handler failed");
+  });
+
+  test("a guard without an opinion lets the chained payload through", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      dispatcher: {
+        beforeProviderRequest: () => Promise.resolve({ chained: true }),
+        guardProviderRequest: () => Promise.resolve(undefined),
+      },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("stop");
+    expect(h.fake.calls()[0]?.payload).toEqual({ chained: true });
   });
 });

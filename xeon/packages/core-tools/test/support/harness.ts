@@ -7,7 +7,7 @@ import {
   type CallContext,
   type CallOptions,
 } from "@xeon/contracts/capabilities";
-import { Bug, type Clock, type Result } from "@xeon/contracts";
+import { Bug, type Clock, type Result, type Scheduler } from "@xeon/contracts";
 import type {
   AgentTool,
   AgentToolResult,
@@ -31,7 +31,7 @@ import type { ToolsDeps } from "../../src/deps.ts";
 import { configReader } from "../../src/plugin.ts";
 import { createToolRuntime, type ToolRuntime } from "../../src/runtime.ts";
 import type { SecretChecker } from "../../src/secret-gate.ts";
-import type { ToolsSettingsSource } from "../../src/settings.ts";
+import type { ToolsSettingsSource, ToolsUnattendedConfig } from "../../src/settings.ts";
 import {
   fakeRedactor,
   fakeRunContext,
@@ -56,6 +56,15 @@ export interface HarnessOptions {
   readonly toolsCapacity?: number;
   /** `xeon.secrets.check` 대역. 없으면 secretEnv를 쓰는 호출은 거부된다 */
   readonly secretChecker?: SecretChecker;
+  /**
+   * 무인 승인 정책. 생략하면 `deny`(비대화형 호출의 승인을 바로 거부)다: `interactive: false`를 "사람이 없다"의 약식으로 쓰는 시험이 많다.
+   * `null`이면 설정 층에서 읽는다(기본값 `expire`)
+   */
+  readonly unattended?: ToolsUnattendedConfig | null;
+  /** 만료 타이머. 생략하면 타이머 없이 시계만 본다 */
+  readonly scheduler?: Scheduler;
+  /** 시계. 생략하면 고정 시각이다 */
+  readonly clock?: Clock;
 }
 
 export interface Harness {
@@ -111,7 +120,7 @@ export async function installHandlers(
 }
 
 export async function createHarness(options: HarnessOptions = {}): Promise<Harness> {
-  const clock: Clock = { now: () => NOW };
+  const clock: Clock = options.clock ?? { now: () => NOW };
   const ids = sequentialIds(1000);
   const session = fakeSession({ clock, ids });
   const store = fakeStore();
@@ -135,8 +144,17 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     secrets: options.secretChecker,
     ext: host.host,
     resolveCapability: (key: ServiceKey<unknown>) => apis.get(key.capability),
-    config: configReader(source, session),
+    config: (threadId) => {
+      const config = configReader(source, session)(threadId);
+      return options.unattended === null
+        ? config
+        : {
+            ...config,
+            unattended: options.unattended ?? { approval: "deny", timeoutSeconds: 3600 },
+          };
+    },
     clock,
+    ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
     ids,
     logger: undefined,
   };

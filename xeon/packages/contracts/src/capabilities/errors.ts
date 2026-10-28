@@ -13,6 +13,7 @@ export const COMMON_ERROR_CODES: readonly [
   "timeout",
   "upstream_error",
   "aborted",
+  "effect_not_allowed",
   "internal",
 ] = [
   "invalid_input",
@@ -24,6 +25,7 @@ export const COMMON_ERROR_CODES: readonly [
   "timeout",
   "upstream_error",
   "aborted",
+  "effect_not_allowed",
   "internal",
 ];
 export type CommonErrorCode = (typeof COMMON_ERROR_CODES)[number];
@@ -91,5 +93,6 @@ export const DEFAULT_RETRYABLE: Readonly<Record<CommonErrorCode, boolean>> = {
   timeout: true,
   upstream_error: true,
   aborted: false,
+  effect_not_allowed: false,
   internal: false,
 };

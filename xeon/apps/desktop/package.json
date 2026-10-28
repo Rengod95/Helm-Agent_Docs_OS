@@ -9,7 +9,7 @@
   "scripts": {
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
     "typecheck": "tsc -b",
-    "test": "bun test",
+    "test": "bash ../../scripts/test-pkg.sh",
     "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test",
     "spike:engine": "bun build --compile spike/tests/engine.ts --outfile spike/out/engine",
     "spike:s2": "bash spike/s2-size.sh",
@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "catalog:",
+    "@xeon/client": "workspace:*",
     "@xeon/contracts": "workspace:*",
     "react": "catalog:",
     "react-dom": "catalog:",

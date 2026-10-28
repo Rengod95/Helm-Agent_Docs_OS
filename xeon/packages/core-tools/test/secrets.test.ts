@@ -12,8 +12,8 @@ function everything(h: Awaited<ReturnType<typeof createHarness>>): string {
 test("tool_result_masked_before_commit_and_points: the value reaches no event, blob, handler payload or model result", async () => {
   const h = await createHarness({ secrets: { API: SECRET } });
   const seenByHandler: string[] = [];
-  await installHandlers(h, "result-watch", ["tool_result"], (g) => {
-    g.on("tool_result", (_payload, current) => {
+  await installHandlers(h, "result-watch", ["tool.result"], (g) => {
+    g.on("tool.result", (_payload, current) => {
       seenByHandler.push(JSON.stringify(current));
       return undefined;
     });
@@ -66,14 +66,19 @@ test("progress updates are masked before they reach the caller and the tap paylo
   const h = await createHarness({ secrets: { API: SECRET } });
   const delivered: string[] = [];
   const tapped: string[] = [];
-  await installHandlers(h, "update-watch", ["tool_execution_update", "tool_execution_end"], (g) => {
-    g.on("tool_execution_update", (payload) => {
-      tapped.push(JSON.stringify(payload));
-    });
-    g.on("tool_execution_end", (payload) => {
-      tapped.push(JSON.stringify(payload));
-    });
-  });
+  await installHandlers(
+    h,
+    "update-watch",
+    ["tool.execution.update", "tool.execution.after"],
+    (g) => {
+      g.on("tool.execution.update", (payload) => {
+        tapped.push(JSON.stringify(payload));
+      });
+      g.on("tool.execution.after", (payload) => {
+        tapped.push(JSON.stringify(payload));
+      });
+    },
+  );
   h.runtime.tools.register({
     kind: "direct",
     orderKey: "ext.test",

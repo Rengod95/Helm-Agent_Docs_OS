@@ -113,7 +113,7 @@ export type ArtifactRef = Static<typeof ArtifactRefSchema>;
 
 - [제안] 작업·계획·목표·보고 ID는 ULID 접두 ID(eng.domain-types.guide DT-06)를 쓰지 않고 스레드 안 순번을 쓴다. 모델이 `task_write`에서 ID를 직접 적어야 하므로 짧아야 한다(Claude Code 작업 도구도 순번 ID를 쓴다, `_research/l2e.md` §3.1 A1). DT-06의 "외부 발급 ID는 브랜드만 붙이고 패턴은 따로 둔다" 규칙과 같은 처리다. 다른 스레드의 같은 ID와 구별할 일이 없다. 모든 조회는 스레드 범위다.
 - 호출 문맥: 서비스 메서드는 대상 스레드를 알아야 한다. 대상 스레드는 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`의 `threadId`다(`L2.readme` §5.8). 도구 경로에서는 L1.tools가 도구 호출의 스레드로 채우고, 그룹 경로에서는 X의 capability 래퍼가 `HandlerContext.threadId`(F.extensions.spec §3.2)로 채운다. 없으면 `invalid_input`이다.
-- 쓰기 메서드의 `requestId`는 필수다 [제안]. 없으면 `invalid_input`이다. 같은 `requestId`의 재호출은 이벤트를 다시 쓰지 않고 처음 결과를 돌려준다(eng.transactions.design §4.7, TX-05). 그래서 쓰기 메서드의 `replay`를 `"safe"`로 둔다.
+- 쓰기 메서드의 `requestId`는 필수다 [제안]. 없으면 `invalid_input`이다. 같은 `requestId`의 재호출은 이벤트를 다시 쓰지 않고 처음 결과를 돌려준다(eng.transactions.design §4.7, TX-05). 그래서 쓰기 메서드에 `replay: "safe"`와 `idempotent: true`를 선언한다. 예외는 `enterMode`, `exitMode`, `approve`, `reject`, `revise`다. 권한 모드는 L1.tools가 소유하고, 계획 결정은 승인 해결 하나(`approval.resolved`)에 기록되어 둘 다 `requestId` 결과를 기억하지 않으므로 선언 없음(`replay: "unsafe"`)이다(§3.9 표). 적합성 시험(M3-REQ-89)이 이를 드러냈다.
 
 ### 3.2 `work.tasks`
 
@@ -269,11 +269,11 @@ export const WorkTasks = defineCapability({
   description: "턴 사이에 유지되는 작업 목록과 선행 간선.",
   service: {
     methods: {
-      create: { description: "작업 하나를 만든다.", input: TaskCreateInput, output: TaskOutput, replay: "safe", errors: TaskErrors },
-      update: { description: "작업의 내용, 상태, owner를 바꾼다.", input: TaskUpdateInput, output: TaskOutput, replay: "safe", errors: TaskErrors },
-      link: { description: "선행 간선을 더하거나 뺀다. 순환이 생기면 거부한다.", input: TaskLinkInput, output: TaskOutput, replay: "safe", errors: TaskErrors },
-      list: { description: "작업 목록을 조회한다.", input: TaskListInput, output: TaskListOutput, replay: "safe" },
-      write: { description: "여러 연산을 한 번에 적용한다. 전부 적용되거나 하나도 적용되지 않는다.", input: TaskWriteInput, output: TaskWriteOutput, replay: "safe", errors: TaskErrors },
+      create: { description: "작업 하나를 만든다.", input: TaskCreateInput, output: TaskOutput, replay: "safe", idempotent: true, errors: TaskErrors },
+      update: { description: "작업의 내용, 상태, owner를 바꾼다.", input: TaskUpdateInput, output: TaskOutput, replay: "safe", idempotent: true, errors: TaskErrors },
+      link: { description: "선행 간선을 더하거나 뺀다. 순환이 생기면 거부한다.", input: TaskLinkInput, output: TaskOutput, replay: "safe", idempotent: true, errors: TaskErrors },
+      list: { description: "작업 목록을 조회한다.", input: TaskListInput, output: TaskListOutput, replay: "safe", readOnly: true },
+      write: { description: "여러 연산을 한 번에 적용한다. 전부 적용되거나 하나도 적용되지 않는다.", input: TaskWriteInput, output: TaskWriteOutput, replay: "safe", idempotent: true, errors: TaskErrors },
     },
   },
   tools: [
@@ -416,13 +416,13 @@ export const WorkPlans = defineCapability({
   description: "계획 객체와 승인 흐름. 계획 모드의 쓰기 차단은 L1.tools가 한다.",
   service: {
     methods: {
-      enterMode: { description: "권한 모드를 계획 모드로 바꾸도록 L1.tools에 요청한다.", input: PlanEnterModeInput, output: PlanModeOutput, replay: "safe", errors: PlanErrors },
-      exitMode: { description: "계획 모드를 끝내고 이전 모드로 돌린다. 승인 필수면 승인된 계획이 있어야 한다.", input: PlanExitModeInput, output: PlanModeOutput, replay: "safe", errors: PlanErrors },
-      submit: { description: "계획을 제출하고 승인을 요청한다.", input: PlanSubmitInput, output: PlanSubmitOutput, replay: "safe", errors: PlanErrors },
-      approve: { description: "승인 대기 중인 버전을 승인한다.", input: PlanApproveInput, output: PlanOutput, replay: "safe", errors: PlanErrors },
-      reject: { description: "승인 대기 중인 버전을 반려한다.", input: PlanRejectInput, output: PlanOutput, replay: "safe", errors: PlanErrors },
-      revise: { description: "승인 대기 중인 버전에 수정을 요청한다.", input: PlanReviseInput, output: PlanOutput, replay: "safe", errors: PlanErrors },
-      versions: { description: "계획의 모든 버전을 조회한다.", input: PlanVersionsInput, output: PlanVersionsOutput, replay: "safe" },
+      enterMode: { description: "권한 모드를 계획 모드로 바꾸도록 L1.tools에 요청한다.", input: PlanEnterModeInput, output: PlanModeOutput, replay: "unsafe", errors: PlanErrors },
+      exitMode: { description: "계획 모드를 끝내고 이전 모드로 돌린다. 승인 필수면 승인된 계획이 있어야 한다.", input: PlanExitModeInput, output: PlanModeOutput, replay: "unsafe", errors: PlanErrors },
+      submit: { description: "계획을 제출하고 승인을 요청한다.", input: PlanSubmitInput, output: PlanSubmitOutput, replay: "safe", idempotent: true, errors: PlanErrors },
+      approve: { description: "승인 대기 중인 버전을 승인한다.", input: PlanApproveInput, output: PlanOutput, replay: "unsafe", errors: PlanErrors },
+      reject: { description: "승인 대기 중인 버전을 반려한다.", input: PlanRejectInput, output: PlanOutput, replay: "unsafe", errors: PlanErrors },
+      revise: { description: "승인 대기 중인 버전에 수정을 요청한다.", input: PlanReviseInput, output: PlanOutput, replay: "unsafe", errors: PlanErrors },
+      versions: { description: "계획의 모든 버전을 조회한다.", input: PlanVersionsInput, output: PlanVersionsOutput, replay: "safe", readOnly: true },
     },
   },
   tools: [
@@ -432,7 +432,7 @@ export const WorkPlans = defineCapability({
       description: "쓰기 도구를 막는 계획 모드로 들어간다. 큰 변경 전에 조사와 계획만 할 때 쓴다.",
       method: "enterMode",
       parameters: PlanEnterModeInput,
-      replay: "safe",
+      replay: "unsafe",
       executionMode: "sequential",
       hints: { readOnly: false, destructive: false, idempotent: true, openWorld: false },
     },
@@ -442,7 +442,7 @@ export const WorkPlans = defineCapability({
       description: "계획 모드를 끝낸다. 승인 필수 설정이면 submit_plan으로 승인받은 뒤에만 끝낼 수 있다.",
       method: "exitMode",
       parameters: PlanExitModeInput,
-      replay: "safe",
+      replay: "unsafe",
       executionMode: "sequential",
       hints: { readOnly: false, destructive: false, idempotent: true, openWorld: false },
     },
@@ -581,10 +581,10 @@ export const WorkGoals = defineCapability({
   description: "완료 조건을 걸고 턴마다 별도 판정자의 판정으로 다음 턴을 이어 간다. 모델 도구는 없다.",
   service: {
     methods: {
-      set: { description: "목표를 건다.", input: GoalSetInput, output: GoalOutput, replay: "safe", errors: GoalErrors },
-      status: { description: "활성 목표(또는 지정 목표)와 최근 판정을 조회한다.", input: GoalStatusInput, output: GoalStatusOutput, replay: "safe" },
-      clear: { description: "목표를 해제한다.", input: GoalClearInput, output: GoalOutput, replay: "safe", errors: GoalErrors },
-      judge: { description: "delegated 판정자가 판정을 넣는다.", input: GoalJudgeInput, output: GoalJudgeOutput, replay: "safe", errors: GoalErrors },
+      set: { description: "목표를 건다.", input: GoalSetInput, output: GoalOutput, replay: "safe", idempotent: true, errors: GoalErrors },
+      status: { description: "활성 목표(또는 지정 목표)와 최근 판정을 조회한다.", input: GoalStatusInput, output: GoalStatusOutput, replay: "safe", readOnly: true },
+      clear: { description: "목표를 해제한다.", input: GoalClearInput, output: GoalOutput, replay: "safe", idempotent: true, errors: GoalErrors },
+      judge: { description: "delegated 판정자가 판정을 넣는다.", input: GoalJudgeInput, output: GoalJudgeOutput, replay: "safe", idempotent: true, errors: GoalErrors },
     },
   },
   tools: [],
@@ -675,7 +675,7 @@ export const WorkReports = defineCapability({
   description: "완료 보고를 정해진 스키마로 만들고 이벤트로 남긴다. 턴 결과 형식이며 모델 도구는 없다.",
   service: {
     methods: {
-      build: { description: "대상(목표 또는 턴)의 완료 보고를 만든다.", input: ReportBuildInput, output: ReportBuildOutput, replay: "safe" },
+      build: { description: "대상(목표 또는 턴)의 완료 보고를 만든다.", input: ReportBuildInput, output: ReportBuildOutput, replay: "safe", idempotent: true },
     },
   },
   tools: [],
@@ -820,25 +820,29 @@ CREATE INDEX cap_work_plans_approval ON cap_work_plans (approval_id);   -- [결�
 CREATE TABLE cap_work_goals (
   session_id   TEXT NOT NULL,
   goal_id      TEXT NOT NULL,
+  ord          INTEGER NOT NULL,       -- "g1"의 숫자 부분. 읽기 순서
   goal         TEXT NOT NULL,          -- Goal JSON(최신)
   status       TEXT NOT NULL,
   set_seq      INTEGER NOT NULL,
+  set_at       INTEGER NOT NULL,       -- work.goal_set의 recordedAt. 보고의 durationMs 기준이다 [결정: M3-REQ-90]
   settled_seq  INTEGER,
   PRIMARY KEY (session_id, goal_id)
 ) STRICT;
-CREATE TABLE cap_work_goal_judgments (
+-- [결정: M3-REQ-90] 투영기 등록부가 접두 뒤 지역 이름에 밑줄을 허용하지 않아 `cap_work_goal_judgments`를 `cap_work_judgments`로 바꿨다.
+-- 한 turn 안에서 완료 게이트가 판정을 여러 번 할 수 있어 `UNIQUE (session_id, goal_id, turn_id)`를 두지 않는다. 같은 턴의 위임 판정 재호출은 조회로 걸러 첫 판정을 돌려준다
+CREATE TABLE cap_work_judgments (
   session_id   TEXT NOT NULL,
   goal_id      TEXT NOT NULL,
   n            INTEGER NOT NULL,
   turn_id      TEXT NOT NULL,
-  judgment     TEXT NOT NULL,          -- work.goal_judged payload JSON
+  judgment     TEXT NOT NULL,          -- work.goal_judged payload JSON(usage 포함)
   seq          INTEGER NOT NULL,
-  PRIMARY KEY (session_id, goal_id, n),
-  UNIQUE (session_id, goal_id, turn_id)
+  PRIMARY KEY (session_id, goal_id, n)
 ) STRICT;
 CREATE TABLE cap_work_reports (
   session_id   TEXT NOT NULL,
   report_id    TEXT NOT NULL,
+  ord          INTEGER NOT NULL,
   report       TEXT NOT NULL,          -- WorkReport JSON
   seq          INTEGER NOT NULL,
   PRIMARY KEY (session_id, report_id)
@@ -875,9 +879,33 @@ CREATE TABLE cap_work_meta (
 - [결정: WK.1] 방치 알림(§4.1.6)의 기준 턴은 작업 이벤트 네 종류(`task_created`, `task_changed`, `task_linked`, `task_unlinked`)가 모두 갱신한다. 목록을 처음 만든 호출도 목록을 쓴 것으로 센다. `cap_work_meta` 행은 첫 작업 이벤트나 첫 `turn.completed`에서 만든다.
 - [결정: WK.1] 간선 행의 읽기 순서는 삽입 순서(`rowid`)다. `blockedBy` 배열의 순서가 재생성 뒤에도 같다.
 - [결정: WK.3 통합] 작업 의존 간선 테이블 이름은 `cap_work_edges`다. 투영기 등록부(F.records.spec §3.4)가 접두 뒤 지역 이름에 밑줄을 허용하지 않아 `cap_work_task_edges`를 바꿨다. 투영 대역이 이 검사를 하지 않아 실제 등록부로 바꾸기 전에는 드러나지 않았다.
-- 투영기 `cap.work` 버전 2는 `cap_work_tasks`, `cap_work_edges`, `cap_work_plans`, `cap_work_meta` 넷을 만든다(버전 1은 `cap_work_plans` 없이 작업 셋). 목표·보고 테이블은 해당 작업(T9~T12)이 더하면서 투영 버전을 올린다.
+- 투영기 `cap.work` 버전 3은 `cap_work_tasks`, `cap_work_edges`, `cap_work_plans`, `cap_work_meta`와 목표·보고의 `cap_work_goals`, `cap_work_judgments`, `cap_work_reports`를 만든다(버전 1은 작업 셋, 버전 2는 계획 추가, 버전 3은 목표·보고 추가).
 - [결정: WK.2] 권한 모드 추적은 `settings.changed`가 세션 범위에서 나온 변경만 본다. 파일 설정(사용자·프로젝트 범위)이 정한 모드는 이벤트가 없으므로 `mode_before_plan`은 세션 범위 이력의 직전 값이고, 그런 이력이 없으면 default다. 이 프로세스가 직접 계획 모드에 넣은 스레드는 메모리에 실제 직전 모드를 두고 우선한다(재시작 뒤에는 투영 값). L1.tools가 직전 모드를 이벤트로 남기면 이 한계가 사라진다(§10 W-16).
 - `approval.resolved` payload의 결정 필드 이름은 L1.tools.spec이 정한다. 투영기는 F에 있는 그 payload 스키마만 import한다(§10 W-2).
+
+### 3.9 효과 분류 [결정: M3-REQ-88]
+
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록, 사용자 파일과 사용자가 쓴 데이터, 외부 시스템의 상태를 바꾸지 않는 읽기다. 관찰상 순수한 파생 데이터(캐시, 색인, 내용 주소 blob, 사용량·비용 계량, 시간과 현재 데이터만으로 정해지는 정리)는 쓸 수 있다 [결정: 2026-10-28 오케스트레이터, ADR-0015 §3.3]. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+
+| 메서드 | 분류 | replay | 근거 |
+|---|---|---|---|
+| `work.goals.set` | idempotent | safe | `work.goal_set`을 `work:goals:<requestId>` 커밋 키로 남긴다 |
+| `work.goals.status` | readOnly | safe | 투영 조회 |
+| `work.goals.clear` | idempotent | safe | `work.goal_settled`(cleared)를 `work:goals:<requestId>` 커밋 키로 남긴다 |
+| `work.goals.judge` | idempotent | safe | `work.goal_judged`를 `work:goals:<requestId>` 커밋 키로 남기고 같은 턴 판정이 있으면 기존 판정을 돌려준다 |
+| `work.plans.enterMode` | 선언 없음 | unsafe | 모드는 L1.tools가 소유하고 `requestId` 결과를 기억하지 않는다. 두 번째 호출은 `previousMode: null`을 돌려준다 |
+| `work.plans.exitMode` | 선언 없음 | unsafe | 같음. 모드가 이미 풀렸으면 `plan_mode_inactive`다 |
+| `work.plans.submit` | idempotent | safe | `work:plans:<requestId>` 커밋 키(`commitPlans`) |
+| `work.plans.approve` | 선언 없음 | unsafe | 결정은 L1.tools 승인 해결 하나(`approval.resolved`)에 기록되고 응답 `requestId`는 기억하지 않는다. 같은 `requestId`의 두 번째 호출은 `plan_closed`다 |
+| `work.plans.reject` | 선언 없음 | unsafe | 결정은 L1.tools 승인 해결 하나(`approval.resolved`)에 기록되고 응답 `requestId`는 기억하지 않는다. 같은 `requestId`의 두 번째 호출은 `plan_closed`다 |
+| `work.plans.revise` | 선언 없음 | unsafe | 결정은 L1.tools 승인 해결 하나(`approval.resolved`)에 기록되고 응답 `requestId`는 기억하지 않는다. 같은 `requestId`의 두 번째 호출은 `plan_closed`다 |
+| `work.plans.versions` | readOnly | safe | 투영 조회 |
+| `work.reports.build` | idempotent | safe | `work.report_built`를 `work:reports:<requestId>` 커밋 키로 남긴다 |
+| `work.tasks.create` | idempotent | safe | `work:tasks:<requestId>` 커밋 키(TX-05) |
+| `work.tasks.update` | idempotent | safe | 같음 |
+| `work.tasks.link` | idempotent | safe | 같음 |
+| `work.tasks.list` | readOnly | safe | 투영 조회(쓰기 큐 뒤에서 읽는다) |
+| `work.tasks.write` | idempotent | safe | 같음. 처음 결과의 `created`를 이벤트에서 복원한다 |
 
 ## 4. 동작 규칙
 
@@ -931,7 +959,7 @@ CREATE TABLE cap_work_meta (
 #### 4.1.6 방치 알림
 
 - [제안] 설정 `l2.work.tasks.reminderTurns`가 N(> 0)이면, `pending`이나 `in_progress` 작업이 있고 마지막 작업 변경 뒤 완료된 턴이 N개 이상일 때 다음 턴 시작에 알림 문장을 컨텍스트에 더한다. omp `todo_reminder` 이벤트와 같은 목적이다(`_research/refs/oh-my-pi.md` 확장 이벤트 표).
-- 구현은 `before_agent_start` 지점(chain) 핸들러다. 핸들러는 투영을 읽는 질의만 하고 이벤트를 쓰지 않는다(F.extensions.spec §4.3). 패치는 확장 메시지 추가(`BeforeAgentStartPatch`의 message 병합)다. `customType`은 `x.cap-work.tasks.reminder`, `display: false`다.
+- 구현은 `input.agent.before` 지점(collect) 핸들러다. 핸들러는 투영을 읽는 질의만 하고 이벤트를 쓰지 않는다(F.extensions.spec §4.3). 패치는 확장 메시지 추가(`BeforeAgentStartPatch`의 message 병합)다. `customType`은 `x.cap-work.tasks.reminder`, `display: false`다.
 - 기본값은 0(끔)이다. 알림 문장은 프롬프트 캐시 접두 뒤에 붙으므로 캐시를 깨지 않는다 [가정: L1.context가 확장 메시지를 대화 끝에 둔다].
 
 ### 4.2 계획 모드와 승인
@@ -1103,18 +1131,20 @@ stateDiagram-v2
 - 스레드마다 활성 목표는 하나다. 활성 목표가 있는데 `set`을 부르면 `goal_active`다. `replace: true`면 이전 목표를 `cleared`로 끝내고 새 목표를 같은 커밋에 건다.
 - `set` 시점에 `judge` 생략값은 `{ kind: "model" }`, `continuation` 생략값은 `"self"`다. 값은 `work.goal_set`에 기록한다.
 - 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다(L1.agents 소유, 기본 3, `(threadId, goalRef)`마다) [결정: review.decisions-2 S-06]. 이 능력은 상한 키를 따로 두지 않고 목표별 상한 인자도 받지 않는다. `goalRef`는 `goalId`다. `Goal.maxRuns`는 목표 설정 시점의 값을 표시용으로 기록한 것이다.
-- 판정 계기: 활성 목표가 있는 스레드에서 `turn.completed`(F.records.spec §3.3, eng.events.design의 `turn.ended`와 같은 기록 [가정])가 커밋되면 cap-work가 그 턴을 판정한다. 턴 종결 상태가 `interrupted`면 판정하지 않는다. 사용자가 끊은 턴은 다음 턴 시작을 원하지 않는다는 뜻으로 본다. `failed`면 판정한다. 실패도 증거다.
-- 판정 순서:
-  1. 판정 대상 턴 T. 같은 목표에 T의 판정이 이미 있으면 아무것도 하지 않는다(`cap_work_goal_judgments`의 `UNIQUE(goal_id, turn_id)`).
-  2. 판정자 실행(커밋 밖. 모델 호출이나 delegated 대기).
-  3. 커밋 하나(키 `work:goal:<goalId>:judge:<T>`)에 `work.goal_judged`(n = 기존 판정 수 + 1)를 넣는다. 결과가 종결이면 같은 커밋에 `work.goal_settled`와 `work.report_built`(§4.4)를 더한다.
-     - `met: true` → `met`.
-     - `met: false`이고 n이 그 시점의 `l1.agents.judge.maxRuns` 이상 → `limit_reached`.
-     - 판정자가 `{ kind: "capped" }`를 돌려줌(설정이 진행 중에 낮아진 경우) → 판정 기록 없이 `work.goal_settled(limit_reached)`와 `work.report_built`를 커밋한다.
-     - delegated 판정자도 같은 키로 상한을 센다. n은 그 목표의 `work.goal_judged` 수다.
-     - 판정 실패이고 정책이 `stop` → `judge_failed`.
-  4. 종결이 아니고 미충족이면 `continuation: "self"`일 때만 다음 턴을 시작한다(§4.3.5).
-- 판정 실행 중에 사용자 입력으로 새 턴이 시작되면, 판정은 끝까지 하고 기록하지만 다음 턴 시작(post)은 하지 않는다. 사용자 턴이 끝나면 그 턴을 다시 판정한다.
+- [결정: M3-new-02, D-M3-15] 판정 계기: 완료 게이트다. cap-work는 `boundary.settle.before` chain 핸들러를 하나 건다(L1.loop.spec §4.9). turn이 정착하려 할 때(`outcome: "completed"`) 활성 목표가 있고 판정자가 `model`이면 이 핸들러가 판정한다. 사용자가 끊은 turn(`aborted`)과 실패한 turn(`error`)은 판정하지 않는다 [제안: 계속할 수 없는 단계의 판정은 상한만 소모한다]. `delegated` 목표는 이 지점이 판정하지 않고 `work.goals.judge`로 판정이 들어온다. 이전 설계의 `turn.completed` 피드 구독 러너는 쓰지 않는다.
+- 판정 순서(핸들러 안):
+  1. 활성 목표를 투영에서 읽는다. 없으면 아무것도 하지 않는다.
+  2. 증거를 모은다(§4.3.3 `GoalEvidence`). 정착 지점의 컨텍스트 미리보기에서 이번 turn의 최종 텍스트와 도구 호출을, 투영에서 작업 목록과 직전 판정을 읽는다.
+  3. `xeon.agents.judge(JudgeInput)`를 부른다(커밋 밖). L1.agents가 상한을 세고 `agent.judged`를 자기 커밋으로 남긴다. 결과 `JudgeOutcome`을 `goalGateDecision`(L1.agents.spec §4.8)으로 옮긴다.
+  4. 결과를 목표 쪽 이벤트로 자기 커밋에 남긴다. 커밋 키는 `work:goal:<goalId>:judge:<run>`(판정), `work:goal:<goalId>:settle:capped`, `work:goal:<goalId>:settle:failed`다. 판정을 기록하는 동안 목표가 지워졌거나 끝났으면 기록하지 않고 게이트는 끼어들지 않는다.
+     - `judged`·`recorded`(`met`) → `work.goal_judged`, `work.goal_settled(met)`, `work.report_built`. turn은 정착한다.
+     - `judged`·`recorded`(`not_met`·`undecidable`) → `work.goal_judged`(`n` = `record.run`). `n`이 그 시점의 `l1.agents.judge.maxRuns` 이상이면 `work.goal_settled(limit_reached)`와 `work.report_built`를 같은 커밋에 더하고 turn을 끝낸다. 아니면 목표는 활성으로 남고 한 단계 더 돈다.
+     - `capped` → 판정 기록 없이 `work.goal_settled(limit_reached)`와 `work.report_built`. turn을 끝낸다.
+     - `failed` → `work.goal_settled(judge_failed)`와 `work.report_built`. 판정 없이 계속 돌지 않고 turn을 끝낸다(§4.3.6).
+  5. 한 단계 더 돌 때는 지시 문장을 custom 항목(`customType: "x.cap-work.goal.continue"`, `display: true`)으로 `BoundaryPatch.entries`에 싣고 `continue: true`를 돌려준다. turn을 끝낼 때(상한, 판정 실패)는 사유 문장을 `x.cap-work.goal.notice` custom 항목으로 싣고 `continue: false`를 돌려준다. 단계 id를 모르면(`boundary.step.after`가 먼저 발화하지 않은 경우) 지시는 싣지 않고 계속만 하며 끝내는 안내는 `stepId: null`인 turn 수준 항목으로 남긴다 [제안]. 정착 지점의 payload에는 단계 id가 없어 엔트리의 범위 필드를 맞추려고 `boundary.step.after`에서 마지막 단계 id를 기억한다(같은 단계 안에서 `boundary.step.after`가 먼저 발화한다).
+- 판정을 기다리지 않는 한 단계가 지나면 같은 turn 안에서 다시 정착 후보가 되고 판정은 `n`을 늘리며 반복한다. 한 turn의 계속 횟수는 게이트 상한(`l1.loop.gate.maxContinues`)이 따로 막고, 판정 횟수는 `l1.agents.judge.maxRuns`가 막는다.
+- 판정 실행 중에 사용자 입력으로 새 turn이 시작되는 경우는 없다. 판정은 turn 정착 전에 끝나는 한 호출이다. 이전 설계의 "다음 턴 시작(post)"은 쓰지 않는다. 한 단계 더 도는 것이 다음 턴을 대신한다.
+- 알려진 한계 [제안]: 정착 직전에 판정하므로 목표 종결 보고의 `resources.agent`에는 마지막 turn의 사용량이 들지 않는다(그 turn의 `turn.completed`가 아직 없다). 필요하면 마지막 turn은 `work.reports.build({ subject: { kind: "turn" } })`로 따로 만든다.
 
 #### 4.3.3 기본 판정자: 판정 모델
 
@@ -1141,7 +1171,7 @@ export interface GoalEvidence {
 }
 ```
 
-- `GoalEvidence`는 `JudgeInput`으로 바꿔 넘긴다. `goal.text` = `condition`, `goal.criteria` = `rubric`, `evidence`는 `finalText`(`assistant_text`), 도구 호출 요약(`tool_result`), 작업 목록(`work_item`), 직전 판정(`note`)이다.
+- `GoalEvidence`는 `JudgeInput`으로 바꿔 넘긴다. `goal.text` = `condition`, `goal.criteria` = `rubric`, `evidence`는 `finalText`(`assistant_text`), 도구 호출 요약(`tool.result`), 작업 목록(`work_item`), 직전 판정(`note`)이다.
 - 증거는 `xeon.session`의 이벤트 읽기로 모은다(eng.context-map.design §4.1 work 행의 의존 `xeon.session`). 다른 컨텍스트의 테이블을 직접 읽지 않는다(CM-02).
 - 결과 대응: `judged`·`recorded`의 `record.verdict`가 `met`이면 `met: true`, `not_met`·`undecidable`이면 `met: false`다. `reason`은 `record.rationale`, `missing`은 `record.missing`이다. `failed`는 판정 실패이고 `failure.code`는 `upstream_error`다. `capped`는 §4.3.2의 상한 처리다.
 - 사용량은 `record.usage`를 `work.goal_judged.usage`에 남긴다. 보고의 `resources.judge`가 이 합계다.
@@ -1160,55 +1190,53 @@ export interface JudgePort {
 - `judge: { kind: "delegated", owner }` 목표는 판정 모델을 부르지 않는다. 턴이 끝나면 cap-work는 판정 대기 상태가 되고, `owner` 주체가 `work.goals.judge({ goalId, turnId, verdict })`를 부르면 그 값을 판정으로 기록한다.
 - `judge` 호출 검사: 목표가 `active`이고 `delegated`여야 한다(`goal_not_delegated`). `turnId`는 판정 대기 중인 턴이어야 한다(`goal_turn_stale`). 같은 턴의 판정이 이미 있으면 기존 판정을 돌려준다(멱등).
 - 대기 시간이 `timeoutSec`(생략하면 `l2.work.goal.delegatedTimeoutSec`)을 넘으면 판정 실패(`failure.code = "timeout"`)로 기록한다.
-- delegated 판정자(L3 그룹의 기준 검사기 등)는 `agent_settled` 지점 핸들러에서 `goals.status`로 대기 상태를 확인하고 `judge`를 부른다. 이 호출에는 `requestId`를 넘긴다. on 핸들러의 외부 효과 금지(F.extensions.spec §4.3)와의 관계는 그 L3 문서가 정한다.
+- delegated 판정자(L3 그룹의 기준 검사기 등)는 `boundary.settle.after` 지점 핸들러에서 `goals.status`로 대기 상태를 확인하고 `judge`를 부른다. 이 호출에는 `requestId`를 넘긴다. on 핸들러의 외부 효과 금지(F.extensions.spec §4.3)와의 관계는 그 L3 문서가 정한다.
 - 그룹이 판정자를 바꾸는 방법은 목표를 걸 때 `judge`를 지정하는 것뿐이다. 판정자 교체는 `set({ replace: true, judge })`다.
 - `owner` 확인: 다른 주체가 `judge`를 부르는 것을 막으려면 호출자 식별이 필요하다. [제안] `CallOptions.context.caller.extension`(`F.capabilities.spec` §3.2, `L2.readme` §5.8)이 `owner`와 같을 때만 받고, 다르면 `denied`다(§10 W-6).
 
-#### 4.3.5 다음 턴 시작
+#### 4.3.5 다음 단계 시작
 
-- 미충족이고 종결이 아니며 목표의 `continuation`이 `"self"`이면 `post`로 다음 턴을 시작한다(F.extensions.spec §3.2, §4.4).
-  - 항목: `{ kind: "context", customType: "x.cap-work.goal.continue", content, display: true }`. `content`는 조건, `reason`, `missing` 목록, `n / maxRuns`를 담은 짧은 안내문이다.
-  - `customType`이 `work.` 접두가 아니고 `x.cap-work.…`인 이유: 내장 `cap-*`가 접두 없이 쓸 수 있는 것은 자기 도메인 영역의 이벤트 kind뿐이다. 커스텀 메시지 `customType`과 그룹 레코드 kind는 이 예외에 들지 않고 `RecordKind` 형식(`x.<확장 이름>.…`)을 쓴다(`F.records.spec` §3.2 규칙 3, `F.conversation.spec` §3.5.2). `cap-work`의 확장 이름은 `cap-work`다.
-  - 옵션: `{ when: "followUp", requestId: "goal:<goalId>:<n>" }`. 같은 키의 두 번째 post는 큐에 넣지 않는다.
-- drive 임대가 있는 동안에는 post하지 않는다 [제안]. 루프의 다음 턴은 drive를 가진 그룹이 정한다. 판정은 그대로 기록하므로 그룹은 `goals.status`로 결과를 읽을 수 있다.
-- [제안] 한 스레드에서 다음 턴을 투입하는 L2 주체는 하나다. `goalId`를 가진 루프(`schedule.loops`)에서는 루프가 반복마다 다음 턴을 투입하고 `work.goals`는 판정만 기록하며 post하지 않는다. 목표의 `continuation`이 `"external"`이면 이 규칙이 적용되고, `schedule.loops.start`는 `continuation: "self"` 목표를 거부한다(`L2.readme` §4.2, `L2.schedule.spec` §4.1.4). 그래서 `goal:<goalId>:<n>` post와 `loop:<loopId>:<iteration>` post가 같은 스레드에 함께 들어가지 않는다.
+- [결정: M3-new-02] 미충족이고 종결이 아니면 완료 게이트가 `continue: true`를 돌려주고 지시 custom 항목을 같은 단계 경계 커밋에 싣는다(§4.3.2 5번). `post`로 다음 턴을 시작하지 않는다. 지시 문장은 `goalGateDecision`이 만든 영어 문장이다(`The goal is not yet shown to be met. <rationale> Missing: <criteria>. Continue working, and show evidence for each criterion.`).
+  - `customType`이 `work.` 접두가 아니고 `x.cap-work.…`인 이유: 내장 `cap-*`가 접두 없이 쓸 수 있는 것은 자기 도메인 영역의 이벤트 kind뿐이다. 커스텀 메시지 `customType`은 `RecordKind` 형식(`x.<확장 이름>.…`)을 쓴다(`F.records.spec` §3.2 규칙 3, `F.conversation.spec` §3.5.2). `cap-work`의 확장 이름은 `cap-work`다. 경계 엔트리로는 core kind 중 custom `item.recorded`만 쓸 수 있다(`L1.loop.spec` §3.6).
+- `continuation`은 목표에 기록하는 값이다. 게이트는 `"self"`와 `"external"`을 구별하지 않고 판정과 한 단계 더 돌기만 한다. `goalId`를 가진 루프(`schedule.loops`)와의 결합(`"external"`이면 `work.goals`가 다음 턴을 투입하지 않는다)은 `L2.schedule.spec` §4.1.4가 정한다 [미결: 그 문서의 구현이 들어올 때 확인].
+- `delegated` 판정자 목표는 게이트가 판정하지 않는다. 판정이 `work.goals.judge`로 들어오면 기록하고 종결 여부를 정하지만 다음 단계를 시작하지는 않는다 [미결: 위임 판정자가 미충족 뒤 다음 턴을 시작하는 길(`post`)은 이 구현에 없다. 그룹이 `goals.status`로 결과를 읽고 자기 `drive`로 이어 간다].
+- 위임 판정의 대기 시간 제한(`l2.work.goal.delegatedTimeoutSec`)은 이 구현에 없다 [미결: 타이머 주체와 `failure.code = "timeout"` 기록은 위임 판정자를 쓰는 그룹이 생길 때 정한다].
 - `schedule.loops`는 `work.goals`를 선택 의존으로 쓴다(`L2.readme` §6). 루프 종료 조건으로 목표 판정을 쓰는 방법은 `L2.schedule.spec` §4.1.4가 정한다.
 
 #### 4.3.6 판정 실패 정책
 
 - 판정 실패는 L1.agents가 `failed`를 돌려준 경우다. 이때 `agent.judged`가 없으므로 L1.agents의 상한 셈(`agent.judged` 수)에 들지 않는다. `undecidable`은 판정으로 기록되고 상한 셈에 든다.
-- 설정 `l2.work.goal.onJudgeError`: `"stop"`이면 판정 실패 시 목표를 `judge_failed`로 끝낸다. `"continue"`이면 실패를 `work.goal_judged`(`verdict: null`, `failure`)로 기록하고 미충족처럼 다음 턴을 시작한다. 실패 기록은 `n`을 늘리지 않는다. 연속 실패 수가 `l1.agents.judge.maxRuns`에 이르면 `judge_failed`로 끝낸다 [제안]. 실패가 상한 셈에 들지 않아 생기는 무한 반복을 막으려는 것이다.
-- [미결] 기본값. 이 문서는 `"stop"`을 제안한다. 판정 모델이 계속 실패하는 상태에서 작업 턴을 이어 가면 판정 없이 비용만 쌓이기 때문이다. Hermes는 실패 시 계속한다(`_research/l2e.md` §3.1 A5). 사용자 확인 항목이다(§10 W-7).
+- [결정: review.m3-design-inputs D-M3-15, M3-new-02] 판정 실패는 `stop`이다. 목표를 `judge_failed`로 끝내고 `work.report_built`를 남기며 turn을 끝낸다. 판정 모델이 계속 실패하는 상태에서 작업 단계를 이어 가면 판정 없이 비용만 쌓이기 때문이다. `xeon.agents`가 없거나 `judge`가 던지거나 판정 기록 커밋이 실패한 경우도 같다(커밋이 실패하면 목표는 활성으로 남고 turn만 끝나며 재개 때 같은 판정을 다시 기록한다).
+- 설정 `l2.work.goal.onJudgeError`는 정의에 남아 있지만 게이트는 값을 읽지 않는다. D-M3-15가 `stop`으로 닫았으므로 `"continue"`는 효과가 없다 [미결: 설정 키를 지울지, 이 문서가 닫은 W-7과 함께 사용자가 정한다].
 
 ### 4.4 완료 보고
 
 1. 보고는 턴 결과 형식이다. 모델 도구가 없고 모델이 보고를 쓰지 않는다.
 2. 목표가 종결되면(`met`, `limit_reached`, `judge_failed`, `cleared`) cap-work가 같은 커밋에 `work.report_built`를 넣는다. 그룹이나 L4는 `reports.build`로 턴 단위 보고를 따로 만들 수 있다.
-3. `summary` 생성 규칙 [제안]: 호출자가 준 값이 있으면 그대로 쓴다. 없으면 목표 보고는 마지막 판정의 `reason`과 마지막 턴의 최종 텍스트 앞부분(합계 4,000자 이하)으로 만든다. 턴 보고는 그 턴의 최종 텍스트 앞부분이다. 요약을 위해 모델을 따로 부르지 않는다. 판정 모델이 이미 결과를 읽었고 추가 비용을 들이지 않으려는 것이다.
+3. `summary` 생성 규칙 [제안]: 호출자가 준 값이 있으면 그대로 쓴다(4,000자까지). 없으면 목표 보고는 마지막 판정의 `reason`이다. 목표 종결은 turn 정착 직전에 일어나 마지막 turn의 최종 텍스트가 아직 기록 전이라 목표 보고에 넣지 않는다. 턴 보고는 그 turn의 마지막 어시스턴트 텍스트 앞부분이다(합계 4,000자 이하). 요약을 위해 모델을 따로 부르지 않는다. 판정 모델이 이미 결과를 읽었고 추가 비용을 들이지 않으려는 것이다.
 4. `resources.agent`는 대상 범위 턴들의 `turn.completed.usage` 합계, `resources.judge`는 `work.goal_judged.usage` 합계, `durationMs`는 범위 첫 이벤트와 마지막 이벤트의 `recordedAt` 차이다. 범위는 목표면 `work.goal_set`부터 종결 커밋까지, 턴이면 그 턴이다.
 5. `remaining.tasks`는 `pending`, `in_progress`, `failed` 작업(최대 100개)이다.
-6. `artifacts`는 호출자가 준 목록과, `artifacts.registry`가 사용 가능할 때 그 범위에 등록된 산출물 목록의 합집합이다 [가정: L2.artifacts.spec이 범위 조회를 제공한다]. 목표 종결 보고는 커밋 안에서 만들어야 하므로 산출물 조회를 커밋 전에 끝낸다(TX-01). 조회가 실패하면 빈 목록으로 두고 계속한다.
+6. `artifacts`는 호출자가 준 목록이다. `artifacts.registry`의 범위 조회와 합치는 규칙은 `L2.artifacts.spec`이 범위 조회를 제공할 때 더한다 [미결: 이 구현에 없다. 목표 종결 보고의 산출물은 비어 있다].
 7. `plan`은 범위 안에서 마지막으로 결정된 계획 버전이다.
 8. 보고는 `work.report_built` 이벤트로 남아 다른 소비자(L4 보고 화면, `dialog.notify`의 완료 알림, 학습 그룹)가 읽는다.
 
 ### 4.5 재개
 
-세션을 다시 열 때(`session_start` 지점) cap-work는 투영과 L1 포트로 다음을 확인한다. 모든 동작은 결정적 키를 쓰므로 여러 번 해도 결과가 같다.
+세션을 다시 열 때(`session.start` 지점) cap-work는 투영과 L1 포트로 다음을 확인한다. 모든 동작은 결정적 키를 쓰므로 여러 번 해도 결과가 같다.
 
 | 상황 | 동작 |
 |---|---|
 | `submitted` 버전에 `approval_id`가 없음 | `ApprovalsPort.request`를 `plan:<planId>:<version>` 키로 다시 부른다(§4.2.4 4). [결정: WK.2] 원래 호출의 `requestId`가 필요 없어 envelope에서 읽지 않는다 |
 | `approved` 버전이 있고 `exitOnApprove`가 참인데 모드가 아직 `plan` | `PermissionModePort.restore`. 계획 모드에 들어온 뒤 제출된 가장 최근 판만 본다 |
 | 승인 대기 중 | 아무것도 하지 않는다. L1이 대기 상태를 복원한다(architecture.runtime-flow.design §4.5) |
-| 활성 목표가 있고, 목표 설정 뒤 마지막 `turn.completed`의 턴에 판정이 없음 | 그 턴 하나만 판정한다. 그보다 앞선 판정 없는 턴은 건너뛴다 |
-| 활성 목표의 마지막 판정이 미충족이고, 그 판정 뒤 시작된 턴이 없음 | 같은 키 `goal:<goalId>:<n>`으로 post를 다시 한다. 이미 들어갔으면 `duplicate: true`다 |
+| 활성 목표가 있고 turn이 정착 직전에 재개됨 | 완료 게이트가 같은 판정을 다시 부른다. L1.agents가 기록된 판정이면 `recorded`를 돌려주고 같은 판정 순번의 커밋 키가 같아 `work.goal_judged`는 한 번만 쓰인다 |
 | 판정 커밋 전에 프로세스가 끝남 | 판정이 기록되지 않았으므로 다시 판정한다. 판정자 실행은 읽기만 하는 동작이라 다시 해도 된다 |
 
-- 판정 결과는 내구 이벤트로 남으므로 재개 때 같은 턴을 다시 판정하지 않는다(architecture.runtime-flow.design §4.5).
+- 판정 결과는 내구 이벤트로 남으므로 재개 때 같은 판정 순번은 다시 쓰이지 않는다(architecture.runtime-flow.design §4.5).
 
 ### 4.6 동시성
 
-- 한 스레드의 cap-work 쓰기는 직렬이다(§4.1.1). 판정 실행은 그 큐 밖의 비동기 작업이고 커밋만 큐를 지난다.
+- 한 스레드의 cap-work 쓰기는 직렬이다(§4.1.1). 판정 실행은 그 큐 밖의 비동기 호출이고(핸들러 안의 `await`) 기록 커밋만 큐를 지난다. 커밋 직전에 목표가 아직 활성인지 다시 본다.
 - 판정 작업은 그 스레드의 소유 트리에 속한다 [가정: L1.tasks.spec이 L2 비동기 작업을 소유 트리에 붙이는 API를 둔다]. 스레드가 닫히거나 턴이 취소되어 소유자가 사라지면 판정 작업도 취소되고, 판정은 기록되지 않는다(eng.transactions.design §6).
 
 ## 5. 실패와 경계 사례
@@ -1235,7 +1263,7 @@ export interface JudgePort {
 
 | 키 | 타입 | 기본값 | range | runtimeChange | allowedScopes | ui.tab | secret | 비고(L4) |
 |---|---|---|---|---|---|---|---|---|
-| `l2.work.goal.onJudgeError` | string | `"stop"` [미결 W-7] | enum `stop`, `continue` | nextTurn | user, project, local, session | budgets | false | 화면, 파일 |
+| `l2.work.goal.onJudgeError` | string | `"stop"` [결정: D-M3-15. 게이트는 값을 읽지 않는다, §4.3.6] | enum `stop`, `continue` | nextTurn | user, project, local, session | budgets | false | 화면, 파일 |
 | `l2.work.goal.delegatedTimeoutSec` | integer | 300 | min 1, max 3600 | nextTurn | user, project, local | advanced | false | 파일 |
 | `l2.work.plans.requireApproval` | boolean | true | — | nextTurn | managed, user, project, local, session | permissions | false | 화면, 파일 |
 | `l2.work.plans.exitOnApprove` | boolean | true | — | nextTurn | user, project, local, session | permissions | false | 화면, 파일 |
@@ -1286,20 +1314,20 @@ export const manifest = defineManifest({
     { id: "artifacts.registry", range: "^1.0.0" },
     { id: "dialog.commands", range: "^1.0.0" },   // §6.2, [미결] W-10
   ],
-  points: ["before_agent_start"],
-  usesPost: true,
+  points: ["input.agent.before", "session.start", "boundary.step.after", "boundary.settle.before"],
   usesDrive: false,
 });
 ```
 
-- `before_agent_start`(chain): 방치 알림 메시지 추가(§4.1.6). 질의만 한다.
-- `post`: 목표 미충족 시 다음 턴 시작(§4.3.5). 멱등 키 필수.
+- `input.agent.before`(collect): 방치 알림 메시지 추가(§4.1.6). 질의만 한다.
+- `boundary.step.after`(chain): 정착 직전 단계 id를 기억한다. 값을 바꾸지 않는다(§4.3.2 5번).
+- `boundary.settle.before`(chain): 완료 게이트. 활성 모델 판정자 목표를 판정하고 한 단계 더 돌지 turn을 끝낼지 정한다(§4.3.2).
 - drive: 쓰지 않는다. L2는 drive 임대를 갖지 않는다(`L2.readme` §4.2).
-- 피드 구독: 판정 계기(`turn.completed`)와 승인 해결 뒤 모드 복원(`approval.resolved`)은 `xeon.session`의 내구 피드 구독으로 받는다. 확장 지점은 쓰지 않는다(eng.events.design §4.6 `SessionFeed.subscribe`). 구독자는 `seq`로 중복을 거른다(EV-05).
+- 피드 구독: 승인 해결 뒤 모드 복원(`approval.resolved`)은 `xeon.session`의 내구 피드 구독으로 받는다. 확장 지점은 쓰지 않는다(eng.events.design §4.6 `SessionFeed.subscribe`). 구독자는 `seq`로 중복을 거른다(EV-05).
 
 ### 7.2 도구 지점
 
-- `task_write`, `enter_plan_mode`, `exit_plan_mode`, `submit_plan`은 일반 도구처럼 `tool_call`(first), `tool_result`(chain) 지점을 지난다(F.capabilities.spec §7). 페이로드의 `capability` 필드로 `work.tasks` 등을 고를 수 있다.
+- `task_write`, `enter_plan_mode`, `exit_plan_mode`, `submit_plan`은 일반 도구처럼 `tool.call.before`(first), `tool.result`(chain) 지점을 지난다(F.capabilities.spec §7). 페이로드의 `capability` 필드로 `work.tasks` 등을 고를 수 있다.
 
 ### 7.3 L3와의 관계
 
@@ -1339,15 +1367,15 @@ export const manifest = defineManifest({
 
 1. 질문(`dialog.ask`)과 계획 제출(`work.plans.submit`)이 각각 만든 `approval.requested` 이벤트의 payload가 L1.tools.spec의 같은 payload 스키마를 통과하고, 두 레코드는 kind(`question`, `plan`)와 대상 내용만 다르다(`product.scope.spec` §4.4 M2, `L2.dialog.spec` §9-1과 공동).
 2. `t2 blockedBy t1`, `t3 blockedBy t2`가 있을 때 `link({ id: "t1", blockedBy: ["t3"], op: "add" })`처럼 순환을 만드는 간선 추가는 `task_cycle` 오류를 내고 `detail.path`가 순환 경로이며 이벤트 수가 늘지 않는다. 자기 간선도 같다.
-3. `l1.agents.judge.maxRuns = 3`에서 판정 포트(가짜 `xeon.agents`)가 세 번 `not_met`을 내면 세 번째 판정 커밋에 `work.goal_settled(limit_reached)`와 `work.report_built`가 함께 있고, 그 뒤 post가 없다. 판정 포트가 `capped`를 돌려주면 판정 기록 없이 같은 종결 커밋이 생긴다.
-4. 판정이 커밋된 뒤 프로세스를 끝내고 재개하면 같은 턴에 판정 포트 호출이 다시 일어나지 않는다. 판정 커밋 전에 끝낸 경우에는 한 번 호출하고, L1.agents가 `recorded`를 돌려주면 모델 호출 없이 그 판정을 기록한다.
+3. `l1.agents.judge.maxRuns = 3`에서 판정 포트(가짜 `xeon.agents`)가 세 번 `not_met`을 내면 세 번째 판정 커밋에 `work.goal_settled(limit_reached)`와 `work.report_built`가 함께 있고 완료 게이트가 turn을 끝낸다. 판정 포트가 `capped`를 돌려주면 판정 기록 없이 같은 종결 커밋이 생기고 사용자 안내 항목이 남는다. 판정 실패는 `judge_failed`로 끝낸다(`goals-gate.test.ts`).
+4. L1.agents가 `recorded`를 돌려주면(재개) 같은 판정 순번의 커밋 키가 같아 `work.goal_judged`가 두 번 쓰이지 않는다(`goals-gate.test.ts` resuming).
 5. `requireApproval = true`일 때 승인 전 `exit_plan_mode`는 `plan_not_approved`를 내고 권한 모드 포트에 `restore` 호출이 없다. 승인 뒤에는 `restore`가 한 번 호출된다.
 6. §3.2~§3.5의 네 정의가 `validateCapability` 이슈 0건이다(`tools: []` 허용이 [미결]인 동안은 그 검사 하나를 제외하고 0건).
 7. 임의의 작업 연산열(고정 시드 무작위 1,000개)을 적용한 뒤 `cap_work_` 테이블을 지우고 이벤트에서 재생성하면 행 해시가 같다(`expectProjectionsRebuildable`).
 8. 같은 `requestId`로 `write`를 두 번 부르면 두 번째 호출은 이벤트를 쓰지 않고 첫 결과와 같은 출력을 낸다.
 9. 승인 대기 중 프로세스를 끝내고 재개해 승인을 응답하면, `submit_plan` 도구 결과가 정확히 한 번 `decided`로 완료된다.
 10. delegated 목표에서 `judge` 호출이 판정을 기록하고, 판정 포트(`xeon.agents.judge`)는 호출되지 않는다(판정자 교체).
-11. `continuation: "external"` 목표에서 미충족 판정이 세 번 기록되는 동안 `work.goals`의 post 호출이 0회다. 같은 시나리오에 `goalId` 루프를 붙이면 한 반복 경계마다 입력 큐 투입이 정확히 하나(`loop:` 키)이고 `goal:` 키 투입이 없다(이중 투입 검사, `L2.schedule.spec` §9와 공동).
+11. `continuation: "external"` 목표에서 미충족 판정이 세 번 기록되는 동안 `work.goals`의 post 호출이 0회다. 같은 시나리오에 `goalId` 루프를 붙이면 한 반복 경계마다 입력 큐 투입이 정확히 하나(`loop:` 키)이고 `goal:` 키 투입이 없다(이중 투입 검사, `L2.schedule.spec` §9와 공동). [미결: `schedule.loops` 구현이 들어올 때 공동 시험한다. 이 구현의 게이트는 `continuation` 값을 읽지 않는다(§4.3.5)]
 
 ## 10. 미결 사항
 
@@ -1357,7 +1385,7 @@ export const manifest = defineManifest({
 - W-4 [미결] 이벤트 카탈로그 형식은 `F.records.spec` §3.3.2(`records/catalog/work.ts`, `WORK_EVENT_CATALOG`, `TYPE_PREFIX_OWNERS`)로 정해졌다. 남은 것은 records 카탈로그가 capabilities 정의를 import할 수 있는지이고 F.records.plan이 정한다.
 - W-5 [미결] 되감기 뒤 cap 투영. M2는 활성 가지 기준 재생성을 제안한다. 조회 시점에 가지로 거르는 방식이 eng.events.design §6에 맞는지 L1.persistence.spec과 정한다.
 - W-6 [미결] `goals.judge` 호출자 확인. `owner`와 `CallOptions.context.caller.extension`을 대조한다(§4.3.4). X의 capability 래퍼가 그룹 호출에 이 값을 채운다(`F.capabilities.spec` §3.2 주석). 채우는 값이 그룹 이름인지 scope id인지는 `X.primitives.spec`과 맞춘다.
-- W-7 [미결] 판정 실패 정책 기본값(`stop` 제안, `continue` 대안).
+- W-7 닫힘 [결정: review.m3-design-inputs D-M3-15]: 판정 실패는 `stop`이다(§4.3.6). 설정 `l2.work.goal.onJudgeError`의 처리는 미결이다.
 - W-8 [미결] `l2.work.plans.requireApproval`, `exitOnApprove`의 탭(`permissions` 제안). `L2.readme` §7.2 표는 이 제안에 맞췄다. 최종 배치는 L4.settings-ui.spec이 정한다.
 - W-9 [미결] `work.reports` 마일스톤. 이 문서와 `L2.readme` §2는 목표 종결 보고 때문에 M3로 둔다. JSON의 2차 표기와 다른 배치이므로 `L2.readme` §10 미결 17에서 사용자가 확인한다.
 - W-10 [미결] work → `dialog.commands` 선택 의존. `L2.readme` §6 표에 [미결] 간선으로 올렸다(`L2.readme` §10 미결 16). 순환은 생기지 않는다(dialog는 work를 부르지 않고 등록된 처리기만 실행한다, `L2.dialog.spec` §4.3). 넣지 않으면 명령 등록을 L4 클라이언트가 직접 한다.

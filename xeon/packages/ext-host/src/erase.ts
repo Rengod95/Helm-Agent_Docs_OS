@@ -8,8 +8,10 @@ import type {
   ScopeSetup,
   ChainPointName,
   ChainRule,
+  CollectPointName,
+  CollectRule,
 } from "@xeon/contracts/extensions";
-import { CHAIN_RULES } from "@xeon/contracts/extensions";
+import { CHAIN_RULES, COLLECT_RULES } from "@xeon/contracts/extensions";
 import type {
   ExtReaders,
   ExtTableReader,
@@ -67,6 +69,17 @@ export function eraseScope<S>(
   };
 }
 
+/** 타입만 싣는 증인. 값은 없고 반환 타입 T를 호출자가 정한다(erase.ts가 primitives를 import하지 않게 하는 장치) */
+export interface TypeWitness<T> {
+  readonly witness?: T;
+}
+
+/** 상태 타입 S를 지운 보관 값을 증인의 타입으로 되돌린다. 보관한 쪽이 같은 정의에서 만들었다(예: scope의 부가 API) */
+export function restoreAs<T>(_witness: TypeWitness<T>, stored: unknown): T {
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 복원: 보관한 값은 증인의 타입과 같은 정의에서 만들어졌다 (eng.typescript.guide TY-06)
+  return stored as T;
+}
+
 /** 스키마 검사를 거친 상태 문서를 지운 상태 타입으로 본다 */
 export function stateAs(doc: unknown): AnyState {
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 문서는 StateDecl.schema 검사를 거친 값이다 (eng.typescript.guide TY-06)
@@ -77,6 +90,12 @@ export function stateAs(doc: unknown): AnyState {
 export function chainRuleOf(point: ChainPointName): ChainRule<unknown, unknown> {
   // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 지점별 병합 규칙의 제네릭 인자를 지운다 (eng.typescript.guide TY-06)
   return CHAIN_RULES[point] as unknown as ChainRule<unknown, unknown>;
+}
+
+/** 지점 종류를 지운 collect 병합 규칙. 기여는 PointDecl.result 스키마 검사를 거친 값뿐이다 */
+export function collectRuleOf(point: CollectPointName): CollectRule<unknown, unknown> {
+  // oxlint-disable-next-line typescript/consistent-type-assertions, typescript/no-unsafe-type-assertion -- 허용 목록 A3 타입 지움: 지점별 병합 규칙의 제네릭 인자를 지운다 (eng.typescript.guide TY-06)
+  return COLLECT_RULES[point] as unknown as CollectRule<unknown, unknown>;
 }
 
 /** 지점 이름 N이 옵션의 조건부 타입을 정한다. 지운 타입으로의 넓힘이라 단언이 필요 없다(X.primitives.spec §3.3) */

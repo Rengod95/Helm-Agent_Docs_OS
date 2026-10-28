@@ -7,7 +7,7 @@ export function ownKindPrefix(manifest: Pick<ExtensionManifest, "kind" | "name">
 
 /**
  * 자기 접두 kind이거나 매니페스트 `readsRecordKinds`가 덮으면 읽을 수 있다(X.primitives.spec §4.6.4).
- * 끝의 `*`는 접두 일치다. 기록 읽기와 휘발 이벤트 구독이 같은 규칙을 쓴다(§4.9)
+ * 끝의 `*`는 접두 일치다. 그룹 사이 이벤트 격리(§4.9)는 이 규칙 하나다
  */
 export function isKindReadable(
   manifest: Pick<ExtensionManifest, "kind" | "name" | "readsRecordKinds">,

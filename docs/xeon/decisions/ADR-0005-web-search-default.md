@@ -17,6 +17,7 @@ binds: [xeon/packages/cap-web/**]
 - [결정] 무료 검색 기본값은 `_research/foundation-plan.md §1` 결정표 6번의 단계 구성을 따른다(`_research/decisions-log.md` 2026-10-21 결정(3차) "무료 검색 기본값은 foundation-plan.md 1절 6번").
 - [결정] 웹의 유료 API는 사용자가 플러그인으로 등록하고, 기본값은 로컬 도구로 둔다(`_research/decisions-log.md` 2026-10-21 결정(2차)).
 - 개정: 2026-10-25, 사용자 결정 H1(`review.m2-plan` §9). SearXNG 자동 감지를 없애고 사용자가 설정한 provider만 체인에 넣는다. 고친 절: §3.1 ③·④ 행, §3.3, §4.2, §5, §6 미결 1·3. ① 모델용 도구와 ② 내장 검색 래퍼 기본값은 그대로다.
+- 개정: 2026-10-26 `review.m3-design-inputs` D-M3-23(§6 선택 순서, Parallel, Jina). robots.txt는 기본 무시하고 옵션으로 지키게 하며, 키 플러그인 첫 사용 때 고지한다. 브라우저 자동화는 이 ADR 범위 밖이고 기본 provider는 Stagehand다(`L2.web.spec`).
 - 범위: 이 ADR은 웹 **검색**의 기본 provider와 선택 순서만 정한다. 브라우저 자동화(`web.browse`)와 본문 가져오기(`web.fetch`)는 범위 밖이다. 참고로 기본 `web.browse`는 Playwright(`playwright-core`)이고 agent-browser는 내장 선택 provider다(`_research/layer-plan-v2-notes.md` "질문에 대한 답" 웹 기본값 항목).
 
 ## 2. 맥락
@@ -175,15 +176,15 @@ export interface WebSearchProvider {
 
 ## 6. 미결 사항
 
-- [미결] provider 선택 순서에서 등록된 키 플러그인과 설정한 SearXNG 중 무엇을 먼저 쓸지(§3.3 3·4번). 작성자 제안은 플러그인 우선이다.
-- [미결] Parallel(월 5,000회 무료 + 월 $5, `_research/web-tools.md §2.1`)을 ④의 첫 실행 권장 목록에 넣을지. `foundation-plan.md §1` 6번은 Exa와 Brave만 적었다.
+- 닫음 [결정: review.m3-design-inputs D-M3-23 행 1]: 자동 선택 순서는 사용자가 설정 화면에서 드래그앤드롭으로 정한다. 목록은 등록된 검색 도구 전체이고 기본 웹 검색 도구를 포함한다. 플러그인은 기본 후순위다. 여러 provider 동시 질의를 기본 기능으로 둔다. §3.3의 3·4번 순서는 사용자가 순서를 바꾸기 전의 기본값이다.
+- 닫음 [결정: review.m3-design-inputs D-M3-23 행 2]: Parallel은 넣지 않는다.
 - [가정] SearXNG를 수정 없이 별도 프로세스로 쓰면 AGPL 배포 의무가 없다. 2차 요약이며 법률 확인이 필요하다(`durable-and-search-facts.md §B-2`).
 - [가정] 래퍼 1회 약 $0.011은 토큰 수 미측정 추정이다(`§B-5` 2번).
 - [미결] 래퍼 지연 수치. 공식 수치가 없다(`§B-5` 3번, `§B-6`).
 - [미결] 구독 OAuth 경로에서 세 provider의 내장 검색 가능 여부(`§B-6`).
 - [미결] Gemini 응답 형식. WebFetch 요약은 steps와 url_citation이라고 하고, `web-tools.md §2.2`는 groundingMetadata라고 적는다. 원문 대조 전에는 Gemini 결과 정규화를 구현하지 않는다(`durable-and-search-facts.md` "상충과 확인 필요 항목").
 - [미결] Gemini 지원 모델 목록 원문 대조(`§B-6`).
-- [미결] Jina 키 정책. 기존 메모는 키 없이 차단된다고 하고 홈페이지는 키가 상위 한도용이라고 한다(`durable-and-search-facts.md` "상충과 확인 필요 항목").
+- 닫음 [결정: review.m3-design-inputs D-M3-23 행 3]: Jina는 넣지 않는다.
 - [미결] Brave 무료 크레딧. 본문은 월 $5, 머리말은 "Up to $20"이다. 약 1,000건은 $5 기준 산술 추정이다(`§B-4`).
 - [가정] Serper 가입 시 2,500쿼리는 2차 출처이고 공식 가격 페이지는 404다(`§B-4`).
 - [미결] SearXNG 엔진 차단·레이트 리밋 세부와 메모리 요구(`§B-2`, `§B-6`).

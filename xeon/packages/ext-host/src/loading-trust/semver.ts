@@ -60,3 +60,16 @@ export function satisfiesRange(version: string, range: string): boolean {
   const exact = parseVersion(text);
   return exact !== undefined && version === text;
 }
+
+/**
+ * 두 버전의 순서. 앞이 작으면 음수, 같으면 0, 크면 양수다. 형식이 맞지 않는 쪽이 있으면 undefined다.
+ * 사전 릴리스 태그가 붙은 쪽은 같은 `x.y.z`의 릴리스보다 낮다. 태그끼리의 비교는 하지 않고 같게 본다
+ */
+export function compareVersions(a: string, b: string): number | undefined {
+  const left = parseVersion(a);
+  const right = parseVersion(b);
+  if (left === undefined || right === undefined) return undefined;
+  const byCore = compare(left.core, right.core);
+  if (byCore !== 0) return byCore;
+  return Number(right.pre) - Number(left.pre);
+}

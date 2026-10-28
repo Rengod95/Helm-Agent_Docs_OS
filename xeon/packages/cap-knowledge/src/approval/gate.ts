@@ -74,5 +74,6 @@ export function isEvidenceValid(
 ): boolean {
   if (evidence === undefined || actor.kind !== "extension") return false;
   if (!trustedSources.includes(evidence.source)) return false;
-  return evidence.source.split(".")[0] === actor.extension;
+  // 확장 이름에 점이 들어갈 수 있어 첫 마디가 아니라 `<확장 이름>.` 접두로 맞춘다
+  return evidence.source.startsWith(`${actor.extension}.`);
 }

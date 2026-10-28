@@ -316,6 +316,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       writeThreads: new Set(),
       observedThreads: new Set(),
       limits: serveOptions.limits,
+      auth: serveOptions.auth,
       sender,
       afterResponse(rpcId, fn) {
         const list = afterResponse.get(rpcId) ?? [];
@@ -418,6 +419,15 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
         afterResponse.delete(rpcId);
         if (caught instanceof WireError) {
           respondError(rpcId, toJsonRpcError(caught));
+          // 인증 실패는 응답이 나간 뒤 연결을 닫는다(F wire host.authFailed)
+          if (caught.data.kind === "host.authFailed") {
+            detach(
+              sender.drained().then(() => transport.close("authFailed")),
+              (failure) => {
+                log.error("connection.close_failed", { connectionId, message: messageOf(failure) });
+              },
+            );
+          }
         } else if (controller.signal.aborted) {
           respondError(rpcId, toJsonRpcError(wireError("request.cancelled")));
         } else {

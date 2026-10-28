@@ -1,4 +1,4 @@
-import type { Clock } from "@xeon/contracts";
+import type { Clock, Scheduler } from "@xeon/contracts";
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import type { ProducerHandle, SessionService } from "@xeon/contracts/records";
 import type { ScopeStack } from "@xeon/contracts/settings";
@@ -20,6 +20,8 @@ import { sequentialIds } from "./ids.ts";
 export interface RealToolsOptions {
   readonly session: ToolsSession & Pick<SessionService, "producer">;
   readonly clock?: Clock;
+  /** 승인 만료 타이머. 생략하면 타이머 없이 시계만 본다 */
+  readonly scheduler?: Scheduler;
   readonly ids?: IdFactory;
   /** 파일 범위(managed, user, project, local) 설정 층. 호출마다 읽으므로 시험이 바꿀 수 있다. 세션 범위 층은 session에서 읽는다 */
   readonly layers?: () => ScopeStack;
@@ -62,6 +64,7 @@ export async function realTools(options: RealToolsOptions): Promise<RealTools> {
     resolveCapability: options.resolveCapability ?? (() => undefined),
     config: configReader({ layers }, options.session),
     clock,
+    ...(options.scheduler === undefined ? {} : { scheduler: options.scheduler }),
     ids,
     logger: undefined,
   };

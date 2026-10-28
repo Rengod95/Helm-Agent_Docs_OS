@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { assertNever, attemptAsync, Bug, parse, type Logger } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
-import type { PortKey } from "@xeon/contracts/extensions";
+import type { ExtensionManifest, PortKey } from "@xeon/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
@@ -36,6 +36,7 @@ import {
   scopeToggleSourceOf,
   type ExtDiagnostic,
   type ExtHost,
+  type ExtensionLoader,
   type ExtensionUnit,
   type ScopeControl,
 } from "@xeon/ext-host";
@@ -56,8 +57,15 @@ import {
   type StoreOpenError,
   type StoreWarning,
 } from "@xeon/platform-store";
+import { capabilityDefsOf } from "./assembly/capability-defs.ts";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
 import { builtinUnits, installFailureOf, unitOfModule } from "./assembly/extensions.ts";
+import {
+  createLearningWiring,
+  learningLoaded,
+  registerLearningProjection,
+} from "./assembly/learning.ts";
+import { createProposalPort } from "./assembly/proposals.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
 import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
 import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
@@ -69,9 +77,18 @@ import {
   effectiveSecretsConfig,
   settingKeysReferencing,
 } from "./assembly/secrets.ts";
-import { createProjectTrust } from "./assembly/trust.ts";
+import { createProjectTrust, createLoaderFs, fileBackend } from "./assembly/trust.ts";
+import {
+  DEFAULT_PLUGIN_NAMES,
+  installDefaultPlugins,
+  installedAgentDefinitions,
+} from "./assembly/default-plugins.ts";
+import { bridgeExtensionCommands } from "./assembly/extension-commands.ts";
+import { loadExternalExtensions } from "./assembly/external.ts";
+import { createProjectExtensions } from "./assembly/project-extensions.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
-import { createSettingsEngine } from "./assembly/settings-engine.ts";
+import { createSettingsEngine, type SettingsEngine } from "./assembly/settings-engine.ts";
+import type { SettingCatalog } from "@xeon/contracts/settings";
 import {
   execOptionsOf,
   logLevelOf,
@@ -83,7 +100,7 @@ import {
   storeSettingsOf,
 } from "./assembly/settings-sources.ts";
 import { ownerKindOf } from "./handlers/owner.ts";
-import { hostResourceDir } from "./state-paths.ts";
+import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { messageOf, sequentially } from "./util.ts";
 
@@ -127,6 +144,12 @@ export class AssembleError extends Error {
     super(`assemble failed: ${issues.map(describeIssue).join("; ")}`, options);
     this.issues = issues;
   }
+}
+
+/** `x.operations.safeMode.default`가 켜져 있는가. 카탈로그에 없으면 꺼진 것이다 */
+function safeModeSettingOn(catalog: SettingCatalog, settings: SettingsEngine): boolean {
+  const key = "x.operations.safeMode.default";
+  return catalog.has(key) && settings.value(key) === true;
 }
 
 function describeIssue(issue: AssembleIssue): string {
@@ -203,8 +226,8 @@ function requirePort<Api>(ext: ExtHost, key: PortKey<Api>, service: string): Api
 /**
  * thread의 작업 디렉터리. 세션 서비스가 올라오기 전이거나 모르는 thread, 작업 디렉터리가 없는 thread면 undefined다(호출자는 ""로 본다).
  * thread 읽기가 실패하면(busy, io, row_invalid) 같이 undefined를 돌려주되 `host.thread_workspace_unreadable`로 남긴다: 읽기 실패를
- * 작업 디렉터리가 없는 것으로 조용히 바꾸면 project·local 설정과 `user_bash`의 cwd가 왜 비었는지 알 수 없다.
- * 설정 층(project·local 파일)과 `user_bash`의 cwd가 같은 값을 쓴다
+ * 작업 디렉터리가 없는 것으로 조용히 바꾸면 project·local 설정과 `input.bash.before`의 cwd가 왜 비었는지 알 수 없다.
+ * 설정 층(project·local 파일)과 `input.bash.before`의 cwd가 같은 값을 쓴다
  */
 export function threadWorkspaceOf(
   ext: ExtHost,
@@ -329,6 +352,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     policy: operations,
     setupBudgetMs: () => operations.setupBudgetMs(),
     settings: primitivesSource(settings),
+    capabilityDefs: capabilityDefsOf(options.extraCapabilityDefs),
     report: (diagnostic) => {
       diagnostics.push(diagnostic);
       late.logger?.warn("ext.diagnostic", {
@@ -345,10 +369,17 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   let shutdownCoordinator: ProcessShutdown | undefined;
   const osSlot: { handle: OsServiceHandle | undefined } = { handle: undefined };
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
+  /** 외부 확장 로더(기본 플러그인 포함). 닫을 때 먼저 내린다 */
+  const external: { loader: ExtensionLoader | undefined; unbridge: (() => void) | undefined } = {
+    loader: undefined,
+    unbridge: undefined,
+  };
 
   async function closeAll(): Promise<void> {
     try {
       await portsHandle?.releaseAll();
+      external.unbridge?.();
+      await external.loader?.dispose();
       await ext.dispose();
     } finally {
       lifetime.abort();
@@ -410,6 +441,17 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     late.logger = logger;
     await settings.loadUserFile(join(os.dirs.config, "settings.json"));
     for (const line of settings.diagnostics) logger.warn(line);
+    // 안전 모드(X.operations.spec §4.6.1): 시작 옵션(`options.safeMode`, CLI `--safe-mode`)이나 설정 `x.operations.safeMode.default`(관리·사용자 범위)가 켠다.
+    // 옵션이 `false`를 명시하면 설정보다 앞서 끈다
+    const safeModeSource: "flag" | "setting" | undefined =
+      options.safeMode === true
+        ? "flag"
+        : options.safeMode === false
+          ? undefined
+          : safeModeSettingOn(built.catalog, settings)
+            ? "setting"
+            : undefined;
+    const safeMode = safeModeSource !== undefined;
     const reportSetting = (message: string): void => {
       logger.warn("settings.invalid", { message });
     };
@@ -523,8 +565,40 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     };
     // 그룹 서비스가 보는 설치된 그룹(L3 매니페스트). 단위 목록이 만들어진 뒤에 채워진다
     const unitList: { units: readonly ExtensionUnit[] } = { units: [] };
+    // 외부 로더가 올린 그룹(Helm). 적재가 끝나면 채워진다
+    const externalGroups: { manifest: ExtensionManifest; loadIndex: number }[] = [];
     const workspaceOf = threadWorkspaceOf(ext, logger);
     const commands: CommandRegistryHolder = { current: undefined, api: undefined };
+    // 학습 그룹의 읽기 면(세션 DB의 x_learning_* 투영)과 명령 실행기, 그룹·L2 대기열을 잇는 자리. 읽기 면은 세션 서비스가 올라온 뒤(아래 4단계)에 채운다
+    const learning = createLearningWiring({
+      resources: () => ext.resources,
+      ids,
+      heldThreads: () => portsHandle?.heldThreads() ?? [],
+      activeThread: () => portsHandle?.activeThread() ?? null,
+    });
+    // 기본 플러그인(Helm)을 사용자 확장 위치에 설치한다. 설치본이 낸 서브에이전트 정의는 엔진 조립에 필요해 단위 목록보다 먼저 읽는다
+    const defaultsEnabled = options.defaultGroups !== false;
+    const userExtensionsDir = join(os.dirs.config, "extensions");
+    if (defaultsEnabled) {
+      await installDefaultPlugins({
+        bundleDir: options.defaultPluginsDir ?? defaultPluginsDir(),
+        extensionsDir: userExtensionsDir,
+        stateDir: os.dirs.state,
+        stagingRoot: join(os.dirs.config, ".staging"),
+        logger: os.logger("default-plugins"),
+      });
+    }
+    const pluginAgents = defaultsEnabled
+      ? await installedAgentDefinitions(
+          userExtensionsDir,
+          DEFAULT_PLUGIN_NAMES,
+          os.logger("default-plugins"),
+        )
+      : [];
+    const agentDefinitions =
+      options.agentDefinitions === undefined && pluginAgents.length === 0
+        ? undefined
+        : [...(options.agentDefinitions ?? []), ...pluginAgents];
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         commands,
@@ -543,15 +617,20 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         faults: store.value.faults,
         holder,
         ext,
+        learning,
+        ...(options.defaultGroups === undefined ? {} : { defaultGroups: options.defaultGroups }),
+        safeMode,
         groups: {
           catalog: built.catalog,
           store: () => portsHandle?.ports.settings,
           currentThread: () => portsHandle?.activeThread() ?? null,
           heldThreads: () => portsHandle?.heldThreads() ?? [],
-          entries: () =>
-            unitList.units
+          entries: () => [
+            ...unitList.units
               .filter((unit) => unit.manifest.layer === "L3")
               .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
+            ...externalGroups.filter((entry) => entry.manifest.layer === "L3"),
+          ],
         },
         // 엔진 포트는 서비스가 모두 올라온 뒤에 만든다. 자식 thread는 그 뒤에 생기므로 그때는 채워져 있다
         parentToken: (threadId) => portsHandle?.tokenOf(threadId),
@@ -561,9 +640,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         reportSetting,
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
         ...(options.webPorts === undefined ? {} : { webPorts: options.webPorts }),
-        ...(options.agentDefinitions === undefined
-          ? {}
-          : { agentDefinitions: options.agentDefinitions }),
+        ...(agentDefinitions === undefined ? {} : { agentDefinitions }),
       }),
     ];
     const extras = options.extraPlugins ?? [];
@@ -581,9 +658,48 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       }
     });
 
+    // 3b. 기본 플러그인으로 올린 외부 확장 적재(L4.host-service §4.1, X.loading-trust §4.4.7). 안전 모드는 외부 확장을 싣지 않는다
+    if (defaultsEnabled) {
+      const loaded = await loadExternalExtensions({
+        ext,
+        operations,
+        fs: createLoaderFs(),
+        userDir: os.dirs.config,
+        homeDir: os.dirs.home,
+        trustBackend: fileBackend(join(os.dirs.config, "trust.json"), osHandle.fileLock),
+        clock,
+        logger: os.logger("ext-loader"),
+        enabled: (name) => {
+          const key = `ext.${name}.enabled`;
+          const value = built.catalog.has(key) ? settings.value(key) : undefined;
+          return typeof value === "boolean" ? value : undefined;
+        },
+        cwd: process.cwd(),
+        projects: options.mode === "service" ? "on_demand" : "cwd",
+        signal: lifetime.signal,
+        ...(safeModeSource === undefined
+          ? {}
+          : { startup: { safeMode: { active: true, source: safeModeSource }, disabled: [] } }),
+      });
+      external.loader = loaded.loader;
+      externalGroups.push(...loaded.manifests);
+      external.unbridge = bridgeExtensionCommands(ext, commands, os.logger("ext-commands"));
+    }
+
     // 4. 서비스 확인: 포트가 요구하는 서비스가 모두 올라왔는지 본다
     const session = requirePort(ext, SESSION_KEY, "xeon.session");
     const storeService = requirePort(ext, STORE_KEY, "xeon.store");
+    if (learningLoaded({ defaultGroups: options.defaultGroups, safeMode })) {
+      const failed = registerLearningProjection({
+        session,
+        store: storeService,
+        wiring: learning,
+        onSkipped: (kind) => logger.warn("learning.projection_skipped", { kind }),
+      });
+      if (failed !== undefined) {
+        throw new AssembleError([{ code: "plugin", plugin: "learning", message: failed }]);
+      }
+    }
     const loop = requirePort(ext, LOOP_KEY, "xeon.loop");
     const tasks = requirePort(ext, TASKS_KEY, "xeon.tasks");
     const approvals = requirePort(ext, APPROVALS_KEY, "xeon.approvals");
@@ -631,14 +747,33 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         }),
       ),
       commands,
+      proposals: createProposalPort({
+        learning: () => learning.bridge.api(),
+        runner: learning.runner,
+        knowledge: () => learning.knowledge.current,
+        report: (message, fields) => {
+          logger.warn(message, fields);
+        },
+      }),
       configDir: os.dirs.config,
       trust: projectTrust,
+      projectExtensions: createProjectExtensions({
+        mode: options.mode,
+        loader: () => external.loader,
+        trust: projectTrust,
+        logger: os.logger("project-ext"),
+      }),
+      workspaceOf,
+      ...(options.pendingSchedules === undefined
+        ? {}
+        : { pendingSchedules: options.pendingSchedules }),
       signal: lifetime.signal,
     });
     const engine: Engine = {
       mode: options.mode,
       storeId: storeId.value,
       catalog: built.catalog,
+      safeMode,
       startedAt,
       ports: portsHandle.ports,
       shutdown: shutdownCoordinator,

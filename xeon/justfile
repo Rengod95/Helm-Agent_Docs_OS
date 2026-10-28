@@ -4,6 +4,8 @@ set shell := ["bash", "-euo", "pipefail", "-c"]
 bun := "mise exec -- bun"
 
 export TURBO_TELEMETRY_DISABLED := "1"
+# turbo 캐시는 모든 worktree가 함께 쓴다: 에이전트 worktree의 결과를 메인 체크아웃이 다시 쓴다 (scripts/test-capped.sh도 같은 기본값)
+export TURBO_CACHE_DIR := env("TURBO_CACHE_DIR", env("HOME") + "/.cache/xeon/turbo")
 
 # 잠금 파일 기준으로 의존성 설치
 [group('setup')]
@@ -21,11 +23,10 @@ fmt-check:
     {{bun}} run fmt-check:root
     {{bun}} run fmt-check
 
-# 정적 검사: scripts, 각 패키지 (type-aware)
+# 정적 검사: mode=full은 type-aware(scripts와 각 패키지, turbo 캐시), mode=fast는 type-aware 없이 한 번에(.oxlintrc.fast.json, 1초 안쪽)
 [group('quality')]
-lint:
-    {{bun}} run lint:root
-    {{bun}} run lint
+lint mode="full":
+    {{ if mode == "fast" { bun + " run lint:fast" } else { bun + " run lint:root && " + bun + " run lint" } }}
 
 # 타입 검사: scripts, 각 패키지 (tsc -b)
 [group('quality')]
@@ -33,7 +34,7 @@ typecheck:
     {{bun}} run typecheck:root
     {{bun}} run typecheck
 
-# 단위 테스트: scripts, 각 패키지를 하나씩 메모리 상한 아래에서 (scripts/test-capped.sh)
+# 단위 테스트: scripts는 매번, 패키지는 turbo 캐시에 맞으면 재생하고 아니면 메모리 상한 아래에서 (scripts/test-capped.sh)
 [group('quality')]
 test *targets:
     scripts/test-capped.sh {{targets}}
@@ -62,6 +63,11 @@ knip:
 [group('local')]
 docs-route +args:
     {{bun}} scripts/docs-route.ts {{args}}
+
+# 요구 장부 검사: M3-REQ 행마다 상태(M3a, M3b:<트랙 id>, M4), 이월 표마다 트랙 id, 상태별 개수 (scripts/req-ledger.ts)
+[group('local')]
+req-ledger:
+    {{bun}} scripts/req-ledger.ts
 
 # 패키지 하나만 lint, typecheck, test: 각각 scripts/guard.sh run 1.5G 아래에서 차례로. 병렬 작업 중 에이전트는 이것만 돌린다 (scripts/check-pkg.sh)
 [group('quality')]

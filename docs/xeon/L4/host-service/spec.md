@@ -157,7 +157,7 @@ macOS arm64에서의 (a)~(d)는 이 기기에 없어 확인하지 못했다. CI 
 | 진입점 | 파일 | 내용 | 소비자 |
 |---|---|---|---|
 | `.` | `src/index.ts` | `assemble`, `startInProcessHost`, `startStdioHost`, `startService`, `ensureService`, `runHostCommand`, `renderSettingsSchema`, 타입 | `apps/cli` |
-| `./client` | `src/client.ts` | `createHostConnection`, `connectServiceTransport`. 엔진 패키지를 import하지 않는다 | `apps/cli`, (선택) `apps/desktop`(§10 미결 5) |
+| `./client` | `src/client.ts` | `@xeon/client`의 `createHostConnection`을 다시 내보낸다(adr.0020), `connectServiceTransport`. 엔진 패키지를 import하지 않는다 | `apps/cli`, (선택) `apps/desktop`(§10 미결 5) |
 
 F에서 가져오는 이름은 `F.wire-settings.spec` 그대로다: `Transport`, `TransportKind`, `CloseInfo`, `Unsubscribe`, `HostConnection`, `WireHandlers`, `WireHandler`, `WireRequestContext`, `StdioTransportOptions`, `SocketTransportOptions`, `WireMethodName`, `WireParams`, `WireResult`, `JsonRpcMessage`, `RpcId`, `StreamPosition`, `StoreId`, `Seq`, `EventFilter`, `WIRE_METHODS`, `WIRE_ERRORS`, `WIRE_LIMITS`, `WIRE_PROTOCOL_VERSION`, `isCompatible`, `checkEnvelope`, `toEventWire`, `toVolatileEventWire`, `SettingCatalog`, `SettingScope`, `ScopeStack`, `buildCatalog`, `CatalogIssue`, `resolveSetting`, `checkSettingWrite`, `settingsJsonSchema`, `defineSettings`. 새 공용 이름은 만들지 않는다. 아래 이름은 `@xeon/host` 안의 이름이다.
 
@@ -188,6 +188,8 @@ export interface AssembleOptions {
   readonly dataDir?: string;                              // 없으면 L0.os의 기본 데이터 디렉터리
   readonly extraPlugins?: readonly HostPluginModule[];    // 테스트용 그룹, 모델 테이프 provider
   readonly defaultGroups?: boolean;                       // 기본 true. false면 Helm·학습 그룹을 싣지 않는다
+  readonly safeMode?: boolean;                            // 기본 false. 참이면 L3 내장 그룹(학습)을 싣지 않는다(HS-79). L1·L2 내장 패키지는 그대로 싣는다
+  readonly defaultPluginsDir?: string;                    // 기본 플러그인 번들 뿌리(<뿌리>/<이름>/.xeon-plugin/plugin.json). 생략하면 실행 파일 옆 default-plugins/
   readonly settingGroups?: readonly SettingGroup<SettingNamespace, Readonly<Record<string, SettingDefInput>>>[];
                                                           // 조립 루트가 import할 수 없는 앱의 설정(예: l4.cli.*, L4.cli.spec §6)
   readonly devChecks?: boolean;                           // 결과 스키마 검사, in-process JSON 왕복. 개발 빌드만 true
@@ -473,11 +475,11 @@ export declare function startStdioHost(options: StdioHostOptions): Promise<HostE
 
 export type HostCommand =
   | { readonly kind: "host-stdio" }
-  | { readonly kind: "service-run" }
-  | { readonly kind: "service-start" }
+  | { readonly kind: "service-run"; readonly safeMode: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // `xeon service run`, `xeon host --service [--safe-mode] [--listen-tcp <host>:<port> [--allow-non-loopback]]`
+  | { readonly kind: "service-start"; readonly start?: ServiceCommand; readonly safeMode?: boolean; readonly tcp?: { readonly host: string; readonly port: number } }   // safeMode·tcp는 새로 띄울 때 `service run`의 인자가 된다
   | { readonly kind: "service-status"; readonly json: boolean }
   | { readonly kind: "service-stop" }
-  | { readonly kind: "service-ensure" }
+  | { readonly kind: "service-ensure"; readonly start?: ServiceCommand; readonly safeMode?: boolean }
   | { readonly kind: "service-launch-mode" }
   | { readonly kind: "config-schema"; readonly scope: "managed" | "user" | "project" | "local"; readonly out?: string; readonly coreOnly: boolean };
 
@@ -491,43 +493,59 @@ export declare function runHostCommand(command: HostCommand, io: CommandIo): Pro
 ```
 
 ```ts
-// src/service/lifetime.ts
-export interface ServiceOptions {
-  readonly assemble?: Omit<AssembleOptions, "mode">;
-  readonly registrationPath?: string;            // 없으면 L0.os 상태 디렉터리의 service.json
-  readonly socketPath?: string;                  // 없으면 L0.os 런타임 디렉터리의 xeon.sock
-  readonly startupGraceMs?: number;              // 기본 SERVICE_STARTUP_GRACE_MS
-}
+// src/service/lifetime.ts (구현됨, M3b B1-SVC)
 export declare const SERVICE_STARTUP_GRACE_MS: 10_000;
 
+export interface ServiceOptions {
+  readonly assemble?: Omit<AssembleOptions, "mode">;   // safeMode, pendingSchedules 등
+  readonly runtimeDir?: string;                  // 서비스 파일 디렉터리. 없으면 L0.os의 dirs.runtime
+  readonly startupGraceMs?: number;              // 기본 SERVICE_STARTUP_GRACE_MS
+  readonly idleGraceMs?: number;                 // 기본 설정 l0.process.service.idleGraceMs(60000)
+  readonly tcp?: { readonly host: string; readonly port: number; readonly allowNonLoopback?: boolean };   // TCP로도 연다. 토큰 필수, 루프백이 아니면 allowNonLoopback 필수(`tcp_not_loopback`, SV-05)
+  readonly time?: { readonly clock: Clock; readonly scheduler: Scheduler };   // 유휴 타이머용. 시험이 수동 시간을 넘긴다
+  readonly handleSignals?: boolean;              // SIGTERM·SIGINT 처리. 기본 true
+  readonly random?: (bytes: number) => Uint8Array;   // 토큰용
+}
+
 export interface ServiceHandle {
-  readonly registration: ServiceRegistration;
+  readonly registration: ServiceRegistration;    // 지금 등록 파일 내용(토큰을 돌리면 새 토큰)
+  readonly tcpAddress: string | undefined;
   readonly exited: Promise<HostExit>;
+  idleShutdownAt(): number | null;
+  connections(): number;
   shutdown(reason: "signal" | "idle" | "stop"): Promise<void>;
+  rotateToken(): string;                         // 등록 파일을 먼저 쓰고 성공해야 토큰을 바꾼다(실패하면 던지고 이전 토큰 유지). 이전 토큰은 새 연결에 즉시 무효
 }
 export type ServiceStart =
   | { readonly started: true; readonly handle: ServiceHandle }
-  | { readonly started: false; readonly existing: ServiceRegistration };   // 소켓 선점에 진 경우(SV-02)
+  | { readonly started: false; readonly reason: "in_use"; readonly existing: ServiceRegistration | null }   // 소켓 선점에 진 경우(SV-02)
+  | { readonly started: false; readonly reason: "failed"; readonly message: string };                       // 경로·소켓·조립 실패
 
 export declare function startService(options?: ServiceOptions): Promise<ServiceStart>;
 ```
 
 ```ts
-// src/service/ensure.ts
-export interface EnsureOptions {
-  readonly registrationPath?: string;
-  readonly ownVersion: string;
-  readonly spawnTimeoutMs?: number;              // 기본 5,000
+// src/service/ensure.ts, control.ts, commands.ts, launch-mode.ts (구현됨)
+export interface ServiceCommand { readonly command: string; readonly args: readonly string[] }   // 서비스를 띄우는 전체 명령(`... service run`)
+export interface EnsureHostServiceOptions {
+  readonly runtimeDir?: string;
+  readonly start: ServiceCommand;
+  readonly startTimeoutMs?: number;              // 기본 10000
+  readonly retryMs?: number;                     // 기본 200
+  readonly ownVersion?: string;                  // 기본 엔진 버전
 }
-export type EnsureResult =
-  | { readonly ok: true; readonly registration: ServiceRegistration; readonly action: "connected" | "spawned" | "restarted" | "versionWarning" }
-  | { readonly ok: false; readonly reason: "spawnTimeout" | "protocolUnsupported" | "registrationInvalid" };
-
-export declare function ensureService(options: EnsureOptions): Promise<EnsureResult>;
+export interface EnsuredService { readonly outcome: EnsureOutcome; readonly paths: ServicePaths }
+/** L0.process의 ensureService를 host.hello·host.status·host.shutdown과 detached 기동으로 채운다. 접속은 돌려주지 않는다(registration.socket으로 새로 접속) */
+export declare function ensureHostService(options: EnsureHostServiceOptions): Promise<Result<EnsuredService, EnsureHostServiceError>>;
+export declare function serviceStatus(options?: ServiceControlOptions): Promise<Result<ServiceStatusResult, ServicePathError>>;
+export declare function stopHostService(options?: ServiceControlOptions): Promise<Result<ServiceStopResult, ServicePathError>>;
+export declare function connectServiceTransport(endpoint: ServiceEndpoint): Promise<Result<Transport, SocketError>>;
+export declare function defaultServiceCommand(extra?: { readonly safeMode?: boolean; readonly tcp?: { readonly host: string; readonly port: number } }): ServiceCommand;   // 이 실행 파일을 `service run [--safe-mode] [--listen-tcp h:p]`로. 소스 실행(bun 진입 파일)과 컴파일 바이너리를 가른다
+export declare function resolveLaunchMode(): Promise<"in-process" | "service">;   // 사용자 설정 파일의 l0.process.service.enabled. 관리 범위 파일은 읽지 않는다 [미결]
 ```
 
 ```ts
-// src/client.ts  ("./client". 엔진 패키지를 import하지 않는다)
+// src/client.ts  ("./client". 엔진 패키지를 import하지 않는다. `createHostConnection`은 `@xeon/client`에서 다시 내보낸다)
 import type { HostConnection, SocketTransportFactory, Transport } from "@xeon/contracts/wire";
 
 export interface HostConnectionOptions {
@@ -536,7 +554,7 @@ export interface HostConnectionOptions {
 }
 /**
  * F의 HostConnection 구현. 요청 id는 연결마다 r1, r2, … 를 쓴다(F wire §3.1).
- * 구현은 F `@xeon/contracts/wire`(`wire/client.ts`)로 옮겼고 이 파일은 같은 이름을 다시 내보낸다(m2 F.8)
+ * 구현은 L4 공유 패키지 `@xeon/client`(`src/connection.ts`)에 있고 이 파일은 같은 이름을 다시 내보낸다(adr.0020)
  */
 export declare function createHostConnection(transport: Transport, options?: HostConnectionOptions): HostConnection;
 
@@ -615,7 +633,7 @@ M1:
 
 | 메서드 | 처리 | 서비스 | 오류 |
 |---|---|---|---|
-| `host.hello` | `isCompatible(params.protocolVersion, WIRE_PROTOCOL_VERSION)` 검사, opt-in 실험 기능 기록, 연결을 ready로 바꾼다. 결과의 `features`는 구현한 메서드·알림의 `WIRE_METHODS` 항목(status, since)이다 | 엔진 `storeId`, 연결 허브 | 1002 `host.helloDuplicate`, 1003 `protocol.unsupported` |
+| `host.hello` | 접속 인증, `isCompatible(params.protocolVersion, WIRE_PROTOCOL_VERSION)` 검사, opt-in 실험 기능 기록, 연결을 ready로 바꾼다. 인증은 연결이 `ServeOptions.auth.requiresToken`(TCP 연결)일 때만 하고 `params.auth.token`을 상수 시간으로 비교한다. 결과의 `features`는 구현한 메서드·알림의 `WIRE_METHODS` 항목(status, since)이다 | 엔진 `storeId`, 연결 허브 | 1002 `host.helloDuplicate`, 1003 `protocol.unsupported`, 1004 `host.authFailed`(`details.reason`은 `missing`·`invalid`, 응답이 나간 뒤 연결을 닫는다) |
 | `thread.create` | thread를 만들고 쓰기 소유를 함께 얻는다(F wire §3.3.1 제안: M1에서는 create가 소유를 얻는다). `workspace`는 절대 경로이고 있는 폴더여야 하며 정규 경로로 저장한다(HS-76). 아니면 -32602(`path: "workspace"`) | `ThreadPort.create`(L1.persistence), `SessionLockPort.tryAcquire`(L0.process) | 3002 `thread.locked`(새 thread라 정상 경로에서는 없다. 잠금 서비스 실패 시) |
 | `turn.start` | 쓰기 소유를 확인하고 없으면 암묵 획득(HS-28)한 뒤 입력을 제출한다. `requestId`가 같으면 처음 `turnId` | `SessionLockPort.holds`·`tryAcquire`, `TurnPort.submit`(L1.tasks) | 3001 `thread.notFound`, 3002 `thread.locked`, 3003 `turn.busy` |
 | `events.subscribe` | §4.4 재전송 알고리즘 | `EventFeedPort`(L1.persistence, L0.store) | 2001 `replay.outOfRange`, 2003 `events.subscriptionLimit`, 2004 `events.filterInvalid` |
@@ -638,7 +656,7 @@ M2:
 | `thread.close` | 그 연결의 열기 기록(`openThreads`, `writeThreads`, `observedThreads`)을 지운다. 열려 있지 않아도 오류가 아니다. §4.7 해제 조건이 맞으면 잠금을 푼다(서비스 모드만, HS-27) | 연결 허브 | 3001 |
 | `thread.list` | 투영 목록을 돌려준다. 종결(`closed`)된 thread는 뺀다. `workspace` 필터는 저장된 값과 같은 정규 경로 형태로 견준다(HS-76) | `ThreadPort.list`(L1.persistence) | - |
 | `thread.read` | 현재 가지의 내구 item을 오래된 것부터 `limit`개(기본 200). 소유를 얻지 않고 닫힌 thread도 읽는다. §4.13의 스냅샷 규칙 | `ThreadPort.read`(L1.persistence) | 3001, 3005 |
-| `thread.fork` | 원본의 쓰기 소유 없이 새 thread를 만들고(`forkedFrom`), 이 연결이 새 thread의 쓰기 소유를 얻는다. 확장이 막으면(`session_before_fork`) 3006 | `ThreadPort.fork`, `SessionLockPort` | 3001, 3002, 3005, 3006 |
+| `thread.fork` | 원본의 쓰기 소유 없이 새 thread를 만들고(`forkedFrom`), 이 연결이 새 thread의 쓰기 소유를 얻는다. 확장이 막으면(`session.fork.before`) 3006 | `ThreadPort.fork`, `SessionLockPort` | 3001, 3002, 3005, 3006 |
 | `thread.revert` | 쓰기 소유자만(HS-28: 암묵 획득 없음). 진행 중 turn이 있으면 3003. 호출마다 새 요청 키를 만든다 | `ThreadPort.revert`(L1.persistence) | 3001, 3002, 3003, 3005, 3006 |
 | `thread.delete` | 쓰기 소유자만 지운다. 소유를 쥐지 않았으면 한 번 얻어 본다(`xeon sessions rm`처럼 열지 않고 지우는 클라이언트를 위해 HS-28의 암묵 획득을 따른다). 얻지 못하면 3002. 지우지 못하면 이 호출이 얻은 잠금은 놓되, 그동안 다른 연결이 소유를 이어받았으면 놓지 않는다(HS-28). 이 thread를 `forkedFrom`으로 가리키는 thread가 있으면 3004 | `ThreadPort.remove`, `SessionLockPort` | 3001, 3002, 3004 |
 | `turn.interrupt` | 쓰기 소유자만(HS-28). `interrupted`는 중단할 turn이 있었는가 | `TurnPort.interrupt`(L1.loop) | 3001, 3002 |
@@ -648,7 +666,7 @@ M2:
 | `settings.set` | `checkSettingWrite(catalog, layers, key, scope, value)` 통과 뒤 §4.14의 범위별 저장, 결과는 `resolveSetting`. `session`·`project`·`local` 범위는 `threadId`가 필요하고 `project`·`local`은 그 thread의 workspace가 신뢰되어 있어야 한다. 없으면 3103에 `details.reason` `workspaceRequired`·`untrustedProject`, `managed`는 `managedReadOnly`. 모델 참조 키는 카탈로그에 없는 모델이면 3102(HS-78). 사용자 범위 `l1.models.providers` 쓰기 뒤에는 연결된 비밀에 모델 provider 사용 하나를 허용한다(HS-45) | `SettingsStorePort.write`, `SecretsPort.linkModelProviders` | 3001, 3002, 3101, 3102, 3103, 3104, 3105 |
 | `settings.reset` | 키·범위·잠금 검사 뒤 그 범위 값을 지운다(`checkSettingWrite`의 값 검사는 건너뛴다). 저장은 `settings.set`과 같다 | `SettingsStorePort.reset` | 3001, 3002, 3101, 3103, 3104 |
 | `settings.list` | 카탈로그를 `SettingDefWire`(`toSettingDefWire`)로 바꿔 키 순으로 돌려준다. `prefix`로 거르고 폐기된 키는 `includeDeprecated`일 때, 읽는 코드가 없는 `stage: "reserved"` 키는 `includeReserved`일 때만 싣는다(HS-71). `type`은 `toJsonSchema(def.type)`이고 `range`는 따로 싣는다 | 카탈로그 | - |
-| `host.status` | 모드, pid, 시작 시각(ISO), 연결 수, `liveTurns`, 유휴 종료 예정 시각(서비스만, 아니면 `null`). `includeBinaries: true`면 `Engine.diagnose`의 `binaries`를 `HostBinaryReport`로 옮겨 `binaries`에 싣는다(HS-69). 생략하거나 거짓이면 점검하지 않는다 | 연결 허브, `ActivityPort`, 수명 관리, `Engine.diagnose` | `request.cancelled`(점검이 중단된 경우) |
+| `host.status` | 모드, pid, 시작 시각(ISO), 연결 수, `liveTurns`, 유휴 종료 예정 시각(서비스만, 아니면 `null`), 안전 모드로 열렸으면 `safeMode: true`(아니면 필드 없음). `includeBinaries: true`면 `Engine.diagnose`의 `binaries`를 `HostBinaryReport`로 옮겨 `binaries`에 싣는다(HS-69). 생략하거나 거짓이면 점검하지 않는다 | 연결 허브, `ActivityPort`, 수명 관리, `Engine.diagnose` | `request.cancelled`(점검이 중단된 경우) |
 | `secret.list` | 관리 서비스 목록을 값 없는 `SecretListEntry`로 바꾼다. `meta: true`일 때만 메타를 싣고, `usage: true`면 마지막 사용 시각을 감사 파일에서 채운다 | `SecretsPort.admin.ls`(L0.secrets) | - |
 | `secret.meta` | 준 필드만 메타에 적용하고 바뀐 항목을 상태와 함께 돌려준다 | `SecretsPort.admin.meta`, `ls` | -32602(메타 검사 실패), §4.12의 비밀 오류 |
 | `secret.remove` | 확인을 거친 삭제로 본다. 이미 없는 이름은 `removed: false`다 | `SecretsPort.admin.rm` | §4.12의 비밀 오류(활성 lease가 있으면 `in_use`) |
@@ -665,7 +683,7 @@ M2 마감(m2c, 항목 ID는 `review.milestone-audit`):
 | `command.run` | G1-01. 사용자가 친 한 줄(`/plan 설계`)을 thread 문맥에서 실행한다. 쓰기 소유를 암묵 획득한다(HS-28). 결과는 `dialog.commands.run` 출력 그대로: `not_command`, `expanded`(`turn.start`로 보낼 최종 텍스트), `needs_confirmation`(셸 주입 확인, `confirmShell: true`로 다시 부름), `done`(`message`와 `result`) | `CommandPort.run` → `dialog.commands.run`, `SessionLockPort` | 3001, 3002, -32602(`text`: 인자 오류, 셸 주입 꺼짐), -32603(그 밖의 거절) |
 | `turn.resume` | G1-02. 끊긴 turn을 이어 실행한다. 열린 turn은 thread마다 하나라 turn id를 받지 않는다. 쓰기 소유를 암묵 획득한다(HS-28, 열 때 복구와 미해결 승인 되살리기를 지난다). `resumed`는 접수만 뜻한다(HS-74) | `SessionLockPort`, `TurnPort.resume`(L1.loop) | 3001, 3002, 3003, 5003~5007 |
 | `thread.rename` | G2-12. 제목을 바꾼다(1~200자). 쓰기 소유자만 바꿀 수 있어 소유를 쥐지 않았으면 한 번 얻어 바꾼 뒤 놓는다. 그동안 다른 연결이 소유를 이어받았으면 놓지 않는다(HS-28, HS-73). 결과 `position`은 `thread.updated`를 반영한 위치다 | `ThreadPort.rename`(L1.persistence `setTitle`), `SessionLockPort` | 3001, 3002, 3007, 5003~5007 |
-| `thread.compact` | G2-01. 대화를 지금 요약한다(`/compact`). 쓰기 소유를 암묵 획득하고(HS-28) 진행 중인 turn이 있으면 `turn.busy`다. 요약하는 동안 같은 thread의 `turn.start`·`turn.resume`은 끝날 때까지 기다린다(HS-77). `ContextService.compact`를 이유 `manual`로 부르고 `instructions`를 넘긴다. 결과 `compacted { eventId, tokensBefore, fromExtension, position }` 또는 `skipped { why }`. 확장이 막으면 3006(`session_before_compact`), 요약이나 커밋이 실패하면 3008(HS-77) | `ContextService.compact`(L1.context), `SessionLockPort`, `ActivityPort` | 3001, 3002, 3003, 3006, 3007, 3008, 5001, 5003~5007 |
+| `thread.compact` | G2-01. 대화를 지금 요약한다(`/compact`). 쓰기 소유를 암묵 획득하고(HS-28) 진행 중인 turn이 있으면 `turn.busy`다. 요약하는 동안 같은 thread의 `turn.start`·`turn.resume`은 끝날 때까지 기다린다(HS-77). `ContextService.compact`를 이유 `manual`로 부르고 `instructions`를 넘긴다. 결과 `compacted { eventId, tokensBefore, fromExtension, position }` 또는 `skipped { why }`. 확장이 막으면 3006(`session.compact.before`), 요약이나 커밋이 실패하면 3008(HS-77) | `ContextService.compact`(L1.context), `SessionLockPort`, `ActivityPort` | 3001, 3002, 3003, 3006, 3007, 3008, 5001, 5003~5007 |
 | `trust.get` | G1-03. 작업 폴더(절대 경로)의 프로젝트 신뢰 판정과 선택지. 아무것도 바꾸지 않는다. 결과 `TrustStatus`(HS-70) | `TrustPort.get` → `ProjectTrust.inspect`(X.loading-trust) | -32602(`workspace`가 절대 경로가 아님) |
 | `trust.decide` | G1-03. 사람의 결정을 저장 파일(`folder`, `parent`)이나 이 프로세스의 기억(`session`)에 쓰고 반영한 뒤의 `TrustStatus`를 돌려준다. 저장은 `fileLock` 안에서 한다(HS-58). 결정 뒤 project·local 설정 층을 다시 읽는다 | `TrustPort.decide` → `ProjectTrust.decide`, `OsServiceHandle.fileLock` | -32602(`workspace`, `choice`가 선택지에 없음), 5006 `store.io`(`details.code: "trust_store"`) |
 
@@ -676,6 +694,8 @@ M2 마감(m2c, 항목 ID는 `review.milestone-audit`):
 ### 3.5 서비스 등록 파일
 
 [결정: ADR-0006 §3.4] 등록 파일은 권한 0600이고 소켓 주소, pid, 버전, 시작 시각 지문, 무작위 토큰을 담는다. 스키마에 없는 필드를 보존한다.
+
+[결정: 오케스트레이터 기본값, §10 7번] 스키마와 읽기·쓰기는 `L0.process.spec` §3.2(`ServiceRegistration`, `createRegistrationStore`)가 정본이다. 아래 블록은 초안이고 어긋나면 L0 쪽이 맞다: `startedAt`은 epoch ms 정수, `schemaVersion`·`protocolVersion`·`storeId`가 더 있고, 읽기·쓰기는 동기 `Result`이며 `readRegistration` 등 이름은 `RegistrationStore` 메서드다. 서비스는 TCP로 열면 `tcp: "host:port"` 필드를 더한다(모르는 필드로 보존된다).
 
 ```ts
 // src/service/registration.ts
@@ -746,12 +766,12 @@ export declare function resolveLaunchMode(options?: { readonly dataDir?: string 
 
 1. 경로: `dataDir`가 없으면 L0.os에서 기본 데이터 디렉터리를 받는다.
 2. 루트 컨텍스트: ext-host가 제공하는 루트 생성 API로 Cordis 루트 컨텍스트를 만든다. `apps/host`는 Cordis를 직접 import하지 않는다(DR-11). L4는 Cordis 서비스를 제공하지 않는다(`architecture.layers.spec` §4.4).
-3. 플러그인 등록: 기본 플러그인을 의존 순서로 싣고(§4.15), 이어서 `extraPlugins`를 싣는다. `defaultGroups`가 `false`면 L3 기본 그룹(Helm, 학습 그룹)을 빼고 싣는다. 그룹의 켜기·끄기는 각 그룹 설정(`l3.helm.*`, `l3.learning.*`)이 정한다. 외부 확장 로딩과 신뢰 판정은 X(`X.loading-trust.spec`)가 한다.
+3. 플러그인 등록: 기본 플러그인을 의존 순서로 싣고(§4.15), 이어서 `extraPlugins`를 싣는다. `defaultGroups`가 `false`거나 안전 모드이면 L3 기본 그룹(Helm, 학습 그룹)을 빼고 싣는다. 안전 모드는 `AssembleOptions.safeMode`(CLI `--safe-mode`)가 참이거나, 옵션이 없고 사용자 설정 `x.operations.safeMode.default`가 참일 때다(옵션이 `false`를 명시하면 설정보다 앞서 끈다). `Engine.safeMode`와 `host.status.safeMode`가 이 값을 알린다. `defaultGroups`가 `false`가 아니면 기본 플러그인(Helm)을 사용자 확장 위치(`<config>/extensions/helm/`)에 설치하고(`installDefaultPlugin`, 번들 버전 비교, 호스트 상태의 표지 `<state>/default-plugins.json`) 외부 로더가 `user` 등급으로 싣는다. 사용자가 설치본을 지우면 표지가 있어 다시 설치하지 않는다. 설치본이 낸 서브에이전트 정의(`agents/*.md`)는 엔진 조립에 필요해 단위 목록보다 먼저 읽어 `agentDefinitions`에 더한다. 확장이 `registerCommand`로 올린 명령(`/helm`)은 명령 서비스(`command.list`·`command.run`)에 이어 준다. 호출 id는 명령 입력의 `requestId`를 `invocationId`로 넘긴다(재시도에도 같은 값). 번들이 외부 import로 남기는 SDK 모듈 가운데 `@xeon/group-kit`만 호스트가 가상 모듈로 넘긴다(나머지는 X가 등록한다). 프로젝트 확장은 모드에 따라 다르다: in-process·stdio는 시작 때 `loadAll`이 `cwd`의 프로젝트를 판정해 싣고, 서비스 모드는 시작 때 싣지 않고(`projects: "on_demand"`) 작업 폴더를 여는 때 싣는다(§4.9.4, M3-REQ-38). 그룹의 켜기·끄기는 `ext.helm.enabled`(`reservedExtensionSettings`로 카탈로그에 실린다)와 `l3.learning.*`이 정하고, Helm 동작 설정은 `ext.helm.*`이다(외부 그룹은 X의 `settingValue`로 자기 키를 읽는다). 신뢰 판정은 X(`X.loading-trust.spec`)가 한다.
 4. 서비스 확인: 포트가 요구하는 서비스(§3.3.2)가 모두 주입됐는지 확인한다. 없으면 `missingService`.
 5. 카탈로그: 모든 패키지의 설정 그룹과 확장 매니페스트에서 나온 정의를 `buildCatalog`에 넣는다. 결과가 `{ ok: false }`이면 기동을 거부한다(`catalog`). 단, F wire §5 규칙대로 확장 키 문제(`foreignNamespace`, 확장 사이 `duplicateKey`)는 X 로더가 그 확장의 설정을 빼고 다시 조립하므로 여기까지 오는 문제는 코어 키 문제다 [가정: 재조립 절차는 `X.loading-trust.spec`이 정한다].
 6. 설정 범위: `SettingsStorePort.layers(undefined)`로 파일 범위를 읽는다. 값 검사 실패는 진단으로 남기고 시작을 막지 않는다(F wire §4.8).
 7. 열 때 복구: L1.persistence가 표식(`running_since`, `resume_attempts`)을 확인하고 결과 불명 도구 호출을 정리한다(`architecture.runtime-flow.design` §4.4). 실행은 시작하지 않는다(ADR-0006 §3.1, durable `Harness.open`과 같다).
-8. 자동 재개: `mode === "service"`이고 `l1.persistence.autoResume`이 `true`일 때만 표식이 남은 thread를 재개한다. 키와 재개 횟수 상한(`l1.persistence.maxResumeAttempts`)은 L1.persistence가 소유한다(`L1.persistence.spec` §6).
+8. 자동 재개: `mode === "service"`이고 `l1.persistence.autoResume`이 `true`일 때만 표식이 남은 thread를 재개한다. 구현은 `startService`가 연결을 받기 시작한 뒤 백그라운드로 한다(`service/auto-resume.ts`): 표식이 남은 thread마다 서비스가 쓰기 소유를 얻고(`tryAcquire`, 다른 프로세스가 쥔 thread는 건너뛴다) `turn.resume`과 같은 `TurnPort.resume`을 부른다. 키와 재개 횟수 상한(`l1.persistence.maxResumeAttempts`)은 L1.persistence가 소유한다(`L1.persistence.spec` §6).
 
 `Engine.close()`는 역순으로 닫는다: 예약 틱 정지, 플러그인 dispose, 저장소 닫기. task 결과를 쓰지 않는다.
 
@@ -887,7 +907,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 - SV-02 기동 경합 [결정: ADR-0006 §3.7 2번]
   - 고정 소켓 경로 바인드가 판정 지점이다. `listenServiceSocket(path)`의 절차:
     1. 경로에 접속을 시도한다. 접속되고 `host.hello`에 응답하면 `inUse`를 돌려준다.
-    2. 접속이 거부되면(파일은 있으나 듣는 프로세스 없음) 낡은 소켓 파일이다. 낡은 파일 삭제와 바인드는 활성화 잠금을 쥔 동안에만 한다. 활성화 잠금은 `SessionLockPort`와 같은 L0.process 잠금 수단을 키 `service-activation`으로 쓴다 [제안]. 잠금을 못 얻은 쪽은 `inUse`로 본다.
+    2. 접속이 거부되면(파일은 있으나 듣는 프로세스 없음) 낡은 소켓 파일이다. 낡은 파일 삭제와 바인드는 활성화 잠금을 쥔 동안에만 한다. 활성화 잠금은 L0.os의 `fileLock.withLock`(`<runtimeDir>/service.activation`, 기다리지 않음)을 `ActivationLock`으로 감싸 L0.process의 `bindServiceSocket`에 넘긴다 [결정: 오케스트레이터 기본값]. 잠금을 못 얻은 쪽은 `inUse`로 본다.
     3. 바인드한다. `EADDRINUSE`이면 `inUse`.
   - `inUse`를 받은 `startService`는 `{ started: false, existing }`을 돌려주고, `service run`은 종료코드 0으로 끝난다. 그 프로세스를 띄운 `ensure`는 기존 서비스에 접속한다.
   - 두 프로세스가 같은 DB에 대해 서비스 둘을 여는 경우는 생기지 않는다. 포트 0처럼 늘 성공하는 바인드는 쓰지 않는다(opencode `background-service.ts:49-52`의 이유와 같다).
@@ -899,23 +919,7 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
      - 한가하지 않으면 경고를 남기고 그대로 접속한다(`action: "versionWarning"`). hello가 1003이면 `{ ok: false, reason: "protocolUnsupported" }`이고, CLI는 `xeon service stop` 뒤 다시 시도하라고 안내한다.
   4. 기동: L0.process로 자기 실행 명령(§3.2)에 `service run`을 붙여 detached로 띄운다(SV-06). 소켓이 hello에 응답할 때까지 조건 대기(100ms 간격, 상한 `spawnTimeoutMs`)한다.
 - SV-04 유휴 종료 [결정: ADR-0006 §3.7 4번]
-  - 판정은 순수 함수 `decideIdle`로 한다.
-
-    ```ts
-    // src/service/lifetime.ts
-    export interface IdleInputs {
-      readonly connections: number;
-      readonly activity: ActivitySnapshot;
-      readonly sinceStartMs: number;
-      readonly startupGraceMs: number;
-      readonly countApprovalAsLive: boolean;      // 기본 true [제안]
-    }
-    export type IdleDecision =
-      | { readonly idle: true }
-      | { readonly idle: false; readonly reason: "startupGrace" | "connections" | "tasks" | "approvals" | "schedules" };
-    export declare function decideIdle(inputs: IdleInputs): IdleDecision;
-    ```
-
+  - 판정은 L0.process의 `createIdleMonitor`가 한다(`L0.process.spec` §3.2, §4.4.4). 서비스는 `IdleInputs { connections, liveTasks, pendingSchedules }`를 입력이 바뀔 때마다 넘긴다. `liveTasks`는 `ActivitySnapshot.liveTasks + waitingApprovals`다(승인 대기 세션 포함). `pendingSchedules`는 `ActivitySnapshot.pendingSchedules`이고 값의 출처는 `AssembleOptions.pendingSchedules`(`PendingSchedulesPort { count, onChange }`)다. 예약 능력(L2.schedule)이 조립에 들어오면 조립 루트가 이 포트를 채우고, 그 전에는 0이다 [결정: 오케스트레이터 기본값, M3b B1-SVC].
   - 유휴는 다섯 조건이 모두 성립할 때다: 연결 0, `liveTasks` 0, (`countApprovalAsLive`이면) `waitingApprovals` 0, `pendingSchedules` 0, 시작 뒤 `SERVICE_STARTUP_GRACE_MS`(10초) 경과.
   - 유휴가 되면 `l0.process.service.idleGraceMs` 타이머를 건다. 타이머가 끝나기 전에 조건이 하나라도 깨지면 타이머를 지운다. 끝나면 HS-31 절차를 `reason: "idle"`로 실행한다. 판정은 `ConnectionHub.onSizeChange`와 `ActivityPort.onChange`가 올 때마다 다시 한다. 시계는 엔진 `Clock`과 L0.os 타이머를 쓴다(테스트 주입).
   - `host.status.idleShutdownAt`은 타이머가 걸려 있으면 그 시각, 아니면 `null`이다.
@@ -924,13 +928,13 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
   - 로컬은 Unix 소켓과 파일 권한으로 인증한다. 소켓은 권한 0700 디렉터리 안에 두고 소켓 파일 자체도 0600으로 만든다. 같은 사용자만 접속할 수 있다.
   - 시작할 때 소켓 디렉터리의 소유자가 현재 사용자가 아니거나 그룹·기타 권한이 열려 있으면 시작을 거부한다(종료코드 1). 권한을 대신 좁히지 않는다. 다른 사용자가 만든 디렉터리를 쓰지 않기 위해서다 [제안].
   - 등록 파일의 `token`은 TCP·WebSocket 전송용이다. Unix 소켓 접속에는 요구하지 않는다. 토큰을 `host.hello`에 실을지는 F wire §10 미결 4에 맞춘다(§10 미결 10). F가 정하기 전에는 토큰 필드를 계약에 더하지 않는다.
-  - 비루프백 리스너는 만들지 않는다. 원격 전송이 생기면 토큰 없는 기동을 금지하고 인증을 `host.hello` 전에 끝낸다(ADR-0006 §3.2).
+  - TCP 리스너는 루프백 주소만 기본으로 연다. 비루프백은 `--allow-non-loopback`(`ServiceOptions.tcp.allowNonLoopback`)을 명시할 때만 열리고 아니면 `tcp_not_loopback`으로 시작을 거부한다 [결정: 오케스트레이터 기본값]. 원격 전송이 생기면 토큰 없는 기동을 금지하고 인증을 `host.hello` 전에 끝낸다(ADR-0006 §3.2).
 - SV-06 부모-자식 수명 [결정: ADR-0006 §3.7 6번]
   - 자식 엔진(stdio)은 stdin EOF 임대로 정리한다(HS-32).
   - 서비스는 L0.process의 detached spawn으로 띄운다. 요구 동작: 새 세션(setsid), stdin·stdout·stderr를 부모와 공유하지 않음(로그는 L0.os 로그 파일), 부모 이벤트 루프에서 `unref`. 부모(`ensure`를 부른 CLI)가 끝나도 서비스는 남는다(pi `PX/process.ts:40-70`).
 - SV-07 종료 협조 [결정: ADR-0006 §3.7 7번]
   - 서비스는 SIGTERM을 받으면 HS-31 절차를 `reason: "signal"`로 실행하고, 등록 파일을 지우고, 소켓을 닫고, 종료코드 0으로 끝난다.
-  - `xeon service stop`은 등록 파일을 읽고 `host.status`로 pid·startedAt을 확인한 뒤 SIGTERM을 보낸다. `l0.process.shutdown.timeoutMs` + 2000ms 안에 등록 파일이 사라지지 않으면 SIGKILL을 보낸다. SIGKILL 뒤 남은 등록 파일과 소켓 파일은 다음 `ensure`가 낡은 기록으로 처리한다.
+  - `xeon service stop`(`stopHostService`)은 등록 파일을 읽고 `host.status`로 pid가 같은지 확인한 뒤 먼저 `host.shutdown`(reason `user`)을 보내 협조 종료를 시도하고 `l0.process.shutdown.timeoutMs` + 1000ms 안에 등록 파일이 사라지기를 기다린다. 남아 있으면 SIGTERM, 시한 안에 안 끝나면 SIGKILL을 보낸다. 신호는 보내기 직전마다 그 pid가 등록 파일의 서비스인지(살아 있고 L0.os 시작 시각 지문 == `startedAt`) 다시 확인하고, 확인하지 못하면(지문 없음, 불일치 = pid 재사용) 보내지 않고 `not_running`이다. 등록 파일은 있고 프로세스가 같은데 hello·status에 답하지 않는 멈춘 서비스는 `host.shutdown` 없이 바로 SIGTERM → SIGKILL이다. `serviceStatus`도 `host.status`의 pid와 `startedAt`이 등록 파일과 같을 때만 실행 중으로 본다. SIGKILL 뒤 남은 등록 파일과 소켓 파일은 다음 `ensure`가 낡은 기록으로 처리한다.
   - 비협조 확장 코드는 안전 경계 도달을 막을 수 있다(ADR-0006 §4.2). 시한 뒤 SIGKILL이 마지막 수단이고, 진행 중 단계는 다음 열기에서 복구한다.
 - SV-08 단일 장애점 [결정: ADR-0006 §3.7 8번]
   - 서비스가 죽어도 DB와 복구 표식은 남는다. 다음 `ensure`가 새 서비스를 띄우고, 그 서비스가 §4.1의 7·8단계(열 때 복구, 설정 시 자동 재개)를 한다.
@@ -941,6 +945,13 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 
 - HS-37. [제안] CLI는 시작할 때 `l0.process.service.enabled`를 사용자·관리 범위 파일에서 읽는다. `false`면 `startInProcessHost`, `true`면 `ensureService` 뒤 `connectServiceTransport`를 쓴다. 이 값을 읽는 함수는 엔진 없이 설정 파일만 읽는다(`resolveLaunchMode`, `src/settings.ts`).
 - HS-38. 데스크톱은 서비스 사용 설정이 켜져 있으면 사이드카 엔진을 띄우지 않고, 셸(Rust)이 서비스 소켓 바이트를 WebView로 중계한다(`L4.desktop.spec` §4.8). 이를 위해 이 문서는 `xeon service ensure --json` 서브커맨드를 둔다 [제안]. 동작은 `ensureService`이고, stdout에 JSON 한 줄 `{ "ok": true, "socket": <경로>, "version": <버전>, "action": <EnsureResult.action> }` 또는 `{ "ok": false, "reason": <EnsureResult.reason> }`을 쓰고 끝난다. 종료코드는 성공 0, 실패 1이다. 셸은 이 명령을 짧게 실행해 소켓 경로를 얻는다. 셸은 엔진 카탈로그를 읽지 못하므로 서비스 경로로 갈지는 먼저 `xeon service launch-mode --json`(§3.2, `resolveLaunchMode`)으로 정한다 [제안]. 사이드카가 stdio와 소켓 사이를 중계하는 안은 쓰지 않는다. 엔진 프로세스가 하나 더 생기고, 데스크톱 쪽 소켓 중계(`EnginePipe`)가 이미 같은 일을 하기 때문이다.
+
+#### 4.9.4 서비스 모드의 프로젝트 확장 [결정: 오케스트레이터 기본값, M3-REQ-38]
+
+- 서비스는 시작 때 프로젝트 확장을 싣지 않는다. 쓰기 소유를 얻는 thread(`thread.create`, `thread.open` write)의 작업 폴더와 `trust.decide`가 끝난 폴더에 대해 `ProjectExtensions.ensure(workspace)`(`assembly/project-extensions.ts`)를 부른다.
+- `ensure`는 `ProjectTrust.resolve`로 판정하고 신뢰된 폴더만 로더의 `loadProject`로 싣는다(단위는 프로젝트 루트, `X.loading-trust.spec` §4.7.8). 결정이 없는 폴더는 싣지 않는다.
+- 프롬프트를 받을 클라이언트는 그 폴더를 연 연결이다. 클라이언트가 `trust.get`으로 선택지를 읽고 `trust.decide`로 정한다(thread 없는 신뢰 경로). `trust.decide`가 허용을 돌려주면 같은 호출 안에서 그 프로젝트의 확장을 싣는다. "이번 세션만" 결정은 서비스 프로세스 수명 동안 유지한다.
+- 프로젝트 확장의 설정 키는 시작 때 만든 카탈로그에 없다 [미결].
 
 ### 4.10 예약과 알림
 
@@ -992,15 +1003,15 @@ ADR-0006 §3.7의 여덟 항목을 순서대로 옮긴다. 각 규칙은 `L4.hos
 ### 4.15 M2 조립 [결정: m2-plan HOST.6]
 
 - HS-57. 기본 플러그인 순서는 이렇다: core-persistence → core-tasks → core-models → core-context → core-tools → core-loop → host-groups → core-agents → cap-workspace → cap-dialog → host-dialog-bridge → cap-work → cap-mcp → cap-web → cap-knowledge. 뒤 단위의 setup이 앞 서비스를 동기로 찾으므로 순서가 곧 의존이다. 조립 루트가 만든 단위(`host-groups`, `host-dialog-bridge`, cap-web·cap-mcp의 엔트리)는 해당 패키지가 확장 엔트리를 내놓지 않아서 이 패키지에 있다.
-- HS-58. 프로젝트 신뢰(X.loading-trust.spec §4.7, 결정 D6): 저장 파일은 `<config>/trust.json`이고 읽고-고치고-쓰기는 L0.os의 `fileLock.updateText`(`<path>.lock` 아래 OS 잠금, 같은 디렉터리 임시 파일과 이름 바꾸기)로 한다. CLI의 `xeon trust`와 데스크톱 카드가 각자의 호스트로 쓰므로 호스트 프로세스 둘이 동시에 결정을 저장해도 앞 결정을 덮지 않는다[결정: m2c G1-10]. 잠금을 얻지 못하면(시간 초과, I/O) 결정은 저장되지 않고 `trust.decide`는 `store.io`다. 모드는 `headless`다. 프롬프트를 띄울 클라이언트가 없어 결정이 없는 프로젝트는 `undecided`이고 불신으로 다룬다(fail-closed). 기본 정책은 `x.loading-trust.defaultProjectTrust`다. `project_trust` 지점은 thread 없이 발화할 수 없고 그 지점에 핸들러를 거는 확장이 M2에 없어 발화하지 않는다(`PointDecl.threadless`는 메타데이터일 뿐 디스패처의 thread 없는 경로는 M3다). 이 판정을 쓰는 곳은 셋이다: project·local 설정 파일(HS-54), cap-knowledge의 프로젝트 스킬(`.xeon/skills`), cap-mcp의 `.mcp.json`·`.xeon/mcp.json`.
+- HS-58. 프로젝트 신뢰(X.loading-trust.spec §4.7, 결정 D6): 저장 파일은 `<config>/trust.json`이고 읽고-고치고-쓰기는 L0.os의 `fileLock.updateText`(`<path>.lock` 아래 OS 잠금, 같은 디렉터리 임시 파일과 이름 바꾸기)로 한다. CLI의 `xeon trust`와 데스크톱 카드가 각자의 호스트로 쓰므로 호스트 프로세스 둘이 동시에 결정을 저장해도 앞 결정을 덮지 않는다[결정: m2c G1-10]. 잠금을 얻지 못하면(시간 초과, I/O) 결정은 저장되지 않고 `trust.decide`는 `store.io`다. 모드는 `headless`다. 프롬프트를 띄울 클라이언트가 없어 결정이 없는 프로젝트는 `undecided`이고 불신으로 다룬다(fail-closed). 기본 정책은 `x.loading-trust.defaultProjectTrust`다. `session.trust.before` 지점은 thread 없이 발화할 수 없고 그 지점에 핸들러를 거는 확장이 M2에 없어 발화하지 않는다(`PointDecl.threadless`는 메타데이터일 뿐 디스패처의 thread 없는 경로는 M3다). 이 판정을 쓰는 곳은 셋이다: project·local 설정 파일(HS-54), cap-knowledge의 프로젝트 스킬(`.xeon/skills`), cap-mcp의 `.mcp.json`·`.xeon/mcp.json`.
 - HS-59. L2 승인 포트: cap-*는 F `L2ApprovalsPort` 모양으로 승인을 쓰고(L2.readme §5.7), 조립 루트가 F `ApprovalService`(`open`·`wait`·`get`) 위에 어댑터를 얹는다(`assembly/l2-approvals.ts`). 질문(`dialog.ask`)은 호출 문맥에서 출처를 만든다: 도구 호출 안이면 `origin.toolCallId`가 있어 L1.tools가 그 호출의 대기 체크포인트를 같은 커밋에 넣는다. 계획 승인은 호출마다 출처를 받는 공장이고, 웹 도메인 질문은 대화만 아는 출처 없는 포트다(체크포인트 없음). 요청 키: cap-*는 F `requestKeyFor`(records)로 만든 키를 `requestId`로 넘기므로 어댑터는 다시 해시하지 않고 F `isApprovalRequestKey`(records)로 키인지만 검사해 그대로 쓴다(`h_` 해시 키를 한 번 더 해시하면 cap이 아는 키와 달라진다). 키가 아닌 `requestId`(허용 밖 문자, 48자 초과, `h_` + hex 40자가 아닌 `h_` 접두 원문)는 `approvals.request_invalid` 거부 Result로 돌려준다: 어댑터가 조용히 해시하면 `h_plain` 같은 원문이 해시 키와 겹칠 수 있다 [결정: 통합 검토 L5 후속 N-2, U-13]. 키 알파벳 정규식은 호스트에 두지 않는다. 어댑터에 자체 키 변환 함수를 두지 않는다.
 - HS-60. core-tools는 도구 호출에서 능력 공급자를 `ScopeHostApi.capability`로 찾으므로 그 능력이 core-tools 매니페스트 `optional`에 있어야 한다. 조립 루트가 도구를 올리는 L2 능력(web.search, web.fetch, knowledge.skills, work.tasks, work.plans, dialog.ask, mcp.client)을 `toolsPlugin({ capabilities })`로 넘긴다. 빠지면 도구 호출이 "공급자 없음"으로 끝난다.
 - HS-61. 자식 thread: core-agents가 자식 thread를 만들고 `runChildTurn`을 부르는 사이에 열 틈이 없어, 조립 루트가 `agentsPlugin({ loop })`에 감싸개를 넘긴다. 감싸개는 `ExtHost.openThread(child)`를 하고 자식 turn을 돌린 뒤 `closeThread`한다. 열지 못하면(`storage_unavailable`) 자식 turn을 시작하지 않고 `io` 오류 값으로 돌려준다. 부모의 세션 쓰기 토큰은 이 프로세스가 쥔 thread의 임대 토큰이고(`parentToken`), 자식은 같은 holder로 소유를 이어받는다.
 - HS-62. 보관 정리: 엔진을 열 때 한 번 계약의 `SessionService.retention.prune()`을 부른다(L1.persistence.spec §6.1, F records `SessionRetention`). 필수 멤버라 없는 경우를 따로 다루지 않는다. `l1.persistence.retention.maxAgeDays`·`maxCount`가 둘 다 0(기본)이면 아무것도 지우지 않는다. 실패는 시작을 막지 않고 로그만 남긴다.
 - HS-63. 그룹 서비스: `host-groups`가 `createGroupService`를 X의 임대 중재 포트(`xeon.groups`)와 같은 객체로 올린다. 그룹 목록은 설치한 단위 가운데 L3 매니페스트, 구동 그룹 설정은 `x.primitives.activeDriveGroup`(설정 엔진으로 읽고 `SettingsStorePort`로 쓴다. 쓰는 thread는 요청의 `threadId`이고, 없으면 이 엔진이 쓰기 소유를 쥔 thread가 하나일 때만 그 thread다: 없으면 `no_thread`, 여럿이면 `ambiguous_thread`이며 마지막에 쥔 thread를 고르지 않는다. 실패는 `group.settingLocked`(관리 범위 쓰기. 키가 허용하지 않는 다른 범위는 `invalid_value`)와 `group.settingUnwritable`의 이유로 가른다: `not_owner`, `project_unavailable`, `invalid_value`, `storage`; 저장소의 `key_reused`는 호출 결함이라 `Bug`로 던진다 [결정: 통합 검토 L5 후속 N-1·N-4]), 그룹 설정 읽기(`xeon.settings`)는 설정 엔진의 유효 값이다. 서비스가 상태를 보이는 thread는 이 엔진이 가장 최근에 쓰기 소유를 쥔 thread다(설정 쓰기 대상을 정하는 데는 쓰지 않는다). `/group` 명령은 등록하지 않는다: 처리기가 출력을 돌려줄 길이 F `CommandResourceDef`에 없다(§10 미결 26).
-- HS-64. cap-mcp: HTTP·SSE 서버는 연결되고 서버 도구는 도구 표에 오른다. 서버 변화와 정의 다시 읽기는 단계를 여는 `turn_start`(도구 광고 앞)에서 반영한다: 그 대화의 작업 폴더로 `reload(signal, { threadId })`를 부르고(HS-76) 이어서 `applyBoundary`로 도구 표에 올린다. 서버 연결은 시작을 막지 않으므로 대화의 첫 단계에는 연결이 끝나지 않은 서버의 도구가 없고, 연결이 끝난 다음 단계의 `turn_start`부터 보인다. stdio 서버는 사용자 권한 자식 프로세스로 뜬다 [결정: m2c G1-04, ADR-0011]: 조립 루트가 L0 platform-process의 `createMcpProcessPort`(`assembly/mcp-process.ts`)를 cap-mcp의 `McpProcessPort`로 넘기고, 레지스트리는 `xeon.process`의 `BackgroundRegistry`(owner kind `mcp`, ref 서버 id)다. 종료는 stdin 닫기 → `stdinCloseMs`(기본 500ms) → SIGTERM → 레지스트리 유예 → SIGKILL이고, 엔진을 닫으면 서버 프로세스가 남지 않는다. `xeon.process`가 없으면 포트가 없어 stdio 서버는 연결에 실패한다. 비밀 env(`secret://`)를 쓰는 stdio 서버는 기동 시점에 사람이 승인하는 지점이 없어 `secret_denied`로 끝난다(비밀 값을 읽지 않고 자식도 띄우지 않는다, M3). `mcp_servers_change` 지점은 thread 없이 발화할 수 없어 발화하지 않는다.
+- HS-64. cap-mcp: HTTP·SSE 서버는 연결되고 서버 도구는 도구 표에 오른다. 서버 변화와 정의 다시 읽기는 단계를 여는 `boundary.step.before`(도구 광고 앞)에서 반영한다: 그 대화의 작업 폴더로 `reload(signal, { threadId })`를 부르고(HS-76) 이어서 `applyBoundary`로 도구 표에 올린다. 서버 연결은 시작을 막지 않으므로 대화의 첫 단계에는 연결이 끝나지 않은 서버의 도구가 없고, 연결이 끝난 다음 단계의 `boundary.step.before`부터 보인다. stdio 서버는 사용자 권한 자식 프로세스로 뜬다 [결정: m2c G1-04, ADR-0011]: 조립 루트가 L0 platform-process의 `createMcpProcessPort`(`assembly/mcp-process.ts`)를 cap-mcp의 `McpProcessPort`로 넘기고, 레지스트리는 `xeon.process`의 `BackgroundRegistry`(owner kind `mcp`, ref 서버 id)다. 종료는 stdin 닫기 → `stdinCloseMs`(기본 500ms) → SIGTERM → 레지스트리 유예 → SIGKILL이고, 엔진을 닫으면 서버 프로세스가 남지 않는다. `xeon.process`가 없으면 포트가 없어 stdio 서버는 연결에 실패한다. 비밀 env(`secret://`)를 쓰는 stdio 서버는 기동 시점에 사람이 승인하는 지점이 없어 `secret_denied`로 끝난다(비밀 값을 읽지 않고 자식도 띄우지 않는다, M3). `session.mcp.after` 지점은 thread 없이 발화할 수 없어 발화하지 않는다.
 - HS-65. 실제 엔진 시험은 엔진이 서지 못하면 건너뛰지 않고 시험 파일이 실패한다(`test/fixtures/real-engine.ts`). 건너뛰면 조립 실패가 모든 실제 엔진 시험을 가려 검증이 통과한 것처럼 보인다.
-- HS-66. `user_bash` 지점 페이로드의 `cwd`는 그 대화의 작업 디렉터리다. 조립 루트가 `loopExtensionUnit({ workingDirectory })`에 `(threadId) => string | undefined`를 넘기고, 이 함수는 세션 서비스의 thread 행 `workspace`를 읽는다(설정 엔진의 project·local 층 조회와 같은 함수 `threadWorkspaceOf`). 작업 디렉터리가 없는 대화나 모르는 thread는 빈 문자열이다. thread 읽기가 실패(busy, io, row_invalid)해도 값은 같은 빈 문자열이지만 `host.thread_workspace_unreadable` 경고(threadId, reason)로 남긴다: 읽기 실패를 작업 디렉터리 없음으로 조용히 바꾸지 않는다 [결정: 통합 검토 L5 후속 N-5]. 엔진 프로세스의 cwd를 대신 쓰지 않는다: 대화마다 작업 디렉터리가 다르다.
+- HS-66. `input.bash.before` 지점 페이로드의 `cwd`는 그 대화의 작업 디렉터리다. 조립 루트가 `loopExtensionUnit({ workingDirectory })`에 `(threadId) => string | undefined`를 넘기고, 이 함수는 세션 서비스의 thread 행 `workspace`를 읽는다(설정 엔진의 project·local 층 조회와 같은 함수 `threadWorkspaceOf`). 작업 디렉터리가 없는 대화나 모르는 thread는 빈 문자열이다. thread 읽기가 실패(busy, io, row_invalid)해도 값은 같은 빈 문자열이지만 `host.thread_workspace_unreadable` 경고(threadId, reason)로 남긴다: 읽기 실패를 작업 디렉터리 없음으로 조용히 바꾸지 않는다 [결정: 통합 검토 L5 후속 N-5]. 엔진 프로세스의 cwd를 대신 쓰지 않는다: 대화마다 작업 디렉터리가 다르다.
 
 ### 4.16 M2 마감 조립 [결정: m2c 마감 G1-12, G2-05, G2-06, G2-07]
 
@@ -1018,15 +1029,16 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 - HS-72. 슬래시 명령 [결정: m2c G1-01]. 명령 서비스는 cap-dialog의 `dialog.commands` 능력이다. `host-dialog-bridge` 확장이 그 API를 조립 루트의 `CommandRegistryHolder.api`에 채우고(`registerAction`을 가진 등록부는 `current`에 채워 cap-work가 `/plan`, `/tasks`를 등록한다), `CommandPort`(`assembly/commands.ts`)가 호출 때 읽는다. 호스트의 호출 문맥은 호출자 `host`(승인 origin의 `caller`도 `host`, F `approvalCallerOf`), 사람이 입력 자리에 있으므로 `interactive`는 생략(대화형)이고, `command.run`은 thread 문맥을 싣는다. 요청 키는 호출마다 새 `evt_` id다: wire에는 클라이언트 키가 없어 같은 줄을 다시 보내면 다시 실행된다. 클라이언트가 같은 줄을 다시 보내는 것은 `needs_confirmation` 뒤의 `confirmShell: true` 재호출처럼 의도한 경우뿐이어야 한다. 명령 서비스가 입력을 거절하면(`command_args_invalid`, `command_shell_disabled`, `invalid_input`) `-32602`(`path: "text"`)이고, 그 밖의 거절(셸 명령 거부 등)은 wire에 명령 전용 오류 kind가 없어 `-32603`에 능력 오류 코드를 싣는다. 명령 서비스가 없으면(`dialog.commands` 공급자 없음) `command.list`·`command.run`은 `-32603`이다. `command.list`는 선택 params `threadId`를 받는다(G1-01 F 후속). 있으면 thread가 있는지 확인하고(없으면 3001) `CommandPort.list`가 `threadId`를 서비스 입력(`prefix`, `includeHidden`)에서 떼어 호출 문맥의 `threadId`에 싣는다(`command.run`과 같다). 프로젝트 명령은 그 문맥의 thread가 가진 작업 폴더(HS-76)로 읽는다. 목록만 읽으므로 `command.run`과 달리 쓰기 소유를 얻지 않고, 다른 프로세스가 쥔 thread여도 된다. 생략하면 thread 문맥이 없어 프로젝트 명령은 엔진의 기본 작업 폴더 기준으로 나온다(데스크톱 사이드카는 홈 폴더이므로 열린 thread의 id를 보내야 한다). `/group` 명령은 아직 등록하지 않는다(§10 미결 26).
 - HS-73. 대화 제목 [결정: m2c G2-12]. `thread.rename`은 `SessionService.threads.setTitle`을 부르고 호출마다 새 요청 키를 만든다. 제목을 지우는 길은 없다. 첫 입력의 자동 제목: `turn.start`가 입력을 접수한 뒤(접수되지 않았으면 하지 않는다) thread에 제목이 없으면 입력 텍스트의 공백(줄바꿈 포함)을 한 칸으로 줄이고 앞뒤를 자른 앞 80자(코드 포인트 수)를 `rename`으로 정한다. 이미지 블록만 있는 입력은 제목을 정하지 않는다. 사람이 정한 제목(`thread.create { title }`, `thread.rename`)이 있으면 덮지 않고, 첫 입력 뒤에는 제목이 있으므로 다시 정하지 않는다. 자동 제목이 실패해도 `turn.start`는 실패하지 않고 `thread.auto_title_failed`(threadId, step, kind)를 로그로 남긴다. 모델로 만드는 요약 제목은 M3다.
 - HS-74. 턴 재개 [결정: m2c G1-02]. `turn.resume { threadId }`는 `LoopService.resume`을 부른다. 호스트는 자동 재개를 하지 않는다(서비스 모드의 `l1.persistence.autoResume`은 M3): `thread.list`의 `ThreadSummary.resumable`을 보고 사용자가 확인한 뒤 클라이언트가 부른다. 재시작 뒤 첫 쓰기 소유 획득이 열 때 복구(`session.recover`)와 미해결 승인 되살리기(`approvals.restore`)를 하므로 `turn.resume`은 `turn.start`처럼 소유를 암묵 획득한다. 응답 `resumed { turnId, from }`은 이어 실행을 접수했다는 뜻이고 진행은 이벤트로 온다. 승인을 기다리던 turn이었으면 `approval.respond`가 와야 도구 호출이 이어진다. `closed`는 중단 요청이나 소유자 취소로 이어 실행하지 않고 닫았다는 뜻이고 `nothing`은 이어 실행할 열린 turn이 없다. `LoopError`는 `turn.start`의 입력 접수 거절과 같은 표로 옮긴다(`turn_aborting`은 `turn.busy`, `stale_lease`는 `thread.locked`, 저장소 오류는 `store.*`).
-- HS-75. cap-web 연결 [결정: m2c G1-12, H1, E4]. 조립 루트가 `createWebRuntime`에 실제 포트를 잇는다(`xeon.store`, `xeon.approvals`, `xeon.session` 이벤트 읽기, `xeon.secrets`의 마스킹, 설정 층)와 함께 `xeon.models`의 `hostedSearch`(내장 검색 래퍼)를 넘긴다. 시험은 `AssembleOptions.webPorts.hostedSearch`로 대역을 넣는다. `web.search`의 기본 provider는 내장 래퍼이고 SearXNG와 키 API는 사용자가 설정했을 때만 체인에 든다(ADR-0005 개정, `L2.web.spec` §4.8): 호스트는 SearXNG를 감지하거나 켜지 않는다. 호스트가 하는 일은 둘 더 있다. (1) 설정이 바뀌면 탐침 기억(성공 5분, 실패 30초)을 지운다: `SettingsEngine.onChange`가 `ProbeCache.forget`을 부른다. 설정한 SearXNG를 새로 띄우거나 주소를 바꾼 뒤 기억이 풀리기를 기다리지 않게 한다. (2) `session_shutdown`에서 `purgeSessionRaw`를 부른다. 살아 있는 세션은 이 엔진이 쓰기 소유를 쥔 thread뿐이다: 다른 프로세스가 쥔 thread의 `retention='session'` 원문 행도 지워질 수 있고(캐시라 다시 읽으면 된다), 닫은 thread를 다시 열면 이전 원문 참조는 만료된다 [미결: L2.web 작성자와 정한다]. `modelTool` 판정(`turn_start`)과 플러그인 provider 등록·인증 값(`headerSecrets`)은 연결하지 않았다: 전자는 L1.models의 hosted 경로, 후자는 X의 후보 등록 API가 생긴 뒤에 잇는다.
+- HS-75. cap-web 연결 [결정: m2c G1-12, H1, E4]. 조립 루트가 `createWebRuntime`에 실제 포트를 잇는다(`xeon.store`, `xeon.approvals`, `xeon.session` 이벤트 읽기, `xeon.secrets`의 마스킹, 설정 층)와 함께 `xeon.models`의 `hostedSearch`(내장 검색 래퍼)를 넘긴다. 시험은 `AssembleOptions.webPorts.hostedSearch`로 대역을 넣는다. `web.search`의 기본 provider는 내장 래퍼이고 SearXNG와 키 API는 사용자가 설정했을 때만 체인에 든다(ADR-0005 개정, `L2.web.spec` §4.8): 호스트는 SearXNG를 감지하거나 켜지 않는다. 호스트가 하는 일은 둘 더 있다. (1) 설정이 바뀌면 탐침 기억(성공 5분, 실패 30초)을 지운다: `SettingsEngine.onChange`가 `ProbeCache.forget`을 부른다. 설정한 SearXNG를 새로 띄우거나 주소를 바꾼 뒤 기억이 풀리기를 기다리지 않게 한다. (2) `session.shutdown`에서 `purgeSessionRaw`를 부른다. 살아 있는 세션은 이 엔진이 쓰기 소유를 쥔 thread뿐이다: 다른 프로세스가 쥔 thread의 `retention='session'` 원문 행도 지워질 수 있고(캐시라 다시 읽으면 된다), 닫은 thread를 다시 열면 이전 원문 참조는 만료된다 [미결: L2.web 작성자와 정한다]. `modelTool` 판정(`boundary.step.before`)과 플러그인 provider 등록·인증 값(`headerSecrets`)은 연결하지 않았다: 전자는 L1.models의 hosted 경로, 후자는 X의 후보 등록 API가 생긴 뒤에 잇는다.
 - HS-76. 프로젝트 자원의 기준 폴더 [결정: m2c G2-02]. 대화가 읽는 프로젝트 자원(`.xeon/settings.json`·`settings.local.json`, `.mcp.json`·`.xeon/mcp.json`, `.xeon/skills`, `.xeon/commands`, 작업 공간 도구와 사용자 셸의 cwd)의 기준 폴더는 그 대화의 작업 폴더(`thread.started.workspace`)다. 규칙 다섯.
   1. 저장 형태: `thread.create`의 `workspace`는 절대 경로여야 하고(상대 경로를 호스트의 작업 디렉터리 기준으로 풀지 않는다: 데스크톱 사이드카의 작업 디렉터리는 홈이다), 있는 폴더여야 하며, 심볼릭 링크를 푼 정규 경로로 저장한다(`assembly/workspace.ts`). 프로젝트 신뢰 저장소의 키와 같은 형태라 `trust.get`이 알려 준 `projectRoot`와 대화의 폴더가 같은 문자열이다. 받아들이지 못하면 thread를 만들지 않고 `-32602`(`path: "workspace"`)다. `thread.list`의 `workspace` 필터도 같은 형태로 견준다: 폴더가 지금 없으면(옮기거나 지운 프로젝트) `.`·`..`만 정리한 절대 경로로 견주므로 그 대화의 목록은 계속 볼 수 있다. `workspace`를 생략하면 작업 폴더가 없는 대화다.
   2. 대화 단위: 엔진 단위로 만들어진 L2 자원(cap-mcp, cap-knowledge)도 대화를 지정한 읽기는 그 대화의 작업 폴더를 기준으로 한다. 대화를 지정하지 않는 읽기(엔진을 열 때의 첫 로드)에는 기본 폴더를 두지 않는다: 엔진의 작업 디렉터리(`xeon.exec`의 `cwd`)는 프로젝트가 아니다(데스크톱 사이드카는 홈이다). 그래서 홈의 `.mcp.json`을 읽거나 홈을 신뢰 판정하지 않는다. 대화마다 폴더가 다를 수 있으므로 한 폴더의 자원이 다른 폴더의 대화에 새지 않는다.
   3. 작업 폴더가 없는 대화에는 프로젝트 자원이 없다. 엔진의 작업 디렉터리로 내려가지 않는다(HS-66과 같다): 데스크톱 사이드카의 홈이 프로젝트가 되지 않는다.
   4. 신뢰: 프로젝트 자원은 모두 같은 판정(HS-58)을 쓰되 판정 대상은 그 대화의 작업 폴더다. 홈이나 엔진 cwd에 대한 판정이 아니다.
-  5. 전달: 조립 루트가 대화의 작업 폴더를 찾는 함수(`threadWorkspaceOf`, HS-66)를 L2 패키지에 넘긴다. cap-mcp는 `McpDeps.workspaceOf`와 `turn_start`의 `reload(signal, { threadId })`, cap-knowledge는 `KnowledgePluginOptions.workspaceOf`, cap-dialog는 `DialogPluginOptions.workspaceOf`와 `projectTrust`(`.xeon/commands` 신뢰 게이트, G1-03)다. cap-workspace는 `xeon.session`의 thread 행을 직접 읽는다. 이 규칙에 F 변경은 필요 없다. 클라이언트는 thread를 만들 때 사용자가 고른 폴더(데스크톱) 또는 `--cwd`·프로세스 cwd(CLI)를 `workspace`로 보낸다.
-- HS-77. 수동 컴팩션 [결정: m2c G2-01]. `thread.compact { threadId, instructions? }`는 대화를 지금 요약한다(`/compact`). 순서는 (1) thread 확인(없으면 3001), (2) `turn.start`처럼 쓰기 소유 암묵 획득(HS-28, 못 얻으면 3002), (3) `ThreadPort.compact`다. 어댑터는 먼저 투영 행이 종결(`closed`)이면 3007, `LoopService.threadStatus`의 열린 turn이 있으면 `turn.busy`(3003, `turnId`)로 거절하고 컨텍스트 서비스도 모델도 부르지 않는다. 그다음 `ModelService.resolve("main")`으로 현재 모델의 `ModelBinding`과 `contextWindow`를 정해 `ContextService.compact`를 이유 `manual`, `willRetry: false`, 요청의 취소 신호와 함께 부른다. 요약에 쓰는 모델은 컨텍스트 서비스가 `summary` 역할로 따로 고른다. 수동 컴팩션은 설정 `l1.context.autoCompact`가 꺼져 있어도 한다. 결과는 오류와 값으로 나뉜다. 값: `compacted`는 `CompactOutcome`에 위치를 더한 것으로 `position`은 컴팩션 이벤트를 커밋한 뒤 읽은 저장소 위치다. `skipped`(`nothing_to_summarize`, `last_entry_is_compaction`, `disabled`)는 오류가 아니다. 오류: 확장이 막으면(`CompactOutcome.cancelled`) 3006 `session_before_compact`에 확장이 낸 이유(512자까지), `ContextError`의 `read_failed`·`projection_failed`·`summary_failed`·`summary_has_tool_call`·`summary_truncated`·`commit_failed`는 3008에 같은 이름의 `reason`, `aborted`는 5001이다. 요약할 모델을 해석하지 못해도 요약이 시작되지 못한 것이라 3008 `summary_failed`다. `branch_not_found`는 컨텍스트 서비스가 활성 가지를 스스로 읽으므로 이벤트가 없는 thread를 만들었다는 뜻이고 불변 조건 위반이라 `Bug`(-32603)다. 모델 출력과 제공자 응답 본문은 와이어 오류에 싣지 않는다(호스트 로그에는 `thread.compact_failed`로 thread와 오류 kind만 남긴다). 같은 thread에서 컴팩션이 도는 동안 들어온 `turn.start`와 `turn.resume`은 컴팩션이 끝날 때까지 기다렸다가 처리한다 [결정: M2 마감 재검토 3, §10 31]. 어댑터가 thread마다 한 번에 하나씩만 도는 구간(`assembly/thread-gate.ts`)으로 컴팩션 전체(열린 turn 확인, 요약, 커밋)와 `TurnPort.submit`·`TurnPort.resume`을 차례로 돌린다. 먼저 온 쪽이 먼저 돈다: turn을 먼저 접수했으면 뒤따르는 컴팩션은 열린 turn을 보고 `turn.busy`(3003)이고, 컴팩션이 먼저면 `turn.start`는 `thread.compacted`가 커밋된 뒤에 turn을 열어 요약이 새 입력을 담지 않는다. 다른 thread끼리는 서로 기다리지 않는다. 기다리는 `turn.start`는 요약 시간만큼(수 초) 응답이 늦는다.
+  5. 전달: 조립 루트가 대화의 작업 폴더를 찾는 함수(`threadWorkspaceOf`, HS-66)를 L2 패키지에 넘긴다. cap-mcp는 `McpDeps.workspaceOf`와 `boundary.step.before`의 `reload(signal, { threadId })`, cap-knowledge는 `KnowledgePluginOptions.workspaceOf`, cap-dialog는 `DialogPluginOptions.workspaceOf`와 `projectTrust`(`.xeon/commands` 신뢰 게이트, G1-03)다. cap-workspace는 `xeon.session`의 thread 행을 직접 읽는다. 이 규칙에 F 변경은 필요 없다. 클라이언트는 thread를 만들 때 사용자가 고른 폴더(데스크톱) 또는 `--cwd`·프로세스 cwd(CLI)를 `workspace`로 보낸다.
+- HS-77. 수동 컴팩션 [결정: m2c G2-01]. `thread.compact { threadId, instructions? }`는 대화를 지금 요약한다(`/compact`). 순서는 (1) thread 확인(없으면 3001), (2) `turn.start`처럼 쓰기 소유 암묵 획득(HS-28, 못 얻으면 3002), (3) `ThreadPort.compact`다. 어댑터는 먼저 투영 행이 종결(`closed`)이면 3007, `LoopService.threadStatus`의 열린 turn이 있으면 `turn.busy`(3003, `turnId`)로 거절하고 컨텍스트 서비스도 모델도 부르지 않는다. 그다음 `ModelService.resolve("main")`으로 현재 모델의 `ModelBinding`과 `contextWindow`를 정해 `ContextService.compact`를 이유 `manual`, `willRetry: false`, 요청의 취소 신호와 함께 부른다. 요약에 쓰는 모델은 컨텍스트 서비스가 `summary` 역할로 따로 고른다. 수동 컴팩션은 설정 `l1.context.autoCompact`가 꺼져 있어도 한다. 결과는 오류와 값으로 나뉜다. 값: `compacted`는 `CompactOutcome`에 위치를 더한 것으로 `position`은 컴팩션 이벤트를 커밋한 뒤 읽은 저장소 위치다. `skipped`(`nothing_to_summarize`, `last_entry_is_compaction`, `disabled`)는 오류가 아니다. 오류: 확장이 막으면(`CompactOutcome.cancelled`) 3006 `session.compact.before`에 확장이 낸 이유(512자까지), `ContextError`의 `read_failed`·`projection_failed`·`summary_failed`·`summary_has_tool_call`·`summary_truncated`·`commit_failed`는 3008에 같은 이름의 `reason`, `aborted`는 5001이다. 요약할 모델을 해석하지 못해도 요약이 시작되지 못한 것이라 3008 `summary_failed`다. `branch_not_found`는 컨텍스트 서비스가 활성 가지를 스스로 읽으므로 이벤트가 없는 thread를 만들었다는 뜻이고 불변 조건 위반이라 `Bug`(-32603)다. 모델 출력과 제공자 응답 본문은 와이어 오류에 싣지 않는다(호스트 로그에는 `thread.compact_failed`로 thread와 오류 kind만 남긴다). 같은 thread에서 컴팩션이 도는 동안 들어온 `turn.start`와 `turn.resume`은 컴팩션이 끝날 때까지 기다렸다가 처리한다 [결정: M2 마감 재검토 3, §10 31]. 어댑터가 thread마다 한 번에 하나씩만 도는 구간(`assembly/thread-gate.ts`)으로 컴팩션 전체(열린 turn 확인, 요약, 커밋)와 `TurnPort.submit`·`TurnPort.resume`을 차례로 돌린다. 먼저 온 쪽이 먼저 돈다: turn을 먼저 접수했으면 뒤따르는 컴팩션은 열린 turn을 보고 `turn.busy`(3003)이고, 컴팩션이 먼저면 `turn.start`는 `thread.compacted`가 커밋된 뒤에 turn을 열어 요약이 새 입력을 담지 않는다. 다른 thread끼리는 서로 기다리지 않는다. 기다리는 `turn.start`는 요약 시간만큼(수 초) 응답이 늦는다.
 - HS-78. [결정: M2 Mac 실기] `settings.set`은 모델 id를 값으로 갖는 키(`l1.models.default`, `l1.models.routing.*`)가 카탈로그(`ModelService.list`, 허용·차단 적용)에 없는 모델을 가리키면 쓰기 전에 3102로 거절하고 아무것도 저장하지 않는다. `details.issues[0].message`는 `알 수 없는 모델 <provider>/<modelId> (<provider>의 모델: …최대 5개)`(provider에 모델이 없으면 `provider <id>에 등록된 모델이 없다`)다. 추론 수준 접미(`:high`)는 떼고 비교하고 null(지움)은 검사하지 않는다. CLI `config set`과 데스크톱 설정 화면이 같은 요청이라 둘 다 같은 문장을 본다. 파일을 직접 고쳐 틀린 id가 들어간 경우는 turn의 `model_unavailable: model_not_found: model <ref> is not in the catalog`로 드러난다(`L1.loop.spec` §4.3).
+- HS-79. 학습 그룹과 지식 제안 대기열 [결정: review.m3-design-inputs D-M3-02·07·32 a, M3-REQ-18·104]. (1) 학습 그룹은 L3 내장 그룹이고 기본으로 싣는다. `defaultGroups: false`나 `safeMode: true`면 싣지 않는다. 안전 모드의 적용 규칙(L3 내장 그룹 제외, L1·L2 유지)은 X.operations.spec §4.6.2와 같다. ext-host가 `allowedInSafeMode`를 진입점으로 내지 않아 조립 루트가 같은 규칙을 직접 적용한다 [미결]. (2) 조립 루트는 서비스가 올라온 뒤(조립 순서 4단계, 서비스 확인 뒤) 투영기 `learningProjector`를 `xeon.session`에 등록하고(소유자 `ext.learning` 등록 포함, 버전이 다르면 기록에서 다시 만든다) 읽기 면(`createSqlReader`)과 목록 면(`LearningBridge`)을 그룹에 넘긴다. 호스트는 대기열 행을 쓰지 않는다. 후보 id는 도구 호출 id에서 정해진다. (3) 브리지 확장 `host-proposals-bridge`가 `knowledge.ledger`로 L2 대기열 어댑터(`createKnowledgeProposalWire`)를 얻어 처리기에 준다. (4) cap-knowledge에는 학습 그룹을 싣는 구성에서만 `trustedEvidenceSources: ["learning.queue"]`를 넘긴다. 그래서 학습 대기열의 승인이 L2에서 한 번만 일어난다. (5) `proposal.list`는 두 출처를 `createdAt` 내림차순(같으면 source, id 오름차순)으로 합치고 출처마다 행을 `ProposalRow`로 옮긴다. 읽지 못하는 출처(그룹이 꺼짐, 안전 모드, 지식 능력 없음)는 `unavailable`에 올리고 나머지는 돌려준다. 학습 쪽은 읽기 전에 지연 정리(만료, 승인된 미적용 재적용)를 `/learning queue` 명령으로 한 번 돌린다. 열린 대화가 없으면 건너뛰고 목록은 읽는다. 커서는 마지막 행의 `(createdAt, source, id)`를 base64url JSON으로 감싼 불투명 값이다. 커서가 있으면 지식 출처에는 `before`로 그 시각 이전을 읽어 200행을 넘는 목록도 끝까지 이어진다. 쪽 크기는 100행으로 줄이고(지식 어댑터는 한 번에 200행까지 준다) 같은 시각의 행에 쓸 여유 50행을 더 읽는다. 근거 thread id가 `thr` 형식이 아닌 학습 후보 항목은 행에서 빼고 `proposal.evidence_dropped`로 남긴다. (6) `proposal.decide`는 `source`로 보낸다. 학습 결정은 기록을 쓰므로 대화(ambient)가 필요하다. 조립 루트는 `decisionCommandLine`으로 만든 `/learning` 명령 줄을 X 자원 표(`ExtHost.resources`)의 처리기로 실행한다. 호출마다 새 `invocationId`를 만들어 넘기고(재시도하지 않는 경로라 같은 값을 다시 쓰지 않는다) 그 id로 명령이 `report`로 낸 결과를 찾는다. 실행 대화는 후보의 부모 대화이고, 이 호스트에서 열려 있지 않으면 가장 최근에 연 대화다. 열린 대화가 없으면 `unavailable`이다. 학습 결정의 오류(`learning.*`)와 승인 뒤 결과(스캔 거절, 원본 변경으로 `pending` 복귀, 적용 실패)는 결정 실패 이유로 옮긴 오류 값이고 던지지 않는다. 지식 결정은 어댑터가 `ledger.decide`의 오류를 옮긴다. 호출은 호스트(사용자) 문맥이다(`ledger.decide`는 호스트 호출만 받는다). 시험은 `test/assembly/proposals.test.ts`, `test/assembly/learning.test.ts`, `test/handlers/proposal.test.ts`, `test/int/proposals.int.test.ts`다.
 
 ## 5. 실패와 경계 사례
 
@@ -1151,12 +1163,12 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 2. [미결] 바이너리 구성. 단일 `xeon`(제안)과 `apps/host` 단독 사이드카 중 선택(§3.2). 사용자 확인.
 3. [미결] 문서 수정 요청: `eng.toolchain.guide` TC-10과 같은 문서 §2 바이너리 행, `xeon/apps/desktop/README.md`의 사이드카 문구(§3.2). 2번이 확정되면 작성자가 고친다.
 4. [결정: review.decisions-2 U-11] 원격 사용은 M3이고 로컬 서비스 소켓을 SSH 터널·사설망으로 연결한다. 내장 TLS + 토큰 WebSocket은 2차다(§4.11).
-5. [미결] 데스크톱 TS 코드가 `@xeon/host/client`(엔진 없는 클라이언트 구현)를 import할지. DR-10 예외를 하나 더 여는 일이다. 다른 안은 `createHostConnection`을 F 아래 층으로 옮기는 것이다. F는 타이머·상태를 쓰는 런타임 로직을 두지 않으므로(F.readme §1) F 변경이 필요하다. `L4.desktop.spec`과 함께 정한다.
-6. [미결] 승인 대기 세션을 유휴 종료 판정에서 live로 볼지(ADR-0006 §6). 제안은 live(SV-04).
-7. [미결] 등록 파일 스키마의 정본 위치. 이 문서(§3.5)와 `L0.process.spec` 중 하나로 정한다. 작성자 결정(L0.process 작성자와 조율).
+5. [결정: adr.0020] 클라이언트 연결 코드(`createHostConnection`)와 설정 view-model, CLI·데스크톱 공유 로직은 새 L4 공유 패키지 `xeon/packages/client`(`@xeon/client`, F만 import)로 옮긴다(`review.m3-design-inputs` D-M3-26 b 변형). `@xeon/host/client`는 M3a 구현에서 `@xeon/client`를 다시 내보내는 얇은 파일로 남겼고(허용 목록 `DR-10/host-client`), F는 런타임 로직 없는 계약(stdio 줄 프레이밍 제외)으로 둔다. [미결] 재노출을 없애는 안은 호스트 시험의 `@xeon/client` import에 시험 한정 DR-10 예외가 필요하다. `apps/cli`·`apps/desktop` → `@xeon/client`는 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`다(`architecture.layers.spec` §3.2).
+6. [결정: review.m3-design-inputs D-M3-13 행 2] 승인 대기 세션은 유휴 종료 판정에서 live다(SV-04).
+7. [결정: 오케스트레이터 기본값, M3b B1-SVC] 등록 파일 스키마의 정본은 `L0.process.spec` §3.2다(§3.5).
 8. (닫힘 m2c G1-02) 비정상 종료 표식의 "이어서 실행" 후보는 `ThreadSummary.resumable`로 알리고 `turn.resume`으로 이어 실행한다(HS-30, HS-74).
 9. (닫힘) 종료 협조용 메시지는 F `host.shutdown`(M2)이다(`F.wire-settings.spec` §4). M2 전까지 stdin 닫기로 대신한다(HS-34).
-10. [미결] 서비스 인증: Unix 소켓 + 파일 권한만으로 충분한지, 토큰을 `host.hello`에 실을지(F wire §10 미결 4). 사용자 확인. 이 문서는 F 결정에 맞춘다(SV-05).
+10. [결정: review.m3-design-inputs D-M3-16 c] 서비스 인증: 로컬 Unix 소켓은 파일 권한만 쓰고, TCP로 열 때만 `host.hello` 토큰이 필수다(SV-05). 원격 형태는 자체 호스트 서버의 호스트에 다른 기기의 데스크톱·CLI가 접속하는 것과 자기 컴퓨터에서 호스트를 켜는 것 둘이다([결정: review.m3-design-inputs D-M3-17]).
 11. [미결] `settings.list`의 `SettingDefWire.type`에 `range`를 합쳐 실을지, 병합 함수를 F에 둘지(`_research/notes/L4-3.md` §1, §4). F 변경 요청.
 12. 닫음: `xeon service ensure --json` 출력 형식(HS-38)을 `L4.desktop.spec` §4.8이 그대로 인용한다. 서비스 경로 진입 판정은 `xeon service launch-mode --json`(§3.2)으로 맞췄다.
 13. [결정: review.decisions-2 U-04] F 변경 요청: 사용자 알림용 wire 알림 또는 표시 힌트 필드(HS-43). M1에 넣지 않고 M2 계획에서 정한다.
@@ -1170,7 +1182,7 @@ L0 플랫폼 쪽에 있던 호출 경로를 조립 루트가 잇는다. 아래 �
 21. (닫힘 m2c G1-02) 열린 turn의 재개는 `turn.resume`으로 낸다(HS-74). 서비스 모드의 자동 재개는 M3다.
 22. (닫힘 m2c G2-11) `thread.read`는 L1.persistence의 쪽 질의(`branchItemRecords`)로 쪽에 든 item만 읽고, fork한 thread는 출처의 기록을 이어 읽는다(HS-49).
 23. (닫힘 m2c G1-07) 종결된 thread에 대한 수명 주기 호출(`thread_closed`)은 `thread.closed`(3007)로 알린다(HS-68).
-24. (닫힘 m2c G1-10) 프로젝트 신뢰 저장 파일의 프로세스 사이 잠금은 L0.os의 `fileLock.updateText`로 닫았다(HS-58). 남은 것: `project_trust` 지점 발화는 thread 없는 발화 경로가 생긴 뒤에 연결한다(M3). `settings.json`(사용자·프로젝트 설정 파일)의 프로세스 사이 잠금은 M3다(`review.m3-plan`).
+24. (닫힘 m2c G1-10) 프로젝트 신뢰 저장 파일의 프로세스 사이 잠금은 L0.os의 `fileLock.updateText`로 닫았다(HS-58). 남은 것: `session.trust.before` 지점 발화는 thread 없는 발화 경로가 생긴 뒤에 연결한다(M3). `settings.json`(사용자·프로젝트 설정 파일)의 프로세스 사이 잠금은 M3다(`review.m3-plan`).
 25. (닫힘 m2c G1-04) `McpProcessPort`는 L0 platform-process가 내놓았고 조립 루트가 잇는다(HS-64). 남은 것: 비밀 env를 쓰는 stdio 서버의 기동 승인은 M3다(ADR-0011).
 26. (일부 닫힘 m2c G1-01) 명령 처리기의 출력은 `command.run`의 `done { message, result }`로 낸다(HS-72). 동작 명령(`CommandActionRegistry.registerAction`)은 메시지를 돌려줄 수 있다. 남은 것: `host-groups`가 `/group` 명령을 이 등록부로 등록하는 일(구동 그룹 상태 출력)은 M3 그룹 작업에서 한다.
 27. [미결] 문서 정정 요청 D-12의 F 쪽: `F.wire-settings.spec` §3.4.3의 4·5단계 사이에 취소 창이 있다(HS-21), `F.records.spec` §4.3과 §3.4.4의 `n`·`afterSeq`는 발신자 값이다(HS-18). F 작성자가 반영한다.

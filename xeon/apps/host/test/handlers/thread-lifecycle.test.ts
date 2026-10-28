@@ -146,7 +146,7 @@ test("thread.fork creates the new thread and gives this connection its write own
 test("thread.fork reports lifecycle failures as wire errors", async () => {
   const cases: readonly [LifecycleError, number][] = [
     [{ kind: "invalid_target", reason: "item_not_found" }, 3005],
-    [{ kind: "cancelled_by_extension", point: "session_before_fork", reason: null }, 3006],
+    [{ kind: "cancelled_by_extension", point: "session.fork.before", reason: null }, 3006],
     [{ kind: "thread_not_found", threadId: OTHER_THREAD }, 3001],
   ];
   await Promise.all(

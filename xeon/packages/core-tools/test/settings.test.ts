@@ -9,9 +9,10 @@ test("defaults match the l1.tools settings table", () => {
     bypassAllowed: true,
     output: { maxLines: 2000, maxBytes: 51_200 },
     deferThreshold: 64,
+    unattended: { approval: "expire", timeoutSeconds: 3600 },
   });
   expect(TOOLS_SETTING_DEFAULTS.outputMaxBytes).toBe(51_200);
-  expect(Object.values(TOOLS_SETTING_KEYS)).toHaveLength(6);
+  expect(Object.values(TOOLS_SETTING_KEYS)).toHaveLength(8);
   for (const key of Object.values(TOOLS_SETTING_KEYS))
     expect(key.startsWith("l1.tools.")).toBe(true);
 });
@@ -98,4 +99,21 @@ test("a failed session write is a commit_failed value and leaves the mode unchan
     error: { kind: "tools.commit_failed", store: { kind: "disk_full" } },
   });
   expect(h.runtime.tools.mode(h.thread)).toBe("default");
+});
+
+test("the unattended approval policy reads its two keys and skips invalid values", () => {
+  const config = readScalarConfig([
+    layer("user", {
+      "l1.tools.unattended.approval": "wait",
+      "l1.tools.unattended.timeoutSeconds": 90,
+    }),
+  ]);
+  expect(config.unattended).toEqual({ approval: "wait", timeoutSeconds: 90 });
+  const invalid = readScalarConfig([
+    layer("user", {
+      "l1.tools.unattended.approval": "ask",
+      "l1.tools.unattended.timeoutSeconds": 0,
+    }),
+  ]);
+  expect(invalid.unattended).toEqual({ approval: "expire", timeoutSeconds: 3600 });
 });

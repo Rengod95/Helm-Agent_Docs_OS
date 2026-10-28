@@ -1,33 +1,40 @@
-// AgentService 구현(L1.agents.spec §3.3, §4.1~§4.6, AG-1·2·3·6·11). M2는 포그라운드 spawn까지다.
-// delegate(백그라운드, AG-7)와 judge(AG-8)는 M3이고 지금은 `agents.unavailable` 값을 돌려준다.
+// AgentService 구현(L1.agents.spec §3.3, §4.1~§4.8, AG-1·2·3·6·7·8·11). 포그라운드 spawn, 백그라운드 delegate, 목표 판정을 한다.
 import { assertNever, attemptAsync, detach, parse } from "@xeon/contracts";
 import {
   AgentSettledEventPayloadSchema,
+  AgentSpawnedPayloadSchema,
   commitKeyPart,
   type AgentView,
   type CommitPlan,
   type LeaseToken,
+  type SpawnOwnerJson,
 } from "@xeon/contracts/records";
-import type { ItemId, ThreadId } from "@xeon/contracts/conversation";
-import type {
-  AgentDefinition,
-  AdvertisedToolset,
-  AgentService,
-  AgentsErrorCode,
-  CancelTarget,
-  ChildStatus,
-  DelegateRequest,
-  DelegateResult,
-  GuardedReport,
-  JudgeInput,
-  JudgeOutcome,
-  MimicryFlag,
-  RuleRegistration,
-  SpawnOrigin,
-  SpawnRequest,
-  SpawnResult,
-  TaskScope,
+import {
+  TurnCompletedPayloadSchema,
+  type ItemId,
+  type ThreadId,
+} from "@xeon/contracts/conversation";
+import {
+  AGENT_REPORT_TYPE,
+  type AgentDefinition,
+  type AdvertisedToolset,
+  type AgentService,
+  type AgentsErrorCode,
+  type CancelTarget,
+  type ChildStatus,
+  type DelegateRequest,
+  type DelegateResult,
+  type GuardedReport,
+  type MimicryFlag,
+  type ReportDelivery,
+  type RuleRegistration,
+  type SpawnOrigin,
+  type SpawnOwner,
+  type SpawnRequest,
+  type SpawnResult,
+  type TaskScope,
 } from "@xeon/contracts/services";
+import type { RecordKind } from "@xeon/contracts/extensions";
 import { ceilingOf, childMode } from "./permission-ceiling.ts";
 import { AGENTS_RULE_SOURCE, definitionRules, subagentRules } from "./denylist.ts";
 import { createDefinitionRegistry } from "./definitions/registry.ts";
@@ -36,6 +43,7 @@ import { createConcurrencyGate, type ConcurrencyGate } from "./gate.ts";
 import { sha256Hex } from "./hash.ts";
 import { readFinalText } from "./report-reader.ts";
 import { childRequestId, createSpawnCounter, derivedRequestId } from "./request-id.ts";
+import { createJudge, JUDGE_MAX_RUNS_DEFAULT } from "./judge.ts";
 import { guardReport } from "./result-guard.ts";
 
 /** agent.settled에 싣는 보고 본문 상한(AgentSettledEventPayload.report.text 65,536자에서 격리 블록 여유를 뺀다) */
@@ -60,6 +68,8 @@ interface LiveChild {
   /** queued: 동시 상한이나 풀을 기다림, running: 자식 turn이 돎 */
   readonly phase: { state: "queued" | "running" };
   readonly scope: TaskScope;
+  /** 소유 단위 취소(`CancelTarget.ownerScopeId`)가 고르는 근거 */
+  readonly owner: SpawnOwnerJson;
   readonly done: Promise<SpawnResult>;
 }
 
@@ -93,6 +103,50 @@ interface PreparedSpawn {
   readonly childDepth: number;
   readonly surfaceThreadId: ThreadId;
   readonly interactive: boolean;
+  /** 백그라운드 위임이면 참. 소유 경계라 부모 취소가 넘지 않는다(§4.7 3번) */
+  readonly background: boolean;
+  /** 완료 보고를 부모 inbox에 넣는 방법. 없으면 agent.settled만 남는다(M3-REQ-66) */
+  readonly report: ReportDelivery | undefined;
+}
+
+/** 거절 사유. spawn은 SpawnResult로, delegate는 DelegateResult로 바꾼다 */
+interface Refusal {
+  readonly code: AgentsErrorCode;
+  readonly message: string;
+  readonly childThreadId?: ThreadId;
+}
+
+/** 코어 보고 customType(`agent.report`)은 F RecordKind 형식(x.·grp. 접두)에 없어 코어 소유 확장 kind로 싣는다 [제안: F 요청 6 전까지] */
+const CORE_REPORT_KIND: RecordKind = "x.core-agents.agent.report";
+
+function reportKindOf(customType: ReportDelivery["customType"]): RecordKind {
+  return customType === AGENT_REPORT_TYPE ? CORE_REPORT_KIND : customType;
+}
+
+function ownerJsonOf(owner: SpawnOwner): SpawnOwnerJson {
+  switch (owner.kind) {
+    case "tool":
+      return { kind: "tool", turnId: owner.turnId, toolCallId: owner.toolCallId };
+    case "drive":
+      return {
+        kind: "drive",
+        turnId: owner.turnId,
+        scopeId: owner.scopeId,
+        leaseId: owner.leaseId,
+      };
+    case "scope":
+      return { kind: "scope", scopeId: owner.scopeId };
+    default:
+      return assertNever(owner, "ownerJsonOf");
+  }
+}
+
+/** DelegateRequest.requestId 상한. 보고 입력 키 "<requestId>:report"가 입력 큐의 64자 안에 들어야 한다 */
+const DELEGATE_REQUEST_ID_MAX = 48;
+
+/** 같은 requestId로 다른 요청(다른 정의, 다른 task)이 오면 커밋 키 재사용으로 거부하게 하는 지문 */
+function spawnFingerprint(requestId: string, request: SpawnRequest): Record<string, string> {
+  return { requestId, agent: request.agent, taskHash: sha256Hex(request.task) };
 }
 
 function spawnKey(parent: ThreadId, requestId: string): string {
@@ -101,6 +155,30 @@ function spawnKey(parent: ThreadId, requestId: string): string {
 
 function creationKeyOf(parent: ThreadId, requestId: string): string {
   return `spawn:${sha256Hex(`${parent}\0${requestId}`).slice(0, 40)}`;
+}
+
+type Provisioned =
+  | { readonly kind: "run"; readonly childThreadId: ThreadId }
+  | { readonly kind: "exists"; readonly link: AgentView }
+  | { readonly kind: "refused"; readonly refusal: Refusal };
+
+function refused(code: AgentsErrorCode, message: string, childThreadId?: ThreadId): Provisioned {
+  return {
+    kind: "refused",
+    refusal: { code, message, ...(childThreadId === undefined ? {} : { childThreadId }) },
+  };
+}
+
+function receiptOf(
+  requestId: string,
+  childThreadId: ThreadId,
+  status: "accepted" | "duplicate",
+): DelegateResult {
+  return { ok: true, receipt: { requestId, childThreadId, status } };
+}
+
+function abortReasonOf(reason: string): { readonly code: "user"; readonly message: string } {
+  return { code: "user", message: reason };
 }
 
 export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
@@ -162,31 +240,67 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     };
   };
 
+  /** 재개한 자식의 소유자는 처음 기록한 agent.spawned의 것이다. 읽을 수 없으면 이번 호출자의 것을 쓴다 */
+  const recordedOwnerOf = (origin: SpawnOrigin, requestId: string): SpawnOwnerJson => {
+    const event = session.query.latestEvent(origin.parentThreadId, "agent.spawned", {
+      pointer: "/requestId",
+      equals: requestId,
+    });
+    if (event.ok && event.value !== undefined) {
+      const payload = parse(AgentSpawnedPayloadSchema, event.value.payload);
+      if (payload.ok) return payload.value.owner;
+    }
+    return ownerJsonOf(origin.owner);
+  };
+
+  /** 같은 requestId의 기존 연결에 다른 요청이 왔는가(커밋 키는 있고 지문이 다르다) */
+  const clashesWithRecorded = (
+    origin: SpawnOrigin,
+    requestId: string,
+    request: SpawnRequest,
+  ): boolean => {
+    const checked = session.commit({
+      threadId: origin.parentThreadId,
+      requestId: spawnKey(origin.parentThreadId, requestId),
+      fingerprintSource: spawnFingerprint(requestId, request),
+      build: () => ({ kind: "reject", code: "exists", detail: null }),
+    });
+    return checked.ok && checked.value.status === "key_reused";
+  };
+
+  /** agent.spawned를 커밋한 뒤 runChild가 live 표에 올리기 전까지의 자식. 같은 requestId의 겹친 호출이 둘째 실행을 시작하지 않게 한다 */
+  const starting = new Map<ThreadId, PromiseWithResolvers<void>>();
+  const markStarting = (childThreadId: ThreadId): void => {
+    starting.set(childThreadId, Promise.withResolvers<void>());
+  };
+  const releaseStarting = (childThreadId: ThreadId): void => {
+    starting.get(childThreadId)?.resolve();
+    starting.delete(childThreadId);
+  };
+
   /** 입력 검사(§4.1 1번). 실패는 값으로 돌려준다 */
   const prepare = (
     request: SpawnRequest,
     origin: SpawnOrigin,
+    mode: { readonly background: boolean; readonly report?: ReportDelivery },
   ):
     | { readonly ok: true; readonly value: PreparedSpawn }
-    | { readonly ok: false; readonly result: SpawnResult } => {
+    | { readonly ok: false; readonly refusal: Refusal; readonly requestId: string } => {
     const requestId = childRequestId(
       request.requestId ??
         derivedRequestId(origin.ownerRequestId, counter.next(origin.ownerRequestId)),
     );
     const refuse = (code: AgentsErrorCode, message: string) => ({
       ok: false as const,
-      result: failure(requestId, code, message),
+      refusal: { code, message },
+      requestId,
     });
     const definition = registry.get(request.agent);
     if (definition === undefined) {
       return refuse("agents.unknown_definition", `no subagent definition named "${request.agent}"`);
     }
-    if (request.background === true) {
-      return refuse("agents.unavailable", "background delegation arrives with M3");
-    }
-    if ((request.tools?.deny?.length ?? 0) > 0) {
-      // ChildTurnRequest에 deny를 실을 자리가 없다. 조용히 무시하면 권한이 넓어지므로 거부한다 [미결]
-      return refuse("agents.invalid_request", "tools.deny is not supported yet; use tools.allow");
+    if (!mode.background && request.background === true) {
+      return refuse("agents.invalid_request", "background runs go through delegate");
     }
     const childDepth = origin.depth + 1;
     if (childDepth > settings.maxDepth()) {
@@ -198,6 +312,12 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     if (origin.signal.aborted) {
       return refuse("agents.parent_aborting", "the parent turn is being aborted");
     }
+    // 부모 thread 노드 아래 경계로 열어야 하는 자식(백그라운드, turn 없는 drive)은 노드가 없으면 소유 트리에 매달 곳이 없다
+    const needsThread =
+      mode.background || (origin.owner.kind === "drive" && origin.owner.turnId === null);
+    if (needsThread && tasks.find("thread", origin.parentThreadId) === undefined) {
+      return refuse("agents.unavailable", "the parent thread is not open in the task tree");
+    }
     const parentContext = contextOf(origin.parentThreadId);
     return {
       ok: true,
@@ -207,21 +327,37 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
         childDepth,
         surfaceThreadId: parentContext.surfaceThreadId,
         interactive: parentContext.interactive,
+        background: mode.background,
+        report: mode.report,
       },
     };
   };
 
-  /** 소유 간선의 부모 노드(§4.1 4번): 도구 호출, turn, 아니면 thread */
-  const parentScopeOf = (origin: SpawnOrigin): TaskScope => {
+  /**
+   * 소유 간선의 부모 노드(§4.1 4번): 도구 호출, turn, 아니면 thread. thread 아래에는 `background: true` 노드만 열 수 있다(L1.tasks.spec §4.1).
+   * 실행 중인 turn이 없는 drive의 `loop.spawn`은 포그라운드로 결과를 기다리지만 노드는 thread 아래 `background: true`로 연다.
+   * 이 노드의 취소는 소유 트리가 아니라 `origin.signal`(임대 신호)이 `abortChild`로 잇는다
+   */
+  const parentScopeOf = (
+    origin: SpawnOrigin,
+    background: boolean,
+  ): { readonly scope: TaskScope; readonly background: boolean } => {
     const { owner } = origin;
+    const thread = tasks.find("thread", origin.parentThreadId);
+    if (background || (owner.kind === "drive" && owner.turnId === null)) {
+      return { scope: thread ?? tasks.root, background: true };
+    }
     const candidates: (TaskScope | undefined)[] = [];
     if (owner.kind === "tool") {
       candidates.push(tasks.find("tool", owner.toolCallId), tasks.find("turn", owner.turnId));
     } else if (owner.kind === "drive" && owner.turnId !== null) {
       candidates.push(tasks.find("turn", owner.turnId));
     }
-    candidates.push(tasks.find("thread", origin.parentThreadId));
-    return candidates.find((candidate) => candidate !== undefined) ?? tasks.root;
+    candidates.push(thread);
+    return {
+      scope: candidates.find((candidate) => candidate !== undefined) ?? tasks.root,
+      background: false,
+    };
   };
 
   /** 부모 대화의 이 requestId 자식 연결 */
@@ -277,26 +413,12 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     childThreadId: ThreadId,
   ): "committed" | "exists" | "parent_aborting" | "unavailable" | "key_reused" => {
     const { owner } = origin;
-    const ownerJson =
-      owner.kind === "tool"
-        ? ({ kind: "tool", turnId: owner.turnId, toolCallId: owner.toolCallId } as const)
-        : owner.kind === "drive"
-          ? ({
-              kind: "drive",
-              turnId: owner.turnId,
-              scopeId: owner.scopeId,
-              leaseId: owner.leaseId,
-            } as const)
-          : ({ kind: "scope", scopeId: owner.scopeId } as const);
+    const ownerJson = ownerJsonOf(owner);
     const turnId = owner.kind === "scope" ? null : owner.turnId;
     const committed = session.commit({
       threadId: origin.parentThreadId,
       requestId: spawnKey(origin.parentThreadId, prepared.requestId),
-      fingerprintSource: {
-        requestId: prepared.requestId,
-        agent: prepared.definition.name,
-        depth: prepared.childDepth,
-      },
+      fingerprintSource: spawnFingerprint(prepared.requestId, request),
       build(view): CommitPlan {
         if (view.agentByRequestId(origin.parentThreadId, prepared.requestId) !== undefined) {
           return { kind: "reject", code: "exists", detail: null };
@@ -325,7 +447,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
                 owner: ownerJson,
                 caller: `subagent:${prepared.definition.name}`,
                 depth: prepared.childDepth,
-                background: false,
+                background: prepared.background,
                 fork: request.fork ?? null,
                 modelRole: request.model ?? prepared.definition.model ?? "subagent",
               },
@@ -352,8 +474,12 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     childThreadId: ThreadId,
   ): Promise<SpawnResult> => {
     const { definition } = prepared;
-    const parentScope = parentScopeOf(origin);
-    const scope = tasks.openScope(parentScope, { kind: "subagent", id: childThreadId });
+    const parent = parentScopeOf(origin, prepared.background);
+    const scope = tasks.openScope(parent.scope, {
+      kind: "subagent",
+      id: childThreadId,
+      ...(parent.background ? { background: true } : {}),
+    });
     meta.set(childThreadId, {
       agent: definition.name,
       depth: prepared.childDepth,
@@ -376,7 +502,9 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
         }),
       );
     };
-    origin.signal.addEventListener("abort", onOriginAbort, { once: true });
+    // 백그라운드 자식은 소유 경계다. 부모 turn의 취소 신호를 잇지 않는다(§4.7 3번)
+    if (!prepared.background)
+      origin.signal.addEventListener("abort", onOriginAbort, { once: true });
 
     const phase: LiveChild["phase"] = { state: "queued" };
     const work = (async (): Promise<SpawnResult> => {
@@ -402,7 +530,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     })();
     const tracked = scope.track(work);
     const done = tracked.finally(() => {
-      origin.signal.removeEventListener("abort", onOriginAbort);
+      if (!prepared.background) origin.signal.removeEventListener("abort", onOriginAbort);
       live.delete(childThreadId);
     });
     live.set(childThreadId, {
@@ -410,6 +538,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       requestId: prepared.requestId,
       phase,
       scope,
+      owner: recordedOwnerOf(origin, prepared.requestId),
       done,
     });
     return done;
@@ -442,6 +571,8 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       parent: { caller: origin.caller, depth: origin.depth, mode: parentMode },
       definitionTools: definition.tools,
       requestAllow: request.tools?.allow,
+      requestDeny: request.tools?.deny,
+      denyHint: request.tools?.denyHint,
     });
     let parentList: AdvertisedToolset | undefined;
     if (request.tools?.keepParentList === true) {
@@ -471,7 +602,25 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     readonly reason?: string;
     readonly usage: SpawnResult["usage"];
     readonly answerItemId: ItemId | null;
+    /** 상한에 닿아 끝났으면 어느 상한인가 */
+    readonly limitHit?: "steps" | "tokens";
   }
+
+  /** 자식의 마지막 turn.completed에서 상한 종료를 읽는다(`step_limit`, `child_limit`). 읽을 수 없으면 상한 종료로 보지 않는다 */
+  const limitHitOf = (
+    childThreadId: ThreadId,
+    limits: SpawnRequest["limits"],
+  ): "steps" | "tokens" | undefined => {
+    const event = session.query.latestEvent(childThreadId, "turn.completed");
+    if (!event.ok || event.value === undefined) return undefined;
+    const payload = parse(TurnCompletedPayloadSchema, event.value.payload);
+    if (!payload.ok) return undefined;
+    const { error, stepCount } = payload.value;
+    if (error === "step_limit") return "steps";
+    if (error !== "child_limit") return undefined;
+    const maxSteps = limits?.maxSteps;
+    return maxSteps !== undefined && maxSteps > 0 && stepCount >= maxSteps ? "steps" : "tokens";
+  };
 
   const loopTurn = async (
     prepared: PreparedSpawn,
@@ -495,6 +644,10 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
         surfaceThreadId: prepared.surfaceThreadId,
         interactive: prepared.interactive,
         ...(ceiling.allow === undefined ? {} : { allow: ceiling.allow }),
+        ...(request.tools?.deny === undefined || request.tools.deny.length === 0
+          ? {}
+          : { deny: request.tools.deny }),
+        ...(request.tools?.denyHint === undefined ? {} : { denyHint: request.tools.denyHint }),
         ...(parentList === undefined ? {} : { keepParentList: { parent: parentList } }),
       },
       scope,
@@ -512,8 +665,11 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     }
     const turn = outcome.value;
     const finalItemId = turn.outcome.finalItemId ?? null;
+    const limitHit = limitHitOf(childThreadId, request.limits);
+    const limited = limitHit === undefined ? {} : { limitHit };
     if (turn.outcome.status !== "completed") {
       return {
+        ...limited,
         status: turn.outcome.status,
         text: null,
         reason:
@@ -530,7 +686,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       if (read.ok) text = read.value;
       else log.warn("agents.report_unreadable", { childThreadId, reason: read.error.kind });
     }
-    return { status: "completed", text, usage: turn.usage, answerItemId: finalItemId };
+    return { ...limited, status: "completed", text, usage: turn.usage, answerItemId: finalItemId };
   };
 
   const settleAborted = (
@@ -571,35 +727,56 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
         const link = view.agentByRequestId(origin.parentThreadId, prepared.requestId);
         if (link === undefined) return { kind: "reject", code: "not_spawned", detail: null };
         if (link.settled !== null) return { kind: "reject", code: "already_settled", detail: null };
-        return {
-          kind: "append",
-          drafts: [
-            producer.draft({
-              id: ids.next("evt"),
-              kind: "agent.settled",
-              threadId: origin.parentThreadId,
-              turnId: null,
-              stepId: null,
-              causationId: null,
-              correlationId: null,
-              payload: {
-                childThreadId,
-                requestId: prepared.requestId,
-                status: ran.status,
-                report: {
-                  text: report.text,
-                  truncated: report.truncated,
-                  flags: [...report.flags],
-                  originalChars: report.originalChars,
-                },
-                answerItemId: ran.answerItemId,
-                usage: ran.usage,
-                error: ran.status === "error" ? (ran.reason ?? null) : null,
-              },
-            }),
-          ],
-          checkpoint: null,
-        };
+        const settledDraft = producer.draft({
+          id: ids.next("evt"),
+          kind: "agent.settled",
+          threadId: origin.parentThreadId,
+          turnId: null,
+          stepId: null,
+          causationId: null,
+          correlationId: null,
+          payload: {
+            childThreadId,
+            requestId: prepared.requestId,
+            status: ran.status,
+            report: {
+              text: report.text,
+              truncated: report.truncated,
+              flags: [...report.flags],
+              originalChars: report.originalChars,
+            },
+            answerItemId: ran.answerItemId,
+            usage: ran.usage,
+            error: ran.status === "error" ? (ran.reason ?? null) : null,
+            owner: recordedOwnerOf(origin, prepared.requestId),
+            limitHit: ran.limitHit ?? null,
+          },
+        });
+        // 완료 보고 입력은 같은 커밋에 넣는다. 정착이 있으면 보고도 있어 재전송 규칙이 필요 없다(§4.7 2번·6번).
+        // 부모 대화가 사라졌으면 보고를 버리고 agent.settled만 남긴다(§5 사례 7)
+        const delivery = prepared.report;
+        if (delivery === undefined || view.threadStatus === "absent") {
+          return { kind: "append", drafts: [settledDraft], checkpoint: null };
+        }
+        const queued = tasks.inputs.draftQueued(view, {
+          threadId: origin.parentThreadId,
+          mode: delivery.when,
+          item: {
+            kind: "context",
+            customType: reportKindOf(delivery.customType),
+            content: report.text,
+            display: delivery.display,
+            details: {
+              childThreadId,
+              requestId: prepared.requestId,
+              status: ran.status,
+              flags: [...report.flags],
+            },
+          },
+          requestId: `${prepared.requestId}:report`,
+          source: { type: "delegation", childThreadId },
+        });
+        return { kind: "append", drafts: [settledDraft, ...queued.drafts], checkpoint: null };
       },
     });
     // 자식 임대는 정착을 기록한 뒤에 놓는다
@@ -644,6 +821,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
         )
       );
     }
+    await starting.get(link.childThreadId)?.promise;
     const running = live.get(link.childThreadId);
     if (running !== undefined) return { ...(await running.done), reused: true };
     // 재시작으로 끊긴 자식: 같은 대화를 재개한다. 자식 임대를 다시 얻고 쓰기로 연다
@@ -659,18 +837,59 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     return { ...resumed, reused: true };
   };
 
-  const createChild = async (
+  /** 백그라운드 자식의 실행을 기다리지 않고 시작한다. 예상 못 한 실패는 기록한다 */
+  const startInBackground = (
     origin: SpawnOrigin,
     prepared: PreparedSpawn,
     request: SpawnRequest,
-  ): Promise<SpawnResult> => {
-    const parentToken = ownership.parentToken(origin.parentThreadId);
+    childThreadId: ThreadId,
+  ): void => {
+    const running = (() => {
+      try {
+        return runChild(origin, prepared, request, childThreadId);
+      } finally {
+        releaseStarting(childThreadId);
+      }
+    })();
+    detach(running, (cause) =>
+      log.error("agents.background_failed", {
+        childThreadId,
+        requestId: prepared.requestId,
+        message: cause instanceof Error ? cause.message : "non_error_thrown",
+      }),
+    );
+  };
+
+  /** 이미 연결이 있는 백그라운드 requestId: 끊긴 자식이면 이어서 돌리고, 새 자식은 만들지 않는다(§4.5, M3-REQ-69) */
+  const attachBackground = (
+    link: AgentView,
+    origin: SpawnOrigin,
+    prepared: PreparedSpawn,
+    request: SpawnRequest,
+  ): DelegateResult => {
+    const duplicate = receiptOf(prepared.requestId, link.childThreadId, "duplicate");
+    if (link.settled !== null || live.has(link.childThreadId) || starting.has(link.childThreadId)) {
+      return duplicate;
+    }
+    if (reopenChild(link.childThreadId) === undefined) {
+      return {
+        ok: false,
+        error: { kind: "agents.unavailable", message: "cannot take the child's write lease" },
+      };
+    }
+    startInBackground(origin, prepared, request, link.childThreadId);
+    return duplicate;
+  };
+
+  /** 자식 thread를 만들고 부모에 agent.spawned를 커밋한다(§4.1 3번). 실행은 호출자가 한다 */
+  const provision = async (
+    origin: SpawnOrigin,
+    prepared: PreparedSpawn,
+    request: SpawnRequest,
+  ): Promise<Provisioned> => {
+    const parentToken = origin.parentToken ?? ownership.parentToken(origin.parentThreadId);
     if (parentToken === undefined) {
-      return failure(
-        prepared.requestId,
-        "agents.unavailable",
-        "the parent's write token is unknown",
-      );
+      return refused("agents.unavailable", "the parent's write token is unknown");
     }
     const newId = ids.next("thr");
     let childThreadId: ThreadId;
@@ -682,83 +901,52 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
         inheritOwnerFrom: parentToken,
       });
       if (!created.ok) {
-        return failure(
-          prepared.requestId,
-          "agents.unavailable",
-          `child creation failed: ${created.error.kind}`,
-        );
+        return refused("agents.unavailable", `child creation failed: ${created.error.kind}`);
       }
       childThreadId = created.value.threadId;
       // 이전 시도가 만든 자식을 creationKey로 다시 만났다: 임대는 그때 얻었고 프로세스는 바뀌었을 수 있다
       if (created.value.replayed && reopenChild(childThreadId) === undefined) {
-        return failure(
-          prepared.requestId,
-          "agents.unavailable",
-          "cannot take the child's write lease",
-          childThreadId,
-        );
+        return refused("agents.unavailable", "cannot take the child's write lease", childThreadId);
       }
     } else {
-      const at = request.fork.at === "item" ? request.fork.itemId : undefined;
       if (request.fork.at === "event") {
-        return failure(
-          prepared.requestId,
+        return refused(
           "agents.invalid_request",
           "fork at an event needs session fork-by-event (not available yet)",
         );
       }
-      const forked = await session.threads.fork(origin.parentThreadId, at, newId);
+      const forked = await session.threads.fork(origin.parentThreadId, request.fork.itemId, newId);
       if (!forked.ok) {
-        return failure(
-          prepared.requestId,
-          "agents.unavailable",
-          `fork failed: ${forked.error.kind}`,
-        );
+        return refused("agents.unavailable", `fork failed: ${forked.error.kind}`);
       }
       childThreadId = forked.value.threadId;
       if (reopenChild(childThreadId) === undefined) {
-        return failure(
-          prepared.requestId,
-          "agents.unavailable",
-          "cannot take the child's write lease",
-          childThreadId,
-        );
+        return refused("agents.unavailable", "cannot take the child's write lease", childThreadId);
       }
     }
     const spawned = commitSpawned(origin, prepared, request, childThreadId);
     switch (spawned) {
       case "committed":
-        return await runChild(origin, prepared, request, childThreadId);
+        markStarting(childThreadId);
+        return { kind: "run", childThreadId };
       case "exists": {
         // 다른 호출이 먼저 연결을 남겼다. 그 연결을 따른다
         const link = linkOf(origin.parentThreadId, prepared.requestId);
         if (link === undefined || link === "unreadable") {
-          return failure(
-            prepared.requestId,
-            "agents.unavailable",
-            "the child link is unreadable",
-            childThreadId,
-          );
+          return refused("agents.unavailable", "the child link is unreadable", childThreadId);
         }
-        return await attach(link, origin, prepared, request);
+        return { kind: "exists", link };
       }
       case "parent_aborting":
-        return failure(
-          prepared.requestId,
-          "agents.parent_aborting",
-          "the parent turn is being aborted",
-          childThreadId,
-        );
+        return refused("agents.parent_aborting", "the parent turn is being aborted", childThreadId);
       case "key_reused":
-        return failure(
-          prepared.requestId,
+        return refused(
           "agents.invalid_request",
           "this requestId was already used for another subagent",
           childThreadId,
         );
       case "unavailable":
-        return failure(
-          prepared.requestId,
+        return refused(
           "agents.unavailable",
           "the spawn record could not be committed",
           childThreadId,
@@ -768,10 +956,23 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     }
   };
 
+  const failureOf = (requestId: string, refusal: Refusal): SpawnResult =>
+    failure(requestId, refusal.code, refusal.message, refusal.childThreadId);
+
+  const judge = createJudge({
+    session,
+    producer,
+    ids,
+    models: deps.models ?? (() => undefined),
+    maxRuns: () => settings.judgeMaxRuns?.() ?? JUDGE_MAX_RUNS_DEFAULT,
+    now: deps.now ?? Date.now,
+    log,
+  });
+
   return {
     async spawn(request, origin): Promise<SpawnResult> {
-      const prepared = prepare(request, origin);
-      if (!prepared.ok) return prepared.result;
+      const prepared = prepare(request, origin, { background: false });
+      if (!prepared.ok) return failureOf(prepared.requestId, prepared.refusal);
       const link = linkOf(origin.parentThreadId, prepared.value.requestId);
       if (link === "unreadable") {
         return failure(
@@ -780,18 +981,116 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
           "the child links are unreadable",
         );
       }
-      if (link !== undefined) return await attach(link, origin, prepared.value, request);
-      return await createChild(origin, prepared.value, request);
+      if (link !== undefined) {
+        if (clashesWithRecorded(origin, prepared.value.requestId, request)) {
+          return failure(
+            prepared.value.requestId,
+            "agents.invalid_request",
+            "this requestId was already used for another subagent",
+            link.childThreadId,
+          );
+        }
+        return await attach(link, origin, prepared.value, request);
+      }
+      const provisioned = await provision(origin, prepared.value, request);
+      switch (provisioned.kind) {
+        case "run": {
+          const running = (() => {
+            try {
+              return runChild(origin, prepared.value, request, provisioned.childThreadId);
+            } finally {
+              releaseStarting(provisioned.childThreadId);
+            }
+          })();
+          return await running;
+        }
+        case "exists":
+          return await attach(provisioned.link, origin, prepared.value, request);
+        case "refused":
+          return failureOf(prepared.value.requestId, provisioned.refusal);
+        default:
+          return assertNever(provisioned, "spawn.provision");
+      }
     },
 
-    delegate(_request: DelegateRequest, _origin: SpawnOrigin): Promise<DelegateResult> {
-      return Promise.resolve({
-        ok: false,
-        error: { kind: "agents.unavailable", message: "background delegation arrives with M3" },
+    async delegate(request: DelegateRequest, origin: SpawnOrigin): Promise<DelegateResult> {
+      if (request.requestId.length < 1 || request.requestId.length > DELEGATE_REQUEST_ID_MAX) {
+        return {
+          ok: false,
+          error: {
+            kind: "agents.invalid_request",
+            message: `requestId must be 1 to ${String(DELEGATE_REQUEST_ID_MAX)} characters`,
+          },
+        };
+      }
+      // 멱등을 먼저 본다: 이미 정착했거나 도는 위임은 지금의 검사(깊이, 정의, 부모 상태)에 걸리지 않고 duplicate다
+      const requestId = childRequestId(request.requestId);
+      const early = linkOf(origin.parentThreadId, requestId);
+      if (early !== undefined && early !== "unreadable") {
+        if (clashesWithRecorded(origin, requestId, request)) {
+          return {
+            ok: false,
+            error: {
+              kind: "agents.invalid_request",
+              message: "this requestId was already used for another subagent",
+            },
+          };
+        }
+        if (
+          early.settled !== null ||
+          live.has(early.childThreadId) ||
+          starting.has(early.childThreadId)
+        ) {
+          return receiptOf(requestId, early.childThreadId, "duplicate");
+        }
+      }
+      const prepared = prepare(request, origin, {
+        background: true,
+        ...(request.report === undefined ? {} : { report: request.report }),
       });
+      if (!prepared.ok) {
+        return {
+          ok: false,
+          error: { kind: prepared.refusal.code, message: prepared.refusal.message },
+        };
+      }
+      // 멱등: 같은 (부모, requestId)의 agent.spawned가 DB에 있으면 새 자식을 만들지 않는다
+      const link = linkOf(origin.parentThreadId, prepared.value.requestId);
+      if (link === "unreadable") {
+        return {
+          ok: false,
+          error: { kind: "agents.unavailable", message: "the child links are unreadable" },
+        };
+      }
+      if (link !== undefined) return attachBackground(link, origin, prepared.value, request);
+      const provisioned = await provision(origin, prepared.value, request);
+      switch (provisioned.kind) {
+        case "run":
+          startInBackground(origin, prepared.value, request, provisioned.childThreadId);
+          return receiptOf(prepared.value.requestId, provisioned.childThreadId, "accepted");
+        case "exists":
+          return attachBackground(provisioned.link, origin, prepared.value, request);
+        case "refused":
+          return {
+            ok: false,
+            error: { kind: provisioned.refusal.code, message: provisioned.refusal.message },
+          };
+        default:
+          return assertNever(provisioned, "delegate.provision");
+      }
     },
 
     async cancel(target: CancelTarget, reason: string): Promise<{ readonly cancelled: boolean }> {
+      if ("ownerScopeId" in target) {
+        // 소유 scope(그룹) 단위 취소: 이 프로세스에서 도는 그 scope의 위임을 모두 멈춘다. 취소된 자식도 agent.settled{aborted}를 남긴다
+        const owned = [...live.values()].filter(
+          (child) => child.owner.kind !== "tool" && child.owner.scopeId === target.ownerScopeId,
+        );
+        const tickets = await Promise.all(
+          owned.map((child) => tasks.abort(child.scope, abortReasonOf(reason))),
+        );
+        return { cancelled: tickets.some((t) => t.ok && t.value.status === "signalled") };
+      }
       let childThreadId: ThreadId | undefined;
       if ("childThreadId" in target) {
         childThreadId = target.childThreadId;
@@ -803,7 +1102,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       if (childThreadId === undefined) return { cancelled: false };
       const scope = live.get(childThreadId)?.scope ?? tasks.find("subagent", childThreadId);
       if (scope === undefined) return { cancelled: false };
-      const ticket = await tasks.abort(scope, { code: "user", message: reason });
+      const ticket = await tasks.abort(scope, abortReasonOf(reason));
       return { cancelled: ticket.ok && ticket.value.status === "signalled" };
     },
 
@@ -824,9 +1123,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     definition: (name) => registry.get(name),
     definitions: () => registry.list(),
 
-    judge(_input: JudgeInput): Promise<JudgeOutcome> {
-      return Promise.resolve({ kind: "failed", message: "goal judging arrives with M3" });
-    },
+    judge,
 
     contextOf,
     liveCount: () => live.size,

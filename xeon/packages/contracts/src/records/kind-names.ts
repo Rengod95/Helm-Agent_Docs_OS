@@ -15,7 +15,7 @@ export type CoreArea =
   | "agent"
   | "secret";
 
-/** 코어 kind 40종. F.records.spec §3.3 표와 같다(scripts/check-event-catalog.ts가 대조한다). */
+/** 코어 kind 41종. F.records.spec §3.3 표와 같다(scripts/check-event-catalog.ts가 대조한다). */
 export const CORE_EVENT_KINDS: readonly [
   "thread.started",
   "thread.updated",
@@ -43,6 +43,7 @@ export const CORE_EVENT_KINDS: readonly [
   "scope.handler_failed",
   "lease.acquired",
   "lease.released",
+  "lease.rejected",
   "post.accepted",
   "settings.changed",
   "approval.requested",
@@ -84,6 +85,7 @@ export const CORE_EVENT_KINDS: readonly [
   "scope.handler_failed",
   "lease.acquired",
   "lease.released",
+  "lease.rejected",
   "post.accepted",
   "settings.changed",
   "approval.requested",

@@ -27,7 +27,7 @@ import {
 } from "./turn-run.ts";
 import type { LoopFailure, StepNext } from "./types.ts";
 
-// L1.loop.spec §3.2 단계 6 `endStep`, §4.2 규칙 4. `turn_end` chain → 정착 후보 판정 → `agent_before_settle` chain →
+// L1.loop.spec §3.2 단계 6 `endStep`, §4.2 규칙 4. `boundary.step.after` chain → 정착 후보 판정 → `boundary.settle.before` chain →
 // `finalizeBoundary` → 계속 판정 → C5(T4) 커밋(배치 포함) → `StepNext`.
 // 원본의 `finishTurn`·`getSteeringMessages` 콜백 자리다. 배치된 입력은 반환값(`StepNext.placed`)으로 돌아온다. 콜백은 없다.
 
@@ -163,9 +163,9 @@ export async function endStep(
     toolResultItemIds: [...completed.toolResultItemIds],
     context: preview,
   };
-  const turnEnd = await ctx.ext.dispatch("turn_end", turnEndPayload, {
+  const turnEnd = await ctx.ext.dispatch("boundary.step.after", turnEndPayload, {
     threadId,
-    dispatchKey: dispatchKey(run, step.stepId, "turn_end"),
+    dispatchKey: dispatchKey(run, step.stepId, "boundary.step.after"),
     initial: { entries: [], continue: false },
     finalize,
     signal: scope.signal,
@@ -178,11 +178,11 @@ export async function endStep(
     const outcome: AgentBeforeSettlePayload["outcome"] =
       stopReason === "aborted" ? "aborted" : stopReason === "error" ? "error" : "completed";
     const settle = await ctx.ext.dispatch(
-      "agent_before_settle",
+      "boundary.settle.before",
       { turnId, context: preview, outcome },
       {
         threadId,
-        dispatchKey: dispatchKey(run, step.stepId, "agent_before_settle"),
+        dispatchKey: dispatchKey(run, step.stepId, "boundary.settle.before"),
         initial: { entries: [], continue: false },
         finalize,
         signal: scope.signal,

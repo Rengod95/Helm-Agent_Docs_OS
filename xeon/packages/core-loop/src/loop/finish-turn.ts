@@ -6,6 +6,14 @@ import type { TurnRunResult } from "./types.ts";
 
 // L1.loop.spec §4.2 규칙 7, §4.3 T6. 단계 반복이 끝나고 turn 범위 노드의 소유 작업이 정착한 뒤 `turn.completed`를 커밋한다.
 
+/** `boundary.settle.after`의 status. turn이 끝난 모양을 completed, aborted, error 셋으로 줄인다 */
+function settledStatusOf(
+  status: TurnCompletedPayload["status"],
+): "completed" | "aborted" | "error" {
+  if (status === "completed") return "completed";
+  return status === "failed" ? "error" : "aborted";
+}
+
 function noop(): Promise<void> {
   return Promise.resolve();
 }
@@ -117,9 +125,9 @@ export async function finishTurn(run: TurnRun, rejection: RunRejection): Promise
 
   // agent_end tap은 T6 커밋 뒤(L1.loop.spec §7)
   await ctx.ext.dispatch(
-    "agent_end",
+    "boundary.turn.after",
     { turnId, messages: structuredClone([...state.newMessages]) },
-    tapOptions(run, `${turnId}:agent_end`),
+    tapOptions(run, `${turnId}:boundary.turn.after`),
   );
 
   return {
@@ -131,9 +139,16 @@ export async function finishTurn(run: TurnRun, rejection: RunRejection): Promise
       // settle은 thread가 유휴로 보일 때 불러야 drive 재호출이 시작된다
       await ctx.ext.boundary.settle(signal, "committed");
       await ctx.ext.dispatch(
-        "agent_settled",
-        { turnId, aborted: status === "interrupted" },
-        tapOptions(run, `${turnId}:agent_settled`),
+        "boundary.settle.after",
+        {
+          turnId,
+          aborted: status === "interrupted",
+          origin: run.spec.origin,
+          status: settledStatusOf(status),
+          hasFinalAnswer: status === "completed" && finalItemId !== null,
+          lastItemId: finalItemId,
+        },
+        tapOptions(run, `${turnId}:boundary.settle.after`),
       );
     },
   };

@@ -12,5 +12,6 @@ export type { ExecPlatform, ExecPlatformProvider, ShellConfig } from "./provider
 export { detectExecPlatform, selectExecPlatform, type ExecSelectError } from "./select.ts";
 // 줄 스캔과 디코더(L0.exec.spec §4.4). 원본 env/index.ts:326-327과 같은 이름이다.
 export { LineScanner, rangeDecoder, StreamDecoder, startsWithBom } from "./upstream/env/index.ts";
-export { EXEC_SETTING_DEFS } from "./settings.ts";
+export { EXEC_SETTING_DEFS, readUnattendedTimeoutMs } from "./settings.ts";
+export { withUnattendedTimeout } from "./unattended.ts";
 export { createExecPlatformModule, type ExecPlatformModuleConfig } from "./platform-module.ts";

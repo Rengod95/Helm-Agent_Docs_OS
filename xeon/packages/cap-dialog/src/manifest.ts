@@ -30,7 +30,12 @@ export function dialogManifest(): ExtensionManifest {
       version: def.version,
     })),
     requires: [{ id: WorkspaceImages.id, range: "^1.0.0" }],
-    points: ["input", "tool_execution_start", "tool_execution_end", "before_agent_start"],
+    points: [
+      "input.user.before",
+      "tool.execution.before",
+      "tool.execution.after",
+      "input.agent.before",
+    ],
     usesPost: false,
     usesDrive: false,
     trust: { level: "builtin" },

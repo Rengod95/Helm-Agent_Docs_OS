@@ -1,11 +1,16 @@
-import { Bug, parse } from "@xeon/contracts";
+import { Bug, parse, parseJson } from "@xeon/contracts";
+import { GoalSchema, type Goal } from "@xeon/contracts/capabilities";
 import type { TSchema, Static } from "typebox";
 import {
   ApprovalRequestedPayloadSchema,
   ApprovalResolvedPayloadSchema,
   SettingsChangedPayloadSchema,
+  WorkGoalJudgedSchema,
+  WorkGoalSetSchema,
+  WorkGoalSettledSchema,
   WorkPlanSubmittedSchema,
   WorkPlanWithdrawnSchema,
+  WorkReportBuiltSchema,
   WorkTaskChangedSchema,
   WorkTaskCreatedSchema,
   WorkTaskLinkSchema,
@@ -156,6 +161,10 @@ const WORK_PROJECTOR_KINDS: readonly EventKind[] = [
   "work.task_unlinked",
   "work.plan_submitted",
   "work.plan_withdrawn",
+  "work.goal_set",
+  "work.goal_judged",
+  "work.goal_settled",
+  "work.report_built",
   "approval.requested",
   "approval.resolved",
   "settings.changed",
@@ -257,6 +266,82 @@ function applySettingsChanged(tx: ProjectionTx, event: DurableEventEnvelope): vo
   );
 }
 
+// ── 목표와 보고(spec §3.8) ──────────────────────────────────────────────────
+
+function orderOf(id: string): number {
+  return Number(id.slice(1));
+}
+
+function applyGoalSet(tx: ProjectionTx, event: DurableEventEnvelope): void {
+  const { goal } = payloadOf(WorkGoalSetSchema, event);
+  tx.run(
+    `INSERT INTO cap_work_goals (session_id, goal_id, ord, goal, status, set_seq, set_at, settled_seq)
+     VALUES (?, ?, ?, ?, ?, ?, ?, NULL)`,
+    [
+      event.threadId,
+      goal.goalId,
+      orderOf(goal.goalId),
+      JSON.stringify(goal),
+      goal.status,
+      event.seq,
+      event.recordedAt,
+    ],
+  );
+}
+
+/** 저장된 Goal JSON을 읽는다. 목표 행이 없거나 깨졌으면 이벤트 순서나 투영이 잘못된 것이다 */
+function goalOf(tx: ProjectionTx, event: DurableEventEnvelope, goalId: string): Goal {
+  const row = tx.get(`SELECT goal FROM cap_work_goals WHERE session_id = ? AND goal_id = ?`, [
+    event.threadId,
+    goalId,
+  ]);
+  const text = row?.["goal"];
+  if (typeof text !== "string")
+    return failProjection(`${event.kind} has no goal ${goalId}`, undefined);
+  const json = parseJson(text);
+  if (!json.ok) return failProjection(`goal ${goalId} row is not JSON`, json.error);
+  const goal = parse(GoalSchema, json.value);
+  return goal.ok ? goal.value : failProjection(`goal ${goalId} row is damaged`, goal.error);
+}
+
+function applyGoalJudged(tx: ProjectionTx, event: DurableEventEnvelope): void {
+  const judged = payloadOf(WorkGoalJudgedSchema, event);
+  tx.run(
+    `INSERT INTO cap_work_judgments (session_id, goal_id, n, turn_id, judgment, seq)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [event.threadId, judged.goalId, judged.n, judged.turnId, JSON.stringify(judged), event.seq],
+  );
+  const goal = goalOf(tx, event, judged.goalId);
+  const next: Goal = {
+    ...goal,
+    judgments: Math.max(goal.judgments, judged.n),
+    lastVerdict: judged.verdict ?? goal.lastVerdict,
+  };
+  tx.run(`UPDATE cap_work_goals SET goal = ? WHERE session_id = ? AND goal_id = ?`, [
+    JSON.stringify(next),
+    event.threadId,
+    judged.goalId,
+  ]);
+}
+
+function applyGoalSettled(tx: ProjectionTx, event: DurableEventEnvelope): void {
+  const settled = payloadOf(WorkGoalSettledSchema, event);
+  const goal = goalOf(tx, event, settled.goalId);
+  const next: Goal = { ...goal, status: settled.status, judgments: settled.judgments };
+  tx.run(
+    `UPDATE cap_work_goals SET goal = ?, status = ?, settled_seq = ? WHERE session_id = ? AND goal_id = ?`,
+    [JSON.stringify(next), settled.status, event.seq, event.threadId, settled.goalId],
+  );
+}
+
+function applyReportBuilt(tx: ProjectionTx, event: DurableEventEnvelope): void {
+  const { report } = payloadOf(WorkReportBuiltSchema, event);
+  tx.run(
+    `INSERT INTO cap_work_reports (session_id, report_id, ord, report, seq) VALUES (?, ?, ?, ?, ?)`,
+    [event.threadId, report.reportId, orderOf(report.reportId), JSON.stringify(report), event.seq],
+  );
+}
+
 type Handler = (tx: ProjectionTx, event: DurableEventEnvelope) => void;
 
 const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
@@ -266,6 +351,10 @@ const HANDLERS: ReadonlyMap<string, Handler> = new Map<string, Handler>([
   ["work.task_unlinked", applyUnlinked],
   ["work.plan_submitted", applyPlanSubmitted],
   ["work.plan_withdrawn", applyPlanWithdrawn],
+  ["work.goal_set", applyGoalSet],
+  ["work.goal_judged", applyGoalJudged],
+  ["work.goal_settled", applyGoalSettled],
+  ["work.report_built", applyReportBuilt],
   ["approval.requested", applyApprovalRequested],
   ["approval.resolved", applyApprovalResolved],
   ["settings.changed", applySettingsChanged],

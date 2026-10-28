@@ -94,6 +94,7 @@ export function createRig(
     scope: turnScope,
     entry: options.entry ?? { kind: "request", stepIndex: 0, adoptStepId: null, binding: null },
     interactive: true,
+    origin: "user",
     scopeId: null,
     leaseId: null,
     driveSignal: null,

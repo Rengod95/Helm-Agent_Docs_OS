@@ -1,5 +1,5 @@
 // @xeon/host 공개 진입점(L4.host-service.spec §3.3). apps/cli가 쓴다. 엔진 없는 클라이언트는 "./client"다.
-// startService, ensureService는 서비스 모드(M3)라 아직 없다.
+// 서비스 모드: startService, ensureHostService, serviceStatus, stopHostService는 service/ 아래다.
 export { assemble, AssembleError } from "./assemble.ts";
 export type {
   ActivityPort,
@@ -41,3 +41,25 @@ export {
   type HostStatePaths,
   type ResolveHostStatePathsOptions,
 } from "./state-paths.ts";
+export { defaultServiceCommand } from "./service/commands.ts";
+export { serviceStatus, stopHostService } from "./service/control.ts";
+export type {
+  ServiceControlOptions,
+  ServiceStatusResult,
+  ServiceStopResult,
+} from "./service/control.ts";
+export { connectServiceTransport } from "./service/connect.ts";
+export type { ServiceEndpoint } from "./service/connect.ts";
+export { ensureHostService } from "./service/ensure.ts";
+export type {
+  EnsureHostServiceError,
+  EnsureHostServiceOptions,
+  EnsuredService,
+  ServiceCommand,
+} from "./service/ensure.ts";
+export { resolveLaunchMode } from "./service/launch-mode.ts";
+export { SERVICE_STARTUP_GRACE_MS, startService } from "./service/lifetime.ts";
+export type { ServiceHandle, ServiceOptions, ServiceStart } from "./service/lifetime.ts";
+export { resolveServicePaths } from "./service/paths.ts";
+export type { ServicePaths } from "./service/paths.ts";
+export type { PendingSchedulesPort } from "./types.ts";

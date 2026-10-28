@@ -509,6 +509,12 @@ export function createExecService(
 - `outputSpillBytes`는 호출자가 `spill`을 주지 않았을 때 `{ afterBytes: outputSpillBytes, afterLines: Number.MAX_SAFE_INTEGER }`로 넘긴다.
 - `tempDir`는 `createTempDir`·`createTempFile`과 spill 파일의 위치다(PATCHES P19). 있으면 그 디렉터리를 0700으로 만들고(없을 때) 아래에 `tmp-XXXX/`(0700)를 두며, 임시 파일은 0600이다. 없으면 원본대로 OS 임시 폴더다. 운영 조립은 항상 `<xeon.os dirs.state>/spill`을 넘긴다 [결정: m2 마감 G2-05].
 
+### 3.8.1 무인 경로 시간 상한 [결정: M3-REQ-46]
+
+- 일반 대화의 `l0.exec.defaultTimeoutMs`는 0(제한 없음)을 유지한다. 예약·루프처럼 사람이 없는 경로는 `withUnattendedTimeout(shell, capMs)`(`src/unattended.ts`)로 `Shell`을 감싼다. 감싼 `exec`는 호출의 `timeout`(초)을 `capMs / 1000` 이하로 맞춘다. 호출자가 더 짧은 값을 주면 그 값이 이기고, 없거나 0이거나 더 길면 상한으로 바꾼다. 상한은 호출자가 넘긴다.
+- `capMs`의 기본 공급원은 `l0.exec.unattendedTimeoutMs`(기본 1,800,000 = 30분)이고 `readUnattendedTimeoutMs(read)`가 읽는다. 값이 없거나 범위 밖이면 기본값이다. 이 상수는 [결정: 오케스트레이터 기본값]이다. 호출과 연결은 B1-SCH(`L2.schedule.spec`, M3-16)가 한다.
+- 시간이 넘으면 기존 규칙대로 `ExecutionError("timeout")`이고 프로세스 트리를 정리한다(§4.3). `startBackground`는 `timeout`을 받지 않으므로 이 상한과 관계없다.
+
 ### 3.9 백그라운드 실행 `startBackground` [제안]
 
 `L0.process.spec` §4.3의 백그라운드 레지스트리는 등록자가 `pid`와 `BackgroundStopper`를 넘긴다고 전제한다. `Shell.exec`는 종료까지 기다리는 호출이고 pid와 개별 정지 수단을 돌려주지 않으므로, 그 전제를 채우는 실행 계약을 여기서 정한다.
@@ -633,17 +639,18 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 |---|---|---|---|---|---|
 | `l0.exec.shell` | `string`(절대 경로) | 없음(자동 탐색, 5.2절) | `managed`, `user` | `restart` | 탭 `execution`, `text`, 현재 값과 탐색 결과를 함께 표시 [제안] |
 | `l0.exec.defaultTimeoutMs` | `integer` | `0`(호출자가 정하지 않으면 제한 없음) | `managed`, `user`, `project` | `nextTurn` | 탭 `execution`, `number`, 단위 ms [제안] |
+| `l0.exec.unattendedTimeoutMs` | `integer` | `1800000`(30분, 무인 경로만 적용, 3.8.1절) | `managed`, `user` | `nextTurn` | 탭 `execution`, `number`, 단위 ms |
 | `l0.exec.outputSpillBytes` | `integer` | `10485760`(10 MiB) | `managed`, `user`, `project` | `nextTurn` | 탭 `advanced`(파일 편집기만) [제안] |
 | `l0.exec.envAllowlist.extra` | `string[]`(이름 패턴 `^[A-Za-z_][A-Za-z0-9_]{0,127}$`) | `[]` | `managed`, `user` | `nextTurn` | 탭 `execution`, `list` [제안] |
 
-- `range`: `defaultTimeoutMs` 0~2,147,483,647, `outputSpillBytes` 0~1,073,741,824.
+- `range`: `defaultTimeoutMs` 0~2,147,483,647, `unattendedTimeoutMs` 1,000~2,147,483,647, `outputSpillBytes` 0~1,073,741,824.
 - `l0.exec.shell`과 `l0.exec.envAllowlist.extra`는 `project` 범위를 받지 않는다 [제안]. 저장소 파일이 실행 셸을 바꾸거나 부모 env를 자식에 열면 저장소를 여는 것만으로 코드 실행이나 정보 노출이 생긴다(`_research/notes/L0-1.md` §3.6과 같은 신뢰 원칙).
 - `envAllowlist.extra`는 더하기만 가능하다. `deny` 패턴(3.5절)에 맞는 이름은 쓰기 검사(`checkSettingWrite`)에서 거부하고, 그 이유를 화면에 보인다. 비밀 값은 `secretEnv`로만 넣고 이 키로는 넣지 않는다.
 - [제안] L4 탭 이름 '실행'은 F `SettingsTab`의 `"execution"`이다(`F.wire-settings.spec` §3.8.2, `_research/settings.md` §4 10번 "실행과 알림").
 
 ## 7. 확장 지점
 
-- `xeon.exec`는 `on` 지점을 선언하지 않는다. 도구 실행 전후 지점(`tool_call`, `tool_result`)은 L1이 선언한다(`F.extensions.spec`).
+- `xeon.exec`는 `on` 지점을 선언하지 않는다. 도구 실행 전후 지점(`tool.call.before`, `tool.result`)은 L1이 선언한다(`F.extensions.spec`).
 - `post`, `drive`와 관계가 없다. drive 임대 반납·단계 경계 비활성화가 진행 중 명령을 끝낼 때는 L1이 `CancelScope.abortSignal`을 취소한다(B-17).
 - 확장은 `scope`로 `ExecServiceName`을 주입받아 쓸 수 있다. 확장이 자기 셸 데코레이터를 끼우는 것은 이 문서가 열지 않는다. `Shell` 데코레이터 조립 지점은 L1 tools와 apps/host 하나다(3.7절) [제안].
 
@@ -705,7 +712,7 @@ Windows 네이티브에서 통과를 기대하는 적합성 사례 [가정, M2 �
 3. [미결] 포크 업그레이드 정책(정기 diff 또는 보안·버그 수정 때만). adr.0003 §6을 이어받는다.
 4. [결정: m2 마감 G2-05] spill 파일 위치는 `ExecServiceOptions.tempDir`(조립 루트가 `<dirs.state>/spill`)이고 소유자 전용이다(디렉터리 0700, 파일 0600). 원본은 OS 임시 디렉터리에 남겼다. env 모드 비밀이 출력에 섞이면 원문이 디스크에 남으므로 `secretEnv`가 있는 호출은 호출자가 준 `spill`도 기본 spill도 끈다(`service.int.test.ts`의 "secret value never appears in results or spill files"). `startBackground`는 `spill` 자체를 받지 않는다. 세션 종료 때 삭제, 보관 기간 정리, 디스크 상한은 정하지 않았다 [미결, M3 G2-05 나머지]. 조립 루트가 `tempDir`을 넘기도록 고치는 일은 L4.host 작업이다.
 5. [미결] 적합성 스위트의 watch 사례(사례당 최대 30초)를 `int` 파일 10초 상한(`eng.testing.guide` TS-01)에 맞추는 방법: 파일 분할, 별도 태그, 상한 예외 중 하나.
-6. [미결] `l0.exec.defaultTimeoutMs` 기본값. 0(제한 없음)과 안전 상한(예: 2시간) 중 고른다. `l2.workspace.shell.defaultTimeoutSec`과의 우선순위는 호출자 값이 앞선다.
+6. [결정: review.m3-lower-requirements M3-REQ-46] `l0.exec.defaultTimeoutMs`는 0(제한 없음)을 유지하고 무인 경로 상한은 3.8.1절의 `withUnattendedTimeout`이 건다. `l2.workspace.shell.defaultTimeoutSec`과의 우선순위는 호출자 값이 앞선다.
 7. [미결] Windows 네이티브 적합성 기대 표(5.2절)는 실행하지 않은 [가정]이다. M2 이후 Windows CI에서 확인한다.
 8. [결정: review.decisions-2 U-19] 마일스톤 M1의 비밀 경로는 에이전트 env 모드(`secretEnv`, bash 도구, 실행마다 승인)다. `L0.secrets.spec` §3.6에 `withEnv`를 두고 EX-13을 M1에 둔다.
 9. [미결] stdin 파이프가 필요한 장시간 프로세스(MCP stdio 서버)를 `startBackground`로 띄울지, 옵션에 stdin 스트림을 더할지. `L2.mcp.spec`, `L0.process.spec` 미결 P-4와 함께 정한다.

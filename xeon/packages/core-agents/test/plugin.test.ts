@@ -30,7 +30,7 @@ const STORE: PortKey<Pick<StoreService, "leases">> = { name: "xeon.store" };
 test("the plugin provides xeon.agents, registers the agent tool and the deny rules, and runs a spawn end to end", async () => {
   const ids = fixedIdFactory();
   const session = fakeSession(ids);
-  const tasks = fakeTasks();
+  const tasks = fakeTasks({ producer: session.producer("core.tasks"), ids });
   const tools = fakeTools();
   const loop = fakeChildLoop({
     ids,

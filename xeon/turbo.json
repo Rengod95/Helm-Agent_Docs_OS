@@ -1,5 +1,6 @@
 {
   "$schema": "https://turborepo.dev/schema.json",
+  "envMode": "loose",
   "tasks": {
     "lint": {
       "inputs": [
@@ -22,8 +23,24 @@
       ],
       "outputs": ["dist/**"]
     },
+    "transit": {
+      "dependsOn": ["^transit"],
+      "inputs": ["$TURBO_DEFAULT$", "!test/**", "!**/*.test.ts"],
+      "outputs": []
+    },
     "test": {
-      "inputs": ["src/**", "test/**", "package.json"],
+      "dependsOn": ["transit"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/bun.lock",
+        "$TURBO_ROOT$/bunfig.toml",
+        "$TURBO_ROOT$/mise.toml",
+        "$TURBO_ROOT$/tsconfig.base.json",
+        "$TURBO_ROOT$/scripts/test-pkg.sh",
+        "$TURBO_ROOT$/scripts/test-preload.ts",
+        "$TURBO_ROOT$/scripts/ensure-sidecar.sh",
+        "$TURBO_ROOT$/../scripts/guard.sh"
+      ],
       "outputs": []
     },
     "fmt-check": {

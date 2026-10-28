@@ -25,7 +25,6 @@ import { openTestStore, type TestStore } from "@xeon/platform-store/testing";
 import { KNOWLEDGE_EXTENSION_NAME, knowledgeManifest } from "../src/manifest.ts";
 import { IMPLEMENTED_SKILL_TOOLS, knowledgePlugin } from "../src/plugin.ts";
 import { fixedIdFactory, fixedLocalIds, manualClock } from "./support/clock.ts";
-import { rejection } from "./support/helpers.ts";
 import { createMemoryFs, type MemoryFs } from "./support/memory-fs.ts";
 import { createSessionKit } from "./support/sessions.ts";
 import { PROJECT_SKILLS, putSkill, USER_SKILLS, userLayer } from "./support/world.ts";
@@ -185,9 +184,9 @@ describe("manifest", () => {
     const unit = knowledgePlugin({ settings: { layers: () => [] }, ids: fixedLocalIds() });
     expect(unit.builtin).toBe(true);
     expect(unit.manifest.points).toEqual([
-      "session_start",
-      "before_agent_start",
-      "session_shutdown",
+      "session.start",
+      "input.agent.before",
+      "session.shutdown",
     ]);
   });
 });
@@ -269,7 +268,7 @@ describe("plugin", () => {
     expect(error instanceof Error && error.message).toContain("session.projectors");
   });
 
-  test("a consumer extension whose call carries no caller context cannot write", async () => {
+  test("a consumer extension's write is attributed to it by the capability wrapper and queued, not applied", async () => {
     const { t } = await boot({
       prepare: (fs) => putSkill(fs, USER_SKILLS, "deploy"),
     });
@@ -277,15 +276,11 @@ describe("plugin", () => {
     await t.host.install(unit);
     await t.settled();
     const entries = await apis.ledger?.list({});
-    // 시험용 호스트의 capability 래퍼는 호출 문맥을 채우지 않는다. 행위자를 알 수 없는 쓰기는 거부한다
-    const rollback = await rejection(
-      apis.ledger?.rollback({ ledgerId: entries?.entries[0]?.ledgerId ?? "" }) ?? Promise.resolve(),
-    );
-    expect(rollback.data.code).toBe("denied");
-    const write = await rejection(
-      apis.skills?.create({ name: "x", description: "d", body: "b" }) ?? Promise.resolve(),
-    );
-    expect(write.data.code).toBe("denied");
+    const rollback = await apis.ledger?.rollback({ ledgerId: entries?.entries[0]?.ledgerId ?? "" });
+    const write = await apis.skills?.create({ name: "x", description: "d", body: "b" });
+    // L2.knowledge.spec §4.5 표의 `extension`, 증거 없음, 세션 없음 행: 기본 설정에서 모든 쓰기는 대기열로 간다
+    expect(rollback?.status).toBe("queued");
+    expect(write?.status).toBe("queued");
     expect((await apis.skills?.list({}))?.skills.map((skill) => skill.name)).toEqual(["deploy"]);
   });
 
@@ -377,7 +372,7 @@ async function agentStart(
   key: string,
 ) {
   const out = await t.host.dispatch(
-    "before_agent_start",
+    "input.agent.before",
     { prompt: "hi", systemPrompt: "BASE", systemPromptOptions: {} },
     { threadId: thread, dispatchKey: key, initial: { messages: [], systemPrompt: "BASE" } },
   );
@@ -390,7 +385,7 @@ describe("turn hooks", () => {
     const thread = t.newThread();
     await t.host.openThread(thread);
     await t.host.dispatch(
-      "session_start",
+      "session.start",
       { reason: "new", threadId: thread },
       { threadId: thread, dispatchKey: "start" },
     );
@@ -412,7 +407,7 @@ describe("turn hooks", () => {
     expect(third[0]?.content).toBe("스킬 인덱스 변경: 추가 rollback(Roll back.)");
 
     await t.host.dispatch(
-      "session_shutdown",
+      "session.shutdown",
       { reason: "quit" },
       { threadId: thread, dispatchKey: "stop" },
     );
@@ -427,7 +422,7 @@ describe("compaction", () => {
     const thread = t.newThread();
     await t.host.openThread(thread);
     await t.host.dispatch(
-      "session_start",
+      "session.start",
       { reason: "new", threadId: thread },
       { threadId: thread, dispatchKey: "start" },
     );
@@ -442,7 +437,7 @@ describe("compaction", () => {
     putSkill(fs, USER_SKILLS, "rollback", { description: "Roll back." });
     await apis.skills?.reindex({});
     await t.host.dispatch(
-      "session_compact",
+      "session.compact.after",
       {
         threadId: thread,
         eventId: t.ids.next("evt"),
@@ -466,13 +461,13 @@ describe("compaction", () => {
     const thread = t.newThread();
     await t.host.openThread(thread);
     await t.host.dispatch(
-      "session_start",
+      "session.start",
       { reason: "new", threadId: thread },
       { threadId: thread, dispatchKey: "start" },
     );
     await agentStart(t, thread, "turn-1");
     await t.host.dispatch(
-      "session_compact",
+      "session.compact.after",
       {
         threadId: thread,
         eventId: t.ids.next("evt"),
@@ -502,7 +497,7 @@ describe("the thread workspace is the project folder", () => {
     if (workspace !== undefined) WORKSPACES.set(thread, workspace);
     await t.host.openThread(thread);
     await t.host.dispatch(
-      "session_start",
+      "session.start",
       { reason: "new", threadId: thread },
       { threadId: thread, dispatchKey: `start-${thread}` },
     );

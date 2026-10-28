@@ -258,6 +258,23 @@ export function approvalViewOf(
           })),
         },
       };
+    case "review":
+      // 검토 승인(ADR-0018). 요약(파일, hunk 수)만 보이고 hunk 본문은 싣지 않는다. 답은 ReviewAnswer(approval.ts)
+      return {
+        approvalId,
+        title,
+        body: [
+          ...callerLine(payload.origin.caller),
+          `검토: ${body.review.title} (라운드 ${String(body.review.round)})`,
+          ...body.review.files.map(
+            (file) => `${file.change} ${file.path} (hunk ${String(file.hunks)})`,
+          ),
+          ...expiryLine(payload),
+        ],
+        allowsAnswer: true,
+        remember,
+        form: { kind: "review" },
+      };
     default:
       return assertNever(body, "ApprovalBody");
   }

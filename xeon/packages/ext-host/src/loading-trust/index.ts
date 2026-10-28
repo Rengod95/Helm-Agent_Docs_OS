@@ -1,5 +1,6 @@
 // loading-trust 도메인의 모든 export(패키지 내부용 포함). 루트(src/index.ts)는 공개 이름만 다시 내보낸다.
-import { Bug } from "@xeon/contracts";
+import { basename } from "node:path";
+import { attemptAsync, Bug, parseJson } from "@xeon/contracts";
 import { isSemVer, type CapabilityId, type SemVer } from "@xeon/contracts/capabilities";
 import {
   validateManifest,
@@ -15,17 +16,26 @@ import {
 } from "@xeon/contracts/extensions";
 import type { SettingDef, SettingNamespace } from "@xeon/contracts/settings";
 import type { AdmitInfo, OperationsPolicy } from "../operations/index.ts";
-import type { ExtHost } from "../primitives/host.ts";
+import { NO_STARTUP_OPTIONS, startupFilter, type StartupOptions } from "../operations/safe-mode.ts";
+import { assignTier } from "../operations/tier.ts";
+import type { ExtHost, ExtensionUnit } from "../primitives/host.ts";
 import {
   candidatesFromBuiltins,
+  discoverExternal,
+  externalLocations,
   orderKeyOfBuiltin,
   type BuiltinExtensionModule,
   type ExtensionCandidate,
 } from "./discover.ts";
 import { eachInOrder } from "../primitives/sequence.ts";
 import { toCapabilityIds } from "../primitives/services.ts";
-import { unitOfBuiltin, verdictOfInstall } from "./entry-loader.ts";
-import { orderManifests, type OrderKey } from "./load-order.ts";
+import {
+  importExternalEntry,
+  unitOfBuiltin,
+  unitOfExternal,
+  verdictOfInstall,
+} from "./entry-loader.ts";
+import { compareLoadOrder, orderManifests, type OrderKey } from "./load-order.ts";
 import type {
   LoadDiagnostic,
   LoadDiagnosticCode,
@@ -41,6 +51,9 @@ import {
   type LoaderMode,
   type TrustLevel,
 } from "./trust/levels.ts";
+import { resolveProjectTrust, type ProjectTrustResult } from "./trust/resolve.ts";
+import { createProjectTrustStore } from "./trust/store.ts";
+import { registerSdkModules, X_SDK_MODULES, type SdkModules } from "./virtual-modules.ts";
 
 export {
   BUILTIN_LAYER_ORDER,
@@ -60,6 +73,15 @@ export {
   type TrustPermissions,
 } from "./trust/levels.ts";
 export { type BuiltinExtensionModule, type LoaderFs, type LoaderPaths } from "./discover.ts";
+export {
+  installDefaultPlugin,
+  type DefaultPluginInstallError,
+  type DefaultPluginInstallInput,
+  type DefaultPluginInstallOutcome,
+  type PluginInstallFs,
+} from "./default-plugin.ts";
+export { registerSdkModules, SDK_MODULE_SPECIFIERS, type SdkModules } from "./virtual-modules.ts";
+export { compareVersions } from "./semver.ts";
 export {
   LoadDiagnosticSchema,
   type LoadDiagnostic,
@@ -102,12 +124,47 @@ export interface LoadOptions {
   readonly mode: LoaderMode;
   /** CLI 일회 지정. 프로젝트 신뢰 판정의 첫 단계다. 프로젝트 확장이 생기는 M2부터 쓴다 */
   readonly trustOverride?: boolean;
+  /** 안전 모드와 --disable-ext(X.operations.spec §3.6). 없으면 둘 다 꺼짐 */
+  readonly startup?: StartupOptions;
+  /** `x.loading-trust.paths` 유효 값. 각 경로는 `extensions/`와 같은 모양의 디렉터리다(그 아래 한 단계가 확장 하나) */
+  readonly extraPaths?: readonly string[];
+  /**
+   * 프로젝트 확장을 어떻게 싣는가. 기본 `"cwd"`는 `cwd`의 프로젝트를 이 호출에서 판정하고 싣는다(in-process·stdio 호스트).
+   * `"on_demand"`는 프로젝트를 판정하지도 싣지도 않는다. 서비스 모드는 작업 폴더를 여는 thread마다 `loadProject`로 싣는다(spec §4.7.8)
+   */
+  readonly projects?: "cwd" | "on_demand";
   readonly signal: AbortSignal;
+}
+
+/** `loadProject` 입력. 프로젝트 하나의 판정과 적재 */
+export interface LoadProjectOptions {
+  /** 작업 폴더. 판정은 이 폴더의 프로젝트 루트(정규화한 경로)에 대해 한다 */
+  readonly projectRoot: string;
+  readonly mode: LoaderMode;
+  /** 이 호출 전용 프롬프트 수단. 서비스 모드에서는 그 thread를 연 연결로 보내는 구현이다. 없으면 `LoaderDeps.prompter` */
+  readonly prompter?: TrustPrompter;
+  /** 호출자가 이미 정한 판정(저장하지 않는다). 서비스 호스트가 클라이언트의 `trust.decide` 결과를 넘길 때 쓴다 */
+  readonly trustOverride?: boolean;
+  readonly signal: AbortSignal;
+}
+
+export interface ProjectLoadReport {
+  /** 정규화한 프로젝트 루트. 판정이 실패했으면 null */
+  readonly projectRoot: string | null;
+  readonly projectTrust: ProjectTrustResult | null;
+  /** 이 루트의 확장을 앞선 호출에서 이미 실었다. 다시 싣지 않았다 */
+  readonly alreadyLoaded: boolean;
+  /** 이 호출이 새로 시도한 프로젝트 확장 */
+  readonly extensions: readonly LoadedExtensionInfo[];
+  /** 이 호출이 남긴 진단 */
+  readonly diagnostics: readonly LoadDiagnostic[];
 }
 
 export interface LoadReport {
   readonly extensions: readonly LoadedExtensionInfo[];
   readonly diagnostics: readonly LoadDiagnostic[];
+  /** 프로젝트 신뢰 판정. 안전 모드라 판정하지 않았으면 null */
+  readonly projectTrust: ProjectTrustResult | null;
   /** 거부된 확장을 뺀 설정 그룹. 조립 루트가 buildCatalog에 넣는다 */
   readonly settingGroups: readonly {
     readonly owner: string;
@@ -133,6 +190,8 @@ export interface LoaderSettingsSource {
   enabled(name: ExtensionName): boolean | undefined;
   /** 설정 키에 유효 값이 있는가. required userConfig 확인에 쓴다 */
   hasValue(key: string): boolean;
+  /** `x.loading-trust.defaultProjectTrust` 유효 값. 없으면 "ask" */
+  defaultProjectTrust?(): "ask" | "always" | "never";
 }
 
 /** 조립 루트가 주입하는 의존. 필수 항목이 없으면 시작 실패다(X.loading-trust.spec §4.3.2) */
@@ -152,11 +211,27 @@ export interface LoaderDeps {
   readonly settings?: LoaderSettingsSource;
   /** 코어가 제공하는 능력과 버전. 6단계가 매니페스트 provides와 함께 본다 [가정: 코어 능력 레지스트리 API는 X.primitives] */
   readonly coreCapabilities?: ReadonlyMap<CapabilityId, SemVer>;
+  /**
+   * 플러그인 번들이 호스트와 같은 인스턴스를 쓰게 할 SDK 가상 모듈 가운데 X가 직접 등록하지 않는 것. 지정자 → 호스트의 모듈 객체.
+   * `@xeon/contracts`와 하위 경로, `typebox`는 X가 등록하므로 넘기지 않아도 된다. `@xeon/group-kit`은 L3라 X가 import할 수 없어 조립 루트가 넘긴다(M3-REQ-110)
+   */
+  readonly sdkModules?: SdkModules;
+  /** `session.trust.before` 발화(X.loading-trust.spec §4.7.3 4번). 없으면 결정 없음으로 본다 */
+  readonly emitProjectTrust?: (
+    cwd: string,
+    signal: AbortSignal,
+  ) => Promise<{ readonly trusted: "yes" | "no"; readonly remember?: boolean } | undefined>;
 }
 
 export interface ExtensionLoader {
   /** 시작 때 한 번. 파이프라인 전체를 실행한다 */
   loadAll(options: LoadOptions): Promise<LoadReport>;
+  /**
+   * 프로젝트 하나를 판정하고 신뢰되면 그 프로젝트의 확장을 싣는다(서비스 모드, X.loading-trust.spec §4.7.8).
+   * 같은 루트는 한 번만 싣는다(`alreadyLoaded`). 불신이면 아무것도 싣지 않고 결정은 기억하지 않아 다음 호출이 다시 판정한다.
+   * 안전 모드이면 판정하지 않고 `safe_mode` 진단만 남긴다. `loadAll` 뒤에 불러야 한다
+   */
+  loadProject(options: LoadProjectOptions): Promise<ProjectLoadReport>;
   /** ext.<name>.enabled가 거짓에서 참이 되면 부른다. 아직 로드되지 않은 확장을 로드한다 */
   ensureLoaded(name: ExtensionName, signal: AbortSignal): Promise<LoadedExtensionInfo>;
   /**
@@ -191,6 +266,27 @@ function versionOf(manifest: ExtensionManifest | undefined): SemVer {
   return version !== undefined && isSemVer(version) ? version : "0.0.0";
 }
 
+function fallbackName(candidate: ExtensionCandidate, index: number): string {
+  if (candidate.builtin !== null) return candidate.builtin.manifest.name;
+  return candidate.root === null ? `unknown-${index}` : basename(candidate.root);
+}
+
+function projectDiagnostic(
+  code: LoadDiagnosticCode,
+  severity: LoadDiagnostic["severity"],
+  message: string,
+): LoadDiagnostic {
+  return {
+    extension: null,
+    source: "project",
+    stage: "trust",
+    severity,
+    code,
+    message,
+    generation: 0,
+  };
+}
+
 function fallbackKey(name: string): OrderKey {
   return { source: "builtin", layerIndex: Number.MAX_SAFE_INTEGER, name };
 }
@@ -204,6 +300,13 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   const records = new Map<ExtensionName, ExtRecord>();
   const allDiagnostics: LoadDiagnostic[] = [];
   let order: ExtRecord[] = [];
+  /** 이름이 같거나 알 수 없는 후보에 붙이는 일련번호. 묶음이 달라도 겹치지 않게 loadAll마다 0부터 센다 */
+  let anonymous = 0;
+  let startup: StartupOptions = NO_STARTUP_OPTIONS;
+  /** "이번 세션만" 결정은 호스트 프로세스 수명 동안 유지한다(§4.7.3) */
+  const sessionTrust = new Map<string, "allow" | "deny">();
+  /** `loadProject`가 이미 실은 프로젝트 루트(정규화한 경로) */
+  const loadedProjects = new Set<string>();
 
   function missingDependency(): string | undefined {
     const required: readonly (readonly [string, unknown])[] = [
@@ -244,7 +347,6 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       name: record.name,
       version: versionOf(record.manifest),
       source: record.source,
-      origin: record.candidate.origin,
       trust: record.trust,
       state: record.state,
       isolation: record.manifest?.isolation ?? "none",
@@ -274,62 +376,97 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     );
   }
 
-  /** 1~4단계: 후보 → 검증된 매니페스트, 집합 검사, 순서, 신뢰 */
-  function validateAll(candidates: readonly ExtensionCandidate[]): void {
-    let anonymous = 0;
-    for (const candidate of candidates) {
-      const module = candidate.builtin;
-      if (module === null) continue;
-      const result = validateManifest(module.manifest);
-      const rawName: unknown = Reflect.get(module.manifest, "name");
+  /** 후보의 매니페스트 원본. 내장은 모듈의 상수, 외부는 `plugin.json`을 읽어 파싱한다(2단계 입력) */
+  async function readManifestInput(
+    candidate: ExtensionCandidate,
+  ): Promise<
+    | { readonly ok: true; readonly input: unknown }
+    | { readonly ok: false; readonly code: LoadDiagnosticCode; readonly message: string }
+  > {
+    if (candidate.builtin !== null) return { ok: true, input: candidate.builtin.manifest };
+    const path = candidate.manifestPath;
+    if (path === null) return { ok: false, code: "manifest_missing", message: "no manifest path" };
+    const read = await attemptAsync(() => deps.fs.readText(path));
+    if (!read.ok) {
+      return { ok: false, code: "manifest_missing", message: `cannot read ${path}` };
+    }
+    if (read.value === null) {
+      return { ok: false, code: "manifest_missing", message: `${path} does not exist` };
+    }
+    const json = parseJson(read.value.startsWith("﻿") ? read.value.slice(1) : read.value);
+    if (!json.ok) {
+      return { ok: false, code: "manifest_parse", message: `${path} is not valid JSON` };
+    }
+    return { ok: true, input: json.value };
+  }
+
+  function orderKeyOfRecord(record: ExtRecord): OrderKey {
+    const manifest = record.manifest;
+    if (manifest === undefined) return fallbackKey(record.name);
+    if (record.source === "builtin") return orderKeyOfBuiltin(manifest);
+    return { source: record.source, layerIndex: 0, name: record.name };
+  }
+
+  /**
+   * 1~4단계: 후보 → 검증된 매니페스트, 집합 검사, 순서, 신뢰. 한 묶음(내장·관리·사용자, 그 다음 프로젝트)씩 부르고
+   * 새로 만든 기록을 돌려준다. 로드 순서 index는 앞 묶음 뒤에서 이어 매긴다
+   */
+  async function ingest(candidates: readonly ExtensionCandidate[]): Promise<readonly ExtRecord[]> {
+    const batch: ExtRecord[] = [];
+    // 같은 이름은 builtin > managed > user > project 순서로 앞의 것을 쓴다(§4.2.2). 같은 위치끼리는 입력 순서를 지킨다
+    const sorted = candidates.toSorted((a, b) =>
+      compareLoadOrder(
+        { source: a.source, layerIndex: 0, name: "" },
+        { source: b.source, layerIndex: 0, name: "" },
+      ),
+    );
+    const raws = await Promise.all(sorted.map((candidate) => readManifestInput(candidate)));
+    for (const [position, candidate] of sorted.entries()) {
       anonymous += 1;
-      const name =
-        result.manifest?.name ?? (typeof rawName === "string" ? rawName : `unknown-${anonymous}`);
+      const raw = raws[position];
+      if (raw === undefined) throw new Bug("loader.manifest_read_missing");
+      const result = raw.ok ? validateManifest(raw.input) : undefined;
+      const name = result?.manifest?.name ?? fallbackName(candidate, anonymous);
       const record: ExtRecord = {
         name,
         candidate,
-        manifest: result.manifest,
+        manifest: result?.manifest,
         source: candidate.source,
         trust: "untrusted",
         state: "discovered",
         loadIndex: null,
         generation: 0,
-        essential: module.essential === true,
+        essential: candidate.builtin?.essential === true,
         diagnostics: [],
       };
-      if (records.has(name)) {
-        // 같은 이름이 두 번 들어왔다: 뒤의 것은 거부하고 앞의 것은 집합 검사에서 함께 다룬다
+      const first = records.get(name);
+      if (first !== undefined) {
+        // 같은 이름이 두 번 들어왔다. 위치가 다르면 뒤의 것만, 같은 위치면 둘 다 거부한다
         record.name = `${name}~${anonymous}`;
         records.set(record.name, record);
-        fail(
-          record,
-          "rejected",
-          "set",
-          "name_conflict",
-          `extension name "${name}" is installed twice`,
-        );
-        const first = records.get(name);
-        if (first !== undefined && first.state !== "rejected") {
-          fail(
-            first,
-            "rejected",
-            "set",
-            "name_conflict",
-            `extension name "${name}" is installed twice`,
-          );
+        batch.push(record);
+        const message = `extension name "${name}" is installed twice`;
+        fail(record, "rejected", "set", "name_conflict", message);
+        if (first.source === record.source && first.state !== "rejected") {
+          fail(first, "rejected", "set", "name_conflict", message);
         }
         continue;
       }
       records.set(name, record);
-      const warnings = result.issues.filter((issue) => issue.severity === "warning");
-      if (result.manifest === undefined) {
+      batch.push(record);
+      if (!raw.ok) {
+        fail(record, "rejected", "manifest", raw.code, raw.message);
+        continue;
+      }
+      const warnings = (result?.issues ?? []).filter((issue) => issue.severity === "warning");
+      if (result?.manifest === undefined) {
         fail(
           record,
           "rejected",
           "manifest",
           "manifest_invalid",
           `manifest of ${name} is invalid`,
-          result.issues,
+          result?.issues,
         );
         continue;
       }
@@ -346,9 +483,15 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       record.state = "validated";
     }
 
-    const valid = [...records.values()].filter((record) => record.state === "validated");
+    // 3단계 집합 검사: 앞 묶음에서 살아 있는 확장도 같이 보지만 거부는 이번 묶음의 확장에만 적용한다
+    const valid = batch.filter((record) => record.state === "validated");
+    const prior = [...records.values()].filter(
+      (record) => !batch.includes(record) && record.state !== "rejected",
+    );
     const setIssues = validateManifestSet(
-      valid.flatMap((record) => (record.manifest === undefined ? [] : [record.manifest])),
+      [...prior, ...valid].flatMap((record) =>
+        record.manifest === undefined ? [] : [record.manifest],
+      ),
     );
     for (const issue of setIssues) {
       const owner = valid.find((record) => issue.path.startsWith(`${record.name}/`));
@@ -362,23 +505,19 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
 
     // 로드 순서: 입력 순서와 무관하다
     const ordered = orderManifests(
-      [...records.values()]
+      batch
         .filter((record) => record.state === "validated" && record.manifest !== undefined)
-        .map((record) => ({
-          record,
-          key:
-            record.manifest === undefined
-              ? fallbackKey(record.name)
-              : orderKeyOfBuiltin(record.manifest),
-        })),
+        .map((record) => ({ record, key: orderKeyOfRecord(record) })),
     );
+    const base = order.length;
     ordered.forEach((item, index) => {
-      item.record.loadIndex = index;
+      item.record.loadIndex = base + index;
     });
-    order = ordered.map((item) => item.record);
+    const added = ordered.map((item) => item.record);
+    order = [...order, ...added];
 
     // 4단계 신뢰: 설치 위치 상한과 요청 등급의 낮은 쪽
-    for (const record of order) {
+    for (const record of added) {
       const requested = record.manifest?.trust?.level;
       const effective = effectiveTrust(record.source, requested);
       if (!effective.ok) {
@@ -394,6 +533,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       record.trust = effective.level;
       record.state = "trusted";
     }
+    return batch;
   }
 
   /** 5단계: userConfig 검증. 예약 키 충돌과 다른 네임스페이스 침범은 거부한다 */
@@ -433,10 +573,41 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return deps.settings?.enabled(record.name);
   }
 
-  /** 5a단계: 켜짐 확인과 필수 userConfig */
+  /** 안전 모드와 `--disable-ext`로 이번 시작에서 빠지는가(X.operations.spec §4.6). 빠지면 사유를 돌려준다 */
+  function startupSkipOf(record: ExtRecord): "safe_mode" | "disabled_flag" | undefined {
+    const manifest = record.manifest;
+    if (manifest === undefined) return undefined;
+    const tier = assignTier({
+      name: record.name,
+      source: record.source,
+      trust: record.trust,
+      layer: manifest.layer,
+    });
+    if (!tier.ok) return undefined;
+    const filtered = startupFilter(
+      [{ name: record.name, tier: tier.value, layer: manifest.layer }],
+      startup,
+    );
+    return filtered.skipped[0]?.reason;
+  }
+
+  /** 5a단계: 안전 모드와 시작 때 끄기, 켜짐 확인, 필수 userConfig */
   function checkEnabled(record: ExtRecord): boolean {
     const manifest = record.manifest;
     if (manifest === undefined) return false;
+    const skipped = startupSkipOf(record);
+    if (skipped !== undefined) {
+      fail(
+        record,
+        "disabled",
+        "settings",
+        skipped,
+        skipped === "safe_mode"
+          ? `${record.name} is not loaded in safe mode`
+          : `${record.name} is disabled by --disable-ext`,
+      );
+      return false;
+    }
     const enabled = enabledSettingOf(record) ?? manifest.defaultEnabled ?? true;
     if (!enabled) {
       fail(
@@ -475,7 +646,7 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
           const provided = alive.some(
             (other) =>
               other !== record &&
-              other.state === "resolved" &&
+              (other.state === "resolved" || other.state === "active") &&
               (other.manifest?.provides ?? []).some(
                 (provision) =>
                   provision.id === requirement.id &&
@@ -516,11 +687,43 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
     return undefined;
   }
 
-  /** 6a~9단계 가운데 설치: admit → install → InstallResult 변환 */
-  async function install(record: ExtRecord, signal: AbortSignal): Promise<void> {
+  /** 외부 확장의 엔트리를 import해 설치 단위로 만든다. 실패하면 진단을 남기고 undefined */
+  async function unitOfRecord(
+    record: ExtRecord,
+    manifest: ExtensionManifest,
+    loadIndex: number,
+  ): Promise<ExtensionUnit | undefined> {
     const module = record.candidate.builtin;
+    const initialEnabled = enabledSettingOf(record);
+    if (module !== null) return unitOfBuiltin(module, manifest, loadIndex, initialEnabled);
+    const root = record.candidate.root;
+    if (root === null) return undefined;
+    // X가 쓰는 SDK 모듈(contracts와 하위 경로, typebox)은 항상 등록하고, 조립 루트가 넘긴 것(group-kit 등)을 더한다
+    const registered = registerSdkModules({ ...X_SDK_MODULES, ...deps.sdkModules });
+    if (!registered.ok) {
+      fail(
+        record,
+        "error",
+        "entry",
+        "entry_import_failed",
+        registered.error.kind === "conflict"
+          ? `SDK module ${registered.error.specifier} is already registered with another instance`
+          : "SDK virtual modules need the Bun runtime",
+      );
+      return undefined;
+    }
+    const loaded = await importExternalEntry(deps.fs, root, manifest);
+    if (!loaded.ok) {
+      fail(record, "error", "entry", loaded.error.code, loaded.error.message);
+      return undefined;
+    }
+    return unitOfExternal(loaded.value, manifest, loadIndex, initialEnabled);
+  }
+
+  /** 6a~9단계 가운데 설치: admit → (외부는 엔트리 import) → install → InstallResult 변환 */
+  async function install(record: ExtRecord, signal: AbortSignal): Promise<void> {
     const manifest = record.manifest;
-    if (module === null || manifest === undefined || record.loadIndex === null) return;
+    if (manifest === undefined || record.loadIndex === null) return;
     const dead = deadProvider(record);
     if (dead !== undefined) {
       fail(
@@ -550,11 +753,13 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       );
       return;
     }
+    const unit = await unitOfRecord(record, manifest, record.loadIndex);
+    if (unit === undefined) {
+      deps.policy.forget(record.name);
+      return;
+    }
     try {
-      const result = await deps.host.install(
-        unitOfBuiltin(module, manifest, record.loadIndex, enabledSettingOf(record)),
-        { signal },
-      );
+      const result = await deps.host.install(unit, { signal });
       const verdict = verdictOfInstall(result);
       for (const entry of verdict.diagnostics) {
         diag(
@@ -622,8 +827,9 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
   }
 
   /**
-   * 취소 신호는 단계 경계와 확장 하나를 설치하기 직전에 확인한다(TY-22). `ExtHost.install`은 신호를 받지 않아 진행 중인
-   * 설치는 끝까지 간다. 취소되면 시작을 거부하는 것과 같은 LoadAbortError를 던진다 [미결: install에 신호를 싣는 일은 X.primitives 몫]
+   * 취소 신호는 단계 경계와 확장 하나를 설치하기 직전에 확인하고(TY-22) `ExtHost.install`에도 넘긴다. 설치 중 취소되면
+   * 엔트리 실행을 기다리지 않고 `entryError`(`scope_setup_failed`)로 끝나 그 확장이 `entry_threw`가 된다.
+   * 단계 경계에서 취소되면 시작을 거부하는 것과 같은 LoadAbortError를 던진다
    */
   function throwIfCancelled(signal: AbortSignal, before: string): void {
     if (!signal.aborted) return;
@@ -687,6 +893,162 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       .map(infoOf);
   }
 
+  /** 한 묶음의 1~9단계. 묶음 안에서 순서대로 설치하고 마지막에 능력 연쇄 실패를 정리한다 */
+  async function processBatch(
+    candidates: readonly ExtensionCandidate[],
+    signal: AbortSignal,
+  ): Promise<void> {
+    throwIfCancelled(signal, "validation");
+    const batch = await ingest(candidates);
+    // 거부된 확장도 필수 확장이면 시작 실패다
+    for (const record of batch) assertNotEssentialFailure(record);
+
+    throwIfCancelled(signal, "settings");
+    for (const record of batch) if (record.state === "trusted") checkSettings(record);
+    for (const record of batch) assertNotEssentialFailure(record);
+
+    throwIfCancelled(signal, "enable check");
+    const alive: ExtRecord[] = [];
+    for (const record of batch) {
+      if (record.state === "resolved" && checkEnabled(record)) alive.push(record);
+      assertNotEssentialFailure(record);
+    }
+    checkCapabilities(
+      order.filter((record) => record.state === "resolved" || record.state === "active"),
+    );
+    for (const record of alive) assertNotEssentialFailure(record);
+
+    await eachInOrder(
+      order.filter((record) => alive.includes(record)),
+      async (record) => {
+        if (record.state !== "resolved") return "continue";
+        throwIfCancelled(signal, `installing ${record.name}`);
+        await install(record, signal);
+        assertNotEssentialFailure(record);
+        return "continue";
+      },
+    );
+    throwIfCancelled(signal, "provider cascade");
+    await cascadeProviderFailures();
+  }
+
+  /** 프로젝트 신뢰를 정하고 거부·미결정이면 진단을 남긴다. 판정 자체가 실패하면 불신으로 둔다 */
+  async function resolveProject(options: {
+    readonly cwd: string;
+    readonly mode: LoaderMode;
+    readonly prompter?: TrustPrompter | undefined;
+    readonly trustOverride?: boolean | undefined;
+    readonly signal: AbortSignal;
+  }): Promise<ProjectTrustResult | null> {
+    const store = createProjectTrustStore(
+      deps.trustBackend,
+      (path) => deps.fs.realpath(path),
+      deps.clock,
+    );
+    const decided = await attemptAsync(() =>
+      resolveProjectTrust({
+        projectRoot: options.cwd,
+        mode: options.mode,
+        ...(options.trustOverride === undefined ? {} : { trustOverride: options.trustOverride }),
+        defaultProjectTrust: deps.settings?.defaultProjectTrust?.() ?? "ask",
+        store,
+        fs: deps.fs,
+        homeDir: deps.paths.homeDir,
+        ...(options.prompter === undefined && deps.prompter === undefined
+          ? {}
+          : { prompter: options.prompter ?? deps.prompter }),
+        emitProjectTrust: deps.emitProjectTrust ?? (() => Promise.resolve(undefined)),
+        sessionMemory: sessionTrust,
+        signal: options.signal,
+      }),
+    );
+    if (!decided.ok) {
+      allDiagnostics.push(
+        projectDiagnostic("trust_undecided", "error", "project trust could not be decided"),
+      );
+      return null;
+    }
+    const result = decided.value;
+    if (result.storeError !== undefined) {
+      allDiagnostics.push(
+        projectDiagnostic(
+          "trust_store_corrupt",
+          "error",
+          `trust store is ${result.storeError.kind}`,
+        ),
+      );
+    }
+    if (!result.trusted && result.resources.length > 0) {
+      allDiagnostics.push(
+        projectDiagnostic(
+          result.verdict === "deny" ? "trust_denied" : "trust_undecided",
+          "warning",
+          `project ${result.projectRoot} is not trusted (${result.via}); its extensions are not loaded`,
+        ),
+      );
+    }
+    return result;
+  }
+
+  /** 신뢰된 프로젝트 루트의 확장을 찾아 한 묶음으로 싣는다 */
+  async function loadProjectCandidates(projectRoot: string, signal: AbortSignal): Promise<void> {
+    const project = await discoverExternal(
+      deps.fs,
+      externalLocations({
+        paths: deps.paths,
+        extraPaths: [],
+        projectRoot,
+        sources: ["project"],
+      }),
+    );
+    allDiagnostics.push(...project.diagnostics);
+    await processBatch(project.candidates, signal);
+  }
+
+  async function loadProject(options: LoadProjectOptions): Promise<ProjectLoadReport> {
+    throwIfCancelled(options.signal, "project trust");
+    const diagnosticsBefore = allDiagnostics.length;
+    const recordsBefore = new Set(records.values());
+    const finish = (
+      projectTrust: ProjectTrustResult | null,
+      alreadyLoaded: boolean,
+    ): ProjectLoadReport => ({
+      projectRoot: projectTrust?.projectRoot ?? null,
+      projectTrust,
+      alreadyLoaded,
+      extensions: [...records.values()]
+        .filter((record) => !recordsBefore.has(record))
+        .toSorted((a, b) => a.name.localeCompare(b.name))
+        .map(infoOf),
+      diagnostics: allDiagnostics.slice(diagnosticsBefore),
+    });
+    if (startup.safeMode.active) {
+      allDiagnostics.push(
+        projectDiagnostic(
+          "safe_mode",
+          "info",
+          "project extensions are not discovered in safe mode",
+        ),
+      );
+      return finish(null, false);
+    }
+    const trust = await resolveProject({
+      cwd: options.projectRoot,
+      mode: options.mode,
+      prompter: options.prompter,
+      trustOverride: options.trustOverride,
+      signal: options.signal,
+    });
+    if (trust === null) return finish(null, false);
+    if (!trust.trusted) return finish(trust, false);
+    if (loadedProjects.has(trust.projectRoot)) return finish(trust, true);
+    // 실리기 전에 중단되거나 실패하면 기억하지 않는다. 다음 호출이 다시 싣는다
+    await loadProjectCandidates(trust.projectRoot, options.signal);
+    loadedProjects.add(trust.projectRoot);
+    for (const record of order) assertNotEssentialFailure(record);
+    return finish(trust, false);
+  }
+
   return {
     async loadAll(options) {
       const missing = missingDependency();
@@ -695,40 +1057,56 @@ export function createExtensionLoader(deps: LoaderDeps): ExtensionLoader {
       records.clear();
       allDiagnostics.length = 0;
       order = [];
-      validateAll(candidatesFromBuiltins(options.builtins));
-      // 거부된 확장도 필수 확장이면 시작 실패다
-      for (const record of records.values()) assertNotEssentialFailure(record);
+      anonymous = 0;
+      startup = options.startup ?? NO_STARTUP_OPTIONS;
+      const safeMode = startup.safeMode.active;
+      const extraPaths = options.extraPaths ?? [];
 
-      throwIfCancelled(options.signal, "settings");
-      for (const record of order) if (record.state === "trusted") checkSettings(record);
-      for (const record of order) assertNotEssentialFailure(record);
+      // 1. 내장, 관리, 사용자 확장. 프로젝트 위치는 신뢰 판정 뒤에만 탐색한다(§4.7.4)
+      const external = await discoverExternal(
+        deps.fs,
+        externalLocations({
+          paths: deps.paths,
+          extraPaths,
+          projectRoot: null,
+          sources: ["managed", "user"],
+        }),
+      );
+      allDiagnostics.push(...external.diagnostics);
+      await processBatch(
+        [...candidatesFromBuiltins(options.builtins), ...external.candidates],
+        options.signal,
+      );
 
-      throwIfCancelled(options.signal, "enable check");
-      const alive: ExtRecord[] = [];
-      for (const record of order) {
-        if (record.state === "resolved" && checkEnabled(record)) alive.push(record);
-        assertNotEssentialFailure(record);
+      // 2. 프로젝트 신뢰와 프로젝트 확장. 안전 모드에서는 프로젝트 확장을 싣지 않으므로 판정(프롬프트)도 하지 않는다.
+      //    on_demand(서비스 모드)에서는 여기서 판정하지 않고 작업 폴더를 여는 때 loadProject가 한다
+      let projectTrust: ProjectTrustResult | null = null;
+      loadedProjects.clear();
+      if (safeMode) {
+        allDiagnostics.push(
+          projectDiagnostic(
+            "safe_mode",
+            "info",
+            "project extensions are not discovered in safe mode",
+          ),
+        );
+      } else if (options.projects !== "on_demand") {
+        throwIfCancelled(options.signal, "project trust");
+        projectTrust = await resolveProject(options);
+        if (projectTrust?.trusted === true) {
+          loadedProjects.add(projectTrust.projectRoot);
+          await loadProjectCandidates(projectTrust.projectRoot, options.signal);
+        }
       }
-      checkCapabilities(alive);
-      for (const record of alive) assertNotEssentialFailure(record);
-
-      await eachInOrder(order, async (record) => {
-        if (record.state !== "resolved" || !alive.includes(record)) return "continue";
-        throwIfCancelled(options.signal, `installing ${record.name}`);
-        // 활성이 되지 못한 provider가 이미 있으면 설치 전에 연쇄 실패로 둔다(§4.3.2)
-        await install(record, options.signal);
-        assertNotEssentialFailure(record);
-        return "continue";
-      });
-      throwIfCancelled(options.signal, "provider cascade");
-      await cascadeProviderFailures();
       for (const record of order) assertNotEssentialFailure(record);
       return {
         extensions: listAll(),
         diagnostics: [...allDiagnostics],
+        projectTrust,
         settingGroups: settingGroupsOf(),
       };
     },
+    loadProject,
     ensureLoaded,
     async settingChanged(name, signal) {
       const record = records.get(name);

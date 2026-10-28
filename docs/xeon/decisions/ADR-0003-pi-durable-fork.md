@@ -146,5 +146,5 @@ durable `docs/spec.md` 인용 범위:
 - [미결] `CancelScope`와 추출한 도구 타입의 F 서브패스. `F.capabilities.spec`과 `F.conversation.spec` 중 어디에 둘지 F 문서가 정한다.
 - [미결] tools·images의 위치. 이 ADR은 `cap-workspace`를 제안했다. truncate는 L1 도구 디스패치(`core-tools`)의 출력 절단에도 쓰이므로 `platform-exec`에 두고 F 서비스로 부른다 [결정: review.decisions-2 §3 D-08].
 - [미결] pi 저장소 원문 URL과 `cdaf6c2`가 원본 커밋으로 맞는지 확인. `_ref/pi-src` 사본 기준이다.
-- [미결] 포크 업그레이드 정책. 정기 diff 확인을 할지, 보안·버그 수정이 있을 때만 할지.
+- 닫음 [결정: review.m3-design-inputs D-M3-29 행 1]: 현재 버전을 고정하고 점진 업데이트를 운영 정책으로 둔다. 보안·버그 수정 때 갱신하고, 분기마다 상류 diff를 한 번 본다.
 - [미결] durable 적합성 스위트(`env-conformance.ts`, 저장소 `registerStorageConformance`)를 포크해 커널 테스트에 쓸지. 저장소 스위트는 Session 커밋 API에 묶여 있다(`_research/refs/pi-durable.md §5.1`).

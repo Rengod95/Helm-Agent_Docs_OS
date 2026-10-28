@@ -300,7 +300,7 @@ export const WorkspaceFiles = defineCapability({
     methods: {
       read: {
         description: "텍스트 파일을 줄 범위로 읽는다. 이미지 파일이면 이미지 참조를 돌려준다.",
-        input: ReadInput, output: ReadOutput, replay: "safe",
+        input: ReadInput, output: ReadOutput, replay: "safe", readOnly: true,
         errors: {
           read_binary: { description: "이미지가 아닌 바이너리 파일", retryable: false },
           offset_beyond_end: { description: "offset이 파일 줄 수보다 큼", retryable: false },
@@ -323,16 +323,16 @@ export const WorkspaceFiles = defineCapability({
       },
       list: {
         description: "디렉터리 항목을 이름 순으로 돌려준다.",
-        input: ListInput, output: ListOutput, replay: "safe",
+        input: ListInput, output: ListOutput, replay: "safe", readOnly: true,
       },
       grep: {
         description: "파일 내용을 정규식이나 문자열로 검색한다. .gitignore를 따른다.",
-        input: GrepInput, output: GrepOutput, replay: "safe",
+        input: GrepInput, output: GrepOutput, replay: "safe", readOnly: true,
         errors: { pattern_invalid: { description: "정규식 문법 오류", retryable: false } },
       },
       find: {
         description: "glob으로 파일을 찾는다. .gitignore를 따른다.",
-        input: FindInput, output: FindOutput, replay: "safe",
+        input: FindInput, output: FindOutput, replay: "safe", readOnly: true,
         errors: { pattern_invalid: { description: "glob 문법 오류", retryable: false } },
       },
     },
@@ -482,9 +482,9 @@ export const WorkspaceImages = defineCapability({
   description: "이미지를 모델이 받을 수 있는 형식과 크기로 맞추고 blob으로 등록한다.",
   service: {
     methods: {
-      load: { description: "파일에서 이미지를 읽어 준비하고 등록한다.", input: LoadImageInput, output: WorkspaceImageSchema, replay: "safe", errors: IMAGE_ERRORS },
-      resize: { description: "등록된 이미지를 다른 한도로 다시 준비한다.", input: ResizeImageInput, output: WorkspaceImageSchema, replay: "safe", errors: IMAGE_ERRORS },
-      register: { description: "base64 이미지 데이터를 준비하고 등록한다. 붙여넣기 첨부에 쓴다.", input: RegisterImageInput, output: WorkspaceImageSchema, replay: "safe", errors: IMAGE_ERRORS },
+      load: { description: "파일에서 이미지를 읽어 준비하고 등록한다.", input: LoadImageInput, output: WorkspaceImageSchema, replay: "safe", readOnly: true, errors: IMAGE_ERRORS },
+      resize: { description: "등록된 이미지를 다른 한도로 다시 준비한다.", input: ResizeImageInput, output: WorkspaceImageSchema, replay: "safe", readOnly: true, errors: IMAGE_ERRORS },
+      register: { description: "base64 이미지 데이터를 준비하고 등록한다. 붙여넣기 첨부에 쓴다.", input: RegisterImageInput, output: WorkspaceImageSchema, replay: "unsafe", errors: IMAGE_ERRORS },
     },
   },
   tools: [],
@@ -493,7 +493,7 @@ export const WorkspaceImagesKey = serviceKey(WorkspaceImages);
 ```
 
 - 도구가 없는 능력이다. 모델은 `read`로 이미지 파일을 읽고, 첨부는 `dialog.attachments`가 `register`를 부른다. 도구 없는 능력의 허용은 `F.capabilities.spec` §4.4 [미결]이다(§10 미결 5).
-- 세 메서드는 내용 주소(sha256) 저장이라 같은 입력이면 같은 결과를 내므로 `safe`다.
+- `load`와 `resize`는 `readOnly`다. 파일이나 이미 등록된 blob에서 같은 바이트의 사본을 만들 뿐이고 원본은 남는다. `register`는 붙여넣은 데이터가 유일한 사본인 blob을 저장하므로 읽기가 아니고, `requestId`를 기억하지 않아 선언 없음(`replay: "unsafe"`)이다 [결정: M3-REQ-88, 분류 표는 §3.7이다.
 
 ### 3.5 도메인 서비스
 
@@ -519,6 +519,23 @@ export interface WorkspaceService {
 - 이벤트 접두사 `workspace.`는 예약만 한다. 이 문서는 이벤트 type을 정의하지 않는다. 도구 호출 기록은 L1.tools의 `tool.*` 이벤트다(`eng.context-map.design` §5.1).
 - 테이블 접두사 `cap_workspace_`도 예약만 한다. 테이블을 만들지 않는다.
 - 파일 변경 기록은 도구 결과에 싣는다. `write`, `edit`의 `toContent`는 `details`에 `FileChange`를 넣고, `structuredContent`에도 같은 값이 있다. `L2.artifacts.spec`의 리뷰는 이 `details`를 근거로 한다.
+
+### 3.7 효과 분류 [결정: M3-REQ-88]
+
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록, 사용자 파일과 사용자가 쓴 데이터, 외부 시스템의 상태를 바꾸지 않는 읽기다. 관찰상 순수한 파생 데이터(캐시, 색인, 내용 주소 blob, 사용량·비용 계량, 시간과 현재 데이터만으로 정해지는 정리)는 쓸 수 있다 [결정: 2026-10-28 오케스트레이터, ADR-0015 §3.3]. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+
+| 메서드 | 분류 | replay | 근거 |
+|---|---|---|---|
+| `workspace.files.read` | readOnly | safe | 파일 조회. 이미지 읽기가 만드는 blob은 같은 바이트의 사본이다 |
+| `workspace.files.write` | 선언 없음 | unsafe | 파일을 쓴다(spec §3.2. 같은 내용이어도 중간에 다른 쓰기가 끼일 수 있다) |
+| `workspace.files.edit` | 선언 없음 | unsafe | 파일을 바꾼다 |
+| `workspace.files.list` | readOnly | safe | 디렉터리 조회 |
+| `workspace.files.grep` | readOnly | safe | 파일 조회 |
+| `workspace.files.find` | readOnly | safe | 파일 조회 |
+| `workspace.images.load` | readOnly | safe | 파일을 읽어 같은 바이트의 blob 사본을 만든다. 원본이 남아 있다 |
+| `workspace.images.resize` | readOnly | safe | 등록된 blob에서 다시 만든다. 공급자는 2차 |
+| `workspace.images.register` | 선언 없음 | unsafe | 붙여넣은 데이터가 유일한 사본인 blob을 저장한다. `requestId` 멱등이 없다 |
+| `workspace.shell.run` | 선언 없음 | unsafe | 외부 명령을 실행한다 |
 
 ## 4. 동작 규칙
 
@@ -569,7 +586,7 @@ export interface WorkspaceService {
 |---|---|---|---|
 | 파일 도구 경로의 정규화, `..`·심볼릭 링크 탈출 검사 | 소유(위 1~5) | 결과를 받는다 | 관여 없음 |
 | 허용 root 목록(작업 디렉터리, 추가 디렉터리, 사용자 승인으로 넓힌 경로) | 조회만 한다 | 소유(권한 모드, 규칙, 승인) | 쓰기 경로 설정을 공유한다 |
-| 쓰기 도구의 승인 여부(묻기, 자동 허용) | 관여 없음 | 소유(`tool_call` 앞단 파이프라인) | 관여 없음 |
+| 쓰기 도구의 승인 여부(묻기, 자동 허용) | 관여 없음 | 소유(`tool.call.before` 앞단 파이프라인) | 관여 없음 |
 | bash 명령 문자열 안의 경로 | 검사하지 않는다(명령 해석은 불가) | 명령 패턴 규칙과 승인 | 커널 수준 강제(쓰기 root 밖 쓰기 거부, 보호 경로 읽기 거부, 네트워크 허용 목록) |
 | 보호 경로 목록 | 조회해 파일 도구에도 적용 | 관여 없음 | 소유 |
 
@@ -705,8 +722,8 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 ## 7. 확장 지점
 
 - 이 문서는 지점을 새로 정의하지 않는다.
-- 7개 도구 호출은 `tool_call`(fold first), `tool_result`(fold chain), `tool_execution_start`·`update`·`end`(tap)를 지난다(`F.extensions.spec` §3.4 13~17번). 페이로드의 `capability: { id, method }`로 대상을 고를 수 있다(`F.capabilities.spec` §7).
-- 사용 예: L3 그룹은 쓰기를 막는 단계에서 `tool_call`의 `first` 핸들러로 `workspace.files`의 `write`·`edit`과 `workspace.shell`의 `run`을 거부한다(`product.scope.spec` §4.4 M2 종료 조건). 판정 근거는 도구 이름 대신 `capability.id`와 `hints.readOnly`를 쓰는 쪽을 [제안]한다.
+- 7개 도구 호출은 `tool.call.before`(fold first), `tool.result`(fold chain), `tool.execution.before`·`update`·`end`(tap)를 지난다(`F.extensions.spec` §3.4 13~17번). 페이로드의 `capability: { id, method }`로 대상을 고를 수 있다(`F.capabilities.spec` §7).
+- 사용 예: L3 그룹은 쓰기를 막는 단계에서 `tool.call.before`의 `first` 핸들러로 `workspace.files`의 `write`·`edit`과 `workspace.shell`의 `run`을 거부한다(`product.scope.spec` §4.4 M2 종료 조건). 판정 근거는 도구 이름 대신 `capability.id`와 `hints.readOnly`를 쓰는 쪽을 [제안]한다.
 - 그룹 코드가 `WorkspaceFilesKey`로 서비스를 직접 부르면 tool 지점을 지나지 않는다(`F.capabilities.spec` §3.9 그룹 경로). 이때도 §4.3 경로 검사와 §4.2 샌드박스는 그대로 적용된다. 승인 파이프라인(L1.tools)은 거치지 않는다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -761,3 +778,4 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 10. [미결] 모델용 도구 설명 문구의 언어. pi 원문은 영어다. 이 문서는 F 예시를 따라 한국어로 썼다. 모델 품질 비교 뒤 정한다.
 11. [미결] `l2.workspace.images.*`를 세션 범위에서 바꿀 수 있게 할지. 지금은 세션 범위를 뺐다.
 12. [미결] 패치 적용 메서드. `L2.artifacts.spec`의 거절 hunk 되돌림 안 A는 `workspace.files`에 패치 적용 서비스 메서드(`applyPatch` 후보, 도구 없음, `unsafe`)를 요구한다. 그 안이 채택되면 `workspace.files` minor 버전으로 더하고 §4.3 경로 검사와 §4.4 줄 세우기를 그대로 적용한다. 채택 전에는 `edit`로 같은 일을 할 수 있다.
+13. [미결] 내용 주소(sha256) blob 쓰기(`images.register`)의 분류. 같은 바이트는 같은 blob이라 재실행해도 결과와 효과가 같지만, ADR-0015 §3.3은 `requestId` 기억이 있는 쓰기만 `idempotent`로 둔다. 지금은 선언 없음이다. 내용 주소 쓰기를 `idempotent`로 인정하려면 ADR의 정의를 넓혀야 한다.

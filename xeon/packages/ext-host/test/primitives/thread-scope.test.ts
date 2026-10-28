@@ -8,7 +8,7 @@ type Host = Awaited<ReturnType<typeof createTestHost>>;
 
 async function fire(t: Host, thread: ReturnType<Host["newThread"]>, key: string): Promise<void> {
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: key },
   );
@@ -28,8 +28,8 @@ test("a scope turned off in one thread keeps running in the other", async () => 
   const seen: string[] = [];
   const disposed: string[] = [];
   await t.host.install(
-    makeUnit({ name: "ts-one", points: ["agent_settled"] }, (g) => {
-      g.on("agent_settled", (_payload, ctx) => {
+    makeUnit({ name: "ts-one", points: ["boundary.settle.after"] }, (g) => {
+      g.on("boundary.settle.after", (_payload, ctx) => {
         seen.push(ctx.threadId);
       });
       g.onDispose(() => {
@@ -69,8 +69,8 @@ test("a thread can turn on a scope that is off by default, without touching the 
   const b = t.newThread();
   const seen: string[] = [];
   await t.host.install(
-    makeUnit({ name: "ts-opt", points: ["agent_settled"], initialEnabled: false }, (g) => {
-      g.on("agent_settled", (_payload, ctx) => {
+    makeUnit({ name: "ts-opt", points: ["boundary.settle.after"], initialEnabled: false }, (g) => {
+      g.on("boundary.settle.after", (_payload, ctx) => {
         seen.push(ctx.threadId);
       });
     }),
@@ -99,8 +99,8 @@ test("a whole-scope request replaces the per-thread requests and applies to new 
   const a = t.newThread();
   const seen: string[] = [];
   await t.host.install(
-    makeUnit({ name: "ts-all", points: ["agent_settled"] }, (g) => {
-      g.on("agent_settled", (_payload, ctx) => {
+    makeUnit({ name: "ts-all", points: ["boundary.settle.after"] }, (g) => {
+      g.on("boundary.settle.after", (_payload, ctx) => {
         seen.push(ctx.threadId);
       });
     }),
@@ -153,7 +153,8 @@ test("turning a scope off in one thread releases only that thread's lease", asyn
   expect(t.records.events(b).filter((e) => e.kind === "lease.released")).toEqual([]);
 });
 
-const reopenUnit = () => makeUnit({ name: "ts-reopen", points: ["agent_settled"] }, () => {});
+const reopenUnit = () =>
+  makeUnit({ name: "ts-reopen", points: ["boundary.settle.after"] }, () => {});
 
 test("reopening a thread does not write scope.changed again for scopes it already recorded", async () => {
   const first = await createTestHost();
@@ -183,8 +184,8 @@ test("a default-enabled scope turned off in a thread stays off after reopening a
   const b = first.newThread();
   const seen: string[] = [];
   const unitOf = () =>
-    makeUnit({ name: "ts-off", points: ["agent_settled"] }, (g) => {
-      g.on("agent_settled", (_payload, ctx) => {
+    makeUnit({ name: "ts-off", points: ["boundary.settle.after"] }, (g) => {
+      g.on("boundary.settle.after", (_payload, ctx) => {
         seen.push(ctx.threadId);
       });
     });

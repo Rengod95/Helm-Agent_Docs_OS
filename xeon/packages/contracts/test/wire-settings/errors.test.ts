@@ -58,6 +58,8 @@ describe("WIRE_ERRORS", () => {
       "settings.locked": 3104,
       "settings.secretValue": 3105,
       "settings.reserved": 3106,
+      "settings.fileConflict": 3107,
+      "settings.fileInvalid": 3108,
       "secret.notFound": 3201,
       "secret.denied": 3202,
       "secret.providerUnavailable": 3203,
@@ -184,8 +186,8 @@ describe("WIRE_ERRORS", () => {
   test("thread.cancelledByExtension also covers a compaction stopped by session_before_compact", () => {
     const details = WIRE_ERRORS["thread.cancelledByExtension"].details;
     if (details === undefined) throw new Error("details expected");
-    expect(parse(details, { point: "session_before_compact", reason: "policy" }).ok).toBe(true);
-    expect(parse(details, { point: "session_before_compact", reason: null }).ok).toBe(true);
+    expect(parse(details, { point: "session.compact.before", reason: "policy" }).ok).toBe(true);
+    expect(parse(details, { point: "session.compact.before", reason: null }).ok).toBe(true);
     expect(parse(details, { point: "session_before_nothing", reason: null }).ok).toBe(false);
   });
 

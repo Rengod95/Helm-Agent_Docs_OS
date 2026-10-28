@@ -4,7 +4,7 @@ layer: L3
 domain: readme
 kind: readme
 status: draft
-depends_on: [L3.group-kit.spec, L3.helm.spec, L3.learning.spec, L3.slots.spec, F.extensions.spec, architecture.layers.spec]
+depends_on: [L3.group-kit.spec, L3.helm.spec, L3.learning.spec, L3.slots.spec, F.extensions.spec, architecture.layers.spec, adr.0017]
 binds: [xeon/packages/group-kit/**, xeon/packages/group-helm/**, xeon/packages/group-learning/**]
 ---
 
@@ -26,7 +26,7 @@ L3는 확장 지점 4연산(`on`, `post`, `drive`, `scope`)과 L2 능력을 묶�
 | 제공물 | 내용 |
 |---|---|
 | 그룹 기반 | `group-kit`. `defineGroup`, 그룹 서비스 `xeon.groups`, drive 임대 정책(`DriveArbiter`), 전환 명령, 재생 검사 도구(`replayDrive`) |
-| 기본 그룹 둘 | Helm(`group-helm`, drive 사용), 학습 그룹(`group-learning`, drive 미사용). 둘 다 L3 기본 그룹이고 함께 켤 수 있다 |
+| 기본 그룹 둘 | Helm(`group-helm`, drive 사용), 학습 그룹(`group-learning`, drive 미사용). 함께 켤 수 있다. 학습 그룹은 내장 그룹이고, Helm은 같은 L3 그룹 코드를 기본 플러그인으로 배포한다 [결정: review.m3-design-inputs D-M3-01] |
 | 추가 그룹 슬롯 | `slots`. 코드 없음. 제2의 의도 그룹 기준, 정책 플러그인 정식 예, 그룹 템플릿을 문서로 정한다 |
 
 이 문서의 표는 공통 확정 이름과 네 도메인 spec(`L3.group-kit.spec`, `L3.helm.spec`, `L3.learning.spec`, `L3.slots.spec`)의 현재 본문을 기준으로 맞췄다. 도메인 spec이 바뀌면 이 표를 함께 고친다.
@@ -38,7 +38,7 @@ L3는 확장 지점 4연산(`on`, `post`, `drive`, `scope`)과 L2 능력을 묶�
 | 도메인 | 이름 | 계획 v2 | 패키지 경로 | 문서 | 마일스톤 | drive |
 |---|---|---|---|---|---|---|
 | group-kit | 그룹 기반 | L3-a | `xeon/packages/group-kit` | `L3.group-kit.spec`, `L3.group-kit.plan` | M1 테스트 그룹(on·post·drive), M2 본체, 2차 재생 검사·승격·계측 | 제공(임대 정책). 자신은 쓰지 않는다. M1 테스트 그룹은 쓴다 |
-| helm | Helm (기본 그룹) | L3-b | `xeon/packages/group-helm` | `L3.helm.spec`, `L3.helm.plan` | M2 | 쓴다 |
+| helm | Helm (기본 플러그인) | L3-b | `xeon/packages/group-helm` | `L3.helm.spec`, `L3.helm.plan` | M2 | 쓴다 |
 | learning | 학습 그룹 (기본 그룹) | L3-c | `xeon/packages/group-learning` | `L3.learning.spec`, `L3.learning.plan` | M3(Helm과 공존), 2차 큐레이터·학습 이력·스크립트 제안 | 쓰지 않는다 [결정] |
 | slots | 추가 그룹 슬롯 | L3-d | 없음(코드 없음, 템플릿 문서만) | `L3.slots.spec`, `L3.slots.plan` | 2차(세 항목 모두) | 템플릿 종류에 따른다(drive 템플릿만 쓴다) |
 
@@ -120,7 +120,7 @@ flowchart TD
 | 설정 키(외부 그룹) | `ext.<id>.<이름>`. `ext.<id>.enabled`, `ext.<id>.isolation`은 X 로더 예약 키. 켜기 키 `ext.<id>.enabled`는 내장 그룹도 쓴다(`ext.helm.enabled`, `ext.learning.enabled`) | `F.wire-settings.spec` §3.8.3, `F.extensions.spec` §6 |
 | 명령 | `/group …`(group-kit), `/<그룹 이름> …`(각 그룹) | `L3.group-kit.spec`, 각 그룹 spec |
 | 서비스 이름 | `xeon.groups`(`GroupService`, group-kit 제공). 인터페이스 타입은 F `@xeon/contracts/services`의 `services/groups.ts`에 두고 X `LeaseArbiterPort`를 확장한다 [결정: review.decisions-2 D-04]. 그룹은 서비스를 제공하지 않는다 | `F.capabilities.spec` §3.12, `eng.context-map.design` §5.3, CM-06 |
-| 지점 이름 | pi snake_case(`tool_call`, `agent_before_settle`, `tool_result`, `input`, `turn_end`, `agent_settled` 등) | `F.extensions.spec` §3.4, §4.10 |
+| 지점 이름 | 자체 규칙 `<종류>.<대상>[.<시점>]`(`tool.call.before`, `boundary.settle.before`, `tool.result`, `input.user.before`, `boundary.step.after`, `boundary.settle.after` 등) | `F.extensions.spec` §3.4, §4.10 |
 
 공통 확정 이름(L3 네 문서가 같은 문자열을 쓴다):
 
@@ -146,8 +146,8 @@ flowchart TD
 | 그룹 | F 타입 | X 연산 | L1 서비스 | L2 능력 | 다른 그룹 레코드 |
 |---|---|---|---|---|---|
 | group-kit | `ExtensionManifest`, `validateManifest`, `ScopeApi`, `DriveFn`, `LoopHandle`, `DriveLease`, `DriveLimits`, `SettingDef`, `defineSettings` | `scope`(그룹 등록), `drive` 등록 전달, `LeaseArbiterPort` 제공, `hostOf(g).registerTool`·`registerCommand` 전달 | `xeon.ext`, `xeon.agents`(`delegate` 구현) | 없음 | 없음 |
-| helm | `ScopeApi`, `LoopHandle`, `SpawnSpec`, `GroupRecord`, `RecordKindDecl`, `ServiceKey`, `ToolCallDecision`, `PostItem` | `on`(chain `before_agent_start`, first `tool_call`, tap `tool_execution_end`·`agent_settled`·`session_start`), `post`, `drive`, `scope` | `xeon.agents`(`loop.spawn` 경유) | 모두 선택(`optional`): `web.search`, `web.fetch`, `knowledge.search`, `knowledge.skills`, `knowledge.memory`(읽기), `work.tasks` | 없음 |
-| learning | `ScopeApi`, `GroupRecord`, `RecordKindDecl`, `PostItem`(`kind: "context"`) | `on`(tap 4개: `agent_start`, `tool_execution_end`, `agent_settled`, `session_start`), `post` 선언, `scope`. chain·first·drive 없음 | `xeon.agents`(`GroupApi.delegate`로 백그라운드 위임) | 필수(`requires`): `knowledge.skills`, `knowledge.memory`, `knowledge.search`, `knowledge.ledger`(읽기, 승인 뒤 쓰기, 원장, 스캔) | 없음 |
+| helm | `ScopeApi`, `LoopHandle`, `SpawnSpec`, `GroupRecord`, `RecordKindDecl`, `ServiceKey`, `ToolCallDecision`, `PostItem` | `on`(collect `input.agent.before`, first `tool.call.before`, tap `tool.execution.after`·`boundary.settle.after`·`session.start`), `post`, `drive`, `scope` | `xeon.agents`(`loop.spawn` 경유) | 모두 선택(`optional`): `web.search`, `web.fetch`, `knowledge.search`, `knowledge.skills`, `knowledge.memory`(읽기), `work.tasks` | 없음 |
+| learning | `ScopeApi`, `GroupRecord`, `RecordKindDecl`, `PostItem`(`kind: "context"`) | `on`(tap 4개: `boundary.turn.before`, `tool.execution.after`, `boundary.settle.after`, `session.start`), `post` 선언, `scope`. chain·first·drive 없음 | `xeon.agents`(`GroupApi.delegate`로 백그라운드 위임) | 필수(`requires`): `knowledge.skills`, `knowledge.memory`, `knowledge.search`, `knowledge.ledger`(읽기, 승인 뒤 쓰기, 원장, 스캔) | 없음 |
 | slots 템플릿 | 위와 같은 F 타입 | 템플릿 종류에 따른다 | 선택 | 선택 | 선택 |
 
 그룹 사이 통신:
@@ -254,32 +254,32 @@ Helm과 학습 그룹을 동시에 켰을 때:
 | 결정 | 근거 |
 |---|---|
 | [결정] 확장 지점은 on(fold tap/first/chain), post, drive(배타 임대), scope 4연산이다 | `_research/decisions-log.md` 2026-10-21 계획 v2, adr.0007 |
-| [결정] Helm은 L3 기본 그룹이다. 학습 그룹도 L3 기본 그룹이며 drive를 쓰지 않고 Helm과 공존한다 | `_research/decisions-log.md` 2026-10-21 계획 v2, `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로" |
+| [결정] Helm과 학습 그룹은 L3 기본 그룹이다. 학습 그룹은 drive를 쓰지 않고 Helm과 공존한다. Helm은 내장 등록 대신 기본 플러그인(별도 패키지, 설치하면 켬)으로 배포하고 자체 확장 API만 쓴다 [결정: review.m3-design-inputs D-M3-01, D-M3-11] | `_research/decisions-log.md` 2026-10-21 계획 v2, `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `review.m3-design-inputs` §3 |
 | [결정] 그룹이 필요한 이유는 스킬·일반 플러그인에 모델 강제력이 없기 때문이다. 제2의 Helm도 붙였다 뗄 수 있어야 한다 | `_research/decisions-log.md` 2026-10-21 사용자 의중 |
 | [결정] 학습 저장은 L2 knowledge, 정책은 L3 학습 그룹 | `_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로" |
 | [결정] 세션 저장은 SQLite 이벤트 소싱 + 투영, 단일 DB, 확장 접두사 테이블. 그룹 비공개 상태는 `x_<그룹>_*` | `_research/decisions-log.md` 2026-10-21 결정 2차, adr.0004 |
 | [결정] DI는 Cordis 하나. 같은 층 협력은 F 정의와 Cordis 서비스로만 | `_research/decisions-log.md` 2026-10-21 결정 3차, `_research/foundation-plan.md` §3 |
 | [결정] 예산은 pi 방식. 기본 상한 없음, 상한은 drive 임대에만. drive 임대 상한 기본값(`l3.helm.driveLimits`)과 학습 검토 상한(`l3.learning.review.maxIterations`)은 pi 방식의 예외로 둔다 [결정: review.decisions-2 U-12, U-22] | `_research/decisions-log.md` 2026-10-21 계획 v2 |
-| [결정] 입출력 가드레일은 코어에서 빼고 보류. 필요하면 first 지점에 붙는 선택 플러그인 | `_research/layer-plan-v2-notes.md` "입출력 가드레일은 필요한가" |
+| [결정] 입출력 가드레일은 내장 검사를 두지 않는다. F·X가 fail-closed 가드 지점 셋(모델 요청 직전, 도구 호출 직전, 출력 표시·실행 직전)을 두고 검사는 플러그인이 한다 [결정: review.m3-design-inputs D-M3-30, adr.0017] | `_research/layer-plan-v2-notes.md` "입출력 가드레일은 필요한가", `review.m3-design-inputs` D-M3-30 |
 
 ### 10.2 미결 사항
 
 공통 모순(L3 네 문서에 걸린다):
 
 1. [결정: review.decisions-2 T-21] 그룹 레코드 이름 접두: 공개 레코드와 비공개 기록 모두 F 형식 `grp.<그룹>.<영역>.<이름>`을 쓴다. 비공개 기록은 X `ScopeApi.recordPrivate(kind, payload)`로 쓰고 다른 그룹의 `readRecords`로 조회되지 않는다. 상태 이벤트는 `grp.<그룹>.state.committed`(X 소유)다.
-2. [미결] on 핸들러 외부 효과 금지(`F.extensions.spec` §4.3: 효과는 `post`, `commit`, `record`만)와 `GroupApi.delegate`·`loop.spawn`의 관계. 학습 그룹의 검토 포크는 drive 밖에서 위임을 시작해야 하므로 `requestId` 멱등을 조건으로 한 예외가 필요하다(`_research/notes/L3-1.md` §1). 예외를 F에 둘지, delegate를 `post`처럼 커밋 단위 연산으로 정의할지 정해야 한다.
+2. (닫힘) [결정: adr.0015] on 핸들러 외부 효과와 `GroupApi.delegate`·`loop.spawn`의 관계. C안(선언형 허용)으로 on 핸들러의 결정적 `requestId` `delegate`를 허용한다. L3 group-kit·Helm·학습·slots 문서에 반영했다.
 3. [미결] `package.json` `xeon.domain`의 `kit` 대 routes.yaml `group-kit`(3절, `architecture.layers.spec` §10).
 4. [결정: review.decisions-2 U-15] 같은 층 예외: DR-02 방법 (b), `group-*` → `group-kit` 한 방향 허용 목록(`DR-02/group-kit-*`)이다(`eng.dependency-rules.guide` DR-02, `architecture.layers.spec` §3.2, `eng.context-map.design` C-5).
 
 도메인 문서에서 모은 것:
 
-5. [미결] drive 임대 충돌 시 대기와 거부 가운데 기본 동작, 그리고 정책(`DriveArbiter`)과 메커니즘(X)의 분담 경계(`L3.group-kit.spec`, `_research/notes/L3-2.md` §6 1·2).
-6. [미결] 유휴 상태(실행 중 turn 없음)의 토글 적용 시점과 drive 그룹의 자율 턴 시작 허용 여부(`X.primitives.spec`, `_research/notes/L3-2.md` §6 3).
+5. (닫힘) [결정: review.m3-design-inputs D-M3-05] drive 임대 충돌 때는 대기가 기본이고 대기 상한을 넘으면 거부한다. 정책(`DriveArbiter`)과 메커니즘(X)의 분담은 REQ-X-08과 `L3.group-kit.spec` §3.5가 정한다.
+6. (닫힘) [결정: review.m3-design-inputs D-M3-06] 유휴 상태에서 임대를 받은 drive 그룹은 임대 상한 안에서 자율 turn을 시작할 수 있다. 토글 적용 시점은 `X.primitives.spec` §4.5.5다.
 7. [미결] 학습 검토 포크 spawn의 상한 귀속(임대 밖 위임)(`_research/notes/L3-2.md` §6 8).
 8. [결정: 계획 v2 규칙 2, DR-14] L3 → `cap-*` import 금지는 기본 규칙이다(`architecture.layers.spec` 3.1절 판정). depcruise 규칙 추가는 `architecture.layers.spec` §9가 다룬다.
 9. [미결] Helm 내부 설계(단계·신호 식별자와 전이표의 확정, 렌즈 목록, 종료 판정, 부분 결과 허용)(`L3.helm.spec` §10 미결 1·2·3·16, `product.usecases.spec` 미결 1). 단계 순서(발산, 다른 분야 탐색, 수렴, 현재 작업 적용)와 신호 종류 셋(막힘, 반복, 새 분야 진입)은 계획 v2로 정해졌다 [결정]. `L3.helm.spec`은 식별자(`diverge` 등, `stuck` 등)와 전이표를 [제안]으로 둔다.
-10. [미결] 학습 후보와 기존 스킬의 병합 규칙, 제안 대기열 소유(L2 knowledge 대 L3 learning)(`L3.learning.spec`, `_research/notes/L3-3.md` C2).
+10. (닫힘) 제안 대기열 소유는 대기열 둘 유지다 [결정: review.m3-design-inputs D-M3-32]. 학습 그룹 소유와 L2 knowledge 소유를 L4가 한 목록으로 보인다. 병합 규칙은 `L3.learning.spec` §4.5 규칙 4([제안]: 같은 이름 거부, 자동 병합 없음)로 닫았다.
 11. [미결] `slots` 템플릿 파일 위치(`eng.context-map.design` C-2). `L3.slots.spec`은 `group-kit/templates/`를 [제안]한다.
 12. [미결] 정책 플러그인을 `kind: "group"`으로 둘지 `kind: "plugin"`으로 둘지의 최종 기준(`L3.slots.spec` §4.2).
-13. [미결] 입출력 가드레일 보류 해제 조건(`L3.slots.spec` §4.2.3).
+13. (닫힘) [결정: review.m3-design-inputs D-M3-30] 입출력 가드레일 보류는 내장 검사 없음과 fail-closed 가드 지점 셋으로 바꿨다(adr.0017, `L3.slots.spec` §3.2.4).
 14. [결정: review.decisions-2 U-18] 새 그룹 이름 규칙: 확장 id 규칙 `^[a-z][a-z0-9-]{1,31}$`(밑줄 없음)을 따른다. 테이블 접두는 이름의 하이픈을 밑줄로 바꿔 만든다.

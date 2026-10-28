@@ -193,7 +193,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 | `thread.leaf_moved` | 내구 | session-core | `{ leafEventId, reason: "branch" \| "rewind" \| "restore" }` | 투영, 재개 |
 | `thread.compacted` | 내구 | run-engine (`core.context`) | 요약, `firstKeptEventId`, `tokensBefore` | 투영, 컨텍스트 조립 |
 | `thread.branch_summarized` | 내구 | session-core | 떠난 가지 요약 | 투영, 컨텍스트 조립 |
-| `turn.started` | 내구 | run-engine (`core.loop`) | 입력 item id들, `requestId` | 투영, UI, 확장(on `turn_start` [가정: 지점 이름은 adr.0007 §3.3의 pi 이벤트명, `F.extensions.spec`이 확정]) |
+| `turn.started` | 내구 | run-engine (`core.loop`) | 입력 item id들, `requestId` | 투영, UI, 확장(on `boundary.step.before` [지점 이름은 `F.extensions.spec` §3.4 표, adr.0017]) |
 | `turn.updated` | 휘발 | run-engine (`core.loop`) | 상태 | UI |
 | `turn.completed` | 내구 | run-engine (`core.loop`) | 종결 상태(`completed`·`interrupted`·`failed`), step 수, 사용량, 오류 | 투영, UI, 학습 그룹 |
 | `step.started` | 내구 | run-engine (`core.loop`) | `stepIndex` | 투영 |
@@ -203,7 +203,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 | `item.updated` | 휘발 | run-engine (`core.loop`), 도구 진행은 tool-runtime이 발신 | 파트 델타, 파트 완성, 도구 진행 | UI |
 | `item.recorded` | 내구 | run-engine (`core.loop`) | `{ item: ItemRecord }` | 투영(item), 컨텍스트 조립, 세션 검색 색인 |
 | `part.recorded` | 내구 | run-engine (`core.loop`) | `{ part: PartRecord }` | 투영(파트), 컨텍스트 조립 |
-| `effect.intent` | 내구 | tool-runtime (`core.tools`) | `effectId`, `toolCallId`, 도구 이름, 실행 인자(모델이 낸 인자. `tool_call`은 인자를 바꾸지 않는다, review.decisions-2 U-06), `replay`(safe·unsafe) | 투영(효과), 재개 |
+| `effect.intent` | 내구 | tool-runtime (`core.tools`) | `effectId`, `toolCallId`, 도구 이름, 실행 인자(모델이 낸 인자. `tool.call.before`은 인자를 바꾸지 않는다, review.decisions-2 U-06), `replay`(safe·unsafe) | 투영(효과), 재개 |
 | `effect.exec` | 내구 | tool-runtime (`core.tools`) | `effectId`, `startedAt` | 투영, 재개(실행 시작 여부, 재실행 수) |
 | `effect.result` | 내구 | tool-runtime (`core.tools`) | `effectId`, `status`, 구조화 출력, `blobRef`, `synthesized` | 투영, 컨텍스트 조립, 학습 그룹 |
 | `checkpoint.step` | 내구 | session-core (`core.persistence`, 내용은 루프가 만든다) | `StepCheckpoint` | 투영(`step_checkpoints`), 재개 |
@@ -212,7 +212,7 @@ export const BlobRefSchema: Schema<BlobRef>;
 | `lease.released` | 내구 | extension-host (`xh`) | `leaseId`, `scopeId`, 사유 | 투영, ext-host |
 | `settings.changed` | 내구 | session-core (`core.persistence`) | `key`, `scope`, 값(비밀은 참조만) | 투영, loop |
 
-- `effect.result.status` 값은 `ok`, `error`, `interrupted`, `abandoned` 네 개이고 복구 규칙이 만든 결과는 `synthesized: true`다(`F.records.spec` §3.5). 이 문서의 이전 판에 있던 6값(`completed`, `failed`, `denied`, `not_executed`, `interrupted`, `outcome_uncertain`)은 쓰지 않는다. 대응은 `L1.persistence.spec` §2.1 표다. `effect.intent`가 있는 호출마다 `effect.result`는 0 또는 1건이다. `effect.intent` 전에 거부된 호출(`tool_call` 핸들러 거부, 정책·승인 거부)은 효과 이벤트 없이 `isError: true`인 toolResult item만 남는다(`L1.tools.spec`). 기록 규칙은 `eng.transactions.design` 5절이다.
+- `effect.result.status` 값은 `ok`, `error`, `interrupted`, `abandoned` 네 개이고 복구 규칙이 만든 결과는 `synthesized: true`다(`F.records.spec` §3.5). 이 문서의 이전 판에 있던 6값(`completed`, `failed`, `denied`, `not_executed`, `interrupted`, `outcome_uncertain`)은 쓰지 않는다. 대응은 `L1.persistence.spec` §2.1 표다. `effect.intent`가 있는 호출마다 `effect.result`는 0 또는 1건이다. `effect.intent` 전에 거부된 호출(`tool.call.before` 핸들러 거부, 정책·승인 거부)은 효과 이벤트 없이 `isError: true`인 toolResult item만 남는다(`L1.tools.spec`). 기록 규칙은 `eng.transactions.design` 5절이다.
 - `turn.completed.status`는 `completed`, `interrupted`, `failed` 세 값이다(`F.conversation.spec` §3.5.3 `TurnCompletedPayload`). 승인 대기는 turn을 닫지 않는다. turn은 열린 상태(`TurnStatus` `waiting`)로 남고 `checkpoint.step`의 `pendingToolCalls[].waiting: "approval"`로 표시한다(`L1.persistence.spec` §4.2 A1). 그래서 복구 표식이 남고 재개 대상이 된다.
 - `effect.intent.replay` 값은 `safe`, `unsafe`다. F `AgentTool.replay?: "never" | "safe"`(pi-agent-core `pi-src/packages/agent/src/types.ts:489-490`에서 온 필드)는 `toReplayPolicy`가 `never → unsafe`로 바꾼다(`F.conversation.spec` §3.6).
 - toolResult `item.recorded`는 `effect.result`와 한 커밋(E3)에 들어간다. 커밋은 tool-runtime이 내고, item 초안은 루프의 생산자 핸들로 만든다(`L1.tools.spec` `ToolRunContext.drafts`).
@@ -423,7 +423,7 @@ flowchart LR
 
 1. 재생은 도구를 다시 실행하지 않는다. 종결된 효과는 기록된 `effect.result`로 상태만 재구성한다.
 2. 재개(새 쓰기 소유자가 thread를 열어 실행을 잇는 일) 때에만 열린 효과(`effect.intent`가 있고 `effect.result`가 없는 효과)에 재생 정책을 적용한다. 결정표의 정본은 `F.records.spec` §3.5 `decideEffectRecovery`이고, 재실행 상한을 더한 판정은 `L1.persistence.spec` §3.7 `decideOpenEffect`다. 기록 규칙은 `eng.transactions.design` 5절이다.
-3. `on` 핸들러(fold `tap`, `first`, `chain`)는 재실행해도 되는 질의여야 한다. 이 절과 EV-08의 지점 이름(`tool_call`, `turn_end`)은 adr.0007 §3.3의 pi 이벤트명을 따른 [가정]이고 `F.extensions.spec`이 확정한다. 재생 때 과거 이벤트에 대해 핸들러를 다시 부르지 않는다. 특히 재개 때 열린 효과를 다시 실행해도 `tool_call`류(`first` 지점)를 다시 부르지 않고 `effect.intent`에 저장된 최종 인자를 쓴다(durable `spec.md` 2636-2660 훅 표의 "a crash before the consuming commit may rerun them", 3136-3170의 "Recovery does not rerun `beforeTool`"). 크래시가 소비 커밋 전에 났다면 그 지점은 아직 커밋되지 않았으므로 정상 경로로 핸들러가 다시 불린다. 의도 없는 toolCall이 재개 때 정상 파이프라인을 다시 지나는 경우가 이것이다(`L1.persistence.spec` §4.7.4). 그래서 핸들러는 재실행 가능한 질의여야 한다.
+3. `on` 핸들러(fold `tap`, `first`, `chain`)는 재실행해도 되는 질의여야 한다. 이 절과 EV-08의 지점 이름(`tool.call.before`, `boundary.step.after`)은 `F.extensions.spec` §3.4 표의 이름이다(adr.0017). 재생 때 과거 이벤트에 대해 핸들러를 다시 부르지 않는다. 특히 재개 때 열린 효과를 다시 실행해도 `tool.call.before`류(`first` 지점)를 다시 부르지 않고 `effect.intent`에 저장된 최종 인자를 쓴다(durable `spec.md` 2636-2660 훅 표의 "a crash before the consuming commit may rerun them", 3136-3170의 "Recovery does not rerun `beforeTool`"). 크래시가 소비 커밋 전에 났다면 그 지점은 아직 커밋되지 않았으므로 정상 경로로 핸들러가 다시 불린다. 의도 없는 toolCall이 재개 때 정상 파이프라인을 다시 지나는 경우가 이것이다(`L1.persistence.spec` §4.7.4). 그래서 핸들러는 재실행 가능한 질의여야 한다.
 4. `drive` 함수는 마지막으로 커밋된 scope 상태로 다시 호출할 수 있어야 한다(`_research/ext-points.md §5` 안 1, 재생·토글 보장). 재개 때 ext-host는 열린 임대(`lease.acquired` 뒤 `lease.released`가 없음)가 있는 scope의 drive 함수를 다음 경계에서 그 상태로 다시 부른다(`X.primitives.spec` §4.4.3). 클로저 지역 변수에 둔 상태는 잃는다(EV-09).
 5. `post`는 (scopeId, requestId)로 멱등이다(`X.primitives.spec` `InputQueuePort`). 재개 뒤 같은 `post`가 다시 와도 입력이 두 번 들어가지 않는다.
 6. 확장 투영기가 없는(제거된) 확장의 이벤트는 재생 때 코어 투영기가 건너뛴다. 그 확장의 `x_*` 테이블은 갱신되지 않는다. 확장을 다시 설치하면 그 투영기만 재생성한다.
@@ -718,15 +718,15 @@ export const TurnCompletedVersioning: KindVersioning = { current: 1, upcasters: 
 좋은 예:
 
 ```ts
-g.on("tool_call", (call, st) =>
+g.on("tool.call.before", (call, st) =>
   st.phase === "diverge" && isWrite(call) ? { deny: "탐구 단계는 읽기 전용" } : undefined);
-g.on("turn_end", (t) => g.post({ text: nudge(t) }, { when: "followUp", requestId: `nudge:${t.turnId}` }));
+g.on("boundary.step.after", (t) => g.post({ text: nudge(t) }, { when: "followUp", requestId: `nudge:${t.turnId}` }));
 ```
 
 나쁜 예:
 
 ```ts
-g.on("tool_call", async (call) => {
+g.on("tool.call.before", async (call) => {
   await fetch("https://hooks.example/notify", { method: "POST", body: JSON.stringify(call) });   // 재실행 때 두 번 전송
   return undefined;
 });

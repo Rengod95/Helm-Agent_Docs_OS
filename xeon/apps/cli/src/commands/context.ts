@@ -25,6 +25,12 @@ export async function printFailure(
   await io.stderr(renderFailure(failure));
 }
 
+/** 엔진을 시작할 때 명령줄이 더하는 옵션 */
+export interface EngineStartFlags {
+  /** `--safe-mode`(chat) */
+  readonly safeMode?: boolean;
+}
+
 /**
  * 엔진에 연결한다(host.hello까지). 실패하면 두 줄 오류를 stderr에 쓰고 종료 코드를 돌려준다(§4.1 4번).
  * observe는 JSON 모드의 메시지 탭이다.
@@ -32,8 +38,9 @@ export async function printFailure(
 export async function connectOrReport(
   ctx: CommandContext,
   observe?: (message: JsonRpcMessage) => void,
+  options: EngineStartFlags = {},
 ): Promise<Result<EngineHandle, ExitCode>> {
-  const connected = await connectOrReportQuiet(ctx, observe);
+  const connected = await connectOrReportQuiet(ctx, observe, options);
   if (connected.ok) return ok(connected.value);
   await printFailure(ctx.io, connected.error);
   return err(connected.error.code);
@@ -43,9 +50,11 @@ export async function connectOrReport(
 export async function connectOrReportQuiet(
   ctx: CommandContext,
   observe?: (message: JsonRpcMessage) => void,
+  options: EngineStartFlags = {},
 ): Promise<Result<EngineHandle, Failure>> {
   const connected = await ctx.deps.connect({
     workspace: ctx.workspace,
+    ...(options.safeMode === true ? { safeMode: true } : {}),
     preference: "auto",
     client: { name: "xeon-cli", version: CLI_VERSION },
     settingGroups: [cliSettings],

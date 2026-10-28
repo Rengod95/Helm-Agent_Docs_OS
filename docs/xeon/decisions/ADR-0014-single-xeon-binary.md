@@ -51,5 +51,5 @@ binds: [xeon/apps/cli/**, xeon/apps/desktop/**, xeon/apps/host/**]
 
 ## 6. 미결 사항
 
-- [미결] 제품 이름(`product.scope.spec` §10 미결 2).
-- [가정] macOS Intel(`x86_64-apple-darwin`) 바이너리는 빌드만 하고 실기 확인은 하지 않습니다(`product.scope.spec` §4.7).
+- [미결] 제품 이름(`product.scope.spec` §10 미결 2). 시점은 정해졌다: M3는 `xeon`으로 내고 M4 전에 바꾼다 [결정: review.m3-design-inputs D-M3-24 b].
+- 닫음 [결정: review.m3-design-inputs D-M3-25 행 2·3]: macOS Intel은 지원하지 않고 빌드하지 않습니다. macOS는 14 이상 arm64만, Linux는 x86_64와 arm64를 빌드합니다.

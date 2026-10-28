@@ -60,40 +60,43 @@ export const NO_SESSION_POINTS: SessionPoints = {
 export function createSessionPoints(ext: SessionDispatcher): SessionPoints {
   return {
     async start(payload, dispatchKey): Promise<void> {
-      await ext.dispatch("session_start", payload, { threadId: payload.threadId, dispatchKey });
+      await ext.dispatch("session.start", payload, { threadId: payload.threadId, dispatchKey });
     },
     async infoChanged(payload, dispatchKey): Promise<void> {
-      await ext.dispatch("session_info_changed", payload, {
+      await ext.dispatch("session.info.after", payload, {
         threadId: payload.threadId,
         dispatchKey,
       });
     },
     async beforeSwitch(threadId, payload, dispatchKey) {
-      const outcome = await ext.dispatch("session_before_switch", payload, {
+      const outcome = await ext.dispatch("session.switch.before", payload, {
         threadId,
         dispatchKey,
       });
       return outcome.decision;
     },
     async beforeFork(payload, dispatchKey) {
-      const outcome = await ext.dispatch("session_before_fork", payload, {
+      const outcome = await ext.dispatch("session.fork.before", payload, {
         threadId: payload.threadId,
         dispatchKey,
       });
       return outcome.decision;
     },
     async beforeTree(payload, dispatchKey) {
-      const outcome = await ext.dispatch("session_before_tree", payload, {
+      const outcome = await ext.dispatch("session.tree.before", payload, {
         threadId: payload.threadId,
         dispatchKey,
       });
       return outcome.decision;
     },
     async tree(payload, dispatchKey): Promise<void> {
-      await ext.dispatch("session_tree", payload, { threadId: payload.threadId, dispatchKey });
+      await ext.dispatch("session.tree.after", payload, {
+        threadId: payload.threadId,
+        dispatchKey,
+      });
     },
     async shutdown(threadId, payload, dispatchKey): Promise<void> {
-      await ext.dispatch("session_shutdown", payload, { threadId, dispatchKey });
+      await ext.dispatch("session.shutdown", payload, { threadId, dispatchKey });
     },
   };
 }

@@ -14,6 +14,8 @@ import type { BoundarySignal, BoundaryTxn, HostCore, ThreadRuntime } from "./cor
 import { makeDraft } from "./drafts.ts";
 import { PrimitiveError } from "./errors.ts";
 import { keyPart } from "./keys.ts";
+import type { EffectWorkerPort } from "./effect-worker.ts";
+import type { Lifecycle } from "./lifecycle.ts";
 import type { LeaseBroker } from "./lease.ts";
 import type { ScopeRuntime } from "./scope.ts";
 
@@ -80,6 +82,10 @@ function commitPlanOf(
       (id) => `scope:${keyScopeId(id)}:${generationOf(id)}${flipOf(id)}:disabled`,
     ),
     ...txn.releasing.map((lease) => `lease:${keyPart(lease.leaseId)}:released`),
+    ...txn.rejected.map(
+      (rejection) =>
+        `lease:${keyScopeId(rejection.scopeId)}:rejected:${keyScopeId(rejection.holder ?? "none")}.${rejection.holderEpoch}`,
+    ),
     ...(txn.grant === null
       ? []
       : [`lease:${keyScopeId(txn.grant.scopeId)}:${txn.grant.leaseEpoch}`]),
@@ -116,6 +122,8 @@ export function createBoundary(
   core: HostCore,
   scope: ScopeRuntime,
   lease: LeaseBroker,
+  effects: EffectWorkerPort,
+  lifecycle: Lifecycle,
 ): BoundaryService {
   function reconcile(thread: ThreadRuntime, txn: BoundaryTxn): void {
     // 이 경계가 끝난 뒤 이 thread에서 켜져 있을 scope
@@ -159,13 +167,29 @@ export function createBoundary(
     return thread;
   }
 
+  /**
+   * 경계 기여를 계산한다. 유휴 적용이 진행 중이면 그 적용이 끝난 뒤에 시작한다. 유휴 적용은 자기 prepare·커밋·settle을 끝까지 하므로
+   * 기다려도 멈추지 않고, 기다리지 않으면 이쪽 prepare가 아직 커밋 중인 유휴 적용을 실패로 되돌려 같은 끄기·켜기가 두 번 기록된다
+   */
   async function prepare(signal: BoundarySignal): Promise<BoundaryContribution> {
     const thread = threadOf(signal.threadId);
+    if (thread.idleApply !== null) {
+      await thread.idleApply;
+      return await prepare(signal);
+    }
+    return await prepareNow(thread, signal);
+  }
+
+  async function prepareNow(
+    thread: ThreadRuntime,
+    signal: BoundarySignal,
+  ): Promise<BoundaryContribution> {
     if (thread.txn !== null) {
       // 정산되지 않은 이전 prepare는 실패로 되돌린다
       const stale = thread.txn;
       thread.txn = null;
       await scope.settle(thread, stale, "failed");
+      lease.revertWait(thread, stale);
       stale.grant?.abort.abort();
     }
     const txn: BoundaryTxn = {
@@ -179,6 +203,8 @@ export function createBoundary(
       recordDisabled: [],
       releasing: [],
       grant: null,
+      rejected: [],
+      waited: [],
     };
     thread.txn = txn;
     if (signal.kind !== "turn_settled") await scope.applyToggles(thread, txn);
@@ -216,6 +242,10 @@ export function createBoundary(
     if (thread === undefined || txn === null || txn === undefined) return;
     thread.txn = null;
     await scope.settle(thread, txn, result);
+    if (thread.applyDeferred) {
+      thread.applyDeferred = false;
+      requestApply(thread.threadId);
+    }
     if (result === "committed") {
       for (const id of txn.recordEnabled) {
         thread.recordedEnabled.add(id);
@@ -229,15 +259,34 @@ export function createBoundary(
       if (txn.recordEnabled.length > 0) await refreshEnabledAtSeq(thread, txn.recordEnabled);
       lease.applyCommitted(thread, txn);
       lease.onBoundary(thread, signal);
+      // 이 경계 커밋에 실린 이벤트의 수명주기 지점은 커밋 뒤에만 발화한다(M3-REQ-108)
+      await lifecycle.afterCommit(thread.threadId, txn.drafts);
     } else {
+      lease.revertWait(thread, txn);
       txn.grant?.abort.abort();
     }
   }
 
   /** 유휴 thread의 적용: whenIdle 안에서 prepare → 따로 커밋 → settle(X.primitives.spec §4.5.5) */
   async function applyIdleOnce(thread: ThreadRuntime): Promise<void> {
+    // 루프가 커밋한 경계(turn_settled)가 아직 정산되지 않았다. 그 txn을 되돌리지 않고 정산된 뒤에 적용한다
+    if (thread.txn !== null) {
+      thread.applyDeferred = true;
+      return;
+    }
+    const finished = Promise.withResolvers<void>();
+    thread.idleApply = finished.promise;
+    try {
+      await applyIdle(thread);
+    } finally {
+      thread.idleApply = null;
+      finished.resolve();
+    }
+  }
+
+  async function applyIdle(thread: ThreadRuntime): Promise<void> {
     const signal: BoundarySignal = { threadId: thread.threadId, kind: "idle" };
-    const contribution = await prepare(signal);
+    const contribution = await prepareNow(thread, signal);
     let committed = true;
     if (contribution.drafts.length > 0) {
       const port = core.ports.get(RecordCommitPortKey);
@@ -347,15 +396,31 @@ export function createBoundary(
         leaseEpochs: new Map(Object.entries(snapshot.leaseEpochs)),
         lease: null,
         cooldown: new Map(),
+        leaseWait: new Map(),
+        leaseRejected: new Set(),
+        nextRequestSeq: 0,
         txn: null,
         warnedPorts: new Set(),
         applying: false,
         applyAgain: false,
+        idleApply: null,
+        applyDeferred: false,
       };
       core.threads.set(threadId, thread);
       // 이미 세대가 열린 scope를 이 thread에서 켠다. 저장된 켜짐 기록과 같으면 scope.changed를 다시 남기지 않는다(N-01)
       await scope.seedThread(thread);
       lease.restore(thread, snapshot.openLease);
+      // 재시작 전에 커밋된 요청 가운데 끝나지 않은 것을 이어서 처리한다(ADR-0015 §3.5 2번 3)
+      for (const scopeId of thread.active) {
+        const record = core.scopes.get(scopeId);
+        if (record === undefined) continue;
+        effects.schedule({
+          threadId,
+          scopeId,
+          extension: record.extension,
+          kind: record.manifest.kind === "group" ? "group" : "plugin",
+        });
+      }
       requestApply(threadId);
     },
     async closeThread(threadId) {

@@ -85,7 +85,10 @@ describe("tool registrars", () => {
     expect(createToolsPortRegistrar(port, "cap-mcp").register(tool).ok).toBe(true);
     const def = defs[0];
     expect(def).toMatchObject({ name: "peek", replay: "unsafe" });
-    const executed = await def?.execute({}, { threadId: testThreadId(), signal });
+    const executed = await def?.execute(
+      {},
+      { threadId: testThreadId(), signal, toolCallId: "call-1", caller: { kind: "model" } },
+    );
     expect(executed).toMatchObject({ status: "complete" });
     await world.runtime.shutdown();
   });

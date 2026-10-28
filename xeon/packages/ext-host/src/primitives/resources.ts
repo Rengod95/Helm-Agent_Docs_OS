@@ -81,7 +81,14 @@ export interface ResourcePolicy {
 
 export interface CommandResourceDef {
   readonly description?: string;
-  handler(args: string, ctx: { readonly threadId: ThreadId | null }): Promise<void>;
+  handler(
+    args: string,
+    ctx: {
+      readonly threadId: ThreadId | null;
+      /** 명령 호출 하나의 id. threadId가 있으면 X가 멱등 키의 디스패치 키로 쓴다(M3-REQ-102). 같은 호출을 다시 실행하면 같은 값을 넘긴다 */
+      readonly invocationId: string;
+    },
+  ): Promise<void>;
 }
 export interface ShortcutResourceDef {
   readonly description?: string;
@@ -229,6 +236,8 @@ export function createResourceStore(deps: ResourceStoreDeps): ResourceStore {
           description: original.description,
           parameters: original.parameters,
           replay: original.replay,
+          ...(original.risk === undefined ? {} : { risk: original.risk }),
+          ...(original.hints === undefined ? {} : { hints: original.hints }),
           execute: (args, ctx) => original.execute(args, ctx),
         });
         if (!registered.ok) {

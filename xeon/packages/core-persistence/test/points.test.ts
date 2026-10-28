@@ -10,11 +10,11 @@ describe("session points", () => {
     const h = await openHarness({ points: recording.points });
     const { threadId } = newThread(h, "t");
     const names = (): string[] => recording.calls.map((call) => call.point);
-    // create가 session_start{new}, 열기가 session_start{startup}
+    // create가 session.start{new}, 열기가 session.start{startup}
     await Promise.resolve();
     expect(recording.calls.map((call) => [call.point, call.payload])).toEqual([
-      ["session_start", { reason: "new", threadId }],
-      ["session_start", { reason: "startup", threadId }],
+      ["session.start", { reason: "new", threadId }],
+      ["session.start", { reason: "startup", threadId }],
     ]);
     completeTurn(h, threadId);
     completeTurn(h, threadId);
@@ -26,15 +26,15 @@ describe("session points", () => {
     await h.service.release(threadId, "quit");
     await Promise.resolve();
     expect(names()).toEqual([
-      "session_start",
-      "session_start",
-      "session_info_changed",
-      "session_before_switch",
-      "session_before_fork",
-      "session_start",
-      "session_before_tree",
-      "session_tree",
-      "session_shutdown",
+      "session.start",
+      "session.start",
+      "session.info.after",
+      "session.switch.before",
+      "session.fork.before",
+      "session.start",
+      "session.tree.before",
+      "session.tree.after",
+      "session.shutdown",
     ]);
     expect(recording.calls.at(-1)?.payload).toEqual({ reason: "quit" });
   });

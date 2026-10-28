@@ -3,9 +3,12 @@ import { defineSettings, validateSettingValue, type SettingDef } from "@xeon/con
 import type { OnUnavailable } from "@xeon/contracts/services";
 
 // L0.sandbox.spec §6. 넓히는 키(enabled, onUnavailable, writeRoots.extra, escapeRetry)는 project 범위를 받지 않는다.
-// 네트워크 키(l0.sandbox.network.*)는 M2 단계라 정의하지 않는다.
+// 네트워크는 기본 허용이고 차단 도메인만 관리한다(M3-REQ-55). 허용 목록 키(l0.sandbox.network.allowedDomains)는 정의하지 않는다.
 
 const UNAVAILABLE_VALUES = ["disable_execute", "ask", "run_unsandboxed"] as const;
+
+const CREDENTIAL_FILE_VALUES = ["allow", "deny"] as const;
+type CredentialFilesMode = (typeof CREDENTIAL_FILE_VALUES)[number];
 
 const sandboxSettings = defineSettings("l0.sandbox", {
   enabled: {
@@ -78,6 +81,49 @@ const sandboxSettings = defineSettings("l0.sandbox", {
     },
     since: "0.1.0",
   },
+  "network.blockedDomains": {
+    type: Type.Array(Type.String({ minLength: 1, maxLength: 253 }), { maxItems: 256 }),
+    default: [],
+    runtimeChange: "restart",
+    allowedScopes: ["managed", "user", "project"],
+    ui: {
+      tab: "permissions",
+      widget: "list",
+      order: 105,
+      label: "Blocked network domains",
+      help: "Shell commands in the sandbox cannot reach these domains. Everything else stays reachable.",
+    },
+    since: "0.1.0",
+  },
+  credentialFiles: {
+    type: Type.String({ maxLength: 8 }),
+    default: "allow",
+    range: { enum: [...CREDENTIAL_FILE_VALUES] },
+    runtimeChange: "nextTurn",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "permissions",
+      widget: "select",
+      order: 106,
+      label: "Credential files such as ~/.npmrc and ~/.config/gh",
+      help: "deny also blocks reading them from sandboxed shell commands.",
+    },
+    since: "0.1.0",
+  },
+  nestedNamespaces: {
+    type: Type.Boolean(),
+    default: false,
+    runtimeChange: "restart",
+    allowedScopes: ["managed", "user"],
+    ui: {
+      tab: "permissions",
+      widget: "toggle",
+      order: 107,
+      label: "Allow nested namespaces for browser tools",
+      help: "Needed to start a browser inside the sandbox. It weakens isolation, so keep it off otherwise.",
+    },
+    since: "0.1.0",
+  },
   selfTestIntervalMin: {
     type: Type.Integer(),
     default: 60,
@@ -96,6 +142,12 @@ export interface SandboxSettings {
   readonly protectedPathsExtra: readonly string[];
   readonly writeRootsExtra: readonly string[];
   readonly escapeRetry: boolean;
+  /** 샌드박스 안에서 닿지 못하게 할 도메인(srt deniedDomains). 목록 밖은 모두 허용이다 */
+  readonly blockedDomains: readonly string[];
+  /** "allow"(기본)면 ~/.npmrc, ~/.config/gh 같은 CLI 인증 파일을 읽을 수 있다. 쓰기는 항상 거부한다 */
+  readonly credentialFiles: CredentialFilesMode;
+  /** 참이면 중첩 사용자 네임스페이스를 허용한다(브라우저 provider용, M3-REQ-56) */
+  readonly nestedNamespaces: boolean;
   /** 0이면 시작 때만 자가 시험을 돈다 */
   readonly selfTestIntervalMin: number;
 }
@@ -106,8 +158,15 @@ export const DEFAULT_SANDBOX_SETTINGS: SandboxSettings = {
   protectedPathsExtra: [],
   writeRootsExtra: [],
   escapeRetry: false,
+  blockedDomains: [],
+  credentialFiles: "allow",
+  nestedNamespaces: false,
   selfTestIntervalMin: 60,
 };
+
+function isCredentialFilesMode(value: unknown): value is CredentialFilesMode {
+  return value === "allow" || value === "deny";
+}
 
 function isOnUnavailable(value: unknown): value is OnUnavailable {
   return value === "disable_execute" || value === "ask" || value === "run_unsandboxed";
@@ -132,6 +191,9 @@ export function readSandboxSettings(read: (key: string) => unknown): SandboxSett
   const protectedExtra = read(defs["protectedPaths.extra"].key);
   const writeExtra = read(defs["writeRoots.extra"].key);
   const escapeRetry = read(defs.escapeRetry.key);
+  const blocked = read(defs["network.blockedDomains"].key);
+  const credentialFiles = read(defs.credentialFiles.key);
+  const nested = read(defs.nestedNamespaces.key);
   const interval = read(defs.selfTestIntervalMin.key);
   return {
     enabled:
@@ -154,6 +216,18 @@ export function readSandboxSettings(read: (key: string) => unknown): SandboxSett
       valid(defs.escapeRetry, escapeRetry) && typeof escapeRetry === "boolean"
         ? escapeRetry
         : DEFAULT_SANDBOX_SETTINGS.escapeRetry,
+    blockedDomains:
+      valid(defs["network.blockedDomains"], blocked) && isStringArray(blocked)
+        ? blocked
+        : DEFAULT_SANDBOX_SETTINGS.blockedDomains,
+    credentialFiles:
+      valid(defs.credentialFiles, credentialFiles) && isCredentialFilesMode(credentialFiles)
+        ? credentialFiles
+        : DEFAULT_SANDBOX_SETTINGS.credentialFiles,
+    nestedNamespaces:
+      valid(defs.nestedNamespaces, nested) && typeof nested === "boolean"
+        ? nested
+        : DEFAULT_SANDBOX_SETTINGS.nestedNamespaces,
     selfTestIntervalMin:
       valid(defs.selfTestIntervalMin, interval) && typeof interval === "number"
         ? interval

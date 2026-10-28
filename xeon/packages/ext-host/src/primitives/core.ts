@@ -42,6 +42,11 @@ export interface PrimitivesSettingsSource {
   activeDriveGroup(threadId: ThreadId): ScopeId | null;
   /** x.primitives.capabilityProviders */
   capabilityProviders(): Readonly<Record<string, ExtensionName>>;
+  /**
+   * x.primitives.leaseWaitLimit [제안]. 임대를 받지 못한 후보가 `turn_settled`·`idle` 경계를 이만큼 넘기면 요청을 거부한다
+   * (review.m3-design-inputs D-M3-05 a). 없으면 `DEFAULT_LEASE_WAIT_LIMIT`
+   */
+  leaseWaitLimit?(threadId: ThreadId): number;
 }
 
 /** 이미 기본값이 채워진 호스트 의존 */
@@ -166,6 +171,8 @@ export interface LeaseRuntime {
   wantInvoke: boolean;
   /** 실행 중에 호출 조건(turn_settled·idle)이 지나갔다 */
   missed: boolean;
+  /** 경계 없이 상태 커밋만 하고 반환해 바로 다시 부른 연속 횟수. 경계가 오면 0으로 돌아간다 */
+  chained: number;
   /** lease.acquired가 커밋되었는가 */
   committed: boolean;
 }
@@ -197,6 +204,19 @@ export interface BoundaryTxn {
   readonly releasing: LeaseRuntime[];
   /** 이 커밋에서 부여가 기록될 임대 */
   grant: LeaseRuntime | null;
+  /** 이 커밋에서 `lease.rejected`로 기록될 임대 요청(M3-REQ-28) */
+  readonly rejected: LeaseRejection[];
+  /** 이 경계가 대기 계수를 올린 scope. 커밋이 실패하면 되돌린다 */
+  readonly waited: ScopeId[];
+}
+
+/** 대기 상한을 넘겨 거부된 임대 요청 하나 */
+interface LeaseRejection {
+  readonly scopeId: ScopeId;
+  readonly requestSeq: number;
+  /** 거부 때 임대를 가진 scope와 그 임대 차수. 둘 다 커밋된 값이라 thread를 다시 열어도 같은 거부에 같은 값이다(커밋 키 재료) */
+  readonly holder: ScopeId | null;
+  readonly holderEpoch: number;
 }
 
 export interface ThreadRuntime {
@@ -218,6 +238,12 @@ export interface ThreadRuntime {
   enabledAtSeq: Map<ScopeId, number>;
   leaseEpochs: Map<ScopeId, number>;
   lease: LeaseRuntime | null;
+  /** 임대를 받지 못하고 기다리는 후보. requestSeq는 대기를 시작한 순번, waited는 넘긴 `turn_settled`·`idle` 경계 수 */
+  leaseWait: Map<ScopeId, { readonly requestSeq: number; waited: number }>;
+  /** 대기 상한을 넘겨 거부된 scope. 다음 임대 반납이 커밋되면 다시 후보가 된다 */
+  leaseRejected: Set<ScopeId>;
+  /** 다음 임대 요청 순번 */
+  nextRequestSeq: number;
   /** 임대를 반납한 scope가 다음 turn_settled 또는 상태 판 변화 전까지 후보에서 빠지는 표(반납 때의 판) */
   cooldown: Map<ScopeId, number>;
   txn: BoundaryTxn | null;
@@ -227,6 +253,10 @@ export interface ThreadRuntime {
   applying: boolean;
   /** 진행 중에 적용 요청이 또 들어왔다 */
   applyAgain: boolean;
+  /** 진행 중인 유휴 적용(prepare, 커밋, settle 전체). 다른 경계의 prepare는 이것이 끝나기를 기다린다 */
+  idleApply: Promise<void> | null;
+  /** 경계 txn이 정산되기 전이라 유휴 적용을 시작하지 못했다. 그 txn이 정산되면 다시 요청한다 */
+  applyDeferred: boolean;
 }
 
 // ── 호스트 핵심 ────────────────────────────────────────────────────────────

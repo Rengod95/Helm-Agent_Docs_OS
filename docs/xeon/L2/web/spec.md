@@ -278,7 +278,7 @@ export const WebSearch = defineCapability({
         description: "검색어로 웹 문서를 찾아 순위, 발췌, 출처를 돌려준다.",
         input: WebSearchInputSchema,
         output: WebSearchOutputSchema,
-        replay: "safe",
+        replay: "safe", readOnly: true,
         errors: {
           query_rejected: { description: "provider가 검색어를 거부함(금칙어, 길이 등)", retryable: false },
           session_limit: { description: "세션당 검색 호출 상한(l2.web.limits.searchPerSession)을 넘음", retryable: false },
@@ -393,7 +393,7 @@ export const WebFetch = defineCapability({
         description: "url, urls, rawRef 중 정확히 하나를 받아 페이지 본문을 돌려준다.",
         input: WebFetchInputSchema,
         output: WebFetchOutputSchema,
-        replay: "safe",
+        replay: "safe", readOnly: true,
         errors: {
           session_limit: { description: "세션당 fetch 상한(l2.web.limits.fetchPerSession)을 넘음", retryable: false },
           robots_disallowed: { description: "자동 수집 경로에서 robots.txt가 금지함", retryable: false },
@@ -556,8 +556,8 @@ export const WebBrowse = defineCapability({
     methods: {
       open:  { description: "브라우저 세션을 연다.", input: BrowseOpenInputSchema, output: BrowseOpenOutputSchema, replay: "unsafe", errors: browseErrors },
       act:   { description: "동작 하나를 실행한다.", input: BrowseActInputSchema, output: BrowseActOutputSchema, replay: "unsafe", errors: browseErrors },
-      read:  { description: "스냅샷, 텍스트, 부분 찾기, 화면 캡처를 읽는다.", input: BrowseReadInputSchema, output: BrowseReadOutputSchema, replay: "safe", errors: browseErrors },
-      close: { description: "세션을 닫는다. 이미 닫혔으면 closed=false.", input: BrowseCloseInputSchema, output: BrowseCloseOutputSchema, replay: "safe" },
+      read:  { description: "스냅샷, 텍스트, 부분 찾기, 화면 캡처를 읽는다.", input: BrowseReadInputSchema, output: BrowseReadOutputSchema, replay: "safe", readOnly: true, errors: browseErrors },
+      close: { description: "세션을 닫는다. 이미 닫혔으면 closed=false.", input: BrowseCloseInputSchema, output: BrowseCloseOutputSchema, replay: "unsafe" },
     },
   },
   tools: [
@@ -572,7 +572,7 @@ export const WebBrowse = defineCapability({
       replay: "safe", executionMode: "sequential", hints: { readOnly: true, openWorld: true } },
     { name: "web_browse_close", label: "브라우저 닫기", description: "브라우저 세션을 닫는다.",
       method: "close", parameters: BrowseCloseInputSchema, toContent: renderBrowseClose,
-      replay: "safe", executionMode: "sequential", hints: { readOnly: false, idempotent: true } },
+      replay: "unsafe", executionMode: "sequential", hints: { readOnly: false, idempotent: true } },
   ],
 });
 export const WebBrowseKey = serviceKey(WebBrowse);
@@ -654,9 +654,9 @@ export const WebResearch = defineCapability({
       start:  { description: "조사를 시작하고 runId를 돌려준다.", input: WebResearchInputSchema,
                 output: Type.Object({ runId: ResearchRunIdSchema, status: ResearchStatusSchema }), replay: "unsafe" },
       get:    { description: "조사 상태와 결과를 읽는다.", input: Type.Object({ runId: ResearchRunIdSchema }),
-                output: ResearchRunSchema, replay: "safe" },
+                output: ResearchRunSchema, replay: "safe", readOnly: true },
       cancel: { description: "조사를 취소한다. 이미 끝났으면 현재 상태를 돌려준다.", input: Type.Object({ runId: ResearchRunIdSchema }),
-                output: Type.Object({ runId: ResearchRunIdSchema, status: ResearchStatusSchema }), replay: "safe" },
+                output: Type.Object({ runId: ResearchRunIdSchema, status: ResearchStatusSchema }), replay: "unsafe" },
       run:    { description: "조사를 시작하고 끝난 뒤 결과를 돌려준다.", input: WebResearchInputSchema,
                 output: ResearchRunSchema, replay: "unsafe" },
     },
@@ -1034,6 +1034,23 @@ export const WEB_CAPABILITIES = [WebSearch, WebFetch, WebBrowse, WebResearch] as
 - 묶음 값은 provider 체인을 거치는 앞단이다(§4.1, `L2.readme` §5.1). provider 플러그인은 이 묶음을 등록하지 않고 능력별 후보로 등록한다(§3.6).
 - consumer는 `ScopeApi.capability(WebSearchKey)`처럼 능력 단위 키로 API를 얻는다(`L2.readme` §5.6).
 
+### 3.10 효과 분류 [결정: M3-REQ-88]
+
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록, 사용자 파일과 사용자가 쓴 데이터, 외부 시스템의 상태를 바꾸지 않는 읽기다. 관찰상 순수한 파생 데이터(캐시, 색인, 내용 주소 blob, 사용량·비용 계량, 시간과 현재 데이터만으로 정해지는 정리)는 쓸 수 있다 [결정: 2026-10-28 오케스트레이터, ADR-0015 §3.3]. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+
+| 메서드 | 분류 | replay | 근거 |
+|---|---|---|---|
+| `web.browse.open` | 선언 없음 | unsafe | 외부 브라우저 세션을 연다 |
+| `web.browse.act` | 선언 없음 | unsafe | 페이지에 동작을 일으킨다 |
+| `web.browse.read` | readOnly | safe | 스냅숏·텍스트 조회 |
+| `web.browse.close` | 선언 없음 | unsafe | 외부 세션 상태를 바꾼다. `requestId` 멱등이 없다 |
+| `web.fetch.fetch` | readOnly | safe | 외부 페이지 읽기. 쓰는 것은 파생 데이터뿐이다: 응답 캐시(`cap_web_fetch_cache`, `cap_web_raw`), 원문 사본(내용 주소 blob), 비용 계량(`cap_web_usage`), 세션당 fetch 상한 카운터(메모리 계량, `session_limit`). 계량이라 drive 재생이 상한을 다시 소모할 수 있다 |
+| `web.research.start` | 선언 없음 | unsafe | 백그라운드 조사를 시작한다 |
+| `web.research.get` | readOnly | safe | 상태 조회 |
+| `web.research.cancel` | 선언 없음 | unsafe | 조사 상태를 바꾼다. `requestId` 멱등이 없다 |
+| `web.research.run` | 선언 없음 | unsafe | 조사를 시작한다 |
+| `web.search.search` | readOnly | safe | 외부 검색. 호출마다 비용이 들고 계량 표(`cap_web_usage`)에 기록되지만 상태를 바꾸지 않는다(Helm `gatherContext`). drive 재생은 호출마다 비용을 다시 쓴다 |
+
 ## 4. 동작 규칙
 
 ### 4.1 공통 처리 순서
@@ -1257,7 +1274,7 @@ Claude Code의 `WebFetch(domain:…)` 문법을 따른다(`_research/web-tools.m
 - 모델 도구 경로의 fetch·navigate URL이 그 세션 대화에 나온 적이 없으면 `l2.web.policy.unseenUrl`(기본 `ask`)을 적용한다(`_research/web-tools.md` §5.2 2번, Anthropic web_fetch의 "대화에 나온 URL만" 규칙).
   - "나온 URL" 집합은 이 세션에서 웹 능력이 돌려준 URL(검색 결과, fetch의 `links`, 리다이렉트 `to`)과 사용자 입력 텍스트에서 뽑은 URL이다.
   - 비교 키는 실제로 나가는 요청의 모양이다: 스킴·호스트(소문자)·경로·전체 쿼리(이름 순 정렬)이고 프래그먼트만 뺀다. 추적 파라미터(`utm_*`, `gclid` 등)를 지우는 §4.3.3 정규화는 쓰지 않는다. 본 URL 뒤에 `?utm_content=<대화 내용>`을 붙이면 질문 없이 대화 내용이 나가기 때문이다.
-  - [제안] 사용자 입력 URL은 `cap-web`이 `input` 지점(F.extensions.spec #1, chain)에서 패치 없이 읽어 세션별 메모리 집합에 넣는다. 재시작 뒤에는 §4.2.1과 같은 방식으로 세션 이벤트를 읽어 다시 채운다.
+  - [제안] 사용자 입력 URL은 `cap-web`이 `input.user.before` 지점(F.extensions.spec #1, chain)에서 패치 없이 읽어 세션별 메모리 집합에 넣는다. 재시작 뒤에는 §4.2.1과 같은 방식으로 세션 이벤트를 읽어 다시 채운다.
 - 쿼리 문자열이나 경로에 비밀 패턴(키 접두 `sk-`, `ghp_`, `AKIA`, JWT 형태 등)이 보이면 `ask`다. 등록된 비밀 값이면 §4.1 3단계에서 이미 거부된다.
 - `caller.afterUntrusted = true`인 모델 호출의 쓰기성 브라우저 동작(`act`의 `fill`, `type`, `upload`, 폼 제출)은 승인을 요구한다 [제안]. 웹 결과를 읽은 뒤의 위험 동작에 승인을 거는 plan-then-execute 완화다(`_research/web-tools.md` §5.2 3번).
 
@@ -1433,7 +1450,7 @@ omp 방식을 차용한다(`_research/web-tools.md` §3.2, §3.6).
   - 동작 수 `l2.web.browse.maxActions`(기본 200)
   - 비용 `l2.web.browse.maxUsd`(기본 0.5달러). 로컬 provider는 0달러지만 클라우드 provider 플러그인을 위해 둔다.
 - 대화 세션 하나가 동시에 여는 브라우저 세션은 `l2.web.browse.maxSessions`(기본 3)까지다.
-- 대화 세션이 끝나면(`session_shutdown` 지점, tap) 그 세션이 연 브라우저 세션을 닫는다.
+- 대화 세션이 끝나면(`session.shutdown` 지점, tap) 그 세션이 연 브라우저 세션을 닫는다.
 
 #### 4.10.2 이동 정책과 필터 프록시
 
@@ -1680,12 +1697,12 @@ export const webSettings = defineSettings("l2.web", {
 ## 7. 확장 지점
 
 - 이 문서는 새 지점을 정의하지 않는다.
-- 모델 도구 경로는 `F.extensions.spec`의 tool 지점(`tool_call` first, `tool_result` chain, `tool_execution_*` tap)을 지난다. 페이로드의 `capability` 필드(`{ id: "web.fetch", method: "fetch" }` 등)로 핸들러가 웹 능력을 골라 거부하거나 결과를 바꿀 수 있다(`F.capabilities.spec` §7). Helm이 확산 단계에서 쓰기 도구를 막는 경로와 같다.
+- 모델 도구 경로는 `F.extensions.spec`의 tool 지점(`tool.call.before` first, `tool.result` chain, `tool_execution_*` tap)을 지난다. 페이로드의 `capability` 필드(`{ id: "web.fetch", method: "fetch" }` 등)로 핸들러가 웹 능력을 골라 거부하거나 결과를 바꿀 수 있다(`F.capabilities.spec` §7). Helm이 확산 단계에서 쓰기 도구를 막는 경로와 같다.
 - 그룹 코드의 서비스 호출(`g.capability(WebSearchKey).search(...)`)은 tool 지점을 지나지 않는다. 그래서 정책·상한·untrusted 표식은 앞단 서비스 안에서 적용한다(§4.1). 도구 어댑터에만 두면 그룹 경로가 빠진다.
 - `cap-web`이 거는 지점(구독만, 결과를 바꾸지 않음):
-  - `input`(#1, chain): 사용자 입력에서 URL을 뽑아 "나온 URL" 집합에 넣는다. 패치를 돌려주지 않는다(§4.6.6).
-  - `session_shutdown`(#39, tap): 그 세션의 브라우저 세션을 닫고 `retention='session'` rawRef를 정리 대상으로 표시한다.
-  - `turn_start`(#19, tap): `l2.web.search.modelTool = auto` 판정을 세션 첫 턴에 한 번 계산해 고정한다(§4.8.1).
+  - `input.user.before`(#1, chain): 사용자 입력에서 URL을 뽑아 "나온 URL" 집합에 넣는다. 패치를 돌려주지 않는다(§4.6.6).
+  - `session.shutdown`(#39, tap): 그 세션의 브라우저 세션을 닫고 `retention='session'` rawRef를 정리 대상으로 표시한다.
+  - `boundary.step.before`(#19, tap): `l2.web.search.modelTool = auto` 판정을 세션 첫 턴에 한 번 계산해 고정한다(§4.8.1).
 - drive와의 관계: L2는 drive를 쓰지 않는다(`L2.readme` §4). L3 그룹 `drive` 함수 안의 `web.search` 호출은 일반 서비스 호출이다.
 - post: 쓰지 않는다. `web.research`의 완료 알림을 대화에 넣는 경로는 2차 설계 때 정한다.
 
@@ -1747,23 +1764,23 @@ export const webSettings = defineSettings("l2.web", {
 1. 닫힘. `F.capabilities.spec` §3.9 `web.search` 예시는 간추린 설명용 예시로 선언되었고 정본은 `defs/web.ts`와 이 문서 §3.2다. provider 메타는 `meta`(`ProviderSelectionMeta`, F.capabilities §3.11)다.
 2. 닫힘. 호출자 정보는 `F.capabilities.spec` §3.2 `CallOptions.context.caller`로 받는다(§3.7). `L2.knowledge.spec`도 같다.
 3. [미결] 모델용 도구 경로 ①의 광고 방식(hosted, function, auto)과 L1.models와의 책임 경계. 제안은 auto(세션 시작 때 판정 고정)다(§4.8.1). ADR-0005 ①은 "provider 내장 검색을 그대로 노출"이라 A안에 가깝다.
-   - M2 조사 결과(M2 마감 재검토 4): 구현하지 않았다. 요청 쪽은 막힘이 없다. `before_provider_request`(chain)의 `ProviderPayloadPatch`가 페이로드를 통째로 바꾸므로 서버 도구 한 개를 `tools`에 더하는 일은 지금 계약으로 된다. 막히는 곳은 응답 쪽이다.
+   - M2 조사 결과(M2 마감 재검토 4): 구현하지 않았다. 요청 쪽은 막힘이 없다. `request.provider.before`(chain)의 `ProviderPayloadPatch`가 페이로드를 통째로 바꾸므로 서버 도구 한 개를 `tools`에 더하는 일은 지금 계약으로 된다. 막히는 곳은 응답 쪽이다.
    - (a) pi-ai 1.3.0의 `AssistantMessage.content`는 `TextContent | ThinkingContent | ToolCall`뿐이다(`types.d.ts:364`). anthropic-messages 어댑터는 `text`, `thinking`, `redacted_thinking`, `tool_use` 블록만 모으고 `server_tool_use`와 `web_search_tool_result`는 버린다(소스에 `web_search`, `server_tool_use` 문자열이 없다). 다음 요청의 대화 이력 변환도 그 세 가지만 내보낸다. 그래서 `encrypted_content`를 보관하고 반송할 자리가 없고, 이전 턴의 검색 결과와 텍스트 인용(`cited_text`)이 이력에서 빠진다.
    - (b) `pause_turn`은 어댑터가 `stopReason: "stop"`(`rawStopReason: "pause_turn"`)으로 바꾼다(`mapStopReason`). 루프는 이를 턴 끝으로 읽어 본문이 잘린 채 끝난다. 이어 요청은 서버 도구 블록을 포함한 직전 content를 다시 보내야 하므로 (a) 없이는 못 한다.
    - (c) 메인 턴의 hosted 결과(`HostedSearchResponse` 모양)를 `normalizeHostedSearch`로 넘기는 경로가 없다. L4 인용 렌더링에 쓰려면 F에 이벤트나 레코드가 필요하다.
    - 풀려면 다음 중 하나가 필요하다. 어느 쪽이든 M2 범위 밖이라 `m3-plan`으로 넘긴다. 1) pi-ai 어댑터 패치(서버 도구 블록을 content에 싣고 이력 변환에서 되돌린다), 2) F `AssistantMessage` 확장 또는 provider 불투명 블록 레코드와 루프의 `pause_turn` 이어 요청. 둘 다 F 계약이나 vendor 변경이다.
    - 영향: 기능 손실은 없다. 기본 설정(체인이 래퍼뿐)에서 모델의 검색이 `web_search` 함수 도구 → 내장 래퍼 경로로 처리되어 검색마다 모델 호출이 하나 더 든다(§4.8.1 B안의 단점). `l2.web.search.modelTool`의 `hosted`와 `auto`는 지금 `function`과 같게 동작한다.
-4. [미결] 선택 순서 3·4번(키 플러그인과 설정한 SearXNG 중 먼저 쓸 것). 제안은 플러그인 우선이다. ADR-0005 §6에서 승계한다(§4.8.2).
+4. [결정: review.m3-design-inputs D-M3-23 행 1] 자동 선택 순서는 사용자가 설정 화면에서 끌어 옮겨 정한다. 목록은 등록된 검색 도구 전부이고 기본 웹 검색 도구를 포함한다. 플러그인은 기본 후순위다. 여러 provider 동시 질의를 기본 기능으로 둔다. 선택 체인(§4.8.2) 본문은 M3 작업에서 이 규칙으로 고친다.
 5. 닫힘. 자동 감지는 없앴고 사용자가 주소를 설정한 SearXNG만 후보다(사용자 결정 H1, 2026-10-25, ADR-0005 §3.3 개정, §4.8.3). 설정한 주소의 탐침 형식은 §4.8.3이다.
-6. [미결] robots.txt를 사용자 대행 단건 fetch에도 적용할지. 제안은 자동 수집에만 적용이다. 공개 릴리즈 전에 다시 정한다(§4.7).
+6. [결정: review.m3-design-inputs D-M3-23 행 4] robots.txt는 기본으로 따르지 않고, 설정으로 따르게 할 수 있다(§4.7). 크롤링 자동화는 사용자 프로그램과 플러그인의 영역이다.
 7. [미결] 세션당 호출 상한 카운터의 영속화. 제안은 프로세스 메모리다(§4.4.4).
 8. [미결] 브라우저 트래픽 필터를 `cap-web` 로컬 프록시로 할지 `L0.sandbox`의 네트워크 필터로 할지(§4.10.2). playwright-local에서 `allowedDomains`를 강제하는 방법은 선행 조사에서도 확인되지 않았다(`_research/notes/L2-2.md` §6).
-9. [미결] Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다.
+9. [미결] 기본 브라우저 provider는 Stagehand(Browserbase, MIT, TS 라이브러리 + MCP)다. Playwright MCP는 후보이고 Aside·Ego Lite는 공식 API가 생기면 어댑터를 둔다 [결정: review.m3-design-inputs D-M3-23]. §4.10의 `playwright-local` 설계는 Stagehand provider로 고치는 M3 작업에서 다시 쓴다. 남은 질문: Playwright Node 자식 우회의 범위. 1단계(실패 경로만)와 2단계(전체 중계) 중 기본(`_research/notes/L2-2.md` §4). 이 문서는 `runtime: node`를 2단계(전체 중계)로 적었다.
 10. [미결] `web.research` 실행 기록의 영속화와 재개(2차, §4.11.4).
 11. [미결] provider 선택 키의 값 목록 표시. 플러그인 설치 상태에 따라 바뀌는 선택지를 `SettingDef`로 표현하는 방법(`L4.settings-ui.spec`과 함께, §6).
 12. [미결] 기본 추출기. 제안은 readability 0.6.0 + linkedom 0.18.13이고 defuddle 0.19.5는 설정으로 고른다. 우리 샘플 페이지로 비교 측정한 뒤 정한다(`_research/web-tools.md` §2.3 "측정마다 순위가 뒤집힌다").
 13. [미결] `none` 결과의 영속 사본(발췌 삭제)을 적용하는 위치와 재개 때 프롬프트 캐시 영향(§4.3.4).
-14. [미결] Parallel을 첫 실행 권장 목록에 넣을지(ADR-0005 §6 승계).
+14. [결정: review.m3-design-inputs D-M3-23 행 2·3] Parallel과 Jina는 넣지 않는다. 키 플러그인은 첫 사용 때 고지한다(행 5).
 15. [가정] SearXNG를 수정 없이 별도 프로세스로 쓰면 AGPL 배포 의무가 없다. 법률 확인 전에는 번들하지 않는다(ADR-0005 §3.1).
 16. [가정] 래퍼 1회 약 $0.011, 지연 미측정(ADR-0005 §3.2, §6).
 17. 소스는 확인함(`L2.web.plan` §8.2). 0.1.x 신생 패키지이고 Bun 런타임에서의 동작은 실행으로 확인하지 못했다 [미결](`L2.web.plan` §8.3).

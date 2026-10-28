@@ -22,20 +22,20 @@ test("chain merge rejection skips", async () => {
   const { t, thread } = await setup();
   const seen: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "chain-bad", points: ["message_end"], loadIndex: 0 }, (g) => {
-      g.on("message_end", () => ({ message: assistantStop }));
+    makeUnit({ name: "chain-bad", points: ["boundary.message.after"], loadIndex: 0 }, (g) => {
+      g.on("boundary.message.after", () => ({ message: assistantStop }));
     }),
   );
   await t.host.install(
-    makeUnit({ name: "chain-good", points: ["message_end"], loadIndex: 1 }, (g) => {
-      g.on("message_end", (_payload, current) => {
+    makeUnit({ name: "chain-good", points: ["boundary.message.after"], loadIndex: 1 }, (g) => {
+      g.on("boundary.message.after", (_payload, current) => {
         seen.push(current.message);
         return { message: { ...userText, content: "edited" } };
       });
     }),
   );
   const outcome = await t.host.dispatch(
-    "message_end",
+    "boundary.message.after",
     { message: userText },
     { threadId: thread, dispatchKey: "k", initial: { message: userText } },
   );
@@ -49,23 +49,23 @@ test("chain stop halts", async () => {
   const { t, thread } = await setup();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "chain-h", points: ["input"], loadIndex: 0 }, (g) => {
-      g.on("input", () => {
+    makeUnit({ name: "chain-h", points: ["input.user.before"], loadIndex: 0 }, (g) => {
+      g.on("input.user.before", () => {
         calls.push("h");
         return { action: "handled" };
       });
     }),
   );
   await t.host.install(
-    makeUnit({ name: "chain-after", points: ["input"], loadIndex: 1 }, (g) => {
-      g.on("input", () => {
+    makeUnit({ name: "chain-after", points: ["input.user.before"], loadIndex: 1 }, (g) => {
+      g.on("input.user.before", () => {
         calls.push("after");
         return { action: "transform", text: "x" };
       });
     }),
   );
   const outcome = await t.host.dispatch(
-    "input",
+    "input.user.before",
     { text: "hi", source: "interactive" },
     { threadId: thread, dispatchKey: "k", initial: { text: "hi", handled: false } },
   );
@@ -79,22 +79,22 @@ test("chain payload stays original", async () => {
   const payload = { text: "hi", source: "interactive" as const };
   const seen: { payload: unknown; current: unknown }[] = [];
   await t.host.install(
-    makeUnit({ name: "chain-one", points: ["input"], loadIndex: 0 }, (g) => {
-      g.on("input", (p, current) => {
+    makeUnit({ name: "chain-one", points: ["input.user.before"], loadIndex: 0 }, (g) => {
+      g.on("input.user.before", (p, current) => {
         seen.push({ payload: p, current });
         return { action: "transform", text: "one" };
       });
     }),
   );
   await t.host.install(
-    makeUnit({ name: "chain-two", points: ["input"], loadIndex: 1 }, (g) => {
-      g.on("input", (p, current) => {
+    makeUnit({ name: "chain-two", points: ["input.user.before"], loadIndex: 1 }, (g) => {
+      g.on("input.user.before", (p, current) => {
         seen.push({ payload: p, current });
         return { action: "transform", text: "two" };
       });
     }),
   );
-  const outcome = await t.host.dispatch("input", payload, {
+  const outcome = await t.host.dispatch("input.user.before", payload, {
     threadId: thread,
     dispatchKey: "k",
     initial: { text: "hi", handled: false },
@@ -126,16 +126,16 @@ test("boundary finalize once", async () => {
   const { t, thread } = await setup();
   const finalized: BoundaryValue[] = [];
   await t.host.install(
-    makeUnit({ name: "chain-turn", points: ["turn_end"], loadIndex: 0 }, (g) => {
-      g.on("turn_end", () => ({ continue: true }));
+    makeUnit({ name: "chain-turn", points: ["boundary.step.after"], loadIndex: 0 }, (g) => {
+      g.on("boundary.step.after", () => ({ continue: true }));
     }),
   );
   await t.host.install(
-    makeUnit({ name: "chain-turn2", points: ["turn_end"], loadIndex: 1 }, (g) => {
-      g.on("turn_end", () => ({ continue: false }));
+    makeUnit({ name: "chain-turn2", points: ["boundary.step.after"], loadIndex: 1 }, (g) => {
+      g.on("boundary.step.after", () => ({ continue: false }));
     }),
   );
-  const outcome = await t.host.dispatch("turn_end", turnEndPayload(t), {
+  const outcome = await t.host.dispatch("boundary.step.after", turnEndPayload(t), {
     threadId: thread,
     dispatchKey: "k",
     initial: { entries: [], continue: false },
@@ -151,7 +151,7 @@ test("boundary finalize once", async () => {
 test("boundary finalize missing is a Bug", async () => {
   const { t, thread } = await setup();
   const error = await rejectionOf(() =>
-    t.host.dispatch("turn_end", turnEndPayload(t), {
+    t.host.dispatch("boundary.step.after", turnEndPayload(t), {
       threadId: thread,
       dispatchKey: "k",
       initial: { entries: [], continue: false },
@@ -169,13 +169,13 @@ test("chain has no next", async () => {
     return undefined;
   };
   await t.host.install(
-    makeUnit({ name: "chain-twice", points: ["input"] }, (g) => {
-      g.on("input", handler);
-      g.on("input", handler);
+    makeUnit({ name: "chain-twice", points: ["input.user.before"] }, (g) => {
+      g.on("input.user.before", handler);
+      g.on("input.user.before", handler);
     }),
   );
   await t.host.dispatch(
-    "input",
+    "input.user.before",
     { text: "hi", source: "interactive" },
     { threadId: thread, dispatchKey: "k", initial: { text: "hi", handled: false } },
   );
@@ -186,7 +186,7 @@ test("chain has no next", async () => {
 test("payload violations are L1 bugs in strict mode", async () => {
   const { t, thread } = await setup();
   const error = await rejectionOf(() =>
-    t.host.dispatch("input", unsafeInput({ text: 5 }), {
+    t.host.dispatch("input.user.before", unsafeInput({ text: 5 }), {
       threadId: thread,
       dispatchKey: "k",
       initial: { text: "x", handled: false },
@@ -199,15 +199,15 @@ test("strict payloads are frozen", async () => {
   const { t, thread } = await setup();
   let frozen = false;
   await t.host.install(
-    makeUnit({ name: "chain-freeze", points: ["input"] }, (g) => {
-      g.on("input", (payload) => {
+    makeUnit({ name: "chain-freeze", points: ["input.user.before"] }, (g) => {
+      g.on("input.user.before", (payload) => {
         frozen = Object.isFrozen(payload);
         return undefined;
       });
     }),
   );
   await t.host.dispatch(
-    "input",
+    "input.user.before",
     { text: "hi", source: "interactive" },
     { threadId: thread, dispatchKey: "k", initial: { text: "hi", handled: false } },
   );

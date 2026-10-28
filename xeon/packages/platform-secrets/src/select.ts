@@ -10,7 +10,8 @@ import { createWin32KeyProvider } from "./key/win32.ts";
 // 플랫폼과 WSL 판정은 xeon.os의 OsInfo가 정하고, 이 파일만 그 값으로 분기한다.
 
 export interface KeySelectInput {
-  readonly source: "auto" | "keychain" | "file";
+  /** auto-file: auto와 같지만 OS 키 저장소가 없을 때 사람 확인 없이 파일 폴백을 쓴다(원격 호스트, spec §4.7 8번) */
+  readonly source: "auto" | "auto-file" | "keychain" | "file";
   /** 파일 폴백의 키 파일 경로(설정값 또는 기본 경로) */
   readonly filePath: string;
   readonly info: Pick<OsInfo, "platform" | "isWsl">;
@@ -20,7 +21,7 @@ export interface KeySelectInput {
   readonly resolveTool: (name: "security" | "secret-tool") => Promise<string | null>;
   readonly pathExists: (path: string) => boolean;
   readonly stat?: StatKeyFile;
-  /** macOS provision(`security -i`) 실행 수단. 없으면 macOS 키를 만들 수 없다 */
+  /** macOS `security -i`와 Linux `secret-tool store` 실행 수단. 없으면 OS 키 저장소에 키를 만들 수 없다 */
   readonly exec?: DarwinKeyExec;
 }
 
@@ -46,6 +47,7 @@ async function osProvider(input: KeySelectInput): Promise<KeyProvider> {
         isWsl: input.info.isWsl,
         env: input.env,
         pathExists: input.pathExists,
+        ...(input.exec === undefined ? {} : { exec: input.exec }),
       });
     case "win32":
       return createWin32KeyProvider();
@@ -64,8 +66,9 @@ function fileProvider(input: KeySelectInput): KeyProvider {
 
 /**
  * source가 file이면 파일, keychain이면 OS provider(쓸 수 없으면 sopsKeyEnv가 오류를 낸다),
- * auto면 OS provider의 probe()가 available일 때 그것, 아니면 파일 폴백이다. auto에서 파일로 가면
- * 사람이 한 번 확인할 때까지 쓰지 않는다.
+ * auto·auto-file이면 OS provider의 probe()가 available일 때 그것(Secret Service 먼저), 아니면 파일 폴백이다.
+ * auto에서 파일로 가면 사람이 한 번 확인할 때까지 쓰지 않는다. auto-file은 확인 없이 파일 폴백을 쓰되
+ * 키 파일의 권한(0600)과 소유자를 검사한다(file-fallback.ts).
  */
 export async function selectKeyProvider(input: KeySelectInput): Promise<KeySelection> {
   if (input.source === "file") {
@@ -78,5 +81,10 @@ export async function selectKeyProvider(input: KeySelectInput): Promise<KeySelec
   if ((await os.probe()).available) {
     return { provider: os, fileNotice: false, unconfirmedFallback: false };
   }
-  return { provider: fileProvider(input), fileNotice: true, unconfirmedFallback: true };
+  // auto-file(원격 호스트)은 파일 폴백을 설정이 이미 정한 것으로 본다. 고지(fileNotice)는 그대로 낸다
+  return {
+    provider: fileProvider(input),
+    fileNotice: true,
+    unconfirmedFallback: input.source !== "auto-file",
+  };
 }

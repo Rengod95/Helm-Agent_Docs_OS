@@ -1,5 +1,6 @@
-import { assertNever, err, ok, type Result } from "@xeon/contracts";
+import { assertNever, err, ok, parse, type Result } from "@xeon/contracts";
 import type { JsonObject, JsonValue } from "@xeon/contracts/conversation";
+import { ReviewAnswerSchema } from "@xeon/contracts/records";
 import {
   PERMISSION_MODE_STRICTNESS,
   type ApprovalDecision,
@@ -10,11 +11,12 @@ import {
   type ApprovalResponse,
   type PermissionMode,
   type QuestionBody,
+  type ReviewBody,
 } from "@xeon/contracts/services";
 import { isJsonObject } from "../util.ts";
 import { isRequestKey } from "./keys.ts";
 
-// L1.tools.spec §3.6 응답 규칙, §3.9 requestId 규칙, §4.7 기억 범위. kind 셋(tool, plan, question)의 요청 검사와 응답 검사.
+// L1.tools.spec §3.6 응답 규칙, §3.9 requestId 규칙, §4.7 기억 범위. kind 넷(tool, plan, question, review)의 요청 검사와 응답 검사.
 
 const OPTION_ID_MAX = 32;
 const QUESTION_MAX = 4;
@@ -53,6 +55,16 @@ function questionIssue(body: QuestionBody): string | undefined {
   return undefined;
 }
 
+function reviewIssue(body: ReviewBody): string | undefined {
+  if (body.round < 1) return "a review round starts at 1";
+  const paths = new Set<string>();
+  for (const file of body.files) {
+    if (paths.has(file.path)) return `review file "${file.path}" is listed more than once`;
+    paths.add(file.path);
+  }
+  return undefined;
+}
+
 function rememberIssue(input: ApprovalRequestInput): string | undefined {
   const { remember } = input;
   if (new Set(remember).size !== remember.length) return "remember lists a scope more than once";
@@ -84,6 +96,8 @@ export function requestIssue(input: ApprovalRequestInput): string | undefined {
     }
     case "question":
       return questionIssue(body.question);
+    case "review":
+      return reviewIssue(body.review);
     default:
       return assertNever(body, "requestIssue");
   }
@@ -170,6 +184,23 @@ function planAnswerOf(
   return ok(Object.keys(out).length === 0 ? null : out);
 }
 
+/**
+ * 검토 승인 응답(`ReviewAnswer`, L2.artifacts.spec §4.2.4)을 스키마로 검사한다. 결정이 가리키는 hunk가 실제로 있는지와
+ * 코멘트 대상이 맞는지는 도메인(cap-artifacts)이 `approval.resolved`를 받을 때 판단한다.
+ * 알 수 없는 필드와 모양이 틀린 값은 `answer_invalid`다.
+ */
+function reviewAnswerOf(answer: JsonValue | undefined): Result<JsonObject, ResponseError> {
+  if (answer === undefined) return invalid("a review answer is required");
+  const checked = parse(ReviewAnswerSchema, answer);
+  if (!checked.ok) {
+    const first = checked.error.issues[0];
+    return invalid(
+      first === undefined ? "a review answer is invalid" : `${first.path} ${first.message}`,
+    );
+  }
+  return isJsonObject(answer) ? ok(answer) : invalid("a review answer must be an object");
+}
+
 function isStringArray(value: unknown): value is readonly string[] {
   return Array.isArray(value) && value.every((item: unknown) => typeof item === "string");
 }
@@ -227,6 +258,7 @@ function checkQuestionAnswer(
 /**
  * 요청 kind에 맞는 응답인지 검사한다(L1.tools.spec §3.6 표).
  * tool: allow·deny, 기억 범위 once·thread·always. plan: allow·deny(allow는 `{ mode }` 선택). question: answer·deny.
+ * review: answer·deny(answer는 `ReviewAnswer` 필수, 기억 범위 once).
  * deny의 answer는 `{ feedback }`만 받고 그 밖의 answer는 버린다.
  */
 export function validateResponse(
@@ -262,11 +294,18 @@ export function validateResponse(
       const answer = checkQuestionAnswer(request.body.question, response.answer);
       return answer.ok ? applied(answer.value) : answer;
     }
+    case "review": {
+      if (decision !== "answer") return err({ kind: "decision_not_allowed", decision });
+      const answer = reviewAnswerOf(response.answer);
+      return answer.ok ? applied(answer.value) : answer;
+    }
     default:
       return assertNever(request.body, "validateResponse");
   }
 }
 
+const DENIED_EXPIRED =
+  "[xeon:approval_expired] The approval request expired before an answer, so it was denied.";
 const DENIED_BY_USER = "[xeon:denied_by_user] The user denied this tool call.";
 const DENIED_CANCELLED =
   "[xeon:approval_cancelled] The approval request was cancelled before an answer.";
@@ -276,6 +315,7 @@ export function denialReason(resolution: ApprovalResolution): string {
   if (resolution.resolvedBy === "cancelled" || resolution.resolvedBy === "superseded") {
     return DENIED_CANCELLED;
   }
+  if (resolution.resolvedBy === "expired") return DENIED_EXPIRED;
   if (resolution.resolvedBy === "noninteractive") {
     return "[xeon:noninteractive_ask_denied] This tool call needs approval, but nobody can answer in a non-interactive run.";
   }

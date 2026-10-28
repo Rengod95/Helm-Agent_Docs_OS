@@ -18,7 +18,8 @@ type Internals = {
 };
 
 function internals(): Internals {
-  const holder: unknown = Reflect.get(globalThis, "__TAURI_INTERNALS__");
+  const scope: unknown = globalThis;
+  const holder: unknown = isRecord(scope) ? scope["__TAURI_INTERNALS__"] : undefined;
   if (
     typeof holder === "object" &&
     holder !== null &&
@@ -45,8 +46,12 @@ function bytesIn(args: unknown): Uint8Array {
   throw new Error("engine_write expects raw bytes");
 }
 
+function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null;
+}
+
 function field(args: unknown, name: string): unknown {
-  return typeof args === "object" && args !== null ? Reflect.get(args, name) : undefined;
+  return isRecord(args) ? args[name] : undefined;
 }
 
 /** Rust 명령은 문자열 오류로 거부된다(Result<_, String>). 코드 쪽 `codeOf`가 이 문자열을 읽는다 */

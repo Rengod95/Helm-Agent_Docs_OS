@@ -57,6 +57,9 @@ export function orThrow<T>(
 }
 
 /** 커밋 키 `work:<영역>:<requestId>`. 형식에 맞지 않거나 긴 requestId는 F commitKeyPart가 해시로 바꾼다 */
-export function commitKeyOf(area: "tasks" | "plans", requestId: string): string {
+export function commitKeyOf(
+  area: "tasks" | "plans" | "goals" | "reports",
+  requestId: string,
+): string {
   return `work:${area}:${commitKeyPart(requestId, sha256Hex)}`;
 }

@@ -468,6 +468,7 @@ const text = await Bun.file("packages/core-tools/test/fixtures/a.txt").text();  
 - 이벤트·투영·체크포인트·잠금을 건드리는 테스트는 `bun:sqlite`의 `:memory:` 또는 `tempDir()` 안 임시 파일로 실제 SQLite를 연다. `@xeon/platform-store/testing`의 `openTestStore()`를 쓴다.
 - 저장소 가짜(배열이나 `Map`으로 흉내 낸 저장소)를 만들지 않는다. SQL 제약, 트랜잭션 롤백, `SQLITE_BUSY` 같은 동작은 실제 SQLite에서만 확인된다.
 - WAL, 잠금, `busy_timeout`, 파일 손상 시험은 임시 파일을 쓴다. `:memory:`는 WAL과 다른 연결을 시험하지 못한다.
+- 임시 파일 시험은 `scripts/test-preload.ts`(각 패키지 `bunfig.toml`의 `preload`)가 `TMPDIR`을 `/dev/shm` 아래 디렉터리로 돌린 상태에서 돈다. 파일, SQLite, 잠금, 자식 프로세스는 실제 그대로이고 디스크 fsync 지연만 없다. 내구성 자체를 보는 시험은 `XEON_TEST_DISK_TMP=1`로 디스크에서 돌린다. `/dev/shm`이 없으면 훅은 아무것도 하지 않는다.
 - 연결은 `PRAGMA busy_timeout = 5000`을 명시한다(`eng.toolchain.guide` TC-11). 잠금 경합 테스트는 실제 대기 대신 `busy_timeout = 0`과 `SQLITE_BUSY` 오류 코드로 확인한다.
 - 오류 판정은 `SQLiteError`의 `code`(예: `SQLITE_CONSTRAINT_UNIQUE`)로 한다. 메시지 문자열로 판정하지 않는다(`_research/notes/eng-3.md §2.2`).
 

@@ -10,6 +10,7 @@ import {
 } from "@xeon/ext-host/testing";
 import { Type } from "typebox";
 import { createLoopService, type LoopServiceHandle } from "../../src/index.ts";
+import type { LoopDeps } from "../../src/types.ts";
 import { createFakeContext, type FakeContext } from "./fake-context.ts";
 import { createFakeModels, type FakeModels, type ScriptedResponse } from "./fake-models.ts";
 import { createFakeSession, type FakeSession } from "./fake-session.ts";
@@ -63,6 +64,8 @@ export interface HarnessOptions {
   readonly withApprovals?: boolean;
   /** 루프 서비스를 만들지 않는다. 단계 함수를 직접 부르는 시험(loop-rig)이 `core.loop` 생산자를 쓰려고 한다 */
   readonly withoutLoop?: boolean;
+  /** `loop.spawn`이 위임하는 `xeon.agents` 대역. 생략하면 서비스가 없는 구성이다 */
+  readonly agents?: LoopDeps["agents"];
 }
 
 export interface Harness {
@@ -167,6 +170,7 @@ async function build(
           context: context.service,
           models: models.service,
           ext: host.host,
+          ...(options.agents === undefined ? {} : { agents: options.agents }),
           ...(options.withApprovals === true
             ? {
                 approvals: {

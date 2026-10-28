@@ -1,6 +1,6 @@
 import { detach, rethrow } from "@xeon/contracts";
 import { useEffect, useState } from "react";
-import { readyToChat } from "../settings/index.ts";
+import { readyToChat } from "@xeon/client/settings";
 import { useLinkPhase } from "../state/engine/index.ts";
 import { useCommands } from "./commands.ts";
 

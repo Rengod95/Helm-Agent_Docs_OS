@@ -49,6 +49,8 @@ import type {
   HostMode,
   LockOutcome,
   OwnerKind,
+  PendingSchedulesPort,
+  ProposalPort,
   SessionLockPort,
   SettingsStorePort,
   SubmitOutcome,
@@ -68,6 +70,7 @@ import type { SettingsEngine } from "./settings-engine.ts";
 import { createSettingsStore } from "./settings-store.ts";
 import { createThreadGate } from "./thread-gate.ts";
 import { readThread } from "./thread-read.ts";
+import type { ProjectExtensions } from "./project-extensions.ts";
 import type { ProjectTrust, TrustInspection } from "./trust.ts";
 
 // L4.host-service.spec §3.3.2. 아래 층 서비스(F 서비스 인터페이스)를 EnginePorts로 감싸는 어댑터. 어댑터가 이 폴더 한 곳에 모이므로
@@ -100,9 +103,17 @@ export interface PortsDeps {
   readonly secrets: SecretsPort;
   /** 명령 등록부 자리. 브리지 확장이 명령 서비스 API를 채운다 */
   readonly commands: CommandRegistryHolder;
+  /** 지식 제안 대기열 둘의 합친 조회·결정(`proposal.*`) */
+  readonly proposals: ProposalPort;
   /** 사용자 설정 파일이 없을 때 새로 만들 디렉터리(L0.os의 `dirs.config`) */
   readonly configDir: string;
   readonly trust: ProjectTrust;
+  /** 서비스 모드의 프로젝트 확장 적재(M3-REQ-38). 쓰기 소유를 얻은 thread의 작업 폴더와 신뢰 결정 뒤에 부른다 */
+  readonly projectExtensions: ProjectExtensions;
+  /** thread의 작업 디렉터리(없으면 undefined) */
+  readonly workspaceOf: (threadId: ThreadId) => string | undefined;
+  /** 대기 예약 수의 출처. 없으면 0이다(유휴 판정, M3b B1-SVC) */
+  readonly pendingSchedules?: PendingSchedulesPort;
 }
 
 export interface PortsHandle {
@@ -113,7 +124,7 @@ export interface PortsHandle {
   heldThreads(): readonly ThreadId[];
   /** 가장 최근에 쓰기 소유를 쥔 thread(그룹 서비스가 상태를 보여 줄 thread). 쥔 thread가 없으면 null */
   activeThread(): ThreadId | null;
-  /** 쥔 세션 임대를 모두 반납한다(엔진을 닫기 전). 각 thread에 session_shutdown("quit")을 발화한다 */
+  /** 쥔 세션 임대를 모두 반납한다(엔진을 닫기 전). 각 thread에 session.shutdown("quit")을 발화한다 */
   releaseAll(): Promise<void>;
 }
 
@@ -381,7 +392,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
 
   /**
    * 지운 thread의 임대를 거둔다. `session.threads.remove`는 호스트가 준 토큰을 반납하지 않는다(호스트가 반납한다, L1.persistence ownership).
-   * 이벤트가 없으므로 `session_shutdown`은 발화하지 않고 확장의 thread 상태만 닫는다
+   * 이벤트가 없으므로 `session.shutdown`은 발화하지 않고 확장의 thread 상태만 닫는다
    */
   async function dropHeldThread(threadId: ThreadId): Promise<void> {
     const lease = held.get(threadId);
@@ -450,6 +461,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     }
     // 신뢰한 작업 폴더의 project·local 설정을 읽어 둔다. 자원(임대)을 쥐기 전에 해서 실패해도 정리할 것이 없다
     await settings.prepare(threadId);
+    // 서비스 모드: 이 thread의 작업 폴더가 신뢰되어 있으면 그 프로젝트의 확장을 싣는다(결정이 없으면 클라이언트가 trust.decide로 정한 뒤 싣는다)
+    await deps.projectExtensions.ensure(deps.workspaceOf(threadId), deps.signal);
     const acquired = store.leases.acquire(`session:${threadId}`, { ...deps.holder, kind });
     if (!acquired.ok) {
       const error = acquired.error;
@@ -546,6 +559,8 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       await sequentially(Array.from(held.keys()), (threadId) => settings.prepare(threadId));
       // 어느 키가 바뀌었는지 모르는 변경이다(keys가 빈 알림, F wire §3.3.2)
       deps.settings.notifyChanged({ keys: [], scopes: ["project", "local"], threadId: null });
+      // 서비스 모드: 허용된 작업 폴더의 프로젝트 확장을 지금 싣는다
+      await deps.projectExtensions.ensure(workspace, signal);
       return ok(trustStatusOf(decided.value));
     },
   };
@@ -563,15 +578,22 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
       return {
         liveTurns: snapshot.liveTurns,
         liveTasks: snapshot.liveTasks,
-        // 대기 예약은 유휴 종료(M3)가 쓴다. 승인 대기는 이 프로세스가 쥔 thread의 미해결 요청이다
+        // 대기 예약은 유휴 종료 판정이 쓴다. 승인 대기는 이 프로세스가 쥔 thread의 미해결 요청이다
         waitingApprovals: Array.from(held.keys()).reduce(
           (sum, threadId) => sum + deps.approvals.pending(threadId).length,
           0,
         ),
-        pendingSchedules: 0,
+        pendingSchedules: deps.pendingSchedules?.count() ?? 0,
       };
     },
-    onChange: (listener) => tasks.onActivity(listener),
+    onChange: (listener) => {
+      const offTasks = tasks.onActivity(listener);
+      const offSchedules = deps.pendingSchedules?.onChange(listener);
+      return () => {
+        offTasks();
+        offSchedules?.();
+      };
+    },
   };
 
   const notify: UserNotifyPort = {
@@ -604,6 +626,7 @@ export function createEnginePorts(deps: PortsDeps): PortsHandle {
     secrets: deps.secrets,
     models: { modelIds: (provider) => modelIdsOf(deps.models, provider) },
     commands: createCommandPort({ holder: deps.commands, ids: deps.ids }),
+    proposals: deps.proposals,
     trust,
     ids: deps.ids,
     clock: deps.clock,

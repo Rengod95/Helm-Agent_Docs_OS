@@ -1,5 +1,6 @@
 import type { Clock, Scheduler } from "@xeon/contracts";
-import { createHostConnection, createStdioTransport } from "@xeon/contracts/wire";
+import { createHostConnection } from "@xeon/client";
+import { createStdioTransport } from "@xeon/client/stdio";
 import { createFrameClock, createJournal, watch } from "../state/shared/index.ts";
 import { createEngineStore, type ApplyNote, type EngineStore } from "../state/engine/index.ts";
 import { createUiStore, type UiStore } from "../state/ui/index.ts";

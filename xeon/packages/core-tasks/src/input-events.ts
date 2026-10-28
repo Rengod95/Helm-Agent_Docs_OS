@@ -47,6 +47,7 @@ export function queuedPayloadOf(draft: InputDraft): InputQueuedPayload {
           },
     requestId: draft.requestId,
     source: draft.source,
+    ...(draft.origin === undefined ? {} : { origin: draft.origin }),
   };
 }
 
@@ -57,6 +58,7 @@ function draftOfPayload(threadId: ThreadId, payload: InputQueuedPayload): InputD
     mode: payload.mode,
     requestId: payload.requestId,
     source: payload.source,
+    ...(payload.origin === undefined ? {} : { origin: payload.origin }),
   };
   if (payload.item.kind === "user") {
     return { ...base, item: { kind: "user", content: payload.item.content } };

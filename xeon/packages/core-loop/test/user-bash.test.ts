@@ -16,7 +16,7 @@ import { countKind, kindsOf } from "./support/inspect.ts";
 function guard(decision: UserBashDecision): ExtensionUnit {
   const entry: ExtensionEntry = ({ manifest, scope }) => {
     scope(manifest.name, {}, (g) => {
-      g.on("user_bash", () => decision);
+      g.on("input.bash.before", () => decision);
     });
   };
   return {
@@ -27,7 +27,7 @@ function guard(decision: UserBashDecision): ExtensionUnit {
       layer: "plugin",
       kind: "plugin",
       entry: "./index.ts",
-      points: ["user_bash"],
+      points: ["input.bash.before"],
       usesDrive: false,
     }),
     entry,
@@ -40,7 +40,7 @@ function guard(decision: UserBashDecision): ExtensionUnit {
 function observer(seen: UserBashPayload[]): ExtensionUnit {
   const entry: ExtensionEntry = ({ manifest, scope }) => {
     scope(manifest.name, {}, (g) => {
-      g.on("user_bash", (payload) => {
+      g.on("input.bash.before", (payload) => {
         seen.push(payload);
         return undefined;
       });
@@ -54,7 +54,7 @@ function observer(seen: UserBashPayload[]): ExtensionUnit {
       layer: "plugin",
       kind: "plugin",
       entry: "./index.ts",
-      points: ["user_bash"],
+      points: ["input.bash.before"],
       usesDrive: false,
     }),
     entry,

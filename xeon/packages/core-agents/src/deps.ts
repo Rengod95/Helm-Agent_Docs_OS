@@ -7,7 +7,8 @@ import type {
   ProducerHandle,
   SessionService,
 } from "@xeon/contracts/records";
-import type { LoopService, TaskService, ToolService } from "@xeon/contracts/services";
+import type { InputQueue, LoopService, TaskService, ToolService } from "@xeon/contracts/services";
+import type { StructuredModels } from "./structured.ts";
 
 // core-agents는 core-loop, core-tasks, core-tools, core-persistence를 import하지 않는다(DR-02). 협력은 F 서비스 타입의 부분형으로 받는다.
 
@@ -20,7 +21,10 @@ export type AgentsSession = Pick<
 /** 자식 turn 실행. xeon.loop는 core-loop 플러그인이 올리므로 호출 때마다 얻는다(적재 순서에 묶이지 않게) */
 export type AgentsLoop = Pick<LoopService, "runChildTurn">;
 
-export type AgentsTasks = Pick<TaskService, "openScope" | "find" | "abort" | "limiter" | "root">;
+export type AgentsTasks = Pick<TaskService, "openScope" | "find" | "abort" | "limiter" | "root"> & {
+  /** 완료 보고 입력 초안(`agent.settled` 커밋 안에서 부른다) */
+  readonly inputs: Pick<InputQueue, "draftQueued">;
+};
 
 export type AgentsTools = Pick<
   ToolService,
@@ -35,12 +39,15 @@ export interface AgentsSettingsSource {
   maxConcurrent(): number;
   /** l1.agents.resultMaxChars */
   resultMaxChars(): number;
+  /** l1.agents.judge.maxRuns. 없으면 3(명세 기본값) */
+  judgeMaxRuns?(): number;
 }
 
 export interface StaticAgentsSettings {
   readonly maxDepth?: number;
   readonly maxConcurrent?: number;
   readonly resultMaxChars?: number;
+  readonly judgeMaxRuns?: number;
 }
 
 /** 값이 정해진 설정 읽기. 없는 값은 명세 기본값(1, 8, 24000)이다 */
@@ -51,6 +58,7 @@ export function createStaticAgentsSettings(
     maxDepth: () => values.maxDepth ?? 1,
     maxConcurrent: () => values.maxConcurrent ?? 8,
     resultMaxChars: () => values.resultMaxChars ?? 24_000,
+    judgeMaxRuns: () => values.judgeMaxRuns ?? 3,
   };
 }
 
@@ -77,4 +85,8 @@ export interface AgentsDeps {
   readonly settings: AgentsSettingsSource;
   readonly ownership: AgentsOwnership;
   readonly log: Logger;
+  /** 판정이 부르는 xeon.models. 호출 때마다 얻는다. 생략하거나 undefined를 돌려주면 판정은 `failed`다 */
+  readonly models?: () => StructuredModels | undefined;
+  /** 시각(ms). 판정 요청 메시지에 쓴다. 생략하면 Date.now */
+  readonly now?: () => number;
 }

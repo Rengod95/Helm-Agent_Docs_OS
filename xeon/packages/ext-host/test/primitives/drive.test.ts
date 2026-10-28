@@ -1,4 +1,6 @@
 import { expect, test } from "bun:test";
+import { Type } from "typebox";
+import { MAX_CHAINED_REINVOKES } from "../../src/primitives/lease.ts";
 import { PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
@@ -95,8 +97,8 @@ test("throw releases and keeps handlers", async () => {
   const handlerCalls: string[] = [];
   let driveCalls = 0;
   await t.host.install(
-    makeGroupUnit({ name: "drv-throw", points: ["agent_settled"] }, (g) => {
-      g.on("agent_settled", () => {
+    makeGroupUnit({ name: "drv-throw", points: ["boundary.settle.after"] }, (g) => {
+      g.on("boundary.settle.after", () => {
         handlerCalls.push("handler");
       });
       g.drive(() => {
@@ -113,7 +115,7 @@ test("throw releases and keeps handlers", async () => {
   expect(t.host.scopes()[0]?.drive).toBe("error");
   // on 핸들러는 계속 실행되고, 토글 전에는 다시 부여·호출하지 않는다
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );
@@ -321,4 +323,49 @@ test("drive registration rules", async () => {
     g.drive(() => Promise.resolve());
   });
   expect(codes).toEqual(["drive_duplicate"]);
+});
+
+const CounterSchema = Type.Object({ n: Type.Integer({ minimum: 0 }) });
+const counterDef = { state: { schema: CounterSchema, initial: { n: 0 }, version: 1 } };
+
+test("a drive that only commits state is called again with the new state until it stops", async () => {
+  const { t, thread } = await setup();
+  const seen: number[] = [];
+  await t.host.install(
+    makeGroupUnit({ name: "drv-commit-only", def: counterDef }, (g) => {
+      g.drive(async (_loop, state) => {
+        seen.push(state.n);
+        if (state.n < 3) await g.commit({ n: state.n + 1 });
+      });
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  // 경계가 오지 않아도 상태가 바뀔 때마다 새 판으로 다시 불린다
+  expect(seen).toEqual([0, 1, 2, 3]);
+  expect(t.loop.turns).toEqual([]);
+});
+
+test("a drive that commits state on every call is called again at most the chain limit without a boundary", async () => {
+  const { t, thread } = await setup();
+  const seen: number[] = [];
+  await t.host.install(
+    makeGroupUnit({ name: "drv-commit-forever", def: counterDef }, (g) => {
+      g.drive(async (_loop, state) => {
+        seen.push(state.n);
+        await g.commit({ n: state.n + 1 });
+      });
+    }),
+  );
+  await t.host.openThread(thread);
+  await t.settled();
+  // 첫 호출 뒤에 상한만큼 이어서 부르고 멈춘다
+  expect(seen).toEqual(Array.from({ length: MAX_CHAINED_REINVOKES + 1 }, (_, n) => n));
+  expect(
+    t.diagnostics.filter((entry) => entry.code === "scope_notice").map((entry) => entry.scopeId),
+  ).toEqual(["drv-commit-forever"]);
+  // 다음 경계가 오면 이어서 부른다
+  await t.boundary(thread).turnSettled();
+  await t.settled();
+  expect(seen.length).toBe(2 * MAX_CHAINED_REINVOKES + 2);
 });

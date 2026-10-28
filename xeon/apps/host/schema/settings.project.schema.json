@@ -2,6 +2,153 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": true,
   "properties": {
+    "ext.helm.autoStart": {
+      "default": "suggest",
+      "enum": [
+        "off",
+        "suggest",
+        "auto"
+      ],
+      "maxLength": 16,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "탐구 신호가 났을 때: off는 기록만, suggest는 제안 메시지, auto는 바로 탐구를 요청한다",
+          "label": "Helm 자동 시작",
+          "order": 200,
+          "tab": "plugins",
+          "widget": "select"
+        }
+      }
+    },
+    "ext.helm.driveLimits": {
+      "additionalProperties": false,
+      "default": {
+        "maxSpawns": 8,
+        "maxTokens": 400000,
+        "maxTurns": 4
+      },
+      "properties": {
+        "maxSpawns": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxTokens": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxTurns": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Helm 탐구가 쓰는 턴, 하위 에이전트, 토큰 상한. x.primitives.driveDefaultLimits를 Helm에 한해 덮어쓰고 천장 x.primitives.driveLimits를 넘지 못한다.",
+          "label": "Helm drive 상한",
+          "order": 210,
+          "tab": "plugins",
+          "widget": "table"
+        }
+      }
+    },
+    "ext.helm.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "label": "Helm 켜기",
+          "order": 10,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "ext.helm.maxLenses": {
+      "default": 3,
+      "maximum": 8,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "한 탐구가 병렬로 띄우는 탐색 관점의 수. 남은 spawn 예산보다 많으면 앞 렌즈만 실행한다",
+          "label": "Helm 렌즈 수",
+          "order": 220,
+          "tab": "plugins",
+          "unit": "개",
+          "widget": "number"
+        }
+      }
+    },
+    "ext.helm.writeGuard": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L2",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "발산·탐색 단계에서 쓰기 도구 호출을 실행 전에 거부한다",
+          "label": "Helm 쓰기 거부",
+          "order": 230,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
     "l0.exec.defaultTimeoutMs": {
       "default": 0,
       "maximum": 2147483647,
@@ -67,6 +214,34 @@
           "order": 40,
           "tab": "execution",
           "widget": "select"
+        }
+      }
+    },
+    "l0.sandbox.network.blockedDomains": {
+      "default": [],
+      "items": {
+        "maxLength": 253,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 256,
+      "type": "array",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L0",
+        "runtimeChange": "restart",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "Shell commands in the sandbox cannot reach these domains. Everything else stays reachable.",
+          "label": "Blocked network domains",
+          "order": 105,
+          "tab": "permissions",
+          "widget": "list"
         }
       }
     },
@@ -1334,6 +1509,63 @@
           "order": 30,
           "tab": "permissions",
           "widget": "table"
+        }
+      }
+    },
+    "l1.tools.unattended.approval": {
+      "default": "expire",
+      "enum": [
+        "wait",
+        "deny",
+        "expire"
+      ],
+      "maxLength": 16,
+      "type": "string",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "wait는 답이 올 때까지 기다리고, deny는 바로 거부하고, expire는 기다리다 제한 시간이 지나면 거부한다",
+          "label": "무인 실행의 승인 요청",
+          "order": 40,
+          "tab": "permissions",
+          "widget": "select"
+        }
+      }
+    },
+    "l1.tools.unattended.timeoutSeconds": {
+      "default": 3600,
+      "maximum": 604800,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "managed",
+          "user",
+          "project",
+          "local",
+          "session"
+        ],
+        "layer": "L1",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "무인 승인이 expire일 때 이 시간이 지나면 거부로 끝낸다",
+          "label": "무인 실행의 승인 제한 시간",
+          "order": 50,
+          "tab": "permissions",
+          "unit": "초",
+          "widget": "number"
         }
       }
     },
@@ -3271,34 +3503,133 @@
         }
       }
     },
-    "l3.helm.driveLimits": {
-      "additionalProperties": false,
-      "default": {
-        "maxSpawns": 8,
-        "maxTokens": 400000,
-        "maxTurns": 4
-      },
-      "properties": {
-        "maxSpawns": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "maxTokens": {
-          "minimum": 1,
-          "type": "integer"
-        },
-        "maxTurns": {
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "type": "object",
+    "l3.learning.approval.required": {
+      "default": true,
+      "type": "boolean",
       "x-xeon": {
         "allowedScopes": [
-          "managed",
+          "user",
+          "project"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "끄면 파괴적이지 않은 후보(create, add_file, add)는 스캔을 통과한 뒤 바로 적용된다. 파괴적 연산(patch, archive, replace, remove)은 이 값과 무관하게 승인이 필요하다.",
+          "label": "학습 후보 승인 필수",
+          "order": 305,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l3.learning.review.maxIterations": {
+      "default": 16,
+      "maximum": 64,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project"
+        ],
+        "layer": "L3",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "검토 포크가 쓸 수 있는 step 수 상한.",
+          "label": "학습 검토 최대 step",
+          "order": 302,
+          "tab": "plugins",
+          "widget": "number"
+        }
+      }
+    },
+    "l3.learning.review.model": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project"
+        ],
+        "layer": "L3",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "비우면 부모 대화의 모델을 쓴다. 부모와 다르면 프롬프트 캐시 공유를 기대하지 않는다.",
+          "label": "학습 검토 모델",
+          "order": 304,
+          "tab": "plugins",
+          "widget": "text"
+        }
+      }
+    },
+    "l3.learning.review.tokenBudget": {
+      "anyOf": [
+        {
+          "maximum": 2000000,
+          "minimum": 1000,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project"
+        ],
+        "layer": "L3",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0"
+      }
+    },
+    "l3.learning.scan.enabled": {
+      "default": true,
+      "type": "boolean",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project"
+        ],
+        "layer": "L3",
+        "runtimeChange": "live",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "후보를 대기열에 올리기 전에 지식 저장소의 위협 패턴 검사를 돌린다. 적용 때의 저장소 검사는 이 값과 무관하다.",
+          "label": "학습 후보 사전 스캔",
+          "order": 306,
+          "tab": "plugins",
+          "widget": "toggle"
+        }
+      }
+    },
+    "l3.learning.trigger.toolIterations": {
+      "default": 10,
+      "maximum": 1000,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
           "user",
           "project",
-          "local",
           "session"
         ],
         "layer": "L3",
@@ -3306,11 +3637,35 @@
         "secret": false,
         "since": "0.1.0",
         "ui": {
-          "help": "Helm 탐구가 쓰는 턴, 하위 에이전트, 토큰 상한. x.primitives.driveDefaultLimits를 Helm에 한해 덮어쓰고 천장 x.primitives.driveLimits를 넘지 못한다.",
-          "label": "Helm drive 상한",
-          "order": 210,
+          "help": "스킬 쓰기 없이 도구 반복이 이 수만큼 쌓이면 학습 검토를 시작한다. 0이면 이 사유로는 검토하지 않는다.",
+          "label": "학습 검토: 도구 반복 임계",
+          "order": 301,
           "tab": "plugins",
-          "widget": "table"
+          "widget": "number"
+        }
+      }
+    },
+    "l3.learning.trigger.userTurns": {
+      "default": 10,
+      "maximum": 1000,
+      "minimum": 0,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project",
+          "session"
+        ],
+        "layer": "L3",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "사용자 turn이 이 수만큼 쌓이면 백그라운드 학습 검토를 시작한다. 0이면 이 사유로는 검토하지 않는다.",
+          "label": "학습 검토: 사용자 turn 임계",
+          "order": 300,
+          "tab": "plugins",
+          "widget": "number"
         }
       }
     },
@@ -3448,6 +3803,29 @@
           "order": 101,
           "tab": "plugins",
           "widget": "table"
+        }
+      }
+    },
+    "x.primitives.leaseWaitLimit": {
+      "default": 8,
+      "minimum": 1,
+      "type": "integer",
+      "x-xeon": {
+        "allowedScopes": [
+          "user",
+          "project",
+          "session"
+        ],
+        "layer": "X",
+        "runtimeChange": "nextTurn",
+        "secret": false,
+        "since": "0.1.0",
+        "ui": {
+          "help": "drive 임대를 받지 못한 그룹이 기다리는 turn 정착·유휴 경계 수. 넘으면 요청을 거부하고 lease.rejected를 남긴다.",
+          "label": "임대 대기 상한",
+          "order": 111,
+          "tab": "plugins",
+          "widget": "number"
         }
       }
     }

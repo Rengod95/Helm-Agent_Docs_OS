@@ -13,3 +13,29 @@ E4 apps/host test/int/cap-web.int.test.ts
 E5 apps/host test/int/approval-shapes.int.test.ts
 E6 apps/host test/int/cap-mcp.int.test.ts test/int/cap-mcp-stdio.int.test.ts
 E7 packages/platform-secrets test/admin.int.test.ts test/sops-real.int.test.ts
+# M3a (review.m3-plan): X1 Helm E1/UC-2, X2 learning UC-3, X3 S1 core-diff check (the script's own tests; the S1 run itself
+# is `bun scripts/core-diff-check.ts <base>` at M3a close).
+X1 packages/group-helm test/int/uc2.int.test.ts test/int/plugin.int.test.ts
+X1 apps/host test/int/helm.int.test.ts
+X2 packages/group-learning test/uc3.int.test.ts
+X2 apps/host test/int/proposals.int.test.ts
+X3 scripts core-diff-check.test.ts
+# M3b placeholders (review.m3b-plan 1.1, product.scope.spec 4.4 M3b). None is active yet: the test files do not exist.
+# The owning track removes the leading "# " when its test file exists and replaces <파일> with the real path.
+# An uncommented line with an unfilled <파일> fails as missing, so an unfinished condition cannot pass by accident.
+# Track B1-SVC
+X4 apps/host test/int/service-idle.int.test.ts test/int/service-lifecycle.int.test.ts
+# Track B2-RMT
+# X5 apps/host test/int/service-transport.int.test.ts
+# Track B1-NTF
+# X6 apps/host test/int/goal-judge.int.test.ts
+# Track B2-MDL (view-model)
+# X7 packages/client test/<파일>.test.ts
+# Track B3-SET (view-model)
+# X8 packages/client test/<파일>.test.ts
+# Track B2-WEB (doctor output and tab view-model)
+# X9 apps/cli test/<파일>.test.ts
+# Track B3-SET (schema key set = view-model item set = CLI config key set)
+# X10 packages/client test/<파일>.test.ts
+# Track B5-REL (release smoke, Linux CI and macOS job)
+# X11 scripts <파일>.test.ts

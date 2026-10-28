@@ -321,6 +321,8 @@ export function createJsonLinesLogger(opts: JsonLinesLoggerOptions): Logger & { 
 - 출력 위치: `sink`는 L4가 고른다(BP-12). stdio JSON-RPC 사이드카에서는 stdout을 쓰면 안 되므로 기본값은 stderr이고, 데스크톱 사이드카는 L4가 파일 sink를 줄 수 있다 [제안].
 - 레벨 미만 호출은 직렬화하지 않는다. 설정 `l0.os.log.level`(`runtimeChange: "live"`) 변경은 두 방법으로 반영한다. `PlatformOsConfig.logLevel`에 함수 `() => LogLevel`을 주면 로그를 낼 때마다 그 값을 읽어 구독 없이 다음 호출부터 반영된다(조립 루트가 설정 조회 함수를 넘긴다) [결정: m2 마감 G1-12]. `setLevel`(`OsServiceHandle.setLogLevel`)을 부르면 그 값으로 고정하고 함수 읽기를 멈춘다.
 
+- 로그 회전 [결정: 오케스트레이터 기본값, M3-REQ-52]: 파일 sink는 `createRotatingFileSink({ dir, fileName?, maxBytes?, maxFiles?, onError? })`다. 한 줄을 덧붙이면 파일이 `maxBytes`(기본 10 MiB)를 넘는 경우 `<이름>.<n>`을 한 칸씩 밀고(가장 오래된 것은 지운다) 현재 파일을 `<이름>.1`로 옮긴 뒤 새 파일에 쓴다. 보관 개수 `maxFiles`의 기본은 5(현재 파일 포함)라 합계 상한은 50 MiB다. 파일은 0600, 디렉터리는 0700이고 기본 이름은 `<제품 이름>.log`다. 위치는 L4가 고른다(`OsDirs.state` 아래 `logs/` 권장). sink는 던지지 않는다: 쓰기·회전 실패는 줄을 버리고 `onError(errno 코드)`로 알린다. `l0.os.log.level`의 live 반영은 `LogLevelSource` 함수로 이미 끝났고 남은 일은 없다.
+
 테스트 대역 구분:
 
 | 대역 | 위치 | 용도 |
@@ -398,6 +400,7 @@ export type BinaryError =
 2. 시스템 후보: `allowSystem`이 true이면 `PATH`를 앞에서부터 찾는다(Windows는 `PATHEXT` 확장자 포함). 찾으면 `<이름> --version`(age는 `--version`, bwrap은 `--version`)을 실행해 첫 줄에서 버전을 읽는다. 읽지 못하면 `version_unreadable`이다. `security`와 `secret-tool`은 버전 옵션이 없으므로 버전 확인을 건너뛰고 `version`을 빈 문자열로 둔다. 이 둘에는 `minVersion`을 줄 수 없다 [제안].
 3. 둘 다 없으면 `not_found`. `hint`는 OS별 설치 안내 문구다(예: Linux bwrap: "bubblewrap 패키지를 설치한다"). 이 실패는 사용자 환경 문제이고 호출자는 코드를 고칠 대상으로 다루지 않는다. CLI는 환경 문제 종료코드(2 계열)로 끝낸다 [제안: 종료코드 체계는 `L4.cli.spec`].
 
+- 대상 플랫폼과 위치 [결정: review.m3-design-inputs D-M3-25 행 2·3·5, M3-REQ-53]: macOS 14 이상 arm64, Linux x86_64·arm64를 빌드한다(Intel macOS는 빌드하지 않는다). macOS의 `sops`, `age`, `rg`는 앱 자원 디렉터리(`OsDirs.resource`, 읽기 전용, `PlatformOsConfig.resourceDir`로 L4가 넘긴다)의 `binaries.lock.json`에 적은 상대 경로에서 찾는다. Linux의 `bwrap`, `socat`은 시스템 패키지로 요구하고 `checkBinaries`의 `hint`와 doctor가 설치를 안내한다(번들하지 않는다). 위 탐색 구현은 `binaries/resolve.ts`가 이미 한다.
 - 결과는 서비스 수명 동안 이름별로 캐시한다. 바이너리 경로가 바뀌어도 재시작 전까지 반영하지 않는다.
 - 시스템 바이너리 버전 확인은 자식 프로세스 실행이 필요하다. DR-07 표의 `Bun.spawn` 소유 패키지에 `platform-os`가 있다 [결정: review.decisions-2 U-17].
 - 번들 정책: `rg`만 번들로 확정했다. `sops`, `age`, `bwrap`, `socat`의 번들 여부는 미결 3이다. 정해지기 전에는 시스템 바이너리를 요구하고 없으면 안내한다.
@@ -465,7 +468,8 @@ export function buildNotifyCommand(info: OsInfo, n: OsNotification): readonly st
 - 선택: L4가 환경 provider를 넘기면 그것을 쓴다. 넘기지 않으면 `select.ts`가 OS provider를 고른다. 선택 기준은 배포 환경이 먼저이고 OS가 다음이다.
 - 켜기·끄기: 이 패키지는 알림 켜기·종류 설정을 두지 않는다. 알림을 보낼지는 호출자(`cap-dialog`)가 `l2.dialog.notify.os`와 종류별 키(`l2.dialog.notify.<kind>`)로 정하고, 이 패키지는 받은 알림을 그대로 내보낸다 [결정: review.decisions-2 S-04]. `notify`가 `disabled`를 돌려주는 경우는 M3 이전 빌드와 조립 루트가 provider `none`을 고른 경우뿐이다.
 - 비밀: 알림 본문과 제목은 OS 알림 센터에 남는다. 호출자는 마스킹한 문자열만 넘기고, `platform-os`도 보내기 전에 로거와 같은 `redact`를 한 번 더 적용한다 [제안]. 도구 인자, 프롬프트 본문 원문은 넣지 않는다.
-- WSL: linux provider가 쓰이며 `notify-send`가 보통 없다. Windows 토스트 상호운용(`powershell.exe` 호출)을 쓸지는 미결 4다.
+- WSL [결정: M3-REQ-50]: linux provider가 그대로 쓰이며 `notify-send`가 없으면 `unavailable`이다. Windows 토스트 상호운용(`powershell.exe` 호출)은 쓰지 않는다. `win32` provider는 M3 범위 밖이라 `createOsNotifierProvider`가 undefined를 돌려주고 `notify`는 `disabled`다.
+- 구현 값: `createOsNotifierProvider({ info, run, logger, binaryFs, pathEnv, linuxCommand? })`가 provider를, `createNotify({ provider, clock, redact })`가 `OsService.notify`를 만든다. `available()`은 darwin에서 PATH에 `osascript` 실행 파일이 있는지만 보고 판단한다(§3.6의 PATH 탐색과 같은 `lookupOnPath`를 쓰고 `osascript`를 실행하지 않는다). 없으면 `false`다 [제안]. linux argv는 `notify-send --app-name=<표시 이름> -- <title> <body>`이고 `--`는 `-`로 시작하는 문자열이 옵션으로 읽히지 않게 한다. 제목 80자, 본문 400자로 자르고 마스킹은 자르기 전에 적용한다. 같은 `kind`·`threadId` 알림은 1초 안에 하나만 보내고 둘째부터는 `ok`로 건너뛴다(보내기에 실패하면 기록하지 않아 재시도할 수 있다). `PlatformOsConfig.notifier`는 provider를 주입하고(`desktop-tauri` 등), `null`이면 provider none이다. 클라이언트 창이 앞에 있어도 기본으로 보내고 끄는 설정은 호출자(`cap-dialog`)가 갖는다.
 - 같은 `threadId`·`kind` 알림이 1초 안에 반복되면 하나만 보낸다(`Scheduler` 기반 디바운스) [제안].
 
 ### 3.8 파일 감시 (2차)
@@ -516,7 +520,11 @@ export function createFileWatcher(deps: {
 ```
 
 - `FileWatcher.watch(root, opts, onBatch)`(서비스에서는 `OsService.watch`)는 `root`가 `OsDirs.config`, `data`, `state` 중 하나의 하위가 아니면 `outside_app_dirs`다.
-- 백엔드: `@parcel/watcher`(N-API 프리빌드, FSEvents·inotify·ReadDirectoryChangesW)가 기본이다. 로드 실패나 `limit_reached`이면 폴링 백엔드로 바꾸고 경고 로그를 남긴다. 폴링 간격은 2초다 [제안].
+- 백엔드: `@parcel/watcher`(N-API 프리빌드, FSEvents·inotify·ReadDirectoryChangesW)가 목표 구현이다. 승인되지 않은 새 의존이라 M3b에서는 좁은 포트 `WatchBackend` 뒤에 `node:fs.watch(recursive)` 구현(`createFsWatchBackend`)을 기본으로 둔다 [결정: 오케스트레이터 기본값]. 승인 뒤에는 같은 포트를 구현하는 어댑터를 `PlatformOsConfig.watchBackends` 앞에 더하는 1커밋이면 되고 `fs.watch` 구현은 폴백으로 남는다. 백엔드가 `limit_reached`·`backend_unavailable`이면 다음 백엔드로 넘기고 경고 로그(`os.watch.backend_failed`)를 남긴다. `not_found`는 호출 문제라 넘기지 않는다. 폴링 백엔드는 두지 않았다(미결 10의 의존 확정과 함께 정한다).
+- `fs.watch` 구현의 종류 판정: 이벤트는 파일 이름만 주므로 `stat`으로 정한다. `rename`이고 파일이 없으면 `delete`, 있고 처음 보는 경로면 `create`, 아는 경로면 `update`다. `change`는 `update`다.
+- 합치기: 한 배치 안에서 같은 경로는 마지막 상태가 이기되 `create` 뒤 `update`는 `create`로, `delete` 뒤 `create`는 `update`로 남긴다. `ignore`는 root 기준 상대 경로에 glob(`**`, `*`, `?`)로 적용한다. `debounceMs`는 0~5000으로 자르고 기본 100이다.
+- 감시 root 완화 [결정: 오케스트레이터 기본값, M3-REQ-48]: 허용 root는 `OsDirs`의 config·data·state와 조립 루트가 `PlatformOsConfig.extraWatchRoots`로 명시한 절대 경로(워크트리 루트 등)다. 목록 밖은 `outside_app_dirs`이고 기본 목록은 비어 있다. 작업 공간 파일 감시는 여전히 exec 책임이다.
+- 설정 파일 외부 변경 통지(M3-REQ-49): L1이 `OsService.watch(<config 디렉터리>, …)`로 `settings.json` 변경 배치를 받는다. 이 패키지는 파일 이름을 해석하지 않는다.
 - 디바운스: 백엔드 원시 변경을 `debounceMs` 동안 모아 경로별 마지막 상태로 합친 배열 하나를 `onBatch`에 넘긴다. 타이머는 주입된 `Scheduler`로 건다(테스트는 `manualClock`).
 - [가정] `bun build --compile` 바이너리에서 `@parcel/watcher`의 네이티브 모듈을 로드할 수 있다. 실측은 `L0.os.plan`이 한다. 안 되면 폴링이 기본이 된다.
 - 서비스가 `dispose`될 때 열린 감시를 모두 닫는다.
@@ -540,7 +548,7 @@ export interface OsTelemetry {
 - 속성 규칙 [제안]: 속성에는 id(`threadId`, `turnId`, `stepId`), 도구 이름, 모델 id, 토큰 수, 지연 시간만 싣는다. 비밀 값, 비밀 참조 해석 결과, 프롬프트·응답 본문, 도구 인자·출력 원문은 싣지 않는다. 내보내기 직전에 문자열 속성 값에 `redact`를 적용한다.
 - SDK는 켜질 때만 동적 import로 지연 로드한다. 꺼져 있을 때 SDK 모듈을 로드하지 않는다.
 - [가정] `@opentelemetry/sdk-trace-node`가 Bun에서 동작한다. `AsyncLocalStorage` 기반 컨텍스트 전파가 Bun에서 Node와 같게 동작하는지는 실측이 필요하다.
-- wire `_meta.traceparent` 전파(`F.wire-settings.spec` §3.6)는 L4 host가 이 `Tracer`로 한다.
+- wire `_meta.traceparent` 전파(`F.wire-settings.spec` §3.6)는 L4 host가 이 `Tracer`로 한다. L0이 맡는 부분은 설정 키 `l0.os.telemetry.*`(§6)와 꺼짐 기본 `OsTelemetry`뿐이고, 직렬화 함수는 F, 전파는 L4다. SDK 연결(`OS-15`)은 새 의존 승인 뒤다 [미결 10].
 
 ### 3.10 OsService
 
@@ -630,7 +638,40 @@ export interface FileLock {
 - `scope`는 `cross_process`(flock 사용)이거나 `process`다. `process`는 Windows(M2 범위 밖)와 FFI를 읽지 못한 환경이고, 같은 프로세스 안에서만 배타다. 이때 서비스 시작 로그에 `os.file_lock.process_only`를 남긴다.
 - `withLock`은 `fn`이 던지면 잠금을 놓고 그 오류를 그대로 거부로 전한다. `updateText`의 `fn`이 던지면 파일은 바뀌지 않는다(신뢰 저장소가 손상 파일을 `corrupt`로 알리는 경로).
 - `updateText`는 같은 디렉터리의 임시 파일(`<path>.<pid>.<번호>.tmp`, 0600)에 쓰고 `rename`한다. 읽기 실패 가운데 `ENOENT`는 `fn(null)`이고 나머지는 `io`다. fsync는 하지 않는다(신뢰·설정 파일은 마지막 값이 사라져도 이전 값으로 돌아갈 뿐이다) [제안].
+- 같은 잠금을 감사 파일의 프로세스 간 정리(prune)에도 쓴다(M3-REQ-61): `platform-secrets`가 `withLock(<감사 파일 경로>, …)`로 정리와 덧붙이기를 직렬화한다. 이 패키지는 도구를 주고 적용은 `L0.secrets.spec`이 한다. `settings.json` 쓰기 적용(M3-REQ-82)은 `L1.persistence.spec`이다.
 - `TrustStoreBackend.update`(F)가 이 메서드와 같은 모양이다: 호스트 조립 루트가 `updateText`를 `update`에, 잠금 없는 읽기를 `read`에 연결한다.
+
+### 3.12 제품 이름 상수
+
+제품 이름에 묶인 값은 `src/product.ts`의 `PRODUCT` 한 곳에서만 읽는다 [결정: review.m3-design-inputs D-M3-24 b, M3-REQ-54]. M3 값은 `name: "xeon"`, `displayName: "Xeon"`, `settingsFileName: "settings.json"`이다. 앱 디렉터리 이름(`dirs.ts`의 3플랫폼 표와 `<tmp>/<name>-<uid>`), 알림 앱 이름이 이 상수를 쓴다. 사용자 대행 UA는 `productUserAgent(version)`(`xeon/<version>`)이다. M4 개명은 이 파일만 바꾼다. 서버 이름처럼 F가 정하는 값은 F의 몫이고 한 곳으로 모을지는 개명 작업 전에 정한다 [미결 14].
+
+### 3.13 워크트리 연산
+
+`createWorktreeOps({ run })`(`OsServiceHandle.worktrees`)가 git을 셸 없이 argv로 부른다 [결정: M3-REQ-48]. F `OsService`에 타입이 없어 이 패키지의 로컬 타입이다 [F 요청: `OsService.worktrees`, 미결 15].
+
+```ts
+export interface WorktreeInfo { path: string; branch: string | null; head: string; isMain: boolean }
+export type WorktreeError =
+  | { kind: "not_absolute"; path: string }
+  | { kind: "git_unavailable"; code: string }
+  | { kind: "git_failed"; exitCode: number; output: string }
+  | { kind: "cancelled" };
+export interface WorktreeOps {
+  create(repo: string, opts: { path: string; branch: string; base?: string }, signal: AbortSignal): Promise<Result<WorktreeInfo, WorktreeError>>;
+  list(repo: string, signal: AbortSignal): Promise<Result<readonly WorktreeInfo[], WorktreeError>>;
+  remove(repo: string, path: string, opts: { force?: boolean }, signal: AbortSignal): Promise<Result<void, WorktreeError>>;
+}
+```
+
+- 경로는 모두 절대 경로여야 한다. `create`는 `git -C <repo> worktree add -b <branch> -- <path> <base|HEAD>`다. `list`는 `worktree list --porcelain`을 해석하고 첫 항목이 주 워크트리다. `remove`는 기본이 수정 파일이 있으면 거부이고 `force`면 지운다.
+- 시간 상한은 60초다(큰 저장소의 `add`가 5초를 넘길 수 있다). 자식 환경은 PATH와 로케일만 받는다(§3.6의 실행 규칙과 같다).
+- `create`는 만든 뒤 `list`에서 새 워크트리를 찾는다. 두 경로를 `realpath`로 풀어 비교하고, 목록에 없으면 `git_failed`(`exitCode: 0`, `output: "worktree not listed after add"`)다. 목록의 마지막 항목을 대신 쓰지 않는다 [제안: 다른 워크트리를 새 것으로 넘기지 않기 위해].
+- `git_failed.output`은 git의 stderr 앞 2000자다. stderr가 비면 stdout을 쓴다. stderr는 `RunCommand`의 `captureStderr` 옵션을 준 실행에서만 읽고 끝쪽 8 KiB만 남긴다. 옵션이 없는 실행은 stderr를 버리고 `CommandOutput.stderr`가 없다 [제안].
+- 워크트리 위치 정책(어디에 만들지)과 격리 실행은 호출자(`L2.schedule`, `L0.sandbox`)가 정한다.
+
+### 3.14 확장 진단 배열 상한
+
+끝없이 자랄 수 있는 진단·경고 배열은 `createBoundedList(cap)`로 감싼다 [결정: 오케스트레이터 기본값, M3-REQ-52]. 기본 상한은 256개(`DEFAULT_DIAGNOSTICS_CAP`)이고 넘으면 오래된 것부터 버리며 `dropped()`로 버린 수를 알린다. 이 패키지는 도구만 주고, 확장 진단 배열에 적용하는 것은 쓰는 층(X, L4)이다.
 
 ## 4. 동작 규칙
 
@@ -657,6 +698,9 @@ export interface FileLock {
 | 번들 rg 해시 불일치 | `integrity_mismatch`. 실행하지 않는다. 시스템 rg로 자동 대체하지 않는다 [제안: 변조 신호를 숨기지 않기 위해] |
 | 추출 위치 쓰기 불가(읽기 전용 cache, 백신 차단) | `extract_failed`(`code`에 OS 오류 코드) |
 | `notify-send` 없음 | `unavailable`. 첫 번째만 진단 로그. 호출자는 알림 실패로 작업을 멈추지 않는다 |
+| `osascript` 없음(darwin) | `available()`이 `false`다. 실행을 시도하지 않는다 |
+| 워크트리 `create` 뒤 목록에 새 경로가 없음 | `git_failed`(`output: "worktree not listed after add"`). 마지막 항목을 쓰지 않는다 |
+| `git worktree add` 실패(브랜치 또는 경로가 이미 있음) | `git_failed`. `output`에 git의 stderr 앞 2000자가 들어간다 |
 | inotify 감시 한도 초과 | `limit_reached` 뒤 폴링 백엔드로 전환하고 경고 로그 |
 | `@parcel/watcher` 로드 실패 | 폴링 백엔드. 경고 로그 한 번 |
 | OTel SDK 로드 실패 | `telemetry.enabled`를 false로 다루고 경고 로그. 다른 기능은 영향 없음 |
@@ -751,7 +795,7 @@ F에 요청:
 1. [결정: review.decisions-2 U-03] `Logger`·`Clock` 인터페이스 위치는 F 루트 base((a)안)이고 구현과 ID 발급기 구현은 이 패키지, 테스트 대역은 쓰는 패키지의 `test/`다(3.4절, 3.5절).
 2. [미결] 파일 감시 책임 경계. 작업 공간 = exec(`ExecutionEnv.watch`), 앱 설정·스킬·플러그인 디렉터리 = os(`FileWatcher`). 계획 v2의 "ExecutionEnv.watch를 쓰고 없으면 @parcel/watcher" 문장과 다르므로 사용자 확인이 필요하다. `L0.exec.spec`과 같은 문장으로 맞춘다.
 3. [미결] `sops`, `age`, `bwrap`, `socat`의 번들 정책. 번들하면 설치가 쉬워지고 배포 크기와 라이선스 고지, 보안 갱신 책임이 늘어난다. 정해지기 전에는 시스템 바이너리를 요구한다.
-4. [미결] WSL 알림에서 Windows 토스트 상호운용(`powershell.exe`)을 쓸지.
+4. [결정: M3-REQ-50] WSL 알림에서 Windows 토스트 상호운용은 쓰지 않는다(§3.7). 이전 논점: WSL 알림에서 Windows 토스트 상호운용(`powershell.exe`)을 쓸지.
 5. [미결] 디렉터리 규칙과 사용자의 기존 설정 위치 충돌. macOS config를 `~/Library/Application Support/xeon/config`로 둘지 `~/.config/xeon`으로 둘지, 위치를 바꿀 때 마이그레이션을 둘지.
 6. [미결] 단조 시계를 F 계약에 더할지(`performance.now` 대응). 현재는 `Clock.now()` 차이로 경과 시간을 잰다.
 7. [미결] `time`(시계·타이머·난수)을 `OsService` 필드로 둘지 별도 서비스 이름으로 나눌지. 나누면 `eng.context-map.design` §5.3에 행이 늘어난다.
@@ -761,3 +805,5 @@ F에 요청:
 11. [미결] `processStartFingerprint`의 macOS 수단(`ps -o lstart=`는 초 단위)과 Windows 수단(`GetProcessTimes`). macOS 해상도로 pid 재사용을 충분히 구분하는지 실측한다.
 12. [미결] F 요청, `OsService.fileLock`. 지금은 `OsServiceHandle.fileLock`으로만 낸다. F가 `OsService`에 같은 모양을 더하면 조립 루트가 핸들 대신 서비스에서 받는다. `settings.json` 쓰기에 같은 잠금을 쓰는 일은 M3다.
 13. [실측: macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25] macOS의 `libSystem.B.dylib` `flock`, `__error`, EWOULDBLOCK(35)이 `file-lock.int.test.ts`의 자식 프로세스 시험에서 `scope === "cross_process"`와 SIGKILL 뒤 해제로 통과했다. 라이브러리 판정은 파일 존재가 아니라 dlopen 시도다(macOS 11+는 `/usr/lib/libSystem.B.dylib`가 디스크에 없고 dyld 공유 캐시에 있지만 `dlopen("libSystem.B.dylib")`는 된다). `process` 범위로 내려가는 것은 dlopen이 정말 실패할 때뿐이다. `service.test.ts`의 가짜 Linux 플랫폼 시험이 macOS에서 `libc.so.6` dlopen 실패로 `os.file_lock.process_only`를 남긴 것은 시험이 실제 dlopen을 부른 탓이었고(결함 아님), 이제 `OsRuntime.createFlock`을 주입한다. Linux는 `file-lock.int.test.ts`가 자식 프로세스 넷의 읽기-수정-쓰기 100회가 한 줄도 잃지 않음을 확인한다.
+14. [미결] 제품 이름 상수의 소유 문서. L0.os가 앱 디렉터리 이름을 정하고 F가 서버 이름을 정하는 배치를 유지할지 M4 개명 작업 전에 정한다(§3.12).
+15. [미결] F 요청, `OsService.worktrees`. 지금은 `OsServiceHandle.worktrees`로만 낸다(§3.13).

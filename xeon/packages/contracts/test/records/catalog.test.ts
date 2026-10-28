@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { Bug, parse } from "../../src/index.ts";
 import {
+  ARTIFACT_EVENT_CATALOG,
+  SCHEDULE_EVENT_CATALOG,
   CORE_EVENT_CATALOG,
   CORE_EVENT_KINDS,
   DIALOG_EVENT_CATALOG,
@@ -9,6 +11,7 @@ import {
   ItemRecordedPayloadSchema,
   PostAcceptedPayloadSchema,
   ScopeChangedPayloadSchema,
+  LeaseRejectedPayloadSchema,
   LeaseReleasedPayloadSchema,
   LeafMovedPayloadSchema,
   CompactedPayloadSchema,
@@ -31,19 +34,25 @@ function roundTrip(value: unknown): unknown {
 }
 
 describe("core catalog", () => {
-  test("has the 40 kinds of the spec table, each at version 1", () => {
-    expect(CORE_EVENT_CATALOG.length).toBe(40);
-    expect(CORE_EVENT_KINDS.length).toBe(40);
+  test("has the 41 kinds of the spec table, each at version 1", () => {
+    expect(CORE_EVENT_CATALOG.length).toBe(41);
+    expect(CORE_EVENT_KINDS.length).toBe(41);
     expect(CORE_EVENT_CATALOG.map((e) => e.kind)).toEqual([...CORE_EVENT_KINDS]);
     for (const entry of CORE_EVENT_CATALOG) expect(entry.version).toBe(1);
   });
 
   test("kinds are unique and the merged catalog adds no duplicates", () => {
-    expect(new Set(CORE_EVENT_CATALOG.map((e) => e.kind)).size).toBe(40);
-    // 코어 40종에 내장 L2 도메인 카탈로그(work 10종, dialog 2종)가 이어 붙는다
-    expect(EVENT_CATALOG.length).toBe(40 + WORK_EVENT_CATALOG.length + DIALOG_EVENT_CATALOG.length);
+    expect(new Set(CORE_EVENT_CATALOG.map((e) => e.kind)).size).toBe(41);
+    // 코어 41종에 내장 L2 도메인 카탈로그(work 10종, dialog 2종, artifact 12종, schedule 15종)가 이어 붙는다
+    expect(EVENT_CATALOG.length).toBe(
+      41 +
+        WORK_EVENT_CATALOG.length +
+        DIALOG_EVENT_CATALOG.length +
+        ARTIFACT_EVENT_CATALOG.length +
+        SCHEDULE_EVENT_CATALOG.length,
+    );
     expect(new Set(EVENT_CATALOG.map((e) => e.kind)).size).toBe(EVENT_CATALOG.length);
-    expect(EVENT_CATALOG.slice(0, 40)).toEqual([...CORE_EVENT_CATALOG]);
+    expect(EVENT_CATALOG.slice(0, 41)).toEqual([...CORE_EVENT_CATALOG]);
     const entry = CORE_EVENT_CATALOG[0];
     expect(entry).toBeDefined();
     if (entry !== undefined) {
@@ -130,6 +139,14 @@ describe("new payload rejections", () => {
     expect(parse(ScopeChangedPayloadSchema, { scopeId: "helm", status: "disabled" }).ok).toBe(true);
   });
 
+  test("LeaseRejected carries groupId, reason and requestSeq", () => {
+    const entry = catalogEntry("lease.rejected");
+    expect(entry.durable).toBe(true);
+    expect(parse(LeaseRejectedPayloadSchema, fixture("lease.rejected")).ok).toBe(true);
+    rejects(entry, { groupId: "helm", reason: "wait_limit" });
+    rejects(entry, { ...fixture("lease.rejected"), requestSeq: -1 });
+  });
+
   test("LeaseAcquired / LeaseReleased", () => {
     rejects(catalogEntry("lease.released"), { ...fixture("lease.released"), reason: "expired" });
     rejects(catalogEntry("lease.acquired"), { leaseId: "l", scopeId: "helm" });
@@ -179,7 +196,7 @@ describe("requested kinds (F.records.spec 3.3.1)", () => {
     }
   });
 
-  test("approval.requested body kinds are tool, question, plan only", () => {
+  test("approval.requested body kinds are tool, question, plan, review only", () => {
     const base = PAYLOAD_FIXTURES["approval.requested"];
     const question = {
       kind: "question",
@@ -284,6 +301,22 @@ describe("requested kinds (F.records.spec 3.3.1)", () => {
     expect(
       parse(entry.payload, { mode: "later", item: context, requestId: "r", source: sources[0] }).ok,
     ).toBe(false);
+  });
+
+  test("input.queued carries the turn origin and rejects an unknown one (InputDraft.origin)", () => {
+    const entry = catalogEntry("input.queued");
+    const base = {
+      mode: "next",
+      item: { kind: "user", content: "x" },
+      requestId: "r",
+      source: { type: "schedule", timerId: "tmr_1" },
+    };
+    for (const origin of ["user", "scheduled", "remote", "delegation", "drive", "other"]) {
+      const result = parse(entry.payload, roundTrip({ ...base, origin }));
+      expect(result.ok ? result.value : undefined).toEqual({ ...base, origin });
+    }
+    expect(parse(entry.payload, { ...base, origin: "cron" }).ok).toBe(false);
+    expect(parse(entry.payload, base).ok).toBe(true);
   });
 
   test("agent payloads", () => {

@@ -246,7 +246,7 @@ export type DelegateResult =
 
 ```ts
 export interface JudgeEvidence {
-  readonly kind: "assistant_text" | "tool_result" | "work_item" | "note";
+  readonly kind: "assistant_text" | "tool.result" | "work_item" | "note";
   readonly text: string;
   /** 증거 원본 위치. item, effect, L2.work 레코드 */
   readonly ref?: { readonly itemId?: ItemId; readonly effectId?: string; readonly workRef?: string };
@@ -333,7 +333,7 @@ export type AgentJudgedPayload = JudgeRecord;
    - 하트비트는 core-persistence가 자식 토큰에 건다. 자식 임대는 자식 정착(6번) 뒤 `release`로 반납한다.
    - 부모 임대 상실(`lease_lost`, `ownership_lost`)은 소유 트리 취소로 자식 전체에 전파한다. 부모 thread 노드에 `abort(…, { code: "lease_lost" }, { background: true })`를 걸어 백그라운드 자식도 멈춘다(`eng.transactions.design` §3.3 규칙 2 "임대를 잃으면 메모리 작업을 모두 취소", `L1.tasks.spec` `AbortCode`). 자식 임대 상실도 그 자식 노드를 같은 사유로 취소한다.
    - 다른 프로세스(CLI와 데스크톱)가 자식 thread를 쓰기로 열려 하면 임대가 이미 있으므로 잠금 실패 경로(위임·관찰·분기)로 간다(`L1.persistence.spec` §4.9).
-4. 소유 간선: `xeon.tasks.openScope(parent, { kind: "subagent", background })`로 자식 노드를 만든다. 포그라운드는 부모 `tool` 노드(모델 도구) 또는 `turn` 노드(drive) 아래 `background: false`, 백그라운드는 부모 `thread` 노드 아래 `background: true`다(L1.tasks.spec §3 노드 표 374행, eng.transactions.design §6.1). 자식을 기다리는 도구 호출은 `slot.suspendWhile(child.settle())`로 `tools` 슬롯을 내려놓는다(L1.tasks.spec §4.5 규칙 C2).
+4. 소유 간선: `xeon.tasks.openScope(parent, { kind: "subagent", background })`로 자식 노드를 만든다. 포그라운드는 부모 `tool` 노드(모델 도구) 또는 `turn` 노드(drive) 아래 `background: false`, 백그라운드는 부모 `thread` 노드 아래 `background: true`다. 실행 중인 turn이 없는 drive(`owner.turnId`가 `null`)의 `loop.spawn`은 호출자가 결과를 기다리는 포그라운드이지만 노드는 부모 `thread` 노드 아래 `background: true`로 연다(thread 아래에는 그 값만 허용된다). 이 노드의 취소는 소유 트리가 잇지 못하므로 `origin.signal`(임대 신호)이 `abortChild`로 잇는다. thread 노드가 없으면 `agents.unavailable`이다(L1.tasks.spec §3 노드 표 374행, eng.transactions.design §6.1). 자식을 기다리는 도구 호출은 `slot.suspendWhile(child.settle())`로 `tools` 슬롯을 내려놓는다(L1.tasks.spec §4.5 규칙 C2).
 5. 실행: `xeon.loop`에 자식 대화를 열고 첫 turn을 시작한다. 입력은 `task` 텍스트 하나(사용자 item, `requestId` = 자식 requestId)다. 시스템 프롬프트는 정의 `prompt`, 모델은 정의 `model` 역할이다.
    - 패키지 판정은 "agent-core `Agent` 클래스(agent.ts:188)를 자식마다 생성"이다(`_research/packages.md` §4.3 L1-g). 이 판정은 pi-agent-core 의존을 전제로 했다. adr.0009로 그 의존이 없어졌고, L1.loop.spec §3.2는 turn마다 core-loop 자체 루프 `runTurn(entry)`를 부른다. [제안] 자식 대화도 주 대화와 같은 자체 루프로 돈다. 자식마다 thread 구동기 하나를 두어 "자식마다 독립 실행 단위 하나"라는 판정의 뜻은 지킨다. 판정 문구의 정정은 [미결](§10)이다.
    - core-agents는 루프를 직접 만들지 않고 `xeon.loop`의 `runChildTurn(request: ChildTurnRequest)`로 자식 turn 실행을 요청한다(L1.loop.spec §3.1, §4.13). 요청 필드: `threadId`(자식), `input`(task), `requestId`(자식 requestId), `systemPrompt`, `model`(역할 또는 ref), `tools: { caller, depth, ceiling, surfaceThreadId, interactive, allow?, keepParentList? }`, `scope`(자식 `TaskScope`), `limits?`, `signal`. 결과는 `LoopTurnResult`(`X.primitives.spec` §3.6, F `ports.ts` 이전 요청)와 같은 모양(`outcome: TurnOutcome` + `usage` + `replayed`)이다.
@@ -347,11 +347,15 @@ export type AgentJudgedPayload = JudgeRecord;
   - 모델 도구 `agent`는 `execute(toolCallId, …)`에 실행 맥락이 없어 `TaskService.find("tool", toolCallId)`에서 부모 노드를 따라 올라가 부모 turn과 대화를 찾는다(tool > turn > thread|subagent). 부모의 호출 주체와 깊이는 core-agents가 기억하는 자식 문맥(`contextOf`)에서 읽고, 없으면 `main`, 깊이 0이다. 요청 id는 항상 `tool:<toolCallId>:spawn:0`이다(도구 호출 하나가 자식 하나).
   - `interactive`는 `SpawnOrigin`에 없어 주 대화는 참, 중첩 자식은 부모와 같게 둔다.
   - 자식 모드는 `ToolService.mode`로 부모 모드를 읽고 `childMode`(엄격한 쪽)를 구해 `ToolService.setMode(자식, 모드, "user")`로 자식 thread의 세션 설정에 남긴다. 자식 turn 요청의 `ceiling`은 부모 관점(`caller`, `depth`, 부모 모드)과 정의 `tools`·호출자 `allow`의 글롭 교집합이다. 부분만 겹치는 글롭은 교집합이 비어 막는 쪽으로만 틀린다.
-  - `tools.deny`는 `ChildTurnRequest`에 실을 자리가 없어 `agents.invalid_request`로 거부한다(조용히 무시하면 권한이 넓어진다) [미결: F 요청]. `tools.keepParentList`는 부모 광고 목록을 `ToolService.advertise`로 얻어 싣는다.
+  - `tools.deny`와 `denyHint`는 `ChildTurnRequest.tools.deny`·`denyHint`로 싣는다. 광고 목록에서 빼지 않고 실행 시점에 거부하는 쪽은 core-loop와 core-tools다. 거부는 `ceilingOf`가 `PolicyCeiling.deny`·`denyHint`로 실어 core-tools의 `childDecision`이 한다. 거부 문장은 `denyHint`로 끝나고, 정의·호출자 `allow` 밖 호출의 거부에도 같은 안내가 붙는다 [제안: M3-REQ-78]. `tools.keepParentList`는 부모 광고 목록을 `ToolService.advertise`로 얻어 싣는다. 부모 토큰은 `SpawnOrigin.parentToken`이 있으면 그것을, 없으면 조립 루트의 `AgentsOwnership.parentToken`을 쓴다.
   - 정의 `permissions.rules`는 호출 주체를 `subagent:<이름>`으로 좁히고 id에 `agent.<이름>.`을 붙여 `core:agents` 출처(default 티어)로 등록한다. 명세의 extension 티어로 등록하는 길이 core-tools에 없다 [미결]. 정의나 `maxDepth`가 바뀌면 같은 출처로 다시 등록한다. `maxDepth: 0`이면 주 대화도 막는 `subagent.disabled`를 더한다.
   - 풀 `subagents` 슬롯은 자식 노드를 owner로 얻는다. 호출 도구가 쥔 `tools` 슬롯은 `ToolService.suspendWhile(threadId, toolCallId, wait)`로 내려놓는다(C2) [결정: M2 검토 3, F 승격 완료]. `agent` 도구는 `service.spawn`을 그 안에서 기다린다. `tools` 풀 상한이 1이고 `agent` 호출이 하나여도 자식의 도구 호출이 슬롯을 얻는다.
   - `agent.settled.report.text`는 65,536자 상한 때문에 `resultMaxChars`와 60,000자 중 작은 값까지만 싣는다.
-  - `delegate`(백그라운드)와 `judge`는 M3다. M2는 `agents.unavailable`/`failed` 값을 돌려준다.
+  - `delegate`는 `prepare`, `provision`(thread 생성과 `agent.spawned` 커밋), `runChild`를 포그라운드와 나눠 쓴다. 백그라운드는 부모 thread 노드 아래 `background: true` 노드로 열고 부모 turn의 취소 신호를 잇지 않는다. `requestId`는 1~48자이고 보고 입력 키 `<requestId>:report`가 입력 큐의 64자 안에 들어야 한다. 같은 (부모, requestId)의 `agent.spawned`가 DB에 있으면 새 자식을 만들지 않고 `duplicate`를 돌려준다. 끊긴 자식이면 같은 자식을 다시 돌린다.
+  - `agent.settled`에는 `owner`(`agent.spawned.owner`와 같은 값)와 `limitHit`를 싣는다. `limitHit`는 자식의 마지막 `turn.completed.error`(`step_limit`, `child_limit`)에서 읽는다. `child_limit`는 단계 상한과 토큰 상한이 같은 값이라 `stepCount`가 `limits.maxSteps` 이상이면 `steps`, 아니면 `tokens`로 본다 [제안].
+  - `DelegateRequest.report`가 있으면 `agent.settled` 커밋 안에서 `tasks.inputs.draftQueued`로 보고 입력을 같이 쓴다. 없으면 `agent.settled`만 남는다. 코어 `customType` `agent.report`는 F `RecordKind` 형식에 없어 `x.core-agents.agent.report`로 싣는다 [제안: F 요청 6 전까지].
+  - `cancel({ ownerScopeId })`는 이 프로세스에서 도는 그 scope(`owner.kind`가 `scope` 또는 `drive`)의 자식을 모두 취소한다. 취소된 자식도 `agent.settled { aborted }`와 보고 입력을 남긴다.
+  - `judge`는 §4.8을 따른다. `completeStructured`는 F `ModelService`에 아직 없어 core-agents가 `ModelService.resolve`·`complete` 위에 둔다(`structured.ts`) [제안]. 완료 게이트가 판정 결과를 소비하는 규칙은 순수 함수 `goalGateDecision`(`goal-gate.ts`)이 정한다: `met`은 종료, `not_met`·`undecidable`은 계속, `capped`는 turn 종료와 알림, `failed`는 `stop`이다.
 
 ### 4.2 결과 경로
 
@@ -465,7 +469,7 @@ export type AgentJudgedPayload = JudgeRecord;
 - 출력 스키마: `{ verdict: "met" | "not_met" | "undecidable", rationale: string, missing: string[] }`. 스키마를 어기면 한 번 다시 묻지 않고 `undecidable`로 본다 [제안]. 다시 묻기는 상한을 흐리게 하기 때문이다.
 - 상한: `l1.agents.judge.maxRuns`(기본 3)은 `(threadId, goalRef)`마다의 판정 실행 수다. 판정 상한 키는 이 하나이고 L2.work는 자기 상한 키를 두지 않고 이 키를 참조한다 [결정: review.decisions-2 S-06]. 판정 오류(`failed`)는 실행 수에 넣지 않는다(§5 사례 8). 판정 역할 이름은 L1.models.spec 역할 표의 `judge`다. `judge`는 그 대화의 `agent.judged` 수를 세어 상한이면 모델을 부르지 않고 `{ kind: "capped" }`를 돌려준다. 완료 게이트가 이 결과를 어떻게 처리할지(turn 종료와 사용자 알림)는 L1.loop.spec이 정한다 [가정].
 - 기록 [제안]: `judge`는 모델 응답을 받은 직후 `agent.judged`를 자기 커밋(requestId `judge:<threadId 해시>:<goalRef>:<run>`)으로 남기고 결과를 돌려준다. 재개 때 같은 `(goalRef, run)`의 기록이 있으면 `{ kind: "recorded" }`를 돌려주고 다시 판정하지 않는다. 모델 호출 뒤 커밋 전에 끝나면 재개 때 다시 판정한다(비용만 든다).
-- 단계 경계 커밋과의 관계: architecture.runtime-flow.design §4.5는 "판정 결과는 단계 경계 커밋에 내구 이벤트로 남아"라고 적었고, L1.loop.spec §4.9는 L2.work의 `agent_before_settle` 핸들러가 판정 결과를 확장 kind 엔트리로 T4에 넣는다고 적었다. 그런데 `finalizeBoundary`는 접두 없는 코어 kind 엔트리를 거부한다(L1.loop.spec §9 수용 기준 5). 그래서 `agent.judged`는 판정 호출의 자기 커밋으로 쓰고, L2.work 핸들러는 T4 엔트리에 판정 참조(`agent.judged`의 EventId)만 남긴다 [제안]. 이렇게 하면 단계 경계 커밋보다 먼저 판정이 내구화된다. 이 정리는 L1.loop.spec·L2.work.spec과 맞춰야 한다 [미결](§10).
+- 단계 경계 커밋과의 관계: architecture.runtime-flow.design §4.5는 "판정 결과는 단계 경계 커밋에 내구 이벤트로 남아"라고 적었고, L1.loop.spec §4.9는 L2.work의 `boundary.settle.before` 핸들러가 판정 결과를 확장 kind 엔트리로 T4에 넣는다고 적었다. 그런데 `finalizeBoundary`는 접두 없는 코어 kind 엔트리를 거부한다(L1.loop.spec §9 수용 기준 5). 그래서 `agent.judged`는 판정 호출의 자기 커밋으로 쓰고, L2.work 핸들러는 T4 엔트리에 판정 참조(`agent.judged`의 EventId)만 남긴다 [제안]. 이렇게 하면 단계 경계 커밋보다 먼저 판정이 내구화된다. 이 정리는 L1.loop.spec·L2.work.spec과 맞춰야 한다 [미결](§10).
 - 판정 모델 요청의 requestId(모델 호출 멱등 키가 생기면)는 `judge:<goalRef>:<run>`이다.
 - 목표 저장은 L2.work 소관이고 판정 결과의 소비는 루프의 완료 게이트다. 이 문서는 판정 호출과 기록만 제공한다.
 
@@ -537,7 +541,7 @@ export type AgentJudgedPayload = JudgeRecord;
 | `ThreadId`, `ItemId`, `Usage`, `XeonCustomMessage` | F.conversation.spec |
 | `thread.started.forkedFrom`, `DurableEventDraft`, 분기 규칙 §4.6 | F.records.spec |
 | `TaskService.openScope`(노드 kind `subagent`, `background`), `abort(target, reason, { background })`, `limiter("subagents")`, `Slot.suspendWhile`, `inputs.draftQueued`(완료 보고 초안) | L1.tasks.spec |
-| 자식 turn 실행 진입점(`runChildTurn`, `ChildTurnRequest`, L1.loop.spec §3.1·§4.13), 완료 게이트(`agent_before_settle`) | L1.loop.spec |
+| 자식 turn 실행 진입점(`runChildTurn`, `ChildTurnRequest`, L1.loop.spec §3.1·§4.13), 완료 게이트(`boundary.settle.before`) | L1.loop.spec |
 | `evaluatePolicy`, `stricter`, `PolicyRule`, 도구 등록, 코어 규칙 등록 `registerRules`, `ToolRunContext.ceiling`(ceiling 단계 §4.5) | L1.tools.spec |
 | 모델 역할 `judge`, `subagent` 라우팅과 구조화 출력 [가정] | L1.models.spec |
 | 재개 절차, 멱등 조회 `TxView.agentByRequestId`, 투영 `p_agents`, `ResumePlan.openChildren`, 자식 임대 상속(`ThreadCreateInput.inheritOwnerFrom`, `ThreadCreated.token`), `openForWrite(child, token)` | L1.persistence.spec |
@@ -588,3 +592,9 @@ export type AgentJudgedPayload = JudgeRecord;
 - [미결] 패키지 판정 문구 "`Agent` 클래스를 자식마다 생성"과 L1.loop.spec §3.2(`Agent` 클래스 미사용, 자체 루프 `runTurn`, adr.0009)의 정리(§4.1 5번). 이 문서는 L1.loop.spec을 따른다.
 - [미결] `agent.judged`를 판정 호출의 자기 커밋으로 쓰는 정리(§4.8)와 L1.loop.spec §4.9 "확장 kind 엔트리로 T4에 기록"의 맞춤.
 - [미결] 그룹 위임(`scope` 소유자)의 caller를 `main`으로 볼지 그룹 이름을 싣는 별도 caller(`group:<이름>`)를 둘지. 지금은 `main`이다.
+- [미결] `JudgeInput`에 `run`이나 `stepId`가 없어 재개 때 같은 호출의 `recorded`를 알아볼 수 없다. 지금은 같은 `(goalRef, run)` 커밋이 겹칠 때만 `recorded`다. 한 turn 안에서 게이트가 여러 번 판정할 수 있어 `turnId`로는 구분하지 못한다.
+- [미결] `completeStructured`를 F `ModelService`와 core-models에 둘지(`L1.models.spec` §4.10). 지금은 core-agents 안에 있다.
+- [미결] `ChildTurnRequest`에 turn 출처(`TurnOrigin` `delegation`)를 실을 자리가 없다. 자식 turn의 `turn.started.origin`은 core-loop `runChildTurn`이 `delegation`으로 정하거나 F가 필드를 더해야 한다.
+- [미결] `lifecycle.agent.settled` 지점을 `agent.settled` 커밋에서 발화하는 쪽(ext-host 또는 core-persistence)이 아직 없다.
+- [미결] `undecidable` 판정을 게이트가 계속으로 다룰지(지금 [제안])와 `agent_before_settle` 핸들러를 L2.work가 거는 시점.
+- [미결] 재시작 뒤에는 어느 scope가 맡긴 위임인지 `AgentView`에 없어 `cancel({ ownerScopeId })`가 이 프로세스의 자식만 취소한다.

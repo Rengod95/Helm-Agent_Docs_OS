@@ -1,3 +1,5 @@
 [test]
+# 임시 파일 시험의 scratch를 /dev/shm으로 돌린다(eng.testing.guide TS-07, scripts/test-preload.ts)
+preload = ["../../scripts/test-preload.ts"]
 # L4 coverage threshold (eng.testing.guide TS-10).
 coverageThreshold = { lines = 0.5, functions = 0.5 }

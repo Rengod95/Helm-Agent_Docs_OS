@@ -37,7 +37,8 @@ binds: []
 
 ```bash
 just setup          # bun install --frozen-lockfile
-just verify         # 검사 전부 + ws check. 끝내기 전에 통과시킨다
+just verify         # 검사 전부 + ws check (빠른 길: turbo 캐시, type-aware 없는 lint). 병합·push 전에 통과시킨다
+just verify-full    # 캐시 없이 type-aware lint까지 전부. 마일스톤 마감과 CI만
 ```
 
 - `just verify`는 기기에서 한 번에 하나만 돕니다(`WS_GUARD_SLOTS=1`). 단계를 차례로 돌고 단계마다 메모리 2G, 시험은 패키지마다 1.5G가 상한입니다. 슬롯이 차 있으면 기다립니다(`eng.toolchain.guide` §3.1). 작업 중에는 `just check <패키지>`만 돌리고 `just verify`는 마지막 병합 단계에서 돌립니다.

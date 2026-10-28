@@ -150,6 +150,33 @@ describe("childDecision", () => {
     expect(web).toBe(ALLOW);
   });
 
+  test("a tool outside the allow list is denied with the deny hint appended", () => {
+    const { evaluate } = recordingEvaluator(() => ALLOW);
+    const limited: PolicyCeiling = {
+      ...PARENT,
+      allow: ["learning_propose"],
+      denyHint: "Only learning_propose is available here.",
+    };
+    const denied = childDecision(evaluate, CALL, limited, CHILD, []);
+    expect(denied.effect).toBe("deny");
+    expect(denied.message?.endsWith("Only learning_propose is available here.")).toBe(true);
+    expect(childDecision(evaluate, { ...CALL, tool: "learning_propose" }, limited, CHILD, [])).toBe(
+      ALLOW,
+    );
+  });
+
+  test("the caller deny globs reject at run time with their own rule id and hint", () => {
+    const { evaluate } = recordingEvaluator(() => ALLOW);
+    const denying: PolicyCeiling = { ...PARENT, deny: ["ba*"], denyHint: "read only" };
+    const denied = childDecision(evaluate, CALL, denying, CHILD, []);
+    expect(denied.effect).toBe("deny");
+    expect(denied.ruleId).toBe("agent.review.tools.deny");
+    expect(denied.message).toBe(
+      '[xeon:denied_by_policy] Tool call "bash" is denied for this subagent. read only',
+    );
+    expect(childDecision(evaluate, { ...CALL, tool: "read" }, denying, CHILD, [])).toBe(ALLOW);
+  });
+
   test("an empty allow list blocks everything and a missing one blocks nothing", () => {
     const { evaluate } = recordingEvaluator(() => ALLOW);
     expect(childDecision(evaluate, CALL, { ...PARENT, allow: [] }, CHILD, []).effect).toBe("deny");

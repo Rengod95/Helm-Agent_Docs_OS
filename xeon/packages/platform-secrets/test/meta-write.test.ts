@@ -77,3 +77,26 @@ describe("meta writes (spec §3.2)", () => {
     }
   });
 });
+
+describe("meta freshness across processes (M3-m2c-04 (d))", () => {
+  test("a store instance sees a meta file another instance wrote or changed without restarting", async () => {
+    const { metaDir, store: reader } = await store();
+    // 다른 프로세스(사이드카와 CLI)의 저장소를 다른 인스턴스로 흉내 낸다. 읽기 쪽은 캐시를 두지 않는다
+    const writer = createMetaStore(metaDir);
+    const name = nameOf("github-token");
+    expect(await reader.get(name)).toBeNull();
+    expect((await reader.list()).length).toBe(0);
+
+    const first = metaOf({ desc: "first" });
+    await writer.write(first, { overwrite: false });
+    expect(await reader.get(name)).toEqual({ kind: "ok", name, meta: first });
+    expect((await reader.list()).map((entry) => entry.kind)).toEqual(["ok"]);
+
+    const second = metaOf({ desc: "second" });
+    await writer.write(second, { overwrite: true });
+    expect(await reader.get(name)).toEqual({ kind: "ok", name, meta: second });
+
+    await writer.remove(name);
+    expect(await reader.get(name)).toBeNull();
+  });
+});

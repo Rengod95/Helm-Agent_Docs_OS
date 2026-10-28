@@ -154,6 +154,7 @@ export const WebSearch: CapabilityDef<
         input: WebSearchInput,
         output: WebSearchOutput,
         replay: "safe",
+        readOnly: true,
         errors: {
           query_rejected: {
             description: "provider가 검색어를 거부함(금칙어, 길이 등)",

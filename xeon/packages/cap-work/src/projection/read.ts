@@ -1,8 +1,17 @@
 import { err, ok, parse, parseJson, type Result } from "@xeon/contracts";
 import {
+  GoalJudgmentSchema,
+  GoalSchema,
   PlanVersionSchema,
+  ReportUsageSchema,
+  WorkReportSchema,
   WorkTaskSchema,
+  type Goal,
+  type GoalId,
+  type GoalJudgment,
   type PlanVersion,
+  type ReportUsage,
+  type WorkReport,
   type WorkTask,
 } from "@xeon/contracts/capabilities";
 import type { ReadFailure, SqlRow } from "@xeon/contracts/records";
@@ -183,4 +192,110 @@ export function readModeMeta(
     modeBeforePlan: textOrNull(row["mode_before_plan"]),
     planEnteredSeq: entered === null || entered === undefined ? null : Number(entered),
   });
+}
+
+// ── 목표와 보고(cap_work_goals, cap_work_judgments, cap_work_reports) ───────
+
+/** 투영에서 읽은 목표 하나. Goal에 설정·종결 시점을 더했다 */
+export interface GoalRow {
+  readonly goal: Goal;
+  readonly setSeq: number;
+  /** work.goal_set의 recordedAt(epoch ms) */
+  readonly setAt: number;
+  readonly settledSeq: number | null;
+}
+
+function jsonOf(cell: SqlRow[string] | undefined, where: string): Result<unknown, ReadFailure> {
+  if (typeof cell !== "string") return err(rowInvalid(where));
+  const json = parseJson(cell);
+  return json.ok ? ok(json.value) : err(rowInvalid(where));
+}
+
+function goalRowOf(row: SqlRow): Result<GoalRow, ReadFailure> {
+  const json = jsonOf(row["goal"], "cap_work_goals.goal");
+  if (!json.ok) return json;
+  const goal = parse(GoalSchema, json.value);
+  if (!goal.ok) return err(rowInvalid("cap_work_goals"));
+  const settled = row["settled_seq"];
+  return ok({
+    goal: goal.value,
+    setSeq: Number(row["set_seq"]),
+    setAt: Number(row["set_at"]),
+    settledSeq: settled === null || settled === undefined ? null : Number(settled),
+  });
+}
+
+/** 스레드의 목표를 설정 순서대로 */
+export function readGoals(reader: WorkReader, threadId: ThreadId): Result<GoalRow[], ReadFailure> {
+  const read = reader.read((tx) =>
+    tx.all(
+      `SELECT goal, set_seq, set_at, settled_seq FROM cap_work_goals WHERE session_id = ? ORDER BY ord`,
+      [threadId],
+    ),
+  );
+  if (!read.ok) return err(read.error);
+  const goals: GoalRow[] = [];
+  for (const row of read.value) {
+    const goal = goalRowOf(row);
+    if (!goal.ok) return goal;
+    goals.push(goal.value);
+  }
+  return ok(goals);
+}
+
+/** 판정 하나. 사용량은 work.goal_judged payload의 usage다(판정 실패와 위임 판정은 null) */
+export interface JudgmentRow {
+  readonly judgment: GoalJudgment;
+  readonly usage: ReportUsage | null;
+  readonly seq: number;
+}
+
+/** 목표의 판정을 순번 순서로 */
+export function readJudgments(
+  reader: WorkReader,
+  threadId: ThreadId,
+  goalId: GoalId,
+): Result<JudgmentRow[], ReadFailure> {
+  const read = reader.read((tx) =>
+    tx.all(
+      `SELECT judgment, seq FROM cap_work_judgments WHERE session_id = ? AND goal_id = ? ORDER BY n`,
+      [threadId, goalId],
+    ),
+  );
+  if (!read.ok) return err(read.error);
+  const rows: JudgmentRow[] = [];
+  for (const row of read.value) {
+    const json = jsonOf(row["judgment"], "cap_work_judgments.judgment");
+    if (!json.ok) return json;
+    const payload = json.value;
+    if (typeof payload !== "object" || payload === null || !("usage" in payload)) {
+      return err(rowInvalid("cap_work_judgments"));
+    }
+    const { usage, ...rest } = payload;
+    const judgment = parse(GoalJudgmentSchema, rest);
+    const used = usage === null ? ok(null) : parse(ReportUsageSchema, usage);
+    if (!judgment.ok || !used.ok) return err(rowInvalid("cap_work_judgments"));
+    rows.push({ judgment: judgment.value, usage: used.value, seq: Number(row["seq"]) });
+  }
+  return ok(rows);
+}
+
+/** 스레드의 보고를 만든 순서대로 */
+export function readReports(
+  reader: WorkReader,
+  threadId: ThreadId,
+): Result<WorkReport[], ReadFailure> {
+  const read = reader.read((tx) =>
+    tx.all(`SELECT report FROM cap_work_reports WHERE session_id = ? ORDER BY ord`, [threadId]),
+  );
+  if (!read.ok) return err(read.error);
+  const reports: WorkReport[] = [];
+  for (const row of read.value) {
+    const json = jsonOf(row["report"], "cap_work_reports.report");
+    if (!json.ok) return json;
+    const report = parse(WorkReportSchema, json.value);
+    if (!report.ok) return err(rowInvalid("cap_work_reports"));
+    reports.push(report.value);
+  }
+  return ok(reports);
 }

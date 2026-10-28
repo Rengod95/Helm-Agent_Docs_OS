@@ -9,10 +9,10 @@ import {
 } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
-import { makeUnit } from "./fixtures/support.ts";
+import { echoDefs, makeUnit } from "./fixtures/support.ts";
 
 interface Echo {
-  echo(text: string): string;
+  echo(text?: string, options?: { readonly requestId?: string }): string;
 }
 const echoKey: ServiceKey<Echo> = { capability: "demo.echo", version: "1.0.0" };
 
@@ -30,7 +30,7 @@ test("service names", async () => {
 });
 
 test("a provider binds its capability and a consumer reads it", async () => {
-  const t = await createTestHost();
+  const t = await createTestHost({ capabilityDefs: echoDefs });
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
@@ -43,20 +43,20 @@ test("a provider binds its capability and a consumer reads it", async () => {
     makeUnit(
       {
         name: "demo-consumer",
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
         loadIndex: 1,
       },
       (g) => {
-        g.on("agent_settled", () => {
-          answers.push(g.capability(echoKey).echo("hi"));
+        g.on("boundary.settle.after", () => {
+          answers.push(g.capability(echoKey).echo("hi", { requestId: "r1" }));
         });
       },
     ),
   );
   expect(outcome.setups[0]?.status).toBe("applied");
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );
@@ -64,7 +64,7 @@ test("a provider binds its capability and a consumer reads it", async () => {
 });
 
 test("two providers do not collide in Cordis, but need a selection", async () => {
-  const t = await createTestHost();
+  const t = await createTestHost({ capabilityDefs: echoDefs });
   await eachInOrder(
     [
       ["demo-p1", 0],
@@ -96,7 +96,7 @@ test("two providers do not collide in Cordis, but need a selection", async () =>
 });
 
 test("a provider with a different major version is not bound", async () => {
-  const t = await createTestHost();
+  const t = await createTestHost({ capabilityDefs: echoDefs });
   await t.host.install(
     makeUnit({ name: "demo-v2", provides: [{ id: "demo.echo", version: "2.0.0" }] }, (g) => {
       hostOf(g).provide(echoKey, { echo: () => "v2" });
@@ -113,7 +113,7 @@ test("a provider with a different major version is not bound", async () => {
 });
 
 test("capability rules: undeclared, optional-missing, provide without declaration", async () => {
-  const t = await createTestHost();
+  const t = await createTestHost({ capabilityDefs: echoDefs });
   const thread = t.newThread();
   await t.host.openThread(thread);
   const codes: (string | undefined)[] = [];
@@ -121,11 +121,11 @@ test("capability rules: undeclared, optional-missing, provide without declaratio
     makeUnit(
       {
         name: "cap-rules",
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         optional: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
-        g.on("agent_settled", () => {
+        g.on("boundary.settle.after", () => {
           for (const run of [
             () =>
               g.capability({
@@ -147,7 +147,7 @@ test("capability rules: undeclared, optional-missing, provide without declaratio
     ),
   );
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );
@@ -159,7 +159,7 @@ test("capability rules: undeclared, optional-missing, provide without declaratio
 });
 
 test("a disabled provider takes its capability away", async () => {
-  const t = await createTestHost();
+  const t = await createTestHost({ capabilityDefs: echoDefs });
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
@@ -216,19 +216,19 @@ async function answerOf(
       {
         name,
         loadIndex: 9,
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
-        g.on("agent_settled", () => {
-          answers.push(g.capability(echoKey).echo("x"));
+        g.on("boundary.settle.after", () => {
+          answers.push(g.capability(echoKey).echo("x", { requestId: "r1" }));
         });
       },
     ),
   );
   if (outcome.setups[0]?.status !== "applied") return undefined;
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );
@@ -236,7 +236,10 @@ async function answerOf(
 }
 
 test("capabilityProviders picks one of several providers", async () => {
-  const t = await createTestHost({ settings: { capabilityProviders: { "demo.echo": "demo-p2" } } });
+  const t = await createTestHost({
+    capabilityDefs: echoDefs,
+    settings: { capabilityProviders: { "demo.echo": "demo-p2" } },
+  });
   await installTwoProviders(t);
   expect(t.diagnostics.some((diagnostic) => diagnostic.code === "capability_ambiguous")).toBe(
     false,
@@ -245,7 +248,10 @@ test("capabilityProviders picks one of several providers", async () => {
 });
 
 test("capabilityProviders naming an absent provider keeps the capability ambiguous", async () => {
-  const t = await createTestHost({ settings: { capabilityProviders: { "demo.echo": "demo-p3" } } });
+  const t = await createTestHost({
+    capabilityDefs: echoDefs,
+    settings: { capabilityProviders: { "demo.echo": "demo-p3" } },
+  });
   await installTwoProviders(t);
   const ambiguous = t.diagnostics.filter(
     (diagnostic) => diagnostic.code === "capability_ambiguous",
@@ -255,7 +261,10 @@ test("capabilityProviders naming an absent provider keeps the capability ambiguo
 });
 
 test("the selection moves to the other provider when the chosen one is disabled", async () => {
-  const t = await createTestHost({ settings: { capabilityProviders: { "demo.echo": "demo-p2" } } });
+  const t = await createTestHost({
+    capabilityDefs: echoDefs,
+    settings: { capabilityProviders: { "demo.echo": "demo-p2" } },
+  });
   await installTwoProviders(t);
   expect(await answerOf(t, "demo-before")).toBe("demo-p2");
   // 고른 공급자가 내려가면 남은 하나가 후보다. 선택이 없는 공급자 하나는 그대로 바인딩된다
@@ -265,7 +274,7 @@ test("the selection moves to the other provider when the chosen one is disabled"
 });
 
 test("a provider of another major version is reported and excluded", async () => {
-  const t = await createTestHost();
+  const t = await createTestHost({ capabilityDefs: echoDefs });
   await t.host.install(
     makeUnit({ name: "demo-v2", provides: [{ id: "demo.echo", version: "2.0.0" }] }, (g) => {
       hostOf(g).provide(echoKey, { echo: () => "v2" });

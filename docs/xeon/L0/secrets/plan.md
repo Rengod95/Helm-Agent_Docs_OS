@@ -240,7 +240,7 @@ xeon/packages/platform-secrets/
 
 | 항목 | 이유 | 확인 방법 |
 |---|---|---|
-| `reveal`의 `os-auth` 경로 | 이 기기에 OS 인증 수단이 없다. `osAuthAvailable`은 조립 루트가 넘기는 값이고 기본은 `false`다. 서비스는 `os-auth` 증거의 시각만 검사하고, 인증이 실제로 일어났는지는 L4·L0.os가 책임진다. 시험은 `tty-confirm` 경로와 "OS 인증 가능 환경에서 `tty-confirm` 거부" 규칙까지 확인했다 | macOS·Windows·Linux 데스크톱 실기에서 L4의 OS 인증 연결 뒤 `xeon secret reveal` |
+| `reveal`의 `os-auth` 경로(M3b: `os-auth.ts`, macOS osascript provider와 가짜 provider 시험을 더했다. 아래는 M2 시점 기록이다) | 이 기기에 OS 인증 수단이 없다. `osAuthAvailable`은 조립 루트가 넘기는 값이고 기본은 `false`다. 서비스는 `os-auth` 증거의 시각만 검사하고, 인증이 실제로 일어났는지는 L4·L0.os가 책임진다. 시험은 `tty-confirm` 경로와 "OS 인증 가능 환경에서 `tty-confirm` 거부" 규칙까지 확인했다 | macOS·Windows·Linux 데스크톱 실기에서 L4의 OS 인증 연결 뒤 `xeon secret reveal` |
 | macOS Keychain | macOS 기기 없음. 명령 구성(`security find-generic-password -s xeon.age -a default -w`)만 단위 시험이 있다. 접근 승인 대화상자 횟수(위험 표 1행)도 기록하지 못했다 | macOS 실기에서 lease 5회에 뜬 대화상자 수를 세어 기록 |
 | Windows 자격 증명 관리자 | 스텁(`not_implemented`)이다. 읽기 수단은 [미결](spec §10 7번)이다 | Windows 네이티브 착수 때 |
 | Linux Secret Service 실기 | `secret-tool`과 D-Bus 서비스가 없다. 대역으로 명령 인용과 sops 연동만 확인했다 | GNOME Keyring나 KWallet이 있는 Linux 데스크톱 |

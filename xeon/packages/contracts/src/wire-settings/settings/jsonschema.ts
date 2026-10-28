@@ -1,5 +1,5 @@
 import { toJsonValue, type JsonObject, type JsonValue } from "../../conversation/index.ts";
-import type { SettingDef, SettingScope } from "./def.ts";
+import type { SettingDef, SettingDefWire, SettingScope } from "./def.ts";
 import type { SettingCatalog } from "./define.ts";
 import { effectiveSchemaJson } from "./validate-value.ts";
 
@@ -34,6 +34,23 @@ function sortKeys(value: JsonValue): JsonValue {
     return list.map(sortKeys);
   }
   return isObject(value) ? sortObject(value) : value;
+}
+
+/**
+ * 전송용 정의(`settings.list` 결과)에서 값 검사용 JSON Schema를 만든다 [결정: M3-REQ-15, 오케스트레이터 기본값: F 공통 병합 함수].
+ * `type`에 `range`(`minimum`, `maximum`, `enum`)를 합친다. `effectiveSchemaJson`과 같은 규칙이라 클라이언트의 검사,
+ * 설정 파일 JSON Schema, 호스트의 `settings.set` 검사가 같은 판정을 낸다(§4.10 규칙 3, §4.11).
+ */
+export function toValueJsonSchema(def: SettingDefWire): JsonObject {
+  const base = toJsonValue(def.type);
+  const merged: JsonObject = base !== undefined && isObject(base) ? { ...base } : {};
+  const range = def.range;
+  if (range !== undefined) {
+    if (range.min !== undefined) merged["minimum"] = range.min;
+    if (range.max !== undefined) merged["maximum"] = range.max;
+    if (range.enum !== undefined) merged["enum"] = [...range.enum];
+  }
+  return merged;
 }
 
 function describeDeprecation(def: SettingDef): string {

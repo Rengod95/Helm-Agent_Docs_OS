@@ -14,6 +14,22 @@ describe("createRunCommand (실제 자식 프로세스)", () => {
     expect(failing.ok && failing.value.exitCode).toBe(1);
   });
 
+  posix("stderr는 captureStderr를 줄 때만 돌려주고, 끝쪽 8 KiB만 남긴다", async () => {
+    const signal = new AbortController().signal;
+    const quiet = await run(["sh", "-c", "printf boom >&2; exit 0"], { signal });
+    expect(quiet).toEqual({ ok: true, value: { exitCode: 0, stdout: "" } });
+    const captured = await run(["sh", "-c", "printf boom >&2; exit 3"], {
+      signal,
+      captureStderr: true,
+    });
+    expect(captured).toEqual({ ok: true, value: { exitCode: 3, stdout: "", stderr: "boom" } });
+    const flood = await run(
+      ["sh", "-c", "head -c 20000 /dev/zero | tr '\\0' x >&2; printf END >&2"],
+      { signal, captureStderr: true },
+    );
+    expect(flood.ok && flood.value.stderr).toBe(`${"x".repeat(8 * 1024 - 3)}END`);
+  });
+
   posix("없는 실행 파일은 spawn_failed(ENOENT)", async () => {
     const out = await run(["/no/such/binary-xeon"], { signal: new AbortController().signal });
     expect(out).toEqual(err({ kind: "spawn_failed", code: "ENOENT" }));

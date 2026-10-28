@@ -1,6 +1,7 @@
-import type { Clock } from "@xeon/contracts";
+import { assertNever, type Clock } from "@xeon/contracts";
 import type {
   AgentMessage,
+  TurnOrigin,
   EventId,
   IdFactory,
   ImageContent,
@@ -11,11 +12,35 @@ import type {
 } from "@xeon/contracts/conversation";
 import type { LoopTurnRequest, PostContent } from "@xeon/contracts/extensions";
 import type { CommitRequest, StampedDraft } from "@xeon/contracts/records";
-import type { ChildTurnRequest, QueuedInput, TaskService } from "@xeon/contracts/services";
+import type {
+  ChildTurnRequest,
+  InputSource,
+  QueuedInput,
+  TaskService,
+} from "@xeon/contracts/services";
 import { commitKeys, placedMessageOf } from "./commits.ts";
 import type { Drafter } from "./drafts.ts";
 
 // L1.loop.spec §3.5 T1, §4.8 runTurn 2단계. 입력 item을 먼저 기록한 뒤 `input.placed`, `turn.started` 순서다.
+
+/**
+ * 입력 출처(`InputSource`)에서 turn 출처를 정한다 [제안: M3-REQ-06, M3-REQ-77]. 사용자 입력은 `user`, 위임 완료는 `delegation`,
+ * 예약은 `scheduled`, 확장 post는 `other`다. 여러 입력이 한 turn을 열면 첫 입력의 출처다
+ */
+export function originOfSource(source: InputSource): TurnOrigin {
+  switch (source.type) {
+    case "user":
+      return "user";
+    case "delegation":
+      return "delegation";
+    case "schedule":
+      return "scheduled";
+    case "extension":
+      return "other";
+    default:
+      return assertNever(source, "originOfSource");
+  }
+}
 
 export type TurnStartSource =
   | { readonly kind: "queue" }
@@ -33,6 +58,8 @@ export interface TurnStartPlanned {
   readonly inputs: readonly QueuedInput[];
   readonly requestId: string | null;
   readonly scopeId: string | null;
+  /** 이 turn의 입력 출처. `turn.started`와 경계 지점 페이로드에 싣는다 */
+  readonly origin: TurnOrigin;
   /** 사람이 승인 요청에 답할 수 있는가(L1.tools.spec §3.2 interactive) */
   readonly interactive: boolean;
   readonly prompt: string;
@@ -129,7 +156,12 @@ export function turnStartRequest(
         drafts.push(
           deps.drafter.make(
             "turn.started",
-            { inputItemIds: itemIds, requestId: first.requestId, scopeId: null },
+            {
+              inputItemIds: itemIds,
+              requestId: first.requestId,
+              scopeId: null,
+              origin: first.origin ?? originOfSource(first.source),
+            },
             scope,
           ),
         );
@@ -141,6 +173,7 @@ export function turnStartRequest(
           inputs: selection.inputs,
           requestId: first.requestId,
           scopeId: null,
+          origin: first.origin ?? originOfSource(first.source),
           interactive: first.source.type === "user",
           prompt: firstText.text,
           images: firstText.images,
@@ -168,6 +201,7 @@ export function turnStartRequest(
           inputs: [],
           requestId: req.requestId,
           scopeId: null,
+          origin: "delegation",
           interactive: req.tools.interactive,
           prompt: text,
           images,
@@ -181,7 +215,12 @@ export function turnStartRequest(
             deps.drafter.make("item.recorded", { item: placed.record }, scope),
             deps.drafter.make(
               "turn.started",
-              { inputItemIds: [itemId], requestId: req.requestId, scopeId: null },
+              {
+                inputItemIds: [itemId],
+                requestId: req.requestId,
+                scopeId: null,
+                origin: "delegation",
+              },
               scope,
             ),
           ],
@@ -207,7 +246,12 @@ export function turnStartRequest(
         deps.drafter.make("item.recorded", { item: placed.record }, scope),
         deps.drafter.make(
           "turn.started",
-          { inputItemIds: [itemId], requestId: req.requestId, scopeId: req.scopeId },
+          {
+            inputItemIds: [itemId],
+            requestId: req.requestId,
+            scopeId: req.scopeId,
+            origin: "drive",
+          },
           scope,
         ),
       ];
@@ -218,6 +262,7 @@ export function turnStartRequest(
         inputs: [],
         requestId: req.requestId,
         scopeId: req.scopeId,
+        origin: "drive",
         interactive: false,
         prompt: text,
         images,
@@ -232,7 +277,7 @@ export function turnStartRequest(
   return { request, planned: () => captured };
 }
 
-/** `before_agent_start`가 추가한 custom item을 기록하는 C2b 커밋(turn:<turnId>:prestart) */
+/** `input.agent.before`가 추가한 custom item을 기록하는 C2b 커밋(turn:<turnId>:prestart) */
 export function prestartRequest(
   drafter: Drafter,
   scope: { readonly threadId: ThreadId; readonly turnId: TurnId },

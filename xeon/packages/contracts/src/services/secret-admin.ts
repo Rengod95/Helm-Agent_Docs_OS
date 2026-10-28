@@ -3,6 +3,7 @@ import type {
   ReauthMethod,
   SecretApproval,
   SecretAuditRecord,
+  SecretEntryMeta,
   SecretHandle,
   SecretMeta,
   SecretName,
@@ -99,6 +100,8 @@ export interface SecretEntryOffer {
   readonly action: SecretEntryAction;
   /** stdin 또는 가린 프롬프트 */
   readonly source: SecretValueSource;
+  /** `add`가 함께 가져가는 값 없는 메타(M3-REQ-17). 없으면 호스트의 기본 메타를 쓴다 */
+  readonly meta?: SecretEntryMeta;
 }
 
 /** wire 밖으로 맡기는 값 열람. 다음 secret.beginReveal { name } 한 번이 가져간다 */

@@ -43,6 +43,15 @@ import {
 } from "./tier.ts";
 
 export {
+  allowedInSafeMode,
+  NO_STARTUP_OPTIONS,
+  shouldSuggestSafeMode,
+  startupFilter,
+  type LoadCandidate,
+  type SafeModeSource,
+  type StartupOptions,
+} from "./safe-mode.ts";
+export {
   assignTier,
   compareOrderKey,
   GUARD_EXTENSIONS,
@@ -218,6 +227,7 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
         tier: tierFor(entry.extension),
         point: entry.point,
         fold: POINTS[entry.point].fold,
+        failure: POINTS[entry.point].failure,
         result: "ok",
         activeMs,
         at: deps.now(),

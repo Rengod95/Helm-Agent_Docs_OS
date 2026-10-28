@@ -274,3 +274,13 @@ describe("validateCapabilitySet", () => {
     expect(validateCapabilitySet([a, makeDef("web.missing", [])])).toEqual([]);
   });
 });
+
+describe("capabilities without tools (M3-REQ-07)", () => {
+  test("tools: [] is valid and only a service-less definition is rejected", () => {
+    const noTools = makeDef("knowledge.write", []);
+    expect(noTools.tools).toEqual([]);
+    expect(validateCapability(noTools)).toEqual([]);
+    const noMethods: AnyCapabilityDef = { ...noTools, service: { methods: {} } };
+    expect(validateCapability(noMethods).map((i) => i.code)).toEqual(["service_empty"]);
+  });
+});

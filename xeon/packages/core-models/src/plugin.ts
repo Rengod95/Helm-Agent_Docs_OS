@@ -60,7 +60,7 @@ function dispatcherOf(ext: ExtHost): ProviderDispatcher {
   return {
     async beforeProviderRequest(input) {
       const outcome = await ext.dispatch(
-        "before_provider_request",
+        "request.provider.before",
         {
           provider: input.provider,
           modelId: input.modelId,
@@ -76,9 +76,26 @@ function dispatcherOf(ext: ExtHost): ProviderDispatcher {
       );
       return outcome.value.payload;
     },
+    async guardProviderRequest(input) {
+      const outcome = await ext.dispatch(
+        "guard.model.before",
+        {
+          provider: input.provider,
+          modelId: input.modelId,
+          role: input.role,
+          payload: input.payload,
+        },
+        {
+          threadId: input.threadId,
+          dispatchKey: input.dispatchKey,
+          ...(input.signal === undefined ? {} : { signal: input.signal }),
+        },
+      );
+      return outcome.decision;
+    },
     async beforeProviderHeaders(input) {
       const outcome = await ext.dispatch(
-        "before_provider_headers",
+        "request.headers.before",
         {
           provider: input.provider,
           modelId: input.modelId,
@@ -101,7 +118,7 @@ function dispatcherOf(ext: ExtHost): ProviderDispatcher {
     },
     async afterProviderResponse(input) {
       await ext.dispatch(
-        "after_provider_response",
+        "request.provider.after",
         {
           provider: input.provider,
           modelId: input.modelId,
@@ -114,14 +131,14 @@ function dispatcherOf(ext: ExtHost): ProviderDispatcher {
     },
     async providerStreamEvent(input) {
       await ext.dispatch(
-        "provider_stream_event",
+        "request.stream",
         { provider: input.provider, api: input.api, model: input.model, data: input.data },
         tapOptions(input),
       );
     },
     async modelSelect(input) {
       await ext.dispatch(
-        "model_select",
+        "request.model.after",
         { binding: input.binding, previous: input.previous, source: input.source },
         tapOptions(input),
       );
@@ -129,7 +146,7 @@ function dispatcherOf(ext: ExtHost): ProviderDispatcher {
     async thinkingLevelSelect(input) {
       // 지점 선언이 detached라 디스패치는 핸들러를 기다리지 않고 돌아온다
       await ext.dispatch(
-        "thinking_level_select",
+        "request.thinking.after",
         { role: input.role, level: input.level, previousLevel: input.previousLevel },
         tapOptions(input),
       );

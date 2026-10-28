@@ -55,7 +55,7 @@ binds: [xeon/packages/core-loop/**, xeon/packages/core-persistence/**, xeon/pack
 
 ### 4.1 한 턴 흐름
 
-화살표 라벨의 괄호는 그 동작을 맡는 하위 층과 패키지다. `on` 화살표의 라벨은 지점 이름(pi 이벤트명)과 fold다. 지점 이름, 종류, fold 배정은 ADR-0007 §3.3의 [제안]이고 확정은 `F.extensions.spec`의 지점 선언 표가 한다. 한 종류에 fold가 다른 지점이 섞여 있다(예: `tool` 종류의 `tool_call`은 `first`, `tool_result`는 `chain`).
+화살표 라벨의 괄호는 그 동작을 맡는 하위 층과 패키지다. `on` 화살표의 라벨은 지점 이름과 fold다. 지점 이름, 종류, fold 배정은 `F.extensions.spec`의 지점 선언 표가 정한다(ADR-0017). 한 종류에 fold가 다른 지점이 섞여 있다(예: `tool` 종류의 `tool.call.before`은 `first`, `tool.result`는 `chain`).
 
 ```mermaid
 sequenceDiagram
@@ -77,7 +77,7 @@ sequenceDiagram
   EXT-->>LP: 변형된 입력 또는 handled
   LP->>PERS: C2 턴 시작 커밋 (turn.started, 복구 표식 running_since 포함)
   PERS->>DB: 트랜잭션
-  LP->>EXT: on before_agent_start 등 request 종류 (chain)
+  LP->>EXT: on input.agent.before 등 (collect), request.context.before 등 (chain)
   EXT-->>LP: 형성된 요청
   LP->>MODELS: 요청 전송 (pi-ai)
   MODELS-->>HOST: 토큰 델타, 휘발 이벤트, UI 전용
@@ -86,7 +86,7 @@ sequenceDiagram
   PERS->>DB: 트랜잭션
   loop 도구 호출마다
     LP->>TOOLS: 도구 호출 전달
-    TOOLS->>EXT: on tool_call (first)
+    TOOLS->>EXT: on tool.call.before (first)
     alt 거부
       EXT-->>TOOLS: deny 사유
       TOOLS-->>LP: 거부 결과
@@ -106,7 +106,7 @@ sequenceDiagram
   PERS->>DB: step.completed, 투영, 확장 접두사 테이블, checkpoint.step 한 트랜잭션 (FULL)
   PERS->>EXT: 커밋 뒤 내구 이벤트 방출
   EXT-->>HOST: 구독자에게 전달
-  LP->>EXT: on turn_end, agent_before_settle (chain)
+  LP->>EXT: on boundary.step.after, boundary.settle.before (chain)
   EXT-->>LP: 추가 엔트리, continue 여부
   LP->>PERS: C6 턴 끝 커밋 (turn.completed, 확장 기여)
   PERS->>DB: 트랜잭션
@@ -135,7 +135,7 @@ sequenceDiagram
 | fold `first` 실패 | 핸들러 오류는 거부로 처리한다 | [결정: ADR-0007] |
 | fold `chain` 실패 | 오류 난 핸들러만 건너뛰고 앞 결과를 다음 핸들러에 넘긴다 | [결정: ADR-0007] |
 | 재생 계약 | `on` 핸들러는 다시 실행해도 되는 질의다. 재생 때 같은 입력으로 다시 불릴 수 있다 | [결정: ADR-0007] |
-| 재생 시 도구 지점 | 재생 때 이미 결정된 도구 호출에 대해 `tool_call` 지점을 다시 실행하지 않는다(durable spec 3162-3163) | [제안] |
+| 재생 시 도구 지점 | 재생 때 이미 결정된 도구 호출에 대해 `tool.call.before` 지점을 다시 실행하지 않는다(durable spec 3162-3163) | [제안] |
 | 토글 적용 | `scope.enable`, `scope.disable`은 요청만 기록하고 X가 다음 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에서 적용한다. 실행 중인 턴이 없으면 바로 적용한다(`X.primitives.spec` §4.5). 정리는 Cordis dispose로 한다 | [결정: ADR-0007], 적용 시점 [결정: review.decisions-2 U-01] |
 | 핸들러 스냅샷 | 디스패치를 시작할 때 핸들러 목록을 스냅샷한다. 한 디스패치 도중에는 집합이 바뀌지 않는다 | [제안: ADR-0007 3.6] |
 | 단계 경계 커밋 | 내구 이벤트, 투영, 확장 접두사 테이블, StepCheckpoint를 한 트랜잭션으로 커밋한다 | [결정: ADR-0004] |
@@ -294,7 +294,7 @@ flowchart TB
 ## 7. 미결 사항
 
 - [미결] `boundary` 지점의 "엔트리 추가 + 계속" 합성이 `chain` 하나로 표현되는가(`_research/ext-points.md` §6.1). `_research/notes/F-1.md` §3.1은 표현된다고 판정했다. 단, 세 조건이 붙는다. 엔트리는 누적이 아닌 교체(전체 목록 반환)로 쓴다. 최종 검증은 fold 종료 훅으로 분리한다. continue 승인은 fold 밖에서 호스트가 다시 검사한다. 이 조건을 `F.extensions.spec`에 넣을지 확인이 필요하다.
-- [미결] fold에 `collect`를 추가할지. `resources_discover`, `cache_warming_decision`은 세 fold로 그대로 표현되지 않는다(`_research/notes/F-1.md` §3.4).
+- [결정: adr.0017] fold에 `collect`를 더했다. 배정은 `input.agent.before`와 `session.resources`다(`F.extensions.spec` §3.4).
 - [미결] 자동 재개 기본값(ADR-0006 6절). 이 문서는 꺼짐을 [제안]으로 쓴다.
 - [미결] `post.when = next`가 요청을 스스로 시작하는지(ADR-0007 6절).
 - [미결] 재생 정책 값 집합. process.md는 `safe`/`unsafe`, agent-core 1.3.0은 `"never" | "safe"`를 쓴다(`_research/notes/F-2.md` §5 6번).

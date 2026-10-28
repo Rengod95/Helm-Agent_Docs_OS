@@ -35,6 +35,10 @@ export type CapabilityIssueCode =
   | "method_missing"
   | "tool_input_mismatch"
   | "replay_widened"
+  | "idempotent_replay_unsafe"
+  | "read_only_replay_unsafe"
+  | "effect_class_conflict"
+  | "effect_class_missing"
   | "parameters_not_object"
   | "schema_ref_external"
   | "schema_cyclic"
@@ -423,6 +427,38 @@ export function validateCapability(def: AnyCapabilityDef): readonly CapabilityIs
       );
     }
     checkSchema(method.output, `${base}/output`, push, { modelFacing: false });
+    if (method.idempotent === true && method.replay !== "safe") {
+      push(
+        "error",
+        "idempotent_replay_unsafe",
+        `${base}/idempotent`,
+        `idempotent method "${name}" must declare replay "safe"`,
+      );
+    }
+    if (method.readOnly === true && method.replay !== "safe") {
+      push(
+        "error",
+        "read_only_replay_unsafe",
+        `${base}/readOnly`,
+        `readOnly method "${name}" must declare replay "safe"`,
+      );
+    }
+    if (method.idempotent === true && method.readOnly === true) {
+      push(
+        "error",
+        "effect_class_conflict",
+        base,
+        `method "${name}" declares both idempotent and readOnly`,
+      );
+    }
+    if (method.replay === "safe" && method.idempotent !== true && method.readOnly !== true) {
+      push(
+        "warning",
+        "effect_class_missing",
+        base,
+        `replay "safe" method "${name}" declares neither idempotent nor readOnly`,
+      );
+    }
     for (const code of Object.keys(method.errors ?? {})) {
       const codePath = `${base}/errors/${escapePointer(code)}`;
       if (!ERROR_CODE_REGEX.test(code)) {

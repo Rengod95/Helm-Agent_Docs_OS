@@ -117,7 +117,7 @@ xeon/packages/cap-artifacts/
 | A6 | hunk 단위 승인 모델과 상태 머신(open/submitted/closed, 라운드), `ReviewAnswer` 반영, `open`의 changeset 등록·승인 요청 | A3, A5, L1.tools `review` kind 결정(spec §10 미결 4) | M | M3 |
 | A7 | 코멘트 → 입력 큐 전달: 본문 렌더, `xeon.tasks.post`(`when` 선택), `requestId = review:<reviewId>:r<round>`, 제출 절차 6단계 | A6, `L1.tasks` post | S | M3 |
 | A8 | 거절 적용: 역패치 계산(순수), 적용 전 확인(fuzz), 파일 단위 원자성, 결과 기록. 적용 포트 구현은 [미결] 해소 후 하나만 만든다(후보 A `workspace.files` 또는 B L1 복원) | A6, spec §10 미결 6 해소 | M | M3(미해소 시 M3 이후) |
-| A9 | 자동 제목: `agent_settled` 핸들러(detached), 프롬프트·후처리, `xeon.models` 용도 호출, `xeon.session.retitle(onlyIfUntitled)` 호출과 requestId. `setMeta.title`의 제목 변경 호출 | A3, `L1.persistence` 제목 API, `L1.models` 용도 라우팅 | S | M3 |
+| A9 | 자동 제목: `boundary.settle.after` 핸들러(detached), 프롬프트·후처리, `xeon.models` 용도 호출, `xeon.session.retitle(onlyIfUntitled)` 호출과 requestId. `setMeta.title`의 제목 변경 호출 | A3, `L1.persistence` 제목 API, `L1.models` 용도 라우팅 | S | M3 |
 | A10 | 라벨: 정규화, `artifact.session_labeled`, 세션 메타 투영(L1 세션 이벤트 복사), `list`·`search` | A3 | S | M3 |
 | A11 | (2차) 핸드오프: 컴팩션 요약 재사용 판정, 요약 생성, `HandoffPackage`, 새 세션 생성과 양쪽 기록, 입력 post, 도구 `handoff` | A3, A10 | M | M3 이후 |
 | A12 | (2차) Markdown·HTML 내보내기: 이벤트 렌더러, 도구 출력 옵션, 산출물 부록, `Source.usage.cache` 필터, 결과 위치 | A3, `L2.web.spec` Source 모양 | M | M3 이후 |
@@ -233,7 +233,7 @@ xeon/packages/cap-artifacts/
 |---|---|
 | `title.test.ts` › setMeta는 retitle만 부른다 | 가짜 session의 `retitle` 호출 1회, `commit`에 제목 kind 초안이 없다(수용 기준 2) |
 | › 생산자 소유 검사 | `cap.artifacts`로 제목 이벤트 kind를 커밋하면 실제 `SessionWriter`(테스트 저장소)가 거부한다 |
-| › 자동 제목 트리거 | 첫 `agent_settled`에서만 모델을 부른다. 두 번째 턴에서는 부르지 않는다 |
+| › 자동 제목 트리거 | 첫 `boundary.settle.after`에서만 모델을 부른다. 두 번째 턴에서는 부르지 않는다 |
 | › 자동 제목 후처리 | 따옴표·마침표 제거, 60자 자르기, 빈 결과는 호출하지 않음 |
 | › onlyIfUntitled | 사용자 제목이 먼저 붙으면 `applied: false` |
 | › 모델 실패 | 테이프 오류에서 예외 없이 건너뛴다 |

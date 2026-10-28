@@ -9,3 +9,4 @@ export * from "./scope.ts";
 export * from "./manifest.ts";
 export * from "./ports.ts";
 export * from "./validate.ts";
+export * from "./effects.ts";

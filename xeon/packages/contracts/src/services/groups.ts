@@ -30,7 +30,7 @@ export interface GroupMetricsSummary {
   readonly leaseMs: number;
 }
 
-export type DriveRole = "holder" | "waiting" | "none" | "error";
+export type DriveRole = "holder" | "waiting" | "none" | "error" | "rejected";
 
 export interface GroupError {
   readonly kind:

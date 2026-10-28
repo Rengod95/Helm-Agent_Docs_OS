@@ -59,10 +59,10 @@ test("state.check-commit-covers-schema-size-and-unchanged", () => {
 
 function countingGroup(name: string, seen: number[]): GroupModule {
   return defineGroup({
-    manifest: groupManifestOf({ name, points: ["agent_settled"] }),
+    manifest: groupManifestOf({ name, points: ["boundary.settle.after"] }),
     state: counterDecl,
     setup(g) {
-      g.on("agent_settled", async (_payload, ctx) => {
+      g.on("boundary.settle.after", async (_payload, ctx) => {
         seen.push(ctx.state.n);
         await g.commit({ n: ctx.state.n + 1 });
       });
@@ -146,14 +146,14 @@ test("state.rejects-oversize-and-skips-unchanged", async () => {
   await install(
     t,
     defineGroup({
-      manifest: groupManifestOf({ name: "big-state", points: ["agent_settled"] }),
+      manifest: groupManifestOf({ name: "big-state", points: ["boundary.settle.after"] }),
       state: {
         schema: Type.Object({ s: Type.String({ pattern: "^[a-z]*$" }) }),
         initial: { s: "" },
         version: 1,
       },
       setup(g) {
-        g.on("agent_settled", async () => {
+        g.on("boundary.settle.after", async () => {
           outcomes.push(await errorCodeOf(() => g.commit({ s: "x".repeat(STATE_DOC_MAX_BYTES) })));
           outcomes.push(await errorCodeOf(() => g.commit({ s: "small" })));
           outcomes.push(await errorCodeOf(() => g.commit({ s: "small" })));
@@ -181,7 +181,7 @@ test("state.migration-upgrades-a-lower-stored-version", async () => {
 
   const V2Schema = Type.Object({ n: Type.Integer({ minimum: 0 }), label: Type.String() });
   const v2 = defineGroup({
-    manifest: groupManifestOf({ name: "migrating", points: ["agent_settled"] }),
+    manifest: groupManifestOf({ name: "migrating", points: ["boundary.settle.after"] }),
     state: { schema: V2Schema, initial: { n: 0, label: "" }, version: 2 },
     migrations: {
       1: (previous) => {

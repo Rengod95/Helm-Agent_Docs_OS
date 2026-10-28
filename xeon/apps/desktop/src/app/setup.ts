@@ -11,7 +11,7 @@ import {
   type KeyRegisterError,
   type SecretRow,
   type SetupSnapshot,
-} from "../settings/index.ts";
+} from "@xeon/client/settings";
 import type { DesktopIpc, SecretRegisterError } from "../transport/ipc.ts";
 import type { CommandError, SetupCommands } from "../views/commands.ts";
 

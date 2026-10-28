@@ -1,6 +1,7 @@
 import { mkdir, stat } from "node:fs/promises";
 import { posix, win32 } from "node:path";
 import { err, ok, type Result } from "@xeon/contracts";
+import { PRODUCT, productUidDirName } from "./product.ts";
 import type { DirsError, OsDirs, OsInfo } from "@xeon/contracts/services";
 
 export interface EnvReader {
@@ -111,19 +112,19 @@ function unixBase(input: DirsInput): Result<BaseDirs, DirsError> {
   const { info, env, home, systemTmp, uid } = input;
   // 소유자 번호가 없으면 /tmp/xeon-<uid>와 tmp 경로를 정할 수 없다. Unix에서는 생기지 않는 값이다
   if (uid === undefined) return err({ kind: "env_missing", name: "uid" });
-  const fallbackRuntime = posix.join(input.sharedTmp ?? "/tmp", `xeon-${uid}`);
-  const tmp = posix.join(systemTmp, `xeon-${uid}`);
+  const fallbackRuntime = posix.join(input.sharedTmp ?? "/tmp", productUidDirName(uid));
+  const tmp = posix.join(systemTmp, productUidDirName(uid));
 
   if (info.platform === "darwin") {
-    const appSupport = posix.join(home, "Library", "Application Support", "xeon");
+    const appSupport = posix.join(home, "Library", "Application Support", PRODUCT.name);
     const envTmp = nonEmpty(env.get("TMPDIR"));
     const tmpBase = envTmp !== undefined && posix.isAbsolute(envTmp) ? envTmp : systemTmp;
     return ok({
       data: appSupport,
       config: posix.join(appSupport, "config"),
-      cache: posix.join(home, "Library", "Caches", "xeon"),
+      cache: posix.join(home, "Library", "Caches", PRODUCT.name),
       state: posix.join(appSupport, "state"),
-      runtimeCandidates: [posix.join(tmpBase, "xeon"), fallbackRuntime],
+      runtimeCandidates: [posix.join(tmpBase, PRODUCT.name), fallbackRuntime],
       tmp,
     });
   }
@@ -132,13 +133,13 @@ function unixBase(input: DirsInput): Result<BaseDirs, DirsError> {
   const xdg = (name: string, fallback: readonly string[]): string => {
     const value = nonEmpty(env.get(name));
     return value !== undefined && posix.isAbsolute(value)
-      ? posix.join(value, "xeon")
-      : posix.join(home, ...fallback, "xeon");
+      ? posix.join(value, PRODUCT.name)
+      : posix.join(home, ...fallback, PRODUCT.name);
   };
   const xdgRuntime = nonEmpty(env.get("XDG_RUNTIME_DIR"));
   const runtimeCandidates =
     xdgRuntime !== undefined && posix.isAbsolute(xdgRuntime)
-      ? [posix.join(xdgRuntime, "xeon"), fallbackRuntime]
+      ? [posix.join(xdgRuntime, PRODUCT.name), fallbackRuntime]
       : [fallbackRuntime];
   return ok({
     data: xdg("XDG_DATA_HOME", [".local", "share"]),
@@ -161,13 +162,13 @@ function win32Base(input: DirsInput): Result<BaseDirs, DirsError> {
     return err({ kind: "not_absolute", dir: "config", path: roaming });
   const temp = nonEmpty(env.get("TEMP")) ?? systemTmp;
   return ok({
-    data: win32.join(local, "xeon", "data"),
-    config: win32.join(roaming, "xeon"),
-    cache: win32.join(local, "xeon", "cache"),
-    state: win32.join(local, "xeon", "state"),
+    data: win32.join(local, PRODUCT.name, "data"),
+    config: win32.join(roaming, PRODUCT.name),
+    cache: win32.join(local, PRODUCT.name, "cache"),
+    state: win32.join(local, PRODUCT.name, "state"),
     // Windows는 소켓 대신 등록 파일만 두므로 길이 규칙이 없다(pickRuntime이 win32를 통과시킨다)
-    runtimeCandidates: [win32.join(local, "xeon", "run")],
-    tmp: win32.join(temp, "xeon"),
+    runtimeCandidates: [win32.join(local, PRODUCT.name, "run")],
+    tmp: win32.join(temp, PRODUCT.name),
   });
 }
 

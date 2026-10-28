@@ -54,6 +54,12 @@ test("each scope's schema lists only the keys that scope allows, and the host ke
   expect(keysOf(project)).not.toContain("l4.host-service.maxReplayEvents");
   expect(keysOf(managed)).toContain("l4.host-service.maxReplayEvents");
   expect(keysOf(managed)).toContain("l4.host-service.maxSubscriptionsPerConnection");
+  // 무인 승인 정책 키(M3-REQ-73)는 파일 범위 네 곳에 모두 있다
+  for (const scope of ["managed", "user", "project", "local"] as const) {
+    const keys = keysOf(JSON.parse(renderSettingsSchema(catalog, scope)));
+    expect(keys).toContain("l1.tools.unattended.approval");
+    expect(keys).toContain("l1.tools.unattended.timeoutSeconds");
+  }
 });
 
 test("hostSettings declares the two l4.host-service keys with the documented defaults and ranges", () => {

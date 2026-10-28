@@ -13,7 +13,8 @@ interface DocRow {
   readonly name: string;
   readonly kind: string;
   readonly fold: string;
-  readonly onError: string;
+  readonly failure: string;
+  readonly piName: string;
   readonly m1: boolean;
   readonly def: string;
   readonly emit: string;
@@ -22,17 +23,18 @@ interface DocRow {
 function docRows(text: string): DocRow[] {
   const rows: DocRow[] = [];
   for (const line of text.split("\n")) {
-    // | 1 | `input` | input | chain | InputPayload | InputPatch | skip | ● | types.ts:... | runner.ts:... | ... |
+    // | 1 | `input.user.before` | input | chain | InputPayload | InputPatch | skip | ● | `input` | types.ts:... | runner.ts:... | ... |
     const cells = line.split("|").map((cell) => cell.trim());
-    const [, n, name, kind, fold, , , onError, m1, def, emit] = cells;
+    const [, n, name, kind, fold, , , failure, m1, piName, def, emit] = cells;
     if (n === undefined || !/^\d+$/.test(n)) continue;
-    if (name === undefined || !/^`[a-z_]+`$/.test(name)) continue;
+    if (name === undefined || !/^`[a-z_.]+`$/.test(name)) continue;
     rows.push({
       n: Number(n),
       name: name.slice(1, -1),
       kind: kind ?? "",
       fold: fold ?? "",
-      onError: onError ?? "",
+      failure: failure ?? "",
+      piName: piName ?? "",
       m1: m1 === "●",
       def: def ?? "",
       emit: emit ?? "",
@@ -44,21 +46,31 @@ function docRows(text: string): DocRow[] {
 describe("points doc table", () => {
   test.skipIf(!existsSync(SPEC))("name, kind, fold, failure, M1 and pi source match POINTS", () => {
     const rows = docRows(readFileSync(SPEC, "utf8"));
-    expect(rows).toHaveLength(41);
-    expect(rows.map((row) => row.n)).toEqual(Array.from({ length: 41 }, (_, i) => i + 1));
+    expect(rows).toHaveLength(46);
+    expect(rows.map((row) => row.n)).toEqual(Array.from({ length: 46 }, (_, i) => i + 1));
     expect(rows.map((row) => row.name)).toEqual([...POINT_NAMES]);
     for (const row of rows) {
       const code = POINT_NAMES.map((name) => POINTS[name]).find((decl) => decl.name === row.name);
       if (code === undefined) throw new Error(`no code row for ${row.name}`);
       expect({ name: row.name, kind: row.kind }).toEqual({ name: row.name, kind: code.kind });
       expect({ name: row.name, fold: row.fold }).toEqual({ name: row.name, fold: code.fold });
-      expect({ name: row.name, onError: row.onError }).toEqual({
+      expect({ name: row.name, failure: row.failure }).toEqual({
         name: row.name,
-        onError: code.onError,
+        failure: code.failure,
+      });
+      expect({ name: row.name, piName: row.piName }).toEqual({
+        name: row.name,
+        piName: code.pi === undefined ? "—" : `\`${code.pi.event}\``,
       });
       expect({ name: row.name, m1: row.m1 }).toEqual({ name: row.name, m1: code.m1 });
-      expect({ name: row.name, def: row.def }).toEqual({ name: row.name, def: code.pi.def });
-      expect({ name: row.name, emit: row.emit }).toEqual({ name: row.name, emit: code.pi.emit });
+      expect({ name: row.name, def: row.def }).toEqual({
+        name: row.name,
+        def: code.pi?.def ?? "—",
+      });
+      expect({ name: row.name, emit: row.emit }).toEqual({
+        name: row.name,
+        emit: code.pi?.emit ?? "—",
+      });
     }
   });
 });

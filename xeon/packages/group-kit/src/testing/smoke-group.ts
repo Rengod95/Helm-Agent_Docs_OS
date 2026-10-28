@@ -13,12 +13,13 @@ export const SMOKE_GROUP_MANIFEST: GroupManifest = defineManifest({
   name: "smoke-group",
   version: "0.1.0",
   displayName: "Smoke group",
-  description: "M1 walking-skeleton test group. Uses on(tool_call, turn_end), post and drive.",
+  description:
+    "M1 walking-skeleton test group. Uses on(tool.call.before, boundary.step.after), post and drive.",
   defaultEnabled: true,
   layer: "L3",
   kind: "group",
   entry: "./src/testing/smoke-group.ts",
-  points: ["tool_call", "turn_end"],
+  points: ["tool.call.before", "boundary.step.after"],
   usesPost: true,
   usesDrive: true,
   trust: { level: "builtin" },
@@ -71,12 +72,12 @@ function registerSmoke(
   driveTurns: number,
   followUps: number,
 ): void {
-  g.on("tool_call", (payload) => {
+  g.on("tool.call.before", (payload) => {
     if (!denyTools.has(payload.toolName)) return undefined;
     probe.deniedCalls.push(payload.toolCallId);
     return { block: true, reason: "smoke group denies write tools" };
   });
-  g.on("turn_end", async (payload) => {
+  g.on("boundary.step.after", async (payload) => {
     probe.turnEndSteps.push(payload.stepId);
     if (probe.posts.length >= followUps) return;
     const requestId = `smoke:${payload.stepId}`;
@@ -94,7 +95,7 @@ function registerSmoke(
   );
 }
 
-/** M1 테스트 그룹. on(tool_call, turn_end), post, drive, scope를 한 번씩 쓴다. defineGroup으로 만든다 */
+/** M1 테스트 그룹. on(tool.call.before, boundary.step.after), post, drive, scope를 한 번씩 쓴다. defineGroup으로 만든다 */
 export function smokeGroup(options: SmokeGroupOptions = {}): SmokeGroup {
   const denyTools = new Set(options.denyTools ?? DEFAULT_DENY_TOOLS);
   const driveTurns = options.driveTurns ?? 1;

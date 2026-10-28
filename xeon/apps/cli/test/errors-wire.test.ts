@@ -99,7 +99,7 @@ test("compaction kinds have their own phrases and the exit code 1", () => {
   expect(
     failureOfWire(
       wireError("thread.cancelledByExtension", {
-        details: { point: "session_before_compact", reason: null },
+        details: { point: "session.compact.before", reason: null },
       }),
     ),
   ).toEqual({
@@ -110,7 +110,7 @@ test("compaction kinds have their own phrases and the exit code 1", () => {
   expect(
     failureOfWire(
       wireError("thread.cancelledByExtension", {
-        details: { point: "session_before_fork", reason: "분기 금지" },
+        details: { point: "session.fork.before", reason: "분기 금지" },
       }),
     ).message,
   ).toBe("확장이 분기 작업을 막았다: 분기 금지");

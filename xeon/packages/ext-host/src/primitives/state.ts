@@ -1,4 +1,4 @@
-import { assertNever, Bug, parse } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, parse, type Result } from "@xeon/contracts";
 import { toJsonValue, type JsonValue, type ThreadId } from "@xeon/contracts/conversation";
 import {
   RECORD_KIND_PATTERN,
@@ -14,7 +14,11 @@ import {
   type ScopeId,
   validateGroupRecord,
 } from "@xeon/contracts/extensions";
-import { ENVELOPE_MAX_BYTES, type ExtensionEventKind } from "@xeon/contracts/records";
+import {
+  ENVELOPE_MAX_BYTES,
+  type DurableEventDraft,
+  type ExtensionEventKind,
+} from "@xeon/contracts/records";
 import { ambient, type Ambient } from "./ambient.ts";
 import type { Generation, HostCore, ScopeRecord, StateCacheEntry, ThreadRuntime } from "./core.ts";
 import { makeDraft } from "./drafts.ts";
@@ -26,6 +30,36 @@ import { isKindReadable, ownKindPrefix } from "./read-scope.ts";
 const STATE_SLACK_BYTES = 4096;
 const RECORD_KIND_REGEX = new RegExp(RECORD_KIND_PATTERN);
 
+/** `commitWith`·`updateState`가 상태와 함께 커밋하는 그룹 레코드 하나 */
+export interface RecordInput {
+  readonly kind: RecordKind;
+  readonly subject: RecordSubject;
+  readonly payload: JsonValue;
+}
+
+/** `updateState`가 값으로 돌려주는 실패. 던지지 않는다 */
+export interface StateUpdateError {
+  readonly kind:
+    | "state_conflict"
+    | "state_schema"
+    | "state_too_large"
+    | "storage_unavailable"
+    | "lease_revoked";
+  readonly cause?: unknown;
+}
+
+const UPDATE_FAILURES: readonly StateUpdateError["kind"][] = [
+  "state_conflict",
+  "state_schema",
+  "state_too_large",
+  "storage_unavailable",
+  "lease_revoked",
+];
+
+function isUpdateFailure(code: string): code is StateUpdateError["kind"] {
+  return UPDATE_FAILURES.some((kind) => kind === code);
+}
+
 export interface StateService {
   /** 핸들러 ctx.state용 마지막 커밋 상태. 상태 선언이 없으면 undefined */
   docOf(threadId: ThreadId, scopeId: ScopeId): unknown;
@@ -33,6 +67,23 @@ export interface StateService {
   revOf(threadId: ThreadId, scopeId: ScopeId): number;
   state(record: ScopeRecord, generation: Generation): unknown;
   commit(record: ScopeRecord, generation: Generation, next: unknown): Promise<unknown>;
+  /** 상태 커밋과 그룹 레코드를 한 트랜잭션으로 낸다(M3-REQ-24 [제안]) */
+  commitWith(
+    record: ScopeRecord,
+    generation: Generation,
+    next: unknown,
+    records: readonly RecordInput[],
+  ): Promise<unknown>;
+  /**
+   * 줄 세운 읽기-계산-커밋(M3-REQ-23 [제안]). 줄 안에서 최신 상태를 읽어 fn을 적용하므로 같은 프로세스 안의 겹침으로는 충돌하지 않는다.
+   * 저장소가 판 충돌을 내면 상태를 다시 읽고 한 번 더 적용하며, 두 번째도 충돌이면 err(state_conflict)다
+   */
+  update(
+    record: ScopeRecord,
+    generation: Generation,
+    fn: (prev: unknown) => unknown,
+    records: (next: unknown) => readonly RecordInput[],
+  ): Promise<Result<unknown, StateUpdateError>>;
   record(
     record: ScopeRecord,
     generation: Generation,
@@ -91,11 +142,13 @@ function cacheOf(record: ScopeRecord, thread: ThreadRuntime): StateCacheEntry {
 }
 
 /** on 핸들러 안은 디스패치 키 기준, drive 안은 임대·호출 기준의 멱등 키 재료를 만든다 */
-function nextIdentity(
-  record: ScopeRecord,
-  amb: Ambient,
-  letter: "" | "c" | "r",
-): { readonly rid: string; readonly fingerprint: JsonValue } {
+interface Identity {
+  readonly rid: string;
+  readonly fingerprint: JsonValue;
+}
+
+function nextIdentity(record: ScopeRecord, amb: Ambient, letter: "" | "c" | "r"): Identity {
+  assertHandlerAlive(record, amb);
   if (amb.drive !== null) {
     const n = amb.drive.i;
     amb.drive.i += 1;
@@ -119,11 +172,38 @@ function nextIdentity(
   };
 }
 
+/** 시간 예산을 넘겨 버려진 핸들러(좀비)는 더 쓰지 못한다. 쓰기는 호출 때와 줄 안 실행 때 모두 이 검사를 거친다 */
+function assertHandlerAlive(record: ScopeRecord, amb: Ambient): void {
+  if (amb.handler?.signal.aborted === true) {
+    throw new PrimitiveError(
+      "handler_aborted",
+      `a handler of ${record.id} was aborted (budget exceeded or session closed), so it cannot write`,
+      { scopeId: record.id },
+    );
+  }
+}
+
+/** 재시도는 같은 호출 신원에 접미사를 붙인 키와 지문을 쓴다. 호출 순번을 하나 더 쓰지 않는다 */
+function attemptIdentity(identity: Identity, attempt: number): Identity {
+  return attempt === 0
+    ? identity
+    : { rid: `${identity.rid}.a${attempt}`, fingerprint: [identity.fingerprint, attempt] };
+}
+
 function noteEffect(amb: Ambient): void {
   if (amb.drive !== null) amb.drive.effects += 1;
 }
 
-export function createStateService(core: HostCore): StateService {
+function queueKey(thread: ThreadRuntime, record: ScopeRecord): string {
+  return `${thread.threadId}|${record.id}`;
+}
+
+export interface StateHooks {
+  /** 명령·도구 호출(ambient의 `invocation`)이 상태 판을 올렸다. 임대 쪽이 drive 재호출을 예약한다(X.primitives.spec §4.6.6) */
+  directCommitted(thread: ThreadRuntime, record: ScopeRecord): void;
+}
+
+export function createStateService(core: HostCore, hooks: StateHooks): StateService {
   function threadOf(amb: Ambient | undefined, record: ScopeRecord): ThreadRuntime {
     if (amb === undefined) {
       throw new PrimitiveError("no_thread", "no thread context (setup body or detached callback)", {
@@ -264,6 +344,192 @@ export function createStateService(core: HostCore): StateService {
     }
   }
 
+  /** (thread, scope)마다 커밋을 한 줄로 세운다(M3-REQ-23). 앞 작업이 실패해도 뒤 작업은 이어 간다 */
+  const tails = new Map<string, Promise<void>>();
+
+  function serialize<T>(key: string, task: () => Promise<T>): Promise<T> {
+    const previous = tails.get(key) ?? Promise.resolve();
+    const result = previous.then(task);
+    const settled = Promise.allSettled([result]).then(() => {
+      if (tails.get(key) === settled) tails.delete(key);
+      return undefined;
+    });
+    tails.set(key, settled);
+    return result;
+  }
+
+  /** 저장소의 활성 가지 상태로 캐시를 다시 채운다. 읽지 못하면 storage_unavailable */
+  async function refreshStates(record: ScopeRecord, thread: ThreadRuntime): Promise<void> {
+    const loaded = await portOf(record).loadThread(thread.threadId);
+    if (!loaded.ok) {
+      throw new PrimitiveError(
+        "storage_unavailable",
+        `state of ${record.id} could not be re-read: ${loaded.error.kind}`,
+        { scopeId: record.id },
+      );
+    }
+    for (const stored of loaded.value.states) {
+      if (stored.scopeId !== record.id) continue;
+      thread.states.set(record.id, {
+        eventId: stored.eventId,
+        rev: stored.rev,
+        version: stored.version,
+        doc: deepFreeze(stored.doc),
+      });
+    }
+  }
+
+  /** 공개 기록 초안 하나를 검사해 만든다. `record`와 `commitWith`가 같은 규칙을 쓴다 */
+  function recordDraftOf(
+    record: ScopeRecord,
+    generation: Generation,
+    thread: ThreadRuntime,
+    input: RecordInput,
+  ): DurableEventDraft {
+    generation.usage.recordKinds.add(input.kind);
+    const decl = record.manifest.recordKinds?.find((candidate) => candidate.kind === input.kind);
+    if (decl === undefined) {
+      throw new PrimitiveError(
+        "record_kind_undeclared",
+        `record kind ${input.kind} is not declared`,
+        { scopeId: record.id },
+      );
+    }
+    const groupRecord: GroupRecord = {
+      groupId: record.manifest.name,
+      kind: input.kind,
+      version: decl.version,
+      subject: input.subject,
+      payload: input.payload,
+    };
+    const errors = validateGroupRecord(groupRecord, toRecordKindDecl(decl)).filter(
+      (issue) => issue.severity === "error",
+    );
+    if (errors.length > 0) {
+      throw new PrimitiveError(
+        "record_invalid",
+        `record ${input.kind} is invalid: ${errors.map((issue) => `${issue.path} ${issue.message}`).join("; ")}`,
+        { scopeId: record.id },
+      );
+    }
+    return makeDraft(core.deps.ids, {
+      threadId: thread.threadId,
+      kind: input.kind,
+      payload: groupRecord,
+    });
+  }
+
+  /**
+   * 상태 커밋 하나를 저장소에 낸다. `expectedRev`는 호출자가 본 판이고 캐시와 다르면 저장소를 부르지 않고 conflict다.
+   * 저장소가 판 충돌로 거부해도 conflict다. `records`는 같은 요청의 초안으로 실어 상태와 함께 커밋된다(M3-REQ-24)
+   */
+  async function commitNow(
+    record: ScopeRecord,
+    thread: ThreadRuntime,
+    amb: Ambient,
+    next: unknown,
+    expectedRev: number,
+    extra: readonly DurableEventDraft[],
+    identity: Identity,
+    attempt: number,
+  ): Promise<{ readonly kind: "done"; readonly doc: unknown } | { readonly kind: "conflict" }> {
+    const decl = record.def.state;
+    if (decl === undefined) throw new Bug("state.commitNow: no state declaration");
+    if (!parse(decl.schema, next).ok) {
+      throw new PrimitiveError("state_schema", `state of ${record.id} does not match its schema`, {
+        scopeId: record.id,
+      });
+    }
+    if (jsonBytes(next) > ENVELOPE_MAX_BYTES - STATE_SLACK_BYTES) {
+      throw new PrimitiveError("state_too_large", `state of ${record.id} is too large`, {
+        scopeId: record.id,
+      });
+    }
+    const port = portOf(record);
+    const current = cacheOf(record, thread);
+    if (current.rev !== expectedRev) return { kind: "conflict" };
+    assertHandlerAlive(record, amb);
+    const { rid, fingerprint } = attemptIdentity(identity, attempt);
+    const draft = makeDraft(core.deps.ids, {
+      threadId: thread.threadId,
+      kind: stateKindOf(record.manifest),
+      payload: {
+        scopeId: record.id,
+        rev: current.rev + 1,
+        prevEventId: current.eventId,
+        version: decl.version,
+        doc: next,
+      },
+    });
+    const result = await port.commit({
+      threadId: thread.threadId,
+      requestId: rid,
+      fingerprintSource: fingerprint,
+      expectStateRev: { scopeId: record.id, rev: current.rev },
+      drafts: [draft, ...extra],
+    });
+    switch (result.status) {
+      case "committed":
+        thread.states.set(record.id, {
+          eventId: draft.id,
+          rev: current.rev + 1,
+          version: decl.version,
+          doc: deepFreeze(next),
+        });
+        noteEffect(amb);
+        if (amb.invocation !== undefined && amb.drive === null)
+          hooks.directCommitted(thread, record);
+        return { kind: "done", doc: deepFreeze(next) };
+      case "replayed": {
+        const stored = result.stored;
+        if (stored === undefined) return { kind: "done", doc: deepFreeze(next) };
+        thread.states.set(record.id, {
+          eventId: stored.eventId,
+          rev: stored.rev,
+          version: stored.version,
+          doc: deepFreeze(stored.doc),
+        });
+        return { kind: "done", doc: deepFreeze(stored.doc) };
+      }
+      case "rejected":
+        if (result.code === "state_conflict") return { kind: "conflict" };
+        throw rejectionError(record, result.code);
+      default:
+        return assertNever(result, "ExtCommitResult");
+    }
+  }
+
+  /** `commit`과 `commitWith`: 호출 순서대로 줄을 세우고, 호출 때의 판을 기대 판으로 쓴다 */
+  async function commitQueued(
+    record: ScopeRecord,
+    generation: Generation,
+    next: unknown,
+    records: readonly RecordInput[],
+  ): Promise<unknown> {
+    assertGeneration(record, generation);
+    const decl = record.def.state;
+    if (decl === undefined) {
+      throw new PrimitiveError("state_undeclared", `scope ${record.id} has no state`, {
+        scopeId: record.id,
+      });
+    }
+    const amb = ambient();
+    const thread = threadOf(amb, record);
+    if (amb === undefined) throw new Bug("state.commit: ambient vanished");
+    const extra = records.map((input) => recordDraftOf(record, generation, thread, input));
+    const expectedRev = cacheOf(record, thread).rev;
+    const identity = nextIdentity(record, amb, "c");
+    return serialize(queueKey(thread, record), async () => {
+      const done = await commitNow(record, thread, amb, next, expectedRev, extra, identity, 0);
+      if (done.kind === "conflict") {
+        throw new PrimitiveError("state_conflict", `state of ${record.id} changed; read it again`, {
+          scopeId: record.id,
+        });
+      }
+      return done.doc;
+    });
+  }
+
   return {
     docOf(threadId, scopeId) {
       const record = core.scopes.get(scopeId);
@@ -286,7 +552,13 @@ export function createStateService(core: HostCore): StateService {
       const thread = threadOf(ambient(), record);
       return deepFreeze(cacheOf(record, thread).doc);
     },
-    async commit(record, generation, next) {
+    commit(record, generation, next) {
+      return commitQueued(record, generation, next, []);
+    },
+    commitWith(record, generation, next, records) {
+      return commitQueued(record, generation, next, records);
+    },
+    async update(record, generation, fn, records) {
       assertGeneration(record, generation);
       const decl = record.def.state;
       if (decl === undefined) {
@@ -296,98 +568,35 @@ export function createStateService(core: HostCore): StateService {
       }
       const amb = ambient();
       const thread = threadOf(amb, record);
-      if (amb === undefined) throw new Bug("state.commit: ambient vanished");
-      if (!parse(decl.schema, next).ok) {
-        throw new PrimitiveError(
-          "state_schema",
-          `state of ${record.id} does not match its schema`,
-          {
-            scopeId: record.id,
-          },
+      if (amb === undefined) throw new Bug("state.update: ambient vanished");
+      const identity = nextIdentity(record, amb, "c");
+      const attempt = (
+        index: number,
+      ): Promise<
+        { readonly kind: "done"; readonly doc: unknown } | { readonly kind: "conflict" }
+      > => {
+        const current = cacheOf(record, thread);
+        const next = fn(deepFreeze(current.doc));
+        const extra = records(next).map((input) =>
+          recordDraftOf(record, generation, thread, input),
         );
-      }
-      if (jsonBytes(next) > ENVELOPE_MAX_BYTES - STATE_SLACK_BYTES) {
-        throw new PrimitiveError("state_too_large", `state of ${record.id} is too large`, {
-          scopeId: record.id,
-        });
-      }
-      const port = portOf(record);
-      const current = cacheOf(record, thread);
-      const { rid, fingerprint } = nextIdentity(record, amb, "c");
-      const draft = makeDraft(core.deps.ids, {
-        threadId: thread.threadId,
-        kind: stateKindOf(record.manifest),
-        payload: {
-          scopeId: record.id,
-          rev: current.rev + 1,
-          prevEventId: current.eventId,
-          version: decl.version,
-          doc: next,
-        },
-      });
-      const result = await port.commit({
-        threadId: thread.threadId,
-        requestId: rid,
-        fingerprintSource: fingerprint,
-        expectStateRev: { scopeId: record.id, rev: current.rev },
-        drafts: [draft],
-      });
-      switch (result.status) {
-        case "committed": {
-          thread.states.set(record.id, {
-            eventId: draft.id,
-            rev: current.rev + 1,
-            version: decl.version,
-            doc: deepFreeze(next),
-          });
-          noteEffect(amb);
-          return deepFreeze(next);
-        }
-        case "replayed": {
-          const stored = result.stored;
-          if (stored !== undefined) {
-            thread.states.set(record.id, {
-              eventId: stored.eventId,
-              rev: stored.rev,
-              version: stored.version,
-              doc: deepFreeze(stored.doc),
-            });
-            return deepFreeze(stored.doc);
+        return commitNow(record, thread, amb, next, current.rev, extra, identity, index);
+      };
+      return serialize(queueKey(thread, record), async () => {
+        try {
+          const first = await attempt(0);
+          if (first.kind === "done") return ok(first.doc);
+          // 저장소의 판이 캐시보다 앞선다(다른 프로세스나 가지). 캐시를 다시 읽고 한 번 더 적용한다
+          await refreshStates(record, thread);
+          const second = await attempt(1);
+          return second.kind === "done" ? ok(second.doc) : err({ kind: "state_conflict" });
+        } catch (cause) {
+          if (cause instanceof PrimitiveError && isUpdateFailure(cause.code)) {
+            return err({ kind: cause.code, cause });
           }
-          return deepFreeze(next);
+          throw cause;
         }
-        case "rejected":
-          switch (result.code) {
-            case "state_conflict":
-              throw new PrimitiveError(
-                "state_conflict",
-                `state of ${record.id} changed; read it again`,
-                {
-                  scopeId: record.id,
-                },
-              );
-            case "lease_lost":
-              throw new PrimitiveError("lease_revoked", "session write ownership was lost", {
-                scopeId: record.id,
-              });
-            case "busy":
-            case "storage":
-              throw new PrimitiveError(
-                "storage_unavailable",
-                `state commit failed: ${result.code}`,
-                {
-                  scopeId: record.id,
-                },
-              );
-            case "invalid":
-              // 초안과 키는 X가 만든다. 저장소가 거부하면 X의 결함이다
-              throw new Bug("commit.invalid: state commit draft or key was rejected");
-            default:
-              return assertNever(result.code, "ExtCommitRejectCode");
-          }
-        default:
-          return assertNever(result, "ExtCommitResult");
-      }
+      });
     },
     async record(record, generation, kind, subject, payload) {
       assertGeneration(record, generation);

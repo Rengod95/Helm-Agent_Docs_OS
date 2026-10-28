@@ -1,7 +1,14 @@
 import type { ThreadId } from "../conversation/index.ts";
 import type { Unsubscribe } from "../records/index.ts";
 import type { DriveFn, DriveOptions } from "./drive.ts";
-import type { PointName, PointSignatures, TapSig, FirstSig, ChainSig } from "./points.ts";
+import type {
+  PointName,
+  PointSignatures,
+  TapSig,
+  FirstSig,
+  ChainSig,
+  CollectSig,
+} from "./points.ts";
 import type { PostItem, PostOptions, PostReceipt } from "./post.ts";
 import type { ScopeId } from "./scope-id.ts";
 
@@ -27,7 +34,9 @@ export type Handler<N extends PointName, S = unknown> =
             current: Readonly<V>,
             ctx: HandlerContext<S>,
           ) => X | undefined | Promise<X | undefined>
-        : never;
+        : PointSignatures[N] extends CollectSig<infer P, infer _V, infer C>
+          ? (payload: Readonly<P>, ctx: HandlerContext<S>) => C | undefined | Promise<C | undefined>
+          : never;
 
 export interface ExtensionOps<S> {
   on<N extends PointName>(point: N, handler: Handler<N, S>): Unsubscribe;

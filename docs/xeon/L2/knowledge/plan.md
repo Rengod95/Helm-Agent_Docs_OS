@@ -127,7 +127,7 @@ xeon/packages/cap-knowledge/
 | K8 | FTS5 trigram 프로브, 투영기 `cap.knowledge`(세션 목록, 세 테이블 DDL), 소비자 `cap.knowledge.fts`(pos 커서, 배치 500, `event_id` 멱등, 커서와 행 같은 트랜잭션, blob 자리표시 해석, NFC), 프로브 실패 시 비활성 | K1, L1.persistence.plan의 투영기 등록·전역 피드·`consumer_cursors` | L |
 | K9 | 검색 질의 `query`(토큰화, MATCH/LIKE 분기, bm25·최신순, 종류 순 결합, 스니펫, scope, includeHidden), `scroll`, `read`, `list`, 스킬·메모리 docs FTS 재구성 | K2, K4, K8 | M |
 | K10 | 설정 키 `l2.knowledge.*`(`L2.knowledge.spec` §6), 범위 제한(승인·스캔·경로는 managed, user), `checkSettingDef` 통과 테스트 | K1 | S |
-| K11 | 인덱스 델타 알림: 세션별 마지막 `indexVersion`, `before_agent_start` 핸들러의 델타 메모, `session_start`·`session_shutdown` 정리 | K2, K3 | S |
+| K11 | 인덱스 델타 알림: 세션별 마지막 `indexVersion`, `input.agent.before` 핸들러의 델타 메모, `session.start`·`session.shutdown` 정리 | K2, K3 | S |
 
 순서: K1 → (K2, K5, K7, K10) → K6 → (K3, K4) → K8 → K9 → K11. 쓰기 도구 광고는 K3·K4 완료 시점에 켠다(그 전 커밋에서는 `tools` 배열에 정의가 있어도 `cap-knowledge` 매니페스트가 그 능력의 도구 노출을 끈 상태로 둔다 [가정: 능력 단위 도구 노출 끄기는 `L1.tools.spec`]).
 
@@ -137,7 +137,7 @@ xeon/packages/cap-knowledge/
 
 | 작업 | 상태 | 구현 위치와 범위 |
 |---|---|---|
-| K2 | 완료(후크 연결은 §3.5) | `upstream/skills.ts`(포크, 패치 KN-01~KN-09), `fs/`(포트, node 구현, 키별 직렬화), `skills/`(`roots`, `tree`, `document`, `store`, `index-update`, `reindex`, `service`, `prompt-block`, `paths`). `list`, `view`(지연 로딩, 바깥 편집 감지), `reindex`, 인덱스 블록 순수 함수와 `SkillsRuntime.indexBlock`. `before_agent_start` 연결은 K11이 한다(§3.5) |
+| K2 | 완료(후크 연결은 §3.5) | `upstream/skills.ts`(포크, 패치 KN-01~KN-09), `fs/`(포트, node 구현, 키별 직렬화), `skills/`(`roots`, `tree`, `document`, `store`, `index-update`, `reindex`, `service`, `prompt-block`, `paths`). `list`, `view`(지연 로딩, 바깥 편집 감지), `reindex`, 인덱스 블록 순수 함수와 `SkillsRuntime.indexBlock`. `input.agent.before` 연결은 K11이 한다(§3.5) |
 | K5 | 완료(게이트 제외) | `ledger/`(`change` 실행기, `rows`, `manifest`, `target`, `rollback`, `recover`, `show`, `diff`, `service`). `prepared` → `applied`/`aborted`, `requestId` 멱등, 시작 시 복구, `list`·`show`·`rollback`. 롤백은 게이트(K6) 전까지 행위자 `user`만 허용한다. `proposals`는 빈 목록, `decide`는 `unsupported`다 |
 | K7 | 완료 | `scan/rules.ts`(규칙 집합 `1.0.0`), `ledger.scan`, 마스킹 등록부(`Redactor.containsKnown`) 연결. 쓰기 경로에 거는 일은 K3, K4다 |
 | K10 | 완료 | `settings.ts`: spec §6의 16개 키 전부, `readKnowledgeSettings`, `KNOWLEDGE_SETTING_DEFS` |
@@ -198,7 +198,7 @@ xeon/packages/cap-knowledge/
 
 계획 §2 배치와 다른 점:
 
-- `skills/validate.ts`는 `write-model.ts`(순수 계산)와 `write.ts`(검증과 흐름)로 나눴다. `memory/snapshot.ts`는 `store.ts`의 `snapshotBlock`이다. 첫 turn 기록 메시지로 넣는 연결(`before_agent_start`)은 K11(KN.5, §3.5)에서 했다.
+- `skills/validate.ts`는 `write-model.ts`(순수 계산)와 `write.ts`(검증과 흐름)로 나눴다. `memory/snapshot.ts`는 `store.ts`의 `snapshotBlock`이다. 첫 turn 기록 메시지로 넣는 연결(`input.agent.before`)은 K11(KN.5, §3.5)에서 했다.
 - 쓰기 계산은 연산마다 `Built`(대상, 연산, 파괴적 여부, 현재·새 트리, 위협 검사 대상)를 내고, 공통 흐름이 검사와 `Writer`를 맡는다. 메모리는 같은 모양의 `Planned`(새 항목 목록)를 낸다.
 - 새 오류 코드 `memory_full`, `drift_detected`, `duplicate_entry`(spec §3.3 선언 오류)를 `KnowledgeFailureKind`에 더했다.
 - `KnowledgeDeps`에 `memoryDir`(`<사용자 데이터>/memory`)를 더했다. 조립은 `os.dirs.data`에서 만든다.
@@ -246,18 +246,18 @@ xeon/packages/cap-knowledge/
 
 ### 3.5 구현 기록: KN.5 (K11)
 
-`m2/webkn` 브랜치의 구현이다. 확장 지점 세 개(`session_start`, `before_agent_start`, `session_shutdown`)를 매니페스트 `points`에 올렸다.
+`m2/webkn` 브랜치의 구현이다. 확장 지점 세 개(`session.start`, `input.agent.before`, `session.shutdown`)를 매니페스트 `points`에 올렸다.
 
 | 작업 | 상태 | 구현 위치와 범위 |
 |---|---|---|
 | K11 델타 | 완료 | `skills/delta.ts`(`diffIndex`, `formatIndexDelta`; 순수), `SkillsRuntime.indexSnapshot`(모델에게 보이는 스킬의 이름 → 잘린 설명과 `indexVersion`), `turn-context.ts`(세션별 상태, 첫 turn 메시지, 델타 메모) |
 | 첫 turn 연결 | 완료 | 인덱스 블록(K2)과 메모리 스냅샷(K4)을 `customType: "knowledge.context"` 기록 메시지 하나로 더한다. 시스템 프롬프트는 바꾸지 않는다 |
-| 후크 | 완료 | `plugin.ts`가 세 지점에 거는 핸들러가 `turn-context.ts`를 부른다. `startup` 말고 시작하는 세션은 `session_start`에서 스킬 루트를 다시 훑는다 |
+| 후크 | 완료 | `plugin.ts`가 세 지점에 거는 핸들러가 `turn-context.ts`를 부른다. `startup` 말고 시작하는 세션은 `session.start`에서 스킬 루트를 다시 훑는다 |
 
 계획 §2 배치와 다른 점:
 
 - 델타 계산은 `skills/delta.ts`에, 후크 연결과 세션 상태는 `turn-context.ts`에 두었다. 순수 계산과 상태를 나누려는 배치다.
-- `session_start`의 mtime 검사는 하지 않고 전체 재색인을 한다. 재색인 비용(스킬 수에 비례)은 측정 전이라 [가정]이다.
+- `session.start`의 mtime 검사는 하지 않고 전체 재색인을 한다. 재색인 비용(스킬 수에 비례)은 측정 전이라 [가정]이다.
 - 상태는 프로세스 메모리에만 있다. 재시작 뒤 이어받은 세션은 현재 인덱스를 기준으로 시작한다(spec §4.2.6).
 - `L1.context`가 같은 블록을 시스템 프롬프트 쪽에 넣기로 정하면 이 메시지는 `HOST.6` 조립에서 끈다. 두 곳에 들어가지 않게 하는 일은 `L1.context.spec`과 조립이 맡는다.
 
@@ -266,7 +266,7 @@ xeon/packages/cap-knowledge/
 | 파일 | 내용 |
 |---|---|
 | `delta.test.ts` | 비교와 문장(정렬, 10개 상한, 60자 설명), 첫 turn 메시지, `index delta next turn`(추가·변경·삭제가 다음 turn 메모 하나, 같은 변경은 한 번만), 본문만 바꾼 변경은 메모 없음, 모델 호출 여부 전환, 세션 독립과 `shutdown`, 재개한 세션, `startup` 말고는 재색인, 스킬·메모리를 끄면 메시지 없음 |
-| `plugin.test.ts` | 후크 경로: `session_start` → 첫 turn 블록 → 변경 뒤 델타 → `session_shutdown` 뒤 첫 turn으로 돌아감. 매니페스트 `points`. `session_compact`를 보내도 다음 turn이 전체 블록을 다시 넣지 않고, 그 사이 바뀐 인덱스는 델타 하나로만 온다(M2 마감 재검토 결함 2, spec §4.2.8). 대화의 작업 폴더가 프로젝트 폴더: 대화마다 자기 작업 폴더의 프로젝트 스킬만 보이고 신뢰도 그 폴더로 묻는다, 작업 폴더가 없는 대화는 프로젝트 스킬이 없다, 작업 폴더를 오가도 원장에 `external` 항목이 늘지 않는다, 신뢰하지 않은 작업 폴더의 스킬은 싣지 않는다, 대화 안에서 쓴 프로젝트 스킬은 그 대화의 작업 폴더에 만들어진다(G2-02, spec §4.2.1) |
+| `plugin.test.ts` | 후크 경로: `session.start` → 첫 turn 블록 → 변경 뒤 델타 → `session.shutdown` 뒤 첫 turn으로 돌아감. 매니페스트 `points`. `session.compact.after`를 보내도 다음 turn이 전체 블록을 다시 넣지 않고, 그 사이 바뀐 인덱스는 델타 하나로만 온다(M2 마감 재검토 결함 2, spec §4.2.8). 대화의 작업 폴더가 프로젝트 폴더: 대화마다 자기 작업 폴더의 프로젝트 스킬만 보이고 신뢰도 그 폴더로 묻는다, 작업 폴더가 없는 대화는 프로젝트 스킬이 없다, 작업 폴더를 오가도 원장에 `external` 항목이 늘지 않는다, 신뢰하지 않은 작업 폴더의 스킬은 싣지 않는다, 대화 안에서 쓴 프로젝트 스킬은 그 대화의 작업 폴더에 만들어진다(G2-02, spec §4.2.1) |
 
 ## 4. 채택 코드
 
@@ -312,6 +312,9 @@ xeon/packages/cap-knowledge/
 | 파일 | 테스트 이름 | 확인할 동작 |
 |---|---|---|
 | `test/defs.test.ts` | `four knowledge capabilities validate with zero issues` | 네 정의 `validateCapability` 0건, 집합 `validateCapabilitySet` 0건 |
+| `test/idempotency.conformance.test.ts` | `knowledge writes dedupe on requestId across a store reopen`(메서드 열한 개), `a different requestId is a new write` | 능력 적합성(ADR-0015 §3.6, M3-REQ-88·89, L-IN-17). `skills.create`·`edit`·`patch`·`writeFile`·`remove`·`manage`, `memory.add`·`replace`·`remove`·`manage`, `ledger.rollback`을 같은 `requestId`로 저장소를 닫았다 다시 열고 두 번 부른다. 두 번째 결과가 처음과 같고 원장 행이 하나 늘어난 채이며 정본 파일이 그대로다. 입력은 처음 호출의 것을 그대로 보내므로 멱등 확인이 계산보다 앞서지 않으면 `base_stale`·`name_conflict`로 실패한다. 같은 키에 다른 입력은 `key_reused`이고 다른 대화·메서드의 같은 `requestId`는 새 쓰기다 |
+| `test/trusted-evidence.test.ts` | `withTrustedEvidence`, `learning.queue evidence declared by the assembly`, `project scope needs the user's approval evidence` | M3-REQ-104. 조립 루트가 선언한 출처가 설정 값과 합쳐져 믿어지고 L2가 승인 요청을 내지 않는다. 선언이 없으면 같은 호출이 승인을 한 번 더 묻는다. 첫 마디가 호출 확장과 다르면 출처를 빌릴 수 없다. 프로젝트 범위는 모델, 증거 없는 확장, 꾸민 출처, 빌린 출처가 `denied`이고 선언된 출처의 증거만 받는다. 기본값에는 어느 그룹 이름도 없다 |
+| `test/proposal-wire.test.ts` | `proposalRowOf`, `afterUntrusted`, `list`, `decide`, `scope chosen at approval` | M3-REQ-91. 지식 제안이 합친 목록의 행(`source: "knowledge"`)으로 옮겨지고(`destructive`, `scope`, `reason`), `afterUntrusted`가 제안에서 원장으로 이어진다. 상태 필터와 키셋 쪽 나누기, 학습 전용 상태는 빈 목록. 결정: 승인·거절·중복(`closed`)·없음·`edit`/`revert`(`unsupported`)·잘못된 판(`revision_mismatch`)·확장 결정(`approval_required`)·`base_stale`. 승인 때 고른 `project` 범위는 새 스킬만 받고 메모리와 기존 스킬 수정은 `scope_not_allowed` |
 | 같음 | `write tool params exclude approval and overrideScan` | `skill_manage`, `memory_manage` 파라미터에 두 필드가 없음 |
 | `test/upstream-skills.test.ts` | `discovery rules match pi` | 픽스처 트리에서 SKILL.md 루트 정지, 점·`node_modules` 건너뜀, 루트 `.md` 처리, 이름 검증 경고가 pi 원본 규칙과 같음 |
 | 같음 | `frontmatter parse via Bun.YAML` | BOM·CRLF 처리, 순환 별칭 frontmatter는 오류 진단 |

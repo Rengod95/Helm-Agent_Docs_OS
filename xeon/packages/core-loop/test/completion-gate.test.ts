@@ -19,7 +19,7 @@ const done = (value: string): ScriptedResponse => ({
 });
 
 /** 지점 하나가 매번 continue: true를 돌려주는 확장 */
-function continuing(point: "agent_before_settle" | "turn_end"): ExtensionUnit {
+function continuing(point: "boundary.settle.before" | "boundary.step.after"): ExtensionUnit {
   const entry: ExtensionEntry = ({ manifest, scope }) => {
     scope(manifest.name, {}, (g) => {
       g.on(point, () => ({ continue: true }));
@@ -54,7 +54,7 @@ test("gate_stops_after_max_continues: a boundary that always continues is capped
     script: Array.from({ length: 12 }, (_value, index) => done(`answer ${index}`)),
     gateMaxContinues: 3,
   });
-  await start(h, continuing("agent_before_settle"));
+  await start(h, continuing("boundary.settle.before"));
   // 처음 요청 하나와 게이트 계속 3번
   expect(h.models.requests).toHaveLength(1 + 3);
   expect(firstOfKind(h.fake.events(h.threadId), "turn.completed")?.payload).toMatchObject({
@@ -66,24 +66,24 @@ test("the default cap is 8 continues", async () => {
   const h = await createHarness({
     script: Array.from({ length: 14 }, (_value, index) => done(`answer ${index}`)),
   });
-  await start(h, continuing("agent_before_settle"));
+  await start(h, continuing("boundary.settle.before"));
   expect(h.models.requests).toHaveLength(1 + 8);
 });
 
 test("a cap of 0 ignores the boundary's continue instruction", async () => {
   const h = await createHarness({ script: [done("one"), done("never")], gateMaxContinues: 0 });
-  await start(h, continuing("agent_before_settle"));
+  await start(h, continuing("boundary.settle.before"));
   expect(h.models.requests).toHaveLength(1);
   expect(countKind(h.fake.events(h.threadId), "turn.completed")).toBe(1);
 });
 
-test("gate_ignores_continue_on_non_final_step: a turn_end continue on a tool step is not counted", async () => {
+test("gate_ignores_continue_on_non_final_step: a boundary.step.after continue on a tool step is not counted", async () => {
   const h = await createHarness({
     tools: [{ name: "read" }],
     script: [read("c1"), read("c2"), done("final"), done("extra")],
     gateMaxContinues: 1,
   });
-  await start(h, continuing("turn_end"));
+  await start(h, continuing("boundary.step.after"));
   // 도구 단계 둘의 continue는 세지 않는다. 마지막 단계에서 한 번만 계속하고 상한에 닿는다
   expect(h.models.requests).toHaveLength(4);
   expect(h.tools.executed).toEqual(["c1", "c2"]);
@@ -95,7 +95,7 @@ test("the count starts from 0 on every turn", async () => {
     script: Array.from({ length: 10 }, (_value, index) => done(`answer ${index}`)),
     gateMaxContinues: 2,
   });
-  await start(h, continuing("agent_before_settle"));
+  await start(h, continuing("boundary.settle.before"));
   expect(h.models.requests).toHaveLength(3);
   await h.loop.admit({ threadId: h.threadId, content: "again", via: "interactive" });
   await h.settle();
@@ -107,7 +107,7 @@ test("gate_limit_notice: the step that hits the cap tells the user once and keep
     script: Array.from({ length: 6 }, (_value, index) => done(`answer ${index}`)),
     gateMaxContinues: 2,
   });
-  await start(h, continuing("agent_before_settle"));
+  await start(h, continuing("boundary.settle.before"));
   const notices = h.fake
     .volatile()
     .filter((event) => event.kind === "turn.updated")

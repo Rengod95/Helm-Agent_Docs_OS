@@ -7,6 +7,7 @@ import {
   type TLiteral,
   type TNull,
   type TObject,
+  type TOptional,
   type TString,
   type TUnion,
   type TUnsafe,
@@ -124,6 +125,8 @@ export const AgentSettledEventPayloadSchema: TObject<{
   answerItemId: TUnion<[TUnsafe<ItemId>, TNull]>;
   usage: TUnion<[TUnsafe<Usage>, TNull]>;
   error: TUnion<[TString, TNull]>;
+  owner: TOptional<typeof SpawnOwnerJsonSchema>;
+  limitHit: TOptional<TUnion<[TUnion<[TLiteral<"steps">, TLiteral<"tokens">]>, TNull]>>;
 }> = Type.Object(
   {
     childThreadId: ThreadIdSchema,
@@ -134,6 +137,16 @@ export const AgentSettledEventPayloadSchema: TObject<{
     /** 자식 사용량은 여기에만 남는다 */
     usage: Nullable(UsageSchema),
     error: Nullable(Type.String({ maxLength: 4000 })),
+    /**
+     * 자식을 만든 쪽(`agent.spawned.owner`와 같은 값). 그룹이 자기 scope가 맡긴 위임만 거를 때 쓴다(`kind: "scope"`, `scopeId`).
+     * 선택이라 `version`을 올리지 않는다. 없으면(옛 기록) `agent.spawned`의 `owner`를 읽는다 [제안: M3-REQ-103, REQ-LN-02]
+     */
+    owner: Type.Optional(SpawnOwnerJsonSchema),
+    /**
+     * 상한에 닿아 끝났으면 어느 상한인가(`ChildLimits.maxSteps`는 "steps", `maxInputTokens`는 "tokens"). 상한 종료가 아니면 null.
+     * 이 값이 있어도 `status`는 "completed", "aborted", "error" 가운데 하나다. 선택이라 `version`을 올리지 않는다 [제안: M3-REQ-103, REQ-LN-07]
+     */
+    limitHit: Type.Optional(Nullable(Type.Union([Type.Literal("steps"), Type.Literal("tokens")]))),
   },
   { additionalProperties: false },
 );

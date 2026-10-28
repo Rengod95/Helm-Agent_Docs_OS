@@ -304,7 +304,7 @@ async function engineChecks(handle: EngineHandle): Promise<{
     status: "info",
     message:
       service === true
-        ? "서비스 모드: 설정은 켜져 있지만 이 버전은 in-process로 동작한다 (서비스는 M3)"
+        ? "서비스 모드: 설정은 켜져 있다. chat은 아직 서비스에 접속하지 않고 in-process로 동작한다 (xeon service status로 서비스를 확인한다)"
         : "서비스 모드: 사용 안 함 (in-process)",
   });
   return { checks, binaries: binaries.report };

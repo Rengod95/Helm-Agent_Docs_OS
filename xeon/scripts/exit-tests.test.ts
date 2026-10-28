@@ -72,7 +72,19 @@ test("the repository list parses and names every exit condition it covers", () =
   const parsed = parseExitList(text);
   if (!parsed.ok) throw new Error(parsed.error);
   const covered = parsed.value.flatMap((entry) => entry.condition.split(","));
-  expect([...new Set(covered)].toSorted()).toEqual(["E2", "E3", "E4", "E5", "E6", "E7", "M1"]);
+  expect([...new Set(covered)].toSorted()).toEqual([
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6",
+    "E7",
+    "M1",
+    "X1",
+    "X2",
+    "X3",
+    "X4",
+  ]);
 });
 
 test("E2 and E3 each name the host test and the sidecar e2e test, and the e2e line makes the runner build the sidecar", () => {

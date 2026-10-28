@@ -50,6 +50,11 @@ export interface RawCall {
    * 도구 구현에는 F `CallContext.approval`로 전달한다(`entries.ts` callContext)
    */
   readonly secretApproval: ApprovalEvidence | null;
+  /**
+   * 이 호출이 시작될 때 같은 turn이 웹·MCP 도구 결과를 이미 읽었는가(F `CallerInfo.afterUntrusted`, M3-REQ-100).
+   * 도구 구현에는 `CallContext.caller`와 확장 도구 `execute`의 `ctx.caller`로 전달한다
+   */
+  readonly afterUntrusted: boolean;
 }
 
 export interface RawOutcome {
@@ -60,7 +65,7 @@ export interface RawOutcome {
 
 type RawExecutor = (call: RawCall) => Promise<RawOutcome>;
 
-/** 잠금 선언 하나(L1.tools.spec §4.2 7b). ToolSpec.locks(F 요청 8)가 F에 들어오면 등록 변환이 채운다 */
+/** 잠금 선언 하나(L1.tools.spec §4.2 7b). `ToolSpec.locks`에서 옮긴다(read는 shared, write는 exclusive) */
 export interface LockDecl {
   readonly path: string;
   readonly mode: "shared" | "exclusive";

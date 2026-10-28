@@ -15,7 +15,7 @@ import {
 } from "@xeon/contracts/services";
 import { createSandboxService, type SandboxServiceHandle } from "../../src/service.ts";
 import { detectPlatformInput, selectSandboxProvider } from "../../src/select.ts";
-import { readSandboxSettings } from "../../src/settings.ts";
+import { readSandboxSettings, type SandboxSettings } from "../../src/settings.ts";
 import { createSrtPort } from "../../src/srt.ts";
 import { seededRandom } from "./clock.ts";
 import { makeTestDirs, memoryLogger, type TestDirs } from "./fakes.ts";
@@ -136,12 +136,18 @@ export interface RealSandbox {
 }
 
 /** 실제 srt로 서비스를 만든다. 임시 디렉터리 아래 home, data, workspace를 쓴다 */
-export async function startRealSandbox(): Promise<RealSandbox> {
+export async function startRealSandbox(
+  overrides: Partial<SandboxSettings> = {},
+): Promise<RealSandbox> {
   const dirs = makeTestDirs();
   const vault = join(dirs.root, "vault");
   mkdirSync(vault, { recursive: true });
   writeFileSync(join(vault, "secret.txt"), VAULT_SECRET);
-  const settings = { ...readSandboxSettings(() => undefined), protectedPathsExtra: [vault] };
+  const settings: SandboxSettings = {
+    ...readSandboxSettings(() => undefined),
+    protectedPathsExtra: [vault],
+    ...overrides,
+  };
   const log = memoryLogger();
   const os: Pick<OsService, "dirs" | "time" | "logger" | "resolveBinary"> = {
     dirs,

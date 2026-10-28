@@ -1,6 +1,6 @@
 import type { ServiceKey } from "@xeon/contracts/capabilities";
-import { Bug } from "@xeon/contracts";
-import type { JsonValue } from "@xeon/contracts/conversation";
+import { Bug, ok, type Result } from "@xeon/contracts";
+import type { JsonValue, ThreadId } from "@xeon/contracts/conversation";
 import type {
   DriveOptions,
   ExtensionName,
@@ -19,8 +19,22 @@ import type {
   ScopeId,
   Unsubscribe,
 } from "@xeon/contracts/extensions";
-import { eraseDrive, eraseHandler, serviceAs, stateAs } from "../erase.ts";
+import {
+  eraseDrive,
+  eraseHandler,
+  restoreAs,
+  serviceAs,
+  stateAs,
+  type TypeWitness,
+} from "../erase.ts";
 import type { CapabilityBindings } from "./bindings.ts";
+import {
+  EFFECT_KEY_MAX,
+  effectKindOf,
+  type EffectRequest,
+  type EffectWorkerPort,
+} from "./effect-worker.ts";
+import { guardCapabilityService, type CapabilityDefLookup } from "./capability-guard.ts";
 import type { Generation, HostCore, ScopeRecord } from "./core.ts";
 import type { AnyState } from "./erased-types.ts";
 import { PrimitiveError } from "./errors.ts";
@@ -28,7 +42,7 @@ import { createPortProvider } from "./port-provider.ts";
 import type { PostQueue } from "./post.ts";
 import type { HandlerEntry } from "./registry.ts";
 import { capabilityServiceName, providerServiceName } from "./services.ts";
-import { ambient } from "./ambient.ts";
+import { ambient, withAmbient, type Ambient } from "./ambient.ts";
 import type {
   CommandResourceDef,
   FlagResourceDef,
@@ -40,12 +54,24 @@ import type {
 } from "./resources.ts";
 import type { StateMigration } from "./state-migration.ts";
 import { awaitUser } from "./user-wait.ts";
-import type { StateService } from "./state.ts";
+import type { RecordInput, StateService, StateUpdateError } from "./state.ts";
 
 export type { StateMigration } from "./state-migration.ts";
 
+/**
+ * 지금 실행 중인 재실행 문맥(on 핸들러 또는 drive 함수). `ScopeHostApi.callContext`가 돌려준다.
+ * `signal`은 on에서는 핸들러 호출의 취소 신호(예산 초과, 세션 종료로 abort), drive에서는 임대의 취소 신호다
+ */
+export interface ScopeCallContext {
+  readonly kind: "on" | "drive";
+  readonly threadId: ThreadId;
+  readonly signal: AbortSignal;
+  /** on일 때 실행 중인 지점 */
+  readonly point?: PointName;
+}
+
 /** setup이 받은 g에 붙는 부가 API(X.primitives.spec §3.8) */
-export interface ScopeHostApi {
+export interface ScopeHostApi<S = unknown> {
   readonly scopeId: ScopeId;
   readonly extension: ExtensionName;
   /** 능력 공급자 등록. key.capability는 매니페스트 provides에 있어야 한다. fiber effect로 추적한다 */
@@ -55,10 +81,40 @@ export interface ScopeHostApi {
   /** 포트 조회. builtin 확장만. 없으면 port_unavailable */
   port<Api>(key: PortKey<Api>): Api;
   /**
+   * 설정 키의 유효 값(`xeon.settings` 포트를 거친다). builtin 확장은 모든 키를 읽는다. 그 밖의 확장은 자기 이름공간
+   * `ext.<확장 이름>.` 아래 키만 읽고 다른 키는 값이 있어도 undefined다. 포트가 없거나 모르는 키도 undefined다
+   */
+  settingValue(key: string): unknown;
+  /**
    * 상태 문서 마이그레이션. setup 안에서 한 번만 부른다. 저장된 상태의 `version`이 `StateDecl.version`보다 낮은 thread를 켤 때
    * 이 함수로 옮기고 스키마를 검사한 뒤 새 판으로 커밋한다(P-23)
    */
   migrateState(fn: StateMigration): void;
+  /**
+   * 상태 커밋과 그룹 레코드를 한 트랜잭션으로 낸다(M3-REQ-24 [제안]). 레코드 kind는 `record`와 같은 검사를 받는다.
+   * F `ScopeApi.commit`에는 둘째 인자가 없어 이 메서드를 둔다. 상태가 충돌하면 레코드도 남지 않는다
+   */
+  /**
+   * 선언 없는 쓰기 요청(ADR-0015 §3.5, M3-REQ-27 [제안]). 요청 레코드를 커밋하고 효과 워커가 재실행되지 않는 문맥에서 실행한다.
+   * 재실행돼도 같은 `key`라 요청은 한 번만 남는다. 결과는 `<kind 접두>effect.settled` 레코드로 `readRecords`에서 읽는다.
+   * 능력은 매니페스트 requires나 optional에 있어야 한다
+   */
+  requestEffect(request: EffectRequest): Promise<void>;
+  /**
+   * 호출한 scope의 on 핸들러나 drive 함수 안이면 그 문맥(thread, 취소 신호, on이면 지점). setup, 명령 처리기, 도구 `execute`,
+   * 능력 공급자 안, drive의 turn·spawn 안처럼 재실행되지 않는 곳과 다른 scope의 문맥에서는 undefined다
+   */
+  callContext(): ScopeCallContext | undefined;
+  commitWith(next: S, records: readonly RecordInput[]): Promise<Readonly<S>>;
+  /**
+   * 줄 세운 읽기-계산-커밋(M3-REQ-23 [제안]). 같은 (thread, scope)의 `commit`·`updateState`는 호출 순서대로 하나씩 실행된다.
+   * fn은 줄 안에서 최신 상태로 불리고, 저장소의 판 충돌은 한 번 다시 시도한 뒤 `state_conflict` 값으로 돌려준다. 던지지 않는다.
+   * `records`가 있으면 계산된 상태와 같은 트랜잭션에 실린다
+   */
+  updateState(
+    fn: (prev: Readonly<S>) => S,
+    records?: (next: S) => readonly RecordInput[],
+  ): Promise<Result<Readonly<S>, StateUpdateError>>;
   // 리소스 등록(X.primitives.spec §4.8). 모두 fiber effect로 추적되어 scope가 꺼지면 자동 해제된다.
   // 이름 충돌은 resource_conflict, 이름 형식 위반은 resource_name_invalid, 대상 포트가 없으면 port_unavailable이다
   registerTool(def: ToolResourceDef): void;
@@ -88,16 +144,39 @@ export interface ScopeInternals {
   readonly generation: Generation;
 }
 
-const hostApis = new WeakMap<object, ScopeHostApi>();
+const hostApis = new WeakMap<object, ScopeHostApi<AnyState>>();
 const internals = new WeakMap<object, ScopeInternals>();
 
 /** setup이 받은 g로 부가 API를 얻는다. ext-host가 만든 g가 아니면 PrimitiveError("no_context") */
-export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi {
+/** 도구 `execute`와 명령 처리기가 여는 ambient. 디스패치 키는 호출 id이고, 재실행 검사와 시간 예산은 받지 않는다 */
+function directAmbient(
+  scopeId: ScopeId,
+  threadId: ThreadId,
+  invocation: "tool" | "command",
+  id: string,
+): Ambient {
+  return {
+    threadId,
+    scopeId,
+    point: null,
+    dispatchKey: `${invocation}:${id}`,
+    counter: 0,
+    drive: null,
+    handler: null,
+    invocation,
+  };
+}
+
+/** 조립 루트가 `xeon.settings`로 올리는 설정 읽기. L3 group-kit의 `GroupSettingsSource`와 같은 이름·모양이다 */
+const SETTINGS_READ_PORT: PortKey<{ value(key: string): unknown }> = { name: "xeon.settings" };
+
+export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi<S> {
   const found = hostApis.get(g);
   if (found === undefined) {
     throw new PrimitiveError("no_context", "hostOf needs a ScopeApi created by ext-host");
   }
-  return found;
+  const witness: TypeWitness<ScopeHostApi<S>> = {};
+  return restoreAs(witness, found);
 }
 
 /** 패키지 안에서만 쓴다. ext-host가 만든 g의 호스트 핵심과 scope 기록 */
@@ -115,6 +194,8 @@ export interface ScopeApiDeps {
   readonly post: PostQueue;
   readonly bindings: CapabilityBindings;
   readonly resources: ResourceStore;
+  readonly capabilityDefs: CapabilityDefLookup;
+  readonly effects: EffectWorkerPort;
 }
 
 function assertOpen(record: ScopeRecord, generation: Generation): void {
@@ -252,7 +333,16 @@ export function createScopeApi(
           },
         );
       }
-      return serviceAs(key, service);
+      return serviceAs(
+        key,
+        guardCapabilityService({
+          id,
+          service,
+          defs: deps.capabilityDefs,
+          extension: record.extension,
+          scopeId: record.id,
+        }),
+      );
     },
     onDispose(fn) {
       assertOpen(record, generation);
@@ -260,7 +350,7 @@ export function createScopeApi(
     },
   };
 
-  const host: ScopeHostApi = {
+  const host: ScopeHostApi<AnyState> = {
     scopeId: record.id,
     extension: record.extension,
     provide<Api>(key: ServiceKey<Api>, impl: Api): void {
@@ -305,11 +395,107 @@ export function createScopeApi(
       }
       generation.migration = fn;
     },
+    async requestEffect(request) {
+      assertOpen(record, generation);
+      const declared =
+        (manifest.requires ?? []).some((entry) => entry.id === request.capability) ||
+        (manifest.optional ?? []).some((entry) => entry.id === request.capability);
+      if (!declared) {
+        throw new PrimitiveError(
+          "capability_undeclared",
+          `requestEffect on ${request.capability} is not in requires or optional`,
+          { scopeId: record.id },
+        );
+      }
+      if (request.key.length < 1 || request.key.length > EFFECT_KEY_MAX) {
+        throw new TypeError(`effect key must be 1-${EFFECT_KEY_MAX} chars`);
+      }
+      generation.usage.capabilities.add(request.capability);
+      await deps.state.recordPrivate(record, generation, effectKindOf(manifest, "requested"), {
+        scopeId: record.id,
+        key: request.key,
+        capability: request.capability,
+        method: request.method,
+        input: request.input,
+      });
+      const threadId = ambient()?.threadId;
+      if (threadId !== undefined) {
+        deps.effects.schedule({
+          threadId,
+          scopeId: record.id,
+          extension: record.extension,
+          kind: manifest.kind === "group" ? "group" : "plugin",
+        });
+      }
+    },
+    callContext() {
+      const amb = ambient();
+      // g를 만든 scope의 문맥만 돌려준다. 다른 scope의 핸들러가 이 g의 함수를 불러도 그 scope의 thread를 내주지 않는다
+      if (amb === undefined || amb.scopeId !== record.id) return undefined;
+      if (amb.drive !== null) {
+        return { kind: "drive", threadId: amb.threadId, signal: amb.drive.signal };
+      }
+      if (amb.handler !== null && amb.point !== null) {
+        return {
+          kind: "on",
+          threadId: amb.threadId,
+          signal: amb.handler.signal,
+          point: amb.point,
+        };
+      }
+      return undefined;
+    },
+    async commitWith(next, records) {
+      return stateAs(await deps.state.commitWith(record, generation, next, records));
+    },
+    async updateState(fn, records) {
+      const done = await deps.state.update(
+        record,
+        generation,
+        (prev) => fn(stateAs(prev)),
+        (next) => records?.(stateAs(next)) ?? [],
+      );
+      return done.ok ? ok(stateAs(done.value)) : done;
+    },
     registerTool(def: ToolResourceDef): void {
-      register("tool", def.name, def);
+      // 승인 요구를 낮추는 선언은 builtin 확장만 낼 수 있다. 그 밖의 확장은 등록이 거부되어 로드가 실패한다(M3-REQ-78)
+      if (
+        !record.builtin &&
+        (def.risk === "read" || def.risk === "write" || def.hints?.readOnly === true)
+      ) {
+        throw new PrimitiveError(
+          "tool_risk_reserved",
+          `${record.extension} is not built in, so tool ${def.name} cannot declare a risk below exec`,
+          { scopeId: record.id },
+        );
+      }
+      // 도구 `execute`는 호출 id를 디스패치 키로 하는 ambient 안에서 실행한다. 같은 호출 id의 재실행은 같은 멱등 키를 받는다
+      const wrapped: ToolResourceDef = {
+        name: def.name,
+        description: def.description,
+        parameters: def.parameters,
+        replay: def.replay,
+        ...(def.risk === undefined ? {} : { risk: def.risk }),
+        ...(def.hints === undefined ? {} : { hints: def.hints }),
+        execute: (args, ctx) =>
+          withAmbient(directAmbient(record.id, ctx.threadId, "tool", ctx.toolCallId), () =>
+            def.execute(args, ctx),
+          ),
+      };
+      register("tool", def.name, wrapped);
     },
     registerCommand(name: string, def: CommandResourceDef): void {
-      register("command", name, def);
+      // threadId가 없는 호출(대화가 없는 화면)은 쓸 thread가 없으므로 ambient를 열지 않는다
+      const wrapped: CommandResourceDef = {
+        ...(def.description === undefined ? {} : { description: def.description }),
+        handler: (args, ctx) =>
+          ctx.threadId === null
+            ? def.handler(args, ctx)
+            : withAmbient(directAmbient(record.id, ctx.threadId, "command", ctx.invocationId), () =>
+                def.handler(args, ctx),
+              ),
+      };
+      register("command", name, wrapped);
     },
     registerShortcut(key: string, def: ShortcutResourceDef): void {
       register("shortcut", key, def);
@@ -348,6 +534,11 @@ export function createScopeApi(
       assertOpen(record, generation);
       requirePortAccess();
       portProvider().provide(key, impl);
+    },
+    settingValue(key: string): unknown {
+      assertOpen(record, generation);
+      if (!record.builtin && !key.startsWith(`ext.${record.extension}.`)) return undefined;
+      return core.ports.get(SETTINGS_READ_PORT)?.value(key);
     },
     port<Api>(key: PortKey<Api>): Api {
       assertOpen(record, generation);
