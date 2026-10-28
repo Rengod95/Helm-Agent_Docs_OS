@@ -21,6 +21,7 @@
       "name": "@xeon/cli",
       "version": "0.0.0",
       "dependencies": {
+        "@xeon/client": "workspace:*",
         "@xeon/contracts": "workspace:*",
         "@xeon/core-models": "workspace:*",
         "@xeon/group-kit": "workspace:*",
@@ -38,6 +39,7 @@
       "version": "0.0.0",
       "dependencies": {
         "@tauri-apps/api": "catalog:",
+        "@xeon/client": "workspace:*",
         "@xeon/contracts": "workspace:*",
         "react": "catalog:",
         "react-dom": "catalog:",
@@ -60,6 +62,7 @@
         "@xeon/cap-web": "workspace:*",
         "@xeon/cap-work": "workspace:*",
         "@xeon/cap-workspace": "workspace:*",
+        "@xeon/client": "workspace:*",
         "@xeon/contracts": "workspace:*",
         "@xeon/core-agents": "workspace:*",
         "@xeon/core-context": "workspace:*",
@@ -186,6 +189,17 @@
         "@types/bun": "catalog:",
         "@xeon/core-tools": "workspace:*",
         "@xeon/platform-exec": "workspace:*",
+      },
+    },
+    "packages/client": {
+      "name": "@xeon/client",
+      "version": "0.0.0",
+      "dependencies": {
+        "@xeon/contracts": "workspace:*",
+        "typebox": "catalog:",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
       },
     },
     "packages/contracts": {
@@ -874,6 +888,8 @@
     "@xeon/cap-workspace": ["@xeon/cap-workspace@workspace:packages/cap-workspace"],
 
     "@xeon/cli": ["@xeon/cli@workspace:apps/cli"],
+
+    "@xeon/client": ["@xeon/client@workspace:packages/client"],
 
     "@xeon/contracts": ["@xeon/contracts@workspace:packages/contracts"],
 

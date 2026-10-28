@@ -415,7 +415,8 @@ import { runTurn } from "@xeon/core-loop";                        // DR-09: L1 i
 - `apps/desktop`은 엔진을 `apps/host`에서 만든 사이드카 바이너리로 실행하고 stdio JSON-RPC로 연결한다(`_research/foundation-plan.md §1` 결정 3). `@xeon/host`를 import하지 않는다.
 - `apps/cli`는 엔진 라이브러리를 in-process로 쓴다.
 - [결정: review.decisions-2 U-15] 엔진 조립 코드는 `apps/host` 한 곳에 둔다. `apps/cli` → `apps/host` 한 방향만 허용 목록 항목 `DR-10/cli-host`로 허용한다(4절). `apps/host`는 다른 앱을 import하지 않고, `apps/desktop`은 어떤 앱도 import하지 않는다.
-- [결정: adr.0020] CLI와 데스크톱이 함께 쓰는 연결 코드(`createHostConnection`), 설정 view-model, 공유 로직, i18n 카탈로그는 L4 공유 패키지 `xeon/packages/client`(`@xeon/client`)에 둔다. 이 패키지는 F(`@xeon/contracts`)만 import한다. `apps/cli` → `@xeon/client`, `apps/desktop` → `@xeon/client` 두 간선을 허용 목록 항목 `DR-10/cli-client`, `DR-10/desktop-client`로 허용한다(4절). `@xeon/client`는 앱이나 엔진 패키지를 import하지 않는다.
+- [결정: adr.0020] CLI와 데스크톱이 함께 쓰는 연결 코드(`createHostConnection`), 설정 view-model, 공유 로직, i18n 카탈로그는 L4 공유 패키지 `xeon/packages/client`(`@xeon/client`)에 둔다. 이 패키지는 F(`@xeon/contracts`)만 import한다. `apps/cli` → `@xeon/client`, `apps/desktop` → `@xeon/client` 두 간선을 허용 목록 항목 `DR-10/cli-client`, `DR-10/desktop-client`로 허용한다(4절). `@xeon/client`는 앱이나 엔진 패키지를 import하지 않는다. `check-layers.ts`는 `apps/*` → `packages/client`를 DR-10으로 보고하고, `expectedLayer`는 디렉터리 이름 `client`를 L4로 본다. `.dependency-cruiser.cjs`는 L4 경로에 `packages/client/`를 넣고 `client` → `apps/*` 간선을 막는다.
+- `apps/host` → `@xeon/client`는 호스트의 `./client` 재노출과 시험 때문에 `DR-10/host-client`로 열었다. [미결] adr.0020 §3.5는 이 간선을 두지 않는 안이다.
 
 이유: 앱끼리 import하면 데스크톱 번들에 CLI 코드가 섞이고, 사이드카 경계(프로세스 분리)가 무너진다. 조립 코드를 두 앱에 나눠 두면 플러그인 등록 순서가 두 벌이 된다.
 
@@ -741,7 +742,7 @@ export const AllowList = Type.Array(AllowEntry);
     "rule": "DR-10",
     "from": "apps/cli",
     "to": "@xeon/host",
-    "entries": ["."],
+    "entries": [".", "./client"],
     "reason": "The CLI reuses the single engine assembly code in apps/host (review.decisions-2 U-15).",
     "approvedBy": "review.decisions-2"
   },
@@ -759,8 +760,17 @@ export const AllowList = Type.Array(AllowEntry);
     "rule": "DR-10",
     "from": "apps/desktop",
     "to": "@xeon/client",
-    "entries": ["."],
+    "entries": [".", "./stdio", "./settings"],
     "reason": "Clients share host connection code, settings view-models and message catalogs in packages/client (adr.0020).",
+    "approvedBy": "adr.0020"
+  },
+  {
+    "id": "DR-10/host-client",
+    "rule": "DR-10",
+    "from": "apps/host",
+    "to": "@xeon/client",
+    "entries": ["."],
+    "reason": "apps/host keeps the @xeon/host/client re-export and its tests drive the host through the client connection (adr.0020; open: adr.0020 section 3.5 says host does not import client).",
     "approvedBy": "adr.0020"
   },
   {
@@ -775,7 +785,7 @@ export const AllowList = Type.Array(AllowEntry);
 ]
 ```
 
-- 위 다섯 항목(DR-02 둘, DR-10 셋. `DR-10/*-client` 둘은 [결정: adr.0020]으로 더했다)과 테스트 한정 `DR-07/*-test-spawn` 항목이 이 문서가 미리 승인하는 예외의 전부다. `plugins/*`의 같은 층 예외는 두지 않는다([결정: review.decisions-2 U-16]).
+- 위 여섯 항목(DR-02 둘, DR-10 넷. `DR-10/*-client` 셋은 [결정: adr.0020]으로 더했다)과 테스트 한정 `DR-07/*-test-spawn` 항목이 이 문서가 미리 승인하는 예외의 전부다. `plugins/*`의 같은 층 예외는 두지 않는다([결정: review.decisions-2 U-16]).
 - 테스트 한정 프로세스 실행 [결정: review.decisions-2 B-06]: `scope: "test"`, `rule: "DR-07"`, `to: "Bun.spawn"`(같은 항목이 `Bun.spawnSync`, `node:child_process`도 덮는다) 항목을 미리 승인한다. 대상 패키지는 `apps/cli`(`DR-07/cli-test-spawn`), `packages/core-persistence`(`DR-07/persistence-test-spawn`), `packages/cap-workspace`(`DR-07/workspace-test-spawn`, `test/fork-records.test.ts`), `apps/desktop`(`DR-07/desktop-test-spawn`, `L4.desktop.plan` D1)이다. 위 JSON은 그중 하나만 보인다. L0 소유 패키지(`platform-*`)는 원래 소유자라 항목이 필요 없다. `check-layers.ts`는 `scope: "test"` 항목을 테스트 파일에만 적용하고, 같은 패키지의 `src/**`에서 쓰면 `DR-07`로 실패한다. 검사는 `Bun.spawn`·`Bun.spawnSync` 호출과 `node:child_process` import를 주석을 뺀 소스에서 찾는다. 운영 소스는 소유 표의 다섯 패키지(`platform-exec`, `platform-process`, `platform-sandbox`, `platform-secrets`, `platform-os`)만 쓴다. 테스트 파일은 모든 `platform-*` 패키지와 항목이 있는 패키지만 쓴다(`platform-store` 테스트 보조 파일이 자식 프로세스로 잠금을 시험하기 때문이다) [구현: review.decisions-2 B-06].
 - `TS-NN` 항목은 `eng.testing.guide` TS-05의 `mock.module` 예외를 같은 파일에 기록하는 형식이다. `from`은 테스트 파일이 있는 패키지 디렉터리, `to`는 바꾸는 외부 npm 모듈 지정자다. 미리 승인한 `TS-05` 항목은 없다.
 - 새 항목을 더하는 절차:

@@ -83,6 +83,9 @@
       "path": "./plugins/provider-anthropic-oauth"
     },
     {
+      "path": "./packages/client"
+    },
+    {
       "path": "./apps/cli"
     },
     {

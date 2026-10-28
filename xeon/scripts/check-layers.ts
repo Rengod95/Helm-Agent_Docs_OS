@@ -4,14 +4,14 @@
 // Exit codes: 0 pass, 1 violations, 2 tool error (unreadable package.json, tsconfig, allowlist or routes).
 // Checks:
 //   DR-01 a package imports only lower ranks (package.json dependencies and source imports, tests included)
-//   DR-02 no same-layer import (apps/* pairs are reported as DR-10), except entries in scripts/dependency-allowlist.json
+//   DR-02 no same-layer import (apps/* pairs and apps/* -> packages/client are reported as DR-10), except entries in scripts/dependency-allowlist.json
 //   DR-03 package.json "xeon": {layer, domain} exists and matches the package location (domain also matches routes.yaml for L0-L2)
 //   DR-04 workspace imports are declared in package.json and tsconfig.json "references" equals the workspace dependency set
 //   DR-05 no src/dist deep import and no relative import that leaves the package
 //   DR-07 Bun.spawn, Bun.spawnSync and node:child_process: sources of the L0 owner packages only; test files of any platform-*
 //         package and of packages with a `scope: "test"` allowlist entry (review.decisions-2 B-06)
 //   WEB-R16 no network calls, `Bun.` access or socket construction in packages/cap-web/src/fetch/convert (L2.web.spec 4.9.3)
-// Rank: F(0) < X(1) < L0(2) < L1(3) < L2(4) < L3(5) < L4(6). plugins/* count as L1, apps/* as L4, vendor/* is excluded.
+// Rank: F(0) < X(1) < L0(2) < L1(3) < L2(4) < L3(5) < L4(6). plugins/* count as L1, apps/* and packages/client as L4, vendor/* is excluded.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join, posix, relative, resolve, sep } from "node:path";
 import { Type } from "typebox";
@@ -99,6 +99,10 @@ function isLayer(value: string | undefined): value is Layer {
   return value !== undefined && Object.hasOwn(RANK, value);
 }
 
+/** packages/client is the shared L4 client package (adr.0020); its directory name has no layer prefix, so it is matched by name. */
+const CLIENT_DIR_NAME = "client";
+const CLIENT_DIR = `packages/${CLIENT_DIR_NAME}`;
+
 /** Layer a package must declare, derived from where it lives. undefined means unconstrained or excluded. */
 export function expectedLayer(dir: string): Layer | "vendor" | undefined {
   const [root, name = ""] = dir.split("/");
@@ -108,6 +112,7 @@ export function expectedLayer(dir: string): Layer | "vendor" | undefined {
   if (root !== "packages") return undefined;
   if (name === "contracts") return "F";
   if (name === "ext-host") return "X";
+  if (name === CLIENT_DIR_NAME) return "L4";
   if (name.startsWith("platform-")) return "L0";
   if (name.startsWith("core-")) return "L1";
   if (name.startsWith("cap-")) return "L2";
@@ -120,7 +125,7 @@ export function expectedDomain(dir: string): string | undefined {
   const [root, name = ""] = dir.split("/");
   if (root === "plugins" || root === "apps") return name;
   if (root !== "packages") return undefined;
-  if (name === "contracts" || name === "ext-host") return name;
+  if (name === "contracts" || name === "ext-host" || name === CLIENT_DIR_NAME) return name;
   for (const prefix of ["platform-", "core-", "cap-", "group-"]) {
     if (name.startsWith(prefix)) return name.slice(prefix.length);
   }
@@ -318,9 +323,11 @@ export function collectPackages(root: string): PackageInfo[] {
     .toSorted((a, b) => a.dir.localeCompare(b.dir));
 }
 
-/** Rule that governs a same-layer import: DR-10 between apps, DR-02 elsewhere. */
+/** Rule that governs a same-layer import: DR-10 from an app to another app or to packages/client (adr.0020), DR-02 elsewhere. */
 function sameLayerRule(fromDir: string, toDir: string): "DR-02" | "DR-10" {
-  return fromDir.startsWith("apps/") && toDir.startsWith("apps/") ? "DR-10" : "DR-02";
+  return fromDir.startsWith("apps/") && (toDir.startsWith("apps/") || toDir === CLIENT_DIR)
+    ? "DR-10"
+    : "DR-02";
 }
 
 function isAllowed(

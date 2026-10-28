@@ -72,9 +72,10 @@ export interface XeonPackageField {
 |---|---|---|
 | `DR-10/cli-host` | `apps/cli` → `apps/host` | CLI의 in-process 전송은 호스트의 조립 코드를 같은 프로세스에서 쓴다. 엔진 조립 코드를 한 곳에 둔다 |
 | `DR-10/cli-client`, `DR-10/desktop-client` | `apps/cli`, `apps/desktop` → `packages/client` | CLI와 데스크톱이 연결 코드(`createHostConnection`), 설정 view-model, 공유 로직, i18n 카탈로그를 한 곳에서 쓴다. F는 런타임 로직 없는 계약으로 둔다 [결정: adr.0020] |
+| `DR-10/host-client` | `apps/host` → `packages/client` | 호스트의 `./client` 재노출(`@xeon/host/client`)과 호스트 시험이 클라이언트 연결 구현을 쓴다. [미결] adr.0020 §3.5는 호스트가 `@xeon/client`를 import하지 않는다고 적는다. 재노출을 없애고 시험만 쓰는 방식은 시험 한정 DR-10 예외가 필요하다 |
 | `DR-02/group-kit-*` | `group-helm`, `group-learning` → `group-kit` | 그룹은 `group-kit`의 `defineGroup`을 쓴다. 그룹 공통 기반을 그룹마다 중복하지 않는다 |
 
-- 예외 대상 패키지(`apps/host`, `packages/client`, `group-kit`) 자신은 같은 층을 import하지 않는다. `packages/client`는 F(`contracts`)만 import한다 [결정: adr.0020].
+- 예외 대상 패키지(`apps/host`, `packages/client`, `group-kit`) 자신은 같은 층을 import하지 않는다. `check-layers.ts`는 `apps/*` → `packages/client` 간선을 DR-10으로, `packages/client` → `apps/*` 간선을 DR-02로 보고한다. `packages/client`는 F(`contracts`)만 import한다 [결정: adr.0020].
 - `plugins/*`는 L1 순위이고 같은 층 예외를 두지 않는다 [결정: review.decisions-2 U-16]. 플러그인은 F, X, L0, 외부 패키지(pi-ai)만 import하고 `core-*`를 import하지 않는다. `plugins/provider-anthropic-oauth`는 F의 provider 인터페이스로 provider를 만들고 `core-models` 서비스에 등록한다.
 - 목록 밖의 같은 층 import는 `check-layers.ts`가 거부한다.
 
@@ -260,7 +261,7 @@ flowchart TB
 | L4 cli | CLI | `apps/cli` |
 | L4 desktop | 데스크톱 | `apps/desktop` |
 | L4 host-service | 엔진 진입점과 서비스 | `apps/host` |
-| L4 settings-ui | 설정 화면 | `apps/desktop/src/settings`. 설정 view-model은 `packages/client` [결정: adr.0020] |
+| L4 settings-ui | 설정 화면 | `apps/desktop/src/views`(React 화면). 설정 view-model(`model.ts`, `key-entry.ts`, `diagnostics.ts`)은 `packages/client/src/settings`(`@xeon/client/settings`) [결정: adr.0020] |
 | L4 client | 클라이언트 공유 코드(연결, view-model, i18n 카탈로그) | `packages/client` [결정: adr.0020] |
 
 - `_research/foundation-plan.md` §3은 F5 서브패스를 `wire`, `settings` 둘로 적었고, routes.yaml은 도메인 `wire-settings` 하나로 적었다. 이 표는 routes.yaml을 따른다. 서브패스 이름은 `F.wire-settings.spec`이 정한다.
@@ -383,7 +384,7 @@ flowchart TB
 
 - 층 위반 import는 `just check-layers`가 종료코드 1로 거부한다(9절).
 - `package.json`의 `xeon.layer`가 디렉터리 접두사에서 나온 층과 다르면 `check-layers.ts`가 거부한다(9절).
-- 같은 층 간선은 3.2절 허용 목록의 예외(`group-*` → `group-kit`, `apps/cli` → `apps/host`, `apps/cli`·`apps/desktop` → `packages/client`)만 통과한다. `plugins/*` → `core-*` import는 L1 같은 층 import라 `check-layers.ts`가 거부한다.
+- 같은 층 간선은 3.2절 허용 목록의 예외(`group-*` → `group-kit`, `apps/cli` → `apps/host`, `apps/cli`·`apps/desktop`·`apps/host` → `packages/client`)만 통과한다. `plugins/*` → `core-*` import는 L1 같은 층 import라 `check-layers.ts`가 거부한다.
 - `xeon/vendor/cordis`는 층 검사 대상에서 빠진다(4.1절).
 
 ## 6. 설정 노출
@@ -413,4 +414,4 @@ flowchart TB
 - [미결] `package.json`의 `xeon.domain` 값과 routes.yaml 도메인의 불일치. `contracts`(routes는 F 도메인 5개), `ext-host`(routes는 X 도메인 3개), `group-kit`의 `kit`(routes는 `group-kit`), `host`(routes는 `host-service`). 패키지 하나가 도메인 여럿을 담는 F·X는 `xeon.domain`을 패키지 이름으로 둘지 정해야 한다.
 - [미결] 4.6절 하위 층 수(계획 41개, 실측 33개).
 - [미결] 4.4절 Cordis 서비스 이름. 그룹 사이 이벤트를 전역으로 전달할지 그룹 필터를 기본으로 둘지와 함께 X 문서가 정한다(`_research/notes/arch-1.md` §8).
-- [미결] `packages/client`의 `xeon.layer` 판정. `check-layers.ts`의 `expectedLayer`는 디렉터리 접두로 층을 정하는데 `client`는 접두 규칙(`platform-`, `core-`, `cap-`, `group-`)에 없다. 패키지 이름 하나를 L4로 대응시키는 항목을 더하는 안을 [제안]한다(adr.0020, `review.m3-lower-requirements` M3-REQ-111).
+- [결정: adr.0020] `packages/client`의 층 판정. `check-layers.ts`의 `expectedLayer`는 디렉터리 이름 `client` 하나를 L4로, `expectedDomain`은 `client`로 대응시킨다. `.dependency-cruiser.cjs`는 L4 경로를 `^(apps/|packages/client/)`로 둔다(`review.m3-lower-requirements` M3-REQ-111).

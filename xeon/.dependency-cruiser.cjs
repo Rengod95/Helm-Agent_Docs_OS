@@ -1,7 +1,7 @@
 /**
  * Layer rank: F(0) < X(1) < L0(2) < L1(3) < L2(4) < L3(5) < L4(6).
  * A package imports only lower ranks. Same-layer packages never import each other.
- * plugins/* rank as L1, apps/* as L4. vendor/* is excluded from the graph.
+ * plugins/* rank as L1, apps/* and packages/client (adr.0020) as L4. vendor/* is excluded from the graph.
  * Keep in sync with scripts/check-layers.ts (it reads package.json xeon.layer; this reads paths).
  */
 const LAYERS = [
@@ -11,7 +11,7 @@ const LAYERS = [
   { name: "L1", re: "^(packages/core-|plugins/)" },
   { name: "L2", re: "^packages/cap-" },
   { name: "L3", re: "^packages/group-" },
-  { name: "L4", re: "^apps/" },
+  { name: "L4", re: "^(apps/|packages/client/)" },
 ];
 
 const upward = LAYERS.slice(0, -1).map((layer, index) => ({
@@ -45,6 +45,7 @@ const sameLayerGroups = [
   { name: "L2", from: "^packages/(cap-[^/]+)/", to: "^packages/cap-", own: "^packages/$1/" },
   { name: "L3", from: "^packages/(group-[^/]+)/", to: "^packages/group-", own: "^packages/$1/" },
   // DR-10/cli-host (scripts/dependency-allowlist.json): apps/cli may import @xeon/host entries "." and "./client" only.
+  // DR-10/cli-client, DR-10/desktop-client, DR-10/host-client: apps may import packages/client, so it is not in the "to" of the app groups.
   {
     name: "L4",
     from: "^apps/(?!cli/)([^/]+)/",
@@ -58,6 +59,14 @@ const sameLayerGroups = [
     own: ["^apps/$1/", "^apps/host/src/(index|client)\\.ts$"],
   },
 ];
+
+// packages/client (L4, adr.0020) imports F only: no app, no engine package.
+sameLayerGroups.push({
+  name: "L4-client",
+  from: "^packages/(client)/",
+  to: "^apps/",
+  own: "^packages/$1/",
+});
 
 const sameLayer = sameLayerGroups.map((group) => ({
   name: `no-same-layer-import-${group.name}`,
