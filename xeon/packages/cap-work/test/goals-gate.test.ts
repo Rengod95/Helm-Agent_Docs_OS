@@ -320,3 +320,16 @@ describe("resuming", () => {
     expect(judgments(h)).toHaveLength(1);
   });
 });
+
+describe("without the last step id", () => {
+  test("an ending notice is still written as a turn-level item", async () => {
+    const h = await open();
+    const rig = gateAnswers(h, [{ kind: "capped", runs: 3, maxRuns: 3 }], { rememberStep: false });
+    await h.goals.set({ condition: "x" }, h.opts());
+    const patch = await rig.settle();
+    expect(patch?.continue).toBe(false);
+    const [entry] = patch?.entries ?? [];
+    expect(entry).toMatchObject({ kind: "item.recorded", stepId: null });
+    expect(entry && customOf(entry).customType).toBe(GOAL_NOTICE_TYPE);
+  });
+});

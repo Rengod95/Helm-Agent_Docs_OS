@@ -74,7 +74,7 @@ export function createSettleGate(deps: SettleGateDeps): SettleGate {
   function customEntry(
     threadId: ThreadId,
     turnId: TurnId,
-    stepId: StepId,
+    stepId: StepId | null,
     customType: string,
     text: string,
   ): DurableEventDraft {
@@ -200,9 +200,13 @@ export function createSettleGate(deps: SettleGateDeps): SettleGate {
       const text = final.instruction ?? final.notice;
       const stepId = lastStep.get(ctx.threadId);
       const entries = [...current.entries];
-      if (text !== null && stepId !== undefined) {
-        const type = final.instruction === null ? GOAL_NOTICE_TYPE : GOAL_CONTINUE_TYPE;
-        entries.push(customEntry(ctx.threadId, payload.turnId, stepId, type, text));
+      if (text !== null && final.instruction === null) {
+        // 끝내는 안내는 단계 id를 모르면 turn 수준 항목(`stepId: null`)으로 남긴다. 경계 검증이 거부해도 turn은 어차피 끝난다 [제안]
+        entries.push(
+          customEntry(ctx.threadId, payload.turnId, stepId ?? null, GOAL_NOTICE_TYPE, text),
+        );
+      } else if (text !== null && stepId !== undefined) {
+        entries.push(customEntry(ctx.threadId, payload.turnId, stepId, GOAL_CONTINUE_TYPE, text));
       } else if (text !== null) {
         deps.logger.warn("work.goal_gate.no_step", { thread: ctx.threadId });
       }
