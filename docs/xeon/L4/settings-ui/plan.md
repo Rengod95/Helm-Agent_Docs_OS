@@ -5,12 +5,12 @@ domain: settings-ui
 kind: plan
 status: draft
 depends_on: [L4.settings-ui.spec, L4.desktop.plan, L4.host-service.plan, F.wire-settings.plan, eng.testing.guide]
-binds: [xeon/apps/desktop/src/settings/**]
+binds: [xeon/packages/client/src/settings/**]
 ---
 
 # L4 설정 화면 구현 계획 (settings-ui)
 
-`L4.settings-ui.spec`을 코드로 옮기는 계획이다. 코드는 `xeon/apps/desktop/src/settings/`에 둔다. 화면 로직은 프레임워크와 DOM에 의존하지 않는 `model/`에 모으고, `views/`는 그 결과를 그리기만 한다.
+`L4.settings-ui.spec`을 코드로 옮기는 계획이다. view-model은 `xeon/packages/client/src/settings/`(`@xeon/client/settings`, adr.0020)에 두고 렌더러는 `xeon/apps/desktop/src/views/`에 둔다. 화면 로직은 프레임워크와 DOM에 의존하지 않는 `model/`에 모으고, `views/`는 그 결과를 그리기만 한다.
 
 ## 1. 목표와 마일스톤 배치
 
@@ -49,7 +49,7 @@ binds: [xeon/apps/desktop/src/settings/**]
 ## 2. 패키지와 파일 배치
 
 ```
-xeon/apps/desktop/src/settings/          # settings-ui 소유 (binds)
+xeon/packages/client/src/settings/          # settings-ui 소유 (binds, view-model)
   index.ts                 # createSettingsController, SettingsHostPort, SettingsController, SecretFlow* 타입
   connection.ts            # SettingsClient, createSettingsClient, SettingsChangeSignal (settings.* + events.subscribe)
   model/                   # 프레임워크·DOM 무관. bun test 대상
@@ -75,7 +75,7 @@ xeon/apps/desktop/src/settings/          # settings-ui 소유 (binds)
     client-check.contract.test.ts   # 클라이언트 검사와 F validateSettingValue 대조 (contract)
 ```
 
-- [제안] 테스트는 `src/settings/test/`에 둔다. `binds`(`xeon/apps/desktop/src/settings/**`) 안에 있어 라우팅이 같은 문서를 고르고, `eng.testing.guide` TS-06의 "`src/**/*.test.ts` 또는 `test/**`" 위치 규칙에도 맞는다. desktop 패키지의 `knip.json` `entry`에 `src/**/*.test.ts`가 있어야 한다(TS-06 마지막 항목).
+- [제안] 테스트는 `xeon/packages/client/test/settings/`에 둔다. `binds`(`xeon/packages/client/src/settings/**`) 안에 있어 라우팅이 같은 문서를 고르고, `eng.testing.guide` TS-06의 "`src/**/*.test.ts` 또는 `test/**`" 위치 규칙에도 맞는다. desktop 패키지의 `knip.json` `entry`에 `src/**/*.test.ts`가 있어야 한다(TS-06 마지막 항목).
 - [미결] `views/`의 확장자와 부품 형식(`.tsx` 함수 부품, 단일 파일 부품 등). 프런트엔드 프레임워크는 React 19 + Zustand 5로 정해졌다(adr.0010, `L4.desktop.spec` §10 미결 11 닫힘). 원칙: `model/`은 프레임워크 무관을 유지하고, 프레임워크가 바뀌어도 `views/`만 다시 쓴다.
 - [제안] `model/**`의 DOM 무관을 검사로 강제한다. `.oxlintrc.json` override로 `src/settings/model/**`에 `no-restricted-globals`(`document`, `window`, `HTMLElement`, `navigator`)와 `no-restricted-imports`(`../views/**`, 프레임워크 패키지)를 건다. oxlint 파일 단위 override 문제(`eng.dependency-rules.guide` 3.2절)가 있으면 `check-layers.ts`의 desktop 앱 내부 규칙(W1~W7, `L4.desktop.spec` §4.9)에 같은 항목을 더하도록 desktop에 요청한다.
 - `package.json`은 desktop의 것을 쓴다. 이 계획이 더하는 의존은 `@xeon/contracts`(workspace)와 `typebox`(`catalog:` 1.3.27)다. 추가는 desktop plan 담당자가 한다.

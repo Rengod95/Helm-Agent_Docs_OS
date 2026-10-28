@@ -246,5 +246,5 @@ ADR 본문은 `decisions/`에 있다. 각 행의 결정은 사용자 결정 기�
 ## 10. 미결 사항
 
 - [미결] 패키지 스코프 이름. 현재 `xeon/` 패키지는 모두 `@xeon/*`를 쓴다. Xeon은 임시 이름이므로 공개 릴리스 때 스코프를 바꿀지, npm 스코프를 확보할지 정해야 한다.
-- [미결] L4 앱 디렉터리 이름. `_research/foundation-plan.md` §3은 `apps/{cli,host,desktop}`, `_routing/routes.yaml`의 L4 domains는 `cli`, `desktop`, `host-service`, `settings-ui`다. routes.yaml은 `host-service`를 `xeon/apps/host/**`로, `settings-ui`를 `xeon/apps/desktop/src/settings/**`로 대응시킨다. 실제 `xeon/apps/host/package.json`의 `xeon.domain`은 `host`다. 도메인 이름을 `host`로 맞출지 `host-service`로 맞출지, 설정 화면을 데스크톱 안에 둘지 별도 앱으로 둘지 정해야 한다.
+- [미결] L4 앱 디렉터리 이름. `_research/foundation-plan.md` §3은 `apps/{cli,host,desktop}`, `_routing/routes.yaml`의 L4 domains는 `cli`, `desktop`, `host-service`, `settings-ui`다. routes.yaml은 `host-service`를 `xeon/apps/host/**`로, `settings-ui`를 `xeon/packages/client/src/settings/**`로 대응시킨다. 실제 `xeon/apps/host/package.json`의 `xeon.domain`은 `host`다. 도메인 이름을 `host`로 맞출지 `host-service`로 맞출지, 설정 화면은 별도 앱 없이 `packages/client`(view-model)와 데스크톱(렌더러)에 둔다 [결정: adr.0020].
 - [미결] 데스크톱 전송을 stdio로 유지할지 로컬 소켓으로 바꿀지. 장수명 엔진에서 stdio 파이프의 버퍼링과 종료 처리를 spike로 확인해야 한다(`_research/notes/arch-2.md` §5 6행).

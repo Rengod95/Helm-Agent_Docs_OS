@@ -52,7 +52,7 @@ binds: [xeon/packages/contracts/src/wire-settings/**]
 | L4 엔진 진입점 | `xeon/apps/host` | `WireHandlers`, `Transport`, `checkEnvelope`, `WIRE_METHODS`, `WIRE_ERRORS`, `toEventWire`, `resolveSetting`, `checkSettingWrite` | M1 |
 | L4 CLI | `xeon/apps/cli` | `HostConnection`, 알림 타입, `checkSettingWrite`(`xeon config`) | M1 |
 | L4 데스크톱 | `xeon/apps/desktop` | `HostConnection`, `StdioTransportFactory` 타입 | M1(스캐폴드) |
-| L4 설정 화면 | `xeon/apps/desktop/src/settings` | `SettingDefWire`, `SettingsTab`, `EffectiveSetting` | M2 |
+| L4 설정 화면 | `xeon/packages/client/src/settings`(view-model), `xeon/apps/desktop/src/views`(렌더러) | `SettingDefWire`, `SettingsTab`, `EffectiveSetting` | M2 |
 | X 로더 | `xeon/packages/ext-host` | `settingsFromManifest`, `buildCatalog` | M1 |
 | 각 층 설정 선언 | `xeon/packages/{platform,core,cap,group}-*` | `defineSettings`, `SettingDef` | M1 |
 

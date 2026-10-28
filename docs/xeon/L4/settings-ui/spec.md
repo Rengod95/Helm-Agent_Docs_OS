@@ -5,7 +5,7 @@ domain: settings-ui
 kind: spec
 status: draft
 depends_on: [F.wire-settings.spec, F.records.spec, L4.desktop.spec, L4.host-service.spec, L0.secrets.spec, L1.models.spec, L2.web.spec, L2.dialog.spec, X.primitives.spec, adr.0005, adr.0008]
-binds: [xeon/apps/desktop/src/settings/**]
+binds: [xeon/packages/client/src/settings/**]
 ---
 
 # L4 설정 화면 (settings-ui)
@@ -53,8 +53,8 @@ binds: [xeon/apps/desktop/src/settings/**]
 | 초안 | 사용자가 편집 중이고 아직 `settings.set`으로 보내지 않은 값 |
 | 쓰기 범위 | 이 화면이 값을 저장할 수 있는 범위. `managed`를 뺀 `SettingScope` 값. 타입은 `WritableScope` |
 | 변경 신호 | 다른 연결(CLI 등)이나 엔진이 설정을 바꿨다는 수신 정보. 현재는 `settings.changed` 내구 이벤트(§4.5) |
-| view-model | DOM, 프레임워크, 전송에 의존하지 않는 순수 TS 상태와 함수. `xeon/apps/desktop/src/settings/model/` |
-| 렌더러 | view-model을 화면 부품으로 그리는 코드. `xeon/apps/desktop/src/settings/views/` |
+| view-model | DOM, 프레임워크, 전송에 의존하지 않는 순수 TS 상태와 함수. `xeon/packages/client/src/settings/`(`@xeon/client/settings`, adr.0020) |
+| 렌더러 | view-model을 화면 부품으로 그리는 코드. `xeon/apps/desktop/src/views/` |
 | 셸 포트 | desktop이 settings-ui에 넘기는 의존 묶음(`SettingsHostPort`). 연결, 현재 thread, 재시작 동작을 담는다 |
 
 `SettingDefWire`, `EffectiveSetting`, `SettingsTab`, `SettingWidget`, `SettingScope`, `RuntimeChange`, `SettingKey`, `SecretRef`, `settingsJsonSchema`, `checkSettingWrite`, `validateSettingValue`의 이름과 값 집합은 `F.wire-settings.spec` §3.8~§4.10을 그대로 따른다.
@@ -85,7 +85,7 @@ binds: [xeon/apps/desktop/src/settings/**]
 ### 3.2 셸 포트와 컨트롤러
 
 ```ts
-// xeon/apps/desktop/src/settings/index.ts
+// xeon/packages/client/src/settings/index.ts
 import type { HostConnection, Unsubscribe } from "@xeon/contracts/wire";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { SettingKey, SettingScope } from "@xeon/contracts/settings";
@@ -141,7 +141,7 @@ export type { SecretStatus };
 ### 3.3 연결 어댑터
 
 ```ts
-// xeon/apps/desktop/src/settings/connection.ts
+// xeon/packages/client/src/settings/connection.ts
 import type { HostConnection, Unsubscribe, WireParams, WireResult } from "@xeon/contracts/wire";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import type { SettingKey, SettingScope } from "@xeon/contracts/settings";
@@ -172,7 +172,7 @@ export declare function createSettingsClient(connection: HostConnection): Settin
 ### 3.4 view-model 타입
 
 ```ts
-// xeon/apps/desktop/src/settings/model/types.ts
+// xeon/packages/client/src/settings/types.ts
 import type {
   EffectiveSetting, RuntimeChange, SecretRef, SettingDefWire, SettingKey, SettingScope, SettingsTab,
 } from "@xeon/contracts/settings";
@@ -840,9 +840,9 @@ sequenceDiagram
 
 ### 4.9 코드 위치
 
-- [제안] 코드는 `xeon/apps/desktop/src/settings/`에 둔다(`_routing/routes.yaml` layout L4 `settings-ui`). `architecture.layers.spec` §10은 "설정 화면의 코드 위치를 `apps/desktop/src/settings`로 둘지 별도 앱으로 둘지"를 미결로 둔다. 이 문서는 별도 앱 없이 desktop 안 하위 디렉터리를 제안하고 같은 미결을 이어 받는다(§10 미결 11).
+- [결정: adr.0020] view-model은 `xeon/packages/client/src/settings/`(`@xeon/client/settings`)에 두고 렌더러는 `xeon/apps/desktop/src/views/`에 둔다. 별도 앱은 두지 않는다.
 - `package.json`의 `xeon.domain`은 `desktop`이다. settings-ui는 별도 패키지가 아니므로 층 검사(`check-layers.ts`)는 desktop 패키지 단위로 돈다.
-- [미결] CLI가 같은 view-model을 쓰려면 공유 위치가 필요하다. 앱끼리 import 금지(DR-10) 때문에 `apps/cli`가 `apps/desktop/src/settings/model`을 import할 수 없다. 후보는 셋이다(§10 미결 12).
+- [결정: adr.0020] CLI와 데스크톱이 view-model을 함께 쓰는 위치는 `packages/client`다. `apps/cli`와 `apps/desktop`은 허용 목록 `DR-10/cli-client`, `DR-10/desktop-client`로 import한다.
   - 공유 패키지로 내린다. L4 아래 층에 화면 view-model을 두는 것이 층 뜻과 맞는지 정해야 한다.
   - `apps/` 아래 라이브러리 패키지(앱이 아닌 L4 패키지)를 허용한다. DR-10과 `architecture.layers.spec` §10 "같은 층 예외"를 바꾸는 일이다.
   - CLI는 `xeon config`(F `checkSettingWrite` 기반)만 쓰고 view-model을 공유하지 않는다.
@@ -950,7 +950,7 @@ sequenceDiagram
 8. [미결] `SettingsTab` enum과 `SettingUi` 변경. 현재 변경은 필요 없다고 본다. 전용 편집기 힌트 필드를 더할지, 탭을 더할지는 M3 전용 편집기 작업 때 F 부 버전 변경 요청으로 올린다(§4.1.2, §4.2.4).
 9. [결정: adr.0016] i18n 방침. `ui.label`·`ui.help`는 메시지 키이고 ko·en 카탈로그를 `packages/client`에 둔다(§4.8.2).
 10. [미결] 관리 잠금 사유 문구를 F에 실을지(§4.8.3).
-11. [결정: adr.0020] 설정 화면 렌더러는 `apps/desktop/src/settings`에 두고, view-model(`settings/model`)은 `packages/client`로 옮긴다(§4.9).
+11. [결정: adr.0020] 설정 화면 렌더러는 `apps/desktop/src/views`에 두고, view-model은 `packages/client`로 옮긴다(§4.9).
 12. [결정: adr.0020] CLI와 view-model 공유 위치는 `packages/client`다(`DR-10/cli-client`, `DR-10/desktop-client`). CLI의 TUI 설정 화면은 M3에 만들지 않는다 [결정: review.m3-design-inputs D-M3-30 행 3].
 13. [미결] 확장의 맞춤 설정 패널 허용 여부와 시점(§7).
 14. 닫음: project·local 범위 쓰기에서 열린 프로젝트가 없을 때의 오류는 3103 `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"`다(`L4.host-service.spec` §3.4 `settings.set` 행). §4.4.4 표와 §5에 반영했다.

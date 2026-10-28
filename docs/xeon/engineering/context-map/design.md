@@ -194,7 +194,7 @@ flowchart TD
 | 3 | `approval.` 접두사(L1 `tool-runtime`) | 질문 도구(L2 dialog)와 계획 승인(L2 work)의 기능은 L2에 있으나 이벤트는 L1이 소유한다 | 결정 5(질문·계획 승인을 L1-d 승인 프로토콜 하나로)를 따른다. L2는 `xeon.approvals`로 요청하고 결과를 이벤트로 받는다 |
 | 4 | 세션 제목(L2 artifacts "세션 제목과 메타") | 기능은 L2, 이벤트 `thread.updated`(제목)는 L1 `session-core` 소유 | artifacts가 `xeon.session`의 제목 변경 API를 부르고, 이벤트는 session-core가 쓴다 |
 | 5 | 학습 그룹(L3)의 저장 | 그룹의 산출물이 아래 층 컨텍스트(L2 knowledge) 테이블에 있다 | 3절 결정 5. 학습 그룹은 `x_learning_*`에 트리거 카운터만 둔다 |
-| 6 | `settings-ui`(L4) | layout 경로 `xeon/apps/desktop/src/settings/**`가 `desktop` 패키지 안이다. 도메인 둘이 패키지 하나에 있다 | 두 도메인을 `clients` 컨텍스트로 묶는다. 설정 화면 생성은 F5 설정 스키마 하나에서 나온다 |
+| 6 | `settings-ui`(L4) | layout 경로 `xeon/packages/client/src/settings/**`가 `client` 패키지 안이다(adr.0020). 화면은 `desktop`에 있다 | 두 도메인을 `clients` 컨텍스트로 묶는다. 설정 화면 생성은 F5 설정 스키마 하나에서 나온다 |
 | 7 | `slots`(L3) | layout 도메인이지만 코드가 없다(템플릿 문서만) | `group-kit` 컨텍스트에 둔다. 미결 C-2 |
 | 8 | `plugins/provider-anthropic-oauth` | L1 순위(`AGENTS.md`)이지만 layout 도메인 밖이고 배포판에서 빠진다 | `model-gateway` 컨텍스트에 속한다. layout `plugins` 항목이 `L1.models.spec`을 문서로 지정한다. import 규칙은 DR-09 |
 | 9 | F `records`의 이벤트 카탈로그 | L2 능력이 이벤트 type을 더할 때마다 F를 고친다 | 카탈로그 파일을 소유 컨텍스트별로 나눈다(`contracts/src/records/catalog/<컨텍스트>.ts`) [제안]. 소유는 5.1절 |
@@ -242,7 +242,7 @@ flowchart TD
 | L3-d | 추가 그룹 슬롯 | L3 slots | 없음(템플릿) | `group-kit` |
 | (계획 밖) | CLI | L4 cli | `apps/cli` | `clients` |
 | (계획 밖) | 데스크톱 | L4 desktop | `apps/desktop` | `clients` |
-| (계획 밖) | 설정 화면 | L4 settings-ui | `apps/desktop/src/settings` | `clients` |
+| (계획 밖) | 설정 화면 | L4 settings-ui | `packages/client/src/settings` | `clients` |
 | (계획 밖) | 호스트·서비스 | L4 host-service | `apps/host` | `host` |
 
 L2 하위 층 이름과 layout 도메인 이름이 다르게 읽히는 곳(L2-a "작업 도구" = `workspace`, L2-e "작업 관리" = `work`, L2-g "산출물과 세션" = `artifacts`)은 layout 이름을 코드·서비스·접두사의 기준으로 쓴다. 정리 방식은 미결 C-1이다.

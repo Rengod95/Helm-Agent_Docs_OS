@@ -68,7 +68,7 @@ layout:
       cli: "xeon/apps/cli/**"
       desktop: "xeon/apps/desktop/**"
       host-service: "xeon/apps/host/**"
-      settings-ui: "xeon/apps/desktop/src/settings/**"
+      settings-ui: "xeon/packages/client/src/settings/**"   # view-model(adr.0020). 렌더러는 xeon/apps/desktop/src/views
   plugins:
     - path: "xeon/plugins/provider-anthropic-oauth/**"
       docs: [L1.readme, L1.models.spec, L1.models.plan]

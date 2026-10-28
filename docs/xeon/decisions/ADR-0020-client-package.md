@@ -34,7 +34,9 @@ binds: [xeon/packages/client/**, xeon/packages/contracts/src/wire-settings/**, x
    - 설정 화면 view-model(`L4.settings-ui.spec`)
    - CLI와 데스크톱이 함께 쓰는 표시 로직: 오류·알림 문장화와 i18n 카탈로그(ADR-0016), 승인 카드 상태
 4. [결정] F `@xeon/contracts/wire`에는 타입, 스키마, 메서드 표(`WIRE_METHODS`), 적합성 사례 데이터만 남긴다. M2 F.8에서 F로 옮긴 런타임 구현(`wire/client.ts`, `framing.ts`, `stdio.ts`의 구현부)은 `@xeon/client`로 옮긴다.
+   - [미결] 구현 편차(M3a). `framing.ts`와 `stdio.ts`는 서버 쪽(L0 `platform-process`, `apps/host`)이 같은 코드를 써서 F에 남겼고, `wire/client.ts`(`createHostConnection`)만 옮겼다. L0와 호스트는 L4인 `@xeon/client`를 import할 수 없어, 옮기려면 서버용 구현을 따로 두어야 한다. `@xeon/client/stdio`는 F 구현을 다시 내보낸다(`F.wire-settings.spec` §3.1).
 5. [결정] 같은 층 예외를 둘 더한다. `DR-10/cli-client`(`apps/cli` → `packages/client`), `DR-10/desktop-client`(`apps/desktop` → `packages/client`). `apps/host`는 서버 쪽이라 `@xeon/client`를 import하지 않는다. `DR-10/cli-host`는 in-process 전송 때문에 그대로 둔다.
+   - [미결] 구현 편차(M3a). `@xeon/host/client`를 `@xeon/client` 재노출로 남기고 호스트 시험이 연결 구현을 쓰므로 `DR-10/host-client`를 더했다. 이 항목의 "`apps/host`는 import하지 않는다"와 다르다. 재노출을 없애려면 호스트 시험 한정 DR-10 예외가 필요하다(`eng.dependency-rules.guide` 4절).
 6. [제안] `check-layers.ts`의 `expectedLayer`는 디렉터리 이름 `client`를 L4로 본다. 허용 목록 파일(`xeon/scripts/dependency-allowlist.json`)에 두 예외 id를 올린다.
 7. [제안] 데스크톱 Rust 셸은 이 패키지와 무관하다. 데스크톱 TS(WebView)만 쓴다.
 

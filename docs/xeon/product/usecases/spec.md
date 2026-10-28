@@ -37,7 +37,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
 | 공유 서비스 모드 | `xeon service`. 클라이언트가 없으면 자동 기동하고 연결과 작업이 없으면 유휴 종료하는 엔진 프로세스. ADR-0006. |
 | 모델 테이프 | 기록해 둔 모델 응답을 재생하는 테스트용 가짜 모델. `eng.testing.guide`. |
 
-패키지 이름은 `_routing/routes.yaml`의 layout을 따른다. L4 앱은 `apps/cli`, `apps/desktop`, `apps/host`, 설정 화면은 `apps/desktop/src/settings`(이하 settings-ui)다.
+패키지 이름은 `_routing/routes.yaml`의 layout을 따른다. L4 앱은 `apps/cli`, `apps/desktop`, `apps/host`, 설정 화면은 view-model `packages/client/src/settings`와 렌더러 `apps/desktop/src/views`(이하 settings-ui)다.
 
 ## 3. 인터페이스
 
