@@ -14,7 +14,7 @@ binds: [xeon/packages/ext-host/src/operations/**]
 
 ## 1. 목표와 마일스톤 배치
 
-[결정] M0 범위에 `ext-host`(Cordis vendored, on/post/drive/scope 최소형)가 들어가고, M1은 테스트용 그룹이 on/post/drive를 쓰는 걷는 골격이다(`_research/foundation-plan.md` §5 P4). 이 계획의 1차·2차 구분은 `_research/layer-plan-v2.json` X-c를 따른다. 이름 충돌, 안전 모드, 외부 훅은 2차다.
+[결정] M0 범위에 `ext-host`(Cordis vendored, on/post/drive/scope 최소형)가 들어가고, M1은 테스트용 그룹이 on/post/drive를 쓰는 걷는 골격이다(`_research/foundation-plan.md` §5 P4). 이 계획의 1차·2차 구분은 `_research/layer-plan-v2.json` X-c를 따른다. 이름 충돌, 안전 모드는 2차다. 외부 훅은 M4다 [결정: 2026-10-28 사용자].
 
 | 마일스톤 | 범위 | 스펙 절 | 소비자 |
 |---|---|---|---|
@@ -106,9 +106,9 @@ xeon/packages/ext-host/
 | O-18 | `naming.ts`: `qualifiedName`, `resolveNames`(순서 무관, 예약, 충돌, 64자), `createResourcePolicy`(`ResourcePolicy.resolve` 쌍 판정) | P-24(리소스 레지스트리, `ResourcePolicy`) | M | M2 |
 | O-19 | `ExtHostDeps.resourcePolicy` 연결, 집합 판정 메서드 추가를 primitives와 합의(스펙 §10 미결 17), pi 어댑터의 `registerTool`·`registerCommand`·`registerShortcut`·`registerFlag` 매핑 확인 | L-19(pi 어댑터), O-18 | M | M2 |
 | O-20 | `safe-mode.ts`: `startupFilter`, `allowedInSafeMode`, `shouldSuggestSafeMode`. `OperationsPolicy.startupFilter`(후보별 `assignTier` 뒤 `startupFilter`), `StartupHealthStore` 포트, 2차 안전 모드 키 2개. 로더 5a단계 연결은 L-29 | L-08(로더), L4.host-service.plan(시작 상태 파일, `--safe-mode`·`--disable-ext` 파싱), O-02 | M | M2 |
-| O-21 | `hooks/config.ts`: `HookDefSchema`, 범위별 목록 병합, tier 부여, 프로젝트 신뢰 조건, 2차 훅 키 3개 | L-17(프로젝트 신뢰), F.wire-settings.plan(배열 키 병합, 스펙 §10 미결 13), O-02 | M | M2 |
-| O-22 | `hooks/protocol.ts`: `HookInput` 직렬화, `HookOutputSchema`, `interpretHookRun`(스펙 §4.7.3 표 전체) | F.extensions.plan(`POINTS[point].result` 스키마), O-21 | M | M2 |
-| O-23 | `hooks/run.ts`: `hookEnv`, `HookProcessPort`(`ProcessPortKey`로 조회)로 실행, 출력 상한, 예산, 결과를 `HandlerOutcomeRecord`로 보고 | P-30(`ProcessPortKey`), L0.process.plan(`ProcessService` 실행 메서드, 프로세스 그룹 종료), O-22, O-08 | M | M2 |
+| O-21 | `hooks/config.ts`: `HookDefSchema`, 범위별 목록 병합, tier 부여, 프로젝트 신뢰 조건, 2차 훅 키 3개 | L-17(프로젝트 신뢰), F.wire-settings.plan(배열 키 병합, 스펙 §10 미결 13), O-02 | M | M4 |
+| O-22 | `hooks/protocol.ts`: `HookInput` 직렬화, `HookOutputSchema`, `interpretHookRun`(스펙 §4.7.3 표 전체) | F.extensions.plan(`POINTS[point].result` 스키마), O-21 | M | M4 |
+| O-23 | `hooks/run.ts`: `hookEnv`, `HookProcessPort`(`ProcessPortKey`로 조회)로 실행, 출력 상한, 예산, 결과를 `HandlerOutcomeRecord`로 보고 | P-30(`ProcessPortKey`), L0.process.plan(`ProcessService` 실행 메서드, 프로세스 그룹 종료), O-22, O-08 | M | M4 |
 | O-24 | 외부 훅 등록: 범위별 내부 내장 확장 단위(`xeon-hooks-<범위>`)를 `ExtHost.install`로 싣고 훅마다 on 핸들러 하나를 등록(모든 확장 뒤 loadIndex, `TierTable`에 범위별 tier), (단위, 순번) → 훅 id 표, 자동 끄기의 훅 끄기 연결 | P-13(`install`), O-03, O-10, O-23 | M | M4 |
 | O-25 | `ExtStorageAdmin`(`tablesOf`, `dropExtension` 2단계 확인)과 제거 흐름 연결(`LoaderDeps.storageAdmin`) | L-28(제거 흐름), L4.settings-ui.plan(확인 화면), O-14 | M | M2 |
 | O-26 | 접두 차단 강화: `bun:sqlite` authorizer 노출 여부 조사(문서·소스 읽기만), `ExtQuery` 범위 조건 | O-14, 스펙 §10 미결 9 | M | M2 |

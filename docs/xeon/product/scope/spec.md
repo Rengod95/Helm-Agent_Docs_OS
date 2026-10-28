@@ -58,7 +58,7 @@ binds: []
 | I8 | 학습 그룹 | M3 | [결정: decisions-log 2026-10-21 계획 v2] |
 | I9 | 승인 프로토콜 통합(질문 도구와 계획 승인을 L1-d 하나로) | M2 | [결정: decisions-log 2026-10-21 3차] foundation-plan.md §1 결정 5 |
 | I10 | 무료 검색 기본값 단계 구성 | M2(①~③), M3(④ 첫 실행 권장) | [결정: decisions-log 2026-10-21 3차, ADR-0005] foundation-plan.md §1 결정 6. ③은 사용자가 SearXNG 주소를 설정했을 때만 쓴다. 자동 감지는 없다 [결정: review.m2-plan §9 H1] |
-| I11 | 목표 판정(별도 판정 모델 + 실행 횟수 상한) | M3 | [결정: decisions-log 2026-10-21 3차] foundation-plan.md §1 결정 4 |
+| I11 | 목표 판정(별도 판정 모델 + 실행 횟수 상한) | M3a(구현)/M3b(판정) | [결정: decisions-log 2026-10-21 3차] foundation-plan.md §1 결정 4 |
 | I12 | 공유 서비스 모드(`xeon service`, 자동 기동, 유휴 종료) | M3 | [결정: decisions-log 2026-10-21 3차, ADR-0006] foundation-plan.md §1 결정 2 |
 | I13 | 예약, 원격, 알림(데몬 허용) | M3 | [결정: decisions-log 2026-10-21 3차] foundation-plan.md §1 결정 2. 원격은 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 방식으로 M3에 넣고, 내장 TLS + 토큰 WebSocket 전송은 2차다 [결정: review.decisions-2 U-11] |
 | I14 | L4 설정 화면(추론 예산, 라우팅, 레이트 리밋, 계정 회전) | M3. 데스크톱 최소 설정 화면(키 등록, 모델 선택, 첫 실행 안내)은 M2 | [결정: decisions-log 2026-10-21 2차]. 최소 화면 [결정: review.m2-plan §9 D-b] |
