@@ -13,7 +13,7 @@ import type { ScopeApi } from "@xeon/contracts/extensions";
 import { Type, type TUnsafe } from "typebox";
 import { failureOf, type HelmFailure } from "./failures.ts";
 
-export const HELM_STATE_VERSION = 1 as const;
+const HELM_STATE_VERSION = 1 as const;
 
 export type HelmPhase = "idle" | "diverge" | "explore" | "converge" | "apply";
 const phaseShape = Type.Union([
@@ -23,7 +23,7 @@ const phaseShape = Type.Union([
   Type.Literal("converge"),
   Type.Literal("apply"),
 ]);
-export const HelmPhaseSchema: TUnsafe<HelmPhase> = Type.Unsafe<HelmPhase>(
+const HelmPhaseSchema: TUnsafe<HelmPhase> = Type.Unsafe<HelmPhase>(
   phaseShape satisfies SchemaSound<HelmPhase, typeof phaseShape>,
 );
 
@@ -40,7 +40,7 @@ export const HelmSignalKindSchema: TUnsafe<HelmSignalKind> = Type.Unsafe<HelmSig
   signalShape satisfies SchemaSound<HelmSignalKind, typeof signalShape>,
 );
 
-export type LensStatus = "pending" | "running" | "done" | "failed" | "skipped";
+type LensStatus = "pending" | "running" | "done" | "failed" | "skipped";
 
 /** 1~16자. requestId에 들어가므로 짧게 둔다 */
 export const LENS_ID_PATTERN = "^[a-z][a-z0-9-]{0,15}$";
@@ -64,7 +64,7 @@ const lensShape = Type.Object({
     Type.Literal("skipped"),
   ]),
 });
-export const HelmLensSchema: TUnsafe<HelmLens> = Type.Unsafe<HelmLens>(
+const HelmLensSchema: TUnsafe<HelmLens> = Type.Unsafe<HelmLens>(
   lensShape satisfies SchemaProof<HelmLens, typeof lensShape>,
 );
 
@@ -111,7 +111,7 @@ const findingShape = Type.Object({
   confidence: ConfidenceSchema,
   followUp: Type.Optional(Type.String({ minLength: 1, maxLength: 200 })),
 });
-export const HelmFindingSchema: TUnsafe<HelmFinding> = Type.Unsafe<HelmFinding>(
+const HelmFindingSchema: TUnsafe<HelmFinding> = Type.Unsafe<HelmFinding>(
   findingShape satisfies SchemaProof<HelmFinding, typeof findingShape>,
 );
 
@@ -127,7 +127,7 @@ const pendingShape = Type.Object({
   source: Type.Union([Type.Literal("signal"), Type.Literal("command")]),
   signal: Type.Optional(HelmSignalKindSchema),
 });
-export const HelmPendingSchema: TUnsafe<HelmPending> = Type.Unsafe<HelmPending>(
+const HelmPendingSchema: TUnsafe<HelmPending> = Type.Unsafe<HelmPending>(
   pendingShape satisfies SchemaProof<HelmPending, typeof pendingShape>,
 );
 
@@ -143,7 +143,7 @@ const watchShape = Type.Object({
   callKey: Type.Union([Type.String({ maxLength: 96 }), Type.Null()]),
   callRun: Type.Integer({ minimum: 0 }),
 });
-export const HelmWatchSchema: TUnsafe<HelmWatch> = Type.Unsafe<HelmWatch>(
+const HelmWatchSchema: TUnsafe<HelmWatch> = Type.Unsafe<HelmWatch>(
   watchShape satisfies SchemaProof<HelmWatch, typeof watchShape>,
 );
 
@@ -293,14 +293,10 @@ const queues = new WeakMap<object, Promise<void>>();
 
 type StateApi = Pick<ScopeApi<HelmState>, "state" | "commit">;
 
-async function commitOnce(
+async function commitFitted(
   g: StateApi,
-  f: (current: Readonly<HelmState>) => HelmState,
+  next: HelmState,
 ): Promise<Result<Readonly<HelmState>, StateWriteFailure>> {
-  const next = f(g.state());
-  const checked = parse(HelmStateSchema, next);
-  if (!checked.ok)
-    throw new Bug("helm.update_state: the update produced a state outside HelmStateSchema");
   const fitted = fitState(next).state;
   const committed = await attemptAsync(() => g.commit(fitted));
   if (committed.ok) return ok(committed.value);
@@ -315,6 +311,16 @@ async function commitOnce(
     return rethrow(committed.error.cause);
   }
   return err(failure);
+}
+
+function commitOnce(
+  g: StateApi,
+  f: (current: Readonly<HelmState>) => HelmState,
+): Promise<Result<Readonly<HelmState>, StateWriteFailure>> {
+  const next = f(g.state());
+  if (parse(HelmStateSchema, next).ok) return commitFitted(g, next);
+  // f가 스키마를 어기는 값을 만들었다: Helm 코드의 잘못이다(L3.helm.spec §4.1)
+  throw new Bug("helm.update_state: the update produced a state outside HelmStateSchema");
 }
 
 /**

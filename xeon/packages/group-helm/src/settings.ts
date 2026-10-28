@@ -17,15 +17,15 @@ export const DEFAULT_HELM_DRIVE_LIMITS: Required<DriveLimits> = {
 };
 
 /** 신호가 났을 때의 자동 시작 방식(L3.helm.spec §4.3 autoStart 표) */
-export const AUTO_START_VALUES: readonly ["off", "suggest", "auto"] = ["off", "suggest", "auto"];
+const AUTO_START_VALUES: readonly ["off", "suggest", "auto"] = ["off", "suggest", "auto"];
 export type AutoStart = (typeof AUTO_START_VALUES)[number];
 
-export function isAutoStart(value: unknown): value is AutoStart {
+function isAutoStart(value: unknown): value is AutoStart {
   return AUTO_START_VALUES.some((known) => known === value);
 }
 
 /** 한 탐구가 쓰는 렌즈 수의 설정 범위. 내장 렌즈 6개보다 크게 둔다(상태 `lenses` 상한 8개) */
-export const MAX_LENSES_RANGE: { readonly min: 1; readonly max: 8 } = { min: 1, max: 8 };
+const MAX_LENSES_RANGE: { readonly min: 1; readonly max: 8 } = { min: 1, max: 8 };
 
 const ALL_SCOPES = ["managed", "user", "project", "local", "session"] as const;
 

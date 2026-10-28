@@ -475,8 +475,8 @@ export const HELM_RECORD_KINDS: readonly RecordKindDecl[] = [
 | kind | subject | 쓰는 시점 | 읽는 쪽 |
 |---|---|---|---|
 | `grp.helm.signal.detected` | `{ type: "turn", id: turnId }` | 신호 판정 시(§4.3) | L4 상태 표시 |
-| `grp.helm.discovery.recorded` | `{ type: "turn", id: appliedTurnId }`. 적용 turn이 없으면 `{ type: "thread", id: threadId }` | 적용 단계 끝(§4.8) | L4 상태 표시. 다른 그룹은 읽지 않는다 |
-| `grp.helm.inquiry.finished` | `{ type: "thread", id: threadId }` | 탐구 종료 전이(§4.2) | L4 상태 표시 |
+| `grp.helm.discovery.recorded` | `{ type: "turn", id: appliedTurnId }`. 적용 turn이 없으면 `{ type: "external", id: inquiryId }`(drive에는 thread id가 없다) | 적용 단계 끝(§4.8) | L4 상태 표시. 다른 그룹은 읽지 않는다 |
+| `grp.helm.inquiry.finished` | `{ type: "external", id: inquiryId }`(drive에는 thread id가 없다. 기록은 thread에 저장되므로 읽는 쪽은 thread로 거른다) | 탐구 종료 전이(§4.2) | L4 상태 표시 |
 
 - [결정: review.decisions-2 T-21] 공개 레코드와 비공개 상태 모두 `grp.helm.` 접두를 쓴다. 공개 레코드는 `g.record`, 비공개 상태는 상태 문서(`grp.helm.state.committed`, 투영 `x_helm_state`)다. 상한을 넘는 비공개 기록이 필요하면 `ScopeApi.recordPrivate`(kind `grp.helm.*`, X.primitives.spec §4.6.5)를 쓴다. 그 kind는 매니페스트 `recordKinds`(`HELM_RECORD_KINDS`)에 넣지 않고 공개 kind와 이름이 겹치지 않게 한다.
 
@@ -729,12 +729,13 @@ export type HelmCommandError =
 export function parseHelmCommand(args: string): Result<HelmCommand, Extract<HelmCommandError, { kind: "usage" }>>;
 
 /** 명령 실행. 효과는 updateState와 post뿐이다. 명령 처리기는 재실행되지 않으므로 ADR-0015 대상이 아니다(§4.11) */
-export function runHelmCommand(g: GroupApi<HelmState>, cmd: HelmCommand, ctx: { readonly turnId: TurnId | null }): Promise<Result<HelmStatusView, HelmCommandError>>;
+export function runHelmCommand(g: Pick<GroupApi<HelmState>, "state" | "commit">, cmd: HelmCommand, ctx: { readonly nonce: string; readonly terms: readonly string[] }): Promise<Result<HelmStatusView, HelmCommandError>>;
 
 /** g.registerCommand에 넘기는 정의. parseHelmCommand와 runHelmCommand를 묶는다. 타입은 GroupApi에서 유도해 ext-host를 import하지 않는다 */
-export function helmCommand(g: GroupApi<HelmState>): Parameters<GroupApi<HelmState>["registerCommand"]>[1];
+export function helmCommand(mailbox: CommandMailbox): Parameters<GroupApi<HelmState>["registerCommand"]>[1];
 ```
 
+- 명령 처리기는 상태에 닿지 못한다 [미결 → X·group-kit]: X의 `ScopeApi.state`·`commit`·`post`는 on 핸들러와 drive 함수 안에서만 thread 문맥을 얻고, 명령 처리기는 `{ threadId }`만 받는다. 그래서 `helmCommand`의 처리기는 요청(인자 문자열, 요청마다 다른 nonce)을 프로세스 메모리의 `CommandMailbox`에 쌓기만 하고, 다음 `input.agent.before`·`boundary.settle.after` 핸들러가 `runHelmCommand`로 실행해 결과를 알림(`grp.helm.notice.status`, requestId `helm:cmd:<nonce>`)으로 남긴다. 그래서 `/helm start`는 다음 turn 지점에서 `pending`을 커밋하고, 그 turn이 끝난 뒤 임대를 받는다. 이 간격은 X가 명령 처리기에 thread 문맥을 주면(요구) 없어진다. 인자 없는 `/helm`은 `status`다. 외부 플러그인은 `GroupService`에 닿지 못하므로 `HelmStatusView.lease`는 커밋된 상태에서 얻는다(탐구 중이면 `held`, `pending`만 있으면 `waiting`).
 - 명령 등록은 group-kit `g.registerCommand("helm", …)`로 한다(L3.group-kit.spec §3.2). group-kit은 X `hostOf(g).registerCommand`(X.primitives.spec §4.8)로 넘긴다. 이름은 `helm`이고 하위 명령을 인자로 받는다.
 - `/helm start [주제]`: `idle`이고 `pending`이 없을 때만 `pending`(`source: "command"`)을 커밋한다. 주제를 생략하면 마지막 신호 기록의 근거나 현재 turn 입력 용어 후보를 쓴다. `inquiryId`는 `inquiryIdFrom("command:" + (turnId ?? "none") + ":" + topic)`다 [제안].
 - `/helm stop`: §5 4번.
@@ -763,6 +764,8 @@ export const helmGroup: GroupModule = defineGroup<HelmState>({
 
 export { helmManifest, HelmStateSchema, INITIAL_HELM_STATE, HELM_RECORD_KINDS, helmSettings, transition, TRANSITIONS };
 ```
+
+- 구현 메모: 코드는 `setup`을 `setupHelm(g, settings)` 하나로 두고 `g.settings()` 읽기를 인자로 받는다. 외부 플러그인용 `helmGroup`은 신뢰 등급 user(`ext.helm` 설정 네임스페이스)라 `helmSettings`(`l3.helm`)를 `defineGroup`에 붙일 수 없고(`validateGroupDef` `settings_namespace`), 외부 확장은 설정 읽기 포트(`xeon.settings`, builtin 전용)에 닿지 못하므로 기본 설정(`DEFAULT_HELM_SETTINGS`)으로 동작한다 [미결 → X·group-kit: 외부 그룹의 설정 읽기]. 내장 신뢰판 `helmBuiltinGroup`(컴파일된 사이드카 대체 경로, 테스트)은 `helmSettings`를 붙이고 `g.settings()`로 읽는다. 외부 로더는 named export `extension`을 부른다.
 
 - `defineGroup`의 필드는 L3.group-kit.spec §3.2 `GroupDef`(`manifest`, `state`, `migrations`, `settings`, `setup`)다. Helm은 그중 `migrations`를 쓰지 않는다(상태 버전 1). `/helm` 명령은 `GroupApi.registerCommand`로 등록한다. 임대 필요 여부를 알리는 별도 필드는 두지 않는다(§3.3).
 
@@ -1116,13 +1119,13 @@ export function guardWrite(g: GroupApi<HelmState>): Handler<"tool.call.before", 
 - 순서와 원자성 [제안]: `record` → `linkWork` → 전이 커밋 순서다. 커밋 전에 프로세스가 끝나면 재호출된 drive가 같은 발견을 다시 기록할 수 있다. 읽는 쪽은 `(inquiryId, findingId)`로 중복을 지운다. `commit`과 `record`를 한 트랜잭션으로 묶는 API는 REQ-X-03으로 X에 요구한다. 생기면 `record`와 전이 커밋을 한 묶음으로 바꾸고 중복 제거 규칙은 그대로 둔다.
 - 작업 연결: `followUp`이 있는 발견마다 `g.capability(WorkTasksKey).create({ content: followUp })`를 부른다(L2.work.spec §3.2 `TaskCreateInput`). 이 메서드는 멱등 쓰기(`idempotent: true`)다(ADR-0015 §3.3, REQ-L2-01). requestId(`CallOptions.requestId`)는 `helm:<inquiryId>:cap:task:<findingId>`다. L2.work.spec §3.7은 `work.task_created`의 멱등 키를 `work:tasks:<호출 requestId>`로 두므로 같은 requestId의 두 번째 호출은 새 작업을 만들지 않고 처음 결과를 돌려준다. 키 길이는 최대 `helm:`(5) + 14 + `:cap:task:`(10) + `findingId`(20) = 49자로 64자 안이다.
 - 작업 연결 실패: `linkWork`는 발견마다 `Result<TaskId, HelmFailure>`를 얻는다. `capability` 실패(능력 없음, `denied`, `effect_not_allowed` 포함)는 그 발견의 `taskId`를 비우고 다음 발견으로 간다. `lease_lost`면 남은 호출을 멈춘다. 어느 경우든 적용 결과는 바뀌지 않고 `inquiry.finished`의 `outcome`은 `applied`다.
-- `inquiry.finished`는 `idle`로 가는 모든 전이에서 1건 쓴다(§4.2).
+- `inquiry.finished`는 `idle`로 가는 모든 전이에서 1건 쓴다(§4.2). 종료도 발견과 같이 `record` → `post` → 전이 커밋 순서라, 재시작으로 임대가 바뀐 뒤 같은 지점에서 다시 불리면 두 번 기록될 수 있다. 읽는 쪽은 `inquiryId`로 중복을 지운다. 같은 임대와 같은 상태 판의 재호출은 X가 같은 키로 받는다(`<leaseId>:<baseRev>.r<n>`).
 
 ### 4.9 세션 시작과 재개
 
-- `session.start`(tap)는 상태 복원을 확인만 한다. 마지막 커밋 상태가 `HelmStateSchema`를 통과하는지 본다.
+- `session.start`(tap)는 상태 복원을 확인만 한다. 스키마를 어기는 저장 상태는 X가 scope를 켜지 못하게 하므로(`state_schema`) 이 핸들러까지 오지 않는다 [미결 → X: 복구 경로]. 이 핸들러는 스키마는 맞지만 탐구 단계에 `inquiryId`·`topic`이 없는 상태를 본다.
   - 통과하면 아무것도 하지 않는다. 열린 임대가 있으면 X가 drive를 재호출하고, 없으면 X가 Helm을 후보로 삼아 임대를 다시 정한다(X.primitives.spec §4.4.3). 탐구가 없으면 drive는 효과 없이 반환해 임대가 `idle`로 반납된다.
-  - 실패하면 `INITIAL_HELM_STATE`로 커밋하고, 탐구 중이었으면 `inquiry.finished`(`failed`, `reason: "state invalid"`)를 쓴다.
+  - 일관되지 않으면 초기 상태로 커밋하고 `inquiry.finished`(`failed`, `reason: "state inconsistent: …"`)를 쓴다.
 - 상태 `version`이 다르면 X가 마이그레이션 훅을 요구한다(F.extensions.spec §3.2 `StateDecl`). 1차는 버전 1뿐이다.
 - `reason: "fork"`로 시작한 대화는 원 대화의 상태를 이어받는다 [가정: 분기 시 scope 상태 복사는 X.primitives.spec].
 

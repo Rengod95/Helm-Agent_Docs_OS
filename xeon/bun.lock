@@ -324,8 +324,6 @@
       },
       "devDependencies": {
         "@types/bun": "catalog:",
-        "@xeon/core-agents": "workspace:*",
-        "@xeon/core-models": "workspace:*",
         "@xeon/ext-host": "workspace:*",
       },
     },

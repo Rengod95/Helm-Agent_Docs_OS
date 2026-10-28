@@ -188,7 +188,7 @@ xeon/packages/group-helm/
 | 31 | `disable.at-step-boundary-releases-lease` | 탐구 중 disable 요청 뒤 다음 단계 경계에서 `lease.released`(`disabled`) 1건, 핸들러 미호출, 상태 보존, 다시 켜면 같은 단계에서 이어짐 |
 | 32 | `coexist.learning-on-while-helm-holds-lease` | 테스트 호스트에 drive를 쓰지 않는 가짜 그룹(학습 그룹 역할, `group-learning` import 없음)을 함께 켜고, Helm 임대 중에도 그 그룹의 on 핸들러와 post가 동작 |
 | 33 | `coexist.waiting-lease-keeps-signals` | 다른 그룹이 임대를 가진 동안 `pending` 유지, `phase` `idle`, 신호 기록 계속, 쓰기 거부 없음 |
-| 34 | `restore.invalid-state-resets` | `session.start`에서 스키마 위반 상태면 초기 상태 커밋과 `inquiry.finished`(`failed`) |
+| 34 | `restore.invalid-state-resets` | `session.start`에서 탐구 단계인데 `inquiryId`가 없는 상태면 초기 상태 커밋과 `inquiry.finished`(`failed`). 스키마 위반 상태는 X가 scope를 켜지 않아 이 핸들러까지 오지 않는다 |
 | 35 | `replay.twice-effects-once` (H-19) | UC-2 기준 실행의 모든 커밋 지점에서 끊고 drive·on 핸들러를 두 번 실행해도 새 turn 2, 새 spawn 3, 새 작업 2, 종료 알림 1, `inquiry.finished` 1(스펙 §4.11 표) |
 | 36 | `replay.apply-split-points` (H-19) | `recordDiscoveries`와 `linkWork` 사이, `linkWork`와 `applied` 커밋 사이에서 끊어도 작업 2개, 적용 turn 1회 |
 | 37 | `failures.reaction-covers-all-kinds` (H-20) | 모든 `HelmFailure` kind × 단계 쌍이 스펙 §4.12 표의 `HelmReaction`을 돌려준다 |

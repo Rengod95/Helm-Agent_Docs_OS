@@ -17,10 +17,10 @@ export const SIGNAL_DEFAULTS: {
 export type SignalThresholds = typeof SIGNAL_DEFAULTS;
 
 /** 지식 검색 모델 도구의 이름. `tool.execution.after` 페이로드에는 능력 참조가 없어 이름으로 알아본다 */
-export const KNOWLEDGE_SEARCH_TOOL = "knowledge_search";
+const KNOWLEDGE_SEARCH_TOOL = "knowledge_search";
 
-export const TERMS_MAX = 16;
-export const TERM_LENGTH_MAX = 64;
+const TERMS_MAX = 16;
+const TERM_LENGTH_MAX = 64;
 
 /** `tool.execution.after` 페이로드에서 Helm이 읽는 필드 */
 export interface ToolExecutionEndView {
@@ -31,7 +31,7 @@ export interface ToolExecutionEndView {
   readonly input?: Readonly<Record<string, JsonValue>>;
 }
 
-export interface SignalEvidence {
+interface SignalEvidence {
   readonly toolName?: string;
   readonly count: number;
 }
@@ -72,7 +72,7 @@ const MASK_64 = 0xffffffffffffffffn;
 const BASE32 = "abcdefghijklmnopqrstuvwxyz234567";
 
 /** 순수 함수. FNV-1a 64비트(UTF-8 바이트) */
-export function fnv1a64(text: string): bigint {
+function fnv1a64(text: string): bigint {
   let hash = FNV_OFFSET;
   for (const byte of new TextEncoder().encode(text)) {
     hash = ((hash ^ BigInt(byte)) * FNV_PRIME) & MASK_64;
@@ -345,11 +345,7 @@ export function decideAction(
 /** thread별 집계표. 프로세스 메모리에만 둔다. 크래시로 잃으면 그 turn의 신호가 한 turn 늦어진다 */
 export type TallyStore = Map<string, HelmTurnTally>;
 
-export function tallyOf(
-  store: TallyStore,
-  threadId: string,
-  state: Readonly<HelmState>,
-): HelmTurnTally {
+function tallyOf(store: TallyStore, threadId: string, state: Readonly<HelmState>): HelmTurnTally {
   return store.get(threadId) ?? openTally(state.watch);
 }
 

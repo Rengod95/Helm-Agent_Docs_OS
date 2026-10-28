@@ -15,12 +15,6 @@
     },
     {
       "path": "../ext-host"
-    },
-    {
-      "path": "../core-models"
-    },
-    {
-      "path": "../core-agents"
     }
   ]
 }

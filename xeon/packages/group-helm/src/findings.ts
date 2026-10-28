@@ -9,7 +9,7 @@ import {
 } from "./state.ts";
 
 /** explorer 답의 기대 형식. 답 끝의 JSON 블록 하나 */
-export interface ExplorerReport {
+interface ExplorerReport {
   findings: {
     claim: string;
     sources: HelmSource[];
@@ -32,7 +32,7 @@ export const ExplorerReportSchema: TUnsafe<ExplorerReport> = Type.Unsafe<Explore
   reportShape satisfies SchemaProof<ExplorerReport, typeof reportShape>,
 );
 
-export const FINDINGS_MAX = 24;
+const FINDINGS_MAX = 24;
 
 const FENCE = /```(?:json)?\s*([\s\S]*?)```/g;
 
