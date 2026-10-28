@@ -35,6 +35,7 @@ limit=()
 if command -v timeout >/dev/null 2>&1; then limit=(timeout "$timeout_sec"); fi
 
 failed=()
+times=()
 skipped=0
 log="$(mktemp)"
 trap 'rm -f "$log"' EXIT
@@ -44,7 +45,10 @@ for target in "${targets[@]}"; do
   if [[ "$target" == "scripts" ]]; then dir="$root"; args=(test scripts); fi
   echo "== $target"
   status=0
+  started=$SECONDS
   (cd "$dir" && "$guard" run -- ${limit[@]+"${limit[@]}"} mise exec -- bun "${args[@]}") 2>&1 | tee "$log" || status=$?
+  times+=("$((SECONDS - started))s $target")
+  echo "test-capped: time $((SECONDS - started))s ($target)" >&2
   count="$(sed -nE 's/^ *([0-9]+) skip$/\1/p' "$log" | tail -1)"
   skipped=$((skipped + ${count:-0}))
   if [[ "$status" -ne 0 ]]; then
@@ -53,6 +57,8 @@ for target in "${targets[@]}"; do
   fi
 done
 
+echo "test-capped: target times, slowest first:" >&2
+printf '%s\n' "${times[@]}" | sort -rn | head -12 | sed 's/^/  /' >&2
 if [[ ${#failed[@]} -gt 0 ]]; then
   echo "test-capped: failed: ${failed[*]} ($skipped skipped)" >&2
   exit 1

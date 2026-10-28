@@ -382,6 +382,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 [제안] `_research/foundation-plan.md §5` P3의 순서를 따른다. 루트 `justfile`의 `verify`가 아래 단계를 차례로 부르고, 한 단계라도 실패하면 거기서 멈춘다. 끝에 `ws check`가 붙는다.
 
 - 단계 0~8은 `_verify-steps`(`xeon/scripts/verify-steps.sh`)로 묶인다. `just verify`는 `WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps`로 기기의 검증 슬롯을 하나 잡고(기기에서 helm 검증은 한 번에 하나, 나머지는 기다린다), 단계를 차례로 돌되 단계마다 `WS_GUARD_ACTIVE`를 풀고 `scripts/guard.sh run`으로 따로 scope를 만든다(상한 `XEON_VERIFY_STEP_MAX`, 기본 2G, 시간 제한 없음). 시험 단계(`just test`)는 감싸지 않는다. `test-capped.sh`가 패키지마다 `guard.sh run` 1.5G를 건다. 처음 실패한 단계에서 멈추고 그 종료코드를 낸다. 모든 scope는 공용 예산 `ws-dev.slice` 안에 있다. 병렬 작업 중에는 저장소 전체 검사(`just verify`, `just lint`, `just typecheck`)를 돌리지 않고 `just check <패키지>`(패키지 하나의 lint, typecheck, test, 각 1.5G)만 돌린다. systemd 사용자 세션이 없는 기기(macOS, CI)에서는 한 줄 알리고 상한 없이 돈다.
+- 단계마다 걸린 시간(`verify: time 12s (lint)`)과 최대 메모리(`verify: peak …M`)가 stderr에 나오고, 끝에 단계별 시간 목록이 한 줄로 붙는다. 시험 단계는 대상마다 시간을 적고 끝에 느린 순서로 정리한다. 속도를 고칠 때는 이 숫자로 비교한다.
 - `scripts/guard.sh`는 dotfiles `modules/ws/templates/guard.sh`의 복사본이다(둘째 줄 `# ws-guard vN`). 저장소에서 고치지 않고 `ws stack update guard`로 올린다. 이전의 `xeon/scripts/verify-guarded.sh`와 `xeon-dev.slice`는 쓰지 않는다. `guard.sh`는 고치지 않고 `WS_GUARD_SLOTS`, `WS_GUARD_RUN_MAX`, `WS_GUARD_TIMEOUT_SEC`, `WS_GUARD_ACTIVE` 환경 변수로만 다룬다.
 
 | # | 단계 | 레시피 | 실제 명령 | 실패할 때 고치는 법 | 소요 목표 | 종료코드 |
