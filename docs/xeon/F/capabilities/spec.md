@@ -976,7 +976,7 @@ export type NotifyError =
 
 ### 4.4 도구 없는 능력, 서비스 없는 도구
 
-- [제안] 도구 없는 능력은 허용한다(`tools: []`). 그룹이나 다른 능력만 쓰는 서비스(예: 지식 저장소 쓰기)가 있기 때문이다. 허용 여부의 확정은 [미결]이다(§10).
+- [결정: review.m3-lower-requirements M3-REQ-07] 도구 없는 능력은 허용한다(`tools: []`). 그룹이나 다른 능력만 쓰는 서비스(예: 지식 저장소 쓰기)가 있기 때문이다. `validateCapability`는 도구 없는 정의에 이슈를 내지 않고, 서비스 메서드가 없는 정의만 `service_empty`로 거부한다.
 - 서비스 메서드가 없는 능력은 허용하지 않는다(`service_empty` 오류).
 - 서비스 없는 도구는 `CapabilityDef`에 둘 수 없다. 모든 `ToolSpec.method`는 `service.methods`의 키여야 한다(`method_missing` 오류). 서비스 없이 모델에게만 노출되는 도구(pi 확장의 `registerTool` 도구 등)는 능력이 아니다. 이런 도구는 X의 리소스 등록 경로로 등록하며 이 문서의 대상이 아니다.
 - 도구가 없는 메서드는 허용한다. 서비스 API가 모델 도구보다 넓은 경우가 흔하다.
@@ -1111,7 +1111,7 @@ export type NotifyError =
 - [미결] 능력 ID 네임스페이스 규칙(§3.1): 내장 도메인 예약, 외부 플러그인의 확장 이름 접두, 예약 접두 목록을 확정해야 한다.
 - 닫음: 도구 이름 네임스페이스. 후보 (b) `<확장 이름>__<이름>`으로 정했다(§3.1, `X.operations.spec` §4.5). 내장 능력끼리의 충돌은 `tool_name_conflict` 오류로 거부한다.
 - [미결] Cordis 선언 병합을 F에서 할지(§3.5 표의 A·B·C).
-- [미결] 도구 없는 능력 허용(§4.4).
+- 닫음 [결정: M3-REQ-07]: 도구 없는 능력은 허용한다(§4.4).
 - 닫음: 내장 L2 능력 정의의 위치는 F `capabilities/defs/<domain>.ts`다(§3.9).
 - [결정: review.decisions-2 U-08] 비밀 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`와 부속 타입)은 §3.10 `secrets.ts` 블록이 정본이다. `SECRET_REF_PATTERN` 정본도 F다.
 - [결정: review.decisions-2 D-04] L0·L1 서비스 인터페이스와 `McpService`, `GroupService`는 `@xeon/contracts/services`에 둔다. 같은 이름의 X 포트가 있으면 서비스 인터페이스가 포트를 확장한다(§3.12 표, 규칙 2·7).

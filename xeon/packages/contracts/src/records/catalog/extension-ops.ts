@@ -97,6 +97,7 @@ export const LeaseAcquiredPayloadSchema: TObject<{
   leaseId: TString;
   scopeId: TString;
   limits: typeof DriveLimitsJsonSchema;
+  leaseEpoch: TOptional<TInteger>;
 }> = Type.Object(
   {
     /** F.extensions.spec DriveLease.leaseId */
@@ -105,6 +106,11 @@ export const LeaseAcquiredPayloadSchema: TObject<{
     scopeId: scopeId(),
     /** DriveLease.limits(DriveLimits) */
     limits: DriveLimitsJsonSchema,
+    /**
+     * 임대 차수. 그 scope의 활성 가지 위 직전 `lease.acquired` 개수 + 1, 1부터 센다(X.primitives.spec §4.4.1).
+     * 선택이라 `version`을 올리지 않는다. 없으면(옛 기록) 활성 가지 위 개수로 다시 센다 [결정: M3-REQ-08]
+     */
+    leaseEpoch: Type.Optional(Type.Integer({ minimum: 1 })),
   },
   { additionalProperties: false },
 );

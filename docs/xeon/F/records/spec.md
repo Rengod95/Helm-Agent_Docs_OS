@@ -335,6 +335,11 @@ export interface LeaseAcquiredPayload {
   leaseId: string;                // F.extensions.spec DriveLease.leaseId
   scopeId: string;                // 임대를 받은 그룹의 scope
   limits: { maxTurns?: number; maxSpawns?: number; maxTokens?: number };   // DriveLease.limits(DriveLimits)
+  /**
+   * 임대 차수. 그 scope의 활성 가지 위 직전 lease.acquired 개수 + 1, 1부터(X.primitives.spec §4.4.1). 같은 임대의 이어짐을 판정하는 근거다.
+   * 선택이라 version을 올리지 않는다. 없으면(옛 기록) 활성 가지 위 개수로 다시 센다 [결정: M3-REQ-08]
+   */
+  leaseEpoch?: number;
 }
 export interface LeaseReleasedPayload {
   leaseId: string;
