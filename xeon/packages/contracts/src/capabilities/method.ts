@@ -19,6 +19,16 @@ export interface MethodDef<I extends TSchema = TSchema, O extends TSchema = TSch
   readonly errors?: Readonly<Record<string, ErrorDecl>>;
   /** 서비스 호출 자체의 재생 정책. 생략하면 "unsafe" */
   readonly replay?: ReplayPolicy;
+  /**
+   * 같은 대화에서 같은 `requestId`로 다시 불러도 추가 효과가 없고 처음 결과를 돌려준다(ADR-0015 §3.3 1).
+   * 선언하면 `replay: "safe"`여야 하고 `readOnly`와 함께 쓸 수 없다. 호출은 `requestId`를 반드시 넘긴다
+   */
+  readonly idempotent?: true;
+  /**
+   * 대화 상태, 세션 DB, 작업 공간, 외부 시스템 어디에도 효과를 남기지 않는다(ADR-0015 §3.3 2). 선언하면 `replay: "safe"`여야 한다.
+   * 이름은 `ToolHints.readOnly`와 같다 [제안: M3-REQ-01]
+   */
+  readonly readOnly?: true;
 }
 
 export type MethodMap = Readonly<Record<string, MethodDef>>;
@@ -86,8 +96,16 @@ export interface CallOptions {
   readonly continuation?: CallContinuation;
 }
 
+/** `idempotent` 메서드를 부를 때의 옵션. `requestId`가 필수다(ADR-0015 §3.3 5) */
+export type IdempotentCallOptions = CallOptions & { readonly requestId: string };
+
+/** 메서드의 호출 옵션 매개변수. `idempotent: true` 메서드는 `requestId`가 있는 옵션을 필수로 받는다 */
+export type MethodOptionsParam<Md extends MethodDef> = Md extends { readonly idempotent: true }
+  ? [options: IdempotentCallOptions]
+  : [options?: CallOptions];
+
 /** 메서드 하나의 서비스 함수 타입 */
 export type MethodFn<Md extends MethodDef> = (
   input: Static<Md["input"]>,
-  options?: CallOptions,
+  ...options: MethodOptionsParam<Md>
 ) => Promise<Static<Md["output"]>>;

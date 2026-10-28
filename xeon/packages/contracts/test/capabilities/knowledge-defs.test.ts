@@ -35,7 +35,7 @@ import {
   type ToolContent,
   type WriteOutcome,
 } from "../../src/capabilities/index.ts";
-import { propertyNames } from "./helpers.ts";
+import { propertyNames, withoutClassWarnings } from "./helpers.ts";
 
 const DEFS: readonly AnyCapabilityDef[] = [
   KnowledgeSkills,
@@ -67,7 +67,7 @@ const APPLIED: WriteOutcome = {
 
 describe("knowledge definitions", () => {
   test("each of the four definitions has no validation issues and the set has no conflicts", () => {
-    for (const def of DEFS) expect(validateCapability(def)).toEqual([]);
+    for (const def of DEFS) expect(withoutClassWarnings(validateCapability(def))).toEqual([]);
     expect(validateCapabilitySet(DEFS)).toEqual([]);
   });
 

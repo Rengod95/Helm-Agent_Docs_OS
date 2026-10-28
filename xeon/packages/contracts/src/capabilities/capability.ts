@@ -1,6 +1,5 @@
-import type { Static } from "typebox";
 import type { CapabilityId, SemVer } from "./ids.ts";
-import type { CallOptions, MethodMap, ServiceDef } from "./method.ts";
+import type { MethodFn, MethodMap, ServiceDef } from "./method.ts";
 import type { ToolSpec, ToolSpecFor } from "./tool-spec.ts";
 
 export type {
@@ -9,9 +8,11 @@ export type {
   CallerInfo,
   CallOptions,
   ErrorDecl,
+  IdempotentCallOptions,
   MethodDef,
   MethodFn,
   MethodMap,
+  MethodOptionsParam,
   ServiceDef,
 } from "./method.ts";
 
@@ -33,10 +34,7 @@ export type AnyCapabilityDef = CapabilityDef<MethodMap, readonly ToolSpec[]>;
 
 /** 정의에서 유도되는 서비스 API 타입. consumer는 이 타입만 쓴다 */
 export type CapabilityApi<D extends AnyCapabilityDef> = {
-  readonly [K in keyof D["service"]["methods"] & string]: (
-    input: Static<D["service"]["methods"][K]["input"]>,
-    options?: CallOptions,
-  ) => Promise<Static<D["service"]["methods"][K]["output"]>>;
+  readonly [K in keyof D["service"]["methods"] & string]: MethodFn<D["service"]["methods"][K]>;
 };
 
 /**

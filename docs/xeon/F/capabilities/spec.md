@@ -138,6 +138,10 @@ export interface MethodDef<I extends TSchema = TSchema, O extends TSchema = TSch
   readonly errors?: Readonly<Record<string, ErrorDecl>>;
   /** 서비스 호출 자체의 재생 정책. 생략하면 "unsafe" */
   readonly replay?: ReplayPolicy;
+  /** 같은 대화에서 같은 requestId로 다시 불러도 추가 효과가 없고 처음 결과를 돌려준다(ADR-0015 §3.3). replay "safe"여야 하고 readOnly와 함께 쓸 수 없다 */
+  readonly idempotent?: true;
+  /** 대화 상태, 세션 DB, 작업 공간, 외부 시스템 어디에도 효과를 남기지 않는다(ADR-0015 §3.3). replay "safe"여야 한다 */
+  readonly readOnly?: true;
 }
 
 export type MethodMap = Readonly<Record<string, MethodDef>>;
@@ -198,6 +202,8 @@ export type CapabilityApi<D extends AnyCapabilityDef> = {
 };
 ```
 
+- [결정: adr.0015 §3.3] `idempotent: true` 메서드의 `requestId` 계약: (1) 호출 타입은 `options.requestId`(1~64자)를 필수로 받는다(`MethodOptionsParam`, `IdempotentCallOptions`). 읽기와 선언 없는 메서드는 `options`를 생략할 수 있다. (2) 공급자는 `requestId`가 없으면 `invalid_input`으로 거부한다 [제안]. (3) 같은 (대화, 메서드, `requestId`)의 두 번째 호출은 효과 없이 처음 결과를 돌려주고, 이 기억은 효과와 같은 커밋에 둔다(`eng.transactions.design` TX-05). (4) 재실행되는 코드가 넘기는 키는 결정적이어야 한다(§4.6 아래 ADR-0015 §3.4).
+- [결정: adr.0015 §3.3] 메서드 분류는 셋이다. `readOnly: true`(읽기), `idempotent: true`(멱등 쓰기), 표지 없음(선언 없는 쓰기). `ReplayPolicy`는 `safe|unsafe` 그대로다 [결정: review.m3-design-inputs D-M3-31 행 1]. 표지 이름 `readOnly`는 ADR-0015 §6 미결의 답이다 [제안: M3-REQ-01]. 재실행되는 코드에서의 허용 여부는 `REPLAY_EFFECT_TABLE`(`F.extensions.spec` §4.3, `extensions/effects.ts`)이 정한다.
 - [결정: m2c G1-09] 호출자 표현은 둘이다. 정책 판정은 `CallerId`(`main` | `subagent:<이름>`, `services/tools.ts`)만 구분하고, 승인 origin은 `ApprovalCaller`(`CallerId`에 `background`, `host`, `ext:<확장 이름>`을 더한 것, `services/approvals.ts`)를 쓴다. `CallerInfo`에서 `ApprovalCaller`를 만드는 함수는 `approvalCallerOf(caller)` 하나다(순수). `host` → `host`, `extension` → `ext:<extension>`(이름이 없으면 `ext:unknown`), `model` + 주 대화 → `main`, `model` + `subagent` → `subagent:<agentName>`(없으면 `subagent:unknown`), `model` + `background` → `background`다. L1.tools와 L2 어댑터(cap-dialog, cap-work, cap-knowledge)는 자기 변환을 두지 않고 이 함수를 쓴다. `extension` 칸에 서브에이전트 이름을 싣지 않는다.
 - [결정: m2c G1-09] 직접 등록 도구(`DirectToolRegistration`)의 `executeWithContinuation`은 능력 도구와 같은 `CallContext`를 받는다. 호출 인자에 `threadId`(항상 있다)와 `context`가 들어간다. pi `AgentTool.execute` 시그니처는 바꾸지 않으므로 이 문맥은 `executeWithContinuation`을 가진 도구(MCP 서버 도구)에만 간다. 승인 origin과 대화 범위 설정을 쓰는 직접 등록 도구는 이 경로를 쓴다.
 
@@ -364,7 +370,7 @@ import { Type, type TUnsafe } from "typebox";
 
 export const COMMON_ERROR_CODES = [
   "invalid_input", "not_found", "unsupported", "unavailable", "denied",
-  "rate_limited", "timeout", "upstream_error", "aborted", "internal",
+  "rate_limited", "timeout", "upstream_error", "aborted", "effect_not_allowed", "internal",
 ] as const;
 export type CommonErrorCode = (typeof COMMON_ERROR_CODES)[number];
 
@@ -419,6 +425,7 @@ export const DEFAULT_RETRYABLE: Readonly<Record<CommonErrorCode, boolean>>;
 | `timeout` | true | 시간 초과 | `isError: true` |
 | `upstream_error` | true | 외부 서비스 5xx나 네트워크 오류 | `isError: true` |
 | `aborted` | false | `CallOptions.signal`로 취소됨 | `isError: true`, 중단 결과(L1.tools) |
+| `effect_not_allowed` | false | 재실행되는 코드(on 핸들러, drive 함수)가 ADR-0015 §3.2 표에서 허용되지 않은 효과의 능력 메서드를 불렀거나, `idempotent` 메서드를 `requestId` 없이 불렀다. X 능력 래퍼가 공급자를 부르기 전에 낸다 [결정: adr.0015] | `isError: true` |
 | `internal` | false | provider 내부 결함 | `isError: true` |
 
 - `retryable`은 consumer에게 주는 힌트다. 재시도 여부와 횟수는 consumer가 정한다. provider 안의 재시도(예: provider 체인 fallback)는 provider 몫이다.
@@ -444,7 +451,9 @@ export type CapabilityIssueCode =
   | "service_empty" | "method_name_invalid" | "method_input_not_object"
   | "error_code_invalid" | "error_code_shadow"
   | "tool_name_invalid" | "tool_name_style" | "tool_name_duplicate" | "tool_label_invalid"
-  | "method_missing" | "tool_input_mismatch" | "replay_widened" | "parameters_not_object"
+  | "method_missing" | "tool_input_mismatch" | "replay_widened"
+  | "idempotent_replay_unsafe" | "read_only_replay_unsafe" | "effect_class_conflict" | "effect_class_missing"
+  | "parameters_not_object"
   | "schema_ref_external" | "schema_cyclic" | "schema_too_large" | "schema_too_deep"
   | "schema_not_json" | "schema_refine_dropped" | "description_too_long"
   | "requires_invalid" | "requires_self";
@@ -992,6 +1001,10 @@ export type NotifyError =
 | `method_missing` | error | `tools[i].method`가 `service.methods`에 없음 |
 | `tool_input_mismatch` | error | `toInput`이 없는데 `parameters`와 메서드 `input`이 다름 |
 | `replay_widened` | error | 도구 `replay`가 `"safe"`인데 메서드 `replay`가 `"unsafe"`(생략 포함) |
+| `idempotent_replay_unsafe` | error | 메서드가 `idempotent: true`인데 `replay`가 `"safe"`가 아님(생략 포함) |
+| `read_only_replay_unsafe` | error | 메서드가 `readOnly: true`인데 `replay`가 `"safe"`가 아님(생략 포함) |
+| `effect_class_conflict` | error | 한 메서드가 `idempotent`와 `readOnly`를 함께 선언함 |
+| `effect_class_missing` | warning | `replay: "safe"`인데 `idempotent`와 `readOnly`가 모두 없음. L2 정의 분류(M3-REQ-88)가 끝나면 error로 올릴지 다시 본다 |
 | `parameters_not_object` | error | `parameters` 루트가 객체가 아님 |
 | `schema_ref_external` | error | §4.3 `$ref` 규칙 위반 |
 | `schema_cyclic` | warning | 순환 참조 |
@@ -1080,6 +1093,8 @@ export type NotifyError =
 16. `SecretMetaSchema`·`SecretUsePolicySchema`의 `Static` 타입과 `SecretMeta`·`SecretUsePolicy` 인터페이스는 서로 대입 가능하다. `SecretAuditRecord`의 `secret.used`·`secret.denied`·`secret.approved`·`secret.masked` 변형은 `F.records.spec` §3.3.1 `secret.*` payload와 필드 이름이 같다(타입 테스트).
 17. `parseSecretRef("secret://github-token")`은 `ok`이고 `name`이 `github-token`이다. `parseSecretRef("$GITHUB_TOKEN")`은 `unsupported_ref_syntax`(`env_var`), `parseSecretRef("secret://A")`는 `invalid_ref`(`name_pattern`)다. 같은 입력에 같은 결과를 내고, `SecretName`에 검사 없는 `string`을 대입하면 타입 오류다.
 
+18. `validateCapability`는 `idempotent`만 있고 `replay`가 없는 메서드에 `idempotent_replay_unsafe`, `readOnly`만 있고 `replay: "unsafe"`인 메서드에 `read_only_replay_unsafe`, 둘을 함께 선언한 메서드에 `effect_class_conflict`(모두 error)를 낸다. `replay: "safe"`에 표지가 없으면 warning `effect_class_missing` 하나다. `COMMON_ERROR_CODES`는 `effect_not_allowed`를 `aborted`와 `internal` 사이에 두고 기본 `retryable`은 false다. `CapabilityApi`에서 `idempotent` 메서드는 `requestId`가 있는 옵션 없이는 컴파일되지 않는다(타입 테스트).
+
 ## 10. 미결 사항
 
 - [미결] 능력 ID 네임스페이스 규칙(§3.1): 내장 도메인 예약, 외부 플러그인의 확장 이름 접두, 예약 접두 목록을 확정해야 한다.
@@ -1089,5 +1104,5 @@ export type NotifyError =
 - 닫음: 내장 L2 능력 정의의 위치는 F `capabilities/defs/<domain>.ts`다(§3.9).
 - [결정: review.decisions-2 U-08] 비밀 값 타입(`SecretMeta`, `SecretUsePolicy`, `SecretAuditRecord`와 부속 타입)은 §3.10 `secrets.ts` 블록이 정본이다. `SECRET_REF_PATTERN` 정본도 F다.
 - [결정: review.decisions-2 D-04] L0·L1 서비스 인터페이스와 `McpService`, `GroupService`는 `@xeon/contracts/services`에 둔다. 같은 이름의 X 포트가 있으면 서비스 인터페이스가 포트를 확장한다(§3.12 표, 규칙 2·7).
-- [미결] `ReplayPolicy` 값 이름(`safe|unsafe` 대 `never|safe`). F.records.spec §10 미결 4의 결정을 따른다(정의는 F.conversation.spec §3.6).
+- 닫음 [결정: review.m3-design-inputs D-M3-31 행 1]: `ReplayPolicy` 값 이름은 `safe|unsafe`를 유지한다(정의는 F.conversation.spec §3.6).
 - [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai 1.3.0이 고정한 판과 같다.

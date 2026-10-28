@@ -15,12 +15,13 @@ import {
   type AnyCapabilityDef,
   type ToolContent,
 } from "../../src/capabilities/index.ts";
+import { withoutClassWarnings } from "./helpers.ts";
 
 const DEFS: readonly AnyCapabilityDef[] = [WorkspaceFiles, WorkspaceShell, WorkspaceImages];
 
 describe("workspace definitions (M1)", () => {
   test("each definition has no validation issues", () => {
-    for (const def of DEFS) expect(validateCapability(def)).toEqual([]);
+    for (const def of DEFS) expect(withoutClassWarnings(validateCapability(def))).toEqual([]);
   });
 
   test("the set has no conflicts", () => {

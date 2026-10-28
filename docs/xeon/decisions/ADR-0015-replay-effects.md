@@ -123,8 +123,8 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 
 | 문서 | 고칠 내용 | 상태 |
 |---|---|---|
-| `F.capabilities.spec` §3.2, §4.6, §9, §10 | `MethodDef.idempotent?: true`, `readOnly?: true`(§3.3), `validateCapability` 코드 4개, 공통 오류 `effect_not_allowed`(§3.6 표), 수용 기준 | 대기 |
-| `F.extensions.spec` §4.3, §4.6, §3.2 | on 핸들러와 drive 함수의 효과 목록을 §3.2 표로 바꾼다. `LoopHandle` 주석("유일한 통로")을 고친다. `requestId` 결정성 규칙(§3.4) | 대기 |
+| `F.capabilities.spec` §3.2, §4.6, §9, §10 | `MethodDef.idempotent?: true`, `readOnly?: true`(§3.3), `validateCapability` 코드 4개, 공통 오류 `effect_not_allowed`(§3.6 표), 수용 기준 | 반영(F, M3a A2) |
+| `F.extensions.spec` §4.3, §4.6, §3.2 | on 핸들러와 drive 함수의 효과 목록을 §3.2 표로 바꾼다. `LoopHandle` 주석("유일한 통로")을 고친다. `requestId` 결정성 규칙(§3.4) | 반영(F, M3a A2. 표는 `REPLAY_EFFECT_TABLE`) |
 | `F.README` | M3로 넘긴 요청 목록의 "효과 목록(G1-06)"을 이 ADR로 닫는다 | 대기 |
 | `X.primitives.spec` §4.4.3, §4.4.4, §4.6, §9 | 능력 래퍼의 문맥 검사, drive 쓰기 호출의 명시 키 요구(§3.4 3번), `effects` 계수 규칙, 워커 소유(§3.5) | 대기 |
 | `L1.loop.spec` §4.8 | drive 효과 목록 문장을 이 ADR로 바꾼다 | 대기 |
@@ -150,7 +150,7 @@ binds: [xeon/packages/contracts/src/extensions/**, xeon/packages/contracts/src/c
 
 ## 6. 미결 사항
 
-- [미결] `readOnly` 표지 이름과 위치. `MethodDef.readOnly` 대신 `effect: "read" | "idempotent" | "write"` 같은 열거 하나로 둘지 F 작업에서 정한다.
+- 닫음 [제안: M3-REQ-01, 2026-10-28 F 구현]: 표지는 `MethodDef.readOnly?: true`와 `idempotent?: true` 두 필드다. 열거 `effect`는 두지 않는다. 기존 `replay` 필드와 겹치지 않고 `ToolHints.readOnly`와 이름이 같다. 코드 `xeon/packages/contracts/src/capabilities/method.ts`.
 - 닫음 [결정: review.m3-design-inputs D-M3-31 행 8]: on 핸들러의 읽기 메서드 호출은 허용하지 않는다(§3.2).
 - [미결] 요청 레코드 워커의 소유(X 효과 워커 또는 L1 백그라운드 작업)와 결과 통지 방법(§3.5).
 - [미결] 외부 확장이 공급하는 능력의 `idempotent` 선언을 믿을 조건(신뢰 등급, 적합성 시험 강제 방법). `X.loading-trust.spec`과 함께 정한다.

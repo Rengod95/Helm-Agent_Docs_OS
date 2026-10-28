@@ -43,6 +43,7 @@ import {
 } from "../../src/capabilities/index.ts";
 import { ApprovalIdSchema } from "../../src/conversation/index.ts";
 import { must, rawId } from "../helpers/ids.ts";
+import { withoutClassWarnings } from "./helpers.ts";
 
 const DEFS: readonly AnyCapabilityDef[] = [WorkTasks, WorkPlans, WorkGoals, WorkReports];
 
@@ -76,7 +77,7 @@ const TURN_ID = rawId("trn", 3);
 
 describe("work definitions", () => {
   test("each of the four definitions has no validation issues and the set has no conflicts", () => {
-    for (const def of DEFS) expect(validateCapability(def)).toEqual([]);
+    for (const def of DEFS) expect(withoutClassWarnings(validateCapability(def))).toEqual([]);
     expect(validateCapabilitySet(DEFS)).toEqual([]);
     expect(WORK_CAPABILITIES.map((d) => d.id)).toEqual([
       "work.tasks",

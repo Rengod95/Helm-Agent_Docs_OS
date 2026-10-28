@@ -265,7 +265,10 @@ export interface LeaseBudget {
 
 export interface TurnInput {
   readonly input: PostItem;
-  /** 생략하면 X가 `${leaseId}:${순번}`으로 결정적으로 만든다 */
+  /**
+   * 생략하면 X가 `${leaseId}:${순번}`으로 결정적으로 만든다. 같은 순서의 재호출은 커밋된 결과를 돌려받는다.
+   * 명시하면 같은 커밋 상태와 페이로드에서 같은 값이 나와야 한다(§4.3 `requestId` 규칙)
+   */
   readonly requestId?: string;
 }
 
@@ -290,7 +293,10 @@ export interface SpawnOutcome {
   readonly answer?: string;
 }
 
-/** drive 함수가 루프에 효과를 내는 유일한 통로(post와 scope commit 제외) */
+/**
+ * drive 함수가 루프에 효과를 내는 통로. 루프에 대한 효과는 turn과 spawn뿐이다(post와 scope commit 제외).
+ * drive 함수가 낼 수 있는 효과의 전체 목록(위임, 능력 호출 포함)은 REPLAY_EFFECT_TABLE이다(§4.3)
+ */
 export interface LoopHandle {
   turn(input: TurnInput): Promise<TurnOutcome>;
   spawn(spec: SpawnSpec): Promise<SpawnOutcome>;
@@ -1157,7 +1163,27 @@ chain의 보충 규칙 [제안]:
 
 - 소비 커밋 전에 프로세스가 끝나면 같은 지점이 같은 페이로드로 다시 발화하고 핸들러가 다시 실행될 수 있다(pi durable 훅 규칙, `_research/ext-points.md` §3).
 - 재실행된 핸들러의 `ctx.state` [제안]: 페이로드는 처음 실행과 같지만 `ctx.state`와 `g.state()`는 같지 않을 수 있다. 처음 실행에서 상태 커밋이 끝났으면 재시작 뒤의 `ctx.state`는 X가 `RecordCommitPort.loadThread`로 읽은 판, 곧 이미 커밋된 판이다. 핸들러는 `ctx.state`가 자기 갱신이 반영되기 전의 판이라고 가정하지 않는다. 이 판으로 계산한 부수 결과(post 본문, record payload)는 처음 실행과 다를 수 있다. 세부 규칙은 `X.primitives.spec` §4.6.1 재실행 규칙이다.
-- 핸들러는 외부 효과를 내지 않는다. 효과가 필요하면 `post`(멱등 키 필수), `commit`, `record`를 쓴다. 이 세 연산은 커밋 단위로 기록되므로 재실행해도 중복되지 않는다.
+- [결정: adr.0015] 핸들러가 낼 수 있는 효과는 아래 허용 효과 표(`REPLAY_EFFECT_TABLE`, `extensions/effects.ts`)가 정한다. 핸들러는 직접 파일·네트워크 I/O, 시각, 난수를 쓰지 않는다. 표 밖의 효과는 요청 레코드와 워커를 거친다(ADR-0015 §3.5).
+- 허용 효과 표(ADR-0015 §3.2가 정본, `n/a`는 그 문맥에 없는 연산):
+
+| 효과 | on 핸들러 | drive 함수 | 멱등 보장 주체 | `requestId` |
+|---|---|---|---|---|
+| `commit` | 허용 | 허용 | X(상태 커밋 멱등 키) | 없음 |
+| `record`, `recordPrivate` | 허용 | 허용 | X(커밋 키) | 없음 |
+| `post` | 허용 | 허용 | L1 입력 큐 `(scope, requestId)` | 필수 |
+| `loop.turn` | n/a | 허용 | L1.loop `(scopeId, requestId)` | 기본 키 또는 결정적 명시 키 |
+| `loop.spawn` | n/a | 허용 | L1.agents `creationKey` | 기본 키 또는 결정적 명시 키 |
+| `g.delegate` | 허용 | 허용 | L1.agents(부모 대화 + `requestId`) | 필수, 결정적 키 |
+| `g.delegateStatus` | 허용하지 않음 | 허용 | 효과 없음 | 없음 |
+| `g.cancelDelegates` | 허용하지 않음 | 허용하지 않음 | 해당 없음 | 없음. `onDispose`와 명령 처리기에서만 부른다 |
+| 능력 메서드 `idempotent: true` | 허용 | 허용 | 능력 공급자(내구 기록) | 필수, 결정적 명시 키 |
+| 능력 메서드 `readOnly: true` | 허용하지 않음 | 허용 | 효과 없음 | 생략 가능 |
+| 능력 메서드 표지 없음 | 허용하지 않음 | 허용하지 않음 | 해당 없음 | 없음. 요청 레코드와 워커를 거친다 |
+| 그 밖의 I/O(직접 파일·네트워크, 시각, 난수) | 허용하지 않음 | 허용하지 않음 | 해당 없음 | 없음 |
+
+- on 핸들러의 읽기 메서드 호출은 허용하지 않는다 [결정: review.m3-design-inputs D-M3-31 행 8]. 거부는 공통 오류 `effect_not_allowed`다(`F.capabilities.spec` §3.6). 검사는 X 능력 래퍼가 ambient 문맥으로 한다(`X.primitives.spec`).
+- `requestId` 결정성 [결정: adr.0015 §3.4]: 재실행되는 코드가 넘기는 키는 같은 커밋 상태와 같은 페이로드에서 같은 값이어야 한다. 재료는 커밋된 id(`turnId`, `stepId`), 커밋된 상태 문서의 값, 디스패치 키다. `Date.now`, `Math.random`, 클로저 지역 변수의 진행 값, `leaseId`(유지 규칙 REQ-X-04가 닫히기 전)는 쓰지 않는다. 기본 키는 `loop.turn`과 `loop.spawn`에만 준다. 명시 키는 scope id로 시작한다. 길이는 1~64자이고 위임 키는 48자 이하다.
+- 선언 없는 쓰기의 판정은 `capabilityEffectOf(method)`가 표의 행을 고른다. `idempotent`와 `readOnly`를 함께 선언한 메서드는 정적 검증이 막으므로(`effect_class_conflict`) 표에서는 선언 없음이다.
 - 재실행된 핸들러의 상태 커밋 [제안]: 멱등 키와 지문은 키의 신원 부분(scope, 디스패치 키, 순번)만으로 만든다. doc 본문과 기대 판은 지문에 넣지 않는다. 재실행에서 같은 키의 커밋은 `replayed`가 되고, X는 그때 저장된 상태(`ExtCommitResult.stored`)를 캐시에 두고 `commit`의 반환값으로 돌려준다. 핸들러가 다시 계산한 값은 버린다. 그래서 상태 갱신 함수는 이미 반영된 갱신을 다시 적용해도 결과가 같은 멱등 reducer로 쓴다. 저장소 거부 코드의 변환(`ownership_lost` → `lease_lost`, `key_reused` → `invalid`, 잠금 대기 초과 → `busy`, `disk_full`·`read_only` → `storage`)과 세부 규칙은 `X.primitives.spec` §4.6.1이 정본이다.
 - 핸들러 결과를 고정해야 하면 scope 상태에 저장한다. durable `api.memo`에 해당하는 고정 API를 X에 둘지는 X.primitives.spec이 정한다.
 
@@ -1183,9 +1209,9 @@ chain의 보충 규칙 [제안]:
 - [결정] drive 임대는 한 번에 그룹 하나만 가진다. on, post, 백그라운드 위임은 여러 그룹이 함께 쓴다(`_research/layer-plan-v2-notes.md` 층 사이 규칙 4).
 - [결정] Helm과 학습 그룹은 L3 기본 그룹이다. 학습 그룹은 drive를 쓰지 않는다. 검토 포크는 L1 백그라운드 위임 서비스로 실행한다. 그래서 Helm이 구동 중이어도 학습 그룹을 함께 켤 수 있다(`_research/layer-plan-v2-notes.md` "Hermes 학습 루프를 별도 그룹으로", `_research/decisions-log.md` 20행).
 - `drive`는 `kind: "group"`이고 `usesDrive: true`인 확장만 쓴다. 등록만으로 임대가 생기지 않는다. 임대 중재(누가 언제 받는지)는 X.primitives.spec이 정한다.
-- 재생 규율 [결정]: drive 함수는 경계마다 마지막 커밋 상태로 다시 호출되고, 효과는 `loop.turn`, `loop.spawn`, `post`로만 낸다(`_research/decisions-log.md` 20행). 상태 변경은 `commit`으로만 한다.
+- 재생 규율 [결정]: drive 함수는 경계마다 마지막 커밋 상태로 다시 호출되고, 효과는 §4.3 허용 효과 표의 drive 열로만 낸다(루프 효과는 `loop.turn`, `loop.spawn`, `post`. ADR-0015가 위임과 능력 호출을 더했다). 상태 변경은 `commit`으로만 한다.
   - 다시 호출되는 시점: 임대를 받을 때, 프로세스 재시작 뒤 재개할 때, `loop.turn()`이 끝난 뒤 함수가 반환했는데 그룹이 아직 활성일 때.
-  - `loop.turn`과 `loop.spawn`의 기본 `requestId`는 `${leaseId}:${순번}`이다. 재호출된 함수가 같은 순서로 같은 호출을 하면 이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려받는다.
+  - `loop.turn`과 `loop.spawn`의 기본 `requestId`는 `${leaseId}:${순번}`이다. 능력 호출의 `idempotent` 쓰기는 기본 키를 받지 않고 명시 키를 요구한다(ADR-0015 §3.4 3번). 재호출된 함수가 같은 순서로 같은 호출을 하면 이미 커밋된 turn과 spawn은 다시 실행되지 않고 기록된 결과를 돌려받는다.
   - 클로저 지역 변수에 진행 상태를 두는 drive 함수는 재개 뒤 다르게 동작한다. 이 위반은 타입으로 막을 수 없다. 결정성 검사(`Date.now`, `Math.random` 금지 등)는 L3.group-kit.spec의 lint 규칙으로 보완한다(`_research/packages.md` §4.6 L3-a).
 - 예산: [결정] 일반 대화 turn에는 기본 상한을 두지 않고 상한은 drive 임대에만 건다(`_research/decisions-log.md` 20행 "예산은 pi 방식"). `LeaseBudget`은 남은 양이고 `null`은 상한 없음이다. 상한에 이르면 `loop.turn`과 `loop.spawn`은 거부되고 임대는 `releasing`이 된다.
   - [결정: review.decisions-2 U-12] drive는 사용자 입력 없이 turn을 만들므로 pi 방식의 예외로 기본 상한을 둔다. 상한을 명시하지 않은 임대는 X 설정 `x.primitives.driveDefaultLimits`(기본 4/8/400000)를 쓰고, 그룹은 자기 설정(Helm은 `l3.helm.driveLimits`, 기본 4/8/400000)으로 덮어쓴다. 천장 `x.primitives.driveLimits`(기본 없음)를 넘지 못한다. 세 키 모두 설정 화면에서 조정한다(`X.primitives.spec` §4.4.2, §6).

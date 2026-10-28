@@ -23,7 +23,10 @@ export interface LeaseBudget {
 /** drive 함수의 `loop.turn()` 입력. wire의 TurnStartInput과 모양이 달라 이름을 나눈다 */
 export interface TurnInput {
   readonly input: PostItem;
-  /** 생략하면 X가 `${leaseId}:${순번}`으로 결정적으로 만든다 */
+  /**
+   * 생략하면 X가 `${leaseId}:${순번}`으로 결정적으로 만든다. 같은 순서의 재호출은 커밋된 결과를 돌려받는다.
+   * 명시하면 같은 커밋 상태와 페이로드에서 같은 값이 나와야 한다(ADR-0015 §3.4 1)
+   */
   readonly requestId?: string;
 }
 
@@ -48,7 +51,10 @@ export interface SpawnOutcome {
   readonly answer?: string;
 }
 
-/** drive 함수가 루프에 효과를 내는 유일한 통로(post와 scope commit 제외) */
+/**
+ * drive 함수가 루프에 효과를 내는 통로. 루프에 대한 효과는 `turn`과 `spawn`뿐이다(post와 scope commit 제외).
+ * drive 함수가 낼 수 있는 효과의 전체 목록(위임, 능력 호출 포함)은 `REPLAY_EFFECT_TABLE`(ADR-0015 §3.2)이다
+ */
 export interface LoopHandle {
   turn(input: TurnInput): Promise<TurnOutcome>;
   spawn(spec: SpawnSpec): Promise<SpawnOutcome>;

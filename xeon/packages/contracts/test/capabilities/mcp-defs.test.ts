@@ -24,6 +24,7 @@ import {
 } from "../../src/capabilities/index.ts";
 import { McpServiceName, type McpService } from "../../src/services/index.ts";
 import type { Equal, Expect } from "../types/expect.ts";
+import { withoutClassWarnings } from "./helpers.ts";
 
 /** McpService는 능력 API를 client 필드로 싣는다(L2.mcp.spec §3.2) */
 export type McpServiceCarriesClient = Expect<
@@ -37,7 +38,7 @@ function firstText(result: ToolContent): string {
 
 describe("mcp.client definition", () => {
   test("has no validation issues and no set conflicts", () => {
-    expect(validateCapability(McpClient)).toEqual([]);
+    expect(withoutClassWarnings(validateCapability(McpClient))).toEqual([]);
     expect(validateCapabilitySet([McpClient])).toEqual([]);
   });
 
