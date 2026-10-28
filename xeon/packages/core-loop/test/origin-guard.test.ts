@@ -119,6 +119,14 @@ test("the user path records origin user on turn.started and the agent start and 
   });
 });
 
+test("admit passes the mapped turn origin to enqueue so input.queued records it", async () => {
+  const h = await createHarness({ script: [answer("hello")] });
+  await h.loop.admit({ threadId: h.threadId, content: "hi", via: "rpc" });
+  await h.settle();
+  const queued = firstOfKind(h.fake.events(h.threadId), "input.queued");
+  expect(queued?.payload).toMatchObject({ source: { type: "user", via: "rpc" }, origin: "user" });
+});
+
 test("a failed turn settles with status error and no final answer", async () => {
   const h = await createHarness({ script: [{ kind: "error", message: "provider down" }] });
   const { unit, seen } = watcher("pass");

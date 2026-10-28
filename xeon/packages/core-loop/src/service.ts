@@ -31,7 +31,12 @@ import { runTurn as runLoopTurn } from "./loop/run-turn.ts";
 import type { TurnEntry, TurnRunResult } from "./loop/types.ts";
 import { createThreadGate } from "./thread-gate.ts";
 import { createUserBash } from "./user-bash.ts";
-import { textAndImages, turnStartRequest, type TurnStartSource } from "./turn-start.ts";
+import {
+  originOfSource,
+  textAndImages,
+  turnStartRequest,
+  type TurnStartSource,
+} from "./turn-start.ts";
 import type { LoopContext, LoopDeps, StartOutcome, ThreadRuntime } from "./types.ts";
 
 // L1.loop.spec §3.1 LoopService. thread 구동기(§2), admit(§4.1), drive 연동(§4.8), 재개(§4.5, §4.6).
@@ -600,6 +605,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       item,
       requestId,
       source: { type: "user", via: request.via },
+      origin: originOfSource({ type: "user", via: request.via }),
     });
     if (!enqueued.ok) {
       const error = enqueued.error;

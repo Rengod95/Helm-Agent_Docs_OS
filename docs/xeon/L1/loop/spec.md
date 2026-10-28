@@ -512,13 +512,6 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 | 모델을 해석하지 못함(`xeon.models.resolve`가 `err`: 모르는 모델 id, 차단, provider 없음) | `failed` | `"model_unavailable: <ModelError.kind>: <ModelError.message>"`. 사용자가 설정으로 고칠 수 있는 원인이라 화면이 그대로 보인다 [결정: M2 Mac 실기] |
 | 자식 turn 한도(`ChildTurnRequest.limits`) 도달 | `interrupted` | `"child_limit"` |
 
-### 4.4b 입력 출처 origin
-
-- [결정: M3-REQ-77, M3-13] `turn.started.origin`과 `boundary.turn.before`·`boundary.settle.after` 페이로드의 `origin`은 turn을 연 입력의 출처다. 큐 입력은 첫 입력의 `source`에서 정한다(`user` → `user`, `delegation` → `delegation`, `schedule` → `scheduled`, `extension` → `other`). drive turn은 `drive`, 자식 thread turn(`runChildTurn`)은 `delegation`이다. 재개한 turn은 기록된 `turn.started.origin`을 쓰고 없으면 `user`다.
-- `boundary.settle.after`는 `status`(`completed`, `aborted`=중단됨, `error`=실패), `hasFinalAnswer`(`completed`이고 어시스턴트 답이 있음), `lastItemId`(turn의 마지막 어시스턴트 item)를 싣는다.
-- [미결] `input.queued.origin`은 `xeon.tasks.inputs.enqueue`(core-tasks)가 쓰고 F `InputDraft`에 `origin` 필드가 없어 core-loop가 명시하지 못한다. 없으면 스키마 규칙(`source`에서 정함)으로 읽는다. 필드는 F 변경과 core-tasks 변경이 필요하다.
-- [미결] `큐 입력과 drive turn 요청이 함께 기다리면 큐 입력이 먼저` [제안, M3-REQ-77]는 이번에 구현하지 않았다.
-
 ### 4.4 입력 큐 연결
 
 | 모드 | 루프 쪽 처리 |
@@ -529,6 +522,13 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 
 - turn 입력은 T1이 이미 배치했다. 첫 단계 앞에서 큐를 따로 읽지 않는다.
 - 큐에 남은 steer는 turn 취소로 지우지 않는다(`L1.tasks.spec` §4.6 끝).
+
+### 4.4b 입력 출처 origin
+
+- [결정: M3-REQ-77, M3-13] `turn.started.origin`과 `boundary.turn.before`·`boundary.settle.after` 페이로드의 `origin`은 turn을 연 입력의 출처다. 큐 입력은 첫 입력의 `source`에서 정한다(`user` → `user`, `delegation` → `delegation`, `schedule` → `scheduled`, `extension` → `other`). drive turn은 `drive`, 자식 thread turn(`runChildTurn`)은 `delegation`이다. 재개한 turn은 기록된 `turn.started.origin`을 쓰고 없으면 `user`다.
+- `boundary.settle.after`는 `status`(`completed`, `aborted`=중단됨, `error`=실패), `hasFinalAnswer`(`completed`이고 어시스턴트 답이 있음), `lastItemId`(turn의 마지막 어시스턴트 item)를 싣는다.
+- [결정: M3a T-L4] `InputDraft.origin`(F)이 `input.queued.origin`이 된다(core-tasks `enqueue`가 적는다). core-loop는 자기 `enqueue` 호출(사용자 입력, `admit`)에서 위 대응으로 정한 값을 싣고, 큐 입력이 turn을 열 때는 첫 입력의 `origin`을 먼저 쓰고 없으면 `source`에서 정한다. 위임 완료 보고(core-agents)와 확장 post(core-tasks)는 `origin`을 싣지 않으므로 `source`에서 정한 값이 같다.
+- [미결] `큐 입력과 drive turn 요청이 함께 기다리면 큐 입력이 먼저` [제안, M3-REQ-77]는 이번에 구현하지 않았다.
 
 ### 4.5 `next` 판별자별 재진입
 

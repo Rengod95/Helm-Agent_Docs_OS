@@ -200,6 +200,28 @@ describe("enqueue", () => {
     expect(again.ok && again.value.duplicate).toBe(true);
   });
 
+  test("input_queued_records_the_draft_origin_and_a_reload_keeps_it", async () => {
+    const world = createWorld();
+    await mustEnqueue(
+      world,
+      userDraft(world.threadId, "with-origin", {
+        source: { type: "schedule", timerId: "tmr_1" },
+        origin: "scheduled",
+      }),
+    );
+    await mustEnqueue(world, userDraft(world.threadId, "without-origin"));
+    const queuedPayloads = world.session.events
+      .filter((event) => event.kind === "input.queued")
+      .map((event) => event.payload);
+    expect(queuedPayloads[0]).toMatchObject({ requestId: "with-origin", origin: "scheduled" });
+    expect(queuedPayloads[1]).not.toHaveProperty("origin");
+    const reloaded = restart(world);
+    expect(unwrapped(reloaded.tasks.inputs.peek(reloaded.threadId)).map((q) => q.origin)).toEqual([
+      "scheduled",
+      undefined,
+    ]);
+  });
+
   test("a different requestId in the same source is a different input", async () => {
     const world = createWorld();
     await mustEnqueue(world, userDraft(world.threadId, "a"));
