@@ -10,24 +10,17 @@ import {
 } from "@xeon/contracts/capabilities";
 import { advertisedFilesDef, IMPLEMENTED_FILES_TOOLS } from "../src/plugin.ts";
 
-// L2 정의의 readOnly·idempotent 분류는 M3-REQ-88이 채운다. 그 전까지 분류 경고(effect_class_missing)는 이슈로 세지 않는다.
-function withoutClassWarnings(
-  issues: ReturnType<typeof validateCapability>,
-): ReturnType<typeof validateCapability> {
-  return issues.filter((issue) => issue.code !== "effect_class_missing");
-}
-
 const ALL: readonly AnyCapabilityDef[] = [WorkspaceFiles, WorkspaceShell, WorkspaceImages];
 
 describe("workspace definitions", () => {
   test("workspace defs have no issues", () => {
-    for (const def of ALL) expect(withoutClassWarnings(validateCapability(def))).toEqual([]);
+    for (const def of ALL) expect(validateCapability(def)).toEqual([]);
     expect(validateCapabilitySet(ALL)).toEqual([]);
   });
 
   test("the advertised subset (M1 tools) has no issues either", () => {
     const advertised = advertisedFilesDef();
-    expect(withoutClassWarnings(validateCapability(advertised))).toEqual([]);
+    expect(validateCapability(advertised)).toEqual([]);
     expect(validateCapabilitySet([advertised, WorkspaceShell])).toEqual([]);
     expect(advertised.tools.map((tool) => tool.name)).toEqual(["read", "ls"]);
     expect(advertised.service).toBe(WorkspaceFiles.service);
@@ -64,9 +57,12 @@ describe("workspace definitions", () => {
         expect(tool.replay).toBe("unsafe");
       }
     }
-    for (const method of Object.values(WorkspaceImages.service.methods)) {
-      expect(method.replay).toBe("safe");
-    }
+    const images = WorkspaceImages.service.methods;
+    expect([images.load.replay, images.resize.replay, images.register.replay]).toEqual([
+      "safe",
+      "safe",
+      "unsafe",
+    ]);
   });
 
   test("tool order is stable", () => {

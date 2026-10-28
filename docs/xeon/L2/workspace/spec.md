@@ -493,7 +493,7 @@ export const WorkspaceImagesKey = serviceKey(WorkspaceImages);
 ```
 
 - 도구가 없는 능력이다. 모델은 `read`로 이미지 파일을 읽고, 첨부는 `dialog.attachments`가 `register`를 부른다. 도구 없는 능력의 허용은 `F.capabilities.spec` §4.4 [미결]이다(§10 미결 5).
-- 세 메서드는 내용 주소(sha256) 저장이라 같은 입력이면 같은 결과를 내므로 `safe`다.
+- `load`와 `resize`는 `readOnly`다. 파일이나 이미 등록된 blob에서 같은 바이트의 사본을 만들 뿐이고 원본은 남는다. `register`는 붙여넣은 데이터가 유일한 사본인 blob을 저장하므로 읽기가 아니고, `requestId`를 기억하지 않아 선언 없음(`replay: "unsafe"`)이다 [결정: M3-REQ-88, 분류 표는 §3.7이다.
 
 ### 3.5 도메인 서비스
 
@@ -778,3 +778,4 @@ durable `tools/edit-diff.ts`(500줄)를 포크한다. 규칙은 포크 원본 �
 10. [미결] 모델용 도구 설명 문구의 언어. pi 원문은 영어다. 이 문서는 F 예시를 따라 한국어로 썼다. 모델 품질 비교 뒤 정한다.
 11. [미결] `l2.workspace.images.*`를 세션 범위에서 바꿀 수 있게 할지. 지금은 세션 범위를 뺐다.
 12. [미결] 패치 적용 메서드. `L2.artifacts.spec`의 거절 hunk 되돌림 안 A는 `workspace.files`에 패치 적용 서비스 메서드(`applyPatch` 후보, 도구 없음, `unsafe`)를 요구한다. 그 안이 채택되면 `workspace.files` minor 버전으로 더하고 §4.3 경로 검사와 §4.4 줄 세우기를 그대로 적용한다. 채택 전에는 `edit`로 같은 일을 할 수 있다.
+13. [미결] 내용 주소(sha256) blob 쓰기(`images.register`)의 분류. 같은 바이트는 같은 blob이라 재실행해도 결과와 효과가 같지만, ADR-0015 §3.3은 `requestId` 기억이 있는 쓰기만 `idempotent`로 둔다. 지금은 선언 없음이다. 내용 주소 쓰기를 `idempotent`로 인정하려면 ADR의 정의를 넓혀야 한다.

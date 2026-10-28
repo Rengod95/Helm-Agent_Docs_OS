@@ -147,6 +147,7 @@ Chord 값 import 0건 확인 절차(ADR-0003 §4.2 검증 방법을 이 패키�
 | 파일 | 테스트 | 확인할 동작 |
 |---|---|---|
 | `test/defs.test.ts` | `workspace defs have no issues` | 정의 3개의 `validateCapability` 이슈 0건, `validateCapabilitySet` 이슈 0건 |
+| `test/read-only.conformance.test.ts` | `the declared classes are the reads and the undeclared writes`, `read, list and images.load leave every file as it was` | 능력 적합성(ADR-0015 §3.6, M3-REQ-88·89). workspace 열 메서드의 분류와 `replay`가 spec 효과 분류 표와 같다. `read`·`list`·`images.load`를 되풀이한 뒤 파일 내용과 목록이 같고 exec 호출이 늘지 않는다. workspace에는 멱등 쓰기가 없다. `grep`·`find`의 호출 시험은 구현(M3-new-10)이 들어올 때 더한다 |
 | | `replay and execution policy declared` | `read`·`ls`·`grep`·`find`: 메서드·도구 `replay: "safe"`, `executionMode: "parallel"`, `hints.readOnly: true`. `write`·`edit`·`bash`: `replay: "unsafe"` |
 | | `tool order is stable` | `orderTools([WorkspaceShell, WorkspaceImages, WorkspaceFiles])`가 `edit, find, grep, ls, read, write, bash` 순 |
 | | `edit toInput repairs shapes` | 문자열 `edits`, 단일 객체 `edits`, 최상위 `oldText`/`newText`가 같은 `EditInput`이 된다 |
