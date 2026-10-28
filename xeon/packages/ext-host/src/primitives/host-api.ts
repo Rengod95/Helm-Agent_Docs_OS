@@ -81,6 +81,11 @@ export interface ScopeHostApi<S = unknown> {
   /** 포트 조회. builtin 확장만. 없으면 port_unavailable */
   port<Api>(key: PortKey<Api>): Api;
   /**
+   * 설정 키의 유효 값(`xeon.settings` 포트를 거친다). builtin 확장은 모든 키를 읽는다. 그 밖의 확장은 자기 이름공간
+   * `ext.<확장 이름>.` 아래 키만 읽고 다른 키는 값이 있어도 undefined다. 포트가 없거나 모르는 키도 undefined다
+   */
+  settingValue(key: string): unknown;
+  /**
    * 상태 문서 마이그레이션. setup 안에서 한 번만 부른다. 저장된 상태의 `version`이 `StateDecl.version`보다 낮은 thread를 켤 때
    * 이 함수로 옮기고 스키마를 검사한 뒤 새 판으로 커밋한다(P-23)
    */
@@ -161,6 +166,9 @@ function directAmbient(
     invocation,
   };
 }
+
+/** 조립 루트가 `xeon.settings`로 올리는 설정 읽기. L3 group-kit의 `GroupSettingsSource`와 같은 이름·모양이다 */
+const SETTINGS_READ_PORT: PortKey<{ value(key: string): unknown }> = { name: "xeon.settings" };
 
 export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi<S> {
   const found = hostApis.get(g);
@@ -513,6 +521,11 @@ export function createScopeApi(
       assertOpen(record, generation);
       requirePortAccess();
       portProvider().provide(key, impl);
+    },
+    settingValue(key: string): unknown {
+      assertOpen(record, generation);
+      if (!record.builtin && !key.startsWith(`ext.${record.extension}.`)) return undefined;
+      return core.ports.get(SETTINGS_READ_PORT)?.value(key);
     },
     port<Api>(key: PortKey<Api>): Api {
       assertOpen(record, generation);

@@ -103,6 +103,7 @@ export {
   TRUST_REQUIRING_PROJECT_RESOURCES,
   LoadDiagnosticSchema,
   RESERVED_EXT_KEYS,
+  reservedExtensionSettings,
   SOURCE_TRUST,
   TRUST_LEVELS,
   TRUST_MATRIX,
