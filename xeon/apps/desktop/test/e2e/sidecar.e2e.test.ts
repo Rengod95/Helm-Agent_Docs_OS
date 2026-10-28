@@ -110,13 +110,22 @@ describe("what the desktop asks, answered by the real host (T7)", () => {
     expect(pick(after, "result", "verdict")).toBe("allow");
     expect(pick(after, "result", "via")).toBe("store");
 
-    // command.list: 엔진에 등록된 /plan, /tasks. thread를 주어도 같은 목록이다
+    // command.list: 엔진에 등록된 /learning(학습 그룹), /plan, /tasks. thread를 주어도 같은 목록이다. /helm은 없다:
+    // 기본 플러그인 번들이 이 실행 환경(실행 파일 옆 default-plugins/)에 없어 Helm이 설치·적재되지 않는다
     const names = (reply: unknown): unknown[] => {
       const commands = pick(reply, "result", "commands");
       return Array.isArray(commands) ? commands.map((c: unknown) => pick(c, "name")) : [];
     };
-    expect(names(nthReply(run.responses, "command.list", 0))).toEqual(["plan", "tasks"]);
-    expect(names(nthReply(run.responses, "command.list", 1))).toEqual(["plan", "tasks"]);
+    expect(names(nthReply(run.responses, "command.list", 0))).toEqual([
+      "learning",
+      "plan",
+      "tasks",
+    ]);
+    expect(names(nthReply(run.responses, "command.list", 1))).toEqual([
+      "learning",
+      "plan",
+      "tasks",
+    ]);
 
     // 설정 화면: 저장한 기본 모델이 다시 읽으면 나오고, 저장은 연결 전체에 settings.invalidated를 낸다. 화면의 필터(l1.models.)에 걸린다
     expect(pick(nthReply(run.responses, "settings.set", 0), "result")).toBeDefined();
