@@ -509,7 +509,8 @@ export interface QuestionBody {
 export type ApprovalBody =
   | { readonly kind: "tool"; readonly tool: ToolApprovalBody }
   | { readonly kind: "plan"; readonly plan: PlanApprovalBody }
-  | { readonly kind: "question"; readonly question: QuestionBody };
+  | { readonly kind: "question"; readonly question: QuestionBody }
+  | { readonly kind: "review"; readonly review: ReviewBody };   // F services/approvals.ts. 본문 최소 집합은 adr.0018 §6
 
 export interface ApprovalRequestInput {
   readonly origin: ApprovalOrigin;
@@ -519,6 +520,10 @@ export interface ApprovalRequestInput {
   readonly body: ApprovalBody;
   /** 이 요청에서 고를 수 있는 기억 범위. 질문은 ["once"]만 */
   readonly remember: readonly ApprovalRemember[];
+  /** 만료 시각(epoch ms). 없으면 만료 없음. 내구 필드다(§4.7 6b) */
+  readonly expiresAt?: number;
+  /** 만료 때의 해결. 생략하면 deny */
+  readonly onExpire?: { readonly decision: "deny" } | { readonly decision: "answer"; readonly answer: JsonValue };
 }
 
 /** 단일 대기 형식. approval.requested payload와 같다 */
@@ -538,7 +543,7 @@ export interface ApprovalResponse {
   readonly remember?: ApprovalRemember;
 }
 
-export type ApprovalResolvedBy = "user" | "noninteractive" | "cancelled" | "superseded";
+export type ApprovalResolvedBy = "user" | "noninteractive" | "cancelled" | "superseded" | "expired";
 
 export interface ApprovalResolution {
   readonly approvalId: string;
@@ -589,6 +594,7 @@ export const ApprovalResolutionSchema: TSchema;
 
 | kind | 허용 decision | answer | remember |
 |---|---|---|---|
+| `review` | `answer`, `deny` | answer일 때 `ReviewAnswer`(`decisions`, `comments`, `submit` 필수. F `ReviewAnswerSchema`) 필수, deny일 때 `{ feedback }` 선택 | `once` |
 | `tool` | `allow`, `deny` | deny일 때 `{ feedback: string }` 선택 | `once`, `thread`. 파이프라인은 `always`를 제안하지 않는다(§4.7 6번) |
 | `plan` | `allow`, `deny` | allow일 때 `{ mode?, note? }` 선택(`mode`는 `nextModes` 안), deny일 때 `{ feedback }` 선택 | `once` |
 | `question` | `answer`, `deny` | answer일 때 `QuestionAnswer` 필수(질문 id마다) | `once` |
@@ -597,7 +603,8 @@ export const ApprovalResolutionSchema: TSchema;
   - `tool`: `allow` 또는 `deny`. `remember`는 요청이 낸 범위 안이어야 한다.
   - `plan`: `allow`의 `answer`는 생략하거나 `{ mode?, note? }`다. `mode`는 요청 `nextModes` 안이어야 한다. `deny`의 `answer`는 `{ feedback }`만 받는다.
   - `question`: `answer`의 `QuestionAnswer`는 질문마다 항목이 하나씩 있고(`{ selected: string[], text?: string }`, 그 밖의 필드 없음), `selected`의 id는 그 질문의 선택지 안에 있고 중복이 없고, `multiSelect`가 거짓이면 하나 이하다. `allowFreeText`가 거짓이면 `text`가 없다. 선택도 `text`도 비면 거부한다. `deny`의 `answer`는 `{ feedback }`만 받는다.
-  - `remember`: `plan`과 `question`은 `once`만 낸다.
+  - `review` [결정: M3-REQ-74, adr.0018]: `answer`의 `ReviewAnswer`는 F 스키마로 검사한다. 결정이 가리키는 hunk와 코멘트 대상이 실제로 있는지는 도메인(cap-artifacts)이 `approval.resolved`를 받을 때 본다. `allow`는 `answer_invalid`다. 요청은 `round >= 1`이고 파일 경로가 중복되지 않아야 한다.
+  - `remember`: `plan`, `question`, `review`는 `once`만 낸다.
 - 요청 검사 [제안]: `request`와 `open`은 커밋 전에 입력을 본다. `requestKey` 1~48자, `remember`는 위 표대로, 질문은 1~4개이고 질문 id와 선택지 id(1~32자)가 각각 유일하고 선택지가 없는 질문은 `allowFreeText: true`여야 한다. `nextModes`는 모드 이름이고 중복이 없다. 어긋나면 `ApprovalRequestError { kind: "rejected", code: "approvals.request_invalid" }` 값이다. 이벤트 payload 스키마(`ApprovalRequestedPayloadSchema`)도 같은 시점에 확인해, 저장소가 Bug로 거부하기 전에 값으로 돌려준다(TY-24).
 - 비차단 요청 [제안]: `ApprovalService.request`는 `open`과 `wait`을 합친 것이다. L2 어댑터는 `open`(커밋만 하고 현재 상태를 돌려준다. 같은 `requestKey`면 기존 요청의 현재 상태)과 `wait(approvalId, signal)`(해결이 기록되면 이행. signal이 끊기면 기다림만 그만두고 요청은 남는다), `get(approvalId)`로 `L2ApprovalsPort`(`request`/`wait`/`get`)를 만든다. 세 메서드는 F `ApprovalService`에 올라갔다(§8.3 F 요청 11, m2 F.8). core-tools 구현은 `ApprovalsInternal`이고 `isRemembered`만 더한다.
 
@@ -721,6 +728,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 | 5a | `tool.call.before` 지점(first) | `prepare` | 핸들러 예외는 `FIRST_DENY.tool_call`로 거부(fail-closed). 디스패처 자체 예외도 거부 |
 | 5b | 정책 평가 `evaluatePolicy`. 자식 대화(`ceiling` 있음)는 §4.5 ceiling 단계 적용 | `prepare` | deny는 `settled` |
 | 5c | 승인 대기(ask일 때) | `prepare`. `ApprovalService.request` | deny·cancelled는 `settled` |
+| 5c2 | `guard.tool.before` 지점(first) [M3-REQ-109] | `prepare`. 정책·승인(비밀 사용 승인 포함)을 모두 통과한 호출만 온다. 의도를 쓰기 전이다 | 핸들러 `{ block: true, reason }`는 `settled`(`[xeon:denied_by_guard] <reason>`)이고 효과 이벤트가 없다. 핸들러·디스패처 예외도 거부(fail-closed, `FIRST_DENY["guard.tool.before"]`). 내장 검사는 없다. 페이로드는 5a와 같은 `ToolCallPayload`다 |
 | 5d | 중단 확인 | `prepare`. 의도를 쓰기 전에 turn 신호를 본다 | 중단이면 `settled`(`[xeon:aborted]`) |
 | 6 | `effect.intent` 커밋 | `prepare`의 끝 | 커밋 실패는 `settled`(`[xeon:tools.commit_failed] …`) |
 | 7a | tool 범위 노드 열기: `xeon.tasks.find("turn", run.turnId)`로 turn 노드를 찾고 `openScope(turn, { kind: "tool", id: toolCallId })`(L1.tasks.spec §4.1) | `execute` 진입 | 의도가 없으면 `tools.intent_missing`(호출 순서 위반, Bug). turn 노드가 `aborting`이면 신호가 켜진 노드를 받고 중단 결과로 끝난다 |
@@ -861,7 +869,9 @@ ceiling 단계(파이프라인 5b, 자식 대화) [제안]:
    - `once`: 이번 호출만.
    - `thread`: 같은 소유 트리 루트 대화가 끝날 때까지 같은 도구·같은 `ruleId`(규칙이 낸 ask) 또는 같은 도구(모드가 낸 ask)의 ask를 allow로 본다. 저장은 `approval.resolved` 이벤트 자체다. core-tools는 재개 때 이 이벤트에서 세션 허용 목록을 다시 만든다.
    - `always`: 파이프라인의 도구 승인은 제안하지 않는다(`remember`는 `["once", "thread"]`). 고르면 새 대화마다 같은 명령을 다시 묻는데 사용자는 항상 허용된 줄 알았기 때문이다(감사 L1-04) [결정: M2 마감 G2-10]. 영구 허용은 사용자 범위 규칙 `l1.tools.rules`의 allow 규칙을 쓴다. 2차 항상 허용 캐시(§4.11)가 들어오면 제안을 되살린다. 제안하지 않은 `always`를 클라이언트가 보내면 `answer_invalid`다. 능력 어댑터가 `always`를 제안하는 요청을 올리면(L2 `remember` 목록은 어댑터가 정한다) 2차 전까지 `thread`로 낮춰 적용하고 `approval.resolved`에 `remember: "thread"`와 `requestedRemember: "always"`를 함께 남긴다. 클라이언트는 이 둘이 다르면 낮춘 사실을 표시한다(아래 동의 표시 요건 6번).
-7. 비대화형: 정책이 낸 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 7단계). 정책을 지나지 않는 요청은 kind와 관계없이 사람이 없다: 정책이 허용한 뒤 파이프라인이 다시 묻는 비밀 사용 승인(§4.12)과 능력 서비스가 올리는 도구 승인(웹 도메인 승인 등)이 그렇다. 이 요청과 question·plan 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다. 이 커밋에는 대기 체크포인트와 `ui_prompt` 발화가 없다. 비대화형인지는 요청의 `origin`으로 찾은 활성 호출의 `ToolRunContext.interactive`로 본다. 활성 호출이 없는 요청(턴 밖의 그룹 코드)은 대화형으로 본다.
+6b. 만료 [결정: M3-REQ-72, M3-06]: 요청의 `expiresAt`(epoch ms)과 `onExpire`는 `approval.requested`에 기록한다. 주입한 `Scheduler`(없으면 타이머 없이 시계만)가 `expiresAt`에 깨어 `expiresAt <= clock.now()`이면 `onExpire`대로 `approval.resolved`를 커밋한다: `deny`(기본) 또는 요청 kind가 받아들이는 `answer`(맞지 않으면 deny). 해결에는 `resolvedBy: "expired"`가 붙고 거부 사유 문장은 `[xeon:approval_expired] …`다. 타이머가 시계보다 일찍 깨면 다시 걸 뿐이다. 응답이 `expiresAt` 뒤에 오면 만료가 먼저라 `already_resolved`다. 재시작 때 `restore`와 같은 `requestKey`의 `open`은 기록된 `expiresAt`을 쓴다: 지난 요청은 바로 해결하고 남은 요청은 처음부터 다시 재지 않는다. 만료 커밋이 실패하면 대기로 되돌리고 5초 뒤 다시 시도한다.
+6c. 무인 정책 [결정: D-M3-12, M3-REQ-73. 키 이름과 기본 제한 시간은 제안]: 사람이 답할 수 없는(`interactive: false`) **주 대화**(`caller: "main"`, `depth: 0`, 표면 대화가 자기 자신) turn의 승인은 설정 `l1.tools.unattended.approval`을 따른다. `expire`(기본)는 기다리다 `l1.tools.unattended.timeoutSeconds`(기본 3600 [제안])가 지나면 6b로 거부한다(요청에 `expiresAt`이 이미 있으면 그 값이 먼저다). `wait`는 만료 없이 기다린다. `deny`는 7번처럼 바로 거부한다. 정책 평가는 `wait`·`expire`일 때 ask를 거부로 바꾸지 않고 승인 요청으로 보낸다(`interactive` 입력 = `run.interactive || 기다리는 정책`). 서브에이전트 등 주 대화가 아닌 호출은 정책과 관계없이 7번대로 바로 거부한다. print 모드는 사용자 입력이라 대화형이므로 이 정책 밖이다(사전 허용 규칙 적용과 전체 자동 승인 플래그는 L4 몫, D-M3-14).
+7. 비대화형(무인 정책 `deny`이거나 주 대화가 아닌 호출): 정책이 낸 도구 승인은 정책이 이미 deny로 바꾸므로 요청이 나가지 않는다(§4.5 7단계). 정책을 지나지 않는 요청은 kind와 관계없이 사람이 없다: 정책이 허용한 뒤 파이프라인이 다시 묻는 비밀 사용 승인(§4.12)과 능력 서비스가 올리는 도구 승인(웹 도메인 승인 등)이 그렇다. 이 요청과 question·plan 요청은 `approval.requested`와 `approval.resolved{ decision: "deny", resolvedBy: "noninteractive" }`를 한 커밋에 쓰고 바로 deny를 돌려준다. 감사 기록을 남기기 위해서다. 이 커밋에는 대기 체크포인트와 `ui_prompt` 발화가 없다. 비대화형인지는 요청의 `origin`으로 찾은 활성 호출의 `ToolRunContext.interactive`로 본다. 활성 호출이 없는 요청(턴 밖의 그룹 코드)은 대화형으로 본다.
 8. 취소: 턴 취소(eng.transactions.design §6.2)는 그 턴의 미해결 요청을 `resolvedBy: "cancelled"`로 닫는다. 대기 중이던 도구 호출은 의도가 없으므로 실행되지 않고, 루프는 `not_executed` 합성 결과로 닫는다.
    - 살아 있는 호출이 기다리는 요청은 파이프라인(`decide`)과 어댑터(`input_required` 대기)가 신호가 끊길 때 닫는다. 프로세스가 끊긴 뒤 남은 요청은 호출이 없다. core-loop가 열린 turn을 닫을 때(`closeOpenTurn`) `ApprovalService.restore`로 미해결 요청을 읽어 그 turn의 것을 `cancel`로 닫는다.
 9. 계획 승인의 모드 변경 [결정: L1A.4]: `allow`의 `answer.mode`가 현재 모드와 다르면 `setMode(origin.threadId, mode, "plan_approval")`을 부른다. `approval.resolved` 커밋 뒤, 대기를 풀기 전에 한다. 그래서 계획 도구가 이어갈 때 모드가 이미 바뀌어 있다. 모드를 바꾸지 못해도(`tools.mode_forbidden`, 저장소 실패) 해결은 그대로이고 경고를 남긴다. 해결 커밋 뒤 모드 쓰기 전에 끊기면, 재시작 뒤 계획 도구가 같은 `requestKey`로 다시 요청할 때 저장된 해결을 읽는 자리에서 같은 규칙으로 이어서 적용한다(이미 같은 모드면 쓰지 않는다).
@@ -975,6 +985,8 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 | `l1.tools.output.maxLines` | integer(100~100,000) | 2000 | nextTurn | managed, user, project, local | tools | number |
 | `l1.tools.output.maxBytes` | integer(1,024~1,048,576) | 51200 | nextTurn | managed, user, project, local | tools | number |
 | `l1.tools.exposure.deferThreshold` | integer(0~128) | 64 | nextTurn | managed, user, project, local | tools | number |
+| `l1.tools.unattended.approval` [제안] | `"wait" \| "deny" \| "expire"` | `"expire"` | nextTurn | managed, user, project, local, session | permissions | select |
+| `l1.tools.unattended.timeoutSeconds` [제안] | integer(1~604,800) | 3600 | nextTurn | managed, user, project, local, session | permissions | number |
 
 - `l1.tools.rules`는 범위별로 모아 티어를 붙인다(§4.5). 화면은 각 규칙의 출처 범위와 파일을 보인다(`_research/settings.md` §2.6 "규칙 편집기, 우선순위 표시, 각 규칙이 나온 파일 표시").
 - `l1.tools.exposure.deferThreshold`가 0이면 auto 도구는 모두 지연 도구다. 64는 [제안] 값이다. 근거가 되는 provider 측정값은 없다 [가정].
@@ -996,7 +1008,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 | `session.prompt.after` | tap(detached) | §4.7 4, `approval.resolved` 커밋 뒤 | 같음 |
 
 - `ToolCallPayload.capability`는 능력 도구일 때 채운다(F.capabilities.spec §7).
-- [제안] 페이로드 추가 요청(§8.3 F 요청 4): `ToolCallPayload`에 `caller: CallerId`, `risk: ToolRisk`, `hints?: ToolHints`를 더한다. Helm의 쓰기 판정(L3.helm.spec §4.6 [미결 8] "메타 출처")과 그룹 핸들러의 자식 대화 구분에 쓴다. 추가 전에는 핸들러가 `xeon.tools.meta(name)`을 group-kit 경유로 조회한다.
+- [결정: M3-REQ-71, M3-02] `tool.call.before`, `guard.tool.before`, `tool.result`의 페이로드는 `risk`(도구 등급), `hints`(도구 작성자의 힌트, 없으면 `{}`), `caller`(`ToolRunContext.caller`)를 항상 채운다. Helm의 쓰기 판정과 그룹 핸들러의 자식 대화 구분에 쓴다. `tool.execution.after`는 비밀을 가린 호출 인자 `input`과 `stepId`를 싣는다(실행 전에 닫힌 호출도 같다). F 스키마에서는 이 필드들이 아직 선택이다: 채우는 쪽이 갖춰졌으므로 필수로 올릴 수 있다(F 변경 요청, 이 문서는 고치지 않는다).
 - 서브에이전트 대화의 도구 호출에도 같은 지점이 같은 규칙으로 발화한다. `HandlerContext.threadId`는 자식 대화다 [제안].
 - `post`, `drive`, `scope`와의 관계: core-tools는 post·drive를 쓰지 않는다. 확장 비활성화(scope)로 도구 등록이 빠지면 다음 단계 경계의 `advertise`에서 사라진다(F.capabilities.spec §5 사례 5).
 - 확장 규칙 등록(extension 티어)은 2차다. 그 전에는 확장이 `tool.call.before` 핸들러로 거부한다. L1 코어 규칙 등록(`registerRules`, default 티어)은 M2다.

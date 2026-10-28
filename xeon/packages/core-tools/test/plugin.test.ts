@@ -26,7 +26,7 @@ import {
 } from "../src/testing/index.ts";
 import { TOOLS_EXTENSION_NAME } from "../src/index.ts";
 import { fakeTasks, type FakeTasks } from "./support/fake-tasks.ts";
-import { callTool, directTool, NOW } from "./support/harness.ts";
+import { callTool, directTool, layer, NOW } from "./support/harness.ts";
 
 interface FakeExec {
   readonly id: string;
@@ -71,7 +71,7 @@ async function boot() {
     toolsPlugin({
       clock,
       ids,
-      settings: { layers: () => [] },
+      settings: { layers: () => [layer("user", { "l1.tools.unattended.approval": "deny" })] },
     }),
   );
   return { t, installed, session, tasks, ids };

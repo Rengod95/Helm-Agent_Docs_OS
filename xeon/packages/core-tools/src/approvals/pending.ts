@@ -98,6 +98,8 @@ function requestOf(event: DurableEventEnvelope): ApprovalRequest | undefined {
     remember: payload.remember,
     surfaceThreadId: payload.surfaceThreadId,
     requestedAt: payload.requestedAt,
+    ...(payload.expiresAt === undefined ? {} : { expiresAt: payload.expiresAt }),
+    ...(payload.onExpire === undefined ? {} : { onExpire: payload.onExpire }),
   };
 }
 

@@ -32,7 +32,7 @@ import {
   type InputBridge,
 } from "./mcp-input.ts";
 import { deriveRisk } from "./policy/modes.ts";
-import type { RawCall, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
+import type { LockDecl, RawCall, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
 import { isJsonValue, messageOf, sha256Hex } from "./util.ts";
 
 // 등록(ToolRegistration, ToolResourceDef)을 도구 단위 항목(ToolEntry)으로 바꾼다.
@@ -241,6 +241,16 @@ async function invokeCapability(
   return { result, interrupted: false };
 }
 
+/** `ToolSpec.locks`의 선언을 core-tools `LockDecl`로 옮긴다: read는 shared, write는 exclusive(L1.tools.spec §4.2 7b) */
+function lockDeclarerOf(spec: ToolSpec): ToolEntry["locks"] {
+  if (spec.locks === undefined) return undefined;
+  return (args) =>
+    (spec.locks?.(args) ?? []).map((decl): LockDecl => ({
+      path: decl.path,
+      mode: decl.access === "read" ? "shared" : "exclusive",
+    }));
+}
+
 function capabilityEntries(
   registration: CapabilityToolsRegistration,
   resolve: CapabilityResolver,
@@ -272,7 +282,7 @@ function capabilityEntries(
       exposure: registration.exposure?.[spec.name] ?? "always",
       outputLimits: registration.outputLimits?.[spec.name] ?? {},
       raw: (call) => invokeCapability(registration, spec, method, resolve, bridge, call),
-      locks: undefined,
+      locks: lockDeclarerOf(spec),
     };
   });
 }

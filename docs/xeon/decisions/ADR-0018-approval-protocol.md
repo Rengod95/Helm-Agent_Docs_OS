@@ -55,4 +55,4 @@ binds: [xeon/packages/core-tools/**, xeon/packages/contracts/src/services/**, xe
 ## 6. 미결 사항
 
 - 닫음 [제안: 2026-10-28 F 구현, M3-REQ-09]: `ReviewBody`는 `{ reviewId, artifactId, title, round, files[{ path, change, binary, hunks }] }` 최소 집합이다. 답은 `ReviewAnswer`(`L2.artifacts.spec` §4.2.4)다. 코드는 `xeon/packages/contracts/src/records/catalog/approval.ts`와 `services/approvals.ts`다.
-- [미결] 무인 승인 정책 설정 키 이름. `L1.tools.spec` 반영 작업(M3-REQ-73)에서 정한다.
+- 닫음 [제안: 2026-10-28 L1.tools 구현, M3-REQ-73]: 설정 키는 `l1.tools.unattended.approval`(`wait`, `deny`, `expire`, 기본 `expire`)과 `l1.tools.unattended.timeoutSeconds`(기본 3600)다. 규칙은 `L1.tools.spec` §4.7 6b·6c다.

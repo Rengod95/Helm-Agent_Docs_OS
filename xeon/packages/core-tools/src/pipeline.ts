@@ -1,5 +1,10 @@
 import { Bug, canonicalJson, ok, parse, type Result } from "@xeon/contracts";
-import { FIRST_DENY, type CapabilityRef, type ToolResultValue } from "@xeon/contracts/extensions";
+import {
+  FIRST_DENY,
+  type CapabilityRef,
+  type ToolCallPayload,
+  type ToolResultValue,
+} from "@xeon/contracts/extensions";
 import {
   BlobRefSchema,
   NOT_STARTED_TEXT,
@@ -43,6 +48,7 @@ import {
   type ToolRunContext,
 } from "@xeon/contracts/services";
 import { denialReason } from "./approvals/protocol.ts";
+import { unattendedPlan } from "./approvals/unattended.ts";
 import type { ApprovalsInternal } from "./approvals/service.ts";
 import { boundResult, selfBlobRef } from "./bound.ts";
 import type { CallTable } from "./calls.ts";
@@ -154,6 +160,23 @@ function capabilityRefOf(entry: ToolEntry): CapabilityRef | undefined {
   return entry.capability === undefined
     ? undefined
     : { id: entry.capability.id, method: entry.capability.method };
+}
+
+/**
+ * `tool.call.before`·`guard.tool.before`·`tool.result`가 받는 호출 정보. 위험 등급, 힌트, 호출 주체를 채운다
+ * (M3-REQ-71, L1.tools.spec §3.6). 인자는 검증을 마친 값이다
+ */
+function callInfo(state: CallState): ToolCallPayload {
+  const capability = capabilityRefOf(state.entry);
+  return {
+    toolCallId: state.toolCallId,
+    toolName: state.entry.name,
+    input: state.args,
+    ...(capability === undefined ? {} : { capability }),
+    risk: state.entry.risk,
+    hints: state.entry.hints,
+    caller: state.run.caller,
+  };
 }
 
 function notExecuted(text: string, code: string): RawOutcome {
@@ -331,6 +354,8 @@ export function createPipeline(
         {
           toolCallId: call.id,
           toolName: call.name,
+          input: deps.redactor.maskDeep(call.arguments).value,
+          stepId: run.stepId,
           result: deps.redactor.maskDeep(outcome.result).value,
           isError: outcome.isError,
           ...(outcome.durationMs === undefined ? {} : { durationMs: outcome.durationMs }),
@@ -358,23 +383,13 @@ export function createPipeline(
     state: CallState,
     signal: AbortSignal,
   ): Promise<Denied | undefined> {
-    const { run, entry, toolCallId } = state;
-    const capability = capabilityRefOf(entry);
+    const { run, toolCallId } = state;
     try {
-      const outcome = await deps.ext.dispatch(
-        "tool.call.before",
-        {
-          toolCallId,
-          toolName: entry.name,
-          input: state.args,
-          ...(capability === undefined ? {} : { capability }),
-        },
-        {
-          threadId: run.threadId,
-          dispatchKey: `${run.stepId}:tool.call.before:${toolCallId}`,
-          signal,
-        },
-      );
+      const outcome = await deps.ext.dispatch("tool.call.before", callInfo(state), {
+        threadId: run.threadId,
+        dispatchKey: `${run.stepId}:tool.call.before:${toolCallId}`,
+        signal,
+      });
       const decision = outcome.decision;
       if (decision === undefined) return undefined;
       return denied(`[xeon:denied_by_extension] ${decision.reason}`, decision.terminate === true);
@@ -382,6 +397,27 @@ export function createPipeline(
       // 디스패처 자체의 실패도 거부다(fail-closed, L1.tools.spec §5 사례 3)
       warn("tools.tool_call_dispatch_failed", { toolCallId, message: messageOf(error) });
       return denied(`[xeon:denied_by_extension] ${FIRST_DENY["tool.call.before"].reason}`);
+    }
+  }
+
+  /**
+   * `guard.tool.before`(adr.0017 §3.6, M3-REQ-109). 정책·승인 판정을 모두 통과한 뒤 의도를 쓰기 전에 부른다. 내장 검사는 없고
+   * 가드 핸들러가 차단하면 도구를 실행하지 않는다. 핸들러 예외와 디스패처 실패도 차단이다(fail-closed). 사유는 도구 결과 레코드로 대화에 남는다
+   */
+  async function dispatchGuard(state: CallState, signal: AbortSignal): Promise<Denied | undefined> {
+    const { run, toolCallId } = state;
+    try {
+      const outcome = await deps.ext.dispatch("guard.tool.before", callInfo(state), {
+        threadId: run.threadId,
+        dispatchKey: `${run.stepId}:guard.tool.before:${toolCallId}`,
+        signal,
+      });
+      const decision = outcome.decision;
+      if (decision === undefined) return undefined;
+      return denied(`[xeon:denied_by_guard] ${decision.reason}`);
+    } catch (error) {
+      warn("tools.guard_dispatch_failed", { toolCallId, message: messageOf(error) });
+      return denied(`[xeon:denied_by_guard] ${FIRST_DENY["guard.tool.before"].reason}`);
     }
   }
 
@@ -406,7 +442,9 @@ export function createPipeline(
       caller: run.caller,
       depth: run.depth,
       mode: config.mode,
-      interactive: run.interactive,
+      // 무인 정책이 기다리는 쪽이면 ask를 거부로 바꾸지 않고 승인 요청으로 보낸다(M3-REQ-73)
+      interactive:
+        run.interactive || !unattendedPlan(run, config.unattended, deps.clock.now()).silent,
       bypassAllowed: config.bypassAllowed,
     };
     const evaluated = evaluatePolicy(input, config.rules);
@@ -769,6 +807,8 @@ export function createPipeline(
     if (verdict !== undefined) return verdict;
     const secretVerdict = await approveSecretUse(state, argsPayload, argsHash, signal);
     if (secretVerdict !== undefined) return secretVerdict;
+    const guardVerdict = await dispatchGuard(state, signal);
+    if (guardVerdict !== undefined) return guardVerdict;
     // 의도를 쓰기 전에 중단을 확인한다. 의도가 있는 호출은 실행 전이라도 settleRejected가 효과 결과로 닫아야 한다
     if (signal.aborted) return denied("[xeon:aborted] Operation aborted");
     return commitIntent(state, argsPayload, argsHash);
@@ -916,24 +956,14 @@ export function createPipeline(
     value: ToolResultValue,
     signal: AbortSignal | undefined,
   ): Promise<ToolResultValue> {
-    const { run, entry, toolCallId } = state;
-    const capability = capabilityRefOf(entry);
+    const { run, toolCallId } = state;
     try {
-      const outcome = await deps.ext.dispatch(
-        "tool.result",
-        {
-          toolCallId,
-          toolName: entry.name,
-          input: state.args,
-          ...(capability === undefined ? {} : { capability }),
-        },
-        {
-          threadId: run.threadId,
-          dispatchKey: `${run.stepId}:tool.result:${toolCallId}`,
-          initial: value,
-          ...(signal === undefined ? {} : { signal }),
-        },
-      );
+      const outcome = await deps.ext.dispatch("tool.result", callInfo(state), {
+        threadId: run.threadId,
+        dispatchKey: `${run.stepId}:tool.result:${toolCallId}`,
+        initial: value,
+        ...(signal === undefined ? {} : { signal }),
+      });
       return outcome.value;
     } catch (error) {
       // 핸들러 하나의 실패는 그 패치만 버린다. 디스패처 자체의 실패도 결과를 바꾸지 않는다

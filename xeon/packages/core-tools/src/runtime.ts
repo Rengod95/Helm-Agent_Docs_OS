@@ -46,6 +46,8 @@ export function createToolRuntime(base: ToolsDeps): ToolRuntime {
     producer: deps.producer,
     ids: deps.ids,
     clock: deps.clock,
+    ...(deps.scheduler === undefined ? {} : { scheduler: deps.scheduler }),
+    unattended: (threadId) => deps.config(threadId).unattended,
     ext: deps.ext,
     logger: deps.logger,
     callOf: (origin) => {

@@ -60,7 +60,7 @@ export interface RawOutcome {
 
 type RawExecutor = (call: RawCall) => Promise<RawOutcome>;
 
-/** 잠금 선언 하나(L1.tools.spec §4.2 7b). ToolSpec.locks(F 요청 8)가 F에 들어오면 등록 변환이 채운다 */
+/** 잠금 선언 하나(L1.tools.spec §4.2 7b). `ToolSpec.locks`에서 옮긴다(read는 shared, write는 exclusive) */
 export interface LockDecl {
   readonly path: string;
   readonly mode: "shared" | "exclusive";

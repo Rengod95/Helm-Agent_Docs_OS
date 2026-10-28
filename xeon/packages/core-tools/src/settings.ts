@@ -9,7 +9,7 @@ import {
 } from "@xeon/contracts/settings";
 import { PolicyRuleSchema, type PermissionMode } from "@xeon/contracts/services";
 
-// L1.tools.spec §6. `l1.tools.*` 키 6개를 선언(defineSettings, TL-8)하고 읽는다.
+// L1.tools.spec §6. `l1.tools.*` 키 8개를 선언(defineSettings, TL-8)하고 읽는다.
 // 읽기는 resolveSetting과 같은 규칙(우선순위, 허용 범위, 값 검사 실패한 층은 건너뜀, 키 단위 교체)을 따른다.
 // 기본값과 허용 범위는 아래 TOOLS_SETTING_DEFAULTS·ALL_SCOPES 등 한 곳에서 선언과 읽기가 함께 쓴다.
 
@@ -20,6 +20,8 @@ export const TOOLS_SETTING_KEYS: {
   readonly outputMaxLines: "l1.tools.output.maxLines";
   readonly outputMaxBytes: "l1.tools.output.maxBytes";
   readonly deferThreshold: "l1.tools.exposure.deferThreshold";
+  readonly unattendedApproval: "l1.tools.unattended.approval";
+  readonly unattendedTimeoutSeconds: "l1.tools.unattended.timeoutSeconds";
 } = {
   permissionMode: "l1.tools.permissionMode",
   bypassAllowed: "l1.tools.bypassAllowed",
@@ -27,7 +29,16 @@ export const TOOLS_SETTING_KEYS: {
   outputMaxLines: "l1.tools.output.maxLines",
   outputMaxBytes: "l1.tools.output.maxBytes",
   deferThreshold: "l1.tools.exposure.deferThreshold",
+  unattendedApproval: "l1.tools.unattended.approval",
+  unattendedTimeoutSeconds: "l1.tools.unattended.timeoutSeconds",
 };
+
+/**
+ * 무인 실행(사람이 답할 수 없는 주 대화 turn)의 승인 정책 [제안: 키 이름, M3-REQ-73, D-M3-12].
+ * `wait`는 응답이 올 때까지 기다리고, `deny`는 바로 거부하고, `expire`는 기다리다 `timeoutSeconds`가 지나면 거부한다
+ */
+export type UnattendedApproval = "wait" | "deny" | "expire";
+const UNATTENDED_APPROVALS: readonly UnattendedApproval[] = ["wait", "deny", "expire"];
 
 const PERMISSION_MODES: readonly PermissionMode[] = ["default", "acceptEdits", "plan", "bypass"];
 
@@ -37,12 +48,23 @@ export const TOOLS_SETTING_DEFAULTS: {
   readonly outputMaxLines: number;
   readonly outputMaxBytes: number;
   readonly deferThreshold: number;
+  readonly unattendedApproval: UnattendedApproval;
+  readonly unattendedTimeoutSeconds: number;
 } = {
   permissionMode: "default",
   bypassAllowed: true,
   outputMaxLines: 2000,
   outputMaxBytes: 51_200,
   deferThreshold: 64,
+  unattendedApproval: "expire",
+  // [제안] 한 시간. 알림을 늦게 봐도 답할 수 있고 실행이 무기한 묶이지 않는 길이다
+  unattendedTimeoutSeconds: 3600,
+};
+
+/** 설정이 없을 때의 무인 승인 정책 */
+export const UNATTENDED_DEFAULTS: ToolsUnattendedConfig = {
+  approval: TOOLS_SETTING_DEFAULTS.unattendedApproval,
+  timeoutSeconds: TOOLS_SETTING_DEFAULTS.unattendedTimeoutSeconds,
 };
 
 const ALL_SCOPES = ["managed", "user", "project", "local", "session"] as const;
@@ -115,6 +137,37 @@ const group = defineSettings("l1.tools", {
     },
     since: "0.1.0",
   },
+  "unattended.approval": {
+    type: Type.String({ maxLength: 16 }),
+    default: TOOLS_SETTING_DEFAULTS.unattendedApproval,
+    range: { enum: [...UNATTENDED_APPROVALS] },
+    runtimeChange: "nextTurn",
+    allowedScopes: ALL_SCOPES,
+    ui: {
+      tab: "permissions",
+      widget: "select",
+      order: 40,
+      label: "무인 실행의 승인 요청",
+      help: "wait는 답이 올 때까지 기다리고, deny는 바로 거부하고, expire는 기다리다 제한 시간이 지나면 거부한다",
+    },
+    since: "0.1.0",
+  },
+  "unattended.timeoutSeconds": {
+    type: Type.Integer(),
+    default: TOOLS_SETTING_DEFAULTS.unattendedTimeoutSeconds,
+    range: { min: 1, max: 604_800 },
+    runtimeChange: "nextTurn",
+    allowedScopes: ALL_SCOPES,
+    ui: {
+      tab: "permissions",
+      widget: "number",
+      order: 50,
+      label: "무인 실행의 승인 제한 시간",
+      help: "무인 승인이 expire일 때 이 시간이 지나면 거부로 끝낸다",
+      unit: "초",
+    },
+    since: "0.1.0",
+  },
 });
 
 /** `l1.tools.*` 선언 전체. 카탈로그 조립(buildCatalog)이 쓴다 */
@@ -127,6 +180,10 @@ export interface ToolsSettingsSource {
 
 function isPermissionMode(value: unknown): value is PermissionMode {
   return PERMISSION_MODES.some((mode) => mode === value);
+}
+
+function isUnattendedApproval(value: unknown): value is UnattendedApproval {
+  return UNATTENDED_APPROVALS.some((approval) => approval === value);
 }
 
 function isBoolean(value: unknown): value is boolean {
@@ -165,6 +222,12 @@ export interface ToolsScalarConfig {
   readonly bypassAllowed: boolean;
   readonly output: { readonly maxLines: number; readonly maxBytes: number };
   readonly deferThreshold: number;
+  readonly unattended: ToolsUnattendedConfig;
+}
+
+export interface ToolsUnattendedConfig {
+  readonly approval: UnattendedApproval;
+  readonly timeoutSeconds: number;
 }
 
 export function readScalarConfig(layers: ScopeStack): ToolsScalarConfig {
@@ -187,5 +250,17 @@ export function readScalarConfig(layers: ScopeStack): ToolsScalarConfig {
     deferThreshold:
       pick(layers, TOOLS_SETTING_KEYS.deferThreshold, FILE_SCOPES, integerIn(0, 128)) ??
       defaults.deferThreshold,
+    unattended: {
+      approval:
+        pick(layers, TOOLS_SETTING_KEYS.unattendedApproval, ALL_SCOPES, isUnattendedApproval) ??
+        defaults.unattendedApproval,
+      timeoutSeconds:
+        pick(
+          layers,
+          TOOLS_SETTING_KEYS.unattendedTimeoutSeconds,
+          ALL_SCOPES,
+          integerIn(1, 604_800),
+        ) ?? defaults.unattendedTimeoutSeconds,
+    },
   };
 }
