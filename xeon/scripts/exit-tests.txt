@@ -13,3 +13,10 @@ E4 apps/host test/int/cap-web.int.test.ts
 E5 apps/host test/int/approval-shapes.int.test.ts
 E6 apps/host test/int/cap-mcp.int.test.ts test/int/cap-mcp-stdio.int.test.ts
 E7 packages/platform-secrets test/admin.int.test.ts test/sops-real.int.test.ts
+# M3a (review.m3-plan): X1 Helm E1/UC-2, X2 learning UC-3, X3 S1 core-diff check (the script's own tests; the S1 run itself
+# is `bun scripts/core-diff-check.ts <base>` at M3a close).
+X1 packages/group-helm test/int/uc2.int.test.ts test/int/plugin.int.test.ts
+X1 apps/host test/int/helm.int.test.ts
+X2 packages/group-learning test/uc3.int.test.ts
+X2 apps/host test/int/proposals.int.test.ts
+X3 scripts core-diff-check.test.ts
