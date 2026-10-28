@@ -128,7 +128,8 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
         const merged: CallOptions = {
           ...given,
           ...(requestId === undefined ? {} : { requestId }),
-          context: {
+          // L1.tools 어댑터가 이미 채운 호출 문맥(도구 호출 id, 모델 호출자, 승인 증거)은 덮지 않는다
+          context: given?.context ?? {
             ...(amb === undefined ? {} : { threadId: amb.threadId }),
             caller: { kind: "extension", extension: target.extension },
           },
