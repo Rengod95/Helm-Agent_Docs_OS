@@ -90,9 +90,15 @@ const SUBAGENT_PREFIX = "subagent:";
  * `approvalCallerOf(context.caller)`로 승인 origin의 `caller`를 만들므로 이름을 버리면 모든 서브에이전트가
  * `subagent:unknown`으로 기록된다. `extension`은 확장 호출자의 이름이라 여기에 쓰지 않는다 [결정: m2c G1-09]
  */
-function callerInfoOf(caller: CallerId): CallContext["caller"] {
-  if (caller === "main") return { kind: "model", agent: "main" };
-  return { kind: "model", agent: "subagent", agentName: caller.slice(SUBAGENT_PREFIX.length) };
+function callerInfoOf(caller: CallerId, afterUntrusted: boolean): CallContext["caller"] {
+  const flag = afterUntrusted ? { afterUntrusted: true } : {};
+  if (caller === "main") return { kind: "model", agent: "main", ...flag };
+  return {
+    kind: "model",
+    agent: "subagent",
+    agentName: caller.slice(SUBAGENT_PREFIX.length),
+    ...flag,
+  };
 }
 
 function callContext(call: RawCall): CallContext {
@@ -100,7 +106,7 @@ function callContext(call: RawCall): CallContext {
     threadId: call.run.threadId,
     turnId: call.run.turnId,
     toolCallId: call.toolCallId,
-    caller: callerInfoOf(call.run.caller),
+    caller: callerInfoOf(call.run.caller, call.afterUntrusted),
     interactive: call.run.interactive,
     // 비밀 사용 승인 증거는 도구 구현이 SecretEnvRequest.ctx.approval로 옮긴다(L1.tools.spec §4.12, F 요청 13)
     ...(call.secretApproval === null ? {} : { approval: call.secretApproval }),
@@ -429,6 +435,8 @@ export function resourceEntry(owner: ScopeId, def: ToolResourceDef): ToolEntry {
         const value = await def.execute(call.params, {
           threadId: call.run.threadId,
           signal: call.signal,
+          toolCallId: call.toolCallId,
+          caller: callerInfoOf(call.run.caller, call.afterUntrusted),
         });
         const result = resourceResult(value);
         if (result === undefined) {

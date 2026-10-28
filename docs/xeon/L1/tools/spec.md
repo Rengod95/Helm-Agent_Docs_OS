@@ -159,7 +159,7 @@ export interface ToolRegisterError { readonly kind: "name_conflict"; readonly to
 ```
 
 - `ToolSpec`에는 `execute`가 없다(F.capabilities.spec §3.3). 능력 도구의 실행 함수는 §4.3의 어댑터가 서비스 키로 얻은 provider API에서 합성한다.
-- 호출 문맥 [결정: m2c G1-09, A-08]: 능력 도구는 `CallOptions.context`(F `CallContext`)로, 직접 등록 도구는 `executeWithContinuation`의 `threadId`와 `context`로 같은 문맥을 받는다. 어댑터(`entries.ts`의 `callContext`)가 `ToolRunContext`에서 채운다: `caller`는 주 대화면 `{ kind: "model", agent: "main" }`, 서브에이전트면 `{ kind: "model", agent: "subagent", agentName: <정의 이름> }`이다. `extension`은 확장·그룹 코드가 호출자일 때의 이름이라 이 경로에서는 비어 있다. 도구 구현과 L2 어댑터는 승인 origin의 `caller`를 `approvalCallerOf(context.caller)`(F `services/approvals.ts`) 하나로 만든다. 자기 복제를 두지 않는다. `execute`(pi `AgentTool.execute`)에는 문맥을 실을 자리가 없으므로 호출 주체와 대화가 필요한 직접 등록 도구는 `executeWithContinuation`으로 등록한다.
+- 호출 문맥 [결정: m2c G1-09, A-08]: 능력 도구는 `CallOptions.context`(F `CallContext`)로, 직접 등록 도구는 `executeWithContinuation`의 `threadId`와 `context`로 같은 문맥을 받는다. 어댑터(`entries.ts`의 `callContext`)가 `ToolRunContext`에서 채운다: `caller`는 주 대화면 `{ kind: "model", agent: "main" }`, 서브에이전트면 `{ kind: "model", agent: "subagent", agentName: <정의 이름> }`이다. `afterUntrusted`는 같은 turn이 웹·MCP 도구 결과를 이미 읽었으면 `true`이고 아니면 필드가 없다(§4.3 `afterUntrusted` 규칙). `extension`은 확장·그룹 코드가 호출자일 때의 이름이라 이 경로에서는 비어 있다. 도구 구현과 L2 어댑터는 승인 origin의 `caller`를 `approvalCallerOf(context.caller)`(F `services/approvals.ts`) 하나로 만든다. 자기 복제를 두지 않는다. `execute`(pi `AgentTool.execute`)에는 문맥을 실을 자리가 없으므로 호출 주체와 대화가 필요한 직접 등록 도구는 `executeWithContinuation`으로 등록한다.
 - `DirectToolRegistration.tool`은 F `AgentTool`(F.conversation.spec §3.1.1)이다. 실행 함수를 가진 도구(확장 `registerTool`, MCP 동적 도구, 내장 `tool_search`)가 이 경로를 쓴다. 이런 도구도 같은 파이프라인을 지난다. 파이프라인 밖 실행 경로는 없다.
 - `core.<L1 도메인>` 순서 키 [제안]: L1이 내장하는 도구(`tool_search`, L1.agents.spec의 `agent`)의 순서 키다. F.capabilities.spec §4.5는 `ext.`, `mcp.` 접두만 정했으므로 추가를 요청한다(§8.3 F 요청 2).
 
@@ -769,6 +769,7 @@ export type ApprovalResolvedPayload = ApprovalResolution;
 | 4. `toContent` 또는 기본 렌더링 | 결과를 `AgentToolResult`로 만든다. `structuredContent`는 `outputSchema`로 검증하고 위반은 `internal` 오류 결과로 바꾼다(F.capabilities.spec §5 사례 3) |
 | 5. `CapabilityError` → `isError: true` | `content`는 `"[<code>] <message>"`, `details`는 `CapabilityErrorData`. `code: "aborted"`는 중단 결과로 처리하고 `effect.result.status`를 `interrupted`로 둔다 |
 
+- `afterUntrusted` [결정: M3-REQ-100]: 파이프라인이 turn 안에서 웹·MCP 도구의 결과를 낸 호출을 기억한다. 웹 도구는 능력 id가 `web.`으로 시작하는 능력 도구이고 MCP 도구는 정책 메타에 `mcpServer`가 있는 도구다. 같은 turn의 뒤 호출은 시작 때 `RawCall.afterUntrusted = true`를 받고, 어댑터가 이것을 `CallContext.caller.afterUntrusted`로, 확장 도구(`ToolResourceDef.execute`)의 `ctx.caller.afterUntrusted`로 넘긴다. 확장 도구의 `ctx.toolCallId`는 호출 id다(M3-REQ-102, X.primitives.spec §4.6.6). 기억은 프로세스 안이고 turn 수가 512를 넘으면 오래된 것부터 잊으므로, 재시작 뒤 이어진 turn은 거짓으로 시작한다 [제안]. 같은 배치의 병렬 호출은 먼저 끝난 호출의 표지를 볼 수 있다(안전한 쪽의 오차). 표지는 한 번 켜지면 turn이 끝날 때까지 꺼지지 않는다.
 - `replay`: 능력 도구는 `ToolSpec.replay`(F `ReplayPolicy`, 미선언은 `"unsafe"`)를 그대로 쓴다. `DirectToolRegistration`은 F `AgentTool.replay`(`"never" | "safe"`)를 `toReplayPolicy`로 바꾼다(`"never"`·미선언 → `"unsafe"`). `effect.intent.replay`에는 이 F `ReplayPolicy` 값을 쓴다.
 - `label`, `executionMode`, `outputSchema`는 그대로 옮긴다. `hints`는 `ToolMeta.hints`로 보관하고 위험 등급 유도(§4.6)에 쓴다.
 - `input_required` 출력 변형 [결정: L1A.4]: 판별 필드는 `status: "input_required"`다(L2.dialog `ask`, L2.work `submit`, L2.mcp `callTool`의 출력 변형이 모두 이 필드를 쓴다). 어댑터는 메서드 출력을 렌더링하기 전에 이 변형을 본다.
@@ -1112,6 +1113,7 @@ truncate 위치: 출력 절단 함수는 adr.0003의 포크 대상이고 L0 `pla
 35. 도구 승인의 `remember`는 `["once", "thread"]`이다. 제안하지 않은 `always`를 보낸 응답은 `applied: false`, `reason: "answer_invalid"`이고 요청은 대기 그대로다. `always`를 제안한 어댑터 요청의 `always` 응답은 `approval.resolved`에 `remember: "thread"`, `requestedRemember: "always"`로 남는다.
 36. `respond`는 `applied: false`일 때 `reason`을 낸다: 모르는 `approvalId`는 `unknown_approval`, 해결된 요청은 `already_resolved`, 맞지 않는 decision·answer·remember는 `answer_invalid`와 `detail`이다.
 37. `origin.stepId`가 없는 요청은 활성 호출의 단계로 채워 기록한다(`approval.requested` payload의 `origin`과 이벤트 봉투가 같은 값). `secretEnv`를 쓰는 호출의 정책 승인 제목은 비밀 참조를 말하고 120자를 넘으면 개수로 줄인다.
+38. 같은 turn에서 웹·MCP 도구 결과 뒤에 부른 확장 도구(`ToolResourceDef.execute`)의 `ctx.caller.afterUntrusted`는 `true`이고, 그 전과 다음 turn에서는 없다. 능력 도구의 `CallOptions.context.caller`도 같다.
 
 ## 10. 미결 사항
 

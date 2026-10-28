@@ -270,6 +270,14 @@ function policyTitle(toolName: string, args: JsonObject): string {
   return handles.length === 0 ? `Allow tool "${toolName}"?` : secretUseTitle(toolName, handles);
 }
 
+/** `untrustedTurns`에 기억하는 turn 수 상한. 넘으면 가장 오래된 것부터 잊는다 */
+const UNTRUSTED_TURN_LIMIT = 512;
+
+/** 결과가 외부 내용인 도구: 웹 능력(`web.*`)과 MCP 서버 도구. 결과를 읽은 모델은 지시 주입을 받았을 수 있다(L1.tools.spec §4.3) */
+function isUntrustedSource(entry: ToolEntry): boolean {
+  return entry.mcpServer !== undefined || (entry.capability?.id.startsWith("web.") ?? false);
+}
+
 export function createPipeline(
   deps: ToolsDeps,
   registry: ToolRegistry,
@@ -278,6 +286,18 @@ export function createPipeline(
 ): Pipeline {
   const kit: EffectKit = { producer: deps.producer, ids: deps.ids, clock: deps.clock };
   const closed = new Map<string, ToolCallOutcome>();
+
+  /** 웹·MCP 도구 결과를 낸 turn의 id. 같은 turn의 뒤 호출에 `afterUntrusted`를 켠다. 프로세스 안 기억이라 재시작 뒤 이어진 turn은 거짓으로 시작한다 */
+  const untrustedTurns = new Set<string>();
+
+  function markUntrusted(turnId: string): void {
+    untrustedTurns.delete(turnId);
+    untrustedTurns.add(turnId);
+    if (untrustedTurns.size > UNTRUSTED_TURN_LIMIT) {
+      const oldest = untrustedTurns.values().next();
+      if (oldest.done !== true) untrustedTurns.delete(oldest.value);
+    }
+  }
 
   function remember(run: ToolRunContext, outcome: ToolCallOutcome): void {
     const key = closedKey(run, outcome.toolCall.id);
@@ -850,6 +870,8 @@ export function createPipeline(
       addHits(state.maskedHits, masked.hits);
       onUpdate(asAgentResult(masked.result));
     };
+    // 같은 배치의 병렬 호출은 서로의 결과를 읽지 못하지만, 먼저 끝난 호출이 표지를 켜면 뒤 호출이 참으로 본다. 안전한 쪽의 오차다
+    const afterUntrusted = untrustedTurns.has(run.turnId);
     try {
       const outcome = await entry.raw({
         run,
@@ -858,8 +880,10 @@ export function createPipeline(
         signal,
         onUpdate: masking,
         secretApproval: state.secretApproval,
+        afterUntrusted,
       });
       state.interrupted = outcome.interrupted;
+      if (isUntrustedSource(entry)) markUntrusted(run.turnId);
       return outcome;
     } catch (error) {
       if (error instanceof Bug) throw error;

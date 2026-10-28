@@ -50,6 +50,11 @@ export interface RawCall {
    * 도구 구현에는 F `CallContext.approval`로 전달한다(`entries.ts` callContext)
    */
   readonly secretApproval: ApprovalEvidence | null;
+  /**
+   * 이 호출이 시작될 때 같은 turn이 웹·MCP 도구 결과를 이미 읽었는가(F `CallerInfo.afterUntrusted`, M3-REQ-100).
+   * 도구 구현에는 `CallContext.caller`와 확장 도구 `execute`의 `ctx.caller`로 전달한다
+   */
+  readonly afterUntrusted: boolean;
 }
 
 export interface RawOutcome {
