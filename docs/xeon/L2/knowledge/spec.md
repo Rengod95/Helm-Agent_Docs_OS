@@ -841,7 +841,7 @@ CREATE VIRTUAL TABLE cap_knowledge_session_fts USING fts5(
 
 ### 3.10 효과 분류 [결정: M3-REQ-88]
 
-ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태, 세션 DB 이벤트, 작업 공간, 사용자 데이터, 외부 시스템에 효과를 남기지 않는 읽기다. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록, 사용자 파일과 사용자가 쓴 데이터, 외부 시스템의 상태를 바꾸지 않는 읽기다. 관찰상 순수한 파생 데이터(캐시, 색인, 내용 주소 blob, 사용량·비용 계량, 시간과 현재 데이터만으로 정해지는 정리)는 쓸 수 있다 [결정: 2026-10-28 오케스트레이터, ADR-0015 §3.3]. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
 
 | 메서드 | 분류 | replay | 근거 |
 |---|---|---|---|
@@ -849,7 +849,7 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태,
 | `knowledge.ledger.show` | readOnly | safe | 원장 조회 |
 | `knowledge.ledger.rollback` | idempotent | safe | 같은 `requestId`는 계산 앞에서 원장 `request_id`를 보고 첫 결과를 돌려준다(§4.5.3) |
 | `knowledge.ledger.scan` | readOnly | safe | 순수 검사 |
-| `knowledge.ledger.proposals` | readOnly | safe | 대기열 조회. 만료 기한이 지난 제안은 조회가 `expired`로 정리한다(내용을 바꾸는 효과가 아니다) [제안] |
+| `knowledge.ledger.proposals` | readOnly | safe | 대기열 조회. 만료 기한이 지난 `pending`을 `expired`로 바꾸는 정리는 시간과 현재 데이터만으로 정해지는 파생 정리라 읽기로 본다 |
 | `knowledge.ledger.decide` | 선언 없음 | unsafe | 사람만 부른다. 같은 `requestId`를 기억하지 않고 두 번째 결정은 `proposal_closed`다 |
 | `knowledge.memory.read` | readOnly | safe | 파일 조회 |
 | `knowledge.memory.add` | idempotent | safe | 원장 `request_id`와 대기열이 첫 결과를 기억한다(§4.4.5) |
@@ -860,9 +860,9 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태,
 | `knowledge.search.scroll` | readOnly | safe | 세션 이벤트 조회 |
 | `knowledge.search.read` | readOnly | safe | 세션 이벤트 조회 |
 | `knowledge.search.list` | readOnly | safe | 투영 조회 |
-| `knowledge.skills.list` | readOnly | safe | 색인 조회. 바깥 편집을 맞추는 지연 재색인은 이미 일어난 변경을 따라가는 것이라 이 호출의 효과로 세지 않는다 [제안] |
+| `knowledge.skills.list` | readOnly | safe | 색인 조회. 바깥 편집을 맞추는 지연 재색인이 그 편집을 원장에 `external`로 남기는 것은 이미 일어난 변경의 관찰 기록이라 읽기로 본다 |
 | `knowledge.skills.view` | readOnly | safe | 같음 |
-| `knowledge.skills.reindex` | readOnly | safe | 바깥 편집을 원장에 `external`로 남긴다. `requestId` 멱등이 없다 |
+| `knowledge.skills.reindex` | 선언 없음 | unsafe | 사용자가 명시로 부르는 재색인이다. `requestId` 멱등이 없고 지연 재색인(`list`·`view`)과 달리 호출 자체가 목적이라 읽기로 두지 않는다 |
 | `knowledge.skills.create` | idempotent | safe | 원장 `request_id`와 대기열이 첫 결과를 기억한다(§4.4.5) |
 | `knowledge.skills.edit` | idempotent | safe | 같음 |
 | `knowledge.skills.patch` | idempotent | safe | 같음 |
@@ -1107,7 +1107,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.4.5 멱등
 
-- 쓰기 메서드의 `CallOptions.requestId`는 원장과 대기열의 `request_id`에 저장된다. 같은 키의 두 번째 호출은 저장된 `outcome`을 그대로 돌려준다. 입력이 달라도 첫 결과를 돌려준다. L3 그룹이 승인 증거와 함께 쓰는 적용 키(예: `<그룹 이름>:apply:<proposalId>:<revision>`)가 이 경로를 쓴다.
+- [결정: 2026-10-28 리뷰] 멱등 키는 (대화, 메서드, `CallOptions.requestId`)다. 원장과 대기열의 `request_id`에 `<threadId 또는 ->:<메서드>:<requestId>`로, 입력 지문(sha256)은 `request_fp`에 저장된다(마이그레이션 4단계). 같은 키·같은 입력의 두 번째 호출은 저장된 `outcome`을 돌려주고, 같은 키에 다른 입력이 오면 첫 결과를 돌려주지 않고 `invalid_input`(`detail.reason: "key_reused"`)으로 거부한다. 다른 대화나 다른 메서드의 같은 `requestId`는 다른 쓰기다. `skills.manage`·`memory.manage`는 안쪽 메서드(`skills.create` 등)의 키 공간을 쓴다. 제안 결정이 다시 실행하는 쓰기의 키는 `proposal:<제안 ID>`이고 지문이 없다. L3 그룹이 승인 증거와 함께 쓰는 적용 키(예: `<그룹 이름>:apply:<proposalId>:<revision>`)가 이 경로를 쓴다.
 - `requestId`가 없으면 멱등을 보장하지 않는다.
 
 ### 4.5 쓰기 승인과 제안 대기열
@@ -1132,7 +1132,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 승인 요청은 `xeon.approvals`(`ApprovalService`)의 도구 승인(kind `tool`)으로 낸다 [결정: KN.2]. `ports/approvals.ts`의 `createWriteApprovals`가 `open`으로 요청을 커밋하고(같은 `requestKey`면 기존 요청과 현재 해결 상태를 돌려받는다) 해결이 없으면 `wait`로 기다린다. 요청 키는 호출의 `requestId`를 F `requestKeyFor`(`records/commit.ts`, U-13)로 바꾼 값이다(1~48자). 48자 이하이고 키 알파벳(`^[A-Za-z0-9_.-]+$`) 안이며 `h_`로 시작하지 않으면 그대로, 아니면 `h_` + 원문 sha256 앞 40자다 [결정: 통합 검토 L6, 이전 `kw_` 접두 함수를 지움]. `requestId`가 없으면 `knp` ID를 키로 써서 멱등을 보장하지 않는다. 본문은 `{ toolName, capability: { id, method }, risk: "write", args, argsHash, ruleId: null }`이고 `toolName`은 스킬 쓰기면 `skill_manage`, 메모리 쓰기면 `memory_manage`, 롤백이면 `knowledge.ledger`다. `args`는 `{ op, target, baseHash, preview, scan, afterUntrusted }`이고 `preview`는 현재 내용 기준 통합 diff를 20,000자에서 자른 것, `scan`은 규칙 이름과 판정(`<규칙>:<block|warn>`)만 담는다. 사람이 한 허용(`resolvedBy: "user"`의 `allow`)만 허용으로 센다. 취소, 대체, 비대화형 해결은 거부다. 거부의 `answer.feedback`은 오류 `approval_denied`의 `detail.feedback`으로 돌려준다.
 - 묻지 못하는 경우 [제안: KN.2]: `ask` 판정이어도 승인 포트가 없거나, 호출 문맥에 `threadId`가 없거나, `interactive`가 `false`(크론·헤드리스)이면 묻지 않고 제안 대기열로 보낸다. 닫힌 쪽으로 실패하고 정본 파일은 바뀌지 않는다.
 - 승인 대기는 루프의 승인 대기 상태로 커밋되고 멈춘다. 재개 때 결과 이벤트로 이어진다(`L2.readme` §5.7). 승인 결과 "항상"은 이 능력에 적용하지 않는다 [제안]. 스킬·메모리 쓰기는 매번 내용이 달라서다.
-- `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 그룹 이름을 쓰지 않는다. 증거를 낼 L3 그룹의 source는 L3가 설정으로 채운다 [결정: review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다.
+- `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 그룹 이름을 쓰지 않는다. 증거를 낼 L3 그룹의 source는 L3가 설정으로 채운다 [결정: review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다. 첫 마디가 아니라 `<확장 이름>.` 접두로 맞춘다. 신뢰하는 출처의 확장은 `ApprovalEvidence`의 `ref`와 `decidedAt`을 스스로 증언한다. L2는 그 내용을 대기열 원본과 대조하지 않으므로 신뢰 목록에 올리는 것은 그 확장을 사람 승인의 대리인으로 믿는 일이다 [결정: 2026-10-28 리뷰, 문서화].
   - [제안: M3-REQ-104] 내장 그룹이 채우는 길은 조립 루트가 플러그인 옵션 `KnowledgePluginOptions.trustedEvidenceSources`(`<확장 이름>.<대기열 이름>` 목록)로 넘기는 것이다. 효과가 있는 신뢰 목록은 설정 값과 이 옵션의 합집합(`withTrustedEvidence`)이다. 학습 그룹을 내장으로 올리는 조립 루트가 `["learning.queue"]`를 넘기면 학습 대기열의 사람 승인이 증거가 되어 L2는 승인 요청을 내지 않는다(승인이 한 번이다). 이 패키지는 그룹 이름을 기본값으로 갖지 않고 옵션을 비우면 신뢰 목록은 설정 값 그대로다. 합쳐도 위 유효성 규칙(첫 마디가 호출 확장 이름과 같음)은 그대로라 다른 확장이 `learning.queue`를 빌려 쓸 수 없다.
   - [결정: M3-REQ-104, D-M3-09] 스킬 쓰기 입력의 `scope: "project"`는 행위자가 `user`이거나 유효한 승인 증거가 있는 확장일 때만 받는다. 모델 도구 경로는 범위를 고를 수 없다(`skill_manage` 파라미터에 `scope`가 없고 모델 행위자는 `denied`다). 학습 승인 화면에서 사용자가 프로젝트 범위를 고르면 학습 그룹이 증거와 함께 `scope: "project"`로 부른다.
 

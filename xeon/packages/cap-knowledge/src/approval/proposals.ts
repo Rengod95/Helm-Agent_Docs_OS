@@ -54,6 +54,7 @@ export interface ProposalRecord {
   /** 메서드 입력 JSON을 담은 blob */
   readonly input: BlobRef;
   readonly requestId: string | null;
+  readonly requestFingerprint: string | null;
   readonly decidedAt: number | null;
 }
 
@@ -69,6 +70,7 @@ export interface NewProposal {
   readonly scan: ScanSummary;
   readonly preview: string;
   readonly requestId: string | undefined;
+  readonly requestFingerprint?: string | undefined;
   /** 제안한 쓰기가 untrusted 도구 결과를 읽은 turn에서 나왔다. 생략하면 거짓이다 */
   readonly afterUntrusted?: boolean;
 }
@@ -153,7 +155,14 @@ function toRecord(row: SqlRow): Result<ProposalRecord, KnowledgeFailure> {
     ...(ledgerId === null ? {} : { ledgerId }),
     ...(intOf(row, "after_untrusted") === 1 ? { afterUntrusted: true } : {}),
   };
-  return ok({ proposal, method, input: input.value, requestId, decidedAt });
+  return ok({
+    proposal,
+    method,
+    input: input.value,
+    requestId,
+    requestFingerprint: textOrNull(row, "request_fp") ?? null,
+    decidedAt,
+  });
 }
 
 const json = (value: unknown): string => JSON.stringify(value);
@@ -162,8 +171,8 @@ export function insertProposal(tx: SqlTx, row: NewProposal): void {
   tx.run(
     `INSERT INTO cap_knowledge_proposals (
        proposal_id, created_at, actor, method, input, target_kind, target_name, target_scope, op,
-       base_hash, status, scan, preview, request_id, after_untrusted)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+       base_hash, status, scan, preview, request_id, after_untrusted, request_fp)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?)`,
     [
       row.proposalId,
       row.createdAt,
@@ -179,6 +188,7 @@ export function insertProposal(tx: SqlTx, row: NewProposal): void {
       row.preview,
       row.requestId ?? null,
       row.afterUntrusted === true ? 1 : 0,
+      row.requestFingerprint ?? null,
     ],
   );
 }

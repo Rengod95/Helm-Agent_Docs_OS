@@ -8,7 +8,7 @@ export const KNOWLEDGE_OWNER = "cap.knowledge";
 
 export const KNOWLEDGE_MIGRATIONS: MigrationSet = {
   owner: KNOWLEDGE_OWNER,
-  version: 3,
+  version: 4,
   steps: [
     {
       version: 1,
@@ -95,6 +95,14 @@ export const KNOWLEDGE_MIGRATIONS: MigrationSet = {
         // M3-REQ-91: 쓰기를 한 turn이 untrusted 도구 결과를 읽었는지(`CallerInfo.afterUntrusted`)를 원장과 대기열에 남긴다
         "ALTER TABLE cap_knowledge_ledger ADD COLUMN after_untrusted INTEGER NOT NULL DEFAULT 0",
         "ALTER TABLE cap_knowledge_proposals ADD COLUMN after_untrusted INTEGER NOT NULL DEFAULT 0",
+      ],
+    },
+    {
+      version: 4,
+      sql: [
+        // 멱등 키를 (대화, 메서드, requestId)로 좁히고 입력 지문을 남겨 같은 키의 다른 입력을 거부한다
+        "ALTER TABLE cap_knowledge_ledger ADD COLUMN request_fp TEXT",
+        "ALTER TABLE cap_knowledge_proposals ADD COLUMN request_fp TEXT",
       ],
     },
   ],

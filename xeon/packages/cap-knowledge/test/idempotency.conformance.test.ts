@@ -2,9 +2,9 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { WriteOutcome } from "@xeon/contracts/capabilities";
+import type { CallOptions, WriteOutcome } from "@xeon/contracts/capabilities";
 import { closeWorlds, createWorld, type World } from "./support/world.ts";
-import { asHost } from "./support/helpers.ts";
+import { asHost, rejection, threadIdOf } from "./support/helpers.ts";
 import { createMemoryFs, type MemoryFs } from "./support/memory-fs.ts";
 
 // M3-REQ-88·89, ADR-0015 §3.6, L2.knowledge.spec §4.4.5: 멱등 쓰기 열한 개는 같은 requestId를 두 번 불러도 효과가 한 번이고 결과가 같다.
@@ -160,6 +160,11 @@ const CASES: readonly Case[] = [
   },
 ];
 
+const inThread = (n: number): CallOptions => ({
+  requestId: "k",
+  context: { threadId: threadIdOf(n), caller: { kind: "host" } },
+});
+
 async function ledgerCount(world: World): Promise<number> {
   return (await world.runtime.ledgerApi.list({}, asHost())).entries.length;
 }
@@ -206,5 +211,27 @@ describe("knowledge writes dedupe on requestId across a store reopen", () => {
       asHost({ requestId: "two" }),
     );
     expect(await ledgerCount(world)).toBe(2);
+  });
+
+  test("the same requestId with a different input is key_reused and writes nothing", async () => {
+    const world = await createWorld();
+    const skills = world.runtime.skillsApi;
+    await skills.create({ name: "one", description: "d", body: "b" }, asHost({ requestId: "k" }));
+    const clash = await rejection(
+      skills.create({ name: "two", description: "d", body: "other" }, asHost({ requestId: "k" })),
+    );
+    expect(clash.data).toMatchObject({ code: "invalid_input", detail: { reason: "key_reused" } });
+    expect(await ledgerCount(world)).toBe(1);
+  });
+
+  test("the key is scoped by conversation and method: the same requestId elsewhere is a new write", async () => {
+    const world = await createWorld();
+    await world.runtime.memoryApi.add({ store: "user", text: "a" }, inThread(1));
+    await world.runtime.memoryApi.add({ store: "user", text: "b" }, inThread(2));
+    await world.runtime.skillsApi.create({ name: "one", description: "d", body: "b" }, inThread(1));
+    expect(await ledgerCount(world)).toBe(3);
+    const again = await world.runtime.memoryApi.add({ store: "user", text: "a" }, inThread(1));
+    expect(again.outcome.status).toBe("applied");
+    expect(await ledgerCount(world)).toBe(3);
   });
 });

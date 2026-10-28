@@ -4,7 +4,7 @@ import type { CallContext } from "@xeon/contracts/capabilities";
 import { SCAN_RULESET_VERSION } from "../src/scan/rules.ts";
 import { treeHash } from "../src/skills/tree.ts";
 import { scriptedApprovals } from "./support/approvals.ts";
-import { asHost, rejection, threadIdOf, treeFrom } from "./support/helpers.ts";
+import { asHost, rejection, threadIdOf, treeFrom, idem } from "./support/helpers.ts";
 import {
   agentActor,
   contextOf,
@@ -57,7 +57,7 @@ async function keyOf(requestId: string): Promise<string | undefined> {
     plan: createPlan(),
     actor: agentActor("main"),
     context: MAIN_CALL,
-    requestId,
+    requestId: idem(requestId),
   });
   return approvals.requests[0]?.requestKey;
 }
@@ -136,13 +136,13 @@ describe("write approval gate", () => {
       plan: createPlan(),
       actor: agentActor("main"),
       context: MAIN_CALL,
-      requestId: "call-1",
+      requestId: idem("call-1"),
     });
     const second = await request(world.runtime.writer, {
       plan: createPlan(),
       actor: agentActor("main"),
       context: MAIN_CALL,
-      requestId: "call-1",
+      requestId: idem("call-1"),
     });
     expect(first.ok && second.ok && first.value.ledgerId === second.value.ledgerId).toBe(true);
     expect(approvals.requests).toHaveLength(1);

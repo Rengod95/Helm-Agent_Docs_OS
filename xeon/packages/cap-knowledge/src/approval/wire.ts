@@ -37,7 +37,7 @@ function knowledgeStatusOf(status: ProposalStatusWire): ProposalStatus | undefin
 export function knowledgeStatusesOf(
   wire: readonly ProposalStatusWire[] | undefined,
 ): readonly ProposalStatus[] | undefined {
-  if (wire === undefined) return [];
+  if (wire === undefined || wire.length === 0) return [];
   const known = wire.flatMap((status) => {
     const mapped = knowledgeStatusOf(status);
     return mapped === undefined ? [] : [mapped];
@@ -90,7 +90,11 @@ type DecideFailure = Extract<ProposalDecideResult, { ok: false }>;
 
 type DecideReason = DecideFailure["reason"];
 
-/** 능력 오류 코드 → 결정 실패 이유. 표에 없는 코드는 `unavailable`이다 */
+/**
+ * 능력 오류 코드 → 결정 실패 이유. 표에 없는 코드는 `unavailable`이다. wire의 이유 집합(`PROPOSAL_DECIDE_FAILURES`)에
+ * `name_conflict`·`patch_mismatch`·`rollback_conflict`를 따로 둘 자리가 없어 모두 `base_stale`로 옮긴다(대상이 제안 뒤에 바뀜).
+ * 구별은 `detail` 문장에 남는다 [제안]
+ */
 const DECIDE_REASONS: ReadonlyMap<string, DecideReason> = new Map<string, DecideReason>([
   ["not_found", "not_found"],
   ["proposal_closed", "closed"],
@@ -120,7 +124,9 @@ function decideFailureOf(error: CapabilityError): DecideFailure {
     return { ok: false, reason: "scope_not_allowed", detail: message };
   }
   const reason = DECIDE_REASONS.get(code);
-  if (reason !== undefined) return { ok: false, reason, detail: message };
+  if (reason !== undefined) {
+    return { ok: false, reason, detail: reason === "base_stale" ? `${code}: ${message}` : message };
+  }
   return { ok: false, reason: "unavailable", detail: `${code}: ${message}`.slice(0, 512) };
 }
 
@@ -171,6 +177,14 @@ export function createKnowledgeProposalWire(ledger: LedgerApi): KnowledgeProposa
       }
       switch (params.decision) {
         case "edit":
+          if (params.revision !== 1) {
+            return {
+              ok: false,
+              reason: "revision_mismatch",
+              detail: "knowledge proposals are revision 1",
+            };
+          }
+          return { ok: false, reason: "unsupported", detail: "edit is for learning proposals" };
         case "revert":
           return {
             ok: false,
@@ -179,11 +193,7 @@ export function createKnowledgeProposalWire(ledger: LedgerApi): KnowledgeProposa
           };
         case "approve":
         case "reject": {
-          if (
-            params.decision === "approve" &&
-            params.revision !== undefined &&
-            params.revision !== 1
-          ) {
+          if (params.decision === "approve" && params.revision !== 1) {
             return {
               ok: false,
               reason: "revision_mismatch",

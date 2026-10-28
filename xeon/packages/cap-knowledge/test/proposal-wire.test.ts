@@ -160,7 +160,7 @@ describe("afterUntrusted", () => {
     });
 
     const decided = await wire.decide(
-      { source: "knowledge", id: untrustedId, decision: "approve" },
+      { source: "knowledge", id: untrustedId, decision: "approve", revision: 1 },
       asHost(),
     );
     expect(decided).toMatchObject({ ok: true, applied: true });
@@ -207,6 +207,7 @@ describe("list", () => {
     expect((await wire.list({ status: ["applied"] })).length).toBe(0);
     expect(knowledgeStatusesOf(["approved"])).toBeUndefined();
     expect(knowledgeStatusesOf(undefined)).toEqual([]);
+    expect(knowledgeStatusesOf([])).toEqual([]);
   });
 
   test("proposals with statuses and before behave the same through the capability", async () => {
@@ -230,7 +231,7 @@ describe("decide", () => {
     const wire = bySource(world);
 
     const approved = await wire.decide(
-      { source: "knowledge", id: approveId, decision: "approve" },
+      { source: "knowledge", id: approveId, decision: "approve", revision: 1 },
       asHost(),
     );
     expect(approved).toMatchObject({
@@ -248,14 +249,22 @@ describe("decide", () => {
       proposal: { id: rejectId, status: "rejected" },
     });
     expect(
-      await wire.decide({ source: "knowledge", id: approveId, decision: "approve" }, asHost()),
+      await wire.decide(
+        { source: "knowledge", id: approveId, decision: "approve", revision: 1 },
+        asHost(),
+      ),
     ).toMatchObject({
       ok: false,
       reason: "closed",
     });
     expect(
       await wire.decide(
-        { source: "knowledge", id: "knp_01ARZ3NDEKTSV4RRFFQ5ZZZZZZ", decision: "approve" },
+        {
+          source: "knowledge",
+          id: "knp_01ARZ3NDEKTSV4RRFFQ5ZZZZZZ",
+          decision: "approve",
+          revision: 1,
+        },
         asHost(),
       ),
     ).toMatchObject({
@@ -269,11 +278,20 @@ describe("decide", () => {
     const id = await queue(world, "x");
     const wire = bySource(world);
     expect(
-      await wire.decide({ source: "knowledge", id, decision: "edit", body: "y" }, asHost()),
+      await wire.decide(
+        { source: "knowledge", id, decision: "edit", revision: 1, body: "y" },
+        asHost(),
+      ),
     ).toMatchObject({
       ok: false,
       reason: "unsupported",
     });
+    expect(
+      await wire.decide(
+        { source: "knowledge", id, decision: "edit", revision: 2, body: "y" },
+        asHost(),
+      ),
+    ).toMatchObject({ ok: false, reason: "revision_mismatch" });
     expect(
       await wire.decide({ source: "knowledge", id, decision: "revert" }, asHost()),
     ).toMatchObject({
@@ -293,7 +311,7 @@ describe("decide", () => {
     const world = await createWorld();
     const id = await queue(world, "x");
     const result = await bySource(world).decide(
-      { source: "knowledge", id, decision: "approve" },
+      { source: "knowledge", id, decision: "approve", revision: 1 },
       { context: contextOf(undefined, { kind: "extension", extension: "grp" }) },
     );
     expect(result).toMatchObject({ ok: false, reason: "approval_required" });
@@ -312,7 +330,7 @@ describe("decide", () => {
     );
     await world.runtime.skillsApi.edit({ name: "deploy", baseHash: hash, body: "v3\n" }, asHost());
     const result = await bySource(world).decide(
-      { source: "knowledge", id: queued.proposalId ?? "", decision: "approve" },
+      { source: "knowledge", id: queued.proposalId ?? "", decision: "approve", revision: 1 },
       asHost(),
     );
     expect(result).toMatchObject({ ok: false, reason: "base_stale" });
@@ -327,7 +345,7 @@ describe("scope chosen at approval (D-M3-09)", () => {
     const world = await createWorld();
     const id = await queueSkill(world, "shared");
     const result = await bySource(world).decide(
-      { source: "knowledge", id, decision: "approve", scope: "project" },
+      { source: "knowledge", id, decision: "approve", revision: 1, scope: "project" },
       asHost(),
     );
     expect(result).toMatchObject({ ok: true, applied: true });
@@ -344,7 +362,7 @@ describe("scope chosen at approval (D-M3-09)", () => {
     const world = await createWorld();
     const id = await queueSkill(world, "mine");
     const result = await bySource(world).decide(
-      { source: "knowledge", id, decision: "approve", scope: "user" },
+      { source: "knowledge", id, decision: "approve", revision: 1, scope: "user" },
       asHost(),
     );
     expect(result).toMatchObject({ ok: true, applied: true });
@@ -366,7 +384,10 @@ describe("scope chosen at approval (D-M3-09)", () => {
     const wire = bySource(world);
     const results = await Promise.all(
       [memoryId, edit.proposalId ?? ""].map((id) =>
-        wire.decide({ source: "knowledge", id, decision: "approve", scope: "project" }, asHost()),
+        wire.decide(
+          { source: "knowledge", id, decision: "approve", revision: 1, scope: "project" },
+          asHost(),
+        ),
       ),
     );
     expect(results.map((result) => (result.ok ? "ok" : result.reason))).toEqual([

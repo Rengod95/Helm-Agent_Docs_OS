@@ -21,6 +21,7 @@ import { actorOf } from "../actor.ts";
 import { failure, fromStoreError, type KnowledgeFailure } from "../errors.ts";
 import type { ProposalQueue, Replayer } from "../approval/queue.ts";
 import { scanText } from "../scan/rules.ts";
+import { idemOf, type Idem } from "../write/idempotency.ts";
 import type { DecidedProposal, Writer } from "../write/pipeline.ts";
 import type { LedgerDeps } from "./change.ts";
 import { planRollback } from "./rollback.ts";
@@ -91,7 +92,7 @@ export function createLedgerRuntime(deps: LedgerServiceDeps): LedgerRuntime {
     request: {
       readonly actor: KnowledgeActor;
       readonly context: CallContext | undefined;
-      readonly requestId: string | undefined;
+      readonly requestId: Idem | undefined;
       readonly signal: AbortSignal | undefined;
       readonly decided: DecidedProposal | undefined;
     },
@@ -118,7 +119,7 @@ export function createLedgerRuntime(deps: LedgerServiceDeps): LedgerRuntime {
     return rollbackWith(input, {
       actor: actor.value,
       context: options?.context,
-      requestId: options?.requestId,
+      requestId: idemOf(options?.requestId, options?.context?.threadId, "ledger.rollback", input),
       signal: options?.signal,
       decided: undefined,
     });

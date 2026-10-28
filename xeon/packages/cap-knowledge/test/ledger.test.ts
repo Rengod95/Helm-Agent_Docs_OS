@@ -4,7 +4,7 @@ import { SCAN_RULESET_VERSION } from "../src/scan/rules.ts";
 import type { ChangeSpec } from "../src/ledger/change.ts";
 import { hashOfTarget, readTarget, type ChangeTarget } from "../src/ledger/target.ts";
 import { treeHash } from "../src/skills/tree.ts";
-import { rejection, treeFrom, asHost, MODEL } from "./support/helpers.ts";
+import { rejection, treeFrom, asHost, MODEL, idem } from "./support/helpers.ts";
 import { closeWorlds, createWorld, USER_SKILLS, type World } from "./support/world.ts";
 
 afterEach(closeWorlds);
@@ -275,7 +275,7 @@ describe("ledger", () => {
       target: skillTarget(),
       next: treeFrom({ "SKILL.md": skillText("v1\n") }),
       op: "skill.create",
-      requestId: "req-1",
+      requestId: idem("req-1"),
     });
     const first = await world.executor.apply(request);
     const second = await world.executor.apply(
@@ -305,7 +305,7 @@ describe("ledger", () => {
         target: skillTarget(),
         next: treeFrom({ "SKILL.md": skillText("v2\n"), "references/a.md": "B" }),
         op: "skill.edit",
-        requestId: "req-2",
+        requestId: idem("req-2"),
       }),
     );
     expect(result.ok ? "ok" : result.error.kind).toBe("unavailable");
@@ -318,7 +318,7 @@ describe("ledger", () => {
         target: skillTarget(),
         next: treeFrom({ "SKILL.md": skillText("v2\n"), "references/a.md": "B" }),
         op: "skill.edit",
-        requestId: "req-2",
+        requestId: idem("req-2"),
       }),
     );
     expect(retry.ok).toBe(true);

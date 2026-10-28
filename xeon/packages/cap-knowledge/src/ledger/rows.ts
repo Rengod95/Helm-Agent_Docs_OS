@@ -45,6 +45,7 @@ export interface LedgerRecord {
   readonly beforeManifest: BlobRef | null;
   readonly afterManifest: BlobRef | null;
   readonly requestId: string | null;
+  readonly requestFingerprint: string | null;
   readonly indexChanged: boolean;
   readonly outcome: WriteOutcome | null;
 }
@@ -60,6 +61,7 @@ export interface NewLedgerRecord {
   readonly beforeManifest: BlobRef | null;
   readonly afterManifest: BlobRef | null;
   readonly requestId: string | undefined;
+  readonly requestFingerprint?: string | undefined;
   readonly approvedBy: ApprovedBy | undefined;
   readonly evidence: ApprovalEvidence | undefined;
   readonly scan: ScanSummary;
@@ -193,6 +195,7 @@ function toRecord(row: SqlRow): Result<LedgerRecord, KnowledgeFailure> {
     beforeManifest: beforeManifest.value,
     afterManifest: afterManifest.value,
     requestId: textOrNull(row, "request_id"),
+    requestFingerprint: textOrNull(row, "request_fp"),
     indexChanged: intCell(row, "index_changed") === 1,
     outcome: outcome.value,
   });
@@ -206,8 +209,8 @@ export function insertRecord(tx: SqlTx, record: NewLedgerRecord): void {
     `INSERT INTO cap_knowledge_ledger (
        ledger_id, at, actor, target_kind, target_name, target_scope, target_path, op, status,
        before_hash, after_hash, before_manifest, after_manifest, request_id, approved_by, evidence,
-       scan, reason, proposal_id, rollback_of, index_changed, outcome, after_untrusted)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       scan, reason, proposal_id, rollback_of, index_changed, outcome, after_untrusted, request_fp)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       record.ledgerId,
       record.at,
@@ -232,6 +235,7 @@ export function insertRecord(tx: SqlTx, record: NewLedgerRecord): void {
       record.indexChanged ? 1 : 0,
       record.outcome === undefined ? null : json(record.outcome),
       record.afterUntrusted === true ? 1 : 0,
+      record.requestFingerprint ?? null,
     ],
   );
 }
