@@ -7,13 +7,16 @@ import {
 } from "../src/settings.ts";
 
 describe("sandbox settings", () => {
-  test("declares the six M1 keys under l0.sandbox with valid definitions", () => {
+  test("declares the l0.sandbox keys under l0.sandbox with valid definitions", () => {
     expect(SANDBOX_SETTING_DEFS.map((def) => def.key)).toEqual([
       "l0.sandbox.enabled",
       "l0.sandbox.onUnavailable",
       "l0.sandbox.protectedPaths.extra",
       "l0.sandbox.writeRoots.extra",
       "l0.sandbox.escapeRetry",
+      "l0.sandbox.network.blockedDomains",
+      "l0.sandbox.credentialFiles",
+      "l0.sandbox.nestedNamespaces",
       "l0.sandbox.selfTestIntervalMin",
     ]);
     for (const def of SANDBOX_SETTING_DEFS) {
@@ -33,10 +36,13 @@ describe("sandbox settings", () => {
       "l0.sandbox.onUnavailable",
       "l0.sandbox.writeRoots.extra",
       "l0.sandbox.escapeRetry",
+      "l0.sandbox.credentialFiles",
+      "l0.sandbox.nestedNamespaces",
     ]) {
       expect(byKey.get(key)?.allowedScopes).not.toContain("project");
     }
     expect(byKey.get("l0.sandbox.protectedPaths.extra")?.allowedScopes).toContain("project");
+    expect(byKey.get("l0.sandbox.network.blockedDomains")?.allowedScopes).toContain("project");
   });
 
   test("runtime change timing follows the spec", () => {
@@ -53,6 +59,9 @@ describe("sandbox settings", () => {
       protectedPathsExtra: [],
       writeRootsExtra: [],
       escapeRetry: false,
+      blockedDomains: [],
+      credentialFiles: "allow",
+      nestedNamespaces: false,
       selfTestIntervalMin: 60,
     });
     expect(readSandboxSettings(() => undefined)).toEqual(DEFAULT_SANDBOX_SETTINGS);
@@ -65,6 +74,9 @@ describe("sandbox settings", () => {
       "l0.sandbox.protectedPaths.extra": ["/a", "~/b"],
       "l0.sandbox.writeRoots.extra": ["/w"],
       "l0.sandbox.escapeRetry": true,
+      "l0.sandbox.network.blockedDomains": ["bad.example"],
+      "l0.sandbox.credentialFiles": "deny",
+      "l0.sandbox.nestedNamespaces": true,
       "l0.sandbox.selfTestIntervalMin": 0,
     };
     expect(readSandboxSettings((key) => values[key])).toEqual({
@@ -73,6 +85,9 @@ describe("sandbox settings", () => {
       protectedPathsExtra: ["/a", "~/b"],
       writeRootsExtra: ["/w"],
       escapeRetry: true,
+      blockedDomains: ["bad.example"],
+      credentialFiles: "deny",
+      nestedNamespaces: true,
       selfTestIntervalMin: 0,
     });
     const broken: Record<string, unknown> = {
@@ -81,6 +96,9 @@ describe("sandbox settings", () => {
       "l0.sandbox.protectedPaths.extra": [1, 2],
       "l0.sandbox.writeRoots.extra": "/w",
       "l0.sandbox.escapeRetry": 1,
+      "l0.sandbox.network.blockedDomains": "bad.example",
+      "l0.sandbox.credentialFiles": "maybe",
+      "l0.sandbox.nestedNamespaces": "yes",
       "l0.sandbox.selfTestIntervalMin": 99999,
     };
     expect(readSandboxSettings((key) => broken[key])).toEqual(DEFAULT_SANDBOX_SETTINGS);

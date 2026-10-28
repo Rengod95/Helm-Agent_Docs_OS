@@ -138,6 +138,9 @@ export function settingsOf(overrides: Partial<SandboxSettings> = {}): SandboxSet
     protectedPathsExtra: [],
     writeRootsExtra: [],
     escapeRetry: false,
+    blockedDomains: [],
+    credentialFiles: "allow",
+    nestedNamespaces: false,
     selfTestIntervalMin: 60,
     ...overrides,
   };
@@ -157,11 +160,17 @@ export interface FakeSrtOptions {
   /** true이면 wrap이 ["bash", "-c", <원래 명령>]을 돌려준다. 아니면 앞에 WRAPPED:를 붙인다 */
   readonly passthrough?: boolean;
   readonly validateIssues?: readonly string[];
+  /** deniedDomains에 이 값이 든 설정은 검증에서 거부한다 */
+  readonly invalidDomains?: readonly string[];
   readonly globWarnings?: readonly string[];
 }
 
 export interface FakeSrt extends SrtPort {
-  readonly initializeCalls: { config: SrtConfig; enableLogMonitor: boolean }[];
+  readonly initializeCalls: {
+    config: SrtConfig;
+    enableLogMonitor: boolean;
+    allowUnlistedHosts: boolean;
+  }[];
   readonly wrapCalls: SrtWrapInput[];
   readonly validated: unknown[];
   cleanupCalls: number;
@@ -180,8 +189,8 @@ export function fakeSrt(options: FakeSrtOptions = {}): FakeSrt {
       errors: options.dependencyErrors ?? [],
       warnings: [],
     }),
-    initialize: (config, enableLogMonitor) => {
-      fake.initializeCalls.push({ config, enableLogMonitor });
+    initialize: (config, enableLogMonitor, allowUnlistedHosts) => {
+      fake.initializeCalls.push({ config, enableLogMonitor, allowUnlistedHosts });
       return options.initializeError === undefined
         ? Promise.resolve()
         : Promise.reject(options.initializeError);
@@ -205,6 +214,10 @@ export function fakeSrt(options: FakeSrtOptions = {}): FakeSrt {
     },
     validateConfig: (config) => {
       fake.validated.push(config);
+      const bad = (options.invalidDomains ?? []).filter((domain) =>
+        JSON.stringify(config).includes(`"${domain}"`),
+      );
+      if (bad.length > 0) return bad.map((domain) => `network.deniedDomains: ${domain} rejected`);
       return options.validateIssues ?? [];
     },
     getLinuxGlobPatternWarnings: () => options.globWarnings ?? [],

@@ -73,7 +73,16 @@ export interface ProtectedPathInput {
   readonly ageKeyFileEnv: string | undefined;
   /** l0.sandbox.protectedPaths.extra를 resolveExtraPaths로 푼 값 */
   readonly extraPaths: readonly string[];
+  /**
+   * 참이면 CLI 인증 파일(CREDENTIAL_READABLE_PATHS)의 읽기를 허용하고 쓰기만 거부한다(M3-REQ-55 기본).
+   * 거짓이면 읽기와 쓰기를 모두 거부한다(`l0.sandbox.credentialFiles = "deny"`)
+   */
+  readonly credentialReadAllowed: boolean;
 }
+
+/** 읽기 허용이 기본인 CLI 인증 파일. 개인 키와 클라우드 자격은 여기 없고 항상 읽기도 거부한다 */
+const CREDENTIAL_READABLE_PREFIX = [".config/gh"] as const;
+const CREDENTIAL_READABLE_EXACT = [".netrc", ".docker/config.json", ".npmrc", ".pypirc"] as const;
 
 /** 작업 공간 root마다 붙는 git 실행 경로(L0.sandbox.spec §3.3 git_exec 행) */
 export function gitProtectedEntries(roots: readonly string[]): ProtectedPathEntry[] {
@@ -108,6 +117,7 @@ function dedupe(entries: readonly ProtectedPathEntry[]): ProtectedPathEntry[] {
  */
 export function buildProtectedPaths(input: ProtectedPathInput): readonly ProtectedPathEntry[] {
   const { home, data, config } = input.dirs;
+  const credentialAccess: ProtectedAccess = input.credentialReadAllowed ? "write" : "read_write";
   const entries: ProtectedPathEntry[] = [
     // 비밀
     pathEntry(posix.join(config, "secrets"), "prefix", "read_write", "secret_key"),
@@ -134,18 +144,14 @@ export function buildProtectedPaths(input: ProtectedPathInput): readonly Protect
     ...homeEntries(home, [".claude", ".codex", ".pi"], "prefix", "read_write", "agent_credentials"),
     ...homeEntries(
       home,
-      [".config/gh", ".aws", ".kube", ".config/gcloud"],
+      [".aws", ".kube", ".config/gcloud"],
       "prefix",
       "read_write",
       "credentials",
     ),
-    ...homeEntries(
-      home,
-      [".git-credentials", ".netrc", ".docker/config.json", ".npmrc", ".pypirc"],
-      "exact",
-      "read_write",
-      "credentials",
-    ),
+    ...homeEntries(home, [".git-credentials"], "exact", "read_write", "credentials"),
+    ...homeEntries(home, CREDENTIAL_READABLE_PREFIX, "prefix", credentialAccess, "credentials"),
+    ...homeEntries(home, CREDENTIAL_READABLE_EXACT, "exact", credentialAccess, "credentials"),
     // 셸 시작 파일
     ...homeEntries(
       home,

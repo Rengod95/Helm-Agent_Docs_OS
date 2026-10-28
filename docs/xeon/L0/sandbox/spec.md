@@ -40,7 +40,7 @@ binds: [xeon/packages/platform-sandbox/**]
 | 구성요소 | 단계 | 표지 |
 |---|---|---|
 | OS 샌드박스(srt 래핑), 보호 경로, 자가 시험, 격리 불가 정책 | 1차, M1 | [결정: `_research/foundation-plan.md` §5 M1 "도구 read, ls, bash(sandbox)"], `_research/layer-plan-v2.json` L0-b 1차 |
-| 네트워크 허용 도메인 정책(srt 프록시) | 2차, M2 이후. 1차는 샌드박스 안 네트워크 전부 차단 | [결정: 계획 v2 L0-b "네트워크 정책 2차"] / 1차 차단 [제안] |
+| 네트워크 정책(srt 프록시) | M3b에서 기본 허용 + 차단 도메인 목록(§3.2, §10 1번). 허용 목록 방식은 후속. M1은 전부 차단이었다 | [결정: 계획 v2 L0-b "네트워크 정책 2차"] / 1차 차단 [제안] |
 | 이름 붙은 권한 프로필, 실행 없는 오프라인 규칙 검사 | 2차 | [결정: 계획 v2 L0-b]. Gemini CLI `core/src/policy/*`(Apache-2.0)는 구조만 참고하고 import하지 않는다(`_research/packages.md` §4.2 162행) |
 | Windows 네이티브 격리 | 1차 범위 밖. status `none`과 격리 불가 정책만 | [결정: `_research/decisions-log.md` 2026-10-19 "Windows 네이티브는 나중"] |
 
@@ -127,7 +127,7 @@ export interface SandboxStatus {
 export const SandboxStatusSchema: Schema<SandboxStatus>;
 
 export interface SandboxNetworkPolicy {
-  /** 빈 목록이면 네트워크 전부 차단. 1차는 항상 빈 목록 */
+  /** 서비스 기본(차단 목록 방식)에서는 항상 빈 목록. 호출에 비어 있지 않은 목록이 오면 wrapShell이 sandbox_failed로 거부한다 */
   allowedDomains: string[];
   /** 허용보다 먼저 검사한다(거부 우선) */
   deniedDomains: string[];
@@ -217,13 +217,14 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 | `policy.readDeny` ∪ 보호 경로(`read_write`) | `filesystem.denyRead` | 확인 | 읽기 기본 전체 허용, 목록만 거부 [가정] |
 | (1차 미사용) | `filesystem.allowRead` | 확인 | `denyRead` 안에서 다시 허용. basename 예외는 목록 전개로 처리하므로 쓰지 않는다 |
 | (고정 거짓) | `filesystem.allowGitConfig` | 확인 | `.git/config` 쓰기 계속 거부 |
-| `policy.network.allowedDomains` | `network.allowedDomains` | 확인 | 빈 목록이면 네트워크 전부 차단 |
-| `policy.network.deniedDomains` | `network.deniedDomains` | 확인 | 허용 목록보다 먼저 검사 |
-| (고정 참, 1차) | `network.strictAllowlist` | 확인 | 질의 콜백 없이 목록 밖 거부 |
+| `policy.network.allowedDomains` | `network.allowedDomains` | 확인 | 빈 목록이면 허용 목록은 비어 있다. 목록 밖 호스트는 아래 `strictAllowlist` 행이 정한다 |
+| `policy.network.deniedDomains` ← 설정 `l0.sandbox.network.blockedDomains` | `network.deniedDomains` | 확인 | 허용 목록보다 먼저 검사. 서비스가 `initialize`에 한 번 넘긴다. srt 스키마가 받지 않는 항목은 빼고 개수만 로그에 남긴다 [결정: M3-REQ-55] |
+| (서비스 고정) | `network.strictAllowlist` = 거짓과 `initialize`의 질의 콜백(항상 허용) | 확인 | 거부 목록은 콜백보다 먼저 검사되므로 목록 밖 호스트는 모두 허용이고 거부 목록만 막는다(차단 목록 방식, 기본 허용). 목록 방식 엄격 모드(콜백 없음, `strictAllowlist` 참)는 `SrtPort.initialize`의 `allowUnlistedHosts` 거짓으로 남아 있다 |
 | `policy.allowEscape` | 없음 | — | Xeon만 쓴다. 참이면 srt로 감싸지 않는다(4.2절) |
 | `l0.sandbox.enabled = false` | srt `initialize` 안 함 | — | status `none`, reason `disabled` |
 | 상태 탐지가 찾은 절대 경로 | `bwrapPath`, `socatPath`, `ripgrep.command`, `seccomp.applyPath` | 확인(`bwrapPath`, `socatPath`는 절대 경로만) | 사이드카에서 헬퍼 위치를 명시(5.3절) |
-| (고정 거짓) | `enableWeakerNestedSandbox`, `allowNestedUserNamespaces`, `enableWeakerNetworkIsolation`, `allowAppleEvents`, `allowPty`, `network.allowAllUnixSockets`, `network.allowLocalBinding` | 확인 | 완화 옵션은 1차에 노출하지 않는다(`_research/notes/L0-1.md` §3.6) |
+| 설정 `l0.sandbox.nestedNamespaces`(기본 거짓) | `enableWeakerNestedSandbox` | 확인 | 참이면 `/proc`을 새로 마운트하지 않고 호스트 것을 묶어 중첩 사용자 네임스페이스를 허용한다. 브라우저 provider(Stagehand, Playwright)용이고 격리가 약해진다(§4.8) [결정: 오케스트레이터 기본값, M3-REQ-56] |
+| (고정 거짓) | `allowNestedUserNamespaces`(0.0.79 스키마에 없음), `enableWeakerNetworkIsolation`, `allowAppleEvents`, `allowPty`, `network.allowAllUnixSockets`, `network.allowLocalBinding` | 확인 | 나머지 완화 옵션은 노출하지 않는다(`_research/notes/L0-1.md` §3.6) |
 | (기본값 유지) | `mandatoryDenySearchDepth` | 확인(1~10, 기본 3) | srt 자동 보호 경로 탐색 깊이 |
 | (1차 미사용) | `credentials`, `network.tlsTerminate`, `network.mitmProxy`, `ignoreViolations`, `parentProxy` | 확인 | 2차(`L0.secrets.spec` sentinel, 네트워크 정책)에서 다시 본다 |
 
@@ -250,7 +251,8 @@ srt 설정 키는 `_research/notes/L0-1.md` §3(0.0.79 소스 `src/sandbox/sandb
 | `<home>/.ssh/` | prefix | 읽기·쓰기 | `credentials` | 같음 |
 | `.env`, `.env.*`(예외 `.env.example`) | basename | 읽기·쓰기 | `credentials` | 같음 |
 | `<home>/.claude/`, `<home>/.codex/`, `<home>/.pi/` | prefix | 읽기·쓰기 | `agent_credentials` | 같음 |
-| `<home>/.config/gh/`, `<home>/.git-credentials`, `<home>/.netrc`, `<home>/.aws/`, `<home>/.kube/`, `<home>/.docker/config.json`, `<home>/.config/gcloud/`, `<home>/.npmrc`, `<home>/.pypirc` | prefix·exact | 읽기·쓰기 | `credentials` | 흔한 자격 파일 행. 18은 데몬 파일 도구용이었고 Xeon은 샌드박스에도 쓴다 [제안] |
+| `<home>/.git-credentials`, `<home>/.aws/`, `<home>/.kube/`, `<home>/.config/gcloud/` | prefix·exact | 읽기·쓰기 | `credentials` | 클라우드·저장소 자격 행. 18은 데몬 파일 도구용이었고 Xeon은 샌드박스에도 쓴다 [제안] |
+| `<home>/.config/gh/`, `<home>/.netrc`, `<home>/.docker/config.json`, `<home>/.npmrc`, `<home>/.pypirc` | prefix·exact | 설정 `l0.sandbox.credentialFiles`가 `allow`(기본)이면 쓰기, `deny`이면 읽기·쓰기 | `credentials` | CLI 인증 파일. 기본은 읽기를 허용해 `gh`와 사설 레지스트리 `npm`이 샌드박스 안에서 인증된다 [결정: review.m3-design-inputs D-M3-18 행 2]. 개인 키(`.ssh`)와 클라우드 자격은 항상 읽기도 거부한다 [결정: 오케스트레이터 기본값, D-M3-18은 `~/.npmrc`, `~/.config/gh` 등을 예로만 들었다] |
 | `<home>/.bashrc`, `.bash_profile`, `.zshrc`, `.zprofile`, `.zshenv`, `.profile`, `<home>/.gitconfig` | exact | 쓰기 | `shell_startup` | 같음. srt 자동 보호와 겹친다(README:1142-1190) |
 | `<root>/.git/config`, `<root>/.git/config.worktree`, `<root>/.git/info/attributes`, `<root>/.git/hooks/`, `<root>/.gitmodules` | exact·prefix | 쓰기 | `git_exec` | 같음. 다음 git 호출에서 명령이 실행된다. srt 자동 보호와 겹친다 |
 | `<home>/.local/bin/`, `<home>/.config/systemd/user/`, macOS `<home>/Library/LaunchAgents/` | prefix | 쓰기 | `persistence` | PATH 변조와 지속 실행 등록. `~/.local/share/mise/**`는 사용자 도구 체인이라 [제안] 1차에서 뺀다 |
@@ -347,7 +349,7 @@ export function selectSandboxProvider(input: {
 | `policy.allowEscape`가 거짓 | `escape_requested` |
 | 모든 `writeRoots`가 `request.workspaceRoots` 또는 `request.tempDir` 안(경로 마디 비교) | `write_root_outside` |
 | `request.cwd`가 쓰기 루트 또는 작업 공간 root 안 | `cwd_outside_write_roots` |
-| 네트워크가 기본 정책 이내: 1차는 `allowedDomains`가 빈 목록. 2차는 설정 `l0.sandbox.network.allowedDomains`의 부분집합 | `network_outside_default` |
+| 네트워크가 기본 정책 이내: `allowedDomains`가 빈 목록(차단 목록 방식, §3.2). 허용 목록 방식을 더하면 설정 `l0.sandbox.network.allowedDomains`의 부분집합 | `network_outside_default` |
 
 - 판정만 한다. 승인 UI, 권한 모드와의 결합, 판정 적용은 `L1.tools.spec`이 한다(`_research/refs/claude-code.md` §3.2 "자동 허용 모드에서는 샌드박스 안 명령은 묻지 않고 실행").
 - 샌드박스 밖 재시도(Claude Code `allowUnsandboxedCommands` 대응. srt 라이브러리 기능이 아님, `_research/notes/L0-1.md` §9)는 `l0.sandbox.escapeRetry` 기본 거짓이고, 켜도 `allowEscape: true` 호출은 항상 `escape_requested`라 승인 대상이다.
@@ -396,7 +398,16 @@ export function selectSandboxProvider(input: {
 
 - 감싸는 것: bash 계열 셸 명령과 그 자식 프로세스(`wrapShell`을 거친 `Shell.exec`).
 - 감싸지 않는 것: 파일 도구(read, write, edit, ls, grep·find 중 in-process 구현), 웹 도구, 로컬 MCP 서버, 확장 코드 자체(`_research/refs/claude-code.md` §3.2, `_research/notes/L0-1.md` §0 8번). 그래서 파일 도구는 realpath 기준 보호 경로 검사를 L1·L2에서 해야 한다(18 R-12, 8.3절 요구).
-- MCP stdio 서버 프로세스를 샌드박스에 넣을지는 [미결]이다(10절 3번, `L2.mcp.spec`과 협의). 넣는다면 서버 프로세스 실행이 `wrapShell`을 거친 `Shell`을 쓰면 된다.
+- MCP stdio 서버 프로세스는 §4.8의 출처별 판정으로 정한다. 켬이면 서버 프로세스 실행이 `wrapShell`을 거친 `Shell`을 쓴다.
+
+### 4.8 MCP stdio 서버와 중첩 네임스페이스
+
+[결정: review.m3-design-inputs D-M3-19 행 1, M3-REQ-57·56]
+
+- `decideMcpStdioSandbox(source, serverSetting)`(`src/mcp-stdio.ts`)가 서버 정의 출처(`L2.mcp.spec` §3.1 `source`)로 격리 여부를 정한다. `settings:user`는 끔이고 `settings:project`, `mcpjson:project`, `mcpjson:xeon`, `ext:<이름>`, 알 수 없는 출처는 켬이다. 서버별 설정 값(참·거짓)이 있으면 출처 기본값보다 우선한다. 알 수 없는 출처를 켬으로 두는 것은 [결정: 오케스트레이터 기본값]이다.
+- `shellForMcpStdio(service, shell, policy, decision)`은 켬이면 `service.wrapShell(shell, policy)`, 끔이면 받은 `shell`을 돌려준다. 격리를 쓸 수 없는 상태의 처리는 §4.5가 그대로 정한다. 서버별 설정 키와 호출은 `L2.mcp.spec`이 가진다(B3-SEC).
+- 브라우저 provider는 샌드박스 셸 안에서 자체 샌드박스를 띄우려고 중첩 사용자 네임스페이스가 필요하다. 설정 `l0.sandbox.nestedNamespaces`를 켜면 srt `enableWeakerNestedSandbox`가 참이 된다. 기본은 거짓이고 `restart` 반영이다. 켠 상태는 시작 로그에 경고로 남긴다 [제안]. 중첩 허용 때문에 쓰기 거부가 약해질 수 있어(`_research/notes/L0-1.md` §3.6) 브라우저를 쓰지 않는 사용자는 켜지 않는다.
+- `tool.sandbox_bypassed`(샌드박스 밖 실행 감사 이벤트)의 소유자는 L1 tools(`tool.` 접두)이다 [결정: 오케스트레이터 기본값, 10절 2번의 후보 채택]. `platform-sandbox`는 `ShellExecResult.sandbox.unsandboxedBy`만 돌려주고 이벤트를 내지 않는다.
 
 ## 5. 실패와 경계 사례
 
@@ -439,12 +450,14 @@ export function selectSandboxProvider(input: {
 | `l0.sandbox.protectedPaths.extra` | `string[]`(절대 경로 또는 `~/`로 시작) | `[]` | `managed`, `user`, `project` | `nextTurn` | M1 | `permissions`(임시), `list`. 기본 보호 경로는 읽기 전용으로 함께 표시 |
 | `l0.sandbox.writeRoots.extra` | `string[]` | `[]` | `managed`, `user` | `nextTurn` | M1 | `permissions`(임시), `list` |
 | `l0.sandbox.escapeRetry` | `boolean` | `false` | `managed`, `user` | `nextTurn` | M1 | `permissions`(임시), `toggle`. 켜도 매 호출 승인 |
+| `l0.sandbox.network.blockedDomains` | `string[]`(`host`, `*.host`, `host:port`) | `[]` | `managed`, `user`, `project` | `restart` | M3 | `permissions`(임시), `list`. 목록 밖은 모두 허용 |
+| `l0.sandbox.credentialFiles` | `string`(`range.enum`: `allow`, `deny`) | `allow` | `managed`, `user` | `nextTurn` | M3 | `permissions`(임시), `select` |
+| `l0.sandbox.nestedNamespaces` | `boolean` | `false` | `managed`, `user` | `restart` | M3 | `permissions`(임시), `toggle`. 켤 때 위험 고지 필요 |
 | `l0.sandbox.selfTestIntervalMin` | `integer`(`range` 0~1440, 0은 시작 때만) | `60` | `managed`, `user` | `restart` | M1 | 탭 `advanced`(파일만) |
-| `l0.sandbox.network.allowedDomains` | `string[]`(`host` 또는 `host:port`) | `[]`(전부 차단) | `managed`, `user` | `restart` | M2 | `permissions`(임시), `list` |
-| `l0.sandbox.network.deniedDomains` | `string[]` | `[]` | `managed`, `user`, `project` | `restart` | M2 | `permissions`(임시), `list`. 거부 우선 규칙을 화면에 표시 |
+| `l0.sandbox.network.allowedDomains` | `string[]`(`host` 또는 `host:port`) | 정의하지 않음 | | | 후속 | 기본 허용 방식이라 허용 목록 키는 두지 않는다(§10 1번) |
 
 - 키 문법은 `F.wire-settings.spec` §3.8.1을 따른다. 정의는 `src/settings.ts`의 `defineSettings("l0.sandbox", …)`다.
-- 넓히는 키(`enabled` 끄기, `onUnavailable`, `writeRoots.extra`, `escapeRetry`, `network.allowedDomains`)는 `project` 범위를 받지 않는다. 좁히는 키(`protectedPaths.extra`, `network.deniedDomains`)만 프로젝트 파일에서 받는다 [제안: 저장소를 여는 것만으로 격리가 풀리지 않게 한다, `_research/notes/L0-1.md` §3.6].
+- 넓히는 키(`enabled` 끄기, `onUnavailable`, `writeRoots.extra`, `escapeRetry`, `credentialFiles`, `nestedNamespaces`)는 `project` 범위를 받지 않는다. 좁히는 키(`protectedPaths.extra`, `network.blockedDomains`)만 프로젝트 파일에서 받는다 [제안: 저장소를 여는 것만으로 격리가 풀리지 않게 한다, `_research/notes/L0-1.md` §3.6].
 - 네트워크 키는 srt가 프로세스당 정책 하나라 `restart`다(`_research/notes/L0-1.md` §8). 실행 중 변경(`updateConfig`)은 2차에서 다시 본다.
 - 탭: `_research/settings.md` §4의 5번 탭 '샌드박스와 네트워크'에 둔다. F `SettingsTab`(`F.wire-settings.spec` §3.8.2)에 해당 값이 없어 `"sandbox"` 추가를 F에 요청한다(8.2절). 추가 전까지는 `"permissions"`에 둔다 [제안].
 - 비밀 값 키는 없다.
@@ -507,12 +520,12 @@ export function selectSandboxProvider(input: {
 
 ## 10. 미결 사항
 
-1. [결정: review.m3-design-inputs D-M3-18 행 1] 샌드박스 안 네트워크는 기본 허용이다. 사용자가 차단 도메인 목록(`l0.sandbox.network.blockedDomains` [제안])을 관리한다. 패키지 설치가 샌드박스 안에서 그대로 돈다. 키 이름과 차단 방식(srt 네트워크 필터 재사용)은 M3-14 작업에서 정한다(`review.m3-lower-requirements` M3-REQ-55).
-2. [미결] 격리 없이 실행한 호출과 자가 시험 실패의 감사 이벤트 소유자. `platform-sandbox`는 이벤트 type을 소유하지 않는다(`eng.context-map.design` §4.1). 후보는 L1 tools(`tool.` 접두)다.
+1. [결정: review.m3-design-inputs D-M3-18 행 1] 샌드박스 안 네트워크는 기본 허용이다. 사용자가 차단 도메인 목록 `l0.sandbox.network.blockedDomains`를 관리한다. 패키지 설치가 샌드박스 안에서 그대로 돈다. 차단은 srt 프록시의 `deniedDomains`와 질의 콜백(항상 허용)으로 한다. 시험은 `sandbox-network.int.test.ts`가 실제 bwrap으로 같은 요청이 목록 밖이면 200, 목록 안이면 403인 것을 값으로 확인한다. 프록시를 거치지 않는 직접 소켓은 네트워크 네임스페이스가 막으므로 그대로 거부된다(§4.4 `network_denied`). 환경 변수 `NO_PROXY`의 루프백·사설 대역은 프록시를 거치지 않으므로 샌드박스 안에서 닿지 못한다.
+2. [결정: 오케스트레이터 기본값] 격리 없이 실행한 호출(`tool.sandbox_bypassed`)과 자가 시험 실패의 감사 이벤트 소유자는 L1 tools(`tool.` 접두)다(§4.8). `platform-sandbox`는 이벤트 type을 소유하지 않는다(`eng.context-map.design` §4.1). 이벤트를 만드는 구현은 B3-SEC가 한다.
 3. [결정: review.m3-design-inputs D-M3-19 행 1] MCP stdio 서버는 출처별 기본값을 쓴다. 프로젝트 출처 서버는 샌드박스에 넣고, 사용자 출처 서버는 넣지 않는다. 서버별 설정으로 바꿀 수 있다(`L2.mcp.spec`, M3-REQ-57).
 4. [결정: review.m3-design-inputs D-M3-18 행 3] 샌드박스 밖 재시도(`l0.sandbox.escapeRetry`)를 둔다. 기본은 끔이고, 켜도 재시도마다 승인을 받는다(`_research/notes/L0-1.md` §9).
 5. [미결] x64·arm64 밖 Linux 지원. seccomp 필터가 번들되지 않아 `select.ts`는 `unsupported_os`를 돌려준다. 지금은 `xeon.os`가 해당 arch를 등록 실패로 처리하므로 운영 경로가 없다(3.5절). 지원을 넓히면 두 문서를 함께 고친다.
-6. [미결] 중첩 사용자 네임스페이스. 기본 브라우저 provider는 Stagehand다([결정: review.m3-design-inputs D-M3-23]). L2 브라우저 도구(Stagehand, Playwright)를 샌드박스 셸에서 띄우려면 `allowNestedUserNamespaces: true`가 필요하고 쓰기 거부가 무력화될 수 있다(`_research/notes/L0-1.md` §6).
-7. [결정: review.m3-design-inputs D-M3-18 행 2] 자격 파일 행(`~/.npmrc`, `~/.config/gh` 등)은 기본으로 읽기를 허용하고, 설정(`l0.sandbox.credentialFiles` [제안])으로 거부할 수 있다. 이전 질문: 자격 파일 행의 읽기 거부 기본값. 안전하지만 `gh`, 사설 레지스트리 `npm`이 샌드박스 안에서 인증 없이 돈다. 비밀 env 주입(`L0.exec.spec` §3.6)으로 대신할 수 있는지 `L0.secrets.spec`과 함께 정한다.
+6. [결정: 오케스트레이터 기본값] 중첩 사용자 네임스페이스. 기본 브라우저 provider는 Stagehand다([결정: review.m3-design-inputs D-M3-23]). srt 0.0.79에는 `allowNestedUserNamespaces`가 없어 `enableWeakerNestedSandbox`로 허용하고 설정 `l0.sandbox.nestedNamespaces`(기본 거짓, `restart`)로 켠다(§4.8). 쓰기 거부가 약해질 수 있다(`_research/notes/L0-1.md` §6). 켠 상태에서 브라우저가 실제로 뜨는지는 실기 확인이 필요하다.
+7. [결정: review.m3-design-inputs D-M3-18 행 2] 자격 파일 행(`~/.npmrc`, `~/.config/gh` 등)은 기본으로 읽기를 허용하고, 설정 `l0.sandbox.credentialFiles`(`allow`·`deny`)로 거부할 수 있다(§3.3). 이전 질문: 자격 파일 행의 읽기 거부 기본값. 안전하지만 `gh`, 사설 레지스트리 `npm`이 샌드박스 안에서 인증 없이 돈다. 비밀 env 주입(`L0.exec.spec` §3.6)으로 대신할 수 있는지 `L0.secrets.spec`과 함께 정한다.
 8. [미결] `SettingsTab`의 `"sandbox"` 추가(F 변경).
 9. [미결] 프록시 훅(후속, sentinel 모드). `L0.secrets.spec` §4.3 M2 sentinel 설계는 자식 HTTPS가 `xeon.sandbox` 프록시를 지나고 허용 호스트로 가는 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 요구한다. 이 문서는 아직 그 훅을 정하지 않았다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안을 `L0.sandbox.plan` SB-16에서 비교하고 TLS 종단(`L0.secrets.spec` §10 6번)과 함께 정한다.

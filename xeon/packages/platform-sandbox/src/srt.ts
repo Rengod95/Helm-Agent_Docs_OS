@@ -34,7 +34,15 @@ export interface SrtPort {
   isSupportedPlatform(): boolean;
   /** ripgrepCommand가 없으면 srt 기본값("rg")을 검사한다 */
   checkDependencies(ripgrepCommand: string | undefined): SrtDependencyReport;
-  initialize(config: SrtConfig, enableLogMonitor: boolean): Promise<void>;
+  /**
+   * allowUnlistedHosts가 참이면 허용 목록에 없는 호스트도 거부 목록에 걸리지 않는 한 허용한다(차단 목록 방식).
+   * 거짓이면 허용 목록 밖을 모두 거부한다
+   */
+  initialize(
+    config: SrtConfig,
+    enableLogMonitor: boolean,
+    allowUnlistedHosts: boolean,
+  ): Promise<void>;
   wrapWithSandboxArgv(input: SrtWrapInput): Promise<SrtWrapOutput>;
   /** commandId에 귀속된 위반 기록의 원문 줄 */
   getViolationLines(commandId: string): readonly string[];
@@ -55,8 +63,13 @@ export function createSrtPort(): SrtPort {
       );
       return { errors: [...report.errors], warnings: [...report.warnings] };
     },
-    initialize: (config, enableLogMonitor) =>
-      SandboxManager.initialize(config, undefined, enableLogMonitor),
+    // 거부 목록은 질의 콜백보다 먼저 검사된다. 콜백이 true만 돌려주면 목록 밖은 허용이고 거부 목록만 막는다
+    initialize: (config, enableLogMonitor, allowUnlistedHosts) =>
+      SandboxManager.initialize(
+        config,
+        allowUnlistedHosts ? () => Promise.resolve(true) : undefined,
+        enableLogMonitor,
+      ),
     wrapWithSandboxArgv: async (input) => {
       const wrapped = await SandboxManager.wrapWithSandboxArgv(
         input.command,

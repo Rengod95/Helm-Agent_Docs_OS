@@ -23,6 +23,7 @@ import { decideAutoAllow } from "./auto-allow.ts";
 import { canonicalizePath, sortedUnique, toAbsolutePath } from "./paths.ts";
 import {
   BLOCKED_NETWORK,
+  blocklistNetwork,
   candidateWriteRoots,
   mergePolicy,
   toSrtGlobalConfig,
@@ -161,7 +162,20 @@ export async function createSandboxService(
       secretPaths: deps.secrets?.protectedPaths() ?? [],
       ageKeyFileEnv: ageKeyFile,
       extraPaths: extra.resolved,
+      credentialReadAllowed: deps.settings().credentialFiles === "allow",
     });
+  };
+
+  /** srt 스키마가 받지 않는 차단 항목은 빼고 개수만 로그에 남긴다. 나머지 차단은 유지한다 */
+  const validBlockedDomains = (domains: readonly string[]): string[] => {
+    const accepted = domains.filter(
+      (domain) =>
+        srt.validateConfig(toSrtGlobalConfig({}, blocklistNetwork([domain]), {})).length === 0,
+    );
+    if (accepted.length !== domains.length) {
+      logger.warn("sandbox.blocked_domain_rejected", { count: domains.length - accepted.length });
+    }
+    return accepted;
   };
 
   const doRefresh = async (refreshSignal: AbortSignal): Promise<SandboxStatus> => {
@@ -190,9 +204,15 @@ export async function createSandboxService(
       tools = detection.tools;
       try {
         // enableLogMonitor는 macOS 참, Linux 거짓이다. Linux 모니터 값은 샌드박스 프로세스가 조작할 수 있다
+        const settings = deps.settings();
+        const blocked = validBlockedDomains(settings.blockedDomains);
         await srt.initialize(
-          toSrtGlobalConfig(tools, BLOCKED_NETWORK),
+          toSrtGlobalConfig(tools, blocklistNetwork(blocked), {
+            allowUnlistedHosts: true,
+            nestedNamespaces: settings.nestedNamespaces,
+          }),
           provider.kind === "seatbelt",
+          true,
         );
         initialized = true;
       } catch (caught) {
@@ -283,7 +303,7 @@ export async function createSandboxService(
         pathEntries.filter((entry) => entry.access === "read_write").map((entry) => entry.path),
       ),
       writeDeny: sortedUnique(pathEntries.map((entry) => entry.path)),
-      network: { allowedDomains: [], deniedDomains: [] },
+      network: { allowedDomains: [], deniedDomains: [...deps.settings().blockedDomains] },
       allowEscape: false,
     };
   };

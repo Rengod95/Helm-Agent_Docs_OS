@@ -14,3 +14,8 @@ export {
   type SandboxSettings,
 } from "./settings.ts";
 export type { SrtPort } from "./srt.ts";
+export {
+  decideMcpStdioSandbox,
+  shellForMcpStdio,
+  type McpStdioSandboxDecision,
+} from "./mcp-stdio.ts";

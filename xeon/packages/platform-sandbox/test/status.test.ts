@@ -89,6 +89,14 @@ describe("status", () => {
     expect(srt.initializeCalls.length).toBe(1);
     const call = srt.initializeCalls[0];
     expect(call?.enableLogMonitor).toBe(false);
+    // 네트워크는 기본 허용이다. 거부 목록이 비어 있고 목록 밖 호스트를 허용한다
+    expect(call?.allowUnlistedHosts).toBe(true);
+    expect(call?.config.network).toMatchObject({
+      allowedDomains: [],
+      deniedDomains: [],
+      strictAllowlist: false,
+    });
+    expect(call?.config.enableWeakerNestedSandbox).toBe(false);
     expect(call?.config.bwrapPath).toBe("/usr/bin/bwrap");
     expect(call?.config.socatPath).toBe("/usr/bin/socat");
     expect(call?.config.ripgrep).toEqual({ command: "/usr/bin/rg" });
@@ -298,5 +306,47 @@ describe("status", () => {
     expect(report.items.every((item) => item.detail === "sandbox_unavailable")).toBe(true);
     expect(service.status().reason).toBe("missing_dependency");
     expect(service.status().lastSelfTest).toBeUndefined();
+  });
+});
+
+const makeWithSettings = (overrides: Parameters<typeof settingsOf>[0], srt = fakeSrt()) =>
+  createSandboxService(
+    {
+      os: fakeOs(makeTestDirs()),
+      settings: () => settingsOf(overrides),
+      srt,
+      platform: linuxPlatform(),
+      parentEnv: () => ({}),
+    },
+    new AbortController().signal,
+  ).then((service) => ({ service, srt }));
+
+describe("network blocklist and nested namespaces", () => {
+  test("blocked domains reach srt as deniedDomains and the default policy lists them", async () => {
+    const { service, srt } = await makeWithSettings({
+      blockedDomains: ["bad.example", "*.tracker.example"],
+    });
+    expect(srt.initializeCalls[0]?.config.network.deniedDomains).toEqual([
+      "bad.example",
+      "*.tracker.example",
+    ]);
+    const policy = service.defaultPolicy({ workspaceRoots: [], tempDir: "/tmp/x" });
+    expect(policy.network).toEqual({
+      allowedDomains: [],
+      deniedDomains: ["bad.example", "*.tracker.example"],
+    });
+  });
+
+  test("an entry srt rejects is dropped and the others stay blocked", async () => {
+    const srt = fakeSrt({ invalidDomains: ["*.com"] });
+    const { srt: used } = await makeWithSettings({ blockedDomains: ["*.com", "ok.example"] }, srt);
+    expect(used.initializeCalls[0]?.config.network.deniedDomains).toEqual(["ok.example"]);
+  });
+
+  test("nestedNamespaces is off by default and on only when the setting asks", async () => {
+    const off = await makeWithSettings({});
+    expect(off.srt.initializeCalls[0]?.config.enableWeakerNestedSandbox).toBe(false);
+    const on = await makeWithSettings({ nestedNamespaces: true });
+    expect(on.srt.initializeCalls[0]?.config.enableWeakerNestedSandbox).toBe(true);
   });
 });
