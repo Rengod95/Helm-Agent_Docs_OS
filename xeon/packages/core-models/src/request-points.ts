@@ -63,9 +63,9 @@ export interface ProviderDispatcher {
   beforeProviderRequest(input: BeforeProviderRequestInput): Promise<unknown>;
   /**
    * guard 지점(`guard.model.before`, M3-REQ-109). `beforeProviderRequest`의 최종 페이로드로 부른다. 차단이면 `{ block: true, reason }`,
-   * 의견이 없으면 undefined다. 없으면 가드를 발화하지 않는다. 던지면 차단으로 본다(fail-closed)
+   * 의견이 없으면 undefined다. 필수다: 가드를 조용히 건너뛰는 발화기를 만들 수 없게 한다. 던지면 차단으로 본다(fail-closed)
    */
-  guardProviderRequest?(
+  guardProviderRequest(
     input: BeforeProviderRequestInput,
   ): Promise<{ readonly block: true; readonly reason: string } | undefined>;
   /** chain 지점. 패치를 적용한 최종 헤더(소문자 이름)를 돌려준다. 값이 없는 이름은 삭제된 것이다 */

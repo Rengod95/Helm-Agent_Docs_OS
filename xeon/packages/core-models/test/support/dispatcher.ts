@@ -7,6 +7,9 @@ import type {
   ThinkingLevelSelectInput,
 } from "../../src/index.ts";
 
+/** 의견 없는 가드 */
+export const noGuard: ProviderDispatcher["guardProviderRequest"] = () => Promise.resolve(undefined);
+
 /** 모든 지점의 호출을 모으는 대역. beforeProviderHeaders의 결과는 patch 함수가 정한다 */
 export function spyDispatcher(
   patch: (headers: Readonly<Record<string, string>>) => Record<string, string> = (h) => ({ ...h }),
@@ -25,6 +28,7 @@ export function spyDispatcher(
   const levels: ThinkingLevelSelectInput[] = [];
   const dispatcher: ProviderDispatcher = {
     beforeProviderRequest: (input) => Promise.resolve(input.payload),
+    guardProviderRequest: noGuard,
     beforeProviderHeaders(input) {
       headers.push(input);
       return Promise.resolve(patch(input.headers));

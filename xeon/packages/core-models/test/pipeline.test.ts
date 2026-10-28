@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
 import type { BeforeProviderRequestInput, ProviderDispatcher } from "../src/index.ts";
-import { spyDispatcher } from "./support/dispatcher.ts";
+import { noGuard, spyDispatcher } from "./support/dispatcher.ts";
 import { t, tape } from "../src/testing/index.ts";
 import { createHarness, FAKE_KEY } from "./support/harness.ts";
 import { memoryLogger, type LogLine } from "./support/logger.ts";
@@ -17,6 +17,7 @@ describe("before_provider_request_rerun_same_result", () => {
       tape: ONE_TURN,
       provider: { payloadAttempts: 2 },
       dispatcher: {
+        guardProviderRequest: noGuard,
         beforeProviderRequest(input) {
           inputs.push(input);
           return Promise.resolve({ patched: true, original: input.payload });
@@ -38,6 +39,7 @@ describe("before_provider_request_rerun_same_result", () => {
         { role: "main", response: { type: "message", content: [t.text("2")], stopReason: "stop" } },
       ]),
       dispatcher: {
+        guardProviderRequest: noGuard,
         beforeProviderRequest(input) {
           keys.push(input.dispatchKey);
           return Promise.resolve(input.payload);
@@ -57,6 +59,7 @@ describe("before_provider_request input", () => {
     const h = createHarness({
       tape: ONE_TURN,
       dispatcher: {
+        guardProviderRequest: noGuard,
         beforeProviderRequest(input) {
           inputs.push(input);
           return Promise.resolve(input.payload);
@@ -84,7 +87,10 @@ describe("before_provider_request input", () => {
   test("a failing dispatcher ends the call with a provider error and still records the call", async () => {
     const h = createHarness({
       tape: ONE_TURN,
-      dispatcher: { beforeProviderRequest: () => Promise.reject(new Error("handler exploded")) },
+      dispatcher: {
+        beforeProviderRequest: () => Promise.reject(new Error("handler exploded")),
+        guardProviderRequest: noGuard,
+      },
     });
     const message = await h.service.stream(h.request("hi")).result();
     expect(message.stopReason).toBe("error");
@@ -237,7 +243,7 @@ describe("guard.model.before (M3-REQ-109)", () => {
     });
     const message = await h.service.stream(h.request("hi")).result();
     expect(message.stopReason).toBe("error");
-    expect(message.errorMessage).toContain("guard exploded");
+    expect(message.errorMessage).toBe("[xeon:denied_by_guard] extension handler failed");
   });
 
   test("a guard without an opinion lets the chained payload through", async () => {

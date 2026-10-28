@@ -9,6 +9,7 @@ import {
 import { AssistantMessageEventStream as PiAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import { attemptAsync, type Clock, type Logger } from "@xeon/contracts";
 import type { AssistantMessage, ModelThinkingLevel } from "@xeon/contracts/conversation";
+import { FIRST_DENY } from "@xeon/contracts/extensions";
 import type {
   AssistantMessageEventStream,
   CacheMarks,
@@ -284,17 +285,19 @@ export function createPipeline(deps: PipelineDeps): Pipeline {
                 payload: hooked,
               });
               // 가드는 체인이 끝난 최종 페이로드를 본다. 차단이면 던져서 요청을 보내지 않는다(pi-ai가 오류 응답으로 바꾼다)
-              if (dispatcher.guardProviderRequest !== undefined) {
-                const guarded = await dispatcher.guardProviderRequest({
+              const guard = await attemptAsync(() =>
+                dispatcher.guardProviderRequest({
                   ...base,
                   ...target,
                   dispatchKey: keyOf("guard.model.before"),
                   payload: final,
-                });
-                if (guarded !== undefined) {
-                  throw new Error(`[xeon:denied_by_guard] ${guarded.reason}`);
-                }
-              }
+                }),
+              );
+              // 디스패처 호출 자체의 실패도 차단이고, 사유는 같은 형식으로 모델 오류 응답에 남는다
+              const reason = guard.ok
+                ? guard.value?.reason
+                : FIRST_DENY["guard.model.before"].reason;
+              if (reason !== undefined) throw new Error(`[xeon:denied_by_guard] ${reason}`);
               return final;
             },
           }),
