@@ -37,7 +37,7 @@ describe("wire doc tables", () => {
         // params 칸에 이스케이프한 "\|"가 있을 수 있어 단계는 마지막 칸에서 읽는다
         stage: c.findLast((cell) => cell !== "") ?? "",
       }));
-    expect(rows).toHaveLength(35);
+    expect(rows).toHaveLength(37);
     expect(rows.map((r) => r.name).toSorted()).toEqual(Object.keys(WIRE_METHODS).toSorted());
     for (const row of rows) {
       const spec = Object.entries(WIRE_METHODS).find(([name]) => name === row.name)?.[1];

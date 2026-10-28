@@ -56,6 +56,15 @@ import {
   type StreamPosition,
 } from "./cursor.ts";
 import { WireMetaSchema } from "./jsonrpc.ts";
+import {
+  ProposalApproveParamsSchema,
+  ProposalDecideResultSchema,
+  ProposalEditParamsSchema,
+  ProposalListParamsSchema,
+  ProposalListResultSchema,
+  ProposalRejectParamsSchema,
+  ProposalRevertParamsSchema,
+} from "./proposals.ts";
 import { FeatureInfoSchema, FeatureNameSchema, type FeatureStatus } from "./version.ts";
 import {
   CancelRequestParamsSchema,
@@ -1236,6 +1245,20 @@ const ThreadRefRequestSchema: WithMeta<typeof ThreadRefParamsSchema> =
   withMeta(ThreadRefParamsSchema);
 const SecretNameRequestSchema: WithMeta<typeof SecretNameParamsSchema> =
   withMeta(SecretNameParamsSchema);
+/** `proposal.decide`는 변형마다 `_meta`를 더한 합집합이다 */
+const ProposalDecideRequestSchema: TUnion<
+  [
+    WithMeta<typeof ProposalApproveParamsSchema>,
+    WithMeta<typeof ProposalRejectParamsSchema>,
+    WithMeta<typeof ProposalEditParamsSchema>,
+    WithMeta<typeof ProposalRevertParamsSchema>,
+  ]
+> = Type.Union([
+  withMeta(ProposalApproveParamsSchema),
+  withMeta(ProposalRejectParamsSchema),
+  withMeta(ProposalEditParamsSchema),
+  withMeta(ProposalRevertParamsSchema),
+]);
 
 // ── 레지스트리 타입 ──────────────────────────────────────────────────────
 
@@ -1381,6 +1404,14 @@ interface WireSchemas {
     params: WithMeta<typeof TrustDecideParamsSchema>;
     result: typeof TrustStatusSchema;
   };
+  "proposal.list": {
+    params: WithMeta<typeof ProposalListParamsSchema>;
+    result: typeof ProposalListResultSchema;
+  };
+  "proposal.decide": {
+    params: typeof ProposalDecideRequestSchema;
+    result: typeof ProposalDecideResultSchema;
+  };
 }
 
 /** 메서드 이름 → { params, result } 정적 타입. 스키마에서 Static으로 만든다 */
@@ -1428,13 +1459,13 @@ export interface WireMethodSpec {
   readonly since: SemVer;
   readonly status: FeatureStatus;
   /** 처음 구현하는 마일스톤 */
-  readonly stage: "M1" | "M2";
+  readonly stage: "M1" | "M2" | "M3";
 }
 
 function spec<P extends TSchema, R extends TSchema>(
   params: P,
   result: R,
-  stage: "M1" | "M2",
+  stage: "M1" | "M2" | "M3",
 ): WireMethodSpec & { readonly params: P; readonly result: R } {
   return { params, result, since: "0.1.0", status: "active", stage };
 }
@@ -1492,6 +1523,8 @@ export const WIRE_METHODS: {
   "secret.beginReveal": spec(SecretNameRequestSchema, SecretBeginRevealResultSchema, "M2"),
   "trust.get": spec(withMeta(TrustGetParamsSchema), TrustStatusSchema, "M2"),
   "trust.decide": spec(withMeta(TrustDecideParamsSchema), TrustStatusSchema, "M2"),
+  "proposal.list": spec(withMeta(ProposalListParamsSchema), ProposalListResultSchema, "M3"),
+  "proposal.decide": spec(ProposalDecideRequestSchema, ProposalDecideResultSchema, "M3"),
 };
 
 export const WIRE_NOTIFICATIONS: {

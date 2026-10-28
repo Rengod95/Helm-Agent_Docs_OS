@@ -28,14 +28,15 @@ function readItem(n: number): Record<string, unknown> {
 }
 
 describe("WIRE_METHODS", () => {
-  test("has the 35 methods of the spec table with their stages", () => {
-    expect(names).toHaveLength(35);
+  test("has the 37 methods of the spec table with their stages", () => {
+    expect(names).toHaveLength(37);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
       ["events.subscribe", "host.hello", "settings.get", "thread.create", "turn.start"].toSorted(),
     );
     expect(names.filter((n) => stageOf[n] === "M2")).toHaveLength(30);
+    expect(names.filter((n) => stageOf[n] === "M3")).toEqual(["proposal.list", "proposal.decide"]);
   });
 
   test("every row carries both schemas, since and status", () => {
