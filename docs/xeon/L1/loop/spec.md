@@ -598,6 +598,22 @@ runTurn(req: LoopTurnRequest):
 - 2단계 때문에 재호출된 drive 함수가 같은 순서로 같은 `loop.turn`을 부르면 이미 끝난 turn은 다시 실행되지 않는다(`F.extensions.spec` §4.6 재생 규율).
 - 멱등 판정은 신원 `(scopeId, requestId)`로만 한다 [제안]. 커밋 지문에도 신원만 넣고 입력 내용은 넣지 않는다(`L1.tasks.spec` §4.7과 같은 원칙). 같은 신원인데 입력이 다르면 `turn_exists`로 기록된 turn을 그대로 돌려주고 진단 로그에 불일치를 남긴다. drive 재생 규율 위반이므로 L3.group-kit.spec의 재생 테스트 도우미가 잡는다.
 - 펜싱: `leaseEpoch`는 `p_scopes.lease_epoch`와 같은 트랜잭션에서 대조한다. 임대가 다른 차수로 넘어간 뒤 늦게 도착한 요청은 turn을 열지 않는다.
+
+`spawn(req: LoopSpawnRequest)`는 `xeon.agents`의 포그라운드 `spawn`에 위임한다(`L1.agents.spec` §4.2). 요청은 이렇게 옮긴다.
+
+| `LoopSpawnRequest` | `AgentService.spawn` |
+|---|---|
+| `threadId` | `SpawnOrigin.parentThreadId` |
+| `scopeId`, `leaseId` | `SpawnOrigin.owner = { kind: "drive", turnId: null, scopeId, leaseId }` |
+| `requestId` | `SpawnRequest.requestId`와 `SpawnOrigin.ownerRequestId` |
+| `spec.agent`, `spec.task` | `SpawnRequest.agent`, `task` |
+| `signal` | `SpawnOrigin.signal` |
+
+- 멱등은 core-agents가 맡는다. 같은 (부모 thread, `requestId`)의 `agent.spawned`가 세션 DB에 있으면 새 자식을 만들지 않고 기록된 결과를 돌려주며, 그때 `replayed`는 `true`다(M3-REQ-69). 루프는 별도 표를 두지 않는다.
+- 결과는 `SpawnResult`의 `childThreadId`, `status`, `answer`를 `SpawnOutcome`으로, `reused`를 `replayed`로, `usage`를 그대로 옮긴다. core-agents의 거절(`agents.*`)은 `status: "error"`와 거절 문장을 담은 `answer`로 돌아온다.
+- `spec.background`가 참이면 `input_invalid`로 거부한다. 백그라운드 위임은 그룹의 `delegate`가 한다.
+- `xeon.agents`가 아직 없으면 `input_invalid`로 거부한다. core-agents가 루프에 의존하므로 루프는 서비스를 부를 때 찾는다(`LoopDeps.agents`).
+- `leaseEpoch` 펜싱은 `runTurn`만 한다. `spawn`은 X가 `releasing` 임대의 호출을 막는다(`X.primitives.spec` §4.4.4).
 - 임대 신호는 실행 중인 단계를 끊지 않는다. 단계 경계에서만 멈춘다. `F.extensions.spec` §4.5 "실행 중인 step이나 `loop.turn()`은 중간에 끊지 않는다"와 맞추고, `loop.turn()` 단위로 기다릴지는 X가 신호를 켜는 시점으로 정한다.
 
 ### 4.9 완료 게이트

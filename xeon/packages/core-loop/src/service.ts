@@ -8,7 +8,13 @@ import type {
   TurnId,
   Usage,
 } from "@xeon/contracts/conversation";
-import type { LoopTurnRequest, LoopTurnResult, PostItem } from "@xeon/contracts/extensions";
+import type {
+  LoopSpawnRequest,
+  LoopSpawnResult,
+  LoopTurnRequest,
+  LoopTurnResult,
+  PostItem,
+} from "@xeon/contracts/extensions";
 import type { DurableEventEnvelope, ReadFailure } from "@xeon/contracts/records";
 import type {
   AdmitRequest,
@@ -702,6 +708,49 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   }
 
   /**
+   * drive의 `loop.spawn`(L1.loop.spec §4.8). `xeon.agents`의 포그라운드 spawn에 위임한다.
+   * 멱등은 core-agents가 (부모 thread, requestId)의 `agent.spawned`와 creationKey로 맡으므로, 같은 요청을 다시 부르면
+   * 새 자식을 만들지 않고 기록된 결과를 `replayed: true`로 돌려준다.
+   */
+  async function spawn(request: LoopSpawnRequest): Promise<LoopSpawnResult> {
+    const agents = deps.agents?.();
+    if (agents === undefined) {
+      throw new LoopRejection({ kind: "input_invalid", message: "xeon.agents is not available" });
+    }
+    if (request.spec.background === true) {
+      throw new LoopRejection({
+        kind: "input_invalid",
+        message: "loop.spawn runs in the foreground; use the group delegate for background runs",
+      });
+    }
+    const result = await agents.spawn(
+      { agent: request.spec.agent, task: request.spec.task, requestId: request.requestId },
+      {
+        parentThreadId: request.threadId,
+        owner: {
+          kind: "drive",
+          turnId: null,
+          scopeId: request.scopeId,
+          leaseId: request.leaseId,
+        },
+        caller: "main",
+        depth: 0,
+        ownerRequestId: request.requestId,
+        signal: request.signal,
+      },
+    );
+    return {
+      outcome: {
+        childThreadId: result.childThreadId,
+        status: result.status,
+        ...(result.answer === undefined ? {} : { answer: result.answer }),
+      },
+      replayed: result.reused,
+      usage: result.usage,
+    };
+  }
+
+  /**
    * 자식 thread turn(L1.loop.spec §4.13). 주 대화와 같은 루프로 돌되 시스템 프롬프트, 모델, 도구 맥락, 한도를 요청에서 받는다.
    * 같은 `requestId`의 turn이 이미 있으면 새로 열지 않고 기록된 결과를 돌려주거나(`replayed: true`) 열린 turn을 이어 끝낸다.
    */
@@ -831,13 +880,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     status: (threadId) =>
       (threads.get(threadId)?.running?.phase ?? "idle") === "idle" ? "idle" : "running",
     runTurn,
-    spawn: () =>
-      Promise.reject(
-        new LoopRejection({
-          kind: "input_invalid",
-          message: "loop.spawn is available from M2 (xeon.agents)",
-        }),
-      ),
+    spawn,
     whenIdle: (threadId, fn) => runtimeOf(threadId).gate.run(1, fn),
     // user_bash 지점 발화, xeon.tools.runUserShell 실행, 컨텍스트 기록(L1.loop.spec §3.1, LP12)
     runUserBash: (request) => userBash.run(request),

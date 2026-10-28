@@ -1,9 +1,22 @@
 import { expect, test } from "bun:test";
-import type { LoopTurnRequest } from "@xeon/contracts/extensions";
+import type { LoopSpawnRequest, LoopTurnRequest } from "@xeon/contracts/extensions";
+import type { SpawnOrigin, SpawnRequest } from "@xeon/contracts/services";
+import type { Usage } from "@xeon/contracts/conversation";
+import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { LoopRejection } from "../src/index.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 import { countKind, firstOfKind } from "./support/inspect.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";
+
+const CHILD_THREAD = fixedIdFactory(5).next("thr");
+const CHILD_USAGE: Usage = {
+  input: 1,
+  output: 2,
+  cacheRead: 0,
+  cacheWrite: 0,
+  totalTokens: 3,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+};
 
 const answer = (value: string): ScriptedResponse => ({
   kind: "message",
@@ -148,4 +161,68 @@ test("spawn_is_not_available_before_core_agents", async () => {
     }),
   );
   expect(spawn?.kind).toBe("input_invalid");
+});
+
+function spawnRequest(h: Harness, overrides: Partial<LoopSpawnRequest> = {}): LoopSpawnRequest {
+  return {
+    threadId: h.threadId,
+    scopeId: "smoke-group",
+    leaseId: "lease-1",
+    leaseEpoch: 1,
+    requestId: "lease-1:0.0",
+    spec: { agent: "explorer", task: "find it" },
+    signal: new AbortController().signal,
+    ...overrides,
+  };
+}
+
+test("spawn_delegates_to_agents_with_the_drive_owner_and_maps_the_result", async () => {
+  const calls: { request: SpawnRequest; origin: SpawnOrigin }[] = [];
+  const h = await createHarness({
+    agents: () => ({
+      spawn: (request, origin) => {
+        calls.push({ request, origin });
+        return Promise.resolve({
+          childThreadId: CHILD_THREAD,
+          status: "completed",
+          answer: "found",
+          requestId: request.requestId ?? "",
+          report: null,
+          usage: CHILD_USAGE,
+          reused: calls.length > 1,
+        });
+      },
+    }),
+  });
+  const request = spawnRequest(h);
+  const first = await h.loop.spawn(request);
+  expect(first).toEqual({
+    outcome: { childThreadId: CHILD_THREAD, status: "completed", answer: "found" },
+    replayed: false,
+    usage: CHILD_USAGE,
+  });
+  const second = await h.loop.spawn(request);
+  expect(second.replayed).toBe(true);
+  expect(calls[0]?.request).toEqual({
+    agent: "explorer",
+    task: "find it",
+    requestId: "lease-1:0.0",
+  });
+  expect(calls[0]?.origin).toMatchObject({
+    parentThreadId: h.threadId,
+    owner: { kind: "drive", turnId: null, scopeId: "smoke-group", leaseId: "lease-1" },
+    caller: "main",
+    depth: 0,
+    ownerRequestId: "lease-1:0.0",
+  });
+});
+
+test("spawn_rejects_a_background_request", async () => {
+  const h = await createHarness({
+    agents: () => ({ spawn: () => Promise.reject(new Error("must not be called")) }),
+  });
+  const rejection = await rejectionOf(
+    h.loop.spawn(spawnRequest(h, { spec: { agent: "x", task: "y", background: true } })),
+  );
+  expect(rejection?.loopError.kind).toBe("input_invalid");
 });
