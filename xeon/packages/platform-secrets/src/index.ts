@@ -18,6 +18,32 @@ export {
   type SecretsConfig,
   type SecretsSopsFile,
 } from "./config.ts";
+export {
+  selectOsAuth,
+  type OsAuthError,
+  type OsAuthProvider,
+  type OsAuthSelectInput,
+} from "./os-auth.ts";
+export {
+  createMcpStartApprovals,
+  mcpDefinitionHash,
+  mcpStartContext,
+  type McpStartApprovals,
+  type McpStartDefinition,
+} from "./mcp-start.ts";
+export {
+  createPostHocRedaction,
+  type PostHocRedaction,
+  type PostHocResult,
+  type PostHocStage,
+  type RotateKeyAdvice,
+} from "./post-redact.ts";
+export {
+  createPluginHttp,
+  type PluginHttp,
+  type PluginHttpCall,
+  type PluginHttpOptions,
+} from "./plugin-http.ts";
 export { SECRETS_SETTING_DEFS } from "./settings.ts";
 export {
   createSecretServiceCore,

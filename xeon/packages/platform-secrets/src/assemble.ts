@@ -16,6 +16,7 @@ import { buildPlainEnv } from "./env-filter.ts";
 import { readRecipient, recipientPath, writeRecipient } from "./key/recipient.ts";
 import { createMetaStore } from "./meta.ts";
 import { computeProtectedPaths, defaultAgeKeyPath } from "./protected-paths.ts";
+import type { OsAuthProvider } from "./os-auth.ts";
 import { createRedactor } from "./redactor.ts";
 import { selectKeyProvider, type KeySelection } from "./select.ts";
 import {
@@ -47,7 +48,9 @@ export interface SecretsRuntimeDeps {
   readonly runner?: ProcessRunner;
   /** secret run 자식 실행기. 없으면 stdio를 터미널에 잇는 Bun.spawn을 쓴다 */
   readonly childRunner?: ChildRunner;
-  /** OS 인증 재확인을 쓸 수 있는가(reveal). L4·L0.os 연결 전에는 없음(false)이라 tty-confirm만 받는다 */
+  /** OS 인증 재확인 수단(`selectOsAuth`로 만든다). 없으면 reveal은 `tty-confirm`만 받는다 */
+  readonly osAuth?: OsAuthProvider;
+  /** OS 인증 재확인을 쓸 수 있는가(reveal). 없으면 `osAuth`가 있고 쓸 수 있을 때 참이다 */
   readonly osAuthAvailable?: () => boolean;
   /** 프로세스 사이 파일 잠금(`OsServiceHandle.fileLock`). SOPS 파일의 첫 만들기와 쓰기를 차례로 한다. 없으면 프로세스 안 직렬화만 한다 */
   readonly fileLock?: SecretFileLock;
@@ -59,6 +62,11 @@ export interface SecretsRuntime {
   readonly service: SecretServiceRuntime;
   /** 사람 전용. 조립 루트가 L4 진입점에만 넘기고 확장과 모델 도구에는 주지 않는다 */
   readonly admin: SecretAdminService;
+  /**
+   * 사람 전용. L4가 reveal 직전에 `verify`를 불러 얻은 증거(`os-auth`)를 `admin.reveal`에 넘긴다.
+   * `deps.osAuth`를 넘기지 않았으면 undefined다
+   */
+  readonly osAuth?: OsAuthProvider;
 }
 
 export function createSecretService(deps: SecretsRuntimeDeps): SecretServiceRuntime {
@@ -70,6 +78,8 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
   const logger = os.logger("secrets");
   const runner = deps.runner ?? bunRunner;
   const redactor = createRedactor();
+  // OS 인증은 조립 루트가 `osAuth`를 넘길 때만 켠다. 켜면 reveal은 `tty-confirm`을 거부하므로 L4가 `verify`를 연결한 뒤에 넘긴다
+  const osAuth = deps.osAuth;
   const configDir = os.dirs.config;
   /** 설정에 SOPS 파일이 없으면 사용자 기본 파일을 채운 유효 설정(spec §4.8). 이 패키지는 모두 이 값을 읽는다 */
   const config = (): SecretsConfig => withDefaultSopsFile(deps.config(), configDir);
@@ -182,6 +192,7 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
     clock: os.time.clock,
     logger,
     retentionDays: () => config().audit.retentionDays,
+    ...(deps.fileLock === undefined ? {} : { lock: deps.fileLock }),
   });
 
   const core = createSecretServiceCore({
@@ -220,10 +231,10 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
     auditLog,
     clock: os.time.clock,
     logger,
-    osAuthAvailable: deps.osAuthAvailable ?? (() => false),
+    osAuthAvailable: deps.osAuthAvailable ?? (() => osAuth?.available() ?? false),
     settingKeysFor: deps.settingKeysFor ?? (() => Promise.resolve([])),
     runChild: deps.childRunner ?? bunInheritRunner,
     parentEnv: deps.env,
   });
-  return { service, admin };
+  return osAuth === undefined ? { service, admin } : { service, admin, osAuth };
 }

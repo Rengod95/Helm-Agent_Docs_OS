@@ -249,6 +249,13 @@ export interface Redactor {
 - 8바이트 미만 값: `registerKnown`이 `value_too_short`를 돌려준다. 이런 비밀은 `env` 모드 lease를 거부하고(`mode_not_allowed`), `runtime-http`·`browser-input`만 허용한다 [제안]. `env`는 출력에 값이 나올 수 있는데 가릴 수 없기 때문이다. `add`는 8바이트 미만 값을 받지 않는다.
 - 한계: 마스킹은 보조 수단이다. 값을 비인접 조각으로 나눈 출력, 등록하지 않은 인코딩(rot13, gzip 변환, 역순, 모델의 재인코딩)은 잡지 못한다(`_research/secrets.md` §2.3, [S28][S30]). 보장은 값이 모델과 셸에 들어오는 경로를 없애는 M3·M4 모드 설계에서 나온다. 문서와 화면은 마스킹을 "보조"로 표기한다.
 
+### 3.5.1 사후 가림 적용 지점 (`post-redact.ts`) [결정: review.m3-design-inputs D-M3-20 b, M3-REQ-59]
+
+- 이미 기록된 이벤트 행은 바꾸지 않는다. 표시(`display`), 내보내기(`export`), 모델 입력(`model-input`) 세 단계가 행을 읽는 시점에 `createPostHocRedaction(redactor).apply(stage, value)`를 부른다. 결과 `PostHocResult`는 가려진 새 값(`value`), `hits`, 키 회전 안내(`advice`)를 가진다. 입력 객체는 바뀌지 않는다(`Redactor.maskDeep`은 새 값을 돌려준다).
+- 값이 기록된 뒤에 등록된 비밀(예: 기록 뒤 처음 lease가 풀린 값)도 이후 표시와 내보내기에서 가려진다. 반대로 등록 전에는 알 수 없어 가릴 수 없다. 프로세스가 다시 시작되면 등록부가 비므로, 단계 호출자는 필요할 때 목록(`list`)의 비밀을 먼저 lease해 등록한다 [가정].
+- 키 회전 안내는 문장이 아니라 값이다. `advice`는 `{ kind: "rotate_key", names, patternHits }`이고 가려진 것이 없으면 null이다. `names`는 `known:<이름>`으로 가려진 비밀 이름(중복 없음, 정렬), `patternHits`는 이름 없이 패턴으로 가려진 개수다. 문구는 L4가 이 값으로 만든다(i18n, `eng.context-map.design` 하위 층 문장 금지). 이미 모델이나 외부에 나간 값은 가려도 되돌릴 수 없으므로 안내는 "원본 키를 회전한다"(`xeon secret rotate`)가 기본이다.
+- 호출 지점은 L1 persistence의 내보내기, L1 context의 모델 입력 투영(4계층), L4의 표시다. 이 문서는 호출 지점을 정하지 않고 적용 함수만 제공한다. `secret.masked` 감사 레코드는 단계 호출자가 필요하면 낸다.
+
 ### 3.6 서비스 (`service.ts`)
 
 ```ts
@@ -333,6 +340,7 @@ export interface SecretService {
 
 - `withHttp` 규칙: `template.url`의 호스트와 포트가 메타 `use.hosts`에 맞을 때만 치환한다. URL에 핸들이 있으면 `invalid_ref`로 거부한다(쿼리 문자열은 로그와 리퍼러로 새기 쉽다) [제안]. 치환된 `ConcreteHttpRequest`는 `send` 안에서만 쓰고, 호출자는 이를 로그·이벤트에 싣지 않는다.
 - `withEnv` 규칙 [결정: review.decisions-2 U-19]: 마일스톤 M1의 비밀 검증 경로는 bash 도구의 `env` 주입이고 실행마다 승인을 받는다. `withEnv`는 `mode: "env"`로 `lease(handle, ctx)`와 같은 판정(§4.2)을 한다. `ctx`는 `purpose`(예: `"bash:gh"`), `toolCallId`, `target: { kind: "command", argv0, commandLine }`, `approval`(`per-use` `ApprovalEvidence`)을 싣는다. `target`이 `command`가 아니면 `denied`(`mode_not_allowed`)다. exec는 `ShellExecOptions.secretEnv`(`SecretEnvRequest`의 `ctx`)로 받은 값에 `target`을 채워 이 메서드를 부른다(`L0.exec.spec` §3.6). 사람 직접 실행(`secret run`)은 §3.8의 관리 서비스가 맡는다.
+- 플러그인 provider 통로 [결정: M3-REQ-60]: 웹 검색 플러그인 provider는 `createPluginHttp(service, { purpose: "web.search" })`(`src/plugin-http.ts`)를 쓴다. 설정에는 `secret://<이름>`만 적고, `headerHandles(headers)`가 값을 읽지 않고 쓰인 핸들만 돌려준다(설정 검사, doctor). `send(template, call, send)`가 `withHttp`로 전송 직전에 헤더 값을 치환한다. 이 통로는 본문 치환을 열지 않는다(본문에 핸들이 있으면 값을 읽기 전에 `invalid_ref`). URL 핸들 거부, 호스트 바인딩, 응답 에코 검사는 `withHttp` 규칙을 그대로 따른다. 메타 `use.tools`에 `web.search`가 있어야 한다.
 - 자식 env 거부 목록은 이 서비스에 두지 않는다. 정본은 F 상수 `SENSITIVE_ENV_PATTERNS`(`L0.exec.spec` §3.5)다(§4.5).
 - [가정] `Disposable`은 TS 표준 `Disposable`(`Symbol.dispose`)이다.
 
@@ -366,10 +374,10 @@ export interface KeyProvider {
 | 파일 폴백 | `key/file-fallback.ts` | `SOPS_AGE_KEY_FILE=<경로>`(0600) | 같은 곳 §3 표 "WSL·헤드리스" |
 
 - 키 명령은 셸 없이 실행되고 google/shlex 규칙으로 나뉜다. 인자는 작은따옴표로 감싸 만든다. Windows 경로의 백슬래시는 따옴표 밖에서 사라진다(`_research/notes/L0-3.md` §2.3).
-- `provision`을 가진 provider는 파일 폴백과 macOS Keychain이다. Linux Secret Service는 항목 존재를 identity 읽기 없이 확인할 수 없어서(`secret-tool lookup`이 비밀을 출력한다) 아직 구현하지 않는다 [미결 §10 11번].
+- `provision`을 가진 provider는 파일 폴백, macOS Keychain, Linux Secret Service다(WSL은 제외). Linux는 `secret-tool lookup`의 stdout을 버리고(`RunRequest.discardStdout`) 종료 코드(0 있음, 1 없음)만 봐서 identity를 읽지 않고 존재를 확인한다. 없으면 `secret-tool store --label=… service xeon.age account default`의 stdin으로 identity를 보내고(argv에 오르지 않는다, 버퍼는 쓴 직후 0으로 덮는다), 다시 `lookup`으로 확인한다. 이미 있으면 `EEXIST`다 [결정: M3-m2c-04 (b), §10 11번]. 실제 Secret Service에서의 동작은 Linux 데스크톱 실기 확인 전이다 [가정].
 - `SOPS_AGE_KEY`(키 값을 env로 전달)는 쓰지 않는다. sops는 부모 env를 키 명령에 그대로 넘긴다(같은 곳 §7).
 - 3.12.0 이상의 `SOPS_AGE_RECIPIENT`를 쓰는 수신자별 출력은 1차에서 쓰지 않는다. 키체인 항목 하나에 identity 한 줄을 둔다 [제안].
-- 선택 로직은 `src/select.ts` 한 곳에만 둔다(DR-13, `L0.readme` §3.1). `process.platform`과 WSL 판정은 이 파일 안에서만 읽는다. 순서 [제안]: `l0.secrets.ageKey.source`가 `file`이면 파일, `keychain`이면 OS provider(없으면 오류), `auto`면 OS provider의 `probe()`가 `available`일 때 그것, 아니면 파일 폴백을 쓰되 §4.7의 고지를 낸다.
+- 선택 로직은 `src/select.ts` 한 곳에만 둔다(DR-13, `L0.readme` §3.1). `process.platform`과 WSL 판정은 이 파일 안에서만 읽는다. 순서 [제안]: `l0.secrets.ageKey.source`가 `file`이면 파일, `keychain`이면 OS provider(없으면 오류), `auto`면 OS provider의 `probe()`가 `available`일 때 그것, 아니면 파일 폴백을 쓰되 §4.7의 고지를 낸다. `auto-file`은 `auto`와 같지만 파일 폴백에 사람 확인 없이 간다(원격 호스트, §4.7 8번).
 
 ### 3.8 관리 서비스 (`admin.ts`)
 
@@ -525,6 +533,13 @@ M3 규칙:
 4. 에코 검사: 응답 `bodyText`와 헤더에 알려진 값(변형 포함)이 있으면 `echoed: true`를 돌려주고, 호출자는 결과를 저장·투영하기 전에 `Redactor.mask`를 반드시 부른다. 에코가 감지되면 `secret.masked`(`layer: "tool-result"`)를 낸다.
 5. 끝나면 lease를 닫는다. `withHttp` 한 번이 lease 사용 1회다.
 
+M1 규칙 중 MCP stdio 서버 기동(`src/mcp-start.ts`) [결정: review.m3-design-inputs D-M3-19 행 2, M3-REQ-58]:
+
+1. 비밀 env를 쓰는 stdio MCP 서버의 기동 승인은 서버 정의 해시 단위로 한 번 받는다. `mcpDefinitionHash(def)`는 출처, 명령, 인자, cwd, 평문 env, 비밀 env(env 이름 → 핸들)의 SHA-256 hex다. 키 순서와 무관하고 비밀 값은 들어가지 않으므로 값 회전은 해시를 바꾸지 않는다.
+2. `mcpStartContext(def, base, approval)`이 `withEnv`에 넘길 맥락을 만든다. `purpose`는 `mcp.start:<서버 id>`, `target`은 `{ kind: "command", argv0: 명령, commandLine: "mcp:<서버 id>" }`다. 메타 `use.tools`에 `mcp.start:*`, `use.commands`에 `mcp:<서버 id>` 패턴을 적어야 허용된다.
+3. 일반 env 모드는 실행마다 승인(`per-use`)이다. `purpose`가 `mcp.start:`로 시작하는 env 호출은 `per-session` 증거로 충분하다(§4.2 판정). 그래서 같은 정의로 서버를 다시 기동해도 같은 승인을 쓴다.
+4. `createMcpStartApprovals(clock)`는 사람이 받은 승인 증거를 서버 id와 정의 해시에 묶어 프로세스 안에 둔다. `evidenceFor(def)`는 지금 정의의 해시가 기록된 것과 같고 만료 전일 때만 증거를 돌려준다. 정의가 바뀌면 null이고 다시 받아야 한다. 정의를 되돌리면 같은 승인이 다시 맞는다. 영속 보관과 승인 UI, 승인 레코드의 정의 해시 필드(M3-REQ-75)는 L1·L2가 한다(B3-SEC).
+
 M4 규칙:
 
 1. `withBrowserInput`은 origin(스킴, 호스트, 포트)이 `use.origins`와 정확히 같을 때만 `fill`을 부른다. 하위 프레임 origin은 드라이버가 넘긴 값으로 판정한다 [가정: `L2.web.spec` `browse.act`의 `fill`이 프레임 origin을 안다].
@@ -589,7 +604,7 @@ M2 설계(후속 구현):
 6. `@napi-rs/keyring` 2.1.2는 후보로만 둔다. Linux에서 Secret Service가 없으면 메모리 전용 keyutils로 조용히 넘어가므로, 쓰게 되면 스토어를 `secret-service`로 고정해야 한다(`_research/notes/L0-3.md` §0 11번). Bun 로드는 [미확인]이다.
 7. [결정: m2r sec] 첫 쓰기의 키 만들기(`provision`)와 수신자 기록. 첫 `add`는 기본 SOPS 파일이 없을 때 키가 없으면 만든다. `provision`은 이미 있는 키를 덮어쓰지 않는다. 이 패키지는 identity를 읽지 않으므로(1번) 키가 이미 있을 때 수신자를 되찾을 수 없다. 그래서 만든 직후 수신자(공개키)를 `<OsDirs.config>/secrets/age/recipient.<provider id>.txt`(평문, 0600)에 기록하고, 이후에는 이 기록을 읽는다. 키를 만든 뒤 SOPS 파일 암호화가 실패해도 다음 시도가 같은 키와 수신자를 쓴다. 키는 있는데 기록이 없으면(밖에서 만든 키 등) 파일을 만들 수 없어 `write_failed`(`sops_file`, `recipient_unknown`)이고, 사람이 기존 SOPS 파일을 `l0.secrets.sops.files`에 적는다. macOS의 `provision`은 항목 존재를 `security find-generic-password`(`-w` 없이)로 확인하고, 없으면 `security -i`의 stdin으로 `add-generic-password -s xeon.age -a default -w <identity>`를 보낸 뒤 항목을 다시 찾아 확인한다. identity는 argv에 오르지 않고, stdin 버퍼는 쓴 직후 0으로 덮는다. `auto`가 확인 전 파일 폴백으로 떨어진 경우(5번)에는 키를 만들지 않고 `key_unavailable`(`file`, `access_denied`)이다.
 
-8. [결정: 2026-10-28 사용자] 키체인이 없는 원격 서버(D-M3-17 형태 1)는 파일 폴백(4번, 0600)을 쓴다. Secret Service가 있으면 3번에 따라 먼저 시도한다. 파일 폴백을 처음 쓸 때 키 파일 위치와 위험(5번의 고지 문장)을 알린다. 구현은 M3b 서비스 트랙이다. [제안] 5번의 확인 절차는 바꾸지 않는다. 두 항목은 함께 적용된다. 5번은 로컬 `auto`가 파일 폴백에 갔을 때, 8번은 키체인이 없는 원격 호스트에서 적용한다.
+8. [결정: 2026-10-28 사용자] 키체인이 없는 원격 서버(D-M3-17 형태 1)는 파일 폴백(4번, 0600)을 쓴다. Secret Service가 있으면 3번에 따라 먼저 시도한다. 파일 폴백을 처음 쓸 때 키 파일 위치와 위험(5번의 고지 문장)을 알린다. 구현: 설정 `l0.secrets.ageKey.source = "auto-file"`(§6.1)이 `auto`와 같은 순서(Secret Service 먼저)로 고르되 파일 폴백을 사람 확인 없이 쓰고 `fileFallbackNotice`는 그대로 낸다. 키 파일 권한은 정확히 0600이고 소유 uid가 같아야 하며 아니면 `key_unavailable`(`file_mode`)이다. 0400처럼 더 좁은 값도 거부한다 [결정: 오케스트레이터 기본값, 요구 문구가 "0600이 아니면 거부"다]. 서비스 모드 호스트가 이 값을 `serve` 설정에 넣는 일은 B1-SVC가 한다. [제안] 5번의 확인 절차는 바꾸지 않는다. 두 항목은 함께 적용된다. 5번은 로컬 `auto`가 파일 폴백에 갔을 때, 8번은 키체인이 없는 원격 호스트에서 적용한다.
 
 ### 4.8 사용자 등록 경로
 
@@ -607,6 +622,13 @@ M2 설계(후속 구현):
 
 - `just secret-add`의 키 이름(대문자 env 변수 형식)과 핸들 이름(소문자, 하이픈)은 다르다. 자동 변환(`GITHUB_TOKEN` → `github-token`)은 제안으로만 보이고 사람이 확정한다 [제안]. 기본 파일에 `xeon secret add`로 만든 키는 같은 규칙(`anthropic-api-key` → `ANTHROPIC_API_KEY`)을 쓴다.
 - 문서, 예시, 테스트 픽스처에는 실제 값이나 SOPS 파일 내용을 쓰지 않는다. 예시는 `secret://github-token` 같은 이름만 쓴다.
+
+### 4.9.1 OS 인증 재확인 (`os-auth.ts`) [결정: M3-m2c-01]
+
+- `OsAuthProvider`(`available()`, `verify(reason, signal)`)가 사람의 OS 인증을 요청하고 `HumanReauth`(`method: "os-auth"`, `verifiedAt`)를 돌려준다. L4는 reveal 직전에 `runtime.osAuth.verify`를 부르고 받은 증거를 `admin.reveal`에 넘긴다. 서비스는 증거의 시각(60초)만 본다(§4.9 값 보기).
+- macOS 구현(`selectOsAuth({ platform: "darwin", … })`)은 `/usr/bin/osascript -e 'do shell script "true" with prompt "<문구>" with administrator privileges'`로 인증 대화상자(암호, Touch ID 지원 기기는 생체 인증)를 띄운다. 종료 코드 0이면 인증된 것이다. stderr가 `-128`·`User canceled`면 `cancelled`, 그 밖의 실패는 `denied`, 실행 실패는 `failed`다. 문구에서 따옴표·역슬래시·제어 문자는 공백으로 바꿔 스크립트 문자열을 깨지 못하게 한다. 이 방식은 [결정: 오케스트레이터 기본값]이다(새 의존 없이 쓸 수 있는 수단. Touch ID 전용 네이티브 헬퍼는 후속). 실제 대화상자는 macOS 실기(사용자 묶음)에서 확인한다.
+- `createSecretsRuntime`은 `deps.osAuth`를 넘길 때만 OS 인증을 켠다. 켜면 `osAuthAvailable`이 참이 되어 reveal이 `tty-confirm`을 거부하므로, L4가 `verify`를 연결한 뒤에 넘긴다(연결 전에 켜면 macOS `xeon secret reveal`이 막힌다). 지원하지 않는 플랫폼에는 `selectOsAuth`가 undefined를 돌려준다.
+- 시험은 가짜 provider(`fakeOsAuth`, `src/testing`)로 취소, 거절, 60초 지난 증거, `tty-confirm` 거부를 값으로 확인한다.
 
 ### 4.9 관리 동작 규칙
 
@@ -674,7 +696,7 @@ M2 설계(후속 구현):
 | `l0.secrets.defaultProvider` | `SecretProviderId` | `"sops"` | managed, user | live | secrets 탭 select |
 | `l0.secrets.sops.files` | `{ env: string; path: string }[]` | `[]`. 비어 있으면 기본 파일 `user`(§4.8) | managed, user | live | secrets 탭 table |
 | `l0.secrets.sops.binary` | `string \| null` | `null`(xeon.os 해석) | managed, user | restart | advanced 탭 |
-| `l0.secrets.ageKey.source` | `"auto" \| "keychain" \| "file"` | `"auto"` | managed, user | restart | secrets 탭 select |
+| `l0.secrets.ageKey.source` | `"auto" \| "auto-file" \| "keychain" \| "file"`(`auto-file`은 원격 호스트, §4.7 8번) | `"auto"` | managed, user | restart | secrets 탭 select |
 | `l0.secrets.ageKey.filePath` | `string \| null` | `null`(기본 경로 `<OsDirs.config>/secrets/age/keys.txt`) | managed, user | restart | secrets 탭 text |
 | `l0.secrets.approval.default` | `"none" \| "per-session" \| "per-use"` | `"per-session"` | managed, user | nextTurn | permissions 탭 |
 | `l0.secrets.approval.writeHosts` | `"per-session" \| "per-use"` | `"per-use"` [제안] | managed, user | nextTurn | permissions 탭 |
@@ -728,10 +750,10 @@ M2 설계(후속 구현):
 |---|---|
 | `L1.tools.spec` | `check`, `lease`, bash 도구 env 주입의 승인 판정(`check`가 돌려주는 `needs_approval`, 마일스톤 M1), `withHttp`, 2계층 `Redactor.maskDeep`, `onAudit`(감사 레코드 → 세션 이벤트 `secret.*`, §3.9), 도구 인자 검사 `findForeignSecretSyntax` |
 | `L1.loop.spec` | 1계층 `Redactor.mask`(사람 입력) |
-| `L1.context.spec` | 4계층 `Redactor.maskDeep`(모델 투영) |
+| `L1.context.spec` | 4계층 `Redactor.maskDeep`(모델 투영), 사후 가림 `createPostHocRedaction`(§3.5.1) |
 | `L1.models.spec` | `lease`(`runtime-http`, purpose `model.provider:<id>`)와 `use`, 오류 문자열 `Redactor.mask`, 3계층 `containsKnown` |
-| `L2.web.spec` | `withHttp`(M3, `GuardedHttp`), `withBrowserInput`(M4), 3계층 `containsKnown`(`secret_in_query`) |
-| `L2.mcp.spec` | `lease`·`use`로 MCP 서버 env·헤더 값 해석, `secret_missing` 오류 코드, 서버 stderr 마스킹 |
+| `L2.web.spec` | `createPluginHttp`(웹 검색 플러그인 provider의 헤더 비밀, §3.6), `withHttp`(M3, `GuardedHttp`), `withBrowserInput`(M4), 3계층 `containsKnown`(`secret_in_query`) |
+| `L2.mcp.spec` | `mcpDefinitionHash`, `mcpStartContext`, `createMcpStartApprovals`(비밀 env 서버 기동 승인, §4.3), `lease`·`use`로 MCP 서버 env·헤더 값 해석, `secret_missing` 오류 코드, 서버 stderr 마스킹 |
 | `L0.exec.spec` | env 모드 `withEnv`(§3.6, 마일스톤 M1). 자식 env 거부 목록은 F 상수 `SENSITIVE_ENV_PATTERNS`(정본, `L0.exec.spec` §3.5)이고 이 패키지도 같은 상수를 쓴다(§4.5) |
 | `L0.sandbox.spec` | `protectedPaths()`: 보호 경로 `secret_key` 행에 넣을 비밀 파일 절대 경로(SOPS 파일, `<OsDirs.config>/secrets/`, 파일 폴백 age 키) |
 | `L4.cli.spec`, `L4.settings-ui.spec` | `xeon.secretAdmin` 메서드, 5계층(Logger 구현이 출력 직전에 `mask`), `diagnose()` 안내문 |
@@ -779,7 +801,7 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 
 ## 10. 미결 사항
 
-1. [미결] 세션 밖 관리 레코드의 저장 위치(권고: `platform-secrets` 소유 추가 전용 파일)와 단일 DB 결정(ADR-0004)과의 관계(§3.9). 감사 이벤트 kind 소유자는 `F.records.spec` §3.3.1의 (a)안(tool-runtime 발행)으로 정해졌다.
+1. [결정: M3-REQ-61] 세션 밖 관리 레코드의 저장 위치는 `platform-secrets` 소유 추가 전용 파일 `<OsDirs.config>/secrets/audit.log`다(§3.9). 보관 기간 정리와 추가는 `OsServiceHandle.fileLock`의 `withLock(<audit.log>)`을 쥔 채 한다(`createSecretsRuntime`의 `fileLock`). 정리가 파일을 다시 쓰는 동안 다른 프로세스가 붙인 줄이 사라지지 않는다. 잠금을 받지 못하면(`timeout`, `io`) 해당 쓰기는 `audit_io`(`lock_timeout` 등)로 실패한다. 단일 DB 결정(ADR-0004)과는 별개의 운영 로그다(§3.9). 감사 이벤트 kind 소유자는 `F.records.spec` §3.3.1의 (a)안(tool-runtime 발행)으로 정해졌다.
 2. [결정: review.decisions-2 U-19] 마일스톤 M1의 검증 모드는 `env` 주입(bash 도구, 실행마다 승인)이다. `withEnv`(§3.6)와 exec `secretEnv`(`L0.exec.spec` §3.6)를 M1에 둔다. `product.scope.spec` §4.4 M1 행, `L2.workspace.spec` §3.3과 같은 배치다. 모델 provider API 키는 마일스톤 M1부터 `runtime-http` 모드로 lease한다(§4.3 표, 수용 기준 14). env 경로는 아직 끝까지 이어지지 않았다. M1 코드는 승인 증거를 `null`로 넘기고 호스트 `approval.respond`가 `notImplemented`다. 마일스톤 M2 승인 프로토콜 작업(`L4.host-service.plan` H18)에서 증거 전달까지 완성한다.
 3. [미결] sops 최소 버전. 이 문서는 3.10.0을 하한으로 두었다. 조사는 3.12.0 하한, 3.13.3 실사용을 제안한다(`_research/notes/L0-3.md` §2.1).
 4. [결정: m2r sec, adr.0019] 기본 SOPS 파일은 `<OsDirs.config>/secrets/sops/user.yaml`(env `user`)이고 `l0.secrets.sops.files`가 비었을 때만 쓴다(§4.8). 사용자 `secrets` 도구(`just secret-add`)의 파일 위치와 env 이름 매핑 규약은 이 기본값과 별개이며 아직 확인하지 못했다. 그 파일을 쓰려면 사람이 `l0.secrets.sops.files`에 적는다 [미결].
@@ -789,5 +811,5 @@ L0 패키지끼리 import하지 않으므로 다른 L0 기능은 서비스로 �
 8. [결정: review.decisions-2 D-04] 관리 서비스는 `xeon.secretAdmin`(`SecretAdminService`)으로 나눈다. `F.capabilities.spec` §3.12 표, `SERVICE_NAMES`, `eng.context-map.design` §5.3 표에 반영되었다(8.3절 R2).
 9. [결정: review.m3-design-inputs D-M3-20 b] 이미 기록된 이벤트에 남은 값의 사후 가림은 표시·내보내기·모델 입력 단계에서 `Redactor`를 적용하고 키 회전을 안내한다. 원본 이벤트 행은 바꾸지 않는다(§3.5, `review.m3-lower-requirements` M3-REQ-59).
 10. [미결] 플러그인 제공자(`op`, `bws`)의 바이너리 호출 소유 규칙(DR-07 행 추가).
-11. [미결] Linux Secret Service의 `provision`(`secret-tool store`는 stdin으로 비밀을 받지만 항목 존재를 identity 읽기 없이 확인할 수단이 없다). 지금 Linux는 `auto`에서 Secret Service가 있어도 키 항목이 없으면 `key_unavailable`(`item_missing`)이고, WSL·헤드리스는 사람이 `l0.secrets.ageKey.source`를 `file`로 확인한 뒤(§4.7 5번) 파일 폴백이 키를 만든다.
+11. [결정: M3-m2c-04 (b)] Linux Secret Service의 `provision`은 `secret-tool lookup`의 stdout을 버리고 종료 코드만 봐서 identity를 읽지 않고 존재를 확인한 뒤 `secret-tool store`로 만든다(§3.7). WSL·헤드리스는 `auto`면 사람이 `source`를 `file`로 확인한 뒤(§4.7 5번), 원격 호스트는 `auto-file`로 파일 폴백이 키를 만든다. 실제 Secret Service에서의 확인은 Linux 데스크톱 실기다.
 12. [미결] macOS `provision`의 `security -i` 경로와 `-T`(신뢰 앱) 없이 만든 항목의 복호화 때 접근 승인 대화상자. macOS 실기(M2 체크리스트 M-12 재실행)에서 확인한다.

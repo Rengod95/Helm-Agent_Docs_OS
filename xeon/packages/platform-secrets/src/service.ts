@@ -132,7 +132,7 @@ interface HttpPlan {
   readonly handles: readonly SecretHandle[];
 }
 
-function planHttp(template: HttpTemplate): Result<HttpPlan, SecretError> {
+export function planHttp(template: HttpTemplate): Result<HttpPlan, SecretError> {
   const parsedUrl = attempt(() => new URL(template.url));
   if (!parsedUrl.ok) return err(invalidRef("scheme"));
   const url = parsedUrl.value;

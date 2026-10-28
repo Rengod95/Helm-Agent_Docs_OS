@@ -69,7 +69,7 @@ const group = defineSettings("l0.secrets", {
   "ageKey.source": {
     type: Type.String({ maxLength: 16 }),
     default: DEFAULTS.ageKey.source,
-    range: { enum: ["auto", "keychain", "file"] },
+    range: { enum: ["auto", "auto-file", "keychain", "file"] },
     runtimeChange: "restart",
     allowedScopes: MANAGED_USER,
     ui: { tab: "secrets", widget: "select", order: 40, label: "age 키 위치" },

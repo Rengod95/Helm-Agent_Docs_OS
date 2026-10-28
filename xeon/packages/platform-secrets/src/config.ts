@@ -19,7 +19,7 @@ export interface SecretsConfig {
     readonly binary: string | null;
   };
   readonly ageKey: {
-    readonly source: "auto" | "keychain" | "file";
+    readonly source: "auto" | "auto-file" | "keychain" | "file";
     readonly filePath: string | null;
   };
   readonly approval: {

@@ -1,6 +1,7 @@
 import { assertNever, attempt } from "@xeon/contracts";
 import type { SecretDenyReason, SecretMeta } from "@xeon/contracts/capabilities";
 import type { ApprovalEvidence, UseCtx } from "@xeon/contracts/services";
+import { MCP_START_PURPOSE_PREFIX } from "./mcp-start.ts";
 
 // L0.secrets.spec §4.2. 순서대로 보고 처음 실패에서 멈춘다.
 
@@ -186,8 +187,13 @@ export function evaluatePolicy(meta: SecretMeta, ctx: UseCtx, now: number): Poli
   const targetReason = targetDenial(meta, ctx);
   if (targetReason !== null) return { kind: "deny", reason: targetReason };
 
+  // env 모드는 실행마다 승인이다. 단 MCP 서버 기동(`mcp.start:`)은 정의 해시마다 한 번이다(mcp-start.ts, M3-REQ-58)
   const required: "none" | "per-session" | "per-use" =
-    ctx.mode === "env" ? "per-use" : meta.approval;
+    ctx.mode !== "env"
+      ? meta.approval
+      : ctx.purpose.startsWith(MCP_START_PURPOSE_PREFIX)
+        ? "per-session"
+        : "per-use";
   if (required === "none") return { kind: "allow", approval: null };
   const evidence = ctx.approval;
   if (evidence === null || !approvalSufficient(required, evidence, now)) {
