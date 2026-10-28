@@ -4,7 +4,7 @@ import type { AssistantMessage, Usage } from "@xeon/contracts/conversation";
 import type { ModelCallRequest, ResolvedModel } from "@xeon/contracts/services";
 import type { StructuredModels } from "../../src/index.ts";
 
-export const ZERO_USAGE: Usage = {
+const ZERO_USAGE: Usage = {
   input: 0,
   output: 0,
   cacheRead: 0,
@@ -13,7 +13,7 @@ export const ZERO_USAGE: Usage = {
   cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
 };
 
-export const FAKE_RESOLVED: ResolvedModel = {
+const FAKE_RESOLVED: ResolvedModel = {
   binding: { role: "judge", provider: "test", modelId: "judge-tape", thinkingLevel: "off" },
   source: "role",
   trace: [],

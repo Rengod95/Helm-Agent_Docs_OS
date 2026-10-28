@@ -2,6 +2,7 @@
 import { assertNever, attemptAsync, detach, parse } from "@xeon/contracts";
 import {
   AgentSettledEventPayloadSchema,
+  AgentSpawnedPayloadSchema,
   commitKeyPart,
   type AgentView,
   type CommitPlan,
@@ -68,7 +69,7 @@ interface LiveChild {
   readonly phase: { state: "queued" | "running" };
   readonly scope: TaskScope;
   /** 소유 단위 취소(`CancelTarget.ownerScopeId`)가 고르는 근거 */
-  readonly owner: SpawnOwner;
+  readonly owner: SpawnOwnerJson;
   readonly done: Promise<SpawnResult>;
 }
 
@@ -142,6 +143,11 @@ function ownerJsonOf(owner: SpawnOwner): SpawnOwnerJson {
 
 /** DelegateRequest.requestId 상한. 보고 입력 키 "<requestId>:report"가 입력 큐의 64자 안에 들어야 한다 */
 const DELEGATE_REQUEST_ID_MAX = 48;
+
+/** 같은 requestId로 다른 요청(다른 정의, 다른 task)이 오면 커밋 키 재사용으로 거부하게 하는 지문 */
+function spawnFingerprint(requestId: string, request: SpawnRequest): Record<string, string> {
+  return { requestId, agent: request.agent, taskHash: sha256Hex(request.task) };
+}
 
 function spawnKey(parent: ThreadId, requestId: string): string {
   return `spawn:${commitKeyPart(parent, sha256Hex)}:${commitKeyPart(requestId, sha256Hex)}`;
@@ -232,6 +238,44 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       surfaceThreadId: known.surfaceThreadId,
       interactive: known.interactive,
     };
+  };
+
+  /** 재개한 자식의 소유자는 처음 기록한 agent.spawned의 것이다. 읽을 수 없으면 이번 호출자의 것을 쓴다 */
+  const recordedOwnerOf = (origin: SpawnOrigin, requestId: string): SpawnOwnerJson => {
+    const event = session.query.latestEvent(origin.parentThreadId, "agent.spawned", {
+      pointer: "/requestId",
+      equals: requestId,
+    });
+    if (event.ok && event.value !== undefined) {
+      const payload = parse(AgentSpawnedPayloadSchema, event.value.payload);
+      if (payload.ok) return payload.value.owner;
+    }
+    return ownerJsonOf(origin.owner);
+  };
+
+  /** 같은 requestId의 기존 연결에 다른 요청이 왔는가(커밋 키는 있고 지문이 다르다) */
+  const clashesWithRecorded = (
+    origin: SpawnOrigin,
+    requestId: string,
+    request: SpawnRequest,
+  ): boolean => {
+    const checked = session.commit({
+      threadId: origin.parentThreadId,
+      requestId: spawnKey(origin.parentThreadId, requestId),
+      fingerprintSource: spawnFingerprint(requestId, request),
+      build: () => ({ kind: "reject", code: "exists", detail: null }),
+    });
+    return checked.ok && checked.value.status === "key_reused";
+  };
+
+  /** agent.spawned를 커밋한 뒤 runChild가 live 표에 올리기 전까지의 자식. 같은 requestId의 겹친 호출이 둘째 실행을 시작하지 않게 한다 */
+  const starting = new Map<ThreadId, PromiseWithResolvers<void>>();
+  const markStarting = (childThreadId: ThreadId): void => {
+    starting.set(childThreadId, Promise.withResolvers<void>());
+  };
+  const releaseStarting = (childThreadId: ThreadId): void => {
+    starting.get(childThreadId)?.resolve();
+    starting.delete(childThreadId);
   };
 
   /** 입력 검사(§4.1 1번). 실패는 값으로 돌려준다 */
@@ -362,11 +406,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     const committed = session.commit({
       threadId: origin.parentThreadId,
       requestId: spawnKey(origin.parentThreadId, prepared.requestId),
-      fingerprintSource: {
-        requestId: prepared.requestId,
-        agent: prepared.definition.name,
-        depth: prepared.childDepth,
-      },
+      fingerprintSource: spawnFingerprint(prepared.requestId, request),
       build(view): CommitPlan {
         if (view.agentByRequestId(origin.parentThreadId, prepared.requestId) !== undefined) {
           return { kind: "reject", code: "exists", detail: null };
@@ -486,7 +526,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
       requestId: prepared.requestId,
       phase,
       scope,
-      owner: origin.owner,
+      owner: recordedOwnerOf(origin, prepared.requestId),
       done,
     });
     return done;
@@ -694,7 +734,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
             answerItemId: ran.answerItemId,
             usage: ran.usage,
             error: ran.status === "error" ? (ran.reason ?? null) : null,
-            owner: ownerJsonOf(origin.owner),
+            owner: recordedOwnerOf(origin, prepared.requestId),
             limitHit: ran.limitHit ?? null,
           },
         });
@@ -767,6 +807,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
         )
       );
     }
+    await starting.get(link.childThreadId)?.promise;
     const running = live.get(link.childThreadId);
     if (running !== undefined) return { ...(await running.done), reused: true };
     // 재시작으로 끊긴 자식: 같은 대화를 재개한다. 자식 임대를 다시 얻고 쓰기로 연다
@@ -789,7 +830,14 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     request: SpawnRequest,
     childThreadId: ThreadId,
   ): void => {
-    detach(runChild(origin, prepared, request, childThreadId), (cause) =>
+    const running = (() => {
+      try {
+        return runChild(origin, prepared, request, childThreadId);
+      } finally {
+        releaseStarting(childThreadId);
+      }
+    })();
+    detach(running, (cause) =>
       log.error("agents.background_failed", {
         childThreadId,
         requestId: prepared.requestId,
@@ -806,7 +854,9 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     request: SpawnRequest,
   ): DelegateResult => {
     const duplicate = receiptOf(prepared.requestId, link.childThreadId, "duplicate");
-    if (link.settled !== null || live.has(link.childThreadId)) return duplicate;
+    if (link.settled !== null || live.has(link.childThreadId) || starting.has(link.childThreadId)) {
+      return duplicate;
+    }
     if (reopenChild(link.childThreadId) === undefined) {
       return {
         ok: false,
@@ -863,6 +913,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     const spawned = commitSpawned(origin, prepared, request, childThreadId);
     switch (spawned) {
       case "committed":
+        markStarting(childThreadId);
         return { kind: "run", childThreadId };
       case "exists": {
         // 다른 호출이 먼저 연결을 남겼다. 그 연결을 따른다
@@ -901,6 +952,7 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     models: deps.models ?? (() => undefined),
     maxRuns: () => settings.judgeMaxRuns?.() ?? JUDGE_MAX_RUNS_DEFAULT,
     now: deps.now ?? Date.now,
+    log,
   });
 
   return {
@@ -915,11 +967,29 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
           "the child links are unreadable",
         );
       }
-      if (link !== undefined) return await attach(link, origin, prepared.value, request);
+      if (link !== undefined) {
+        if (clashesWithRecorded(origin, prepared.value.requestId, request)) {
+          return failure(
+            prepared.value.requestId,
+            "agents.invalid_request",
+            "this requestId was already used for another subagent",
+            link.childThreadId,
+          );
+        }
+        return await attach(link, origin, prepared.value, request);
+      }
       const provisioned = await provision(origin, prepared.value, request);
       switch (provisioned.kind) {
-        case "run":
-          return await runChild(origin, prepared.value, request, provisioned.childThreadId);
+        case "run": {
+          const running = (() => {
+            try {
+              return runChild(origin, prepared.value, request, provisioned.childThreadId);
+            } finally {
+              releaseStarting(provisioned.childThreadId);
+            }
+          })();
+          return await running;
+        }
         case "exists":
           return await attach(provisioned.link, origin, prepared.value, request);
         case "refused":
@@ -938,6 +1008,27 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
             message: `requestId must be 1 to ${String(DELEGATE_REQUEST_ID_MAX)} characters`,
           },
         };
+      }
+      // 멱등을 먼저 본다: 이미 정착했거나 도는 위임은 지금의 검사(깊이, 정의, 부모 상태)에 걸리지 않고 duplicate다
+      const requestId = childRequestId(request.requestId);
+      const early = linkOf(origin.parentThreadId, requestId);
+      if (early !== undefined && early !== "unreadable") {
+        if (clashesWithRecorded(origin, requestId, request)) {
+          return {
+            ok: false,
+            error: {
+              kind: "agents.invalid_request",
+              message: "this requestId was already used for another subagent",
+            },
+          };
+        }
+        if (
+          early.settled !== null ||
+          live.has(early.childThreadId) ||
+          starting.has(early.childThreadId)
+        ) {
+          return receiptOf(requestId, early.childThreadId, "duplicate");
+        }
       }
       const prepared = prepare(request, origin, {
         background: true,

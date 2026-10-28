@@ -6,7 +6,7 @@ import {
   type CommitPlan,
   type ProducerHandle,
 } from "@xeon/contracts/records";
-import { parse } from "@xeon/contracts";
+import { parse, type Logger } from "@xeon/contracts";
 import type { IdFactory } from "@xeon/contracts/conversation";
 import type { JudgeInput, JudgeOutcome, JudgeRecord } from "@xeon/contracts/services";
 import type { AgentsSession } from "./deps.ts";
@@ -24,6 +24,7 @@ export interface JudgeDeps {
   readonly models: () => StructuredModels | undefined;
   readonly maxRuns: (input: JudgeInput) => number;
   readonly now: () => number;
+  readonly log?: Logger;
 }
 
 const SYSTEM_PROMPT = [
@@ -114,6 +115,15 @@ export function createJudge(deps: JudgeDeps): (input: JudgeInput) => Promise<Jud
         model: answered.error.model,
       };
     } else {
+      // JudgeOutcome.failed에는 사용량 자리가 없다. 비용이 사라지지 않게 기록한다
+      deps.log?.warn("agents.judge_failed", {
+        goalRef: input.goalRef,
+        reason: answered.error.kind,
+        totalTokens:
+          answered.error.kind === "call_failed" ? (answered.error.usage?.totalTokens ?? 0) : 0,
+        costTotal:
+          answered.error.kind === "call_failed" ? (answered.error.usage?.cost.total ?? 0) : 0,
+      });
       return { kind: "failed", message: answered.error.message };
     }
 

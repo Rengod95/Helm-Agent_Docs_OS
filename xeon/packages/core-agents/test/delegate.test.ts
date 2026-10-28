@@ -228,6 +228,86 @@ describe("delegate", () => {
   });
 });
 
+describe("delegate idempotency edges", () => {
+  test("two concurrent delegates with the same requestId start one run", async () => {
+    const release = Promise.withResolvers<void>();
+    const h = openHarness({
+      run: async (req, session) => {
+        await release.promise;
+        return { status: "completed", finalItemId: session.seedAssistantItem(req.threadId, "x") };
+      },
+    });
+    const recorder = spawnRecorder(h.session);
+    const origin = scopeOrigin(h, "learning", "scope:learning:1");
+    const [a, b, c] = await Promise.all([
+      h.service.delegate(request("race"), origin),
+      h.service.delegate(request("race"), origin),
+      h.service.delegate(request("race"), origin),
+    ]);
+    release.resolve();
+    await recorder.settleAll(h.parentThreadId, ["race"]);
+    expect([a, b, c].every((r) => r.ok)).toBe(true);
+    expect(h.loop.calls).toHaveLength(1);
+    expect(eventsOf(h, "agent.spawned")).toHaveLength(1);
+    expect(eventsOf(h, "agent.settled")).toHaveLength(1);
+    const statuses = [a, b, c].flatMap((r) => (r.ok ? [r.receipt.status] : []));
+    expect(statuses.filter((status) => status === "accepted")).toHaveLength(1);
+    recorder.dispose();
+  });
+
+  test("a duplicate delegate for a settled child is duplicate even when new checks would refuse", async () => {
+    const h = openHarness({ maxDepth: 1 });
+    const recorder = spawnRecorder(h.session);
+    const origin = scopeOrigin(h, "learning", "scope:learning:1");
+    const first = await h.service.delegate(request("done"), origin);
+    await recorder.settleAll(h.parentThreadId, ["done"]);
+    const aborted = new AbortController();
+    aborted.abort();
+    const again = await h.service.delegate(request("done"), { ...origin, signal: aborted.signal });
+    expect(first.ok && again.ok).toBe(true);
+    if (!(first.ok && again.ok)) return;
+    expect(again.receipt).toMatchObject({
+      status: "duplicate",
+      childThreadId: first.receipt.childThreadId,
+    });
+    recorder.dispose();
+  });
+
+  test("the same requestId with a different task is rejected, not treated as a duplicate", async () => {
+    const h = openHarness();
+    const recorder = spawnRecorder(h.session);
+    const origin = scopeOrigin(h, "learning", "scope:learning:1");
+    await h.service.delegate(request("same-id"), origin);
+    await recorder.settleAll(h.parentThreadId, ["same-id"]);
+    const changed = await h.service.delegate(
+      request("same-id", { task: "something else" }),
+      origin,
+    );
+    expect(changed).toMatchObject({ ok: false, error: { kind: "agents.invalid_request" } });
+    expect(h.loop.calls).toHaveLength(1);
+    recorder.dispose();
+  });
+
+  test("a resumed child settles with the owner recorded at spawn, not the new caller's", async () => {
+    const first = openHarness({ run: () => new Promise(() => {}) });
+    const sent = await first.service.delegate(
+      request("own"),
+      scopeOrigin(first, "learning", "scope:learning:1"),
+    );
+    expect(sent.ok).toBe(true);
+    const second = openHarness({ session: first.session });
+    second.tasks.openScope(second.tasks.root, { kind: "thread", id: first.parentThreadId });
+    const recorder = spawnRecorder(second.session);
+    await second.service.delegate(request("own"), {
+      ...scopeOrigin(second, "other-scope", "scope:other:1"),
+      parentThreadId: first.parentThreadId,
+    });
+    await recorder.settleAll(first.parentThreadId, ["own"]);
+    expect(settledPayloads(first)[0]?.owner).toEqual({ kind: "scope", scopeId: "learning" });
+    recorder.dispose();
+  });
+});
+
 describe("cancel", () => {
   test("cancel by ownerScopeId stops that scope's children and leaves the others", async () => {
     const control = abortableRun();
