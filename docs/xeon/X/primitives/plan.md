@@ -18,7 +18,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 |---|---|---|---|
 | M0 | Cordis 래퍼(`cordis-bridge.ts`: 루트, scope fiber, effect, dispose, 포트 inject), 레지스트리와 스냅샷, 세대 가드, fold 디스패처 tap·first·chain(시간 예산 포함, `DEFAULT_DISPATCH_POLICY`, `DispatchPolicy`의 선택 메서드 `run`·`onHandlerSettled`), X.operations 정책 결합(P-20), 인메모리 포트로 동작하는 post(멱등), drive 단일 그룹(임대 부여·상한·재호출·반납), scope enable/disable 최소형(경계 훅 `prepare`/`settle`, 유휴 적용), 상태 문서 `state()`/`commit()`(마이그레이션 제외), `createExtHost`·`install`(시작 적용, `InstallResult`)·`registerPlatform`·`ExtHost.ports`·`hostOf`(provide·port만), `@xeon/ext-host/testing`의 인메모리 포트·가짜 타이머 | §5 단위 테스트 중 M0 표시 항목 | L1 core-loop·core-tools 구현자(지점 발화), X.loading-trust(L-06), X.operations(O-03, O-06), M1 스모크 |
 | M1 | 걷는 골격: 테스트용 그룹이 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓰고, drive 그룹의 켜기·끄기가 단계 경계에서 적용됨을 모델 테이프 스모크로 확인한다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 실제 L1 포트(`xeon.loop`, `xeon.tasks`, `xeon.session`)와 연결, 포트 계약 스위트, `record`/`readRecords`, 능력 바인딩(공급자 하나), 설정 `x.primitives.driveLimits`, 재개(`openThread`의 열린 임대·상태 판 복원), 투영기 등록·접두 테이블·프로세스 포트 키(P-30) | M1 스모크(`apps/cli/test/chat.scenario.test.ts`, 저장소 1개), 포트 계약 스위트를 L1 구현이 통과 | L3 테스트 그룹, X.operations(O-14) |
-| M2 이후 | 임대 중재 설정(`x.primitives.activeDriveGroup`, `LeaseArbiterPort`, `revoked`), 상태 마이그레이션 훅, 리소스 등록 전체(도구·명령·키 조합·플래그·provider·MCP·렌더러, `ResourceRegistry`, `ResourcePolicy`), 진짜 detached tap, 그룹 간 이벤트 격리(pi `events` 어댑터용 휘발 버스), 공급자 여럿의 선택 설정(`x.primitives.capabilityProviders`), thread별 scope 켜짐 상태(서비스 모드) | §5의 M2 표시 항목 | L3 Helm·학습 그룹, X.loading-trust(pi 어댑터), L4 설정 화면 |
+| M2 이후 | 임대 중재 설정(`x.primitives.activeDriveGroup`, `LeaseArbiterPort`, `revoked`), 상태 마이그레이션 훅, 리소스 등록 전체(도구·명령·키 조합·플래그·provider·MCP·렌더러, `ResourceRegistry`, `ResourcePolicy`), 진짜 detached tap, 그룹 간 이벤트 격리(호스트 안쪽 휘발 버스), 공급자 여럿의 선택 설정(`x.primitives.capabilityProviders`), thread별 scope 켜짐 상태(서비스 모드) | §5의 M2 표시 항목 | L3 Helm·학습 그룹, X.loading-trust(외부 확장 로더), L4 설정 화면 |
 
 - M0에서 `dispatch: "detached"` 지점(5개)은 await 방식으로 실행했다 [제안]. 결과와 실패 규칙은 같고 지연만 다르다. 진짜 detached 실행은 M2(P-25)에서 구현했다.
 - M0의 경계 기여는 L1 경계 커밋에 넣지 않고 `RecordCommitPort.commit`으로 따로 커밋한다(spec §3.5 끝 항목). M1에서 L1이 `BoundaryContribution.drafts`를 C5 커밋에 넣는다.
@@ -205,7 +205,7 @@ xeon/packages/ext-host/
 | async drive 함수의 재생 규율 위반(클로저 지역 변수에 진행 상태) | 재개 뒤 같은 단계를 반복하거나 다르게 동작한다 | 타입으로 막지 못한다. 기본 requestId를 상태 판에 묶어 이미 커밋된 turn이 다시 실행되지 않게 한다. 결정성 lint와 재생 검사 도구(`replayDrive`)는 L3.group-kit.plan에 요청한다(eng.events.design EV-09) |
 | 비협조적 확장(오래 걸리는 핸들러, 반납 신호를 무시하는 drive) | 디스패치 지연, 포트 밖 효과 | 시간 예산 초과 시 결과를 버리고 다음으로 진행한다. 예산 값과 반복 실패 자동 끄기는 X.operations, 격리는 X.loading-trust(2차)다. 한계는 spec §4.4.5에 적었다 |
 | 경계 정의가 L1.loop 구현과 어긋남(`step_end`·`turn_settled`·`idle` 호출 시점, `whenIdle` 의미, `finalize` 호출) | 토글이 늦거나 turn 중간에 적용된다 | `runPortContract`(P-19)를 L1 구현의 테스트에서 돌리게 한다. M1 스모크가 경계 적용을 끝단에서 확인한다 |
-| `post.when = next` 의미 미확정 | L1 큐 구현과 pi 어댑터 매핑이 바뀐다 | X는 `when` 값을 포트로 넘기기만 하므로 X 코드는 영향이 작다. 큐 위치 결정은 L1.tasks 쪽 변경이다. 결정 전에는 spec §4.7 [제안](시작하지 않음)으로 테스트를 둔다 |
+| `post.when = next` 의미 미확정 | L1 큐 구현이 바뀐다 | X는 `when` 값을 포트로 넘기기만 하므로 X 코드는 영향이 작다. 큐 위치 결정은 L1.tasks 쪽 변경이다. 결정 전에는 spec §4.7 [제안](시작하지 않음)으로 테스트를 둔다 |
 | Bun `AsyncLocalStorage`가 일부 비동기 경계에서 값을 잃음 | `state()`·`commit()`·`post`가 `no_thread`로 실패 | `ambient.contract.test.ts`로 먼저 확인한다. 실패하면 F에 thread 인자 추가(spec §10 미결)를 앞당겨 요청한다 |
 | F `ports.ts`의 포트 이름이나 시그니처가 바뀜([결정: review.decisions-2 U-14, D-04]로 정본은 F다) | L1 구현과 X의 import가 함께 바뀐다 | X는 정의를 두지 않고 `ports.ts`·`resources.ts`에서 재export만 하므로 바뀐 이름은 타입 검사에서 바로 드러난다(P-31) |
 | 공급자 재시작 연쇄로 setup이 경계 밖에서 다시 실행됨 | 그룹이 turn 중간에 핸들러 집합을 바꾼다 | [해소, 결정 D8] 재적용 요청만 기록하고 다음 단계 경계에서 새 세대로 setup을 다시 실행한다(spec §4.5.4). 그 사이 소비자의 핸들러는 스냅샷에 없다 |
@@ -226,6 +226,6 @@ xeon/packages/ext-host/
 | N-08 | 완료 | `ExtTableReader`·`ExtTableWriter`·`ExtProjection.apply`의 `Result`화(`ExtRowError`). 다른 패키지 호출처는 없다 |
 | P-24 | 완료 | `resources.ts`: `ResourceRegistry`(`list`·`subscribe`·`setFlag`), `ResourcePolicy` 결합(쌍 판정 + 집합 판정 `exposeAll`), 도구·provider·MCP 포트 위임, 명령·단축키·플래그·렌더러 보관, effect 자동 해제, `hostOf(g).register*`·`getFlag`. `resources.test.ts` |
 | P-25 | 완료 | detached tap은 완료를 기다리지 않고 `detached: true`를 돌려준다. 핸들러는 그 뒤 순서대로 실행되고 실패는 정책·진단으로만 보고된다. 예산은 받고 thread가 닫히면 중단·폐기한다. `dispatch-detached.test.ts` |
-| P-26 | 완료 | 확장에 Cordis 이벤트·컨텍스트 API가 없음을 시험으로 고정하고, pi events 어댑터용 휘발 버스(`event-bus.ts`, 패키지 내부)를 접두 강제·읽기 선언 검사와 함께 구현했다. 어댑터 자체(pi 확장 로딩)는 M3다. `event-isolation.test.ts` |
+| P-26 | 완료 | 확장에 Cordis 이벤트·컨텍스트 API가 없음을 시험으로 고정하고, 호스트 안쪽 휘발 버스(`event-bus.ts`, 패키지 내부)를 접두 강제·읽기 선언 검사와 함께 구현했다. pi 어댑터는 두지 않는다(adr.0017 §3.7). `event-isolation.test.ts` |
 | N-01 | 완료(X 쪽) | `openThread`가 이미 열린 세대를 그 thread의 켜짐 집합에 올리고(`seedThread`) 저장된 켜짐 기록과 같으면 `scope.changed`를 쓰지 않는다. 같은 프로세스 재열기·재시작 시험(`thread-scope.test.ts`). core-persistence가 `loadThread.enabled`를 비워 돌려주는 M1 대역(PS-16 전)에서는 중복이 남는다 |
 | N-02 | 완료 | 결정 D8(b): 공급자 재시작 뒤 Cordis가 apply를 다시 불러도 setup을 바로 다시 실행하지 않고 `stale` 표시 후 다음 단계 경계(유휴면 곧바로)에서 새 세대로 만든다. `provider-restart.test.ts` |

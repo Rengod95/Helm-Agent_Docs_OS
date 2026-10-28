@@ -15,9 +15,9 @@ import { scopeInternalsOf } from "./host-api.ts";
 import { isKindReadable, ownKindPrefix } from "./read-scope.ts";
 
 /**
- * pi `events` 어댑터용 휘발 이벤트 버스(X.primitives.spec §4.9, P-26). 확장 코드에는 주지 않는다.
- * 확장 사이의 통신은 그룹 레코드와 능력 서비스로 하는 것이 원칙이고(F.extensions.spec §4.8), 이 버스는 pi 확장이
- * `pi.events`로 주고받던 신호를 옮기는 어댑터(X.loading-trust)만 쓴다. 규칙은 두 가지다.
+ * 호스트 안쪽 휘발 이벤트 버스(X.primitives.spec §4.9, P-26). 확장 코드에는 주지 않는다.
+ * 확장 사이의 통신은 그룹 레코드와 능력 서비스로 하는 것이 원칙이고(F.extensions.spec §4.8), 이 버스는 호스트 안쪽
+ * 코드가 휘발 신호를 주고받을 때만 쓴다. 규칙은 두 가지다.
  * - 발행 이름은 자기 접두(`grp.<이름>.`, 플러그인은 `x.<이름>.`)여야 한다
  * - 구독 이름은 자기 접두이거나 매니페스트 `readsRecordKinds`가 덮어야 한다(기록 읽기와 같은 검사)
  * 이벤트는 저장하지 않는다. 구독자는 발행이 돌아온 뒤 마이크로태스크에서 호출되고, 재시작 뒤에는 남지 않는다

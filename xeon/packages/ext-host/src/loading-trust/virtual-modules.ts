@@ -38,13 +38,14 @@ export function registerSdkModules(modules: SdkModules): Result<void, SdkRegiste
   if (typeof Bun === "undefined") return err({ kind: "unavailable" });
   for (const [specifier, exports] of entries) {
     if (registered.has(specifier)) continue;
-    registered.set(specifier, exports);
+    // 등록이 던지면 기록을 남기지 않는다. 기록은 `Bun.plugin`이 끝난 뒤에만 한다
     Bun.plugin({
       name: `xeon-sdk:${specifier}`,
       setup(build) {
         build.module(specifier, () => ({ exports, loader: "object" }));
       },
     });
+    registered.set(specifier, exports);
   }
   return ok(undefined);
 }

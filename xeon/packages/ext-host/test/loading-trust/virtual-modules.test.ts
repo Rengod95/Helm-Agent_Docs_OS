@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test";
+import * as realContracts from "@xeon/contracts";
 import {
   compareVersions,
   registerSdkModules,
@@ -34,4 +35,12 @@ test("compareVersions orders core versions and puts pre-releases below releases"
   expect(compareVersions("2.0.0-beta.1", "2.0.0")).toBeLessThan(0);
   expect(compareVersions("2.0.0", "2.0.0-beta.1")).toBeGreaterThan(0);
   expect(compareVersions("x", "1.0.0")).toBeUndefined();
+});
+
+test("registering the fixture leaves the real @xeon/contracts module identity untouched", async () => {
+  // 시험 설비가 등록하는 `@xeon/contracts`는 이 프로세스의 실제 모듈 네임스페이스 자체다
+  expect(SDK["@xeon/contracts"]).toBe(realContracts);
+  expect(registerSdkModules(SDK)).toEqual({ ok: true, value: undefined });
+  const again: { readonly ok: unknown } = await import("@xeon/contracts");
+  expect(again.ok).toBe(realContracts.ok);
 });

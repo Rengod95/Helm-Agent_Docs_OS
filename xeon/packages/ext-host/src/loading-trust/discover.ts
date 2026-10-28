@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { attemptAsync } from "@xeon/contracts";
 import type {
   ExtensionEntry,
@@ -119,13 +119,22 @@ export async function discoverExternal(
   const diagnostics: LoadDiagnostic[] = [];
   const seen = new Set<string>();
 
-  async function visit(source: ExternalLocation["source"], declared: string): Promise<"continue"> {
+  async function visit(
+    source: ExternalLocation["source"],
+    declared: string,
+    base: string | null,
+  ): Promise<"continue"> {
     const resolved = await attemptAsync(() => fs.realpath(declared));
     if (!resolved.ok) {
       diagnostics.push(discoverWarning(source, `cannot resolve ${declared}`, declared));
       return "continue";
     }
     const root = resolved.value;
+    // 저장소가 담은 프로젝트 확장은 심볼릭 링크로 `.xeon/extensions` 밖을 가리킬 수 없다
+    if (base !== null && !root.startsWith(base.endsWith(sep) ? base : `${base}${sep}`)) {
+      diagnostics.push(discoverWarning(source, `${declared} resolves outside ${base}`, declared));
+      return "continue";
+    }
     if (seen.has(root)) return "continue";
     seen.add(root);
     const manifestPath = join(root, MANIFEST_RELATIVE_PATH);
@@ -150,10 +159,23 @@ export async function discoverExternal(
       return "continue";
     }
     const names = (listed.value ?? [])
-      .filter((entry) => entry.kind === "dir" || entry.kind === "symlink")
+      // 점으로 시작하는 디렉터리(`.staging` 등)는 확장이 아니다
+      .filter(
+        (entry) =>
+          (entry.kind === "dir" || entry.kind === "symlink") && !entry.name.startsWith("."),
+      )
       .map((entry) => entry.name)
       .toSorted((a, b) => (a === b ? 0 : a < b ? -1 : 1));
-    await eachInOrder(names, (name) => visit(location.source, join(location.dir, name)));
+    let base: string | null = null;
+    if (location.source === "project") {
+      const resolvedBase = await attemptAsync(() => fs.realpath(location.dir));
+      if (!resolvedBase.ok) return "continue";
+      base = resolvedBase.value;
+    }
+    const containing = base;
+    await eachInOrder(names, (name) =>
+      visit(location.source, join(location.dir, name), containing),
+    );
     return "continue";
   });
   return { candidates, diagnostics };

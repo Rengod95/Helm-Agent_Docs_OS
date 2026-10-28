@@ -601,6 +601,8 @@ export interface DefaultPluginInstallInput {
   readonly source: string;
   /** `<userDir>/extensions/<name>/` */
   readonly destination: string;
+  /** 임시 디렉터리 뿌리. 탐색 밖, 대상과 같은 파일 시스템. 생략하면 `<userDir>/.staging` */
+  readonly stagingRoot?: string;
 }
 export type DefaultPluginInstallOutcome =
   | { readonly action: "installed"; readonly version: string }
@@ -638,7 +640,7 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 - 내장 패키지는 엔트리 모듈이 `manifest` 상수와 `extension` 엔트리를 named export한다. 로더는 같은 `validateManifest`로 검사한다. 내장 매니페스트도 JSON 파싱 결과와 같은 검사를 받는다.
 - 탐색 깊이는 한 단계다. `extensions/` 아래 디렉터리마다 `.xeon-plugin/plugin.json`이 있으면 후보 하나다. 더 깊이 내려가지 않는다.
 - 매니페스트 파일이 없는 디렉터리는 `manifest_missing` 경고만 남기고 건너뛴다. Claude Code의 "매니페스트 없이 표준 레이아웃 자동 탐색"(`_research/refs/claude-code.md` 96행)은 채택하지 않는다 [제안]. 엔트리와 지점 선언이 없으면 정적 검사를 할 수 없기 때문이다.
-- 심볼릭 링크는 `realpath`로 풀고, 같은 실제 경로는 한 번만 후보로 둔다.
+- 심볼릭 링크는 `realpath`로 풀고, 같은 실제 경로는 한 번만 후보로 둔다. 점으로 시작하는 디렉터리는 확장이 아니므로 건너뛴다. 프로젝트 위치의 확장이 `.xeon/extensions` 밖으로 풀리면 후보로 두지 않고 경고(`manifest_missing`)만 남긴다. 저장소가 심볼릭 링크로 밖의 코드를 끌어오지 못하게 하기 위해서다.
 
 #### 4.2.2 우선순위와 이름 충돌
 
@@ -781,8 +783,8 @@ export function installDefaultPlugin(input: DefaultPluginInstallInput): Promise<
 | 번들보다 낮은 버전 | 교체한다(`replaced`, `previousVersion`) |
 | 번들과 같거나 높은 버전 | 건드리지 않는다(`kept`). 사용자가 올린 개발 판을 내리지 않는다 |
 
-- 복사는 `<destination>.installing`에 끝낸 뒤 대상을 지우고 옮긴다. 복사 도중 실패하면 이전 설치본이 그대로 남고 임시 디렉터리는 지운다. 번들 매니페스트가 없거나 잘못되면 `source_invalid`다(릴리즈 결함).
-- [미결] 사용자가 설치본을 직접 지우면 다음 시작에 다시 설치된다. "이미 설치한 적 있음" 표지(설정 키 또는 상태 파일)를 둘지 정해야 한다.
+- 임시 디렉터리는 확장 탐색 디렉터리 밖인 `<userDir>/.staging/<이름>.new`·`.old`다(대상과 같은 파일 시스템, `stagingRoot`로 바꿀 수 있다). 탐색은 점으로 시작하는 디렉터리를 건너뛰므로 남은 흔적이 `name_conflict`를 일으키지 않는다. 교체는 이전 설치본을 `.old`로 옮기고, 새 복사본을 대상으로 옮기고, `.old`를 지운다. 새 복사본을 옮기다 실패하면 `.old`를 되돌린다. 시작할 때 `.new`를 지우고, 대상이 없는데 `.old`가 있으면(교체 도중 끊김) 이전 설치본을 되돌린 뒤 버전을 비교한다. 번들 매니페스트가 없거나 잘못되면 `source_invalid`다(릴리즈 결함).
+- [미결 → A5 T-H] 사용자가 설치본을 직접 지우면 다음 시작에 다시 설치된다. "이미 설치한 적 있음" 표지(설정 키 또는 상태 파일)는 Helm 패키징 작업(T-H)이 정한다.
 
 ### 4.5 설정 연결
 

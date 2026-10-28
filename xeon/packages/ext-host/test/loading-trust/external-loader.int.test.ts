@@ -206,12 +206,16 @@ test("built-in names win over user extensions and user wins over project", async
   const report = await harness.loader.loadAll(
     harness.options([moduleOf({ name: "dup" })], { cwd: project, trustOverride: true }),
   );
-  expect(report.extensions.map((info) => [info.name, info.source, info.state])).toEqual([
-    ["dup", "builtin", "active"],
-    ["clash", "user", "active"],
-    ["only-project", "project", "active"],
-    ["clash~4", "project", "rejected"],
-    ["dup~3", "user", "rejected"],
+  // 거부된 쪽의 내부 이름 접미(`~<번호>`)는 비교에서 뗀다
+  const summary = report.extensions
+    .map((info) => `${info.name.replace(/~\d+$/, "")}:${info.source}:${info.state}`)
+    .toSorted();
+  expect(summary).toEqual([
+    "clash:project:rejected",
+    "clash:user:active",
+    "dup:builtin:active",
+    "dup:user:rejected",
+    "only-project:project:active",
   ]);
   expect(report.extensions.find((info) => info.name === "only-project")?.trust).toBe("project");
   expect(harness.policy.tiers.get("only-project")).toBe("project");
@@ -277,4 +281,45 @@ test("cancelling during an external entry ends loading instead of hanging", asyn
   const error = await rejected;
   expect(error).toBeInstanceOf(LoadAbortError);
   expect(harness.t.host.scope("slow")).toBeUndefined();
+});
+
+test("a dot directory such as a leftover .staging is not an extension", async () => {
+  await writePlugin(userExtensions, "real", { name: "real" });
+  await writePlugin(userExtensions, ".staging", { name: "real" });
+  const harness = await harnessOf();
+  const report = await harness.loader.loadAll(loadOptions(harness));
+  expect(report.diagnostics).toEqual([]);
+  expect(report.extensions.map((info) => [info.name, info.state])).toEqual([["real", "active"]]);
+});
+
+test("an entry that resolves into a sibling directory sharing the root prefix is refused", async () => {
+  await writePlugin(userExtensions, "plug", { name: "plug" });
+  await putFile(
+    join(userExtensions, "plug-evil", "index.ts"),
+    "export const extension = () => {};\n",
+  );
+  await Bun.$`rm ${join(userExtensions, "plug", "src", "index.ts")}`;
+  await symlink(
+    join(userExtensions, "plug-evil", "index.ts"),
+    join(userExtensions, "plug", "src", "index.ts"),
+  );
+  const harness = await harnessOf();
+  const report = await harness.loader.loadAll(loadOptions(harness));
+  const ext = report.extensions.find((info) => info.name === "plug");
+  expect(ext?.state).toBe("error");
+  expect(codesOf(report.diagnostics, "plug")).toEqual(["entry_import_failed"]);
+});
+
+test("a project extension directory that links outside .xeon/extensions is not discovered", async () => {
+  const outside = join(temp.dir, "elsewhere");
+  await writePlugin(outside, "linked", { name: "linked" });
+  await mkdir(join(project, ".xeon", "extensions"), { recursive: true });
+  await symlink(join(outside, "linked"), join(project, ".xeon", "extensions", "linked"));
+  const harness = await harnessOf();
+  const report = await harness.loader.loadAll(loadOptions(harness, { trustOverride: true }));
+  expect(report.extensions).toEqual([]);
+  expect(report.diagnostics.map((entry) => [entry.source, entry.code])).toEqual([
+    ["project", "manifest_missing"],
+  ]);
+  expect(fakeGroupKit.seen).toEqual([]);
 });

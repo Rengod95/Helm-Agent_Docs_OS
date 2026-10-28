@@ -1030,10 +1030,9 @@ tier는 X가 부여한다. 매니페스트에 tier 필드는 없고 두지 않�
 
 primitives 연결: `ResourcePolicy`(X.primitives.spec §3.9)에 집합 판정 `exposeAll`을 더했다(M2). 리소스 레지스트리는 같은 kind(도구, 명령, 단축키, 플래그)의 리소스가 등록되거나 해제될 때마다 그 kind 전체 레코드로 `exposeAll`을 불러 노출 이름을 다시 계산한다. 노출 이름이 바뀐 기존 레코드는 새 이름으로 다시 등록한다(도구는 `ToolsPort`에서 등록을 해제하고 새 이름으로 다시 등록한다). 들어오는 레코드의 노출 이름이 `too_long`이면 기존 레코드를 건드리지 않고 등록을 거부한다(`resource_name_invalid`). 그래서 규칙 3(로드 순서 무관)이 지켜지고, 확장 하나를 끄면 남은 확장이 짧은 이름을 되찾는다. 쌍 판정 `resolve`는 `exposeAll`이 없는 정책을 위해 남겼고 들어오는 쪽에 `{ action: "rename", name: <정식 이름> }`을 돌려준다.
 
-pi 어댑터에서의 처리:
+외부 확장의 내장 도구 교체:
 
-- pi 확장은 `registerTool`, `registerCommand`, `registerShortcut`, `registerFlag`로 짧은 이름을 등록한다(`_research/notes/X-3.md` 어댑터 지원 표). 어댑터는 이 호출을 같은 규칙의 `ResourceClaim`으로 바꾼다. 확장 이름은 어댑터가 정한 `ExtensionName`이다(`X.loading-trust.spec`).
-- pi는 같은 이름 도구 등록으로 내장 도구를 바꿀 수 있다. Xeon에서는 규칙 2에 따라 내장 이름(`read`, `bash` 등)을 바꿀 수 없고, pi 확장의 그 도구는 정식 이름으로 노출된다. 내장 도구 교체 허용 여부는 §10 미결 10이다.
+- 외부 확장이 내장 도구와 같은 이름(`read`, `bash` 등)을 등록해도 규칙 2에 따라 내장 이름은 바뀌지 않고, 그 확장의 도구는 정식 이름으로 노출된다. 내장 도구 교체 허용 여부는 §10 미결 10이다.
 - `F.capabilities.spec` §10의 도구 이름 네임스페이스 [미결] 후보 가운데 이 문서는 (b) `<확장>__<이름>`과 (c) 충돌한 쪽만 접두의 결합을 제안한다.
 
 ### 4.6 안전 모드
@@ -1250,7 +1249,7 @@ pi 어댑터에서의 처리:
 | `HandlerOutcomeRecord`, `FailureLedger`, `AutoDisabler`, `ScopeChangeReason` | X.primitives.spec, L4.settings-ui.spec(상태 표시) |
 | `ExtStorage`, `ExtTables`, `ExtProjection`, `ExtTableDef`, `storageOf`, `extTablePrefix`, `parseExtTableName` | L3.group-kit.spec, L3.helm.spec, L3.learning.spec, 외부 확장 |
 | `ExtStorageAdmin` | X.loading-trust.spec §4.4.5(제거 흐름, `LoaderDeps.storageAdmin`), L4(확인 화면) |
-| `resolveNames`, `qualifiedName`, `ResourceClaim`, `createResourcePolicy` | X.primitives.spec(리소스 등록), X.loading-trust.spec(pi 어댑터) |
+| `resolveNames`, `qualifiedName`, `ResourceClaim`, `createResourcePolicy` | X.primitives.spec(리소스 등록), X.loading-trust.spec(외부 확장 로더) |
 | `startupFilter`, `StartupOptions`, `allowedInSafeMode`, `StartupHealthStore`, `shouldSuggestSafeMode` | X.loading-trust.spec(`LoadOptions.startup`, 5a단계), L4.host-service.spec, L4.cli.spec |
 | `HookDef`, `HookInput`, `HookOutput`, `HOOK_SCHEMA_VERSION`, `interpretHookRun` | 외부 훅 작성자 문서, L4.settings-ui.spec |
 | 설정 키 `x.operations.*`, `operationsSettings` | L4.settings-ui.spec, L4.cli.spec, L4.host-service.spec(카탈로그 조립) |
@@ -1266,7 +1265,7 @@ pi 어댑터에서의 처리:
 | `SettingDef`, `defineSettings`, 키 문법, 범위 | F.wire-settings.spec |
 | 도구 이름 허용 문자, 도구 순서 키 | F.capabilities.spec |
 | `DispatchPolicy`(`onHandlerSettled`·`run` 포함, §3.4), `HandlerGate`, `HandlerRunOutcome`, `ExtHost.scope`·`scopes`·`install`·`ports`(ScopeControl과 포트의 바탕), `ExtHostDeps.now`·`setTimer`·`setupBudgetMs`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord`, `hostOf`, `ExtHost.ports`로 꺼내는 포트 키(F 이름 재export), UI 포트 | X.primitives.spec §3.2~§3.9 |
-| `TrustLevel`, `InstallSource`, `LoadedExtensionInfo`(`essential`, `loadIndex`), `TRUST_MATRIX.storage`, 로드 파이프라인 5a·6a·7단계, 프로젝트 신뢰, 제거 흐름, 격리 확장의 outbox, pi 어댑터 | X.loading-trust.spec §3.1~§3.5, §4.3, §4.4.5, §4.6, §4.7, §4.9, §4.10 |
+| `TrustLevel`, `InstallSource`, `LoadedExtensionInfo`(`essential`, `loadIndex`), `TRUST_MATRIX.storage`, 로드 파이프라인 5a·6a·7단계, 프로젝트 신뢰, 제거 흐름, 격리 확장의 outbox | X.loading-trust.spec §3.1~§3.5, §4.3, §4.4.5, §4.6, §4.7, §4.9 |
 | `Projector`, `ProjectionTx`, 투영 규칙 | eng.events.design §5.1 |
 | 커밋 순서, `SessionWriter`, `StoreService.scoped`, outbox 표 | eng.transactions.design §4, §7 |
 | 테이블·type 접두 소유표, 서비스 이름(`xeon.session`, `xeon.store`, `xeon.process`) | eng.context-map.design §5 |

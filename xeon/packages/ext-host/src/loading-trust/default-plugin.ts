@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { attemptAsync, err, ok, parseJson, type Result } from "@xeon/contracts";
 import { validateManifest } from "@xeon/contracts/extensions";
 import { MANIFEST_RELATIVE_PATH } from "./discover.ts";
@@ -33,6 +33,11 @@ export interface DefaultPluginInstallInput {
   readonly source: string;
   /** `<userDir>/extensions/<name>/` */
   readonly destination: string;
+  /**
+   * 복사와 교체의 임시 디렉터리 뿌리. 확장 탐색 디렉터리 밖이고 대상과 같은 파일 시스템이어야 한다(rename).
+   * 생략하면 `<userDir>/.staging`(대상의 두 단계 위)이다
+   */
+  readonly stagingRoot?: string;
 }
 
 export type DefaultPluginInstallOutcome =
@@ -93,6 +98,25 @@ export async function installDefaultPlugin(
   input: DefaultPluginInstallInput,
 ): Promise<Result<DefaultPluginInstallOutcome, DefaultPluginInstallError>> {
   const { fs, source, destination } = input;
+  const name = basename(destination);
+  const stagingRoot = input.stagingRoot ?? join(dirname(dirname(destination)), ".staging");
+  const fresh = join(stagingRoot, `${name}.new`);
+  const old = join(stagingRoot, `${name}.old`);
+  // 이전 실행이 중간에 끝난 흔적을 정리한다. 교체 도중 끊겨 대상이 없고 `.old`만 남았으면 이전 설치본을 되돌린다
+  const recovered = await attemptAsync(async () => {
+    await fs.removeDir(fresh);
+    if ((await fs.listDir(old)) !== null) {
+      if ((await fs.listDir(destination)) === null) await fs.rename(old, destination);
+      else await fs.removeDir(old);
+    }
+  });
+  if (!recovered.ok) {
+    return err({
+      kind: "io",
+      message: `cannot clean ${stagingRoot}`,
+      cause: recovered.error.cause,
+    });
+  }
   const bundled = await readVersion(fs, source);
   if (!bundled.ok) {
     return err({ kind: "io", message: `cannot read ${source}`, cause: bundled.error.cause });
@@ -115,26 +139,42 @@ export async function installDefaultPlugin(
       return ok({ action: "kept", version, installedVersion });
     }
   }
-  const existing = await attemptAsync(() => fs.listDir(destination));
-  if (!existing.ok) {
-    return err({ kind: "io", message: `cannot read ${destination}`, cause: existing.error.cause });
+  const existingListing = await attemptAsync(() => fs.listDir(destination));
+  if (!existingListing.ok) {
+    return err({
+      kind: "io",
+      message: `cannot read ${destination}`,
+      cause: existingListing.error.cause,
+    });
   }
-  const staging = `${destination}.installing`;
+  const existing = existingListing.value;
   const swapped = await attemptAsync(async () => {
-    await fs.removeDir(staging);
-    await copyTree(fs, source, staging);
-    await fs.removeDir(destination);
-    await fs.rename(staging, destination);
+    await fs.removeDir(fresh);
+    await fs.makeDir(stagingRoot);
+    await copyTree(fs, source, fresh);
+    if (existing === null) {
+      await fs.makeDir(dirname(destination));
+      await fs.rename(fresh, destination);
+      return;
+    }
+    // 이전 설치본을 탐색 밖으로 옮겼다가 새 것을 넣는다. 두 번째 rename이 실패하면 이전 설치본을 되돌린다
+    await fs.rename(destination, old);
+    const placed = await attemptAsync(() => fs.rename(fresh, destination));
+    if (!placed.ok) {
+      await fs.rename(old, destination);
+      throw placed.error.cause;
+    }
+    await fs.removeDir(old);
   });
   if (!swapped.ok) {
-    await attemptAsync(() => fs.removeDir(staging));
+    await attemptAsync(() => fs.removeDir(fresh));
     return err({
       kind: "io",
       message: `cannot install the default plugin into ${destination}`,
       cause: swapped.error.cause,
     });
   }
-  if (existing.value === null) return ok({ action: "installed", version });
+  if (existing === null) return ok({ action: "installed", version });
   return ok({
     action: "replaced",
     version,
