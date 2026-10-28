@@ -1,4 +1,4 @@
-import { chmodSync, lstatSync, unlinkSync } from "node:fs";
+import { chmodSync } from "node:fs";
 import { connect, createServer, type Server, type Socket } from "node:net";
 import { err, ok, attempt, type Logger, type Result } from "@xeon/contracts";
 import { createStdioTransportWith, type Transport } from "@xeon/contracts/wire";
@@ -6,7 +6,7 @@ import { createStdioTransportWith, type Transport } from "@xeon/contracts/wire";
 // L0.process.spec §3.2 transport/socket.ts, §4.1 socket, §4.4.5. 소켓 위의 JSON Lines 전송. 프레임과 한도 검사는 stdio 전송과 같은 구현이다.
 // - unix: 소켓 파일을 0600으로 만든다. 디렉터리 0700과 소유자 검사는 L0.os가 정한 runtimeDir이 맡는다. 토큰을 요구하지 않는다.
 // - tcp: 토큰이 필요한 전송이다. 토큰 없이는 열지 않는다(`token_required`). 토큰 검사는 `host.hello`의 `auth.token`에서 위층이 한다
-//   (PeerInfo.requiresToken이 참인 연결만). 비루프백 주소도 토큰이 있으면 열 수 있다.
+//   (PeerInfo.requiresToken이 참인 연결만). 비루프백 주소는 `allowNonLoopback`을 명시할 때만 열 수 있다(`tcp_not_loopback`).
 
 export type SocketError =
   | { readonly kind: "address_in_use"; readonly path: string }
@@ -15,6 +15,8 @@ export type SocketError =
   | { readonly kind: "path_too_long"; readonly path: string; readonly limit: number }
   | { readonly kind: "permission"; readonly path: string }
   | { readonly kind: "token_required" }
+  /** tcp 주소가 루프백이 아닌데 `allowNonLoopback`이 없다 */
+  | { readonly kind: "tcp_not_loopback"; readonly host: string }
   | { readonly kind: "io"; readonly code: string };
 
 export type SocketListenOptions =
@@ -26,6 +28,8 @@ export type SocketListenOptions =
       readonly port: number;
       /** 비어 있으면 열지 않는다 */
       readonly token: string;
+      /** 루프백이 아닌 주소를 열려면 참이어야 한다 [결정: 오케스트레이터 기본값] */
+      readonly allowNonLoopback?: boolean;
       readonly maxFrameBytes?: number;
     };
 
@@ -52,6 +56,13 @@ export interface SocketListener {
   onConnection(handler: (transport: Transport, peer: PeerInfo) => void): () => void;
   readonly connectionCount: number;
   close(): Promise<void>;
+}
+
+/** 루프백 주소인가: `localhost`, `127.x.x.x`, `::1` */
+export function isLoopbackHost(host: string): boolean {
+  return (
+    host === "localhost" || host === "::1" || host === "[::1]" || /^127\.\d+\.\d+\.\d+$/.test(host)
+  );
 }
 
 /** sun_path 한도(macOS 104, Linux 108). 작은 쪽을 쓴다(L0.os.spec §3.2) */
@@ -172,6 +183,13 @@ export async function listenSocket(
   logger?: Logger,
 ): Promise<Result<SocketListener, SocketError>> {
   if (options.kind === "tcp" && options.token.length === 0) return err({ kind: "token_required" });
+  if (
+    options.kind === "tcp" &&
+    options.allowNonLoopback !== true &&
+    !isLoopbackHost(options.host)
+  ) {
+    return err({ kind: "tcp_not_loopback", host: options.host });
+  }
   if (options.kind === "unix" && Buffer.byteLength(options.path) > UNIX_SOCKET_PATH_LIMIT) {
     return err({ kind: "path_too_long", path: options.path, limit: UNIX_SOCKET_PATH_LIMIT });
   }
@@ -239,11 +257,8 @@ export async function listenSocket(
           resolve();
         });
       });
-      // node는 unix 소켓 파일을 닫을 때 지운다. 남아 있으면 낡은 파일이라 다음 기동이 처리한다
-      if (options.kind === "unix") {
-        const stat = attempt(() => lstatSync(options.path));
-        if (stat.ok) attempt(() => unlinkSync(options.path));
-      }
+      // node는 unix 소켓 파일을 닫을 때 지운다. 남아 있으면 낡은 파일이라 다음 기동이 활성화 잠금 아래에서 처리한다.
+      // 여기서 다시 지우면 그 사이에 같은 경로를 바인드한 다른 서비스의 소켓을 지울 수 있다
     },
   });
 }

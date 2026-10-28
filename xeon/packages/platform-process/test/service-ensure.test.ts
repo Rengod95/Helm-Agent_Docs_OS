@@ -191,6 +191,19 @@ describe("ensureService", () => {
     });
   });
 
+  test("an idle service on another protocol major that cannot be replaced is replace_failed", async () => {
+    const world = freshWorld();
+    world.reg = registration("2.0.0", 5);
+    world.listening = true;
+    world.probe = { version: "2.0.0", protocolVersion: "2.0.0", idle: true };
+    const { deps } = build(world);
+    const result = await ensureService({
+      ...deps,
+      replace: () => Promise.resolve(err({ kind: "replace_failed" })),
+    });
+    expect(result).toEqual({ ok: false, error: { kind: "replace_failed" } });
+  });
+
   test("a busy service on another protocol major is protocol_unsupported", async () => {
     const world = freshWorld();
     world.reg = registration("2.0.0", 5);

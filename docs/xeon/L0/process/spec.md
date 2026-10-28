@@ -185,7 +185,7 @@ export declare const createStdioTransport: StdioTransportFactory;
 /** 서버 쪽 리스너 옵션. unix는 토큰을 요구하지 않고 소켓 파일을 0600으로 만든다. tcp는 token이 비면 열지 않는다(`token_required`) */
 export type SocketListenOptions =
   | { readonly kind: "unix"; readonly path: string; readonly maxFrameBytes?: number }
-  | { readonly kind: "tcp"; readonly host: string; readonly port: number; readonly token: string; readonly maxFrameBytes?: number };
+  | { readonly kind: "tcp"; readonly host: string; readonly port: number; readonly token: string; readonly allowNonLoopback?: boolean; readonly maxFrameBytes?: number };
 export type SocketConnectOptions =
   | { readonly kind: "unix"; readonly path: string; readonly maxFrameBytes?: number }
   | { readonly kind: "tcp"; readonly host: string; readonly port: number; readonly maxFrameBytes?: number };
@@ -210,6 +210,7 @@ export type SocketError =
   | { readonly kind: "path_too_long"; readonly path: string; readonly limit: number }   // limit = UNIX_SOCKET_PATH_LIMIT(103)
   | { readonly kind: "permission"; readonly path: string }
   | { readonly kind: "token_required" }
+  | { readonly kind: "tcp_not_loopback"; readonly host: string }   // 루프백이 아닌데 allowNonLoopback이 없다
   | { readonly kind: "io"; readonly code: string };
 export declare function listenSocket(options: SocketListenOptions): Promise<Result<SocketListener, SocketError>>;
 ```
@@ -312,6 +313,7 @@ export type EnsureError =
   | { readonly kind: "start_timeout"; readonly waitedMs: number }
   | { readonly kind: "protocol_unsupported"; readonly serviceVersion: string }
   | { readonly kind: "auth_failed" }
+  | { readonly kind: "replace_failed" }   // 한가한 다른 주 버전 서비스를 내리지 못했다
   | { readonly kind: "insecure_registration"; readonly mode: number }   // 등록 파일 모드가 0600보다 넓다. 접속하지 않는다
   | { readonly kind: "spawn_failed"; readonly code: string };
 
@@ -353,8 +355,9 @@ export declare function createIdleMonitor(options: { readonly clock: Clock; read
 export declare function verifyToken(expected: string, presented: unknown): boolean;
 export declare function newServiceToken(random: (bytes: number) => Uint8Array): string;
 /** TCP 토큰 회전. rotate는 새 토큰을 만들고 이전 토큰을 즉시 무효로 한다. 등록 파일을 다시 쓰는 일은 호출자 몫이다 */
-export interface TokenGate { current(): string; verify(presented: unknown): boolean; rotate(): string }
+export interface TokenGate { current(): string; verify(presented: unknown): boolean; rotate(persist?: (next: string) => boolean): string | undefined }
 export declare function createTokenGate(random: (bytes: number) => Uint8Array): TokenGate;
+// rotate(persist?)는 토큰을 바꾸기 전에 persist(next)로 등록 파일에 쓰고, 거짓이면 바꾸지 않고 undefined를 돌려준다
 ```
 
 ```ts
@@ -571,7 +574,7 @@ ensureService():
 - [결정: review.m3-design-inputs D-M3-16, M3-REQ-43] Unix 소켓은 파일 권한(소켓 0600, 디렉터리 0700)으로만 막고 토큰을 검사하지 않는다(P-10 닫힘). `listenSocket`은 소켓 파일을 0600으로 만든다. `PeerInfo.requiresToken`은 unix에서 거짓이다.
 - TCP로 열 때만 토큰을 검사한다. `listenSocket({ kind: "tcp" })`는 토큰이 비어 있으면 `token_required`로 열지 않는다. `PeerInfo.requiresToken`이 참인 연결의 `host.hello`는 `auth.token`을 `verifyToken`(상수 시간 비교)으로 검사하고, 없으면 `host.authFailed`(`details.reason: "missing"`), 틀리면 `"invalid"`로 응답한 뒤 연결을 닫는다. hello 전 다른 메서드는 1001로 거부된다. 토큰 회전은 `TokenGate.rotate()`가 새 토큰을 만들고 이전 토큰을 즉시 무효로 한다. 이미 열린 연결은 그대로다.
 - 원격(1차, M3): SSH 터널이나 사설망으로 연결된 클라이언트도 로컬 소켓에 접속하므로 같은 규칙을 쓴다. 터널 끝이 서버 쪽 사용자 권한으로 소켓에 접속하기 때문이다. 토큰 검사는 이 경로의 추가 방어다(미결 P-10).
-- TCP 전송(`xeon host --service`의 `--listen-tcp <host:port>` 옵션, L4): 위 규칙대로 토큰이 필수다. 비루프백 주소를 열 수 있는 것은 토큰이 있을 때뿐이다(Codex app-server 선례). 내장 TLS + WebSocket은 2차다.
+- TCP 전송(`xeon host --service`의 `--listen-tcp <host:port>` 옵션, L4): 위 규칙대로 토큰이 필수다. 루프백 주소(`localhost`, `127.x`, `::1`)가 아니면 토큰이 있어도 `allowNonLoopback`을 명시해야 열린다(`tcp_not_loopback`) [결정: 오케스트레이터 기본값, Codex app-server 선례]. 내장 TLS + WebSocket은 2차다.
 - 토큰은 32바이트 무작위(`crypto.getRandomValues`, 주입), base64url. 등록 파일 밖으로 쓰지 않고 로그에 남기지 않는다.
 
 #### 4.4.6 기동과 분리, 종료 협조, 소실

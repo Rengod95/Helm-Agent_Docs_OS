@@ -26,6 +26,7 @@ export {
 } from "./process-stdio.ts";
 export {
   connectSocket,
+  isLoopbackHost,
   listenSocket,
   UNIX_SOCKET_PATH_LIMIT,
   type PeerInfo,

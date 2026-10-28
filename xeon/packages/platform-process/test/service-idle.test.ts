@@ -105,6 +105,13 @@ describe("service token", () => {
     expect(verifyToken(token, 5)).toBe(false);
   });
 
+  test("rotate with a failing persist keeps the old token", () => {
+    const gate = createTokenGate((bytes) => new Uint8Array(bytes).fill(9));
+    const first = gate.current();
+    expect(gate.rotate(() => false)).toBeUndefined();
+    expect(gate.current()).toBe(first);
+  });
+
   test("a rotated token invalidates the previous one", () => {
     let counter = 0;
     const gate = createTokenGate((bytes) => {
@@ -113,7 +120,7 @@ describe("service token", () => {
     });
     const first = gate.current();
     expect(gate.verify(first)).toBe(true);
-    const second = gate.rotate();
+    const second = gate.rotate() ?? "";
     expect(second).not.toBe(first);
     expect(gate.verify(first)).toBe(false);
     expect(gate.verify(second)).toBe(true);

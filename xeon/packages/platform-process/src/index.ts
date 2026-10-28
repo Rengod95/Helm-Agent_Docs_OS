@@ -9,6 +9,7 @@ export {
   rejectionFrame,
   writableFromSink,
   connectSocket,
+  isLoopbackHost,
   listenSocket,
   UNIX_SOCKET_PATH_LIMIT,
   type PeerInfo,

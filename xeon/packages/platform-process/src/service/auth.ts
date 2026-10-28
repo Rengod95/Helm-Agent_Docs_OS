@@ -21,8 +21,10 @@ export interface TokenGate {
   /** 지금 유효한 토큰. 등록 파일에 쓰는 쪽이 부른다 */
   current(): string;
   verify(presented: unknown): boolean;
-  /** 새 토큰을 만들어 돌려준다. 등록 파일을 다시 쓰는 일은 호출자 몫이다 */
-  rotate(): string;
+  /**
+   * 새 토큰을 만든다. `persist`가 있으면 토큰을 바꾸기 전에 불러 등록 파일에 쓰고, 거짓이면 바꾸지 않고 undefined를 돌려준다
+   */
+  rotate(persist?: (next: string) => boolean): string | undefined;
 }
 
 export function createTokenGate(random: (bytes: number) => Uint8Array): TokenGate {
@@ -30,9 +32,11 @@ export function createTokenGate(random: (bytes: number) => Uint8Array): TokenGat
   return {
     current: () => token,
     verify: (presented) => verifyToken(token, presented),
-    rotate() {
-      token = newServiceToken(random);
-      return token;
+    rotate(persist) {
+      const next = newServiceToken(random);
+      if (persist !== undefined && !persist(next)) return undefined;
+      token = next;
+      return next;
     },
   };
 }

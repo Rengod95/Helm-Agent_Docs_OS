@@ -60,6 +60,8 @@ export type EnsureError =
   | { readonly kind: "start_timeout"; readonly waitedMs: number }
   | { readonly kind: "protocol_unsupported"; readonly serviceVersion: string }
   | { readonly kind: "auth_failed" }
+  /** 한가한 다른 주 버전 서비스를 내리지 못했다 */
+  | { readonly kind: "replace_failed" }
   | { readonly kind: "insecure_registration"; readonly mode: number }
   | { readonly kind: "spawn_failed"; readonly code: string };
 
@@ -113,7 +115,7 @@ async function attemptOnce(deps: EnsureDeps, started: boolean): Promise<Attempt>
     const replaced = await deps.replace(registration);
     return replaced.ok
       ? { kind: "absent" }
-      : { kind: "done", outcome: err({ kind: "auth_failed" }) };
+      : { kind: "done", outcome: err({ kind: "replace_failed" }) };
   }
   if (probe.version !== deps.engineVersion) {
     if (!probe.idle) {

@@ -125,6 +125,32 @@ describe("tcp socket", () => {
     expect(result).toEqual({ ok: false, error: { kind: "token_required" } });
   });
 
+  test("refuses a non-loopback host unless allowNonLoopback is given; loopback hosts are accepted", async () => {
+    const refused = await listenSocket({
+      kind: "tcp",
+      host: "0.0.0.0",
+      port: 0,
+      token: "t".repeat(43),
+    });
+    expect(refused).toEqual({ ok: false, error: { kind: "tcp_not_loopback", host: "0.0.0.0" } });
+    const v4 = must(
+      await listenSocket({ kind: "tcp", host: "127.0.0.1", port: 0, token: "t".repeat(43) }),
+    );
+    listeners.push(v4);
+    const v6 = await listenSocket({ kind: "tcp", host: "::1", port: 0, token: "t".repeat(43) });
+    if (v6.ok) listeners.push(v6.value);
+    else expect(v6.error.kind).not.toBe("tcp_not_loopback");
+    const allowed = await listenSocket({
+      kind: "tcp",
+      host: "0.0.0.0",
+      port: 0,
+      token: "t".repeat(43),
+      allowNonLoopback: true,
+    });
+    expect(allowed.ok).toBe(true);
+    if (allowed.ok) listeners.push(allowed.value);
+  });
+
   test("with a token it listens and marks every peer as requiring the token", async () => {
     const listener = must(
       await listenSocket({ kind: "tcp", host: "127.0.0.1", port: 0, token: "t".repeat(43) }),
