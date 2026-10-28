@@ -148,6 +148,33 @@ test("check reports missing required fields and bad enums", () => {
   expect(errors).toContain('status "done"');
 });
 
+test("superseded is a status value for ADRs only", () => {
+  writeValid();
+  doc("docs/xeon/decisions/ADR-0007-ext-points.md", {
+    id: "adr.0007",
+    layer: "adr",
+    domain: "extension-points",
+    kind: "adr",
+    ...base,
+    status: "superseded",
+  });
+  doc("docs/xeon/L1/tools/design.md", {
+    id: "L1.tools.design",
+    layer: "L1",
+    domain: "tools",
+    kind: "design",
+    ...base,
+    status: "superseded",
+  });
+  const errors = checkDocs(root, { allowMissing: true }).errors;
+  expect(errors.filter((e) => e.includes("ADR-0007"))).toEqual([]);
+  expect(
+    errors.some(
+      (e) => e.includes("L1/tools/design.md") && e.includes('allowed only for kind "adr"'),
+    ),
+  ).toBe(true);
+});
+
 test("check reports files without front matter", () => {
   writeValid();
   write("docs/xeon/L1/loop/notes.md", "# nothing\n");
