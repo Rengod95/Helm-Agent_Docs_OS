@@ -29,6 +29,11 @@ export interface Ambient {
   readonly drive: DriveInvocation | null;
   /** 핸들러 실행 중이면 그 호출의 취소 신호와 예산 시계 장치. 사용자 응답 대기를 예산에서 뺀다(O-07) */
   readonly handler: { readonly signal: AbortSignal; readonly gate: HandlerGate } | null;
+  /**
+   * 도구 `execute`나 명령 처리기가 연 문맥이면 그 종류. 이 호출들은 재실행되는 코드가 아니라서(ADR-0015 §3.1 1번)
+   * 능력 래퍼의 재실행 검사를 받지 않는다. on 핸들러와 drive 함수에서는 없다(X.primitives.spec §4.6.6)
+   */
+  readonly invocation?: "tool" | "command";
 }
 
 const storage = new AsyncLocalStorage<Ambient>();

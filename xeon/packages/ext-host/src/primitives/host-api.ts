@@ -42,7 +42,7 @@ import { createPortProvider } from "./port-provider.ts";
 import type { PostQueue } from "./post.ts";
 import type { HandlerEntry } from "./registry.ts";
 import { capabilityServiceName, providerServiceName } from "./services.ts";
-import { ambient } from "./ambient.ts";
+import { ambient, withAmbient, type Ambient } from "./ambient.ts";
 import type {
   CommandResourceDef,
   FlagResourceDef,
@@ -143,6 +143,25 @@ const hostApis = new WeakMap<object, ScopeHostApi<AnyState>>();
 const internals = new WeakMap<object, ScopeInternals>();
 
 /** setup이 받은 g로 부가 API를 얻는다. ext-host가 만든 g가 아니면 PrimitiveError("no_context") */
+/** 도구 `execute`와 명령 처리기가 여는 ambient. 디스패치 키는 호출 id이고, 재실행 검사와 시간 예산은 받지 않는다 */
+function directAmbient(
+  scopeId: ScopeId,
+  threadId: ThreadId,
+  invocation: "tool" | "command",
+  id: string,
+): Ambient {
+  return {
+    threadId,
+    scopeId,
+    point: null,
+    dispatchKey: `${invocation}:${id}`,
+    counter: 0,
+    drive: null,
+    handler: null,
+    invocation,
+  };
+}
+
 export function hostOf<S>(g: ScopeApi<S>): ScopeHostApi<S> {
   const found = hostApis.get(g);
   if (found === undefined) {
@@ -431,10 +450,31 @@ export function createScopeApi(
       return done.ok ? ok(stateAs(done.value)) : done;
     },
     registerTool(def: ToolResourceDef): void {
-      register("tool", def.name, def);
+      // 도구 `execute`는 호출 id를 디스패치 키로 하는 ambient 안에서 실행한다. 같은 호출 id의 재실행은 같은 멱등 키를 받는다
+      const wrapped: ToolResourceDef = {
+        name: def.name,
+        description: def.description,
+        parameters: def.parameters,
+        replay: def.replay,
+        execute: (args, ctx) =>
+          withAmbient(directAmbient(record.id, ctx.threadId, "tool", ctx.toolCallId), () =>
+            def.execute(args, ctx),
+          ),
+      };
+      register("tool", def.name, wrapped);
     },
     registerCommand(name: string, def: CommandResourceDef): void {
-      register("command", name, def);
+      // threadId가 없는 호출(대화가 없는 화면)은 쓸 thread가 없으므로 ambient를 열지 않는다
+      const wrapped: CommandResourceDef = {
+        ...(def.description === undefined ? {} : { description: def.description }),
+        handler: (args, ctx) =>
+          ctx.threadId === null
+            ? def.handler(args, ctx)
+            : withAmbient(directAmbient(record.id, ctx.threadId, "command", ctx.invocationId), () =>
+                def.handler(args, ctx),
+              ),
+      };
+      register("command", name, wrapped);
     },
     registerShortcut(key: string, def: ShortcutResourceDef): void {
       register("shortcut", key, def);

@@ -606,7 +606,7 @@ export interface ScopeHostApi<S = unknown> {
   /** 선언 없는 쓰기 요청(§4.10, M3-REQ-27 [제안]) */
   requestEffect(request: EffectRequest): Promise<void>;
   /**
-   * 호출한 scope의 on 핸들러나 drive 함수 안이면 그 문맥을 돌려준다(§4.2 ambient). setup, 명령 처리기, 도구 execute,
+   * 호출한 scope의 on 핸들러나 drive 함수 안이면 그 문맥을 돌려준다(§4.2 ambient). setup, 명령 처리기, 도구 execute(이 둘은 ambient는 있지만 재실행되는 문맥이 아니다, §4.6.6),
    * 능력 공급자 안, drive의 turn·spawn 안과 다른 scope의 문맥에서는 undefined다
    */
   callContext(): ScopeCallContext | undefined;
@@ -702,7 +702,13 @@ export interface ResourceExposure {
   readonly reason?: "reserved" | "conflict" | "too_long";
 }
 
-export interface CommandResourceDef { readonly description?: string; handler(args: string, ctx: { readonly threadId: ThreadId | null }): Promise<void> }
+export interface CommandResourceDef {
+  readonly description?: string;
+  handler(args: string, ctx: {
+    readonly threadId: ThreadId | null;
+    readonly invocationId: string;   // 명령 호출 하나의 id. threadId가 있으면 §4.6.6의 디스패치 키가 된다. 같은 호출의 재실행은 같은 값
+  }): Promise<void>;
+}
 export interface ShortcutResourceDef { readonly description?: string; handler(ctx: { readonly threadId: ThreadId | null }): Promise<void> }
 export interface FlagResourceDef { readonly description?: string; readonly type: "boolean" | "string"; readonly default?: boolean | string }
 export interface RendererResourceDef { readonly module: string; readonly export: string }  // L4가 해석 [제안]
@@ -1052,7 +1058,7 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
 
 #### 4.4.7 능력 래퍼의 문맥 검사
 
-[결정: ADR-0015 §3.1, §3.2] `g.capability(key)`가 돌려주는 서비스는 X가 감싼 객체다(`primitives/capability-guard.ts`). 재실행되는 코드는 ambient 문맥(§4.2 `withAmbient`)으로 판별한다: `drive`가 있으면 drive 함수, 없고 맥락이 있으면 on 핸들러다. 맥락이 없는 호출(setup, 명령 처리기, 도구 `execute`)은 재실행되지 않으므로 검사하지 않는다.
+[결정: ADR-0015 §3.1, §3.2] `g.capability(key)`가 돌려주는 서비스는 X가 감싼 객체다(`primitives/capability-guard.ts`). 재실행되는 코드는 ambient 문맥(§4.2 `withAmbient`)으로 판별한다: `drive`가 있으면 drive 함수, 없고 맥락이 있으면 on 핸들러다. 맥락이 없는 호출(setup)과 도구 `execute`·명령 처리기의 호출(ambient의 `invocation`이 있다, §4.6.6)은 재실행되지 않으므로 검사하지 않는다.
 
 - 효과 분류는 정의의 메서드 선언에서 온다: `capabilityEffectOf(method)`가 `capability.idempotent`, `capability.readOnly`, `capability.undeclared` 가운데 하나를 고르고, `isEffectAllowed(effect, 문맥)`이 F `REPLAY_EFFECT_TABLE`로 허용을 판정한다. 정의는 `ExtHostDeps.capabilityDefs`(`CapabilityDefLookup`, 정의 목록은 `capabilityDefTable`)로 받는다. `ServiceKey`는 id와 버전만 싣기 때문이다. 정의나 메서드를 찾지 못하면 선언 없음이다(닫힌 쪽으로 실패).
 - 허용되지 않는 호출(on의 읽기, 두 문맥의 선언 없는 쓰기)은 공급자를 부르지 않고 서비스 메서드의 실패 규약대로 `CapabilityError`(코드 `effect_not_allowed`, `retryable: false`)로 거부한다. 선언 없는 쓰기는 `hostOf(g).requestEffect`로 요청 레코드를 남긴다(§4.10).
@@ -1211,7 +1217,7 @@ commit(next):
 #### 4.6.3 thread 맥락
 
 - F `ScopeApi`의 `state`, `commit`, `post`, `record`, `readRecords`는 thread 인자가 없다. X는 디스패치(§4.2 `withAmbient`)와 drive 호출(§4.4.3)이 연 비동기 맥락에서 thread를 읽는다.
-- 맥락 밖(setup 본문, 핸들러가 띄운 타이머의 늦은 콜백 중 맥락이 끊긴 경우)에서 부르면 `no_thread`로 거부한다.
+- 맥락 밖(setup 본문, 핸들러가 띄운 타이머의 늦은 콜백 중 맥락이 끊긴 경우)에서 부르면 `no_thread`로 거부한다. 확장 도구 `execute`와 명령 처리기는 §4.6.6의 호출 맥락을 받으므로 맥락 밖이 아니다.
 - [미결] 타이머·외부 이벤트에서 시작하는 post(예: L2 schedule의 예약 입력은 포트 경로라 해당 없음, 확장 자체 타이머)를 허용할지. 허용하려면 F `PostOptions`에 `threadId?`를 더해야 한다.
 
 #### 4.6.4 record와 readRecords
@@ -1260,6 +1266,17 @@ recordPrivate(kind, payload):
 - 멱등 키와 카운터는 `record`와 같다. 재실행된 on 핸들러의 같은 호출은 같은 키를 받아 두 번째 커밋이 `replayed`다.
 - 조회: `RecordCommitPort.queryRecords(threadId, query, reader)`는 `visibility: "private"` 행을 `reader`가 그 행을 쓴 확장일 때만 돌려준다. 그래서 그 확장의 `readRecords`만 비공개 행을 받는다(§4.6.4). 다른 확장의 투영기는 `kinds`에 다른 확장의 kind를 둘 수 없으므로(X.operations.spec §4.4.4 `kind_not_owned`) 비공개 기록을 받지 못한다.
 - 커밋 단위: on 핸들러와 drive 함수 안의 호출은 `record`와 같이 따로 커밋한다. 단계 커밋에 함께 실으려면 boundary chain 결과의 `entries`를 쓴다.
+
+#### 4.6.6 도구 `execute`와 명령 처리기의 ambient
+
+[결정: M3-REQ-102] `hostOf(g).registerTool`과 `registerCommand`는 받은 정의를 감싸서 등록한다. 감싼 `execute`와 `handler`는 호출 하나마다 ambient(§4.2)를 열고 정의의 함수를 그 안에서 부른다. 그래서 `g.state()`, `g.commit`, `g.updateState`, `g.record`, `g.recordPrivate`, `g.readRecords`, `g.post`가 `no_thread` 없이 동작한다.
+
+- thread: 도구는 `ctx.threadId`(도구가 실행된 대화)이고 명령은 `ctx.threadId`다. 위임 자식 대화에서 실행된 도구는 그 자식 대화에 쓴다(REQ-LN-04). 부모 대화에는 쓰지 않는다. thread가 열려 있지 않으면 `no_thread`다. 명령의 `ctx.threadId`가 `null`이면 ambient를 열지 않고 `no_thread`다.
+- 디스패치 키: 도구는 `tool:<toolCallId>`, 명령은 `command:<invocationId>`다. `toolCallId`는 `ToolResourceDef.execute`의 `ctx.toolCallId`(F.extensions.spec §3.2.1), `invocationId`는 `CommandResourceDef.handler`의 `ctx.invocationId`이고 L4가 명령 호출마다 정한다. 카운터는 호출마다 0에서 시작하므로 멱등 키는 §4.6.1, §4.6.4, §4.6.5와 같은 모양(`rec:<scope 해시>:<디스패치 키>:<n>`, 상태는 `st:`)이다. 같은 호출 id로 다시 실행하면 같은 키를 받아 저장소 결과가 `replayed`이고 효과는 한 번만 남는다. 호출 id가 다르면 새 효과다. 도구와 명령의 키 접두가 달라 같은 문자열의 id끼리 겹치지 않는다.
+- 재실행 검사 제외: 두 호출은 재실행되는 코드가 아니다(ADR-0015 §3.1 1번). ambient에 `invocation`(`"tool"` 또는 `"command"`)을 두어 능력 래퍼(§4.4.7)가 on 핸들러로 보지 않게 한다. `callContext()`는 계속 `undefined`다.
+- 시간 예산과 취소: 두 호출은 핸들러 시간 예산(`handler`)이 없다. 도구의 취소는 `ctx.signal`이 알리고 `g.awaitUser`는 scope 세대 신호를 쓴다.
+- 도구 `execute`의 `ctx.caller`(`CallerInfo`)는 L1.tools가 채운다. `caller.afterUntrusted`는 이번 turn이 웹·MCP 도구 결과를 읽었는지다(M3-REQ-100, L1.tools.spec §4.3). X는 값을 건드리지 않고 정의에 그대로 넘긴다.
+- `onDispose`와 다른 곳에서 부르는 `shortcut` 처리기는 ambient를 받지 않는다 [결정: L3.learning.spec이 `onDispose`에서 하는 일은 `g.cancelDelegates`뿐이라 기록·상태 쓰기가 필요 없다]. 필요가 생기면 요구를 먼저 정한다.
 
 ### 4.7 post
 
@@ -1490,6 +1507,7 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 27. on 핸들러가 카운터를 1 올려 커밋한 뒤 소비 커밋 전 재시작을 흉내 내면, 다시 실행된 핸들러의 `ctx.state`는 커밋된 판이고, 같은 키의 커밋은 `replayed`이며 `commit`의 반환값·캐시·저장소의 doc이 모두 처음 커밋한 값과 같다.
 28. 판 2까지 커밋하고 판 1 이벤트 뒤로 되감은 뒤 `openThread`를 다시 부르면 `state()`는 판 1의 doc이고, 다음 커밋은 `expectStateRev.rev = 1`로 성공해 판 2(새 `event_id`, `prev_event_id` = 판 1 이벤트 id)가 된다.
 29. 그룹 `learning`이 `recordPrivate("grp.learning.proposal.created", p)`를 부르면 `visibility: "private"`로 커밋되고, `readsRecordKinds: ["grp.learning.*"]`를 선언한 다른 그룹의 `readRecords`는 그 행을 돌려주지 않는다. 같은 그룹의 `readRecords`는 돌려준다.
+30. [M3-REQ-102] 도구 `execute`와 명령 처리기 안에서 `recordPrivate`, `record`, `commit`, `state()`가 `no_thread` 없이 동작한다. 같은 도구 호출 id(명령은 호출 id)로 다시 실행하면 기록과 상태 커밋이 한 번만 남고, 다른 id면 새로 남는다. 위임 자식 대화에서 실행된 도구의 기록은 그 자식 대화에만 남는다. thread가 열려 있지 않거나 명령의 `threadId`가 `null`이면 `no_thread`다.
 30. `recordPrivate`에 다른 확장 접두 kind, 영역 `state` kind, `recordKinds`에 선언된 공개 kind를 넘기면 모두 `record_private_invalid`다.
 31. `xeon.tools`에 등록된 가짜 `ToolService`가 `ToolsPort`를 포함하면 `hostOf(g).registerTool`이 그 서비스의 `register`를 부르고, scope를 끄면 해제된다.
 32. (M2, X.1) `LeaseArbiterPort`가 있으면 후보 전체(`scopeId`, `extension`, `loadIndex`, `defaultEnabled`)를 받아 고른 그룹이 임대를 받고, 임대가 있는 동안에는 다시 묻지 않는다. `null`을 돌려주면 임대가 없다.

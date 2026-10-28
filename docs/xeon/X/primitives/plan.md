@@ -118,6 +118,7 @@ xeon/packages/ext-host/
 | P-34 | 상태 커밋 줄, `updateState`, `commitWith` (M3-REQ-23·24) | P-13 | M | M3a |
 | P-35 | 임대 대기 상한과 `lease.rejected`, `leaseEpoch` 기록 (M3-REQ-25·28) | P-10 | M | M3a |
 | P-36 | 수명주기 지점 디스패치(`lifecycle.ts`, `xeon.session` 피드, 소유 scope 거르기), 이벤트 버스 제거 (M3-REQ-26·102·108) | P-06 | M | M3a |
+| P-37 | 도구 `execute`·명령 처리기의 ambient(디스패치 키는 도구 호출 id·명령 호출 id), 능력 래퍼의 재실행 검사 제외 (M3-REQ-102) | P-13, P-24 | S | M3a |
 | P-31 | 포트 재export 확인: `primitives/ports.ts`·`resources.ts`, loading-trust의 로더 포트, operations의 훅 포트에 자기 정의가 없고 모두 F `ports.ts` 이름을 다시 export하는지(spec §3.6, §3.9, [결정: review.decisions-2 U-14, D-04]), `src/index.ts` 공개 이름이 spec §3.1 표와 같은지 타입 테스트로 확인 | P-02, P-30, F.extensions.plan E10 | S | M1 |
 
 순서 요약: P-01 → P-02 → (P-03, P-04, P-05, P-07 병렬) → P-06 → P-08 → P-09 → P-12 → P-10 → P-11 → P-13 → P-29 → P-14 → P-20 (M0 끝) → P-15~P-19, P-21, P-30 (M1) → P-22~P-28 (M2 이후).
@@ -178,6 +179,13 @@ xeon/packages/ext-host/
 | | `rerun handler commit is idempotent` | 같은 `dispatchKey`로 핸들러를 두 번 실행하면 두 번째 commit이 `replayed`, 판이 한 번만 오른다 | M0 |
 | | `record and read declarations` | 미선언 kind의 `record`는 `record_kind_undeclared`, 미선언 읽기는 `read_kind_undeclared`(수용 21) | M1 |
 | | `recordPrivate is hidden from other extensions` | 비공개 기록은 다른 그룹의 `readRecords`에 0건, 같은 그룹에는 보임. 다른 접두·`state` 영역·공개 kind는 `record_private_invalid`(수용 29·30) | M1 |
+| `direct-invocation.test.ts` | `a tool execute can recordPrivate, record, commit and read state` | 도구 `execute`에서 세 쓰기가 되고 반환 상태와 저장소 doc이 `{ n: 1 }`(수용 30) | M3a |
+| | `a command handler can recordPrivate, record, commit and read state` | 명령 처리기도 같다 | M3a |
+| | `rerunning a tool call with the same tool call id does not repeat its effects` | 같은 호출 id는 이벤트 3건 그대로, 다른 id는 6건 | M3a |
+| | `rerunning a command with the same invocation id does not repeat its effects` | 명령 호출 id로 같다 | M3a |
+| | `a tool call id and a command invocation id with the same text do not share keys` | 접두가 달라 키가 겹치지 않는다 | M3a |
+| | `a tool run in a child conversation writes to that conversation only` | 자식 thread에만 기록·상태가 남는다(REQ-LN-04) | M3a |
+| | `without an open thread or a thread id the writes still fail with no_thread` | 닫힌 thread의 도구와 `threadId: null` 명령은 `no_thread` | M3a |
 | `services.test.ts` | `service names` | `cap:web.search`, `cap:web.search@web-exa`, 두 공급자 provide 시 Cordis 오류 없음(수용 23) | M1 |
 | `host.test.ts` | `install maps setup outcomes` | setup의 선언 밖 `on`은 `failed`(`point_undeclared`)이고 등록 0, 엔트리 본문 예외는 `entryError`, 실행 중 thread가 있으면 `deferred`(수용 25). `registerPlatform` 포트가 `ports.get`으로 보인다(수용 26) | M0 |
 | `cordis.contract.test.ts` | `bail treats zero as decision` | vendored `bail`이 `0`을 결정으로 돌려준다(함정이 여전히 있음을 고정) | M0 |
@@ -244,3 +252,4 @@ xeon/packages/ext-host/
 | P-34 | 완료 | `state.ts` 줄·`updateState`·`commitWith`, 시험 `state-queue.test.ts` |
 | P-35 | 완료 | `lease.ts` 대기 계수·`lease.rejected`, 시험 `lifecycle.test.ts`. 설정 `x.primitives.leaseWaitLimit` |
 | P-36 | 완료 | `lifecycle.ts`, `event-bus.ts` 삭제, 시험 `lifecycle.test.ts`·`event-isolation.test.ts` |
+| P-37 | 완료 | `host-api.ts`의 `registerTool`·`registerCommand`가 호출 ambient를 열고(`ambient.ts`의 `invocation`), `capability-guard.ts`가 그 문맥을 재실행으로 보지 않는다. `ToolResourceDef.execute`의 `ctx.toolCallId`, `CommandResourceDef.handler`의 `ctx.invocationId`. 시험 `direct-invocation.test.ts`. `onDispose`·단축키 처리기는 제외 |

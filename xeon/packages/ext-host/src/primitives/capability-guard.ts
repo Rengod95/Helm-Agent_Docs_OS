@@ -56,7 +56,7 @@ const REQUEST_ID_MAX = 64;
 
 /** 재실행되는 문맥. 맥락이 없으면(setup, 명령 처리기, 도구 execute) 재실행되지 않으므로 null */
 function replayContextOf(amb: Ambient | undefined): ReplayContext | null {
-  if (amb === undefined) return null;
+  if (amb === undefined || amb.invocation !== undefined) return null;
   return amb.drive === null ? "on" : "drive";
 }
 
