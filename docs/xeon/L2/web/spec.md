@@ -1036,7 +1036,7 @@ export const WEB_CAPABILITIES = [WebSearch, WebFetch, WebBrowse, WebResearch] as
 
 ### 3.10 효과 분류 [결정: M3-REQ-88]
 
-ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태, 세션 DB 이벤트, 작업 공간, 사용자 데이터, 외부 시스템에 효과를 남기지 않는 읽기다. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
+ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 기록, 사용자 파일과 사용자가 쓴 데이터, 외부 시스템의 상태를 바꾸지 않는 읽기다. 관찰상 순수한 파생 데이터(캐시, 색인, 내용 주소 blob, 사용량·비용 계량, 시간과 현재 데이터만으로 정해지는 정리)는 쓸 수 있다 [결정: 2026-10-28 오케스트레이터, ADR-0015 §3.3]. `idempotent`는 `requestId`를 받아 같은 키의 재호출에 효과를 더하지 않고 처음 결과를 돌려주는 쓰기이며, 기억은 효과와 같은 커밋에 둔다. 둘 다 없으면 선언 없음이고 `replay`는 `"unsafe"`다. 재실행되는 코드(on 핸들러, drive)에서는 `idempotent`와 `readOnly`(drive만)만 부를 수 있다. 정의는 F `defs/` 파일이 정본이고 `contracts/test/capabilities/l2-effect-classes.test.ts`가 이 표와 같은 값을 고정한다.
 
 | 메서드 | 분류 | replay | 근거 |
 |---|---|---|---|
@@ -1044,12 +1044,12 @@ ADR-0015 §3.3의 표지로 메서드를 나눈다. `readOnly`는 대화 상태,
 | `web.browse.act` | 선언 없음 | unsafe | 페이지에 동작을 일으킨다 |
 | `web.browse.read` | readOnly | safe | 스냅숏·텍스트 조회 |
 | `web.browse.close` | 선언 없음 | unsafe | 외부 세션 상태를 바꾼다. `requestId` 멱등이 없다 |
-| `web.fetch.fetch` | readOnly | safe | 외부 페이지 읽기. 응답 캐시는 다시 만들 수 있는 사본이다 |
+| `web.fetch.fetch` | readOnly | safe | 외부 페이지 읽기. 쓰는 것은 파생 데이터뿐이다: 응답 캐시(`cap_web_fetch_cache`, `cap_web_raw`), 원문 사본(내용 주소 blob), 비용 계량(`cap_web_usage`), 세션당 fetch 상한 카운터(메모리 계량, `session_limit`). 계량이라 drive 재생이 상한을 다시 소모할 수 있다 |
 | `web.research.start` | 선언 없음 | unsafe | 백그라운드 조사를 시작한다 |
 | `web.research.get` | readOnly | safe | 상태 조회 |
 | `web.research.cancel` | 선언 없음 | unsafe | 조사 상태를 바꾼다. `requestId` 멱등이 없다 |
 | `web.research.run` | 선언 없음 | unsafe | 조사를 시작한다 |
-| `web.search.search` | readOnly | safe | 외부 검색. 호출마다 비용이 들지만 상태를 바꾸지 않는다(Helm `gatherContext`) |
+| `web.search.search` | readOnly | safe | 외부 검색. 호출마다 비용이 들고 계량 표(`cap_web_usage`)에 기록되지만 상태를 바꾸지 않는다(Helm `gatherContext`). drive 재생은 호출마다 비용을 다시 쓴다 |
 
 ## 4. 동작 규칙
 

@@ -36,7 +36,7 @@ describe("mcp.client readOnly conformance", () => {
     ]);
   });
 
-  test("calling every read leaves the stored server rows and the server side untouched", async () => {
+  test("calling every read leaves every table and the server side untouched", async () => {
     const clock = fixedClock();
     const store = await openMcpStore(clock);
     const world = buildWorld({
@@ -54,13 +54,8 @@ describe("mcp.client readOnly conformance", () => {
     });
     await startWorld(world);
     await world.runtime.applyBoundary();
-    const rowsOf = (): unknown =>
-      store.root.read((tx) =>
-        tx.all(
-          "SELECT server_id, state, tools_fingerprint FROM cap_mcp_servers ORDER BY server_id",
-        ),
-      );
-    const before = rowsOf();
+    // 모든 표의 내용이 그대로여야 한다. 파생 데이터를 쓰는 표가 없으므로 허용 목록이 비어 있다
+    const before = await store.rowDigests();
     const stub = world.stubs["stub"];
     const requestsBefore = stub?.requests.length ?? 0;
 
@@ -73,7 +68,7 @@ describe("mcp.client readOnly conformance", () => {
     await client.listResources({ server: "stub" });
     await client.readResource({ server: "stub", uri: "file:///a.txt" });
 
-    expect(rowsOf()).toEqual(before);
+    expect(await store.rowDigests()).toEqual(before);
     const added = (stub?.requests ?? []).slice(requestsBefore).map((request) => request.method);
     const writes = added.filter(
       (method) => method === "tools/call" || method.startsWith("notifications/"),

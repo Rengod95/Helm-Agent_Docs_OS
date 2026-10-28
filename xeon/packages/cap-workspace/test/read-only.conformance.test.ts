@@ -63,5 +63,7 @@ describe("workspace readOnly conformance", () => {
 
     expect(await snapshot()).toEqual(before);
     expect(env.calls.length).toBe(callsBefore);
+    // 쓴 것은 이미지 한 장의 내용 주소 blob뿐이다(파생 데이터, ADR-0015 3.3). 같은 바이트는 같은 blob이라 두 번 불러도 하나다
+    expect([...blobs.stored.keys()]).toHaveLength(1);
   });
 });
