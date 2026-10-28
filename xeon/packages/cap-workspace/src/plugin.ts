@@ -39,6 +39,8 @@ const ToolsPortKey: PortKey<ToolService> = { name: ToolServiceName };
 export interface WorkspacePluginOptions {
   /** 설정 층. 파일 범위와 세션 범위를 합친 스택을 호출마다 돌려준다 */
   readonly settings: WorkspaceSettingsSource;
+  /** 무인 호출의 셸 제한 시간 상한(ms). 조립 루트가 `l0.exec.unattendedTimeoutMs`를 읽어 넘긴다. 없으면 상한을 걸지 않는다 */
+  readonly unattendedTimeoutMs?: () => number;
   readonly loadIndex?: number;
 }
 
@@ -112,6 +114,9 @@ export function workspacePlugin(options: WorkspacePluginOptions): ExtensionUnit 
         ...(store === undefined ? {} : { blobs: store }),
         ...(session === undefined ? {} : { threads: threadWorkspaces(session, exec) }),
         rg: rgResolver(os),
+        ...(options.unattendedTimeoutMs === undefined
+          ? {}
+          : { unattendedTimeoutMs: options.unattendedTimeoutMs }),
       };
       const service = createWorkspaceService(deps);
       host.provide(WorkspaceFilesKey, service.files);

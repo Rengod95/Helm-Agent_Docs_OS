@@ -11,6 +11,7 @@ import { WorkspaceFailure, guarded } from "../errors.ts";
 import { resolveWorkspacePath } from "../roots.ts";
 import { scopedDeps } from "../scope.ts";
 import { runBashCommand, type BashOutcome } from "./upstream/bash.ts";
+import { unattendedTimeoutSec } from "./unattended.ts";
 
 // L2.workspace.spec §3.3, §4.2. 샌드박스 래핑(xeon.sandbox)과 실행(xeon.exec)은 F 인터페이스로만 만난다.
 
@@ -133,10 +134,14 @@ export function createShellApi(base: WorkspaceDeps): ShellApi {
         });
         const shell = sandbox.wrapShell(deps.env, policy);
 
-        // 3~4. 제한 시간: 입력 → 설정 기본값 순. 실행한다
-        const timeoutSec =
+        // 3~4. 제한 시간: 입력 → 설정 기본값 순. 무인 호출은 상한을 더 받는다(L0.exec.spec §3.8.1). 실행한다
+        const requestedSec =
           input.timeoutSec ??
           (settings.shell.defaultTimeoutSec > 0 ? settings.shell.defaultTimeoutSec : undefined);
+        const timeoutSec =
+          callContext?.interactive === false
+            ? unattendedTimeoutSec(requestedSec, deps.unattendedTimeoutMs?.())
+            : requestedSec;
         const secretEnv = secretEnvOf(input, callContext);
         const startedAt = deps.clock.now();
         const ran = await runBashCommand(

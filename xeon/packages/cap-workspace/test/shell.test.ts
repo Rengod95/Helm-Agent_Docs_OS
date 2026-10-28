@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { WorkspaceShell } from "@xeon/contracts/capabilities";
+import { WorkspaceShell, type CallOptions } from "@xeon/contracts/capabilities";
 import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { DEFAULT_WORKSPACE_SETTINGS, type WorkspaceSettings } from "../src/settings.ts";
 import { createShellApi } from "../src/shell/run.ts";
@@ -13,6 +13,11 @@ function shellSettings(shell: Partial<WorkspaceSettings["shell"]>): () => Worksp
     ...DEFAULT_WORKSPACE_SETTINGS,
     shell: { ...DEFAULT_WORKSPACE_SETTINGS.shell, ...shell },
   });
+}
+
+/** 호출 문맥만 있는 옵션. interactive가 false면 무인 호출(예약, 루프)이다 */
+function callAs(interactive: boolean): CallOptions {
+  return { context: { caller: { kind: "model", agent: "main" }, interactive } };
 }
 
 function setup(options: Parameters<typeof depsFor>[1] = {}) {
@@ -145,6 +150,46 @@ describe("bash", () => {
     await shell.run({ command: "true" });
     await shell.run({ command: "true", timeoutSec: 5 });
     expect(env.calls.map((call) => call.options?.timeout)).toEqual([30, 5]);
+  });
+
+  test("an interactive call without a timeout has no cap", async () => {
+    const { env, shell } = setup({ unattendedTimeoutMs: () => 120_000 });
+    await shell.run({ command: "true" }, callAs(true));
+    expect(env.calls[0]?.options?.timeout).toBeUndefined();
+  });
+
+  test("an unattended call without a timeout runs under the cap", async () => {
+    const { env, shell } = setup({ unattendedTimeoutMs: () => 120_000 });
+    await shell.run({ command: "true" }, callAs(false));
+    expect(env.calls[0]?.options?.timeout).toBe(120);
+  });
+
+  test("an unattended call keeps a shorter requested timeout", async () => {
+    const { env, shell } = setup({ unattendedTimeoutMs: () => 120_000 });
+    await shell.run({ command: "true", timeoutSec: 5 }, callAs(false));
+    expect(env.calls[0]?.options?.timeout).toBe(5);
+  });
+
+  test("an unattended call with a longer requested timeout is clamped to the cap", async () => {
+    const { env, shell } = setup({ unattendedTimeoutMs: () => 120_000 });
+    await shell.run({ command: "true", timeoutSec: 300 }, callAs(false));
+    expect(env.calls[0]?.options?.timeout).toBe(120);
+  });
+
+  test("without the cap dep an unattended call is not capped", async () => {
+    const { env, shell } = setup();
+    await shell.run({ command: "true" }, callAs(false));
+    await shell.run({ command: "true", timeoutSec: 300 }, callAs(false));
+    expect(env.calls.map((call) => call.options?.timeout)).toEqual([undefined, 300]);
+  });
+
+  test("the timeout message reports the effective cap in seconds", async () => {
+    const { env, shell } = setup({ unattendedTimeoutMs: () => 2_000 });
+    env.reply({ error: { code: "timeout" } });
+    const error = await rejection(shell.run({ command: "sleep 99" }, callAs(false)));
+    expect(error.data.code).toBe("timeout");
+    expect(error.data.message).toBe("Command timed out after 2 seconds");
+    expect(env.calls[0]?.options?.timeout).toBe(2);
   });
 
   test("bash abort", async () => {

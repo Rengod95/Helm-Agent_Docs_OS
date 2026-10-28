@@ -99,6 +99,7 @@ export interface DepsOptions {
   readonly layers?: ScopeStack;
   readonly blobs?: BlobSink;
   readonly threads?: ThreadWorkspaces;
+  readonly unattendedTimeoutMs?: () => number;
 }
 
 /** 대역 환경으로 서비스 의존을 만든다. sandbox가 null이면 서비스가 없는 상태다 */
@@ -124,5 +125,8 @@ export function depsFor(env: MemoryEnv, options: DepsOptions = {}): WorkspaceDep
     ...(options.blobs === undefined ? {} : { blobs: options.blobs }),
     ...(options.threads === undefined ? {} : { threads: options.threads }),
     ...(rg === undefined ? {} : { rg }),
+    ...(options.unattendedTimeoutMs === undefined
+      ? {}
+      : { unattendedTimeoutMs: options.unattendedTimeoutMs }),
   };
 }

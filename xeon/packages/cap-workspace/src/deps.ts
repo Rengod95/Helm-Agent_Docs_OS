@@ -32,4 +32,6 @@ export interface WorkspaceDeps {
   readonly threads?: ThreadWorkspaces;
   /** ripgrep 경로 해석. 없으면 `grep`, `find`는 unavailable(detail.reason: "rg_missing")이다 */
   readonly rg?: RgResolver;
+  /** 무인 호출(`CallContext.interactive === false`)의 셸 제한 시간 상한(ms). 호출마다 읽는다. 없으면 상한을 걸지 않는다(L0.exec.spec §3.8.1) */
+  readonly unattendedTimeoutMs?: () => number;
 }
