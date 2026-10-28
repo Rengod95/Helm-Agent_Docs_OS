@@ -312,8 +312,10 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     if (origin.signal.aborted) {
       return refuse("agents.parent_aborting", "the parent turn is being aborted");
     }
-    // 백그라운드 자식은 부모 thread 노드 아래 경계로 연다. 노드가 없으면 소유 트리에 매달 곳이 없다
-    if (mode.background && tasks.find("thread", origin.parentThreadId) === undefined) {
+    // 부모 thread 노드 아래 경계로 열어야 하는 자식(백그라운드, turn 없는 drive)은 노드가 없으면 소유 트리에 매달 곳이 없다
+    const needsThread =
+      mode.background || (origin.owner.kind === "drive" && origin.owner.turnId === null);
+    if (needsThread && tasks.find("thread", origin.parentThreadId) === undefined) {
       return refuse("agents.unavailable", "the parent thread is not open in the task tree");
     }
     const parentContext = contextOf(origin.parentThreadId);
@@ -331,12 +333,19 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     };
   };
 
-  /** 소유 간선의 부모 노드(§4.1 4번): 도구 호출, turn, 아니면 thread */
-  const parentScopeOf = (origin: SpawnOrigin, background: boolean): TaskScope => {
+  /**
+   * 소유 간선의 부모 노드(§4.1 4번): 도구 호출, turn, 아니면 thread. thread 아래에는 `background: true` 노드만 열 수 있다(L1.tasks.spec §4.1).
+   * 실행 중인 turn이 없는 drive의 `loop.spawn`은 포그라운드로 결과를 기다리지만 노드는 thread 아래 `background: true`로 연다.
+   * 이 노드의 취소는 소유 트리가 아니라 `origin.signal`(임대 신호)이 `abortChild`로 잇는다
+   */
+  const parentScopeOf = (
+    origin: SpawnOrigin,
+    background: boolean,
+  ): { readonly scope: TaskScope; readonly background: boolean } => {
     const { owner } = origin;
-    if (background) {
-      // 백그라운드는 부모 thread 노드 아래다(prepare가 노드의 존재를 확인했다)
-      return tasks.find("thread", origin.parentThreadId) ?? tasks.root;
+    const thread = tasks.find("thread", origin.parentThreadId);
+    if (background || (owner.kind === "drive" && owner.turnId === null)) {
+      return { scope: thread ?? tasks.root, background: true };
     }
     const candidates: (TaskScope | undefined)[] = [];
     if (owner.kind === "tool") {
@@ -344,8 +353,11 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     } else if (owner.kind === "drive" && owner.turnId !== null) {
       candidates.push(tasks.find("turn", owner.turnId));
     }
-    candidates.push(tasks.find("thread", origin.parentThreadId));
-    return candidates.find((candidate) => candidate !== undefined) ?? tasks.root;
+    candidates.push(thread);
+    return {
+      scope: candidates.find((candidate) => candidate !== undefined) ?? tasks.root,
+      background: false,
+    };
   };
 
   /** 부모 대화의 이 requestId 자식 연결 */
@@ -462,11 +474,11 @@ export function createAgentService(deps: AgentsDeps): AgentServiceImpl {
     childThreadId: ThreadId,
   ): Promise<SpawnResult> => {
     const { definition } = prepared;
-    const parentScope = parentScopeOf(origin, prepared.background);
-    const scope = tasks.openScope(parentScope, {
+    const parent = parentScopeOf(origin, prepared.background);
+    const scope = tasks.openScope(parent.scope, {
       kind: "subagent",
       id: childThreadId,
-      ...(prepared.background ? { background: true } : {}),
+      ...(parent.background ? { background: true } : {}),
     });
     meta.set(childThreadId, {
       agent: definition.name,

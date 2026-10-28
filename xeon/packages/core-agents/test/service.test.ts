@@ -31,6 +31,28 @@ describe("spawn", () => {
     expect(h.service.liveCount()).toBe(0);
   });
 
+  test("a drive spawn with no running turn opens the child under the thread node as background and still waits for the result", async () => {
+    const h = openHarness();
+    const origin: SpawnOrigin = {
+      parentThreadId: h.parentThreadId,
+      owner: { kind: "drive", turnId: null, scopeId: "grp", leaseId: "lease-1" },
+      caller: "main",
+      depth: 0,
+      ownerRequestId: "lease-1:0.0",
+      signal: new AbortController().signal,
+    };
+    const result = await h.service.spawn(
+      { agent: "explorer", task: "look", requestId: "lease-1:0.0" },
+      origin,
+    );
+    expect(result.status).toBe("completed");
+    expect(result.answer).toContain("found it");
+    const child = h.tasks.scopes.find((scope) => scope.kind === "subagent");
+    expect(child?.id).toBe(result.childThreadId);
+    expect(child?.parent).toBe(h.parentScope);
+    expect(child?.background).toBe(true);
+  });
+
   test("a foreground spawn creates the child, links it, runs one turn and settles with a guarded report", async () => {
     const h = openHarness();
     const { origin } = h.openToolCall("tc-1");
