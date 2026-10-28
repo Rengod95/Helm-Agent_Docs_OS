@@ -15,13 +15,13 @@ test("snapshot ignores mid-dispatch changes", async () => {
   await t.host.openThread(thread);
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "snap-a", points: ["agent_settled"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "snap-a", points: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
       let added = false;
-      g.on("agent_settled", () => {
+      g.on("boundary.settle.after", () => {
         calls.push("a");
         if (!added) {
           added = true;
-          g.on("agent_settled", () => {
+          g.on("boundary.settle.after", () => {
             calls.push("added");
           });
         }
@@ -30,17 +30,23 @@ test("snapshot ignores mid-dispatch changes", async () => {
   );
   const off = { current: () => {} };
   await t.host.install(
-    makeUnit({ name: "snap-b", points: ["agent_settled"], loadIndex: 1 }, (g) => {
-      off.current = g.on("agent_settled", () => {
+    makeUnit({ name: "snap-b", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+      off.current = g.on("boundary.settle.after", () => {
         calls.push("b");
       });
     }),
   );
-  await t.host.dispatch("agent_settled", settled(t), { threadId: thread, dispatchKey: "1" });
+  await t.host.dispatch("boundary.settle.after", settled(t), {
+    threadId: thread,
+    dispatchKey: "1",
+  });
   expect(calls).toEqual(["a", "b"]);
   off.current();
   calls.length = 0;
-  await t.host.dispatch("agent_settled", settled(t), { threadId: thread, dispatchKey: "2" });
+  await t.host.dispatch("boundary.settle.after", settled(t), {
+    threadId: thread,
+    dispatchKey: "2",
+  });
   expect(calls).toEqual(["a", "added"]);
 });
 
@@ -69,18 +75,24 @@ test("order is tier load seq", async () => {
   ];
   await eachInOrder(specs, async (spec) => {
     await t.host.install(
-      makeUnit({ name: spec.name, points: ["agent_settled"], loadIndex: spec.loadIndex }, (g) => {
-        g.on("agent_settled", () => {
-          calls.push(`${spec.name}#1`);
-        });
-        g.on("agent_settled", () => {
-          calls.push(`${spec.name}#2`);
-        });
-      }),
+      makeUnit(
+        { name: spec.name, points: ["boundary.settle.after"], loadIndex: spec.loadIndex },
+        (g) => {
+          g.on("boundary.settle.after", () => {
+            calls.push(`${spec.name}#1`);
+          });
+          g.on("boundary.settle.after", () => {
+            calls.push(`${spec.name}#2`);
+          });
+        },
+      ),
     );
     return "continue";
   });
-  await t.host.dispatch("agent_settled", settled(t), { threadId: thread, dispatchKey: "k" });
+  await t.host.dispatch("boundary.settle.after", settled(t), {
+    threadId: thread,
+    dispatchKey: "k",
+  });
   expect(calls).toEqual([
     "ord-guard#1",
     "ord-guard#2",
@@ -100,17 +112,20 @@ test("unsubscribe idempotent", async () => {
   const calls: string[] = [];
   const off = { current: () => {} };
   await t.host.install(
-    makeUnit({ name: "unsub", points: ["agent_settled"] }, (g) => {
-      off.current = g.on("agent_settled", () => {
+    makeUnit({ name: "unsub", points: ["boundary.settle.after"] }, (g) => {
+      off.current = g.on("boundary.settle.after", () => {
         calls.push("x");
       });
-      g.on("agent_settled", () => {
+      g.on("boundary.settle.after", () => {
         calls.push("y");
       });
     }),
   );
   off.current();
   off.current();
-  await t.host.dispatch("agent_settled", settled(t), { threadId: thread, dispatchKey: "k" });
+  await t.host.dispatch("boundary.settle.after", settled(t), {
+    threadId: thread,
+    dispatchKey: "k",
+  });
   expect(calls).toEqual(["y"]);
 });

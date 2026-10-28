@@ -15,9 +15,9 @@ test("pipeline: undeclared point fails load", async () => {
   const harness = await createLoaderHarness();
   const report = await harness.loader.loadAll(
     harness.options([
-      moduleOf({ name: "pipe-undecl", points: ["tool_call"] }, (g) => {
-        g.on("tool_call", () => undefined);
-        g.on("turn_end", () => undefined);
+      moduleOf({ name: "pipe-undecl", points: ["tool.call.before"] }, (g) => {
+        g.on("tool.call.before", () => undefined);
+        g.on("boundary.step.after", () => undefined);
       }),
     ]),
   );
@@ -35,8 +35,8 @@ test("pipeline: one throwing extension does not block others", async () => {
   const harness = await createLoaderHarness();
   const bad = moduleOf({ name: "pipe-b" }, () => {});
   const modules = [
-    moduleOf({ name: "pipe-a", points: ["tool_call"] }, (g) => {
-      g.on("tool_call", () => undefined);
+    moduleOf({ name: "pipe-a", points: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", () => undefined);
     }),
     {
       ...bad,
@@ -140,10 +140,10 @@ test("pipeline: late registration after timeout dropped", async () => {
   const gate = Promise.withResolvers<void>();
   const loading = harness.loader.loadAll(
     harness.options([
-      moduleOf({ name: "pipe-slow", points: ["tool_call"] }, async (g) => {
+      moduleOf({ name: "pipe-slow", points: ["tool.call.before"] }, async (g) => {
         await gate.promise;
         // 세대가 닫혀 있어 거부된다. 거부는 값으로 받고 확인은 아래 단언이 한다
-        const late = attempt(() => g.on("tool_call", () => undefined));
+        const late = attempt(() => g.on("tool.call.before", () => undefined));
         expect(late.ok).toBe(false);
       }),
     ]),
@@ -165,10 +165,10 @@ test("pipeline: runtime undeclared on rejected only", async () => {
   const codes: string[] = [];
   const report = await harness.loader.loadAll(
     harness.options([
-      moduleOf({ name: "pipe-runtime", points: ["agent_settled"] }, (g) => {
-        g.on("agent_settled", () => {
+      moduleOf({ name: "pipe-runtime", points: ["boundary.settle.after"] }, (g) => {
+        g.on("boundary.settle.after", () => {
           try {
-            g.on("turn_end", () => undefined);
+            g.on("boundary.step.after", () => undefined);
           } catch (error) {
             codes.push(error instanceof Error && "code" in error ? String(error.code) : "other");
           }
@@ -178,7 +178,7 @@ test("pipeline: runtime undeclared on rejected only", async () => {
   );
   expect(report.extensions[0]?.state).toBe("active");
   await harness.t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: harness.t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );

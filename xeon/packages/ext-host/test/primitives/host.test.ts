@@ -35,9 +35,9 @@ test("install maps setup outcomes", async () => {
 
   // setup의 선언 밖 on은 failed(point_undeclared)이고 등록은 남지 않는다
   const undeclared = await t.host.install(
-    makeUnit({ name: "host-undecl", points: ["tool_call"] }, (g) => {
-      g.on("tool_call", () => undefined);
-      g.on("turn_end", () => undefined);
+    makeUnit({ name: "host-undecl", points: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", () => undefined);
+      g.on("boundary.step.after", () => undefined);
     }),
   );
   expect(undeclared.setups[0]).toMatchObject({
@@ -79,8 +79,8 @@ test("install maps setup outcomes", async () => {
   // 실행 중 thread가 있으면 deferred
   t.loop.setRunning(thread, true);
   const deferred = await t.host.install(
-    makeUnit({ name: "host-defer", points: ["tool_call"] }, (g) => {
-      g.on("tool_call", () => undefined);
+    makeUnit({ name: "host-defer", points: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", () => undefined);
     }),
   );
   expect(deferred.setups[0]?.status).toBe("deferred");
@@ -95,10 +95,10 @@ test("setup that outlives its budget fails with timeout and its late registratio
   const gate = holdOpen();
   const lateErrors: unknown[] = [];
   const pending = t.host.install(
-    makeUnit({ name: "host-slow", points: ["tool_call"] }, async (g) => {
+    makeUnit({ name: "host-slow", points: ["tool.call.before"] }, async (g) => {
       await gate.promise;
       try {
-        g.on("tool_call", () => undefined);
+        g.on("tool.call.before", () => undefined);
       } catch (error) {
         lateErrors.push(error);
       }
@@ -222,8 +222,8 @@ test("uninstall removes definitions and handlers", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "host-gone", points: ["tool_call"] }, (g) => {
-      g.on("tool_call", () => undefined);
+    makeUnit({ name: "host-gone", points: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", () => undefined);
     }),
   );
   await t.boundary(thread).stepEnd();

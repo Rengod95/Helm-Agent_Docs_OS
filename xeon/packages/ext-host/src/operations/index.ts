@@ -218,6 +218,7 @@ export function createOperationsPolicy(deps: OperationsDeps): OperationsPolicy {
         tier: tierFor(entry.extension),
         point: entry.point,
         fold: POINTS[entry.point].fold,
+        failure: POINTS[entry.point].failure,
         result: "ok",
         activeMs,
         at: deps.now(),

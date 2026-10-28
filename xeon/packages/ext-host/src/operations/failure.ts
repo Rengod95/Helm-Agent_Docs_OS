@@ -1,5 +1,5 @@
 import { attempt } from "@xeon/contracts";
-import { POINTS, type Fold } from "@xeon/contracts/extensions";
+import { POINTS, type FailurePolicy, type Fold } from "@xeon/contracts/extensions";
 import type { HandlerFailure, HandlerFailureReason } from "../primitives/dispatch-types.ts";
 import type { HandlerOwner, HandlerOwnerKey, Tier } from "./tier.ts";
 import { ownerKey } from "./tier.ts";
@@ -19,6 +19,8 @@ export interface HandlerOutcomeRecord {
   readonly tier: Tier;
   readonly point: HandlerFailure["point"];
   readonly fold: Fold;
+  /** 그 지점 선언의 실패 정책(`POINTS[point].failure`). 장부는 이 값으로 기록한 실패의 결과를 구분한다 */
+  readonly failure: FailurePolicy;
   readonly result: HandlerResultKind;
   /** 멈춘 시간을 뺀 실행 시간 */
   readonly activeMs: number;
@@ -72,6 +74,7 @@ export function fromHandlerFailure(
     tier,
     point: failure.point,
     fold: POINTS[failure.point].fold,
+    failure: POINTS[failure.point].failure,
     result: failure.reason,
     activeMs: failure.elapsedMs,
     at,

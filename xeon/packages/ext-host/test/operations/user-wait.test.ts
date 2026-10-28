@@ -25,8 +25,8 @@ async function runHandler(
     signalAborted: undefined,
   };
   await t.host.install(
-    makeUnit({ name: "uw-ext", points: ["agent_settled"], builtin: false }, (g) => {
-      g.on("agent_settled", async () => {
+    makeUnit({ name: "uw-ext", points: ["boundary.settle.after"], builtin: false }, (g) => {
+      g.on("boundary.settle.after", async () => {
         if (wait === "user") {
           await hostOf(g).awaitUser((signal) => {
             probe.signalAborted = signal.aborted;
@@ -40,7 +40,7 @@ async function runHandler(
     }),
   );
   const dispatched = t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );
@@ -76,8 +76,8 @@ test("awaitUser: the wait gets a signal that follows the handler and the caller'
   const seen: boolean[] = [];
   const own = new AbortController();
   await t.host.install(
-    makeUnit({ name: "uw-sig", points: ["agent_settled"], builtin: false }, (g) => {
-      g.on("agent_settled", async () => {
+    makeUnit({ name: "uw-sig", points: ["boundary.settle.after"], builtin: false }, (g) => {
+      g.on("boundary.settle.after", async () => {
         await hostOf(g).awaitUser(
           (signal) => {
             seen.push(signal.aborted);
@@ -91,7 +91,7 @@ test("awaitUser: the wait gets a signal that follows the handler and the caller'
     }),
   );
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );

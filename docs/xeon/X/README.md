@@ -23,7 +23,7 @@ X가 정하지 않는 것:
 
 | 대상 | 정하는 곳 |
 |---|---|
-| 지점 이름 41개, fold 배정, 페이로드·결정·패치 타입, `FIRST_DENY`, `CHAIN_RULES`, 매니페스트 스키마 | `F.extensions.spec` |
+| 지점 이름 46개, fold 배정, 페이로드·결정·패치 타입, `FIRST_DENY`, `CHAIN_RULES`, 매니페스트 스키마 | `F.extensions.spec` |
 | 지점을 실제로 발화하는 코드, boundary 최종 검증 | `L1.loop.spec`, `L1.tools.spec`, `L1.context.spec`, `L1.models.spec`, `L1.persistence.spec` |
 | 그룹 내부 설계(Helm의 탐구 흐름, 학습 그룹의 제안 대기열), 임대 정책의 그룹 측 판단 | `L3.group-kit.spec`, `L3.helm.spec`, `L3.learning.spec` |
 | 세션 커밋 경로와 투영기 실행, 테이블 DDL 실행 | `L1.persistence.spec`, `L0.store.spec` |
@@ -125,10 +125,10 @@ X가 정하지 않는 것:
 1. [미결] tier와 핸들러 시간 예산의 소유는 `F.extensions.spec` §1·§4.2에서 operations로 고쳐졌다(`X.primitives.spec` §1, `X.operations.spec` §1.1). 예산 초과 처리는 `X.operations.spec` §4.2.4가 정한다. 남은 일은 `L3.readme` 표의 옛 소유 표기다(`X.operations.spec` §10 미결 1).
 2. [미결] `post.when = next`의 의미. 조사(`_research/notes/X-1.md`)는 pi `nextTurn`이 요청을 시작하지 않음을 확인했다. [제안] 시작하지 않는다. 유휴 시작 값 `start` 추가 여부도 함께 정한다(`X.primitives.spec` §4.7, adr.0007 §6).
 3. [미결] fold 3종의 충분성. boundary의 "엔트리 추가 + 계속"을 chain 교체 + `finalize`로 표현할지, 4번째 fold를 둘지(`F.extensions.spec` §4.1, adr.0007 §6).
-4. [미결] first fail-closed의 예외. pi는 `session_before_*`와 `project_trust`에서 fail-open이다. 이 결정은 operations의 예산 초과 처리와 외부 훅 종료 코드 표의 first 열에도 걸린다(`F.extensions.spec` §10, `X.operations.spec` §10 미결 15).
+4. [미결] first fail-closed의 예외. pi는 `session_before_*`와 `session.trust.before`에서 fail-open이다. 이 결정은 operations의 예산 초과 처리와 외부 훅 종료 코드 표의 first 열에도 걸린다(`F.extensions.spec` §10, `X.operations.spec` §10 미결 15).
 5. [미결] 비협조적 확장 코드의 한계. 같은 프로세스에서는 시간 예산과 임대 회수가 코드 실행을 멈추지 못한다. 자동 끄기와 격리(2차)로 보완하는 범위를 받아들일지, 그룹별 격리를 1차로 올릴지(adr.0007 §6, `X.operations.spec` §5 1번).
 6. [미결] 그룹 간 이벤트 격리. Cordis 일반 `emit`의 전역 전달을 그룹 접두 필터로 막을지(`X.primitives.spec` §4.9, adr.0007 §6).
-7. [결정: review.decisions-2 U-06] `tool_call` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 chain 지점을 따로 더한다. pi는 `event.input` 제자리 수정을 허용하므로 pi 어댑터는 이 의존을 진단(`pi_input_mutation`)으로 알린다(`F.extensions.spec` §10, `X.loading-trust.spec` §3.9).
+7. [결정: review.decisions-2 U-06] `tool.call.before` 지점에서 인자 변경은 지원하지 않는다(fold `first`, 허용·거부·결과 대체만). 인자 변경이 필요하면 2차에 chain 지점을 따로 더한다. pi는 `event.input` 제자리 수정을 허용하므로 pi 어댑터는 이 의존을 진단(`pi_input_mutation`)으로 알린다(`F.extensions.spec` §10, `X.loading-trust.spec` §3.9).
 8. [미결] 지점 이름 표기. pi snake_case 정본과 조사 자료의 점 표기 별칭 허용 여부(`F.extensions.spec` §4.10).
 9. [미결] `ResourcePolicy`의 리소스 집합 판정 메서드(`X.operations.spec` §10 미결 17). `DispatchPolicy`의 성공 보고(`onHandlerSettled`)와 예산 실행 위임(`run`, 사용자 응답 대기 제외)은 `X.primitives.spec` §3.4에 선택 메서드로 넣어 해소했다 [제안]. 마일스톤은 두 plan 모두 M0다(P-06, P-20, O-03, O-06).
 10. (해소) [결정: review.decisions-2 U-14, D-04] 포트 타입의 정본은 F다(§6 조건 2). 호스트 포트, 리소스 등록 포트, 로더 포트와 키는 `F.extensions.spec` §3.2.1 `ports.ts`에, `RecordCommitPort`는 `F.records.spec` §3.9에 있다. X 세 도메인은 F 이름을 다시 export만 하고(`X.primitives.spec` §3.6·§3.9, `X.loading-trust.spec` §3.2·§3.7·§3.8, `X.operations.spec` §3.7), ext-host 고유 키는 `ExtHostPortKey`뿐이다.

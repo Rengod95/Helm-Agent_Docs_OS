@@ -36,9 +36,9 @@ test("budget: first timeout boundary 29999/30000", async () => {
   const thread = early.t.newThread();
   await early.t.host.openThread(thread);
   await early.t.host.install(
-    makeUnit({ name: "bud-early", points: ["tool_call"] }, (g) => {
+    makeUnit({ name: "bud-early", points: ["tool.call.before"] }, (g) => {
       g.on(
-        "tool_call",
+        "tool.call.before",
         () =>
           new Promise((resolve) =>
             early.t.timers.setTimer(29_999, () => resolve({ block: true, reason: "in time" })),
@@ -46,7 +46,7 @@ test("budget: first timeout boundary 29999/30000", async () => {
       );
     }),
   );
-  const pendingEarly = early.t.host.dispatch("tool_call", toolCall, {
+  const pendingEarly = early.t.host.dispatch("tool.call.before", toolCall, {
     threadId: thread,
     dispatchKey: "k",
   });
@@ -60,14 +60,14 @@ test("budget: first timeout boundary 29999/30000", async () => {
   await late.t.host.openThread(lateThread);
   let signal: AbortSignal | undefined;
   await late.t.host.install(
-    makeUnit({ name: "bud-late", points: ["tool_call"] }, (g) => {
-      g.on("tool_call", (_payload, ctx) => {
+    makeUnit({ name: "bud-late", points: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", (_payload, ctx) => {
         signal = ctx.signal;
         return new Promise<undefined>(() => {});
       });
     }),
   );
-  const pendingLate = late.t.host.dispatch("tool_call", toolCall, {
+  const pendingLate = late.t.host.dispatch("tool.call.before", toolCall, {
     threadId: lateThread,
     dispatchKey: "k",
   });
@@ -76,7 +76,7 @@ test("budget: first timeout boundary 29999/30000", async () => {
   expect(signal?.aborted).toBe(false);
   await late.t.timers.advance(1);
   const outcome = await pendingLate;
-  expect(outcome.decision).toEqual(FIRST_DENY.tool_call);
+  expect(outcome.decision).toEqual(FIRST_DENY["tool.call.before"]);
   expect(outcome.failures[0]?.reason).toBe("timeout");
   expect(signal?.aborted).toBe(true);
   expect(signal?.reason).toBeInstanceOf(DOMException);
@@ -90,20 +90,20 @@ test("budget: chain timeout skips only that patch", async () => {
   await t.host.openThread(thread);
   const seen: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "bud-slow", points: ["input"], loadIndex: 0 }, (g) => {
-      g.on("input", () => new Promise<undefined>(() => {}));
+    makeUnit({ name: "bud-slow", points: ["input.user.before"], loadIndex: 0 }, (g) => {
+      g.on("input.user.before", () => new Promise<undefined>(() => {}));
     }),
   );
   await t.host.install(
-    makeUnit({ name: "bud-next", points: ["input"], loadIndex: 1 }, (g) => {
-      g.on("input", (_payload, current) => {
+    makeUnit({ name: "bud-next", points: ["input.user.before"], loadIndex: 1 }, (g) => {
+      g.on("input.user.before", (_payload, current) => {
         seen.push(current);
         return { action: "transform", text: "done" };
       });
     }),
   );
   const pending = t.host.dispatch(
-    "input",
+    "input.user.before",
     { text: "hi", source: "interactive" },
     { threadId: thread, dispatchKey: "k", initial: { text: "hi", handled: false } },
   );
@@ -212,35 +212,39 @@ test("budget: shutdown and stream classes", () => {
     setup: 10_000,
     hook: 30_000,
   });
-  expect(budgetClassOf(POINTS.session_shutdown)).toBe("shutdown");
-  expect(budgetClassOf(POINTS.message_update)).toBe("streamTap");
-  expect(budgetClassOf(POINTS.agent_settled)).toBe("tap");
-  expect(budgetClassOf(POINTS.tool_call)).toBe("first");
-  expect(budgetClassOf(POINTS.turn_end)).toBe("chain");
+  expect(budgetClassOf(POINTS["session.shutdown"])).toBe("shutdown");
+  expect(budgetClassOf(POINTS["boundary.message.update"])).toBe("streamTap");
+  expect(budgetClassOf(POINTS["boundary.settle.after"])).toBe("tap");
+  expect(budgetClassOf(POINTS["tool.call.before"])).toBe("first");
+  expect(budgetClassOf(POINTS["boundary.step.after"])).toBe("chain");
+  // collect는 값을 만드는 지점이라 chain 예산을 쓴다. guard는 first, lifecycle은 tap이다
+  expect(budgetClassOf(POINTS["input.agent.before"])).toBe("chain");
+  expect(budgetClassOf(POINTS["guard.model.before"])).toBe("first");
+  expect(budgetClassOf(POINTS["lifecycle.agent.settled"])).toBe("tap");
   // detached tap도 예산을 받는다
-  expect(budgetClassOf(POINTS.thinking_level_select)).toBe("tap");
+  expect(budgetClassOf(POINTS["request.thinking.after"])).toBe("tap");
   expect(STREAM_TAP_POINTS).toEqual([
-    "message_update",
-    "provider_stream_event",
-    "tool_execution_update",
+    "boundary.message.update",
+    "request.stream",
+    "tool.execution.update",
   ]);
   const budgetOf = budgetMsFrom(() => DEFAULT_BUDGETS_MS);
-  expect(budgetOf(entry("session_shutdown"))).toBe(2_000);
-  expect(budgetOf(entry("tool_call"))).toBe(30_000);
+  expect(budgetOf(entry("session.shutdown"))).toBe(2_000);
+  expect(budgetOf(entry("tool.call.before"))).toBe(30_000);
 });
 
-test("budget: session_shutdown handler is cut at 2000ms", async () => {
+test("budget: session.shutdown handler is cut at 2000ms", async () => {
   const harness = await createOperationsHarness();
   const { t } = harness;
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "bud-shutdown", points: ["session_shutdown"] }, (g) => {
-      g.on("session_shutdown", () => new Promise<void>(() => {}));
+    makeUnit({ name: "bud-shutdown", points: ["session.shutdown"] }, (g) => {
+      g.on("session.shutdown", () => new Promise<void>(() => {}));
     }),
   );
   const pending = t.host.dispatch(
-    "session_shutdown",
+    "session.shutdown",
     { reason: "quit" },
     { threadId: thread, dispatchKey: "k" },
   );

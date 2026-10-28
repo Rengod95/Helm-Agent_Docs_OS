@@ -12,9 +12,9 @@ test("disable applies at step boundary", async () => {
   const order: string[] = [];
   const handlerCalls: string[] = [];
   await t.host.install(
-    makeGroupUnit({ name: "scp-group", points: ["tool_call"] }, (g) => {
-      g.on("tool_call", () => {
-        handlerCalls.push("tool_call");
+    makeGroupUnit({ name: "scp-group", points: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", () => {
+        handlerCalls.push("tool.call.before");
         return undefined;
       });
       g.onDispose(() => {
@@ -38,8 +38,8 @@ test("disable applies at step boundary", async () => {
   expect(t.host.scope("scp-group")?.status).toBe("disabling");
   await t.settled();
   // 아직 경계 전이다: 핸들러는 계속 실행되고 켜짐 기록도 그대로다
-  await t.host.dispatch("tool_call", toolCall, { threadId: thread, dispatchKey: "before" });
-  expect(handlerCalls).toEqual(["tool_call"]);
+  await t.host.dispatch("tool.call.before", toolCall, { threadId: thread, dispatchKey: "before" });
+  expect(handlerCalls).toEqual(["tool.call.before"]);
   expect(order).toEqual([]);
 
   const signal = { threadId: thread, kind: "step_end" as const };
@@ -54,8 +54,8 @@ test("disable applies at step boundary", async () => {
     scopeId: "scp-group",
     status: "disabled",
   });
-  await t.host.dispatch("tool_call", toolCall, { threadId: thread, dispatchKey: "after" });
-  expect(handlerCalls).toEqual(["tool_call"]);
+  await t.host.dispatch("tool.call.before", toolCall, { threadId: thread, dispatchKey: "after" });
+  expect(handlerCalls).toEqual(["tool.call.before"]);
   expect(order).toEqual([]);
   await t.records.commit({
     threadId: thread,
@@ -73,8 +73,8 @@ test("enable while idle", async () => {
   const thread = t.newThread();
   const handlerCalls: string[] = [];
   const outcome = await t.host.install(
-    makeUnit({ name: "scp-idle", points: ["tool_call"], initialEnabled: false }, (g) => {
-      g.on("tool_call", () => {
+    makeUnit({ name: "scp-idle", points: ["tool.call.before"], initialEnabled: false }, (g) => {
+      g.on("tool.call.before", () => {
         handlerCalls.push("x");
         return undefined;
       });
@@ -92,7 +92,7 @@ test("enable while idle", async () => {
   expect(changed.map((event) => event.payload)).toEqual([
     { scopeId: "scp-idle", status: "enabled" },
   ]);
-  await t.host.dispatch("tool_call", toolCall, { threadId: thread, dispatchKey: "k" });
+  await t.host.dispatch("tool.call.before", toolCall, { threadId: thread, dispatchKey: "k" });
   expect(handlerCalls).toEqual(["x"]);
 });
 
@@ -101,9 +101,9 @@ test("dispose releases registrations", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "scp-dispose", points: ["tool_call", "turn_end"] }, (g) => {
-      g.on("tool_call", () => undefined);
-      g.on("turn_end", () => undefined);
+    makeUnit({ name: "scp-dispose", points: ["tool.call.before", "boundary.step.after"] }, (g) => {
+      g.on("tool.call.before", () => undefined);
+      g.on("boundary.step.after", () => undefined);
     }),
   );
   await t.settled();
@@ -121,7 +121,7 @@ test("stale generation rejected", async () => {
   await t.host.openThread(thread);
   let captured: ScopeApi<never> | undefined;
   await t.host.install(
-    makeUnit({ name: "scp-stale", points: ["tool_call"] }, (g) => {
+    makeUnit({ name: "scp-stale", points: ["tool.call.before"] }, (g) => {
       captured = g;
     }),
   );
@@ -130,7 +130,7 @@ test("stale generation rejected", async () => {
   await t.settled();
   let code: string | undefined;
   try {
-    captured?.on("tool_call", () => undefined);
+    captured?.on("tool.call.before", () => undefined);
   } catch (error) {
     code = error instanceof PrimitiveError ? error.code : undefined;
   }
@@ -171,8 +171,8 @@ test("last toggle request wins and a cancelled disable keeps the scope", async (
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "scp-flip", points: ["tool_call"] }, (g) => {
-      g.on("tool_call", () => undefined);
+    makeUnit({ name: "scp-flip", points: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", () => undefined);
     }),
   );
   await t.settled();
@@ -198,8 +198,8 @@ test("a failed commit rolls back the toggle and retries at the next boundary", a
   const disposed: string[] = [];
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "scp-retry", points: ["tool_call"] }, (g) => {
-      g.on("tool_call", () => undefined);
+    makeUnit({ name: "scp-retry", points: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", () => undefined);
       g.onDispose(() => {
         disposed.push("gen");
       });
@@ -260,8 +260,8 @@ test("idle application commits under a key derived from committed values, so a r
   const t = await createTestHost({ shared: { records: flaky } });
   const thread = t.newThread();
   await t.host.install(
-    makeUnit({ name: "scp-key", points: ["tool_call"], initialEnabled: false }, (g) => {
-      g.on("tool_call", () => undefined);
+    makeUnit({ name: "scp-key", points: ["tool.call.before"], initialEnabled: false }, (g) => {
+      g.on("tool.call.before", () => undefined);
     }),
   );
   await t.host.openThread(thread);
@@ -280,8 +280,8 @@ test("idle application commits under a key derived from committed values, so a r
 });
 
 const restartUnitOf = () =>
-  makeUnit({ name: "scp-restart", points: ["tool_call"], initialEnabled: false }, (g) => {
-    g.on("tool_call", () => undefined);
+  makeUnit({ name: "scp-restart", points: ["tool.call.before"], initialEnabled: false }, (g) => {
+    g.on("tool.call.before", () => undefined);
   });
 
 test("re-enabling a scope after a restart is not swallowed by a commit key an earlier run already used", async () => {

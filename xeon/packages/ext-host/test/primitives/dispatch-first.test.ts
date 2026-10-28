@@ -17,26 +17,26 @@ test("first throw yields FIRST_DENY", async () => {
   const { t, thread } = await setup();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "first-a", points: ["tool_call"], loadIndex: 0 }, (g) => {
-      g.on("tool_call", () => {
+    makeUnit({ name: "first-a", points: ["tool.call.before"], loadIndex: 0 }, (g) => {
+      g.on("tool.call.before", () => {
         calls.push("a");
         throw new Error("boom");
       });
     }),
   );
   await t.host.install(
-    makeUnit({ name: "first-b", points: ["tool_call"], loadIndex: 1 }, (g) => {
-      g.on("tool_call", () => {
+    makeUnit({ name: "first-b", points: ["tool.call.before"], loadIndex: 1 }, (g) => {
+      g.on("tool.call.before", () => {
         calls.push("b");
         return undefined;
       });
     }),
   );
-  const outcome = await t.host.dispatch("tool_call", toolCall, {
+  const outcome = await t.host.dispatch("tool.call.before", toolCall, {
     threadId: thread,
     dispatchKey: "k",
   });
-  expect(outcome.decision).toEqual(FIRST_DENY.tool_call);
+  expect(outcome.decision).toEqual(FIRST_DENY["tool.call.before"]);
   expect(outcome.substituted).toBe(true);
   expect(outcome.decidedBy?.extension).toBe("first-a");
   expect(calls).toEqual(["a"]);
@@ -47,23 +47,23 @@ test.each([0, "", null, false, { block: false }])("first %p is not a decision", 
   const { t, thread } = await setup();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "first-bad", points: ["tool_call"], loadIndex: 0 }, (g) => {
-      g.on("tool_call", returning(bad));
+    makeUnit({ name: "first-bad", points: ["tool.call.before"], loadIndex: 0 }, (g) => {
+      g.on("tool.call.before", returning(bad));
     }),
   );
   await t.host.install(
-    makeUnit({ name: "first-after", points: ["tool_call"], loadIndex: 1 }, (g) => {
-      g.on("tool_call", () => {
+    makeUnit({ name: "first-after", points: ["tool.call.before"], loadIndex: 1 }, (g) => {
+      g.on("tool.call.before", () => {
         calls.push("after");
         return undefined;
       });
     }),
   );
-  const outcome = await t.host.dispatch("tool_call", toolCall, {
+  const outcome = await t.host.dispatch("tool.call.before", toolCall, {
     threadId: thread,
     dispatchKey: "k",
   });
-  expect(outcome.decision).toEqual(FIRST_DENY.tool_call);
+  expect(outcome.decision).toEqual(FIRST_DENY["tool.call.before"]);
   expect(outcome.substituted).toBe(true);
   expect(outcome.failures.map((failure) => failure.reason)).toEqual(["result_invalid"]);
   expect(calls).toEqual([]);
@@ -72,11 +72,11 @@ test.each([0, "", null, false, { block: false }])("first %p is not a decision", 
 test("first undefined passes through", async () => {
   const { t, thread } = await setup();
   await t.host.install(
-    makeUnit({ name: "first-pass", points: ["tool_call"] }, (g) => {
-      g.on("tool_call", () => undefined);
+    makeUnit({ name: "first-pass", points: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", () => undefined);
     }),
   );
-  const outcome = await t.host.dispatch("tool_call", toolCall, {
+  const outcome = await t.host.dispatch("tool.call.before", toolCall, {
     threadId: thread,
     dispatchKey: "k",
   });
@@ -89,22 +89,22 @@ test("first returns the first valid decision and stops", async () => {
   const { t, thread } = await setup();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "first-deny", points: ["tool_call"], loadIndex: 0 }, (g) => {
-      g.on("tool_call", () => {
+    makeUnit({ name: "first-deny", points: ["tool.call.before"], loadIndex: 0 }, (g) => {
+      g.on("tool.call.before", () => {
         calls.push("deny");
         return { block: true, reason: "no" };
       });
     }),
   );
   await t.host.install(
-    makeUnit({ name: "first-late", points: ["tool_call"], loadIndex: 1 }, (g) => {
-      g.on("tool_call", () => {
+    makeUnit({ name: "first-late", points: ["tool.call.before"], loadIndex: 1 }, (g) => {
+      g.on("tool.call.before", () => {
         calls.push("late");
         return undefined;
       });
     }),
   );
-  const outcome = await t.host.dispatch("tool_call", toolCall, {
+  const outcome = await t.host.dispatch("tool.call.before", toolCall, {
     threadId: thread,
     dispatchKey: "k",
   });
@@ -122,18 +122,21 @@ test("first timeout denies", async () => {
   const { t, thread } = await setup(policy);
   let handlerSignal: AbortSignal | undefined;
   await t.host.install(
-    makeUnit({ name: "first-slow", points: ["tool_call"] }, (g) => {
-      g.on("tool_call", (_payload, ctx) => {
+    makeUnit({ name: "first-slow", points: ["tool.call.before"] }, (g) => {
+      g.on("tool.call.before", (_payload, ctx) => {
         handlerSignal = ctx.signal;
         return new Promise<undefined>(() => {});
       });
     }),
   );
-  const pending = t.host.dispatch("tool_call", toolCall, { threadId: thread, dispatchKey: "k" });
+  const pending = t.host.dispatch("tool.call.before", toolCall, {
+    threadId: thread,
+    dispatchKey: "k",
+  });
   await flushMicrotasks();
   await t.timers.advance(100);
   const outcome = await pending;
-  expect(outcome.decision).toEqual(FIRST_DENY.tool_call);
+  expect(outcome.decision).toEqual(FIRST_DENY["tool.call.before"]);
   expect(outcome.substituted).toBe(true);
   expect(outcome.failures.map((failure) => failure.reason)).toEqual(["timeout"]);
   expect(handlerSignal?.aborted).toBe(true);
@@ -148,9 +151,9 @@ test("first handler that finishes within budget still counts", async () => {
   };
   const { t, thread } = await setup(policy);
   await t.host.install(
-    makeUnit({ name: "first-timely", points: ["tool_call"] }, (g) => {
+    makeUnit({ name: "first-timely", points: ["tool.call.before"] }, (g) => {
       g.on(
-        "tool_call",
+        "tool.call.before",
         () =>
           new Promise((resolve) =>
             t.timers.setTimer(49, () => resolve({ block: true, reason: "late but ok" })),
@@ -158,7 +161,10 @@ test("first handler that finishes within budget still counts", async () => {
       );
     }),
   );
-  const pending = t.host.dispatch("tool_call", toolCall, { threadId: thread, dispatchKey: "k" });
+  const pending = t.host.dispatch("tool.call.before", toolCall, {
+    threadId: thread,
+    dispatchKey: "k",
+  });
   await flushMicrotasks();
   await t.timers.advance(60);
   const outcome = await pending;

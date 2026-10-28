@@ -32,12 +32,12 @@ async function setup(): Promise<{
       {
         name: "pr-consumer",
         loadIndex: 1,
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
         setupCount += 1;
-        g.on("agent_settled", () => {
+        g.on("boundary.settle.after", () => {
           handled.push(g.capability(echoKey).echo());
         });
       },
@@ -49,7 +49,7 @@ async function setup(): Promise<{
 
 async function fire(t: Host, thread: ReturnType<Host["newThread"]>, key: string): Promise<void> {
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: key },
   );

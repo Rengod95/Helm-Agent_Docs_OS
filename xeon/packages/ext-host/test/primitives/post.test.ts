@@ -15,7 +15,7 @@ async function setup(options: Parameters<typeof createTestHost>[0] = {}) {
 
 function fire(t: Awaited<ReturnType<typeof createTestHost>>, thread: ThreadId, key: string) {
   return t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: key },
   );
@@ -25,8 +25,8 @@ test("duplicate requestId", async () => {
   const { t, thread } = await setup();
   const receipts: PostReceipt[] = [];
   await t.host.install(
-    makeUnit({ name: "post-dup", points: ["agent_settled"], usesPost: true }, (g) => {
-      g.on("agent_settled", async () => {
+    makeUnit({ name: "post-dup", points: ["boundary.settle.after"], usesPost: true }, (g) => {
+      g.on("boundary.settle.after", async () => {
         receipts.push(
           await g.post({ kind: "user", content: "hi" }, { when: "followUp", requestId: "same" }),
         );
@@ -51,8 +51,8 @@ test("post requires usesPost", async () => {
   const { t, thread } = await setup();
   const errors: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "post-undeclared", points: ["agent_settled"] }, (g) => {
-      g.on("agent_settled", async () => {
+    makeUnit({ name: "post-undeclared", points: ["boundary.settle.after"] }, (g) => {
+      g.on("boundary.settle.after", async () => {
         try {
           await g.post({ kind: "user", content: "hi" }, { when: "next", requestId: "x" });
         } catch (error) {
@@ -77,8 +77,8 @@ test("post scoped by scope", async () => {
     ] as const,
     async ([name, loadIndex]) => {
       await t.host.install(
-        makeUnit({ name, points: ["agent_settled"], usesPost: true, loadIndex }, (g) => {
-          g.on("agent_settled", async () => {
+        makeUnit({ name, points: ["boundary.settle.after"], usesPost: true, loadIndex }, (g) => {
+          g.on("boundary.settle.after", async () => {
             const receipt = await g.post(
               { kind: "user", content: "hi" },
               { when: "steer", requestId: "shared" },
@@ -98,17 +98,20 @@ test("post scoped by scope", async () => {
 test("post outside a thread context is no_thread, and a bad requestId is a TypeError", async () => {
   const { t, thread } = await setup();
   const outcome = await t.host.install(
-    makeUnit({ name: "post-setup", points: ["agent_settled"], usesPost: true }, async (g) => {
-      await g.post({ kind: "user", content: "hi" }, { when: "next", requestId: "x" });
-    }),
+    makeUnit(
+      { name: "post-setup", points: ["boundary.settle.after"], usesPost: true },
+      async (g) => {
+        await g.post({ kind: "user", content: "hi" }, { when: "next", requestId: "x" });
+      },
+    ),
   );
   expect(outcome.setups[0]?.status).toBe("failed");
   expect(outcome.setups[0]?.failure?.code).toBe("no_thread");
 
   const errors: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "post-badid", points: ["agent_settled"], usesPost: true }, (g) => {
-      g.on("agent_settled", async () => {
+    makeUnit({ name: "post-badid", points: ["boundary.settle.after"], usesPost: true }, (g) => {
+      g.on("boundary.settle.after", async () => {
         try {
           await g.post({ kind: "user", content: "hi" }, { when: "next", requestId: "" });
         } catch (error) {
@@ -125,8 +128,8 @@ test("post without the queue port is port_unavailable", async () => {
   const { t, thread } = await setup({ without: ["queue"] });
   const errors: unknown[] = [];
   await t.host.install(
-    makeUnit({ name: "post-noport", points: ["agent_settled"], usesPost: true }, (g) => {
-      g.on("agent_settled", async () => {
+    makeUnit({ name: "post-noport", points: ["boundary.settle.after"], usesPost: true }, (g) => {
+      g.on("boundary.settle.after", async () => {
         try {
           await g.post({ kind: "user", content: "hi" }, { when: "next", requestId: "x" });
         } catch (error) {

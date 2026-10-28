@@ -26,21 +26,21 @@ test("tap continues after throw", async () => {
   const { t, thread } = await setup();
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "tap-a", points: ["agent_settled"], loadIndex: 0 }, (g) => {
-      g.on("agent_settled", () => {
+    makeUnit({ name: "tap-a", points: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
+      g.on("boundary.settle.after", () => {
         calls.push("a");
         throw new Error("boom");
       });
     }),
   );
   await t.host.install(
-    makeUnit({ name: "tap-b", points: ["agent_settled"], loadIndex: 1 }, (g) => {
-      g.on("agent_settled", () => {
+    makeUnit({ name: "tap-b", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+      g.on("boundary.settle.after", () => {
         calls.push("b");
       });
     }),
   );
-  const outcome = await t.host.dispatch("agent_settled", settledPayload(t), {
+  const outcome = await t.host.dispatch("boundary.settle.after", settledPayload(t), {
     threadId: thread,
     dispatchKey: "k1",
   });
@@ -63,21 +63,21 @@ test("tap ignores returned value", async () => {
   await t.host.openThread(thread);
   const calls: string[] = [];
   await t.host.install(
-    makeUnit({ name: "tap-val", points: ["agent_settled"], loadIndex: 0 }, (g) => {
+    makeUnit({ name: "tap-val", points: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
       g.on(
-        "agent_settled",
+        "boundary.settle.after",
         noisyTap(() => calls.push("val")),
       );
     }),
   );
   await t.host.install(
-    makeUnit({ name: "tap-next", points: ["agent_settled"], loadIndex: 1 }, (g) => {
-      g.on("agent_settled", () => {
+    makeUnit({ name: "tap-next", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+      g.on("boundary.settle.after", () => {
         calls.push("next");
       });
     }),
   );
-  const outcome = await t.host.dispatch("agent_settled", settledPayload(t), {
+  const outcome = await t.host.dispatch("boundary.settle.after", settledPayload(t), {
     threadId: thread,
     dispatchKey: "k2",
   });
@@ -114,11 +114,11 @@ test("policy run replaces own timer", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "tap-run", points: ["agent_settled"] }, (g) => {
-      g.on("agent_settled", () => {});
+    makeUnit({ name: "tap-run", points: ["boundary.settle.after"] }, (g) => {
+      g.on("boundary.settle.after", () => {});
     }),
   );
-  await t.host.dispatch("agent_settled", settledPayload(t), {
+  await t.host.dispatch("boundary.settle.after", settledPayload(t), {
     threadId: thread,
     dispatchKey: "k3",
   });
@@ -141,18 +141,18 @@ test("settled reported once per success", async () => {
   const thread = t.newThread();
   await t.host.openThread(thread);
   await t.host.install(
-    makeUnit({ name: "ok-one", points: ["agent_settled"], loadIndex: 0 }, (g) => {
-      g.on("agent_settled", () => {});
+    makeUnit({ name: "ok-one", points: ["boundary.settle.after"], loadIndex: 0 }, (g) => {
+      g.on("boundary.settle.after", () => {});
     }),
   );
   await t.host.install(
-    makeUnit({ name: "bad-one", points: ["agent_settled"], loadIndex: 1 }, (g) => {
-      g.on("agent_settled", () => {
+    makeUnit({ name: "bad-one", points: ["boundary.settle.after"], loadIndex: 1 }, (g) => {
+      g.on("boundary.settle.after", () => {
         throw new Error("x");
       });
     }),
   );
-  await t.host.dispatch("agent_settled", settledPayload(t), {
+  await t.host.dispatch("boundary.settle.after", settledPayload(t), {
     threadId: thread,
     dispatchKey: "k4",
   });

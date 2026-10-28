@@ -31,7 +31,7 @@ test("skeleton: the loader loads the smoke group and its operations run", async 
 
   // on: tool_call 거부
   const denied = await t.host.dispatch(
-    "tool_call",
+    "tool.call.before",
     { toolCallId: "call_1", toolName: "danger", input: {} },
     { threadId: thread, dispatchKey: "tc" },
   );

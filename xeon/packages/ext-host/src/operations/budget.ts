@@ -23,9 +23,9 @@ export const DEFAULT_BUDGETS_MS: BudgetTable = {
 
 /** 고빈도 관찰 지점. streamTap 예산을 쓴다 */
 export const STREAM_TAP_POINTS: readonly PointName[] = [
-  "message_update",
-  "provider_stream_event",
-  "tool_execution_update",
+  "boundary.message.update",
+  "request.stream",
+  "tool.execution.update",
 ];
 
 /** 순수 함수. setup(값은 OperationsPolicy.setupBudgetMs)과 외부 훅은 이 함수를 쓰지 않는다 */
@@ -34,9 +34,11 @@ export function budgetClassOf(point: PointDecl): Exclude<BudgetClass, "setup" | 
     case "first":
       return "first";
     case "chain":
+    case "collect":
+      // collect도 값을 만드는 지점이라 chain 예산을 쓴다(adr.0017)
       return "chain";
     case "tap":
-      if (point.name === "session_shutdown") return "shutdown";
+      if (point.name === "session.shutdown") return "shutdown";
       return STREAM_TAP_POINTS.includes(point.name) ? "streamTap" : "tap";
     default:
       return assertNever(point.fold, "PointDecl.fold");

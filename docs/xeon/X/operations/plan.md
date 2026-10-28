@@ -38,7 +38,7 @@ xeon/packages/ext-host/
     budget.ts            # BudgetClass, BudgetTable, DEFAULT_BUDGETS_MS, STREAM_TAP_POINTS, budgetClassOf,
                          # budgetMsFrom, BudgetGate, BudgetOutcome, BudgetDeps, runWithBudget, awaitUser
     failure.ts           # FailureKind, HandlerResultKind, HandlerOutcomeRecord, fromHandlerFailure,
-                         # FoldFailureAction, FailureStats, FailureLedger, createFailureLedger
+                         # FailureStats, FailureLedger, createFailureLedger
     auto-disable.ts      # AutoDisablePolicy, DEFAULT_AUTO_DISABLE, AUTO_DISABLE_EXEMPT_TIERS,
                          # AutoDisableVerdict, judgeAutoDisable, ScopeChangeReason, ScopeControl,
                          # OperationsNotifier, AutoDisabler, createAutoDisabler
@@ -101,7 +101,7 @@ xeon/packages/ext-host/
 | O-13 | `storage/guard.ts`: `checkStatement`(접두 대조, 금지 키워드, 여러 문장). 테스트·디버그 빌드에서 O-14가 만든 모든 문장에 적용 | O-12 | S | M1 |
 | O-14 | `storage/ext-storage.ts`: `defineTables`(검사, 소유 장부 `xh_ext_tables`, `kinds` 소유 검사), `ExtProjection` → `Projector` 변환과 `ProjectorRegistryPort.register` 등록(`Result` 오류 → `defineTables` 실패), `onFailure` 구독, `ExtWriters`(ProjectionTx 감싸기), `read`(`scoped("ext.<name>")` 읽기), 소유 장부(`scoped("xh")`), `storageOf` | P-30(`ProjectorRegistryPortKey`, `ScopedStorePortKey`, `PortLookup`), L0.store.plan(`StoreService.scoped`, `ProjectionTx` 포트), L1.persistence.plan(`ProjectorRegistry.register`), F.records.plan(확장 kind 등록 `EventKindRegistry`), O-12, O-13 | L | M1 |
 | O-15 | 저장 영역 계약 시나리오 `ext-storage.contract.ts`: 저장소 팩토리를 인자로 받는 시나리오 모음. X `test/` 안에서는 F 인터페이스로 만든 자체 저장 대역(`test/operations/support/fake-store.ts`, 장애 주입 지점 포함)으로 돌린다. 시나리오 파일은 테스트 파일이라 L0.store.plan ST-23이 실제 bun:sqlite 팩토리로 같은 시나리오를 돌릴 수 있다(테스트 파일 교차 import, [결정: review.decisions-2 U-17]). 장애 주입 롤백 시나리오 포함 | F.records.plan(`StoreDb`, `ProjectionTx`, `Projector`), O-14 | M | M1 |
-| O-16 | M1 스모크 연결: 테스트 그룹이 `storageOf(g).defineTables`로 테이블 하나를 정의하고 `turn_end` entries의 자기 kind 이벤트를 투영한다. 재개 뒤 행이 이어지는지 확인 | F.extensions.plan M1 스모크 매니페스트, L4.host-service.plan 조립, O-14 | M | M1 |
+| O-16 | M1 스모크 연결: 테스트 그룹이 `storageOf(g).defineTables`로 테이블 하나를 정의하고 `boundary.step.after` entries의 자기 kind 이벤트를 투영한다. 재개 뒤 행이 이어지는지 확인 | F.extensions.plan M1 스모크 매니페스트, L4.host-service.plan 조립, O-14 | M | M1 |
 | O-17 | `doc-constants.test.ts`: 스펙 §4.2.2 표·§6 표의 기본값과 §3.1 tier 이름을 코드 상수와 대조 | O-05, O-10, O-02 | S | M1 |
 | O-18 | `naming.ts`: `qualifiedName`, `resolveNames`(순서 무관, 예약, 충돌, 64자), `createResourcePolicy`(`ResourcePolicy.resolve` 쌍 판정) | P-24(리소스 레지스트리, `ResourcePolicy`) | M | M2 |
 | O-19 | `ExtHostDeps.resourcePolicy` 연결, 집합 판정 메서드 추가를 primitives와 합의(스펙 §10 미결 17), pi 어댑터의 `registerTool`·`registerCommand`·`registerShortcut`·`registerFlag` 매핑 확인 | L-19(pi 어댑터), O-18 | M | M2 |
@@ -142,7 +142,7 @@ xeon/packages/ext-host/
 | 7 | `budget: pause/resume excludes user wait` | 20s 실행 + 60s 대기 + 20s 실행은 통과, 대기 없는 40s는 초과 | §9-7 |
 | 8 | `budget: nested pause counts depth` | pause 두 번, resume 한 번이면 여전히 멈춤. 두 번째 resume에서 다시 잼 | §4.2.3 |
 | 9 | `budget: late result is discarded` | 초과 뒤 반환값·예외가 결과와 장부에 영향 없음, 타이머가 남지 않음(`ManualClock` 대기 타이머 0) | §9-8 |
-| 10 | `budget: shutdown and stream classes` | `session_shutdown` 2,000ms, `message_update` 1,000ms, detached tap도 예산 적용 | §9-9, §4.2.2 |
+| 10 | `budget: shutdown and stream classes` | `session.shutdown` 2,000ms, `boundary.message.update` 1,000ms, detached tap도 예산 적용 | §9-9, §4.2.2 |
 | 11 | `budget: drive has no time budget` | `budgetMs: null`이면 600,000ms 진행에도 abort 없음 | §9-10 |
 | 12 | `budget: outer abort is aborted not failure` | outer abort → `aborted`, 장부 연속 수 변화 없음 | §9-14 |
 | 13 | `failure: classification table` | threw, timeout, result_invalid, aborted, ok 분류와 연속 수·창 갱신 | §4.3.1~§4.3.2 |

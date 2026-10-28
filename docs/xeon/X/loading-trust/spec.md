@@ -33,11 +33,11 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 - 신뢰 등급 4값의 뜻과 허용 연산 표, 프로젝트 신뢰 판정과 저장
 - 프로세스 격리(2차)의 전송, 프록시, 직렬화, 수명, 기록 경로
 - pi 확장 어댑터의 범위와 지원 표, 가상 모듈 처리. 어댑터는 만들지 않기로 했다 [결정: review.m3-design-inputs D-M3-11 c](§4.10)
-- `project_trust`, `resources_discover` 지점의 발화 시점(F.extensions.spec §7)
+- `session.trust.before`, `session.resources` 지점의 발화 시점(F.extensions.spec §7)
 
 다루지 않는 것:
 
-- 매니페스트 스키마, 지점 41행, fold 규칙, 정적 검사 함수(`validateManifest`, `validateUsage`, `validateManifestSet`)와 `ManifestIssueCode`: F.extensions.spec이 정본이다. 이 문서는 이름으로 인용한다.
+- 매니페스트 스키마, 지점 46행, fold 규칙, 정적 검사 함수(`validateManifest`, `validateUsage`, `validateManifestSet`)와 `ManifestIssueCode`: F.extensions.spec이 정본이다. 이 문서는 이름으로 인용한다.
 - 4연산 실행, 디스패처, post 큐, drive 임대 중재, scope 토글·상태, 리소스 등록 API, 설정 키 `x.primitives.*`: X.primitives.spec.
 - tier, 핸들러 시간 예산, 실패 격리·자동 끄기, 확장 전용 저장(접두 테이블 API), 이름 충돌 규칙, 안전 모드, 외부 훅 프로토콜(M4로 옮김 [결정: 2026-10-28 사용자]), 설정 키 `x.operations.*`: X.operations.spec. tier와 시간 예산은 operations 소유로 본다 [제안]. F.extensions.spec §1·§4.2의 primitives 표기는 정합성 단계에서 고친다.
 - 설정 파일 경로와 읽기, 유효 값 계산: F.wire-settings.spec과 L1.persistence.spec. 이 문서는 키 정의와 신뢰 전 적용 제외 규칙만 둔다.
@@ -828,7 +828,7 @@ export interface VirtualModuleRegistry {
 
 #### 4.6.2 등급 × 허용 연산 표
 
-| 등급 | 로드 | `on`(일반 지점) | `on`(`project_trust`) | `post` | `drive` | 리소스 등록 | 저장(접두 테이블) | 격리 |
+| 등급 | 로드 | `on`(일반 지점) | `on`(`session.trust.before`) | `post` | `drive` | 리소스 등록 | 저장(접두 테이블) | 격리 |
 |---|---|---|---|---|---|---|---|---|
 | `builtin` | 예 | 예 | 예 | 예 | 예 | 예 | prefix | forbidden |
 | `user` | 예 | 예 | 예 | 예 | 예 | 예 | prefix | optional |
@@ -836,7 +836,7 @@ export interface VirtualModuleRegistry {
 | `untrusted` | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | 아니오 | none | notLoaded |
 
 - `drive`는 그 위에 F 규칙(`kind: "group"`, `usesDrive: true`)을 함께 만족해야 한다.
-- `project` 등급의 `project_trust` 금지는 순서 때문이기도 하다. 프로젝트 확장은 신뢰 판정 뒤에 로드된다(§4.7.4). 로더는 `points`에 `project_trust`가 있는 프로젝트 매니페스트를 `usage_invalid`로 거부한다.
+- `project` 등급의 `session.trust.before` 금지는 순서 때문이기도 하다. 프로젝트 확장은 신뢰 판정 뒤에 로드된다(§4.7.4). 로더는 `points`에 `session.trust.before`가 있는 프로젝트 매니페스트를 `usage_invalid`로 거부한다.
 - 격리 `forbidden`: 내장 확장은 L0~L2 서비스를 같은 프로세스에서 제공하므로 격리하지 않는다.
 - 저장 `prefix`는 X.operations.spec의 확장 접두 테이블 API를 쓸 수 있다는 뜻이다. 격리 확장은 등급과 무관하게 직접 접근이 없다(§4.9.6).
 - 이 표는 `TRUST_MATRIX` 상수와 같아야 한다(§9 수용 기준 14).
@@ -870,7 +870,7 @@ export interface VirtualModuleRegistry {
 | `TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES`(30-39) | `.pi/` 아래 8개 | §4.7.2 목록 | Xeon 자원 이름 |
 | `hasTrustRequiringProjectResources`(186-208) | 불리언 | `findTrustRequiringResources`가 찾은 목록을 돌려준다 | 프롬프트와 진단에 보인다 |
 | `getProjectTrustOptions`(67-97) | 영어 라벨 5개 | `trustOptions`. 라벨은 L4가 현지화한다. 선택지는 §4.7.3 | 표시는 L4 소관 |
-| `resolveProjectTrusted`(`project-trust.ts` 47-97) | 판정 순서 | `resolveProjectTrust`. 순서는 같고 `project_trust` 예외는 거부(F fail-closed) | F.extensions.spec §3.4 27행 |
+| `resolveProjectTrusted`(`project-trust.ts` 47-97) | 판정 순서 | `resolveProjectTrust`. 순서는 같고 `session.trust.before` 예외는 거부(F fail-closed) | F.extensions.spec §3.4 27행 |
 | `emitProjectTrustEvent` 결과 `undecided` | 결정 없음 | `undefined`(first fold의 결정 없음) | F fold 규칙 |
 | `DefaultProjectTrust`(`settings-manager.ts`) | `always`/`never`/`ask` | 설정 키 `x.loading-trust.defaultProjectTrust` | F wire 설정 체계 |
 | `AppMode`(`interactive`/`print`/`json`/`rpc`) | 프롬프트 가능 여부 | `LoaderMode`(`interactive`/`headless`) + `TrustPrompter` 유무 | 전송 형태와 무관하게 판정 |
@@ -902,7 +902,7 @@ export interface VirtualModuleRegistry {
 1. `trustOverride`가 있으면 그 값(`via: "override"`). 저장하지 않는다.
 2. 신뢰 필요 자원이 없으면 `trusted: true`(`via: "notRequired"`).
 3. 이번 호스트 프로세스의 세션 기억(`sessionMemory`)에 결정이 있으면 그 값(`via: "sessionMemory"`).
-4. `project_trust` 지점을 발화한다. 첫 결정이 `yes`나 `no`면 그 값(`via: "point"`). `remember: true`면 저장한다. 핸들러 예외는 `FIRST_DENY.project_trust`(불신)다(F.extensions.spec §3.4 27행). 결정이 없으면 다음으로 간다.
+4. `session.trust.before` 지점을 발화한다. 첫 결정이 `yes`나 `no`면 그 값(`via: "point"`). `remember: true`면 저장한다. 핸들러 예외는 `FIRST_DENY.project_trust`(불신)다(F.extensions.spec §3.4 27행). 결정이 없으면 다음으로 간다.
 5. 저장소 조회. `found`면 그 값(`via: "store"`). `corrupt`면 §4.7.5.
 6. `x.loading-trust.defaultProjectTrust`가 `always`면 신뢰, `never`면 불신(`via: "default"`).
 7. `mode`가 `headless`이거나 `TrustPrompter`가 없으면 불신(`via: "headless"`, 결정 `undecided`). 저장하지 않는다.
@@ -922,16 +922,16 @@ export interface VirtualModuleRegistry {
 - 사용자가 나중에 결정을 바꾸는 경로는 명령(`/trust` 대응, [가정: 이름은 L4.cli.spec])이다. 저장 `via: "command"`.
 - [제안] 비대화형 모드의 기본은 불신이다(pi `docs/security.md` "Project trust without an interactive prompt"). `always`를 사용자 설정에 둔 경우만 예외다.
 
-#### 4.7.4 신뢰 전에 실행하지 않는 것과 `project_trust` 발화 시점
+#### 4.7.4 신뢰 전에 실행하지 않는 것과 `session.trust.before` 발화 시점
 
 시작 순서 [제안]:
 
 1. L0 플랫폼 패키지 등록(조립 루트, `ExtHost.registerPlatform`).
 2. 내장, 관리, 사용자 확장의 파이프라인 1~9단계. 프로젝트 위치는 탐색하지 않는다.
 3. `findTrustRequiringResources`로 프로젝트 루트를 검사한다. 파일 존재만 확인하고 내용은 읽지 않는다.
-4. 자원이 있고 `trustOverride`가 없으면 `project_trust`를 발화한다(§4.7.3 4번). 이 시점의 핸들러는 2번에서 활성화된 `builtin`, `user` 등급 확장의 것뿐이다. 발화는 신뢰 판정 한 번에 한 번이다.
+4. 자원이 있고 `trustOverride`가 없으면 `session.trust.before`를 발화한다(§4.7.3 4번). 이 시점의 핸들러는 2번에서 활성화된 `builtin`, `user` 등급 확장의 것뿐이다. 발화는 신뢰 판정 한 번에 한 번이다.
 5. 신뢰가 `allow`면 프로젝트 위치를 탐색하고 프로젝트 후보에 1~9단계를 실행한다. 3단계 집합 검사는 두 번째 실행이다(§4.3.1).
-6. `resources_discover`를 발화한다(§7).
+6. `session.resources`를 발화한다(§7).
 
 신뢰 판정 전에 실행하거나 적용하지 않는 것:
 
@@ -1000,7 +1000,7 @@ flowchart LR
 #### 4.9.4 격리 가능 지점
 
 - [제안] 지점 N이 격리 가능하려면 `POINTS[N].payload`와 `POINTS[N].result`가 JSON 왕복 가능한 스키마여야 한다. `isolatablePoints()`는 스키마를 훑어 `Type.Unknown()`, 함수, `Uint8Array`, `AbortSignal`을 포함한 지점을 뺀다.
-- [제안] 위 계산과 별개로 고빈도 휘발 지점 `provider_stream_event`, `message_update`, `tool_execution_update`는 격리 불가로 둔다. 스트림 조각마다 프로세스 왕복을 하면 지연이 커지기 때문이다.
+- [제안] 위 계산과 별개로 고빈도 휘발 지점 `request.stream`, `boundary.message.update`, `tool.execution.update`는 격리 불가로 둔다. 스트림 조각마다 프로세스 왕복을 하면 지연이 커지기 때문이다.
 - 격리 확장의 `points`에 격리 불가 지점이 있으면 `error`(`isolation_point_unsupported`)다. 같은 프로세스로 몰래 바꾸지 않는다. 사용자가 격리를 요청했기 때문이다.
 - M1 이후 페이로드가 정확화되면(F.extensions.plan M2) 목록이 바뀐다. 목록은 코드가 계산하고 문서는 규칙만 둔다.
 
@@ -1069,7 +1069,7 @@ flowchart LR
 
 | pi | Xeon | 규칙 |
 |---|---|---|
-| `pi.on(event, handler)` | `g.on(event, h)` | 페이로드 사본에 `type: event`를 더해 넘긴다. 반환값은 지점별 변환표(`api-map.ts`)로 F 결정·패치로 바꾼다. 예: `tool_call`의 `{ block: true, reason }` → `ToolCallDecision`의 거부 형태, `project_trust`의 `undecided` → `undefined` |
+| `pi.on(event, handler)` | `g.on(event, h)` | 페이로드 사본에 `type: event`를 더해 넘긴다. 반환값은 지점별 변환표(`api-map.ts`)로 F 결정·패치로 바꾼다. 예: `tool.call.before`의 `{ block: true, reason }` → `ToolCallDecision`의 거부 형태, `session.trust.before`의 `undecided` → `undefined` |
 | `pi.sendMessage(message, { deliverAs, triggerTurn })` | `g.post({ kind: "context", customType, content, display, details }, { when, requestId })` | `deliverAs` `steer`→`steer`, `followUp`→`followUp`, `nextTurn`→`next`. 생략 시 실행 중이면 `steer`, 유휴면 `followUp`. X.primitives.spec §4.7 [제안]에서 유휴 post는 turn을 시작하지 않으므로 pi `triggerTurn: true`의 유휴 즉시 시작은 옮기지 못한다. 시작 값(`start`) 추가 여부는 X.primitives.spec §4.7 [미결]이고, 결정 전에는 `triggerTurn`을 부분 지원으로 둔다(`_research/notes/X-1.md` §4.2). `customType`은 `x.<name>.pi.<정규화 이름>`으로 바꾼다 |
 | `pi.sendUserMessage(content, options)` | `g.post({ kind: "user", content }, { when, requestId })` | `when` 대응은 위와 같다 |
 | post `requestId` | `piPostKey` | [제안] `pi:` + base32(sha256(`<name>\|<turnId 또는 "idle">\|<정규화 JSON 내용 해시>\|<ordinal>`)) 앞 40자. 같은 turn에서 같은 내용의 k번째 호출이 같은 키를 얻으므로 재생 때 중복 주입이 없다. adr.0007 §3.7 "메시지 내용과 호출 순번에서 `requestId`를 파생" |
@@ -1087,9 +1087,9 @@ flowchart LR
 
 | 항목 | 등급 | Xeon 대응 | 예제 근거(단위 수) | 비고 |
 |---|---|---|---|---|
-| `pi.on` 이벤트 41종 | 지원 | 같은 이름 지점 | 24종 사용(`session_start` 25, `before_agent_start` 8 …) | fold가 pi와 다른 지점은 F.extensions.spec §3.4 "pi와 차이" 열 |
-| `tool_call` 차단(`block`) | 지원 | `ToolCallDecision` 거부 | 4 | |
-| `tool_call` `event.input` 제자리 수정 | 비지원 | 없음 | 0 | 페이로드는 읽기 전용(F.extensions.spec §5 10번). `tool_call`은 인자 변경을 지원하지 않는다([결정: review.decisions-2 U-06]). [제안] 어댑터는 사본을 넘기고 핸들러 뒤 사본이 바뀌었으면 거부로 처리하고 `pi_input_mutation` 진단을 남긴다. 무시하면 정리 의도의 변경이 빠진 채 도구가 실행되므로 거부가 안전하다 |
+| `pi.on` 이벤트 41종 | 지원 | 같은 이름 지점 | 24종 사용(`session.start` 25, `input.agent.before` 8 …) | fold가 pi와 다른 지점은 F.extensions.spec §3.4 "pi와 차이" 열 |
+| `tool.call.before` 차단(`block`) | 지원 | `ToolCallDecision` 거부 | 4 | |
+| `tool.call.before` `event.input` 제자리 수정 | 비지원 | 없음 | 0 | 페이로드는 읽기 전용(F.extensions.spec §5 10번). `tool.call.before`은 인자 변경을 지원하지 않는다([결정: review.decisions-2 U-06]). [제안] 어댑터는 사본을 넘기고 핸들러 뒤 사본이 바뀌었으면 거부로 처리하고 `pi_input_mutation` 진단을 남긴다. 무시하면 정리 의도의 변경이 빠진 채 도구가 실행되므로 거부가 안전하다 |
 | `session_before_*` 취소 | 부분 | first `SessionCancelDecision` | fork 3, switch 3, compact 1 | pi는 예외 시 계속, Xeon은 취소 |
 | `registerCommand` | 지원 | 리소스 등록 | 35 | |
 | `registerTool` | 지원 | 리소스 등록 | 19 | |
@@ -1158,7 +1158,7 @@ flowchart LR
 | 같은 이름이 사용자와 프로젝트 위치에 모두 있음 | 사용자 것을 쓰고 프로젝트 것은 `rejected`(`name_conflict`) |
 | 외부 확장이 `trust.level: "builtin"` | `rejected`(`trust_exceeds_source`) |
 | 비대화형 실행, 프로젝트에 `.xeon/extensions/` 있음, 저장 결정 없음 | 불신. 프로젝트 확장은 import되지 않고 `rejected`(`trust_undecided`) |
-| `project_trust` 핸들러가 throw | `FIRST_DENY.project_trust`(불신). 저장하지 않는다 |
+| `session.trust.before` 핸들러가 throw | `FIRST_DENY.project_trust`(불신). 저장하지 않는다 |
 | 신뢰 저장 파일 손상 | 불신(`corruptStore`), 프롬프트 없음, 쓰기 거부, 진단 |
 | 프롬프트 중 사용자가 창을 닫음 | 불신(`undecided`), 저장 없음 |
 | `ext.foo.enabled = false` | 엔트리를 실행하지 않는다(`disabled`) |
@@ -1169,7 +1169,7 @@ flowchart LR
 | 격리 확장의 first 핸들러가 예산 초과 | `FIRST_DENY` 적용, 취소 전송, 유예 뒤 강제 종료 |
 | 격리 프로세스 연결 끊김 | 진행 중 요청 예외 처리, 재시작 정책(§4.9.7) |
 | pi 확장이 `@earendil-works/pi-tui` import | `error`(`pi_unsupported_module`) |
-| pi 확장이 `tool_call`에서 `event.input` 수정 | 그 호출 거부, `pi_input_mutation` 진단 |
+| pi 확장이 `tool.call.before`에서 `event.input` 수정 | 그 호출 거부, `pi_input_mutation` 진단 |
 | pi 확장이 공장 함수 실행 중 `ctx.ui.custom` 경로를 가진 명령만 등록 | 로드는 성공한다. 명령 실행 때 `PiCompatUnsupportedError` |
 
 ## 6. 설정 노출
@@ -1194,8 +1194,8 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 | 지점 | 이 문서의 역할 | 발화 시점 |
 |---|---|---|
-| `project_trust`(session, first) | 발화한다 | 프로젝트 신뢰 판정 4번(§4.7.3). 내장·관리·사용자 확장 활성화 뒤, 프로젝트 탐색 전. 판정 한 번에 한 번 |
-| `resources_discover`(session, chain) | 발화한다 | `loadAll` 끝(모든 단계 뒤) `reason: "startup"`, `reload` 끝 `reason: "reload"`. pi는 `session_start` 뒤에 발화한다(`types.ts:709`). Xeon은 로더 수명에 맞춘다 [제안]. 프로젝트 불신이면 프로젝트 확장의 핸들러는 없다 |
+| `session.trust.before`(session, first) | 발화한다 | 프로젝트 신뢰 판정 4번(§4.7.3). 내장·관리·사용자 확장 활성화 뒤, 프로젝트 탐색 전. 판정 한 번에 한 번 |
+| `session.resources`(session, chain) | 발화한다 | `loadAll` 끝(모든 단계 뒤) `reason: "startup"`, `reload` 끝 `reason: "reload"`. pi는 `session.start` 뒤에 발화한다(`types.ts:709`). Xeon은 로더 수명에 맞춘다 [제안]. 프로젝트 불신이면 프로젝트 확장의 핸들러는 없다 |
 
 - post, drive와의 관계: 로더는 post와 drive를 직접 쓰지 않는다. 격리 확장의 post는 `OutboxAgent`가 그 확장 scope로 대신 실행한다(§4.9.6). drive는 격리 확장에 허용하지 않는다(§4.9.5).
 - 4연산 사용과 매니페스트의 대조(`validateUsage`)는 primitives가 `install` 안에서 하고, 로더는 그 결과를 진단으로 옮긴다(§4.4.3). 연산 실행 자체도 X.primitives.spec이다.
@@ -1235,14 +1235,14 @@ F.wire-settings.spec §6의 열 형식을 따른다. 모든 키의 `ui.tab`은 `
 
 ## 9. 수용 기준
 
-1. `points`에 `tool_call`만 선언한 확장이 scope setup에서 `on("turn_end", …)`을 호출하면 그 확장은 `error`이고 진단 코드는 `usage_invalid`, `issues`에 `point_undeclared`가 있다. 그 확장의 다른 등록도 남지 않는다.
+1. `points`에 `tool.call.before`만 선언한 확장이 scope setup에서 `on("boundary.step.after", …)`을 호출하면 그 확장은 `error`이고 진단 코드는 `usage_invalid`, `issues`에 `point_undeclared`가 있다. 그 확장의 다른 등록도 남지 않는다.
 2. 내장 필수가 아닌 확장 셋 중 가운데 확장의 엔트리가 throw해도 나머지 둘은 `active`이고 `loadAll`은 성공한다.
 3. `essential: true` 내장 확장의 엔트리가 throw하면 `loadAll`이 `LoadAbortError`를 던지고 진단에 `essential_failed`가 있다.
-4. 프로젝트 신뢰 판정 전에는 프로젝트 확장의 엔트리 모듈이 import되지 않는다(가짜 `LoaderFs`와 import 기록기로 확인). `project_trust` 핸들러가 `no`를 돌려주면 끝까지 import되지 않는다.
+4. 프로젝트 신뢰 판정 전에는 프로젝트 확장의 엔트리 모듈이 import되지 않는다(가짜 `LoaderFs`와 import 기록기로 확인). `session.trust.before` 핸들러가 `no`를 돌려주면 끝까지 import되지 않는다.
 5. `mode: "headless"`, 저장 결정 없음, `defaultProjectTrust: "ask"`이면 프로젝트 확장이 로드되지 않고 `ProjectTrustResult.via`가 `headless`, 진단 코드가 `trust_undecided`다.
 6. `ext.<name>.enabled`의 유효 값이 `false`인 확장은 엔트리가 한 번도 호출되지 않고 상태가 `disabled`다. 세션 범위에서 `true`로 바꾸면 `ensureLoaded`가 엔트리를 한 번 부른다.
-7. 격리 확장 프록시의 `tool_call` 핸들러가 시간 예산을 넘기면 결정은 `FIRST_DENY.tool_call`이고 자식에게 취소가 전송된다(가짜 `IsolationProcessPort`).
-8. `tool_call`에서 `{ block: true, reason }`을 돌려주는 pi 샘플 확장을 어댑터로 로드하면 합성 매니페스트의 `points`가 `["tool_call"]`이고, 해당 도구 호출의 결정이 거부다.
+7. 격리 확장 프록시의 `tool.call.before` 핸들러가 시간 예산을 넘기면 결정은 `FIRST_DENY.tool_call`이고 자식에게 취소가 전송된다(가짜 `IsolationProcessPort`).
+8. `tool.call.before`에서 `{ block: true, reason }`을 돌려주는 pi 샘플 확장을 어댑터로 로드하면 합성 매니페스트의 `points`가 `["tool.call.before"]`이고, 해당 도구 호출의 결정이 거부다.
 9. `requires: [{ id: "web.search", range: "^1.0.0" }]`인 확장은 provider가 없으면 엔트리가 실행되지 않고 진단 `capability_missing`에 능력 ID가 있다.
 10. 같은 후보 집합을 섞은 순서로 넣어도 `orderManifests` 결과와 `loadIndex`가 같다.
 11. 신뢰 저장 파일이 JSON이 아니면 판정은 불신(`via: "corruptStore"`)이고, 프롬프트가 호출되지 않으며 `setMany`가 `TrustStoreCorruptError`를 던진다. 파일 내용은 바뀌지 않는다.

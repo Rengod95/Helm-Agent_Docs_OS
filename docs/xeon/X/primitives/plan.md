@@ -17,7 +17,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 | 마일스톤 | 범위 | 확인 방법 | 소비자 |
 |---|---|---|---|
 | M0 | Cordis 래퍼(`cordis-bridge.ts`: 루트, scope fiber, effect, dispose, 포트 inject), 레지스트리와 스냅샷, 세대 가드, fold 디스패처 tap·first·chain(시간 예산 포함, `DEFAULT_DISPATCH_POLICY`, `DispatchPolicy`의 선택 메서드 `run`·`onHandlerSettled`), X.operations 정책 결합(P-20), 인메모리 포트로 동작하는 post(멱등), drive 단일 그룹(임대 부여·상한·재호출·반납), scope enable/disable 최소형(경계 훅 `prepare`/`settle`, 유휴 적용), 상태 문서 `state()`/`commit()`(마이그레이션 제외), `createExtHost`·`install`(시작 적용, `InstallResult`)·`registerPlatform`·`ExtHost.ports`·`hostOf`(provide·port만), `@xeon/ext-host/testing`의 인메모리 포트·가짜 타이머 | §5 단위 테스트 중 M0 표시 항목 | L1 core-loop·core-tools 구현자(지점 발화), X.loading-trust(L-06), X.operations(O-03, O-06), M1 스모크 |
-| M1 | 걷는 골격: 테스트용 그룹이 `on`(`tool_call`, `turn_end`), `post`, `drive`를 쓰고, drive 그룹의 켜기·끄기가 단계 경계에서 적용됨을 모델 테이프 스모크로 확인한다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 실제 L1 포트(`xeon.loop`, `xeon.tasks`, `xeon.session`)와 연결, 포트 계약 스위트, `record`/`readRecords`, 능력 바인딩(공급자 하나), 설정 `x.primitives.driveLimits`, 재개(`openThread`의 열린 임대·상태 판 복원), 투영기 등록·접두 테이블·프로세스 포트 키(P-30) | M1 스모크(`apps/cli/test/chat.scenario.test.ts`, 저장소 1개), 포트 계약 스위트를 L1 구현이 통과 | L3 테스트 그룹, X.operations(O-14) |
+| M1 | 걷는 골격: 테스트용 그룹이 `on`(`tool.call.before`, `boundary.step.after`), `post`, `drive`를 쓰고, drive 그룹의 켜기·끄기가 단계 경계에서 적용됨을 모델 테이프 스모크로 확인한다(`_research/foundation-plan.md` §5 P4, §6 M1 스모크). 실제 L1 포트(`xeon.loop`, `xeon.tasks`, `xeon.session`)와 연결, 포트 계약 스위트, `record`/`readRecords`, 능력 바인딩(공급자 하나), 설정 `x.primitives.driveLimits`, 재개(`openThread`의 열린 임대·상태 판 복원), 투영기 등록·접두 테이블·프로세스 포트 키(P-30) | M1 스모크(`apps/cli/test/chat.scenario.test.ts`, 저장소 1개), 포트 계약 스위트를 L1 구현이 통과 | L3 테스트 그룹, X.operations(O-14) |
 | M2 이후 | 임대 중재 설정(`x.primitives.activeDriveGroup`, `LeaseArbiterPort`, `revoked`), 상태 마이그레이션 훅, 리소스 등록 전체(도구·명령·키 조합·플래그·provider·MCP·렌더러, `ResourceRegistry`, `ResourcePolicy`), 진짜 detached tap, 그룹 간 이벤트 격리(pi `events` 어댑터용 휘발 버스), 공급자 여럿의 선택 설정(`x.primitives.capabilityProviders`), thread별 scope 켜짐 상태(서비스 모드) | §5의 M2 표시 항목 | L3 Helm·학습 그룹, X.loading-trust(pi 어댑터), L4 설정 화면 |
 
 - M0에서 `dispatch: "detached"` 지점(5개)은 await 방식으로 실행했다 [제안]. 결과와 실패 규칙은 같고 지연만 다르다. 진짜 detached 실행은 M2(P-25)에서 구현했다.
@@ -103,7 +103,7 @@ xeon/packages/ext-host/
 | P-18 | `settings.ts`: `primitivesSettings`(`driveDefaultLimits`, `driveLimits`, `activeDriveGroup`, `capabilityProviders`) 선언과 `PrimitivesSettingsSource` 기본 구현(`driveDefaultLimits` 기본 4/8/400000, 천장 없음, review.decisions-2 U-12) | P-13, F.wire-settings.plan(`defineSettings`) | S | M1 |
 | P-19 | `testing/port-contract.ts`: `runPortContract`(runTurn 멱등, `leaseEpoch` 펜싱, `whenIdle` 중 turn 시작 차단, enqueue 멱등, `expectStateRev` 충돌). L1 core-loop·core-tasks·core-persistence가 자기 테스트에서 돌린다 | P-03, P-13 | M | M1 |
 | P-20 | `DispatchPolicy` 결합: X.operations 구현을 `ExtHostDeps.policy`로 받는 통합 테스트(tier 정렬, `run` 위임 예산, 실패·성공 보고) | P-06, O-03, O-06 | S | M0 |
-| P-21 | `testing/smoke-group.ts`: M1 스모크 그룹(매니페스트는 F.extensions.plan `fixtures/smoke-group.manifest.json`과 같은 내용). `tool_call`에서 특정 도구 거부, `turn_end`에서 엔트리 추가, `post(followUp)`, drive로 `loop.turn` 1회 후 commit | P-13, P-15 | S | M1 |
+| P-21 | `testing/smoke-group.ts`: M1 스모크 그룹(매니페스트는 F.extensions.plan `fixtures/smoke-group.manifest.json`과 같은 내용). `tool.call.before`에서 특정 도구 거부, `boundary.step.after`에서 엔트리 추가, `post(followUp)`, drive로 `loop.turn` 1회 후 commit | P-13, P-15 | S | M1 |
 | P-22 | 임대 중재 설정: `activeDriveGroup`, `LeaseArbiterPort` 주입, `drive_conflict` 경고, `revoked` 반납, `idle` 반납 뒤 재후보 조건 | P-10, P-18 | M | M2 |
 | P-23 | 상태 마이그레이션: `hostOf(g).migrateState`, 버전 비교, 마이그레이션 판 커밋, `future_version` 거부 | P-12 | S | M2 |
 | P-24 | `resources.ts` 전체: `ResourceRegistry`, `ResourcePolicy` 결합, 도구·provider·MCP 포트 위임, 명령·키 조합·플래그·렌더러 X 보관, effect 자동 해제, 구독 알림 | P-07, P-13, L1.tools.spec·L1.models.spec·L2.mcp.spec 포트 합의 | L | M2 |
@@ -147,10 +147,10 @@ xeon/packages/ext-host/
 | | `first zero is not a decision` | `0`, `''`, `null`, `false` 반환은 `result_invalid`와 `FIRST_DENY`(수용 3). Cordis `bail` 함정 회귀 | M0 |
 | | `first undefined passes through` | 모두 `undefined`면 `decision` undefined, `decidedBy` null | M0 |
 | | `first timeout denies` | 예산 50ms, 가짜 타이머 100ms 진행 시 `timeout`과 `FIRST_DENY`(수용 8) | M0 |
-| `dispatch-chain.test.ts` | `chain merge rejection skips` | `message_end` role 불일치 패치는 `merge_rejected`로 skip, 다음 패치는 적용(수용 4) | M0 |
-| | `chain stop halts` | `input`의 `handled` 패치 뒤 핸들러 미실행, `stopped` 참(수용 5) | M0 |
+| `dispatch-chain.test.ts` | `chain merge rejection skips` | `boundary.message.after` role 불일치 패치는 `merge_rejected`로 skip, 다음 패치는 적용(수용 4) | M0 |
+| | `chain stop halts` | `input.user.before`의 `handled` 패치 뒤 핸들러 미실행, `stopped` 참(수용 5) | M0 |
 | | `chain payload stays original` | 두 번째 핸들러가 받는 `payload`는 원본과 같은 객체, `current`는 누적값 | M0 |
-| | `boundary finalize once` | `turn_end`에서 `finalize`가 모든 핸들러 뒤 정확히 1회, 생략하면 `Bug`(`dispatch.finalize_missing`)(수용 7) | M0 |
+| | `boundary finalize once` | `boundary.step.after`에서 `finalize`가 모든 핸들러 뒤 정확히 1회, 생략하면 `Bug`(`dispatch.finalize_missing`)(수용 7) | M0 |
 | | `chain has no next` | 핸들러가 `next` 인자를 받지 않고, 같은 핸들러를 두 번 등록해도 각자 한 번씩 실행된다. Cordis `waterfall` next 이중 호출 함정 회귀 | M0 |
 | `registry.test.ts` | `snapshot ignores mid-dispatch changes` | 디스패치 중 등록·해제가 그 디스패치에 반영되지 않고 다음 디스패치에 반영(수용 6) | M0 |
 | | `order is tier load seq` | 정책 tier, `loadIndex`, `seq` 사전식 정렬 | M0 |

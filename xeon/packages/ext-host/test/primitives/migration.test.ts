@@ -21,18 +21,18 @@ async function storedV1(
     makeUnit(
       {
         name,
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         def: { state: { schema: V1, initial: { n: 0 }, version: 1 } },
       },
       (g) => {
-        g.on("agent_settled", async () => {
+        g.on("boundary.settle.after", async () => {
           await g.commit({ n: 4 });
         });
       },
     ),
   );
   await first.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: first.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "seed" },
   );
@@ -55,7 +55,7 @@ function v2Unit(
   return makeUnit(
     {
       name,
-      points: ["agent_settled"],
+      points: ["boundary.settle.after"],
       def: { state: { schema: V2, initial: { count: 0, label: "" }, version: 2 } },
     },
     setup,
@@ -115,7 +115,7 @@ test("a lower stored version without a hook keeps the scope off", async () => {
   const ran: string[] = [];
   await second.host.install(
     v2Unit("mig-missing", (g) => {
-      g.on("agent_settled", () => {
+      g.on("boundary.settle.after", () => {
         ran.push("handler");
       });
     }),
@@ -125,7 +125,7 @@ test("a lower stored version without a hook keeps the scope off", async () => {
   expect(second.host.scopes()[0]?.lastError?.code).toBe("state_migration_missing");
   expect(second.diagnostics.map((d) => d.code)).toContain("state_migration_missing");
   await second.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: second.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );

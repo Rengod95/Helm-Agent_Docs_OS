@@ -43,12 +43,12 @@ test("a provider binds its capability and a consumer reads it", async () => {
     makeUnit(
       {
         name: "demo-consumer",
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
         loadIndex: 1,
       },
       (g) => {
-        g.on("agent_settled", () => {
+        g.on("boundary.settle.after", () => {
           answers.push(g.capability(echoKey).echo("hi"));
         });
       },
@@ -56,7 +56,7 @@ test("a provider binds its capability and a consumer reads it", async () => {
   );
   expect(outcome.setups[0]?.status).toBe("applied");
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );
@@ -121,11 +121,11 @@ test("capability rules: undeclared, optional-missing, provide without declaratio
     makeUnit(
       {
         name: "cap-rules",
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         optional: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
-        g.on("agent_settled", () => {
+        g.on("boundary.settle.after", () => {
           for (const run of [
             () =>
               g.capability({
@@ -147,7 +147,7 @@ test("capability rules: undeclared, optional-missing, provide without declaratio
     ),
   );
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );
@@ -216,11 +216,11 @@ async function answerOf(
       {
         name,
         loadIndex: 9,
-        points: ["agent_settled"],
+        points: ["boundary.settle.after"],
         requires: [{ id: "demo.echo", range: "^1.0.0" }],
       },
       (g) => {
-        g.on("agent_settled", () => {
+        g.on("boundary.settle.after", () => {
           answers.push(g.capability(echoKey).echo("x"));
         });
       },
@@ -228,7 +228,7 @@ async function answerOf(
   );
   if (outcome.setups[0]?.status !== "applied") return undefined;
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );

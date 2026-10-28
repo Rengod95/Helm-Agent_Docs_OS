@@ -145,11 +145,11 @@ test("flags keep the value L4 sets and fall back to the declared default", async
   const t = await createTestHost();
   const seen: (boolean | string | undefined)[] = [];
   await t.host.install(
-    makeUnit({ name: "res-flag", points: ["agent_settled"] }, (g) => {
+    makeUnit({ name: "res-flag", points: ["boundary.settle.after"] }, (g) => {
       const host = hostOf(g);
       host.registerFlag("mode", { type: "string", default: "fast" });
       host.registerFlag("dry", { type: "boolean" });
-      g.on("agent_settled", () => {
+      g.on("boundary.settle.after", () => {
         seen.push(host.getFlag("mode"), host.getFlag("dry"), host.getFlag("none"));
       });
     }),
@@ -158,7 +158,7 @@ test("flags keep the value L4 sets and fall back to the declared default", async
   await t.host.openThread(thread);
   const fire = (key: string) =>
     t.host.dispatch(
-      "agent_settled",
+      "boundary.settle.after",
       { turnId: t.ids.next("trn"), aborted: false },
       { threadId: thread, dispatchKey: key },
     );

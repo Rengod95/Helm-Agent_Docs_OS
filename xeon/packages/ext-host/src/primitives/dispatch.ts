@@ -3,6 +3,7 @@ import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   POINTS,
   type ChainPointName,
+  type CollectPointName,
   type FirstPointName,
   type PointName,
   type ScopeId,
@@ -25,6 +26,7 @@ import type {
 } from "./dispatch-types.ts";
 import type { ExtDiagnostic } from "./errors.ts";
 import { foldChain } from "./fold/chain.ts";
+import { foldCollect } from "./fold/collect.ts";
 import type { FoldEnv, RunResult } from "./fold/env.ts";
 import { foldFirst } from "./fold/first.ts";
 import { foldTap } from "./fold/tap.ts";
@@ -80,6 +82,10 @@ function isFirstPoint(point: PointName): point is FirstPointName {
 
 function isChainPoint(point: PointName): point is ChainPointName {
   return POINTS[point].fold === "chain";
+}
+
+function isCollectPoint(point: PointName): point is CollectPointName {
+  return POINTS[point].fold === "collect";
 }
 
 function failureOf(
@@ -335,6 +341,9 @@ export function createDispatcher(deps: DispatcherDeps): Dispatcher {
             initial: options.initial,
             finalize: options.finalize,
           });
+        case "collect":
+          if (!isCollectPoint(point)) throw new Bug(`dispatch.fold_mismatch: ${point}`);
+          return foldCollect(env, point, entries, payload, { initial: options.initial });
         default:
           return assertNever(fold, "PointDecl.fold");
       }

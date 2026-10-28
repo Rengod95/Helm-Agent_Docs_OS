@@ -83,7 +83,7 @@ function sameChoice(a: TrustChoice, b: TrustChoice): boolean {
 
 /**
  * 프로젝트 신뢰를 정한다(X.loading-trust.spec §4.7.3). 순서는 pi `resolveProjectTrusted`와 같고 세션 기억(3번),
- * 저장 파일 손상(5번), 비대화형 불신(7번)을 더했다. `project_trust` 핸들러 예외는 불신이다(F fail-closed).
+ * 저장 파일 손상(5번), 비대화형 불신(7번)을 더했다. `session.trust.before` 핸들러 예외는 불신이다(F fail-closed).
  * 불신은 `deny`(명시)와 `undecided`(결정 없음, 저장하지 않음)로 나눈다
  */
 // XEON-PATCH: decision-order

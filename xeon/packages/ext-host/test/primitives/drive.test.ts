@@ -95,8 +95,8 @@ test("throw releases and keeps handlers", async () => {
   const handlerCalls: string[] = [];
   let driveCalls = 0;
   await t.host.install(
-    makeGroupUnit({ name: "drv-throw", points: ["agent_settled"] }, (g) => {
-      g.on("agent_settled", () => {
+    makeGroupUnit({ name: "drv-throw", points: ["boundary.settle.after"] }, (g) => {
+      g.on("boundary.settle.after", () => {
         handlerCalls.push("handler");
       });
       g.drive(() => {
@@ -113,7 +113,7 @@ test("throw releases and keeps handlers", async () => {
   expect(t.host.scopes()[0]?.drive).toBe("error");
   // on 핸들러는 계속 실행되고, 토글 전에는 다시 부여·호출하지 않는다
   await t.host.dispatch(
-    "agent_settled",
+    "boundary.settle.after",
     { turnId: t.ids.next("trn"), aborted: false },
     { threadId: thread, dispatchKey: "k" },
   );

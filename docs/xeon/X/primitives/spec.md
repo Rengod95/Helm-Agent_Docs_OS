@@ -18,7 +18,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 
 정하는 것:
 
-- 디스패처: fold `tap`, `first`, `chain`의 실행 알고리즘, 예외·스키마 위반 처리, 스냅샷, 순서 키를 받는 구멍(`DispatchPolicy`)
+- 디스패처: fold `tap`, `first`, `chain`, `collect`의 실행 알고리즘, 예외·스키마 위반 처리, 스냅샷, 순서 키를 받는 구멍(`DispatchPolicy`)
 - 자체 핸들러 레지스트리와 Cordis 사용 범위, Cordis 함정을 막는 래퍼 규칙
 - `post`: `when` 세 값의 큐 위치, 멱등, `usesPost` 검사
 - `drive`: 임대 중재, `leaseEpoch`, 재호출 시점, 상한 집행, 기본 `requestId` 규칙, 반납 조건
@@ -47,7 +47,7 @@ binds: [xeon/packages/ext-host/src/primitives/**]
 | 세대 (generation) | scope가 켜질 때마다 새로 만드는 정수. 그 세대에서 만든 등록만 유효하다. 꺼지면 세대가 닫힌다 |
 | fiber | Cordis의 플러그인 적용 단위(`fiber.ts`). scope가 켜질 때마다 새 fiber 하나를 만든다 |
 | 포트 (port) | X가 쓰는 하위·상위 층 기능의 좁은 인터페이스. 구현은 다른 패키지가 Cordis 서비스로 제공하고 X는 주입받는다 |
-| 단계 경계 | step이 끝나고 다음 step이 시작되기 전 시점. `turn_end` 처리 뒤다(F.conversation.spec §2, §2.1, F.extensions.spec §4.5) |
+| 단계 경계 | step이 끝나고 다음 step이 시작되기 전 시점. `boundary.step.after` 처리 뒤다(F.conversation.spec §2, §2.1, F.extensions.spec §4.5) |
 | 유휴 (idle) | thread에 실행 중인 turn이 없는 상태 |
 | 경계 기여 (boundary contribution) | 단계 경계 커밋에 X가 함께 넣는 내구 이벤트 초안(`scope.changed`, `lease.*`) |
 | 디스패치 키 (dispatch key) | L1이 디스패치마다 넘기는 결정적 문자열. 같은 지점이 같은 위치에서 다시 발화하면 같은 값이다. 핸들러 안의 `commit`·`record` 멱등 키의 재료다 |
@@ -362,10 +362,20 @@ export interface ChainOutcome<V> {
   readonly stopped: boolean;
 }
 
+export interface CollectOutcome<V> {
+  readonly fold: "collect";
+  /** 모은 기여를 initial에 한 번 병합한 값. 기여가 없으면 initial 그대로다 */
+  readonly value: V;
+  /** 기여를 낸 핸들러(등록 순서) */
+  readonly contributed: readonly HandlerRef[];
+  readonly failures: readonly HandlerFailure[];
+}
+
 export type DispatchOutcome<N extends PointName> =
   PointSignatures[N] extends TapSig<infer _P> ? TapOutcome
   : PointSignatures[N] extends FirstSig<infer _P, infer D> ? FirstOutcome<D>
   : PointSignatures[N] extends ChainSig<infer _P, infer V, infer _X> ? ChainOutcome<V>
+  : PointSignatures[N] extends CollectSig<infer _P, infer V, infer _C> ? CollectOutcome<V>
   : never;
 ```
 
@@ -737,7 +747,7 @@ Cordis는 두 가지에만 쓴다.
 
 ### 4.2 디스패처
 
-공통 준비(세 fold 공통):
+공통 준비(네 fold 공통):
 
 ```text
 dispatch(point, payload, options):
@@ -746,7 +756,7 @@ dispatch(point, payload, options):
              payload = deepFreeze(payload)
   entries = sortByPolicy(registry.snapshot(point, options.threadId))
   states  = 각 entry.scopeId의 (threadId) 마지막 커밋 상태 (메모리 캐시, §4.6.2)
-  switch decl.fold: tap / first / chain
+  switch decl.fold: tap / first / chain / collect
 ```
 
 핸들러 하나 실행(`runOne`):
@@ -776,7 +786,7 @@ ownRun(work, budget, outer):
 
 - `Promise.resolve().then(...)`로 감싸서 동기 예외와 거부를 같은 경로로 받는다. `policy.run`도 같은 규칙으로 구현한다(X.operations.spec §3.2 `runWithBudget`).
 - 시간 초과 뒤에도 핸들러 Promise는 계속 돈다. X는 결과를 버리고 `ctx.signal`을 중단 상태로 바꾼다. 늦게 끝난 핸들러의 반환값은 쓰지 않고, 늦게 던진 오류는 `policy.onHandlerFailure`로만 보고한다. 강제로 멈추지 못한다(§5 13번).
-- `aborted`(사용자 중단, 세션 종료, 세대 닫힘으로 끝남)는 fold에서 실패와 같이 처리한다(first는 `FIRST_DENY`, chain은 그 패치 생략, tap은 계속). 다만 `onHandlerFailure`로 보고하지 않는다. X.operations.spec §4.3.1의 `aborted` 분류와 같다.
+- `aborted`(사용자 중단, 세션 종료, 세대 닫힘으로 끝남)는 fold에서 실패와 같이 처리한다(`failure: "closed"`인 first는 `FIRST_DENY`, `open`인 first와 collect는 그 핸들러를 건너뜀, chain은 그 패치 생략, tap은 계속). 다만 `onHandlerFailure`로 보고하지 않는다. X.operations.spec §4.3.1의 `aborted` 분류와 같다.
 - 성공 보고 [제안]: fold 처리가 끝난 뒤 그 호출이 `onHandlerFailure`로 보고되지 않았으면(`result_invalid`, `merge_rejected`도 실패다) `policy.onHandlerSettled?.(info, activeMs)`를 한 번 부른다. `value_from_tap`은 실패가 아니므로 성공 보고를 막지 않는다.
 - `withAmbient`는 `node:async_hooks`의 `AsyncLocalStorage`로 현재 thread와 디스패치 키를 핸들러 비동기 흐름에 싣는다 [제안]. `ScopeApi.state()`, `commit`, `post`, `record`가 이 값을 읽는다(§4.6.3). [가정] Bun 1.4의 `AsyncLocalStorage`가 await 경계를 넘어 값을 유지한다. M0 단위 테스트로 확인한다.
 
@@ -801,19 +811,24 @@ first:
 
 ```text
 first(entries, payload):
+  closed = decl.failure == "closed"      // adr.0017. open인 지점은 session.compact.before뿐이고 FIRST_DENY 항목이 없다
   for e in entries:
     r = await runOne(e, [payload])
     if !r.ok:                            // 예외·시간 초과
+      if !closed: continue               // 그 핸들러를 결정 없음으로 보고 기록한 뒤 다음 핸들러로 간다
       return { decision: FIRST_DENY[point], decidedBy: ref(e), substituted: true, failures }
     if r.value === undefined: continue   // 결정 없음
     if !Value.Check(decl.result, r.value):    // 0, '', NaN, null, false도 여기서 걸린다
-      failures.push(result_invalid); return { decision: FIRST_DENY[point], decidedBy: ref(e), substituted: true, failures }
+      failures.push(result_invalid)
+      if !closed: continue
+      return { decision: FIRST_DENY[point], decidedBy: ref(e), substituted: true, failures }
     return { decision: r.value, decidedBy: ref(e), substituted: false, failures }
   return { decision: undefined, decidedBy: null, substituted: false, failures }
 ```
 
 - 결정으로 인정하는 값은 `undefined`가 아니고 `PointDecl.result` 스키마를 통과하는 값뿐이다. F의 first 결정 타입은 모두 객체 형태(예: `ToolCallDecision = { block: true, reason, terminate? }`)다. 그래서 Cordis `bail`처럼 `0`, `''`, `NaN`을 결정으로 받는 일이 없다. 이 값들은 스키마 위반이므로 F.extensions.spec §5 2번대로 거부값으로 바뀐다.
-- 결정 스키마 검사는 `strict`와 관계없이 항상 한다. first는 보안 지점(`tool_call`, `user_bash`, `project_trust`)이라 비용보다 정확성이 우선이다 [제안].
+- 결정 스키마 검사는 `strict`와 관계없이 항상 한다. first는 보안 지점(`tool.call.before`, `input.bash.before`, `session.trust.before`, guard 지점 셋)이라 비용보다 정확성이 우선이다 [제안].
+- guard 지점(`guard.model.before`, `guard.tool.before`, `guard.output.before`)은 `failure: "closed"`인 first다. 핸들러 예외·시간 초과·스키마 위반은 `FIRST_DENY`의 차단 결정(`{ block: true, reason }`)이 된다. 핸들러가 없으면 결정 없음이고 통과다. 발화 시점은 L1이 정한다(같은 대상의 일반 지점이 끝난 뒤, M3-REQ-109). 내장 검사는 두지 않는다 [결정: adr.0017 §3.6].
 - pi 확장이 `null`이나 `{}`를 돌려주는 관례는 pi 어댑터(X.loading-trust.spec)가 `undefined`로 정규화한다 [제안].
 
 chain:
@@ -837,7 +852,34 @@ chain(entries, payload, options):
 ```
 
 - 패치 스키마 검사는 `strict`일 때만 한다. 운영 빌드에서는 `merge`가 형태 오류를 예외로 드러내면 그 핸들러를 skip한다 [제안]. 다만 `merge`가 예외 없이 잘못된 값을 만들 수 있는 지점(교체형 `ContextPatch`, `ProviderPayloadPatch`)은 `strict`가 아니어도 검사한다. 어느 지점을 상시 검사할지는 `CHAIN_RULES`에 플래그가 없으므로 디스패처 안의 상수 표로 둔다 [제안, M1에서 지점별 확정].
-- boundary 지점(`turn_end`, `agent_before_settle`)의 중간 무효 상태는 허용하고 기록만 한다. 엔트리로 컨텍스트를 재구성할 수 없을 때 `{ entries: [], continue: false }`로 바꾸는 판정은 L1이 `finalize`에서 한다(F.extensions.spec §4.1). X는 `finalize`를 정확히 한 번, 모든 핸들러 뒤에 부른다.
+- boundary 지점(`boundary.step.after`, `boundary.settle.before`)의 중간 무효 상태는 허용하고 기록만 한다. 엔트리로 컨텍스트를 재구성할 수 없을 때 `{ entries: [], continue: false }`로 바꾸는 판정은 L1이 `finalize`에서 한다(F.extensions.spec §4.1). X는 `finalize`를 정확히 한 번, 모든 핸들러 뒤에 부른다.
+
+collect [결정: adr.0017]:
+
+```text
+collect(entries, payload, options):
+  contributions = []; failures = []
+  for e in entries:
+    r = await runOne(e, [payload])                 // 핸들러는 원본 payload만 받는다. current는 없다
+    if !r.ok: continue                              // 그 기여만 뺀다(fail-open)
+    if r.value === undefined: continue
+    if strict && !Value.Check(decl.result, r.value): failures.push(result_invalid); continue
+    contributions.push({ e, value: r.value })
+  rule = COLLECT_RULES[point]
+  try value = rule.merge(options.initial, contributions.map(value))       // 한 번만 병합한다
+  catch: 기여를 등록 순서대로 하나씩 더해 다시 병합하고, 거부한 기여는 merge_rejected로 보고하고 뺀다
+  return { fold: "collect", value, contributed, failures }
+```
+
+- 기여를 모으는 동안 핸들러는 서로의 결과를 보지 못한다. 병합은 모든 핸들러가 끝난 뒤 한 번이고 순수 함수다. 기여가 없으면 `initial`이 그대로 값이다.
+- 지점은 `input.agent.before`와 `session.resources` 둘이다. 두 지점의 `COLLECT_RULES`는 `input.agent.before`가 message를 등록 순서대로 더하고 `systemPrompt`는 마지막으로 정의한 값을 쓰며, `session.resources`가 경로를 등록 순서대로 더한다(F.extensions.spec §4.1).
+- 시간 예산은 chain 등급을 쓴다(X.operations.spec §4.2.2). 스키마 검사는 `strict`일 때만 한다. 병합이 예외 없이 잘못된 값을 만드는 지점은 없다.
+
+lifecycle [결정: adr.0017]:
+
+- lifecycle 지점(`lifecycle.agent.settled`, `lifecycle.lease.rejected`)은 `failure: "open"`인 tap이다. 디스패치 키는 내구 이벤트 id다(`dispatchKey`). 내구 kind에서 지점 이름은 F의 `LIFECYCLE_POINTS` 표 하나로 찾는다. 핸들러는 재실행되는 코드라 ADR-0015 표를 따른다. 발화 위치(커밋 뒤)는 L1이 정한다(M3-REQ-109).
+- 위임 주체가 그 scope인 이벤트만 넘기는 필터는 발화하는 쪽이 `dispatch`에 해당 scope의 핸들러만 남기는 방식으로 정한다 [미결]. 이 계층의 디스패처는 지점 이름과 payload만 받는다.
+
 
 ### 4.3 Cordis 함정과 래퍼 처리
 
@@ -1319,8 +1361,8 @@ export interface EventBus {
 | `drive` | `LeaseBroker`, `LoopHandle`, 재호출 루프, 상한 | `lease.acquired`, `lease.released`, drive turn의 `turn.started` |
 | `scope` | `ScopeRuntime`, 세대, 상태 커밋, record, recordPrivate | `scope.changed`, `<x\|grp>.<name>.state.committed`, 그룹 레코드 kind, 비공개 기록 kind |
 
-- `post`, `drive`, `agent_before_settle`의 `continue`가 겹치는 문제(ADR-0007 §4.2)는 다음 구분으로 둔다. 같은 turn 안의 한 번 연장은 경계 지점 chain의 `continue`, 다음 turn에 붙는 입력은 `post`, turn을 스스로 시작하는 루프 소유는 `drive`다.
-- 재생: on 핸들러는 다시 실행해도 되는 질의다([결정] F.extensions.spec §4.3). 재개 때 열린 의도는 저장된 최종 인자를 쓰고 `tool_call` 핸들러를 다시 부르지 않는다(eng.events.design §7.1 3번). 이 판단은 L1이 하며, L1은 그 경우 `dispatch`를 부르지 않는다.
+- `post`, `drive`, `boundary.settle.before`의 `continue`가 겹치는 문제(ADR-0007 §4.2)는 다음 구분으로 둔다. 같은 turn 안의 한 번 연장은 경계 지점 chain의 `continue`, 다음 turn에 붙는 입력은 `post`, turn을 스스로 시작하는 루프 소유는 `drive`다.
+- 재생: on 핸들러는 다시 실행해도 되는 질의다([결정] F.extensions.spec §4.3). 재개 때 열린 의도는 저장된 최종 인자를 쓰고 `tool.call.before` 핸들러를 다시 부르지 않는다(eng.events.design §7.1 3번). 이 판단은 L1이 하며, L1은 그 경우 `dispatch`를 부르지 않는다.
 - durable `api.memo`에 해당하는 결과 고정 API는 두지 않는다 [제안]. 핸들러 결과를 고정할 필요가 있으면 `commit`으로 상태에 둔다. F.extensions.spec §4.3이 위임한 항목의 답이다.
 
 ## 8. 다른 문서와의 인터페이스
@@ -1331,7 +1373,7 @@ export interface EventBus {
 |---|---|
 | `createExtHost`, `ExtHost`, `ExtHostDeps`, `ExtensionUnit`, `InstallResult`, `ScopeSetupOutcome` | X.loading-trust.spec(검증 뒤 `install`, 결과의 진단 변환, 제거 때 `uninstall`), L4.host-service.spec(조립 루트) |
 | `ExtHost.registerPlatform`, `PlatformModule`, `PlatformContext` | L0 플랫폼 패키지 문서, L4.host-service.spec(조립 루트) |
-| `ExtHost.dispatch`, `DispatchOptions`, `DispatchOutcome`, `BoundaryHooks` | L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec, L2.mcp.spec(`mcp_servers_change`) |
+| `ExtHost.dispatch`, `DispatchOptions`, `DispatchOutcome`, `BoundaryHooks` | L1.loop.spec, L1.tools.spec, L1.context.spec, L1.models.spec, L1.persistence.spec, L2.mcp.spec(`session.mcp.after`) |
 | `DispatchPolicy`(`onHandlerSettled`, `run` 포함), `HandlerGate`, `HandlerRunOutcome`, `HandlerEntryInfo`, `HandlerFailure`, `ResourcePolicy`, `ResourceRecord` | X.operations.spec |
 | `PortKey`, `PortLookup`, `LoopPort`, `InputQueuePort`, `RecordCommitPort`, `ProjectorRegistryPort`, `ScopedStorePort`, `ProcessPort`, `LeaseArbiterPort`, `ToolsPort`, `ModelsPort`, `McpPort`와 키(F 이름 재export, 정의는 F.extensions.spec §3.2.1), `ExtHostPortKey` | L0.store.spec, L0.process.spec, L1.loop.spec, L1.tasks.spec, L1.persistence.spec, L1.tools.spec, L1.models.spec, L2.mcp.spec, L3.group-kit.spec, X.operations.spec(`ExtHost.ports`로 조회) |
 | `hostOf`, `ScopeHostApi` | L1·L2 내장 확장, L3.group-kit.spec, X.loading-trust.spec(pi 어댑터) |
@@ -1364,10 +1406,10 @@ export interface EventBus {
 모든 항목은 가짜 포트(인메모리 `LoopPort`, `InputQueuePort`, `RecordCommitPort`)와 가짜 타이머로 확인한다.
 
 1. tap 지점에 핸들러 A(던짐), B를 등록하고 디스패치하면 B가 실행되고 `failures`에 A의 `threw` 한 건이 남는다.
-2. first 지점(`tool_call`)에서 핸들러가 던지면 결과 결정이 `FIRST_DENY.tool_call`과 같고 `substituted`가 참이며 뒤 핸들러는 실행되지 않는다.
+2. first 지점(`tool.call.before`)에서 핸들러가 던지면 결과 결정이 `FIRST_DENY.tool_call`과 같고 `substituted`가 참이며 뒤 핸들러는 실행되지 않는다.
 3. first 핸들러가 `0`을 돌려주면 결정으로 인정되지 않고 `FIRST_DENY` 값과 `result_invalid` 실패가 나온다.
-4. chain 지점(`message_end`)에서 role이 다른 패치를 돌려준 핸들러는 skip되고(`merge_rejected`), 다음 핸들러의 패치는 적용된다.
-5. `input` chain에서 `handled` 패치 뒤의 핸들러는 실행되지 않고 `stopped`가 참이다.
+4. chain 지점(`boundary.message.after`)에서 role이 다른 패치를 돌려준 핸들러는 skip되고(`merge_rejected`), 다음 핸들러의 패치는 적용된다.
+5. `input.user.before` chain에서 `handled` 패치 뒤의 핸들러는 실행되지 않고 `stopped`가 참이다.
 6. 디스패치 중인 핸들러가 같은 지점에 새 핸들러를 등록하거나 다른 핸들러를 해제해도 그 디스패치의 실행 목록은 바뀌지 않고, 다음 디스패치에 반영된다.
 7. `finalize: "boundary"` 지점에 `finalize`를 넘기면 모든 핸들러 뒤에 정확히 한 번 불리고, 넘기지 않으면 `Bug`(`dispatch.finalize_missing`)가 던져진다.
 8. 시간 예산 50ms 정책에서 100ms 걸리는 first 핸들러는 `timeout` 실패와 `FIRST_DENY` 결정을 낸다(가짜 타이머로 진행).
@@ -1406,7 +1448,7 @@ export interface EventBus {
 41. (M2, X.2) 포트가 없으면 `port_unavailable`, 같은 scope의 같은 이름은 `resource_conflict`, 형식 위반은 `resource_name_invalid`다. 정책이 없을 때 다른 scope의 같은 이름도 `resource_conflict`다. 정책의 `rename`·`replace`·`reject`가 각각 그대로 반영된다.
 42. (M2, X.2) `exposeAll` 정책에서 외부 확장 둘이 같은 도구 이름을 등록하면 설치 순서와 관계없이 둘 다 정식 이름으로 노출되고, 한쪽을 끄면 남은 쪽이 짧은 이름으로 도구 포트에 다시 등록된다. 내장이 나중에 같은 이름을 등록하면 먼저 등록된 외부 도구가 정식 이름으로 바뀐다.
 43. (M2, X.2) 핸들러가 `hostOf(g).awaitUser`로 감싼 대기는 핸들러 시간 예산에 들어가지 않고, 감싸지 않은 같은 대기는 시간 초과다. `wait`가 받는 신호는 핸들러 신호와 호출자 신호를 합친 것이다.
-44. (M2, X.3) detached 지점(`session_info_changed` 등)에 디스패치하면 핸들러를 기다리지 않고 `detached: true`를 돌려주고, 핸들러는 그 뒤 등록 순서로 실행된다. 늦은 예외는 `policy.onHandlerFailure`로만 보고되고 결과의 `failures`는 비어 있다. 예산을 넘기면 `timeout`이다. thread를 닫으면 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행되지 않으며 실패로 세지 않는다.
+44. (M2, X.3) detached 지점(`session.info.after` 등)에 디스패치하면 핸들러를 기다리지 않고 `detached: true`를 돌려주고, 핸들러는 그 뒤 등록 순서로 실행된다. 늦은 예외는 `policy.onHandlerFailure`로만 보고되고 결과의 `failures`는 비어 있다. 예산을 넘기면 `timeout`이다. thread를 닫으면 실행 중인 핸들러의 signal이 abort되고 뒤 핸들러는 실행되지 않으며 실패로 세지 않는다.
 45. (M2, X.3) Cordis 이벤트·컨텍스트 API가 확장에 주는 객체에 없고, 이벤트 버스는 자기 접두 발행과 읽기 선언된 구독만 허용하며 구독자에게 동결된 복사본을 전달하고 scope를 끄면 구독이 사라진다.
 
 ## 10. 미결 사항
