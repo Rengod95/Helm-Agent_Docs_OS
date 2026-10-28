@@ -2,7 +2,7 @@ import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { assertNever, attemptAsync, Bug, parse, type Logger } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
-import type { PortKey } from "@xeon/contracts/extensions";
+import type { ExtensionManifest, PortKey } from "@xeon/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
@@ -36,6 +36,7 @@ import {
   scopeToggleSourceOf,
   type ExtDiagnostic,
   type ExtHost,
+  type ExtensionLoader,
   type ExtensionUnit,
   type ScopeControl,
 } from "@xeon/ext-host";
@@ -76,7 +77,14 @@ import {
   effectiveSecretsConfig,
   settingKeysReferencing,
 } from "./assembly/secrets.ts";
-import { createProjectTrust } from "./assembly/trust.ts";
+import { createProjectTrust, createLoaderFs, fileBackend } from "./assembly/trust.ts";
+import {
+  DEFAULT_PLUGIN_NAMES,
+  installDefaultPlugins,
+  installedAgentDefinitions,
+} from "./assembly/default-plugins.ts";
+import { bridgeExtensionCommands } from "./assembly/extension-commands.ts";
+import { loadExternalExtensions } from "./assembly/external.ts";
 import { createProviderLinker } from "./secrets/provider-link.ts";
 import { createSettingsEngine } from "./assembly/settings-engine.ts";
 import {
@@ -90,7 +98,7 @@ import {
   storeSettingsOf,
 } from "./assembly/settings-sources.ts";
 import { ownerKindOf } from "./handlers/owner.ts";
-import { hostResourceDir } from "./state-paths.ts";
+import { defaultPluginsDir, hostResourceDir } from "./state-paths.ts";
 import type { AssembleIssue, AssembleOptions, Engine } from "./types.ts";
 import { messageOf, sequentially } from "./util.ts";
 
@@ -353,10 +361,17 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   let shutdownCoordinator: ProcessShutdown | undefined;
   const osSlot: { handle: OsServiceHandle | undefined } = { handle: undefined };
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
+  /** 외부 확장 로더(기본 플러그인 포함). 닫을 때 먼저 내린다 */
+  const external: { loader: ExtensionLoader | undefined; unbridge: (() => void) | undefined } = {
+    loader: undefined,
+    unbridge: undefined,
+  };
 
   async function closeAll(): Promise<void> {
     try {
       await portsHandle?.releaseAll();
+      external.unbridge?.();
+      await external.loader?.dispose();
       await ext.dispose();
     } finally {
       lifetime.abort();
@@ -531,6 +546,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     };
     // 그룹 서비스가 보는 설치된 그룹(L3 매니페스트). 단위 목록이 만들어진 뒤에 채워진다
     const unitList: { units: readonly ExtensionUnit[] } = { units: [] };
+    // 외부 로더가 올린 그룹(Helm). 적재가 끝나면 채워진다
+    const externalGroups: { manifest: ExtensionManifest; loadIndex: number }[] = [];
     const workspaceOf = threadWorkspaceOf(ext, logger);
     const commands: CommandRegistryHolder = { current: undefined, api: undefined };
     // 학습 그룹의 읽기 면(세션 DB의 x_learning_* 투영)과 명령 실행기, 그룹·L2 대기열을 잇는 자리. 읽기 면은 세션 서비스가 올라온 뒤(아래 4단계)에 채운다
@@ -540,6 +557,29 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       heldThreads: () => portsHandle?.heldThreads() ?? [],
       activeThread: () => portsHandle?.activeThread() ?? null,
     });
+    // 기본 플러그인(Helm)을 사용자 확장 위치에 설치한다. 설치본이 낸 서브에이전트 정의는 엔진 조립에 필요해 단위 목록보다 먼저 읽는다
+    const defaultsEnabled = options.defaultGroups !== false;
+    const userExtensionsDir = join(os.dirs.config, "extensions");
+    if (defaultsEnabled) {
+      await installDefaultPlugins({
+        bundleDir: options.defaultPluginsDir ?? defaultPluginsDir(),
+        extensionsDir: userExtensionsDir,
+        stateDir: os.dirs.state,
+        stagingRoot: join(os.dirs.config, ".staging"),
+        logger: os.logger("default-plugins"),
+      });
+    }
+    const pluginAgents = defaultsEnabled
+      ? await installedAgentDefinitions(
+          userExtensionsDir,
+          DEFAULT_PLUGIN_NAMES,
+          os.logger("default-plugins"),
+        )
+      : [];
+    const agentDefinitions =
+      options.agentDefinitions === undefined && pluginAgents.length === 0
+        ? undefined
+        : [...(options.agentDefinitions ?? []), ...pluginAgents];
     const units: ExtensionUnit[] = [
       ...builtinUnits({
         commands,
@@ -566,10 +606,12 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
           store: () => portsHandle?.ports.settings,
           currentThread: () => portsHandle?.activeThread() ?? null,
           heldThreads: () => portsHandle?.heldThreads() ?? [],
-          entries: () =>
-            unitList.units
+          entries: () => [
+            ...unitList.units
               .filter((unit) => unit.manifest.layer === "L3")
               .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
+            ...externalGroups.filter((entry) => entry.manifest.layer === "L3"),
+          ],
         },
         // 엔진 포트는 서비스가 모두 올라온 뒤에 만든다. 자식 thread는 그 뒤에 생기므로 그때는 채워져 있다
         parentToken: (threadId) => portsHandle?.tokenOf(threadId),
@@ -579,9 +621,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         reportSetting,
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
         ...(options.webPorts === undefined ? {} : { webPorts: options.webPorts }),
-        ...(options.agentDefinitions === undefined
-          ? {}
-          : { agentDefinitions: options.agentDefinitions }),
+        ...(agentDefinitions === undefined ? {} : { agentDefinitions }),
       }),
     ];
     const extras = options.extraPlugins ?? [];
@@ -598,6 +638,33 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
         ]);
       }
     });
+
+    // 3b. 기본 플러그인으로 올린 외부 확장 적재(L4.host-service §4.1, X.loading-trust §4.4.7). 안전 모드는 외부 확장을 싣지 않는다
+    if (defaultsEnabled) {
+      const loaded = await loadExternalExtensions({
+        ext,
+        operations,
+        fs: createLoaderFs(),
+        userDir: os.dirs.config,
+        homeDir: os.dirs.home,
+        trustBackend: fileBackend(join(os.dirs.config, "trust.json"), osHandle.fileLock),
+        clock,
+        logger: os.logger("ext-loader"),
+        enabled: (name) => {
+          const key = `ext.${name}.enabled`;
+          const value = built.catalog.has(key) ? settings.value(key) : undefined;
+          return typeof value === "boolean" ? value : undefined;
+        },
+        cwd: process.cwd(),
+        signal: lifetime.signal,
+        ...(options.safeMode === true
+          ? { startup: { safeMode: { active: true, source: "flag" as const }, disabled: [] } }
+          : {}),
+      });
+      external.loader = loaded.loader;
+      externalGroups.push(...loaded.manifests);
+      external.unbridge = bridgeExtensionCommands(ext, commands, os.logger("ext-commands"));
+    }
 
     // 4. 서비스 확인: 포트가 요구하는 서비스가 모두 올라왔는지 본다
     const session = requirePort(ext, SESSION_KEY, "xeon.session");

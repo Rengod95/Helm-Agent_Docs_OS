@@ -189,6 +189,7 @@ export interface AssembleOptions {
   readonly extraPlugins?: readonly HostPluginModule[];    // 테스트용 그룹, 모델 테이프 provider
   readonly defaultGroups?: boolean;                       // 기본 true. false면 Helm·학습 그룹을 싣지 않는다
   readonly safeMode?: boolean;                            // 기본 false. 참이면 L3 내장 그룹(학습)을 싣지 않는다(HS-79). L1·L2 내장 패키지는 그대로 싣는다
+  readonly defaultPluginsDir?: string;                    // 기본 플러그인 번들 뿌리(<뿌리>/<이름>/.xeon-plugin/plugin.json). 생략하면 실행 파일 옆 default-plugins/
   readonly settingGroups?: readonly SettingGroup<SettingNamespace, Readonly<Record<string, SettingDefInput>>>[];
                                                           // 조립 루트가 import할 수 없는 앱의 설정(예: l4.cli.*, L4.cli.spec §6)
   readonly devChecks?: boolean;                           // 결과 스키마 검사, in-process JSON 왕복. 개발 빌드만 true
@@ -747,7 +748,7 @@ export declare function resolveLaunchMode(options?: { readonly dataDir?: string 
 
 1. 경로: `dataDir`가 없으면 L0.os에서 기본 데이터 디렉터리를 받는다.
 2. 루트 컨텍스트: ext-host가 제공하는 루트 생성 API로 Cordis 루트 컨텍스트를 만든다. `apps/host`는 Cordis를 직접 import하지 않는다(DR-11). L4는 Cordis 서비스를 제공하지 않는다(`architecture.layers.spec` §4.4).
-3. 플러그인 등록: 기본 플러그인을 의존 순서로 싣고(§4.15), 이어서 `extraPlugins`를 싣는다. `defaultGroups`가 `false`거나 `safeMode`가 참이면 L3 기본 그룹(Helm, 학습 그룹)을 빼고 싣는다(HS-79). 그룹의 켜기·끄기는 각 그룹 설정(`l3.helm.*`, `l3.learning.*`)이 정한다. 외부 확장 로딩과 신뢰 판정은 X(`X.loading-trust.spec`)가 한다.
+3. 플러그인 등록: 기본 플러그인을 의존 순서로 싣고(§4.15), 이어서 `extraPlugins`를 싣는다. `defaultGroups`가 `false`거나 `safeMode`가 참이면 L3 기본 그룹(Helm, 학습 그룹)을 빼고 싣는다. `defaultGroups`가 `false`가 아니면 기본 플러그인(Helm)을 사용자 확장 위치(`<config>/extensions/helm/`)에 설치하고(`installDefaultPlugin`, 번들 버전 비교, 호스트 상태의 표지 `<state>/default-plugins.json`) 외부 로더가 `user` 등급으로 싣는다. 사용자가 설치본을 지우면 표지가 있어 다시 설치하지 않는다. 설치본이 낸 서브에이전트 정의(`agents/*.md`)는 엔진 조립에 필요해 단위 목록보다 먼저 읽어 `agentDefinitions`에 더한다. 확장이 `registerCommand`로 올린 명령(`/helm`)은 명령 서비스(`command.list`·`command.run`)에 이어 준다. 호출 id는 명령 입력의 `requestId`를 `invocationId`로 넘긴다(재시도에도 같은 값). 번들이 외부 import로 남기는 SDK 모듈 가운데 `@xeon/group-kit`만 호스트가 가상 모듈로 넘긴다(나머지는 X가 등록한다). 프로젝트 확장은 싣지 않는다(프로젝트 신뢰를 거부로 고정). 그룹의 켜기·끄기는 `ext.helm.enabled`(`reservedExtensionSettings`로 카탈로그에 실린다)와 `l3.learning.*`이 정하고, Helm 동작 설정은 `ext.helm.*`이다(외부 그룹은 X의 `settingValue`로 자기 키를 읽는다). 신뢰 판정은 X(`X.loading-trust.spec`)가 한다.
 4. 서비스 확인: 포트가 요구하는 서비스(§3.3.2)가 모두 주입됐는지 확인한다. 없으면 `missingService`.
 5. 카탈로그: 모든 패키지의 설정 그룹과 확장 매니페스트에서 나온 정의를 `buildCatalog`에 넣는다. 결과가 `{ ok: false }`이면 기동을 거부한다(`catalog`). 단, F wire §5 규칙대로 확장 키 문제(`foreignNamespace`, 확장 사이 `duplicateKey`)는 X 로더가 그 확장의 설정을 빼고 다시 조립하므로 여기까지 오는 문제는 코어 키 문제다 [가정: 재조립 절차는 `X.loading-trust.spec`이 정한다].
 6. 설정 범위: `SettingsStorePort.layers(undefined)`로 파일 범위를 읽는다. 값 검사 실패는 진단으로 남기고 시작을 막지 않는다(F wire §4.8).

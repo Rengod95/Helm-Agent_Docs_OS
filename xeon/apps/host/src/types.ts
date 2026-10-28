@@ -93,13 +93,18 @@ export interface AssembleOptions {
    * 받은 deps의 시계, 스케줄러, id 발급은 엔진의 것이다
    */
   readonly secretsRuntime?: (deps: SecretsRuntimeDeps) => SecretsRuntime;
-  /** 기본 true. false면 Helm·학습 그룹을 싣지 않는다 */
+  /** 기본 true. false면 기본 플러그인(Helm) 설치와 외부 확장 적재를 건너뛴다 */
   readonly defaultGroups?: boolean;
   /**
    * 안전 모드. 참이면 L3 내장 그룹(학습)을 싣지 않는다 [결정: review.m3-design-inputs D-M3-07 a, X.operations.spec §4.6.2]. 대기열은 남고
    * 다시 켜면 그대로 보인다. L1·L2 내장 패키지는 그대로 싣는다. 기본 false
    */
   readonly safeMode?: boolean;
+  /**
+   * 기본 플러그인 번들 뿌리(`<뿌리>/<이름>/.xeon-plugin/plugin.json`). 생략하면 실행 파일 옆 `default-plugins/`다.
+   * 개발 실행과 시험이 번들 위치를 바꿀 때 쓴다
+   */
+  readonly defaultPluginsDir?: string;
   /** 조립 루트가 import할 수 없는 앱의 설정(예: l4.cli.*, L4.cli.spec §6) */
   readonly settingGroups?: readonly SettingGroup<
     SettingNamespace,

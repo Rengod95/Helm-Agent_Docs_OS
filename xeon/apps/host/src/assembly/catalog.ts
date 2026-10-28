@@ -21,10 +21,15 @@ import { MCP_SETTING_DEFS } from "@xeon/cap-mcp";
 import { WEB_SETTING_DEFS } from "@xeon/cap-web";
 import { WORK_SETTING_DEFS } from "@xeon/cap-work";
 import { WORKSPACE_SETTING_DEFS } from "@xeon/cap-workspace";
-import { helmSettings } from "@xeon/group-helm";
+import { helmManifest, helmSettings } from "@xeon/group-helm";
 import { learningSettings } from "@xeon/group-learning";
 import { groupKitSettings } from "@xeon/group-kit";
-import { loadingTrustSettings, operationsSettings, primitivesSettings } from "@xeon/ext-host";
+import {
+  loadingTrustSettings,
+  operationsSettings,
+  primitivesSettings,
+  reservedExtensionSettings,
+} from "@xeon/ext-host";
 import { EXEC_SETTING_DEFS } from "@xeon/platform-exec";
 import { OS_SETTING_DEFS } from "@xeon/platform-os";
 import { PROCESS_SETTING_DEFS } from "@xeon/platform-process";
@@ -81,6 +86,7 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofGroup("group-kit", groupKitSettings),
     ofGroup("group-helm", helmSettings),
     ofGroup("group-learning", learningSettings),
+    ofDefs("group-helm", "ext.helm", reservedExtensionSettings(helmManifest, "user").defs),
     ofGroup("host", hostSettings),
   ];
 }
