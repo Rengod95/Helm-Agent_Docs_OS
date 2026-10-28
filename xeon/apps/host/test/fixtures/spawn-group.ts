@@ -45,7 +45,7 @@ export function childModels(
   );
 }
 
-export const SPAWN_GROUP_NAME = "spawn-group";
+const SPAWN_GROUP_NAME = "spawn-group";
 
 const StateSchema = Type.Object({ answers: Type.Array(Type.String()) });
 const INITIAL_STATE: Static<typeof StateSchema> = { answers: [] };
@@ -105,7 +105,7 @@ export function spawnGroup(count: number): {
                 const answers: string[] = [];
                 for (let index = 0; index < count; index += 1) {
                   // 순서가 의미다: 자식은 하나씩 끝나야 테이프가 순서대로 소비된다
-                  // oxlint-disable-next-line no-await-in-loop -- 자식을 차례로 띄운다
+                  // oxlint-disable-next-line no-await-in-loop -- 자식을 차례로 띄운다 (L1.loop.spec §4.8)
                   const outcome = await loop.spawn({
                     agent: "explorer",
                     task: `look at ${String(index)}`,
