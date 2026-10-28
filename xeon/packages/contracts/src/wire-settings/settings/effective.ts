@@ -149,6 +149,7 @@ export function resolveSetting(
 
 export type WriteCheckKind =
   | "settings.unknownKey"
+  | "settings.reserved"
   | "settings.invalidValue"
   | "settings.scopeNotAllowed"
   | "settings.locked"
@@ -163,7 +164,7 @@ export type WriteCheck =
     };
 
 /**
- * 순수 함수. 쓰기 전에 키·범위·잠금·값을 이 순서로 검사한다. settings.set과 CLI config set이 같은 함수를 쓴다.
+ * 순수 함수. 쓰기 전에 키·구현 단계·범위·잠금·값을 이 순서로 검사한다. settings.set과 CLI config set이 같은 함수를 쓴다.
  * 오류 details에는 값을 싣지 않는다(비밀 값 비표시 규칙, F.wire-settings.spec §4.9).
  */
 export function checkSettingWrite(
@@ -175,6 +176,8 @@ export function checkSettingWrite(
 ): WriteCheck {
   const def = catalog.get(key);
   if (def === undefined) return { ok: false, kind: "settings.unknownKey", details: { key } };
+  // 읽는 코드가 없는 키에 값을 써도 아무 일도 일어나지 않는다. 일반 키처럼 받지 않는다 [결정: m2c G5-04]
+  if (def.stage === "reserved") return { ok: false, kind: "settings.reserved", details: { key } };
   if (!def.allowedScopes.includes(scope)) {
     return {
       ok: false,

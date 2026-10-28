@@ -9,6 +9,7 @@ export {
 } from "./plugin.ts";
 export {
   DEFAULT_LOOP_SETTINGS,
+  LOOP_GATE_MAX_CONTINUES_DEFAULT,
   LOOP_MAX_STEPS_DEFAULT,
   LOOP_SETTING_DEFS,
   type LoopSettingsSource,

@@ -49,7 +49,8 @@ const opened = await openStore({
   engineVersion: "0.0.0-child",
 });
 if (!opened.ok) {
-  process.stdout.write(`OPEN_FAILED ${opened.error.kind}\n`);
+  // 오류의 나머지 필드(owner, version, code 등)도 한 줄 JSON으로 남겨 실패 원인이 자식 출력에 보이게 한다
+  process.stdout.write(`OPEN_FAILED ${JSON.stringify(opened.error)}\n`);
   process.exit(3);
 }
 const store = opened.value;

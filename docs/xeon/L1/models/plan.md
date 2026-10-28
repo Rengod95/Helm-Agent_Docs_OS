@@ -58,7 +58,12 @@ xeon/packages/core-models/
     testing/
       index.ts                 # loadTape, tape, tapePlayer, contextHash, t (eng.testing.guide TS-04)
       tape.ts
+      tape-wire.ts             # 요청 정규화·해시, 비밀 찾기·치환, tapeFetch(녹화 wire 재생) (M-15)
+      tape-recorder.ts         # recordingFetch, buildRecordedTape, renderRecordedTape (M-15)
       fake-secrets.ts          # 메모리 SecretService(가짜 키 문자열 고정)
+  scripts/
+    record-tape.ts             # 녹화기 진입 파일. xeon/scripts/tape-record.ts가 부른다 (M-15)
+    scenarios.ts               # 녹화 시나리오 표
   test/
     *.test.ts                  # §5 단위 테스트
     tapes/*.tape.jsonl
@@ -103,7 +108,17 @@ xeon/plugins/provider-anthropic-oauth/
 | M-12 | 구조화 출력 최소형: `completeStructured`, `validateToolArguments` 재시도 루프, 시도 상한 | M-1 | 소 | M3 |
 | M-13 | 레이트 리밋·계정 회전: 별도 설계 문서 먼저(§7 위험 4), `core_models_*` 테이블, 계정 선택, 대기·전환, M3 설정 화면 키(`accounts`, `rateLimit`) | M-6, 설계 문서 | 대 | M3 |
 | M-14 | 폴백 체인: `overloaded`·`provider_unavailable`에서만, 콘텐츠 전 요청만 | M-1, M-2 | 중 | 2차 |
+| M-15 | 테이프 녹화기(M2 마감 G4-06, 결정 D-e): `scripts/record-tape.ts <scenario> <out>`와 `testing/tape-recorder.ts`, `testing/tape-wire.ts`. 규칙은 아래 "녹화기" 절 | M-1 | 중 | M2 마감 |
 
+- 구현 상태(M2, m2/l1c): M-2(역할 표 해석기, 허용·차단 목록), M-4(provider 등록부), M-5(캐시 정책 객체와 표식 적용), M-6의 `sk-ant-oat` 가드, M-7의 M2 키 11개를 구현했다. 설정 읽기는 `modelsSettingsOf`가 조립 루트의 `ModelsSettingsSource`를 대신한다. 나머지 지점 5개와 비밀 헤더 가림, 바인딩 변경 감지(M-11)도 구현했다. M1 고정값(추론 레벨 `medium`, 캐시 보존 `short`, 토큰 예산 null)은 설정 `l1.models.thinkingLevel`, `cacheRetention`, `thinkingBudgets`를 읽는 코드로 바꿨다(`review.open-issues` M-07의 core-models 몫). `HostedSearchPort`는 L1C.3에서 구현했다(spec §3.12).
+- 녹화기(M-15) 규칙. 형식은 `xeon.model-tape.v1`을 그대로 쓰고, 차례(`ModelTapeTurn`)에 선택 필드 `wire`(`TapeWire`)를 더했다.
+  - 주입 지점은 pi-ai 요청 옵션 `fetch`(1.3.0 `ProviderRequestOptions.fetch`)이고 전역 fetch는 바꾸지 않는다. 1.3.0 dist에서 확인한 결과, `anthropic-messages`, `openai-completions`, `openai-responses`, `azure-openai-responses`, `openai-codex-responses`, `mistral-conversations`, `pi-messages`는 `fetch`를 쓴다. `google-generative-ai`와 `google-vertex`는 사용자 정의 fetch를 오류로 거부하고 `bedrock`은 읽지 않는다. 이 셋은 `wire` 재생 대상이 아니다. 첫 시나리오(`hello-text`, `read-tool-call`)는 `anthropic` provider의 `claude-haiku-5-5`를 추론 수준 `xhigh`로 쓴다(2026-10-25 사용자 지시). 출력 상한 16000은 추론 토큰을 포함한다.
+  - `wire`에는 메서드, 경로(쿼리·호스트 없음), 정규화한 요청 본문의 sha256(`requestHash`), 요청 요약(모델, 메시지 수, 도구 이름), 상태 코드, 허용 목록 응답 헤더(`content-type`, `request-id`, `x-request-id`, `retry-after`), 원본 SSE 덩어리 배열(`t`는 요청 후 ms, `data`는 텍스트)을 담는다. 요청 헤더는 저장하지 않는다. `response`는 같은 교환의 파싱 결과(`message`)이며, `tapeFetch`로 재생한 결과와 같아야 한다(`wire_replay_matches_recorded_response`).
+  - 녹화 요청에는 `accept-encoding: identity`를 강제하고, 응답이 다른 `content-encoding`을 달면 녹화를 멈춘다.
+  - 요청 본문 정규화는 키 순서를 정렬하고 `user`, `prompt_cache_key`, `safety_identifier`, `metadata.user_id`를 뺀다. 매칭 열쇠는 (메서드, 경로, `requestHash`)이고, 같은 열쇠는 테이프 순서대로 하나씩 소비한다. 헤더는 매칭에 쓰지 않는다.
+  - `tapeFetch`는 짝이 없는 요청에 `TapeMismatchError`를 던지면서 `misses()`에도 남긴다. SDK가 fetch 오류를 삼켜도 `assertExhausted()`가 실패한다. 소비되지 않은 항목이 남아도 `TapeLeftoverError`로 실패한다. 재생은 기본으로 지연이 없고, `sleep`을 주면 녹화한 간격을 따른다.
+  - 비밀: 키는 환경 변수(`ANTHROPIC_API_KEY`, `secrets run dev -- …`가 주입)에서만 읽고 파일과 인자로 받지 않는다. 없으면 종료코드 2와 `just secret-add ANTHROPIC_API_KEY` 안내를 낸다. 구독 OAuth 토큰, 8자 미만 키, `CI` 환경도 종료코드 2다. 본문의 `sk-ant-`, `sk-proj-`, `sk-`, `Bearer `, `AKIA`, `ghp_` 계열 패턴과 실제 키 값은 `[REDACTED]`로 바꾸고, 쓰기 직전에 텍스트 전체를 다시 훑어 하나라도 남으면 파일을 쓰지 않는다. 키가 덩어리 경계에 걸치면 치환으로 고치지 않고 녹화를 거절한다. 요청 본문에 키 패턴이 있으면 요청을 보내기 전에 멈춘다.
+  - 녹화는 사람이 손으로만 한다(`just tape-record <scenario> --yes`, `--yes` 없이는 종료코드 3). 한 차례가 HTTP 요청을 하나 넘게 만들었거나(재시도), 2xx가 아니거나, 오류로 끝났으면 테이프를 만들지 않는다. 대상 파일이 있으면 덮어쓰지 않으므로 다시 녹화하려면 먼저 지운다.
 - 선행 외부 작업: contracts(F 요청 타입), platform-secrets 서비스 인터페이스(`L0.secrets.spec`), X 지점 디스패치(`X.primitives.plan`), core-loop의 `streamFn` 사용(`L1.loop.plan`).
 - M-2는 순수 함수라 M1에서 먼저 만들어도 된다. M1 경로는 `main` 역할과 `l1.models.default`만 쓴다.
 
@@ -136,6 +151,10 @@ xeon/plugins/provider-anthropic-oauth/
 | `cache_policy_summary_role_none` | `test/cache-policy.test.ts` | unit | `summary`·`judge`·`search`는 `retention: "none"`, `sessionId` 없음. 표식이 상한 4를 넘으면 뒤쪽 위치부터 버림 | M2 |
 | `classify_error_kinds` | `test/classify.test.ts` | unit | 테이프 오류 문구별로 `rate_limited`, `quota_exhausted`, `overloaded`, `context_overflow`, `auth`, `aborted` | M1 |
 | `tape_model_replays_fixed_stream` | `test/tape.test.ts` | unit | `tapePlayer`가 같은 테이프로 같은 `AssistantMessageEvent` 열을 내고, 짝이 없으면 `TapeMismatchError`, 남으면 `TapeLeftoverError` | M1 |
+| `wire_replay_matches_recorded_response` | `test/tape-wire.test.ts` | unit | 가짜 provider를 녹화 fetch로 감싸 만든 테이프를 `tapeFetch`로 pi-ai에 재생하면 `response`와 같은 텍스트·도구 호출·사용량이 나온다. 덩어리를 이벤트 중간에서 끊어도 같다 | M2 마감 |
+| `wire_replay_miss_and_leftover_fail` | 같음 | unit | 다른 요청은 `misses()`에 남고 `assertExhausted()`가 `TapeMismatchError`, 쓰이지 않은 항목은 `TapeLeftoverError`. 같은 열쇠는 테이프 순서대로 소비 | M2 마감 |
+| `recording_fetch_keeps_secrets_out` | 같음 | unit | `accept-encoding: identity` 강제, 요청 헤더·키 값 미저장, 응답 헤더 허용 목록, 되풀이된 키 치환, 덩어리 경계에 걸친 키는 쓰기 거절, 압축 응답과 요청 본문의 키는 중단 | M2 마감 |
+| `record_tape_entry` | `test/record-tape.test.ts` | unit | 키 없음·`CI`·구독 토큰은 종료코드 2와 안내, 잘못된 인자는 1, 성공 시 `origin: "recorded"` 테이프 내용 비교, 이미 있는 테이프는 덮어쓰지 않음, provider 오류는 테이프 없음(가짜 fetch, 네트워크 없음) | M2 마감 |
 | `stream_fn_records_usage_with_context` | `test/service.test.ts` | unit | `streamFn(ctx)` 호출의 `UsageRecord`에 `threadId`, `turnId`, `role`, `scopeId`가 그대로 실림 | M1 |
 | `before_provider_request_rerun_same_result` | `test/pipeline.test.ts` | unit | `onPayload`를 두 번 부르면(재시도 모사) 같은 페이로드가 나옴 | M1 |
 | `settings_defs_pass_checks` | `test/settings.test.ts` | unit | `l1.models.*` 정의가 `checkSettingDef`·`buildCatalog` 통과. 비밀 값 기본값 없음 | M1 |
@@ -148,6 +167,9 @@ xeon/plugins/provider-anthropic-oauth/
 | `headers_point_payload_masks_secret_values` | `test/pipeline.test.ts` | unit | `before_provider_headers` 페이로드의 인증 헤더 값은 `"[secret]"`이고, 핸들러가 인증 헤더를 패치하지 않으면 실제 요청에는 해석한 값이 그대로 나간다. 지점 페이로드와 로그에 가짜 키 문자열이 없다(M-11, spec §3.9, §7.2) | M2 |
 | `model_select_fires_on_binding_change` | `test/routing.test.ts` | unit | 단계 시작 바인딩이 이전 단계와 다르면 `model_select`가 한 번 발화하고, 레벨만 다르면 `thinking_level_select`만 발화한다. 바인딩이 같으면 둘 다 0회(M-11, spec §4.2 6번) | M2 |
 | `release_manifest_excludes_oauth_plugin` | `xeon/scripts/check-release.test.ts` | unit | 일부러 의존을 넣은 픽스처 `package.json`에서 검사가 실패하고, 실제 워크스페이스에서는 통과 | M2 |
+| `hosted_search_single_turn` | `test/hosted-search.test.ts` | unit | 서버 도구 하나만 단 단일 요청, 결과·인용·사용량 변환, `encrypted_content` 미노출, `search` 역할·캐시 없음, 요청 지점 미발화(L1C.3) | M2 |
+| `hosted_search_pause_continuation` | 같음 | unit | `pause_turn` 응답의 continuation이 다음 요청에 assistant 메시지로 되돌아가고 호출자에게는 불투명하다(L1C.3) | M2 |
+| `hosted_search_failures` | 같음 | unit | 조직 차단 400, 429, 도구 오류 블록, 스트림 오류, 중단, 가드 차단의 `HostedSearchError` 변환(L1C.3) | M2 |
 
 - 테스트는 실제 모델과 네트워크를 쓰지 않는다(`eng.testing.guide` 26행). 예외는 복사한 `anthropic-tool-name-normalization.test.ts`이고 키가 없으면 건너뛴다. CI에는 키를 두지 않는다.
 - 내려받은 테스트 파일은 복사 후 내용을 검토한 뒤 실행한다.

@@ -1,4 +1,4 @@
-import { Bug, err, ok, type Clock, type Result } from "@xeon/contracts";
+import { assertNever, Bug, err, ok, type Clock, type Result } from "@xeon/contracts";
 import type {
   MigrationError,
   MigrationReport,
@@ -19,7 +19,9 @@ import { sha256Hex } from "./hash.ts";
 import { readOwnerSpec } from "./owner-table.ts";
 import { SYS_OWNER, coreOwnerSpecs, createStatementGuard, type OwnerSpec } from "./prefix.ts";
 import { columnInt, columnString, toSqlRow } from "./rows.ts";
+import { snapshotBeforeMigration, type SnapshotConfig, type SnapshotError } from "./snapshot.ts";
 import { asSqliteFailure } from "./sqlite-env.ts";
+import type { StoreWarning } from "./types.ts";
 
 export interface MigrationDeps {
   readonly conn: StoreConnections;
@@ -28,6 +30,30 @@ export interface MigrationDeps {
   /** 테스트·디버그 빌드의 EXPLAIN 대조 */
   readonly strict: boolean;
   readonly faults: StoreFaultInjector;
+  /** 있으면 기존 스키마를 올리기 전에 DB 스냅샷을 만든다. 없으면 만들지 않는다(시험용) */
+  readonly snapshots?: SnapshotConfig;
+  /** 테스트 전용. 스냅샷 수단을 바꿔 동료 프로세스와의 끼어들기를 결정적으로 흉내 낸다 */
+  readonly takeSnapshot?: typeof snapshotBeforeMigration;
+  /** 스냅샷 경고를 모으는 목록. 열기 때 모으는 경고 목록과 같은 것을 넘긴다 */
+  readonly warnings?: StoreWarning[];
+}
+
+function snapshotFailure(failure: SnapshotError, owner: string, version: number): MigrationError {
+  switch (failure.kind) {
+    case "busy":
+      return { kind: "busy" };
+    case "disk_full":
+      return { kind: "disk_full" };
+    case "io":
+      return {
+        kind: "migration_failed",
+        owner,
+        version,
+        code: `snapshot_failed:${failure.code}`,
+      };
+    default:
+      return assertNever(failure, "SnapshotError");
+  }
 }
 
 /** 단계의 체크섬. 공백 정규화를 하지 않는다(L0.store.spec §4.6) */
@@ -164,7 +190,7 @@ export function createMigrationRunner(deps: MigrationDeps): MigrationRunner {
           });
         }
       }
-      const dbVersion = versions[versions.length - 1] ?? 0;
+      let dbVersion = versions[versions.length - 1] ?? 0;
       if (dbVersion > set.version) {
         return err({
           kind: "migration_future_version",
@@ -172,6 +198,37 @@ export function createMigrationRunner(deps: MigrationDeps): MigrationRunner {
           dbVersion,
           codeVersion: set.version,
         });
+      }
+      // 스냅샷은 이 프로세스가 실제로 기존 스키마에 단계를 적용하려 할 때만 만든다. 결정과 스냅샷 사이에 다른 프로세스가
+      // 같은 DB를 올릴 수 있으므로(동시에 처음 여는 프로세스들) 매번 적용 버전을 다시 읽어 결정한다. 스냅샷이 실패했을 때도
+      // 다시 읽어, 동료가 그 사이 버전을 올렸으면(동료의 마이그레이션이 VACUUM INTO와 겹쳐 실패할 수 있다) 새 상태로 다시 정한다.
+      // 올리지 않았으면 실패 그대로다: 사용자의 기존 DB를 스냅샷 없이 올리지 않는다(spec §4.6.1)
+      const takeSnapshot = deps.takeSnapshot ?? snapshotBeforeMigration;
+      while (deps.snapshots !== undefined) {
+        dbVersion = Math.max(dbVersion, ...appliedChecksums(conn, set.owner).keys());
+        if (dbVersion === 0 || dbVersion >= set.version) break;
+        const taken = takeSnapshot(conn.write, deps.snapshots, {
+          owner: set.owner,
+          from: dbVersion,
+          to: set.version,
+          at: deps.clock.now(),
+        });
+        if (taken.ok) {
+          deps.warnings?.push({
+            kind: "migration_snapshot",
+            path: taken.value.path,
+            owner: set.owner,
+            from: dbVersion,
+            to: set.version,
+          });
+          for (const failed of taken.value.pruneFailed) {
+            deps.warnings?.push({ kind: "snapshot_prune_failed", ...failed });
+          }
+          break;
+        }
+        const after = Math.max(dbVersion, ...appliedChecksums(conn, set.owner).keys());
+        if (after > dbVersion) continue;
+        return err(snapshotFailure(taken.error, set.owner, dbVersion + 1));
       }
       for (const step of set.steps) {
         if (step.version <= dbVersion) continue;

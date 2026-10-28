@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
+import { eachInOrder } from "../src/util.ts";
 import { readScalarConfig, TOOLS_SETTING_DEFAULTS, TOOLS_SETTING_KEYS } from "../src/settings.ts";
-import { createHarness, layer } from "./support/harness.ts";
+import { callTool, createHarness, layer, registerWorkspace } from "./support/harness.ts";
 
 test("defaults match the l1.tools settings table", () => {
   expect(readScalarConfig([])).toEqual({
@@ -45,29 +46,56 @@ test("bypassAllowed is read from the managed scope only; output limits are not a
   ).toBe(64);
 });
 
-test("mode follows the configured value and setMode only accepts default in M1", async () => {
+test("mode follows the configured value and setMode writes the session scope for all four modes", async () => {
   const h = await createHarness({ layers: [layer("user", { "l1.tools.permissionMode": "plan" })] });
   expect(h.runtime.tools.mode(h.thread)).toBe("plan");
+  const modes = ["acceptEdits", "bypass", "plan", "default"] as const;
+  await eachInOrder(modes, async (mode) => {
+    expect(await h.runtime.tools.setMode(h.thread, mode, "user")).toEqual({ ok: true, mode });
+    // 세션 범위 쓰기가 파일 설정보다 우선한다
+    expect(h.runtime.tools.mode(h.thread)).toBe(mode);
+    expect(h.session.sessionValues(h.thread).get("l1.tools.permissionMode")).toBe(mode);
+  });
+  // 계획 승인이 같은 모드를 다시 써도 거부되지 않는다
+  expect(await h.runtime.tools.setMode(h.thread, "default", "plan_approval")).toEqual({
+    ok: true,
+    mode: "default",
+  });
+});
+
+test("bypass_forbidden_by_managed: setMode refuses bypass, other modes still work, and evaluation falls back to default", async () => {
+  const h = await createHarness({
+    layers: [layer("managed", { "l1.tools.bypassAllowed": false })],
+  });
   expect(await h.runtime.tools.setMode(h.thread, "bypass", "user")).toEqual({
     ok: false,
     error: { kind: "tools.mode_forbidden", mode: "bypass" },
   });
-  expect(await h.runtime.tools.setMode(h.thread, "plan", "plan_approval")).toMatchObject({
-    ok: false,
-  });
-  expect(await h.runtime.tools.setMode(h.thread, "default", "user")).toEqual({
-    ok: true,
-    mode: "default",
-  });
-  // 세션 범위 쓰기가 파일 설정보다 우선한다
   expect(h.runtime.tools.mode(h.thread)).toBe("default");
-  expect(h.session.sessionValues(h.thread).get("l1.tools.permissionMode")).toBe("default");
+  expect(await h.runtime.tools.setMode(h.thread, "acceptEdits", "user")).toMatchObject({
+    ok: true,
+  });
+  // 이미 세션 값이 bypass인 채 managed 금지가 생기면 평가기가 default로 본다(§5 사례 11)
+  const open = await createHarness();
+  expect(await open.runtime.tools.setMode(open.thread, "bypass", "user")).toMatchObject({
+    ok: true,
+  });
+  open.setLayers([layer("managed", { "l1.tools.bypassAllowed": false })]);
+  registerWorkspace(open);
+  const out = await callTool(open.runtime.tools, open.run({ interactive: false }), {
+    id: "ban_1",
+    name: "bash",
+    args: { command: "echo hi" },
+  });
+  expect(out.blocked).toContain("noninteractive_ask_denied");
 });
 
-test("M2 service methods fail loudly instead of pretending to work", async () => {
+test("a failed session write is a commit_failed value and leaves the mode unchanged", async () => {
   const h = await createHarness();
-  expect(() => h.runtime.tools.registerRules("core:agents", [])).toThrow("arrives in M2");
-  expect(() =>
-    h.runtime.tools.runUserShell({ command: "ls", includeInContext: false }, h.run()),
-  ).toThrow("arrives in M2");
+  h.session.failNextSettingsWrite({ kind: "disk_full" });
+  expect(await h.runtime.tools.setMode(h.thread, "plan", "user")).toEqual({
+    ok: false,
+    error: { kind: "tools.commit_failed", store: { kind: "disk_full" } },
+  });
+  expect(h.runtime.tools.mode(h.thread)).toBe("default");
 });

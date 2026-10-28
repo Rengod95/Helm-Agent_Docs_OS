@@ -1,7 +1,10 @@
 import type { TurnId } from "@xeon/contracts/conversation";
 import type {
+  Limiter,
   LockRequest,
+  PoolName,
   ScopeOutcome,
+  Slot,
   TaskScope,
   TaskScopeKind,
   TaskScopeSpec,
@@ -21,7 +24,16 @@ interface LockSpan {
   end: number;
 }
 
+export interface FakeTasksOptions {
+  /** `tools` 풀 슬롯 수. 생략하면 제한이 없다 */
+  readonly toolsCapacity?: number;
+}
+
 export interface FakeTasks extends ToolTasks {
+  /** 키 잠금 획득과 슬롯 획득·반납을 일어난 순서대로 적는다(`lock:<키>`, `slot:<노드 id>`, `release:<노드 id>`) */
+  readonly trace: readonly string[];
+  /** 지금 쥔 `tools` 슬롯 수 */
+  slotsInUse(): number;
   addTurn(turnId: TurnId): FakeScope;
   abortTurn(turnId: TurnId): void;
   scopes: readonly FakeScope[];
@@ -29,7 +41,13 @@ export interface FakeTasks extends ToolTasks {
   spans: readonly LockSpan[];
 }
 
-export function fakeTasks(): FakeTasks {
+function abortReason(owner: TaskScope): Error {
+  const reason: unknown = owner.signal.reason;
+  return reason instanceof Error ? reason : new Error("aborted");
+}
+
+export function fakeTasks(options: FakeTasksOptions = {}): FakeTasks {
+  const trace: string[] = [];
   const scopes: FakeScope[] = [];
   const spans: LockSpan[] = [];
   const tails = new Map<string, Promise<void>>();
@@ -64,8 +82,90 @@ export function fakeTasks(): FakeTasks {
     return scope;
   }
 
+  // 슬롯 상한기. 꽉 차면 FIFO로 기다리고, 대기 중 owner가 취소되면 대기열에서 빠져 reason으로 거부한다
+  let inUse = 0;
+  const waiting: { readonly owner: TaskScope; readonly grant: () => void }[] = [];
+  const capacity = options.toolsCapacity ?? Number.POSITIVE_INFINITY;
+
+  function grantNext(): void {
+    const next = inUse < capacity ? waiting.shift() : undefined;
+    if (next === undefined) return;
+    next.grant();
+    grantNext();
+  }
+
+  const limiter: Limiter = {
+    pool: "tools",
+    capacity: () => capacity,
+    inUse: () => inUse,
+    waiting: () => waiting.length,
+    acquire(owner) {
+      const make = (): Slot => {
+        let held = true;
+        const slot: Slot = {
+          pool: "tools",
+          owner,
+          release: () => {
+            if (!held) return;
+            held = false;
+            inUse -= 1;
+            trace.push(`release:${owner.id}`);
+            grantNext();
+          },
+          suspendWhile: async (wait) => {
+            slot.release();
+            try {
+              return await wait;
+            } finally {
+              // 다시 얻는다. 같은 슬롯 객체로 이어 쓰도록 새 슬롯의 release를 여기서 감싼다
+              const again = await limiter.acquire(owner);
+              held = true;
+              slot.release = () => {
+                again.release();
+              };
+            }
+          },
+        };
+        return slot;
+      };
+      return new Promise<Slot>((resolve, reject) => {
+        const take = (): void => {
+          inUse += 1;
+          trace.push(`slot:${owner.id}`);
+          resolve(make());
+        };
+        if (owner.signal.aborted) {
+          reject(abortReason(owner));
+          return;
+        }
+        if (inUse < capacity) {
+          take();
+          return;
+        }
+        const entry = { owner, grant: take };
+        waiting.push(entry);
+        owner.signal.addEventListener(
+          "abort",
+          () => {
+            const index = waiting.indexOf(entry);
+            if (index < 0) return;
+            waiting.splice(index, 1);
+            reject(abortReason(owner));
+          },
+          { once: true },
+        );
+      });
+    },
+  };
+
   const root = newScope("app", "app", null);
   return {
+    trace,
+    slotsInUse: () => inUse,
+    limiter: (pool: PoolName) => {
+      if (pool !== "tools") throw new Error(`fake-tasks: pool ${pool} is not modeled`);
+      return limiter;
+    },
     get scopes() {
       return scopes;
     },
@@ -102,6 +202,7 @@ export function fakeTasks(): FakeTasks {
         }
         const span: LockSpan = { keys, start: (tick += 1), end: 0 };
         spans.push(span);
+        trace.push(`lock:${keys.join(",")}`);
         try {
           return await fn();
         } finally {

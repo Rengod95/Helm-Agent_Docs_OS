@@ -6,10 +6,18 @@ import { createOsService, type PlatformOsConfig } from "./service.ts";
 
 export type { PlatformOsConfig, OsServiceHandle, OsStartError } from "./service.ts";
 export { createOsService, resolveOsDirs } from "./service.ts";
+export {
+  DEFAULT_FILE_LOCK_POLL_MS,
+  DEFAULT_FILE_LOCK_TIMEOUT_MS,
+  type FileLock,
+  type FileLockError,
+  type FileLockOptions,
+  type FileLockScope,
+} from "./file-lock/index.ts";
 export type { OsRuntime } from "./runtime.ts";
 export { readOsRuntime } from "./runtime.ts";
 export { OS_SETTING_DEFS } from "./settings.ts";
-export type { LogRedact, LogSink } from "./logger.ts";
+export type { LogLevelSource, LogRedact, LogSink } from "./logger.ts";
 export {
   createNodeBinaryFs,
   type BinaryFs,
@@ -22,6 +30,16 @@ export {
   type LockInput,
   type LockReadFs,
 } from "./binaries/lock.ts";
+export {
+  binaryRequirements,
+  checkExternalBinaries,
+  type BinaryCheckDeps,
+  type BinaryCheckItem,
+  type BinaryCheckReport,
+  type BinaryCheckStatus,
+  type BinaryNeed,
+  type BinaryRequirement,
+} from "./binaries/requirements.ts";
 export { createRipgrepSource, type RipgrepSourceDeps } from "./binaries/rg.ts";
 export { createIdFactory, createLocalIdFactory } from "./ids.ts";
 export { createJsonLinesLogger } from "./logger.ts";

@@ -30,7 +30,7 @@ binds: [xeon/apps/desktop/src/settings/**]
 - 일반 폼 렌더러(`views/SettingsShell`, `TabPage`, `Field`): 위젯 8종을 일반 부품으로 그린다.
 - advanced 탭 파일 편집기의 키 단위 형태(`FileEditor`, spec §4.2.3 M2 행).
 - 두 원천 합치기(spec §4.1.3): 엔진 `settings.*`와 데스크톱 로컬 저장소.
-- 결과: `settings.list`·`settings.get`·`settings.set`·`settings.reset`이 실제 호스트와 함께 도는 화면. secrets 탭은 `xeon secret add` 명령 안내만 보인다.
+- 결과: `settings.list`·`settings.get`·`settings.set`·`settings.reset`이 실제 호스트와 함께 도는 화면. secrets 탭은 `xeon secret add` 명령 안내만 보인다(M2 최소 설정 화면의 키 등록은 `L4.desktop.spec` §4.14.1이 이미 제공한다).
 
 ### 1.4 M3: 화면 전체
 
@@ -76,7 +76,7 @@ xeon/apps/desktop/src/settings/          # settings-ui 소유 (binds)
 ```
 
 - [제안] 테스트는 `src/settings/test/`에 둔다. `binds`(`xeon/apps/desktop/src/settings/**`) 안에 있어 라우팅이 같은 문서를 고르고, `eng.testing.guide` TS-06의 "`src/**/*.test.ts` 또는 `test/**`" 위치 규칙에도 맞는다. desktop 패키지의 `knip.json` `entry`에 `src/**/*.test.ts`가 있어야 한다(TS-06 마지막 항목).
-- [미결] `views/`의 확장자와 부품 형식(`.tsx` 함수 부품, 단일 파일 부품 등). 프런트엔드 프레임워크가 `L4.desktop.spec` §10 미결 11에 있다(제안: Preact + `@preact/signals`). 원칙: `model/`은 프레임워크 무관을 유지하고, 프레임워크가 바뀌어도 `views/`만 다시 쓴다.
+- [미결] `views/`의 확장자와 부품 형식(`.tsx` 함수 부품, 단일 파일 부품 등). 프런트엔드 프레임워크는 React 19 + Zustand 5로 정해졌다(adr.0010, `L4.desktop.spec` §10 미결 11 닫힘). 원칙: `model/`은 프레임워크 무관을 유지하고, 프레임워크가 바뀌어도 `views/`만 다시 쓴다.
 - [제안] `model/**`의 DOM 무관을 검사로 강제한다. `.oxlintrc.json` override로 `src/settings/model/**`에 `no-restricted-globals`(`document`, `window`, `HTMLElement`, `navigator`)와 `no-restricted-imports`(`../views/**`, 프레임워크 패키지)를 건다. oxlint 파일 단위 override 문제(`eng.dependency-rules.guide` 3.2절)가 있으면 `check-layers.ts`의 desktop 앱 내부 규칙(W1~W7, `L4.desktop.spec` §4.9)에 같은 항목을 더하도록 desktop에 요청한다.
 - `package.json`은 desktop의 것을 쓴다. 이 계획이 더하는 의존은 `@xeon/contracts`(workspace)와 `typebox`(`catalog:` 1.3.27)다. 추가는 desktop plan 담당자가 한다.
 
@@ -109,7 +109,7 @@ xeon/apps/desktop/src/settings/          # settings-ui 소유 (binds)
 |---|---|---|---|
 | `typebox`(`typebox/schema`의 `Check`) | 그대로 사용 | 1.3.27(`xeon/package.json` catalog). F와 같은 사본 | 없음. 클라이언트 번들에는 `typebox/schema` 서브패스만 넣는다(`_research/notes/L4-3.md` §4 P4). 1.3.27로 맞추는 결정(`F.wire-settings.spec` §10 미결 6)이 나면 catalog를 따른다 |
 | `@xeon/contracts`(`wire`, `settings`, `conversation` 서브패스) | 그대로 사용 | workspace | 없음 |
-| 화면 프레임워크 | `L4.desktop.plan` 결정에 따른다 | desktop plan이 정확 버전으로 고정한다(`L4.desktop.spec` §10 미결 11 제안: Preact + `@preact/signals`) | 이 계획은 따로 고정하지 않는다 |
+| 화면 프레임워크 | `L4.desktop.plan` 결정에 따른다 | desktop plan이 정확 버전으로 고정한다(`adr.0010`: React 19 + Zustand 5) | 이 계획은 따로 고정하지 않는다 |
 | omp 설정 정의 `register`와 `/settings` 패널 | 구조 참고만(포크 없음) | 커밋 `d1bffdfdcbf9ee36db8e5b4b72d24790dd00689f`, `docs/settings.md`(`_research/settings.md` S36) | 한 정의에서 패널·명령·파일을 만드는 구조만 참고한다 |
 | pi `settings-selector.ts`(UI 항목 39개) | 구조 참고만(포크 없음) | `/home/user/projects/_ref/pi-src` 커밋 `cdaf6c227d4718a72b59ccd02152c9614df44cfc`, `packages/coding-agent` 1.1.0, `src/modes/interactive/components/settings-selector.ts`(`_research/settings.md` S34) | 항목 목록 구성과 선택 UI 흐름만 참고한다 |
 | Zed 에이전트 프로파일 화면의 파일-UI 동기화 | 구조 참고만 | https://zed.dev/docs/ai/agent-profiles.html(`_research/settings.md` §3, S29) | 파일과 화면이 같은 저장소를 보는 방식만 참고한다 |

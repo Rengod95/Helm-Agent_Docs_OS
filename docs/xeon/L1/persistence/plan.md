@@ -154,6 +154,22 @@ xeon/packages/core-persistence/
 - 순서: PS-0 → PS-1 → PS-2 → (PS-3, PS-12, PS-13) → (PS-5, PS-7, PS-15, PS-11) → PS-6 → PS-8 → PS-16 → PS-17 → M1 스모크. M2는 PS-4, PS-10, PS-9, PS-14 나머지, PS-18, PS-23 순서다.
 - 선행 계약: contracts(F.records의 envelope·카탈로그·효과·체크포인트·업캐스터, FR-P1 타입), platform-store의 `StoreDb`·마이그레이션 실행기·blob API(`L0.store.plan`). 둘 다 없으면 PS-2를 시작하지 않는다.
 
+### 3.1 M2 구현 상태 (2026-10-24, 레인 L1B)
+
+| id | 상태 | 위치 |
+|---|---|---|
+| PS-4 | 완료 | `projector/registry.ts`, `projector/tx.ts`(소유 테이블 검사, `guardProjectors`), writer의 `onProjectorFailure` |
+| PS-8 | 완료(M2: 승인 대기 복원) | `p_approvals`는 M1에 있었고 `approvals.test.ts`의 `resume_restores_pending_approval`이 재시작 뒤 복원을 확인한다 |
+| PS-9 | 완료 | `lifecycle.ts`(create, workspace), `lifecycle-admin.ts`(list, close, remove, setTitle), `lifecycle-branch.ts`(fork, revert, moveLeaf, prepareSwitch) |
+| PS-10 | 완료 | `branch.ts`(활성 가지 질의, 공통 조상), `lifecycle-branch.ts`, `query.latestEvent·branchItems·itemEvent` |
+| PS-14 | 완료 | `settings.ts`(retention 키 읽기), `session-settings.ts`. `p_settings`는 두지 않는다(spec §6.2) |
+| PS-16 | 완료 | `ext-port.ts`, `ext-queries.ts`, `ext-state.ts`, `upcast.ts`(열린 확장 kind) |
+| PS-17 | 완료 | `points.ts`(7개), `resume.ts`(session_start·shutdown), `lifecycle*.ts` |
+| PS-18 | 완료 | `retention.ts`(`SessionService.retention`, 타입은 F `SessionRetention`) |
+| PS-23 | 완료 | `p_agents`(`projector/core.ts`, `CORE_PROJECTOR_VERSION` 4), `views.ts`(`readAgentByRequest`, `readChildAgents`, `readOpenChildren`), `tx-view.ts`, `query.childAgents`, `resume.ts`(`openChildren`) |
+
+시험 대역은 `platform-store/testing`의 실제 저장소다(`test/support/sqlite-store.ts`가 감싼다, open-issues M-04). `bunfig.toml`의 preload가 시험마다 저장소를 닫는다.
+
 ## 4. 채택 코드
 
 [결정] 코드 포크는 없다. 자체 구현한다(`_research/foundation-plan.md` §1 결정 1, `_research/packages.md` §4.3 L1-f 행 "자체", "설계").
@@ -222,6 +238,8 @@ xeon/packages/core-persistence/
 | `resume_marker_comes_from_events` | `resume.int.test.ts` | `turn.started` 뒤 표식 생김, `turn.completed` 뒤 사라짐, `thread.resumed`로 시도 수 증가 | PS-6 |
 | `resume_attempts_capped` | `resume.int.test.ts` | `maxResumeAttempts` 도달 뒤 `beginResume` → `attempts_exhausted` | PS-6 |
 | `fork_creates_new_thread_with_forked_from` | `lifecycle.test.ts` | 새 thread 첫 이벤트 `thread.started{forkedFrom}`, 원본 이벤트 수 불변, `session_before_fork` 거부 시 커밋 없음 | PS-9 |
+| `fork_continuity` | `fork-continuity.test.ts` | fork thread의 활성 가지가 출처의 fork 지점까지의 item을 같은 `itemId`로 잇고, 출처의 이후 쓰기는 들어오지 않으며, fork의 fork도 이어지고, 상속한 item으로는 되감기가 안 된다 (M2 마감 G2-11) | PS-9 |
+| `branch_item_records_pages` | `item-pages.test.ts` | `before`·`limit` 쪽을 이어 붙이면 활성 가지 전체와 같고(fork 경계 포함), `hasMore` 정확, 오류 사유 구분, 쪽에 든 item의 blob만 읽는다 (M2 마감 G2-11) | PS-9 |
 | `leaf_move_keeps_old_branch` | `branch.test.ts` | `moveLeaf` 뒤 옛 가지가 `readFrom`에 남고 `readBranch`에는 새 가지만 | PS-10 |
 | `branch_summary_committed_with_leaf_move` | `branch.test.ts` | summary가 있으면 `thread.branch_summarized`가 같은 커밋 | PS-10 |
 | `revert_rejects_target_inside_turn` | `lifecycle.test.ts` | toolCall 있는 assistant item 대상 → `invalid_target{inside_turn}` | PS-9 |
@@ -229,6 +247,7 @@ xeon/packages/core-persistence/
 | `set_title_writes_thread_updated_and_fires_info_changed` | `lifecycle.test.ts` | 제목 이벤트와 `session_info_changed` 1회 | PS-9 |
 | `lock_conflict_offers_delegate_observe_fork` | `resume.int.test.ts` | 가짜 잠금 실패 때 `openForRead`가 observer로 열리고 커밋은 `read_only{observer}`, `fork`는 새 thread를 만든다. 선택지 구성은 호스트 테스트가 확인 | PS-6, PS-9 |
 | `session_settings_follow_branch` | `lifecycle.test.ts` | `settings.changed`가 `p_settings`와 `layer(threadId)`에 반영 | PS-14 |
+| `session_settings_key_reused` | `session-settings.test.ts` | 같은 `requestKey`에 다른 값이면 `set`·`reset`이 `key_reused` 값을 돌려주고 행과 층이 그대로다 | PS-14 |
 | `ddl_matches_spec_table` | `ddl.test.ts` | DDL 열 목록과 스펙 §3.10 표 대조 | PS-1 |
 | `restart_invariants_k1_to_k6` | `restart.fault.test.ts` | 자식 프로세스를 K1~K6에서 SIGKILL, 다시 열어 `recover`, 스펙 §4.14 불변식 | PS-6, PS-7 |
 | `events_update_and_stray_delete_blocked_by_trigger` | `ddl.test.ts` | `events` UPDATE는 트리거가 막고, `threads.remove` 경로 밖의 DELETE도 막는다(스펙 §9-21) | PS-1 |

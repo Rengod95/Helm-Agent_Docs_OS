@@ -228,3 +228,78 @@ export function materialize(
     redactions: [...(draft.redactions ?? [])],
   };
 }
+
+/** 승인 요청 이벤트의 payload(F 카탈로그 approval.requested). body로 kind를 고른다 */
+export function approvalRequested(
+  thread: ThreadId,
+  turn: TurnId,
+  options: {
+    readonly title?: string;
+    readonly body?: unknown;
+    readonly remember?: readonly ("once" | "thread" | "always")[];
+    /** origin.caller. 기본 main */
+    readonly caller?: string;
+    readonly expiresAt?: number;
+    readonly onExpire?:
+      | { readonly decision: "deny" }
+      | { readonly decision: "answer"; readonly answer: unknown };
+  } = {},
+): EventDraft {
+  return {
+    kind: "approval.requested",
+    turnId: turn,
+    payload: {
+      origin: {
+        threadId: thread,
+        turnId: turn,
+        stepId: null,
+        toolCallId: "call-1",
+        caller: options.caller ?? "main",
+      },
+      requestKey: "k1",
+      title: options.title ?? "bash 실행",
+      body: options.body ?? {
+        kind: "tool",
+        tool: {
+          toolName: "bash",
+          risk: "high",
+          args: { command: "ls" },
+          argsHash: "h",
+          ruleId: null,
+        },
+      },
+      remember: options.remember ?? ["once", "thread", "always"],
+      surfaceThreadId: thread,
+      requestedAt: 1,
+      ...(options.expiresAt === undefined ? {} : { expiresAt: options.expiresAt }),
+      ...(options.onExpire === undefined ? {} : { onExpire: options.onExpire }),
+    },
+  };
+}
+
+export function approvalResolved(
+  turn: TurnId,
+  approvalId: string,
+  decision: "allow" | "deny" | "answer" = "allow",
+  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired" = "user",
+  remember: {
+    readonly applied: "once" | "thread" | "always";
+    readonly requested: "once" | "thread" | "always" | null;
+  } = {
+    applied: "once",
+    requested: null,
+  },
+): EventDraft {
+  return {
+    kind: "approval.resolved",
+    turnId: turn,
+    payload: {
+      approvalId,
+      decision,
+      answer: null,
+      remember: remember.applied,
+      requestedRemember: remember.requested,
+      resolvedBy,
+    },
+  };
+}

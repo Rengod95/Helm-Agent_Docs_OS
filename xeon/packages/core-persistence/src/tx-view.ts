@@ -11,9 +11,11 @@ import type {
   TxView,
 } from "@xeon/contracts/records";
 import { readCheckpoint } from "./checkpoint.ts";
+import { activeLeaseEpoch, activeStateOf } from "./ext-queries.ts";
 import { headSeqOf } from "./events.ts";
 import type { RowFault } from "./rows.ts";
 import {
+  readAgentByRequest,
   readApproval,
   readEffect,
   readEffectByCall,
@@ -29,8 +31,8 @@ export type AbortCommit = (fault: RowFault) => never;
 
 /**
  * build가 읽는 트랜잭션 안 보기. build 호출 시점에 커밋된 상태를 투영 테이블에서 읽는다.
- * M2 투영(p_agents, p_scopes)이 아직 없어 agentByRequestId, scopeLeaseEpoch, scopeStateRev는 "없음"(undefined, 0)을 돌려준다.
- * 해당 kind를 커밋하는 M2 생산자가 오기 전에는 호출되지 않는다. 승인(p_approvals)은 M1 core-tools가 커밋하므로 투영한다.
+ * scopeStateRev와 scopeLeaseEpoch는 활성 가지(현재 leaf에서 parentId 사슬) 위 이벤트로 계산한다. 버려진 가지의 더 큰 판과 비교하지 않는다
+ * (X.primitives.spec §4.6.1 활성 가지 규칙).
  */
 export function createTxView(tx: SqlTx, threadId: ThreadId, abort: AbortCommit): TxView {
   // build는 동기·순수 콜백이라 값을 바로 받는다. 손상 행은 읽는 자리에서 커밋을 중단한다(TY-24)
@@ -60,8 +62,8 @@ export function createTxView(tx: SqlTx, threadId: ThreadId, abort: AbortCommit):
     ): TurnView | undefined {
       return unwrap(readTurnByRequest(tx, target, scopeId, requestId));
     },
-    scopeLeaseEpoch(): number {
-      return 0;
+    scopeLeaseEpoch(target: ThreadId, scopeId: string): number {
+      return unwrap(activeLeaseEpoch(tx, target, scopeId));
     },
     inputByRequestId(
       target: ThreadId,
@@ -76,11 +78,11 @@ export function createTxView(tx: SqlTx, threadId: ThreadId, abort: AbortCommit):
     approval(approvalId): ApprovalView | undefined {
       return unwrap(readApproval(tx, approvalId));
     },
-    agentByRequestId(): AgentView | undefined {
-      return undefined;
+    agentByRequestId(parent: ThreadId, requestId: string): AgentView | undefined {
+      return unwrap(readAgentByRequest(tx, parent, requestId));
     },
-    scopeStateRev(): number {
-      return 0;
+    scopeStateRev(target: ThreadId, scopeId: string): number {
+      return unwrap(activeStateOf(tx, target, scopeId))?.rev ?? 0;
     },
     lastCheckpoint(target: ThreadId): StepCheckpoint | null {
       return unwrap(readCheckpoint(tx, target));

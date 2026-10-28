@@ -1,11 +1,13 @@
+import { join } from "node:path";
+import type { LogLevel } from "@xeon/contracts";
 import { isId } from "@xeon/contracts/conversation";
+import type { ScopeStack } from "@xeon/contracts/settings";
+import type { AgentsSettingsSource } from "@xeon/core-agents";
 import type { DriveLimits } from "@xeon/contracts/extensions";
 import {
-  DEFAULT_RETRY_SETTINGS,
+  modelsSettingsOf,
   type ModelsSettings,
   type ModelsSettingsSource,
-  type ProviderSetting,
-  type RetrySettings,
 } from "@xeon/core-models";
 import { DEFAULT_PERSISTENCE_SETTINGS, resolvePersistenceSettings } from "@xeon/core-persistence";
 import type { LoopSettingsSource } from "@xeon/core-loop";
@@ -126,48 +128,35 @@ export function tasksSource(settings: SettingsEngine): TasksSettingsSource {
   return createLayeredTasksSettings(() => settings.layers(undefined));
 }
 
-function isProviderSetting(value: unknown): value is ProviderSetting {
-  return (
-    isRecord(value) &&
-    typeof value["id"] === "string" &&
-    typeof value["enabled"] === "boolean" &&
-    (value["apiKeyRef"] === null || typeof value["apiKeyRef"] === "string") &&
-    (value["baseUrl"] === null || typeof value["baseUrl"] === "string")
-  );
-}
-
-function retryOf(value: unknown): RetrySettings {
-  if (
-    isRecord(value) &&
-    typeof value["maxRetries"] === "number" &&
-    typeof value["baseDelayMs"] === "number" &&
-    typeof value["maxDelayMs"] === "number"
-  ) {
-    return {
-      maxRetries: value["maxRetries"],
-      baseDelayMs: value["baseDelayMs"],
-      maxDelayMs: value["maxDelayMs"],
-    };
-  }
-  return DEFAULT_RETRY_SETTINGS;
-}
-
-/** l1.models.* . 검사는 resolveSetting이 이미 했고 여기서는 모양만 좁힌다 */
+/** l1.models.* . 검사는 core-models의 modelsSettingsOf가 선언한 스키마로 다시 한다 */
 export function modelsSource(settings: SettingsEngine): ModelsSettingsSource {
-  return (): ModelsSettings => {
-    const providers = settings.value("l1.models.providers");
-    return {
-      default: stringOrNull(settings.value("l1.models.default")),
-      providers: Array.isArray(providers) ? providers.filter(isProviderSetting) : [],
-      retry: retryOf(settings.value("l1.models.retry")),
-    };
-  };
+  return (): ModelsSettings => modelsSettingsOf((key) => settings.value(key));
 }
 
 export function loopSource(settings: SettingsEngine): LoopSettingsSource {
   return {
     maxSteps: (threadId) => intOr(settings.value("l1.loop.maxSteps", threadId), 0),
+    gateMaxContinues: (threadId) => intOr(settings.value("l1.loop.gate.maxContinues", threadId), 8),
   };
+}
+
+/** l1.agents.* . 호출 때마다 읽는다(nextTurn 키) */
+export function agentsSource(settings: SettingsEngine): AgentsSettingsSource {
+  return {
+    maxDepth: () => intOr(settings.value("l1.agents.maxDepth"), 1),
+    maxConcurrent: () => intOr(settings.value("l1.agents.maxConcurrent"), 8),
+    resultMaxChars: () => intOr(settings.value("l1.agents.resultMaxChars"), 24_000),
+  };
+}
+
+/**
+ * 설정 층 스택을 호출마다 돌려주는 읽기. cap-knowledge, cap-work, cap-dialog가 같은 모양(`layers(threadId)`)으로 받는다.
+ * 파일 범위와 세션 범위를 합친 스택이라 변경이 다음 호출부터 적용된다
+ */
+export function layersSource(settings: SettingsEngine): {
+  layers(threadId: string | undefined): ScopeStack;
+} {
+  return { layers: (threadId) => settings.layers(isId("thr", threadId) ? threadId : undefined) };
 }
 
 export function toolsSource(settings: SettingsEngine): ToolsSettingsSource {
@@ -254,21 +243,34 @@ export function secretsSource(settings: SettingsEngine): () => SecretsConfig {
   };
 }
 
+/** 상태 디렉터리 아래 spill 폴더 이름 */
+const SPILL_DIR_NAME = "spill";
+
 export interface ExecOptionsValues {
   readonly cwd: string;
+  /** 출력 spill 파일과 임시 파일을 두는 폴더. `<상태 디렉터리>/spill`이다(L0.exec.spec §3.8) */
+  readonly tempDir: string;
   readonly shellPath: string | undefined;
   readonly defaultTimeoutMs: number;
   readonly outputSpillBytes: number;
   readonly envExtra: readonly string[];
 }
 
-/** l0.exec.* (선언 없는 키). 기본값은 L0.exec.spec §6 표다 */
-export function execOptionsOf(settings: SettingsEngine, cwd: string): ExecOptionsValues {
+/**
+ * l0.exec.* (선언 없는 키). 기본값은 L0.exec.spec §6 표다. spill 파일에는 평문 출력이 남으므로 OS 임시 폴더가 아니라
+ * 상태 디렉터리 아래 소유자 전용 폴더에 둔다(G2-05)
+ */
+export function execOptionsOf(
+  settings: SettingsEngine,
+  cwd: string,
+  stateDir: string,
+): ExecOptionsValues {
   const raw = settings.raw("l0.exec.");
   const shell = raw["shell"];
   const extra = raw["envAllowlist.extra"];
   return {
     cwd,
+    tempDir: join(stateDir, SPILL_DIR_NAME),
     shellPath: typeof shell === "string" ? shell : undefined,
     defaultTimeoutMs: intOr(raw["defaultTimeoutMs"], 0),
     outputSpillBytes: intOr(raw["outputSpillBytes"], 10_485_760),
@@ -278,6 +280,16 @@ export function execOptionsOf(settings: SettingsEngine, cwd: string): ExecOption
 
 /** 키 하나의 유효 값을 돌려주는 함수. 엔진 안(설정 엔진)과 밖(Engine의 카탈로그와 SettingsStorePort) 어느 쪽에서도 만든다 */
 export type SettingReader = (key: string) => unknown;
+
+/** l0.os.log.level 유효 값. 로그를 낼 때마다 읽는 함수로 넘겨 live 변경을 반영한다. 모르는 값은 info다 */
+export function logLevelOf(settings: SettingsEngine): () => LogLevel {
+  return () => {
+    const value = settings.value("l0.os.log.level");
+    return value === "debug" || value === "info" || value === "warn" || value === "error"
+      ? value
+      : "info";
+  };
+}
 
 /** l0.process.shutdown.timeoutMs 유효 값(ms). 기본 3000 */
 export function shutdownTimeoutOf(read: SettingReader): number {

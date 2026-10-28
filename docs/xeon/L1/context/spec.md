@@ -264,14 +264,15 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 6. 캐시 표식 위치를 계산한다(§4.5).
 7. 토큰 추정을 계산한다(`xeon.models.tokens.estimateContext`).
 
-- volatile 정보 위치: `cachePolicy.midConversationSystem`이 참이면 마지막 사용자 메시지 앞의 `SystemMessage{ sections }` 갱신으로 넣고, 거짓이면 마지막 사용자 메시지 앞의 `UserMessage`로 넣는다. 어느 쪽이든 커밋하지 않는 조립 전용 메시지다. 재개 뒤 다시 만들어도 값이 같도록 volatile 원천은 단계 시작 시각과 체크포인트 값에서만 계산한다 [제안].
+- volatile 정보 위치 [구현: M2, 표의 "끝"을 따른다]: 캐시 표식을 계산한 뒤 `messages` 맨 끝에 한 메시지로 붙인다. `cachePolicy.midConversationSystem`이 참이면 `SystemMessage`, 거짓이면 `UserMessage`이고 본문은 이름순 `<이름>\n값\n</이름>` 덩어리다. 어느 쪽이든 커밋하지 않는 조립 전용 메시지이고 `tail` 표식 뒤에 놓인다. 재개 뒤 다시 만들어도 값이 같도록 volatile 원천은 단계 시작 시각과 체크포인트 값에서만 계산한다 [제안]. 앞 문단의 "마지막 사용자 메시지 앞"은 이 위치로 고쳤다. 앞에 두면 단계마다 바뀌는 값이 이전 `tail` 표식 앞으로 들어가 캐시가 매 단계 깨진다.
+- 접두 뒤 변경 처리 [구현: M2]: 도구 변경·절 갱신은 접두 뒤 system item을 모두 적용한 "현재 광고 상태"(`replaySystemMessages`)와 이번 `AssembleOptions`를 비교한다. 새 변경 item은 `pendingItems`로 내면서 같은 메시지를 이번 `messages` 끝(volatile 앞)에도 붙이므로, 단계 커밋 뒤 다시 조립해도 같은 순서가 된다. 변경이 없으면 아무것도 내지 않는다.
 - context 계층 절의 변경: 접두 고정 뒤 `sections` 값이 바뀌면 `midConversationSystem`이 참일 때만 `purpose: "sections"` system item으로 바뀐 절만 덧붙인다. 거짓이면 다음 컴팩션까지 미룬다.
 
 ### 4.2 접두 고정
 
 - 고정 접두는 thread에서 처음 조립할 때 만들고 `pendingItems`(`purpose: "prefix"`)로 돌려준다. core-loop가 첫 단계 커밋에 `item.recorded`(kind `system`)로 넣는다.
 - 이후 조립은 접두를 다시 만들지 않고 기록된 system item을 그대로 쓴다. 재개 뒤에도 같은 바이트다.
-- `before_agent_start`가 바꾼 절(`sections`)도 접두 system item 또는 `purpose: "sections"` item에 남는다. 그래서 재개 뒤 같은 지점을 다시 발화하지 않아도 같은 접두를 얻는다. `L1.loop.spec` §10의 "`before_agent_start` 시스템 프롬프트 변경 기록 위치" 미결에 대한 이 문서의 답이다 [제안].
+- 접두의 `basePrompt`는 루프가 정한 기본 프롬프트이고, `before_agent_start`가 시스템 프롬프트에 더한 부분은 접두에 넣지 않는다. 루프가 단계마다 `volatile`의 `instructions` 항목으로 넘긴다(`L1.loop.spec` §4.2 규칙 1). 접두를 만들 때의 `sections`는 접두 system item 또는 `purpose: "sections"` item에 남아 재개 뒤에도 같은 접두를 얻는다.
 - 호출 순서: core-loop는 요청마다 요청 준비 단계(`loop/prepare-request.ts`)에서 `assemble`을 부르고, 스트림을 열 때 결과 `messages`를 `convertToLlm`으로 바꿔 streamFn에 넘긴다(`L1.loop.spec` §3.2 표).
 - 접두는 컴팩션 때만 다시 만든다. `compact`가 `thread.compacted`와 같은 커밋에 새 접두 system item을 넣는다(§4.6 5번). pi `CompactionEntry.systemMessage`("compaction 경계의 프롬프트와 도구 상태")에 해당하는 값을 F 필드 추가 없이 별도 item으로 남기는 방식이다 [제안](`_research/notes/L1-3.md` §12 미결 (c)).
 - 근거: 접두 3계층(her, cc), 세션당 한 번 조립하고 컴팩션 때만 다시 만든다(`_research/item-catalog.md` L1-e 프롬프트 계층 행).
@@ -305,6 +306,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 [제안] 롤링 요약 컴팩션은 pi 컴팩션 포크다. 근거는 "패키지 사용·포크를 적극 채택"하는 방침(`_research/decisions-log.md` 2026-10-21 결정 2차)과 조사 판정이다(`_research/foundation-plan.md` §2 모델·루프 행의 "부족분만 포크" 원칙, `_research/packages.md` §4.3 L1-e 롤링 요약 행, `_research/layer-plan-v2.json` L1-e). 원본은 `~/projects/_ref/pi-src/packages/coding-agent/src/core/compaction/compaction.ts`(pi 커밋 `cdaf6c2`, 1119줄)다.
 
+0. 구현 메모 [구현: M2]: 후보는 "머리 뒤"를 컴팩션 이벤트 뒤가 아니라 요약 뒤에 모델에 보이는 항목, 곧 이전 머리의 `firstKeptEventId`부터 leaf까지로 읽는다(이전 컴팩션 때 남긴 원문도 새 요약 대상이다). 후보에는 진행 중 item, system item, 컴팩션 이벤트를 넣지 않고 `thread.branch_summarized`는 `custom` 후보로 넣는다. 컷 뒤에 도구 호출이 컷 앞에 있는 결과가 남으면(사용자 끼어들기) 다음 후보로 옮기고, 더 없으면 그 호출 항목으로 당긴다. 턴 시작은 `user`·`custom`이거나, `turnId`가 앞 항목과 달라지는 `assistant`다. `turnId`가 null인 항목은 `user`·`custom`만 턴 시작으로 본다(§10 미결 6의 잠정 답).
 1. 준비: 가지를 `ThreadCompactionView`로 바꾼다. 마지막 항목이 컴팩션이면 준비하지 않는다(`compaction.ts:876-878`). 이전 머리가 있으면 그 요약을 `previousSummary`로 넘기고 머리 뒤 항목만 후보로 둔다(`:891-895`).
 2. 컷 포인트: 뒤에서부터 토큰을 누적하다가 `keepRecentTokens` 이상이면 멈춘다. 컷은 그 위치 이후 첫 후보이고, 없으면 마지막 후보다. 토큰 0 항목은 건너뛴다(`:458-479`). 후보는 `user`, `assistant`, `custom` 항목이고 `toolResult`, `system`은 후보가 아니다(`:351-364`, `_research/notes/L1-3.md` §5.4).
 3. `session_before_compact`(first)를 발화한다. 결정이 `cancel`이면 멈추고 `cancelled`를 돌려준다. 결정이 `compaction`(확장 요약)이면 4번을 건너뛰고 그 요약을 쓴다(`fromExtension` = 확장 이름).
@@ -312,6 +314,9 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 5. 커밋: `xeon.session`으로 한 커밋에 `thread.compacted{ summary, firstKeptEventId, tokensBefore, details, usage, fromExtension }`와 새 접두 system item(`item.recorded`, kind `system`, 정렬 전체 도구 목록)을 가지 끝에 덧붙인다. 원본 이벤트는 지우지 않는다. `details`에는 `{ xeon: { reason, stepId }, readFiles, modifiedFiles }`를 둔다 [제안]. `details`는 모델에 보내지 않는다(`F.records.spec` §3.3). 이 커밋은 별도 커밋 지점 C7이고 커밋 키는 `compact:<threadId>:<stepId>:<reason>`이다. 키의 `stepId`는 같은 커밋의 `details.xeon.stepId`이고 §4.7 3번 `second_overflow` 판정과 같은 값이다(`L1.persistence.spec` §4.2 C7). 단계 끝 커밋(C5)에 넣지 않는다.
 6. 시점: 임계·수동 컴팩션은 단계 사이에서만 한다. 오버플로우 복구 컴팩션(§4.7)은 같은 단계의 재요청 전에 한다. 어느 경우든 C7 커밋 하나다. 임계 검사는 core-loop가 단계 시작 전에 `shouldCompact`로 한다. 수동 `/compact`가 단계 진행 중에 오면 다음 단계 경계까지 미룬다 [제안].
 7. 성공하면 `session_compact`(tap)를, 실패하거나 중단되면 `session_compact_failed`(tap)를 발화한다.
+7a. 요약 모델은 `xeon.models.resolve("summary")`의 결과(역할 `summary`, 캐시 없음)이고 요약 응답 상한은 `min(0.8 × reserveTokens, 모델 maxTokens, 16,000)`이다. 상한 16,000 토큰은 `thread.compacted.summary`의 65,536자 한도 안에 들게 하려는 값이고, 그래도 넘으면 `summary_truncated`다 [구현: M2]. 확장이 준 요약(`session_before_compact`의 `compaction`)이 같은 한도를 넘거나 `firstKeptEventId`가 가지 위에 없으면 `cancelled`로 돌려준다.
+7b. 새 접두의 재료: 컴팩션은 `AssembleOptions`를 받지 않으므로 서비스가 스레드마다 가장 최근 `assemble`의 `basePrompt`, `sections`, `tools`를 기억해 쓴다(재광고). 기억이 없으면(프로세스를 다시 띄운 뒤 첫 컴팩션) 가지 위 기록된 광고 상태를 그대로 옮기고, 접두가 없으면 새 접두 item 없이 `thread.compacted`만 커밋한다. 다음 `assemble`이 접두를 만들어 `readvertise(compaction)`으로 낸다 [구현: M2].
+7c. 컴팩션 커밋은 `core.context` 생산자 핸들과 `IdFactory`가 있어야 한다. 둘 중 하나가 없으면 `compact`는 `skipped(disabled)`, `recoverOverflow`는 `fail(disabled)`다. 커밋은 `expectedLeaf`를 요약한 leaf로 걸어 요약하는 동안 가지가 자랐으면 `commit_failed`로 끝낸다. 지문에는 요약 문장을 넣지 않는다(재시도가 같은 키로 처음 커밋을 돌려받는다) [구현: M2].
 8. 응답 검사: `error`와 `length` 종결은 실패다(`:585-593`). 도구 호출이 든 응답도 실패다(`:759-761`). 빈 요약 대상이면 `skipped`다(`:914`).
 
 포크 범위 [제안]. 줄 수는 `_research/notes/L1-3.md` §1, §3, §11의 셈이다.
@@ -337,6 +342,7 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 - `contextTokens`는 `xeon.models.tokens.estimateContext(messages).tokens`다. 마지막 어시스턴트 사용량을 기준으로 그 뒤 메시지만 추정한다(pi-ai `estimateContextTokens`).
 - 기본값 `reserveTokens` 16,384, `keepRecentTokens` 20,000. pi 런타임 기본값의 원천은 `coding-agent/src/core/settings-defaults.ts:8-12`이고, `compaction.ts:126-130`의 `DEFAULT_COMPACTION_SETTINGS`는 공개 export와 테스트용이다(`_research/notes/L1-3.md` §7). Xeon은 설정 기본값 한 곳(`settings.ts`)에만 둔다.
 - `l1.context.autoCompact`가 거짓이면 항상 거짓이다.
+- `contextTokens`는 컴팩션 머리와 기록된 접두를 반영한 모델 컨텍스트(`effectiveMessages`: 접두, 요약, 남긴 원문)의 추정이다. volatile과 이번 단계 변경 덧붙이기는 넣지 않는다. 바인딩의 모델이 카탈로그에 없으면(`rebind` 실패) 검사하지 않고 `{ should: false, tokens: 0, threshold: 0 }`이다 [구현: M2].
 
 오버플로우 복구 [제안: 계획 v2 L1-e "단계당 한 번 컴팩션 후 재시도" 표기를 따른다]:
 
@@ -345,8 +351,9 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 3. 같은 `stepId`로 이미 `reason: "overflow"` 컴팩션이 있으면 `fail(second_overflow)`다. 판정은 가지 위 `thread.compacted.details.xeon.stepId`로 하므로 재개 뒤에도 같다.
 4. 없으면 `compact({ reason: "overflow", stepId, willRetry: true })`를 한다. 성공하면 `retry`, 거부되면 `fail(compaction_cancelled)`, 실패하면 `fail(compaction_failed)`다.
 5. core-loop는 `retry`면 같은 단계의 요청을 한 번 다시 보낸다. 두 번째 오버플로우는 턴을 오류로 끝낸다(`L1.loop.spec`).
-6. M1에서는 2번 대신 `fail(disabled)`를 돌려준다. core-loop는 "컨텍스트 창을 넘었다"는 명확한 오류로 턴을 끝낸다.
+6. M1에서는 2번 대신 `fail(disabled)`를 돌려준다. core-loop는 "컨텍스트 창을 넘었다"는 명확한 오류로 턴을 끝낸다. M2 마감부터 core-loop가 1~5번과 요청 전 `shouldCompact` 검사를 실제로 부른다(`L1.loop.spec` §4.2 규칙 2). 조립 루트가 `ids`와 `core.context` 생산자를 주지 않아 컴팩션이 꺼진 구성은 계속 `fail(disabled)`이고 `shouldCompact`만 참이어도 `compact`가 `skipped(disabled)`를 돌려준다.
 
+- `autoCompact`가 거짓이면 오버플로우 복구도 하지 않고 `fail(disabled)`다. 수동 `compact`는 설정과 상관없이 한다 [구현: M2].
 - `session_before_compact`의 first 규칙은 fail-closed다(`F.extensions.spec` §4.1). 확장 핸들러 예외가 오버플로우 복구 컴팩션도 막는다는 뜻이다. 이 경우 `compaction_cancelled`로 오류가 드러난다.
 
 ### 4.8 비파괴 규칙
@@ -369,12 +376,23 @@ export function runCompaction(prep: CompactionPreparation, deps: SummarizeDeps, 
 
 - 확장이 `session_before_tree`에서 요약을 직접 주면(pi `SessionBeforeTreeResult.summary`) A안의 호출자는 `summarizeBranch`를 부르지 않는다.
 
+### 4.9a 컴팩션 뒤 재주입 [구현: M2 마감 G2-01]
+
+컴팩션은 요약 앞의 원문을 모델 컨텍스트에서 뺀다. 첫 turn에 L2.knowledge가 넣은 스킬 색인·메모리 스냅샷 블록(`customType` `knowledge.context`)과 색인 변경 메모(`knowledge.index-delta`)가 같이 접히면 모델이 스킬 목록과 메모리를 잃는다(감사 L2-05).
+
+- 조립(`effectiveMessages`)이 가지 위 `firstKeptEventId` 앞 범위에서 허용 목록에 든 `customType`의 custom item을 찾아, 컴팩션 요약 메시지 바로 뒤에 가지 순서대로 다시 놓는다. 새 이벤트를 커밋하지 않고 매번 가지에서 같은 값으로 만들므로 재개 뒤에도 같은 바이트다. 남은 범위(`firstKeptEventId` 이후)에 있는 같은 종류의 item은 그 자리에 한 번만 나온다.
+- 허용 목록은 `createContextService`의 `reinjectCustomTypes` 옵션이고 기본값은 `["knowledge.context", "knowledge.index-delta"]`다. L1은 L2를 import하지 않으므로 두 층이 이 문자열을 약속한다(`L2.knowledge.spec` §4.2.5). 빈 배열이면 재주입하지 않는다. 호스트가 다른 customType을 더하려면 옵션에 넘긴다.
+- 이 재주입이 블록을 다시 모델 입력에 올리는 유일한 경로다. L2.knowledge는 컴팩션에서 세션 상태를 비워 전체 블록을 새로 넣지 않는다(`L2.knowledge.spec` §4.2.8). 그렇게 하면 다시 놓은 옛 블록과 새 블록이 한 요청에 둘 다 들어간다(M2 마감 재검토 결함 2, 실제 엔진 시험 `apps/host/test/int/compact-reinject.int.test.ts`). 그래서 컴팩션 뒤에 보이는 블록은 첫 turn 스냅샷 그대로이고, 그 뒤 변경은 `knowledge.index-delta`로 온다.
+- 컴팩션을 하지 않은 가지는 영향이 없다. 임계 검사(`shouldCompact`)의 토큰 추정에도 재주입 메시지가 들어간다.
+- 컴팩션 요약 입력에서 이 메시지들을 빼지는 않는다. 요약이 색인 내용을 한 번 더 담을 수 있으나 짧다 [제안].
+- 최근 읽은 파일 재주입(`l1.context.reinjectRecentFiles`)은 §4.10에 남아 있다(M3).
+
 ### 4.10 2차
 
 | 항목 | 규칙 [제안] | 근거 |
 |---|---|---|
 | 도구 결과 선제 제거 | 모델 호출 없이 보호 구간(최근 `keepRecentTokens`) 밖의 `toolResult` 중 `pruneThresholdChars`(기본 200자)를 넘는 결과를 짧은 표지 `[tool result pruned: <toolName>, <n> chars]`로 바꾼다. 조립 때만 바꾸고 원본은 둔다. 컴팩션 전 1단계로 실행한다 | her(200자 초과 오래된 결과), oc prune(`_research/item-catalog.md` L1-e) |
-| 컴팩션 후 재주입 | 새 접두 다음에 최근 읽은 파일 5개(`details.readFiles` 뒤쪽)와 호출된 스킬 본문을 `custom` 메시지로 다시 넣는다. 본문은 도구 재실행 없이 블롭 원문에서 읽는다 | cc 최근 파일 5개, 스킬 본문 상한 |
+| 컴팩션 후 재주입(파일, 스킬 본문) | 새 접두 다음에 최근 읽은 파일 5개(`details.readFiles` 뒤쪽)와 호출된 스킬 본문을 `custom` 메시지로 다시 넣는다. 스킬 색인과 메모리 스냅샷 블록은 §4.9a로 M2에 구현했다. 본문은 도구 재실행 없이 블롭 원문에서 읽는다 | cc 최근 파일 5개, 스킬 본문 상한 |
 | 추가 워크스페이스 루트 | 세션 생성 때 받은 루트 목록을 context 계층 절 `workspaceRoots`로 둔다. 쓰기 범위는 샌드박스 설정(`L0.sandbox.spec`)과 함께 정한다 | ACP 추가 루트 |
 | 캐시 워밍 | 유휴 중 캐시 만료 전에 짧은 요청을 보낼지 정한다. 결정 전에 `cache_warming_decision`(chain)을 발화한다. 비용 계산은 카탈로그 단가와 `ModelPromptCache` 수명으로 한다 | pi `core/cache-warmer.ts` |
 
@@ -532,5 +550,5 @@ export interface SessionCompactFailedPayload {
 5. [미결] `CompactedPayload.details.xeon` 예약 키와 별도 필드 중 무엇으로 오버플로우 단계를 기록할지(§8.3 3).
 6. [미결] `turnId`가 null인 항목의 분할 턴 판정(`_research/notes/L1-3.md` §12 (h))과 `customType`별 컷 후보 여부(같은 절 (i)).
 7. [미결] 요약 호출 캐시 금지를 models 게이트웨이 규칙(역할별 기본 보존)으로 둘지, 컴팩션 호출 옵션으로 둘지. 이 문서는 두 곳 모두에 둔다(`L1.models.spec` §3.4 표, §3.2 `SummarizeDeps`).
-8. [미결] volatile 계층 원천 목록(날짜, 작업 디렉터리, git 상태 등)과 각 원천의 제공 층.
+8. [미결] volatile 계층 원천 중 git 상태의 제공 층. 날짜, 작업 디렉터리, 플랫폼은 L1.loop이 `environment` 항목으로, `before_agent_start`가 더한 프롬프트는 같은 층이 `instructions` 항목으로 넘긴다(`L1.loop.spec` §4.2 규칙 1) [구현: M2 마감].
 9. [미결] 대화 중 도구 변경을 지원하지 않는 provider에서 추가 도구를 다음 컴팩션까지 미루는 규칙이 사용 경험에 맞는지. 대안은 그 provider에서만 재광고를 허용하고 캐시 손실을 받아들이는 것이다.

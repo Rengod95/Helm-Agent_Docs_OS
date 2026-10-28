@@ -78,6 +78,15 @@ xeon/packages/core-tasks/
 
 순서: TK-0 → TK-1 → (TK-3, TK-5) → TK-2 → TK-6 → TK-7 → (M2) TK-4 → TK-8 → TK-9.
 
+### 3.1 M2 구현 상태 (2026-10-24, 레인 L1B)
+
+| id | 상태 | 위치 |
+|---|---|---|
+| TK-4 | 완료 | `limiter.ts`(FIFO, 대기 중 취소, C4 재진입 Bug, `suspendWhile`, 상한은 얻을 때마다 읽음), `service.ts`(풀 세 개) |
+| TK-6(M2) | 완료 | `settings.ts`(`limits.tools`·`subagents`·`modelCalls` 추가, `TasksSettingsSource.limit(pool)`) |
+| TK-8 | 완료 | `input-queue.ts`(`drain`의 next·aside 배치, `aside` 사용자 전용, `onQueued` 시작 가능 모드만). 결정 D7: B안 + aside 1안, F `PostWhen` 변경 없음 |
+| TK-9 | 완료(풀 단위) | `limiter.test.ts`의 서브에이전트 풀 시험(렌즈형 자식 8개/상한 3, 부모 취소 때 대기열 비움). 렌즈 N개 탐구 테이프로 기본값을 조정하는 일은 HM 통합 때 한다 |
+
 ## 4. 채택 코드
 
 | 대상 | 방식 | 정확한 출처 | 바꿀 점 |
@@ -111,9 +120,8 @@ xeon/packages/core-tasks/
 | `steer_vs_followup_drain_order` | `input-queue.test.ts` | `stepEnd`에서는 steer만 고르고(one-at-a-time이면 첫 항목, all이면 전부) followUp은 고르지 않는다. `turnStart`에서는 가장 오래된 steer·followUp 하나를 고른다(spec §9-9) | M1 |
 | `drain_consumed_seq_matches_selection` | `input-queue.test.ts` | `consumedSeq`가 선택한 입력의 최대 seq이고 선택이 없으면 직전 값 | M1 |
 | `withdraw_skips_placed_inputs` | `input-queue.int.test.ts` | placed 입력은 거두지 않고 수에 세지 않는다 | M1 |
-| `next_and_aside_not_supported_in_m1` | `input-queue.test.ts` | M1 빌드에서 두 모드는 `mode_not_supported` | M1 |
-| `next_attached_only_when_continuing` | `input-queue.test.ts` | §4.9 B안 기준: `stepEnd`에서 `continuing: true`일 때만 `next`를 steer와 함께 고르고, `continuing: false`면 남긴다. 유휴 thread면 `turnStart`에서 붙는다. 결정이 A안이면 이 테스트를 결정에 맞춰 고친다(TK-8) | M2 |
-| `aside_mode_per_decision` | `input-queue.test.ts` | §4.9 결정에 따른 `aside` 위치: 1안이면 사용자·CLI 입력만 `aside`로 들어가고 확장 `post`는 거부, 2안이면 `PostWhen` `aside`가 같은 배치 규칙을 따른다(TK-8) | M2 |
+| `next_attached_only_when_continuing` | `input-queue.test.ts` | §4.9 B안(결정 D7): `stepEnd`에서 `continuing: true`이거나 steer를 방금 골랐을 때만 `next`·`aside`를 함께 고르고, 아니면 남긴다. 유휴 thread는 `turnStart`에서 시작 가능 입력이 있을 때 그보다 앞선 것만 붙는다. `onQueued`는 steer·followUp에만 부른다(TK-8) | M2 |
+| `aside_mode_per_decision` | `input-queue.test.ts` | 결정 D7 1안: 사용자·CLI 입력만 `aside`로 들어가고 확장·위임·예약 출처는 `mode_not_supported`다(TK-8) | M2 |
 | `limiter_blocks_over_cap_and_dequeues_on_abort` | `limiter.test.ts` | 상한 2에서 세 번째 acquire가 대기하고, owner 취소 시 대기열 0, `AbortReason` 거부. 반납 시 FIFO 다음 대기자가 얻는다(spec §9-5) | M2 |
 | `limiter_no_deadlock_parent_waits_child` | `limiter.test.ts` | `tools`·`subagents` 상한 1, 깊이 3 사슬(도구 → 자식 → 도구 → 손자)이 `suspendWhile`로 모두 정착한다(spec §9-6) | M2 |
 | `limiter_slot_reentry_is_bug` | `limiter.test.ts` | 같은 노드가 같은 풀 슬롯을 두 번 얻으면 Bug(C4) | M2 |

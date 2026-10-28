@@ -80,6 +80,9 @@ export async function streamResponse(
     {
       signal: scope.signal,
       ...(request.thinkingLevel === "off" ? {} : { reasoning: request.thinkingLevel }),
+      ...(request.thinkingBudgets === undefined
+        ? {}
+        : { thinkingBudgets: request.thinkingBudgets }),
     },
   );
   // 요청한 추론 수준을 어느 streamFn이 답했든 최종 메시지에 남긴다

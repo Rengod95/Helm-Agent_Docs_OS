@@ -42,6 +42,7 @@ export interface HarnessOptions {
   readonly dispatcher?: ProviderDispatcher;
   readonly logger?: Logger;
   readonly provider?: TapeProviderOptions;
+  readonly scopeEnabled?: (scopeId: string) => boolean;
   /** 비밀 저장소에 넣을 값. 기본은 tape-key 하나 */
   readonly secretValues?: Readonly<Record<string, string>>;
 }
@@ -86,6 +87,7 @@ export function createHarness(options: HarnessOptions): Harness {
     clock,
     settings: () => settings,
     ...(options.dispatcher === undefined ? {} : { dispatcher: options.dispatcher }),
+    ...(options.scopeEnabled === undefined ? {} : { scopeEnabled: options.scopeEnabled }),
     ...(options.logger === undefined ? {} : { logger: options.logger }),
   });
 

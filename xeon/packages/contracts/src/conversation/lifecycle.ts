@@ -32,10 +32,10 @@ import {
   type ToolCallItemSchema,
 } from "./hierarchy.ts";
 import { AgentToolResultSchema } from "./agent-schema.ts";
-import { StopReasonSchema, UsageSchema } from "./message-schema.ts";
+import { JsonValueSchema, StopReasonSchema, UsageSchema } from "./message-schema.ts";
 import { PartDeltaSchema, PartRecordSchema } from "./parts.ts";
 import type { AgentEvent, AgentToolResult } from "./agent.ts";
-import type { StopReason, Usage } from "./pi.ts";
+import type { JsonValue, StopReason, Usage } from "./pi.ts";
 
 /** 공통 범위 필드. envelope 필드(F.records.spec)와 이름이 같다. */
 export interface LifecycleScope {
@@ -111,8 +111,30 @@ export const TurnStartedPayloadSchema: TObject<{
 );
 export type TurnStartedPayload = Static<typeof TurnStartedPayloadSchema>;
 
-export const TurnUpdatedPayloadSchema: TObject<{ status: typeof TurnStatusSchema }> = Type.Object(
-  { status: TurnStatusSchema },
+/** 사용자에게만 보이는 휘발 알림(L1.loop.spec §4.9, §4.10, FR-L5). 모델 컨텍스트에는 넣지 않는다 */
+export const TurnNoticeSchema: TObject<{
+  code: TUnion<[TLiteral<"repeat_detected">, TLiteral<"gate_limit">]>;
+  detail: TUnsafe<JsonValue>;
+}> = Type.Object(
+  {
+    /** repeat_detected: 같은 행동-관찰(또는 오류) 쌍이 연속으로 되풀이됨. gate_limit: 완료 게이트 계속 횟수가 상한에 이름 */
+    code: Type.Union([Type.Literal("repeat_detected"), Type.Literal("gate_limit")]),
+    /** 코드별 보조 값. gate_limit은 `{ limit: number }`, repeat_detected는 `{ kind: "action_observation" | "action_error", count: number }` */
+    detail: JsonValueSchema,
+  },
+  { additionalProperties: false },
+);
+export type TurnNotice = Static<typeof TurnNoticeSchema>;
+
+export const TurnUpdatedPayloadSchema: TObject<{
+  status: typeof TurnStatusSchema;
+  notice: TAddOptional<typeof TurnNoticeSchema>;
+}> = Type.Object(
+  {
+    status: TurnStatusSchema,
+    /** 알림. 없으면 상태 갱신만이다 */
+    notice: Type.Optional(TurnNoticeSchema),
+  },
   { additionalProperties: false },
 );
 export type TurnUpdatedPayload = Static<typeof TurnUpdatedPayloadSchema>;

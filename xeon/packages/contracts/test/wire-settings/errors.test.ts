@@ -50,17 +50,33 @@ describe("WIRE_ERRORS", () => {
       "thread.hasForks": 3004,
       "thread.invalidTarget": 3005,
       "thread.cancelledByExtension": 3006,
+      "thread.closed": 3007,
+      "thread.compactFailed": 3008,
       "settings.unknownKey": 3101,
       "settings.invalidValue": 3102,
       "settings.scopeNotAllowed": 3103,
       "settings.locked": 3104,
       "settings.secretValue": 3105,
+      "settings.reserved": 3106,
+      "secret.notFound": 3201,
+      "secret.denied": 3202,
+      "secret.providerUnavailable": 3203,
+      "secret.keyUnavailable": 3204,
+      "secret.decryptFailed": 3205,
+      "secret.inUse": 3206,
+      "secret.alreadyExists": 3207,
+      "secret.readOnlyProvider": 3208,
+      "secret.reauthRequired": 3209,
+      "secret.cancelled": 3210,
+      "secret.auditUnwritable": 3211,
+      "secret.writeFailed": 3212,
       "request.cancelled": 5001,
       "host.shuttingDown": 5002,
       "store.busy": 5003,
       "store.diskFull": 5004,
       "store.readOnly": 5005,
       "store.io": 5006,
+      "store.corrupt": 5007,
     });
   });
 
@@ -81,6 +97,96 @@ describe("WIRE_ERRORS", () => {
       const inWire = spec.code >= 1000 && spec.code < 6000;
       expect({ kind: spec.kind, ok: inJsonRpc || inWire }).toEqual({ kind: spec.kind, ok: true });
     }
+  });
+
+  test("secret.* errors live in 3200~3299 and carry only safe fields", () => {
+    const secretSpecs = specs.filter((s) => s.kind.startsWith("secret."));
+    expect(secretSpecs).toHaveLength(12);
+    for (const spec of secretSpecs) {
+      expect({ kind: spec.kind, code: spec.code >= 3200 && spec.code <= 3299 }).toEqual({
+        kind: spec.kind,
+        code: true,
+      });
+    }
+    const decrypt = WIRE_ERRORS["secret.decryptFailed"].details;
+    if (decrypt === undefined) throw new Error("details expected");
+    expect(parse(decrypt, { provider: "sops", exitCode: 1 }).ok).toBe(true);
+    expect(parse(decrypt, { provider: "sops", exitCode: null }).ok).toBe(true);
+    // 외부 도구의 출력(stderr)은 싣지 않는다
+    expect(parse(decrypt, { provider: "sops", exitCode: 1, stderrMasked: "boom" }).ok).toBe(false);
+    const inUse = WIRE_ERRORS["secret.inUse"].details;
+    if (inUse === undefined) throw new Error("details expected");
+    expect(parse(inUse, { activeLeases: 2 }).ok).toBe(true);
+    expect(parse(inUse, { activeLeases: -1 }).ok).toBe(false);
+    expect(wireError("secret.inUse", { details: { activeLeases: 2 } }).code).toBe(3206);
+    expect(WIRE_ERRORS["secret.alreadyExists"].details).toBeUndefined();
+  });
+
+  test("secret.writeFailed names the write target: key file, OS key store or SOPS file", () => {
+    const details = WIRE_ERRORS["secret.writeFailed"].details;
+    if (details === undefined) throw new Error("details expected");
+    for (const target of ["key_file", "key_store", "sops_file"]) {
+      expect({ target, ok: parse(details, { target, code: "EACCES" }).ok }).toEqual({
+        target,
+        ok: true,
+      });
+    }
+    expect(parse(details, { target: "meta_file", code: "EACCES" }).ok).toBe(false);
+    // 경로는 싣지 않는다
+    expect(parse(details, { target: "sops_file", code: "EACCES", path: "/p" }).ok).toBe(false);
+  });
+
+  test("store.corrupt names where the stored row is wrong and is not a media error", () => {
+    const spec = WIRE_ERRORS["store.corrupt"];
+    expect(spec.code).toBe(5007);
+    expect(spec.retryable).toBe(false);
+    if (spec.details === undefined) throw new Error("details expected");
+    expect(parse(spec.details, { where: "events.payload(item.recorded)" }).ok).toBe(true);
+    expect(parse(spec.details, { where: "x".repeat(129) }).ok).toBe(false);
+    expect(parse(spec.details, { code: "row_invalid" }).ok).toBe(false);
+    expect(WIRE_ERRORS["store.io"].code).not.toBe(spec.code);
+  });
+
+  test("thread.closed names the closed thread", () => {
+    expect(wireError("thread.closed").code).toBe(3007);
+    expect(wireErrorCodeMatchesKind(3007, "thread.closed")).toBe(true);
+    const details = WIRE_ERRORS["thread.closed"].details;
+    if (details === undefined) throw new Error("details expected");
+    expect(parse(details, { threadId: "thr_01ARZ3NDEKTSV4RRFFQ69G5FAV" }).ok).toBe(true);
+    expect(parse(details, {}).ok).toBe(false);
+  });
+
+  test("thread.compactFailed names why the summary was not made and nothing else", () => {
+    expect(wireError("thread.compactFailed").code).toBe(3008);
+    expect(wireErrorCodeMatchesKind(3008, "thread.compactFailed")).toBe(true);
+    expect(WIRE_ERRORS["thread.compactFailed"].retryable).toBe(false);
+    const details = WIRE_ERRORS["thread.compactFailed"].details;
+    if (details === undefined) throw new Error("details expected");
+    for (const reason of [
+      "read_failed",
+      "projection_failed",
+      "summary_failed",
+      "summary_has_tool_call",
+      "summary_truncated",
+      "commit_failed",
+    ]) {
+      expect(parse(details, { reason }).ok).toBe(true);
+    }
+    // 요청 취소(5001)와 불변 조건 위반은 이 오류의 이유가 아니다
+    expect(parse(details, { reason: "aborted" }).ok).toBe(false);
+    expect(parse(details, { reason: "branch_not_found" }).ok).toBe(false);
+    expect(parse(details, { reason: "summary_failed", message: "provider said no" }).ok).toBe(
+      false,
+    );
+    expect(parse(details, {}).ok).toBe(false);
+  });
+
+  test("thread.cancelledByExtension also covers a compaction stopped by session_before_compact", () => {
+    const details = WIRE_ERRORS["thread.cancelledByExtension"].details;
+    if (details === undefined) throw new Error("details expected");
+    expect(parse(details, { point: "session_before_compact", reason: "policy" }).ok).toBe(true);
+    expect(parse(details, { point: "session_before_compact", reason: null }).ok).toBe(true);
+    expect(parse(details, { point: "session_before_nothing", reason: null }).ok).toBe(false);
   });
 
   test("the secret-value error carries only the key", () => {

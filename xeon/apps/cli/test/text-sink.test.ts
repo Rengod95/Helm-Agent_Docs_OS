@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import { createJsonTap } from "../src/render/json-tap.ts";
 import type { RenderOp } from "../src/render/model.ts";
 import { createTextSink, pieceOf } from "../src/render/text-sink.ts";
+import { displayWidth } from "../src/render/width.ts";
 import { createMinimalSink, progressLine } from "../src/tui/minimal.ts";
 import { itemId } from "./support/ids.ts";
 
@@ -81,14 +82,34 @@ test("turn ends: nothing for completed, a line for interrupted and failed", () =
 test("progress ops are not drawn by the text sink", () => {
   expect(pieceOf({ kind: "progress", itemId: itemId(1), text: "t" }, "full", true)).toBeUndefined();
   expect(pieceOf({ kind: "clearProgress", itemId: itemId(1) }, "full", true)).toBeUndefined();
-  expect(pieceOf({ kind: "approvalResolved", approvalId: "a" }, "full", true)).toBeUndefined();
+  expect(
+    pieceOf(
+      {
+        kind: "approvalResolved",
+        approvalId: "a",
+        decision: "allow",
+        remember: "once",
+        requestedRemember: null,
+        resolvedBy: "user",
+      },
+      "full",
+      true,
+    ),
+  ).toBeUndefined();
 });
 
 test("approvals are announced on stderr with the body indented", () => {
   const piece = pieceOf(
     {
       kind: "approval",
-      view: { approvalId: "a", title: "T", body: ["x", "y"], allowsAnswer: false },
+      view: {
+        approvalId: "a",
+        title: "T",
+        body: ["x", "y"],
+        allowsAnswer: false,
+        remember: ["once"],
+        form: { kind: "tool" },
+      },
     },
     "print",
     false,
@@ -163,6 +184,16 @@ test("the progress line shows the last non-empty line, cut to the terminal width
   expect(progressLine("first\nsecond line\n\n", null)).toBe("second line");
   expect(progressLine("x".repeat(30), 10)).toBe(`${"x".repeat(8)}…`);
   expect(progressLine("", 10)).toBe("");
+});
+
+test("the progress line counts Hangul and CJK as two columns", () => {
+  // 한글 20자는 40칸이다. 문자 수로 자르면 40칸 터미널에서 줄이 접힌다
+  const hangul = "가나다라마바사아자차카타파하거너더러머버서";
+  const cut = progressLine(hangul, 20);
+  expect(displayWidth(cut)).toBeLessThanOrEqual(19);
+  expect(cut.endsWith("…")).toBe(true);
+  expect(progressLine("한글", 20)).toBe("한글");
+  expect(displayWidth(progressLine("漢字漢字漢字漢字漢字", 11))).toBeLessThanOrEqual(10);
 });
 
 test("the json tap holds lines until it is decided, then writes them in order", async () => {

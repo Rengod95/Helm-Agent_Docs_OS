@@ -50,7 +50,9 @@ xeon/packages/core-loop/
       commit-response.ts    # message_end chain, 도구 선언 차이 item, C3(T3) + next:"tools" 체크포인트
       tool-batch.ts         # 순차·병렬 스케줄, 이벤트 순서, 취소 시 not_executed, length 절단, terminate. 원본 508-692
       step-end.ts           # turn_end·agent_before_settle chain, 정착 후보, finalizeBoundary, 계속 판정, C5(T4) + drain → StepNext
-      before-start.ts       # before_agent_start chain, prestart 커밋
+      before-start.ts       # before_agent_start chain, prestart 커밋, 시스템 프롬프트 변경을 promptAddition으로 떼어 둔다
+      compaction.ts         # 요청 전 임계 컴팩션과 오버플로우 복구 호출 배선 (M2 마감 G2-01)
+      environment.ts        # 환경 블록(날짜, 작업 디렉터리, 플랫폼)과 promptAddition 계산. 단계마다 volatile로 넘긴다 (M2 마감 G2-03)
     event-mapper.ts         # createAgentEventMapper(F 시그니처) + bindItem
     volatile.ts             # 휘발 envelope 발신(n, afterSeq, 묶음, 자르기)
     checkpoint.ts           # finalizeBoundary, StepCheckpoint 채우기
@@ -102,17 +104,17 @@ xeon/packages/core-loop/
 | LP2 | `AgentEventMapper` 구현과 골든 테스트: F.conversation §3.5.4 표 전 행, `bindItem`, 결정적 id 순서 | M0: contracts F.conversation 매퍼 타입 | M | M1 |
 | LP3 | 휘발 이벤트 발신자: `VolatileEventEnvelope` 구성, `(threadId, turnId)`별 `n`, `afterSeq = headSeq()`, 50 ms 묶음, 16 KiB 자르기 | LP2, M0: core-persistence `headSeq`·휘발 피드 | S | M1 |
 | LP4 | 단계 커밋 요청 구성: T1~T4·T6의 `CommitRequest`(persistence `commit` 인터페이스에 맞춤), 커밋 키 형식, 지문 원천, `StepCheckpoint` 채우기, `inputs.drain` 결합, `finalizeBoundary` | LP1, LP2, L1.tasks.plan TK-5 | M | M1 |
-| LP5 | `next`별 재진입: `turn_start`, `request`(K1 포함), `tools`, `await_input`(승인 대기 호출의 `restore` 뒤 `tools.prepare` 재실행), `turn_end`, 취소 의도 → `closed`. 열린 turn 표식. 자체 루프 이행 뒤에는 `resume.ts`가 `TurnEntry`만 만들고 실행은 `runTurn`이 한다(LP19) | LP4, M0: core-persistence 열 때 복구, core-tools 파이프라인 인터페이스 | L | M1 |
-| LP6 | 예산·상한 처리: `maxSteps`, drive turn 신호, `canContinue`, `l1.loop.*` 설정 정의, `thinkingBudgets` 전달(M2) | LP4 | S | M1(maxSteps), M2(추론 예산) |
-| LP7 | 완료 게이트: 정착 후보 판정, `agent_before_settle` 발화 위치(`endStep`), 게이트 계속 상한과 휘발 알림 | LP4, LP6 | M | M1(발화), M2(상한) |
+| LP5 | `next`별 재진입: `turn_start`, `request`(K1 포함), `tools`, `await_input`(승인 대기 호출의 `restore` 뒤 `tools.prepare` 재실행), `turn_end`, 취소 의도 → `closed`. 열린 turn 표식. 자체 루프 이행 뒤에는 `resume.ts`가 `TurnEntry`만 만들고 실행은 `runTurn`이 한다(LP19) (N-03 완료 2026-10-24: 닫는 재진입이 정착한 turn 노드에 작업을 등록하지 않는다. 시험 `closing_an_open_turn_logs_no_run_rejection`) | LP4, M0: core-persistence 열 때 복구, core-tools 파이프라인 인터페이스 | L | M1 |
+| LP6 | 예산·상한 처리: `maxSteps`, drive turn 신호, `canContinue`, `l1.loop.*` 설정 정의, `thinkingBudgets` 전달(M2) (M2 완료 2026-10-24: 시험 `thinking_budgets_passed_through`) | LP4 | S | M1(maxSteps), M2(추론 예산) |
+| LP7 | 완료 게이트: 정착 후보 판정, `agent_before_settle` 발화 위치(`endStep`), 게이트 계속 상한과 휘발 알림 (M2 완료 2026-10-24: 설정 `l1.loop.gate.maxContinues`, 시험 `completion-gate.test.ts`. 상한 알림 `turn.updated.notice` gate_limit은 L1F에서 연결: `gate_limit_notice`) | LP4, LP6 | M | M1(발화), M2(상한) |
 | LP8 | boundary 최종 검증: `finalizeBoundary` 규칙 1~5와 진단 로그 | LP4 | S | M1 |
 | LP9 | `input` 지점 발화 위치 확정: `admit`의 input chain → `inputs.enqueue` 순서, 확장 post 비경유. runtime-flow 그림 수정 요청(FR-L7)과 L1.tasks.spec §7 일치 확인 | LP1, L1.tasks.plan TK-5 | S | M1 |
-| LP10 | drive 연동: `runTurn`의 T1 build 안 `turnByRequestId` 조회와 `leaseEpoch` 펜싱, 열린 turn 이어 끝내기, thread 취소 신호 처리, `LoopTurnResult.usage` | LP5, LP6, M0: ext-host drive 최소형 | M | M1(최소), M2(정식 테스트) |
+| LP10 | drive 연동: `runTurn`의 T1 build 안 `turnByRequestId` 조회와 `leaseEpoch` 펜싱, 열린 turn 이어 끝내기, thread 취소 신호 처리, `LoopTurnResult.usage` (M2 완료 2026-10-24: 시험 `drive-budget.test.ts`. 횟수 상한은 X가 거부하고 토큰은 `loop.budget`으로 보고한다) | LP5, LP6, M0: ext-host drive 최소형 | M | M1(최소), M2(정식 테스트) |
 | LP11 | `stopAtSafeBoundary`: T4 뒤 결정 `end`, T6 생략, 시한 처리 | LP4 | S | M1 |
-| LP12 | `user_bash` 진입점과 `await_input` 재진입의 승인 응답 연결 | LP5, L1.tools 승인 프로토콜 | M | M2 |
+| LP12 | `user_bash` 진입점과 `await_input` 재진입의 승인 응답 연결 (`await_input` 재진입 완료 2026-10-24: 시험 `await_input_resumes_after_approval_response`, 열린 turn을 닫을 때 그 turn의 미해결 승인 취소. `user_bash`는 L1F에서 완료: `user-bash.ts`, 시험 `user-bash.test.ts`) | LP5, L1.tools 승인 프로토콜 | M | M2 |
 | LP13 | 목표 판정 소비 지점 계약 시험(가짜 판정 핸들러) | LP7, L1.agents 판정 API | S | M3 |
 | LP14 | 반복 감지 | LP7, FR-L5 | M | 2차 |
-| LP15 | 자식 thread turn `runChildTurn`(spec §4.13): requestId 멱등 조회, 자식 turn 노드(`openScope` 부모 subagent), `systemPrompt`·`model`·`ToolRunContext` 값 전달, 자식 한도(`child_limit`) | LP5, LP10, L1.agents.plan AG-2 | M | M2 |
+| LP15 | 자식 thread turn `runChildTurn`(spec §4.13): requestId 멱등 조회, 자식 turn 노드(`openScope` 부모 subagent), `systemPrompt`·`model`·`ToolRunContext` 값 전달, 자식 한도(`child_limit`) (M2 완료 2026-10-24: `runChildTurn`, 시험 `child-turn.int.test.ts`) | LP5, LP10, L1.agents.plan AG-2 | M | M2 |
 | LP16 | (완료 2026-10-23) F 타입 이행: `contracts/src/conversation/agent.ts`에 `AgentMessage`(닫힌 유니온), `AgentEvent`, `AgentTool`, `AgentToolResult`, `AgentToolCall`, `AgentToolUpdateCallback`, `ToolExecutionMode`, `AgentContext` 정의(`F.conversation.spec` §3.1.1). `pi.ts`에서 agent-core 재노출 제거, `hierarchy.ts` 선언 병합 제거, `AgentToolHooks` 제거. `pi-types.test.ts`의 agent-core 항등 검사를 F 정의 검사로 바꾼다 | — | M | 이행 1 |
 | LP17 | (완료 2026-10-23) 루프 본체 포크: `loop/stream-response.ts`, `loop/tool-batch.ts`, `loop/run-turn.ts`. 원본 `agent-loop.ts` 1.3.0의 해당 함수를 옮기고 spec §3.2·§3.3대로 고친다. `UPSTREAM.json`, `LICENSE.pi`, 출처 주석. pi-ai 값 함수 호출은 `xeon.models` 메서드로 바꾼다 | LP16, LP18 | L | 이행 2 |
 | LP18 | (완료 2026-10-23) 이웃 계약 바꾸기(다른 plan과 함께): `ToolService`의 `hooks`·`toAgentTools`·`observe`·`closeUnexecuted`를 `prepare`·`execute`·`settleRejected` 단계 계약으로(`L1.tools.plan`), `ModelService`에 도구 선언 차이 계산과 streamFn 안 정규화(`L1.models.plan`). 첫 테스트로 typebox 검증이 pi-ai `validateToolArguments`와 같은 결과를 내는지 확인(adr.0009 §6 [가정]) | LP16 | M | 이행 2 |
@@ -169,6 +171,12 @@ xeon/packages/core-loop/
 | `stop_at_safe_boundary_leaves_turn_open` | `checkpoint.fault.test.ts` | T4 뒤 멈추고 `turn.completed`가 없으며 재개 후보에 남는다 | M1 |
 | `thinking_budgets_passed_through` | `loop.contract.test.ts` | `xeon.models`가 준 단계 바인딩의 `thinkingBudgets`와 추론 레벨이 streamFn 요청에 그대로 들어가고 loop가 값을 바꾸지 않는다(LP6) | M2 |
 | `user_bash_first_deny_skips_shell` | `user-bash.test.ts` | `user_bash`(first)가 거부면 `runUserShell` 호출 0회, 허용이면 1회이고 결과 기록 방식이 `includeInContext`를 따른다(LP12) | M2 |
+| `user_bash_runs_the_command_and_records_it_for_the_model` | `user-bash.test.ts` | `!명령`은 caller main·대화형 맥락으로 `runUserShell`을 한 번 부르고 `custom` item 하나(`core.loop.user_bash`)가 기록된다. `!!`는 item 없이 `includeInContext: false`다 | M2 |
+| `user_bash_replace_and_refusals` | `user-bash.test.ts` | 핸들러의 결과 대체는 실행 0회 `replaced: true`이고 item이 남는다. 도구 쪽이 실행 전에 닫은 명령(`not_executed`)은 `denied`다. 0이 아닌 종료는 `completed`이고 종료 코드·전체 출력 경로가 본문에 든다 | M2 |
+| `a command that ran but could not be recorded is not run again: the retry only records` | `user-bash.test.ts` | 기록 커밋이 busy로 모두 실패한 요청은 오류 값이고 `runUserShell`은 1회다. 같은 `requestId` 재호출은 셸을 다시 부르지 않고 `custom` item 하나를 기록하며, 그 뒤 호출은 같은 결과를 돌려준다 | M2 |
+| `user_bash_cwd_follows_the_thread` | `user-bash.test.ts` | 작업 디렉터리가 다른 두 대화에서 `user_bash` 핸들러가 받는 페이로드의 `cwd`가 각각 그 대화의 디렉터리(`/work/alpha`, `/work/beta`)다. 옵션이 `undefined`를 돌려주면 `cwd`는 빈 문자열이다 | M2 |
+| `user_bash_idempotent_and_concurrent_with_a_turn` | `user-bash.test.ts` | 같은 `requestId`는 한 번만 실행되고 같은 결과다. 없는 대화는 `thread_not_found`. turn이 도구를 기다리는 동안 불러도 turn이 정상 정착한다 | M2 |
+| `gate_limit_notice` | `completion-gate.test.ts` | 상한에 막힌 단계에서 휘발 `turn.updated`에 `notice{gate_limit, limit}`가 한 번 나가고 내구 기록에는 없다. 핸들러가 계속을 원하지 않으면 알림이 없다 | M2 |
 | `await_input_resumes_after_approval_response` | `resume.int.test.ts` | `await_input` 체크포인트에서 재개하면 모델 요청 0회, 승인 응답이 커밋된 뒤 같은 호출이 `runTurn({ kind: "tools" })`의 `tools.prepare`·`execute`로 실행되고 T4가 커밋된다(LP12) | M2 |
 | `child_turn_uses_request_prompt_model_and_tool_context` | `child-turn.int.test.ts` | `runChildTurn`의 요청 본문 기본 프롬프트가 `systemPrompt`, 바인딩이 `model` 해석 결과이고, 도구 호출의 `ToolRunContext`가 요청 값과 같다(spec §9-12, LP15) | M2 |
 | `child_turn_same_request_id_replays` | `child-turn.int.test.ts` | 같은 `requestId`로 두 번 부르면 두 번째 `replayed: true`, 자식 thread의 `turn.started` 하나(spec §9-11, LP15) | M2 |
@@ -186,6 +194,17 @@ xeon/packages/core-loop/
 | `resume_entries_use_main_path_step_functions` | `loop/run-turn.test.ts` | `tools`·`request`·`turn_end` 진입에서 같은 테이프의 끊기지 않은 실행과 내구 이벤트 열이 같다(spec §9-16) | 이행 |
 | `each_step_commits_three_plus_three_per_tool_call` | `turn.test.ts` | 진짜 core-loop를 대역 저장소 위에서 돌려 한 단계가 커밋 3개(S1, C3, C5)와 도구 호출마다 3개(E1, E2, E3)를 쓰는지 커밋 키로 센다. 도구 호출 0~3개(spec §4.2) | 이행 |
 | `upstream_event_order_cases` | `loop/upstream-parity.test.ts` | 원본 `packages/agent/test/agent-loop.test.ts`에서 고른 사례(도구 없는 응답, 도구 1개, 병렬 2개, steer 주입, 오류 응답, 중단)의 `AgentEvent` 순서가 같다. 사례는 옮겨 적고 원본 코드는 실행하지 않는다 | 이행 |
+| `a_prompt_change_of_the_second_turn_reaches_the_request_and_never_the_prefix` | `prompt-additions.test.ts` | turn마다 다른 안내를 덧붙이는 `before_agent_start` 핸들러로 두 turn을 돌리면 두 요청의 접두는 기본 프롬프트 그대로이고, 둘째 조립에 넘어간 volatile 안내는 둘째 안내뿐이다(수정 전에는 첫 turn 안내가 접두에 굳고 둘째 안내가 빠진다) | M2 마감 G2-03 |
+| `the_prompt_addition_is_sent_on_every_step_of_the_turn` | `prompt-additions.test.ts` | 도구 호출이 있는 turn의 두 단계 모두 `volatile.instructions`가 같은 안내다 | M2 마감 G2-03 |
+| `a_handler_that_replaces_the_base_prompt_sends_the_whole_replacement_and_no_handler_sends_nothing` | `prompt-additions.test.ts` | 기본 프롬프트를 통째로 바꾸면 바꾼 전체가 `instructions`이고 접두의 `basePrompt`는 그대로. 핸들러가 없으면 `instructions` 키가 없다 | M2 마감 G2-03 |
+| `the_environment_block_carries_date_working_directory_and_platform_each_step` | `prompt-additions.test.ts` | 단계마다 `environment`가 `date`(UTC), `working_directory`, `platform` 줄이다 | M2 마감 G2-03 |
+| `a_full_window_is_compacted_before_the_request_and_the_request_is_built_on_the_new_leaf` | `compaction.test.ts` | `shouldCompact`가 참이면 호출 순서가 `should`, `compact`, `assemble`이고 `compact`는 `reason: "threshold"`, `willRetry: false`, 바인딩과 창 크기를 받으며, 조립은 컴팩션이 커밋한 이벤트까지 읽은 leaf로 한다 | M2 마감 G2-01 |
+| `a_window_below_the_threshold_is_not_compacted_and_every_step_is_checked` | `compaction.test.ts` | 임계 아래면 `compact` 0회이고 두 단계 모두 검사한다 | M2 마감 G2-01 |
+| `a_failed_compaction_does_not_stop_the_turn_and_is_not_retried_on_later_steps` | `compaction.test.ts` | 요약 실패 뒤에도 turn이 `completed`로 끝나고, 둘째 단계는 검사도 하지 않으며 경고 `loop.compaction_failed`가 남는다 | M2 마감 G2-01 |
+| `an_overflow_is_compacted_once_and_the_same_step_is_requested_again` | `compaction.test.ts` | 오버플로우 응답 뒤 `recoverOverflow`가 같은 `stepId`로 한 번 불리고, 같은 단계에서 요청이 두 번 나가며(`step.started` 1개), 실패한 시도는 기록되지 않고 성공 응답만 남는다. 둘째 조립은 컴팩션 이벤트 뒤 leaf다 | M2 마감 G2-01 |
+| `a_second_overflow_in_the_same_step_ends_the_turn_with_the_error` | `compaction.test.ts` | 다시 보낸 요청도 오버플로우면 복구는 한 번만 불리고 turn은 `failed`다 | M2 마감 G2-01 |
+| `an_overflow_that_cannot_be_recovered_commits_the_error_response_as_before` | `compaction.test.ts` | `fail(compaction_failed)`면 요청 1회, 오류 응답이 기록되고 사유가 경고로 남는다 | M2 마감 G2-01 |
+| `an_error_that_is_not_an_overflow_never_reaches_overflow_recovery` | `compaction.test.ts` | 속도 제한 같은 다른 오류는 `recoverOverflow`를 부르지 않는다 | M2 마감 G2-01 |
 
 ## 6. 완료 기준
 

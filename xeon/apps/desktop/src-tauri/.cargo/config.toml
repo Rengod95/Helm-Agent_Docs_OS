@@ -1,0 +1,6 @@
+# 빌드 산출물 위치(target-dir)는 여기서 정하지 않는다. scripts/cargo.sh(just desktop-*)가 CARGO_TARGET_DIR을
+# ${XDG_CACHE_HOME:-$HOME/.cache}/xeon/cargo-target 으로 둔다. Syncthing 폴더(~/projects) 밖의 기기별 캐시다.
+# cargo를 직접 부르면 src-tauri/target에 쌓인다. 이 경로는 src-tauri/.gitignore가 git에서, Syncthing의 **/target 패턴이 동기화에서 뺀다.
+# 기기 메모리 예산(cargo.sh가 scripts/guard.sh run 2G scope로 돌린다, 공용 ws-dev.slice) 안에서 rustc가 몇 개씩 도는지를 묶는다. 바꾸려면 CARGO_BUILD_JOBS를 쓴다.
+[build]
+jobs = 2

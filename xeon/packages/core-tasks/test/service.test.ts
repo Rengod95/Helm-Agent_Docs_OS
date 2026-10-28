@@ -1,8 +1,5 @@
 import { expect, test } from "bun:test";
-import type { AbortReason } from "@xeon/contracts/services";
 import { createWorld, deferred, flush, openTurn, userDraft, watch } from "./support/world.ts";
-
-const USER_STOP: AbortReason = { code: "user", message: "stop" };
 
 test("activity counts live turns and tasks, and queued inputs of every thread", async () => {
   const world = createWorld();
@@ -108,54 +105,4 @@ test("close is idempotent", async () => {
   await world.tasks.close();
   await world.tasks.close();
   expect(world.tasks.root.state).toBe("settled");
-});
-
-test("the M1 limiter counts slots without a cap and releases them when the owner settles", async () => {
-  const world = createWorld();
-  const { tasks } = world;
-  const { turn } = openTurn(world, { intent: false });
-  const tool = tasks.openScope(turn, { kind: "tool", id: "tc1" });
-  const limiter = tasks.limiter("tools");
-  expect(limiter.pool).toBe("tools");
-  expect(limiter.capacity()).toBe(Number.POSITIVE_INFINITY);
-
-  const slot = await limiter.acquire(tool);
-  expect(limiter.inUse()).toBe(1);
-  expect(limiter.waiting()).toBe(0);
-  slot.release();
-  slot.release();
-  expect(limiter.inUse()).toBe(0);
-
-  // suspendWhile: 기다리는 동안 반납하고 끝나면 다시 얻는다
-  const again = await limiter.acquire(tool);
-  const wait = deferred<string>();
-  const suspended = again.suspendWhile(wait.promise);
-  expect(limiter.inUse()).toBe(0);
-  wait.resolve("child done");
-  expect(await suspended).toBe("child done");
-  expect(limiter.inUse()).toBe(1);
-
-  // 쥔 채 owner가 정착하면 자동으로 반납한다
-  await tool.settle();
-  expect(limiter.inUse()).toBe(0);
-  expect(tasks.limiter("subagents")).not.toBe(limiter);
-});
-
-test("the M1 limiter rejects an aborted owner with the abort reason", async () => {
-  const world = createWorld();
-  const { turn } = openTurn(world, { intent: false });
-  const running = deferred<void>();
-  const held = turn.track(running.promise);
-  await world.tasks.abort(turn, USER_STOP);
-  const rejected = await world.tasks
-    .limiter("modelCalls")
-    .acquire(turn)
-    .then(
-      () => null,
-      (caught: unknown) => caught,
-    );
-  expect(rejected).toBe(USER_STOP);
-  expect(world.tasks.limiter("modelCalls").inUse()).toBe(0);
-  running.resolve();
-  await held;
 });

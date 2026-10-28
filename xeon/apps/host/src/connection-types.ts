@@ -48,6 +48,8 @@ export interface SendQueue {
   push(message: JsonRpcMessage): void;
   /** 아직 전송이 끝나지 않은 바이트 */
   readonly bytes: number;
+  /** 큐가 완전히 비거나(전송이 모두 끝남) 닫힐 때까지 기다린다. 종료 때 마지막 응답이 나가게 한다 */
+  drained(): Promise<void>;
   /** 큐가 sendLowWaterBytes 아래로 내려갈 때까지 기다린다. signal이 중단되거나 연결이 닫히면 멈춘다 */
   waitBelowLowWater(signal?: AbortSignal): Promise<SendWaitOutcome>;
 }
@@ -76,8 +78,12 @@ export interface ConnectionState {
   /** host.hello에서 클라이언트가 opt-in한 실험 기능 */
   experimental: readonly string[];
   readonly subs: Map<string, Subscription>;
-  /** thread.create·turn.start로 연 thread. stream.chunk를 이 연결에 보낸다(HS-17) */
+  /** thread.create·turn.start·thread.open(write 또는 observe)으로 연 thread. stream.chunk를 이 연결에 보낸다(HS-17) */
   readonly openThreads: Set<ThreadId>;
+  /** 이 연결이 쓰기로 연 thread(HS-27 해제 판정). openThreads의 부분집합이다 */
+  readonly writeThreads: Set<ThreadId>;
+  /** 이 연결이 관찰로 연 thread. 다른 프로세스가 쥔 thread의 커밋을 폴링으로 받는다(HS-16) */
+  readonly observedThreads: Set<ThreadId>;
   readonly limits: HostLimits;
   readonly sender: SendQueue;
   /** 응답이 송신 큐에 들어간 직후 실행한다. 처리기가 오류를 던지면 실행하지 않는다 */
@@ -97,6 +103,13 @@ export interface ConnectionHub {
   connections(): readonly ConnectionState[];
   /** HS-31 1단계: 이미 받은 요청은 끝까지 처리하고, 새 요청은 5002로 거절한다 */
   beginShutdown(): void;
+  /**
+   * 쓰기로 연 연결이 더 없고 진행 중인 turn이 없는 thread의 잠금을 놓는다(HS-27). 서비스 모드만 놓고 나머지는 프로세스 종료 때 커널이 푼다
+   * [spec에 더한 메서드: thread.close와 연결 종료가 같은 판정을 쓴다]
+   */
+  releaseUnused(threadIds: readonly ThreadId[]): void;
+  /** 관찰 중인 thread가 생겼으면 폴링을 시작한다(HS-16). 관찰할 thread가 없어지면 폴링은 저절로 멈춘다 */
+  watchObserved(): void;
   /** 커밋 알림 구독을 푼다. 엔진을 닫기 전에 부른다 */
   dispose(): void;
 }

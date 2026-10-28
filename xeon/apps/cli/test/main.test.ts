@@ -45,11 +45,16 @@ test("help lists the commands that exist and marks the ones that come later", as
     "--resume",
     "config get",
     "config schema",
+    "config set",
+    "sessions ls",
+    "secret ls",
+    "doctor",
     "version",
   ]) {
     expect(text).toContain(word);
   }
-  expect(text).toContain("(M2)");
+  // 아직 없는 명령만 마일스톤을 밝힌다
+  expect(text).not.toContain("(M2)");
   expect(text).toContain("(M3)");
   expect(text).not.toContain("launch-mode");
   expect(text).not.toContain("host --stdio");
@@ -65,12 +70,8 @@ test("help <topic> shows the topic and falls back to the overview", async () => 
   expect(other.stdoutText()).toContain("명령");
 });
 
-test("commands that come with M2 and M3 say so on two lines and exit 1", async () => {
+test("service commands come with M3 and say so on two lines and exit 1", async () => {
   const cases: readonly (readonly [readonly string[], string, string])[] = [
-    [["sessions", "ls"], "sessions", "M2"],
-    [["secret", "ls"], "secret", "M2"],
-    [["doctor"], "doctor", "M2"],
-    [["host", "--stdio"], "host --stdio", "M2"],
     [["service", "status"], "service", "M3"],
   ];
   await Promise.all(

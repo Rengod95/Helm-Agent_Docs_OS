@@ -293,7 +293,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 | `bun:ffi` | `platform-store`(`lock/posix.ts`, M2 이후 `lock/win32.ts`) | `L0.store.plan` §4 채택 코드 표(쓰기 잠금 `flock`) [결정: review.decisions-2 U-17] |
 | `node:child_process`, `Bun.spawn`, `Bun.spawnSync` | `platform-exec`, `platform-process`, `platform-sandbox`, `platform-secrets`, `platform-os` | 프로세스 실행은 L0 인터페이스 뒤에 둔다(DR-13). `platform-os`는 바이너리 `--version` 확인, 알림 명령, `mount` 조회에 쓴다(`L0.os.plan` §4) [결정: review.decisions-2 U-17] |
 | `node:child_process`, `Bun.spawn`, `Bun.spawnSync`(테스트 한정) | 허용 목록에 `scope: "test"` 항목이 있는 패키지의 테스트 파일(`test/**`). 운영 소스(`src/**`)는 위 행 그대로 L0만 | 엔진·CLI·자식 프로세스 장애를 실제 프로세스로 시험한다(SIGKILL 재개, stdio 적합성, 포크 기록 검사). `check-layers.ts`가 항목의 `from` 패키지와 테스트 파일 경로를 함께 검사한다 [결정: review.decisions-2 B-06] |
-| `@vscode/ripgrep`, `@parcel/watcher` | `platform-os` | packages.md §4.2 L0-f, `L0.os.plan` §4 채택 코드 표 [결정: review.decisions-2 U-17] |
+| `@vscode/ripgrep`, `@parcel/watcher` | `platform-os` | packages.md §4.2 L0-f, `L0.os.plan` §4 채택 코드 표 [결정: review.decisions-2 U-17]. `@vscode/ripgrep`은 `platform-os`가 import해 `rg` 바이너리 경로를 제공하고(`resolveBinary`), `cap-workspace`는 그 경로로 `rg`를 실행만 한다(`ExecutionEnv.exec`). `cap-workspace`는 이 모듈을 import하지 않는다 [결정: review.m2-plan §8] |
 | `@opentelemetry/api`, `@opentelemetry/sdk-trace-node`, `pi-telemetry` | `platform-os`. F는 `@opentelemetry/api`를 `import type`으로만 쓴다 | packages.md §4.2 L0-f, `L0.os.plan` §4, `F.readme` §1 [결정: review.decisions-2 U-17] |
 | `@modelcontextprotocol/client` | `cap-mcp` | packages.md §4.4 L2-b |
 | `playwright-core` | `cap-web` | packages.md §4.4 L2-c web.browse |
@@ -301,6 +301,7 @@ import { MAX_STEPS } from "./turn.ts";   // DR-06: turn.ts ↔ step.ts
 | `age-encryption` | `platform-secrets` | `L0.secrets.plan` SC-13(파일 폴백 키 생성) |
 | `cordis`, `@cordisjs/*`, `vendor/cordis` | `ext-host` | DR-11 |
 | `@tauri-apps/*` | `apps/desktop` | foundation-plan §2 데스크톱 행 |
+| `react`, `react-dom`, `zustand` | `apps/desktop`. 앱 안 import 위치는 `eng.frontend-state.guide` FS-06이 더 좁힌다 | adr.0010 §3.3 [결정: 2026-10-24 사용자 지시] |
 | `node:*`, `bun:*`, Bun 전역 | F(`contracts`)에서 금지 | 06 R4를 F에 한정해 옮긴다. F는 데스크톱 WebView에서도 import되므로 런타임 중립이어야 한다 [제안] |
 
 - [결정: review.decisions-2 U-17] F의 pi 타입 재노출 예외: `contracts`는 `@earendil-works/pi-ai`를 `import type`과 `export type`으로만 쓸 수 있다. 값 import는 금지다. 근거는 `F.readme` §1 허용 외부 의존과 `F.conversation.spec` §3.1 규칙 1이다. `check-layers.ts`는 F에서 이 모듈의 값 import를 `DR-07`로 거부한다. `@earendil-works/pi-agent-core`는 F에서도 타입 import까지 금지다(adr.0009).

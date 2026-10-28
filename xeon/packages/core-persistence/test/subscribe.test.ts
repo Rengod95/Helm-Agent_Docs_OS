@@ -33,10 +33,10 @@ async function collect(
 
 describe("commit listeners", () => {
   // plan subscribe_emits_only_after_commit, spec §9.16
-  test("subscribe_emits_only_after_commit", () => {
+  test("subscribe_emits_only_after_commit", async () => {
     const fault = faultAt("before_commit");
     fault.armed = false;
-    const h = openHarness({ faults: fault.injector });
+    const h = await openHarness({ faults: fault.injector });
     const { threadId } = newThread(h);
     const batches: CommitBatch[] = [];
     h.service.feed.onCommit((batch) => {
@@ -55,8 +55,8 @@ describe("commit listeners", () => {
     expect(batches[0]?.lastSeq).toBe(batches[0]?.events.at(-1)?.seq ?? -1);
   });
 
-  test("listeners receive batches in seq order and a throwing listener harms nobody", () => {
-    const h = openHarness();
+  test("listeners receive batches in seq order and a throwing listener harms nobody", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const seen: number[] = [];
     h.service.feed.onCommit(() => {
@@ -74,7 +74,7 @@ describe("commit listeners", () => {
 
   // plan commit_nested_inside_listener_is_bug
   test("commit_nested_inside_listener_is_bug", async () => {
-    const h = openHarness();
+    const h = await openHarness();
     const { threadId } = newThread(h);
     let nested = "";
     h.service.feed.onCommit(() => {
@@ -103,8 +103,8 @@ describe("commit listeners", () => {
     expect(deferred).toBe(true);
   });
 
-  test("a replayed commit emits nothing", () => {
-    const h = openHarness();
+  test("a replayed commit emits nothing", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     let emitted = 0;
     h.service.feed.onCommit(() => {
@@ -138,8 +138,8 @@ describe("commit listeners", () => {
     expect(emitted).toBe(1);
   });
 
-  test("unsubscribe stops delivery", () => {
-    const h = openHarness();
+  test("unsubscribe stops delivery", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     let emitted = 0;
     const off = h.service.feed.onCommit(() => {
@@ -154,8 +154,8 @@ describe("commit listeners", () => {
 
 describe("subscribe catch-up", () => {
   // plan subscribe_catch_up_then_live_has_no_gap
-  test("subscribe_catch_up_then_live_has_no_gap", () => {
-    const h = openHarness();
+  test("subscribe_catch_up_then_live_has_no_gap", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     fullStep(h, turn, 0, [{ toolCallId: "tc1", toolName: "read", replay: "safe" }]);
@@ -175,8 +175,8 @@ describe("subscribe catch-up", () => {
     );
   });
 
-  test("filters by thread and kind prefix, in catch-up and live", () => {
-    const h = openHarness();
+  test("filters by thread and kind prefix, in catch-up and live", async () => {
+    const h = await openHarness();
     const a = newThread(h, "a");
     const b = newThread(h, "b");
     startTurn(h, a.threadId);
@@ -199,8 +199,8 @@ describe("subscribe catch-up", () => {
 });
 
 describe("reads", () => {
-  test("feed.read pages with limit and scanLimit and reports scannedTo", () => {
-    const h = openHarness();
+  test("feed.read pages with limit and scanLimit and reports scannedTo", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     fullStep(h, turn, 0, []);
@@ -218,7 +218,7 @@ describe("reads", () => {
   });
 
   test("readFrom honours afterSeq (exclusive), threadId and limit", async () => {
-    const h = openHarness();
+    const h = await openHarness();
     const a = newThread(h, "a");
     const b = newThread(h, "b");
     startTurn(h, a.threadId);
@@ -234,7 +234,7 @@ describe("reads", () => {
   });
 
   test("readBranch walks parentId from the leaf to the root, oldest first", async () => {
-    const h = openHarness();
+    const h = await openHarness();
     const { threadId } = newThread(h);
     startTurn(h, threadId);
     const events = await collect(h.service.readBranch(threadId));
@@ -248,8 +248,8 @@ describe("reads", () => {
     expect(partial.map((event) => event.kind)).toEqual(["thread.started", "turn.started"]);
   });
 
-  test("emitVolatile reaches volatile listeners without being stored", () => {
-    const h = openHarness();
+  test("emitVolatile reaches volatile listeners without being stored", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const got: VolatileEventEnvelope[] = [];
     h.service.feed.onVolatile((event) => {
@@ -279,7 +279,7 @@ describe("reads", () => {
     const present = "a".repeat(64);
     const missing = "b".repeat(64);
     const blobs = new Map([[present, new TextEncoder().encode("the full text")]]);
-    const h = openHarness({
+    const h = await openHarness({
       readBlob: (ref) => {
         const bytes = blobs.get(ref.sha256);
         return bytes === undefined ? err({ kind: "blob_missing", sha256: ref.sha256 }) : ok(bytes);
@@ -341,7 +341,7 @@ describe("reads", () => {
     expect(JSON.stringify(hydratedSecond.payload)).toContain(`blob:sha256:${missing}`);
     expect(h.logs).toContain("warn:session.hydrate_missing_blob");
     // readBlob이 없으면 되돌릴 수 없다
-    const bare = openHarness();
+    const bare = await openHarness();
     let message = "";
     await bare.service.hydrate(first).catch((caught: unknown) => {
       message = caught instanceof Error ? caught.message : "";
@@ -350,7 +350,7 @@ describe("reads", () => {
   });
 
   test("hydrate returns an event without detached fields as is", async () => {
-    const h = openHarness();
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const [first] = await collect(h.service.readFrom(0, { threadId, limit: 1 }));
     if (first === undefined) throw new Error("no event");

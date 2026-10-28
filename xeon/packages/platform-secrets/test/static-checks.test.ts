@@ -39,13 +39,29 @@ describe("static checks", () => {
     expect(sops).toContain('argv: [path, "--disable-version-check", "--version"]');
     expect(sops).toContain('argv: [binary.value.path, "set", "--help"]');
     expect(sops).toContain(
-      'argv: [prepared.value.binary, "set", VALUE_STDIN_FLAG, target.value.file.path, target.value.index]',
+      'argv: [prepared.value.binary, "set", VALUE_STDIN_FLAG, file.path, index]',
     );
-    expect(sops).toContain(
-      'argv: [prepared.value.binary, "unset", target.value.file.path, target.value.index]',
+    expect(sops).toContain('argv: [prepared.value.binary, "unset", file.path, index]');
+    // 위 다섯 곳(RunRequest 인터페이스는 providers/process.ts에 있다)
+    expect(sops.match(/argv:/g)).toHaveLength(5);
+    // 첫 쓰기의 파일 만들기와 macOS 키 만들기도 정해진 인자만 쓴다. 값과 키 내용은 stdin으로만 간다
+    const create = (FILES.find((f) => f.rel === "providers/sops-create.ts")?.text ?? "")
+      .replace(/\s+/g, " ")
+      .replace(/\[ /g, "[")
+      .replace(/,? \]/g, "]");
+    expect(create.match(/argv:/g)).toHaveLength(1);
+    expect(create).toContain(
+      'argv: [input.sops, "encrypt", "--age", input.recipient, "--input-type", format, "--output-type", format, "--filename-override", input.path, "/dev/stdin"]',
     );
-    // 위 다섯 곳과 RunRequest 인터페이스
-    expect(sops.match(/argv:/g)).toHaveLength(6);
+    const darwin = (FILES.find((f) => f.rel === "key/darwin.ts")?.text ?? "")
+      .replace(/\s+/g, " ")
+      .replace(/\[ /g, "[")
+      .replace(/,? \]/g, "]");
+    expect(darwin).toContain('argv: [securityPath, "-i"]');
+    expect(darwin).toContain(
+      'argv: [securityPath, "find-generic-password", "-s", KEY_SERVICE, "-a", KEY_ACCOUNT]',
+    );
+    expect(darwin.match(/argv:/g)).toHaveLength(2);
     // put의 값은 stdin 바이트로만 간다
     expect(sops).toContain("const stdin = jsonStringBytes(value);");
     expect(sops).toContain("signal: deps.signal, stdin, });");
@@ -56,7 +72,7 @@ describe("static checks", () => {
     // 프로세스 실행은 sops 호출 한 곳과 사람 실행(secret run) 한 곳
     expect(filesMatching(/Bun\.spawn(?:Sync)?\(|child_process/)).toEqual([
       "admin.ts",
-      "providers/sops.ts",
+      "providers/process.ts",
     ]);
     // 관리 서비스의 add·set·rotate에는 문자열 값 인자가 없다(값은 SecretValueSource로만 받는다)
     const admin = FILES.find((f) => f.rel === "admin.ts")?.text ?? "";
@@ -86,7 +102,7 @@ describe("static checks", () => {
       ),
     );
     // admin.ts는 secret run이 자식 env에 넣을 값을 문자열로 꺼내는 한 곳이다
-    expect(counts).toEqual({ "admin.ts": 1, "providers/sops.ts": 1, "service.ts": 1 });
+    expect(counts).toEqual({ "admin.ts": 1, "providers/process.ts": 1, "service.ts": 1 });
   });
 
   test("no ambient time, randomness, console or process.env in src", () => {

@@ -79,7 +79,7 @@ xeon/apps/cli/
 | 항목 | 현재 | 목표 | 작업 |
 |---|---|---|---|
 | `package.json` `exports` | `".": "./src/index.ts"` | [제안] `".": "./src/main.ts"`. 다른 앱이 import하지 않으므로(DR-10) 테스트와 knip용이다 | C0 |
-| `package.json` 의존 | `devDependencies: { "@types/bun": "catalog:" }`만 | `dependencies`: `@xeon/contracts`(`workspace:*`), `typebox`(`catalog:`), `@xeon/host`(`workspace:*`, 허용 목록 `DR-10/cli-host`, review.decisions-2 U-15). pi-tui는 C8 뒤 | C0, C8 |
+| `package.json` 의존 | `devDependencies: { "@types/bun": "catalog:" }`만 | `dependencies`: `@xeon/contracts`(`workspace:*`), `typebox`(`catalog:`), `@xeon/host`(`workspace:*`, 허용 목록 `DR-10/cli-host`, review.decisions-2 U-15), `@xeon/platform-os`(`workspace:*`, 운영 `Clock`, CLI.5), `get-east-asian-width`(`catalog:`, 칸 수 계산). pi-tui는 C8 결과가 채택일 때만(§4.4) | C0, C8 |
 | `src/index.ts` | `export {};` | 지우고 `src/main.ts`로 바꾼다 | C0 |
 | `test/smoke.test.ts` | 진입 모듈 로드 확인 | `parse-chat-flags` 등 단위 테스트로 바꾼다 | C1 |
 | `tsconfig.json` `references` | `[]` | `../../packages/contracts`, `../host` | C0 |
@@ -103,7 +103,7 @@ xeon/apps/cli/
 | C5 | `config get`: 텍스트·JSON 출력, `source`·`shadowed`·`locked`·`pendingUntil` 표시. `config schema`: `--scope <managed\|user\|project\|local>`, `--out`, `--core-only` 파싱과 `runHostCommand({ kind: "config-schema" })` 호출 | C2, `L4.host-service.plan` H8 | S | M1 |
 | C6 | 최소 대화형: `node:readline` 입력, 진행 줄 한 줄 덮어쓰기, Ctrl+C 계수(`signals.ts`), SIGTERM·SIGHUP 종료 요청 | C3, C2 | M | M1 |
 | C7 | scenario 테스트와 테이프: `chat.scenario.test.ts`, `fixtures/scenario-main.ts`, 테이프 2개(§5.2) | C2, C4, `@xeon/core-models/testing` 테이프, 조립 진입점의 테스트용 모델 주입 | M | M1 |
-| C8 | TUI 채택 스파이크: `_research/notes/L4-1.md` §7의 1·6번, 한글 IME·CJK 폭 확인(macOS Terminal·iTerm2, Linux, WSL). 통과하면 `tui/pi-tui.ts` 화면과 키 바인딩 파일. 실패하면 결과를 spec §10 6번에 적고 최소 renderer 유지 | C6, 스택 추가 승인(TC-04) | M(스파이크) + M(화면) | M2(스파이크는 M1 말에 시작 가능, M1 완료 조건 아님) |
+| C8 | TUI 채택 스파이크: `_research/notes/L4-1.md` §7의 1·6번, 한글 IME·CJK 폭 확인(macOS Terminal·iTerm2, Linux, WSL). 통과하면 `tui/pi-tui.ts` 화면과 키 바인딩 파일. 실패하면 결과를 spec §10 6번에 적고 최소 renderer 유지. 상태: 자동 확인 통과, 수동 확인 대기(§4.4) | C6, 스택 추가(TC-04). 채택은 스파이크 통과 조건부 [결정: review.m2-plan §8 D10] | M(스파이크) + M(화면) | M2(스파이크는 M1 말에 시작 가능, M1 완료 조건 아님) |
 | C9 | `secret` 명령: 프롬프트(에코 없음, 2회 비교), stdin 읽기, 바이트 배열 0 덮기, `secret test` 출력, `secret reveal`(TTY 전용, review.decisions-2 U-20), JSON 탭 해제. wire는 값 없는 `secret.*`만 쓴다(spec §4.7) | C1, F `secret.*`(M2), `secret.beginReveal` F 추가(spec §10 3번), in-process 값 전달 API(spec §10 3번), `L0.secrets.plan` | M | M2 |
 | C10 | `sessions ls/show/fork/rm` | C1, C3, host M2 처리기(`thread.list`, `thread.fork`, `thread.delete`, `events.unsubscribe`) | M | M2 |
 | C11 | 승인 프롬프트와 `thread.locked` 프롬프트, Ctrl+C 1회 `turn.interrupt` | C6(또는 C8), host M2 처리기(`approval.respond`, `thread.open`, `turn.interrupt`), F 승인 kind | M | M2 |
@@ -156,10 +156,137 @@ xeon/apps/cli/
 | `bun-windows-x64` | `apps/cli/dist/windows-x64/xeon.exe` | 나중(Windows 네이티브는 나중, `_research/decisions-log.md` 2026-10-19) |
 
 - 명령 [제안]: `bun build --compile --target=<타깃> --minify apps/cli/src/main.ts --outfile apps/cli/dist/<타깃 접미사>/xeon`. 레시피 이름은 `just build-cli [타깃]`으로 제안하고, justfile 변경은 툴체인 담당에 요청한다(TC-09).
-- `--bytecode`: 시작 속도 개선 사례가 있다(`_research/stack-status.md` §7-C). C14에서 켠 것과 끈 것을 함께 측정하고, 오류 스택·소스맵과의 호환을 확인한 뒤 정한다 [미결].
+- `--bytecode`: 시작 속도 개선 사례가 있다(`_research/stack-status.md` §7-C). C14에서 켠 것과 끈 것을 함께 측정하고, 오류 스택·소스맵과의 호환을 확인한 뒤 정한다 [미결]. 사이드카 빌드(`just desktop-sidecar host`, `--minify --bytecode`)는 CLI 진입 전체를 묶는다: 2026-10-24 WSL2 linux-x64 한 번의 측정으로 103.4 MiB(상한 500 MiB), 빌드 3.4초다(§4.5).
+- 최상위 await: `apps/cli/src` 안에는 없고 `test/no-top-level-await.test.ts`가 0열에서 시작하는 await 식을 막는다. `main.ts`는 `runFromProcess().catch(...)`로 부르고 `import.meta.main`일 때만 실행한다. CLI 바이너리는 `@xeon/host`의 `main.ts`를 번들에 넣으므로, `--bytecode` 빌드는 `apps/host/src/main.ts`의 최상위 await 제거(m2-plan HOST.5)가 끝나야 통과한다.
 - 산출물은 커밋하지 않는다(`eng.toolchain.guide` TC-05). `apps/*/dist/`를 `.gitignore`가 덮는지 C14에서 확인한다.
 - 엔진 바이너리 이름과 진입(`apps/cli/src/main.ts`)은 [제안]이다. `L4.host-service.spec`이 다른 진입을 정하면 이 표를 고친다.
 - 측정(C14): 공식 크기 수치가 없다(`_research/stack-status.md` §7-C "still way too big"). 타깃별 바이너리 크기, `xeon version` 기동 시간(20회 중앙값), `xeon config get` 기동 시간과 시작 RSS를 잰다. 측정 스크립트는 `xeon/scripts/`에 두고 새 도구를 들이지 않는다(TC-04). 결과는 이 문서 §4.3에 표로 더한다.
+
+### 4.4 TUI 스파이크 결과 (C8, 2026-10-24)
+
+[결정: m2-plan D10] pi-tui 1.3.0은 스파이크의 한글 IME·CJK 폭 확인이 통과할 때만 채택한다. 이 절은 자동으로 확인할 수 있는 부분의 결과와, 실제 터미널에서 사람이 확인할 목록을 적는다.
+
+판정: 보류. 최소 renderer를 유지하고 pi-tui는 catalog에 넣지 않았다. 자동 확인은 모두 통과했지만 채택 조건 가운데 실제 터미널 확인과 Bun 1.4.3 `--compile` 실행 확인이 남았다.
+
+#### 4.4.1 방법과 환경
+
+- 대상: `@earendil-works/pi-tui@1.3.0` tarball(npm 레지스트리의 sha512 일치 확인), 전이 의존 `marked@18.0.11`, `get-east-asian-width@1.6.0`.
+- 실행 환경: Node 24.19.0, Linux(WSL2). 스크립트는 작업 폴더 밖 임시 디렉터리에서 돌렸고 저장소에는 넣지 않았다. Bun으로는 돌리지 않았다(이 환경에서는 `just` 레시피로만 Bun을 실행하고, 스파이크용 레시피가 없다).
+- 가상 터미널: `@xterm/headless@5.5.0`(pi-tui 저장소 테스트가 쓰는 같은 에뮬레이터). `Terminal` 인터페이스를 구현해 `TuiMainScreen`에 연결하고, 렌더 결과의 버퍼 내용과 커서 위치를 읽었다.
+- 실제 PTY: `ProcessTerminal`을 PTY에서 띄우고(파이프 입력은 쓰지 않았다), 한글·한자·이모지 바이트열을 멀티바이트 문자 중간에서 끊어 나누어 보냈다.
+
+#### 4.4.2 CJK 폭 (pi-tui `visibleWidth`, `truncateToWidth`, `wrapTextWithAnsi`)
+
+기대 칸 수는 UAX #11과 UTS #51에서 정했다. 모두 통과했다.
+
+| 입력 | 칸 수 |
+|---|---|
+| 한글 음절 `한글` | 4 |
+| 조합형 자모 `한글`(NFD) | 4 |
+| 호환 자모 `ㅎㅏㄴ` | 6 |
+| 한자 `漢字`, 가나 8자, 전각 `ＡＢＣ` | 4, 16, 6 |
+| 반각 가타카나 `ｱｲｳ` | 3 |
+| 이모지 `😀`, ZWJ 가족, 국기, VS16 하트, 피부색 | 각 2 |
+| 결합 악센트 `é`(분해형) | 1 |
+| SGR·OSC 8 하이퍼링크로 감싼 한글 | 겉 시퀀스 제외 |
+| 모호 폭(`…`, `→`, `★`) | 1(좁게) |
+
+- `truncateToWidth`는 모든 경우에 한도를 넘지 않고 2칸 문자를 나누지 않았다.
+- `wrapTextWithAnsi`는 폭 10, 11, 16, 20, 33에서 한글·한자·이모지가 섞인 문장을 줄마다 폭 이내로 나누었고 내용이 보존됐다.
+
+#### 4.4.3 IME와 입력 모델
+
+터미널의 IME는 조합 중인 글자(preedit)를 터미널 에뮬레이터가 그리고, 앱에는 확정된 문자열만 보낸다. 그래서 앱이 보장할 것은 확정 문자열을 온전히 넣는 것, 칸 수가 맞는 줄바꿈과 커서 위치, 후보 창이 붙을 하드웨어 커서 위치다. 통과한 항목:
+
+- 음절을 하나씩 확정해 보낸 입력(`안녕하세요`)과, 한 덩어리로 온 입력(`한글 입력 테스트`)이 `Editor`에 그대로 들어간다.
+- `showHardwareCursor`를 켠 상태에서 렌더 뒤 에뮬레이터의 커서 열이 텍스트 끝의 칸 수와 같다(IME 후보 창 기준점). 포커스를 받은 `Editor`는 `CURSOR_MARKER`를 낸다.
+- Backspace는 한글 음절 하나(조합형은 자모 3개 묶음)를 한 번에 지운다. 커서 이동은 자소 클러스터 단위다(이모지, 한글).
+- 확정되지 않은 호환 자모(`ㅎ`, `ㅏ`, `ㄴ`)를 앱이 합치거나 지우지 않고 그대로 둔다. 조합은 IME의 일이다.
+- 폭 20칸 터미널에서 긴 한글 줄이 폭을 넘지 않고 줄바꿈되고, 에뮬레이터 버퍼에 글자가 모두 있다. 커서 열이 폭 안이다. `Input`의 가로 스크롤도 폭 12에서 폭을 넘지 않았다.
+- 괄호 붙여넣기(`ESC[200~ … ESC[201~`)에 든 한글과 줄바꿈이 보존된다.
+- PTY에서 `ProcessTerminal`로 받은 `한글 입력, 漢字 😀`이, 멀티바이트 문자 중간에서 끊긴 일곱 조각으로 보내도 온전히 제출됐다(Node에서 `process.stdin.setEncoding("utf8")`가 조각을 이어 붙인다).
+
+관찰:
+
+- `StdinBuffer.process()`에 `Buffer`를 멀티바이트 문자 중간에서 끊어 주면 대체 문자(U+FFFD)가 나온다. `ProcessTerminal`은 `setEncoding("utf8")`로 문자열만 넘기므로 Node에서는 드러나지 않는다. Bun의 `process.stdin`이 같은 이어 붙이기를 하는지는 확인하지 못했다. 수동 확인 6번의 항목이다.
+- 1.3.0 `TuiMainScreen`은 하드웨어 커서를 숨긴 상태에서도 위치는 맞춘다(README "Focusable Interface"). 후보 창이 보이지 않는 터미널이 있으면 `setShowHardwareCursor(true)`로 바꾼다.
+
+#### 4.4.4 최소 renderer에서 찾은 문제
+
+스파이크의 폭 확인을 현재 최소 renderer에 적용하다가 문제를 하나 찾아 고쳤다. `progressLine`과 도구 결과 줄 자르기(`render/tools.ts`)가 UTF-16 길이로 잘랐다. 한글·한자는 문자 하나가 2칸이라 40칸 터미널에서 한글 40자 진행 줄이 80칸이 되어 줄이 접히고, 한 줄 덮어쓰기(`\r ESC[2K`)가 윗줄의 잔상을 남겼다. `src/render/width.ts`(`displayWidth`, `truncateToWidth`)로 칸 수 기준으로 바꾸었다. `get-east-asian-width` 1.6.0을 catalog에 더했다(pi-tui 1.3.0의 의존과 같은 값). 규칙은 자소 클러스터 단위, 이모지 표현·국기·VS16 2칸, 제어 문자 0칸, 나머지는 첫 코드 포인트의 East Asian Width(모호 폭은 좁게)다. `test/width.test.ts`가 pi-tui 스파이크와 같은 입력을 확인한다.
+
+#### 4.4.5 채택 조건과 수동 확인 목록
+
+채택 조건(모두 충족할 때 `tui/pi-tui.ts` 화면과 키 바인딩 파일을 만들고 catalog에 `@earendil-works/pi-tui` 1.3.0을 정확 고정으로 더한다. 공유 파일 변경이므로 TC-04 승인을 함께 받는다):
+
+1. 아래 수동 확인 1~4번이 통과한다.
+2. 5~6번(Bun 1.4.3 `--compile` 바이너리)이 통과한다.
+3. 최소 renderer 대비 기동 시간과 시작 RSS 증가가 C14 측정표에서 받아들일 수준이다 [미결: 기준값].
+
+수동 확인(사람이 터미널에서, 스파이크 스크립트와 같은 최소 앱으로):
+
+| 번호 | 환경 | 확인 |
+|---|---|---|
+| 1 | macOS Terminal.app, iTerm2, Linux(GNOME Terminal 등), WSL(Windows Terminal) | 한국어 IME로 `안녕하세요`를 입력하는 동안 조합 글자가 입력 위치에 보이고 후보 창이 커서 근처에 붙는다. 확정 뒤 글자가 중복되거나 깨지지 않는다 |
+| 2 | 위와 같음 | Backspace가 확정 음절을 한 번에 지운다. 조합 중 Backspace는 조합 글자를 줄인다(IME 동작) |
+| 3 | 위와 같음 | 터미널 폭을 줄여 한글 줄이 줄바꿈될 때 줄 끝 글자가 겹치거나 잘리지 않는다. 폭을 바꾸는 중에도 같다 |
+| 4 | 위와 같음 | 한자, 이모지(ZWJ·피부색·국기)가 섞인 줄에서 커서 위치와 지우기가 어긋나지 않는다. 터미널마다 이모지 폭이 다를 수 있으므로 어긋나는 터미널과 문자를 기록한다 |
+| 5 | Linux x64, macOS arm64 | Bun 1.4.3 `bun build --compile`로 만든 최소 바이너리가 애드온 없이 시작·종료한다(`_research/notes/L4-1.md` §7 1번) |
+| 6 | 5번 바이너리 | `process.execPath` 값(같은 문서 §7 6번)과, 멀티바이트 문자 중간에서 끊긴 stdin 입력이 온전히 이어지는지 확인한다 |
+
+최소 renderer(`node:readline`)에서도 같은 1~4번 중 입력 줄에 해당하는 항목(1, 2)을 한 번 확인한다. 줄 편집은 Node `readline`이 하며, Bun 1.4.3의 `node:readline`이 CJK 폭을 같게 다루는지는 확인하지 못했다.
+
+### 4.5 M2 구현 기록 (CLI.1~CLI.4, 2026-10-24)
+
+| 작업 | 상태 | 구현 위치 |
+|---|---|---|
+| C9 `secret` 명령 | 구현: `ls`, `add`, `set`, `meta`, `rotate`, `rm`, `test`, `reveal`. 값은 `InProcessHost.secretOutOfBand`로 맡기고 가려진 입력은 `CliIo.readSecret`(raw 모드 바이트)이 받는다. `test`는 처음에 wire가 주는 `state`만 보였고 지금은 §4.6 표의 확장된 출력을 쓴다 | `src/commands/secret.ts`, `src/runtime.ts` |
+| C10 `sessions` | 구현: `ls`(쪽 단위, `--all`, `--limit`, `--json`), `show`(`events.subscribe` → 머리까지 → `events.unsubscribe`), `fork --at`, `rm`(`--yes`, 비TTY는 2) | `src/commands/sessions.ts` |
+| C11 승인·잠금·중단 | 구현: 도구·계획·질문 프롬프트(kind별 `answer` 모양), `approval.list` 복원, `approval.resolved`로 프롬프트 닫기, `thread.locked` 프롬프트(관찰·분기), Ctrl+C `turn.interrupt` | `src/render/approval.ts`, `src/render/lock.ts`, `src/commands/chat-session.ts`, `src/commands/chat.ts`, `src/signals.ts` |
+| C13 `config set/reset/list`, `--set`, 슬래시 | 구현. 사전 검사는 하지 않는다(spec §10 13번). 슬래시는 `/set`, `/model`, `/resume`, `/help`, `/quit`와 Tab 완성 | `src/commands/config.ts`, `src/commands/overrides.ts`, `src/slash.ts`, `src/tui/minimal.ts` |
+| C15 `doctor` | 구현: 엔진·저장소·비밀 저장소·외부 바이너리·서비스·터미널과 검색 provider 세 줄. 바이너리는 `host.status { includeBinaries: true }`로 받는다(M2 마감 G2-07). SearXNG는 설정한 주소 하나만 탐침한다(자동 감지 삭제, M2 마감 H1). 진단 경로는 임시 결정(spec §10 5번) | `src/commands/doctor.ts` |
+| C16 `host --stdio` | 구현: `startStdioHost`에 `l4.cli.*` 그룹을 넘긴다. stdout은 `CliIo.stdoutStream` 전용 | `src/commands/host.ts` |
+| 비밀 오류 해결 줄 (m2r sec) | 구현: `provider_unavailable`, `key_unavailable`, `write_failed`의 해결 줄을 원인별로 나눴다(spec §4.7). 깨끗한 기기의 첫 `secret add`가 `not_registered`에 "sops와 age를 설치"를 보이던 문제를 고쳤다. `test/errors-wire.test.ts`, `test/secret-first-write.int.test.ts`(실제 호스트, 설정 없이 첫 `add`, 같은 홈의 두 클라이언트가 한 비밀을 봄) |
+
+- 호스트가 아직 구현하지 않은 메서드와의 호환: `thread.list`는 -32601이면 상태 파일로, `thread.open`·`turn.interrupt`·`approval.list`·`events.unsubscribe`는 `host.hello`의 `features`에 없으면 쓰지 않는다. HOST.2·HOST.4가 병합되기 전의 `xeon/foundation`에서도 `just verify`가 통과한다.
+- 컴파일 바이너리 확인(2026-10-24, WSL2 linux-x64, 한 번씩): `just desktop-sidecar host`가 만든 바이너리에 `host.hello`와 `settings.get`을 JSON Lines로 보내면 응답 둘이 305 ms 안에 오고(새 데이터 디렉터리의 첫 기동 포함), 응답을 받은 뒤 stdin을 닫으면 0으로 끝난다. `xeon version`은 0.036초, `xeon doctor`는 1.8초다(당시 구현의 SearXNG 후보 네 곳 병렬 탐침 포함, 지금은 자동 감지가 없다). `secret reveal`은 stdin이 TTY가 아니어서 2로 끝났다. 이 확인은 일회성 수동 실행이고, 같은 경로를 소스 진입으로 돌리는 `host-stdio.int.test.ts`와 번들을 만드는 `entry-bundle.test.ts`가 회귀를 막는다.
+
+### 4.6 M2 마감 구현 기록 (T6, 2026-10-25)
+
+M2 마감 계획의 T6 트랙이 F 계약(`xeon/foundation`의 wave 1)에 맞춰 CLI 쪽을 더한 기록이다. 호스트 처리기는 같은 시점에 T2가 구현하므로, 시험은 가짜 호스트(`test/support/fake-server.ts`)로 돌렸고 실제 처리기가 필요한 종단 시험은 wave 2 병합 뒤에 실제 호스트로 다시 만들었다(아래 "실제 호스트 종단 시험").
+
+| 항목 | 상태 | 구현 위치 |
+|---|---|---|
+| 오류 문구 | 구현: `secret.*` 전용 kind, `thread.closed`, `settings.reserved`, `store.corrupt`, 슬래시 명령 능력 오류(`cap.dialog.commands.*`). 시험은 값으로 비교한다 | `src/errors.ts`, `test/errors-wire.test.ts` |
+| 슬래시 명령 실행(G1-01) | 구현: 내장도 별칭도 아닌 이름을 `command.run`으로 보내 `done`(메시지·구조 값), `expanded`(turn으로 전송), `needs_confirmation`(`[y/N]` 뒤 `confirmShell`), `not_command`를 처리한다. `command.list`는 `/help`와 Tab 완성에 쓴다. `command.list`에는 연 세션의 `threadId`를 보내고(호스트가 프로젝트 명령을 그 세션의 작업 폴더 기준으로 읽는다) `/resume`으로 세션을 바꾸면 다시 읽는다. 가짜 호스트 시험은 `slash-commands.test.ts`, 실제 호스트 종단 시험은 `slash-commands-host.int.test.ts` | `src/slash.ts`, `src/tui/minimal.ts`, `test/slash-commands.test.ts` |
+| 끊긴 turn 이어 실행(G1-02) | 구현: 기존 세션을 연 대화형이 `thread.list`에서 요약을 찾아 `resumable`이 있으면 `[y/N]`을 묻고 `turn.resume`을 부른다. 결과 세 모양(`resumed`, `closed`, `nothing`)을 문구로 보이고 `resumed`는 turn이 끝날 때까지 기다린다. 가짜 호스트 시험은 `turn-resume.test.ts`, 실제 호스트 종단 시험은 `turn-resume-host.int.test.ts` | `src/commands/resume-turn.ts`, `src/threads.ts`, `src/commands/chat-session.ts`(`resumeTurn`), `test/turn-resume.test.ts` |
+| 프로젝트 신뢰(G1-03) | 구현: `xeon trust [status\|allow\|deny]`(`trust.get`, `trust.decide`)와 대화형 `chat` 시작 카드. `m2/fx-apps`의 `trust.pending`·`projectRoot` 가정은 버리고 F의 `trust.get { workspace }`와 `TrustStatus`로 다시 썼다(포트 `TrustClient`는 없앴다). 가짜 처리기 시험은 `trust.test.ts`, 실제 처리기(`trust.json` 쓰기)와의 종단 시험은 `trust-host.int.test.ts` | `src/commands/trust.ts`, `src/render/trust.ts`, `src/cli/command.ts`(`parseTrust`), `test/trust.test.ts` |
+| 비밀 참조·시험 출력(G1-07) | 구현: `secret rm`이 `secret.references`로 설정 키·활성 lease·최근 세션을 보인 뒤 묻고, 활성 lease가 있으면 지우기를 보내지 않는다. `secret test`는 `decryptable`, 길이, SHA-256 앞 8자를 보이고 복호화할 수 없으면 1이다(C9의 "`state`만 보인다"를 대체). 값은 어디에도 없다는 검사(`expectNoValue`)를 `test`에도 건다. 가짜 처리기 시험은 `secret.test.ts`, 실제 sops·age 저장소와의 종단 시험은 `secret-host.int.test.ts` | `src/commands/secret.ts`, `test/secret.test.ts`, `test/support/secrets.ts` |
+| 동의 표시(G2-10) | 구현: 도구 카드가 `command` 전체와 `secretEnv` 핸들(`Reflect.get` 없이 다시 씀), 요청 주체(`origin.caller`), 만료(`expiresAt`, `onExpire`)를 보인다. `approval.resolved`의 `requestedRemember`와 `remember`가 다르면(`always`→`thread`) 낮춰 적용했음을, `resolvedBy`가 `user`가 아니면 이유를 보인다. `approval.respond`의 `reason`에 따라 `answer_invalid`·`commit_failed`는 다시 묻고(3번까지) `already_resolved`·`unknown_approval`은 프롬프트를 닫는다. 요건의 정본(`L1.tools.spec`)과 `always` 숨김은 T4 소관이다 | `src/render/transcript.ts`, `src/render/text-sink.ts`, `src/render/approval.ts`, `src/commands/chat.ts`, `test/approval-consent.test.ts` |
+| 수동 컴팩션(G2-01) | 구현: `/compact [<지침>]`이 `thread.compact`를 보낸다. `compacted`는 요약 전 토큰 수, `skipped`는 이유 한 줄을 보인다. 확장 차단(3006), 요약 실패(3008), 진행 중 turn(3003), 닫힌 세션(3007), 취소는 두 줄 오류로 알리고 입력을 이어 받는다. 이름이 같은 엔진 명령보다 내장이 앞선다. `thread.compact`가 없는 호스트에는 보내지 않는다 | `src/slash.ts`, `src/errors.ts`, `test/slash-commands.test.ts`, `test/errors-wire.test.ts` |
+| 세션 제목(G2-12) | 구현: `sessions rename <id> <제목>`과 `/rename <제목>`이 `thread.rename`을 보낸다(1~200자 검사는 `titleProblem` 한 곳). 목록의 제목 표시는 M2에 이미 있었고 `(제목 없음)`이 호스트가 제목을 채우면 사라진다. 첫 입력 80자 제목은 T2(호스트)가 정하므로 CLI에는 두지 않았다 | `src/commands/sessions.ts`, `src/slash.ts`, `src/threads.ts`, `src/cli/command.ts`, `test/rename.test.ts` |
+
+#### 실제 호스트 종단 시험 (M2 마감 병합 뒤)
+
+가짜 호스트 시험(`test/support/fake-server.ts`)은 CLI가 보낸 요청과 받은 값의 처리를 빠르게 확인하고, 아래 시험은 같은 흐름을 실제 `@xeon/host`와 모델 테이프로 다시 확인한다. 공통 도구는 `test/support/real-host.ts`다. `connectEngine`이 실제 호스트를 같은 프로세스에 세우고, 입출력은 `harness.ts`의 가짜 `CliIo`를 그대로 쓰며, 보낸 요청은 `observe` 탭으로 모은다(`RealCli.sent`). 엔진 홈(`XEON_HOME`)은 시험마다 임시 디렉터리다. 승인을 기다리다 죽는 호스트는 실제 자식 프로세스(`test/fixtures/scenario-host.ts`, `test/support/stdio-child.ts`)로 띄워 SIGKILL한다.
+
+| 시험 파일 | 실제 호스트에서 확인한 것 | 가짜 호스트 시험에만 남은 것 |
+|---|---|---|
+| `slash-commands-host.int.test.ts` | `command.list { threadId }`의 id가 `command.run`의 id와 같다. `/help`에 `/plan`, `/tasks`가 보이고 `/tasks`, `/plan`의 출력이 호스트가 쓴 문구와 같다. 신뢰 전에는 프로젝트 명령 `/hello`가 없고 `xeon trust allow` 뒤에는 있으며 펼친 텍스트가 `turn.start`의 `input`이 된다. `/compact`가 긴 대화(테이프 모델 요약)를 요약하고 둘째 호출은 `last_entry_is_compaction`이다. 짧은 대화는 `nothing_to_summarize`다 | `needs_confirmation`(셸 주입), 확장 차단과 요약 실패 오류 문구 |
+| `turn-resume-host.int.test.ts` | 승인을 기다리다 SIGKILL된 호스트의 저장소를 새 호스트가 열면 `thread.list`의 `resumable`로 묻고, y에서만 `turn.resume`이 한 번 가며 되살아난 승인에 답하면 turn이 끝난다. n이면 `turn.resume`이 가지 않는다. 새 세션은 묻지 않는다 | 결과 `closed`·`nothing`의 문구, `turn.resume` 실패 문구 |
+| `trust-host.int.test.ts` | 실제 `trust.get`의 카드와 `--json`, `trust allow --scope parent`가 `trust.json`(0600)에 남고 다음 실행의 판정이 `allow`(`store`)가 된다. 세션 범위 결정은 파일을 쓰지 않는다. 시작 카드는 `thread.create`보다 앞서고 번호로 고른 선택지를 보내며 두 번째 실행은 묻지 않는다. 엔터는 아무것도 저장하지 않는다. 자원이 없는 폴더는 stderr 한 줄이다 | 저장 실패(`store.io`)와 `trust.get` 실패 문구, print·JSON 모드 |
+| `secret-host.int.test.ts` | 실제 sops·age로 `secret add`, `ls`, `test`(길이와 해시 앞 8자), `rm`(참조 한 줄과 `[y/N]`), `rm --yes`를 한 저장소에서 잇는다. 값, base64, hex가 stdout·stderr·보낸 요청·홈 아래 모든 파일에 없다 | 설정 키와 활성 lease가 있는 참조 표시, `reveal`, 제공자·키 오류 종료 코드 |
+| `rename-host.int.test.ts` | 호스트가 첫 입력(공백 정리, 앞 80자)으로 제목을 정하고 `sessions rename`이 그것을 바꾸며 `sessions ls`가 보인다. `/rename`이 정한 제목을 첫 입력이 덮지 않는다. 없는 세션은 `thread.notFound` 문구와 1이다 | 호스트가 `thread.rename`을 모르는 경우 |
+| `approval-consent-host.int.test.ts` | 실제 bash 승인 카드가 명령 전체를 보인다. `t`는 `remember: "thread"`로 가고 같은 세션의 다음 호출은 묻지 않는다. 거부 이유가 `answer.feedback`으로 간다. print 모드는 거부로 답한다 | `secretEnv` 카드(운영 `bash` 도구는 모델에 `secretEnv`를 내지 않는다), 요청 주체, 만료, `resolvedBy`, 낮춤 알림, `answer_invalid`·`commit_failed` 재질문 |
+| `doctor-host.int.test.ts` | 실제 `host.status { includeBinaries: true }`의 보고서가 `--json`의 `binaries`가 되고 종료 코드가 `ready`를 따른다. 바이너리마다 한 줄이 있다. 주소가 없으면 탐침이 0번이고 설정한 주소만 탐침한다. 실제 카탈로그에 `searxng.detect`가 없다 | `ready: false`인 보고서 |
+
+이 시험들에서 알게 된 동작:
+
+- 실제 호스트는 쓰기 소유를 얻을 때 미해결 승인을 되살리므로(HS-52), 끊긴 turn이 있는 세션을 열면 승인 카드가 이어 실행 질문보다 먼저 선다. 두 질문은 같은 입력 줄을 쓰므로 승인에 답한 뒤에 `이어서 실행할까요? [y/N]`을 묻는다. 순서를 바꾸는 일은 하지 않았다 [미결 spec §10 14번].
+- 실제 호스트는 도구 승인의 기억 범위로 `once`와 `thread`만 낸다. 낮춤 알림(`always`→`thread`)은 호스트가 `always`를 내지 않는 동안 나오지 않는다.
+- 이 기기에서 실제 sops·age 시험은 `age-keygen`과 `sops --encrypt`로 만든 임시 키와 파일을 쓰며, 둘이 없으면 시험이 실패한다(건너뛰지 않는다).
+
+- 아직 CLI가 쓰지 않는 wave 1 계약: `settings.invalidated` 알림(대화형 Tab 완성의 키 목록과 엔진 명령 목록을 다시 읽는 데 쓸 수 있다). 대화형 시작 때 한 번만 읽는 현재 동작으로도 어긋나지 않아서 M3로 둔다(spec §10 16번).
 
 ## 5. 단위 테스트 목록
 
@@ -172,7 +299,7 @@ xeon/apps/cli/
 | parse-chat-flags | `test/parse-chat-flags.test.ts` | unit | `chat`, `-p <입력>`, `-p -`, `--json`, `--continue`, `--resume <id>`가 `ChatCommand`로 바뀐다. `--json` + 대화형은 `jsonRequiresPrint`, `--continue` + `--resume`는 `conflictingFlags` | M1 |
 | parse-set-override-session-scope | `test/parse-set-override.test.ts` | unit | `--set a.b.c=1`이 `SessionOverride`가 되고, 키 형식이 틀리면 `invalidSettingKey`, `=`가 없으면 `invalidOverride`. 값 해석(JSON 우선, 실패하면 문자열)이 F wire §4.11과 같다 | M1(파서), M2(실행) |
 | config-get-prints-source | `test/config-get.test.ts` | unit | 가짜 `HostConnection`의 `settings.get` 결과로 텍스트 출력에 `source.scope`·`source.path`·`locked`·`shadowed`·`pending`이 나오고, `--json` 출력이 결과 배열과 같다 | M1 |
-| config-set-uses-checkSettingWrite | `test/config-set.test.ts` | unit | 같은 `SettingDef`와 값에 대해 CLI 미리 검사(`SettingDefWire` + range 병합 + `Check`)의 통과 여부가 `checkSettingWrite`의 `settings.invalidValue` 판정과 같다(고정 시드 속성 테스트, TS-09). `kind`별 오류 문구와 종료 코드가 spec §4.10 표와 같다 | M2 |
+| config-write | `test/config-write.test.ts` | unit | `config set`이 값을 JSON으로 먼저 읽고 기본 범위가 `user`이며, `reset`·`list`(접두, `--json`, 256개씩 읽기)가 동작한다. 호스트 오류 `kind`별 문구와 종료 코드가 spec §4.10 표와 같다. CLI 사전 검사는 두지 않았다(spec §10 13번) | M2 |
 | secret-add-rejects-argv-value | `test/secret-argv.test.ts` | unit | `secret add n v`, `secret set n --value v`, `secret add n=v`가 `secretValueInArgv`(2)이고, 오류 출력에 `v`가 없다 | M1(파서), M2(명령) |
 | json-mode-equals-host-messages | `test/json-mode.int.test.ts` | int | 테이프 모델 조립으로 `chat -p --json`을 in-process로 돌리면 stdout 줄 열이 `observe` 탭이 받은 메시지 열과 같다(spec AC4) | M1 |
 | non-tty-disables-tui | `test/non-tty.test.ts` | unit | stdin 비TTY면 print 모드, stdout 비TTY면 출력에 0x1B가 없다. `NO_COLOR`, `TERM=dumb`이면 대화형에서도 색 없음 | M1 |
@@ -183,7 +310,24 @@ xeon/apps/cli/
 | transcript-replay-from-cursor | `test/transcript.test.ts` | unit | 위치 k에서 시작한 `applyBatch`가 seq ≤ k 이벤트를 무시하고, `from` 불일치에 `gap`을 돌려주고, 같은 item의 `item.recorded`가 오면 진행 줄을 지운다. `afterSeq` 지연 조각이 위치 도달 뒤 적용된다 | M1 |
 | no-secret-in-output | `test/no-secret.int.test.ts` | int | 비밀 참조 1종을 쓰는 테이프 한 턴과(M1) `secret add/test/ls`(M2)에서 값과 base64·hex 형태가 stdout·stderr·임시 DB 파일·상태 파일에 없다(spec AC5) | M1, M2 |
 
+M2 CLI.1~CLI.4에서 더한 시험(가짜 호스트 서버 위, `test/support/fake-server.ts`의 `handlers`로 M2 메서드를 시험이 정한다):
+
+| 테스트 이름 | 파일 | 태그 | 확인할 동작 |
+|---|---|---|---|
+| sessions | `test/sessions.test.ts` | unit | `ls`(작업 폴더 필터, `--all`, cursor), `show`(트랜스크립트, 구독 해제, 없는 id는 1), `fork`, `rm`(`--yes`, 비TTY 거부, 확인 프롬프트, `thread.hasForks`) |
+| chat-open | `test/chat-open.test.ts` | unit | `--resume`·`--continue`가 `thread.open`·`thread.list`를 쓰고, 잠금에서 관찰·분기·취소(4)·print(4)·위임 숨김, `--set` 순서와 실패(2) |
+| chat-approval | `test/chat-approval.test.ts` | unit | 도구·계획·질문 프롬프트의 응답 모양, 기억 범위 제한, 다른 곳에서 먼저 닫힘, `applied: false`, print 자동 거부, `approval.list` 복원 |
+| chat-interrupt | `test/chat-interrupt.test.ts` | unit | Ctrl+C 1회에 `turn.interrupt` 정확히 한 번(AC9), 2회는 종료(130), 미지원·실패는 종료 요청, print는 종료 요청 |
+| slash | `test/slash.test.ts` | unit | `/set`, `/model`, `/resume`(전환과 구독 해제), 파싱, Tab 완성 |
+| secret | `test/secret.test.ts` | unit | stdin·TTY 입력, 불일치·취소·빈 값·크기 상한, 맡긴 수단 거두기, 값 배열 0 덮기, 값이 출력·요청에 없음(AC5·AC6), `rm` 확인, 오류 문구, `reveal`의 TTY 전용(AC13)·확인 문구·재확인 도장 |
+| host-stdio | `test/host-stdio.test.ts` | unit | `startStdioHost`에 `l4.cli` 그룹과 바이트 stdout을 넘기고 엔진에 연결하지 않으며, 종료 코드와 stderr 안내가 맞다 |
+| host-stdio-process | `test/host-stdio.int.test.ts` | int | 실제 프로세스로 `host --stdio`: stdout은 JSON-RPC 줄뿐, `l4.cli.theme`이 카탈로그에 있고, 응답 뒤 stdin EOF에서 0(AC16) |
+| entry-bundle | `test/entry-bundle.test.ts` | int | CLI 진입이 `--minify --bytecode`로 묶인다(최상위 await 없음) |
+| doctor | `test/doctor.test.ts` | unit | 검색 세 줄(AC14), 주소가 없으면 탐침 없음, 설정한 주소의 응답·응답 없음·JSON 꺼짐, 키 플러그인 등록 표시, 엔진 실패 항목과 종료 코드, 터미널 항목, 바이너리 점검 줄과 종료 코드와 `--json`(AC24) |
+
 추가 unit [제안]: `tool-renderers`(read·ls·bash의 `details` 표시, 렌더러가 없을 때 `content` 20줄), `state-file`(깨진 파일 버림, 원자 쓰기), `keybindings-conflict`(충돌 목록 출력). 이 셋은 위 목록의 이름 규칙을 따른다.
+
+추가 unit(M2 CLI.5): `width`(한글·한자·이모지의 칸 수와 폭 자르기, §4.4.4), `no-top-level-await`(`src` 안 최상위 await 금지, §4.3).
 
 ### 5.2 scenario
 
@@ -198,6 +342,7 @@ xeon/apps/cli/
   2. 자식을 SIGKILL한다. 받은 마지막 seq를 기억한다.
   3. 같은 디렉터리로 `chat --continue -p "<입력>" --json`을 띄워 끝까지 받는다.
   4. 확인: 종료 코드 0, 같은 `threadId`, 새로 받은 seq가 모두 기억한 seq보다 크고 중복 없음, 새 turn `completed`(spec AC1·AC2). 이전 turn의 종결 상태는 엔진 복구 규칙에 따른다 [가정].
+- 전역 시각과 sleep을 쓰지 않는다(open-issues V-02, eng.typescript.guide TY-21). 운영 `Clock`은 `@xeon/platform-os`의 `systemClock()`이고, 테스트의 실시간 시계와 대기 한도 타이머는 `systemClock`·`systemScheduler`로 만든다. 세 번째 시험의 `turn.busy` 재시도는 이벤트 루프를 한 바퀴씩 넘기며 시도 횟수 상한(2000) 안에서 다시 시도한다. M1 엔진에는 루프 정착을 알리는 포트가 없어서다(`ActivityPort`는 task 그래프 변화만 알리고, M1에서 `snapshot()`은 던진다). 정착 알림이 생기면 그 알림을 기다리는 방식으로 바꾼다.
 - 결정성은 D1이다. 특정 이벤트열을 바이트로 비교하지 않는다(TS-08 3번).
 
 ## 6. 완료 기준
@@ -209,7 +354,7 @@ xeon/apps/cli/
   - 4개 타깃 바이너리가 만들어지고 §4.3의 측정 표가 채워져 있다. 바이너리는 커밋되어 있지 않다.
   - spec AC1~AC4, AC7, AC10~AC12가 테스트로 확인된다.
 - M2
-  - §5.1의 M2 테스트와 spec AC5·AC6·AC8·AC9가 통과한다.
+  - §5.1의 M2 테스트와 spec AC5·AC6·AC8·AC9·AC13~AC16이 통과한다(CLI.1~CLI.4 구현 시점의 상태는 §4.5).
   - C8 결과가 spec §10 6번에 반영되어 있다(채택 또는 [미결] 유지).
   - 같은 테이프와 입력으로 CLI(in-process)와 `host --stdio`의 메시지 열이 같다(`product.scope.spec` M2 행). 이 비교 테스트의 소유는 `L4.host-service.plan`이다.
 - M3
@@ -222,7 +367,7 @@ xeon/apps/cli/
 | pi-tui 네이티브 애드온이 compile 바이너리에서 로드되지 않는다 | Shift+Enter(Apple Terminal), 네이티브 클립보드가 빠진다 | 애드온은 선택 기능이고 폴백이 있다(`_research/notes/L4-1.md` §3). 1차 배포는 애드온 없이 낸다. 필요해지면 사이드카 `native/` 디렉터리(pi 방식)를 쓴다. 단일 파일이 필수면 로더 후보 경로 한 곳만 바꾸는 얇은 포크(같은 문서 §5.3 B1) |
 | pi-tui 자체가 Bun 1.4.3 `--compile`에서 동작하지 않는다 | 대화형 TUI 지연 | M1은 pi-tui 없이 통과한다(최소 renderer). C8 실패 시 최소 renderer를 유지하고 라이브러리 선택을 [미결]로 둔다 |
 | pi-tui 버전 어긋남 | 참조 트리 1.1.0과 npm 1.3.0의 차이, CHANGELOG 없음 | 1.3.0을 정확 고정하고 pi-ai와 같은 묶음으로만 올린다. 소스 확인은 1.3.0 tarball 기준 |
-| CJK 폭 계산과 IME 후보 창 위치 | 한글 줄바꿈 깨짐, 입력 위치 어긋남 | C8에서 macOS·Linux·WSL 터미널로 확인. `Focusable`과 `showHardwareCursor` 설정. 최소 renderer는 터미널 줄 편집을 그대로 쓴다 |
+| CJK 폭 계산과 IME 후보 창 위치 | 한글 줄바꿈 깨짐, 입력 위치 어긋남 | C8에서 macOS·Linux·WSL 터미널로 확인(§4.4.5). `Focusable`과 `showHardwareCursor` 설정. 최소 renderer는 터미널 줄 편집을 그대로 쓰고 진행 줄과 도구 결과 줄은 칸 수로 자른다(`render/width.ts`) |
 | `--bytecode`와의 호환 | 기동 실패나 스택 정보 손실 | C14에서 켠 것과 끈 것을 비교하고, 문제가 있으면 끈다 |
 | M1 대화형 범위가 커진다 | M1 지연 | print 모드를 먼저 끝내고(C2·C3·C4), 대화형은 C6 범위(한 줄 입력, 진행 줄)로 제한한다. 화면 기능은 M2 C8로 넘긴다 |
 | 승인 wire가 번복된다(A안은 review.decisions-2 U-02로 결정, 2026-10-22 확인) | C11 재작업 | C11을 M2에 둔다. `ApprovalView` 변환 함수 하나에 payload 의존을 모아 바뀌는 범위를 줄인다 |

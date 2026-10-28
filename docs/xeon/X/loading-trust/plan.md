@@ -21,7 +21,8 @@ binds: [xeon/packages/ext-host/src/loading-trust/**]
 | M2 이후 | 외부 확장 탐색(`.xeon-plugin/plugin.json`, 관리·사용자·프로젝트 위치), 프로젝트 신뢰 포크(pi `trust-manager.ts`·`project-trust.ts`)와 `project_trust` 발화, 제거 흐름(확인 2단계), 안전 모드·`--disable-ext`(5a단계), pi 어댑터 1차(`on`, `post`, `registerTool`, `registerCommand`, `appendEntry`)와 가상 모듈, 프로세스 격리(2차), 핫 리로드(개발용) | L4.cli·L4.desktop(신뢰 프롬프트), L0.os(파일·경로 포트), L0.process(격리) |
 
 - [제안] 신뢰 판정은 프로젝트 확장이 처음 생기는 시점(M2)에 맞춘다. M0·M1에는 내장 확장만 있으므로 판정 대상이 없다. 다만 `TRUST_MATRIX`와 `TrustLevel`은 M0에 두어 X.primitives가 연산 허용 검사에 쓸 수 있게 한다.
-- M2 안의 순서: 외부 탐색 → 신뢰 → pi 어댑터 → 격리 → 핫 리로드. 격리와 핫 리로드는 다른 작업과 독립이라 뒤로 미뤄도 앞 작업이 막히지 않는다.
+- [결정: review.m2-plan §8 D9] M2에는 프로젝트 신뢰(L-15~L-17, review.m2-plan X.4)만 둔다. 외부 확장 탐색·로더·시작 순서 통합·제거 흐름·안전 모드(L-13, L-14, L-18, L-28, L-29, review.m2-plan X.5)는 M3로 옮긴다. 이들에 기대는 pi 어댑터(L-19~L-21)도 M3다.
+- M2 이후 순서: 신뢰(M2) → 외부 탐색 → pi 어댑터 → 격리 → 핫 리로드. 격리와 핫 리로드는 다른 작업과 독립이라 뒤로 미뤄도 앞 작업이 막히지 않는다.
 
 ## 2. 패키지와 파일 배치
 
@@ -97,23 +98,23 @@ xeon/packages/ext-host/
 | L-10 | 5a단계: `ext.<name>.enabled` 유효 값 확인(거짓이면 엔트리 미실행 `disabled`), 필수 userConfig(`config_required`). 실행 중 값 변경 구독 → `ensureLoaded` 또는 scope 끄기 요청. 안전 모드·`--disable-ext`는 L-29(M2) | L-09, P-09(scope 켜기·끄기), L1.persistence 설정 변경 통지 [가정] | M | M1 |
 | L-11 | 6단계: 능력 요구 충족 판정(매니페스트 `provides` + 코어 능력 레지스트리, 범위 비교), 9단계 뒤 provider 실패 연쇄(`capability_provider_failed`) | L-07, F.capabilities.plan(범위 비교 함수), P-17(능력 바인딩) | M | M1 |
 | L-12 | 걷는 골격 연결: 조립 루트(L4 host)의 `extraPlugins`로 테스트 그룹 모듈을 넘겨 로드, `host.status`용 진단 노출. 이 문서 binds 밖 파일 변경은 L4.host-service.plan 작업자와 조율 | L-08, L-10, L-11, L4.host-service.plan | S | M1 |
-| L-13 | `discover.ts` 외부 부분: 관리·사용자·`x.loading-trust.paths` 위치의 `.xeon-plugin/plugin.json` 한 단계 탐색, 심볼릭 링크 정규화, 위치 우선순위와 `name_conflict`, `manifest_missing`·`manifest_parse` | L-05, L0.os 포트 구현 [가정] | M | M2 |
-| L-14 | `entry-loader.ts` 외부 경로: 엔트리 절대 경로 계산, `realpath`가 확장 루트 안인지 확인, `import()`(L-01 결과 방식), `default`·`extension` export 판별, `ExtensionUnit`으로 `install`(L-06 경로) | L-01, L-06, L-13 | M | M2 |
+| L-13 | `discover.ts` 외부 부분: 관리·사용자·`x.loading-trust.paths` 위치의 `.xeon-plugin/plugin.json` 한 단계 탐색, 심볼릭 링크 정규화, 위치 우선순위와 `name_conflict`, `manifest_missing`·`manifest_parse` | L-05, L0.os 포트 구현 [가정] | M | M3 (결정 D9) |
+| L-14 | `entry-loader.ts` 외부 경로: 엔트리 절대 경로 계산, `realpath`가 확장 루트 안인지 확인, `import()`(L-01 결과 방식), `default`·`extension` export 판별, `ExtensionUnit`으로 `install`(L-06 경로) | L-01, L-06, L-13 | M | M3 (결정 D9) |
 | L-15 | `trust/store.ts` 포크: `ProjectTrustStore`(`lookup`, `setMany`), `TrustFileSchema`, 손상 → `corrupt`, 손상 시 쓰기 거부, pi 형식(v0) 읽기 변환, `trustOptions` | L-02 | M | M2 |
 | L-16 | `trust/resources.ts` 포크: `TRUST_REQUIRING_PROJECT_RESOURCES`, `findTrustRequiringResources`(상위 `.agents/skills` 탐색, 홈 제외) | L-13 | S | M2 |
 | L-17 | `trust/resolve.ts` 포크: 판정 순서 1~8, `project_trust` 발화(디스패처 래퍼, 예외 → 불신), `sessionMemory`, headless 불신, 프롬프트 결과 저장 | L-15, L-16, P-06(디스패처) | M | M2 |
-| L-18 | 시작 순서 통합: 1차 집합(내장·관리·사용자) → 신뢰 판정 → 프로젝트 탐색과 2차 집합 검사 → `resources_discover` 발화. 프로젝트 확장 신뢰 전 미import 보장, 신뢰 전 적용 제외 규칙을 설정 계층 쪽에 넘기는 훅 [가정: L1.persistence API] | L-13, L-14, L-17 | M | M2 |
-| L-19 | `pi-adapter/factory.ts`·`api-map.ts` 1차: pi 디렉터리 탐색 규칙, 기록용 `PiExtensionApiShim`(`on`, `sendMessage`, `sendUserMessage`, `registerTool`, `registerCommand`, `appendEntry`), 비지원 멤버 예외, `synthesizeManifest`, `piExtensionName`, `piPostKey`, 지점별 결과 변환(`tool_call` block → 거부, `project_trust` undecided → undefined), `event.input` 변경 감지 → 거부, `registerShortcut`·`registerFlag`·`getFlag` → `hostOf(g)` 대응 | L-14, L-18, P-24(리소스 등록) | L | M2 |
-| L-20 | `pi-adapter/virtual-modules.ts`: `VirtualModuleRegistry`, typebox 계열 등록, 차단 모듈(`pi-tui`, `pi-ai/oauth`), `pi-coding-agent` shim(유틸·상수 12종). core-models·core-loop 쪽 등록 호출은 L1 plan 작업자에게 요청 | L-01, L-19 | M | M2 |
-| L-21 | `pi-adapter/compat-report.ts`: `PI_COMPAT_TABLE`(스펙 §4.10.4 표), 확장별 `PiCompatReport`, 지원률 재집계 보고(고정 예제 사본에 대한 정적 분석만) | L-19 | S | M2 |
+| L-18 | 시작 순서 통합: 1차 집합(내장·관리·사용자) → 신뢰 판정 → 프로젝트 탐색과 2차 집합 검사 → `resources_discover` 발화. 프로젝트 확장 신뢰 전 미import 보장, 신뢰 전 적용 제외 규칙을 설정 계층 쪽에 넘기는 훅 [가정: L1.persistence API] | L-13, L-14, L-17 | M | M3 (결정 D9) |
+| L-19 | `pi-adapter/factory.ts`·`api-map.ts` 1차: pi 디렉터리 탐색 규칙, 기록용 `PiExtensionApiShim`(`on`, `sendMessage`, `sendUserMessage`, `registerTool`, `registerCommand`, `appendEntry`), 비지원 멤버 예외, `synthesizeManifest`, `piExtensionName`, `piPostKey`, 지점별 결과 변환(`tool_call` block → 거부, `project_trust` undecided → undefined), `event.input` 변경 감지 → 거부, `registerShortcut`·`registerFlag`·`getFlag` → `hostOf(g)` 대응 | L-14, L-18, P-24(리소스 등록) | L | M3 (결정 D9) |
+| L-20 | `pi-adapter/virtual-modules.ts`: `VirtualModuleRegistry`, typebox 계열 등록, 차단 모듈(`pi-tui`, `pi-ai/oauth`), `pi-coding-agent` shim(유틸·상수 12종). core-models·core-loop 쪽 등록 호출은 L1 plan 작업자에게 요청 | L-01, L-19 | M | M3 (결정 D9) |
+| L-21 | `pi-adapter/compat-report.ts`: `PI_COMPAT_TABLE`(스펙 §4.10.4 표), 확장별 `PiCompatReport`, 지원률 재집계 보고(고정 예제 사본에 대한 정적 분석만) | L-19 | S | M3 (결정 D9) |
 | L-22 | `isolation/rpc.ts`·`child-main.ts`: vscode-jsonrpc 연결(`StreamMessageReader`/`Writer`), `IsoMethods`, 스키마 검사, `init` 왕복, 자식 쪽 scope 스텁과 취소 전달 | L-14, P-30(`ProcessPortKey`), L0.process 포트 구현 [가정] | L | M2(2차) |
 | L-23 | `isolation/proxy.ts`: 선언 지점에만 프록시 핸들러 등록, 디스패치 직렬화, 결과 스키마 검사, 시간 예산 초과 → 예외(fold 규칙), 취소 → `killGraceMs` 뒤 `SIGKILL`, `isolatablePoints`, 격리 불가 지점·drive 거부, 도구 프록시 | L-22, P-06(디스패처), O-05(시간 예산) | L | M2(2차) |
 | L-24 | `isolation/outbox-agent.ts`: 자식의 `post`·`commit`·`record`를 확장 scope로 실행, 자식 `requestId` 그대로 사용 | L-22, P-09(ScopeRuntime), P-12(상태 커밋) | M | M2(2차) |
 | L-25 | 격리 수명: 비정상 종료 감지, 재시작 정책(`maxRestarts`, `restartWindowSec`, 지수 대기), 한도 초과 → `error` + scope 끄기 요청, `dispose`와 서비스 모드 유휴 종료 경로 | L-23 | M | M2(2차) |
 | L-26 | 핫 리로드(개발용): `reload(name)`, 세대 증가, 질의 접미 재import, 격리 확장은 재시작 | L-14, L-25 | M | M2 이후 |
 | L-27 | 문서 대조 검사: 스펙 §4.6.2 표 ↔ `TRUST_MATRIX`, 스펙 §4.10.4 표 ↔ `PI_COMPAT_TABLE`(항목·등급) | L-02, L-21 | S | M0(신뢰 표), M2(pi 표) |
-| L-28 | `remove.ts` 제거 흐름(스펙 §4.4.5): `previewRemoval`(`dropExtension(name, false)`), `remove`(`ExtHost.uninstall` → `policy.forget` → `dropTables`면 `dropExtension(name, true)`), 내장 확장 제거 거부. `storageAdmin`은 가짜로 먼저 테스트하고 O-25에서 실제 구현과 연결 | L-08, P-13(`uninstall`), O-03(`forget`) | S | M2 |
-| L-29 | 5a단계 시작 옵션: `LoadOptions.startup`을 `policy.startupFilter`에 넘겨 빠진 확장을 `disabled`(`safe_mode`, `disabled_flag`)로 두기. 외부 확장은 import 생략, 내장 확장은 install 생략 | L-10, O-20(`startupFilter`, `OperationsPolicy.startupFilter`) | S | M2 |
+| L-28 | `remove.ts` 제거 흐름(스펙 §4.4.5): `previewRemoval`(`dropExtension(name, false)`), `remove`(`ExtHost.uninstall` → `policy.forget` → `dropTables`면 `dropExtension(name, true)`), 내장 확장 제거 거부. `storageAdmin`은 가짜로 먼저 테스트하고 O-25에서 실제 구현과 연결 | L-08, P-13(`uninstall`), O-03(`forget`) | S | M3 (결정 D9) |
+| L-29 | 5a단계 시작 옵션: `LoadOptions.startup`을 `policy.startupFilter`에 넘겨 빠진 확장을 `disabled`(`safe_mode`, `disabled_flag`)로 두기. 외부 확장은 import 생략, 내장 확장은 install 생략 | L-10, O-20(`startupFilter`, `OperationsPolicy.startupFilter`) | S | M3 (결정 D9) |
 
 - 가장 큰 작업은 L-19, L-22, L-23이다. L-19는 지점별 결과 변환표를 지점 종류(input, request, tool, boundary, session) 단위로 나눠 PR을 쪼갤 수 있다.
 - M0에 필요한 X.primitives 산출물은 `ExtHost.install`·`uninstall`과 `InstallResult`(P-13)다. 늦으면 L-06은 같은 인터페이스의 가짜 `ExtHost`로 먼저 끝내고 연결만 나중에 한다. `policy.admit`(O-03)도 같다.

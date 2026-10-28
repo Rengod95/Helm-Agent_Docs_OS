@@ -179,6 +179,10 @@ export function createFakeTasks(options: FakeTasksOptions): FakeTasks {
       },
       children: () => children,
       track<T>(work: Promise<T>): Promise<T> {
+        // 실제 core-tasks와 같다: 정착한 노드에는 작업을 더하지 못한다(N-03)
+        if (scope.settledState === "settled") {
+          throw new Bug(`tasks.scope_settled: ${kind} ${id} is settled`);
+        }
         const finished = work.then(
           () => undefined,
           () => undefined,

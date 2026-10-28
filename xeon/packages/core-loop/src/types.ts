@@ -35,15 +35,22 @@ export interface LoopDeps {
   readonly models: ModelService;
   readonly ext: LoopExtHost;
   readonly settings: LoopSettingsSource;
-  /** 기본 시스템 프롬프트. `before_agent_start`가 바꿀 수 있다 */
+  /** 접두에 고정되는 기본 시스템 프롬프트. `before_agent_start`가 더한 부분은 요청마다 volatile로 붙는다 */
   readonly basePrompt: string;
+  /** 환경 블록의 `platform` 줄. 예: "darwin/arm64". 생략하면 줄을 내지 않는다 */
+  readonly platform?: string;
   readonly hostMode: HostMode;
   /** boundary 엔트리 kind의 payload 스키마 조회(`finalizeBoundary` 규칙 1). 운영은 X의 kind 등록을 넘긴다 */
   readonly kindLookup: (kind: string) => CatalogEntry | undefined;
   /** 소유 사슬 취소 판정(`RecoverDeps.cancelledByOwner`, L1.tasks.spec §4.8 3번) */
   readonly cancelledByOwner: (threadId: ThreadId, turnId: TurnId) => boolean;
+  /**
+   * `user_bash` 지점 페이로드의 `cwd`. 조립 루트가 대화의 작업 디렉터리를 돌려준다(대화마다 다를 수 있다).
+   * 생략하거나 `undefined`를 돌려주면 빈 문자열이다
+   */
+  readonly workingDirectory?: (threadId: ThreadId) => string | undefined;
   /** 있으면 `await_input` 재진입 전에 미해결 승인 요청을 메모리 대기로 되살린다 */
-  readonly approvals?: Pick<ApprovalService, "restore">;
+  readonly approvals?: Pick<ApprovalService, "restore" | "cancel">;
 }
 
 /** turn 시작(T1) 결과. 큐 입력 시작과 drive 시작이 함께 쓴다 */

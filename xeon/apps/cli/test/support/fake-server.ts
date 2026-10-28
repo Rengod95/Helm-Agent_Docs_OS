@@ -28,7 +28,28 @@ export interface TurnContext {
   readonly server: FakeServer;
 }
 
+/** 메서드별 사용자 처리기. 기본 동작보다 앞선다. Promise를 돌려주면 응답은 그 이행 뒤에 간다 */
+export type FakeHandlers = {
+  readonly [M in WireMethodName]?: (
+    params: Readonly<Record<string, unknown>>,
+    server: FakeServer,
+  ) => unknown;
+};
+
+/** M1 처리기 다섯. host.hello의 features에 기본으로 알리는 메서드다 */
+const M1_METHODS: readonly WireMethodName[] = [
+  "host.hello",
+  "thread.create",
+  "turn.start",
+  "events.subscribe",
+  "settings.get",
+];
+
 export interface FakeServerOptions {
+  /** 메서드별 처리기(M2 메서드는 시험이 정한다). 알려 주는 features에도 더해진다 */
+  readonly handlers?: FakeHandlers;
+  /** host.hello가 알리는 기능. 없으면 M1 다섯과 handlers의 키 */
+  readonly features?: readonly WireMethodName[];
   readonly storeId: StoreId;
   /** turn.start가 접수되면 부른다. 이벤트를 server.commit으로 낸다 */
   readonly onTurn?: (context: TurnContext) => void | Promise<void>;
@@ -157,10 +178,23 @@ export function startFakeServer(
     closeFromServer: () => transport.close("server"),
   };
 
+  const advertised = (): readonly string[] => {
+    const names = new Set<string>(options.features ?? M1_METHODS);
+    for (const name of Object.keys(options.handlers ?? {})) names.add(name);
+    return Array.from(names);
+  };
+
   const handle = (method: string, params: Readonly<Record<string, unknown>>): unknown => {
     const failure = Object.entries(options.failures ?? {}).find(([name]) => name === method);
     if (failure?.[1] !== undefined) throw failure[1];
+    const custom = Object.entries(options.handlers ?? {}).find(([name]) => name === method);
+    if (custom?.[1] !== undefined) return custom[1](params, server);
     switch (method) {
+      case "events.unsubscribe": {
+        const sub = params["sub"];
+        if (typeof sub === "string") subs.delete(sub);
+        return {};
+      }
       case "host.hello": {
         const client = asRecord(params["client"]);
         const version = params["protocolVersion"];
@@ -174,7 +208,7 @@ export function startFakeServer(
           server: { name: "xeon", version: "0.0.0" },
           storeId: options.storeId,
           transport: transport.kind,
-          features: [],
+          features: advertised().map((name) => ({ name, status: "active", since: "0.1.0" })),
           experimental: client["name"] === undefined ? [] : [],
         };
       }
@@ -321,11 +355,22 @@ export function startFakeServer(
     const message = checked.message;
     if (!("method" in message) || !("id" in message)) return;
     requests.push({ method: message.method, params: message.params });
+    const fail = (caught: unknown): void => {
+      send({ jsonrpc: "2.0", id: message.id, error: toRpcError(caught) });
+    };
     try {
       const result = handle(message.method, message.params);
+      if (result instanceof Promise) {
+        // 응답이 늦는 처리기: 응답은 이행 뒤에 보낸다
+        result.then((value) => {
+          send({ jsonrpc: "2.0", id: message.id, result: asRecord(value) });
+          return undefined;
+        }, fail);
+        return;
+      }
       send({ jsonrpc: "2.0", id: message.id, result: asRecord(result) });
     } catch (caught) {
-      send({ jsonrpc: "2.0", id: message.id, error: toRpcError(caught) });
+      fail(caught);
     }
   });
   return server;

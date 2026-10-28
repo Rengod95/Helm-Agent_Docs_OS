@@ -11,7 +11,10 @@ export {
 export { type ChildRequest, type ChildResult, type ChildRunner } from "./admin.ts";
 export {
   DEFAULT_SECRETS_CONFIG,
+  DEFAULT_SOPS_ENV,
+  defaultSopsFile,
   SOPS_MIN_VERSION,
+  withDefaultSopsFile,
   type SecretsConfig,
   type SecretsSopsFile,
 } from "./config.ts";
@@ -28,4 +31,5 @@ export {
   type RunOutput,
   type RunRequest,
 } from "./providers/sops.ts";
+export { type SecretFileLock, type SecretFileLockError } from "./providers/lock.ts";
 export { checkSecretArgument, checkSettingRef } from "./ref.ts";

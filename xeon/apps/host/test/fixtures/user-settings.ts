@@ -11,3 +11,9 @@ export function writeUserSettings(
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   writeFileSync(join(dir, "settings.json"), JSON.stringify(values));
 }
+
+/** 모델 테이프 provider를 기본 모델로 쓰는 설정. 테이프 provider는 키가 필요 없다 */
+export const TAPE_SETTINGS: Readonly<Record<string, unknown>> = {
+  "l1.models.default": "tape/tape-1",
+  "l1.models.providers": [{ id: "tape", enabled: true, apiKeyRef: null, baseUrl: null }],
+};

@@ -1,0 +1,32 @@
+{
+  "name": "pi-prompt-templates",
+  "upstream": "https://github.com/earendil-works/pi",
+  "commit": "cdaf6c227d4718a72b59ccd02152c9614df44cfc",
+  "version": "1.1.0",
+  "package": "@earendil-works/pi-coding-agent",
+  "license": "MIT",
+  "licenseFile": "LICENSE.pi",
+  "copiedFrom": "packages/coding-agent",
+  "copiedPaths": [
+    "packages/coding-agent/src/core/prompt-templates.ts -> src/upstream/pi/prompt-templates.ts",
+    "packages/coding-agent/src/utils/frontmatter.ts -> src/upstream/pi/prompt-templates.ts",
+    "packages/coding-agent/test/prompt-templates.test.ts -> test/upstream/prompt-templates.test.ts",
+    "LICENSE -> LICENSE.pi"
+  ],
+  "originalSha256": {
+    "packages/coding-agent/src/core/prompt-templates.ts": "11db52a6bea6f3f094c6f533d4a3162462bdef4693f238ba1a8a1be6729d4545",
+    "packages/coding-agent/src/utils/frontmatter.ts": "99142d78b94e658e0be65cf05046be8069b3700168a683e0af64219ad903bcd6",
+    "packages/coding-agent/test/prompt-templates.test.ts": "4e6a5d427a78abe7c5ed92f71600f8777fddfd0f1f0d3cb1eb0a7e8655ecd2ee",
+    "LICENSE": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
+  },
+  "partialCopies": [
+    "packages/coding-agent/src/utils/frontmatter.ts -> src/upstream/pi/prompt-templates.ts (extractFrontmatter와 parseFrontmatter만. yaml 패키지 대신 Bun.YAML.parse. stripFrontmatter는 뺐다)",
+    "packages/coding-agent/test/prompt-templates.test.ts -> test/upstream/prompt-templates.test.ts (substituteArgs, parseCommandArgs 묶음은 그대로. 파일 시스템을 쓰는 로드 테스트와 expandPromptTemplate 테스트는 다시 썼다)"
+  ],
+  "notCopied": [
+    "packages/coding-agent/src/core/slash-commands.ts (SlashCommandInfo는 F CommandInfo(contracts defs/dialog.ts)가 같은 구조를 이미 갖고, BUILTIN_SLASH_COMMANDS는 쓰지 않는다. L2.dialog.plan §4.2 둘째 행의 이식은 타입 하나뿐이라 복사할 코드가 없다)",
+    "packages/coding-agent/src/core/prompt-templates.ts loadPromptTemplates, expandPromptTemplate (출처 우선순위와 디렉터리 목록은 commands/ 모듈이 정한다. P6)"
+  ],
+  "modifications": ["P1", "P2", "P3", "P4", "P5", "P6", "P7"],
+  "usedBy": "xeon/packages/cap-dialog only (adr.0003, L2.dialog.plan §4.2)"
+}

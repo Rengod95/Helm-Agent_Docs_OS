@@ -357,13 +357,15 @@ export function selectSandboxProvider(input: {
 
 `docs/design/18-security.md` §3.11.4를 옮긴다. 시작 때, `l0.sandbox.selfTestIntervalMin`마다, doctor 실행 때 돈다. 호출자는 조립 지점(apps/host)이고 `Shell`은 `xeon.exec`의 것이다(8.3절). 시험용 쓰기 루트는 새 임시 디렉터리 하나다.
 
+호출 경로 [결정: m2 마감 G1-12]: 조립 루트가 `SandboxServiceHandle.startSelfTests(shell)`을 한 번 부른다. 이 메서드가 시작 직후 `selfTest`를 한 번 돌리고, 끝날 때마다 `l0.sandbox.selfTestIntervalMin`분 뒤로 다음 실행을 `xeon.os`의 `Scheduler`에 건다(0이면 시작 때 한 번뿐이다). 실행은 겹치지 않고, 간격은 한 실행이 끝날 때마다 설정 함수에서 다시 읽는다. 돌려주는 `SelfTestSchedule`은 `first`(첫 실행의 `Result<SelfTestReport, SelfTestRunError>`)와 `stop()`을 가진다. 항목 실패는 보고서 값(`passed: false`)이고 `status()`의 `lastSelfTest`와 `available`에 반영된다. 시험 자체가 던지면(`crashed`) 로그 `sandbox.self_test_crashed`만 남기고 반복은 계속한다. 서비스 `dispose()`가 모든 반복을 멈춘다. doctor는 `selfTest`를 직접 부른다.
+
 | id | 시도(샌드박스 안) | 기대 |
 |---|---|---|
 | `protected_read_denied` | 샌드박스 밖에서 `<xeonData>/selftest/canary`에 무작위 문자열을 쓴 뒤 안에서 `cat` | 종료 코드 0 아님, 출력에 무작위 문자열 없음 |
 | `xeon_data_write_denied` | `touch <xeonData>/selftest/write-probe` | 실패하고 파일이 생기지 않음 |
 | `network_denied` | `bash -c 'exec 3<>/dev/tcp/example.com/80'` | 실패 [가정: bash `/dev/tcp`가 두 OS에서 동작] |
 | `workspace_write_allowed` | `touch <tmp>/ok` | 성공하고 파일이 생김 |
-| `env_allowlist` | `env` | 출력의 이름 중 `SENSITIVE_ENV_PATTERNS`(`L0.exec.spec` §3.5)에 맞는 것이 0개 |
+| `env_allowlist` | `env` | 출력의 이름 중 `SENSITIVE_ENV_PATTERNS`(`L0.exec.spec` §3.5)에 맞는 것이 0개. 단 srt가 자체 프록시 클라이언트용으로 내보내는 `CLOUDSDK_PROXY_PASSWORD`(프로세스마다 새로 만든 프록시 인증 토큰, srt 0.0.79)는 세지 않는다 [결정: m2 마감 G4-01, 실제 srt로 시험하면 이 이름 때문에 항상 실패했다] |
 | `git_hooks_write_denied` | 밖에서 `<tmp>/.git/hooks/`를 만든 뒤 안에서 `touch <tmp>/.git/hooks/pre-commit` | 실패 |
 
 - 하나라도 기대와 다르면 status를 `available: false`, `reason: "self_test_failed"`로 바꾸고 4.5절 정책을 적용한다.
@@ -498,6 +500,8 @@ export function selectSandboxProvider(input: {
 9. 성공한 샌드박스 실행의 `ShellExecResult.sandbox.sandboxed`가 참이고, M1 스모크의 bash 도구 호출 이벤트 details에서 이 값을 확인할 수 있다.
 10. `wrapShell`이 넘긴 `secretEnv` 참조는 아래 `Shell`에 그대로 도착하고, `SandboxRunReport`와 시작 로그에 비밀 값이 없다.
 11. srt 래핑이 throw하면 `sandbox_failed`이고 `cleanupAfterCommand` 호출이 0회다.
+12. 실제 srt와 OS 격리(Linux bubblewrap, macOS Seatbelt)로 `sandbox.int.test.ts`가 다음을 확인한다. 각 거부 시험은 같은 명령을 감싸지 않은 Shell로 돌려 성공함을 보이는 대조를 함께 둔다. (a) 쓰기 루트 안 쓰기는 성공하고 `sandbox.sandboxed`가 참이다. (b) 쓰기 루트 밖 쓰기가 종료 코드 0이 아니고 파일이 생기지 않는다(M1 종료 조건). (c) 쓰기 루트 안의 `.git/hooks` 쓰기가 거부된다. (d) `<xeonData>/selftest/canary` 읽기가 거부된다. (e) 호출자 `readDeny`·`writeDeny`가 비어도 (c)와 `protectedPaths.extra` 경로 읽기 거부가 그대로다. (f) 로컬 TCP 서버로 가는 `/dev/tcp` 연결이 거부되고 서버가 연결을 받지 못한다. (g) 자가 시험 여섯 항목이 모두 통과한다.
+13. 12번 시험의 필수 바이너리(Linux: `bwrap`, `socat`, `rg` / macOS: `rg`)가 없으면, 환경 변수 `XEON_REQUIRE_SANDBOX=1`이거나 `CI=true`일 때 종료 코드 2(환경 문제)로 끝나고 stderr에 `ENV sandbox.int: missing <이름>. <설치 안내>`를 쓴다. 그 밖의 기기에서는 건너뛰고 stderr에 `SKIPPED ENV sandbox.int: …`를 한 줄 남긴다. CI가 이 파일을 건너뛴 채 통과하지 않게 하는 쪽은 Z 트랙(G4-07)이 `test-capped.sh`의 종료 코드 전달과 건너뜀 수 출력으로 잇는다.
 
 근거 위치: `_research/packages.md` §4.2 L0-b, `_research/refs/claude-code.md` §3.2·326행, `_research/notes/L0-1.md`, `_research/settings.md` §2.2·§4, `docs/design/18-security.md` §3.11.1·§3.11.4·§3.11.5, `docs/design/13-tools-and-execution.md` §3.5·§3.6.
 

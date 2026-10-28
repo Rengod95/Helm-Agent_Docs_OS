@@ -68,17 +68,24 @@ Xeon(임시 이름)은 층으로 나뉜 대화형 에이전트 런타임이다. 
 
 루트에서 `just <레시피>`로 부른다(`xeon/justfile`이 실제 명령).
 
-| 레시피                                                                    | 내용                                                        |
-| ------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `just setup`                                                              | `bun install --frozen-lockfile`                             |
-| `just fmt` / `just fmt-check`                                             | oxfmt 적용 / 검사                                           |
-| `just lint`                                                               | oxlint type-aware, `--deny-warnings`                        |
-| `just typecheck`                                                          | `tsc -b` (project references)                               |
-| `just test`                                                               | `bun test` (scripts와 각 패키지)                            |
-| `just check-layers`, `just check-ts-rules`, `just depcruise`, `just knip` | 층 순위, TS 작성 규칙 스캔, 의존 경계, 미사용 코드          |
-| `just docs-route --check [--allow-missing]`                               | 문서 프런트매터, id, depends_on, binds 검사                 |
-| `just ci-layer <F\|X\|L0\|L1\|L2\|L3\|L4> [true]`                         | 한 층만 lint, typecheck, test (`true`는 turbo `--affected`) |
-| `just verify`                                                             | 위 전부 + `ws check`. 끝내기 전에 통과시킨다                |
+| 레시피                                                                    | 내용                                                                               |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `just setup`                                                              | `bun install --frozen-lockfile`                                                    |
+| `just fmt` / `just fmt-check`                                             | oxfmt 적용 / 검사                                                                  |
+| `just lint`                                                               | oxlint type-aware, `--deny-warnings`                                               |
+| `just typecheck`                                                          | `tsc -b` (project references)                                                      |
+| `just test [패키지 경로…]`                                                | `bun test`를 scripts와 패키지마다 하나씩, `guard.sh run` 상한(1.5GB, 5분) 아래에서 |
+| `just check <패키지 경로>`                                                | 패키지 하나의 lint, typecheck, test를 차례로, 각각 `guard.sh run` 1.5GB 아래에서. turbo는 `--concurrency=1`이라 의존이 많은 패키지도 빈 캐시에서 상한 안에 든다 |
+| `just check-layers`, `just check-ts-rules`, `just depcruise`, `just knip` | 층 순위, TS 작성 규칙 스캔, 의존 경계, 미사용 코드                                 |
+| `just docs-route --check [--allow-missing]`                               | 문서 프런트매터, id, depends_on, binds 검사                                        |
+| `just ci-layer <F\|X\|L0\|L1\|L2\|L3\|L4> [true]`                         | 한 층만 lint, typecheck, test (`true`는 turbo `--affected`)                        |
+| `just verify`                                                             | 위 전부 + `ws check`. 기기에서 한 번에 하나, 단계마다 따로 2G, 시험은 패키지마다 1.5G |
+
+### 병렬 작업 중 규칙
+
+- 에이전트를 여럿 돌리는 동안에는 `just check <패키지>`와 `just test <패키지>`만 돌린다(예: `just check packages/core-tools`). 저장소 전체를 도는 `just verify`, `just lint`, `just typecheck`는 마지막 병합 단계 한 곳에서만 돌린다.
+- 모든 무거운 명령은 `scripts/guard.sh run` scope(기본 1.5G, 공용 예산 `ws-dev.slice`) 안에서 돈다. 한도를 넘으면 그 실행만 종료되고(137) 기기는 살아 있다. `just verify`는 기기에서 하나만 돌고(슬롯 1) 단계를 차례로, 단계마다 따로 상한(2G, `XEON_VERIFY_STEP_MAX`)을 건다. 시험 단계는 감싸지 않고 `test-capped.sh`가 패키지마다 1.5G를 건다.
+- pre-commit의 oxfmt, oxlint도 `guard.sh run` 1.5G 아래에서 돈다. cargo(`just desktop-*`)는 2G(`XEON_CARGO_MAX`).
 
 종료코드 1은 고친다. 2는 환경 문제이므로 코드를 고치지 말고 보고한다. 3은 사람 확인 뒤 `--yes`.
 

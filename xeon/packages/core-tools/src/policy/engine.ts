@@ -198,10 +198,3 @@ export function evaluatePolicy(input: PolicyInput, rules: readonly TieredRule[])
       : { effect, reason, ruleId: null, tier: null };
   return finish(decision, input);
 }
-
-const STRICTNESS: Readonly<Record<PolicyEffect, number>> = { allow: 0, ask: 1, deny: 2 };
-
-/** 두 결정 중 엄격한 쪽(deny > ask > allow). 같으면 앞의 것 */
-export function stricter(a: PolicyDecision, b: PolicyDecision): PolicyDecision {
-  return STRICTNESS[b.effect] > STRICTNESS[a.effect] ? b : a;
-}

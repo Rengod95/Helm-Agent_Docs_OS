@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Xeon",
+  "version": "0.0.0",
+  "identifier": "dev.helm.xeon",
+  "build": { "frontendDist": "./ui" },
+  "app": {
+    "windows": [{ "label": "main", "title": "Xeon", "width": 1100, "height": 760 }],
+    "security": { "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost" }
+  },
+  "bundle": {
+    "active": true,
+    "icon": ["icons/icon.png"],
+    "externalBin": ["binaries/xeon"]
+  }
+}

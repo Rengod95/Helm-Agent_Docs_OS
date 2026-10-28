@@ -287,6 +287,8 @@ export type LifecycleError =
   | StoreError
   | { readonly kind: "not_owner"; readonly threadId: ThreadId }
   | { readonly kind: "thread_closed"; readonly threadId: ThreadId }
+  /** 같은 requestKey를 다른 내용(제목, 이동 대상·이유·요약)으로 다시 썼다. 호출자가 키를 잘못 쓴 것이다 */
+  | { readonly kind: "key_reused"; readonly requestKey: string }
   | { readonly kind: "turn_running"; readonly turnId: TurnId }
   | { readonly kind: "has_forks"; readonly forks: readonly ThreadId[] }
   | {
@@ -350,6 +352,14 @@ export interface SessionSettingsLayer {
   readonly values: ReadonlyMap<string, unknown>;
 }
 
+/**
+ * session 범위 설정 쓰기 실패. 저장소 오류에 더해, 같은 `requestKey`를 다른 값으로 다시 쓴 것은 호출자가 키를 잘못 쓴 예상 가능한 실패라
+ * 값으로 돌려준다(TY-24). 키를 호출마다 새로 만드는 호출자(`setMode`)에게는 일어나지 않는다
+ */
+export type SessionSettingsError =
+  | StoreError
+  | { readonly kind: "key_reused"; readonly requestKey: string };
+
 export interface SessionSettingsStore {
   /** session 범위 층. resolveSetting의 ScopeStack에 넣는다(F.wire-settings.spec §3.9) */
   layer(threadId: ThreadId): SessionSettingsLayer;
@@ -359,9 +369,9 @@ export interface SessionSettingsStore {
     key: string,
     value: JsonValue,
     requestKey: string,
-  ): Result<void, StoreError>;
+  ): Result<void, SessionSettingsError>;
   /** settings.changed { value: null } 커밋 */
-  reset(threadId: ThreadId, key: string, requestKey: string): Result<void, StoreError>;
+  reset(threadId: ThreadId, key: string, requestKey: string): Result<void, SessionSettingsError>;
 }
 
 // ── X 기록 포트 (X.primitives.spec §3.6) ──────────────────────────────────
@@ -432,6 +442,12 @@ export interface OpenLease {
 /** 모든 필드는 활성 가지(현재 leaf에서 parentId를 따라 올라간 사슬) 위 이벤트만으로 계산한다 */
 export interface ExtThreadSnapshot {
   readonly enabled: readonly string[];
+  /** 마지막 scope.changed가 disabled인 scope. 기본 켜짐 scope를 끈 뒤 다시 열어도 끈 상태를 되살리는 데 쓴다 */
+  readonly disabled: readonly string[];
+  /** scope마다 활성 가지 위 scope.changed 개수(enabled와 disabled 합). 재시작 뒤 커밋 키 구분에 쓴다 */
+  readonly scopeTransitions: Readonly<Record<string, number>>;
+  /** 켜진 scope마다 마지막 scope.changed{status:"enabled"}의 seq. 켜진 scope만 키를 갖는다 */
+  readonly enabledAtSeq: Readonly<Record<string, number>>;
   readonly states: readonly StoredScopeState[];
   /** lease.acquired 뒤 lease.released가 없는 임대. 최대 1개 */
   readonly openLease: OpenLease | null;
@@ -459,8 +475,11 @@ export interface ExtRecordRow {
 export interface RecordCommitPort {
   /** SessionService.commit 한 트랜잭션. 확장 투영(x_<name>_*)도 같은 트랜잭션에서 갱신된다 */
   commit(request: ExtCommitRequest): Promise<ExtCommitResult>;
-  /** 활성 가지 기준 스냅샷. 버려진 가지의 이벤트는 보지 않는다 */
-  loadThread(threadId: ThreadId): Promise<ExtThreadSnapshot>;
+  /**
+   * 활성 가지 기준 스냅샷. 버려진 가지의 이벤트는 보지 않는다. 읽기 연결의 busy, io와 손상 행(row_invalid)은
+   * 예상 가능한 실패라 던지지 않고 값으로 돌려준다
+   */
+  loadThread(threadId: ThreadId): Promise<Result<ExtThreadSnapshot, ReadFailure>>;
   /**
    * 그룹 레코드 조회. reader는 조회하는 확장의 이름(ExtensionName)이다.
    * private 행은 reader가 그 행의 소유 확장일 때만 돌려준다
@@ -469,7 +488,18 @@ export interface RecordCommitPort {
     threadId: ThreadId,
     query: ExtRecordQuery,
     reader: string,
-  ): Promise<readonly ExtRecordRow[]>;
+  ): Promise<Result<readonly ExtRecordRow[], ReadFailure>>;
+}
+
+/**
+ * 보관 정리(L1.persistence.spec §6.1, PS-18). 조립 루트가 엔진을 열 때 한 번 `prune()`을 부른다.
+ * 기간(`retention.maxAgeDays`)과 수(`retention.maxCount`) 상한이 모두 0이면 아무것도 지우지 않는다
+ */
+export interface SessionRetention {
+  /** 지금 설정으로 지워질 thread. 지우지 않는다(설정 화면의 삭제 대상 수 미리보기) */
+  preview(): Result<readonly ThreadId[], ReadFailure>;
+  /** 지울 thread를 지우고 지운 목록을 돌려준다 */
+  prune(): Result<readonly ThreadId[], StoreError>;
 }
 
 export interface SessionService {
@@ -528,4 +558,7 @@ export interface SessionService {
 
   /** X 포트. commit 이름이 위 commit과 겹쳐 하위 객체로 둔다. PortKey.member = "ext" */
   readonly ext: RecordCommitPort;
+
+  /** 보관 정리. core-persistence의 `RetentionApi`가 이 모양을 채운다 */
+  readonly retention: SessionRetention;
 }

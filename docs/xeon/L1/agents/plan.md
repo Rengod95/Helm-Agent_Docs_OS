@@ -88,6 +88,26 @@ xeon/packages/core-agents/
 - core-models: 역할 `judge`, `subagent` 라우팅과 구조화 출력, 테이프(L1.models.plan).
 - ext-host: `loop.spawn` → `xeon.agents.spawn` 연결, 그룹 위임 래퍼에 서비스 주입(X.primitives.plan, L3.group-kit.plan).
 
+### 3.1 M2 구현 상태 (2026-10-24, 레인 L1B)
+
+| id | 상태 | 위치 |
+|---|---|---|
+| AG-0 | 완료 | 선행 확인. `runChildTurn`은 L1A.6(core-loop)이 구현한다: 이 패키지는 `LoopService` 부분형 `AgentsLoop`으로 받고 `testing/fakeChildLoop`로 시험했다. 실제 연결은 병합 뒤 HOST.6 조립에서 한다. 같은 층 패키지끼리는 시험에서도 import할 수 없어(DR-02) 실제 core-loop·core-tools·core-tasks·core-persistence와 이어 붙인 시험은 조립 루트의 `apps/host/test/int/agent-tools-slot.int.test.ts`에 있다 [L1F] |
+| AG-1 | 완료(두 커밋) | `service.ts`(`createChild`, `commitSpawned`). 한 커밋 합치기는 F 요청 |
+| AG-2 | 완료 | `service.ts`(`runChild`, `settle`, `recordSettled`): 소유 노드 `openScope`, 취소 전파, 정착 순서, `agent.settled`. 자식 노드의 내구 취소 의도는 자식 turn 노드(core-loop)가 쓴다 |
+| AG-3 | 완료 | `permission-ceiling.ts`(`childMode`, `intersectGlobs`, `ceilingOf`), 결정 합성은 F `childDecision` |
+| AG-4 | 완료 | `denylist.ts`, `service.ts`(`syncRules`) |
+| AG-5 | 완료 | `result-guard.ts`, `report-reader.ts` |
+| AG-6 | 완료 | `request-id.ts`, `service.ts`(`attach`: 정착, 진행 중, 끊김) |
+| AG-7 | M3 | `delegate`는 `agents.unavailable` |
+| AG-8 | M3 | `judge`는 `failed` |
+| AG-9 | 완료(M2 범위) | `definitions/loader.ts`, `definitions/registry.ts`(우선순위 등록부) |
+| AG-10 | 완료 | `plugin.ts`, `tool.ts`, `settings.ts`, `ports.ts`(F에 키가 없어 `AgentServicePortKey`·`LoopServicePortKey`를 이 패키지가 만든다) |
+| AG-11 | 완료 | `gate.ts`(루트별 `maxConcurrent`), 전체 풀 `limiter("subagents")`. `tools` 슬롯 `suspendWhile`(C2)은 `agent` 도구가 `ToolService.suspendWhile` 안에서 `spawn`을 기다려 해소(M2 검토 3). `l1.tasks.limits.tools = 1`에서 `agent` 호출의 자식이 도구를 부르는 통합 시험 `agent_waits_for_child_without_holding_the_tools_slot`이 실제 엔진(SQLite 저장소, 실제 풀·파이프라인·`runChildTurn`, 모델만 테이프)에서 통과한다. `suspendWhile`을 빼면 같은 시험이 교착으로 시간 초과가 되는 것을 확인했다 [L1F] |
+| AG-12 | 완료 | `testing/index.ts`(`spawnRecorder`, `settleAll`, `fakeChildLoop`) |
+
+시험 대역(`test/support/`의 세션, 태스크, 도구)은 DR-02 때문에 이 패키지 안에 따로 있다.
+
 ## 4. 채택 코드
 
 | 대상 | 방식 | 버전·원본 | 바꿀 점 |
@@ -115,6 +135,7 @@ xeon/packages/core-agents/
 | `child_denylist_blocks_user_interaction` | `classes: ["user_interaction"]` 도구는 자식에서 거부, 자식의 일반 도구 ask는 부모 대화의 승인 요청이 된다 | AG-4 |
 | `depth_one_rejects_nested_spawn` | `maxDepth = 1`에서 자식의 `spawn`은 `agents.depth_exceeded`, `maxDepth = 2`면 손자 생성 성공 | AG-4, AG-6 |
 | `concurrency_cap_queues_extra_spawns` | `l1.agents.maxConcurrent = 2`에서 세 번째는 `queued`, 앞의 하나가 정착한 뒤 실행. 전체 풀 상한 1에서도 같은 순서로 모두 정착 | AG-11 |
+| `agent_waits_for_child_without_holding_the_tools_slot` | `apps/host/test/int/agent-tools-slot.int.test.ts` | `tools` 풀 1개에서 부모의 `agent` 호출이 슬롯을 내려놓고 자식을 기다려, 자식의 도구 호출이 실행되고 `agent.settled`(completed)와 부모 `turn.completed`가 하나씩 남는다. 자식 thread는 호스트가 `ExtHost.openThread`로 열어 둔다(시험 조립이 `thread.started`마다 연다) | AG-11 |
 | `background_child_survives_parent_abort` | 부모 turn 취소 뒤에도 백그라운드 자식이 `completed`로 정착하고 보고 post가 들어간다 | AG-7 |
 | `background_child_direct_cancel` | `cancel({ childThreadId })`가 취소 의도를 커밋하고 자식이 `aborted`로 정착, 보고 post 1건 | AG-7 |
 | `foreground_child_settles_before_parent_end` | 부모 취소 시 포그라운드 자식 모두의 `agent.settled`가 부모 `turn.completed`보다 앞 seq | AG-2 |

@@ -1,4 +1,5 @@
 import { assertNever, attemptAsync, err, ok, type Clock, type Result } from "@xeon/contracts";
+import type { SecretOutOfBandPort } from "@xeon/contracts/services";
 import type { SettingDefInput, SettingGroup } from "@xeon/contracts/settings";
 import {
   checkEnvelope,
@@ -95,6 +96,13 @@ export interface EngineHandle {
   /** host.hello 결과의 storeId */
   readonly storeId: StoreId;
   readonly paths: { readonly cliStateFile: string };
+  /**
+   * 값 입력·열람 수단을 wire 밖으로 호스트에 맡기는 통로(F wire §3.3.1). in-process 접속에만 있고 서비스 접속은 null이다:
+   * 서비스 쪽 L0.secrets가 OS 입력 창으로 받는다(L4.cli.spec §4.7) [spec에 더한 필드]
+   */
+  readonly secretOutOfBand: SecretOutOfBandPort | null;
+  /** host.hello가 알린 active·experimental 기능 이름(메서드 이름 포함). 호스트가 아직 구현하지 않은 메서드를 가려낸다 [spec에 더한 필드] */
+  supports(feature: string): boolean;
   /** 엔진의 시계. CLI는 전역 시각을 읽지 않는다(TY-21) [spec에 더한 필드] */
   readonly clock: Clock;
   /** turn.start의 requestId로 쓸 새 id. 엔진의 IdFactory가 낸다 [spec에 더한 필드] */
@@ -114,6 +122,8 @@ export type ConnectEngine = (
 export interface StartedHost {
   /** kind "in-process". createHostConnection에 넘긴다 */
   readonly client: Transport;
+  /** 값 입력·열람 수단을 맡기는 통로. InProcessHost가 이 모양을 만족한다 */
+  readonly secretOutOfBand: SecretOutOfBandPort;
   readonly engine: {
     readonly ports: {
       /** turn.start의 requestId를 만들 때 쓴다 */
@@ -341,6 +351,11 @@ export function createConnectEngine(api: HostApi): ConnectEngine {
         client: { name: options.client.name, version: options.client.version, kind: "cli" },
       });
       const { ids, clock } = host.engine.ports;
+      const features = new Set(
+        hello.features
+          .filter((feature) => feature.status === "active" || feature.status === "experimental")
+          .map((feature) => feature.name),
+      );
       const closing: { current: Promise<"clean" | "deadline"> | undefined } = {
         current: undefined,
       };
@@ -349,6 +364,8 @@ export function createConnectEngine(api: HostApi): ConnectEngine {
         transport: hello.transport,
         storeId: hello.storeId,
         paths: { cliStateFile: statePaths.value.cliStateFile },
+        secretOutOfBand: host.secretOutOfBand,
+        supports: (feature) => features.has(feature),
         clock,
         newRequestId: () => ids.next("evt"),
         shutdown(_reason) {

@@ -9,6 +9,7 @@ import type { CancelScope, SecretEnvRequest } from "@xeon/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure, guarded } from "../errors.ts";
 import { resolveWorkspacePath } from "../roots.ts";
+import { scopedDeps } from "../scope.ts";
 import { runBashCommand, type BashOutcome } from "./upstream/bash.ts";
 
 // L2.workspace.spec §3.3, §4.2. 샌드박스 래핑(xeon.sandbox)과 실행(xeon.exec)은 F 인터페이스로만 만난다.
@@ -50,8 +51,8 @@ function actorOf(context: CallContext | undefined): "agent" | "runtime" | "human
 
 /**
  * `secretEnv` 요청. 값은 이 패키지를 지나지 않는다: 참조만 `xeon.exec`에 넘기고 값 주입은 spawn 직전에 한다.
- * 승인 증거(`approval`)는 이 호출 경로에 실려 오는 곳이 없어 null이다. 그래서 `xeon.secrets`가 `approval_missing`으로
- * 거부한다(fail-closed). 증거를 받는 경로는 L1.tools·L2.workspace 합의 전까지 [미결]이다(L1.tools.spec §10).
+ * 승인 증거(`approval`)는 `CallContext.approval`(L1.tools가 사람의 승인을 받았을 때 채운다, F 요청 13)을 그대로 옮긴다.
+ * 증거가 없으면 null이라 `xeon.secrets`가 `approval_missing`으로 거부한다(fail-closed).
  */
 function secretEnvOf(
   input: RunInput,
@@ -74,7 +75,7 @@ function secretEnvOf(
       threadId: context?.threadId ?? null,
       toolCallId: context?.toolCallId ?? null,
       projectId: null,
-      approval: null,
+      approval: context?.approval ?? null,
     },
   };
 }
@@ -90,10 +91,12 @@ function toRunOutput(outcome: BashOutcome, durationMs: number): RunResult {
   };
 }
 
-export function createShellApi(deps: WorkspaceDeps): ShellApi {
+// 호출마다 호출한 대화의 작업 폴더로 의존을 맞춘다(scopedDeps, open-issues M-06). 기본 cwd, 샌드박스 쓰기 root가 그 폴더가 된다.
+export function createShellApi(base: WorkspaceDeps): ShellApi {
   return {
     run(input, options) {
       return guarded(CAPABILITY, "run", async () => {
+        const deps = scopedDeps(base, options?.context?.threadId);
         const context: CancelScope = { abortSignal: options?.signal };
         if (options?.signal?.aborted === true) {
           throw new WorkspaceFailure("aborted", "The command was aborted before it started.");

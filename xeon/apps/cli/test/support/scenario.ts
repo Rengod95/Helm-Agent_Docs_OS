@@ -1,7 +1,8 @@
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { Clock, Scheduler, TimerHandle } from "@xeon/contracts";
+import type { Clock, Scheduler } from "@xeon/contracts";
+import { systemClock, systemScheduler } from "@xeon/platform-os";
 
 // L4.cli.plan §5.2 scenario의 공용 도구. 임시 엔진 홈(XEON_HOME) 하나와 작업 폴더 하나를 만들고, 자식 프로세스 진입과
 // 같은 프로세스 안 테스트가 같은 설정(테이프 provider가 기본 모델)을 쓰게 한다.
@@ -47,20 +48,13 @@ export function createScenarioHome(): ScenarioHome {
 
 /** 실제 시간으로 도는 테이프 재생기용 시계. stall 응답이 abort를 기다릴 때 쓴다 */
 export function realTapeClock(): Clock & Scheduler {
-  const timers = new Map<TimerHandle, ReturnType<typeof setTimeout>>();
-  let next = 1;
+  const clock = systemClock();
+  const scheduler = systemScheduler();
   return {
-    now: () => Date.now(),
-    setTimeout(fn, ms) {
-      const handle = next;
-      next += 1;
-      timers.set(handle, setTimeout(fn, ms));
-      return handle;
-    },
-    clearTimeout(handle) {
-      const timer = timers.get(handle);
-      if (timer !== undefined) clearTimeout(timer);
-      timers.delete(handle);
+    now: () => clock.now(),
+    setTimeout: (fn, ms) => scheduler.setTimeout(fn, ms),
+    clearTimeout: (handle) => {
+      scheduler.clearTimeout(handle);
     },
   };
 }

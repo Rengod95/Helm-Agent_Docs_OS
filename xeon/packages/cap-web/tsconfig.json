@@ -3,7 +3,19 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "dist",
-    "tsBuildInfoFile": "dist/.tsbuildinfo"
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "lib": ["es2024", "esnext.disposable", "dom"]
   },
-  "include": ["src", "test"]
+  "include": ["src", "test"],
+  "references": [
+    {
+      "path": "../contracts"
+    },
+    {
+      "path": "../core-tools"
+    },
+    {
+      "path": "../platform-store"
+    }
+  ]
 }

@@ -83,14 +83,24 @@ export interface TestHost {
   restart(overrides?: Omit<TestHostOptions, "shared">): Promise<TestHost>;
 }
 
+/** 호스트가 한 기록 저장소를 거치며 발급한 수. 재시작한 호스트가 이전 호스트와 같은 id를 다시 내지 않게 하는 데 쓴다 */
+const hostsPerStore = new WeakMap<MemoryRecordStore, number>();
+const ID_RANGE_PER_HOST = 1_000_000;
+
+function idSeedOf(records: MemoryRecordStore): number {
+  const earlier = hostsPerStore.get(records) ?? 0;
+  hostsPerStore.set(records, earlier + 1);
+  return earlier * ID_RANGE_PER_HOST;
+}
+
 /** M0 인메모리 포트로 동작하는 ExtHost와 도우미 묶음(X.primitives.plan P-14) */
 export async function createTestHost(options: TestHostOptions = {}): Promise<TestHost> {
   const timers = options.timers ?? fakeTimers();
-  const ids = fixedIdFactory();
+  const records = options.shared?.records ?? memoryRecordStore();
+  const ids = fixedIdFactory(idSeedOf(records));
   const diagnostics: ExtDiagnostic[] = [];
   const loop = options.shared?.loop ?? memoryLoopPort(options.loop);
   const queue = options.shared?.queue ?? memoryInputQueue();
-  const records = options.shared?.records ?? memoryRecordStore();
   const host = createExtHost({
     ids,
     now: timers.now,

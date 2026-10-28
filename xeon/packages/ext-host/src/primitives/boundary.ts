@@ -12,6 +12,7 @@ import {
 import type { DurableEventDraft } from "@xeon/contracts/records";
 import type { BoundarySignal, BoundaryTxn, HostCore, ThreadRuntime } from "./core.ts";
 import { makeDraft } from "./drafts.ts";
+import { PrimitiveError } from "./errors.ts";
 import { keyPart } from "./keys.ts";
 import type { LeaseBroker } from "./lease.ts";
 import type { ScopeRuntime } from "./scope.ts";
@@ -39,13 +40,13 @@ export interface BoundaryService extends BoundaryHooks {
 
 const EMPTY_SNAPSHOT: ExtThreadSnapshot = {
   enabled: [],
+  disabled: [],
+  scopeTransitions: {},
+  enabledAtSeq: {},
   states: [],
   openLease: null,
   leaseEpochs: {},
 };
-
-/** 낡은 키 충돌을 피해 전이 횟수를 올려 다시 시도하는 최대 횟수 */
-const MAX_KEY_PROBES = 64;
 
 /** 키에 넣는 scope id의 `/`는 `:`로 바꾼다(X.primitives.spec §4.5.5, COMMIT_KEY_PATTERN에 `/`가 없다) */
 function keyScopeId(scopeId: string): string {
@@ -91,46 +92,24 @@ function commitPlanOf(
   return { requestId, fingerprintSource: parts };
 }
 
-/** 저장된 켜짐 기록이 이 경계의 scope 전이와 어긋나면, replayed는 이전 실행의 같은 키에 걸린 것이다 */
-async function replayIsStaleScopeKey(
-  port: RecordCommitPort,
-  thread: ThreadRuntime,
-  txn: BoundaryTxn,
-): Promise<boolean> {
-  if (txn.recordEnabled.length === 0 && txn.recordDisabled.length === 0) return false;
-  const stored = new Set((await port.loadThread(thread.threadId)).enabled);
-  return (
-    txn.recordEnabled.some((id) => !stored.has(id)) ||
-    txn.recordDisabled.some((id) => stored.has(id))
-  );
-}
-
 /**
- * 유휴 경계 커밋 하나. 재시작 뒤에는 thread.flips와 세대 번호가 처음부터 다시 세어져, 이전 실행이 이미 쓴 키와 같은 키가 나올 수 있다.
- * `replayed`인데 저장된 켜짐 기록이 이 경계가 원하는 상태와 다르면 낡은 키에 걸린 것이므로 전이 횟수를 올려 새 키로 다시 커밋한다.
- * 근본 해결은 ExtThreadSnapshot이 전이 횟수를 싣는 F 변경이다(X.primitives.spec 열린 항목)
+ * 유휴 경계 커밋 하나. 재시작 뒤에도 `thread.flips`가 `ExtThreadSnapshot.scopeTransitions`에서 시작하므로
+ * 이전 실행이 쓴 키와 같은 키가 나오지 않는다(커밋 키는 `commitPlanOf`)
  */
-async function commitIdleTxn(
+function commitIdleTxn(
   core: HostCore,
   port: RecordCommitPort,
   thread: ThreadRuntime,
   txn: BoundaryTxn,
   drafts: readonly DurableEventDraft[],
-  probes = 0,
 ): Promise<ExtCommitResult> {
   const plan = commitPlanOf(core, txn);
-  const result = await port.commit({
+  return port.commit({
     threadId: thread.threadId,
     requestId: plan.requestId,
     fingerprintSource: plan.fingerprintSource,
     drafts,
   });
-  if (result.status !== "replayed" || probes >= MAX_KEY_PROBES) return result;
-  if (!(await replayIsStaleScopeKey(port, thread, txn))) return result;
-  for (const id of [...txn.recordEnabled, ...txn.recordDisabled]) {
-    thread.flips.set(id, (thread.flips.get(id) ?? 0) + 1);
-  }
-  return commitIdleTxn(core, port, thread, txn, drafts, probes + 1);
 }
 
 export function createBoundary(
@@ -209,6 +188,28 @@ export function createBoundary(
     return { drafts: [...txn.drafts] };
   }
 
+  /** 방금 커밋된 켜짐의 seq는 커밋 결과에 없어 저장소에서 다시 읽는다. 읽지 못하면 그 scope는 seq 없이(null) 중재한다 */
+  async function refreshEnabledAtSeq(
+    thread: ThreadRuntime,
+    ids: readonly ScopeId[],
+  ): Promise<void> {
+    const port = core.ports.get(RecordCommitPortKey);
+    if (port === undefined) return;
+    const loaded = await port.loadThread(thread.threadId);
+    if (!loaded.ok) {
+      core.deps.report({
+        level: "warning",
+        code: "storage_unavailable",
+        message: "enabledAtSeq could not be refreshed after the scope.changed commit",
+      });
+      return;
+    }
+    for (const id of ids) {
+      const seq = loaded.value.enabledAtSeq[id];
+      if (seq !== undefined) thread.enabledAtSeq.set(id, seq);
+    }
+  }
+
   async function settle(signal: BoundarySignal, result: "committed" | "failed"): Promise<void> {
     const thread = core.threads.get(signal.threadId);
     const txn = thread?.txn;
@@ -222,8 +223,10 @@ export function createBoundary(
       }
       for (const id of txn.recordDisabled) {
         thread.recordedEnabled.delete(id);
+        thread.enabledAtSeq.delete(id);
         thread.flips.set(id, (thread.flips.get(id) ?? 0) + 1);
       }
+      if (txn.recordEnabled.length > 0) await refreshEnabledAtSeq(thread, txn.recordEnabled);
       lease.applyCommitted(thread, txn);
       lease.onBoundary(thread, signal);
     } else {
@@ -313,7 +316,18 @@ export function createBoundary(
     async openThread(threadId) {
       if (core.threads.has(threadId)) await this.closeThread(threadId);
       const port = core.ports.get(RecordCommitPortKey);
-      const snapshot = port === undefined ? EMPTY_SNAPSHOT : await port.loadThread(threadId);
+      let snapshot = EMPTY_SNAPSHOT;
+      if (port !== undefined) {
+        // 읽기 연결의 busy·io·손상 행은 예상 가능한 실패다. 빈 스냅샷으로 열면 켜짐과 상태 판을 잃은 채 이어 쓰게 되므로 열지 않는다
+        const loaded = await port.loadThread(threadId);
+        if (!loaded.ok) {
+          throw new PrimitiveError(
+            "storage_unavailable",
+            `the thread's extension state could not be read: ${loaded.error.kind}`,
+          );
+        }
+        snapshot = loaded.value;
+      }
       const thread: ThreadRuntime = {
         threadId,
         abort: new AbortController(),
@@ -325,9 +339,11 @@ export function createBoundary(
         ),
         recordedEnabled: new Set(snapshot.enabled),
         active: new Set(),
-        want: new Map(),
+        // 끈 scope는 기본 켜짐이어도 다시 열 때 꺼진 채로 둔다. 기록이 같으므로 scope.changed를 다시 쓰지 않는다
+        want: new Map(snapshot.disabled.map((id) => [id, { enabled: false, reason: undefined }])),
         refused: new Set(),
-        flips: new Map(),
+        flips: new Map(Object.entries(snapshot.scopeTransitions)),
+        enabledAtSeq: new Map(Object.entries(snapshot.enabledAtSeq)),
         leaseEpochs: new Map(Object.entries(snapshot.leaseEpochs)),
         lease: null,
         cooldown: new Map(),

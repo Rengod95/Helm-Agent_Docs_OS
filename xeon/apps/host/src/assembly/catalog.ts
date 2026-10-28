@@ -15,8 +15,14 @@ import {
   type SettingGroup,
   type SettingNamespace,
 } from "@xeon/contracts/settings";
+import { DIALOG_SETTING_DEFS } from "@xeon/cap-dialog";
+import { KNOWLEDGE_SETTING_DEFS } from "@xeon/cap-knowledge";
+import { MCP_SETTING_DEFS } from "@xeon/cap-mcp";
+import { WEB_SETTING_DEFS } from "@xeon/cap-web";
+import { WORK_SETTING_DEFS } from "@xeon/cap-work";
 import { WORKSPACE_SETTING_DEFS } from "@xeon/cap-workspace";
 import { helmSettings } from "@xeon/group-helm";
+import { groupKitSettings } from "@xeon/group-kit";
 import { loadingTrustSettings, operationsSettings, primitivesSettings } from "@xeon/ext-host";
 import { EXEC_SETTING_DEFS } from "@xeon/platform-exec";
 import { OS_SETTING_DEFS } from "@xeon/platform-os";
@@ -66,6 +72,12 @@ export function coreSettingGroups(): readonly CatalogGroupInput[] {
     ofDefs("core-loop", "l1.loop", LOOP_SETTING_DEFS),
     ofGroup("core-tasks", tasksSettings),
     ofDefs("cap-workspace", "l2.workspace", WORKSPACE_SETTING_DEFS),
+    ofDefs("cap-web", "l2.web", WEB_SETTING_DEFS),
+    ofDefs("cap-knowledge", "l2.knowledge", KNOWLEDGE_SETTING_DEFS),
+    ofDefs("cap-mcp", "l2.mcp", MCP_SETTING_DEFS),
+    ofDefs("cap-work", "l2.work", WORK_SETTING_DEFS),
+    ofDefs("cap-dialog", "l2.dialog", DIALOG_SETTING_DEFS),
+    ofGroup("group-kit", groupKitSettings),
     ofGroup("group-helm", helmSettings),
     ofGroup("host", hostSettings),
   ];

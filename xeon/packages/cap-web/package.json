@@ -10,10 +10,23 @@
     "lint": "oxlint --type-aware --deny-warnings -c ../../.oxlintrc.json src test",
     "typecheck": "tsc -b",
     "test": "bun test",
-    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test"
+    "fmt-check": "oxfmt --check -c ../../.oxfmtrc.json src test",
+    "web-pricing": "bun src/cost/pricing-cli.ts"
+  },
+  "dependencies": {
+    "@mozilla/readability": "catalog:",
+    "@xeon/contracts": "workspace:*",
+    "defuddle": "catalog:",
+    "guarded-fetch": "catalog:",
+    "linkedom": "catalog:",
+    "turndown": "catalog:",
+    "typebox": "catalog:"
   },
   "devDependencies": {
-    "@types/bun": "catalog:"
+    "@types/bun": "catalog:",
+    "@types/turndown": "catalog:",
+    "@xeon/core-tools": "workspace:*",
+    "@xeon/platform-store": "workspace:*"
   },
   "xeon": {
     "layer": "L2",

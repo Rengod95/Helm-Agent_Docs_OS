@@ -5,6 +5,7 @@ import type { Redactor, TieredRule } from "@xeon/contracts/services";
 import type { ExtHost } from "@xeon/ext-host";
 import type { CapabilityResolver } from "./entries.ts";
 import type { LockEnv, ToolTasks } from "./tasks.ts";
+import type { SecretChecker } from "./secret-gate.ts";
 import type { ToolsScalarConfig } from "./settings.ts";
 import type { OutputTruncator } from "./types.ts";
 
@@ -31,6 +32,8 @@ export interface ToolsDeps {
   readonly lockEnv: LockEnv | undefined;
   readonly truncator: OutputTruncator;
   readonly redactor: Redactor;
+  /** 비밀 사용 정책 판정(`check`). 없으면 `secretEnv`를 쓰는 호출은 거부한다 */
+  readonly secrets: SecretChecker | undefined;
   readonly ext: Pick<ExtHost, "dispatch">;
   readonly resolveCapability: CapabilityResolver;
   /** 대화의 현재 설정을 읽는다. threadId가 null이면 세션 범위 층 없이 읽는다 */

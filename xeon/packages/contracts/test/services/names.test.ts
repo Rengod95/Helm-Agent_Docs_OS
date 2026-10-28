@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   AgentServiceName,
+  AgentServicePortKey,
   ApprovalServiceName,
   ApprovalServicePortKey,
   ContextPortKey,
@@ -11,6 +12,7 @@ import {
   ExecServiceName,
   GroupServiceName,
   LoopServiceName,
+  LoopServicePortKey,
   McpServiceName,
   ModelServiceName,
   ModelServicePortKey,
@@ -101,6 +103,9 @@ describe("SERVICE_NAMES", () => {
     expect(TaskServicePortKey.name).toBe(InputQueuePortKey.name);
     expect(ToolServicePortKey).toEqual({ name: SERVICE_NAMES.tools });
     expect(ToolServicePortKey.name).toBe(ToolsPortKey.name);
+    expect(AgentServicePortKey).toEqual({ name: SERVICE_NAMES.agents });
+    expect(LoopServicePortKey).toEqual({ name: SERVICE_NAMES.loop });
+    expect(LoopServicePortKey.name).toBe(LoopPortKey.name);
     expect(ApprovalServicePortKey).toEqual({ name: SERVICE_NAMES.approvals });
     expect(SecretServicePortKey).toEqual({ name: SERVICE_NAMES.secrets });
   });

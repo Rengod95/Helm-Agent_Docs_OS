@@ -7,6 +7,8 @@ import { threadLocked } from "./handlers/owner.ts";
 // (F.wire-settings.spec §3.5.2 store.*).
 
 const CODE_MAX = 64;
+/** store.corrupt의 details.where 상한(F wire §3.5.2) */
+const WHERE_MAX = 128;
 
 /** StoreError → 와이어 오류. where는 개발자용 메시지 앞머리다 */
 export function wireErrorOfStore(error: StoreError, where: string): WireError {
@@ -21,10 +23,10 @@ export function wireErrorOfStore(error: StoreError, where: string): WireError {
         details: { code: error.code.slice(0, CODE_MAX) },
       });
     case "row_invalid":
-      // 저장된 행이 모양과 다르다(손상, 수동 편집). 저장 매체 문제로 보이므로 store.io로 옮긴다(위치 이름은 메시지에만 싣는다)
-      return wireError("store.io", {
-        message: `${where}: stored row is invalid (${error.where.slice(0, CODE_MAX)})`,
-        details: { code: "row_invalid" },
+      // 저장된 행이 모양과 다르다(손상, 수동 편집). 매체 오류(store.io)와 복구 안내가 달라서 store.corrupt로 알린다(F.records.spec §3.7 7항)
+      return wireError("store.corrupt", {
+        message: `${where}: stored row is invalid`,
+        details: { where: error.where.slice(0, WHERE_MAX) },
       });
     case "read_only":
       return wireError("store.readOnly", {
@@ -56,14 +58,58 @@ export function wireErrorOfLease(
         details: { code: error.code.slice(0, CODE_MAX) },
       });
     case "row_invalid":
-      return wireError("store.io", {
-        message: `${where}: lease row is invalid (${error.where.slice(0, CODE_MAX)})`,
-        details: { code: "row_invalid" },
+      return wireError("store.corrupt", {
+        message: `${where}: lease row is invalid`,
+        details: { where: error.where.slice(0, WHERE_MAX) },
       });
     case "lease_lost":
       return threadLocked(null);
     default:
       return assertNever(error, "LeaseError");
+  }
+}
+
+/**
+ * 저장소의 `key_reused`를 호출 결함으로 판정하는 자리는 여기 하나다(수명 주기, 생성, 설정 쓰기가 같이 쓴다).
+ * 호스트는 요청 키를 호출마다 새로 만든다. 같은 키가 다른 내용으로 다시 오는 것은 호스트가 키를 잘못 다뤘다는 불변 조건 위반이다
+ */
+export function keyReusedBug(error: { readonly kind: "key_reused" }, where: string): Bug {
+  return new Bug(`${where}: the host builds a fresh request key per call`, { cause: error });
+}
+
+/**
+ * 수명 주기 호출(fork, revert, delete)의 오류. 예상 가능한 실패는 와이어 오류로 옮긴다(F wire §3.5.2).
+ * `key_reused`는 호출마다 새 요청 키를 만드는 호스트에서는 나올 수 없다(불변 조건 위반이라 Bug)
+ */
+export function wireErrorOfLifecycle(error: LifecycleError, where: string): WireError | Bug {
+  switch (error.kind) {
+    case "busy":
+    case "disk_full":
+    case "io":
+    case "read_only":
+    case "row_invalid":
+    case "ownership_lost":
+    case "thread_not_found":
+      return wireErrorOfStore(error, where);
+    case "not_owner":
+      return threadLocked(null);
+    case "thread_closed":
+      // 종결된 thread에는 쓰기와 수명 주기 호출을 할 수 없다. 읽기와 삭제는 허용한다(F wire §3.5.2 3007)
+      return wireError("thread.closed", { details: { threadId: error.threadId } });
+    case "turn_running":
+      return wireError("turn.busy", { details: { turnId: error.turnId } });
+    case "has_forks":
+      return wireError("thread.hasForks", { details: { forks: [...error.forks] } });
+    case "invalid_target":
+      return wireError("thread.invalidTarget", { details: { reason: error.reason } });
+    case "cancelled_by_extension":
+      return wireError("thread.cancelledByExtension", {
+        details: { point: error.point, reason: error.reason },
+      });
+    case "key_reused":
+      return keyReusedBug(error, where);
+    default:
+      return assertNever(error, "LifecycleError");
   }
 }
 
@@ -78,6 +124,8 @@ export function wireErrorOfCreate(error: LifecycleError, where: string): WireErr
     case "ownership_lost":
     case "thread_not_found":
       return wireErrorOfStore(error, where);
+    case "key_reused":
+      return keyReusedBug(error, where);
     case "not_owner":
     case "thread_closed":
     case "turn_running":

@@ -6,6 +6,7 @@ import type {
   SecretHandle,
   SecretMeta,
   SecretName,
+  SecretApprovalEvidence,
   SecretProviderId,
   SecretRefError,
   SecretUseMode,
@@ -32,13 +33,8 @@ export type SecretUseTarget =
   /** env */
   | { readonly kind: "command"; readonly argv0: string; readonly commandLine: string };
 
-export interface ApprovalEvidence {
-  /** L1 ApprovalService가 발급한 id */
-  readonly approvalId: string;
-  readonly scope: "per-session" | "per-use";
-  readonly grantedAt: number;
-  readonly expiresAt: number | null;
-}
+/** 비밀 사용 승인 증거. 정본은 capabilities의 `SecretApprovalEvidence`다(`CallContext.approval`이 같은 타입을 쓴다) */
+export type ApprovalEvidence = SecretApprovalEvidence;
 
 export interface UseCtx {
   readonly mode: SecretUseMode;
@@ -267,6 +263,18 @@ export type SecretError =
   | { readonly kind: "already_exists"; readonly handle: SecretHandle }
   | { readonly kind: "read_only_provider"; readonly provider: SecretProviderId }
   | { readonly kind: "reauth_required" }
+  /** 감사 파일을 쓸 수 없다. 기록 없이는 진행하면 안 되는 동작(값 열람 등)이 이 오류로 멈춘다. code는 OS 오류 코드나 이름만 싣는다 */
+  | { readonly kind: "audit_unwritable"; readonly path: string; readonly code: string }
+  /**
+   * 쓰기가 실패했다. target은 쓰던 대상(키 파일, OS 키 저장소, SOPS 비밀 파일), code는 OS 오류 코드나 이름이며 값은 싣지 않는다.
+   * 이미 있는 키 파일을 덮어쓰지 않을 때는 EEXIST다. `sops_file`의 code는 OS 오류 코드 또는 `sops_encrypt_failed`, `recipient_unknown`, `unsupported_format`, `lock_timeout`이다
+   */
+  | {
+      readonly kind: "write_failed";
+      readonly target: "key_file" | "key_store" | "sops_file";
+      readonly path: string;
+      readonly code: string;
+    }
   /** 서비스가 닫히면서 진행 중이던 sops 호출이나 바이너리 해석이 중단됐다 */
   | { readonly kind: "cancelled" };
 

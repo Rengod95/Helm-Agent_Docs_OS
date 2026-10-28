@@ -39,7 +39,7 @@ function storeService(
 
 async function installed(migrations?: (store: TestStore) => MigrationRunner) {
   const clock = manualClock();
-  const store = openTestStore({ now: () => clock.now() });
+  const store = await openTestStore({ clock });
   // 테스트 호스트의 기본 기록 포트(메모리)는 끈다: xeon.session의 ext 속성이 그 자리를 채운다
   const host = await createTestHost({ without: ["records"] });
   const service = storeService(store, migrations?.(store));

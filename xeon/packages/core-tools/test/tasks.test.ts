@@ -243,7 +243,9 @@ function lockedHarness(h: Harness) {
     clock: deps.clock,
     ext: deps.ext,
     logger: undefined,
-    runOf: () => undefined,
+    callOf: () => undefined,
+    modeOf: () => "default",
+    setMode: (_thread, mode) => Promise.resolve({ ok: true, mode }),
   });
   const pipeline = createPipeline(deps, registry, calls, approvals);
   const toolEntry = entry("write");

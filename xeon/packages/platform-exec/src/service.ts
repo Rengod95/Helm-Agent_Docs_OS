@@ -32,6 +32,11 @@ export interface ExecServiceOptions {
   readonly outputSpillBytes: number;
   /** l0.exec.envAllowlist.extra */
   readonly envExtra: readonly string[];
+  /**
+   * 임시 디렉터리와 출력 spill 파일을 두는 디렉터리(조립 루트가 `<dirs.state>/spill`을 넘긴다, L0.exec.spec §3.8).
+   * 없으면 OS 임시 폴더를 쓴다(원본 동작). 평문 출력이 남으므로 운영 조립은 항상 넘긴다.
+   */
+  readonly tempDir?: string;
 }
 
 export interface ExecServiceDeps {
@@ -107,6 +112,7 @@ export function createExecService(options: ExecServiceOptions, deps: ExecService
       cwd,
       platform: deps.platform,
       ...(options.shellPath === undefined ? {} : { shellPath: options.shellPath }),
+      ...(options.tempDir === undefined ? {} : { tempRoot: options.tempDir }),
       // 정리 단계 close 실패와 감시 콜백 예외를 기록한다(open-issues N-10, PATCHES P16)
       ...(deps.logger === undefined ? {} : { logger: deps.logger }),
     });

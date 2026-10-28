@@ -23,6 +23,7 @@ import {
   type WireRequestContext,
   type WireResult,
 } from "@xeon/contracts/wire";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import { startEventFanout } from "./handlers/events.ts";
 import { isNotImplemented } from "./handlers/not-implemented.ts";
 import type {
@@ -50,6 +51,8 @@ export const REPLAY_SCAN_LIMIT = 10_000;
 export const SEND_LOW_WATER_BYTES = 1_048_576;
 /** 송신 큐가 이 값을 넘으면 연결을 닫는다: WIRE_LIMITS.maxFrameBytes의 64배(HS-05) */
 const SEND_QUEUE_MAX_BYTES: number = WIRE_LIMITS.maxFrameBytes * 64;
+/** 종료 때 송신 큐가 비기를 기다리는 최대 시간(ms) */
+const CLOSE_FLUSH_MS = 1000;
 /** 종료 중 새 요청에 돌려주는 재시도 대기(HS-31) */
 const SHUTDOWN_RETRY_AFTER_MS = 1000;
 
@@ -91,6 +94,7 @@ function createSendQueue(
 ): SendQueue & { close(): void } {
   const queue: { readonly message: JsonRpcMessage; readonly bytes: number }[] = [];
   const waiters = new Set<{ readonly resolve: (outcome: SendWaitOutcome) => void }>();
+  const idleWaiters = new Set<() => void>();
   const state = { queued: 0, pumping: false, closed: false };
   const maxBytes = limits.sendQueueMaxBytes ?? SEND_QUEUE_MAX_BYTES;
 
@@ -102,12 +106,20 @@ function createSendQueue(
     }
   }
 
+  function settleIdle(): void {
+    for (const resolve of Array.from(idleWaiters)) {
+      idleWaiters.delete(resolve);
+      resolve();
+    }
+  }
+
   function dropAll(): void {
     state.closed = true;
     state.pumping = false;
     queue.length = 0;
     state.queued = 0;
     settleWaiters();
+    settleIdle();
   }
 
   function fail(caught: unknown): void {
@@ -135,6 +147,7 @@ function createSendQueue(
         queue.shift();
         state.queued -= head.bytes;
         settleWaiters();
+        if (queue.length === 0) settleIdle();
         drain();
         return undefined;
       },
@@ -161,6 +174,12 @@ function createSendQueue(
     },
     get bytes() {
       return state.queued;
+    },
+    drained() {
+      if (state.closed || queue.length === 0) return Promise.resolve();
+      return new Promise<void>((resolve) => {
+        idleWaiters.add(resolve);
+      });
     },
     waitBelowLowWater(signal) {
       if (state.closed) return Promise.resolve("closed");
@@ -193,6 +212,26 @@ interface HubInternals {
 }
 
 export function createConnectionHub(engine: Engine, handlers: WireHandlers): ConnectionHub {
+  const { scheduler } = engine.ports;
+
+  /** 송신 큐가 비거나 ms가 지날 때까지 기다린다 */
+  function flushWithin(sender: SendQueue, ms: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      const timer = scheduler.setTimeout(resolve, ms);
+      detach(
+        sender.drained().then(() => {
+          scheduler.clearTimeout(timer);
+          resolve();
+          return undefined;
+        }),
+        () => {
+          scheduler.clearTimeout(timer);
+          resolve();
+        },
+      );
+    });
+  }
+
   const internals: HubInternals = {
     connections: new Map(),
     sizeListeners: new Set(),
@@ -228,12 +267,31 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
     return { kind: "result", result };
   }
 
+  /**
+   * HS-27: 연결이 떠난 뒤 그 thread를 쓰기로 연 연결이 이 프로세스에 더 없고 진행 중인 turn이 없으면 잠금을 푼다.
+   * 서비스 모드만 이렇게 한다. in-process·stdio는 프로세스 종료 때 커널이 푼다.
+   */
+  function releaseUnused(threads: readonly ThreadId[]): void {
+    if (engine.mode !== "service") return;
+    for (const threadId of threads) {
+      const stillOpen = Array.from(internals.connections.values()).some((other) =>
+        other.writeThreads.has(threadId),
+      );
+      if (stillOpen || engine.ports.turns.isLive(threadId)) continue;
+      detach(engine.ports.locks.release(threadId), (caught) => {
+        log.error("lease.release_failed", { threadId, message: messageOf(caught) });
+      });
+    }
+  }
+
   function serve(transport: Transport, serveOptions: ServeOptions): ServedConnection {
     counter.connections += 1;
     const connectionId = `c${counter.connections}`;
     const closedWaiter = Promise.withResolvers<CloseInfo>();
     const closing: { override: CloseInfo | undefined } = { override: undefined };
     const inflight = new Map<RpcId, AbortController>();
+    /** `$/connectionReset`으로 끝낸 요청의 컨트롤러. 이전 화면이 보낸 요청이라 응답을 내지 않는다 */
+    const droppedByReset = new WeakSet<AbortController>();
     const afterResponse = new Map<RpcId, (() => void)[]>();
     const subCounter = { value: 0 };
 
@@ -255,6 +313,8 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       experimental: [],
       subs: new Map(),
       openThreads: new Set(),
+      writeThreads: new Set(),
+      observedThreads: new Set(),
       limits: serveOptions.limits,
       sender,
       afterResponse(rpcId, fn) {
@@ -287,8 +347,12 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       for (const sub of state.subs.values()) sub.open = false;
       state.subs.clear();
       state.openThreads.clear();
+      state.observedThreads.clear();
+      const written = Array.from(state.writeThreads);
+      state.writeThreads.clear();
       internals.connections.delete(connectionId);
       internals.served.delete(connectionId);
+      releaseUnused(written);
       emitSize();
       closedWaiter.resolve(closing.override ?? info);
     }
@@ -324,6 +388,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
     ): Promise<void> {
       try {
         const outcome = await runHandler(method, rawParams, makeContext(rpcId, controller));
+        if (droppedByReset.has(controller)) return;
         if (outcome.kind === "invalidParams") {
           respondError(
             rpcId,
@@ -349,6 +414,7 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
         sender.push({ jsonrpc: "2.0", id: rpcId, result: toRecord(outcome.result) });
         runAfterResponse(rpcId);
       } catch (caught) {
+        if (droppedByReset.has(controller)) return;
         afterResponse.delete(rpcId);
         if (caught instanceof WireError) {
           respondError(rpcId, toJsonRpcError(caught));
@@ -411,11 +477,38 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       try {
         await invoke(method, request.params, id, controller);
       } finally {
-        inflight.delete(id);
+        // 재설정 뒤 새 화면이 같은 id로 다시 보냈다면 그 항목을 지우지 않는다
+        if (inflight.get(id) === controller) inflight.delete(id);
       }
     }
 
+    /**
+     * `$/connectionReset`(F.wire-settings.spec §4.1 7번): 클라이언트 화면이 다시 시작되어 이전 화면의 상태를 버린다.
+     * 진행 중 요청은 응답 없이 중단하고, 이 연결의 구독과 열린 thread 표시를 지우고, hello 이전 상태로 돌아간다.
+     * 진행 중인 turn과 thread 쓰기 잠금은 건드리지 않는다. 새 화면이 `host.hello`, `thread.open`, `events.subscribe`를 다시 보낸다
+     */
+    function resetConnection(): void {
+      if (state.phase !== "ready") return; // hello 전에는 지울 상태가 없다
+      for (const controller of inflight.values()) {
+        droppedByReset.add(controller);
+        controller.abort();
+      }
+      inflight.clear();
+      afterResponse.clear();
+      for (const sub of state.subs.values()) sub.open = false;
+      state.subs.clear();
+      state.openThreads.clear();
+      state.observedThreads.clear();
+      state.experimental = [];
+      state.phase = "awaitingHello";
+      log.info("connection.reset", { connectionId });
+    }
+
     function handleNotification(method: string, params: Record<string, unknown>): void {
+      if (method === "$/connectionReset") {
+        resetConnection();
+        return;
+      }
       if (method !== "$/cancelRequest") return;
       if (state.phase === "awaitingHello") return; // F wire §4.1 1: hello 전의 취소는 무시한다
       const parsed = parse(WIRE_CLIENT_NOTIFICATIONS["$/cancelRequest"].params, params);
@@ -485,6 +578,12 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
       };
     },
     async closeAll(reason) {
+      // 마지막 응답(예: host.shutdown의 accepted)이 나간 뒤 닫는다. 상대가 읽지 않아 큐가 비지 않으면 시한까지만 기다린다
+      await Promise.all(
+        Array.from(internals.connections.values()).map((state) =>
+          flushWithin(state.sender, CLOSE_FLUSH_MS),
+        ),
+      );
       const all = Array.from(internals.served.values());
       await Promise.all(all.map((connection) => connection.close(reason)));
     },
@@ -497,10 +596,14 @@ export function createConnectionHub(engine: Engine, handlers: WireHandlers): Con
     beginShutdown() {
       internals.shuttingDown = true;
     },
+    releaseUnused,
+    watchObserved() {
+      fanout.watchObserved();
+    },
     dispose() {
-      stopFanout();
+      fanout.stop();
     },
   };
-  const stopFanout = startEventFanout(engine, hub);
+  const fanout = startEventFanout(engine, hub);
   return hub;
 }

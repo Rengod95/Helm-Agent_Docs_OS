@@ -93,7 +93,7 @@ xeon/packages/cap-work/
 |---|---|---|---|---|
 | T1 | F `capabilities/defs/work.ts`(네 정의, 스키마, `WorkService`, `PlanApprovalSubject`·`PlanApprovalAnswer`)와 `records/catalog/work.ts`(`WORK_EVENT_CATALOG` 10종, `CatalogEntry` 형식) 추가. `work` 영역과 `owners.ts`의 `work.` 행(F.records §3.3.2), `CallOptions.context`(F.capabilities §3.2)는 F에 있으므로 확인만 한다. 선행 작업: F.capabilities.plan의 `defineCapability`·`validateCapability`, F.records.plan의 카탈로그 형식 | F.capabilities.plan 정의 형식 완료, F.records.plan 카탈로그 완료 | M | M2 |
 | T2 | 작업 모델: 상태 전이 표(§4.1.2), 막힘 계산, 순환 검사(DFS, 경로 반환), `write` 연산 적용(임시 참조 해석, 전부 또는 전무) | T1 | M | M2 |
-| T3 | `task_write` 도구와 `work.tasks` 서비스(create/update/link/list/write), 스레드별 쓰기 큐, 순번 ID 발급, 투영기 `cap.work`의 작업 부분(`cap_work_tasks`, `cap_work_task_edges`, `cap_work_meta`), 자동 시작, 방치 알림 핸들러 | T2, L1.persistence(커밋·투영기 등록) | L | M2 |
+| T3 | `task_write` 도구와 `work.tasks` 서비스(create/update/link/list/write), 스레드별 쓰기 큐, 순번 ID 발급, 투영기 `cap.work`의 작업 부분(`cap_work_tasks`, `cap_work_edges`, `cap_work_meta`), 자동 시작, 방치 알림 핸들러 | T2, L1.persistence(커밋·투영기 등록) | L | M2 |
 | T4 | 계획 객체와 버전: 상태 모델, `work.plan_submitted`·`work.plan_withdrawn` 커밋, 투영(`cap_work_plans`)의 `approval.requested`·`approval.resolved` 반영, `versions` | T3(투영기 골격) | M | M2 |
 | T5 | `enterMode`/`exitMode`와 `PermissionModePort`(L1.tools 권한 모드 연결). `requireApproval` 검사, 대기 버전 철회 | T4, L1.tools 권한 모드 API | M | M2 |
 | T6 | `submit_plan` → `xeon.approvals`(kind `plan`) 연결: `ApprovalsPort`, 제출 흐름(§4.2.4), `input_required`/`decided` 출력, `approve`/`reject`/`revise` 편의 메서드, 승인 해결 뒤 모드 복원 리스너, 재개 절차의 계획 부분 | T4, T5, L1.tools 승인 프로토콜 | L | M2 |
@@ -143,7 +143,7 @@ xeon/packages/cap-work/
 | `test/tasks-service.int.test.ts` | 자동 시작 | 설정 참이고 owner가 있으면 선행 완료 커밋에 `cause: "auto_start"` 변경이 함께 들어간다. owner가 null이면 들어가지 않는다 |
 | `test/projection.int.test.ts` | 재생성 동일성 | 무작위 연산열 뒤 `expectProjectionsRebuildable`(eng.events.design §5.4)이 통과한다 |
 | `test/reminder.test.ts` | 방치 알림 | `reminderTurns = 2`에서 변경 없이 2턴이 지나면 패치를 내고, 0이면 내지 않는다. 핸들러가 이벤트를 쓰지 않는다 |
-| `test/plans-versions.int.test.ts` | 계획 버전 보관 | v1 수정 요청 뒤 v2 제출 시 v1은 `revision_requested`로 남고 `versions`가 두 행을 돌려준다. 승인 대기 중 v2 제출은 `plan_pending` |
+| `test/plans-versions.int.test.ts` | 계획 버전 보관 | v1 수정 요청(피드백을 넣은 반려) 뒤 v2 제출 시 v1은 `rejected`로 남고 `versions`가 두 행을 돌려준다. 승인 대기 중 v2 제출은 `plan_pending` |
 | `test/plans-decision.int.test.ts` | 승인·반려·수정 분기 | 가짜 승인의 `allow`, `deny`, `answer(revise)` 각각에서 투영 상태와 `submit` 재호출 출력이 대응표(§4.2.3)와 같다 |
 | `test/plans-decision.int.test.ts` | 같은 레코드 형식 | `submit`이 만든 승인 요청이 kind `plan`이고 대상이 `PlanApprovalSubjectSchema`를 통과한다(`L2.dialog.plan`의 질문 테스트와 같은 payload 스키마 검사) |
 | `test/plans-mode.test.ts` | 승인 전 실행 단계 진입 금지 | `requireApproval = true`에서 승인 전 `exitMode`는 `plan_not_approved`이고 `restore` 호출이 없다. 승인 뒤 `exitOnApprove`면 `restore` 한 번 |
@@ -201,3 +201,80 @@ M3:
 | 작업 이벤트 증가에 따른 투영 비용 | 작업 수 상한 500, `write` 연산 50개 상한. 투영은 행 단위 갱신만 한다. 재생성 비용은 `projection.int.test`에서 이벤트 10,000개 기준 시간을 기록해 둔다 |
 | 판정과 사용자 턴의 경합 | 판정 중 새 턴이 시작되면 post를 생략한다. post 키를 `goal:<goalId>:<n>`으로 고정해 중복 투입을 막는다 |
 | 도구 없는 능력이 F에서 거부됨(W-3) | `goal_status` 읽기 도구 하나를 두는 대안을 준비한다. 판정 결과를 쓰는 도구는 두지 않는다 |
+
+## 8. M2 구현 기록
+
+`m2-plan` 트랙 WK의 진행을 적는다. 작업 ID와 규모의 정본은 §3이다.
+
+### 8.1 WK.1 (T2, T3): 작업 모델, `task_write`, 투영기
+
+| 항목 | 상태 | 위치 |
+|---|---|---|
+| T2 전이 표, 막힘 계산 | 완료 | `src/tasks/model.ts` |
+| T2 순환 검사(깊이 우선, 경로 반환) | 완료 | `src/tasks/graph.ts` |
+| T2 `write` 연산 적용(임시 참조, 전부 또는 전무, 자동 시작) | 완료 | `src/tasks/write.ts` `planWrite` |
+| T3 `work.tasks` 서비스(create, update, link, list, write), 스레드별 쓰기 큐 | 완료 | `src/tasks/service.ts`, `src/tasks/queue.ts` |
+| T3 `task_write` 도구 등록(`risk: "read"`) | 완료 | `src/plugin.ts` |
+| T3 투영기 `cap.work` 버전 1(작업 부분) | 완료 | `src/projection/*` |
+| T3 방치 알림(`before_agent_start`) | 완료 | `src/tasks/reminder.ts`, `src/plugin.ts` |
+| T8 설정 키 여섯 개 선언과 읽기 | 완료(선언은 여섯 개 모두, 읽는 곳은 `tasks.*` 둘) | `src/settings.ts` |
+
+파일 배치는 §2와 두 곳이 다르다.
+
+- 서비스 쓰기 경계의 오류 변환은 `src/errors.ts`, 규칙 거부 값은 `src/tasks/failure.ts`다. `src/service.ts` 조립은 `src/tasks/service.ts`에 있고 `src/plugin.ts`가 조립 루트다.
+- 포트 파일은 `src/ports/session.ts` 하나다. `xeon.session`의 부분(`commit`, `feed`, `projectors`)과 `cap_work_*` 읽기 핸들(`xeon.store`의 `scoped("cap.work")`)을 이름 붙여 둔다. `PermissionModePort`, `ApprovalsPort`, `JudgePort`는 해당 작업(WK.2·WK.3, T10)이 추가한다.
+
+시험은 `test/`에 있다. 실제 SQLite(`@xeon/platform-store/testing`) 위에 `core-persistence`의 세션 서비스를 올려 쓰고, 저장소를 배열로 흉내 내지 않는다.
+
+| 파일 | 확인하는 것(§5 대응) |
+|---|---|
+| `tasks-graph.test.ts`, `tasks-graph.prop.test.ts` | 간선 순환 거부, 순환 없음 성질(고정 시드 8개 × 간선 1,000개) |
+| `tasks-model.test.ts` | 전이 표 25칸, 막힘 계산 |
+| `tasks-write.test.ts` | write 전부 또는 전무, 임시 참조, 자동 시작, 상한, 이벤트 payload가 카탈로그 스키마를 통과 |
+| `tasks-service.int.test.ts` | 같은 requestId 재호출, 거부의 되풀이, `key_reused`, 효과 없는 호출, 직렬 큐, 스레드 분리 |
+| `projection.int.test.ts` | 재생성 동일성(무작위 연산열 3개 시드), 투영 행과 계획 상태의 일치, `cap_work_meta` |
+| `reminder.test.ts`, `plugin.test.ts` | 방치 알림(질의만, 이벤트를 쓰지 않음), 능력 제공, 도구 등록, 등록 거부 |
+| `defs.contract.test.ts`, `catalog.contract.test.ts`, `settings.test.ts` | 정의·카탈로그·설정 선언 |
+
+미충족과 통합 때 바꿀 것:
+
+- **투영기 등록부.** WK.2·WK.3 통합 때 대역(`projecting-session.ts`)을 지우고 실제 `session.projectors`를 쓴다. 같은 커밋 트랜잭션 안의 투영과 커밋 리스너 알림이 실제 순서로 동작한다. 실제 등록부가 테이블 이름 규칙(접두 뒤 지역 이름에 밑줄 없음)을 검사해 `cap_work_task_edges`를 `cap_work_edges`로 바꿨다.
+- **재생성 시간 기록.** 이벤트 10,000개 재생성 시간(§7)은 아직 재지 않았다. 실제 등록부로 바꿨으니 잴 수 있다.
+- **W-5.** 되감기 뒤 활성 가지 재생성은 구현하지 않았다(spec §4.1.5).
+
+### 8.2 WK.2 (T4, T5): 계획 객체와 버전, 모드 진입·이탈
+
+| 항목 | 상태 | 위치 |
+|---|---|---|
+| T4 계획 상태, `work.plan_submitted`·`work.plan_withdrawn` 커밋, 투영 `cap_work_plans`(승인 요청·해결 반영), `versions` | 완료 | `src/plans/service.ts`, `src/plans/model.ts`, `src/plans/decision.ts`, `src/projection/projector.ts` |
+| T5 `enterMode`·`exitMode`, `requireApproval` 검사, 대기 버전 철회 | 완료(F `ToolService.mode`·`setMode` 위. 시험은 core-tools의 실제 `ToolService`가 세션 설정 이벤트를 쓴다) | `src/ports/permission-mode.ts`, `src/plans/service.ts` |
+| T5 권한 모드 추적(직전 모드, 진입 시점) | 완료(세션 범위 `settings.changed`에서 투영) | `src/projection/projector.ts` |
+
+### 8.3 WK.3 (T6, T7, T8): 계획 제출·승인, 산출물, 설정·명령
+
+| 항목 | 상태 | 남은 일 |
+|---|---|---|
+| T6 `submit_plan` → 승인(kind `plan`), `input_required`·`decided`, `approve`·`reject`·`revise`, 승인 해결 뒤 모드 복원 리스너, 재개 절차 | 완료: core-tools의 실제 `ApprovalService` 위에서 시험한다. 어댑터는 `planApprovalsOver`(W-15). 수정 요청은 `deny` + `{ feedback }`(W-2 (c)) | SIGKILL 재개는 HOST.4의 한 엔진 시험 |
+| T7 계획 산출물 등록(선택 의존) | 부분: `PlanArtifactsPort`와 사용 가능·불가 두 경로를 시험했다 | `artifacts.registry` 정의가 F에 들어온 뒤 어댑터(L2.artifacts M3) |
+| T8 설정 키 여섯 개 | 완료 | 없음 |
+| T8 명령 `/plan`, `/tasks` | 부분: 등록 함수와 시험 완료 | `dialog.commands` 선택 의존 확정(W-10) 뒤 매니페스트 `optional`로 연결. `/goal`은 M3 |
+
+대역은 `@xeon/cap-work/testing`에 `createFakeArtifacts`(산출물 등록)만 둔다. 승인과 권한 모드는 대역이 없다: 시험은 core-tools의 `testing` 서브패스 `realTools`로 실제 `ToolService`·`ApprovalService`를 같은 실제 세션 위에 세우고(`test/support/l1.ts`가 요청 목록, 호출 기록, 요청 커밋 장애 주입의 관찰 창을 더한다), 플러그인이 기본으로 만드는 `planApprovalsOver`·`toolsPermissionMode`를 그대로 쓴다.
+
+시험 추가분:
+
+| 파일 | 확인하는 것(§5 대응) |
+|---|---|
+| `plans-versions.int.test.ts` | 계획 버전 보관, `plan_pending`, 같은 requestId 재호출 |
+| `plans-decision.int.test.ts` | 승인·반려(수정 요청 포함) 분기와 `submit` 재호출 출력, 계획 승인이 받지 않는 응답은 적용되지 않음, 같은 레코드 형식(E5, spec §9-1) |
+| `plans-mode.test.ts` | 승인 전 실행 단계 진입 금지(spec §9-5), 승인 뒤 복원 한 번, 승인자가 고른 모드, 정책이 그 사이 막은 모드로의 복원 거부 |
+| `plans-resume.fault.test.ts` | 승인 요청 전 강제 종료 뒤 복구에서 요청이 한 번만 생김, 재시작 뒤 응답이 `decided`를 한 번 냄(spec §9-9), L1.tools 서비스 재시작 뒤 빈 대기 목록을 이벤트에서 다시 채움 |
+| `plans-artifact.test.ts` | 산출물 선택 의존, 등록 멱등 |
+| `commands.test.ts`, `permission-mode.test.ts`, `plugin.test.ts` | 명령 등록, 권한 모드 어댑터, 플러그인 조립 |
+
+통합 결과(WK.2·WK.3, 2026-10-24):
+
+- `settings.changed` 대역은 지웠다. 권한 모드 쓰기는 실제 `sessionSettings.set`이다.
+- `WorkPluginOptions.approvals`는 생략할 수 있다. 생략하면 `xeon.approvals` 포트를 `planApprovalsOver`로 감싼다(W-15).
+- W-2 (c)는 수정 요청을 `deny` + `{ feedback }`로 옮겨 닫았다. 기록에서 반려와 구별되지 않으므로 `revision_requested`는 이 경로에서 만들어지지 않는다. 구별이 필요하면 F가 `DenyAnswer`에 필드를 더해야 한다.
+- 실제 등록부가 드러낸 결함 둘을 고쳤다. 테이블 이름 `cap_work_task_edges`(밑줄 규칙 위반)와, 승인 해결 리스너가 커밋 리스너 안에서 모드를 커밋하다가 `store.nested_write`로 거부된 것(마이크로태스크로 미룬다).

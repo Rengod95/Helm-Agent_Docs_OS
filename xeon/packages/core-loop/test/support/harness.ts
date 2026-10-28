@@ -1,4 +1,4 @@
-import { Bug, type Logger, type LogFields } from "@xeon/contracts";
+import { Bug, ok, type Logger, type LogFields } from "@xeon/contracts";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import { InputQueuePortKey, LoopPortKey, RecordCommitPortKey } from "@xeon/contracts/extensions";
 import { EVENT_CATALOG, type CatalogEntry } from "@xeon/contracts/records";
@@ -49,10 +49,18 @@ export interface HarnessOptions {
   readonly script?: readonly ScriptedResponse[];
   readonly tools?: readonly FakeToolDef[];
   readonly maxSteps?: number;
+  /** l1.loop.gate.maxContinues. 생략하면 기본 8 */
+  readonly gateMaxContinues?: number;
   readonly kindLookup?: (kind: string) => CatalogEntry | undefined;
   readonly modelCallsCapacity?: number;
   readonly maxResumeAttempts?: number;
   readonly cancelledByOwner?: () => boolean;
+  /** `user_bash` 페이로드의 `cwd`를 대화별로 돌려준다. 생략하면 빈 문자열 */
+  readonly workingDirectory?: (threadId: ThreadId) => string | undefined;
+  /** 환경 블록의 `platform` 줄 */
+  readonly platform?: string;
+  /** 승인 서비스 대역(`restore`만)을 루프에 건다. 재개 때 `await_input`이면 restore를 부르는지 본다 */
+  readonly withApprovals?: boolean;
   /** 루프 서비스를 만들지 않는다. 단계 함수를 직접 부르는 시험(loop-rig)이 `core.loop` 생산자를 쓰려고 한다 */
   readonly withoutLoop?: boolean;
 }
@@ -62,6 +70,10 @@ export interface Harness {
   readonly fake: FakeSession;
   readonly tasks: FakeTasks;
   readonly tools: FakeTools;
+  /** `restore`가 불린 thread. withApprovals가 아니면 비어 있다 */
+  readonly restored: readonly ThreadId[];
+  /** `cancel`로 닫은 승인 id */
+  readonly cancelledApprovals: readonly string[];
   readonly models: FakeModels;
   readonly context: FakeContext;
   readonly host: TestHost;
@@ -103,6 +115,7 @@ function disabledLoop(): LoopServiceHandle {
     spawn: () => unavailable("spawn"),
     whenIdle: (_threadId, fn) => fn(),
     admit: () => unavailable("admit"),
+    runUserBash: () => unavailable("runUserBash"),
     runChildTurn: () => unavailable("runChildTurn"),
     interrupt: () => unavailable("interrupt"),
     resume: () => unavailable("resume"),
@@ -138,6 +151,8 @@ async function build(
   const models = createFakeModels({ clock, script: options.script ?? [] });
   const context = createFakeContext({ session: fake.session, clock });
   const logs = capturedLogger();
+  const restored: ThreadId[] = [];
+  const cancelledApprovals: string[] = [];
   const loop =
     options.withoutLoop === true
       ? disabledLoop()
@@ -152,11 +167,32 @@ async function build(
           context: context.service,
           models: models.service,
           ext: host.host,
-          settings: { maxSteps: () => options.maxSteps ?? 0 },
+          ...(options.withApprovals === true
+            ? {
+                approvals: {
+                  restore: async (restoring: ThreadId) => {
+                    restored.push(restoring);
+                    return ok(await tools.pendingApprovals(restoring));
+                  },
+                  cancel: (approvalId: string) => {
+                    cancelledApprovals.push(approvalId);
+                    return Promise.resolve({ applied: true });
+                  },
+                },
+              }
+            : {}),
+          settings: {
+            maxSteps: () => options.maxSteps ?? 0,
+            gateMaxContinues: () => options.gateMaxContinues ?? 8,
+          },
           basePrompt: "You are a test assistant.",
           hostMode: "in-process",
           kindLookup: options.kindLookup ?? testKindLookup,
           cancelledByOwner: options.cancelledByOwner ?? (() => false),
+          ...(options.workingDirectory === undefined
+            ? {}
+            : { workingDirectory: options.workingDirectory }),
+          ...(options.platform === undefined ? {} : { platform: options.platform }),
         });
   await host.host.registerPlatform({
     name: "loop-test-ports",
@@ -173,6 +209,8 @@ async function build(
     fake,
     tasks,
     tools,
+    restored,
+    cancelledApprovals,
     models,
     context,
     host,

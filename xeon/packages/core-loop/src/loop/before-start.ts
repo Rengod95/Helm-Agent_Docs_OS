@@ -3,6 +3,7 @@ import type { BeforeAgentStartPayload } from "@xeon/contracts/extensions";
 import { commitWithRetry } from "../commit.ts";
 import { customItemOf } from "../commits.ts";
 import { prestartRequest } from "../turn-start.ts";
+import { promptAddition } from "./environment.ts";
 import { commitFailure, type TurnRun } from "./turn-run.ts";
 import type { LoopFailure, TurnEntry } from "./types.ts";
 
@@ -16,16 +17,17 @@ export async function beforeAgentStart(
   const payload: BeforeAgentStartPayload = {
     prompt: entry.prompt,
     ...(entry.images.length === 0 ? {} : { images: [...entry.images] }),
-    systemPrompt: ctx.basePrompt,
+    systemPrompt: state.basePrompt,
     systemPromptOptions: {},
   };
   const outcome = await ctx.ext.dispatch("before_agent_start", payload, {
     threadId,
     dispatchKey: `${turnId}:before_agent_start`,
-    initial: { messages: [], systemPrompt: ctx.basePrompt },
+    initial: { messages: [], systemPrompt: state.basePrompt },
     signal: scope.signal,
   });
-  state.basePrompt = outcome.value.systemPrompt;
+  // 접두는 기본 프롬프트로 고정이므로 핸들러가 바꾼 부분은 단계마다 붙이는 안내로 따로 들고 간다(`environment.ts`)
+  state.promptAddition = promptAddition(state.basePrompt, outcome.value.systemPrompt);
   const records = outcome.value.messages.map((draft) =>
     customItemOf(ctx.ids.next("itm"), draft, ctx.clock.now()),
   );

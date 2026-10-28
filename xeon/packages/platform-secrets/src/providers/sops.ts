@@ -1,5 +1,14 @@
-import { readFile } from "node:fs/promises";
-import { err, ok, type Clock, type Logger, type Result, type Scheduler } from "@xeon/contracts";
+import { mkdir, readFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import {
+  attemptAsync,
+  err,
+  ok,
+  type Clock,
+  type Logger,
+  type Result,
+  type Scheduler,
+} from "@xeon/contracts";
 import { secretRef, type SecretHandle } from "@xeon/contracts/capabilities";
 import type { LocalIdFactory } from "@xeon/contracts/conversation";
 import type {
@@ -19,7 +28,12 @@ import { SOPS_MIN_VERSION, type SecretsSopsFile } from "../config.ts";
 import { buildPlainEnv, buildSopsEnv, type KeyEnv } from "../env-filter.ts";
 import { errorCode, maskStderr } from "../errors.ts";
 import { createLease } from "../lease.ts";
+import { bunRunner, type ProcessRunner, type RunOutput, type RunRequest } from "./process.ts";
+import { createProcessLock, lockFailure, type SecretFileLock } from "./lock.ts";
+import { createSopsFile, sopsFileExists } from "./sops-create.ts";
 import { extractArgument, formatOfPath, parseSopsKeys, type SopsKeyListing } from "./sops-keys.ts";
+
+export { bunRunner, type ProcessRunner, type RunOutput, type RunRequest };
 
 /** `sops set --help`에 이 옵션이 있으면 값을 stdin으로 받을 수 있다(spec §4.6 6번) */
 const VALUE_STDIN_FLAG = "--value-stdin";
@@ -27,60 +41,7 @@ const VALUE_STDIN_FLAG = "--value-stdin";
 // L0.secrets.spec §4.6. sops 바이너리 호출 래퍼. `sops`, `age` 바이너리 호출은 이 패키지만 한다(DR-07).
 // 값은 sops의 stdout을 부모 프로세스 메모리로 받아 lease에 넘긴다. 디스크에 쓰지 않고 argv에 올리지 않는다.
 
-// ── 프로세스 실행기 ──────────────────────────────────────────────────────
-
-export interface RunRequest {
-  readonly argv: readonly string[];
-  /** 자식 env 전체. 부모 env를 물려받지 않는다 */
-  readonly env: Readonly<Record<string, string>>;
-  readonly timeoutMs: number;
-  /** 자식 stdin으로 보낼 바이트. 없으면 stdin을 닫는다. 호출자가 끝난 뒤 0으로 덮는다 */
-  readonly stdin?: Uint8Array;
-  /** 서비스가 닫히면 중단된다. 실행 중인 자식 프로세스를 죽인다 */
-  readonly signal: AbortSignal;
-}
-
-export interface RunOutput {
-  readonly exitCode: number;
-  readonly stdout: Uint8Array;
-  readonly stderr: string;
-}
-
-type RunFailure =
-  | { readonly kind: "spawn_failed"; readonly code: string }
-  | { readonly kind: "cancelled" };
-
-/** 주입 지점. 테스트는 가짜 실행기나 가짜 sops 실행 파일을 쓴다 */
-export type ProcessRunner = (request: RunRequest) => Promise<Result<RunOutput, RunFailure>>;
-
 const DEFAULT_TIMEOUT_MS = 30_000;
-
-export const bunRunner: ProcessRunner = async (request) => {
-  // 신호는 await 사이에 중단될 수 있어 읽을 때마다 현재 값을 본다
-  const cancelled = (): boolean => request.signal.aborted;
-  if (cancelled()) return err({ kind: "cancelled" });
-  try {
-    const proc = Bun.spawn([...request.argv], {
-      env: { ...request.env },
-      stdin: request.stdin ?? "ignore",
-      stdout: "pipe",
-      stderr: "pipe",
-      timeout: request.timeoutMs,
-      signal: request.signal,
-    });
-    const stdoutPending = new Response(proc.stdout).arrayBuffer();
-    const stderrPending = new Response(proc.stderr).text();
-    const exitCode = await proc.exited;
-    const stdout = new Uint8Array(await stdoutPending);
-    const stderr = await stderrPending;
-    // 중단 신호로 죽은 호출은 출력이 잘렸을 수 있어 결과로 쓰지 않는다
-    if (cancelled()) return err({ kind: "cancelled" });
-    return ok({ exitCode, stdout, stderr });
-  } catch (error: unknown) {
-    if (cancelled()) return err({ kind: "cancelled" });
-    return err({ kind: "spawn_failed", code: errorCode(error) });
-  }
-};
 
 // ── 바이너리와 버전 ──────────────────────────────────────────────────────
 
@@ -208,12 +169,24 @@ export interface SopsProviderDeps {
   readonly scheduler: Scheduler;
   readonly ids: LocalIdFactory;
   readonly logger: Logger;
+  /**
+   * 첫 쓰기로 SOPS 파일을 만들 때 쓸 age 수신자(공개키)를 준다. 키가 없으면 만든다(spec §4.7 7번).
+   * 없으면 파일을 만들지 않는다: 없는 파일에 대한 쓰기는 sops가 실패한다
+   */
+  readonly recipient?: () => Promise<Result<string, SecretError>>;
+  /** 파일 하나의 쓰기를 프로세스 사이에서 차례로 한다. 없으면 프로세스 안 직렬화만 한다 */
+  readonly lock?: SecretFileLock;
 }
+
+/** 다른 쓰기가 잠금을 쥐고 있을 때 기다리는 시간. 첫 쓰기는 키 저장소 승인 대화상자를 기다릴 수 있다 */
+const LOCK_TIMEOUT_MS = 60_000;
 
 /** sops 제공자. put은 `sops set --value-stdin` 지원을 확인한 뒤에만 켜진다(refreshCapabilities) */
 export interface SopsProvider extends SecretProvider {
   /** 바이너리의 `set --help`를 읽어 put 지원을 다시 판정하고 현재 능력을 돌려준다 */
   refreshCapabilities(): Promise<SecretProviderCapabilities>;
+  /** put이 꺼져 있는 이유. sops 바이너리를 쓸 수 없으면 그 오류, 아니면 `read_only_provider`(`set --value-stdin` 미지원) */
+  readOnlyReason(): Promise<SecretError>;
 }
 
 /**
@@ -295,7 +268,11 @@ export function createSopsProvider(deps: SopsProviderDeps): SopsProvider {
     try {
       content = await readFile(file.path, "utf8");
     } catch (error: unknown) {
-      deps.logger.warn("secrets.sops.file_unreadable", { env: file.env, code: errorCode(error) });
+      const code = errorCode(error);
+      // 기본 파일은 첫 쓰기 전에는 없다. 없는 것은 경고가 아니다
+      if (code !== "ENOENT") {
+        deps.logger.warn("secrets.sops.file_unreadable", { env: file.env, code });
+      }
       return null;
     }
     const parsed = parseSopsKeys(content, formatOfPath(file.path));
@@ -362,6 +339,65 @@ export function createSopsProvider(deps: SopsProviderDeps): SopsProvider {
     return ok(undefined);
   }
 
+  const lock = deps.lock ?? createProcessLock();
+
+  /** 파일 하나에 대한 변경을 프로세스 안팎에서 차례로 한다. 읽고-고치고-쓰기가 서로 덮어쓰지 않게 한다 */
+  async function exclusive(
+    path: string,
+    fn: () => Promise<Result<void, SecretError>>,
+  ): Promise<Result<void, SecretError>> {
+    const locked = await lock.withLock(path, fn, {
+      timeoutMs: LOCK_TIMEOUT_MS,
+      signal: deps.signal,
+    });
+    return locked.ok ? locked.value : err(lockFailure(locked.error, path));
+  }
+
+  /**
+   * 파일이 없으면 만든다(잠금 안에서 부른다). 순서: sops 바이너리 확인, 수신자(키가 없으면 새로 만든다), 암호화한 빈 파일.
+   * sops가 없는 기기에서 키만 만들어 두는 일이 없도록 바이너리를 먼저 본다.
+   */
+  async function ensureFile(file: SecretsSopsFile): Promise<Result<void, SecretError>> {
+    const recipient = deps.recipient;
+    if (recipient === undefined) return ok(undefined);
+    if (await sopsFileExists(file.path)) return ok(undefined);
+    // 빈 문서를 암호화할 수 없는 형식은 키를 만들기 전에 거절한다
+    if (formatOfPath(file.path) === "dotenv") {
+      return err({
+        kind: "write_failed",
+        target: "sops_file",
+        path: file.path,
+        code: "unsupported_format",
+      });
+    }
+    const binary = await deps.binary();
+    if (!binary.ok) return binary;
+    const found = await recipient();
+    if (!found.ok) {
+      // 키는 이미 있는데 수신자를 알 수 없다: 이 파일을 만들 수 없는 이유로 알린다
+      const error = found.error;
+      if (error.kind === "write_failed" && error.code === "EEXIST") {
+        return err({
+          kind: "write_failed",
+          target: "sops_file",
+          path: file.path,
+          code: "recipient_unknown",
+        });
+      }
+      return found;
+    }
+    const created = await createSopsFile({
+      sops: binary.value.path,
+      path: file.path,
+      recipient: found.value,
+      parentEnv: deps.parentEnv,
+      runner: deps.runner,
+      signal: deps.signal,
+    });
+    if (created.ok) deps.logger.info("secrets.sops.file_created", { env: file.env });
+    return created;
+  }
+
   async function refresh(): Promise<SecretProviderCapabilities> {
     const binary = await deps.binary();
     if (binary.ok) {
@@ -387,47 +423,70 @@ export function createSopsProvider(deps: SopsProviderDeps): SopsProvider {
       return { list: true, put: putSupported, remove: true, usage: false };
     },
     refreshCapabilities: refresh,
+    async readOnlyReason(): Promise<SecretError> {
+      const binary = await deps.binary();
+      return binary.ok ? { kind: "read_only_provider", provider: "sops" } : binary.error;
+    },
     async put(ref: string, value: Uint8Array): Promise<Result<void, SecretError>> {
       const target = await locate(ref);
       if (!target.ok) return target;
+      // sops가 없으면 쓰기 지원을 판정할 수 없다. 읽기 전용이라고 잘못 알리지 않고 바이너리 오류를 그대로 돌려준다
+      const binary = await deps.binary();
+      if (!binary.ok) return binary;
       const caps = await refresh();
       if (!caps.put) return err({ kind: "read_only_provider", provider: "sops" });
-      const prepared = await prepare();
-      if (!prepared.ok) return prepared;
-      const stdin = jsonStringBytes(value);
-      try {
-        // 값은 stdin으로만 보낸다. argv에는 파일 경로와 키 이름만 들어간다
-        const run = await deps.runner({
-          argv: [
-            prepared.value.binary,
-            "set",
-            VALUE_STDIN_FLAG,
-            target.value.file.path,
-            target.value.index,
-          ],
-          env: prepared.value.env,
-          timeoutMs: DEFAULT_TIMEOUT_MS,
-          signal: deps.signal,
-          stdin,
-        });
-        return settle(run, prepared.value.keyId);
-      } finally {
-        stdin.fill(0);
+      const { file, index } = target.value;
+      if (deps.recipient !== undefined) {
+        // 잠금 파일(`<path>.lock`)이 들어갈 디렉터리가 먼저 있어야 한다
+        const dir = await attemptAsync(() =>
+          mkdir(dirname(file.path), { recursive: true, mode: 0o700 }),
+        );
+        if (!dir.ok) {
+          return err({
+            kind: "write_failed",
+            target: "sops_file",
+            path: file.path,
+            code: errorCode(dir.error.cause),
+          });
+        }
       }
+      return exclusive(file.path, async () => {
+        const ready = await ensureFile(file);
+        if (!ready.ok) return ready;
+        const prepared = await prepare();
+        if (!prepared.ok) return prepared;
+        const stdin = jsonStringBytes(value);
+        try {
+          // 값은 stdin으로만 보낸다. argv에는 파일 경로와 키 이름만 들어간다
+          const run = await deps.runner({
+            argv: [prepared.value.binary, "set", VALUE_STDIN_FLAG, file.path, index],
+            env: prepared.value.env,
+            timeoutMs: DEFAULT_TIMEOUT_MS,
+            signal: deps.signal,
+            stdin,
+          });
+          return settle(run, prepared.value.keyId);
+        } finally {
+          stdin.fill(0);
+        }
+      });
     },
     async remove(ref: string): Promise<Result<void, SecretError>> {
       const target = await locate(ref);
       if (!target.ok) return target;
       if (!target.value.exists) return err(missing());
-      const prepared = await prepare();
-      if (!prepared.ok) return prepared;
-      const run = await deps.runner({
-        argv: [prepared.value.binary, "unset", target.value.file.path, target.value.index],
-        env: prepared.value.env,
-        timeoutMs: DEFAULT_TIMEOUT_MS,
-        signal: deps.signal,
+      const { file, index } = target.value;
+      return exclusive(file.path, async () => {
+        const prepared = await prepare();
+        if (!prepared.ok) return prepared;
+        const run = await deps.runner({
+          argv: [prepared.value.binary, "unset", file.path, index],
+          env: prepared.value.env,
+          timeoutMs: DEFAULT_TIMEOUT_MS,
+          signal: deps.signal,
+        });
+        return settle(run, prepared.value.keyId);
       });
-      return settle(run, prepared.value.keyId);
     },
     async list(): Promise<Result<readonly ProviderEntry[], SecretError>> {
       const files = deps.files();

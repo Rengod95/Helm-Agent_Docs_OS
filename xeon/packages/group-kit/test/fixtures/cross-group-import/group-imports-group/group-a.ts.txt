@@ -1,0 +1,3 @@
+import { value } from "@xeon/group-b";
+
+export const fromB: number = value;

@@ -11,9 +11,9 @@
   },
   "type": "module",
   "scripts": {
-    "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "lint": "turbo run lint --concurrency=1",
+    "typecheck": "turbo run typecheck --concurrency=2",
+    "test": "turbo run test --concurrency=2",
     "fmt-check": "turbo run fmt-check",
     "lint:root": "oxlint --type-aware --deny-warnings -c .oxlintrc.json scripts",
     "typecheck:root": "tsc -b scripts",
@@ -64,6 +64,13 @@
     "age-encryption": "0.3.1",
     "@vscode/ripgrep": "1.18.0",
     "@opentelemetry/api": "1.10.0",
-    "@tauri-apps/cli": "2.12.3"
+    "@tauri-apps/cli": "2.12.3",
+    "@tauri-apps/api": "2.12.3",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zustand": "5.0.16",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "get-east-asian-width": "1.6.0"
   }
 }

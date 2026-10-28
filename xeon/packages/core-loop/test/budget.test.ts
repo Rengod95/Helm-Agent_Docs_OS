@@ -1,7 +1,5 @@
 import { expect, test } from "bun:test";
-import { defineManifest, type ExtensionEntry } from "@xeon/contracts/extensions";
-import type { ExtensionUnit } from "@xeon/ext-host";
-import { canContinue, GATE_CONTINUES_SAFETY_CAP, stepLimitReached } from "../src/budget.ts";
+import { canContinue, stepLimitReached } from "../src/budget.ts";
 import { createHarness } from "./support/harness.ts";
 import { countKind, firstOfKind } from "./support/inspect.ts";
 import type { ScriptedResponse } from "./support/fake-models.ts";
@@ -82,44 +80,4 @@ test("step_budget_helpers", () => {
   expect(canContinue({ ...open, externalStop: true })).toBe(false);
   expect(canContinue({ ...open, stopping: true })).toBe(false);
   expect(canContinue({ ...open, gateExhausted: true })).toBe(false);
-});
-
-const continueEntry: ExtensionEntry = ({ manifest, scope }) => {
-  scope(manifest.name, {}, (g) => {
-    g.on("agent_before_settle", () => ({ continue: true }));
-  });
-};
-
-function alwaysContinue(): ExtensionUnit {
-  return {
-    manifest: defineManifest({
-      schemaVersion: 1,
-      name: "always-continue",
-      version: "0.1.0",
-      layer: "plugin",
-      kind: "plugin",
-      entry: "./index.ts",
-      points: ["agent_before_settle"],
-      usesDrive: false,
-    }),
-    entry: continueEntry,
-    loadIndex: 2,
-    builtin: false,
-  };
-}
-
-test("a_boundary_that_always_continues_is_stopped_by_the_safety_cap", async () => {
-  const script = Array.from({ length: GATE_CONTINUES_SAFETY_CAP + 5 }, (_value, index) =>
-    done(`answer ${index}`),
-  );
-  const h = await createHarness({ script });
-  await h.host.host.install(alwaysContinue());
-  await h.host.settled();
-  await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
-  await h.settle();
-  // 처음 요청 하나와 게이트 계속 8번
-  expect(h.models.requests).toHaveLength(1 + GATE_CONTINUES_SAFETY_CAP);
-  expect(firstOfKind(h.fake.events(h.threadId), "turn.completed")?.payload).toMatchObject({
-    status: "completed",
-  });
 });

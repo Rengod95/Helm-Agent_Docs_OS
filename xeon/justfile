@@ -33,11 +33,10 @@ typecheck:
     {{bun}} run typecheck:root
     {{bun}} run typecheck
 
-# 단위 테스트: scripts, 각 패키지
+# 단위 테스트: scripts, 각 패키지를 하나씩 메모리 상한 아래에서 (scripts/test-capped.sh)
 [group('quality')]
-test:
-    {{bun}} test scripts
-    {{bun}} run test
+test *targets:
+    scripts/test-capped.sh {{targets}}
 
 # 층 순위 검사
 [group('local')]
@@ -59,32 +58,62 @@ depcruise:
 knip:
     {{bun}} run knip
 
-# 문서 라우팅·검사: --check | --task <작업> <경로...>
+# 문서 라우팅·검사: --check | --task <작업> <경로...> | --unresolved([미결 표지 수)
 [group('local')]
 docs-route +args:
     {{bun}} scripts/docs-route.ts {{args}}
 
-# 한 층만 lint, typecheck, test (scripts/ci-layer.sh)
+# 패키지 하나만 lint, typecheck, test: 각각 scripts/guard.sh run 1.5G 아래에서 차례로. 병렬 작업 중 에이전트는 이것만 돌린다 (scripts/check-pkg.sh)
+[group('quality')]
+check pkg:
+    bash scripts/check-pkg.sh {{pkg}}
+
+# 한 층만 lint, typecheck, test (scripts/ci-layer.sh). root는 scripts의 lint, typecheck, test
 [group('local')]
 ci-layer layer affected="false":
     bash scripts/ci-layer.sh {{layer}} {{affected}}
 
-# 웹 가격표 asOf 90일 검사 (자리: m2-plan WEB.3 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 종료 조건 시험(scripts/exit-tests.txt)을 돌리고 건너뛴 수를 출력한다. 파일 없음, 건너뜀, 실패는 종료코드 1. apps/desktop 줄(E2·E3)이 있으면 사이드카가 없을 때 `desktop-sidecar host`를 먼저 단독으로 돌린다
+[group('local')]
+exit-tests:
+    {{bun}} scripts/exit-tests.ts
+
+# 웹 가격표 asOf 90일 검사: 오래된 항목을 출력만 하고 종료코드는 0 (L2.web.plan B5)
 [group('local')]
 web-pricing:
-    @echo "web-pricing: 아직 구현되지 않았습니다 (m2-plan WEB.3, L2.web.plan B5)" >&2; exit 2
+    cd packages/cap-web && {{bun}} run web-pricing
 
-# 데스크톱 사이드카 빌드 <triple> (자리: m2-plan DESK.3 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 데스크톱 사이드카 빌드 <triple|host>: bun build --compile --minify --bytecode, 크기 상한 검사 (scripts/build-sidecar.ts). --no-bytecode, --list는 `just desktop-sidecar host --no-bytecode`처럼 붙인다
 [group('local')]
-desktop-sidecar triple:
-    @echo "desktop-sidecar {{triple}}: 아직 구현되지 않았습니다 (m2-plan DESK.3, L4.desktop.plan D3)" >&2; exit 2
+desktop-sidecar triple *flags:
+    {{bun}} scripts/build-sidecar.ts {{triple}} {{flags}}
 
-# 데스크톱 개발 실행 (자리: m2-plan DESK.2 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 데스크톱 화면 번들 (bun build → apps/desktop/src-tauri/ui). 인자 dev는 불변식 검사를 켠 개발 빌드. just verify 밖
+[group('local')]
+desktop-ui mode="release":
+    {{bun}} run --cwd apps/desktop {{ if mode == "dev" { "build:ui:dev" } else { "build:ui" } }}
+
+# 데스크톱 개발 실행 (cargo run, 사이드카 필요: 없으면 종료코드 2). just verify 밖
 [group('local')]
 desktop-run:
-    @echo "desktop-run: 아직 구현되지 않았습니다 (m2-plan DESK.2, L4.desktop.plan D2)" >&2; exit 2
+    bash apps/desktop/scripts/cargo.sh run
 
-# 데스크톱 앱 빌드 (자리: m2-plan DESK.2 구현 전까지 종료코드 2: 미구현 자리라 코드를 고치는 문제가 아님)
+# 데스크톱 앱 릴리스 빌드 (cargo build --release, 사이드카 필요: 없으면 종료코드 2). 설치 파일 번들은 D10. just verify 밖
 [group('local')]
 desktop-build:
-    @echo "desktop-build: 아직 구현되지 않았습니다 (m2-plan DESK.2, L4.desktop.plan D2)" >&2; exit 2
+    bash apps/desktop/scripts/cargo.sh build
+
+# 데스크톱 Rust 셸 단위 시험 (cargo test: 릴레이, 엔진 수명). 사이드카 불필요, cargo 없으면 종료코드 2. just verify 밖
+[group('local')]
+desktop-test:
+    bash apps/desktop/scripts/cargo.sh test
+
+# 실제 provider로 모델 테이프 녹화 <scenario>: 비용이 들어 --yes 없이는 계획만 보이고 종료코드 3 (scripts/tape-record.ts, D-e)
+[group('local')]
+tape-record scenario *flags:
+    {{bun}} scripts/tape-record.ts {{scenario}} {{flags}}
+
+# 속도 기준선: 콜드 스타트(CLI, 사이드카). --first-token은 실제 모델 호출이라 --yes 없이는 종료코드 3 (scripts/bench.ts, ADR-0012)
+[group('local')]
+bench *flags:
+    {{bun}} scripts/bench.ts {{flags}}

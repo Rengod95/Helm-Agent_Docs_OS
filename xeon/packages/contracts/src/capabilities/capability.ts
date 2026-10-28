@@ -5,6 +5,7 @@ import type { ToolSpec, ToolSpecFor } from "./tool-spec.ts";
 
 export type {
   CallContext,
+  CallContinuation,
   CallerInfo,
   CallOptions,
   ErrorDecl,

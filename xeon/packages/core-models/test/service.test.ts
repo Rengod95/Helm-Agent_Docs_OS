@@ -176,6 +176,41 @@ describe("stream", () => {
     });
   });
 
+  test("providerTarget returns the host the secret lease would use: default address, then the baseUrl override", () => {
+    const h = createHarness({ tape: ANSWER });
+    expect(h.service.providerTarget(h.fake.provider.id)).toEqual({ host: "127.0.0.1", port: 9 });
+    expect(h.service.providerTarget("nowhere")).toBeNull();
+    h.setSettings({
+      providers: [
+        {
+          id: h.fake.provider.id,
+          enabled: true,
+          apiKeyRef: "secret://tape-key",
+          baseUrl: "https://gateway.example.test:8443/v1",
+        },
+      ],
+    });
+    expect(h.service.providerTarget(h.fake.provider.id)).toEqual({
+      host: "gateway.example.test",
+      port: 8443,
+    });
+    h.setSettings({
+      providers: [
+        {
+          id: h.fake.provider.id,
+          enabled: true,
+          apiKeyRef: null,
+          baseUrl: "https://gw.example.test/v1",
+        },
+      ],
+    });
+    // 포트가 없으면 null이다. 정책의 호스트 일치가 443만 맞춘다
+    expect(h.service.providerTarget(h.fake.provider.id)).toEqual({
+      host: "gw.example.test",
+      port: null,
+    });
+  });
+
   test("cache retention follows the role: main caches by thread, summary does not", async () => {
     const h = createHarness({
       tape: tape("core-models/roles", [

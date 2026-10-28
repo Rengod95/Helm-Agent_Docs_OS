@@ -17,6 +17,8 @@
     "@xeon/core-models": "workspace:*",
     "@xeon/group-kit": "workspace:*",
     "@xeon/host": "workspace:*",
+    "@xeon/platform-os": "workspace:*",
+    "get-east-asian-width": "catalog:",
     "typebox": "catalog:"
   },
   "devDependencies": {

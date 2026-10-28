@@ -1,0 +1,148 @@
+{
+  "name": "wrapper-basic",
+  "support": {
+    "supported": true,
+    "provider": "anthropic",
+    "modelId": "tape-small"
+  },
+  "turns": [
+    {
+      "expectContinuation": null,
+      "response": {
+        "stopReason": "end_turn",
+        "text": "",
+        "results": [
+          {
+            "url": "https://docs.example.org/guide",
+            "title": "Guide",
+            "pageAge": "April 30, 2025"
+          },
+          {
+            "url": "https://news.example.org/story?utm_source=feed",
+            "title": "Story",
+            "pageAge": "2 days ago"
+          },
+          {
+            "url": "https://blog.example.org/post",
+            "title": null,
+            "pageAge": null
+          }
+        ],
+        "citations": [
+          {
+            "url": "https://docs.example.org/guide",
+            "title": "Guide",
+            "citedText": "The guide explains the setup in three steps."
+          },
+          {
+            "url": "https://elsewhere.example.org/quote",
+            "title": "Quote",
+            "citedText": "A quote from a page that is not in the results."
+          }
+        ],
+        "usage": {
+          "inputTokens": 1200,
+          "outputTokens": 90,
+          "searchRequests": 1
+        },
+        "model": {
+          "provider": "anthropic",
+          "modelId": "tape-small"
+        },
+        "continuation": null
+      }
+    },
+    {
+      "expectContinuation": null,
+      "response": {
+        "stopReason": "end_turn",
+        "text": "",
+        "results": [
+          {
+            "url": "https://docs.example.org/guide",
+            "title": "Guide",
+            "pageAge": "April 30, 2025"
+          },
+          {
+            "url": "https://news.example.org/story?utm_source=feed",
+            "title": "Story",
+            "pageAge": "2 days ago"
+          },
+          {
+            "url": "https://blog.example.org/post",
+            "title": null,
+            "pageAge": null
+          }
+        ],
+        "citations": [
+          {
+            "url": "https://docs.example.org/guide",
+            "title": "Guide",
+            "citedText": "The guide explains the setup in three steps."
+          },
+          {
+            "url": "https://elsewhere.example.org/quote",
+            "title": "Quote",
+            "citedText": "A quote from a page that is not in the results."
+          }
+        ],
+        "usage": {
+          "inputTokens": 1200,
+          "outputTokens": 90,
+          "searchRequests": 1
+        },
+        "model": {
+          "provider": "anthropic",
+          "modelId": "tape-small"
+        },
+        "continuation": null
+      }
+    },
+    {
+      "expectContinuation": null,
+      "response": {
+        "stopReason": "end_turn",
+        "text": "",
+        "results": [
+          {
+            "url": "https://docs.example.org/guide",
+            "title": "Guide",
+            "pageAge": "April 30, 2025"
+          },
+          {
+            "url": "https://news.example.org/story?utm_source=feed",
+            "title": "Story",
+            "pageAge": "2 days ago"
+          },
+          {
+            "url": "https://blog.example.org/post",
+            "title": null,
+            "pageAge": null
+          }
+        ],
+        "citations": [
+          {
+            "url": "https://docs.example.org/guide",
+            "title": "Guide",
+            "citedText": "The guide explains the setup in three steps."
+          },
+          {
+            "url": "https://elsewhere.example.org/quote",
+            "title": "Quote",
+            "citedText": "A quote from a page that is not in the results."
+          }
+        ],
+        "usage": {
+          "inputTokens": 1200,
+          "outputTokens": 90,
+          "searchRequests": 1
+        },
+        "model": {
+          "provider": "anthropic",
+          "modelId": "tape-small"
+        },
+        "continuation": null
+      }
+    }
+  ]
+}

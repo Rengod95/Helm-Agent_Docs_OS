@@ -20,12 +20,39 @@ export interface ToolResultView {
   readonly lines: readonly string[];
 }
 
+export type RememberChoice = "once" | "thread" | "always";
+
+interface QuestionOptionView {
+  readonly id: string;
+  readonly label: string;
+  readonly description: string | null;
+  readonly recommended: boolean;
+}
+
+export interface QuestionView {
+  readonly id: string;
+  readonly header: string | null;
+  readonly text: string;
+  readonly options: readonly QuestionOptionView[];
+  readonly multiSelect: boolean;
+  readonly allowFreeText: boolean;
+}
+
+/** 승인 프롬프트가 kind별로 필요로 하는 구조. 제목·본문(body)은 모든 kind가 같다 */
+type ApprovalForm =
+  | { readonly kind: "tool" }
+  | { readonly kind: "plan"; readonly nextModes: readonly string[] }
+  | { readonly kind: "question"; readonly questions: readonly QuestionView[] };
+
 export interface ApprovalView {
   /** approval.requested 이벤트 id(F wire §4.6 [가정]) */
   readonly approvalId: string;
   readonly title: string;
   readonly body: readonly string[];
   readonly allowsAnswer: boolean;
+  /** 이 요청이 허용하는 기억 범위(요청 payload의 remember). 빈 목록이면 이번만이다 */
+  readonly remember: readonly RememberChoice[];
+  readonly form: ApprovalForm;
 }
 
 export type RenderOp =
@@ -48,7 +75,15 @@ export type RenderOp =
   | { readonly kind: "progress"; readonly itemId: ItemId; readonly text: string }
   | { readonly kind: "clearProgress"; readonly itemId: ItemId }
   | { readonly kind: "approval"; readonly view: ApprovalView }
-  | { readonly kind: "approvalResolved"; readonly approvalId: string }
+  | {
+      readonly kind: "approvalResolved";
+      readonly approvalId: string;
+      readonly decision: "allow" | "deny" | "answer";
+      /** 실제로 적용한 기억 범위. 요청한 범위와 다르면 낮춰 적용한 것이다(L1.tools.spec §4.7) */
+      readonly remember: RememberChoice;
+      readonly requestedRemember: RememberChoice | null;
+      readonly resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired";
+    }
   | {
       readonly kind: "turnEnd";
       readonly status: "completed" | "interrupted" | "failed";

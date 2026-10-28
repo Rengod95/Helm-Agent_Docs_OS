@@ -2,7 +2,6 @@ import { afterEach, expect, test } from "bun:test";
 import type { EffectiveSetting } from "@xeon/contracts/settings";
 import type { HostCommand } from "@xeon/host";
 import { formatSettings } from "../src/commands/config.ts";
-import { EXIT } from "../src/exit-codes.ts";
 import { createHarness, type Harness } from "./support/harness.ts";
 
 const harnesses: Harness[] = [];
@@ -146,21 +145,4 @@ test("config schema passes --out through and keeps the host's 1 and 2 as they ar
     { kind: "config-schema", scope: "managed", coreOnly: false, out: "s.json" },
     { kind: "config-schema", scope: "local", coreOnly: false },
   ]);
-});
-
-test("config set, reset and list wait for M2", async () => {
-  const codes = await Promise.all(
-    [
-      ["config", "set", "l4.cli.theme", "dark"],
-      ["config", "reset", "l4.cli.theme"],
-      ["config", "list"],
-    ].map(async (argv) => {
-      const h = harness();
-      const code = await h.run(argv);
-      expect(h.stderrText()).toContain("아직 제공하지 않는다");
-      expect(h.closed()).toBe(false);
-      return code;
-    }),
-  );
-  expect(codes).toEqual([EXIT.error, EXIT.error, EXIT.error]);
 });

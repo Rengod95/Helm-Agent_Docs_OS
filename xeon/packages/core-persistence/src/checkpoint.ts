@@ -12,13 +12,12 @@ import { columns, rowInvalid, type RowFault } from "./rows.ts";
 
 /**
  * 승인 대기 커밋(A1)은 step.completed 없이 체크포인트를 쓴다(L1.persistence.spec §4.2, FR-P4).
- * 조건: pendingToolCalls에 waiting: "approval"이 있다. next는 "tools"(L1.persistence.spec §4.2) 또는 "await_input"이다:
- * L1.tools.spec §4.7 2번과 L1.loop.spec §4.5 재진입 표가 승인 대기 체크포인트의 next를 "await_input"으로 정해
- * 루프의 대기 체크포인트가 그 값이다 [미결: 두 문서의 값 정렬]
+ * 조건: pendingToolCalls에 waiting: "approval"이 있고 next가 "await_input"이다(L1.tools.spec §4.7 2번, L1.loop.spec §4.5 재진입 표,
+ * review.open-issues D-06). next: "tools"는 C3의 도구 단계 체크포인트(FR-L3)라 승인 대기가 아니다
  */
 export function isApprovalWait(input: StepCheckpointInput): boolean {
   return (
-    (input.next === "tools" || input.next === "await_input") &&
+    input.next === "await_input" &&
     input.pendingToolCalls.some((call) => call.waiting === "approval")
   );
 }

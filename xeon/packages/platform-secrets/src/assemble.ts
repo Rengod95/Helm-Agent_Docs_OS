@@ -9,9 +9,11 @@ import type {
 } from "@xeon/contracts/services";
 import type { SecretHandle } from "@xeon/contracts/capabilities";
 import { err, ok, type Result } from "@xeon/contracts";
-import { META_SUBDIR, SECRETS_SUBDIR, type SecretsConfig } from "./config.ts";
+import { META_SUBDIR, SECRETS_SUBDIR, withDefaultSopsFile, type SecretsConfig } from "./config.ts";
 import { bunInheritRunner, createSecretAdminService, type ChildRunner } from "./admin.ts";
 import { createAuditLog } from "./audit-file.ts";
+import { buildPlainEnv } from "./env-filter.ts";
+import { readRecipient, recipientPath, writeRecipient } from "./key/recipient.ts";
 import { createMetaStore } from "./meta.ts";
 import { computeProtectedPaths, defaultAgeKeyPath } from "./protected-paths.ts";
 import { createRedactor } from "./redactor.ts";
@@ -23,6 +25,7 @@ import {
   type ProcessRunner,
   type SopsKeyAccess,
 } from "./providers/sops.ts";
+import type { SecretFileLock } from "./providers/lock.ts";
 import { createSecretServiceCore, type SecretServiceRuntime } from "./service.ts";
 
 // 운영 조립: xeon.os, 설정, 부모 env를 받아 SOPS 제공자와 메타 파일 읽기를 가진 SecretService를 만든다.
@@ -46,6 +49,8 @@ export interface SecretsRuntimeDeps {
   readonly childRunner?: ChildRunner;
   /** OS 인증 재확인을 쓸 수 있는가(reveal). L4·L0.os 연결 전에는 없음(false)이라 tty-confirm만 받는다 */
   readonly osAuthAvailable?: () => boolean;
+  /** 프로세스 사이 파일 잠금(`OsServiceHandle.fileLock`). SOPS 파일의 첫 만들기와 쓰기를 차례로 한다. 없으면 프로세스 안 직렬화만 한다 */
+  readonly fileLock?: SecretFileLock;
   /** 핸들을 값으로 가진 설정 키 조회. 설정 저장소는 이 층 밖이라 조립 루트가 넘긴다 */
   readonly settingKeysFor?: (handle: SecretHandle) => Promise<readonly string[]>;
 }
@@ -66,6 +71,8 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
   const runner = deps.runner ?? bunRunner;
   const redactor = createRedactor();
   const configDir = os.dirs.config;
+  /** 설정에 SOPS 파일이 없으면 사용자 기본 파일을 채운 유효 설정(spec §4.8). 이 패키지는 모두 이 값을 읽는다 */
+  const config = (): SecretsConfig => withDefaultSopsFile(deps.config(), configDir);
 
   /** 서비스 수명 신호. dispose하면 진행 중인 바이너리 해석과 sops 호출이 중단된다 */
   const lifetime = new AbortController();
@@ -76,7 +83,7 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
   }
 
   async function selection(): Promise<KeySelection> {
-    const cfg = deps.config();
+    const cfg = config();
     return selectKeyProvider({
       source: cfg.ageKey.source,
       filePath: cfg.ageKey.filePath ?? defaultAgeKeyPath(configDir),
@@ -85,6 +92,7 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
       env: deps.env,
       resolveTool,
       pathExists: existsSync,
+      exec: { runner, env: buildPlainEnv(deps.env), signal: lifetime.signal },
     });
   }
 
@@ -99,8 +107,33 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
     return ok({ id: chosen.provider.id, env: env.value });
   }
 
+  /**
+   * 첫 쓰기에서 SOPS 파일을 암호화할 수신자. 기록된 수신자가 있으면 그것, 없으면 키를 만들고(OS 키 저장소 또는 파일 폴백)
+   * 수신자를 기록한다. 이미 있는 키는 덮어쓰지 않는다(provision이 EEXIST). 호출자가 파일 잠금 안에서 부른다
+   */
+  async function recipient(): Promise<Result<string, SecretError>> {
+    const chosen = await selection();
+    if (chosen.unconfirmedFallback) {
+      return err({ kind: "key_unavailable", key: "file", reason: "access_denied" });
+    }
+    const recorded = recipientPath(configDir, chosen.provider.id);
+    const known = await readRecipient(recorded);
+    if (known !== null) return ok(known);
+    if (chosen.provider.provision === undefined) {
+      return err({ kind: "key_unavailable", key: chosen.provider.id, reason: "item_missing" });
+    }
+    const made = await chosen.provider.provision();
+    if (!made.ok) return made;
+    const saved = await writeRecipient(recorded, made.value.recipient);
+    if (!saved.ok) {
+      // 키는 만들어졌고 수신자 기록만 실패했다. 이번 파일은 만들 수 있으므로 진행하고 로그만 남긴다
+      logger.warn("secrets.age.recipient_unsaved", { code: saved.error.code });
+    }
+    return ok(made.value.recipient);
+  }
+
   const resolver = createSopsResolver({
-    configured: () => deps.config().sops.binary,
+    configured: () => config().sops.binary,
     resolveBinary: (options, signal) =>
       os.resolveBinary("sops", { minVersion: options.minVersion }, signal),
     runner,
@@ -109,7 +142,7 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
   });
 
   const sops = createSopsProvider({
-    files: () => deps.config().sops.files,
+    files: () => config().sops.files,
     binary: () => resolver.resolve(),
     key: keyAccess,
     parentEnv: deps.env,
@@ -120,6 +153,8 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
     scheduler: os.time.scheduler,
     ids: deps.ids,
     logger,
+    recipient,
+    ...(deps.fileLock === undefined ? {} : { lock: deps.fileLock }),
   });
 
   async function keyDiagnostics(): Promise<{
@@ -146,20 +181,20 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
     configDir,
     clock: os.time.clock,
     logger,
-    retentionDays: () => deps.config().audit.retentionDays,
+    retentionDays: () => config().audit.retentionDays,
   });
 
   const core = createSecretServiceCore({
     clock: os.time.clock,
     scheduler: os.time.scheduler,
     logger,
-    limits: () => deps.config().lease,
+    limits: () => config().lease,
     meta: metaStore,
     auditLog,
     providers: [sops],
     redactor,
     protectedPaths: () => {
-      const cfg = deps.config();
+      const cfg = config();
       return computeProtectedPaths({
         files: cfg.sops.files,
         configDir,
@@ -170,7 +205,7 @@ export function createSecretsRuntime(deps: SecretsRuntimeDeps): SecretsRuntime {
       const [sopsStatus, keys] = await Promise.all([resolver.status(), keyDiagnostics()]);
       return { sops: sopsStatus, ...keys };
     },
-    configuredProviders: () => deps.config().providers,
+    configuredProviders: () => config().providers,
   });
   const service: SecretServiceRuntime = {
     ...core.service,

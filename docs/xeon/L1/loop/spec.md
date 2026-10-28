@@ -86,7 +86,7 @@ import type { EventId, ImageContent, TextContent, ThreadId, TurnId } from "../co
 import type { StoreError } from "../records/commit.ts";
 import type { PostItem } from "./index.ts";
 // F.extensions.spec §3.2.1 ports.ts의 LoopPort와 요청·결과 타입(FR-L1 반영)
-import type { LoopPort, LoopTurnResult } from "../extensions/ports.ts";
+import type { LoopPort, LoopTurnResult, UserBashResult } from "../extensions/index.ts";
 import type { InputMode, TaskScope } from "./tasks-service.ts";
 // [가정] F 안에서 extensions가 capabilities 타입을 import할 수 있다(F 내부 순서는 F 문서가 정한다)
 import type { AdvertisedToolset, CallerId, ChildLimits, PolicyCeiling } from "../capabilities/index.ts";
@@ -142,6 +142,21 @@ export interface ChildTurnRequest {
   readonly signal: AbortSignal;
 }
 
+/** 사용자 셸(`!명령`, `!!명령`) 실행 요청 [결정: m2 F.8] */
+export interface UserBashRequest {
+  readonly threadId: ThreadId;
+  readonly command: string;                          // 접두 `!`·`!!`를 뗀 명령줄
+  readonly excludeFromContext: boolean;              // `!!` 접두. true면 결과를 모델 컨텍스트에 넣지 않는다(UserBashPayload.excludeFromContext)
+  readonly requestId?: string;                       // 대화 범위 멱등 키 1~64자. 같은 키로 다시 부르면 기록된 결과를 돌려준다
+  readonly signal?: AbortSignal;                     // 중단하면 명령을 끊고 result.cancelled가 참인 결과로 끝난다
+}
+
+export type UserBashOutcome =
+  /** 실행이 끝났다. replaced가 참이면 user_bash 핸들러가 결과를 대체해 명령을 실행하지 않았다. UserBashResult는 F.extensions의 것이다 */
+  | { readonly status: "completed"; readonly result: UserBashResult; readonly replaced: boolean }
+  /** user_bash 지점이나 정책 deny가 막았다. 명령을 실행하지 않았다. reason은 사용자에게 보이는 문장이다 */
+  | { readonly status: "denied"; readonly reason: string };
+
 export type ResumeFrom = "turn_start" | "request" | "tools" | "await_input" | "turn_end";
 
 export type ResumeResult =
@@ -177,6 +192,11 @@ export interface LoopService extends LoopPort {
   admit(request: AdmitRequest): Promise<Result<AdmitResult, LoopError>>;
   /** 자식 thread turn. 주 대화와 같은 루프로 돈다. 같은 requestId면 기록된 결과를 돌려주거나 열린 turn을 이어 끝낸다(§4.13) */
   runChildTurn(request: ChildTurnRequest): Promise<Result<LoopTurnResult, LoopError>>;
+  /**
+   * 사용자 셸 입력(`!명령`) [결정: m2 F.8]. `user_bash`(first)를 발화하고 거부가 아니면 `xeon.tools.runUserShell`로 실행한다(§3.1 끝).
+   * turn을 열지 않으므로 turn이 실행 중이어도 부를 수 있다. 실행 실패(명령 오류, 종료 코드)는 completed의 result로, LoopError는 실행 전의 실패(저장소, 없는 대화)다
+   */
+  runUserBash(request: UserBashRequest): Promise<Result<UserBashOutcome, LoopError>>;
   /** 사용자 중단(Esc). xeon.tasks.abort를 부른다. 중단할 turn이 있었으면 true */
   interrupt(threadId: ThreadId, turnId?: TurnId): Promise<boolean>;
   /** 열린 turn을 재개한다. 자동 재개는 하지 않는다(§4.6) */
@@ -191,7 +211,13 @@ export interface LoopService extends LoopPort {
 - `LoopPort.status`는 `threadStatus(threadId).phase`가 `"idle"`이면 `"idle"`, 아니면 `"running"`이다.
 - `TurnOutcome`은 `F.extensions.spec` §3.2의 것이다. `LoopTurnResult.outcome.status`는 `turn.completed.status`에서 `completed` → `"completed"`, `interrupted` → `"aborted"`, `failed` → `"error"`로 옮긴다.
 - L4 `TurnPort`(`L4.host-service.spec` §3.3)의 `submit`은 `admit`, `interrupt`는 `interrupt`, `stopAtSafeBoundary`는 같은 이름에 대응한다. `SubmitOutcome`의 `busy`는 `AdmitResult.status: "queued"`에 대응하고 그때 `turnId`는 `runningTurnId`다 [가정: host 어댑터가 옮긴다].
-- `user_bash` 지점(`!명령` 입력)의 진입점은 M2에서 더한다. [제안] 이름은 `runUserBash(request)`이고, `user_bash`(first)를 발화한 뒤 거부가 아니면 `xeon.tools`의 사용자 셸 경로로 실행한다(`L1.tools.spec` 요구).
+- `user_bash` 지점(`!명령` 입력)의 진입점은 `runUserBash(request)`다. [결정: m2 F.8] F `LoopService`에 시그니처가 들어갔다(`UserBashRequest`, `UserBashOutcome`). `user_bash`(first)를 발화한 뒤 거부가 아니면 `xeon.tools`의 사용자 셸 경로(`runUserShell`, `includeInContext = !excludeFromContext`)로 실행한다(`L1.tools.spec` 요구). 거부는 `denied`로 돌려주고 실행하지 않는다. 구현은 `src/user-bash.ts`다 [결정: L1F].
+  - 순서: (1) 요청 검사(빈 명령, 64자를 넘는 `requestId`는 `input_invalid`)와 대화 확인(`thread_not_found`, 닫힌 대화는 `input_invalid`). (2) `user_bash`(first) 발화. `deny` 결정이나 핸들러 실패는 `denied`(핸들러 실패는 fail-closed)이고, `result` 결정은 명령을 실행하지 않은 `completed{ replaced: true }`다. (3) 거부가 아니면 `xeon.tools.runUserShell`로 실행한다. 레코드의 `details.code`가 `not_executed`·`tool_unavailable`이면 명령이 돌지 않은 것이라 `denied`다. 그 밖에는 성공의 `structuredContent`나 0이 아닌 종료의 오류 상세(`detail`)에서 `UserBashResult`(`output`, `exitCode`, `truncated`, `fullOutputPath`)를 만들고, 요약이 없는 오류(중단 등)는 본문을 `output`으로, `cancelled`는 `aborted` 코드일 때 참으로 둔다.
+  - 도구 쪽 실행 맥락(`ToolRunContext`)은 turn을 열지 않으므로 이 호출 전용의 새 `turnId`·`stepId`로 만든다. caller `main`, 깊이 0, 대화형이고 `signal`은 요청의 것이다. 이 id는 어떤 `turn.*` 이벤트와도 이어지지 않아 열린 turn의 재개 판정(`reduceOpenTurn`)에 끼지 않는다. `toolResultItem`·`waitingCheckpoint` 초안은 만들지 않는다(사용자 셸은 toolResult item도 승인 대기도 없다).
+  - 컨텍스트 기록: `!`(`excludeFromContext = false`)이면 명령과 출력을 `custom` item 하나로 커밋한다. `customType`은 `core.loop.user_bash`, 본문은 명령 줄("Ran" 다음에 백틱으로 감싼 명령), 출력, 중단·종료 코드·절단 안내 순이고 `details`는 `{ command, exitCode?, cancelled, truncated, replaced }`다. F에 `bashExecution` 역할이 없어(L1.context.spec §10 4번) `custom`으로 흡수했고, `custom` item은 컨텍스트 조립 때 `UserMessage`가 된다. `!!`이면 item을 남기지 않고 효과 3단만 남는다. 커밋 키는 `ubash:<commitKeyPart(requestId)>`다.
+  - 멱등: 같은 `(threadId, requestId)`는 진행 중이거나 끝난 결과를 돌려주고 명령을 다시 실행하지 않는다. 이 기억은 프로세스 안(대화당 64개)에만 있다. 실패한 요청(저장소 오류, 없는 대화)은 기억하지 않아 같은 키로 다시 부르면 처음부터 한다. 다만 명령이 이미 돈 뒤 컨텍스트 기록만 실패한 요청은 돈 결과를 프로세스 안(대화당 16개)에 두고, 같은 `requestId`의 재호출이 `user_bash` 발화와 셸 실행을 건너뛰고 기록 커밋만 다시 한다 [결정: 통합 검토 L1]. 그래서 기록 실패 뒤 재시도가 명령을 두 번 실행하지 않는다. 기록이 끝나면 이 보관은 지운다. F `UserShellRequest`에 요청 id가 없어 도구 쪽 호출 id를 고정할 수 없기 때문에, 재시작 뒤 같은 `requestId`는 명령을 다시 실행할 수 있다(컨텍스트 item은 커밋 키로 한 번만 남는다) [미결].
+  - turn 실행 중에도 부를 수 있다. 피드가 활성 가지의 마지막 이벤트를 따라가므로(§4.2) 사이에 낀 커밋이 turn의 다음 커밋을 막지 않는다.
+  - `user_bash` 페이로드의 `cwd`는 `LoopDeps.workingDirectory(threadId)`(플러그인 옵션 `workingDirectory`)가 돌려주는 그 대화의 작업 디렉터리다 [결정: 통합 검토 L2]. 대화마다 작업 디렉터리가 다를 수 있어 함수로 받는다. 조립 루트가 대화의 작업 디렉터리를 넘기고, 옵션을 생략하거나 `undefined`를 돌려주면 빈 문자열이다.
 
 ### 3.2 자체 루프 구조
 
@@ -456,12 +482,19 @@ sequenceDiagram
 
 규칙:
 
-1. `before_agent_start`의 패치(메시지 추가, 시스템 프롬프트 변경)는 첫 요청의 컨텍스트 재구성에 들어간다. 메시지 추가분은 custom item으로 T1 다음 커밋(`turn:<turnId>:prestart`)에 기록한다 [제안]. 재개 때는 다시 발화하지 않고 기록된 item을 쓴다.
+1. `before_agent_start`의 패치 중 메시지 추가는 첫 요청의 컨텍스트 재구성에 들어간다. 메시지 추가분은 custom item으로 T1 다음 커밋(`turn:<turnId>:prestart`)에 기록한다 [제안]. 재개 때는 다시 발화하지 않고 기록된 item을 쓴다.
+   - 시스템 프롬프트 변경은 접두에 넣지 않는다. 접두는 thread에서 처음 만든 뒤 컴팩션까지 고정이므로, 첫 turn의 변경이 접두에 굳고 둘째 turn부터의 변경은 모델에 닿지 않았다(감사 L1-03, M2 마감 G2-03). 루프는 체인 결과에서 기본 프롬프트에 더해진 부분(`promptAddition`: 기본 프롬프트 뒤에 덧붙였으면 나머지, 바꿨으면 바꾼 전체)만 떼어 그 turn 상태에 두고, 단계마다 `AssembleOptions.volatile`의 `instructions` 항목으로 넘긴다. 접두의 `basePrompt`는 변경 전 기본 프롬프트(자식 turn은 요청의 `systemPrompt`) 그대로다. 그래서 turn마다 달라지는 안내(`l2.dialog.commands.advertise`의 명령 광고, 그룹의 turn별 지침)가 캐시된 접두를 깨지 않고 매 단계 전달된다.
+   - `instructions`는 커밋하지 않는다. 재개 진입(`request`, `tools`)은 `before_agent_start`를 다시 발화하지 않으므로 재개한 turn의 남은 단계에는 이 안내가 없고 다음 turn부터 다시 붙는다 [제안].
+   - 환경 블록의 소유자는 L1.loop이다. 단계마다 `environment` volatile 항목으로 날짜(단계를 여는 시각의 UTC 날짜), 대화의 작업 디렉터리(`workingDirectory`), `platform`(조립 루트가 OS 서비스의 `info`로 채운 `<platform>/<arch>`)을 줄 단위로 넘긴다. 모르는 값은 줄을 내지 않는다. 응답 언어와 도구 사용 규칙을 포함한 기본 프롬프트 문안은 M3의 프롬프트 설계에서 정한다(`review.m3-plan`).
 2. `prepareRequest`는 매 요청마다 커밋된 이벤트에서 컨텍스트를 다시 만든다. 그래서 `message_end` chain이 바꾼 메시지는 기록된 모양으로 다음 요청에 들어간다. 루프 안 메모리 배열을 직접 고치지 않는다.
+   - 도구 광고(`xeon.tools.advertise`)에 넘기는 `activated`는 이 대화의 `tool_search` 효과 결과(`structuredContent.activated`)의 합집합이다(`L1.tools.spec` §4.1 규칙 5). 루프는 turn마다 활성 가지를 한 번 읽어 집합을 만들고, 같은 turn의 `tool_search` 결과는 도구 배치가 끝날 때 더한다. 재개한 turn도 같은 방법으로 집합을 다시 만들어 광고 목록이 끊기지 않은 실행과 같다(`loop/activation.ts`).
+   - 요청 전 임계 검사(`loop/compaction.ts`, M2 마감 G2-01): 모델을 해석한 뒤 조립 앞에서 `xeon.context.shouldCompact(threadId, leaf, binding)`을 부르고, 참이면 `compact({ reason: "threshold", binding, contextWindow, willRetry: false, signal })`를 한다. 컴팩션 커밋은 `core.context` 생산자가 하고, 루프는 커밋 피드로 leaf를 새 값으로 옮긴 뒤 그 leaf로 조립한다. 컴팩션이 실패하거나(`summary_failed` 등) 건너뛰거나(`nothing_to_summarize`) 확장이 거부해도 turn은 멈추지 않는다. 경고를 남기고 이 turn의 남은 단계에서는 다시 시도하지 않는다(`state.compactionBlocked`). 그 요청이 창을 넘으면 아래 오버플로우 복구가 한 번 더 시도한다. `l1.context.autoCompact`가 거짓이면 `shouldCompact`가 거짓이다.
+   - 오버플로우 복구: `streamResponse`가 돌려준 종결 메시지가 `stopReason: "error"`이고 `xeon.models.classify(message, contextWindow)`가 `context_overflow`이면 `xeon.context.recoverOverflow(threadId, stepId, message, binding)`을 부른다. `retry`면 실패한 시도를 커밋하지 않고(매퍼가 열어 둔 item만 휘발 알림으로 닫는다) 앞 시도가 쌓은 prelude를 버리고 같은 단계의 요청을 한 번 다시 만들어 보낸다. 단계 시작(`step.started`)은 한 번이다. 다시 보낸 응답이 또 오버플로우여도 복구는 단계당 한 번뿐이므로 그 응답을 오류로 커밋하고 turn은 `failed`로 끝난다. `fail`(`second_overflow`, `compaction_failed`, `compaction_cancelled`, `disabled`)이면 오류 응답을 그대로 커밋하고 사유를 경고로 남긴다. 재개한 turn도 같은 길을 쓴다.
+   - 호출하지 않는 것: 수동 컴팩션(`/compact`)은 루프가 부르지 않는다. wire 메서드 `thread.compact`(`F.wire-settings.spec` §3.3.1)가 정했고, 호출자는 L4 host가 `ContextService.compact({ reason: "manual", … })`로 부른다(진행 중인 turn이 있으면 `turn.busy`로 거절하므로 루프와 겹치지 않는다). 떠난 가지 요약은 `L1.context.spec` §4.9 A안대로 호출자(L4 host의 `/tree` 처리)가 `session_before_tree` 결과를 본 뒤 `summarizeBranch`를 부르고 `moveLeaf`에 넘기므로 루프가 부르지 않는다.
 3. `openStep`은 단계 경계에 적용된 scope 토글(F.extensions.spec §4.5)을 반영해 도구 광고를 다시 받는다. 모델 바인딩도 여기서 정한다.
 4. `endStep` 안의 순서: (a) 결과 없는 호출이 없음을 확인(배치가 이미 닫았다, §3.3 규칙 4. 진입 `turn_end`의 `closing`만 여기서 닫는다) → (b) `turn_end` chain → (c) 정착 후보 판정(도구 호출 없음 또는 배치 `terminate`, 그리고 `inputs.peek`의 steer 없음) → (d) 후보면 `agent_before_settle` chain → (e) `finalizeBoundary` 두 값 → (f) 예산·게이트·중단 판정으로 계속 여부 결정 → (g) T4 커밋(build 안에서 `inputs.drain(view, …, "stepEnd", { continuing })`) → (h) `StepNext` 반환(배치된 입력은 `placed`로 다음 요청 앞에 붙는다). `stopReason`이 `error`·`aborted`이면 (d)는 `outcome`을 그대로 넘기고 `StepNext`는 `settle`이다.
 5. (c)의 `peek`와 (g)의 커밋 안 선택 사이에 steer가 새로 들어오면 (g)가 그 steer를 고른다. 이때 이미 발화한 `agent_before_settle`의 엔트리는 그대로 커밋하고 turn은 이어간다 [제안]. 핸들러는 재실행해도 되는 질의라 결과가 어긋나지 않는다.
-6. 커밋 실패(`err`)는 `Result`로 돌아와 루프가 단계 반복을 멈춘다. 루프는 T6를 `failed`, `error: "loop_rejected"`로 커밋한다. 예외로 run을 멈추지 않는다.
+6. 커밋 실패(`err`)는 `Result`로 돌아와 루프가 단계 반복을 멈춘다. 루프는 T6를 `failed`, `error: "loop_rejected"`로 커밋한다(모델을 해석하지 못한 경우만 §4.3 표의 `model_unavailable: …`). 예외로 run을 멈추지 않는다.
 7. T6는 turn 범위 노드의 소유 작업이 모두 정착한 뒤에 쓴다(`eng.transactions.design` §6.2 4항). 그래서 `turn.completed`의 seq는 그 turn의 모든 `effect.result`보다 크다.
 
 ### 4.3 `turn.completed.status` 결정
@@ -476,6 +509,7 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 | `l1.loop.maxSteps`에 이름 | `interrupted` | `"step_limit"` |
 | drive turn 신호(`LoopTurnRequest.signal`, X가 넘기는 thread 취소 신호) | `interrupted` | 취소 사유 코드 |
 | 루프 run 실패(커밋 실패 등) | `failed` | `"loop_rejected"` |
+| 모델을 해석하지 못함(`xeon.models.resolve`가 `err`: 모르는 모델 id, 차단, provider 없음) | `failed` | `"model_unavailable: <ModelError.kind>: <ModelError.message>"`. 사용자가 설정으로 고칠 수 있는 원인이라 화면이 그대로 보인다 [결정: M2 Mac 실기] |
 | 자식 turn 한도(`ChildTurnRequest.limits`) 도달 | `interrupted` | `"child_limit"` |
 
 ### 4.4 입력 큐 연결
@@ -499,12 +533,14 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 | `step.started`는 있고 T3 없음(스트리밍 중 끊김, K1) | 앞 체크포인트 `next: "request"` 또는 체크포인트 없음 | 같은 단계의 모델 요청을 다시 보낸다. 컨텍스트는 커밋된 이벤트로만 만들므로 요청 본문이 같다. 매퍼 `startStepIndex`는 그 단계 번호, 단계 id는 기록된 `step.started`의 것 | `request` |
 | `next: "request"` | T4 체크포인트 | 다음 단계를 연다. `startStepIndex = stepIndex + 1`. `runTurn({ kind: "request" })` | `request` |
 | `next: "tools"` | T3 체크포인트 | `pendingToolCalls`마다: `effect.result`가 있으면 그 결과, intent만 있으면 L1.tools의 복구 판정 결과, intent가 없으면 L1.tools 파이프라인으로 새로 실행(`tool_call` 지점 발화 포함). 모든 결과가 모이면 T4를 커밋하고 `next`에 따라 계속한다. `runTurn({ kind: "tools" })`로 들어가 주 경로와 같은 `runToolBatch`·`endStep`을 쓴다. 새 실행은 `tools.prepare`·`execute` 단계 계약이다(L1.tools.spec §3.3) | `tools` |
-| `next: "await_input"` | T4 체크포인트, `pendingToolCalls[].waiting` | 모델을 부르지 않는다. 승인·`input_required` 응답을 기다리는 상태로 둔다. `waiting: "approval"` 호출은 `ApprovalService.restore` 뒤 `runTurn({ kind: "tools", awaitInput: true })`로 다시 `tools.prepare`를 거쳐 같은 승인 요청을 이어 기다린다(L1.tools.spec §4.7). 응답이 기록되면 `tools` 행처럼 이어간다 | `await_input` |
+| `next: "await_input"` | 승인 대기 커밋(A1)의 체크포인트(L1.tools.spec §4.7 2번)이거나 `deferred` 응답의 T4 체크포인트, `pendingToolCalls[].waiting`. 승인 대기 체크포인트의 `next`는 이 값 하나다(review.open-issues D-06) | 모델을 부르지 않는다. 승인·`input_required` 응답을 기다리는 상태로 둔다. `waiting: "approval"` 호출은 `ApprovalService.restore` 뒤 `runTurn({ kind: "tools", awaitInput: true })`로 다시 `tools.prepare`를 거쳐 같은 승인 요청을 이어 기다린다(L1.tools.spec §4.7). 응답이 기록되면 `tools` 행처럼 이어간다 | `await_input` |
 | `next: "turn_end"` | T4 체크포인트 | 요청을 보내지 않는다. T6가 없으면 소유 작업 정착을 확인하고 T6를 커밋한 뒤 `agent_end`, `agent_settled`를 발화한다 | `turn_end` |
 | `turn.abort_requested` 있음, 또는 소유 사슬에 취소 의도 | `L1.tasks.spec` §4.8 3항 | 재개하지 않는다. 열린 효과를 결과 불명·`not_executed`로 닫은 뒤 T6 `interrupted` | `closed` |
 
 - `tool_call` 지점은 이미 결정된 호출(intent가 있는 호출)에 다시 발화하지 않는다(`architecture.runtime-flow.design` §4.2 "재생 시 도구 지점", durable spec 3162-3163).
 - 매퍼는 재개된 turn에서 `init.startStepIndex`부터 센다(`F.conversation.spec` §3.5.5 주석).
+- `closed` 행은 turn 노드를 먼저 취소하는데, 소유 작업이 없던 노드는 취소 직후 정착한다. 정착한 노드에는 작업을 등록할 수 없으므로(`tasks.scope_settled`) 닫는 작업(`turn_end` 재진입)은 노드가 이미 정착했으면 등록 없이 직접 기다린다(`loop/run-turn.ts`, open-issues N-03·V-10). 닫는 turn의 로그에 `loop.run_rejected`가 남지 않는다.
+- `closed` 행(취소 의도, 소유 사슬 취소, 새 입력이 오래 열린 turn을 닫는 경우)에서는 turn을 닫기 전에 `ApprovalService.restore`로 미해결 승인 요청을 읽어, `origin`이 그 turn인 요청을 `cancel`로 닫는다. 답을 받을 호출이 더는 없기 때문이다(`L1.tools.spec` §4.7 8번). 읽기나 취소가 실패해도 turn 닫기는 계속하고 경고만 남긴다.
 
 ### 4.6 재개 진입
 
@@ -521,7 +557,7 @@ F 표에 없는 경우 [제안, FR-L4로 F 추가 요청]:
 |---|---|---|
 | 사용자 중단 | `interrupt` → `xeon.tasks.abort` → turn 신호 → 스트림 `aborted` | 항상 |
 | 컨텍스트 한도 | 루프 `prepareRequest` 단계에서 L1.context가 컴팩션·오버플로우 처리 | L1.context.spec |
-| 추론 레벨별 토큰 예산 | 단계 바인딩의 `thinkingBudgets`(pi-ai `SimpleStreamOptions`). xeon.models streamFn이 요청에 넣는다. 값은 `xeon.models`가 설정 `l1.models.*`에서 만든다 [가정: 키는 L1.models.spec 소유, L4 models 탭] | 레벨별 pi-ai 기본 |
+| 추론 레벨별 토큰 예산 | `ResolvedModel.thinkingBudgetTokens`(`xeon.models`가 설정 `l1.models.*`에서 만든 현재 레벨의 예산)를 pi-ai `SimpleStreamOptions.thinkingBudgets`의 그 레벨 항목 하나(`{ [레벨]: 토큰 }`)로 요청에 싣는다. 값은 바꾸지 않는다. 레벨이 `off`·`xhigh`·`max`이거나 예산이 null이면 싣지 않는다 [가정: 키는 L1.models.spec 소유, L4 models 탭] | 레벨별 pi-ai 기본 |
 | 단계 상한 | `l1.loop.maxSteps` | 0(무제한) |
 | drive turn 상한 | X가 `LeaseBudget.turns`로 센다 | 임대 설정 |
 | drive 토큰 상한 | X가 `LeaseBudget.tokens`로 센다. `loop.turn` 호출 사이에서 검사하고 실행 중인 turn은 끊지 않는다(`X.primitives.spec` §4.4.4) | 임대 설정 |
@@ -563,7 +599,7 @@ runTurn(req: LoopTurnRequest):
 
 - 확장 경로: `agent_before_settle`(chain)과 `turn_end`(chain)의 `BoundaryValue.continue`다. 최종 검증은 `F.extensions.spec` §4.1 finalize와 이 문서 §3.6이다.
 - `endStep` 결정: 정착 후보 단계에서 검증을 통과한 `continue: true`면 `StepNext`를 `request`로 고른다(다음 요청 한 번). 원본 `finishTurn`의 `{ action: "continue" }` 의미(`types.ts:145-153`)와 같다. 정착 후보가 아닌 단계(도구 호출, steer)의 `continue`는 요청이 어차피 나가므로 무시하고 세지 않는다.
-- 상한: turn 안에서 게이트 계속의 누적 횟수가 `l1.loop.gate.maxContinues`(기본 8)에 이르면 그 뒤의 `continue`를 false로 바꾸고 휘발 알림으로 사용자에게 보인다. 사용자 입력이 새 turn을 열면 0부터 센다. 기본 8은 Claude Code Stop 훅 8회, omp `session_stop` 8회를 따른다(`_research/item-catalog.md` L1-b "완료 게이트" 행).
+- 상한: turn 안에서 게이트 계속의 누적 횟수가 `l1.loop.gate.maxContinues`(기본 8)에 이르면 그 뒤의 `continue`를 false로 바꾸고 휘발 알림으로 사용자에게 보인다. 사용자 입력이 새 turn을 열면 0부터 센다. 기본 8은 Claude Code Stop 훅 8회, omp `session_stop` 8회를 따른다(`_research/item-catalog.md` L1-b "완료 게이트" 행). 구현(L1A.6)은 상한을 turn 시작 때 한 번 읽고(`nextTurn`) 0이면 `continue`를 따르지 않는다. 알림 필드 `TurnUpdatedPayload.notice`(FR-L5)는 F에 들어왔다(m2 F.8). 핸들러가 `continue`를 원했는데 상한 때문에만 계속하지 못한 단계(`endStep`의 정착 후보)에서 휘발 `turn.updated { status: "running", notice: { code: "gate_limit", detail: { limit } } }`를 낸다 [결정: L1F]. `finalizeBoundary`가 계속할 수 없는 단계의 `continue`를 false로 바꾸므로 원한 값은 `finalize` 콜백에서 기억한다. 중단·단계 상한 같은 다른 이유로 끝나는 단계에는 알림이 없다. 알림은 내구 기록과 모델 컨텍스트에 들어가지 않는다.
 - `canContinue`(§3.6): 다음이 하나라도 참이면 false다. 마지막 `stopReason`이 `error`·`aborted`, turn에 취소 의도, `maxSteps` 도달, drive 신호·토큰 소진, 게이트 상한 도달, `stopAtSafeBoundary` 진행 중.
 - 목표 판정의 소비 지점 [제안]: `agent_before_settle`이다. 목표 지속 기능(`L2.work.spec`)이 이 지점에 chain 핸들러를 걸고, 핸들러 안에서 판정 모델 호출을 `xeon.agents`의 판정 API로 한다(`L1.agents.spec`, 결정: 별도 판정 모델 + 실행 횟수 상한, `_research/foundation-plan.md` §1 4번). 판정 결과는 확장 kind 엔트리로 돌려주고 T4에 기록되므로 재개 때 다시 판정하지 않는다(`architecture.runtime-flow.design` §4.5). 미달이면 `continue: true`와 지시 custom item을 낸다. 게이트 상한은 판정 기능의 판정 횟수 상한과 따로 적용된다. M3.
 
@@ -608,6 +644,13 @@ runChildTurn(req):
 - 취소: `req.signal`과 `req.scope`의 신호가 turn 노드에 전파된다. 부모 turn 취소는 소유 사슬로 자식 turn 노드에 이른다(L1.tasks.spec §4.2).
 - 자식 대화의 확장 지점은 주 대화와 같은 규칙으로 발화하고 `HandlerContext.threadId`는 자식 thread다(L1.agents.spec §7).
 - 결과의 `usage`는 자식 turn 합계다. 부모 `turn.completed`에는 더하지 않는다(L1.agents.spec §3.5 사용량 귀속).
+- 구현 [결정: L1A.6]:
+  - `model`이 `ModelRole` 이름(`main`, `review`, `summary`, `subagent`, `judge`, `search`)이면 그 역할로 `resolve`하고, 아니면 모델 참조(`provider/id[:레벨]`)로 `main` 역할의 `ref`를 덮어쓴다.
+  - 시스템 프롬프트는 `before_agent_start`의 초기 값이고 접두가 기록되기 전 조립의 기본 프롬프트다. turn 노드는 요청의 `scope`(subagent 노드) 아래에 열린다. `req.signal`이 켜지면 turn 노드를 취소한다(`parent` 사유).
+  - 단계 상한은 설정 `l1.loop.maxSteps`와 `limits.maxSteps` 중 작은 양수다. 자식 한도가 정한 상한이면 `error: "child_limit"`, 설정이 더 작으면 `step_limit`이다. `maxInputTokens`는 이 turn의 `usage.input` 합이 한도 이상이 되면 그 단계 뒤에 끝낸다.
+  - 열린 자식 turn을 같은 `requestId`로 다시 부르면 요청의 프롬프트·모델·도구 맥락으로 이어 끝낸다(재개 항목이 기록하지 않은 값이라 요청에서 다시 받는다).
+  - `ToolRunContext`의 `caller`, `depth`, `ceiling`, `surfaceThreadId`, `interactive`는 요청 값이고 광고는 `allow`·`keepParentList`를 함께 넘긴다.
+  - 호스트가 자식 thread를 `ExtHost.openThread`로 열어 두어야 한다(경계 지점이 열린 thread를 요구한다).
 
 ## 5. 실패와 경계 사례
 
@@ -706,7 +749,7 @@ runChildTurn(req):
 | FR-L2 | (철회) | drive 순번은 X가 `requestId`를 만들 때 쓰고 L1에 넘기지 않는다(`X.primitives.spec` §4.4.4) | `LoopTurnRequest`에 순번 필드가 없다 |
 | FR-L3 | F.records.spec §3.6 | 체크포인트를 T3(assistant 응답 확정 커밋)에도 `next: "tools"`로 쓸 수 있다고 적는다. `leafEventId` 규칙을 "같은 커밋의 마지막 이벤트"로 넓힌다 | 도구 단계 재진입(§4.5) |
 | FR-L4 | F.conversation.spec §3.5.4 | `turn.completed.status` 결정표에 §4.3 추가 행(취소 의도, 단계 상한, drive 예산·신호, 루프 run 실패)과 `error` 코드 값을 더한다 | `stopReason`만으로 정할 수 없는 경우 |
-| FR-L5 | F.conversation.spec §3.5.3 (2차) | `TurnUpdatedPayload`에 선택 필드 `notice?: { code: "repeat_detected" \| "gate_limit"; detail: JsonValue }`를 더한다 | 반복 감지·게이트 상한 알림(§4.9, §4.10) |
+| FR-L5 | F.conversation.spec §3.5.3 (반영됨: m2 F.8, `TurnNotice`) | `TurnUpdatedPayload`에 선택 필드 `notice?: { code: "repeat_detected" \| "gate_limit"; detail: JsonValue }`를 더한다 | 반복 감지·게이트 상한 알림(§4.9, §4.10) |
 | FR-L6 | eng.context-map.design §5.1 | 접두 소유표를 F 이름으로 고친다: `turn.`·`step.`·`part.`·`checkpoint.`·`item.`(toolResult 제외) `core.loop`, `input.` `core.tasks`, `effect.`·toolResult `item.recorded` `core.tools` | 옛 이름(`message.`, `session.`, `tool.`) 정리 |
 | FR-L7 | architecture.runtime-flow.design §4.1 | 그림의 `TASKS->>EXT: on input`을 `HOST->>LP: admit`, `LP->>EXT: on input`, `LP->>TASKS: enqueue`로 고친다 | F.extensions §7과 어긋남(§4.1). L1.tasks.spec §7과 같은 요청 |
 | FR-L8 | F.conversation.spec §3.5.3 | (반영됨) `TurnStartedPayload`에 `scopeId: string \| null`을 더한다. drive turn은 임대 scope, 그 밖은 null | drive turn 멱등 키 `(scopeId, requestId)`(`X.primitives.spec` §3.6)를 투영 `p_turns`에서 찾는다(`L1.persistence.spec` FR-P10) |
@@ -741,5 +784,5 @@ runChildTurn(req):
 - [미결] 큐 입력과 drive turn 요청이 함께 기다릴 때의 순서(§4.1). [제안] 큐 입력 먼저. X.primitives.spec과 정한다.
 - [미결] 자동 재개 기본값(ADR-0006 §6). 이 문서는 꺼짐을 [제안]으로 쓴다.
 - [미결] 게이트 상한 기본 8과 반복 감지 임계(4, 3)는 참고 구현의 값이다. 테이프 시험 뒤 조정한다.
-- [미결] `before_agent_start`의 시스템 프롬프트 변경을 어디에 기록할지. 지금은 매 요청 재구성 때 다시 발화하지 않으므로 재개 뒤 같은 변경을 얻으려면 기록이 필요하다. [제안] custom item 대신 확장 kind 엔트리로 남기고 L1.context가 읽는다.
+- [미결] 재개한 turn에서 `before_agent_start`의 시스템 프롬프트 변경(`promptAddition`)을 되살릴지. 시스템 프롬프트 변경의 전달 위치는 §4.2 규칙 1대로 volatile `instructions`로 정했다(M2 마감 G2-03). 재개 진입은 이 지점을 다시 발화하지 않아 남은 단계에서 빠진다. 되살리려면 변경을 확장 kind 엔트리로 남기고 L1.context가 읽어야 한다 [제안].
 - [미결] 가드레일 플러그인 이름 `guardrail` 예약(§4.11).

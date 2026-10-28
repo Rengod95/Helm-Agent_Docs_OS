@@ -94,12 +94,12 @@ test("the session scope is added for a thread once the session store is bound", 
   expect(settings.value("l1.loop.maxSteps")).toBe(0);
 });
 
-test("a session scope that the store cannot give yet (M2) is skipped with one diagnostic", () => {
+test("a not_implemented Bug from the session store is raised, not skipped with a diagnostic", () => {
   const settings = engineOver();
   const threadId = fixedIdFactory().next("thr");
   settings.bindSession({
     layer: () => {
-      throw new Bug("session.not_implemented: sessionSettings.layer arrives with M2 (PS-14)");
+      throw new Bug("session.not_implemented: sessionSettings.layer");
     },
     set: () => {
       throw new Bug("not used");
@@ -108,9 +108,8 @@ test("a session scope that the store cannot give yet (M2) is skipped with one di
       throw new Bug("not used");
     },
   });
-  expect(settings.layers(threadId)).toHaveLength(1);
-  expect(settings.layers(threadId)).toHaveLength(1);
-  expect(settings.diagnostics).toEqual(["settings.session_scope_unavailable"]);
+  expect(() => settings.layers(threadId)).toThrow("session.not_implemented");
+  expect(settings.diagnostics).toEqual([]);
 });
 
 test("any other failure of the session store is not hidden", () => {

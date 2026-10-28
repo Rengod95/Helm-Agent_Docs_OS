@@ -131,6 +131,143 @@ xeon/packages/cap-knowledge/
 
 순서: K1 → (K2, K5, K7, K10) → K6 → (K3, K4) → K8 → K9 → K11. 쓰기 도구 광고는 K3·K4 완료 시점에 켠다(그 전 커밋에서는 `tools` 배열에 정의가 있어도 `cap-knowledge` 매니페스트가 그 능력의 도구 노출을 끈 상태로 둔다 [가정: 능력 단위 도구 노출 끄기는 `L1.tools.spec`]).
 
+### 3.1 구현 기록: KN.1 (K2, K5, K7, K10)
+
+`m2/kn` 브랜치의 첫 구현(`m2-plan` KN.1)이다. 쓰기 승인 게이트와 제안 대기열(K6), 스킬·메모리 쓰기 연산(K3, K4), 검색(K8, K9), 델타 알림(K11)은 뒤 작업이다.
+
+| 작업 | 상태 | 구현 위치와 범위 |
+|---|---|---|
+| K2 | 완료(후크 연결은 §3.5) | `upstream/skills.ts`(포크, 패치 KN-01~KN-09), `fs/`(포트, node 구현, 키별 직렬화), `skills/`(`roots`, `tree`, `document`, `store`, `index-update`, `reindex`, `service`, `prompt-block`, `paths`). `list`, `view`(지연 로딩, 바깥 편집 감지), `reindex`, 인덱스 블록 순수 함수와 `SkillsRuntime.indexBlock`. `before_agent_start` 연결은 K11이 한다(§3.5) |
+| K5 | 완료(게이트 제외) | `ledger/`(`change` 실행기, `rows`, `manifest`, `target`, `rollback`, `recover`, `show`, `diff`, `service`). `prepared` → `applied`/`aborted`, `requestId` 멱등, 시작 시 복구, `list`·`show`·`rollback`. 롤백은 게이트(K6) 전까지 행위자 `user`만 허용한다. `proposals`는 빈 목록, `decide`는 `unsupported`다 |
+| K7 | 완료 | `scan/rules.ts`(규칙 집합 `1.0.0`), `ledger.scan`, 마스킹 등록부(`Redactor.containsKnown`) 연결. 쓰기 경로에 거는 일은 K3, K4다 |
+| K10 | 완료 | `settings.ts`: spec §6의 16개 키 전부, `readKnowledgeSettings`, `KNOWLEDGE_SETTING_DEFS` |
+
+플러그인(`plugin.ts`, `manifest.ts`)은 `knowledge.skills`와 `knowledge.ledger`만 `provides`에 두고 `skill_view` 도구만 광고한다. `skill_manage`는 K3가 끝날 때까지 광고하지 않고 쓰기 메서드는 `unsupported`로 거부한다.
+
+계획 §2 배치와 다른 점:
+
+- 마이그레이션은 SQL 파일이 아니라 `src/migrations.ts`의 `MigrationSet`이다(`store.migrations.apply`가 SQL 배열을 받는다). 1단계는 `files`, `skills`, `ledger`이고 `proposals`(K6)와 문서 FTS(K8, K9)는 뒤 단계로 더한다.
+- 시험 가짜는 `src/testing/`이 아니라 `test/support/`에 둔다(`memory-fs.ts`, `world.ts`, `clock.ts`, `helpers.ts`). `cap-workspace`와 같은 배치이고 배포 소스에 시험 코드가 들어가지 않는다.
+- `skills/index.ts`와 `skills/validate.ts`는 만들지 않았다. 색인 읽기·쓰기는 `store.ts`와 `reindex.ts`, 구조 검증은 쓰기 연산(K3)과 함께 `validate.ts`로 온다.
+- 원장 실행기는 새 내용(`next`)을 호출자가 미리 계산해 넘기는 모양이다(spec §4.4.1 4단계가 순수 계산이므로). K3, K4, K6의 쓰기 메서드는 이 실행기를 부른다.
+- 테이블 DDL에 열을 더했다: `cap_knowledge_ledger.target_path`, `index_changed`, `cap_knowledge_skills.layout`(spec §3.8 반영).
+- 프로세스 사이 파일 락은 `OsService`에 없어 임대와 락 안 해시 재확인으로 대신한다(spec §4.3.3 [결정: KN.1]). 그래서 `node-fs.int.test.ts`의 락 시험은 두 프로세스가 아니라 같은 프로세스 안의 직렬화를 확인한다.
+- 프로젝트 스킬은 신뢰 판정 뒤에만 싣는다(M2 검토 4). `knowledgePlugin`의 `projectTrust(projectDir)` 옵션을 조립 루트가 `resolveProjectTrust`로 채운다. 아직 채우는 쪽이 없으므로 기본은 싣지 않음이다 [미결: 조립 루트(L4 host)가 옵션을 채울 때까지 프로젝트 스킬은 로드되지 않는다].
+- 인덱스 블록 끝 안내문은 `knowledge_search`가 광고될 때만 그 도구를 안내한다(`SkillsDeps.searchToolAdvertised`, KN.2에서 켠다). 광고하지 않으면 예산 때문에 싣지 못했다는 문장만 남는다.
+- `skill_view`의 에이전트 작성 스킬 경계(`<untrusted_session_content kind="skill" createdBy="agent">`)는 서비스의 `view`가 아니라 도구 렌더(`renderSkillView`, `toContent`)가 감싼다. `view`는 원문을 돌려준다.
+- 원장 행을 읽을 때 열이 없거나 셀 타입이 다르면 `Bug`를 던지는 자리(`ledger/rows.ts` `textCell`, `intCell`)는 그대로다 [미결: 저장된 행 불일치는 `row_invalid` 값으로 돌려줘야 한다. `db.read` 콜백 안의 호출처가 많아 별도 작업으로 한다].
+- 지원 파일 경로 규칙은 F에 `SkillFilePathSchema` 좁히기를 요청했다(spec §3.1). 그 전까지 `skills/paths.ts`가 같은 규칙을 지킨다.
+
+### 3.2 구현 기록: KN.2 (K6)
+
+`m2/webkn` 브랜치의 구현이다. 스킬·메모리 쓰기 연산(K3, K4)은 뒤 작업이라 대기열이 다시 실행하는 메서드 가운데 지금 동작하는 것은 `ledger.rollback`이다. 나머지 아홉은 `unsupported`를 돌려주는 자리만 있다.
+
+| 작업 | 상태 | 구현 위치와 범위 |
+|---|---|---|
+| K6 게이트 | 완료 | `approval/gate.ts`(`decideGate` 순수 함수로 §4.5.1 표 전체, `isEvidenceValid`), `write/pipeline.ts`(`createWriter`: 멱등 확인 → 게이트 → 바로 적용·승인 요청·대기열 → 원장 실행기), `write/preview.ts`(미리보기 diff) |
+| K6 승인 요청 | 완료 | `ports/approvals.ts`(`createWriteApprovals(ApprovalService)`: `open` 뒤 `wait`, 사람의 허용만 허용으로 센다), `plugin.ts`가 `ApprovalServicePortKey`를 선택 포트로 받아 연결한다 |
+| K6 대기열 | 완료 | `approval/proposals.ts`(행 입출력, TY-24에 따라 맞지 않는 행은 `internal` 값), `approval/queue.ts`(`proposals`, `decide`, 만료), 마이그레이션 2단계 |
+| K6 롤백 게이트 | 완료 | `ledger/rollback.ts`가 `planRollback`으로 계산만 하고 `ledger/service.ts`가 쓰기 경로에 태운다. KN.1의 "사용자만" 닫힌 실패를 걷었다 |
+
+계획 §2 배치와 다른 점:
+
+- `approval/evidence.ts`는 만들지 않았다. 증거 유효성은 순수 함수 하나(`isEvidenceValid`)라 `gate.ts`에 있다. `approval/queue.ts`는 `proposals.ts`(행)와 `queue.ts`(결정)로 나눴고, 쓰기 경로 본체는 `write/pipeline.ts`다.
+- 승인 포트는 `ApprovalService`의 `open`·`wait`를 직접 쓰고 `L2ApprovalsPort`는 거치지 않는다. 쓰기 승인 하나는 kind `tool` 요청 하나이고 도메인 대상을 JSON으로 옮길 필요가 없어서다(spec §4.5.1). 같은 규칙의 기준 어댑터는 core-tools `testing/l2-port.ts`다.
+- 대기열 DDL에 `target_scope`와 `preview`를 더했다(spec §3.8). 목록(`Proposal`)이 대상 범위와 미리보기를 돌려주기 때문이다. 미리보기는 제안할 때 만든 것을 저장한다(현재 내용 기준이지만 그 시점의 현재다).
+- 승인한 제안은 제안한 행위자로 원장에 남고 `approved_by`는 `approval`이다(spec §4.5.2). `decide`는 호스트(사용자)만 부른다.
+- 새 오류 코드 `proposal_closed`(`decide`의 선언 오류)를 `KnowledgeFailureKind`에 더했다.
+
+시험:
+
+| 파일 | 내용 |
+|---|---|
+| `gate.test.ts` | 게이트 표(행위자 × 파괴적 여부 × 설정), 세션 없음, `afterUntrusted`, 증거 유효성 |
+| `approval.test.ts` | `files unchanged before approval`, 거부와 피드백, 승인 대기 중 바깥 편집은 `base_stale`, 같은 `requestId`는 한 번만 묻고 첫 결과를 돌려줌, `background destructive always queued`, 설정 끔, `after untrusted forces approval`, 비대화형·포트 없음은 대기열, 증거 유효성, 제안 생애(승인, 거절, `stale`, 만료, 닫힌 제안, 호스트만 결정) |
+| `approval-service.int.test.ts` | 실제 `ApprovalService`(core-tools `fakeApprovals`) 위에서 요청 본문 모양, 허용·거부(피드백), 같은 `requestId`는 승인 요청 이벤트 하나, 기다림 취소는 요청을 남김 |
+
+### 3.3 구현 기록: KN.3 (K3, K4)
+
+`m2/webkn` 브랜치의 구현이다. 쓰기 도구 `skill_manage`와 `memory_manage`의 광고를 이 작업에서 켠다. 두 도구는 게이트와 원장을 거친 쓰기 경로(KN.2)가 있어야 켤 수 있으므로 KN.2 뒤에 둔다.
+
+| 작업 | 상태 | 구현 위치와 범위 |
+|---|---|---|
+| K3 스킬 쓰기 | 완료 | `skills/write-model.ts`(`SKILL.md` 조합·분해, frontmatter 키 치환, 정확 일치 치환; 순수), `skills/write.ts`(create, edit, patch, writeFile, remove, manage와 승인된 제안 재실행). 연산마다 새 내용 계산 → 위협 검사 → `Writer`(게이트, 원장 실행기) |
+| K3 구조 검증 | 완료 | 이름·설명·본문·지원 파일 1 MiB·파일 500개·허용 하위 디렉터리, 쓴 `SKILL.md`를 다시 읽어 설명이 같은지 확인 |
+| K4 메모리 스토어 | 완료 | `memory/format.ts`(§ 형식, 항목 ID, 구조 판정; 순수), `memory/store.ts`(read, add, replace, remove, manage·batch, 스냅샷 블록, 바깥 편집·드리프트), `ledger/external.ts`(`external` 항목 기록). 마이그레이션 변경 없음 |
+| 도구 광고 | 완료 | `plugin.ts`가 `skill_manage`와 `memory_manage`를 `risk: write`, `classes: [shared_state_write]`로 올린다. `knowledge.memory`를 `provides`와 서비스 키에 더했다 |
+
+계획 §2 배치와 다른 점:
+
+- `skills/validate.ts`는 `write-model.ts`(순수 계산)와 `write.ts`(검증과 흐름)로 나눴다. `memory/snapshot.ts`는 `store.ts`의 `snapshotBlock`이다. 첫 turn 기록 메시지로 넣는 연결(`before_agent_start`)은 K11(KN.5, §3.5)에서 했다.
+- 쓰기 계산은 연산마다 `Built`(대상, 연산, 파괴적 여부, 현재·새 트리, 위협 검사 대상)를 내고, 공통 흐름이 검사와 `Writer`를 맡는다. 메모리는 같은 모양의 `Planned`(새 항목 목록)를 낸다.
+- 새 오류 코드 `memory_full`, `drift_detected`, `duplicate_entry`(spec §3.3 선언 오류)를 `KnowledgeFailureKind`에 더했다.
+- `KnowledgeDeps`에 `memoryDir`(`<사용자 데이터>/memory`)를 더했다. 조립은 `os.dirs.data`에서 만든다.
+- `LedgerDeps`용 `ledger/external.ts`는 메모리의 바깥 편집만 쓴다. 스킬 재색인(`reindex.ts`)은 자기 트랜잭션 안에서 같은 항목을 만들어 그대로 두었다.
+
+시험:
+
+| 파일 | 내용 |
+|---|---|
+| `skill-write.test.ts` | 만들기와 frontmatter 모양, 따옴표·콜론·줄바꿈이 든 설명, 이름 충돌(색인에 없는 디렉터리 포함), 구조 한도, 파일 500개, 다른 frontmatter 키 보존, `patch_mismatch`, 순서대로 치환, `base_stale`, `writeFile`의 `baseHash`, 보관함 이동과 삭제 권한, 지원 파일 하나 지우기, `read_only_scope`, `manage` 분배, 증거·`overrideScan`의 호출자 검사, 프로젝트 범위 규칙, 에이전트 승인·거부·대기열·제안 승인(에이전트 표시 유지)·`stale`, `requestId` 멱등, 원장 왕복(스킬 다섯 연산) |
+| `memory.test.ts` | 빈 저장소, 구분 줄 형식과 ID, NFC 중복, 구분 줄 모양 항목 거부, `memory_full`과 `detail.entries`, replace·remove의 `baseHash`, batch 원자성, 바깥 편집 기록, 드리프트 `.bak`(한 번), UTF-8·NUL·크기 초과, 처음 보는 파일, 동시 쓰기, 스냅샷 결정성과 표지 무력화, 메모리 끔, 에이전트 승인·대기열, 원장 왕복(메모리 네 연산) |
+| `write-scan.test.ts` | 범주별 차단과 걸린 문자열 비노출, 경계 표지, 전체 파일 검사(경계에서 완성되는 구절), `scripts/` 엄격 규칙, 경고는 통과, 스킬 검사 설정은 메모리 검사에 영향 없음, `overrideScan`, 마스킹 등록부, 막힌 쓰기는 대기열에 들지 않음 |
+
+### 3.4 구현 기록: KN.4 (K8, K9)
+
+`m2/webkn` 브랜치의 구현이다. 실제 측정(개발자 세션 DB 사본의 trigram 인덱스 크기, 완료 기준 8)은 하지 않았다. 사용자 승인 뒤에 한다(m2-plan 결정 D11). 측정 전까지 인덱스 크기 값은 [가정]이다.
+
+| 작업 | 상태 | 구현 위치와 범위 |
+|---|---|---|
+| K8 프로브 | 완료(방식 변경) | `search/probe.ts`(능력 판정: FTS5 + SQLite 3.34.0 이상), `search/setup.ts`(투영기 등록과 표 접근 확인으로 가용성 결정). 범위 핸들이 DDL을 허용하지 않아 `temp` 표 프로브는 하지 않는다(spec §4.8.5) |
+| K8 투영기 | 완료 | `search/ddl.ts`(표 선언, FTS 가능 여부에 따라 버전 1 또는 1001), `search/projector.ts`(`thread.started`, `thread.updated`, `agent.spawned`, `item.recorded` → 세션 목록). 실제 `session.projectors.register`로 등록한다 |
+| K8 소비자 | 완료 | `search/indexer.ts`(`session.subscribe` 구독, 배치 500, `hydrate`, 이벤트 `seq` 커서와 행을 한 트랜잭션, 실패하면 멈춤) |
+| K9 질의 | 완료 | `search/query-model.ts`(정규화, 토큰, MATCH·LIKE 식, 스니펫; 순수), `search/service.ts`(`query`, `scroll`, `read`, `list`), `search/docs-index.ts`(스킬·메모리 문서 FTS: 쓰기와 같은 트랜잭션에서 갱신, 시작 때 재구성, FTS가 없으면 문서 목록을 LIKE로) |
+| 도구 광고 | 완료 | `plugin.ts`가 `knowledge_search`, `session_scroll`, `session_read`를 `risk: read`로 올린다(검색을 끄고 시작하면 올리지 않는다). 올리면 스킬 인덱스 블록 끝 안내문이 `knowledge_search`를 가리킨다 |
+
+계획 §2 배치와 다른 점:
+
+- `search/indexer.ts`가 `projector.ts`와 소비자를 나눈다. 계획의 `search/probe.ts`(trigram 프로브)는 능력 판정으로, `search/query.ts`는 `query-model.ts`(순수)와 `service.ts`로 나눴다. `docs-index.ts`는 계획 위치 그대로다.
+- 표 이름과 열은 spec §3.8 구현 메모를 따른다(`sessiondocs`, `sessionfts`, `docsfts`, `sessioncursor`, `thread_id`, `event_seq`).
+- 마이그레이션(`CAP_KNOWLEDGE` 세션 밖 상태)은 바꾸지 않았다. 검색 표는 모두 투영기가 선언한다.
+- 세션 포트는 `SessionService` 전체다 [결정: 통합 검토 L3]. 부분 구현을 걸러내는 덕 타이핑 검사(`isKnowledgeSessionPort`)와 `ports/session.ts`를 지웠다. `xeon.session`이 없으면(포트 미제공) 세션 검색 없이 시작하고, 있는데 완전한 `SessionService`가 아니면 플러그인 setup이 실패한다. 시험 호스트의 부분 구현(`RecordCommitPort` 대역)은 `without: ["records"]`로 빼고 완전한 세션(`createSessionKit`)이나 아무것도 주지 않는다.
+- 투영기 이벤트 kind와 세션 종류 추론은 spec §4.8.1·§4.8.2에 적었다.
+
+시험(모두 실제 SQLite와 실제 `core-persistence` 세션 서비스 위에서 돈다):
+
+| 파일 | 내용 |
+|---|---|
+| `fts-indexer.test.ts` | 세션 행(제목, 프로젝트 해시, 메시지 수), 숨김 종류(`agent.spawned` 순서 두 가지), 텍스트만 색인, 색인하지 않는 이벤트에도 커서가 감, `idempotent on redelivery`, `cursor and rows in one transaction`(쓰기 도중 예외 주입), 세션 삭제, blob으로 옮겨진 긴 메시지 |
+| `query.test.ts` | 질의 모델(토큰, 경로, MATCH·LIKE 식, 스니펫), `korean short query uses like`, `three char query uses fts`, `nfc normalization`, `bm25 then recency`, `fts special chars quoted`, LIKE 와일드카드 리터럴, 숨김·ID·시각·한도·프로젝트 범위, scroll·read·list, `kind order concatenation`, 쓰기와 같은 트랜잭션의 색인 갱신, 가려진 스킬 |
+| `probe.test.ts` | 능력 판정 표, `probe failure disables session search`(FTS5 없음), `degraded: ["session"]`와 스킬·메모리 LIKE 대체, 세션 서비스 없이 시작 |
+| `fts-trigram.int.test.ts` | 실제 `bun:sqlite`에서 3글자 MATCH, 2글자 0건, 대소문자 무시, 조사 앞뒤 일치, bm25 순서 |
+| `plugin.test.ts` | 세션 서비스가 있을 때 투영기 등록·색인·검색·목록이 플러그인 경로로 동작, 없을 때 `unavailable`, 부분 `xeon.session`이면 setup 실패 |
+
+완료 기준 9(macOS FTS5·trigram 확인)는 이 기기에서 할 수 없다. `desktop-macos` CI job이나 실기에서 `fts-trigram.int.test.ts`를 한 번 돌려 기록한다.
+
+### 3.5 구현 기록: KN.5 (K11)
+
+`m2/webkn` 브랜치의 구현이다. 확장 지점 세 개(`session_start`, `before_agent_start`, `session_shutdown`)를 매니페스트 `points`에 올렸다.
+
+| 작업 | 상태 | 구현 위치와 범위 |
+|---|---|---|
+| K11 델타 | 완료 | `skills/delta.ts`(`diffIndex`, `formatIndexDelta`; 순수), `SkillsRuntime.indexSnapshot`(모델에게 보이는 스킬의 이름 → 잘린 설명과 `indexVersion`), `turn-context.ts`(세션별 상태, 첫 turn 메시지, 델타 메모) |
+| 첫 turn 연결 | 완료 | 인덱스 블록(K2)과 메모리 스냅샷(K4)을 `customType: "knowledge.context"` 기록 메시지 하나로 더한다. 시스템 프롬프트는 바꾸지 않는다 |
+| 후크 | 완료 | `plugin.ts`가 세 지점에 거는 핸들러가 `turn-context.ts`를 부른다. `startup` 말고 시작하는 세션은 `session_start`에서 스킬 루트를 다시 훑는다 |
+
+계획 §2 배치와 다른 점:
+
+- 델타 계산은 `skills/delta.ts`에, 후크 연결과 세션 상태는 `turn-context.ts`에 두었다. 순수 계산과 상태를 나누려는 배치다.
+- `session_start`의 mtime 검사는 하지 않고 전체 재색인을 한다. 재색인 비용(스킬 수에 비례)은 측정 전이라 [가정]이다.
+- 상태는 프로세스 메모리에만 있다. 재시작 뒤 이어받은 세션은 현재 인덱스를 기준으로 시작한다(spec §4.2.6).
+- `L1.context`가 같은 블록을 시스템 프롬프트 쪽에 넣기로 정하면 이 메시지는 `HOST.6` 조립에서 끈다. 두 곳에 들어가지 않게 하는 일은 `L1.context.spec`과 조립이 맡는다.
+
+시험:
+
+| 파일 | 내용 |
+|---|---|
+| `delta.test.ts` | 비교와 문장(정렬, 10개 상한, 60자 설명), 첫 turn 메시지, `index delta next turn`(추가·변경·삭제가 다음 turn 메모 하나, 같은 변경은 한 번만), 본문만 바꾼 변경은 메모 없음, 모델 호출 여부 전환, 세션 독립과 `shutdown`, 재개한 세션, `startup` 말고는 재색인, 스킬·메모리를 끄면 메시지 없음 |
+| `plugin.test.ts` | 후크 경로: `session_start` → 첫 turn 블록 → 변경 뒤 델타 → `session_shutdown` 뒤 첫 turn으로 돌아감. 매니페스트 `points`. `session_compact`를 보내도 다음 turn이 전체 블록을 다시 넣지 않고, 그 사이 바뀐 인덱스는 델타 하나로만 온다(M2 마감 재검토 결함 2, spec §4.2.8). 대화의 작업 폴더가 프로젝트 폴더: 대화마다 자기 작업 폴더의 프로젝트 스킬만 보이고 신뢰도 그 폴더로 묻는다, 작업 폴더가 없는 대화는 프로젝트 스킬이 없다, 작업 폴더를 오가도 원장에 `external` 항목이 늘지 않는다, 신뢰하지 않은 작업 폴더의 스킬은 싣지 않는다, 대화 안에서 쓴 프로젝트 스킬은 그 대화의 작업 폴더에 만들어진다(G2-02, spec §4.2.1) |
+
 ## 4. 채택 코드
 
 ### 4.1 포크: pi `core/skills.ts`
@@ -156,7 +293,7 @@ xeon/packages/cap-knowledge/
 | `KN-07 root order` | `loadSkills`의 사용자 → 프로젝트 순서 | 프로젝트 → 사용자 → 확장 → 경로 순으로 바꾼다(`L2.knowledge.spec` §4.2.1) |
 
 - `_research/packages.md` §4.4 L2-d는 결합을 "config·frontmatter·paths·ignore"로 적었다. 이 계획은 앞의 셋을 결합 해소(KN-01~03)로, `ignore`는 제거(KN-04)로 처리한다.
-- `UPSTREAM.json`: `upstream: "pi-mono"`, `commit`, `version: "1.1.0"`, `license: "MIT"`, `copiedPaths: { "packages/coding-agent/src/core/skills.ts": "src/upstream/skills.ts" }`, `notCopied: ["utils/frontmatter.ts", "utils/paths.ts", "config.ts", "diagnostics.ts", "source-info.ts"]`, `modifications: ["KN-01", …, "KN-07"]`(ADR-0003 §3.4 형식).
+- `UPSTREAM.json`: `upstream: "pi-mono"`, `commit`, `version: "1.1.0"`, `license: "MIT"`, `copiedPaths: { "packages/coding-agent/src/core/skills.ts": "src/upstream/skills.ts" }`, `notCopied: ["utils/frontmatter.ts", "utils/paths.ts", "config.ts", "diagnostics.ts", "source-info.ts"]`, `modifications: ["KN-01", …, "KN-09"]`(ADR-0003 §3.4 형식). 구현 중 KN-08(항목 순서 고정과 병렬 처리)과 KN-09(심볼릭 링크 순환·깊이 방어)를 더했다.
 
 ### 4.2 그대로 쓰는 것과 쓰지 않는 것
 

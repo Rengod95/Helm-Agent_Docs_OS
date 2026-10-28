@@ -1,0 +1,35 @@
+[package]
+name = "xeon-desktop"
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.99"
+publish = false
+
+[build-dependencies]
+tauri-build = { version = "=2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "=2.12.3", features = [] }
+tauri-plugin-shell = "=2.5.0"
+tauri-plugin-single-instance = "=2.5.4"
+tauri-plugin-log = "=2.10.1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync", "time", "rt", "macros", "net", "io-util"] }
+memchr = "2"
+
+[target.'cfg(unix)'.dependencies]
+signal-hook = "0.3"
+libc = "0.2"
+
+# 디버그 전용 WKWebView 뷰포트 스냅샷(src/inspect). 릴리스 빌드는 이 코드를 컴파일하지 않는다.
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6"
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSImage", "NSImageRep", "NSBitmapImageRep"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSData", "NSDictionary", "NSError"] }
+objc2-web-kit = { version = "0.3", default-features = false, features = ["std", "block2", "objc2-app-kit", "WKWebView", "WKSnapshotConfiguration"] }
+
+[dev-dependencies]
+tauri = { version = "=2.12.3", features = ["test"] }
+tokio = { version = "1", features = ["test-util"] }

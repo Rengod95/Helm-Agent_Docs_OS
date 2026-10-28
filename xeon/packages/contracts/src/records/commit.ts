@@ -20,6 +20,7 @@ export const COMMIT_KEY_PATTERN: string = "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$";
 const COMMIT_KEY_PART_PLAIN = /^[A-Za-z0-9_.-]{1,120}$/;
 const COMMIT_KEY_PART_HASH_PREFIX = "h_";
 const COMMIT_KEY_PART_HASH_LENGTH = 40;
+const HASHED_KEY = /^h_[0-9a-f]{40}$/;
 
 /**
  * 밖에서 온 id(toolCallId)를 커밋 키 부분으로 바꾸는 유일한 함수다. 규칙 정본은 eng.transactions.design §4.7(review.decisions-2 U-13).
@@ -29,6 +30,36 @@ const COMMIT_KEY_PART_HASH_LENGTH = 40;
 export function commitKeyPart(raw: string, sha256Hex: (text: string) => string): string {
   if (COMMIT_KEY_PART_PLAIN.test(raw) && !raw.startsWith(COMMIT_KEY_PART_HASH_PREFIX)) return raw;
   return `${COMMIT_KEY_PART_HASH_PREFIX}${sha256Hex(raw).slice(0, COMMIT_KEY_PART_HASH_LENGTH)}`;
+}
+
+/**
+ * 승인 요청 키(`ApprovalRequestInput.requestKey`, `approval.requested` payload의 `requestKey`)의 길이 상한이다.
+ * `requestKeyFor`가 이 길이에 맞춘다. 레코드 스키마(`approval.requested`의 requestKey maxLength)는 순환 import를 피하려고 같은 값을 거울로 두고,
+ * L2 승인 포트의 `L2_APPROVAL_REQUEST_ID_MAX`도 같다. 일치는 test/records/ports.test.ts가 지킨다
+ */
+export const APPROVAL_REQUEST_KEY_MAX: number = 48;
+
+/**
+ * 밖에서 온 id(toolCallId, L2 requestId)를 승인 요청 키(1~`APPROVAL_REQUEST_KEY_MAX`자, `^[A-Za-z0-9_.-]+$`)로 바꾸는 유일한 함수다
+ * (U-13 `commitKeyPart` 위에 얹는다). `commitKeyPart(raw)`가 상한 이하면 그대로, 넘으면 `h_` + 원문 sha256 hex 앞 40자다.
+ * 같은 원문은 항상 같은 키다. 접두 `h_`로 시작하는 원문은 `commitKeyPart`가 해시하므로 해시 키와 겹치지 않는다.
+ * 호출자가 동기 해시를 넘긴다(F는 해시 구현이 없다). cap-*가 자기 함수를 따로 두지 않고 이 함수를 쓴다
+ */
+export function requestKeyFor(raw: string, sha256Hex: (text: string) => string): string {
+  const part = commitKeyPart(raw, sha256Hex);
+  if (part.length <= APPROVAL_REQUEST_KEY_MAX) return part;
+  return `${COMMIT_KEY_PART_HASH_PREFIX}${sha256Hex(raw).slice(0, COMMIT_KEY_PART_HASH_LENGTH)}`;
+}
+
+/**
+ * 값이 `requestKeyFor`가 낼 수 있는 승인 요청 키인지 판정한다(해시 구현 없이). 키는 1~`APPROVAL_REQUEST_KEY_MAX`자 `^[A-Za-z0-9_.-]+$`이고,
+ * `h_`로 시작하면 정확히 `h_` + 소문자 hex 40자(해시 키)여야 한다. `h_plain` 같은 원문은 `requestKeyFor`가 해시하므로 키가 아니다.
+ * 이미 키를 만든 호출자(cap-*)의 값을 다시 해시하지 않고 검사만 해야 하는 자리(L4 L2 승인 어댑터)가 쓴다. 키 알파벳 정의는 이 파일 하나다
+ */
+export function isApprovalRequestKey(value: string): boolean {
+  if (value.length > APPROVAL_REQUEST_KEY_MAX || !COMMIT_KEY_PART_PLAIN.test(value)) return false;
+  if (!value.startsWith(COMMIT_KEY_PART_HASH_PREFIX)) return true;
+  return HASHED_KEY.test(value);
 }
 
 /**

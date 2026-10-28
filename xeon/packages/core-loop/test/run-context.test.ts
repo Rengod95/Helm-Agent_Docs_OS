@@ -159,10 +159,11 @@ test("before_agent_start_messages_are_recorded_as_custom_items_and_the_prompt_ch
   expect(prestart[0]?.payload).toMatchObject({
     item: { kind: "custom", message: { customType: "grp.prompt-group.note.recorded" } },
   });
-  // 첫 요청: 접두 system은 바뀐 프롬프트를, 대화에는 custom 메시지가 들어 있다
+  // 첫 요청: 접두 system은 기본 프롬프트 그대로이고, 핸들러가 바꾼 프롬프트는 요청 끝 volatile 안내로 간다. custom 메시지는 대화에 있다
   const request = h.models.requests[0]?.messages ?? [];
-  expect(request[0]).toMatchObject({ role: "system", content: "You are a terse assistant." });
+  expect(request[0]).toMatchObject({ role: "system", content: "You are a test assistant." });
   expect(JSON.stringify(request)).toContain("remember: be brief");
+  expect(h.context.assembled[0]?.volatile["instructions"]).toBe("You are a terse assistant.");
   expect(countKind(events, "turn.completed")).toBe(1);
 });
 

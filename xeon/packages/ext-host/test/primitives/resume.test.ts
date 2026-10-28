@@ -1,6 +1,8 @@
 import { expect, test } from "bun:test";
+import { attemptAsync, err } from "@xeon/contracts";
+import { PrimitiveError } from "../../src/primitives/index.ts";
 import { createSmokeGroup, createTestHost } from "../../src/testing/index.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeGroupUnit, snapshotOf } from "./fixtures/support.ts";
 
 test("a restarted host picks up enabled scopes, state and the open lease", async () => {
   const first = await createTestHost();
@@ -21,7 +23,7 @@ test("a restarted host picks up enabled scopes, state and the open lease", async
   await second.host.install(b.unit);
   await second.host.openThread(thread);
   await second.settled();
-  const snapshot = await second.records.loadThread(thread);
+  const snapshot = await snapshotOf(second.records, thread);
   expect(snapshot.states.map((state) => state.doc)).toEqual([{ count: 1 }]);
   // 새 임대를 만들지 않고 열린 임대로 이어 간다. 이미 count가 1이라 drive는 아무 일도 하지 않는다
   const acquiredAfter = second.records.events(thread).filter((e) => e.kind === "lease.acquired");
@@ -80,4 +82,22 @@ test("an open lease whose scope is gone is released with restart", async () => {
     { scopeId: "smoke-group", status: "enabled" },
     { scopeId: "smoke-group", status: "disabled" },
   ]);
+});
+
+test("a failed snapshot read fails openThread with a typed storage error instead of opening with an empty state", async () => {
+  const first = await createTestHost();
+  const thread = first.newThread();
+  const failing = {
+    ...first.records,
+    loadThread: () => Promise.resolve(err({ kind: "busy" as const })),
+  };
+  const second = await createTestHost({
+    shared: { records: failing, loop: first.loop, queue: first.queue },
+  });
+  const opened = await attemptAsync(() => second.host.openThread(thread));
+  expect(opened.ok).toBe(false);
+  if (!opened.ok) {
+    expect(opened.error.cause).toBeInstanceOf(PrimitiveError);
+    expect(opened.error.cause).toMatchObject({ code: "storage_unavailable" });
+  }
 });

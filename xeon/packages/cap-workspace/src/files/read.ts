@@ -2,12 +2,13 @@ import { assertNever } from "@xeon/contracts";
 import type { CancelScope } from "@xeon/contracts/services";
 import type { WorkspaceDeps } from "../deps.ts";
 import { WorkspaceFailure } from "../errors.ts";
+import { loadImageAt, probeImageType } from "../images/service.ts";
 import { resolveWorkspacePath } from "../roots.ts";
 import { pageRead } from "../truncate/paging.ts";
 import { readFileText } from "./upstream/read.ts";
 import type { FilesApi } from "./api.ts";
 
-// L2.workspace.spec §3.2 read, §4.3, §4.5, §5. 이미지 분기(workspace.images)는 M2(plan W7)다.
+// L2.workspace.spec §3.2 read, §4.3, §4.5, §5, §4.6. 이미지 파일은 workspace.images 최소형(plan W7)으로 준비해 blob 참조로 돌려준다.
 
 type ReadMethod = FilesApi["read"];
 
@@ -29,6 +30,21 @@ export function createRead(deps: WorkspaceDeps): ReadMethod {
         `${input.path} is a directory. Use ls to list it.`,
         { detail: { reason: "is_directory" } },
       );
+    }
+    // blob 저장소가 있을 때만 이미지로 다룬다. 없으면 이미지도 바이너리 파일로 거부한다(spec §5 2번)
+    if (deps.blobs !== undefined) {
+      const imageType = await probeImageType(deps, resolved.canonical, context);
+      if (imageType !== undefined) {
+        const image = await loadImageAt(
+          deps,
+          resolved.canonical,
+          input.path,
+          settings.images,
+          undefined,
+          context,
+        );
+        return { kind: "image", path: resolved.canonical, image };
+      }
     }
     const outcome = await readFileText(
       deps.env,

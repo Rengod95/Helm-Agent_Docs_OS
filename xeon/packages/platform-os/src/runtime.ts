@@ -12,6 +12,11 @@ import {
   type RunCommandSync,
 } from "./proc.ts";
 import { createNodeBinaryFs, type BinaryFs } from "./binaries/resolve.ts";
+import {
+  createFlockPrimitive,
+  type FlockPrimitive,
+  type FlockSelection,
+} from "./file-lock/flock.ts";
 import { readPlatformProbe, type PlatformProbe } from "./select.ts";
 import { systemClock } from "./time/clock.ts";
 import { systemRandom } from "./time/random.ts";
@@ -38,6 +43,8 @@ export interface OsRuntime {
   readonly readFileSync: ReadTextFileSync;
   readonly run: RunCommand;
   readonly runSync: RunCommandSync;
+  /** 고른 flock 선택으로 OS 잠금 수단을 만든다. dlopen이 실패하면 undefined. 테스트는 가짜 플랫폼에서 실제 dlopen을 피하려고 바꾼다 */
+  readonly createFlock: (selection: FlockSelection) => FlockPrimitive | undefined;
   /** sysconf(_SC_CLK_TCK). Linux에서는 100이다 [가정] */
   readonly clkTck: number;
 }
@@ -80,6 +87,7 @@ export function readOsRuntime(): OsRuntime {
     },
     run: createRunCommand(),
     runSync: createRunCommandSync(),
+    createFlock: (selection) => createFlockPrimitive(selection),
     clkTck: 100,
   };
 }

@@ -12,7 +12,9 @@ import type {
   BinaryError,
 } from "@xeon/contracts/services";
 import { createRipgrepSource } from "./binaries/rg.ts";
+import { checkExternalBinaries, type BinaryCheckReport } from "./binaries/requirements.ts";
 import { createBinaryResolver, type BundledSource } from "./binaries/resolve.ts";
+import { createFileLock, type FileLock } from "./file-lock/index.ts";
 import { dirsWarnings, ensureDirs, resolveDirs } from "./dirs.ts";
 import {
   createMountProvider,
@@ -22,7 +24,12 @@ import {
   type FsKindProvider,
 } from "./fs-kind.ts";
 import { createFingerprintReader, readMachineId, readUserId } from "./identity.ts";
-import { createJsonLinesLogger, type LogRedact, type LogSink } from "./logger.ts";
+import {
+  createJsonLinesLogger,
+  type LogLevelSource,
+  type LogRedact,
+  type LogSink,
+} from "./logger.ts";
 import { readOsRuntime, type OsRuntime } from "./runtime.ts";
 import { detectPlatform, selectProviders, type FsKindSource } from "./select.ts";
 
@@ -32,8 +39,11 @@ export interface PlatformOsConfig {
   readonly logSink: LogSink;
   /** 조립 루트가 xeon.secrets의 마스킹 함수를 연결한다. 무동작이 필요하면 identity를 명시적으로 넘긴다 */
   readonly logRedact: LogRedact;
-  /** 설정 l0.os.log.level. 기본 "info" */
-  readonly logLevel?: LogLevel;
+  /**
+   * 설정 l0.os.log.level. 기본 "info". 함수를 넘기면 로그를 낼 때마다 불러 live 변경이 다음 호출부터 반영된다
+   * (조립 루트가 `() => settings.get("l0.os.log.level")`를 넘긴다).
+   */
+  readonly logLevel?: LogLevelSource;
   /** 설정 l0.os.dirs.override(관리 범위). XEON_HOME보다 낮고 OS 기본보다 높다 */
   readonly dirsOverride?: string;
   /** 소스 실행에서 번들 바이너리 경로를 주는 수단. 없으면 `@vscode/ripgrep`이 주는 rg를 쓴다(목록 파일이 있으면 그쪽이 먼저다) */
@@ -45,6 +55,16 @@ export type OsStartError = DirsError;
 
 export interface OsServiceHandle {
   readonly service: OsService;
+  /**
+   * 프로세스 사이 파일 잠금(L0.os.spec §3.11). F `OsService`에는 아직 없어 핸들로 낸다 [F 요청].
+   * M2에서는 `trust.json` 쓰기가 쓴다.
+   */
+  readonly fileLock: FileLock;
+  /**
+   * 외부 바이너리 필수/선택 표(L0.os.spec §3.6.1)를 이 서비스의 `resolveBinary`로 점검한다.
+   * 첫 실행 안내와 doctor가 쓴다. 이름별 해석 캐시를 그대로 쓴다.
+   */
+  checkBinaries(signal: AbortSignal): Promise<Result<BinaryCheckReport, { kind: "cancelled" }>>;
   /** 설정 l0.os.log.level 변경(live)을 반영한다 */
   setLogLevel(level: LogLevel): void;
   /** 진행 중인 자식 프로세스 중단, 남은 타이머 취소, 로거 마지막 줄 */
@@ -153,6 +173,18 @@ export async function createOsService(
     bundledSource: config.bundledSource ?? createRipgrepSource({ run: runtime.run, logger }),
   });
 
+  const primitive =
+    providers.fileLock.kind === "flock" ? runtime.createFlock(providers.fileLock) : undefined;
+  if (providers.fileLock.kind === "flock" && primitive === undefined) {
+    logger.warn("os.file_lock.process_only", { reason: "flock_unavailable" });
+  }
+  const fileLock = createFileLock({
+    primitive,
+    clock: runtime.clock,
+    scheduler: runtime.scheduler,
+    logger,
+  });
+
   const service: OsService = {
     info,
     dirs,
@@ -187,6 +219,15 @@ export async function createOsService(
   let disposed = false;
   return ok({
     service,
+    fileLock,
+    checkBinaries: (signal) =>
+      checkExternalBinaries(
+        {
+          platform: info.platform,
+          resolveBinary: (name, opts, scope) => service.resolveBinary(name, opts, scope),
+        },
+        signal,
+      ),
     setLogLevel: (level) => rootLogger.setLevel(level),
     dispose(): Promise<void> {
       if (disposed) return Promise.resolve();

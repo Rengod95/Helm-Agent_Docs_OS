@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, test } from "bun:test";
@@ -251,7 +251,8 @@ describe("files", () => {
     expect(derived.id).toBe(service.id);
     expect(await derived.readTextFile("b.txt", none)).toEqual({ ok: true, value: "hi" });
     const { output } = await run(derived, "pwd -P");
-    expect(output.trim()).toBe(join(root, "a"));
+    // pwd -P는 심볼릭 링크를 푼 경로다. macOS 임시 디렉터리는 /var → /private/var 링크이므로 기대값도 realpath로 비교한다
+    expect(output.trim()).toBe(realpathSync(join(root, "a")));
     service.cwd = join(root, "a");
     expect(await service.readTextFile("b.txt", none)).toEqual({ ok: true, value: "hi" });
   });

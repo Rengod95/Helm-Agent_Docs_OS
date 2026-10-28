@@ -1,4 +1,5 @@
 import type { ImageContent, TextContent } from "@xeon/contracts/conversation";
+import { displayWidth, truncateToWidth } from "./width.ts";
 
 // L4.cli.spec §3.5, §4.5. 도구 결과 3채널 표시 규칙.
 //   UI용(details): 우선 사용. BUILTIN_TOOL_RENDERERS에 그 도구가 있고 render가 줄을 돌려주면 그 줄을 쓴다.
@@ -25,8 +26,8 @@ function textLines(text: string): string[] {
 }
 
 function clip(line: string, width: number): string {
-  if (width <= 1 || line.length <= width) return line;
-  return `${line.slice(0, width - 1)}…`;
+  if (width <= 1 || displayWidth(line) <= width) return line;
+  return truncateToWidth(line, width);
 }
 
 function numberField(record: Readonly<Record<string, unknown>>, name: string): number | undefined {

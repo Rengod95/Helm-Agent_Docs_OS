@@ -82,22 +82,22 @@ xeon/packages/core-tools/
 | TL-0 | 선행 확인: contracts의 F.capabilities 타입(`ToolSpec`, `orderTools`, 요청 1·6·8), F.conversation 에이전트 타입 `AgentTool`·`AgentToolCall`(F 정의, adr.0009), F.records `approval.*` kind(요청 3), core-persistence 커밋 API(`xeon.session` `commit`), platform-store `putBlob`, platform-sandbox 인터페이스(bash 실행용, L2.workspace 경유) | — | S | M1 |
 | TL-1 | 어댑터: `ToolSpec` → 도구 항목(`ToolEntry`) 5단계 환원과 `CapabilityError` → `isError` 변환(F.capabilities.spec §4.2), `replay` 대응, `outputSchema` 검증, `DirectToolRegistration` 감싸기, 의도 표 확인과 `effect.exec` 커밋 | TL-0 | M | M1 |
 | TL-2 | 파이프라인과 단계 계약(adr.0009 §3.4, 이전 판의 훅 연결을 L1.loop.plan LP18이 대체): `prepare`(`tool_execution_start` → 이름 해석 → 인자 검증 → `tool_call` 지점 → 정책 → 승인 → `effect.intent`), `execute`(`effect.exec` → 실행 → `tool_result` chain → 경계화 → `effect.result`+item 한 커밋 → `tool_execution_end`), 차단 결과의 toolResult item 기록, requestId 규칙(`tool:<id>:intent|exec|result`) | TL-1, TL-3, TL-9 | L | M1 |
-| TL-3 | 정책 평가기(순수): `evaluatePolicy` 7단계, `ruleMatches`(glob, JSON Pointer, 정규식), `stricter`, `validateRules`, 내장 기본 규칙. 코어 규칙 등록 `registerRules`(같은 출처 교체, `issues`, `dispose`)는 M2. M1은 티어 default·user와 `tool`·`args`만 | TL-0 | M | M1(부분), M2(전체) |
-| TL-4 | 권한 모드: 모드 표, 위험 등급 유도(`risk` → `hints.readOnly` → `exec`), `setMode`(세션 범위 설정 쓰기), managed `bypassAllowed`. M1은 `default`만 | TL-3 | S | M1(default), M2 |
-| TL-5 | 승인 대기와 재개 복원: `ApprovalService`(`request`, `respond`, `pending`, `restore`, `cancel`), `approval.requested`+`checkpoint.step`(`next: "await_input"`) 한 커밋, `approval.resolved`, 기억 범위(`thread`, `always` → `thread`), 비대화형 처리. 재개 때 대기 호출은 core-loop가 `runTurn({ kind: "tools", awaitInput: true })`로 `prepare`를 다시 거쳐 같은 승인 요청을 이어 기다린다(L1.loop.spec §4.5) | TL-2 | L | M1(tool), M2(plan, question) |
+| TL-3 | 정책 평가기(순수): `evaluatePolicy` 7단계, `ruleMatches`(glob, JSON Pointer, 정규식), `stricter`, `validateRules`, 내장 기본 규칙. 코어 규칙 등록 `registerRules`(같은 출처 교체, `issues`, `dispose`)는 M2. M1은 티어 default·user와 `tool`·`args`만 (완료 2026-10-24: 티어 4종 순위 시험, `registerRules`는 `policy/core-rules.ts`, 확장 티어 규칙을 넣는 경로는 2차) | TL-0 | M | M1(부분), M2(전체) |
+| TL-4 | 권한 모드: 모드 표, 위험 등급 유도(`risk` → `hints.readOnly` → `exec`), `setMode`(세션 범위 설정 쓰기), managed `bypassAllowed`. M1은 `default`만 (완료 2026-10-24: 모드 4종, managed 금지 때 `tools.mode_forbidden`) | TL-3 | S | M1(default), M2 |
+| TL-5 | 승인 대기와 재개 복원: `ApprovalService`(`request`, `respond`, `pending`, `restore`, `cancel`), `approval.requested`+`checkpoint.step`(`next: "await_input"`) 한 커밋, `approval.resolved`, 기억 범위(`thread`, `always` → `thread`), 비대화형 처리. 재개 때 대기 호출은 core-loop가 `runTurn({ kind: "tools", awaitInput: true })`로 `prepare`를 다시 거쳐 같은 승인 요청을 이어 기다린다(L1.loop.spec §4.5) (M2 완료 2026-10-24: kind 셋의 요청·응답 검사, 비대화형 감사 기록, 비차단 `open`·`wait`·`get`, 요청 키 변환은 F `requestKeyFor`, 커밋 키 함수는 `approvals/keys.ts`) | TL-2 | L | M1(tool), M2(plan, question) |
 | TL-6 | 경계화와 blob 연결: `bound.ts`(한도 설정, `xeon.exec` 절단 호출, 원문 putBlob, 50 MiB 상한, 안내 문장, `"self"` 도구 처리). 절단 함수 포크는 L0.exec.plan 몫 | TL-0, L0.exec.plan의 절단 메서드 | S | M1 |
-| TL-7 | 노출 목록: `advertise`(orderTools 부분 수열, 전역 deny 제거, 지연 분리, 128 상한, `tools.too_many`, fingerprint), 활성화 집합 재계산 | TL-3 | M | M1(정렬·deny·상한), M2(지연) |
+| TL-7 | 노출 목록: `advertise`(orderTools 부분 수열, 전역 deny 제거, 지연 분리, 128 상한, `tools.too_many`, fingerprint), 활성화 집합 재계산 (M2 완료 2026-10-24: 임계 지연, 활성화, `planExposure`) | TL-3 | M | M1(정렬·deny·상한), M2(지연) |
 | TL-8 | 서비스·설정 등록: `plugin.ts`, `service.ts`(등록 표, 이름 충돌), `settings.ts`(L1.tools.spec §6 키 6개), 범위별 규칙 수집(`tiers.ts`) | TL-1, TL-3 | M | M1 |
 | TL-9 | `tool_call` fail-closed: ext-host first 디스패치 결과 처리, 핸들러 예외·디스패처 예외·결정 스키마 위반을 모두 거부로, 거부 사유 문장 고정 | TL-0 | S | M1 |
-| TL-10 | `tool_search` 내장 도구와 지연 노출 | TL-7 | M | M2 |
-| TL-11 | `read_tool_output` 내장 도구 | TL-6 | S | M2 |
-| TL-12 | 질문·계획 승인 통합: `kind: plan`(`setMode` 연결), `kind: question`(`QuestionAnswer` 검사), 활성 호출 표로 L2 요청의 체크포인트 초안 생성, wire `approval.respond` 연결 확인(L4.host-service와 함께) | TL-5 | M | M2 |
-| TL-13 | 서브에이전트 ceiling 연결: `ToolRunContext.ceiling`이 있으면 5b 결정을 `stricter(childDecision(…), evaluatePolicy(…))`로 낸다(L1.tools.spec §4.5 ceiling 단계), 비대화형 ask → deny, 자식 광고 목록(`allow`, `keepParentList`), `registerRules("core:agents")` 수용 | TL-3, TL-7, F `policy.ts`의 `childDecision`(F 요청 9), L1.agents.plan AG-3 | S | M2 |
+| TL-10 | `tool_search` 내장 도구와 지연 노출 (완료 2026-10-24: `builtin/tool-search.ts`, `builtin/activation.ts`) | TL-7 | M | M2 |
+| TL-11 | `read_tool_output` 내장 도구 (완료 2026-10-24: `builtin/read-tool-output.ts`) | TL-6 | S | M2 |
+| TL-12 | 질문·계획 승인 통합: `kind: plan`(`setMode` 연결), `kind: question`(`QuestionAnswer` 검사), 활성 호출 표로 L2 요청의 체크포인트 초안 생성, wire `approval.respond` 연결 확인(L4.host-service와 함께) (완료 2026-10-24: `plan_approval`이 모드를 바꾸고, `input_required { approvalId }` 변형은 어댑터가 승인 해결을 기다려 재호출, 시험용 `L2ApprovalsPort` 어댑터는 `testing/l2-port.ts`. MCP 변형은 L1F에서 `mcp-input.ts`로 완료: 질문 승인을 올리고 `continuation`으로 재호출. 동적 MCP 도구(`DirectToolRegistration`)의 재호출은 F 변경 뒤) | TL-5 | M | M2 |
+| TL-13 | 서브에이전트 ceiling 연결: `ToolRunContext.ceiling`이 있으면 5b 결정을 `stricter(childDecision(…), evaluatePolicy(…))`로 낸다(L1.tools.spec §4.5 ceiling 단계), 비대화형 ask → deny, 자식 광고 목록(`allow`, `keepParentList`), `registerRules("core:agents")` 수용 (완료 2026-10-24: `stricter`·`childDecision`은 F 것을 쓰고 core-tools 사본은 없앴다. 자식 광고는 `allow`·`keepParentList`·부모 관점 deny) | TL-3, TL-7, F `policy.ts`의 `childDecision`(F 요청 9), L1.agents.plan AG-3 | S | M2 |
 | TL-14 | `rerun`: 저장된 `intent.args`로 단계 7a~11 실행(키 잠금·슬롯 재획득 포함), `tool_call`·정책 생략 | TL-2, TL-17 | S | M1 |
 | TL-15 | `settleRejected`: 중단으로 실행하지 않는 호출을 `not_executed`로, `length` 절단 응답의 호출을 `truncated`로 닫기(adr.0009 §3.4, 이전 이름 `closeUnexecuted`) | TL-2 | S | M1 |
-| TL-16 | `runUserShell`: 사용자 셸 경로(L1.loop.spec `runUserBash`가 부름), caller `main` 대화형 평가 | TL-2, TL-4 | S | M2 |
-| TL-17 | 태스크 엔진 연결: tool 범위 노드(`find("turn")`, `openScope` kind `tool`, `track`), 잠금 키 산출(`ToolSpec.locks` → `xeon.exec.canonicalPath` → `${env.id}\0${realpath}`, shared·exclusive), `locks.run` 획득(M1), `limiter("tools")` 슬롯과 C3 순서, 자식 대기 때 `suspendWhile`(M2), 대기 중 취소 처리 | TL-1, L1.tasks.plan TK-1·TK-3(M1)·TK-4(M2), L0.exec `canonicalPath` | M | M1(노드·키 큐), M2(풀) |
-| TL-18 | 비밀 경계(L1.tools.spec §4.12): 2계층 마스킹(`Redactor.maskDeep`, 8단계 뒤·9단계 전, 휘발 갱신 전, 경계화·blob 전), `secret.masked` 기록, `findForeignSecretSyntax` 호출, `check`의 `needs_approval` → 승인 요청 연결 | TL-2, L0.secrets 서비스 인터페이스 | S | M1(마스킹), M2(승인 연결) |
+| TL-16 | `runUserShell`: 사용자 셸 경로(L1.loop.spec `runUserBash`가 부름), caller `main` 대화형 평가 (완료 2026-10-24: `pipeline.ts` `runUserShell`. loop의 `runUserBash`는 L1F에서 완료, 실행 전에 닫힌 호출의 레코드는 `details.code: "not_executed"`) | TL-2, TL-4 | S | M2 |
+| TL-17 | 태스크 엔진 연결: tool 범위 노드(`find("turn")`, `openScope` kind `tool`, `track`), 잠금 키 산출(`ToolSpec.locks` → `xeon.exec.canonicalPath` → `${env.id}\0${realpath}`, shared·exclusive), `locks.run` 획득(M1), `limiter("tools")` 슬롯과 C3 순서, 자식 대기 때 `suspendWhile`(M2), 대기 중 취소 처리 | TL-1, L1.tasks.plan TK-1·TK-3(M1)·TK-4(M2), L0.exec `canonicalPath` (M2 완료 2026-10-24: `limiter("tools")` 슬롯을 키 잠금 뒤에 얻고, `ToolServiceInternal.suspendWhile`은 F 요청 14) | M | M1(노드·키 큐), M2(풀) |
+| TL-18 | 비밀 경계(L1.tools.spec §4.12): 2계층 마스킹(`Redactor.maskDeep`, 8단계 뒤·9단계 전, 휘발 갱신 전, 경계화·blob 전), `secret.masked` 기록, `findForeignSecretSyntax` 호출, `check`의 `needs_approval` → 승인 요청 연결 (M2 완료 2026-10-24: `secret-gate.ts`, 증거는 L1F에서 `CallContext.approval`로 도구 구현에 전달) | TL-2, L0.secrets 서비스 인터페이스 | S | M1(마스킹), M2(승인 연결) |
 
 선행 관계 요약: TL-0 → {TL-1, TL-3, TL-6, TL-9} → TL-2 → {TL-5, TL-14, TL-15} → TL-12. TL-1 → TL-17 → TL-14. TL-2 → TL-18. TL-2·TL-4 → TL-16. TL-3 → {TL-4, TL-7, TL-8}. TL-7 → TL-10.
 
@@ -137,6 +137,8 @@ xeon/packages/core-tools/
 
 모델은 테이프(`@xeon/core-models/testing`, eng.testing.guide TS-04), 커밋은 `testing/fakeSession` 또는 core-persistence 테스트 대역, 시계·ID는 주입한다(TS-03).
 
+[결정: review.m2-plan WK·DG 통합] 다른 패키지의 통합 시험은 `testing/real-runtime.ts`의 `realTools({ session, ... })`로 실제 `ToolService`·`ApprovalService`를 caller가 준 세션(`fakeSession` 또는 core-persistence의 실제 세션) 위에 세운다. 같은 세션 위에서 서비스를 다시 세워 재시작을 흉내 낼 때는 처음 조립이 돌려준 `producer`를 넘긴다(세션 서비스 하나에서 `core.tools` 생산자는 한 번만 받을 수 있다).
+
 | 테스트 | 확인할 동작 | 작업 |
 |---|---|---|
 | `exposure_removes_denied_tools` | 인자·모드 조건 없는 deny 규칙의 도구가 `tools`에 없고 `removed`에 규칙 id와 함께 있다. 인자 조건 deny 도구는 남는다 | TL-7 |
@@ -158,9 +160,19 @@ xeon/packages/core-tools/
 | `bypass_forbidden_by_managed` | `bypassAllowed: false`면 `setMode("bypass")`가 `tools.mode_forbidden`, 평가는 default로 | TL-4 |
 | `approval_pending_restored_after_restart` | 승인 대기 중 강제 종료(fault 테스트) 뒤 `restore` → `pending`에 같은 `approvalId` 하나, core-loop 대역이 같은 `prepare`·`execute`로 다시 돌린 뒤 새 `approval.requested` 0건 | TL-5 |
 | `approval_respond_twice_not_applied` | 두 번째 `respond`는 `applied: false`이고 이벤트가 늘지 않는다 | TL-5 |
+| `the oldest resolved requests leave memory first...` | `resolvedKept`를 넘기면 가장 먼저 해결된 요청이 메모리 표에서 빠지고(`get`이 `undefined`, `respond`는 적용 안 함) 대기 중인 요청은 남는다. 빠진 요청의 `requestKey`로 `open`하면 새 이벤트 없이 같은 `approvalId`와 저장된 해결(`answer` 값 포함)을 돌려준다 (`approvals-eviction.test.ts`) | L7 |
 | `approval_remember_thread_skips_next_ask` | `remember: "thread"` 뒤 같은 도구 ask가 승인 없이 allow. 재개 뒤에도 같다 | TL-5 |
 | `approval_turn_abort_cancels_pending` | 턴 취소가 대기 요청을 `resolvedBy: "cancelled"`로 닫고 도구는 실행되지 않는다 | TL-5 |
 | `question_and_plan_approval_share_request_shape` | 질문 요청과 계획 요청이 모두 `approval.requested`이고 `ApprovalRequestSchema`를 통과하며 `body.kind`만 다르다 | TL-12 |
+| `tool_search_activates_for_next_step` (core-tools) | 지연 도구를 찾으면 활성화가 기록되고 다음 `advertise`가 그 도구를 싣는다. 재시작 뒤에도 같다 | TL-10 |
+| `read_tool_output_pages_blob` (core-tools) | 줄 범위로 원문을 돌려주고 모르는 해시·도구 출력이 아닌 blob은 오류 결과다 | TL-11 |
+| `tools_pool_cap_waits_after_lock` (core-tools) | 슬롯 1개면 두 번째 실행이 첫 실행의 반납 뒤 시작하고 키 잠금 → 슬롯 순서다 | TL-17 |
+| `ask_user_waits_for_the_answer` | `input_required`를 낸 도구가 승인 해결까지 `effect.result` 없이 기다리고, 해결 뒤 같은 `requestId`로 다시 불려 결과를 한 번 기록한다 | TL-12 |
+| `ask_user_after_restart` | 재시작 뒤 `restore`와 `rerun`이 같은 승인 요청을 이어 받고 새 `approval.requested`가 없다 | TL-12 |
+| `mcp_input_retried_with_continuation` | `approvalId`가 없는 `input_required`가 질문 승인(대기 체크포인트와 같은 커밋)이 되고, 답이 `inputResponses`로 `continuation`에 실려 같은 `requestId`로 재호출된다 | TL-12 |
+| `mcp_input_declined`, `mcp_input_non_interactive` | 거부와 비대화형은 모든 입력 요청에 `decline`으로 답하고 서버가 마무리한다. 비대화형은 요청과 거부 해결이 한 커밋이다 | TL-12 |
+| `mcp_input_cancelled_with_the_turn`, `mcp_input_second_round`, `mcp_input_malformed` | turn 취소는 승인을 닫고 재호출하지 않는다. 라운드마다 다른 요청이고 라운드 번호가 늘어난다. 모양이 틀린 변형은 오류 결과다 | TL-12 |
+| `secret_use_evidence_from_the_bash_approval` | `check`가 `needs_approval`인 `secretEnv` 호출이 정책 승인 하나로 증거를 얻고, 규칙이 허용한 호출은 `secret.use` 요청을 따로 올린다 | TL-18 |
 | `plan_approval_switches_mode` | 계획 승인 `answer: { mode: "acceptEdits" }`가 `settings.changed`(session 범위)를 남긴다 | TL-12 |
 | `truncate_spills_full_output_to_blob` | 60,000바이트 출력 → `putBlob` 1회, `effect.result.blobRef.sha256`가 원문 해시, 모델 내용은 51,200바이트 이하 미리보기 + 안내 문장 | TL-6 |
 | `bound_uses_exec_truncation` | `bound.ts`가 절단을 `xeon.exec` 대역으로 부르고 `truncateHead` 결과를 그대로 미리보기로 쓴다(core-tools 소스에 `truncate.ts`가 없다) | TL-6 |
@@ -180,6 +192,10 @@ xeon/packages/core-tools/
 | `lock_wait_abort_leaves_no_exec` | 잠금 대기 중 turn 취소면 그 호출에 `effect.exec`가 없고 중단 결과다 | TL-17 |
 | `tools_pool_cap_waits_after_lock` | `limits.tools = 1`이면 두 번째 실행이 첫 실행의 반납 뒤 시작하고, 기록된 순서가 키 잠금 → 슬롯이다(C3) | TL-17 |
 | `tool_result_masked_before_commit_and_points` | 가짜 `Redactor`에 등록한 값이 `effect.result`, toolResult item, blob, `tool_result`·`tool_execution_update` 페이로드에 없고 `secret.masked` 1건이 남는다 | TL-18 |
+| `capability_tool_subagent_name_reaches_the_approval_caller`, `direct_tool_subagent_name_reaches_the_approval_caller` | 서브에이전트 호출의 `CallContext.caller`가 `agentName`을 싣고 `approvalCallerOf`가 `subagent:<이름>`을 낸다. 능력 도구와 직접 등록 도구가 같다(`test/call-context.test.ts`, M2 마감 G1-09) | TL-12 |
+| `a client that asks for always on a bash request is refused, because always is not offered` | 도구 승인이 `always`를 제안하지 않고, 보낸 응답은 `answer_invalid`이며 요청은 대기 그대로다. `an adapter request that offers always ...`는 `thread`로 낮추고 `requestedRemember`를 남긴다(`test/approvals.test.ts`, M2 마감 G2-10) | TL-12 |
+| `an origin without stepId gets the active call's step ...` | `origin.stepId`가 없는 요청이 활성 호출의 단계로 채워져 payload와 이벤트 봉투가 일치한다. 서브에이전트 정책 승인의 `origin.caller`는 `subagent:<이름>`이다(`test/approval-origin.test.ts`, M2 마감 G1-09) | TL-12 |
+| `the approval title names the secrets of a call and shortens a long list by count` | `secretEnv` 호출의 정책 승인 제목이 `Allow "bash" to use secret://…?`이고 120자를 넘으면 `(+N more)`로 줄인다(`test/secret-approval.test.ts`, M2 마감 G2-10) | TL-18 |
 
 ## 6. 완료 기준
 

@@ -8,6 +8,7 @@ import {
   type TNull,
   type TObject,
   type TOptional,
+  type TRecord,
   type TString,
   type TUnion,
   type TUnsafe,
@@ -32,6 +33,12 @@ import { BlobRefSchema } from "../blob.ts";
 // 하위 모양의 필드 뜻은 L1.tools.spec §3.6 소관이다. records는 capabilities보다 낮은 순서가 아니라 같은 순서라
 // 그 도메인 타입을 import하지 않고 JSON 수준으로 같은 모양을 적는다.
 
+/**
+ * `origin.caller`가 따라야 하는 형식. 값을 만드는 함수는 `approvalCallerOf`(`services/approvals.ts`)이고 타입은 `ApprovalCaller`다.
+ * records는 services보다 낮아 그 타입을 import하지 못하므로 형식만 여기에 두고 services가 이 상수를 쓴다.
+ */
+export const APPROVAL_CALLER_PATTERN: string = "^(main|background|host|subagent:.+|ext:.+)$";
+
 export const ApprovalOriginJsonSchema: TObject<{
   threadId: TUnsafe<ThreadId>;
   turnId: TUnion<[TUnsafe<TurnId>, TNull]>;
@@ -44,8 +51,8 @@ export const ApprovalOriginJsonSchema: TObject<{
     turnId: Nullable(TurnIdSchema),
     stepId: Nullable(StepIdSchema),
     toolCallId: Nullable(Type.String({ minLength: 1, maxLength: 256 })),
-    /** CallerId */
-    caller: Type.String({ minLength: 1, maxLength: 128 }),
+    /** `ApprovalCaller`(`approvalCallerOf`가 만든다): main, background, host, subagent:<이름>, ext:<이름> */
+    caller: Type.String({ minLength: 1, maxLength: 128, pattern: APPROVAL_CALLER_PATTERN }),
   },
   { additionalProperties: false },
 );
@@ -95,17 +102,21 @@ const QuestionOption: TObject<{
   id: TString;
   label: TString;
   description: TOptional<TString>;
+  recommended: TOptional<TBoolean>;
 }> = Type.Object(
   {
     id: Type.String({ minLength: 1, maxLength: 64 }),
     label: Type.String({ minLength: 1, maxLength: 200 }),
     description: Type.Optional(Type.String({ maxLength: 1000 })),
+    /** 추천 표시. 화면이 강조만 한다 */
+    recommended: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
 
 const Question: TObject<{
   id: TString;
+  header: TOptional<TString>;
   text: TString;
   options: TArray<typeof QuestionOption>;
   multiSelect: TBoolean;
@@ -113,6 +124,8 @@ const Question: TObject<{
 }> = Type.Object(
   {
     id: Type.String({ minLength: 1, maxLength: 64 }),
+    /** 질문 위에 얹는 짧은 머리글 */
+    header: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
     text: Type.String({ minLength: 1, maxLength: 2000 }),
     options: Type.Array(QuestionOption, { maxItems: 32 }),
     multiSelect: Type.Boolean(),
@@ -152,6 +165,21 @@ const RememberScope: TUnion<[TLiteral<"once">, TLiteral<"thread">, TLiteral<"alw
   Type.Union([Type.Literal("once"), Type.Literal("thread"), Type.Literal("always")]);
 
 /** approvalId는 envelope id다. payload에 두지 않는다 */
+/** 만료 때의 해결(`ApprovalOnExpire`). `answer`의 모양은 요청 kind가 정한다 */
+export const ApprovalOnExpireJsonSchema: TUnion<
+  [
+    TObject<{ decision: TLiteral<"deny"> }>,
+    TObject<{ decision: TLiteral<"answer">; answer: TUnsafe<JsonValue> }>,
+  ]
+> = Type.Union([
+  Type.Object({ decision: Type.Literal("deny") }, { additionalProperties: false }),
+  Type.Object(
+    { decision: Type.Literal("answer"), answer: JsonValueSchema },
+    { additionalProperties: false },
+  ),
+]);
+export type ApprovalOnExpireJson = Static<typeof ApprovalOnExpireJsonSchema>;
+
 export const ApprovalRequestedPayloadSchema: TObject<{
   origin: typeof ApprovalOriginJsonSchema;
   requestKey: TString;
@@ -160,6 +188,8 @@ export const ApprovalRequestedPayloadSchema: TObject<{
   remember: TArray<typeof RememberScope>;
   surfaceThreadId: TUnsafe<ThreadId>;
   requestedAt: TInteger;
+  expiresAt: TOptional<TInteger>;
+  onExpire: TOptional<typeof ApprovalOnExpireJsonSchema>;
 }> = Type.Object(
   {
     origin: ApprovalOriginJsonSchema,
@@ -171,6 +201,10 @@ export const ApprovalRequestedPayloadSchema: TObject<{
     /** 이벤트를 기록하는 대화 */
     surfaceThreadId: ThreadIdSchema,
     requestedAt: Type.Integer({ minimum: 0 }),
+    /** 만료 시각(epoch ms). 없으면 만료가 없다. 이 필드가 생기기 전에 기록된 요청에는 없다 [결정: m2c G1-11] */
+    expiresAt: Type.Optional(Type.Integer({ minimum: 0 })),
+    /** 만료 때의 해결. 생략하면 거부 */
+    onExpire: Type.Optional(ApprovalOnExpireJsonSchema),
   },
   { additionalProperties: false },
 );
@@ -183,7 +217,13 @@ export const ApprovalResolvedPayloadSchema: TObject<{
   remember: typeof RememberScope;
   requestedRemember: TUnion<[typeof RememberScope, TNull]>;
   resolvedBy: TUnion<
-    [TLiteral<"user">, TLiteral<"noninteractive">, TLiteral<"cancelled">, TLiteral<"superseded">]
+    [
+      TLiteral<"user">,
+      TLiteral<"noninteractive">,
+      TLiteral<"cancelled">,
+      TLiteral<"superseded">,
+      TLiteral<"expired">,
+    ]
   >;
 }> = Type.Object(
   {
@@ -199,8 +239,58 @@ export const ApprovalResolvedPayloadSchema: TObject<{
       Type.Literal("noninteractive"),
       Type.Literal("cancelled"),
       Type.Literal("superseded"),
+      Type.Literal("expired"),
     ]),
   },
   { additionalProperties: false },
 );
 export type ApprovalResolvedPayload = Static<typeof ApprovalResolvedPayloadSchema>;
+
+// ── approval.respond의 answer 정본 모양 (L1.tools.spec §3.6, F.wire-settings.spec §3.3.1) ─────────────────
+// kind와 decision이 모양을 정한다: question + answer → QuestionAnswer, plan + allow → PlanAnswer, deny → DenyAnswer.
+// 어느 조합이 맞는지는 승인 서비스가 요청 body와 대조해 판단하고, 여기서는 JSON 모양만 검사한다.
+
+/** 질문 하나의 답. 선택지 id 목록과 자유 입력 */
+export const QuestionAnswerItemSchema: TObject<{
+  selected: TArray<TString>;
+  text: TOptional<TString>;
+}> = Type.Object(
+  {
+    selected: Type.Array(Type.String({ minLength: 1, maxLength: 64 }), { maxItems: 32 }),
+    text: Type.Optional(Type.String({ maxLength: 8192 })),
+  },
+  { additionalProperties: false },
+);
+
+/** 질문 id → 답. 질문은 최대 4개다 */
+export const QuestionAnswerSchema: TRecord<"^.*$", typeof QuestionAnswerItemSchema> = Type.Record(
+  Type.String(),
+  QuestionAnswerItemSchema,
+  { maxProperties: 4 },
+);
+export type QuestionAnswerJson = Static<typeof QuestionAnswerSchema>;
+
+/** 계획 승인 `allow`의 answer. 다음 권한 모드(요청의 `nextModes` 안)와 메모. 둘 다 선택이다 */
+export const PlanAnswerSchema: TObject<{
+  mode: TOptional<TString>;
+  note: TOptional<TString>;
+}> = Type.Object(
+  {
+    mode: Type.Optional(Type.String({ minLength: 1, maxLength: 64 })),
+    note: Type.Optional(Type.String({ maxLength: 8192 })),
+  },
+  { additionalProperties: false },
+);
+export type PlanAnswerJson = Static<typeof PlanAnswerSchema>;
+
+/** `deny`의 answer. 모델에 돌려줄 거부 이유 */
+export const DenyAnswerSchema: TObject<{ feedback: TString }> = Type.Object(
+  { feedback: Type.String({ minLength: 1, maxLength: 8192 }) },
+  { additionalProperties: false },
+);
+export type DenyAnswerJson = Static<typeof DenyAnswerSchema>;
+
+export const ApprovalAnswerSchema: TUnion<
+  [typeof PlanAnswerSchema, typeof DenyAnswerSchema, typeof QuestionAnswerSchema]
+> = Type.Union([PlanAnswerSchema, DenyAnswerSchema, QuestionAnswerSchema]);
+export type ApprovalAnswerJson = Static<typeof ApprovalAnswerSchema>;

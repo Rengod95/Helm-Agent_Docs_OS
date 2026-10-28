@@ -33,13 +33,20 @@ export const binding: ModelBinding = {
   thinkingLevel: "off",
 };
 
-const cachePolicy: CachePolicy = {
+export const cachePolicy: CachePolicy = {
   retention: "short",
   sessionKey: "thread",
   sites: ["system", "tools", "summary", "tail"],
   maxBreakpoints: 4,
   midConversationSystem: true,
   midConversationToolChanges: true,
+};
+
+/** 대화 중 system 메시지와 도구 변경을 지원하지 않는 모델 */
+export const noMidConversation: CachePolicy = {
+  ...cachePolicy,
+  midConversationSystem: false,
+  midConversationToolChanges: false,
 };
 
 function tool(capability: string, name: string): OrderedTool {
@@ -65,6 +72,13 @@ export const sortedTools: readonly OrderedTool[] = [
   tool("workspace.list", "ls"),
   tool("workspace.read", "read"),
 ];
+
+/** 도구 변경 시험용으로 기록된 광고 상태(description "g", 빈 parameters)와 맞는 도구 */
+export const grepTool: OrderedTool = {
+  capability: "workspace.grep",
+  name: "grep",
+  wire: { name: "grep", description: "g", parameters: {} },
+};
 
 export function assembleOptions(
   ids: MemoryLog["ids"],
@@ -176,3 +190,17 @@ export const tokenEstimator: TokenEstimator = {
   },
   fromUsage: (u: Usage) => u.totalTokens,
 };
+
+/** 어떤 메시지 배열이든 정해진 토큰 수를 내는 추정기. 임계 경계값 시험에 쓴다 */
+export function fixedTokens(tokens: number): TokenEstimator {
+  return {
+    estimateMessage: (message) => tokenEstimator.estimateMessage(message),
+    estimateContext: () => ({
+      tokens,
+      usageTokens: 0,
+      trailingTokens: tokens,
+      lastUsageIndex: null,
+    }),
+    fromUsage: (usage) => tokenEstimator.fromUsage(usage),
+  };
+}

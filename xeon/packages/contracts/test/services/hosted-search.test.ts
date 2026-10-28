@@ -11,7 +11,7 @@ import type {
 import type { Assignable, Equal, Expect } from "../types/expect.ts";
 
 export type PortIsOptionalOnModelService = Expect<
-  Equal<ModelService["hostedSearch"], HostedSearchPort | undefined>
+  Equal<ModelService["hostedSearch"], HostedSearchPort>
 >;
 export type StopReasonsAreTheFourSpecValues = Expect<
   Equal<HostedSearchStopReason, "end_turn" | "pause_turn" | "max_tokens" | "refusal">

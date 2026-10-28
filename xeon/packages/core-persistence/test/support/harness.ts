@@ -33,6 +33,8 @@ import {
 import {
   createSessionService,
   type PersistenceSettings,
+  type RetentionApi,
+  type SessionPoints,
   type SessionDeps,
 } from "../../src/index.ts";
 import { sha256Hex } from "../../src/hash.ts";
@@ -60,10 +62,13 @@ export interface Harness {
   readonly ids: IdFactory;
   readonly store: TestStore;
   readonly service: SessionService;
+  /** 보관 정리(조립 루트가 엔진 열기 때 부른다) */
+  readonly retention: RetentionApi;
   readonly loop: ProducerHandle;
   readonly tools: ProducerHandle;
   readonly tasks: ProducerHandle;
   readonly context: ProducerHandle;
+  readonly agents: ProducerHandle;
   /** 성공으로 끝난 새 커밋(재전송 제외) 수 */
   commits(): number;
   /** 로거에 남은 기록 */
@@ -74,6 +79,8 @@ export interface HarnessOptions {
   readonly path?: string;
   readonly faults?: FaultInjector;
   readonly settings?: () => PersistenceSettings;
+  readonly guardProjectors?: boolean;
+  readonly points?: SessionPoints;
   readonly clock?: ManualClock;
   readonly ids?: IdFactory;
   readonly store?: TestStore;
@@ -84,15 +91,15 @@ export interface HarnessOptions {
   readonly putBlob?: SessionDeps["putBlob"];
 }
 
-export function openHarness(options: HarnessOptions = {}): Harness {
+export async function openHarness(options: HarnessOptions = {}): Promise<Harness> {
   const clock = options.clock ?? manualClock();
   const ids = options.ids ?? fixedIdFactory();
   const store =
     options.store ??
-    openTestStore({
-      now: () => clock.now(),
+    (await openTestStore({
+      clock,
       ...(options.path === undefined ? {} : { path: options.path }),
-    });
+    }));
   const logs: string[] = [];
   const logger: Logger = {
     debug: () => {},
@@ -117,6 +124,8 @@ export function openHarness(options: HarnessOptions = {}): Harness {
     ...(options.putBlob === undefined ? {} : { putBlob: options.putBlob }),
     ...(options.faults === undefined ? {} : { faults: options.faults }),
     ...(options.settings === undefined ? {} : { settings: options.settings }),
+    ...(options.guardProjectors === undefined ? {} : { guardProjectors: options.guardProjectors }),
+    ...(options.points === undefined ? {} : { points: options.points }),
     ...(options.onLeaseLost === undefined ? {} : { onLeaseLost: options.onLeaseLost }),
   });
   if (!created.ok)
@@ -137,17 +146,19 @@ export function openHarness(options: HarnessOptions = {}): Harness {
     ids,
     store,
     service: counted,
+    retention: service.retention,
     loop: service.producer("core.loop"),
     tools: service.producer("core.tools"),
     tasks: service.producer("core.tasks"),
     context: service.producer("core.context"),
+    agents: service.producer("core.agents"),
     commits: () => commitCount,
     logs,
   };
 }
 
 /** 같은 DB 파일에 새 서비스를 올린다(프로세스 재시작 흉내). 이전 서비스의 메모리 상태는 모두 사라진다 */
-export function reopenHarness(prior: Harness, options: HarnessOptions = {}): Harness {
+export function reopenHarness(prior: Harness, options: HarnessOptions = {}): Promise<Harness> {
   return openHarness({ ...options, clock: prior.clock, ids: prior.ids, store: prior.store });
 }
 

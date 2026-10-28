@@ -1,7 +1,8 @@
 import { expect, test } from "bun:test";
+import { makeDraft } from "../../src/primitives/drafts.ts";
 import { hostInternalsOf, scopeToggleSourceOf } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { makeGroupUnit, makeUnit } from "./fixtures/support.ts";
+import { makeGroupUnit, makeUnit, snapshotOf } from "./fixtures/support.ts";
 
 type Host = Awaited<ReturnType<typeof createTestHost>>;
 
@@ -174,6 +175,75 @@ test("reopening a thread does not write scope.changed again for scopes it alread
   await second.host.openThread(thread);
   await second.settled();
   expect(changes(second, thread)).toHaveLength(1);
+});
+
+test("a default-enabled scope turned off in a thread stays off after reopening and after a restart", async () => {
+  const first = await createTestHost();
+  const a = first.newThread();
+  const b = first.newThread();
+  const seen: string[] = [];
+  const unitOf = () =>
+    makeUnit({ name: "ts-off", points: ["agent_settled"] }, (g) => {
+      g.on("agent_settled", (_payload, ctx) => {
+        seen.push(ctx.threadId);
+      });
+    });
+  await first.host.install(unitOf());
+  await first.host.openThread(a);
+  await first.host.openThread(b);
+  await first.settled();
+  scopeToggleSourceOf(first.host).request("ts-off", false, "request", a);
+  await first.settled();
+  expect((await snapshotOf(first.records, a)).disabled).toEqual(["ts-off"]);
+  expect((await snapshotOf(first.records, a)).enabled).toEqual([]);
+
+  // 같은 호스트에서 닫았다 다시 연다
+  await first.host.closeThread(a);
+  await first.host.openThread(a);
+  await first.settled();
+  await fire(first, a, "k-reopen-a");
+  await fire(first, b, "k-reopen-b");
+  expect(seen).toEqual([b]);
+  expect(changes(first, a)).toHaveLength(2);
+
+  // 프로세스를 다시 시작해도 같다
+  seen.length = 0;
+  const second = await createTestHost({
+    shared: { records: first.records, loop: first.loop, queue: first.queue },
+  });
+  await second.host.install(unitOf());
+  await second.host.openThread(a);
+  await second.host.openThread(b);
+  await second.settled();
+  await fire(second, a, "k-restart-a");
+  await fire(second, b, "k-restart-b");
+  expect(seen).toEqual([b]);
+  expect(changes(second, a)).toHaveLength(2);
+  expect(changes(second, b)).toHaveLength(1);
+
+  // 끈 thread에서 다시 켜면 새 키로 기록된다
+  scopeToggleSourceOf(second.host).request("ts-off", true, "request", a);
+  await second.settled();
+  expect(changes(second, a).at(-1)).toEqual({ scopeId: "ts-off", status: "enabled" });
+  expect((await snapshotOf(second.records, a)).scopeTransitions["ts-off"]).toBe(3);
+  // 재시작한 호스트가 낸 이벤트 id는 이전 호스트의 것과 겹치지 않는다
+  const eventIds = second.records.events(a).map((draft) => draft.id);
+  expect(new Set(eventIds).size).toBe(eventIds.length);
+});
+
+test("the in-memory record store rejects a draft whose id is already stored instead of looping on a cyclic branch", async () => {
+  const t = await createTestHost();
+  const thread = t.newThread();
+  const draft = makeDraft(t.ids, {
+    threadId: thread,
+    kind: "scope.changed",
+    payload: { scopeId: "dup", status: "enabled" },
+  });
+  const first = await t.records.commit({ threadId: thread, requestId: "dup-1", drafts: [draft] });
+  expect(first.status).toBe("committed");
+  const second = await t.records.commit({ threadId: thread, requestId: "dup-2", drafts: [draft] });
+  expect(second).toEqual({ status: "rejected", code: "invalid" });
+  expect((await snapshotOf(t.records, thread)).enabled).toEqual(["dup"]);
 });
 
 test("onChange reports toggle requests, their application and lease changes; a throwing listener does not stop the others", async () => {

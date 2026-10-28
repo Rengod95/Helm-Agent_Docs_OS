@@ -18,6 +18,8 @@ binds: [xeon/packages/platform-sandbox/**]
 |---|---|---|
 | M0 | 없음. SB-01 스파이크만 M0 끝에 먼저 돌려 M1 위험을 줄인다 [제안] | `_research/foundation-plan.md` §5 P4 M0 범위에 sandbox 없음 |
 | M1 | srt 래핑(`wrapShell`), 상태 탐지, 보호 경로, 자동 허용 판정, 자가 시험, `onUnavailable` 정책, 위반 기록, doctor 출력, 설정, 서비스 등록, `fakeSandbox` | [결정: foundation-plan §5 M1 "도구 read, ls, bash(sandbox)"], `product.scope.spec` §4.4 M1 "샌드박스 `bash`가 작업 폴더 밖 쓰기를 거부한다" |
+| M2 | 자가 시험 호출 경로, 실제 srt 통합 시험 | SB-17, SB-18 |
+| SB-18 | (M2) 실제 srt 통합 시험 `sandbox.int.test.ts`(spec §9 12~13): 실제 bwrap·Seatbelt로 쓰기 루트 밖 쓰기 거부(감싸지 않은 대조 포함), `.git/hooks`, 보호 canary 읽기, 빈 deny 목록과 `protectedPaths.extra`, 네트워크 거부, 자가 시험 6항목. 필수 바이너리가 없을 때 `XEON_REQUIRE_SANDBOX=1`·CI는 종료 코드 2. 실제 srt로 처음 돌려 `env_allowlist`가 srt 프록시 토큰 env 때문에 실패함을 찾아 자가 시험을 고쳤다 | SB-07, SB-12 | M |
 | M2 이후 | 네트워크 허용 도메인 정책(srt 프록시), 이름 붙은 권한 프로필과 오프라인 규칙 검사, Windows 대응(srt-win alpha 재평가), srt 버전 갱신 | [결정: 계획 v2 L0-b 2차 항목], `_research/decisions-log.md` 2026-10-19 Windows 나중 |
 
 ## 2. 패키지와 파일 배치
@@ -93,12 +95,13 @@ export function fakeSandbox(options?: FakeSandboxOptions): FakeSandbox;
 | SB-08 | `onUnavailable` 정책: `wrapShell` 안의 3값 분기, `enabled=false` 처리, `escapeRetry` 검사 | SB-05 | S |
 | SB-09 | 위반 기록 수집: `getViolationsForCommand` → `SandboxViolation` 변환(합치기, 200자 자르기, 50개 상한), Linux 모니터 기본 끔 | SB-05 | S |
 | SB-10 | doctor 출력: `describeSandboxStatus`의 severity·hints, 시작 로그 한 줄. `L4.cli.plan`에 종료 코드 2 계열 연결 요청 | SB-02 | S |
-| SB-11 | 설정 정의: `settings.ts`의 `defineSettings("l0.sandbox", …)` 8키(spec §6), 범위 제한(넓히는 키는 `project` 제외), `ui.tab` 임시값 `"permissions"` | SB-02 | S |
+| SB-11 | 설정 정의: `settings.ts`의 `defineSettings("l0.sandbox", …)` M1 6키(`enabled`, `onUnavailable`, `protectedPaths.extra`, `writeRoots.extra`, `escapeRetry`, `selfTestIntervalMin`. spec §6 표의 `network.allowedDomains`, `network.deniedDomains` 2키는 M2에서 더한다), 범위 제한(넓히는 키는 `project` 제외), `ui.tab` 임시값 `"permissions"` | SB-02 | S |
 | SB-12 | 서비스 등록: `service.ts`의 `createSandboxService`, ext-host로 `SandboxServiceName` 등록, dispose 때 srt `reset()`. `fakeSandbox`와 `testing` 서브패스 | SB-05~SB-11, `X.primitives.plan` 등록 API | M |
 | SB-13 | (M2) 네트워크 정책: `l0.sandbox.network.*` 키 활성화, `strictAllowlist` 해제 여부, 프록시 env와 exec 허용 목록 연동, `deniedResolvedAddresses` 기본값, `L0.secrets` sentinel 모드(후속)와 프록시 공존 확인 | SB-12 | L |
 | SB-14 | (M2) 프로필·오프라인 검증: 이름 붙은 프로필(정책 묶음)과 실행 없는 규칙 검사 명령. Gemini CLI policy 구조는 참고만 | SB-12 | M |
 | SB-15 | (M2+) Windows 대응: srt-win alpha 재평가. 채택하면 win32 provider를 `srt`로 올리고 Windows CI | SB-12 | L |
 | SB-16 | (후속, sentinel 모드) 프록시 훅: 자식 HTTPS 요청의 헤더에서 sentinel을 값으로 바꾸는 훅을 `SandboxService`에 둘지 정하고 구현한다. srt `mitmProxy`(외부 Unix 소켓) 연결 안과 `parentProxy` 체이닝 안 비교, TLS 종단(`L0.secrets.spec` §10 6번). 선행 조건이 `L0.secrets.plan` SC-20이다 | SB-13 | L |
+| SB-17 | (M2) 자가 시험 호출 경로: `startSelfTests(shell)`(시작 직후 한 번, `selfTestIntervalMin`마다 반복, `stop`, dispose 연동). `self-test-schedule.test.ts`가 간격 재읽기, 0 처리, 항목 실패와 시험 자체 오류의 구분, 취소를 확인. 호출은 `L4.host-service`가 건다 | SB-07, SB-12 | S |
 
 순서: SB-01 → SB-02 ∥ SB-03 → SB-04, SB-06 → SB-05 → SB-07 ∥ SB-08 ∥ SB-09 → SB-10, SB-11 → SB-12(M1 끝).
 

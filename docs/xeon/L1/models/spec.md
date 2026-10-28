@@ -163,6 +163,8 @@ export interface ModelService extends ModelsPort {
 
   /** 카탈로그 조회. 허용·차단 목록을 적용한 결과 */
   list(filter?: ModelListFilter): readonly ModelInfo[];
+  /** provider 요청의 목적지(baseUrl 설정 → 등록부 → provider 기본 주소). 모르거나 해석할 수 없으면 null. 비밀 lease의 `target`과 같은 값이다(§3.9) [결정: M2 Mac 실기] */
+  providerTarget(providerId: string): ProviderTarget | null;
   /** provider 등록. 플러그인은 F provider 인터페이스(ProviderDef)로 이 메서드를 부른다(§3.7, §3.11) */
   addProvider(owner: ScopeId, name: string, def: ProviderDef): Result<Unsubscribe, ModelError>;
   /** X ModelsPort 등록(확장 hostOf(g).registerProvider). config를 ProviderConfigDefSchema로 검사해 addProvider와 같은 경로로 등록한다. 실패하면 ModelError 값을 던진다(§3.7) */
@@ -348,6 +350,9 @@ export interface CacheMarks {
 }
 ```
 
+- retention이 `none`인 정책(요약·판정·검색 역할, 설정 `none`)은 `sessionKey`가 `null`이고 `sites`가 빈 배열이다 [구현: M2]. 호출 단위 덮어쓰기(`ModelCallOptions.cacheRetention`, agent-core가 넘긴 값)도 이 세 역할에는 `none`을 유지한다.
+- 대화 중 system 메시지·도구 변경 지원은 `model.compat`의 `supportsMidConvoSystemMessages`와 `supportsMidConvoToolChanges`(anthropic) 또는 `supportsMidConvoToolAdditions`(그 밖)에서 읽는다. 도구 변경은 system 메시지 지원이 있을 때만 참이다 [구현: M2].
+- 표식 적용은 anthropic-messages 페이로드에 대해 `onPayload`에서 한다. `CacheMarks`의 `summary` 위치를 페이로드 `messages`의 마지막 블록에 달고(문자열 content는 text 블록으로 바꾼다), 페이로드에 달린 `cache_control` 수가 `maxBreakpoints`를 넘으면 `sites` 뒤쪽(`tail`, 그다음 `summary`)부터 지운다. 같은 입력에 같은 결과를 내서 pi-ai 재시도 때 다시 불려도 안전하다 [구현: M2].
 - 기본 `sites`는 `["system", "tools", "summary", "tail"]`다. pi-ai `anthropic-messages`는 retention이 `none`이 아니면 시스템 블록(`anthropic-messages.ts:1167-1190`), 마지막 도구(`1608`), 마지막 user·system 메시지(`1483-1504`)에 표식을 붙인다. Xeon이 더하는 위치는 `summary`(컴팩션 요약 메시지)뿐이다 [제안].
 - 다른 API(OpenAI 계열, Google)는 자동 접두 캐시를 쓰므로 `marks`를 무시하고 `retention`, `sessionKey`만 전달한다.
 - 정책은 해석 때 `ResolvedModel.cachePolicy`로 정해진다. 호출 단위 덮어쓰기는 `ModelCallOptions.cacheRetention`만 허용한다.
@@ -390,6 +395,10 @@ export type SecretRefString = string;   // F.wire-settings.spec §3.8.1 SecretRe
 export const ProviderConfigDefSchema: TUnsafe<ProviderConfigDef>;
 ```
 
+- 등록 이름은 `^[a-z0-9][a-z0-9._-]{0,63}$`이어야 하고 어기면 `invalid_provider`다. `kind: "runtime"`은 `provider.id`가 등록 이름과 같아야 한다 [구현: M2].
+- `kind: "config"`는 내장 provider 이름이면 `models` 없이 `baseUrl`, `headers`, `apiKey`만 덮어쓸 수 있고(해제하면 내장 값으로 돌아간다), 새 이름이면 `baseUrl`과 `models`가 필요하다. `api`는 pi-ai 내장 API 중 `anthropic-messages`, `openai-completions`, `openai-responses`, `google-generative-ai`, `mistral-conversations`만 쓸 수 있다. `headers` 값이 `secret://` 참조이면 요청 직전에 해석해 요청 헤더에만 싣는다 [구현: M2].
+- 자격 증명 참조는 설정 `l1.models.providers`의 `apiKeyRef`가 먼저이고 없으면 등록부의 `apiKey`(config)나 `credential`(runtime)이다. `list({ available: true })`는 참조가 있는 provider와 등록부로 들어온 provider를 포함한다 [구현: M2].
+- 포트 경로 `registerProvider`가 던지는 값은 `ModelRegistrationError`(`Error`를 확장하고 `kind`, `ref`, `message`로 `ModelError`를 구현한다)다 [구현: M2].
 - `addProvider`는 `name`이 이미 있으면 `provider_conflict` 오류를 낸다. 같은 owner가 다시 등록하는 경우도 먼저 해제해야 한다 [제안]. 해제는 반환된 `Unsubscribe`와 scope dispose(X)로 한다.
 - `registerProvider`(포트 경로)는 `Result`를 돌려주지 않는다. `config`가 `ProviderConfigDefSchema`를 통과하지 않으면 `kind: "invalid_provider"`, 이름이 겹치면 `provider_conflict`인 `ModelError`를 던진다 [제안]. X는 이 예외를 등록 실패로 확장에 돌려준다.
 - 내장 provider(pi-ai `providers/all.ts`)의 기본값을 바꾸는 등록(pi 예: baseUrl만 바꾸기)은 `kind: "config"`에 `models` 없이 `baseUrl`만 주는 형태로 허용한다.
@@ -450,10 +459,12 @@ export function secretBackedCredentialStore(refs: ProviderCredentialRefs, secret
 - 해석 시점: pi-ai `Models.getAuth`가 요청마다 `CredentialStore.read(providerId)`를 부른다(`auth/types.ts:65-70`). 이 함수 안에서만 `xeon.secrets`로 값을 얻고, 값은 반환 객체 안에만 있다. 캐시하지 않는다 [제안](`_research/secrets.md` §6.2 "실행 직전 해석").
 - 값은 요청 헤더로만 나간다. `ModelCallRequest`, `ResolvedModel`, 이벤트, 로그, 지점 페이로드에 싣지 않는다(§7.2 헤더 가림).
 - 사용 모드: `runtime-http`(`L0.secrets.spec` §4.3 M3)로 `lease`한다. purpose는 `model.provider:<id>`, `target`은 provider 기본 URL의 호스트다. 마일스톤 M1부터 이 모드를 쓴다. 값은 프로세스 안 HTTP 클라이언트에만 있고 모델 컨텍스트, 이벤트, DB에 들어가지 않는다(review.decisions-2 U-19 보충). bash 도구의 비밀 주입은 `env` 모드 그대로다.
+- 사용 정책의 근원 [결정: M2 Mac 실기]: 새로 등록한 비밀의 사용 정책은 비어 있어(`L4.host-service.spec` HS-45) 위 `lease`는 `denied`다. 비밀을 provider에 연결하는 사람의 행위(사용자 범위 `l1.models.providers`의 `apiKeyRef` 쓰기. 데스크톱 "provider에 연결"과 `xeon config set`은 모두 `settings.set`이다)가 이 호출 하나만 허용하는 정책을 비밀 메타에 더한다. 허용은 `modes: ["runtime-http"]`, `tools: ["model.provider:<id>"]`, `hosts: [providerTarget(<id>)의 호스트]`뿐이다. `env` 모드, 도구, 다른 호스트는 열지 않는다. 호스트 쪽 규칙은 `L4.host-service.spec` HS-45 [결정: M2 Mac 실기]다. `providerTarget`은 이 호스트 값을 호출과 같은 규칙으로 구하기 위한 조회다.
 - `modify`, `delete`는 `ModelsError("auth")`를 던진다. 키 등록과 삭제는 비밀 관리 경로(`just secret-add`, 설정 화면 secrets 탭)로만 한다.
 - `list()`는 provider 이름과 참조 유무만 돌려준다(pi 계약: "must not execute configured API-key commands while listing").
 - 오류 문자열은 `xeon.secrets`의 마스킹 함수를 지난다 [가정: L0.secrets.spec이 마스킹 API를 서비스로 제공한다].
-- 위장 경로 가드 [제안]: 기본 `anthropic` provider에서 해석한 값이 `sk-ant-oat`를 포함하면 요청을 보내지 않고 `oauth_token_on_default_provider` 오류를 낸다. pi-ai 기본 경로는 키 접두만으로 위장 분기에 들어가기 때문이다(`anthropic-messages.ts:978-980`, `1014`, `_research/notes/L1-2.md` §3.1). [미결 M-1] 이 가드와 pi-ai 포크(분기 제거) 중 무엇으로 막을지.
+- `lease`가 정책으로 거부되면(`denied`) 종결 메시지의 사유 문장에 거부 사유를 싣는다: `secret_unresolved: secret <이름> could not be leased (denied: mode_not_allowed)`. 사람이 어디를 고칠지(사용 모드, 호스트) 알 수 있다 [결정: M2 Mac 실기].
+- 위장 경로 가드 [제안]: 기본 `anthropic` provider에서 해석한 값이 `sk-ant-oat`를 포함하면 요청을 보내지 않고 `oauth_token_on_default_provider` 오류를 낸다. pi-ai 기본 경로는 키 접두만으로 위장 분기에 들어가기 때문이다(`anthropic-messages.ts:978-980`, `1014`, `_research/notes/L1-2.md` §3.1). [결정 M-1: m2/l1c] 가드로 막는다. 설정 참조뿐 아니라 agent-core가 `apiKey` 옵션으로 넘긴 값도 같은 규칙으로 검사한다(기본 provider id `anthropic`만 대상이다). 가드에 걸리면 종결 메시지는 `oauth_token_on_default_provider: …`이고 요청은 나가지 않는다.
 
 ### 3.10 2차 타입
 
@@ -507,6 +518,22 @@ export function setup(g: ScopeApi<unknown>): void;
 - 등록 경로: 플러그인 → F provider 인터페이스(`ProviderDef`) → `xeon.models`(core-models 서비스)의 `addProvider`. 서비스는 X가 주입한다. 플러그인은 X `ModelsPort`(`hostOf(g).registerProvider`)를 쓰지 않는다(`X.primitives.spec` §3.9). 플러그인은 core-models를 import하지 않는다.
 - 이 경로는 import 자체를 없애므로 `plugins/*`를 L1에 두어도 같은 층 import가 생기지 않는다. 고칠 구속 문서: `eng.dependency-rules.guide` DR-07(pi-ai 소유 패키지에 `plugins/provider-anthropic-oauth`를 더한다)과 DR-09(플러그인 허용 목록을 F, X, L0, pi-ai·Anthropic SDK로 바꾸고 `DR-02/provider-anthropic-oauth` 항목을 지운다).
 
+### 3.12 hosted 검색 포트
+
+내장 검색 래퍼(`L2.web.spec` §4.8.4)가 쓰는 `ModelService.hostedSearch`(F `HostedSearchPort`, `@xeon/contracts/services`)의 구현이다 [구현: M2, L1C.3]. 타입은 F가 정했고 이 절은 구현 규칙만 적는다.
+
+- 모델: `HostedSearchRequest.model`이 `auto`이면 역할 `search`의 해석 결과(`l1.models.routing.search` → `summary` → `main` → default)이고, 아니면 그 모델 참조를 역할 `search`로 해석한다(허용·차단 목록을 거친다). 해석에 실패하면 `support`는 `no_model`, `search`는 `unsupported_model`(provider·모델 null)이다.
+- 지원 판정(`support`): 모델 API가 `anthropic-messages`이고 provider가 `anthropic`이거나 기본 주소의 호스트가 `anthropic.com`이면 지원한다. 같은 API를 쓰는 타사 호환 서버는 지원하지 않는다(`no_hosted_search`). 판정은 모델 호출도 비밀 해석도 하지 않는다.
+- 요청: 기존 호출 파이프라인을 지난다(비밀 참조 해석, `sk-ant-oat` 가드, 재시도, 사용량). 추가로 `onPayload` 훅이 페이로드에 서버 도구 `{ type: "web_search_20250305", name: "web_search", max_uses: 1 }`을 넣는다. 시스템 프롬프트는 `request.system`, 사용자 메시지는 `request.query` 한 줄, 출력 상한은 `maxOutputTokens`, 추론은 끈다. 캐시는 역할 `search`라 보존 없음이다.
+- 도메인: `allow`가 있으면 `allowed_domains`만, 없고 `deny`가 있으면 `blocked_domains`만 넘긴다(Anthropic은 둘을 함께 받지 않는다). 둘 다 있으면 `deny`는 넘기지 않고 로그 `hosted_search.deny_not_sent`를 남긴다. 호출자가 결과를 다시 거른다.
+- 응답: pi-ai anthropic 어댑터는 서버 도구 블록을 `AssistantMessage`에 싣지 않으므로 어댑터가 `onProviderStreamEvent`로 넘기는 원시 SSE 이벤트를 `anthropic-stream.ts`가 다시 모은다. `web_search_tool_result`의 `url`, `title`, `page_age`가 `results`, 텍스트 블록의 `web_search_result_location`이 `citations`, 텍스트가 `text`다. `encrypted_content`, `encrypted_index`는 응답에 담지 않는다. 사용량은 입력·출력 토큰과 `server_tool_use.web_search_requests`다.
+- 종료 사유: `message_delta`의 `stop_reason`을 `end_turn`, `pause_turn`, `max_tokens`, `refusal`로 옮기고 그 밖의 값은 `end_turn`이다. 종료 사유를 받았으면 `refusal`처럼 pi-ai가 오류로 끝낸 경우도 정상 응답이다.
+- 이어 요청: `pause_turn`이면 직전 응답의 content 블록 전체(`encrypted_content` 포함)를 JSON으로 직렬화해 `hs1:<base64url>` 문자열로 `continuation`에 담는다. 호출자는 읽거나 저장하지 않는다. 다음 요청의 `continuation`은 페이로드 `messages` 끝에 assistant 메시지로 되돌려 보낸다. 해석할 수 없는 문자열은 `upstream`(`status: null`)이고 요청을 보내지 않는다.
+- 오류(`HostedSearchError`): 신호가 중단됐으면 `cancelled`. HTTP 400이고 메시지에 web search와 organization·admin·disabled·not enabled 계열 단어가 함께 있으면 `org_disabled` [가정: 오류 문구는 실제 응답으로 확인하지 못했다]. 429나 도구 결과의 `too_many_requests`는 `rate_limited`(`retryAfterMs: null`). provider·모델 없음은 `unsupported_model`. 그 밖은 `upstream`이고 `status`는 메시지에서 읽은 HTTP 상태, `message`는 비밀 마스킹을 거친 문자열이다. 결과가 없고 도구 결과가 `web_search_tool_result_error`면 `upstream`이다.
+- thread에 속하지 않는 호출이다. 요청 지점(`before_provider_request` 등)과 `model_select`는 발화하지 않는다. 사용량은 예약 thread id(`HOSTED_SEARCH_THREAD`)에 역할 `search`로 쌓인다.
+- 시험: 어댑터 원시 이벤트를 테이프 차례의 `rawEvents`로 재생한다(`@xeon/core-models/testing`의 테이프 provider). 네트워크 호출은 없다.
+- 범위 밖: 이 포트는 대화 기록에 남지 않는 단일 턴 요청이다. 메인 모델의 일반 턴 요청에 서버 도구를 넣는 일(`L2.web.spec` §4.8.1 A안)은 M2에 구현하지 않았다. 사유는 §10 12번이다.
+
 ## 4. 동작 규칙
 
 ### 4.1 역할 해석
@@ -536,6 +563,7 @@ export function resolveRole(input: {
 
 해석 순서 [제안]:
 
+0. `trace`에는 거친 단계를 순서대로 싣고, 값이 없는 단계는 `ref: null`로 남긴다. 값이 있는 첫 단계에서 멈춘다. 그 값이 틀렸으면(`invalid_ref`, `model_not_found`, `model_denied`) 다음 단계로 넘어가지 않고 오류를 돌려준다 [구현: M2].
 1. `overrides.ref`가 있으면 그것을 쓴다. 출처 `explicit`.
 2. `overrides.scopeId`가 있고 `groupRouting[scopeId][role]`가 있으면 그것을 쓴다. 출처 `group:<scopeId>`.
 3. 역할이 `main`이 아니고 `routing[role]`이 있으면 그것을 쓴다. 출처 `role`.
@@ -550,6 +578,8 @@ export function resolveRole(input: {
 - `denied` 패턴에 맞거나, `allowed`가 비어 있지 않은데 맞지 않음 → `model_denied`. 패턴은 `provider/modelId` 전체 일치 또는 `provider/*`다.
 - 추론 레벨: `overrides.thinkingLevel` → 참조 접미 → `table.thinkingLevel` 순으로 정하고 pi-ai `clampThinkingLevel(model, level)`로 모델이 지원하는 값으로 맞춘다(`models.ts:1235`). `model.reasoning`이 false면 `off`다.
 - 토큰 예산: 레벨이 `off`가 아니면 `table.thinkingBudgets[level]`. 호출 때 pi-ai `thinkingBudgets`로 넘기는 것은 `minimal`~`high` 네 키뿐이다(§3.1 포크 판정).
+- 그룹 덮어쓰기가 꺼진 scope의 값인지는 서비스 의존 `scopeEnabled(scopeId)`로 판정한다. 플러그인은 `ext.scopes()`의 상태가 `enabled`인 scope만 켜진 것으로 연결한다. 의존이 없으면 모든 scope가 켜진 것으로 본다 [구현: M2].
+- `rebind`는 카탈로그 부재 외에 허용·차단 목록에 걸린 고정 모델도 `model_denied`로 거부한다. 고정 레벨은 clamp하지 않는다 [구현: M2].
 - 설정 스냅샷은 호출 시점의 유효 값(`F.wire-settings.spec` §3.9 `resolveSetting`)이다. 범위 우선순위(관리 > 세션 > 로컬 > 프로젝트 > 사용자)는 설정 계층이 처리하므로 이 순서에는 넣지 않는다. 세션 중 `/model` 변경은 `l1.models.default`의 세션 범위 값이다.
 
 ### 4.2 추론 레벨과 체크포인트 고정
@@ -764,6 +794,13 @@ fold와 페이로드는 `F.extensions.spec` §3.4~§3.5를 인용만 한다. 이
 | `model_select` | request | tap | 단계 시작에 바인딩이 바뀔 때(§4.2 6번), 폴백 전환 | 없음 | |
 | `thinking_level_select` | request | tap(detached) | 레벨만 바뀔 때 | 없음 | `dispatch: detached` |
 
+- 발화 구현 [구현: M2, m2/l1c]:
+  - `model_select`와 `thinking_level_select`는 요청을 보내기 직전에 같은 thread·역할·scope의 직전 호출 바인딩과 비교해 발화한다. 요청을 보내지 못한 호출(provider 없음, 가드)은 비교도 발화도 하지 않는다. 직전 호출이 없으면(처음이거나 프로세스를 다시 띄운 뒤) `previous: null`인 `model_select`를 한 번 낸다. provider·모델이 다르면 `model_select`만, 레벨만 다르면 `thinking_level_select`만 낸다. `source`는 체크포인트로 다시 묶은 해석 결과면 `restore`, 그 밖은 `route`다. `set`(사용자 `/model`)과 `fallback`은 이 서비스가 구분하지 못하므로 쓰지 않는다.
+  - `before_provider_headers`는 pi-ai `transformHeaders`에서 발화한다. 핸들러에는 소문자 이름으로 바꾼 사본을 주고, 이름에 `authorization`, `api-key`, `token`, `secret`, `cookie`가 들어 있거나 비밀 참조에서 푼 헤더의 값은 `"[secret]"`로 가린다. 핸들러가 낸 최종 헤더 중 가린 헤더는 어떤 패치도 받지 않고 원래 값을 쓴다(바꾸거나 지우려 하면 로그 `model.auth_header_patch_ignored`에 이름만 남긴다). 새 인증 헤더를 만드는 패치도 같다. 가리지 않은 헤더는 패치대로 바뀌고, 최종 값에 없는 이름은 삭제된다.
+  - `after_provider_response`의 헤더에서는 `authorization`, `api-key`, `cookie`가 든 이름을 뺀다.
+  - `provider_stream_event`는 어댑터가 원시 이벤트를 넘길 때마다 발화한다. 디스패치 키는 호출 키에 이벤트 순번을 붙인다.
+  - 한 호출의 키는 `<stepId|turnId|threadId>:<지점>:<순번>`이고 순번은 호출마다 하나다. 같은 호출의 재시도는 같은 키를 쓴다.
+
 ### 7.2 페이로드 필드 제안 (F 요청)
 
 M1 밖 지점은 `F.extensions.spec` §3.3의 형태 규칙(pi 필드 이름 유지, pi 고유 타입은 F 타입으로)으로 아래를 제안한다.
@@ -858,7 +895,7 @@ export interface ThinkingLevelSelectPayload {
 
 ## 10. 미결 사항
 
-1. [미결 M-1] 기본 `anthropic-messages` 경로의 `sk-ant-oat` 자동 분기를 core-models 가드(§3.9)로 막을지, pi-ai를 포크해 분기를 지울지(`_research/notes/L1-2.md` §6).
+1. (닫음) 기본 `anthropic-messages` 경로의 `sk-ant-oat` 자동 분기는 core-models 가드(§3.9)로 막는다(m2/l1c). pi-ai 포크는 하지 않는다.
 2. [미결 M-2] 방안 A의 갈래: A1(새 Api id)과 A2(Api id 유지, provider id 분리). 제안은 A2.
 3. [미결] 위장 플러그인의 별도 배포 여부(`product.scope.spec` N6)와 서버 수용·이용 조건 확인 시점.
 4. [결정: review.decisions-2 U-16] `plugins/*`는 L1 순위다. 플러그인은 F, X, L0, pi-ai만 import하고 `core-*`는 import하지 않는다. 위장 provider는 F provider 인터페이스로 `xeon.models`에 등록한다(§3.11). DR-07·DR-09를 고친다.
@@ -869,3 +906,4 @@ export interface ThinkingLevelSelectPayload {
 9. [미결] pi `registerVirtualModel` 지원 여부(§3.7).
 10. [결정: review.decisions-2 U-24] TypeBox 버전은 catalog 1.3.27이고 pi-ai가 고정한 판과 같다. core-models가 pi-ai `Tool.parameters`를 그대로 넘겨도 스키마 객체가 한 판이다.
 11. [미결] L1 서비스가 유효 설정을 읽는 경로와 서비스 이름(§8.2 마지막 행).
+12. [미결] 일반 턴 요청의 hosted 서버 도구(`L2.web.spec` §4.8.1 A안, ADR-0005 ①). M2 마감 재검토 4에서 조사했고 구현하지 않았다. 페이로드에 서버 도구를 더하는 것은 `before_provider_request` 패치로 가능하다. 모자란 것은 응답 쪽이다. pi-ai 1.3.0의 `AssistantMessage.content`(`types.d.ts:364`)와 anthropic-messages 어댑터는 `server_tool_use`, `web_search_tool_result` 블록을 싣지도 이력으로 되돌리지도 않는다. 그래서 (a) `encrypted_content` 보관과 반송, (b) `pause_turn`(어댑터가 `stopReason: "stop"`으로 바꿔 턴이 잘린다) 이어 요청, (c) 인용을 `normalizeHostedSearch`와 L4로 보내는 경로가 없다. pi-ai 어댑터 패치나 F `AssistantMessage` 확장이 필요하고 `m3-plan`에서 정한다. 그 전까지 모델 검색은 `web_search` 함수 도구와 내장 래퍼로 처리된다(`L2.web.spec` §10 3번).

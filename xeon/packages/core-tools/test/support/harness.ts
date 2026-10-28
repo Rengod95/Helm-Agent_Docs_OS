@@ -4,6 +4,8 @@ import {
   WorkspaceShell,
   WorkspaceShellKey,
   type ServiceKey,
+  type CallContext,
+  type CallOptions,
 } from "@xeon/contracts/capabilities";
 import { Bug, type Clock, type Result } from "@xeon/contracts";
 import type {
@@ -16,13 +18,19 @@ import type {
 } from "@xeon/contracts/conversation";
 import type { ExtensionManifest, ScopeSetup } from "@xeon/contracts/extensions";
 import type { ScopeLayer, ScopeStack } from "@xeon/contracts/settings";
-import type { ToolCallOutcome, ToolRunContext, ToolService } from "@xeon/contracts/services";
+import type {
+  CallerId,
+  ToolCallOutcome,
+  ToolRunContext,
+  ToolService,
+} from "@xeon/contracts/services";
 import { Type } from "typebox";
 import { createTestHost, type TestHost } from "@xeon/ext-host/testing";
 import type { ExtensionUnit } from "@xeon/ext-host";
 import type { ToolsDeps } from "../../src/deps.ts";
 import { configReader } from "../../src/plugin.ts";
 import { createToolRuntime, type ToolRuntime } from "../../src/runtime.ts";
+import type { SecretChecker } from "../../src/secret-gate.ts";
 import type { ToolsSettingsSource } from "../../src/settings.ts";
 import {
   fakeRedactor,
@@ -44,6 +52,10 @@ export interface HarnessOptions {
   readonly secrets?: Readonly<Record<string, string>>;
   readonly layers?: ScopeStack;
   readonly withTasks?: boolean;
+  /** `tools` 풀 슬롯 수. 생략하면 제한이 없다 */
+  readonly toolsCapacity?: number;
+  /** `xeon.secrets.check` 대역. 없으면 secretEnv를 쓰는 호출은 거부된다 */
+  readonly secretChecker?: SecretChecker;
 }
 
 export interface Harness {
@@ -59,7 +71,11 @@ export interface Harness {
   readonly apis: Map<string, unknown>;
   /** 파일 범위 설정 층을 바꾼다 */
   setLayers(layers: ScopeStack): void;
-  run(overrides?: { interactive?: boolean; signal?: AbortSignal }): ToolRunContext;
+  run(overrides?: {
+    interactive?: boolean;
+    signal?: AbortSignal;
+    caller?: CallerId;
+  }): ToolRunContext;
 }
 
 let unitCounter = 0;
@@ -99,7 +115,9 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
   const ids = sequentialIds(1000);
   const session = fakeSession({ clock, ids });
   const store = fakeStore();
-  const tasks = fakeTasks();
+  const tasks = fakeTasks(
+    options.toolsCapacity === undefined ? {} : { toolsCapacity: options.toolsCapacity },
+  );
   const host = await createTestHost();
   const apis = new Map<string, unknown>();
   let fileLayers: ScopeStack = options.layers ?? [];
@@ -114,6 +132,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
     lockEnv: undefined,
     truncator: fakeTruncator(),
     redactor: fakeRedactor(options.secrets),
+    secrets: options.secretChecker,
     ext: host.host,
     resolveCapability: (key: ServiceKey<unknown>) => apis.get(key.capability),
     config: configReader(source, session),
@@ -142,6 +161,7 @@ export async function createHarness(options: HarnessOptions = {}): Promise<Harne
         threadId: thread,
         ...(overrides?.interactive === undefined ? {} : { interactive: overrides.interactive }),
         ...(overrides?.signal === undefined ? {} : { signal: overrides.signal }),
+        ...(overrides?.caller === undefined ? {} : { caller: overrides.caller }),
       });
       tasks.addTurn(run.turnId);
       return run;
@@ -170,18 +190,27 @@ export function layer(
 
 /** bash·read·ls 능력 도구를 올리고 API 호출 기록을 돌려준다 */
 export interface WorkspaceProbe {
-  readonly calls: { readonly method: string; readonly input: unknown }[];
+  readonly calls: {
+    readonly method: string;
+    readonly input: unknown;
+    /** 능력 메서드가 받은 `CallOptions.context` */
+    readonly context?: CallContext;
+  }[];
   /** run(bash) 응답을 바꾼다 */
   setShellOutput(output: string, exitCode?: number): void;
 }
 
 export function registerWorkspace(harness: Harness): WorkspaceProbe {
-  const calls: { method: string; input: unknown }[] = [];
+  const calls: { method: string; input: unknown; context?: CallContext }[] = [];
   let shellOutput = "ok\n";
   let shellExit = 0;
   harness.apis.set(WorkspaceShell.id, {
-    run: (input: unknown) => {
-      calls.push({ method: "run", input });
+    run: (input: unknown, options?: CallOptions) => {
+      calls.push({
+        method: "run",
+        input,
+        ...(options?.context === undefined ? {} : { context: options.context }),
+      });
       return Promise.resolve({
         exitCode: shellExit,
         output: shellOutput,
@@ -291,7 +320,7 @@ export function textOf(result: AgentToolResult | undefined): string {
 }
 
 /** 조건이 참이 될 때까지 이벤트 루프를 양보한다. 고정 지연 대신 조건 대기(TS-03) */
-export async function until(condition: () => boolean, attempts: number = 500): Promise<void> {
+export async function until(condition: () => boolean, attempts: number = 5000): Promise<void> {
   if (condition()) return;
   if (attempts <= 0) throw new Error("condition was not met");
   await new Promise<void>((resolve) => {

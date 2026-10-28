@@ -16,6 +16,7 @@ import {
   PartRecordedPayloadSchema,
   SettingsChangedPayloadSchema,
   ApprovalRequestedPayloadSchema,
+  ApprovalResolvedPayloadSchema,
   BLOB_PLACEHOLDER_PREFIX,
   catalogEntry,
   mergeCatalogs,
@@ -209,6 +210,55 @@ describe("requested kinds (F.records.spec 3.3.1)", () => {
         body: { kind: "question", question: { questions: [] } },
       }).ok,
     ).toBe(false);
+  });
+
+  test("approval.requested carries an optional expiry that old records do not have", () => {
+    const base = PAYLOAD_FIXTURES["approval.requested"];
+    // 만료 필드가 생기기 전에 기록된 요청도 그대로 읽힌다
+    const old = parse(ApprovalRequestedPayloadSchema, base);
+    expect(old.ok).toBe(true);
+    if (old.ok) {
+      expect(old.value.expiresAt).toBeUndefined();
+      expect(old.value.onExpire).toBeUndefined();
+    }
+    const deny = { ...base, expiresAt: 1_790_000_060_000, onExpire: { decision: "deny" } };
+    const answer = {
+      ...base,
+      expiresAt: 1_790_000_060_000,
+      onExpire: { decision: "answer", answer: { q1: { selected: ["a"] } } },
+    };
+    const parsed = parse(ApprovalRequestedPayloadSchema, answer);
+    expect(parsed.ok && parsed.value.onExpire).toEqual({
+      decision: "answer",
+      answer: { q1: { selected: ["a"] } },
+    });
+    expect(parse(ApprovalRequestedPayloadSchema, deny).ok).toBe(true);
+    expect(parse(ApprovalRequestedPayloadSchema, { ...base, expiresAt: 1.5 }).ok).toBe(false);
+    expect(parse(ApprovalRequestedPayloadSchema, { ...base, expiresAt: -1 }).ok).toBe(false);
+    // allow는 만료로 정할 수 없다. 응답 없는 요청이 허용으로 끝나면 안 된다
+    expect(
+      parse(ApprovalRequestedPayloadSchema, {
+        ...base,
+        expiresAt: 1,
+        onExpire: { decision: "allow" },
+      }).ok,
+    ).toBe(false);
+    expect(
+      parse(ApprovalRequestedPayloadSchema, {
+        ...base,
+        expiresAt: 1,
+        onExpire: { decision: "answer" },
+      }).ok,
+    ).toBe(false);
+  });
+
+  test("approval.resolved names an expiry as its resolver", () => {
+    const base = PAYLOAD_FIXTURES["approval.resolved"];
+    expect(parse(ApprovalResolvedPayloadSchema, { ...base, resolvedBy: "expired" }).ok).toBe(true);
+    expect(parse(ApprovalResolvedPayloadSchema, { ...base, resolvedBy: "timeout" }).ok).toBe(false);
+    for (const resolvedBy of ["user", "noninteractive", "cancelled", "superseded"]) {
+      expect(parse(ApprovalResolvedPayloadSchema, { ...base, resolvedBy }).ok).toBe(true);
+    }
   });
 
   test("input.queued accepts context items and every source", () => {

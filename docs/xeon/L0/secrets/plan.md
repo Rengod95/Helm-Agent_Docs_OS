@@ -103,8 +103,10 @@ xeon/packages/platform-secrets/
 | SC-20 | M2 sentinel 프록시: sentinel 발급, `xeon.sandbox` 프록시 훅으로 헤더 치환, 허용 호스트 밖 차단 | `L0.sandbox.plan` SB-16 프록시 훅(후속) | L | 후속 |
 | SC-22 | 모드 M1 `withEnv`: `mode: "env"` 판정(명령 패턴, `per-use` 승인 필수, `target.kind` 검사), lease 발급, 8바이트 미만 거부, 감사 훅. `L0.exec.plan` EX-13과 실제 자식 프로세스 int 테스트로 연결 확인 | SC-06, SC-10, `L0.exec.plan` EX-13 | M | M1 |
 | SC-23 | `reveal`: `HumanReauth` 검사(60초, `os-auth` 우선, OS 인증을 쓸 수 없는 터미널만 `tty-confirm`), `show` 콜백 1회 뒤 0 덮기, `secret.revealed` 감사 파일 기록 | SC-14 | S | M2 |
+| SC-24 | 첫 쓰기 자동 준비(spec §4.6 8번, §4.7 7번, §4.8): 기본 SOPS 파일 `user`, 키·수신자 기록·암호화한 빈 파일 만들기, 파일 잠금, macOS `provision`, 실패 원인별 `write_failed` | SC-18, SC-13, SC-19 | M | M2 |
 | SC-21 | `protectedPaths()`: `l0.secrets.sops.files` 경로, `<OsDirs.config>/secrets/`, 파일 폴백 age 키 경로(`l0.secrets.ageKey.filePath` 또는 기본값)를 절대 경로로 돌려준다. 값 없음 | SC-02, SC-13 | S | M1 |
 
+- SC-24는 M2 첫 실행(macOS M-12)에서 "깨끗한 기기에서 `xeon secret add`가 설정 없이 실패한다"는 결과가 나와 더했다. 순서는 SC-18, SC-13 뒤다.
 - 순서: SC-01·SC-05·SC-08·SC-11 → SC-02·SC-06·SC-13 → SC-03·SC-04·SC-07·SC-09·SC-21 → SC-10 → SC-12·SC-15·SC-16·SC-22 (M1) → SC-14·SC-17·SC-18·SC-19·SC-23 (M2) → SC-20 (후속).
 - 규모: S는 반나절 이하, M은 1~2일, L은 3일 이상 [가정: 구현자 1명 기준].
 
@@ -260,8 +262,23 @@ xeon/packages/platform-secrets/
 
 | 요청 | 지금 대체 | 원천 |
 |---|---|---|
-| `SecretError`에 `audit_unavailable` 변형(감사 파일을 쓸 수 없음) | `meta_invalid`(`name: "audit.log"`, `path`는 감사 파일, `errors: ["unwritable (<코드>)"]`) | spec §3.10, §3.9 |
-| `SecretError`에 "키 파일을 만들 수 없음 또는 덮어쓰기 거부" 변형, 환경 변수 이름 오류 변형 | `key_unavailable`(`file`, `access_denied`), `invalid_ref`(`name_pattern`) | spec §3.10, §4.7 |
+| (해소, M2 F 레인) `SecretError`에 `audit_unwritable` 변형(감사 파일을 쓸 수 없음) | 반영됨. `auditUnavailable`이 `audit_unwritable{path, code}`를 돌려준다 | spec §3.10, §3.9 |
+| (해소, M2 F 레인) `SecretError`에 "키 파일을 만들 수 없음 또는 덮어쓰기 거부" 변형 | 반영됨. `provision`이 `write_failed{target:"key_file", path, code}`를 돌려주고 덮어쓰기 거부는 `code: "EEXIST"`다 | spec §3.10, §4.7 |
+| `SecretError`에 환경 변수 이름 오류 변형 | `invalid_ref`(`name_pattern`) | spec §3.10, §4.7 |
 | `SecretListing`에 결정별 사용 개수(`--usage`) | 없음. `usage()`로 센다 | spec §4.9 `ls` |
 | 설정 저장소의 비밀 참조 조회(`references`의 `settingKeys`) | `settingKeysFor` 주입(기본은 빈 목록) | spec §3.8 |
 | 조립 루트(HOST.3)에 `createSecretsRuntime`의 `osAuthAvailable`, `settingKeysFor` 연결 | 기본값 `false`와 빈 목록 | m2-plan HOST.3 |
+
+### 8.5 M2 첫 실행 기록 (m2r sec)
+
+macOS 깨끗한 기기의 첫 실행에서 `xeon secret add`가 `not_registered`로 실패했다(`l0.secrets.sops.files`의 기본값이 빈 목록이라 값을 놓을 파일이 없었다). 아래로 고쳤다. 시험 환경은 WSL2(sops 3.13.3, age 1.3.2)이고 macOS 실기는 없다.
+
+| 항목 | 내용과 시험 |
+|---|---|
+| SC-24 기본 파일 | `config.ts`의 `withDefaultSopsFile`이 빈 `sops.files`에 `{ env: "user", path: "<config>/secrets/sops/user.yaml" }`를 채운다. 조립(`assemble.ts`)이 모든 설정 읽기에 이 유효 설정을 쓰고, 호스트의 `newMeta`도 같은 유효 설정을 쓴다. `default-sops.test.ts` |
+| SC-24 첫 파일 만들기 | `providers/sops-create.ts`가 `sops encrypt --age`로 빈 문서를 암호화해 0600 파일로 둔다. `providers/sops.ts`의 `put`이 잠금 안에서 파일이 없으면 만든다. `first-write.int.test.ts`(실제 sops와 age, 임시 홈) |
+| SC-24 키와 수신자 | `key/recipient.ts`가 수신자 기록을 읽고 쓴다. `assemble.ts`의 `recipient()`가 기록 → `provision` 순으로 수신자를 얻는다. 실패 뒤 재시도, 기록 없는 키, 확인 전 파일 폴백을 `first-write.int.test.ts`가 본다 |
+| SC-24 macOS `provision` | `key/darwin.ts`. `security -i` stdin으로 항목을 만든다. 가짜 `security`로 호출 순서, argv에 identity 없음, stdin 0 덮기, EEXIST, add_failed를 본다. `key-darwin-provision.test.ts`. 실기 확인은 [미결] |
+| SC-24 잠금 | `providers/lock.ts`의 `SecretFileLock`을 조립 루트가 `OsServiceHandle.fileLock`으로 채운다. 없으면 프로세스 안 직렬화다. 동시 첫 `add` 두 개가 키와 파일을 하나만 만든다(`first-write.int.test.ts`). 프로세스 사이 잠금 자체의 시험은 `L0.os`가 한다 |
+| 두 클라이언트 공유 | `OsDirs`가 사용자 하나에 하나라 메타, 감사 파일, 키, 기본 파일이 같다(spec §4.8). CLI용·사이드카용 두 조립이 한 비밀을 등록·교체·열람하는 시험이 `first-write.int.test.ts`에 있다 |
+| 오류 정확도 | sops가 없을 때 `put` 불가를 `read_only_provider`가 아닌 `binary_missing`으로 돌려준다(`readOnlyReason`). F의 `write_failed.target`에 `key_store`, `sops_file`을 더했다 |

@@ -61,6 +61,8 @@ export function fakeRuntime(overrides: Partial<OsRuntime> = {}): OsRuntime {
     readFileSync: () => err({ code: "ENOENT" }),
     run: () => Promise.resolve(err({ kind: "spawn_failed", code: "ENOENT" })),
     runSync: () => err({ kind: "spawn_failed", code: "ENOENT" }),
+    // 가짜 플랫폼 시험이 실제 libc를 dlopen하지 않게 한다(macOS에서 libc.so.6은 없다)
+    createFlock: () => ({ tryLock: () => err({ kind: "held" }) }),
     clkTck: 100,
     ...overrides,
   };

@@ -3,7 +3,7 @@ import type { GroupRecord } from "@xeon/contracts/extensions";
 import { Type } from "typebox";
 import { PrimitiveError } from "../../src/primitives/index.ts";
 import { createTestHost } from "../../src/testing/index.ts";
-import { makeUnit, unsafeInput } from "./fixtures/support.ts";
+import { makeUnit, unsafeInput, snapshotOf } from "./fixtures/support.ts";
 
 const CounterSchema = Type.Object({ n: Type.Integer({ minimum: 0 }) });
 const counterDef = { state: { schema: CounterSchema, initial: { n: 0 }, version: 1 } };
@@ -47,7 +47,7 @@ test("commit schema and conflict", async () => {
   );
   await fire(t, thread, "k1");
   expect(codes).toEqual(["state_schema", undefined, "state_conflict"]);
-  const snapshot = await t.records.loadThread(thread);
+  const snapshot = await snapshotOf(t.records, thread);
   expect(snapshot.states).toMatchObject([{ scopeId: "st-basic", rev: 1, doc: { n: 1 } }]);
 });
 
@@ -71,7 +71,7 @@ test("rerun handler commit is idempotent", async () => {
     { state: { n: 0 }, returned: { n: 1 } },
     { state: { n: 1 }, returned: { n: 1 } },
   ]);
-  const snapshot = await t.records.loadThread(thread);
+  const snapshot = await snapshotOf(t.records, thread);
   expect(snapshot.states).toMatchObject([{ rev: 1, doc: { n: 1 } }]);
   const stateEvents = t.records
     .events(thread)
@@ -79,7 +79,7 @@ test("rerun handler commit is idempotent", async () => {
   expect(stateEvents).toHaveLength(1);
   // 다른 키의 커밋은 새 판이다
   await fire(t, thread, "other-key");
-  expect((await t.records.loadThread(thread)).states).toMatchObject([{ rev: 2, doc: { n: 2 } }]);
+  expect((await snapshotOf(t.records, thread)).states).toMatchObject([{ rev: 2, doc: { n: 2 } }]);
 });
 
 test("state is frozen, undeclared state and size are rejected", async () => {

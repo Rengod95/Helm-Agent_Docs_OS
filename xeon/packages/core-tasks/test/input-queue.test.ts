@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { Bug, err, ok, parse, type Result } from "@xeon/contracts";
+import { Bug, ok, parse, type Result } from "@xeon/contracts";
 import type { EventId, ItemId, TurnId } from "@xeon/contracts/conversation";
 import { InputQueuedPayloadSchema } from "@xeon/contracts/records";
 import type {
@@ -9,6 +9,7 @@ import type {
   PlacementPoint,
   PlacementSelection,
 } from "@xeon/contracts/services";
+import { createStaticTasksSettings } from "../src/settings-source.ts";
 import { createWorld, restart, userDraft, type World } from "./support/world.ts";
 
 /** 시험에서 오류 값을 받지 않는 호출의 결과를 꺼낸다 */
@@ -249,19 +250,40 @@ describe("enqueue", () => {
     expect(check.ok).toBe(true);
   });
 
-  test("next_and_aside_not_supported_in_m1", async () => {
+  // spec plan aside_mode_per_decision (D7 1안)
+  test("aside_mode_per_decision: aside is a user/CLI mode; extension, delegation and schedule sources are refused", async () => {
     const world = createWorld();
-    const modes = ["next", "aside"] as const;
-    const results = await Promise.all(
-      modes.map((mode) =>
-        world.tasks.inputs.enqueue(userDraft(world.threadId, `m-${mode}`, { mode })),
+    const sources = [
+      { type: "extension", scopeId: "helm" },
+      { type: "delegation", childThreadId: world.ids.next("thr") },
+      { type: "schedule", timerId: "t1" },
+    ] as const;
+    const refused = await Promise.all(
+      sources.map((source, index) =>
+        world.tasks.inputs.enqueue(
+          userDraft(world.threadId, `a-${String(index)}`, { mode: "aside", source }),
+        ),
       ),
     );
-    expect(results).toEqual(
-      modes.map((mode) => ({ ok: false, error: { kind: "mode_not_supported", mode } })),
+    expect(refused).toEqual(
+      sources.map(() => ({ ok: false, error: { kind: "mode_not_supported", mode: "aside" } })),
     );
     expect(world.session.events).toEqual([]);
-    expect(world.session.commitCalls).toBe(0);
+    const accepted = await world.tasks.inputs.enqueue(
+      userDraft(world.threadId, "a-user", { mode: "aside" }),
+    );
+    expect(accepted.ok && accepted.value).toMatchObject({ duplicate: false, state: "queued" });
+    // next는 어떤 출처에서든 받는다
+    const next = await world.tasks.inputs.enqueue(
+      userDraft(world.threadId, "n-ext", {
+        mode: "next",
+        source: { type: "extension", scopeId: "helm" },
+      }),
+    );
+    expect(next.ok).toBe(true);
+    expect(
+      unwrapped(world.tasks.inputs.peek(world.threadId, ["next", "aside"])).map((i) => i.mode),
+    ).toEqual(["aside", "next"]);
   });
 
   test("invalid request ids are rejected before any commit", async () => {
@@ -399,17 +421,19 @@ describe("extension post", () => {
     );
   });
 
-  test("next is refused in M1 as a mode_not_supported error value", async () => {
+  test("post.when next is accepted and queued as a next input", async () => {
     const world = createWorld();
-    const refused = await world.tasks.enqueue({
+    const accepted = await world.tasks.enqueue({
       threadId: world.threadId,
       scopeId: "helm",
       requestId: "n",
       when: "next",
       item: { kind: "user", content: "x" },
     });
-    expect(refused).toEqual(err({ kind: "mode_not_supported", mode: "next" }));
-    expect(world.session.events).toEqual([]);
+    expect(accepted).toEqual(ok({ duplicate: false }));
+    expect(
+      unwrapped(world.tasks.inputs.peek(world.threadId)).map((i) => [i.requestId, i.mode]),
+    ).toEqual([["n", "next"]]);
   });
 });
 
@@ -541,7 +565,7 @@ describe("drain", () => {
   test("the drain mode is read at every placement point", async () => {
     const mode: { steering: DrainMode } = { steering: "one-at-a-time" };
     const world = createWorld({
-      settingsSource: { steeringMode: () => mode.steering, followUpMode: () => "one-at-a-time" },
+      settingsSource: { ...createStaticTasksSettings(), steeringMode: () => mode.steering },
     });
     await enqueueAll(world, [userDraft(world.threadId, "s1"), userDraft(world.threadId, "s2")]);
     expect(names(viewSelection(world, "stepEnd"))).toEqual(["s1"]);
@@ -790,5 +814,104 @@ describe("read failures", () => {
     expect(again).toEqual({ ok: false, error: { kind: "busy" } });
     const third = await world.tasks.inputs.enqueue(userDraft(world.threadId, "dup"));
     expect(third).toMatchObject({ ok: true, value: { duplicate: true, state: "queued" } });
+  });
+});
+
+describe("next and aside placement (D7: attach only)", () => {
+  const ext = { type: "extension", scopeId: "helm" } as const;
+
+  // spec plan next_attached_only_when_continuing
+  test("next_attached_only_when_continuing: stepEnd takes next and aside only when a request follows", async () => {
+    const world = createWorld();
+    await enqueueAll(world, [
+      userDraft(world.threadId, "n1", { mode: "next", source: ext }),
+      userDraft(world.threadId, "as", { mode: "aside" }),
+      userDraft(world.threadId, "n2", { mode: "next", source: ext }),
+    ]);
+    // 요청이 이어지지 않으면 남긴다
+    expect(names(viewSelection(world, "stepEnd", false))).toEqual([]);
+    // 요청이 이어지면 전부 seq 순서로 함께 고른다
+    expect(names(viewSelection(world, "stepEnd", true))).toEqual(["n1", "as", "n2"]);
+  });
+
+  test("a selected steer guarantees a request, so next and aside ride along without continuing", async () => {
+    const world = createWorld();
+    await enqueueAll(world, [
+      userDraft(world.threadId, "n1", { mode: "next", source: ext }),
+      userDraft(world.threadId, "s1"),
+      userDraft(world.threadId, "n2", { mode: "next", source: ext }),
+    ]);
+    const selection = viewSelection(world, "stepEnd", false);
+    expect(names(selection)).toEqual(["n1", "s1", "n2"]);
+    // consumedSeq는 고른 입력 중 가장 큰 seq다
+    expect(selection.consumedSeq).toBe(Math.max(...selection.inputs.map((input) => input.seq)));
+  });
+
+  test("an idle thread does not start from next or aside: turnStart picks nothing without a steer or followUp", async () => {
+    const world = createWorld();
+    await enqueueAll(world, [
+      userDraft(world.threadId, "n1", { mode: "next", source: ext }),
+      userDraft(world.threadId, "as", { mode: "aside" }),
+    ]);
+    expect(names(viewSelection(world, "turnStart"))).toEqual([]);
+    expect(unwrapped(world.tasks.inputs.peek(world.threadId)).map((i) => i.requestId)).toEqual([
+      "n1",
+      "as",
+    ]);
+  });
+
+  test("turnStart attaches only the next and aside that are older than the chosen start input", async () => {
+    const world = createWorld();
+    await enqueueAll(world, [
+      userDraft(world.threadId, "n-old", { mode: "next", source: ext }),
+      userDraft(world.threadId, "f1", { mode: "followUp" }),
+      userDraft(world.threadId, "n-new", { mode: "next", source: ext }),
+    ]);
+    expect(names(viewSelection(world, "turnStart"))).toEqual(["n-old", "f1"]);
+  });
+
+  test("with followUpMode all the attached ones are older than the last chosen followUp", async () => {
+    const world = createWorld({ settings: { followUpMode: "all" } });
+    await enqueueAll(world, [
+      userDraft(world.threadId, "f1", { mode: "followUp" }),
+      userDraft(world.threadId, "n1", { mode: "next", source: ext }),
+      userDraft(world.threadId, "f2", { mode: "followUp" }),
+      userDraft(world.threadId, "n2", { mode: "next", source: ext }),
+    ]);
+    expect(names(viewSelection(world, "turnStart"))).toEqual(["f1", "n1", "f2"]);
+  });
+
+  test("onQueued fires for steer and followUp only: next and aside never start a request", async () => {
+    const world = createWorld();
+    const seen: string[] = [];
+    world.tasks.inputs.onQueued((threadId) => {
+      seen.push(threadId);
+    });
+    await enqueueAll(world, [
+      userDraft(world.threadId, "n1", { mode: "next", source: ext }),
+      userDraft(world.threadId, "as", { mode: "aside" }),
+    ]);
+    expect(seen).toEqual([]);
+    await enqueueAll(world, [userDraft(world.threadId, "s1")]);
+    expect(seen).toEqual([world.threadId]);
+  });
+
+  test("placed next and aside leave the queue and the placement drafts use the chosen input ids", async () => {
+    const world = createWorld();
+    await enqueueAll(world, [
+      userDraft(world.threadId, "s1"),
+      userDraft(world.threadId, "n1", { mode: "next", source: ext }),
+    ]);
+    const selection = viewSelection(world, "stepEnd", false);
+    expect(names(selection)).toEqual(["s1", "n1"]);
+    const turnId = world.ids.next("trn");
+    const drafts = selection.drafts(
+      selection.inputs.map((input) => ({
+        inputId: input.inputId,
+        itemId: world.ids.next("itm"),
+        turnId,
+      })),
+    );
+    expect(drafts.map((entry) => entry.draft.kind)).toEqual(["input.placed", "input.placed"]);
   });
 });

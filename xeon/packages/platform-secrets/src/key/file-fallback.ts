@@ -47,12 +47,11 @@ const KEY_DIR_MODE = 0o700;
 
 /**
  * identity를 새로 만들어 키 파일로 쓴다(spec §4.7 1·4번). 이미 있는 파일은 덮어쓰지 않는다.
- * SecretError에 전용 변형이 없어 덮어쓰기 거부와 쓰기 실패를 모두 key_unavailable(access_denied)로 돌려준다.
+ * 덮어쓰기 거부(EEXIST)와 쓰기 실패는 write_failed로 돌려주고, 원인은 OS 오류 코드로 싣는다(TY-25). 키 내용은 싣지 않는다.
  */
 async function provisionKeyFile(
   path: string,
 ): Promise<Result<{ readonly recipient: string }, SecretError>> {
-  const refused: SecretError = { kind: "key_unavailable", key: "file", reason: "access_denied" };
   const identity = await generateIdentity();
   const recipient = await identityToRecipient(identity);
   const body = new TextEncoder().encode(`# public key: ${recipient}\n${identity}\n`);
@@ -69,10 +68,10 @@ async function provisionKeyFile(
       }
     });
     if (!written.ok) {
+      const code = errorCode(written.error.cause);
       // 쓰다 만 새 파일이 남지 않게 한다. 이미 있던 파일(EEXIST)은 지우지 않는다
-      if (errorCode(written.error.cause) !== "EEXIST")
-        await attemptAsync(() => rm(path, { force: true }));
-      return err(refused);
+      if (code !== "EEXIST") await attemptAsync(() => rm(path, { force: true }));
+      return err({ kind: "write_failed", target: "key_file", path, code });
     }
     return ok({ recipient });
   } finally {

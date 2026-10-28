@@ -410,6 +410,7 @@ export function createLeaseBroker(
             extension: record.extension,
             loadIndex: record.loadIndex,
             defaultEnabled: record.def.defaultEnabled ?? record.manifest.defaultEnabled ?? true,
+            enabledAtSeq: thread.enabledAtSeq.get(record.id) ?? null,
           })),
         );
         chosen = candidates.find((record) => record.id === picked);

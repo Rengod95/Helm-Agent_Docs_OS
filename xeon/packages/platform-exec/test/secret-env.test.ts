@@ -45,6 +45,31 @@ describe("acquireSecretEnv", () => {
     expect(secrets.disposed()).toBe(2);
   });
 
+  test("two env names for one handle lease it once, even when a lease allows one use", async () => {
+    const secrets = fakeSecrets({ gh: SECRET_VALUE, other: "other_value_12345" }, { maxUses: 1 });
+    const leased = await acquireSecretEnv({
+      request: request({
+        GH_TOKEN: "secret://gh",
+        GITHUB_TOKEN: "secret://gh",
+        OTHER: "secret://other",
+      }),
+      command: "gh api user",
+      secrets,
+      signal: undefined,
+    });
+    expect(leased.ok && leased.value.values).toEqual({
+      GH_TOKEN: SECRET_VALUE,
+      GITHUB_TOKEN: SECRET_VALUE,
+      OTHER: "other_value_12345",
+    });
+    expect(secrets.calls.map((call) => call.handle)).toEqual([secretRef("gh"), secretRef("other")]);
+    expect(secrets.acquired()).toBe(2);
+    if (!leased.ok) return;
+    leased.value.dispose();
+    expect(secrets.disposed()).toBe(2);
+    expect(leased.value.values).toEqual({});
+  });
+
   test("secretEnv failure disposes acquired leases", async () => {
     const secrets = fakeSecrets(
       { gh: SECRET_VALUE, other: "other_value_12345" },

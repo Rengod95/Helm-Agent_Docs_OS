@@ -24,8 +24,23 @@
     "packages/platform-process": {
       "entry": ["test/**/*.test.ts", "test/fixtures/*.ts"]
     },
+    "apps/desktop": {
+      "entry": ["test/**/*.test.ts", "src/main.tsx"]
+    },
+    "apps/host": {
+      "entry": [
+        "test/**/*.test.ts",
+        "test/fixtures/crash-host.ts",
+        "test/fixtures/mcp-stdio-server.ts",
+        "test/fixtures/secret-add-child.ts"
+      ]
+    },
     "apps/cli": {
-      "entry": ["test/**/*.test.ts", "test/fixtures/scenario-main.ts"]
+      "entry": [
+        "test/**/*.test.ts",
+        "test/fixtures/scenario-main.ts",
+        "test/fixtures/scenario-host.ts"
+      ]
     }
   },
   "ignoreIssues": {

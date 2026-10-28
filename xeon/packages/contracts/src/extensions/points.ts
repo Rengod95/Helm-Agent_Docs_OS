@@ -307,6 +307,11 @@ export interface PointDecl<N extends PointName = PointName> {
   readonly result?: TSchema;
   /** boundary 지점의 최종 검증 여부(§4.1) */
   readonly finalize?: "boundary";
+  /**
+   * 참이면 thread 없이 호스트 수준에서 발화하는 지점이다(§7). 페이로드에 threadId가 없고 발화 문맥에도 thread가 없다.
+   * 지금은 `project_trust`뿐이다(thread를 만들기 전에 폴더 신뢰를 판정한다).
+   */
+  readonly threadless?: true;
   /** M1 스모크에서 페이로드를 정확화한 지점 */
   readonly m1: boolean;
   readonly pi: PiSource;
@@ -624,6 +629,7 @@ export const POINTS: { readonly [N in PointName]: PointDecl<N> } = {
     dispatch: "await",
     payload: ProjectTrustPayloadSchema,
     result: ProjectTrustDecisionSchema,
+    threadless: true,
     m1: false,
     pi: pi("project_trust", "types.ts:686/693", "runner.ts:295 emitProjectTrustEvent", "first"),
   },

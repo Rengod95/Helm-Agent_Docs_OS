@@ -1,6 +1,9 @@
+import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, test } from "bun:test";
 import { Bug, err, ok, type Logger } from "@xeon/contracts";
-import type { ThreadId } from "@xeon/contracts/conversation";
+import type { ThreadId, ThreadStatus } from "@xeon/contracts/conversation";
 import type {
   LeaseError,
   LeaseOwnerInfo,
@@ -16,9 +19,16 @@ import type {
   AbortTicket,
   AdmitResult,
   ApprovalService,
+  CompactOutcome,
+  CompactRequest,
+  ContextError,
+  ContextService,
   LoopError,
   LoopService,
+  ModelError,
+  ModelService,
   OsService,
+  ResolvedModel,
   TaskService,
   ThreadLoopStatus,
   ToolMeta,
@@ -31,6 +41,7 @@ import { createEnginePorts, type PortsDeps } from "../../src/assembly/ports.ts";
 import { createSettingsEngine } from "../../src/assembly/settings-engine.ts";
 import { buildEngineCatalog } from "../../src/assembly/catalog.ts";
 import { flushMicrotasks } from "../fixtures/clock.ts";
+import { createManualScheduler } from "../fixtures/manual-scheduler.ts";
 import { partial } from "../fixtures/unsafe.ts";
 import { rejectionOf } from "../fixtures/rejection.ts";
 import { sequentially } from "../../src/util.ts";
@@ -48,6 +59,8 @@ interface Harness {
   readonly calls: string[];
   readonly infos: string[];
   readonly errors: string[];
+  readonly compactRequests: { readonly threadId: ThreadId; readonly request: CompactRequest }[];
+  readonly resolvedRoles: string[];
   state: {
     acquire: ReturnType<StoreService["leases"]["acquire"]>;
     openForWrite: ReturnType<SessionService["openForWrite"]>;
@@ -58,7 +71,17 @@ interface Harness {
     existingTurn: { turnId: typeof TURN } | undefined;
     threadsCreate: ReturnType<SessionService["threads"]["create"]>;
     threadExists: boolean;
+    threadRowStatus: ThreadStatus;
+    modelResolve: ReturnType<ModelService["resolve"]>;
+    compact: Awaited<ReturnType<ContextService["compact"]>>;
+    /** 값이 있으면 요약 호출이 이 약속이 풀릴 때까지 끝나지 않는다 */
+    compactGate: Promise<void> | undefined;
     release: "ok" | "throw";
+    closeThread: "ok" | "throw";
+    restore: Awaited<ReturnType<ApprovalService["restore"]>>;
+    fork: Awaited<ReturnType<SessionService["threads"]["fork"]>>;
+    revert: Awaited<ReturnType<SessionService["threads"]["revert"]>>;
+    remove: ReturnType<SessionService["threads"]["remove"]>;
   };
   lostCallback: (() => void) | undefined;
 }
@@ -101,13 +124,34 @@ function harness(): Harness {
     existingTurn: undefined,
     threadsCreate: ok({ threadId: THREAD, headSeq: 1, replayed: false, token: null }),
     threadExists: true,
+    threadRowStatus: "idle",
+    modelResolve: ok(
+      partial<ResolvedModel>({
+        binding: {
+          role: "main",
+          provider: "anthropic",
+          modelId: "claude-x",
+          thinkingLevel: "high",
+        },
+        model: partial<ResolvedModel["model"]>({ contextWindow: 200_000 }),
+      }),
+    ),
+    compact: ok<CompactOutcome>({ status: "skipped", why: "nothing_to_summarize" }),
+    compactGate: undefined,
     release: "ok",
+    closeThread: "ok",
+    restore: ok([]),
+    fork: err({ kind: "thread_not_found", threadId: THREAD }),
+    revert: err({ kind: "thread_not_found", threadId: THREAD }),
+    remove: ok(undefined),
   };
   const result: Harness = {
     deps: partial<PortsDeps>({}),
     calls,
     infos,
     errors,
+    compactRequests: [],
+    resolvedRoles: [],
     state,
     lostCallback: undefined,
   };
@@ -130,9 +174,26 @@ function harness(): Harness {
         return state.threadsCreate;
       },
       list: () => ({ threads: [], nextCursor: "next" }),
+      fork: (threadId, _at, newThreadId) => {
+        calls.push(`threads.fork:${threadId}:${newThreadId}`);
+        return Promise.resolve(state.fork);
+      },
+      revert: (_threadId, _to, requestKey) => {
+        calls.push(`threads.revert:${requestKey}`);
+        return Promise.resolve(state.revert);
+      },
+      remove: () => {
+        calls.push("threads.remove");
+        return state.remove;
+      },
     }),
     query: partial<SessionService["query"]>({
-      thread: () => ok(state.threadExists ? partial<ThreadSummaryRow>({}) : undefined),
+      thread: () =>
+        ok(
+          state.threadExists
+            ? partial<ThreadSummaryRow>({ status: state.threadRowStatus })
+            : undefined,
+        ),
       turnByRequestId: () =>
         ok(state.existingTurn === undefined ? undefined : partial<TurnView>(state.existingTurn)),
     }),
@@ -178,7 +239,10 @@ function harness(): Harness {
   });
   const loop = partial<LoopService>({
     threadStatus: () => partial<ThreadLoopStatus>({ runningTurnId: state.runningTurn }),
-    admit: () => Promise.resolve(state.admit),
+    admit: () => {
+      calls.push("loop.admit");
+      return Promise.resolve(state.admit);
+    },
     interrupt: () => Promise.resolve(true),
     stopAtSafeBoundary: () => Promise.resolve(true),
   });
@@ -200,6 +264,7 @@ function harness(): Harness {
     },
     closeThread: () => {
       calls.push("ext.closeThread");
+      if (state.closeThread === "throw") return Promise.reject(new Error("close failed"));
       return Promise.resolve();
     },
   });
@@ -217,30 +282,63 @@ function harness(): Harness {
       signal: new AbortController().signal,
       os,
       clock: { now: () => 1 },
+      scheduler: createManualScheduler(),
       ids,
       logger,
       session,
       store,
       loop,
+      context: partial<ContextService>({
+        compact: async (threadId, request) => {
+          result.compactRequests.push({ threadId, request });
+          calls.push("context.compact:start");
+          await state.compactGate;
+          calls.push("context.compact:end");
+          return state.compact;
+        },
+      }),
+      models: partial<ModelService>({
+        resolve: (role) => {
+          result.resolvedRoles.push(role);
+          return state.modelResolve;
+        },
+      }),
       tasks,
-      approvals: partial<ApprovalService>({}),
+      approvals: partial<ApprovalService>({
+        restore: (threadId) => {
+          calls.push(`approvals.restore:${threadId}`);
+          return Promise.resolve(state.restore);
+        },
+        pending: () => [],
+      }),
       tools: partial<ToolService>({ meta: () => partial<ToolMeta>({ replay: "unsafe" }) }),
       ext,
       holder: { holderId: "h", kind: "app" as const, pid: 1, startedAt: 1, host: "m" },
       settings: createSettingsEngine(built.catalog),
+      configDir: "/nonexistent-config",
+      trust: {
+        resolve: () => Promise.reject(new Error("trust is not used by these tests")),
+        isTrusted: () => Promise.resolve(false),
+        explicitVerdict: () => Promise.resolve("none"),
+      },
     },
   });
 }
 
 describe("threads", () => {
-  test("create forwards title and workspace, then reports the position in this store", async () => {
+  test("create forwards title and the canonical workspace, then reports the position in this store", async () => {
     const h = harness();
     const { ports } = createEnginePorts(h.deps);
-    const created = await ports.threads.create({ title: "t", workspace: "/w" });
-    expect(created.threadId).toBe(THREAD);
-    expect(created.position).toEqual({ storeId: STORE_ID, seq: 5 });
-    expect(h.calls[0]).toContain('"title":"t"');
-    expect(h.calls[0]).toContain('"workspace":"/w"');
+    const workspace = realpathSync(mkdtempSync(join(tmpdir(), "xh-ports-")));
+    try {
+      const created = await ports.threads.create({ title: "t", workspace });
+      expect(created.threadId).toBe(THREAD);
+      expect(created.position).toEqual({ storeId: STORE_ID, seq: 5 });
+      expect(h.calls[0]).toContain('"title":"t"');
+      expect(h.calls[0]).toContain(`"workspace":${JSON.stringify(workspace)}`);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
   });
 
   test("a refused create is a store.* wire error, not a Bug", async () => {
@@ -272,11 +370,67 @@ describe("threads", () => {
     expect(await ports.threads.list({})).toEqual({ threads: [], nextCursor: "next" });
   });
 
-  test("fork, revert and delete are M2 and reject", async () => {
-    const { ports } = createEnginePorts(harness().deps);
-    expect(await rejectionOf(ports.threads.fork(THREAD, undefined))).toBeInstanceOf(Bug);
-    expect(await rejectionOf(ports.threads.revert(THREAD, ids.next("itm")))).toBeInstanceOf(Bug);
-    expect(await rejectionOf(ports.threads.remove(THREAD))).toBeInstanceOf(Bug);
+  test("fork makes a new thread id, passes it to the session and reports the new position", async () => {
+    const h = harness();
+    const newId = ids.next("thr");
+    h.state.fork = ok({ threadId: newId, headSeq: 9, replayed: false, token: null });
+    const { ports } = createEnginePorts(h.deps);
+    const forked = await ports.threads.fork(THREAD, undefined);
+    expect(forked).toEqual({
+      ok: true,
+      value: { threadId: newId, position: { storeId: STORE_ID, seq: 5 } },
+    });
+    expect(h.calls.some((call) => call.startsWith(`threads.fork:${THREAD}:`))).toBe(true);
+  });
+
+  test("a refused fork is a lifecycle error value, not a throw", async () => {
+    const h = harness();
+    h.state.fork = err({ kind: "invalid_target", reason: "not_on_branch" });
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.threads.fork(THREAD, ids.next("itm"))).toEqual({
+      ok: false,
+      error: { kind: "invalid_target", reason: "not_on_branch" },
+    });
+  });
+
+  test("revert uses a fresh request key for every call and reports the head the session committed", async () => {
+    const h = harness();
+    h.state.revert = ok({ leaf: ids.next("evt"), headSeq: 12 });
+    const { ports } = createEnginePorts(h.deps);
+    const to = ids.next("itm");
+    const first = await ports.threads.revert(THREAD, to);
+    await ports.threads.revert(THREAD, to);
+    expect(first).toEqual({ ok: true, value: { position: { storeId: STORE_ID, seq: 12 } } });
+    const keys = h.calls.filter((call) => call.startsWith("threads.revert:"));
+    expect(keys).toHaveLength(2);
+    expect(new Set(keys).size).toBe(2);
+  });
+
+  test("remove hands back the lease the host holds for the deleted thread", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    const lock = await ports.locks.tryAcquire(THREAD, "cli");
+    expect(lock.ok).toBe(true);
+    h.calls.length = 0;
+    const removed = await ports.threads.remove(THREAD);
+    expect(removed.ok).toBe(true);
+    expect(ports.locks.holds(THREAD)).toBe(false);
+    expect(h.calls).toEqual([
+      "threads.remove",
+      "keepAlive.dispose",
+      "ext.closeThread",
+      "lease.release",
+    ]);
+  });
+
+  test("a refused remove keeps the lease", async () => {
+    const h = harness();
+    h.state.remove = err({ kind: "has_forks", forks: [] });
+    const { ports } = createEnginePorts(h.deps);
+    await ports.locks.tryAcquire(THREAD, "cli");
+    const removed = await ports.threads.remove(THREAD);
+    expect(removed.ok).toBe(false);
+    expect(ports.locks.holds(THREAD)).toBe(true);
   });
 });
 
@@ -367,12 +521,41 @@ describe("locks", () => {
       `lease.acquire:session:${THREAD}:app`,
       `session.recover:${THREAD}:stdio:unsafe`,
       "ext.openThread",
+      `approvals.restore:${THREAD}`,
     ]);
     expect(ports.locks.holds(THREAD)).toBe(true);
     // 쥔 thread를 다시 요청하면 같은 증표를 돌려주고 다시 얻지 않는다
     const again = await ports.locks.tryAcquire(THREAD, "app");
     expect(again.ok && again.token).toEqual(TOKEN);
     expect(h.calls.filter((call) => call.startsWith("lease.acquire"))).toHaveLength(1);
+  });
+
+  test("two connections asking for the same thread at once share one acquisition (HS-23)", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    const [first, second] = await Promise.all([
+      ports.locks.tryAcquire(THREAD, "app"),
+      ports.locks.tryAcquire(THREAD, "app"),
+    ]);
+    expect(first.ok && second.ok).toBe(true);
+    expect(h.calls.filter((call) => call.startsWith("lease.acquire"))).toHaveLength(1);
+    // 실패한 획득은 기록을 남기지 않아 다음 요청이 다시 시도한다
+    const other = ids.next("thr");
+    h.state.acquire = busy(null);
+    expect(await ports.locks.tryAcquire(other, "app")).toEqual({ ok: false, ownerKind: null });
+    h.state.acquire = ok(TOKEN);
+    expect((await ports.locks.tryAcquire(other, "app")).ok).toBe(true);
+  });
+
+  test("release gives the lock back by thread id, and releasing a thread that is not held does nothing", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    await ports.locks.release(THREAD);
+    expect(h.calls).toEqual([]);
+    await ports.locks.tryAcquire(THREAD, "app");
+    await ports.locks.release(THREAD);
+    expect(ports.locks.holds(THREAD)).toBe(false);
+    expect(h.calls.at(-1)).toBe("lease.release");
   });
 
   test("releasing runs session_shutdown, closes the thread for extensions and returns the lease", async () => {
@@ -436,23 +619,76 @@ describe("locks", () => {
     expect(ports.locks.holds(THREAD)).toBe(false);
   });
 
-  test("extension thread state that the session cannot load yet (M2) is tolerated and logged", async () => {
+  test("a not_implemented Bug from ext.openThread is raised and the lease is given back", async () => {
     const h = harness();
-    h.state.openThreadError = new Bug("session.not_implemented: ext.loadThread arrives with M2");
+    h.state.openThreadError = new Bug("session.not_implemented: ext.loadThread");
     const { ports } = createEnginePorts(h.deps);
-    const outcome = await ports.locks.tryAcquire(THREAD, "cli");
-    expect(outcome.ok).toBe(true);
-    expect(h.infos).toContain("thread.extension_state_unavailable");
+    const thrown = await rejectionOf(ports.locks.tryAcquire(THREAD, "cli"));
+    expect(thrown).toBeInstanceOf(Bug);
+    expect(String(thrown)).toContain("session.not_implemented");
+    expect(h.calls).toContain("lease.release");
+    expect(h.infos).not.toContain("thread.extension_state_unavailable");
+    expect(ports.locks.holds(THREAD)).toBe(false);
   });
 
-  test("any other failure while opening the thread for extensions gives the lease back and is raised", async () => {
+  test("a failure of ext.openThread closes the opened session and the extension state, then gives the lease back, in that order", async () => {
     const h = harness();
     h.state.openThreadError = new Error("boom");
     const { ports } = createEnginePorts(h.deps);
     expect(String(await rejectionOf(ports.locks.tryAcquire(THREAD, "cli")))).toContain("boom");
-    expect(h.calls).toContain("lease.release");
-    expect(h.calls).toContain("keepAlive.dispose");
+    expect(h.calls).toEqual([
+      `lease.acquire:session:${THREAD}:cli`,
+      `session.recover:${THREAD}:stdio:unsafe`,
+      "ext.openThread",
+      "keepAlive.dispose",
+      "session.release",
+      "ext.closeThread",
+      "lease.release",
+    ]);
     expect(ports.locks.holds(THREAD)).toBe(false);
+  });
+
+  test("a failure of approvals.restore closes the opened session and the extension state, then gives the lease back, in that order", async () => {
+    const h = harness();
+    h.state.restore = err({ kind: "busy" });
+    const { ports } = createEnginePorts(h.deps);
+    const thrown = await rejectionOf(ports.locks.tryAcquire(THREAD, "cli"));
+    if (!(thrown instanceof WireError)) throw new Error("expected a WireError");
+    expect(thrown.data.kind).toBe("store.busy");
+    expect(thrown.message).toContain("approvals.restore failed");
+    expect(h.calls).toEqual([
+      `lease.acquire:session:${THREAD}:cli`,
+      `session.recover:${THREAD}:stdio:unsafe`,
+      "ext.openThread",
+      `approvals.restore:${THREAD}`,
+      "keepAlive.dispose",
+      "session.release",
+      "ext.closeThread",
+      "lease.release",
+    ]);
+    expect(ports.locks.holds(THREAD)).toBe(false);
+  });
+
+  test("a throwing session.release during the cleanup does not stop the remaining steps or hide the original failure", async () => {
+    const h = harness();
+    h.state.openThreadError = new Error("boom");
+    h.state.release = "throw";
+    const { ports } = createEnginePorts(h.deps);
+    expect(String(await rejectionOf(ports.locks.tryAcquire(THREAD, "cli")))).toContain("boom");
+    expect(h.calls.slice(-3)).toEqual(["session.release", "ext.closeThread", "lease.release"]);
+    expect(h.errors).toEqual(["thread.open_cleanup_failed"]);
+  });
+
+  test("a throwing ext.closeThread during the cleanup still gives the lease back", async () => {
+    const h = harness();
+    h.state.restore = err({ kind: "busy" });
+    h.state.closeThread = "throw";
+    const { ports } = createEnginePorts(h.deps);
+    const thrown = await rejectionOf(ports.locks.tryAcquire(THREAD, "cli"));
+    if (!(thrown instanceof WireError)) throw new Error("expected a WireError");
+    expect(thrown.data.kind).toBe("store.busy");
+    expect(h.calls.slice(-3)).toEqual(["session.release", "ext.closeThread", "lease.release"]);
+    expect(h.errors).toEqual(["thread.open_cleanup_failed"]);
   });
 
   test("a lost lease drops the thread and aborts its work with lease_lost", async () => {
@@ -490,18 +726,9 @@ describe("the small ports", () => {
     ports.activity.onChange(() => undefined)();
   });
 
-  test("settings reads the engine layers; writes and approvals are M2 and reject", async () => {
+  test("settings reads the engine layers and the change subscription can be dropped", () => {
     const { ports } = createEnginePorts(harness().deps);
     expect(ports.settings.layers(undefined)).toHaveLength(1);
-    expect(
-      await rejectionOf(ports.settings.write("user", "l1.loop.maxSteps", 1, undefined)),
-    ).toBeInstanceOf(Bug);
-    expect(
-      await rejectionOf(ports.settings.reset("user", "l1.loop.maxSteps", undefined)),
-    ).toBeInstanceOf(Bug);
-    expect(
-      await rejectionOf(ports.approvals.respond({ approvalId: "a", decision: "allow" })),
-    ).toBeInstanceOf(Bug);
     const off = ports.settings.onChange(() => undefined);
     off();
   });
@@ -543,4 +770,198 @@ describe("the small ports", () => {
   });
 });
 
+describe("threads.compact", () => {
+  const signal = new AbortController().signal;
+
+  test("a manual compaction hands the context service the current model and the user's instructions, and returns its outcome", async () => {
+    const h = harness();
+    const compacted: CompactOutcome = {
+      status: "compacted",
+      eventId: ids.next("evt"),
+      tokensBefore: 91_000,
+      fromExtension: null,
+    };
+    h.state.compact = ok(compacted);
+    const { ports } = createEnginePorts(h.deps);
+    const outcome = await ports.threads.compact(THREAD, "keep the API decisions", signal);
+    expect(outcome).toEqual({ ok: true, value: compacted });
+    expect(h.resolvedRoles).toEqual(["main"]);
+    expect(h.compactRequests).toEqual([
+      {
+        threadId: THREAD,
+        request: {
+          reason: "manual",
+          binding: {
+            role: "main",
+            provider: "anthropic",
+            modelId: "claude-x",
+            thinkingLevel: "high",
+          },
+          contextWindow: 200_000,
+          instructions: "keep the API decisions",
+          willRetry: false,
+          signal,
+        },
+      },
+    ]);
+  });
+
+  test("without instructions the request has no instructions field", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    await ports.threads.compact(THREAD, undefined, signal);
+    expect(Object.keys(h.compactRequests[0]?.request ?? {}).toSorted()).toEqual([
+      "binding",
+      "contextWindow",
+      "reason",
+      "signal",
+      "willRetry",
+    ]);
+  });
+
+  test("the context service's skipped and cancelled outcomes are values, not failures", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    h.state.compact = ok({ status: "cancelled", by: "guard", reason: "not now" });
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: true,
+      value: { status: "cancelled", by: "guard", reason: "not now" },
+    });
+    h.state.compact = ok({ status: "skipped", why: "disabled" });
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: true,
+      value: { status: "skipped", why: "disabled" },
+    });
+  });
+
+  test("a thread that is gone, a closed thread and a running turn stop before any model or summary call", async () => {
+    const h = harness();
+    const { ports } = createEnginePorts(h.deps);
+    h.state.threadExists = false;
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "thread_not_found", threadId: THREAD },
+    });
+    h.state.threadExists = true;
+    h.state.threadRowStatus = "closed";
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "thread_closed", threadId: THREAD },
+    });
+    h.state.threadRowStatus = "running";
+    h.state.runningTurn = TURN;
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "turn_running", turnId: TURN },
+    });
+    expect(h.resolvedRoles).toEqual([]);
+    expect(h.compactRequests).toEqual([]);
+  });
+
+  test("no model for the main role is a failure value and nothing is summarized", async () => {
+    const h = harness();
+    const noModel: ModelError = { kind: "no_model_for_role", message: "none" };
+    h.state.modelResolve = err(noModel);
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "model_unavailable", detail: noModel.kind },
+    });
+    expect(h.compactRequests).toEqual([]);
+  });
+
+  test("a context error comes back whole, with its kind", async () => {
+    const h = harness();
+    const failure: ContextError = { kind: "summary_failed", message: "provider said no" };
+    h.state.compact = err(failure);
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "context_failed", error: failure },
+    });
+  });
+});
+
 export type { ThreadId };
+
+function gated(): { readonly open: () => void; readonly gate: Promise<void> } {
+  const gate = Promise.withResolvers<void>();
+  return { open: () => gate.resolve(), gate: gate.promise };
+}
+
+describe("a manual compaction and the turns of the same thread (HS-77, §10 미결 31)", () => {
+  const signal = new AbortController().signal;
+
+  test("a turn submitted while the summary is being made waits for the compaction to commit, then starts", async () => {
+    const h = harness();
+    const summary = gated();
+    h.state.compactGate = summary.gate;
+    const { ports } = createEnginePorts(h.deps);
+    const compacting = ports.threads.compact(THREAD, undefined, signal);
+    await flushMicrotasks();
+    expect(h.calls).toEqual(["context.compact:start"]);
+    const submitted = ports.turns.submit(THREAD, "hi", undefined);
+    await flushMicrotasks();
+    // 요약이 끝나기 전에는 루프가 입력을 받지 않는다
+    expect(h.calls).toEqual(["context.compact:start"]);
+    summary.open();
+    expect(await compacting).toEqual({
+      ok: true,
+      value: { status: "skipped", why: "nothing_to_summarize" },
+    });
+    expect(await submitted).toEqual({ ok: true, turnId: TURN });
+    expect(h.calls).toEqual(["context.compact:start", "context.compact:end", "loop.admit"]);
+  });
+
+  test("a resume waits the same way, and another thread is not held up", async () => {
+    const h = harness();
+    const summary = gated();
+    h.state.compactGate = summary.gate;
+    const calls: string[] = [];
+    const other = ids.next("thr");
+    const resumed: ThreadId[] = [];
+    const deps: PortsDeps = {
+      ...h.deps,
+      loop: partial<LoopService>({
+        threadStatus: () => partial<ThreadLoopStatus>({ runningTurnId: null }),
+        admit: () => {
+          calls.push("admit");
+          return Promise.resolve(h.state.admit);
+        },
+        resume: (threadId: ThreadId) => {
+          resumed.push(threadId);
+          return Promise.resolve(err<LoopError>({ kind: "io", code: "stub" }));
+        },
+      }),
+    };
+    const { ports } = createEnginePorts(deps);
+    const compacting = ports.threads.compact(THREAD, undefined, signal);
+    await flushMicrotasks();
+    const resuming = ports.turns.resume(THREAD);
+    const otherSubmit = ports.turns.submit(other, "hi", undefined);
+    await flushMicrotasks();
+    // 다른 thread의 입력은 그대로 접수된다. 같은 thread의 재개는 기다린다
+    expect(calls).toEqual(["admit"]);
+    expect(resumed).toEqual([]);
+    await otherSubmit;
+    summary.open();
+    await compacting;
+    await resuming;
+    expect(resumed).toEqual([THREAD]);
+  });
+
+  test("a compaction that finds a turn already running still ends with turn_running, and a failed compaction does not keep later turns waiting", async () => {
+    const h = harness();
+    h.state.runningTurn = TURN;
+    const { ports } = createEnginePorts(h.deps);
+    expect(await ports.threads.compact(THREAD, undefined, signal)).toEqual({
+      ok: false,
+      error: { kind: "turn_running", turnId: TURN },
+    });
+    h.state.runningTurn = null;
+    h.state.compact = err<ContextError>({ kind: "summary_failed", message: "boom" });
+    const failed = await ports.threads.compact(THREAD, undefined, signal);
+    expect(failed.ok).toBe(false);
+    expect(await ports.turns.submit(THREAD, "hi", undefined)).toEqual({ ok: true, turnId: TURN });
+  });
+});

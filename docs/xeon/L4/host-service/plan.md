@@ -282,3 +282,111 @@ SV-06의 서비스 쪽(부모가 끝나도 서비스가 남는다)은 `bind-race
 | 재전송 구현이 "등록과 head 읽기가 같은 JS 턴" 가정에 기댄다 | L0.store가 커밋을 워커 스레드로 옮기면 중복이나 누락이 생긴다 | `subscribe-replay-no-dup`를 커밋 위치별로 돌린다. L0.store 변경 때 이 가정을 리뷰 항목으로 둔다 |
 | 테스트의 `Bun.spawn`이 DR-07과 충돌한다(§5 `int`·`fault`) | `just verify`의 check-layers에서 막힌다 | `L4.desktop.plan` R10과 같은 결정 하나로 푼다(허용 목록 항목 또는 `platform-process/testing` 도우미). 사람 확인이 필요하고, 결정 전까지 M1 완료를 막는 항목으로 보고한다 |
 | 테스트용 그룹과 모델 테이프의 위치가 정해지지 않았다 | M1 scenario와 host 테스트가 같은 고정 자료를 공유하지 못한다 | 테스트용 그룹의 위치와 이름은 `L3.group-kit.plan`이 정한다. 그 전까지 host 테스트는 `test/fixtures/`에 자기 것을 둔다 |
+
+## 8. M2 구현 기록 (m2-plan HOST.1·HOST.2·HOST.3·HOST.4·HOST.5·HOST.6·HOST.7)
+
+HOST.1·HOST.3·HOST.5는 브랜치 `m2/host`에서 했다. 다른 트랙(L1A.4 승인 프로토콜, L1B.2 thread 수명 주기, L2·L3 능력)이 병합된 뒤 브랜치 `m2/host2`에서 HOST.2·HOST.4·HOST.6·HOST.7을 했다(§8.4). 시험은 `cd xeon && just test apps/host`와 CLI 테이프 스모크 `just test apps/cli`로 돌렸다.
+
+### 8.1 작업별 상태
+
+| m2-plan ID | plan ID | 상태 | 내용과 시험 |
+|---|---|---|---|
+| HOST.1 | H9 | 구현 | `thread.open { write \| observe }`, 쓰기 소유 획득의 단일 경로(`claimWrite`: `thread.create`, `turn.start`, `thread.open`이 같이 쓴다), 같은 thread의 동시 획득 합치기, 쓰기·관찰 연결 기록(`writeThreads`, `observedThreads`), 서비스 모드의 잠금 해제 판정(`releaseUnused`, HS-27). 관찰 폴링(HS-16, `handlers/observe.ts`)과 다른 프로세스 커밋 구간 메우기(`fillGap`). `test/handlers/thread-open.test.ts`, `test/assembly/ports.test.ts`(동시 획득), `test/int/thread-locked.int.test.ts`(`thread-locked-alternatives`, `observe-poll-follows-commits`: 같은 저장소를 연 호스트 둘이 실제 OS 잠금과 `sys_leases` 위에서 다툰다) |
+| HOST.1 | H9 `LeaseToken` 전달 | 구현(M1 어댑터에 있었음) | `SessionLockPort.tryAcquire`가 임대 토큰으로 `openForWrite`를 열고 `keepAlive` 실패를 `onLeaseLost`로 처리한다. 이번 작업은 토큰 전달 경로의 동시 획득 합치기와 `release(threadId)`를 더했다 |
+| HOST.1 | H9 `delegate` 대안 | 보류 | 서비스 모드(M3)가 없어 `options`는 `["observe", "fork"]`다(HS-25) |
+| HOST.3 | H22(신규) | 구현 | `secret.list·meta·remove·test·beginEntry·beginReveal`, `EnginePorts.secrets`, `InProcessHost.secretOutOfBand`, 기본 메타, 설정 키 참조 조회(`settingKeysFor`). `test/handlers/secret.test.ts`, `test/assembly/secrets.test.ts`, `test/engine.test.ts`(실제 `platform-secrets` 관리 서비스) |
+| HOST.5 | H15 | 구현(Linux x64) | spec §3.2.1에 결과를 적었다. macOS arm64는 미확인이다 |
+| HOST.5 | 최상위 await 제거 | 구현 | `main.ts` 끝을 `detach(…then(process.exit))`로 바꿨다. `test/entry-bundle.test.ts`가 `--minify --bytecode`로 진입을 묶는다 |
+| HOST.5 | H19 | 구현 | stdio 호스트의 종료를 엔진의 협조 창구(`Engine.shutdown`, 실제 `ProcessShutdown`)로 통일했다. EOF(`stdin_eof`), SIGTERM·SIGINT(`signal`), `host.shutdown`(`shutdown_request`, `version_replace`)이 같은 절차를 밟고 시한을 넘기면 창구가 `exit(1)`한다. 호스트 참여자가 turn을 안전 경계에서 멈춘다. `closeAll`은 송신 큐가 빌 때까지(최대 1초) 기다린 뒤 닫아 마지막 응답이 나가게 한다. `test/handlers/host-shutdown.test.ts`, `test/int/stdio-shutdown.int.test.ts`(`stdio-eof-checkpoint-exit` 포함) |
+| HOST.5 | `transport-parity` | 부분 | 같은 모델 테이프와 요청 열로 in-process와 stdio(스트림 쌍)를 돌려 정규화한 응답·이벤트열이 같음을 확인한다(`test/contract/transport-parity.contract.test.ts`). 컴파일 바이너리 stdio는 자식 프로세스가 필요해 시험에 없다(§8.2 첫 행) |
+
+### 8.2 확인하지 못한 항목 (미확인)
+
+| 항목 | 이유 | 확인 방법 |
+|---|---|---|
+| 자식 프로세스를 띄우는 시험(`forced-kill-resume`, 컴파일 바이너리 `transport-parity`, 실제 SIGKILL 뒤 재개) | `apps/host`는 `Bun.spawn` 테스트 한정 허용 항목(`DR-07/host-test-spawn`)이 없다. 허용 목록은 사용자 승인이 필요한 공유 파일(`scripts/dependency-allowlist.json`)이다. 컴파일 바이너리의 EOF 종료, `host.shutdown`, SIGTERM은 이 작업에서 손으로 확인했다(spec §3.2.1) | 허용 항목을 승인하거나 `platform-process/testing`에 일반 자식 실행 도우미를 두는 결정(§7 마지막 행)을 받은 뒤 `test/fixtures/spawn-host.ts` 한 곳에 모아 더한다 |
+| 종료 뒤 복구 표식 조회(`thread.list`의 `resumable`) | `core-persistence`의 `threads.list`가 아직 `not_implemented`다(L1B.2). 지금 시험은 저장소 이벤트(`turn.abort_requested`, `turn.completed`)가 남았는지로 확인한다 | L1B.2 병합 뒤 `stdio-eof-checkpoint-exit`에 `resumable: null` 확인을 더한다 |
+| macOS arm64 spike(H15 a~d) | 이 기기에 macOS가 없다 | CI `desktop-macos` job 또는 실기 |
+| 서비스 모드에서 live 작업 때문에 쥔 잠금의 해제 시점 | 연결이 떠난 뒤 turn이 끝나는 시점에 다시 판정하지 않는다(spec §10 20번) | M3 H10~H11 |
+| `reveal`의 `os-auth`, 서비스 접속에서 비밀 값 입력 | 서비스 접속에는 값 전달 통로가 없고 OS 입력 창은 M3다. in-process 통로는 CLI가 `InProcessHost.secretOutOfBand`로 맡긴다 | CLI.3, M3 |
+
+### 8.3 다른 레인에 요청한 것
+
+- F: `WIRE_ERRORS`에 비밀 관리 전용 kind, `SecretTestResult` 확장, `SecretEntryOffer`의 `add`용 메타, `secret.references` 메서드(spec §10 19번).
+- 허용 목록 담당: `DR-07/host-test-spawn` 항목(§8.2 첫 행).
+- PLT: `platform-process`의 stdio 전송(`createStdioTransport`, `openProcessStdio`)과 이 패키지의 `transport/stdio.ts`가 같은 일을 한다. 통합 때 호스트가 L0 구현으로 갈아탈지 정한다. 이번 작업에서는 바꾸지 않았다.
+
+### 8.4 HOST.2·HOST.4·HOST.6·HOST.7 (브랜치 m2/host2)
+
+| m2-plan ID | plan ID | 상태 | 내용과 시험 |
+|---|---|---|---|
+| HOST.2 | H16 | 구현 | `thread.list·read·close·fork·revert·delete`, `turn.interrupt`, `events.unsubscribe`, `host.status`. `thread.delete`는 소유를 쥐지 않았으면 한 번 얻어 본다(spec HS-28). `thread.fork`는 새 thread의 소유를 얻는다. 수명 주기 오류는 `wireErrorOfLifecycle`이 3001~3006으로 옮긴다. `test/handlers/thread-lifecycle.test.ts`(가짜 엔진), `test/int/lifecycle.int.test.ts`(실제 저장소) |
+| HOST.2 | H17 | 구현 | `settings.set·reset·list`. user 파일 원자 교체, session 커밋, 신뢰한 작업 폴더의 project·local 파일(spec §4.14). 프로젝트 신뢰 조립(`assembly/trust.ts`). `test/handlers/settings.test.ts`, `test/int/settings-write.int.test.ts` |
+| HOST.4 | H18 | 구현 | `approval.respond`(restore → 응답, 소유 검사 3002), `approval.list`(spec §4.13), 쓰기 소유를 얻을 때 `restore`. A1 시험 `test/int/approval-restart.int.test.ts`(실제 자식 호스트 SIGKILL → 새 호스트 목록·열기·재개·응답), `test/int/approval.int.test.ts`, `test/handlers/approval.test.ts`. 허용 목록에 `DR-07/host-test-spawn`을 더했다 |
+| HOST.4 | H18 U-19 | 확인만 | env 주입 승인 증거는 F의 `CallContext.approval`(F 요청 13)과 L1.tools `RawCall.secretApproval`, cap-workspace의 `SecretEnvRequest.ctx.approval` 복사로 `withEnv`까지 이어져 있고 호스트가 더한 코드는 없다. 호스트 수준 종단 시험은 없다(§8.5 둘째 행) |
+| HOST.6 | (신규) | 구현 | core-agents(`parentToken`, 자식 thread 열고 닫는 감싸개), core-context(`createContextExtension`), cap-web, cap-knowledge(`projectTrust`), cap-mcp, cap-work, cap-dialog, group-kit(`xeon.groups`). 각 등록 뒤 CLI 테이프 스모크를 돌렸다. 능력마다 실제 엔진 시험이 있다(`test/int/agents·cap-web·cap-knowledge·cap-dialog·cap-work·cap-mcp·groups·retention.int.test.ts`) |
+| HOST.7 | D-12 | 구현 | spec §3.3.1~§3.3.3을 코드에 맞췄다(`AssembleOptions`, `Engine.shutdown`, `AssembleIssue.plugin`, `EnginePorts`, `ConnectionHub`, `createWireHandlers`). 순서 규칙 정합: HS-18(`n`·`afterSeq`는 발신자 값), HS-21(구독 취소 창) |
+
+HOST.6에서 실제 엔진에 올리자 드러난 오류와 처리:
+
+- cap-work의 투영 표 `cap_work_task_edges`가 실제 투영기 등록부의 이름 규칙(접두 뒤 지역 이름에 밑줄 금지, F.records §3.4)에 걸려 엔진이 서지 못했다. cap-work 시험의 등록부 대역은 이 규칙을 보지 않아 드러나지 않았다. 표 이름을 `cap_work_edges`로 바꿨다.
+- core-tools 매니페스트 `optional`에 L2 도구 능력이 없으면 도구 호출이 "공급자 없음"이다(spec HS-60).
+- 엔진이 서지 못할 때 실제 엔진 시험이 건너뛰어져 검증이 통과한 것처럼 보였다. 이제 시험 파일이 실패한다(HS-65).
+
+### 8.5 확인하지 못한 항목 (HOST.2·4·6)
+
+| 항목 | 이유 | 확인 방법 |
+|---|---|---|
+| stdio MCP 서버 | (m2c에서 연결했다. 아래 §9 HOST.15) 크래시 재기동과 공식 서버(예: filesystem)로의 연결은 확인하지 못했다 | 실제 MCP 서버로 연결·종료·크래시 재기동 |
+| 비밀을 쓰는 bash 호출의 종단 시험 | sops 제공자와 키 접근을 가짜로 바꿀 주입점이 조립 옵션에 없다 | `AssembleOptions`에 `ProcessRunner` 주입을 더하거나 platform-secrets 시험 제공자를 조립 옵션으로 연다 |
+| 컴팩션이 실제로 도는지 | core-loop가 `shouldCompact`·`recoverOverflow`를 부르지 않는다(L1C 요청). 설정 연결만 확인했다 | L1A 구현 뒤 긴 대화 시험 |
+| 프로젝트 신뢰 프롬프트 | 대화형 클라이언트(CLI.2, DESK)가 `TrustPrompter`를 아직 내놓지 않는다 | CLI.2·DESK 뒤 |
+| `/group` 명령 | 처리기가 출력을 돌려줄 길이 없다(spec §10 26) | F 요청 처리 뒤 |
+
+### 8.6 다른 레인에 요청한 것 (HOST.2·4·6)
+
+- F: (m2c에서 모두 처리됨) 열린 turn 재개 메서드는 `turn.resume`(spec §10 21), `thread.closed` 오류 kind(§10 23), 명령 처리기 출력은 `command.run`의 `done`(§10 26).
+- L1B: fork thread의 가지가 원본 history를 잇는지와 `thread.read`용 `before`·`limit` 질의(§10 22): m2c T4가 처리한다. 병합 뒤 `readThread`를 그 질의로 바꾼다.
+- PLT: (m2c에서 처리됨) `McpProcessPort` 구현, 파일 잠금 API(§10 24·25).
+- WK(cap-work): 표 이름을 바꿨다(위). `submit_plan` 승인 결과 문구는 한국어다.
+- DG(cap-dialog): `ask_user` 도구 등록은 조립 루트(`host-dialog-bridge`)가 했다. 플러그인이 등록하도록 옮길지 정한다.
+- core-agents: `agentsPlugin`에 `loop` 감싸개 선택 옵션을 더했다(자식 thread 열기). L1B가 같은 일을 플러그인 안에서 하면 옵션을 지운다.
+- L1A: core-tools에 정식 `L2ApprovalsPort` 팩토리가 생기면 `assembly/l2-approvals.ts`를 지운다. 동적 도구에 호출 연속 정보를 싣는 경로는 병합 때 닫았다(§8.7).
+
+### 8.7 병합 연결 (xeon/foundation 통합)
+
+m2/l1f, host2, mcp4, webkn, wkdg, cli2를 이 순서로 합친 뒤 남은 연결을 한 커밋씩 닫았다.
+
+| 항목 | 내용과 시험 |
+|---|---|
+| 설정 쓰기 실패 | L1F가 `SessionSettingsStore.set/reset`에 `key_reused`를 값으로 더했다. `SettingsWriteFailure`에 같은 kind를 더하고 처리기가 `store-error.ts`의 `keyReusedBug`로 `Bug`로 옮긴다(와이어에는 `-32603 internal`). 호스트는 키를 호출마다 새로 만들므로 키 재사용은 호출 결함이다. 수명 주기·생성의 `key_reused`도 같은 도우미를 쓴다 |
+| AG-11 시험 | 조립 루트가 core-agents를 싣게 되었으므로 `agent-tools-slot.int.test.ts`가 플러그인을 직접 설치하지 않고 `agentDefinitions` 옵션만 넘긴다. 자식 thread 열기도 조립 루트의 감싸개가 한다 |
+| thread.read 시험 | cap-knowledge의 첫 turn 문맥이 사용자 입력 뒤에 custom item 하나를 더한다. `lifecycle.int.test.ts`의 기대 종류가 `user, custom, system, assistant`다 |
+| 질문·계획 승인, 사용자 셸 | cap-dialog와 cap-work의 기본 구현(`questionApprovalsOver`, `planApprovalsOver`, `shellPortOver`)이 `xeon.approvals`와 `xeon.loop`를 감싼다. 조립 루트의 같은 일을 하던 `dialogApprovalsFactory`, `planApprovalsFactory`, `userShellPort`와 `createCallL2ApprovalsPort`, `createOriginL2ApprovalsPort`를 지웠다. 기본 구현은 재시작 뒤 `restore`와 `key_reused` 거부를 더 한다. `l2-approvals.ts`에는 cap-web이 쓰는 출처 없는 포트만 남았다 |
+| 사용자 셸 종단 | core-loop `runUserBash`가 구현되어 `shell-injection.int.test.ts`가 슬래시 명령의 `!{...}`를 실제 셸로 실행하고 출력을 치환하며 효과 레코드를 확인한다 |
+| MCP 서버 주도 요청 종단 (D5 a) | F `DirectToolRegistration.executeWithContinuation`을 더했다. cap-mcp `createToolServiceRegistrar`가 채우고, core-tools `settleDirectInput`이 `input_required`를 질문 승인으로 올려 같은 `toolCallId`로 다시 부른다. `approval-shapes.int.test.ts`가 질문 도구, 계획 승인, MCP 질문의 `approval.requested` 레코드 모양이 같음(E5)과 종단 흐름을 확인한다 |
+
+## 9. M2 마감 구현 기록 (m2c T2 HOST)
+
+`review.m2-plan` §9~§11이 정한 마감 작업 가운데 `xeon/apps/host`와 이 문서가 맡은 부분이다. 항목 ID(G1-01 등)는 `review.milestone-audit`의 통합 항목이다. 후보 브랜치(`m2/fx-host`, `m2/fx-mcp`, `m2/fx-m`)는 옛 SHA 위에 있어서 통째로 가져오지 않고 필요한 hunk를 새 `xeon/foundation` 위에 다시 썼다.
+
+| 작업 | 항목 | 상태 | 내용과 시험 |
+|---|---|---|---|
+| HOST.8 | G1-12, G2-05, G2-07 | 구현 | `xeon.os`를 `osPlatform`으로 올려 핸들(`fileLock`, `checkBinaries`)을 쥐고, `l0.os.log.level`을 읽기 함수로, exec `tempDir`를 `<state>/spill`로, 샌드박스 `startSelfTests`를 서비스 등록 때 한 번 잇는다. `Engine.diagnose`가 외부 바이너리 점검을 낸다(spec HS-67, HS-69). `test/assembly/platform.test.ts`, `test/assembly/settings-sources.test.ts`, `test/assemble.test.ts`(`diagnose`) |
+| HOST.9 | G2-06, G1-07 | 구현 | 저장소 열기 실패에 안내 분류(`failure`)를 싣고 열기 경고를 로그로 남긴다. 실행 중 `row_invalid`는 `store.corrupt`, 종결된 thread는 `thread.closed`로 옮긴다(spec HS-68). `test/assemble.test.ts`(`storeIssueOf` 표), `test/int/store-failure.int.test.ts`(새 버전, 이력 변조, 실패한 마이그레이션 뒤 스냅샷), `test/store-error.test.ts` |
+| HOST.10 | G1-03, G1-10 | 구현 | `trust.get`·`trust.decide`(`TrustPort`, `handlers/trust.ts`, `ProjectTrust.inspect`·`decide`). `trust.json`은 `OsServiceHandle.fileLock.updateText` 안에서 읽고-고치고-쓴다. `m2/fx-host`의 신뢰 wire를 새 foundation의 `trustOptions`·`TrustStatus` 위에 다시 썼다. `test/assembly/trust.test.ts`(서비스가 다른 호스트 둘이 동시에 결정해도 항목이 모두 남는 시험 포함), `test/handlers/trust.test.ts`, `test/int/trust.int.test.ts`(결정이 열린 thread의 프로젝트 설정 층에 바로 반영되고 재시작 뒤에도 유지) |
+| HOST.11 | G1-08, G5-04 | 구현 | `settings.invalidated`: 설정 엔진이 `SettingsChange`를 내고(설정 저장소의 쓰기, 신뢰 결정) 연결 허브가 hello를 마친 연결 전체에 보낸다. `settings.list`는 `stage: "reserved"` 키를 기본으로 뺀다(`includeReserved`로 연다). `test/handlers/settings.test.ts`(예약 키, 알림 대상), `test/int/settings-invalidated.int.test.ts`(실제 엔진의 user·session·reset·신뢰 결정) |
+| HOST.12 | G1-07 | 구현 | `SecretError`를 `secret.*` 전용 kind 3201~3212로 옮기고(입력 오류만 -32602) `secret.references`를 `SecretAdminService.references`에 잇는다. `secret.test`는 이미 확장된 결과를 싣는다. `test/secrets/wire.test.ts`(열두 변형의 kind·code·details와 stderr·경로 비노출), `test/handlers/secret.test.ts` |
+| HOST.13 | G1-01, G1-02, G2-12 | 구현 | `command.list`(선택 `threadId`는 서비스 입력이 아니라 호출 문맥으로)·`command.run`(`CommandPort`, `assembly/commands.ts`, 브리지 확장이 `dialog.commands` API를 `CommandRegistryHolder.api`에 채움), `turn.resume`(쓰기 소유 암묵 획득 뒤 `LoopService.resume`), `thread.rename`(`ThreadPort.rename`)과 첫 입력 80자 자동 제목(`title.ts`). 후보 `m2/fx-host`에는 이 처리기들이 없었다(새 foundation의 wire 계약 위에서 새로 썼다). `test/assembly/commands.test.ts`(호출자 `host`, 호출마다 새 요청 키), `test/handlers/command.test.ts`, `test/handlers/turn-resume.test.ts`, `test/handlers/thread-rename.test.ts`, `test/title.test.ts`, `test/int/command.int.test.ts`(실제 cap-work `/plan`·`/tasks`, `command.list`의 `threadId`로 thread 작업 폴더의 프로젝트 명령), `test/int/title.int.test.ts`, `test/int/approval-restart.int.test.ts`(SIGKILL 뒤 `turn.resume`) |
+| HOST.14 | G1-12, G4-05 (E4, H1) | 구현 | `hostedSearch`(`xeon.models`)를 cap-web에 넘기고 설정이 바뀌면 탐침 기억을 지우며 `session_shutdown`에서 세션 원문을 정리한다(spec HS-75). `m2/fx-host`의 cap-web 조립에서 `modelTool` 판정(`turn_start`)과 `headerSecrets`는 가져오지 않았다(이유는 HS-75). `test/int/cap-web.int.test.ts`: SearXNG 주소가 없으면 내장 래퍼만 쓰고 떠 있는 SearXNG를 부르지 않는다, 주소를 설정하면 SearXNG를 쓰고 설정을 바꾸면 실패 탐침 기억이 풀린다, 대역 없이도 엔진의 hosted 검색이 체인에 오른다 |
+| HOST.15 | G1-04 (E6) | 구현 | `createHostMcpProcessPort`가 L0의 `createMcpProcessPort`를 만들어 cap-mcp에 넘긴다(레지스트리는 `xeon.process`의 것). `m2/fx-mcp`의 `06158d2` 가운데 host 부분을 다시 썼고 cap-mcp의 `reload`·`turn_start` 단계 경계(`21cfa68`)는 T5 몫이라 가져오지 않았다. `test/assembly/mcp-process.test.ts`(포트 없음, `mcp` owner 등록, 비밀 env는 `secret_denied`), `test/int/cap-mcp-stdio.int.test.ts`(자식으로 뜬 stdio 서버의 도구를 모델이 부르고 엔진을 닫으면 프로세스가 남지 않는다), `xeon/scripts/exit-tests.txt`의 E6 줄에 더했다 |
+| HOST.16 | G2-02 | 구현 | 작업 폴더 규칙 HS-76: `thread.create`가 `workspace`를 정규 절대 경로(심볼릭 링크를 푼, 있는 폴더)로 저장하고 `thread.list` 필터도 같은 형태로 견준다. 신뢰 저장소의 키와 같은 형태다. 조립 루트가 `threadWorkspaceOf`를 L2에 잇는다: cap-mcp(`McpDeps.workspaceOf`, `turn_start`의 `reload`, 엔진 기본 루트 없음), cap-knowledge(`workspaceOf`), cap-dialog(`workspaceOf`, `projectTrust`로 `.xeon/commands` 신뢰 게이트). `test/assembly/workspace.test.ts`, `test/int/workspace.int.test.ts`, `test/int/cap-mcp-workspace.int.test.ts`(엔진 작업 디렉터리의 `.mcp.json`은 읽지 않고 대화 폴더의 것을 신뢰한 뒤 읽는다), `test/int/cap-knowledge.int.test.ts`(작업 폴더 없는 대화에는 프로젝트 스킬이 없다), `test/int/command.int.test.ts`(프로젝트 명령 파일은 신뢰 뒤에만) |
+| HOST.17 | G2-11 (통합 검토 M4) | 구현 | `thread.read`가 L1.persistence의 `branchItemRecords`(`itemPagesOf`)로 쪽에 든 item만 읽고 호스트는 응답 크기 예산만 맞춘다(spec HS-49). fork한 thread는 출처의 item을 이어 읽는다. `m2/fx-host` `3574d76`의 thread-read 쪽 되돌리기는 이 질의로 대신했다. `test/assembly/thread-read.test.ts`(질의에 넘긴 `before`·`limit`, head, 예산 초과, 거절 전달), `test/int/lifecycle.int.test.ts`(fork thread가 출처 item을 쪽 단위로 읽는다) |
+| HOST.18 | G1-09, G2-10 (U-19, E5) | 구현 | `AssembleOptions.secretsRuntime`으로 비밀 서비스만 `memorySecrets`로 바꾸고 `test/int/secret-env.int.test.ts`가 모델 테이프 → 승인 요청(제목에 비밀 참조) → `approval.respond` → 실제 셸 실행(env에 값 주입) → `secret.approved` 감사 기록(승인 id 일치)을 한 엔진에서 확인한다. 거부하면 lease와 감사 기록이 없고, 맞지 않는 응답은 `answer_invalid`, 두 번째 응답은 `already_resolved`다. 운영의 `bash` 도구는 모델 파라미터에 `secretEnv`가 없어(L2.workspace.spec §3.3) 이 시험은 같은 셸 서비스 위에 `secretEnv`를 받는 시험 전용 도구 `bash_env`를 더해 쓴다. `test/int/approval-shapes.int.test.ts`(E5)는 질문 도구, 계획 승인, MCP 질문, 도구 승인, 비밀 사용 승인의 `approval.requested` 레코드 모양이 같음과 `origin`의 값(turnId, stepId는 이벤트 봉투와 같은 값, toolCallId, caller `main`)을 맞댄다. 도구 승인의 기억 범위는 `once`·`thread`다(`always`는 제안하지 않는다, G2-10). `m2/fx-m` `32e84b4`를 다시 썼고 이 시험들은 m2c T4(core-tools의 respond 이유, 승인 제목, caller)와 T5(cap-dialog·cap-work의 origin)가 병합된 foundation 위에서 돈다 |
+| HOST.19 | G2-07 | 구현 | `host.status`의 `includeBinaries: true`일 때만 `Engine.diagnose`를 부르고 `BinaryCheckReport`에서 `path`를 뺀 `HostBinaryReport`를 `binaries`에 싣는다(`src/binary-report.ts`, spec HS-69). 취소는 `request.cancelled`. 평소 상태 조회는 점검하지 않는다. `test/handlers/host-status.test.ts`(상태 네 변형의 값 비교, 경로 비노출, 점검 횟수 0, 취소), `test/int/lifecycle.int.test.ts`(실제 점검이 wire 스키마를 지킨다) |
+| HOST.20 | G2-01 | 구현 | `thread.compact`(spec HS-77): 쓰기 소유 암묵 획득 뒤 `ThreadPort.compact`가 종결·열린 turn을 거절하고 `ModelService.resolve("main")`의 바인딩과 창 크기로 `ContextService.compact`를 이유 `manual`로 부른다. `compacted`는 커밋 뒤 위치를 `position`으로 싣고, 확장 취소는 3006, 요약·커밋 실패는 3008. L1 변경은 없다(컨텍스트 서비스의 `compact`가 이미 공개 API라 core-loop에 수동 진입점을 더하지 않았다). `test/handlers/thread-compact.test.ts`(결과 값, 암묵 획득, 오류 표 전부, 제공자 본문 비노출), `test/assembly/ports.test.ts`(어댑터가 넘기는 요청 값, 거절 순서), `test/int/thread-compact.int.test.ts`(실제 엔진·테이프로 긴 대화 요약, 두 번째 호출은 `last_entry_is_compaction`, 열린 turn은 3003) |
+| HOST.21 | M2 마감 재검토 2 | 구현 | 컴팩션 뒤 스킬 색인·메모리 블록의 중복을 실제 엔진에서 값으로 견준다. `test/int/compact-reinject.int.test.ts`: 모델 테이프 `test/fixtures/recording-tape.ts`가 모델이 받은 요청 본문을 모으고, 컨텍스트 창을 12000토큰으로 줄여 요청 전 임계 검사가 자동 컴팩션을 일으킨 뒤 turn이 이어진다(T4 partial). 컴팩션 전후 모든 요청에 `<available_skills>`와 메모리 항목이 한 번씩만 있고 요약이 보인다. 수동 `thread.compact` 뒤 turn도 같다. 이 시험은 `cap-knowledge`가 `session_compact`에서 상태를 비워 전체 블록을 다시 넣던 때(요청에 두 번) 실패한다. 고친 층은 L2(`L2.knowledge.spec` §4.2.8), L1 재주입은 `L1.context.spec` §4.9a |
+| HOST.22 | M2 마감 재검토 3 (spec §10 31) | 구현 | 수동 컴팩션이 요약하는 사이 같은 thread의 `turn.start`가 turn을 여는 틈을 막는다. 어댑터(`assembly/ports.ts`)가 thread별 순차 구간(`assembly/thread-gate.ts`) 안에서 `threads.compact` 전체와 `turns.submit`·`turns.resume`을 돌린다. `turn.start`는 `turn.busy`가 아니라 기다린다(`turn.busy`의 `turnId`가 필수라 컴팩션에는 쓸 수 없다, spec §10 31). 시험: `test/assembly/thread-gate.test.ts`(차례, 다른 thread는 안 기다림, 실패가 뒤를 막지 않음), `test/assembly/ports.test.ts`(요약이 끝나기 전에는 `loop.admit`이 불리지 않고 끝난 뒤 접수됨, 재개도 같음, 다른 thread는 그대로), `test/int/thread-compact-turn-start.int.test.ts`(실제 엔진에서 모델 테이프가 요약 호출을 붙잡은 사이 보낸 `turn.start`가 응답하지 않고 `thread.compacted`가 turn 시작보다 먼저 커밋되며 요약에 새 입력이 없다). 수정 전에는 세 시험이 실패한다. `thread.revert`와의 겹침은 spec §10 32로 남긴다 |
+| HOST.23 | M2 마감 재검토 10 | 구현 | `thread.rename`·`thread.delete`가 빌린 잠금을 어떻게 놓는지 바로잡는다. 둘 다 `holds`가 거짓일 때 잠금을 한 번 얻어 쓰고 놓는데, 그동안 같은 thread의 다른 연결이 `turn.start` 등으로 소유를 이어받아도 `finally`가 잠금을 놓아 그 연결이 잠금 없이 쓰게 됐다(두 호출이 같은 획득을 기다리면 `holds`가 "내가 얻었다"를 말해 주지 못한다). `handlers/owner.ts`의 `withWriteOwner`가 thread별 빌린 호출 수를 세어 마지막 호출이 끝날 때만 놓고, 쓰기로 연 연결·소유를 얻는 중인 `claimWrite`·진행 중 turn이 있으면 놓지 않는다. 연결 단위 소유자 검사는 spec HS-23(여러 연결이 소유를 함께 씀)에 어긋나 더하지 않았다. 시험: `test/handlers/thread-write-owner.test.ts`(가짜 엔진의 `acquireGate`로 겹침을 만든다: 이어받으면 놓지 않음, 둘이 겹친 rename은 한 번만 놓음, 거절된 delete도 같음, 빌린 뒤에는 잠금이 남지 않음), `test/int/thread-rename-owner.int.test.ts`(실제 잠금에서 rename과 turn.start가 겹친 뒤 다른 호스트의 쓰기 열기는 3002, rename만 했으면 열림). 수정 전에는 앞의 세 시험과 int 첫 시험이 실패한다 |
+| HOST.24 | M2 첫 실행 (m2r sec) | 구현 | 깨끗한 기기에서 첫 `secret add`가 설정 없이 된다. `assembly/secrets.ts`의 `effectiveSecretsConfig`가 빈 `l0.secrets.sops.files`에 사용자 기본 파일을 채워 `newMeta`와 platform-secrets가 같은 파일을 보고(HS-45), 조립 루트가 `OsServiceHandle.fileLock`을 platform-secrets에 넘긴다. `test/assembly/secrets.test.ts`, `test/int/secret-first-write-processes.int.test.ts`(프로세스 둘이 동시에 첫 `add`, 실제 flock·sops·age, 임시 홈) |
+| HOST.25 | M2 Mac 실기 (m2r lease) | 구현 | 모델 provider 연결이 비밀의 사용 정책을 연다(HS-45)와 모르는 모델 id 거절(HS-78). `secrets/provider-link.ts`(`createProviderLinker`: `link`는 `settings.set`의 사용자 범위 `l1.models.providers` 뒤, `grantFor`는 `newMeta`), `handlers/settings.ts`의 `requireKnownModel`, `EnginePorts.models`. `test/secrets/provider-link.test.ts`(허용은 runtime-http·`model.provider:<id>`·호스트뿐, 멱등, 합집합), `test/handlers/settings.test.ts`, `test/int/provider-key-link.int.test.ts`(가짜 Anthropic 서버로 데스크톱 순서·CLI 순서·예전 빈 정책 복구, env·도구·다른 호스트 lease는 계속 거부) |

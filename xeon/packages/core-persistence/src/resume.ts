@@ -3,6 +3,7 @@
 import {
   assertNever,
   Bug,
+  detach,
   err,
   ok,
   parse,
@@ -15,6 +16,7 @@ import {
   EffectExecSchema,
   EffectIntentSchema,
   ItemRecordedPayloadSchema,
+  type AgentView,
   type AutoResumeVerdict,
   type CommitPlan,
   type DurableEventEnvelope,
@@ -26,7 +28,6 @@ import {
   type OpenError,
   type OpenReport,
   type PendingToolCall,
-  type Projector,
   type RecoverDeps,
   type ResumeError,
   type ResumePlan,
@@ -40,9 +41,10 @@ import { readCheckpoint } from "./checkpoint.ts";
 import type { PersistenceSettings } from "./deps.ts";
 import { envelopeAtSeq, envelopeOfRow } from "./events.ts";
 import { sessionResource } from "./ids.ts";
-import type { OpenSessions } from "./ownership.ts";
+import { releaseOpenSession, type OpenSessions } from "./ownership.ts";
+import type { SessionPoints } from "./points.ts";
+import type { ProjectorController } from "./projector/registry.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
-import { ensureProjectors } from "./projector/rebuild.ts";
 import {
   closeInsteadOfRerun,
   decideOpenEffect,
@@ -54,6 +56,7 @@ import type { KindCatalog } from "./upcast.ts";
 import { readOnlyReasonFor } from "./upcast.ts";
 import {
   markerOf,
+  readOpenChildren,
   readOpenTurn,
   readPendingApprovals,
   readQueuedInputs,
@@ -72,10 +75,12 @@ export interface ResumeDeps {
   readonly clock: Clock;
   readonly ids: IdFactory;
   readonly settings: () => PersistenceSettings;
-  readonly projectors: () => readonly Projector[];
+  /** 투영 버전·last_seq가 어긋난 투영기를 다시 만든다(쓰기 열기). 다시 만든 이름을 돌려준다 */
+  readonly ensureProjectors: () => ReturnType<ProjectorController["ensure"]>;
   /** 서비스를 시작하며 다시 만든 투영기 이름. 처음 여는 thread의 OpenReport.rebuilt에 한 번 실린다 */
   readonly takeStartupRebuilt: () => readonly string[];
   readonly logger: Logger | undefined;
+  readonly points: SessionPoints;
 }
 
 export interface Resumer {
@@ -104,6 +109,7 @@ interface RecoverSnapshot {
   readonly effects: readonly OpenEffectRow[];
   readonly pendingToolCalls: readonly PendingToolCall[];
   readonly pendingApprovals: readonly EventId[];
+  readonly openChildren: readonly AgentView[];
 }
 
 /** 열린 효과: effect.intent가 있고 effect.result가 없는 효과. 인자와 마지막 exec는 이벤트에서 읽는다 */
@@ -246,6 +252,7 @@ function threadPairs(
 export function createResumer(deps: ResumeDeps): Resumer {
   const { db, leases, catalog, producers, sessions, writer, clock, ids } = deps;
   const synthesisDeps: SynthesisDeps = { clock, ids, producers };
+  const { points } = deps;
 
   const ownerInfo = (threadId: ThreadId): OpenReport["owner"] => {
     const info = leases.inspect(sessionResource(threadId));
@@ -281,7 +288,7 @@ export function createResumer(deps: ResumeDeps): Resumer {
       const readOnly = readOnlyReasonFor(checked.value.pairs, catalog);
       let rebuilt: readonly string[] = [];
       if (readOnly === null) {
-        const ensured = ensureProjectors(db, deps.projectors(), catalog);
+        const ensured = deps.ensureProjectors();
         if (!ensured.ok) return ensured;
         rebuilt = [...deps.takeStartupRebuilt(), ...ensured.value];
       }
@@ -296,11 +303,25 @@ export function createResumer(deps: ResumeDeps): Resumer {
       const thread = readResult(db, (tx) => readThread(tx, threadId));
       if (!thread.ok) return thread;
       if (thread.value === undefined) return err({ kind: "thread_not_found", threadId });
+      const marker = markerOf(thread.value);
+      // 커밋도 복구도 하지 않은 열기 직후에 알린다. 표식이 남은 thread면 재개 후보라 resume이다(§7.1)
+      if (readOnly === null) {
+        detach(
+          points.start(
+            { reason: marker === null ? "startup" : "resume", threadId },
+            `${threadId}:session_start:${String(thread.value.headSeq)}`,
+          ),
+          (cause) => {
+            deps.logger?.warn("session.point_failed", { point: "session_start", threadId });
+            deps.logger?.debug("session.point_failure_cause", { cause: String(cause) });
+          },
+        );
+      }
       return ok({
         threadId,
         role: "owner",
         headSeq: thread.value.headSeq,
-        marker: markerOf(thread.value),
+        marker,
         readOnly,
         rebuilt,
         owner: ownerInfo(threadId),
@@ -350,7 +371,11 @@ export function createResumer(deps: ResumeDeps): Resumer {
         if (!effects.ok) return effects;
         let pendingToolCalls: readonly PendingToolCall[] = [];
         let pendingApprovals: readonly EventId[] = [];
+        let openChildren: readonly AgentView[] = [];
         if (openTurnId !== null) {
+          const children = readOpenChildren(tx, threadId, openTurnId);
+          if (!children.ok) return children;
+          openChildren = children.value;
           const calls = readPendingToolCalls(tx, threadId, openTurnId, checkpoint.value);
           if (!calls.ok) return calls;
           pendingToolCalls = calls.value;
@@ -366,6 +391,7 @@ export function createResumer(deps: ResumeDeps): Resumer {
           effects: effects.value,
           pendingToolCalls,
           pendingApprovals,
+          openChildren,
         });
       });
       if (!snapshot.ok) return snapshot;
@@ -432,10 +458,10 @@ export function createResumer(deps: ResumeDeps): Resumer {
         synthesized,
         reruns,
         pendingToolCalls: state.pendingToolCalls,
-        // 자식 thread 복원은 M2(p_agents)에서 채운다
         pendingApprovals: state.pendingApprovals,
         queuedInputs: queued.value,
-        openChildren: [],
+        // 취소 의도가 있는 turn의 자식은 재개하지 않는다(§4.8.1 5단계)
+        openChildren: aborted ? [] : state.openChildren,
         abortRequestedTurn: aborted ? state.openTurnId : null,
         next: state.openTurnId === null ? "idle" : (checkpointOfOpenTurn?.next ?? "request"),
         autoResume: autoResumeVerdict({
@@ -512,20 +538,9 @@ export function createResumer(deps: ResumeDeps): Resumer {
       }
     },
 
-    release(threadId, _reason): Promise<void> {
-      // session_shutdown 지점 발화는 PS-17(ExtHost 연결)에서 더한다. 여기서는 소유 상태만 놓는다
-      const prior = sessions.forget(threadId);
-      if (prior?.role === "owner") {
-        prior.keepAlive?.[Symbol.dispose]();
-        // 호스트가 준 토큰은 호스트가 반납한다. 이 서비스가 직접 얻은 임대(자식 thread)만 반납한다
-        if (prior.selfAcquired) {
-          const released = leases.release(prior.token);
-          if (!released.ok) {
-            deps.logger?.warn("session.release_failed", { reason: released.error.kind });
-          }
-        }
-      }
-      return Promise.resolve();
+    async release(threadId, reason): Promise<void> {
+      await points.shutdown(threadId, { reason }, `${threadId}:session_shutdown`);
+      releaseOpenSession(sessions, leases, deps.logger, threadId);
     },
   };
 }

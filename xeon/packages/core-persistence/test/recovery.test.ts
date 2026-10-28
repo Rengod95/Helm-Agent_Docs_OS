@@ -11,7 +11,7 @@ import {
   type ReplayPolicy,
 } from "@xeon/contracts/records";
 import { sha256Hex } from "../src/hash.ts";
-import { decideOpenEffect } from "../src/index.ts";
+import { DEFAULT_PERSISTENCE_SETTINGS, decideOpenEffect } from "../src/index.ts";
 import { fixedIdFactory } from "./support/clock.ts";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
 import {
@@ -159,8 +159,8 @@ describe("decideOpenEffect", () => {
 
 describe("recover", () => {
   // spec §9.7
-  test("resume_synthesizes_outcome_unknown_for_unsafe", () => {
-    const h = openHarness();
+  test("resume_synthesizes_outcome_unknown_for_unsafe", async () => {
+    const h = await openHarness();
     const { threadId, turn, stepId, effects } = openStep(h, [
       { toolCallId: "tc-started", toolName: "bash", replay: "unsafe" },
       { toolCallId: "tc-intent-only", toolName: "bash", replay: "unsafe" },
@@ -169,7 +169,7 @@ describe("recover", () => {
     if (started === undefined) throw new Bug("missing effect");
     commitExec(h, turn, stepId, started.effectId, "tc-started");
 
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     const plan = expectOk(
       restarted.service.recover(threadId, deps({ toolReplay: () => "unsafe" })),
@@ -209,11 +209,11 @@ describe("recover", () => {
   });
 
   // U-13: 복구 합성 키는 정상 결과와 같은 commitKeyPart를 쓴다
-  test("the synthesis key uses commitKeyPart for an id outside the key alphabet", () => {
-    const h = openHarness();
+  test("the synthesis key uses commitKeyPart for an id outside the key alphabet", async () => {
+    const h = await openHarness();
     const oddId = "call|odd id:with/chars";
     const { threadId } = openStep(h, [{ toolCallId: oddId, toolName: "bash", replay: "unsafe" }]);
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     expectOk(restarted.service.recover(threadId, deps({ toolReplay: () => "unsafe" })));
     const keys = restarted.store.raw
@@ -227,8 +227,8 @@ describe("recover", () => {
   });
 
   // spec §9.8
-  test("resume_reruns_safe_tool_once_up_to_max_attempts", () => {
-    const h = openHarness();
+  test("resume_reruns_safe_tool_once_up_to_max_attempts", async () => {
+    const h = await openHarness();
     const { threadId, turn, stepId, effects } = openStep(h, [
       { toolCallId: "tc1", toolName: "read", replay: "safe" },
     ]);
@@ -236,14 +236,14 @@ describe("recover", () => {
     if (effect === undefined) throw new Bug("missing effect");
     const token = expectToken(h, threadId);
 
-    const reopen = () => {
-      const restarted = reopenHarness(h);
+    const reopen = async () => {
+      const restarted = await reopenHarness(h);
       expectOk(restarted.service.openForWrite(threadId, token));
       return restarted;
     };
 
     // 의도만 있다: 처음 실행도 재실행 판정이다(attempt 1)
-    let plan = expectOk(reopen().service.recover(threadId, deps()));
+    let plan = expectOk((await reopen()).service.recover(threadId, deps()));
     expect(plan.reruns.map((rerun) => [rerun.intent.toolCallId, rerun.attempt])).toEqual([
       ["tc1", 1],
     ]);
@@ -251,29 +251,29 @@ describe("recover", () => {
 
     // 첫 실행이 끝나기 전에 끊김: exec 1건, 재실행 1회 가능
     commitExec(h, turn, stepId, effect.effectId, "tc1");
-    plan = expectOk(reopen().service.recover(threadId, deps()));
+    plan = expectOk((await reopen()).service.recover(threadId, deps()));
     expect(plan.reruns.map((rerun) => rerun.attempt)).toEqual([1]);
 
     // 재실행 중 다시 끊김: exec 2건, 재실행 한 번 더(attempt 2)
     commitExec(h, turn, stepId, effect.effectId, "tc1", 1);
-    plan = expectOk(reopen().service.recover(threadId, deps()));
+    plan = expectOk((await reopen()).service.recover(threadId, deps()));
     expect(plan.reruns.map((rerun) => rerun.attempt)).toEqual([2]);
 
     // 한 번 더 끊김: exec 3건이면 상한. 재실행 없이 outcome_unknown으로 닫는다
     commitExec(h, turn, stepId, effect.effectId, "tc1", 2);
-    plan = expectOk(reopen().service.recover(threadId, deps()));
+    plan = expectOk((await reopen()).service.recover(threadId, deps()));
     expect(plan.reruns).toEqual([]);
     expect(plan.synthesized.map((entry) => entry.code)).toEqual(["outcome_unknown"]);
   });
 
   // spec §9.9: 이 패키지에는 tool_call 지점을 발화하는 경로가 없다. recover가 쓰는 것은 합성 결과뿐이다
-  test("recover writes nothing but synthesized results and never runs a tool", () => {
-    const h = openHarness();
+  test("recover writes nothing but synthesized results and never runs a tool", async () => {
+    const h = await openHarness();
     const { threadId } = openStep(h, [
       { toolCallId: "tc1", toolName: "read", replay: "unsafe" },
       { toolCallId: "tc2", toolName: "read", replay: "safe" },
     ]);
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     const before = expectOk(restarted.service.feed.headSeq());
     const plan = expectOk(
@@ -291,28 +291,28 @@ describe("recover", () => {
     expect(plan.reruns.map((rerun) => rerun.intent.toolCallId)).toEqual(["tc2"]);
   });
 
-  test("resume_does_not_promote_stored_unsafe", () => {
-    const h = openHarness();
+  test("resume_does_not_promote_stored_unsafe", async () => {
+    const h = await openHarness();
     const { threadId } = openStep(h, [{ toolCallId: "tc1", toolName: "bash", replay: "unsafe" }]);
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     const plan = expectOk(restarted.service.recover(threadId, deps({ toolReplay: () => "safe" })));
     expect(plan.reruns).toEqual([]);
     expect(plan.synthesized).toHaveLength(1);
   });
 
-  test("a vanished tool is synthesized, never rerun", () => {
-    const h = openHarness();
+  test("a vanished tool is synthesized, never rerun", async () => {
+    const h = await openHarness();
     const { threadId } = openStep(h, [{ toolCallId: "tc1", toolName: "gone", replay: "safe" }]);
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     const plan = expectOk(restarted.service.recover(threadId, deps({ toolReplay: () => null })));
     expect(plan.reruns).toEqual([]);
     expect(plan.synthesized[0]?.code).toBe("not_started");
   });
 
-  test("an abort intent closes a safe open effect instead of rerunning it", () => {
-    const h = openHarness();
+  test("an abort intent closes a safe open effect instead of rerunning it", async () => {
+    const h = await openHarness();
     const { threadId, turn, stepId, effects } = openStep(h, [
       { toolCallId: "tc1", toolName: "read", replay: "safe" },
     ]);
@@ -337,7 +337,7 @@ describe("recover", () => {
       ],
       checkpoint: null,
     }));
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     const plan = expectOk(restarted.service.recover(threadId, deps({ hostMode: "service" })));
     expect(plan.reruns).toEqual([]);
@@ -346,12 +346,12 @@ describe("recover", () => {
     expect(plan.autoResume).toEqual({ allowed: false, reason: "abort_requested" });
   });
 
-  test("cancelledByOwner also closes instead of rerunning", () => {
-    const h = openHarness();
+  test("cancelledByOwner also closes instead of rerunning", async () => {
+    const h = await openHarness();
     const { threadId, turn } = openStep(h, [
       { toolCallId: "tc1", toolName: "read", replay: "safe" },
     ]);
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     const asked: string[] = [];
     const plan = expectOk(
@@ -371,8 +371,8 @@ describe("recover", () => {
     expect(plan.abortRequestedTurn).toBe(turn.turnId);
   });
 
-  test("resume_lists_tool_calls_without_intent_as_pending", () => {
-    const h = openHarness();
+  test("resume_lists_tool_calls_without_intent_as_pending", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     const stepId = h.ids.next("stp");
@@ -456,7 +456,7 @@ describe("recover", () => {
       ],
       checkpoint: null,
     }));
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     const plan = expectOk(
       restarted.service.recover(threadId, deps({ toolReplay: () => "unsafe" })),
@@ -467,8 +467,8 @@ describe("recover", () => {
     expect(plan.synthesized.map((entry) => entry.toolCallId)).toEqual(["tc-intent"]);
   });
 
-  test("after step.completed the earlier tool calls are no longer pending", () => {
-    const h = openHarness();
+  test("after step.completed the earlier tool calls are no longer pending", async () => {
+    const h = await openHarness();
     const { threadId, turn, stepId, effects } = openStep(h, [
       { toolCallId: "tc1", toolName: "read", replay: "safe" },
     ]);
@@ -498,7 +498,7 @@ describe("recover", () => {
       checkpoint: null,
     }));
     endStep(h, turn, 0, stepId, "request");
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     const plan = expectOk(restarted.service.recover(threadId, deps()));
     expect(plan.pendingToolCalls).toEqual([]);
@@ -507,8 +507,8 @@ describe("recover", () => {
   });
 
   // spec §9.27
-  test("a kill right after the compaction commit (C7) resumes with next: request and one thread.compacted", () => {
-    const h = openHarness();
+  test("a kill right after the compaction commit (C7) resumes with next: request and one thread.compacted", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     fullStep(h, turn, 0, [{ toolCallId: "tc1", toolName: "read", replay: "safe" }]);
@@ -557,7 +557,7 @@ describe("recover", () => {
       }));
     const key = `compact:${threadId}:${stepId}:overflow`;
     expect(expectOk(compact(key)).status).toBe("committed");
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     const plan = expectOk(restarted.service.recover(threadId, deps()));
     // 마지막 체크포인트의 next 그대로다: 같은 단계 요청을 컴팩션 뒤 가지로 다시 보낸다
@@ -572,10 +572,10 @@ describe("recover", () => {
     expectProjectionsRebuildable(restarted.store.db);
   });
 
-  test("next is idle without an open turn and request without a checkpoint of this turn", () => {
-    const h = openHarness();
+  test("next is idle without an open turn and request without a checkpoint of this turn", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     const idle = expectOk(restarted.service.recover(threadId, deps()));
     expect(idle).toMatchObject({
@@ -591,8 +591,10 @@ describe("recover", () => {
     expect(open.marker?.resumeAttempts).toBe(0);
   });
 
-  test("the auto-resume verdict follows the setting, the host mode and the attempt cap", () => {
-    const h = openHarness({ settings: () => ({ autoResume: true, maxResumeAttempts: 2 }) });
+  test("the auto-resume verdict follows the setting, the host mode and the attempt cap", async () => {
+    const h = await openHarness({
+      settings: () => ({ ...DEFAULT_PERSISTENCE_SETTINGS, autoResume: true, maxResumeAttempts: 2 }),
+    });
     const { threadId } = openStep(h, []);
     const verdict = (hostMode: RecoverDeps["hostMode"]) =>
       expectOk(h.service.recover(threadId, deps({ hostMode }))).autoResume;
@@ -602,7 +604,7 @@ describe("recover", () => {
     expectOk(h.service.beginResume(threadId, "auto"));
     expect(verdict("service")).toEqual({ allowed: false, reason: "attempts_exhausted" });
 
-    const off = openHarness();
+    const off = await openHarness();
     const other = openStep(off, []);
     expect(
       expectOk(off.service.recover(other.threadId, deps({ hostMode: "service" }))).autoResume,
@@ -612,10 +614,10 @@ describe("recover", () => {
     });
   });
 
-  test("recover needs write ownership", () => {
-    const h = openHarness();
+  test("recover needs write ownership", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     const unopened = restarted.service.recover(threadId, deps());
     expect(unopened.ok).toBe(false);
     if (!unopened.ok) expect(unopened.error.kind).toBe("ownership_lost");
@@ -625,14 +627,14 @@ describe("recover", () => {
     if (!observed.ok) expect(observed.error).toEqual({ kind: "read_only", reason: "observer" });
   });
 
-  test("a late normal result after the synthesized one is rejected and leaves one result", () => {
-    const h = openHarness();
+  test("a late normal result after the synthesized one is rejected and leaves one result", async () => {
+    const h = await openHarness();
     const { threadId, turn, stepId, effects } = openStep(h, [
       { toolCallId: "tc1", toolName: "bash", replay: "unsafe" },
     ]);
     const [effect] = effects;
     if (effect === undefined) throw new Bug("missing effect");
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     expectOk(restarted.service.openForWrite(threadId, expectToken(h, threadId)));
     expectOk(restarted.service.recover(threadId, deps({ toolReplay: () => "unsafe" })));
     const late = commitResult(restarted, threadId, "tool:tc1:result", (): CommitPlan => ({

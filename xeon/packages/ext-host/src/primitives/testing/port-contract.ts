@@ -130,8 +130,9 @@ export function runPortContract(name: string, factories: PortContractFactories):
       });
       expect(stale.status).toBe("rejected");
       if (stale.status === "rejected") expect(stale.code).toBe("state_conflict");
-      const snapshot = await records.loadThread(threadId);
-      expect(snapshot.states.map((state) => state.rev)).toEqual([1]);
+      const loaded = await records.loadThread(threadId);
+      expect(loaded.ok).toBe(true);
+      if (loaded.ok) expect(loaded.value.states.map((state) => state.rev)).toEqual([1]);
     });
   });
 }

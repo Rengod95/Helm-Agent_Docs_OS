@@ -250,6 +250,12 @@ export function serveConformanceHost(
       return;
     }
     const message = checked.message;
+    if ("method" in message && !("id" in message) && message.method === "$/connectionReset") {
+      // 클라이언트 화면이 다시 시작됨: 구독을 지우고 hello 이전 상태로 돌아간다(F.wire-settings.spec §4.1 7번)
+      subs.length = 0;
+      state.helloDone = false;
+      return;
+    }
     if (!("method" in message) || !("id" in message)) return; // 알림과 응답에는 답하지 않는다
     const { id, method, params } = message;
     try {

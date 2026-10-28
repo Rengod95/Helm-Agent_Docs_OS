@@ -4,7 +4,7 @@ layer: L4
 domain: desktop
 kind: spec
 status: draft
-depends_on: [adr.0008, adr.0006, F.wire-settings.spec, L4.host-service.spec, eng.dependency-rules.guide, eng.toolchain.guide, eng.testing.guide, L0.os.spec, L0.process.spec]
+depends_on: [adr.0008, adr.0006, adr.0010, adr.0014, F.wire-settings.spec, L4.host-service.spec, eng.dependency-rules.guide, eng.toolchain.guide, eng.testing.guide, L0.os.spec, L0.process.spec]
 binds: [xeon/apps/desktop/**]
 ---
 
@@ -20,7 +20,7 @@ binds: [xeon/apps/desktop/**]
 - 서비스 모드(M3)에서 사이드카 대신 서비스 소켓에 접속하는 경로.
 - 메모리 예산의 측정 대상, 측정법, 줄이는 수단.
 - 플랫폼 지원 범위와 WebView 엔진 차이로 생기는 제약.
-- 프런트엔드 프레임워크 후보 비교 기준과 제안.
+- 프런트엔드 프레임워크(adr.0010)와 상태 모델의 위치(`L4.desktop.design`).
 - 화면 구성(스레드 목록, 트랜스크립트, 입력창, 승인 대기열, 상태 표시줄, 설정 진입).
 - `l4.desktop.*` 설정 키.
 - 앱 내부 모듈 경계(`eng.dependency-rules.guide` R14 위임분).
@@ -102,16 +102,22 @@ flowchart LR
 
 ### 3.3 셸과 WebView 사이 IPC
 
-[제안] 셸은 아래 Tauri 명령 네 개만 WebView에 연다. 명령 이름은 Rust `#[tauri::command]` 함수 이름이다.
+[제안] 셸은 아래 엔진 중계 명령 다섯 개와 키 등록 명령 하나(`secret_register`, 이 표 아래)만 WebView에 연다. 명령 이름은 Rust `#[tauri::command]` 함수 이름이다. 모두 비동기 명령이라 UI 프로세스의 메인 스레드를 막지 않는다.
 
 | 명령 | 인자 | 결과 | 뜻 |
 |---|---|---|---|
 | `engine_attach` | `onBytes: Channel<ArrayBuffer>`, `onState: Channel<EngineState>` | `AttachResult` | 현재 페이지에 릴레이를 붙인다. 이전 세대 릴레이는 끊는다 |
-| `engine_write` | 원시 바이트 본문(`Uint8Array`), 헤더 `x-xeon-epoch` | `null` | 엔진 stdin(또는 소켓)에 쓴다. 세대가 다르면 거부한다 |
-| `engine_restart` | 없음 | `null` | `failed` 상태에서 사용자가 수동 재기동을 고를 때 부른다 |
-| `engine_detach` | 없음 | `null` | 페이지가 내려갈 때 릴레이를 끊는다. 엔진은 끄지 않는다 |
+| `engine_write` | 원시 바이트 본문(`Uint8Array`), 헤더 `x-xeon-epoch` | `null` | 엔진 stdin(또는 소켓)에 쓴다. 세대가 다르면 거부한다. 본문은 줄(프레임) 단위이고 2 MiB 이하다 |
+| `engine_ack` | `epoch: number`, `bytes: number` | `null` | `onBytes`로 받은 바이트 중 처리를 끝낸 양을 알린다(신용 반환). 세대가 다르면 무시한다 |
+| `engine_restart` | 없음 | `null` | `failed` 상태에서 사용자가 수동 재기동을 고를 때 부른다. `failed`가 아니면 `not-failed`로 거부한다 |
+| `engine_detach` | `epoch: number` | `null` | 페이지가 내려갈 때 릴레이를 끊는다. 엔진은 끄지 않는다. `epoch`가 현재 연결일 때만 끊으므로 새로고침 뒤 늦게 온 이전 페이지의 호출이 새 연결을 끊지 못한다 |
 
-- [가정] Tauri 2.12의 `tauri::ipc::Channel`은 원시 바이트(`ArrayBuffer`)를 JSON 직렬화 없이 보내고, 명령은 원시 요청 본문(`tauri::ipc::Request`)을 받는다. S3 spike에서 확인한다. 안 되면 base64 문자열로 바꾸고 S5에서 비용을 잰다.
+- 키 등록 명령 `secret_register`는 엔진 중계가 아니다. 원시 바이트 본문 `<동작> <이름>\n<값>`(동작은 `add` 또는 `set`)을 받아 번들된 사이드카를 `xeon secret <동작> <이름>`으로 한 번 실행하고, 값을 그 stdin에 한 번 쓴 뒤 닫고, 끝나기를 기다려 `null`을 돌려준다. 거부는 `{ kind, ... }` 객체다: `bad-request`, `empty`, `too-large`(값 8 KiB 초과), `busy`(이미 진행 중), `timeout`(30초), `unavailable { detail }`(사이드카를 띄우지 못함), `rejected { exitCode, detail }`(자식이 0이 아닌 코드로 끝남). 규칙과 약점은 §4.14.1이다.
+- 오류 값은 kebab-case 문자열 코드다: `epoch-stale`, `engine-not-running`, `engine-stopping`, `not-failed`, `too-large`, `bad-request`.
+- `onBytes`의 메시지는 엔진 stdout 바이트 그대로이고 완성된 줄(`\n`으로 끝나는 바이트열)만 담는다. 종류 표지나 세대 접두사는 없다. attach마다 `Channel`이 따로이므로 세대는 `AttachResult.epoch`로 안다. 셸은 줄 끝이 오지 않은 꼬리를 쥐고 있다가 줄이 완성되면 보낸다.
+- 신용 기반 역압 [결정: `L4.desktop.plan` §3.1.1 S3 조건 1]: 셸은 보낸 바이트에서 `engine_ack`로 돌려받은 바이트를 뺀 값이 4 MiB를 넘으면 더 보내지 않는다. 이 동안 엔진 stdout 읽기가 멈추고 엔진의 stdout 쓰기가 막힌다. WebView는 처리한 바이트가 256 KiB 쌓일 때마다 `engine_ack(epoch, bytes)`를 부른다(창은 확인 단위의 16배라 확인이 늦어도 송신이 멎지 않는다). 미확인 바이트가 창 이하이면 다음 묶음을 보낸다(묶음 하나가 창을 넘을 수 있어 큰 프레임도 멈추지 않는다).
+- 쓰기 경로 [결정: S3 조건 2]: `engine_write`는 쓰기 전용 스레드의 대기열(16개)에 넣고 돌아온다. 대기열이 차면 그 호출만 비동기로 기다리고 다른 명령은 막히지 않는다. 막힌 쓰기는 앱 상태의 락을 쥐지 않는다.
+
 - `onState`의 값은 JSON이고 아래 스키마로 검사한다. 셸이 보낸 값도 WebView 입장에서는 프로세스 밖에서 온 값이기 때문이다.
 
 ```ts
@@ -296,7 +302,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 | # | 규칙 | 근거 | 표지 |
 |---|---|---|---|
 | E1 | 엔진 spawn은 `engine.rs`의 한 함수에서만 한다. WebView와 다른 Rust 모듈은 spawn하지 않는다 | adr.0008 §3.3 제안 1, arch-2 §5 5행 | [제안] |
-| E2 | `CommandChild`를 Tauri 앱 상태(`State<EngineSupervisor>`)에 보관하고 `RunEvent::Exit`에서 명시적으로 종료한다. Rust API로 띄운 사이드카는 플러그인이 추적하지 않는다 | arch-2 §3.2 맵 등록 경로 행 | [제안] |
+| E2 | 엔진 감독자(`State<Arc<Supervisor>>`)가 pid와 쓰기 손잡이를 앱 상태에 보관하고, `CommandChild`는 stdin 쓰기 전용 스레드가 쥔다. 종료는 pid로 프로세스 그룹에 신호를 보낸다(Unix `killpg`, Windows `taskkill /T`). 그래서 막힌 쓰기가 종료 경로를 막지 않는다. `RunEvent::Exit`에서도 남은 그룹을 종료한다. Rust API로 띄운 사이드카는 플러그인이 추적하지 않는다 | arch-2 §3.2 맵 등록 경로 행, `L4.desktop.plan` §3.1.1 S3 조건 2 | [제안] |
 | E3 | 프로세스 그룹을 켠다(`set_process_group`). 강제 종료는 그룹 전체에 보낸다 | arch-2 §3.2 그룹 범위 행, §5 3행 | [제안] |
 | E4 | 종료할 때는 신호 전에 stdin으로 `host.shutdown` 요청을 쓰고 stdin을 닫는다. `RunEvent::ExitRequested`에서 `prevent_exit()`로 종료를 미루고, 엔진 프로세스가 끝나거나 `l4.desktop.engine.shutdownGraceMs`가 지나면 다음 단계로 넘어간다(§4.3) | adr.0008 §3.3 제안 3, arch-2 §3.3, §5 1행 | [제안]. `host.shutdown`은 F 변경 요청(§10 미결 2) |
 | E5 | 엔진은 stdin EOF를 읽으면 안전 경계에서 체크포인트하고 종료한다(stdin EOF 임대). 앱이 어떻게 끝나든 OS가 파이프 쓰기 끝을 닫으므로 앱 SIGKILL에서도 엔진이 스스로 끝난다 | adr.0008 §3.3 [결정], adr.0006 §3.7 6번 | 엔진 쪽 구현은 `L4.host-service.spec` |
@@ -305,9 +311,9 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 | E8 | 세션 DB는 바이너리에 임베드하지 않는다. DB 위치는 엔진이 `L0.os.spec`의 사용자 데이터 디렉터리에서 정하고, 셸은 DB 경로를 넘기지 않는다. 그래야 CLI와 데스크톱이 같은 DB를 연다 | adr.0008 §3.3 제안 5, `_research/stack-status.md §7-C` 임베디드 SQLite 행 | [제안] |
 | E9 | 엔진의 손자 프로세스는 엔진과 같은 프로세스 그룹에 남아야 한다. 엔진 쪽 실행 코드가 손자를 새 그룹이나 새 세션으로 떼어 내면 E3의 그룹 종료가 그 손자에 미치지 않는다. 떼어 낸 손자는 엔진이 EOF·shutdown 처리 때 직접 정리한다 | arch-2 §3.2 그룹 범위 행 | [제안]. `L0.process.spec`에 요구 |
 | E10 | stdout은 JSON Lines 전용이다. 엔진 로그는 stderr로 쓰고, 셸은 stderr를 줄 단위로 앱 로그 파일에 남긴다. stderr 줄 길이는 8 KiB에서 자른다 | `F.wire-settings.spec` §3.1 프레이밍 | [제안] |
-| E11 | 셸 로그와 릴레이는 프레임 내용을 기록하지 않는다. 바이트 수, 프레임 수, 세대 번호만 남긴다. 비밀 값은 프레임에 실리지 않지만(`L4.readme` §4 비밀 행) 다른 결함으로 실리더라도 셸 로그에 남지 않는다 | `F.wire-settings.spec` §4.9 비밀 값 비표시 규칙 2, §3.8.1 SecretRef, `L0.secrets.spec` §8.3 R4(값 없는 `secret.*`) | [제안] |
+| E11 | 셸 로그와 릴레이는 프레임 내용을 기록하지 않는다. 바이트 수, 프레임 수, 세대 번호만 남긴다. 비밀 값은 프레임에 실리지 않지만(`L4.readme` §4 비밀 행) 다른 결함으로 실리더라도 셸 로그에 남지 않는다. 키 등록 명령(`secret_register`, §4.14.1)의 본문은 값을 싣지만 로그에는 이름과 결과 종류만 쓰고, 자식 출력은 값이 들어 있으면 버린다 | `F.wire-settings.spec` §4.9 비밀 값 비표시 규칙 2, §3.8.1 SecretRef, `L0.secrets.spec` §8.3 R4(값 없는 `secret.*`) | [제안] |
 
-- E5의 체크포인트 시한: 엔진은 EOF 뒤 `l0.process.shutdown.timeoutMs`(기본 3000ms) 안에 종료한다(`L0.process.spec` §6, `L4.host-service.spec` HS-31, HS-32). S1, S4 측정은 이 기본값이 충분한지 확인한다.
+- E5의 체크포인트 시한: 엔진은 EOF 뒤 `l0.process.shutdown.timeoutMs`(기본 3000ms) 안에 종료한다(`L0.process.spec` §6, `L4.host-service.spec` HS-31, HS-32). S4 측정(WSL2, 20회)에서 idle 호스트의 EOF → 종료는 중앙값 약 28 ms, 최대 61 ms였다. 기본값은 종료 경로에 충분하고, 진행 중 turn이 있을 때의 체크포인트 시간은 [미확인]이다(`L4.desktop.plan` §3.1.1 S4).
 - E8의 확인: `L0.os.spec`이 CLI와 엔진 사이드카에 같은 데이터 디렉터리를 돌려주는지는 그 문서의 수용 기준에 요구한다.
 
 ### 4.2 기동 순서
@@ -339,7 +345,8 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 
 - 불변식 [제안]: 셸 대기 `l4.desktop.engine.shutdownGraceMs`는 엔진 시한 `l0.process.shutdown.timeoutMs` + 2000 이상이어야 한다. 두 값의 단위는 모두 ms다. 셸 대기가 엔진 시한과 같거나 짧으면 엔진의 체크포인트 커밋과 그룹 SIGKILL이 경합한다. 셸은 엔진 카탈로그를 읽지 않으므로 이 관계는 기본값(7000 ≥ 3000 + 2000)으로 지킨다. 사용자가 `l0.process.shutdown.timeoutMs`를 5000 넘게 올리면 `shutdownGraceMs`도 함께 올려야 한다 [가정: 두 값을 자동으로 맞추는 수단은 없다].
 
-- [미확인] 앱이 SIGTERM·SIGINT를 받을 때 `RunEvent::Exit`가 발생하는지(arch-2 §3.3). [제안] Unix에서는 셸이 SIGTERM·SIGINT 처리기를 두고 `app.exit(0)`을 불러 같은 순서를 타게 한다. S1 spike에서 확인한다.
+- [확인: `L4.desktop.plan` §3.1.1 S1, WSL2 WebKitGTK] 앱이 SIGTERM을 받을 때 처리기를 두지 않으면 `RunEvent::ExitRequested`도 `Exit`도 오지 않고 프로세스가 바로 사라진다. `signal-hook` 처리기에서 `app.exit(0)`을 부르면 `ExitRequested`(code `Some(0)`)와 `Exit`가 와서 같은 순서를 탄다. 그러므로 Unix에서는 셸이 SIGTERM·SIGINT 처리기를 둔다 [제안 유지]. 처리기가 없는 경우와 앱 SIGKILL은 E5(EOF 임대)만이 방어다. macOS는 미측정이다.
+- [확인: S1] 5단계의 그룹 SIGKILL은 EOF 처리 시한 뒤에 한다. `Exit`에서 곧바로 그룹 SIGKILL을 하면 엔진이 새 세션으로 띄운 손자(E9 위반 구성)를 정리할 기회를 잃어 그 손자가 남았다. 프로세스 그룹을 끄면(E3 위반) 그룹 SIGKILL이 손자에 미치지 않았다.
 
 ### 4.4 비정상 종료와 재기동
 
@@ -362,7 +369,7 @@ adr.0008 §3.3 제안 다섯 개와 `_research/notes/arch-2.md §5`를 번호로
 ### 4.5 WebView 새로고침과 연결 재설정
 
 - stdio 전송은 엔진 프로세스 하나에 연결 하나다. WebView가 새로고침되면 엔진은 계속 같은 연결을 쓰지만 클라이언트 상태(진행 중 요청 id, 구독, hello 상태)는 페이지와 함께 사라진다. 새 페이지가 `host.hello`를 다시 보내면 `host.helloDuplicate`(1002)가 된다(`F.wire-settings.spec` §3.5.2).
-- [제안] 새 페이지는 `engine_attach`로 새 세대를 받은 뒤, 첫 메시지로 클라이언트 알림 `$/connectionReset`을 보낸다. 엔진은 이 알림을 받으면 그 연결의 구독과 진행 중 요청의 `signal`을 중단하고(진행 중 turn은 중단하지 않는다, `F.wire-settings.spec` §4.1 4번) hello 이전 상태로 돌아간다. 이 알림은 F에 없으므로 F 변경 요청이다(§10 미결 2).
+- [제안] 새 페이지는 `engine_attach`로 새 세대를 받은 뒤, 첫 메시지로 클라이언트 알림 `$/connectionReset`을 보낸다. 엔진은 이 알림을 받으면 그 연결의 구독과 진행 중 요청의 `signal`을 중단하고(진행 중 turn은 중단하지 않는다, `F.wire-settings.spec` §4.1 4번) hello 이전 상태로 돌아간다. 이 알림은 F 표에 들어왔고(`F.wire-settings.spec` §3.3.2, §4.1 5~7번) 호스트가 구현했다(m2 F.8). 엔진이 hello 전이면 무시하므로 새 페이지는 첫 기동에도 같은 순서를 쓴다.
 - 셸은 세대가 바뀌면 이전 세대에 보내던 stdout 바이트를 다음 `\n`까지 버리고, 그 뒤 바이트부터 새 세대로 보낸다. 셸이 아는 것은 줄 경계뿐이고 JSON은 해석하지 않는다.
 - [제안] M2 전(M1)에는 새로고침을 엔진 재기동으로 처리한다. 셸이 §4.3 2~5단계로 엔진을 끄고 다시 띄운다. 진행 중 turn은 이어서 실행 후보가 된다.
 
@@ -481,43 +488,126 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 
 ### 4.12 프런트엔드
 
-[미결] 프레임워크는 결정되지 않았다(§10 미결 11). 비교 기준과 제안을 둔다.
+[결정] 프레임워크는 React 19, 전역 상태는 Zustand 5다(adr.0010, 사용자 지시 2026-10-24). 빌드는 `bun build`를 유지하고 React Compiler는 M2에 넣지 않는다 [제안](adr.0010 §3.1).
 
-| 기준 | 이유 |
-|---|---|
-| TS 7 에디터 지원 | Vue, MDX, Astro, Svelte는 TS 7.0 에디터 미지원이다(`_research/stack-status.md §2` 에디터 미지원 행). TSX는 `tsc`(tsgo)가 직접 검사한다 |
-| 번들 크기·메모리 | 메모리 우선. 런타임 크기와 갱신 방식(세밀한 반응형 갱신, 가상 DOM)이 스트리밍 트랜스크립트의 메모리와 CPU에 영향을 준다 |
-| 빌드 도구 | `bun build`(HTML 진입점, JSX 내장 변환)만으로 되는지, Vite 8(Rolldown)이 필요한지. Vite를 들이면 새 도구라 `eng.toolchain.guide` TC-04 절차가 필요하다 |
-| 테스트 | `bun test`에서 컴포넌트 로직을 DOM 없이 시험할 수 있는지 |
-
-| 후보 | TS 7 에디터 | 런타임 크기 [가정] | 빌드 | 비고 |
-|---|---|---|---|---|
-| Preact + `@preact/signals` | TSX, 지원 | 작음(약 4 KB gzip 수준) | `bun build`로 충분(`jsxImportSource`) | 신호 기반 세밀 갱신 가능 |
-| Solid | TSX, 지원 | 작음 | JSX 변환에 Babel 플러그인이 필요해 사실상 Vite | 세밀 갱신이 기본 |
-| React 19 | TSX, 지원 | 큼 | `bun build` 가능 | 생태계가 가장 크다 |
-| Svelte 5 | 미지원 | 작음 | Vite 플러그인 | TS 7 에디터 미지원 |
-| Vue 3 | 미지원 | 중간 | Vite 플러그인 | TS 7 에디터 미지원 |
-| 프레임워크 없음(웹 표준 요소) | 지원 | 최소 | `bun build` | 화면 수가 늘면 상태 관리 코드를 직접 써야 한다 |
-
-- [제안] Preact + `@preact/signals`, 빌드는 `bun build`. 새 빌드 도구 없이 TS 7 검사 경로가 하나로 유지되고, 런타임이 작으며, 신호로 스트리밍 조각을 item 단위로 갱신할 수 있다. 패키지 추가는 TC-04 절차를 따른다.
-- 런타임 크기 열은 공개 자료에서 흔히 인용되는 규모이고 이번 조사에서 재지 않았다 [가정].
-- `@tauri-apps/*`는 `apps/desktop`만 import한다(`eng.dependency-rules.guide` DR-07 표). `src-tauri/` 안 Rust 코드는 층 규칙 밖이다(DR-13 마지막 항목). TS 쪽은 층 규칙과 §4.9를 따른다.
+- 상태 모델(엔진 거울, 스트리밍 슬롯, 승인 대기열, 연결·재동기화 상태 기계, 로그 경로, 코드 골격)은 `L4.desktop.design`이 정한다.
+- 전역 상태 코드가 따르는 규칙은 `eng.frontend-state.guide`(FS-01~FS-23)다. 엔진 이벤트는 순수 reducer 하나로만 거울에 들어가고, 쓰기 미들웨어는 reducer 단계 세 개(journal → guard → invariants)이며, Zustand 미들웨어는 쓰지 않는다.
+- §4.10 줄이는 수단 4(`stream.chunk` 합치기)는 프레임마다 한 번 커밋하는 입력 큐로 구현한다(`L4.desktop.design` §8).
+- 비교 기준(TS 7 에디터 지원, 번들 크기·메모리, 빌드 도구, DOM 없는 시험)과 후보 비교는 `L4/desktop/_research/state-management.md`와 adr.0010 §5에 있다. 이전 판의 [제안](Preact + `@preact/signals`)은 adr.0010이 대체했다.
+- `react`, `react-dom`, `zustand`는 `apps/desktop`만 import한다(`eng.dependency-rules.guide` DR-07). `@tauri-apps/*`는 `apps/desktop`만 import한다(DR-07 표). `src-tauri/` 안 Rust 코드는 층 규칙 밖이다(DR-13 마지막 항목). TS 쪽은 층 규칙과 §4.9를 따른다.
 
 ### 4.13 화면 구성
 
 | 영역 | 내용 | 쓰는 wire | 단계 |
 |---|---|---|---|
-| 스레드 목록 | thread 목록, 새 thread, 이어서 실행 후보 표시 | `thread.list`, `thread.create`, `thread.open` | M2 |
+| 스레드 목록 | thread 목록, 새 thread(작업 폴더 입력, §4.16), 이어서 실행 후보 표시 | `thread.list`, `thread.create`, `thread.open` | M2 |
 | 트랜스크립트 | item 목록(가상 스크롤), 스트리밍 조각 표시 | `events.subscribe`, `events.batch`, `stream.chunk` | M2 |
 | 입력창 | 텍스트·이미지 입력, 중단 버튼 | `turn.start`(`requestId` 포함), `turn.interrupt` | M2 |
 | 승인 대기열 | 대기 중 승인 요청 목록과 응답 | `approval.requested`·`approval.resolved` 내구 이벤트, `approval.respond` | M2. [가정] `F.wire-settings.spec` §4.6 A안 |
 | 상태 표시줄 | 엔진 상태(`EngineState`), 공급원, 연결 상태, 진행 중 turn 수 | `onState`, `host.status` | M2 |
-| 설정 진입 | 설정 화면 열기 | `L4.settings-ui.spec` | M2 진입점, 화면 내용은 settings-ui |
+| 설정 진입 | 설정 화면 열기(§4.14 최소 화면) | `settings.get`, `settings.set`, `secret.*`, `host.status` | M2 최소 화면, 전체 화면은 `L4.settings-ui.spec`(M3) |
 
 - 승인 대기열: [가정] A안에서는 대기 상태가 저장소에 있으므로 새로고침·재기동 뒤에도 §4.6 재개로 대기열이 다시 채워진다. B안(서버 → 클라이언트 요청)으로 정해지면 대기열 복구 규칙을 다시 쓴다.
+- 승인 카드 [결정: M2 검토 M2, 마감 G2-10]:
+  - 도구 승인은 도구 이름과 위험도에 더해 `command` 문자열 전체, `args` 전체(접힘, 4000자 상한), `secretEnv`로 쓸 비밀 핸들(`이름 ← secret://…`)을 보인다. 이 승인이 비밀 사용의 증거가 되므로 사용자가 내용을 보고 허용해야 한다. 핸들은 참조이고 값이 아니며, 참조 모양이 아닌 값은 이름만 보인다. 인자가 BlobRef면 "별도 저장소에 있다"만 보인다.
+  - 질문 승인은 선택지를 그린다(`multiSelect`면 체크박스, 아니면 라디오. `header`, `description`, `recommended` 표시). 자유 입력은 `allowFreeText`가 참인 질문에만 둔다. 모든 질문에 선택이나 자유 입력이 하나 있어야 "답하기"가 켜지고, 보내는 값은 `L1.tools.spec` §3.6이 받는 `QuestionAnswer`(`{ [질문 id]: { selected, text? } }`)다. "거부"는 질문에도 있다.
+  - 응답이 적용되지 않으면 `approval.respond` 결과의 `reason`으로 이유별 문장을 보인다(`src/app/approval-outcome.ts`). `answer_invalid`는 `invalid`(host가 준 `detail` 한 줄을 덧붙인다), `already_resolved`와 `unknown_approval`은 `closed`, `commit_failed`와 연결 오류는 `failed`, 이유가 없으면 `unapplied`다. 스키마에 맞지 않는 질문 답의 `-32602`도 `invalid`로 읽는다.
+- 프로젝트 신뢰 카드 [결정: M2 마감 G1-03]: 신뢰하지 않은 프로젝트는 `.mcp.json`, 프로젝트 스킬, 프로젝트 슬래시 명령, 프로젝트 설정을 읽지 않는다. 열린 대화의 작업 폴더(`ThreadSummary.workspace`)에 대해 연결이 `live`가 되면 `trust.get { workspace }`를 부르고, 신뢰가 필요한 자원이 있고(`required`) 허용이 아니면(`verdict`가 `undecided` 또는 `deny`) 입력창 위에 카드를 보인다. 카드는 프로젝트 경로, 불러오려는 자원, host가 만든 선택지(`TrustOption`)를 버튼으로 둔다. 버튼 문구는 `label` 식별자(`trust-folder` 등)를 `src/views/trust-model.ts` 표로 옮기고 모르는 식별자는 그대로 보인다. 선택은 `trust.decide { workspace, choice }`로 보내고, 돌아온 판정으로 카드를 바꾼다(신뢰하면 사라진다). 판정은 이벤트가 아니라 요청 결과라 거울에 넣지 않고 부품의 로컬 상태에 둔다(`eng.frontend-state.guide` FS-03, FS-04). 거부한 프로젝트는 바꿀 수 있게 카드가 남는다. 메서드가 없는 host의 `-32601`은 `unsupported`로 읽고 카드를 그리지 않는다.
+- `thread.locked` 대화 상자 [결정: M2 마감 G2-09]: `turn.start`가 `thread.locked`(3002)로 거절되면 대화 상자를 연다(`src/views/locked-dialog.tsx`). 소유자 종류(`details.ownerKind`)를 이름으로 보이고, host가 준 대안 중 `observe`(`thread.open { mode: "observe" }`, 성공하면 그 대화의 입력창이 잠기고 "쓰기 다시 시도"가 나온다)와 `fork`(`thread.fork`, 성공하면 새 대화를 연다)만 버튼으로 둔다. `delegate`는 서비스 공급원에서만 있어 사이드카에서는 보이지 않는다. 쓰기가 성공하면 관찰 표시는 지워진다.
 - 입력창의 `requestId`: 재기동 사이에 같은 입력이 두 번 제출되지 않도록 입력마다 새 `requestId`를 만들고, 응답을 받기 전에 연결이 끊기면 같은 `requestId`로 다시 보낸다(`F.wire-settings.spec` §3.3.1 `turn.start` 제안).
 - 키 바인딩과 테마는 `appearance` 탭 설정이다(§6).
 - 확장 이벤트(`x.<확장id>.*`)는 M2에서 일반 item(종류 이름과 요약)으로만 보인다. 확장별 화면은 범위 밖이다.
+- `display: false`인 확장 item(`kind: "custom"`, 예: `x.knowledge.context`)은 모델 문맥 전용이라 트랜스크립트에 그리지 않는다(`F.conversation.spec` §3.5.2). `display: true`만 위 규칙으로 보인다.
+- `kind: "system"` item(요청 앞에 붙는 시스템 프롬프트, 예: "You are Xeon, a helpful coding assistant.")는 모델 문맥 전용이라 그리지 않는다 [결정: M2 Mac 실기]. 사용자가 쓴 말과 모델의 응답이 아니고 F 명세도 화면 표시를 요구하지 않는다. 내용 없이 `failed`로 끝난 어시스턴트 item도 그리지 않는다: 보일 내용이 없고 실패 원인은 트랜스크립트 아래 `role="alert"` 한 곳에만 보인다(실패가 두 번 보이지 않게 한다). 내용이 있는 `failed`·`interrupted` item은 내용과 상태 표지를 그대로 보인다.
+- 실패 문장은 host가 준 `turn.completed.error`를 그대로 보인다. 모델을 해석하지 못했으면 `model_unavailable: model_not_found: model <ref> is not in the catalog`처럼 종류와 모델이 보이고(`L1.loop.spec` §4.3), 비밀을 열지 못했으면 `secret_unresolved: ... could not be leased (denied: <사유>)`로 사유가 보인다(`L1.models.spec` §3.9).
+- 입력창 Enter [결정: M2 Mac 실기]: 한글 조합 중의 Enter는 보내지 않는다. WebKit(Safari, WKWebView)은 `compositionend`를 Enter keydown보다 먼저 내고 그 keydown의 `isComposing`이 거짓이라, `isComposing`, `keyCode === 229`, `compositionend` 직후 50ms 안의 Enter를 모두 조합 확정으로 본다(`src/views/composer-model.ts`). 전송은 동기 잠금(ref)으로 한 번에 하나만 나가고, 보내는 즉시 입력을 비우며 실패하면 입력을 돌려준다.
+- 입력창 잠금 [결정: M2 Mac 실기]: 모델 키와 기본 모델이 끝나지 않았으면(시작 안내 띠와 같은 판단) 입력창을 잠그고 안내 문장을 보인다.
+- turn 실패 표시 [결정: M2 Mac 실기]: `turn.completed`가 `status: "failed"`이면 `error`를 해당 대화의 트랜스크립트 아래에 `role="alert"`로 보이고(거울의 `turnFailures`), 다음 `turn.started`에 지운다.
+
+### 4.14 최소 설정 화면 [결정: M2 마감 D-b, G2-08]
+
+`L4.settings-ui.spec`의 전체 화면(12탭, 비밀 관리 패널)은 M3다. M2에는 데스크톱에서 첫 대화를 시작하는 데 필요한 것만 둔다. 상태 표시줄의 "설정" 단추가 연다(`Screen = "settings"`, `src/views/settings.tsx`). 판단과 변환은 `src/settings/`의 순수 함수가 하고, wire 호출은 `src/app/setup.ts`가 한다.
+
+| 영역 | 내용 | 쓰는 wire |
+|---|---|---|
+| 시작 안내 | 세 단계(외부 도구 점검, 모델 키 등록, 기본 모델 선택)의 완료 여부. 키 단계는 "활성 provider의 `apiKeyRef`가 가리키는 비밀이 등록되어 있다"일 때, 모델 단계는 "기본 모델의 provider가 키를 가진 provider와 같다"일 때 끝난다 | `settings.get`, `secret.list` |
+| 외부 도구 | 필수/선택 바이너리의 사용 가능 여부, 버전 또는 해야 할 일, 못 쓸 때의 영향(L0.os.spec §3.6.1 `BinaryCheckReport`에서 경로만 뺀 `HostBinaryReport`) | `host.status { includeBinaries: true }` |
+| 모델 키 | provider 입력(후보 목록은 편의), 기본 비밀 이름 `<provider>-api-key`, 등록 여부, 키 등록/바꾸기(사이드카에서는 화면 안 등록 창, §4.14.1), provider에 연결 | `secret.list`, `secret.beginEntry`, `settings.get`·`settings.set` (`l1.models.providers`), 셸 명령 `secret_register` |
+| 기본 모델 | `provider/모델[:추론 레벨]` 입력(형식만 검사), 저장 | `settings.set` (`l1.models.default`) |
+
+- 쓰기 범위는 `user`다. `l1.models.providers`는 목록 전체가 한 키이므로(병합 단위는 키 하나) 현재 값을 읽어 해당 provider 원소만 바꾼 목록을 보낸다. baseUrl은 그대로 둔다.
+- 키 값은 wire와 로그 어디에도 없다. 호스트가 값을 받을 수 있는 연결에서는 값 없는 `secret.beginEntry { name, action }`이 시작하고 값은 호스트가 wire 밖에서 받는다(`L4.settings-ui.spec` §4.6.4 C안).
+- 사이드카(stdio) 호스트에는 값을 받을 수단이 없어 `secret.beginEntry`가 `started: false`를 돌려준다(`L4.host-service.spec` HS-44, 서비스 쪽 OS 입력 창은 M3). 이 연결에서는 셸이 값을 받는다(§4.14.1).
+- 외부 도구 점검 결과는 `host.status { includeBinaries: true }`의 `binaries`(`HostBinaryReport`)로 받는다(`F.wire-settings.spec` §3.3.1, `L4.host-service.spec` HS-69) [결정: M2 마감 G2-07]. 연결이 결과를 스키마로 검증해 건네므로 화면은 다시 parse하지 않고 `src/settings/diagnostics.ts`가 행으로 바꾼다. 실행 파일 경로는 wire에 없다. 점검은 바이너리마다 자식 프로세스를 띄우므로 설정 화면이 열릴 때와 "다시 확인"에서만 요청한다(`SetupCommands.load({ binaries: true })`). 시작 안내 띠의 읽기(`binaries: false`)와 `settings.invalidated` 뒤 다시 읽기는 점검하지 않고, 화면은 앞서 읽은 점검 결과를 이어 붙인다(`src/app/setup.ts` `keepTools`). `binaries`가 없는 응답(점검을 청하지 않음, 구형 host의 `-32601`), 취소(`request.cancelled`), 읽기 실패는 모두 "받을 수 없음"과 `xeon doctor` 안내를 보이고, 이 단계는 "확인할 수 없음"으로 표시하되 대화 시작을 막지 않는다. 앱이 보고서를 주입하던 `createApp({ binaryReport })`는 없앴다.
+- `settings.invalidated`를 받으면(`keys`에 `l1.models.`로 시작하는 키가 있거나 `keys`가 빈 알림) 설정 화면과 안내 띠가 `settings.get`으로 다시 읽는다. 구독은 연결이 `live`가 될 때마다 새로 건다. 같은 연결의 `settings.set` 호출자도 알림을 받으므로 저장 직후 화면은 한 번 더 읽는다.
+- 저장이 거절되면(`settings.set`의 3102) 화면은 host가 준 첫 문제의 문장을 그대로 보인다: `저장하지 못했습니다: 알 수 없는 모델 anthropic/claude-sonnet-5.5 (anthropic의 모델: claude-sonnet-5-5, …)`. 기본 모델은 저장하기 전에 host가 카탈로그에서 검사한다(`L4.host-service.spec` HS-78). "provider에 연결"은 그 키의 모델 provider 사용을 허용하는 행위이기도 하다(`L4.host-service.spec` HS-45): 같은 연결을 다시 저장하면 이전 빌드가 빈 정책으로 만든 키의 허용이 다시 맞춰진다 [결정: M2 Mac 실기]. 연결 뒤에는 `secret.meta` 없이 모델 호출이 된다.
+- 모델 키와 기본 모델 단계가 끝나지 않았으면 대화 화면 위에 안내 띠("설정 열기")를 보인다(`src/views/setup-banner.tsx`). 설정을 읽지 못하는 연결에서는 띠를 그리지 않는다.
+- 화면의 로컬 상태는 요청 결과와 입력 중인 모델 이름뿐이고 거울에 넣지 않는다(FS-03, FS-04). 키 값은 로컬 상태에도 없다(§4.14.1).
+
+#### 4.14.1 사이드카 연결에서 키 값 받기 [결정: M2 첫 실행 M-12]
+
+M2 첫 실행에서 깨끗한 Mac에는 `xeon` 명령이 설치되어 있지 않았고, 설정 화면의 터미널 안내(`xeon secret add <이름>`)를 따를 수 없었다. 사이드카 호스트는 값을 받을 수단이 없어(HS-44) 키 등록이 끝나지 않았다. 두 경로를 고려했다.
+
+| 경로 | 값이 지나는 곳 | 약점 |
+|---|---|---|
+| 서비스 쪽 OS 입력 창(M3) | OS 입력 창과 L0.secrets | 서비스 모드가 있어야 한다. M2에는 없다 |
+| Rust 셸이 번들된 `xeon secret`을 실행하고 stdin에 한 번 쓴다(채택) | WebView 입력란, Tauri IPC 본문, 셸의 요청 버퍼, 자식 stdin 파이프 | 값이 DOM과 IPC를 지난다(`L4.settings-ui.spec` §4.6.4 B안과 같은 약점). 아래 약점 항목 |
+
+채택한 경로는 비밀 저장 로직을 Rust에 두지 않는다. 저장은 ADR-0014대로 사이드카 바이너리가 곧 `xeon` CLI라는 점을 쓴다. 셸은 CLI와 같은 `secret add|set`을 한 번 실행할 뿐이어서 메타, 감사, SOPS 쓰기 규칙이 엔진 한 곳에 남는다.
+
+흐름(`src-tauri/src/secret_entry.rs`, `src/settings/key-entry.ts`):
+
+1. 화면이 "키 등록"에서 값 없는 `secret.beginEntry`를 먼저 부른다. `started: true`(값을 호스트가 받음)면 기존 흐름대로 provider에 연결한다. `started: false`이거나 메서드가 없으면(`unsupported`) 화면 안에 등록 창을 연다.
+2. 등록 창은 제어하지 않는 `type="password"` 입력란이다. 값은 DOM 노드에만 있고 React 상태, zustand 거울, props에 들어가지 않는다. 저장을 누르면 `submitKey`가 첫 `await` 전에 입력란을 읽고 곧바로 비우며, 앞뒤 공백과 줄바꿈을 지운 뒤 UTF-8 바이트 배열 하나로 바꾼다. 취소와 창이 사라지는 것도 입력란을 비운다.
+3. WebView가 `secret_register`를 원시 바이트 본문 `<동작> <이름>\n<값>`으로 부른다(JSON 문자열에 싣지 않는다). 호출이 끝나면 그 바이트 배열을 0으로 덮는다.
+4. 셸은 본문을 검사한다(동작은 `add`·`set`, 이름은 `^[a-z][a-z0-9-]{1,63}$`라서 `-`로 시작하는 옵션이 될 수 없다, 값은 1바이트 이상 8 KiB 이하). 번들된 사이드카를 인자 `secret <동작> <이름>`으로 실행한다. 작업 폴더와 환경은 엔진과 같다(홈, `BUN_OPTIONS`만 제거). 그러므로 CLI와 사이드카가 같은 OS 디렉터리를 보고 같은 비밀 저장소(설정 폴더의 비밀 메타 `<config>/secrets/meta`, SOPS 파일, age 키)를 쓴다. 상태 폴더의 `cli/state.json`은 CLI의 자체 상태 파일이고 비밀 저장소가 아니다.
+5. 셸은 요청 본문의 값 조각을 복사하지 않고 자식 stdin에 한 번 쓰고 닫는다(EOF). CLI는 stdin이 TTY가 아니면 EOF까지 읽고 끝의 줄바꿈 하나를 지운다(`L4.cli.spec` §4.7, 상한 64 KiB). 셸 쪽 값 상한 8 KiB는 파이프 버퍼보다 작게 두어 자식이 읽지 않고 끝나도 쓰기가 막히지 않게 한다.
+6. 셸은 자식이 끝나기를 30초까지 기다린다. 넘으면 프로세스 그룹째 끝낸다(자식이 부른 sops와 age 포함). 종료 코드 0이면 성공이다. 아니면 `rejected`이고 `detail`에 자식 stderr의 앞부분(600자)을 싣는다. CLI의 오류 문구는 값을 담지 않는다. 그래도 자식 출력에 값이 그대로 들어 있으면 `detail`을 비운다.
+7. 성공하면 화면은 provider를 연결하고 `secret.list`를 다시 읽어 "등록됨"을 보인다.
+
+규칙:
+
+- 한 번에 하나만 등록한다. 진행 중에 또 오면 `busy`다.
+- 자식의 인자와 환경 변수에 값이 없다. 셸 로그(`applog`)에는 `secret entry <동작> <이름>: <결과 종류>`만 쓴다. 요청 구조체의 `Debug` 출력에는 값 길이만 있다.
+- `secret rotate`는 CLI가 비TTY를 거부하므로(`L4.cli.spec` §4.7) 이 경로는 `add`와 `set`만 쓴다.
+- 개발 빌드에서 `XEON_DESKTOP_ENGINE_BIN`과 `XEON_DESKTOP_ENGINE_ARGS`가 `... host --stdio`로 끝나면 그 앞부분에 `secret <동작> <이름>`을 이어 쓴다. 그 모양이 아니면 번들 사이드카를 쓴다.
+- 사이드카를 띄우지 못하면(`unavailable`) 화면은 기존 터미널 명령 안내로 돌아간다.
+
+약점(받아들인 것):
+
+- 값이 WebView 안에 있다. password 입력란은 화면에 보이지 않을 뿐 DOM 노드의 `value`이고, 읽는 순간 JS 문자열이 하나 생긴다. 문자열은 지울 수 없어 가비지 수집 전까지 WebView 힙에 남는다. 바이트 배열과 입력란만 덮는다.
+- Tauri IPC 본문과 셸의 요청 버퍼는 Tauri가 쥐고 있어 셸이 덮지 못한다.
+- 같은 사용자의 다른 프로세스가 `ps`로 자식의 인자를 보는 길에는 값이 없지만, 실행 중인 WebView 프로세스 메모리를 읽는 공격자에게는 열려 있다. 값 없는 경로(C안)가 가능한 서비스 쪽 OS 입력 창(M3)이 생기면 그쪽을 먼저 쓴다.
+- 디버그 빌드의 점검 소켓 `viewport.snapshot`은 보이는 영역을 이미지로 저장한다. password 입력란은 점으로 그려지므로 값이 이미지에 남지 않는다(§4.15) [가정: WKWebView 실측 전].
+
+### 4.15 원격 점검 Phase 1 [제안: M2 마감 T7]
+
+SSH로만 닿는 기기(Mac)에서 앱 상태를 읽는 길이다. GUI를 직접 보지 않고 로그, 상태 덤프, 뷰포트 이미지를 얻는다. 근거는 조사 노트의 §3과 §4다. 쓰기와 조작(클릭, 입력)은 이 단계에 없다.
+
+| 부분 | 내용 | 코드 |
+|---|---|---|
+| 로그 파일 | `tauri-plugin-log`의 `LogDir` 대상(`xeon-desktop-debug.log`)과 표준 출력. 수준 info, 파일 하나, 2 MB에서 새로 시작(`KeepOne`) | `main.rs` `debug_log_plugin` |
+| 상태 덤프 | 줄 단위 JSON-RPC 2.0 `state.dump`: 앱 이름·버전·pid·가동 시간, 엔진 상태(IPC 상태 채널과 같은 직렬화), 릴레이 세대, 메인 창 크기·가시·포커스·최소화, 로그 폴더. 대화 내용과 비밀 값은 싣지 않는다 | `src-tauri/src/inspect/mod.rs`, `probe.rs` |
+| 뷰포트 스냅샷 | `viewport.snapshot`: WKWebView가 보이는 영역을 PNG로 `<LogDir>/snapshots/viewport-<ms>.png`에 저장하고 `{ path, bytes, mime }`을 돌려준다. 이미지 바이트는 응답에 없다. macOS만 되고 그 밖은 오류(-32000)다 | `inspect/snapshot_macos.rs` |
+| 듣는 곳 | Unix 도메인 소켓 하나(기본 `<LogDir>/inspect.sock`, 환경 변수 `XEON_DESKTOP_INSPECT_SOCKET`으로 바꾼다). 소켓 파일 0600. 소켓 폴더는 없으면 앱이 0700으로 만들고(위쪽 폴더는 기본 권한), 이미 있으면 권한을 바꾸지 않는다. 이미 있는 폴더는 앱 사용자 소유이고 other 쓰기가 없을 때만 쓰며, `/tmp` 같은 공용 폴더는 `PermissionDenied`로 거절하고 소켓을 열지 않는다(M2 마감 재검토 11). 동시 접속 4개, 요청 줄 16 KiB 상한. 모르는 메서드는 -32601이고 읽기 전용이다 | `inspect/server.rs` |
+
+- 모두 `cfg(debug_assertions)` 아래다. `mod inspect;`와 로그 플러그인 등록, `start_inspect` 호출이 디버그 빌드에만 컴파일된다. `Relay::state`·`current_epoch`도 디버그와 시험에서만 열린다.
+- 릴리스 확인(릴리스 후보마다, 사람이 한다):
+  1. `cargo build --release`(`just desktop-build`)가 경고 없이 끝난다. WSL에서는 `cargo check --release`로 확인했다.
+  2. 실행 중인 릴리스 앱의 `lsof -U -p <pid>`에 `inspect.sock`이 없고, 로그 폴더에 `inspect.sock`이 만들어지지 않는다.
+  3. 릴리스 바이너리에서 `strings <앱 바이너리> | grep -c 'viewport.snapshot'`이 0이다.
+- 소스 수준 보장은 `test/inspect-guard.test.ts`가 시험한다(`mod inspect;`와 호출 지점의 cfg 줄, 소켓 생성이 `inspect` 밖에 없음, 로그 플러그인 cfg). 위 1~3은 컴파일 산출물 확인이라 자동화하지 않았다.
+- `tauri-plugin-log`는 crate 의존성이라 릴리스 빌드에도 링크 대상이다. 등록하지 않으므로 파일도 소켓도 생기지 않는다. 의존성을 디버그 전용으로 줄이는 일은 하지 않았다(`cfg(debug_assertions)`로 의존성을 나눌 수 없다).
+- 스냅샷 구현은 macOS에서만 컴파일된다. WSL에서는 컴파일도 시험도 못 했고 Mac 확인이 필요하다 [가정](`review.macos-checklist`에 더할 항목).
+
+### 4.16 새 대화의 작업 폴더 [결정: M2 마감 G2-02]
+
+사이드카의 작업 디렉터리는 사용자 홈이다. 대화에 작업 폴더가 없으면 프로젝트 자원(`.mcp.json`, `.xeon/skills`, `.xeon/commands`)과 신뢰 판정이 홈 기준이 되므로, 데스크톱은 대화를 만들 때 폴더를 `thread.create`의 `workspace`로 보낸다.
+
+- 스레드 목록 위에 "작업 폴더 (선택)" 입력란을 둔다(`src/views/thread-list.tsx`). 후보는 목록에 있는 대화의 `workspace` 중 서로 다른 값 최대 8개다(목록 순서, `selectRecentWorkspaces`). 새 대화를 만든 뒤에도 입력란은 그대로 두어 같은 프로젝트에서 대화를 이어서 여는 일이 쉽다.
+- 보내기 전 검사는 `src/views/workspace-model.ts`가 한다. 앞뒤 공백을 지우고, 빈 값은 `workspace`를 생략한다(작업 폴더 없는 대화). 값이 있으면 절대 경로(POSIX `/…`, 드라이브 `C:\…`·`C:/…`, UNC `\\…`)여야 하고 4096자를 넘지 않아야 한다. 아니면 안내 문구를 보이고 "새 대화"를 막는다. `~`와 상대 경로는 호스트가 풀지 않으므로 보내지 않는다.
+- 폴더가 있는 폴더인지는 호스트가 확인한다. 호스트가 거부하면(`-32602`, `path: "workspace"`, `L4.host-service.spec` HS-76) "작업 폴더를 열 수 없습니다" 문구를 보이고 대화를 열지 않는다. 받아들이면 호스트가 심볼릭 링크를 푼 정규 경로로 저장한다. 그래서 열린 대화의 `ThreadSummary.workspace`와 신뢰 카드가 부르는 `trust.get`의 `projectRoot`가 같은 문자열이다(§4.13).
+- 운영체제의 폴더 선택 창은 아직 없다. Tauri dialog 플러그인과 capability가 필요하다(§10 17번).
 
 ## 5. 실패와 경계 사례
 
@@ -526,11 +616,11 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 | 사이드카 바이너리가 번들에 없거나 triple이 맞지 않음 | `failed`로 두고 진단 화면에 바이너리 경로와 triple을 보인다. 재기동하지 않는다 |
 | 엔진이 기동 직후 반복 종료 | §4.4 재기동 정책. 상한을 넘으면 `failed`, stderr 마지막 20줄을 진단 화면에 보인다(비밀 값 마스킹은 엔진 로그 규칙을 따른다) |
 | 프레임이 1 MiB를 넘음 | WebView의 `StdioTransportFactory` 구현이 그 줄을 버리고 `-32600`을 처리한다. 셸은 크기를 검사하지 않는다 |
-| 셸 → WebView 채널이 밀림(WebView가 느림) | [제안] 셸은 세대별 송신 버퍼를 16 MiB까지 두고, 넘으면 그 세대를 끊고 WebView에 재접속을 요구한다(§4.5). 엔진 stdout 읽기는 버퍼가 줄 때까지 멈춘다. 엔진 쪽 송신 큐 한도는 `F.wire-settings.spec` §3.4.3 lowWater를 따른다 |
+| 셸 → WebView 채널이 밀림(WebView가 느림) | 신용 창 4 MiB(§3.3)가 차면 셸은 더 보내지 않고 엔진 stdout 읽기가 멈춘다. 셸이 쥐는 데이터는 줄 하나의 꼬리뿐이다. 줄 끝 없이 2 MiB를 넘은 줄은 프레임 한도(1 MiB) 위반이라 버리고 다음 줄 끝에서 다시 맞춘다(바이트 수만 로그에 남긴다). 엔진 쪽 송신 큐 한도는 `F.wire-settings.spec` §3.4.3 lowWater를 따른다 |
 | `engine_write`의 세대가 현재와 다름 | 거부한다. 이전 페이지의 늦은 쓰기가 새 연결에 섞이지 않게 한다 |
 | 종료 중(`stopping`)에 사용자 입력 | 입력창을 잠그고 "종료 중"을 보인다. 엔진은 `host.shuttingDown`(5002)을 돌려줄 수 있다 |
 | 종료 시한 초과 | 그룹 SIGKILL. 진행 중 turn은 다음 실행 때 이어서 실행 후보가 된다 |
-| 앱 두 개를 동시에 실행 | [제안] Tauri single-instance 플러그인으로 두 번째 인스턴스는 첫 창을 앞으로 가져오고 끝낸다. 다른 프로세스(CLI)와 같은 thread를 쓰려는 경우는 세션 잠금 규칙(adr.0006 §3.6)과 `thread.locked`(3002) 대안을 따른다 |
+| 앱 두 개를 동시에 실행 | [결정: M2 마감 G2-09] `tauri-plugin-single-instance`를 가장 먼저 등록한다. 두 번째 인스턴스는 다른 초기화(엔진 기동, DB)를 하기 전에 첫 인스턴스에 알리고 끝나며, 첫 인스턴스는 메인 창을 보이고 최소화를 풀고 포커스를 준다(`src-tauri/src/window.rs` `focus_main`). 다른 프로세스(CLI)와 같은 thread를 쓰려는 경우는 세션 잠금 규칙(adr.0006 §3.6)과 `thread.locked`(3002) 대안을 따른다 |
 | `thread.locked` | 관찰·분기 선택 대화 상자를 보인다. 위임은 서비스 공급원에서만 보인다 |
 | WebKitGTK가 설치되지 않은 Linux | 앱이 뜨지 않는다. 패키지 의존(`L4.desktop.plan` §3 D10)으로 막는다 |
 | WSL에서 WSLg가 없음 | [미결] 지원 범위(§10 미결 9). 지원하지 않으면 시작 시 안내 문구를 띄운다 |
@@ -599,20 +689,27 @@ Windows WebView2 설치 모드 비교(`_research/stack-status.md §7-G`):
 - D-10. 트레이 유지 모드에서 창을 닫으면 WebView 엔진 프로세스가 0개가 되고, 진행 중 turn은 계속되며, 창을 다시 열면 D-04와 같이 이어진다.
 - D-11. 엔진 프로세스 환경에 `BUN_OPTIONS`가 없고 cwd가 절대 경로다.
 - D-12. `check-layers.ts` 앱 내부 규칙이 W1·W2·W6 위반 샘플 import를 거부한다.
+- D-13. 두 번째 앱 실행은 첫 인스턴스의 메인 창을 앞으로 가져오고 스스로 끝난다. 엔진이 둘 뜨지 않는다(`window.rs` 시험은 창 조회와 레이블 일치까지, 실제 두 프로세스 확인은 Mac에서 한다).
+- D-14. 릴리스 빌드에는 점검 소켓과 `viewport.snapshot`이 없다(§4.15 릴리스 확인).
+- D-15. 설정 화면은 외부 도구 점검 결과를 `host.status { includeBinaries: true }`의 `binaries`에서 읽고, 시작 안내 띠와 `settings.invalidated` 뒤 다시 읽기는 `includeBinaries`를 보내지 않는다. 컴파일 사이드카가 소스 진입과 같은 도구 목록(이름, 구분, 쓰는 곳, 영향)을 돌려주고 응답에 실행 파일 경로가 없다(`test/e2e/sidecar.e2e.test.ts`).
+- D-16. 새 대화는 입력한 폴더를 `thread.create`의 `workspace`로 그대로 보내고, 입력이 비면 `workspace` 키를 보내지 않으며, 상대 경로는 보내지 않는다. 호스트가 거부한 폴더(`-32602`)로는 대화가 선택되지 않는다.
 
 ## 10. 미결 사항
 
 1. [미결] 엔진 바이너리 이름과 서브커맨드. 이 문서는 `xeon`, `host --stdio`를 [제안]으로 쓴다. `L4.host-service.spec`이 확정하고, `xeon/apps/desktop/README.md`와 `eng.toolchain.guide` TC-10의 "apps/host 단독 사이드카" 서술과 맞춘다. 바꿀 곳은 `sidecar.json` 한 곳이다.
-2. (닫힘) F 변경 요청 두 건, `host.shutdown`과 클라이언트 알림 `$/connectionReset`은 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4, review.consistency-1 K-15). 이 문서의 params 예와 다르면 F 정의를 따른다. M2 전에는 새로고침을 엔진 재기동으로 처리한다(§4.5).
-3. [미결] `StdioTransportFactory` 구현(JSON Lines 프레이밍)과 `createHostConnection`(id 발급, 대기 요청 표, 취소)의 위치. CLI와 데스크톱이 함께 쓰므로 DR-10에 따라 아래 층에 있어야 한다. F `@xeon/contracts/wire`에 런타임 중립 구현을 두자고 요청한다. 정해지기 전에는 `apps/desktop/src/transport/`에 두고 같은 적합성 케이스로 검사한다.
+2. (닫힘) F 변경 요청 두 건, `host.shutdown`과 클라이언트 알림 `$/connectionReset`은 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4, review.consistency-1 K-15). 이 문서의 params 예와 다르면 F 정의를 따른다. 재설정 동작은 `F.wire-settings.spec` §4.1 5~7번이고 호스트가 구현했다(m2 F.8). 새 페이지는 `openEngineConnection`에서 hello 전에 `HostConnection.notify("$/connectionReset", {})`을 보낸다(§4.5).
+3. (닫힘, m2 F.8) `StdioTransportFactory` 구현(JSON Lines 프레이밍)과 `createHostConnection`(id 발급, 대기 요청 표, 취소)은 F `@xeon/contracts/wire`의 런타임 중립 구현으로 옮겼다(`F.wire-settings.spec` §3.1). 데스크톱은 복사본(`apps/desktop/src/transport/connection.ts`, `json-lines.ts`)을 지우고 거기서 가져온다. 호스트와 CLI는 같은 구현을 다시 내보낸다.
 4. [결정: review.decisions-2 U-04] 이어서 실행 후보를 wire로 알리는 방법(`ThreadSummary` 필드 또는 이벤트)은 M1에 넣지 않고 M2 계획에서 정한다.
 5. [결정: review.decisions-2 U-04] 사용자 알림 wire(알림 이벤트 kind나 메서드)는 M1에 넣지 않고 M2 계획에서 정한다. 그 전에는 내구 이벤트 kind로 알림 대상을 고른다(§4.8).
 6. [미결] `l4.desktop.*` 값의 저장 위치. 제안은 데스크톱 로컬 파일(엔진 카탈로그 밖)이다. 대안은 F에 클라이언트 카탈로그 등록을 더해 엔진 설정 계층에 넣는 것이다. 관리 범위 잠금을 로컬 파일에서 어떻게 읽을지도 함께 정한다.
 7. [미결] Windows 크래시 때 엔진이 남는 문제. 셸이 kill-on-close job object를 직접 만들지, 플러그인 상류에 요청할지(adr.0008 §6, arch-2 §5 4행).
 8. [미결] 메모리 예산 수치(§4.10 B1~B4). S5 측정 뒤 확정한다.
-9. [미결] WSL(WSLg)에서 데스크톱 앱의 지원 수준. 지원, 비공식 동작, 미지원 중 고른다.
+9. [미결] WSL(WSLg)에서 데스크톱 앱의 지원 수준. 지원, 비공식 동작, 미지원 중 고른다. 참고: WSLg(XWayland, llvmpipe)에서 Tauri 창이 열리고 S1·S3이 돌았다(`L4.desktop.plan` §3.1.1).
 10. [미결] 최소 지원 macOS 버전과 Linux 배포판(WebKitGTK 버전). 빌드 타깃(V5)이 여기에 묶인다.
-11. [미결] 프런트엔드 프레임워크. 제안은 Preact + `@preact/signals` + `bun build`.
+11. (닫힘) 프런트엔드 프레임워크와 상태 라이브러리는 React 19 + Zustand 5다(adr.0010, 2026-10-24). 상태 모델은 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`다.
 12. [미결] 자동 업데이트 채택(M3 이후). Tauri updater 플러그인과 서명 키 관리가 필요하다.
-13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). S3 spike 결과로 정한다. 이 문서는 stdio를 전제로 쓴다.
-14. [가정] Tauri `Channel`의 원시 바이트 전송, Rust API 사이드카의 capabilities 비적용, WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
+13. [미결] 장수명 엔진에서 stdio 유지와 로컬 소켓 전환(adr.0008 §6, arch-2 §5 6행). 이 문서는 stdio를 전제로 쓴다. S3 spike(`L4.desktop.plan` §3.1.1) 판정 [제안]: stdio를 유지하되 릴레이에 신용 기반 역압(Channel 무제어 송신은 지속 대용량에서 정지했다), 락 밖 비동기 stdin 쓰기, 세대별 줄 버퍼를 둔다. 세 조건은 M2 DESK.2에서 `relay.rs`에 구현됐고(`L4.desktop.plan` §3.2.1), Linux/WSL2에서 32 MB 연속 송신이 손실·중복 없이 지났다. macOS·Windows 재측정 뒤 확정한다.
+14. [가정] (Tauri `Channel`의 원시 바이트 전송과 Rust API 사이드카의 capabilities 비적용은 WSL2 WebKitGTK에서 S1·S3으로 확인했다. macOS, Windows는 미확인이다.) WebView 엔진 보조 프로세스 구성, 웹 API 제약 V1~V8은 실행으로 확인하지 않았다. M2 spike와 첫 주 확인 목록에서 확인한다.
+15. (닫힘, M2 첫 실행 M-12) 사이드카 연결에서 모델 키 값을 받는 수단은 Rust 셸이 번들된 `xeon secret add|set <이름>`을 한 번 실행하고 값을 그 stdin에 한 번 쓰는 길이다(§4.14.1). 값 없는 `secret.beginEntry`는 호스트가 받을 수 있는 연결(서비스, M3)에서만 쓰이고 사이드카는 이 경로로 화면 안의 등록 창을 연다. 받아들인 약점(값이 DOM, JS 문자열, Tauri IPC 본문을 지남)은 §4.14.1에 적었다. 남은 [미결]: (a) 실행 중인 사이드카 엔진이 별도 프로세스가 쓴 등록을 `secret.list`에서 곧바로 보는지는 실제 기기에서 확인하지 않았다(화면은 등록 뒤 `secret.list`를 다시 읽는다). (b) 등록이 `not_registered`로 실패하는 호스트 쪽 원인(`l0.secrets.sops.files` 기본값 `[]`, `L0.secrets.spec` §10 4번, HS-45 `newMeta`)은 이 앱이 아니라 호스트가 고쳐야 한다. 이 경로는 자식의 오류 문구를 그대로 보인다.
+16. (닫힘, M2 마감 G2-07) 외부 바이너리 점검 결과를 전하는 길은 `host.status`의 `includeBinaries` 요청과 결과의 `binaries`다(F 변경, `L4.host-service.spec` HS-69). 앱이 보고서를 주입하던 방식은 없앴다(§4.14).
+17. [미결] 새 대화의 작업 폴더를 고르는 운영체제 폴더 선택 창. 지금은 경로를 입력한다(§4.16). `tauri-plugin-dialog`를 더하면 Cargo 의존과 capability(`dialog:allow-open`, 디렉터리만)가 늘고 `Cargo.lock`이 바뀐다. V1(§4.11)의 "셸 명령으로 감싸 쓴다"를 따르고 macOS에서 확인한다. [가정] capability 이름은 플러그인 문서로 확인하지 않았다.

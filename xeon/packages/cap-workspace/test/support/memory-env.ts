@@ -48,6 +48,8 @@ export interface MemoryEnv extends WorkspaceEnv {
   touch(path: string): void;
   /** 파일에 덧붙인다 */
   append(path: string, content: string): void;
+  /** 같은 파일 시스템과 호출 기록을 쓰고 cwd만 다른 환경 */
+  withCwd(cwd: string): MemoryEnv;
 }
 
 const encoder = new TextEncoder();
@@ -112,7 +114,6 @@ function scanBytes(bytes: Uint8Array, startLine: number, endLine: number | undef
 
 export function memoryEnv(options: { readonly cwd?: string } = {}): MemoryEnv {
   const exec = fakeExec({});
-  const cwd = options.cwd ?? "/work";
   const nodes = new Map<string, Node>([["/", { kind: "directory" }]]);
   const links = new Map<string, string>();
   const mtimes = new Map<string, number>();
@@ -186,111 +187,119 @@ export function memoryEnv(options: { readonly cwd?: string } = {}): MemoryEnv {
     };
   }
 
-  const env: MemoryEnv = {
-    id: "memory",
-    cwd,
-    calls,
-    reply: (...next) => {
-      replies.push(...next);
-    },
-    put,
-    mkdir,
-    symlink: (path, target) => {
-      mkdir(join(segmentsOf(normalize(path)).slice(0, -1)));
-      links.set(normalize(path), target);
-    },
-    touch: (path) => {
-      mtimes.set(normalize(path), (clock += 1));
-    },
-    append: (path, content) => {
-      const node = nodes.get(normalize(path));
-      if (node?.kind !== "file") return;
-      const added = encoder.encode(content);
-      const next = new Uint8Array(node.bytes.length + added.length);
-      next.set(node.bytes);
-      next.set(added, node.bytes.length);
-      nodes.set(normalize(path), { kind: "file", bytes: next });
-      mtimes.set(normalize(path), (clock += 1));
-    },
-    absolutePath: (path) =>
-      Promise.resolve(ok(path.startsWith("/") ? normalize(path) : normalize(`${cwd}/${path}`))),
-    canonicalPath: (path) => Promise.resolve(realpath(path)),
-    exists: (path) => Promise.resolve(ok(realpath(path).ok)),
-    fileInfo: (path) => {
-      const real = realpath(path);
-      if (!real.ok) return Promise.resolve(err(real.error));
-      const node = nodes.get(real.value);
-      if (node === undefined) return Promise.resolve(err(new FileError("not_found", path, path)));
-      return Promise.resolve(ok(infoOf(real.value, segmentsOf(real.value).at(-1) ?? "", node)));
-    },
-    listDir: (path) => {
-      const real = realpath(path);
-      if (!real.ok) return Promise.resolve(err(real.error));
-      if (nodes.get(real.value)?.kind !== "directory") {
-        return Promise.resolve(err(new FileError("not_directory", path, path)));
-      }
-      const depth = segmentsOf(real.value).length;
-      const names = new Map<string, FileInfo>();
-      for (const [full, node] of nodes) {
-        const parts = segmentsOf(full);
-        if (
-          parts.length !== depth + 1 ||
-          !full.startsWith(real.value === "/" ? "/" : `${real.value}/`)
-        )
-          continue;
-        const name = parts.at(-1) ?? "";
-        names.set(name, infoOf(full, name, node));
-      }
-      for (const full of links.keys()) {
-        const parts = segmentsOf(full);
-        if (
-          parts.length !== depth + 1 ||
-          !full.startsWith(real.value === "/" ? "/" : `${real.value}/`)
-        )
-          continue;
-        const name = parts.at(-1) ?? "";
-        names.set(name, { name, path: full, kind: "symlink", size: 0, mtimeMs: 0 });
-      }
-      return Promise.resolve(ok([...names.values()]));
-    },
-    openBinaryReader: (path) => {
-      const real = realpath(path);
-      if (!real.ok) return Promise.resolve(err(real.error));
-      const node = nodes.get(real.value);
-      if (node?.kind !== "file") {
-        return Promise.resolve(err(new FileError("is_directory", `is a directory: ${path}`, path)));
-      }
-      const key = real.value;
-      const bytesOf = (): Uint8Array => {
-        const current = nodes.get(key);
-        return current?.kind === "file" ? current.bytes : new Uint8Array();
-      };
-      return Promise.resolve(ok(reader(key, bytesOf)));
-    },
-    exec: (command, execOptions, context: CancelScope) => {
-      calls.push({ command, options: execOptions });
-      const next = replies.shift() ?? { exitCode: 0 };
-      for (const chunk of next.chunks ?? []) {
-        execOptions?.onOutput?.(chunk.text, context, {
-          stream: "stdout",
-          ...(chunk.skipped === undefined ? {} : { skipped: chunk.skipped }),
-        });
-      }
-      if (next.error !== undefined) {
-        const failure = new ExecutionError(next.error.code, `exec failed: ${next.error.code}`);
-        if (next.error.spillPath !== undefined) failure.spillPath = next.error.spillPath;
-        return Promise.resolve(err(failure));
-      }
-      return Promise.resolve(
-        ok({
-          exitCode: next.exitCode ?? 0,
-          ...(next.spillPath === undefined ? {} : { spillPath: next.spillPath }),
-          ...(next.sandbox === undefined ? {} : { sandbox: next.sandbox }),
-        }),
-      );
-    },
-    cleanup: () => Promise.resolve(),
-    truncateHeadOf: (prefix, totals, truncation) => exec.truncateHeadOf(prefix, totals, truncation),
-  };
-  return env;
+  function view(cwd: string): MemoryEnv {
+    const env: MemoryEnv = {
+      id: "memory",
+      cwd,
+      withCwd: (path) => view(path),
+      calls,
+      reply: (...next) => {
+        replies.push(...next);
+      },
+      put,
+      mkdir,
+      symlink: (path, target) => {
+        mkdir(join(segmentsOf(normalize(path)).slice(0, -1)));
+        links.set(normalize(path), target);
+      },
+      touch: (path) => {
+        mtimes.set(normalize(path), (clock += 1));
+      },
+      append: (path, content) => {
+        const node = nodes.get(normalize(path));
+        if (node?.kind !== "file") return;
+        const added = encoder.encode(content);
+        const next = new Uint8Array(node.bytes.length + added.length);
+        next.set(node.bytes);
+        next.set(added, node.bytes.length);
+        nodes.set(normalize(path), { kind: "file", bytes: next });
+        mtimes.set(normalize(path), (clock += 1));
+      },
+      absolutePath: (path) =>
+        Promise.resolve(ok(path.startsWith("/") ? normalize(path) : normalize(`${cwd}/${path}`))),
+      canonicalPath: (path) => Promise.resolve(realpath(path)),
+      exists: (path) => Promise.resolve(ok(realpath(path).ok)),
+      fileInfo: (path) => {
+        const real = realpath(path);
+        if (!real.ok) return Promise.resolve(err(real.error));
+        const node = nodes.get(real.value);
+        if (node === undefined) return Promise.resolve(err(new FileError("not_found", path, path)));
+        return Promise.resolve(ok(infoOf(real.value, segmentsOf(real.value).at(-1) ?? "", node)));
+      },
+      listDir: (path) => {
+        const real = realpath(path);
+        if (!real.ok) return Promise.resolve(err(real.error));
+        if (nodes.get(real.value)?.kind !== "directory") {
+          return Promise.resolve(err(new FileError("not_directory", path, path)));
+        }
+        const depth = segmentsOf(real.value).length;
+        const names = new Map<string, FileInfo>();
+        for (const [full, node] of nodes) {
+          const parts = segmentsOf(full);
+          if (
+            parts.length !== depth + 1 ||
+            !full.startsWith(real.value === "/" ? "/" : `${real.value}/`)
+          )
+            continue;
+          const name = parts.at(-1) ?? "";
+          names.set(name, infoOf(full, name, node));
+        }
+        for (const full of links.keys()) {
+          const parts = segmentsOf(full);
+          if (
+            parts.length !== depth + 1 ||
+            !full.startsWith(real.value === "/" ? "/" : `${real.value}/`)
+          )
+            continue;
+          const name = parts.at(-1) ?? "";
+          names.set(name, { name, path: full, kind: "symlink", size: 0, mtimeMs: 0 });
+        }
+        return Promise.resolve(ok([...names.values()]));
+      },
+      openBinaryReader: (path) => {
+        const real = realpath(path);
+        if (!real.ok) return Promise.resolve(err(real.error));
+        const node = nodes.get(real.value);
+        if (node?.kind !== "file") {
+          return Promise.resolve(
+            err(new FileError("is_directory", `is a directory: ${path}`, path)),
+          );
+        }
+        const key = real.value;
+        const bytesOf = (): Uint8Array => {
+          const current = nodes.get(key);
+          return current?.kind === "file" ? current.bytes : new Uint8Array();
+        };
+        return Promise.resolve(ok(reader(key, bytesOf)));
+      },
+      exec: (command, execOptions, context: CancelScope) => {
+        calls.push({ command, options: execOptions });
+        const next = replies.shift() ?? { exitCode: 0 };
+        for (const chunk of next.chunks ?? []) {
+          execOptions?.onOutput?.(chunk.text, context, {
+            stream: "stdout",
+            ...(chunk.skipped === undefined ? {} : { skipped: chunk.skipped }),
+          });
+        }
+        if (next.error !== undefined) {
+          const failure = new ExecutionError(next.error.code, `exec failed: ${next.error.code}`);
+          if (next.error.spillPath !== undefined) failure.spillPath = next.error.spillPath;
+          return Promise.resolve(err(failure));
+        }
+        return Promise.resolve(
+          ok({
+            exitCode: next.exitCode ?? 0,
+            ...(next.spillPath === undefined ? {} : { spillPath: next.spillPath }),
+            ...(next.sandbox === undefined ? {} : { sandbox: next.sandbox }),
+          }),
+        );
+      },
+      cleanup: () => Promise.resolve(),
+      truncateHeadOf: (prefix, totals, truncation) =>
+        exec.truncateHeadOf(prefix, totals, truncation),
+    };
+    return env;
+  }
+
+  return view(options.cwd ?? "/work");
 }

@@ -3,7 +3,11 @@
   "compilerOptions": {
     "rootDir": ".",
     "outDir": "dist",
-    "tsBuildInfoFile": "dist/.tsbuildinfo"
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "lib": ["es2024", "esnext.disposable", "dom", "dom.iterable"],
+    "jsx": "react-jsx"
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "spike", "package.json"],
+  "exclude": ["spike/out"],
+  "references": [{ "path": "../../packages/contracts" }]
 }

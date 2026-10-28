@@ -67,6 +67,8 @@ export interface LoopPluginOptions {
   readonly hostMode: HostMode;
   readonly settings?: LoopSettingsSource;
   readonly basePrompt?: string;
+  /** `user_bash` 지점 페이로드의 작업 디렉터리를 대화별로 돌려준다 */
+  readonly workingDirectory?: LoopDeps["workingDirectory"];
   readonly kindLookup?: LoopDeps["kindLookup"];
   readonly cancelledByOwner?: LoopDeps["cancelledByOwner"];
   readonly loadIndex?: number;
@@ -96,6 +98,10 @@ export function loopExtensionUnit(options: LoopPluginOptions): ExtensionUnit {
         ...(approvals === undefined ? {} : { approvals }),
         settings: options.settings ?? DEFAULT_LOOP_SETTINGS,
         basePrompt: options.basePrompt ?? DEFAULT_BASE_PROMPT,
+        platform: `${os.info.platform}/${os.info.arch}`,
+        ...(options.workingDirectory === undefined
+          ? {}
+          : { workingDirectory: options.workingDirectory }),
         hostMode: options.hostMode,
         kindLookup:
           options.kindLookup ?? ((kind) => EVENT_CATALOG.find((catalog) => catalog.kind === kind)),

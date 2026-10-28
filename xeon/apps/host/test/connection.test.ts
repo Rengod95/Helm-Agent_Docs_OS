@@ -4,10 +4,12 @@ import { fixedIdFactory } from "@xeon/ext-host/testing";
 import { WireError, type HostConnection, type WireHandlers } from "@xeon/contracts/wire";
 import { HostClientError } from "../src/client.ts";
 import { createFakeHost } from "./fixtures/fake-host.ts";
-import { rawClient } from "./fixtures/raw-client.ts";
+import { isRecord, rawClient } from "./fixtures/raw-client.ts";
 import { HELLO_PARAMS } from "./fixtures/wire-client.ts";
 
 const SOME_THREAD = fixedIdFactory().next("thr");
+
+const withId = (id: string) => (message: unknown) => isRecord(message) && message["id"] === id;
 
 async function wireErrorOf(call: Promise<unknown>): Promise<WireError> {
   try {
@@ -130,6 +132,68 @@ test("cancel-request: a cancel before hello is ignored", async () => {
   await connection.close();
 });
 
+test("connection-reset: a new page can say hello again, its old requests end without a reply, its subscription is dropped", async () => {
+  const aborted: string[] = [];
+  const host = createFakeHost({
+    override: (table): WireHandlers => ({
+      ...table,
+      "thread.create": (_params, context) =>
+        new Promise((_resolve, reject) => {
+          context.signal.addEventListener("abort", () => {
+            aborted.push(context.rpcId);
+            reject(new Error("aborted by the test"));
+          });
+        }),
+    }),
+  });
+  const { client } = host.connect();
+  const raw = rawClient(client);
+  const count = (id: string): number => raw.received.filter((e) => withId(id)(e.message)).length;
+
+  await raw.send({ jsonrpc: "2.0", id: "r1", method: "host.hello", params: HELLO_PARAMS });
+  await raw.response("r1");
+  await raw.send({
+    jsonrpc: "2.0",
+    id: "r2",
+    method: "events.subscribe",
+    params: { from: "head" },
+  });
+  await raw.response("r2");
+  await raw.send({ jsonrpc: "2.0", id: "r3", method: "thread.create", params: {} });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  const state = host.hub.connections()[0];
+  expect(state?.subs.size).toBe(1);
+
+  await raw.send({ jsonrpc: "2.0", method: "$/connectionReset", params: {} });
+  // 새 화면은 같은 연결에서 id를 r1부터 다시 쓴다
+  await raw.send({ jsonrpc: "2.0", id: "r1", method: "host.hello", params: HELLO_PARAMS });
+  await raw.waitFor(() => count("r1") === 2);
+  await raw.send({ jsonrpc: "2.0", id: "r3", method: "settings.get", params: {} });
+  await raw.response("r3");
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  expect(aborted).toEqual(["r3"]);
+  // 이전 화면의 r3(thread.create)는 응답 없이 끝났다: r3 응답은 새 화면의 것 하나뿐이다
+  expect(count("r3")).toBe(1);
+  expect(raw.received.find((e) => withId("r3")(e.message))?.message).toMatchObject({
+    result: { settings: expect.any(Array) },
+  });
+  expect(raw.received.findLast((e) => withId("r1")(e.message))?.message).toMatchObject({
+    result: { protocolVersion: expect.any(String) },
+  });
+  expect(state?.subs.size).toBe(0);
+  expect(state?.phase).toBe("ready");
+  await raw.close();
+});
+
+test("connection-reset: a reset before hello is ignored", async () => {
+  const host = createFakeHost();
+  const { connection } = host.connect();
+  await connection.notify("$/connectionReset", {});
+  await ready(connection);
+  await connection.close();
+});
+
 test("not-implemented-hidden: an unimplemented method is -32601 and is not in the hello features", async () => {
   const host = createFakeHost();
   const { connection } = host.connect();
@@ -143,13 +207,15 @@ test("not-implemented-hidden: an unimplemented method is -32601 and is not in th
   expect(names).toContain("events.batch");
   expect(names).toContain("stream.chunk");
   expect(names).toContain("$/cancelRequest");
-  expect(names).not.toContain("thread.list");
-  expect(names).not.toContain("host.status");
+  // 모든 메서드가 구현된 지금, 열리지 않는 것은 수명 신호가 없는 호스트의 host.shutdown뿐이다
+  expect(names).toContain("thread.list");
+  expect(names).toContain("host.status");
+  expect(names).not.toContain("host.shutdown");
   expect(hello.features.every((feature) => feature.status === "active")).toBe(true);
 
-  const missing = await wireErrorOf(connection.request("thread.list", {}));
+  const missing = await wireErrorOf(connection.request("host.shutdown", { reason: "client_exit" }));
   expect(missing.code).toBe(-32601);
-  expect(missing.data.details).toEqual({ method: "thread.list" });
+  expect(missing.data.details).toEqual({ method: "host.shutdown" });
   await connection.close();
 });
 

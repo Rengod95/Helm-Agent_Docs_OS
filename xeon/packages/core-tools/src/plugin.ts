@@ -123,6 +123,7 @@ export function toolsPlugin(options: ToolsPluginOptions): ExtensionUnit {
         // 출력 절단은 xeon.exec가 제공한다. core-tools에는 사본을 두지 않는다(review.decisions-2 D-08, B-04)
         truncator: exec,
         redactor: secrets.redactor,
+        secrets,
         ext,
         resolveCapability,
         config: configReader(options.settings, session),

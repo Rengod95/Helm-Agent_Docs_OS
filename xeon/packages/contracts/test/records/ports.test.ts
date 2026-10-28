@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import { ok, parse, type Result } from "../../src/base/index.ts";
 import {
   EventIdSchema,
   ThreadIdSchema,
@@ -8,19 +10,26 @@ import {
 import {
   COMMIT_KEY_PATTERN,
   MAX_REPLAY_ATTEMPTS,
+  APPROVAL_REQUEST_KEY_MAX,
+  ApprovalRequestedPayloadSchema,
   RESERVED_SOURCE_KEYS,
   commitKeyPart,
+  isApprovalRequestKey,
+  requestKeyFor,
   ownerOfKind,
   type DurableEventDraft,
   type ExtCommitRequest,
   type ExtCommitResult,
   type ExtRecordQuery,
   type ExtRecordRow,
+  type ReadFailure,
   type ExtThreadSnapshot,
   type ExtensionEventKind,
   type RecordCommitPort,
 } from "../../src/records/index.ts";
+import { L2_APPROVAL_REQUEST_ID_MAX } from "../../src/services/index.ts";
 import { must, rawId } from "../helpers/ids.ts";
+import { PAYLOAD_FIXTURES } from "./fixtures/payloads.ts";
 
 const THREAD_ID = must(ThreadIdSchema, rawId("thr", 1));
 
@@ -85,20 +94,37 @@ function fakePort(committer: string): RecordCommitPort {
       }
       return Promise.resolve({ status: "committed" });
     },
-    loadThread(): Promise<ExtThreadSnapshot> {
-      return Promise.resolve({ enabled: [], states: [], openLease: null, leaseEpochs: {} });
+    loadThread(): Promise<Result<ExtThreadSnapshot, ReadFailure>> {
+      return Promise.resolve(
+        ok({
+          enabled: [],
+          disabled: [],
+          scopeTransitions: {},
+          enabledAtSeq: {},
+          states: [],
+          openLease: null,
+          leaseEpochs: {},
+        }),
+      );
     },
     queryRecords(_threadId: ThreadId, query: ExtRecordQuery, reader: string) {
       const wildcard = query.kind.endsWith(".*");
       const prefix = wildcard ? query.kind.slice(0, -1) : query.kind;
       return Promise.resolve(
-        rows
-          .filter((r) => (wildcard ? r.row.kind.startsWith(prefix) : r.row.kind === prefix))
-          .filter((r) => r.privateOwner === null || r.privateOwner === reader)
-          .map((r) => r.row),
+        ok(
+          rows
+            .filter((r) => (wildcard ? r.row.kind.startsWith(prefix) : r.row.kind === prefix))
+            .filter((r) => r.privateOwner === null || r.privateOwner === reader)
+            .map((r) => r.row),
+        ),
       );
     },
   };
+}
+
+function rowsOf(result: Result<readonly ExtRecordRow[], ReadFailure>): readonly ExtRecordRow[] {
+  if (!result.ok) throw new Error(`unexpected read failure: ${result.error.kind}`);
+  return result.value;
 }
 
 function request(
@@ -129,6 +155,75 @@ describe("commit keys and replay limits", () => {
 
 const fakeHash = (text: string): string =>
   `${text.length.toString(16).padStart(2, "0")}${"ab".repeat(40)}`;
+
+const sha256Hex = (text: string): string => createHash("sha256").update(text).digest("hex");
+
+describe("requestKeyFor (U-13, approval request keys)", () => {
+  const KEY_SHAPE = /^[A-Za-z0-9_.-]{1,48}$/;
+
+  test("the limit equals the record schema's requestKey maxLength and the L2 port limit", () => {
+    expect(APPROVAL_REQUEST_KEY_MAX).toBe(48);
+    const base = PAYLOAD_FIXTURES["approval.requested"];
+    const withKey = (requestKey: string) =>
+      parse(ApprovalRequestedPayloadSchema, { ...base, requestKey }).ok;
+    expect(withKey("k".repeat(APPROVAL_REQUEST_KEY_MAX))).toBe(true);
+    expect(withKey("k".repeat(APPROVAL_REQUEST_KEY_MAX + 1))).toBe(false);
+    expect(L2_APPROVAL_REQUEST_ID_MAX).toBe(APPROVAL_REQUEST_KEY_MAX);
+  });
+
+  test("a plain id up to 48 characters is used as is", () => {
+    expect(requestKeyFor("call_1", sha256Hex)).toBe("call_1");
+    expect(requestKeyFor("x".repeat(48), sha256Hex)).toBe("x".repeat(48));
+  });
+
+  test("an id of 49 or more characters becomes h_ plus the first 40 hex of its sha256", () => {
+    const raw = "x".repeat(49);
+    expect(requestKeyFor(raw, sha256Hex)).toBe(`h_${sha256Hex(raw).slice(0, 40)}`);
+    const long = "y".repeat(500);
+    expect(requestKeyFor(long, sha256Hex)).toBe(`h_${sha256Hex(long).slice(0, 40)}`);
+  });
+
+  test("an id with characters outside the key alphabet is hashed to the same shape", () => {
+    for (const raw of ["a:b", "call|odd id/with space", "", "한글", "h_plain"]) {
+      const key = requestKeyFor(raw, sha256Hex);
+      expect(key).toBe(`h_${sha256Hex(raw).slice(0, 40)}`);
+      expect(KEY_SHAPE.test(key)).toBe(true);
+    }
+  });
+
+  test("different raw ids give different keys and the same raw id the same key", () => {
+    const a = requestKeyFor("x".repeat(60), sha256Hex);
+    const b = requestKeyFor(`${"x".repeat(59)}y`, sha256Hex);
+    expect(a).not.toBe(b);
+    expect(requestKeyFor("x".repeat(60), sha256Hex)).toBe(a);
+    // 해시 결과를 다시 넣어도 자기 자신이 되지 않는다(h_ 접두 원문은 해시된다)
+    expect(requestKeyFor(a, sha256Hex)).not.toBe(a);
+  });
+});
+
+describe("isApprovalRequestKey (U-13)", () => {
+  test("accepts what requestKeyFor produces and nothing that it would hash", () => {
+    for (const raw of ["call_1", "x".repeat(48), "x".repeat(60), "h_plain", "a:b", ""]) {
+      const key = requestKeyFor(raw, sha256Hex);
+      expect(isApprovalRequestKey(key)).toBe(true);
+    }
+    expect(isApprovalRequestKey("call_1.ask-2")).toBe(true);
+  });
+
+  test("rejects an h_ prefixed raw id, odd characters, empty and too long values", () => {
+    for (const raw of [
+      "h_plain",
+      `h_${"a".repeat(39)}`,
+      `h_${"A".repeat(40)}`,
+      `h_${"a".repeat(41)}`,
+    ]) {
+      expect(isApprovalRequestKey(raw)).toBe(false);
+    }
+    for (const raw of ["", "a:b", "ask one", "한글", "x".repeat(49)]) {
+      expect(isApprovalRequestKey(raw)).toBe(false);
+    }
+  });
+});
 
 describe("commitKeyPart (U-13)", () => {
   test("a plain id is used as is", () => {
@@ -169,16 +264,16 @@ describe("private records (acceptance 13)", () => {
     expect(await port.commit(request("k1", ["x.alpha.note.added"], "private"))).toEqual({
       status: "committed",
     });
-    expect((await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(1);
-    expect((await port.queryRecords(THREAD_ID, query, "beta")).length).toBe(0);
+    expect(rowsOf(await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(1);
+    expect(rowsOf(await port.queryRecords(THREAD_ID, query, "beta")).length).toBe(0);
   });
 
   test("rows committed without visibility are visible to everyone", async () => {
     const port = fakePort("alpha");
     await port.commit(request("k1", ["x.alpha.note.added"]));
     await port.commit(request("k2", ["x.alpha.note.added"], "public"));
-    expect((await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(2);
-    expect((await port.queryRecords(THREAD_ID, query, "beta")).length).toBe(2);
+    expect(rowsOf(await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(2);
+    expect(rowsOf(await port.queryRecords(THREAD_ID, query, "beta")).length).toBe(2);
   });
 
   test("a private commit of another extension's kind is rejected as invalid", async () => {
@@ -201,6 +296,31 @@ describe("private records (acceptance 13)", () => {
     expect(await port.commit(request("same", ["x.alpha.note.added"]))).toEqual({
       status: "replayed",
     });
-    expect((await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(1);
+    expect(rowsOf(await port.queryRecords(THREAD_ID, query, "alpha")).length).toBe(1);
+  });
+});
+
+describe("ExtThreadSnapshot scope history", () => {
+  test("a snapshot carries disabled scopes, transition counts and enable seqs", async () => {
+    const snapshot: ExtThreadSnapshot = {
+      enabled: ["alpha"],
+      disabled: ["beta"],
+      scopeTransitions: { alpha: 1, beta: 2 },
+      enabledAtSeq: { alpha: 7 },
+      states: [],
+      openLease: null,
+      leaseEpochs: {},
+    };
+    const port: Pick<RecordCommitPort, "loadThread"> = {
+      loadThread: () => Promise.resolve(ok(snapshot)),
+    };
+    const loadedResult = await port.loadThread(THREAD_ID);
+    expect(loadedResult.ok).toBe(true);
+    if (!loadedResult.ok) return;
+    const loaded = loadedResult.value;
+    expect(loaded.disabled).toEqual(["beta"]);
+    expect(loaded.scopeTransitions["beta"]).toBe(2);
+    // 켜진 scope만 enabledAtSeq 키를 갖는다
+    expect(Object.keys(loaded.enabledAtSeq)).toEqual([...loaded.enabled]);
   });
 });

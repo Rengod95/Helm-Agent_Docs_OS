@@ -1,13 +1,14 @@
 import { expect, test } from "bun:test";
 import type { ThreadId } from "@xeon/contracts/conversation";
 import { LeaseArbiterPortKey, type LeaseCandidate, type ScopeId } from "@xeon/contracts/extensions";
+import type { PlatformModule } from "../../src/primitives/index.ts";
 import {
   createStaticPrimitivesSettings,
   type PrimitivesSettingsSource,
 } from "../../src/primitives/settings.ts";
 import { createTestHost } from "../../src/testing/index.ts";
 import { eachInOrder } from "../../src/primitives/sequence.ts";
-import { makeGroupUnit } from "./fixtures/support.ts";
+import { makeGroupUnit, snapshotOf } from "./fixtures/support.ts";
 
 type Host = Awaited<ReturnType<typeof createTestHost>>;
 
@@ -165,4 +166,53 @@ test("a group released as idle is a candidate again only after a turn settles", 
   await t.settled();
   expect(kinds(t, thread, "lease.acquired")).toHaveLength(acquiredAfterIdle + 1);
   expect(invocations).toBeGreaterThanOrEqual(3);
+});
+
+function arbiterRecording(seen: (readonly LeaseCandidate[])[]): PlatformModule {
+  return {
+    name: "test-groups",
+    setup(ctx) {
+      ctx.providePort(LeaseArbiterPortKey, {
+        choose(_threadId, candidates) {
+          seen.push(candidates);
+          return null;
+        },
+      });
+    },
+  };
+}
+
+test("candidates carry the seq of the last scope.changed enabled, from the snapshot after a restart too", async () => {
+  const t = await createTestHost();
+  const seen: (readonly LeaseCandidate[])[] = [];
+  await t.host.registerPlatform(arbiterRecording(seen));
+  await installDriveGroups(t, ["sq-a", "sq-b"], []);
+  const thread = t.newThread();
+  await t.host.openThread(thread);
+  await t.settled();
+  // 처음 켜지는 경계에서는 scope.changed가 아직 커밋 전이라 seq가 없다
+  expect(seen[0]?.map((candidate) => candidate.enabledAtSeq)).toEqual([null, null]);
+  const stored = (await snapshotOf(t.records, thread)).enabledAtSeq;
+  expect(typeof stored["sq-a"]).toBe("number");
+  expect(typeof stored["sq-b"]).toBe("number");
+  await t.boundary(thread).turnSettled();
+  await t.settled();
+  expect(seen.at(-1)?.map((candidate) => candidate.enabledAtSeq)).toEqual([
+    stored["sq-a"] ?? null,
+    stored["sq-b"] ?? null,
+  ]);
+
+  // 재시작 뒤 첫 중재는 스냅샷의 seq를 쓴다
+  const second = await createTestHost({
+    shared: { records: t.records, loop: t.loop, queue: t.queue },
+  });
+  const afterRestart: (readonly LeaseCandidate[])[] = [];
+  await second.host.registerPlatform(arbiterRecording(afterRestart));
+  await installDriveGroups(second, ["sq-a", "sq-b"], []);
+  await second.host.openThread(thread);
+  await second.settled();
+  expect(afterRestart[0]?.map((candidate) => candidate.enabledAtSeq)).toEqual([
+    stored["sq-a"] ?? null,
+    stored["sq-b"] ?? null,
+  ]);
 });

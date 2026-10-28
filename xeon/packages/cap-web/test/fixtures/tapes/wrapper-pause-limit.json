@@ -1,0 +1,110 @@
+{
+  "name": "wrapper-pause-limit",
+  "support": {
+    "supported": true,
+    "provider": "anthropic",
+    "modelId": "tape-small"
+  },
+  "turns": [
+    {
+      "expectContinuation": null,
+      "response": {
+        "stopReason": "pause_turn",
+        "text": "",
+        "results": [
+          {
+            "url": "https://paused.example.org/p1",
+            "title": "Page 1",
+            "pageAge": null
+          }
+        ],
+        "citations": [],
+        "usage": {
+          "inputTokens": 100,
+          "outputTokens": 10,
+          "searchRequests": 1
+        },
+        "model": {
+          "provider": "anthropic",
+          "modelId": "tape-small"
+        },
+        "continuation": "c1"
+      }
+    },
+    {
+      "expectContinuation": "c1",
+      "response": {
+        "stopReason": "pause_turn",
+        "text": "",
+        "results": [
+          {
+            "url": "https://paused.example.org/p2",
+            "title": "Page 2",
+            "pageAge": null
+          }
+        ],
+        "citations": [],
+        "usage": {
+          "inputTokens": 200,
+          "outputTokens": 20,
+          "searchRequests": 1
+        },
+        "model": {
+          "provider": "anthropic",
+          "modelId": "tape-small"
+        },
+        "continuation": "c2"
+      }
+    },
+    {
+      "expectContinuation": "c2",
+      "response": {
+        "stopReason": "pause_turn",
+        "text": "",
+        "results": [
+          {
+            "url": "https://paused.example.org/p3",
+            "title": "Page 3",
+            "pageAge": null
+          }
+        ],
+        "citations": [],
+        "usage": {
+          "inputTokens": 300,
+          "outputTokens": 30,
+          "searchRequests": 1
+        },
+        "model": {
+          "provider": "anthropic",
+          "modelId": "tape-small"
+        },
+        "continuation": "c3"
+      }
+    },
+    {
+      "expectContinuation": "c3",
+      "response": {
+        "stopReason": "pause_turn",
+        "text": "",
+        "results": [
+          {
+            "url": "https://paused.example.org/p4",
+            "title": "Page 4",
+            "pageAge": null
+          }
+        ],
+        "citations": [],
+        "usage": {
+          "inputTokens": 400,
+          "outputTokens": 40,
+          "searchRequests": 1
+        },
+        "model": {
+          "provider": "anthropic",
+          "modelId": "tape-small"
+        },
+        "continuation": "c4"
+      }
+    }
+  ]
+}

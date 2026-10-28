@@ -11,7 +11,7 @@ import type {
   Usage,
 } from "@xeon/contracts/conversation";
 import type { EffectIntent } from "@xeon/contracts/records";
-import type { ModelBinding, TaskScope } from "@xeon/contracts/services";
+import type { ChildTurnRequest, ModelBinding, TaskScope } from "@xeon/contracts/services";
 import type { PlacedInput, StepRef } from "../commits.ts";
 import type { ThreadRuntime } from "../types.ts";
 
@@ -88,6 +88,8 @@ export interface TurnRunSpec {
   /** 재개 전 마지막 어시스턴트 응답의 stopReason과 오류 문장 */
   readonly priorLastStop: StopReason | null;
   readonly priorLastError: string | null;
+  /** 자식 thread turn이면 그 요청(시스템 프롬프트, 모델, 도구 맥락, 한도). 주 대화와 drive turn은 null */
+  readonly child: ChildTurnRequest | null;
 }
 
 export interface TurnRunResult {

@@ -1,4 +1,5 @@
 import type { Clock, Logger } from "@xeon/contracts";
+import type { SessionPoints } from "./points.ts";
 import type { IdFactory, ThreadId } from "@xeon/contracts/conversation";
 import type {
   EventKindRegistry,
@@ -16,6 +17,10 @@ export interface PersistenceSettings {
   readonly maxResumeAttempts: number;
   /** 서비스 모드에서 열 때 표식이 남은 thread를 자동 재개한다. 기본 거짓(M3) */
   readonly autoResume: boolean;
+  /** 마지막 갱신 뒤 이 일수가 지난 thread를 보관 정리가 지운다. 0이면 지우지 않는다 */
+  readonly retentionMaxAgeDays: number;
+  /** thread 수 상한. 넘으면 오래된 것부터 지운다. 0이면 상한 없음 */
+  readonly retentionMaxCount: number;
 }
 
 /**
@@ -41,6 +46,10 @@ export interface SessionDeps {
   readonly faults?: FaultInjector;
   /** 확장 kind 등록부. 없으면 코어·도메인 카탈로그만 안다 */
   readonly eventKinds?: EventKindRegistry;
+  /** 확장 지점 발화(session_start 등 7개). 없으면 발화하지 않는다 */
+  readonly points?: SessionPoints;
+  /** 참이면 확장·능력 투영기가 소유 테이블 밖을 건드리는 문장을 거부한다. 테스트·디버그 빌드용이고 운영은 생략한다(L1.persistence.spec §4.5.2) */
+  readonly guardProjectors?: boolean;
   /** 현재 설정 값. 호출 때마다 읽는다(`live` 키). 생략하면 기본값 */
   readonly settings?: () => PersistenceSettings;
   /** 이 엔진 인스턴스의 임대 홀더. 자식 thread 임대(`inheritOwnerFrom`)에 필요하다 */
@@ -52,4 +61,6 @@ export interface SessionDeps {
 export const DEFAULT_PERSISTENCE_SETTINGS: PersistenceSettings = {
   maxResumeAttempts: 3,
   autoResume: false,
+  retentionMaxAgeDays: 0,
+  retentionMaxCount: 0,
 };

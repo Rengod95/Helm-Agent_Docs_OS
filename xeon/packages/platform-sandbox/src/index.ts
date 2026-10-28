@@ -4,6 +4,8 @@ export {
   createSandboxService,
   type SandboxServiceDeps,
   type SandboxServiceHandle,
+  type SelfTestRunError,
+  type SelfTestSchedule,
 } from "./service.ts";
 export {
   DEFAULT_SANDBOX_SETTINGS,

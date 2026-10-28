@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
 import { SESSION_TABLE_COLUMNS } from "../src/index.ts";
-import { newThread, openHarness } from "./support/harness.ts";
+import { newThread, openHarness, type Harness } from "./support/harness.ts";
 
-function columnsOf(h: ReturnType<typeof openHarness>, table: string): readonly string[] {
+function columnsOf(h: Harness, table: string): readonly string[] {
   return h.store.raw
     .query<{ name: string }, []>(`SELECT name FROM pragma_table_info('${table}')`)
     .all()
@@ -90,22 +90,22 @@ const PROJECTION_COLUMNS: Readonly<Record<string, readonly string[]>> = {
   ],
 };
 
-test("ddl_matches_spec_table: non-projection tables", () => {
-  const h = openHarness();
+test("ddl_matches_spec_table: non-projection tables", async () => {
+  const h = await openHarness();
   for (const [table, columns] of Object.entries(SESSION_TABLE_COLUMNS)) {
     expect(columnsOf(h, table)).toEqual([...columns]);
   }
 });
 
-test("ddl_matches_spec_table: core projection tables", () => {
-  const h = openHarness();
+test("ddl_matches_spec_table: core projection tables", async () => {
+  const h = await openHarness();
   for (const [table, columns] of Object.entries(PROJECTION_COLUMNS)) {
     expect(columnsOf(h, table)).toEqual([...columns]);
   }
 });
 
-test("every table is STRICT", () => {
-  const h = openHarness();
+test("every table is STRICT", async () => {
+  const h = await openHarness();
   const names = h.store.raw
     .query<{ name: string }, []>(
       "SELECT name FROM pragma_table_list WHERE schema = 'main' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'sys_%'",
@@ -122,8 +122,8 @@ test("every table is STRICT", () => {
 });
 
 // spec §9.21
-test("events_update_and_stray_delete_blocked_by_trigger", () => {
-  const h = openHarness();
+test("events_update_and_stray_delete_blocked_by_trigger", async () => {
+  const h = await openHarness();
   const { threadId } = newThread(h);
   const run =
     (sql: string, params: string[] = []) =>
@@ -138,8 +138,8 @@ test("events_update_and_stray_delete_blocked_by_trigger", () => {
   expect(() => h.store.raw.run("DELETE FROM events WHERE thread_id = ?", [threadId])).not.toThrow();
 });
 
-test("event_seq starts at 1 and the migration is applied once", () => {
-  const h = openHarness();
+test("event_seq starts at 1 and the migration is applied once", async () => {
+  const h = await openHarness();
   const row = h.store.raw
     .query<{ next_seq: number }, []>("SELECT next_seq FROM event_seq WHERE singleton = 1")
     .get();

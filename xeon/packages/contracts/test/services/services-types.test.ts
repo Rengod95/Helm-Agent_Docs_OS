@@ -18,11 +18,13 @@ import type {
   StepCheckpoint,
   StoreService,
 } from "../../src/records/index.ts";
-import type { ModelThinkingLevel } from "../../src/conversation/index.ts";
+import type { ModelThinkingLevel, ThreadId } from "../../src/conversation/index.ts";
 import type {
   ApprovalRequest,
   ApprovalResolution,
+  GroupCommandError,
   GroupService,
+  GroupSettingUnwritableReason,
   LoopService,
   McpService,
   ModelBinding,
@@ -83,6 +85,35 @@ export type ResolutionIsPayload = Expect<
 /** GroupService의 설정 범위는 SettingScope와 서로 대입 가능하다(L3.group-kit.spec §9 20) */
 type HolderScope = NonNullable<Parameters<GroupService["setDriveHolder"]>[1]>["scope"];
 export type HolderScopeIsSettingScope = Expect<Equal<NonNullable<HolderScope>, SettingScope>>;
+
+/** setDriveHolder는 쓸 thread를 옵션으로 받는다(L3.group-kit.spec §3.8, 통합 검토 L8) */
+type HolderOptions = NonNullable<Parameters<GroupService["setDriveHolder"]>[1]>;
+export type HolderOptionTargetsThread = Expect<
+  Equal<HolderOptions["threadId"], ThreadId | undefined>
+>;
+
+/** 쓸 수 없었던 이유 여섯 가지가 group.settingUnwritable 오류의 reason이다 */
+export type UnwritableReasons = Expect<
+  Equal<
+    GroupSettingUnwritableReason,
+    | "no_thread"
+    | "ambiguous_thread"
+    | "not_owner"
+    | "project_unavailable"
+    | "invalid_value"
+    | "storage"
+  >
+>;
+export type UnwritableErrorCarriesReason = Expect<
+  Equal<
+    Extract<GroupCommandError, { readonly kind: "group.settingUnwritable" }>,
+    {
+      readonly kind: "group.settingUnwritable";
+      readonly key: string;
+      readonly reason: GroupSettingUnwritableReason;
+    }
+  >
+>;
 
 /** SandboxService.wrapShell은 Shell을 받아 Shell을 돌려준다 */
 export type WrapShellKeepsShell = Expect<

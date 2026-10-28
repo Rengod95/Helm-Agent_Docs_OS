@@ -301,6 +301,8 @@ export const WorkTasksKey = serviceKey(WorkTasks);
 - 상태 5종 [제안]: `pending`, `in_progress`, `completed`, `failed`, `cancelled`. omp todo의 5종 상태와 수가 같다(`_research/l2e.md` §3.1 A1). 막힘은 상태로 두지 않고 계산한다. 상태로 두면 선행 작업이 끝날 때마다 다른 작업의 상태를 고쳐야 하기 때문이다.
 - `executionMode: "sequential"`: 같은 단계에서 `task_write`가 두 번 호출되면 순서대로 적용해야 결과 목록이 결정적이다.
 - `MethodDef.errors`의 고유 코드는 `task_` 접두로 공통 코드와 겹치지 않는다(`L2.readme` §5.5).
+- [결정: WK.1] `task_write`는 L1.tools 등록에서 `risk: "read"`다. 작업 목록은 작업 영역의 파일을 바꾸지 않으므로 계획 모드(`write`·`exec` 거부)에서도 목록을 쓸 수 있어야 하고, 매번 승인을 묻지 않는다. 클래스 표지(`classes`)는 달지 않는다. 서브에이전트는 자기 스레드의 목록을 쓰기 때문이다.
+- [결정: WK.1] `list`도 스레드별 쓰기 큐(§4.1.1)를 지난다. 먼저 부른 쓰기가 끝난 뒤의 목록을 본다.
 
 ### 3.3 `work.plans`
 
@@ -794,7 +796,7 @@ CREATE TABLE cap_work_tasks (
   updated_seq  INTEGER NOT NULL,
   PRIMARY KEY (session_id, task_id)
 ) STRICT;
-CREATE TABLE cap_work_task_edges (
+CREATE TABLE cap_work_edges (
   session_id   TEXT NOT NULL,
   task_id      TEXT NOT NULL,
   blocked_by   TEXT NOT NULL,
@@ -814,7 +816,7 @@ CREATE TABLE cap_work_plans (
   decided_seq  INTEGER,
   PRIMARY KEY (session_id, plan_id, version)
 ) STRICT;
-CREATE INDEX cap_work_plans_approval ON cap_work_plans (session_id, approval_id);
+CREATE INDEX cap_work_plans_approval ON cap_work_plans (approval_id);   -- [결정: WK.2] 요청한 대화와 기록한 대화가 다를 수 있어 승인 id만으로 찾는다
 CREATE TABLE cap_work_goals (
   session_id   TEXT NOT NULL,
   goal_id      TEXT NOT NULL,
@@ -844,21 +846,25 @@ CREATE TABLE cap_work_reports (
 CREATE TABLE cap_work_meta (
   session_id   TEXT NOT NULL PRIMARY KEY,
   turns_completed INTEGER NOT NULL,     -- turn.completed 개수(방치 알림용)
-  last_task_change_turn INTEGER NOT NULL
+  last_task_change_turn INTEGER NOT NULL,
+  mode         TEXT,                    -- [결정: WK.2] 세션 범위에서 마지막으로 정한 권한 모드(없으면 NULL)
+  mode_before_plan TEXT,                -- 계획 모드에 들어가기 직전 모드
+  plan_entered_seq INTEGER              -- 지금 계획 모드이면 들어온 시점의 seq, 아니면 NULL
 ) STRICT;
 ```
 
-관심 type: `work.*` 전부, `approval.requested`, `approval.resolved`, `turn.completed`.
+관심 type: `work.*` 전부, `approval.requested`, `approval.resolved`, `settings.changed`(키 `l1.tools.permissionMode`, 범위 `session`만), `turn.completed`.
 
 | 입력 이벤트 | 갱신 |
 |---|---|
-| `work.task_created` | `cap_work_tasks` 행 추가, `blockedBy`마다 `cap_work_task_edges` 행 |
+| `work.task_created` | `cap_work_tasks` 행 추가, `blockedBy`마다 `cap_work_edges` 행. `last_task_change_turn = turns_completed` |
 | `work.task_changed` | 해당 행 갱신, `updated_seq`. `cap_work_meta.last_task_change_turn = turns_completed` |
-| `work.task_linked` / `work.task_unlinked` | 간선 행 추가·삭제 |
-| `work.plan_submitted` | 버전 행 추가(`status = submitted`). `supersedes`가 있으면 그 버전 행 `superseded` |
-| `approval.requested`(kind `plan`) | 대상의 `planId`, `version` 행에 `approval_id` 기록 |
-| `approval.resolved` | `approval_id`가 일치하는 행이 있으면 결정에 따라 `status`, `feedback`, `decided_seq` 갱신(§4.2.3 대응표). 없으면 무시 |
-| `work.plan_withdrawn` | 해당 행 `withdrawn` |
+| `work.task_linked` / `work.task_unlinked` | 간선 행 추가·삭제, 해당 작업 행의 `updated_seq`. `last_task_change_turn = turns_completed` |
+| `work.plan_submitted` | 버전 행 추가(`status = submitted`). `supersedes`가 있고 그 버전이 아직 `submitted`이면 `superseded`로 바꾼다(결정이 난 판의 상태는 지키므로 보통은 바뀌지 않는다) |
+| `approval.requested`(kind `plan`) | `body.plan.planRef`(`plan:<planId>:<version>`)가 가리키는 행에 `approval_id` 기록(`origin.threadId`의 행) |
+| `approval.resolved` | `approval_id`가 일치하고 `submitted`인 행이 있으면 결정에 따라 `status`, `feedback`, `decided_seq` 갱신(§4.2.3 대응표). 없으면 무시 |
+| `work.plan_withdrawn` | 해당 행 `withdrawn`(`submitted`일 때만) |
+| `settings.changed`(권한 모드, 세션 범위) | `mode` 갱신. 값이 `plan`이고 직전 값이 `plan`이 아니면 `mode_before_plan = 직전 값(없으면 default)`, `plan_entered_seq = 이 이벤트의 seq`. 값이 `plan`이 아니면 `plan_entered_seq = NULL` |
 | `work.goal_set` | 목표 행 추가 |
 | `work.goal_judged` | 판정 행 추가, 목표 JSON의 `judgments`, `lastVerdict` 갱신 |
 | `work.goal_settled` | 목표 `status`, `settled_seq` |
@@ -866,6 +872,11 @@ CREATE TABLE cap_work_meta (
 | `turn.completed` | `cap_work_meta.turns_completed + 1` |
 
 - 순번 ID 발급(§4.1.1)에 필요한 최댓값은 이 테이블에서 계산한다.
+- [결정: WK.1] 방치 알림(§4.1.6)의 기준 턴은 작업 이벤트 네 종류(`task_created`, `task_changed`, `task_linked`, `task_unlinked`)가 모두 갱신한다. 목록을 처음 만든 호출도 목록을 쓴 것으로 센다. `cap_work_meta` 행은 첫 작업 이벤트나 첫 `turn.completed`에서 만든다.
+- [결정: WK.1] 간선 행의 읽기 순서는 삽입 순서(`rowid`)다. `blockedBy` 배열의 순서가 재생성 뒤에도 같다.
+- [결정: WK.3 통합] 작업 의존 간선 테이블 이름은 `cap_work_edges`다. 투영기 등록부(F.records.spec §3.4)가 접두 뒤 지역 이름에 밑줄을 허용하지 않아 `cap_work_task_edges`를 바꿨다. 투영 대역이 이 검사를 하지 않아 실제 등록부로 바꾸기 전에는 드러나지 않았다.
+- 투영기 `cap.work` 버전 2는 `cap_work_tasks`, `cap_work_edges`, `cap_work_plans`, `cap_work_meta` 넷을 만든다(버전 1은 `cap_work_plans` 없이 작업 셋). 목표·보고 테이블은 해당 작업(T9~T12)이 더하면서 투영 버전을 올린다.
+- [결정: WK.2] 권한 모드 추적은 `settings.changed`가 세션 범위에서 나온 변경만 본다. 파일 설정(사용자·프로젝트 범위)이 정한 모드는 이벤트가 없으므로 `mode_before_plan`은 세션 범위 이력의 직전 값이고, 그런 이력이 없으면 default다. 이 프로세스가 직접 계획 모드에 넣은 스레드는 메모리에 실제 직전 모드를 두고 우선한다(재시작 뒤에는 투영 값). L1.tools가 직전 모드를 이벤트로 남기면 이 한계가 사라진다(§10 W-16).
 - `approval.resolved` payload의 결정 필드 이름은 L1.tools.spec이 정한다. 투영기는 F에 있는 그 payload 스키마만 import한다(§10 W-2).
 
 ## 4. 동작 규칙
@@ -875,8 +886,10 @@ CREATE TABLE cap_work_meta (
 #### 4.1.1 ID 발급과 쓰기 순서
 
 - [제안] cap-work는 스레드마다 쓰기를 직렬화한다(스레드별 비동기 큐 하나). 한 스레드의 쓰기 소유자는 프로세스 하나다(eng.transactions.design §3.3). 그래서 메모리의 순번 카운터로 ID를 발급해도 충돌하지 않는다.
-- 카운터는 스레드를 처음 쓸 때 `cap_work_tasks`의 `MAX(ord)`로 채운다. 발급한 ID는 이벤트 payload에 기록되고, 재생은 기록된 ID를 읽는다(F.conversation.spec §4 규칙 1).
-- 쓰기 메서드의 처리 순서: (1) 입력 검사, (2) 같은 `requestId`의 커밋 결과가 있으면 그 결과로 출력을 만들어 반환, (3) 투영에서 현재 목록을 읽어 규칙 검사(§4.1.2~§4.1.3), (4) 이벤트 초안을 만들어 `SessionWriter.commit` 한 번, (5) 커밋 후 투영을 다시 읽어 출력을 만든다. 트랜잭션 안에서 await나 I/O를 하지 않는다(TX-01).
+- [결정: WK.1] 순번 카운터를 메모리에 두지 않는다. 쓰기 큐 안에서 투영의 현재 목록을 읽을 때마다 `max(ord) + 1`을 다음 순번으로 쓴다. 쓰기 소유자가 프로세스 하나이고 큐가 직렬이므로 충돌하지 않고, 재생성이나 프로세스 재시작 뒤에도 따로 채울 것이 없다. 발급한 ID는 이벤트 payload에 기록되고, 재생은 기록된 ID를 읽는다(F.conversation.spec §4 규칙 1).
+- 쓰기 메서드의 처리 순서: (1) 입력 검사(`requestId`, 호출 문맥의 `threadId`), (2) 쓰기 큐에서 투영의 현재 목록을 읽는다, (3) `SessionWriter.commit` 한 번. 규칙 검사(§4.1.2~§4.1.3)와 이벤트 초안 만들기는 이 커밋의 `build` 안에서 한다(순수 함수 `planWrite`). (4) 커밋 뒤 투영을 다시 읽어 출력을 만든다. 트랜잭션 안에서 await나 I/O를 하지 않는다(TX-01).
+- [결정: WK.1] 같은 `requestId`의 재호출은 저장소가 `build` 전에 처음 결과를 돌려주므로, 상태가 바뀐 뒤에도 규칙 검사를 다시 하지 않는다. 결과 해석: (a) 커밋됨 + 재전송이면 `created`를 그 커밋의 `work.task_created` 이벤트에서 복원하고 `tasks`는 현재 목록이다. (b) 규칙 거부는 커밋 거부(reject) 레코드로 같은 키에 남기고(`code`는 오류 코드, `detail`은 `{ opIndex, failure }` JSON) 재호출이 같은 `CapabilityError`를 되풀이한다. (c) 모든 연산이 효과 없이 끝나 이벤트가 0개인 호출은 거부 코드 `noop`을 남기고 성공으로 답한다(`created`는 빈 배열). 같은 키로 다른 입력은 `key_reused`이고 `internal`로 바꿔 운영 로그 `work.tasks.key_reused`에 남긴다(§5.2).
+- 커밋 키는 `work:tasks:<requestId>`이고 `requestId`가 커밋 키 형식(`COMMIT_KEY_PATTERN`)에 맞지 않거나 120자를 넘으면 F `commitKeyPart`가 해시 형태로 바꾼다. 이벤트 `turnId`는 호출 문맥의 `turnId`, 없으면 `null`이다. `stepId`, `causationId`, `correlationId`는 `null`이다.
 - `write`는 연산을 순서대로 메모리 사본에 적용해 검사한 뒤 모든 이벤트를 커밋 하나에 넣는다. 한 연산이라도 실패하면 아무것도 커밋하지 않고 첫 실패의 오류를 낸다. `detail`에 실패한 연산 번호 `opIndex`를 싣는다.
 
 #### 4.1.2 상태 전이
@@ -913,7 +926,7 @@ CREATE TABLE cap_work_meta (
 #### 4.1.5 턴 사이 유지와 재생성
 
 - 작업 목록의 정본은 `work.*` 내구 이벤트다. `cap_work_` 테이블은 재생으로 다시 만든다. 투영을 지우고 이벤트에서 재생성한 결과는 원래 테이블과 행 단위로 같아야 한다(eng.events.design §5.4 `expectProjectionsRebuildable`).
-- 되감기(L1.persistence)로 활성 가지가 바뀌면, 조회는 활성 가지의 이벤트로 만든 상태를 보여야 한다. [가정] 투영은 모든 가지의 행을 갖고 조회가 사슬로 거른다는 eng.events.design §6의 규칙을 cap 투영에 그대로 적용하면, 작업 행마다 마지막 갱신 이벤트의 가지를 알아야 한다. M2에서는 되감기 뒤 `cap.work` 투영을 활성 가지만으로 재생성하는 방식을 쓴다 [제안]. 조회 시점 필터링은 §10 W-5로 남긴다.
+- 되감기(L1.persistence)로 활성 가지가 바뀌면, 조회는 활성 가지의 이벤트로 만든 상태를 보여야 한다. [가정] 투영은 모든 가지의 행을 갖고 조회가 사슬로 거른다는 eng.events.design §6의 규칙을 cap 투영에 그대로 적용하면, 작업 행마다 마지막 갱신 이벤트의 가지를 알아야 한다. M2에서는 되감기 뒤 `cap.work` 투영을 활성 가지만으로 재생성하는 방식을 쓴다 [제안]. 조회 시점 필터링은 §10 W-5로 남긴다. WK.1 구현은 투영이 모든 가지의 행을 그대로 가지며, 되감기 뒤 활성 가지 기준 재생성은 구현하지 않았다(W-5가 닫힐 때까지 되감기를 한 스레드의 목록은 되감기 이전 이벤트를 포함한다).
 
 #### 4.1.6 방치 알림
 
@@ -953,7 +966,7 @@ export interface ApprovalSnapshot {
 }
 export interface ApprovalsPort {
   /** 같은 requestId로 다시 부르면 새 요청을 만들지 않고 기존 요청의 현재 상태를 돌려준다 */
-  request(input: { threadId: ThreadId; kind: "plan"; subject: PlanApprovalSubject; answerSchema?: TSchema; requestId: string }): Promise<ApprovalSnapshot>;
+  request(input: { threadId: ThreadId; kind: "plan"; subject: PlanApprovalSubject; requestId: string }): Promise<ApprovalSnapshot>;
   get(threadId: ThreadId, approvalId: ApprovalId): Promise<ApprovalSnapshot | null>;
   respond(input: { threadId: ThreadId; approvalId: ApprovalId; decision: "allow" | "deny" | "answer"; answer?: JsonValue; requestId: string }): Promise<void>;
   cancel(threadId: ThreadId, approvalId: ApprovalId, reason: string): Promise<void>;
@@ -980,27 +993,30 @@ export const PlanApprovalSubjectSchema = Type.Object(
 );
 export type PlanApprovalSubject = Static<typeof PlanApprovalSubjectSchema>;
 
-// decision = "answer"일 때의 answer 내용
+// [결정: WK.3 통합] 계획 승인에서 쓰지 않는다(§4.2.3). 승인 서비스가 kind plan의 decision "answer"를 받지 않는다.
+// 정의는 F `defs/work.ts`에 남아 있다. decision = "answer"일 때의 answer 내용
 export const PlanApprovalAnswerSchema = Type.Object(
   { action: Type.Literal("revise"), feedback: Type.String({ minLength: 1, maxLength: 8192 }) },
   { additionalProperties: false },
 );
-// decision = "allow" | "deny"일 때 answer는 null 또는 { note: string }
+// decision = "allow"의 answer는 null 또는 { mode?, note? }, "deny"의 answer는 null 또는 { feedback }
 ```
 
 - 두 스키마는 `defs/work.ts`에 함께 둔다.
-- 선택지: 계획 승인의 선택지는 고정 셋(승인, 반려, 수정 요청)이다. [가정] L1.tools.spec 레코드의 선택지 필드는 kind `plan`에서 이 셋을 화면 표시용으로 싣는다.
+- [결정: WK.2] `PlanApprovalSubject`는 cap-work 안의 도메인 대상이고, L1에 가는 요청의 대상은 F `ApprovalBody`의 kind `plan` 모양 `{ plan, planRef, nextModes }`다(`src/ports/approvals.ts` `planSubject`). `plan`은 본문, `planRef`는 `plan:<planId>:<version>`(승인 화면이 `work.plans.versions`로 제목·산출물을 찾는 열쇠이고 투영기가 승인 id를 계획 판에 잇는 열쇠다), `nextModes`는 승인할 때 고를 수 있는 다음 권한 모드(계획 모드 직전 모드, default, acceptEdits. bypass는 직전 모드였을 때만)다. 제목과 산출물은 요청 레코드에 싣지 않는다.
+- 선택지: 계획 승인의 선택지는 고정 둘(승인, 반려)이다. 수정 요청은 피드백을 넣은 반려다(§4.2.3). 화면은 `nextModes` 중 하나를 고르는 승인과 `feedback`을 받는 반려를 보인다.
 
 #### 4.2.3 결정 대응표
 
 | wire `approval.respond` | `answer` | 계획 상태 | 서비스 메서드 |
 |---|---|---|---|
-| `decision: "allow"` | null 또는 `{ note }` | `approved` | `approve` |
-| `decision: "deny"` | null 또는 `{ note }` | `rejected`(`feedback = note`) | `reject` |
-| `decision: "answer"` | `PlanApprovalAnswer` | `revision_requested`(`feedback`) | `revise` |
-| 요청 취소(L1.tools) | 없음 | `withdrawn` | 없음 |
+| `decision: "allow"` | null, `{ note }`, `{ mode }`(L1.tools가 `nextModes` 안에서 받아 `setMode`를 부른다) | `approved` | `approve` |
+| `decision: "deny"` | null 또는 `{ feedback }`(`{ note }`도 읽는다) | `rejected`(`feedback`) | `reject`, `revise` |
+| 요청 취소(L1.tools, `resolvedBy` `cancelled`·`superseded`) | 없음 | `withdrawn` | 없음 |
 
-- `approve`, `reject`, `revise` 메서드는 `ApprovalsPort.respond`를 부르는 편의 경로다. 결정의 기록은 L1.tools의 `approval.resolved` 하나이고, 계획 상태는 투영기가 그 이벤트에서 계산한다(§3.7). 그래서 화면, 명령, 그룹 코드 중 어느 쪽으로 응답해도 기록 형식이 같다.
+- [결정: WK.3 통합] 계획 승인에는 `decision: "answer"`가 없다. 승인 서비스(L1.tools.spec §3.6 표)는 kind `plan`에 `allow`·`deny`만 받고, wire의 `answer`는 `allow`의 `{ mode?, note? }`와 `deny`의 `{ feedback }`뿐이다(`ApprovalAnswerSchema`). 그래서 `revise`는 `deny` + `{ feedback }`로 응답하고, 기록과 계획 상태에서 `reject`와 같은 `rejected`다. 차이는 `revise`가 `feedback`을 필수로 받는다는 점뿐이다. 수정을 요청받은 모델은 반려를 받았을 때와 같이 같은 `planId`로 새 버전을 제출한다. 상태 `revision_requested`는 F 열거에 남아 있지만 이 경로에서 만들어지지 않는다. 다시 만들려면 F가 `DenyAnswer`에 구별 필드를 더해야 한다.
+- `approve`, `reject`, `revise` 메서드는 `ApprovalsPort.respond`를 부르는 편의 경로다. 결정의 기록은 L1.tools의 `approval.resolved` 하나이고, 계획 상태는 투영기가 그 이벤트에서 계산한다(§3.7). 그래서 화면, 명령, 그룹 코드 중 어느 쪽으로 응답해도 기록 형식이 같다. `respond`의 `requestId`는 호출의 `requestId`를 F `requestKeyFor`(`records/commit.ts`, U-13)로 바꾼 값이다. 48자 이하이고 키 알파벳(`^[A-Za-z0-9_.-]+$`) 안이며 `h_`로 시작하지 않으면 그대로, 아니면 `h_` + 원문 sha256 앞 40자다. 이 패키지는 자체 변환 함수를 두지 않는다 [결정: 통합 검토 L6].
+- [결정: WK.2] 이 표는 `src/plans/decision.ts` `outcomeOf` 한 곳에 있고 투영기와 `submit` 응답이 같은 함수를 쓴다. 취소된 요청에 대한 `submit` 재호출은 `decided`, 결정 `rejected`, `feedback = "The approval request was cancelled."`로 답한다.
 - 이미 결정된 버전에 다시 결정하면 `plan_closed`다. `version`을 생략하면 그 계획의 최신 버전이다.
 - `remember`(wire `approval.respond`의 선택 필드)는 계획 승인에 쓰지 않는다. 계획은 매번 다르기 때문이다.
 
@@ -1017,7 +1033,7 @@ sequenceDiagram
   T->>W: plans.submit({..., wait:false}, {requestId: R, context})
   W->>W: 산출물 등록(선택, 키 plan:<planId>:<version>)
   W->>W: 커밋 work.plan_submitted (키 work:plans:R)
-  W->>A: request(kind plan, subject, requestId R)
+  W->>A: request(kind plan, subject, requestId plan:p1:1)
   A-->>W: { approvalId, state: pending }
   W-->>T: { status: input_required, approvalId }
   T->>T: 결과 input_required, 턴 waiting, 체크포인트 커밋
@@ -1025,30 +1041,33 @@ sequenceDiagram
   A->>A: 커밋 approval.resolved
   Note over W: 투영기가 계획 상태 approved로 갱신
   T->>W: plans.submit(같은 입력, 같은 requestId R)  [재시도]
-  W->>A: request(같은 requestId R) → state resolved
+  W->>A: get(approvalId) → state resolved
   W-->>T: { status: decided, decision: approved }
   T->>T: 도구 결과 완료, 턴 재개
 ```
 
+0. [결정: WK.2] 승인을 받을 수 없는 조립(승인 포트 없음)이면 계획을 기록하기 전에 `unavailable`로 거부한다.
 1. 입력 검사. `planId`가 있으면 그 계획의 최신 버전이 `submitted`가 아니어야 한다(`plan_pending`). `submitted`가 아닌 최신 버전이 있으면 새 버전은 그 버전 + 1이고 `supersedes`에 이전 버전을 적는다.
-2. [제안] 산출물 등록은 제출 시점에 한다. `artifacts.registry`가 사용 가능하면 본문을 산출물(kind `plan`)로 등록하고 참조를 받는다. 첫 판은 `register`, 같은 `planId`의 다음 판은 `update`로 같은 산출물의 버전을 늘린다. 등록 호출의 `requestId`는 `plan:<planId>:<planVersion>`이다(`L2.artifacts.spec` §4.1.3, §4.1.5). 그래서 2와 3 사이에 프로세스가 끝나도 재시도가 산출물을 두 번 만들지 않는다. 이 키가 재시도에서 같으려면 새 계획의 `planId`가 같은 `requestId`의 재시도에서 같은 값이어야 한다 [가정: 순번 발급이 커밋 전 투영 기준이라 재시도에서 같은 값이 나온다]. 없거나 실패하면 `artifact: null`로 계속한다. 계획의 정본은 work 내부 버전이다.
+2. [제안] 산출물 등록은 제출 시점에 한다. `artifacts.registry`가 사용 가능하면 본문을 산출물(kind `plan`)로 등록하고 참조를 받는다. 첫 판은 `register`, 같은 `planId`의 다음 판은 `update`로 같은 산출물의 버전을 늘린다. 등록 호출의 `requestId`는 `plan:<planId>:<planVersion>`이다(`L2.artifacts.spec` §4.1.3, §4.1.5). 그래서 2와 3 사이에 프로세스가 끝나도 재시도가 산출물을 두 번 만들지 않는다. [결정: WK.2] 커밋이 이미 끝난 호출의 재시도에서 번호가 달라져 산출물이 하나 더 생기지 않도록, 등록 전에 이 `requestId`의 커밋이 있는지 롤백되는 빈 커밋으로 묻는다(`commitKeyExists`). 있으면 등록하지 않는다. 커밋 전에 끝난 경우에는 투영이 그대로라 같은 번호(`plan:<planId>:<version>`)가 나오고, 등록 호출의 멱등이 같은 산출물을 돌려준다. 없거나 실패하면 `artifact: null`로 계속한다. 계획의 정본은 work 내부 버전이다.
    - 제출 시점에 등록하므로 반려·수정 요청·철회된 판도 산출물 버전으로 남는다. 산출물은 승인 여부를 싣지 않는다. 화면은 `meta.custom`의 `planId`·`planVersion`으로 `work.plans`를 조회해 판의 상태(승인, 반려, 수정 요청, 철회)를 함께 보인다 [제안]. 승인 화면이 대상(`subject.artifact`)에서 산출물을 열 수 있게 하려면 승인 요청 전에 참조가 있어야 하기 때문이다.
 3. `work.plan_submitted`를 커밋한다(멱등 키 `work:plans:<requestId>`).
-4. `ApprovalsPort.request`를 같은 `requestId`로 부른다. 3과 4 사이에 프로세스가 끝나면, 재시도 호출이 3을 건너뛰고 4를 다시 한다. 세션을 다시 열 때 `submitted`인데 `approval_id`가 없는 버전도 같은 키로 다시 요청한다(§4.5).
+4. `ApprovalsPort.request`를 부른다. [결정: WK.2] 요청의 `requestId`는 호출의 `requestId`가 아니라 계획 판의 이름 `plan:<planId>:<version>`이다(48자 이하). 호출이 달라도 같은 판이면 같은 요청이 되므로, 3과 4 사이에 프로세스가 끝난 뒤 재시도 호출이든 스레드를 다시 열 때의 복구(§4.5)든 새 요청을 만들지 않는다. 같은 호출이 커밋을 이미 마친 뒤 다시 오면(3을 건너뛴다) 투영의 `approval_id`가 있으면 `get`으로 상태만 묻는다.
 5. 응답이 `pending`이면 `{ status: "input_required", approvalId }`를 돌려준다. `resolved`면 §4.2.3 대응표로 `{ status: "decided", … }`를 돌려준다.
-6. `wait: true`(그룹 경로)면 5에서 `pending`일 때 `ApprovalsPort.wait`로 기다린 뒤 결정을 돌려준다. 이 대기는 메모리 Promise다. 프로세스가 끝나면 사라지고, 호출자는 재개 뒤 같은 `requestId`로 다시 불러 결정을 받는다.
+6. `wait: true`(그룹 경로)면 5에서 `pending`일 때 `ApprovalsPort.wait`로 기다린 뒤 결정을 돌려준다. 이 대기는 메모리 Promise다. 프로세스가 끝나면 사라지고, 호출자는 재개 뒤 같은 `requestId`로 다시 불러 결정을 받는다. [결정: WK.3] 기다림은 스레드의 쓰기 큐(§4.6) 밖에서 한다. 큐를 쥔 채 기다리면 같은 계획에 대한 `approve`·`reject`·`revise`(`/plan approve` 포함)가 큐에서 막혀 결정이 날 수 없다.
 
 - [가정] L1.tools는 `input_required` 결과를 낸 도구 호출을 승인 해결 뒤 같은 입력과 같은 `requestId`로 다시 호출해 완료 결과를 얻는다. MCP client 2.3.1의 `input_required` 재시도와 같은 모양이다(`_research/notes/L2-1.md` 1항). 이 재시도 규칙이 L1.tools.spec과 다르면 포트 한 곳에서 맞춘다(§10 W-2).
 - 승인 대기 중 루프는 승인 대기 체크포인트로 멈추고, 재개 때 복원된다(architecture.runtime-flow.design §4.5). cap-work는 대기 중 아무것도 실행하지 않는다.
 
 #### 4.2.5 모드 진입과 종료
 
-- `enterMode`: `PermissionModePort.enterPlan`을 부르고 `{ mode: "plan", previousMode }`를 돌려준다. 승인을 요구하지 않는다. 더 좁은 권한으로 바꾸는 요청이기 때문이다.
+- `enterMode`: `PermissionModePort.enterPlan`을 부르고 `{ mode: "plan", previousMode }`를 돌려준다. 승인을 요구하지 않는다. 더 좁은 권한으로 바꾸는 요청이기 때문이다. 이미 계획 모드이면 모드를 바꾸지 않고 `previousMode`는 투영의 `mode_before_plan`이다. [결정: WK.2] 조직 정책이 막으면(`tools.mode_forbidden`) `denied`다.
 - `exitMode`:
   - 현재 모드가 `plan`이 아니면 `plan_mode_inactive`.
   - `l2.work.plans.requireApproval`이 참이면, 이 스레드에서 계획 모드에 들어온 뒤 제출된 계획 중 최신 버전이 `approved`여야 한다. 아니면 `plan_not_approved`다. 그래서 승인 전에는 실행 단계(쓰기 가능한 모드)로 넘어가지 않는다.
-  - 거짓이면 대기 중인 버전을 `work.plan_withdrawn`(`reason: "exit_mode"`)으로 끝내고 `ApprovalsPort.cancel`을 부른 뒤 모드를 돌린다.
-- 승인 뒤 자동 종료: `l2.work.plans.exitOnApprove`가 참이면, 계획 모드 중에 제출된 버전이 `approved`가 될 때 cap-work가 `PermissionModePort.restore`를 부른다. 실행 위치는 승인 해결을 받는 피드 구독자다(§4.5). 키는 `work:plans:restore:<approvalId>`다.
+  - 거짓이면 대기 중인 버전의 승인 요청을 `ApprovalsPort.cancel`로 먼저 닫고, 이어서 `work.plan_withdrawn`(`reason: "exit_mode"`)을 한 커밋에 기록한 뒤 모드를 돌린다. 취소를 먼저 하면 그 사이에 프로세스가 끝나도 L1의 `approval.resolved`(cancelled)가 계획을 `withdrawn`으로 만든다.
+  - [결정: WK.2] 모드를 돌리는 목표는 `restore(threadId, target, source)`의 `target`이다. cap-work가 `target`(직전 모드, 없으면 default)을 정해 넘긴다. 사용자 요청의 `source`는 `user`, 승인 뒤 자동 종료는 `plan_approval`이다. 모드 전환 자체는 이벤트로 남기지 않으므로 같은 `requestId` 재호출은 이미 계획 모드가 아니라 `plan_mode_inactive`다(알려진 한계. 도구 결과가 기록된 호출은 다시 실행되지 않는다).
+- 승인 뒤 자동 종료: `l2.work.plans.exitOnApprove`가 참이면, 계획 모드 중에 제출된 버전이 `approved`가 될 때 cap-work가 `PermissionModePort.restore`를 부른다. 실행 위치는 승인 해결을 받는 피드 구독자다(§4.5). `restore`는 모드가 `plan`일 때만 바꾸므로 키 없이 멱등이다. 승인할 때 사용자가 고른 모드(`answer.mode`)를 L1.tools가 이미 적용했으면 모드가 `plan`이 아니라서 아무것도 하지 않는다.
+  - [결정: WK.3 통합] 구독자는 커밋 리스너 안에서 모드를 바꾸지 않고 마이크로태스크 하나를 미룬 뒤 복원한다. 리스너 안의 새 커밋은 `store.nested_write`로 거부되고, 승인 서비스가 해결 커밋 직후 같은 동기 구간에서 승인자가 고른 모드(`answer.mode`)를 먼저 적용하므로 미룬 복원은 그 모드가 적용된 뒤의 상태를 본다.
 - 계획 모드의 쓰기 차단 자체는 L1.tools가 한다. cap-work는 쓰기 도구 호출을 검사하지 않는다.
 
 #### 4.2.6 외부 편집기 수정 [제안 후보]
@@ -1174,12 +1193,12 @@ export interface JudgePort {
 
 ### 4.5 재개
 
-세션을 다시 열 때 cap-work는 투영과 L1 포트로 다음을 확인한다. 모든 동작은 결정적 키를 쓰므로 여러 번 해도 결과가 같다.
+세션을 다시 열 때(`session_start` 지점) cap-work는 투영과 L1 포트로 다음을 확인한다. 모든 동작은 결정적 키를 쓰므로 여러 번 해도 결과가 같다.
 
 | 상황 | 동작 |
 |---|---|
-| `submitted` 버전에 `approval_id`가 없음 | `ApprovalsPort.request`를 `work:plans:<원래 requestId>`의 같은 키로 다시 부른다. 원래 키는 `work.plan_submitted` envelope의 `requestId`에서 읽는다 |
-| `approved` 버전이 있고 `exitOnApprove`가 참인데 모드가 아직 `plan` | `PermissionModePort.restore`(키 `work:plans:restore:<approvalId>`) |
+| `submitted` 버전에 `approval_id`가 없음 | `ApprovalsPort.request`를 `plan:<planId>:<version>` 키로 다시 부른다(§4.2.4 4). [결정: WK.2] 원래 호출의 `requestId`가 필요 없어 envelope에서 읽지 않는다 |
+| `approved` 버전이 있고 `exitOnApprove`가 참인데 모드가 아직 `plan` | `PermissionModePort.restore`. 계획 모드에 들어온 뒤 제출된 가장 최근 판만 본다 |
 | 승인 대기 중 | 아무것도 하지 않는다. L1이 대기 상태를 복원한다(architecture.runtime-flow.design §4.5) |
 | 활성 목표가 있고, 목표 설정 뒤 마지막 `turn.completed`의 턴에 판정이 없음 | 그 턴 하나만 판정한다. 그보다 앞선 판정 없는 턴은 건너뛴다 |
 | 활성 목표의 마지막 판정이 미충족이고, 그 판정 뒤 시작된 턴이 없음 | 같은 키 `goal:<goalId>:<n>`으로 post를 다시 한다. 이미 들어갔으면 `duplicate: true`다 |
@@ -1242,6 +1261,7 @@ export interface JudgePort {
 | `/plan approve` · `/plan reject [사유]` · `/plan revise <피드백>` | 사유·피드백 | `plans.approve` · `plans.reject` · `plans.revise` |
 | `/tasks` | 없음 | `tasks.list({})` 결과 표시 |
 
+- [결정: WK.3] 구현은 `/plan`, `/plan exit`, `/plan approve|reject|revise`, `/tasks`까지다(`src/commands.ts`). `/goal`은 `work.goals`(M3)와 함께 더한다. `approve`·`reject`·`revise`에 계획 ID를 받지 않는다: 승인 대기 중인 가장 최근 판에 적용한다. 서비스 거부(`CapabilityError`)는 예외 대신 `[<코드>] <메시지>` 한 줄 응답으로 바꾼다. 등록부(`CommandActionRegistry`)는 조립 루트가 `WorkPluginOptions.commands`로 넘길 때만 쓴다. 능력 선택 의존(W-10)이 확정되면 매니페스트 `optional`로 받는다.
 - 명령 실행의 `requestId`는 클라이언트 입력 키(`in:<clientUlid>`)에서 파생한다(eng.transactions.design §4.8 사용자 입력 행).
 - 이 등록은 work → `dialog.commands` 선택 의존을 만든다. `L2.readme` §6 표에 [미결] 간선으로 올라 있다(§10 W-10, `L2.readme` §10 미결 16).
 
@@ -1332,7 +1352,7 @@ export const manifest = defineManifest({
 ## 10. 미결 사항
 
 - W-1 닫힘. 호출 문맥은 `F.capabilities.spec` §3.2 `CallOptions.context: CallContext`다(`L2.readme` §5.8).
-- W-2 [미결] L1.tools.spec과의 약속 세 가지: (a) `input_required` 출력 변형의 판별 필드 이름, (b) 승인 해결 뒤 같은 입력·같은 `requestId`로 도구를 다시 호출하는 재시도 규칙, (c) `approval.resolved` payload의 결정 필드와 취소 표현. 포트 한 곳(`cap-work/src/ports/`)에서 맞춘다.
+- W-2 [해결: WK.3 통합] L1.tools.spec과의 약속 세 가지: (a) `input_required` 출력 변형의 판별 필드 이름은 F 정의의 `status: "input_required"`다. (b) 승인 해결 뒤 같은 입력·같은 `requestId`로 도구를 다시 호출하는 재시도 규칙은 L1A.4의 `input_required` 재호출(최대 8회)로 구현되었고, 시험은 `plans-decision.int.test.ts`·`plans-resume.fault.test.ts`가 실제 승인 서비스 위에서 확인한다. (c) `approval.resolved` payload의 결정 필드: 계획 승인은 `allow`·`deny`만 받으므로 수정 요청은 `deny` + `{ feedback }`로 옮겼다(§4.2.3). 취소는 `resolvedBy` `cancelled`·`superseded`이고 `withdrawn`이다.
 - W-3 [미결] 도구 없는 능력(`work.goals`, `work.reports`). F.capabilities.spec §4.4가 허용하지 않으면 두 능력의 메서드를 `work.tasks`나 `work.plans`에 옮기지 않고, 관리용 읽기 도구(`goal_status`)를 하나 두는 안을 쓴다. 이 경우에도 판정 결과를 쓰는 도구는 두지 않는다.
 - W-4 [미결] 이벤트 카탈로그 형식은 `F.records.spec` §3.3.2(`records/catalog/work.ts`, `WORK_EVENT_CATALOG`, `TYPE_PREFIX_OWNERS`)로 정해졌다. 남은 것은 records 카탈로그가 capabilities 정의를 import할 수 있는지이고 F.records.plan이 정한다.
 - W-5 [미결] 되감기 뒤 cap 투영. M2는 활성 가지 기준 재생성을 제안한다. 조회 시점에 가지로 거르는 방식이 eng.events.design §6에 맞는지 L1.persistence.spec과 정한다.
@@ -1344,3 +1364,6 @@ export const manifest = defineManifest({
 - W-11 [미결] 작업 상태 5종의 확정(`failed` 포함 여부)과 `failed` 선행 작업이 막힘을 유지하는 규칙.
 - W-12 [결정: review.decisions-2 S-06] 판정 상한 키는 `l1.agents.judge.maxRuns` 하나다. 이 능력은 판정 상한 키와 판정 역할 키를 두지 않는다(§6.1).
 - W-13 [미결] 목표의 `continuation` 필드와 루프 결합 규칙(§4.3.5). `L2.readme` §10 미결 18과 같은 항목이다.
+- W-14 [미결] 작업 오류의 `detail.opIndex`: `write`만 싣고 단일 연산 메서드(`create`, `update`, `link`)는 싣지 않는다(WK.1 구현). 정의 파일의 `TaskErrors.detail`은 `task_` 오류의 고유 필드만 선언하고, `opIndex`는 선언 밖의 덧붙임이다. F `defs/work.ts`가 `opIndex`를 선언에 넣을지 F 레인과 정한다.
+- W-15 [해결: WK.3 통합] 승인 포트의 실제 어댑터. F `ApprovalService`에 `open`·`wait`·`get`이 올라왔고(F 요청 11), `src/ports/approvals.ts`의 `planApprovalsOver(approvals)`가 `xeon.approvals`를 출처별 `L2ApprovalsPort`로 감싼다. `workPlugin`은 `WorkPluginOptions.approvals`가 없으면 `xeon.approvals` 포트로 이 어댑터를 만든다. 어댑터는 서비스의 메모리 대기 목록이 비어 있는 재시작 직후에 모르는 `approvalId`를 만나면 그 대화의 `restore`를 먼저 부른다.
+- W-16 [미결] 계획 모드 직전 모드의 출처. L1.tools가 `settings.changed`에 직전 값을 싣거나 `ToolService.setMode`가 직전 모드를 돌려주면 파일 설정에서 온 모드를 정확히 되돌릴 수 있다(§3.8 마지막 결정 참조).

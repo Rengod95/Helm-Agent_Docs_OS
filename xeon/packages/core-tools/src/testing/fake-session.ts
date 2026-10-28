@@ -60,6 +60,8 @@ export interface FakeSession extends ToolsSession {
   /** 다음 읽기(query.openEffects, readBranch의 다음 원소) n번을 ReadFailure로 실패시킨다 */
   failNextRead(error: ReadFailure, times?: number): void;
   sessionValues(threadId: ThreadId): ReadonlyMap<string, unknown>;
+  /** 다음 세션 설정 쓰기 한 번을 StoreError로 실패시킨다 */
+  failNextSettingsWrite(error: StoreError): void;
 }
 
 interface StoredRequest {
@@ -85,6 +87,7 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
   const settings = new Map<ThreadId, Map<string, unknown>>();
   let fault = options.fault;
   const readFaults: ReadFailure[] = [];
+  const settingsFaults: StoreError[] = [];
   let leaf: EventId | null = null;
 
   function effectsOf(threadId: ThreadId): EffectView[] {
@@ -271,6 +274,9 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
       fault = next;
     },
     sessionValues: (threadId) => settings.get(threadId) ?? new Map(),
+    failNextSettingsWrite: (error) => {
+      settingsFaults.push(error);
+    },
     commit(request) {
       // 실제 저장소처럼 커밋 키 형식을 검사한다. 어기면 호출한 쪽의 결함이다(L1.persistence.spec §4.1)
       if (!COMMIT_KEY.test(request.requestId)) {
@@ -355,6 +361,8 @@ export function fakeSession(options: FakeSessionOptions): FakeSession {
         return { scope: "session", values };
       },
       set(threadId, key, value) {
+        const failure = settingsFaults.shift();
+        if (failure !== undefined) return err(failure);
         const values = settings.get(threadId) ?? new Map<string, unknown>();
         values.set(key, value);
         settings.set(threadId, values);

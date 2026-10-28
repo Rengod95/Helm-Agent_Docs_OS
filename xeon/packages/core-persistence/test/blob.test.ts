@@ -11,13 +11,14 @@ import {
   newThread,
   openHarness,
   expectOk,
+  type Harness,
 } from "./support/harness.ts";
 
 // 큰 문자열 분리(L1.persistence.spec §4.11, PS-15)
 
 const BIG = "큰".repeat(100_000);
 
-function userItem(h: ReturnType<typeof openHarness>, content: unknown): unknown {
+function userItem(h: Harness, content: unknown): unknown {
   return {
     item: {
       itemId: h.ids.next("itm"),
@@ -32,7 +33,7 @@ function userItem(h: ReturnType<typeof openHarness>, content: unknown): unknown 
 describe("detachLarge", () => {
   test("detach_large_strings_keeps_envelope_under_limit", async () => {
     const blobs = memoryBlobs();
-    const h = openHarness({ putBlob: blobs.putBlob, readBlob: blobs.readBlob });
+    const h = await openHarness({ putBlob: blobs.putBlob, readBlob: blobs.readBlob });
     const { threadId } = newThread(h);
     const turnId = h.ids.next("trn");
     const scope = { turnId, stepId: null };
@@ -65,9 +66,9 @@ describe("detachLarge", () => {
     expectProjectionsRebuildable(h.store.db);
   });
 
-  test("a draft under the limit is not touched and writes no blob", () => {
+  test("a draft under the limit is not touched and writes no blob", async () => {
     const blobs = memoryBlobs();
-    const h = openHarness({ putBlob: blobs.putBlob, readBlob: blobs.readBlob });
+    const h = await openHarness({ putBlob: blobs.putBlob, readBlob: blobs.readBlob });
     const { threadId } = newThread(h);
     const scope = { turnId: h.ids.next("trn"), stepId: null };
     commitOrThrow(h, threadId, "blob:small", () => ({
@@ -79,9 +80,9 @@ describe("detachLarge", () => {
     expect(expectOk(h.service.query.liveBlobRefs())).toEqual([]);
   });
 
-  test("a retry of the same key after detaching is replayed and writes the event once", () => {
+  test("a retry of the same key after detaching is replayed and writes the event once", async () => {
     const blobs = memoryBlobs();
-    const h = openHarness({ putBlob: blobs.putBlob, readBlob: blobs.readBlob });
+    const h = await openHarness({ putBlob: blobs.putBlob, readBlob: blobs.readBlob });
     const { threadId } = newThread(h);
     const scope = { turnId: h.ids.next("trn"), stepId: null };
     const request = {
@@ -105,8 +106,8 @@ describe("detachLarge", () => {
     ).toBe(1);
   });
 
-  test("without a blob store an oversize envelope is the producer's Bug", () => {
-    const h = openHarness();
+  test("without a blob store an oversize envelope is the producer's Bug", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const scope = { turnId: h.ids.next("trn"), stepId: null };
     expect(() =>
@@ -118,8 +119,8 @@ describe("detachLarge", () => {
     ).toThrow("store.event_too_large");
   });
 
-  test("a full disk while writing the blob is a store error and nothing is committed", () => {
-    const h = openHarness({ putBlob: () => err({ kind: "disk_full" }) });
+  test("a full disk while writing the blob is a store error and nothing is committed", async () => {
+    const h = await openHarness({ putBlob: () => err({ kind: "disk_full" }) });
     const { threadId } = newThread(h);
     const before = expectOk(h.service.feed.headSeq());
     const scope = { turnId: h.ids.next("trn"), stepId: null };
@@ -133,10 +134,10 @@ describe("detachLarge", () => {
     expect(expectOk(h.service.feed.headSeq())).toBe(before);
   });
 
-  test("pointers escape ~ and / and the largest strings go first", () => {
+  test("pointers escape ~ and / and the largest strings go first", async () => {
     expect(pointerOf(["a/b", "c~d", "0"])).toBe("/a~1b/c~0d/0");
     const sizes: number[] = [];
-    const h = openHarness();
+    const h = await openHarness();
     const draft: DurableEventDraft = {
       id: h.ids.next("evt"),
       kind: "item.recorded",

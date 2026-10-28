@@ -1,0 +1,36 @@
+{
+  "name": "pi-skills",
+  "upstream": "https://github.com/earendil-works/pi",
+  "commit": "cdaf6c227d4718a72b59ccd02152c9614df44cfc",
+  "version": "1.1.0",
+  "package": "@earendil-works/pi-coding-agent",
+  "license": "MIT",
+  "licenseFile": "LICENSE.pi",
+  "copiedFrom": "packages/coding-agent",
+  "copiedPaths": [
+    "packages/coding-agent/src/core/skills.ts -> src/upstream/skills.ts",
+    "LICENSE -> LICENSE.pi"
+  ],
+  "originalSha256": {
+    "packages/coding-agent/src/core/skills.ts": "8dcc644dbabbb34238f609ecf191c0da370d74873ccaccaf3c3cd0e7703d9431",
+    "LICENSE": "0457f5bcec3b3b211605dfb5d1a49042fd638f3686a410fe099c24a25af13c48"
+  },
+  "notCopied": [
+    "packages/coding-agent/src/utils/frontmatter.ts (40줄 경계 규칙만 옮기고 yaml 2.9.0 의존은 Bun.YAML로 바꿨다. KN-02)",
+    "packages/coding-agent/src/utils/paths.ts (KnowledgeFs.realpath와 node:path로 바꿨다. KN-03)",
+    "packages/coding-agent/src/config.ts (스킬 루트는 인자로 받는다. KN-01)",
+    "packages/coding-agent/src/core/diagnostics.ts, source-info.ts (로컬 타입 SkillDiagnostic, SkillSource로 바꿨다. KN-05)"
+  ],
+  "modifications": [
+    "KN-01",
+    "KN-02",
+    "KN-03",
+    "KN-04",
+    "KN-05",
+    "KN-06",
+    "KN-07",
+    "KN-08",
+    "KN-09"
+  ],
+  "usedBy": "xeon/packages/cap-knowledge only (adr.0003, L2.knowledge.plan §4.1)"
+}

@@ -79,16 +79,29 @@ describe("selectProviders", () => {
       fsKind: "statfs",
       machineId: "etc-machine-id",
       fingerprint: "proc",
+      fileLock: {
+        kind: "flock",
+        libName: "libc.so.6",
+        errnoSymbol: "__errno_location",
+        wouldBlockErrno: 11,
+      },
     });
     expect(selectProviders({ ...base, platform: "darwin" })).toEqual({
       fsKind: "mount",
       machineId: "ioreg",
       fingerprint: "ps",
+      fileLock: {
+        kind: "flock",
+        libName: "libSystem.B.dylib",
+        errnoSymbol: "__error",
+        wouldBlockErrno: 35,
+      },
     });
     expect(selectProviders({ ...base, platform: "win32" })).toEqual({
       fsKind: "none",
       machineId: "hostname",
       fingerprint: "unsupported",
+      fileLock: { kind: "process" },
     });
   });
 

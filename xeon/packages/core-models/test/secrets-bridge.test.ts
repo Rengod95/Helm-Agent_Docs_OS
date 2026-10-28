@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import type { AssistantMessageEvent } from "@xeon/contracts/conversation";
 import type { UsageRecord } from "@xeon/contracts/services";
-import { secretBackedCredentialStore, type CredentialFailure } from "../src/secrets-bridge.ts";
+import { err } from "@xeon/contracts";
+import { parseSecretRef } from "@xeon/contracts/capabilities";
+import {
+  createSecretResolver,
+  secretBackedCredentialStore,
+  type CredentialFailure,
+} from "../src/secrets-bridge.ts";
 import { memorySecrets, t, tape } from "../src/testing/index.ts";
 import { createHarness, FAKE_KEY } from "./support/harness.ts";
 import { memoryLogger, type LogLine } from "./support/logger.ts";
@@ -83,6 +89,30 @@ describe("secret_ref_resolved_at_request_time_only", () => {
     expect(h.service.classify(message)).toBe("secret_unresolved");
     expect(h.fake.calls()).toHaveLength(0);
     expect(h.player.remaining()).toBe(1);
+  });
+
+  test("a lease denied by the policy names the deny reason, not the secret value", async () => {
+    const h = createHarness({ tape: ONE_TURN });
+    const parsed = parseSecretRef("secret://tape-key");
+    if (!parsed.ok) throw new Error("the fixture reference is valid");
+    const { handle } = parsed.value;
+    const resolver = createSecretResolver(
+      {
+        ...h.secrets.service,
+        lease: () => Promise.resolve(err({ kind: "denied", handle, reason: "mode_not_allowed" })),
+      },
+      {},
+    );
+    const resolved = await resolver.resolve("secret://tape-key", "tape", "model.provider:tape");
+    expect(resolved).toEqual({
+      ok: false,
+      error: {
+        kind: "secret_unresolved",
+        providerId: "tape",
+        secretName: "tape-key",
+        reason: "secret tape-key could not be leased (denied: mode_not_allowed)",
+      },
+    });
   });
 
   test("the log names the secret reference and never the value", async () => {
@@ -195,5 +225,57 @@ describe("secretBackedCredentialStore", () => {
     expect(failures).toHaveLength(1);
     expect(failures[0]).toMatchObject({ providerId: "tape", secretName: "tape-key" });
     expect(JSON.stringify(failures)).not.toContain(FAKE_KEY);
+  });
+});
+
+describe("oauth_token_rejected_on_default_provider", () => {
+  const OAUTH_KEY = "sk-ant-oat01-fake-subscription-token";
+
+  test("a subscription token on the default anthropic provider sends no request", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      provider: { id: "anthropic", api: "anthropic-messages" },
+      secretValues: { "tape-key": OAUTH_KEY },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("error");
+    expect(message.errorMessage).toStartWith("oauth_token_on_default_provider:");
+    expect(h.service.classify(message)).toBe("oauth_token_on_default_provider");
+    expect(h.fake.calls()).toHaveLength(0);
+    expect(JSON.stringify(message)).not.toContain(OAUTH_KEY);
+  });
+
+  test("the same token under another provider id is not blocked here", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      provider: { id: "anthropic-oauth", api: "anthropic-messages" },
+      secretValues: { "tape-key": OAUTH_KEY },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("stop");
+    expect(h.fake.calls()).toHaveLength(1);
+  });
+
+  test("an ordinary api key on the default provider passes", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      provider: { id: "anthropic", api: "anthropic-messages" },
+    });
+    const message = await h.service.stream(h.request("hi")).result();
+    expect(message.stopReason).toBe("stop");
+  });
+
+  test("a key passed by the caller (agent-core apiKey) is guarded too", async () => {
+    const h = createHarness({
+      tape: ONE_TURN,
+      provider: { id: "anthropic", api: "anthropic-messages" },
+    });
+    const resolved = h.resolve();
+    const stream = await h.service.streamFn(h.ctx())(resolved.model, h.context("hi"), {
+      apiKey: OAUTH_KEY,
+    });
+    const message = await stream.result();
+    expect(message.errorMessage).toStartWith("oauth_token_on_default_provider:");
+    expect(h.fake.calls()).toHaveLength(0);
   });
 });

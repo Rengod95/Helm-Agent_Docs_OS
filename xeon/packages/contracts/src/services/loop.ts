@@ -6,7 +6,13 @@ import type {
   ThreadId,
   TurnId,
 } from "../conversation/index.ts";
-import type { LoopPort, LoopTurnResult, PostItem } from "../extensions/index.ts";
+import type {
+  LoopPort,
+  LoopTurnResult,
+  PortKey,
+  PostItem,
+  UserBashResult,
+} from "../extensions/index.ts";
 import type { StoreError } from "../records/index.ts";
 import type { ChildLimits } from "./agents.ts";
 import type { InputMode, TaskScope } from "./tasks.ts";
@@ -16,6 +22,9 @@ import type { AdvertisedToolset, CallerId, PolicyCeiling } from "./tools.ts";
 // 포트의 status와 이름이 겹치는 상세 상태는 threadStatus로 둔다.
 
 export const LoopServiceName = "xeon.loop" as const;
+
+/** `xeon.loop` 전체 모양(LoopService)의 포트 키. 제공 core-loop. 확장 지점이 부분형만 볼 때는 extensions의 `LoopPortKey`다 */
+export const LoopServicePortKey: PortKey<LoopService> = { name: LoopServiceName };
 
 export interface AdmitRequest {
   readonly threadId: ThreadId;
@@ -38,6 +47,28 @@ export type AdmitResult =
   | { readonly status: "duplicate"; readonly inputId: EventId; readonly turnId: TurnId | null }
   /** input 지점 chain이 handled로 끝났다. 아무것도 기록하지 않는다 */
   | { readonly status: "handled" };
+
+/** 사용자 셸(`!명령`, `!!명령`) 실행 요청. L1.loop.spec §3.1 `runUserBash`, 확장 지점 `user_bash` */
+export interface UserBashRequest {
+  readonly threadId: ThreadId;
+  /** 접두 `!`·`!!`를 뗀 명령줄 */
+  readonly command: string;
+  /** `!!` 접두. true면 결과를 모델 컨텍스트에 넣지 않는다(`UserBashPayload.excludeFromContext`) */
+  readonly excludeFromContext: boolean;
+  /** 대화 범위 멱등 키 1~64자. 생략하면 IdFactory로 만든다. 같은 키로 다시 부르면 기록된 결과를 돌려준다 */
+  readonly requestId?: string;
+  /** 중단하면 실행 중인 명령을 끊고 `result.cancelled`가 참인 결과로 끝난다 */
+  readonly signal?: AbortSignal;
+}
+
+export type UserBashOutcome =
+  /**
+   * 실행이 끝났다. `replaced`가 참이면 `user_bash` 핸들러가 결과를 대체해 명령을 실행하지 않았다.
+   * 실행 결과는 `xeon.tools`의 `runUserShell` 효과 3단(`effect.intent`·`effect.exec`·`effect.result`)으로 남는다
+   */
+  | { readonly status: "completed"; readonly result: UserBashResult; readonly replaced: boolean }
+  /** `user_bash` 지점이나 정책 deny가 막았다. 명령을 실행하지 않았다. `reason`은 사용자에게 보이는 문장이다 */
+  | { readonly status: "denied"; readonly reason: string };
 
 /** 자식 thread turn 실행 요청. L1.agents가 부른다 */
 export interface ChildTurnRequest {
@@ -103,6 +134,12 @@ export interface LoopService extends LoopPort {
   admit(request: AdmitRequest): Promise<Result<AdmitResult, LoopError>>;
   /** 자식 thread turn. 주 대화와 같은 래퍼로 돈다. 같은 requestId면 기록된 결과를 돌려주거나 열린 turn을 이어 끝낸다 */
   runChildTurn(request: ChildTurnRequest): Promise<Result<LoopTurnResult, LoopError>>;
+  /**
+   * 사용자 셸 입력(`!명령`). `user_bash`(first)를 발화하고 거부가 아니면 `xeon.tools.runUserShell`로 실행한다.
+   * turn을 열지 않으므로 turn이 실행 중이어도 부를 수 있다. 결과가 모델 컨텍스트에 들어가는지는 `excludeFromContext`가 정한다.
+   * 실행 실패(명령 오류, 종료 코드)는 `completed`의 `result`로 돌려주고, `LoopError`는 실행 전의 실패(저장소, 없는 대화)다
+   */
+  runUserBash(request: UserBashRequest): Promise<Result<UserBashOutcome, LoopError>>;
   /** 사용자 중단(Esc). xeon.tasks.abort를 부른다. 중단할 turn이 있었으면 true */
   interrupt(threadId: ThreadId, turnId?: TurnId): Promise<boolean>;
   /** 열린 turn을 재개한다. 자동 재개는 하지 않는다 */

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, test } from "bun:test";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { checkDocs, parseFrontmatter, routeDocs } from "./docs-route.ts";
+import { checkDocs, countUnresolved, parseFrontmatter, routeDocs } from "./docs-route.ts";
 
 let root = "";
 beforeEach(() => {
@@ -246,4 +246,15 @@ test("route: unknown task throws and unwritten task docs warn", () => {
   const result = routeDocs(root, { tasks: ["docs"], inputs: [] });
   expect(result.files).toEqual(["docs/xeon/engineering/ts/guide.md"]);
   expect(result.warnings.some((w) => w.includes("meta.ghost"))).toBe(true);
+});
+
+test("countUnresolved counts [미결 markers per document and skips _research and clean documents", () => {
+  write("docs/xeon/L0/os/spec.md", "---\nid: x\n---\n- [미결] a\n- [미결: 사용자] b\n");
+  write("docs/xeon/review/m3-plan.md", "---\nid: y\n---\n- [미결] c\n");
+  write("docs/xeon/_research/notes.md", "- [미결] not counted\n");
+  write("docs/xeon/clean.md", "---\nid: z\n---\nno markers\n");
+  expect(countUnresolved(root)).toEqual([
+    { file: "docs/xeon/L0/os/spec.md", count: 2 },
+    { file: "docs/xeon/review/m3-plan.md", count: 1 },
+  ]);
 });

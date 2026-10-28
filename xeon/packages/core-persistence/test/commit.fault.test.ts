@@ -58,10 +58,10 @@ const BEFORE_COMMIT: readonly FaultPoint[] = [
   "before_commit",
 ];
 
-function setup(point: FaultPoint) {
+async function setup(point: FaultPoint) {
   const fault = faultAt(point);
   fault.armed = false;
-  const h = openHarness({ faults: fault.injector });
+  const h = await openHarness({ faults: fault.injector });
   const { threadId } = newThread(h);
   const turn = startTurn(h, threadId);
   const request = stepEndRequest(h, turn);
@@ -87,8 +87,8 @@ function normalizedEvents(h: Harness): readonly string[] {
 // spec §9.1
 describe("commit_atomic_under_fault_at_every_point", () => {
   for (const point of BEFORE_COMMIT) {
-    test(point, () => {
-      const { fault, h, request } = setup(point);
+    test(point, async () => {
+      const { fault, h, request } = await setup(point);
       const before = h.store.tableHashes();
       const counts = h.store.rowCounts();
       let notified = 0;
@@ -110,8 +110,8 @@ describe("commit_atomic_under_fault_at_every_point", () => {
     });
   }
 
-  test("after_commit keeps every row, emits nothing, and the retry is replayed", () => {
-    const { fault, h, request } = setup("after_commit");
+  test("after_commit keeps every row, emits nothing, and the retry is replayed", async () => {
+    const { fault, h, request } = await setup("after_commit");
     let notified = 0;
     h.service.feed.onCommit(() => {
       notified += 1;
@@ -150,16 +150,16 @@ describe("commit_atomic_under_fault_at_every_point", () => {
 });
 
 // spec §9.2
-test("commit_retry_after_fault_matches_clean_commit", () => {
-  for (const point of BEFORE_COMMIT) {
-    const faulty = setup(point);
+for (const point of BEFORE_COMMIT) {
+  test(`commit_retry_after_fault_matches_clean_commit at ${point}`, async () => {
+    const faulty = await setup(point);
     faulty.fault.armed = true;
     expect(() => faulty.h.service.commit(faulty.request)).toThrow(`fault:${point}`);
     faulty.fault.armed = false;
     expectOk(faulty.h.service.commit(faulty.request));
 
-    const clean = setup("after_commit");
+    const clean = await setup("after_commit");
     expectOk(clean.h.service.commit(clean.request));
     expect(normalizedEvents(faulty.h)).toEqual(normalizedEvents(clean.h));
-  }
-});
+  });
+}

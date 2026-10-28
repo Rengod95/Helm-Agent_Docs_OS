@@ -336,6 +336,7 @@ export type StoreOpenError =
   | { readonly kind: "permission"; readonly path: string; readonly mode: number }
   | { readonly kind: "foreign_database"; readonly applicationId: number }
   | { readonly kind: "fts5_missing" }
+  | { readonly kind: "sqlite_load_failed"; readonly path: string }   // §4.1 2번: 지정한 커스텀 SQLite dylib을 불러오지 못함
   | { readonly kind: "corrupt"; readonly code: string }
   | { readonly kind: "busy" }
   | { readonly kind: "disk_full" }
@@ -487,7 +488,7 @@ export interface LockProvider {
 [결정] 시작 시 FTS5를 검사하고, macOS는 `Database.setCustomSQLite`로 FTS5가 든 SQLite를 지정한다(adr.0004 §3.5, TC-11). 순서는 아래로 고정한다(adr.0004 §3.5 [제안]을 이 문서가 확정한다).
 
 1. 경로 결정. `env.platform === "darwin"`이면 `settings.customSqlitePath ?? env.bundledSqlitePath`를 쓴다. 다른 플랫폼은 커스텀 경로를 쓰지 않는다(Bun이 정적 링크한 SQLite, `_research/stack-status.md §7-D`).
-2. 첫 `new Database()` 전에 `Database.setCustomSQLite(path)`를 한 번 부른다. 반환값으로 성공을 판정하지 않는다(Bun 1.4.3은 비-macOS에서도, 없는 경로에도 `true`, TC-11). 이미 로드된 뒤 다른 경로를 지정하면 "SQLite already loaded" 오류가 난다(adr.0004 §3.5 2번). 그래서 `sqlite-env.ts`는 모듈 상태 `loaded: { path: string | null } | undefined`를 두고, `Database` 생성은 모두 이 모듈의 `newDatabase()`를 거친다. 다른 경로로 두 번째 초기화를 부르면 `Bug(store.sqlite_already_loaded)`다. 이 패키지 밖은 `bun:sqlite`를 import하지 않으므로(DR-07) 프로세스 안 첫 `Database`는 이 함수가 만든다.
+2. 첫 `new Database()` 전에 `Database.setCustomSQLite(path)`를 한 번 부른다. 반환값으로 성공을 판정하지 않는다(Bun 1.4.3은 비-macOS에서도, 없는 경로에도 `true`, TC-11). 이미 로드된 뒤 다른 경로를 지정하면 "SQLite already loaded" 오류가 난다(adr.0004 §3.5 2번). 그래서 `sqlite-env.ts`는 모듈 상태 `loaded: { path: string | null } | undefined`를 두고, `Database` 생성은 모두 이 모듈의 `newDatabase()`를 거친다. 다른 경로로 두 번째 초기화를 부르면 `Bug(store.sqlite_already_loaded)`다. 이 패키지 밖은 `bun:sqlite`를 import하지 않으므로(DR-07) 프로세스 안 첫 `Database`는 이 함수가 만든다. **macOS 실측(2026-10-25, macOS 26.5.2, Apple silicon, Bun 1.4.3)**: 없는 경로(`/nonexistent/libsqlite3.dylib`)를 주면 `setCustomSQLite`가 dlopen 오류를 던진다("true를 돌려준다"는 비-macOS 관찰이다). 사용자나 배포가 정한 dylib을 못 불러오는 것은 예상된 실패이므로 `initSqlite`는 던지지 않고 `err({ kind: "sqlite_load_failed", path })`를 돌려주고 `openStore`는 그대로 열기 실패로 돌려준다. 번들 SQLite로 조용히 되돌리지 않는다(지정한 FTS5·버전 가정이 깨지므로 알려야 한다). 실패하면 `loaded`를 남기지 않아 올바른 경로로 다시 부를 수 있다. 테스트는 `OpenStoreOptions.loadCustomSqlite`(테스트 전용)로 dlopen 실패를 어느 OS에서나 흉내 낸다.
 3. 임시 `:memory:` 연결에서 `CREATE VIRTUAL TABLE temp.fts5_probe USING fts5(x)`, 한 행 삽입, `MATCH` 질의 결과 `n === 1`을 본다. 이 단계가 판정 기준이다(필수). 코드는 `eng.toolchain.guide` TC-11 좋은 예와 `eng.anti-patterns.guide`의 `probeFts5(db): Result<void, {kind:"fts5_missing"}>`를 그대로 쓴다.
 4. 진단으로 `PRAGMA compile_options`에서 `ENABLE_FTS5`를, `select sqlite_version()`을 기록한다. 판정에는 쓰지 않는다.
 5. 결과를 `capabilities.fts5`, `sqliteVersion`, `customSqlitePath`에 담는다.
@@ -500,6 +501,7 @@ export interface LockProvider {
 | 운영 시작, `requireFts5 = true` | `err({ kind: "fts5_missing" })`로 열기 실패 | [제안] |
 | 개발 환경 검사(`just status`, 테스트 preload) | 종료코드 2(환경 문제). 메시지에 SQLite 경로와 `compile_options` 진단을 담는다 | [제안] TC-11 |
 
+- [실측: macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25] 시스템 `bun:sqlite`는 SQLite 3.51.0이고 `create virtual table … using fts5(x, tokenize="trigram")`가 성공해 프로브가 참이다. 따라서 macOS 26에서는 동봉 dylib 없이도 FTS5가 있다. 동봉 dylib(ST-21)은 대비책으로 남기며, 낮은 macOS 버전은 미실측이다. Homebrew sqlite(`/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib`)는 있으나 자동 탐색하지 않는다.
 - 근거: 세션 저장의 핵심(이벤트, 재개)은 FTS5 없이 동작한다. 검색이 빠진 상태로라도 대화를 이어 쓸 수 있는 편이 사용자 손실이 작다. 확정은 [미결 S-4]다.
 - FTS5 소비자 규칙: `CREATE VIRTUAL TABLE … USING fts5`를 담은 마이그레이션 단계는 `capabilities.fts5`가 거짓이면 그 소유자가 건너뛸 수 있게 `MigrationSet`을 두 벌(FTS 있음·없음) 선언하지 않고, 소유자가 FTS 테이블을 별도 owner(예: `cap.knowledge.fts`)로 나눠 조건부로 `apply`한다 [제안].
 - macOS 배포: FTS5를 포함해 빌드한 SQLite dylib을 앱 리소스 디렉터리에 동봉하고, 경로는 `xeon.os`의 리소스 디렉터리 질의로 얻는다(`env.bundledSqlitePath`) [제안]. 동봉 빌드 방법과 서명은 `L4.desktop.plan`, CLI 배포 경로는 `L4.cli.plan`이 정한다. Homebrew 경로 자동 탐색은 하지 않는다(재현성). 사용자가 다른 dylib을 쓰려면 설정 `l0.store.customSqlitePath`를 쓴다(adr.0004 §6 미결 "dylib 경로 지정 방식"에 대한 제안).
@@ -629,9 +631,22 @@ macOS `fullfsync` [제안]:
   3. `sys_migrations`에서 그 owner의 행을 읽는다. 각 행의 `checksum`을 코드 단계의 체크섬과 대조한다. 다르면 `migration_checksum_mismatch`. DB 최대 버전이 `set.version`보다 크면 `migration_future_version`. 행 사이에 빈칸이 있으면 `migration_gap`.
   4. 남은 단계를 하나씩 별도 `write`(BEGIN IMMEDIATE)에서 실행한다. 단계의 모든 문장, 그 단계의 `sys_migrations` 행 삽입이 한 트랜잭션이다. 문장 하나가 실패하면 그 단계만 롤백되고 `migration_failed`를 돌려준다. 앞 단계는 남는다.
   5. 모든 DDL 문장은 §4.5 접두사 검사를 운영 빌드에서도 거친다.
+  6. 남은 단계가 있고 그 owner의 DB 버전이 1 이상이면(기존 스키마를 올리는 경우) 4번 전에 §4.6.1의 스냅샷을 만든다. 만들지 못하면 어떤 단계도 실행하지 않고 오류를 돌려준다.
 - 체크섬: `sha256Hex(steps[i].sql.join("\n;\n"))`. 공백 정규화를 하지 않는다. 한 번 배포한 단계의 SQL은 고치지 않고 새 단계를 더한다.
 - 처리 정책 [제안]: owner가 `sys`·`core.persistence`면 오류는 열기 실패다(호출자가 읽기 전용 열기를 고를 수 있게 `migration_future_version`은 따로 구분한다). `cap.*`, `ext.*`면 호출자(X 로딩, L2 플러그인)가 그 능력이나 확장을 끄고 나머지는 계속 연다.
 - 청크 마이그레이션 `runChunked(owner, m)`: `sys_migration_cursors`에서 커서를 읽고(없으면 `initialCursor`), 청크마다 `write` 안에서 `m.runChunk(tx, cursor, {maxRows})`와 커서 갱신을 한 트랜잭션으로 한다. `next === null`이면 `cursor = NULL`로 완료를 기록한다. 청크 사이에 `await`로 이벤트 루프를 양보하고 `signal`을 확인한다. 기본 `maxRows`는 500 [제안]. `F.records.spec` §3.7 규칙 6을 구현한다.
+
+#### 4.6.1 마이그레이션 전 스냅샷 [결정: m2 마감 G2-06]
+
+프리뷰 사용자의 DB를 지키기 위한 최소 안전장치다. 내보내기와 복구 런북은 M3다.
+
+- 시점: `apply`가 남은 단계를 실행하기 직전, 그 owner에 적용된 버전이 1 이상일 때만 만든다. 처음 만드는 DB, owner의 첫 등록, 이미 최신인 호출은 만들지 않는다. 열 때의 `sys` 마이그레이션과 소비자가 부르는 `cap.*`·`core.persistence` 마이그레이션이 같은 규칙이다.
+- 수단: 쓰기 연결의 `VACUUM INTO '<경로>'`다(WAL 내용을 포함한 일관된 복사). 쓰기 트랜잭션 밖에서만 돈다.
+- 위치와 이름: `<db 디렉터리의 realpath>/backups/<db 파일>.pre-<UTC 시각>-<owner>-v<from>-to-v<to>.sqlite`. 시각은 `YYYYMMDDTHHMMSSmmmZ`라 이름순이 시간순이다. 디렉터리는 0700, 파일은 0600이다. 경고의 `path`도 realpath 기준이다(macOS는 `/var/folders/…`가 `/private/var/folders/…`로 나온다. 2026-10-25 macOS 실측). 호출자가 넘긴 `dbPath` 문자열은 바꾸지 않는다.
+- 보관: 같은 DB의 스냅샷은 최근 3개(`MIGRATION_SNAPSHOT_KEEP`)만 남기고, 새 스냅샷을 만든 뒤 오래된 것을 지운다. 지우지 못하면 경고 `snapshot_prune_failed`만 남기고 계속한다.
+- 알림: 만들 때마다 열기 경고 목록(`OpenedStore.warnings`)에 `migration_snapshot { path, owner, from, to }`를 더한다. 호스트가 이를 로그와 진단에 싣는다.
+- 실패: 스냅샷을 만들지 못하면 단계를 하나도 실행하지 않는다. `busy`는 `busy`, `disk_full`(SQLITE_FULL, ENOSPC)은 `disk_full`, 그 밖은 `migration_failed { version: 첫 남은 단계, code: "snapshot_failed:<코드>" }`다. 전용 오류 kind(`migration_snapshot_failed`)는 F 요청이다 [미결 S-12].
+- 동시에 처음 여는 프로세스들 [결정: macOS 실측 2026-10-25, 4개 프로세스 첫 열기에서 `migration_failed snapshot_failed:EEXIST`와 `snapshot_failed:SQLITE_ERROR` 관찰]: 스냅샷 여부는 적용 버전을 스냅샷 직전에 다시 읽어 정한다(그 사이 동료가 이미 올렸으면 만들지 않는다). 같은 ms에 같은 전환의 같은 이름 스냅샷이 이미 있으면 동료가 만든 것이므로 만든 것으로 본다. 스냅샷이 실패하면 적용 버전을 한 번 더 읽어, 동료가 그 사이 올렸으면(동료의 마이그레이션이 `VACUUM INTO`와 겹쳐 실패할 수 있다) 새 상태로 다시 정한다. 올리지 않았으면 위 실패 규칙 그대로다: 사용자의 기존 DB는 스냅샷 없이 올리지 않는다.
 
 ### 4.7 세션 소유 잠금
 
@@ -856,4 +871,5 @@ GC [제안] (oh-my-pi `blob-store.ts`의 쓰기 유예와 임시 파일 규칙�
 - [미결 S-9] macOS `fullfsync` 기본값. 제안은 켬이고 성능 측정(ST-17) 뒤 확정한다.
 - [미결 S-10] bun:ffi 안정성. Bun 문서의 실험 기능 경고 원문을 확인하고, 문제가 있으면 `none` provider(DB 임대만)를 기본으로 둘지 정한다.
 - [미결 S-11] 블롭 해시 재검증을 운영 빌드에서도 할지(읽기 비용).
+- [미결 S-12] F 요청, 스냅샷 실패 전용 오류 kind. 지금은 `migration_failed`의 `code: "snapshot_failed:<코드>"`로 돌려준다(§4.6.1). `MigrationError`에 `migration_snapshot_failed`를 더하고, 손상(`corrupt`)과 미래 버전(`migration_future_version`) 오류를 사용자 안내 문구로 나누는 일은 F·host가 맡는다 [마감 G2-06].
 - [가정] macOS에서 bun:ffi `flock`, `libSystem.B.dylib` 이름, O_CLOEXEC 동작은 실측하지 않았다. Windows 전 구간, WSL `/mnt/c`의 flock도 실측하지 않았다(`_research/notes/L0-2.md §5`).

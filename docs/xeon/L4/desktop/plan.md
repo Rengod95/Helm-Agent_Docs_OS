@@ -29,7 +29,7 @@ binds: [xeon/apps/desktop/**]
 ### 1.3 M2 (데스크톱 본체)
 
 - Tauri 프로젝트 생성, Rust 릴레이와 엔진 수명 관리(`engine.rs`, `relay.rs`), UI 셸(스레드 목록, 트랜스크립트, 입력창, 상태 표시줄), 승인 대기열.
-- 사이드카 빌드 파이프라인(triple 5종), 3플랫폼 CI, 서명(macOS 공증 포함, Windows 서명 준비).
+- 사이드카 빌드 파이프라인(triple 5종), CI(Linux `desktop-build`, 요청 시 실행하는 `desktop-macos`), ad hoc 서명(Windows 서명 준비). Developer ID 서명과 공증은 M3 릴리즈 후보로 옮겼다 [결정: review.m2-plan §8 D3].
 - 종료 조건은 `product.scope.spec` M2의 데스크톱 항목(정상 종료 시 사이드카 없음, CLI와 메시지 열 동일)이다.
 
 ### 1.4 M3 이후
@@ -41,7 +41,7 @@ binds: [xeon/apps/desktop/**]
 
 ```
 xeon/apps/desktop/
-  package.json                    # @xeon/desktop. 의존: @xeon/contracts(workspace:*), typebox, preact·@preact/signals([미결] 프레임워크)
+  package.json                    # @xeon/desktop. 의존: @xeon/contracts(workspace:*), typebox, react·react-dom·zustand(adr.0010)
   tsconfig.json                   # src: DOM lib, types []. test: bun 타입(별도 tsconfig.test.json) [제안]
   bunfig.toml                     # [test] coverageThreshold lines 0.5, functions 0.5 (eng.testing.guide TS-10 L4 행)
   sidecar.json                    # 사이드카 이름·인자·triple 표의 단일 원천 [제안]
@@ -61,17 +61,24 @@ xeon/apps/desktop/
       defs.ts                     # defineSettings("l4.desktop", ...) (spec §6)
       index.ts                    # DesktopSettingsStore
     settings/                     # L4.settings-ui 소유. 이 계획의 범위 밖
+  scripts/
+    cargo.sh                      # cargo test|check|run|build 진입 (just desktop-test|desktop-run|desktop-build). verify 밖
   src-tauri/                      # M2. 층 규칙 밖 (eng.dependency-rules.guide DR-13)
-    Cargo.toml
+    Cargo.toml                    # rust-version 1.99. rust-toolchain.toml은 없다(§3.2.1)
     Cargo.lock
-    rust-toolchain.toml           # Rust 버전 고정 [제안]
+    build.rs                      # 앱 명령 권한(allow-engine-*) 생성
+    .cargo/config.toml            # jobs = 2로 묶는다. target-dir은 두지 않는다: scripts/cargo.sh가 CARGO_TARGET_DIR을 ${XDG_CACHE_HOME:-$HOME/.cache}/xeon/cargo-target(Syncthing 밖, 기기별, spike/shell과 공용)으로 정한다
     tauri.conf.json
     capabilities/default.json
+    ui/index.html                 # DESK.4 전까지의 자리 표시 화면(frontendDist)
     binaries/                     # xeon-<triple>[.exe]. 빌드 산출물, 커밋하지 않는다 (TC-05)
     src/
       main.rs                     # 앱 조립, RunEvent 처리, 신호 처리기
-      engine.rs                   # EngineSupervisor: spawn·종료·재기동 (spec §4.1 E1~E11, §4.4)
-      relay.rs                    # EnginePipe, 세대 관리, 셸 명령 engine_* (spec §3.3)
+      engine.rs                   # Supervisor: spawn·종료·재기동 (spec §4.1 E1~E11, §4.4), Launcher 추상화
+      relay.rs                    # 줄 버퍼, 신용, stdin 쓰기 스레드, 셸 명령 engine_* (spec §3.3)
+      secret_entry.rs             # 키 등록: 번들 사이드카를 `xeon secret add|set`으로 한 번 실행, 값은 stdin에만 (spec §4.14.1)
+      applog.rs                   # 앱 로그 파일(바이트 수만 기록, E11)
+      time.rs                     # RFC 3339 UTC 문자열
   test/
     transport-conformance-stdio.int.test.ts
     shutdown-message-then-exit.int.test.ts
@@ -88,7 +95,7 @@ xeon/scripts/
 ```
 
 - `xeon/scripts/build-sidecar.ts`는 패키지를 import하지 않는다(`eng.dependency-rules.guide` 1절 제외 항목). 그래서 공유 값은 코드 상수 대신 데이터 파일 `sidecar.json`에 둔다. 이 계획의 `binds`는 `xeon/apps/desktop/**`이므로 스크립트 파일 위치는 `eng.toolchain.guide`와 함께 확인한다 [미결: 스크립트 위치].
-- `xeon/justfile`에 레시피 `desktop-sidecar <triple>`, `desktop-dev`, `desktop-build`, `desktop-measure`를 더한다(TC-09). M1에는 `desktop-sidecar`만 둔다 [제안].
+- `xeon/justfile`에 레시피 `desktop-sidecar <triple>`, `desktop-run`, `desktop-build`, `desktop-measure`를 더한다(TC-09). M1에는 `desktop-sidecar`만 둔다 [제안].
 
 ### 2.1 `sidecar.json`
 
@@ -99,6 +106,7 @@ xeon/scripts/
   "name": "xeon",
   "args": ["host", "--stdio"],
   "entry": "../cli/src/main.ts",
+  "maxSizeMiB": 500,
   "targets": {
     "aarch64-apple-darwin": "bun-darwin-arm64",
     "x86_64-apple-darwin": "bun-darwin-x64",
@@ -109,6 +117,7 @@ xeon/scripts/
 }
 ```
 
+- `maxSizeMiB`는 triple별 사이드카 크기 상한이다(§3.1.1 S2의 사용자 결정, 500). 빌드 스크립트가 읽는다.
 - 산출 파일명은 `src-tauri/binaries/<name>-<triple>`, Windows는 끝에 `.exe`를 붙인다(adr.0008 §3.2 파일 위치 행).
 - `entry`는 엔진 바이너리의 컴파일 진입점이다. 단일 바이너리안(`L4.host-service.spec` §3.2, `L4.cli.plan` §4.3)에 따라 `apps/cli/src/main.ts`를 쓴다. `apps/host/src/main.ts`는 개발·테스트 진입이고 배포 진입점이 아니다(D1에서만 쓴다). `L4.readme` §8 미결 2가 단독 사이드카안으로 정해지면 `name`, `args`, `entry`를 함께 바꾼다.
 - `apps/desktop`은 이 파일을 import하지 않고 빌드 스크립트가 경로로만 쓴다(DR-10).
@@ -182,6 +191,119 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 | S4 | stdin EOF 감시를 Linux와 WSL에서 확인한다. 부모가 SIGKILL될 때 Bun 컴파일 바이너리가 EOF를 읽고 끝나는지, 손자 프로세스가 어떻게 되는지 | - | S | 두 환경에서 EOF 뒤 종료까지 걸린 시간과 손자 잔존 여부가 기록된다. spec D-02의 시한(`l0.process.shutdown.timeoutMs` 기본 3000ms)이 충분한지 판정이 나온다 |
 | S5 | 메모리 측정 스크립트: spec §3.7 `MemorySample`을 남기는 측정기. 플랫폼별 프로세스 찾기(셸, WebView 보조 프로세스, 사이드카, 손자) | S1 | M | 3 플랫폼 중 가능한 것에서 B1~B4 시나리오 측정값이 JSON Lines로 남는다. 예산(spec §10 미결 8) 확정 제안이 나온다 |
 
+### 3.1.1 spike S1~S4 결과 (2026-10-24, Linux/WSL2)
+
+M2 DESK.1(`m2/desk` 브랜치)이 S1~S4를 실행한 결과다. 위 3.1의 "spike는 `xeon/` 밖에서 한다"는 제안과 달리 코드를 `xeon/apps/desktop/spike/`에 두었다. 워크트리 안에서 재실행할 수 있게 하려는 것이고, `spike/`는 lint 대상에서 빼고(typecheck, fmt-check, `check-ts-rules`, knip, check-layers는 적용) 제품 코드가 아니다. 프로세스를 띄우는 TS 하네스는 DR-07의 test 범위 허용(`DR-07/desktop-test-spawn`)이 `tests/` 경로 파일에만 적용되므로 `spike/tests/`에 둔다. Rust 셸은 `spike/shell/`(Cargo 프로젝트, `Cargo.lock` 포함, 빌드 산출물은 `.cargo/config.toml`이 저장소 밖(워크트리의 형제 디렉터리 `target-m2-desk-spike`)에 둔다)이다.
+
+**환경**
+
+| 항목 | 값 |
+|---|---|
+| OS | WSL2 Ubuntu, 커널 6.18.33.2-microsoft-standard-WSL2, 12 코어, 메모리 8 GB |
+| 창 | WSLg(`DISPLAY=:0`, XWayland) 위에서 실제 창이 열렸다. GL은 llvmpipe(소프트웨어) |
+| WebView | WebKitGTK 2.52.6(`webkit2gtk-4.1`) |
+| 도구 | Bun 1.4.3, Rust 1.99.1, `tauri` =2.12.3(CLI 고정 2.12.3과 같은 부 버전. 이 문서 끝의 [가정] =2.12.4와 다르다), `tauri-build` =2.7.4, `tauri-plugin-shell` =2.5.0 |
+| 빌드 | S1은 debug, S3 수치는 release(`cargo build --release`) |
+| 하지 않은 것 | macOS, Windows, 네이티브 Linux는 러너가 없어 실행하지 못했다. S1의 Windows 크래시 행도 그렇다. 창 닫기는 창 관리자의 X 단추 대신 같은 `CloseRequested` 경로를 타는 `Window::close()`를 Rust에서 불러 재현했다(`xdotool` 등이 없다) |
+
+실행 방법은 `apps/desktop/package.json`의 `spike:*` 스크립트와 `spike/s1-matrix.sh`, `spike/s2-size.sh`, `spike/tests/s4.ts`다. 엔진은 `spike/tests/engine.ts`를 `bun build --compile`한 가짜 엔진이고(손자 `sleep 600`을 같은 그룹 또는 새 세션으로 띄우고, EOF 정책을 `exit-clean`·`exit-noclean`·`ignore`로 고른다), 실제 호스트(`apps/host/src/main.ts host --stdio`를 컴파일한 것)는 S2와 S4에서만 썼다.
+
+#### S1 종료 원인별 잔존 프로세스 (종료 10초 뒤)
+
+가짜 엔진 4종(손자 위치 x EOF 처리)에 대해 셸 → 엔진 → 손자 트리를 남은 프로세스로 확인했다. 표는 "남은 것"이다. 엔진은 Rust API(`app.shell().command(..).set_process_group(true).spawn()`)로 띄웠고, 셸 capabilities에는 `core:default`만 있다.
+
+| 종료 원인 | 셸의 `Exit` 때 하는 일 | 손자 같은 그룹, EOF 종료 | 손자 같은 그룹, EOF 무시 | 손자 새 세션, EOF 종료 | 손자 새 세션, EOF 무시 |
+|---|---|---|---|---|---|
+| 창 닫기(`CloseRequested`, `ExitRequested`, `Exit` 발생) | 없음 | 없음 | 엔진, 손자 | 없음 | 엔진, 손자 |
+| 창 닫기 | 그룹 SIGKILL | 없음 | 없음 | 손자 | 손자 |
+| 앱 SIGKILL | 해당 없음 | 없음 | 엔진, 손자 | 없음 | 엔진, 손자 |
+| 앱 SIGTERM, 처리기 없음(`RunEvent`가 하나도 오지 않고 프로세스가 사라진다) | 실행되지 않음 | 없음 | 엔진, 손자 | 없음 | 엔진, 손자 |
+| 앱 SIGTERM, 처리기 있음(`signal-hook` → `app.exit(0)`, `ExitRequested code=Some(0)`, `Exit` 발생) | 없음 | 없음 | 엔진, 손자 | 없음 | 엔진, 손자 |
+| 앱 SIGTERM, 처리기 있음 | 그룹 SIGKILL | 없음 | 없음 | 손자 | 손자 |
+| Windows 앱 크래시 | - | 미실행 | 미실행 | 미실행 | 미실행 |
+
+- 프로세스 그룹을 끈 경우(`set_process_group(false)`)에 `Exit`에서 `CommandChild::kill`을 하면 엔진만 죽고 같은 그룹이던 손자가 남는다(창 닫기와 SIGTERM 처리기 모두, EOF 종료·무시 엔진 모두에서 확인).
+- 셸이 사라진 뒤 EOF를 읽은 엔진이 끝나기까지는 약 62 ms 안이었다(폴링 간격 포함, 정밀 수치는 S4). `Exit`에서 그룹 SIGKILL을 하면 엔진과 같은 그룹 손자는 9 ms 안에 사라졌다.
+- Rust API로 띄운 사이드카는 플러그인이 추적하지 않는다. 정책을 "아무것도 안 함"으로 둔 창 닫기에서 EOF를 무시하는 엔진이 그대로 남은 것이 이를 보인다.
+- capabilities 비적용: 셸 플러그인 권한이 하나도 없는 capabilities에서도 Rust API spawn은 동작했다. 같은 창에서 JS의 `plugin:shell|execute` 호출은 `Command plugin:shell|execute not allowed by ACL`(debug 빌드는 `shell.execute not allowed. Permissions associated with this command: shell:allow-execute`)로 거부됐다.
+
+S1에서 spec에 반영할 내용:
+
+1. SIGTERM에서 `RunEvent::Exit`는 처리기를 두지 않으면 오지 않는다(spec §4.3 [미확인] 해소). 처리기를 두면 `ExitRequested`(code `Some(0)`)와 `Exit`가 온다.
+2. 앱 SIGKILL과 처리기 없는 SIGTERM은 셸 코드가 돌지 않으므로 E5(stdin EOF 임대)만이 방어다. EOF를 무시하는 엔진은 어떤 종료 원인에서도 그대로 남는다.
+3. `Exit`에서 곧바로 그룹 SIGKILL을 하면 EOF 처리 기회를 빼앗아, 엔진이 새 세션으로 띄운 손자(E9가 금지하는 구성)를 정리하지 못한 채 남긴다. spec §4.3의 순서(EOF와 `host.shutdown` 먼저, 시한 뒤 그룹 SIGKILL)가 맞다.
+4. E3(프로세스 그룹)은 필수다. 끄면 그룹 SIGKILL이 손자에 미치지 않는다.
+
+#### S2 `bun build --compile` 크기
+
+호스트 실행 파일(Linux x64), 단위 MiB. 진입은 hello world, `apps/host/src/main.ts`(host), `apps/cli/src/main.ts`(cli, `sidecar.json`의 `entry`)다.
+
+| 진입 | 기본 | `--minify` | `--minify --sourcemap` | `--minify --bytecode` | `--minify --bytecode --sourcemap` |
+|---|---|---|---|---|---|
+| hello | 86.6 | 86.6 | 86.6 | 86.6 | 86.6 |
+| host | 93.3 | 90.3 | 95.1 | 102.2 (*) | 107.0 (*) |
+| cli | 93.6 | 90.4 | 95.4 | 102.6 (*) | 107.7 (*) |
+
+(*) `apps/host/src/main.ts` 끝의 최상위 `await`(`process.exit(await runFromProcess(..))`) 때문에 원래 코드로는 `--bytecode`가 `"await" can only be used inside an "async" function`으로 실패한다. cli도 host를 가져오므로 같다(`L4.cli.plan` §4.3은 최상위 await를 쓰지 말라고 적었다). 위 수치는 그 한 줄을 `.then()`으로 바꾼 임시 작업 사본에서 쟀고 저장소 코드는 바꾸지 않았다. host 담당 레인에 알려야 한다.
+
+다른 triple(교차 컴파일, `--minify`, 실행하지 않음):
+
+| triple | hello | host |
+|---|---|---|
+| aarch64-apple-darwin | 67.6 | 71.3 |
+| x86_64-apple-darwin | 75.1 | 78.7 |
+| x86_64-unknown-linux-gnu | 86.6 | 90.3 |
+| aarch64-unknown-linux-gnu | 86.2 | 89.8 |
+| x86_64-pc-windows-msvc | 91.9 | 95.6 |
+
+- 크기의 약 96%는 Bun 런타임이다(hello 86.6 MiB에 호스트 앱 코드가 `--minify`로 3.7 MiB 더해진다). 플래그로 줄일 수 있는 것은 `--minify`의 3 MiB 안팎이고, `--bytecode`는 12 MiB를 늘리는 대신 콜드 스타트를 반으로 줄인다(아래 S4).
+- 교차 컴파일은 5 triple 모두 성공했다. 크기 표 외 실제 동작은 러너가 있는 Linux x64에서만 확인했다.
+- [결정: 사용자 2026-10-24] 실행 체감 속도(빠른 시작과 종료, 끊김 없는 응답)를 앱 크기보다 우선한다. 사이드카는 `--minify --bytecode`로 빌드한다(콜드 스타트 약 285 ms → 131 ms, 크기 약 +12 MiB). 크기 상한은 triple별 500 MiB로 넉넉히 둔다. 상한 검사는 회귀를 잡는 장치이고 크기를 줄이는 목표가 아니다. `--bytecode` 전에 `apps/host/src/main.ts`와 `apps/cli/src/main.ts`의 최상위 `await`를 없앤다(HOST.5, L4.cli.plan §4.3).
+
+#### S3 장수명 stdio 처리량과 역압
+
+경로: 엔진 stdout → 플러그인 읽기 스레드(청크 약 8 KiB, 용량 1인 채널) → `relay`(Tokio 작업) → Tauri `Channel`(원시 바이트, 앞에 종류 1바이트와 세대 8바이트) → WebView. 프레임은 줄 단위 JSON이고 번호(`seq`)로 손실·중복을 센다. release 빌드, 신용(credit) 4 MiB 사용:
+
+| 경우 | 결과 |
+|---|---|
+| A. 1 MiB 프레임 x 64 (원시 Channel) | 손실 0, 중복 0. 29.3 MiB/s, 프레임 지연 p50 160 ms, p99 233 ms |
+| A0. 같은 부하를 줄 해석 없이 바이트만 셈 | 30.9 MiB/s (신용 없음 39.8). 메시지 8255개, 평균 약 8 KiB. 전송 경로 자체의 상한 |
+| A1. 1 MiB 프레임 x 256 | 손실 0, 중복 0. 28.6 MiB/s, p50 168 ms, p99 261 ms |
+| B. 64 B 프레임 x 50,000 한꺼번에 | 손실 0, 중복 0. 115,000 프레임/s (13.6 MiB/s), 지연 p50 225 ms(대기열), p99 314 ms |
+| B2. 64 B 프레임 초당 약 5,000개를 5초 | 손실 0, 중복 0. 4,787 프레임/s 달성, 지연 p50 1 ms, p99 4 ms, 최대 10 ms |
+| C. 원시 대신 JSON 숫자 배열로 전송(비교군) | 1 MiB x 16은 17.0 MiB/s(원시 29.3), 64 B x 50,000은 102,000 프레임/s. 손실 0. 원시가 큰 프레임에서 1.7배 |
+| D. 셸 송신 버퍼가 참: 엔진이 stdin을 3초 읽지 않을 때 WebView가 1 MiB x 32를 씀(`spawn_blocking` 비동기 명령) | 쓰기는 엔진이 다시 읽기 시작한 3,009 ms에 풀리기 시작해 3,117 ms에 전부 끝났다. 엔진 수신 32줄, 누락 0, 중복 0. 그동안 메인 스레드 IPC 왕복 p50 1 ms, 최대 8 ms |
+| D2. 같은 부하를 동기 명령(Tauri 2에서는 메인 스레드 실행)으로 씀 | 데이터는 D와 같이 전부 도착했지만 메인 스레드 IPC 왕복이 p50 1,583 ms, 최대 3,019 ms로 멈췄다. WebView 안의 JS 타이머 간격(최대 170 ms 이내)은 영향이 없었다(WebKitGTK는 웹 프로세스가 따로다) |
+| E. 세대 교체: 엔진이 프레임 절반(줄바꿈 없음)을 쓰고 죽은 뒤 새 엔진이 100프레임 | 세대별 줄 버퍼 + 종료 때 꼬리 버림: 이전 세대 꼬리 49 B 1개를 버리고 새 세대 100/100 프레임 정상, 깨진 줄 0. 세대를 구분하지 않는 단일 버퍼는 새 세대 첫 프레임이 꼬리와 붙어 깨진 줄 1개가 생겨 그 프레임을 잃었다 |
+
+**정지 발견**: 신용 없이(Rust가 Channel로 즉시 흘림) 256 MiB를 한꺼번에 보내면 release 빌드에서 WebView가 약 36 MiB 시점에서 메시지를 더 받지 못하고 멈추는 일이 반복됐다(16회 중 8회). Rust는 그때 이미 29,000개 넘는 메시지를 보냈고 엔진은 쓰기를 끝내고 idle이었으며 JS 타이머는 계속 돌았다. 전송은 손실 쪽이 아니라 중간 어딘가에서 멈춘 것이다(debug 빌드 2회는 통과). JS가 처리한 양을 알리고(`engine_ack`, 256 KiB마다) Rust가 보낸 양과 처리한 양의 차가 4 MiB를 넘으면 보내지 않는 신용 기반 역압을 두자 48회 중 1회만 정지했다(원인 미분류. 하네스 25초 제한에 걸린 느린 실행일 수 있다). 신용이 차면 플러그인의 용량 1 채널이 차서 읽기 스레드가 멈추고 엔진의 stdout 쓰기가 막힌다. 즉 역압이 엔진까지 전달된다.
+
+판정 (spec §10 미결 13): [제안] stdio를 유지한다. 근거는 일반 부하 여유다(B2: 초당 5,000개 프레임에서 지연 p99 4 ms, 큰 프레임 1 MiB도 약 29 MiB/s, 모든 경우에서 손실·중복 0). 조건 세 가지:
+
+1. 릴레이는 신용 기반 역압을 둔다(위 정지 발견). `Channel`을 무제어로 쓰지 않는다. 정지의 상류 원인(Tauri `Channel`의 대용량 지속 송신)은 확인하지 못했다. 소켓 전환은 이 조건으로도 정지가 남을 때의 대안이다. macOS(WKWebView)와 Windows(WebView2)에서는 재측정이 필요하다.
+2. 엔진 stdin 쓰기는 비동기 명령이고, 막힌 쓰기가 앱 상태의 `CommandChild` 락을 쥐지 않는다. 이번 spike의 `engine_write`는 `Mutex<Option<CommandChild>>`를 쥔 채 블로킹 쓰기를 해서 같은 락이 필요한 `engine_kill`이 쓰기 뒤에 줄을 선다. 제품에서는 쓰기 전용 작업과 쓰기 대기열(한도 있음)로 나눈다. D2가 보였듯 동기 명령으로 쓰면 UI 프로세스 메인 스레드가 엔진이 읽을 때까지 멈춘다.
+3. 줄 버퍼는 세대별로 두고 종료 때 꼬리를 버린다(E). 줄 경계는 새로 온 조각에서만 찾는다(조각마다 누적 문자열을 다시 훑으면 1 MiB 프레임에서 처리량이 절반 이하로 떨어졌다. 이번 측정 중 실제로 겪었다).
+
+#### S4 stdin EOF 감시 (Linux/WSL2)
+
+부모(`parent-stub.ts`)를 SIGKILL하고, OS가 엔진의 stdin 파이프 쓰기 끝을 닫는 순간부터 엔진 프로세스가 사라질 때까지를 2 ms 간격으로 쟀다(변형마다 20회, 단위 ms). Linux와 WSL을 따로 쟀어야 하지만 이 기기는 WSL2뿐이라 한 열이다. 네이티브 Linux는 미측정이다.
+
+| 엔진(모두 `bun build --compile`) | EOF → 종료 중앙값 | 최대 | 종료 못함 | 종료 후 손자 잔존 |
+|---|---|---|---|---|
+| 가짜, 손자 없음, EOF 종료 | 4.2 | 40.1 | 0/20 | - |
+| 가짜, 손자 같은 그룹, EOF 때 손자 정리 | 4.1 | 4.5 | 0/20 | 0/20 |
+| 가짜, 손자 새 세션, EOF 때 손자 정리 | 4.2 | 4.7 | 0/20 | 0/20 |
+| 가짜, 손자 같은 그룹, EOF 종료만 하고 손자 정리 안 함 | 4.0 | 5.3 | 0/20 | 20/20 |
+| 가짜, 손자 새 세션, EOF 종료만 하고 손자 정리 안 함 | 4.5 | 19.0 | 0/20 | 20/20 |
+| 가짜, EOF 무시 | - | - | 20/20 | 20/20 |
+| 실제 호스트 `host --stdio`, 기본 | 28.8 | 61.2 | 0/20 | 손자 없음 |
+| 실제 호스트, `--minify` | 27.9 | 34.7 | 0/20 | 손자 없음 |
+| 실제 호스트, `--minify --bytecode`(임시 사본) | 21.9 | 32.4 | 0/20 | 손자 없음 |
+
+- 엔진이 EOF를 읽고 끝나는 것은 확인됐다. 손자는 엔진이 EOF 처리 때 직접 정리하지 않으면 남는다(같은 그룹이어도 부모가 없을 뿐 그룹이 알아서 죽지 않는다). 이것이 spec E9의 근거다.
+- 기동 시간(spawn → 빈 stdin으로 즉시 종료까지, 20회 중앙값): 호스트 기본 328 ms, `--minify` 285 ms, `--minify --bytecode` 131 ms. 가짜 엔진은 spawn에서 준비까지 14 ms.
+- 판정 (spec D-02): 기본 시한 `l0.process.shutdown.timeoutMs` 3000 ms는 EOF를 읽은 뒤의 종료 경로 자체에는 충분하다(최대 61 ms, 약 50배 여유). 다만 이 측정은 진행 중인 turn이 없는 호스트이고 체크포인트 커밋 시간은 포함하지 않는다. 부하가 있는 호스트의 체크포인트 시간은 [미확인]이고 DESK.5 e2e에서 잰다.
+
 ### 3.2 구현 작업
 
 | id | 내용 | 선행 | 규모 | 단계 |
@@ -191,11 +313,11 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 | D3 | 사이드카 빌드 스크립트 `xeon/scripts/build-sidecar.ts`와 just 레시피. `sidecar.json`의 `entry`(`apps/cli/src/main.ts`, S2와 같은 진입 파일)를 triple 5종 → bun target 대응으로 컴파일해 `binaries/xeon-<triple>`을 만든다. 크기 상한 검사(S2 결과) | S2, D1(`sidecar.json`) | S | M2 (스크립트 골격과 대응 단위 테스트는 M1에 둘 수 있다) |
 | D4 | `engine.rs`: spawn(E1, E3, E6, E7), 앱 상태 보관(E2), 정상 종료 순서(spec §4.3), 재기동 정책(spec §4.4), Unix 신호 처리기, stderr 로그(E10, E11) | D2, S1, S4 | L | M2 |
 | D5 | `relay.rs`: `EnginePipe`, 셸 명령 `engine_*`, 세대 관리와 줄 경계 버림, 송신 버퍼 한도 | D4, S3 | M | M2 |
-| D6 | UI 셸: `transport/ipc.ts`·`tauri-stdio.ts`, 스레드 목록, 트랜스크립트(가상 스크롤, 조각 합치기), 입력창, 상태 표시줄, 설정 진입점 | D5, 프레임워크 결정(spec §10 미결 11) | L | M2 |
+| D6 | UI 셸: `transport/ipc.ts`·`tauri-stdio.ts`, 스레드 목록, 트랜스크립트(가상 스크롤, 조각 합치기), 입력창, 상태 표시줄, 설정 진입점 | D5, 상태 관리 결정(spec §10 미결 11). 프레임워크는 React 19 [결정: review.m2-plan §8 D2] | L | M2 |
 | D7 | 승인 대기열 화면. A안 [가정] 기준 | D6, F 승인 방향 결정(`F.wire-settings.spec` §10 미결 1) | M | M2 |
 | D8 | macOS 커스텀 SQLite(FTS5) dylib을 `bundle.macOS.frameworks`로 번들하고 서명 대상에 넣는다(`eng.toolchain.guide` TC-11). 엔진이 `setCustomSQLite`에 넘길 절대 경로를 사이드카 실행 파일 기준으로 계산하는 규칙을 `L0.store.spec`과 맞춘다 | D2, D3 | M | M2 |
-| D9 | CI 3플랫폼 매트릭스(§3.3). 러너별 호스트 아키텍처 제약 반영 | D3, D2 | M | M2 |
-| D10 | 서명·배포(§3.4): macOS codesign·공증, Windows 서명 준비, Linux 패키지(AppImage, deb)와 WebKitGTK 의존 선언 | D9, D8 | L | M2 (Windows 정식 배포는 M3 이후) |
+| D9 | CI(§3.3): Linux `desktop-build` job(review.m2-plan Z.1), macOS `desktop-macos` job은 `workflow_dispatch`나 PR 라벨 `ci:macos`로만 실행 [결정: review.m2-plan §8 D1]. 러너별 호스트 아키텍처 제약 반영 | D3, D2 | M | M2 |
+| D10 | 서명·배포(§3.4): macOS ad hoc 서명, Windows 서명 준비, Linux 패키지(AppImage, deb)와 WebKitGTK 의존 선언 | D9, D8 | L | M2 (Developer ID 서명·공증은 M3 릴리즈 후보 [결정: review.m2-plan §8 D3], Windows 정식 배포는 M3 이후) |
 | D11 | e2e: 앱 실행 → 한 턴 → 종료 → 프로세스 잔존 확인, CLI와 메시지 열 비교. `*.e2e.test.ts` | D6, D10 | M | M2 |
 | D12 | 서비스 모드 연동: `SocketPipe`, `ensure` 호출, 서비스 소실 처리 | D5, `L4.host-service.plan` 서비스 모드 | M | M3 |
 | D13 | 알림: `tauri-plugin-notification` 연결. 켜기·종류는 `l2.dialog.notify.*`를 따른다(review.decisions-2 S-04) | D12, 내구 이벤트 kind 기반 대상 선택(spec §4.8), 알림 전용 wire는 M2 계획에서 정한다(spec §10 미결 5) | S | M3 |
@@ -205,19 +327,107 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 - D1의 `Bun.spawn` [결정: review.decisions-2 B-06]: `eng.dependency-rules.guide` DR-07의 테스트 한정 행으로 푼다. 허용 목록 `DR-07/desktop-test-spawn`(from `apps/desktop`, to `Bun.spawn`, `scope: "test"`)을 쓰고, 운영 소스에서는 여전히 금지다. `L4.host-service.plan`과 `L4.cli.plan`의 자식 프로세스 테스트도 같은 방식이다(`DR-07/cli-test-spawn`).
 - D1의 실행 명령: M1의 stdio 진입은 개발 진입 `bun xeon/apps/host/src/main.ts host --stdio`(`L4.host-service.plan` H5)이고, 컴파일 바이너리의 `xeon host --stdio` 서브커맨드는 M2다. 그래서 D1은 `bun xeon/apps/host/src/main.ts host --stdio`를 실행한다(`L4.host-service.spec` §3.2 개발 실행 항목). M2부터는 같은 테스트를 컴파일 바이너리 `xeon host --stdio`로도 돈다. 둘 다 import가 아닌 실행이므로 DR-10에 맞는다.
 
+### 3.2.1 M2 DESK.2·DESK.3 구현 기록 (2026-10-24, `m2/desk`)
+
+D2(Tauri 프로젝트), D3(빌드 스크립트), D4(`engine.rs`), D5(`relay.rs`)의 구현 결과다. UI 셸(D6, DESK.4)은 상태 관리 결정을 기다리므로 포함하지 않았다.
+
+| 항목 | 상태 | 내용 |
+|---|---|---|
+| D2 | 완료 | `src-tauri/` 생성. `tauri =2.12.3`, `tauri-plugin-shell =2.5.0`. WebView 권한은 `core:default`와 `allow-engine-*` 다섯 개이고 `shell:*`는 없다. `build.rs`의 앱 매니페스트가 명령 목록을 고정한다 |
+| D3 | 완료(빌드 자체는 host 쪽 수정 대기) | `xeon/scripts/build-sidecar.ts`. `bun build --compile --minify --bytecode --target=<bun target> <entry> --outfile src-tauri/binaries/<name>-<triple>[.exe]`, 크기 상한 검사(500 MiB), `--no-bytecode`(진단용), `--list`. 단위 시험은 triple 대응, 파일명, 크기 경계, 오류 분류, 최상위 `await` 안내를 빌드 없이 검사한다. `host` 별칭은 실행 중인 기기의 triple을 쓴다. 최상위 `await` 때문에 `--bytecode` 빌드는 HOST.5가 합쳐진 뒤 성공한다. `--no-bytecode`로는 Linux x64에서 90.4 MiB로 성공했다 |
+| D4 | 완료 | `Supervisor`가 실행 루프(spawn, 재기동 정책, 수동 재기동)와 정상 종료 순서(`host.shutdown` 한 줄 쓰기, stdin 닫기, `shutdownGraceMs`까지 대기, 그다음 그룹 SIGKILL)를 가진다. 시한 안에 끝나도 남은 손자를 위해 그룹 SIGKILL을 한 번 보낸다. SIGTERM·SIGINT 처리기(`signal-hook`)가 `app.exit(0)`을 불러 같은 순서를 탄다. 종료 중 두 번째 신호는 그룹을 바로 죽이고 끝낸다. 엔진은 `Launcher` 추상화 뒤에 있어 가짜 엔진으로 시험한다 |
+| D5 | 완료 | S3의 세 조건. (1) 신용 창 4 MiB와 256 KiB 확인 단위, (2) 쓰기 전용 스레드와 16개 대기열(종료 경로는 pid 기반이라 락과 무관), (3) 엔진 세대마다 새 줄 버퍼, 종료 때 꼬리 버림, 줄 경계는 새 조각에서만 탐색(꼬리가 비고 조각이 `\n`으로 끝나면 복사 없음). 페이지가 바뀌면 줄 중간이던 프레임을 다음 `\n`까지 버린다 |
+
+실행과 검사:
+
+- `just desktop-test`: `cargo test`(54개). 사이드카 바이너리 없이 `TAURI_CONFIG`로 `externalBin`을 비워 컴파일한다. cargo는 `mise exec -- cargo`(`xeon/mise.toml`의 Rust 1.99.1)로 부르고 실패하면 종료코드 2다. `just verify`에는 들어 있지 않다.
+- `just desktop-sidecar <triple|host> [--no-bytecode]`로 사이드카를 만든 뒤 `just desktop-run`(cargo run)과 `just desktop-build`(cargo build --release)를 쓴다. 설치 파일 번들(`cargo tauri build`)은 `@tauri-apps/cli` 의존 추가(잠금 파일 변경, 종료코드 3 절차)가 필요해서 D10으로 미뤘다.
+- 디버그 빌드에서만 `XEON_DESKTOP_ENGINE_BIN`, `XEON_DESKTOP_ENGINE_ARGS`로 사이드카 대신 다른 실행 파일을 엔진으로 띄운다(가짜 엔진 시험용). 릴리스 빌드에는 이 경로가 없다.
+- 실제 앱 확인(WSLg, 디버그, S1 가짜 엔진): 페이지에서 `engine_attach`, 오래된 세대의 `engine_write` 거부(`epoch-stale`), 8 KB 프레임 4,000개(32.25 MB)를 손실·순서 어긋남 0으로 수신, SIGTERM 뒤 약 0.5초에 앱·엔진·손자가 모두 종료. EOF를 무시하는 엔진은 SIGTERM 뒤 7.04초(`shutdownGraceMs`)에 그룹 SIGKILL로 정리됐다. macOS와 Windows는 확인하지 못했다.
+
+구현하면서 spec과 달라진 점(spec에 반영함):
+
+- `engine_ack` 명령이 더해져 명령이 다섯 개다. `engine_detach`는 `epoch` 인자를 받는다(§3.3).
+- 종료는 `CommandChild::kill`을 쓰지 않고 pid 기반 그룹 종료다. `CommandChild`는 쓰기 스레드가 쥐기 때문이다(E2). Windows는 `taskkill /T`로 대신하며, job object 방식은 spec §10 미결 7에 남는다. Windows 경로는 컴파일하지 못했다.
+- 줄 끝 없이 2 MiB를 넘는 줄은 셸이 버린다(메모리 상한). spec §5가 적은 "셸은 크기를 검사하지 않는다"는 1 MiB 한도의 판정에 대한 것이고, 판정은 여전히 WebView가 한다.
+- `rust-toolchain.toml`은 만들지 않았다. Rust 버전은 `xeon/mise.toml`이 고정하고 `scripts/cargo.sh`가 `mise exec -- cargo`로 부른다(§4 표).
+
+### 3.2.2 M2 DESK.4 구현 기록 (2026-10-24, `m2/desk-ui`)
+
+D6(UI 셸)과 D7(승인 대기열)의 구현 결과다. 상태 설계는 `L4.desktop.design`, 규칙은 `eng.frontend-state.guide`를 따른다.
+
+| 부분 | 파일 | 내용 |
+|---|---|---|
+| ipc | `src/transport/ipc.ts` | `DesktopIpc`(attach, write, ack, restart, detach), `EngineState` 스키마(`parseEngineState`), `createTauriIpc`. `@tauri-apps/api`를 import하는 유일한 파일(W2). 실패는 `Result<_, IpcError>` |
+| 전송 | `src/transport/tauri-stdio.ts`, `json-lines.ts`, `connection.ts` | `attachRelay`(Channel 바이트 → `ReadableStream`, 256 KiB마다 `engine_ack`, 프레임 하나가 `engine_write` 한 번), `openEngineConnection`(`host.hello`, `client.kind "desktop"`). `json-lines.ts`와 `connection.ts`는 F가 구현을 가져갈 때까지 둔 복사본이다(`apps/host/src/client.ts`, `platform-process`의 stdio 전송. DR-10과 W7 때문에 import할 수 없다) |
+| 상태 | `src/state/{shared,engine,ui}/` | design 12절 골격을 옮기고 구현 중 바뀐 점을 design 12.9에 적었다 |
+| 연결 수명 | `src/app/session.ts` | 셸 상태가 `running`이면 attach → hello → `startLink`, 내려가면 닫고 올라오면 새 attach로 다시 연다. 연결 시도 실패는 UI 스토어 `connectError`에 고정 코드로 남기고 사용자가 "다시 연결"을 고를 때까지 쉰다 |
+| 명령 | `src/app/commands.ts`, `src/views/commands.ts` | `selectThread`, `createThread`, `sendTurn`(입력마다 `requestId`, 실패하면 같은 값으로 재시도), `interrupt`, `respondApproval`, 목록·대화 다시 읽기, 엔진 다시 시작, 진단 복사. 거울을 바꾸지 않는다(FS-02) |
+| 화면 | `src/views/` | 스레드 목록, 트랜스크립트(`virtual-list.tsx` 가상 스크롤: 마운트된 행만 `ResizeObserver`로 재고, 바닥에 붙어 있을 때만 따라 내려감), 입력창(한글 조합 중 Enter는 보내지 않음), 승인 대기열, 상태 표시줄 |
+| 번들 | `index.html`, `src/main.tsx`, `src/styles.css`, `just desktop-ui` | `bun build index.html --outdir src-tauri/ui`. 릴리스 0.74 MB(minify), 개발 1.75 MB. `__XEON_CHECKS__`를 `--define`으로 넣어 개발 빌드에서만 불변식 단계를 켠다(design 14절 6번). `src-tauri/ui/`는 산출물이라 추적하지 않는다(자리 표시 파일 삭제, `cargo.sh`가 test·check 때 빈 자리 표시를 둔다) |
+
+시험(`just test apps/desktop`, 103개, DOM 없음): reducer·단계·스토어·링크·선택자(design 13절 표), 전송(`ipc`, `json-lines`, `tauri-stdio`: 가짜 `DesktopIpc`), `thread.read` 스냅샷 포트, 그리고 `test/app/app.test.ts`가 가짜 셸과 가짜 엔진으로 attach → hello → 구독 → 목록 → 스냅샷 → `turn.start` → 엔진 재기동 → 재연결을 끝까지 돌린다.
+
+실제 창 확인(WSLg, 디버그, 가짜 엔진 `XEON_DESKTOP_ENGINE_BIN`): WebKitGTK 창에서 연결됨, 목록 읽기, 승인 복원(`approval.list`), 대화 열기(`thread.read`), 입력 → 토큰 스트리밍 → 확정, 승인 응답 → 대기열에서 사라짐, 새 대화 만들기가 끝까지 동작했다. CSP 위반은 없었다. 마우스·키보드 입력은 DOM 이벤트로 흉내 냈고 한글 IME 조합은 확인하지 못했다. macOS와 Windows는 확인하지 못했다.
+
+M2 마감 반영(T7 DESK, TS만): 도구 승인 카드가 명령, 인자, 비밀 핸들을 보이고(`src/views/approval-form.ts`), 질문 카드가 선택지와 `allowFreeText`를 따르며 `QuestionAnswer`를 만든다. 실패 표시는 `approval.respond`의 `reason`·`detail`로 `failed`, `invalid`, `closed`, `unapplied`로 나뉜다(`src/app/approval-outcome.ts`). 프로젝트 신뢰 카드(`src/views/trust.tsx`, `trust-model.ts`)는 `trust.get`·`trust.decide`를 부른다. `thread.locked`는 `src/app/command-error.ts`가 대안을 읽고 `src/views/locked-dialog.tsx`가 묻는다(G2-09). 시험은 `test/views/*`(서버 렌더와 순수 로직)와 `test/app/locked-trust.test.ts`(가짜 셸과 가짜 엔진)다. `trust.get`·`trust.decide`는 실제 host와 맞춘 종단 시험이 있다(`test/e2e/sidecar.e2e.test.ts`, 아래 재실행 기록). `thread.open observe`는 다른 프로세스가 쓰기 소유를 쥔 상태가 필요해 종단 시험이 없고 가짜 셸 시험만 있다.
+
+M2 마감 반영(T7 DESK, 최소 설정 화면 G2-08): 구조와 규칙은 spec §4.14다. 파일은 `src/settings/{model,diagnostics}.ts`(순수 로직), `src/app/setup.ts`(wire), `src/views/settings.tsx`, `setup-banner.tsx`다. 시험은 `test/settings/*`(검사, 첫 실행 단계, 보고서 변환), `test/views/settings.test.tsx`(서버 렌더: 값 입력란이 없음, 안내 문구), `test/app/locked-trust.test.ts`의 "settings screen wire"(`settings.get`·`settings.set`·`secret.*` 요청 모양, `settings.invalidated` 필터)다. 사이드카가 키 값을 받을 수 없다는 한계가 남아 있다(spec §10 15번). 점검 결과를 전하는 길은 `host.status`의 `binaries`로 닫혔다(아래 G2-07 기록). `settings.set`·`settings.invalidated`·`secret.beginEntry`는 실제 host와 맞춘 종단 시험이 있다(아래 재실행 기록).
+
+M2 마감 반영(T7 DESK, 외부 도구 점검을 wire로 받기, G2-07): 설정 화면이 점검 결과를 `host.status { includeBinaries: true }`의 `binaries`에서 읽는다(`src/app/setup.ts`). 앱이 보고서를 주입하던 `createApp({ binaryReport })`와 `BinaryReportSource`, 화면 쪽 parse(`src/settings/diagnostics.ts`의 스키마)를 없앴다. 연결이 `HostStatusResultSchema`로 검증한 값이 `binaryViewOf(HostBinaryReport | undefined)`로 들어간다. 점검이 자식 프로세스를 띄우므로(HS-69) `SetupCommands.load`가 `{ binaries }` 선택을 받는다: 설정 화면을 열 때와 "다시 확인"은 참, 시작 안내 띠와 `settings.invalidated` 뒤 다시 읽기는 거짓이고 후자는 `keepTools`가 앞선 점검 결과를 유지한다. 시험은 `test/app/locked-trust.test.ts`(요청 params가 `{ includeBinaries: true }`이고 행이 wire 값과 같음, 점검을 청하지 않은 읽기는 `host.status`를 부르지 않음, `binaries` 없음·`-32601`·`request.cancelled`는 모두 "받을 수 없음"이고 설정은 읽힘), `test/settings/diagnostics.test.ts`(경로 없는 보고서의 정렬과 문구), `test/views/settings.test.tsx`(`keepTools`)다.
+
+M2 마감 반영(T7 DESK, 작업 폴더, G2-02): 새 대화가 고른 폴더를 `thread.create`의 `workspace`로 보낸다(spec §4.16). `Commands.createThread(workspace?)`가 폴더가 없으면 `{}`를, 있으면 `{ workspace }`를 보낸다. 입력 검사와 문구는 `src/views/workspace-model.ts`(순수 함수), 후보 목록은 `selectRecentWorkspaces`/`useRecentWorkspaces`다. 시험은 `test/views/workspace-model.test.ts`(빈 값, POSIX·드라이브·UNC 절대 경로, 상대 경로와 `~` 거부, 4096자 상한, 거부 문구), `test/app/locked-trust.test.ts`의 "new thread workspace"(요청 params의 값, 폴더 없으면 키 없음, `-32602`이면 선택된 대화 없음), `test/state/store.test.ts`(후보의 중복 제거, 순서, 개수 상한)다. 운영체제 폴더 선택 창은 만들지 않았다(spec §10 17번).
+
+M2 마감 반영(T7 DESK, 시험): 실제 `createTauriIpc`(invoke, Channel)를 `@tauri-apps/api/mocks`의 `mockIPC` 위에서 돌린다(`test/transport/tauri-mock.ts`, `tauri-mock.test.ts`, bun test). 셸 역할은 `fake-ipc.ts`가 맡고 `mockIPC`가 `engine_*` 명령을 그쪽으로 옮긴다. 시험하는 것은 명령 이름과 인자 모양, 바이트·상태 Channel 메시지의 해석(모르는 상태는 버림), 문자열 오류의 코드 변환, 결과 스키마 검사, 그리고 앱 전체가 이 경로로 `live` 연결에 이르는 흐름이다. `mockIPC`는 `invoke`의 세 번째 인자(헤더 `x-xeon-epoch`)를 넘기지 않아 세대 검사는 Rust 시험(`relay.rs`)이 맡는다. vitest는 쓰지 않는다.
+
+M2 마감 반영(T7 DESK, Rust 셸과 사이드카 e2e, G2-09·G4-03·원격 점검 Phase 1):
+
+| 부분 | 파일 | 내용 |
+|---|---|---|
+| 단일 실행 | `src-tauri/src/main.rs`, `window.rs` | `tauri-plugin-single-instance`를 첫 플러그인으로 등록하고 콜백이 `focus_main`(show, unminimize, set_focus)을 부른다. 시험은 `tauri::test` mock 앱으로 창 조회와 레이블 일치를 본다. 실제로 프로세스 둘을 띄운 확인은 하지 않았다 |
+| 로그 파일 | `main.rs` `debug_log_plugin` | 디버그 빌드만. `LogDir` 파일과 표준 출력, 2 MB `KeepOne` |
+| 상태 덤프, 스냅샷 | `src-tauri/src/inspect/` | spec §4.15. JSON-RPC 처리(`mod.rs`), 소켓 서버(`server.rs`: 소켓 0600/폴더 0700, 접속 4개, 줄 16 KiB, 낡은 소켓 교체와 일반 파일 보존), 실제 앱 정보(`probe.rs`), macOS 스냅샷(`snapshot_macos.rs`). Rust 시험 65개가 `just desktop-test`로 통과했다 |
+| 릴리스 점검 | `test/inspect-guard.test.ts` | 소스 수준 cfg 보장. 산출물 확인 목록은 spec §4.15. `cargo check --release`는 경고 없이 통과했다 |
+| e2e 틀 | `test/e2e/harness.ts`, `scenario.ts`, `sidecar.e2e.test.ts` | stdio JSON-RPC로 엔진 프로세스를 모는 도구. 소스 진입(`bun apps/cli/src/main.ts host --stdio`)과 컴파일 사이드카(`xeon-<triple> host --stdio`)에 같은 요청열(hello, 구독, thread.create/list/read, settings.get, approval.list, secret.list, trust.get, command.list, host.status. 재실행에서 작업 폴더가 있는 thread.create, trust.decide, command.list { threadId }, settings.set, secret.beginEntry를 더했다)을 보내 정규화한 응답과 이벤트열이 같은지, `host.shutdown` 또는 stdin EOF만으로 종료코드 0과 홈을 쥔 프로세스 0개인지 본다 |
+
+순서 경합(G4-03): thread를 연 직후 기본 켜짐 scope의 `scope.changed` 묶음이 다음 유휴 경계의 한 커밋으로 남고, 뒤따르는 입력과의 앞뒤는 시간에 달려 있다. 이전 도구는 60 ms를 기다려 이 경합을 가렸다. `untilScopesCommitted`가 시간 대신 조건을 기다린다: 구독으로 첫 `scope.changed`가 도착할 때까지 기다리고(커밋은 원자적이라 첫 이벤트가 오면 묶음 전체가 와 있다) seq가 이어지는지 확인한다. 시간 대기는 없고, 상한(20초)은 실패 메시지에 stderr를 싣는 용도다. 이 방식으로 소스 진입 두 번 실행의 응답·이벤트열이 같음을 시험한다.
+
+시험 결과(`just test apps/desktop`): 사이드카를 빌드하지 않았을 때 171 통과, 건너뜀 3(바이너리 시험). `just desktop-sidecar host`를 한 번 돌려 `xeon-x86_64-unknown-linux-gnu`(109.8 MiB)를 만든 뒤 174 통과, 건너뜀 0이다. 즉 Linux 컴파일 바이너리가 소스 진입과 같은 응답·이벤트열을 내고 EOF와 `host.shutdown`으로 종료코드 0, 잔존 프로세스 0이다. 그때 foundation에는 `trust.get`, `command.list` 처리기가 없어 두 쪽이 같은 `jsonrpc.methodNotFound`(-32601)를 내는 것만 견줬다. turn은 모델 테이프를 컴파일 바이너리에 넣을 길이 없어 e2e에 없다(메시지 열 동등은 `apps/host`의 transport-parity 시험이 맡는다). macOS와 Windows 바이너리는 확인하지 못했다.
+
+M2 마감 반영(T7 DESK, 실제 host와 맞춘 재실행, G4-03): wave 1~2가 병합된 `m2c/h2` 위로 옮긴 뒤(rebase 충돌 없음) 같은 요청열을 실제 처리기로 다시 돌렸다. 사이드카는 `just desktop-sidecar host`를 한 번만 다시 빌드했다(낡은 바이너리는 `trust.get`, `command.list`, `thread.compact` 등이 없어 `-32601`을 냈고 이전 기록의 비교는 소스 진입과 달라졌다). 이 재실행으로 바뀐 것:
+
+- 정규화(`normalizer`)가 엔진 홈과 그 정규 경로로 시작하는 경로를 `<home>`으로 바꾼다. 이제 `trust.get`의 `projectRoot`와 `thread.list`의 `workspace`가 실행마다 다른 임시 폴더를 담아서, 이것이 없으면 소스 진입 두 번 실행의 비교가 실패한다.
+- `untilScopesCommitted`가 thread 수를 받는다. thread마다 `scope.changed`가 한 커밋으로 이어지는지 확인하고, 두 번째 thread의 커밋이 도착할 때까지 시간이 아니라 조건으로 기다린다.
+- 요청열이 데스크톱이 보내는 값을 그대로 쓴다. 홈 아래 프로젝트 폴더(`.xeon/skills` 하나 포함)로 `thread.create { workspace }`, 상대 경로와 없는 폴더(둘 다 `-32602`), `trust.get`·`trust.decide`(선택지 `trust-folder`)·`trust.get`, `command.list { threadId }`, `settings.set`(기본 모델) 뒤 `settings.invalidated`, `settings.get`, `secret.beginEntry`.
+- 값 시험(소스 진입): 홈은 신뢰 자원이 없어 `required: false`·`allow`·`notRequired`, 프로젝트는 `required: true`·`undecided`·자원 `[".xeon/skills"]`이고 `trust-folder`의 `savedPath`가 대화의 `workspace`와 같다. 결정 뒤는 `allow`·`via: store`다. 명령 목록은 `plan`, `tasks`다. 신뢰 결정은 `keys`가 빈 `settings.invalidated`(범위 project·local)를, 기본 모델 저장은 `l1.models.default` 알림(범위 user)을 낸다. 둘 다 화면의 재읽기 조건에 맞는다. `secret.beginEntry`는 `started: false`다.
+- 컴파일 사이드카는 같은 정규화 응답·이벤트열·알림을 내고, `host.status { includeBinaries: true }`의 도구 목록(이름, 구분, 쓰는 곳, 영향)이 소스 진입과 같으며 경로가 없다. 상태(버전, bundled/system)는 기기에 달려 있어 견주지 않고, `ready`와 `blocking`이 필수 도구의 사용 가능 여부와 맞는지는 소스 진입에서 값으로 본다.
+- 결과: `just check apps/desktop` 통과, 건너뜀 0. `thread.open observe`와 `secret.beginEntry started: true`는 종단 시험이 없다.
+
+Mac 실측(macOS 26.5.2, `ws mac` 작업 20261025-224508-0141): `just test apps/desktop`, `just desktop-test`, `just desktop-sidecar host`가 모두 통과했다. 통과 개수, 사이드카 크기, 측정한 커밋은 전달받지 못해 적지 않는다. 같은 작업의 결과는 `review.macos-checklist` M-07(사이드카 빌드)·M-08(Rust 시험)에도 해당하지만 그 문서는 이 트랙의 소유가 아니어서 고치지 않았다(병합 단계에서 옮긴다).
+
+구현하면서 spec과 달라진 점:
+
+- 새 페이지의 `$/connectionReset`은 F에 아직 없어 보내지 않는다. 새로고침 뒤 `host.hello`가 중복(1002)이면 상태 표시줄에 `연결 실패: hello:1002`가 보이고 "다시 연결"만 가능하다. M1 정책(새로고침 = 엔진 재기동)에 맞춰 셸이 처리해야 한다 [미결].
+- `CursorStore`와 `resubscribe`(spec 3.4)는 만들지 않았다. design 13절이 새 페이지를 head + 스냅샷으로 정했기 때문이다.
+- `thread.open`은 부르지 않는다. 읽기는 `thread.read`가, 쓰기 소유는 `turn.start`의 암묵 획득이 맡는다.
+- `.oxlintrc.json`에 FS-06 import 제한과 `react/rules-of-hooks`를 더했다(guide 3.1). W8·W9(앱 내부 경계)는 `check-layers.ts`에 아직 없다.
+- 트랜스크립트는 최신 1,000개까지만 읽는다(`MAX_SNAPSHOT_ITEMS`). 더 오래된 item을 위로 스크롤하며 읽는 일은 하지 않았다.
+- 마크다운과 코드 하이라이트는 넣지 않았다(FS-21 [제안]). 확정 item도 평문이다.
+- 설정 진입점(spec 4.13)은 settings-ui 소관이라 만들지 않았다.
+
 ### 3.3 CI 매트릭스 (D9)
 
-[제안] `.github/workflows/xeon-ci.yml`에 `desktop-build` job을 더한다. 공식 사이드카 스크립트는 호스트 아키텍처에서만 동작한다고 경고하므로(`_research/stack-status.md §7-F` 3개 플랫폼 빌드 행) triple마다 같은 아키텍처의 러너를 쓴다.
+[결정: review.m2-plan §8 D1] `.github/workflows/xeon-ci.yml`에 Linux `desktop-build` job(Z.1)과 macOS `desktop-macos` job을 더한다. `desktop-macos`는 `workflow_dispatch`나 PR 라벨 `ci:macos`가 있을 때만 돈다. 개발 반복은 WSL에 설치한 Rust 툴체인(rustc·cargo 1.99.1)과 WebKitGTK 4.1로 로컬에서 한다. 공식 사이드카 스크립트는 호스트 아키텍처에서만 동작한다고 경고하므로(`_research/stack-status.md §7-F` 3개 플랫폼 빌드 행) triple마다 같은 아키텍처의 러너를 쓴다.
 
 | triple | 러너 [가정] | 비고 |
 |---|---|---|
-| `aarch64-apple-darwin` | `macos-14` 또는 이후 arm64 러너 | 서명·공증 job도 여기서 돈다 |
+| `aarch64-apple-darwin` | `macos-14` 또는 이후 arm64 러너 | `desktop-macos` job. M3 서명·공증 job도 여기서 돈다 |
 | `x86_64-apple-darwin` | Intel macOS 러너 | Intel 러너 제공이 줄면 arm64 러너에서 교차 빌드로 바꾼다. 그때는 Rust triple을 명시하고 `bun-darwin-x64` 타깃으로 만든다 [미결] |
 | `x86_64-unknown-linux-gnu` | `ubuntu-24.04` | WebKitGTK 개발 패키지 설치 |
 | `aarch64-unknown-linux-gnu` | arm64 Linux 러너 | 러너 제공 여부 [미확인] |
 | `x86_64-pc-windows-msvc` | `windows-latest` | Windows 서명 기본 구현이 동작한다(§3.4) |
 
-- `desktop-build`는 PR에서 수동 실행, `main`에서 야간 실행으로 둔다. `just verify` 시간 목표(`eng.toolchain.guide` 3.1)에 넣지 않는다.
+- `desktop-build`는 PR에서 수동 실행, `main`에서 야간 실행으로 둔다 [제안]. `desktop-macos`는 위 두 조건에서만 돈다. `just verify` 시간 목표(`eng.toolchain.guide` 3.1)에 넣지 않는다.
 - 산출물 검사: 각 산출물이 자기 triple의 `xeon-<triple>`만 포함하는지(spec D-06), macOS `.app`의 `Contents/Resources` 아래 Mach-O가 없는지(`_research/notes/L4-2.md §11` 1번).
 - Windows 메타데이터 플래그(`--windows-icon`, `hideConsole` 등)는 교차 컴파일에서 쓸 수 없다는 기록이 있다(`_research/stack-status.md §7-C` 제한 행. arch-2 §4.2는 원문 문장을 찾지 못해 [미확인]). Windows 사이드카는 Windows 러너에서만 만든다.
 
@@ -259,22 +469,25 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 | 항목 | 버전 | 쓰는 곳 | 비고 |
 |---|---|---|---|
 | Bun | 1.4.3 | 사이드카 컴파일, 테스트 | `eng.toolchain.guide` 1.1 |
-| `tauri`(crate) | `=2.12.4` [가정] | `src-tauri/Cargo.toml` | 조사에서 본 2.12 계열 최신 태그(`tauri-v2.12.4`, arch-2 §3.3). D2에서 최신 수 버전을 확인하고 정확히 고정한다 |
+| `tauri`(crate) | `=2.12.3` | `src-tauri/Cargo.toml` | DESK.1 spike가 쓴 판. `tauri-build =2.7.4`와 함께 `Cargo.lock`에 고정했다. CLI(`@tauri-apps/cli` 2.12.3)와 같은 수 버전이다 |
 | `@tauri-apps/cli` | 2.12.3 | `package.json` devDependencies(catalog) | `_research/stack-status.md §7-F`. crate와 같은 2.12 계열 |
 | `@tauri-apps/api` | 2.12.x 정확 버전 [미확인] | `src/transport/ipc.ts`, `src/shell/**` | D2에서 crate와 맞는 값을 확인해 catalog에 고정한다 |
-| `tauri-plugin-shell`(crate) | 2.x 정확 버전 [미확인] | `engine.rs` | 조사 기준은 `plugins-workspace` `v2` 브랜치 커밋 `11211c30e71796cd737280303244552bb7f70797`(Cargo.toml 2.5.0, arch-2 §3.2). 정식 태그 미확인이라 D2에서 crates.io 버전과 대조한다. 대조 전까지 위 커밋 기준으로 둔다 |
+| `tauri-plugin-shell`(crate) | `=2.5.0` | `engine.rs` | 조사 기준은 `plugins-workspace` `v2` 브랜치 커밋 `11211c30e71796cd737280303244552bb7f70797`(Cargo.toml 2.5.0, arch-2 §3.2). 정식 태그 미확인이라 D2에서 crates.io 버전과 대조한다. 대조 전까지 위 커밋 기준으로 둔다 |
 | `@tauri-apps/plugin-shell` | 넣지 않는다 | - | (a)안에서 WebView는 spawn하지 않는다 |
-| `tauri-plugin-single-instance` | 2.x [미확인] | `main.rs` | spec §5 동시 실행 |
+| `tauri-plugin-single-instance`(crate) | `=2.5.4` | `main.rs`, `window.rs` | spec §5 동시 실행 [결정: M2 마감 G2-09]. 다른 플러그인보다 먼저 등록 |
+| `tauri-plugin-log`(crate) | `=2.10.1` | `main.rs`(디버그 빌드만 등록) | spec §4.15 원격 점검 로그 파일 |
+| `objc2`, `objc2-app-kit`, `objc2-foundation`, `objc2-web-kit`, `block2`(crate, macOS 한정) | `0.6`, `0.3`, `0.3`, `0.3`, `0.6` | `src/inspect/snapshot_macos.rs` | spec §4.15 뷰포트 스냅샷. 디버그 빌드에서만 쓴다. WSL에서는 컴파일되지 않아 Mac 확인이 필요하다 |
 | `tauri-plugin-notification` | 2.x [미확인] | `src/shell/**`, M3 | spec §4.8 |
-| Rust 툴체인 | 1.84 이상, 정확 버전 [미확인] | `rust-toolchain.toml` | `rustc --print host-tuple`에 1.84+ 필요(adr.0008 §3.2) |
+| Rust 툴체인 | `1.99.1` 고정(2026-10-25 결정). `Cargo.toml`의 `rust-version = "1.99"` | `xeon/mise.toml`의 `rust = { version = "1.99.1", profile = "default" }`. `rust-toolchain.toml`은 만들지 않았다 | mise가 rustup으로 설치하고 `RUSTUP_TOOLCHAIN`을 정하므로 `rust-toolchain.toml`이 필요 없다. `profile = "default"`가 rustfmt·clippy를 포함한다. 1.99.0에는 회귀 3건(x86_64 FFI `bool` 반환 코드 생성 등)이 있어 1.99.1부터 쓴다. 다음 minor는 자동으로 채택하지 않는다. `rustc --print host-tuple`에 1.84+ 필요(adr.0008 §3.2). CI 러너의 설치 방법은 D9에서 정한다 |
 | `typebox` | 1.3.27 | IPC 스키마 | catalog. pi-ai와 같은 판(review.decisions-2 U-24) |
-| `preact`, `@preact/signals` | 정확 버전 [미확인] | `src/views/**` | 프레임워크 [미결]. 결정되면 TC-04 절차로 catalog에 더한다 |
+| `react`, `react-dom` | 19.3.1(조사 시점) | `src/views/**`, `src/state/*/hooks.ts` | [결정] adr.0010. D6 착수 때 최신 19.x를 확인해 catalog에 정확히 고정한다. 타입은 `@types/react`, `@types/react-dom` |
+| `zustand` | 5.0.16(조사 시점) | `src/state/*/store.ts`, `src/state/*/hooks.ts`(`eng.frontend-state.guide` FS-06) | [결정] adr.0010. 같은 방식으로 고정한다 |
 
 - 포크 원본: 없다.
 - 구조 참고(코드 복사 없음):
   - Tauri 사이드카 공식 문서 https://v2.tauri.app/develop/sidecar/ (externalBin, triple 규칙, capabilities).
   - opencode `standalone.ts`의 stdin EOF 임대(`_research/process.md §6.4`, adr.0006 §3.7 6번 근거 `standalone.ts:23-27`). 엔진 쪽 구현은 `L4.host-service.plan` 몫이고, 데스크톱은 그 동작을 전제로 테스트한다.
-- D2 착수 때 확정할 버전 목록(확정 전까지 [미확인]): `@tauri-apps/api`, `tauri-plugin-shell`, `tauri-plugin-single-instance`, `tauri-plugin-notification`, Rust 툴체인(`rust-toolchain.toml`), `preact`, `@preact/signals`(프레임워크 결정 뒤). D2 완료 조건에 이 목록의 정확 버전 기록을 넣는다.
+- D2 착수 때 확정할 버전 목록(확정 전까지 [미확인]): `@tauri-apps/api`, `tauri-plugin-shell`, `tauri-plugin-notification`, Rust 툴체인(`rust-toolchain.toml`). `react`, `react-dom`, `zustand`는 D6 착수 때 같은 방식으로 기록한다. D2 완료 조건에 이 목록의 정확 버전 기록을 넣는다.
 - 모든 TS 의존은 `xeon/package.json` catalog에 정확 버전으로 둔다(TC-01, TC-02). Rust crate는 `Cargo.toml`에 `=` 버전으로 두고 `Cargo.lock`을 커밋한다 [제안].
 
 ## 5. 단위 테스트 목록
@@ -303,8 +516,8 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 
 - `e2e` 태그는 `just verify`에서 제외한다(`eng.testing.guide` TS-01 표). CI에서 수동 실행과 야간 실행으로 둔다.
 - `int` 테스트는 파일당 10초 이하, 실제 시간 대기는 조건 대기(폴링 + 상한)로만 한다(`eng.testing.guide` TS-01, 4절).
-- `ui` 부품 테스트는 계속 보류한다(`eng.testing.guide` TS-01 버린 계층 표). M2 D6에서 화면 로직은 신호·상태 함수로 떼어 `unit`으로 시험한다 [제안].
-- Rust 테스트(`cargo test`)는 `just verify`에 넣지 않는다. Rust 툴체인이 없는 환경에서 verify가 종료코드 2로 끝나지 않게 하기 위해서다. `desktop-build` CI job에서 돈다 [제안].
+- `ui` 부품 테스트는 계속 보류한다(`eng.testing.guide` TS-01 버린 계층 표). M2 D6에서 화면 로직은 상태 reducer·선택자로 떼어 `unit`으로 시험한다(`eng.frontend-state.guide` FS-23, `L4.desktop.design` §13 시험 목록).
+- Rust 테스트(`cargo test`)는 `just verify`에 넣지 않는다. Rust 툴체인이 없는 환경에서 verify가 종료코드 2로 끝나지 않게 하기 위해서다. `just desktop-test`로 돌리고(사이드카 바이너리 없이 돈다), `desktop-build` CI job에서도 돈다 [제안].
 - 테스트 경로는 `import.meta.dir` 기준으로 만든다(`eng.testing.guide` TS-06).
 
 ## 6. 완료 기준
@@ -321,7 +534,7 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 - `product.scope.spec` M2 종료 조건 중 데스크톱 항목을 만족한다: 앱 정상 종료 시 사이드카와 손자가 남지 않고(D-01), 같은 테이프에서 CLI와 데스크톱의 호스트 메시지 열이 같다(D-03).
 - spec 수용 기준 D-02, D-04~D-06, D-08~D-12를 통과한다.
 - `desktop-build` CI가 triple 5종 중 러너가 있는 것 전부에서 산출물을 만들고, 각 산출물이 자기 triple의 사이드카를 포함한다.
-- macOS 산출물이 공증을 통과하고 `stapler validate`가 성공한다(인증서 확보를 전제로 한다. 확보 전이면 ad hoc 서명 산출물과 미결 기록으로 대신한다).
+- macOS 산출물이 ad hoc 서명으로 실행된다. 공증과 `stapler validate`는 M3 릴리즈 후보 기준이다 [결정: review.m2-plan §8 D3].
 - 사이드카 크기가 S2에서 정한 상한 이하다.
 - S1~S5 결과가 spec의 [가정]·[미결]에 반영되어 있다.
 
@@ -329,6 +542,8 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 
 - 서비스 사용 설정이 켜지면 셸이 서비스 소켓을 릴레이하고, 앱을 닫아도 서비스의 turn이 계속된다.
 - 알림 wire가 정해졌으면 알림이 OS 알림으로 보인다.
+M2 첫 실행 반영(M-12, 키 등록): 깨끗한 Mac에는 `xeon` 명령이 없어 터미널 안내로는 키를 등록할 수 없었다. 셸 명령 `secret_register`(`src-tauri/src/secret_entry.rs`)가 번들된 사이드카를 `xeon secret add|set <이름>`으로 실행하고 값을 stdin에 한 번 쓴다(spec §4.14.1, §3.3). 화면은 `src/settings/key-entry.ts`(`submitKey`: 입력란을 읽는 즉시 비우고 바이트 배열만 넘기고 보낸 뒤 0으로 덮는다), `src/views/settings.tsx`의 `KeyForm`(제어하지 않는 password 입력란), `src/transport/ipc.ts`의 `registerSecret`이다. 시험: Rust(`secret_entry.rs` 안: 값이 인자에 없음, stdin 쓰기 한 번 뒤 닫힘, 종료 코드·출력 변환과 값이 든 출력 비움, 시한 뒤 그룹 종료, 동시 등록 거절, 본문 검사), `test/settings/key-entry.test.ts`(입력란이 대기 중에 이미 비어 있음, 바이트 0으로 덮임), `test/app/key-register.test.ts`(실제 앱과 `ipc.ts`를 `mockIPC` 위에서 돌려 값이 셸 명령 본문에만 있고 wire, 화면 상태, 거울, 로그에 없음, 오류 변환), `test/views/settings.test.tsx`(등록 창이 값 속성 없는 password 입력란 하나).
+
 
 ## 7. 위험과 대응
 
@@ -349,12 +564,13 @@ adr.0008 §3.2의 발췌를 옮긴다. spec §3.5의 제안대로 (a)안에서�
 
 ## 미결 사항
 
-- [미결] 사이드카 크기 상한(S2 뒤 사용자 확인).
-- [미결] macOS 서명 방식(Tauri 자동 서명과 수동 파이프라인 중 선택), Developer ID 인증서와 공증 계정 보유 여부.
+- [미결] `apps/host/src/main.ts`의 최상위 `await`가 `--bytecode` 빌드를 막는다(§3.1.1 S2, HOST.5). `apps/cli/src/main.ts`는 `runFromProcess().catch()` 형태로 이미 고쳐져 있다. `entry`가 cli여도 cli가 host를 가져오므로 host 쪽 수정 전에는 `just desktop-sidecar <triple>`이 실패한다.
+- [미결] macOS 서명 방식(Tauri 자동 서명과 수동 파이프라인 중 선택), Developer ID 인증서와 공증 계정 보유 여부. M3 릴리즈 후보에서 정한다(review.m2-plan D3).
 - [미결] Windows code signing 인증서 종류(OV, Azure Artifact Signing)와 비용.
 - [결정: review.decisions-2 B-06] D1의 `Bun.spawn`은 DR-07 테스트 한정 행과 허용 목록 `DR-07/desktop-test-spawn`으로 푼다.
-- [미결] `xeon/scripts/build-sidecar.ts` 위치(이 문서 `binds` 밖).
+- [결정] `xeon/scripts/build-sidecar.ts`는 `scripts/`에 둔다(`m2-plan` DESK 소유 목록). 이 문서 `binds` 밖이라 `eng.toolchain.guide`와 함께 확인할 항목으로 남는다.
+- [미결] 컴파일 사이드카의 한 턴 비교(E2): 바이너리에 모델 테이프를 넣는 길이 없고 운영 진입에 시험 전용 관문을 두지 않기로 했다. `XEON_SCENARIO_TAPE`는 시험 진입(`apps/cli/test/fixtures/scenario-main.ts`)만 읽는다. 지금은 `turn`을 포함한 in-process 대 stdio 쌍(`apps/host` `transport-parity`)과 바이너리의 턴 없는 요청열 비교(`test/e2e/sidecar.e2e.test.ts`)로 나눠 확인한다(`review.m2-plan` §5). 바이너리 한 턴이 필요해지면 테이프를 받는 시험용 빌드 방식을 정해야 한다.
 - [미결] Intel macOS, arm64 Linux CI 러너 확보.
 - [미결] 자동 업데이트 채택(M3 이후).
-- [미결] 프런트엔드 프레임워크(`L4.desktop.spec` §10 미결 11).
+- [미결] 상태 관리 라이브러리(`L4.desktop.spec` §10 미결 11). 프레임워크는 React 19 [결정: review.m2-plan §8 D2].
 - [가정] `tauri` crate `=2.12.4`, `tauri-plugin-shell` 2.5.0 기준, triple 대응표, CI 러너 이름, Linux WebKitGTK 4.1 의존은 실행으로 확인하지 않았다.

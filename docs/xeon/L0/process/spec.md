@@ -621,6 +621,24 @@ ensureService():
 3. `IsolatedChild.kill("SIGTERM" | "SIGKILL")`은 프로세스 트리 전체에 보낸다. `exited`는 레지스트리 항목의 종료와 같은 사건이다.
 4. 1차 구현의 `spawn`은 자식을 띄우지 않고 거부(reject)한다. 조립 루트는 1차에서 `LoaderDeps.process`를 넣지 않으므로(`X.loading-trust.spec` §3.5) 운영 경로는 이 메서드를 부르지 않고, 격리 설정 확장은 `isolation_unavailable`이 된다 [제안].
 
+### 4.9 MCP stdio 서버 포트 `McpProcessPort`
+
+L2.mcp가 stdio 서버의 표준 입출력을 SDK 전송으로 감싸려면 스트림이 필요하다. `ProcessPort.spawn`(격리 확장용)과 `ExecService.startBackground`(스트림 없음)는 이 모양을 주지 못해서, 이 패키지가 `createMcpProcessPort(deps)`를 내놓는다 [결정: review.m2-plan §8 D6, 사용자 권한 실행]. 같은 모양을 `cap-mcp`가 `McpProcessPort`로 선언해 두었고(L2는 L0를 import하지 않는다), 조립 루트가 이 구현을 그 포트로 넘긴다. 두 선언은 구조가 같아야 한다.
+
+파이프 기동은 `spawnPiped(input, deps)`(`src/port/spawn-piped.ts`)가 맡는다. 셸 없이 직접 실행하고, 부모 env를 상속하지 않고 받은 env만 쓰고, POSIX에서는 새 프로세스 그룹에 둔다. 레지스트리 등록과 비밀 주입은 하지 않는다. `createMcpProcessPort`가 그 위에 비밀 주입, 레지스트리 등록, 정지 순서를 더한다.
+
+`spawn(spec: McpSpawnSpec, signal): Promise<Result<McpChild, McpSpawnError>>`:
+
+1. `command`와 `args`를 셸 없이 직접 실행한다. 샌드박스를 거치지 않는다(사용자 권한, 위협 모델은 `architecture.security.spec`). Windows의 `.cmd` 셔임은 셸 없이 실행되지 않으므로 이 구현의 범위 밖이다 [미결 P-11].
+2. 자식 env는 부모 env의 허용 목록(`L0.exec.spec` §3.5 `BASE_ENV_POLICY.pass`와 같은 이름, 거부 패턴 제외)에 `secretEnv`로 푼 값을 더해 만든다. 부모의 나머지 env는 넘기지 않는다.
+3. `secretEnv`의 `secret://` 참조는 spawn 직전에 `SecretService.withEnv`로 푼다. `purpose`는 `mcp:<서버 id>`, `target`은 `{ kind: "command", argv0: command, commandLine: "<command> <args…>" }`, `actor`는 `runtime`, `approval`은 `null`이다. lease는 spawn 호출이 끝나면 닫고 값 사본을 지운다. 같은 핸들을 가리키는 env 이름이 여럿이어도 각각 푼다(승인은 `L0.secrets.spec` §4.2가 한 호출로 센다). 오류와 로그에는 참조 이름만 쓴다. 결과 매핑: 항목 없음은 `secret_missing`, 정책 거부는 `secret_denied`, 그 밖의 비밀 오류와 secrets 서비스가 없는 경우는 `spawn_failed`(`code: "secret_unavailable"`)다. 참조 형식이 아닌 값은 `secret_missing`이다.
+4. env 모드는 실행마다 승인 증거를 요구하는데(`L0.secrets.spec` §4.2 6단계) 서버 시작에는 사람이 승인하는 지점이 없다. 그래서 M2에서는 `secretEnv`가 있는 서버가 `secret_denied`로 끝난다 [미결 P-12, M3로 이월]. 비밀 없는 서버는 영향이 없다.
+5. 기동하지 못하면(`ENOENT`, `EACCES`) 거부(reject)하지 않고 `spawn_failed`와 errno 코드를 돌려준다. 트리 종료 수단이 없는 OS는 `unsupported_platform`, 호출 시점에 `signal`이 중단되어 있으면 `aborted`다.
+6. 기동한 서버는 레지스트리에 `owner.kind: "mcp"`, `owner.ref: <서버 id>`, `label`로 등록한다. `McpChild.kill("SIGTERM" | "SIGKILL")`은 트리 전체에 보낸다.
+7. 정지 순서는 stdin 닫기, 유예(`stdinCloseMs`, 기본 500ms), SIGTERM, 유예(레지스트리의 `graceMs`), SIGKILL이다. 레지스트리의 `graceful` 단계가 stdin을 닫고 서버가 그 사이에 끝나면 신호를 보내지 않는다. 끝나지 않으면 트리에 SIGTERM을 보내고, 레지스트리가 시한 뒤 `force`(SIGKILL)를 부른다. 그래서 종료 협조(§4.3)가 모든 MCP 서버의 트리를 이 순서로 정지한다.
+8. `exited`는 프로세스 종료와 stdout 닫힘이 모두 끝난 뒤 이행한다. 서버가 마지막 응답을 쓰고 바로 끝나도 그 출력을 읽을 수 있다. 프로세스가 끝나면 남은 손자를 force로 정리하고, 그래도 파이프가 `drainMs` 안에 닫히지 않으면 스트림을 닫고 이행한다.
+9. stdin 오류(`EPIPE`)는 처리기를 달아 둔다. 전송이 시작하기 전에 서버가 죽어도 엔진이 처리되지 않은 오류로 끝나지 않는다.
+
 ## 5. 실패와 경계 사례
 
 | 경우 | 동작 |
@@ -742,17 +760,21 @@ Windows 서비스 전송 대안 비교(조사 대상 아님, 비교만):
 13. `platform-process`가 다른 `@xeon/platform-*` 패키지를 import하지 않는다(DR-02).
 14. `ProcessService` 구현 객체가 `ProcessPort`에 대입된다(타입 테스트). `run`은 없는 실행 파일에 대해 거부하지 않고 `spawnError`를 채운 `HookRawRun`을 돌려주고, `maxStdoutChars`보다 긴 출력은 잘리고 `stdoutTruncated: true`이며, `signal` 중단 뒤 프로세스 트리가 남지 않고 `timedOut: true`다(실제 자식 프로세스).
 15. `run`에 넘긴 `env`에 없는 부모 env 변수(예: 시험 부모의 `PATH`, `HOME`)가 훅 프로세스 env에 없다.
+16. `McpProcessPort.spawn`(실제 자식 프로세스, `mcp-spawn.int.test.ts`): 줄 단위 JSON이 양방향으로 오가고, 레지스트리에 `owner.kind: "mcp"`로 등록되며, 자식 env에 부모의 제공자 키(`ANTHROPIC_*`, `XEON_*`)가 없고 `secretEnv` 값만 더해진다. 기동 실패는 `spawn_failed`(`ENOENT`), 비밀 실패는 `secret_missing`·`secret_denied`로 돌아오며 이미 연 lease는 모두 닫힌다. 종료 직전에 쓴 출력을 읽는다.
+17. MCP 서버 정지 순서: stdin 닫힘과 SIGTERM을 모두 무시하는 서버에 `background.stop`을 하면 서버가 받은 사건 순서가 `stdin-closed`, `sigterm`이고 마지막에 `SIGKILL`로 끝난다. stdin을 닫으면 끝나는 서버는 신호 없이 `exited`가 된다. 레지스트리를 닫으면 자식과 SIGTERM을 무시하는 손자가 모두 사라진다.
 
 ## 10. 미결 사항
 
 - [결정: review.decisions-2 U-09] P-1. 세션 소유 판정은 OS 잠금 + `sys_leases` epoch 펜싱이다. adr.0004 §3.4 개정 대상이다. `L0.store.spec` S-1과 같은 항목이다.
 - [결정: review.decisions-2 U-09] P-2. adr.0006 §3.6 규칙 4의 `session_owner`는 두지 않고 `sys_leases` 행이 표시를 겸한다. `L0.store.spec` S-2와 같은 항목이다.
 - [미결 P-3] 전송 구현 배치: L0 구현 + L4 조립(권고) 또는 L4 구현(`F.readme` §6).
-- [미결 P-4] 백그라운드 프로세스 종료 수단. 권고는 `xeon.exec`의 `startBackground`(`L0.exec.spec` §3.9) 핸들을 등록자가 `BackgroundStopper`로 넘기는 방식이다. 등록자가 이 수단을 쓸 수 없는 경우(stdin 파이프가 필요한 MCP stdio 서버, `L0.exec.spec` §10 9번)를 위해 이 패키지에 자체 프로세스 트리 종료 provider를 둘지가 남았다.
+- [미결 P-4] 백그라운드 프로세스 종료 수단. 권고는 `xeon.exec`의 `startBackground`(`L0.exec.spec` §3.9) 핸들을 등록자가 `BackgroundStopper`로 넘기는 방식이다. stdin 파이프가 필요한 MCP stdio 서버(`L0.exec.spec` §10 9번)는 §4.9에서 이 패키지가 `select.ts`의 provider(`signalTree`)로 직접 띄우고 등록한다. 남은 것은 그 밖의 등록자다.
 - [미결 P-5] 엔진 진입점 `Runtime.open(dbPath)`의 시그니처와 소유. 권고는 L4 `apps/host`가 소유하고 `openRuntime({ dbPath, transport, … }): Promise<Result<Runtime, RuntimeOpenError>>` 모양이다. F에 둘지 함께 정한다.
 - [미결 P-6] Windows 서비스 전송(AF_UNIX, named pipe, loopback TCP + 토큰). §5.1 비교표.
 - [미결 P-7] 자동 재개 기본값(adr.0006 §6). 키 소유는 `L1.persistence.spec`이고 기본값 판단도 그 문서 미결 4로 옮겼다. 이 문서의 권고는 꺼짐, 서비스 모드에서만 켤 수 있음이다.
 - [미결 P-8] 승인 대기 세션을 유휴 판정에서 live로 볼지(adr.0006 §6). 권고는 live.
 - [결정: review.decisions-2 U-11] P-9. 원격은 1차(M3)이고 로컬 서비스 소켓을 SSH 터널이나 사설망으로 연결한다. 내장 TLS + 토큰 WebSocket(PR-18)은 2차다.
 - [미결 P-10] Unix 소켓에서도 토큰을 요구할지(FR-P2, `F.wire-settings.spec` §10 미결 4).
+- [미결 P-11] Windows에서 `.cmd` 셔임(`npx.cmd` 등)으로 stdio MCP 서버를 띄우는 방법. 셸 없이 실행할 수 없어 `cross-spawn` 같은 해석이 필요하다. 1차 지원 OS(macOS, Linux, WSL)에는 해당이 없다.
+- [미결 P-12] 비밀 env가 있는 MCP stdio 서버(M3). env 모드는 실행마다 승인 증거를 요구하고(`L0.secrets.spec` §4.2), 서버 시작에는 승인 지점이 없어 `secret_denied`가 된다. 서버 정의를 추가하거나 처음 연결할 때 사람이 승인하고 그 증거를 `McpSpawnSpec`에 싣는 흐름이 필요하다. 승인 서비스와 `L2.mcp.spec`의 합의 사항이다.
 - [가정] Bun 1.4.3의 `node:child_process` `detached`·`unref`와 `Bun.listen({ unix })`의 macOS 동작은 실측하지 않았다.

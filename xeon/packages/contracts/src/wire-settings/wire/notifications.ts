@@ -27,6 +27,7 @@ import {
   type DurableEventEnvelope,
   type VolatileEventEnvelope,
 } from "../../records/index.ts";
+import { SettingKeySchema, SettingScopeSchema } from "../settings/index.ts";
 import { RpcIdSchema } from "./jsonrpc.ts";
 import { SeqSchema, SubIdSchema } from "./cursor.ts";
 
@@ -152,6 +153,25 @@ export type EventsEndedParams = Static<typeof EventsEndedParamsSchema>;
 export const StreamChunkParamsSchema: TObject<{ event: typeof VolatileEventWireSchema }> =
   Type.Object({ event: VolatileEventWireSchema }, { additionalProperties: false });
 export type StreamChunkParams = Static<typeof StreamChunkParamsSchema>;
+
+/**
+ * 설정 값이 바뀌었을 수 있다는 신호(F.wire-settings.spec §3.3.4). 값이 없어서 비밀이 실릴 수 없다.
+ * 클라이언트는 받으면 `settings.get`으로 다시 읽는다. `keys`가 비면 어느 키인지 모르는 변경(파일 통째 교체)이다.
+ */
+export const SettingsInvalidatedParamsSchema: TObject<{
+  keys: TArray<typeof SettingKeySchema>;
+  scopes: TArray<typeof SettingScopeSchema>;
+  threadId: TUnion<[typeof ThreadIdSchema, TNull]>;
+}> = Type.Object(
+  {
+    keys: Type.Array(SettingKeySchema, { maxItems: 256 }),
+    scopes: Type.Array(SettingScopeSchema, { minItems: 1, maxItems: 5, uniqueItems: true }),
+    /** `session` 범위 변경이 속한 thread. 그 밖의 범위는 null */
+    threadId: Nullable(ThreadIdSchema),
+  },
+  { additionalProperties: false },
+);
+export type SettingsInvalidatedParams = Static<typeof SettingsInvalidatedParamsSchema>;
 
 export const CancelRequestParamsSchema: TObject<{ id: typeof RpcIdSchema }> = Type.Object(
   { id: RpcIdSchema },

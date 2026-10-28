@@ -9,19 +9,30 @@ let loaded: { readonly path: string | null } | undefined;
 
 /**
  * 첫 Database 전에 SQLite 경로를 정한다. path가 null이면 번들 SQLite를 쓴다(setCustomSQLite를 부르지 않는다).
- * 같은 경로로 다시 부르면 아무 일도 없다. 다른 경로로 부르면 Bug(store.sqlite_already_loaded)다.
+ * 지정한 dylib을 못 불러오면 err(sqlite_load_failed)다(번들로 조용히 되돌리지 않는다. 사용자가 정한 경로이므로 알려야 한다). 같은 경로로 다시 부르면 아무 일도 없다. 다른 경로로 부르면 Bug(store.sqlite_already_loaded)다.
  * Bun 1.4.3은 반환값이 항상 true이므로 성공 판정에 쓰지 않는다(eng.toolchain.guide TC-11).
  */
-export function initSqlite(path: string | null): void {
+export function initSqlite(
+  path: string | null,
+  loadCustom: (path: string) => unknown = (target) => Database.setCustomSQLite(target),
+): Result<void, SqliteLoadError> {
   if (loaded !== undefined) {
-    if (loaded.path === path) return;
+    if (loaded.path === path) return ok(undefined);
     throw new Bug(
       `store.sqlite_already_loaded: SQLite is already loaded (${loaded.path ?? "bundled"}), cannot switch to ${path ?? "bundled"}`,
     );
   }
-  if (path !== null) Database.setCustomSQLite(path);
+  if (path !== null) {
+    // macOS의 Bun은 dylib을 바로 dlopen하므로 없는 경로면 여기서 던진다(실측 2026-10-25, Bun 1.4.3). 사용자가 정한 경로의
+    // 실패는 예상된 실패다. loaded를 남기지 않아 올바른 경로로 다시 부를 수 있다
+    const loadedOk = attempt(() => loadCustom(path));
+    if (!loadedOk.ok) return err({ kind: "sqlite_load_failed", path });
+  }
   loaded = { path };
+  return ok(undefined);
 }
+
+export type SqliteLoadError = { readonly kind: "sqlite_load_failed"; readonly path: string };
 
 /** 이 프로세스에서 지정한 커스텀 SQLite 경로. 번들이면 null */
 export function loadedSqlitePath(): string | null {
@@ -48,7 +59,8 @@ export interface NewDatabaseOptions {
 
 /** 이 패키지에서 Database를 만드는 유일한 길(L0.store.plan §2). strict 모드로 연다 */
 export function newDatabase(filename: string, options: NewDatabaseOptions = {}): Database {
-  if (loaded === undefined) initSqlite(null);
+  // 번들 SQLite는 불러올 것이 없어 실패하지 않는다. 첫 Database가 번들로 로드 상태를 정한다
+  if (loaded === undefined) loaded = { path: null };
   return new Database(filename, { ...options, strict: true });
 }
 

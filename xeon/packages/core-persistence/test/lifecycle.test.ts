@@ -1,9 +1,18 @@
 import { describe, expect, test } from "bun:test";
+import { Bug } from "@xeon/contracts";
+import { threadSummaryOf } from "@xeon/contracts/wire";
 import { expectProjectionsRebuildable } from "../src/testing/index.ts";
-import { expectOk, newThread, openHarness, reopenHarness, startTurn } from "./support/harness.ts";
+import {
+  expectOk,
+  newThread,
+  openHarness,
+  reopenHarness,
+  startTurn,
+  type Harness,
+} from "./support/harness.ts";
 import { TEST_HOLDER_A, TEST_HOLDER_B } from "./support/sqlite-store.ts";
 
-function startedEvents(h: ReturnType<typeof openHarness>): number {
+function startedEvents(h: Harness): number {
   return (
     h.store.raw
       .query<{ n: number }, []>("SELECT COUNT(*) AS n FROM events WHERE kind = 'thread.started'")
@@ -12,8 +21,8 @@ function startedEvents(h: ReturnType<typeof openHarness>): number {
 }
 
 describe("threads.create", () => {
-  test("thread.started is the first event: parent null, key thread:<id>:start, title kept", () => {
-    const h = openHarness();
+  test("thread.started is the first event: parent null, key thread:<id>:start, title kept", async () => {
+    const h = await openHarness();
     const threadId = h.ids.next("thr");
     const created = expectOk(h.service.threads.create({ threadId, title: "plan" }));
     expect(created).toEqual({ threadId, headSeq: 1, replayed: false, token: null });
@@ -34,21 +43,21 @@ describe("threads.create", () => {
     });
   });
 
-  test("create of the same thread id again replays the first result for the owner", () => {
-    const h = openHarness();
+  test("create of the same thread id again replays the first result for the owner", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h, "a");
     const again = expectOk(h.service.threads.create({ threadId, title: "a" }));
     expect(again.replayed).toBe(true);
     expect(startedEvents(h)).toBe(1);
     // 소유 증표가 없는 쪽은 이미 있는 thread에 쓸 수 없다. 멱등 재시도는 creationKey로 한다
-    const stranger = reopenHarness(h);
+    const stranger = await reopenHarness(h);
     const refused = stranger.service.threads.create({ threadId, title: "a" });
     expect(refused).toEqual({ ok: false, error: { kind: "ownership_lost", threadId } });
   });
 
   // spec §9.25
-  test("creation_key_is_idempotent_across_thread_ids", () => {
-    const h = openHarness();
+  test("creation_key_is_idempotent_across_thread_ids", async () => {
+    const h = await openHarness();
     const first = expectOk(
       h.service.threads.create({
         threadId: h.ids.next("thr"),
@@ -83,12 +92,12 @@ describe("threads.create", () => {
     expectProjectionsRebuildable(h.store.db);
   });
 
-  test("the creation key survives a restart (a new service instance)", () => {
-    const h = openHarness();
+  test("the creation key survives a restart (a new service instance)", async () => {
+    const h = await openHarness();
     const first = expectOk(
       h.service.threads.create({ threadId: h.ids.next("thr"), creationKey: "k:1" }),
     );
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     const again = expectOk(
       restarted.service.threads.create({ threadId: restarted.ids.next("thr"), creationKey: "k:1" }),
     );
@@ -96,8 +105,8 @@ describe("threads.create", () => {
     expect(startedEvents(restarted)).toBe(1);
   });
 
-  test("a creation key and thread.started are one transaction: a failed create leaves no key", () => {
-    const h = openHarness();
+  test("a creation key and thread.started are one transaction: a failed create leaves no key", async () => {
+    const h = await openHarness();
     const threadId = h.ids.next("thr");
     // title은 200자 상한이라 payload 검사가 Bug로 롤백한다
     expect(() =>
@@ -107,15 +116,15 @@ describe("threads.create", () => {
     expect(startedEvents(h)).toBe(0);
   });
 
-  test("a creationKey outside 1..200 characters is a Bug", () => {
-    const h = openHarness();
+  test("a creationKey outside 1..200 characters is a Bug", async () => {
+    const h = await openHarness();
     expect(() =>
       h.service.threads.create({ threadId: h.ids.next("thr"), creationKey: "" }),
     ).toThrow("creationKey");
   });
 
-  test("create is the only commit that may skip the ownership check, and only for thread.started", () => {
-    const h = openHarness();
+  test("create is the only commit that may skip the ownership check, and only for thread.started", async () => {
+    const h = await openHarness();
     // 임대 없이 만들 수 있다. 하지만 만든 뒤 같은 thread에 쓰려면 소유 증표가 있어야 한다
     const threadId = h.ids.next("thr");
     expectOk(h.service.threads.create({ threadId }));
@@ -124,8 +133,8 @@ describe("threads.create", () => {
 });
 
 describe("child threads (inheritOwnerFrom)", () => {
-  test("acquires session:<child> for the same holder, keeps the token and writes with it", () => {
-    const h = openHarness();
+  test("acquires session:<child> for the same holder, keeps the token and writes with it", async () => {
+    const h = await openHarness();
     const parent = newThread(h, "parent");
     const childId = h.ids.next("thr");
     const created = expectOk(
@@ -143,7 +152,7 @@ describe("child threads (inheritOwnerFrom)", () => {
   });
 
   test("release gives the self-acquired lease back; a host-supplied lease is left to the host", async () => {
-    const h = openHarness();
+    const h = await openHarness();
     const parent = newThread(h, "parent");
     const childId = h.ids.next("thr");
     const created = expectOk(
@@ -156,9 +165,9 @@ describe("child threads (inheritOwnerFrom)", () => {
     expect(created.token).not.toBeNull();
   });
 
-  test("the child's heartbeat loss drops the thread and tells the caller", () => {
+  test("the child's heartbeat loss drops the thread and tells the caller", async () => {
     const lost: string[] = [];
-    const h = openHarness({ onLeaseLost: (threadId) => lost.push(threadId) });
+    const h = await openHarness({ onLeaseLost: (threadId) => lost.push(threadId) });
     const parent = newThread(h, "parent");
     const childId = h.ids.next("thr");
     expectOk(h.service.threads.create({ threadId: childId, inheritOwnerFrom: parent.token }));
@@ -167,8 +176,8 @@ describe("child threads (inheritOwnerFrom)", () => {
     expect(() => startTurn(h, childId)).toThrow("ownership_lost");
   });
 
-  test("a failed child create gives the lease back", () => {
-    const h = openHarness();
+  test("a failed child create gives the lease back", async () => {
+    const h = await openHarness();
     const parent = newThread(h, "parent");
     const childId = h.ids.next("thr");
     expect(() =>
@@ -186,8 +195,8 @@ describe("child threads (inheritOwnerFrom)", () => {
     expect(retried.token?.epoch).toBe(2);
   });
 
-  test("a token of another holder is a Bug", () => {
-    const h = openHarness();
+  test("a token of another holder is a Bug", async () => {
+    const h = await openHarness();
     const parent = newThread(h, "parent");
     const foreign = { ...parent.token, holderId: TEST_HOLDER_B.holderId };
     expect(() =>
@@ -195,10 +204,10 @@ describe("child threads (inheritOwnerFrom)", () => {
     ).toThrow("different holder");
   });
 
-  test("inheritOwnerFrom without an engine holder is a Bug", () => {
-    const base = openHarness();
+  test("inheritOwnerFrom without an engine holder is a Bug", async () => {
+    const base = await openHarness();
     const parent = newThread(base, "parent");
-    const noHolder = reopenHarness(base, { withHolder: false });
+    const noHolder = await reopenHarness(base, { withHolder: false });
     expect(() =>
       noHolder.service.threads.create({
         threadId: noHolder.ids.next("thr"),
@@ -208,19 +217,38 @@ describe("child threads (inheritOwnerFrom)", () => {
   });
 });
 
-describe("M2 lifecycle members", () => {
-  test("they say so instead of pretending", async () => {
-    const h = openHarness();
-    const { threadId } = newThread(h);
-    expect(() => h.service.threads.list({})).toThrow("session.not_implemented");
-    expect(() => h.service.threads.remove(threadId)).toThrow("session.not_implemented");
-    expect(() => h.service.threads.setTitle(threadId, "x", "k")).toThrow("session.not_implemented");
-    let rejected = "";
-    await h.service.threads
-      .fork(threadId, undefined, h.ids.next("thr"))
-      .catch((caught: unknown) => {
-        rejected = caught instanceof Error ? caught.message : "";
-      });
-    expect(rejected).toContain("session.not_implemented");
+describe("threads.create workspace", () => {
+  // FR-P5: thread.started가 workspace를 싣고 p_threads.workspace에 투영된다
+  test("workspace is carried into thread.started and the summary row maps through threadSummaryOf", async () => {
+    const h = await openHarness();
+    const threadId = h.ids.next("thr");
+    expectOk(h.service.threads.create({ threadId, title: "w", workspace: "/home/me/proj" }));
+    const started = h.store.raw
+      .query<{ envelope: string }, []>("SELECT envelope FROM events WHERE kind = 'thread.started'")
+      .get();
+    expect(JSON.parse(started?.envelope ?? "{}").payload).toEqual({
+      title: "w",
+      forkedFrom: null,
+      workspace: "/home/me/proj",
+    });
+    const row = expectOk(h.service.query.thread(threadId));
+    expect(row?.workspace).toBe("/home/me/proj");
+    const summary = threadSummaryOf(row ?? failRow());
+    expect(summary.ok).toBe(true);
+    if (summary.ok) {
+      expect(summary.value).toMatchObject({ threadId, workspace: "/home/me/proj", title: "w" });
+    }
+    expectProjectionsRebuildable(h.store.db);
+  });
+
+  test("a thread without workspace keeps null and the same-key retry still replays", async () => {
+    const h = await openHarness();
+    const threadId = h.ids.next("thr");
+    expectOk(h.service.threads.create({ threadId }));
+    expect(expectOk(h.service.query.thread(threadId))?.workspace).toBeNull();
   });
 });
+
+function failRow(): never {
+  throw new Bug("test: thread row missing");
+}

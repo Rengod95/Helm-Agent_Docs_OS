@@ -207,6 +207,8 @@ export interface LeaseCandidate {
   readonly extension: ExtensionName;
   readonly loadIndex: number;
   readonly defaultEnabled: boolean;
+  /** 그 thread 활성 가지의 마지막 `scope.changed{status:"enabled"}` seq. 기록이 없으면 null */
+  readonly enabledAtSeq: number | null;
 }
 
 export interface LeaseArbiterPort {

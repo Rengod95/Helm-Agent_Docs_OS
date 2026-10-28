@@ -6,7 +6,7 @@ import { manualClock } from "./support/harness.ts";
 
 test("print mode: one ctrl+c asks to exit, a second within 2s forces it", () => {
   const clock = manualClock();
-  const counter = createCtrlCCounter(clock, { interruptSupported: true });
+  const counter = createCtrlCCounter(clock, { interruptSupported: () => true });
   const print = { interactive: false, turnActive: true };
   expect(counter.press(print)).toBe("requestExit");
   clock.advance(1500);
@@ -15,7 +15,7 @@ test("print mode: one ctrl+c asks to exit, a second within 2s forces it", () => 
 
 test("print mode: presses more than 2s apart each count as the first", () => {
   const clock = manualClock();
-  const counter = createCtrlCCounter(clock, { interruptSupported: true });
+  const counter = createCtrlCCounter(clock, { interruptSupported: () => true });
   const print = { interactive: false, turnActive: true };
   expect(counter.press(print)).toBe("requestExit");
   clock.advance(2000);
@@ -24,7 +24,7 @@ test("print mode: presses more than 2s apart each count as the first", () => {
 
 test("interactive turn with turn.interrupt available: 1 interrupts, 2 exits, 3 forces (AC9)", () => {
   const clock = manualClock();
-  const counter = createCtrlCCounter(clock, { interruptSupported: true });
+  const counter = createCtrlCCounter(clock, { interruptSupported: () => true });
   const busy = { interactive: true, turnActive: true };
   expect(counter.press(busy)).toBe("interruptTurn");
   clock.advance(500);
@@ -35,7 +35,7 @@ test("interactive turn with turn.interrupt available: 1 interrupts, 2 exits, 3 f
 
 test("interactive turn without turn.interrupt (M1): the first press already asks to exit", () => {
   const clock = manualClock();
-  const counter = createCtrlCCounter(clock, { interruptSupported: false });
+  const counter = createCtrlCCounter(clock, { interruptSupported: () => false });
   const busy = { interactive: true, turnActive: true };
   expect(counter.press(busy)).toBe("requestExit");
   expect(counter.press(busy)).toBe("requestExit");
@@ -44,7 +44,7 @@ test("interactive turn without turn.interrupt (M1): the first press already asks
 
 test("interactive idle: the first press hints, the second exits", () => {
   const clock = manualClock();
-  const counter = createCtrlCCounter(clock, { interruptSupported: true });
+  const counter = createCtrlCCounter(clock, { interruptSupported: () => true });
   const idle = { interactive: true, turnActive: false };
   expect(counter.press(idle)).toBe("hint");
   clock.advance(100);
@@ -85,7 +85,7 @@ function wired(
     {
       clock: manualClock(),
       interactive,
-      interruptSupported: true,
+      interruptSupported: () => true,
       turnActive: () => turnActive,
       interruptTurn: () => {
         calls.push("interrupt");

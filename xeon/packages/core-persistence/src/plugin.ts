@@ -14,8 +14,9 @@ import type {
   StoreDb,
 } from "@xeon/contracts/records";
 import { SessionPortKey, StoreServicePortKey } from "@xeon/contracts/services";
-import { hostOf, type ExtensionUnit } from "@xeon/ext-host";
+import { ExtHostPortKey, hostOf, type ExtensionUnit } from "@xeon/ext-host";
 import type { PersistenceSettings } from "./deps.ts";
+import { createSessionPoints } from "./points.ts";
 import { createSessionService } from "./service.ts";
 
 export const SESSION_EXTENSION_NAME = "core-persistence";
@@ -32,6 +33,8 @@ export interface SessionPluginOptions {
   readonly faults?: FaultInjector;
   readonly eventKinds?: EventKindRegistry;
   readonly settings?: () => PersistenceSettings;
+  /** 테스트·디버그 빌드: 확장 투영기의 소유 테이블 검사 */
+  readonly guardProjectors?: boolean;
   /** 이 엔진 인스턴스의 임대 홀더. 자식 thread 생성(`inheritOwnerFrom`)에 필요하다 */
   readonly holder?: LeaseHolder;
   readonly onLeaseLost?: (threadId: ThreadId) => void;
@@ -73,10 +76,14 @@ export function sessionPlugin(options: SessionPluginOptions): ExtensionUnit {
         putBlob: (bytes, mediaType) => store.putBlob(bytes, mediaType),
         clock: options.clock,
         ids: options.ids,
+        points: createSessionPoints(host.port(ExtHostPortKey)),
         ...(options.logger === undefined ? {} : { logger: options.logger }),
         ...(options.faults === undefined ? {} : { faults: options.faults }),
         ...(options.eventKinds === undefined ? {} : { eventKinds: options.eventKinds }),
         ...(options.settings === undefined ? {} : { settings: options.settings }),
+        ...(options.guardProjectors === undefined
+          ? {}
+          : { guardProjectors: options.guardProjectors }),
         ...(options.holder === undefined ? {} : { holder: options.holder }),
         ...(options.onLeaseLost === undefined ? {} : { onLeaseLost: options.onLeaseLost }),
       });

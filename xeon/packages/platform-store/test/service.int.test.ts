@@ -172,6 +172,9 @@ describe("platform policies", () => {
     // Linux에는 libSystem.B.dylib가 없으므로 DB 임대만 쓴다
     if (process.platform !== "darwin") {
       expect(opened.value.warnings).toContainEqual({ kind: "lock_provider_none" });
+    } else {
+      // 실제 macOS: libSystem.B.dylib는 디스크에 없어도 dlopen이 되므로 OS 잠금을 쥔다(2026-10-25 실측)
+      expect(opened.value.warnings).not.toContainEqual({ kind: "lock_provider_none" });
     }
     await opened.value.close();
   });
@@ -191,12 +194,31 @@ describe("platform policies", () => {
     await opened.value.close();
   });
 
+  test("a custom sqlite path that cannot be loaded fails the open with sqlite_load_failed", async () => {
+    // dlopen 실패는 macOS에서만 실제로 나므로 로더를 주입한다. 프로세스당 한 번만 로드할 수 있어 자식에서 돈다(§4.1 2번)
+    const dir = own(tempDir());
+    const result = await runScript(join(import.meta.dir, "fixtures", "darwin-custom.ts"), [
+      dir.join("xeon.db"),
+      "/nonexistent/libsqlite3.dylib",
+      "fail-load",
+    ]);
+    expect(result.code).toBe(3);
+    expect(result.stdout.trim()).toBe("OPEN_FAILED sqlite_load_failed");
+  });
+
   test("a custom sqlite path is recorded in the capabilities", async () => {
     const dir = own(tempDir());
     const result = await runScript(join(import.meta.dir, "fixtures", "darwin-custom.ts"), [
       dir.join("xeon.db"),
       "/nonexistent/libsqlite3.dylib",
     ]);
+    if (process.platform === "darwin") {
+      // macOS의 Bun은 없는 dylib을 바로 dlopen하다 실패한다(실측 2026-10-25). 열기 실패는 값으로 돌아온다
+      expect(result.code).toBe(3);
+      expect(result.stdout.trim()).toBe("OPEN_FAILED sqlite_load_failed");
+      return;
+    }
+    // Linux의 Bun은 경로를 확인하지 않고 받아들인다
     expect(result.code).toBe(0);
     const expected: Partial<DarwinCustomReport> = {
       fts5: true,

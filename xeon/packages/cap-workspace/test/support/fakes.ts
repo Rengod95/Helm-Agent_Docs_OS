@@ -8,6 +8,8 @@ import {
 } from "@xeon/contracts/services";
 import type { ScopeStack } from "@xeon/contracts/settings";
 import type { WorkspaceDeps } from "../../src/deps.ts";
+import type { BlobSink } from "../../src/ports/blobs.ts";
+import type { ThreadWorkspaces } from "../../src/ports/threads.ts";
 import { defaultRoots } from "../../src/roots.ts";
 import {
   DEFAULT_WORKSPACE_SETTINGS,
@@ -83,6 +85,8 @@ export interface DepsOptions {
   readonly protectedPaths?: readonly ProtectedPathEntry[];
   readonly settings?: (threadId: string | undefined) => WorkspaceSettings;
   readonly layers?: ScopeStack;
+  readonly blobs?: BlobSink;
+  readonly threads?: ThreadWorkspaces;
 }
 
 /** 대역 환경으로 서비스 의존을 만든다. sandbox가 null이면 서비스가 없는 상태다 */
@@ -104,5 +108,7 @@ export function depsFor(env: MemoryEnv, options: DepsOptions = {}): WorkspaceDep
       (options.layers === undefined
         ? () => DEFAULT_WORKSPACE_SETTINGS
         : () => readWorkspaceSettings(options.layers ?? [])),
+    ...(options.blobs === undefined ? {} : { blobs: options.blobs }),
+    ...(options.threads === undefined ? {} : { threads: options.threads }),
   };
 }

@@ -2,6 +2,7 @@ import { Bug, canonicalJson, parse } from "@xeon/contracts";
 import { isCapabilityError } from "@xeon/contracts/capabilities";
 import type {
   CallContext,
+  CallContinuation,
   CallOptions,
   CapabilityErrorData,
   MethodDef,
@@ -10,14 +11,26 @@ import type {
   ToolSpec,
 } from "@xeon/contracts/capabilities";
 import { toReplayPolicy } from "@xeon/contracts/conversation";
-import type { JsonObject, JsonValue, TextContent } from "@xeon/contracts/conversation";
+import type {
+  AgentToolResult,
+  JsonObject,
+  JsonValue,
+  TextContent,
+} from "@xeon/contracts/conversation";
 import type { ScopeId, ToolResourceDef } from "@xeon/contracts/extensions";
 import type {
+  CallerId,
   CapabilityToolsRegistration,
   DirectToolRegistration,
   ToolMeta,
   ToolRegistration,
 } from "@xeon/contracts/services";
+import {
+  inputRequestOf,
+  inputRequestOfResult,
+  answerMcpInput,
+  type InputBridge,
+} from "./mcp-input.ts";
 import { deriveRisk } from "./policy/modes.ts";
 import type { RawCall, RawOutcome, RawToolResult, ToolEntry } from "./types.ts";
 import { isJsonValue, messageOf, sha256Hex } from "./util.ts";
@@ -27,6 +40,9 @@ import { isJsonValue, messageOf, sha256Hex } from "./util.ts";
 
 /** 능력의 서비스 API를 얻는다. 아직 공급자가 없으면 undefined */
 export type CapabilityResolver = (key: ServiceKey<unknown>) => unknown;
+
+/** 같은 호출에서 `input_required`를 이어 받을 수 있는 횟수. 해결된 승인을 되풀이해 가리키는 도구로 무한히 도는 것을 막는다 */
+const MAX_INPUT_ROUNDS = 8;
 
 type MethodInvoker = (input: unknown, options: CallOptions) => Promise<unknown>;
 
@@ -67,12 +83,27 @@ async function requestIdFor(toolCallId: string): Promise<string> {
   return `tool:${(await sha256Hex(toolCallId)).slice(0, 40)}`;
 }
 
+const SUBAGENT_PREFIX = "subagent:";
+
+/**
+ * 호출 주체. 서브에이전트면 정의 이름을 `agentName`에 싣는다. 능력 어댑터(cap-dialog, cap-work, cap-knowledge)는
+ * `approvalCallerOf(context.caller)`로 승인 origin의 `caller`를 만들므로 이름을 버리면 모든 서브에이전트가
+ * `subagent:unknown`으로 기록된다. `extension`은 확장 호출자의 이름이라 여기에 쓰지 않는다 [결정: m2c G1-09]
+ */
+function callerInfoOf(caller: CallerId): CallContext["caller"] {
+  if (caller === "main") return { kind: "model", agent: "main" };
+  return { kind: "model", agent: "subagent", agentName: caller.slice(SUBAGENT_PREFIX.length) };
+}
+
 function callContext(call: RawCall): CallContext {
   return {
     threadId: call.run.threadId,
     turnId: call.run.turnId,
     toolCallId: call.toolCallId,
-    caller: { kind: "model", agent: call.run.caller === "main" ? "main" : "subagent" },
+    caller: callerInfoOf(call.run.caller),
+    interactive: call.run.interactive,
+    // 비밀 사용 승인 증거는 도구 구현이 SecretEnvRequest.ctx.approval로 옮긴다(L1.tools.spec §4.12, F 요청 13)
+    ...(call.secretApproval === null ? {} : { approval: call.secretApproval }),
   };
 }
 
@@ -96,6 +127,7 @@ async function invokeCapability(
   spec: ToolSpec,
   method: MethodDef,
   resolve: CapabilityResolver,
+  bridge: InputBridge,
   call: RawCall,
 ): Promise<RawOutcome> {
   const api = resolve(registration.key);
@@ -116,9 +148,67 @@ async function invokeCapability(
     requestId: await requestIdFor(call.toolCallId),
     context: callContext(call),
   };
+  type InputStep =
+    | { readonly kind: "done"; readonly output: unknown }
+    | { readonly kind: "stopped"; readonly outcome: RawOutcome };
+  const stopped = (code: string, text: string, interrupted: boolean = false): InputStep => ({
+    kind: "stopped",
+    outcome: errorOutcome(text, { code, tool: spec.name }, interrupted),
+  });
+  // 도구가 `input_required`로 돌아오면 사용자 답을 기다렸다가 다시 부른다(L1.tools.spec §4.3).
+  // - `approvalId`가 있으면 도구가 자기 승인을 올린 것이다(L2.dialog.spec §4.1.2 6번). 해결 뒤 같은 입력, 같은 requestId로 다시 부르고, 도구는 저장된 답으로 완료 결과를 낸다.
+  // - 없으면 MCP의 서버 주도 요청이다(결정 D5 (a)). 질문 승인을 올리고 답을 `continuation`으로 실어 같은 requestId로 다시 부른다
+  const settleInput = async (
+    current: unknown,
+    round: number,
+    retry: CallOptions,
+  ): Promise<InputStep> => {
+    const request = inputRequestOf(current);
+    if (request === undefined) return { kind: "done", output: current };
+    if (request.kind === "invalid") {
+      return stopped(
+        "input_required_invalid",
+        `[xeon:input_required_invalid] ${spec.name} returned an input request this runtime cannot read: ${request.detail}.`,
+      );
+    }
+    if (round >= MAX_INPUT_ROUNDS) {
+      return stopped(
+        "input_required_loop",
+        `[xeon:input_required_loop] ${spec.name} kept asking for input after ${MAX_INPUT_ROUNDS} rounds.`,
+      );
+    }
+    if (request.kind === "mcp") {
+      const step = await answerMcpInput({
+        toolName: spec.name,
+        request: request.request,
+        call,
+        bridge,
+      });
+      if (step.kind === "stopped") return stopped(step.code, step.text, step.interrupted);
+      const next: CallOptions = { ...options, continuation: step.continuation };
+      return settleInput(await invoke.call(api, input, next), round + 1, next);
+    }
+    const waited = await bridge.wait(request.approvalId, call.signal);
+    if (waited === "aborted") {
+      return stopped(
+        "aborted",
+        "[aborted] The tool call was cancelled while waiting for the user.",
+        true,
+      );
+    }
+    if (waited === "unknown") {
+      return stopped(
+        "approval_unknown",
+        `[xeon:approval_unknown] ${spec.name} is waiting for an approval that this runtime does not know.`,
+      );
+    }
+    return settleInput(await invoke.call(api, input, retry), round + 1, retry);
+  };
   let output: unknown;
   try {
-    output = await invoke.call(api, input, options);
+    const settled = await settleInput(await invoke.call(api, input, options), 1, options);
+    if (settled.kind === "stopped") return settled.outcome;
+    output = settled.output;
   } catch (error) {
     // CapabilityError만 isError 결과로 바꾼다. 그 밖의 예외는 호출자(파이프라인)가 처리한다
     if (!isCapabilityError(error)) throw error;
@@ -154,6 +244,7 @@ async function invokeCapability(
 function capabilityEntries(
   registration: CapabilityToolsRegistration,
   resolve: CapabilityResolver,
+  bridge: InputBridge,
 ): readonly ToolEntry[] {
   const { def } = registration;
   return def.tools.map((spec): ToolEntry => {
@@ -180,13 +271,77 @@ function capabilityEntries(
       replay: spec.replay ?? "unsafe",
       exposure: registration.exposure?.[spec.name] ?? "always",
       outputLimits: registration.outputLimits?.[spec.name] ?? {},
-      raw: (call) => invokeCapability(registration, spec, method, resolve, call),
+      raw: (call) => invokeCapability(registration, spec, method, resolve, bridge, call),
       locks: undefined,
     };
   });
 }
 
-function directEntry(registration: DirectToolRegistration): ToolEntry {
+type DirectStep =
+  | { readonly kind: "done"; readonly result: AgentToolResult }
+  | { readonly kind: "stopped"; readonly outcome: RawOutcome };
+
+/**
+ * 직접 등록 도구를 부른다. `executeWithContinuation`이 있고 결과가 `input_required`(MCP 서버 주도 요청)이면 질문 승인을 올려 답을 기다리고,
+ * 답을 연속 정보로 실어 같은 호출을 다시 부른다(결정 D5 (a)). 없으면 `tool.execute` 한 번이다
+ */
+async function settleDirectInput(
+  registration: DirectToolRegistration,
+  bridge: InputBridge,
+  call: RawCall,
+): Promise<DirectStep> {
+  const { tool, executeWithContinuation } = registration;
+  if (executeWithContinuation === undefined) {
+    return {
+      kind: "done",
+      result: await tool.execute(call.toolCallId, call.params, call.signal, call.onUpdate),
+    };
+  }
+  const stopped = (code: string, text: string, interrupted: boolean = false): DirectStep => ({
+    kind: "stopped",
+    outcome: errorOutcome(text, { code, tool: tool.name }, interrupted),
+  });
+  // 라운드마다 다시 부르므로 재귀로 잇는다(위 `settleInput`과 같다). 횟수 상한은 `MAX_INPUT_ROUNDS`다
+  const attempt = async (
+    round: number,
+    continuation: CallContinuation | undefined,
+  ): Promise<DirectStep> => {
+    const result = await executeWithContinuation({
+      threadId: call.run.threadId,
+      context: callContext(call),
+      toolCallId: call.toolCallId,
+      params: call.params,
+      signal: call.signal,
+      onUpdate: call.onUpdate,
+      continuation,
+    });
+    const request = inputRequestOfResult(result);
+    if (request === undefined) return { kind: "done", result };
+    if (request.kind !== "mcp") {
+      return stopped(
+        "input_required_invalid",
+        `[xeon:input_required_invalid] ${tool.name} returned an input request this runtime cannot read.`,
+      );
+    }
+    if (round >= MAX_INPUT_ROUNDS) {
+      return stopped(
+        "input_required_loop",
+        `[xeon:input_required_loop] ${tool.name} kept asking for input after ${MAX_INPUT_ROUNDS} rounds.`,
+      );
+    }
+    const step = await answerMcpInput({
+      toolName: tool.name,
+      request: request.request,
+      call,
+      bridge,
+    });
+    if (step.kind === "stopped") return stopped(step.code, step.text, step.interrupted);
+    return attempt(round + 1, step.continuation);
+  };
+  return attempt(1, undefined);
+}
+
+function directEntry(registration: DirectToolRegistration, bridge: InputBridge): ToolEntry {
   const { tool } = registration;
   const mcpServer = registration.policy?.mcpServer;
   return {
@@ -206,7 +361,9 @@ function directEntry(registration: DirectToolRegistration): ToolEntry {
     exposure: registration.exposure ?? (mcpServer === undefined ? "always" : "auto"),
     outputLimits: registration.outputLimits ?? {},
     raw: async (call) => {
-      const result = await tool.execute(call.toolCallId, call.params, call.signal, call.onUpdate);
+      const settled = await settleDirectInput(registration, bridge, call);
+      if (settled.kind === "stopped") return settled.outcome;
+      const { result } = settled;
       // structuredContent는 outputSchema로 검증하고 위반은 internal 오류 결과로 바꾼다(L1.tools.spec §4.3)
       if (tool.outputSchema !== undefined && result.structuredContent !== undefined) {
         if (!parse(tool.outputSchema, result.structuredContent).ok) {
@@ -287,10 +444,11 @@ export function resourceEntry(owner: ScopeId, def: ToolResourceDef): ToolEntry {
 export function entriesOf(
   registration: ToolRegistration,
   resolve: CapabilityResolver,
+  bridge: InputBridge,
 ): readonly ToolEntry[] {
   return registration.kind === "capability"
-    ? capabilityEntries(registration, resolve)
-    : [directEntry(registration)];
+    ? capabilityEntries(registration, resolve, bridge)
+    : [directEntry(registration, bridge)];
 }
 
 /** 항목 → 공개 메타. 도구별 한도가 없으면 호출 쪽이 넘긴 설정 한도를 쓴다 */

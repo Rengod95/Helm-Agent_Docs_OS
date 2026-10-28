@@ -11,8 +11,9 @@ import {
   type SimpleStreamOptions,
   type TranscriptContext,
 } from "@earendil-works/pi-ai";
+import { eachAsync } from "@xeon/contracts";
 import type { ModelRole } from "@xeon/contracts/services";
-import { TapeMismatchError, type TapePlayer } from "./tape.ts";
+import { TapeMismatchError, type TapePlayer, type TapeStream } from "./tape.ts";
 
 // 테이프 재생기를 pi-ai Provider로 감싼다. core-models의 ModelService, 다른 L1·L2 패키지 테스트가 실제 모델 대신
 // 이 provider를 `createModels({ credentials }).setProvider(...)`에 더해 쓴다(eng.testing.guide TS-04, plan §2).
@@ -43,6 +44,15 @@ export interface TapeProviderOptions {
    * 흉내 낼 때 2 이상으로 둔다(L1.models.spec §4.3 5번)
    */
   readonly payloadAttempts?: number;
+  /**
+   * 응답 수신을 흉내 낸다. 주면 payload 확정 뒤 pi-ai 어댑터처럼 `onResponse`를 부른다(after_provider_response)
+   */
+  readonly response?: {
+    readonly status: number;
+    readonly headers: Readonly<Record<string, string>>;
+  };
+  /** 어댑터가 낸 원시 스트림 이벤트를 흉내 낸다. 주면 `onProviderStreamEvent`를 이벤트마다 부른다(provider_stream_event) */
+  readonly rawEvents?: readonly unknown[];
   /** 참이면 키가 없는 요청을 "Provider is not configured"로 거부한다. 기본 거짓(키 없는 로컬 서버처럼) */
   readonly requireKey?: boolean;
 }
@@ -54,6 +64,10 @@ export interface TapeProviderCall {
   readonly apiKey: string | undefined;
   readonly sessionId: string | undefined;
   readonly reasoning: SimpleStreamOptions["reasoning"];
+  /** pi-ai가 받은 레벨별 토큰 예산 */
+  readonly thinkingBudgets: SimpleStreamOptions["thinkingBudgets"];
+  /** 요청 헤더 옵션(secret 참조를 푼 뒤의 값이 아니라 pi-ai로 넘어온 옵션 그대로) */
+  readonly headers: SimpleStreamOptions["headers"];
   /** onPayload가 돌려준 최종 페이로드 */
   readonly payload: unknown;
 }
@@ -129,7 +143,7 @@ export function tapeProvider(
   ): AsyncGenerator<AssistantMessageEvent> {
     const role = roleOf(model);
     // 실제 어댑터가 보낼 요청 본문을 흉내 낸다. before_provider_request 핸들러가 이 값을 본다
-    const draft: unknown = { model: model.id, messages: context.messages };
+    const draft: unknown = { model: model.id, messages: structuredClone(context.messages) };
     const replaced = await firePayload(streamOptions, model, draft, options.payloadAttempts ?? 1);
     calls.push({
       modelId: model.id,
@@ -137,9 +151,21 @@ export function tapeProvider(
       apiKey: streamOptions?.apiKey,
       sessionId: streamOptions?.sessionId,
       reasoning: streamOptions?.reasoning,
+      thinkingBudgets: streamOptions?.thinkingBudgets,
+      headers: streamOptions?.headers,
       payload: replaced ?? draft,
     });
-    let events: AsyncIterable<AssistantMessageEvent>;
+    if (options.response !== undefined) {
+      await streamOptions?.onResponse?.(
+        { status: options.response.status, headers: { ...options.response.headers } },
+        model,
+      );
+    }
+    await eachAsync(options.rawEvents ?? [], async (raw) => {
+      await streamOptions?.onProviderStreamEvent?.(raw, model);
+      return undefined;
+    });
+    let events: TapeStream;
     try {
       events = player.stream({
         role,
@@ -151,6 +177,10 @@ export function tapeProvider(
       if (error instanceof TapeMismatchError) mismatches.push(error);
       throw error;
     }
+    await eachAsync([...events.rawEvents], async (raw) => {
+      await streamOptions?.onProviderStreamEvent?.(raw, model);
+      return undefined;
+    });
     for await (const event of events) yield withCost(model, event);
   }
 

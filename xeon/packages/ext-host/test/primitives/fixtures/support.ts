@@ -5,7 +5,18 @@ import type {
   Usage,
   UserMessage,
 } from "@xeon/contracts/conversation";
+import type { ExtThreadSnapshot, RecordCommitPort } from "@xeon/contracts/records";
 import type { ExtensionUnit } from "../../../src/primitives/index.ts";
+
+/** 기록 포트의 스냅샷. 읽기 실패는 시험 결함이므로 던진다 */
+export async function snapshotOf(
+  records: Pick<RecordCommitPort, "loadThread">,
+  threadId: Parameters<RecordCommitPort["loadThread"]>[0],
+): Promise<ExtThreadSnapshot> {
+  const loaded = await records.loadThread(threadId);
+  if (!loaded.ok) throw new Error(`loadThread failed: ${loaded.error.kind}`);
+  return loaded.value;
+}
 
 const usage: Usage = {
   input: 10,

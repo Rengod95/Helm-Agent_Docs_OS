@@ -125,13 +125,13 @@ cap-<domain>/
 
 1. 호출 인자 `provider`: 메서드 입력에 `provider` 필드가 있고 값이 주어지면 그 provider만 쓴다.
 2. 설정 `l2.<domain>.<능력>.provider`: 값이 `"auto"`가 아니면 그 provider만 쓴다.
-3. `"auto"` 체인: 사용자 등록 플러그인(설정 `l2.<domain>.<능력>.pluginOrder` 순) → 감지된 로컬 provider → 내장 기본 provider 순으로 후보를 늘어놓는다.
+3. `"auto"` 체인: 사용자 등록 플러그인(설정 `l2.<domain>.<능력>.pluginOrder` 순) → 사용자가 주소를 설정한 로컬 provider(origin `detected`) → 내장 기본 provider 순으로 후보를 늘어놓는다. 후보에는 사용자가 설정한 provider만 들어간다. 로컬 주소를 찾아 나서는 자동 감지는 없다(ADR-0005 §3.3 개정, 사용자 결정 H1).
 
 - 각 provider는 `isAvailable(signal)` 탐침을 갖는다. 탐침이 실패하면 다음 후보로 내려가고 사유를 결과의 `meta.fallbacks`에 남긴다.
 - 1·2번처럼 명시로 고른 provider는 다른 후보로 내려가지 않는다. 탐침이 실패하면 `unavailable` 오류를 내고 `detail`에 사유를 싣는다. 사용자가 고른 것을 조용히 바꾸지 않기 위해서다.
 - auto 체인에서 호출 중 오류가 `unavailable`, `rate_limited`, `upstream_error`이면 다음 후보로 내려갈 수 있다. 단, 메서드의 `replay`가 `"safe"`일 때만이다. `"unsafe"` 메서드는 효과가 이미 났을 수 있으므로 호출 중 오류로는 내려가지 않는다.
 - 후보가 모두 실패하면 `unavailable` 오류를 내고 `detail.fallbacks`에 전체 사유를 싣는다.
-- `web.search`의 ADR-0005 §3.3(호출 인자 > 설정 > 키 플러그인 > SearXNG > 내장 검색 래퍼)은 이 규약의 사례다. ADR-0005의 짧은 키 `web.search.provider`는 키 문법(§7.1)에 맞춰 `l2.web.search.provider`로 읽는다. ADR-0005 §6의 [미결](플러그인과 SearXNG 순서)은 이 규약의 3번 순서(플러그인 > 감지 로컬)로 제안하고 확정은 ADR-0005를 따른다.
+- `web.search`의 ADR-0005 §3.3(호출 인자 > 설정 > 키 플러그인 > SearXNG > 내장 검색 래퍼)은 이 규약의 사례다. ADR-0005의 짧은 키 `web.search.provider`는 키 문법(§7.1)에 맞춰 `l2.web.search.provider`로 읽는다. ADR-0005 §6의 [미결](플러그인과 SearXNG 순서)은 이 규약의 3번 순서(플러그인 > 설정한 로컬)로 제안하고 확정은 ADR-0005를 따른다.
 
 공통 타입은 F `capabilities/provider.ts`가 정본이다(`F.capabilities.spec` §3.11). 이름은 `PROVIDER_ID_PATTERN`, `ProviderIdSchema`, `ProviderId`, `ProviderOrigin`, `ProviderAvailability`, `ProviderFallback`, `ProviderSelectionMeta`, `ProviderCandidate`, `ProviderOrderInput`, `orderProviderCandidates`다. 내장 provider id는 소문자 이름이고 플러그인 provider id는 `plugin:<확장 이름>`이다.
 
@@ -202,6 +202,7 @@ export interface WebService {
 | `tool` | `knowledge.*` 쓰기 게이트, `schedule.loops`(그룹이 시작한 셸 종료 조건) | `L2.knowledge.spec` §4.5.1, `L2.schedule.spec` §4.1.2 | |
 
 - `schedule.remote`는 요청하지 않고 원격 클라이언트의 응답을 `respond`로 중계만 한다(`L2.schedule.spec` §4.5.2).
+- [결정: m2c G1-09] 승인 origin의 `caller`는 호출 문맥의 `CallContext.caller`를 `approvalCallerOf`(`@xeon/contracts/services`)에 넣어 만든다. cap-dialog, cap-work, cap-knowledge의 승인 포트는 자기 변환 함수를 두지 않는다. 호출 문맥이 없는 요청(스레드를 다시 열 때 등)은 호스트가 직접 낸 호출이므로 `host`다. 규칙의 정본은 `F.records.spec` §3.3.1이다.
 - [제안] L2 공통 승인 포트. 각 `cap-*`는 `xeon.approvals`를 패키지 내부 포트 한 곳(`src/ports/approvals.ts`)으로 감싸고 아래 모양을 따른다. L2 패키지끼리 import하지 않으므로 같은 모양을 각자 둔다. 도메인 spec은 kind와 `subject` 타입만 좁힌다. L1.tools.spec의 실제 이름이 다르면 포트만 고친다.
 
 ```ts
@@ -257,6 +258,14 @@ L2 도메인의 내구·휘발 이벤트 카탈로그 형식은 `F.records.spec`
 - 접두 예외: 내장 `cap-*`는 자기 도메인 영역(`DomainArea`)을 접두 없이 쓴다. 그룹 레코드 kind와 커스텀 메시지 `customType`은 이 예외에 들지 않고 `RecordKind` 형식(`x.<확장 이름>.…`)을 쓴다(`F.records.spec` §3.2 규칙 3). 그래서 `cap-work`의 이벤트는 `work.goal_judged`이고 커스텀 메시지는 `x.cap-work.goal.continue`다.
 - 소유 생산자: `TYPE_PREFIX_OWNERS`(`src/records/owners.ts`)에 `work.` → `cap.work`, `dialog.` → `cap.dialog`, `artifact.` → `cap.artifacts`, `schedule.` → `cap.schedule` 행이 있다. 커밋 때 접두사 소유 검사는 이 표로 한다.
 - payload 스키마를 records 쪽에 둘지 capabilities 정의 파일에서 import할지는 F 안의 도메인 순서(`F.readme` §3)를 따르고 `F.records.plan`이 정한다.
+
+### 5.10 프로젝트 자원의 기준 폴더
+
+- [결정: m2c G2-02] 프로젝트 자원(`.mcp.json`, `.xeon/mcp.json`, `.xeon/skills/`, `.xeon/commands/`, 프로젝트·로컬 설정 층)은 호출이 속한 대화의 작업 폴더(`thread.workspace`)를 기준으로 읽는다. 엔진 프로세스의 cwd로 대신하지 않는다. 데스크톱 사이드카의 cwd는 홈이라 사용자가 고른 폴더의 자원이 읽히지 않기 때문이다.
+- 공급: 조립 루트가 `(threadId) => string | undefined`(그 대화의 작업 폴더, 없으면 `undefined`)를 각 `cap-*`에 넘긴다. 이 함수는 `L4.host-service.spec` HS-66의 `threadWorkspaceOf`와 같은 값을 낸다. `cap-*` 패키지끼리 import하지 않으므로 같은 모양의 옵션을 각자 둔다: `cap-mcp`의 `McpDeps.workspaceOf`, `cap-knowledge`의 `KnowledgePluginOptions.workspaceOf`, `cap-dialog`의 `CommandRoots.projectRoot(threadId)`. `cap-workspace`는 처음부터 대화의 작업 폴더를 쓴다.
+- 작업 폴더가 없는 대화와 모르는 thread에는 프로젝트 자원이 없다. 엔진 cwd로 내려가지 않는다. 대화를 지정하지 않는 읽기(엔진을 열 때의 첫 읽기)만 조립 루트가 넘긴 기본 루트를 쓴다.
+- 프로젝트 신뢰(`X.loading-trust.spec` §4.7)도 같은 폴더로 묻는다. 신뢰하지 않은 폴더의 프로젝트 자원은 읽지 않는다(fail-closed).
+- 한계 [미결]: MCP 서버 연결과 스킬 색인은 엔진 단위 상태이고 마지막으로 읽은 작업 폴더를 따른다. 작업 폴더가 다른 대화가 번갈아 단계를 열면 다시 맞추는 일이 잦다(`L2.mcp.spec` §10 미결 13, `L2.knowledge.spec` §10). 작업 폴더별로 상태를 나누는 안은 M3 이후로 둔다.
 
 ## 6. L2 사이 의존
 

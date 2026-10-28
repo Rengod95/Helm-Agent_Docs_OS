@@ -168,21 +168,35 @@ describe("knowledge schemas", () => {
     expect(parse(SkillManageInputSchema, { action: "patch", ...base, path: "src/a.md" }).ok).toBe(
       false,
     );
-    // 스키마 패턴은 점 마디를 거르지 못한다. 서비스는 isSkillFilePath로 다시 거른다
-    expect(
-      parse(SkillManageInputSchema, { action: "patch", ...base, path: "references/../x" }).ok,
-    ).toBe(true);
-    expect(isSkillFilePath("references/a.md")).toBe(true);
-    expect(isSkillFilePath("assets/img/logo.png")).toBe(true);
+    // 스키마도 점으로 시작하는 마디와 `.`·`..` 마디를 거른다(KN.1). isSkillFilePath는 같은 규칙이다
+    for (const bad of ["references/../x", "references/.hidden", "references/a/.x/b", "assets/."]) {
+      expect(parse(SkillManageInputSchema, { action: "patch", ...base, path: bad }).ok, bad).toBe(
+        false,
+      );
+    }
+    for (const good of [
+      "references/a.md",
+      "assets/img/logo.png",
+      "scripts/run_1-x.sh",
+      "templates/a",
+    ]) {
+      expect(isSkillFilePath(good), good).toBe(true);
+      expect(parse(SkillManageInputSchema, { action: "patch", ...base, path: good }).ok, good).toBe(
+        true,
+      );
+    }
     for (const bad of [
       "references/../x",
       "references/./x",
       "references/a/..",
+      "references/.hidden",
+      "references/a./b",
+      "references/a.",
       "src/a.md",
       "references",
       `references/${"a/".repeat(5)}b`,
     ]) {
-      expect(isSkillFilePath(bad)).toBe(false);
+      expect(isSkillFilePath(bad), bad).toBe(false);
     }
   });
 

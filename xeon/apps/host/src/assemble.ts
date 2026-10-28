@@ -1,22 +1,27 @@
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { assertNever, attemptAsync, Bug, parse, type Logger } from "@xeon/contracts";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import type { PortKey } from "@xeon/contracts/extensions";
 import {
   SessionServiceName,
   StoreServiceName,
+  storeFailureKindOf,
   type LeaseHolder,
   type SessionService,
+  type StoreFailureKind,
   type StoreService,
 } from "@xeon/contracts/records";
 import {
   ApprovalServiceName,
+  ContextServiceName,
   LoopServiceName,
   ModelServiceName,
   OsPortKey,
   TaskServiceName,
   ToolServiceName,
   type ApprovalService,
+  type ContextService,
   type LoopService,
   type ModelService,
   type OsService,
@@ -38,26 +43,38 @@ import { createExecPlatformModule, detectExecPlatform } from "@xeon/platform-exe
 import {
   createIdFactory,
   createLocalIdFactory,
-  platformOsPlugin,
   readOsRuntime,
   type OsRuntime,
+  type OsServiceHandle,
 } from "@xeon/platform-os";
-import { processPlugin } from "@xeon/platform-process";
-import { createSecretService } from "@xeon/platform-secrets";
+import { createProcessShutdown, processPlugin, type ProcessShutdown } from "@xeon/platform-process";
+import { createSecretsRuntime } from "@xeon/platform-secrets";
 import {
   openStore,
   storePlugin,
   type OpenedStore,
   type StoreOpenError,
+  type StoreWarning,
 } from "@xeon/platform-store";
 import { buildEngineCatalog } from "./assembly/catalog.ts";
 import { builtinUnits, installFailureOf, unitOfModule } from "./assembly/extensions.ts";
 import { createLateLogSink } from "./assembly/log-sink.ts";
-import { sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
+import { createHostMcpProcessPort } from "./assembly/mcp-process.ts";
+import type { CommandRegistryHolder } from "./assembly/l2-units.ts";
+import { pruneOnOpen } from "./assembly/retention.ts";
+import { osPlatform, sandboxPlatform, secretsPlatform } from "./assembly/platform.ts";
 import { createEnginePorts, type PortsHandle } from "./assembly/ports.ts";
+import {
+  createSecretsPort,
+  effectiveSecretsConfig,
+  settingKeysReferencing,
+} from "./assembly/secrets.ts";
+import { createProjectTrust } from "./assembly/trust.ts";
+import { createProviderLinker } from "./secrets/provider-link.ts";
 import { createSettingsEngine } from "./assembly/settings-engine.ts";
 import {
   execOptionsOf,
+  logLevelOf,
   operationsSource,
   primitivesSource,
   sandboxSource,
@@ -78,6 +95,7 @@ export type {
   AssembleOptions,
   CommitBatch,
   Engine,
+  EngineDiagnostics,
   EnginePorts,
   EventFeedPort,
   HostLogPort,
@@ -116,7 +134,7 @@ function describeIssue(issue: AssembleIssue): string {
     case "catalog":
       return `catalog: ${issue.issues.map((entry) => `${entry.code} ${"key" in entry ? entry.key : ""}`).join(", ")}`;
     case "store":
-      return `store: ${issue.message}`;
+      return `store: ${issue.message} (${issue.failure})`;
     case "missingService":
       return `missing service ${issue.service}`;
     case "plugin":
@@ -126,28 +144,26 @@ function describeIssue(issue: AssembleIssue): string {
   }
 }
 
-/** 저장소를 열지 못한 이유를 CLI가 구별하는 이름으로 옮긴다(L4.host-service.spec §3.3.5 EngineStartError 대응) */
-function storeMessageOf(error: StoreOpenError): string {
-  switch (error.kind) {
-    case "fts5_missing":
-      return "fts5Missing";
-    case "permission":
-    case "unsupported_filesystem":
-      return "dataDirPermission";
-    case "db_path_invalid":
-    case "foreign_database":
-    case "corrupt":
-    case "busy":
-    case "disk_full":
-    case "io":
-    case "migration_checksum_mismatch":
-    case "migration_failed":
-    case "migration_future_version":
-    case "migration_gap":
-      return "storeUnavailable";
-    default:
-      return assertNever(error, "StoreOpenError");
+/** CLI가 구별하는 이름. 분류(`failure`)마다 안내가 달라서 한 이름으로 합치지 않는다(`F.records.spec` §3.7 7항) */
+const STORE_MESSAGE_BY_FAILURE: Readonly<Record<StoreFailureKind, string>> = {
+  future_version: "storeFutureVersion",
+  corrupt: "storeCorrupt",
+  migration_failed: "storeMigrationFailed",
+  unavailable: "storeUnavailable",
+};
+
+/** 저장소를 열지 못한 이유를 분류와 CLI가 구별하는 이름으로 옮긴다(L4.host-service.spec §3.3.5 EngineStartError 대응) */
+export function storeIssueOf(error: StoreOpenError): AssembleIssue & { readonly code: "store" } {
+  const failure = storeFailureKindOf(error.kind);
+  if (error.kind === "fts5_missing") return { code: "store", message: "fts5Missing", failure };
+  if (error.kind === "permission" || error.kind === "unsupported_filesystem") {
+    return { code: "store", message: "dataDirPermission", failure };
   }
+  return { code: "store", message: STORE_MESSAGE_BY_FAILURE[failure], failure };
+}
+
+function defaultProjectTrustOf(value: unknown): "ask" | "always" | "never" {
+  return value === "always" || value === "never" ? value : "ask";
 }
 
 function causeKind(caught: unknown): string | undefined {
@@ -176,11 +192,78 @@ const TASKS_KEY: PortKey<TaskService> = { name: TaskServiceName };
 const APPROVALS_KEY: PortKey<ApprovalService> = { name: ApprovalServiceName };
 const TOOLS_KEY: PortKey<ToolService> = { name: ToolServiceName };
 const MODELS_KEY: PortKey<ModelService> = { name: ModelServiceName };
+const CONTEXT_KEY: PortKey<ContextService> = { name: ContextServiceName };
 
 function requirePort<Api>(ext: ExtHost, key: PortKey<Api>, service: string): Api {
   const found = ext.ports.get(key);
   if (found === undefined) throw new AssembleError([{ code: "missingService", service }]);
   return found;
+}
+
+/**
+ * thread의 작업 디렉터리. 세션 서비스가 올라오기 전이거나 모르는 thread, 작업 디렉터리가 없는 thread면 undefined다(호출자는 ""로 본다).
+ * thread 읽기가 실패하면(busy, io, row_invalid) 같이 undefined를 돌려주되 `host.thread_workspace_unreadable`로 남긴다: 읽기 실패를
+ * 작업 디렉터리가 없는 것으로 조용히 바꾸면 project·local 설정과 `user_bash`의 cwd가 왜 비었는지 알 수 없다.
+ * 설정 층(project·local 파일)과 `user_bash`의 cwd가 같은 값을 쓴다
+ */
+export function threadWorkspaceOf(
+  ext: ExtHost,
+  logger: Logger,
+): (threadId: ThreadId) => string | undefined {
+  return (threadId) => {
+    const found = ext.ports.get(SESSION_KEY)?.query.thread(threadId);
+    if (found === undefined) return undefined;
+    if (!found.ok) {
+      logger.warn("host.thread_workspace_unreadable", { threadId, reason: found.error.kind });
+      return undefined;
+    }
+    return found.value?.workspace ?? undefined;
+  };
+}
+
+/**
+ * 저장소 열기 경고를 로그에 남긴다(L0.store.spec §4.6.1). 마이그레이션 전 스냅샷은 사용자 DB를 지키는 복구 수단이라 위치를 info로 남기고,
+ * 보관 수를 넘은 옛 스냅샷을 지우지 못한 것은 warn이다. 그 밖의 경고도 종류를 warn으로 남긴다. 값은 싣지 않는다
+ */
+export function logStoreWarning(logger: Logger, warning: StoreWarning): void {
+  switch (warning.kind) {
+    case "migration_snapshot":
+      logger.info("store.migration_snapshot", {
+        path: warning.path,
+        owner: warning.owner,
+        from: warning.from,
+        to: warning.to,
+      });
+      return;
+    case "snapshot_prune_failed":
+      logger.warn("store.snapshot_prune_failed", { path: warning.path, code: warning.code });
+      return;
+    case "fs_unknown":
+      logger.warn("store.warning", { kind: warning.kind, dir: warning.dir });
+      return;
+    case "permission_fixed":
+      logger.warn("store.warning", {
+        kind: warning.kind,
+        path: warning.path,
+        from: warning.from,
+        to: warning.to,
+      });
+      return;
+    case "checkpoint_incomplete":
+      logger.warn("store.warning", {
+        kind: warning.kind,
+        busy: warning.busy,
+        log: warning.log,
+        checkpointed: warning.checkpointed,
+      });
+      return;
+    case "fts5_missing":
+    case "lock_provider_none":
+      logger.warn("store.warning", { kind: warning.kind });
+      return;
+    default:
+      assertNever(warning, "StoreWarning");
+  }
 }
 
 /** 엔진 하나를 만든다. 실패하면 AssembleError를 던지고, 그때까지 연 자원을 닫는다 */
@@ -259,6 +342,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
   late.scopes = createScopeControl(scopeToggleSourceOf(ext));
 
   let portsHandle: PortsHandle | undefined;
+  let shutdownCoordinator: ProcessShutdown | undefined;
+  const osSlot: { handle: OsServiceHandle | undefined } = { handle: undefined };
   const closing: { promise: Promise<void> | undefined } = { promise: undefined };
 
   async function closeAll(): Promise<void> {
@@ -301,16 +386,25 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     // 1. 경로: L0.os
     await register(
       "platform-os",
-      platformOsPlugin(
+      osPlatform(
         {
           resourceDir: hostResourceDir(),
           logSink: logSink.sink,
           logRedact: (line) => redact.current(line),
+          // 설정 l0.os.log.level은 live다: 로그를 낼 때마다 읽어 변경이 다음 줄부터 반영된다(G1-12)
+          logLevel: logLevelOf(settings),
         },
         runtime,
+        (handle) => {
+          osSlot.handle = handle;
+        },
       ),
     );
     const os: OsService = requirePort(ext, OsPortKey, "xeon.os");
+    const osHandle = osSlot.handle;
+    // xeon.os를 올린 setup이 핸들을 넘긴다. 없으면 조립 순서가 깨진 것이다
+    // xeon-disable-next-line xeon/bug-for-expected -- osPlatform의 setup이 성공하면 핸들이 항상 채워진다 (eng.typescript.guide TY-24)
+    if (osHandle === undefined) throw new Bug("platform-os did not hand over its handle");
     logSink.attach(join(os.dirs.state, "logs", `${options.mode}.log`));
     const logger = os.logger("host");
     late.logger = logger;
@@ -319,14 +413,33 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const reportSetting = (message: string): void => {
       logger.warn("settings.invalid", { message });
     };
+    // 프로젝트 신뢰: 프로젝트 설정 파일(settings-store), 프로젝트 스킬, MCP 서버 정의가 같은 판정을 쓴다(결정 D6, X.loading-trust §4.7)
+    const projectTrust = createProjectTrust({
+      configDir: os.dirs.config,
+      fileLock: osHandle.fileLock,
+      homeDir: os.dirs.home,
+      clock,
+      logger: os.logger("trust"),
+      defaultTrust: () =>
+        defaultProjectTrustOf(settings.value("x.loading-trust.defaultProjectTrust")),
+    });
 
     // 2. 나머지 L0 플랫폼
+    const exit = options.exit ?? ((code: number): never => process.exit(code));
+    shutdownCoordinator = createProcessShutdown({
+      timeoutMs: shutdownTimeoutMs(settings),
+      clock,
+      scheduler: os.time.scheduler,
+      exit,
+      logger: os.logger("shutdown"),
+    });
     await register(
       "platform-process",
       processPlugin({
         ids: localIds,
         settings: { shutdownTimeoutMs: shutdownTimeoutMs(settings) },
-        exit: (code) => process.exit(code),
+        exit,
+        shutdown: shutdownCoordinator,
       }),
     );
 
@@ -354,22 +467,33 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       engineVersion: ENGINE_VERSION,
     });
     if (!store.ok) {
-      throw new AssembleError([{ code: "store", message: storeMessageOf(store.error) }], {
-        cause: store.error,
-      });
+      throw new AssembleError([storeIssueOf(store.error)], { cause: store.error });
     }
     opened.store = store.value;
     await register("platform-store", storePlugin(store.value));
     opened.registered = true;
+    for (const warning of store.value.warnings) logStoreWarning(logger, warning);
 
-    const secrets = createSecretService({
+    const secrets = (options.secretsRuntime ?? createSecretsRuntime)({
       os,
       ids: localIds,
       config: secretsSource(settings),
       env: process.env,
+      // 같은 사용자의 CLI와 데스크톱 사이드카가 한 SOPS 파일에 동시에 쓰지 않게 하는 프로세스 사이 잠금(L0.secrets.spec §4.6 8번)
+      fileLock: osHandle.fileLock,
+      settingKeysFor: (handle) => Promise.resolve(settingKeysReferencing(settings, handle)),
     });
-    await register("platform-secrets", secretsPlatform(secrets));
-    redact.current = (line) => secrets.redactor.mask(line).text;
+    await register("platform-secrets", secretsPlatform(secrets.service));
+    redact.current = (line) => secrets.service.redactor.mask(line).text;
+
+    // stdio MCP 서버를 띄우는 포트(결정 D6, 사용자 권한). 레지스트리와 트리 종료는 platform-process가, 비밀 env는 secrets가 준다
+    const mcpProcess = createHostMcpProcessPort({
+      ext,
+      secrets: secrets.service,
+      scheduler: os.time.scheduler,
+      parentEnv: process.env,
+      logger: os.logger("mcp-process"),
+    });
 
     const platform = detectExecPlatform(os.logger("platform-exec"));
     if (!platform.ok) {
@@ -380,7 +504,7 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     await register(
       "platform-exec",
       createExecPlatformModule({
-        options: execOptionsOf(settings, process.cwd()),
+        options: execOptionsOf(settings, process.cwd(), os.dirs.state),
         platform: platform.value,
         parentEnv: process.env,
         logger: os.logger("platform-exec"),
@@ -397,27 +521,56 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       startedAt: fingerprint.ok && fingerprint.value !== null ? fingerprint.value : clock.now(),
       host: os.machineId,
     };
+    // 그룹 서비스가 보는 설치된 그룹(L3 매니페스트). 단위 목록이 만들어진 뒤에 채워진다
+    const unitList: { units: readonly ExtensionUnit[] } = { units: [] };
+    const workspaceOf = threadWorkspaceOf(ext, logger);
+    const commands: CommandRegistryHolder = { current: undefined, api: undefined };
     const units: ExtensionUnit[] = [
       ...builtinUnits({
+        commands,
         mode: options.mode,
         clock,
         ids,
+        localIds,
         logger,
+        trust: projectTrust,
+        signal: lifetime.signal,
+        engineVersion: ENGINE_VERSION,
+        ...(mcpProcess === undefined ? {} : { mcpProcess }),
         settings,
+        workspaceOf,
         db: store.value.root,
         faults: store.value.faults,
         holder,
+        ext,
+        groups: {
+          catalog: built.catalog,
+          store: () => portsHandle?.ports.settings,
+          currentThread: () => portsHandle?.activeThread() ?? null,
+          heldThreads: () => portsHandle?.heldThreads() ?? [],
+          entries: () =>
+            unitList.units
+              .filter((unit) => unit.manifest.layer === "L3")
+              .map((unit) => ({ manifest: unit.manifest, loadIndex: unit.loadIndex })),
+        },
+        // 엔진 포트는 서비스가 모두 올라온 뒤에 만든다. 자식 thread는 그 뒤에 생기므로 그때는 채워져 있다
+        parentToken: (threadId) => portsHandle?.tokenOf(threadId),
         onLeaseLost: (threadId) => {
           logger.error("persistence.lease_lost", { threadId });
         },
         reportSetting,
         ...(options.buildModels === undefined ? {} : { buildModels: options.buildModels }),
+        ...(options.webPorts === undefined ? {} : { webPorts: options.webPorts }),
+        ...(options.agentDefinitions === undefined
+          ? {}
+          : { agentDefinitions: options.agentDefinitions }),
       }),
     ];
     const extras = options.extraPlugins ?? [];
     extras.forEach((module, index) => {
       units.push(unitOfModule(module, units.length + index));
     });
+    unitList.units = units;
     await sequentially(units, async (unit) => {
       const result = await ext.install(unit);
       const failure = installFailureOf(result);
@@ -435,10 +588,15 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
     const tasks = requirePort(ext, TASKS_KEY, "xeon.tasks");
     const approvals = requirePort(ext, APPROVALS_KEY, "xeon.approvals");
     const tools = requirePort(ext, TOOLS_KEY, "xeon.tools");
-    requirePort(ext, MODELS_KEY, "xeon.models");
+    const models = requirePort(ext, MODELS_KEY, "xeon.models");
+    const context = requirePort(ext, CONTEXT_KEY, "xeon.context");
 
     // 5~6. 카탈로그는 위에서 만들었다. 세션 범위 설정을 연결한다
     settings.bindSession(session.sessionSettings);
+    settings.bindWorkspaces(workspaceOf);
+
+    // 보관 정리(L1.persistence.spec §6.1): 엔진 열기 때 한 번. 기본 설정은 아무것도 지우지 않는다
+    pruneOnOpen(session, logger);
 
     const storeId = parse(StoreIdSchema, storeService.storeId);
     // xeon-disable-next-line xeon/bug-for-expected -- 엔진 자신의 저장소가 만든 storeId라 형식 검증이 실패하면 코드 결함이다 (eng.typescript.guide TY-24)
@@ -447,17 +605,34 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       mode: options.mode,
       os,
       clock,
+      scheduler: os.time.scheduler,
       ids,
       logger,
       session,
       store: storeService,
       loop,
+      context,
+      models,
       tasks,
       approvals,
       tools,
       ext,
       holder,
       settings,
+      secrets: createSecretsPort(
+        secrets.admin,
+        effectiveSecretsConfig(secretsSource(settings), os.dirs.config),
+        createProviderLinker({
+          admin: secrets.admin,
+          settings,
+          catalog: built.catalog,
+          targetOf: (providerId) => models.providerTarget(providerId),
+          logger: os.logger("secret-link"),
+        }),
+      ),
+      commands,
+      configDir: os.dirs.config,
+      trust: projectTrust,
       signal: lifetime.signal,
     });
     const engine: Engine = {
@@ -466,6 +641,8 @@ export async function assemble(options: AssembleOptions): Promise<Engine> {
       catalog: built.catalog,
       startedAt,
       ports: portsHandle.ports,
+      shutdown: shutdownCoordinator,
+      diagnose: async (signal) => ({ binaries: await osHandle.checkBinaries(signal) }),
       close: shutdown,
     };
     return engine;

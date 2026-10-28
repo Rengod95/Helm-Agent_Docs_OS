@@ -5,6 +5,7 @@ import {
   NOT_STARTED_TEXT,
   OUTCOME_UNKNOWN_TEXT,
   commitKeyPart,
+  requestKeyFor,
   type BlobRef,
   type EffectIntent,
   type EffectResult,
@@ -12,28 +13,36 @@ import {
   type ReadFailure,
   type StampedDraft,
 } from "@xeon/contracts/records";
-import type {
-  AgentToolCall,
-  AgentToolResult,
-  AgentToolUpdateCallback,
-  AssistantMessage,
-  ItemId,
-  JsonObject,
-  JsonValue,
-  ToolResultMessage,
+import {
+  toToolResultRecord,
+  type AgentToolCall,
+  type AgentToolResult,
+  type AgentToolUpdateCallback,
+  type AssistantMessage,
+  type ItemId,
+  type JsonObject,
+  type JsonValue,
+  type ThreadId,
+  type ToolResultMessage,
+  type ToolResultRecord,
 } from "@xeon/contracts/conversation";
-import type {
-  ApprovalOrigin,
-  ApprovalRequestInput,
-  CallPreparation,
-  PolicyInput,
-  PreparedCall,
-  RejectReason,
-  ToolCallOutcome,
-  ToolCallState,
-  ToolRunContext,
+import {
+  childDecision,
+  stricter,
+  type ApprovalOrigin,
+  type ApprovalRequestInput,
+  type CallPreparation,
+  type UserShellRequest,
+  type PolicyInput,
+  type PreparedCall,
+  type RejectReason,
+  type Slot,
+  type TaskScope,
+  type ToolCallOutcome,
+  type ToolCallState,
+  type ToolRunContext,
 } from "@xeon/contracts/services";
-import { denialReason, requestKeyFor } from "./approvals/protocol.ts";
+import { denialReason } from "./approvals/protocol.ts";
 import type { ApprovalsInternal } from "./approvals/service.ts";
 import { boundResult, selfBlobRef } from "./bound.ts";
 import type { CallTable } from "./calls.ts";
@@ -51,6 +60,7 @@ import {
   type EffectKit,
 } from "./effects.ts";
 import { evaluatePolicy } from "./policy/engine.ts";
+import { checkSecretUse, secretHandlesOf, secretUseTitle } from "./secret-gate.ts";
 import type { ToolRegistry } from "./registry.ts";
 import { addHits, hitsPayload, maskResult } from "./secrets.ts";
 import { lockRequests, openToolScope } from "./tasks.ts";
@@ -88,6 +98,8 @@ export interface Pipeline {
     run: ToolRunContext,
   ): Promise<readonly ToolCallOutcome[]>;
   rerun(intent: EffectIntent, run: ToolRunContext): Promise<Result<ToolCallOutcome, ReadFailure>>;
+  runUserShell(request: UserShellRequest, run: ToolRunContext): Promise<ToolResultRecord>;
+  suspendWhile<T>(threadId: ThreadId, toolCallId: string, wait: Promise<T>): Promise<T>;
 }
 
 /**
@@ -98,6 +110,10 @@ export interface Pipeline {
 const ARGS_INLINE_MAX_BYTES = 192 * 1024;
 /** 닫은 결과를 기억할 호출 수. 같은 호출을 두 번 닫아도 같은 결과를 돌려준다 */
 const CLOSED_OUTCOME_LIMIT = 4096;
+/** 비밀 사용 승인 요청의 규칙 id. 정책 규칙이 아니라 비밀 사용 승인임을 화면과 기록에 보인다 */
+const SECRET_USE_RULE_ID = "secret.use";
+/** 사용자 셸(`!명령`)을 실행하는 도구 이름 */
+const USER_SHELL_TOOL = "bash";
 
 const TRUNCATED_TEXT = (name: string): string =>
   `Tool call "${name}" was not executed: the response hit the output token limit, so its arguments may be truncated. Re-issue the tool call with complete arguments.`;
@@ -124,6 +140,14 @@ interface Denied {
 
 function denied(reason: string, terminate: boolean = false): Denied {
   return { reason, terminate };
+}
+
+function userShellFailure(text: string, code: string): ToolResultRecord {
+  return toToolResultRecord({
+    content: [{ type: "text", text }],
+    details: { code },
+    isError: true,
+  });
 }
 
 function capabilityRefOf(entry: ToolEntry): CapabilityRef | undefined {
@@ -212,6 +236,15 @@ function outcomeOf(
     message: finished.message,
     itemId: finished.itemId,
   };
+}
+
+/**
+ * 정책 승인의 제목. 호출이 `secretEnv`로 비밀을 쓰면 이 승인이 비밀 사용의 증거가 될 수 있으므로(U-19, `approveSecretUse`)
+ * 제목에 비밀 참조를 적는다. 그렇지 않으면 도구 이름만 적는다
+ */
+function policyTitle(toolName: string, args: JsonObject): string {
+  const handles = secretHandlesOf(args);
+  return handles.length === 0 ? `Allow tool "${toolName}"?` : secretUseTitle(toolName, handles);
 }
 
 export function createPipeline(
@@ -372,15 +405,66 @@ export function createPipeline(
       interactive: run.interactive,
       bypassAllowed: config.bypassAllowed,
     };
-    const decision = evaluatePolicy(input, config.rules);
+    const evaluated = evaluatePolicy(input, config.rules);
+    // 자식 대화는 부모 관점과 정의 제한을 합친 결정과 일반 평가 중 엄격한 쪽이다(L1.tools.spec §4.5 ceiling 단계, TL-13)
+    const decision =
+      run.ceiling === undefined
+        ? evaluated
+        : stricter(
+            childDecision(
+              evaluatePolicy,
+              input,
+              run.ceiling,
+              { caller: run.caller, depth: run.depth, mode: config.mode },
+              config.rules,
+            ),
+            evaluated,
+          );
     if (decision.effect === "deny") {
       return denied(
         decision.message ?? `[xeon:denied_by_policy] Tool call "${entry.name}" is denied.`,
       );
     }
     if (decision.effect === "allow") return undefined;
+    // 사용자가 직접 친 명령이다. deny 규칙은 막지만 ask는 사용자 본인이 낸 명령이라 허용으로 본다
+    if (state.userShell) return undefined;
     if (approvals.isRemembered(run.surfaceThreadId, entry.name, decision.ruleId)) return undefined;
 
+    const asked = await askUser(
+      state,
+      {
+        argsPayload,
+        argsHash,
+        ruleId: decision.ruleId,
+        title: policyTitle(entry.name, state.args),
+        requestKey: requestKeyFor(toolCallId, sha256HexSync),
+        // `always`는 저장소(`core_tools_approvals`)가 들어오기 전까지 제안하지 않는다. 고르게 두면 새 대화마다 다시 묻는데
+        // 사용자는 항상 허용된 줄 안다(감사 L1-04, M2 마감 G2-10). 영구 허용은 사용자 규칙(`l1.tools.rules`)이다
+        remember: ["once", "thread"],
+      },
+      signal,
+    );
+    if ("reason" in asked) return asked;
+    if (asked.byUser) state.userApprovalId = asked.approvalId;
+    return undefined;
+  }
+
+  interface AskInput {
+    readonly argsPayload: JsonObject | BlobRef;
+    readonly argsHash: string;
+    readonly ruleId: string | null;
+    readonly title: string;
+    readonly requestKey: string;
+    readonly remember: ApprovalRequestInput["remember"];
+  }
+
+  /** 도구 승인(kind tool) 요청을 올리고 답을 기다린다. 허용이면 승인 id를, 아니면 모델에 보일 거부 사유를 돌려준다 */
+  async function askUser(
+    state: CallState,
+    input: AskInput,
+    signal: AbortSignal,
+  ): Promise<Denied | { readonly approvalId: string; readonly byUser: boolean }> {
+    const { run, entry, toolCallId } = state;
     const origin: ApprovalOrigin = {
       threadId: run.threadId,
       turnId: run.turnId,
@@ -390,32 +474,80 @@ export function createPipeline(
     };
     const request: ApprovalRequestInput = {
       origin,
-      requestKey: requestKeyFor(toolCallId),
-      title: `Allow tool "${entry.name}"?`.slice(0, 120),
+      requestKey: input.requestKey,
+      title: input.title.slice(0, 120),
       body: {
         kind: "tool",
         tool: {
           toolName: entry.name,
           ...(entry.capability === undefined ? {} : { capability: entry.capability }),
           risk: entry.risk,
-          args: argsPayload,
-          argsHash,
-          ruleId: decision.ruleId,
+          args: input.argsPayload,
+          argsHash: input.argsHash,
+          ruleId: input.ruleId,
         },
       },
-      remember: ["once", "thread", "always"],
+      remember: input.remember,
     };
-    const answered = await approvals.requestTool(request, signal);
+    const answered = await approvals.request(request, signal);
     if (!answered.ok) {
       return denied(`[xeon:tools.commit_failed] ${describeFailure(answered.error)}`);
     }
     const resolution = answered.value;
-    if (resolution.decision === "allow") return undefined;
+    if (resolution.decision === "allow") {
+      return { approvalId: resolution.approvalId, byUser: resolution.resolvedBy === "user" };
+    }
     if (resolution.resolvedBy === "cancelled" && signal.aborted) {
       // 턴 취소는 대기 중인 요청을 cancelled로 닫는다(L1.tools.spec §4.7 8번)
       await approvals.cancel(resolution.approvalId, "turn aborted");
     }
     return denied(denialReason(resolution));
+  }
+
+  // ── 5c' 비밀 사용 승인(L1.tools.spec §4.12) ────────────────────────────
+
+  /**
+   * 호출이 `secretEnv`로 비밀을 쓰면 `xeon.secrets.check`가 `needs_approval`을 낼 때 승인 증거를 만든다. 이 호출의 정책 승인을 사용자가
+   * 방금 허용했으면 그 승인이 실행마다의 승인(U-19)이라 같은 승인을 증거로 쓴다. 아니면(규칙이 허용, 모드가 허용, thread 기억) 비밀 사용을 따로 묻는다
+   */
+  async function approveSecretUse(
+    state: CallState,
+    argsPayload: JsonObject | BlobRef,
+    argsHash: string,
+    signal: AbortSignal,
+  ): Promise<Denied | undefined> {
+    const verdict = await checkSecretUse(deps.secrets, {
+      toolName: state.entry.name,
+      args: state.args,
+      run: state.run,
+      toolCallId: state.toolCallId,
+    });
+    if (verdict.kind === "none") return undefined;
+    if (verdict.kind === "denied") return denied(verdict.reason);
+    let approvalId = state.userApprovalId;
+    if (approvalId === undefined) {
+      const asked = await askUser(
+        state,
+        {
+          argsPayload,
+          argsHash,
+          ruleId: SECRET_USE_RULE_ID,
+          title: secretUseTitle(state.entry.name, verdict.handles),
+          requestKey: requestKeyFor(`${state.toolCallId}:secret`, sha256HexSync),
+          remember: ["once"],
+        },
+        signal,
+      );
+      if ("reason" in asked) return asked;
+      approvalId = asked.approvalId;
+    }
+    state.secretApproval = {
+      approvalId,
+      scope: "per-use",
+      grantedAt: deps.clock.now(),
+      expiresAt: null,
+    };
+    return undefined;
   }
 
   // ── 6 effect.intent ──────────────────────────────────────────────────
@@ -472,6 +604,8 @@ export function createPipeline(
     input: {
       readonly state: ToolCallState;
       readonly result: RawToolResult;
+      /** 참이면 toolResult item을 기록하지 않는다(사용자 셸) */
+      readonly silent?: boolean;
     },
   ): Promise<ToolCallOutcome> {
     const hits = new Map<string, number>();
@@ -494,7 +628,9 @@ export function createPipeline(
     const draft = itemDraftOf({ run, itemId, effectId: null, message });
     const key = commitKeyPart(call.id, sha256HexSync);
     let recorded: ItemId | null = null;
-    if (draft === undefined) {
+    if (input.silent === true) {
+      // 사용자 셸의 거부 결과는 기록하지 않고 호출자에게만 돌려준다
+    } else if (draft === undefined) {
       warn("tools.item_draft_unstamped", { toolCallId: call.id });
     } else {
       const extra: StampedDraft[] = [];
@@ -541,10 +677,19 @@ export function createPipeline(
 
   // ── prepare ──────────────────────────────────────────────────────────
 
-  async function prepare(
+  function prepare(
     call: AgentToolCall,
     _assistant: AssistantMessage,
     run: ToolRunContext,
+  ): Promise<CallPreparation> {
+    return prepareCall(call, run, false);
+  }
+
+  /** `user`가 참이면 사용자가 직접 친 셸 명령이다(runUserShell) */
+  async function prepareCall(
+    call: AgentToolCall,
+    run: ToolRunContext,
+    user: boolean,
   ): Promise<CallPreparation> {
     await tapStart(run, call);
     const settle = async (
@@ -555,16 +700,13 @@ export function createPipeline(
       outcome: await recordWithoutEffect(run, call, {
         state: "rejected",
         result: rejectedResult(reason, terminate),
+        silent: user,
       }),
     });
 
     const entry = registry.get(call.name);
     if (entry === undefined) {
       return settle(`[xeon:tool_unavailable] Tool ${call.name} is not available.`);
-    }
-    if (run.ceiling !== undefined) {
-      // 자식 대화의 권한 상한은 M2(TL-13)다. 상한을 적용하지 못하면 실행하지 않는다
-      return settle("[xeon:ceiling_unsupported] Child conversations cannot run tools yet.");
     }
     const checked = validateToolArguments(entry.parameters, call);
     if (!checked.ok) return settle(checked.error.message);
@@ -580,6 +722,10 @@ export function createPipeline(
       execCommitted: false,
       startedAt: undefined,
       interrupted: false,
+      userShell: user,
+      slot: undefined,
+      userApprovalId: undefined,
+      secretApproval: null,
       attempt: 0,
       updates: 0,
       maskedHits: new Map(),
@@ -617,6 +763,8 @@ export function createPipeline(
     const argsHash = await argsHashOf(state.args);
     const verdict = await decide(state, argsPayload, argsHash, signal);
     if (verdict !== undefined) return verdict;
+    const secretVerdict = await approveSecretUse(state, argsPayload, argsHash, signal);
+    if (secretVerdict !== undefined) return secretVerdict;
     // 의도를 쓰기 전에 중단을 확인한다. 의도가 있는 호출은 실행 전이라도 settleRejected가 효과 결과로 닫아야 한다
     if (signal.aborted) return denied("[xeon:aborted] Operation aborted");
     return commitIntent(state, argsPayload, argsHash);
@@ -665,6 +813,7 @@ export function createPipeline(
         params,
         signal,
         onUpdate: masking,
+        secretApproval: state.secretApproval,
       });
       state.interrupted = outcome.interrupted;
       return outcome;
@@ -679,7 +828,40 @@ export function createPipeline(
     }
   }
 
-  /** 7a~8단계. tool 범위 노드를 열고 키를 잠근 뒤 실행한다 */
+  /** 7c: `tools` 풀 슬롯을 얻고 실행한 뒤 놓는다. 대기 중 취소는 effect.exec 전이므로 시작 전 중단이다 */
+  async function runInSlot(
+    state: CallState,
+    params: unknown,
+    signal: AbortSignal,
+    onUpdate: AgentToolUpdateCallback,
+    owner: TaskScope | undefined,
+  ): Promise<RawOutcome> {
+    const tasks = deps.tasks;
+    if (tasks === undefined || owner === undefined) {
+      return runBody(state, params, signal, onUpdate);
+    }
+    let slot: Slot;
+    try {
+      slot = await tasks.limiter("tools").acquire(owner);
+    } catch (error) {
+      if (signal.aborted && !state.execCommitted) {
+        return notExecuted(
+          "[aborted] The tool call was cancelled while waiting for a tool slot.",
+          "aborted",
+        );
+      }
+      throw error;
+    }
+    state.slot = slot;
+    try {
+      return await runBody(state, params, signal, onUpdate);
+    } finally {
+      state.slot = undefined;
+      slot.release();
+    }
+  }
+
+  /** 7a~8단계. tool 범위 노드를 열고 키를 잠근 뒤(C3: 키가 먼저) 슬롯을 얻어 실행한다 */
   async function runCall(
     state: CallState,
     params: unknown,
@@ -692,13 +874,14 @@ export function createPipeline(
     const signal = mergeSignals(callerSignal, run.signal, scope?.node.signal);
     const tasks = deps.tasks;
     const locksFor = entry.locks;
+    const body = (): Promise<RawOutcome> => runInSlot(state, params, signal, onUpdate, scope?.node);
     if (
       tasks === undefined ||
       scope === undefined ||
       deps.lockEnv === undefined ||
       locksFor === undefined
     ) {
-      return runBody(state, params, signal, onUpdate);
+      return body();
     }
     const requests = await lockRequests(deps.lockEnv, locksFor(state.args), signal);
     if (!requests.ok) {
@@ -707,11 +890,9 @@ export function createPipeline(
         "invalid_input",
       );
     }
-    if (requests.value.length === 0) return runBody(state, params, signal, onUpdate);
+    if (requests.value.length === 0) return body();
     try {
-      return await tasks.locks.run(requests.value, scope.node, () =>
-        runBody(state, params, signal, onUpdate),
-      );
+      return await tasks.locks.run(requests.value, scope.node, body);
     } catch (error) {
       // 잠금 대기 중 취소: effect.exec 전이므로 not_started로 닫힌다
       if (signal.aborted && !state.execCommitted) {
@@ -811,7 +992,7 @@ export function createPipeline(
     const effectResult: EffectResult = {
       effectId: intent.effectId,
       status,
-      resultItemId,
+      resultItemId: state.userShell ? null : resultItemId,
       output: {
         structuredContent: fitForEvent(current.structuredContent ?? null),
         terminate: terminate === true,
@@ -820,12 +1001,10 @@ export function createPipeline(
       durationMs: state.startedAt === undefined ? null : Math.max(0, now - state.startedAt),
       synthesized: false,
     };
-    const itemDraft = itemDraftOf({
-      run,
-      itemId: resultItemId,
-      effectId: intent.effectId,
-      message,
-    });
+    // 사용자 셸의 결과는 toolResult item으로 기록하지 않는다(호출한 쪽이 기록 방식을 정한다)
+    const itemDraft = state.userShell
+      ? undefined
+      : itemDraftOf({ run, itemId: resultItemId, effectId: intent.effectId, message });
     const extra: StampedDraft[] = [];
     const hits = hitsPayload(state.maskedHits);
     if (hits.length > 0) {
@@ -987,6 +1166,10 @@ export function createPipeline(
       execCommitted: false,
       startedAt: undefined,
       interrupted: false,
+      userShell: false,
+      slot: undefined,
+      userApprovalId: undefined,
+      secretApproval: null,
       attempt: execCount,
       updates: 0,
       maskedHits: new Map(),
@@ -1067,10 +1250,53 @@ export function createPipeline(
     return outcomes;
   }
 
+  // ── 사용자 셸(L1.tools.spec §3.3 runUserShell) ────────────────────────
+
+  /**
+   * 사용자가 직접 친 셸 명령을 같은 파이프라인으로 실행한다: caller `main`, 대화형으로 평가한다. deny 규칙과 `tool_call` 거부는 막고,
+   * ask는 사용자 본인이 낸 명령이라 허용으로 본다. 효과는 3단(intent, exec, result)으로 남고 toolResult item은 기록하지 않는다
+   * (결과를 컨텍스트에 어떻게 넣을지는 호출한 쪽이 `includeInContext`로 정한다)
+   */
+  async function runUserShell(
+    request: UserShellRequest,
+    base: ToolRunContext,
+  ): Promise<ToolResultRecord> {
+    const entry = registry.get(USER_SHELL_TOOL);
+    if (entry === undefined) {
+      return userShellFailure(
+        `[xeon:tool_unavailable] Tool ${USER_SHELL_TOOL} is not available.`,
+        "tool_unavailable",
+      );
+    }
+    const { ceiling: _ceiling, ...rest } = base;
+    const run: ToolRunContext = { ...rest, caller: "main", depth: 0, interactive: true };
+    const call: AgentToolCall = {
+      type: "toolCall",
+      id: deps.ids.next("itm"),
+      name: USER_SHELL_TOOL,
+      arguments: { command: request.command },
+    };
+    const prepared = await prepareCall(call, run, true);
+    if (prepared.kind === "settled") {
+      // 실행 전에 닫힌 호출(정책 deny, 확장 거부, 인자 오류)은 명령이 돌지 않았다는 표지를 달아 호출한 쪽이 거부로 알아보게 한다
+      return toToolResultRecord({ ...prepared.outcome.result, details: { code: "not_executed" } });
+    }
+    const outcome = await execute(prepared.call, () => {}, run);
+    return toToolResultRecord(outcome.result);
+  }
+
+  /** 슬롯을 쥔 호출이 다른 노드를 기다리는 동안 슬롯을 내려놓는다(L1.tasks.spec §4.5 C2). 슬롯이 없으면 그냥 기다린다 */
+  function suspendWhile<T>(threadId: ThreadId, toolCallId: string, wait: Promise<T>): Promise<T> {
+    const slot = calls.get(threadId, toolCallId)?.slot;
+    return slot === undefined ? wait : slot.suspendWhile(wait);
+  }
+
   return {
     prepare,
     execute,
     settleRejected,
     rerun,
+    runUserShell,
+    suspendWhile,
   };
 }

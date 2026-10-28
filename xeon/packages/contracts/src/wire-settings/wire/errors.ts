@@ -93,17 +93,33 @@ export type WireErrorKind =
   | "thread.hasForks"
   | "thread.invalidTarget"
   | "thread.cancelledByExtension"
+  | "thread.closed"
+  | "thread.compactFailed"
   | "settings.unknownKey"
   | "settings.invalidValue"
   | "settings.scopeNotAllowed"
   | "settings.locked"
   | "settings.secretValue"
+  | "settings.reserved"
+  | "secret.notFound"
+  | "secret.denied"
+  | "secret.providerUnavailable"
+  | "secret.keyUnavailable"
+  | "secret.decryptFailed"
+  | "secret.inUse"
+  | "secret.alreadyExists"
+  | "secret.readOnlyProvider"
+  | "secret.reauthRequired"
+  | "secret.cancelled"
+  | "secret.auditUnwritable"
+  | "secret.writeFailed"
   | "request.cancelled"
   | "host.shuttingDown"
   | "store.busy"
   | "store.diskFull"
   | "store.readOnly"
-  | "store.io";
+  | "store.io"
+  | "store.corrupt";
 
 /**
  * M1 오류 목록(F.wire-settings.spec §3.5.2): kind → 정의. 키와 kind가 같고 code와 kind는 1:1이다.
@@ -231,7 +247,7 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
-  /** thread.fork·thread.revert의 대상이 맞지 않는다 */
+  /** thread.fork·thread.revert의 대상이 맞지 않는다. thread.read의 `before`가 없는 item이면 item_not_found, 현재 가지에 없으면 not_on_branch다 */
   "thread.invalidTarget": {
     code: 3005,
     kind: "thread.invalidTarget",
@@ -248,7 +264,7 @@ export const WIRE_ERRORS: {
       { additionalProperties: false },
     ),
   },
-  /** 확장이 thread 전환·분기·되감기를 막았다 */
+  /** 확장이 thread 전환·분기·되감기·컴팩션을 막았다 */
   "thread.cancelledByExtension": {
     code: 3006,
     kind: "thread.cancelledByExtension",
@@ -259,8 +275,38 @@ export const WIRE_ERRORS: {
           Type.Literal("session_before_fork"),
           Type.Literal("session_before_tree"),
           Type.Literal("session_before_switch"),
+          Type.Literal("session_before_compact"),
         ]),
         reason: Type.Union([Type.String({ maxLength: 512 }), Type.Null()]),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  /** 이미 닫힌 thread에 쓰기나 수명 주기 호출을 했다. 읽기(`thread.read`)와 `thread.delete`는 닫힌 thread에도 된다 */
+  "thread.closed": {
+    code: 3007,
+    kind: "thread.closed",
+    retryable: false,
+    details: Type.Object(
+      { threadId: Type.String({ maxLength: 64 }) },
+      { additionalProperties: false },
+    ),
+  },
+  /** `thread.compact`가 요약을 만들거나 커밋하지 못했다. 원인은 `reason`이고 모델 출력이나 제공자 응답 본문은 싣지 않는다 */
+  "thread.compactFailed": {
+    code: 3008,
+    kind: "thread.compactFailed",
+    retryable: false,
+    details: Type.Object(
+      {
+        reason: Type.Union([
+          Type.Literal("read_failed"),
+          Type.Literal("projection_failed"),
+          Type.Literal("summary_failed"),
+          Type.Literal("summary_has_tool_call"),
+          Type.Literal("summary_truncated"),
+          Type.Literal("commit_failed"),
+        ]),
       },
       { additionalProperties: false },
     ),
@@ -311,6 +357,121 @@ export const WIRE_ERRORS: {
     retryable: false,
     details: KeyDetails,
   },
+  /** 읽는 코드가 아직 없는 `reserved` 키에 쓰려 했다(F.wire-settings.spec §3.8.2 `stage`) */
+  "settings.reserved": {
+    code: 3106,
+    kind: "settings.reserved",
+    retryable: false,
+    details: KeyDetails,
+  },
+  // 3200~3299: 비밀 관리(`secret.*` 메서드). 어느 details에도 값, 값의 일부, 외부 도구의 출력이 없다
+  "secret.notFound": {
+    code: 3201,
+    kind: "secret.notFound",
+    retryable: false,
+    details: Type.Object(
+      { where: Type.Union([Type.Literal("meta"), Type.Literal("provider")]) },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.denied": {
+    code: 3202,
+    kind: "secret.denied",
+    retryable: false,
+    details: Type.Object(
+      { reason: Type.String({ maxLength: 64 }) },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.providerUnavailable": {
+    code: 3203,
+    kind: "secret.providerUnavailable",
+    retryable: false,
+    details: Type.Object(
+      {
+        provider: Type.String({ maxLength: 32 }),
+        reason: Type.Union([
+          Type.Literal("binary_missing"),
+          Type.Literal("version_too_old"),
+          Type.Literal("not_registered"),
+        ]),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.keyUnavailable": {
+    code: 3204,
+    kind: "secret.keyUnavailable",
+    retryable: false,
+    details: Type.Object(
+      {
+        key: Type.String({ maxLength: 32 }),
+        reason: Type.Union([
+          Type.Literal("locked"),
+          Type.Literal("item_missing"),
+          Type.Literal("no_secret_service"),
+          Type.Literal("access_denied"),
+          Type.Literal("file_mode"),
+        ]),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.decryptFailed": {
+    code: 3205,
+    kind: "secret.decryptFailed",
+    retryable: false,
+    details: Type.Object(
+      {
+        provider: Type.String({ maxLength: 32 }),
+        exitCode: Type.Union([Type.Integer(), Type.Null()]),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.inUse": {
+    code: 3206,
+    kind: "secret.inUse",
+    retryable: false,
+    details: Type.Object(
+      { activeLeases: Type.Integer({ minimum: 0 }) },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.alreadyExists": { code: 3207, kind: "secret.alreadyExists", retryable: false },
+  "secret.readOnlyProvider": {
+    code: 3208,
+    kind: "secret.readOnlyProvider",
+    retryable: false,
+    details: Type.Object(
+      { provider: Type.String({ maxLength: 32 }) },
+      { additionalProperties: false },
+    ),
+  },
+  "secret.reauthRequired": { code: 3209, kind: "secret.reauthRequired", retryable: false },
+  "secret.cancelled": { code: 3210, kind: "secret.cancelled", retryable: false },
+  "secret.auditUnwritable": {
+    code: 3211,
+    kind: "secret.auditUnwritable",
+    retryable: false,
+    details: Type.Object({ code: Type.String({ maxLength: 64 }) }, { additionalProperties: false }),
+  },
+  "secret.writeFailed": {
+    code: 3212,
+    kind: "secret.writeFailed",
+    retryable: false,
+    details: Type.Object(
+      {
+        target: Type.Union([
+          Type.Literal("key_file"),
+          Type.Literal("key_store"),
+          Type.Literal("sops_file"),
+        ]),
+        code: Type.String({ maxLength: 64 }),
+      },
+      { additionalProperties: false },
+    ),
+  },
   "request.cancelled": { code: 5001, kind: "request.cancelled", retryable: false },
   "host.shuttingDown": {
     code: 5002,
@@ -341,6 +502,16 @@ export const WIRE_ERRORS: {
     kind: "store.io",
     retryable: false,
     details: Type.Object({ code: Type.String({ maxLength: 64 }) }, { additionalProperties: false }),
+  },
+  /** 저장된 행이 스키마와 다르다(손상, 수동 편집). 매체 오류(store.io)와 다르게 복구 안내가 달라서 나눈다. `where`는 `<표>.<열>` 같은 위치 이름이다 */
+  "store.corrupt": {
+    code: 5007,
+    kind: "store.corrupt",
+    retryable: false,
+    details: Type.Object(
+      { where: Type.String({ maxLength: 128 }) },
+      { additionalProperties: false },
+    ),
   },
 };
 

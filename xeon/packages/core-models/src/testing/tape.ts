@@ -66,8 +66,45 @@ export interface ModelTapeTurn {
   /** matching = "context-hash"일 때 필수 */
   readonly match?: { readonly contextHash?: string };
   readonly response: TapeResponse;
+  /**
+   * 어댑터가 낸 원시 provider 스트림 이벤트(녹화). 있으면 테이프 provider가 응답 앞에 `onProviderStreamEvent`로 흘린다.
+   * pi-ai가 AssistantMessage에 싣지 않는 서버 도구 블록(hosted 검색)을 시험하는 데 쓴다
+   */
+  readonly rawEvents?: readonly unknown[];
+  /** 녹화 테이프가 싣는 HTTP 교환. `response`는 같은 교환의 파싱 결과다(`tapeFetch`로 재생한 결과와 같아야 한다) */
+  readonly wire?: TapeWire;
   /** 사람용 설명. 비교하지 않는다 */
   readonly label?: string;
+}
+
+/** 녹화한 SSE 본문의 한 덩어리. 어댑터가 받은 바이트 경계를 보존한다 */
+export interface TapeWireChunk {
+  /** 요청을 보낸 시점부터 이 덩어리를 받은 시점까지의 ms */
+  readonly t: number;
+  /** 원본 텍스트(비밀 패턴은 치환됨) */
+  readonly data: string;
+}
+
+/**
+ * 차례 하나가 provider와 주고받은 HTTP 교환(녹화). `tapeFetch`가 pi-ai의 `fetch` 옵션 자리에서 이 교환을 그대로 재생해
+ * 어댑터의 SSE 파서까지 시험한다. 요청 헤더는 저장하지 않는다(키가 실리는 자리다)
+ */
+export interface TapeWire {
+  readonly method: string;
+  /** 쿼리와 호스트를 뺀 경로. 예: "/v1/messages" */
+  readonly path: string;
+  /** 정규화한 요청 본문의 sha256 hex(`requestHashOf`). 재생이 요청을 짝짓는 열쇠다 */
+  readonly requestHash: string;
+  /** 사람이 diff에서 알아볼 요청 요약. 본문 자체는 담지 않는다 */
+  readonly request: {
+    readonly model?: string;
+    readonly messages?: number;
+    readonly tools: readonly string[];
+  };
+  readonly status: number;
+  /** 허용 목록에 있는 응답 헤더만. 이름은 소문자 */
+  readonly headers: Readonly<Record<string, string>>;
+  readonly chunks: readonly TapeWireChunk[];
 }
 
 export type ModelTapeLine = ModelTapeHeader | ModelTapeTurn;
@@ -95,9 +132,14 @@ export interface TapeRequest {
   readonly target?: TapeTarget;
 }
 
+/** 재생 결과: 이벤트 열과 그 차례의 원시 provider 이벤트 */
+export interface TapeStream extends AsyncIterable<AssistantMessageEvent> {
+  readonly rawEvents: readonly unknown[];
+}
+
 export interface TapePlayer {
   /** 차례의 응답을 pi-ai AssistantMessageEvent 열로 낸다. 짝이 없으면 TapeMismatchError를 던진다 */
-  stream(req: TapeRequest): AsyncIterable<AssistantMessageEvent>;
+  stream(req: TapeRequest): TapeStream;
   remaining(): number;
   consumed(): readonly ModelTapeTurn[];
   /** 남은 응답이 있으면 TapeLeftoverError. allowLeftover면 통과 */
@@ -250,6 +292,33 @@ const ResponseSchema = Type.Unsafe<TapeResponse>(
   ]),
 );
 
+const WireSchema = Type.Unsafe<TapeWire>(
+  Type.Object(
+    {
+      method: Type.String({ minLength: 1 }),
+      path: Type.String({ minLength: 1 }),
+      requestHash: Type.String({ minLength: 1 }),
+      request: Type.Object(
+        {
+          model: Type.Optional(Type.String()),
+          messages: Type.Optional(Type.Integer({ minimum: 0 })),
+          tools: Type.Array(Type.String()),
+        },
+        { additionalProperties: false },
+      ),
+      status: Type.Integer({ minimum: 100, maximum: 599 }),
+      headers: Type.Record(Type.String(), Type.String()),
+      chunks: Type.Array(
+        Type.Object(
+          { t: Type.Number({ minimum: 0 }), data: Type.String() },
+          { additionalProperties: false },
+        ),
+      ),
+    },
+    { additionalProperties: false },
+  ),
+);
+
 const TurnSchema = Type.Unsafe<ModelTapeTurn>(
   Type.Object(
     {
@@ -260,6 +329,8 @@ const TurnSchema = Type.Unsafe<ModelTapeTurn>(
         Type.Object({ contextHash: Type.Optional(Type.String()) }, { additionalProperties: false }),
       ),
       response: ResponseSchema,
+      rawEvents: Type.Optional(Type.Array(Type.Unknown())),
+      wire: Type.Optional(WireSchema),
       label: Type.Optional(Type.String()),
     },
     { additionalProperties: false },
@@ -496,8 +567,12 @@ async function* stalled(
 }
 
 /** 배열을 비동기 이터러블로 낸다. 소비자는 실제 스트림처럼 이벤트를 하나씩 비동기로 받는다 */
-function replay(events: readonly AssistantMessageEvent[]): AsyncIterable<AssistantMessageEvent> {
+function replay(
+  events: readonly AssistantMessageEvent[],
+  rawEvents: readonly unknown[],
+): TapeStream {
   return {
+    rawEvents,
     [Symbol.asyncIterator](): AsyncIterator<AssistantMessageEvent> {
       let index = 0;
       return {
@@ -542,8 +617,12 @@ export function tapePlayer(source: ModelTape, opts: { readonly clock: TapeClock 
       }
       const target = req.target ?? DEFAULT_TARGET;
       const timestamp = opts.clock.now();
-      if (next.response.type === "stall") return stalled(target, timestamp, req.signal);
-      return replay(responseEvents(next.response, target, timestamp));
+      const raw = next.rawEvents ?? [];
+      if (next.response.type === "stall") {
+        const pending = stalled(target, timestamp, req.signal);
+        return { rawEvents: raw, [Symbol.asyncIterator]: () => pending };
+      }
+      return replay(responseEvents(next.response, target, timestamp), raw);
     },
     remaining: () => [...queues.values()].reduce((sum, queue) => sum + queue.length, 0),
     consumed: () => [...used],

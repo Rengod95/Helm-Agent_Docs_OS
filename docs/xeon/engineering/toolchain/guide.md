@@ -31,12 +31,13 @@ Xeon 워크스페이스의 런타임, 패키지 관리, 타입 검사, 린트, �
 | 린트 | oxlint | 1.89.0 | catalog `oxlint` | `--type-aware` |
 | 린트 타입 인식 | oxlint-tsgolint | 7.0.2004 | catalog `oxlint-tsgolint` | TS 7.0.2 대응(TC-03) |
 | 포맷 | oxfmt | 0.74.0 | catalog `oxfmt` | 0.x라 정확 고정 |
-| 테스트 | `bun test` | Bun과 같음 | — | 패키지별 실행, `--coverage` |
+| 테스트 | `bun test` | Bun과 같음 | — | 패키지별 실행, `--coverage`. 실행은 `just test`(`scripts/test-capped.sh`)로 한다 |
 | 태스크 러너 | Turborepo | 2.11.10 | catalog `turbo` | `--affected`, 로컬 캐시 |
 | 의존 경계 | dependency-cruiser | 18.7.0 | catalog `dependency-cruiser` | 파서 `@swc/core` 1.16.18 |
 | 미사용 코드 | knip | 6.42.1 | catalog `knip` | |
 | 공개 패키지 검사 | publint, @arethetypeswrong/cli(attw) | 0.3.25, 0.18.5 | 공개 패키지가 생길 때 catalog에 더한다 | 공개 패키지만 |
 | 공개 라이브러리 빌드 | tsdown | 0.23.1 | 공개 패키지가 생길 때 catalog에 더한다 | 공개 라이브러리만 |
+| Rust(데스크톱 셸) | rustc·cargo | 1.99.1 | `mise.toml` `rust = { version = "1.99.1", profile = "default" }` | mise가 rustup으로 설치한다(`mise install`). `Cargo.toml`의 `rust-version = "1.99"`보다 낮추지 않는다. 빌드 산출물은 `${XDG_CACHE_HOME:-$HOME/.cache}/xeon/cargo-target`(Syncthing 밖, 기기별)이고 `scripts/cargo.sh`가 `CARGO_TARGET_DIR`로 정한다 |
 | 바이너리 | `bun build --compile` | Bun과 같음 | — | `apps/cli`, `apps/host`(사이드카) |
 | 스키마 | typebox | 1.3.27 | catalog `typebox` | pi-ai 1.3.0이 고정한 판과 같다(review.decisions-2 U-24). pi가 올릴 때 함께 올린다 |
 | Bun 타입 | @types/bun | 1.4.3 | catalog `@types/bun` | Bun 버전과 같은 값 |
@@ -58,6 +59,7 @@ Xeon 워크스페이스의 런타임, 패키지 관리, 타입 검사, 린트, �
 - `bunfig.toml`의 `[install] exact = true`를 유지한다. `bun add`가 `^`를 붙이지 않게 한다.
 - 잠금 파일 `bun.lock`(텍스트, `saveTextLockfile = true`)을 커밋한다. 설치는 `just setup`(`bun install --frozen-lockfile`)으로만 한다.
 - 런타임 버전은 `mise.toml`과 `packageManager`가 같은 값이어야 한다.
+- Rust는 `rustup`을 직접 쓰지 않고 mise로 설치한다. `just desktop-*`는 `mise exec -- cargo`로 고정 버전을 쓴다. 기본 `RUSTUP_HOME`·`CARGO_HOME`(`~/.rustup`, `~/.cargo`)을 그대로 둔다.
 
 이유: 0.x 도구(oxfmt)와 버전 결합이 있는 도구(tsgolint ↔ TS)는 패치 업데이트에서도 출력이 바뀐다. 범위 버전이면 같은 커밋이 날짜에 따라 다르게 검사된다.
 
@@ -379,6 +381,9 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 
 [제안] `_research/foundation-plan.md §5` P3의 순서를 따른다. 루트 `justfile`의 `verify`가 아래 단계를 차례로 부르고, 한 단계라도 실패하면 거기서 멈춘다. 끝에 `ws check`가 붙는다.
 
+- 단계 0~8은 `_verify-steps`(`xeon/scripts/verify-steps.sh`)로 묶인다. `just verify`는 `WS_GUARD_SLOTS=1 scripts/guard.sh verify -- just _verify-steps`로 기기의 검증 슬롯을 하나 잡고(기기에서 helm 검증은 한 번에 하나, 나머지는 기다린다), 단계를 차례로 돌되 단계마다 `WS_GUARD_ACTIVE`를 풀고 `scripts/guard.sh run`으로 따로 scope를 만든다(상한 `XEON_VERIFY_STEP_MAX`, 기본 2G, 시간 제한 없음). 시험 단계(`just test`)는 감싸지 않는다. `test-capped.sh`가 패키지마다 `guard.sh run` 1.5G를 건다. 처음 실패한 단계에서 멈추고 그 종료코드를 낸다. 모든 scope는 공용 예산 `ws-dev.slice` 안에 있다. 병렬 작업 중에는 저장소 전체 검사(`just verify`, `just lint`, `just typecheck`)를 돌리지 않고 `just check <패키지>`(패키지 하나의 lint, typecheck, test, 각 1.5G)만 돌린다. systemd 사용자 세션이 없는 기기(macOS, CI)에서는 한 줄 알리고 상한 없이 돈다.
+- `scripts/guard.sh`는 dotfiles `modules/ws/templates/guard.sh`의 복사본이다(둘째 줄 `# ws-guard vN`). 저장소에서 고치지 않고 `ws stack update guard`로 올린다. 이전의 `xeon/scripts/verify-guarded.sh`와 `xeon-dev.slice`는 쓰지 않는다. `guard.sh`는 고치지 않고 `WS_GUARD_SLOTS`, `WS_GUARD_RUN_MAX`, `WS_GUARD_TIMEOUT_SEC`, `WS_GUARD_ACTIVE` 환경 변수로만 다룬다.
+
 | # | 단계 | 레시피 | 실제 명령 | 실패할 때 고치는 법 | 소요 목표 | 종료코드 |
 |---|---|---|---|---|---|---|
 | 0 | 설치 | `just setup` | `bun install --frozen-lockfile` | 잠금 파일과 `package.json`이 다르면 `bun install`로 잠금 파일을 갱신하고 같이 커밋한다. 네트워크·레지스트리 오류는 환경 문제다 | 10초(캐시 있음) | 1: 잠금 불일치, 2: 네트워크·mise |
@@ -390,7 +395,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | 5 | 경계 | `just depcruise` | `depcruise packages apps plugins --config .dependency-cruiser.cjs` | 규칙 이름 `DR-NN-...`과 `from → to` 경로가 나온다 | 20초 | 1 |
 | 6 | 미사용 | `just knip` | `knip` | 미사용 파일·export·의존 목록. 지우거나 `knip.json`의 `entry`가 빠졌는지 본다 | 20초 | 1 |
 | 7 | 문서 | `just docs-route --check --allow-missing` | `bun scripts/docs-route.ts --check --allow-missing` | `문서경로: 오류`. 프런트매터, `depends_on`, `binds`를 고친다 | 3초 | 1 |
-| 8 | 테스트 | `just test` | `bun test scripts` + `turbo run test --affected` (각 패키지 cwd에서 `bun test`) | 실패한 테스트 파일과 기대·실제 값. 커버리지 임계 미달은 메시지 없이 1로 끝난다(`_research/notes/eng-3.md §3.2`) | 60초(영향 범위) | 1 |
+| 8 | 테스트 | `just test` | `scripts/test-capped.sh`: `scripts`와 `test` 스크립트가 있는 패키지를 하나씩 저장소 루트 `scripts/guard.sh run` 아래에서 각 패키지 cwd의 `bun test`로 돈다. 실행 단위 메모리 상한은 `WS_GUARD_RUN_MAX`(기본 1500M), 대상마다 시간 상한은 `XEON_TEST_TIMEOUT_SEC`(기본 300초)다. 끝 줄에 건너뛴 시험 수를 적는다. 인자로 패키지 디렉터리를 주면 그것만 돈다(`just test packages/<이름>`) | 실패한 테스트 파일과 기대·실제 값. 커버리지 임계 미달은 메시지 없이 1로 끝난다(`_research/notes/eng-3.md §3.2`) | 60초(영향 범위) | 1 |
 | 9 | 환경 | `ws check` | 사용자 환경 검사 | `ws help`를 본다 | — | 2 |
 
 - 소요 목표 열은 실측 전 추정이다 [가정].
@@ -407,7 +412,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | 0 | 통과 | — | 모든 단계 |
 | 1 | 코드나 설정의 위반 | 메시지의 파일과 규칙 ID를 보고 고친다 | 검사 도구의 위반, 테스트 실패, 잠금 불일치 |
 | 2 | 환경 문제 | 코드를 고치지 않고 보고한다 | `mise`·`bun` 실행 실패(예: "No version is set for shim: bun", `_research/notes/eng-3.md §3.2`), 네트워크 실패, tsgolint 시작 실패, FTS5 없음(TC-11), `check-layers.ts`가 파일을 읽지 못함, `ws check` 실패 |
-| 3 | 사람 확인 필요 | 사람이 확인한 뒤 같은 레시피를 `--yes`로 다시 부른다 | 잠금 파일·catalog 버전을 바꾸는 레시피, vendor 갱신(TC-06), 테이프 재녹화(`eng.testing.guide` TS-04) |
+| 3 | 사람 확인 필요 | 사람이 확인한 뒤 같은 레시피를 `--yes`로 다시 부른다 | 잠금 파일·catalog 버전을 바꾸는 레시피, vendor 갱신(TC-06), 테이프 녹화 `just tape-record`(`eng.testing.guide` TS-04), 실제 모델 첫 토큰 측정 `just bench --first-token`(`eng.performance.guide`) |
 
 - `just verify` 자체는 파일을 바꾸지 않으므로 3을 내지 않는다.
 - 외부 도구는 자체 종료코드를 낸다. 대부분 위반에 1을 낸다. 도구가 실행되지 못한 경우(셸 126·127)를 2로 바꾸는 감싸개는 `xeon/scripts/`에 둔다 [제안. 이름은 구현 때 정한다].
@@ -433,16 +438,20 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 
 | job | 내용 | 로컬 재현 |
 |---|---|---|
-| `layer` (matrix F, X, L0, L1, L2, L3, L4) | `just setup` 뒤 `just ci-layer <층> <main이 아니면 true>`. `scripts/ci-layer.sh`가 층의 패키지 디렉터리로 `turbo run lint typecheck test --filter=<dir>`를 만든다. `true`이면 `--affected`를 더한다 | `just ci-layer L1`, `just ci-layer L1 true` |
-| `hygiene` | `fmt-check`, `check-layers`, `depcruise`, `knip` | 같은 레시피 |
+| `layer` (matrix root, F, X, L0, L1, L2, L3, L4) | `just setup` 뒤 `just ci-layer <층> <main이 아니면 true>`. `scripts/ci-layer.sh`가 층의 패키지 디렉터리로 `turbo run lint typecheck test --filter=<dir>`를 만든다. `true`이면 `--affected`를 더한다. `root`는 `xeon/scripts`의 `lint:root`, `typecheck:root`, `just test scripts`다. L0 job은 bubblewrap과 socat을 설치하고 unprivileged user namespace 제한을 끈다 | `just ci-layer L1`, `just ci-layer root` |
+| `hygiene` | `fmt-check`, `check-layers`, `check-ts-rules`, `depcruise`, `knip` | 같은 레시피 |
+| `exit-tests` | bubblewrap, socat, sops 3.13.3, age 1.3.2를 설치하고 `just exit-tests`. `xeon/scripts/exit-tests.txt`의 종료 조건 시험을 한 줄씩 돌려, 파일이 없거나 시험이 하나라도 건너뛰어지거나 실패하면 1로 끝나고 건너뛴 수를 출력한다 | `just exit-tests` |
 | `docs` | `docs-route --check --allow-missing` | 같은 레시피 |
+
+- 문서의 `[미결` 표지 수는 `just docs-route --unresolved`가 문서마다 셉니다. 추적 규칙은 `review.unresolved`입니다. verify 단계가 아니고 종료코드는 항상 0입니다.
 | `smoke` [제안] | 모델 테이프로 `xeon chat` 한 턴과 강제 종료 뒤 재개(`eng.testing.guide` TS-01 `scenario`). M1에서 더한다 | `just smoke` [제안] |
 
+- CI job 전체가 `just verify`의 `_verify-steps`를 모두 돈다. `xeon/scripts/ci-alignment.test.ts`가 루트 justfile의 단계 목록과 `xeon-ci.yml`의 명령을 비교해, 단계가 CI에서 빠지면 실패한다. `ws check`는 사용자 환경 검사라 CI에서 돌지 않는다.
 - 체크아웃은 `fetch-depth: 0`이다. `--affected`는 기준 커밋이 있어야 한다. 얕은 체크아웃이면 turbo가 모든 패키지를 바뀐 것으로 본다(`_research/stack-status.md §5-B`, §9).
 - 기준 커밋: PR은 `origin/<base_ref>`, push는 `origin/main`(`TURBO_SCM_BASE`).
 - 각 job은 `jdx/mise-action`으로 `mise.toml`의 Bun 1.4.3을 설치하고 just 1.58.0을 쓴다.
 - 원격 캐시는 쓰지 않는다 [제안]. 필요해지면 TC-04 절차로 더한다.
-- macOS job: FTS5와 `setCustomSQLite` 검사(TC-11)를 위해 `macos-latest`에서 `platform-store` 테스트만 도는 job을 더한다 [제안]. 현재 없다.
+- macOS job: `.github/workflows/xeon-macos.yml`. `workflow_dispatch`나 PR 라벨 `ci:macos`로만 돈다(`review.m2-plan` §8 D1). `macos-15`에서 `platform-store`(FTS5와 `setCustomSQLite`, TC-11), `platform-os`, `platform-sandbox`(Seatbelt), `platform-secrets`, `cap-knowledge` 시험, `just exit-tests`, `aarch64-apple-darwin` 사이드카 빌드, `just desktop-test`를 돈다. 결과는 `review.macos-checklist`에 적는다.
 
 ### 3.5 규칙과 도구 행렬
 
@@ -458,7 +467,7 @@ import { chromium } from "playwright-core";   // DR-07: cap-web 밖
 | TC-08 tsconfig 기반 하나 | [제안] `check-layers.ts`: 패키지 tsconfig의 `compilerOptions` 키가 허용 목록 안인지 |
 | TC-09 just 레시피 | 리뷰, CI가 레시피만 부른다 |
 | TC-10 공개 패키지 도구 | 리뷰, 첫 공개 패키지 때 verify 단계 |
-| TC-11 FTS5 | `platform-store` 단위 테스트, macOS CI job [제안] |
+| TC-11 FTS5 | `platform-store` 단위 테스트, macOS 수동 CI job(`xeon-macos.yml`) |
 | TC-12 Playwright | `cap-web` 계획의 호환 확인 테스트 |
 
 ## 4. 예외와 승인 절차

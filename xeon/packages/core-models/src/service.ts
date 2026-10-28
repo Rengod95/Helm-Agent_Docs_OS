@@ -5,19 +5,17 @@ import {
   type MutableModels,
   type RetryPolicy,
 } from "@earendil-works/pi-ai";
-import { attempt, Bug, err, ok, type Clock, type Logger, type Result } from "@xeon/contracts";
-import type { AssistantMessage, ModelThinkingLevel } from "@xeon/contracts/conversation";
+import { attempt, err, ok, type Clock, type Logger, type Result } from "@xeon/contracts";
+import type { AssistantMessage } from "@xeon/contracts/conversation";
 import {
   formatModelRef,
   type AssistantMessageEventStream,
-  type CachePolicy,
   type ModelBinding,
   type ModelCallContext,
   type ModelCallRequest,
   type ModelError,
   type ModelInfo,
   type ModelListFilter,
-  type ModelRefString,
   type ModelRole,
   type ModelService,
   type ResolvedModel,
@@ -25,44 +23,32 @@ import {
   type SecretService,
   type StreamFn,
 } from "@xeon/contracts/services";
+import { buildCachePolicy, withRetention } from "./cache-policy.ts";
 import { classifyMessage } from "./classify.ts";
+import { createHostedSearch } from "./hosted-search.ts";
 import { createFailureLog } from "./failure-log.ts";
-import { createPipeline, type CallSpec, type ProviderDispatcher } from "./pipeline.ts";
-import { basicCachePolicy, resolveRole } from "./role-table.ts";
+import { createPipeline, type CallSpec } from "./pipeline.ts";
+import type { ProviderDispatcher } from "./request-points.ts";
 import {
+  createProviderRegistry,
+  defaultApiStreams,
+  type ApiStreamsLookup,
+} from "./provider-registry.ts";
+import { budgetOf, isModelAllowed, resolveRole, type RoutingTable } from "./role-table.ts";
+import {
+  createSecretResolver,
   secretBackedCredentialStore,
   type ProviderCredentialRefs,
   type SecretTarget,
 } from "./secrets-bridge.ts";
-import { DEFAULT_RETRY_SETTINGS, type ProviderSetting, type RetrySettings } from "./settings.ts";
+import type { ModelsSettings, ProviderSetting } from "./settings.ts";
 import { createTokenEstimator } from "./tokens.ts";
 import { createUsageMeter } from "./usage.ts";
 
 // L1.models.spec §3.3, plan M-1. pi-ai Models 위의 ModelService 구현이다. Cordis는 import하지 않는다.
 
-/** 서비스가 읽는 설정 값 중 M1 키 셋. 값은 설정 서비스가 스키마로 검증해 넘긴다 */
-export interface ModelsSettings {
-  /** l1.models.default */
-  readonly default: ModelRefString | null;
-  /** l1.models.providers */
-  readonly providers: readonly ProviderSetting[];
-  /** l1.models.retry */
-  readonly retry: RetrySettings;
-}
-
-export const DEFAULT_MODELS_SETTINGS: ModelsSettings = {
-  default: null,
-  providers: [],
-  retry: DEFAULT_RETRY_SETTINGS,
-};
-
 /** 호출 시점의 유효 설정을 읽는 함수. 읽는 경로는 spec §8.2 마지막 행이 미결이라 조립 루트가 넘긴다 */
 export type ModelsSettingsSource = () => ModelsSettings;
-
-/** l1.models.thinkingLevel(M2 키)의 M1 고정 값. L1.models.spec §6의 기본값이다 */
-const M1_THINKING_LEVEL: ModelThinkingLevel = "medium";
-/** l1.models.cacheRetention(M2 키)의 M1 고정 값. L1.models.spec §6의 기본값이다 */
-const M1_CACHE_RETENTION: CachePolicy["retention"] = "short";
 
 export interface ModelServiceDeps {
   /**
@@ -73,6 +59,10 @@ export interface ModelServiceDeps {
   readonly secrets: SecretService;
   readonly clock: Clock;
   readonly settings: ModelsSettingsSource;
+  /** config provider가 쓸 API 스트림 구현 조회. 기본은 pi-ai 내장 API */
+  readonly apiStreams?: ApiStreamsLookup;
+  /** 그룹 덮어쓰기를 쓸 수 있는 scope인지. 꺼진 scope의 값은 무시한다. 없으면 모두 켜짐 */
+  readonly scopeEnabled?: (scopeId: string) => boolean;
   /** 없으면 before_provider_request를 발화하지 않는다 */
   readonly dispatcher?: ProviderDispatcher;
   readonly logger?: Logger;
@@ -90,7 +80,11 @@ function targetOfUrl(baseUrl: string): SecretTarget | null {
   return { host: url.hostname, port: url.port === "" ? null : Number(url.port) };
 }
 
-function callOf(request: ModelCallRequest, providerRetries: boolean): CallSpec {
+function callOf(
+  request: ModelCallRequest,
+  budgets: ModelsSettings["thinkingBudgets"],
+  providerRetries: boolean,
+): CallSpec {
   const { binding, cachePolicy } = request.resolved;
   return {
     ctx: request,
@@ -100,7 +94,21 @@ function callOf(request: ModelCallRequest, providerRetries: boolean): CallSpec {
     cachePolicy,
     context: request.context,
     ...(request.options === undefined ? {} : { options: request.options }),
+    selectSource: request.resolved.source === "checkpoint" ? "restore" : "route",
+    budgets,
     providerRetries,
+  };
+}
+
+function tableOf(settings: ModelsSettings): RoutingTable {
+  return {
+    default: settings.default,
+    routing: settings.routing,
+    groupRouting: settings.groupRouting,
+    thinkingLevel: settings.thinkingLevel,
+    thinkingBudgets: settings.thinkingBudgets,
+    allowed: settings.allowedModels,
+    denied: settings.deniedModels,
   };
 }
 
@@ -113,22 +121,36 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     return deps.settings().providers.find((entry) => entry.id === providerId);
   }
 
+  const registry = createProviderRegistry({
+    models: () => models,
+    apiStreams: deps.apiStreams ?? defaultApiStreams,
+  });
+
+  // 설정의 참조가 먼저이고, 없으면 provider 등록부(config의 apiKey, runtime의 credential)의 참조를 쓴다
+  function credentialRefOf(providerId: string): string | null {
+    const setting = providerSetting(providerId);
+    if (setting !== undefined) {
+      if (!setting.enabled) return null;
+      if (setting.apiKeyRef !== null) return setting.apiKeyRef;
+    }
+    return registry.credentialRef(providerId);
+  }
+
   const refs: ProviderCredentialRefs = {
-    get(providerId) {
-      const setting = providerSetting(providerId);
-      return setting !== undefined && setting.enabled ? setting.apiKeyRef : null;
+    get: credentialRefOf,
+    ids: () => {
+      const ids = new Set<string>();
+      for (const entry of deps.settings().providers) {
+        if (entry.enabled && entry.apiKeyRef !== null) ids.add(entry.id);
+      }
+      for (const id of registry.ids()) if (registry.credentialRef(id) !== null) ids.add(id);
+      return [...ids];
     },
-    ids: () =>
-      deps
-        .settings()
-        .providers.flatMap((entry) =>
-          entry.enabled && entry.apiKeyRef !== null ? [entry.id] : [],
-        ),
   };
 
-  // 요청 목적지(호스트 일치 정책용). baseUrl 설정 덮어쓰기 → provider → 첫 모델 순으로 찾는다
+  // 요청 목적지(호스트 일치 정책용). baseUrl 설정 덮어쓰기 → 등록부 덮어쓰기 → provider → 첫 모델 순으로 찾는다
   function targetOf(providerId: string): SecretTarget | null {
-    const override = providerSetting(providerId)?.baseUrl ?? null;
+    const override = providerSetting(providerId)?.baseUrl ?? registry.overlay(providerId)?.baseUrl;
     const baseUrl =
       override ??
       models.getProvider(providerId)?.baseUrl ??
@@ -137,12 +159,13 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     return baseUrl === null ? null : targetOfUrl(baseUrl);
   }
 
-  const credentials = secretBackedCredentialStore(refs, deps.secrets, {
+  const bridgeOptions = {
     targetOf,
-    onFailure: (failure) => {
+    onFailure: (failure: Parameters<typeof failures.record>[0]): void => {
       failures.record(failure);
     },
-  });
+  };
+  const credentials = secretBackedCredentialStore(refs, deps.secrets, bridgeOptions);
   const models = deps.buildModels(credentials);
 
   const pipeline = createPipeline({
@@ -154,6 +177,8 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     mask: (text) => deps.secrets.redactor.mask(text).text,
     dispatcher: deps.dispatcher ?? null,
     failures,
+    overlay: (providerId) => registry.overlay(providerId),
+    resolver: createSecretResolver(deps.secrets, { targetOf }),
     ...(deps.logger === undefined ? {} : { logger: deps.logger }),
   });
 
@@ -161,11 +186,13 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     role: ModelRole,
     overrides: RoleOverrides,
   ): Result<ResolvedModel, ModelError> {
+    const settings = deps.settings();
     const resolved = resolveRole({
       role,
       overrides,
-      table: { default: deps.settings().default, thinkingLevel: M1_THINKING_LEVEL },
+      table: tableOf(settings),
       lookup: (provider, modelId) => models.getModel(provider, modelId),
+      ...(deps.scopeEnabled === undefined ? {} : { scopeEnabled: deps.scopeEnabled }),
     });
     if (!resolved.ok) return resolved;
     return ok({
@@ -173,18 +200,19 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
       source: resolved.value.source,
       trace: resolved.value.trace,
       model: resolved.value.model,
-      thinkingBudgetTokens: null,
-      cachePolicy: basicCachePolicy(role, M1_CACHE_RETENTION),
+      thinkingBudgetTokens: resolved.value.thinkingBudgetTokens,
+      cachePolicy: buildCachePolicy(role, settings.cacheRetention, resolved.value.model),
     });
   }
 
   function stream(request: ModelCallRequest): AssistantMessageEventStream {
-    return pipeline.start(callOf(request, true));
+    return pipeline.start(callOf(request, deps.settings().thinkingBudgets, true));
   }
 
   async function complete(request: ModelCallRequest): Promise<AssistantMessage> {
     // 콘텐츠를 소비자에게 흘려보내지 않으므로 호출 단위로 재시도한다. 요청 단계 재시도는 끄고 한 겹만 둔다(spec §4.5)
-    const retry = deps.settings().retry;
+    const settings = deps.settings();
+    const retry = settings.retry;
     const policy: RetryPolicy = {
       enabled: retry.maxRetries > 0,
       maxRetries: retry.maxRetries,
@@ -192,7 +220,7 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
       maxAgentDelayMs: retry.maxDelayMs,
     };
     return await retryAssistantCall(
-      () => pipeline.start(callOf(request, false)).result(),
+      () => pipeline.start(callOf(request, settings.thinkingBudgets, false)).result(),
       policy,
       request.signal,
     );
@@ -200,7 +228,8 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
 
   function streamFn(ctx: ModelCallContext): StreamFn {
     return (model, context, options) => {
-      const retention = options?.cacheRetention ?? M1_CACHE_RETENTION;
+      const settings = deps.settings();
+      const retention = options?.cacheRetention ?? settings.cacheRetention;
       const signal = options?.signal ?? ctx.signal;
       const callCtx: ModelCallContext = { ...ctx, ...(signal === undefined ? {} : { signal }) };
       return pipeline.start({
@@ -208,7 +237,11 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
         provider: model.provider,
         modelId: model.id,
         thinkingLevel: options?.reasoning ?? "off",
-        cachePolicy: basicCachePolicy(ctx.role, retention),
+        cachePolicy: withRetention(
+          buildCachePolicy(ctx.role, settings.cacheRetention, model),
+          ctx.role,
+          retention,
+        ),
         context: { messages: [...context.messages] },
         ...(options?.maxTokens === undefined && options?.temperature === undefined
           ? {}
@@ -218,6 +251,8 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
                 ...(options.temperature === undefined ? {} : { temperature: options.temperature }),
               },
             }),
+        selectSource: "route",
+        budgets: settings.thinkingBudgets,
         ...(options?.apiKey === undefined ? {} : { apiKey: options.apiKey }),
         providerRetries: true,
       });
@@ -225,10 +260,20 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
   }
 
   function list(filter?: ModelListFilter): readonly ModelInfo[] {
+    const settings = deps.settings();
     const infos: ModelInfo[] = [];
     for (const model of models.getModels(filter?.provider)) {
-      // M1의 available은 자격 증명 참조가 설정된 provider다. 환경 변수 같은 암묵 자격은 세지 않는다
-      const available = refs.get(model.provider) !== null;
+      if (
+        !isModelAllowed(
+          { allowed: settings.allowedModels, denied: settings.deniedModels },
+          model.provider,
+          model.id,
+        )
+      ) {
+        continue;
+      }
+      // available은 자격 증명 참조가 있는 provider나 등록부로 들어온 provider다. 환경 변수 같은 암묵 자격은 세지 않는다
+      const available = credentialRefOf(model.provider) !== null || registry.has(model.provider);
       if (filter?.available === true && !available) continue;
       if (filter?.reasoning !== undefined && model.reasoning !== filter.reasoning) continue;
       infos.push({
@@ -251,9 +296,18 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
     return infos;
   }
 
+  const hostedSearch = createHostedSearch({
+    resolve: (model) => resolveWith("search", model === "auto" ? {} : { ref: model }),
+    start: (spec) => pipeline.start(spec),
+    budgets: () => deps.settings().thinkingBudgets,
+    ...(deps.logger === undefined ? {} : { logger: deps.logger }),
+  });
+
   return {
     resolve: (role, overrides = {}) => resolveWith(role, overrides),
+    providerTarget: targetOf,
     rebind(binding: ModelBinding): Result<ResolvedModel, ModelError> {
+      const settings = deps.settings();
       const ref = formatModelRef({
         provider: binding.provider,
         modelId: binding.modelId,
@@ -263,33 +317,34 @@ export function createModelService(deps: ModelServiceDeps): ModelService {
       if (model === undefined) {
         return err(modelError("model_not_found", `pinned model ${ref} is not in the catalog`, ref));
       }
+      if (
+        !isModelAllowed(
+          { allowed: settings.allowedModels, denied: settings.deniedModels },
+          binding.provider,
+          binding.modelId,
+        )
+      ) {
+        return err(modelError("model_denied", `pinned model ${ref} is not allowed`, ref));
+      }
       // 체크포인트 값은 역할 표도 clamp도 거치지 않고 그대로 쓴다(spec §4.2 3번)
       return ok({
         binding,
         source: "checkpoint",
         trace: [{ step: "checkpoint", ref }],
         model,
-        thinkingBudgetTokens: null,
-        cachePolicy: basicCachePolicy(binding.role, M1_CACHE_RETENTION),
+        thinkingBudgetTokens: budgetOf(tableOf(settings), model, binding.thinkingLevel),
+        cachePolicy: buildCachePolicy(binding.role, settings.cacheRetention, model),
       });
     },
     stream,
     complete,
     streamFn,
     list,
-    addProvider() {
-      // provider 등록 API는 M2(plan M-4)다. 그 전에는 등록 경로가 없다
-      return err(
-        modelError("invalid_provider", "provider registration is not available before M2"),
-      );
-    },
-    registerProvider() {
-      throw new Bug(
-        "ModelService.registerProvider is not available before M2 (L1.models.plan M-4)",
-      );
-    },
+    addProvider: (owner, name, def) => registry.addProvider(owner, name, def),
+    registerProvider: (owner, name, config) => registry.registerProvider(owner, name, config),
     usage,
     tokens,
     classify: (message, contextWindow) => classifyMessage(message, contextWindow),
+    hostedSearch,
   };
 }

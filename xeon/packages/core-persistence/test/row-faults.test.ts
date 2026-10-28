@@ -31,8 +31,8 @@ function faultOf<T>(result: Result<T, ReadFailure>): ReadFailure {
 }
 
 describe("projection reads", () => {
-  test("a damaged p_threads status is row_invalid from query.thread and openForRead", () => {
-    const h = openHarness();
+  test("a damaged p_threads status is row_invalid from query.thread and openForRead", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     damage(h, "UPDATE p_threads SET status = 'bogus' WHERE thread_id = ?", [threadId]);
     expect(h.service.query.thread(threadId)).toEqual({
@@ -45,8 +45,8 @@ describe("projection reads", () => {
     });
   });
 
-  test("a damaged p_turns status is row_invalid from query.turn", () => {
-    const h = openHarness();
+  test("a damaged p_turns status is row_invalid from query.turn", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     damage(h, "UPDATE p_turns SET status = 'bogus' WHERE turn_id = ?", [turn.turnId]);
@@ -57,8 +57,8 @@ describe("projection reads", () => {
     expect(faultOf(h.service.query.openTurn(threadId)).kind).toBe("row_invalid");
   });
 
-  test("a damaged input row is row_invalid from query.queuedInputs", () => {
-    const h = openHarness();
+  test("a damaged input row is row_invalid from query.queuedInputs", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const sample = h.store.raw.query<{ n: number }, []>("SELECT COUNT(*) AS n FROM p_inputs").get();
     expect(sample?.n).toBe(0);
@@ -78,7 +78,7 @@ describe("projection reads", () => {
 
 describe("event reads", () => {
   test("a damaged envelope ends the stream with row_invalid after the readable events", async () => {
-    const h = openHarness();
+    const h = await openHarness();
     const { threadId } = newThread(h);
     startTurn(h, threadId);
     damage(h, "UPDATE events SET envelope = '{not json' WHERE seq = 2");
@@ -93,8 +93,8 @@ describe("event reads", () => {
     expect(branch.some((item) => !item.ok)).toBe(true);
   });
 
-  test("feed.read and subscribe report the damaged event instead of throwing", () => {
-    const h = openHarness();
+  test("feed.read and subscribe report the damaged event instead of throwing", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     startTurn(h, threadId);
     damage(h, "UPDATE events SET envelope = '[]' WHERE seq = 2");
@@ -114,7 +114,7 @@ describe("event reads", () => {
   });
 
   test("a stored event of an unknown kind is row_invalid, not a Bug", async () => {
-    const h = openHarness();
+    const h = await openHarness();
     const { threadId } = newThread(h);
     startTurn(h, threadId);
     const stored = h.store.raw
@@ -127,7 +127,7 @@ describe("event reads", () => {
   });
 
   test("a damaged checkpoint record is row_invalid from loadCheckpoint", async () => {
-    const h = openHarness();
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     fullStep(h, turn, 0, []);
@@ -143,8 +143,8 @@ describe("event reads", () => {
 describe("commit and recovery", () => {
   const empty: CommitPlan = { kind: "append", drafts: [], checkpoint: null };
 
-  test("a damaged stored request makes the replayed commit fail with row_invalid", () => {
-    const h = openHarness();
+  test("a damaged stored request makes the replayed commit fail with row_invalid", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     const key = `turn:${turn.turnId}:start`;
@@ -159,8 +159,8 @@ describe("commit and recovery", () => {
     expect(after?.n).toBe(before?.n);
   });
 
-  test("a damaged projection row seen through TxView aborts the commit with row_invalid", () => {
-    const h = openHarness();
+  test("a damaged projection row seen through TxView aborts the commit with row_invalid", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     damage(h, "UPDATE p_turns SET status = 'bogus' WHERE turn_id = ?", [turn.turnId]);
@@ -177,8 +177,8 @@ describe("commit and recovery", () => {
     expect(after?.n).toBe(before?.n);
   });
 
-  test("recover reports a damaged effect.intent payload as row_invalid", () => {
-    const h = openHarness();
+  test("recover reports a damaged effect.intent payload as row_invalid", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     // 도구 호출 하나의 의도까지 커밋하고 멈춘 상태를 만든다

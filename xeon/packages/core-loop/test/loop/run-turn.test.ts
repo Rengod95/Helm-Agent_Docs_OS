@@ -59,9 +59,10 @@ test("a_model_that_cannot_be_resolved_fails_the_turn_with_a_logged_reason", asyn
   h.models.failResolve("model_not_found");
   await h.loop.admit({ threadId: h.threadId, content: "go", via: "interactive" });
   await h.settle();
+  // 사용자가 설정으로 고칠 수 있는 원인이라 종결 오류에 종류와 메시지가 그대로 실린다
   expect(firstOfKind(h.fake.events(h.threadId), "turn.completed")?.payload).toMatchObject({
     status: "failed",
-    error: "loop_rejected",
+    error: "model_unavailable: model_not_found: fake",
   });
   expect(
     h.logs.records.some(

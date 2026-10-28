@@ -759,6 +759,8 @@ sequenceDiagram
 2. secret 위젯에는 값 입력란이 없다. 입력은 등록된 비밀 이름 목록에서 고르거나 이름을 적는 참조 선택기다. 적은 이름은 `SecretRef` 패턴(`^secret://[a-z][a-z0-9-]{1,63}$`)에 맞아야 하고, 맞지 않는 입력은 초안 상태에 남기지 않고 버린다(`reduceSettings`의 `draftEdited`).
 3. secret 위젯의 항목은 정의의 `ui.tab`에 있다(예: providers 탭의 API 키 참조). secrets 탭은 이 키들의 참조 위치 목록을 바로 가기로만 보인다(§4.1 규칙 2).
 4. view-model, 로그, 오류 객체, 상태 직렬화(`JSON.stringify(state)`)에 참조 아닌 비밀 문자열이 없다. 이것을 테스트로 확인한다(plan §5 `secret-never-holds-value`).
+5. [결정: M2 Mac 실기] 참조 선택기로 provider의 키 참조를 저장하는 것(사용자 범위 `l1.models.providers`의 `settings.set`)이 "provider에 연결"이고, 그 비밀의 사용을 허용하는 행위이기도 하다. 호스트가 이 쓰기를 보고 비밀 메타에 모델 provider 호출 하나(runtime-http, `model.provider:<id>`, provider 호스트)만 허용한다(`L4.host-service.spec` HS-45). 화면은 `secret.meta`를 부르지 않고 사용 정책을 직접 고르게 하지 않는다. 연결이 이미 되어 있어도 같은 저장을 다시 하면 허용이 다시 맞춰진다.
+6. [결정: M2 Mac 실기] `settings.set`이 3102로 거절하면(예: 모르는 모델 id, `L4.host-service.spec` HS-78) 화면은 `details.issues[0].message`를 그대로 보인다.
 
 #### 4.6.2 상태 표시
 
@@ -797,7 +799,7 @@ sequenceDiagram
 | B. Tauri command | WebView 입력란 → Rust command → sops·키체인 직접 호출 | WebView DOM, Tauri IPC, Rust 프로세스 | wire를 지나지 않는다 | 값이 DOM을 지난다. 비밀 저장 로직이 L0.secrets(TS)와 Rust 두 곳에 생긴다. 메타·감사 기록이 엔진 밖에서 생긴다 | 없음(대신 desktop에 비밀 로직) |
 | C. L0.secrets 흐름 위임 | WebView는 `secret.beginEntry {name, action}` 같은 값 없는 요청만 보낸다 → 호스트의 L0.secrets가 OS 보안 입력(키체인 대화상자, pinentry 등)이나 터미널 프롬프트를 띄워 값을 직접 받는다 → 결과 상태만 돌려준다 | L0.secrets와 OS 입력 창 | 값이 DOM, wire, 이벤트 어디에도 없다. 열람(`secret.beginReveal`)도 같은 경로로 OS 창에 한 번 보이고 닫힌다. CLI의 `secret add`(stdin) 흐름과 소유 위치가 같다(`_research/secrets.md` §6.6) | OS별 보안 입력 구현이 필요하다(L0.os·L0.secrets). Linux에 pinentry가 없으면 대체 경로가 필요하다 | 값 없는 메서드 추가 |
 
-- [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. M3 전까지(M2)는 비밀 등록 버튼 대신 `xeon secret add <이름>` 명령 안내를 보인다. 이 명령은 stdin으로 값을 받는다(`_research/secrets.md` §6.6).
+- [제안] C안을 쓴다. CLI의 `secret add/set/rotate`도 같은 값 없는 `secret.beginEntry`를 쓴다(`L4.cli.spec` §4.7). 메서드 이름은 단수 `secret.*`이고 `L4.readme` §8.1 표가 정본이다. M3 전까지(M2)의 사이드카 연결에는 호스트가 값을 받을 수단이 없다(HS-44). 이 연결의 최소 설정 화면은 C안 대신 B안의 변형을 쓴다 [결정: M2 첫 실행 M-12]: 화면 안의 등록 창이 값을 한 번 받아 Rust 셸에 넘기고, 셸은 번들된 `xeon secret add|set`을 실행해 stdin에 한 번 쓴다. 비밀 저장 로직은 Rust에 새로 생기지 않고 CLI의 것을 그대로 쓴다. 약점은 B안과 같다(값이 DOM과 Tauri IPC를 지난다). 규칙과 약점은 `L4.desktop.spec` §4.14.1이다. 셸 경로가 없으면 `xeon secret add <이름>` 명령 안내로 돌아간다(이 명령은 stdin으로 값을 받는다, `_research/secrets.md` §6.6). M3의 비밀 탭은 C안을 쓴다.
 - [결정: review.decisions-2 U-20] 값 열람 경로는 M2 CLI `xeon secret reveal`(`L4.cli.spec` §4.7)과 M3 이 화면의 "값 보기" 둘이다. 에이전트 경로에는 열람이 없다. 이 화면의 열람은 C안 경로(`secret.beginReveal`, OS 인증 재확인)를 쓴다.
 - [제안] C안에서 셸 포트 `openSecretFlow`는 desktop이 호스트 메서드를 불러 구현한다. settings-ui는 결과 상태(`SecretFlowOutcome`)만 받는다.
 - C안이 OS에서 불가능한 경우의 대체로 A안을 쓸지는 [미결]이다(§10 미결 2). A안을 쓰면 값이 wire를 지나므로 `L4.readme` §4 비밀 행, `L4.desktop.spec` E11, `L0.secrets.spec` §8.3 R4의 전제를 함께 고쳐야 한다. 그때도 입력란은 한 번 쓰고 비우는 별도 창에 두고, view-model 상태에는 넣지 않는다.
@@ -853,12 +855,13 @@ sequenceDiagram
 
 | 항목 | 내용 | 원천 |
 |---|---|---|
-| 검색 provider 상태 | 현재 `l2.web.search.provider` 유효 값, `auto`이면 지금 고르는 provider와 그 이유(키 플러그인, SearXNG, 내장 검색 래퍼) | `settings.get`, `L2.web.spec` provider 선택 순서 |
-| SearXNG 주소 | `l2.web.search.searxng.url` 입력란과 감지 결과(감지한 주소 또는 "없음") | `settings.get`·`settings.set`, `L2.web.spec` SearXNG 감지 |
+| 검색 provider 상태 | 현재 `l2.web.search.provider` 유효 값, `auto`이면 설정에서 정해지는 체인(키를 등록한 플러그인, 주소를 설정한 SearXNG, 내장 검색 래퍼 순) | `settings.get`, `L2.web.spec` §4.8.2 선택 체인 |
+| SearXNG 주소 | `l2.web.search.searxng.url` 입력란. 비어 있으면 SearXNG는 체인에 들어가지 않는다 | `settings.get`·`settings.set`, `L2.web.spec` §4.8.3 설정한 SearXNG |
 | 권장 목록 | 무료 크레딧 API 플러그인(Exa, Brave)과 월 크레딧 안내, 키 등록 버튼 | ADR-0005 §3.1 ④, 키 등록은 §4.6 C안 경로 |
 
-- 키 등록 버튼은 §4.6.4 C안(`secret.beginEntry`)을 쓰고, 값은 이 화면을 지나지 않는다. 등록 뒤 provider 설정에는 `secret://<이름>` 참조만 쓴다.
-- [가정] provider 상태와 SearXNG 감지 결과를 읽는 wire 수단은 아직 없다. 감지 결과를 설정 화면에 보이려면 F 변경 요청이 필요하고, review.decisions-2 U-04에 따라 M2 계획에서 정한다. 수단이 없으면 상태 행은 설정 값만 보이고 감지 결과 칸은 "확인할 수 없음"으로 둔다.
+- 키 등록 버튼은 §4.6.4 C안(`secret.beginEntry`)을 쓰고, 값은 이 화면을 지나지 않는다. 호스트가 값을 받을 수 없는 사이드카 연결의 M2 최소 화면만 예외다: 그 화면의 등록 창이 값을 한 번 받는다(§4.6.4, `L4.desktop.spec` §4.14.1). 등록 뒤 provider 설정에는 `secret://<이름>` 참조만 쓴다.
+- [결정: review.m2-plan §9 H1] SearXNG 자동 감지는 없다. SearXNG는 사용자가 주소를 설정했을 때만 체인에 들어가므로 이 화면에 감지 결과 칸을 두지 않는다. provider 상태 행은 설정 값으로 계산한 체인만 보인다.
+- [가정] 마지막 검색에서 실제로 쓴 provider와 탐침 결과(`unreachable`, `json-disabled`)를 읽는 wire 수단은 없다. 이 값을 화면에 보이려면 F 변경 요청이 필요하고 M3 첫 실행 화면 작업에서 정한다. 그 전까지 탐침 실패는 `meta.warnings`와 L4 진단으로만 보인다(`L2.web.spec` §4.8.3).
 - CLI는 같은 내용을 `xeon doctor`의 검색 provider 묶음으로 보인다(`L4.cli.spec` §4.7.1).
 
 ## 5. 실패와 경계 사례
@@ -907,7 +910,7 @@ sequenceDiagram
 | 요구(변경 요청) | `F.wire-settings.spec` | 알림 `settings.invalidated`(§4.5.2), 검사용 병합 함수 `toValueJsonSchema(def: SettingDefWire)`(L4-3 P1), 파일 메서드 `settings.readFile`·`settings.writeFile`(§4.2.3), 값 없는 비밀 메서드(§4.6.4), 사용량 메서드(§4.7), 잠금 사유 필드(§4.8.3), `SettingUi` 편집기 힌트(§4.2.4). 모두 §10 미결 |
 | 요구 | `F.records.spec` | `settings.changed` kind와 `SettingsChangedPayload { key, scope, value }` |
 | 요구 | `L4.host-service.spec` | 설정 처리기(`L4.host-service.plan` H8 `settings.get`, H17 `settings.set/reset/list`), 쓰기 때 `settings.changed` 기록 범위, 재시작 의미, project·local 범위의 프로젝트 해석(`workspaceRequired`). 이 문서와 어긋나면 host-service가 우선한다(`L4.readme` §8) |
-| 요구 | `L4.desktop.spec` | D6 UI 셸: `SettingsHostPort` 구현(연결, `DesktopSettingsStore`, 현재 thread, `requestHostRestart`, `openSecretFlow`), 화면 프레임워크(§10 미결 11 제안 Preact), 색 토큰, CSP, 모듈 경계 W3·W4 |
+| 요구 | `L4.desktop.spec` | D6 UI 셸: `SettingsHostPort` 구현(연결, `DesktopSettingsStore`, 현재 thread, `requestHostRestart`, `openSecretFlow`), 화면 프레임워크(React 19, adr.0010), 색 토큰, CSP, 모듈 경계 W3·W4 |
 | 제공 | `L4.desktop.spec` | `createSettingsController`, `SettingsController`, `SettingsHostPort`, `SecretFlowRequest`, `SecretFlowOutcome`, `SecretStatus` |
 | 요구 | `L0.secrets.spec` | 비밀 목록·메타·정책·감사 이력·등록·회전·열람 흐름과 값 없는 상태 조회(§4.6). 값 입력은 L0.secrets가 직접 받는다(C안 제안) |
 | 요구 | `L1.models.spec` | 사용량 투영(게이지 자리, §4.7), 라우팅·폴백·계정 풀 키 모양(전용 편집기, §4.2.4) |
@@ -937,7 +940,7 @@ sequenceDiagram
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-04] 변경 신호 범위. `settings.changed`는 thread 내구 이벤트라 user·project 파일 변경이 오지 않을 수 있다. 값 없는 서버 알림 `settings.invalidated`(§4.5.2)는 M1에 넣지 않고 M2 계획에서 정한다. 그때까지 F.wire-settings 미결이고 화면은 §4.5.2의 다시 읽기 규칙을 쓴다.
-2. [미결] 비밀 값 입력·열람 경로. 제안은 C안(L0.secrets 흐름 위임, 값 없는 `secret.beginEntry`·`secret.beginReveal`). CLI도 같은 C안을 쓴다. C안이 불가능한 OS에서 A안(wire 전용 메서드)을 대체로 쓸지(§4.6.4). F 변경 요청.
+2. [미결] 비밀 값 입력·열람 경로(M2 최소 화면의 사이드카 연결은 닫힘: `L4.desktop.spec` §10 15번, 셸이 CLI를 실행하는 B안 변형). 제안은 C안(L0.secrets 흐름 위임, 값 없는 `secret.beginEntry`·`secret.beginReveal`). CLI도 같은 C안을 쓴다. C안이 불가능한 OS에서 A안(wire 전용 메서드)을 대체로 쓸지(§4.6.4). F 변경 요청.
 3. (닫힘) 비밀 관리 데이터의 wire 경로. `secret.list { meta?, usage? }`, `secret.meta`, `secret.remove`, `secret.test`, `secret.beginEntry`는 F 메서드 표에 M2로 들어왔다(`F.wire-settings.spec` §4). 열람 시작 `secret.beginReveal`의 F 추가는 M2 계획에서 정한다(review.decisions-2 U-04, U-20). 정본 표는 `L4.readme` §8.1이다.
 4. [미결] secrets 탭과 비밀 관리 명령(M2, `product.scope.spec` UC-6)의 순서. 명령이 M2이고 화면이 M3이므로 M2 화면은 명령 안내만 보인다.
 5. [결정: review.decisions-2 U-04, U-21] 레이트 리밋·계정 회전 설정은 M3 화면에 넣는다. 사용량 wire 메서드와 게이지 채우기 시점은 M2 계획에서 정한다(§4.7).
@@ -951,6 +954,6 @@ sequenceDiagram
 13. [미결] 확장의 맞춤 설정 패널 허용 여부와 시점(§7).
 14. 닫음: project·local 범위 쓰기에서 열린 프로젝트가 없을 때의 오류는 3103 `settings.scopeNotAllowed` + `details.reason: "workspaceRequired"`다(`L4.host-service.spec` §3.4 `settings.set` 행). §4.4.4 표와 §5에 반영했다.
 15. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27이다(`F.wire-settings.spec` §10 6번). 클라이언트 `Check`와 서버 검사가 catalog의 같은 사본을 써서 AC11이 성립한다.
-16. [미결] 화면 프레임워크와 렌더러 형식, 화면 부품 테스트(`ui` 태그)와 시각 회귀(`visual`) 도입 여부. `eng.testing.guide` TS-01에서 보류이고 `L4.desktop.spec`이 정한다. AC4의 "렌더러가 8종 모두를 그린다"와 AC6의 DOM 확인은 이 결정 뒤에 테스트 형식이 정해진다. `L4.desktop.spec` §10 미결 11은 Preact + `@preact/signals`를 제안한다.
+16. [미결] 화면 프레임워크와 렌더러 형식, 화면 부품 테스트(`ui` 태그)와 시각 회귀(`visual`) 도입 여부. `eng.testing.guide` TS-01에서 보류이고 `L4.desktop.spec`이 정한다. AC4의 "렌더러가 8종 모두를 그린다"와 AC6의 DOM 확인은 이 결정 뒤에 테스트 형식이 정해진다. 프레임워크는 React 19 + Zustand 5로 정해졌다(adr.0010, `L4.desktop.spec` §10 미결 11 닫힘). 렌더러 형식과 `ui`·`visual` 시험 도입은 남는다.
 17. [미결] `L4.desktop.spec` §4.9 규칙 W3의 허용 목록에 `@xeon/contracts/{wire,settings,conversation}`와 `typebox/schema`를 넣을지(§3.1). W3을 문자 그대로 읽으면 F 서브패스 import가 빠진다.
 18. [미결] 설정 원천 둘(§4.1.3). `L4.desktop.spec` §10 미결 6과 같은 항목이다. 로컬 저장소 키의 관리 잠금(`locked`)을 어떻게 채울지도 그 결정에 따른다.

@@ -1,4 +1,4 @@
-import { assertNever, err, ok, type Result, type Scheduler } from "@xeon/contracts";
+import { assertNever, detach, err, ok, type Result, type Scheduler } from "@xeon/contracts";
 import type {
   AgentToolCall,
   EventId,
@@ -13,6 +13,7 @@ import type { DurableEventEnvelope, ReadFailure } from "@xeon/contracts/records"
 import type {
   AdmitRequest,
   AdmitResult,
+  ChildTurnRequest,
   InputMode,
   LoopError,
   LoopService,
@@ -24,10 +25,12 @@ import { abortIntentRequest } from "./commits.ts";
 import { commitWithRetry, describeCommitFailure, type CommitFailure } from "./commit.ts";
 import { createDrafter } from "./drafts.ts";
 import { LoopRejection } from "./errors.ts";
+import { forEachSequential } from "./sequence.ts";
 import { planReentry, reduceOpenTurn, type OpenTurnReduction } from "./resume.ts";
 import { runTurn as runLoopTurn } from "./loop/run-turn.ts";
 import type { TurnEntry, TurnRunResult } from "./loop/types.ts";
 import { createThreadGate } from "./thread-gate.ts";
+import { createUserBash } from "./user-bash.ts";
 import { textAndImages, turnStartRequest, type TurnStartSource } from "./turn-start.ts";
 import type { LoopContext, LoopDeps, StartOutcome, ThreadRuntime } from "./types.ts";
 
@@ -115,6 +118,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     ...deps,
     drafter: createDrafter({ session: deps.session, ids: deps.ids }),
   };
+  const userBash = createUserBash(ctx);
   const threads = new Map<ThreadId, ThreadRuntime>();
   const leaves = new Map<ThreadId, EventId>();
 
@@ -176,8 +180,12 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
 
   // ── turn 하나 (T1 → 실행 → T6) ──────────────────────────────────────
 
-  function openTurnScope(thread: ThreadRuntime, turnId: TurnId): TaskScope {
-    return deps.tasks.openScope(thread.scope, {
+  function openTurnScope(
+    thread: ThreadRuntime,
+    turnId: TurnId,
+    parent: TaskScope = thread.scope,
+  ): TaskScope {
+    return deps.tasks.openScope(parent, {
       kind: "turn",
       id: turnId,
       abortIntent: (reason, cause) =>
@@ -195,7 +203,9 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     onStarted: (outcome: StartOutcome) => void,
   ): Promise<TurnRunResult | undefined> {
     const turnId = deps.ids.next("trn");
-    const scope = openTurnScope(thread, turnId);
+    // 자식 turn 노드는 호출자(core-agents)가 넘긴 subagent 노드 아래에 열린다(L1.tasks.spec §4.1)
+    const child = source.kind === "child" ? source.request : null;
+    const scope = openTurnScope(thread, turnId, child?.scope);
     const start = turnStartRequest(
       { drafter: ctx.drafter, clock: deps.clock, ids: deps.ids, tasks: deps.tasks },
       { threadId: thread.threadId, turnId, source },
@@ -214,6 +224,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     beginRunning(thread, turnId, scope);
     for (const input of planned.inputs) thread.placed.set(input.inputId, turnId);
     onStarted({ status: "started", turnId, planned });
+    const unlink = child === null ? null : linkRequestSignal(child.signal, scope);
     try {
       const result = await runLoopTurn(ctx, {
         thread,
@@ -237,13 +248,36 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
         priorFinalItemId: null,
         priorLastStop: null,
         priorLastError: null,
+        child,
       });
       await finishRun(thread, result);
       return result;
     } catch (error) {
       thread.running = null;
       throw error;
+    } finally {
+      unlink?.();
     }
+  }
+
+  /** 호출자의 취소 신호가 켜지면 turn 노드를 취소한다(부모 노드의 신호는 소유 사슬이 이미 전한다). 돌려주는 함수가 연결을 푼다 */
+  function linkRequestSignal(signal: AbortSignal, scope: TaskScope): () => void {
+    const cancel = (): void => {
+      detach(
+        deps.tasks.abort(scope, { code: "parent", message: "child turn request aborted" }),
+        (cause) => {
+          deps.logger.warn("loop.child_abort_failed", { reason: failureText(cause) });
+        },
+      );
+    };
+    if (signal.aborted) {
+      cancel();
+      return () => {};
+    }
+    signal.addEventListener("abort", cancel, { once: true });
+    return () => {
+      signal.removeEventListener("abort", cancel);
+    };
   }
 
   // ── 큐 입력으로 시작 ────────────────────────────────────────────────
@@ -305,6 +339,33 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   // ── 재개 ────────────────────────────────────────────────────────────
 
   /** 열린 turn을 interrupted로 닫는다: 결과 없는 호출을 닫고 T6를 쓴다 */
+  /** 닫는 turn이 올린 미해결 승인 요청을 취소로 닫는다. 읽기나 취소가 실패해도 turn 닫기는 계속한다 */
+  async function cancelTurnApprovals(
+    threadId: ThreadId,
+    turnId: TurnId,
+    reason: string,
+  ): Promise<void> {
+    const approvals = deps.approvals;
+    if (approvals === undefined) return;
+    const restored = await approvals.restore(threadId);
+    if (!restored.ok) {
+      deps.logger.warn("loop.approvals_restore_failed", { threadId, reason: restored.error.kind });
+      return;
+    }
+    const stale = restored.value.filter(
+      (request) => request.origin.threadId === threadId && request.origin.turnId === turnId,
+    );
+    await forEachSequential(stale, async (request) => {
+      const closed = await approvals.cancel(request.approvalId, `turn closed: ${reason}`);
+      if (!closed.applied) {
+        deps.logger.warn("loop.approval_cancel_not_applied", {
+          threadId,
+          approvalId: request.approvalId,
+        });
+      }
+    });
+  }
+
   async function closeOpenTurn(
     thread: ThreadRuntime,
     turnId: TurnId,
@@ -314,6 +375,8 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     if (!before.ok) return before;
     const opened = reduceOpenTurn(before.value, turnId);
     if (opened === undefined || opened.completed) return ok(undefined);
+    // 이 turn이 남긴 미해결 승인 요청은 답을 받을 호출이 없다. 닫는 turn에 커밋이 막히기 전에 취소로 닫는다(L1.tools.spec §4.7 8번)
+    await cancelTurnApprovals(thread.threadId, turnId, reason);
     const scope = openTurnScope(thread, turnId);
     beginRunning(thread, turnId, scope);
     // 취소 신호를 켠다. 의도 커밋은 같은 키라 이미 있으면 다시 쓰지 않는다
@@ -372,6 +435,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       consumedSeq: 0,
       leaseRefs: [],
       scopeRef: null,
+      child: null,
     });
     await finishRun(thread, result);
     return ok(undefined);
@@ -384,6 +448,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
   async function resumeInGate(
     thread: ThreadRuntime,
     onBegin: (result: Result<ResumeResult, LoopError>) => void,
+    child: ChildTurnRequest | null = null,
   ): Promise<TurnRunResult | undefined> {
     const threadId = thread.threadId;
     const recovered = deps.session.recover(threadId, {
@@ -454,7 +519,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     }
     onBegin(ok({ status: "resumed", turnId: open.turnId, from: reentry.from }));
 
-    const scope = openTurnScope(thread, open.turnId);
+    const scope = openTurnScope(thread, open.turnId, child?.scope);
     beginRunning(thread, open.turnId, scope);
     const entry: TurnEntry = reentry.entry;
     const checkpoint =
@@ -464,7 +529,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       turnId: open.turnId,
       scope,
       entry,
-      interactive: reduction.scopeId === null,
+      interactive: child === null ? reduction.scopeId === null : child.tools.interactive,
       scopeId: reduction.scopeId,
       leaseId: null,
       driveSignal: null,
@@ -472,6 +537,7 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       leaseRefs: checkpoint?.leaseRefs ?? [],
       scopeRef: checkpoint?.scopeRef ?? null,
       ...priorOf(reduction),
+      child,
     });
     await finishRun(thread, result);
     return result;
@@ -622,13 +688,56 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       if (outcome.status === "failed") {
         throw new LoopRejection({ kind: "input_invalid", message: outcome.reason });
       }
-      return await handleDriveRejection(thread, request, outcome.failure);
+      return await handleStartRejection(thread, request, outcome.failure);
     });
   }
 
-  async function handleDriveRejection(
+  /**
+   * 자식 thread turn(L1.loop.spec §4.13). 주 대화와 같은 루프로 돌되 시스템 프롬프트, 모델, 도구 맥락, 한도를 요청에서 받는다.
+   * 같은 `requestId`의 turn이 이미 있으면 새로 열지 않고 기록된 결과를 돌려주거나(`replayed: true`) 열린 turn을 이어 끝낸다.
+   */
+  async function runChildTurn(
+    request: ChildTurnRequest,
+  ): Promise<Result<LoopTurnResult, LoopError>> {
+    const thread = runtimeOf(request.threadId);
+    try {
+      const result = await thread.gate.run(1, async (): Promise<LoopTurnResult> => {
+        const started = Promise.withResolvers<StartOutcome>();
+        const finished = await runNewTurn(thread, { kind: "child", request }, started.resolve);
+        const outcome = await started.promise;
+        if (outcome.status === "started") {
+          if (finished === undefined) {
+            throw new LoopRejection({ kind: "thread_not_found", threadId: request.threadId });
+          }
+          return {
+            outcome: {
+              turnId: outcome.turnId,
+              status: outcomeStatus(finished.status),
+              ...(finished.finalItemId === null ? {} : { finalItemId: finished.finalItemId }),
+            },
+            replayed: false,
+            usage: finished.usage,
+          };
+        }
+        if (outcome.status === "failed") {
+          throw new LoopRejection({ kind: "input_invalid", message: outcome.reason });
+        }
+        return await handleStartRejection(thread, request, outcome.failure);
+      });
+      return ok(result);
+    } catch (error) {
+      if (error instanceof LoopRejection) return err(error.loopError);
+      throw error;
+    }
+  }
+
+  /**
+   * T1 거부를 호출자에게 돌려준다. drive turn(`LoopTurnRequest`)과 자식 turn(`ChildTurnRequest`)이 같은 규칙을 쓴다:
+   * 같은 신원(drive는 `(scopeId, requestId)`, 자식은 `(자식 thread, 범위 없음, requestId)`)의 turn이 있으면 기록된 결과나 이어 끝낸 결과다
+   */
+  async function handleStartRejection(
     thread: ThreadRuntime,
-    request: LoopTurnRequest,
+    request: LoopTurnRequest | ChildTurnRequest,
     failure: CommitFailure,
   ): Promise<LoopTurnResult> {
     if (failure.kind === "store") throw new LoopRejection(failure.error);
@@ -637,6 +746,12 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     }
     switch (failure.code) {
       case "stale_lease":
+        if (!("leaseEpoch" in request)) {
+          throw new LoopRejection({
+            kind: "input_invalid",
+            message: describeCommitFailure(failure),
+          });
+        }
         throw new LoopRejection({
           kind: "stale_lease",
           scopeId: request.scopeId,
@@ -647,14 +762,19 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
       case "turn_exists": {
         const existing = deps.session.query.turnByRequestId(
           request.threadId,
-          request.scopeId,
+          "leaseEpoch" in request ? request.scopeId : null,
           request.requestId,
         );
         if (!existing.ok) throw new LoopRejection(existing.error);
         if (existing.value === undefined) {
           throw new LoopRejection({ kind: "input_invalid", message: "recorded turn is missing" });
         }
-        return await replayedResult(thread, existing.value.turnId, existing.value.status);
+        return await replayedResult(
+          thread,
+          existing.value.turnId,
+          existing.value.status,
+          "leaseEpoch" in request ? null : request,
+        );
       }
       // xeon-disable-next-line xeon/switch-default-never -- 거부 코드(CommitFailure.code)는 문자열이라 열린 값이다. 모르는 코드는 예상 가능한 실패로 돌려준다 (eng.typescript.guide TY-14)
       default:
@@ -667,9 +787,10 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
     thread: ThreadRuntime,
     turnId: TurnId,
     status: "running" | "waiting" | "completed" | "interrupted" | "failed",
+    child: ChildTurnRequest | null = null,
   ): Promise<LoopTurnResult> {
     if (status === "running" || status === "waiting") {
-      const result = await resumeInGate(thread, () => {});
+      const result = await resumeInGate(thread, () => {}, child);
       if (result !== undefined) {
         return {
           outcome: {
@@ -709,14 +830,10 @@ export function createLoopService(deps: LoopServiceDeps): LoopServiceHandle {
         }),
       ),
     whenIdle: (threadId, fn) => runtimeOf(threadId).gate.run(1, fn),
+    // user_bash 지점 발화, xeon.tools.runUserShell 실행, 컨텍스트 기록(L1.loop.spec §3.1, LP12)
+    runUserBash: (request) => userBash.run(request),
     admit,
-    runChildTurn: () =>
-      Promise.resolve(
-        err({
-          kind: "input_invalid",
-          message: "runChildTurn is available from M2 (L1.agents)",
-        }),
-      ),
+    runChildTurn,
     async interrupt(threadId, turnId) {
       const running = threads.get(threadId)?.running;
       if (running === null || running === undefined) return false;

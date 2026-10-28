@@ -11,6 +11,9 @@
       "path": "../contracts"
     },
     {
+      "path": "../core-tools"
+    },
+    {
       "path": "../ext-host"
     },
     {

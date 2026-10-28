@@ -128,6 +128,15 @@ describe("POINTS", () => {
     }
   });
 
+  test("only project_trust fires without a thread", () => {
+    // 폴더 신뢰는 thread를 만들기 전에 판정하므로 발화 문맥에 thread가 없다(F.extensions.spec §7)
+    expect(rows.filter((r) => r.threadless === true).map((r) => r.name)).toEqual(["project_trust"]);
+    expect(parse(POINTS.project_trust.payload, { cwd: "/work/app" }).ok).toBe(true);
+    expect(parse(POINTS.project_trust.payload, { cwd: "/work/app", threadId: "thr_x" }).ok).toBe(
+      false,
+    );
+  });
+
   test("detached only for tap", () => {
     const detached = rows.filter((r) => r.dispatch === "detached");
     expect(detached).toHaveLength(5);

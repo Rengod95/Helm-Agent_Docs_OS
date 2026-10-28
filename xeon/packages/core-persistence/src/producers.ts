@@ -29,9 +29,19 @@ export interface ProducerRegistry {
   restamp(original: StampedDraft, draft: DurableEventDraft): StampedDraft;
 }
 
-/** 소유 확인: 생산자 id가 kind 접두를 소유하거나, core.persistence의 합성 결과 예외 */
-export function producerOwnsKind(producer: ProducerId, kind: string): boolean {
+/** 컴팩션 커밋이 `thread.compacted`와 함께 덧붙이는 새 접두 system item의 생산자(L1.context.spec §4.6 5번) */
+const COMPACTION_PREFIX_PRODUCER: ProducerId = "core.context";
+const COMPACTION_PREFIX_KIND = "item.recorded";
+
+/** 생산자가 공개 핸들로 초안을 낼 수 있는 kind인가: 접두 소유, 또는 컴팩션의 접두 system item 예외 */
+function mayDraftKind(producer: ProducerId, kind: string): boolean {
   if (ownerOfKind(kind) === producer) return true;
+  return producer === COMPACTION_PREFIX_PRODUCER && kind === COMPACTION_PREFIX_KIND;
+}
+
+/** 소유 확인: 생산자 id가 kind 접두를 소유하거나, core.context의 접두 item 예외, core.persistence의 합성 결과 예외 */
+export function producerOwnsKind(producer: ProducerId, kind: string): boolean {
+  if (mayDraftKind(producer, kind)) return true;
   return producer === PERSISTENCE_PRODUCER && RECOVERY_SYNTHESIS_KINDS.includes(kind);
 }
 
@@ -67,8 +77,8 @@ export function createProducerRegistry(catalog: KindCatalog): ProducerRegistry {
     producer,
     draft(input: DraftInput): StampedDraft {
       // 합성 결과 예외는 여기서 열지 않는다. recoveryDraft만 core.persistence 이름으로 낙인한다
-      const owner = ownerOfKind(input.kind);
-      if (owner !== producer) {
+      if (!mayDraftKind(producer, input.kind)) {
+        const owner = ownerOfKind(input.kind);
         throw new Bug(
           `store.prefix_not_owned: ${producer} cannot draft ${input.kind} (owner: ${owner ?? "nobody"})`,
         );

@@ -1,0 +1,5 @@
+{
+  "name": "wrapper-org-disabled",
+  "support": { "supported": true, "provider": "anthropic", "modelId": "tape-small" },
+  "turns": [{ "error": { "kind": "org_disabled" } }]
+}

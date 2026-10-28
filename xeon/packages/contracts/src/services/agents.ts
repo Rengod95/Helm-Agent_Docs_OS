@@ -3,6 +3,7 @@ import type { SchemaProof } from "../base/index.ts";
 import type { EventId, ItemId, ThreadId, TurnId, Usage } from "../conversation/index.ts";
 import type {
   LeaseId,
+  PortKey,
   PostWhen,
   RecordKind,
   ScopeId,
@@ -14,6 +15,9 @@ import { PolicyRuleSchema, type CallerId, type PermissionMode, type PolicyRule }
 // L1.agents.spec §3. 구현은 core-agents다. 값 타입은 AgentService와 같은 파일에 둔다(F.capabilities.spec §3.12 규칙 3).
 
 export const AgentServiceName = "xeon.agents" as const;
+
+/** `xeon.agents` 전체 모양(AgentService)의 포트 키. 제공 core-agents */
+export const AgentServicePortKey: PortKey<AgentService> = { name: AgentServiceName };
 
 // ── 정의 ─────────────────────────────────────────────────────────────────
 

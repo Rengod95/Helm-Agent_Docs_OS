@@ -117,6 +117,42 @@ describe("createOsService", () => {
     await started.value.dispose();
   });
 
+  test("macOS는 libSystem.B.dylib 이름으로 dlopen을 시도하고, 되면 process_only 경고가 없다", async () => {
+    const lines: string[] = [];
+    const tried: string[] = [];
+    const runtime = fakeRuntime({
+      probe: {
+        platform: "darwin",
+        arch: "arm64",
+        release: "25.0.0",
+        wslDistro: undefined,
+        procVersion: undefined,
+      },
+      createFlock: (selection) => {
+        tried.push(selection.libName);
+        return { tryLock: () => err({ kind: "held" }) };
+      },
+    });
+    const started = await createOsService(config(lines), runtime);
+    if (!started.ok) throw new Bug("unreachable");
+    expect(tried).toEqual(["libSystem.B.dylib"]);
+    expect(started.value.fileLock.scope).toBe("cross_process");
+    expect(events(lines)).not.toContain("os.file_lock.process_only");
+    await started.value.dispose();
+  });
+
+  test("dlopen이 정말 실패할 때만 process_only로 내려가고 경고를 남긴다", async () => {
+    const lines: string[] = [];
+    const started = await createOsService(
+      config(lines),
+      fakeRuntime({ createFlock: () => undefined }),
+    );
+    if (!started.ok) throw new Bug("unreachable");
+    expect(started.value.fileLock.scope).toBe("process");
+    expect(events(lines)).toEqual(["os.file_lock.process_only", "os.service.started"]);
+    await started.value.dispose();
+  });
+
   test("time은 주입한 시계·스케줄러·난수다", async () => {
     const runtime = fakeRuntime();
     const started = await createOsService(config([]), runtime);
@@ -215,6 +251,32 @@ describe("createOsService", () => {
       ["shown", "core-loop"],
       ["now.shown", "core-loop"],
     ]);
+    await started.value.dispose();
+  });
+
+  test("logLevel에 함수를 주면 로그를 낼 때마다 읽어 설정 변경이 다음 호출부터 반영된다", async () => {
+    const lines: string[] = [];
+    const setting: { level: "debug" | "info" | "warn" | "error" } = { level: "warn" };
+    const started = await createOsService(
+      config(lines, { logLevel: () => setting.level }),
+      fakeRuntime(),
+    );
+    if (!started.ok) throw new Bug("unreachable");
+    lines.length = 0;
+    const log = started.value.service.logger("core-loop");
+    log.info("hidden.at.warn");
+    log.warn("shown.at.warn");
+    setting.level = "debug";
+    log.debug("shown.after.change");
+    setting.level = "error";
+    log.warn("hidden.again");
+    log.error("shown.at.error");
+    expect(events(lines)).toEqual(["shown.at.warn", "shown.after.change", "shown.at.error"]);
+    // setLogLevel을 부르면 그 값으로 고정한다
+    started.value.setLogLevel("info");
+    setting.level = "error";
+    log.info("fixed.info");
+    expect(events(lines).at(-1)).toBe("fixed.info");
     await started.value.dispose();
   });
 

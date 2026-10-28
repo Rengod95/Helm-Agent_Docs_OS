@@ -31,6 +31,7 @@ import type {
   ExtensionEventKind,
   Projector,
   ProjectorFailure,
+  ReadFailure,
   StoreDb,
 } from "@xeon/contracts/records";
 
@@ -327,6 +328,9 @@ export function memoryRecordStore(): MemoryRecordStore {
   function snapshotOf(thread: StoredThread): ExtThreadSnapshot {
     const branch = branchOf(thread);
     const enabled = new Set<string>();
+    const disabled = new Set<string>();
+    const transitions = new Map<string, number>();
+    const enabledAtSeq = new Map<string, number>();
     const scopeIds = new Set<string>();
     const epochs: Record<string, number> = {};
     let open: OpenLease | null = null;
@@ -335,8 +339,16 @@ export function memoryRecordStore(): MemoryRecordStore {
       if (!isRecord(payload)) continue;
       if (event.draft.kind === "scope.changed") {
         const id = String(payload["scopeId"]);
-        if (payload["status"] === "enabled") enabled.add(id);
-        else enabled.delete(id);
+        transitions.set(id, (transitions.get(id) ?? 0) + 1);
+        if (payload["status"] === "enabled") {
+          enabled.add(id);
+          disabled.delete(id);
+          enabledAtSeq.set(id, event.seq);
+        } else {
+          enabled.delete(id);
+          disabled.add(id);
+          enabledAtSeq.delete(id);
+        }
       } else if (event.draft.kind === "lease.acquired") {
         const id = String(payload["scopeId"]);
         epochs[id] = (epochs[id] ?? 0) + 1;
@@ -363,7 +375,15 @@ export function memoryRecordStore(): MemoryRecordStore {
       const state = stateOf(branch, id);
       return state === undefined ? [] : [state];
     });
-    return { enabled: [...enabled], states, openLease: open, leaseEpochs: epochs };
+    return {
+      enabled: [...enabled],
+      disabled: [...disabled],
+      scopeTransitions: Object.fromEntries(transitions),
+      enabledAtSeq: Object.fromEntries(enabledAtSeq),
+      states,
+      openLease: open,
+      leaseEpochs: epochs,
+    };
   }
 
   function replayedOf(thread: StoredThread, request: ExtCommitRequest): ExtCommitResult {
@@ -414,6 +434,11 @@ export function memoryRecordStore(): MemoryRecordStore {
           return Promise.resolve({ status: "rejected", code: "state_conflict" });
         }
       }
+      // 같은 id의 이벤트가 두 번 들어가면 parentId 사슬이 순환해 활성 가지 계산이 끝나지 않는다. 실제 저장소의 PK 충돌처럼 거부한다
+      const known = new Set(thread.events.map((event) => event.draft.id));
+      if (request.drafts.some((draft) => known.has(draft.id))) {
+        return Promise.resolve({ status: "rejected", code: "invalid" });
+      }
       for (const draft of request.drafts) {
         seq += 1;
         thread.events.push({
@@ -429,9 +454,9 @@ export function memoryRecordStore(): MemoryRecordStore {
       return Promise.resolve(result);
     },
     loadThread(threadId) {
-      return Promise.resolve(snapshotOf(threadOf(threadId)));
+      return Promise.resolve(ok(snapshotOf(threadOf(threadId))));
     },
-    queryRecords(threadId, query, reader): Promise<readonly ExtRecordRow[]> {
+    queryRecords(threadId, query, reader): Promise<Result<readonly ExtRecordRow[], ReadFailure>> {
       const thread = threadOf(threadId);
       const rows: ExtRecordRow[] = [];
       for (const event of branchOf(thread)) {
@@ -470,7 +495,9 @@ export function memoryRecordStore(): MemoryRecordStore {
           : rows.filter(
               (row) => row.subject.type === subject.type && row.subject.id === subject.id,
             );
-      return Promise.resolve(query.limit === undefined ? filtered : filtered.slice(0, query.limit));
+      return Promise.resolve(
+        ok(query.limit === undefined ? filtered : filtered.slice(0, query.limit)),
+      );
     },
   };
 }

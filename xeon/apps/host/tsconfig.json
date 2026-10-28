@@ -57,6 +57,24 @@
     },
     {
       "path": "../../packages/group-helm"
+    },
+    {
+      "path": "../../packages/cap-web"
+    },
+    {
+      "path": "../../packages/cap-knowledge"
+    },
+    {
+      "path": "../../packages/cap-mcp"
+    },
+    {
+      "path": "../../packages/cap-work"
+    },
+    {
+      "path": "../../packages/cap-dialog"
+    },
+    {
+      "path": "../../packages/group-kit"
     }
   ]
 }

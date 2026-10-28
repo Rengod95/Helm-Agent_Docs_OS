@@ -14,8 +14,8 @@ import type { CliDeps, CliIo } from "./io.ts";
 export type { CliDeps, CliIo, CliSignal } from "./io.ts";
 export type { ExitCode } from "./exit-codes.ts";
 
-/** M1 밖 명령. 파서는 전체 문법을 받지만 실행은 마일스톤이 온 뒤에 붙는다(L4.cli.plan C1) */
-async function notYet(io: CliIo, name: string, milestone: "M2" | "M3"): Promise<ExitCode> {
+/** 아직 제공하지 않는 명령(service는 M3) */
+async function notYet(io: CliIo, name: string, milestone: "M3"): Promise<ExitCode> {
   await io.stderr(
     renderFailure({
       message: `${name}은 아직 제공하지 않는다`,
@@ -57,7 +57,10 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
     case "sessions.show":
     case "sessions.fork":
     case "sessions.rm":
-      return notYet(io, "sessions", "M2");
+    case "sessions.rename": {
+      const { runSessions } = await import("./commands/sessions.ts");
+      return runSessions(ctx, command);
+    }
     case "secret.ls":
     case "secret.add":
     case "secret.set":
@@ -65,12 +68,23 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
     case "secret.rotate":
     case "secret.rm":
     case "secret.test":
-    case "secret.reveal":
-      return notYet(io, "secret", "M2");
-    case "doctor":
-      return notYet(io, "doctor", "M2");
-    case "host":
-      return notYet(io, "host --stdio", "M2");
+    case "secret.reveal": {
+      const { runSecret } = await import("./commands/secret.ts");
+      return runSecret(ctx, command);
+    }
+    case "trust.status":
+    case "trust.set": {
+      const { runTrust } = await import("./commands/trust.ts");
+      return runTrust(ctx, command);
+    }
+    case "doctor": {
+      const { runDoctor } = await import("./commands/doctor.ts");
+      return runDoctor(ctx, command);
+    }
+    case "host": {
+      const { runHostStdio } = await import("./commands/host.ts");
+      return runHostStdio(ctx);
+    }
     case "service":
       return notYet(io, "service", "M3");
     default:

@@ -170,6 +170,8 @@ export const UNTRUSTED_SESSION_OPEN = "<untrusted_session_content";
 
 - 행위자는 입력 필드가 아니다. 서비스는 `CallOptions.context.caller`(`CallerInfo`, `L2.readme` §5.8의 L2 공통 `F.capabilities.spec` 변경 요청)에서 행위자를 만든다. 이 문서에서 `caller.kind`, `caller.afterUntrusted`로 짧게 쓴 것은 이 필드다. `caller.kind = "model"`이면 `agent`, `extension`이면 `extension`, `host`이면 `user`다. 호출자가 행위자를 꾸며 승인 게이트를 건너뛰지 못하게 하기 위해서다.
 - `approval`과 `overrideScan`은 호출자 종류가 맞지 않으면 무시하지 않고 `invalid_input`으로 거부한다. 모델 도구 파라미터에는 두 필드가 없다(§3.6).
+- 지원 파일 경로 [결정: KN.1]. `SkillFilePathSchema`의 패턴은 `references/../x`와 `references/.hidden`을 받아들인다. 서비스는 경로를 입력으로 받은 모든 메서드(`view`, `patch`, `writeFile`, `remove`)에서 파일을 열기 전에 F의 `isSkillFilePath`(패턴과 `.`·`..` 마디 거부)를 부른다. 이 패키지는 거기에 점으로 시작하거나 끝나는 마디의 거부를 더한다(`skills/paths.ts` `isAddressableSkillFile`). 트리 해시와 안전 캡처가 점 항목을 보지 않으므로(§4.2.3), 점으로 시작하는 지원 파일을 쓰면 `baseHash`가 그 파일의 변경을 가리지 못하기 때문이다. 끝에 점이 붙은 마디는 Windows가 점을 지워 다른 파일이 되는 것을 막는다.
+- 스키마를 좁힌다 [결정: KN.1, 반영됨: m2 F.8]. F가 받아들였다: `SkillFilePathSchema`의 패턴을 `^(references|templates|scripts|assets)/[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?(?:/[A-Za-z0-9_-](?:[A-Za-z0-9._-]*[A-Za-z0-9_-])?){0,4}$`로 바꾸고 `isSkillFilePath`는 이 패턴과 같은 규칙만 남긴다. 모델에 보이는 JSON Schema가 거부할 경로를 미리 거절하게 하는 것이 목적이다. F가 받아들이기 전까지 `isAddressableSkillFile`이 같은 규칙을 지키고, 받아들이면 그 함수는 `isSkillFilePath` 호출 한 줄이 된다. 이 패키지는 사용자 입력 경로를 디렉터리 경로에 이어 붙여 열지 않는다. `view`는 트리를 읽은 결과(메모리)에서 경로를 찾으므로 입력 경로가 파일 시스템 호출에 쓰이지 않는다.
 
 ### 3.2 `knowledge.skills`
 
@@ -674,6 +676,7 @@ export const KnowledgeLedgerKey = serviceKey(KnowledgeLedger);
 | `session_scroll` | `knowledge.search.scroll` | 예 | 아니오 | safe | 스크롤 형태 |
 | `session_read` | `knowledge.search.read` | 예 | 아니오 | safe | 읽기 형태 |
 
+- 구현(KN.3): 두 도구는 `risk: "write"`, `classes: ["shared_state_write"]`로 올린다. `memory_manage`는 `l2.knowledge.memory.enabled`가 꺼진 채 시작하면 올리지 않는다(도구 집합은 재시작 없이 바뀌지 않는다. 시작 뒤에 끄면 메서드가 `unavailable`을 돌려준다).
 - 쓰기 도구 둘은 L1.tools의 일반 도구 승인 규칙에서 기본 `allow`로 두고, 승인 판단은 이 능력의 쓰기 게이트(§4.5)가 한다 [제안]. 같은 호출에 승인 창이 두 번 뜨지 않게 하고, 승인 창에 diff와 검사 결과를 보이기 위해서다. 이 기본값은 `L1.tools.spec`에 요청한다(§8).
 - 서브에이전트와 백그라운드 포크에 쓰기 도구를 줄지는 L1.agents와 L3.learning이 정한다. 주어져도 이 능력의 게이트가 대기열로 보낸다(§4.5.1).
 
@@ -700,9 +703,10 @@ export const KnowledgeServiceName = "xeon.knowledge";
 `eng.context-map.design` §5.2 `cap_knowledge_`. 세션 밖 상태(스킬 색인, 파일 상태, 원장, 대기열)와 세션 투영·색인(세션 목록, 세션 FTS)으로 나뉜다.
 
 ```sql
--- 세션 밖 상태: xeon.store.scoped("cap_knowledge_")로 쓴다. 재생 대상이 아니다.
+-- 세션 밖 상태: xeon.store.scoped("cap.knowledge")(소유자 id, 접두 cap_knowledge_)로 쓴다. 재생 대상이 아니다.
+-- 마이그레이션은 작업마다 단계를 더한다: 1단계(KN.1)는 files, skills, ledger, 2단계(KN.2)는 proposals, FTS 테이블은 KN.4가 더한다.
 CREATE TABLE cap_knowledge_files (
-  path        TEXT PRIMARY KEY,         -- 정본 파일 절대 경로
+  path        TEXT PRIMARY KEY,         -- 정본 경로. 스킬은 스킬 디렉터리, 메모리는 저장소 파일의 절대 경로
   kind        TEXT NOT NULL CHECK (kind IN ('skill','memory')),
   target      TEXT NOT NULL,            -- 스킬 이름 또는 메모리 저장소
   scope       TEXT NOT NULL,
@@ -715,7 +719,8 @@ CREATE TABLE cap_knowledge_files (
 CREATE TABLE cap_knowledge_skills (
   scope          TEXT NOT NULL,
   name           TEXT NOT NULL,
-  dir            TEXT NOT NULL,
+  dir            TEXT NOT NULL,           -- layout이 dir이면 스킬 디렉터리, file이면 그 .md 파일의 절대 경로
+  layout         TEXT NOT NULL CHECK (layout IN ('dir','file')),   -- file: 루트 바로 아래 단일 .md(읽기만)
   description    TEXT NOT NULL,
   model_invocable INTEGER NOT NULL,
   created_by     TEXT NOT NULL CHECK (created_by IN ('user','agent','unknown')),
@@ -736,13 +741,14 @@ CREATE TABLE cap_knowledge_ledger (
   target_kind    TEXT NOT NULL,
   target_name    TEXT NOT NULL,
   target_scope   TEXT,
+  target_path    TEXT NOT NULL,           -- 스킬 디렉터리 또는 메모리 파일의 절대 경로. 롤백이 이 경로로 되돌린다
   op             TEXT NOT NULL,
   status         TEXT NOT NULL CHECK (status IN ('prepared','applied','aborted')),
   before_hash    TEXT,
   after_hash     TEXT,
   before_manifest TEXT,                   -- BlobRef JSON: [{path, blob}] 목록 blob
   after_manifest  TEXT,
-  request_id     TEXT UNIQUE,             -- CallOptions.requestId. 멱등 키
+  request_id     TEXT UNIQUE,             -- CallOptions.requestId. 멱등 키. 중단(aborted)한 행은 NULL로 비워 같은 키로 다시 부를 수 있다
   approved_by    TEXT,
   evidence       TEXT,                    -- ApprovalEvidence JSON
   scan           TEXT NOT NULL,           -- ScanSummary JSON(규칙 이름만)
@@ -750,6 +756,7 @@ CREATE TABLE cap_knowledge_ledger (
   proposal_id    TEXT,
   rollback_of    TEXT,
   rolled_back_by TEXT,
+  index_changed  INTEGER NOT NULL DEFAULT 0,   -- 스킬 인덱스(이름, 설명, 모델 호출 여부, 있고 없음)를 바꾼 항목. 인덱스 버전의 근거
   outcome        TEXT                     -- WriteOutcome JSON(멱등 재응답용)
 ) STRICT;
 CREATE INDEX cap_knowledge_ledger_target ON cap_knowledge_ledger(target_kind, target_name, seq);
@@ -762,10 +769,12 @@ CREATE TABLE cap_knowledge_proposals (
   input        TEXT NOT NULL,             -- 메서드 입력 BlobRef JSON(본문이 클 수 있다)
   target_kind  TEXT NOT NULL,
   target_name  TEXT NOT NULL,
+  target_scope TEXT,                      -- 스킬이면 user 또는 project. KN.2가 더했다(목록의 target.scope)
   op           TEXT NOT NULL,
   base_hash    TEXT,
   status       TEXT NOT NULL CHECK (status IN ('pending','applied','rejected','stale','expired')),
   scan         TEXT NOT NULL,
+  preview      TEXT NOT NULL,             -- 제안할 때 만든 통합 diff(20,000자). KN.2가 더했다
   decided_at   INTEGER,
   ledger_id    TEXT,
   request_id   TEXT UNIQUE
@@ -799,8 +808,9 @@ CREATE VIRTUAL TABLE cap_knowledge_session_fts USING fts5(
 );
 ```
 
-- 투영기 `cap.knowledge`(`eng.events.design` §5.1 규칙 5): `tables`는 `cap_knowledge_sessions`, `cap_knowledge_session_docs`, `cap_knowledge_session_fts`이고 `types`는 `session.created`, `session.retitled`, `message.recorded`다. `apply`는 `cap_knowledge_sessions`만 갱신한다(커밋 안, 순수). 나머지 두 테이블은 소비자 `cap.knowledge.fts`가 쓴다. 두 테이블을 투영기 DDL에 선언하는 이유는 세션 삭제 정리(`eng.context-map.design` §5.2)와 재생성 때 함께 지우기 위해서다 [가정: `L1.persistence.spec`이 같은 컨텍스트 소비자가 투영기 선언 테이블에 쓰는 것을 허용한다].
-- 소비자 `cap.knowledge.fts`: `consumer_cursors`의 행 `consumer = 'cap.knowledge.fts'`를 쓴다(`eng.transactions.design` §7). 투영기 재생성으로 세 테이블이 다시 만들어지면 커서는 0이 된다.
+- 구현(KN.4) 이름과 열 [결정]: 투영기 등록부는 `cap_knowledge_` 뒤 지역 이름에 밑줄을 허용하지 않는다(F.records.spec §3.4, `core-persistence` `ownsTable`). 그래서 위 DDL의 `cap_knowledge_session_docs`·`cap_knowledge_session_fts`·`cap_knowledge_docs_fts`는 `cap_knowledge_sessiondocs`·`cap_knowledge_sessionfts`·`cap_knowledge_docsfts`로 쓴다. 세션 id 열은 `session_id` 대신 `thread_id`로 쓴다. 세션 삭제 정리(`core-persistence`의 `deleteThreadRows`)가 투영 표 가운데 `thread_id` 열이 있는 표의 행을 지우기 때문이다. `sessiondocs`는 `event_seq`(이벤트 전역 seq)를 더 갖고 `pos` 열은 없다. `seq`는 세션 안 메시지 번호(1부터)다. 소비자 커서는 투영 표 `cap_knowledge_sessioncursor(consumer, event_seq)`다. 스킬·메모리 문서 표 `docsfts`는 `scope UNINDEXED` 열을 더 갖는다(같은 이름의 스킬이 범위마다 있을 수 있다). `sessions`를 뺀 나머지 네 표(`sessiondocs`, `sessionfts`, `sessioncursor`, `docsfts`)는 FTS5와 trigram을 쓸 수 있을 때만 선언한다. 쓸 수 없으면 `sessions`만 선언하고 투영 버전이 `1001`이다.
+- 투영기 `cap.knowledge`(`eng.events.design` §5.1 규칙 5): `tables`는 `cap_knowledge_sessions`와 색인 표들이고 이벤트 kind는 `thread.started`, `thread.updated`, `agent.spawned`, `item.recorded`다(초안의 `session.created`·`session.retitled`·`message.recorded`는 실제 카탈로그에 없다). `apply`는 `cap_knowledge_sessions`만 갱신한다(커밋 안, 순수). 색인 표는 소비자 `cap.knowledge.fts`가 쓴다. 색인 표를 투영기 DDL에 선언하는 이유는 세션 삭제 정리(`eng.context-map.design` §5.2)와 재생성 때 함께 지우기 위해서다. 같은 컨텍스트의 범위 핸들(`scoped("cap.knowledge")`)이 투영 표에 쓰는 것을 저장소가 허용한다(KN.4가 확인했다).
+- 소비자 `cap.knowledge.fts`: 커서는 `consumer_cursors` 대신 투영 표 `cap_knowledge_sessioncursor`(`consumer = 'fts'`)에 둔다 [결정: KN.4]. `consumer_cursors`는 session-core 소유 표라 범위 핸들이 쓸 수 없고, 투영 표에 두면 투영기 재생성이 색인과 커서를 함께 지워 색인이 처음부터 다시 쌓인다.
 - FTS 테이블은 본문을 복사해 둔다. 외부 콘텐츠 테이블(`content=`)로 중복을 줄이는 안은 [미결]이다(`_research/notes/L2-3.md` §4 6번, §10 미결 9).
 - 내구 이벤트: `knowledge.` 접두사는 예약만 하고 1차에는 type을 두지 않는다(`eng.context-map.design` §5.1). 모델 경로의 쓰기는 도구 3단 기록(`tool.intended`, `tool.settled`)이 남기고, 모든 경로의 쓰기는 원장이 남긴다.
 
@@ -851,6 +861,17 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 루트 순서는 프로젝트 → 사용자 → 확장 제공 → 설정 경로(`l2.knowledge.skills.paths`)다 [제안]. 같은 이름이 두 루트에 있으면 앞 루트가 이기고 진단(`collision`)을 남긴다. pi는 사용자 → 프로젝트 순이지만, 프로젝트 규약이 사용자 일반 절차보다 구체적이라 앞에 둔다.
 - `.gitignore` 계열 무시 규칙은 1차에 적용하지 않는다 [제안]. 포크 원본의 `ignore` 패키지 결합을 풀기 위해서다(§10 미결 10).
 - 확장 제공 루트와 설정 경로 루트의 스킬은 읽기 전용(`extension`, `path` 범위)이다.
+- 프로젝트 루트(`.xeon/skills`)는 프로젝트가 신뢰된 뒤에만 싣는다 [결정: M2 검토 4]. 저장소가 낸 스킬의 설명이 첫 turn 인덱스에 들어가고 `skill_view`가 본문을 돌려주므로, 신뢰하지 않은 저장소를 열기만 해도 모델 지시문을 쓸 수 있기 때문이다(`X.loading-trust.spec` §4.7.2 표가 `.xeon/skills`를 신뢰 필요 자원으로 든다). 신뢰 여부는 조립 루트가 `resolveProjectTrust`의 `trusted`로 넘기고(`projectTrust` 옵션), 없거나 거짓이거나 실패하면 싣지 않는다. 싣지 못한 `.xeon/skills`가 있으면 `skill_list`의 진단(`warning`)에 남긴다.
+- 구현(KN.1, 포크 패치 KN-01~KN-09, `cap-knowledge/PATCHES.md`):
+  - 파일 접근은 `KnowledgeFs` 비동기 포트로 한다. 같은 디렉터리의 항목은 이름 바이트 순으로 처리해 같은 스킬 집합이 같은 순서와 같은 인덱스 블록을 만든다.
+  - 설정 경로(`l2.knowledge.skills.paths`)는 절대 경로만 받는다. 상대 경로는 경고 진단이다. 디렉터리나 `.md` 파일을 줄 수 있다.
+  - 심볼릭 링크가 조상 디렉터리를 가리키는 순환은 경고 진단과 함께 건너뛴다. 재귀 깊이 상한은 16이다.
+  - 루트 바로 아래의 단일 `.md` 파일 스킬(`layout: "file"`)은 읽기만 한다. 쓰기 연산은 디렉터리 스킬(`layout: "dir"`)만 대상으로 한다.
+  - 프로젝트 폴더는 대화의 작업 폴더(`thread.workspace`)다 [결정: m2c G2-02, `L2.readme` §5.10]. 조립 루트가 `KnowledgePluginOptions.workspaceOf`(`(threadId) => string | undefined`, `L4.host-service.spec` HS-66의 `threadWorkspaceOf`와 같은 값)를 넘기면 프로젝트 스킬 루트와 신뢰 판정(`projectTrust`)이 그 대화의 작업 폴더를 따른다. 작업 폴더가 없는 대화에는 프로젝트 스킬이 없고 엔진 cwd로 내려가지 않는다. `workspaceOf`가 없으면 옛 동작(`xeon.exec`의 cwd 하나)이다.
+  - 프로젝트 스킬 색인은 한 번에 작업 폴더 하나만 담는다. 색인은 마지막으로 맞춘 작업 폴더를 기억하고(`SkillsRuntime.syncFor(threadId)`), 세션 시작·turn 시작·`list`·`view`·쓰기 연산이 부를 때 그 대화의 작업 폴더가 다르면 그 폴더로 다시 색인한다. 같으면 아무것도 하지 않는다.
+  - 작업 폴더를 오갈 때 이전 작업 폴더의 프로젝트 행은 지워진 것이 아니라 색인에서 내려간 것이므로 원장에 `external` 삭제를 남기지 않는다. 파일 상태(경로, 내용 해시)는 남겨 두어서, 그 작업 폴더로 돌아왔을 때 내용이 그대로면 `external` 추가를 다시 적지 않고 색인 행만 되살린다. 그 사이 파일이 바뀌었으면 바뀐 내용으로 `external` 항목을 남긴다. 색인 버전은 이 오가기로 바뀌지 않는다.
+  - 대화를 지정하지 않는 읽기(시작 때 재색인, 대기열에서 승인된 제안의 재실행)는 마지막으로 읽은 대화의 작업 폴더를 따른다. 엔진을 처음 열 때는 아직 읽은 대화가 없어 프로젝트 스킬이 없다.
+  - 작업 폴더가 다른 대화가 번갈아 돌면 그때마다 색인을 다시 맞춘다. 작업 폴더별로 색인을 나누는 구성은 [미결]이다(§10 미결 17).
 
 #### 4.2.2 형식과 구조 검증
 
@@ -863,18 +884,30 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 스킬당 파일 수 | 500개 이하 [제안] | |
 | `disable-model-invocation` | 참이면 모델 인덱스에서 뺀다. 이름으로 부르는 명령 경로는 L2.dialog가 쓴다 | pi `formatSkillsForPrompt`(skills.ts:358) |
 
-- 읽기(탐색)에서 규칙을 어긴 스킬은 pi처럼 경고 진단과 함께 싣는다. 설명이 없으면 싣지 않는다.
+- 읽기(탐색)에서 규칙을 어긴 스킬은 pi처럼 경고 진단과 함께 로드한다. 설명이 없으면 싣지 않는다. 이름 규칙을 어긴 스킬은 색인에 싣지 않는다 [결정: KN.1]. `SkillNameSchema`를 어기는 이름은 `skill_view`로 부를 수 없고 `SkillIndexEntry.name`에도 담을 수 없기 때문이다. 진단(`cannot be addressed`)은 `list`의 `diagnostics`에 남는다.
+- 읽기에서 트리가 한도(파일 500개, 파일 하나 16 MiB, 전체 64 MiB)를 넘으면 그 스킬은 색인에 싣지 않고 경고 진단을 남긴다. 한도가 쓰기 한도(§위 표)보다 넓은 이유는 바깥에서 둔 큰 자원 파일을 받아들이되 메모리를 지키기 위해서다.
 - 쓰기에서 규칙을 어기면 `limit_exceeded` 또는 `invalid_input`으로 거부한다. 쓰기는 항상 검증을 통과한 파일만 만든다.
 - `create`가 만드는 `SKILL.md`의 frontmatter는 `name`과 `description` 두 키다. `edit`·`patch`는 다른 frontmatter 키를 보존한다.
+- 구현(KN.3, `skills/write-model.ts`, `skills/write.ts`):
+  - `description`은 YAML 큰따옴표 스칼라(JSON 문자열)로 쓴다. 줄바꿈, 따옴표, 콜론, `#`이 든 설명도 그대로 다시 읽힌다. 쓴 뒤 `SKILL.md`를 다시 읽어 설명이 같은지 확인하고 다르면 `internal`로 실패한다.
+  - `edit`이 설명을 바꿀 때는 frontmatter 원문에서 최상위 `description` 키의 줄들만 바꾸고 다른 키와 주석은 글자 그대로 둔다. 설명 없이 본문만 바꾸면 frontmatter 원문을 건드리지 않는다. 읽을 수 없는 frontmatter나 frontmatter가 없는 `SKILL.md`는 `invalid_input`이다.
+  - `patch`는 `SKILL.md`의 본문(frontmatter 뒤)에만 적용하고 `file`을 주면 그 지원 파일 전체에 적용한다. 치환은 차례로 적용하며 각 `oldText`는 그 시점의 텍스트에서 정확히 한 번 나와야 한다(`patch_mismatch`, `detail: { edit, matches }`). 본문은 앞뒤 공백을 지워 읽으므로 쓸 때도 끝에 줄바꿈 하나로 맞춘다.
+  - 바뀌는 내용이 없는 `edit`과 같은 내용의 `writeFile`은 `invalid_input`이다. 원장에 빈 변경을 남기지 않는다.
+  - `writeFile`의 `baseHash`는 스킬의 트리 해시다(파일 하나의 해시가 아니다). 새 파일이면 생략할 수 있고 기존 파일을 덮어쓰면 필수다.
+  - `remove`에 `file`을 주면 그 지원 파일만 지운다(원장 연산 `skill.write_file`). `mode: "delete"`는 행위자가 `user`일 때만이다.
+  - 쓰기 대상 범위는 `scope`가 있으면 그 범위, 없으면 모델이 보는 이름 해석(프로젝트 → 사용자 → 확장 → 경로)의 승자다. 승자가 확장·경로 범위이거나 단일 파일 스킬이면 `read_only_scope`다. 프로젝트 범위 쓰기는 사용자나 유효한 증거를 가진 확장만 한다. 그 밖(에이전트, 증거 없는 확장)은 `denied`다. 승인된 제안을 다시 실행하는 경우는 사람이 이미 봤으므로 이 검사를 건너뛴다.
+  - 위협 검사(§4.6)는 바뀌거나 새로 쓰이는 파일의 전체 텍스트에 건다. 바뀐 조각만 검사하면 `Do not ignore…`에서 `Do not `을 지워 위험한 구절을 완성하는 치환을 놓친다. `scripts/` 아래 파일은 엄격 범위다. 설정 `l2.knowledge.write.scan`이 꺼져 있으면 검사하지 않는다(요약은 비어 있다).
 
 #### 4.2.3 트리 해시
 
-- 스킬 디렉터리 안 모든 파일의 (상대 경로, 내용 sha256)을 경로 바이트 순으로 정렬해 `경로\0해시\n`을 이은 문자열의 sha256이다. 보관함(`.archive`)과 점 파일은 넣지 않는다.
+- 스킬 디렉터리 안 모든 파일의 (상대 경로, 내용 sha256)을 경로 바이트 순으로 정렬해 `경로\0해시\n`을 이은 문자열의 sha256이다. 보관함(`.archive`)과 점으로 시작하는 항목은 넣지 않는다. 일반 파일이 아닌 항목(심볼릭 링크 포함)도 넣지 않는다 [결정: KN.1]. 링크가 스킬 밖의 파일을 가리켜 해시와 캡처로 새어 나오는 길을 막는다. 단일 파일 스킬의 트리는 그 파일 하나(경로는 파일 이름)다.
+- 안전 캡처와 롤백도 같은 파일 집합을 쓴다. 그래서 점 항목과 링크는 롤백이 건드리지 않는다.
 - `view`, `list`가 돌려주는 `treeHash`를 쓰기의 `baseHash`로 쓴다. 다르면 `base_stale`이다. Hermes의 "패치 전 같은 검토 안에서 다시 읽기" 가드를 해시 비교로 옮긴 것이다(`_research/refs/hermes.md` §3.10.1 (다), `L3.learning.spec` §3.5).
 
 #### 4.2.4 지연 로딩
 
 - `list`와 인덱스는 이름·설명·범위·해시만 담는다. 본문은 `view`를 부를 때 파일에서 읽는다.
+- `list`는 색인(DB)만 읽는다. 스킬 루트를 다시 훑는 일은 시작 시 재색인, `skills.reindex`, `view`의 해시 불일치 처리가 맡는다. 엔진이 도는 동안 바깥에서 새로 둔 스킬은 이 셋 중 하나나 새 세션의 `session_start`(§7)가 재색인할 때까지 `list`에 나타나지 않는다.
 - `view`는 매번 파일을 읽고 트리 해시를 다시 계산한다. 색인의 해시와 다르면 바깥 편집으로 보고 §4.3.5의 스킬 쪽 처리(원장 `external` 기록, 색인 갱신)를 한 뒤 결과를 돌려준다.
 - 지원 파일의 상대 경로는 스킬 디렉터리 기준이다. `view({ name, file })`로 읽는다. 모델 렌더링은 "상대 경로는 skill_view의 file로 읽는다"는 안내를 본문 앞에 붙인다(pi `formatSkillsForPrompt`의 상대 경로 안내를 우리 도구로 바꾼 것).
 
@@ -893,6 +926,9 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - 예산: `l2.knowledge.skills.indexBudgetChars`(기본 8,000자 [가정]). 항목 설명은 `l2.knowledge.skills.indexDescriptionChars`(기본 160자 [가정])에서 자르고 끝에 `…`을 붙인다. Hermes는 60자, Claude Code는 1,536자 상한이다(`_research/refs/hermes.md` §3.10.1 (라)·(바), `_research/item-catalog.md` L2 스킬 행). 기본값은 측정 뒤 정한다.
 - 예산을 넘으면 범위 순(프로젝트 → 사용자 → 확장 → 경로), 같은 범위 안에서는 이름 바이트 순으로 넣을 수 있는 만큼만 넣고 남은 개수를 적는다. 순서가 결정적이어야 같은 스킬 집합이 같은 블록을 만든다(프롬프트 캐시).
+- 블록 생성은 `skills/prompt-block.ts`의 순수 함수와 `SkillsRuntime.indexBlock(threadId)`로 구현했다(KN.1). 연결은 `turn-context.ts`가 한다(KN.5). `before_agent_start`에서 세션의 첫 turn이면 인덱스 블록과 메모리 스냅샷(§4.3.4)을 이어 붙여 `customType: "knowledge.context"`, `display: false`인 기록 메시지 하나로 더한다. 시스템 프롬프트는 건드리지 않는다. 더한 메시지가 세션 기록에 남는다는 것은 [가정]이다.
+- 첫 turn은 세션별 상태가 없는 turn이다. `session_start`의 `reason`이 `startup`·`new`면 상태를 비워 첫 turn으로 만들고, `resume`·`fork`·`reload`면 현재 인덱스를 기준으로 상태를 만든다. 이어받은 세션의 기록에 블록이 이미 있다고 보기 때문이다. 컴팩션이 일어나면 이 가정이 깨질 수 있어 접힌 블록은 L1이 다시 놓는다(§4.2.8).
+- 블록과 인덱스 스냅샷은 같은 시점의 색인에서 만든다. 스킬을 끄면(`l2.knowledge.skills.enabled`) 블록은 비고, 메모리를 끄면 스냅샷이 빈다. 둘 다 비면 메시지를 더하지 않는다.
 - 이 블록을 어디에 두는지(시스템 프롬프트 영역, 첫 turn 메시지)는 `L1.context.spec`이 정한다. [제안] 메모리 스냅샷(§4.3.4)과 같은 첫 turn 기록 메시지로 넣는다. 기록 메시지면 재개 때 같은 내용이 다시 쓰여 결정적이다.
 
 #### 4.2.6 인덱스 변경 알림
@@ -903,14 +939,25 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 스킬 인덱스 변경: 추가 deploy-rollback(롤백 절차 …), 변경 release-checklist, 삭제 old-notes
 ```
 
-- 세션마다 마지막으로 알린 `indexVersion`을 메모리에 둔다. 인덱스 버전은 원장 `seq` 중 인덱스를 바꾼 항목의 최댓값이다. 프로세스 재시작 뒤에는 현재 버전으로 시작한다 [가정: 재시작 사이의 변경 알림 한 번을 놓칠 수 있다. 컴팩션 뒤에는 L1.context가 인덱스 블록을 다시 넣는다고 본다].
+- 세션마다 마지막으로 알린 인덱스 스냅샷(`indexVersion`과 모델에게 보이는 스킬의 이름 → 잘린 설명)을 메모리에 둔다. 인덱스 버전은 원장 `seq` 중 인덱스를 바꾼 항목(`index_changed = 1`인 `applied` 행)의 최댓값이다. 이름·설명·모델 호출 여부가 바뀌거나 스킬이 생기고 사라진 변경만 센다. 프로세스 재시작 뒤에는 현재 버전으로 시작한다 [가정: 재시작 사이의 변경 알림 한 번을 놓칠 수 있다]. 컴팩션은 이 상태를 바꾸지 않는다(§4.2.8).
 - 본문만 바뀐 변경은 알리지 않는다. 모델은 다음 `view`에서 새 본문을 읽는다.
+- 구현은 `before_agent_start`에서 현재 `indexVersion`을 상태의 버전과 비교한다. 같으면 아무것도 하지 않는다. 다르면 이름과 잘린 설명을 비교해(`skills/delta.ts`의 `diffIndex`) 추가·변경·삭제를 정하고, 상태를 현재로 올린 뒤 비어 있지 않을 때만 메모를 더한다. 모델 호출 여부가 바뀌어 목록에 나타나거나 사라지는 스킬은 추가·삭제로 센다. 같은 이름의 범위가 바뀌어도 설명이 같으면 알리지 않는다.
+- 메모는 `customType: "knowledge.index-delta"`, `display: false` 메시지 하나다. 목록은 이름 바이트 순이고 한 줄에 10개까지, 넘으면 `외 N개`로 줄인다. 추가한 스킬 옆 설명은 60자(코드 포인트)에서 `…`로 자른다. 예산을 넘어 첫 블록에 싣지 못한 스킬도 인덱스에 있으면 추가로 알린다.
+- 상태는 `session_shutdown`에서 지운다. 지운 세션의 다음 turn은 첫 turn으로 본다. 종료 후크 없이 사라진 세션의 항목은 프로세스가 끝날 때까지 남는다(항목 하나는 스킬 수만큼의 문자열이다).
 
 #### 4.2.7 `resources_discover` 지점과의 관계
 
 - `F.extensions.spec` §3.4 #28 `resources_discover`(session, chain)는 확장이 스킬·프롬프트 같은 리소스 경로를 더하는 지점이다. pi에서 확장이 스킬 경로를 더하는 경로다.
 - 이 능력은 그 지점을 정의하지 않고 결과만 쓴다. 지점의 합성 결과(확장 이름과 함께 추가된 스킬 경로)를 확장 제공 루트로 받아 읽기 전용 스킬로 싣는다 [가정: X가 합성 결과를 세션 시작 때 `cap-knowledge`에 넘기는 API를 `X.loading-trust.spec`이 정한다].
 - 확장 제공 스킬의 쓰기는 `read_only_scope`로 거부한다. 확장을 지우면 그 루트가 빠지고 다음 재색인 때 색인에서 빠진다.
+
+#### 4.2.8 컴팩션 뒤 재주입
+
+- 컴팩션(`L1.context.spec` §4.6)은 앞쪽 기록을 요약으로 바꾸므로, 첫 turn에 넣은 `knowledge.context` 메시지(스킬 인덱스 블록과 메모리 스냅샷)가 요약에 접히면 모델 입력에서 빠진다. 이 메시지를 다시 놓는 일은 L1.context가 한다. 조립이 접힌 범위의 `knowledge.context`와 `knowledge.index-delta` custom item을 요약 바로 뒤에 가지 순서대로 다시 놓는다(`L1.context.spec` §4.9a, 두 층이 customType 문자열을 약속한다). 이 패키지는 컴팩션을 구독하지 않고 세션별 상태를 그대로 둔다 [결정: M2 마감 재검토 결함 2].
+- 이유. 이 패키지가 `session_compact`에서 상태를 비워 다음 turn에 전체 블록을 새로 넣으면, L1이 다시 놓은 옛 블록과 새 블록이 한 요청에 모두 들어가 스킬 색인과 메모리가 두 번 보인다(실제 엔진 시험 `apps/host/test/int/compact-reinject.int.test.ts`가 요청 본문을 세어 확인했다). L1의 재주입은 가지에서 매번 같은 값으로 만들어 재개와 프로세스 재시작 뒤에도 같은 바이트이지만, 이 패키지의 세션별 상태는 메모리에만 있어 재시작 뒤에는 컴팩션 사실을 알 수 없다.
+- 결과. 컴팩션 뒤 모델이 보는 블록은 첫 turn의 스냅샷 그대로다. 그 뒤 인덱스가 바뀌면 §4.2.6대로 델타 메모 하나만 더한다. 메모리 스냅샷은 세션 동안 고정이다(§4.3.4). 컴팩션이 보존 구간에 블록을 남기면 그 자리에 한 번만 나온다.
+- 허용 목록이 다르면 어긋난다. 호스트가 L1의 `reinjectCustomTypes`를 빈 배열로 두면 컴팩션 뒤 블록이 모델 입력에서 사라진다. 이 패키지는 보충하지 않는다.
+- 최근 읽은 파일과 호출된 스킬 본문의 재주입은 `L1.context.spec` §4.10 2차 항목(C-11)이고 이 패키지의 일이 아니다. 컴팩션 호출 배선(`/compact`, 자동 컴팩션)도 L1 쪽이다.
 
 ### 4.3 메모리
 
@@ -919,6 +966,14 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 - 저장소 파일은 UTF-8 텍스트다. 항목 사이는 `§` 한 글자만 있는 줄로 나눈다. 직렬화는 `항목1\n§\n항목2\n`이다(Hermes `memory_tool_store.py:25`, `_research/refs/hermes.md` §3.10.1 (라)).
 - 항목 텍스트는 앞뒤 공백을 지우고 NFC로 정규화한다. 항목 ID는 그 텍스트 sha256의 앞 12자다. 같은 텍스트의 항목을 두 번 넣으면 `duplicate_entry`다.
 - 항목 안에 `§` 한 글자 줄이 있으면 쓰기를 거부한다(`invalid_input`).
+- 구현(KN.3, `memory/format.ts`, `memory/store.ts`):
+  - 구분 줄은 앞뒤 공백을 지운 뒤 정확히 `§`인 줄이다. 줄을 `§`로 시작하는 항목은 거부한다(`§ 제목`처럼 구분 줄과 헷갈리는 줄은 파일을 깨뜨린다) [제안]. 읽을 때 `§`로 시작하지만 `§` 한 글자가 아닌 줄(`§text`, `§§`)은 구조가 깨진 것으로 본다(§4.3.5).
+  - 항목은 20,000자 이하이고 NUL을 담지 못한다. 빈 항목(구분 줄이 연달아 있는 곳)은 읽을 때 건너뛴다. 쓸 때는 항목마다 NFC로 바꾸고 `\n§\n`으로 이어 끝에 줄바꿈 하나를 둔다.
+  - `fileHash`는 파일 바이트의 sha256이고 파일이 없으면 빈 내용의 sha256이다. `add`는 `baseHash`가 없으며, 읽은 해시를 실행기에 넘겨 락 안 재확인이 끼어든 쓰기를 잡는다. 호출자가 `baseHash`를 주지 않는 쓰기(`add`, `add`만 있는 `batch`)는 그 재확인이 `base_stale`을 내면 다시 읽고 계산해 최대 5번 다시 시도한다. 그래서 동시에 더한 항목이 모두 반영된다.
+  - `memory_full`은 쓴 뒤 크기가 한도를 넘고 지금보다 커질 때만 낸다 [제안]. 한도를 낮춘 뒤에도 항목을 줄이는 쓰기는 막지 않는다. `detail.entries[].preview`는 항목 앞 80자(공백 연속은 하나로)다.
+  - `batch`는 항목 ID를 시작 시점의 값으로 가리킨다. 연산은 차례로 적용하고 마지막 상태만 한도를 검사한다. 하나라도 틀리면 아무것도 쓰지 않는다. `replace`·`remove`가 있으면 `baseHash`가 필수다. 원장 연산은 `memory.batch`, 파괴적 여부는 `replace`·`remove` 포함 여부다. `manage`의 `add`·`replace`·`remove`는 같은 이름의 메서드와 같은 경로(원장 연산 `memory.add` 등)다.
+  - 위협 검사는 새로 쓰거나 바꾼 항목 텍스트에 건다(스킬과 달리 파일 전체가 아니다. 이미 기록된 항목을 나중에 늘어난 규칙이 막으면 모든 쓰기가 막히기 때문이다). 설정 `write.scan`과 상관없이 항상 한다.
+  - 스냅샷 블록(`snapshotBlock`)은 항목 안의 `</memory`를 `&lt;/memory`로 바꾼다. 구조가 깨진 저장소는 `writeBlocked="true"` 속성과 읽을 수 있는 항목만 싣는다.
 
 #### 4.3.2 한도
 
@@ -927,7 +982,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.3.3 락과 원자 쓰기
 
-- 쓰기는 저장소별 파일 락 안에서 한다. 락은 `xeon.os`의 파일 락 API로 잡는다 [가정: `L0.os.spec`이 프로세스 사이 파일 락을 제공한다. Hermes는 fcntl·msvcrt를 직접 쓰지만 Xeon은 OS 분기를 L0에 둔다(`eng.dependency-rules.guide` DR-13)].
+- 쓰기는 저장소별 락 안에서 한다. 프로세스 사이 배타 [결정: KN.1]: `xeon.os`(`OsService`)는 파일 락 API를 제공하지 않는다(Hermes는 fcntl·msvcrt를 직접 쓰지만 Xeon은 OS 분기를 L0에 둔다, `eng.dependency-rules.guide` DR-13). 그래서 `KnowledgeFs.withLock`은 같은 프로세스 안의 키별 직렬화만 한다. 프로세스 사이는 두 장치가 맡는다: 한 데이터 디렉터리에 엔진 하나만 쓰는 임대(ADR-0006)와 락 안에서 하는 해시 재확인(§4.4.1 9단계). 바깥 편집기나 다른 도구가 그 사이에 쓰면 `base_stale`로 거부하고 원장 행을 `aborted`로 한다. L0.os에 파일 락 API가 생기면 `node-fs.ts`가 그것을 부른다(§10 미결 18).
 - 같은 프로세스 안에서는 저장소별 메모리 뮤텍스로 먼저 직렬화한다.
 - 파일 쓰기는 같은 디렉터리의 임시 파일에 쓰고 fsync한 뒤 rename한다.
 - 스킬도 스킬 디렉터리별로 같은 방식의 락을 쓴다(Hermes 스킬별 락, `skill_manager_tool.py:84-106`).
@@ -947,7 +1002,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 </memory>
 ```
 
-- 블록을 넣는 위치는 §4.2.5와 같이 `L1.context.spec`이 정한다. [제안] 인덱스 블록과 함께 첫 turn 기록 메시지 하나로 넣는다.
+- 블록을 넣는 위치는 §4.2.5와 같이 `L1.context.spec`이 정한다. 구현은 [제안]대로 인덱스 블록과 함께 첫 turn 기록 메시지 하나로 넣는다(§4.2.5). 같은 세션의 이후 turn에는 다시 넣지 않으므로 세션 중 메모리 쓰기는 이 세션의 스냅샷에 나타나지 않는다.
 - `l2.knowledge.memory.enabled`가 거짓이면 스냅샷을 넣지 않고 `memory_manage` 도구도 광고하지 않는다.
 
 #### 4.3.5 바깥 편집과 드리프트
@@ -962,6 +1017,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - 구조가 깨진 경우: UTF-8이 아님, NUL 문자 포함, 구분 줄 앞뒤에 다른 글자가 붙은 `§` 줄, 크기가 한도의 2배 초과(Hermes `memory_tool_store.py:49-57, 695`).
 - 드리프트 상태는 사람이 파일을 고치거나 L4 명령으로 "현재 파일을 받아들이기"를 해야 풀린다. 받아들이기는 행위자 `user`의 `external` 원장 기록이다.
+- 구현(KN.3): 읽기와 쓰기 앞에서 파일을 읽어 `cap_knowledge_files.hash`와 비교한다. 같으면 정상이다. 다르고 구조가 정상이면 `external` 항목을 남기고 파일 상태를 새 해시로 맞춘다. 처음 보는 파일(상태 행이 없음)과 지워진 파일(상태 행이 있고 파일이 없음)도 같은 길이다. 구조가 깨졌으면 `.bak/<파일>.<UTC 시각>`으로 복사하고 쓰기를 `drift_detected`로 거부하며 읽기는 가능한 만큼 항목을 돌려준다. 사본은 같은 내용마다 프로세스당 한 번만 만든다(재시작하면 한 번 더 만든다). "현재 파일 받아들이기" 메서드는 아직 없다(L4 명령 몫).
 - 스킬의 바깥 편집도 같은 표를 쓴다. 스킬의 "구조 깨짐"은 §4.2.2 읽기 검증에서 설명이 없어 실리지 않는 경우다. 이때는 `.bak`을 만들지 않고 진단만 남긴다(디렉터리는 사람이 고친다).
 
 ### 4.4 쓰기 경로
@@ -979,7 +1035,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 7. 안전 캡처: 현재 내용(스킬 디렉터리 전체 또는 메모리 파일)을 `xeon.store.putBlob`으로 저장하고 `before_manifest`를 만든다. 실패하면 쓰지 않고 `internal`로 실패한다(닫힌 실패).
 8. 원장 `prepared` 행 기록(`StoreDb.write` 하나).
 9. 락 안에서 파일 쓰기(§4.3.3). 락을 잡은 뒤 3단계의 해시를 다시 확인한다. 다르면 원장 행을 `aborted`로 바꾸고 `base_stale`.
-10. 새 내용을 blob으로 저장해 `after_manifest`를 만든다. 원장 행을 `applied`로 바꾸고, 같은 트랜잭션에서 `cap_knowledge_files`, `cap_knowledge_skills`, `cap_knowledge_docs_fts`를 갱신한다.
+10. 새 내용을 blob으로 저장해 `after_manifest`를 만든다. 원장 행을 `applied`로 바꾸고, 같은 트랜잭션에서 `cap_knowledge_files`, `cap_knowledge_skills`, `cap_knowledge_docsfts`를 갱신한다.
 11. 인덱스가 바뀌었으면 인덱스 버전을 올린다(§4.2.6).
 
 - 트랜잭션 안에서는 파일 I/O와 승인 대기를 하지 않는다(`eng.transactions.design` TX-01, TX-04). 8단계와 10단계는 각각 짧은 쓰기 트랜잭션이다.
@@ -1000,8 +1056,9 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.4.3 시작 시 복구
 
-- 시작할 때 `status = 'prepared'`인 원장 행을 찾는다. 대상 파일의 현재 해시가 `after_hash`와 같으면 `applied`로, `before_hash`와 같으면 `aborted`로 바꾼다. 둘 다 아니면 `aborted`로 두고 바깥 편집으로 처리한다(§4.3.5). 행위자 `system`.
-- 그 뒤 스킬 루트를 재색인한다(`skills.reindex`와 같은 동작). 파일 수가 많으면 mtime과 크기로 바뀐 후보만 해시한다.
+- 시작할 때 `status = 'prepared'`인 원장 행을 찾는다. 대상의 현재 해시가 `after_hash`와 같으면 `applied`로 마감하고(색인과 파일 상태도 같은 트랜잭션에서 맞춘다), 그 밖에는 `aborted`로 바꾼다. `before_hash`와 같으면 쓰기 전에 죽은 것이고, 둘 다 아니면 바깥 편집이라 이어지는 재색인이 `external` 항목으로 남긴다(§4.3.5). 행의 행위자는 원래 값을 유지한다. 복구는 새 행을 만들지 않는다.
+- 그 뒤 스킬 루트를 재색인한다(`skills.reindex`와 같은 동작). 재색인은 사용자·프로젝트 범위의 추가, 변경, 삭제를 행위자 `external`, 연산 `external`의 `applied` 항목으로 원장에 남긴다. 처음 본 스킬도 마찬가지다(`created_by`는 처음 만든 `skill.create` 항목이 있으면 그 행위자, 없으면 `unknown`). 변경 항목의 `before_manifest`는 그 해시를 `after_hash`로 가진 이전 항목의 목록 blob이다. 없으면 비어 있어 그 항목은 롤백할 수 없다. 확장·경로 범위는 읽기 전용이라 원장에 남기지 않는다.
+- 구현(KN.1)은 재색인마다 모든 스킬의 트리를 읽고 해시한다. mtime·크기로 후보를 줄이는 최적화는 하지 않았다(§10 미결 19).
 
 #### 4.4.4 행위자 표시
 
@@ -1032,14 +1089,20 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 - 백그라운드 포크의 파괴적 연산은 설정과 무관하게 대기열로 간다. Hermes가 포크의 메모리 파괴적 연산을 승인 큐로 보내는 장치를 스킬까지 넓힌 것이다(`_research/refs/hermes.md` §3.10.1 (라)).
 - `agent`(main)이고 `caller.afterUntrusted = true`이면 설정이 꺼져 있어도 승인을 요청한다 [제안]. 웹 결과를 읽은 turn의 쓰기는 인젝션 경로일 수 있기 때문이다(§4.6.3).
-- 승인 요청은 `xeon.approvals`로 낸다. 포트 모양은 `L2.readme` §5.7의 L2 공통 `ApprovalsPort`이고(`cap-knowledge/src/ports/approvals.ts`), kind는 `tool`, 멱등 키는 입력 `requestId`(쓰기 호출의 `CallOptions.requestId`)다. 대상은 `{ capability, op, target, preview, scan }`이다 [가정: payload 모양은 `L1.tools.spec`]. `preview`는 현재 내용 기준 통합 diff이고 20,000자에서 자른다.
+- 승인 요청은 `xeon.approvals`(`ApprovalService`)의 도구 승인(kind `tool`)으로 낸다 [결정: KN.2]. `ports/approvals.ts`의 `createWriteApprovals`가 `open`으로 요청을 커밋하고(같은 `requestKey`면 기존 요청과 현재 해결 상태를 돌려받는다) 해결이 없으면 `wait`로 기다린다. 요청 키는 호출의 `requestId`를 F `requestKeyFor`(`records/commit.ts`, U-13)로 바꾼 값이다(1~48자). 48자 이하이고 키 알파벳(`^[A-Za-z0-9_.-]+$`) 안이며 `h_`로 시작하지 않으면 그대로, 아니면 `h_` + 원문 sha256 앞 40자다 [결정: 통합 검토 L6, 이전 `kw_` 접두 함수를 지움]. `requestId`가 없으면 `knp` ID를 키로 써서 멱등을 보장하지 않는다. 본문은 `{ toolName, capability: { id, method }, risk: "write", args, argsHash, ruleId: null }`이고 `toolName`은 스킬 쓰기면 `skill_manage`, 메모리 쓰기면 `memory_manage`, 롤백이면 `knowledge.ledger`다. `args`는 `{ op, target, baseHash, preview, scan, afterUntrusted }`이고 `preview`는 현재 내용 기준 통합 diff를 20,000자에서 자른 것, `scan`은 규칙 이름과 판정(`<규칙>:<block|warn>`)만 담는다. 사람이 한 허용(`resolvedBy: "user"`의 `allow`)만 허용으로 센다. 취소, 대체, 비대화형 해결은 거부다. 거부의 `answer.feedback`은 오류 `approval_denied`의 `detail.feedback`으로 돌려준다.
+- 묻지 못하는 경우 [제안: KN.2]: `ask` 판정이어도 승인 포트가 없거나, 호출 문맥에 `threadId`가 없거나, `interactive`가 `false`(크론·헤드리스)이면 묻지 않고 제안 대기열로 보낸다. 닫힌 쪽으로 실패하고 정본 파일은 바뀌지 않는다.
 - 승인 대기는 루프의 승인 대기 상태로 커밋되고 멈춘다. 재개 때 결과 이벤트로 이어진다(`L2.readme` §5.7). 승인 결과 "항상"은 이 능력에 적용하지 않는다 [제안]. 스킬·메모리 쓰기는 매번 내용이 달라서다.
 - `ApprovalEvidence`의 유효성: `source`가 `l2.knowledge.write.trustedEvidenceSources`(기본 `[]`)에 있고, `source`의 첫 마디가 호출 확장 이름(`CallOptions.context.caller.extension`)과 같을 때만 유효하다 [제안]. 기본값은 L3 그룹 이름을 쓰지 않는다. 증거를 낼 L3 그룹의 source는 L3가 설정으로 채운다 [결정: review.decisions-2 D-11]. 아무 확장이 증거를 꾸며 게이트를 건너뛰지 못하게 하기 위해서다.
 
 #### 4.5.2 제안 대기열
 
 - 대기열은 `cap_knowledge_proposals`다. 제안은 메서드 이름과 입력 전체(blob), 대상, 연산, `baseHash`, 검사 결과, 미리보기를 갖는다.
-- `decide({ approve })`: 행위자 `user`(또는 증거가 있는 확장)일 때, 저장된 입력을 행위자 `user`로 쓰기 경로 2단계부터 다시 실행한다. 원장 행에 `proposal_id`를 남긴다. 그 사이 대상이 바뀌었으면 제안은 `stale`이 되고 `base_stale` 오류다.
+- `decide({ approve })`: 행위자 `user`일 때, 저장된 입력을 쓰기 경로 2단계부터 다시 실행한다. 원장 행에 `proposal_id`를 남긴다. 그 사이 대상이 바뀌었으면 제안은 `stale`이 되고 `base_stale` 오류다.
+  - [결정: KN.2] 호스트(사용자)만 결정한다. `DecideInput`에 증거(`approval`)를 실을 자리가 없어 확장의 결정은 `denied`다. 확장이 결정하려면 F가 `DecideInput.approval`을 더해야 한다(§8 요구).
+  - [결정: KN.2] 승인한 제안은 게이트를 다시 거치지 않는다(사람이 미리보기를 보고 승인했다). 원장 행의 행위자는 제안한 행위자이고(결정한 사용자는 원장에 남지 않는다), `approved_by`는 `approval`이며 `proposal_id`가 제안을 가리킨다. 스킬 `created_by`(§4.4.4)와 감사가 "누가 바꿨나"와 "누가 승인했나"를 구분하기 위해서다. 같은 결정을 두 번 실행해도 원장 `request_id`(`proposal:<제안 ID>`)가 막는다. `decide`의 `note`는 원장 `reason`이 된다.
+  - [결정: KN.2] 다시 실행이 `base_stale`, `name_conflict`, `patch_mismatch`, `rollback_conflict`로 실패하면 제안은 `stale`이다. 다른 실패(`scan_blocked`, `internal` 등)는 제안을 `pending`으로 두고 오류만 돌려준다.
+  - 같은 `requestId`로 같은 쓰기를 다시 부르면 대기열도 첫 결과(`status: "queued"`, 같은 `proposalId`)를 돌려준다. 제안이 적용된 뒤에도 첫 결과를 돌려준다.
+  - 목록은 최신순이다. 목록과 결정 앞에서 만료를 정리하고, 시작 때도 정리한다.
 - `decide({ reject })`: 상태를 `rejected`로 바꾸고 파일은 건드리지 않는다.
 - 만료: 생성 뒤 `l2.knowledge.write.proposalExpiryDays`(기본 14일)가 지난 `pending`은 시작 정리 때 `expired`가 된다.
 - 승인 전에는 파일이 바뀌지 않는다. `pending`, `rejected`, `stale`, `expired` 제안은 정본 파일에 아무 효과가 없다(수용 기준 1, `product.scope.spec` §4.4 M3 UC-3).
@@ -1060,6 +1123,8 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 숨은 지시 | HTML 주석 안의 지시형 문장, 접힌 `<details>` 안의 지시 | warn |
 | 안전 우회 권유 | "승인 없이", "--no-verify", "검사를 끄고" | warn |
 
+- 규칙 이름과 판정(규칙 집합 버전 `1.0.0`, `scan/rules.ts`). 지시 주입: `injection.ignore_previous`, `injection.ignore_previous_ko`, `injection.role_override`, `injection.role_marker`. 경계 표지: `boundary.untrusted_tag`(`<untrusted_…content` 계열 전부). 유출: `exfil.shell_secret_read`(같은 줄에 네트워크 명령과 비밀 위치), `exfil.url_secret_var`(비밀 변수를 질의에 단 URL), `exfil.data_url`(200자 넘는 base64 데이터 URL, "데이터 URL로 보내기"를 이 뜻으로 읽었다 [제안]). `scripts/` 엄격 범위에서만: `exfil.pipe_to_network`. 비밀 값: `secret.api_key`, `secret.github_token`, `secret.aws_access_key`, `secret.slack_token`, `secret.private_key`, `secret.jwt`, `secret.registered_value`(마스킹 등록부, 줄 번호 없음). 숨은 문자: `hidden.zero_width`, `hidden.bidi_control`, `hidden.tag_chars`(U+E0000~E007F 태그 문자). 경고: `hidden.html_comment_instruction`, `hidden.details_instruction`, `bypass.skip_approval`.
+- 파일 맨 앞의 U+FEFF(BOM)는 편집기가 붙이는 표지라 숨은 문자로 세지 않는다. 결과는 같은 (규칙, 줄) 쌍을 한 번만 싣고 64개를 넘으면 block을 먼저 남긴다.
 - 메모리 쓰기는 검사를 항상 한다. 메모리는 매 세션 컨텍스트에 상주하므로 오염된 항목이 계속 남는다(Hermes `memory_tool_store.py:28-31`, `_research/refs/hermes.md` §3.10.1 (라)). `l2.knowledge.write.scan`은 스킬 검사만 끌 수 있고 기본은 켬이다.
 - 스킬 검사 대상은 `SKILL.md` 전체와 지원 파일 중 텍스트 파일이다. `scripts/` 아래 파일은 유출 규칙을 엄격 범위로 적용한다 [제안].
 - 비밀 값 판정은 `xeon.secrets`의 마스킹 등록부를 쓴다 [가정: `L0.secrets.spec`이 값을 노출하지 않는 판정 함수를 제공한다].
@@ -1084,17 +1149,19 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.7.1 원장
 
+- 구현(KN.1) 보충. 안전 캡처는 변경 전 내용과 변경 후 내용을 모두 쓰기 전에 blob으로 저장한다(7단계). 그래서 `prepared` 행이 `before_hash`와 `after_hash`, 두 목록 blob을 이미 갖고, 시작 시 복구(§4.4.3)가 `after_hash`와 파일 해시를 비교할 수 있다. 파일 반영이 도중에 실패하면 같은 락 안에서 캡처해 둔 이전 내용으로 되돌리고 행을 `aborted`로 한다(되돌림이 실패하면 오류를 기록하고 행은 `aborted`로 두며, 다음 재색인이 어긋난 내용을 `external` 항목으로 남긴다). 10단계 커밋만 실패하면 파일은 이미 바뀐 상태이고 행은 `prepared`로 남아 시작 시 복구가 `applied`로 마감한다.
+- 보관함 이름은 `<스킬 디렉터리의 부모>/.archive/<이름>-<UTC 시각>`이다. 같은 초에 같은 이름을 두 번 보관하면 `-2`부터 번호를 붙인다. 중첩된 스킬(`<루트>/묶음/<이름>`)은 자기 부모 디렉터리 아래에 보관된다.
 - 모든 변경(스킬 다섯 연산, 메모리 네 연산, 바깥 편집, 되돌림)을 행위자와 함께 `cap_knowledge_ledger`에 남긴다. Hermes 원장(JSONL + 내용 주소 blob, `tools/skill_ledger.py:1-10`)의 설계를 `sys_blobs` 위로 옮긴 것이다(`_research/refs/hermes.md` §3.10.1 (라), §4.1). Hermes 코드는 Python이라 재작성한다.
 - 전후 내용은 파일별 blob(`xeon.store.putBlob`, 내용 주소)과 그 목록 blob(`before_manifest`, `after_manifest`)으로 둔다. 같은 내용은 한 번만 저장된다.
 - 원장 행은 지우지 않는다. 보존 기간과 오래된 blob 정리는 [미결]이다(§10 미결 6, `L2.knowledge.plan` §7 위험).
 
 #### 4.7.2 롤백
 
-1. 대상 항목의 `status`가 `applied`가 아니면 `invalid_input`.
+1. 대상 항목의 `status`가 `applied`가 아니거나 이미 `rolled_back_by`가 있으면 `invalid_input`.
 2. 대상의 현재 해시가 그 항목의 `after_hash`와 같은지 확인한다. 다르면 `rollback_conflict`. 뒤에 다른 변경이 있으면 그 변경부터 차례로 되돌려야 한다.
-3. 쓰기 승인 게이트(§4.5.1). 롤백은 파괴적 연산이다.
+3. 쓰기 승인 게이트(§4.5.1). 롤백은 파괴적 연산이다. 구현(KN.2)은 롤백 내용을 계산한 뒤(`planRollback`) 다른 쓰기와 같은 게이트에 태운다: 사용자는 바로 적용하고, 세션 없는 확장 호출은 `ledger.rollback` 제안으로 대기열에 간다. 호출 문맥이 없는 호출은 행위자를 알 수 없어 `denied`다. 같은 `requestId`는 계산 앞에서 확인하므로 두 번째 호출은 "이미 되돌린 항목" 오류 없이 첫 결과를 돌려받는다.
 4. 안전 캡처: 현재 내용을 blob으로 저장한다. 실패하면 되돌리지 않고 `rollback_unsafe`로 실패한다(닫힌 실패, Hermes `skill_ledger.py`).
-5. `before_manifest`의 내용으로 파일을 되돌린다. `before_hash`가 null(생성 연산)이면 그 스킬을 보관함으로 옮긴다. 보관함 이동(`skill.archive`)의 되돌림은 보관함에서 원래 경로로 되돌린다.
+5. `before_manifest`의 내용으로 파일을 되돌린다. 이전 내용을 담지 못한 항목(바깥 편집을 처음 본 항목, 삭제된 파일을 찾지 못한 경우)은 `unsupported`로 거부한다. `before_hash`가 null(생성 연산)이면 그 스킬을 보관함으로 옮긴다. 보관함 이동(`skill.archive`)의 되돌림은 보관함에서 원래 경로로 되돌린다.
 6. 새 원장 항목(`op: "rollback"`, `rollback_of`)을 남기고 원래 항목의 `rolled_back_by`를 채운다.
 
 - 되돌림의 되돌림도 같은 규칙이다.
@@ -1104,19 +1171,20 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 #### 4.8.1 색인 소비자
 
-- 소비자 `cap.knowledge.fts`는 모든 세션의 내구 이벤트를 저장 열 `pos` 순으로 받는다(`eng.events.design` §4.6). [가정: `L1.persistence.spec`이 `pos` 커서 기반 전역 읽기(`afterPos`, `limit`)와 커밋 후 알림을 제공한다.]
+- 소비자 `cap.knowledge.fts`는 내구 피드(`xeon.session`의 `subscribe(afterSeq, listener, { kindPrefixes: ["item.recorded"] })`)를 이벤트 `seq` 순으로 받는다 [결정: KN.4. 초안의 `pos` 커서 기반 읽기는 이 구독으로 대신한다. 구독은 커서 뒤의 따라잡기와 실시간을 같은 구간에서 잇는다].
 - 처리 단위는 배치(최대 500 이벤트)다. 한 배치마다:
-  1. 트랜잭션 밖에서 `message.recorded`의 사용자·어시스턴트 텍스트 파트를 뽑는다. blob 자리표시(`blob:sha256:`)가 있으면 blob을 읽는다. 도구 결과와 사고(thinking) 파트는 넣지 않는다 [제안].
+  1. 트랜잭션 밖에서 `item.recorded`의 사용자·어시스턴트 텍스트 파트를 뽑는다(초안의 `message.recorded`). `detached` 필드가 있으면 `session.hydrate`로 blob에서 되돌린 사본을 읽는다. 도구 결과, 사고(thinking), 도구 호출, 이미지는 넣지 않는다 [제안]. 텍스트가 없는 메시지는 건너뛴다.
   2. 텍스트를 NFC로 정규화한다.
-  3. `StoreDb.write` 하나 안에서 `cap_knowledge_session_docs`(`event_id` 유일)와 `cap_knowledge_session_fts`에 넣고, 같은 트랜잭션에서 `consumer_cursors`의 자기 행 `pos`를 배치 마지막 값으로 올린다(`eng.transactions.design` §7) [가정: `scoped("cap_knowledge_")` 핸들이 자기 소비자 행에 한해 `consumer_cursors` 쓰기를 허용한다].
-- 중복 방지: 커서보다 작거나 같은 `pos`는 건너뛰고, `event_id`가 이미 있으면 넣지 않는다. 같은 배치를 두 번 받아도 FTS 행이 늘지 않는다(수용 기준 3, `eng.events.design` EV-05).
+  3. `StoreDb.write` 하나 안에서 `cap_knowledge_sessiondocs`(`event_id` 유일)와 `cap_knowledge_sessionfts`에 넣고, 같은 트랜잭션에서 `cap_knowledge_sessioncursor`를 배치 마지막 `seq`로 올린다. 색인할 메시지가 없는 배치도 커서는 올린다.
+- 중복 방지: 커서보다 작거나 같은 이벤트 `seq`는 건너뛰고, `event_id`가 이미 있으면 넣지 않는다. 같은 배치를 두 번 받아도 FTS 행이 늘지 않고 세션 안 메시지 번호도 그대로다(수용 기준 3, `eng.events.design` EV-05).
+- 실패: 쓰기가 실패하거나 던지면 커서를 올리지 않고 소비자를 멈춘다(뒤 배치를 건너뛰어 틈이 생기지 않게 한다). 원인은 `knowledge.indexer.failed`로 기록한다. 다음 시작이 같은 배치부터 다시 받는다.
 - session-core의 투영(`p_*`)을 JOIN하지 않는다. 필요한 값은 이벤트에서 받아 자기 테이블에 둔다(`eng.context-map.design` CM-02 좋은 예).
-- 세션 삭제: 세 세션 테이블은 투영기 `cap.knowledge`의 DDL에 선언되어 있으므로 session-core가 그 세션 행을 함께 지운다(`eng.context-map.design` §5.2). FTS 테이블은 `session_id` UNINDEXED 열로 `DELETE … WHERE session_id = ?`가 된다.
+- 세션 삭제: 색인 표는 투영기 `cap.knowledge`의 DDL에 선언되어 있고 `thread_id` 열이 있으므로 session-core가 그 세션 행을 함께 지운다(`eng.context-map.design` §5.2). FTS 표도 `thread_id UNINDEXED` 열로 `DELETE … WHERE thread_id = ?`가 된다.
 - 되감기·분기: 이벤트는 불변이고 되감긴 가지의 메시지도 색인에 남는다. 검색 결과는 원문 기록이므로 가지와 무관하게 보인다 [제안]. 현재 가지만 보이려면 `parentId` 경로 정보가 필요하므로 2차에 정한다.
 
 #### 4.8.2 세션 종류와 숨김
 
-- 투영기 `cap.knowledge`가 `session.created`에서 세션 종류(`main`, `subagent`, `background`, `cron`)와 프로젝트를 기록한다 [가정: `session.created` payload에 종류(또는 부모 세션)와 작업 디렉터리가 있다. 없으면 `L1.persistence.spec`·`L1.agents.spec`에 요청한다].
+- 투영기 `cap.knowledge`가 세션 종류와 프로젝트를 기록한다 [결정: KN.4]. 프로젝트는 `thread.started.workspace`의 sha256 앞 16자다(워크스페이스가 없으면 null). 종류는 `thread.started` payload에 없어서 부모의 `agent.spawned`가 가리키는 자식 thread에 `background: true`면 `background`, 아니면 `subagent`를 쓰고 나머지는 `main`이다. 자식의 `thread.started`가 `agent.spawned`보다 늦게 와도 종류를 덮어쓰지 않는다. `cron`은 M3 `cap-schedule`부터다.
 - 크론·서브에이전트·백그라운드 세션은 기본 검색과 목록에서 숨긴다. 크론 잡의 반복 어휘가 사용자 대화를 밀어내는 "회상 맹점"을 막기 위해서다(`_research/refs/hermes.md` §3.10.2). 서비스 입력 `includeHidden: true`로 포함한다.
 - 크론 세션은 M3 `cap-schedule`부터 생긴다.
 
@@ -1133,20 +1201,21 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 2. 따옴표 구절과 공백으로 나눈 토큰을 만든다. FTS5 특수 문자(`"`, `*`, `^`, `:`, `(`, `)`)는 구절 안에서 그대로 쓰도록 각 토큰을 큰따옴표로 감싸고 내부 큰따옴표는 두 번 쓴다.
 3. 모든 토큰·구절이 3 코드 포인트 이상이면 FTS 경로: `MATCH`에 토큰 구절들을 AND로 묶어 넣는다. 정렬은 `bm25()` 오름차순, 같으면 `recorded_at` 내림차순(`_research/notes/L2-3.md` §4 5번). `path: "fts"`.
 4. 하나라도 3 코드 포인트 미만이면 LIKE 경로: `text LIKE '%' || ? || '%' ESCAPE '\'`로 모든 토큰을 AND한다. 최근 문서부터 `l2.knowledge.search.likeScanLimit`(기본 20,000)개 안에서만 찾는다. `path: "like"`. trigram MATCH는 3글자 미만에서 오류 없이 0건을 내므로 빈 결과를 그대로 돌려주지 않기 위한 경로다(`_research/notes/L2-3.md` §3.2, §6).
-5. `kinds` 기본은 셋 모두다. 스킬·메모리는 `cap_knowledge_docs_fts`에서, 세션은 `cap_knowledge_session_fts`에서 같은 규칙으로 찾고, 종류별 결과를 점수 순으로 섞지 않고 종류 순(skill → memory → session)으로 이어 붙인다 [제안]. 종류 사이 bm25 값은 비교할 수 없기 때문이다.
+5. `kinds` 기본은 셋 모두다. 스킬·메모리는 `cap_knowledge_docsfts`에서, 세션은 `cap_knowledge_sessionfts`에서 같은 규칙으로 찾고, 종류별 결과를 점수 순으로 섞지 않고 종류 순(skill → memory → session)으로 이어 붙인다 [제안]. 종류 사이 bm25 값은 비교할 수 없기 때문이다.
 6. 스니펫은 `snippet()` 함수로 만들고 600자에서 자른다. LIKE 경로는 첫 일치 위치 앞뒤 120자다.
-7. `scope: "project"`는 현재 세션의 프로젝트와 같은 세션만 찾는다. 기본은 `l2.knowledge.search.defaultScope`(`"all"`)다.
+7. `scope: "project"`는 현재 세션의 프로젝트와 같은 세션만 찾는다. 기본은 `l2.knowledge.search.defaultScope`(`"all"`)다. 현재 세션을 모르거나 그 세션에 프로젝트가 없으면 세션 결과는 비어 있다 [제안: 모를 때 전체로 넓히지 않는다].
 8. 결과는 원문이다. LLM 요약을 하지 않는다(`_research/refs/hermes.md` §3.10.2).
+9. 구현(KN.4): 한 호출의 `limit`는 종류 전체의 합이다. 앞 종류가 한도를 채우면 뒤 종류는 찾지 않는다. 스킬·메모리 검색에는 `includeHidden`이 `disable-model-invocation` 스킬을 포함할지를 뜻하고, 같은 이름의 스킬은 모델이 보는 이름 해석의 승자만 낸다. 스킬·메모리 FTS 표가 없으면 `path`는 `like`다. `scroll`·`read`는 세션 종류와 상관없이 ID로 읽고(숨긴 세션 포함) 메시지 하나가 100,000자를 넘으면 자르고 `truncated`를 켠다. `list`는 `last_at` 내림차순이고 `before`는 `last_at` 기준이다. LIKE 경로의 스캔 범위는 FTS 필터 조건(종류·프로젝트·시각)을 적용한 최근 문서 `likeScanLimit`개다.
 
 모델 렌더링: 세션 메시지는 `<untrusted_session_content session="…" seq="…" role="…">`로 감싼다. 지난 대화에도 웹 결과에서 옮겨 적은 지시문이 있을 수 있기 때문이다(`L2.readme` §5.3 표지 명명 규칙).
 
 #### 4.8.5 FTS5 시작 프로브
 
-- `platform-store`의 FTS5 프로브(ADR-0004 §3.5)와 별도로, 이 능력은 시작할 때 자기 범위 핸들에서 `CREATE VIRTUAL TABLE temp.cap_knowledge_probe USING fts5(x, tokenize='trigram')`를 실행하고 지운다. trigram은 FTS5 기본 포함과 별개로 SQLite 버전 조건이 있기 때문이다. `setCustomSQLite`의 반환값은 판정에 쓰지 않는다(`_research/notes/L2-3.md` §2.3).
+- 구현(KN.4, `search/probe.ts`, `search/setup.ts`) [결정]: 범위 핸들(`scoped`)은 DDL을 허용하지 않아 자기 범위에서 `CREATE VIRTUAL TABLE temp...`를 돌릴 수 없다. 대신 `StoreService.capabilities`의 FTS5 판정(`platform-store`의 시작 프로브)과 SQLite 버전(3.34.0 이상)으로 판정하고, 실제 `trigram` 표 생성은 투영기 등록의 DDL이 한다. 등록 뒤 표를 한 번씩 읽어 보아 읽히지 않으면 같은 실패로 취급한다. `setCustomSQLite`의 반환값은 판정에 쓰지 않는다(`_research/notes/L2-3.md` §2.3).
 - 프로브가 실패하면:
-  - 세션 색인 소비자를 시작하지 않는다. 커서는 그대로 둔다(나중에 FTS5가 생기면 이어서 색인).
+  - 세션 색인 소비자를 시작하지 않는다. FTS 표를 선언하지 않으므로 커서도 없다. 능력이 생기면 투영 버전이 바뀌어 투영이 다시 만들어지고 색인은 처음부터 쌓인다. 세션 목록(`list`)은 투영만 쓰므로 계속 동작한다.
   - `query`에서 `session` 종류는 빼고 `degraded: ["session"]`를 싣는다. 세션만 요청했으면 `unavailable`(`detail.reason: "fts5_unavailable"`).
-  - 스킬·메모리 검색은 `cap_knowledge_docs_fts` 대신 색인 테이블과 파일 내용에 대한 LIKE 경로로 한다(대상이 작다).
+  - 스킬·메모리 검색은 `cap_knowledge_docsfts` 대신 색인 테이블과 파일 내용에 대한 LIKE 경로로 한다(대상이 작다). 이때 `path`는 `like`다.
   - L4 진단에 원인(FTS5 없음, trigram 없음, SQLite 버전)을 남긴다. 시작을 막지 않는다 [제안]. ADR-0004 §6 [미결] "FTS5 없을 때 시작 중단 또는 기능만 끄기" 중 이 능력은 기능만 끈다.
 
 ### 4.9 재생 규칙
@@ -1190,7 +1259,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | 20 | 사용자·프로젝트에 같은 이름 스킬 | 프로젝트가 이김, `collision` 진단 | — |
 | 21 | FTS5·trigram 프로브 실패 | 세션 검색 끔, 스킬·메모리는 LIKE | `unavailable`(세션만 요청 시) |
 | 22 | 2글자 한국어 질의 | LIKE 경로, `path: "like"` | — |
-| 23 | 같은 이벤트 배치가 두 번 전달됨 | `pos`·`event_id`로 건너뜀 | — |
+| 23 | 같은 이벤트 배치가 두 번 전달됨 | 이벤트 `seq`·`event_id`로 건너뜀 | — |
 | 24 | 세션 삭제 | 세션 목록·문서·FTS 행이 함께 지워짐 | — |
 | 25 | NFD로 저장된 텍스트를 NFC 질의 | 색인 때 NFC로 바꾸었으므로 찾음 | — |
 | 26 | 제안 승인 시점에 대상이 바뀜 | 제안 `stale` | `base_stale` |
@@ -1233,7 +1302,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 | 지점 | fold | 쓰임 |
 |---|---|---|
-| `session_start`(#30) | tap | 세션별 상태(마지막 인덱스 버전) 초기화, 스킬 루트의 mtime 검사로 바뀐 후보 재색인 |
+| `session_start`(#30) | tap | 세션별 상태(마지막 인덱스 스냅샷) 초기화. `startup` 말고는 스킬 루트를 다시 훑어 바깥 편집을 반영한다(전체 재색인이며 mtime 검사는 하지 않는다) |
 | `before_agent_start`(#3) | chain | 세션 첫 turn: 메모리 스냅샷 + 스킬 인덱스 블록을 메시지로 더한다. 이후 turn: 인덱스가 바뀌었으면 델타 메모를 더한다(§4.2.6). `before_agent_start.message`는 추가 병합이다(`F.extensions.spec` §4.1) [가정: 더한 메시지가 세션 기록에 남는다] |
 | `resources_discover`(#28) | chain | 패치를 돌려주지 않는다. 합성 결과의 스킬 경로를 받는 방법은 X가 정한다(§4.2.7) |
 | `session_shutdown`(#39) | tap | 세션별 메모리 상태 정리 |
@@ -1263,15 +1332,20 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 | `CallOptions.context.caller`(`CallerInfo`, `afterUntrusted` 포함) | `F.capabilities.spec` §3.2(`L2.readme` §5.8) | 있음 |
 | `BlobRef`, blob 자리표시 형식 | `F.records.spec` §3.4 | 있음 |
 | `StoreService.scoped`, `putBlob`, `readBlob`, temp 가상 테이블 생성 허용 | `L0.store.spec` | 있음(`eng.transactions.design` §4.2), temp 허용은 [가정] |
-| `consumer_cursors` 자기 행 쓰기를 범위 핸들에서 허용 | `L0.store.spec`, `L1.persistence.spec` | [가정] |
-| `pos` 커서 전역 이벤트 읽기와 커밋 후 알림 | `L1.persistence.spec`(`xeon.session`) | [가정] |
-| 투영기 선언 테이블을 같은 컨텍스트 소비자가 쓰는 것 | `L1.persistence.spec` | [가정] |
-| `session.created` payload의 세션 종류·부모·작업 디렉터리 | `L1.persistence.spec`, `L1.agents.spec` | [가정] |
-| `ApprovalService`(`xeon.approvals`) 요청 kind `tool`, 미리보기 payload | `L1.tools.spec` | [가정] |
+| `consumer_cursors` 자기 행 쓰기를 범위 핸들에서 허용 | `L0.store.spec`, `L1.persistence.spec` | 없음. 범위 핸들은 session-core 표에 쓸 수 없어 커서를 투영 표로 옮겼다(§4.8.1) |
+| 전역 이벤트 `seq` 구독(`subscribe(afterSeq, listener, filter)`, `kindPrefixes`)과 `hydrate` | `L1.persistence.spec`(`xeon.session`) | 있음 |
+| 투영기 등록(`projectors.register`)과 같은 컨텍스트 범위 핸들의 투영 표 쓰기 | `L1.persistence.spec`, `L0.store.spec` | 있음(표 이름은 `cap_knowledge_` + 밑줄 없는 지역 이름, 세션 삭제 정리는 `thread_id` 열) |
+| 세션 종류·부모·작업 디렉터리 | `thread.started.workspace`, `agent.spawned.background` | 있음. 종류 필드는 없어 `agent.spawned`로 추론한다(§4.8.2) |
+| `ApprovalService`(`xeon.approvals`) `open`·`wait`와 요청 kind `tool`, 미리보기 payload(`args.preview`) | `L1.tools.spec` §3.6, F `services/approvals.ts` | 있음(KN.2가 `createWriteApprovals`로 쓴다) |
+| `DecideInput.approval`(확장의 제안 결정에 실을 증거), `LedgerEntry.afterUntrusted` | `F.capabilities.spec` | 요청(KN.2, §10 미결 21·22) |
 | 쓰기 도구 둘의 일반 도구 승인 기본값 `allow` | `L1.tools.spec` | 요청 |
-| 첫 turn 기록 메시지로 스냅샷·인덱스를 넣는 경로, 컴팩션 뒤 다시 넣기 | `L1.context.spec` | 요청 |
-| 데이터 디렉터리, 프로젝트 설정 디렉터리, 파일 락 | `L0.os.spec`(`xeon.os`) | [가정] |
-| 마스킹 등록부 판정(값 노출 없음) | `L0.secrets.spec` | [가정] |
+| 첫 turn 기록 메시지로 스냅샷·인덱스를 넣는 경로 | `L1.context.spec` | 요청 |
+| 컴팩션 뒤 다시 넣기 | `L1.context.spec` §4.9a | L1이 한다. 이 패키지는 상태를 그대로 둔다(§4.2.8) |
+| 데이터 디렉터리 | `L0.os.spec`(`OsDirs.data`) | 있음 |
+| 프로젝트 디렉터리 | 대화의 작업 폴더(`workspaceOf`, 조립 루트가 `threadWorkspaceOf`를 넘긴다). 옵션이 없으면 `xeon.exec`의 `cwd` | 있음(`L2.readme` §5.10) |
+| 프로세스 사이 파일 락 | `L0.os.spec` | 없음. 임대와 해시 재확인으로 대신한다(§4.3.3, §10 미결 18) |
+| `SkillFilePathSchema`를 점으로 시작하거나 끝나는 마디를 거부하도록 좁히기, `isSkillFilePath`도 같은 규칙 | `F.capabilities.spec` §3.9 | 요청(KN.1, §3.1) |
+| 마스킹 등록부 판정(값 노출 없음) | `L0.secrets.spec`(`Redactor.containsKnown`) | 있음. `xeon.secrets`가 없으면 이 판정만 건너뛴다 |
 | `resources_discover` 합성 결과 전달 | `X.loading-trust.spec` | [가정] |
 | `Clock`, `IdFactory`, `LocalIdFactory`, `localIdPattern` | `F.readme`(주입 인터페이스, 구현은 `platform-os`), `F.conversation.spec` §3.2.1 | 있음 |
 
@@ -1279,7 +1353,7 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 
 1. 기본 설정에서 행위자 `agent`(main, subagent, background)와 증거 없는 `extension`의 쓰기는 승인이 나기 전이나 제안이 승인되기 전에는 스킬 디렉터리와 메모리 파일을 한 바이트도 바꾸지 않는다. 승인 거부, 제안 거절·만료·`stale` 뒤에도 파일이 그대로다(`product.scope.spec` §4.4 M3 UC-3 근거).
 2. 모든 쓰기(스킬 다섯 연산, 메모리 네 연산)는 원장에 행위자와 함께 `applied` 행을 남긴다. 각 행을 `rollback`하면 대상의 트리 해시나 파일 해시가 그 행의 `before_hash`로 돌아가고, 되돌림도 원장에 남는다. 생성의 되돌림은 보관함 이동이다.
-3. 같은 이벤트 배치를 소비자에 두 번 넣어도 `cap_knowledge_session_docs`와 `cap_knowledge_session_fts`의 행 수가 늘지 않는다. 커서 갱신과 행 삽입 사이에 고장을 주입하면 둘 다 반영되지 않는다(같은 트랜잭션).
+3. 같은 이벤트 배치를 소비자에 두 번 넣어도 `cap_knowledge_sessiondocs`와 `cap_knowledge_sessionfts`의 행 수가 늘지 않는다. 커서 갱신과 행 삽입 사이에 고장을 주입하면 둘 다 반영되지 않는다(같은 트랜잭션).
 4. 쓰기 뒤 크기가 한도를 넘는 메모리 쓰기는 `memory_full`로 거부되고 파일이 그대로이며, 오류 `detail`에 현재 항목 목록이 있다.
 5. `defs/knowledge.ts`의 네 정의는 각각 `validateCapability` 이슈 0건이고, 네 정의를 함께 넣은 `validateCapabilitySet`도 0건이다(도구 이름 충돌 없음). 도구 없는 능력이 허용되지 않으면 `knowledge.ledger`에 읽기 도구를 더한 뒤 같은 기준을 지킨다.
 6. L3 순위 패키지에 `@xeon/cap-knowledge` import가 0이고, L3 그룹은 `KnowledgeSkillsKey` 등 ServiceKey로만 호출한다(`check-layers.ts` DR-02·DR-14 검사와 테스트 그룹 호출 테스트).
@@ -1289,14 +1363,14 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 10. 안전 캡처가 실패하도록 고장을 넣으면 쓰기와 롤백 모두 파일을 바꾸지 않는다.
 11. 메모리 파일의 `§` 구조를 깨면 다음 쓰기가 `drift_detected`이고 `.bak/` 아래 사본이 하나 생긴다.
 12. 위협 패턴 규칙의 block 예시마다 스킬·메모리 쓰기가 `scan_blocked`이고, 결과에 걸린 문자열이 없다.
-13. 세션을 지우면 그 세션의 `cap_knowledge_sessions`, `cap_knowledge_session_docs`, `cap_knowledge_session_fts` 행이 남지 않는다.
+13. 세션을 지우면 그 세션의 `cap_knowledge_sessions`, `cap_knowledge_sessiondocs`, `cap_knowledge_sessionfts` 행이 남지 않는다.
 
 ## 10. 미결 사항
 
 1. [미결] 메모리 정본의 위치. 제안은 "정본 파일 + DB 색인·원장·대기열"이다. `eng.context-map.design` §4.1 표는 메모리를 `cap_knowledge_`에 두고, `_research/item-catalog.md`는 git 추적 파일을 권한다(§4.1).
 2. 닫힘. 호출자 정보는 `F.capabilities.spec` §3.2 `CallOptions.context.caller`로 받는다(`L2.web.spec` §3.7과 같다).
 3. [미결] 제안 대기열의 소유와 중복. 이 문서는 `cap_knowledge_proposals`(에이전트 쓰기용)를 두고 학습 정책을 가진 L3 그룹은 자기 대기열을 갖는다. 하나로 합칠지(`L3.learning.spec` §10 미결 9, `eng.context-map.design` §4.1 "제안 대기열").
-4. [미결] 메모리 스냅샷과 스킬 인덱스를 넣는 위치(시스템 프롬프트 영역 또는 첫 turn 기록 메시지)와 컴팩션 뒤 다시 넣는 규칙. `L1.context.spec`과 함께 정한다(§4.2.5, §4.3.4).
+4. [미결] 메모리 스냅샷과 스킬 인덱스를 넣는 위치(시스템 프롬프트 영역 또는 첫 turn 기록 메시지)와 컴팩션 뒤 다시 넣는 규칙. 첫 turn 기록 메시지로 넣고 컴팩션 뒤 재주입은 L1이 한다(§4.2.5, §4.2.8, `L1.context.spec` §4.9a). 시스템 프롬프트 영역에 둘지는 남는다.
 5. [미결] 쓰기 도구 승인의 이중화 방지. 일반 도구 승인 기본 `allow` + 능력 게이트(제안) 또는 L1.tools 승인 하나에 diff를 싣는 방식(§3.6).
 6. [미결] 원장 보존 기간과 오래된 blob 정리. 지우지 않으면 원장 blob이 계속 늘어난다(`L2.knowledge.plan` §7).
 7. [미결] 인덱스 예산과 설명 자르기 기본값(8,000자, 160자). 측정 전 [가정]이다(§4.2.5).
@@ -1309,3 +1383,9 @@ pi `core/skills.ts`의 규칙을 그대로 쓴다(포크, `L2.knowledge.plan` §
 14. [미결] 되감긴 가지의 메시지를 세션 검색에서 숨길지(§4.8.1).
 15. [가정] macOS 시스템 SQLite의 FTS5·trigram 포함(`_research/notes/L2-3.md` §2.2). 사용자 Mac에서 `pragma compile_options` 확인이 필요하다.
 16. [가정] Hermes 한도 1,375자·2,200자를 한국어 사용에 그대로 쓴다(§4.3.2).
+17. [미결] 프로젝트 스킬 색인의 범위. 색인(`cap_knowledge_skills`의 기본 키가 (범위, 이름)이다)은 한 번에 작업 폴더 하나의 프로젝트 스킬만 담고, 대화의 작업 폴더가 다르면 그 폴더로 다시 색인한다(§4.2.1). 작업 폴더가 다른 대화가 번갈아 돌면 재색인이 잦다. 여러 작업 폴더를 동시에 담으려면 프로젝트 식별 열(작업 폴더)을 기본 키에 더해야 한다. 데스크톱 다중 창에서 필요해지면 M3 이후에 정한다.
+18. [미결] 프로세스 사이 파일 락. `OsService`에 락 API가 없어 임대와 해시 재확인으로 대신한다(§4.3.3). 데이터 디렉터리를 엔진 밖의 도구가 쓰는 경우의 보장은 해시 재확인까지다.
+19. [미결] 재색인 비용. 모든 스킬 트리를 읽고 해시한다. 스킬 수와 크기가 커지면 mtime·크기로 후보를 줄인다(`cap_knowledge_files.mtime_ms`가 그 자리다).
+20. [미결] 쓰기 한도(파일 1 MiB, 500개)와 읽기 한도(파일 16 MiB, 전체 64 MiB, 500개)의 차이(§4.2.2). 읽기 한도를 넘는 스킬은 색인에서 빠진다.
+21. [미결] 원장 `afterUntrusted` 표시. §4.6.3 3번은 `afterUntrusted = true`인 쓰기를 원장에 표시하라고 하지만 F `LedgerEntry`에 필드가 없다. 구현(KN.2)은 승인 요청의 `args.afterUntrusted`로만 알린다. F가 `LedgerEntry.afterUntrusted?`를 더하면 원장 열을 더한다.
+22. [미결] 확장의 제안 결정. `DecideInput`에 `approval` 증거가 없어 `decide`는 호스트 전용이다(§4.5.2). 제안 대기열과 L3 그룹의 자기 대기열(미결 3)을 합칠 때 함께 정한다.

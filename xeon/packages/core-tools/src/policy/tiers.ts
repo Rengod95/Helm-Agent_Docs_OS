@@ -9,8 +9,8 @@ import type { ScopeStack } from "@xeon/contracts/settings";
 import { layerValue, TOOLS_SETTING_KEYS } from "../settings.ts";
 import { builtinRules, loadableRules, validateRules } from "./rules.ts";
 
-// L1.tools.spec §4.5 티어와 규칙 출처. M1은 default(내장)와 user·managed(설정)만 있다.
-// extension 티어(확장 규칙)와 registerRules는 M2·2차다.
+// L1.tools.spec §4.5 티어와 규칙 출처. default는 내장 규칙과 registerRules(policy/core-rules.ts), user·managed는 설정이다.
+// extension 티어는 평가기가 순위로 다루지만 규칙을 넣는 경로(매니페스트 선언)는 2차다(§4.11).
 
 const BUILTIN_RULE_SOURCE = "core:tools";
 
@@ -27,7 +27,7 @@ export interface CollectedRules {
   readonly issues: readonly RuleSourceIssue[];
 }
 
-function tag(
+export function tag(
   rules: readonly PolicyRule[],
   tier: TieredRule["tier"],
   source: string,

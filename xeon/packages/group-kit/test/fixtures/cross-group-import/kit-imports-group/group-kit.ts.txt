@@ -1,0 +1,3 @@
+import { value } from "@xeon/group-a";
+
+export const defineGroup: number = value;

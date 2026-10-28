@@ -29,8 +29,12 @@ binds: []
 | 8 | `context-map/design.md` | `eng.context-map.design` | design | 바운디드 컨텍스트 지도와 소유 경계 | | 필수 | 필수 |
 | 9 | `events/design.md` | `eng.events.design` | design | 이벤트 종류, 내구·휘발, 순서, 재생 | | 필수 | |
 | 10 | `transactions/design.md` | `eng.transactions.design` | design | 정합성·원자성, 단일 DB, outbox, 멱등 | | 필수 | |
+| 11 | `frontend-state/guide.md` | `eng.frontend-state.guide` | guide | UI 전역 상태(React 19 + Zustand 5): 스토어 구성, reducer 단계, 스트리밍, 재동기화, 선택자 | | | |
+| 12 | `performance/guide.md` | `eng.performance.guide` | guide | 속도 예산표, `just bench` 측정 규칙(ADR-0012) | | | |
+| 13 | `onboarding/guide.md` | `eng.onboarding.guide` | guide | 기여자 첫날 순서: 도구, setup·verify, 시험, 라우팅, 커밋, 종료코드, macOS | | | |
 
 - `review` 묶음에는 이 디렉터리 밖의 `architecture.layers.spec`도 들어 있다(`routes.yaml` `by_task.review`).
+- 11은 작업 묶음에 넣지 않고 `binds`(`xeon/apps/desktop/src/**`, `xeon/**/*.tsx`)로만 고른다. UI 코드가 아닌 작업이 읽을 이유가 없기 때문이다.
 - 경로는 이 README 기준 상대 경로다.
 
 ## 3. 읽는 순서
@@ -46,7 +50,7 @@ binds: []
 9. `context-map`: 어떤 컨텍스트가 어떤 데이터와 이벤트 type 접두사를 소유하는지다. 이벤트 정의(`depends_on: eng.events.design`)를 안 뒤에 읽는다.
 10. `transactions`: 이벤트와 투영을 어떤 트랜잭션 경계로 커밋하는지다. 이벤트 정의와 소유 경계를 안 뒤에 읽는다.
 
-1~7은 모든 구현 작업이 읽는다. 저장·이벤트·재생·원자성을 건드리는 작업은 8~10을 더 읽는다.
+1~7은 모든 구현 작업이 읽는다. 저장·이벤트·재생·원자성을 건드리는 작업은 8~10을 더 읽는다. UI 전역 상태와 화면 부품을 건드리는 작업은 11을 더 읽는다.
 
 ## 4. 규칙 ID 체계
 
@@ -62,9 +66,12 @@ binds: []
 | CM | `eng.context-map.design` | `CM-NN` |
 | EV | `eng.events.design` | `EV-NN` |
 | TX | `eng.transactions.design` | `TX-NN` |
+| FS | `eng.frontend-state.guide` | `FS-NN` |
+| PF | `eng.performance.guide` | `PF-NN` |
+| ON | `eng.onboarding.guide` | `ON-NN` |
 
 - 인용 형식: 문서 안에서는 `<문서 id> <규칙 ID>`로 쓴다. 예: `eng.anti-patterns.guide AP-C-05`.
-- 링크 앵커: 명시적 `<a id>`를 둔 문서는 `eng.anti-patterns.guide`와 `eng.best-practices.guide`뿐이다. 이 두 문서의 항목만 `[AP-C-05](anti-patterns/guide.md#ap-c-05)`처럼 규칙 ID의 소문자를 앵커로 링크한다. 다른 문서의 규칙(DR, TY, DT, TC, TS, CM, EV, TX)은 헤딩 자동 앵커가 제목 전체를 포함하므로 링크하지 않고 인용 형식으로 쓴다.
+- 링크 앵커: 명시적 `<a id>`를 둔 문서는 `eng.anti-patterns.guide`와 `eng.best-practices.guide`뿐이다. 이 두 문서의 항목만 `[AP-C-05](anti-patterns/guide.md#ap-c-05)`처럼 규칙 ID의 소문자를 앵커로 링크한다. 다른 문서의 규칙(DR, TY, DT, TC, TS, CM, EV, TX, FS)은 헤딩 자동 앵커가 제목 전체를 포함하므로 링크하지 않고 인용 형식으로 쓴다.
 - 코드 주석의 예외 표시는 `eng.typescript.guide` 4.1절 형식 하나다: `// oxlint-disable-next-line <규칙> -- <이유> (<이슈 URL>)`. 구속 문서가 미리 허용한 예외는 이슈 URL 대신 `(<문서 id> <규칙 ID>)`를 쓴다. 예: `// oxlint-disable-next-line no-restricted-properties -- Clock 구현 (eng.anti-patterns.guide AP-C-05)`. PR 설명에서는 규칙 ID만 써도 된다.
 - 번호는 한 번 쓰면 바꾸거나 다시 쓰지 않는다. 규칙을 없애면 번호를 비워 두고 "폐기"로 표시한다.
 

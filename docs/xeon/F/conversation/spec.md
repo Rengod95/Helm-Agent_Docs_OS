@@ -498,7 +498,12 @@ export interface TurnStartedPayload {
   /** drive turn이면 임대한 scope id, 그 밖은 null. drive turn 멱등 키 (scopeId, requestId)의 근거(L1.loop.spec FR-L8, L1.persistence.spec FR-P10) */
   scopeId: string | null;
 }
-export interface TurnUpdatedPayload { status: TurnStatus }
+/** 사용자에게만 보이는 휘발 알림. 모델 컨텍스트에는 넣지 않는다 [결정: m2 F.8, L1.loop.spec FR-L5] */
+export interface TurnNotice {
+  code: "repeat_detected" | "gate_limit";   // 반복 감지(L1.loop.spec §4.10), 완료 게이트 계속 상한 도달(§4.9)
+  detail: JsonValue;                        // gate_limit: { limit: number }. repeat_detected: { kind: "action_observation" | "action_error", count: number }
+}
+export interface TurnUpdatedPayload { status: TurnStatus; notice?: TurnNotice }
 export interface TurnCompletedPayload {
   status: "completed" | "interrupted" | "failed";
   stepCount: number;
@@ -752,6 +757,6 @@ export * from "./tool-result.ts";
 ## 10. 미결 사항
 
 1. [결정: review.decisions-2 U-01] 용어: pi turn = Xeon step, pi run = Xeon turn이다. 켜기·끄기와 drive 임대 교대는 단계 경계(step 종료 직후, 도구 결과 커밋 뒤)에 적용한다(§2.1). 사용자 확인 대상이다.
-2. [미결] 런타임 스키마 방식: `Type.Unsafe` 래핑 + 얕은 검증(§3.3)으로 충분한지, pi 타입 전체를 TypeBox로 재정의해 깊은 검증까지 할지. 재정의안은 pi minor마다 추종 비용이 커진다.
-3. [미결] ULID 단조성 소유처: 같은 밀리초 안 증가 보장을 L0(`L0.os.spec` 시계·난수) 구현에 둘지, L1 `IdFactory` 래퍼에 둘지, 보장하지 않을지.
+2. [미결] 런타임 스키마 방식: `Type.Unsafe` 래핑 + 얕은 검증(§3.3)으로 충분한지, pi 타입 전체를 TypeBox로 재정의해 깊은 검증까지 할지. 재정의안은 pi minor마다 추종 비용이 커진다. [결정: review.m2-plan §8] 이 판단은 M3로 미룬다. M2는 얕은 검증을 유지한다.
+3. [결정: M2 마감 G5-03] ULID 단조성은 L0 `createIdFactory`·`createLocalIdFactory`(`L0.os.spec` §3.4, `platform-os/src/ids.ts`)가 지킨다. 같은 밀리초이거나 시계가 뒤로 가면 직전 시각을 유지하고 난수 부분을 1 올리며, 80비트가 넘치면 시각을 1ms 올린다. L1 래퍼는 두지 않는다. `platform-os/test/ids.test.ts`가 연속 발급의 사전순 증가를 확인한다.
 4. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 고정한 판과 같아 한 사본만 설치한다.

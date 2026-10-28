@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import type { SelfTestItemId } from "@xeon/contracts/services";
+import { ok } from "@xeon/contracts";
+import type { SelfTestItemId, Shell } from "@xeon/contracts/services";
 import {
   runSelfTest,
   SELF_TEST_ITEM_IDS,
@@ -131,6 +132,50 @@ describe("self-test", () => {
     expect(logger.entries.some((entry) => entry.event === "sandbox.self_test_setup_failed")).toBe(
       true,
     );
+  });
+});
+
+/** `env` 출력만 바꾸고 나머지는 selfTestShell 그대로인 Shell */
+function shellWithEnvOutput(envOutput: string): Shell {
+  const base = selfTestShell();
+  return {
+    ...base,
+    exec(command, options, context) {
+      const text = typeof command === "string" ? command : command.join(" ");
+      if (/(^|\s)env$/.test(text)) {
+        options?.onOutput?.(envOutput, { abortSignal: undefined }, { stream: "stdout" });
+        return Promise.resolve(ok({ exitCode: 0 }));
+      }
+      return base.exec(command, options, context);
+    },
+    cleanup: (context) => base.cleanup(context),
+  };
+}
+
+describe("env_allowlist with the proxy credential srt exports", () => {
+  test("srt's own proxy password name is not counted, and the item passes", async () => {
+    const dirs = makeTestDirs();
+    const report = await runSelfTest(
+      deps(dirs),
+      shellWithEnvOutput("PATH=/usr/bin\nCLOUDSDK_PROXY_PASSWORD=per-process-proxy-token\n"),
+      NO_CANCEL,
+    );
+    const item = report.items.find((entry) => entry.id === "env_allowlist");
+    expect(item).toEqual({ id: "env_allowlist", passed: true, detail: "exit=0 sensitive=0" });
+  });
+
+  test("any other sensitive name still fails, and only that one is counted", async () => {
+    const dirs = makeTestDirs();
+    const report = await runSelfTest(
+      deps(dirs),
+      shellWithEnvOutput(
+        "PATH=/usr/bin\nCLOUDSDK_PROXY_PASSWORD=per-process-proxy-token\nGH_TOKEN=x\nOTHER_PASSWORD=y\n",
+      ),
+      NO_CANCEL,
+    );
+    const item = report.items.find((entry) => entry.id === "env_allowlist");
+    expect(item).toEqual({ id: "env_allowlist", passed: false, detail: "exit=0 sensitive=2" });
+    expect(JSON.stringify(report)).not.toContain("per-process-proxy-token");
   });
 });
 

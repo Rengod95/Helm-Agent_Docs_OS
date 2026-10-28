@@ -385,13 +385,14 @@ export interface TurnAbortRequestedPayload {
 export interface ApprovalOriginJson {
   threadId: ThreadId; turnId: TurnId | null; stepId: StepId | null;
   toolCallId: string | null;
-  caller: string;                 // CallerId
+  caller: string;                 // ApprovalCaller. APPROVAL_CALLER_PATTERN: main | background | host | subagent:<이름> | ext:<이름>
 }
 export type ApprovalBodyJson =
   | { kind: "tool"; tool: { toolName: string; capability?: { id: string; method: string }; risk: string;
                             args: JsonObject | BlobRef; argsHash: string; ruleId: string | null } }
   | { kind: "plan"; plan: { plan: string | BlobRef; planRef: string | null; nextModes: string[] } }
-  | { kind: "question"; question: { questions: { id: string; text: string; options: { id: string; label: string; description?: string }[];
+  | { kind: "question"; question: { questions: { id: string; header?: string; text: string;                    // header: 1~64자 머리글
+                                                 options: { id: string; label: string; description?: string; recommended?: boolean }[];
                                                  multiSelect: boolean; allowFreeText: boolean }[] } };   // questions 1~4개
 /** approvalId는 envelope id다. payload에 두지 않는다 */
 export interface ApprovalRequestedPayload {
@@ -402,6 +403,8 @@ export interface ApprovalRequestedPayload {
   remember: ("once" | "thread" | "always")[];
   surfaceThreadId: ThreadId;      // 이벤트를 기록하는 대화
   requestedAt: number;            // ms
+  expiresAt?: number;             // 만료 시각(ms). 없으면 만료가 없다. 필드가 생기기 전의 기록에는 없다 [결정: m2c G1-11]
+  onExpire?: { decision: "deny" } | { decision: "answer"; answer: JsonValue };   // 생략하면 거부
 }
 export interface ApprovalResolvedPayload {
   approvalId: EventId;            // approval.requested 이벤트 id
@@ -409,8 +412,21 @@ export interface ApprovalResolvedPayload {
   answer: JsonValue | null;
   remember: "once" | "thread" | "always";
   requestedRemember: "once" | "thread" | "always" | null;
-  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded";
+  resolvedBy: "user" | "noninteractive" | "cancelled" | "superseded" | "expired";   // expired: expiresAt이 지나 onExpire대로 해결 [결정: m2c G1-11]
 }
+
+- [결정: m2c G1-11] 승인 만료는 내구 필드 두 개와 해결자 하나다. `expiresAt`(요청 커밋 시각 + 제한, epoch ms)은 `approval.requested`에 기록되어 프로세스를 다시 시작해도 제한 시간이 처음부터 다시 재어지지 않는다. `onExpire`는 만료 때의 해결이고, 생략하면 `{ decision: "deny" }`다. `allow`는 쓸 수 없다. 응답이 없던 요청이 허용으로 끝나면 안 되기 때문이다. `answer`는 질문의 추천 답처럼 호출자가 정한 답이고 모양은 요청 kind가 정한다. 만료로 해결되면 `approval.resolved`의 `resolvedBy`가 `expired`이고 `decision`과 `answer`는 `onExpire`의 값이다. 두 필드는 선택이라 `version`을 올리지 않는다(옛 기록은 그대로 읽힌다). 서비스 쪽 입력은 `ApprovalRequestInput.expiresAt`·`onExpire`, L2 포트는 `L2ApprovalRequest`의 같은 이름 필드다(`F.capabilities.spec` §3.12).
+  - 구현 범위: M2는 필드를 기록하고 읽기만 한다. 만료를 해결하는 일(시작 때 지난 요청 해결, 타이머)은 M3의 L1.tools 구현이다. 그때까지 `cap-dialog`의 `ask/expiry.ts` 임시 타이머가 같은 일을 하고, F 필드를 쓰는 구현으로 바뀌면 지운다(`L2.dialog.spec` §4.1.1). `expiresAt`이 있는 요청이 M2 구현에서 만료 시각이 지나도 대기로 남는 것은 결함이 아니다.
+  - 클라이언트는 `approval.list`의 `request.expiresAt`으로 남은 시간을 보일 수 있다. 해결은 서버가 하므로 클라이언트 시계로 요청을 닫지 않는다.
+
+/**
+ * approval.respond의 answer 정본 모양이다. 승인 서비스는 검증한 응답의 answer를 approval.resolved의 answer(ApprovalResolvedPayload.answer)에 그대로 싣는다 [결정: m2 F.8].
+ * 스키마는 ApprovalAnswerSchema = PlanAnswerSchema | DenyAnswerSchema | QuestionAnswerSchema (records/catalog/approval.ts).
+ * 어느 kind·decision에 어느 모양이 맞는지는 F.wire-settings.spec §3.3.1이 정한다.
+ */
+export type QuestionAnswerJson = Record<string, { selected: string[]; text?: string }>;   // 질문 id → 답. 최대 4개
+export interface PlanAnswerJson { mode?: string; note?: string }       // plan allow. mode는 nextModes 안, note 최대 8192자
+export interface DenyAnswerJson { feedback: string }                                      // 1~8192자
 
 // src/records/catalog/input.ts   (L1.tasks.spec §3.8)
 export interface InputQueuedPayload {
@@ -483,6 +499,19 @@ export interface SecretMaskedPayload {
   at: number;
 }
 ```
+
+- [결정: m2c G1-09] `origin`의 필드마다 값을 채우는 주체가 하나다. 승인 요청을 올리는 쪽(L1.tools의 도구 승인, L2 어댑터의 질문·계획 승인)이 아니라 승인 서비스(`ApprovalService.open`)가 요청을 받을 때 채우거나 검사한다.
+
+  | 필드 | 값 | 공급 |
+  |---|---|---|
+  | `threadId` | 호출이 일어난 대화. 자식 대화면 자식의 id다. 이벤트를 기록하는 대화(`surfaceThreadId`)와 다를 수 있다 | 호출 문맥 `CallContext.threadId` |
+  | `turnId` | 활성 turn. 호스트가 turn 밖에서 직접 낸 호출이면 null | 호출 문맥 `CallContext.turnId` |
+  | `toolCallId` | 도구 경로의 호출 id. 도구를 거치지 않은 요청이면 null | 호출 문맥 `CallContext.toolCallId` |
+  | `stepId` | `toolCallId`로 찾은 활성 호출의 단계. 활성 호출이 없으면 null. 능력 포트의 `CallContext`에는 `stepId`가 없어 L2 어댑터는 이 값을 채우지 않고 승인 서비스가 채운다 | 승인 서비스 |
+  | `caller` | `approvalCallerOf(CallContext.caller)`. 형식은 `APPROVAL_CALLER_PATTERN` | 변환 함수 하나 |
+
+  - 같은 호출에서 L1.tools가 올린 요청과 L2 어댑터가 올린 요청은 이 규칙으로 같은 값이 된다. E5(M2 종료 조건)의 "같은 승인 요청 레코드"는 `turnId`, `stepId`, `toolCallId`, `caller` 값이 같다는 뜻이다. 키 이름만 같은 것은 통과가 아니다.
+  - `caller` 변환 규칙은 `F.capabilities.spec` §3.2의 `CallerInfo` 아래 결정 문단이 정한다. `ext:<이름>`은 확장·그룹 코드가 능력을 부른 요청이고, `background`는 백그라운드 포크, `host`는 호스트가 직접 낸 호출이다.
 
 - [제안] `secret.*`는 `L0.secrets.spec` §8.3 R3의 (a)안으로 한정한다. 세션 이벤트는 `used`, `denied`, `approved`, `masked` 넷이고 생산자는 `core.tools`(tool-runtime)다. 관리 레코드(`secret.created`, `updated`, `deleted`, `rotated`, `revealed`)는 세션 이벤트로 넣지 않는다. 감사 레코드의 `threadId`와 `type`은 envelope의 `threadId`와 `kind`로 옮겨서 payload에 두지 않는다.
 - [결정: review.decisions-2 U-05] `post.accepted`는 retire한다. 카탈로그 항목은 `retired: true`로 남기고(§3.2 규칙 5) 새로 쓰지 않는다. 확장 post의 기록은 `input.queued`(`source.type: "extension"`, `scopeId`, `requestId`) 하나이고, 대화에 배치된 item은 `input.placed`가 적는다. 멱등 판정은 커밋 키 `in:<sourceKey>:<requestId>`(`eng.transactions.design` §4.8)와 `TxView.inputByRequestId`가 한다.
@@ -707,6 +736,19 @@ export interface ChunkMigration<C extends JsonValue> {
 5. 투영 모양이나 규칙이 바뀌면 `ProjectionVersion.version`을 올린다. DB 마이그레이션 없이 내구 이벤트를 처음부터 재생해 투영을 다시 만든다.
 6. 청크 마이그레이션은 청크마다 별도 트랜잭션이고 커서를 같은 트랜잭션에 저장한다. 중단 뒤에는 저장된 커서부터 이어간다.
 
+7. [결정: m2c G2-06] 저장소를 열지 못한 이유는 안내 분류 넷으로 나눈다(`migrations.ts`의 `STORE_FAILURE_KINDS`, 순수 함수 `storeFailureKindOf(kind)`). 안내 문구와 복구 길이 달라서 한 이름(`storeUnavailable`)으로 합치지 않는다.
+
+   | 분류 | 해당하는 오류 kind | 뜻과 안내 |
+   |---|---|---|
+   | `future_version` | `migration_future_version` | DB가 이 앱보다 새 버전이다(앱을 되돌렸다). 마이그레이션이 DB를 건드리지 않는다. 앱을 새 버전으로 올린다. 읽기 전용으로 여는 길은 M3 |
+   | `corrupt` | `corrupt`, `migration_checksum_mismatch`, `migration_gap`, 저장된 행의 `row_invalid` | 파일이 망가졌거나 마이그레이션 이력이 맞지 않거나 행이 스키마와 다르다. 마이그레이션 전 스냅샷이나 백업에서 되살린다 |
+   | `migration_failed` | `migration_failed` | 마이그레이션 단계가 실패했다. 앞 단계는 유지된다. 마이그레이션 전 스냅샷으로 돌아가고 같은 버전에서 보고한다 |
+   | `unavailable` | 그 밖의 모든 kind(`busy`, `disk_full`, `io`, `permission`, `unsupported_filesystem`, `db_path_invalid`, `foreign_database`, `fts5_missing`, `sqlite_load_failed`) | 환경을 고치면 풀린다. 모르는 kind도 여기다 |
+
+   - 이름을 문자열로 받는 이유는 F가 L0.store의 `StoreOpenError`를 import하지 못해서다. 새 오류 kind를 더하면 분류 표와 시험을 먼저 고친다.
+   - 호스트는 `AssembleError`의 store 이유를 이 분류로 나눠 클라이언트에 알린다. 실행 중에 만난 `row_invalid`는 wire `store.corrupt`(5007, `F.wire-settings.spec` §3.5.2)로 알린다. 이전에는 `store.io`의 `details.code: "row_invalid"`로 옮겼다.
+   - 마이그레이션 전 스냅샷(`VACUUM INTO`)의 보관 수와 복구 절차는 L0.store와 운영 문서가 정한다. 내보내기와 복구 런북은 M3다.
+
 ### 3.8 세션 저장소 인터페이스 (2차)
 
 ```ts
@@ -813,6 +855,14 @@ export const COMMIT_KEY_PATTERN: string = "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,199}$";
 /** 밖에서 온 id(toolCallId)를 키 부분으로 바꾸는 유일한 함수. 규칙 정본은 eng.transactions.design §4.7(review.decisions-2 U-13).
  *  원문이 ^[A-Za-z0-9_.-]{1,120}$이고 "h_"로 시작하지 않으면 그대로, 아니면 "h_" + sha256Hex(원문) 앞 40자. 순수 */
 export function commitKeyPart(raw: string, sha256Hex: (text: string) => string): string;
+/** 승인 요청 키(`approval.requested`의 requestKey, `ApprovalRequestInput.requestKey`)의 길이 상한. `approval.requested` 스키마의 requestKey maxLength와 `L2_APPROVAL_REQUEST_ID_MAX`는 순환 import와 services의 값 import 금지 때문에 같은 값을 거울로 두고 시험이 일치를 지킨다 [결정: 통합 검토 L6] */
+export const APPROVAL_REQUEST_KEY_MAX: number = 48;
+/** 밖에서 온 id(toolCallId, L2 requestId)를 승인 요청 키(`^[A-Za-z0-9_.-]{1,48}$`)로 바꾸는 유일한 함수 [결정: 통합 검토 L6]. commitKeyPart(raw)가 48자 이하면 그대로,
+ *  넘으면 "h_" + sha256Hex(원문) 앞 40자. core-tools 파이프라인, 호스트 l2-approvals, cap-*가 자기 함수를 따로 두지 않고 이 함수를 쓴다. 순수 */
+export function requestKeyFor(raw: string, sha256Hex: (text: string) => string): string;
+/** 값이 requestKeyFor가 낼 수 있는 승인 요청 키인지 판정한다(해시 없이). 1~48자 ^[A-Za-z0-9_.-]+$이고 "h_"로 시작하면 정확히 "h_" + 소문자 hex 40자여야 한다("h_plain" 같은 원문은 키가 아니다).
+ *  이미 키를 만든 호출자의 값을 다시 해시하지 않고 검사만 하는 자리(호스트 l2-approvals)가 쓴다. 키 알파벳 정의는 이 파일 하나다 [결정: 통합 검토 L5 후속 N-2]. 순수 */
+export function isApprovalRequestKey(value: string): boolean;
 /** 확장이 아닌 입력 출처 키. 확장 id로 쓸 수 없다(F.extensions.spec §4.7 name_reserved, review.decisions-2 U-13) */
 export const RESERVED_SOURCE_KEYS: readonly ["user", "deleg", "timer"];
 /** 생산자 id. 형식 정본은 eng.context-map.design §5.1 */
@@ -886,6 +936,10 @@ export interface Projector {
 // src/records/session-service.ts
 export type Unsubscribe = () => void;         // records는 extensions보다 낮아 같은 모양을 적는다
 export const SessionServiceName: "xeon.session" = "xeon.session";
+export interface SessionRetention {
+  preview(): Result<readonly ThreadId[], ReadFailure>;   // 지금 설정으로 지워질 thread. 지우지 않는다
+  prune(): Result<readonly ThreadId[], StoreError>;      // 지울 thread를 지우고 지운 목록을 돌려준다
+}
 export interface SessionService {
   commit(request: CommitRequest): Result<CommitResult, StoreError>;          // M1 커밋 경로(동기)
   producer(id: ProducerId): ProducerHandle;
@@ -908,6 +962,8 @@ export interface SessionService {
   readonly sessionSettings: SessionSettingsStore;
   /** X 포트. commit 이름이 위 commit과 겹쳐 하위 객체로 둔다(L1.persistence.spec §3.3). PortKey.member = "ext" */
   readonly ext: RecordCommitPort;
+  /** 보관 정리(L1.persistence.spec §6.1). core-persistence의 RetentionApi가 이 모양을 채운다. 조립 루트가 엔진을 열 때 prune()을 한 번 부른다 */
+  readonly retention: SessionRetention;
 }
 
 // src/records/session-service.ts (계속) — X 기록 포트
@@ -963,6 +1019,12 @@ export interface OpenLease {
 /** 모든 필드는 활성 가지(현재 leaf에서 parentId를 따라 올라간 사슬) 위 이벤트만으로 계산한다 */
 export interface ExtThreadSnapshot {
   readonly enabled: readonly string[];
+  /** 마지막 scope.changed가 disabled인 scope. 기본 켜짐 scope를 끈 뒤 다시 열어도 끈 상태를 되살리는 데 쓴다 */
+  readonly disabled: readonly string[];
+  /** scope마다 활성 가지 위 scope.changed 개수(enabled와 disabled 합). 재시작 뒤 커밋 키 구분에 쓴다 */
+  readonly scopeTransitions: Readonly<Record<string, number>>;
+  /** 켜진 scope마다 마지막 scope.changed{status:"enabled"}의 seq. 켜진 scope만 키를 갖는다 */
+  readonly enabledAtSeq: Readonly<Record<string, number>>;
   readonly states: readonly StoredScopeState[];
   /** lease.acquired 뒤 lease.released가 없는 임대. 최대 1개 */
   readonly openLease: OpenLease | null;
@@ -986,12 +1048,16 @@ export interface RecordCommitPort {
   /** SessionService.commit 한 트랜잭션. 확장 투영(x_<name>_*)도 같은 트랜잭션에서 갱신된다 */
   commit(request: ExtCommitRequest): Promise<ExtCommitResult>;
   /** 활성 가지 기준 스냅샷. 버려진 가지의 이벤트는 보지 않는다 */
-  loadThread(threadId: ThreadId): Promise<ExtThreadSnapshot>;
+  loadThread(threadId: ThreadId): Promise<Result<ExtThreadSnapshot, ReadFailure>>;
   /**
    * 그룹 레코드 조회. reader는 조회하는 확장의 이름(ExtensionName, F.extensions.spec §3.1)이다.
    * private 행은 reader가 그 행의 소유 확장일 때만 돌려준다(아래 규칙)
    */
-  queryRecords(threadId: ThreadId, query: ExtRecordQuery, reader: string): Promise<readonly ExtRecordRow[]>;
+  queryRecords(
+    threadId: ThreadId,
+    query: ExtRecordQuery,
+    reader: string,
+  ): Promise<Result<readonly ExtRecordRow[], ReadFailure>>;
 }
 ```
 
@@ -1009,10 +1075,10 @@ export interface RecordCommitPort {
 | 파일 | 이름 | 필드 후보 정본 |
 |---|---|---|
 | `lease.ts` | `LeaseResource`, `LEASE_RESOURCE_PATTERN`, `LeaseKind`, `LeaseHolder`, `LeaseToken`, `LeaseOwnerInfo`, `LockBusy`, `LeaseRowInvalid`, `LeaseError`, `LeaseService` | `L0.store.spec` §3.1(FR-S2) |
-| `migrations.ts` | `MigrationStep`, `MigrationSet`, `MigrationError`, `MigrationReport`, `MigrationRunner`, `ExtensionTables`, `ExtensionTableError`. `ChunkMigration`은 §3.7에 둔다 | `L0.store.spec` §3.1(FR-S4) |
-| `commit.ts` | `CommitKey`, `COMMIT_KEY_PATTERN`, `commitKeyPart`, `RESERVED_SOURCE_KEYS`, `ProducerId`, `StampedDraft`, `DraftInput`, `ProducerHandle`, `StepCheckpointInput`, `CommitPlan`, `CommitRequest`, `CommitResult`, `ReadOnlyReason`, `StoreError`, `ReadFailure`, `StoreBugCode`, `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
+| `migrations.ts` | `MigrationStep`, `MigrationSet`, `MigrationError`, `MigrationReport`, `MigrationRunner`, `ExtensionTables`, `ExtensionTableError`, `StoreFailureKind`, `STORE_FAILURE_KINDS`, `storeFailureKindOf`(§3.7 7항). `ChunkMigration`은 §3.7에 둔다 | `L0.store.spec` §3.1(FR-S4) |
+| `commit.ts` | `CommitKey`, `COMMIT_KEY_PATTERN`, `commitKeyPart`, `APPROVAL_REQUEST_KEY_MAX`, `requestKeyFor`, `isApprovalRequestKey`, `RESERVED_SOURCE_KEYS`, `ProducerId`, `StampedDraft`, `DraftInput`, `ProducerHandle`, `StepCheckpointInput`, `CommitPlan`, `CommitRequest`, `CommitResult`, `ReadOnlyReason`, `StoreError`, `ReadFailure`, `StoreBugCode`, `TxView` 메서드, `TurnView`, `EffectView`, `InputView`, `ApprovalView`, `AgentView`, `FaultPoint`, `FaultInjector` | `L1.persistence.spec` §3.2 |
 | `projector.ts` | `ProjectionTx`, `Projector`, `ProjectorRegisterError`, `ProjectorFailure`, `ProjectorRegistry`. `ProjectionQuery`는 `session-service.ts`에 있다 | `L1.persistence.spec` §3.4 |
-| `session-service.ts` | `SessionServiceName`, `CommitListener`, `CommitBatch`, `FeedFilter`, `EventFeed`, `ThreadSummaryRow`, `ItemRow`, `ProjectionQuery`, `RecoveryMarker`, `OpenReport`, `OpenError`, `MAX_REPLAY_ATTEMPTS`, `EffectRerun`, `AutoResumeVerdict`, `ResumePlan`, `ResumeError`, `RecoverDeps`, `ThreadCreated`, `ThreadCreateInput`, `ThreadListQuery`, `ThreadPage`, `BranchSummaryInput`, `SessionShutdownReason`, `LifecycleError`, `ThreadLifecycle`, `SessionSettingsLayer`, `SessionSettingsStore`, `SessionService`. 쓰기 소유 판정은 `lease.ts`의 `LeaseToken`(epoch 펜싱)과 `LeaseOwnerInfo`(표시용), 열기 결과의 `OpenLease`가 맡는다. 옛 이름 `OwnershipGuard`·`OwnerInfo`는 없다 [결정: review.decisions-2 U-09, open-issues D-04] | `L1.persistence.spec` §3.3~§3.8, §6.2 |
+| `session-service.ts` | `SessionServiceName`, `CommitListener`, `CommitBatch`, `FeedFilter`, `EventFeed`, `ThreadSummaryRow`, `ItemRow`, `ProjectionQuery`, `RecoveryMarker`, `OpenReport`, `OpenError`, `MAX_REPLAY_ATTEMPTS`, `EffectRerun`, `AutoResumeVerdict`, `ResumePlan`, `ResumeError`, `RecoverDeps`, `ThreadCreated`, `ThreadCreateInput`, `ThreadListQuery`, `ThreadPage`, `BranchSummaryInput`, `SessionShutdownReason`, `LifecycleError`, `ThreadLifecycle`, `SessionSettingsLayer`, `SessionSettingsError`, `SessionSettingsStore`, `SessionRetention`, `SessionService`. 쓰기 소유 판정은 `lease.ts`의 `LeaseToken`(epoch 펜싱)과 `LeaseOwnerInfo`(표시용), 열기 결과의 `OpenLease`가 맡는다. 옛 이름 `OwnershipGuard`·`OwnerInfo`는 없다 [결정: review.decisions-2 U-09, open-issues D-04] | `L1.persistence.spec` §3.3~§3.8, §6.2 |
 | `session-service.ts` | `RecordCommitPort`, `ExtCommitRequest`, `ExtCommitRejectCode`, `ExtCommitResult`, `StoredScopeState`, `OpenLease`, `ExtThreadSnapshot`, `ExtRecordQuery`, `ExtRecordRow` | 위 블록이 정본이다(옮김 끝남). `F.extensions.spec` §3.2.1 `ports.ts`가 다시 export한다 |
 
 ## 4. 동작 규칙
@@ -1124,7 +1190,7 @@ export interface RecordCommitPort {
 
 1. [미결] 해시 체인: 09 §3.2.2의 `prevHash`/`hash` 체인을 유지할지. [제안] M0에서는 두지 않고, 필요하면 열 추가 마이그레이션으로 더한다. 개인 런타임에서 변조 탐지 요구가 확인되지 않았다.
 2. [미결] 휘발 이벤트 seq 부여 여부: 현재 [제안]은 seq 없음 + `n` + `afterSeq`다. 여러 클라이언트가 휘발 조각 순서를 seq 기준으로 맞춰야 하는 요구가 생기면 다시 본다.
-3. [미결] ULID 단조성 소유처(`F.conversation.spec` §10 미결 3과 같은 항목).
+3. [결정: M2 마감 G5-03] ULID 단조성은 L0 `IdFactory` 구현이 지킨다(`F.conversation.spec` §10 미결 3과 같은 항목).
 4. [미결] 재생 정책 이름 통일: `ReplayPolicy = "safe" | "unsafe"`(pi durable) 채택과 F `AgentTool.replay`(pi-agent-core에서 온 `"never" | "safe"`)의 `"never"` → `"unsafe"` 매핑을 확정할지(정의 위치는 `F.conversation.spec` §3.6). Xeon 도구 선언에서 `"never"`를 계속 허용할지.
 5. [미결] 등록 해제된 확장 kind를 투영 재생에서 건너뛸지, 시작을 거부할지.
 6. [미결] 효과 결과 코드 집합: `ok`, `error`, `interrupted`, `abandoned` 네 값으로 충분한지(`_research/notes/F-3.md` §8.3 미결 3).

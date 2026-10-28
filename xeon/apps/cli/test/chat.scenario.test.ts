@@ -20,7 +20,8 @@ import {
   scopeChanged,
   stepEvent,
   turnEnded,
-  WAIT_LIMIT_MS,
+  BUSY_RETRY_LIMIT,
+  nextEventLoopTurn,
   type EventLog,
 } from "./support/event-log.ts";
 import {
@@ -273,10 +274,12 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
       from: created.position,
       filter: { threadIds: [created.threadId] },
     });
-    // turn.completed가 커밋된 직후에는 루프가 아직 정착 중일 수 있어 turn.busy(retryable)가 올 수 있다. 짧게 다시 시도한다
+    // turn.completed가 커밋된 직후에는 루프가 아직 정착 중일 수 있어 turn.busy(retryable)가 온다.
+    // M1 엔진에는 정착을 알리는 포트가 없다(ActivityPort는 task 그래프 변화만 알리고 snapshot은 M1에서 던진다).
+    // 그래서 이벤트 루프를 한 바퀴 넘기며 시도 횟수 상한 안에서 다시 시도한다: 전역 시각과 고정 지연을 쓰지 않는다
     const startTurn = async (
       input: string,
-      deadline: number = Date.now() + WAIT_LIMIT_MS,
+      attemptsLeft: number = BUSY_RETRY_LIMIT,
     ): Promise<{ readonly turnId: TurnId }> => {
       try {
         return await connection.request("turn.start", {
@@ -286,9 +289,9 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
         });
       } catch (caught) {
         const busy = caught instanceof WireError && caught.data.kind === "turn.busy";
-        if (!busy || Date.now() > deadline) throw caught;
-        await Bun.sleep(20);
-        return startTurn(input, deadline);
+        if (!busy || attemptsLeft <= 1) throw caught;
+        await nextEventLoopTurn();
+        return startTurn(input, attemptsLeft - 1);
       }
     };
 
@@ -304,12 +307,11 @@ test("scenario-3: a scope toggle applies at the step boundary and the group's dr
     const driveEnded = await log.waitFor(turnEnded(driveTurnId), "the drive turn's end");
     const enabled = log.need(scopeChanged(groupId, "enabled"), "scope enabled");
     const acquired = log.need(isKind("lease.acquired"), "lease.acquired");
-    const firstStepDone = log.need(stepEvent("step.completed", first.turnId, 0), "first step end");
-    // 켜기도 단계 경계에서 적용된다: 첫 단계가 끝난 뒤, 그 turn이 끝나기 전이다
-    expect(firstStepDone.seq).toBeLessThan(enabled.seq);
+    // 유휴 thread의 켜기는 실제 기록 포트로 thread를 열 때 커밋된다(open-issues M-01 이후): 첫 turn보다 앞이다
     expect(enabled.seq).toBeLessThan(firstEnded.seq);
     // drive: 임대는 켜진 뒤에 나오고, 그 임대가 만든 turn이 끝까지 돈다
     expect(enabled.seq).toBeLessThan(acquired.seq);
+    expect(acquired.seq).toBeLessThan(driveStarted.seq);
     expect(payloadField(acquired, "scopeId")).toBe(groupId);
     expect(String(payloadField(driveStarted, "requestId"))).toStartWith(
       String(payloadField(acquired, "leaseId")),

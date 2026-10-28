@@ -4,6 +4,7 @@ import type { FaultInjector, MigrationError, StoreDb, StoreService } from "@xeon
 import type { FsKind } from "@xeon/contracts/services";
 import type { BlobPins } from "./blob.ts";
 import type { StoreFaultInjector } from "./fault-points.ts";
+import type { snapshotBeforeMigration } from "./snapshot.ts";
 import type { SqliteProbe } from "./sqlite-env.ts";
 
 /**
@@ -49,6 +50,10 @@ export interface OpenStoreOptions {
   readonly storeFaults?: StoreFaultInjector;
   /** 테스트 전용. SQLite 능력 조사를 대신한다(FTS5 없는 SQLite를 흉내 낼 때) */
   readonly probe?: () => SqliteProbe;
+  /** 테스트 전용. Database.setCustomSQLite를 대신한다(dlopen 실패를 어느 OS에서나 흉내 낼 때) */
+  /** 테스트 전용. 마이그레이션 전 스냅샷 수단을 대신한다 */
+  readonly takeSnapshot?: typeof snapshotBeforeMigration;
+  readonly loadCustomSqlite?: (path: string) => unknown;
   /** 범위 핸들의 EXPLAIN 대조를 강제로 켜거나 끈다. 생략하면 XEON_STORE_STRICT와 NODE_ENV로 정한다 */
   readonly strictPrefix?: boolean;
   readonly engineVersion: string;
@@ -64,6 +69,7 @@ export type StoreOpenError =
   | { readonly kind: "permission"; readonly path: string; readonly mode: number }
   | { readonly kind: "foreign_database"; readonly applicationId: number }
   | { readonly kind: "fts5_missing" }
+  | { readonly kind: "sqlite_load_failed"; readonly path: string }
   | { readonly kind: "corrupt"; readonly code: string }
   | { readonly kind: "busy" }
   | { readonly kind: "disk_full" }
@@ -81,6 +87,16 @@ export type StoreWarning =
       readonly from: number;
       readonly to: number;
     }
+  /** 스키마를 올리기 전에 DB 스냅샷을 만들었다(L0.store.spec §4.6.1) */
+  | {
+      readonly kind: "migration_snapshot";
+      readonly path: string;
+      readonly owner: string;
+      readonly from: number;
+      readonly to: number;
+    }
+  /** 보관 수를 넘은 옛 스냅샷을 지우지 못했다 */
+  | { readonly kind: "snapshot_prune_failed"; readonly path: string; readonly code: string }
   | {
       readonly kind: "checkpoint_incomplete";
       readonly busy: number;

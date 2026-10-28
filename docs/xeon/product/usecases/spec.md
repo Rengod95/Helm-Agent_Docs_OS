@@ -97,7 +97,7 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
   4. 확산 단계 동안 `tool_call` 지점(tool 종류)의 first 핸들러가 쓰기 도구 호출을 거부한다. 읽기와 웹 검색은 허용된다.
   5. drive 함수가 렌즈마다 `loop.spawn`으로 서브에이전트를 병렬로 띄운다. 서브에이전트는 `web.search`, `web.fetch`, 지식 검색을 쓴다.
   6. 결과가 모이면 그룹 상태로 커밋한다(`g.commit`).
-  7. drive 함수가 커밋된 상태에서 적용 프롬프트를 만들어 `loop.turn`을 실행한다. 이 턴에서 발견이 현재 작업에 적용된다.
+  7. drive 함수가 커밋된 상태에서 적용 프롬프트를 만들어 `loop.turn`을 실행한다. 이 턴에서 발견을 현재 작업에 적용한다. 파일 쓰기는 그 시점에 있는 쓰기 도구로 한다. `cap-workspace`의 `write`, `edit`이 생기기 전(M3 전)에는 쓰기 도구가 `bash`뿐이다(`product.scope.spec` §4.3).
   8. 종료 조건을 만족하거나 임대 상한에 걸리면 임대를 반납하고 일반 대화(UC-1)로 돌아간다. 발견 기록은 작업과 연결해 저장한다.
 - 대안·실패 흐름
   - 사용자가 턴 중에 Helm을 끔: 다음 단계 경계에서 Helm 핸들러가 디스패치에서 빠지고 임대 반납이 기록된다. 진행 중인 `loop.turn`은 끊지 않고 정착까지 진행한 뒤 임대가 반납 상태가 되며, 정리는 Cordis dispose로 실행된다(`X.primitives.spec` §4.5.3 끄기 순서).
@@ -110,6 +110,8 @@ UC 번호(UC-1~UC-6)는 고정 식별자다. `product.scope.spec`과 `architectu
   - L1 `core-loop`, `core-tools`, `core-agents`
   - L2 `cap-web`, `cap-knowledge`, `cap-work`, L3 `group-kit`, `group-helm`, L4 `apps/cli`, `apps/desktop`
 - 수용 기준
+  - 첫 동작 마일스톤은 M3다(`product.scope.spec` §4.5, `review.m2-plan` §9 D-a).
+  - 쓰기 도구는 파일을 바꿀 수 있는 도구 전부다. `write`, `edit`이 없는 마일스톤에서는 `bash`다.
   - Helm이 확산 단계일 때 쓰기 도구 호출은 실행되지 않고 거부 사유가 모델에 돌아가며, 같은 호출은 Helm을 끈 다음 턴에서 실행된다.
   - 렌즈 N개로 탐구하면 서브에이전트 N개가 시작되고, 결과 커밋 이벤트 뒤에 적용 턴이 정확히 한 번 실행된다.
 

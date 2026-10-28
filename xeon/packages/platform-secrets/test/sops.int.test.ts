@@ -383,7 +383,10 @@ describe("sops list", () => {
     const logger = recordingLogger();
     const provider = createSopsProvider({
       files: () => [
+        // 없는 파일(ENOENT)은 경고가 아니다: 기본 파일은 첫 쓰기 전에 없다
         { env: "gone", path: dir.join("missing.sops.yaml") },
+        // 읽을 수 없는 파일(디렉터리를 파일 자리에 둔다)은 경고한다
+        { env: "unreadable", path: dir.path },
         { env: "broken", path: bad },
         { env: "dev", path: FIXTURE },
       ],
@@ -407,9 +410,10 @@ describe("sops list", () => {
     });
     const listed = await provider.list();
     expect(listed.ok && listed.value).toHaveLength(2);
-    expect(logger.lines.map((l) => l.event)).toEqual([
-      "secrets.sops.file_unreadable",
+    // 파일은 동시에 읽어서 경고 순서는 정해지지 않는다. 없는 파일(ENOENT)은 경고가 없다
+    expect(logger.lines.map((l) => l.event).toSorted()).toEqual([
       "secrets.sops.file_unparseable",
+      "secrets.sops.file_unreadable",
     ]);
     expect(JSON.stringify(logger.lines)).not.toContain("hunter2hunter2");
   });

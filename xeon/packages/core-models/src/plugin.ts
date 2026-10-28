@@ -1,5 +1,6 @@
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { Clock } from "@xeon/contracts";
+import type { ThreadId } from "@xeon/contracts/conversation";
 import {
   defineManifest,
   type ExtensionEntry,
@@ -20,13 +21,9 @@ import {
   type ExtHost,
   type PortKey,
 } from "@xeon/ext-host";
-import type { ProviderDispatcher } from "./pipeline.ts";
-import {
-  createModelService,
-  DEFAULT_MODELS_SETTINGS,
-  type ModelServiceDeps,
-  type ModelsSettingsSource,
-} from "./service.ts";
+import type { PointInput, ProviderDispatcher } from "./request-points.ts";
+import { createModelService, type ModelServiceDeps, type ModelsSettingsSource } from "./service.ts";
+import { DEFAULT_MODELS_SETTINGS } from "./settings.ts";
 
 // L1.models.plan §2 plugin.ts. 내장 확장(builtin)으로 xeon.models를 제공한다. 쓰는 서비스는 xeon.secrets, xeon.ext,
 // xeon.os(시계)다. Cordis는 import하지 않고 ext-host의 hostOf 포트 API만 쓴다(DR-11, DR-14 예외 4).
@@ -79,6 +76,76 @@ function dispatcherOf(ext: ExtHost): ProviderDispatcher {
       );
       return outcome.value.payload;
     },
+    async beforeProviderHeaders(input) {
+      const outcome = await ext.dispatch(
+        "before_provider_headers",
+        {
+          provider: input.provider,
+          modelId: input.modelId,
+          role: input.role,
+          headers: input.headers,
+        },
+        {
+          threadId: input.threadId,
+          dispatchKey: input.dispatchKey,
+          initial: { headers: input.headers },
+          ...(input.signal === undefined ? {} : { signal: input.signal }),
+        },
+      );
+      // 삭제 표시(null)는 chain 규칙이 이미 뺐다. 남은 값만 문자열로 좁힌다
+      const final: Record<string, string> = {};
+      for (const [name, value] of Object.entries(outcome.value.headers)) {
+        if (value !== null) final[name] = value;
+      }
+      return final;
+    },
+    async afterProviderResponse(input) {
+      await ext.dispatch(
+        "after_provider_response",
+        {
+          provider: input.provider,
+          modelId: input.modelId,
+          role: input.role,
+          status: input.status,
+          headers: input.headers,
+        },
+        tapOptions(input),
+      );
+    },
+    async providerStreamEvent(input) {
+      await ext.dispatch(
+        "provider_stream_event",
+        { provider: input.provider, api: input.api, model: input.model, data: input.data },
+        tapOptions(input),
+      );
+    },
+    async modelSelect(input) {
+      await ext.dispatch(
+        "model_select",
+        { binding: input.binding, previous: input.previous, source: input.source },
+        tapOptions(input),
+      );
+    },
+    async thinkingLevelSelect(input) {
+      // 지점 선언이 detached라 디스패치는 핸들러를 기다리지 않고 돌아온다
+      await ext.dispatch(
+        "thinking_level_select",
+        { role: input.role, level: input.level, previousLevel: input.previousLevel },
+        tapOptions(input),
+      );
+    },
+  };
+}
+
+function tapOptions(input: PointInput): {
+  readonly threadId: ThreadId;
+  readonly dispatchKey: string;
+  readonly signal?: AbortSignal;
+} {
+  return {
+    threadId: input.threadId,
+    dispatchKey: input.dispatchKey,
+    ...(input.signal === undefined ? {} : { signal: input.signal }),
   };
 }
 
@@ -99,6 +166,9 @@ export function createModelsExtension(
           clock,
           settings: options.settings ?? (() => DEFAULT_MODELS_SETTINGS),
           dispatcher: dispatcherOf(ext),
+          // 꺼진 그룹의 groupRouting 값은 쓰지 않는다(L1.models.spec §5)
+          scopeEnabled: (scopeId) =>
+            ext.scopes().some((info) => info.id === scopeId && info.status === "enabled"),
         }),
       );
     });

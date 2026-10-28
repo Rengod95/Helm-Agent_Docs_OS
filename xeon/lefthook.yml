@@ -1,4 +1,5 @@
 # Hooks for xeon/. Lefthook only reads the git root, so the root lefthook.yml extends this file.
+# oxfmt and oxlint run under ../scripts/guard.sh run (1.5G each, shared ws-dev.slice budget) so concurrent commits stay inside it.
 # Install once from anywhere in the repo: `lefthook install`.
 pre-commit:
   parallel: false
@@ -9,9 +10,9 @@ pre-commit:
       root: xeon/
       glob: "**/*.{ts,tsx,js,mjs,cjs,json,jsonc}"
       exclude: "vendor/**"
-      run: mise exec -- bunx oxfmt --check -c .oxfmtrc.json {staged_files}
+      run: ../scripts/guard.sh run -- mise exec -- bunx oxfmt --check -c .oxfmtrc.json {staged_files}
     oxlint:
       root: xeon/
       glob: "**/*.{ts,tsx,js,mjs,cjs}"
       exclude: "vendor/**"
-      run: mise exec -- bunx oxlint --type-aware --deny-warnings -c .oxlintrc.json {staged_files}
+      run: ../scripts/guard.sh run -- mise exec -- bunx oxlint --type-aware --deny-warnings -c .oxlintrc.json {staged_files}

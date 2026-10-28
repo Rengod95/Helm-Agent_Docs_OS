@@ -1,4 +1,5 @@
 import type { EventWire } from "@xeon/contracts/wire";
+import { systemScheduler } from "@xeon/platform-os";
 
 // 시험용 이벤트 수집기: 이벤트가 오면 깨어나는 대기로 기다린다(실제 시간을 폴링하지 않고 상한만 둔다, eng.testing.guide TS-03).
 
@@ -18,7 +19,20 @@ export interface EventLog {
   all(predicate: (event: EventWire) => boolean): readonly EventWire[];
 }
 
-export const WAIT_LIMIT_MS: number = 20_000;
+const WAIT_LIMIT_MS: number = 20_000;
+
+/** turn.busy를 다시 시도하는 횟수 상한(시간이 아니라 이벤트 루프 한 바퀴 단위, eng.testing.guide TS-03) */
+export const BUSY_RETRY_LIMIT = 2_000;
+
+/** 이벤트 루프를 한 바퀴 넘긴다. 지연 시간이 없다 */
+export function nextEventLoopTurn(): Promise<void> {
+  return new Promise<void>((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
+// 대기 한도 타이머는 주입 가능한 Scheduler로 건다(eng.typescript.guide TY-21)
+const limitTimers = systemScheduler();
 
 export function createEventLog(): EventLog {
   const events: EventWire[] = [];
@@ -44,11 +58,11 @@ export function createEventLog(): EventLog {
         const waiter = {
           predicate,
           resolve(event: EventWire) {
-            clearTimeout(timer);
+            limitTimers.clearTimeout(timer);
             resolve(event);
           },
         };
-        const timer = setTimeout(() => {
+        const timer = limitTimers.setTimeout(() => {
           waiters.delete(waiter);
           const seen = events.map((event) => event.kind).join(", ");
           reject(

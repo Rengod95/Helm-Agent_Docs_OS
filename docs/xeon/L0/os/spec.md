@@ -252,7 +252,7 @@ export function systemScheduler(): Scheduler;       // 전역 setTimeout을 감�
 export function systemRandom(): RandomSource;       // crypto.getRandomValues 기반 [0, 1)
 ```
 
-- `systemClock().now()`는 epoch ms 정수다. 단조성은 보장하지 않는다. ULID 단조성은 `IdFactory` 쪽 문제다(F.readme §8 미결 8).
+- `systemClock().now()`는 epoch ms 정수다. 단조성은 보장하지 않는다. ULID 단조성은 `IdFactory` 구현이 지킨다(F.readme §8 미결 8, 결정됨).
 - `systemScheduler`: Bun의 `setTimeout`은 숫자가 아닌 타이머 객체를 돌려준다 [가정]. 그래서 내부에서 1부터 증가하는 정수 핸들을 발급하고 `Map<TimerHandle, Timer>`로 대응한다. `clearTimeout`에 모르는 핸들이 오면 아무것도 하지 않는다. 만기 콜백이 던진 예외는 잡지 않는다(`Bug` 전파).
 - `ms`가 음수이거나 `NaN`이면 0으로 다룬다. 테스트 대역 `manualClock`도 같은 규칙이어야 한다(계약 테스트, 9절).
 - `systemRandom`: `crypto.getRandomValues(new Uint32Array(2))`의 53비트로 `[0, 1)` 값을 만든다 [제안]. `Math.random`보다 예측이 어렵고 `createIdFactory`·`createLocalIdFactory`가 ULID 난수 부분에 쓴다.
@@ -319,7 +319,7 @@ export function createJsonLinesLogger(opts: JsonLinesLoggerOptions): Logger & { 
 - `event`는 고정 이름(`turn.finished` 꼴)이다. 문자열 보간 메시지를 받지 않는다(BP-12).
 - 마스킹: 직렬화한 한 줄 전체를 `redact`에 넘긴 뒤 `sink`로 보낸다. `platform-os`는 `platform-secrets`를 import하지 않는다. 조립 루트(`apps/host`)가 `xeon.secrets`의 마스킹 함수를 `redact`에 연결한다. `redact`가 던지면 그 줄을 버리고 `{"event":"log.redact_failed"}` 한 줄만 쓴다(원문이 새지 않게).
 - 출력 위치: `sink`는 L4가 고른다(BP-12). stdio JSON-RPC 사이드카에서는 stdout을 쓰면 안 되므로 기본값은 stderr이고, 데스크톱 사이드카는 L4가 파일 sink를 줄 수 있다 [제안].
-- 레벨 미만 호출은 직렬화하지 않는다. `setLevel`은 설정 `l0.os.log.level` 변경을 반영한다(`runtimeChange: "live"`).
+- 레벨 미만 호출은 직렬화하지 않는다. 설정 `l0.os.log.level`(`runtimeChange: "live"`) 변경은 두 방법으로 반영한다. `PlatformOsConfig.logLevel`에 함수 `() => LogLevel`을 주면 로그를 낼 때마다 그 값을 읽어 구독 없이 다음 호출부터 반영된다(조립 루트가 설정 조회 함수를 넘긴다) [결정: m2 마감 G1-12]. `setLevel`(`OsServiceHandle.setLogLevel`)을 부르면 그 값으로 고정하고 함수 읽기를 멈춘다.
 
 테스트 대역 구분:
 
@@ -401,6 +401,26 @@ export type BinaryError =
 - 결과는 서비스 수명 동안 이름별로 캐시한다. 바이너리 경로가 바뀌어도 재시작 전까지 반영하지 않는다.
 - 시스템 바이너리 버전 확인은 자식 프로세스 실행이 필요하다. DR-07 표의 `Bun.spawn` 소유 패키지에 `platform-os`가 있다 [결정: review.decisions-2 U-17].
 - 번들 정책: `rg`만 번들로 확정했다. `sops`, `age`, `bwrap`, `socat`의 번들 여부는 미결 3이다. 정해지기 전에는 시스템 바이너리를 요구하고 없으면 안내한다.
+
+#### 3.6.1 필수/선택 표와 점검
+
+외부 바이너리를 OS별로 어디에 쓰고 없으면 무엇이 안 되는지를 한 표로 둔다 [결정: m2 마감 G2-07]. 번들과 서명은 M3이고(미결 3), M2는 시스템 바이너리를 요구하고 없으면 안내한다.
+
+| 이름 | macOS | Linux·WSL | Windows | 쓰는 곳 | 없을 때 |
+|---|---|---|---|---|---|
+| `rg` | 필수(번들 우선) | 필수(번들 우선) | 필수 | sandbox(srt), 작업 공간 파일 검색 | 파일 검색과 샌드박스 시작이 동작하지 않는다 |
+| `sops` | 필수 | 필수 | 필수 | secrets 기본 provider (3.10.0 이상) | 비밀을 읽고 쓸 수 없다 |
+| `age` | 필수 | 필수 | 필수 | secrets 키 생성 | 새 비밀 키를 만들 수 없다 |
+| `git` | 선택 | 선택 | 선택 | 작업 공간 git 기능 | git 상태 표시와 작업 트리 기능만 빠진다 |
+| `bwrap` | 쓰지 않음(Seatbelt) | 필수(0.4.0 이상) | 쓰지 않음 | sandbox | 샌드박스를 쓸 수 없다. 설정 `onUnavailable`에 따라 bash가 거부되거나 격리 없이 돈다 |
+| `socat` | 쓰지 않음 | 필수 | 쓰지 않음 | sandbox 네트워크 중계 | 위와 같다 |
+| `security` | 필수(OS 내장) | 쓰지 않음 | 쓰지 않음 | secrets 키 보관(Keychain) | Keychain에 키를 둘 수 없다 |
+| `secret-tool` | 쓰지 않음 | 선택 | 쓰지 않음 | secrets 키 보관(Secret Service) | 키를 파일(0600)에 둔다 |
+
+- 표의 정본은 `src/binaries/requirements.ts`의 `binaryRequirements(platform)`다. 최소 버전은 소비 패키지의 상수(`platform-secrets`의 `SOPS_MIN_VERSION`, `platform-sandbox`의 bwrap 최소 버전)와 같아야 한다. L0끼리 import하지 않아 값을 복사해 두고 `requirements.test.ts`가 값을 비교한다.
+- 점검: `checkExternalBinaries({ platform, resolveBinary }, signal)`가 쓰지 않는 행을 빼고 나머지를 병렬로 `resolveBinary`에 묻는다. 서비스는 `OsServiceHandle.checkBinaries(signal)`로 같은 점검을 낸다. 결과는 `BinaryCheckReport`다: `items`(이름, 필수/선택, 쓰는 곳, 영향, 상태 `ok`·`missing`(안내 문구)·`too_old`·`unusable`), `ready`(쓸 수 없는 필수 바이너리가 없음), `blocking`(쓸 수 없는 필수 이름), `degraded`(쓸 수 없는 선택 이름). 중단되면 `cancelled`다.
+- 점검 실패는 코드를 고칠 대상이 아니라 사용자 환경 문제다. 호출자는 `ready: false`이면 환경 문제로 보고한다(CLI doctor는 종료코드 2 계열, 데스크톱 첫 실행 화면은 `hint`를 보여 준다). 두 곳을 잇는 일은 L4 작업이다.
+- 설치 안내 문구(`hint`)는 `BinaryError.not_found.hint`를 그대로 쓴다(3.6절 3번).
 
 ### 3.7 사용자 알림 (1차, M3)
 
@@ -584,6 +604,34 @@ export function platformOsPlugin(config: PlatformOsConfig): PlatformModule;   //
 - `time`은 서비스 등록 뒤 바뀌지 않는다. 조립 루트는 이 값을 꺼내 `deps`로 다른 패키지에 넘긴다(BP-05). 시계를 별도 서비스 이름(`xeon.clock` 등)으로 나눌지는 미결 7이다.
 - `PlatformOsConfig.notifier`의 타입 `NotifierProvider`를 L4가 구현하려면 공개 진입점에서 이 타입을 export해야 한다. L4 조립 루트만 쓴다.
 
+### 3.11 파일 잠금
+
+프로세스 둘 이상이 읽고 고쳐 쓰는 사용자 파일(M2는 `trust.json`)의 덮어쓰기를 막는다 [결정: m2 마감 G1-10]. `OsService`(F)에는 아직 없고, `platformOsPlugin`이 만든 `OsServiceHandle.fileLock`으로 낸다. F에 `OsService.fileLock`을 더하는 일은 F 요청이다 [미결 12].
+
+```ts
+// platform-os 공개: src/file-lock/index.ts
+export type FileLockScope = "cross_process" | "process";
+export interface FileLockOptions { readonly timeoutMs?: number; readonly signal?: AbortSignal }
+export type FileLockError =
+  | { readonly kind: "timeout"; readonly path: string; readonly waitedMs: number }
+  | { readonly kind: "cancelled" }
+  | { readonly kind: "io"; readonly path: string; readonly code: string };
+
+export interface FileLock {
+  readonly scope: FileLockScope;
+  withLock<T>(path: string, fn: () => Promise<T>, options?: FileLockOptions): Promise<Result<T, FileLockError>>;
+  updateText(path: string, fn: (current: string | null) => string, options?: FileLockOptions): Promise<Result<void, FileLockError>>;
+}
+```
+
+- 잠금 파일은 `<path>.lock`이다. 대상 파일을 직접 잠그지 않으므로 `updateText`가 이름을 바꿔 교체해도 잠금이 유지된다. 잠금 파일은 지우지 않는다(지우면 옛 inode 보유자와 새 inode 생성자가 한 경로를 둘로 나눠 쥘 수 있다). 잠금 파일이 들어갈 디렉터리는 있어야 한다. `updateText`는 없으면 0700으로 만든다.
+- 구현은 libc `flock(2)`(`LOCK_EX | LOCK_NB`)를 bun:ffi로 부른다. FFI 호출은 `src/file-lock/flock.ts` 한 파일에 있고, 라이브러리와 errno 이름은 `select.ts`가 OS별로 고른다(macOS `libSystem.B.dylib`/`__error`/35, Linux `libc.so.6`/`__errno_location`/11). 프로세스가 죽으면 OS가 잠금을 푼다.
+- 기다림은 25ms 간격 폴링이다. 같은 프로세스 안에서는 보유 표를 먼저 보고, 표에 있으면 OS 잠금을 시도하지 않는다. `timeoutMs`(기본 5000)가 지나면 `timeout`, `signal`이 중단되면 `cancelled`, 잠금 파일을 열지 못하거나 flock이 EWOULDBLOCK 아닌 errno로 실패하면 `io`다.
+- `scope`는 `cross_process`(flock 사용)이거나 `process`다. `process`는 Windows(M2 범위 밖)와 FFI를 읽지 못한 환경이고, 같은 프로세스 안에서만 배타다. 이때 서비스 시작 로그에 `os.file_lock.process_only`를 남긴다.
+- `withLock`은 `fn`이 던지면 잠금을 놓고 그 오류를 그대로 거부로 전한다. `updateText`의 `fn`이 던지면 파일은 바뀌지 않는다(신뢰 저장소가 손상 파일을 `corrupt`로 알리는 경로).
+- `updateText`는 같은 디렉터리의 임시 파일(`<path>.<pid>.<번호>.tmp`, 0600)에 쓰고 `rename`한다. 읽기 실패 가운데 `ENOENT`는 `fn(null)`이고 나머지는 `io`다. fsync는 하지 않는다(신뢰·설정 파일은 마지막 값이 사라져도 이전 값으로 돌아갈 뿐이다) [제안].
+- `TrustStoreBackend.update`(F)가 이 메서드와 같은 모양이다: 호스트 조립 루트가 `updateText`를 `update`에, 잠금 없는 읽기를 `read`에 연결한다.
+
 ## 4. 동작 규칙
 
 1. 시작 순서: 플랫폼 판별 → 디렉터리 해석 → 디렉터리 생성·검사 → 로거 생성 → 서비스 등록. 바이너리 해석, 알림 provider 확인, 감시, 텔레메트리 SDK 로드는 처음 쓸 때 한다(지연).
@@ -711,3 +759,5 @@ F에 요청:
 9. [미결] `l0.os.dirs.override`의 관리 설정 파일 위치. 사용자 설정 파일이 config 디렉터리 안에 있어 순환이 생기므로 관리 범위만 허용했다.
 10. [미결] 2차 의존의 정확한 버전과 이름. `@parcel/watcher`는 조사 시점 2.6.0이고 catalog 확정 전이다. `pi-telemetry` 1.3.0의 npm 범위 이름(`@earendil-works/` 여부)과 라이선스(MIT 여부)는 확인하지 않았다. 둘 다 OS-14·OS-15 착수 전에 npm 레지스트리에서 확인해 catalog와 `L0.os.plan` §4 표에 정확히 적는다.
 11. [미결] `processStartFingerprint`의 macOS 수단(`ps -o lstart=`는 초 단위)과 Windows 수단(`GetProcessTimes`). macOS 해상도로 pid 재사용을 충분히 구분하는지 실측한다.
+12. [미결] F 요청, `OsService.fileLock`. 지금은 `OsServiceHandle.fileLock`으로만 낸다. F가 `OsService`에 같은 모양을 더하면 조립 루트가 핸들 대신 서비스에서 받는다. `settings.json` 쓰기에 같은 잠금을 쓰는 일은 M3다.
+13. [실측: macOS 26.5.2, Apple silicon, Bun 1.4.3, 2026-10-25] macOS의 `libSystem.B.dylib` `flock`, `__error`, EWOULDBLOCK(35)이 `file-lock.int.test.ts`의 자식 프로세스 시험에서 `scope === "cross_process"`와 SIGKILL 뒤 해제로 통과했다. 라이브러리 판정은 파일 존재가 아니라 dlopen 시도다(macOS 11+는 `/usr/lib/libSystem.B.dylib`가 디스크에 없고 dyld 공유 캐시에 있지만 `dlopen("libSystem.B.dylib")`는 된다). `process` 범위로 내려가는 것은 dlopen이 정말 실패할 때뿐이다. `service.test.ts`의 가짜 Linux 플랫폼 시험이 macOS에서 `libc.so.6` dlopen 실패로 `os.file_lock.process_only`를 남긴 것은 시험이 실제 dlopen을 부른 탓이었고(결함 아님), 이제 `OsRuntime.createFlock`을 주입한다. Linux는 `file-lock.int.test.ts`가 자식 프로세스 넷의 읽기-수정-쓰기 100회가 한 줄도 잃지 않음을 확인한다.

@@ -1,6 +1,8 @@
 import type { Unsubscribe } from "../../records/index.ts";
 import type { JsonRpcMessage, RpcId } from "./jsonrpc.ts";
 import type {
+  ClientNotificationName,
+  ClientNotificationParams,
   ServerNotificationName,
   ServerNotificationParams,
   TransportKind,
@@ -68,6 +70,14 @@ export interface HostConnection {
     name: N,
     handler: (params: ServerNotificationParams<N>) => void,
   ): Unsubscribe;
+  /**
+   * 클라이언트 알림을 보낸다(`$/cancelRequest`, `$/connectionReset`). 응답은 없다.
+   * `request`의 `signal`이 `$/cancelRequest`를 대신 보내므로 보통은 `$/connectionReset`에 쓴다. 연결이 닫혔으면 거부한다
+   */
+  notify<N extends ClientNotificationName>(
+    name: N,
+    params: ClientNotificationParams<N>,
+  ): Promise<void>;
   close(): Promise<void>;
   readonly closed: Promise<CloseInfo>;
 }

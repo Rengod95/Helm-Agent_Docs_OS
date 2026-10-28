@@ -1,0 +1,3 @@
+import { defineGroup } from "@xeon/group-kit";
+
+export const group = defineGroup;

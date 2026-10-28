@@ -179,6 +179,23 @@ describe("invalid values", () => {
     expect(validateSettingValue(intDef(), 10_000)).toEqual({ ok: true });
   });
 
+  test("a reserved key refuses writes before any other check", () => {
+    const def = intDef({ stage: "reserved", allowedScopes: ["managed", "user"] });
+    const catalog = catalogOf(def);
+    // 범위와 값이 모두 틀려도 reserved가 먼저다: 키가 아직 일을 하지 않는다는 사실이 가장 중요한 알림이다
+    expect(checkSettingWrite(catalog, [], KEY, "session", "not a number")).toEqual({
+      ok: false,
+      kind: "settings.reserved",
+      details: { key: KEY },
+    });
+    expect(checkSettingWrite(catalog, [], KEY, "user", 3)).toMatchObject({
+      ok: false,
+      kind: "settings.reserved",
+    });
+    // 같은 정의가 active면 통과한다
+    expect(checkSettingWrite(catalogOf(intDef()), [], KEY, "user", 3).ok).toBe(true);
+  });
+
   test("an accepted write returns the value unchanged", () => {
     expect(checkSettingWrite(catalogOf(boolDef()), [], boolDef().key, "user", false)).toEqual({
       ok: true,

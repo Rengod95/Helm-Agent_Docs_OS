@@ -132,6 +132,7 @@ xeon/packages/group-kit/
 
 - `xeon.domain`: 현재 스캐폴드 값 `kit`을 routes layout 도메인 `group-kit`으로 맞춘다(`architecture.layers.spec` 3.2절, `eng.dependency-rules.guide` DR-03). DR-03의 "디렉터리 이름의 접두사를 뺀 값" 규칙으로는 `kit`이 나오므로, `check-layers.ts`에 DR-03 검사를 넣을 때 `group-kit`을 예외로 적는다. 이 예외의 확정은 L3.group-kit.spec §10 공통 모순 3이다.
 - `@xeon/ext-host`는 `dependencies`다. 운영 코드가 `hostOf`(`registerTool`, `registerCommand` 래퍼)와 리소스 정의 타입을 쓰기 때문이다(L3.group-kit.spec §3.2). `LeaseArbiterPort`·`LeaseCandidate`는 `@xeon/contracts/extensions`(F.extensions.spec §3.2.1)에서, `GroupService`와 부속 타입은 `@xeon/contracts/services`(F.capabilities.spec §3.12 `services/groups.ts`)에서 가져온다. 테스트 호스트(`@xeon/ext-host/testing`)는 테스트 파일만 import한다. 운영 코드의 `@xeon/ext-host` import는 DR-14 ext-host 예외(서비스 등록·주입 API만)에 든다 [결정: review.decisions-2 U-17].
+- [M2 구현] `replayDrive`는 하니스를 인자로 받으므로 `@xeon/core-models`를 import하지 않는다. `package.json`에 `@xeon/core-models`·`@swc/core`를 더하지 않았고(`typebox`만 더했다), `@swc/core`는 `scanDriveSource`(M3) 때 더한다. 시험의 하니스는 `@xeon/ext-host/testing`의 `createTestHost`와 `restart()`로 만든다.
 - `@xeon/core-models`는 `testing` 서브패스만 쓰므로 `devDependencies`다(DR-08). 다른 패키지의 `testing` 서브패스를 import하는 파일(`replay/`)과 테스트 전용 검사(`scan/`)는 모두 `src/testing/` 아래에 둔다. DR-08은 그 import를 테스트 파일과 `testing` 서브패스 자신에서만 허용한다. 운영 진입점 `.`은 `src/testing/**`를 import하지 않는다.
 - `templates/`(2차): `exports`에 넣지 않는다. 생성 명령은 import 없이 파일로 읽는다(L3.slots.spec §3.3.6 R3). 템플릿 `.ts`에는 치환 자리(`__ID__`)가 있어 그대로 컴파일하지 않는다. 그래서 `tsconfig.json`의 `include`, oxlint·oxfmt 대상(`src test`만 넘긴다), knip 진입점에서 뺀다. 생성 결과는 `test/slots/`의 테스트가 임시 디렉터리에 만든 뒤 컴파일·로드한다(L3.slots.plan §2.2).
 - `src/testing/policies/`(2차): 정식 예 3종은 `testing` 진입점에서만 내보내므로 기본 배포 카탈로그에 들어가지 않는다(L3.slots.plan §2.3).
@@ -213,7 +214,7 @@ xeon/packages/group-kit/
 | `arbiter.named-unavailable-grants-none` | 지정 그룹이 후보가 아니면 `holder: null`, 모두 `waiting` | M2 |
 | `arbiter.excludes-drive-error` | drive 예외로 오류 표시된 그룹은 X가 후보에 넣지 않고 `GroupStatus.drive`가 `"error"`다(테스트 호스트) | M2 |
 | `arbiter.waiting-group-keeps-on-handlers` | 대기 그룹의 drive 함수 호출은 0이고 `tool_call` 핸들러와 `post`는 계속 동작한다(테스트 호스트) | M2 |
-| `arbiter.swap-waits-for-lease-release` | A가 임대를 가진 동안 `x.primitives.activeDriveGroup`을 B로 바꾸면 A의 임대는 유지되고, A를 끈 경계에서 `lease.released{disabled}` 뒤 B가 `lease.acquired`를 받는다. 끊긴 step이 없다 | M2 |
+| `arbiter.named-swap-revokes-at-the-next-boundary` | A가 임대를 가진 동안 `x.primitives.activeDriveGroup`을 B로 바꾸면 임대는 그 경계까지 유지되고, 다음 경계에서 `lease.released{revoked}` 뒤 B가 `lease.acquired`를 받는다. 끊긴 step이 없다. B가 후보가 아니면 유지된다(X.primitives.spec §4.4.1 5번) | M2 |
 | `state.restore-on-branch` | v1·v2 커밋 뒤 v1 직후로 분기하면 `state()`가 v1이다 | M2 |
 | `state.restore-on-resume` | 재시작 뒤 drive 함수 인자가 마지막 커밋 상태다 | M2 |
 | `state.rejects-oversize-and-skips-unchanged` | 64 KiB 초과 커밋 거부, 같은 값 커밋은 이벤트를 쓰지 않는다 | M2 |
@@ -256,7 +257,7 @@ xeon/packages/group-kit/
 | 1 | `arbiter.auto-first-request-wins`, `arbiter.port-maps-lease-candidates`, `arbiter.waiting-group-keeps-on-handlers` |
 | 2 | `arbiter.waiting-group-keeps-on-handlers`, `delegate.idempotent-by-request-id` |
 | 3 | `arbiter.auto-keeps-holder` |
-| 4 | `arbiter.named-holder-only`, `arbiter.swap-waits-for-lease-release` |
+| 4 | `arbiter.named-holder-only`, `arbiter.named-swap-revokes-at-the-next-boundary` |
 | 5 | `arbiter.named-unavailable-grants-none` |
 | 6 | `service.set-holder-rejects-unknown-and-no-drive`, `command.parse-grammar` |
 | 7 | `command.group-off-applies-at-step-boundary`, `service.status-reports-pending-toggle`, `smoke.toggle-applies-at-step-boundary` |
@@ -285,3 +286,17 @@ xeon/packages/group-kit/
 | 계측 kind `grp.<그룹>.metrics.recorded`는 그룹 접두이고 group-kit이 만든다 | X `recordPrivate`가 늦으면 G-17이 늦어진다 | G-17을 M3에 두고 그때까지 메모리 집계만 쓴다 |
 | L1.agents 위임 서비스 미정 | `delegate` 구현(G-14 M3)이 늦어진다 | M2는 입력 검사와 `group.delegateUnavailable`만 둔다. 학습 그룹 계획(L3.learning.plan)과 같은 시점에 맞춘다 |
 | `@swc/core` 파서 결과가 TS 7 문법 일부를 해석하지 못함 | `scanDriveSource` 오탐·누락 | 파싱 실패는 `warning` 하나로 보고하고 실패시키지 않는다. 대상 문법은 drive 함수 본문으로 좁다 |
+
+## 8. M2 구현 상태 (2026-10-24, 브랜치 m2/gk)
+
+| m2-plan ID | plan 작업 | 상태 | 비고 |
+|---|---|---|---|
+| GK.1 | G-04, G-05, G-06, G-23 | 완료 | `defineGroup`, `groupManifest`, `validateGroupDef`, `GroupApi` 래퍼, `checkGroup`. `on` 래퍼의 거부·패치·예외 계수는 M3 |
+| GK.2 | G-07, G-08 | 완료 | `defaultDriveArbiter`, `leaseArbiterPort`. 이름 지정 회수는 X가 한다 |
+| GK.3 | G-09, G-10, G-11 | 완료 | `checkStateCommit`, `stateUpcasters`, 레코드·post 검사, `kindVisibleTo`, 설정 2키. 시험은 인메모리 기록 저장소(`memoryRecordStore`)로 한다. 실제 `ext.commit`·`queryRecords`(L1B.1) 연결은 HOST 조립 |
+| GK.4 | G-12, G-13, G-22, G-14(M2분) | 완료 | `createGroupService`, `/group` 해석·실행, 상태줄, `registerTool`·`registerCommand` 해제 시험, `delegate` 입력 검사 |
+| GK.5 | G-15, G-16, G-21 | 완료 | `replayDrive` 최소형, `smokeGroup`의 `defineGroup` 이전, 그룹 간 import 실패 시험 |
+| (G-02 일부) | `xeon.domain` | 미완료 | `package.json`의 `xeon.domain`은 `kit`이다. `group-kit`으로 바꾸려면 `scripts/check-layers.ts`의 DR-03 `expectedDomain`에 예외를 더해야 하는데 이 파일은 공유 파일이다(m2-plan §3 규칙 2) |
+| (G-03) | 허용 목록 | 완료(F.1) | `DR-02/group-kit-helm`, `DR-02/group-kit-learning`이 이미 있다. G-21 시험용으로 `DR-07/group-kit-test-spawn`(scope test)을 더했다 |
+
+M2 시험 이름 대응에서 바뀐 것: `arbiter.swap-waits-for-lease-release`는 `arbiter.named-swap-revokes-at-the-next-boundary`로 바꿨다(X.1 P-22). `define-group.migration-required-on-version-bump`는 `define-group.*`와 `state.migration-upgrades-a-lower-stored-version` 둘로 나눴다.

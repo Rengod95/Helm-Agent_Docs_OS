@@ -1,4 +1,12 @@
-import type { Logger } from "@xeon/contracts";
+import {
+  attemptAsync,
+  detach,
+  err,
+  ok,
+  type Logger,
+  type Result,
+  type TimerHandle,
+} from "@xeon/contracts";
 import {
   describeSandboxStatus,
   type CancelScope,
@@ -62,10 +70,30 @@ export interface SandboxServiceDeps {
   readonly parentEnv?: () => Readonly<Record<string, string | undefined>>;
 }
 
+/** 반복 자가 시험의 한 번 실행이 보고서를 내지 못한 이유 */
+export type SelfTestRunError =
+  /** 실행이 끝나기 전에 `stop()`이나 서비스 `dispose()`가 불렸다 */
+  | { readonly kind: "stopped" }
+  /** `selfTest`가 던졌다. 원인은 로그에 남긴다(시험 항목 실패와 다르다) */
+  | { readonly kind: "crashed" };
+
+export interface SelfTestSchedule {
+  /** 첫 실행의 결과. 호출자가 시작 직후 한 번은 기다려 볼 수 있다 */
+  readonly first: Promise<Result<SelfTestReport, SelfTestRunError>>;
+  /** 반복을 멈춘다. 진행 중인 실행에는 중단 신호를 보낸다. 여러 번 불러도 된다 */
+  stop(): void;
+}
+
 /** SandboxService에 수명 메서드를 더한 구현 값. 조립 루트가 refresh·dispose를 부른다 */
 export interface SandboxServiceHandle extends SandboxService {
   /** 설정 변경(l0.sandbox.enabled) 뒤 상태 탐지를 다시 하고 srt를 다시 초기화한다 */
   refresh(signal: AbortSignal): Promise<SandboxStatus>;
+  /**
+   * 자가 시험을 지금 한 번 돌리고, `l0.sandbox.selfTestIntervalMin`분마다 반복한다(0이면 이 한 번뿐이다).
+   * 간격은 한 실행이 끝날 때마다 설정에서 다시 읽는다. 실행은 겹치지 않는다. 호출 지점은 조립 루트다(L0.sandbox.spec §4.7).
+   * 서비스 `dispose()`가 모든 반복을 멈춘다.
+   */
+  startSelfTests(shell: Shell): SelfTestSchedule;
   /** srt를 정리한다(reset). 서비스 dispose 때 한 번 부른다 */
   dispose(): Promise<void>;
 }
@@ -298,6 +326,56 @@ export async function createSandboxService(
     return report;
   };
 
+  const schedules = new Set<SelfTestSchedule>();
+
+  const startSelfTests = (shell: Shell): SelfTestSchedule => {
+    const stopSignal = new AbortController();
+    let timer: TimerHandle | undefined;
+
+    const runOnce = async (): Promise<Result<SelfTestReport, SelfTestRunError>> => {
+      if (stopSignal.signal.aborted) return err({ kind: "stopped" });
+      const ran = await attemptAsync(() => selfTest(shell, { abortSignal: stopSignal.signal }));
+      if (!ran.ok) {
+        // 시험 항목 실패는 보고서 값이다. 여기는 시험 자체가 던진 경우이고, 반복은 계속한다
+        logger.error("sandbox.self_test_crashed", {
+          error: ran.error.cause instanceof Error ? ran.error.cause.name : typeof ran.error.cause,
+        });
+        return err({ kind: "crashed" });
+      }
+      return ok(ran.value);
+    };
+
+    const scheduleNext = (): void => {
+      if (stopSignal.signal.aborted) return;
+      const minutes = deps.settings().selfTestIntervalMin;
+      if (minutes <= 0) return;
+      timer = deps.os.time.scheduler.setTimeout(() => {
+        timer = undefined;
+        detach(runOnce().then(scheduleNext), (cause) => {
+          logger.error("sandbox.self_test_schedule_failed", {
+            error: cause instanceof Error ? cause.name : typeof cause,
+          });
+        });
+      }, minutes * 60_000);
+    };
+
+    const first = runOnce().then((result) => {
+      scheduleNext();
+      return result;
+    });
+    const schedule: SelfTestSchedule = {
+      first,
+      stop: () => {
+        stopSignal.abort();
+        if (timer !== undefined) deps.os.time.scheduler.clearTimeout(timer);
+        timer = undefined;
+        schedules.delete(schedule);
+      },
+    };
+    schedules.add(schedule);
+    return schedule;
+  };
+
   await refresh(signal);
 
   return {
@@ -308,8 +386,10 @@ export async function createSandboxService(
     autoAllow: (policy, request) =>
       decideAutoAllow(policy, request, currentStatus(true), BLOCKED_NETWORK.allowedDomains),
     selfTest,
+    startSelfTests,
     refresh,
     dispose: async () => {
+      for (const schedule of schedules) schedule.stop();
       if (!initialized) return;
       initialized = false;
       await srt.reset();

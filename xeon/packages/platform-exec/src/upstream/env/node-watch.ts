@@ -4,7 +4,7 @@ import { lstat, readdir, readFile, stat, statfs } from "node:fs/promises";
 import { dirname, relative, sep } from "node:path";
 // XEON-PATCH: P14
 // XEON-PATCH: P16
-import { attempt, eachAsync, repeatAsync, type Logger } from "@xeon/contracts";
+import { attempt, detach, eachAsync, repeatAsync, type Logger } from "@xeon/contracts";
 // XEON-PATCH: P1
 import type { CancelScope as Context } from "@xeon/contracts/services";
 // XEON-PATCH: P3
@@ -267,7 +267,11 @@ export class NodeFileWatcher implements FileWatcher {
     if (this.#closed || this.#mode !== "polling") return;
     this.#timer = setTimeout(() => {
       this.#timer = undefined;
-      void this.#flush().finally(() => this.#schedulePoll());
+      // XEON-PATCH: P18
+      detach(
+        this.#flush().finally(() => this.#schedulePoll()),
+        (cause) => this.#logFlushFailure(cause),
+      );
     }, this.#pollIntervalMs);
   }
 
@@ -275,7 +279,8 @@ export class NodeFileWatcher implements FileWatcher {
     if (this.#closed || this.#timer !== undefined) return;
     this.#timer = setTimeout(() => {
       this.#timer = undefined;
-      void this.#flush();
+      // XEON-PATCH: P18
+      detach(this.#flush(), (cause) => this.#logFlushFailure(cause));
     }, DEBOUNCE_MS);
   }
 
@@ -284,8 +289,16 @@ export class NodeFileWatcher implements FileWatcher {
     clearTimeout(this.#settleTimer);
     this.#settleTimer = setTimeout(() => {
       this.#settleTimer = undefined;
-      void this.#flush();
+      // XEON-PATCH: P18
+      detach(this.#flush(), (cause) => this.#logFlushFailure(cause));
     }, FSEVENTS_SETTLE_MS);
+  }
+
+  // XEON-PATCH: P18
+  #logFlushFailure(cause: unknown): void {
+    this.#logger?.error("exec.watch_flush_failed", {
+      error: cause instanceof Error ? cause.message : "non_error_thrown",
+    });
   }
 
   #flush(): Promise<void> {

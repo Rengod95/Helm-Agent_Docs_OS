@@ -107,12 +107,130 @@
             "group": ["@sinclair/typebox", "@sinclair/typebox/*"],
             "message": "Use typebox 1.x (package 'typebox')."
           },
-          { "group": ["lodash", "lodash/*", "moment"], "message": "Banned dependency." }
+          { "group": ["lodash", "lodash/*", "moment"], "message": "Banned dependency." },
+          {
+            "group": ["@tanstack/react-query", "immer", "use-immer"],
+            "message": "FS-03, FS-11: no request cache and no immer in the desktop state layer."
+          },
+          {
+            "group": ["zustand", "zustand/*"],
+            "message": "FS-06: only src/state/*/store.ts and hooks.ts import zustand."
+          }
         ]
       }
     ]
   },
   "overrides": [
+    {
+      "files": [
+        "apps/desktop/src/state/*/store.ts",
+        "apps/desktop/src/state/shared/readonly-store.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@xeon/*/src", "@xeon/*/src/*", "@xeon/*/dist", "@xeon/*/dist/*"],
+                "message": "Import a package only through its public exports, never its src or dist."
+              },
+              {
+                "group": ["**/../packages/*", "../../../*", "../../*/src", "../../*/src/*"],
+                "message": "Do not reach into another package by relative path; declare a workspace dependency and import @xeon/<name>."
+              },
+              {
+                "group": ["vitest", "vitest/*", "jest", "@jest/*"],
+                "message": "Tests use bun:test."
+              },
+              {
+                "group": ["better-sqlite3", "node:sqlite", "sqlite3"],
+                "message": "SQLite access goes through bun:sqlite inside platform-store."
+              },
+              {
+                "group": ["cordis", "cordis/*", "@xeon/vendor-cordis", "@xeon/vendor-cordis/*"],
+                "message": "Cordis is reachable only from packages/ext-host."
+              },
+              {
+                "group": ["@sinclair/typebox", "@sinclair/typebox/*"],
+                "message": "Use typebox 1.x (package 'typebox')."
+              },
+              { "group": ["lodash", "lodash/*", "moment"], "message": "Banned dependency." },
+              {
+                "group": ["@tanstack/react-query", "immer", "use-immer"],
+                "message": "FS-03, FS-11: no request cache and no immer in the desktop state layer."
+              },
+              {
+                "group": [
+                  "zustand",
+                  "zustand/middleware",
+                  "zustand/traditional",
+                  "zustand/shallow",
+                  "zustand/react",
+                  "zustand/react/*"
+                ],
+                "message": "FS-06: store modules import only zustand/vanilla."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["apps/desktop/src/state/*/hooks.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@xeon/*/src", "@xeon/*/src/*", "@xeon/*/dist", "@xeon/*/dist/*"],
+                "message": "Import a package only through its public exports, never its src or dist."
+              },
+              {
+                "group": ["**/../packages/*", "../../../*", "../../*/src", "../../*/src/*"],
+                "message": "Do not reach into another package by relative path; declare a workspace dependency and import @xeon/<name>."
+              },
+              {
+                "group": ["vitest", "vitest/*", "jest", "@jest/*"],
+                "message": "Tests use bun:test."
+              },
+              {
+                "group": ["better-sqlite3", "node:sqlite", "sqlite3"],
+                "message": "SQLite access goes through bun:sqlite inside platform-store."
+              },
+              {
+                "group": ["cordis", "cordis/*", "@xeon/vendor-cordis", "@xeon/vendor-cordis/*"],
+                "message": "Cordis is reachable only from packages/ext-host."
+              },
+              {
+                "group": ["@sinclair/typebox", "@sinclair/typebox/*"],
+                "message": "Use typebox 1.x (package 'typebox')."
+              },
+              { "group": ["lodash", "lodash/*", "moment"], "message": "Banned dependency." },
+              {
+                "group": ["@tanstack/react-query", "immer", "use-immer"],
+                "message": "FS-03, FS-11: no request cache and no immer in the desktop state layer."
+              },
+              {
+                "group": [
+                  "zustand/vanilla",
+                  "zustand/middleware",
+                  "zustand/traditional",
+                  "zustand/shallow"
+                ],
+                "message": "FS-06: hooks import only zustand and zustand/react/shallow."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["apps/desktop/src/**/*.tsx", "apps/desktop/src/**/hooks.ts"],
+      "plugins": ["react"],
+      "rules": { "react/rules-of-hooks": "error", "react/react-in-jsx-scope": "off" }
+    },
     {
       "files": ["packages/ext-host/**"],
       "rules": { "no-restricted-imports": "off" }

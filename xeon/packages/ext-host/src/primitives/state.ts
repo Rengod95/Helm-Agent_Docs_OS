@@ -479,7 +479,7 @@ export function createStateService(core: HostCore): StateService {
       const amb = ambient();
       const thread = threadOf(amb, record);
       const port = portOf(record);
-      const rows = await port.queryRecords(
+      const queried = await port.queryRecords(
         thread.threadId,
         {
           kind: query.kind,
@@ -488,6 +488,14 @@ export function createStateService(core: HostCore): StateService {
         },
         record.manifest.name,
       );
+      if (!queried.ok) {
+        throw new PrimitiveError(
+          "storage_unavailable",
+          `reading ${query.kind} failed: ${queried.error.kind}`,
+          { scopeId: record.id },
+        );
+      }
+      const rows = queried.value;
       const own = new Map(
         (record.manifest.recordKinds ?? []).map((decl) => [decl.kind, decl.version]),
       );

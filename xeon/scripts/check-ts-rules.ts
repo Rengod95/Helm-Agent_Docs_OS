@@ -15,6 +15,8 @@
 //                         `satisfies SchemaProof<...>`/`SchemaSound<...>` (compile-time proof), and not in a row-U2/U3/U4 file
 //   xeon/switch-default-never a `switch` whose `default` block has no `assertNever` call (TY-14)
 //   xeon/catch-swallow    `.catch(() => undefined)`, `.catch(() => {})`, `.catch(noop)` or `void <caught>` (TY-25)
+//   xeon/no-void-promise  `void <call>` (and `void (async ...)()`) in non-test code: a Promise and its Result are dropped (TY-22).
+//                         Use `detach(promise, onFailure)` or await it. Tests may start a call and await it later
 //   xeon/directive-format block disable comments, disable comments without ` -- <reason>`, ts-ignore, ts-nocheck and
 //                         ts-expect-error comments outside tests (TY-08, guide 4.1)
 // A line is exempt from a scan rule by `// xeon-disable-next-line xeon/<rule> -- <reason> (<issue url or doc id>)` above it.
@@ -72,6 +74,9 @@ const EXPECTED_WORDS =
 const ERROR_INTERPOLATION = /\$\{[^}]*\.error(?:\.(?:kind|code))?\s*\}/;
 /** `if (!x.ok)` 바로 뒤의 `throw new Bug(`: Result 실패를 Bug로 바꾸는 모양 */
 const RESULT_TO_BUG = /if\s*\(\s*!\s*[\w.?]+\.ok\s*\)\s*\{?\s*throw\s+$/;
+/** `void foo.bar(`, `void this.#flush(`, `void (async`: 식 연산자 `void`가 호출식을 버린다. 타입 자리의 `void`(`=> void`, `<void>`)는 뒤에 식별자와 `(`가 오지 않아 걸리지 않는다 */
+const VOID_CALL =
+  /\bvoid[ \t]+(?:[A-Za-z_$#][\w$#?]*(?:\??\.[A-Za-z_$#][\w$#]*)*[ \t]*\(|\([ \t]*async\b)/g;
 const ASSERTION_RULES = /(?:consistent-type-assertions|no-unsafe-type-assertion)/;
 const SCAN_DISABLE = /\/\/ xeon-disable-next-line (xeon\/[a-z-]+) -- (.+)$/;
 /** 포크 코드의 억제 사유로 인정하지 않는 말. 업스트림 병합 비용은 예외 사유가 아니다(eng.typescript.guide 1절 포크 코드). */
@@ -482,6 +487,16 @@ export function scanSource(file: SourceFile): {
           "a Result failure is converted to a Bug; return it or add a variant to your error union (TY-24)",
         );
       }
+    }
+  }
+  if (!isTestSupport(file.path)) {
+    const code = maskCode(file.text);
+    for (const match of code.matchAll(VOID_CALL)) {
+      add(
+        "xeon/no-void-promise",
+        lineOf(file.text, match.index),
+        "`void <call>` drops a Promise and its Result; use detach(promise, onFailure) or await it (TY-22)",
+      );
     }
   }
   scanTypeUnsafe(file.text, file.path, add);

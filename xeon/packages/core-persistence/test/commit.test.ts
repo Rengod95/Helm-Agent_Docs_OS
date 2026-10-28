@@ -20,8 +20,8 @@ import { TEST_HOLDER_B } from "./support/sqlite-store.ts";
 const emptyPlan = (): CommitPlan => ({ kind: "append", drafts: [], checkpoint: null });
 
 // plan commit_seq_is_global_and_gapless
-test("commit_seq_is_global_and_gapless", () => {
-  const h = openHarness();
+test("commit_seq_is_global_and_gapless", async () => {
+  const h = await openHarness();
   const a = newThread(h, "a");
   const b = newThread(h, "b");
   startTurn(h, a.threadId);
@@ -36,8 +36,8 @@ test("commit_seq_is_global_and_gapless", () => {
   expectProjectionsRebuildable(h.store.db);
 });
 
-test("parentId follows the thread leaf and a new thread starts at null", () => {
-  const h = openHarness();
+test("parentId follows the thread leaf and a new thread starts at null", async () => {
+  const h = await openHarness();
   const { threadId } = newThread(h);
   const other = newThread(h, "other");
   startTurn(h, threadId);
@@ -54,8 +54,8 @@ test("parentId follows the thread leaf and a new thread starts at null", () => {
   }
 });
 
-test("recordedAt never decreases even when the clock jumps back", () => {
-  const h = openHarness();
+test("recordedAt never decreases even when the clock jumps back", async () => {
+  const h = await openHarness();
   const { threadId } = newThread(h);
   startTurn(h, threadId);
   h.clock.set(h.clock.now() - 60_000);
@@ -68,8 +68,8 @@ test("recordedAt never decreases even when the clock jumps back", () => {
 });
 
 describe("producers", () => {
-  test("commit_rejects_unowned_kind", () => {
-    const h = openHarness();
+  test("commit_rejects_unowned_kind", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     expect(() =>
       draftOf(h, h.tasks, "effect.result", threadId, { turnId: null, stepId: null }, {}),
@@ -80,22 +80,61 @@ describe("producers", () => {
     ).toThrow("store.prefix_not_owned");
   });
 
-  test("a producer is claimed once and core.persistence is never claimable", () => {
-    const h = openHarness();
+  test("core.context drafts the compaction prefix item and nothing else of core.loop", async () => {
+    const h = await openHarness();
+    const { threadId } = newThread(h);
+    const scope = { turnId: null, stepId: null };
+    const prefixPayload = () => ({
+      item: {
+        itemId: h.ids.next("itm"),
+        status: "completed",
+        kind: "system",
+        message: { role: "system", content: "prefix", timestamp: 1 },
+      },
+    });
+    const prefix = draftOf(h, h.context, "item.recorded", threadId, scope, prefixPayload());
+    expect(prefix.producer).toBe("core.context");
+    expect(prefix.draft.kind).toBe("item.recorded");
+    // 예외는 item.recorded 하나다: 같은 core.loop 접두의 다른 kind와 합성 결과 kind는 여전히 거절된다
+    expect(() => draftOf(h, h.context, "turn.started", threadId, scope, {})).toThrow(
+      "store.prefix_not_owned: core.context cannot draft turn.started (owner: core.loop)",
+    );
+    expect(() => draftOf(h, h.context, "effect.result", threadId, scope, {})).toThrow(
+      "store.prefix_not_owned: core.context cannot draft effect.result (owner: core.tools)",
+    );
+    // 다른 생산자는 item.recorded를 얻지 못한다
+    expect(() => draftOf(h, h.tasks, "item.recorded", threadId, scope, prefixPayload())).toThrow(
+      "store.prefix_not_owned: core.tasks cannot draft item.recorded (owner: core.loop)",
+    );
+    // 쓰기 검사도 같은 예외를 인정해 커밋까지 간다
+    const committed = commitOrThrow(h, threadId, "compact:prefix", () => ({
+      kind: "append",
+      drafts: [prefix],
+      checkpoint: null,
+    }));
+    expect(committed.eventIds).toEqual([prefix.draft.id]);
+    const stored = h.store.raw
+      .query<{ kind: string }, [string]>("SELECT kind FROM events WHERE id = ?")
+      .all(prefix.draft.id);
+    expect(stored).toEqual([{ kind: "item.recorded" }]);
+  });
+
+  test("a producer is claimed once and core.persistence is never claimable", async () => {
+    const h = await openHarness();
     expect(() => h.service.producer("core.loop")).toThrow("store.producer_claimed");
     expect(() => h.service.producer("core.persistence")).toThrow("store.producer_claimed");
   });
 
-  test("a retired kind cannot be drafted (post.accepted, U-05)", () => {
-    const h = openHarness();
+  test("a retired kind cannot be drafted (post.accepted, U-05)", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     expect(() =>
       draftOf(h, h.tasks, "post.accepted", threadId, { turnId: null, stepId: null }, {}),
     ).toThrow("store.kind_retired");
   });
 
-  test("an unregistered extension kind cannot be drafted", () => {
-    const h = openHarness();
+  test("an unregistered extension kind cannot be drafted", async () => {
+    const h = await openHarness();
     const alpha = h.service.producer("ext.alpha");
     expect(() =>
       alpha.draft({
@@ -114,8 +153,8 @@ describe("producers", () => {
 
 describe("ownership", () => {
   // spec §9.24
-  test("commit_requires_ownership_guard: a taken-over token is ownership_lost and rows stay", () => {
-    const h = openHarness();
+  test("commit_requires_ownership_guard: a taken-over token is ownership_lost and rows stay", async () => {
+    const h = await openHarness();
     const { threadId, token } = newThread(h);
     startTurn(h, threadId);
     // B가 임대를 인수한다(epoch + 1). A는 늦게 깨어나 커밋한다
@@ -144,10 +183,10 @@ describe("ownership", () => {
     expect(h.store.tableHashes()).toEqual(before);
   });
 
-  test("a thread this service never opened refuses commits", () => {
-    const h = openHarness();
+  test("a thread this service never opened refuses commits", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
-    const restarted = reopenHarness(h);
+    const restarted = await reopenHarness(h);
     const refused = commitResult(restarted, threadId, "k:1", (): CommitPlan => ({
       kind: "reject",
       code: "x",
@@ -157,8 +196,8 @@ describe("ownership", () => {
     if (!refused.ok) expect(refused.error.kind).toBe("ownership_lost");
   });
 
-  test("a commit for an unknown thread without thread.started is thread_not_found", () => {
-    const h = openHarness();
+  test("a commit for an unknown thread without thread.started is thread_not_found", async () => {
+    const h = await openHarness();
     const ghost = h.ids.next("thr");
     const result = commitResult(h, ghost, "ghost:1", (): CommitPlan => ({
       kind: "append",
@@ -180,10 +219,10 @@ describe("ownership", () => {
     if (!result.ok) expect(result.error).toEqual({ kind: "thread_not_found", threadId: ghost });
   });
 
-  test("an observer cannot commit", () => {
-    const h = openHarness();
+  test("an observer cannot commit", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
-    const other = reopenHarness(h);
+    const other = await reopenHarness(h);
     expect(other.service.openForRead(threadId).ok).toBe(true);
     const result = commitResult(other, threadId, "obs:1", (): CommitPlan => ({
       kind: "reject",
@@ -197,7 +236,7 @@ describe("ownership", () => {
 
 describe("checkpoints", () => {
   test("step_commit_contains_checkpoint", async () => {
-    const h = openHarness();
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     fullStep(h, turn, 0, []);
@@ -225,8 +264,8 @@ describe("checkpoints", () => {
     expect(String(loaded?.threadId)).toBe(threadId);
   });
 
-  test("checkpoint_without_step_is_bug_except_approval_wait", () => {
-    const h = openHarness();
+  test("checkpoint_without_step_is_bug_except_approval_wait", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turn = startTurn(h, threadId);
     const stepId = h.ids.next("stp");
@@ -240,8 +279,19 @@ describe("checkpoints", () => {
       })),
     ).toThrow("store.checkpoint_without_step");
     expect(h.store.tableHashes()).toEqual(before);
+    // D-06: 승인 대기 체크포인트의 next는 await_input 하나다. tools는 승인 대기가 아니다
+    expect(() =>
+      commitResult(h, threadId, "cp:approval-tools", (): CommitPlan => ({
+        kind: "append",
+        drafts: [draftOf(h, h.loop, "step.started", threadId, scope, { stepIndex: 0 })],
+        checkpoint: {
+          ...checkpointInput(turn.turnId, stepId, 0, "tools"),
+          pendingToolCalls: [{ toolCallId: "tc1", effectId: null, waiting: "approval" }],
+        },
+      })),
+    ).toThrow("store.checkpoint_without_step");
     const waiting: StepCheckpointInput = {
-      ...checkpointInput(turn.turnId, stepId, 0, "tools"),
+      ...checkpointInput(turn.turnId, stepId, 0, "await_input"),
       pendingToolCalls: [{ toolCallId: "tc1", effectId: null, waiting: "approval" }],
     };
     const ok = commitOrThrow(h, threadId, "cp:approval", () => ({
@@ -253,9 +303,9 @@ describe("checkpoints", () => {
   });
 
   // spec §9.23
-  test("step_commit_count_matches_formula", () => {
-    for (const toolCount of [0, 1, 2, 3]) {
-      const h = openHarness();
+  for (const toolCount of [0, 1, 2, 3]) {
+    test(`step_commit_count_matches_formula with ${toolCount} tools`, async () => {
+      const h = await openHarness();
       const { threadId } = newThread(h);
       const turn = startTurn(h, threadId);
       const before = h.commits();
@@ -273,13 +323,13 @@ describe("checkpoints", () => {
       expect(h.commits() - before).toBe(3 + 3 * toolCount);
       endTurn(h, turn);
       expectProjectionsRebuildable(h.store.db);
-    }
-  });
+    });
+  }
 });
 
 describe("validation", () => {
-  test("a payload that violates its catalog schema is a Bug and leaves no rows", () => {
-    const h = openHarness();
+  test("a payload that violates its catalog schema is a Bug and leaves no rows", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const before = h.store.tableHashes();
     expect(() =>
@@ -303,8 +353,8 @@ describe("validation", () => {
     expect(h.store.tableHashes()).toEqual(before);
   });
 
-  test("an envelope over 256 KiB is a Bug", () => {
-    const h = openHarness();
+  test("an envelope over 256 KiB is a Bug", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const turnId = h.ids.next("trn");
     expect(() =>
@@ -345,15 +395,15 @@ describe("validation", () => {
     ).toThrow("store.event_too_large");
   });
 
-  test("a commit key outside COMMIT_KEY_PATTERN and an empty commit are Bugs", () => {
-    const h = openHarness();
+  test("a commit key outside COMMIT_KEY_PATTERN and an empty commit are Bugs", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     expect(() => commitResult(h, threadId, "bad key!", emptyPlan)).toThrow("store.schema_invalid");
     expect(() => commitResult(h, threadId, "empty:1", emptyPlan)).toThrow("at least one draft");
   });
 
-  test("commit inside build is store.nested_write", () => {
-    const h = openHarness();
+  test("commit inside build is store.nested_write", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     expect(() =>
       commitResult(h, threadId, "outer:1", (): CommitPlan => {
@@ -363,8 +413,8 @@ describe("validation", () => {
     ).toThrow("store.nested_write");
   });
 
-  test("a build that throws rolls everything back and records nothing", () => {
-    const h = openHarness();
+  test("a build that throws rolls everything back and records nothing", async () => {
+    const h = await openHarness();
     const { threadId } = newThread(h);
     const before = h.store.tableHashes();
     expect(() =>

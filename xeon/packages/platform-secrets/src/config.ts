@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { SecretApproval, SecretProviderId } from "@xeon/contracts/capabilities";
 
 // L0.secrets.spec §6.1 `l0.secrets.*` 설정 키의 값 모양. 설정 정의(defineSettings)는 settings.ts에, 로딩은 조립 루트가 하고,
@@ -52,3 +53,21 @@ export const SOPS_MIN_VERSION = "3.10.0";
 export const SECRETS_SUBDIR = "secrets";
 export const META_SUBDIR = "meta";
 export const DEFAULT_AGE_KEY_SUBPATH: readonly string[] = ["secrets", "age", "keys.txt"];
+
+/**
+ * 기본 SOPS 파일(spec §4.8). `l0.secrets.sops.files`가 비어 있으면 이 항목 하나를 쓴다.
+ * 위치는 `<OsDirs.config>/secrets/sops/user.yaml`이다. OsDirs는 사용자 하나에 하나뿐이고 클라이언트(CLI, 데스크톱 사이드카)마다
+ * 나뉘지 않으므로 어느 클라이언트가 등록해도 같은 파일이다. `<config>/secrets/` 아래라 샌드박스 보호 경로가 이미 덮는다.
+ */
+export const DEFAULT_SOPS_ENV = "user";
+const DEFAULT_SOPS_SUBPATH: readonly string[] = ["secrets", "sops", "user.yaml"];
+
+export function defaultSopsFile(configDir: string): SecretsSopsFile {
+  return { env: DEFAULT_SOPS_ENV, path: join(configDir, ...DEFAULT_SOPS_SUBPATH) };
+}
+
+/** 사람이 파일을 적지 않았으면 기본 파일을 채운다. 적었으면 그대로 둔다(기본 파일을 섞지 않는다) */
+export function withDefaultSopsFile(config: SecretsConfig, configDir: string): SecretsConfig {
+  if (config.sops.files.length > 0) return config;
+  return { ...config, sops: { ...config.sops, files: [defaultSopsFile(configDir)] } };
+}

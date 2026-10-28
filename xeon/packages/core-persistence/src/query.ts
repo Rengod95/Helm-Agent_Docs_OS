@@ -1,4 +1,4 @@
-import { Bug, ok, type Result } from "@xeon/contracts";
+import { ok, type Result } from "@xeon/contracts";
 import type { ThreadId, TurnId } from "@xeon/contracts/conversation";
 import type {
   AgentView,
@@ -10,9 +10,11 @@ import type {
   ThreadSummaryRow,
   TurnView,
 } from "@xeon/contracts/records";
+import { branchItems, itemEvent, kindIn, latestEvent } from "./branch.ts";
 import { columns, readResult } from "./rows.ts";
 import {
-  markerOf,
+  readChildAgents,
+  readThreadSummary,
   readPendingApprovals,
   readOpenEffects,
   readOpenTurn,
@@ -22,40 +24,15 @@ import {
   readTurnByRequest,
 } from "./views.ts";
 
-function notYet(member: string, plan: string): never {
-  throw new Bug(`session.not_implemented: query.${member} arrives with ${plan}`);
-}
-
 /**
- * 다른 컨텍스트가 p_*를 직접 읽지 않게 하는 질의 묶음(CM-02). M1이 투영하는 표만 답한다.
- * 분기 조회(branchItems, itemEvent, latestEvent)와 자식 연결(childAgents)은
- * 해당 투영이 오는 때(PS-10, PS-23)에 더한다. 그때까지는 Bug로 알린다
- */
+ * 다른 컨텍스트가 p_*를 직접 읽지 않게 하는 질의 묶음(CM-02).  */
 export function createProjectionQuery(db: StoreDb): ProjectionQuery {
   return {
     thread(threadId: ThreadId): Result<ThreadSummaryRow | undefined, ReadFailure> {
       return readResult(db, (tx) => {
         const row = readThread(tx, threadId);
         if (!row.ok) return row;
-        const thread = row.value;
-        if (thread === undefined) return ok(undefined);
-        const queued = readQueuedInputs(tx, threadId);
-        if (!queued.ok) return queued;
-        const approvals = readPendingApprovals(tx, threadId);
-        if (!approvals.ok) return approvals;
-        return ok({
-          threadId: thread.threadId,
-          title: thread.title,
-          status: thread.status,
-          workspace: thread.workspace,
-          createdAt: thread.createdAt,
-          updatedAt: thread.updatedAt,
-          headSeq: thread.headSeq,
-          forkedFrom: thread.forkedFrom,
-          marker: markerOf(thread),
-          queuedInputs: queued.value.length,
-          pendingApprovals: approvals.value.length,
-        });
+        return row.value === undefined ? ok(undefined) : readThreadSummary(tx, row.value);
       });
     },
     turn(_threadId: ThreadId, turnId: TurnId): Result<TurnView | undefined, ReadFailure> {
@@ -80,12 +57,20 @@ export function createProjectionQuery(db: StoreDb): ProjectionQuery {
     pendingApprovals(threadId: ThreadId) {
       return readResult(db, (tx) => readPendingApprovals(tx, threadId));
     },
-    childAgents(): Result<readonly AgentView[], ReadFailure> {
-      return notYet("childAgents", "p_agents (PS-23, M2)");
+    childAgents(parentThreadId, options): Result<readonly AgentView[], ReadFailure> {
+      return readResult(db, (tx) =>
+        readChildAgents(tx, parentThreadId, options?.unsettledOnly === true),
+      );
     },
-    branchItems: () => notYet("branchItems", "branch queries (PS-10, M2)"),
-    itemEvent: () => notYet("itemEvent", "branch queries (PS-10, M2)"),
-    latestEvent: () => notYet("latestEvent", "branch queries (PS-10, M2)"),
+    branchItems: (threadId, options) => readResult(db, (tx) => branchItems(tx, threadId, options)),
+    itemEvent: (threadId, itemId) => readResult(db, (tx) => itemEvent(tx, threadId, itemId)),
+    latestEvent: (threadId, kind, match, options) =>
+      readResult(db, (tx) =>
+        latestEvent(tx, threadId, kindIn([kind]), {
+          ...(match === undefined ? {} : { match }),
+          onActiveBranch: options?.onActiveBranch ?? false,
+        }),
+      ),
     liveBlobRefs: () =>
       readResult(db, (tx) => {
         const hashes: string[] = [];

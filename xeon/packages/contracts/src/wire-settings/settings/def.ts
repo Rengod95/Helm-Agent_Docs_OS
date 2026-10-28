@@ -53,6 +53,16 @@ export const RuntimeChangeSchema: TUnion<
 > = Type.Union([Type.Literal("live"), Type.Literal("nextTurn"), Type.Literal("restart")]);
 export type RuntimeChange = Static<typeof RuntimeChangeSchema>;
 
+/**
+ * 설정의 구현 단계 [결정: m2c G5-04]. `active`는 값을 읽어 동작을 바꾸는 키다. `reserved`는 이름과 모양만 선언했고 읽는 곳이 아직 없는 키다
+ * (2차·M3 기능의 키). `reserved` 키는 `settings.list`에서 기본으로 빠지고 화면에 두지 않으며 `settings.set`이 거부한다(`settings.reserved`).
+ */
+export const SettingStageSchema: TUnion<[TLiteral<"active">, TLiteral<"reserved">]> = Type.Union([
+  Type.Literal("active"),
+  Type.Literal("reserved"),
+]);
+export type SettingStage = Static<typeof SettingStageSchema>;
+
 export const SettingLayerSchema: TUnion<
   [
     TLiteral<"F">,
@@ -201,6 +211,8 @@ export interface SettingDef<S extends TSchema = TSchema> {
   readonly secret?: boolean;
   readonly since: SemVer;
   readonly deprecated?: SettingDeprecation;
+  /** 생략하면 `active`. 값을 읽는 코드가 없는 키는 `reserved`로 선언한다 */
+  readonly stage?: SettingStage;
 }
 
 /** 전송·검사용 형태(settings.list 결과, 확장 매니페스트 userConfig 변환 결과). type은 JSON Schema 객체다. */
@@ -216,6 +228,7 @@ export const SettingDefWireSchema: TObject<{
   secret: TOptional<TBoolean>;
   since: TString;
   deprecated: TOptional<typeof SettingDeprecationSchema>;
+  stage: TOptional<typeof SettingStageSchema>;
 }> = Type.Object(
   {
     key: SettingKeySchema,
@@ -229,6 +242,8 @@ export const SettingDefWireSchema: TObject<{
     secret: Type.Optional(Type.Boolean()),
     since: SemVerSchema,
     deprecated: Type.Optional(SettingDeprecationSchema),
+    /** 생략하면 `active` */
+    stage: Type.Optional(SettingStageSchema),
   },
   { additionalProperties: false },
 );
@@ -378,5 +393,6 @@ export function toSettingDefWire(def: SettingDef): SettingDefWire {
     ...(def.secret === undefined ? {} : { secret: def.secret }),
     since: def.since,
     ...(def.deprecated === undefined ? {} : { deprecated: def.deprecated }),
+    ...(def.stage === undefined ? {} : { stage: def.stage }),
   };
 }

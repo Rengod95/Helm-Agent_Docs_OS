@@ -7,6 +7,7 @@ import {
   type ThreadId,
 } from "@xeon/contracts/conversation";
 import { SettingKeySchema, type SettingKey, type SettingScope } from "@xeon/contracts/settings";
+import { titleProblem } from "../threads.ts";
 
 // L4.cli.spec §3.2. 명령 모델과 인자 파서. 순수 함수이고 외부 라이브러리를 쓰지 않는다: 비밀 값 argv 금지 같은 규칙을
 // 파서 안에 둬야 하기 때문이다.
@@ -18,7 +19,7 @@ export type ChatTarget =
   | { readonly kind: "continue" }
   | { readonly kind: "resume"; readonly threadId: ThreadId };
 
-interface SessionOverride {
+export interface SessionOverride {
   readonly key: SettingKey;
   /** 해석 전 값. §4.8 규칙(JSON 우선, 실패하면 문자열)으로 해석한다 */
   readonly raw: string;
@@ -34,7 +35,7 @@ export interface ChatCommand {
   readonly overrides: readonly SessionOverride[];
 }
 
-type SessionsCommand =
+export type SessionsCommand =
   | {
       readonly kind: "sessions.ls";
       readonly all: boolean;
@@ -43,7 +44,8 @@ type SessionsCommand =
     }
   | { readonly kind: "sessions.show"; readonly threadId: ThreadId; readonly output: OutputMode }
   | { readonly kind: "sessions.fork"; readonly threadId: ThreadId; readonly at: ItemId | null }
-  | { readonly kind: "sessions.rm"; readonly threadId: ThreadId; readonly yes: boolean };
+  | { readonly kind: "sessions.rm"; readonly threadId: ThreadId; readonly yes: boolean }
+  | { readonly kind: "sessions.rename"; readonly threadId: ThreadId; readonly title: string };
 
 type FileScope = Extract<SettingScope, "user" | "project" | "local">;
 /** config schema만(L4.host-service.spec §6.2) */
@@ -75,7 +77,17 @@ export type ConfigCommand =
       readonly coreOnly: boolean;
     };
 
-interface SecretMetaFlags {
+type TrustScope = "folder" | "parent" | "session";
+
+export type TrustCommand =
+  | { readonly kind: "trust.status"; readonly output: OutputMode }
+  | {
+      readonly kind: "trust.set";
+      readonly verdict: "allow" | "deny";
+      readonly scope: TrustScope;
+    };
+
+export interface SecretMetaFlags {
   readonly provider?: "sops" | "op" | "bws" | "keychain";
   readonly desc?: string;
   readonly scope?: string;
@@ -84,7 +96,7 @@ interface SecretMetaFlags {
   readonly expires?: string;
 }
 
-type SecretCommand =
+export type SecretCommand =
   | {
       readonly kind: "secret.ls";
       readonly meta: boolean;
@@ -110,7 +122,7 @@ interface CliHostCommand {
   readonly kind: "host";
   readonly stdio: true;
 }
-interface DoctorCommand {
+export interface DoctorCommand {
   readonly kind: "doctor";
   readonly output: OutputMode;
 }
@@ -128,6 +140,7 @@ type CliCommand =
   | SessionsCommand
   | ConfigCommand
   | SecretCommand
+  | TrustCommand
   | ServiceCommand
   | CliHostCommand
   | DoctorCommand
@@ -630,6 +643,56 @@ function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigComm
   }
 }
 
+const TRUST_SCOPES: readonly TrustScope[] = ["folder", "parent", "session"];
+
+function parseTrust(acc: GlobalAcc, rest: readonly string[]): Result<TrustCommand, UsageError> {
+  const [action, ...tail] = rest;
+  // `xeon trust --json`처럼 동작 이름 없이 플래그부터 오면 status다
+  const bare = action?.startsWith("-") === true;
+  if (action === undefined || action === "status" || bare) {
+    const scanned = scanArgs(acc, bare ? rest : tail, { "--json": { value: "none" } });
+    if (!scanned.ok) return scanned;
+    if (scanned.value.positionals.length > 0) {
+      return err(
+        usage(
+          "unexpectedArgument",
+          "trust status는 위치 인자를 받지 않는다",
+          "--json만 쓸 수 있다",
+        ),
+      );
+    }
+    return ok({ kind: "trust.status", output: outputOf(scanned.value) });
+  }
+  if (action !== "allow" && action !== "deny") {
+    return err(
+      usage("unknownCommand", `모르는 명령 trust ${action}`, "status, allow, deny 중 하나를 쓴다"),
+    );
+  }
+  const scanned = scanArgs(acc, tail, { "--scope": { value: "required" } });
+  if (!scanned.ok) return scanned;
+  if (scanned.value.positionals.length > 0) {
+    return err(
+      usage(
+        "unexpectedArgument",
+        `trust ${action}는 위치 인자를 받지 않는다`,
+        `xeon trust ${action} [--scope folder|parent|session]`,
+      ),
+    );
+  }
+  const scopeText = valueOf(scanned.value, "--scope") ?? "folder";
+  const scope = TRUST_SCOPES.find((candidate) => candidate === scopeText);
+  if (scope === undefined) {
+    return err(
+      usage(
+        "unexpectedArgument",
+        "--scope 값이 맞지 않다",
+        "folder, parent, session 중 하나를 쓴다",
+      ),
+    );
+  }
+  return ok({ kind: "trust.set", verdict: action, scope });
+}
+
 function parseSessions(
   acc: GlobalAcc,
   rest: readonly string[],
@@ -745,12 +808,41 @@ function parseSessions(
         yes: has(scanned.value, "--yes"),
       });
     }
+    case "rename": {
+      const scanned = scanArgs(acc, tail, {});
+      if (!scanned.ok) return scanned;
+      const [idText, ...words] = scanned.value.positionals;
+      if (idText === undefined) {
+        return err(
+          usage(
+            "missingArgument",
+            "sessions rename에는 세션 id와 제목이 필요하다",
+            "xeon sessions rename <id> <제목>",
+          ),
+        );
+      }
+      const threadId = threadIdOf(idText);
+      if (!threadId.ok) return threadId;
+      // 제목은 따옴표 없이 여러 낱말로 써도 된다
+      const title = words.join(" ").trim();
+      const problem = titleProblem(title);
+      if (problem !== null) {
+        return err(
+          usage(
+            title.length === 0 ? "missingArgument" : "unexpectedArgument",
+            `sessions rename: ${problem}`,
+            "xeon sessions rename <id> <제목>",
+          ),
+        );
+      }
+      return ok({ kind: "sessions.rename", threadId: threadId.value, title });
+    }
     case undefined:
       return err(
         usage(
           "missingArgument",
           "sessions에는 하위 명령이 필요하다",
-          "ls, show, fork, rm 중 하나를 쓴다",
+          "ls, show, fork, rm, rename 중 하나를 쓴다",
         ),
       );
     // xeon-disable-next-line xeon/switch-default-never -- 명령줄 인자는 닫히지 않은 문자열이다. 모르는 하위 명령은 사용법 오류 값으로 돌려준다 (eng.typescript.guide TY-14)
@@ -759,7 +851,7 @@ function parseSessions(
         usage(
           "unknownCommand",
           `모르는 명령 sessions ${action}`,
-          "ls, show, fork, rm 중 하나를 쓴다",
+          "ls, show, fork, rm, rename 중 하나를 쓴다",
         ),
       );
   }
@@ -1061,6 +1153,7 @@ const COMMAND_WORDS: ReadonlySet<string> = new Set([
   "sessions",
   "config",
   "secret",
+  "trust",
   "service",
   "host",
   "doctor",
@@ -1089,6 +1182,8 @@ function commandOf(
       return parseConfig(acc, rest);
     case "secret":
       return parseSecret(acc, rest, terminal);
+    case "trust":
+      return parseTrust(acc, rest);
     case "service":
       return parseService(acc, rest);
     case "host":

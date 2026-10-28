@@ -5,11 +5,15 @@ on:
     paths:
       - "xeon/**"
       - "docs/xeon/**"
+      - "justfile"
+      - "scripts/**"
       - ".github/workflows/xeon-ci.yml"
   pull_request:
     paths:
       - "xeon/**"
       - "docs/xeon/**"
+      - "justfile"
+      - "scripts/**"
       - ".github/workflows/xeon-ci.yml"
 
 concurrency:
@@ -20,7 +24,10 @@ permissions:
   contents: read
 
 env:
-  # turbo --affected compares against this ref. Needs fetch-depth 0.
+  # The jobs together run the steps of `just verify` (xeon/scripts/verify-steps.sh); scripts/ci-alignment.test.ts checks it.
+# exit-tests runs the exit-condition tests with their binaries and fails on any skip (product.scope.spec 4.4.1).
+# It builds the sidecar binary first when it is missing (E2, E3), so the sidecar e2e tests never skip.
+# turbo --affected compares against this ref. Needs fetch-depth 0.
   TURBO_SCM_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/main' }}
   TURBO_TELEMETRY_DISABLED: "1"
   MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/xeon
@@ -32,14 +39,24 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        layer: [F, X, L0, L1, L2, L3, L4]
+        layer: [root, F, X, L0, L1, L2, L3, L4]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      # L0 sandbox tests and the L4 CLI tests that run a sandboxed command need bubblewrap, socat and rg;
+      # Ubuntu 24.04 blocks unprivileged user namespaces by default.
+      - if: matrix.layer == 'L0' || matrix.layer == 'L4'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap socat ripgrep
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - uses: jdx/mise-action@v2
         with:
           working_directory: xeon
+      # L0 secrets and the L4 CLI secret tests use the real sops and age binaries.
+      - if: matrix.layer == 'L0' || matrix.layer == 'L4'
+        run: mise use --global sops@3.13.3 age@1.3.2
       - uses: extractions/setup-just@v2
         with:
           just-version: "1.58.0"
@@ -61,6 +78,7 @@ jobs:
       - run: just setup
       - run: just fmt-check
       - run: just check-layers
+      - run: just check-ts-rules
       - run: just depcruise
       - run: just knip
 
@@ -76,3 +94,22 @@ jobs:
         with:
           just-version: "1.58.0"
       - run: just docs-route --check
+
+  exit-tests:
+    name: exit-condition tests (no skips)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap socat ripgrep
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - uses: jdx/mise-action@v2
+        with:
+          working_directory: xeon
+      - run: mise use --global sops@3.13.3 age@1.3.2
+      - uses: extractions/setup-just@v2
+        with:
+          just-version: "1.58.0"
+      - run: just setup
+      - run: just exit-tests
