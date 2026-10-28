@@ -340,8 +340,14 @@
     "packages/group-learning": {
       "name": "@xeon/group-learning",
       "version": "0.0.0",
+      "dependencies": {
+        "@xeon/contracts": "workspace:*",
+        "@xeon/group-kit": "workspace:*",
+        "typebox": "catalog:",
+      },
       "devDependencies": {
         "@types/bun": "catalog:",
+        "@xeon/ext-host": "workspace:*",
       },
     },
     "packages/platform-exec": {

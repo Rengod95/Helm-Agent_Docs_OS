@@ -239,7 +239,7 @@ xeon/packages/group-learning/
    | 27 정착이 시작 커밋보다 먼저인 경합 | `triggers.settle-before-commit-clears-inflight` |
    | 28 취소 뒤 `inFlightReviewId` 복구 | `dispose.clears-inflight-id-after-cancel` |
 
-2. M3 검증(`product.scope.spec` 4.4 M3, 5절): 학습 그룹을 추가하는 변경에서 `xeon/packages/contracts/**`, `xeon/packages/ext-host/**`, `xeon/packages/platform-*/**`, `xeon/packages/core-*/**` 경로의 diff가 0이다. 확인 방법은 그 변경 묶음에 대한 `git diff --stat <기준>..HEAD -- <경로들>` 결과가 비어 있는 것이다. 필요한 F·X·L1 변경은 학습 그룹 변경보다 앞선 별도 변경으로 끝나 있어야 한다.
+2. M3 검증(`product.scope.spec` 4.4 M3, 5절): 학습 그룹을 추가하는 변경에서 `xeon/packages/contracts/**`, `xeon/packages/ext-host/**`, `xeon/packages/platform-*/**`, `xeon/packages/core-*/**` 경로의 diff가 0이다. 확인 방법은 그 변경 묶음에 대한 `git diff --stat <기준>..HEAD -- <경로들>` 결과가 비어 있는 것이다. 같은 검사를 `xeon/scripts/core-diff-check.ts <기준 커밋>`이 한다(`bun scripts/core-diff-check.ts <기준>`, 종료코드 0 통과, 1 위반, 2 환경 문제). 필요한 F·X·L1 변경은 학습 그룹 변경보다 앞선 별도 변경으로 끝나 있어야 한다.
 3. 학습 그룹이 쓰는 연산(`on`, `scope`, `recordPrivate`, `record`, group-kit `delegate`)이 통합 테스트에서 호출된다(`product.scope.spec` 4.4 M3, `product.vision.spec` S1). `post`는 쓰지 않는다(spec §7, `usesPost: false`).
 4. 승인 전 파일 불변 검증: 통합 테스트가 가짜 L2-d 저장소의 스킬 디렉터리와 메모리 파일 해시를 세션 전, 후보 생성 뒤, 거절 뒤에 비교하고 모두 같다.
 5. `just verify`가 종료코드 0이다. `just check-layers`와 `just depcruise`가 `group-learning`의 import를 허용 목록 안으로 확인한다.
@@ -258,3 +258,34 @@ xeon/packages/group-learning/
 | 하위 층 요구 미반영 | REQ-LN-01(`AgentSettledPayload` 필드)과 REQ-LN-02(`agent.settled` 구독)가 없으면 검토가 시작되지 않거나 한 번만 돈다(spec §5 사례 15·17) | F·X·L1 계약 트랙(M3 설계 단계)에서 먼저 반영한다. 반영 전에는 LR-04의 임시 규칙과 LR-23의 명령 진입 대체 경로로 시험만 한다 |
 | 결정 반영 | D-M3-02·03·04·09·32를 받았다. 남은 위험은 L1 쪽 요구(위임 취소 API REQ-L1-02, `report` 선택 필드 REQ-L1-05)가 늦어지는 것이다 | LR-05, LR-24는 해당 L1 요구가 들어온 뒤 완료 판정한다. 그 전에는 가짜 위임 서비스로 단위 시험을 돌린다 |
 | 대기열 이중화 | 학습 대기열과 L2 `cap_knowledge_proposals`가 따로 있다(spec §10 미결 8) | L4 승인 화면이 두 출처를 한 목록으로 보인다(REQ-LN-10). 하나로 합치기로 정해지면 LR-08~LR-10을 L2 대기열의 생산자 경로로 바꾼다 |
+
+## 8. M3a 구현 현황 (T-LR)
+
+`xeon/packages/group-learning`, 시험 83개. `just check packages/group-learning`가 통과한다. 코어(F·X·L0·L1) 경로의 diff는 0이다(`core-diff-check.ts`).
+
+| 작업 | 상태 | 내용 |
+|---|---|---|
+| LR-01 | 완료 | `manifest.ts`, `state.ts`(`lastTurnId`를 더함), `index.ts`는 default export 대신 팩토리 `createLearningGroup(deps)`다. 대기열 저장소와 ID 발급기를 주입해야 해서다. 시험 `manifest.test.ts` |
+| LR-02 | 완료 | `settings.ts`의 12개 키(spec §6.1 표와 같다. 큐레이터 4개는 `stage: "reserved"`). 설정을 읽지 못하면 fail-closed. spec §10 15·16이 남는다 |
+| LR-03 | 완료 | `handlers.ts`의 집계표(`boundary.turn.before`, `boundary.step.after`). `triggers.test.ts` |
+| LR-04 | 완료 | `triggers.ts`의 `applyTurn`과 `boundary.settle.after` 핸들러. 같은 turn의 재발화를 `lastTurnId`로 한 번만 반영한다 |
+| LR-05 | 완료 | `review/fork.ts`, 위임 먼저 커밋 나중, `agents/learning-review.md`. `fork.started`는 `duplicate`에서도 쓴다. `fork.test.ts` |
+| LR-06 | 완료 | `review/propose.ts`. 입력에 `description`을 더했다. `afterUntrusted`는 알 수 없어 거짓(spec §10 14). `propose.test.ts` |
+| LR-07 | 완료 | `review/prompts.ts`(영어). 표지 문자열 시험 `prompts.test.ts` |
+| LR-08 | 부분 | 비공개 기록 `fork.started`·`fork.finished`와 저장소 포트(`proposals/store.ts`, 메모리 구현). 투영기·DDL·`proposal.*` 비공개 기록은 없다(spec §10 13) |
+| LR-09 | 완료 | `proposals/queue.ts`(전이 표), `proposals/ops.ts`(결정, 명령 진입 지연 정리). `queue.test.ts` |
+| LR-10 | 완료 | `proposals/knowledge.ts`가 `apply.ts` 자리다. 멱등 키 `learning:apply:<id>:<rev>`, 승인 증거 `learning.queue` |
+| LR-11 | 완료 | `proposals/scan.ts`. 걸린 후보는 본문·diff를 비운다 |
+| LR-12 | 비움 | 번호를 비워 둔다 |
+| LR-13 | 완료 | 피드백 후보(`user/work-style`)와 메모리 `user` 영역 적용. `feedback.test.ts` |
+| LR-14 | 부분 | 공개 레코드 8종 선언과 `proposed`·`review.finished` 기록. `approved`·`rejected`·`applied`는 결정 경로에 ambient가 없어 쓰지 못한다(spec §3.7.1). `records.test.ts` |
+| LR-15 | 완료 | `commands.ts`. 승인·수정은 `--revision` 필수. 결과는 `report` 콜백으로 낸다(spec §6.2 미결). `commands.test.ts` |
+| LR-16 | 완료 | `coexist.test.ts`: drive 임대를 쥔 대역 아래에서 포크가 돈다. 루프 turn이 늘지 않는다 |
+| LR-17 | 부분 | 검토 행과 `review.finished`에 토큰을 남긴다. `GroupMetrics`는 연결하지 않았다 |
+| LR-18 | 완료 | `uc3.int.test.ts`(X2). 대기열은 메모리 저장소다. SQLite 저장소와 호스트 처리기는 L4(`apps/host`)에서 시험한다. 코어 diff 0은 `core-diff-check.ts` |
+| LR-23 | 완료 | 구독 핸들러, `reviewFinishOutcome`. 대체 경로는 `delegateStatus` 대신 저장소 검토 행(spec §4.3). `settled.test.ts` |
+| LR-24 | 완료 | `onDispose`가 위임을 취소하고 검토 행을 닫는다. group-kit이 `onDispose`에서 `cancelDelegates`가 동작하게 고쳤다. `dispose.test.ts` |
+| LR-25 | 완료 | `replay.test.ts`: `replayDrive`의 효과 계수, 모든 상태 커밋 지점에서 끊고 재발화. 하니스는 `test/support/replay-harness.ts` |
+| LR-26 | 부분 | 범위 선택(`approve --scope`)과 `scopeNotAllowed` 완료. `afterUntrusted` 기록은 항상 거짓 |
+| LR-27 | 완료 | `name_exists`, `conflictsWith` |
+| LR-28 | 완료 | `results.ts` |
