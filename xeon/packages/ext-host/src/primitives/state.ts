@@ -142,11 +142,13 @@ function cacheOf(record: ScopeRecord, thread: ThreadRuntime): StateCacheEntry {
 }
 
 /** on 핸들러 안은 디스패치 키 기준, drive 안은 임대·호출 기준의 멱등 키 재료를 만든다 */
-function nextIdentity(
-  record: ScopeRecord,
-  amb: Ambient,
-  letter: "" | "c" | "r",
-): { readonly rid: string; readonly fingerprint: JsonValue } {
+interface Identity {
+  readonly rid: string;
+  readonly fingerprint: JsonValue;
+}
+
+function nextIdentity(record: ScopeRecord, amb: Ambient, letter: "" | "c" | "r"): Identity {
+  assertHandlerAlive(record, amb);
   if (amb.drive !== null) {
     const n = amb.drive.i;
     amb.drive.i += 1;
@@ -168,6 +170,24 @@ function nextIdentity(
     rid: `${prefix}:${hash12(record.id)}:${keyPart(dispatchKey)}:${n}`,
     fingerprint: { scopeId: record.id, dispatchKey, n },
   };
+}
+
+/** 시간 예산을 넘겨 버려진 핸들러(좀비)는 더 쓰지 못한다. 쓰기는 호출 때와 줄 안 실행 때 모두 이 검사를 거친다 */
+function assertHandlerAlive(record: ScopeRecord, amb: Ambient): void {
+  if (amb.handler?.signal.aborted === true) {
+    throw new PrimitiveError(
+      "handler_aborted",
+      `a handler of ${record.id} was aborted (budget exceeded or session closed), so it cannot write`,
+      { scopeId: record.id },
+    );
+  }
+}
+
+/** 재시도는 같은 호출 신원에 접미사를 붙인 키와 지문을 쓴다. 호출 순번을 하나 더 쓰지 않는다 */
+function attemptIdentity(identity: Identity, attempt: number): Identity {
+  return attempt === 0
+    ? identity
+    : { rid: `${identity.rid}.a${attempt}`, fingerprint: [identity.fingerprint, attempt] };
 }
 
 function noteEffect(amb: Ambient): void {
@@ -405,6 +425,8 @@ export function createStateService(core: HostCore): StateService {
     next: unknown,
     expectedRev: number,
     extra: readonly DurableEventDraft[],
+    identity: Identity,
+    attempt: number,
   ): Promise<{ readonly kind: "done"; readonly doc: unknown } | { readonly kind: "conflict" }> {
     const decl = record.def.state;
     if (decl === undefined) throw new Bug("state.commitNow: no state declaration");
@@ -421,7 +443,8 @@ export function createStateService(core: HostCore): StateService {
     const port = portOf(record);
     const current = cacheOf(record, thread);
     if (current.rev !== expectedRev) return { kind: "conflict" };
-    const { rid, fingerprint } = nextIdentity(record, amb, "c");
+    assertHandlerAlive(record, amb);
+    const { rid, fingerprint } = attemptIdentity(identity, attempt);
     const draft = makeDraft(core.deps.ids, {
       threadId: thread.threadId,
       kind: stateKindOf(record.manifest),
@@ -488,8 +511,9 @@ export function createStateService(core: HostCore): StateService {
     if (amb === undefined) throw new Bug("state.commit: ambient vanished");
     const extra = records.map((input) => recordDraftOf(record, generation, thread, input));
     const expectedRev = cacheOf(record, thread).rev;
+    const identity = nextIdentity(record, amb, "c");
     return serialize(queueKey(thread, record), async () => {
-      const done = await commitNow(record, thread, amb, next, expectedRev, extra);
+      const done = await commitNow(record, thread, amb, next, expectedRev, extra, identity, 0);
       if (done.kind === "conflict") {
         throw new PrimitiveError("state_conflict", `state of ${record.id} changed; read it again`, {
           scopeId: record.id,
@@ -538,7 +562,10 @@ export function createStateService(core: HostCore): StateService {
       const amb = ambient();
       const thread = threadOf(amb, record);
       if (amb === undefined) throw new Bug("state.update: ambient vanished");
-      const attempt = (): Promise<
+      const identity = nextIdentity(record, amb, "c");
+      const attempt = (
+        index: number,
+      ): Promise<
         { readonly kind: "done"; readonly doc: unknown } | { readonly kind: "conflict" }
       > => {
         const current = cacheOf(record, thread);
@@ -546,15 +573,15 @@ export function createStateService(core: HostCore): StateService {
         const extra = records(next).map((input) =>
           recordDraftOf(record, generation, thread, input),
         );
-        return commitNow(record, thread, amb, next, current.rev, extra);
+        return commitNow(record, thread, amb, next, current.rev, extra, identity, index);
       };
       return serialize(queueKey(thread, record), async () => {
         try {
-          const first = await attempt();
+          const first = await attempt(0);
           if (first.kind === "done") return ok(first.doc);
           // 저장소의 판이 캐시보다 앞선다(다른 프로세스나 가지). 캐시를 다시 읽고 한 번 더 적용한다
           await refreshStates(record, thread);
-          const second = await attempt();
+          const second = await attempt(1);
           return second.kind === "done" ? ok(second.doc) : err({ kind: "state_conflict" });
         } catch (cause) {
           if (cause instanceof PrimitiveError && isUpdateFailure(cause.code)) {

@@ -38,13 +38,15 @@ type EffectOutcome =
   | { readonly kind: "unknown" };
 
 const RequestedSchema = Type.Object({
+  scopeId: Type.String(),
   key: Type.String(),
   capability: Type.String(),
   method: Type.String(),
   input: Type.Unknown(),
 });
-const StartedSchema = Type.Object({ key: Type.String() });
+const StartedSchema = Type.Object({ scopeId: Type.String(), key: Type.String() });
 const SettledSchema = Type.Object({
+  scopeId: Type.String(),
   key: Type.String(),
   outcome: Type.Union([
     Type.Object({ kind: Type.Literal("ok"), output: Type.Unknown() }),
@@ -169,16 +171,17 @@ export function createEffectWorker(core: HostCore, defs: CapabilityDefLookup): E
       const area = row.kind.slice(prefix.length);
       if (area === "requested") {
         const parsed = parse(RequestedSchema, row.payload);
-        if (parsed.ok) requested.push(parsed.value);
+        if (parsed.ok && parsed.value.scopeId === job.scopeId) requested.push(parsed.value);
       } else if (area === "started") {
         const parsed = parse(StartedSchema, row.payload);
-        if (parsed.ok) started.add(parsed.value.key);
+        if (parsed.ok && parsed.value.scopeId === job.scopeId) started.add(parsed.value.key);
       } else if (area === "settled") {
         const parsed = parse(SettledSchema, row.payload);
-        if (parsed.ok) settled.add(parsed.value.key);
+        if (parsed.ok && parsed.value.scopeId === job.scopeId) settled.add(parsed.value.key);
       }
     }
     await eachInOrder(requested, async (request) => {
+      if (!core.threads.has(job.threadId)) return "stop";
       if (settled.has(request.key)) return "continue";
       const capability = isCapabilityId(request.capability) ? request.capability : undefined;
       const replay =
@@ -192,27 +195,41 @@ export function createEffectWorker(core: HostCore, defs: CapabilityDefLookup): E
       } else {
         if (
           !started.has(request.key) &&
-          !(await commitMarker(job, "started", request.key, { key: request.key }))
+          !(await commitMarker(job, "started", request.key, {
+            scopeId: job.scopeId,
+            key: request.key,
+          }))
         ) {
           return "stop";
         }
         outcome = await call(request, job);
       }
-      const done = await commitMarker(job, "settled", request.key, { key: request.key, outcome });
+      const done = await commitMarker(job, "settled", request.key, {
+        scopeId: job.scopeId,
+        key: request.key,
+        outcome,
+      });
       return done ? "continue" : "stop";
     });
   }
 
   async function drain(job: EffectJob): Promise<void> {
+    // 닫힌 thread의 요청은 다음에 열 때(openThread) 이어서 처리한다
+    if (!core.threads.has(job.threadId)) return;
     const key = `${job.threadId}|${job.scopeId}`;
     if (running.has(key)) {
       running.set(key, "again");
       return;
     }
     running.set(key, "running");
-    await drainOnce(job);
-    const again = running.get(key) === "again";
-    running.delete(key);
+    let again = false;
+    try {
+      await drainOnce(job);
+    } finally {
+      // 실패해도 표시를 지운다. 남기면 이 scope의 뒤 요청이 영영 실행되지 않는다
+      again = running.get(key) === "again";
+      running.delete(key);
+    }
     if (again) await drain(job);
   }
 

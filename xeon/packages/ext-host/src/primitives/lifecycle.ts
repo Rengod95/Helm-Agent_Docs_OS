@@ -26,6 +26,8 @@ export type CommittedEvent = Pick<DurableEventDraft, "id" | "kind" | "payload">;
 export const SessionFeedPortKey: PortKey<EventFeed> = { name: "xeon.session", member: "feed" };
 
 export interface Lifecycle {
+  /** 닫혀 있는 동안 피드로 온 이벤트를 thread를 연 뒤 발화한다(메모리에만 둔다 [미결: 재시작을 넘기지 못한다]) */
+  flush(threadId: ThreadId): Promise<void>;
   /** 커밋 피드가 제공되어 있으면 구독한다(한 번). thread를 열 때 부른다. 돌려주는 함수가 구독을 해제한다 */
   attach(): void;
   detach(): void;
@@ -51,8 +53,23 @@ function ownerScopeOf(
 /** 같은 이벤트가 경계 커밋 알림과 피드로 두 번 오면 한 번만 발화한다. 기억하는 id 수 */
 const SEEN_MAX = 4096;
 
+/** thread가 닫힌 동안 쌓아 두는 이벤트의 전체 상한. 넘으면 가장 오래된 것부터 버리고 진단을 남긴다 */
+const HELD_MAX = 1024;
+
+/**
+ * 피드의 `onCommit`은 저장소 커밋 안에서 동기로 불려 X의 상태 캐시와 임대 갱신보다 앞선다. 한 번 매크로태스크를 넘겨
+ * 커밋 경로(마이크로태스크 연쇄)가 끝난 뒤에 핸들러가 커밋 뒤 판을 읽게 한다. 시계가 아니라 순서 장치라 주입 타이머를 쓰지 않는다
+ */
+function afterCommitPath(): Promise<void> {
+  return new Promise((resolve) => {
+    setImmediate(resolve);
+  });
+}
+
 export function createLifecycle(core: HostCore): Lifecycle {
   const seen = new Set<string>();
+  const held = new Map<ThreadId, CommittedEvent[]>();
+  let heldCount = 0;
   let unsubscribe: (() => void) | undefined;
   let attachedTo: EventFeed | undefined;
 
@@ -108,6 +125,28 @@ export function createLifecycle(core: HostCore): Lifecycle {
         return assertNever(point, "LIFECYCLE_POINTS");
     }
   }
+  function hold(threadId: ThreadId, list: readonly CommittedEvent[]): void {
+    const current = held.get(threadId) ?? [];
+    current.push(...list);
+    held.set(threadId, current);
+    heldCount += list.length;
+    while (heldCount > HELD_MAX) {
+      const oldest = held.entries().next();
+      if (oldest.done) break;
+      const [id, events] = oldest.value;
+      const dropped = events.shift();
+      if (dropped !== undefined) {
+        heldCount -= 1;
+        core.deps.report({
+          level: "warning",
+          code: "handler_failed",
+          message: `lifecycle event ${dropped.id} of closed thread ${id} was dropped (too many held events)`,
+        });
+      }
+      if (events.length === 0) held.delete(id);
+    }
+  }
+
   return {
     attach() {
       const feed = core.ports.get(SessionFeedPortKey);
@@ -118,10 +157,21 @@ export function createLifecycle(core: HostCore): Lifecycle {
         const events = batch.events.filter((event) => isLifecycleKind(event.kind));
         const byThread = Map.groupBy(events, (event) => event.threadId);
         for (const [threadId, list] of byThread) {
-          if (!core.threads.has(threadId)) continue;
-          core.track(this.afterCommit(threadId, list));
+          if (core.threads.has(threadId)) {
+            core.track(afterCommitPath().then(() => this.afterCommit(threadId, list)));
+          } else {
+            hold(threadId, list);
+          }
         }
       });
+    },
+    async flush(threadId) {
+      const list = held.get(threadId);
+      if (list === undefined) return;
+      held.delete(threadId);
+      heldCount -= list.length;
+      await afterCommitPath();
+      await this.afterCommit(threadId, list);
     },
     detach() {
       unsubscribe?.();

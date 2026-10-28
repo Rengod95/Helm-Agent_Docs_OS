@@ -634,9 +634,10 @@ export function createExtHost(deps: ExtHostDeps): ExtHost {
       settle: (signal, result) => boundary.settle(signal, result),
     },
     afterCommit: (threadId, events) => lifecycle.afterCommit(threadId, events),
-    openThread: (threadId) => {
+    openThread: async (threadId) => {
       lifecycle.attach();
-      return boundary.openThread(threadId);
+      await boundary.openThread(threadId);
+      core.track(lifecycle.flush(threadId));
     },
     closeThread: (threadId) => boundary.closeThread(threadId),
     leaseOf(threadId) {

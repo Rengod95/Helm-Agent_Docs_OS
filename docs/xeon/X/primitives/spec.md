@@ -715,7 +715,7 @@ export type PrimitiveErrorCode =
   | "port_unavailable" | "no_context" | "no_thread"
   | "post_undeclared"
   | "drive_requires_group" | "drive_undeclared" | "drive_duplicate" | "drive_outside_setup"
-  | "lease_inactive" | "lease_revoked" | "lease_budget"
+  | "lease_inactive" | "lease_revoked" | "lease_budget" | "handler_aborted"
   | "scope_inactive" | "scope_foreign_id" | "scope_duplicate" | "scope_setup_failed"
   | "point_undeclared"
   | "state_undeclared" | "state_schema" | "state_conflict" | "state_too_large"
@@ -930,7 +930,7 @@ lifecycle [결정: adr.0017]:
 5. 이미 임대가 있으면 중재자와 후보 수를 다시 묻지 않는다. 설정 `x.primitives.activeDriveGroup`이 다른 그룹을 가리킬 때만 예외다. 가리킨 그룹이 이 thread의 후보(켜져 있고 drive를 등록했고 오류 상태가 아니고 `idle`·`budget` 반납 뒤 대기 중이 아님)이면 현재 임대를 `revoked` 사유로 `releasing`으로 바꾼다. 반납은 다음 경계 커밋에서 기록되고, 그 커밋이 끝나면 곧바로 이어서 후보를 다시 판단해 가리킨 그룹에 `lease.acquired`를 기록한다. 가리킨 그룹이 후보가 아니면 현재 임대를 유지한다. 진행 중인 `loop.turn`은 끊지 않는다(§4.4.4). 설정이 `null`로 바뀌거나 중재자가 다른 그룹을 고르게 되어도 회수하지 않는다. 회수는 사용자가 이름을 지정한 경우의 동작이다([결정: P-22]).
 6. 부여: `leaseEpoch = 그 scope의 직전 차수 + 1`, `leaseId = ids`로 만든 불투명 문자열(40자 이하) [제안]. 경계 기여에 `lease.acquired { leaseId, scopeId, limits }`(F.records.spec §3.3)를 넣는다. 임대 상태는 `active`다.
 7. `lease.acquired`의 `leaseEpoch`(F `LeaseAcquiredPayload.leaseEpoch`, 선택 필드)에 부여한 차수를 싣는다. 재개 때는 `ExtThreadSnapshot.openLease.leaseEpoch`와 `leaseEpochs`로 같은 임대를 같은 `leaseId`·차수로 이어 간다(`restore`). 옛 기록처럼 필드가 없으면 활성 가지 위 scope별 `lease.acquired` 개수로 다시 센다. 되감은 뒤에는 버려진 가지의 차수 값이 다시 나올 수 있고, 펜싱과 멱등 키는 `leaseId`(임대마다 새로 발급)를 함께 쓰므로 섞이지 않는다.
-8. [제안, M3-REQ-28, D-M3-05 a] 대기와 거부. 임대를 받지 못한 후보(다른 그룹이 임대를 가졌거나 중재자가 다른 그룹을 골랐음)는 대기한다. X는 경계마다 후보별 대기를 세며 `turn_settled`와 `idle` 경계가 한 번 지날 때마다 1을 더한다(`step_end`는 세지 않는다). 값이 `x.primitives.leaseWaitLimit`(기본 8, §6)을 넘으면 그 경계 기여에 내구 이벤트 `lease.rejected { groupId, reason: "wait_limit", requestSeq }`를 싣는다. `requestSeq`는 thread 안에서 후보가 대기를 시작한 순번이다. 거부된 scope는 그 thread에서 다음 임대 반납이 커밋될 때까지 다시 세지 않고, 반납이 커밋되면 모든 후보가 새로 대기를 시작한다. 거부는 그룹의 `on`, `post`, `commit`을 막지 않는다. 이벤트가 커밋되면 `lifecycle.lease.rejected`가 발화한다(§4.11). `GroupStatus.drive "rejected"`를 채우는 일은 group-kit 몫이다.
+8. [제안, M3-REQ-28, D-M3-05 a] 대기와 거부. 임대를 받지 못한 후보(다른 그룹이 임대를 가졌거나 중재자가 다른 그룹을 골랐음)는 대기한다. X는 경계마다 후보별 대기를 세며 `turn_settled`와 `idle` 경계가 한 번 지날 때마다 1을 더한다(`step_end`는 세지 않는다). 값이 `x.primitives.leaseWaitLimit`(기본 8, §6)을 넘으면 그 경계 기여에 내구 이벤트 `lease.rejected { groupId, reason: "wait_limit", requestSeq }`를 싣는다. `requestSeq`는 thread 안에서 후보가 대기를 시작한 순번이다. 거부된 scope는 그 thread에서 다음 임대 반납이 커밋될 때까지 다시 세지 않고, 반납이 커밋되면 모든 후보가 새로 대기를 시작한다. 거부 이벤트의 커밋 키는 `lease:<대기 scope>:rejected:<임대를 가진 scope>.<그 임대 차수>`다. 둘 다 커밋된 값이라 thread를 다시 열어 `requestSeq`가 0부터 다시 시작해도 다른 임대 아래의 거부와 키가 겹쳐 사라지지 않는다. 같은 임대 아래의 같은 거부를 다시 열린 thread가 한 번 더 내면 `replayed`로 한 건만 남는다. 경계 커밋이 실패하면 그 경계가 올린 대기 계수를 되돌린다. 거부는 그룹의 `on`, `post`, `commit`을 막지 않는다. 이벤트가 커밋되면 `lifecycle.lease.rejected`가 발화한다(§4.11). `GroupStatus.drive "rejected"`를 채우는 일은 group-kit 몫이다.
 9. 역할 분담: `DriveArbiter`(group-kit)는 누가 받는지(정책)를, X는 대기 계수, 상한 집행, `lease.rejected` 커밋, 부여·반납 커밋(메커니즘)을 맡는다. 유휴 중 임대를 받은 그룹은 임대 상한 안에서 turn을 연다([결정: review.m3-design-inputs D-M3-06 a], §4.5.5).
 
 #### 4.4.2 상한
@@ -1043,6 +1043,7 @@ learning이 drive를 등록하지 않으므로 후보는 계속 [helm] 하나다
 - 허용되지 않는 호출(on의 읽기, 두 문맥의 선언 없는 쓰기)은 공급자를 부르지 않고 서비스 메서드의 실패 규약대로 `CapabilityError`(코드 `effect_not_allowed`, `retryable: false`)로 거부한다. 선언 없는 쓰기는 `hostOf(g).requestEffect`로 요청 레코드를 남긴다(§4.10).
 - `idempotent` 호출에 `requestId`가 없으면 on 핸들러와 drive 함수 모두 `invalid_input`으로 거부한다(공급자를 부르지 않는다). 길이가 1~64자가 아니어도 `invalid_input`이다.
 - [결정: adr.0015] drive 함수의 `idempotent` 호출도 명시 `requestId`만 받는다(ADR-0015 §3.4 3번). 기본 키를 주지 않고, 키가 없으면 공급자를 부르지 않고 `invalid_input`으로 거부한다. 기본 키(`${leaseId}:${순번}`)는 `loop.turn`·`loop.spawn`만 받는다(§4.4.4).
+- 공급자는 `withoutAmbient`로 부른다. 공급자 안에서 도는 도구와 서비스가 호출자의 재실행 문맥으로 판정되지 않게 한다. `loop.turn`·`loop.spawn`도 같다(turn 안의 도구).
 - 호출 옵션에 `context`가 없으면 `CallOptions.context`(`threadId`, `caller { kind: "extension", extension }`)를 채운다(F.capabilities.spec §3.2). L1.tools 어댑터가 이미 채운 `context`(도구 호출 id, 모델 호출자, 승인 증거)는 덮지 않는다.
 - `effects` 계수에는 능력 호출을 넣지 않는다. 공급자의 반환만으로는 처음 결과인지 재생된 결과인지 알 수 없다 [미결].
 - 시험: `replay-effects.test.ts`가 "재생 2회, 효과 1회"(같은 상태 판으로 drive를 두 번 호출해도 공급자 효과 1회), on의 읽기·선언 없는 쓰기·키 없는 멱등 쓰기 거부와 공급자 미호출을 확인한다.
@@ -1180,6 +1181,7 @@ commit(next):
 - 재실행 규칙 [제안]: 소비 커밋 전 크래시 뒤 다시 실행된 핸들러는 이미 커밋된 상태 판을 본다. 재시작 뒤 캐시는 `loadThread`가 읽은 판 k+1이고, `ctx.state`와 `g.state()`도 그 값이다. 핸들러가 그 값으로 다시 계산한 `next`는 `replayed` 결과에서 버려지고, X는 `ExtCommitResult.stored`(저장된 판 k+1)를 캐시에 두고 `commit`의 반환값으로 돌려준다. 그래서 DB, 캐시, 핸들러가 받는 반환값은 같은 doc이다. 다만 `replayed` 이전에 핸들러가 `ctx.state`로 계산한 다른 부수 결과(post 본문, record payload)는 처음 실행과 다를 수 있다. 그래서 상태 갱신 함수는 이미 반영된 갱신을 다시 적용해도 결과가 같은 멱등 reducer로 쓴다(예: 판 번호나 처리한 입력 id를 doc에 두고 비교한다). L3.group-kit.spec §4.5 6번의 멱등 reducer 예제가 이 형태다.
 - 저장소 결과 변환: L1.persistence.spec §3.3이 `SessionWriter` 결과를 `ExtCommitResult`로 바꾼다. `ownership_lost` → `lease_lost`, `key_reused` → `invalid`, 쓰기 잠금 대기 초과 → `busy`, `disk_full`·`read_only` → `storage`다. 같은 키·같은 지문의 상태 커밋은 `replayed`와 저장된 상태(`stored`)를 돌려준다. L1.persistence.spec §3.3의 변환표가 이 규칙과 같다.
 - 같은 (thread, scope)에 커밋이 겹치면 `expectStateRev`로 뒤 커밋을 `state_conflict`로 거부한다. 호출자는 최신 `state()`를 읽고 다시 계산해야 한다.
+- 멱등 신원(키와 지문)은 `record`·`recordPrivate`와 같이 호출 시점에 호출 순서대로 받는다. 줄에서 기다리는 `commit`·`updateState`도 같다. `updateState`의 재시도는 같은 신원에 접미사 `.a1`을 붙인 키와 지문을 쓰고 호출 순번을 더 쓰지 않는다. 시간 예산을 넘겨 버려진 핸들러(좀비)나 닫힌 세션의 핸들러는 신원을 받을 때와 줄에서 실행될 때 `handler_aborted`로 거부되어 커밋하지 못한다(`commit`, `commitWith`, `updateState`, `record`, `recordPrivate`).
 - [제안, M3-REQ-23] 같은 프로세스 안의 직렬화. X는 (thread, scope)마다 커밋 줄을 하나 둔다. `commit`은 호출 순서대로 하나씩 실행하고, 호출 때의 판을 기대 판으로 잡는다. 앞 커밋이 끝난 뒤 캐시 판이 기대 판과 다르면 저장소를 부르지 않고 `state_conflict`다(앞선 커밋이 이긴다). 줄 덕분에 겹친 호출의 결과가 호출 순서만으로 정해진다.
 - [제안, M3-REQ-23] `hostOf(g).updateState(fn, records?)`는 줄 안에서 최신 상태를 읽어 `fn`을 적용하고 커밋한다. 같은 프로세스의 겹침으로는 충돌하지 않아 갱신을 잃지 않는다. 저장소가 판 충돌을 내면(다른 프로세스, 가지 이동) 저장소에서 상태를 다시 읽고 `fn`을 한 번 더 적용하며, 두 번째도 충돌이면 `err({ kind: "state_conflict" })`다. `state_schema`, `state_too_large`, `storage_unavailable`, `lease_revoked`도 던지지 않고 값으로 돌려준다. 이것으로 Helm `updateState` 큐를 지울 수 있다.
 - [제안, M3-REQ-24] `hostOf(g).commitWith(next, records)`는 상태 커밋 초안과 `records`의 그룹 레코드 초안을 한 `RecordCommitPort.commit` 요청으로 낸다(같은 requestId, 같은 트랜잭션). 레코드는 `record`와 같은 검사(`record_kind_undeclared`, `record_invalid`)를 받고, 상태가 충돌하면 레코드도 남지 않는다. `updateState`의 `records`도 같다. F `ScopeApi.commit(next)`는 둘째 인자가 없어 F 변경(`commit(next, { records })`) 대신 X 부가 API로 둔다.
@@ -1327,18 +1329,20 @@ adr.0002 §6과 ADR-0007 §6에 남은 항목이다. Cordis 일반 `emit`은 thi
 
 [결정: ADR-0015 §3.5 1번] 선언 없는 쓰기는 재실행되는 코드에서 직접 부르지 않고 요청 레코드와 워커를 거친다. [제안, M3-REQ-27] 워커는 X가 소유한다(`primitives/effect-worker.ts`). 요청 레코드와 래퍼 검사가 X에 있기 때문이다. 소유가 L1 백그라운드 작업으로 바뀌면 `EffectWorkerPort`(`schedule(job)`)의 구현만 바꾼다. `ExtHostDeps.effectWorker`로 대체한다.
 
-1. 요청: `hostOf(g).requestEffect({ capability, method, input, key })`. 능력은 requires나 optional에 있어야 한다(`capability_undeclared`). `key`는 1~48자의 결정적 키다. 요청은 비공개 레코드 `<x|grp>.<이름>.effect.requested { key, capability, method, input }`로 `recordPrivate`와 같은 멱등 키로 커밋한다. 재실행돼도 한 번만 남는다. 영역 `effect`는 X 예약이다.
+1. 요청: `hostOf(g).requestEffect({ capability, method, input, key })`. 능력은 requires나 optional에 있어야 한다(`capability_undeclared`). `key`는 1~48자의 결정적 키다. 요청은 비공개 레코드 `<x|grp>.<이름>.effect.requested { scopeId, key, capability, method, input }`로 `recordPrivate`와 같은 멱등 키로 커밋한다. 재실행돼도 한 번만 남는다. 영역 `effect`는 X 예약이다.
 2. 워커: 요청이 커밋된 뒤와 `openThread` 때(재시작 복구) 그 scope의 요청 레코드를 읽고, 결과가 없는 요청을 레코드 순서대로 실행한다. 재실행되지 않는 문맥(`withoutAmbient`)에서 돌며 능력 래퍼 검사를 받지 않는 원본 서비스를 부른다. scope마다 한 번에 하나만 돈다.
-3. 순서: `effect.started { key }` 커밋 → 메서드 호출(`requestId = key`, `CallOptions.context` 채움) → `effect.settled { key, outcome }` 커밋. `outcome`은 `ok { output }`, `failed { code, message }`(오류 거부, 공급자 없음 `unavailable`), `unknown`이다. 각 커밋 키는 `eff:<scope 해시>:<key>:<단계>`라 같은 단계를 다시 커밋해도 한 번이다.
+3. 순서: `effect.started { scopeId, key }` 커밋 → 메서드 호출(`requestId = key`, `CallOptions.context` 채움) → `effect.settled { scopeId, key, outcome }` 커밋. `outcome`은 `ok { output }`, `failed { code, message }`(오류 거부, 공급자 없음 `unavailable`), `unknown`이다. 각 커밋 키는 `eff:<scope 해시>:<key>:<단계>`라 같은 단계를 다시 커밋해도 한 번이다.
 4. 재시작 복구: `started`는 있고 `settled`가 없으면 결과 불명이다. 메서드 `replay`가 `"safe"`면 다시 부르고, 아니면(정의를 모르는 경우 포함) 부르지 않고 `outcome: { kind: "unknown" }`으로 닫는다.
 5. 결과 통지 [제안]: 그룹은 `readRecords({ kind: "<접두>effect.settled" })`로 다음 경계나 on 핸들러에서 읽는다. 별도 통지 지점은 없다.
-6. 시험: `replay-effects.test.ts`의 요청 → started → settled 순서와 한 번 실행, 재시작 뒤 `unknown` 종결.
+6. 처리 한 번이 던져도 scope의 처리 표시를 지우고(`finally`) 뒤 요청이 이어서 실행된다. 닫힌 thread의 요청은 건너뛰고 다음 `openThread`에서 이어서 처리한다. 같은 확장의 scope들은 레코드의 `scopeId`로 나뉘어 같은 `key`를 써도 섞이지 않는다.
+7. 시험: `replay-effects.test.ts`의 요청 → started → settled 순서와 한 번 실행, 재시작 뒤 `unknown` 종결.
 
 ### 4.11 수명주기 지점 디스패치
 
 [결정: ADR-0017 §3.6, M3-REQ-102·108] 내구 이벤트 `agent.settled`와 `lease.rejected`가 커밋되면 대응 지점 `lifecycle.agent.settled`, `lifecycle.lease.rejected`를 디스패치한다. 이벤트 kind에서 지점 이름으로 가는 길은 F `LIFECYCLE_POINTS` 하나이고 X는 다른 표를 두지 않는다. 디스패치 키는 이벤트 id다.
 
-- 입구는 두 곳이고 모두 커밋 뒤다. 첫째, X가 낸 경계 기여(`lease.rejected`)는 `boundary.settle(committed)`가 `lifecycle.afterCommit`으로 알린다. 커밋 실패(`failed`)와 prepare 시점에는 발화하지 않는다. 둘째, 다른 층이 커밋하는 `agent.settled`(core-agents가 core-persistence로 씀)는 서비스 `xeon.session`의 `feed.onCommit`(F `EventFeed`, 포트 키 `SessionFeedPortKey`)으로 본다. 호스트는 `openThread`에서 피드가 제공되어 있으면 한 번 구독한다. 열린 thread의 이벤트만 발화한다. 같은 이벤트가 두 입구로 오면 한 번만 발화한다(이벤트 id 기억 4096개).
+- 피드의 `onCommit`은 저장소 커밋 안에서 동기로 불려 X의 상태 캐시와 임대 갱신보다 앞서므로, 호스트는 한 번 매크로태스크를 넘긴 뒤 발화한다. 핸들러가 읽는 `ctx.state`는 커밋 뒤 판이다.
+- 입구는 두 곳이고 모두 커밋 뒤다. 첫째, X가 낸 경계 기여(`lease.rejected`)는 `boundary.settle(committed)`가 `lifecycle.afterCommit`으로 알린다. 커밋 실패(`failed`)와 prepare 시점에는 발화하지 않는다. 둘째, 다른 층이 커밋하는 `agent.settled`(core-agents가 core-persistence로 씀)는 서비스 `xeon.session`의 `feed.onCommit`(F `EventFeed`, 포트 키 `SessionFeedPortKey`)으로 본다. 호스트는 `openThread`에서 피드가 제공되어 있으면 한 번 구독한다. thread가 닫혀 있는 동안 피드로 온 이벤트는 메모리에 쌓아 두었다가(전체 1024개 상한, 넘으면 오래된 것부터 버리고 진단) 그 thread를 열 때 발화한다. 쌓아 둔 이벤트는 프로세스 재시작을 넘기지 못한다 [미결: 피드 `subscribe(afterSeq)` 커서로 따라잡을지]. 같은 이벤트가 두 입구로 오면 한 번만 발화한다(이벤트 id 기억 4096개).
 - 피드가 없는 구성에서는 `ExtHost.afterCommit(threadId, events)`를 L1이 직접 부를 수 있다.
 - 페이로드는 F 스키마로 검사한다. 어기면 진단을 남기고 건너뛴다.
 - [제안] 소유 scope 거르기: `agent.settled.owner`가 `scope` 또는 `drive`이면 그 `scopeId`의 핸들러만 받는다(`DispatchOptions.onlyScope`). F.extensions.spec 지점 45행이 "소유 scope 거르기는 X"라고만 적었다. `owner`가 `tool`이거나 없으면(옛 기록) 거르지 않고 모든 구독자가 받는다 [미결: 옛 기록의 `agent.spawned.owner` 대조는 하지 않는다].

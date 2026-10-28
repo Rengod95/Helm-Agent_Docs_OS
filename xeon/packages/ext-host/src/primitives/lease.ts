@@ -40,6 +40,8 @@ export interface LeaseBroker {
   collectReleases(thread: ThreadRuntime, txn: BoundaryTxn): void;
   /** prepare: 후보 계산과 lease.acquired 초안 */
   grant(thread: ThreadRuntime, txn: BoundaryTxn): void;
+  /** settle(failed): 이 경계가 올린 대기 계수를 되돌린다 */
+  revertWait(thread: ThreadRuntime, txn: BoundaryTxn): void;
   /** settle(committed): 커밋된 반납·부여를 반영한다 */
   applyCommitted(thread: ThreadRuntime, txn: BoundaryTxn): void;
   /** settle 뒤: 경계 종류에 맞게 drive 함수를 부른다 */
@@ -450,6 +452,7 @@ export function createLeaseBroker(
       }
       if (txn.signal.kind === "step_end") continue;
       entry.waited += 1;
+      txn.waited.push(record.id);
       if (entry.waited <= limit) continue;
       txn.drafts.push(
         makeDraft(core.deps.ids, {
@@ -464,7 +467,16 @@ export function createLeaseBroker(
           stepId: txn.signal.stepId,
         }),
       );
-      txn.rejected.push({ scopeId: record.id, requestSeq: entry.requestSeq });
+      txn.rejected.push({
+        scopeId: record.id,
+        requestSeq: entry.requestSeq,
+        holder,
+        holderEpoch:
+          holder === null
+            ? 0
+            : ((txn.grant?.scopeId === holder ? txn.grant.leaseEpoch : thread.lease?.leaseEpoch) ??
+              0),
+      });
     }
   }
 
@@ -537,6 +549,12 @@ export function createLeaseBroker(
     grant(thread, txn) {
       decide(thread, txn);
       trackWaiting(thread, txn);
+    },
+    revertWait(thread, txn) {
+      for (const id of txn.waited) {
+        const entry = thread.leaseWait.get(id);
+        if (entry !== undefined && entry.waited > 0) entry.waited -= 1;
+      }
     },
     applyCommitted(thread, txn) {
       for (const lease of txn.releasing) {

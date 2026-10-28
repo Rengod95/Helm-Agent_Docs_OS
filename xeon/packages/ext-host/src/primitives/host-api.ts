@@ -360,6 +360,7 @@ export function createScopeApi(
       }
       generation.usage.capabilities.add(request.capability);
       await deps.state.recordPrivate(record, generation, effectKindOf(manifest, "requested"), {
+        scopeId: record.id,
         key: request.key,
         capability: request.capability,
         method: request.method,

@@ -13,6 +13,7 @@ export type PrimitiveErrorCode =
   | "lease_inactive"
   | "lease_revoked"
   | "lease_budget"
+  | "handler_aborted"
   | "scope_inactive"
   | "scope_foreign_id"
   | "scope_duplicate"

@@ -83,7 +83,8 @@ function commitPlanOf(
     ),
     ...txn.releasing.map((lease) => `lease:${keyPart(lease.leaseId)}:released`),
     ...txn.rejected.map(
-      (rejection) => `lease:${keyScopeId(rejection.scopeId)}:rejected.${rejection.requestSeq}`,
+      (rejection) =>
+        `lease:${keyScopeId(rejection.scopeId)}:rejected:${keyScopeId(rejection.holder ?? "none")}.${rejection.holderEpoch}`,
     ),
     ...(txn.grant === null
       ? []
@@ -173,6 +174,7 @@ export function createBoundary(
       const stale = thread.txn;
       thread.txn = null;
       await scope.settle(thread, stale, "failed");
+      lease.revertWait(thread, stale);
       stale.grant?.abort.abort();
     }
     const txn: BoundaryTxn = {
@@ -187,6 +189,7 @@ export function createBoundary(
       releasing: [],
       grant: null,
       rejected: [],
+      waited: [],
     };
     thread.txn = txn;
     if (signal.kind !== "turn_settled") await scope.applyToggles(thread, txn);
@@ -240,6 +243,7 @@ export function createBoundary(
       // 이 경계 커밋에 실린 이벤트의 수명주기 지점은 커밋 뒤에만 발화한다(M3-REQ-108)
       await lifecycle.afterCommit(thread.threadId, txn.drafts);
     } else {
+      lease.revertWait(thread, txn);
       txn.grant?.abort.abort();
     }
   }

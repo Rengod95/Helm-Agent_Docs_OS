@@ -204,12 +204,17 @@ export interface BoundaryTxn {
   grant: LeaseRuntime | null;
   /** 이 커밋에서 `lease.rejected`로 기록될 임대 요청(M3-REQ-28) */
   readonly rejected: LeaseRejection[];
+  /** 이 경계가 대기 계수를 올린 scope. 커밋이 실패하면 되돌린다 */
+  readonly waited: ScopeId[];
 }
 
 /** 대기 상한을 넘겨 거부된 임대 요청 하나 */
 interface LeaseRejection {
   readonly scopeId: ScopeId;
   readonly requestSeq: number;
+  /** 거부 때 임대를 가진 scope와 그 임대 차수. 둘 다 커밋된 값이라 thread를 다시 열어도 같은 거부에 같은 값이다(커밋 키 재료) */
+  readonly holder: ScopeId | null;
+  readonly holderEpoch: number;
 }
 
 export interface ThreadRuntime {

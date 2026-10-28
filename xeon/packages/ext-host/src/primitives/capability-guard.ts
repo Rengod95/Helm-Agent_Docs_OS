@@ -14,7 +14,7 @@ import {
   type ReplayEffect,
   type ScopeId,
 } from "@xeon/contracts/extensions";
-import { ambient, type Ambient } from "./ambient.ts";
+import { ambient, withoutAmbient, type Ambient } from "./ambient.ts";
 
 /**
  * 능력 id로 정의를 찾는다. `g.capability`가 돌려주는 서비스는 호출 때 메서드의 효과 분류(`idempotent`, `readOnly`)를 알아야 하는데
@@ -134,7 +134,8 @@ export function guardCapabilityService(target: GuardTarget): Readonly<Record<str
             caller: { kind: "extension", extension: target.extension },
           },
         };
-        return method.call(service, input, merged);
+        // 공급자 안에서 도는 도구와 서비스는 재실행되는 문맥이 아니다. 호출자의 ambient가 따라 들어가지 않게 끊는다
+        return withoutAmbient(() => method.call(service, input, merged));
       },
     ]);
   }
