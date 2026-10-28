@@ -1,6 +1,7 @@
 import type {
   ExtensionEntry,
   ExtensionManifest,
+  ProviderResourceDef,
   ScopeApi,
   StateDecl,
   ToolResourceDef,
@@ -77,6 +78,8 @@ export interface GroupApi<S, D extends GroupSettingDefs = NoSettings> extends Sc
   registerTool(def: ToolResourceDef): void;
   /** 명령 등록. X hostOf(g).registerCommand를 그대로 부른다. setup 안에서만. 이름은 그룹 이름과 같게 둔다 [제안] */
   registerCommand(name: string, def: CommandResourceDef): void;
+  /** 모델 provider 등록. X hostOf(g).registerProvider를 그대로 부른다(config는 JSON 표현). setup 안에서만. scope가 꺼지면 해제된다 */
+  registerProvider(name: string, config: ProviderResourceDef): void;
 }
 
 export interface GroupModule {

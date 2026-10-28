@@ -6,6 +6,7 @@ import type {
   ExtensionManifest,
   LoopHandle,
   PortKey,
+  ProviderResourceDef,
   ScopeApi,
   SpawnSpec,
   StateDecl,
@@ -49,6 +50,7 @@ export type GroupCallContext = ScopeCallContext;
 export interface GroupHostAccess {
   registerTool(def: ToolResourceDef): void;
   registerCommand(name: string, def: CommandResourceDef): void;
+  registerProvider(name: string, config: ProviderResourceDef): void;
   migrateState(fn: StateMigration): void;
   /** 설정 읽기. 내장 그룹은 모든 키, 그 밖의 그룹은 자기 `ext.<id>.*` 키만 값이 나온다 */
   settingsSource(): GroupSettingsSource | undefined;
@@ -70,6 +72,9 @@ export function realHostAccess<S>(api: ScopeApi<S>): GroupHostAccess {
     },
     registerCommand: (name, def) => {
       hostOf(api).registerCommand(name, def);
+    },
+    registerProvider: (name, config) => {
+      hostOf(api).registerProvider(name, config);
     },
     migrateState: (fn) => {
       hostOf(api).migrateState(fn);
@@ -332,6 +337,9 @@ export function wrap<S, D extends GroupSettingDefs>(
     },
     registerCommand: (name, commandDef) => {
       access.registerCommand(name, commandDef);
+    },
+    registerProvider: (name, config) => {
+      access.registerProvider(name, config);
     },
   };
 }
