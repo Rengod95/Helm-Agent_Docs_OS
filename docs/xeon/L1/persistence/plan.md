@@ -144,7 +144,7 @@ xeon/packages/core-persistence/
 | PS-15 | blob 분리: `blob.ts`(`detachLarge`, `hydrate`), `p_blob_refs`, `query.liveBlobRefs` | PS-3, L0.store.plan(`putBlob`, `readBlob`) | M | M1 |
 | PS-16 | 플러그인과 서비스 조립: `plugin.ts`(`xeon.store` 주입, `xeon.session` 제공, `producer` 한 번 받기 규칙), `index.ts`, `ext-port.ts`(M2) | PS-2, PS-12, X.primitives(플러그인 등록 API) | M | M1(ext-port M2) |
 | PS-17 | 확장 지점 7개 발화: `points.ts`. M1은 `session.start`, `session.shutdown`(F 표 M1 ● 지점), M2는 나머지 5개 | PS-16, X.primitives(`ExtHost.dispatch`) | M | M1/M2 |
-| PS-18 | 보관 정리: `retention.ts`, 제외 규칙, `retention.*` 키 연결 | PS-9 | S | M2 |
+| PS-18 | 보관 정리: `retention.ts`, 제외 규칙, `retention.*` 키 연결. M3b B1-SVC: 지울 때 재전송 하한(`replay.floor`) 상승, `replay.ts`(`replayFrom`), `resend.ts`(재개 때 모델 요청 재전송 정책) | PS-9 | S | M2 |
 | PS-19 | 리플레이 커서: `replay-cursor.ts`(`replayFrom` 해석, `oldestReplayableSeq`) | PS-12, FR-P7 | S | M3 |
 | PS-20 | 되감기: `rewind.ts`(스냅샷 기록 `checkpoint.files`, `RewindPlan`, 복원 효과 3단) | PS-10, FR-P8, L1.tools(쓰기 분류) | L | 2차 |
 | PS-21 | JSONL 내보내기: `export-jsonl.ts`(pi v3 대응 표, xeon-jsonl), `export.format` 키 | PS-10, PS-15 | M | 2차 |

@@ -19,6 +19,7 @@ import { sha256Hex } from "./hash.ts";
 import { releaseOpenSession, type GuardState, type OpenSessions } from "./ownership.ts";
 import type { SessionPoints } from "./points.ts";
 import { PERSISTENCE_PRODUCER, type ProducerRegistry } from "./producers.ts";
+import { REPLAY_FLOOR_CONSUMER } from "./replay-floor.ts";
 import { columns, readResult, rowInvalid, type RowFault } from "./rows.ts";
 import { writeResult } from "./tx-result.ts";
 import { readThread, readThreadSummary } from "./views.ts";
@@ -94,6 +95,14 @@ export function deleteThreadRows(
     return err({ kind: "has_forks", forks: ids });
   }
   tx.run("INSERT INTO thread_delete_guard (thread_id) VALUES (?)", [threadId]);
+  // 로그를 잘라 내므로 재전송 하한을 지울 이벤트의 가장 큰 seq까지 올린다(M3-REQ-80). 내려가지 않는다.
+  // 하한은 consumer_cursors의 예약 행(REPLAY_FLOOR_CONSUMER)이다. 새 표를 두면 F 소유 표 목록(owners.ts)이 바뀐다
+  tx.run(
+    `INSERT INTO consumer_cursors (consumer, seq, updated_at)
+     SELECT ?, MAX(seq), CAST(strftime('%s', 'now') AS INTEGER) * 1000 FROM events WHERE thread_id = ? HAVING MAX(seq) IS NOT NULL
+     ON CONFLICT (consumer) DO UPDATE SET seq = MAX(seq, excluded.seq), updated_at = excluded.updated_at`,
+    [REPLAY_FLOOR_CONSUMER, threadId],
+  );
   tx.run("DELETE FROM events WHERE thread_id = ?", [threadId]);
   tx.run("DELETE FROM requests WHERE thread_id = ?", [threadId]);
   tx.run("DELETE FROM thread_creation_keys WHERE thread_id = ?", [threadId]);

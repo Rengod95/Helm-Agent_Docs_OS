@@ -540,7 +540,7 @@ export interface FeedFilter {
 
 export interface EventFeed {
   headSeq(): Result<number, ReadFailure>;
-  /** 다시 보낼 수 있는 가장 오래된 seq - 1. 로그를 잘라 내지 않으므로 M1은 항상 0 */
+  /** 다시 보낼 수 있는 가장 오래된 seq - 1. 보관 정리가 이벤트를 지우면 지운 이벤트의 가장 큰 seq까지 오른다(§4.13.1). 그 전에는 0 */
   oldestReplayableSeq(): number;
   /** seq > after AND seq ≤ upto, 필터 적용. limit만큼 차면 멈추고, 아니면 scanLimit 행까지 훑는다 */
   read(after: number, upto: number, filter: FeedFilter | undefined, limit: number, scanLimit: number):
@@ -1101,9 +1101,16 @@ export interface RewindPlan {
 
 #### 4.8.3 자동 재개
 
-- [제안] 기본은 후보 제시다(adr.0006 §3.6 5번, `architecture.runtime-flow.design` §3). 자동 재개는 서비스 모드에서 `l1.persistence.autoResume`이 참일 때만 한다. 기본값은 거짓이다. 기본값 자체는 adr.0006 §6 [미결]이다.
+- [결정: review.m3-design-inputs D-M3-13 행 1, M3-REQ-80] 기본은 후보 제시다(adr.0006 §3.6 5번, `architecture.runtime-flow.design` §3). 자동 재개는 서비스 모드에서 `l1.persistence.autoResume`이 참일 때만 한다. 기본값은 거짓이고 서비스 모드에서도 같다. 사용자가 설정(범위 `managed`, `user`, 적용은 재시작)으로 켠다. 모델 요청 재전송 정책(§4.8.4)과 효과 재생 시험이 생긴 뒤 기본값을 다시 본다.
 - `AutoResumeVerdict.allowed`는 다음이 모두 참일 때다: 표식이 있다, 설정이 켜졌다, 호스트 모드가 `service`다, `resume_attempts < l1.persistence.maxResumeAttempts`, 취소 의도가 없다.
 - `beginResume`도 상한을 검사한다. `resume_attempts >= maxResumeAttempts`면 `attempts_exhausted`다. 수동 재개(사용자가 "이어서 실행"을 고름)도 같은 상한을 쓴다 [제안]. 상한에 이른 thread는 사용자가 새 입력을 넣으면 정상 turn으로 진행한다(열린 turn은 core-loop가 `interrupted`로 닫는다).
+
+#### 4.8.4 재개 때 모델 요청 재전송 정책 [결정: 오케스트레이터 기본값, M3-REQ-81]
+
+- 정책 이름은 `checkpoint_resend`(`MODEL_REQUEST_RESEND_POLICY`)다. 요청별 멱등 키는 쓰지 않는다. 제공자 API에 공통 멱등 키 수단이 없기 때문이다.
+- 열린 turn의 `ResumePlan.next`가 `request`이면 같은 단계 번호로 모델 요청을 다시 보낸다(`modelRequestResendOf(plan)` → `{ kind: "resend_step", stepIndex }`). 단계 번호는 그 turn의 마지막 체크포인트의 `stepIndex + 1`이고, 그 turn의 체크포인트가 없으면 0이다. 요청 컨텍스트는 커밋된 이벤트에서 결정적으로 다시 만들어져 끊기지 않은 실행의 같은 요청과 같은 `contextHash`를 갖는다(`L1.loop.spec` §4.5).
+- `next`가 `tools`, `await_input`, `turn_end`이거나 열린 turn이 없으면(`idle`) 응답이 이미 커밋됐으므로 모델 요청을 다시 보내지 않는다(`{ kind: "none" }`).
+- 한계: 응답이 T3로 커밋되기 전에 끊기면 그 단계의 요청이 한 번 더 나가고 제공자 쪽에서 중복 과금될 수 있다. 자동 재개(§4.8.3)가 기본 꺼짐인 이유 가운데 하나다.
 
 ### 4.9 잠금 실패
 
@@ -1214,12 +1221,14 @@ export interface RewindPlan {
 
 #### 4.13.1 리플레이 커서
 
-- `events.subscribe { from: StreamPosition | "head" }`의 seq 커서 재전송은 호스트가 실행한다(`F.wire-settings.spec` §3.4.3). L1은 `feed.headSeq`, `feed.oldestReplayableSeq`, `feed.read`, `feed.onCommit`을 제공한다. M1에서 이 네 메서드는 이미 있다. 2차(M3) 몫은 로그를 잘라 낼 때(보관 정리) `oldestReplayableSeq`를 올리는 일과 재개 때의 `replayFrom` 의미다.
+- `events.subscribe { from: StreamPosition | "head" }`의 seq 커서 재전송은 호스트가 실행한다(`F.wire-settings.spec` §3.4.3). L1은 `feed.headSeq`, `feed.oldestReplayableSeq`, `feed.read`, `feed.onCommit`을 제공한다. M1에서 이 네 메서드는 이미 있다. M3 몫이던 `oldestReplayableSeq` 상승과 `replayFrom` 의미는 아래와 같이 구현했다(M3-REQ-80).
 - [제안] `replayFrom` 의미(ACP v2 `replayFrom`, `_research/item-catalog.md` L1-f "세션 재개 시 리플레이 커서"):
   - `"none"`: 재개 뒤 실시간 이벤트만. `from: "head"`.
   - `{ storeId, seq }`: 그 위치 뒤부터 재전송. 클라이언트가 마지막으로 받은 위치다.
   - `"all"`: 그 thread의 첫 이벤트부터. `from: { storeId, seq: p_threads.first_seq - 1 }`, `filter.threadIds = [threadId]`.
-- `thread.open` params에 `replayFrom`을 둘지는 F 결정이다(FR-P7).
+- 구현: `createReplayResolver({ db, feed, storeId }).resolve(threadId, replayFrom)`가 `{ from, threadIds: [threadId] }`를 돌려준다. 결과는 `events.subscribe`의 `from`과 `filter.threadIds`에 그대로 넘길 수 있다. 위치 검사는 `events.subscribe`와 같아 `out_of_range`(`storeMismatch`, `aheadOfHead`, `beforeOldest`)를 값으로 돌려주고, 모르는 thread는 `thread_not_found`다. `"all"`은 `p_threads.first_seq - 1`에서 시작한다.
+- 재전송 하한: 보관 정리와 `threads.remove`가 thread의 이벤트를 지울 때 같은 트랜잭션에서 하한을 지운 이벤트의 가장 큰 seq까지 올린다(내려가지 않는다). `feed.oldestReplayableSeq()`가 이 값을 돌려주고 재시작 뒤에도 남는다. 저장 위치는 `consumer_cursors`의 예약 행(`consumer = "replay.floor"`)이다. 새 표를 두면 F의 표 소유 목록(`owners.ts`)이 바뀌기 때문이다 [결정: 오케스트레이터 기본값]. 하한 이하에서 시작하는 재전송은 호스트가 `replay.outOfRange`(`beforeOldest`)로 거부하고 클라이언트는 `thread.read`로 다시 읽는다.
+- `thread.open` params에 `replayFrom`을 둘지는 F 결정이다(FR-P7). F에 필드가 오기 전까지 호스트는 이 함수를 `thread.open`에 연결하지 않는다 [미결].
 
 #### 4.13.2 되감기(파일 스냅샷 복원)
 

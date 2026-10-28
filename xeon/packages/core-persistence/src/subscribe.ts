@@ -11,6 +11,7 @@ import type {
   VolatileEventEnvelope,
 } from "@xeon/contracts/records";
 import { envelopeOfRow, headSeqOf } from "./events.ts";
+import { REPLAY_FLOOR_CONSUMER } from "./replay-floor.ts";
 import type { GuardState } from "./ownership.ts";
 import { columns, readResult } from "./rows.ts";
 import { upcastStored, type KindCatalog } from "./upcast.ts";
@@ -52,6 +53,23 @@ export function createFeed(deps: FeedDeps): FeedController {
 
   const headSeq = (): Result<number, ReadFailure> => readResult(db, (tx) => headSeqOf(tx));
 
+  const floorCache = { value: 0 };
+  const floorOf = (): number => {
+    const read = readResult(db, (tx) => {
+      const row = tx.get("SELECT seq FROM consumer_cursors WHERE consumer = ?", [
+        REPLAY_FLOOR_CONSUMER,
+      ]);
+      if (row === undefined) return ok(0);
+      return columns(row, "consumer_cursors").int("seq");
+    });
+    if (read.ok) {
+      floorCache.value = Math.max(floorCache.value, read.value);
+    } else {
+      logger?.warn("session.replay_floor_unreadable", { kind: read.error.kind });
+    }
+    return floorCache.value;
+  };
+
   const feedRead = (
     after: number,
     upto: number,
@@ -90,8 +108,8 @@ export function createFeed(deps: FeedDeps): FeedController {
 
   const feed: EventFeed = {
     headSeq,
-    // 로그를 잘라 내지 않으므로 M1은 항상 0이다(보관 정리와 함께 오르는 일은 M3)
-    oldestReplayableSeq: () => 0,
+    // 보관 정리가 로그를 잘라 낼 때 오른다(consumer_cursors의 예약 행, M3-REQ-80). 읽지 못하면 마지막으로 읽은 값을 쓴다
+    oldestReplayableSeq: floorOf,
     read: feedRead,
     onCommit(listener: CommitListener): Unsubscribe {
       commitListeners.add(listener);
