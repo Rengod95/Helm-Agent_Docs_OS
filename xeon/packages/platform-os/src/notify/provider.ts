@@ -1,5 +1,6 @@
 import { assertNever, err, ok, type Clock, type Logger, type Result } from "@xeon/contracts";
 import type { NotifyError, OsInfo, OsNotification } from "@xeon/contracts/services";
+import { lookupOnPath, type BinaryFs } from "../binaries/resolve.ts";
 import type { RunCommand } from "../proc.ts";
 import { PRODUCT } from "../product.ts";
 
@@ -55,6 +56,10 @@ export interface CommandNotifierDeps {
   readonly info: OsInfo;
   readonly run: RunCommand;
   readonly logger: Logger;
+  /** darwin의 osascript 존재를 PATH에서 확인할 때 쓴다 */
+  readonly binaryFs: BinaryFs;
+  /** 환경 변수 PATH 값. 없으면 탐색할 디렉터리가 없다 */
+  readonly pathEnv: string | undefined;
   /** notify-send 경로. 기본 PATH 탐색 */
   readonly linuxCommand?: string;
 }
@@ -67,7 +72,11 @@ export function createOsNotifierProvider(deps: CommandNotifierDeps): NotifierPro
   return {
     id,
     async available(signal) {
-      if (deps.info.platform === "darwin") return true;
+      // osascript는 macOS 기본 도구지만 PATH에 없으면 알림을 보낼 수 없다. 실행 파일 존재만 본다
+      if (deps.info.platform === "darwin") {
+        const found = await lookupOnPath(deps.binaryFs, deps.pathEnv, "osascript");
+        return found.ok;
+      }
       const ran = await deps.run([deps.linuxCommand ?? "notify-send", "--version"], { signal });
       return ran.ok && ran.value.exitCode === 0;
     },

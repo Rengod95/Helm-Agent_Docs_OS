@@ -209,7 +209,13 @@ export async function createOsService(
 
   const notifier =
     config.notifier === undefined
-      ? createOsNotifierProvider({ info, run: runtime.run, logger })
+      ? createOsNotifierProvider({
+          info,
+          run: runtime.run,
+          logger,
+          binaryFs: runtime.binaryFs,
+          pathEnv: runtime.env.get("PATH"),
+        })
       : (config.notifier ?? undefined);
   const watcher = createFileWatcher({
     allowedRoots: [dirs.config, dirs.data, dirs.state, ...(config.extraWatchRoots ?? [])],

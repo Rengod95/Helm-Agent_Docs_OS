@@ -298,6 +298,25 @@ async function verifyLockEntry(
   return ok({ name, path: full, version: entry.version, source: "bundled" });
 }
 
+/**
+ * PATH에서 실행 가능한 `fileName`을 찾는다. 찾으면 ok(경로), 없으면 err(확인한 절대 경로 디렉터리 목록)다.
+ * 시스템 바이너리 해석과 알림 가용성 검사가 같이 쓴다.
+ */
+export async function lookupOnPath(
+  fs: BinaryFs,
+  pathEnv: string | undefined,
+  fileName: string,
+  delimiter: string = hostDelimiter,
+): Promise<Result<string, readonly string[]>> {
+  const dirs = (pathEnv ?? "").split(delimiter).filter((dir) => dir !== "" && isAbsolute(dir));
+  // PATH 순서를 지키되 확인은 한꺼번에 한다
+  const hits = await Promise.all(dirs.map((dir) => fs.isExecutableFile(join(dir, fileName))));
+  const index = hits.findIndex((hit) => hit);
+  const dir = dirs[index];
+  if (index < 0 || dir === undefined) return err(dirs);
+  return ok(join(dir, fileName));
+}
+
 async function resolveSystem(
   deps: BinaryResolverDeps,
   name: BinaryName,
@@ -307,15 +326,16 @@ async function resolveSystem(
   const windows = deps.info.platform === "win32";
   const delimiter = windows ? ";" : hostDelimiter;
   const fileName = windows ? `${name}.exe` : name;
-  const dirs = (deps.pathEnv ?? "").split(delimiter).filter((dir) => dir !== "" && isAbsolute(dir));
-  // PATH 순서를 지키되 확인은 한꺼번에 한다
-  const hits = await Promise.all(dirs.map((dir) => deps.fs.isExecutableFile(join(dir, fileName))));
-  const index = hits.findIndex((hit) => hit);
-  const dir = dirs[index];
-  if (index < 0 || dir === undefined) {
-    return err({ kind: "not_found", name, searched: dirs, hint: installHint(name, deps.info) });
+  const lookup = await lookupOnPath(deps.fs, deps.pathEnv, fileName, delimiter);
+  if (!lookup.ok) {
+    return err({
+      kind: "not_found",
+      name,
+      searched: lookup.error,
+      hint: installHint(name, deps.info),
+    });
   }
-  const path = join(dir, fileName);
+  const path = lookup.value;
   if (NO_VERSION_NAMES.has(name)) return ok({ name, path, version: "", source: "system" });
 
   const out = await deps.run([path, ...versionArgs(name)], { signal });

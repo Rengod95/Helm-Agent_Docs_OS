@@ -469,7 +469,7 @@ export function buildNotifyCommand(info: OsInfo, n: OsNotification): readonly st
 - 켜기·끄기: 이 패키지는 알림 켜기·종류 설정을 두지 않는다. 알림을 보낼지는 호출자(`cap-dialog`)가 `l2.dialog.notify.os`와 종류별 키(`l2.dialog.notify.<kind>`)로 정하고, 이 패키지는 받은 알림을 그대로 내보낸다 [결정: review.decisions-2 S-04]. `notify`가 `disabled`를 돌려주는 경우는 M3 이전 빌드와 조립 루트가 provider `none`을 고른 경우뿐이다.
 - 비밀: 알림 본문과 제목은 OS 알림 센터에 남는다. 호출자는 마스킹한 문자열만 넘기고, `platform-os`도 보내기 전에 로거와 같은 `redact`를 한 번 더 적용한다 [제안]. 도구 인자, 프롬프트 본문 원문은 넣지 않는다.
 - WSL [결정: M3-REQ-50]: linux provider가 그대로 쓰이며 `notify-send`가 없으면 `unavailable`이다. Windows 토스트 상호운용(`powershell.exe` 호출)은 쓰지 않는다. `win32` provider는 M3 범위 밖이라 `createOsNotifierProvider`가 undefined를 돌려주고 `notify`는 `disabled`다.
-- 구현 값: `createOsNotifierProvider({ info, run, logger, linuxCommand? })`가 provider를, `createNotify({ provider, clock, redact })`가 `OsService.notify`를 만든다. linux argv는 `notify-send --app-name=<표시 이름> -- <title> <body>`이고 `--`는 `-`로 시작하는 문자열이 옵션으로 읽히지 않게 한다. 제목 80자, 본문 400자로 자르고 마스킹은 자르기 전에 적용한다. 같은 `kind`·`threadId` 알림은 1초 안에 하나만 보내고 둘째부터는 `ok`로 건너뛴다(보내기에 실패하면 기록하지 않아 재시도할 수 있다). `PlatformOsConfig.notifier`는 provider를 주입하고(`desktop-tauri` 등), `null`이면 provider none이다. 클라이언트 창이 앞에 있어도 기본으로 보내고 끄는 설정은 호출자(`cap-dialog`)가 갖는다.
+- 구현 값: `createOsNotifierProvider({ info, run, logger, binaryFs, pathEnv, linuxCommand? })`가 provider를, `createNotify({ provider, clock, redact })`가 `OsService.notify`를 만든다. `available()`은 darwin에서 PATH에 `osascript` 실행 파일이 있는지만 보고 판단한다(§3.6의 PATH 탐색과 같은 `lookupOnPath`를 쓰고 `osascript`를 실행하지 않는다). 없으면 `false`다 [제안]. linux argv는 `notify-send --app-name=<표시 이름> -- <title> <body>`이고 `--`는 `-`로 시작하는 문자열이 옵션으로 읽히지 않게 한다. 제목 80자, 본문 400자로 자르고 마스킹은 자르기 전에 적용한다. 같은 `kind`·`threadId` 알림은 1초 안에 하나만 보내고 둘째부터는 `ok`로 건너뛴다(보내기에 실패하면 기록하지 않아 재시도할 수 있다). `PlatformOsConfig.notifier`는 provider를 주입하고(`desktop-tauri` 등), `null`이면 provider none이다. 클라이언트 창이 앞에 있어도 기본으로 보내고 끄는 설정은 호출자(`cap-dialog`)가 갖는다.
 - 같은 `threadId`·`kind` 알림이 1초 안에 반복되면 하나만 보낸다(`Scheduler` 기반 디바운스) [제안].
 
 ### 3.8 파일 감시 (2차)
@@ -665,6 +665,8 @@ export interface WorktreeOps {
 
 - 경로는 모두 절대 경로여야 한다. `create`는 `git -C <repo> worktree add -b <branch> -- <path> <base|HEAD>`다. `list`는 `worktree list --porcelain`을 해석하고 첫 항목이 주 워크트리다. `remove`는 기본이 수정 파일이 있으면 거부이고 `force`면 지운다.
 - 시간 상한은 60초다(큰 저장소의 `add`가 5초를 넘길 수 있다). 자식 환경은 PATH와 로케일만 받는다(§3.6의 실행 규칙과 같다).
+- `create`는 만든 뒤 `list`에서 새 워크트리를 찾는다. 두 경로를 `realpath`로 풀어 비교하고, 목록에 없으면 `git_failed`(`exitCode: 0`, `output: "worktree not listed after add"`)다. 목록의 마지막 항목을 대신 쓰지 않는다 [제안: 다른 워크트리를 새 것으로 넘기지 않기 위해].
+- `git_failed.output`은 git의 stderr 앞 2000자다. stderr가 비면 stdout을 쓴다. stderr는 `RunCommand`의 `captureStderr` 옵션을 준 실행에서만 읽고 끝쪽 8 KiB만 남긴다. 옵션이 없는 실행은 stderr를 버리고 `CommandOutput.stderr`가 없다 [제안].
 - 워크트리 위치 정책(어디에 만들지)과 격리 실행은 호출자(`L2.schedule`, `L0.sandbox`)가 정한다.
 
 ### 3.14 확장 진단 배열 상한
@@ -696,6 +698,9 @@ export interface WorktreeOps {
 | 번들 rg 해시 불일치 | `integrity_mismatch`. 실행하지 않는다. 시스템 rg로 자동 대체하지 않는다 [제안: 변조 신호를 숨기지 않기 위해] |
 | 추출 위치 쓰기 불가(읽기 전용 cache, 백신 차단) | `extract_failed`(`code`에 OS 오류 코드) |
 | `notify-send` 없음 | `unavailable`. 첫 번째만 진단 로그. 호출자는 알림 실패로 작업을 멈추지 않는다 |
+| `osascript` 없음(darwin) | `available()`이 `false`다. 실행을 시도하지 않는다 |
+| 워크트리 `create` 뒤 목록에 새 경로가 없음 | `git_failed`(`output: "worktree not listed after add"`). 마지막 항목을 쓰지 않는다 |
+| `git worktree add` 실패(브랜치 또는 경로가 이미 있음) | `git_failed`. `output`에 git의 stderr 앞 2000자가 들어간다 |
 | inotify 감시 한도 초과 | `limit_reached` 뒤 폴링 백엔드로 전환하고 경고 로그 |
 | `@parcel/watcher` 로드 실패 | 폴링 백엔드. 경고 로그 한 번 |
 | OTel SDK 로드 실패 | `telemetry.enabled`를 false로 다루고 경고 로그. 다른 기능은 영향 없음 |
