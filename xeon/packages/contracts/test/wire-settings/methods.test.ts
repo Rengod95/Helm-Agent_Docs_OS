@@ -28,8 +28,8 @@ function readItem(n: number): Record<string, unknown> {
 }
 
 describe("WIRE_METHODS", () => {
-  test("has the 40 methods of the spec table with their stages", () => {
-    expect(names).toHaveLength(40);
+  test("has the 43 methods of the spec table with their stages", () => {
+    expect(names).toHaveLength(43);
     const stageOf = Object.fromEntries(Object.entries(WIRE_METHODS).map(([n, s]) => [n, s.stage]));
     const m1 = Object.keys(stageOf).filter((n) => stageOf[n] === "M1");
     expect(m1.toSorted()).toEqual(
@@ -40,6 +40,9 @@ describe("WIRE_METHODS", () => {
       "settings.readFile",
       "settings.writeFile",
       "usage.get",
+      "status.list",
+      "attachments.add",
+      "notify.list",
       "proposal.list",
       "proposal.decide",
     ]);
@@ -60,6 +63,7 @@ describe("WIRE_METHODS", () => {
       "events.ended",
       "stream.chunk",
       "settings.invalidated",
+      "notify.delivered",
     ]);
     expect(Object.keys(WIRE_CLIENT_NOTIFICATIONS)).toEqual([
       "$/cancelRequest",

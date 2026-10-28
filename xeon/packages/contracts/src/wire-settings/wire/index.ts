@@ -6,6 +6,7 @@ export * from "./cursor.ts";
 export * from "./notifications.ts";
 export * from "./proposals.ts";
 export * from "./settings-files.ts";
+export * from "./status-notify.ts";
 export * from "./methods.ts";
 export * from "./transport.ts";
 export * from "./conformance.ts";

@@ -67,6 +67,15 @@ import {
   ProposalRevertParamsSchema,
 } from "./proposals.ts";
 import {
+  AttachmentsAddParamsSchema,
+  AttachmentsAddResultSchema,
+  NotifyDeliveredParamsSchema,
+  NotifyListParamsSchema,
+  NotifyListResultSchema,
+  StatusListParamsSchema,
+  StatusListResultSchema,
+} from "./status-notify.ts";
+import {
   SettingsReadFileParamsSchema,
   SettingsReadFileResultSchema,
   SettingsWriteFileParamsSchema,
@@ -283,6 +292,7 @@ export const HostStatusResultSchema: TObject<{
   liveTurns: TInteger;
   idleShutdownAt: TUnion<[typeof IsoTimeSchema, TNull]>;
   binaries: TOptional<typeof HostBinaryReportSchema>;
+  safeMode: TOptional<TBoolean>;
 }> = Type.Object(
   {
     mode: Type.Union([Type.Literal("in-process"), Type.Literal("stdio"), Type.Literal("service")]),
@@ -293,6 +303,8 @@ export const HostStatusResultSchema: TObject<{
     idleShutdownAt: Nullable(IsoTimeSchema),
     /** 요청에 `includeBinaries: true`가 있을 때만 있다(F wire §3.3.1) */
     binaries: Type.Optional(HostBinaryReportSchema),
+    /** 안전 모드로 떠 있으면 참(L3 내장 그룹과 외부 확장을 싣지 않는다, D-M3-07). 생략하면 거짓. 화면이 표시한다(M3-REQ-19) */
+    safeMode: Type.Optional(Type.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -434,10 +446,16 @@ export type ThreadCreateResult = Static<typeof ThreadCreateResultSchema>;
 export const ThreadOpenParamsSchema: TObject<{
   threadId: typeof ThreadIdSchema;
   mode: TUnion<[TLiteral<"write">, TLiteral<"observe">]>;
+  includeItems: TOptional<TBoolean>;
+  limit: TOptional<TInteger>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
     mode: Type.Union([Type.Literal("write"), Type.Literal("observe")]),
+    /** 참이면 결과에 현재 가지의 item 목록을 함께 싣는다(재접속 때 `thread.read` 왕복을 줄인다, M3-REQ-19). 기본 거짓 */
+    includeItems: Type.Optional(Type.Boolean()),
+    /** `includeItems`일 때 가장 새 item부터 몇 개를 받을지. 기본 200 */
+    limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 500 })),
   },
   { additionalProperties: false },
 );
@@ -447,11 +465,19 @@ export const ThreadOpenResultSchema: TObject<{
   threadId: typeof ThreadIdSchema;
   role: TUnion<[TLiteral<"owner">, TLiteral<"observer">]>;
   position: typeof StreamPositionSchema;
+  items: TOptional<TArray<typeof ItemRecordSchema>>;
+  hasMore: TOptional<TBoolean>;
+  asOfSeq: TOptional<TInteger>;
 }> = Type.Object(
   {
     threadId: ThreadIdSchema,
     role: Type.Union([Type.Literal("owner"), Type.Literal("observer")]),
     position: StreamPositionSchema,
+    /** 요청에 `includeItems: true`가 있을 때만 있다. `thread.read`의 `items`와 같다(오래된 것부터) */
+    items: Type.Optional(Type.Array(ItemRecordSchema, { maxItems: 500 })),
+    hasMore: Type.Optional(Type.Boolean()),
+    /** `items`가 반영한 마지막 seq. 이 뒤의 이벤트는 구독으로 이어 받는다(`position.seq`와 같은 읽기에서 잰 값) */
+    asOfSeq: Type.Optional(Type.Integer({ minimum: 0 })),
   },
   { additionalProperties: false },
 );
@@ -1392,6 +1418,18 @@ interface WireSchemas {
     params: WithMeta<typeof UsageGetParamsSchema>;
     result: typeof UsageGetResultSchema;
   };
+  "status.list": {
+    params: WithMeta<typeof StatusListParamsSchema>;
+    result: typeof StatusListResultSchema;
+  };
+  "attachments.add": {
+    params: WithMeta<typeof AttachmentsAddParamsSchema>;
+    result: typeof AttachmentsAddResultSchema;
+  };
+  "notify.list": {
+    params: WithMeta<typeof NotifyListParamsSchema>;
+    result: typeof NotifyListResultSchema;
+  };
   "secret.list": {
     params: WithMeta<typeof SecretListParamsSchema>;
     result: typeof SecretListResultSchema;
@@ -1455,6 +1493,8 @@ interface ServerNotificationSchemas {
   "events.ended": typeof EventsEndedParamsSchema;
   "stream.chunk": typeof StreamChunkParamsSchema;
   "settings.invalidated": typeof SettingsInvalidatedParamsSchema;
+  /** M3 */
+  "notify.delivered": typeof NotifyDeliveredParamsSchema;
 }
 export type ServerNotificationMap = {
   readonly [N in keyof ServerNotificationSchemas]: Static<ServerNotificationSchemas[N]>;
@@ -1544,6 +1584,9 @@ export const WIRE_METHODS: {
     "M3",
   ),
   "usage.get": spec(withMeta(UsageGetParamsSchema), UsageGetResultSchema, "M3"),
+  "status.list": spec(withMeta(StatusListParamsSchema), StatusListResultSchema, "M3"),
+  "attachments.add": spec(withMeta(AttachmentsAddParamsSchema), AttachmentsAddResultSchema, "M3"),
+  "notify.list": spec(withMeta(NotifyListParamsSchema), NotifyListResultSchema, "M3"),
   "host.shutdown": spec(withMeta(HostShutdownParamsSchema), HostShutdownResultSchema, "M2"),
   "secret.list": spec(withMeta(SecretListParamsSchema), SecretListResultSchema, "M2"),
   "secret.meta": spec(withMeta(SecretMetaParamsSchema), SecretMetaResultSchema, "M2"),
@@ -1566,7 +1609,7 @@ export const WIRE_NOTIFICATIONS: {
   readonly [N in ServerNotificationName]: {
     readonly params: ServerNotificationSchemas[N];
     readonly since: SemVer;
-    readonly stage: "M1" | "M2";
+    readonly stage: "M1" | "M2" | "M3";
   };
 } = {
   "events.batch": { params: EventsBatchParamsSchema, since: "0.1.0", stage: "M1" },
@@ -1577,6 +1620,7 @@ export const WIRE_NOTIFICATIONS: {
     since: "0.1.0",
     stage: "M2",
   },
+  "notify.delivered": { params: NotifyDeliveredParamsSchema, since: "0.1.0", stage: "M3" },
 };
 
 export const WIRE_CLIENT_NOTIFICATIONS: {

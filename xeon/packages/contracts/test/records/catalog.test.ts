@@ -303,6 +303,22 @@ describe("requested kinds (F.records.spec 3.3.1)", () => {
     ).toBe(false);
   });
 
+  test("input.queued carries the turn origin and rejects an unknown one (InputDraft.origin)", () => {
+    const entry = catalogEntry("input.queued");
+    const base = {
+      mode: "next",
+      item: { kind: "user", content: "x" },
+      requestId: "r",
+      source: { type: "schedule", timerId: "tmr_1" },
+    };
+    for (const origin of ["user", "scheduled", "remote", "delegation", "drive", "other"]) {
+      const result = parse(entry.payload, roundTrip({ ...base, origin }));
+      expect(result.ok ? result.value : undefined).toEqual({ ...base, origin });
+    }
+    expect(parse(entry.payload, { ...base, origin: "cron" }).ok).toBe(false);
+    expect(parse(entry.payload, base).ok).toBe(true);
+  });
+
   test("agent payloads", () => {
     const spawned = PAYLOAD_FIXTURES["agent.spawned"];
     const owners: unknown[] = [

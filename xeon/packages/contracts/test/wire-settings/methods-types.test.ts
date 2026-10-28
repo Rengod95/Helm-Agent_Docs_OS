@@ -70,7 +70,7 @@ export function notificationInference(connection: HostConnection): void {
 export type ServerNotificationNames = Expect<
   Equal<
     keyof ServerNotificationMap,
-    "events.batch" | "events.ended" | "stream.chunk" | "settings.invalidated"
+    "events.batch" | "events.ended" | "stream.chunk" | "settings.invalidated" | "notify.delivered"
   >
 >;
 

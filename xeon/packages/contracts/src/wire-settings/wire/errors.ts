@@ -168,7 +168,16 @@ export const WIRE_ERRORS: {
     ),
   },
   /** M2: host.hello의 auth.token이 없거나 맞지 않다. 응답 뒤 연결을 닫는다 */
-  "host.authFailed": { code: 1004, kind: "host.authFailed", retryable: false },
+  "host.authFailed": {
+    code: 1004,
+    kind: "host.authFailed",
+    retryable: false,
+    /** 토큰 값은 싣지 않는다. 사유만 싣는다(M3-REQ-19) */
+    details: Type.Object(
+      { reason: Type.Union([Type.Literal("missing"), Type.Literal("invalid")]) },
+      { additionalProperties: false },
+    ),
+  },
   "replay.outOfRange": {
     code: 2001,
     kind: "replay.outOfRange",

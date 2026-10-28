@@ -213,7 +213,7 @@ export function createLineFramer(options?: { readonly maxFrameBytes?: number }):
 | 값 규칙 | strict JSON, 안전 정수, 시각은 ISO 8601 UTC 문자열 | 같음 | [제안] |
 | 깊이·길이 한도 | 깊이 64, 배열 10,000 | 같음. 그 위에 프레임 1 MiB(omp RPC v2와 같은 값, `_research/item-catalog.md` F절) | [제안] |
 | envelope 검사 | `additionalProperties: false` | 같음 | [제안] |
-| 핸드셰이크 | `hello` + 기기 토큰·챌린지 인증 | `host.hello` 하나. 인증 없음(in-process, stdio는 부모-자식이라 인증이 필요 없다). 서비스 소켓 인증은 미결 | [미결] |
+| 핸드셰이크 | `hello` + 기기 토큰·챌린지 인증 | `host.hello` 하나. in-process와 stdio는 부모-자식이라 인증이 없고, 로컬 Unix 소켓은 파일 권한(0600)으로 막는다. TCP로 열 때만 `auth.token`이 필수다 [결정: review.m3-design-inputs D-M3-16 c, M3-REQ-19] | [결정] |
 | 제외 | Tailscale·SSH 경로, 기기 페어링, 기기 인증, `clientKind` 대조, `localConfirm` | 가져오지 않는다. 데몬·홈서버 전제다(`_research/decisions-log.md` 2026-10-19). 원격 사용은 로컬 서비스 소켓을 SSH 터널이나 사설망으로 잇는 방식이라 프로토콜에 원격 전용 요소를 더하지 않는다([결정: review.decisions-2 U-11]) | [결정] |
 
 ```ts
@@ -296,11 +296,11 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 영역 | 메서드 | params | result | 단계 |
 |---|---|---|---|---|
 | host | `host.hello` | `{ protocolVersion: SemVer, client: {name, version, kind: "cli"\|"desktop"\|"other"}, experimental?: FeatureName[], auth?: { token: string } }`(`auth`는 M2) | `{ protocolVersion: SemVer, server: {name, version}, storeId: StoreId, transport: TransportKind, features: FeatureInfo[], experimental: FeatureName[] }` | M1 |
-| host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport }` | M2 |
+| host | `host.status` | `{ includeBinaries?: boolean }` | `{ mode: "in-process"\|"stdio"\|"service", pid: integer, startedAt: IsoTime, connections: integer, liveTurns: integer, idleShutdownAt: IsoTime \| null, binaries?: HostBinaryReport, safeMode?: boolean }` | M2 |
 | host | `host.shutdown` | `{ reason: "client_exit"\|"version_replace"\|"user", deadlineMs?: integer }` | `{ accepted: boolean }` | M2 |
 | thread | `thread.list` | `{ cursor?: string, limit?: integer(1..200), workspace?: string }` | `{ threads: ThreadSummary[], nextCursor: string \| null }` | M2 |
 | thread | `thread.create` | `{ workspace?: string, title?: string }` | `{ threadId: ThreadId, position: StreamPosition }` | M1 |
-| thread | `thread.open` | `{ threadId: ThreadId, mode: "write"\|"observe" }` | `{ threadId: ThreadId, role: "owner"\|"observer", position: StreamPosition }` | M2 |
+| thread | `thread.open` | `{ threadId: ThreadId, mode: "write"\|"observe", includeItems?: boolean, limit?: integer(1..500) }` | `{ threadId: ThreadId, role: "owner"\|"observer", position: StreamPosition, items?: ItemRecord[], hasMore?: boolean, asOfSeq?: integer }` | M2 |
 | thread | `thread.read` | `{ threadId: ThreadId, limit?: integer(1..500), before?: ItemId }` | `{ threadId: ThreadId, items: ItemRecord[], position: StreamPosition, hasMore: boolean }` | M2 |
 | thread | `thread.close` | `{ threadId: ThreadId }` | `{}` | M2 |
 | thread | `thread.delete` | `{ threadId: ThreadId }` | `{}` | M2 |
@@ -325,6 +325,9 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | settings | `settings.list` | `{ prefix?: string, includeDeprecated?: boolean, includeReserved?: boolean }` | `{ defs: SettingDefWire[] }` | M2 |
 | settings | `settings.readFile` | `{ scope: "managed"\|"user"\|"project"\|"local", threadId?: ThreadId }` | `{ scope, path: string \| null, exists: boolean, readOnly: boolean, text: string, sha256: string \| null, unknownKeys: string[] }` | M3 |
 | settings | `settings.writeFile` | `{ scope: "user"\|"project"\|"local", text: string, baseSha256: string \| null, threadId?: ThreadId }` | `{ path: string, sha256: string, unknownKeys: string[] }` | M3 |
+| status | `status.list` | `{ threadId: ThreadId }` | `{ items: StatusItem[] }` | M3 |
+| attachments | `attachments.add` | `{ threadId?: ThreadId, source: AttachmentSource }` | `{ attachment: Attachment, parts: (TextContent\|ImageContent)[] }` | M3 |
+| notify | `notify.list` | `{ threadId?: ThreadId, afterSeq: integer, kinds?: NoticeKind[], limit?: integer(1..500) }` | `{ notices: Notice[], nextSeq: integer }` | M3 |
 | usage | `usage.get` | `{ providerId?: string, threadId?: ThreadId }` | `{ gauges: UsageGauge[], asOf: IsoTime }` | M3 |
 | secret | `secret.list` | `{ meta?: boolean, usage?: boolean }` | `{ secrets: SecretListEntry[] }` | M2 |
 | secret | `secret.meta` | `{ name: SecretName, …메타·정책 필드 }` | `{ secret: SecretListEntry }` | M2 |
@@ -375,7 +378,9 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
   - `needs_confirmation`을 받으면 클라이언트가 `shell` 목록을 보이고 사용자 확인을 받은 뒤 `confirmShell: true`로 같은 `text`를 다시 보낸다.
   - 명령 실패는 능력 오류 구간(코드 4000, kind `cap.dialog.commands.<code>`: `command_args_invalid`, `command_shell_disabled`)과 `thread.notFound`로 돌아온다. 새 wire 오류 kind는 없다.
   - 이름 없는 입력은 오류가 아니라 `{ status: "not_command" }`다. 클라이언트는 이 값을 받으면 `turn.start`로 보낸다.
-  - `status.list`와 첨부는 M3다(`review.m2-plan` G1-01).
+  - [결정: M3-REQ-16, M3-20] `status.list`·`attachments.add`·`notify.list`를 코어 표에 둔다(`L2.dialog.spec` §10 D-2의 선택). 값 모양은 능력 정의(`dialog.status.list`, `dialog.attachments.add`, `dialog.notify.list`)의 스키마를 그대로 쓰고 wire는 `threadId`를 더한다. `status.list`는 재접속 뒤 상태줄을 다시 그리는 스냅숏이고 변경은 휘발 이벤트 `dialog.status`로 온다. `attachments.add`의 결과 `parts`를 `turn.start`의 `input`에 넣고, 상대 경로는 `threadId`의 작업 폴더 기준이다. `notify.list`는 `afterSeq` 뒤의 알림을 당겨 읽는다.
+  - [결정: M3-REQ-16, review.m3-design-inputs D-M3-17] 알림 전달: 호스트는 `notify.delivered`를 연결된 클라이언트 모두에 보낸다. 클라이언트 창이 앞에 있어도 기본으로 보내고, 보낼지는 호스트의 설정 키로 조정한다. OS 토스트와 앱 안 표시는 클라이언트가 한다. 웹·모바일 푸시는 후순위다. 알림은 내구 이벤트 `dialog.notified`에서 나오므로 놓친 클라이언트는 `notify.list`로 따라잡는다.
+  - [결정: M3-REQ-19] 재접속용 목록: `thread.open`에 `includeItems: true`를 주면 결과에 현재 가지의 item 목록(`items`, `hasMore`)과 그것이 반영한 `asOfSeq`를 싣는다. `asOfSeq` 뒤의 이벤트는 `events.subscribe`로 이어 받는다(§3.4.6). 대기 승인은 `approval.list`(`position`)가 같은 규칙으로 준다. 안전 모드로 떠 있으면 `host.status`의 `safeMode`가 참이라 화면이 표시한다.
 - [결정: m2c G1-01 후속] `command.list`의 `threadId`는 선택이다. 주면 프로젝트 명령(`.xeon/commands`)을 그 thread의 작업 폴더 기준으로 읽고(신뢰 게이트 포함), 생략하면 thread 문맥 없이 읽는다. 작업 폴더가 없는 thread는 프로젝트 명령 없이 나온다. 없는 thread는 `thread.notFound`(3001)다. 목록만 읽으므로 `command.run`과 달리 쓰기 소유를 얻지 않는다. `dialog.commands.list`의 입력 스키마는 바뀌지 않고, 호스트가 `threadId`를 입력에서 떼어 호출 문맥에 싣는다. 근거: `L4.host-service.spec` §10 29.
 - [제안] M1 범위는 브리프의 최소 셋(`turn.start`, `events.subscribe`, `settings.get`)에 선행 조건 둘(`host.hello`, `thread.create`)을 더한다. 대화를 시작하려면 thread가 있어야 하고, 모든 연결은 hello로 시작하기 때문이다.
 - [제안] `thread.open`을 추가했다. `_research/process.md` §6.3의 세션 단위 쓰기 소유 규칙을 계약에 드러내기 위해서다. 소유 잠금을 얻지 못하면 `thread.locked`(§3.5.2) 오류에 대안(관찰, 분기, 위임)을 싣는다. in-process 단일 클라이언트인 M1에서는 `thread.create`가 소유를 함께 얻는다.
@@ -455,6 +460,7 @@ params와 result는 TypeBox 요약이다. 전체 스키마는 `wire/methods.ts`�
 | 서버 → 클라이언트 | `events.ended` | `{ sub: SubId, reason: "replayFailed" }`. 서버가 구독을 끝냈다. 재전송 읽기가 실패해 구독을 지웠을 때 보낸다. 클라이언트는 같은 필터로 다시 구독하거나 오류로 처리한다 | M1 |
 | 서버 → 클라이언트 | `stream.chunk` | `{ event: VolatileEventWire }` (`n`, `afterSeq`를 담은 휘발 이벤트) | M1 |
 | 서버 → 클라이언트 | `settings.invalidated` | `{ keys: SettingKey[], scopes: SettingScope[], threadId: ThreadId, 없으면 null }`. 값이 없다. 받으면 `settings.get`으로 다시 읽는다(§3.3.4) | M2 |
+| 서버 → 클라이언트 | `notify.delivered` | `{ threadId: ThreadId(없으면 null), notice: Notice, deliveredAt: IsoTime }`. 알림 한 건을 연결된 클라이언트 모두에 보낸다(M3-REQ-16, 아래 설명) | M3 |
 | 클라이언트 → 서버 | `$/cancelRequest` | `{ id: RpcId }` | M1 |
 | 클라이언트 → 서버 | `$/connectionReset` | `{}`. 클라이언트 화면이 같은 연결 위에서 다시 시작되어 이전 화면의 상태를 버린다(WebView 새로고침, `L4.desktop.spec` §4.5). 동작은 §4.1 5~7번 | M2 |
 
@@ -493,6 +499,9 @@ export interface WireMethodMap {
   "settings.readFile":  { params: SettingsReadFileParams;  result: SettingsReadFileResult };
   "settings.writeFile": { params: SettingsWriteFileParams; result: SettingsWriteFileResult };
   "usage.get":          { params: UsageGetParams;         result: UsageGetResult };
+  "status.list":        { params: StatusListParams;       result: StatusListResult };
+  "attachments.add":    { params: AttachmentsAddParams;   result: AttachmentsAddResult };
+  "notify.list":        { params: NotifyListParams;       result: NotifyListResult };
   "host.shutdown":     { params: HostShutdownParams;     result: HostShutdownResult };
   "secret.list":       { params: SecretListParams;       result: SecretListResult };
   "secret.meta":       { params: SecretMetaParams;       result: SecretMetaResult };
@@ -512,6 +521,7 @@ export interface ServerNotificationMap {
   "events.ended": EventsEndedParams;
   "stream.chunk": StreamChunkParams;
   "settings.invalidated": SettingsInvalidatedParams;
+  "notify.delivered": NotifyDeliveredParams;
 }
 export type ServerNotificationName = keyof ServerNotificationMap;
 export type ServerNotificationParams<N extends ServerNotificationName> = ServerNotificationMap[N];
@@ -807,7 +817,7 @@ export declare const WIRE_ERRORS: Readonly<Record<string, WireErrorSpec>>;   // 
 | 1001 | `host.helloRequired` | false | `host.hello` 전에 다른 메서드를 불렀다 | - |
 | 1002 | `host.helloDuplicate` | false | `host.hello`를 두 번 보냈다 | - |
 | 1003 | `protocol.unsupported` | false | 주 버전이 다르다 | `serverVersion`, `clientVersion` |
-| 1004 | `host.authFailed` | false | `host.hello`의 `auth.token`이 없거나 맞지 않다. 응답 뒤 연결을 닫는다(M2) | - |
+| 1004 | `host.authFailed` | false | `host.hello`의 `auth.token`이 없거나 맞지 않다. TCP로 열 때만 난다(로컬 Unix 소켓은 파일 권한이 막는다). 응답 뒤 연결을 닫는다 | `reason: "missing"\|"invalid"` |
 | 2001 | `replay.outOfRange` | false | 그 위치에서 재전송할 수 없다 | `reason`, `storeId`, `headSeq`, `oldestReplayableSeq` |
 | 2002 | `events.subscriptionNotFound` | false | 없는 구독 ID | `sub` |
 | 2003 | `events.subscriptionLimit` | false | 연결당 구독 한도 초과 | `max` |
@@ -1393,7 +1403,7 @@ settings:
 1. [결정: review.decisions-2 U-02] 승인 요청 방향은 A안(내구 이벤트 `approval.requested` + `approval.respond`)이다(§4.6).
 2. [미결] 설정 우선순위 표(§4.7). 관리 범위를 잠금 전용으로 둘지, 관리 기본값을 따로 둘지.
 3. [미결] 폐기 기간(§3.7). 제안은 12개월 또는 다음 주 버전 중 늦은 쪽.
-4. [미결] 서비스 모드 인증. Unix 소켓 + 파일 권한만으로 충분한지, 토큰을 필수로 할지(`_research/process.md` §6.4). 토큰을 실을 자리(`host.hello` `auth?`)와 오류 `host.authFailed`는 M2 선택 필드로 두었다(§3.3.1, §3.5.2). 원격은 [결정: review.decisions-2 U-11]로 M3에 넣되, 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 방식이다. 그래서 원격도 소켓 인증 규칙을 그대로 쓴다. 내장 TLS + 토큰 WebSocket 전송은 2차다.
+4. [결정: review.m3-design-inputs D-M3-16 c, M3-REQ-19] 서비스 모드 인증. 로컬 Unix 소켓은 파일 권한(0600)만으로 막고 `auth`를 받지 않는다. TCP로 열 때만 `host.hello`의 `auth.token`이 필수이고, 없거나 맞지 않으면 `host.authFailed`(`details.reason`: `missing`·`invalid`, 토큰 값은 싣지 않는다)로 응답한 뒤 연결을 닫는다. 어느 전송이 토큰을 요구하는지는 호스트가 정한다(계약은 `auth?`와 오류만 둔다). 토큰 열기 옵션과 회전은 `L0.process.spec`이 정한다(M3-REQ-43). 원격은 [결정: review.decisions-2 U-11]로 M3에 넣되, 로컬 서비스 소켓을 SSH 터널이나 사설망(Tailscale 등)으로 연결하는 방식이다. 그래서 원격도 소켓 인증 규칙을 그대로 쓴다. 내장 TLS + 토큰 WebSocket 전송은 2차다.
 5. [미결] 확장이 wire 메서드를 더하는 것을 허용할지(§4.2).
 6. [결정: review.decisions-2 U-24] TypeBox 버전은 1.3.27(catalog 정확 고정)이다. pi-ai가 1.3.27을 정확 고정하므로 같은 판으로 맞춰 한 사본만 설치한다. 1.4로 올리는 시점은 pi가 올릴 때다.
 7. [미결] `Seq`·`StoreId`를 F.records로 옮길지. `sto` 접두는 `IdPrefix`에 넣지 않고 저장소 정체성 ID 부류로 둔다(`F.conversation.spec` §3.2.1 ①) [제안].
