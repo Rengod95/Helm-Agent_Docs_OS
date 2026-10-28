@@ -30,6 +30,13 @@ export interface ToolContent {
   readonly details?: JsonValue;
 }
 
+/** 도구 호출이 잡을 잠금 하나(L1.tasks.spec FR-T6). `path`는 L1.tools가 `xeon.exec`의 canonicalPath로 정규화해 키를 만든다 */
+export interface ToolLockDecl {
+  readonly path: string;
+  /** read는 같은 경로의 다른 read와 함께 돌고, write는 단독으로 돈다 */
+  readonly access: "read" | "write";
+}
+
 export interface ToolSpec<
   K extends string = string,
   P extends TSchema = TSchema,
@@ -57,6 +64,11 @@ export interface ToolSpec<
   toContent?(output: Static<Md["output"]>): ToolContent;
   /** 재생 정책. 생략하면 "unsafe" */
   readonly replay?: ReplayPolicy;
+  /**
+   * 호출이 잡을 파일 경로 잠금. 생략하면 잠금 없이 돈다. 순수 함수. 메서드 문법으로 선언한다(`toInput`과 같은 이유)
+   * [제안: L1.tasks.spec FR-T6]
+   */
+  locks?(params: Static<P>): readonly ToolLockDecl[];
   /** 병렬 실행 허용 여부. 생략하면 L1.tools 기본값 */
   readonly executionMode?: ToolExecutionMode;
   readonly hints?: ToolHints;

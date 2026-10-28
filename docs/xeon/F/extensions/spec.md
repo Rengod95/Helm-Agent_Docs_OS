@@ -401,8 +401,8 @@ export type ExtensionEntry = (host: {
 ```ts
 // ports.ts
 import type { TSchema } from "typebox";
-import type { ThreadId, JsonValue, Usage } from "../conversation/index.ts";
-import type { ToolName } from "../capabilities/index.ts";
+import type { ThreadId, JsonValue, StepId, Usage } from "../conversation/index.ts";
+import type { CallerId, ToolHints, ToolName, ToolRisk } from "../capabilities/index.ts";
 import type { ProjectorRegistry, StoreService, RecordCommitPort, StoreError } from "../records/index.ts";
 import type { Result } from "../base/index.ts";
 import type { Unsubscribe, PostItem, PostWhen } from "./ops.ts";
@@ -794,7 +794,7 @@ export type CollectPointName = { [N in PointName]: PointSignatures[N]["fold"] ex
 | 14 | `tool.result` | tool | chain | ToolResultPayload | ToolResultPatch | skip | ● | `tool_result` | types.ts:1303/1455 | runner.ts:1183 emitToolResult | 같음(필드별 병합) |
 | 15 | `tool.execution.before` | tool | tap | ToolExecutionStartPayload | void | open |  | `tool_execution_start` | types.ts:1066 | runner.ts:1089 emit | 같음 |
 | 16 | `tool.execution.update` | tool | tap | ToolExecutionUpdatePayload | void | open |  | `tool_execution_update` | types.ts:1076 | runner.ts:1089 emit | 같음 |
-| 17 | `tool.execution.after` | tool | tap | ToolExecutionEndPayload | void | open |  | `tool_execution_end` | types.ts:1087 | runner.ts:1089 emit | 같음 |
+| 17 | `tool.execution.after` | tool | tap | ToolExecutionEndPayload | void | open |  | `tool_execution_end` | types.ts:1087 | runner.ts:1089 emit | 같음. `input`과 `stepId`를 더 싣는다(M3-REQ-04) |
 | 18 | `boundary.turn.before` | boundary | tap | AgentStartPayload | void | open |  | `agent_start` | types.ts:932 | runner.ts:1089 emit | Xeon turn 시작 |
 | 19 | `boundary.step.before` | boundary | tap | TurnStartPayload | void | open | ● | `turn_start` | types.ts:1030 | runner.ts:1089 emit | Xeon step 시작 |
 | 20 | `boundary.message.before` | boundary | tap | MessageStartPayload | void | open |  | `message_start` | types.ts:1047 | runner.ts:1089 emit | 같음 |
@@ -874,6 +874,12 @@ export interface ToolCallPayload {
   readonly input: Readonly<Record<string, JsonValue>>;
   /** 능력 도구면 대응 능력과 메서드(F.capabilities.spec §7) */
   readonly capability?: CapabilityRef;
+  /** 도구의 효과 범위. 미선언은 "exec"(L1.tools가 채운다). 그룹 핸들러의 쓰기 판정에 쓴다 [결정: M3-REQ-04] */
+  readonly risk: ToolRisk;
+  /** 도구 작성자의 정책 힌트. 검증되지 않는 선언이다 */
+  readonly hints?: ToolHints;
+  /** 호출 주체. 자식 대화(서브에이전트)의 호출을 구분한다 */
+  readonly caller: CallerId;
 }
 export interface ToolCallDecision {
   readonly block: true;
@@ -885,6 +891,20 @@ export interface ToolCallDecision {
 
 export interface ToolResultPayload extends Omit<ToolCallPayload, "input"> {
   readonly input: Readonly<Record<string, JsonValue>>;
+}
+
+// points/tool.ts, 지점 #17. M3-REQ-04가 input과 stepId를 더했다. 나머지 필드는 코드의 ToolExecutionEndPayloadSchema를 따른다
+export interface ToolExecutionEndPayload {
+  readonly toolCallId: string;
+  readonly toolName: ToolName;
+  /** 호출 인자(비밀을 가린 값) */
+  readonly input: Readonly<Record<string, JsonValue>>;
+  /** 호출이 속한 step. 학습 그룹의 step 중복 방지에 쓴다 */
+  readonly stepId: StepId;
+  readonly result: unknown;
+  readonly isError: boolean;
+  readonly durationMs?: number;
+  readonly parentToolCallId?: string;
 }
 export interface ToolResultValue {
   readonly content: readonly (TextContent | ImageContent)[];

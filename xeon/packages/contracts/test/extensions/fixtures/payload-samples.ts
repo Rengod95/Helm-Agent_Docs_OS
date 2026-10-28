@@ -33,6 +33,9 @@ const toolCall = {
   toolName: "read",
   input: { path: "a.txt" },
   capability: { id: "workspace.files", method: "read" },
+  risk: "read",
+  hints: { readOnly: true },
+  caller: "main",
 };
 
 /** 지점마다 payload 스키마를 통과해야 하는 표본. 스키마와 타입이 어긋나면 이 표본이 먼저 깨진다 */
@@ -79,7 +82,14 @@ export const PAYLOAD_SAMPLES: Readonly<Record<string, unknown>> = {
     args: { path: "a" },
     partialResult: "x",
   },
-  "tool.execution.after": { toolCallId: "call_1", toolName: "read", result: "ok", isError: false },
+  "tool.execution.after": {
+    toolCallId: "call_1",
+    toolName: "read",
+    input: { path: "a.txt" },
+    stepId: STEP,
+    result: "ok",
+    isError: false,
+  },
   "boundary.turn.before": { turnId: TURN },
   "boundary.step.before": { stepIndex: 0, stepId: STEP, timestamp: 1_700_000_000_000 },
   "boundary.message.before": { message: userText },

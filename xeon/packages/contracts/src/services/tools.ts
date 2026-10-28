@@ -4,11 +4,14 @@ import type {
   AnyCapabilityDef,
   CallContext,
   CallContinuation,
+  CallerId,
   CapabilityId,
   OrderedTool,
   ServiceKey,
   ToolName,
+  ToolClass,
   ToolRef,
+  ToolRisk,
   ToolSpec,
   ToolsetFingerprint,
 } from "../capabilities/index.ts";
@@ -59,12 +62,9 @@ export const ToolServicePortKey: PortKey<ToolService> = { name: ToolServiceName 
 
 // ── 도구 메타 ────────────────────────────────────────────────────────────
 
-/** 효과 범위. 미선언은 "exec"로 본다 */
-export type ToolRisk = "read" | "write" | "exec";
-export const TOOL_RISK_ORDER: readonly ToolRisk[] = ["read", "write", "exec"];
+export type { CallerId, ToolClass, ToolRisk } from "../capabilities/index.ts";
 
-/** 정책이 도구 이름 대신 쓰는 의미 표지. L1.agents의 자식 차단 목록이 쓴다 */
-export type ToolClass = "spawn" | "user_interaction" | "shared_state_write" | "external_send";
+export const TOOL_RISK_ORDER: readonly ToolRisk[] = ["read", "write", "exec"];
 
 /** 광고 방식. auto는 도구 수가 지연 임계를 넘을 때 지연 도구가 된다 */
 export type ExposureMode = "always" | "deferred" | "auto";
@@ -148,9 +148,6 @@ export type ToolRegistration = CapabilityToolsRegistration | DirectToolRegistrat
 export type Unregister = () => void;
 
 // ── 실행 맥락 ────────────────────────────────────────────────────────────
-
-/** 호출 주체. 정의 이름은 L1.agents의 AgentDefinition.name */
-export type CallerId = "main" | `subagent:${string}`;
 
 export interface ToolRunDrafts {
   /**

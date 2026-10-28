@@ -236,6 +236,13 @@ export interface ToolContent {
   readonly details?: JsonValue;
 }
 
+/** 도구 호출이 잡을 잠금 하나. path는 L1.tools가 xeon.exec의 canonicalPath로 정규화해 키를 만든다 */
+export interface ToolLockDecl {
+  readonly path: string;
+  /** read는 같은 경로의 다른 read와 함께 돌고, write는 단독으로 돈다 */
+  readonly access: "read" | "write";
+}
+
 export interface ToolSpec<
   K extends string = string,
   P extends TSchema = TSchema,
@@ -263,6 +270,8 @@ export interface ToolSpec<
   toContent?(output: Static<Md["output"]>): ToolContent;
   /** 재생 정책. 생략하면 "unsafe" */
   readonly replay?: ReplayPolicy;
+  /** 호출이 잡을 파일 경로 잠금. 생략하면 잠금 없이 돈다. 순수 함수. toInput과 같은 이유로 메서드 문법이다 [제안: L1.tasks.spec FR-T6] */
+  locks?(params: Static<P>): readonly ToolLockDecl[];
   /** 병렬 실행 허용 여부. 생략하면 L1.tools 기본값 */
   readonly executionMode?: ToolExecutionMode;
   readonly hints?: ToolHints;
@@ -290,6 +299,8 @@ export interface OrderedTool extends ToolRef {
 ```
 
 - 기계 이름과 표시 제목의 분리는 pi 형태를 그대로 쓴다. pi-ai `Tool.name`(`~/projects/_ref/pi-src/packages/ai/src/types.ts:749-754`)과 F `AgentTool.label`(출처는 pi-agent-core `AgentTool.label`, `~/projects/_ref/pi-src/packages/agent/src/types.ts:466-469`)이다. 계획 v2는 이 항목을 2차로 두었지만 pi에 이미 있으므로 M0에 같이 넣는다(F.capabilities.plan).
+- [결정: m3a F] `ToolRisk`, `ToolClass`, `CallerId`와 스키마 `ToolRiskSchema`, `CallerIdSchema`, `ToolHintsSchema`는 `capabilities/tool-meta.ts`가 정의한다. 도구 지점 페이로드(`extensions`)가 같은 값을 싣는데 `services`가 `extensions`보다 위층이라서다. `services/tools.ts`는 `CallerId`, `ToolClass`, `ToolRisk`를 다시 내보내므로 import 경로는 그대로 쓸 수 있다.
+- [제안: L1.tasks.spec FR-T6, M3-REQ-04] `ToolSpec.locks`는 호출 인자에서 잠글 경로와 접근 방식(`read`, `write`)을 낸다. 키 산출(`${env.id}\0${realpath}`)과 대기는 L1.tools가 한다(`L1.tools.spec` §4.2 7b). 잠금 선언이 없으면 키 큐를 쓰지 않는다. core-tools의 `LockDecl.mode`(`shared`, `exclusive`)는 이 선언으로 바꿀 때 `read` → `shared`, `write` → `exclusive`로 옮긴다.
 - `ToolSpec`은 `execute`를 갖지 않는다. 실행 함수는 L1.tools가 `ToolSpec`과 provider 서비스로부터 만든다(§4.2). 그래서 `ToolSpec`은 F `AgentTool`의 상위 형식이 아니다. core-tools는 `ToolSpec`을 `AgentTool`로 바꾸지 않고 내부 도구 항목(`ToolEntry`, `entries.ts`)으로 바꾼다. 필드 대응은 다음과 같다.
 
 | `ToolSpec` 필드 | `AgentTool` 필드 | 변환 |
@@ -831,7 +842,7 @@ export function orderProviderCandidates(input: ProviderOrderInput): {
 | `services/process.ts` | `ProcessService`, `BackgroundRegistry`와 관련 타입, `ShutdownCoordinator`, `ShutdownReason` | `L0.process.spec` §3.1(그 문서 FR-P7) |
 | `services/secrets.ts` | `SecretService`, `SecretServiceName`, `UseCtx`, `SecretUseTarget`, `ApprovalEvidence`(`capabilities`의 `SecretApprovalEvidence` 별칭), `SecretValueView`, `SecretLease`, `SecretProviderCapabilities`, `ProviderEntry`, `SecretProvider`, `RegisterKnownError`, `Redactor`, `SecretStatus`, `SecretListing`, `UseDecision`, `ApprovalPrompt`, `HttpTemplate`, `ConcreteHttpRequest`, `HttpResponseLike`, `SecretDiagnostics`, `SecretError`, `KeyProviderIdPublic`. 값 타입과 참조 형식(`SecretName`, `SecretHandle`, `SecretRefError`, `SecretUseMode`, `SecretProviderId`, `SecretMeta`, `SecretDenyReason`, `RedactionHit`, `SecretAuditRecord`)은 `../capabilities`에서 가져온다(§3.10) | `L0.secrets.spec` §3.3~§3.6, §3.10 |
 | `services/secret-admin.ts` | `SecretAdminService`, `SecretAdminServiceName`, `SecretValueSource`, `HumanReauth`(`method: ReauthMethod`), `SecretMetaPatch`, `SecretTestResult`, `SecretReferenceReport`. in-process 값 전달 통로 `SecretOutOfBandPort`, `SecretEntryOffer`, `SecretRevealOffer`, `SecretEntryAction`(wire `secret.beginEntry`·`secret.beginReveal`이 값 없이 시작만 알리고 CLI가 입력·열람 수단을 wire 밖으로 맡긴다, `F.wire-settings.spec` §3.3.1). `secrets.ts`를 import한다 | `L0.secrets.spec` §3.8, `L4.cli.spec` §4.7 |
-| `services/tools.ts` | `ToolService`, `ToolServiceName`, 도구 메타(`ToolRisk`, `ToolClass`, `ToolMeta`, `ToolPolicyMeta`), 정책 값 타입(`PolicyRule`, `TieredRule`, `PolicyInput`, `PolicyDecision`, `PolicyCeiling`, `PolicyRuleSchema`, `CallerId`, `PermissionMode`), `ToolRunContext`, `ToolRunDrafts`(`ToolRunContext.drafts`: 소유 컨텍스트가 낙인한 toolResult 초안과 승인 대기 체크포인트 초안을 만드는 생성기), 광고 타입. 정책 평가 함수(`evaluatePolicy`, `ruleMatches`, `validateRules`)는 core-tools가 구현하고 F에는 두지 않는다. 도구 인자를 이벤트에 그대로 싣는 한도(192 KiB, 넘으면 blob)는 core-tools 상수다. F는 `ToolApprovalBody.args`가 `BlobRef`를 받을 수 있게만 한다 [결정: open-issues V-08] | `L1.tools.spec` §3 |
+| `services/tools.ts` | `ToolService`, `ToolServiceName`, 도구 메타(`ToolRisk`, `ToolClass`는 `capabilities/tool-meta.ts`가 정의하고 다시 내보낸다, `ToolMeta`, `ToolPolicyMeta`), 정책 값 타입(`PolicyRule`, `TieredRule`, `PolicyInput`, `PolicyDecision`, `PolicyCeiling`, `PolicyRuleSchema`, `CallerId`, `PermissionMode`), `ToolRunContext`, `ToolRunDrafts`(`ToolRunContext.drafts`: 소유 컨텍스트가 낙인한 toolResult 초안과 승인 대기 체크포인트 초안을 만드는 생성기), 광고 타입. 정책 평가 함수(`evaluatePolicy`, `ruleMatches`, `validateRules`)는 core-tools가 구현하고 F에는 두지 않는다. 도구 인자를 이벤트에 그대로 싣는 한도(192 KiB, 넘으면 blob)는 core-tools 상수다. F는 `ToolApprovalBody.args`가 `BlobRef`를 받을 수 있게만 한다 [결정: open-issues V-08] | `L1.tools.spec` §3 |
 | `services/policy.ts` | `PolicyEvaluator`(평가기 함수 모양), `ChildPolicyView`, `stricter`, `matchToolGlob`, `childDecision`. 자식 대화의 권한 상한을 계산하는 순수 함수다. 평가기를 인자로 받으므로 core-tools와 core-agents가 서로를 import하지 않고 쓴다 [결정: m2-plan F.4, L1.tools·L1.agents F 요청 9] | `L1.tools.spec` §4.5, `L1.agents.spec` §4.3 |
 | `services/approvals.ts` | `ApprovalService`(`request`, `respond`, `pending`, `restore`, `cancel`과 비차단 `open`·`wait`·`get`, `OpenedApproval`, `ApprovalWaitFailure`, `respond`의 결과 `ApprovalApplyOutcome`과 이유 `ApprovalNotAppliedReason`·`APPROVAL_NOT_APPLIED_REASONS` [결정: m2c G1-09]). 만료: `ApprovalRequestInput.expiresAt`·`onExpire`(`ApprovalOnExpire`), `ApprovalResolvedBy`의 `expired`, `L2ApprovalRequest`의 같은 이름 필드, `L2ApprovalSnapshot.resolution.resolvedBy` [결정: m2c G1-11], `ApprovalServiceName`, 호출자 `ApprovalCaller`와 변환 함수 `approvalCallerOf` [결정: m2c G1-09], 승인 값 타입(`ApprovalKind`, `ApprovalBody`, `ApprovalRequest`, `ApprovalResolution`, `ApprovalRequestError`, `QuestionAnswer`, `PlanAnswer`, `DenyAnswer` 등. 질문 항목에 선택 필드 `header`, 선택지에 `recommended`) [결정: m2 F.8]. L2 공통 승인 포트 `L2ApprovalsPort`와 `L2ApprovalKind`, `L2ApprovalSnapshot`, `L2ApprovalRequest`, `L2ApprovalRespondInput`(`respond`의 결과도 `ApprovalApplyOutcome`), `L2_APPROVAL_REQUEST_ID_MAX`(48. services는 records를 값으로 import하지 않아 `records/commit.ts`의 `APPROVAL_REQUEST_KEY_MAX`와 같은 값을 거울로 두고 시험이 지킨다. 키 변환은 `requestKeyFor` 하나다 [결정: 통합 검토 L6]). 실패는 `Result` 오류 값이다. cap-*가 `ApprovalService`를 이 모양으로 감싼다 [결정: m2-plan F.4, L2.readme §5.7] | `L1.tools.spec` §3.6, `L2.readme` §5.7 |
 | `services/agents.ts` | `AgentService`, `AgentServiceName`, `AgentServicePortKey`. `SpawnRequest` 등 값 타입의 위치는 `L1.agents.spec` §8.3 8번을 따른다 | `L1.agents.spec` §3.3 |
