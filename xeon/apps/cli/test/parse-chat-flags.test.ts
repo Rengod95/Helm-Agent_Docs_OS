@@ -31,6 +31,7 @@ test("no arguments on a tty is the interactive chat", () => {
     output: "text",
     target: { kind: "new" },
     overrides: [],
+    safeMode: false,
   });
   expect(chat(["chat"])).toEqual(chat([]));
 });
@@ -131,4 +132,12 @@ test("help wins over a parse error in the same command line", () => {
     ok: true,
     value: { command: { kind: "help", topic: "chat" } },
   });
+});
+
+test("--safe-mode is a chat flag in any position and defaults to off", () => {
+  expect(chat(["--safe-mode"]).safeMode).toBe(true);
+  expect(chat(["chat", "--safe-mode"]).safeMode).toBe(true);
+  expect(chat(["chat", "-p", "x", "--safe-mode"]).safeMode).toBe(true);
+  expect(chat(["chat"]).safeMode).toBe(false);
+  expect(code(["sessions", "ls", "--safe-mode"])).toBe("unknownFlag");
 });

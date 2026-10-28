@@ -31,7 +31,9 @@ const OVERVIEW = `xeon: 대화형 에이전트 런타임
   trust [status] [--json]   이 작업 폴더의 프로젝트 신뢰 상태와 선택지를 보인다
   trust allow|deny [--scope folder|parent|session]
                             신뢰 결정을 보낸다. 신뢰하면 .mcp.json, 프로젝트 스킬, 프로젝트 명령을 읽는다
-  service start|status|stop|ensure  서비스 모드 (M3)
+  service start|status|stop|ensure [--json] [--safe-mode] [--listen-tcp <호스트>:<포트>]
+                            공유 서비스 모드. start·ensure는 서비스를 띄우고(이미 떠 있으면 붙는다),
+                            status·stop은 조회·정지한다. 안전 모드와 TCP는 새로 띄울 때만 적용된다
   doctor [--json]           진단: 엔진, 저장소, 비밀 저장소, 터미널, 검색 provider
   version [--json]          버전
 

@@ -21,6 +21,7 @@ function command(input: string | null): ChatCommand {
     output: "text",
     target: { kind: "new" },
     overrides: [],
+    safeMode: false,
   };
 }
 

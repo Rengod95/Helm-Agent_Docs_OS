@@ -1,5 +1,6 @@
 import { afterEach, expect, test } from "bun:test";
 import { WIRE_PROTOCOL_VERSION } from "@xeon/contracts/wire";
+import type { HostCommand } from "@xeon/host";
 import { EXIT } from "../src/exit-codes.ts";
 import { assistantItem, turnCompleted } from "./support/events.ts";
 import type { TurnContext } from "./support/fake-server.ts";
@@ -53,9 +54,11 @@ test("help lists the commands that exist and marks the ones that come later", as
   ]) {
     expect(text).toContain(word);
   }
-  // 아직 없는 명령만 마일스톤을 밝힌다
+  // 모든 명령이 있다: 마일스톤 표시가 남지 않는다
   expect(text).not.toContain("(M2)");
-  expect(text).toContain("(M3)");
+  expect(text).not.toContain("(M3)");
+  expect(text).toContain("service start|status|stop|ensure");
+  expect(text).toContain("--safe-mode");
   expect(text).not.toContain("launch-mode");
   expect(text).not.toContain("host --stdio");
   expect(h.methods()).toEqual([]);
@@ -70,20 +73,58 @@ test("help <topic> shows the topic and falls back to the overview", async () => 
   expect(other.stdoutText()).toContain("명령");
 });
 
-test("service commands come with M3 and say so on two lines and exit 1", async () => {
-  const cases: readonly (readonly [readonly string[], string, string])[] = [
-    [["service", "status"], "service", "M3"],
-  ];
-  await Promise.all(
-    cases.map(async ([argv, name, milestone]) => {
-      const h = harness();
-      expect(await h.run(argv)).toBe(EXIT.error);
-      expect(h.stderrText()).toBe(
-        `xeon: ${name}은 아직 제공하지 않는다\n  해결: ${milestone}에서 제공한다. xeon --help로 지금 쓸 수 있는 명령을 확인한다\n`,
-      );
-      expect(h.closed()).toBe(false);
-    }),
+test("service commands run through runHostCommand and its code is the exit code", async () => {
+  const seen: HostCommand[] = [];
+  const h = harness({
+    runHostCommand: (command) => {
+      seen.push(command);
+      return Promise.resolve(command.kind === "service-status" ? 1 : 0);
+    },
+  });
+  expect(await h.run(["service", "start"])).toBe(0);
+  expect(await h.run(["service", "start", "--safe-mode", "--listen-tcp", "127.0.0.1:7777"])).toBe(
+    0,
   );
+  expect(await h.run(["service", "status", "--json"])).toBe(1);
+  expect(await h.run(["service", "stop"])).toBe(0);
+  expect(await h.run(["service", "ensure", "--safe-mode"])).toBe(0);
+  expect(await h.run(["service", "run", "--safe-mode"])).toBe(0);
+  expect(seen).toEqual([
+    { kind: "service-start" },
+    { kind: "service-start", safeMode: true, tcp: { host: "127.0.0.1", port: 7777 } },
+    { kind: "service-status", json: true },
+    { kind: "service-stop" },
+    { kind: "service-ensure", safeMode: true },
+    { kind: "service-run", safeMode: true },
+  ]);
+  // 엔진을 이 프로세스에서 열지 않는다
+  expect(h.methods()).toEqual([]);
+});
+
+test("service flags that do not fit the sub-command are usage errors", async () => {
+  const cases: readonly (readonly string[])[] = [
+    ["service", "status", "--safe-mode"],
+    ["service", "stop", "--listen-tcp", "127.0.0.1:1"],
+    ["service", "ensure", "--listen-tcp", "127.0.0.1:1"],
+    ["service", "start", "--listen-tcp", "nohost"],
+    ["service", "start", "--listen-tcp", "x:70000"],
+    ["service"],
+    ["service", "bogus"],
+  ];
+  const codes = await Promise.all(cases.map((argv) => harness().run(argv)));
+  expect(codes).toEqual(cases.map(() => EXIT.usage));
+});
+
+test("--safe-mode on chat is handed to the engine as AssembleOptions.safeMode and is off otherwise", async () => {
+  const on = harness({ server: { onTurn: oneAnswer } });
+  await on.run(["chat", "--safe-mode", "-p", "x"]);
+  expect(on.startOptions[0]?.safeMode).toBe(true);
+  const off = harness({ server: { onTurn: oneAnswer } });
+  await off.run(["chat", "-p", "x"]);
+  expect(off.startOptions[0]).not.toHaveProperty("safeMode");
+  const bare = harness({ server: { onTurn: oneAnswer } });
+  await bare.run(["--safe-mode", "-p", "x"]);
+  expect(bare.startOptions[0]?.safeMode).toBe(true);
 });
 
 function oneAnswer(context: TurnContext): void {

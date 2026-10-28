@@ -14,17 +14,6 @@ import type { CliDeps, CliIo } from "./io.ts";
 export type { CliDeps, CliIo, CliSignal } from "./io.ts";
 export type { ExitCode } from "./exit-codes.ts";
 
-/** 아직 제공하지 않는 명령(service는 M3) */
-async function notYet(io: CliIo, name: string, milestone: "M3"): Promise<ExitCode> {
-  await io.stderr(
-    renderFailure({
-      message: `${name}은 아직 제공하지 않는다`,
-      fix: `${milestone}에서 제공한다. xeon --help로 지금 쓸 수 있는 명령을 확인한다`,
-    }),
-  );
-  return EXIT.error;
-}
-
 /** 프로세스 밖 효과는 io와 deps로만 한다. 종료 코드를 돌려주고, process.exit는 호출자가 한다 */
 export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps): Promise<ExitCode> {
   const parsed = parseArgv(argv, io.terminal, io.env);
@@ -85,8 +74,10 @@ export async function runCli(argv: readonly string[], io: CliIo, deps: CliDeps):
       const { runHostStdio } = await import("./commands/host.ts");
       return runHostStdio(ctx);
     }
-    case "service":
-      return notYet(io, "service", "M3");
+    case "service": {
+      const { runService } = await import("./commands/service.ts");
+      return runService(ctx, command);
+    }
     default:
       return assertNever(command, "CliCommand");
   }

@@ -33,6 +33,8 @@ export interface ChatCommand {
   readonly output: OutputMode;
   readonly target: ChatTarget;
   readonly overrides: readonly SessionOverride[];
+  /** `--safe-mode`: 이번 시작에 외부 확장과 L3 내장 그룹을 싣지 않는다(X.operations.spec §4.6.1) */
+  readonly safeMode: boolean;
 }
 
 export type SessionsCommand =
@@ -111,11 +113,15 @@ export type SecretCommand =
   | { readonly kind: "secret.test"; readonly name: SecretName; readonly output: OutputMode }
   | { readonly kind: "secret.reveal"; readonly name: SecretName };
 
-interface ServiceCommand {
+export interface ServiceCommand {
   readonly kind: "service";
   /** ensure·launch-mode는 --json만, launch-mode·run은 도움말에 숨긴다 */
   readonly action: "start" | "status" | "stop" | "ensure" | "launch-mode" | "run";
   readonly output: OutputMode;
+  /** `--safe-mode`. start·ensure·run만. 새로 띄우는 서비스가 안전 모드로 시작한다 */
+  readonly safeMode: boolean;
+  /** `--listen-tcp <host>:<port>`. start·run만. 서비스가 TCP로도 연다(토큰은 등록 파일에 있다) */
+  readonly listenTcp: { readonly host: string; readonly port: number } | null;
 }
 /** @xeon/host의 HostCommand(runHostCommand 입력)와 다른 타입이다. 이름을 나눠 둔다. */
 interface CliHostCommand {
@@ -422,6 +428,7 @@ const CHAT_FLAGS: FlagTable = {
   "--continue": { value: "none" },
   "--resume": { value: "required" },
   "--set": { value: "required", repeat: true },
+  "--safe-mode": { value: "none" },
 };
 
 function parseChat(
@@ -488,7 +495,15 @@ function parseChat(
       usage("jsonRequiresPrint", "--json은 print 모드에서만 쓴다", "-p <입력>과 함께 쓴다"),
     );
   }
-  return ok({ kind: "chat", mode, input, output, target, overrides });
+  return ok({
+    kind: "chat",
+    mode,
+    input,
+    output,
+    target,
+    overrides,
+    safeMode: has(flags, "--safe-mode"),
+  });
 }
 
 function parseConfig(acc: GlobalAcc, rest: readonly string[]): Result<ConfigCommand, UsageError> {
@@ -1088,6 +1103,14 @@ const SERVICE_ACTIONS: readonly ServiceCommand["action"][] = [
   "run",
 ];
 
+function listenAddressOf(text: string): { readonly host: string; readonly port: number } | null {
+  const colon = text.lastIndexOf(":");
+  if (colon <= 0) return null;
+  const port = Number(text.slice(colon + 1));
+  if (!Number.isInteger(port) || port < 0 || port > 65_535) return null;
+  return { host: text.slice(0, colon), port };
+}
+
 function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCommand, UsageError> {
   const [actionText, ...tail] = rest;
   if (actionText === undefined) {
@@ -1109,14 +1132,57 @@ function parseService(acc: GlobalAcc, rest: readonly string[]): Result<ServiceCo
       ),
     );
   }
-  const scanned = scanArgs(acc, tail, { "--json": { value: "none" } });
+  const scanned = scanArgs(acc, tail, {
+    "--json": { value: "none" },
+    "--safe-mode": { value: "none" },
+    "--listen-tcp": { value: "required" },
+  });
   if (!scanned.ok) return scanned;
   if (scanned.value.positionals.length > 0) {
     return err(
-      usage("unexpectedArgument", "service는 위치 인자를 받지 않는다", "--json만 쓸 수 있다"),
+      usage(
+        "unexpectedArgument",
+        "service는 위치 인자를 받지 않는다",
+        "--json, --safe-mode, --listen-tcp만 쓸 수 있다",
+      ),
     );
   }
-  return ok({ kind: "service", action, output: outputOf(scanned.value) });
+  const flags = scanned.value;
+  const safeMode = has(flags, "--safe-mode");
+  if (safeMode && !["start", "ensure", "run"].includes(action)) {
+    return err(
+      usage(
+        "unexpectedArgument",
+        `service ${action}은 --safe-mode를 받지 않는다`,
+        "--safe-mode는 서비스를 새로 띄우는 start, ensure와 run에만 쓴다",
+      ),
+    );
+  }
+  let listenTcp: ServiceCommand["listenTcp"] = null;
+  const listen = valueOf(flags, "--listen-tcp");
+  if (listen !== null) {
+    if (action !== "start" && action !== "run") {
+      return err(
+        usage(
+          "unexpectedArgument",
+          `service ${action}은 --listen-tcp를 받지 않는다`,
+          "--listen-tcp는 서비스를 새로 띄우는 start와 run에만 쓴다",
+        ),
+      );
+    }
+    const parsed = listenAddressOf(listen);
+    if (parsed === null) {
+      return err(
+        usage(
+          "unexpectedArgument",
+          `--listen-tcp 값이 주소가 아니다 (${listen})`,
+          "--listen-tcp <호스트>:<포트> 형식으로 쓴다 (예: 127.0.0.1:7777)",
+        ),
+      );
+    }
+    listenTcp = parsed;
+  }
+  return ok({ kind: "service", action, output: outputOf(flags), safeMode, listenTcp });
 }
 
 function parseHost(acc: GlobalAcc, rest: readonly string[]): Result<CliHostCommand, UsageError> {
